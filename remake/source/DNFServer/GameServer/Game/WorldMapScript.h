@@ -47,7 +47,10 @@ public:
     std::string m_uiPath;                         // +0x0c ([ui path])
     int m_field10;                                // +0x10（[map image] 后 ScanInt）
     std::vector<WorldMapDungeon> m_dungeons;      // +0x14 ([dungeon])
-    unsigned char m_isHellDungeon;                // +0x20 ([hell dungeon])
+    // [b28d-Main 代落·S139 P292/P248档②] unsigned char→bool：消 set_world_map
+    // 0x08… 的 `test; setne %dl` 物化（ORIG 直 movzbl→mov）。1 字节宽度不变，
+    // sizeof/偏移/mangled 零影响；消费点 CtorProducers_1.cpp:889/976/1081。
+    bool m_isHellDungeon;                         // +0x20 ([hell dungeon])
     std::vector<int> m_hellQuests;                // +0x24 ([hell quest])
     std::vector<std::pair<int, int> > m_freepassItems;  // +0x30 ([hell freepass item])
     std::vector<int> m_itemConditions;            // +0x3c ([item condition])

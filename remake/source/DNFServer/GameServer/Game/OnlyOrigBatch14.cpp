@@ -95,6 +95,13 @@ static unsigned int ROL(unsigned int value, int count)
     return value;
 }
 
+// [b28d-solo-OnlyOrigBatch14] N 封顶（rotate lowering 跨版本）：ORIG 0x0809c42d
+// 10 insn = `mov value,%eax; mov count,%edx; mov %edx,%ecx; ror %cl,%eax;
+// mov %eax,0x8(%ebp); mov 0x8(%ebp),%eax`（寄存器 rotate + 写回参数槽）；
+// 4.4.6 恒折内存目标 `rorl %cl,0x8(%ebp)`（8 insn）。探针
+// /tmp/b28d_solo14_probe1.cpp r1..r10 十形穷举（赋值形/单表达式 return/
+// `return value=expr`/局部中转/掩码/交换操作数）无一复现寄存器形 ⇒ 采用
+// gap 最小的写回形，语义与 ORIG 全等。
 static unsigned int ROR(unsigned int value, int count)
 {
     value = (value >> count) | (value << (32 - count));
@@ -126,7 +133,9 @@ static void pi3(unsigned long* buf, unsigned long* key)
     t = ROL(t, 2) + t + 1;
     t = ROL(t, 8) ^ t;
     t = t + (unsigned int)key[2];
-    t = ROL(t, 1);
+    // [b28d-solo-OnlyOrigBatch14] 真语义修正：ORIG 0x080b47aa `sub -0x4(%ebp),%eax`
+    // ⇒ 原码是 `t = ROL(t,1) - t`（此前漏写 `- t`）。
+    t = ROL(t, 1) - t;
     t = ROL(t, 16) ^ ((unsigned int)buf[0] | t);
     buf[1] = (unsigned long)((unsigned int)buf[1] ^ t);
 }
@@ -144,25 +153,31 @@ static void pi4(unsigned long* buf, unsigned long* key)
 // 每步后 j==n 即返回；一轮后 i^=4。
 static void encrypt(unsigned long* buf, int n, unsigned long* key)
 {
-    int i = 0;
+    // [b28d-solo-OnlyOrigBatch14] ORIG 0x80b498c 形 `movl $0,-0x8(j);
+    // mov -0x8,%eax; mov %eax,-0x4(i)` = j 先声明（4.4 先声明占深槽 ⇒
+    // j@-0x8/i@-0x4 与 ORIG 一致）+ i 由 j 初始化（同一 mov-mov 拷贝形）。
     int j = 0;
+    int i = j;
     for (;;)
     {
         pi1(buf);
         ++j;
-        if (j == n)
+        // [b28d-solo-OnlyOrigBatch14] P225：ORIG `cmp n,%eax; sete %al;
+        // test %al,%al; jne <return岛>`（4.1 bool 物化）——`if` 直写 4.4 恒
+        // 折 `je`；while+return 形复现物化。
+        while (j == n)
             return;
         pi2(buf, key + i);
         ++j;
-        if (j == n)
+        while (j == n)
             return;
         pi3(buf, key + i);
         ++j;
-        if (j == n)
+        while (j == n)
             return;
         pi4(buf, key + i);
         ++j;
-        if (j == n)
+        while (j == n)
             return;
         i ^= 4;
     }
@@ -185,7 +200,11 @@ static void decrypt(unsigned long* buf, int n, unsigned long* key)
     // P212：全头部声明 4.1/4.4 同为「先声明深」⇒ ORIG i@-0x4/j@-0x8 要求 j 先声明；
     // i 的初始化先于 j 的赋值（ORIG `mov %eax,-0x4; mov 0xc(%ebp),%eax; mov %eax,-0x8`）。
     int j;
-    int i = (n & 1) ? 0 : 4;
+    // [b28d-solo-OnlyOrigBatch14] 首句三目必须写 `((n & 1) == 0) ? 4 : 0`（非 `(n&1)?0:4`）：
+    // ORIG 0x80b4a52 形 `and $1,%eax; test %eax,%eax; jne L0; mov $4; jmp; L0: mov $0`
+    // 要求 32 位 test + 「4 前置、0 后置」块序；`==0` 逆序写法在 4.4.6 逐条复现
+    // （探针 /tmp/b28d_solo14_probe1.cpp d1 vs d6），语义等价（i∈{0,4}）。
+    int i = ((n & 1) == 0) ? 4 : 0;
     j = n;
     for (;;)
     {
@@ -273,6 +292,10 @@ static unsigned long long sha512_bswap64(unsigned long long v)
 }
 
 // ORIG _ZL16SHA512_TransformPmS_ @0x80c077c：压缩函数（与 SHA384 同体）。
+// [b28d-solo-OnlyOrigBatch14] §6.2 大件（orig 2209 insn）：ORIG 为 4.1 对
+// 64 位字运算的**完全展开**形（无循环、2209 条），我方 458 条为等价循环实现
+// （FIPS 180-4 标准算法，向量测试通过）。算法类只保证语义正确（§6 口径）；
+// gap 属循环抽象 vs 物理展开，P165「we-smaller」判定同族，不做逐条 identical。
 static void SHA512_Transform(unsigned long* state, unsigned long* data)
 {
     const unsigned long long* m =
@@ -339,6 +362,8 @@ static void SHA512_Transform(unsigned long* state, unsigned long* data)
 }
 
 // ORIG _ZL16SHA384_TransformPmS_ @0x80be32c：同 SHA512 压缩。
+// [b28d-solo-OnlyOrigBatch14] §6.2 大件（orig 2209 insn）：同 SHA512_Transform
+// 判词（ORIG 完全展开 vs 我方等价循环；算法正确性优先）。
 static void SHA384_Transform(unsigned long* state, unsigned long* data)
 {
     const unsigned long long* m =
@@ -426,7 +451,8 @@ int SetSockNonb(int fd, unsigned long arg)
 // movb $0,-0x5；两写点 089bd065/089bd06b）+ **无符号边界**（089bd046
 // cmpl $0xb,0x8(%ebp) 直比参数槽 + ja，P137/P2）+ 末尾 movzbl 读回。
 bool IsDamageActiveStatus(int status)
-// [b28d-D66 判词·N 封顶（N6 位折叠 + P209）] ORIG 24 insn / 我们 27 insn，两处残差：
+// [b28d-solo-OnlyOrigBatch14 复核 D66 判词·N 封顶（N6 位折叠 + P209）]
+// ORIG 24 insn / 我们 27 insn，两处残差：
 // ①边界比较 ORIG @0x089bd046 `cmpl $0xb,0x8(%ebp); ja`（无符号内存直比），4.4 对
 // unsigned 参与的形参比较恒先载寄存器（`mov 0x8(%ebp),%eax; cmp $0xb,%eax`，P209），
 // 写 signed 会翻 jle 助记符更劣；
@@ -454,7 +480,10 @@ bool IsDamageActiveStatus(int status)
 // ORIG T 0x0808c74b _Z13PI_GetType_SCcs：type==1 查表、type==2 if 链、缺省 0。
 int PI_GetType_SC(char type, short value)
 {
-    if (type == 1)
+    // [b28d-solo-OnlyOrigBatch14] ORIG 0x0808c75e `movsbl -0x4(%ebp),%eax;
+    // cmp $0x1,%eax`（符号扩展后整字比较）⇒ 源码按 int 提升比较；裸 char
+    // 比较在 4.4 恒产 `cmpb $0x1,-0x4(%ebp)`。
+    if ((int)type == 1)
     {
         switch (value)
         {
@@ -472,7 +501,7 @@ int PI_GetType_SC(char type, short value)
         default:   return 0;
         }
     }
-    if (type == 2)
+    if ((int)type == 2)
     {
         if (value == 0x28) return 4;
         if (value == 0x8e) return 5;
@@ -491,6 +520,12 @@ int PI_GetType_SC(char type, short value)
 }
 
 // ORIG T 0x0808bc7e _Z6Rand_rPj：LCG rand_r（NULL 时用全局种子）。
+// [b28d-solo-OnlyOrigBatch14 复核 lane24 判词·N 封顶] 唯一残差 = NULL 分支
+// `staticSeed = timeGetTime() + staticSeed`：ORIG 0x0808bc8f `mov %eax,%edx;
+// mov staticSeed,%eax; lea (%edx,%eax,1),%eax`（RHS-first + lea），4.4 恒
+// `mov staticSeed,%edx; add %edx,%eax`（LHS-first + add）。P211 负例（static
+// 存储期变量复合赋值装载序不可翻，b28c C28L24 三救均败）+ add/lea 跨版本；
+// 其余 49 条与 ORIG 全等。
 unsigned int Rand_r(unsigned int* seed)
 {
     static unsigned int staticSeed = 0;  // ORIG _ZZ6Rand_rPjE10staticSeed 0x0936e480
@@ -529,6 +564,10 @@ unsigned int Rand_r(unsigned int* seed)
 // ============================================================================
 
 // ORIG T 0x088bdb56 _Z11ScanAnyDataRiRSsS_b：任意类型值扫描。
+// [b28d-solo-OnlyOrigBatch14] N 封顶（N98/N82 槽序）：ORIG bool 槽 -0xd /
+// 结果槽 -0x14 与 4.4 -0x11 / -0x10 互换（4.4 栈槽按首次使用序分配，声明序
+// 翻转实测无效，b28c C28L8）；另有形参直传 `movl $0,(%esp)` vs ORIG 槽中转。
+// 控制流与全部调用点已逐段核对，语义等价。
 bool ScanAnyData(int& type, std::string& str, int& value, bool ignoreUnknown)
 {
     type = 3;
@@ -650,6 +689,9 @@ void ScanChampionFeatures(int count, STAICharacterMapArrangeData& data)
 }
 
 // ORIG T 0x08a65da5 _Z15ScanRewardItemsRSt6vectorI14RewardItemInfoSaIS0_EESs。
+// [b28d-solo-OnlyOrigBatch14] N 封顶（N98 槽按首次使用分配）：ORIG 双 bool 槽
+// -0xd/-0xf 与 4.4 -0xe/-0xd 互换（声明序翻转无效）；bool 物化岛极性
+// je/jne 随槽号错位（P292 同族）。语义与 ORIG 等价。
 bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
 {
     bool ok1 = false;
@@ -701,8 +743,11 @@ void exportCharacterGiveSkillScript(FILE* fp, std::vector<std::pair<int, int> >*
     if (!vec->empty())
     {
         fwrite("[skill]\n", 1, 8, fp);
+        // [b28d-solo-OnlyOrigBatch14] ORIG 0x08a10083 增量段调 `ppEi`（后置
+        // `operator++(int)`，3 参数含 sret 临时槽 -0xc）⇒ 必须写 `it++`（P28
+        // 增量侧推论）；`++it` 走 ppEv 免临时槽、后续槽整体上移。
         for (std::vector<std::pair<int, int> >::iterator it = vec->begin();
-             it != vec->end(); ++it)
+             it != vec->end(); it++)
         {
             fprintf(fp, "%d %d\n", it->first, it->second);
         }
@@ -711,6 +756,9 @@ void exportCharacterGiveSkillScript(FILE* fp, std::vector<std::pair<int, int> >*
 }
 
 // ORIG T 0x08a100f3 _Z29exportCharacterEtcStatsScriptP8_IO_FILEP17CharacterEtcStats。
+// [b28d-solo-OnlyOrigBatch14] N 封顶（P232/P182 帧差）：ORIG 帧 sub $0x30
+// 且 i@-0x14（另含 dead 槽），4.4 帧 sub $0x20、i@-0x10；帧差 0x10 + 槽平移
+// 属 4.1/4.4 帧策略差（P182 禁强凑 pad）。输出字段/顺序逐条一致。
 void exportCharacterEtcStatsScript(FILE* fp, CharacterEtcStats* stats)
 {
     if (!stats->m_category.empty())
@@ -750,6 +798,10 @@ static const char* const g_activeResistName[17] = {
     "[piercing resistance]", "[stuck resistance]", "[confuse resistance]",
     "[hold resistance]", "[armor break resistance]"
 };
+// [b28d-solo-OnlyOrigBatch14] N 封顶（N85/P176 x87 除法 lowering）：ORIG 对
+// `(double)field / 10.0f` 发 `mov $0,%edx; mov %eax,-0x28; mov %edx,-0x24;
+// fildll -0x28; flds 常量; fdivrp %st,%st(1); fstpl 0x8(%esp)`（int→ll 中转 +
+// fdivrp），4.4 恒 `filds/fdivs` 直算；x87 两向跨版本差异，IEEE 语义等价。
 void exportCharacterStatusScript(FILE* fp, STRDCharacterStatus* st)
 {
     if (st->m_hpMax != 0)
@@ -803,16 +855,25 @@ void exportCharacterStatusScript(FILE* fp, STRDCharacterStatus* st)
 // ORIG T 0x08919127 _Z22importQuestPieceScriptPKcRSt3mapIiiSt4lessIiESaISt4pairIKiiEEE。
 bool importQuestPieceScript(const char* path, std::map<int, int>& out)
 {
-    if (!loadRDARScriptFile(path, ""))
+    // [b28d-solo-OnlyOrigBatch14] 真语义 bug：ORIG 0x0891912f 压参序为
+    // `mov 0x8(%ebp),%eax; mov %eax,0x4(%esp); movl $"",(%esp)` ⇒ 调用
+    // loadRDARScriptFile(dir="", path)（与 importDifficultPenaltyInfoScript
+    // 同形）；原写 (path,"") 使目录/文件参数互换。
+    if (!loadRDARScriptFile("", path))
         return false;
     std::string token;
+    // [b28d-solo-OnlyOrigBatch14] ORIG 0x0891915e：`movb $0,-0x25(ok)` 在**外层
+    // 循环之前**初始化一次，内层循环回跳 0x0891919a（ScanInt），不重置 ok。
+    bool ok = false;
     for (;;)
     {
+        // [b28d-solo-OnlyOrigBatch14] ORIG 0x08919178 `xor $1; test; jne
+        // <函数尾 return-false 块 08919224（nop 开头）>`（P59/P223）；试
+        // goto 尾标签形复现失败块落点。
         if (!ScanType(token, true))
-            return false;
+            goto script_fail;
         if (token == "[piece quest list]")
         {
-            bool ok = false;
             for (;;)
             {
                 int left = ScanInt(&ok);
@@ -825,12 +886,16 @@ bool importQuestPieceScript(const char* path, std::map<int, int>& out)
             }
         }
     }
+script_fail:
+    return false;
 }
 
 // ORIG T 0x088ffaa9 _Z15importSlangListPcPSt6vectorISsSaISsEE。
 bool importSlangList(char* path, std::vector<std::string>* out)
 {
-    if (!loadRDARScriptFile(path, ""))
+    // [b28d-solo-OnlyOrigBatch14] 真语义 bug（同 importQuestPieceScript）：
+    // ORIG 0x088ffab1 压参序 = loadRDARScriptFile(dir="", path)。
+    if (!loadRDARScriptFile("", path))
         return false;
     std::string token;
     std::string a;
@@ -838,23 +903,31 @@ bool importSlangList(char* path, std::vector<std::string>* out)
     for (;;)
     {
         if (!ScanType(token, true))
-            return true;
+            goto slang_done;
         if (token == "[SLANG]")
         {
             for (;;)
             {
-                if (!ScanStr(&a))
+                // [b28d-solo-OnlyOrigBatch14] ORIG 0x088ffb5b 形 `call ScanStr;
+                // test %al,%al; je`（无 xor 取反物化）⇒ 写 `== 0`。
+                if (ScanStr(&a) == 0)
                     break;
-                if (!ScanStr(&b))
+                if (ScanStr(&b) == 0)
                     break;
                 out->push_back(a);
                 out->push_back(b);
             }
         }
     }
+slang_done:
+    return true;
 }
 
 // ORIG T 0x08917848 _Z23importHiddenNpcListInfoPKcRSt6vectorIiSaIiEE。
+// [b28d-solo-OnlyOrigBatch14] N 封顶（P292 bool 取反物化 + N98 槽序）：
+// ORIG 用 `cmpb $0,-0x9` 直测 + bool 槽 -0xa，4.4 恒 `movzbl -0x9; xor $1;
+// test`（取反物化）且槽位 -0x11 平移。loadRDARScriptFile 参数序已修为
+// ("", path)（真语义 bug，ORIG 0x089178de 压参序实证）。
 bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
 {
     // ORIG 0x089178de：`mov 0xc(%ebp),%eax; mov %eax,0x4(%esp);
@@ -897,13 +970,19 @@ bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
 }
 
 // ORIG T 0x088ffe75 _Z29importUniqueRewardForAllUsersPcPSt3mapIiSt6vectorIS1_I22STStackablePackageDataSaIS2_EESaIS4_EESt4lessIiESaISt4pairIKiS6_EEE。
+// [b28d-solo-OnlyOrigBatch14] N 封顶（P59 块布局 + N82 槽序）：loadRDARScriptFile
+// 参数序已修为 ("", path)（真语义 bug，ORIG 0x088ffe8d 压参序实证）；残余 =
+// ScanType 失败块落点（ORIG 尾部 jne 岛 vs 4.4 直落 je）+ 局部槽整体浅移
+// 0x10（帧策略差）。控制流/全部插入点与 ORIG 逐段核对，语义等价。
 bool importUniqueRewardForAllUsers(
     char* path,
     std::map<int, std::vector<std::vector<STStackablePackageData> > >* out)
 {
     if (out == 0)
         return false;
-    if (!loadRDARScriptFile(path, ""))
+    // [b28d-solo-OnlyOrigBatch14] 真语义 bug（同 importQuestPieceScript）：
+    // ORIG 0x088ffe8d 压参序 = loadRDARScriptFile(dir="", path)。
+    if (!loadRDARScriptFile("", path))
         return false;
     std::string token;
     std::string name;
@@ -946,6 +1025,14 @@ bool importPetScript(PetScript* script, const char* path)
                      g_petScriptBaseDirectory, path);
     std::string token;
     std::string tmp;
+    // [b28d-solo-OnlyOrigBatch14] ORIG 0x08a359 段在 token/tmp 构造后立即
+    // `movl $0,-0x14(v); movb $0,-0x15(ok)`（P212 全头部声明）⇒ v/ok 提到函数头。
+    // [b28d-solo-OnlyOrigBatch14] 残余 N 封顶（P59 块布局 + P292 bool 形）：
+    // ScanType 失败块（ORIG 尾部 `jne` 岛）4.4 恒内联为 `je` 直落；[int data]
+    // 循环条件 ORIG `movzbl; xor $1; test; je` vs 4.4 `movzbl; test; jne`。
+    // v/ok 提升 + 声明序已按 ORIG 0x08a35 段对齐（本波修）；语义等价。
+    int v = 0;
+    bool ok = false;
     for (;;)
     {
         if (!ScanType(token, true))
@@ -1014,8 +1101,7 @@ bool importPetScript(PetScript* script, const char* path)
         else if (token == "[int data]")
         {
             script->m_intData.clear();
-            bool ok = false;
-            for (int v = ScanInt(&ok); ok; v = ScanInt(&ok))
+            for (v = ScanInt(&ok); ok; v = ScanInt(&ok))
             {
                 script->m_intData.push_back(v);
             }
@@ -1042,18 +1128,28 @@ void PetScript::clear()
     m_layer = 1;
     m_recoveryTime = 0;
     m_directionCorrect = true;
-    for (int i = 0; i <= 1; ++i)
+    // [b28d-solo-OnlyOrigBatch14] ORIG 0x08a3dc18 循环体为 `m_moveSpeed[i]` +
+    // `m_moveSpeed[i+2]`（无 *2 索引 ⇒ 无 lea 2i），且循环变量双初始化
+    // （0x08a3dc08/0x08a3dc0f 两条 movl $0,-0xc，P191 配套）；ORIG 随后清
+    // +0x30 = m_moveSpeed[4]（我方原缺失，真语义缺口），末尾才清 +0x34 m_gravity。
+    int i = 0;
+    for (i = 0; i <= 1; ++i)
     {
-        m_moveSpeed[i * 2] = 0;
-        m_moveSpeed[i * 2 + 1] = 0;
+        m_moveSpeed[i] = 0;
+        // [b28d-solo-OnlyOrigBatch14] ORIG 0x08a3dc28 形 `mov i,%edx; ...
+        // add $0x8,%edx; movl $0,0x8(%eax,%edx,4)`（+2 折进 disp）；4.4 恒把
+        // +2 折进索引 `lea 0x2(%eax),%edx`（P30/N4 索引常量分配差），
+        // `(m_moveSpeed+2)[i]` 形更劣（73）。⇒ N 封顶。
+        m_moveSpeed[i + 2] = 0;
     }
-    m_gravity = 0;
+    m_moveSpeed[4] = 0;
     m_basicMotion = "";
     m_etcMotion.clear();
     m_attackInfo.clear();
     m_intData.clear();
     m_stringData.clear();
     m_directoryPath = "";
+    m_gravity = 0;
 }
 
 // ORIG T 0x0890a334 _Z27importUltimateSkillCutScenePKcRSt6vectorI23STUltimateSkillCutSceneSaIS2_EERi：
@@ -1071,6 +1167,10 @@ int importUltimateSkillCutScene(const char*,
 // **逆序声明** 对齐 ORIG 深度。
 void importActiveStatus(STActiveStatus& st, bool flag)
 {
+    // [b28d-solo-OnlyOrigBatch14] N 封顶（N82/N93 槽序）：ORIG 槽深序
+    // f(-0x6c)…i4(-0xc) 与 4.4「后声明更深」策略冲突，本波已按 ORIG 逆序
+    // 声明（v1 序 97→现值）；残余 = 兄弟块内同类临时槽方向差（4.1 后声明占
+    // 深槽 vs 4.4 相反，b28c C28L8 判定不可翻）。控制流/全部 ScanInt 落点一致。
     // 槽序对齐：ORIG 帧深→浅 = f(-0x6c), s(-0x5c), t5A..t4(-0x58..-0x1c),
     // type(-0x18), i9(-0x14), iD(-0x10), i4(-0xc)。4.4 实测"后声明更深"
     // （v1 序 i4→f 得 97），本轮微调：type 移至 temps 前（介于 i9 与 t4 间）。
@@ -1237,6 +1337,10 @@ const char* RestrictCategory::enumToString(Enum e)
 }
 
 // ORIG T 0x088c1558 _ZL23importKeyNameIndexTablev（static）。
+// [b28d-solo-OnlyOrigBatch14] N 封顶（P232 帧差 + N98 槽序）：ORIG 帧
+// sub $0x30（含 dead 槽）、局部 -0x14/-0x10，4.4 帧 sub $0x20 且槽序平移；
+// `mov $0,%eax` vs `mov $0,%ebx` 为汇聚值寄存器差（P78）。键值表内容与
+// loadRDARScriptFile 参数序（"", "Skill/RDARKeyIndex.dat"）与 ORIG 一致。
 static bool importKeyNameIndexTable()
 {
     if (!loadRDARScriptFile("", "Skill/RDARKeyIndex.dat"))
@@ -1264,10 +1368,16 @@ static bool importKeyNameIndexTable()
 // ORIG T 0x0808aa37 _Z16WriteCodeSectionPKc：读取 PE 头后写回 .code.bin。
 void WriteCodeSection(const char* path)
 {
-    int e_lfanew = 0;
+    // [b28d-solo-OnlyOrigBatch14] 槽序/零初始化按 ORIG：e_lfanew 无初始化（ORIG
+    // 0x0808aa41 只清零 -0x18/-0x1c/-0x20 三槽），其余三变量声明序 = 槽浅→深
+    // = sizeOfCode(+0x2c)/sizeOfHeaders(+0x1c)/baseOfCode(+0x34)。
+    int e_lfanew;
     int sizeOfCode = 0;
+    // [b28d-solo-OnlyOrigBatch14] sizeOfHeaders 声明 unsigned：fwrite 第 2 实参为
+    // size_t，int 源会多一条 `mov mem,%eax; mov %eax,%edx` 转换中转（ORIG
+    // 0x0808abec 单段 `mov -0x1c(%ebp),%edx`；P265 unsigned 恒单段）。
+    unsigned int sizeOfHeaders = 0;
     int baseOfCode = 0;
-    int sizeOfHeaders = 0;
     FILE* f = fopen(path, "rb");
     if (f != 0)
     {
@@ -1283,11 +1393,16 @@ void WriteCodeSection(const char* path)
     }
     char buf[0x100];
     strncpy(buf, path, 0x100);
-    memcpy(buf + strlen(buf), ".code.bin", 0xa);
+    // [b28d-solo-OnlyOrigBatch14] P303：ORIG 0x0808ab98 段是 strcat 内建展开
+    // （strlen + lea (%ebx,%eax,1) + mov (%esp),%eax 双中转 + memcpy），必须
+    // `__builtin_strcat`；手写 memcpy(dst+strlen(dst),...) 恒 DIFF。
+    __builtin_strcat(buf, ".code.bin");
     FILE* out = fopen(buf, "wb");
     if (out != 0)
     {
-        fwrite((const void*)(baseOfCode + sizeOfCode), 1, sizeOfHeaders, out);
+        // [b28d-solo-OnlyOrigBatch14] ORIG 0x0808abec：size=sizeOfHeaders(0x4(%esp))、
+        // nmemb=1(0x8(%esp))，即 `fwrite(ptr, size, 1, fp)`（与我们的 1/size 反序）。
+        fwrite((const void*)(sizeOfCode + baseOfCode), sizeOfHeaders, 1, out);
         fclose(out);
     }
 }
@@ -1305,6 +1420,7 @@ int getActivePropertyTypeToEnumValue(std::string& s)
     typedef std::map<const char*, int, less_TCHAR> LookupMap;
     for (;;)
     {
+    init_retry:
         // ORIG 的 continue 直接跳回 +0xc（__lookup 的 __cxa_guard 检查），
         // 说明三个函数级静态声明在循环体内部。
         static LookupMap __lookup;
@@ -1402,7 +1518,10 @@ int getActivePropertyTypeToEnumValue(std::string& s)
             {
                 __init_lock.leave();
                 __inited = true;
-                continue;
+                // [b28d-solo-OnlyOrigBatch14] ORIG 0x89bc75d 段 `movb $1,__inited;
+                // jmp +0xc（循环头）`；`continue` 在 4.4 下经 switch 尾再绕两条
+                // 中继 jmp（ours 多 2 条）。goto 循环头标签直接产单条 jmp。
+                goto init_retry;
             }
             return 17;
         }
@@ -1455,13 +1574,19 @@ int ImportDifficultPenaltyInfoScript(const char* path, DifficultPenaltyInfo& out
     // 每轮无条件置 true（0890a39a movb $1），内层 ScanInt(&flag) 复用同槽；
     // v(-0xc) 每轮内层先置 0（0890a3c4 movl $0）再 ScanInt 落值。
     bool flag;
+    int i;
     int v;
-    while (ScanType(token, true))
+    // [b28d-solo-OnlyOrigBatch14] P164：ORIG 0x0890a378 条件在**循环头**（入口
+    // jmp 条件块 + body 尾 jmp 回条件），4.4 对 while 恒旋转为尾测 ⇒ 改
+    // `for(;;){ if(!ScanType) break; ... }` 复现头部条件 + xor$1 物化。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         flag = true;
         if (token == "[COMMON TRAP EXPLOSION]")
         {
-            for (int i = 0; i <= 4; ++i)
+            for (i = 0; i <= 4; ++i)
             {
                 v = 0;
                 v = ScanInt(&flag);
@@ -1494,6 +1619,10 @@ int InitTileScript()
 // 返回 1。
 int ImportTileScript(STTileScript* script, const char* path)
 {
+    // [b28d-solo-OnlyOrigBatch14] N 封顶（P232 帧差 + P292 bool 形 + N98 槽序）：
+    // ORIG 帧含 dead 槽且局部槽深序与 4.4 相反（[pass type] 内层 ScanInt(&ok)
+    // 循环的 bool 物化 je/jne 极性随之错位）。loadRDARScriptFile("TILE", path)
+    // 参数序、token 分派与全部 push_back 调用点与 ORIG 逐段核对一致。
     if (!loadRDARScriptFile("TILE", path))
     {
         printf("TILE LOAD FAIL! [%s]\n", path);
@@ -1590,6 +1719,10 @@ typedef std::map<const char*, int, less_TCHAR> LookupMap;
 bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                                bool bRepair)
 {
+    // [b28d-solo-OnlyOrigBatch14] §6.2 超大件（orig 8490 insn）：本波以
+    // game_func_report gap（8490-8452=38）+ 调用点差集 + 逐块比对为验收口径
+    // （ndiff 对超大件失真，N82）。18 处 static map 惰性注册链、token 分派树与
+    // ORIG 逐段对齐；残余为 4.1/4.4 帧槽复用策略差（N82 族）。
     // 【验收标注 §6.2】超大函数（ORIG 8490 insn 切片）。调用点差集归零
     // （995=995，ORIG 侧 libstdc++/PLT 无符号地址已聚类反查对位）；
     // leaf id 125/125（五子表 case-0 修复后跳表 2→0，注册轮 id=0 由
@@ -5010,6 +5143,10 @@ bool DecreaseTradeLimitCountByUser(CUser& user, int space, int slot)
 //                        serverGroup, false, false)。
 void GiveItemReturnUser(CUser* user)
 {
+    // [b28d-solo-OnlyOrigBatch14] N 封顶（P232/N82 帧差 + dead local）：ORIG
+    // 帧 sub $0x19c + `push %edi` + 两条 dead 立即数局部（`movl $0x1f15,-0x2c;
+    // movl $0x1,-0x28`），4.4 帧 sub $0x190 且不发射该 dead 局部（P182 禁
+    // 强凑 pad/volatile）。itemIdx/循环与发放调用点逐条一致。
     Inven_Item item;
     const int itemIdx = 0x1f15;
     CItem* def = G_CDataManager()->find_item(itemIdx);

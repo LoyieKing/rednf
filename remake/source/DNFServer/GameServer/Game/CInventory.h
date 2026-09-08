@@ -294,13 +294,17 @@ public:
     const char* GetCreatureName() const;           // ORIG _ZNK13user_creature12CCreatureMgr15GetCreatureNameEv
     bool UseFeed();                              // ORIG _ZN13user_creature12CCreatureMgr7UseFeedEv
     bool CheckItem(CUser* user, Inven_Item* item, bool& b);  // ORIG T 0x0833c240（定义 CCreatureMgr.cpp）
-    int ResponseCreature();                        // ORIG T 0x0833a6d8（定义 CCreatureMgr.cpp）
+    bool ResponseCreature();                       // ORIG T 0x0833a6d8（定义 CCreatureMgr.cpp；
+                                                   // 0x833a74c `call Broadcast; mov %eax,%ebx` 无
+                                                   // movzbl ⇒ 与 CPacketRespondent::Broadcast(bool) 同型）
     bool RegisterCreatureItem(CCreatureItem* item, int uid);  // ORIG T 0x0833a77e（定义 CCreatureMgr.cpp）
     void setTempExpireTime(int time);            // ORIG W 0x833f10c
     bool IsCreatureEquipmentScope(int slot);       // ORIG 0x833926c（非 const）
     bool IsDieCreature() const;                    // ORIG _ZNK13user_creature12CCreatureMgr13IsDieCreatureEv
     int GetEquipedCreatureLevel() const;           // ORIG _ZNK13user_creature12CCreatureMgr24GetEquipedCreatureLevelEv
-    int SendCreatureItemList() const;              // ORIG _ZNK13user_creature12CCreatureMgr20SendCreatureItemListEv（透传 CUser::Send 的 int）
+    bool SendCreatureItemList() const;             // ORIG _ZNK13user_creature12CCreatureMgr20SendCreatureItemListEv
+                                                   // （0x833be24 `call Send; mov %eax,%ebx` 无 movzbl
+                                                   // ⇒ 透传 CPacketRespondent::Send 的 bool）
     bool RecvMail(Inven_Item* item, int slot, int reason);   // ORIG 0x0833ab9a（bool 返回）
     bool SendMail(Inven_Item* item, int slot, int reason);   // ORIG _ZN13user_creature12CCreatureMgr8SendMailEP10Inven_Itemii 0x0833aa32
     bool DeleteCreatureItem(int param_1, int param_2);       // ORIG _ZN13user_creature12CCreatureMgr18DeleteCreatureItemEii 0x0833b606

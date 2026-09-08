@@ -31,6 +31,11 @@ bool RestrictInputtingNameData::isLoaded_ = false;
 // ScanInt 左右值入 tmp；其它 token 忽略。任一 ScanType 失败/越界抛 const char*，
 // 被 catch 记日志后返 false。
 // [b28d-D9] 修复：P222 正向包裹（token=="[range]"）+ logFormat 5 参（去 "%s"）后 AE 172/172（ORIG 0x08ac2eca sz 0x0000029e）
+// [b28d-solo-RestrictNameDeps] verdict=AE（compare_tu clean 口径 172/172 逐条相等）。
+//   清单旧值 NEAR/ndiff13 与 game_func_report 的 DIFF 均为 P264 假报（本件无
+//   class_func_reports 报告 ⇒ md_text=='' 分支不做 AE 归一）：.o 内 .rodata 串/
+//   _ZTIPKc 立即数尚未重定位显示为 0，且 4.4 在 ranges 构造前多一条循环对齐 nop
+//   （strip_nop_padding 剥离后两侧等长）。ORIG sz 0x29e / 我方 0x29f 同因。
 bool RestrictInputtingNameData::importUnicodeRangeData(
     const char* path, std::vector<std::pair<int, int> >* out)
 {
@@ -129,15 +134,16 @@ bool IsNoneUnicodeRange::operator()(wchar_t ch) const
 //   N23restrict_inputting_name18IsNoneUnicodeRangeEEbT_S4_T0_ @0x08ac3253
 //   （c6root libstdc++ 4.4.7 bits/stl_algo.h:778 有该模板，可实例化）。
 //
-// [b22判词·N-EMPTYCLS-SRA] 残余 3 条结构差：ORIG 从 pred 栈槽 reload
-// （`movzbl -0x11(%ebp),%edx` + `mov %dl,0x8(%esp)`，prologue `sub $0x28`、
-// epilogue `leave`），c6root g++ 4.4.7 则把 1 字节空类实参做标量替换留在 %ebx
-// （`push %ebx` + `sub $0x24` + `mov %bl,0x8(%esp)` + add/pop 序列）。已实测该
-// 行为与谓词 ctor 是否外联、是否加 volatile 均无关（probe：类内/类外 ctor、
-// volatile 三种写法均编成 %bl），属编译器版本差异，无法由 C++ 源码复现；
-// 三个 call 目标（IsNoneUnicodeRange::C1 / wcslen / std::any_of<PKw,…>）、
-// 槽位（pred -0x11、len -0x10、found -0x9）与分支形态均与 ORIG 一致，
-// 结构不可复现，语义等价。
+// [b28d-solo-RestrictNameDeps] verdict=AE（compare_tu clean 27/27 逐条相等；
+// 旧 [b22判词·N-EMPTYCLS-SRA]「结构不可复现」判词作废）。
+//   根因=4.4 对**空类**对象做标量替换：pred 虽在 -0x11 构造，但传参用寄存器
+//   `mov %bl,0x8(%esp)`（prologue `push %ebx` + `sub $0x24`），ORIG 4.1 从栈槽读
+//   `movzbl -0x11(%ebp),%edx; mov %dl,0x8(%esp)`（`sub $0x28` / `leave`）。
+//   修法=给 IsNoneUnicodeRange 加 1 字节成员（RestrictNameDeps.h，已 R2 广播）：
+//   sizeof 仍 1（空类 sizeof==1）、基类布局/全部偏移/mangled/符号集不变、C1 体不变；
+//   探针 /tmp/probe_sra2.cpp 实证空类→%bl、带 1 字节成员→movzbl -N(%ebp)。
+//   加成员后 4.4 逐条复现 ORIG（sub $0x28 / 无 push ebx / movzbl -0x11(%ebp),%edx
+//   / leave），同 TU any_of/find_if/none_of/__find_if 四实例一并 DIFF→AE。
 bool isWideStrInUnicodeRange(const wchar_t* str)
 {
     IsNoneUnicodeRange pred;

@@ -48,6 +48,8 @@ private:
 //   ① m_cnt 自增 N-86b 同算术多 codegen（lea $0x1 vs add $0x1，结果全同）
 //   ② cMyTrace/sig 局部栈槽偏移（lea -0x28 vs -0x40 帧布局产品）
 //   ③ 数据地址/call 目标【链接期解析，AE 归一】。语义完成，byte 层 N 封顶。
+//   【b28d-solo 复核】① 已对齐（lea 0x1(%eax),%edx 逐条同形）；② 已由
+//   cMyTrace 临时链翻正（见下方 b28d-solo 判词）；③ 仅余 AE 归一项。
 // DB_UpdateCeraShopPurchaseCount::dispatch @ 0x0844b0cc
 // 逐指令转写：GetOutBuffer<SIG_CERASHOP_PURCHASE_COUNT> → null 则 trace(0xbbac)
 //   "ptrData is null." 返 false；_selectPurchaseCount(m_id, &purchase_cnt) 失败
@@ -57,28 +59,27 @@ private:
 //   → *guard<<slot → guard->GetInBuffer<SIG>()（null 则 trace(0xbbc9) 返 false）
 //   → 16B 逐字拷贝 → MsgQueueMgr::put(DISPATCH_Q=1, guard) → 返 true。
 // ============================================================================
-// b28d-21: NEAR（DIFF→NEAR）— SIG_CERASHOP_PURCHASE_COUNT 具名化（SigTypes_A.h）
-// + 删 CeraShopCntView/裸偏移（P156）；154=154 指令数全等，p167 调用点差集 CLEAR
-// （22=22）。余槽位分配差（N82）。ORIG 0x0844b0cc。
+// b28d-solo-DB_UpdateCeraShopPurchaseCount: AE（NEAR→AE，ndiff 13→0）—
+//   修法：3 个 cMyTrace 具名对象改全表达式临时链
+//   `cMyTrace(f,l,v)("...")`（P221/P37）⇒ 4.4 互斥/嵌套块对象槽序翻正为
+//   ORIG 深→浅（trace -0x40/-0x30/-0x20、guard -0x48），槽号逐条一致。
+//   154=154 insns，p167 CLEAR(22=22)，compare_tu clean=ae（残差仅 .o 重定位
+//   数据地址/call 目标，P264 口径）。ORIG 0x0844b0cc。
 bool DB_UpdateCeraShopPurchaseCount::dispatch(int userIdx, int slot, Stream* stream)
 {
     SIG_CERASHOP_PURCHASE_COUNT* sig =
         stream->GetOutBuffer<SIG_CERASHOP_PURCHASE_COUNT>();
     if (sig == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xbbac, 5);
-        trace("[PURCAHSE BONUS] ptrData is null.");
+        cMyTrace(__PRETTY_FUNCTION__, 0xbbac, 5)(
+            "[PURCAHSE BONUS] ptrData is null.");
         return false;
     }
 
     if (!_selectPurchaseCount(sig->m_id, sig->m_purchaseCnt))
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xbbb2, 5);
-        trace("[PURCAHSE BONUS] select query fail.");
+        cMyTrace(__PRETTY_FUNCTION__, 0xbbb2, 5)(
+            "[PURCAHSE BONUS] select query fail.");
         return false;
     }
 
@@ -101,10 +102,8 @@ bool DB_UpdateCeraShopPurchaseCount::dispatch(int userIdx, int slot, Stream* str
         guard->GetInBuffer<SIG_CERASHOP_PURCHASE_COUNT>();
     if (replySig == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xbbc9, 5);
-        trace("[PURCAHSE BONUS] ptrData is null");
+        cMyTrace(__PRETTY_FUNCTION__, 0xbbc9, 5)(
+            "[PURCAHSE BONUS] ptrData is null");
         return false;
     }
 
@@ -232,9 +231,12 @@ void DB_UpdateCeraShopPurchaseCount::_insertPurchaseCount(unsigned int mId)
 //   trace(0xbbde) "ptrData is null" 返）→ sig+0xc=count；+0=accId；+4(8B)=itemUid；
 //   +8(2B)=0 → MsgQueueMgr::put(DB_Q=2, guard)。
 // ============================================================================
-// b28d-21: NEAR（DIFF→NEAR）— 字段具名化后逐字段写（ORIG +0x4 仅 4 字节写，
-// 原 `*(unsigned long long*)` 8 字节写已修正）；82=82 指令数全等，p167 CLEAR（14=14）。
-// 余 P211 装载序（N82）。ORIG 0x0844b31c。
+// b28d-solo-DB_UpdateCeraShopPurchaseCount: AE（NEAR→AE，ndiff 9→0）—
+//   修法：if 块内 cMyTrace 具名对象改全表达式临时链
+//   `cMyTrace(f,l,v)("...")`（P221/P37）⇒ trace 槽 -0x1c（ORIG）对齐，
+//   guard 保持 -0x24；槽号与 ORIG 逐条一致。82=82 insns，p167 CLEAR(14=14)，
+//   compare_tu clean=ae（残差仅 .o 重定位数据地址/call 目标，P264 口径）。
+//   ORIG 0x0844b31c。
 void DB_UpdateCeraShopPurchaseCount::makeRequest(unsigned int accId,
                                                  unsigned long itemUid,
                                                  int count, int param4)
@@ -247,10 +249,8 @@ void DB_UpdateCeraShopPurchaseCount::makeRequest(unsigned int accId,
         guard->GetInBuffer<SIG_CERASHOP_PURCHASE_COUNT>();
     if (sig == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xbbde, 5);
-        trace("[PURCAHSE BONUS] ptrData is null");
+        cMyTrace(__PRETTY_FUNCTION__, 0xbbde, 5)(
+            "[PURCAHSE BONUS] ptrData is null");
         return;  // ORIG jmp → ~CStreamGuard 后 ret（无入队）
     }
 

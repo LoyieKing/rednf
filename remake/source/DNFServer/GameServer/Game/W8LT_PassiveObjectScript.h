@@ -61,6 +61,21 @@ static_assert(sizeof(SpeedCtrlPassiveObjInfo) == 8,
 class PassiveIObjSniperInfo
 {
 public:
+    // [b28d-solo-OnlyOrigBatch14] ORIG operator= W 0x08a3e76a：+0x44..+0x58
+    // 与 +0x74..+0x7c 两段为「dst 缓存 %eax / src 缓存 %edx / %ecx 中转」
+    // 的数组整体赋值形（P247），逐元素赋值恒产逐字段重载。此处用嵌套视图
+    // 类型做整体赋值：成员类型/布局/全部消费点不变。
+    struct Ints6 { int v[6]; };
+    struct Ints3 { int v[3]; };
+    // 布局视图：仅用于 operator= 的两段数组整体赋值，使 4.4 直接以 disp 0x44/
+    // 0x74 访问（数组名退化会多两条 `add $0x44/%edx`）。偏移与真实成员一一对应。
+    struct AssignView
+    {
+        char m_pad00[0x44];
+        Ints6 m_ints44;
+        char m_pad18[0x18];   // 0x5c..0x73
+        Ints3 m_ints74;
+    };
     void clear();                        // ORIG T 0x08a3afc0（cpp 定义）
     PassiveIObjSniperInfo();             // ORIG T 0x08a3af0c（cpp 定义）
     ~PassiveIObjSniperInfo() {}          // ORIG W 0x08a3e1c4：4 × vector dtor
@@ -75,21 +90,14 @@ public:
         m_b38 = o.m_b38;
         m_i3c = o.m_i3c;
         m_b40 = o.m_b40;
-        m_ints44[0] = o.m_ints44[0];
-        m_ints44[1] = o.m_ints44[1];
-        m_ints44[2] = o.m_ints44[2];
-        m_ints44[3] = o.m_ints44[3];
-        m_ints44[4] = o.m_ints44[4];
-        m_ints44[5] = o.m_ints44[5];
+        ((AssignView*)(void*)this)->m_ints44 = ((const AssignView*)(const void*)&o)->m_ints44;
         m_i5c = o.m_i5c;
         m_i60 = o.m_i60;
         m_i64 = o.m_i64;
         m_i68 = o.m_i68;
         m_i6c = o.m_i6c;
         m_i70 = o.m_i70;
-        m_ints74[0] = o.m_ints74[0];
-        m_ints74[1] = o.m_ints74[1];
-        m_ints74[2] = o.m_ints74[2];
+        ((AssignView*)(void*)this)->m_ints74 = ((const AssignView*)(const void*)&o)->m_ints74;
         return *this;
     }
 

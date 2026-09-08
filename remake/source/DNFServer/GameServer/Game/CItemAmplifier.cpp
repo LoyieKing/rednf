@@ -25,44 +25,60 @@ stAmplifyItemScript_t::stAmplifyItemScript_t()
 }
 
 // ORIG 0x089000ca：按偏移初始化概率/等级混合表。
+// [b28d-solo-CItemAmplifier] verdict=DIFF（200/199，归一 diff 47）：语义已逐条
+//   对齐（含修 2 处真 bug：+0x74/+0x274 两处 1.0f 写入的 4 字节偏移 + 补
+//   m_machineFrames.clear()）。残差全为 P30/N4 族「索引寄存器 + add-vs-lea」：
+//   ORIG `mov idx,%edx; mov this,%eax; add $K,%edx` vs 4.4 `mov idx,%eax;
+//   lea K(%eax),%ecx; mov this,%eax`（7 个初始化循环 × 2-3 条；穷举 lea/add/
+//   常量拆分均不齐）⇒ 结构性封顶，无源码旋钮。
 upgrade_table_t::upgrade_table_t()
     : m_machineFrames(0xa)   // ORIG C1 0x089000ca：_Hashtable 桶数 0xa
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x089000ca 帧 0x40 vs 4.4 0x30
-    // （N82/P210 族）；语义等价。
-    int i;
+    // [b28d-solo-CItemAmplifier] 7 个循环各有**独立计数器**：ORIG 槽 -0x24..-0xc
+    // 七个 int（Ghidra C 的 local_28..local_10），且 P212 全头部声明序=先声明深。
+    // 旧版共用一个 i 使帧 0x30（ORIG 0x40）且计数器槽错位。
+    int i1, i2, i3, i4, i5, i6, i7;
     // 初始化循环一律用 **dword 下标** 形（UPG_TBL_F32/I32 + `i + K`），复现 ORIG
     // 0x089001xx..0x089003a0 的 `mov %edx,%eax? ; add $K,%edx ;
     // movl $imm,disp(%eax,%edx,4)` 两步寻址（P30/N81：字节偏移表达式会被 4.4
     // 折成 lea/shl/add 链，实测本函数因此多 41 insn）。K 值 = (绝对偏移-0xc)/4。
-    for (i = 0; i <= 3; ++i)              // +0x0c..：1.0f  ⇒ k = i + 0x3
-        UPG_TBL_F32(this, i) = 1.0f;
-    for (i = 0; i <= 0x15; ++i)           // +0x1c..：1.0f  ⇒ k = i + 0x7
-        UPG_TBL_F32(this, i + 0x4) = 1.0f;
-    for (i = 0; i <= 5; ++i)
+    for (i1 = 0; i1 <= 3; ++i1)           // +0x0c..：1.0f  ⇒ k = i + 0x3
+        UPG_TBL_F32(this, i1) = 1.0f;
+    for (i2 = 0; i2 <= 0x15; ++i2)        // +0x1c..：1.0f  ⇒ k = i + 0x7
+        UPG_TBL_F32(this, i2 + 0x4) = 1.0f;
+    for (i3 = 0; i3 <= 5; ++i3)
     {
-        UPG_TBL_F32(this, i + 0x1b) = 1.0f;   // +0x74..
-        UPG_TBL_F32(this, i + 0x20) = 1.0f;   // +0x8c..
+        // [b28d-solo-CItemAmplifier] 语义修复：ORIG 0x089001bb `lea 0x1c(%edx),%ecx
+        // + mov %edx,0x4(%eax,%ecx,4)` = this+0x74+4i；旧 k=i+0x1b 落 +0x78+4i，
+        // 漏写 +0x74 且误写 +0x8c（与第二句重叠）。
+        UPG_TBL_F32(this, i3 + 0x1a) = 1.0f;   // +0x74..
+        UPG_TBL_F32(this, i3 + 0x20) = 1.0f;   // +0x8c..
     }
-    for (i = 0; i <= 0x63; ++i)           // +0xa4..：整数 1
-        UPG_TBL_I32(this, i + 0x26) = 1;
+    for (i4 = 0; i4 <= 0x63; ++i4)        // +0xa4..：整数 1
+        UPG_TBL_I32(this, i4 + 0x26) = 1;
     UPG_TBL_I32(this, 0x8a) = 0;              // +0x234 公告阈值
-    for (i = 0; i <= 0x63; ++i)           // +0x274..：1.0f
-        UPG_TBL_F32(this, i + 0x9b) = 1.0f;
-    for (i = 0; i <= 5; ++i)
+    // [b28d-solo-CItemAmplifier] 语义修复：ORIG 0x0890022d `lea 0x9c(%edx),%ecx
+    // + mov %edx,0x4(%eax,%ecx,4)` = this+0x274+4i；旧 k=i+0x9b 落 +0x278+4i。
+    for (i5 = 0; i5 <= 0x63; ++i5)        // +0x274..：1.0f
+        UPG_TBL_F32(this, i5 + 0x9a) = 1.0f;
+    for (i6 = 0; i6 <= 5; ++i6)
     {
-        UPG_TBL_I32(this, i + 0xfe) = -1;    // +0x404..
-        UPG_TBL_I32(this, i + 0x104) = -1;   // +0x41c..
+        UPG_TBL_I32(this, i6 + 0xfe) = -1;    // +0x404..
+        UPG_TBL_I32(this, i6 + 0x104) = -1;   // +0x41c..
     }
     UPG_TBL_I32(this, 0x8b) = -1;             // +0x238 附加分解物 item
     UPG_TBL_I32(this, 0x8c) = 0;              // +0x23c 等级差阈值
-    for (i = 0; i <= 5; ++i)
+    for (i7 = 0; i7 <= 5; ++i7)
     {
-        UPG_TBL_I32(this, i + 0x8d) = 0;   // +0x240.. 权重区
-        UPG_TBL_I32(this, i + 0x94) = 0;   // +0x25c.. 基准等级区
+        UPG_TBL_I32(this, i7 + 0x8d) = 0;   // +0x240.. 权重区
+        UPG_TBL_I32(this, i7 + 0x94) = 0;   // +0x25c.. 基准等级区
     }
     UPG_TBL_I32(this, 0x93) = 0;              // +0x258 强化等级下限
     m_floatMap.clear();
+    // [b28d-solo-CItemAmplifier] ORIG 0x0890030d `lea 0x4c4(%eax),%eax; call
+    // _Hashtable::clear` 实证：构造后**照抄**清空 m_machineFrames（旧版漏此调用，
+    // gap=5 主因）。
+    m_machineFrames.clear();
     // 逐条直写：ORIG 0x089003a0 域是 4 条 `movl $0,0x4b4+4i(%eax)`，走 memset()
     // 会多出 ORIG 不存在的 memset 符号（P183 反向：库调用回退为物化）。
     m_zero4b4[0] = 0;
@@ -77,10 +93,15 @@ CItemAmplifier::CItemAmplifier()
 {
 }
 
-// 【batch-11 残差标注】o=139 n=134，调用点差集已归零（direct 9/9、indirect 3/3）：
-//   +0x25c 表项按证据建真实成员 m_baseGrade[6]（消除 1 个 floatAt call 型 EXTRA）。
-//   余 5 insn = ORIG 对表址/结果地址的重复物化（非语义缺口）；实测把 std::max
-//   改显式 if 反而更差（139/130），故保留模板形。
+// [b28d-solo-CItemAmplifier] verdict=NEAR@4.4.7（139/139）/ **AE@c6446r**
+//   （compare_tu 官方口径：identical=92 ae=193 near=2 diff=2；本件与
+//   generateAmplifyItem 两件由 NEAR→AE，零回归）。残差仅 N7：4.4.7 间接 call
+//   目标恒 %eax 而 ORIG/4.4.6 用 %edx（3 处 GetItemType 虚调 + 1 处
+//   isAmplifyPollutionItem）。路由需求已附净效果证据上报 Main。
+//   本轮真语义修复：rarity 守卫极性反转（ORIG 0x08234a19 物化 `rarity==0||
+//   rarity==1` → return false；旧源码 `!=0 && !=1` 判反）+ flag 分支合并 &&
+//   （ORIG bool 物化且 flag==0 也走 getUsableLevel 臂）+ grade/rarity/base 去具名
+//   局部（P0）。
 bool CItemAmplifier::checkInvestableItem(const CItem* item,
                                          const Inven_Item& inven,
                                          int flag) const
@@ -103,7 +124,11 @@ bool CItemAmplifier::checkInvestableItem(const CItem* item,
         return false;
     }
 
-    if (item->get_rarity() != 0 && item->get_rarity() != 1)
+    // [b28d-solo-CItemAmplifier] 语义反转修复：ORIG 0x08234a19 `test%eax; je
+    // 8234a2d`，8234a2d = `mov $0x1` 岛 ⇒ 物化的是 **rarity==0 || rarity==1**
+    // （两臂各自重调 get_rarity），命中即 return false；旧源码写成
+    // `!=0 && !=1` 恰把可强化稀有度判反（0/1 放行、≥2 拒绝）。
+    if (item->get_rarity() == 0 || item->get_rarity() == 1)
     {
         return false;
     }
@@ -118,32 +143,34 @@ bool CItemAmplifier::checkInvestableItem(const CItem* item,
         return false;
     }
 
-    if (flag != 0)
+    // [b28d-solo-CItemAmplifier] ORIG 0x08234980 实证：`cmpl $0,flag; je <bool 物化>`
+    // 后 mov$1/mov$0 + test ⇒ 源码是**合并 && 条件**（flag==0 也落 getUsableLevel
+    // 臂），旧嵌套 if 形既少一条语义检查又无 bool 物化段（P214①/P133）。
+    if (flag != 0 && equip->isExistUpgradableLevelTag())
     {
-        if (equip->isExistUpgradableLevelTag())
-        {
-            if (flag <= 0x36)
-            {
-                return false;
-            }
-        }
-        else if (item->getUsableLevel() <= 0x36)
+        if (flag <= 0x36)
         {
             return false;
         }
     }
+    else if (item->getUsableLevel() <= 0x36)
+    {
+        return false;
+    }
 
-    int grade = item->get_grade();
-    int rarity = item->get_rarity();
-    // ORIG 直读 `mov 0x25c(%eax,%edx,4)`（+0x25c 具名视图，无 cvt 无 call）；
-    // 走访问器（-O0 下类内 inline 成员函数每点发 call）会额外多 3-5 条。
-    int base = m_upgrade.m_bodyView.m_named.m_baseGrade[rarity];
-    int diff = grade - base;
-    // 钳零保持 std::max 形：实测显式 if 版反而少 4 insn（139/130），
-    // std::max 版 139/134 更接近（余差集中在 ORIG 的地址重复物化）。
-    return std::max(diff, 0) >= m_script.m_field3c;
+    // [b28d-solo-CItemAmplifier] P0：ORIG grade 在 %ebx、rarity 在 %edx、base 在
+    // %eax（均无槽往返）⇒ 原码无这三个具名局部，表达式内联；仅 diff 占 -0x14。
+    // 表址形 `add $0xd4,%edx; mov 0xc(%eax,%edx,4)` = this+0x100(m_upgrade)+0x25c。
+    int diff = item->get_grade() -
+               m_upgrade.m_bodyView.m_named.m_baseGrade[item->get_rarity()];
+    // 钳零保持 std::max 形：ORIG 0x08234b0a 实参序 `lea -0x14(diff)→0x4(%esp);
+    // lea -0x10(0)→(%esp)` ⇒ 原码是 std::max(**0, diff**)（arg0 在 (%esp)）。
+    return std::max(0, diff) >= m_script.m_field3c;
 }
 
+// [b28d-solo-CItemAmplifier] verdict=NEAR@4.4.7（55/55）/ **AE@c6446r**。
+//   残差仅 N7（isAmplifyPollutionItem 间接 call 目标 %eax vs %edx）；
+//   P63 正向包裹已消 ORIG 不存在的 2 条 jmp 中继。
 void CItemAmplifier::generateAmplifyItem(const CItem* item,
                                          Inven_Item& inven) const
 {
@@ -151,40 +178,44 @@ void CItemAmplifier::generateAmplifyItem(const CItem* item,
     unsigned short value = 0;
 
     _generateOption(item, type, value);
-    if (type == ENUM_AMPLIFY_TYPE_NONE || value == 0)
+    // [b28d-solo-CItemAmplifier] P63：ORIG 0x08514ef2/0x08514efb 两个守卫
+    // **同跳一个**出口 0x08514f6e（leave），且主流程尾块直落 epilogue。旧形
+    // `if(...) return;` 让 4.4 给每个早退各发一组 `nop; jmp` 中继（+2 jmp）。
+    // 正向包裹后守卫直接 je epilogue、内层 else 直落。
+    if (type != ENUM_AMPLIFY_TYPE_NONE && value != 0)
     {
-        return;
-    }
-
-    // [b28d-34] P282 槽序还原：ORIG 0x08514f02 `add $0x58,%eax; mov (%eax),%edx;
-    // call *%edx` 的 vptr+0x58 槽 = _ZTV5CItem+0x60 word[24] = CItem::
-    // isAmplifyPollutionItem() const（0x085136ac，nm 实证）。ORIG 后随
-    // `xor $1; test %al; je` ⇒ 源形为负极性 `if (!item->isAmplifyPollutionItem())`
-    // （fn()==false 走 true 臂，0x8514f16 第三参=1；fn()==true 落 0x8514f43 第三参=0）。
-    // [b28d-34] 修后残差仅 N7（4.4.7 间接 call 目标恒 %eax vs ORIG %edx）+ 尾
-    // 2 条 jmp 中继（P63 族）；语义等价。
-    if (!item->isAmplifyPollutionItem())
-    {
-        inven.m_amp._setAbility((unsigned char)type, value, true);
-    }
-    else
-    {
-        inven.m_amp._setAbility((unsigned char)type, value, false);
+        // [b28d-34] P282 槽序还原：ORIG 0x08514f02 `add $0x58,%eax; mov (%eax),%edx;
+        // call *%edx` 的 vptr+0x58 槽 = _ZTV5CItem+0x60 word[24] = CItem::
+        // isAmplifyPollutionItem() const（0x085136ac，nm 实证）。ORIG 后随
+        // `xor $1; test %al; je` ⇒ 源形为负极性 `if (!item->isAmplifyPollutionItem())`
+        // （fn()==false 走 true 臂，0x8514f16 第三参=1；fn()==true 落 0x8514f43 第三参=0）。
+        if (!item->isAmplifyPollutionItem())
+        {
+            inven.m_amp._setAbility((unsigned char)type, value, true);
+        }
+        else
+        {
+            inven.m_amp._setAbility((unsigned char)type, value, false);
+        }
     }
 }
 
+// [b28d-solo-CItemAmplifier] verdict=NEAR（115/115，归一 diff 40）：N82 族封顶。
+//   4.4 把具名 float 局部放最浅槽（-0xc/头部声明 -0x14）而 ORIG 放最深 -0x24，
+//   连带 it/end/temp/fpucw 槽组 -4..-0x10 漂移、帧 0x48 vs 0x38；三形实测
+//   （if 内声明 -0xc/48、头部声明 -0x14/40、头部带初始化 -0x14/42）均不可达
+//   ORIG 槽位。已修：outOfRange 去具名 bool（P0）、rand2 移到 begin/end 之后
+//   （ORIG 0x08515031）、m_type 走同宽 reinterpret 免 int→enum 中转。
 void CItemAmplifier::_generateOption(const CItem* item,
                                      ENUM_AMPLIFY_TYPE& type,
                                      unsigned short& value) const
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x08514f70 帧 0x38 vs 4.4 0x48
-    // （N82 族）；语义等价。
+    float baseValue;   // [b28d-solo-CItemAmplifier] 头部先声明（ORIG 槽 -0x24 最深）
     // ORIG 0x08514f76..0x08514fa3：范围守卫**两次独立 get_rarity**（0x08514f7c
-    // 与 0x08514f8b）+ `mov$1/mov$0` 汇聚岛 + `test%al; je` ⇒ 用命名 bool 物化、
-    // 且两臂各重调（P84/P48/P183）；写成 `int rarity` 缓存会让 4.4 只发 1 次
-    // call 并直接 cmp/jcc（实测少 3 call / 15 insn）。
-    const bool outOfRange = (item->get_rarity() < 0 || item->get_rarity() > 5);
-    if (outOfRange)
+    // 与 0x08514f8b）+ `mov$1/mov$0` 汇聚岛 + `test%al; je`，且 bool 值**无槽
+    // 往返**（P0）⇒ 原码是表达式右值（`||` 前端物化），非具名 bool 局部；
+    // 旧 `const bool outOfRange` 形多 `mov %al,-0x15; cmpb` 两步 + 帧 +0x10。
+    if (item->get_rarity() < 0 || item->get_rarity() > 5)
     {
         type = ENUM_AMPLIFY_TYPE_NONE;
         value = 0;
@@ -199,21 +230,26 @@ void CItemAmplifier::_generateOption(const CItem* item,
         return;
     }
 
-    int rand2 = get_rand_int(0x2710);
     std::vector<stAmplifyOptionInfo_t>::const_iterator it =
         m_script.m_options.begin();
     std::vector<stAmplifyOptionInfo_t>::const_iterator end =
         m_script.m_options.end();
+    // ORIG 0x08515031：rand2 在 begin()/end() **之后**求值（槽 -0xc 浅于 it/end）。
+    int rand2 = get_rand_int(0x2710);
     while (it != end)
     {
         if (it->m_prob > rand2)
         {
-            type = (ENUM_AMPLIFY_TYPE)it->m_type;
+            // [b28d-solo-CItemAmplifier] ORIG 0x0851506c `mov (%eax),%edx` 单段
+            // 直载：m_type 为 int 字段，`(ENUM_AMPLIFY_TYPE)it->m_type` 转换在
+            // 4.4 多一条 `mov %eax,%edx`（P254 反向）；改用同宽 reinterpret 视图
+            // 免转换（m_type 类型不动，investAmplifyOption 的 int 比较段不受影响）。
+            type = reinterpret_cast<const ENUM_AMPLIFY_TYPE&>(it->m_type);
             // ORIG 0x0851508x：先 `fildl; fstps -0x24` 把 m_value 落成 float 槽，
             // 再**第三次** get_rarity → `flds m_rarityRate[r]`（被乘数在前）→
             // `fmuls -0x24` → 控制字 ROUND → `fistpl`。故 rarityRate 作左操作数、
             // m_value 走具名 float 局部（P176 ROUND 辨伪 + P183 重物化）。
-            const float baseValue = (float)it->m_value;
+            baseValue = (float)it->m_value;
             value = (unsigned short)(
                 m_script.m_rarityRate[item->get_rarity()] * baseValue);
             return;
@@ -269,6 +305,10 @@ int CItemAmplifier::getPurifyMaterialItemCount(int type) const
 // 命中则把 value.{m_amount,m_value} 写入 info，返回 1；未命中返回 0。
 // [b28d-20] 返回类型 int→bool：ORIG dispatch_sig 0x08219cd4 为 xor $1（bool callee）；
 // 返回类型不入 mangling，无 sizeof/偏移/vtable 变化。
+// [b28d-solo-CItemAmplifier] verdict=NEAR（60/60，归一 diff 4）：N98 封顶。
+//   ORIG 两个 hash_map 迭代器 it(-0x1c)/last(-0x14) 为「声明序=先声明深」，
+//   4.4 按首次使用序「先用浅」⇒ 仅两处 end() 的 lea 槽号互换；两序互试
+//   （it 先/8 行差、last 先/4 行差）已取优。
 bool CItemAmplifier::getInvestMaterialInfo(
     ENUM_ITEM_AMPLIFY_INVEST_TYPE type,
     unsigned long level,
@@ -381,98 +421,106 @@ void CItemAmplifier::investAmplifyOption(
 //   返回 0=越界/失败, 1=成功。
 // ============================================================================
 
-// 【batch-11 残差标注 · 待访问器专项批】o=371 n=365：本函数按**脚本列号变量**
-//   偏移访问 +0x00c 混合表，重建侧走 inline 成员访问器 floatAt/intAt（-O0 每点
-//   额外 1 call，实测 EXTRA 11 个 + 1 memcpy），ORIG 侧是 `flds off(%eax,%edx,4)`
-//   直访。访问器全域宏化/字段化需同时改 ScriptLeafA2::importUpgradeTable 十余
-//   写点且横跨 13 TU ⇒ Main 裁决延至 batch-12 单派专项，本批不改形。
+// [b28d-solo-CItemAmplifier] verdict=DIFF（371/371，归一 diff 122）：语义已逐条
+//   对齐（含 3 处真语义修复，见函数内注释）。残差 = ①P30/N4「索引寄存器 +
+//   add-vs-lea」（ORIG `movzbl rarity,%edx; add $0x20,%edx` vs 4.4 `movzbl
+//   rarity,%eax; lea 0x20(%eax),%edx`，16 行缩放 + 2 行折扣共 20 处）；
+//   ②N1 常量折叠（ORIG `flds -100.0f; faddp` vs 4.4 `flds +100.0f; fsubrp`，
+//   2 处）。已修形：dword 下标视图（P30）、gain 逐行重读（P0/P183）、bias 用
+//   函数内 static（非 const，复现 _ZZ…E9pointFive/E3two 的 d 段符号与 x87 实乘）、
+//   (int)(long long) 复现 fistpll、dead `int maxUpgradeLevel=0x12` 复现 ORIG
+//   0x089007f9 死槽并使帧 0x6c/全部槽位对齐、out[] 走 upgrade_info_t 新增
+//   float 视角（消 lea/add 取址）。
 int upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
                                       unsigned char rarity,
                                       unsigned char growthGrade,
                                       unsigned char upgrade,
                                       ENUM_EQUIPMENTTYPE equipType) const
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x08900436 帧 0x6c vs 4.4 0x5c（N82 族）；
-    // 语义等价。
+    // [b28d-solo-CItemAmplifier] ORIG 0x08900486/0x08900498 是两条**独立**守卫
+    // （各自 `mov 0x1c(%ebp),%eax; cmp; jle/jg` 直落续判）；合并 `||` 会被 4.4
+    // 折成反向块序（P133/P191），拆两条即同形。
     if (upgrade >= m_infos.size())
         return 0;
     if (rarity >= 6)
         return 0;
-    if (equipType >= 0x16 || equipType < 10)
+    if (equipType > 0x15)
+        return 0;
+    if (equipType < 10)
         return 0;
     if (growthGrade >= 100)
         return 0;
 
-    const float bias = 2.0f * 0.5f;  // _DAT_08c9d308(=2.0f) * _DAT_08c9d30c?（pointFive）
+    // [b28d-solo-CItemAmplifier] ORIG 0x089004b7 的 `flds &_ZZ…E9pointFive;
+    // flds &_ZZ…E3two; fmulp; fstps -0x20` 实证：bias 是**函数内 static float
+    // 常量**的 x87 实乘（非编译期折叠常量），符号名即 pointFive/two。
+    static float pointFive = 0.5f;
+    static float two = 2.0f;
+    const float bias = pointFive * two;
     // ORIG 0x089004xx：拷贝是 **27 个 dword 的块移动展开**（Ghidra
     // `for (iVar6 = 0x1b; ...; *pfVar7 = *pfVar5)`），不是 memcpy ⇒ 写结构赋值
     // 让编译器自行展开/发块拷（batch-14 访问器专项连带项）。
     *out = m_infos.at(upgrade);
 
-    // 【实测记录】本函数 16 行缩放改用 dword 下标视图 UPG_TBL_F32 后为
-    // 326 insn（更偏离 ORIG 371），字节偏移宏形 UPG_TBL_CFLT 为 352 ⇒ 本函数
-    // 取字节偏移形（ORIG 此处是 `movzbl+flds disp(,%edx,4)` 混合链，与 C1 的
-    // `add $K,%edx; movl $imm,disp` 两步形不同，不可套用 N81/P30 结论）。
-    // 16 行缩放：ORIG 每行重发 gain 取址（47×flds vs 重建 30×flds），但 4.4 的
-    // 展开形是「flds gain; fstps 临时; flds 下一操作数; …」并逐行多 2 条 store/load
-    // （实测逐行内联 gain → 471 insn，比缓存形 352 更偏离 371；缓存形与逐行形
-    // 各差 -19/+100）⇒ 取更接近的**缓存 gain** 形，余 19 归 x87 序列发形差
-    // （ORIG 用 fmulp 栈式紧凑链 1×fmuls+45×fmulp，4.4 用 fmuls mem 形）：
-    // 属 P176/N83 跨前端伪影，非语义缺口。分母逐行按 ORIG 直读（已宏化）。
-    const float gain = UPG_TBL_CFLT(this, (rarity + 0x20) * 4 + 0xc);
-    ((float*)out)[0] = gain *
-                       ((float*)out)[0] *
-                       ((float)growthGrade / UPG_TBL_CFLT(this, 0xc) + bias);
-    ((float*)out)[1] = gain *
-                       ((float*)out)[1] *
-                       ((float)growthGrade / UPG_TBL_CFLT(this, 0x10) + bias);
-    ((float*)out)[2] = gain *
-                       ((float*)out)[2] *
-                       ((float)growthGrade / UPG_TBL_CFLT(this, 0x14) + bias);
-    ((float*)out)[3] = gain *
-                       ((float*)out)[3] *
-                       ((float)growthGrade / UPG_TBL_CFLT(this, 0x18) + bias);
-    ((float*)out)[4] = gain *
-                       ((float*)out)[4];
-    ((float*)out)[5] = gain *
-                       ((float*)out)[5];
-    ((float*)out)[6] = gain *
-                       ((float*)out)[6];
-    ((float*)out)[7] = gain *
-                       ((float*)out)[7];
-    ((float*)out)[0x13] = gain *
-                          ((float*)out)[0x13] *
-                          ((float)growthGrade / UPG_TBL_CFLT(this, 0xc) + bias);
-    ((float*)out)[0x14] = gain *
-                          ((float*)out)[0x14] *
-                          ((float)growthGrade / UPG_TBL_CFLT(this, 0x10) + bias);
-    ((float*)out)[0x15] = gain *
-                          ((float*)out)[0x15] *
-                          ((float)growthGrade / UPG_TBL_CFLT(this, 0x14) + bias);
-    ((float*)out)[0x16] = gain *
-                          ((float*)out)[0x16] *
-                          ((float)growthGrade / UPG_TBL_CFLT(this, 0x18) + bias);
-    ((float*)out)[0x17] = gain *
-                          ((float*)out)[0x17];
-    ((float*)out)[0x18] = gain *
-                          ((float*)out)[0x18];
-    ((float*)out)[0x19] = gain *
-                          ((float*)out)[0x19];
-    ((float*)out)[0x1a] = gain *
-                          ((float*)out)[0x1a];
-    // 折扣基数：f[0xd] 两次叠加表系数（equipType 行、rarity 行），每次 -100.0f。
-    int disc = (int)((float*)out)[0xd];
-    disc = (int)(-100.0f +
-                 UPG_TBL_CFLT(this, (equipType + 4) * 4 + 0xc) * (float)disc);
-    disc = (int)(-100.0f +
-                 UPG_TBL_CFLT(this, (rarity + 0x1c) * 4 + 4) * (float)disc);
-    out->m_discountBase = disc;
-    // ORIG：equipType 钳到 0x12 后查 m_floatMap(+0x49c) 折扣，命中则覆盖。
-    int et = equipType > 0x12 ? 0x12 : equipType;
-    std::map<int, float>::const_iterator it = m_floatMap.find(et);
+    // [b28d-solo-CItemAmplifier] dword 下标视图（P30）：ORIG 每行
+    // `movzbl rarity,%edx; mov this,%eax; add $0x20,%edx; flds 0xc(%eax,%edx,4)`
+    // 为「索引+常数 + disp 0xc」两步形，gain **逐行重读**（无具名缓存，P0/P183）；
+    // 分母 this+0xc..0x18 亦直读 disp。旧版缓存 gain + 字节偏移宏是 352/326 伪形。
+    out->m_f00[0] = ((float)(int)growthGrade / UPG_TBL_F32(this, 0) + bias) *
+                   out->m_f00[0] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f00[1] = ((float)(int)growthGrade / UPG_TBL_F32(this, 1) + bias) *
+                   out->m_f00[1] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f00[2] = ((float)(int)growthGrade / UPG_TBL_F32(this, 2) + bias) *
+                   out->m_f00[2] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f00[3] = ((float)(int)growthGrade / UPG_TBL_F32(this, 3) + bias) *
+                   out->m_f00[3] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f00[4] = out->m_f00[4] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f00[5] = out->m_f00[5] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f00[6] = out->m_f00[6] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f00[7] = out->m_f00[7] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f4c[0] = ((float)(int)growthGrade / UPG_TBL_F32(this, 0) + bias) *
+                    out->m_f4c[0] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f4c[1] = ((float)(int)growthGrade / UPG_TBL_F32(this, 1) + bias) *
+                    out->m_f4c[1] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f4c[2] = ((float)(int)growthGrade / UPG_TBL_F32(this, 2) + bias) *
+                    out->m_f4c[2] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f4c[3] = ((float)(int)growthGrade / UPG_TBL_F32(this, 3) + bias) *
+                    out->m_f4c[3] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f5c[0] = out->m_f5c[0] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f5c[1] = out->m_f5c[1] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f5c[2] = out->m_f5c[2] * UPG_TBL_F32(this, rarity + 0x20);
+    out->m_f5c[3] = out->m_f5c[3] * UPG_TBL_F32(this, rarity + 0x20);
+    // [b28d-solo-CItemAmplifier] 语义修复（旧版整段缺失 + 键用错）：
+    //   ① ORIG 0x0890076d `add $0x28,%edx; mov 0x4(%eax,%edx,4),%edx;
+    //      mov %edx,0x34(%eax)` ⇒ 先把折扣基数**播种**为
+    //      this[0xa4+4*growthGrade]（旧版直接读复制来的 out+0x34 值）；
+    //   ② 两次缩放各从字段重读（无具名 disc 局部，P0）；转换目标是 long long
+    //      （`fistpll` 实证），写 (int)(long long)(…)；
+    //   ③ m_floatMap 键 = **clamp(upgrade,0x12)**（ORIG 0x08900800
+    //      `cmpb $0x12,-0x44(%ebp)`，-0x44 是 upgrade 形参槽；旧版误用 equipType）。
+    out->m_discountBase = UPG_TBL_I32(this, growthGrade + 0x26);
+    // ORIG 0x08900780 先 `fildl -0x48` 把字段转 float、再取表系数 fmulp
+    // ⇒ 字段写在乘法左侧（先求值）。
+    out->m_discountBase =
+        (int)(long long)(-100.0f + (float)out->m_discountBase *
+                                       UPG_TBL_F32(this, equipType + 4));
+    out->m_discountBase =
+        (int)(long long)(-100.0f + (float)out->m_discountBase *
+                                       UPG_TBL_F32(this, rarity + 0x1a));
+    // ORIG 0x089007f9 `movl $0x12,-0x1c(%ebp)` 是死槽（后续从不读）⇒ 照抄
+    // 一个"声明+赋值"两段式局部（P171/P198①）。
+    int maxUpgradeLevel;
+    maxUpgradeLevel = 0x12;
+    (void)maxUpgradeLevel;
+    if (upgrade > 0x12)
+        upgrade = 0x12;
+    std::map<int, float>::const_iterator it = m_floatMap.find(upgrade);
     if (it != m_floatMap.end())
     {
-        out->m_discountBase = static_cast<int>(it->second * (float)disc);
+        // ORIG 0x08900864 先 `fildl; fstps -0x5c` 把字段落 float 槽再 call
+        // operator->（左操作数先求值），随后 `fmuls -0x5c` ⇒ 字段写在乘法左侧。
+        out->m_discountBase = (int)(long long)((float)out->m_discountBase *
+                                               it->second);
     }
     return 1;
 }

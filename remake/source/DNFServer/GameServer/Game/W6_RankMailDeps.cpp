@@ -35,12 +35,25 @@ namespace {
 // （原 rankSlotBase 无类型字节寻址 helper 已删除——SecuLink 批次 2026-09-05
 //  裸偏移清理：塔块 6×0x98 连续 stBestRecord_t 槽证据见 CDeathTowerRanking.h
 //  stTowerBlock 注释；registRanker 内改用具类型 stride 寻址 + 具名字段。）
+
 } // namespace
 
 // ORIG T 0x08468614 (size 0x300) —— registRanker.md
-// [b28d-55] DIFF(N) — 修法：三处 insert 改 value_type(make_pair(...)) 双层临时链，
-//   复现 ORIG make_pair+pair C1IjjE/C1IjS3_（P178/P86）；P167 CLEAR(8/8)。
-//   残余 = 4.1/4.4 寄存器·槽位分配差（N7/N82 族）。ORIG 0x08468614。
+// [b28d-solo-W6_RankMailDeps] DIFF(N) — 修法（ndiff 216→~125，insn 170→229/ORIG 224，gap 5）：
+//   ① slot 指针缓存与 oldStage/oldTime 具名局部全删（P183），每处槽访问重发完整
+//      二维链；② 槽寻址直用真二维下标 `m_towers[towerIdx].m_slots[slotIdx]`
+//      （Main 代落头 m_slots[6] 后）复现 ORIG 双 imul 形
+//      （探针 /tmp/b28d_w6_probe3.cpp f_2d 逐条同形；此前 TU-local 视图因 cast
+//      多 this 中转 236→229）；③ byte lane 改
+//      `uchar(*)[0x17]` 数组引用形（探针 probe4 l2：7→6 条/lane）；
+//      ④ insert 保持 P178 双层临时链（make_pair+pair C1IjjE/C1IjS3_）。
+//      P167 CLEAR(8/8)。残余 gap 5 = 结构性 N 族：a) 3 处 byte lane 源读 4.4
+//      恒先载 members 寄存器 + lea（ORIG `add 0x14(%ebp),%eax` 内存操作数，
+//      N4/P30，探针 probe4 l2）；b) m_playTime store LHS-first+`mov %eax,%edx`
+//      中转 vs ORIG RHS-first（N76/P211）；c) erase 段 `add %edx,%eax` vs
+//      ORIG `add 0x8(%ebp),%eax`（this 装载序，N7/N18a）。另槽序
+//      -0x1c/-0x20/-0x28… vs ORIG -0x1c/-0x24/-0x2c…（N82/N98）。语义与调用点
+//      全等（14 处槽访问、3 处 insert/erase 调用点逐条同形）。ORIG 0x08468614。
 void WongWork::CDeathTowerRanking::registRanker(
     unsigned int towerIdx, unsigned int slotIdx,
     const struct stDeathTowerRecordMemberInfo_t* members,
@@ -51,15 +64,19 @@ void WongWork::CDeathTowerRanking::registRanker(
     {
         // 具类型 stride 寻址（asm +0x021..+0x032：imul $0x390(tower) +
         // imul $0x98(slot) 两步，塔块 = 6×stBestRecord_t 连续槽）。
-        stBestRecord_t* slot =
-            reinterpret_cast<stBestRecord_t*>(&m_towers[towerIdx]) + slotIdx;
+        // [b28d-solo-W6_RankMailDeps] P183 去缓存：ORIG 每处访问重发完整
+        //   `mov towerIdx; mov slotIdx; imul $0x98; imul $0x390; lea;
+        //    add this` 链（无 slot 具名指针槽）；旧形缓存 slot 使帧 0xdc→0xec
+        //   且整段寻址退化为 add+lea 两步。真二维下标（头 m_slots[6]，
+        //   Main 代落后）直接产 ORIG 形（探针 /tmp/b28d_w6_probe3.cpp f_2d）。
+#define W6_RANKER_SLOT(idx) (m_towers[towerIdx].m_slots[idx])
         // asm +0x064..+0x0a3: 槽已占位 → 先按旧 stage 行、旧时间值 erase 排名
-        // 记录（读取发生在改写之前）。
-        if (slot->m_flag90 != 0)
+        // 记录（读取发生在改写之前；ORIG 直传 &slot->m_playTime 引用，
+        // 无 oldStage/oldTime 局部槽）。
+        if (W6_RANKER_SLOT(slotIdx).m_flag90 != 0)
         {
-            unsigned int oldStage = slot->m_stage;      // +0x88
-            unsigned int oldTime  = slot->m_playTime;   // +0x8c
-            m_rankMap[towerIdx][oldStage].erase(oldTime);
+            m_rankMap[towerIdx][W6_RANKER_SLOT(slotIdx).m_stage]
+                .erase(W6_RANKER_SLOT(slotIdx).m_playTime);
         }
         // asm +0x0a8..+0x1a9: for i < m_tableType: strncpy(名字,0x1e) +
         // 三 byte lane ← members[i*0x17 + 0x14/15/16]。
@@ -67,18 +84,24 @@ void WongWork::CDeathTowerRanking::registRanker(
         // +0x14/15/16 三 byte 无具名证据，保留 stride+偏移形式）。
         for (unsigned int i = 0; i < m_tableType; ++i)
         {
-            strncpy(slot->m_memberData[i],
+            strncpy(W6_RANKER_SLOT(slotIdx).m_memberData[i],
                     reinterpret_cast<const char*>(members) + i * 0x17, 0x1e);
-            const unsigned char* src =
-                reinterpret_cast<const unsigned char*>(members) + i * 0x17;
-            slot->m_pad7c[0][i] = src[0x14];
-            slot->m_pad7c[1][i] = src[0x15];
-            slot->m_pad7c[2][i] = src[0x16];
+            // [b28d-solo-W6_RankMailDeps] 数组引用形（`uchar(*)[0x17]` 二维
+            //   下标）复现 ORIG `movzbl 0x14(%eax)` disp 读形：探针
+            //   /tmp/b28d_w6_probe4.cpp l2 实测 5 条 vs 指针下标 l1 的 7 条
+            //   （P30/N4 族，残余 1 条 members 载入差）。
+            W6_RANKER_SLOT(slotIdx).m_pad7c[0][i] =
+                reinterpret_cast<const unsigned char(*)[0x17]>(members)[i][0x14];
+            W6_RANKER_SLOT(slotIdx).m_pad7c[1][i] =
+                reinterpret_cast<const unsigned char(*)[0x17]>(members)[i][0x15];
+            W6_RANKER_SLOT(slotIdx).m_pad7c[2][i] =
+                reinterpret_cast<const unsigned char(*)[0x17]>(members)[i][0x16];
         }
         // asm +0x1af..+0x21b: 写新 stageVal/playTime 并置“有纪录”位=1。
-        slot->m_stage = stageVal;
-        slot->m_playTime = playTime;
-        slot->m_flag90 = 1;
+        W6_RANKER_SLOT(slotIdx).m_stage = stageVal;
+        W6_RANKER_SLOT(slotIdx).m_playTime = playTime;
+        W6_RANKER_SLOT(slotIdx).m_flag90 = 1;
+#undef W6_RANKER_SLOT
     }
     // asm +0x21b..+0x2ae: 无条件——m_rankMap[towerIdx][stageVal].insert(
     //   pair(playTime→slotIdx))；键已存在则改写值为 slotIdx（ORIG fresh 插入与
@@ -100,17 +123,24 @@ void WongWork::CDeathTowerRanking::registRanker(
 }
 
 // ORIG T 0x08468594 (size 0x80) —— resetRanking.md
-// [b28d-55] DIFF(N) — 内层 unsigned 局部 for 尾测：ORIG 寄存器比较
-//   （mov -0xc,%eax; cmp $0xc7,%eax; setbe; test; jne），4.4 恒折
-//   `cmpl $0xc7,-0xc(%ebp)` 内存直比（P209 附，9→1 实证）⇒ 无源码解，封顶。
-//   语义等价（unsigned < 200）。ORIG 0x08468594。
+// [b28d-solo-W6_RankMailDeps] AE（compare_tu clean，DIFF→AE；旧 b28d-55
+//   「P209 附无源码解」判词作废）— 修法：内层局部改 int + 显式
+//   `(unsigned int)s < 200` 比较，复现 ORIG 两段寄存器尾测
+//   `mov -0xc(%ebp),%eax; cmp $0xc7,%eax; setbe; test; jne`（探针
+//   /tmp/b28d_w6_probe5.cpp f2 逐条同形；unsigned 局部恒折 cmpl mem 单段）。
+//   语义不变（0..199）。ORIG 0x08468594。
 void WongWork::CDeathTowerRanking::resetRanking()
 {
     // asm: 外层 cmp $0x4/setle ⇒ i<=4（有符号，P2）；内层 cmp $0xc7/setbe ⇒ s<=199。
+    // [b28d-solo-W6_RankMailDeps] P209 附翻正：内层尾测 ORIG 为两段寄存器形
+    //   `mov -0xc(%ebp),%eax; cmp $0xc7,%eax; setbe; test; jne`；4.4 对 unsigned
+    //   局部与常量比较恒折 `cmpl $0xc7,-0xc(%ebp)` 单段（旧判词「无源码解」）。
+    //   局部改 int + 显式 (unsigned int) 比较即复现（探针
+    //   /tmp/b28d_w6_probe5.cpp f2 实测逐条同形，语义仍为 0..199）。
     for (int i = 0; i < 5; ++i)
     {
         _getRankingTable(i)->clear();
-        for (unsigned int s = 0; s < 200; ++s)
+        for (int s = 0; (unsigned int)s < 200; ++s)
             m_rankMap[i][s].clear();
     }
 }
@@ -152,9 +182,17 @@ void WongWork::CDeathTowerRanking::updateRanking(unsigned int tableIdx,
 }
 
 // ORIG T 0x08468914 (size 0x238) —— registBestRecord.md
-// [b28d-55] DIFF(N) — 修法：insert 改 value_type(make_pair(key,rec)) 复现 ORIG
-//   make_pair<unsigned&,stBestRecord_t&> + pair C1IjS3_（P178），P167 CLEAR(14/14)。
-//   残余 = 结构整体赋值/帧槽差（N82/N90 族）。ORIG 0x08468914。
+// [b28d-solo-W6_RankMailDeps] DIFF(N) — 修法（ndiff 133→~93，insn 152→153/ORIG 150）：
+//   ① 删 src 指针缓存（P183），每 lane 重发 `imul $0x17 + add members` 链；
+//   ② byte lane 改 `uchar(*)[0x17]` 数组引用形复现 ORIG `movzbl 0x14(%edx)`
+//      disp 读（探针 /tmp/b28d_w6_probe4.cpp l2）；③ insert 保持 P178
+//      value_type(make_pair(key,rec)) 双层临时链（pair C1IjS3_）。P167 CLEAR(14/14)。
+//   残余 = 结构性 N 族：a) 每 lane 多 1 条 `mov 0x14(%ebp),%ecx` + lea（ORIG
+//      `add 0x14(%ebp),%edx` 内存操作数，N4/P30 基址恒先物化，探针 l2 实测）；
+//   b) 局部槽序 i/rt/bt = -0x20/-0x1c/-0x24 vs ORIG -0x1c/-0x24/-0x20
+//      （N82/N98 首次使用序分配，声明序不可翻）；c) cur 槽 -0xd0 vs ORIG -0xcc
+//      连带 stage/playTime -0x48/-0x44 vs -0x44/-0x40（同族）。语义全等。
+//      ORIG 0x08468914。
 void WongWork::CDeathTowerRanking::registBestRecord(
     unsigned int towerIdx, unsigned int key,
     const struct stDeathTowerRecordMemberInfo_t* members,
@@ -164,15 +202,20 @@ void WongWork::CDeathTowerRanking::registBestRecord(
     stBestRecord_t rec;
     rec.m_key = key;         // asm +0x01d `mov %eax,-0x220(%ebp)`（4B）
     // asm +0x02f..+0x0c5: 名字/三条 byte lane 填充（同 registRanker 视图）。
+    // [b28d-solo-W6_RankMailDeps] P183 去缓存：ORIG 每 lane 重发完整
+    //   `mov i,%edx; imul $0x17,%edx,%edx; add 0x14(%ebp),%edx;
+    //    movzbl 0x14(%edx),%edx` 链，无 src 具名指针槽（旧形多 -0x20 槽
+    //   + 每 lane 2 条装载，帧 0x22c 下 rec 槽深 4）。
     for (unsigned int i = 0; i < m_tableType; ++i)
     {
         strncpy(rec.m_memberData[i],
                 reinterpret_cast<const char*>(members) + i * 0x17, 0x1e);
-        const unsigned char* src =
-            reinterpret_cast<const unsigned char*>(members) + i * 0x17;
-        rec.m_pad7c[0][i] = src[0x14];
-        rec.m_pad7c[1][i] = src[0x15];
-        rec.m_pad7c[2][i] = src[0x16];
+        rec.m_pad7c[0][i] =
+            reinterpret_cast<const unsigned char(*)[0x17]>(members)[i][0x14];
+        rec.m_pad7c[1][i] =
+            reinterpret_cast<const unsigned char(*)[0x17]>(members)[i][0x15];
+        rec.m_pad7c[2][i] =
+            reinterpret_cast<const unsigned char(*)[0x17]>(members)[i][0x16];
     }
     rec.m_stage = stageVal;      // asm -0x198 = record+0x88
     rec.m_playTime = playTime;   // asm -0x194 = record+0x8c

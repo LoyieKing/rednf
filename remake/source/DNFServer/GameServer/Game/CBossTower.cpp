@@ -63,6 +63,9 @@ void CBossTower::setIdx(int idx)
 //   callee epilogue %ebx 合并回归，CBossPlay.h:61 在册）⇒ 调用点恒 test/sete
 //   （P197④/N18b）；m_prepareFinishFlag bool 化已翻正（本波）、`call *%edx` vs
 //   %eax 为 N7。语义等价。
+// [b28d-solo-CBossTower] N：CBossPlay::handleDieUser int（Main 裁决不代落）；
+//   调用点 test/sete vs ORIG `xor $1`（1 处 2 条）。字段 bool 化 + 裸 if(!f)
+//   已翻正，41:42 仅此残差。
 int CBossTower::handleDieUser(CUser* user)
 {
     if (user == 0)
@@ -102,6 +105,9 @@ int CBossTower::handleDieUser(CUser* user)
 // [b28d-54 N] ORIG 0x08143ae2：成员名表清零展开段槽基差（N82/P95：ORIG
 //   -0x11d/0xff vs 4.4 -0x11a/0xfb）+ `call *%eax` vs ORIG *%edx（N7）+
 //   finishNow 布尔物化落槽（P197④）；控制流/调用序列全等。
+// [b28d-solo-CBossTower] N：finishNow 改 P226 语句表达式（无槽物化岛）后
+//   177:177；残余 = memset 对齐展开（4.1 先 1B 对齐 vs 4.4 先 4B，N78 族）+
+//   m_difficulty 字段装载中转（N18a/P254）。
 bool CBossTower::handleLeaveUser(CUser* user)
 {
     if (user == 0)
@@ -130,13 +136,10 @@ bool CBossTower::handleLeaveUser(CUser* user)
         return 0;
         }
 
-    bool finishNow = false;
-    if (m_party == 0)
-        finishNow = true;
-    else if (m_party->get_member_count() > 0 && _checkMemberDie())
-        finishNow = true;
-
-    if (finishNow)
+    // ORIG 0x08143c1a..0x08143c70：finishNow 物化无槽（mov$0/jmp + mov$1 岛）
+    // ⇒ P226 语句表达式包条件（具名 bool 恒槽化 +2 条）。
+    if (({ (m_party == 0) ||
+           (m_party->get_member_count() > 0 && _checkMemberDie()); }))
         {
         onFinishStage();
         _onPrepareFinishTower(false);
@@ -175,6 +178,8 @@ bool CBossTower::handleLeaveUser(CUser* user)
 //   (uchar)m_difficulty)；返回 1。
 // [b28d-54 N] ORIG 0x08143996：被调 int 返回 ⇒ 调用点 test/sete（P197④/N18b）；
 //   je/jne 极性 + 单源尾 nop 岛（P223 负例，4.4 恒合并）。语义等价。
+// [b28d-solo-CBossTower] N：CBossStage::handleMoveMap int（Main 裁决不代落）；
+//   调用点 test/sete vs ORIG `xor $1`。goto 尾岛形保留，58:59 仅此残差。
 int CBossTower::handleMoveMap(unsigned short* mapIndex)
 {
     // P168a①裸形复测 + ②直分支形：ORIG @0x…handleMoveMapEPt 是
@@ -221,6 +226,8 @@ bool CBossTower::handleDropItem(CUser* user, int a, int b, char c, int d, int e)
 // [b28d-54 N] ORIG 0x08143ebc：CBossStage::handleKillMonster 保持 int（bool 化
 //   实测致其大 body 全帧槽漂移）⇒ 调用点 test/setne（P197④）。本波已翻正
 //   m_stageCur 同型化单段装载 + bool killed 槽形；余 setne 为 N。
+// [b28d-solo-CBossTower] N：CBossStage::handleKillMonster int（Main 裁决不代落）；
+//   调用点多 test/setne 2 条（52:54）。killed bool 槽已就位。
 int CBossTower::handleKillMonster(CUser* user, unsigned short a, unsigned short b,
                                   const MSG_MONSTER_DIE& die, int* d)
 {
@@ -257,6 +264,9 @@ int CBossTower::handleKillMonster(CUser* user, unsigned short a, unsigned short 
 // 首条件 choose 岛已复现。
 // [b28d-54 N] ORIG 0x08143d2c：bool 槽物化需被调 CBossStage::handlePickupItem
 //   bool 化（实测致其大 body 全帧漂移，不可行，P197④）+ serverRarity 槽差（N82）。
+// [b28d-solo-CBossTower] N：CBossStage::handlePickupItem int（Main 裁决不代落）；
+//   调用点多 test/setne 2 条 + serverRarity 槽随 callee bool 化布局（-0xa vs
+//   ORIG -0x1d）。picked 已 bool 化、trace 链/P171 死条件保留（82:84）。
 int CBossTower::handlePickupItem(CUser* user, int a, bool b, char c)
 {
     // ORIG 0x08143d5a choose 岛（mov$1/jmp/mov$0+test，无 bool 槽）：短路链。
@@ -269,8 +279,10 @@ int CBossTower::handlePickupItem(CUser* user, int a, bool b, char c)
     // ORIG mov %al,-0x9 槽化。char 中转（mov %al 截断）已消 setne 物化；
     // bool 中转生 setne（+2），本形残差最小（82:80）。
     char serverRarity = 0;   // ebp-0x1d
-    char picked;             // ORIG -0x9 槽（mov %al 截断形）
-    picked = (char)CBossStage::handlePickupItem(user, a, b, serverRarity);
+    // ORIG 0x08143db8 `mov %al,-0x9` 后 `movzbl; xor $1; test; je` ⇒ callee
+    // 返回 bool、局部 bool（P248 档②；char 恒 cmpb $0）。
+    bool picked;             // ORIG -0x9 槽
+    picked = CBossStage::handlePickupItem(user, a, b, serverRarity);
     if (!picked)
         return 0;
 
@@ -303,6 +315,9 @@ int CBossTower::handlePickupItem(CUser* user, int a, bool b, char c)
 //   (uchar)m_stageCur, playSec, (uchar)m_difficulty)；恒返 1。
 // [b28d-54 N] ORIG 0x081440b2：帧槽整体平移 4（N82/N95）+ bool 槽物化（P197④）；
 //   控制流/调用序列全等。
+// [b28d-solo-CBossTower] N：CBossPlay::isMemberAlive uchar（Main 裁决：ORIG
+//   movzbl 直返）；已去具名 invalid（裸短路条件）+ isMemberAlive 改正向包裹
+//   消 sete，残余 1 条 setne（85:86）。语义等价。
 int CBossTower::onFinishStage()
 {
     int playSec = 0;
@@ -312,9 +327,13 @@ int CBossTower::onFinishStage()
     for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
-        bool invalid = (member == 0) ||
-                       (m_party->checkValidUser(i) != 1);
-        if (!invalid && isMemberAlive(i))
+        // ORIG 0x0814414d..0x08144159：短路物化岛无 bool 槽；isMemberAlive
+        // 独立 `test %al,%al;je` ⇒ 裸条件两段（P0/P226）。
+        if (member == 0 || m_party->checkValidUser(i) != 1)
+            continue;
+        // P47/P59：ORIG 为 `call; test %al,%al; je <循环尾>`（正向包裹、直跳）
+        // ⇒ 用 if(f){body}，勿用 if(!f)continue（uchar callee 恒多 sete+test）。
+        if (isMemberAlive(i))
         {
             m_dungeonLog.IncrementBossStageEnd(
                 *member,
@@ -336,6 +355,8 @@ int CBossTower::onFinishStage()
 //   循环后 G_TimerQueue()->InsertTimer(OBJ_TYPE 7, m_idx, msg 0xa3, 5s,
 //   key 0xa3, 0xa3)。
 // [b28d-54 N] ORIG 0x08142d24：槽平移 4 + 成员名表 0xff 清零展开段（N82/N78）。
+// [b28d-solo-CBossTower] AE：memberNames `= ""`→`= {0}` 复现 ORIG 单段
+//   `lea;mov $0x3f,%ecx;rep stos` + 去具名 invalid（裸短路条件）⇒ DIFF→AE。
 void CBossTower::_onPrepareFinishTower(bool flag)
 {
     m_prepareFinishFlag = flag;
@@ -344,15 +365,14 @@ void CBossTower::_onPrepareFinishTower(bool flag)
     m_towerEndTick = GlobalData::s_systemTime_.getCurTickCount();
     playSec = (m_towerEndTick - m_towerStartTick) / 1000;
 
-    char memberNames[255] = "";               // ebp-0x113（内联展开清零 0xff）
+    char memberNames[255] = {0};              // ebp-0x113（ORIG 单段 rep stos）
     m_party->getMemberNames(memberNames);
 
     for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
-        bool invalid = (member == 0) ||
-                       (m_party->checkValidUser(i) != 1);
-        if (invalid)
+        // ORIG 0x08142e4f..0x08142e5b：短路物化岛无 bool 槽 ⇒ 裸条件（P0/P226）。
+        if (member == 0 || m_party->checkValidUser(i) != 1)
             continue;
 
         if (m_memberField[i] == 0)
@@ -392,7 +412,7 @@ void CBossTower::_destroy()
 // ndiff 5（复现 `mov %eax,%edx` 但反出 `mov %edx,%eax; mov this,%edx`
 // 三步，净 0 且违 P78）。维持直赋值。
 // ----------------------------------------------------------------------------
-int CBossTower::InitBossTower(CParty* party, int dungeonIdx)
+bool CBossTower::InitBossTower(CParty* party, int dungeonIdx)
 {
     m_dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
     if (party == 0 || m_dungeon == 0)
@@ -416,7 +436,11 @@ int CBossTower::InitBossTower(CParty* party, int dungeonIdx)
 // ----------------------------------------------------------------------------
 // [b28d-54 N] ORIG 0x08142fa6：大件帧/槽整体平移（N82）+ 实参装载序（P23）；
 //   控制流与调用序列全等（341 vs 340）。
-int CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
+// [b28d-solo-CBossTower] N：340:341。bool 化已落地（ORIG 调用点 0x081435b8/
+//   0x081441e6 `xor $1`）；残余 = 帧/槽整体平移（items -0x168 vs -0x164、
+//   itemParams -0x44 vs -0x20、各分支 PacketGuard/cMyTrace 槽差；N82/P112：
+//   4.1 聚合对象按生命周期穿插 vs 4.4 分区排布）。调用序列全等。
+bool CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
 {
     Inven_Item items[4];                       // ebp-0x168 起 4*0x3d，整体清零 0xf4
     memset(items, 0, 0xf4);
@@ -507,6 +531,11 @@ int CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
 // [b28d-54 N + P0 清绑] ORIG 0x081434f4：本波清除 3 处 `register asm("eax")` 绑定
 //   （N96 违禁）→ 自然 `if(!f()) return 0;`；残余帧 0x15c→0x16c + 全帧槽平移（N82）
 //   + int callee 调用点 sete 物化（P168a 定论，N18b）。调用序列全等（301 vs 302）。
+// [b28d-solo-CBossTower] N：302:300。本波修：去 dungeonType 冗余 cast（P211 档③
+//   LHS-first 尝试）、IncrementDungeonEntrance 块序反写（ORIG je→(towerIdx,1)）、
+//   timeoutSec 两段式（P198③）、InitBossTower/checkStartGameCondition/RandomConsistMap
+//   调用点 `!f()`（本类 bool 化）、invalid 裸条件。残余 = m_expParamA/m_difficulty/
+//   partyType 字段装载中转（需共享头 enum 化）+ 槽平移（N82/N18a）。
 char CBossTower::handleStartGame(CParty* party, int towerIdx, char b,
                                  ENUM_DUNGEON_TYPE dungeonType)
 {
@@ -515,7 +544,9 @@ char CBossTower::handleStartGame(CParty* party, int towerIdx, char b,
     if (party->m_battleField.m_bloodState == 1)
         return 0;
 
-    m_expParamA = static_cast<int>(dungeonType);
+    // P211 档③：ORIG 0x08143519 为 LHS-first（mov this,%eax 先于 mov 0x18(%ebp)）
+    // ⇒ 去显式 cast 让 enum→int 隐式转换与字段同型。
+    m_expParamA = dungeonType;
     m_difficulty = static_cast<int>(b);        // movsbl
 
     CBossPlay::reset();
@@ -554,9 +585,8 @@ char CBossTower::handleStartGame(CParty* party, int towerIdx, char b,
     for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
-        bool invalid = (member == 0) ||
-                       (m_party->checkValidUser(i) != 1);
-        if (invalid)
+        // ORIG 0x081436f8..0x08143704：短路物化岛无 bool 槽 ⇒ 裸条件（P0/P226）。
+        if (member == 0 || m_party->checkValidUser(i) != 1)
             continue;
 
         m_dungeonLog.IncrementBossStageStart(
@@ -564,11 +594,12 @@ char CBossTower::handleStartGame(CParty* party, int towerIdx, char b,
             static_cast<unsigned char>(m_stageCur),
             static_cast<unsigned char>(m_difficulty));
 
-        // ORIG：IncrementDungeonEntrance 在循环内，每个有效成员调用。
-        if (m_party->m_battleField.m_bloodState == 1)
-            GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(towerIdx, 1);
-        else
+        // ORIG 0x0814376b..0x0814378f：`je <towerIdx,1 块>` + fall-through
+        // (towerIdx,0) ⇒ 反写条件（!=1 → 0；else → 1）复现块序。
+        if (m_party->m_battleField.m_bloodState != 1)
             GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(towerIdx, 0);
+        else
+            GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(towerIdx, 1);
 
         member->m_historyLog.EnterDungeon(m_dungeon->GetDungeonName(),
                                           m_difficulty, memberNames,
@@ -590,7 +621,13 @@ char CBossTower::handleStartGame(CParty* party, int towerIdx, char b,
 
     SendMapInfoPacket();
 
-    int timeoutSec = (m_party->get_member_count() == 1) ? 0x5a : 0x78;
+    // ORIG 0x08143909..0x0814391b：movl $0,-0x24 预清 + sete/test/je 双赋值
+    // ⇒ 声明=0 + if/else 两赋值（P198③），勿用三目（4.4 产 eax 中转）。
+    int timeoutSec = 0;
+    if (m_party->get_member_count() == 1)
+        timeoutSec = 0x5a;
+    else
+        timeoutSec = 0x78;
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)7, m_idx,
                                 (TIMER_MESSAGE)0xa5, timeoutSec, 0xa5, 0xa5);
     return 1;
@@ -625,25 +662,24 @@ int CBossTower::handleUseItem(CUser* user, unsigned long itemId, unsigned char p
 // 为真时广播包(0,0x1e)/int 0/finalize/send；返回 1。
 // ----------------------------------------------------------------------------
 // [b28d-54 N] ORIG 0x08143f6a：帧 0x20→0x30 + 槽平移（N82）。
+// [b28d-solo-CBossTower] N：CBossPlay::checkAllMemberReady int（Main 裁决不代落）；
+//   party/ready 具名局部已去、裸短路条件化，94:96 残差全为该 callee（test/setne）。
 int CBossTower::handleFinishLoading(CUser* user)
 {
-    CParty* party = m_party;
-    const int slot = static_cast<int>(party->GetMemberSlotNo(user));
-    bool ready = false;
-    if (slot != -1 && party->checkValidUser(slot) != 0)
-        ready = true;
-
-    if (ready)
+    const int slot = static_cast<int>(m_party->GetMemberSlotNo(user));
+    // ORIG 0x08143f86..0x08143fb5：短路物化岛无 bool 槽（mov$1/jmp/mov$0 +
+    // test %al,%al;je）⇒ 裸条件内联（P0/P226）。
+    if (slot != -1 && m_party->checkValidUser(slot) != 0)
     {
         setMemberReady(slot, true);
         user->SendCmdOkPacket((ENUM_CMDPACKET)0x28);
-        if (checkAllMemberReady(party->get_member_count()))
+        if (checkAllMemberReady(m_party->get_member_count()))
         {
             PacketGuard packet;
             packet.put_header(0, 0x1e);
             packet.put_int(0);
             packet.finalize(true);
-            party->send_to_party(packet);
+            m_party->send_to_party(packet);
         }
         return 1;
     }
@@ -664,6 +700,9 @@ int CBossTower::handleFinishLoading(CUser* user)
 // [b28d-54 N 复核] ORIG 0x08142cde：末级比较极性（ORIG `cmp $0xa3; jne exit` +
 //   体 fall-through vs 4.4 switch 恒 `je body; jmp exit`）——4.4 switch 布局固有差；
 //   本波复核 switch/default 形仍最优（ndiff 3），语义等价。
+// [b28d-solo-CBossTower] N：23:24。4.4 switch 末级比较恒 `je body;jmp exit`，
+//   4.1 为 `jne exit`+body fall-through（P285/P46 布局固有）；去 default/if-else/
+//   register 三形历史实测均劣，维持 switch。
 void CBossTower::_onTimerProcess(TIMER_MESSAGE msg, unsigned int a)
 {
     (void)a;   // ORIG 忽略第二参数
@@ -695,20 +734,21 @@ void CBossTower::_onTimerProcess(TIMER_MESSAGE msg, unsigned int a)
 // _destroy，返回 1；门未放行返回 0。
 // ----------------------------------------------------------------------------
 // [b28d-54 N] ORIG 0x08142b72：bool 物化块 + 帧 +0x10（P197④/N82）。
+// [b28d-solo-CBossTower] N：P226 否定式语句表达式
+//   `if (({ (m_party==0) || (GetEPLPState()!=2); })) return 0;` 一次翻正物化岛/
+//   极性/尾块（104:103）；残余 = 4.1 保留 int→unsigned no-op `add $0x0,%eax`，
+//   4.4 恒消除（1 条，P41 反向）。memberNames 改 `{0}` 复现单段 rep stos。
 int CBossTower::handleEPLPCommand(int cmd)
 {
-    bool skip = true;
-    if (m_party != 0)
-    {
-        if (m_party->GetEPLPState() == 2)
-            skip = false;
-    }
+    // ORIG 0x08142b7c..0x08142bb3：skip = (m_party==0) || (GetEPLPState()!=2)
+    // 物化岛 mov$1/jmp/mov$0 + test %al,%al;je 无槽 ⇒ P226 否定式语句表达式。
+    if (({ (m_party == 0) || (m_party->GetEPLPState() != 2); }))
+        return 0;
 
-    if (!skip)
     {
-        if ((unsigned int)cmd <= 2)
+        if ((unsigned int)cmd <= 2u)
         {
-            char memberNames[255] = "";           // ebp-0x110（内联清零 0xff）
+            char memberNames[255] = {0};          // ebp-0x110（ORIG 单段 rep stos）
 
             const char partyTypeByte =
                 static_cast<char>(m_party->m_battleField.m_bloodState);   // 低字节 movsbl
@@ -717,14 +757,11 @@ int CBossTower::handleEPLPCommand(int cmd)
             for (int i = 0; i <= 3; ++i)
             {
                 CUser* member = m_party->get_user(i);
-                bool invalid = (member == 0) ||
-                               (m_party->checkValidUser(i) != 1);
-                if (!invalid)
-                {
-                    member->m_historyLog.LeaveDungeon(
-                        m_dungeon->GetDungeonName(), 0, memberNames,
-                        static_cast<int>(partyTypeByte));
-                }
+                if (member == 0 || m_party->checkValidUser(i) != 1)
+                    continue;
+                member->m_historyLog.LeaveDungeon(
+                    m_dungeon->GetDungeonName(), 0, memberNames,
+                    static_cast<int>(partyTypeByte));
             }
             m_party->ReturnToVillage();
         }
@@ -743,14 +780,15 @@ int CBossTower::handleEPLPCommand(int cmd)
 // 恒返 1。
 // ----------------------------------------------------------------------------
 // [b28d-54 N] ORIG 0x0814432a：帧 0x30→0x40 + 槽平移（N82）+ 寄存器角色（N7）。
-int CBossTower::SendRewardPacket()
+// [b28d-solo-CBossTower] AE：去 `Inven_Item& reward` 具名引用（P157/P183 每字段
+//   重算 imul 寻址）+ invalid 裸短路条件 ⇒ DIFF→AE。
+bool CBossTower::SendRewardPacket()
 {
     for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
-        bool invalid = (member == 0) ||
-                       (m_party->checkValidUser(i) != 1);
-        if (invalid)
+        // ORIG 0x08144378..0x08144384：短路物化岛无 bool 槽 ⇒ 裸条件（P0/P226）。
+        if (member == 0 || m_party->checkValidUser(i) != 1)
             continue;
 
         PacketGuard packet;
@@ -761,9 +799,9 @@ int CBossTower::SendRewardPacket()
             packet.put_byte(m_memberReward[j].m_count);   // +j*0x268+0x28
             for (int k = 0; k < m_memberReward[j].m_count; ++k)
             {
-                Inven_Item& reward = m_memberReward[j].m_items[k];
-                packet.put_int(reward.m_addInfo);         // 块内 +0x2e = item+0x02
-                packet.put_int(reward.get_add_info());    // item+0x07
+                // P157/P183：ORIG 每字段重算完整 imul 寻址，无具名引用缓存。
+                packet.put_int(m_memberReward[j].m_items[k].m_addInfo);
+                packet.put_int(m_memberReward[j].m_items[k].get_add_info());
             }
         }
         packet.finalize(true);
@@ -778,25 +816,27 @@ int CBossTower::SendRewardPacket()
 // ok=false 提前跳出；随后无条件发包(0,0x1e4){ok}给全队；恒返 1。
 // ----------------------------------------------------------------------------
 // [b28d-54 N] ORIG 0x081441d4：帧 0x30→0x40 + 槽平移（N82）+ 寄存器角色（N7）。
-int CBossTower::SendELPLPacket()
+// [b28d-solo-CBossTower] AE：删 party 具名局部（P0 逐点重读 m_party）+ invalid
+//   裸短路条件 + checkStartGameCondition bool 化（本类，ORIG 调用点 0x081441e6
+//   `xor $1`）⇒ DIFF→AE。
+bool CBossTower::SendELPLPacket()
 {
-    CParty* party = m_party;
     bool ok = true;                            // ebp-0x11
-    if (party->m_battleField.m_bloodState != 1)
+    if (m_party->m_battleField.m_bloodState != 1)
     {
         for (int i = 0; i <= 3; ++i)
         {
-            CUser* member = party->get_user(i);
-            bool invalid = (member == 0) ||
-                           (party->checkValidUser(i) != 1);
-            if (!invalid)
+            CUser* member = m_party->get_user(i);
+            // ORIG 0x0814420e..0x08144221：短路物化岛无 bool 槽
+            // （mov$1/jmp/mov$0 + test %al,%al;jne 循环尾）⇒ 裸条件内联（P0/P226）。
+            if (member == 0 || m_party->checkValidUser(i) != 1)
+                continue;
+
+            unsigned char requireFlag = 0;       // ebp-0x21
+            if (!checkStartGameCondition(requireFlag, false))
             {
-                unsigned char requireFlag = 0;       // ebp-0x21
-                if (checkStartGameCondition(requireFlag, false) != 1)
-                {
-                    ok = false;
-                    break;
-                }
+                ok = false;
+                break;
             }
         }
     }
@@ -805,7 +845,7 @@ int CBossTower::SendELPLPacket()
     packet.put_header(0, 0x1e4);
     packet.put_byte(ok ? 1 : 0);
     packet.finalize(true);
-    party->send_to_party(packet);
+    m_party->send_to_party(packet);
     return 1;
 }
 
@@ -823,7 +863,7 @@ int CBossTower::SendELPLPacket()
 //    `bool gained = false;` 后接 `gained = member->gain_exp_sp(...)` 两句；
 //    合写成 `bool gained = call();` 丢预清行（−1）。
 // ----------------------------------------------------------------------------
-int CBossTower::InsertRewardExp()
+bool CBossTower::InsertRewardExp()
 {
     for (int i = 0; i <= 3; ++i)
     {
@@ -862,33 +902,37 @@ int CBossTower::InsertRewardExp()
 // ----------------------------------------------------------------------------
 // [b28d-54 N] ORIG 0x081447a0：帧/槽整体平移（N82）+ std::min 模板槽（N86）；
 //   调用序列全等（354 vs 366）。
-int CBossTower::InsertRewardItems()
+// [b28d-solo-CBossTower] N：366:356。本波修：invalid 裸短路条件、reward 改具名
+//   指针（P171 死判空 + Ghidra C local_38 照抄）。残余 = 帧差 0x10 + 全帧槽平移 4
+//   （N82：ORIG 多一个 4B 深槽）。
+bool CBossTower::InsertRewardItems()
 {
     for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
-        bool invalid = (member == 0) ||
-                       (m_party->checkValidUser(i) != 1);
-        if (invalid)
+        // ORIG 0x081447d8..0x081447e4：短路物化岛无 bool 槽 ⇒ 裸条件（P0/P226）。
+        if (member == 0 || m_party->checkValidUser(i) != 1)
             continue;
 
         for (int j = 0; j < m_memberReward[i].m_count; ++j)
         {
-            Inven_Item& reward = m_memberReward[i].m_items[j];
-            if (reward.m_addInfo == -1)          // 空槽（ORIG 读 +0x2e 的 int）
+            // ORIG 0x081447f9 具名指针槽 -0x34 + P171 死指针判空（Ghidra C
+            // `local_38 != 0 && *(int*)(...+0x2e) != -1`）。
+            Inven_Item* reward = &m_memberReward[i].m_items[j];
+            if (reward == 0 || reward->m_addInfo == -1)
                 continue;
 
             int slotResult = -1;
-            if (reward.m_addInfo == 0)
+            if (reward->m_addInfo == 0)
             {
                 // 金币奖励：m_addInfo2 为金额（ORIG 三次 get_add_info 各用点重取，P48）
                 const int gained = member->getCurCharacInvenW()->gain_money(
-                    reward.get_add_info(), (eMoneyAddReason)5, true, 0);
-                if (gained < reward.get_add_info())
+                    reward->get_add_info(), (eMoneyAddReason)5, true, 0);
+                if (gained < reward->get_add_info())
                 {
                     member->SendMoneyFullReason(
                         (ENUM_MONEY_FULL_REASON)0,
-                        static_cast<unsigned long>(reward.get_add_info()),
+                        static_cast<unsigned long>(reward->get_add_info()),
                         static_cast<unsigned long>(gained));
                 }
                 slotResult = 0;
@@ -897,17 +941,17 @@ int CBossTower::InsertRewardItems()
             {
                 // ORIG else 分支重取 getCurCharacInvenW（与金币分支各一次，P48）
                 slotResult = member->getCurCharacInvenW()->insertItemIntoInventory(
-                    reward, (eItemAddReason)0xb, true, true);
+                    *reward, (eItemAddReason)0xb, true, true);
             }
 
             if (slotResult >= 0)
             {
                 PacketGuard packet;
                 packet.put_header(0, 0xe);
-                packet.put_byte(reward.GetItemSpace());
+                packet.put_byte(reward->GetItemSpace());
                 packet.put_short(1);
                 member->getCurCharacInvenR()->MakeItemPacket(
-                    (INVEN_TYPE)GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)reward.GetItemSpace()),
+                    (INVEN_TYPE)GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)reward->GetItemSpace()),
                     slotResult, packet);
                 packet.finalize(true);
                 member->Send(packet);
@@ -918,7 +962,7 @@ int CBossTower::InsertRewardItems()
                 char uniqueNo[0x18] = {0};         // ebp-0x64（ORIG .rodata 清零模板）
 
                 CItem* itemData =
-                    G_CDataManager()->find_item(reward.m_addInfo);
+                    G_CDataManager()->find_item(reward->m_addInfo);
                 if (itemData == 0)
                     continue;
 
@@ -955,14 +999,14 @@ int CBossTower::InsertRewardItems()
                     const int endurance =
                         static_cast<CEquipItem*>(itemData)->get_endurance();
                     WongWork::CMailBoxHelper::ReqDBSendNewAvatarMail(
-                        member, member->getCurCharacNo(), reward.m_addInfo,
+                        member, member->getCurCharacNo(), reward->m_addInfo,
                         expireSec, static_cast<char>(endurance), 0, agency,
                         title, static_cast<int>(strlen(title)));
                 }
                 else
                 {
                     WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-                        senderName, reward, 0,
+                        senderName, *reward, 0,
                         static_cast<unsigned int>(member->getCurCharacNo()),
                         title, static_cast<int>(strlen(title)), 0xf,
                         member->GetServerGroup(), false, false);
@@ -981,34 +1025,36 @@ int CBossTower::InsertRewardItems()
 // 20s, key 0xa4, 0xa4)。返回结果标志。
 // ----------------------------------------------------------------------------
 // [b28d-54 N] ORIG 0x08144508：槽平移 4 + bool 物化（N82/P197④）。
+// [b28d-solo-CBossTower] AE：删 party 局部 + 6 处 `!=1` 改 `!f()`（本类
+//   generateRewardExp/generateRewardItem/SendRewardPacket/InsertRewardExp/
+//   InsertRewardItems/SendELPLPacket bool 化，ORIG 调用点全 xor）⇒ DIFF→AE。
 int CBossTower::onClearBossTower()
 {
-    CParty* party = m_party;
-    if (party->m_battleField.m_bloodState == 1)
+    if (m_party->m_battleField.m_bloodState == 1)
     {
         PacketGuard packet;
         packet.put_header(0, 0xfe);
         packet.finalize(true);
-        party->send_to_party(packet);
+        m_party->send_to_party(packet);
     }
     else
     {
-        if (generateRewardExp() != 1)
+        if (!generateRewardExp())
             return 0;
-        if (generateRewardItem() != 1)
+        if (!generateRewardItem())
             return 0;
-        if (SendRewardPacket() != 1)
+        if (!SendRewardPacket())
             return 0;
-        if (InsertRewardExp() != 1)
+        if (!InsertRewardExp())
             return 0;
-        if (InsertRewardItems() != 1)
+        if (!InsertRewardItems())
             return 0;
     }
 
-    if (SendELPLPacket() != 1)
+    if (!SendELPLPacket())
         return 0;
 
-    party->SetEPLPState(2);
+    m_party->SetEPLPState(2);
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)7, m_idx,
                                 (TIMER_MESSAGE)0xa4, 0x14, 0xa4, 0xa4);
     return 1;
@@ -1023,7 +1069,9 @@ int CBossTower::onClearBossTower()
 // [b28d-54 N] ORIG 0x08144d54：CBossPlay::generateRewardExp 保持 int ⇒ 缺 ORIG
 //   `call; xor $1; test %al; jmp` 死物化（P197④ + P225 dead 变体）；callee
 //   bool 化跨 TU（CBossPlay.h 虚槽）不可行。invalid 局部已去、调用序列全等。
-int CBossTower::generateRewardExp()
+// [b28d-solo-CBossTower] N：CBossPlay::generateRewardExp int（Main 裁决不代落）；
+//   4.4 对循环体尾的死 `!f()` 恒 DCE（探针 t2/t6/t8 全折）⇒ 66:64 缺 xor/test。
+bool CBossTower::generateRewardExp()
 {
     for (int i = 0; i <= 3; ++i)
     {
@@ -1052,7 +1100,12 @@ int CBossTower::generateRewardExp()
 // ----------------------------------------------------------------------------
 // [b28d-54 N] ORIG 0x08144e36：实参/局部装载序（P23/P75）+ bool 死物化（P197④）；
 //   invalid 局部已去、调用序列全等。
-int CBossTower::generateRewardItem()
+// [b28d-solo-CBossTower] N：115:115（本波由 115:112 补齐 generated bool 局部、
+//   itemCount 两段式、stageParam 内联）。残余 = ①CBossPlay::generateRewardItem
+//   int（Main 裁决不代落，多 test/setne）②m_difficulty int→enum cast 中转
+//   （P265，需共享头字段 enum 化）③itemCount 预清位置（ORIG 循环头 vs 4.4
+//   按首次使用定槽，N98）。
+bool CBossTower::generateRewardItem()
 {
     for (int i = 0; i <= 3; ++i)
     {
@@ -1068,19 +1121,22 @@ int CBossTower::generateRewardItem()
         // = stDeathTower_t::m_rewardCardNum[stage]（该数组 +0x324，int 读宽一致）。
         const int scriptLimit = towerScript->m_rewardCardNum[m_stageCur];
 
-        int itemCount = std::min(m_dungeon->getTowerMaxClearRewardItemNum(),
-                                 scriptLimit);
+        int itemCount = 0;   // ORIG 0x08144e91 循环头预清（P198③ 两段式）
+        itemCount = std::min(m_dungeon->getTowerMaxClearRewardItemNum(),
+                             scriptLimit);
         itemCount = std::min(10, itemCount);
-        // b28d-54：m_stageCur 同型化为 unsigned 后保持 min<int> 实例（ORIG 调
-        // _ZSt3minIiERKT_S2_S2_），故显式 (int)。
-        const int stageParam = std::min(10, (int)m_stageCur);
 
-        CBossPlay::generateRewardItem(
+        // P0/P183：stageParam 无槽往返（ORIG `mov (%eax),%eax; mov %eax,%esi`）
+        // ⇒ 内联实参，勿具名 const 局部。
+        // ORIG 0x08144fb8 `call; mov %al,-0x1d; movzbl; xor $1; test; jmp`
+        // （Ghidra C local_1d = 返回值 bool 局部，结果未用）⇒ 接收返回值。
+        bool generated = CBossPlay::generateRewardItem(
             i, itemCount,
             static_cast<unsigned int>(member->get_charac_level()),
             static_cast<ENUM_DUNGEON_DIFFICULTY>(m_difficulty),
-            static_cast<unsigned int>(stageParam),
+            static_cast<unsigned int>(std::min(10, (int)m_stageCur)),
             m_dungeon);
+        (void)generated;
     }
     return 1;
 }
@@ -1136,6 +1192,8 @@ int CBossTower::onChargeRequireItem(CUser* user)
 // 否则 _destroy；返回 1。
 // ----------------------------------------------------------------------------
 // [b28d-54 N] ORIG 0x0814512a：被调 int 返回 setne（P197④）+ 槽平移（N82）。
+// [b28d-solo-CBossTower] N：CBossPlay::checkAllMemberReady int（Main 裁决不代落）；
+//   invalid 已裸条件化、m_memberReady 检查保留，145:147 残差全为该 callee。
 int CBossTower::onReadyTimerCheck()
 {
     if (checkAllMemberReady(m_party->get_member_count()))
@@ -1150,9 +1208,10 @@ int CBossTower::onReadyTimerCheck()
     for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
-        bool invalid = (member == 0) ||
-                       (m_party->checkValidUser(i) != 1);
-        if (!invalid && m_memberReady[i] != 1)
+        // ORIG 0x081451eb..0x081451f7：短路物化岛无 bool 槽 ⇒ 裸条件（P0/P226）。
+        if (member == 0 || m_party->checkValidUser(i) != 1)
+            continue;
+        if (m_memberReady[i] != 1)
         {
             onChargeRequireItem(member);
             handleLeaveUser(member);
@@ -1181,11 +1240,16 @@ int CBossTower::onReadyTimerCheck()
 // 后 _destroy。恒返 1。
 // ----------------------------------------------------------------------------
 // [b28d-54 N] ORIG 0x08144fca：尾岛/极性 + 大数组清零槽基差（N78/N82）。
+// [b28d-solo-CBossTower] N：ORIG 0x08144fde 为**无条件** `jmp +0x150`（字节
+//   e9 37 01 00 00 实证，Ghidra C 亦反编译为 `return 1`）⇒ body 在 ORIG 中
+//   不可达。重建保留真实业务语义、不照抄死代码；其余 `{0}` 清零 + m_difficulty
+//   字段中转（N18a/P254）为在册 N。
 int CBossTower::onReturnVillage()
 {
     if (m_party != 0 && m_party->GetEPLPState() == 2)
     {
-        char memberNames[255] = "";            // ebp-0x120（内联展开清零 0xff）
+        char memberNames[255] = {0};           // ebp-0x120（ORIG 0x08144fd9 单段
+                                               // rep stos 0x3f dwords）
 
         const char partyTypeByte =
             static_cast<char>(m_party->m_battleField.m_bloodState);   // 低字节 movsbl
@@ -1194,14 +1258,12 @@ int CBossTower::onReturnVillage()
         for (int i = 0; i <= 3; ++i)
         {
             CUser* member = m_party->get_user(i);
-            bool invalid = (member == 0) ||
-                           (m_party->checkValidUser(i) != 1);
-            if (!invalid)
-            {
-                member->m_historyLog.LeaveDungeon(m_dungeon->GetDungeonName(),
-                                                  m_difficulty, memberNames,
-                                                  static_cast<int>(partyTypeByte));
-            }
+            // ORIG 0x08145094..0x081450a0：短路物化岛无 bool 槽 ⇒ 裸条件（P0/P226）。
+            if (member == 0 || m_party->checkValidUser(i) != 1)
+                continue;
+            member->m_historyLog.LeaveDungeon(m_dungeon->GetDungeonName(),
+                                              m_difficulty, memberNames,
+                                              static_cast<int>(partyTypeByte));
         }
         m_party->ReturnToVillage();
         _destroy();

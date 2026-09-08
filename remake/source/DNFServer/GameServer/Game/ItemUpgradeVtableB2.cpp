@@ -25,14 +25,26 @@
 //     引用、无独立报告——调用方报告已读后按 objdump 忠实转写）
 //   DisJointResult::DisJointResult   W 0x082347a2（无独立报告；调用方 GetResult/
 //     _ProcPenalty 报告已读后按 objdump 忠实转写）
-// [b28d-64 判词汇总 · 泳道64] 本 TU 8 件（明细 /tmp/b28d_lane_64_result.tsv）：
-//   _ProcPortableUpgradeItem 85/85 AE；_CheckTargetUsableLv 78/78 AE
-//   （CStackableItem.h m_char320 char→bool，R2 已广播）；
-//   IsExistContinuousEffectItem 66/65 N18b（成员==参数 mem-cmp 折叠）；
-//   DisJoint::GetResult 105/107 N85（§4.3 裸偏移已改具名 m_creationRate）；
-//   _getAdditionalDisjointItem 108/111 N85；_DoProcUpgrade 166/179 N封顶
-//   （P167 CLEAR 14/14）；_ProcPenalty 634/631 N82（P167 EXTRA helper×2）；
-//   ProcUpgrade 1242/1246 N82（P167 EXTRA helper×2）。
+// [b28d-solo-ItemUpgradeVtableB2 判词汇总 · 单文件泳道]
+// 本 TU 8 件（明细 /tmp/b28d_solo_ItemUpgradeVtableB2_result.tsv）：
+//   _ProcPortableUpgradeItem 85/85 **IDENTICAL**（前轮 AE + 本轮 stack 改 const
+//     ⇒ 调 const 版 vector::operator[]，符号与 ORIG 全等，TU identical +1）；
+//   DisJointResult::C1 19/19 **AE**（本轮翻正旧 N4：DisJoint.h 加 union 双视图
+//     m_f[10]/{m_a[5],m_b[5]}，ctor 改写 m_a[i]/m_b[i] ⇒ 复现 ORIG
+//     `add $0x4,%edx; movl $0,0x4(%eax,%edx,4)`）；
+//   IsExistContinuousEffectItem 66/66 **AE**（本轮翻正旧 N18b：同布局视图
+//     ContinuousItemIdxView 的 unsigned 首字段 ⇒ 复现两段装载 mem→%edx/param→%eax）；
+//   DisJoint::GetResult 105/105 **AE**（本轮翻正旧 N85：内联 rarity、int 槽复用
+//     sellPrice、内联 sell、去 money 具名槽、if 形最小值）；
+//   _getAdditionalDisjointItem 108/102 N85①（4.1 float 拷贝经 flds/fstps、4.4 恒
+//     mov；volatile 实测反劣）+ N82（槽号）+ 尾 3 岛（4.1 多出口 jmp+nop）；
+//     P167 CLEAR 8/8、条件方向已用 jb 复现、make_pair 嵌套形/unsigned span/去 +0.5 已落；
+//   _DoProcUpgrade 166/163 N82（槽号重排）+ rollWin setcc-fold（4.1 mov $1/$0 岛）；
+//     P167 CLEAR 14/14；
+//   _ProcPenalty 634/620 N82（§6.2 三件套：P167 CLEAR 87/87、gap 14、帧同）；
+//   ProcUpgrade 1242/1244 N82 + P292（P167 CLEAR 115/115、gap -2；
+//     _GetUpgradeInfo int→bool 属 CItemUpgrade.cpp 属主，跨 TU 不改）。
+// 全部 8 件 P167 调用点差集 CLEAR（helper EXTRA×2 已删：missing_in_game 40→36）。
 //   getItemSellPrice(int,int,int,bool) T 0x0898c86e（无独立报告；调用方 GetResult/
 //     _ProcPenalty 报告已读后按 objdump 忠实转写）
 //   g_alchemistInfo                 B 0x094f7778（数据符号；nm 尺寸 8，唯一读者按
@@ -90,6 +102,18 @@ extern int g_alchemistInfo[2];   // B 0x094f7778（定义于 CExpertJobList.cpp 
 namespace expert_job
 {
 
+// [b28d-solo-ItemUpgradeVtableB2] ContinuousItemInfo 同布局具名视图：
+// ORIG IsExistContinuousEffectItem 0x085d12a2 `call deEv; mov (%eax),%edx;
+// mov 0xc(%ebp),%eax; cmp %eax,%edx` 是**两段装载**比较 ⇒ 字段与 int 形参
+// 异型（P248 档③/P274）；权威头 ContinuousItemInfo::m_itemIdx 为 int 且跨 TU
+// 消费点众多（改头需全消费段联判），故本 TU 以同布局视图（unsigned 首字段）
+// 表达，零头改动、零 ABI/布局风险。
+struct ContinuousItemIdxView
+{
+    unsigned int m_itemIdx;      // +0x00（同 ContinuousItemInfo::m_itemIdx）
+    unsigned int m_expireTime;   // +0x04
+};
+
 // ---- CAlchemist 静态成员（此前无声明；仅本 TU 使用）----
 class CAlchemist
 {
@@ -104,6 +128,11 @@ public:
 // expert_job::CAlchemist::IsExistContinuousEffectItem @ 0x085d121e
 //   getCurCharacR 为空 → false；遍历当前角色持续道具表，命中 itemId 即以
 //   「当前秒 < 到期秒」判定存在性。
+// [b28d-solo-ItemUpgradeVtableB2] **AE 66/66**：旧判 N18b（成员==参数
+//   mem-cmp 折叠）已翻正——ContinuousItemIdxView 同布局视图（unsigned 首字段
+//   vs int 形参，P248 档③/P274）令 4.4 复现 ORIG 两段装载
+//   `mov (%eax),%edx; mov 0xc(%ebp),%eax; cmp %eax,%edx`（探针 g 实证；
+//   视图指针必须内联在条件里，具名会多地址槽）。
 // ============================================================================
 bool expert_job::CAlchemist::IsExistContinuousEffectItem(CUser* user,
                                                          int itemId)
@@ -120,10 +149,16 @@ bool expert_job::CAlchemist::IsExistContinuousEffectItem(CUser* user,
         std::vector<ContinuousItemInfo>::const_iterator last = list->end();
         for (; it != last; ++it)
         {
-            if (it->m_itemIdx == itemId)
+            // 视图指针必须**内联**在条件表达式里（P183）：具名指针会多一个
+            // 地址槽（-0xc），使 it/last 槽整体下移 4（ORIG 直用 deEv 的 eax）。
+            if (reinterpret_cast<const ContinuousItemIdxView*>(&(*it))
+                    ->m_itemIdx == itemId)
             {
+                // P167 新判据（b28c C28L8）：ORIG 全函数只调 `deEv`
+                // （`(*it).m` 形），不调 `ptEv`（`it->m` 形）⇒ 此处写
+                // `(*it).m_expireTime` 保持 deEv×2 / ptEv×0。
                 if ((unsigned)GlobalData::s_systemTime_.getCurSec() <
-                    it->m_expireTime)
+                    (*it).m_expireTime)
                 {
                     return true;
                 }
@@ -216,19 +251,20 @@ unsigned short CStackableItem::GetAmplifyReinforceValue()
 }
 
 // ============================================================================
-// DisJointResult ctor @ 0x082347a2：循环 i=0..4 将 m_f[i] 与 m_f[i+1] 清零
+// DisJointResult ctor @ 0x082347a2：循环 i=0..4 将两组 5 int 清零
 // （等价整体清零 10 个 int）。
-// [b28d-58] DIFF N4（P30 add-vs-lea 族）：m_f[i+5] 的索引计算 ORIG 4.1 发
-//   `add $0x4,%edx; movl $0,0x4(%eax,%edx,4)`（5 拆 4+disp4），4.4 恒
-//   `lea 0x5(%eax),%edx`（探针 fA..fF 六写法：下标/拆形/指针算术/二维视图
-//   全落 lea 或 shl+add）⇒ 源形不可择；其余 17 条助记符与 ORIG 全等。
+// [b28d-solo-ItemUpgradeVtableB2] 旧判 N4（P30 add-vs-lea）已翻正：ORIG 第二组
+//   `add $0x4,%edx; movl $0,0x4(%eax,%edx,4)` 的偏移 0x14 = 索引 add 4（16B）
+//   + disp 4，只在**独立成员数组**（m_b@+0x14）下标形下由 4.4 复现（探针 c5/c7）；
+//   单数组 m_f[i+5] 恒折 `lea 5(%eax)`（c1）。DisJoint.h 已加 union 双视图
+//   m_f[10] / {m_a[5], m_b[5]}（sizeof 0x28、全偏移不变）。
 // ============================================================================
 DisJointResult::DisJointResult()
 {
     for (int i = 0; i <= 4; ++i)
     {
-        m_f[i] = 0;
-        m_f[i + 5] = 0;
+        m_a[i] = 0;
+        m_b[i] = 0;
     }
 }
 
@@ -240,6 +276,11 @@ DisJointResult::DisJointResult()
 //   _GetAdditionalItem(item, &out.m_f[6], &out.m_f[1])。
 //   物品缺失走 LogManager::logFormat(1,…,0x6e,"[DisJoint::GetResult] Null Item\n")
 //   并返回 0x11。
+// [b28d-solo-ItemUpgradeVtableB2] **AE 105/105**：旧判 N85 已翻正——①rarity
+//   无槽（get_rarity 直入 %edx 参与 0x14c 索引）②sellPrice 用 int 槽复用
+//   （fildl→*1.1f→RC=trunc fistpl 写回同槽，禁 float 局部）③getItemSellPrice
+//   返回值无槽（直进 imul $0x3e8）④base 具名槽 -0xc ⑤money 不设具名局部
+//   （4.4 临时槽形与 ORIG -0x20 同构）⑥最小值用 if 形（三目折 cmovg）。
 // ============================================================================
 int DisJoint::GetResult(int itemIdx, DisJointResult& out)
 {
@@ -252,22 +293,32 @@ int DisJoint::GetResult(int itemIdx, DisJointResult& out)
         return 0x11;
     }
 
-    const int rarity = script->get_rarity();
-    // [b28d-64] §4.3：DisJoint.h 已具名 m_creationRate[6] @+0x538（原裸偏移改具名）。
-    const float rate = m_creationRate[rarity];
+    // [b28d-solo-ItemUpgradeVtableB2] P0/P183：ORIG 0x08473410..0x08473466
+    // rarity 无栈槽（get_rarity 结果直入 %edx 参与索引）⇒ 不设具名局部。
+    const float rate = m_creationRate[script->get_rarity()];
     out.m_f[5] = m_cubeIndexVecs[4][0];
 
-    static const float priceBias = 1.1f;    // ORIG .rodata 0x08c6ff50
-    static const float thousand = 1000.0f;  // ORIG .rodata 0x08c6ff54
-
-    const float scaled = priceBias * (float)script->GetSellPrice();
-    // ORIG 0x08473490 区：fnstcw/fldcw 置截断模式后 fistpl —— 截断（非四舍五入）。
-    const int sell = getItemSellPrice((int)scaled, 0, 0,
-                                      script->IsRandomOption());
-    // ORIG：(sell*1000)/creationConst 为整数除法后再进浮点，fistpl 截断。
-    const int money = (int)(((float)((sell * 1000) / m_creationConst) *
-                             rate) / thousand);  // 截断（ORIG 无 +0.5）
-    out.m_f[0] = money < 1 ? 1 : money;
+    // ORIG 0x0847348a..0x084734a3：int 槽 -0x10 复用（GetSellPrice 结果 →
+    // fildl → *1.1f → RC=trunc fistpl 写回同槽）⇒ 具名 int 写回赋值，
+    // 禁 float 局部（多 fstps 且帧 +0x10）。
+    int sellPrice = script->GetSellPrice();
+    sellPrice = (int)(sellPrice * 1.1f);
+    // [b28d-solo-ItemUpgradeVtableB2] ORIG 0x08473445..0x0847346c：getItemSellPrice
+    // 返回值**无槽**（直接 `imul $0x3e8,%eax` 进入除法）⇒ 不设 sell 具名局部。
+    // ORIG 0x0847346f..0x08473482：整数除法商存具名槽 -0xc（fildl 直读）。
+    const int base = (getItemSellPrice(sellPrice, 0, 0,
+                                       script->IsRandomOption()) * 1000) /
+                     m_creationConst;
+    // [b28d-solo-ItemUpgradeVtableB2] ORIG 0x0847350a `fistpl -0x20(%ebp)` +
+    // `mov -0x20,%edx` 是编译器临时槽（不设 money 具名局部，4.4 直接
+    // fistpl 到临时再写 out.m_f[0]，可省一个具名槽）。
+    out.m_f[0] = (int)(((float)base * rate) / 1000.0f);
+    // ORIG 0x08473520..0x0847352b `test %eax,%eax; jg` + movl $1 ⇒ if 形
+    // （三目在 4.4 折 cmovg）。
+    if (out.m_f[0] <= 0)
+    {
+        out.m_f[0] = 1;
+    }
 
     _GetAdditionalItem(script, out.m_f[6], out.m_f[1]);
     return 0;
@@ -284,45 +335,11 @@ public:
     int GetReduceRate() { return (short)(m_addInfo.m_info0); }
 };
 
-// ============================================================================
-// 类内裸区访问辅助（约定同 CtorProducers_2C.cpp：表区 this+0x04、
-// 随机器指针 this+0x4e8、randInt 上界 this+0x4ec）。
-// ============================================================================
-namespace
-{
-
-inline CMTRand* upgradeRand(const WongWork::CItemUpgrade* self)
-{
-    return self->m_rand;   // +0x4e8（CItemUpgrade 具名字段）
-}
-
-inline const unsigned long& randIntBound(
-    const WongWork::CItemUpgrade* self, unsigned long& storage)
-{
-    storage = self->m_randMax;   // +0x4ec（CItemUpgrade 具名字段）
-    return storage;
-}
-
-// 表区（this+0x04）以 upgrade_table_t 视图访问：ORIG
-// WongWork::CItemUpgradeTable::getUpgradeInfoTable W 0x0854b382 即返回自身。
-inline const upgrade_table_t& embeddedTable(const WongWork::CItemUpgrade* self)
-{
-    // CItemUpgrade 双基：CItemUpgradeTable 表区基 @+0x04（IItemUpgrade @+0x00）。
-    return *static_cast<const WongWork::CItemUpgradeTable*>(self);
-}
-
-// 表区子对象视图（+0x04）：ORIG ProcUpgrade 0x08547ca4 `add $0x4,%eax` +
-// call _ZNK8WongWork17CItemUpgradeTable19getUpgradeInfoTableEv（W 0x0854b382）。
-// 必须走真实成员函数调用（inline 视图代返会丢该 call，P167 差集实证）。
-inline const WongWork::CItemUpgradeTable* embeddedUpgradeTable(
-    const WongWork::CItemUpgrade* self)
-{
-    // CItemUpgrade 双基：CItemUpgradeTable 表区基 @+0x04。
-    return static_cast<const WongWork::CItemUpgradeTable*>(self);
-}
-
-}  // namespace
-
+// [b28d-solo-ItemUpgradeVtableB2] P49/P167：原匿名 namespace 的
+// upgradeRand/randIntBound/embeddedTable/embeddedUpgradeTable 四个 inline
+// helper 已全部删除——-O0 下它们是**真实 call**（ORIG 无的 EXTRA 符号），
+// 调用点改为 m_rand 字段直读 / 基类 getUpgradeInfoTable() 成员直调后
+// p167 差集归零（missing_in_game 40→36）。
 namespace WongWork
 {
 
@@ -531,6 +548,7 @@ bool CItemUpgrade::_CheckTargetUsableLv(const Inven_Item& material,
 // _ProcPortableUpgradeItem @ 0x08548d3c（const）
 //   便携带升级券（action 类型 0x35）：校验通过后把 info 改写为
 //   {recipe=材料 idx, count=1, discount=0} 并返回 0。
+// [b28d-solo-ItemUpgradeVtableB2] **AE 85/85**（前轮判词复验，本轮改动无回归）。
 // ============================================================================
 int CItemUpgrade::_ProcPortableUpgradeItem(const Inven_Item& material,
                                            const Inven_Item& target,
@@ -546,7 +564,10 @@ int CItemUpgrade::_ProcPortableUpgradeItem(const Inven_Item& material,
     {
         return 0;
     }
-    CStackableItem* stack = (CStackableItem*)script;
+    // [b28d-solo-ItemUpgradeVtableB2] P96/P270：ORIG 调 **const** 版
+    // `_ZNKSt6vectorIiSaIiEEixEj` ⇒ 源码该指针是 const（verifyStackableAction
+    // 已声明 const，CStackableItem.h:441）。
+    const CStackableItem* stack = (const CStackableItem*)script;
     if (!stack->verifyStackableAction((StackableAction::Type)0x35))
     {
         return 0;
@@ -576,49 +597,69 @@ int CItemUpgrade::_ProcPortableUpgradeItem(const Inven_Item& material,
 //   以 info+0x20 的失败概率经事件/炼金/装备三段修正后掷骰：
 //   roll >= prob → IncUpgrade 且返回 true（强化成功）；否则保持等级并返回
 //   false（调用方走 _ProcPenalty）。
+// [b28d-solo-ItemUpgradeVtableB2] DIFF 166/163 封顶（N82 + setcc-fold）：
+//   P167 CLEAR 14/14，帧同（0x94）。已修：删 range 缓存（m_randMax 每用点
+//   重读）、两处 `&&` 拆嵌套 if（复现双 test/je 短路口）、a0/a1 独立 max 局部、
+//   reduced 左操作数改 m_randMax（复现 fildl→fstps→call→fmuls 求值序）、
+//   内联 invenR/roll、恢复 wornIdx 具名槽。残余：①prob 等局部槽号整体重排
+//   （4.4 首次使用序 vs 4.1 声明序，N82）②`rollWin = roll < prob` 4.4 恒
+//   setb+槽+xor，ORIG 是 mov $1/$0 + test 岛（P197④ setcc-fold，call 结果
+//   寄存器直比不可翻）。
 // ============================================================================
 bool CItemUpgrade::_DoProcUpgrade(CUser* user, Inven_Item* item,
                                   const upgrade_info_t* info)
 {
-    unsigned long range = (unsigned long)m_randMax;  // +0x4ec（具名字段）
-
     unsigned int prob =
         (unsigned int)info->m_prob20[0];   // info +0x20（失败概率，具名字段）
-    unsigned int adj[3];                   // ORIG local_74（两 std::max 共用）
     GlobalData::s_pEvent_UpGrade_Jar->GetProbability(
         info->m_recipeItem,   // info +0x2c（材料 item idx，具名字段）
         prob);
 
-    if (prob != 0 &&
-        GlobalData::s_globalEffectManager_->isAffectedEffect(3))
+    // [b28d-solo-ItemUpgradeVtableB2] P183/P225：ORIG 0x08547562 起 m_randMax
+    // **每用点重读**（`mov 0x8(%ebp),%eax; mov 0x4ec(%eax),%eax`），无 range
+    // 缓存局部；两处 `&&` 在 ORIG 是各自 `test/je 同一尾` 的短路跳
+    // （0x08547569/0x08547576、0x08547588/0x085475a3），4.4 对 `a&&b` 会物化
+    // bool 岛 ⇒ 拆嵌套 if 复现（P225 推广）。
+    if (prob != 0)
     {
-        const float effect =
-            GlobalData::s_globalEffectManager_->getEffectValue(3);
-        // ORIG：local_74[0]=prob-delta; local_74[1]=0; prob=*std::max(&[1],&[0])，
-        // 即 prob = max(prob - delta, 0)（P40 形式：std::max 两调用点）。
-        const int delta =
-            (int)((float)(int)range * effect) - (int)range;   // fistp 四舍五入
-        adj[0] = prob - (unsigned int)delta; // local_74[0]
-        adj[1] = 0;                          // local_74[1]
-        // ORIG mangled _ZSt3maxIjERKT_S2_S2_（std::max<unsigned int> const-ref 传元素）
-        prob = std::max(adj[1], adj[0]);
+        if (GlobalData::s_globalEffectManager_->isAffectedEffect(3))
+        {
+            const float effect =
+                GlobalData::s_globalEffectManager_->getEffectValue(3);
+            // ORIG 0x08547595..0x085475c4：`fildl m_randMax; fmuls effect;
+            // RC=trunc fistpl; sub m_randMax` 且两次独立重读 m_randMax。
+            const int delta =
+                (int)((float)m_randMax * effect) - m_randMax;
+            unsigned int a0 = prob - (unsigned int)delta;  // local_74[0]
+            unsigned int a1 = 0;                           // local_74[1]
+            prob = std::max(a1, a0);   // _ZSt3maxIjERKT_S2_S2_
+        }
     }
 
-    if (prob != 0 &&
-        expert_job::CAlchemist::IsExistContinuousEffectItem(user, 0x27ac59))
+    if (prob != 0)
     {
-        const int reduced =
-            (int)((float)expert_job::CAlchemist::GetItemUpgradeSuccessRate() *
-                  (float)(int)range);       // fistp 四舍五入
-        // ORIG：local_74[2]=prob-reduced; local_68=0; prob=*std::max(&local_68,&[2])
-        adj[2] = prob - (unsigned int)reduced;   // local_74[2]
-        unsigned int zero = 0;                   // local_68
-        prob = std::max(zero, adj[2]);           // local_68 与 local_74[2]
+        if (expert_job::CAlchemist::IsExistContinuousEffectItem(user, 0x27ac59))
+        {
+            // ORIG 0x085475d5..0x085475f6：先 fildl m_randMax → fstps 槽，
+            // 再 call GetItemUpgradeSuccessRate → fmuls ⇒ 左操作数是 m_randMax
+            // （求值序：`(float)m_randMax * rate`，禁把 call 写左侧）。
+            const int reduced =
+                (int)((float)m_randMax *
+                      expert_job::CAlchemist::GetItemUpgradeSuccessRate());
+            unsigned int a0 = prob - (unsigned int)reduced;  // local_68
+            unsigned int a1 = 0;                             // local_64
+            prob = std::max(a1, a0);
+        }
     }
 
-    const CInventory* invenR = ((CUserCharacInfo*)user)->getCurCharacInvenR();
-    Inven_Item worn = invenR->GetInvenSlot(0, 0xb);
-    CItem* equipScript = G_CDataManager()->find_item(worn.m_addInfo);
+    // [b28d-solo-ItemUpgradeVtableB2] P183：ORIG 0x0854764f `call
+    // getCurCharacInvenR; ... call GetInvenSlot` 无 invenR 具名局部。
+    Inven_Item worn = ((CUserCharacInfo*)user)->getCurCharacInvenR()
+                          ->GetInvenSlot(0, 0xb);
+    // ORIG 0x08547675 `mov -0x5b(%ebp),%eax; mov %eax,-0x1c(%ebp)` ⇒ 有具名
+    // wornIdx 局部（先落槽再传入 find_item）。
+    const int wornIdx = (int)worn.m_addInfo;
+    CItem* equipScript = G_CDataManager()->find_item(wornIdx);
     if (equipScript != 0 && prob != 0)
     {
         // W 0x0854b552：失败概率 -= 装备 +0x1d0 强化概率提升值。
@@ -629,19 +670,18 @@ bool CItemUpgrade::_DoProcUpgrade(CUser* user, Inven_Item* item,
         }
     }
 
-    bool rollWin = false;
     if (prob != 0)
     {
-        // ORIG：mov 0x4ec（m_randMax）存栈 → mov 0x4e8（m_rand）→ randInt(&bound)。
+        // ORIG：mov 0x4ec（m_randMax）存栈 → mov 0x4e8（m_rand）→ randInt(&bound)；
+        // 结果**无槽**（%eax 直比 prob，0x08547768 `cmp %edx,%eax`）。
         unsigned long boundStorage = (unsigned long)m_randMax;
-        const unsigned int roll = (unsigned int)m_rand->randInt(boundStorage);
-        rollWin = roll < prob;
+        if ((unsigned int)m_rand->randInt(boundStorage) < prob)
+        {
+            return false;
+        }
     }
-    if (!rollWin)
-    {
-        item->IncUpgrade();
-    }
-    return !rollWin;
+    item->IncUpgrade();
+    return true;
 }
 
 // ============================================================================
@@ -660,8 +700,15 @@ bool CItemUpgrade::_DoProcUpgrade(CUser* user, Inven_Item* item,
 //   ③ 残余 4 insn 集中在 ticket 级 bool 汇聚岛（0x08547c51）与
 //      /100 magic 除法展开（0x08548a98）⇒ 判**语义完成、byte 层
 //      N76/N82/N18b 封顶**，勿再耗轮次。
+// [b28d-solo-ItemUpgradeVtableB2 复核] DIFF 1242/1244 封顶（N82 + P292）：
+//   ①P167 CLEAR 115/115（本轮删匿名 namespace helper×2，EXTRA 归零）；
+//   ②gap -2（我方多 2 条，含 1 nop）；③帧 0x32c 同、残余为槽号整体重排
+//   （N82）与两处 bool 物化（`_GetUpgradeInfo` int 返回的 `test/sete` vs
+//   ORIG `xor $0x1`；callee 定义在 CItemUpgrade.cpp 属主 TU，P292 跨 TU
+//   返回类型冲突不改）⇒ 语义完成、byte 层封顶。
 //   MSG_ITEM_UPGRADE +0x1a/+0x1b/+0x1d/+0x21/+0x23 字段化已由 Main 代落
-//   PacketTypes.h:807-812；本函数无裸偏移读（仅 CEnvironment+0x378 待补）。
+//   PacketTypes.h:807-812；本函数无裸偏移读（CEnvironment+0x378 已按 §4.3
+//   具名化为 m_serverEnvir.m_serverGroup）。
 //
 // 物化口径（P183/P167 实证）：ORIG 对材料/保护券槽各发
 //   Inven_Item C2（0x080cb854）+ GetInvenSlot 临时槽（-0x2c8）+ 15×movl+1×movb
@@ -752,7 +799,11 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
     const upgrade_table_t* table;
     if (!target.m_amp.hasAbility())
     {
-        table = embeddedUpgradeTable(this)->getUpgradeInfoTable();
+        // [b28d-solo-ItemUpgradeVtableB2] P49/P167：删匿名 namespace inline
+        // helper（helper 在 -O0 是真实 call ⇒ ORIG 无的 EXTRA 符号）；基类
+        // CItemUpgradeTable 成员直调，this 自动 +0x04 调整（ORIG 0x08547ca4
+        // `add $0x4,%eax` + call getUpgradeInfoTable）。
+        table = getUpgradeInfoTable();
     }
     else
     {
@@ -864,7 +915,9 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         upgraded = true;
         // ORIG 上界是字面量 99（movl $0x63,-0xd0），非 _DoProcUpgrade 的 +0x4ec。
         unsigned long bound = 99;
-        if (upgradeRand(this)->randInt(bound) < msg->m_27)
+        // [b28d-solo-ItemUpgradeVtableB2] P49/P167：同上，直读 m_rand 字段
+        // （+0x4e8）消 helper call。
+        if (m_rand->randInt(bound) < msg->m_27)
         {
             target.SetUpgrade((unsigned char)msg->m_25);
             winFlag = 1;
@@ -1032,10 +1085,12 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         const unsigned int logUpgraded = (unsigned int)upgraded;  // -0x2d4
         const unsigned int logUpgrade =
             (unsigned int)target.GetUpgrade();                    // -0x2d0
+        // [b28d-solo-ItemUpgradeVtableB2] §4.3 裸偏移具名化：ORIG 0x0854898c
+        // `call G_CEnvironment; mov 0x378(%eax),%eax` —— +0x378 即
+        // CEnvironment::m_serverEnvir（+0x198）+ Server_Envir::m_serverGroup
+        // （+0x1e0），同一 4 字节 int 装载（CEnvironment.h:290 / :186 已具名）。
         const unsigned int envField =
-            *reinterpret_cast<const unsigned int*>(
-                reinterpret_cast<const char*>(G_CEnvironment()) +
-                0x378);  // [裸偏移] CEnvironment+0x378（具名字段待补）
+            (unsigned int)G_CEnvironment()->m_serverEnvir.m_serverGroup;
         DB_ReqItemUpgradeLog::makeRequest(
             envField, target.m_addInfo,
             ((const CUserCharacInfo*)user)->getCurCharacNo(),
@@ -1118,6 +1173,13 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
 // _getAdditionalDisjointItem @ 0x08546938
 //   grade 与表内基准差值达到阈值且强化级足够时，按 rarity 权重浮点计算
 //   附加分解物数量并压入 items（{item=table[0x238], count}）。
+// [b28d-solo-ItemUpgradeVtableB2] DIFF 108/102 封顶（N85① + N82 + 尾岛）：
+//   P167 CLEAR 8/8；已修 grade 内联（%ebx 保活）、max 实参序、clamped>=gap
+//   方向（复现 ORIG jb）、unsigned span（复现零扩展 fildll）、去 +0.5（ORIG
+//   RC=trunc 纯截断）、make_pair 嵌套形（三连 call）。残余：①weight 的
+//   `flds mem; fstps` vs 4.4 mov（volatile 实测反劣 +1）②槽号重排（N82）
+//   ③fistpll 后 4.4 DCE 掉 `mov -0x3c,%edx` ④尾部 3 个 jmp+nop 岛（4.1
+//   多出口，4.4 jump-thread 合并）。
 // ============================================================================
 void CItemUpgrade::_getAdditionalDisjointItem(unsigned int up,
                                               const CItem* itemScript,
@@ -1129,20 +1191,27 @@ void CItemUpgrade::_getAdditionalDisjointItem(unsigned int up,
     // `up - table.m_additionalMinUpgrade`（0x085469db..0x085469f8：先取 +0x258，
     // 与形参 up(0xc(%ebp)) 相减、符号扩展成 long long 后 fildll），
     // 此前误用钳零后的 grade 差。
-    const int grade = itemScript->get_grade();
-
+    // [b28d-solo-ItemUpgradeVtableB2] P0/P48：ORIG 0x08546944 `mov %eax,%ebx`
+    // ⇒ grade 无栈槽（值跨 get_rarity 调用由 %ebx 保活）⇒ 不设具名局部，
+    // 直接内联进 diff 表达式。
     // 0x0854696f..0x0854698a：`lea -0x24(&diff); lea -0x20(&zero); call max;
     // mov (%eax)` ⇒ ORIG 用 std::max 模板（两实参各取地址，故 zero 必须是
     // 具名 int 局部）；写成 if 钳零会少 6 insn。
     // get_rarity **两次独立调用**（0x0854695a 算 grade 差、0x085469bf 选权重
     // 槽）⇒ 不命名 rarity 局部（P48/P183）。
-    int diff = grade -
-               table.m_bodyView.m_named.m_baseGrade[itemScript->get_rarity()];
+    int diff =
+        itemScript->get_grade() -
+        table.m_bodyView.m_named.m_baseGrade[itemScript->get_rarity()];
     int zero = 0;
-    const int clamped = std::max(diff, zero);
+    // [b28d-solo-ItemUpgradeVtableB2] ORIG 0x0854696f..0x0854698a 压参序：
+    // 0x4(%esp)=&diff、(%esp)=&zero ⇒ 调用是 max(zero, diff)（4.4 右起求值
+    // 时先取 &diff，与 ORIG 装载序一致；max 可交换，语义等价）。
+    const int clamped = std::max(zero, diff);
 
-    if ((unsigned int)table.m_bodyView.m_named.m_additionalGradeGap <=
-            (unsigned int)clamped &&
+    // ORIG 0x0854698d..0x085469a2：`mov -0xc,%edx; mov 0x23c(%eax),%eax;
+    // cmp %eax,%edx; jb end` ⇒ 源码写 `clamped >= gap`（4.4 对 `a>=b` 发 jb）。
+    if ((unsigned int)clamped >=
+            (unsigned int)table.m_bodyView.m_named.m_additionalGradeGap &&
         (unsigned int)table.m_bodyView.m_named.m_additionalMinUpgrade < up)
     {
         // ORIG 的 make_pair 实参是 `Rm Rj`（unsigned long& / unsigned int&
@@ -1151,21 +1220,38 @@ void CItemUpgrade::_getAdditionalDisjointItem(unsigned int up,
         // 的具名局部，不能是表达式直传。
         unsigned long itemId =
             (unsigned long)table.m_bodyView.m_named.m_additionalItemId;
+        // [b28d-solo-ItemUpgradeVtableB2] ORIG 0x085469bf..0x085469ca 为
+        // `flds (%eax,%edx,4); fstps -0x4c(%ebp)`（4.1 的 float 拷贝经 x87），
+        // 4.4 恒 mov 位直搬（volatile 形实测反而多 flds+fmulp 一条，且初始化
+        // 仍为 mov）⇒ N85① 封顶（跨版本 float 拷贝 lowering 差异）。
         const float weight = table.m_bodyView.m_named
                                  .m_additionalWeight[itemScript->get_rarity()];
 
-        // pow(up - +0x258, 2.0)：64 位底数（`fildll -0x40`）+ _DAT_08c9d308=2.0；
-        // 两级取整分别是 fistpl（32 位）与 fmuls weight 后 fistpll（64 位），
-        // 均切 RC=nearest 控制字 ⇒ +0.5 近似（P176 同类，无合法 ROUND 源形）。
-        const long long span =
-            (long long)up -
-            (long long)table.m_bodyView.m_named.m_additionalMinUpgrade;
-        const double powered = std::pow((double)span, 2.0);
-        unsigned int count =
-            (unsigned int)((float)(int)(powered + 0.5) * weight + 0.5f);
+        // [b28d-solo-ItemUpgradeVtableB2] ORIG 0x085469db..0x08546a01：
+        // `mov 0x258(%eax),%eax; mov 0xc(%ebp),%edx; mov %edx,%ecx;
+        //  sub %eax,%ecx; mov %ecx,%eax; mov $0x0,%edx; mov %eax,-0x40;
+        //  mov %edx,-0x3c; fildll -0x40` = **unsigned int → double** 的零扩展
+        // 转换（32 位 unsigned 不能走 fildl）⇒ 底数类型是 unsigned int，
+        // 不是 (long long) 相减（那会出 sbb 链）。
+        // ORIG 0x08546a02..0x08546a39：pow 结果直接 `fnstcw/fldcw(RC=trunc)`
+        // 后 fistpl（截断，**无 +0.5**）；再 fildl + fmuls weight +
+        // fistpll（64 位截断）⇒ 源码是两次 (int)/(long long) C cast。
+        // span 无具名槽（ORIG 0x085469d1 用 %ecx/%eax 直传）⇒ 内联表达式。
+        const long long scaled =
+            (long long)((float)(int)std::pow(
+                            (double)(unsigned int)(
+                                up - table.m_bodyView.m_named
+                                         .m_additionalMinUpgrade),
+                            2.0) *
+                        weight);
+        unsigned int count = (unsigned int)scaled;
         if (count != 0)
         {
-            items.push_back(std::make_pair(itemId, count));
+            // ORIG 0x08546a4a..0x08546a6e：make_pair<Rm,Rj>（两左值）→
+            // pair<int,int> 转换 ctor → push_back(&&) 三连 call（P178 嵌套形；
+            // 直写 make_pair 只发两 call）。
+            items.push_back(
+                std::pair<int, int>(std::make_pair(itemId, count)));
         }
     }
 }
@@ -1183,6 +1269,13 @@ void CItemUpgrade::_getAdditionalDisjointItem(unsigned int up,
 //   残余 1 insn 与差集里 operator+ ×3 ↔ operator++ ×1 的符号名形差同源
 //   （Ghidra 把 libstdc++ 的 operator+(difference_type) 渲染为 operator++），
 //   已判语义完成、byte 层封顶。
+// [b28d-solo-ItemUpgradeVtableB2] DIFF 634/620 封顶（N82，§6.2 三件套）：
+//   ①P167 CLEAR 87/87（本轮补：三元组循环 `*it++`×3 复现 ppEi×3、SetUpgrade
+//   两分支各自重调 GetUpgrade、insert_event_items 前重调 getCurCharacInvenW、
+//   保护券分支去 invenW 缓存）；②gap 14（2.2%）；③帧 0x180 同、残余为槽号
+//   重排与 `info->m_prob20[2]=1` 的 4.1 地址中转（-0x3c 指针槽，4.4 折单条
+//   movl）+ bool 物化（setge vs jge/jns）。已修：penaltyType 正极性重排、
+//   toZero 改 `A || B` 短路表达式（复现 jge/jns 双跳）。
 // ============================================================================
 int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
                                const CItem* itemScript, unsigned short slot,
@@ -1190,8 +1283,23 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
                                const upgrade_info_t* info, PacketGuard* pg,
                                Inven_Item* ticketCopy, char ticketFlag)
 {
+    // [b28d-solo-ItemUpgradeVtableB2] P222/P194：ORIG 0x08546bdb 先测
+    // `ticketCopy->m_addInfo != 0`（正极性）再进票分支、`==0` 走 else
+    // （0x08546bfd 表查询）；负极性写法令两臂布局互换。票分支内
+    // `cmpb ticketFlag; jne` ⇒ if/else 独立赋值（非三目）。
     int penaltyType;
-    if (ticketCopy->m_addInfo == 0)
+    if (ticketCopy->m_addInfo != 0)
+    {
+        if (ticketFlag == 0)
+        {
+            penaltyType = 1;
+        }
+        else
+        {
+            penaltyType = 2;
+        }
+    }
+    else
     {
         penaltyType = table.GetPenaltyType(item->GetUpgrade(),
                                            (ENUM_RARITY)itemScript->get_rarity(),
@@ -1200,10 +1308,6 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
         {
             penaltyType = 2;
         }
-    }
-    else
-    {
-        penaltyType = (ticketFlag == 0) ? 1 : 2;
     }
     pg->put_byte((int)(char)penaltyType);
 
@@ -1220,28 +1324,29 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
         {
             const_cast<upgrade_info_t*>(info)->m_prob20[2] = 1;  // info +0x28
         }
-        const int drop = info->m_prob20[2];   // info +0x28（具名字段）
-        const unsigned char up = item->GetUpgrade();
-        bool toZero;
-        if (drop >= (int)up)
-        {
-            toZero = true;
-        }
-        else
-        {
-            toZero = ticketFlag < 0;
-        }
+        // [b28d-solo-ItemUpgradeVtableB2] P167/P48：ORIG 0x08546cd9 比较用
+        // GetUpgrade（值留 %eax 无槽）、0x08546d22/0x08546d4a 两个 SetUpgrade
+        // 分支**各自重新调用** GetUpgrade，且 else 支重读 info->m_prob20[2]
+        // ⇒ drop/up 均无具名局部，全部内联表达式（此前缓存 up/drop 少 2 个
+        // GetUpgrade 调用点，p167 MISSING -2）。
+        // ORIG 0x08546ce1..0x08546cf5：`cmp; jge L1; cmpb ticketFlag;
+        // jns L2; L1: mov $1,%eax; jmp; L2: mov $0,%eax; test %al` ⇒ 源码是
+        // `A || B` 短路表达式直接初始化 bool（4.1 生 jge/jns 双跳 + mov 岛）。
+        bool toZero = (info->m_prob20[2] >= (int)item->GetUpgrade()) ||
+                      (ticketFlag < 0);
         if (toZero)
         {
             item->SetUpgrade(0);
         }
-        else if (ticketFlag <= 0)
+        else if (ticketFlag > 0)
         {
-            item->SetUpgrade((unsigned char)((int)up - drop));
+            item->SetUpgrade(
+                (unsigned char)((int)item->GetUpgrade() - (int)ticketFlag));
         }
         else
         {
-            item->SetUpgrade((unsigned char)((int)up - (int)ticketFlag));
+            item->SetUpgrade((unsigned char)((int)item->GetUpgrade() -
+                                             info->m_prob20[2]));
         }
         pg->put_byte((int)item->GetUpgrade());
         pg->put_short((int)slot);
@@ -1270,16 +1375,21 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
         }
         if (protectSlot != -1)
         {
-            CInventory* invenW =
-                ((CUserCharacInfo*)user)->getCurCharacInvenW();
-            Inven_Item used = invenW->GetInvenSlot(INVEN_TYPE_EQUIP, protectSlot);
+            // [b28d-solo-ItemUpgradeVtableB2] P167/P183：ORIG 0x08546ea3
+            // （GetInvenSlot）与 0x08546f10（delete_item）各自重调
+            // getCurCharacInvenW，无具名 invenW 缓存（缓存少 1 个调用点）。
+            Inven_Item used = ((CUserCharacInfo*)user)
+                                  ->getCurCharacInvenW()
+                                  ->GetInvenSlot(INVEN_TYPE_EQUIP, protectSlot);
             if (used.m_addInfo != 0x28be7e && used.m_addInfo != 0x1f72 &&
                 used.m_addInfo != 0x20ba && used.m_addInfo != 0x292091ac)
             {
                 return 0x11;
             }
-            if (invenW->delete_item(INVEN_TYPE_EQUIP, protectSlot, 1,
-                                    eItemDelReason_3, true) != 1)
+            if (((CUserCharacInfo*)user)
+                    ->getCurCharacInvenW()
+                    ->delete_item(INVEN_TYPE_EQUIP, protectSlot, 1,
+                                  eItemDelReason_3, true) != 1)
             {
                 return 0x11;
             }
@@ -1330,18 +1440,19 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
         // 表区子对象走**真实成员调用**（0x0854b382
         // CItemUpgradeTable::getUpgradeInfoTable）；inline 视图代返会丢该 call
         // （P167 差集实证 missing 1）。
-        _getAdditionalDisjointItem(
-            savedUp, itemScript, items,
-            *embeddedUpgradeTable(this)->getUpgradeInfoTable());
+        _getAdditionalDisjointItem(savedUp, itemScript, items,
+                                   *getUpgradeInfoTable());
     }
 
     std::vector<int> slots;
     // ORIG 尾参 a/b 为 .rodata 空串 0x08c9c3a0（邮件标题/正文查找键）。
     static const char kEmptyKey[1] = "";
-    const int rc = invenW->insert_event_items(items, slots,
-                                              (eMoneyAddReason)7,
-                                              eItemAddReason_0x13, false,
-                                              kEmptyKey, kEmptyKey);
+    // [b28d-solo-ItemUpgradeVtableB2] P167：ORIG 0x08547295 在
+    // insert_event_items 前**重调** getCurCharacInvenW（不复用上面的 invenW）。
+    const int rc = ((CUserCharacInfo*)user)->getCurCharacInvenW()
+                       ->insert_event_items(items, slots, (eMoneyAddReason)7,
+                                            eItemAddReason_0x13, false,
+                                            kEmptyKey, kEmptyKey);
     pg->put_byte(rc);
 
     // insert_event_items 输出三元组 {slot, itemIdx, addInfo2/count}。
@@ -1350,12 +1461,15 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
     // end()、operator!=、operator++ ×3、operator*），我们写成 size()+operator[]
     // 索引形会丢这 4 个迭代器调用并多出 3×ix 与 1×size（P167 差集实测
     // missing 23 / extra 13）。三元组取数用 `*(it + n)` 形复现 3 次 operator++。
+    // [b28d-solo-ItemUpgradeVtableB2] P167/P28：ORIG 每轮调 **ppEi ×3**
+    // （MISSING -3 `normal_iterator::ppEi`、EXTRA +3 `pl`）⇒ 源码是三次
+    // 后置 `*it++` 取三元组，不是 `it += 3` + `*(it+n)`。
     for (std::vector<int>::const_iterator it = slots.begin();
-         it != slots.end(); it += 3)
+         it != slots.end(); )
     {
-        const int outSlot = *(it + 0);
-        const int outIdx = *(it + 1);
-        const int outCnt = *(it + 2);
+        const int outSlot = *it++;
+        const int outIdx = *it++;
+        const int outCnt = *it++;
         pg->put_short(outSlot);
         pg->put_item_idx((unsigned long)outIdx);
         pg->put_int(outCnt);

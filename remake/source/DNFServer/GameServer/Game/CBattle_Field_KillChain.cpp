@@ -374,9 +374,9 @@ void CBattle_Field::_MakeNotiPacketDieMonster(
     packet.put_byte(static_cast<unsigned char>(mobOut.m_flag34));
     if (mobOut.m_flag34 != 0)
     {
-        // 终点坐标（m_pos[0]，check_end_point 同源）。
-        packet.put_byte(m_pos[0].first);
-        packet.put_byte(m_pos[0].second);
+        // 终点坐标（m_endX/m_endY，check_end_point 同源）。
+        packet.put_byte(m_endX);
+        packet.put_byte(m_endY);
     }
     packet.finalize(true);
 }

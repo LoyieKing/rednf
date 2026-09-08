@@ -89,7 +89,10 @@ struct _Slot {
 struct _Reward {
     // ORIG W C1/C2 @0x081344be：memset(this,0,5)。
     _Reward() { std::memset(this, 0, sizeof(*this)); }
-    int m_field0; unsigned char m_byte4;                                    // pack(1)，5 字节
+    // [b28d-solo-advancealtar_Manager] m_byte4 uchar→bool：ORIG sendAchievementReward
+    // 0x081323db `movzbl 0x8(%eax),%eax; test %al,%al; je` 单段直判（P292 字段 bool）；
+    // sizeof/偏移不变（pack(1) 5 字节）。
+    int m_field0; bool m_byte4;                                             // pack(1)，5 字节
 };  // 5 字节
 #pragma pack(pop)
 struct _BuyItem {
@@ -508,7 +511,13 @@ struct _PhaseSummary
     // 用户 ctor/dtor 使使用点发射对应弱符号。
     _PhaseSummary() { std::memset(this, 0, sizeof(*this)); }
     ~_PhaseSummary() {}
-    char m_pad[0xc];
+    // b28d-solo-advancealtar_misc：m_pad 拆具名字段（证据 ORIG
+    //   checkAndSetActionDefine 0x0889a179/0x0889a182/0x0889a193 三连写
+    //   summary+4=totalDuration、+0=phaseIndex、+8=phase.m_field4）。
+    //   sizeof 0xc 不变。
+    int m_phaseIndex;      // +0x00
+    int m_startDuration;   // +0x04（本轮前的累计时长）
+    int m_phaseType;       // +0x08（Phase::m_field4）
 };  // sizeof 0xc
 
 struct TimeLineSummary

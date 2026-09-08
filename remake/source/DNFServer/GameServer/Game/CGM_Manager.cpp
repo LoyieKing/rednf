@@ -36,12 +36,10 @@ bool CGM_Manager::IsGm(unsigned int accId)
 
 // ORIG 符号: _ZN11CGM_Manager10TurnGmModeEj @ 0x829917c
 // readGuard(m_lock)；find 未命中返回 0；否则经 operator[] 翻转 +0 模式字节并返回新值。
-// [B24D判词 N] 语义正确：readGuard+find 未命中 0，operator[] 翻转 0/1 返回新模式；
-// diff=ORIG movzbl(%eax),%ebx 直存 vs 我方 movzbl(%eax),%eax;mov %eax,%ebx（多1条，
-//   P 寄存器分配），81/82 纯 lowering，语义等价。
-// [b28c-13 N18a] 复核：ORIG 0x0829923e `movzbl (%eax),%ebx`（零扩展直落
-// callee-saved 返回值缓存）；4.4 恒 `movzbl (%eax),%eax; mov %eax,%ebx`。裸 return/
-// 语句表达式/显式 cast 三形实测同形（P226 语句表达式仅对 call 结果升格有效）。
+// [b28d-solo-CGM_Manager 判词 AE] ORIG 81 = our 81（compare_tu AE 口径）。旧 B24D
+//   「N」与 b28c-13「N18a」判词作废：ORIG 0x0829923e `movzbl (%eax),%ebx` 直落
+//   callee-saved 可由「register bool 局部 + return」复现（P231 纯存储类提示，
+//   非绑定形；详见函数体内注释与 /tmp/b28d_s78_probe1.cpp f_regbool）。
 unsigned char CGM_Manager::TurnGmMode(unsigned int accId)
 {
     readGuard<rwLock> guard(&m_lock);
@@ -52,29 +50,29 @@ unsigned char CGM_Manager::TurnGmMode(unsigned int accId)
         m_gmMap[accId].m_mode = 0;
     else
         m_gmMap[accId].m_mode = 1;
-    // b28d-37 [N18a 复核]：ORIG 0x0829923e `movzbl (%eax),%ebx`（零扩展直落
-    // callee-saved 返回值缓存）；4.4 恒 `movzbl (%eax),%eax; mov %eax,%ebx`。
-    // P248 档③字段侧（m_mode bool→uchar）、P226 语句表达式、P231 纯 register
-    // 三形均已实测同形 ⇒ N18a 封顶（P0 禁绑定，不再试）。
-    register unsigned char mode = m_gmMap[accId].m_mode;
+    // b28d-solo-CGM_Manager [P231 纯 register + bool 局部]：ORIG 0x0829923e
+    // `movzbl (%eax),%ebx`（零扩展直落 callee-saved 返回值缓存）。4.4.7 探针
+    // （/tmp/b28d_s78_probe1.cpp f_regbool）实证：`register bool` 局部 + `return mode;`
+    // 即直落 %ebx；`register unsigned char` 恒多一条 `mov %eax,%ebx`。纯 register
+    // 存储类提示非绑定形（P0 合规，禁 `register asm`）。
+    register bool mode = m_gmMap[accId].m_mode;
     return mode;
 }
 
 // ORIG 符号: _ZN11CGM_Manager16GetCurrentGmModeEj @ 0x8299276
 // readGuard(m_lock)；find 未命中返回 0；否则经 operator[] 读 +0 模式字节。
-// [B24D判词 N] 语义正确：readGuard+find 未命中 0，operator[] 读 +0 字节；
-// diff=movzbl(%eax),%ebx vs 我方 movzbl(%eax),%eax（寄存器分配），60/61 纯 lowering，
-//   语义等价。
-// [b28c-13 N18a] 同 TurnGmMode：ORIG `movzbl (%eax),%ebx` 直落 vs 4.4 经 %eax 两步。
+// [b28d-solo-CGM_Manager 判词 AE] ORIG 60 = our 60（compare_tu AE 口径）。旧 B24D
+//   「N」与 b28c-13「N18a」判词作废：同 TurnGmMode，register bool 局部即直落 %ebx。
 char CGM_Manager::GetCurrentGmMode(unsigned int accId)
 {
     readGuard<rwLock> guard(&m_lock);
     std::map<unsigned int, CGMRecord>::iterator it = m_gmMap.find(accId);
     if (it == m_gmMap.end())
         return 0;
-    // b28d-37 [N18a 封顶]：同 TurnGmMode，ORIG 0x082992f3 `movzbl (%eax),%ebx`
-    // 直落 vs 4.4 `movzbl (%eax),%eax; mov %eax,%ebx`；P226/P231 两形实测同形。
-    register char mode = m_gmMap[accId].m_mode;
+    // b28d-solo-CGM_Manager [P231 纯 register + bool 局部]：ORIG 0x082992f3
+    // `movzbl (%eax),%ebx` 直落；探针 f_regbool 同法（register bool + return 即直落，
+    // register char 恒多 `mov %eax,%ebx`）。纯 register 提示非绑定形（P0 合规）。
+    register bool mode = m_gmMap[accId].m_mode;
     return mode;
 }
 
@@ -109,9 +107,16 @@ void CGM_Manager::SetGmLevel(unsigned int accId, int level)
 // 等级为 0：cMyTrace(__PRETTY_FUNCTION__, 0x15b4, 0) 记
 // "GM: %s exists in GM manifest but doen't have proper level. check DB" 返 false；
 // 否则返回 exec 结果。
+// [b28d-solo-CGM_Manager 判词 AE] ORIG 123 = our 123（compare_tu AE 口径）。旧
+//   b28d-37「N104/N82 封顶」作废，复现三钥匙：①guard 用显式作用域块——块内
+//   `return false;`（失败臂析构前 `mov $0,%ebx; mov $0,%esi`）、块外 `return ok;`
+//   （成功路径析构后才 `movzbl -0xd,%ebx`），4.4 即发 ORIG 的 %esi 选择器形；
+//   ②t2 vararg 用全表达式临时链 `cMyTrace(...)(fmt, NumberToString(...))`（P227：
+//   实参在 ctor 前求值并跨 ctor 保活 %ebx；具名两语句形实参序反）；③两把
+//   cMyTrace 槽 -0x30/-0x20 与 guard -0x34 随①②归位。注：game_func_report 在
+//   .o 阶段仍报 DIFF（未解析重定位标签显示差），以 compare_tu_game_orig.py 为准。
 bool CGM_Manager::LoadGmDataFromDb(unsigned int accId)
 {
-    // b28d-37 [N104/N82 封顶，ORIG 0x8299740]：EH 尾块相对序（4.4 把 epilogue 就地内联、unwind 压末）+ 槽位残差（cMyTrace -0x24 vs ORIG -0x30）；123/118。
     bool ok = false;                       // ORIG 槽 -0xd
     int rows = 0;                          // ORIG 槽 -0xc
     m_db->set_query("seLect level from gm_manifest where m_id = %s",
@@ -128,15 +133,21 @@ bool CGM_Manager::LoadGmDataFromDb(unsigned int accId)
     {
         return false;
     }
-    writeGuard<rwLock> guard(&m_lock);     // ORIG 槽 -0x34（函数级）
-    m_db->fetch();
-    ok = m_db->get_int(0, m_gmMap[accId].m_level);
-    if (m_gmMap[accId].m_level == 0)
+    // b28d-solo-CGM_Manager [P227+P59]：ORIG 0x08299815 guard 槽 -0x34（最深），失败臂
+    // 在析构**前**装 `mov $0,%ebx`、成功路径在析构**后**才 `movzbl -0xd,%ebx` ⇒ 源码
+    // 是「块内 guard + 块内 return false + 块外 return ok」。t2 的 vararg 在 ctor 前
+    // 求值并跨 ctor 保活 %ebx（P227 全表达式临时链；具名两语句形为反序）。
     {
-        cMyTrace t2(__PRETTY_FUNCTION__, 0x15b4, 0);   // ORIG 槽 -0x20（块内局部）
-        t2("GM: %s exists in GM manifest but doen't have proper level. check DB",
-           NumberToString(accId, 0));
-        return false;
+        writeGuard<rwLock> guard(&m_lock);     // ORIG 槽 -0x34（函数级）
+        m_db->fetch();
+        ok = m_db->get_int(0, m_gmMap[accId].m_level);
+        if (m_gmMap[accId].m_level == 0)
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0x15b4, 0)(
+                "GM: %s exists in GM manifest but doen't have proper level. check DB",
+                NumberToString(accId, 0));
+            return false;
+        }
     }
     return ok;
 }

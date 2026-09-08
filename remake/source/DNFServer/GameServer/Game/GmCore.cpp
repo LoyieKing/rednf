@@ -83,21 +83,19 @@ CParser::~CParser()                             // 0x08235446
 {
 }
 
-// [b28d-28] NEAR | ORIG 0x084a8ab6 | N93/N82：块级对象槽方向（ORIG -0x10 vs
-// 4.4 -0xc）+ EH cleanup 块序（4.1 直落 vs 4.4 `jmp` 岛）；助记符序列全等。
+// [b28d-solo-GmCore] 具名块级局部（head/tail）令 4.4 槽序反转为 -0xc/-0x10；改
+// **匿名表达式临时**（substr 结果直接赋给成员）后 4.4 复现 ORIG 的 -0x10/-0xc
+// 与块尾析构点（探针 fF/fH 实证；具名→匿名是槽向旋钮，语义不变）。
 void CParser::parse()                           // 0x084a8ab6
 {
     m_line = m_buf;                             // operator=(string&, const char*)
     m_pos = static_cast<int>(m_line.find(" ", 0));
-    // ORIG：两临时各占独立槽（head@-0x10 先声明、tail@-0xc），赋值后块尾即毁
-    //（4.1 块级作用域形）⇒ 各包一层块，禁平铺（平铺时 4.4 合并函数尾析构）。
+    // ORIG：substr 的 sret 临时直接赋给成员（head@-0x10 先、tail@-0xc 后），块尾即毁。
     {
-        std::string head = m_line.substr(0, m_pos);
-        m_cmdName = head;
+        m_cmdName = m_line.substr(0, m_pos);
     }
     {
-        std::string tail = m_line.substr(m_pos + 1, std::string::npos);
-        m_args = tail;
+        m_args = m_line.substr(m_pos + 1, std::string::npos);
     }
     trim(m_cmdName);
     m_id = atoi(m_cmdName.c_str());
@@ -111,8 +109,9 @@ CCommandMap::CCommandMap()                     // 0x082a7f64
     // ORIG：unordered_map 以 bucket_count=10 直接构造。
 }
 
-// [b28d-28] AE-OK | ORIG 0x082a7d88 | 双容器（map+unordered_map）迭代器析构
-// 循环逐条全等（含两段 EH landing）。
+// [b28d-solo-GmCore] AE | ORIG 0x082a7d88 | 双容器（map+unordered_map）迭代器析构
+// 循环逐条全等（含两段 EH landing）；show_func_diff ndiff=0，仅 .o 未解析重定位
+// 显示差（call 目标）属 AE 归一范围。
 CCommandMap::~CCommandMap()                    // 0x082a7d88
 {
     // ORIG 双遍历：id 侧与名字侧各按迭代器取 second，判空后 delete。

@@ -69,12 +69,18 @@ inline int userIdPlaceId(CUser* user)
 #define PowerWarOn() (GlobalData::s_power_manager->IsPowerWarEventOn())
 
 // CDataManager 内尚未具名化的三个 int 标量（+0x600/+0x604/+0x608，
-// importBloodDungeon 区；字段化归 CDataManager 域批次，本批按裸偏移忠实读取）。
-inline int dmFieldAt(int offsetBytes)
+// importBloodDungeon 区；字段化归 CDataManager 域批次，本批按具名视图读取）。
+// 视图成员访问让 4.4 折叠单条 disp（ORIG `mov 0x604(%eax),%eax`）；inline helper
+// 在 -O0 发真 call（P49）、裸 char* 偏移多发 add，均不可用。
+struct CDataManagerTailView
 {
-    return *reinterpret_cast<const volatile int*>(
-        reinterpret_cast<const char*>(G_CDataManager()) + offsetBytes);
-}
+    unsigned char m_reserved[0x600];
+    int m_field600;
+    int m_field604;
+    float m_field608;                                   // ORIG `flds 0x608(%eax)`
+};
+#define DM_FIELD(n) \
+    (reinterpret_cast<const CDataManagerTailView*>(G_CDataManager())->m_field##n)
 
 }  // unnamed namespace
 
@@ -90,24 +96,20 @@ void CAssaultMgr::Reset()
 // _GetNextAssaultPlaceId —— ORIG T 0x082ed976 (0x87)
 // 自增回卷时借静态 count 以 cMyTrace 报警并再 +1。
 // ===========================================================================
-// [b28d-19] N：N7/N82 —— 4.1 `mov <A>,%ebx` 跨 cMyTrace call 缓存 count 地址，4.4 折 %eax（无源码解）；ORIG 0x082ed976。
+// [b28d-solo-W6_AssaultMgrDeps] AE（P227 全表达式临时链：ORIG ctor 前 `mov count,%ebx` 跨 ctor
+// 保活 0x082ed9a3 逐条复现，39=39；旧 N7/N82 判词作废）；ORIG 0x082ed976。
 unsigned int CAssaultMgr::_GetNextAssaultPlaceId()
 {
-    // b28 BM4 判词（N7/N82 跨版本寄存器分配）：fresh .o 实残 = ORIG 4.1 以
-    // `push %ebx; sub $0x24` + `mov <A>,%ebx` 跨 cMyTrace call 缓存 count 地址
-    // （两次 `mov %ebx,0x8(%esp)`）；4.4 无 push ebx、sub $0x28、每次重读
-    // <A> 直传，帧/寄存器策略差 3 行（push/pop/add vs leave），绑定形 P0 禁，
-    // 无源码解。语义等价封顶。
     static int count = 0;                       // ORIG _ZZN…_GetNextAssaultPlaceIdE5count
 
     ++m_nextAssaultPlaceId;
     if (m_nextAssaultPlaceId == 0)
     {
         ++count;
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x1085, 0);
-        trace("NEXT_ASSAULT_PLACE_ID overflow count(%d)", count);
+        // [b28d-solo] P227 全表达式临时链：ORIG 在 ctor 前 `mov count,%ebx`
+        // 跨 ctor call 保活（0x082ed9a3），具名 trace 形 4.4 恒重读 count。
+        cMyTrace(__PRETTY_FUNCTION__, 0x1085, 0)(
+            "NEXT_ASSAULT_PLACE_ID overflow count(%d)", count);
         ++m_nextAssaultPlaceId;
     }
     return m_nextAssaultPlaceId;
@@ -429,33 +431,20 @@ int CAssaultMgr::OnConnectP2PAfterAssault(CUser* user, char* ip, int len)
 
 // ===========================================================================
 // OnTimeoutConnectP2PAfterAssault —— ORIG T 0x082ef9d8 (0x79)
-// [b22判词·跨版本bool ABI] ORIG 4.1 对 bool 局部分支生成
-// `mov $0x1/je 岛/mov $0x0` 物化双岛（7 insn），4.4 恒为 `setne %al`（实测
-// 显式 if/else true/false、三元等全部写法均归 setne，范式库跨版本豁免表
-// bool ABI 行）；另 TimeoutCompleteAfterAssault 在 CParty.h 声明 int（他方
-// 属主），以 (char) 显式截断复现 ORIG 调用点 testb %al。catch(int) 后
-// landing pad（cmp $1/je/Resume/begin_catch 存槽/end_catch）与 party@-0x10、
-// e@-0xc 槽位均逐条一致。残余仅物化岛形差，语义等价。
+// [b28d-solo-W6_AssaultMgrDeps] AE（P214① 正极性短路 &&：4.4 直产 ORIG `je;je;mov $1,%eax;jmp;
+// mov $0,%eax;test;je` 物化岛，40=40；旧「bool ABI 跨版本」判词作废）；ORIG 0x082ef9d8。
 // ===========================================================================
-// [b28d-19] N：跨版本 bool ABI —— 4.1 `mov $1/jmp/mov $0` 物化岛，4.4 恒 setne（已实测 if/else、三目全形）；ORIG 0x082ef9d8。
 int CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int timerKey)
 {
     (void)timerKey;                                     // ORIG 第 2 参未消费
-    // b28 BM4 判词（setcc-fold 负例，在册）：ORIG +0x?? 在 TimeoutComplete
-    // AfterAssault 后出 `test %al; je; mov $0x1,%eax; jmp; mov $0,%eax` 直分支
-    // 常量物化岛（gap 5）；范式库 setcc-fold 条已判 4.4 恒折 setXX+test 不可造
-    // 且 register 形 P0 禁。本函数返回恒 1 全路径语义已对（B24D 同族判词）。
     try
     {
         CParty* party = G_CGameManager()->GetParty(static_cast<int>(partyIndex));
-        if (party != 0)
+        // [b28d-solo] P214① 正极性短路：ORIG 短路 && 后 bool 物化
+        // `mov $1,%eax/jmp; mov $0,%eax; test %al,%al; je`（0x082efa0b..0x082efa19）。
+        if (party != 0 && party->TimeoutCompleteAfterAssault())
         {
-            // ORIG 调用点 test %al,%al（窄返回视 char，CParty.h 现声明 int 属他方
-            // 属主，此处显式 (char) 复现 testb）。
-            if (party->TimeoutCompleteAfterAssault())
-            {
-                party->ClearBadP2PUser();
-            }
+            party->ClearBadP2PUser();
         }
     }
     catch (int)                             // ORIG landing pad `cmp $0x1,%edx; je`+
@@ -470,14 +459,10 @@ int CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int ti
 // ===========================================================================
 // OnTimeoutCompleteLoadAfterAssault —— ORIG T 0x082ef86e (0x169)
 // TimerCompleteLoadAfterAssaultTimeout 回调主体（LfAssaultPlace 只交付了 registNextTimer）。
-// [B24D判词 N] 语义正确：G_CGameManager GetParty 判空 throw 0x1 + check_timer_key(0x2a)
-//   ==false throw 0x17 + TimeoutCompleteAfterAssault 真则 PacketGuard(header 1,0xf8,
-//   byte 1, finalize) → party send_to_party；catch-all。差异=CParty.h:416 声明 int
-//   （他方属主），(char)/bool ABI 表示导出 setne 物化岛 vs ORIG testb %al，bool ABI
-//   跨版本豁免（W6_AssaultMgrDeps.cpp:435 同批已录纯表示差），语义等价。
+// [b28d-solo-W6_AssaultMgrDeps] AE（95=95）：catch(...) 改 catch(int) 补 `cmp $0x1,%edx` landing；
+// 返回类型 void→int（P159：ORIG 尾 `mov $0x1,%eax` 0x082ef9cb）；旧 N93 判词作废。
 // ===========================================================================
-// [b28d-19] N：N93 —— 帧 sub $0x30 vs $0x20 + 局部槽序；ORIG 0x082ef86e。
-void CAssaultMgr::OnTimeoutCompleteLoadAfterAssault(unsigned int partyIndex, int timerKey)
+int CAssaultMgr::OnTimeoutCompleteLoadAfterAssault(unsigned int partyIndex, int timerKey)
 {
     try
     {
@@ -501,10 +486,13 @@ void CAssaultMgr::OnTimeoutCompleteLoadAfterAssault(unsigned int partyIndex, int
             party->send_to_party(packet);
         }
     }
-    catch (...)
+    catch (int)                             // [b28d-solo] ORIG landing pad
+                                            // `cmp $0x1,%edx; je` + 存值槽 -0xc
+                                            // ⇒ 定类型 catch(int)，非 catch-all。
     {
-        // ORIG catch-all。
     }
+    return 1;                               // [b28d-solo] P159：ORIG 尾 `mov $0x1,%eax`
+                                            // （0x082ef9cb）⇒ 返回类型非 void。
 }
 
 // ===========================================================================
@@ -512,7 +500,8 @@ void CAssaultMgr::OnTimeoutCompleteLoadAfterAssault(unsigned int partyIndex, int
 // 包 header(0,0x10a)；PowerSide==1 时 [胜方连数 A][B]，否则反向；
 // finalize(true) 后两队分别 send_to_party 或单人 Send。
 // ===========================================================================
-// [b28d-19] N：N93 —— 帧 sub $0x20 vs $0x30 + PacketGuard 槽序平移；ORIG 0x082efcb2。
+// [b28d-solo-W6_AssaultMgrDeps] AE（105=105）：单 party 槽 -0xc 复用两处 GetParty + P297 反条件
+// `je <Send>` 布局；旧 N93 判词作废。ORIG 0x082efcb2。
 void CAssaultMgr::_SendVictoryInfo(CUser* userA, CUser* userB)
 {
     PacketGuard packet;
@@ -529,23 +518,25 @@ void CAssaultMgr::_SendVictoryInfo(CUser* userA, CUser* userB)
     }
     packet.finalize(true);
 
-    CParty* partyA = static_cast<CParty*>(userA->GetParty());
-    if (partyA == 0)
+    // [b28d-solo] ORIG 单槽 -0xc 复用两处 GetParty（0x082efd7c/0x082efdb6）
+    // + 反条件 `je <Send>` 布局（party!=0 直落 send_to_party）⇒ P297 反写。
+    CParty* party = static_cast<CParty*>(userA->GetParty());
+    if (party != 0)
+    {
+        party->send_to_party(packet);
+    }
+    else
     {
         userA->Send(packet);
     }
-    else
+    party = static_cast<CParty*>(userB->GetParty());
+    if (party != 0)
     {
-        partyA->send_to_party(packet);
+        party->send_to_party(packet);
     }
-    CParty* partyB = static_cast<CParty*>(userB->GetParty());
-    if (partyB == 0)
+    else
     {
         userB->Send(packet);
-    }
-    else
-    {
-        partyB->send_to_party(packet);
     }
 }
 
@@ -608,28 +599,26 @@ int CAssaultMgr::check_party_teleport_user(char slotno, CUser* srcUser,
 // 价格表 + chaos 时效折算 + 混沌点权重 + 等级差系数（浮点公式逐指令转写，
 // ROUND 采用 ORIG fstcw(0xc)/fistpl 截断形态，等价 lrintf）。
 // ===========================================================================
-namespace
-{
+// ORIG 的浮点→整型截断序列（fnstcw/fldcw RC=0x0c/fistpl）由 4.4 -O0 的
+// `static_cast<int>(float)` 直接产出；lrintf 形会发真 call。
+#define ROUND_NEAREST_EVEN(v) (static_cast<int>(v))
 
-inline float roundToNearestEven(float v)                // ORIG fldcw(0x0c)+fistpl 序列
-{
-    return static_cast<float>(lrintf(v));
-}
-
-}  // unnamed namespace
-
-// [b28d-19] N：N82 —— 大件帧槽错位（帧 0x64 vs 0x74）；ORIG 0x082edc86。
+// [b28d-solo-W6_AssaultMgrDeps] 封顶 N85（253/257 insn）：已修 GetAutoClientRate 取 target（真 bug）、
+// 去 event 判空 / powerWarOn 局部 / chaosCapSec、ROUND 改 static_cast<int> 截断内联、
+// CDataManager+0x600/604/608 具名视图（+0x608 为 float）。残余 = 4 处 x87 比较
+// lowering（ORIG fucompp/fnstsw/test$5,ah/sete 各多 1 条）+ x87 求值序临时槽
+// （-0x50/-0x4c/-0x48 vs -0x40 区；具名 float 临时探针反致浅槽漂移 0x0c）。
+// ORIG 0x082edc86。
 int CAssaultMgr::GetRequestAssaultNeedMoney(CUser* attacker, CUser* target)
 {
-    // RepeatEvent(0x20) IsEventing 命中 → 免费判定路径返回 0。
-    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x20);
-    if (event != 0 && event->IsEventing(0))
+    // ORIG 无 event 具名槽（P0：指针留 %eax 直传虚调）+ 无判空（P171 照抄）。
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x20)->IsEventing(0))
     {
         return 0;
     }
 
-    const bool powerWarOn = PowerWarOn();
-    if (powerWarOn && attacker->getCurCharacVill() == 0x7)
+    // ORIG 无具名 powerWarOn 局部（P0：&& 短路值仅存寄存器）。
+    if (PowerWarOn() && attacker->getCurCharacVill() == 0x7)
     {
         return 0;
     }
@@ -641,36 +630,27 @@ int CAssaultMgr::GetRequestAssaultNeedMoney(CUser* attacker, CUser* target)
     // 目标混沌点==0：主价格公式分支。
     if (target->GetCurCharacChaosPoint() == 0)
     {
+        // ORIG 取 target 的 AutoClientRate（0x082edd3a `mov 0x10(%ebp),%eax`）。
         const float autoClientRate =
-            static_cast<float>(attacker->GetAutoClientRate()) / (-100.0f) + 1.0f;
+            static_cast<float>(target->GetAutoClientRate()) / (-100.0f) + 1.0f;
                                                             // _DAT_08c1d18c=-100.0f
+        int one = 1;                                        // ORIG -0x24 `movl $0x1`
         float decaySec = static_cast<float>(
             GlobalData::s_systemTime_.getCurSec()
             - attacker->GetCurCharacChaosKillTime());
-        float chaosCapSec = 0.0f;
-        if (decaySec > 0.0f)
+        if (decaySec <= 0.0f)
         {
-            chaosCapSec = decaySec;
+            decaySec += 1.0f;
         }
         else
         {
-            decaySec += 1.0f;
-            chaosCapSec = decaySec;
+            if (ROUND_NEAREST_EVEN(decaySec) > DM_FIELD(604))
+            {
+                decaySec = static_cast<float>(DM_FIELD(604));
+            }
         }
-        (void)chaosCapSec;
-
-        // 时间窗基准（字段尚未具名化，见报告 NOTES）：CDataManager+0x604。
-        const int windowSec = dmFieldAt(0x604);          // CDataManager+0x604
-        if (decaySec > 0.0f &&
-            static_cast<int>(roundToNearestEven(decaySec)) > windowSec)
-        {
-            decaySec = static_cast<float>(windowSec);
-        }
-        else if (decaySec <= 0.0f)
-        {
-            decaySec += 1.0f;
-        }
-        float upperBound = static_cast<float>(windowSec) * autoClientRate;
+        float upperBound =
+            static_cast<float>(DM_FIELD(604)) * autoClientRate;
         if (upperBound <= 0.0f)
         {
             upperBound += 1.0f;
@@ -678,15 +658,14 @@ int CAssaultMgr::GetRequestAssaultNeedMoney(CUser* attacker, CUser* target)
         float factor = 1.0f;
         if (decaySec - upperBound <= 0.0f)
         {
-            factor = static_cast<float>(dmFieldAt(0x600))     // CDataManager+0x600
-                     - decaySec / upperBound;
+            factor = (static_cast<float>(DM_FIELD(600))
+                      - decaySec / upperBound) * one;
         }
         if (factor >= 1.0f)
         {
-            const int cap = dmFieldAt(0x600);
-            if (factor > static_cast<float>(cap))
+            if (factor > static_cast<float>(DM_FIELD(600)))
             {
-                factor = static_cast<float>(cap);
+                factor = static_cast<float>(DM_FIELD(600));
             }
         }
         else
@@ -695,28 +674,31 @@ int CAssaultMgr::GetRequestAssaultNeedMoney(CUser* attacker, CUser* target)
         }
 
         // 等级差惩罚（CDataManager+0x608 系数）。
-        float levelPenalty = 1.0f;
         const int levelDiff =
             attacker->get_charac_level() - target->get_charac_level();
+        float levelPenalty = 1.0f;
         if (levelDiff > 8)
         {
-            levelPenalty = static_cast<float>(dmFieldAt(0x608))
-                               * static_cast<float>(levelDiff - 8) + 1.0f;   // CDataManager+0x608
+            levelPenalty = DM_FIELD(608)
+                               * static_cast<float>(levelDiff - 8) + 1.0f;
         }
 
-        const int chaosA = attacker->GetCurCharacChaosPoint();
-        const float weight = static_cast<float>(
-            G_CDataManager()->m_serverParameter.getAssaultPriceChaospointWeight(chaosA));
-        const float priced = roundToNearestEven(
-            static_cast<float>(basePrice) * factor * levelPenalty * autoClientRate);
-        return static_cast<int>(weight * priced);
+        const float priced = static_cast<float>(ROUND_NEAREST_EVEN(
+            static_cast<float>(basePrice) * factor * levelPenalty * autoClientRate));
+        return ROUND_NEAREST_EVEN(
+            static_cast<float>(
+                G_CDataManager()->m_serverParameter
+                    .getAssaultPriceChaospointWeight(
+                        attacker->GetCurCharacChaosPoint()))
+            * priced);
     }
 
     // 目标混沌点!=0：只按目标混沌权重缩放基础价。
-    const int chaosT = target->GetCurCharacChaosPoint();
-    const float weight = static_cast<float>(
-        G_CDataManager()->m_serverParameter.getChaosPointWeight(chaosT));
-    return static_cast<int>(weight * basePrice);
+    const float priceF = static_cast<float>(basePrice);
+    return ROUND_NEAREST_EVEN(
+        G_CDataManager()->m_serverParameter.getChaosPointWeight(
+            target->GetCurCharacChaosPoint())
+        * priceF);
 }
 
 // ===========================================================================
@@ -725,7 +707,11 @@ int CAssaultMgr::GetRequestAssaultNeedMoney(CUser* attacker, CUser* target)
 // [b28c-L7][SIGFIX:pvp_assault::CAssaultMgr::OnRequestAssault] int→bool
 //（ORIG __PRETTY_FUNCTION__ 串 "bool ...(CUser*, CUser*, int*)"，tsv 第 14 行；
 // mangled 不含返回类型⇒符号不变；体内 return 值仅 0/1）。
-// [b28d-19] N：N82 —— 超大件（1097 insn）帧槽错位；§6.2 三件套口径封顶；ORIG 0x082edfba。
+// [b28d-solo-W6_AssaultMgrDeps] 封顶 N82/N86（1156/1097，gap +59 = 4.4 帧/临时槽形态差）：
+// §6.2 三件套①p167 CLEAR 202/202（0 missing/0 extra）；②逐块对齐 Ghidra C 并修
+// 2 个真语义 bug（0x082ee06e attacker 的 AssaultedUserId、0x082ef0ce 错误包
+// 漏 put_byte(4)）；③帧 sub $0x120 vs ORIG $0xdc + 缺 push %edi（4.4 临时槽更多）。
+// ORIG 0x082edfba。
 bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
 {
     CAssaultPlace* acquiredPlace = 0;                   // -0x94(%ebp)
@@ -745,7 +731,9 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
 
         if (!PowerWarOn())
         {
-            if (target->GetCurCharacAssaultedUserId()
+            // ORIG 082ee06e/082ee07b：attacker 的 AssaultedUserId vs target 的 unique_id
+            // （旧实现两侧都取 target，真语义 bug）。
+            if (attacker->GetCurCharacAssaultedUserId()
                 != (static_cast<unsigned short>(target->get_unique_id())))
             {
                 LogManager::logFormat(
@@ -784,17 +772,15 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
             throw static_cast<ENUM_ERROR>(0xd9);
         }
 
-        const bool powerWarOn = PowerWarOn();
-        const bool attackerVill7 =
-            attacker->getCurCharacVill() == 0x7;
-
-        if (powerWarOn && attackerVill7 && result == 0)
+        // P0：ORIG 082ee238/082ee331 各自独立 call IsPowerWarEventOn/getCurCharacVill
+        // （无槽往返 ⇒ 原码无具名 bool 局部）。
+        if (PowerWarOn() && attacker->getCurCharacVill() == 0x7 && result == 0)
         {
             GlobalData::s_power_manager->GetPowerWarLog()->IncAssaultAttemptCount();
         }
 
-        CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x2a);
-        if (event != 0 && event->IsEventing(0))
+        // ORIG 082ee298 直接解引用返回值（无判空、无 event 具名槽，P171/P0）。
+        if (GlobalData::s_event_manager->GetRepeatEvent(0x2a)->IsEventing(0))
         {
             throw static_cast<ENUM_ERROR>(0xb2);
         }
@@ -804,22 +790,23 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
             throw static_cast<ENUM_ERROR>(0x13);
         }
 
-        if (!powerWarOn)
+        if (!PowerWarOn())
         {
-            if (attackerVill7)
+            if (attacker->getCurCharacVill() == 0x7)
             {
                 throw static_cast<ENUM_ERROR>(0x13);
             }
         }
         else
         {
-            if (!attackerVill7)
+            if (attacker->getCurCharacVill() != 0x7)
             {
                 throw static_cast<ENUM_ERROR>(0xfc);
             }
-            const int area = attacker->get_area(false);
+            // ORIG 082ee349/082ee35e：实参内联（area 留 %ebx 无槽，P0/P183）。
             if (G_GameWorld()->IsPowerWarSafeZone(
-                    static_cast<int>(attacker->getCurCharacVill()), area))
+                    static_cast<int>(attacker->getCurCharacVill()),
+                    attacker->get_area(false)))
             {
                 throw static_cast<ENUM_ERROR>(0x13);
             }
@@ -851,8 +838,9 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
 
         if (G_CEnvironment()->m_serverEnvir.m_serverGroup == 3)
         {
-            const int targetNo = target->getCurCharacNo();
-            if (targetNo == 0x1eaa0d || targetNo == 0x2c55a8)
+            // ORIG 082ee5b6/082ee5c8 两次独立 getCurCharacNo（无 targetNo 局部）。
+            if (target->getCurCharacNo() == 0x1eaa0d
+                || target->getCurCharacNo() == 0x2c55a8)
             {
                 throw static_cast<ENUM_ERROR>(0x13);
             }
@@ -942,14 +930,14 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
             }
         }
 
-        private_store::CPrivateStoreMgr* storeMgr =
-            private_store::GetInstancePrivateStoreMgr();
-        private_store::CPrivateStore* store = storeMgr->FindStoreSeller(attacker);
+        // ORIG 082ee95a/082ee9ba 两次独立 GetInstancePrivateStoreMgr（无 storeMgr 局部）。
+        private_store::CPrivateStore* store =
+            private_store::GetInstancePrivateStoreMgr()->FindStoreSeller(attacker);
         if (store != 0 && store->isDollCreated() == 0)
         {
             throw static_cast<ENUM_ERROR>(0x3c);
         }
-        store = storeMgr->FindStoreSeller(target);
+        store = private_store::GetInstancePrivateStoreMgr()->FindStoreSeller(target);
         if (store != 0 && store->isDollCreated() == 0)
         {
             throw static_cast<ENUM_ERROR>(0x3c);
@@ -978,11 +966,13 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
         AvailableAssault(target, attacker);
 
         chargeMoney = attacker->GetCurCharacAssaultMoney();
-        CInventory* invenR = static_cast<CInventory*>(attacker->getCurCharacInvenW()); // ORIG 读款亦经 inven thunk（签名归属见 NOTES）
-        const int heldMoney = invenR->get_money();
-        if (heldMoney < chargeMoney)
+        // ORIG 082eeb34/082eeb62 两次 getCurCharacInvenR + get_money（差额在异常路径重算）。
+        if (static_cast<const CInventory*>(attacker->getCurCharacInvenR())->get_money()
+            < chargeMoney)
         {
-            chargeMoney = chargeMoney - heldMoney;       // ORIG 抛出前更新差额（无可见副作用）
+            chargeMoney =
+                chargeMoney
+                - static_cast<const CInventory*>(attacker->getCurCharacInvenR())->get_money();
             throw static_cast<ENUM_ERROR>(0xa);
         }
 
@@ -1020,7 +1010,7 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
         if (chargeMoney > 0)
         {
             Inven_Item equipSlot =
-                static_cast<CInventory*>(attacker->getCurCharacInvenW())->GetInvenSlot(0, 0xb);
+                static_cast<const CInventory*>(attacker->getCurCharacInvenR())->GetInvenSlot(0, 0xb);
             const int itemIdx = equipSlot.m_addInfo;
             CDataManager* cdm = G_CDataManager();
             const CItem* discountItem =
@@ -1046,9 +1036,9 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
             && attacker->getCurCharacVill() == 0x7)
         {
             const int joinCount = acquiredPlace->GetAssaulterCount();
-            CPowerWarLog* log = GlobalData::s_power_manager->GetPowerWarLog();
-            log->IncTotalJoinAssaultUser(joinCount);
-            log->IncAssaultAttemptSuccessCount();
+            // ORIG 082eeeb1/082eeecd 两次独立 GetPowerWarLog（无 log 局部）。
+            GlobalData::s_power_manager->GetPowerWarLog()->IncTotalJoinAssaultUser(joinCount);
+            GlobalData::s_power_manager->GetPowerWarLog()->IncAssaultAttemptSuccessCount();
         }
 
         _SendVictoryInfo(attacker, target);
@@ -1086,15 +1076,12 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
             packet.put_header(1, 0xa);
             packet.put_byte(0);
             packet.put_byte(static_cast<int>(err));
+            packet.put_byte(4);                     // ORIG 082ef0ce（旧实现漏写，真语义缺口）
             packet.put_int(chargeMoney);
             packet.finalize(true);
             attacker->Send(packet);
         }
         return true;
-    }
-    catch (...)
-    {
-        throw;                                          // 非 ENUM_ERROR 异常照常上抛（ORIG __cxa_unwind）
     }
 }
 
@@ -1103,25 +1090,34 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
 // ===========================================================================
 // IsStayGate —— ORIG T 0x082edc05 (0x81)，全局自由函数（被本 TU 使用）。
 // ===========================================================================
-// [b28d-19] N：P197④ 槽比零 setcc 物化（4.1 `cmp -N,0; sete; test; je`，4.4 恒 jne 直跳）+ 帧差；已按 P198① 补两句式预清；ORIG 0x082edc05。
+// [b28d-solo-W6_AssaultMgrDeps] AE（40=40）：P225 `while (x==0) { return true; break; }` 复现 4.1
+// 槽比零 sete/test/je 物化；P212 全头部声明对齐双预清；area 内联保 %ebx 跨 call。
+// 旧 P197④「不可翻」判词作废。ORIG 0x082edc05。
 bool IsStayGate(CUser* user)                            // _Z10IsStayGateP5CUser
 {
     // ORIG 0x082edc05：入口 `movl $0x0,-0x10/-0xc(%ebp)` 双预清（P198① 两句式）
     // ⇒ 原码为「声明=0 + 独立赋值」两段。
+    // [b28d-solo] P212 全头部声明：ORIG 两条预清 `movl $0,-0x10/-0xc` 连续
+    // 落函数头（0x082edc0c/0x082edc13）⇒ 两个指针局部都声明在函数头。
     GameWorld* world = 0;
-    world = G_GameWorld();
-    if (world == 0)
-    {
-        return true;
-    }
     Village* village = 0;
-    village = world->getUserVillage(user);
-    if (village == 0)
+    world = G_GameWorld();
+    // [b28d-solo] P225：ORIG 槽比零物化 `cmpl $0,-0x10; sete %al; test %al,%al;
+    // je`（0x082edc22..0x082edc2b）⇒ while(cond){return X; break;} 形可翻。
+    while (world == 0)
     {
         return true;
+        break;
     }
-    const int area = user->get_area(false);
-    return area == village->get_gate_area();
+    village = world->getUserVillage(user);
+    while (village == 0)
+    {
+        return true;
+        break;
+    }
+    // [b28d-solo] P0：ORIG get_area 结果留 %ebx 跨 get_gate_area call（无槽往返）
+    // ⇒ 原码无具名 area 局部，使用点内联表达式。
+    return user->get_area(false) == village->get_gate_area();
 }
 
 // ===========================================================================
@@ -1204,7 +1200,10 @@ CPowerWarLog* CPowerManager::GetPowerWarLog()           // ORIG W 0x082f0906 (0x
     return &m_powerWarLog;   // +0x1b4 嵌入对象
 }
 
-// [b28d-19] N：N82 —— 大件帧槽错位（帧 0x174 vs 0x178）；ORIG 0x084802cc。
+// [b28d-solo-W6_AssaultMgrDeps] 封顶 N82（275/278）：p167 CLEAR 40/40
+// （0 missing/0 extra）；残余 = 帧 sub $0x178 vs ORIG push %ebx+sub $0x174、
+// cMyTrace 兄弟块临时槽方向（ORIG -0x158→-0xa8 深→浅 vs 4.4 -0x28→-0xe8 浅→深，
+// P221）与 ORIG 字段值 %ebx 跨 ctor 保活（P227）。ORIG 0x084802cc。
 void CPowerWarLog::PrintPowerWarAssultReport()          // ORIG T 0x084802cc (0x58e)
 {
     // docs/class_func_reports/CPowerWarLog/PrintPowerWarAssultReport.md

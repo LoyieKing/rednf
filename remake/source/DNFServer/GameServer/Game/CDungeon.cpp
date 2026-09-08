@@ -306,9 +306,15 @@ void CDataManager::set_limit_inout_count(char value, ENUM_BLOOD_TYPE type)
 
 void CDungeon::set_dungeon(STDungeonScript& script)
 {
-    // [b28d-39 判词 · N82/N89] ORIG 0x0834acc4：超大件帧/槽号整体平移（N82，
-    // ORIG 具名临时 -0x88 vs 4.4 -0x8c）+ 容器访问器跨版本差（N89）；
-    // 全字段赋值序与来源逐条对齐，语义等价。
+    // [b28d-solo-CDungeon 判词 · N82/N89] ORIG 0x0834acc4：超大件槽号整体平移
+    //（N82，ORIG 具名临时 -0x88 vs 4.4 -0x8c；槽数同为 26 个但分配序不同）+
+    // 容器访问器跨版本差（N89）；全字段赋值序与来源逐条对齐。
+    // 本轮修法（p167 差集驱动，82=82 CLEAR）：①cit 由 const_iterator 改非 const
+    // iterator（消转换构造 + 非 const deEv/ne）；②循环改正极性 while(cit!=end)
+    // 复现 ORIG `jmp 条件 → ne → jne body` 布局（原 do-while+eq 形）；③cit++ 后置
+    //（ppEi）；④`p = std::pair<int,int>(*cit)` 临时构造再赋值（P135 aSEOS0_）；
+    // ⑤insert 实参改直构 map value_type `std::pair<const int,int>(totalRate,p.first)`
+    //（消 4.4 make_pair 右值实例 + pair move 构造）。our 818→815（ORIG 804）。
     // ORIG 0x0834acc4：从脚本复制全部字段（顺序按 ORIG 汇编）
     m_index = script.m_18;
     m_standardLevel = script.m_ac;
@@ -370,29 +376,27 @@ void CDungeon::set_dungeon(STDungeonScript& script)
 
     int totalRate = 0;
     m_clearItemMap.clear();
-    std::vector<std::pair<int, int> >::const_iterator cit =
+    std::vector<std::pair<int, int> >::iterator cit =
         script.m_vecc8.begin();
     std::pair<int, int> p;
-    do
+    while (cit != script.m_vecc8.end())
     {
-        do
+        p = std::pair<int, int>(*cit);
+        if (p.first != 0)
         {
-            if (cit == script.m_vecc8.end())
+            totalRate = p.second + totalRate;
+            m_clearItemMap.insert(std::pair<const int, int>(totalRate, p.first));
+            if (totalRate > 100)
+            {
+                LogManager::logFormat(
+                    1, "data_manager.cpp",
+                    "void CDungeon::set_dungeon(STDungeonScript&)", 0x5e1,
+                    "total_rate(%d) > 100", totalRate);
                 goto copy_rest;
-            p = *cit;
-        } while (p.first == 0);
-        totalRate = p.second + totalRate;
-        m_clearItemMap.insert(std::make_pair(totalRate, p.first));
-        if (totalRate > 100)
-        {
-            LogManager::logFormat(
-                1, "data_manager.cpp",
-                "void CDungeon::set_dungeon(STDungeonScript&)", 0x5e1,
-                "total_rate(%d) > 100", totalRate);
-            goto copy_rest;
+            }
+            cit++;
         }
-        ++cit;
-    } while (true);
+    }
 
 copy_rest:
     m_vec40 = script.m_vecd4;          // 通关掉落
@@ -502,9 +506,10 @@ copy_rest:
 // 唯一残差即该 lea-vs-add+mov 折叠 ⇒ N18a（单段 regmove 不可造）封顶。
 void TOD_UserState::IncreaseEnterCount()
 {
-    // [b28d-39 判词 · N4/P30] ORIG 0x0864388a：残余 `add $0x1,%eax; mov %eax,%edx`
-    // vs 4.4 `lea 0x1(%eax),%edx`（add-vs-lea 固有差）；三次自增/时间戳/alter 调用
-    // 逐条等价。
+    // [b28d-solo-CDungeon 判词 · N4/P30] ORIG 0x0864388a：残余 `add $0x1,%eax;
+    // mov %eax,%edx` vs 4.4 `lea 0x1(%eax),%edx`（add-vs-lea 固有差）；三次自增/
+    // 时间戳/alter 调用逐条等价。q1-q6 六形探针（f+1 / +=1 / 1+f / (ushort)cast /
+    // register int 临时 / register ushort 临时）全部产 lea，N4/P30 封顶。
     m_data.m_enterCount = m_data.m_enterCount + 1;
     m_data.m_lastEnterLayer = m_data.m_lastEnterLayer + 1;
     m_data.m_lastEnterTime = GlobalData::s_systemTime_.getCurSec();
@@ -560,9 +565,10 @@ CDungeon_TowerOfDespair::CDungeon_TowerOfDespair()
 }
 int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
 {
-    // [b28d-39 判词 · N93/N82] ORIG 0x0834d8ec：具名 int 槽 -0x14 vs -0x18 方向
-    // 相反（N93）+ 帧 0x28 族平移（N82）；调用点差集与发包/统计写入逐条对齐，
-    // 语义等价。
+    // [b28d-solo-CDungeon 判词 · N93/N82] ORIG 0x0834d8ec：具名 int 槽 -0x14 vs
+    // -0x18 方向相反（N93）+ 槽集整体平移 4（N82，ORIG 有 2 字节槽 -0x16，4.4 无）；
+    // 帧同为 0xb0。本轮复验：p167 43=43 CLEAR、gap +1（orig 254 / our 255），
+    // 按 §6.2 三件套判「语义完成、byte 层 N 封顶」。
     // ORIG 0x0834d8ec：进入绝望之塔——递增计数、二次进入扣门票、发包回执、统计。
     // 判例（ADeepY4[6]）：DIFF(N封)，gap +1（orig 254 / our 255）。全调用点成立
     // （GetCharacExpandData/IncreaseEnterCount/getEnterCount/check_item_exist/GetInvenSlot/
@@ -658,9 +664,16 @@ void CDungeon::GetRandMaze(int& out) const
 
 int CDungeon::GetRandMazebyPartyCount(int partyCount) const
 {
-    // [b28d-39 判词 · N82] ORIG 0x0834d06c：帧 0x40 vs 0x30 + 除法 lowering
-    // （ORIG `mov %eax,-0x2c; divl -0x2c` vs 4.4 寄存器 div）；候选收集/随机
-    // 语义逐条等价。
+    // [b28d-solo-CDungeon 判词 · N18a/N4/N95] ORIG 0x0834d06c：候选收集/随机
+    // 语义逐条等价。本轮修法：两处 `(int)candidates[x]` 改 `*(int*)&candidates[x]`
+    // 视图读，复现 ORIG `call ix; mov (%eax),%ebx` 单条（4.4 对 (int)cast 恒多
+    // `mov (%eax),%eax; mov %eax,%ebx`，P266 同族；unsigned cast 无效实测）。
+    // 残余：①两处除法余数 4.1 `mov %edx,%ecx; mov %ecx,%eax; mov %eax,-r` vs
+    // 4.4 `mov %edx,-r`（N18a；d2/d5/d6 探针：具名 sz 形可出内存 divl，但 4.4
+    // 按首次使用分配把 sz 放 -0x14 并整体平移槽位 -4，净负已回退）；
+    // ②帧 0x40 vs 0x30 = ORIG -0x2c 匿名除法临时槽（P232 framePad 撑帧同样平移
+    // 全槽，净负已回退）；③empty 分支 `mov this,%edx; add $0x62c,%edx` vs 4.4
+    // `lea 0x62c(%eax),%edx`（N4/P30）。调用点差集/槽位集逐条核对成立。
 	// ORIG 0x0834d06c：唯一迷宫直返；否则按 [m_partyCountMin, m_partyCountMax]
 	// 收集候选；候选唯一/随机取，空则全表随机。
 	if (m_mazeList.size() == 1)
@@ -679,7 +692,7 @@ int CDungeon::GetRandMazebyPartyCount(int partyCount) const
 			partyCount <= elem->m_partyCountMax)
 		{
 			local_1c = elem;
-			candidates.push_back(local_1c);
+			candidates.push_back(static_cast<MazeScript*&&>(local_1c));
 		}
 		i = i + 1;
 	}
@@ -691,9 +704,9 @@ int CDungeon::GetRandMazebyPartyCount(int partyCount) const
 		return (int)&m_mazeList[r];
 	}
 	if (candidates.size() == 1)
-		return (int)candidates[0];
+		return *(int*)&candidates[0];
 	r = rand() % candidates.size();
-	return (int)candidates[r];
+	return *(int*)&candidates[r];
 }
 
 int CDungeon::GetStartMap(int direction) const
@@ -999,9 +1012,13 @@ void STWarRoomData::clear()
 
 void STWarRoomData::copy(STWarRoomData* other)
 {
-    // [b28d-39 判词 · N84/N90] ORIG 0x0836a578：结构整体赋值/memcpy 的 rep movsl
-    // 分块启发式跨版本差（4.1 分块重载 src/dst，4.4 单次连发，N84/N90）；
-    // 逐字段复制集合与顺序一致，语义等价。
+    // [b28d-solo-CDungeon 判词 · N84/N90/P75] ORIG 0x0836a578：结构整体赋值/memcpy
+    // 的 rep movsl 分块启发式跨版本差（4.1 分块重载 src/dst，4.4 单次连发，N84/N90）。
+    // 本轮修法（P171）：ORIG 全函数**不写** m_dc(+0xdc..+0xeb)——最后一个 memcpy
+    // 0x836a903 之后直接 0xd4/0xd8→0xec ⇒ 删除我方多余 `memcpy(other->m_dc,...)`，
+    // our_insns 305→297（ORIG 298，gap 1），p167 24=24 CLEAR。
+    // 残余：①首处 memcpy 实参装载序（ORIG this→%edx/other→%eax 先载后压 vs 4.4 逐压，
+    // P75 跨版本；(void*) cast 实测无效）；②循环下标槽 -0x1c vs -0x20（N93/N82 帧族）。
     // ORIG 0x836a578：数组按元素 reserve/push_back，标量逐个/memcpy。
     memcpy(other, this, 0xc);
     other->m_c = m_c;
@@ -1035,7 +1052,6 @@ void STWarRoomData::copy(STWarRoomData* other)
     memcpy(other->m_c4, m_c4, sizeof(m_c4));
     other->m_d4 = m_d4;
     other->m_d8 = m_d8;
-    memcpy(other->m_dc, m_dc, sizeof(m_dc));
     other->m_ec = m_ec;
     other->m_f0 = m_f0;
     other->m_f4 = m_f4;
@@ -1079,14 +1095,16 @@ advancealtar::ClearRewardData::~ClearRewardData()
 advancealtar::ClearRewardData& advancealtar::ClearRewardData::operator=(
     const ClearRewardData& other)
 {
-    // [b28d-39 判词 · N18a] ORIG 0x08376c9c：语义已按 ORIG 修正（--n 前置测试只拷
-    // 前 2 个元素，P171 照抄）；残余仅 `mov 0x8(%ebp),%eax; mov %eax,%esi`
-    // 被 4.4 折成单条 `mov 0x8(%ebp),%esi`（N18a 单段 regmove 不可造）。
-    // [b28d-39] ORIG 0x08810d8a：指针步进 do-while（esi=dst/ebx=src 各 +0xc、
-    // edi=2 递减到 -1、`setne/test/jne`）——索引形在 4.4 生 add/add/shl 地址链，DIFF。
+    // [b28d-solo-CDungeon 判词 · N18a] ORIG 0x08376c9c：语义已按 ORIG 修正
+    //（--n 前置测试只拷前 2 个元素，P171 照抄）；指针步进 do-while（esi=dst/
+    // ebx=src 各 +0xc、edi=2 递减到 -1、`setne/test/jne`）。
+    // 本轮修法：声明序改 dst/n/src，对齐 ORIG 装载序（esi→edi→ebx）。
+    // 残余唯一：ORIG `mov 0x8(%ebp),%eax; mov %eax,%esi` 被 4.4 折成单条
+    // `mov 0x8(%ebp),%esi`（N18a 单段 regmove 不可造；g1-g6/h1-h6 共 12 形探针
+    // 含语句表达式/整型-void*-char* 中转/具名引用全折单段，register 存储类已保留）。
     register std::vector<advancealtar::_RewardItem>* dst = m_vec;
-    register const std::vector<advancealtar::_RewardItem>* src = other.m_vec;
     register int n = 2;
+    register const std::vector<advancealtar::_RewardItem>* src = other.m_vec;
     // ORIG 0x08810d8a 为 `--n != -1` 前置测试 while：n=2 只拷贝 2 个元素（P171 照抄）。
     while (--n != -1)
     {

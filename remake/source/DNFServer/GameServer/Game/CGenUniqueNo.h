@@ -6,7 +6,6 @@ namespace WongWork
 class CGenUniqueNo
 {
 public:
-    CGenUniqueNo();
     // static 实证：ORIG 0x08177d35..0x08177d3e（ProcessBuyRequestEx 内）调用点只
     // push 一个实参（`lea -0x1a1(%ebp),%eax; mov %eax,(%esp); call 084b76d8`），
     // 无 this 槽；且实现（CGenUniqueNo.cpp）只读 static m_nTimeCount 与

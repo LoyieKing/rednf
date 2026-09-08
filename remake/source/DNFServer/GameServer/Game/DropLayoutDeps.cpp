@@ -56,15 +56,14 @@ CItemGenRateTable::~CItemGenRateTable()
 
 void CItemGenRateTable::init()
 {
-    // [b28d-59 判词] 封 N18a（ORIG 0x085345b6）：见下。旧表非空则 operator delete；
-    // time(0) 播种 new 0x9c8（单棵）。
-    // ORIG lea -0x1c(%ebp),%esi 跨 new（esi 挂 seed 地址）。4.4 恒
-    // `mov %esi,0x4(%esp)` 形不可造（lea esi / -0x1c 槽缓存两形探针全败
-    // 26/25），N18a 族封顶。
+    // [b28d-solo-DropLayoutDeps] 封 N18a（ORIG 0x085345b6）：new 表达式实参地址
+    // 求值序跨版本——ORIG 先 `lea -0x1c(%ebp),%esi` 跨 operator new 保活，4.4 恒
+    // 分配后求实参（`lea …%edx` 在 new 之后）。本轮实测 P226 裸语句表达式
+    // `new CMTRand(*({&seed;}))` 无效（同 43 条，序不变）。语义等价。
     if (m_rand != 0)
         delete m_rand;
     unsigned long seed = time(0);
-    m_rand = new CMTRand(seed);
+    m_rand = new CMTRand(*({ &seed; }));
 }
 
 void CItemGenRateTable::destroy()
@@ -105,11 +104,14 @@ bool CItemGenRateTable::_itemTypeVerify(int type, const CItem* item)
 
 void CItemGenRateTable::generateTable(stGenItemRange_t* range, bool keepRandomOption)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x0853466c）：指令数 197/196 全等，残差=帧
-    // 0x64 vs 0x84 的槽位布局差（4.4 聚合临时占槽策略）。语义等价。
+    // [b28d-solo-DropLayoutDeps] 203/202 条；已修：删 pairBytes/maxOffset/target
+    // 局部（ORIG 全程表达式重算，P0/P183）、end() 不缓存（ORIG end 在条件块）、
+    // insert 直接构造 value_type（非 make_pair，P192）、grades 用 const 指针
+    //（ORIG 调 ZNK…5beginEv，消迭代器转换 ctor）、m_slots 索引用 level（ORIG 原码
+    // 行为，P171 照抄）。残差=帧/槽号（N82）+ 虚调 IsRandomOption 寄存器角色（N7）。
     // 报告 generateTable.md（T 0x0853466c）逐循环转写。槽址 =
     // type*0x7110+rarity*0x12d8+level*24 ⇒ m_slots[type][rarity][level]。
-    __gnu_cxx::hash_map<int, CItem*>* grades =
+    const __gnu_cxx::hash_map<int, CItem*>* grades =
         G_CDataManager()->m_itemList->getItemGradeList();
     for (int type = 1; type <= 4; ++type)
     {
@@ -118,18 +120,17 @@ void CItemGenRateTable::generateTable(stGenItemRange_t* range, bool keepRandomOp
             for (int level = 1; level <= 200; ++level)
             {
                 unsigned int cumulative = 0;
-                const unsigned char* pairBytes =
-                    reinterpret_cast<const unsigned char*>(&range->m_range[level]);
-                int offset = -(int)pairBytes[0];      // -(u8)min
-                const int maxOffset = (int)pairBytes[1];
-                for (; offset < maxOffset; ++offset)
+                // ORIG：无 pairBytes/maxOffset/target 局部（每次重算表达式）。
+                int offset = -(int)reinterpret_cast<const unsigned char*>(
+                                  &range->m_range[level])[0];   // -(u8)min
+                for (; offset < (int)reinterpret_cast<const unsigned char*>(
+                                     &range->m_range[level])[1]; ++offset)
                 {
-                    int target = level + offset;
-                    if (target > 200)                 // cmp $0xc8 jg → 终止整行
+                    if (level + offset > 200)         // cmp $0xc8 jg → 终止整行
                         break;
-                    const __gnu_cxx::hash_map<int, CItem*>& bucket = grades[target];
                     for (__gnu_cxx::hash_map<int, CItem*>::const_iterator
-                             it(bucket.begin()), e(bucket.end()); it != e; ++it)
+                             it = grades[level + offset].begin();
+                         it != grades[level + offset].end(); ++it)
                     {
                         CItem* item = it->second;
                         if (item->get_gen_rate() == 0)
@@ -145,8 +146,9 @@ void CItemGenRateTable::generateTable(stGenItemRange_t* range, bool keepRandomOp
                         if (!keepRandomOption && item->IsRandomOption())
                             continue;
                         cumulative += (unsigned int)item->get_gen_rate();
-                        m_slots[type][rarity][target].insert(
-                            std::make_pair(cumulative, item->get_index()));
+                        m_slots[type][rarity][level].insert(   // ORIG 用 level（非 target）
+                            std::pair<const unsigned int, int>(
+                                cumulative, item->get_index()));
                     }
                 }
             }
@@ -173,8 +175,8 @@ CSecialIMonsterDropItemGenRateTable::~CSecialIMonsterDropItemGenRateTable()
 
 void CSecialIMonsterDropItemGenRateTable::init()
 {
-    // [b28d-59 判词] 封 N18a（ORIG 0x08534c1a）：与 CItemGenRateTable::init 同款
-    // （lea -0x1c,%esi 跨 new 的 4.1 regmove 不可造）。
+    // [b28d-solo-DropLayoutDeps] 封 N18a（ORIG 0x08534c1a）：与 CItemGenRateTable::init
+    // 同款（lea -0x1c,%esi 跨 new 的 4.1 求值序不可造）。语义等价。
     if (m_rand != 0)
         delete m_rand;
     unsigned long seed = time(0);
@@ -213,13 +215,14 @@ bool CSecialIMonsterDropItemGenRateTable::_itemTypeVerify(int type, const CItem*
 
 void CSecialIMonsterDropItemGenRateTable::generateTable(stGenItemRange_t* range)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x08534cd0）：222/220 条，残差=帧 0x6c vs 0x7c
-    // 槽位差。语义等价。
+    // [b28d-solo-DropLayoutDeps] 230/227 条；已修：同 CItemGenRateTable::generateTable
+    //（去局部缓存、end 条件块、直接构造 pair、const grades、m_blocks 用 level）。
+    // 残差=帧/槽号（N82）+ 迭代器形态（N86）。语义等价。
     // 报告 generateTable.md（T 0x08534cd0）：五重循环 a(0..4) b(0..2) type(1..4)
     // rarity(0..5) level(1..200)；槽址 a*0x69ff0+b*0x23550+type*0x7110+
     // rarity*0x12d8+level*24。过滤要求 isSpecialMonsterDropItem /
     // isDropItemDungeonDifficulty(a) / isDropItemDungeonType(b) 全真，无随机选项分支。
-    __gnu_cxx::hash_map<int, CItem*>* grades =
+    const __gnu_cxx::hash_map<int, CItem*>* grades =
         G_CDataManager()->m_itemList->getItemGradeList();
     for (int a = 0; a <= 4; ++a)
     {
@@ -232,19 +235,16 @@ void CSecialIMonsterDropItemGenRateTable::generateTable(stGenItemRange_t* range)
                     for (int level = 1; level <= 200; ++level)
                     {
                         unsigned int cumulative = 0;
-                        const unsigned char* pairBytes = reinterpret_cast<const unsigned char*>(
-                            &range->m_range[level]);
-                        int offset = -(int)pairBytes[0];
-                        const int maxOffset = (int)pairBytes[1];
-                        for (; offset < maxOffset; ++offset)
+                        int offset = -(int)reinterpret_cast<const unsigned char*>(
+                                          &range->m_range[level])[0];
+                        for (; offset < (int)reinterpret_cast<const unsigned char*>(
+                                             &range->m_range[level])[1]; ++offset)
                         {
-                            int target = level + offset;
-                            if (target > 200)
+                            if (level + offset > 200)
                                 break;
-                            __gnu_cxx::hash_map<int, CItem*>& bucket = grades[target];
-                            for (__gnu_cxx::hash_map<int, CItem*>::iterator it =
-                                     bucket.begin();
-                                 it != bucket.end(); ++it)
+                            for (__gnu_cxx::hash_map<int, CItem*>::const_iterator
+                                     it = grades[level + offset].begin();
+                                 it != grades[level + offset].end(); ++it)
                             {
                                 CItem* item = it->second;
                                 if (item->get_gen_rate() == 0)
@@ -260,8 +260,9 @@ void CSecialIMonsterDropItemGenRateTable::generateTable(stGenItemRange_t* range)
                                 if (!item->isDropItemDungeonType(b))
                                     continue;
                                 cumulative += (unsigned int)item->get_gen_rate();
-                                m_blocks[a][b][type][rarity][target].insert(
-                                    std::make_pair(cumulative, item->get_index()));
+                                m_blocks[a][b][type][rarity][level].insert(
+                                    std::pair<const unsigned int, int>(
+                                        cumulative, item->get_index()));
                             }
                         }
                     }
@@ -287,22 +288,36 @@ CMonsterDrop_Hell::~CMonsterDrop_Hell()
 
 int CMonsterDrop_Hell::loadScript(char const* path)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x08535344）：273/277 条，残差=局部槽序
-    //（-0x48 vs -0x34 等，4.4 按首次使用序分配）。语义等价。
+    // [b28d-solo-DropLayoutDeps] 282/279 条；已修：for(;;)+break（顶部条件头）、
+    // i<rows+1（ORIG add$1/setg 形）、fill 值初始化 stGenItemProb_t()（内联清零，
+    // 消 p167 EXTRA memset）、idx 循环前预清（P198①）、全头部声明（P212）。
+    // p167 CLEAR（23=23）。残差=槽基偏移 0x18（4.4 首次使用序把 fill 放栈底 vs
+    // 4.1 声明序，N82/P112）+ m_range[0] movw vs 两条 movb。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x302;
     std::string token;
     bool ok = false;
-    while (ScanType(token, true))
+    stGenItemProb_t fill;                    // 全部局部提到函数头（P212）
+    int idx = 0;                             // ORIG 循环前预清（-0x28，P198①）
+    int rows;
+    int i;
+    int j;
+    size_t jd;
+    int* e;
+    int k;
+    int lvl;
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[basis of rarity dicision]")
         {
-            int rows = ScanInt(&ok);
+            rows = ScanInt(&ok);
             if (!ok)
                 return 0x311;
-            for (int i = 1; i <= rows; ++i)
+            for (i = 1; i < rows + 1; ++i)   // ORIG add$1/setg 形
             {
-                for (int j = 0; j <= 5; ++j)
+                for (j = 0; j <= 5; ++j)
                 {
                     m_rarityBasis[i][j] = ScanInt(&ok);
                     if (!ok)
@@ -312,25 +327,23 @@ int CMonsterDrop_Hell::loadScript(char const* path)
         }
         else if (token == "[drop prob count]")
         {
-            stGenItemProb_t fill;
-            memset(&fill, 0, sizeof(fill));
-            int count = ScanInt(&ok);
-            m_probs.resize(count, fill);
+            fill = stGenItemProb_t();
+            m_probs.resize(ScanInt(&ok), fill);
             if (!ok)
                 return 0x320;
         }
         else if (token == "[dungeon difficulty drop prob]")
         {
-            for (size_t j = 0; j < m_probs.size(); ++j)
+            for (jd = 0; jd < m_probs.size(); ++jd)
             {
-                int* e = &m_probs[j].v[0];
+                e = &m_probs[jd].v[0];
                 e[0] = ScanInt(&ok);
                 if (!ok)
                     return 0x328;
                 e[1] = ScanInt(&ok);
                 if (!ok)
                     return 0x32a;
-                for (int k = 0; k <= 4; ++k)
+                for (k = 0; k <= 4; ++k)
                 {
                     e[2 + k] = ScanInt(&ok);
                     if (!ok)
@@ -341,9 +354,9 @@ int CMonsterDrop_Hell::loadScript(char const* path)
         else if (token == "[item drop ref table]")
         {
             m_range.m_range[0] = 0;
-            for (int lvl = 1; lvl <= 200; ++lvl)
+            for (lvl = 1; lvl <= 200; ++lvl)
             {
-                int idx = ScanInt(&ok);
+                idx = ScanInt(&ok);
                 if (!ok)
                     return 0x33f;
                 unsigned char* entry =
@@ -381,35 +394,51 @@ CSpecialMonsterDrop::~CSpecialMonsterDrop()
 
 int CSpecialMonsterDrop::loadScript(char const* path)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085373ee）：375/377 条，残差=局部槽序
-    //（-0x5c vs -0x48 等）。语义等价。
+    // [b28d-solo-DropLayoutDeps] 383/379 条；已修：for(;;)+break、fill 值初始化
+    // stGenItemProb_t()（消 p167 EXTRA memset）、idx 循环前预清、全头部声明（P212）。
+    // p167 CLEAR（28=28）。残差=槽基偏移（4.4 首次使用序 vs 4.1 声明序，N82/P112）
+    // + item drop ref 段 entry 指针形态。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x5fb;
     std::string token;
     bool ok = false;
-    while (ScanType(token, true))
+    stGenItemProb_t fill;
+    int idx = 0;
+    size_t jd;
+    int* e;
+    int k;
+    int i;
+    int j;
+    int i2;
+    int j2;
+    int b;
+    int j3;
+    int t;
+    int j4;
+    int lvl;
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[drop prob count]")
         {
-            stGenItemProb_t fill;
-            memset(&fill, 0, sizeof(fill));
-            int count = ScanInt(&ok);
-            m_probs.resize(count, fill);
+            fill = stGenItemProb_t();
+            m_probs.resize(ScanInt(&ok), fill);
             if (!ok)
                 return 0x609;
         }
         else if (token == "[drop prob]")
         {
-            for (size_t j = 0; j < m_probs.size(); ++j)
+            for (jd = 0; jd < m_probs.size(); ++jd)
             {
-                int* e = &m_probs[j].v[0];
+                e = &m_probs[jd].v[0];
                 e[0] = ScanInt(&ok);
                 if (!ok)
                     return 0x611;
                 e[1] = ScanInt(&ok);
                 if (!ok)
                     return 0x613;
-                for (int k = 0; k <= 4; ++k)
+                for (k = 0; k <= 4; ++k)
                 {
                     e[2 + k] = ScanInt(&ok);
                     if (!ok)
@@ -419,9 +448,9 @@ int CSpecialMonsterDrop::loadScript(char const* path)
         }
         else if (token == "[basis of rarity dicision]")
         {
-            for (int i = 1; i <= 4; ++i)
+            for (i = 1; i <= 4; ++i)
             {
-                for (int j = 0; j <= 5; ++j)
+                for (j = 0; j <= 5; ++j)
                 {
                     m_rarityBasis[i][j] = ScanInt(&ok);
                     if (!ok)
@@ -431,11 +460,11 @@ int CSpecialMonsterDrop::loadScript(char const* path)
         }
         else if (token == "[party member drop bonusrate]")
         {
-            for (int i = 0; i <= 4; ++i)
+            for (i2 = 0; i2 <= 4; ++i2)
             {
-                for (int j = 0; j <= 3; ++j)
+                for (j2 = 0; j2 <= 3; ++j2)
                 {
-                    m_partyBonus[i][j] = ScanFloat(&ok);
+                    m_partyBonus[i2][j2] = ScanFloat(&ok);
                     if (!ok)
                         return 0x62e;
                 }
@@ -443,11 +472,11 @@ int CSpecialMonsterDrop::loadScript(char const* path)
         }
         else if (token == "[dungeon difficulty drop bonusrate]")
         {
-            for (int b = 0; b <= 4; ++b)
+            for (b = 0; b <= 4; ++b)
             {
-                for (int j = 0; j <= 4; ++j)
+                for (j3 = 0; j3 <= 4; ++j3)
                 {
-                    m_dungeonBonus[b][j] = ScanFloat(&ok);
+                    m_dungeonBonus[b][j3] = ScanFloat(&ok);
                     if (!ok)
                         return 0x63d;
                 }
@@ -455,11 +484,11 @@ int CSpecialMonsterDrop::loadScript(char const* path)
         }
         else if (token == "[monster type drop bonusrate]")
         {
-            for (int t = 0; t <= 4; ++t)
+            for (t = 0; t <= 4; ++t)
             {
-                for (int j = 0; j <= 3; ++j)
+                for (j4 = 0; j4 <= 3; ++j4)
                 {
-                    m_monsterTypeBonus[t][j] = ScanFloat(&ok);
+                    m_monsterTypeBonus[t][j4] = ScanFloat(&ok);
                     if (!ok)
                         return 0x648;
                 }
@@ -468,9 +497,9 @@ int CSpecialMonsterDrop::loadScript(char const* path)
         else if (token == "[item drop ref table]")
         {
             m_range.m_range[0] = 0;
-            for (int lvl = 1; lvl <= 200; ++lvl)
+            for (lvl = 1; lvl <= 200; ++lvl)
             {
-                int idx = ScanInt(&ok);
+                idx = ScanInt(&ok);
                 if (!ok)
                     return 0x655;
                 unsigned char* entry =
@@ -511,35 +540,53 @@ CMonsterDrop::CMonsterDrop(int count)
 
 int CMonsterDrop::loadScript(char const* path)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x08537938）：523/540 条，残差=帧 0x90 vs 0xa0
-    // + 局部槽序（4.4 首次使用序）。语义等价。
+    // [b28d-solo-DropLayoutDeps] 550/545 条；已修：for(;;)+break、fill 值初始化
+    //（消 p167 EXTRA memset）、count 内联实参、[gold quantity] 展开为 ORIG 的 4 次
+    // 独立 ScanInt（原循环少 3 个调用点，p167 MISSING -3）、全头部声明（P212）。
+    // p167 CLEAR（42=42）。残差=帧 0x90 vs 0xa0 + 槽序（4.4 首次使用序 vs 4.1
+    // 声明序，N82/P112）+ 多分支出口 jmp/nop 岛数（P63/N108）。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x66b;
     std::string token;
     bool ok = false;
-    while (ScanType(token, true))
+    stGenItemProb_t fill;
+    int idx = 0;
+    size_t jd;
+    int* e;
+    int k;
+    int i;
+    int j;
+    int i2;
+    int j2;
+    int b;
+    int j3;
+    int t;
+    int j4;
+    int lvl;
+    int k2;
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[drop prob count]")
         {
-            stGenItemProb_t fill;
-            memset(&fill, 0, sizeof(fill));
-            int count = ScanInt(&ok);
-            m_probs.resize(count, fill);
+            fill = stGenItemProb_t();
+            m_probs.resize(ScanInt(&ok), fill);
             if (!ok)
                 return 0x679;
         }
         else if (token == "[drop prob]")
         {
-            for (size_t j = 0; j < m_probs.size(); ++j)
+            for (jd = 0; jd < m_probs.size(); ++jd)
             {
-                int* e = &m_probs[j].v[0];
+                e = &m_probs[jd].v[0];
                 e[0] = ScanInt(&ok);
                 if (!ok)
                     return 0x681;
                 e[1] = ScanInt(&ok);
                 if (!ok)
                     return 0x683;
-                for (int k = 0; k <= 4; ++k)
+                for (k = 0; k <= 4; ++k)
                 {
                     e[2 + k] = ScanInt(&ok);
                     if (!ok)
@@ -549,9 +596,9 @@ int CMonsterDrop::loadScript(char const* path)
         }
         else if (token == "[basis of rarity dicision]")
         {
-            for (int i = 1; i <= 4; ++i)
+            for (i = 1; i <= 4; ++i)
             {
-                for (int j = 0; j <= 5; ++j)
+                for (j = 0; j <= 5; ++j)
                 {
                     m_rarityBasis[i][j] = ScanInt(&ok);
                     if (!ok)
@@ -561,11 +608,11 @@ int CMonsterDrop::loadScript(char const* path)
         }
         else if (token == "[party member drop bonusrate]")
         {
-            for (int i = 0; i <= 4; ++i)
+            for (i2 = 0; i2 <= 4; ++i2)
             {
-                for (int j = 0; j <= 3; ++j)
+                for (j2 = 0; j2 <= 3; ++j2)
                 {
-                    m_partyBonus[i][j] = ScanFloat(&ok);
+                    m_partyBonus[i2][j2] = ScanFloat(&ok);
                     if (!ok)
                         return 0x69e;
                 }
@@ -573,11 +620,11 @@ int CMonsterDrop::loadScript(char const* path)
         }
         else if (token == "[dungeon difficulty drop bonusrate]")
         {
-            for (int b = 0; b <= 4; ++b)
+            for (b = 0; b <= 4; ++b)
             {
-                for (int j = 0; j <= 4; ++j)
+                for (j3 = 0; j3 <= 4; ++j3)
                 {
-                    m_dungeonBonus[b][j] = ScanFloat(&ok);
+                    m_dungeonBonus[b][j3] = ScanFloat(&ok);
                     if (!ok)
                         return 0x6ad;
                 }
@@ -585,11 +632,11 @@ int CMonsterDrop::loadScript(char const* path)
         }
         else if (token == "[monster type drop bonusrate]")
         {
-            for (int t = 0; t <= 4; ++t)
+            for (t = 0; t <= 4; ++t)
             {
-                for (int j = 0; j <= 3; ++j)
+                for (j4 = 0; j4 <= 3; ++j4)
                 {
-                    m_monsterTypeBonus[t][j] = ScanFloat(&ok);
+                    m_monsterTypeBonus[t][j4] = ScanFloat(&ok);
                     if (!ok)
                         return 0x6b8;
                 }
@@ -598,9 +645,9 @@ int CMonsterDrop::loadScript(char const* path)
         else if (token == "[item drop ref table]")
         {
             m_range.m_range[0] = 0;
-            for (int lvl = 1; lvl <= 200; ++lvl)
+            for (lvl = 1; lvl <= 200; ++lvl)
             {
-                int idx = ScanInt(&ok);
+                idx = ScanInt(&ok);
                 if (!ok)
                     return 0x6c5;
                 unsigned char* entry =
@@ -627,24 +674,31 @@ int CMonsterDrop::loadScript(char const* path)
         }
         else if (token == "[condition rate]")
         {
-            for (int k = 0; k <= 3; ++k)
+            for (k2 = 0; k2 <= 3; ++k2)
             {
-                m_conditionRate[k].rate = (unsigned short)ScanInt(&ok);
+                m_conditionRate[k2].rate = (unsigned short)ScanInt(&ok);
                 if (!ok)
                     return 0x6e5;
-                m_conditionRate[k].value = (unsigned short)ScanInt(&ok);
+                m_conditionRate[k2].value = (unsigned short)ScanInt(&ok);
                 if (!ok)
                     return 0x6e9;
             }
         }
         else if (token == "[gold quantity]")
         {
-            for (int k = 0; k <= 3; ++k)
-            {
-                m_goldQuantity[k] = (unsigned short)ScanInt(&ok);
-                if (!ok)
-                    return (k == 0) ? 0x6f0 : (k == 1) ? 0x6f4 : (k == 2) ? 0x6f8 : 0x6fc;
-            }
+            // ORIG 展开 4 次 ScanInt（各带独立错误码，非循环）。
+            m_goldQuantity[0] = (unsigned short)ScanInt(&ok);
+            if (!ok)
+                return 0x6f0;
+            m_goldQuantity[1] = (unsigned short)ScanInt(&ok);
+            if (!ok)
+                return 0x6f4;
+            m_goldQuantity[2] = (unsigned short)ScanInt(&ok);
+            if (!ok)
+                return 0x6f8;
+            m_goldQuantity[3] = (unsigned short)ScanInt(&ok);
+            if (!ok)
+                return 0x6fc;
         }
         else if (token == "[gold volume]")
         {
@@ -709,14 +763,16 @@ int CObjectDrop::loadScript(char const* path)
 CClearReward::CClearReward(int count)
     : CItemGenerator(count)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x0853a968）：189/194 条，残差=帧 0x3c vs 0x2c
-    // + 成员构造槽序（4.4 聚合对象优先占低槽）。语义等价。
+    // [b28d-solo-DropLayoutDeps] AE（ORIG 0x0853a968）：194/194 条、帧 0x3c、
+    // EH 槽 -0x30/-0x2c 全等（仅 .o 重定位伪差）。修法=m_goldCardCost 清零由
+    // memset 改 ORIG 的 for 循环（N78/P214③：4.1 内联逐元素 store）。
     // ORIG 0x0853a968：基类 → vptr 0x08c9a700 → 7×vector(+0x18 步进 0xc，第 7 个在
     // +0x60) → 表 ctor(+0x2a8) → 两个空白卡 vector(+0x23b40/+0x23b78) →
     // 金卡费用表 [201] 清零 → +0x23b38=0.0f → +0x23b3c=0 → +0x23b74=0 →
     // memset(+0x23b4c,0,0x28) → set_disable_drop_random_option_item()。
     // 成员对象由编译器按声明序完成；标量/清零在此补齐。
-    memset(m_goldCardCost, 0, sizeof(m_goldCardCost));
+    for (int i = 0; i <= 200; ++i)          // ORIG 循环清零（非 memset）
+        m_goldCardCost[i] = 0;
     m_goldCardCreateRate = 0.0f;
     m_goldCardBlankTotal = 0;
     m_pcRoomBlankTotal = 0;
@@ -726,15 +782,18 @@ CClearReward::CClearReward(int count)
 
 int CClearReward::loadScript(char const* path)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085392c0）：645/651 条，残差=局部槽序
-    //（-0x54 vs -0x48 等）。语义等价。
+    // [b28d-solo-DropLayoutDeps] 657/660 条（§6.2 超大件口径）；已修：for(;;)+break
+    //（顶部条件头）。残差=局部槽序（4.4 首次使用序 vs 4.1 声明序，N82/P112）+ 多分支
+    // 出口岛数。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x943;
     std::string section;
     std::string token;
     bool ok = false;
-    while (ScanType(section, true))
+    for (;;)
     {
+        if (!ScanType(section, true))
+            break;
         if (section == "[drop prob count]")
         {
             int count = ScanInt(&ok);
@@ -956,31 +1015,44 @@ CGeneratorCommonData::~CGeneratorCommonData() {}
 
 int CGeneratorCommonData::loadScript(const char* path)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x08534456）：98/100 条，残差=局部声明序
-    //（int -0x10 vs bool -0x15 的分配序）+ 立即数装载差。语义等价。
+    // [b28d-solo-DropLayoutDeps] AE（TU 口径，ORIG 0x08534456）：102/101 条。已修：
+    // for(;;)+goto 尾标签（P164/P223）、idx 循环前预清（P198①）、条件改
+    // operator==（p167 判据：ORIG 用 eq，原 ne 造成 MISSING/EXTRA 各 1）、
+    // return 0x1f8 块移到循环出口后。p167 CLEAR（10=10）；残差=1 条 4.4 对齐 nop。
     if (!loadRDARScriptFile("", path))
         return 0x1d8;
     std::string token;
+    int idx = 0;                             // ORIG 循环前预清（-0x10，P198①）
     bool ok = false;
-    while (ScanType(token, true))
+    for (;;)
     {
-        if (token != "[gold drop ref table]")
-            return 0x1f8;
-        m_goldGenTable[0].m_base = 0;
-        m_goldGenTable[0].m_randAmp = 0;
-        for (int i = 1; i <= 200; ++i)
+        if (!ScanType(token, true))
+            goto ok_done;
+        if (token == "[gold drop ref table]")   // ORIG 用 operator==（p167 判据）
         {
-            int idx = ScanInt(&ok);          // 写入下标来自脚本首列（ORIG 同形）
-            if (!ok)
-                return 0x1ec;
-            m_goldGenTable[idx].m_base = ScanInt(&ok);
-            if (!ok)
-                return 0x1f0;
-            m_goldGenTable[idx].m_randAmp = ScanInt(&ok);
-            if (!ok)
-                return 500;                  // 0x1f4
+            m_goldGenTable[0].m_base = 0;
+            m_goldGenTable[0].m_randAmp = 0;
+            for (int i = 1; i <= 200; ++i)
+            {
+                idx = ScanInt(&ok);          // 写入下标来自脚本首列（ORIG 同形）
+                if (!ok)
+                    return 0x1ec;
+                m_goldGenTable[idx].m_base = ScanInt(&ok);
+                if (!ok)
+                    return 0x1f0;
+                m_goldGenTable[idx].m_randAmp = ScanInt(&ok);
+                if (!ok)
+                    return 500;              // 0x1f4
+            }
+        }
+        else
+        {
+            goto fail_ref_table;
         }
     }
+fail_ref_table:
+    return 0x1f8;
+ok_done:
     return 0;
 }
 
@@ -1033,9 +1105,9 @@ int CItem::get_gen_rate() const
     return m_field50;                       // ORIG 0x832e02a：mov 0x50(%eax),%eax
 }
 
-unsigned char CItem::isSpecialMonsterDropItem()
+bool CItem::isSpecialMonsterDropItem()
 {
-    return m_drop.m_enable;                 // ORIG 0x8539e00：movzbl 0xb4(%eax)
+    return (unsigned char)m_drop.m_enable;  // ORIG 0x8539e00：movzbl 0xb4(%eax) 直返
 }
 
 unsigned char CItem::isDropItemDungeonDifficulty(int idx)
@@ -1072,28 +1144,34 @@ CAutoMarketConditionsControl* CDataManager::GetAutoMarketContitionsControl()
 // ============================================================================
 int CAutoMarketConditionsControl::GetGoldDropAmountRate(int level, int gold)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x082f89bc）：100/98 条，残差=帧 0x54 vs 0x64
-    // + 首分支极性（je vs jne 落点相同）。语义等价。
+    // [b28d-solo-DropLayoutDeps] 99/98 条；已修：①真 bug——logCount/trace 段移入
+    // m_field00!=0 分支（ORIG `je +0x11c` 跳过该段；原实现未启用折算时也自增且
+    // trace 读未初始化的 rate）；②P243 乘序 (1-base)*goldPerLevel；③register bool
+    // logIt（P231 免槽，槽组归正 -0x14/-0x10/-0x24）。残差=x87 比较 lowering（N85；
+    // -march=i486 实测本 TU 不归零）+ logCount 自增 lea vs mov/add（N18a/N7）。
     int result = 0;                         // ORIG prolog 后立即清零（-0x14）
     double rate;                            // ORIG 不预初始化（仅 else 路径赋值）
-    if (m_field00 == 0)
-        result = gold;                      // 未启用折算：原样返回（ORIG 尾部共用块 result=gold）
-    else
+    if (m_field00 != 0)
     {
-        // rate = cond[level]*(1-base)/(-1000) + 1；出 (0,1] 则回退 base。
-        rate = ((double)m_goldPerLevel[level] * (1.0 - m_goldBaseRate)) / -1000.0 + 1.0;
+        // rate = (1-base)*cond[level]/(-1000) + 1；出 (0,1] 则回退 base。
+        // ORIG fldl base→fsubp 先于 fildl cond[level]（P243 书写序）。
+        rate = ((1.0 - m_goldBaseRate) * (double)m_goldPerLevel[level]) / -1000.0 + 1.0;
         if (!(rate > 0.0) || rate > 1.0)
             rate = m_goldBaseRate;
         result = (int)((double)gold * rate);         // ORIG fistpl 直接截断（无 +0.5）
+        static int logCount = 0;            // ORIG bss _ZZ...GetGoldDropAmountRateEiiE8logCount
+        register bool logIt = (logCount % 1000 == 0);
+        logCount = logCount + 1;
+        if (logIt)
+        {
+            cMyTrace trace(
+                __PRETTY_FUNCTION__, 0xce, 0);
+            trace("goldDropAmountRate(%lf) gold(%d), baseGold(%d)", rate, result, gold);
+        }
     }
-    static int logCount = 0;                // ORIG bss _ZZ...GetGoldDropAmountRateEiiE8logCount
-    bool logIt = (logCount % 1000 == 0);
-    ++logCount;
-    if (logIt)
+    else
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0xce, 0);
-        trace("goldDropAmountRate(%lf) gold(%d), baseGold(%d)", rate, result, gold);
+        result = gold;                      // 未启用折算：原样返回（ORIG 尾部块）
     }
     return result;
 }

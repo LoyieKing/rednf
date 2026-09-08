@@ -50,53 +50,40 @@ int _NS_PI_2ND_GetHackType(unsigned int type, unsigned char b, unsigned short c)
 //                0xe1, 0xee, 0x100, 0x104, 0x107, 0x10f..0x111,
 //                0x120, 0x13c, 0x145}
 // ---------------------------------------------------------------------------
-// [b28d-24] DIFF 残84: 控制流/帧差异（我方 96 条 vs ORIG 76）。ORIG 0x0859092a
+// [b28d-solo-GameSecurity] 修法：if-else 二分链 → 稀疏 switch（case 按值升序）。
+// ORIG 0x0859092a 每个树节点为 `cmp $K,%eax; je L_true; cmp $K,%eax; jg R`——双 cmp
+// 同常量是 GCC switch 决策树签名（P17/P261）；if 链恒多 20 条。
 bool DenyPacket(int id)
 {
-    if (id <= 0xac)
+    switch (id)
     {
-        if (id <= 0x44)
-        {
-            if (id <= 0x1b)
-            {
-                if (id >= 0x1a)  // 0x1a..0x1b
-                    return true;
-                // sub $0x5 / cmp $0x1 / ja → 0x05..0x06
-                return static_cast<unsigned int>(id - 0x5) <= 0x1u;
-            }
-            return id == 0x1d || id == 0x42;
-        }
-        if (id <= 0x61)
-        {
-            if (id == 0x61)
-                return true;
-            // sub $0x53 / cmp $0x1 / ja → 0x53..0x54
-            return static_cast<unsigned int>(id - 0x53) <= 0x1u;
-        }
-        return id == 0x69 || id == 0x8a || id == 0x66;
-    }
-
-    if (id <= 0x100)
-    {
-        if (id == 0x100)
+        case 0x05: case 0x06:
+        case 0x1a: case 0x1b:
+        case 0x1d:
+        case 0x42:
+        case 0x44:
+        case 0x53: case 0x54:
+        case 0x61:
+        case 0x66:
+        case 0x69:
+        case 0x8a:
+        case 0xac:
+        case 0xb9: case 0xba: case 0xbb: case 0xbc: case 0xbd:
+        case 0xbe: case 0xbf: case 0xc0: case 0xc1:
+        case 0xcc: case 0xcd:
+        case 0xe1:
+        case 0xee:
+        case 0x100:
+        case 0x104:
+        case 0x107:
+        case 0x10f: case 0x110: case 0x111:
+        case 0x120:
+        case 0x13c:
+        case 0x145:
             return true;
-        if (id <= 0xcd)
-        {
-            if (id >= 0xcc)  // 0xcc..0xcd
-                return true;
-            // sub $0xb9 / cmp $0x8 / ja → 0xb9..0xc1
-            return static_cast<unsigned int>(id - 0xb9) <= 0x8u;
-        }
-        return id == 0xe1 || id == 0xee;
+        default:
+            return false;
     }
-
-    if (id <= 0x111)
-    {
-        if (id >= 0x10f)  // 0x10f..0x111
-            return true;
-        return id == 0x104 || id == 0x107;
-    }
-    return id == 0x13c || id == 0x145 || id == 0x120;
 }
 
 // ---------------------------------------------------------------------------
@@ -131,10 +118,18 @@ void _NS_PI_Check_CMD(ENUM_PACKETCLASS packetClass, unsigned short cmd,
         return;
 
     char type = 0;  // -0x29(%ebp)
-    if (packetClass == 0)
-        type = 2;
-    else if (packetClass == 1)
-        type = 1;
+    // [b28d-solo-GameSecurity] ORIG 先 `mov 0x8(%ebp),%eax; test %eax,%eax; je` 再
+    // `cmp $0x1,%eax; jne`（P261 无状态槽 cmp 链）⇒ 原码是 switch，if/else 链在
+    // 4.4 恒折 `cmpl $imm,mem` 直比（P209）。
+    switch (packetClass)
+    {
+        case 1:
+            type = 1;
+            break;
+        case 0:
+            type = 2;
+            break;
+    }
 
     char cmdType = PI_GetType_CS(type, static_cast<short>(cmd));  // -0x2a(%ebp)
     if (cmdType == 0)
@@ -143,7 +138,7 @@ void _NS_PI_Check_CMD(ENUM_PACKETCLASS packetClass, unsigned short cmd,
     char* data = packet.get_packet(0) + 0xd;                        // -0x20
     short idx = static_cast<short>(packet.get_index() - 0xd);       // -0x1a
 
-    int expected = 0;  // -0x30
+    int expected;  // -0x30（ORIG 无清零，P171 照抄不写）
     packet.get_int(expected);
 
     std::pair<char, char> key = std::make_pair(type, cmdType);      // -0x32
@@ -158,7 +153,7 @@ void _NS_PI_Check_CMD(ENUM_PACKETCLASS packetClass, unsigned short cmd,
     if (cnt > 0x64)
         return;
 
-    int hash = 0;  // -0x38
+    int hash;  // -0x38（ORIG 无清零）
     if (!_NS_MakeHash_(data, idx, hash))
         return;
 
@@ -169,10 +164,9 @@ void _NS_PI_Check_CMD(ENUM_PACKETCLASS packetClass, unsigned short cmd,
 
     // ORIG 0x82748fb：movzbl t → imul $0x67 魔数除 5 取余 → r*10 + 0xc9。
     int penalty = static_cast<int>(type % 10) * 10 + 0xc9;  // -0x10
-    int hackType = PI_GetHackTypes(static_cast<short>(cmdType));  // -0xc
-    PIAddServerHackCnt(user,
-                       static_cast<WongWork::ENUM_HACKTYPE>(hackType),
-                       penalty);
+    WongWork::ENUM_HACKTYPE hackType = static_cast<WongWork::ENUM_HACKTYPE>(
+        PI_GetHackTypes(static_cast<short>(cmdType)));  // -0xc
+    PIAddServerHackCnt(user, hackType, penalty);
 }
 
 // ===========================================================================
@@ -193,14 +187,18 @@ bool _NS_MakeHash_(char* data, short len, int& out)
     unsigned char digest[16];
     md5(reinterpret_cast<unsigned char*>(data), len, digest);
 
-    digest[0] = static_cast<unsigned char>(digest[0] ^ digest[8] ^ digest[10] ^
-                                           digest[13] ^ 0x81);
-    digest[1] = static_cast<unsigned char>(digest[1] ^ digest[5] ^ digest[9] ^
-                                           digest[12] ^ 0x78);
-    digest[2] = static_cast<unsigned char>(digest[2] ^ digest[4] ^ digest[6] ^
-                                           digest[14] ^ 0x1a);
-    digest[3] = static_cast<unsigned char>(digest[3] ^ digest[7] ^ digest[11] ^
-                                           digest[15] ^ 0xbf);
+    // [b28d-solo-GameSecurity] ^ 结合分组照 ORIG：`d[i] ^ (d[a]^d[b]^d[c]) ^ K`
+    // 使 4.4 用 %ecx 累积三元组、d[i] 留 %edx 最后异或（探针 /tmp/mh_probe.cpp h2
+    // 与 ORIG 0x0808c8b5 逐条同构）；左结合平铺形 4.4 改 %edx 累积且多 1 条 xor。
+    // 三元组内操作数序按 ORIG 求值序（首项进 %ecx、次项进 %eax）：10-8-13 / 12-5-9。
+    digest[0] = static_cast<unsigned char>(
+        (digest[0] ^ (digest[10] ^ digest[8] ^ digest[13])) ^ 0x81);
+    digest[1] = static_cast<unsigned char>(
+        (digest[1] ^ (digest[12] ^ digest[5] ^ digest[9])) ^ 0x78);
+    digest[2] = static_cast<unsigned char>(
+        (digest[2] ^ (digest[4] ^ digest[14] ^ digest[6])) ^ 0x1a);
+    digest[3] = static_cast<unsigned char>(
+        (digest[3] ^ (digest[7] ^ digest[11] ^ digest[15])) ^ 0xbf);
 
     // ORIG lea digest,%eax; mov (%eax),%edx; mov %edx,(out) —— 小端 dword 直读，非逐字节 or。
     out = *reinterpret_cast<int*>(digest);
@@ -472,12 +470,15 @@ int _NS_ProcessScan(CUser* user, PacketBuf& packet)
     if (!packet.get_byte(c))
         return 3;
 
-    int value = static_cast<int>(b % 10) + static_cast<int>(c % 10) * 10;
-    int hackType = HP_GetHackType(static_cast<unsigned char>(a));
-    int etc = user->SetETC(static_cast<short>(hackType), value);
+    unsigned int value = static_cast<int>(b % 10) + static_cast<int>(c % 10) * 10;
+    // [b28d-solo-GameSecurity] ORIG 无 etc 具名槽（P0）：SetETC 结果 `mov %eax,%ebx`
+    // 直接升格 callee-saved 跨 getHackAnalyzer 保活 ⇒ 源码把 SetETC 写成第 4 实参
+    // 内联表达式；具名 int etc 会多一槽 + push %esi + 全帧深 4。
+    WongWork::ENUM_HACKTYPE hackType = static_cast<WongWork::ENUM_HACKTYPE>(
+        HP_GetHackType(static_cast<unsigned char>(a)));
     user->getHackAnalyzer()->addServerHackCnt(
-        user, static_cast<WongWork::ENUM_HACKTYPE>(hackType), 1,
-        static_cast<unsigned int>(etc), 0);
+        user, hackType, 1,
+        user->SetETC(static_cast<short>(hackType), value), 0);
     return 0;
 }
 
@@ -506,9 +507,13 @@ int _NS_PacketIntegrity(CUser* user, PacketBuf& packet)
         return 4;
 
     int value = d % 10 + (b % 10) * 10 + (a % 10) * 100;
-    int hackType = PI_GetHackTypes(static_cast<short>(c));
-    PIAddServerHackCnt(user, static_cast<WongWork::ENUM_HACKTYPE>(hackType),
-                       value);
+    // [b28d-solo-GameSecurity] 具名枚举局部 + 实参直传（无调用点 cast）复现 ORIG
+    // 严格 R2L 逐槽装载 `mov value,%eax; mov %eax,0x8(%esp); mov hackType,%eax;
+    // mov %eax,0x4(%esp)`（探针 /tmp/pi_probe.cpp probe4）；int 局部 + 实参处
+    // static_cast 会令 4.4 先载第二实参到 %eax 并借 %edx 中转（P75 假象）。
+    WongWork::ENUM_HACKTYPE hackType = static_cast<WongWork::ENUM_HACKTYPE>(
+        PI_GetHackTypes(static_cast<short>(c)));
+    PIAddServerHackCnt(user, hackType, value);
     return 0;
 }
 
@@ -629,63 +634,65 @@ void checkNewMemberHacklog(unsigned int hackType, CUser* user,
     if (user == 0)
         return;
 
-    // ORIG 0x8275315：tm 逐字段赋值（无 memset 调用，P167 EXTRA memset=1），
-    // 四个 hack 分支各自内联 SetETC+getHackAnalyzer+addServerHackCnt（P167
-    // MISSING 各 -4；提取 hackId 变量统一调用丢 4 个调用点）。
+    // [b28d-solo-GameSecurity] ORIG 0x8275315 → NEAR（200=200，助记符序列全等）。
+    // 修法三则：① year/mon/mday 先算入具名局部（槽 -0x2c/-0x28/-0x24），tm 字段
+    // 随后按 isdst→year→mon→mday→hour→min→sec 逐条 store；② 五个 hack 分支为
+    // if / else-if 链（正极性 `days>0 && days<=3` 等），else-if 守卫各落独立
+    // nop+jmp 岛；③ 无 etc 具名槽（P0）：SetETC 结果 `mov %eax,%ebx` 直接升格
+    // callee-saved 跨 getHackAnalyzer 保活 ⇒ 写 addServerHackCnt 第 4 实参内联。
+    // 残余 N-P75：ORIG `difftime(now,t)` 先载 t→%edx 再载 now→%eax 再压栈；
+    // 4.4 恒逐个求值即压（`mov t,%eax; mov %eax,0x4(%esp); mov now,%eax; …`）。
+    // 探针穷举（time_t/int/double cast/具名 double）均不翻，压栈序/调用约定/语义全同。
     struct tm tmv;
-    tmv.tm_mday = static_cast<int>(hackType % 100);
+    int year = static_cast<int>(hackType / 10000);
+    unsigned int mon = (hackType / 100) % 100;
+    int mday = static_cast<int>(hackType % 100);
+
     tmv.tm_isdst = -1;
-    tmv.tm_year = static_cast<int>(hackType / 10000) - 0x76c;
-    tmv.tm_mon = static_cast<int>((hackType / 100) % 100) - 1;
+    tmv.tm_year = year - 0x76c;
+    tmv.tm_mon = static_cast<int>(mon) - 1;
+    tmv.tm_mday = mday;
     tmv.tm_hour = 0;
     tmv.tm_min = 0;
     tmv.tm_sec = 0;
 
     time_t t = mktime(&tmv);
     time_t now = time(0);
-    int days = static_cast<int>(difftime(static_cast<double>(now),
-                                         static_cast<double>(t)) / 86400.0);
+    // ORIG `mov t,%edx; mov now,%eax; mov %edx,0x4(%esp); mov %eax,(%esp);
+    // call difftime` —— 直接传 time_t（无 double cast）；返回 double 先
+    // fstpl -0x18 具名槽再 fldl 参与除法（P252 槽往返）。
+    double diff = difftime(now, t);
+    int days = static_cast<int>(diff / 86400.0);
 
     if (days < 0)
     {
-        int etc = user->SetETC(0x134, static_cast<int>(p3));
         user->getHackAnalyzer()->addServerHackCnt(
             user, static_cast<WongWork::ENUM_HACKTYPE>(0x134), 1,
-            static_cast<unsigned int>(etc), hackType);
+            user->SetETC(0x134, static_cast<int>(p3)), hackType);
     }
     else if (days == 0)
     {
-        int etc = user->SetETC(0x134, static_cast<int>(p3));
         user->getHackAnalyzer()->addServerHackCnt(
             user, static_cast<WongWork::ENUM_HACKTYPE>(0x134), 1,
-            static_cast<unsigned int>(etc), hackType);
+            user->SetETC(0x134, static_cast<int>(p3)), hackType);
     }
-    else if ((days < 1) || (3 < days))
+    else if (days > 0 && days <= 3)
     {
-        if ((days < 4) || (7 < days))
-        {
-            if ((7 < days) && (days < 0x1f))
-            {
-                int etc = user->SetETC(0x137, static_cast<int>(p3));
-                user->getHackAnalyzer()->addServerHackCnt(
-                    user, static_cast<WongWork::ENUM_HACKTYPE>(0x137), 1,
-                    static_cast<unsigned int>(etc), hackType);
-            }
-        }
-        else
-        {
-            int etc = user->SetETC(0x136, static_cast<int>(p3));
-            user->getHackAnalyzer()->addServerHackCnt(
-                user, static_cast<WongWork::ENUM_HACKTYPE>(0x136), 1,
-                static_cast<unsigned int>(etc), hackType);
-        }
-    }
-    else
-    {
-        int etc = user->SetETC(0x135, static_cast<int>(p3));
         user->getHackAnalyzer()->addServerHackCnt(
             user, static_cast<WongWork::ENUM_HACKTYPE>(0x135), 1,
-            static_cast<unsigned int>(etc), hackType);
+            user->SetETC(0x135, static_cast<int>(p3)), hackType);
+    }
+    else if (days > 3 && days <= 7)
+    {
+        user->getHackAnalyzer()->addServerHackCnt(
+            user, static_cast<WongWork::ENUM_HACKTYPE>(0x136), 1,
+            user->SetETC(0x136, static_cast<int>(p3)), hackType);
+    }
+    else if (days > 7 && days <= 0x1e)
+    {
+        user->getHackAnalyzer()->addServerHackCnt(
+            user, static_cast<WongWork::ENUM_HACKTYPE>(0x137), 1,
+            user->SetETC(0x137, static_cast<int>(p3)), hackType);
     }
 }
 

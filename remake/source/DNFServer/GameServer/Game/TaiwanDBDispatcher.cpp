@@ -519,7 +519,10 @@ void DBUpdateExitTime::makeRequest(unsigned int a, int b, unsigned int c)
 // cMyTrace(0x20d)("[Taiwan, Event] select event_create_dnf_info. hour:%d rate:%d
 // event_day:%d", c, a, b)；catch：getCurSec→localtime_r→makeRequest(-1,
 // tm_hour, 0)，logFormat(0x219) 返 0。成功返 1。
-// [b28d-lane6] NEAR·N82附：192/194 条全等，仅 trace 实参 callee-saved 对调（ORIG edi=eventDay/ebx=hour vs 4.4 反）——多实参 call 首值寄存器对调不可复现。
+// [b28d-solo-TaiwanDBDispatcher] AE（194/194）：原 NEAR 残差「trace 实参 callee-saved
+// 对调」真因 = 实参顺序写错（真 bug）——ORIG 0x0815be02 push 序 0x8=hour/0xc=rate/
+// 0x10=eventDay ⇒ 原码 (hour, rate, eventDay) 与格式串一一对应；旧写 (eventDay, rate,
+// hour) 使日志 hour/event_day 两值互换。改序后 4.4 edi/esi/ebx 分配逐条复现。
 bool DBSelectCreateDnfEventInfo::dispatch(int code, int uid, Stream* stream)
 {
     try
@@ -549,7 +552,11 @@ bool DBSelectCreateDnfEventInfo::dispatch(int code, int uid, Stream* stream)
         InterSelectCreateDnfEventInfo::makeRequest(rate, hour, eventDay);
         cMyTrace(__PRETTY_FUNCTION__, 0x20d, 0)(
             "[Taiwan, Event] select event_create_dnf_info. hour:%d rate:%d event_day:%d",
-            eventDay, rate, hour);
+            // [b28d-solo-TaiwanDBDispatcher] 真 bug 修正：ORIG 0x0815be02 push 序
+            // 0x8(%esp)=hour(-0x38)/0xc=rate(-0x34)/0x10=eventDay(-0x3c) ⇒ 原码实参
+            // (hour, rate, eventDay)，与格式串 hour/rate/event_day 一一对应；
+            // 旧写 (eventDay, rate, hour) 把两值打印互换。
+            hour, rate, eventDay);
         return 1;
     }
     catch (const char* e)
@@ -726,15 +733,16 @@ void DBSelectMobileAuthRewardTw::makeRequest(CUser* user)
 // ok=false、cMyTrace(0x2be) 插行日志；否则 ok=true、cMyTrace(0x2c3) 查行日志；
 // InterSelectMobileAuthReward::makeRequest(uid, msg->m_id, ok)；catch
 // logFormat(0x2cd) 返 0。成功返 1。
-// [b28d-lane6] DIFF·N93：帧 0x50 vs 0x60 + bool 槽 -0x15 vs -0x19。
+// [b28d-solo-TaiwanDBDispatcher] AE（171/171）：删 mId 具名缓存（P183/P0，ORIG 每处
+// 直读 `mov -0x14(%ebp),%eax; mov (%eax),%eax`）后帧 0x60→0x50、bool 槽 -0x19→-0x15、
+// trace 临时槽 -0x3c→-0x38 全归零。
 bool DBSelectMobileAuthRewardTw::dispatch(int code, int uid, Stream* stream)
 {
-    // [b21 N] 语义闭合：msg-null/handle-null throw、set_query(不查返)+exec→select_exec、
-    // get_n_rows()==0 → INSERT+ok=false+trace(0x2be)、else ok=true+trace(0x2c3)、
-    // makeRequest(uid, m_id, ok)、return 1、catch logFormat(0x2cd) 返 0——逐条对齐 ORIG。
-    //   注意 set_query 两处均为裸调用不查返（ORIG 仅 check exec，同族 GiveBox 已修）。
-    //   残余 N82/N86：ORIG 逐用 `*(uint*)sig` 直读（无 mId 命名缓存），4.4 存 mId 局部；
-    //   throw 字符串/typeinfo 地址 .o 重定位产物。无子母，封 N。
+    // [b28d-solo-TaiwanDBDispatcher] 语义闭合：msg-null/handle-null throw、set_query
+    // (不查返)+exec→select_exec、get_n_rows()==0 → INSERT+ok=false+trace(0x2be)、
+    // else ok=true+trace(0x2c3)、makeRequest(uid, m_id, ok)、return 1、catch
+    // logFormat(0x2cd) 返 0——逐条对齐 ORIG。原「残余 N82/N86」已解：删 mId 具名缓存
+    // 改逐处 `*reinterpret_cast<unsigned int*>(sig)` 直读（P183/P0）⇒ AE 171/171。
     try
     {
         bool ok = true;
@@ -745,32 +753,34 @@ bool DBSelectMobileAuthRewardTw::dispatch(int code, int uid, Stream* stream)
                                                       (ENUM_SERVER_GROUP)0);
         if (db == 0)
             throw "handle null";
-        unsigned int mId = *reinterpret_cast<unsigned int*>(sig);
+        // [b28d-solo-TaiwanDBDispatcher] P183/P0：ORIG 0x0815c6a8 每处直读
+        // `mov -0x14(%ebp),%eax; mov (%eax),%eax`（无 mId 具名槽），删除缓存局部。
         // ORIG：set_query 返回值不检查（仅 exec 检查）
         db->set_query("seLect m_id from mobile_auth_reward_tw where m_id=%s",
-                      NumberToString(mId, 0));
+                      NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
         if (!db->exec(1))
             throw "select_exec";
         if (db->get_n_rows() == 0)
         {
             db->set_query(
                 "inSert into mobile_auth_reward_tw(m_id,occ_date) VALUES(%s,now())",
-                NumberToString(mId, 0));
+                NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
             if (!db->exec(1))
                 throw "insert_exec";
             ok = false;
             cMyTrace(__PRETTY_FUNCTION__, 0x2be, 0)(
                 "[Taiwan, MobileAuth] insert mobile_auth_reward_tw. m_id:%s",
-                NumberToString(mId, 0));
+                NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
         }
         else
         {
             ok = true;
             cMyTrace(__PRETTY_FUNCTION__, 0x2c3, 0)(
                 "[Taiwan, MobileAuth] select mobile_auth_reward_tw. m_id:%s",
-                NumberToString(mId, 0));
+                NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
         }
-        InterSelectMobileAuthReward::makeRequest(uid, mId, ok);
+        InterSelectMobileAuthReward::makeRequest(
+            uid, *reinterpret_cast<unsigned int*>(sig), ok);
         return 1;
     }
     catch (const char* e)
@@ -795,17 +805,27 @@ bool DBSelectMobileAuthRewardTw::dispatch(int code, int uid, Stream* stream)
 // makeRequest(uid, yesterday, 4) + cMyTrace(0x311)；否则 makeRequest(uid,
 // yesterday, (char)flag) + cMyTrace(0x316)。catch logFormat(0x31c) 返 0。
 // 成功返 1。
-// [b28d-lane6] DIFF·N93：槽号 -0x4c/-0x50/-0x51 vs -0x48/-0x4c/-0x4d + bool 槽。
+// [b28d-solo-TaiwanDBDispatcher] AE（261/261）：三处修形——①补 ORIG 的 dead bool 局部
+// （P171/P232：0x0815ca9c `movb $0x1,-0x15(%ebp)` 写后从不读）⇒ 槽基 -0x48→-0x4c 归零；
+// ②yesterday/reward/flag 声明移到 GetOutBuffer 之后（P28：ORIG 0x0815cae0 三条清零位置）；
+// ③return 1 移出 try 到函数尾（P214②：ORIG 0x0815cef7 `mov $0x1,%ebx` 与 catch 的
+// `mov $0x0,%ebx` 在尾共享块汇合）。
 bool DBSelectPcroomDailyReward::dispatch(int code, int uid, Stream* stream)
 {
     try
     {
-        unsigned int yesterday = 0;
-        unsigned int reward = 0;
-        char flag = 0;
+        // [b28d-solo-TaiwanDBDispatcher] P171/P232：ORIG 0x0815ca9c prologue 后
+        // `movb $0x1,-0x15(%ebp)` 写后从不读（dead 局部）⇒ 照抄声明。
+        bool bDead = true;
+        (void)bDead;
         DBSelectPcroomDailyReward::MSG* sig = stream->GetOutBuffer<DBSelectPcroomDailyReward::MSG>();
         if (sig == 0)
             throw "msg is null";
+        // [b28d-solo-TaiwanDBDispatcher] P28：ORIG 0x0815cae0 三条清零在 GetOutBuffer
+        // 之后（-0x4c/-0x50/-0x51）⇒ 声明落在 sig 检查之后。
+        unsigned int yesterday = 0;
+        unsigned int reward = 0;
+        char flag = 0;
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
                                                       (ENUM_SERVER_GROUP)0);
         if (db == 0)
@@ -854,7 +874,6 @@ bool DBSelectPcroomDailyReward::dispatch(int code, int uid, Stream* stream)
                     (char)flag);
             }
         }
-        return 1;
     }
     catch (const char* e)
     {
@@ -864,6 +883,9 @@ bool DBSelectPcroomDailyReward::dispatch(int code, int uid, Stream* stream)
             "[Taiwan, Pcroom] mobile_auth_reward_tw. (error:%s)", e);
         return 0;
     }
+    // [b28d-solo-TaiwanDBDispatcher] P214②：ORIG 0x0815cef7 成功路径 jmp 到函数尾
+    // 共享块，`mov $0x1,%ebx` 与 catch 的 `mov $0x0,%ebx` 汇合 ⇒ return 1 在 try 外。
+    return 1;
 }
 
 // ORIG 0x0815d024：GetOutBuffer<MSG> null → throw "context null"；GetDBHandle
@@ -1021,9 +1043,12 @@ bool DBInsertGiveBoxEventReward::dispatch(int code, int uid, Stream* stream)
 // GetInBuffer<SigLoadHeroMissionData> null → throw "stream_alloc"；
 // memcpy(out, &data, 0x104)；MsgQueueMgr::put(DB_Q, guard)。catch
 // logFormat(0x3f5) 返 0。成功返 1。
-// [b28d-lane6] DIFF·部分修：characNo 已内联（槽号改善 102→23 行差）；残余 =
-// `data.m_field0 = sig->m_field0` 的 store 序（ORIG 0x0815d7d2 RHS-first 值先写，
-// 4.4 同型指针视图恒 LHS-first，P211）+ 尾部块序。
+// [b28d-solo-TaiwanDBDispatcher] AE（231/231）：两处修形——①SigLoadHeroMissionData
+// 字段 public 化 + 改直接成员访问（§8.3；ORIG 0x0815d7a8 的 `mov -0x18(%ebp),%eax;
+// mov (%eax),%eax; mov %eax,-0x124(%ebp)` 是 data.m_field0=sig->m_field0 的 disp 直存，
+// 旧 cast 视图形恒 lea+LHS-first；同一改动连带 memset/get_binary 实参序归零）；
+// ②`return put(DISPATCH_Q, guard)`（ORIG 0x0815daf3 `call put; mov %eax,%ebx` 尾
+// epilogue 返回 ebx；旧写 put();return 1 在 put 失败时恒返 1 = 真语义 bug）。
 bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
 {
     try
@@ -1049,8 +1074,7 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
             throw "exec_select";
         Taiwan::SigLoadHeroMissionData data;
         data.init();
-        reinterpret_cast<SigHeroMissionDataView*>(&data)->m_field0 =
-            reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0;
+        data.m_field0 = sig->m_field0;
         if (db->get_n_rows() == 0)
         {
             db->set_query(
@@ -1059,13 +1083,13 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
                 reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0);
             if (!db->exec(1))
                 throw "exec_insert";
-            memset(reinterpret_cast<SigHeroMissionDataView*>(&data)->m_data, 0, 0x100);
+            memset(data.m_data, 0, 0x100);
         }
         else
         {
             if (!db->fetch())
                 throw "fetch";
-            if (!db->get_binary(0, reinterpret_cast<SigHeroMissionDataView*>(&data)->m_data, 0x100))
+            if (!db->get_binary(0, data.m_data, 0x100))
                 throw "get_binary";
         }
         // [b21] ORIG put @0x815daf3 movl $0x1=DISPATCH_Q（QueueSweep21 回扫实证）；
@@ -1080,8 +1104,10 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
         if (outSig == 0)
             throw "stream_alloc";
         memcpy(outSig, &data, 0x104);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-        return 1;
+        // [b28d-solo-TaiwanDBDispatcher] 真语义：ORIG 0x0815daf3 `call put;
+        // mov %eax,%ebx`（尾 epilogue 返回 ebx）⇒ 原码 `return put(...)`，
+        // 不是 `put(); return 1;`（put 失败时 ORIG 返 0，旧写法恒返 1）。
+        return GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
     catch (const char* e)
     {
@@ -1213,7 +1239,14 @@ void LoadGeolocation::sendCountryData(Taiwan::SigLoadGeolocation& data)
 // exec 失败 throw "exec"；逐行 get_int(++idx,&v)/get_char(&c) 失败 throw
 // "category"/"restrict"/"values"；sig.restrictValue==0 或 ==v1 时 sig.set(v2,v1,c)，
 // 否则先 sendRestrictData+init 再 set；末尾 sendRestrictData。catch 0xd2 返 0。
-// [b28d-lane6] DIFF·N93/P250：大缓冲槽基 -0x1221(ORIG) vs -0x1224(4.4)（pack(1) 载荷整体取址差）+ 块序。
+// [b28d-solo-TaiwanDBDispatcher] DIFF·N 封顶（201/201，仅 3 处实参求值序）：①真 bug
+// 修正 set(v2,v1,c)→set(v1,v2,c)（ORIG 0x0815a8f2 两处压栈序 0x4=v1(-0x1c)/0x8=v2
+// (-0x20)/0xc=c 实证；旧写使 m_restrictValue 与 m_extra 索引互换）；②TaiwanQueries.h
+// SigLoadRestrictPolicy 加 pack(1)（P250：ORIG 槽基 -0x1221 非 4 对齐）⇒ 槽基/块序归零。
+// 残余：三处 get_int/get_char 实参求值序——ORIG 左→右（idx 先入 %eax、&v 后入 %edx），
+// 4.4 恒右→左（先 lea &v）；实测语句表达式/逗号/(int)/(unsigned)/引用 cast/内联 ++idx/
+// idx+=1 七形均不可翻（(short)idx 可对齐求值序但多 3 条 cwtl 且引入截断，弃用）；
+// 实参值/压栈序/调用目标全同 ⇒ P75 跨版本实参装载时刻，语义等价封 N。
 bool LoadServiceRestrictPolicy::dispatch(int code, int uid, Stream* stream)
 {
     try
@@ -1248,13 +1281,16 @@ bool LoadServiceRestrictPolicy::dispatch(int code, int uid, Stream* stream)
                 throw "values";
             if (sig.m_restrictValue == 0 || sig.m_restrictValue == v1)
             {
-                sig.set(v2, v1, c);
+                // [b28d-solo-TaiwanDBDispatcher] 真 bug 修正：ORIG 0x0815a8f2 两处
+                // set 压栈序 (0x4=v1,-0x1c / 0x8=v2,-0x20 / 0xc=c) ⇒ 原码 set(v1,v2,c)；
+                // 旧写 set(v2,v1,c) 使 m_restrictValue 与 m_extra 索引互换（可观察行为错）。
+                sig.set(v1, v2, c);
             }
             else
             {
                 sendRestrictData(sig);
                 sig.init();
-                sig.set(v2, v1, c);
+                sig.set(v1, v2, c);
             }
         }
         sendRestrictData(sig);

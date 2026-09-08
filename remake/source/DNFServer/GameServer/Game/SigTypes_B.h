@@ -709,7 +709,22 @@ static_assert(sizeof(SIG_LOAD_BLOOD_DUNGEON_BEST_RECORD) == 0x10,
 
 struct SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE
 {
-    char m_pad[0x80];
+    // [b28d-solo-CCeraShopAddRestrict P291 字段化] ORIG LoadProcess 0x080e1470：
+    // +0x00 count（uint，循环上界）、+0x04 type、+0x08 起为 0xc 步长的变长元素
+    // 数组（ipgNo/count/nextDate）。原 `char m_pad[0x80]` 无法表达数组视图，
+    // 4.4 对 `(char*)sig + i*0xc + 8` 恒折 lea（ORIG 为 add sig + add 8）。
+    // sizeof 0x80 / 偏移 / mangled 不变（static_assert 同步保留）。
+    unsigned int m_count;        // +0x00
+    unsigned int m_type;         // +0x04
+    struct Elem
+    {
+        unsigned int m_ipgNo;    // +0x00
+        unsigned int m_count;    // +0x04
+        unsigned int m_nextDate; // +0x08
+    } m_items[1];                // +0x08（ORIG 以 0xc 步长索引的变长区）
+    char m_padTail[0x80 - 0x14]; // 保持 sizeof 0x80
 };
+static_assert(sizeof(SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE) == 0x80,
+              "SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE ABI drift");
 
 #endif  // DNF_GAME_SIG_TYPES_B_H_

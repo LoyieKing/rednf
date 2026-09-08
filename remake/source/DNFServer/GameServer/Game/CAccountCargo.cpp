@@ -104,15 +104,15 @@ bool CAccountCargo::CheckValidSlot(int slot) const
 
 Inven_Item CAccountCargo::GetSlot(int slot)
 {
-    // [b28d-46 判词·N/N82+N90] ORIG 0x082898f8：89 vs 88，p167 CLEAR；帧/槽号
-    // 平移（N82）＋ `imul $0x3d` 结构步长寻址展开（N90/N94）⇒ 封顶。
-    // ORIG 0x828986c：valid 直接返回槽值（编译器逐字段展开拷贝）；
-    // invalid 构造空 Inven_Item（C1 清零）返回。
-    if (CheckValidSlot(slot)) {
-        return m_slots[slot];
+    // [b28d-solo-CAccountCargo] ORIG 0x082898f8：`call CheckValidSlot; xor $1;
+    // test %al; je <valid 块>` ⇒ 否定 guard 早返，invalid 块 fall-through 在前、
+    // valid 块在后（P59/P168a①）。原 if(valid) 正极性令 4.4 产 `test; je <invalid>`
+    // （invalid 后置）块序相反。
+    if (!CheckValidSlot(slot)) {
+        Inven_Item out;
+        return out;
     }
-    Inven_Item out;
-    return out;
+    return m_slots[slot];
 }
 
 Inven_Item* CAccountCargo::GetSlotRef(int slot)
@@ -133,17 +133,18 @@ Inven_Item* CAccountCargo::GetSlotRef(int slot)
 // ---- 插入条件 / 插入 / 删除 / 移动 ----
 int CAccountCargo::CheckInsertCondition(Inven_Item& item)
 {
-    // [b28d-46 判词·真 bug + N/N82] ORIG 0x08289a4a。
-    // 真 bug（P282）：ORIG 0x08289bc6 虚调用 vptr+0x10 = _ZTV5CItem slot 4 = IsAvatarItem，
-    // 原误写 IsCreatureItem（slot 5）⇒ 运行时调错虚函数；已改。
-    // 配套范式：链式 G_CDataManager()->find_item（P24/P52 实参先物化 %ebx）、
-    // GetLock 具名 uchar 缓存（P0/P48，消重复 call）、isPackagable guard 早期返回
-    // （P59/P168a xor 物化）、expireSec 具名局部（P0，先落 -0x10 槽再 call getCurSec）。
-    // 残差封顶：槽号整体浅移 4~8（N82/N98，4.4 按首次使用序分配）＋ switch 跳表 vs
-    // 4.4 比较链（P163 补 case 0/4/5 反生 bitmask 已回退）。dead char[0x10] 补帧
-    // （P232）使 sub $0x34 对齐。
-    char framePad[0x10];
-    (void)framePad;
+    // [b28d-solo-CAccountCargo 判词·DIFF（N 封顶）] ORIG 0x08289a4a：172 vs 175。
+    // 已修真 bug：①0x08289bc6 虚调用 vptr+0x10 = _ZTV5CItem slot 4 = IsAvatarItem
+    // （原误写 IsCreatureItem slot 5，P282）；②case 3 为 `m_field0 == 0 → return 0`
+    // （ORIG `xor $1; test; je 继续`；原 `!= 1` 误拒 m_field0>=2 的物品）。
+    // 已复现范式：isGM/avatar 嵌套否定早返（P59）、期限段1 条件极性
+    // `usable==0 && expire!=0`（复现 `jne 段2` / `je false 块`）、GetLock 具名 uchar
+    // 缓存（P0/P48）、find_item 实参先物化 %ebx（P24/P52）、expireSec 具名局部。
+    // 残差封顶（不可复现）：①ORIG 6 项 switch 跳表（`cmp $5; ja; mov <A>(,%eax,4);
+    //   jmp *%eax`）vs 4.4 比较链；补 case 0/4/5 撑宽值域反生 bitmask（P163 反例，
+    //   实测已回退）；②虚调用 eax↔edx 寄存器对调（N7，4.4.7 间接 call 目标恒 %eax）；
+    //   ③段1 else 的 return 1 未与尾部共享出口（4.4 独立发射，+2 条）。
+    // p167 CLEAR（14/14，语义闭合）。
     // [b28d-46 P24/P52] ORIG 先把 item.m_addInfo 物化 %ebx 再 call G_CDataManager，
     // 链式形复现（具名 dm 局部使 receiver 先调用、实参后装载）。
     CItem* ci = G_CDataManager()->find_item(item.m_addInfo);
@@ -170,12 +171,17 @@ int CAccountCargo::CheckInsertCondition(Inven_Item& item)
         if ((unsigned int)item.m_addInfo >= 0x1964 &&
             (unsigned int)item.m_addInfo <= 0x1b57)
             return 0;
-        switch (ci->GetAttachType()) {
+        // [b28d-solo-CAccountCargo] ORIG 0x08289b48：switch 值有具名槽 -0x14
+        // （P0/P28），跳表覆盖 0..5（P163 补未列 case 0/4/5 撑宽 range）；
+        // case 3 判定为 `m_field0 == 0 → return 0`（ORIG `xor $1; test; je 继续`，
+        // 原 `!= 1` 会误拒 m_field0>=2 的物品=真语义 bug）。
+        int attachType = ci->GetAttachType();
+        switch (attachType) {
         case 1:
         case 2:
             return 0;
         case 3:
-            if (item.m_field0 != 1)
+            if (item.m_field0 == 0)
                 return 0;
             break;
         }
@@ -184,23 +190,26 @@ int CAccountCargo::CheckInsertCondition(Inven_Item& item)
         // [b28d-46 判词·真 bug/P282] ORIG 0x08289bc6 虚调用 vptr+0x10 = CItem vtable
         // slot 4 = IsAvatarItem（非 slot 5 IsCreatureItem）；按 _ZTV5CItem 0x08c96da0
         // 逐槽核对（vptr=_ZTV+8，slot12=IsImpossibleUpgrade 与头声明序吻合）。
-        if (!m_pUser->isGMUser() && !ci->IsAvatarItem()) {
-            // ORIG 0x194..0x1c8 + 0x1c2..0x1ec：两段相同的期限判定。
-            // 第一段两字段均为 0 → 无期限放行；否则第二段再判，两字段仍均 0 →
-            // （不可达）持久时限检查，否则（有期限物品）返回 0 不允许存入。
-            if ((ci->getUsablePeriod() == 0 && ci->getExpirationDate() == 0)) {
-                // 无期限物品可存入
-            } else {
-                if ((ci->getUsablePeriod() == 0 && ci->getExpirationDate() == 0)) {
-                    // [b28d-46 P0] ORIG 把 imul/add 结果先落 -0x10 槽再 call getCurSec
-                    // （具名 expireSec）；endurance 内联 item.m_fieldb（无 16 位中转槽）。
+        // [b28d-solo-CAccountCargo] ORIG 0x08289ba9/0x08289bc1：GM/avatar 为两个
+        // 独立早返（各自 `xor $1; test; je <return 1 岛>`，P63/P133），非合并 &&。
+        if (!m_pUser->isGMUser()) {
+            if (!ci->IsAvatarItem()) {
+                // ORIG 0x194..0x1c8 + 0x1c2..0x1ec：段1 物化
+                // `usable == 0 && expire != 0`（`jne 段2` + `je false 块` 极性），
+                // false → return 1；段2 为第二段期限判定（不可达 return 0）。
+                if (ci->getUsablePeriod() == 0 && ci->getExpirationDate() != 0) {
+                    if (ci->getUsablePeriod() == 0 && ci->getExpirationDate() == 0) {
+                        return 0;
+                    }
+                    // [b28d-46 P0] ORIG 把 imul/add 结果先落 -0x10 槽再 call
+                    // getCurSec（具名 expireSec）；endurance 内联 item.m_fieldb。
                     int expireSec =
                         (int)((unsigned int)item.m_fieldb * 0x15180 + 0x44a54a80);
                     int curSec = GlobalData::s_systemTime_.getCurSec();
                     if (expireSec <= curSec)
                         return 0;
                 } else {
-                    return 0;
+                    return 1;
                 }
             }
         }
@@ -210,84 +219,75 @@ int CAccountCargo::CheckInsertCondition(Inven_Item& item)
 
 int CAccountCargo::InsertItem(Inven_Item& item, int slot)
 {
-    // [b28d-46 判词·N84 已修 + N/N82] ORIG 0x08289c82：132 vs 146；memcpy→
-    // 结构体赋值使 p167 CLEAR（EXTRA memcpy ×2 清零，N84）；残差为帧 0x24 vs
-    // 0x14 与局部槽（N82/P112）⇒ 封顶。
+    // [b28d-solo-CAccountCargo 真语义 bug] ORIG 0x08289c82：非装备路径为
+    // 「同类累加 / 异类直接结构覆盖」，**不存在 return -1 分支**（原源码多写
+    // -1 路径=行为偏差，Ghidra C 与反汇编双向证实）。ret 具名局部 -0xc（P0 有槽
+    // 往返），isEquipable 正极性（`test %al; je <非装备块>`，装备块 fall-through）。
     if (!CheckValidSlot(slot))
         return -1;
-    if (!item.isEquipableItemType()) {
-        if (m_slots[slot].m_addInfo == item.m_addInfo) {
-            m_slots[slot].m_addInfo2 = m_slots[slot].m_addInfo2 + item.m_addInfo2;
-            m_alter = 1;
-            return slot;
-        }
-        // ORIG 0x08289c82：不同类型且槽非空 → 返回 -1（不覆盖）；仅空槽才拷贝。
+    int ret = -1;
+    if (item.isEquipableItemType()) {
         if (m_slots[slot].m_addInfo == 0) {
-            // [b28d-46 N84] ORIG 为结构体直接赋值 rep movsl（非 memcpy 调用）。
             m_slots[slot] = item;
-            m_alter = 1;
-            return slot;
+            ret = slot;
         }
-        m_alter = 1;
-        return -1;
-    }
-    if (m_slots[slot].m_addInfo == 0) {
-        // [b28d-46 N84] 同 InsertItem：结构体赋值。
-        m_slots[slot] = item;
-        m_alter = 1;
-        return slot;
+    } else {
+        if (item.m_addInfo == m_slots[slot].m_addInfo) {
+            m_slots[slot].m_addInfo2 = m_slots[slot].m_addInfo2 + item.m_addInfo2;
+            ret = slot;
+        } else {
+            m_slots[slot] = item;
+            ret = slot;
+        }
     }
     m_alter = 1;
-    return -1;
+    return ret;
 }
 
 int CAccountCargo::DeleteItem(int slot, int count)
 {
-    // [b28d-46 判词·N/P168a③b] ORIG 0x08289e3c：75 vs 75，p167 CLEAR；残余为
-    // `xor $1; test; je` 取反物化位置差（bool callee 跨版本 ABI）⇒ 封顶。
-    if (CheckValidSlot(slot)) {
-        if (m_slots[slot].m_addInfo == 0 || count < 1)
+    // [b28d-solo-CAccountCargo] ORIG 0x08289e3c：两个独立早返（P133 拆守卫，
+    // 各自 `mov $0; jmp` 出口）+ `isEquipableItemType` 正极性（ORIG `test %al;
+    // je <非装备>`，无 xor ⇒ 禁 ! 形）。
+    if (!CheckValidSlot(slot))
+        return 0;
+    if (m_slots[slot].m_addInfo == 0 || count < 1)
+        return 0;
+    if (m_slots[slot].isEquipableItemType()) {
+        ResetSlot(slot);
+    } else {
+        if (m_slots[slot].m_addInfo2 < count)
             return 0;
-        if (!m_slots[slot].isEquipableItemType()) {
-            if (m_slots[slot].m_addInfo2 < count)
-                return 0;
-            if (count < m_slots[slot].m_addInfo2)
-                m_slots[slot].m_addInfo2 = m_slots[slot].m_addInfo2 - count;
-            else
-                ResetSlot(slot);
-        } else {
+        if (count < m_slots[slot].m_addInfo2)
+            m_slots[slot].m_addInfo2 = m_slots[slot].m_addInfo2 - count;
+        else
             ResetSlot(slot);
-        }
-        m_alter = 1;
-        return 1;
     }
-    return 0;
+    m_alter = 1;
+    return 1;
 }
 
 bool CAccountCargo::MoveItem(int from, int to)
 {
-    // [b28d-46 判词·N84 已修 + N/P168a③b] ORIG 0x08289f26：150 vs 152；memcpy→
-    // 结构体赋值使 p167 CLEAR（EXTRA memcpy ×3 清零，N84）；残差为 bool 取反
-    // 物化（P168a③b）⇒ 封顶。
-    bool fail = !(CheckValidSlot(from) && CheckValidSlot(to) && from != to);
-    if (!fail) {
-        // [b28d-46 N84] ORIG 结构体整体赋值 rep movsl（无 memcpy call）。
-        Inven_Item tmp;
-        tmp = m_slots[from];
-        m_slots[from] = m_slots[to];
-        m_slots[to] = tmp;
-        m_alter = 1;
-    }
-    return !fail;
+    // [b28d-solo-CAccountCargo] ORIG 0x08289f26：`!a || !b || from == to` 短路链
+    // （前两项各 `xor $1; test; jne <fail 岛>`，第三项物化 mov $1/$0 后 `je <body>`；
+    // P133/P214①）。原 `bool fail = !(a && b && c)` 生栈槽 bool 物化 + 极性相反。
+    if (!CheckValidSlot(from) || !CheckValidSlot(to) || from == to)
+        return false;
+    Inven_Item tmp;
+    tmp = m_slots[from];
+    m_slots[from] = m_slots[to];
+    m_slots[to] = tmp;
+    m_alter = 1;
+    return true;
 }
 
 // ---- 查询 ----
 int CAccountCargo::GetEmptySlot()
 {
-    // [b28d-46 判词·N/P230] 28/28 指令数全等、调用点差集零；残差 = 4.4 三目 MIN_EXPR
-    // 展开 cmova（`mov $0x38,%edx; cmova`）vs ORIG 4.1 `cmp;jbe;mov $0x38,%eax`。
-    // if 语句形实测更劣（先落槽 + 内存比较，4 条）；P230 定论：该族仅 -march=i486
-    // 可消（TU 路由由 Main 决策，本波不改路由表）⇒ 封顶。ORIG 0x0828a580。
+    // [b28d-solo-CAccountCargo 判词·AE] ORIG 0x0828a580：28/28 全等；i486 路由
+    // （Main 已落 dnf_game_cxx.sh）消三目 MIN_EXPR cmova，复现 ORIG
+    // `cmp $0x38,%eax; jbe; mov $0x38,%eax`（P230）。p167 CLEAR（0 call）。
     int limit = (int)(m_capacity > 0x38 ? 0x38 : m_capacity);
     for (int i = 0; i < limit; ++i) {
         if (m_slots[i].m_addInfo == 0)
@@ -307,8 +307,8 @@ int CAccountCargo::CheckSlotEmpty(int slot)
 
 int CAccountCargo::GetSpecificItemSlot(int itemIdx)
 {
-    // [b28d-46 判词·N/P230] 同 GetEmptySlot：三目 MIN_EXPR cmova 残差，
-    // 仅 -march=i486 可消（Main 路由决策），封顶。ORIG 0x0828a61a。
+    // [b28d-solo-CAccountCargo 判词·AE] ORIG 0x0828a61a：29/29 全等；同 GetEmptySlot
+    // 的 i486 路由消 cmova（P230）。p167 CLEAR（0 call）。
     int limit = (int)(m_capacity > 0x38 ? 0x38 : m_capacity);
     for (int i = 0; i < limit; ++i) {
         if (itemIdx == m_slots[i].m_addInfo)
@@ -319,26 +319,23 @@ int CAccountCargo::GetSpecificItemSlot(int itemIdx)
 
 int CAccountCargo::CheckStackLimit(int slot, int itemIdx, int count)
 {
-    // [b28d-46 判词·N/P59+P168a③b] ORIG 0x0828a670：65 vs 64，p167 CLEAR；
-    // 残余为 guard/取反物化的块序与 `xor $1` 位置（P59/P168a③b）⇒ 封顶。
-    if (CheckValidSlot(slot)) {
-        if (m_slots[slot].m_addInfo == itemIdx) {
-            CDataManager* dm = G_CDataManager();
-            CItem* ci = dm->find_item(itemIdx);
-            if (ci == 0)
-                return 0;
-            if (ci->is_stackable()) {
-                int cur = m_slots[slot].m_addInfo2;
-                int limit = ((CStackableItem*)ci)->getStackableLimit();
-                if (limit < cur + count || cur + count < 0)
-                    return 0;
-                return 1;
-            }
-            return 0;
-        }
+    // [b28d-solo-CAccountCargo] ORIG 0x0828a670：G_CDataManager 结果无槽往返
+    // （P0 内联实参，禁 dm 具名局部）；ci 槽 -0x14 → si 槽 -0x10 → sum 槽 -0xc
+    // 声明序（P28）；条件为 `limit < sum || sum < 0`（P133 短路链）。
+    if (!CheckValidSlot(slot))
         return 0;
-    }
-    return 0;
+    if (m_slots[slot].m_addInfo != itemIdx)
+        return 0;
+    CItem* ci = G_CDataManager()->find_item(itemIdx);
+    if (ci == 0)
+        return 0;
+    if (!ci->is_stackable())
+        return 0;
+    CStackableItem* si = (CStackableItem*)ci;
+    int sum = m_slots[slot].m_addInfo2 + count;
+    if (si->getStackableLimit() < sum || sum < 0)
+        return 0;
+    return 1;
 }
 
 int CAccountCargo::GetItemCount()
@@ -352,7 +349,9 @@ int CAccountCargo::GetItemCount()
 }
 
 // ---- 金钱 ----
-int CAccountCargo::CheckMoneyLimit(unsigned int money)
+// [b28d-solo-CAccountCargo] Main 已落 CUser.h:844 int→bool（P292：ORIG 调用点
+// 0x0828a1f0 段 `call; xor $0x1,%eax; test %al,%al; je`）。
+bool CAccountCargo::CheckMoneyLimit(unsigned int money)
 {
     // [b28c-11] AE（i486 旗标下）：UpgradeInfo 具名视图消裸偏移 add$4 中转 +
     // (unsigned int) 零扩展消符号扩展段（ORIG `mov $0x0,%edx`）。
@@ -384,67 +383,68 @@ void CAccountCargo::SubMoney(unsigned int money)
 // Main 代落头）；定义体返回类型随之改 bool，return 0/1 字面量语义不变。
 bool CAccountCargo::DepositMoney(unsigned int money)
 {
-    // [b28d-46 判词·N/N82] ORIG 0x0828a12a：118 vs 109，p167 CLEAR；帧 0x24 vs
-    // 0x38 与 callee-saved/槽号平移（N82/P112）⇒ 封顶。
-    CUser* user = m_pUser;
-    ServiceRestrictManager* mgr = ARAD::Singleton<ServiceRestrictManager>::Get();
-    if (mgr->isRestricted(user, (RestrictCategory::Enum)1, 0x1a)) {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 0xd1);
+    // [b28d-solo-CAccountCargo] ORIG 0x0828a12a：无 user/mgr 具名局部——isRestricted
+    // 实参 m_pUser 先物化 %ebx 跨 Get() 保活（P52），其余调用点重读 m_pUser（P0）。
+    if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+            m_pUser, (RestrictCategory::Enum)1, 0x1a)) {
+        m_pUser->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 0xd1);
         return 0;
     }
-    unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)2);
+    unsigned int err =
+        GlobalData::s_pSecuProtectionField->Check(m_pUser, (SECURITY_PROTCTION)2);
     if (err != 0) {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, (unsigned char)err);
+        m_pUser->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, (unsigned char)err);
         return 0;
     }
-    int curMoney = user->getCurCharacMoney();
-    if (curMoney < (int)money || (int)money < 0) {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 10);
+    if ((int)money > m_pUser->getCurCharacMoney() || (int)money < 0) {
+        m_pUser->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 10);
         return 0;
     }
     if (!CheckMoneyLimit(money)) {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 0x5f);
+        m_pUser->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 0x5f);
         return 0;
     }
-    CInventory* inven = (CInventory*)user->getCurCharacInvenW();
-    if (inven->use_money(money, (eMoneySubReason)0x28, 1)) {
-        AddMoney(money);
-        SendNotifyMoney((ENUM_CMDPACKET)0x134);
-        m_alter = 1;
-        return 1;
+    // ORIG：money 实参先物化 %ebx 跨 getCurCharacInvenW 保活（P52）；无 inven 槽。
+    if (!((CInventory*)m_pUser->getCurCharacInvenW())
+             ->use_money(money, (eMoneySubReason)0x28, 1)) {
+        m_pUser->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 10);
+        return 0;
     }
-    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 10);
-    return 0;
+    AddMoney(money);
+    SendNotifyMoney((ENUM_CMDPACKET)0x134);
+    m_alter = 1;
+    return 1;
 }
 
 bool CAccountCargo::WithdrawMoney(unsigned int money)
 {
-    // [b28d-46 判词·N/N82] ORIG 0x0828a2f6：119 vs 114，p167 CLEAR；帧 0x34 vs
-    // 0x38、双槽缓存（-0x18/-0x14）vs 4.4 单槽（N82/P112）⇒ 封顶。
-    CUser* user = m_pUser;
-    ServiceRestrictManager* mgr = ARAD::Singleton<ServiceRestrictManager>::Get();
-    if (mgr->isRestricted(user, (RestrictCategory::Enum)1, 0x1a)) {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, 0xd1);
+    // [b28d-solo-CAccountCargo] ORIG 0x0828a2f6：无 user/mgr/inven 具名局部
+    // （isRestricted/gain_money 实参先物化 %ebx 跨 receiver call 保活，P52；
+    // 其余调用点重读 m_pUser，P0）。
+    if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+            m_pUser, (RestrictCategory::Enum)1, 0x1a)) {
+        m_pUser->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, 0xd1);
         return 0;
     }
-    unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)3);
+    unsigned int err =
+        GlobalData::s_pSecuProtectionField->Check(m_pUser, (SECURITY_PROTCTION)3);
     if (err != 0) {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, (unsigned char)err);
+        m_pUser->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, (unsigned char)err);
         return 0;
     }
     // ORIG 0x0828a3a4：GetMoney() 访问器比较（ORIG 非内联调用）
     if (GetMoney() < money || (int)money < 0) {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, 10);
+        m_pUser->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, 10);
         return 0;
     }
-    if (!user->CheckMoney(money)) {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 0x5e);
+    if (!m_pUser->CheckMoney(money)) {
+        m_pUser->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 0x5e);
         return 0;
     }
     SubMoney(money);
-    CInventory* inven = (CInventory*)user->getCurCharacInvenW();
-    if (inven->gain_money(money, (eMoneyAddReason)0x1b, 1, 0) == 0) {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, 10);
+    if (((CInventory*)m_pUser->getCurCharacInvenW())
+            ->gain_money(money, (eMoneyAddReason)0x1b, 1, 0) == 0) {
+        m_pUser->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, 10);
         return 0;
     }
     SendNotifyMoney((ENUM_CMDPACKET)0x135);
@@ -466,60 +466,48 @@ void CAccountCargo::SendNotifyMoney(ENUM_CMDPACKET cmd)
 
 bool CAccountCargo::SendItemList()   // b28d-5：随 CUser.h:848 bool 化（ORIG 0x0865dcaf 直传形）
 {
-    // [b28d-46 判词·N/N82+N89] ORIG 0x0828a88a：184 vs 189，p167 CLEAR；帧 0x20
-    // vs 0x30、迭代器临时槽（N82/N86）＋ STL 实例差（N89）⇒ 封顶。
+    // [b28d-solo-CAccountCargo] ORIG 0x0828a88a：无 buf/world 具名局部——每调用点
+    // 重新 `lea -0x18(%ebp)`，G_GameWorld() 结果 %eax 直通虚调用（P0 右值内联）。
+    // 原 buf 局部占 -0x14 槽使帧 0x20→0x30、循环变量 -0xc→-0x10 全帧平移。
     PacketGuard packet;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->put_header(0, 0xd);
-    buf->put_byte(0xc);
-    buf->put_short(m_capacity);
-    buf->put_int(m_money);
-    buf->put_short(GetItemCount());
+    ((InterfacePacketBuf*)&packet)->put_header(0, 0xd);
+    ((InterfacePacketBuf*)&packet)->put_byte(0xc);
+    ((InterfacePacketBuf*)&packet)->put_short(m_capacity);
+    ((InterfacePacketBuf*)&packet)->put_int(m_money);
+    ((InterfacePacketBuf*)&packet)->put_short(GetItemCount());
     for (int i = 0; (int)m_capacity > i; ++i) {
         if (m_slots[i].m_addInfo != 0) {
-            buf->put_short(i);
-            buf->put_int(m_slots[i].m_addInfo);
-            buf->put_int(m_slots[i].m_addInfo2);
-            buf->put_byte((int)GetIntegratedPvPItemAttr(m_slots[i]) & 0xff);
-            buf->put_short(m_slots[i].m_fieldb);
-            buf->put_byte(m_slots[i].m_field0);
-            GameWorld* world = G_GameWorld();
-            if (!world->IsEnchantRevisionChannel())
-                buf->put_int(m_slots[i].m_fieldd);
+            ((InterfacePacketBuf*)&packet)->put_short(i);
+            ((InterfacePacketBuf*)&packet)->put_int(m_slots[i].m_addInfo);
+            ((InterfacePacketBuf*)&packet)->put_int(m_slots[i].m_addInfo2);
+            ((InterfacePacketBuf*)&packet)->put_byte(
+                (unsigned char)GetIntegratedPvPItemAttr(m_slots[i]));
+            ((InterfacePacketBuf*)&packet)->put_short(m_slots[i].m_fieldb);
+            ((InterfacePacketBuf*)&packet)->put_byte(m_slots[i].m_field0);
+            if (G_GameWorld()->IsEnchantRevisionChannel())
+                ((InterfacePacketBuf*)&packet)->put_int(0);
             else
-                buf->put_int(0);
-            buf->put_byte(m_slots[i].m_amp.getAbilityType() & 0xff);
-            buf->put_short(m_slots[i].m_amp.getAbilityValue() & 0xffff);
-            buf->put_byte(0);
-            buf->put_packet(m_slots[i]);
+                ((InterfacePacketBuf*)&packet)->put_int(m_slots[i].m_fieldd);
+            ((InterfacePacketBuf*)&packet)->put_byte(m_slots[i].m_amp.getAbilityType() & 0xff);
+            ((InterfacePacketBuf*)&packet)->put_short(m_slots[i].m_amp.getAbilityValue() & 0xffff);
+            ((InterfacePacketBuf*)&packet)->put_byte(0);
+            ((InterfacePacketBuf*)&packet)->put_packet(m_slots[i]);
         }
     }
-    buf->finalize(true);
+    ((InterfacePacketBuf*)&packet)->finalize(true);
     return m_pUser->Send(packet);
 }
 
-// b21 verdict=DIFF（N 布局残余）：调用点集与 ORIG 全等（put_short/int×/byte×/GetIntegratedPvPItemAttr/
-//   G_GameWorld/IsEnchantRevisionChannel/getAbilityType/getAbilityValue/put_packet×2）；
-//   仅余 4.1 把空槽块置函数尾由 `je` 跳入 vs 4.4 内联 `jne` 后（块调度），及少量寄存器分配
-//   (158/157)。禁 buf/world 引用局部（P0：ORIG 右值内联，引局部占槽产生 EXTRA mov×~10）。
-//   语义完成，byte 层 N 封顶。
+// [b28d-solo-CAccountCargo 判词·AE] ORIG 0x0828ab1c：158/158；空槽/非空块序按 ORIG
+//   `test m_addInfo; je <空槽块尾部+0x196>` 反转为 `if (addInfo != 0) {非空} else {空槽}`
+//   （P191/P222）。p167 CLEAR（27/27）。
 void CAccountCargo::MakeItemPacket(PacketGuard* packet, int slot) const
 {
-    // [b28d-46 判词·N/P59+N82] ORIG 0x0828ab1c：158 vs 158，p167 CLEAR；残余为
-    // guard 块序（je/jne 极性）与局部槽号平移（P59/N82）⇒ 封顶。
+    // [b28d-solo-CAccountCargo] ORIG 0x0828ab1c：`test m_addInfo; je <空槽块
+    // +0x196 尾部>` ⇒ 非空块 fall-through、空槽块后置 ⇒ 源形 `if (addInfo != 0)
+    // {非空} else {空槽}`（P191/P222 块序）。原 `== 0` 正极性令空槽块前置。
     ((InterfacePacketBuf*)packet)->put_short(slot);
-    if (m_slots[slot].m_addInfo == 0) {
-        ((InterfacePacketBuf*)packet)->put_int(-1);
-        ((InterfacePacketBuf*)packet)->put_int(0);
-        ((InterfacePacketBuf*)packet)->put_byte(0);
-        ((InterfacePacketBuf*)packet)->put_short(0);
-        ((InterfacePacketBuf*)packet)->put_byte(0);
-        ((InterfacePacketBuf*)packet)->put_int(0);
-        ((InterfacePacketBuf*)packet)->put_byte(0);
-        ((InterfacePacketBuf*)packet)->put_short(0);
-        ((InterfacePacketBuf*)packet)->put_byte(0);
-        ((InterfacePacketBuf*)packet)->put_packet(g_emptySlot);
-    } else {
+    if (m_slots[slot].m_addInfo != 0) {
         ((InterfacePacketBuf*)packet)->put_int(m_slots[slot].m_addInfo);
         ((InterfacePacketBuf*)packet)->put_int(m_slots[slot].m_addInfo2);
         ((InterfacePacketBuf*)packet)->put_byte(
@@ -536,21 +524,33 @@ void CAccountCargo::MakeItemPacket(PacketGuard* packet, int slot) const
             m_slots[slot].m_amp.getAbilityValue() & 0xffff);
         ((InterfacePacketBuf*)packet)->put_byte(0);
         ((InterfacePacketBuf*)packet)->put_packet(m_slots[slot]);
+    } else {
+        ((InterfacePacketBuf*)packet)->put_int(-1);
+        ((InterfacePacketBuf*)packet)->put_int(0);
+        ((InterfacePacketBuf*)packet)->put_byte(0);
+        ((InterfacePacketBuf*)packet)->put_short(0);
+        ((InterfacePacketBuf*)packet)->put_byte(0);
+        ((InterfacePacketBuf*)packet)->put_int(0);
+        ((InterfacePacketBuf*)packet)->put_byte(0);
+        ((InterfacePacketBuf*)packet)->put_short(0);
+        ((InterfacePacketBuf*)packet)->put_byte(0);
+        ((InterfacePacketBuf*)packet)->put_packet(g_emptySlot);
     }
 }
 
 // ---- 创建 / 升级 / 删除（DB 联动） ----
 void CAccountCargo::CreateAccountCargo(CUser* user)
 {
-    // [b28d-46 判词·N/N102+N82] ORIG 0x0828ad72：217 vs 213，p167 CLEAR；残余为
-    // 成员常量偏移 add vs disp 折叠（`add $0x27; movzwl (%eax)` vs
-    // `movzwl 0x27(%eax)`，N102）＋ 槽号平移（N82）⇒ 封顶。
+    // [b28d-solo-CAccountCargo 判词·AE] ORIG 0x0828ad72：217/217；裸偏移
+    // `*(short*)((char*)getCurCharacR()+0x27)` 具名化为 `->m_level`（§4.3 清违，
+    // 同时消 add-vs-disp 折叠差 N102）＋ `m_fieldC` 左操作数（P66）＋ delete_item
+    // 守卫合并 `&&`。p167 CLEAR（30/30）。
     if (user->IsExistAccountCargo()) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x14);
         return;
     }
     if (G_CDataManager()->m_accountCargo.m_reqLevel >
-        (int)*(short*)((const char*)user->getCurCharacR() + 0x27)) {
+        (int)user->getCurCharacR()->m_level) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0xe);
         return;
     }
@@ -580,17 +580,16 @@ void CAccountCargo::CreateAccountCargo(CUser* user)
         return;
     }
     if (0 < createInfo->m_fieldC &&
-        user->getCurCharacMoney() < createInfo->m_fieldC) {
+        createInfo->m_fieldC > user->getCurCharacMoney()) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x16);
         return;
     }
-    if (createInfo->m_field8 != 0) {
-        if (!((CInventory*)user->getCurCharacInvenW())
-                 ->delete_item((INVEN_TYPE)1, slot, createInfo->m_field8,
-                               (eItemDelReason)0x24, 1)) {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x16);
-            return;
-        }
+    if (createInfo->m_field8 != 0 &&
+        !((CInventory*)user->getCurCharacInvenW())
+             ->delete_item((INVEN_TYPE)1, slot, createInfo->m_field8,
+                           (eItemDelReason)0x24, 1)) {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x16);
+        return;
     }
     if (0 < createInfo->m_fieldC) {
         if (!((CInventory*)user->getCurCharacInvenW())
@@ -606,9 +605,9 @@ void CAccountCargo::CreateAccountCargo(CUser* user)
 
 void CAccountCargo::UpgradeAccountCargo(CUser* user)
 {
-    // [b28d-46 判词·N/P75+N82] ORIG 0x0828b0b2：210 vs 205，p167 CLEAR；残余为
-    // 实参求值序（ORIG 先物化 `mov 0xc(%eax),%ebx` 再压 this，4.4 反序，P75/P23）
-    // ＋ 槽号平移（N82）⇒ 封顶。
+    // [b28d-solo-CAccountCargo 判词·AE] ORIG 0x0828b0b2：210/210；`upgradeInfo->m_fieldC`
+    // 作左操作数（P66 左先物化 %ebx）＋ delete_item 守卫合并 `&&`（4.1 对 bool 左项
+    // 的物化岛形）后全等。p167 CLEAR（29/29）。
     if (!user->IsExistAccountCargo()) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x15);
         return;
@@ -641,17 +640,16 @@ void CAccountCargo::UpgradeAccountCargo(CUser* user)
         return;
     }
     if (0 < upgradeInfo->m_fieldC &&
-        user->getCurCharacMoney() < upgradeInfo->m_fieldC) {
+        upgradeInfo->m_fieldC > user->getCurCharacMoney()) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, 0x16);
         return;
     }
-    if (upgradeInfo->m_field8 != 0) {
-        if (!((CInventory*)user->getCurCharacInvenW())
-                 ->delete_item((INVEN_TYPE)1, slot, upgradeInfo->m_field8,
-                               (eItemDelReason)0x24, 1)) {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, 0x16);
-            return;
-        }
+    if (upgradeInfo->m_field8 != 0 &&
+        !((CInventory*)user->getCurCharacInvenW())
+             ->delete_item((INVEN_TYPE)1, slot, upgradeInfo->m_field8,
+                           (eItemDelReason)0x24, 1)) {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, 0x16);
+        return;
     }
     if (0 < upgradeInfo->m_fieldC) {
         if (!((CInventory*)user->getCurCharacInvenW())

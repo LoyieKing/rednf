@@ -77,7 +77,7 @@ void WongWork::CSecurityCardCenter::init()
     // unsigned 局部 for 尾测
     // （ORIG `mov -0xc,%eax; cmp $0x29,%eax; setbe` vs 4.4 `cmpl $0x29,-0xc; setbe`，
     // 4.4 恒折内存直比；P209附 已实证 do-while/while 变体同折 ⇒ 封顶）；
-    // 初始化/字符集/计数写入逐条等价（其余 30/32 条全等，ndiff 7→唯 1 条 mov+cmp）。
+    // 初始化/字符集/计数写入逐条等价（ndiff 3，唯 ORIG 多 mov+cmp 一对）。
     // ORIG T 0x085fe05e：固定密钥初始化头部 CRijndael；42 字符 characterSet
     // 逐个 push 进 m_characterSet；+0x484 置 1。（字符集数据段 0x93ac1e0）
     static const unsigned char characterSet[] =

@@ -85,12 +85,28 @@ void Mon_generateCatchMonsterItem(CMonster const* self,
                                   std::vector<Inven_Item>& out)
     __asm__("_ZNK8CMonster24generateCatchMonsterItemERSt6vectorI10Inven_ItemSaIS1_EE");
 
-unsigned char AI_IsHellMonster(CAICharacter const* self)
+// ORIG 调用点 `call; test %al,%al; je`（无 setne）⇒ 返回类型 bool（P292）。
+// 桥的返回类型不入 mangled，改 bool 不破坏 ABI；ORIG 体为 bool 字段 movzbl 直返。
+bool AI_IsHellMonster(CAICharacter const* self)
     __asm__("_ZNK12CAICharacter13IsHellMonsterEv");
+bool Mon_IsHellMonster(CMonster const* self)
+    __asm__("_ZNK8CMonster13IsHellMonsterEv");
 void AI_generateDropAvatarItem(CAICharacter const* self, unsigned char a,
                                unsigned char b,
                                std::vector<Inven_Item>& out)
     __asm__("_ZNK12CAICharacter22generateDropAvatarItemEhhRSt6vectorI10Inven_ItemSaIS1_EE");
+
+// stGenerateRefData_t +0x34 起调用方上下文区的组件视图：ORIG 0x08535726/0x08535b08
+// 均有具名指针局部（`mov 0xc(%ebp),%eax; add $0x34,%eax; mov %eax,-0x2c(%ebp)`）并
+// 经它读 +0x35/+0x36/+0x38（P161 组件视图；裸偏移禁止）。布局照 +0x34..+0x3b。
+struct stGenerateRefCtx_t
+{
+    char m_field34;                 // +0x34
+    char m_field35;                 // +0x35
+    char m_rateSlot;                // +0x36
+    char m_pad37;                   // +0x37
+    int  m_rankBonusIndex;          // +0x38
+};
 
 }  // namespace
 
@@ -101,6 +117,9 @@ void AI_generateDropAvatarItem(CAICharacter const* self, unsigned char a,
 // ---------------------------------------------------------------------------
 void CMonsterDrop_Hell::setDropRatio(float ratio)
 {
+    // [b28d-solo-WongWorkDrop_B] AE：51=51 逐条同形（残差仅 .o 重定位标签，
+    // 见 P162/P264；compare_tu clean + p167 CLEAR）。修法 = 头内 w[5] 视图
+    // 复现 ORIG disp=8 折叠（P30），POD 零布局/零符号影响。
     // [b28d-38] ORIG 逐条：vector op= 后双层循环（P165 两份物理独立块，禁 helper
     // call——4.4 -O0 对 inline 模板仍发 out-of-line call，always_inline 展开则形参槽
     // 物化 +6 条）。内层缓存 `e` 引用（ORIG -0x10 槽 + `0x8(%eax,%edx,4)` 直读）。
@@ -111,14 +130,15 @@ void CMonsterDrop_Hell::setDropRatio(float ratio)
         for (int j = 0; j < 5; ++j)
         {
             // ORIG: fildl 整数槽 → fmuls ratio → fstps → call roundFloat → 存回
-            e.v[2 + j] = static_cast<int>(
-                roundFloat(static_cast<float>(e.v[2 + j]) * ratio));
+            // w[j] = v[2+j] 视角（CItemGenerator.h 匿名 union；ORIG disp=8 折叠）。
+            e.w[j] = static_cast<int>(roundFloat(static_cast<float>(e.w[j]) * ratio));
         }
     }
 }
 
 void CSpecialMonsterDrop::setDropRatio(float ratio)
 {
+    // [b28d-solo-WongWorkDrop_B] AE：51=51（同 Hell 版；残差仅重定位标签）。
     // [b28d-38] 同 CMonsterDrop_Hell::setDropRatio（ORIG 两份同型物理独立块）。
     m_probsSub = m_probs;
     for (size_t i = 0; i < m_probsSub.size(); ++i)
@@ -126,8 +146,7 @@ void CSpecialMonsterDrop::setDropRatio(float ratio)
         stGenItemProb_t& e = m_probsSub[i];
         for (int j = 0; j < 5; ++j)
         {
-            e.v[2 + j] = static_cast<int>(
-                roundFloat(static_cast<float>(e.v[2 + j]) * ratio));
+            e.w[j] = static_cast<int>(roundFloat(static_cast<float>(e.w[j]) * ratio));
         }
     }
 }
@@ -141,50 +160,56 @@ void CSpecialMonsterDrop::setDropRatio(float ratio)
 void CMonsterDrop_Hell::generateSpecificItem(stGenerateRefData_t const& ref,
                                              stGenerateResult_t& result)
 {
-    // probIdx = _getGenItemProbIdx((byte)ref[0x35])
+    // [b28d-solo-WongWorkDrop_B] 语义完成 DIFF（157/156；p167 CLEAR 16/16）。
+    // 修法 = ctx 指针局部(-0x2c) + 4 平铺早退 nop 岛 + e.w[] disp 折叠。
+    // 残差 = UseLuckPoint 实参寄存器角色互换（ORIG rarity→edx/m_field1→eax，
+    // 4.4 反向），N7 封顶（cast/内联实参多形穷举均不翻）。
+    // [b28d-38] ORIG 0x08535726 逐条：ctx 指针局部(-0x2c) + 四个平铺早退
+    // （每个早退生成 nop 中继岛，末尾 return 直落函数尾）。
+    stGenerateRefCtx_t const& ctx =
+        *reinterpret_cast<stGenerateRefCtx_t const*>(&ref.m_field34);
+
     int idx = WM_Hell_getGenItemProbIdx(
-        this, static_cast<int>(static_cast<unsigned char>(ref.m_field35)));
+        this, static_cast<int>(static_cast<unsigned char>(ctx.m_field35)));
     if (idx < 0)
         return;
 
     stGenItemProb_t const& e = m_probsSub[idx];      // ORIG op[] on +0x24
-    // 阈值 = v[2 + (byte)ref[0x36]] * *(int*)&ref /*m_dropRate*/ / 100
-    int slot = static_cast<int>(static_cast<unsigned char>(ref.m_rateSlot));
-    int threshold = e.v[2 + slot] * *reinterpret_cast<int const*>(&ref) / 100;
-    if (m_random.generateNumber(0, 1000) <= threshold)
-    {
-        int luckRoll = m_random.generateNumber(1, 1000000);
-        int basisRow = static_cast<int>(static_cast<signed char>(ref.m_field42_byte));
-        // GetItemRarity(&m_rarityBasis[basisRow], luckRoll, dropType=2)
-        int rarity =
-            reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)->GetItemRarity(
-                &m_rarityBasis[basisRow][0], luckRoll, 2);
+    // 阈值 = e.w[(byte)ctx.m_rateSlot] * ref.m_dropRate / 100（ORIG disp=8 折叠）
+    int threshold =
+        e.w[static_cast<unsigned char>(ctx.m_rateSlot)] * ref.m_dropRate / 100;
+    if (m_random.generateNumber(0, 1000) > threshold)
+        return;
 
-        int itemIdx = m_table.chooseItem(eItemDropType_2,
-                                         static_cast<ENUM_RARITY>(rarity),
-                                         static_cast<int>(
-                                             static_cast<unsigned char>(ref.m_field35)));
-        if (itemIdx != -1)
-        {
-            // [b28d-38] P167：ORIG 无 getItemList() call（头内 inline 在 4.4-O0 发
-            // out-of-line call，ORIG 是 `mov 0xc(%eax),%eax` 直读 m_itemList）⇒ 具名成员直访。
-            CItem* item = G_CDataManager()->m_itemList->find_item(itemIdx);
-            if (item != 0)
-            {
-                Inven_Item inv;
-                inv.m_addInfo = itemIdx;
-                G_CDataManager()->m_itemList->create_item(
-                    static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
-                int grade = item->get_grade();
-                int itemRarity = item->get_rarity();
-                Luck_UseLuckPointM(
-                    reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint),
-                    static_cast<int>(inv.m_field1), itemRarity, grade,
-                    static_cast<int>(result.m_dropItems.size()));
-                result.m_dropItems.push_back(inv);
-            }
-        }
-    }
+    int luckRoll = m_random.generateNumber(1, 1000000);
+    int basisRow = static_cast<int>(static_cast<signed char>(ref.m_field42_byte));
+    // GetItemRarity(&m_rarityBasis[basisRow], luckRoll, dropType=2)
+    int rarity =
+        reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)->GetItemRarity(
+            &m_rarityBasis[basisRow][0], luckRoll, 2);
+
+    int itemIdx = m_table.chooseItem(eItemDropType_2,
+                                     static_cast<ENUM_RARITY>(rarity),
+                                     static_cast<unsigned char>(ctx.m_field35));
+    if (itemIdx == -1)
+        return;
+
+    // [b28d-38] P167：ORIG 无 getItemList() call（头内 inline 在 4.4-O0 发
+    // out-of-line call，ORIG 是 `mov 0xc(%eax),%eax` 直读 m_itemList）⇒ 具名成员直访。
+    CItem* item = G_CDataManager()->m_itemList->find_item(itemIdx);
+    if (item == 0)
+        return;
+
+    Inven_Item inv;
+    inv.m_addInfo = itemIdx;
+    G_CDataManager()->m_itemList->create_item(
+        static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
+    // 实参内联（右→左求值：size→get_grade→get_rarity→m_field1，ORIG esi/ebx 缓存）
+    Luck_UseLuckPointM(reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint),
+                       inv.m_field1, item->get_rarity(),
+                       item->get_grade(),
+                       static_cast<int>(result.m_dropItems.size()));
+    result.m_dropItems.push_back(inv);
 }
 
 // ---------------------------------------------------------------------------
@@ -194,19 +219,23 @@ void CMonsterDrop_Hell::generateSpecificItem(stGenerateRefData_t const& ref,
 void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
                                               stGenerateResult_t& result)
 {
+    // [b28d-solo-WongWorkDrop_B] AE：149=149 逐条同形（残差仅重定位标签）。
+    // 修法 = ctx 视图替裸偏移 + aiIdx/list 内联实参 + IsHellMonster 桥 bool 化
+    // （P292 `call;test%al;je` 判据）+ script 去具名局部 + hasCatch 短路内联。
     int extraCount = 0;
 
-    // aiIdx = ref.m_rankBonusIndex(+0x38)；list = CDataManager.m_aiCharacterList(+0x869c)
-    unsigned int aiIdx = (unsigned int)ref.m_rankBonusIndex;
-    CAICharacterList* list =
-        G_CDataManager()->m_aiCharacterList;          // +0x869c（头注释实证）
-    CAICharacter* ai = list->get(aiIdx);   // ORIG get(idx)：map find
+    // ORIG 0x08535b08：aiIdx 经 %ebx 跨 G_CDataManager() 保活、list 直取，
+    // 无具名局部（P0/P24 内联实参）；m_aiCharacterList 在 +0x869c。
+    CAICharacter* ai = G_CDataManager()->m_aiCharacterList->get(
+        static_cast<unsigned int>(ref.m_rankBonusIndex));
     if (ai != 0)
     {
-        extraCount =
-            AI_IsHellMonster(ai) ? 0
-                                 : static_cast<int>(
-                                       static_cast<signed char>(ref.m_field3d));
+        // ORIG je/jmp 分支形（三目会改块布局）
+        if (AI_IsHellMonster(ai))
+            extraCount = 0;
+        else
+            extraCount =
+                static_cast<int>(static_cast<signed char>(ref.m_field3d));
         ai->generateIndependentItem(ref, result.m_dropItems);
         AI_generateDropAvatarItem(ai,
                                   static_cast<unsigned char>(ref.m_rateSlot),
@@ -214,19 +243,22 @@ void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
                                   result.m_dropItems);
     }
 
-    CMonster* mon = static_cast<CMonster*>(G_CDataManager()->find_monster(
-        *reinterpret_cast<int const*>(reinterpret_cast<char const*>(&ref) +
-                                      0x38)));
+    // ORIG 此处才绑定 ctx 指针局部（-0x14），并以其 +4 作 find_monster 实参。
+    stGenerateRefCtx_t const& ctx =
+        *reinterpret_cast<stGenerateRefCtx_t const*>(&ref.m_field34);
+    CMonster* mon = static_cast<CMonster*>(
+        G_CDataManager()->find_monster(ctx.m_rankBonusIndex));
     if (mon != 0)
     {
-        extraCount =
-            mon->IsHellMonster() ? 0
-                                 : static_cast<int>(
-                                       static_cast<signed char>(ref.m_field3d));
+        if (Mon_IsHellMonster(mon))
+            extraCount = 0;
+        else
+            extraCount =
+                static_cast<int>(static_cast<signed char>(ref.m_field3d));
 
-        STMonsterScript* script = static_cast<STMonsterScript*>(
-            mon->getMonsterScript());               // ORIG inline this+0x60
-        if (!script->m_independentDrops.empty())    // +0x3ac
+        // ORIG 无 script 具名局部（getMonsterScript 结果直接 +0x3ac 后调 empty）
+        if (!static_cast<STMonsterScript*>(mon->getMonsterScript())
+                 ->m_independentDrops.empty())     // +0x3ac
             mon->generateIndependentItem(ref, result.m_dropItems);
 
         Mon_generateDropAvatarItem(mon,
@@ -234,11 +266,10 @@ void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
                                    ref.m_field3e_byte,
                                    result.m_dropItems);
 
-        STMonsterScript* script2 = static_cast<STMonsterScript*>(
-            mon->getMonsterScript());
-        bool hasCatch = !script2->m_catchItems.empty() &&   // +0x70
-                        ref.m_field45 != 0;                 // byte ref+0x45
-        if (hasCatch)
+        // ORIG 短路物化无槽（mov $1/$0 岛 + 尾 test），具名 bool 会多槽+回读。
+        if (!static_cast<STMonsterScript*>(mon->getMonsterScript())
+                 ->m_catchItems.empty() &&
+            ref.m_field45 != 0)                 // +0x70
             Mon_generateCatchMonsterItem(mon, result.m_dropItems);
     }
 
@@ -264,12 +295,19 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
                                               stGenerateResult_t& result,
                                               bool& done)
 {
+    // [b28d-solo-WongWorkDrop_B] 语义完成 DIFF（364/370）。
+    // 修法 = --partyPos 直接改形参槽（ORIG `subb $1,-0x1dc`）+ 花括号零初始化
+    // （P214③/P253）+ 去 boost 声明处初始化 + e.w 视图 + 内联实参。
+    // 残差 N 封顶：①帧/全槽号平移 0x10（0x21c vs 0x22c，N82/N93 类）；
+    // ②x87 比较 lowering——ORIG fucompp/fnstsw/sahf vs 4.4 fucomip/fstp
+    //   （N85；P230 提示 -march=i486 可消，属路由变更，已上报 Main）。
     int probIdx = WM_Special_getGenItemProbIdx(this, static_cast<int>(dungeonLv));
     if (probIdx < 0)
         return;
 
     stGenItemProb_t t = m_probsSub[probIdx];         // ORIG 拷贝 7 ints 到栈
-    int ppIndex = static_cast<int>(partyPos) - 1;    // subb $1 一次执行（ORIG +0xb4）
+    // ORIG 直接对形参 spill 槽做 `subb $0x1,-0x1dc(%ebp)`（非另起 int 局部）。
+    --partyPos;
 
     for (int i = 1; i <= 4; ++i)
     {
@@ -277,7 +315,7 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
         // [b28d-38] P214③/P253：ORIG 内联清零（无 memset call）⇒ 花括号零初始化。
         int fallbackTable[6] = {0};                  // ORIG 栈 -0x7c..-0x64（24B 清零）
         int* tablePtr = &m_rarityBasis[i][0];
-        double boost = 0.0;
+        double boost;
 
         if (i == 2)
         {
@@ -301,7 +339,7 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
                         factor *
                         m_dungeonBonus[i][difficulty] *
                         m_monsterTypeBonus[i][static_cast<int>(role)] *
-                        m_partyBonus[i][ppIndex];
+                        m_partyBonus[i][partyPos];
         int probValue = static_cast<int>(probAcc);   // fldcw truncate ≡ (int)
         int dropValue = probValue * dropRate / 100;  // 魔数除法 = signed /100
 
@@ -343,7 +381,7 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
                     "drop_value(%d)",
                     itemIdx, static_cast<int>(type), static_cast<int>(role),
                     static_cast<int>(dungeonLv), static_cast<int>(difficulty),
-                    static_cast<int>(static_cast<unsigned char>(ppIndex)),
+                    static_cast<int>(partyPos),
                     bourgeoisRate, dropRate, randValue, dropValue);
             Luck_sendItemDropRate(
                 reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint), buf);
@@ -495,14 +533,23 @@ int CSecialIMonsterDropItemGenRateTable::chooseItem(
     ENUM_DUNGEON_DIFFICULTY dungeonDiff,
     ENUM_ITEM_DROP_DUNGEON_TYPE dropDungeonType)
 {
+    // [b28d-solo-WongWorkDrop_B] 语义完成 DIFF（208/204；p167 CLEAR 18/18）。
+    // 修法 = result 声明/赋值位置照 ORIG（randInt 后 `movl $-1,-0x20`、正常/catch
+    // 两路共享尾返回）+ randomOptionIdx 两句式预清（P198①）+ __PRETTY_FUNCTION__（P139）。
+    // 残差 N 封顶：①ORIG `cmpl $-1;setne;test;je` 物化 vs 4.4 直 je（N-88 族）；
+    // ②迭代器/临时槽号整体平移 0x10（N82/N93）。
     // ORIG 0x08534fce：type==2 先试 random_option 槽；否则按 diff/ddt 选块；
     // 整段 try 包裹，catch(...) 走 cMyTrace（pretty/0x2e5/5）+ 日志后返回 -1。
-    int result = -1;
+    // result 声明在 try 外、赋值在 randInt 之后（ORIG `movl $0xffffffff,-0x20`
+    // 位置实证），正常/catch 两路共享尾部 `mov -0x20,%eax` 返回。
+    int result;
     try
     {
         if (type == eItemDropType_2)
         {
-            int randomOptionIdx =
+            // ORIG 先 `movl $0xffffffff,-0x1c` 再 call（P198① 两句式预清）。
+            int randomOptionIdx = -1;
+            randomOptionIdx =
                 static_cast<int>(m_optHandle.choose_item(rarity, level));
             if (randomOptionIdx != -1)
                 return randomOptionIdx;
@@ -517,6 +564,8 @@ int CSecialIMonsterDropItemGenRateTable::chooseItem(
         unsigned long maxKey = lastIter->first;
         unsigned long roll = static_cast<unsigned long>(
             m_rand->randInt(maxKey));
+        // ORIG 在 randInt 之后才 `movl $0xffffffff,-0x20`（result 槽）。
+        result = -1;
         std::map<unsigned int, int>::iterator lb =
             m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].lower_bound(roll);
         if (lb == m_blocks[dungeonDiff][dropDungeonType][type][rarity][level].end())
@@ -525,13 +574,9 @@ int CSecialIMonsterDropItemGenRateTable::chooseItem(
     }
     catch (...)
     {
-        cMyTrace t("int WongWork::CSecialIMonsterDropItemGenRateTable::chooseItem("
-                   "WongWork::eItemDropType_t, ENUM_RARITY, int, "
-                   "ENUM_DUNGEON_DIFFICULTY, ENUM_ITEM_DROP_DUNGEON_TYPE)", 0x2e5, 5);
-        t("[%s][%d]",
-          "int WongWork::CSecialIMonsterDropItemGenRateTable::chooseItem("
-          "WongWork::eItemDropType_t, ENUM_RARITY, int, "
-          "ENUM_DUNGEON_DIFFICULTY, ENUM_ITEM_DROP_DUNGEON_TYPE)", 0x2e5);
+        // P139：ORIG 传 __PRETTY_FUNCTION__ 局部静态（_ZZ...E19__PRETTY_FUNCTION__）。
+        cMyTrace t(__PRETTY_FUNCTION__, 0x2e5, 5);
+        t("[%s][%d]", __PRETTY_FUNCTION__, 0x2e5);
     }
     return result;
 }
@@ -544,32 +589,40 @@ int CSecialIMonsterDropItemGenRateTable::chooseItem(
 // ---------------------------------------------------------------------------
 int CMonsterDrop_Hell::_getGenItemProbIdx(int value)
 {
-    // [b28d-38] P183：ORIG 每点重发 `mov this; lea 0x24`，禁 probs 引用缓存。
-    int i = 0;
-    // ORIG：size() 与 i 作无符号比较（seta/setbe），不做 int 强转。
-    while (m_probsSub.size() > i)
+    // [b28d-solo-WongWorkDrop_B] AE：44=44 逐条同形（残差仅重定位标签；
+    // p167 CLEAR 3/3）。修法 = for+break 形（jg 跳 break / jge 跳循环外 nop 岛）
+    // + unsigned i（4.4 对 unsigned 局部恒内存直比 `cmp -0x10(%ebp),%eax`）。
+    // [b28d-38] ORIG 形 = `for (i=0; size()>i; ++i) { e=m_probsSub[i];
+    // if (e.v[0]<=value && e.v[1]>=value) break; }`：jg 跳过 break（条件假）、
+    // jge 跳循环外 nop 岛（命中）；尾部 size()<=i 再查一次 ⇒ setbe;test;je。
+    // i 用 unsigned：4.4 对 unsigned 局部与 size() 比较恒内存直比（ORIG
+    // `cmp -0x10(%ebp),%eax`；int 局部会多一条 `mov -0x10,%edx` 中转）。
+    unsigned int i = 0;
+    for (; m_probsSub.size() > i; ++i)
     {
         stGenItemProb_t& e = m_probsSub[i];
         if (e.v[0] <= value && e.v[1] >= value)
-            return i;
-        ++i;
+            break;
     }
-    return (m_probsSub.size() <= i) ? -1 : i;
+    if (m_probsSub.size() <= i)
+        return -1;
+    return i;
 }
 
 int CSpecialMonsterDrop::_getGenItemProbIdx(int value)
 {
-    // [b28d-38] P183：ORIG 每点重发 `mov this; lea 0x24`，禁 probs 引用缓存。
-    int i = 0;
-    // ORIG：size() 与 i 作无符号比较（seta/setbe），不做 int 强转。
-    while (m_probsSub.size() > i)
+    // [b28d-solo-WongWorkDrop_B] AE：44=44（同 Hell 版；残差仅重定位标签）。
+    // [b28d-38] ORIG 形同 CMonsterDrop_Hell 版（两份物理独立块）。
+    unsigned int i = 0;
+    for (; m_probsSub.size() > i; ++i)
     {
         stGenItemProb_t& e = m_probsSub[i];
         if (e.v[0] <= value && e.v[1] >= value)
-            return i;
-        ++i;
+            break;
     }
-    return (m_probsSub.size() <= i) ? -1 : i;
+    if (m_probsSub.size() <= i)
+        return -1;
+    return i;
 }
 
 }  // namespace WongWork

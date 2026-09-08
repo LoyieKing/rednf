@@ -95,13 +95,12 @@ int CUdpHandler::InitServerSocket(int port)
 bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
                                 unsigned short* port) const
 {
-    // b28c-L10 判词（DIFF 2，P75）：ORIG 4.1 在 len=0x10 后立即 `lea -0x20(%ebp),%ebx`
-    // 物化第 6 实参 &len（右起求值），4.4 恒在第 5 实参 (sockaddr*)&from 之后才 lea
-    // （实参装载时刻跨版本差异）。探针 /tmp/l10_probe8/9.cpp 六形（cast/语句表达式/
-    // 具名指针）均不可翻；具名 `socklen_t* plen=&len` 反而多槽往返（P0 反例）。
-    // 语义等价：槽位 -0x20/-0x1c 与 ORIG 相同，仅 1 条 lea 位置差。
-    // b28d-49 复核 @0x8483732：结论不变 —— 除该 1 条 lea 位置外，全部残差为
-    // call/字符串地址重定位（AE 口径归一）；P75 封顶。
+    // b28d-solo-CUdpHandler 判词（AE）：ORIG 0x8483732 在 len=0x10 后立即
+    // `lea -0x20(%ebp),%ebx` 物化第 6 实参 &len（4.1 右起求值）；4.4 对直传 `&len`
+    // 与 P226 语句表达式恒延后到压栈点。复现形 = 纯 register 指针局部
+    // `register socklen_t* plen = &len;`（P231/P248：无 asm 绑定、合法存储类提示，
+    // 值留 %ebx 免槽且装载点提前）⇒ 逐条同形（clean 口径 AE；p167 调用点 8=8 CLEAR）。
+    // 帧 0x44、槽 -0x20/-0x1c/-0xc 与 ORIG 相同。
     int err;
     sockaddr_in from;
     socklen_t len;
@@ -112,8 +111,9 @@ bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
     len = 0x10;
     // b28c-L10：ORIG 在 len=0x10 后立即 `lea -0x20(%ebp),%ebx` 物化 &len 跨 recvfrom
     // 调用（P226 裸语句表达式升格 callee-saved）；直传实参被 4.4 延后到压栈点。
+    register socklen_t* plen = &len;
     *size = recvfrom(m_serverSocket, buf, *size, 0, (sockaddr*)&from,
-                     ({ &len; }));
+                     plen);
     if (*size == -1)
     {
         err = getErrno();
@@ -145,10 +145,9 @@ bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
 bool CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
                                 unsigned short* port) const
 {
-    // b28c-L10 判词（DIFF 2，P75）：同 RecvFromClient（ORIG &len 先物化到 %ebx，
-    // 4.4 延后到压栈点）；六形探针全败，语义等价。
-    // b28d-49 复核 @0x8483a52：逐行 diff 仅 1 条 `lea -0x20(%ebp),%ebx` 位置差 +
-    // call/字符串地址重定位；P75 封顶。
+    // b28d-solo-CUdpHandler 判词（AE）：同 RecvFromClient —— ORIG 0x8483a52 先把
+    // &len 物化到 %ebx（P231 纯 register 指针局部形复现，无 asm 绑定），
+    // 4.4 直传 `&len`/语句表达式恒延后；现逐条同形（clean 口径 AE，p167 8=8 CLEAR）。
     int err;
     sockaddr_in from;
     socklen_t len;
@@ -157,8 +156,9 @@ bool CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
         return 0;
     }
     len = 0x10;
+    register socklen_t* plen = &len;
     *size = recvfrom(m_clientSocket, buf, *size, 0, (sockaddr*)&from,
-                     ({ &len; }));   // b28c-L10：同上（ORIG 提前物化 &len 到 %ebx）
+                     plen);
     if (*size == -1)
     {
         err = getErrno();

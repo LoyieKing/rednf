@@ -63,12 +63,20 @@ stFatigueBatteryConstantTable_t::stFatigueBatteryConstantTable_t()
 unsigned short stFatigueBatteryConstantTable_t::getLimitGrownupBuffCntFatigueBattery(
     int level) const
 {
+    // [b28d-solo-CFatigueBatteryHandle] verdict = N1 封顶（跨版本常量折叠），
+    // 非 identical 唯一成因；语义等价（下标恒等），p167 CLEAR（0 call，gap=1）。
+    // b28d-solo 复证（19 形探针 /tmp/s99/p1.cpp+p2.cpp+p3.cpp，4.4.7 -m32 -O0）：
+    // ORIG 尾段 `lea -0x1(%eax),%edx; add $0x8,%edx; movzwl 0x2(%eax,%edx,2),%eax`
+    // 为 (level-1)+8 两步；数组下标形（A/B/D/E/G/J/M/N/O/P/Q/R 共 12 形，含
+    // 8u 混合类型 / (8,8) 逗号 / 成员指针差 / sizeof 常量源 / (int)8L）恒折
+    // `lea 0x7(%eax),%edx`；指针算术形（C/F/H/I/K/L 6 形）反产 add/add/lea 四段；
+    // (unsigned char) 截断形（T）产 subl+movzbl+lea 三段，均不闭合。
     // b28d-20: ORIG 0x084a84b6 双守卫合并短路形——ORIG `jg fail; cmpl $0,level;
     // jg ok; fail: mov$0; jmp; ok: body` 的唯一 4.4 复现形是
     // `if (a > end || level <= 0) return 0;`（正极性 ||，fail 块 fall-through、
     // ok 块直落，无 goto 的 jmp/nop 中继）。探针 /tmp/p_fat1.cpp getD 19 条与
     // ORIG 逐条同序（jg fail / jg body），残 1 条 = 4.4 常量折叠
-    // `(level-1)+8`→`lea 0x7(%eax)`（ORIG `lea -0x1`+`add $0x8` 两步），N1 封顶。
+    // `(level-1)+8`→`lea 0x7(%eax)`（ORIG `lea -0x1`+`add $0x8` 两步）。
     if (level - 1 > static_cast<int>(m_endLevel10) || level <= 0)
         return 0;
     return m_limitTable[level - 1 + 8];
@@ -81,6 +89,19 @@ unsigned short stFatigueBatteryConstantTable_t::getLimitGrownupBuffCntFatigueBat
 int CFatigueBatteryHandle::ComputeFatigueBatteryCharging(int charge, int level,
                                                          int specialCnt)
 {
+    // [b28d-solo-CFatigueBatteryHandle] verdict = N82/N112 + 跨版本截断读 封顶。
+    // 指令序列与 ORIG 逐条同形（imul / movzbl×2 / idivl / fildl×2 / flds / fmulp /
+    // fld1 / faddp / fmulp / fnstcw / fldcw / fistpll / fldcw 全等），p167 CLEAR
+    // （1 call G_CDataManager 命中）。残差二项，均无语义影响：
+    // ① 帧 0x48 vs ORIG 0x38 + 全槽号错位（4.4 逆首次使用序分配，N98/P212补）：
+    //    4.4 divisor 临时 -0x3c / x87 cw -0x2c,-0x2a / sp -0x20 / truncated -0x18；
+    //    ORIG 分别 -0x2c / -0x20,-0x1e / -0x10 / -0x28。b28d-solo 探针
+    //    /tmp/s99/p4.cpp(A-D)+p5.cpp(E-H) 八形实测：具名 divisor 帧回 0x38 但多一条
+    //    `mov sp,%eax` 且除数装载序反（ORIG 的 -0x2c 是表达式内联临时槽，非具名）；
+    //    low 提前声明使 sp 落 -0x10 却把 quotient/low 槽互换；指针/两步赋值变体同槽。
+    // ② ORIG 尾 `mov -0x28(%ebp),%eax; mov -0x24(%ebp),%edx` 64 位读，4.4 对
+    //    `(unsigned int)long long` 恒只读低 32 位（跨版本截断读；高 32 位不入返回，
+    //    gap=1 即此条）。
     // b28d-20: ORIG 0x084a8004 — sp 引用（add $0x68，字段 0x5c0/0x5c4/0x5c8）；
     // 无 long double 具名局部：ORIG x87 链 `fildl quotient; fildl specialCnt;
     // flds rate; fmulp; fld1; faddp; fmulp` 即 quotient 先压栈的

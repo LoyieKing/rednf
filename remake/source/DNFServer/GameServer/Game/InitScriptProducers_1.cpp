@@ -75,6 +75,10 @@ void AccountCargoScript::clear()
     m_upgradeMap.clear();
 }
 
+// b28d-solo-InitScriptProducers_1: DIFF→N 封顶（p167 20/20 CLEAR，语义闭合）。
+// 残余 2 条 = ORIG do-while 条件 `call operator==; test %al,%al; je <循环头>`（4.1
+// 循环条件取反不物化）vs 4.4 恒插 `xor $0x1`（P292 表未覆盖循环条件场景；四形实测
+// `!()`/`==false`/`==0`/体内 break = 137/137/137/139 vs ORIG 135）。
 // ORIG T 0x088c7e80。段结构：[required level] / [required item] /
 // [upgrade info](grade 与 UpgradeInfo 首字段同一栈位重叠，随后再扫三 int) /
 // [account cargo end]。未识别 token 直接跳过；ScanInt 断流按 ORIG 精确分支处理。
@@ -83,11 +87,14 @@ bool importAccountCargoScript(AccountCargoScript* script, const char* path)
     if (!loadRDARScriptFile("", path))
         return false;
 
-    std::string token;
-    bool ok = false;
-    bool done = false;
+    // ORIG 0x088c7eac：script 先 spill 到具名指针局部 -0x10，之后全部经它访问（P0）。
+    AccountCargoScript* s = script;
+    s->clear();  // ORIG +0x032 调用 AccountCargoScript::clear(0x08372442)
 
-    script->clear();  // ORIG +0x032 调用 AccountCargoScript::clear(0x08372442)
+    std::string token;
+    int deadFlag = 0;                            // ORIG -0xc 只写一次的 int 局部
+    (void)deadFlag;
+    bool ok = false;
 
     do
     {
@@ -98,20 +105,17 @@ bool importAccountCargoScript(AccountCargoScript* script, const char* path)
                 while (true)
                 {
                     if (!ScanType(token, true))
-                    {
-                        done = false;                       // ORIG +0x19d：以当前标志返回
-                        goto exitLoop;
-                    }
+                        goto exitLoop;                      // ORIG +0x19d：以 ok 当前值返回
                     if (token == "[required level]")
                     {
-                        script->m_reqLevel = ScanInt((bool*)0);
+                        s->m_reqLevel = ScanInt((bool*)0);
                         continue;                           // 回到 ScanType
                     }
                     break;
                 }
                 if (token == "[required item]")
                 {
-                    script->m_itemIdx = ScanInt((bool*)0);
+                    s->m_itemIdx = ScanInt((bool*)0);
                     continue;
                 }
                 break;
@@ -120,35 +124,32 @@ bool importAccountCargoScript(AccountCargoScript* script, const char* path)
             if (token == "[upgrade info]")
             {
                 // ORIG +0xe4..+0x177：grade 扫描失败退出本段；其后三个 int 不做 ok 检查。
-                // key 与 value.m_field0 同栈位（pair 构造两参同为 &local_58 实证）。
+                // ORIG info 落 -0x58..-0x48 且 key 与 info.m_field0 同栈位（pair 构造两参
+                // 同为 &local_58 实证）⇒ 无独立 grade 局部，直接用 info.m_field0。
                 while (true)
                 {
-                    int grade = ScanInt(&ok);
+                    UpgradeInfo info;
+                    info.m_field0 = ScanInt(&ok);
                     if (!ok)
                         break;
-                    int f4 = ScanInt(&ok);
-                    int f8 = ScanInt(&ok);
-                    int fC = ScanInt(&ok);
-
-                    UpgradeInfo info;
-                    info.m_field0 = grade;
-                    info.m_field4 = f4;
-                    info.m_field8 = f8;
-                    info.m_fieldC = fC;
+                    info.m_field4 = ScanInt(&ok);
+                    info.m_field8 = ScanInt(&ok);
+                    info.m_fieldC = ScanInt(&ok);
                     // b28d-lane25：P167 差集实证 ORIG 调 pair<int,UpgradeInfo>::C1<int&,UpgradeInfo&>
                     // 直构（P192），非 make_pair。
-                    script->m_upgradeMap.insert(std::pair<int, UpgradeInfo>(grade, info));
+                    s->m_upgradeMap.insert(std::pair<int, UpgradeInfo>(info.m_field0, info));
                 }
                 continue;                                   // 段毕回主循环（do 底部仅对未知 token 生效）
             }
             break;
         }
+    } while ((token == "[account cargo end]") == 0);         // ORIG do-while 判定
 
-        done = (token == "[account cargo end]");            // ORIG do-while 判定
-    } while (!done);
+    // ORIG 0x088c8017：正常退出（命中 end tag）无条件置 ok=true 后返回。
+    ok = true;
 
 exitLoop:
-    return done;
+    return ok;
 }
 
 // ============================================================================
@@ -176,6 +177,9 @@ channel_info_t::~channel_info_t()
 {
 }
 
+// b28d-solo-InitScriptProducers_1: AE（修：m_gridPercent 加 union 块视图
+// `m_gridBlock = o.m_gridBlock`，复现 ORIG 0x088dd457 src 缓存 %edx + %ecx 中转的
+// 0x28 字节结构块拷贝（P246）；逐元素循环生 scaled 索引 + 循环变量槽致帧 0x28）。
 // ORIG W 0x088dd3c6：逐成员拷贝（string×3 赋值 + type + pBonusRates + bonusRate +
 // floats 按 dword 循环拷贝），与编译器逐字段序一致。
 channel_info_t& channel_info_t::operator=(const channel_info_t& o)
@@ -186,8 +190,9 @@ channel_info_t& channel_info_t::operator=(const channel_info_t& o)
     m_dungeonKey = o.m_dungeonKey;
     m_pBonusRates = o.m_pBonusRates;
     m_bonusRate = o.m_bonusRate;
-    for (int i = 0; i < 10; ++i)
-        m_gridPercent[i] = o.m_gridPercent[i];
+    // ORIG 0x088dd457..0x088dd472：src 缓存 %edx + %ecx 中转的 0x28 字节整体块
+    // 拷贝（P246）⇒ 结构视图整体赋值，非逐元素循环。
+    m_gridBlock = o.m_gridBlock;
     return *this;
 }
 
@@ -211,6 +216,9 @@ channel_dungeon_info_t& channel_dungeon_info_t::operator=(const channel_dungeon_
     return *this;
 }
 
+// b28d-solo-InitScriptProducers_1: DIFF→N 封顶（p167 66/66 CLEAR，语义闭合）。
+// 残余 = 帧 0x120 vs 0x110 + 槽组整体平移 0xc（N82/N95：4.4 聚合对象优先占低槽 +
+// 标量分区排布）+ 条件取反 xor 物化；逐块控制流/字段偏移/日志行号常量已核。
 // ORIG T 0x088dc069。主循环分 [dungeon]/[server] 两段：
 //  返回 1＝正常结束/EOF/未知类型（均 esi=1 出口）；0＝[server] 行解析错误（esi=0）。
 int applyChannelScript(channel_script_t* script)
@@ -463,6 +471,10 @@ int getChannelType(const char* name)
     return -1;
 }
 
+// b28d-solo-InitScriptProducers_1: NEAR→N 封顶（258=258 助记符序列全等；唯一残差
+// = 两个内层循环变量 j 的槽 -0x20/-0x1c 互换，N98：4.4 槽按首次使用序分配、声明序
+// 不可翻）。修：三迭代器 C1Ev 全部提到函数头，声明序 it→inner→outer，复现 ORIG
+// 0x088dc846..0x088dc86c 三条连续 C1Ev 与槽 -0x40/-0x44/-0x48。
 // ORIG T 0x088dc81b。遍历打印：dungeon 段（+0x00 map）逐项
 // "[DUNGEON] <键名> as <键> : " + 区间 int 列表；server 段（+0x18 外层 map）
 // "[CHANNEL] Server %d" + 每频道 "\t%d : %s type(%d) name(%s) tag(%s) " +
@@ -472,8 +484,13 @@ void traversalChannelScript(channel_script_t* script)
     char buf[0x200];
 
     // b28d-lane25：P167 差集实证 ORIG 增量段走 ppEi（后置++，P28 增量侧推论）+
-    // 各迭代器独立 C1Ev ⇒ 三个循环一律 it++ 且"先声明后赋值"。
+    // 各迭代器独立 C1Ev 且三条 C1Ev 在函数头连续发射（ORIG 0x088dc846..0x088dc86c，
+    // 槽 -0x40/-0x44/-0x48）⇒ 三个迭代器一律"先声明后赋值"且全部声明在函数头，
+    // 声明序 it → inner → outer。
     std::map<std::string, channel_dungeon_info_t>::iterator it;
+    std::map<int, channel_info_t>::iterator inner;
+    std::map<int, std::map<int, channel_info_t> >::iterator outer;
+
     for (it = script->m_channelDungeonMap.begin();
          it != script->m_channelDungeonMap.end(); it++)
     {
@@ -484,13 +501,11 @@ void traversalChannelScript(channel_script_t* script)
         LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__, 0x107, buf);
     }
 
-    std::map<int, std::map<int, channel_info_t> >::iterator outer;
     for (outer = script->m_channelMap.begin();
          outer != script->m_channelMap.end(); outer++)
     {
         LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__, 0x10c,
                               "[CHANNEL] Server %d", outer->first);
-        std::map<int, channel_info_t>::iterator inner;
         for (inner = outer->second.begin();
              inner != outer->second.end(); inner++)
         {
@@ -517,6 +532,10 @@ void traversalChannelScript(channel_script_t* script)
 // WorldDrop（Etc/WorldDrop.etc、Etc/WorldDropWarArea.etc）
 // ============================================================================
 
+// b28d-solo-InitScriptProducers_1: DIFF→N 封顶（p167 13/13 CLEAR，语义闭合）。
+// 残余 = 含副作用条件（ScanInt）布局：ORIG 条件块置顶 + `cmpl $0xff; setle %al;
+// test; jne`（0x08902449），4.4 恒置底 + `jg` 直跳（P51/N82 族；while/do-while/
+// 嵌套 while 三形实测 158/156/157 vs ORIG 159）。
 // ORIG T 0x089022be。[world drop] 段：slot 步长 0x14 寻址；槽内首值写 +0x00，
 // 总量清零后成对读 (itemIdx, rate)：rate 累加 +0x10、chunck 入 +0x04 vector；
 // 段内所有出口统一执行 +0x00 = +0x10。itemIdx==-1 即终止本槽。slot 无越界检查（忠实）。
@@ -537,8 +556,11 @@ bool ImportWorldDrop(WorldDropInfo* out, const char* path)
     int dead18 = 0; (void)dead18;              // ORIG local_18 prologue $0 写
     bool ok = false;                           // ORIG local_1d
 
-    while (ScanType(token, true))              // ORIG 复合 while（xor 落点）
+    // ORIG 0x08902342：`call ScanType; xor $1; test; jne` ⇒ bool callee 取反早退形。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[world drop]")
         {
             int slot;
@@ -548,11 +570,13 @@ bool ImportWorldDrop(WorldDropInfo* out, const char* path)
                 out[slot].m_total = 0;                  // +0x10
                 int n = 0;                              // ORIG local_10
                 WorldDropItemChunck chunk;              // ORIG local_28/local_24 相邻槽
-                bool inRange = false;                   // ORIG setle 物化槽（&& 左操作数）
-                while ((inRange = (n < 0x100), inRange) &&
-                       (chunk.m_itemIdx = ScanInt(&ok),
-                        chunk.m_itemIdx != -1))         // ORIG && 短路+逗号
+                // ORIG 0x08902449：`cmpl $0xff,-0xc; setle %al; test %al,%al; jne` ⇒
+                // 边界条件独立 while + 内层 itemIdx 早退，无具名 bool 局部（P0）。
+                while (n <= 0xff)
                 {
+                    chunk.m_itemIdx = ScanInt(&ok);
+                    if (chunk.m_itemIdx == -1)
+                        break;
                     chunk.m_rate = ScanInt(&ok);        // ORIG local_24
                     out[slot].m_total += chunk.m_rate;  // ORIG 每次重算 slot*0x14（无缓存）
                     out[slot].m_chunks.push_back(chunk);
@@ -802,6 +826,10 @@ int ImportLevelUpRewardItemScript(const char* path, stLevelUpRewardItemScript& s
 // GrowthCapsule（Event/GrowthCapsule.evt）
 // ============================================================================
 
+// b28d-solo-InitScriptProducers_1: DIFF→N 封顶（p167 16/16 CLEAR，语义闭合）。
+// 残余 = 5 个 continue 岛：ORIG 每 case `je <独立 nop;jmp 循环头>`（0x08911249/4c/
+// 4f/52/55），4.4 恒 jump-thread 成单共享回边（P223：4.4 岛数=条件数或0；5 标签串/
+// 单标签/goto 三形实测 135/140/140 vs ORIG 143 均不可造）。
 // ORIG T 0x0891120c。五命名段任意顺序；[capsule limit lv] 读入成功后继续主循环，
 // EOF 返回 0；各字段断流按 ORIG 行号常量返回。
 int ImportGrowthCapsuleScript(const char* path, stGrowthCapsuleScript& script)
@@ -815,31 +843,31 @@ int ImportGrowthCapsuleScript(const char* path, stGrowthCapsuleScript& script)
     for (;;)
     {
         if (!ScanType(token, true))
-            return 0;
+            goto failEof;                        // ORIG 失败块 0x089113b5 落在循环体之后
 
         if (token == "[gage percent]")
         {
             script.m_gagePercent = ScanInt(&ok);
             if (!ok) return 0x2bb0;
-            continue;
+            goto cont;                           // ORIG 各自独立 continue 岛（P223 多岛）
         }
         if (token == "[max gage exp]")
         {
             script.m_maxGageExp = ScanInt(&ok);
             if (!ok) return 0x2bb6;
-            continue;
+            goto cont;
         }
         if (token == "[capsule id]")
         {
             script.m_capsuleId = ScanInt(&ok);
             if (!ok) return 0x2bbc;
-            continue;
+            goto cont;
         }
         if (token == "[capsule exp]")
         {
             script.m_capsuleExp = ScanInt(&ok);
             if (!ok) return 0x2bc2;
-            continue;
+            goto cont;
         }
         // b28d-lane25：P167 差集实证 ORIG 调 operator==（非 !=）；正向包裹。
         if (token == "[capsule limit lv]")
@@ -847,8 +875,12 @@ int ImportGrowthCapsuleScript(const char* path, stGrowthCapsuleScript& script)
             script.m_capsuleLimitLv = ScanInt(&ok);
             if (!ok)
                 return 0x2bc8;
+            goto cont;
         }
+        cont:;
     }
+failEof:
+    return 0;
 }
 
 // ============================================================================
@@ -889,6 +921,9 @@ StackableItemData::StackableItemData()
     clear();
 }
 
+// b28d-solo-InitScriptProducers_1: AE（修：删 result 局部改直接 return + `goto
+// failZero` 尾标签，复现 ORIG 失败块落循环回跳之后 `nop; mov $0,%ebx; jmp`；槽组
+// -0xc/-0x10/-0x11/-0x1c/-0x28 与帧 0x30 全对齐）。
 // ORIG T 0x08917c99。endTag 形参在 ORIG 函数体内零引用（段终止靠 ScanInt 断流，
 // 由调用方主循环消费闭合 tag），保留签名并显式标注。
 int LoadRewardDataByNoType(stStepRewardStackableItemScript& script, std::string endTag)
@@ -900,7 +935,6 @@ int LoadRewardDataByNoType(stStepRewardStackableItemScript& script, std::string 
     bool ok = false;                             // ORIG local_15
     StackableItemData data;                      // ORIG local_20 函数级 ctor
     std::vector<StackableItemData> vec;          // ORIG local_2c 函数级 vector（每轮 clear）
-    int result = 0;                              // ORIG uVar1（ebx 携带，4.4 槽化）
 
     for (;;)
     {
@@ -909,28 +943,23 @@ int LoadRewardDataByNoType(stStepRewardStackableItemScript& script, std::string 
         vec.clear();                             // ORIG vector::clear
         step = ScanInt(&ok);
         if (ok != true)
-        {
-            result = 0;
-            goto done;
-        }
+            goto failZero;                       // ORIG 失败块 0x08917d5b 落在循环回跳之后
         data.m_field0 = ScanInt(&ok);
         if (ok != true)
-        {
-            result = 0x3662;
-            goto done;
-        }
+            return 0x3662;
         data.m_field4 = ScanInt(&ok);
         if (ok != true)
-        {
-            result = 0x3666;
-            goto done;
-        }
+            return 0x3666;
         script.set_data(step, data);
     }
-done:
-    return result;
+failZero:
+    return 0;
 }
 
+// b28d-solo-InitScriptProducers_1: DIFF→N 封顶（p167 31/31 CLEAR，语义闭合）。
+// 残余 = 3 个 continue 岛（ORIG 0x08917a36/39/3c 各 `nop; jmp 循环头`）4.4 恒
+// jump-thread + 退出块位置（同 ImportGrowthCapsuleScript 族）；err 具名 int
+// （ORIG -0xc）与 token→err→clear 声明序已复原。
 // ORIG T 0x089179eb。首成员 clear 后按三段分发至共享 loader；loader 非 0 即透传。
 int ImportNewAccountLeventUpToJobScript(const char* path,
                                         stNewAccountLevelUpToJobScript& script)
@@ -938,12 +967,14 @@ int ImportNewAccountLeventUpToJobScript(const char* path,
     if (!loadRDARScriptFile("", path))
         return 0x3629;
 
+    std::string token;
+    int err = 0;                                 // ORIG -0xc（token ctor 后、clear 前清零）
     script.m_stepReward.clear();                 // ORIG +0x044（0x08371508）
 
-    std::string token;
-    while (ScanType(token, true))
+    for (;;)                                     // ORIG 0x08917a53：bool callee 取反形
     {
-        int err;
+        if (!ScanType(token, true))
+            break;
 
         if (token == "[reward stackable item]")
         {
@@ -1020,6 +1051,8 @@ int ImportBroadCastItemScript(const char* path, stBroadCastItemScript& script)
 // 共享字符串工具（LoadRewardDataByGrowType 依赖，Main 裁定本批承载）
 // ============================================================================
 
+// b28d-solo-InitScriptProducers_1: AE（修：循环变量 size_type→int，复现 ORIG
+// `cmp -0xc(%ebp),%eax; setg` 有符号边界；size_type 生 seta）。
 // ORIG T 0x08917db3：剔除 '[' 与 ']'（ORIG 以 tag="[]" 逐字符比对）；仅当确有
 // 剔除时回写（ORIG local_11 门禁）。
 void deleteTagBracketString(std::string& text)
@@ -1028,7 +1061,9 @@ void deleteTagBracketString(std::string& text)
     std::string filtered;
     bool replaced = false;
 
-    for (std::string::size_type i = 0; i < text.size(); ++i)
+    // ORIG 0x08917ecd：cmp -0xc(%ebp),%eax; setg ⇒ 有符号 int 边界比较（size_type
+    // 无符号会产生 seta）。
+    for (int i = 0; i < (int)text.size(); ++i)
     {
         // b28d-lane25：P167 差集实证 ORIG 无 char 缓存——text[i] 在条件两臂与
         // push_back 处各读一次（operator[] 共 3 次）。

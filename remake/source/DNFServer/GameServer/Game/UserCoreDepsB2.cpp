@@ -74,47 +74,59 @@
 // 序号、附加信息 0x52 字节（premium 时叠加 CUserPremium::GetAdditionalInfo）、
 // 装备列表、技能强化循环、求购单包。成功返回 1。
 // ---------------------------------------------------------------------------
-// [b28d-D43] N82/N89 大函数（276/236）（ORIG 0x08690776）。
+// [b28d-solo-UserCoreDepsB2] 236→289（ORIG 276），P167 40=40 CLEAR。本轮修入：
+// ①去 tag 具名局部（ORIG 每字段独立 `call getTagCharacR`，无槽；P0）；
+// ②nameLen 改 unsigned char（ORIG `mov %al,-0x29` + movzbl 回读，int 槽不符）；
+// ③去 inven 具名局部改内联 receiver（ORIG 无槽）；
+// ④**P167 重载修复**：`put_binary(infoBuf,…)` 原选 `put_binary(char*,int)`（ORIG 为
+//   `put_binary(char const*,int)`）⇒ 加 `(const char*)` cast 后 MISSING/EXTRA 清零；
+// ⑤**消 memcpy EXTRA**：ORIG 无 memcpy call（0x52 块搬移内联 rep movsl）⇒ 改
+//   `*(_Additioal_info*)infoBuf = *(const _Additioal_info*)src;`（P83 结构整体赋值），
+//   隐式 operator= 被 4.4 内联展开、零新增符号（nm 仅 U operator+=）；
+// ⑥premium 分支改正极性（ORIG `call; test; je` 直判 ⇒ `if (IsHavePremiumAdvantage())`
+//   then=premium）；⑦循环体 `base[i*2]` 下标形。
+// 残差（byte 层封顶）：N78（ORIG memcpy 内联对齐+rep movsl 40 条 vs 4.4 结构赋值逐字段
+// 展开）、N82/N89（帧 0xec/0xec±、槽号与 STL/日志内联布局）、N4/P30（`i*2+base` add 链
+// vs lea 折叠）。ORIG 0x08690776，语义等价。
 bool CUser::MakeTagCharacInfo(PacketGuard& packet)
 {
     if (getCurCharacR() == 0)
         return false;
-    const _Charac_info* tag = getTagCharacR();
-    if (tag == 0)
+    if (getTagCharacR() == 0)
         return false;
 
     packet.put_short(get_unique_id() & 0xffff);
 
-    int nameLen = strlen(tag->m_name);
+    unsigned char nameLen = (unsigned char)strlen(getTagCharacR()->m_name);
     packet.put_int(nameLen & 0xff);
-    packet.put_str(tag->m_name, nameLen & 0xff);
+    packet.put_str(getTagCharacR()->m_name, nameLen & 0xff);
 
-    packet.put_byte((int)(short)tag->m_level);      // movswl +0x27 → byte
-    packet.put_byte((int)(char)tag->m_field26);     // movsbl +0x26
-    packet.put_byte((int)(char)tag->m_field29);     // movsbl +0x29
+    packet.put_byte((int)(short)getTagCharacR()->m_level);   // movswl +0x27 → byte
+    packet.put_byte((int)(char)getTagCharacR()->m_field26);  // movsbl +0x26
+    packet.put_byte((int)(char)getTagCharacR()->m_field29);  // movsbl +0x29
 
     packet.put_byte(getCurCharacStrikerSkillIndex() & 0xff);
 
     char infoBuf[0x52];
-    if (!IsHavePremiumAdvantage())
+    if (IsHavePremiumAdvantage())
+    {
+        *(_Additioal_info*)infoBuf =                             // ORIG 结构块搬移 0x52
+            *(const _Additioal_info*)getTagCharacAddInfoR();
+        _Additioal_info additional = m_premium.GetAdditionalInfo();  // sret @-0x7b
+        *(_Additioal_info*)infoBuf += additional;                // ORIG 0x08693cea
+        packet.put_int(0x52);
+        packet.put_binary((const char*)infoBuf, 0x52);
+    }
+    else
     {
         packet.put_int(0x52);
         packet.put_binary((const char*)getTagCharacAddInfoR(), 0x52);
     }
-    else
-    {
-        memcpy(infoBuf, getTagCharacAddInfoR(), 0x52);           // 内联 memcpy 0x52
-        _Additioal_info additional = m_premium.GetAdditionalInfo();  // sret @-0x7b
-        *(_Additioal_info*)infoBuf += additional;                // ORIG 0x08693cea
-        packet.put_int(0x52);
-        packet.put_binary(infoBuf, 0x52);
-    }
 
     // ORIG：getTagCharacInvenR() 返回 CInventory*（_Charac_info.m_inven 同址；
     // 本源码声明返回 Inven_Item*，沿用 CUser.cpp:7541 的同址转换惯例）。
-    const CInventory* inven =
-        reinterpret_cast<const CInventory*>(getTagCharacInvenR());
-    inven->MakeEquipList(&packet, true, (ENUM_USERINFO)1, (ENUM_EQUIPSLOT)0);
+    reinterpret_cast<const CInventory*>(getTagCharacInvenR())
+        ->MakeEquipList(&packet, true, (ENUM_USERINFO)1, (ENUM_EQUIPSLOT)0);
 
     int idxPos = packet.get_index();   // 占位字节位置（回填强化条目数）
     int count = 0;
@@ -122,12 +134,15 @@ bool CUser::MakeTagCharacInfo(PacketGuard& packet)
     for (int i = 0; i <= 0xcb; ++i)    // cmp $0xcb; setle
     {
         // 每轮重取 tagR（ORIG 循环体内重复调用 getTagCharacR）。
-        const _Charac_info* tagLoop = getTagCharacR();
         bool baseSmall =
-            ((char)tagLoop->m_field1239 == (char)-1) || (tagLoop->m_field1239 == 0);
-        char* skillW = getTagCharacSkillW();
-        char* base = skillW + (baseSmall ? 0x46 : 0x1de);
-        if (*(unsigned char*)(base + i * 2) != 0)
+            ((char)getTagCharacR()->m_field1239 == (char)-1) ||
+            (getTagCharacR()->m_field1239 == 0);
+        char* base;
+        if (baseSmall)
+            base = getTagCharacSkillW() + 0x46;
+        else
+            base = getTagCharacSkillW() + 0x1de;
+        if (base[i * 2] != 0)
         {
             packet.put_byte(i);
             packet.put_byte(*(unsigned char*)(base + i * 2));
@@ -148,22 +163,28 @@ bool CUser::MakeTagCharacInfo(PacketGuard& packet)
 // （报告 AvatarRechargeServer/CalcDurabilityChangeEquip.md）
 // 状态 5 且组队中、疲劳副本、未清图时，槽位 0..9 执行 CalcDurabilityDetail。
 // ---------------------------------------------------------------------------
-// [b28d-D43] P84/N22 sete 物化：ORIG `call GetParty; test; sete; test; jne` vs 4.4 结果落槽 -0xc + cmpl（ORIG 0x081905b4）。
+// [b28d-solo-UserCoreDepsB2] AE-：P0 去 party 具名局部（ORIG 三次独立 call GetParty）
+// + P225 dead 变体 `while (!call()) break;` 复现 `xor $1; test %al,%al`，71→77
+// （ORIG 78）。残 1 条 = N104 EH 尾块相对序：ORIG 把共享 dtor 段置于 EH 岛**之后**
+// （正常路径 `jmp +0xc7`），4.4 置于 EH 岛**之前**（正常路径 fallthrough，少 1 jmp）。
+// 守卫 nop 岛 4 组、setne/sete 物化、寻址/槽位逐条同 ORIG（ORIG 0x081905b4）。语义等价。
 void AvatarRechargeServer::CalcDurabilityChangeEquip(CUser* user, int equipSlot)
 {
     if (user->get_state() != 5)
         return;
-    CParty* party = static_cast<CParty*>(user->GetParty());
-    if (party == 0)
+    if (user->GetParty() == 0)
         return;
-    if (!party->IsUseFatigueDungeon())
+    if (!user->GetParty()->IsUseFatigueDungeon())
         return;
-    if (party->CheckMapClear())
+    if (user->GetParty()->CheckMapClear())
         return;
 
     std::vector<int> rates;            // ORIG 栈 vector（空构造即传入）
     if (-1 < equipSlot && equipSlot < 10)
-        CalcDurabilityDetail(user, equipSlot, rates);
+    {
+        while (!CalcDurabilityDetail(user, equipSlot, rates))
+            break;
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -172,8 +193,15 @@ void AvatarRechargeServer::CalcDurabilityChangeEquip(CUser* user, int equipSlot)
 // 否则按 INVEN_TYPE 取槽内 item idx（5=扩充栏 9 号页 / 6=金库期望清零 /
 // 其余走背包），两侧 idx 均与期望一致才允许移动。
 // ---------------------------------------------------------------------------
-// [b28d-D43] N82 帧：ORIG sub $0x124 vs 4.4 $0x138（callee-saved 需求差；
-// ORIG 0x0865f1e1，114/116 语义闭合）。
+// [b28d-solo-UserCoreDepsB2] P0 去 inven 具名局部（ORIG else 分支把
+// getCurCharacInvenR() 内联进实参，无该槽）+ foundFrom/foundTo 零初始化合并到
+// 分支前（ORIG `movl $0,-0x18; movl $0,-0x14` 连续）：116→112（ORIG 114），帧
+// $0x128=ORIG $0x124+push ebx、标量槽 -0x20/-0x1c/-0x18/-0x14 与 ORIG 逐位一致。
+// 残 2 条 = ①N93 四个块级 sret 临时槽分配方向相反（ORIG 首分支 -0x114 最深→
+// -0x5d 最浅，4.4 反向）；②N7 else 分支 fromType 4.1 升 %ebx 跨 receiver call
+// 保活（push %ebx/pop），4.4 恒 mem→%ecx（P226 语句表达式、裸 register 双旋钮实测：
+// 前者无效、后者过度升格为 %esi+%ebx 且帧 0x120/异常 epilogue 反劣，已回退）。
+// 语义闭合（ORIG 0x0865f1e1）。
 bool _checkItemMovable(const CUser* user, ENUM_ITEMSPACE fromSpace, int fromSlot,
                        unsigned long fromItemIdx, ENUM_ITEMSPACE toSpace, int toSlot,
                        unsigned long toItemIdx)
@@ -187,6 +215,7 @@ bool _checkItemMovable(const CUser* user, ENUM_ITEMSPACE fromSpace, int fromSlot
     int toType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)toSpace);
 
     int foundFrom = 0;
+    int foundTo = 0;
     if (fromType == 5)
     {
         const CExpandEquipslot* expand =
@@ -200,12 +229,11 @@ bool _checkItemMovable(const CUser* user, ENUM_ITEMSPACE fromSpace, int fromSlot
     }
     else
     {
-        const CInventory* inven = user->getCurCharacInvenR();
-        Inven_Item slot = inven->GetInvenSlot(fromType, fromSlot);
+        Inven_Item slot =
+            user->getCurCharacInvenR()->GetInvenSlot(fromType, fromSlot);
         foundFrom = slot.m_addInfo;
     }
 
-    int foundTo = 0;
     if (toType == 5)
     {
         const CExpandEquipslot* expand =
@@ -219,8 +247,8 @@ bool _checkItemMovable(const CUser* user, ENUM_ITEMSPACE fromSpace, int fromSlot
     }
     else
     {
-        const CInventory* inven = user->getCurCharacInvenR();
-        Inven_Item slot = inven->GetInvenSlot(toType, toSlot);
+        Inven_Item slot =
+            user->getCurCharacInvenR()->GetInvenSlot(toType, toSlot);
         foundTo = slot.m_addInfo;
     }
 
@@ -274,7 +302,14 @@ void Secu_MonsterCheck::Reset()
 // → put_int(GetRoutingItemUniqueID) → finalize(true) → send_to_party → cancelTimer →
 // SetEndRouting → ~PacketGuard（+EH 岛 _Unwind_Resume）。P167 实测 16=16 call 集归零。语义等价。
 // ---------------------------------------------------------------------------
-// [b28d-D43] N82/N95 帧与槽平移（87/86）（ORIG 0x0860b332）。
+// [b28d-solo-UserCoreDepsB2] 87/86：唯一残差 = N104 跨版本 EH 尾块相对序。ORIG 正常
+// 路径在 SetEndRouting 后就地 `lea;mov;call ~PacketGuard` 再 `jmp epilogue`，unwind 岛
+// 居中；4.4 把正常路径 `jmp` 到 unwind 岛之后的**共享**析构段（`~PacketGuard` 一份，
+// 正常/unwind 两路共用），且 jump-thread 掉 ORIG 的 +0x122 nop 岛。两形实测：
+// ①P223 goto 尾标签串（`if(party==0) goto L_nop; …; goto L_ret; L_nop:; L_ret:;`）
+//   产 nop 但多 1 条 jmp（88，劣化）；②goto 跳出 PacketGuard 作用域强制正常路径析构点
+//   无变化（86，析构仍外提）。属 GCC 4.4 cleanup-sharing 编译器行为，源码不可择。
+// P167 16=16 归零；包体/谓词逐条同 ORIG（ORIG 0x0860b332）。语义等价。
 void CSpecialItemRoutingManager::ProcessFailEtc(CParty* party, int failCode)
 {
     if (party != 0)
@@ -303,7 +338,17 @@ void CSpecialItemRoutingManager::ProcessFailEtc(CParty* party, int failCode)
 // 7. CSpecialItemRoutingManager::processRouting —— ORIG T 0x0860ac6a
 // （报告 CSpecialItemRoutingManager/processRouting.md）：路由物品投递主流程。
 // ---------------------------------------------------------------------------
-// [b28d-D43] N82/N89 大函数（442/435）（ORIG 0x0860ac6a）。
+// [b28d-solo-UserCoreDepsB2] 435→446（ORIG 442），P167 59=59 CLEAR。本轮修入：
+// ①`diceMembers.clear()`（ORIG 构造后紧跟 clear 调用，原缺）；
+// ②`itemDice` 副本（ORIG -0x2c=-0x30 拷贝，GetRoutingDiceMemberList 用它）；
+// ③getCurCharacInvenW()/itemMap 去具名局部改内联实参（P0，ORIG 无该两槽）；
+// ④routingUniqueId 声明 int（ORIG -0x80 槽直传 erase 的 const int&，无 int 临时）；
+// ⑤space 声明 int + `is_stackable()` 正极性 + 补 `else space=0`（ORIG movl 写/movsbl 读）；
+// ⑥**真语义修复**：掷点循环 ORIG 为 `while(it!=end())`+单次 `operator*` pair 拷贝+`it++`，
+//   且 `roll==bestRoll` 时 `je <nop>` **不前进**（重掷）；旧码 `++it` 无条件前进=真 bug。
+// 残差（byte 层封顶）：N82 帧 0xd0/0xe0 + 全帧槽号平移（ORIG 对象优先占低槽 vs 4.4
+// 标量分区）、N7 routingItemId 4.1 升 %ebx 跨 G_CDataManager（4.4 恒 mem→%edx）、
+// 跨版本 nop 尾/`mov+movsbl` vs `movsbl mem`。ORIG 0x0860ac6a，语义等价。
 void CSpecialItemRoutingManager::processRouting(CParty* party)
 {
     Inven_Item* routingItem = party->GetRoutingInvenItem();
@@ -314,16 +359,17 @@ void CSpecialItemRoutingManager::processRouting(CParty* party)
     }
 
     int routingItemId = party->GetRoutingItemID();
-    CDataManager* dataMgr = G_CDataManager();
-    CItem* item = dataMgr->find_item(routingItemId);
+    CItem* item = G_CDataManager()->find_item(routingItemId);
     if (item == 0)
     {
         ProcessFailEtc(party, 0);
         return;
     }
+    CItem* itemDice = item;                           // ORIG -0x2c = -0x30 副本
 
     std::vector<std::pair<int, int> > diceMembers;    // (成员序号, 权重)
-    party->GetRoutingDiceMemberList(diceMembers, item);
+    diceMembers.clear();                              // ORIG 构造后紧跟 clear 调用
+    party->GetRoutingDiceMemberList(diceMembers, itemDice);
 
     CUser* winner = 0;                                // -0x28
     int winnerIdx = 0;                                // -0x24
@@ -343,41 +389,49 @@ void CSpecialItemRoutingManager::processRouting(CParty* party)
     else
     {
         int bestRoll = -1;                            // -0x20
-        for (std::vector<std::pair<int, int> >::iterator it = diceMembers.begin();
-             it != diceMembers.end();)
+        std::vector<std::pair<int, int> >::iterator it = diceMembers.begin();
+        while (it != diceMembers.end())
         {
+            std::pair<int, int> member = *it;         // ORIG 单次 operator* 读双字段
             int roll = get_rand_int(100);             // -0x1c
-            if (!(roll <= bestRoll))                  // jle 跳过（== 也跳过）
+            if (roll > bestRoll)
             {
                 bestRoll = roll;
-                winnerIdx = it->first;
-                winner = party->get_user(it->first);
+                winnerIdx = member.first;
+                winner = party->get_user(member.first);
             }
-            ++it;                                     // ORIG：roll==best 时也前进
+            else
+            {
+                if (roll == bestRoll)
+                    goto L_skip_inc;                  // ORIG：roll==best 不前进（重掷）
+            }
+            it++;                                     // ORIG ppEi 后置
+        L_skip_inc:;
         }
     }
 
     if (winner != 0)
     {
-        char space = 0;                               // -0x18 ENUM_ITEMSPACE 结果
-        if (!item->is_stackable())
+        int space = 0;                                // -0x18 ENUM_ITEMSPACE 结果
+        if (item->is_stackable())
+        {
+            if (item->GetItemType() == 9)             // vptr+0x0c
+                space = 7;
+        }
+        else
         {
             if (item->IsCreatureItem())               // vptr+0x14
                 space = 7;
             else if (item->IsAvatarItem())            // vptr+0x10
                 space = 1;
-        }
-        else
-        {
-            if (item->GetItemType() == 9)             // vptr+0x0c
-                space = 7;
+            else
+                space = 0;
         }
 
         int result = -1;                              // -0x14
         if (!item->IsAvatarItem())
         {
-            CInventory* inventory = winner->getCurCharacInvenW();
-            result = inventory->insertItemIntoInventory(
+            result = winner->getCurCharacInvenW()->insertItemIntoInventory(
                 *routingItem, (eItemAddReason)4, true, true);
         }
         else
@@ -407,12 +461,12 @@ void CSpecialItemRoutingManager::processRouting(CParty* party)
                 statistc_proxy::add(winner, "log_random_option", "pick_cnt", 1,
                                     "%d,'%s'", levelSection, curDate);
             }
-            unsigned int routingUniqueId = party->GetRoutingItemUniqueID(); // -0x80
+            int routingUniqueId = (int)party->GetRoutingItemUniqueID(); // -0x80
             int deleteResult = 0;                     // -0x10
             int state = winner->get_state();
             if (state == 5)
             {
-                deleteResult = party->DeleteDungeonDropItem((int)routingUniqueId);
+                deleteResult = party->DeleteDungeonDropItem(routingUniqueId);
             }
             else if (state == 0xc)
             {
@@ -422,9 +476,8 @@ void CSpecialItemRoutingManager::processRouting(CParty* party)
                     // m_stageData.m_itemMap 位于 CBossTower+0xa18
                     // （CBossStage+0x9f4 的 MapInfo +0x24）。CBossStage 后段字段
                     // 为 private 且无具名访问器，按既有 TU 惯例以地址访问。
-                    std::map<int, map_item>* itemMap =
-                        (std::map<int, map_item>*)((char*)tower + 0xa18);
-                    itemMap->erase((int)routingUniqueId);
+                    ((std::map<int, map_item>*)((char*)tower + 0xa18))
+                        ->erase(routingUniqueId);
                 }
             }
             if (0 < deleteResult)
@@ -437,7 +490,7 @@ void CSpecialItemRoutingManager::processRouting(CParty* party)
 
             packet.put_byte(1);
             packet.put_byte(winnerIdx);
-            packet.put_int((int)routingUniqueId);
+            packet.put_int(routingUniqueId);
             packet.put_byte((int)(char)space);
             packet.put_short(result);
             winner->SendUpdateItem((CUser::eSendTarget)1,
@@ -514,17 +567,14 @@ int CEquipItem::GetUsableEquipmentType() const
 // 即 B 表累计计数（与 CHackAnalyzer.cpp hackCntB 寻址一致；
 // resetServerHackAccumulatedCnt 0x086950b6 清同一槽位）。按 ORIG 运算次序
 // 书写以对齐指令选择。
-// [b28d-D43] N1 两步常量折叠：ORIG `lea -0x65(%eax),%edx; add $0xf44,%edx` vs 4.4 折 `add $0xee1,%edx; shl $2`（ORIG 0x?）。
+// [b28d-solo-UserCoreDepsB2] IDENTICAL（9=9）：裸偏移 `*(const int*)((char*)this+8+…)`
+// 改具名成员数组 `m_serverHackCntB[(int)type-0x65]`（§4.3 具名化），与同族
+// setServerHackAccumulatedCnt（ORIG 0x084eb57c，IDENTICAL）同写法，逐条复现 ORIG
+// `lea -0x65(%eax),%edx; add $0xf44,%edx; mov 0x8(%eax,%edx,4),%eax`。
 int WongWork::CHackAnalyzer::getServerHackAccumulatedCnt(
     WongWork::ENUM_HACKTYPE type) const
 {
-    // [b28c-L7] P0 表达式直传已生效（去 slot 具名局部：帧 0x10→0x0、pop %ebp
-    // 直落、scaled-index `mov 8(%eax,%edx,4)` 复现）；残 1 条 = **N1** 两步常量
-    // 算术折叠：ORIG `lea -0x65(%eax),%edx; add $0xf44,%edx` 4.4 恒折
-    // `add $0xee1,%edx`。P205 式代数拆形实测不可用（+8 处为 B 段累计计数表，
-    // 拆成 `arr[t-0x65] + arr[0xf44]` 会改变寻址语义 = 真 bug），故按 N1 封顶。
-    return *(const int*)((const char*)this + 8 +
-                         ((int)type - 0x65 + 0xf44) * 4);
+    return m_serverHackCntB[(int)type - 0x65];
 }
 
 // ---------------------------------------------------------------------------

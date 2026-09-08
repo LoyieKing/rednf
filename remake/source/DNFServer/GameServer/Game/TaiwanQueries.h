@@ -117,14 +117,6 @@ public:
     unsigned int getTimeStamp();          // ORIG T 0x08172fea：ntohl(+0x24)+m_patchTime
     unsigned int getPatchTime();          // ORIG T 0x08173042
     void setPatchTime(unsigned int t);    // ORIG T 0x08173034
-    // b28d-45：ORIG CMobileRestrictCommand::execute 0x084b3cf0 对 +0x2c 直写
-    // `mov %dl,0x2c(%eax)`（赋值形：先 call getGarenaAuthData 后读字段）；
-    // setter 调用形 4.4 恒先求值实参 ⇒ 改引用访问器保持赋值语义。原
-    // GmCmds_E.cpp 裸偏移 char* 视图（§4.3）已同步删除。always_inline ⇒
-    // 零新符号、布局/mangled 零影响；残余 `add $0x2c` 折位移归 N107。
-    unsigned char& mobileAuthRef() __attribute__((always_inline))
-    { return m_mobileAuth; }
-
 private:
     unsigned int m_uid;                             // +0x00（ntohl 读取）
     char m_uname[MAX_GARENA_ID_LENTH];               // +0x04..+0x23
@@ -132,7 +124,14 @@ private:
     unsigned short m_gcaType;                       // +0x28（ntohs 读取）
     unsigned char m_goldMemberType;                 // +0x2a
     unsigned char m_pad2b;                          // +0x2b（ORIG 空洞；getMobileAuth 读 +0x2c）
+public:
+    // b28d-solo-GmCmds_E：ORIG CMobileRestrictCommand::execute 0x084b3cf0 对
+    // +0x2c 直写 `mov %dl,0x2c(%eax)`（单条 disp 折叠）⇒ 需完整类型成员直访问
+    // （P235）；引用访问器/裸偏移视图恒产 `mov 槽/add $0x2c`（探针
+    // /tmp/probe_auth.cpp f_direct vs g_ref）。仅访问控制变更：声明顺序、
+    // sizeof(0x68)、全部偏移、mangled 均不变。
     unsigned char m_mobileAuth;                     // +0x2c（==1 视为已认证）
+private:
     unsigned char m_pad2d[0x64 - 0x2d];             // +0x2d..+0x63
     unsigned int m_patchTime;                       // +0x64（本地附加补偿秒数）
 };
@@ -368,6 +367,7 @@ private:
     char m_countries[(0x2d4 - 4) / 0x10][0x10];         // +0x04（720=45×16）
 };
 
+#pragma pack(push, 1)
 class SigLoadRestrictPolicy
 {
 public:
@@ -392,6 +392,7 @@ public:
                                         // 一致。sizeof/偏移不变。禁改 bool
                                         // （b28BM13 setne 归一 +2）。
 };
+#pragma pack(pop)
 
 // SigLoadHeroMissionData（sizeof 0x104）
 class SigLoadHeroMissionData
@@ -400,7 +401,10 @@ public:
     SigLoadHeroMissionData();             // ORIG W 0x081639f0：调 init()
     void init();                          // ORIG W 0x08163a04
 
-private:
+    // b28d-solo-TaiwanDBDispatcher §8.3：ORIG 0x0815d7a8 对局部 data 直接成员
+    // 访问（`mov -0x18(%ebp),%eax; mov (%eax),%eax; mov %eax,-0x124(%ebp)`
+    // 即 data.m_field0=sig->m_field0 的 disp 直存）⇒ 原码字段可见，改 public。
+    // sizeof 0x104 / 偏移 +0x00/+0x04 / 类名 mangled 均不变。
     unsigned int m_field0;                // +0x00
     unsigned char m_data[0x100];          // +0x04
 };

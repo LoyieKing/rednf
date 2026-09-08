@@ -135,6 +135,8 @@ CSkillTreeParam::~CSkillTreeParam()
 // ---------------------------------------------------------------------------
 void CSkillTreeParam::SendSkillPointReturnInfo()
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 355/353：p167 CLEAR（56/56）；残差为
+    // skill 指针缓存槽（我方 -0x10）与帧 0x48 vs 0x38、need1/need2 bool 槽 = N82附/N98。
     SkillSlot* skill = reinterpret_cast<SkillSlot*>(
         const_cast<char*>(m_user->getCurCharacSkillR()));
     m_curSp = skill->get_remain_sp_at_index(static_cast<ENUM_SKILL_TREE_KIND>(0))
@@ -219,6 +221,9 @@ void CSkillTreeParam::SendSkillPointReturnInfo()
 //      正常路径最终返回 0。
 int CSkillTreeParam::SetSkillTree(Inter_LoadEtc* owner)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 561/536（gap -25）：p167 CLEAR
+    // （87/87，含补入专家段第二处 getCurCharacSkillR）；残差为 N82 帧/槽复用与
+    // giveSkills 拷贝槽，按 §6.2 判语义完成。
     m_user->SaveBackupSkillInfo(
         reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(m_sig->m_backupSkill),
         ENUM_SKILL_TREE_KIND(0));
@@ -367,18 +372,22 @@ int CSkillTreeParam::SetSkillTree(Inter_LoadEtc* owner)
                 int skillIdx = script->m_growSkillVec[j].first;
                 int expLevel = m_user->GetCurExpertJobLevel(
                     m_user->GetCurCharacExpertJobExp());
-                SkillSlot* skillR = reinterpret_cast<SkillSlot*>(
-                    const_cast<char*>(m_user->getCurCharacSkillR()));
-                if (!skillR->check_skill_mastered(skillIdx, expLevel, 2,
-                                                  ENUM_SKILL_TREE_KIND(0)))
+                // [b28d-solo-Inter_LoadEtc_impl] P0/P167：ORIG 0x084efb7c/0x084efbf4
+                // 两处各自重取 getCurCharacSkillR（无 skillR 缓存局部）。
+                if (!reinterpret_cast<SkillSlot*>(const_cast<char*>(
+                        m_user->getCurCharacSkillR()))
+                         ->check_skill_mastered(skillIdx, expLevel, 2,
+                                                ENUM_SKILL_TREE_KIND(0)))
                 {
                     SkillSlot* skillW = reinterpret_cast<SkillSlot*>(
                         m_user->getCurCharacSkillW());
                     skillW->growtype_skill(m_user->get_charac_job(), skillIdx,
                                            expLevel, ENUM_SKILL_TREE_KIND(0));
                 }
-                if (!skillR->check_skill_mastered(skillIdx, expLevel, 2,
-                                                  ENUM_SKILL_TREE_KIND(1)))
+                if (!reinterpret_cast<SkillSlot*>(const_cast<char*>(
+                        m_user->getCurCharacSkillR()))
+                         ->check_skill_mastered(skillIdx, expLevel, 2,
+                                                ENUM_SKILL_TREE_KIND(1)))
                 {
                     SkillSlot* skillW = reinterpret_cast<SkillSlot*>(
                         m_user->getCurCharacSkillW());
@@ -488,6 +497,9 @@ inline SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* asLetheResult(void* p)
 
 int Inter_LoadEtc::_fnEnumQuestClear(unsigned int questIdx, char* ctx)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 40/42：ctx 参数槽自增 ORIG 为
+    // `lea 0x4(%eax),%edx; mov %edx,0xc(%ebp)` 两段、4.4 恒折 `addl $0x4,0xc(%ebp)`；
+    // 另 put_short 实参装载序（ORIG 先载 edx）——跨版本 codegen，语义等价（p167 调用点一致）。
     // [b28c-lane25 判词·N] ORIG 0x084c2b0e 为 `lea 0x4(%eax),%edx; mov %edx,0xc(%ebp);
     // mov (%eax),%eax`（先自增写回参数槽再读旧值）；4.4 恒「读值→addl 参数槽」，
     // 且 bool callee 直判恒多 setne（P168a③b 跨版本 bool ABI）。语义等价，封顶。
@@ -519,6 +531,9 @@ int Inter_LoadEtc::_fnEnumQuestClear(unsigned int questIdx, char* ctx)
 
 bool Inter_LoadEtc::SetFatigue(CUser* user)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 170/169：p167 CLEAR（29/29）；残差为
+    // 局部槽分配（days -0x28 vs -0x24、charging -0x22 vs -0x1e、cMyTrace -0x48 vs -0x44）
+    // = N82附/N98 首次使用序，及 vararg %esi/%edi 角色互换（N7 族）。decAmount short→int 已修。
     if (user->getCurCharacR() == 0)
         return false;
 
@@ -553,7 +568,9 @@ bool Inter_LoadEtc::SetFatigue(CUser* user)
 
         if (user->GetFatigueBatteryCharging() > 0)
         {
-            short decAmount = GlobalData::s_fatigueBatteryHandle_->ActiveFatigueBattery(user);
+            // [b28d-solo-Inter_LoadEtc_impl] ORIG 0x084e8778 `call; cwtl; mov %eax,-0x1c`
+            // ⇒ decAmount 为 int 槽（short 声明恒生 `mov %ax,-N; cmpw`）。
+            int decAmount = GlobalData::s_fatigueBatteryHandle_->ActiveFatigueBattery(user);
             if (decAmount != 0)
             {
                 user->DecFatigueBatteryCharging(decAmount);
@@ -575,10 +592,15 @@ bool Inter_LoadEtc::SetFatigue(CUser* user)
 
 void Inter_LoadEtc::verifyCharacVillage(CUser* user)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 104/102：vill int 槽（movsbl→-0x14）、
+    // needMove 预清+条件置位、嵌套 if（P225 推广）均已归位；残余为 switch 尾 default 岛
+    // （4.4 恒发 `jmp;nop`，P223 边界=4.4 自身 epilogue-threading，四形实测不可消）。
     if (G_GameWorld()->IsPVPChannel())
         return;
 
-    char vill = (char)user->getCurCharacVill();
+    // [b28d-solo-Inter_LoadEtc_impl] ORIG 0x084e8693 `movsbl %al,%eax; mov %eax,-0x14`
+    // ⇒ vill 为 int 槽（非 char）。
+    int vill = (int)(char)user->getCurCharacVill();
     Village* v = G_GameWorld()->GetVillage(vill);
     if (v == 0)
     {
@@ -586,12 +608,19 @@ void Inter_LoadEtc::verifyCharacVillage(CUser* user)
         return;
     }
 
-    bool needMove = user->get_charac_level() < v->m_field2c;   // +0x2c（最低等级门槛）
-    if (v->m_questIdx != 0 &&                                  // +0x30
-        !user->getCurCharacQuestR()->isClearQuest(v->m_questIdx))
-        needMove = true;
+    // ORIG 0x084e86ce：`movb $0x0,-0x9` 预清 + 条件置位（P198①/P194）
+    char needMove = 0;
+    if (user->get_charac_level() < v->m_field2c)   // +0x2c（最低等级门槛）
+        needMove = 1;
+    // [b28d-solo-Inter_LoadEtc_impl] P225 推广：ORIG 两守卫各自 `je` 直跳同一落点
+    // ⇒ 嵌套 if（`&&` 单表达式会被 4.4 物化 bool 岛 +7 条）。
+    if (v->m_questIdx != 0)                                    // +0x30
+    {
+        if (!user->getCurCharacQuestR()->isClearQuest(v->m_questIdx))
+            needMove = 1;
+    }
 
-    if (!needMove)
+    if (needMove == 0)
         return;
 
     switch (vill)
@@ -603,7 +632,6 @@ void Inter_LoadEtc::verifyCharacVillage(CUser* user)
     case 6:  user->setCurCharacVill(3); break;
     case 9:  user->setCurCharacVill(3); break;
     case 11: user->setCurCharacVill(2); break;
-    default: break;
     }
 }
 
@@ -624,6 +652,8 @@ bool Inter_LoadEtc::RequestDBEventArad(CUser* user)
 
 bool Inter_LoadEtc::SetPvpRecord(CUser* user, SIG_LOAD_ETC* sig)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=AE 92/92：P258 正极性 or 形（lossGrade>pvpGrade
+    // 短路）+ CheckDaily/RefW 内联（P52/P0）+ CUser.h:3652 SetPvpRecord int→bool（Main 代落）。
     // [b23S3C] P183/P0：ORIG &sig->m_pvpResult 直落实参槽（add $0x340;mov %eax,0x4(%esp)），无 pvp 指针槽
     if (!user->SetPvpRecord(sig->m_pvpResult))
     {
@@ -632,23 +662,24 @@ bool Inter_LoadEtc::SetPvpRecord(CUser* user, SIG_LOAD_ETC* sig)
     }
     user->disableSavePvP();
 
-    // [b23S3C] P48/P0：ORIG getPvPExpLossGrade/getPVPResultRefR 双臂各重取（+0x4b/+0x68、
-    // +0x7d/+0x8f），minPoint 是唯一具名槽 -0x10；apply 分支岛内联（P56/P198，寄存器直测无槽）
+    // [b28d-solo-Inter_LoadEtc_impl] ORIG 0x084c29b7 正极性 or 形（P258）：第一项
+    // `lossGrade > pvpGrade` 短路进 body；P48 双臂各重取 getPvPExpLossGrade/RefR。
     int minPoint = GlobalData::s_ref_pvp_grade->GetPvpPoint(
                        GlobalData::s_ref_pvp_grade->getPvPExpLossGrade());
-    if (!(user->getPVPResultRefR()->m_pvpGrade <
-                  GlobalData::s_ref_pvp_grade->getPvPExpLossGrade() ||
-          user->getPVPResultRefR()->m_expPoint <= minPoint))
+    if (GlobalData::s_ref_pvp_grade->getPvPExpLossGrade() >
+            user->getPVPResultRefR()->m_pvpGrade ||
+        user->getPVPResultRefR()->m_expPoint > minPoint)
     {
-        long now = GlobalData::s_systemTime_.getCurSec();
-        long lastPlay = user->getCurCharacLastPlayTick();
-        if (CheckDailyScheduleTime(4, lastPlay, now))
+        // ORIG 0x084c2a12：now/lastPlay 寄存器直传（%ebx/%eax，无槽，P0）
+        if (CheckDailyScheduleTime(4, user->getCurCharacLastPlayTick(),
+                                   GlobalData::s_systemTime_.getCurSec()))
         {
-            PvpResultType* w = user->getPVPResultRefW();
-            int dec = GlobalData::s_ref_pvp_grade->getPvPExpLossExp();
-            // [b23S3C] P48：ORIG 读源 m_expPoint 用第 3 次独立 getPVPResultRefR(+0xec)，写回用 RefW
-            w->m_expPoint = std::max(minPoint,
-                                     user->getPVPResultRefR()->m_expPoint - dec);
+            // [b28d-solo-Inter_LoadEtc_impl] P52/P0：RefW 结果经 %ebx 跨
+            // getPvPExpLossExp 保活（ORIG 0x084c2a4e `mov %eax,%ebx`），无 w 槽。
+            user->getPVPResultRefW()->m_expPoint = std::max(
+                minPoint,
+                user->getPVPResultRefR()->m_expPoint -
+                    GlobalData::s_ref_pvp_grade->getPvPExpLossExp());
         }
     }
     return true;
@@ -656,6 +687,9 @@ bool Inter_LoadEtc::SetPvpRecord(CUser* user, SIG_LOAD_ETC* sig)
 
 bool Inter_LoadEtc::SendResult(CUser* user)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 404/399：P167 CLEAR（72/72，含补入的
+    // put_byte(ERii)/GetCera/operator* 三缺口与 const 容器迭代器）；残差为槽布局
+    // （packet -0x3c vs ORIG -0x44、info 值拷贝槽）= N98 首次使用序，语义等价。
     PacketGuard packet;
     packet.put_header(1, 4);
     packet.put_byte(1);
@@ -668,29 +702,38 @@ bool Inter_LoadEtc::SendResult(CUser* user)
 
     WongWork::CUserPremium* premium = user->GetPremiumInfo();
     // ORIG 无 null 检查，直接解引用调用 GetPremiumInfoList(0x270f)。
-    std::vector<WongWork::SUserPremiumInfo> infos =
+    // [b28d-solo-Inter_LoadEtc_impl] P96/P270：ORIG 调 begin() const/end() const
+    // ⇒ 容器为 const 局部（非 const 版会多转换构造 + ne(PKi,Pi) 混合实例）。
+    const std::vector<WongWork::SUserPremiumInfo> infos =
         premium->GetPremiumInfoList(0x270f);
     int index = packet.get_index();
     int count = 0;
     packet.put_byte(0);
     long now = GlobalData::s_systemTime_.getCurSec();
-    for (size_t i = 0; i < infos.size(); ++i)
+    // [b28d-solo-Inter_LoadEtc_impl] P167 判据：ORIG 用 const_iterator + `it->`
+    // （operator-> ×4 / operator* ×1 / operator++ ×1），且 PvP 检查只有一处
+    // （我方旧 `[]` 循环 + 重复 if 多发 G_GameWorld/IsPvPSkilTreeChannel/get_pvp_grade/size/op[]）。
+    for (std::vector<WongWork::SUserPremiumInfo>::const_iterator it = infos.begin();
+         it != infos.end(); ++it)
     {
-        const WongWork::SUserPremiumInfo& info = infos[i];
-        if (info.m_state == 2)                       // ENUM_PREMIUM_STATE_2 等待开始
+        // [b28d-solo-Inter_LoadEtc_impl] ORIG 0x084c2cfc `call operator*` + 5 dword
+        // 块拷贝到 -0x74（值拷贝具名局部，P0 槽往返证据）；字段读仍走 `it->`（ptEv）。
+        WongWork::SUserPremiumInfo info = *it;
+        (void)info;
+        if (it->m_state == 2)                        // ENUM_PREMIUM_STATE_2 等待开始
             continue;
         if (G_GameWorld()->IsPvPSkilTreeChannel() && user->get_pvp_grade() <= 9 &&
-            info.m_type == 0x21)
+            it->m_type == 0x21)
             continue;
-        // ORIG：非 PvP 树通道或 grade>9 或 type!=0x21 → 写入
-        if (!(G_GameWorld()->IsPvPSkilTreeChannel() && user->get_pvp_grade() <= 9) ||
-            info.m_type != 0x21)
-        {
-            packet.put_byte(info.m_type & 0xff);
-            packet.put_int(info.m_end - (int)now);
-            ++count;
-        }
+        packet.put_byte(it->m_type & 0xff);
+        packet.put_int(it->m_end - (int)now);
+        ++count;
     }
+
+    // [b28d-solo-Inter_LoadEtc_impl] P167 补缺口：ORIG 0x084c2e0a `put_byte(int&,int)`
+    // （index 计数回填）+ 0x084c2e15 `CUser::GetCera()` + 0x084c2e24 `put_int`。
+    packet.put_byte(index, count);
+    packet.put_int(user->GetCera());
 
     if (user->getCurCharacR() == 0)
     {
@@ -700,17 +743,20 @@ bool Inter_LoadEtc::SendResult(CUser* user)
     }
 
     user->verifyDoingQuest();
-    UserQuest* questR = user->getCurCharacQuestR();
+    // [b28d-solo-Inter_LoadEtc_impl] P48/P167：ORIG 每处重取 getCurCharacQuestR
+    // （0x084c2e9a/0x084c2ed0/0x084c2ef7/0x084c2f3a 四调用点），无 questR 缓存局部。
     for (int i = 0; i < 0x14; ++i)
     {
-        int idxVal = questR->m_quest[i];
-        packet.put_short(idxVal == 0 ? 0xffff : idxVal & 0xffff);
-        int stepVal = questR->m_trigger[i];
-        packet.put_int(stepVal);
+        if (user->getCurCharacQuestR()->m_quest[i] == 0)
+            packet.put_short(0xffff);
+        else
+            packet.put_short(user->getCurCharacQuestR()->m_quest[i] & 0xffff);
+        packet.put_int(user->getCurCharacQuestR()->m_trigger[i]);
     }
     for (int i = 0; i < 5; ++i)
     {
-        int v = *reinterpret_cast<const int*>(&questR->m_authenData.m_authen[i * 4]);
+        int v = *reinterpret_cast<const int*>(
+            &user->getCurCharacQuestR()->m_authenData.m_authen[i * 4]);
         packet.put_int(v);
     }
     packet.put_byte((int)(signed char)user->getCurCharacVill());
@@ -741,6 +787,9 @@ bool Inter_LoadEtc::SendResult(CUser* user)
 
 void Inter_LoadEtc::giveBreakAwayReward(CUser* user)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 247/251：p167 CLEAR（39/39）；残差为
+    // 帧形态（ORIG `push %edi; sub $0x1ac` vs 我方 `sub $0x1b0`）与 title/body 槽深差 8
+    // = N82附/P190 帧分配，语义等价。
     char title[21];
     char body[256];
 
@@ -846,34 +895,44 @@ void Inter_LoadEtc::processGrowthCreatureEvent(CUser& user)
 
 void Inter_LoadEtc::processSeriaRoomAniDecoEvent(seriaRoom_AniDeco info, CUser& user)
 {
-    CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x69);
-    if (ev == 0 || !ev->IsEventing(0))
-        return;
-    user.setSeriaRoomAniDecoInfo(info);
-    SeriaRoomAniDecoEvent* seria = static_cast<SeriaRoomAniDecoEvent*>(
-        GlobalData::s_event_manager->GetRepeatEvent(0x69));
-    if (seria == 0)
-        return;
-    seria->SendEventInfo(user);                         // ORIG T 0x0827b99a
-    long now = GlobalData::s_systemTime_.getCurSec();
-    long lastPlay = user.getCurCharacLastPlayTick();
-    if (CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                               lastPlay, now))
-        seria->SendAniDecoItem(user);                   // ORIG T 0x0827b75a
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=AE 59/59：去 ev 局部（P134/P183 寄存器直传
+    // 虚调用）+ 正极性 test;je 尾（P224）+ now/lastPlay 内联（%esi/%ebx 保活）+ 嵌套正向
+    // if（消尾部 jmp+nop）。
+    // [b28d-solo-Inter_LoadEtc_impl] ORIG 0x084e8430：GetRepeatEvent 返回值寄存器直传
+    // 虚调用（P134/P183；无 ev 局部、无 null 检查），正极性 test;je 尾（P224）。
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x69)->IsEventing(0))
+    {
+        user.setSeriaRoomAniDecoInfo(info);
+        SeriaRoomAniDecoEvent* seria = static_cast<SeriaRoomAniDecoEvent*>(
+            GlobalData::s_event_manager->GetRepeatEvent(0x69));
+        if (seria != 0)
+        {
+            seria->SendEventInfo(user);                 // ORIG T 0x0827b99a
+            // ORIG 0x084e84a3：now/lastPlay 经 %esi/%ebx 跨 G_CEnvironment 保活（无槽，P0）
+            if (CheckDailyScheduleTime(
+                    G_CEnvironment()->m_serverEnvir.m_fatigueTime,
+                    user.getCurCharacLastPlayTick(),
+                    GlobalData::s_systemTime_.getCurSec()))
+                seria->SendAniDecoItem(user);           // ORIG T 0x0827b75a
+        }
+    }
 }
 
 void Inter_LoadEtc::processCheckInvalidExpPerLevel(CUser& user)
 {
-    int levelExpLow = (unsigned)G_CDataManager()->get_level_exp(
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=AE 97/97：levelExpLow/High 同型化为 unsigned
+    // （P211 档③）翻正第二比较装载序 + 首比较方向翻转（levelExpLow>exp）+ `100 - min(...)`
+    // 单表达式（消回读槽）。
+    unsigned levelExpLow = (unsigned)G_CDataManager()->get_level_exp(
         user.get_charac_level());
-    int levelExpHigh = (unsigned)G_CDataManager()->get_level_exp(
+    unsigned levelExpHigh = (unsigned)G_CDataManager()->get_level_exp(
         user.get_charac_level() + 1);
     unsigned exp = (unsigned)user.get_charac_exp();
     // [b28d-53] ORIG 0x084e8556 段：`mov levelExpLow; cmp exp; ja body` +
     // `mov exp; cmp levelExpHigh; jbe end` = 双守卫共享尾（P257 正向包裹消
     // 早返形多发的 jmp+nop 岛）。残余：第二比较 4.4 恒折 `levelExpHigh >= exp`
     // 方向（ORIG 为 `exp <= levelExpHigh`）⇒ N18b/N22 比较方向族，97/97 封顶。
-    if (exp < levelExpLow || exp > levelExpHigh)
+    if (levelExpLow > exp || exp > levelExpHigh)
     {
         // [b28d-53] ORIG 0x084e8577 `call; xor $1,%eax; test %al; je end`
         // ⇒ bool callee + 取反形（P168a①）。
@@ -897,6 +956,9 @@ void Inter_LoadEtc::processCheckInvalidExpPerLevel(CUser& user)
 
 void Inter_LoadEtc::_checkUserDisadvantage(CUser* user)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=AE 154/154：P171 照抄 ORIG 恒真 bool 局部
+    // （-0xd，第二个惩罚项/货物检查开关）+ `penalty +=` 读改写回 + hundredBase 声明提前
+    // （赋值保持原位，P212）+ `100 - min(...)` 单表达式 + cargo 内联（P0）。
     if (user->IsGameMasterMode())
         return;
 
@@ -913,35 +975,38 @@ void Inter_LoadEtc::_checkUserDisadvantage(CUser* user)
         return;
 
     // 遍历 0..29999 任务清除位（CQuestClear 区位于 questR+4，含 m_user 头）
-    char hasClearedQuest = 0;
-    // [b23S3C] P196：ORIG 边界 `cmpl $0x752f; setle`（有符号）⇒ i 必须 int（原 unsigned→setbe 真 bug）；
-    // P48/P0：ORIG 每臂 getCurCharacQuestR→add$4 直落实参，无 questR/cleared 具名槽
+    // [b28d-solo-Inter_LoadEtc_impl] P196：ORIG 边界 `cmpl $0x752f; setle`（有符号）
+    // ⇒ i 必须 int；P248 档②：ORIG `movzbl slot; xor $1; test; je` ⇒ 标志位 bool。
+    bool hasClearedQuest = false;
     for (int i = 0; i < 30000; ++i)
     {
         if ((user->getCurCharacQuestR()->m_cleared).isClearedQuest((unsigned int)i))
         {
-            hasClearedQuest = 1;
+            hasClearedQuest = true;
             break;
         }
     }
 
+    // [b28d-solo-Inter_LoadEtc_impl] P171 照抄：ORIG 0x084c2833 存在恒真 bool 局部
+    // （-0xd `movb $0x1` 后全程只读、无写 0 点）——第二个惩罚项与货物检查的开关。
+    bool penaltyEnabled = true;
+    int hundredBase;                                    // 声明提前（赋值保持 ORIG 位置）
     int penalty = 0;
-    if (hasClearedQuest != 1)
+    if (!hasClearedQuest)
+        penalty += 0x28;                                // 未清任务：+40
+    if (!penaltyEnabled)
+        penalty += 0x1e;
+    if (!hasClearedQuest || !penaltyEnabled)
     {
-        penalty = 0x28;                                 // 未清任务：+40
-        const CCargo* cargo = user->getCurCharacCargoR();
-        if (cargo->GetItemCount() == 0)
-            penalty += 10;                              // 无货物再 +10
-    }
-    else
-    {
-        // ORIG：hasQuest=1 → 基线 40（汇编 add $0x28 无条件后再减）保持
-        penalty = 0;
+        // P0：ORIG 无 cargo 具名槽（getCurCharacCargoR 结果直落实参槽）
+        if (user->getCurCharacCargoR()->GetItemCount() == 0)
+            penalty += 0xa;                             // 无货物再 +10
     }
 
-    int hundredBase = 100;
-    penalty = std::min(hundredBase, penalty);           // min(penalty, 100)
-    penalty = 100 - penalty;                            // 100 - min
+    hundredBase = 100;
+    // [b28d-solo-Inter_LoadEtc_impl] ORIG 0x084c28ba：min 返回值经 %eax 直入减法
+    // （无回读槽）⇒ 单表达式 `100 - min(...)`。
+    penalty = 100 - std::min(hundredBase, penalty);     // 100 - min(penalty, 100)
     // [b23S3C] P48：ORIG getStdDropRate 双臂各重取（+0x16a 入 min、+0x18f 入比较，无 dropRate 槽）
     penalty = std::min(penalty, user->getStdDropRate());   // 再与当前掉率取小
 
@@ -955,6 +1020,9 @@ void Inter_LoadEtc::_checkUserDisadvantage(CUser* user)
 
 int Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 251/247：p167 CLEAR（35/35）；已修去
+    // job/skillR 缓存（内联实参）、skill=m_skillSlot(+0x46)、reason=eSkillSaveReason(1)；
+    // 残差为 lethe/out/guard 槽深（帧 0x40 vs 0x30）= N82附/N98。
     user->SetOneDayLetheFlag((unsigned char)sig->m_backupSkill[0x198]);  // +0x2b95（backupSkill 尾哨）
     CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
     if (lethe == 0)
@@ -1000,26 +1068,23 @@ int Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
         {
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(0));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
-            int job = user->get_charac_job();
-            // [b28d-63] ORIG 无 get_skillslot_buf 调用（p167 EXTRA ×2）：
-            // 直接以 getCurCharacSkillR() 指针 cast（ORIG call 序列仅 getCurCharacSkillR）。
-            _Mastered_skill* skillR = reinterpret_cast<_Mastered_skill*>(
-                const_cast<char*>(user->getCurCharacSkillR()));
-            user->m_historyLog.SkillSave(static_cast<const _Mastered_skill*>(skillR),
-                                        (unsigned)job, 0, eSkillSaveReason(0));
+            // [b28d-solo-Inter_LoadEtc_impl] ORIG 0x084d9797 段：无 job/skillR 具名局部
+            // （job 经 %ebx 保活）；skill 实参 = SkillSlot::m_skillSlot（`lea 0x46(%eax)`）；
+            // 第 4 参 ORIG 立即数 = 1（我方旧写 eSkillSaveReason(0)）。
+            user->m_historyLog.SkillSave(
+                reinterpret_cast<SkillSlot*>(const_cast<char*>(
+                    user->getCurCharacSkillR()))->m_skillSlot,
+                (unsigned)user->get_charac_job(), 0, eSkillSaveReason(1));
         }
         else if (user->isAffectedPremium(ENUM_PREMIUM_TYPE(0x21)) &&
                  (unsigned char)sig->m_oneDayLetheFlag == CPremiumLetheManager::SKILL_CONFIRM_STATE)
         {
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(0));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
-            int job = user->get_charac_job();
-            // [b28d-63] ORIG 无 get_skillslot_buf 调用（p167 EXTRA ×2）：
-            // 直接以 getCurCharacSkillR() 指针 cast（ORIG call 序列仅 getCurCharacSkillR）。
-            _Mastered_skill* skillR = reinterpret_cast<_Mastered_skill*>(
-                const_cast<char*>(user->getCurCharacSkillR()));
-            user->m_historyLog.SkillSave(static_cast<const _Mastered_skill*>(skillR),
-                                        (unsigned)job, 0, eSkillSaveReason(0));
+            user->m_historyLog.SkillSave(
+                reinterpret_cast<SkillSlot*>(const_cast<char*>(
+                    user->getCurCharacSkillR()))->m_skillSlot,
+                (unsigned)user->get_charac_job(), 0, eSkillSaveReason(1));
         }
     }
     return false;
@@ -1027,6 +1092,8 @@ int Inter_LoadEtc::ProcessOneDayLethe(SIG_LOAD_ETC* sig, CUser* user, int& err)
 
 int Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& err)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 251/247：同 1 号（p167 CLEAR 35/35；
+    // 去缓存 + m_skillSlot + reason=1 已落地；残差为帧/槽 N82附）。
     user->SetOneDayLetheFlag2ND((unsigned char)sig->m_backupSkill2ND[0x198]);  // +0x2d2f
     CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
     if (lethe == 0)
@@ -1072,26 +1139,21 @@ int Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& er
         {
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(1));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
-            int job = user->get_charac_job();
-            // [b28d-63] ORIG 无 get_skillslot_buf 调用（p167 EXTRA ×2）：
-            // 直接以 getCurCharacSkillR() 指针 cast（ORIG call 序列仅 getCurCharacSkillR）。
-            _Mastered_skill* skillR = reinterpret_cast<_Mastered_skill*>(
-                const_cast<char*>(user->getCurCharacSkillR()));
-            user->m_historyLog.SkillSave(static_cast<const _Mastered_skill*>(skillR),
-                                        (unsigned)job, 1, eSkillSaveReason(0));
+            // [b28d-solo-Inter_LoadEtc_impl] 同 1 号：内联实参 + m_skillSlot(+0x46) + reason=1。
+            user->m_historyLog.SkillSave(
+                reinterpret_cast<SkillSlot*>(const_cast<char*>(
+                    user->getCurCharacSkillR()))->m_skillSlot,
+                (unsigned)user->get_charac_job(), 1, eSkillSaveReason(1));
         }
         else if (user->isAffectedPremium(ENUM_PREMIUM_TYPE(0x21)) &&
                  (unsigned char)sig->m_oneDayLetheFlag2ND == CPremiumLetheManager::SKILL_CONFIRM_STATE)
         {
             lethe->BackupSkill(user, ENUM_SKILL_TREE_KIND(1));
             user->m_historyLog.SkillSPInfoSave(user, eSkillSPInfoSaveReason(0));
-            int job = user->get_charac_job();
-            // [b28d-63] ORIG 无 get_skillslot_buf 调用（p167 EXTRA ×2）：
-            // 直接以 getCurCharacSkillR() 指针 cast（ORIG call 序列仅 getCurCharacSkillR）。
-            _Mastered_skill* skillR = reinterpret_cast<_Mastered_skill*>(
-                const_cast<char*>(user->getCurCharacSkillR()));
-            user->m_historyLog.SkillSave(static_cast<const _Mastered_skill*>(skillR),
-                                        (unsigned)job, 1, eSkillSaveReason(0));
+            user->m_historyLog.SkillSave(
+                reinterpret_cast<SkillSlot*>(const_cast<char*>(
+                    user->getCurCharacSkillR()))->m_skillSlot,
+                (unsigned)user->get_charac_job(), 1, eSkillSaveReason(1));
         }
     }
     return false;
@@ -1099,11 +1161,17 @@ int Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& er
 
 void Inter_LoadEtc::processAttendAnceEvent(SIG_ATTENDANCE_EVENT* sig, CUser& user)
 {
-    if (sig->m_isEnabled != 1)                       // ORIG *param_1 == 1
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 199/201：p167 CLEAR（19/19）；已修
+    // m_isEnabled bool 化（SigTypes_C.h:405，P248 档②）+ 去 ev 局部负极性守卫；
+    // 残差为 attendance/mailItem 槽平移 4（N82附）与 vararg %esi/%ebx 互换（N7）。
+    // [b28d-solo-Inter_LoadEtc_impl] P248 档②：ORIG 0x084e8078 `movzbl; xor $1;
+    // test %al,%al; jne` ⇒ bool 字段 + 裸 `!field`。
+    if (!sig->m_isEnabled)
         return;
 
-    CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x60);
-    if (ev == 0 || !ev->IsEventing(0))
+    // [b28d-solo-Inter_LoadEtc_impl] ORIG 0x084e80c8：GetRepeatEvent 返回值寄存器直传
+    // 虚调用（P134/P183；无 ev 局部、无 null 检查），负极性 `xor $1; test; jne` 尾。
+    if (!GlobalData::s_event_manager->GetRepeatEvent(0x60)->IsEventing(0))
         return;
     AttendanceEvent* attendance = static_cast<AttendanceEvent*>(
         GlobalData::s_event_manager->GetRepeatEvent(0x60));
@@ -1143,6 +1211,9 @@ void Inter_LoadEtc::processAttendAnceEvent(SIG_ATTENDANCE_EVENT* sig, CUser& use
 
 int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 2483/2296（gap -187）：P167 CLEAR
+    // （436/436 调用点多重集全等）⇒ 语义完成；残差全为 N82 帧/槽复用策略
+    // （4.1 不复用栈槽、4.4 复用 ⇒ 全帧槽号错位），按 §6.2 三件套判语义完成。
     SIG_LOAD_ETC* sig = reinterpret_cast<SIG_LOAD_ETC*>(data);
 
     if (user->get_state() == 0)
@@ -2013,11 +2084,15 @@ int PvPSkillTreeParameterScript::getInitSkillTreeGrade(int grade) const
 void SetPvPSkillTree(CUser* user, const _Mastered_skill* skill,
                      ENUM_SKILL_TREE_KIND kind)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 198/200：p167 CLEAR（33/33）；已修
+    // 去 skillR/skillW 缓存（P0/P183 内联）+ giveIdx 预清（P198①）；残差为帧 0x6c vs 0x5c
+    // 与 usedSp/usedSfp 槽深 8 = N82附/N98。
     int usedSp = 0;     // calcUsedSP 出参1（ORIG -0x2c）
     int usedSfp = 0;    // calcUsedSP 出参2（ORIG -0x30，后续未读）
-    SkillSlot* skillR = reinterpret_cast<SkillSlot*>(
-        const_cast<char*>(user->getCurCharacSkillR()));
-    skillR->calcUsedSP(skill, usedSp, usedSfp);
+    // [b28d-solo-Inter_LoadEtc_impl] P0/P183：ORIG 无 skillR 缓存局部
+    // （每处 getCurCharacSkillR 返回值寄存器直传实参槽）。
+    reinterpret_cast<SkillSlot*>(const_cast<char*>(user->getCurCharacSkillR()))
+        ->calcUsedSP(skill, usedSp, usedSfp);
 
     // ORIG：grade/secondGrow/firstGrow/job 三个计算点各自重取（P48 去缓存）；
     // getCurCharacSkillR 亦两处调用（calcUsedSP 后 get_remain_sp_at_index 前重新 GetInBuffer）。
@@ -2027,11 +2102,11 @@ void SetPvPSkillTree(CUser* user, const _Mastered_skill* skill,
         (int)(char)user->getCurCharSecondGrowType(),
         user->get_pvp_grade(), false);
 
-    skillR = reinterpret_cast<SkillSlot*>(
-        const_cast<char*>(user->getCurCharacSkillR()));
-    int remainSp = skillR->get_remain_sp_at_index(kind);
+    int remainSp = reinterpret_cast<SkillSlot*>(
+        const_cast<char*>(user->getCurCharacSkillR()))
+        ->get_remain_sp_at_index(kind);
     int avail = pvpPoint - (usedSp + remainSp);      // ORIG -0x20
-    int giveIdx;                                     // ORIG -0x1c
+    int giveIdx = 0;                                 // ORIG -0x1c（预清 `movl $0x0`）
     if (kind == -1 || kind == 0)
     {
         giveIdx = 1;
@@ -2051,8 +2126,8 @@ void SetPvPSkillTree(CUser* user, const _Mastered_skill* skill,
             user->get_pvp_grade());
         if (givePoint != 0)
         {
-            SkillSlot* skillW = reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW());
-            skillW->set_remain_sp_at_index(remainSp + avail, kind);
+            reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW())
+                ->set_remain_sp_at_index(remainSp + avail, kind);
         }
         else
         {
@@ -2061,10 +2136,10 @@ void SetPvPSkillTree(CUser* user, const _Mastered_skill* skill,
     }
     else if (avail < 0)
     {
-        SkillSlot* skillW = reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW());
-        skillW->clear_all_skills(kind);
-        skillW = reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW());
-        skillW->set_parent(user);
+        reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW())
+            ->clear_all_skills(kind);
+        reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW())
+            ->set_parent(user);
         int givePoint = G_CDataManager()->m_pvpSkillTree.getGivePvPSkillPoint(
             user->get_charac_job(),
             (int)(char)user->getCurCharFirstGrowType(),
@@ -2076,8 +2151,8 @@ void SetPvPSkillTree(CUser* user, const _Mastered_skill* skill,
         }
         else
         {
-            skillW = reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW());
-            skillW->set_remain_sp_at_index(pvpPoint, kind);
+            reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW())
+                ->set_remain_sp_at_index(pvpPoint, kind);
         }
     }
     user->givePvPSkillTree(0, true, giveIdx);
@@ -2086,21 +2161,29 @@ void SetPvPSkillTree(CUser* user, const _Mastered_skill* skill,
 // ORIG T 0x08a5dc74 sz 0xed（_ZNK27PvPSkillTreeParameterScript20getGivePvPSkillPointEiiii，
 // 报告 docs/class_func_reports/PvPSkillTreeParameterScript/getGivePvPSkillPoint.md 全文已读）：
 // grade 被 m_field4c(+0x4c) 收敛上限；m_map18(+0x18 map<int, map<int,int>>) 按
-// job find；内层按 firstGrow*5+secondGrow find；命中返回 second，否则 0。
+// job find；内层按 job*5+firstGrow find；命中返回 second，否则 0。
 int PvPSkillTreeParameterScript::getGivePvPSkillPoint(int job, int firstGrow,
                                                       int secondGrow,
                                                       int grade) const
 {
-    int key = grade;
-    if (m_field4c < key)
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=AE 75/75：clamp 写回形参（P77 扩展）+
+    // 内层键 job*5+firstGrow（真语义 bug 修正）+ 具名 key2 复现槽序（P236 反向）。
+    // [b28d-solo-Inter_LoadEtc_impl] P77 扩展：ORIG 0x08a5dc74 clamp 直接写回形参
+    // （0x18(%ebp) 原地改写，无 key 局部）；内层键 = job*5 + firstGrow——三重证据：
+    // ①汇编 `mov 0xc(%ebp);shl2;add;add 0x10(%ebp)`；②Ghidra `param_2*5+param_3`；
+    // ③调用点符号 080fdf20=get_charac_job / 08110c94=getCurCharFirstGrowType /
+    // 0822f23c=getCurCharSecondGrowType / 0819ee4a=get_pvp_grade。旧
+    // firstGrow*5+secondGrow 为真语义 bug（secondGrow 在 ORIG 本函数内未被消费）。
+    (void)secondGrow;
+    if (m_field4c < grade)
     {
-        key = m_field4c;
+        grade = m_field4c;
     }
-    std::map<int, std::map<int, int> >::const_iterator it = m_map18.find(key);
+    std::map<int, std::map<int, int> >::const_iterator it = m_map18.find(grade);
     if (it != m_map18.end())
     {
-        std::map<int, int>::const_iterator it2 =
-            it->second.find(firstGrow * 5 + secondGrow);
+        int key2 = job * 5 + firstGrow;
+        std::map<int, int>::const_iterator it2 = it->second.find(key2);
         if (it2 != it->second.end())
         {
             return it2->second;
@@ -2120,6 +2203,8 @@ int PvPSkillTreeParameterScript::getGivePvPSkillPoint(int job, int firstGrow,
 // m_invenItem1 全字段（含 m_amp 强化选项、put_packet 原始物品体）。
 void Inter_NpcLimitBuyItemInfo::sendPacket(CUser* user)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=AE 133/133：去 inventory 局部
+    // （P0：getCurCharacInvenR 返回值寄存器直传 GetInvenRef）⇒ 帧 0x30→0x20 归位。
     PacketGuard guard;
     guard.put_header(1, 0x1d1);
     guard.put_byte(1);
@@ -2135,8 +2220,9 @@ void Inter_NpcLimitBuyItemInfo::sendPacket(CUser* user)
         guard.put_packet(m_invenItem1);
     }
     guard.put_int(m_invenItem2.m_addInfo);
-    const CInventory* inventory = user->getCurCharacInvenR();
-    const Inven_Item* ref = inventory->GetInvenRef(1, m_param2);
+    // [b28d-solo-Inter_LoadEtc_impl] P0：ORIG 0x084e6d70 无 inventory 局部
+    // （getCurCharacInvenR 返回值寄存器直传 GetInvenRef 实参）。
+    const Inven_Item* ref = user->getCurCharacInvenR()->GetInvenRef(1, m_param2);
     if (ref == 0)
     {
         guard.put_int(0);
@@ -2156,6 +2242,9 @@ void Inter_NpcLimitBuyItemInfo::sendPacket(CUser* user)
 void Inter_RequestCharacSkillInfo::_PutSkillInfoToCharac(
     char slotFlag, const _Mastered_skill* skill, SkillSlot* skillSlot)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 31/31：N107 成员常量偏移取址
+    // （ORIG `lea 0x46(%eax),%edx` vs 4.4 恒 `mov;add` 两段；数组名/&arr[0]/语句
+    // 表达式三形实测均同）——助记符序列全等，语义等价。
     // b28c-33：ORIG 0x084e7820 入口即 `movl $0x198,-0xc(%ebp)`（size 具名局部，
     // memcpy 第 3 参经该槽），直接写立即数少 1 条且全帧槽号平移 ⇒ 补具名 size。
     // [b28d-53 判词 N107+N4/P30] ORIG 的 dest 计算为单条 `lea 0x46(%eax),%edx`
@@ -2170,11 +2259,11 @@ void Inter_RequestCharacSkillInfo::_PutSkillInfoToCharac(
         // 单条 lea）；`&arr[0]` 形使 4.4 生 `mov+add` 两段。
         // [b28c-33 判词 NEAR-N4/P30] 数组名与 &arr[0] 两形实测均产 `mov;add`（探针
         // l33d f1/f2/f4/f5 同族），4.4 恒折 add 两段 ⇒ 31/31，仅 lea-vs-add+装载序差。
-        memcpy(({ skillSlot->m_skillSlot; }), skill, size);
+        memcpy(skillSlot->m_skillSlot, skill, size);
     }
     else if (slotFlag == 1)
     {
-        memcpy(({ skillSlot->m_skillSlot2; }), skill, size);
+        memcpy(skillSlot->m_skillSlot2, skill, size);
     }
 }
 
@@ -2186,6 +2275,8 @@ void Inter_VillageAttackedReward::_send_reward_item(CUser* user,
                                                     unsigned long itemIdx,
                                                     int count, int rank)
 {
+    // [b28d-solo-Inter_LoadEtc_impl] verdict=AE 151/151：content 声明提前于 title
+    // （ORIG 先清 -0x173 后清 -0x36 ⇒ 声明序=清零序，P214③）。
     (void)rank;
     Inven_Item item;
     item.m_addInfo = static_cast<int>(itemIdx);
@@ -2206,8 +2297,9 @@ void Inter_VillageAttackedReward::_send_reward_item(CUser* user,
         item.m_fieldb = 1;
     }
     // [b28d-63] ORIG 无 memset 调用（p167 EXTRA ×2）⇒ 聚合零初始化（P214③）。
-    char title[30] = {0};
     char content[256] = {0};
+    char title[30] = {0};   // [b28d-solo-Inter_LoadEtc_impl] ORIG 先清 content（-0x173）
+                            // 后清 title（-0x36）⇒ content 声明在前（声明序=清零序）。
     strncpy(title, g_scriptStringManager_.findString(4, "game_server_msg_124", 0),
             0x1d);
     strncpy(content, g_scriptStringManager_.findString(4, "game_server_msg_125", 0),

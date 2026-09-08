@@ -250,7 +250,10 @@ public:
     void get_skill_slot_at_index(char* out, int size,
                                  ENUM_SKILL_TREE_KIND kind) const;
     int makeCheckSum(int key) const;
-    int check_skill_mastered(int skillIdx, int level, int group) const;
+    // [b28d-solo-SkillSlot] 返回类型 int→bool：ORIG 调用点 check_skill_list
+    // 0x08604d2a `call; xor $0x1,%eax; test %al,%al; je`（P292/P248 档① bool callee
+    // 唯一形）；返回类型不入 mangling、sizeof/偏移零影响。
+    bool check_skill_mastered(int skillIdx, int level, int group) const;
     int check_skill_mastered(int skillIdx, int level, int group,
                              ENUM_SKILL_TREE_KIND kind) const;
     int check_skill_mastered(_Mastered_skill* buf, int skillIdx, int level,
@@ -294,8 +297,8 @@ public:
     int master_new_guild_skill(int skillIdx, int job, int type,
                                int secondGrow,
                                const STGuildDBInfoOnly& guildInfo,
-                               int availableGSP, int& needGold, int& learnCnt,
-                               short& needGSP, int guildLevel);
+                               int money, int& needGold, int& learnCnt,
+                               short& needGSP, int availableGSP);
     int refund_skill(int skillIdx, int level, int job, int firstGrow,
                      int secondGrow, int refundCount, int& result);
     int try_refund_skill(int skillIdx, int level, int job, int firstGrow,

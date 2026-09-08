@@ -54,20 +54,22 @@ bool ScanJobStr(std::string* jobName, std::string** out);  // _Z10ScanJobStrPSsP
 // g_questScriptBaseDirectory 定义见下（ORIG B 0x9500380，供 EpisodeScript 等
 // loadRDARScriptFile 首参，另一处 0x580 行已定义）；此处仅 town 目录定义。
 char g_townScriptBaseDirectory[0x100];    // ORIG B 0x9500da0
-extern std::map<int, std::string> g_townScriptFileList;  // 定义于 GameWorld.cpp（ORIG B 0x9500ea0）
-// g_questScriptFileList 权威定义见 InitScriptProducers_4.cpp（extern 声明 + loadRDARScriptListFile 填充）。
-        // ORIG B 0x9500480（initQuestScript 填充）
+// [b28d-solo-STQuestScript · P304] 权威型声明：ORIG 调用点 `movl $&g_..,(%esp)`
+// 为地址直压；声明成 std::map 后再 reinterpret_cast 会物化 %eax（P304）。
+// STScriptFileList 的 +0 即 std::map<int,std::string>（NpcScript.h，sizeof 0x18），
+// 定义处（GameWorld.cpp map / InitScriptProducers_4.cpp map）符号同名同址，ABI 不变。
+extern STScriptFileList g_townScriptFileList;  // 定义于 GameWorld.cpp（ORIG B 0x9500ea0）
+// g_questScriptFileList 权威定义见 InitScriptProducers_4.cpp（ORIG B 0x9500480）。
+extern STScriptFileList g_questScriptFileList;
 
 // ===================== QuestScript =====================
 
-// ORIG C1 0x08a70700：成员自动构造（memset 区清零见 ctor 尾段）。
-// [b28d-L8] N82/N78 | 大函数帧/槽平移 + memset lowering（N78 rep stos vs call，ORIG 0x0837xxxx）
+// [b28d-solo-STQuestScript · P69] ORIG C1 0x0836e4e2（487 条）：40+ 成员子对象隐式
+// 构造（含 EH cleanup 链）后**单一 `call QuestScript::clear()`**（836e738），ctor 体
+// 无任何 memset ⇒ 原码 `QuestScript::QuestScript() { clear(); }`。
 QuestScript::QuestScript()
 {
-    memset(m_jobNames, 0, sizeof(m_jobNames));
-    memset(m_jobRequests, 0, sizeof(m_jobRequests));
-    memset(m_jobConditions, 0, sizeof(m_jobConditions));
-    memset(m_jobSolves, 0, sizeof(m_jobSolves));
+    clear();
 }
 
 // [b28d-L8 · N84 处置②/P147] ORIG _ZN11QuestScriptC1ERKS_ 0x0837adc8 为 W
@@ -380,15 +382,16 @@ int TrainingQuestScript::getTrainingQuest(int dayIndex, int questCount, int job)
     return m_questProb[dayIndex - 1 + questCount].at(m_applyCount);
 }
 
-// [b28d-L8] N82 | 块序/调用序（vector C1 与 computeDayIndex 位置互换，ORIG 0x08a9xxx）
+// [b28d-solo-STQuestScript · P212] ORIG 先构造 tmp（-0x38）再 call computeDayIndex
+// ⇒ 头部声明序 tmp 在前（4.1/4.4 全头部声明同为先声明更深）；ORIG 0x08aaf8b6。
 bool TrainingQuestScript::getApplyLevel(std::multiset<int>* out)
 {
     if (m_selectProb.m_count <= 0 || m_selectProb.m_pairs.empty())
     {
         return false;
     }
-    int day = computeDayIndex();
     std::vector<int> tmp;
+    int day = computeDayIndex();
     for (int i = 0; i < m_selectProb.m_count; ++i)
     {
         int val = get_random_fake_value(i, day);
@@ -413,7 +416,9 @@ bool TrainingQuestScript::getApplyLevel(std::multiset<int>* out)
             {
                 out[level - 1].insert(*it);
             }
-            else if (*it + level >= 1)
+            // ORIG else 段 = `*it != -100 && *it + level >= 1` 短路链（cmp $-100;je
+            // 跳过 + jle 跳过 + mov$1/mov$0/test 物化，P214①）。
+            else if (*it != -100 && *it + level >= 1)
             {
                 out[level - 1].insert(*it);
             }
@@ -424,22 +429,22 @@ bool TrainingQuestScript::getApplyLevel(std::multiset<int>* out)
 
 // ===================== 脚本导入 =====================
 
-// 权威定义见 InitScriptProducers_4.cpp（g_questScriptFileList B 0x9500480）。
-extern std::map<int, std::string> g_questScriptFileList;
-
-// [b28d-L8] P75 | 同 initTownScript：ORIG memcpy 首参先占 (%esp)+strlen 后栈顶重读；四形探针不可造（ORIG 0x8aad9ec）
+// [b28d-solo-STQuestScript · P303] ORIG 追加分隔符段 = __builtin_strcat 内建展开
+// （movl $2,0x8; movl $str,0x4; movl $buf,(%esp); call strlen; add $buf,%eax;
+//  mov %eax,(%esp); mov (%esp),%eax; mov %eax,(%esp); call memcpy，ORIG 0x8a6166a 族）
 bool initQuestScript(const char* dir, const char* list)
 {
     strncpy(g_questScriptBaseDirectory, dir, 0x100);
-    // ORIG 0x8a6166a..0x8a616c1 / 0x8aad9ec 族形：内联补齐（strlen×3 + memcpy
-    // 2 字节 "\\"），无空串防御（ORIG len==0 时读 buf[-1] 为原始 UB 形态，
-    // P140 忠实保留）；P49 禁本 TU 外 helper——原 AppendDirSeparator 属发明
-    // 符号（ORIG nm 无），此处按汇编逐调用点内联恢复。
+    // ORIG 0x8a6166a..0x8a616c1 族形：内联补齐（strlen×3 + 追加 "\\"），无空串
+    // 防御（ORIG len==0 时读 buf[-1] 为原始 UB 形态，P140 忠实保留）；P49 禁
+    // 本 TU 外 helper——原 AppendDirSeparator 属发明符号（ORIG nm 无）。
+    // P303：追加段必须 __builtin_strcat 形（手写 memcpy(dst+strlen,..) 恒 DIFF）。
     if (g_questScriptBaseDirectory[strlen(g_questScriptBaseDirectory) - 1] != '\\' && g_questScriptBaseDirectory[strlen(g_questScriptBaseDirectory) - 1] != '/')
     {
-        memcpy(g_questScriptBaseDirectory + strlen(g_questScriptBaseDirectory), "\\", 2);
+        __builtin_strcat(g_questScriptBaseDirectory, "\\");
     }
-    if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_questScriptFileList),
+    // P304：权威型 &g_questScriptFileList 直压（ORIG movl $&g_..,(%esp)）。
+    if (!loadRDARScriptListFile(&g_questScriptFileList,
                                 g_questScriptBaseDirectory, list, 0))
     {
         return 0;
@@ -447,7 +452,15 @@ bool initQuestScript(const char* dir, const char* list)
     return 1;
 }
 
-// [b28d-L8] N82/N89 | 超大函数（3836 条）帧差 0x10 + 全帧槽平移；§6.2 三件套口径（ORIG 0x08a6xxx）
+// [b28d-solo-STQuestScript · §6.2 三件套] ORIG 0x08a61813（3883 条）vs 我方 3708
+// （gap 175 = 4.5%）；p167 调用点差集 517/517 CLEAR（0 missing / 0 extra，含
+// P303/P304/右值 push_back/字面量在左 operator==/remove 无 erase/循环内局部
+// string/P198① 预清 bool 全部落位）。残余 byte 层 N 封顶：
+// ① P223 定案：ORIG 函数头有 19 组 `jmp;nop` 中继岛（多源 continue 到物理连续
+//    尾标签，4.1 逐源发射），4.4 恒 jump-thread 合并 ⇒ 38 条不可造；
+// ② N96/N18a：`if (!__inited)` 静态守卫 ORIG `movzbl;test;je`（4.1 直判）vs
+//    4.4 `movzbl;xor $1;test;je`，26 处各 +1 条（P168a③b 判据，禁绑定）；
+// ③ 其余为逐块寻址/装载序形态差（`mov %eax,A(%esp)` 类）与 EH 段块序。
 int importQuestScript(QuestScript* script, const char* path)
 {
     // ORIG importQuestScript 的函数局部辅助类 QuestData（报告
@@ -558,19 +571,16 @@ int importQuestScript(QuestScript* script, const char* path)
             {
                 ScanStr(&script->m_conditionDefault);
             }
-            // ORIG 8a61a4e：title 任务（questType==7）时 m_name 取条件串并
-            // 剔除 '\''/'`' 后固定 0x1d 长度（remove+resize）。
+            // ORIG 8a61a4e：title 任务（questType==7）时 m_name 取条件串，
+            // **只调 std::remove 不调 erase**（ORIG 段 2×begin/2×end、零 erase
+            // 调用 ⇒ 原码丢弃 remove 返回值，P171 照抄），随后 resize 0x1d。
             if (script->m_questType == 7)
             {
                 script->m_name = script->m_conditionDefault;
-                script->m_name.erase(
-                    std::remove(script->m_name.begin(), script->m_name.end(),
-                                '\''),
-                    script->m_name.end());
-                script->m_name.erase(
-                    std::remove(script->m_name.begin(), script->m_name.end(),
-                                '`'),
-                    script->m_name.end());
+                std::remove(script->m_name.begin(), script->m_name.end(),
+                            '\'');
+                std::remove(script->m_name.begin(), script->m_name.end(),
+                            '`');
                 script->m_name.resize(0x1d);
             }
             continue;
@@ -590,11 +600,13 @@ int importQuestScript(QuestScript* script, const char* path)
         if (line == "[grade]")
         {
             ScanStr(&sub);
-            if (sub == "[normaly repeat]")
+            // p167：ORIG 这 5 处调 _ZSteq…PKT_RKSb…（字面量在左）⇒ 原码
+            // 写成 `"literal" == sub`（其余标签比较为 sub 在左，勿混用）。
+            if ("[normaly repeat]" == sub)
             {
                 script->m_questType = 4;
             }
-            else if (sub == "[common unique]")
+            else if ("[common unique]" == sub)
             {
                 script->m_questType = 5;
             }
@@ -610,7 +622,7 @@ int importQuestScript(QuestScript* script, const char* path)
             {
                 script->m_questType = 1;
             }
-            else if (sub == "[special]")
+            else if ("[special]" == sub)
             {
                 script->m_questType = 6;
             }
@@ -623,11 +635,11 @@ int importQuestScript(QuestScript* script, const char* path)
                 script->m_questType = 3;
                 script->m_fieldD8 = 0;
             }
-            else if (sub == "[special daily]")
+            else if ("[special daily]" == sub)
             {
                 script->m_questType = 3;
                 ScanStr(&sub);
-                if (sub == "[village attack revenge]")
+                if ("[village attack revenge]" == sub)
                 {
                     script->m_fieldD8 = 1;
                 }
@@ -689,35 +701,34 @@ int importQuestScript(QuestScript* script, const char* path)
                 {
                     return 0;
                 }
+                // p167：ORIG 8a61fc1/8a6203b 只为按值形参构造**一个**临时
+                // （C1ERKSs + D1Ev 各一次）⇒ 源码直接传原变量，勿再套具名 tmp
+                // （多一次拷贝+析构，EXTRA SsC1ERKSs/SsD1Ev 来源）。
                 {
-                    std::string tmp(strStart);
-                    if (!ConvertStringToTime(tmp, *(long*)&entry.m_startSec))
+                    if (!ConvertStringToTime(strStart, *(long*)&entry.m_startSec))
                     {
                         return 0;                    // +0x0c
                     }
                 }
                 {
-                    std::string tmp(strEnd);
-                    if (!ConvertStringToTime(tmp, *(long*)&entry.m_endSec))
+                    if (!ConvertStringToTime(strEnd, *(long*)&entry.m_endSec))
                     {
                         return 0;                    // +0x10
                     }
                 }
                 {
                     unsigned int wday = 0;
-                    std::string tmp(strWeekday);
-                    if (!ConvertWeekdayStringToInt(tmp, wday))
+                    if (!ConvertWeekdayStringToInt(strWeekday, wday))
                     {
                         return 0;
                     }
                     entry.m_wday = static_cast<int>(wday);   // +0x14
                 }
                 {
-                    std::string tmp(strStartTime);
                     unsigned char h = 0;
                     unsigned char m = 0;
                     unsigned char sec = 0;
-                    if (!ConvertHHMMSSStringToInt(tmp, h, m, sec))
+                    if (!ConvertHHMMSSStringToInt(strStartTime, h, m, sec))
                     {
                         return 0;
                     }
@@ -726,11 +737,10 @@ int importQuestScript(QuestScript* script, const char* path)
                     entry.m_startSec2 = sec;         // +0x1a
                 }
                 {
-                    std::string tmp(strEndTime);
                     unsigned char h = 0;
                     unsigned char m = 0;
                     unsigned char sec = 0;
-                    if (!ConvertHHMMSSStringToInt(tmp, h, m, sec))
+                    if (!ConvertHHMMSSStringToInt(strEndTime, h, m, sec))
                     {
                         return 0;
                     }
@@ -814,7 +824,9 @@ int importQuestScript(QuestScript* script, const char* path)
                 }
                 stQuestTargetCharacter_t t(
                     static_cast<ENUM_CHARACTERJOB>(job), v1, v2);
-                script->m_targetCharacters.push_back(t);
+                // p167：ORIG 8a62684 调 push_backEOS0_（右值重载）。
+                script->m_targetCharacters.push_back(
+                    static_cast<stQuestTargetCharacter_t&&>(t));
             }
             continue;
         }
@@ -998,8 +1010,13 @@ int importQuestScript(QuestScript* script, const char* path)
                     break;                           // 读完 → continue 主循环
                 }
                 int b = ScanInt((bool*)0);
-                std::pair<int, int> pair(a, b);
-                script->m_rewardSelectList.push_back(pair);
+                // p167：ORIG 8a62e77 调 pairC1IRiiEEOT_OT0_（右值实参）+
+                // 8a62e92 push_backEOS1_（右值重载）。
+                // c++filt 实测 `C1IRiiEEOT_OT0_` = pair<int&,int>(int&, int&&)
+                // ⇒ 第一实参左值、第二实参右值。
+                std::pair<int, int> pair(a, static_cast<int&&>(b));
+                script->m_rewardSelectList.push_back(
+                    static_cast<std::pair<int, int>&&>(pair));
             }
             continue;
         }
@@ -1639,17 +1656,23 @@ int importQuestScript(QuestScript* script, const char* path)
             for (;;)
             {
                 bool isType = false;
-                if (!ScanTypeOrStr(isType, sub, 1))
+                // ORIG 8a652de：循环体内局部 std::string（-0x398，每轮 C1Ev/D1Ev
+                // 各一次）+ 8a652ec 预清 bool（P198① 两句式）。
+                std::string sub;
+                bool ok = false;
+                ok = ScanTypeOrStr(isType, sub, 1);
+                if (!ok)
                 {
                     return 0;
                 }
                 if (isType)
                 {
-                    if (sub != "[/exception quest]")
+                    // p167：ORIG 8a65349 调 operator==（相等→正常结束，否则 return 0）。
+                    if (sub == "[/exception quest]")
                     {
-                        return 0;
+                        break;                       // 正常结束 → continue 主循环
                     }
-                    break;                           // 正常结束 → continue 主循环
+                    return 0;
                 }
                 std::map<const char*, int, less_TCHAR>::const_iterator it =
                     __lookup.find(sub.c_str());
@@ -1669,7 +1692,8 @@ int importQuestScript(QuestScript* script, const char* path)
         if (line == "[hide npc on clear]")
         {
             value = ScanInt(&ok);
-            script->m_vec2f0.push_back(value);
+            // p167：ORIG 8a65694 调 push_backEOi（右值重载）。
+            script->m_vec2f0.push_back(static_cast<int&&>(value));
             if (!ok)
             {
                 return 0;
@@ -1679,7 +1703,7 @@ int importQuestScript(QuestScript* script, const char* path)
         if (line == "[show npc on clear]")
         {
             value = ScanInt(&ok);
-            script->m_vec2fc.push_back(value);
+            script->m_vec2fc.push_back(static_cast<int&&>(value));
             if (!ok)
             {
                 return 0;
@@ -1749,19 +1773,21 @@ int importQuestScript(QuestScript* script, const char* path)
     }
     return 1;
 }
-// [b28d-L8] P75 | 实参装载/栈顶中转差（ORIG memcpy 首参先占 (%esp)、strlen 后 mov (%esp),%eax 重读）；四形探针不可造（ORIG 0x8a6166a）
+// [b28d-solo-STQuestScript · P303] 同 initQuestScript：追加分隔符段 =
+// __builtin_strcat 内建展开（ORIG 0x8aad9ec memcpy 段 8 条形）。
 bool initTownScript(char* dir, char* list)
 {
     strncpy(g_townScriptBaseDirectory, dir, 0x100);
-    // ORIG 0x8a6166a..0x8a616c1 / 0x8aad9ec 族形：内联补齐（strlen×3 + memcpy
-    // 2 字节 "\\"），无空串防御（ORIG len==0 时读 buf[-1] 为原始 UB 形态，
-    // P140 忠实保留）；P49 禁本 TU 外 helper——原 AppendDirSeparator 属发明
-    // 符号（ORIG nm 无），此处按汇编逐调用点内联恢复。
+    // ORIG 0x8aad9ec 族形：内联补齐（strlen×3 + 追加 "\\"），无空串防御
+    // （ORIG len==0 时读 buf[-1] 为原始 UB 形态，P140 忠实保留）；P49 禁本 TU
+    // 外 helper——原 AppendDirSeparator 属发明符号（ORIG nm 无）。
+    // P303：追加段必须 __builtin_strcat 形。
     if (g_townScriptBaseDirectory[strlen(g_townScriptBaseDirectory) - 1] != '\\' && g_townScriptBaseDirectory[strlen(g_townScriptBaseDirectory) - 1] != '/')
     {
-        memcpy(g_townScriptBaseDirectory + strlen(g_townScriptBaseDirectory), "\\", 2);
+        __builtin_strcat(g_townScriptBaseDirectory, "\\");
     }
-    if (!loadRDARScriptListFile(reinterpret_cast<STScriptFileList*>(&g_townScriptFileList),
+    // P304：权威型 &g_townScriptFileList 直压（ORIG movl $&g_..,(%esp)）。
+    if (!loadRDARScriptListFile(&g_townScriptFileList,
                                 g_townScriptBaseDirectory, list, 0))
     {
         return 0;
@@ -1769,7 +1795,13 @@ bool initTownScript(char* dir, char* list)
     return 1;
 }
 
-// [b28d-L8] N82 | 大函数槽平移 0x10 + 块序（ORIG 0x8aada90）
+// [b28d-solo-STQuestScript · §6.2 三件套] ORIG 0x08aadaa8（382 条）vs 我方 384
+// （gap −2）；p167 调用点差集 57/57 CLEAR（0/0，含 P304 权威型 &g_townScriptFileList
+// 直压、TownAreaScript 循环外构造 + 块内 clear、ScanInt(NULL)、bool 直存 setne、
+// if/else 正极性守卫、Main 代落 T_Rect 去用户析构）。残余 byte 层 N 封顶：
+// ① N104/EH 类：我方 TownAreaScript+两 string 的 cleanup 链相对正常路径的块序与
+//    ORIG 相反（内容逐条等价，仅尾块互换）；② P223 单源尾岛合并（`je` 落点）；
+// ③ 少量 `mov %eax,A(%esp)` vs `(%esp)` 寻址形态。
 bool importTownScript(TownScript* script, const char* path)
 {
     // ORIG T 0x8aada90（382 条）：ScanType 失败=文件读完并成功收尾；各标签
@@ -1787,6 +1819,9 @@ bool importTownScript(TownScript* script, const char* path)
     std::string sub;
     int value = 0;
     bool flag = false;
+    // ORIG 8aadb2b：TownAreaScript 在循环**外**构造（-0x54），[area] 段内只
+    // `call clear`（8aadc82）后复用同一对象。
+    TownAreaScript area;
     for (;;)
     {
         if (!ScanType(line, true))
@@ -1826,10 +1861,10 @@ bool importTownScript(TownScript* script, const char* path)
         }
         if (line == "[area]")
         {
-            TownAreaScript area;
             area.clear();
-            bool flag = false;
-            area.m_areaIndex = ScanInt(&flag);      // ORIG 8aadc87 无检查
+            // ORIG 8aadc87 `movl $0x0,(%esp)` ⇒ 传 NULL，无检查；flag 全程用外层
+            // -0x19 槽（块内再声明会另占槽，P212）。
+            area.m_areaIndex = ScanInt((bool*)0);
             ScanStr(&area.m_mapName);               // ORIG 8aadc9f 无检查
             ScanStr(&sub);                          // ORIG 8aadca4 ScanStr（非 ScanType）
             if (sub == "[minimap rect]")
@@ -1861,7 +1896,7 @@ bool importTownScript(TownScript* script, const char* path)
             if (sub == "[use private store]")
             {
                 value = ScanInt(&flag);             // ORIG 8aadd97
-                area.m_field24 = (value != 0) ? 1 : 0;  // ORIG 8aadda2 setne
+                area.m_field24 = (value != 0);      // ORIG 8aadda2 setne（bool 直存）
                 ScanStr(&sub);                      // ORIG 8aaddb0 ScanStr
             }
             // 区域类型：normal/gate/fishing place/pub/dungeon gate/
@@ -1896,73 +1931,91 @@ bool importTownScript(TownScript* script, const char* path)
         if (line == "[limit level]")
         {
             int level = ScanInt(&flag);
-            if (!flag)
+            // ORIG 8aadf18：`test; je <return false 块（在后）>` ⇒ if/else 正极性
+            // （早返形 4.4 恒把 return false 块前置，P59/P222）。
+            if (flag)
+            {
+                script->m_3c = level;
+            }
+            else
             {
                 return false;
             }
-            script->m_3c = level;
             continue;
         }
         if (line == "[need quest]")
         {
             int quest = ScanInt(&flag);
-            if (!flag)
+            if (flag)
+            {
+                script->m_40 = quest;
+            }
+            else
             {
                 return false;
             }
-            script->m_40 = quest;
             continue;
         }
         // 未知键：忽略（回到循环读下一行）
     }
     // ORIG 尾部：script->m_field0 = g_townScriptFileList.FindIndexByFullScan(path)
-    script->m_field0 = reinterpret_cast<STScriptFileList*>(&g_townScriptFileList)
-                           ->FindIndexByFullScan(path);
+    script->m_field0 = g_townScriptFileList.FindIndexByFullScan(path);
     return true;
 }
 
-// [b28d-L8] N82 | 调用序（clear/C1 位置）+ 槽平移（ORIG 0x08a9xxx）
+// [b28d-solo-STQuestScript · P0/P244/P171] ORIG 0x08aaf554（257 条）逐条还原：
+// ①具名指针副本 s（ORIG `mov 0x8(%ebp),%eax; mov %eax,-0x1c; mov -0x1c,%eax`
+//   槽往返 ⇒ 原码有具名指针局部，P0）；②pair 循环外默认构造 + 成员赋值；
+// ③各段尾 `sub` 与闭合标签比较（ORIG 中 sub 全函数无写入点 = 原码遗留恒假
+//   死条件，P171 照抄）；④ScanType 失败/[training quest end] 走统一 `return ok`。
+// [§6.2 三件套] 257 vs 254（gap 3）；p167 30/30 CLEAR。残余 N 封顶：
+// ① P223 定案②：ORIG 循环头前 `jmp;nop` 双中继岛（多源 continue），4.4 合并；
+// ② N18a：尾 `movzbl -0x25,%ebx`（4.1 单段）vs 4.4 `movzbl;movzbl %al,%ebx`；
+// ③ 段尾 sub 比较 `je` 落点/块序跨版本差（两极性形互试 257↔254 后取优）。
 int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
 {
-    // ORIG T 0x8aaf542（258 条）：键值段只由 ScanInt 消费数值，外层 ScanType
-    // 负责进入下一个标签；遇到 [training quest end] 才以成功返回。
     if (!loadRDARScriptFile("", path))
     {
         return 0;
     }
-    script->clear();
-
+    TrainingQuestScript* s = script;
+    s->clear();
     std::string line;
-    std::string sub;       // ORIG 局部字符串槽（闭合标签比较不改变数值消费）
     int prev = 0;
+    std::string sub;
     bool ok = false;
     for (;;)
     {
         if (!ScanType(line, true))
         {
-            return 0;
+            break;
         }
         if (line == "[select prob]")
         {
-            script->m_selectProb.m_count = ScanInt(&ok);
+            s->m_selectProb.m_count = ScanInt(&ok);
             if (!ok)
             {
-                return 0;
+                break;
             }
+            std::pair<int, int> p;
             for (;;)
             {
-                int a = ScanInt(&ok);
+                p.first = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int b = ScanInt(&ok);
+                p.second = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                std::pair<int, int> pair(a, b);
-                script->m_selectProb.m_pairs.push_back(pair);
+                s->m_selectProb.m_pairs.push_back(p);
+                // p167：ORIG 用 _ZSteq…（operator==）⇒ 原码正极性 ==；相等→退出循环。
+                if (sub == "[/select prob]")
+                {
+                    break;
+                }
             }
             continue;
         }
@@ -1971,15 +2024,19 @@ int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
             for (int day = 0; day <= 0x16d; ++day)
             {
                 int count = 0;
-                while (count < script->m_selectProb.m_count)
+                while (count < s->m_selectProb.m_count)
                 {
                     int v = ScanInt(&ok);
                     if (!ok)
                     {
                         break;
                     }
-                    script->m_selectProb.m_dayProb[day].push_back(v);
+                    s->m_selectProb.m_dayProb[day].push_back(v);
                     ++count;
+                }
+                if (sub == "[/rand value]")
+                {
+                    break;
                 }
             }
             continue;
@@ -1997,7 +2054,11 @@ int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
                     {
                         break;
                     }
-                    script->m_questProb[prev].push_back(value);
+                    s->m_questProb[prev].push_back(value);
+                    if (sub == "[/level]")
+                    {
+                        break;
+                    }
                 }
                 prev = level;
             }
@@ -2011,17 +2072,23 @@ int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
                     {
                         break;
                     }
-                    script->m_sameApplyQuest.push_back(value);
+                    s->m_sameApplyQuest.push_back(value);
+                    if (sub == "[/level]")
+                    {
+                        break;
+                    }
                 }
             }
             continue;
         }
         if (line == "[training quest end]")
         {
-            return 1;
+            ok = true;
+            break;
         }
         // 未知键：忽略（回循环读下一行）
     }
+    return ok;
 }
 
 // ORIG B 0x09500380：脚本根目录（EpisodeScript 等 loadRDARScriptFile 首参）。

@@ -127,77 +127,86 @@ static const char g_dbgCmdPrettyClearAvtInven[] =
     "bool DisPatcher_DebugCommand::_debugCommandClearAvtInven(CUser*, MSG_DEBUG_COMMAND&)";
 
 // GM trace 通用形态：NumberToString(accId) + 角色名 两个固定前置实参。
+// P227 全表达式临时链：ORIG 在 cMyTrace ctor 前右起求 varargs 并以 callee-saved
+// 保活（name→%esi、accStr→%ebx），具名 accStr 局部/trace 对象均致槽物化
+// （b28d-S129 逐件 diff 实证：Off/ClearSkill/SetGrowType/LevelUpDown/AddItem）。
 #define DBG_TRACE(pretty, line, fmt)                            \
     do {                                                        \
-        char* accStr = NumberToString(user->get_acc_id(), 0);   \
-        cMyTrace trace((pretty), (line), 0);                    \
-        trace((fmt), accStr, user->getCurCharacName());         \
+        cMyTrace((pretty), (line), 0)(                          \
+            (fmt), NumberToString(user->get_acc_id(), 0),       \
+            user->getCurCharacName());                          \
     } while (0)
 
 // ===========================================================================
 // 1. _debugCommandOff —— 0x0858e918
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE：isGm 局部内联为 P168a① bool 裸形
+// （ORIG `call isGMUser; xor $1; test %al; je`）+ DBG_TRACE 改 P227 全表达式临时链。
 bool DisPatcher_DebugCommand::_debugCommandOff(CUser* user,
                                                MSG_DEBUG_COMMAND& /*msg*/)
 {
-    bool isGm = user->isGMUser();               // +0x08 call isGMUser
-    if (isGm == 1)
-    {
-        DBG_TRACE(g_dbgCmdPrettyOff, 0x41, "%s:'%s' GM Mode OFF.");
-        user->SetGameMasterMode(false);         // +0x94 SetGameMasterMode(0)
-    }
-    return isGm == 1;
+    // P168a①：ORIG `call isGMUser; xor $1; test %al; je <成功块>` ⇒ bool callee 裸形。
+    if (!user->isGMUser())
+        return false;
+    DBG_TRACE(g_dbgCmdPrettyOff, 0x41, "%s:'%s' GM Mode OFF.");
+    user->SetGameMasterMode(false);             // +0x94 SetGameMasterMode(0)
+    return true;
 }
 
 // ===========================================================================
 // 2. _debugCommandOn —— 0x0858e724（无 GM 门禁，分级在 dispatch_sig）
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE：DBG_TRACE 全表达式链 + getCurCharacR
+// `!=0` 正向包裹（ORIG setne 形；负极性 ==0 反产 sete）。
 bool DisPatcher_DebugCommand::_debugCommandOn(CUser* user,
                                               MSG_DEBUG_COMMAND& /*msg*/)
 {
     DBG_TRACE(g_dbgCmdPrettyOn, 0x10, "%s:'%s' GM Mode ON.");   // +0x2b
     user->SetGameMasterMode(true);              // +0x7e SetGameMasterMode(1)
 
-    if (user->getCurCharacR() == 0)             // +0x83 getCurCharacR==0 → ret 0
-        return false;
-
-    PacketGuard packet;                         // -0x24 local_28
-    packet.put_header(0, 0xe);                  // +0xbc put_header(0,0xe)
-    packet.put_byte(0);                         // +0xcf put_byte(0)
-    packet.put_short(3);                        // +0xe2 put_short(3)
-    if (!user->getCurCharacInvenR()->MakeItemPacket(            // +0x10c slot 1
-            static_cast<INVEN_TYPE>(1), 1, packet))
-        return false;
-    if (!user->getCurCharacInvenR()->MakeItemPacket(            // +0x147 slot 0
-            static_cast<INVEN_TYPE>(1), 0, packet))
-        return false;
-    if (!user->getCurCharacInvenR()->MakeItemPacket(            // +0x17f slot 2
-            static_cast<INVEN_TYPE>(1), 2, packet))
-        return false;
-    packet.finalize(true);                      // +0x1a0 finalize(true)
-    user->Send(packet);                         // +0x1b2 Send
-    return true;                                // +0x1b7 ret 1
+    // ORIG `test %eax,%eax; setne %al; test %al,%al; je <尾 mov $0>` ⇒ 非零才进主流程
+    // （正向包裹，P222/P214①；负极性 `==0 return false` 反产 sete 形）。
+    if (user->getCurCharacR() != 0)             // +0x83 getCurCharacR!=0
+    {
+        PacketGuard packet;                     // -0x24 local_28
+        packet.put_header(0, 0xe);              // +0xbc put_header(0,0xe)
+        packet.put_byte(0);                     // +0xcf put_byte(0)
+        packet.put_short(3);                    // +0xe2 put_short(3)
+        if (!user->getCurCharacInvenR()->MakeItemPacket(        // +0x10c slot 1
+                static_cast<INVEN_TYPE>(1), 1, packet))
+            return false;
+        if (!user->getCurCharacInvenR()->MakeItemPacket(        // +0x147 slot 0
+                static_cast<INVEN_TYPE>(1), 0, packet))
+            return false;
+        if (!user->getCurCharacInvenR()->MakeItemPacket(        // +0x17f slot 2
+                static_cast<INVEN_TYPE>(1), 2, packet))
+            return false;
+        packet.finalize(true);                  // +0x1a0 finalize(true)
+        user->Send(packet);                     // +0x1b2 Send
+        return true;                            // +0x1b7 ret 1
+    }
+    return false;
 }
 
 // ===========================================================================
 // 3. _debugCommandClearSkill —— 0x0858e9c4
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] N93附封顶（尾双 return 块物理序互换）：
+// ORIG `je <mov$0+jmp>` 在前、`mov$1` 在后；4.4 恒 mov$1 在前、mov$0 fall-through。
+// 显式 else/逆置条件/三目 4 形已由 N93附 探针判死；P167 callsite CLEAR 10/10。
 bool DisPatcher_DebugCommand::_debugCommandClearSkill(CUser* user,
                                                       MSG_DEBUG_COMMAND& /*msg*/)
 {
-    bool isGm = user->isGMUser();               // +0x08
-    if (isGm == 1)
-    {
-        DBG_TRACE(g_dbgCmdPrettyClearSkill, 0x8a, "%s:'%s' GM Mode Clear Skill.");
-        if (user->ClearSkills())                // +0x92 ClearSkills；==0 → ret 0
-        {
-            user->send_skill_info();            // +0xa1
-            if (user->get_state() == 5)         // +0xb1 state==5
-                user->SendNotiPacket(static_cast<CUser::eSendTarget>(2),
-                                     static_cast<ENUM_NOTIPACKET>(2), 1);
-            return true;                        // +0xe7 ret 1
-        }
+    if (!user->isGMUser())                      // +0x08（P168a① 裸形）
         return false;
+    DBG_TRACE(g_dbgCmdPrettyClearSkill, 0x8a, "%s:'%s' GM Mode Clear Skill.");
+    if (user->ClearSkills())                    // +0x92 ClearSkills；==0 → ret 0
+    {
+        user->send_skill_info();                // +0xa1
+        if (user->get_state() == 5)             // +0xb1 state==5
+            user->SendNotiPacket(static_cast<CUser::eSendTarget>(2),
+                                 static_cast<ENUM_NOTIPACKET>(2), 1);
+        return true;                            // +0xe7 ret 1
     }
     return false;
 }
@@ -205,66 +214,72 @@ bool DisPatcher_DebugCommand::_debugCommandClearSkill(CUser* user,
 // ===========================================================================
 // 4. _debugCommandSetSkill —— 0x0858eab8
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] N93附封顶：SetSkillLevel bool 化
+// （P248 档①，Main 代落 CUser.h）后唯一残差=尾块序互换（同 ClearSkill）；
+// P167 callsite CLEAR 10/10。
 bool DisPatcher_DebugCommand::_debugCommandSetSkill(CUser* user, int skillIdx,
                                                     int level)
 {
-    bool isGm = user->isGMUser();               // +0x08
-    if (isGm != 1)
+    if (!user->isGMUser())                      // +0x08
         return false;
-    if (user->SetSkillLevel(skillIdx, level) == 0)   // +0x38；ORIG test al
-        return false;
-
-    char* accStr = NumberToString(user->get_acc_id(), 0);
-    cMyTrace trace(g_dbgCmdPrettySetSkill, 0xa2, 0);
-    trace("%s:'%s' GM Mode Set Skill(%d) Level(%d).",
-          accStr, user->getCurCharacName(), skillIdx, level);
-    user->send_skill_info();                    // +0xbb
-    if (user->get_state() == 5)                 // +0xd1
-        user->SendNotiPacket(static_cast<CUser::eSendTarget>(2),
-                             static_cast<ENUM_NOTIPACKET>(2), 1);
-    return true;
+    // ORIG `call SetSkillLevel; test %al,%al; je <尾 mov $0>` ⇒ 正向包裹 + callee bool
+    // （P248 档①：int callee 的一切调用点写法恒产 sete 四段）。
+    if (user->SetSkillLevel(skillIdx, level))   // +0x38
+    {
+        cMyTrace(g_dbgCmdPrettySetSkill, 0xa2, 0)(
+            "%s:'%s' GM Mode Set Skill(%d) Level(%d).",
+            NumberToString(user->get_acc_id(), 0), user->getCurCharacName(),
+            skillIdx, level);
+        user->send_skill_info();                // +0xbb
+        if (user->get_state() == 5)             // +0xd1
+            user->SendNotiPacket(static_cast<CUser::eSendTarget>(2),
+                                 static_cast<ENUM_NOTIPACKET>(2), 1);
+        return true;
+    }
+    return false;
 }
 
 // ===========================================================================
 // 5. _debugCommandMasterNewSkill —— 0x0858ebcc
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE：isGm 内联（P168a①）+ P227 临时链。
 bool DisPatcher_DebugCommand::_debugCommandMasterNewSkill(CUser* user,
                                                           int skillIdx,
                                                           int level)
 {
-    bool isGm = user->isGMUser();               // +0x08
-    if (isGm == 1)
-    {
-        stBuySkillInfo info;                    // -0x1b 栈帧 3 字节
-        info.m_field0 = 0;                      // +0x34 movb $0
-        info.m_skillIdx = (char)skillIdx;       // +0x28 mov al
-        info.m_count = (char)level;             // +0x31 mov al
-        user->master_new_skill(info, false);    // +0x49 master_new_skill(info,0)
-        char* accStr = NumberToString(user->get_acc_id(), 0);
-        cMyTrace trace(g_dbgCmdPrettyMasterNewSkill, 0xbd, 0);
-        trace("%s:'%s' GM Mode Set Skill(%d) Level(%d).",
-              accStr, user->getCurCharacName(), skillIdx, level);
-    }
-    return isGm == 1;
+    if (!user->isGMUser())                      // +0x08
+        return false;
+    stBuySkillInfo info;                        // -0x1b 栈帧 3 字节
+    info.m_field0 = 0;                          // +0x34 movb $0
+    info.m_skillIdx = (char)skillIdx;           // +0x28 mov al
+    info.m_count = (char)level;                 // +0x31 mov al
+    user->master_new_skill(info, false);        // +0x49 master_new_skill(info,0)
+    cMyTrace(g_dbgCmdPrettyMasterNewSkill, 0xbd, 0)(
+        "%s:'%s' GM Mode Set Skill(%d) Level(%d).",
+        NumberToString(user->get_acc_id(), 0), user->getCurCharacName(),
+        skillIdx, level);
+    return true;
 }
 
 // ===========================================================================
-// 6. _debugCommandAddItem —— 0x0858ec9c
+// 6. _debugCommandAddItem —— 0x0858ec92
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] N7+N93附封顶：IsAvatarItem 间接 call
+// 目标 4.4.7 恒 %eax（ORIG %edx，P230 补限 4.4.6 后端）；尾块序互换；
+// getCurSec 双调内联实参 + `&&` 拆嵌套 if（P225 推广）；P167 CLEAR 16/16。
 bool DisPatcher_DebugCommand::_debugCommandAddItem(CUser* user,
                                                    unsigned long itemIdxOnlyServer,
                                                    int count)
 {
-    bool isGm = user->isGMUser();               // +0x08
-    if (isGm != 1)
+    if (!user->isGMUser())                      // +0x08
         return false;
 
     if ((int)itemIdxOnlyServer == -1)           // +0x24 cmpl $-1 → PC 房一天高级会员
     {
-        long secA = GlobalData::s_systemTime_.getCurSec();   // +0x36 getCurSec
-        long secB = GlobalData::s_systemTime_.getCurSec();   // +0x43 再调一次（ORIG 如此）
+        // P227 内联实参：ORIG 两次 getCurSec 结果直入 %ebx/%eax，无具名局部。
         WongWork::CHandlePremium::handleSetUserPCRoom(
-            user, secB, secA + 0x15180);                     // end=当前秒+86400
+            user, GlobalData::s_systemTime_.getCurSec(),     // +0x43 再调一次（ORIG 如此）
+            GlobalData::s_systemTime_.getCurSec() + 0x15180);  // end=当前秒+86400
     }
     if (count < 1)                              // +0x5b count<1 → 100
         count = 100;
@@ -272,13 +287,17 @@ bool DisPatcher_DebugCommand::_debugCommandAddItem(CUser* user,
     CItem* item = G_CDataManager()->find_item((int)itemIdxOnlyServer);  // +0x77
     if (item != 0)                              // +0x7f
     {
-        if (item->is_stackable() &&                              // +0x85 is_stackable
-            static_cast<const CStackableItem*>(item)
-                    ->getStackableLimit() < count)
+        // P225 推广：ORIG 两条件各自 setcc 物化（is_stackable 直判 + setl），
+        // `&&` 恒折直跳 ⇒ 拆嵌套 if。
+        if (item->is_stackable())                                // +0x85 is_stackable
         {
-            // +0xaf 取上限
-            count = static_cast<const CStackableItem*>(item)
-                        ->getStackableLimit();
+            if (static_cast<const CStackableItem*>(item)
+                    ->getStackableLimit() < count)
+            {
+                // +0xaf 取上限
+                count = static_cast<const CStackableItem*>(item)
+                            ->getStackableLimit();
+            }
         }
         if (item->IsAvatarItem())               // +0xbf vtbl+0x10 虚槽；avatar 类禁加
             return false;
@@ -290,9 +309,8 @@ bool DisPatcher_DebugCommand::_debugCommandAddItem(CUser* user,
     if (slot < 0)                               // +0x10a js
         return false;
 
-    char* accStr = NumberToString(user->get_acc_id(), 0);
-    cMyTrace trace(g_dbgCmdPrettyAddItem, 0xf4, 0);
-    trace("%s:'%s' GM Mode Add Item(%d).", accStr, user->getCurCharacName(), slot);
+    cMyTrace(g_dbgCmdPrettyAddItem, 0xf4, 0)("%s:'%s' GM Mode Add Item(%d).",
+        NumberToString(user->get_acc_id(), 0), user->getCurCharacName(), slot);
     user->SendUpdateItemList(static_cast<CUser::eSendTarget>(1),
                              outSpace, slot);   // +0x19f SendUpdateItemList(1,space,slot)
     return true;
@@ -301,11 +319,12 @@ bool DisPatcher_DebugCommand::_debugCommandAddItem(CUser* user,
 // ===========================================================================
 // 7. _debugCommandSetGrowType —— 0x0858ee54
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE：isGm 内联 + ChangeGrowType_GM bool 化
+// （Main 代落）+ get_state 判定改 switch（P251，if/else-if 链产 sete 反形）。
 bool DisPatcher_DebugCommand::_debugCommandSetGrowType(CUser* user, int kind,
                                                        int value)
 {
-    bool isGm = user->isGMUser();
-    if (isGm != 1)
+    if (!user->isGMUser())
         return false;
     DBG_TRACE(g_dbgCmdPrettySetGrowType, 0x133, "%s:'%s' GM Mode Grow Type.");
 
@@ -327,25 +346,39 @@ bool DisPatcher_DebugCommand::_debugCommandSetGrowType(CUser* user, int kind,
         return false;                           // +0xe5 其余 kind 直接 ret 0
     }
 
-    if (user->ChangeGrowType_GM(firstGrow, secondGrow) == 0)  // +0xef test al
-        return false;
-
-    if (user->get_state() == 3)                 // +0x117
-        user->SendNotiPacket(static_cast<CUser::eSendTarget>(0),
-                             static_cast<ENUM_NOTIPACKET>(2), 0);
-    else if (user->get_state() == 5)            // +0x11f
-        user->SendNotiPacket(static_cast<CUser::eSendTarget>(2),
-                             static_cast<ENUM_NOTIPACKET>(2), 1);
-    user->send_skill_info();                    // +0x171
-    return true;
+    // ORIG `call ChangeGrowType_GM; test %al,%al; je <尾 mov $0>` ⇒ 正向包裹 + callee bool。
+    if (user->ChangeGrowType_GM(firstGrow, secondGrow))  // +0xef
+    {
+        // ORIG `call get_state; cmp $3; je; cmp $5; je; jmp` 无槽直比链 ⇒ switch
+        // （P251；if/else-if 链在 4.4 产 sete 物化）。
+        switch (user->get_state())              // +0x117
+        {
+        case 3:
+            user->SendNotiPacket(static_cast<CUser::eSendTarget>(0),
+                                 static_cast<ENUM_NOTIPACKET>(2), 0);
+            break;
+        case 5:                                 // +0x11f
+            user->SendNotiPacket(static_cast<CUser::eSendTarget>(2),
+                                 static_cast<ENUM_NOTIPACKET>(2), 1);
+            break;
+        default:
+            break;
+        }
+        user->send_skill_info();                // +0x171
+        return true;
+    }
+    return false;
 }
 
 // ===========================================================================
 // 8. _debugCommandLevelUpDown —— 0x0858f3ba
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] NEAR(N7/N82附)：SetCharacLevel bool 化
+// （Main）+ get_state 改 switch + std::min 结果内联实参后，残差=槽号平移与
+// callee-saved 角色差；P167 callsite CLEAR 29/29。
 bool DisPatcher_DebugCommand::_debugCommandLevelUpDown(CUser* user, int delta)
 {
-    if (user->isGMUser() != 1)
+    if (!user->isGMUser())
         return false;
     DBG_TRACE(g_dbgCmdPrettyLevelUpDown, 0x1ce, "%s:'%s' GM Mode Level Up.");
 
@@ -355,14 +388,15 @@ bool DisPatcher_DebugCommand::_debugCommandLevelUpDown(CUser* user, int delta)
     bool changed = true;                        // -0x9 local_d
     int candA = user->get_charac_level() + delta;   // +0xb1 lv+delta
     int candB = 200;                            // +0xbe $200
-    // ORIG min<int>(&lv+delta, &$200) 取较小者 → SetCharacLevel
-    int newLevel = std::min(candB, candA);
-    if (user->SetCharacLevel(newLevel) != 1)   // +0xdc xor $1/test al 判成功
+    // ORIG min<int>(&lv+delta, &$200) 结果直压实参（无具名 newLevel 槽）。
+    if (user->SetCharacLevel(std::min(candB, candA)) != 1)  // +0xdc xor $1/test al 判成功
         changed = false;
     if (changed)
     {
-        int state = user->get_state();
-        if (state == 3)                         // +0x101 村庄态
+        // ORIG `call get_state; cmp $3; je; cmp $5; je; jmp` 无槽直比链 ⇒ switch（P251）。
+        switch (user->get_state())
+        {
+        case 3:                                 // +0x101 村庄态
         {
             user->SendNotiPacket(static_cast<CUser::eSendTarget>(1),
                                  static_cast<ENUM_NOTIPACKET>(0x25), 0);
@@ -374,8 +408,9 @@ bool DisPatcher_DebugCommand::_debugCommandLevelUpDown(CUser* user, int delta)
             user->getCurCharacQuestR()->get_quest_info(
                 reinterpret_cast<char*>(&questPacket));
             user->Send(questPacket);
+            break;
         }
-        else if (state == 5)                    // +0x109 战场态
+        case 5:                                 // +0x109 战场态
         {
             user->SendNotiPacket(static_cast<CUser::eSendTarget>(1),
                                  static_cast<ENUM_NOTIPACKET>(0x25), 0);
@@ -385,6 +420,10 @@ bool DisPatcher_DebugCommand::_debugCommandLevelUpDown(CUser* user, int delta)
             user->getCurCharacQuestR()->get_quest_info(
                 reinterpret_cast<char*>(&questPacket));
             user->Send(questPacket);
+            break;
+        }
+        default:
+            break;
         }
     }
     return changed ? 1 : 0;                     // +0x286 movzbl local_d
@@ -393,38 +432,58 @@ bool DisPatcher_DebugCommand::_debugCommandLevelUpDown(CUser* user, int delta)
 // ===========================================================================
 // 9. _debugCommandGuildLevelUp —— 0x0858f64c
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] NEAR(N7)：链式 receiver 双处 +
+// proxyInfo.m_agitFlag=0 补写（ORIG movb $0,-0x2d）+ GuildDbInfoView 具名偏移
+// （消 add→disp）；残差=getCurCharacNo/GetUID 的 callee-saved 角色互换
+// （ORIG esi/ebx，4.4 ebx/esi）；P167 callsite CLEAR 15/15。
 bool DisPatcher_DebugCommand::_debugCommandGuildLevelUp(CUser* user)
 {
-    bool isGm = user->isGMUser();
-    if (isGm != 1)
+    if (!user->isGMUser())
         return false;
 
     if (user->get_charac_guildkey() == 0)       // +0x25 guildkey==0
     {
-        cMyTrace trace(g_dbgCmdPrettyGuildLevelUp, 0x20a, 0);
-        trace("GM is not Guild Member!( %d )", user->getCurCharacNo());
+        // P227：ORIG 先求 getCurCharacNo（%ebx）再 ctor ⇒ 全表达式临时链。
+        cMyTrace(g_dbgCmdPrettyGuildLevelUp, 0x20a, 0)(
+            "GM is not Guild Member!( %d )", user->getCurCharacNo());
         return false;
     }
 
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(
-            static_cast<ENUM_SERVER_GROUP>(0));                 // +0xc1 GetServerProxy(...,0)
-    proxy->SendGuildLevelup((int)user->GetUID(),
-                            (unsigned int)user->getCurCharacNo(),
-                            (unsigned int)user->get_charac_guildkey(), 0);  // +0xdd
+    // P52 链式 receiver：ORIG 实参先物化（%edi/%esi/%ebx）后 GetServerProxy，
+    // 具名 proxy 局部反致落槽 + 实参寄存器角色漂移。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(
+        static_cast<ENUM_SERVER_GROUP>(0))                      // +0xc1 GetServerProxy(...,0)
+        ->SendGuildLevelup((int)user->GetUID(),
+                           (unsigned int)user->getCurCharacNo(),
+                           (unsigned int)user->get_charac_guildkey(), 0);  // +0xdd
 
     char* dbInfo = reinterpret_cast<char*>(user->GetGuildDBInfo());  // +0xe2（raw DB blob，
                                                                      // 沿用仓库裸读先例）
+    // §4.3 具名视图（本 TU 私有，零新符号）：ORIG 用 disp 形
+    // `movzbl 0x95(%eax),%eax`/`movzbl 0x1b(%eax),%eax`，裸 char* 下标在 4.4
+    // 产 add+解引用（N107 族）⇒ 视图成员访问折叠回 disp。
+    struct GuildDbInfoView
+    {
+        char m_pad00[0x1b];             // +0x00..0x1a
+        unsigned char m_level;          // +0x1b
+        char m_pad1c[0x95 - 0x1c];      // +0x1c..0x94
+        unsigned char m_powerSide;      // +0x95
+    };
     STGuildProxy proxyInfo(dbInfo,                              // ctor(name,lev,powerSide)
-                           (unsigned char)(dbInfo[0x1b] + 1),   // 等级 +1
-                           (unsigned char)dbInfo[0x95]);
-    proxy = GlobalData::s_guild_proxy_mgr->GetServerProxy(
-        static_cast<ENUM_SERVER_GROUP>(0));                     // +0x128 再取一次
-    proxy->ModifyGuildInfoProxy((unsigned int)user->get_charac_guildkey(),
-                                proxyInfo);                     // +0x158 ModifyGuildInfoProxy
+                           (unsigned char)(((GuildDbInfoView*)dbInfo)->m_level + 1),  // 等级 +1
+                           (unsigned char)((GuildDbInfoView*)dbInfo)->m_powerSide);
+    proxyInfo.m_agitFlag = 0;   // ORIG 0x0858f78c `movb $0x0,-0x2d(%ebp)`（+0x19）
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(
+        static_cast<ENUM_SERVER_GROUP>(0))                      // +0x128 再取一次
+        ->ModifyGuildInfoProxy((unsigned int)user->get_charac_guildkey(),
+                               proxyInfo);                      // +0x158 ModifyGuildInfoProxy
     return true;
 }
 
+// [b28d-solo-DisPatcher_DebugCommand_cmds] N7+N93附封顶：IsAvatarItem 间接 call
+// 目标 4.4.7 恒 %eax（ORIG %edx）；slot==-1 失败出口块序互换。已修：`!(a&&b)`
+// 改正条件包裹、usablePeriod 内联（P227）、slot 预清、G_CEnvironment 具名字段。
+// P167 callsite CLEAR 18/18。
 bool DisPatcher_DebugCommand::_debugCommandAddAvatar(CUser* user,
                                                      MSG_DEBUG_COMMAND& msg)
 {
@@ -438,59 +497,60 @@ bool DisPatcher_DebugCommand::_debugCommandAddAvatar(CUser* user,
     struct tm* p = localtime_r(&now, &broken);                  // +0x55 localtime_r
     // env+0x1b0 = Server_Envir(+0x198).m_channelNo(+0x18)
     OS_API::snprintf(dateKey, 0x14, "D%02d%02d%02d%02d%010d",
-                     *(reinterpret_cast<const int*>(
-                         reinterpret_cast<const char*>(G_CEnvironment()) + 0x1b0)),
+                     G_CEnvironment()->m_serverEnvir.m_channelNo,  // +0x1b0（具名字段）
                      (p->tm_year + 0x76c) % 2000,               // +0xa3 (yr+1900)%2000
                      p->tm_mon + 1,
                      p->tm_mday,
                      (unsigned int)user->getCurCharacNo());     // %010d
 
     CItem* item = G_CDataManager()->find_item((int)msg.m_arg);  // +0x106 find_item(msg[0xe])
-    if (!(item != 0 && item->IsAvatarItem()))                   // +0x114 vtbl+0x10 虚槽
-        return false;
-
-    int usablePeriod = item->getUsablePeriod();                 // +0x145 thunk
-    cMyTrace trace(g_dbgCmdPrettyAddAvatar, 0x231, 0);
-    trace("[DEBUG_COMMAND_ADD_AVATAR] Param.Sub.AddAvatar.period : %d, "
-          "item->getUsablePeriod() : %d",
-          (unsigned int)(unsigned char)msg.payload.avatar.periodKind,
-          usablePeriod);
-
-    int slot;
-    if (msg.payload.avatar.periodKind == 0)                     // +0x1a3 分支一
+    // ORIG `mov $1; jmp; mov $0; test; je <ret0>` ⇒ 正条件包裹（P214①）。
+    if (item != 0 && item->IsAvatarItem())                      // +0x114 vtbl+0x10 虚槽
     {
-        slot = user->getCurCharacInvenW()->AddAvatarItem(       // +0x221
-            (int)msg.m_arg,
-            item->getUsablePeriod(),                            // 分支一重新调用
-            /*b*/ false,
-            /*c*/ (char)msg.payload.avatar.slotByte,            // sbyte 槽位口径
-            /*d*/ (char)-1,
-            /*agency*/ dateKey,
-            static_cast<eAvatarItemAddReason>(9),
-            /*e*/ false,
-            /*f*/ msg.payload.avatar.count);                    // u16 数量
-    }
-    else                                                        // +0x22e 分支二
-    {
-        if (msg.payload.avatar.periodKind == 0x63)              // 哨兵 99 → 0
-            msg.payload.avatar.periodKind = 0;
-        slot = user->getCurCharacInvenW()->AddAvatarItem(       // +0x2b5
-            (int)msg.m_arg,
-            (int)msg.payload.avatar.periodKind,
-            /*b*/ false,
-            /*c*/ (char)msg.payload.avatar.slotByte,
-            /*d*/ (char)-1,
-            /*agency*/ dateKey,
-            static_cast<eAvatarItemAddReason>(9),
-            /*e*/ false,
-            /*f*/ msg.payload.avatar.count);                    // u16 数量
-    }
+        int slot = 0;                                           // ORIG +0x13a movl $0,-0x1c
+        // P227：ORIG 先求 usablePeriod(%ebx)/periodKind(%esi) 再 ctor。
+        cMyTrace(g_dbgCmdPrettyAddAvatar, 0x231, 0)(
+            "[DEBUG_COMMAND_ADD_AVATAR] Param.Sub.AddAvatar.period : %d, "
+            "item->getUsablePeriod() : %d",
+            (unsigned int)(unsigned char)msg.payload.avatar.periodKind,
+            item->getUsablePeriod());                           // +0x145 thunk
 
-    if (slot == -1)                                             // +0x2bd
-        return false;
-    user->SendUpdateItemList(static_cast<CUser::eSendTarget>(1),
-                             static_cast<ENUM_ITEMSPACE>(1), slot);
-    return true;
+        if (msg.payload.avatar.periodKind == 0)                 // +0x1a3 分支一
+        {
+            slot = user->getCurCharacInvenW()->AddAvatarItem(   // +0x221
+                (int)msg.m_arg,
+                item->getUsablePeriod(),                        // 分支一重新调用
+                /*b*/ false,
+                /*c*/ (char)msg.payload.avatar.slotByte,        // sbyte 槽位口径
+                /*d*/ (char)-1,
+                /*agency*/ dateKey,
+                static_cast<eAvatarItemAddReason>(9),
+                /*e*/ false,
+                /*f*/ msg.payload.avatar.count);                // u16 数量
+        }
+        else                                                    // +0x22e 分支二
+        {
+            if (msg.payload.avatar.periodKind == 0x63)          // 哨兵 99 → 0
+                msg.payload.avatar.periodKind = 0;
+            slot = user->getCurCharacInvenW()->AddAvatarItem(   // +0x2b5
+                (int)msg.m_arg,
+                (int)msg.payload.avatar.periodKind,
+                /*b*/ false,
+                /*c*/ (char)msg.payload.avatar.slotByte,
+                /*d*/ (char)-1,
+                /*agency*/ dateKey,
+                static_cast<eAvatarItemAddReason>(9),
+                /*e*/ false,
+                /*f*/ msg.payload.avatar.count);                // u16 数量
+        }
+
+        if (slot == -1)                                         // +0x2bd
+            return false;
+        user->SendUpdateItemList(static_cast<CUser::eSendTarget>(1),
+                                 static_cast<ENUM_ITEMSPACE>(1), slot);
+        return true;
+    }
+    return false;
 }
 
 // ===========================================================================
@@ -530,33 +590,38 @@ bool DisPatcher_DebugCommand::_debugCommandPVPRankSet(CUser* user,
 // ===========================================================================
 // 12. _debugCommandSetEnchant —— 0x0858fb4e
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] N104/N93附封顶：getCurCharacR `!=0`
+// 正向包裹后，4.4 对多级嵌套 return 用 %esi/%edi 暂存（ORIG 平铺早退共享尾岛、
+// 单 %ebx），帧 0x3c vs 0x30；P167 callsite CLEAR 16/16。
 bool DisPatcher_DebugCommand::_debugCommandSetEnchant(CUser* user,
                                                       MSG_DEBUG_COMMAND& msg)
 {
-    bool isGm = user->isGMUser();
-    if (isGm != 1)
+    if (!user->isGMUser())
         return false;
-    if (user->getCurCharacR() == 0)             // +0x2e getCurCharacR!=0 才续
-        return false;
-
-    int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)msg.m_arg);       // +0x42 itemspace→type
-    Inven_Item* ref = user->getCurCharacInvenW()->GetInvenRef(
-        invenType, msg.payload.ench.slotInt);                   // +0x6c GetInvenRef(space,slot)
-    if (ref == 0)                                               // +0x74
-        return false;
-    ref->m_fieldd = msg.payload.ench.enchantVal;                // +0x86 写 +0xd 整体 int
-
-    PacketGuard packet;                                         // -0x1c
-    packet.put_header(0, 0xe);                                  // +0xad header(0,0xe)
-    packet.put_byte(msg.m_arg);                                 // +0xc2 put_byte(itemspace)
-    packet.put_short(1);                                        // +0xdf put_short(1)
-    if (user->getCurCharacInvenR()->MakeItemPacket(             // +0x100 MakeItemPacket
-            static_cast<INVEN_TYPE>(invenType),
-            msg.payload.ench.slotInt, packet))
+    // ORIG `test %eax,%eax; setne %al; test %al,%al; je <尾 mov $0>` ⇒ 正向包裹
+    // （P222/P214①；负极性 `==0 return false` 反产 sete）。
+    if (user->getCurCharacR() != 0)             // +0x2e getCurCharacR!=0 才续
     {
-        packet.finalize(true);                                  // +0x133 finalize
-        user->Send(packet);                                     // +0x14d Send
-        return true;
+        int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)msg.m_arg);   // +0x42 itemspace→type
+        Inven_Item* ref = user->getCurCharacInvenW()->GetInvenRef(
+            invenType, msg.payload.ench.slotInt);               // +0x6c GetInvenRef(space,slot)
+        if (ref != 0)                                           // +0x74
+        {
+            ref->m_fieldd = msg.payload.ench.enchantVal;        // +0x86 写 +0xd 整体 int
+
+            PacketGuard packet;                                 // -0x1c
+            packet.put_header(0, 0xe);                          // +0xad header(0,0xe)
+            packet.put_byte(msg.m_arg);                         // +0xc2 put_byte(itemspace)
+            packet.put_short(1);                                // +0xdf put_short(1)
+            if (user->getCurCharacInvenR()->MakeItemPacket(     // +0x100 MakeItemPacket
+                    static_cast<INVEN_TYPE>(invenType),
+                    msg.payload.ench.slotInt, packet))
+            {
+                packet.finalize(true);                          // +0x133 finalize
+                user->Send(packet);                             // +0x14d Send
+                return true;
+            }
+        }
     }
     return false;                                               // 失败析构后返 0
 }
@@ -586,6 +651,8 @@ bool DisPatcher_DebugCommand::_debugCommandInvisible(CUser* user,
 // ===========================================================================
 // 14. _debugCommandVisible —— 0x085906ac
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE：area/vill/name 全部内联实参
+// （ORIG 无槽，P0/P183）+ P227 临时链。
 bool DisPatcher_DebugCommand::_debugCommandVisible(CUser* user,
                                                    MSG_DEBUG_COMMAND& /*msg*/)
 {
@@ -604,18 +671,20 @@ bool DisPatcher_DebugCommand::_debugCommandVisible(CUser* user,
     packet.put_byte(user->get_direction());                     // +0x115 direction
     packet.put_byte(user->get_charac_visible_values());         // +0x139 visible values
     packet.finalize(true);                                      // +0x14f finalize
-    int area = user->get_area(false);
-    int vill = (int)(char)user->getCurCharacVill();
-    G_GameWorld()->send_to_area(vill, area, packet);            // +0x18e send_to_area
-    char* name = const_cast<char*>(user->getCurCharacName());
-    cMyTrace trace(g_dbgCmdPrettyVisible, 0x83, 0);
-    trace("GM(%s) is visible \n", name);
+    // ORIG area→%ebx、vill→%esi 均无槽 ⇒ 内联实参（P0/P183）；name 同（%ebx）。
+    G_GameWorld()->send_to_area((int)(char)user->getCurCharacVill(),
+                                user->get_area(false), packet); // +0x18e send_to_area
+    cMyTrace(g_dbgCmdPrettyVisible, 0x83, 0)("GM(%s) is visible \n",
+        const_cast<char*>(user->getCurCharacName()));
     return true;
 }
 
 // ===========================================================================
 // 15. _debugCommandSetBlackCount —— 0x0858fcc4
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE + 真语义 bug 修复：DbgCmdArgWordView
+// 缺 pack(1) 使 m_argU 自然对齐到 +0x10（读到 msg+0x10 而非 ORIG `mov 0xe(%eax),%edx`
+// 的 +0x0e）⇒ 补 pack(1)+static_assert，读偏移归位。
 bool DisPatcher_DebugCommand::_debugCommandSetBlackCount(CUser* user,
                                                          MSG_DEBUG_COMMAND& msg)
 {
@@ -627,7 +696,12 @@ bool DisPatcher_DebugCommand::_debugCommandSetBlackCount(CUser* user,
     // ⇒ 该处按 **unsigned int** 访问（P211 同型化；共享头 int 口径由
     // DisPatcherCore.cpp:13237/13252 的 `m_arg < 1`/`0 < m_arg` 有符号判定锁定，
     // 换头会把 jl/jle 翻成 jb/jbe，故在消费点侧建视图）。
+    // pack(1) 必需：非 pack 时 m_argU 被自然对齐到 +0x10（实测读到 +0x10 而非
+    // ORIG `mov 0xe(%eax),%edx` 的 +0x0e —— 真语义 bug）。
+#pragma pack(push, 1)
     struct DbgCmdArgWordView { unsigned char m_head[0xe]; unsigned int m_argU; };
+#pragma pack(pop)
+    static_assert(offsetof(DbgCmdArgWordView, m_argU) == 0x0e, "view drift");
     user->setCurrCharacBlackCount(                              // +0x34 setBlackCount(msg[0xe])
         ((DbgCmdArgWordView*)&msg)->m_argU);
     PacketGuard packet;                                         // -0x14
@@ -773,11 +847,14 @@ bool DisPatcher_DebugCommand::_debugCommandClearAvtInven(CUser* user,
 // ===========================================================================
 // 21. _debugCommandCargoCapacity —— 0x0858fdc8
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE + 真语义 bug 修复：派生类
+// `static const unsigned int packetSize=0x14` 遮蔽 PacketHeader::packetSize
+// 成员（+0x2，ctor 写 0x1e）⇒ 发送长度少 0xa 字节。改 `pkt.PacketHeader::packetSize`
+// 后复现 ORIG `movzwl -0x24(%ebp),%eax`；receiver 改链式（P52）。
 bool DisPatcher_DebugCommand::_debugCommandCargoCapacity(CUser* user,
                                                          MSG_DEBUG_COMMAND& msg)
 {
-    bool isGm = user->isGMUser();
-    if (isGm != 1)
+    if (!user->isGMUser())
         return false;
 
     Packet_Guild_Guild_Cargo_Upgrade pkt;                       // ctor(0x713,0x1e)
@@ -785,28 +862,33 @@ bool DisPatcher_DebugCommand::_debugCommandCargoCapacity(CUser* user,
     pkt.m_charNo = user->getCurCharacNo();                      // pkt+0xe
     pkt.m_curCapacity = user->GetGuildCargoCapacity();          // pkt+0x12 当前容量
     pkt.m_newCapacity = msg.m_arg;                              // pkt+0x16 新容量=msg[0xe]
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(
-            static_cast<ENUM_SERVER_GROUP>(0));
-    proxy->SendTcpPacket(reinterpret_cast<char*>(&pkt),
-                         pkt.packetSize);                       // size = *(u16*)(pkt+2)
+    // P52 链式 receiver；长度取 PacketHeader 基类 ushort 成员（ORIG 0x0858fe3x
+    // `movzwl -0x24(%ebp),%eax` 读 pkt+2=0x1e）；派生类同名 static const 遮蔽会
+    // 折叠成立即数 0x14 —— 真语义 bug（少发 0xa 字节）。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(
+        static_cast<ENUM_SERVER_GROUP>(0))->SendTcpPacket(
+            reinterpret_cast<char*>(&pkt),
+            pkt.PacketHeader::packetSize);                      // size = *(u16*)(pkt+2)
     return true;
 }
 
 // ===========================================================================
 // 22. _debugCommandRequestMid —— 0x08590506
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE：len 具名局部落槽（ORIG -0x1c）、
+// name 内联实参（ORIG %edi 无槽）+ 链式 receiver（P52）。
 bool DisPatcher_DebugCommand::_debugCommandRequestMid(CUser* user,
                                                       MSG_DEBUG_COMMAND& msg)
 {
     if (msg.m_arg <= 0x1d)                                      // +0x12 len ≤ 29
     {
-        char* name = msg.payload.nameBuf;                       // buf 起点 +0x12
-        CMonitorServerProxy* proxy =
-            GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-                user->GetServerGroup());                        // +0x57 GetServerProxy(group)
-        proxy->SendRequestUserMid(user->get_acc_id(), user->GetUID(),
-                                  name, msg.m_arg);             // +0x72
+        // ORIG：len 落槽 -0x1c（具名局部），name 落 %edi（内联实参无槽），
+        // receiver 链式后置（P52）。
+        int len = msg.m_arg;
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+            user->GetServerGroup())                             // +0x57 GetServerProxy(group)
+            ->SendRequestUserMid(user->get_acc_id(), user->GetUID(),
+                                 msg.payload.nameBuf, len);      // +0x72
     }
     return true;
 }
@@ -814,15 +896,18 @@ bool DisPatcher_DebugCommand::_debugCommandRequestMid(CUser* user,
 // ===========================================================================
 // 23. _debugCommandUserRepel —— 0x0859048e
 // ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] N7封顶：name 内联实参后，残差=arg4/arg3
+// 物化位置互换（ORIG arg4→%edi、arg3→槽 -0x1c；4.4 反）——4.4 仅剩一个 callee-saved
+// 时的选择与 4.1 相反，具名 name/内联两形已双向实测；P167 callsite CLEAR 5/5。
 bool DisPatcher_DebugCommand::_debugCommandUserRepel(CUser* user,
                                                      MSG_DEBUG_COMMAND& msg)
 {
-    char* name = msg.payload.nameBuf;                           // +0x15 buf 起点 +0x12
-    CMonitorServerProxy* proxy =
-        GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-            user->GetServerGroup());                            // +0x4a GetServerProxy(group)
-    proxy->SendUserRepel(user->get_acc_id(), user->GetUID(),
-                         name, msg.m_arg);                      // +0x65 SendUserRepel
+    // ORIG：msg.m_arg 先求落 %edi，name 作内联实参由 4.1 落槽 -0x1c
+    // （callee-saved 已被 %edi/%esi/%ebx 占满）；receiver 链式后置（P52）。
+    GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+        user->GetServerGroup())                                 // +0x4a GetServerProxy(group)
+        ->SendUserRepel(user->get_acc_id(), user->GetUID(),
+                        msg.payload.nameBuf, msg.m_arg);        // +0x65 SendUserRepel
     return true;
 }
 

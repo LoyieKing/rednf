@@ -6759,7 +6759,7 @@ void CUser::SetPuUser(bool flag)
 // ---------------------------------------------------------------------------
 // 5. CUser::SetPvpRecord @0x0864deea —— 返回恒 1(undefined4 mov $1)
 // ---------------------------------------------------------------------------
-int CUser::SetPvpRecord(PvpResultType& record)
+bool CUser::SetPvpRecord(PvpResultType& record)
 {
     getPVPResultW()->Set(record);
     return 1;

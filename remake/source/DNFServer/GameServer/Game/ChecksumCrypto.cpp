@@ -571,6 +571,12 @@ static void SHA256_Transform(unsigned long* stateWords, unsigned long* dataWords
     // ——语义等价。实测（/tmp/d41_crypto_test.cpp）：SHA256("abc") =
     // ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad ✓
     // （FIPS-180 向量，经 CNChecksumSha256::MakeChecksumFromMemory 全链）。
+    // [b28d-solo-ChecksumCrypto] SHA256_Transform N 封顶（算法族豁免，guide §6）：
+    // ORIG 形 = 参数序 (data,state)（报告 0x080bd978：w[i]=param_1[i] 直拷贝、状态读
+    // param_2）+ 消息扩展单表达式（无 s0/s1 具名局部）+ 主循环 8 路展开（for t+=8，
+    // Ghidra C 逐 8 步）共 584 条；重建 = (state,data) 序 + 大端组装 sha256BE + 两段
+    // for 循环共 247 条。要 identical 须成组改写本 TU SHA-256 模块（Transform/Absorb/
+    // Final 的参数序与字节序契约）并逐条对齐 4.1 展开码 ⇒ 结构性不可复现。
     unsigned int* state = reinterpret_cast<unsigned int*>(stateWords);
     unsigned int w[64];
     unsigned char const* raw = reinterpret_cast<unsigned char const*>(dataWords);
@@ -1031,6 +1037,9 @@ static void aesInvMixColumnsBlk(unsigned char st[16])
 // 实测（/tmp/d41_crypto_test.cpp，链接 tu_ChecksumCrypto.o 运行）：AES-128
 // FIPS-197 向量 key 000102…0f / pt 00112233…ff → ct 69c4e0d8…b4c55a ✓、
 // AES enc/dec roundtrip ✓（本轮修 AES_DecKeySchedule 轮数真 bug，见该函数）。
+// [b28d-solo-ChecksumCrypto] AES_Encrypt N 封顶（算法族豁免，guide §6）：ORIG 为
+// _ZL6ft_tab 表驱动 10/12/14 轮完全展开（1595 条，报告 0x0809f981）；重建为
+// SBox 表 + 轮循环（70 条）。实现策略不同 ⇒ 源形不可复现；FIPS-197 向量 ✓。
 void AES_Encrypt(void* pNumArea, unsigned char* block)
 {
     unsigned long const* pNum = reinterpret_cast<unsigned long const*>(pNumArea);
@@ -1053,6 +1062,9 @@ void AES_Encrypt(void* pNumArea, unsigned char* block)
     std::memcpy(block, state, 16);
 }
 
+// [b28d-solo-ChecksumCrypto] AES_Decrypt N 封顶（算法族豁免，guide §6）：ORIG 为
+// _ZL6ft_tab 表驱动 10/12/14 轮完全展开（1595 条，报告 0x0809f981 同族）；重建为
+// InvSBox 表 + 轮循环（70 条）。AES roundtrip ✓（/tmp/d41_crypto_test.cpp）。
 void AES_Decrypt(void* pNumArea, unsigned char* block)
 {
     unsigned long const* pNum = reinterpret_cast<unsigned long const*>(pNumArea);
@@ -1852,21 +1864,6 @@ static unsigned long desF(unsigned long r, unsigned long long subkey)
         desStore64(block, desPermute(pre, 64, 64, k_desFP));                  \
     } while (0)
 
-// [b28d-41] 豁免（用户规则 §6：DES 通用算法类只保算法正确）：ORIG 4.1 将 16 轮
-// 完全展开（1058 条），重建用 DES_BLOCK_BODY 宏内 16 轮循环（81 条）——语义等价。
-// 实测（/tmp/d41_crypto_test.cpp 运行 tu_ChecksumCrypto.o）：NIST 单块向量
-// key 133457799BBCDFF1 / pt 0123456789ABCDEF → ct 85E813540F0AB405 ✓、
-// DES enc/dec roundtrip ✓、3DES EDE roundtrip ✓。
-void DES_Encrypt(void* rkArea, unsigned char* block)
-{
-    DES_BLOCK_BODY(1);
-}
-
-void DES_Decrypt(void* rkArea, unsigned char* block)
-{
-    DES_BLOCK_BODY(0);
-}
-
 // ORIG 0x080abcbc：keyLen==8 否则 0x1002；弱/半弱密钥 0x1006；
 // 生成 16 轮 × 8 字节子密钥至 alg->rk（返回错误码，DES3_KeySchedule 检查）
 int DES_KeySchedule(unsigned char* key, unsigned long keyLen,
@@ -1923,11 +1920,14 @@ int DES3_KeySchedule(unsigned char* key, unsigned long keyLen,
 // ORIG 0x080adf6c / 0x080adfbc：EDE 三块顺序调用
 void DES3_Encrypt(void* rkArea, unsigned char* block)
 {
-    // [b28d-41] 豁免（用户规则 §6）：残差仅帧 0x28 vs 0x18 + rk 槽 -0xc vs -0x4
-    // + 实参装载序（ORIG 4.1 同 TU callee outgoing 策略；4.4 同 TU 定义使
-    // outgoing 塌缩，探针 des3p3/p4 实证，P210 族源形不可翻）。3DES EDE
-    // roundtrip 实测 ✓（/tmp/d41_crypto_test.cpp）。
-    unsigned char* rk = (unsigned char*)rkArea;
+    // [b28d-solo-ChecksumCrypto] DES3_Encrypt IDENTICAL（ndiff 7→0，ORIG=OUR=24 条全等）：
+    // ①P210——把 DES_Encrypt/DES_Decrypt 定义后置于本函数之后 ⇒ 4.4 恢复 ORIG 保守帧
+    // （实测 sub $0x18→$0x28、rk 槽 -0x4→-0xc）；②把 rk 声明为 `unsigned char* volatile`
+    // ⇒ volatile 读强制先求值 arg0，复现 ORIG 4.1「先载 rk 入 %eax 再载 block 入 %edx」
+    // （rk+0 / &rk[0] / 语句表达式 / const 局部 / void* 局部 / 显式 cast 六形实测均被
+    // 4.4.7 折叠，顺序不变）。P167 调用点差集 CLEAR（ORIG 3 = OUR 3）。语义不变
+    // （-O0 普通局部本就每次从槽读；调用序列/参数同）。
+    unsigned char* volatile rk = (unsigned char*)rkArea;
     DES_Encrypt(rk, block);
     DES_Decrypt(rk + 0x80, block);
     DES_Encrypt(rk + 0x100, block);
@@ -1935,12 +1935,34 @@ void DES3_Encrypt(void* rkArea, unsigned char* block)
 
 void DES3_Decrypt(void* rkArea, unsigned char* block)
 {
-    // [b28d-41] 豁免：同 DES3_Encrypt（帧 0x28 vs 0x18 跨版本差）。3DES
-    // roundtrip 实测 ✓（/tmp/d41_crypto_test.cpp）。
-    unsigned char* rk = (unsigned char*)rkArea;
+    // [b28d-solo-ChecksumCrypto] DES3_Decrypt IDENTICAL（ndiff 7→0，ORIG=OUR=24 条全等）：
+    // 同 DES3_Encrypt——P210 定义后置翻正帧 0x28 + 槽 -0xc，`unsigned char* volatile rk`
+    // 翻正末段实参装载序。P167 CLEAR（ORIG 3 = OUR 3）。
+    unsigned char* volatile rk = (unsigned char*)rkArea;
     DES_Decrypt(rk + 0x100, block);   // D(K3)
     DES_Encrypt(rk + 0x80, block);    // E(K2)
     DES_Decrypt(rk, block);           // D(K1)
+}
+
+// [b28d-41] 豁免（用户规则 §6：DES 通用算法类只保算法正确）：ORIG 4.1 将 16 轮
+// 完全展开（1058 条），重建用 DES_BLOCK_BODY 宏内 16 轮循环（81 条）——语义等价。
+// 实测（/tmp/d41_crypto_test.cpp 运行 tu_ChecksumCrypto.o）：NIST 单块向量
+// key 133457799BBCDFF1 / pt 0123456789ABCDEF → ct 85E813540F0AB405 ✓、
+// DES enc/dec roundtrip ✓、3DES EDE roundtrip ✓。
+// [b28d-solo-ChecksumCrypto] DES_Encrypt N 封顶（算法族豁免，guide §6）：ORIG 为
+// OpenSSL 风格 des_SPtrans 表驱动 16 轮完全展开（1058 条，报告 0x080ac0ba）；重建为
+// FIPS 46-3 置换表 + desF helper 的 16 轮循环（80 条）。实现策略不同 ⇒ 源形不可复现。
+void DES_Encrypt(void* rkArea, unsigned char* block)
+{
+    DES_BLOCK_BODY(1);
+}
+
+// [b28d-solo-ChecksumCrypto] DES_Decrypt N 封顶（算法族豁免，guide §6）：ORIG 与
+// DES_Encrypt 同族 des_SPtrans 16 轮完全展开（1058 条，报告 0x080acf59）；重建为
+// FIPS 表 + 轮循环（80 条）。NIST 单块向量 ✓（/tmp/d41_crypto_test.cpp）。
+void DES_Decrypt(void* rkArea, unsigned char* block)
+{
+    DES_BLOCK_BODY(0);
 }
 
 // ORIG 0x080afaa4 / 0x080ae00c：mode/padding 直写，vec 拷 8 字节（DES 块大小）

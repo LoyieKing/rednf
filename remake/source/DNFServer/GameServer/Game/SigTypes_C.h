@@ -402,7 +402,9 @@ static_assert(offsetof(SIG_REQ_BLACK_COUNT, m_blackCount) == 0x008, "SIG_REQ_BLA
 // 其余 0x10 字节仅作为 blob 在 DB/Inter_LoadEtc 间传递，无字段级访问 → 保留 pad。
 struct SIG_ATTENDANCE_EVENT
 {
-    unsigned char m_isEnabled;   // +0x00（启用标志；GetCharacCashAttendanceInfo 清零，processAttendAnceEvent 读作 bool）
+    // [b28d-solo-Inter_LoadEtc_impl] P248 档②：ORIG processAttendAnceEvent 0x084e8078
+    // `movzbl; xor $1; test %al,%al; jne` ⇒ bool 字段（uchar 恒多 cmp/setne 形态）。
+    bool m_isEnabled;            // +0x00（启用标志；GetCharacCashAttendanceInfo 清零）
     unsigned char m_pad[0x10];   // +0x01（opaque blob，无 ORIG 字段级证据）
 
     // ORIG W 0x0848fb84：仅 movb $0,(%eax)（只清首字节）。

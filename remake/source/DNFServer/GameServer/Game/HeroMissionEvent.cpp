@@ -4,26 +4,39 @@
 // 忠实转写 docs/class_func_reports/HeroMissionEvent/{processMission,findMissionValue}.md。
 // 判活：ORIG 经 vptr+0x34 调用 CEventBase::IsEventing(NULL)（即读取 +0x08 标志）。
 // ============================================================================
-// [b28d-lane15 集中判词] 本 TU 清单 19 件的 b28d 复核（fresh check_tu_routed：
-//   COMPILE OK / identical=184 ae=331 near=1 diff=22）。逐件 N 归因（ORIG 地址实查）：
-//   · _ZL29ConvertString2EnumMissionTypeRSs @0x089613d7 —— N（std::string 比较/构造
-//     链 N89 族 + 局部槽组平移）。
-//   · findMissionValue @0x08168010 —— N（N18b 成员==参数 mem-cmp 折叠；b28c-L7 已判）。
-//   · {TotalMission@0x08166378 / UseCubeMission@0x08165992 / UseFatigueMission
-//     @0x08165706 / AttendanceMission@0x08166002 / ClearDungeonMission@0x081653b4}
-//     ::processMission —— N（Mission 族同构骨架：P168a 档① bool callee + P164
-//     循环旋转 + N82 帧槽；b28c-L26/L27 已判）。
-//   · {UseCubeMission@0x08165a2e / UseFatigueMission@0x081657a2 / AttendanceMission
-//     @0x081661d6 / ClearDungeonMission@0x08165484}::rewardMission —— N（同骨架，
-//     b28c-L26 判词：char 返回 callee 的 X1 边界 + bool 物化岛）。
-//   · loadEventData@0x0816709e / saveEventData@0x08166d38 / setEventData@0x08166752 /
-//     loadScript@0x08167ac8 —— N（N82 帧槽复用 + N89 STL 内联 + .o 重定位显示差）。
-//   · HeroMissionEvent::processMission@0x081672be —— N（P164/P223 岛 + N82）。
-//   · HeroMissionValue::getStringToken@0x08164bca —— N（std::string 族 N89）。
-//   · LevelUpMission::processMission@0x08165c1e —— N（同 Mission 骨架 + N82）。
-//   · importHeroMissionConditionsData@0x0896171b —— N（超大解析：N89 惰性 map 注册链
-//     + P163 决策树 + N82；按 P165/P166 三件套口径收）。
+// [b28d-solo-HeroMissionEvent 集中判词] 本 TU 清单 19 件逐件收口
+//   （fresh check_tu_routed：COMPILE OK 0 错误 / identical=184 ae=350 near=1 diff=9；
+//    基线 ae=331 diff=22 ⇒ 净翻正 19 件中的 14 件为 AE，另 5 件 N 封顶）。
+//   · ConvertString2EnumMissionType@0x089613d7 —— AE（残留仅 .o 重定位 + 对齐 nop）。
+//   · findMissionValue@0x08168010 —— AE（P235 匿名 union 枚举视图 ⇒ `mov (%eax),%eax;
+//     cmp 0x10(%ebp),%eax`，N18b 作废）。
+//   · TotalMission@0x08166378 / UseCubeMission@0x08165992 / UseFatigueMission
+//     @0x08165706 / ClearDungeonMission@0x081653b4 ::processMission —— AE（守卫改
+//     ORIG 方向 `size()/limit <= (unsigned)field4` + 条件 2/3 同向；P209/P218 扩展）。
+//   · AttendanceMission::processMission@0x08166002 —— AE（同守卫方向 + tm 槽序
+//     today(-0x40) 先声明 + 条件 3 `limit <= field4+1`）。
+//   · UseCubeMission@0x08165a2e / UseFatigueMission@0x081657a2 / AttendanceMission
+//     @0x081661d6 / ClearDungeonMission@0x08165484 ::rewardMission —— AE（P226 语句
+//     表达式零槽短路物化 / P227 全表达式临时链 / m_missionType 枚举视图两段装载）。
+//   · HeroMissionEvent::processMission@0x081672be —— AE（P222 正向包裹消 xor；
+//     `fieldA > prev` 复现 `cmp -0xa(%ebp),%ax; jbe`）。
+//   · HeroMissionValue::getStringToken@0x08164bca —— AE（枚举视图选 `_ZNSolsEi`；
+//     链拆两语句复现 4.1 分批装载）。
+//   · setEventData@0x08166752 —— AE（删 characNo 局部：4 次独立 get_charac_no(-1)，
+//     make_pair<int,...>；`tit->c_str()` 复现 boost ptEv + string(char*,alloc)）。
+//   · loadScript@0x08167ac8 —— N104 封顶（insn 364=364、p167 仅缺 1 次
+//     _Unwind_Resume：4.4 把 new-cleanup 汇入 catch 尾块，4.1 走 _Unwind_Resume）。
+//   · saveEventData@0x08166d38 —— N95 封顶（insn 227=227、p167 CLEAR；局部槽基整体
+//     深 4~8：4.4 槽基/分配序跨版本，data/characNo 两序实测均不闭合）。
+//   · LevelUpMission::processMission@0x08165c1e —— N18a 封顶（insn 232 vs 231、
+//     p167 CLEAR；唯一残差 `mov (%eax),%eax; mov %eax,%ebx` 单段 regmove 不可造）。
+//   · loadEventData@0x0816709e —— N7+N18a 封顶（insn 94 vs 93；虚调用 callee 目标
+//     寄存器 eax↔edx + `*sig=` LHS 预存 1 条；P259 Acquire 内联已消 stream 局部）。
+//   · importHeroMissionConditionsData@0x0896171b —— N 封顶（超大解析 732 insn：
+//     p167 仅 EXTRA +2 RewardData D1（push_back 临时析构作用域），N89 惰性 map 注册
+//     链 + P163 决策树 + N82 帧槽；按 P165/P166 三件套口径收）。
 //   语义均按报告逐指令转写并核对；残差全为跨版本结构族，无真语义缺口。
+//   P0/N96：本文件 0 处 `register asm` 绑定（grep 实证）。
 // ============================================================================
 
 #include "HeroMissionEvent.h"
@@ -96,11 +109,10 @@ bool HeroMissionEvent::findMissionValue(CUser* user,
     for (std::vector<HeroMissionValue>::iterator vit = it->second.begin();
          vit != it->second.end(); ++vit)
     {
-        // [b28c-L7] 负例：P209 提示的 signed 保形（`static_cast<int>` 双侧）实测
-        // 反劣（101 vs 103，movsbl+双载 +2）；ORIG `mov (%eax),%eax;
-        // cmp 0x10(%ebp),%eax` 的「值直落 eax + mem 作源」为 4.1 固有
-        // （N18b：成员==参数 4.4 恒折 `cmp MEM,reg` 反向不可造）⇒ 封 N。
-        if (vit->m_mission == static_cast<int>(mission))
+        // [b28d-solo-HeroMissionEvent] ORIG 0x081680e9 `mov (%eax),%eax;
+        // cmp 0x10(%ebp),%eax`：去掉 `static_cast<int>(mission)` 后 4.4 直接
+        // 内存源比较，省去 mov+mov 两段（N18b 的翻正形）。
+        if (vit->m_missionType == mission)
         {
             out = &*vit;
             return true;
@@ -131,28 +143,34 @@ void HeroMissionEvent::processMission(CUser* user,
     }
 
     HeroMissionValue* value = 0;
-    if (!findMissionValue(user, mission, value))
-        return;
-
-    std::map<HeroMissionCondition::MissionNo::T,
-             BaseHeroMissionCondition*>::iterator it =
-        m_conditions.find(mission);
-    if (it == m_conditions.end())
+    // [b28d-solo-HeroMissionEvent] ORIG 0x081672d4 `call; test %al,%al; je tail`：
+    // bool callee 的正向直判（2 条）；4.4 对 `!f()`/`f()==0` 恒补 xor $1（3 条）
+    // ⇒ 改正向包裹（P222：否定早返 → 正向 if 包裹）。
+    if (findMissionValue(user, mission, value))
     {
-        LogManager::logFormat(1, "localtaiwan/Event/EventHeroMission.cpp",
-                              __PRETTY_FUNCTION__, 0x2c2,
-                              "[HeroMission] Invalid mission. (charac:%u, mission:%d)",
-                              user->get_charac_no(-1),
-                              static_cast<int>(mission));
-        user->DisConnSig(static_cast<DISCONN_SIG>(0x3e), 1, 0x2c3);
-        return;
-    }
+        std::map<HeroMissionCondition::MissionNo::T,
+                 BaseHeroMissionCondition*>::iterator it =
+            m_conditions.find(mission);
+        if (it == m_conditions.end())
+        {
+            LogManager::logFormat(1, "localtaiwan/Event/EventHeroMission.cpp",
+                                  __PRETTY_FUNCTION__, 0x2c2,
+                                  "[HeroMission] Invalid mission. (charac:%u, mission:%d)",
+                                  user->get_charac_no(-1),
+                                  static_cast<int>(mission));
+            user->DisConnSig(static_cast<DISCONN_SIG>(0x3e), 1, 0x2c3);
+            return;
+        }
 
-    unsigned short prev = value->m_fieldA;
-    it->second->processMission(user, *value, param);   // 条件虚表 +0x08
-    if (mission == 4 && prev == 0 && value->m_fieldA != 0)
-    {
-        processMission(user, static_cast<HeroMissionCondition::MissionNo::T>(6), 1);
+        unsigned short prev = value->m_fieldA;
+        it->second->processMission(user, *value, param);   // 条件虚表 +0x08
+        // [b28d-solo-HeroMissionEvent] ORIG 0x08167470 `cmp -0xa(%ebp),%ax; jbe`
+        // ⇒ 源码为 `> prev` 而非 `!= 0`。
+        if (mission == 4 && prev == 0 && value->m_fieldA > prev)
+        {
+            processMission(user,
+                           static_cast<HeroMissionCondition::MissionNo::T>(6), 1);
+        }
     }
 }
 
@@ -180,9 +198,10 @@ void HeroMissionEvent::loadEventData(CUser* user)
         return;
     }
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/Event/EventHeroMission.cpp", 0x291);
-    CStreamGuard guard(stream, true);
+    // [b28d-solo-HeroMissionEvent] ORIG 0x0816710c Acquire 结果直传 guard ctor
+    // （无 stream 具名局部，P259）；具名局部多 mov 槽往返 2 条。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+        "localtaiwan/Event/EventHeroMission.cpp", 0x291), true);
     Taiwan::internal_stream(guard, static_cast<TaiwanInternalPack::T>(0x12),
                             static_cast<int>(user->GetUID()));
     Taiwan::SigLoadHeroMissionData* sig =
@@ -197,7 +216,10 @@ void HeroMissionEvent::loadEventData(CUser* user)
     else
     {
         sig->init();
-        *reinterpret_cast<int*>(sig) = user->get_charac_no(-1);
+        // [b28d-solo-HeroMissionEvent] ORIG 0x081671c5 store 为 RHS-first
+        // （`mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,(%eax)`）⇒ P211 异型化：
+        // 目标字段写 unsigned（RHS 为 int）复现中转序。
+        *reinterpret_cast<unsigned int*>(sig) = user->get_charac_no(-1);
         GlobalData::s_msgq_mgr->put(
             static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
     }
@@ -296,17 +318,19 @@ TotalMission::~TotalMission() {}
 void TotalMission::processMission(CUser* /*user*/, HeroMissionValue& value,
                                   unsigned int param)
 {
-    if (value.m_field4 < m_condition.m_extra.size())
+    // [b28d-solo-HeroMissionEvent] ORIG 0x0816637e 先 call size() 再读 field4，
+    // 比较方向为 `size() <= (unsigned)field4`（setbe+jne 跳尾 return），
+    // 条件 2 同向（setbe + je 跳 else 累加块）；原正向 `<` 写法产 setb+je 反极性。
+    if (m_condition.m_extra.size() <= static_cast<unsigned int>(value.m_field4))
+        return;
+    if (m_condition.m_extra.size() <=
+        static_cast<unsigned int>(value.m_field4) + param)
     {
-        if (value.m_field4 + param < m_condition.m_extra.size())
-        {
-            value.m_field4 = value.m_field4 + static_cast<unsigned short>(param);
-        }
-        else
-        {
-            value.m_field4 =
-                static_cast<unsigned short>(m_condition.m_extra.size());
-        }
+        value.m_field4 = static_cast<unsigned short>(m_condition.m_extra.size());
+    }
+    else
+    {
+        value.m_field4 = value.m_field4 + static_cast<unsigned short>(param);
     }
 }
 
@@ -324,20 +348,21 @@ ClearDungeonMission::~ClearDungeonMission() {}
 void ClearDungeonMission::processMission(CUser* /*user*/, HeroMissionValue& value,
                                          unsigned int param)
 {
-    if (value.m_field4 < m_condition.m_extra[0])
+    // [b28d-solo-HeroMissionEvent] ORIG 0x081653b4：条件 1 `limit <= field4`
+    // （cmp %ax,%dx; setbe; jne 跳尾岛）；条件 2 短路结果整体 bool 物化
+    // （mov $1/jmp/mov $0/test/jne）；条件 3 `limit <= field4+param` 钳制 fall-through。
+    if (m_condition.m_extra[0] <= value.m_field4)
+        return;
+    if (getMissionType() == 2 && value.m_field8 != 7)
+        return;
+    if (m_condition.m_extra[0] <=
+        static_cast<unsigned int>(value.m_field4) + param)
     {
-        if (!(getMissionType() == 2 && value.m_field8 != 7))
-        {
-            if (value.m_field4 + param < m_condition.m_extra[0])
-            {
-                value.m_field4 =
-                    value.m_field4 + static_cast<unsigned short>(param);
-            }
-            else
-            {
-                value.m_field4 = m_condition.m_extra[0];
-            }
-        }
+        value.m_field4 = m_condition.m_extra[0];
+    }
+    else
+    {
+        value.m_field4 = value.m_field4 + static_cast<unsigned short>(param);
     }
 }
 
@@ -356,7 +381,7 @@ bool ClearDungeonMission::rewardMission(CUser* user, HeroMissionValue& value)
             __PRETTY_FUNCTION__,
             0xac,
             "[HeroMission] Already reward. (charac:%u,mission:%d,count:%d)",
-            user->get_charac_no(-1), value.m_mission, value.m_fieldA);
+            user->get_charac_no(-1), value.m_missionType, value.m_fieldA);
         return false;
     }
     if (getMissionType() == 2 && value.m_field8 != 7)
@@ -366,7 +391,7 @@ bool ClearDungeonMission::rewardMission(CUser* user, HeroMissionValue& value)
             __PRETTY_FUNCTION__,
             0xb4,
             "[HeroMission] Invalid reward condition. (charac:%u,mission:%d,value:%d)",
-            user->get_charac_no(-1), value.m_mission, value.m_field8);
+            user->get_charac_no(-1), value.m_missionType, value.m_field8);
         return false;
     }
     if (value.m_field4 < m_condition.m_extra[0])
@@ -376,7 +401,7 @@ bool ClearDungeonMission::rewardMission(CUser* user, HeroMissionValue& value)
             __PRETTY_FUNCTION__,
             0xbb,
             "[HeroMission] Invalid reward condition. (charac:%u,mission:%d,count:%d)",
-            user->get_charac_no(-1), value.m_mission, value.m_fieldA);
+            user->get_charac_no(-1), value.m_missionType, value.m_fieldA);
         return false;
     }
     bool ok = rewardProcess(user);
@@ -401,16 +426,19 @@ UseFatigueMission::~UseFatigueMission() {}
 void UseFatigueMission::processMission(CUser* /*user*/, HeroMissionValue& value,
                                        unsigned int amount)
 {
-    if (value.m_field4 < m_condition.m_extra[0])
+    // [b28d-solo-HeroMissionEvent] ORIG 0x08165706：先 call m_extra[0]（operator[]），
+    // 比较方向 `limit <= field4`（cmp %ax,%dx; setbe; jne 跳尾 return）；条件 2 同向
+    // （limit <= field4+param → fall-through 钳制，je 跳累加块）。
+    if (m_condition.m_extra[0] <= value.m_field4)
+        return;
+    if (m_condition.m_extra[0] <=
+        static_cast<unsigned int>(value.m_field4) + amount)
     {
-        if (value.m_field4 + amount < m_condition.m_extra[0])
-        {
-            value.m_field4 = value.m_field4 + static_cast<unsigned short>(amount);
-        }
-        else
-        {
-            value.m_field4 = m_condition.m_extra[0];
-        }
+        value.m_field4 = m_condition.m_extra[0];
+    }
+    else
+    {
+        value.m_field4 = value.m_field4 + static_cast<unsigned short>(amount);
     }
 }
 
@@ -432,7 +460,7 @@ bool UseFatigueMission::rewardMission(CUser* user, HeroMissionValue& value)
             __PRETTY_FUNCTION__,
             0xe5,
             "[HeroMission] Already reward. (charac:%u,mission:%d,count:%d)",
-            user->get_charac_no(-1), value.m_mission, value.m_fieldA);
+            user->get_charac_no(-1), value.m_missionType, value.m_fieldA);
         return false;
     }
     if (value.m_field4 < m_condition.m_extra[0])
@@ -442,7 +470,7 @@ bool UseFatigueMission::rewardMission(CUser* user, HeroMissionValue& value)
             __PRETTY_FUNCTION__,
             0xec,
             "[HeroMission] Invalid reward condition. (charac:%u,mission:%d,count:%d)",
-            user->get_charac_no(-1), value.m_mission, value.m_fieldA);
+            user->get_charac_no(-1), value.m_missionType, value.m_fieldA);
         return false;
     }
     bool ok = rewardProcess(user);
@@ -467,16 +495,18 @@ UseCubeMission::~UseCubeMission() {}
 void UseCubeMission::processMission(CUser* /*user*/, HeroMissionValue& value,
                                     unsigned int amount)
 {
-    if (value.m_field4 <= m_condition.m_extra[0])
+    // [b28d-solo-HeroMissionEvent] ORIG 0x08165992：与 UseFatigueMission 同骨架
+    // （limit <= field4 跳尾；limit <= field4+param 钳制）。
+    if (m_condition.m_extra[0] <= value.m_field4)
+        return;
+    if (m_condition.m_extra[0] <=
+        static_cast<unsigned int>(value.m_field4) + amount)
     {
-        if (value.m_field4 + amount <= m_condition.m_extra[0])
-        {
-            value.m_field4 = value.m_field4 + static_cast<unsigned short>(amount);
-        }
-        else
-        {
-            value.m_field4 = m_condition.m_extra[0];
-        }
+        value.m_field4 = m_condition.m_extra[0];
+    }
+    else
+    {
+        value.m_field4 = value.m_field4 + static_cast<unsigned short>(amount);
     }
 }
 
@@ -506,15 +536,17 @@ bool UseCubeMission::rewardMission(CUser* user, HeroMissionValue& value)
     // [b28c-L26 档①+② 后追加 P84] bool 化 isRepeatMission 使 xor 段归位；剩余
     // 缺项是 ORIG 把整个 `!isRepeat() && fieldA!=0` 短路结果物化成 bool 局部
     // （`mov $1,%eax; jmp; mov $0,%eax; test %al,%al; je BODY`）⇒ 按 P84 具名 bool。
-    const bool alreadyRewarded = !isRepeatMission() && value.m_fieldA != 0;
-    if (alreadyRewarded)
+    // [b28d-solo-HeroMissionEvent] P226 扩展：ORIG 0x08165a2e 把短路结果在 al 中
+    // 物化后 `test %al,%al; je`（零槽）；具名 bool 会落栈槽（mov %al,-0xa;
+    // cmpb $0,-0xa）。语句表达式（内不含具名变量）复现零槽物化岛。
+    if (({ !isRepeatMission() && value.m_fieldA != 0; }))
     {
         LogManager::logFormat(
             1, "localtaiwan/Event/EventHeroMission.cpp",
             __PRETTY_FUNCTION__,
             0x117,
             "[HeroMission] Already reward. (charac:%u,mission:%d,count:%d)",
-            user->get_charac_no(-1), value.m_mission, value.m_fieldA);
+            user->get_charac_no(-1), value.m_missionType, value.m_fieldA);
         return false;
     }
     if (value.m_field4 < m_condition.m_extra[0])
@@ -524,7 +556,7 @@ bool UseCubeMission::rewardMission(CUser* user, HeroMissionValue& value)
             __PRETTY_FUNCTION__,
             0x11e,
             "[HeroMission] Invalid reward condition. (charac:%u,mission:%d,count:%d)",
-            user->get_charac_no(-1), value.m_mission, value.m_fieldA);
+            user->get_charac_no(-1), value.m_missionType, value.m_fieldA);
         return false;
     }
     bool ok = rewardProcess(user);
@@ -562,7 +594,7 @@ void LevelUpMission::processMission(CUser* user, HeroMissionValue& value,
             __PRETTY_FUNCTION__,
             0x145,
             "[HeroMission] Invalid reward condition. (charac:%u,mission:%d,value:%d)",
-            user->get_charac_no(-1), value.m_mission, value.m_field8);
+            user->get_charac_no(-1), value.m_missionType, value.m_field8);
         return;
     }
 
@@ -572,16 +604,25 @@ void LevelUpMission::processMission(CUser* user, HeroMissionValue& value,
         m_condition.m_rewards.end();
     for (; it != end; ++it)
     {
+        // [b28d-solo-HeroMissionEvent] N18a：ORIG 0x08165d3b 先物化实参
+        // `it->m_itemIdx`（mov (%eax),%eax; mov %eax,%ebx）再 call G_CDataManager；
+        // 4.4 恒 receiver 先且折单段 mov (%eax),%ebx（P23/P75 跨版本求值序，
+        // 语句表达式/具名局部两形实测不可翻）。
         CItem* item = G_CDataManager()->find_item(it->m_itemIdx);
         if (item == 0)
         {
-            cMyTrace tr(__PRETTY_FUNCTION__,
-                        0x150, 5);
-            tr("[HeroMission] Invalid item. (charac:%u, mission:%d, item:%u)",
-               user->get_charac_no(-1), m_missionCode, it->m_itemIdx);
+            // [b28d-solo-HeroMissionEvent] ORIG 0x08165e3a 先求值 varargs
+            // （edi/esi/ebx）再 call cMyTrace::C1（P227 全表达式临时链）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x150, 5)
+                ("[HeroMission] Invalid item. (charac:%u, mission:%d, item:%u)",
+                 user->get_charac_no(-1), m_missionCode, it->m_itemIdx);
             return;
         }
         Inven_Item mailItem;
+        // [b28d-solo-HeroMissionEvent] P171 死写入照抄：ORIG 0x08165dbd
+        // `mov (%eax),%eax; mov %eax,-0x77(%ebp)`（mailItem.m_addInfo=it->m_itemIdx，
+        // 随后被 set_add_info 覆盖）。
+        mailItem.m_addInfo = it->m_itemIdx;
         item->make_item(mailItem);
         mailItem.set_add_info(it->m_addInfo);
         const char* title = g_scriptStringManager_.findString(
@@ -625,10 +666,14 @@ AttendanceMission::~AttendanceMission() {}
 void AttendanceMission::processMission(CUser* /*user*/, HeroMissionValue& value,
                                        unsigned int /*param*/)
 {
-    if (value.m_field4 < m_condition.m_extra[0])
+    // [b28d-solo-HeroMissionEvent] ORIG 0x08166002 条件 1 为 `limit <= field4`
+    // （cmp %ax,%dx; setbe; jne 跳尾 return）；tm 槽序 today=-0x40 浅于
+    // target=-0x6c ⇒ 4.4「先声明浅」需 today 先声明。
+    if (m_condition.m_extra[0] <= value.m_field4)
+        return;
     {
-                struct tm target;      // ORIG -0x6c（先声明占低地址）
         struct tm today;       // ORIG -0x40
+        struct tm target;      // ORIG -0x6c
         time_t cur;            // ORIG -0x14
         time_t todaySec;       // ORIG -0x10
         time_t targetSec;      // ORIG -0xc
@@ -649,13 +694,15 @@ void AttendanceMission::processMission(CUser* /*user*/, HeroMissionValue& value,
         {
             value.reset();
         }
-        if (value.m_field4 + 1 < m_condition.m_extra[0])
+        // [b28d-solo-HeroMissionEvent] ORIG 0x0816613e 条件 3 为
+        // `limit <= field4+1`（cmp %eax,%edx; setle; je 跳 else 累加块）。
+        if (m_condition.m_extra[0] <= value.m_field4 + 1)
         {
-            value.m_field4 = value.m_field4 + 1;
+            value.m_field4 = m_condition.m_extra[0];
         }
         else
         {
-            value.m_field4 = m_condition.m_extra[0];
+            value.m_field4 = value.m_field4 + 1;
         }
         value.m_field8 = value.m_field8 +
             static_cast<unsigned short>((todaySec - targetSec) / 0x15180);
@@ -675,10 +722,11 @@ bool AttendanceMission::rewardMission(CUser* user, HeroMissionValue& value)
     }
     if (value.m_field4 < m_condition.m_extra[0])
     {
-        cMyTrace tr(__PRETTY_FUNCTION__,
-                    0x1a4, 5);
-        tr("[HeroMission] Reward condition error. (charac:%u,mission:%d,count:%d)",
-           user->get_charac_no(-1), value.m_mission, value.m_fieldA);
+        // [b28d-solo-HeroMissionEvent] ORIG 0x081661d6 先求值 varargs（edi/esi/ebx）
+        // 再 call cMyTrace::C1，最后 call operator()（P227 全表达式临时链）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x1a4, 5)
+            ("[HeroMission] Reward condition error. (charac:%u,mission:%d,count:%d)",
+             user->get_charac_no(-1), value.m_missionType, value.m_fieldA);
         return false;
     }
     bool ok = rewardProcess(user);
@@ -985,10 +1033,10 @@ bool HeroMissionEvent::loadScript()
             {
                 HeroMissionCondition::MissionNo::T code =
                     static_cast<HeroMissionCondition::MissionNo::T>(it->m_missionType);
-                std::map<HeroMissionCondition::MissionNo::T, BaseHeroMissionCondition*>::iterator mit =
-                    m_conditions.find(code);
-                if (mit != m_conditions.end() && mit->second != 0)
-                    mit->second->setConditionData(*it);
+                // [b28d-solo-HeroMissionEvent] ORIG 0x08167f7d 直接
+                // `m_conditions[code]->setConditionData(*it)`（operator[]，无
+                // find/end/判空；P167 差集 MISSING operator[] / EXTRA find+end+ne）。
+                m_conditions[code]->setConditionData(*it);
             }
         }
         conds.clear();
@@ -1069,24 +1117,29 @@ void HeroMissionEvent::setEventData(CUser* user, char const* data)
                  tokens.begin();
              tit != tokens.end(); ++tit)
         {
-            value.setStringToken(*tit);
+            // [b28d-solo-HeroMissionEvent] ORIG 0x08166a5c 走 boost
+            // iterator_facade::operator->() + std::string::C1(char const*,
+            // allocator const&) ⇒ 源码传 c_str()（隐式构造 string），非 *tit。
+            value.setStringToken(tit->c_str());
             values.push_back(value);
         }
     }
 
-    unsigned int characNo = (unsigned int)user->get_charac_no(-1);
+    // [b28d-solo-HeroMissionEvent] ORIG 0x08166b37/0x08166ba0/0x08166be3/
+    // 0x08166c0e 各独立调用 user->get_charac_no(-1)（无 characNo 具名局部，
+    // 临时槽 -0x40/-0x38/-0xc；make_pair 的 T=int）。
     std::map<unsigned int, std::vector<HeroMissionValue> >::iterator it =
-        m_values.find(characNo);
+        m_values.find(user->get_charac_no(-1));
     if (it != m_values.end())
     {
         LogManager::logFormat(
             1, "localtaiwan/Event/EventHeroMission.cpp",
             __PRETTY_FUNCTION__, 0x24b,
             "[HeroMission] Already exist character data. (charac:%u)",
-            characNo);
-        m_values.erase(characNo);
+            user->get_charac_no(-1));
+        m_values.erase(user->get_charac_no(-1));
     }
-    m_values.insert(std::make_pair(characNo, values));
+    m_values.insert(std::make_pair(user->get_charac_no(-1), values));
 }
 // ============================================================================
 // HeroMissionValue::getStringToken —— ORIG T 0x08164bca（getStringToken.md
@@ -1102,8 +1155,11 @@ void HeroMissionValue::getStringToken(std::string& out)
     {
         ss << ',';
     }
-    ss << m_mission << ' ' << m_field4 << ' ' << m_field6 << ' '
-       << m_fieldA << ' ' << m_field8;
+    // [b28d-solo-HeroMissionEvent] ORIG 0x08164c47 输出 m_mission 走
+    // `_ZNSolsEi`（int 重载）⇒ 用枚举视图（枚举提升 int），unsigned 视图会选
+    // `_ZNSolsEj` 造成符号级错配。
+    ss << m_missionType << ' ' << m_field4 << ' ';
+    ss << m_field6 << ' ' << m_fieldA << ' ' << m_field8;
     out += ss.str();
 }
 // ============================================================================
@@ -1190,7 +1246,12 @@ void HeroMissionEvent::saveEventData(CUser* user, bool removeData)
         return;
     }
 
-    unsigned int characNo = (unsigned int)user->get_charac_no(-1);
+    // [b28d-solo-HeroMissionEvent] ORIG 0x08166d8e 先构造 `std::string data`
+    // （-0x20 槽，call _ZNSsC1Ev）再 call get_charac_no；槽序 characNo(-0x1c)
+    // 浅于 data(-0x20) ⇒ 4.4「先声明浅」要求 characNo 先声明、赋值分两句。
+    unsigned int characNo;
+    std::string data;
+    characNo = (unsigned int)user->get_charac_no(-1);
     std::map<unsigned int, std::vector<HeroMissionValue> >::iterator it =
         m_values.find(characNo);
     if (it == m_values.end())
@@ -1198,11 +1259,11 @@ void HeroMissionEvent::saveEventData(CUser* user, bool removeData)
         LogManager::logFormat(
             1, "localtaiwan/Event/EventHeroMission.cpp",
             __PRETTY_FUNCTION__, 0x269,
-            "[HeroMission] Not exist mission value. (charac:%u)", characNo);
+            "[HeroMission] Not exist mission value. (charac:%u)",
+            user->get_charac_no(-1));
         return;
     }
 
-    std::string data;
     for (std::vector<HeroMissionValue>::iterator vit = it->second.begin();
          vit != it->second.end(); ++vit)
     {
@@ -1226,14 +1287,16 @@ void HeroMissionEvent::saveEventData(CUser* user, bool removeData)
     else
     {
         sig->init();
-        *reinterpret_cast<unsigned int*>(sig) = characNo;
+        // [b28d-solo-HeroMissionEvent] ORIG 0x0816701e/0x08167037 各再调一次
+        // user->get_charac_no(-1)（写 sig 与 erase 键），非复用局部 characNo。
+        *reinterpret_cast<unsigned int*>(sig) = user->get_charac_no(-1);
         char* dst = reinterpret_cast<char*>(sig) + 4;
         strncpy(dst, data.c_str(), data.length());
         GlobalData::s_msgq_mgr->put(
             static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
         if (removeData)
         {
-            m_values.erase(characNo);
+            m_values.erase(user->get_charac_no(-1));
         }
     }
 }

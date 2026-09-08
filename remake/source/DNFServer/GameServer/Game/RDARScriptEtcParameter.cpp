@@ -72,7 +72,6 @@ struct InvalidCharData::stRangeElement<unsigned char>
     unsigned char m_min;
     unsigned char m_max;
     stRangeElement(unsigned char a, unsigned char b) : m_min(a), m_max(b) {}
-    ~stRangeElement() {}
 };
 
 template <>
@@ -81,7 +80,6 @@ struct InvalidCharData::stRangeElement<unsigned short>
     unsigned short m_min;
     unsigned short m_max;
     stRangeElement(unsigned short a, unsigned short b) : m_min(a), m_max(b) {}
-    ~stRangeElement() {}
 };
 
 // ============================================================================
@@ -148,22 +146,30 @@ int importGoldLimitByLevel(unsigned int* out)
 // （P71/P67 跨编译器结构性差异；ORIG D1/D2 W 0x8948ff0/0x89491a6 须保留，
 // 不删用户析构）⇒ 标 N 封顶。
 // ===========================================================================
-// [b28d-27] DIFF（p167 EXTRA 4/MISSING 4）：ORIG 0x08908338；ORIG 22 calls /
-// 我方 26，差集为字符串/容器实例族 ⇒ N89 封顶（语义等价）。
+// [b28d-solo-RDARScriptEtcParameter] DIFF N 封顶：ORIG 0x08908338；真形按
+// Ghidra C 复原（外层 for+break 条件置顶、四个独立 if、内层 for+break 逗号
+// ScanInt 短路链）；删 stRangeElement 用户空析构后 4.4 不再发 4×D1+EH
+// （P71/P67 消解；D1/D2 仍由 vector 使用点发 W，与 ORIG 0x8948ff0/0x89491a6
+// 同名同弱）。残差 6 条 = ORIG 4 处二次守卫 `movzbl;test;je`（4.1 bool 内存
+// 直测）vs 4.4 恒 `xor$1;test;jne`（P168a④：bool 局部取反无寄存器形）+
+// 跳板岛 2 条（P223 边界）。p167 CLEAR（22/22），语义闭合。
 int importInvalidName(char* path, InvalidCharData* out)
 {
     if (!loadRDARScriptFile("", path))
         return 0;
 
-    std::string token;
-    bool okA;                               // ORIG -0x21..-0x26 无初始化（ScanInt 必写）
-    bool okB;
-    bool okC;
-    bool okD;
-    bool okE;
-    bool okF;
-    int lo;                                 // ORIG -0x10 跨块共享（含 one/two byte 值）
-    int hi;                                 // ORIG -0xc 跨块共享
+    // [b28d-solo-RDARScriptEtcParameter] ORIG 0x08908338 真形（Ghidra C 复核）：
+    // 外层 while(ScanType) + 四个**独立 if**（非 else-if 链）+ 内层 while 条件循环
+    // （逗号表达式内联 ScanInt）；ok 变量 6 个独立（okA..okF），lo/hi 跨块共享。
+    std::string token;                      // ORIG -0x20
+    bool okF;                               // ORIG -0x26
+    bool okE;                               // ORIG -0x25
+    bool okD;                               // ORIG -0x24
+    bool okC;                               // ORIG -0x23
+    bool okB;                               // ORIG -0x22
+    bool okA;                               // ORIG -0x21
+    int lo;                                 // ORIG -0x14
+    int hi;                                 // ORIG -0x10
     for (;;)
     {
         if (!ScanType(token, true))
@@ -176,27 +182,26 @@ int importInvalidName(char* path, InvalidCharData* out)
                 if (!okA)
                     break;
                 hi = ScanInt(&okB);
-                if (okA && okB)             // ORIG +0x99/+0xa1 双正向 test/je
-                {
-                    out->m_charRange.push_back(
-                        InvalidCharData::stRangeElement<unsigned char>(
-                            (unsigned char)lo, (unsigned char)hi));
-                    continue;
-                }
-                break;
+                if (okA == false)
+                    break;
+                if (okB == false)
+                    break;
+                out->m_charRange.push_back(
+                    InvalidCharData::stRangeElement<unsigned char>(
+                        (unsigned char)lo, (unsigned char)hi));
             }
         }
-        else if (token == "[one byte]")
+        if (token == "[one byte]")
         {
             for (;;)
             {
                 lo = ScanInt(&okC);
-                if (!okC)
+                if (okC == false)
                     break;
                 out->m_charList.push_back((unsigned char)lo);
             }
         }
-        else if (token == "[two byte range]")
+        if (token == "[two byte range]")
         {
             for (;;)
             {
@@ -204,22 +209,21 @@ int importInvalidName(char* path, InvalidCharData* out)
                 if (!okD)
                     break;
                 hi = ScanInt(&okE);
-                if (okD && okE)             // ORIG +0x172/+0x17a 双正向 test/je
-                {
-                    out->m_shortRange.push_back(
-                        InvalidCharData::stRangeElement<unsigned short>(
-                            (unsigned short)lo, (unsigned short)hi));
-                    continue;
-                }
-                break;
+                if (okD == false)
+                    break;
+                if (okE == false)
+                    break;
+                out->m_shortRange.push_back(
+                    InvalidCharData::stRangeElement<unsigned short>(
+                        (unsigned short)lo, (unsigned short)hi));
             }
         }
-        else if (token == "[two byte]")
+        if (token == "[two byte]")
         {
             for (;;)
             {
                 lo = ScanInt(&okF);
-                if (!okF)
+                if (okF == false)
                     break;
                 out->m_shortList.push_back((unsigned short)lo);
             }
@@ -249,8 +253,11 @@ int importInvalidName(char* path, InvalidCharData* out)
 // 注意报告 Ghidra 的 make_pair 两分支实参顺序相反，以 objdump 为准：
 //   false 分支把 -0x48(val) 放 first、-0x44(level) 放 second；true 分支相反。
 // ============================================================================
-// [b28d-27] NEAR N95/P112：ORIG 0x089136a4；局部槽基差 4（ORIG -0x40/-0x39 vs
-// 我方 -0x3c/-0x3d），4.4 槽基恒 ebp-8 起（N95），p167 CLEAR（17/17），语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] NEAR N95：ORIG 0x089136a4；局部槽基差 4
+// （ORIG -0x40/-0x39 vs 我方 -0x3c/-0x3d）。P190/P232 撑帧探针实测
+// （double/float 取址、char[4]/char[0x10] 未取址）均使帧 +0x20、槽基下移 8 或
+// 0x20，无 +4 档 ⇒ 4.1 大局部顶到 ebp 的槽基差不可翻（N95 定论）。
+// p167 CLEAR（17/17），语义闭合。
 int importExperienceItemMapInfo(std::map<int, int, std::less<int>,
                                 std::allocator<std::pair<int const, int> > >& m,
                                 bool second)
@@ -307,6 +314,8 @@ int importExperienceItemMapInfo(std::map<int, int, std::less<int>,
 // [b28 BM2 判词·AE] 清单 NEAR(2) 为全二进制 call 目标标签伪差；fresh
 // /tmp/tu_RDARScriptEtcParameter.o fn_diff_tu 归一 0 差（152=152 逐条）。
 // [b28d-27] AE：ORIG 0x08913a7e；fn_diff_tu 归一 0 差（157=157），p167 CLEAR。
+// [b28d-solo-RDARScriptEtcParameter] AE（IDENTICAL 级）：fresh .o fn_diff_tu
+// 归一 0 差（152=152，raw 157=157），p167 CLEAR（19/19）。
 int importBoosterGage(char* path, BoosterGageData* out)
 {
     if (!out)
@@ -371,9 +380,11 @@ int importBoosterGage(char* path, BoosterGageData* out)
 // 验收：gap 12→1；差集 10/10 归零；残余 = ORIG 三态汇聚 ebx+终值 esi 双
 // 寄存器物化（4.1 choose-without-store，N3/N76 族）。
 // ===========================================================================
-// [b28d-27] DIFF N93附/P47：ORIG 0x08913dbc；分支常量物化寄存器角色互换
-// （ORIG mov $1,%ebx vs 我方 mov $1,%esi+mov $0,%ebx 组合），p167 CLEAR（10/10），
-// 语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] DIFF N3/N76 封顶：ORIG 0x08913dbc 真形 =
+// do-while(state!=1) 三态机（state 0=return result / 1=退出返回 1 / 2=继续；
+// Ghidra C 复核），result/state 在 ORIG 全程 esi/ebx 无槽往返。普通局部
+// （ours 121）与纯 register（ours 123）两形 4.4 实测均落槽反劣 ⇒ 取指令数最
+// 接近形（111/112）。p167 CLEAR（10/10），语义闭合。
 int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -383,10 +394,12 @@ int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
                               "ERROR : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xe8\xbd\xc0\xb4\xcf\xb4\xd9.", path);
         return 0;
     }
-    // [b28c-lane24] ORIG 0x08913dbc：循环体内每轮重置 isType(-0xd)/ok(-0xe)+
-    // 构造 token(-0x14)、尾析构；ScanTypeOrInt 返回值落 -0xc 死槽（照抄 P171）。
-    // do-while 状态机形（Ghidra iVar3=0/1/2）实测反劣（4.4 把 r 放栈槽 -0x10，
-    // ORIG 用 ebx），已回退；残余 = 三态汇聚 ebx+终值 esi 双寄存器物化（N3/N76）。
+    // [b28d-solo-RDARScriptEtcParameter] ORIG 0x08913dbc：循环体内每轮重置
+    // isType(-0xd)/ok(-0xe)+构造 token(-0x14)、尾析构；ScanTypeOrInt 返回值落
+    // -0xc 死槽（照抄 P171）。ORIG 真形为 do-while(state!=1) 三态机（Ghidra C
+    // 复核：state 0=return result / 1=退出返回1 / 2=继续），但 result/state 在
+    // ORIG 全程 esi/ebx 无槽往返；4.4 对普通局部(+10 条)与纯 register(+12 条)
+    // 两形实测均落槽反劣 ⇒ N3/N76 跨版本寄存器化封顶，取指令数最接近形。
     for (;;)
     {
         bool isType = false;
@@ -441,8 +454,10 @@ int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
 // 4.4 在 token== 匹配后发射 `jmp <内层检查>` 中继 vs 4.1 fall-through
 // （跨版本 nop;jmp 岛 vs jump-threading，N 类豁免）。
 // ===========================================================================
-// [b28d-27] DIFF N82/N89：ORIG 0x08912e47；p167 CLEAR（64/64），残差为 STL 实例
-// 与帧/槽分配，语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] DIFF N95/N7 封顶：ORIG 0x08912e47；
+// char[4] framePad 对齐 token 槽（-0xfc）；残余 data 槽深 4（我方 -0x154 vs
+// ORIG -0x150，槽间距 0x58 vs 0x54）与立即数压栈/callee-saved 角色差
+// （4.1 vs 4.4，N7）不可翻。p167 CLEAR（64/64），语义闭合。
 int importPremiumServiceData(std::vector<PremiumServiceData>& out)
 {
     typedef std::map<const char*, int, less_TCHAR> LookupMap;
@@ -453,6 +468,7 @@ int importPremiumServiceData(std::vector<PremiumServiceData>& out)
                               "CRITICAL ERROR : importPremiumServiceData load faild!");
         return 0;
     }
+    char framePad[4];                             // [b28d-solo] P232 槽基探针
     std::string token;                            // ORIG -0xfc（先构造）
     PremiumServiceData data;                      // ORIG -0x150
     for (;;)
@@ -617,8 +633,11 @@ int importPremiumServiceData(std::vector<PremiumServiceData>& out)
 // 成功返 1。
 // 验收：差集 35/35 归零；残余为 set/pair 临时链槽位序（N82）+ 块排布镜像。
 // ===========================================================================
-// [b28d-27] DIFF N82/N89：ORIG 0x08913f48；p167 CLEAR（35/35），残差为帧/槽与
-// STL 实例形态，语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] DIFF N82/P171 封顶：ORIG 0x08913f48；
+// 外层 ScanType 失败改 break+函数尾 return 1，复现 ORIG `jne <共享出口>`；
+// 残余 = 槽序（ORIG -0x60/-0x78 vs 我方 -0x74/-0x78 族；4.4 按首次使用分配，
+// N82）与 ORIG 保留的 `movl $0xb,-0x60` 死初始化（4.4 消除，P171 不可复现）。
+// p167 CLEAR（35/35），语义闭合。
 int importCommonSkillIndexes(
     const char* path,
     std::vector<int>& commonSkill,
@@ -637,7 +656,7 @@ int importCommonSkillIndexes(
     for (;;)
     {
         if (!ScanType(token, true))
-            return 1;
+            break;                              // ORIG 共享出口（P63）
         if (token == "[common skill]")
         {
             for (;;)
@@ -678,6 +697,7 @@ int importCommonSkillIndexes(
         {
         }
     }
+    return 1;
 }
 
 // ===========================================================================
@@ -699,8 +719,10 @@ int importCommonSkillIndexes(
 // 验收：gap 52→1（413/412）；P167 差集 58/58 归零；残余=槽号平移+ctor/dtor
 // 块序（N82/EH-merge 族）。
 // ===========================================================================
-// [b28d-27] DIFF N82/N89：ORIG 0x08914dd1；p167 CLEAR（58/58），残差为帧/槽与
-// STL 实例形态，语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] DIFF N95/N7 封顶：ORIG 0x08914dd1；
+// char[4] framePad 使槽基精确对齐 ORIG（key -0xb4/-0xb0、skills -0xc8）；
+// 残余 = 立即数压栈与 callee-saved 角色差（4.1 vs 4.4，N7）及 token 槽内偏移。
+// p167 CLEAR（58/58），语义闭合。
 int importCancelSkillIndices(
     const char* path,
     std::map<std::pair<ENUM_CHARACTERJOB, int>, std::set<int> >& out)
@@ -712,6 +734,7 @@ int importCancelSkillIndices(
         return 0;
     }
     typedef std::map<const char*, int, less_TCHAR> LookupMap;
+    char framePad[4];                           // [b28d-solo] P232 槽基探针
     std::pair<ENUM_CHARACTERJOB, int> key;      // ORIG -0xb4 C2Ev + 直写两成员
     key.first = ENUM_CHARACTERJOB(0xb);         // -0xb4 movl $0xb
     key.second = -1;                            // -0xb0 movl $-1
@@ -821,8 +844,9 @@ int importCancelSkillIndices(
 // 验收：差集 40/40 归零；clean 225=225，残余为 clear/dtor 块序镜像
 // （4.4 jump-threading 跨版本伪影，N 类）。
 // ===========================================================================
-// [b28d-27] DIFF N82：ORIG 0x08907e3a；p167 CLEAR（40/40），残差为帧/槽分配，
-// 语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] AE：ORIG 0x08907e3a；外层 ScanType 失败改
+// break+函数尾 return 1，复现 ORIG 共享出口（P63）；fn_diff_tu 归一 0 差
+// （225=225，raw 230=230），p167 CLEAR（40/40）。
 int importAdditionalEffectListScript(const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -836,7 +860,7 @@ int importAdditionalEffectListScript(const char* path)
     for (;;)
     {
         if (!ScanType(token, true))
-            return 1;
+            break;                              // ORIG 0x332 共享出口（P63）
         if (token == "[effect]")
         {
             AdditionalEffectData data;             // ORIG -0x40（每轮外层 body 构造）
@@ -880,6 +904,7 @@ int importAdditionalEffectListScript(const char* path)
             }
         }
     }
+    return 1;
 }
 // ===========================================================================
 // importNoviceCommandScript —— ORIG T 0x0890402a
@@ -1026,8 +1051,11 @@ int importNoviceCommandScript(const char* path, stNoviceCommand& out)
 // 拷贝链逐点对应）；残余 = 循环出口多路 dtor 链块序与槽号
 // （N82/EH merge 跨版本族）。
 // ===========================================================================
-// [b28d-27] DIFF N82/N89：ORIG 0x0890793f；p167 CLEAR（66/66），残差为帧/槽与
-// STL 实例形态，语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] DIFF P231/N82 封顶：ORIG 0x0890793f；
+// 内层改 do-while(ScanStr)（push_back/map 赋值在 if 内）后 345 vs 343；
+// 残余 2 条 = do-while 的 okPiece 局部 4.4 落槽（`mov %al,-0x21; cmpb $1`）
+// vs ORIG 寄存器 `xor$1;test;jne`（纯 register 实测无效）⇒ N。p167 CLEAR
+// （66/66），语义闭合。
 int importEquipmentEffectSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
 {
     if (!loadRDARScriptFile("", path))
@@ -1050,18 +1078,20 @@ int importEquipmentEffectSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
             data.m_field0 = ScanInt((bool*)0);
             ScanStr(&name);
             data.m_name4 = name;
-            for (;;)
+            // ORIG do-while(ScanStr==1)：push_back/map 赋值在 if 内，piece 每轮先构造
+            bool okPiece;
+            do
             {
-                // ORIG：piece 每轮先构造（-0x64），ScanStr 失败也走析构；
-                // piece.m_name 从不赋值（仅取 idx，-0x60=piece+4）
                 STEquipmentPartSetPiece piece;
-                if (!ScanStr(&pieceName))
-                    break;
-                piece.m_field4 = getSameStringIndex(pieceName.c_str(),
-                                                    characterEquipmentTypeTags, 0x1a);
-                data.m_pieces.push_back(piece);
-                g_equipmentEffectSetMap_[data.m_field0] = data;
-            }
+                okPiece = ScanStr(&pieceName);
+                if (okPiece)
+                {
+                    piece.m_field4 = getSameStringIndex(pieceName.c_str(),
+                                                        characterEquipmentTypeTags, 0x1a);
+                    data.m_pieces.push_back(piece);
+                    g_equipmentEffectSetMap_[data.m_field0] = data;
+                }
+            } while (okPiece);
         }
     }
     for (std::map<int, STEquipmentPartSetData>::iterator it =

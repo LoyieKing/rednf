@@ -140,7 +140,8 @@ private:
 struct stMacroData                                       // sizeof = 12
 {
     stMacroData() throw();                               // 0x084b3f6a（P216：消调用者 4.4 冗余 landing）
-    ~stMacroData() throw();                              // 0x084b5db4
+    // b28d-solo-GmMacro：无用户析构——ORIG 0x084b5db4 W 0x5 为隐式 trivial dtor
+    // （ORIG Recording 0x084a8802 正常路径无 dtor call、vector 走 _Destroy_aux<true>）。
 
     unsigned char m_cmd;                                 // +0x00 包类型
     unsigned char m_sub;                                 // +0x01 子类型

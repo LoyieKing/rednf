@@ -11,9 +11,12 @@ struct stSERVER_MESSAGE
 {
     unsigned char m_kind;
     unsigned char m_index;
-    int m_lenMsg;
+    // [b28d-S112] ORIG 0x086015b9/0x08600f?? 对 `m_lenMsg = strlen(pMsg)` 发 LHS-first 直存
+    // `mov -0x10(%ebp),%edx; mov %eax,0x4(%edx)`（无 eax→edx 中转）⇒ 字段与 size_t 同型
+    // （P211/P254）；消费点 ORIG 均 32 位直载，偏移/尺寸不变。
+    unsigned int m_lenMsg;
     char m_msg[52];
-    int m_lenMsg2;
+    unsigned int m_lenMsg2;
     char m_msg2[20];
     int m_endTime;
 };
@@ -65,7 +68,11 @@ public:
     void UpdateServerMessage(CUser*, int, char*, char*, int);
     void UpdateServerMessageByBroadcast(int, char*, char*, int);
     void LoadServerMessageFromDB();
-    unsigned char IsSetServerMessage() { return m_isSet; }
+    // [b28d-S112] P292/P248 档①：ORIG 调用点 0x08601628/0x0860109? 为
+    // `call; xor $0x1,%eax; test %al,%al; je`（无 sete 归一）⇒ 返回类型 bool；
+    // 非 bool 返回恒产 `test; sete; test; je` 四段（探针 /tmp/gs_probe2.cpp call1/call2）。
+    // mangled 不含返回类型，头内联，布局零影响。
+    bool IsSetServerMessage() { return m_isSet; }
     EVENT_SERVER_MESSAGE* GetCurServerMessage() { return &m_event; }
     void setLoadingComplete() { m_isSet = 1; }
 

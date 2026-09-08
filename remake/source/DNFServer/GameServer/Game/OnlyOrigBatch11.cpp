@@ -192,17 +192,24 @@ long getNextScheduleTime(int hour, long time)
 int checkGetItemPacket(int a, int b, int c)
 {
     const int sum = b + c;
-    // b28d-D66：ORIG 两槽是 `and $0x1,%eax; mov %al,-0x2/-0x1`（char 截断直存）。
-    // 第一段 `if (oddA && oddSum) goto Lfail;` 复现 ORIG @+0x24 `cmpb $0x0,-0x2; je L1`
-    // + @+0x2a `cmpb $0x0,-0x1; jne Lfail`（then 后置 + 共享 Lfail 块；探针
-    // /tmp/d66_probe7.cpp g1 逐条对齐）；第二段 ORIG @+0x30 为 `movzbl; xor $1; test %al;
-    // je Lsucc` ×2（X 族寄存器物化），4.4 对 `!oddA || !oddSum` 恒发 `cmpb $0; je` 直分支
-    // （P168a④：无绑定即不可达；语句表达式 g3 反产 xorb 栈化 + 双 setne 更劣）⇒ N96 封顶。
-    // 尾部块序 Lfail(mov $0) 先于 Lsucc(mov $1) 与 ORIG 一致。
-    const unsigned char oddA = (unsigned char)(a & 1);
-    const unsigned char oddSum = (unsigned char)(sum & 1);
+    // [b28d-solo-OnlyOrigBatch11] 语义订正 + 形复现：
+    // 真值表（ORIG 逐路径推演）：11→0、10→1、01→1、00→0，即 `oddA ^ oddSum`。
+    // 旧实现 `!oddA || !oddSum` 在 00 情形返 1 ⇒ 真语义 bug（P196 族），已按 ORIG 改正。
+    // 形：两槽必须是 **bool** 局部（P292 同源）——uchar 局部下 4.4 把取反折成
+    // `cmpb $0;je` 直分支，bool 局部才发 ORIG 的 `movzbl; xor $1; test %al,%al; je`。
+    // 第二段用 `if (!oddA) { if (!oddSum) goto Lfail; } goto Lsucc;`（探针
+    // /tmp/b28d_s83_probe3.cpp h2，另穷举 probe4/5/6 共 15 形）：xor 物化 +
+    // je Lsucc ×2 + 失败 fall-through 全中；fndiff clean 归一后 ndiff=2，残差仅
+    // 2 条 jmp 中继（4.4 为 goto 目标多布，nop 已被 clean 剥离）⇒ N 封顶
+    // （跨版本 CFG 块布局，P63/P223 族；21 形探针均不可消）。
+    const bool oddA = (a & 1) != 0;
+    const bool oddSum = (sum & 1) != 0;
     if (oddA && oddSum) goto Lfail;
-    if (!oddA || !oddSum) goto Lsucc;
+    if (!oddA)
+    {
+        if (!oddSum) goto Lfail;
+    }
+    goto Lsucc;
 Lfail:
     return 0;
 Lsucc:
@@ -221,17 +228,34 @@ RandomOptionScript& _GetRandomOption()
 }
 
 // ORIG T 0x085f2c4a：按 +1/+2 两字节和排序（小于 1、大于 -1、等于 0）。
+namespace
+{
+// [b28d-solo-OnlyOrigBatch11] ORIG 用 `movzbl 0x1(%eax),%eax` / `movzbl 0x2(%eax),%eax`
+// 的 **disp 形**逐字段重读 ⇒ 原码是具名结构视图（P80/P82），不是 `((char*)a)[k]`
+// （后者 4.4 恒发 `add $k,%eax; movzbl (%eax)` 两步，实测旧版多 8 条 + 栈帧）。
+struct RandomOptionSortKeyView
+{
+    char m_pad0;
+    unsigned char m_key1;
+    unsigned char m_key2;
+};
+}  // namespace
+
 int _CompareRandomOption(const void* a, const void* b)
 {
-    const unsigned int sa =
-        static_cast<unsigned char>(((const char*)a)[1]) +
-        static_cast<unsigned char>(((const char*)a)[2]);
-    const unsigned int sb =
-        static_cast<unsigned char>(((const char*)b)[1]) +
-        static_cast<unsigned char>(((const char*)b)[2]);
-    if (sa < sb)
+    // [b28d-solo-OnlyOrigBatch11] P0/P183：ORIG 无 sa/sb 具名槽、且第二段比较
+    // **完整重算** a/b 两串字节（a 先 b 后）⇒ 两处独立内联表达式；比较用 int
+    // （ORIG jge/jle 有符号序，unsigned 会退化为 jae）。探针 /tmp/b28d_s83_probe_cro.cpp
+    // q7 与 ORIG 逐条全等（q1/q2 对照：unsigned 出 jae、第二段 b 先出 jge 反向）。
+    if ((int)((const RandomOptionSortKeyView*)a)->m_key1 +
+            (int)((const RandomOptionSortKeyView*)a)->m_key2 <
+        (int)((const RandomOptionSortKeyView*)b)->m_key1 +
+            (int)((const RandomOptionSortKeyView*)b)->m_key2)
         return 1;
-    if (sb < sa)
+    if ((int)((const RandomOptionSortKeyView*)a)->m_key1 +
+            (int)((const RandomOptionSortKeyView*)a)->m_key2 >
+        (int)((const RandomOptionSortKeyView*)b)->m_key1 +
+            (int)((const RandomOptionSortKeyView*)b)->m_key2)
         return -1;
     return 0;
 }
@@ -469,11 +493,20 @@ int getEquipmentEventTiming(const std::string& s)
 // to_tm → mktime 写入 *out。异常路径 Unwind（ORIG 有 try/catch 表）。
 void convert_string_to_time(const char* str, int& out)
 {
-    std::string s(str);
+    // [b28d-solo-OnlyOrigBatch11] 两处形订正（探针/报告 0x08358208）：
+    // ①ORIG 在 time_from_string 返回后**立即** D1 析构 string（+0x047），随后才
+    //   D1 析构临时 allocator（+0x078）⇒ 原码是 `time_from_string(std::string(str))`
+    //   的**临时对象实参**，不是函数作用域具名 `std::string s(str)`（后者析构被
+    //   推迟到函数末尾 EH 尾块，实测调用序整体错位）。
+    // ②日志第 3 参 ORIG 为 `_ZZ22convert_string_to_timePKcRiE19__PRETTY_FUNCTION__`
+    //   局部静态符号（P118/P139）⇒ 必须写 `__PRETTY_FUNCTION__`，手写字面量只生
+    //   匿名 .rodata（实测 .o 立即数 0x398 即该伪差）。
+    // 余差：catch 内 `e.what()` 间接虚调用目标寄存器 ORIG %edx vs 4.4.7 恒 %eax
+    // （N7/P230 补：4.4.6 后端才用 %edx；本 TU 路由 4.4.7 后端不可切）⇒ N7 封顶。
     try
     {
         boost::posix_time::ptime pt =
-            boost::posix_time::time_from_string(s);
+            boost::posix_time::time_from_string(std::string(str));
         struct tm tmv = boost::posix_time::to_tm(pt);
         out = static_cast<int>(mktime(&tmv));
     }
@@ -483,7 +516,7 @@ void convert_string_to_time(const char* str, int& out)
         // "void convert_string_to_time(const char*, int&)", 0x1920,
         // "Exception: %s")
         LogManager::logFormat(1, "data_manager.cpp",
-                              "void convert_string_to_time(const char*, int&)",
+                              __PRETTY_FUNCTION__,
                               0x1920, "Exception: %s", e.what());
     }
 }
@@ -496,14 +529,12 @@ void convert_string_to_time(const char* str, int& out)
 // 赋值 + 临时析构，含 EH 保护区），非 attachData 直挂；且两循环编码游标用
 // `char* buf++` 指针自增、ch 为 signed int（`cmpl $0x7f; jg`）、首循环逐臂
 // `++i`（while 形）、createTerminated 已含终止符无需 buf[pos]='\0'。订正后
-// ndiff 103→11（残差 = 尾部 tmp 析构公共块布局 + 返回值寄存器调度：
-// ORIG `D1; mov$1,%eax` 尾块直设，4.4 内联 D1 于 aSERKS_ 后 +
-// `mov$1,%ebx; mov%ebx,%eax` 跨 call 保活，跨版本不可复现，N 封顶）。
-// [b28d-D66 复核·N 封顶维持] 135 vs 136（gap 1）。残差两处：①早退臂 ORIG
-// `mov $0x1,%eax; jmp +0x1a5`（+0x077）与正常路径 `mov $0x1,%eax`（+0x1a0）两条
-// 独立直设；4.4 合并为 `mov $0x1,%ebx; jmp` + 尾 `mov %ebx,%eax`（P78 汇聚变量
-// 跨版本寄存器差异，禁 register 绑定）；②`movl $"",0x4(%esp)` 的 .o 重定位显示
-// （0x24b addend）属 P264 未链接伪差，AE 归一后相同。
+// ndiff 103→11（残差 = 尾部 tmp 析构公共块布局 + 返回值寄存器调度）。
+// [b28d-solo-OnlyOrigBatch11 收口] 旧 D66 的「P78 N 封顶」判词作废：把尾部
+// `CharString tmp(data); *out = tmp; return true;` 的 tmp 收进**显式块**
+// `{ CharString tmp(data); *out = tmp; } return true;` 后，`mov $1,%eax` 落到
+// D1 之后（ORIG +0x1a0 形），4.4 不再把返回值提前物化到 %ebx ⇒ fndiff clean
+// 135=135 **AE-EQUAL**（`movl $"",0x4(%esp)` 的 0x24b addend 为 P264 未链接伪差）。
 bool convertToUtf8(const wchar_t* src, int srcLength, CharString* out)
 {
     int need = 0;
@@ -555,8 +586,13 @@ bool convertToUtf8(const wchar_t* src, int srcLength, CharString* out)
     // ORIG 0x8adf75a..0x8adf861：构造临时 CharString tmp(data)（lea -0x28）→
     // *out = tmp（aSERKS_）→ 析构 tmp（D1，含 EH 保护区）；非 attachData
     // 直挂（那样缺 C1EP14CharStringData / aSERKS_ / D1 三个调用）。
-    CharString tmp(data);
-    *out = tmp;
+    // [b28d-solo-OnlyOrigBatch11] tmp 用**显式块**限定生存期（块尾析构），使
+    // `return true` 的 `mov $1,%eax` 落在 D1 之后（ORIG +0x1a0 形），避免 4.4
+    // 把返回值提前物化到 %ebx 跨 D1 call 保活（P78）。
+    {
+        CharString tmp(data);
+        *out = tmp;
+    }
     return true;
 }
 

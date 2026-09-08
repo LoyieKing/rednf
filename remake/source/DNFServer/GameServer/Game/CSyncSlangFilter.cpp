@@ -34,18 +34,14 @@ SlangNode::SlangNode()
     end_ = 0;
 }
 
-// [b28d-19] N：N91/N93 —— EH cleanup 段与临时槽序跨版本差；ORIG 0x0862e92a。
+// [b28d-solo-CSyncSlangFilter] AE：P50 先声明后赋值（ORIG 有独立 iterator::C1Ev，初始化式会被 4.4 折叠）+ P141 无条件 delete 复现 ORIG 空指针守卫；ORIG 0x0862e92a。
 SlangNode::~SlangNode()
 {
-    __gnu_cxx::hash_map<unsigned int, SlangNode*>::iterator it = children_.begin();
+    __gnu_cxx::hash_map<unsigned int, SlangNode*>::iterator it;
+    it = children_.begin();
     for (; it != children_.end(); ++it)
     {
-        SlangNode* child = it->second;
-        if (child)
-        {
-            child->~SlangNode();
-            ::operator delete(child);
-        }
+        delete it->second;
     }
     children_.clear();
 }
@@ -58,15 +54,13 @@ SlangNode* SlangNode::FindChild(unsigned int ch) const
     return 0;
 }
 
-// [b28d-19] N：N93 —— 临时对象槽序平移 4（-0x40↔-0x3c）；ORIG 0x0862ea5a。
+// [b28d-solo-CSyncSlangFilter] AE：键类型改 pair<const unsigned int, SlangNode*>（消 pair<uint,..> 转换构造）+ new 内联进 insert 实参（消具名 node 槽，P226/P278 匿名临时，槽集 it/end/insert/pair/new 与 ORIG 逐槽全等）；ORIG 0x0862ea5a。
 SlangNode* SlangNode::AddChild(unsigned int ch)
 {
     __gnu_cxx::hash_map<unsigned int, SlangNode*>::iterator it = children_.find(ch);
     if (it == children_.end())
     {
-        SlangNode* node = new SlangNode();
-        std::pair<unsigned int, SlangNode*> entry(ch, node);
-        it = children_.insert(entry).first;
+        it = children_.insert(std::pair<const unsigned int, SlangNode*>(ch, new SlangNode())).first;
     }
     return it->second;
 }
@@ -195,7 +189,7 @@ bool CSyncSlangFilter::HasSlangName(const std::string& name)
     return 0;
 }
 
-// [b28d-19] N：N93 —— 局部槽序平移 + 块级对象槽方向；ORIG 0x0862e46c。
+// [b28d-solo-CSyncSlangFilter] AE：sub 去具名块改全表达式实参 + stars/allocator 匿名临时（P221/P226；同时把两析构置于 i+=n 之前，复现 ORIG 块序与槽位）；ORIG 0x0862e46c。
 std::string CSyncSlangFilter::Filter(const std::string& str)
 {
     std::string out(str);
@@ -205,15 +199,10 @@ std::string CSyncSlangFilter::Filter(const std::string& str)
     for (; i < str.size(); )
     {
         readGuard<rwLock> guard(&lock_);
-        {
-            std::string sub = str.substr(i, str.size() - i);
-            n = (unsigned)match(sub);
-        }
+        n = (unsigned)match(str.substr(i, str.size() - i));
         if (n != 0)
         {
-            std::allocator<char> a;
-            std::string stars(n, '*', a);
-            out.replace(i, n, stars);
+            out.replace(i, n, std::string(n, '*', std::allocator<char>()));
             i += n;
         }
         else
@@ -222,7 +211,7 @@ std::string CSyncSlangFilter::Filter(const std::string& str)
     return out;
 }
 
-// [b28d-19] N：P75 —— 同 AddSlangName（snprintf 首参装载时刻）；ORIG 0x0862e72a。
+// [b28d-solo-CSyncSlangFilter] N：P75/N-G —— snprintf 首参 buf 装载时刻跨版本差（4.1 在 c_str 后立即 lea→%edx 并跨 varargs 保活，4.4 末位 lea→%eax）；(char*)buf 与逗号形实测同（&buf[0] 历史结论亦同）；ORIG 0x0862e72a。
 void CSyncSlangFilter::AddSlang(const std::string& str)
 {
     char buf[0x101] = {0};
@@ -247,7 +236,7 @@ void CSyncSlangFilter::AddSlang(const std::string& str)
     node->SetEndNode(true);
 }
 
-// [b28d-19] N：P75 —— snprintf 首参(buf)装载时刻跨版本差（4.1 在 c_str 后立即 lea→%edx，4.4 末位 lea→%eax）；&buf[0]/buf 两形实测同；ORIG 0x0862e276。
+// [b28d-solo-CSyncSlangFilter] N：P75/N-G —— 同 AddSlang（snprintf 首参装载时刻跨版本差）；ORIG 0x0862e276。
 void CSyncSlangFilter::AddSlangName(const std::string& str)
 {
     char buf[0x101] = {0};

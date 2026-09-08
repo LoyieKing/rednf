@@ -61,12 +61,26 @@ BuyUpgradeData& BuyUpgradeData::operator=(const BuyUpgradeData& other)
 }
 
 // ORIG T 0x088a2c62：入口恒记 logFormat(line 0x26e)；m_listMap 命中 level 且
-// 其行命中 ft 时返回 FieldData::m_value；否则记 line 0x27b 错误日志后再做一次
-// 相同两段查询并以同式返回（继承 ORIG 尾部指令序 [objdump 0x88a2d5a..2e41]）。
-int BuyUpgradeData::getFieldData(int level, FieldType::T ft)
+// 其行命中 ft 时返回 &FieldData；否则记 line 0x27b 错误日志后再以 key=1 做一次
+// 相同两段查询并同式返回（继承 ORIG 尾部指令序 [objdump 0x88a2d5a..2e41]）。
+// [b28d-solo-advancealtar_misc 判词] NEAR（134:134，助记符序列全等、仅槽号差）
+//   已修：①返回类型 int→FieldData*（ORIG 两路 `call operator-> ; add $0x4,%eax`）；
+//   ②第二段 find key 常量 1（P171 照抄）；③typeName 独立块（析构先于第二段 find）
+//   使返回路径回归 ORIG `add $0x4,%eax`（块外声明时为 lea+ebx 中转）。
+//   残余（N 封顶，P212/N93/N82附）：4.1 给 typeName 浅槽 -0x10、lit 深 -0x1c；
+//   4.4 相反（typeName -0x24、lit -0x18），其余槽随动 4B（end2 -0x10↔-0x14、
+//   end1 -0x14↔-0x18、fit -0x20↔-0x24、fit2 -0x1c↔-0x20；key -0xc / sret -0x2c
+//   两侧相同）。P212 全头部声明法对非平凡类型不可用（提前声明 string 会引入
+//   C1Ev + operator= 两处 call，实测 missing +2、更劣）；嵌套块/块内先声明 fit2/
+//   迭代器先声明后赋值（P50）三形实测均不闭合。语义/调用点/指令数全等。
+FieldData* BuyUpgradeData::getFieldData(int level, FieldType::T ft)
 {
-    // b28d-35: DIFF→N 封顶（N82 帧/槽 + logFormat 实参装载序）。ORIG @0x088a2c62
-    //   帧 0x50；我方帧 0x40 且首段 logFormat 实参装载序不同。语义/调用点一致。
+    // b28d-solo-advancealtar_misc：ORIG @0x088a2c62 两处返回路径均为
+    //   `call _Rb_tree_iterator<pair<const FieldType::T,FieldData>>::operator->`
+    //   （0x088a4498 W）+ `add $0x4,%eax` ⇒ 返回 &pair.second（FieldData*），
+    //   非取值 ⇒ 返回类型由 int 改 FieldData*（见 CDataManager.h 声明处注释）。
+    //   第二段查询 key 为常量 1（ORIG 0x088a2de0 `movl $0x1,-0xc(%ebp)` +
+    //   `lea -0xc(%ebp),%edx` 传 find 的 key 引用；P171 原码行为照抄）。
     LogManager::logFormat(
         0, "../localglobal/global_RDARScriptAdvanceAltar_Shop.cpp", __FUNCTION__,
         0x26e, "BuyUpgradeData::GetFieldData level = %d", level);   // [objdump 0x88a2c98]
@@ -77,20 +91,24 @@ int BuyUpgradeData::getFieldData(int level, FieldType::T ft)
         FieldDataMap::iterator fit = lit->second.find(ft);
         if (fit != lit->second.end())
         {
-            return fit->second.m_value;                             // [objdump 0x88a2d52 add $4]
+            return &fit->second;                                    // [objdump 0x88a2d52 add $4]
         }
     }
 
-    std::string typeName(getStatStringIndex(ft));                   // [objdump 0x88a2d6e]
-    LogManager::logFormat(
-        0, "../localglobal/global_RDARScriptAdvanceAltar_Shop.cpp", __FUNCTION__,
-        0x27b,
-        "AdvanceAltar BuyUpgradeData::GetFieldData Error level = %d, type = %s",
-        level, typeName.c_str());                                   // [objdump 0x88a2db3]
+    // ORIG 0x088a2dd5 在第二段 find 之前析构 typeName ⇒ 失败日志段为独立块
+    //   （P212 块作用域；ORIG typeName 槽 -0x10 浅于 lit -0x1c、fit2 -0x20）。
+    {
+        std::string typeName(getStatStringIndex(ft));               // [objdump 0x88a2d6e]
+        LogManager::logFormat(
+            0, "../localglobal/global_RDARScriptAdvanceAltar_Shop.cpp", __FUNCTION__,
+            0x27b,
+            "AdvanceAltar BuyUpgradeData::GetFieldData Error level = %d, type = %s",
+            level, typeName.c_str());                               // [objdump 0x88a2db3]
+    }
 
-    LevelFieldDataMap::iterator lit2 = m_listMap.find(level);       // [objdump 0x88a2dfe]
-    FieldDataMap::iterator fit2 = lit2->second.find(ft);            // [objdump 0x88a2e29]
-    return fit2->second.m_value;                                    // [objdump 0x88a2e3e add $4]
+    lit = m_listMap.find(1);                                        // [objdump 0x88a2de0/0x88a2dfe]
+    FieldDataMap::iterator fit2 = lit->second.find(ft);             // [objdump 0x88a2e29]
+    return &fit2->second;                                           // [objdump 0x88a2e3e add $4]
 }
 
 // ORIG T 0x088a3012：idx 越界 → -1；否则 m_fieldTypes[idx]。
@@ -107,6 +125,8 @@ int BuyUpgradeData::getFieldType(int idx) const
 // ORIG T 0x088a3322：初值 0，取 m_listMap 最大 key。
 int BuyUpgradeData::getMaxLevel() const
 {
+    // b28d-solo-advancealtar_misc：IDENTICAL/AE 复验通过（fresh .o compare_tu clean，
+    //   49=49 逐条全等，仅 .o 未解析重定位伪差）。ORIG @0x088a3322。
     // b28d-35: IDENTICAL_AE（49/49 clean 全等）。ORIG @0x088a3322；ppEi 后置
     //   三槽形 + advancealtar.h enum 化后重编复验通过。
     // b28c-L5：ORIG 0x088a3322 循环增量段调
@@ -129,6 +149,8 @@ int BuyUpgradeData::getMaxLevel() const
 // ORIG T 0x088a33c0：初值 0，取 m_listMap 最小 key。
 int BuyUpgradeData::getMinLevel() const
 {
+    // b28d-solo-advancealtar_misc：IDENTICAL/AE 复验通过（fresh .o compare_tu clean，
+    //   49=49 逐条全等）。ORIG @0x088a33c0。
     // b28d-35: IDENTICAL_AE（49/49 clean 全等）。ORIG @0x088a33c0；同 getMaxLevel。
     // b28c-L5：同 getMaxLevel —— ORIG ppEi 后置 ++ 三槽形（0x088a33c0）。
     int minLevel = 0;
@@ -181,12 +203,19 @@ int BuyUpgradeData::getStatFirstPos() const
     for (std::vector<FieldType::T>::const_iterator it = m_fieldTypes.begin();
          it != m_fieldTypes.end(); it++)
     {
-        // b28c-L5：ORIG 判定段为 `sub $0xa,%eax / cmp $0xe,%eax / ja <continue>`
-        //   ——**直跳**（3 条）。4.4 对 `< 0xfU` 恒物化 bool（`setbe;test;je`，5 条）；
-        //   改等价 `<= 0xeU` 后 4.4 出直跳形（同一无符号边界，仅比较算符反转）。
-        if ((unsigned int)*it - 10U <= 0xeU)
+        // b28d-solo-advancealtar_misc：ORIG 判定段 `sub $0xa,%eax / cmp $0xe,%eax / ja`
+        //   ——**直跳**（无 bool 物化）。4.4 对 if 形（`< 0xfU`/`<= 0xeU`/`> 0xeU`
+        //   加 continue/空 then 共七形实测）恒物化 `setbe;test;je`（+2 条，P197④ 镜像族）；
+        //   改 15 个连续 case 汇聚到同一 `return pos` 的 switch 后，4.4 折叠为范围检查
+        //   `sub/cmp/ja`，与 ORIG 逐条全等（探针 /tmp/sfp_p2.cpp fH vs fI）。
+        //   语义 = *it ∈ [FT_HP(0xa), FT_ETC2(0x18)] 闭区间，与 if 形等价。
+        switch ((unsigned int)*it - 10U)
         {
+        case 0: case 1: case 2: case 3: case 4: case 5: case 6:
+        case 7: case 8: case 9: case 10: case 11: case 12: case 13: case 14:
             return pos;
+        default:
+            break;
         }
         ++pos;
     }
@@ -226,33 +255,32 @@ int BuyUpgradeData::getStatIconIndex(FieldType::T ft) const
 // CStringManager::getStr(id)；区间外的 ft 返回空串。
 std::string BuyUpgradeData::getStatStringIndex(FieldType::T ft) const
 {
-    // b28d-35：N 封顶（N86/N82 族）。ORIG 0x088a3106 = 140 条（每 case 压 id 后
-    //   走公共 sret 尾）；实测两形：①逐 case `return getStr(N)` 使 4.4 为每臂
-    //   展开独立 sret 构造/析构 ⇒ 397 条（远劣）；②具名 strId + 统一尾调用
-    //   （本形）71 条。4.1 的「逐 case 压栈 + 共享 sret 尾」在 4.4 无源形，
-    //   取最短可读形；语义（id 表与 default 空串）全等。
+    // b28d-solo-advancealtar_misc：ORIG 0x088a3106 = 140 条，每 case 独立
+    //   `movl $id,(%esp); call getStr; mov %ebx,%edx; mov %eax,0x4(%esp);
+    //   mov %edx,(%esp); call string::operator=(char const*); jmp 共享 sret 尾`
+    //   ⇒ 原码是**每 case 独立赋值** `result = CStringManager::getStr(id); break;`
+    //   （共享 sret result，非逐臂 return——后者 4.4 展开独立 sret 构造/析构 397 条）。
+    //   原「具名 strId + 统一尾调用」形 4.4 只发一次 getStr/op=（73 条）。
     std::string result;
-    int strId = -1;
     switch (ft)
     {
-    case FieldType::FT_HP:   strId = 0x11570; break;   // [objdump 0x88a3134]
-    case FieldType::FT_DMG:  strId = 0x11571; break;   // [objdump 0x88a3153]
-    case FieldType::FT_PIC:  strId = 0x11573; break;   // [objdump 0x88a3172]
-    case FieldType::FT_RCV:  strId = 0x11574; break;   // [objdump 0x88a3191]
-    case FieldType::FT_SUM:  strId = 0x11575; break;   // [objdump 0x88a31b0]
-    case FieldType::FT_MHT:  strId = 0x11576; break;   // [objdump 0x88a31cf]
-    case FieldType::FT_RGN:  strId = 0x1158f; break;   // [objdump 0x88a31ee]
-    case FieldType::FT_MSD:  strId = 0x11590; break;   // [objdump 0x88a320d]
-    case FieldType::FT_ASD:  strId = 0x11591; break;   // [objdump 0x88a322c]
-    case FieldType::FT_SDT:  strId = 0x11592; break;   // [objdump 0x88a324b]
-    case FieldType::FT_FDT:  strId = 0x11593; break;   // [objdump 0x88a326a]
-    case FieldType::FT_ETC:  strId = 0x11596; break;   // [objdump 0x88a3286]
-    case FieldType::FT_LRG:  strId = 0x11572; break;   // [objdump 0x88a32a5 区段]
-    case FieldType::FT_SPL:  strId = 0x11595; break;
-    case FieldType::FT_ETC2: strId = 0x11596; break;
+    case FieldType::FT_HP:   result = CStringManager::getStr(0x11570); break;  // [objdump 0x88a3134]
+    case FieldType::FT_DMG:  result = CStringManager::getStr(0x11571); break;  // [objdump 0x88a3153]
+    case FieldType::FT_PIC:  result = CStringManager::getStr(0x11573); break;  // [objdump 0x88a3172]
+    case FieldType::FT_RCV:  result = CStringManager::getStr(0x11574); break;  // [objdump 0x88a3191]
+    case FieldType::FT_SUM:  result = CStringManager::getStr(0x11575); break;  // [objdump 0x88a31b0]
+    case FieldType::FT_MHT:  result = CStringManager::getStr(0x11576); break;  // [objdump 0x88a31cf]
+    case FieldType::FT_RGN:  result = CStringManager::getStr(0x1158f); break;  // [objdump 0x88a31ee]
+    case FieldType::FT_MSD:  result = CStringManager::getStr(0x11590); break;  // [objdump 0x88a320d]
+    case FieldType::FT_ASD:  result = CStringManager::getStr(0x11591); break;  // [objdump 0x88a322c]
+    case FieldType::FT_SDT:  result = CStringManager::getStr(0x11592); break;  // [objdump 0x88a324b]
+    case FieldType::FT_FDT:  result = CStringManager::getStr(0x11593); break;  // [objdump 0x88a326a]
+    case FieldType::FT_ETC:  result = CStringManager::getStr(0x11596); break;  // [objdump 0x88a3286]
+    case FieldType::FT_LRG:  result = CStringManager::getStr(0x11572); break;  // [objdump 0x88a32a2]
+    case FieldType::FT_SPL:  result = CStringManager::getStr(0x11595); break;  // [objdump 0x88a32be]
+    case FieldType::FT_ETC2: result = CStringManager::getStr(0x11596); break;  // [objdump 0x88a32da]
     default:                 return result;            // 跳转表范围外 → 空 string
     }
-    result = CStringManager::getStr(strId);
     return result;
 }
 
@@ -336,12 +364,18 @@ advancealtar::AchievementRewardData*
 RewardParameter::getAchievementRewardData(StageDifficulty::T diff, int count) const
 {
     for (std::map<int, AchievementRewardData>::const_iterator it = m_rewardMap.begin();
-         it != m_rewardMap.end(); ++it)
+         it != m_rewardMap.end(); it++)
     {
         // b28d-35：ORIG 0x0889b5a8 每字段重新计算 `it->second` 基址
         //   （`call operator->` 后直接 `mov 0x8(%eax)` / 再调一次后 `mov 0xc(%eax)`）
         //   ⇒ P183 禁引用缓存：删除 `const AchievementRewardData& data` 具名缓存。
-        if (it->second.m_difficulty == (int)diff &&
+        // b28d-solo-advancealtar_misc：ORIG 0x0889b5d0 首比较为
+        //   `mov 0x8(%eax),%eax; mov %eax,%edx; mov 0xc(%ebp),%eax; cmp %eax,%edx`
+        //   —— 两侧显式 `(unsigned int)` cast 使 4.4 保留 eax→edx 中转 + 形参入
+        //   %eax 的寄存器比较（探针 /tmp/enp4.cpp k1；`(int)` cast 或裸比较恒折
+        //   单段 `mov 0x8(%eax),%edx` + 内存比较）。第二比较（int vs int）保持
+        //   裸形，与 ORIG `mov 0xc(%eax),%eax; cmp 0x10(%ebp),%eax` 一致。
+        if ((unsigned int)it->second.m_difficulty == (unsigned int)diff &&
             it->second.m_stageClearCount == count)
         {
             return const_cast<AchievementRewardData*>(&it->second);
@@ -357,10 +391,13 @@ RewardParameter::getAchievementRewardData(StageDifficulty::T diff, int count) co
 // ============================================================================
 int AdvanceAltarShopParameter::getMaxStarResetGoldFee()
 {
-    // b28d-35: DIFF→N82（迭代器临时槽/帧差）。ORIG @0x088a2bc0 帧 0x28、end() 临时
-    //   -0xc；我方帧 0x38、临时 -0x1c（4.4 多一次 end 求值+槽深差 0x10）。语义一致。
+    // b28d-solo-advancealtar_misc：ORIG @0x088a2bc0 用**非 const** `_Rb_tree_iterator`
+    //   （Ghidra C 实证 begin/end/ne/operator-> 均为非 K 版本）⇒ 原 const_iterator
+    //   触发 iterator→const_iterator 转换构造/析构，帧 0x38、end 临时 -0x1c（P96/P270）。
+    //   改 iterator 后帧/槽与 ORIG 一致（maxKey -0x10、it -0x14、end 临时 -0xc）。
+    //   增量段 ORIG 为 `ppEv`（**前置** ++，无 sret 临时）⇒ 源保持 `++it`。
     int maxKey = 0;
-    for (std::map<int, _StarRestFeeByGold>::const_iterator it = m_starRestMap.begin();
+    for (std::map<int, _StarRestFeeByGold>::iterator it = m_starRestMap.begin();
          it != m_starRestMap.end(); ++it)
     {
         if (maxKey < it->first)
@@ -426,6 +463,14 @@ bool isOpenAdvanceAltar()
 // 4.4.7 恒折单段（N18a 负例，probe 不可翻）；其余 diff 行为该 1 行错位引发
 // 的对齐伪差与 ORIG nearest-symbol call 显示行（put_binary 等公共 W 符号两侧
 // 同名，relink 归一后消）。
+// [b28d-solo-advancealtar_misc 判词] N 封顶（N18a 单段 regmove）：
+//   fresh .o 350:349（gap 1），p167 调用点差集 CLEAR（57=57，0 missing/extra）；
+//   唯一残差 = 首条 put_binary 的 `&data` 实参装载：ORIG 两段 `mov 0xc(%ebp),%eax;
+//   mov %eax,%edx`，4.4.6 恒折单段 `mov 0xc(%ebp),%edx`。P248 三档旋钮已试：
+//   `const_cast<char*>(reinterpret_cast<const char*>(&data))` 与
+//   `reinterpret_cast<char*>(const_cast<AdvanceAltarData*>(&data))` 两 cast 形
+//   产物相同（均单段）；形参类型受 mangled 约束（RKNS_16AdvanceAltarDataE）不可异型化；
+//   ORIG 的 `mov mem,%eax; mov %eax,%reg` 属 4.1 冗余 regmove（N18a）不可造。
 // ============================================================================
 void putRidableInfoToPacket(PacketGuard& packet, const AdvanceAltarData& data)
 {
@@ -434,7 +479,7 @@ void putRidableInfoToPacket(PacketGuard& packet, const AdvanceAltarData& data)
     // ORIG 每处直接 `mov 0x8(%ebp)` 传参（无 buf 引用槽）⇒ 不用具名别名。
     // 段 2..6 容器指针 = ORIG 二段初始化槽（`movl $0,-0x10/-0xc` + 赋值，
     // 0x0814184e/0x0814185b 等）；段 1/7 直取（0x081417a3/0x08141bb7）。
-    packet.put_binary(const_cast<char*>(reinterpret_cast<const char*>(&data)), 0x21);   // [objdump 0x8141798]
+    packet.put_binary(reinterpret_cast<char*>(const_cast<AdvanceAltarData*>(&data)), 0x21);   // [objdump 0x8141798]
 
     // +0x24 stages（put_binary 8 字节，0x081417fe）
     packet.put_int((int)data.m_stages.size());                           // [0x081417ac/0x081417bd]
@@ -535,37 +580,53 @@ std::map<unsigned char, _Slot>* AdvanceAltarData::getSlotMap(
 // 见函数体注释地址）。
 void AdvanceAltarData::set(const _AdvanceAltarDbData& db)
 {
-    // b28d-35: DIFF→N82（全帧槽平移）。ORIG @0x088992da 帧 0xd8；我方 0x118
-    //   （4.1/4.4 槽复用策略差，N82 族）。逐块语义比对一致。
+    // [b28d-solo-advancealtar_misc 判词] DIFF→N 封顶（N82 帧/槽族）：
+    //   已修：四段循环的 8 个 memcpy 局部 + 3 个 _Slot/_BuyItem/_Reward 默认 ctor
+    //   改为 **const 引用视图**直读线格式缓冲（P156 允许），使 p167 差集从
+    //   MISSING make_pair<const&,const&>×4 / EXTRA memcpy×8+ctor×3+make_pair<&,&>×4
+    //   收敛为 **CLEAR（ORIG 17 = OUR 17，0 missing / 0 extra）**；stages 段删
+    //   `const _Stage&` 缓存（P183，ORIG 每处重算 `db.m_stages[i]`）。
+    //   残余：帧 0x108 vs ORIG 0xd8（-0x30）——ORIG 对 `db+0x1b0+i*10` 每处重算
+    //   （0x088993cc/d1/ee/f3/40b/422/49d/4d5 八处 `add $0x1b0,%eax`，无 rec 缓存）
+    //   且 pair/make_pair/insert 的临时槽更少；4.1/4.4 槽复用策略差属 N82 族
+    //   （判据：p167 CLEAR + 控制流/调用序全等，仅帧与槽号平移）。
     m_update = 0;                                                  // [objdump 0x88992e6]
     std::memcpy(this, &db, 0x21);                                  // [objdump 0x8899302]
 
-    // stages：i<=0x31，条件/键均读 db.m_stages[i].m_field0（pack 后 db+0x21+i*8）
+    // stages：i<=0x31，条件/键均读 db.m_stages[i].m_field0（pack 后 db+0x21+i*8）。
+    // b28d-solo-advancealtar_misc：ORIG 每处重算 `db.m_stages[i]` 两级寻址
+    //   （0x0889939f `mov -0x1c,%edx; add $4; mov 0x1(%eax,%edx,8),%eax` 与
+    //   make_pair 两实参各自 `shl $3; add` 重算）⇒ 原码无具名 `_Stage&` 缓存（P183）；
+    //   原引用形使 4.4 把指针落槽（-0x48）并多一对 load/store。
     for (int i = 0; i <= 0x31; ++i)                                // [objdump 0x889939f setle]
     {
-        const _Stage& stage = db.m_stages[i];
-        if ((int)stage.m_field0 > 0)                               // [objdump 0x889931c jle]
+        if ((int)db.m_stages[i].m_field0 > 0)                      // [objdump 0x889931c jle]
         {
-            m_stages.insert(std::make_pair(stage.m_field0, stage));  // [0x8899353 key/value 同址]
+            m_stages.insert(std::make_pair(
+                db.m_stages[i].m_field0, db.m_stages[i]));         // [0x8899353 key/value 同址]
         }
     }
 
     // slots：i<=0xb；记录基 = db+0x1b0+i*10（元素实际起 0x1b1）：
     //   key = 记录.m_byte0（rec+1）、cond int = m_int1（rec+2）、
     //   value = 从 rec+6 起的 10 字节（跨到下一记录头部，忠实 ORIG）
+    // b28d-solo-advancealtar_misc：p167 差集（ORIG 17 calls / 我方 28）显示 ORIG 的
+    //   make_pair 实例全为 **const 引用**形（`make_pair<unsigned char const&,_Slot const&>`
+    //   等 4 个）且无 _Slot/_BuyItem/_Reward 默认 ctor、无 8 个 memcpy ⇒ 原码用
+    //   **const 引用视图**直读线格式缓冲（P156「线格式序列化缓冲」允许偏移视图），
+    //   原 memcpy 到非 const 局部形多 ctor+memcpy 且实例化非 const make_pair。
     for (int i = 0; i <= 0xb; ++i)                                 // [objdump 0x889952c]
     {
         const char* rec = reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10;
-        int slotType = 0;
-        std::memcpy(&slotType, rec + 2, sizeof(slotType));         // [objdump 0x88993d1 +2]
+        const int& slotType = *reinterpret_cast<const int*>(rec + 2);   // [objdump 0x88993d1 +2]
         if (slotType == 0)
         {
             continue;                                              // [objdump 0x88993d6 je]
         }
-        unsigned char slotKey = 0;
-        std::memcpy(&slotKey, rec + 1, sizeof(slotKey));           // [objdump 0x8899413 key=rec+1]
-        _Slot slotValue;
-        std::memcpy(&slotValue, rec + 6, sizeof(slotValue));       // [objdump 0x889942a +6]
+        const unsigned char& slotKey =
+            *reinterpret_cast<const unsigned char*>(rec + 1);      // [objdump 0x8899413 key=rec+1]
+        const _Slot& slotValue =
+            *reinterpret_cast<const _Slot*>(rec + 6);              // [objdump 0x889942a +6]
         if (slotType == 1)                                         // [objdump 0x88993f6]
         {
             m_slots1.insert(std::make_pair(slotKey, slotValue));   // [objdump 0x8899461 target +0x84]
@@ -581,23 +642,20 @@ void AdvanceAltarData::set(const _AdvanceAltarDbData& db)
     for (int i = 0; i <= 0x31; ++i)                                // [objdump 0x8899614]
     {
         const char* rec = reinterpret_cast<const char*>(&db.m_buyItems) + i * 0xc;
-        int count = 0;
-        std::memcpy(&count, rec + 4, sizeof(count));               // [objdump 0x889955e +0xd→abs 0x22d]
+        const int& count = *reinterpret_cast<const int*>(rec + 4); // [objdump 0x889955e +0xd→abs 0x22d]
         if (count <= 0)
         {
             continue;                                              // [objdump 0x8899563 jle]
         }
-        AdvanceAltarShopType::T shopType = (AdvanceAltarShopType::T)0;
-        int itemKey = 0;
-        std::memcpy(&itemKey, rec, sizeof(itemKey));               // [objdump 0x8899580 +0x9→abs 0x229]
-        shopType = (AdvanceAltarShopType::T)itemKey;
-        std::map<int, _BuyItem>* target = getBuyItemMap(shopType); // [objdump 0x889958d]
+        const int& itemKey = *reinterpret_cast<const int*>(rec);   // [objdump 0x8899580 +0x9→abs 0x229]
+        std::map<int, _BuyItem>* target =
+            getBuyItemMap((AdvanceAltarShopType::T)itemKey);       // [objdump 0x889958d]
         if (target == 0)
         {
             continue;                                              // [objdump 0x8899599 je]
         }
-        _BuyItem itemValue;
-        std::memcpy(&itemValue, rec + 4, sizeof(itemValue));       // [objdump 0x88995c6 value=+0xd]
+        const _BuyItem& itemValue =
+            *reinterpret_cast<const _BuyItem*>(rec + 4);           // [objdump 0x88995c6 value=+0xd]
         target->insert(std::make_pair(itemKey, itemValue));
     }
 
@@ -606,14 +664,13 @@ void AdvanceAltarData::set(const _AdvanceAltarDbData& db)
     for (int i = 0; i <= 0x1d; ++i)                                // [objdump 0x88996c6]
     {
         const char* rec = reinterpret_cast<const char*>(&db) + 0x480 + i * 5;
-        int rewardKey = 0;
-        std::memcpy(&rewardKey, rec + 1, sizeof(rewardKey));       // [objdump 0x8899644 +1→abs 0x481]
+        const int& rewardKey = *reinterpret_cast<const int*>(rec + 1);  // [objdump 0x8899644 +1→abs 0x481]
         if (rewardKey <= 0)
         {
             continue;                                              // [objdump 0x8899649 jle]
         }
-        _Reward rewardValue;
-        std::memcpy(&rewardValue, rec + 1, sizeof(rewardValue));
+        const _Reward& rewardValue =
+            *reinterpret_cast<const _Reward*>(rec + 1);
         m_rewards.insert(std::make_pair(rewardKey, rewardValue));  // [objdump 0x889683]
     }
 }
@@ -627,8 +684,13 @@ void AdvanceAltarData::set(const _AdvanceAltarDbData& db)
 // 3 次 ScanInt 分别写 +0 int/-8→short/-6→short，push 到 Phase+0x08）。
 int StageTimeLineParameter::importPhase(TimeLine& timeLine)
 {
-    // b28d-35: DIFF→N82（循环旋转）。ORIG @0x0889a930；我方入口多 1 条 jmp
-    //   （4.4 循环旋转，P164 族）。语义一致。
+    // b28d-solo-advancealtar_misc：ORIG @0x0889a930 关键源形证据——
+    //   ①`bool ok` 为**函数级单槽**（0x0889a938 `movb $0x0,-0x9(%ebp)` 只在函数头
+    //   初始化一次，其余全是 ScanInt(&ok) 传址 + movzbl 回读；原多分支各自
+    //   `bool ok = false;` 生成 -0x29/-0x41 多个独立槽）；
+    //   ②内层循环**无 phaseDone 标志**（全函数仅一条 movb 写 -0x9）⇒ 原码用
+    //   `for(;;){... if (tag=="[/phase]") break; ...}`，原 while+标志多一个 bool 槽。
+    bool ok = false;                                               // [objdump 0x0889a938 -0x9]
     for (;;)
     {
         std::string token;
@@ -643,8 +705,7 @@ int StageTimeLineParameter::importPhase(TimeLine& timeLine)
         if (token == "[phase]")
         {
             Phase phase;
-            bool phaseDone = false;
-            while (!phaseDone)
+            for (;;)
             {
                 std::string tag;
                 if (!ScanType(tag, true))
@@ -653,11 +714,10 @@ int StageTimeLineParameter::importPhase(TimeLine& timeLine)
                 }
                 if (tag == "[/phase]")
                 {
-                    phaseDone = true;
+                    break;
                 }
                 else if (tag == "[duration]")
                 {
-                    bool ok = false;
                     phase.m_field0 = ScanInt(&ok);                 // [objdump 0x889aa36 -0x24]
                     if (!ok)
                     {
@@ -693,7 +753,6 @@ int StageTimeLineParameter::importPhase(TimeLine& timeLine)
                     for (;;)
                     {
                         _ActionAssign assign;                      // [objdump 0x889ab61 ctor 每次]
-                        bool ok = false;
                         assign.m_field0 = ScanInt(&ok);            // [objdump 0x889ab77 -0x3c]
                         if (!ok)
                         {
@@ -721,19 +780,43 @@ int StageTimeLineParameter::importPhase(TimeLine& timeLine)
 // ORIG T 0x889a032（报告反编译全文）：回填 m_define；找不到 → printf + 0；
 // 全部成功则写 summary（(phaseIdx, 累计时长起点, phase type)）并把累计时长存
 // TimeLineSummary::m_field0（TimeLine+0xc），返回 1。
+// [b28d-solo-advancealtar_misc 判词] DIFF→N 封顶（语义/调用点/控制流全等）：
+//   已修①**static 成员**（ORIG 首参 timeLine 读 0x8(%ebp)、无 this；原非 static 声明
+//   使 timeLine/defines 落在 0xc/0x10、整帧 +4 错位，见 CDataManager.h 声明处）；
+//   ②_PhaseSummary::m_pad 字段化 + 逐字段直写（原 fields[3]+memcpy 多一次 memcpy 调用）；
+//   ③`vector<_ActionAssign>& assigns = pit->m_assigns;` 复现 ORIG -0xc 地址缓存；
+//   ④两循环后置 `++`（ORIG ppEi 0x0889bede/0x0889bf48 带 sret 临时）与**体内
+//   `pit++` + 体末 `++phaseIndex`**（ORIG 0x0889a1d0 位于 add 之后、addl 之前）。
+//   残余（N82附/跨版本）：dit(-0x34) 与 summary(-0x40) 槽互换——4.4 聚合对象优先占
+//   低槽（summary 最深、dit 次深），4.1 按生命周期穿插（dit -0x40、summary -0x3c）；
+//   其余槽（pit -0x2c/end -0x28/m_assigns.end -0x24/defines.end -0x20/ait ppEi -0x1c/
+//   pit ppEi -0x18/totalDuration -0x14/phaseIndex -0x10/assigns -0xc/ait -0x30）全等；
+//   4.4 多 push esi（后置 ++ sret 跨调用保活）。全头部声明法对非平凡 summary 不可用。
+//   p167：MISSING 0；EXTRA = `_PhaseSummary::~_PhaseSummary()`×2 + `_Unwind_Resume`×1
+//   —— ORIG(4.1) 对可见空 dtor 不发射调用、4.4 恒 call（P71 跨版本；ORIG 该 dtor
+//   符号 0x0889ebc0 存在，按 P12 不可删）。
 int StageTimeLineParameter::checkAndSetActionDefine(
     TimeLine& timeLine, const std::map<int, ActionDefine>& defines)
 {
-    // b28d-35: DIFF→N82/N7（寄存器分配差）。ORIG @0x0889a032 无 push esi；
-    //   我方多 push esi（4.4 用 callee-saved 缓存跨调用值）。语义一致。
+    // b28d-solo-advancealtar_misc：ORIG @0x0889a032 全函数**不复用** Phase&
+    //   （每处 `pit->m_*` 重新 ptEv：0x0889a061/a185/a1ab），原具名 `Phase& phase`
+    //   使 4.4 缓存 phase 指针于 -0xc；改逐点 `pit->m_*` 后 -0xc 复现 ORIG 的
+    //   `&pit->m_assigns` 缓存形（`call ptEv; add $8,%eax; mov %eax,-0xc`）。
+    //   summary 由 fields[3]+memcpy 改具名字段直写（_PhaseSummary::m_pad 已字段化）。
+    //   ORIG 两循环增量段均为 **后置** `operator++(int)`（Phase ppEi 0x0889bede /
+    //   _ActionAssign ppEi 0x0889bf48，各带独立 sret 临时）⇒ 源写 `pit++`/`ait++`；
+    //   ORIG -0xc 缓存 `&pit->m_assigns`（`call ptEv; add $8,%eax; mov %eax,-0xc`）
+    //   ⇒ 原码有 `std::vector<_ActionAssign>& assigns = pit->m_assigns;`（P0 槽往返）。
+    // ORIG 外层为「体内 `pit++` + 体末 `++phaseIndex`」（0x0889a1d0 ppEi 位于
+    //   `add %eax,-0x14` 之后、`addl $1,-0x10` 之前）⇒ 原码非 for 增量位。
     int totalDuration = 0;                                         // local_18
     int phaseIndex = 0;                                            // local_14
     for (std::vector<Phase>::iterator pit = timeLine.m_phases.begin();
-         pit != timeLine.m_phases.end(); ++pit)
+         pit != timeLine.m_phases.end(); )
     {
-        Phase& phase = *pit;
-        for (std::vector<_ActionAssign>::iterator ait = phase.m_assigns.begin();
-             ait != phase.m_assigns.end(); ++ait)
+        std::vector<_ActionAssign>& assigns = pit->m_assigns;
+        for (std::vector<_ActionAssign>::iterator ait = assigns.begin();
+             ait != assigns.end(); ait++)
         {
             std::map<int, ActionDefine>::const_iterator dit = defines.find(ait->m_field0);
             if (dit == defines.end())
@@ -745,19 +828,16 @@ int StageTimeLineParameter::checkAndSetActionDefine(
             ait->m_define = const_cast<ActionDefine*>(&dit->second);   // +4 回填
         }
 
-        _PhaseSummary summary;                                     // [objdump ctor -0x40]
         {
-            // m_pad 仅字节视图：+0=phaseIdx、+4=累计时长起点、+8=phase 类型
-            // （[objdump 0x889a?...]：local_40/local_3c/local_38 三连写）。
-            int fields[3];
-            fields[0] = phaseIndex;
-            fields[1] = totalDuration;
-            fields[2] = phase.m_field4;
-            std::memcpy(summary.m_pad, fields, sizeof(fields));
+            _PhaseSummary summary;                                 // [objdump ctor -0x3c]
+            summary.m_startDuration = totalDuration;               // +0x04（ORIG 先写）
+            summary.m_phaseIndex = phaseIndex;                     // +0x00
+            summary.m_phaseType = pit->m_field4;                   // +0x08（ptEv 形）
+            timeLine.m_summary.m_phaseSummarys.push_back(summary); // push param_1+0x10
         }
-        timeLine.m_summary.m_phaseSummarys.push_back(summary);     // push param_1+0x10
 
-        totalDuration += (int)phase.m_field0;                      // [objdump 本轮时长累加]
+        totalDuration += (int)pit->m_field0;                       // [objdump 本轮时长累加]
+        pit++;
         ++phaseIndex;                                              // local_14
     }
     timeLine.m_summary.m_field0 = totalDuration;                   // [objdump *(int*)(param_1+0xc)]

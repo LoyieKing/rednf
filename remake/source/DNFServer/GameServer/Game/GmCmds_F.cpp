@@ -150,7 +150,15 @@ void CSecretShopNpc::parse()
 // 秘密商店数据的 npc id 改为参数值（限 1000/0x3ea/0x3eb/0x3ec 四个合法值），
 // 条件：无队伍，或队伍不在血色地下城中（party->m_battleField.m_pDungeon == 0 或
 // dungeon->m_bloodDungeonType == 0）。随后聊天通告 + 广播 0x114 npc 替换包。
-// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 0x084a6xxx 见 class_func_reports/CSecretShopNpc/execute.md。
+// [b28d-solo-GmCmds_F] AE：①删 npcId 具名局部（P0：ORIG 0x084aba6b 起四次直读 this+0x8，
+// 无槽往返）；②party 检查改具名 CDungeon* dungeon（ORIG -0x1c 有槽往返）；
+// ③m_bloodDungeonType 加 static_cast<signed char> 复现 ORIG 0x084abac7 的 movzbl+test%al+jg
+// （裸 >0 被 4.4 折成 jne；P196/P292 族）；④char buf[0x100]={0} 复现 ORIG rep stos 0x40
+// dwords（P214③/P253）；⑤trace 改全表达式临时链 cMyTrace(...)(...)（P227：*shopData→%esi、
+// name→%ebx 在 ctor 前求值跨 ctor 保活，对齐 0x084abb0d 段）；⑥删冗余 packet.clear()
+// （ORIG 无该 call）；⑦分支反转 if(party!=0){send_to_party}else{Send}（P59：ORIG je 落
+// Send 块）。188=188，仅 .o 重定位占位差（AE）。
+// ORIG 报告：docs/class_func_reports/game_master__CSecretShopNpc/execute.md。
 void CSecretShopNpc::execute()
 {
     CUser* user = GetUser();
@@ -167,31 +175,27 @@ void CSecretShopNpc::execute()
         return;
     }
 
-    int npcId = m_npcIdx;
-    if (!(npcId == 1000 || npcId == 0x3ea || npcId == 0x3eb || npcId == 0x3ec))
+    if (!(m_npcIdx == 1000 || m_npcIdx == 0x3ea || m_npcIdx == 0x3eb || m_npcIdx == 0x3ec))
     {
         return;
     }
-    if (party != 0 && party->m_battleField.m_pDungeon != 0 &&
-        party->m_battleField.m_pDungeon->m_bloodDungeonType > 0)
+    if (party != 0)
     {
-        return;
+        CDungeon* dungeon = party->m_battleField.m_pDungeon;
+        if (dungeon != 0 && static_cast<signed char>(dungeon->m_bloodDungeonType) > 0)
+        {
+            return;
+        }
     }
 
-    *shopData = npcId;
+    *shopData = m_npcIdx;
 
-    // ORIG：256 字节栈缓冲清零后 sprintf 韩文通告。
-    char buf[0x100];
-    for (int i = 0; i < 0x40; ++i)
-    {
-        reinterpret_cast<unsigned int*>(buf)[i] = 0;
-    }
+    // ORIG：256 字节栈缓冲 rep stos 清零后 sprintf 韩文通告。
+    char buf[0x100] = {0};
     sprintf(buf, "비밀상점 npc가 %d로 교체되었습니다", *shopData);
 
-    int newNpcId = *shopData;
-    const char* name = user->getCurCharacName();
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x73f, 0);
-    trace("[SECRETSHOP] change npc(%s, %d)", name, newNpcId);
+    cMyTrace(__PRETTY_FUNCTION__, 0x73f, 0)(
+        "[SECRETSHOP] change npc(%s, %d)", user->getCurCharacName(), *shopData);
 
     PacketGuard chatPacket;
     G_GameWorld()->make_packet_chat_msg(chatPacket, user, buf,
@@ -199,20 +203,19 @@ void CSecretShopNpc::execute()
                                         static_cast<ENUM_NOTIPACKET>(0xc));
 
     PacketGuard packet;
-    packet.clear();                          // ORIG InterfacePacketBuf::clear
     packet.put_header(0, 0x114);
     packet.put_int(*shopData);
     packet.finalize(true);
 
-    if (party == 0)
-    {
-        user->Send(chatPacket);
-        user->Send(packet);
-    }
-    else
+    if (party != 0)
     {
         party->send_to_party(chatPacket);
         party->send_to_party(packet);
+    }
+    else
+    {
+        user->Send(chatPacket);
+        user->Send(packet);
     }
 }
 
@@ -231,17 +234,18 @@ void CSetGuildFund::parse()
 
 // ORIG execute 0x084ac6a0：向发起者所在公会代理发送加 fund 请求
 // SendAddGuildFund(characNo, guildKey, amount, eFundType_GM)。
-// 【NEAR 封顶】助记符序列已逐条相同；残余仅 guildKey/characNo 的
-// esi/ebx 寄存器互换（4.4 按初始化序线性分配，无法跳位复现）。
-// [b28d-30] 复核 NEAR：esi/ebx 寄存器互换（N7/N82 族，4.4 按初始化序线性分配无法跳位），
-// ORIG 0x084a6xxx 见 class_func_reports/game_master__CSetGuildFund/execute.md。
+// [b28d-solo-GmCmds_F] N7 封顶（callee-saved 角色互换）：ORIG 0x084ac6a0 amount=%edi /
+// guildKey=%ebx / characNo=%esi；4.4 按首次跨调用序分配 %edi→%esi→%ebx（guildKey=%esi、
+// characNo=%ebx）。实测五形均不翻：①声明序 amount/characNo/guildKey ②初始化式三连
+// ③register 子集（全删 / 仅 amount+guildKey）④guildKey unsigned 化 ⑤语句表达式升格。
+// 全 register 形 40=40，仅两处寄存器名差，语义等价（SendAddGuildFund 实参序/符号一致）。
+// ORIG 报告：docs/class_func_reports/game_master__CSetGuildFund/execute.md。
 void CSetGuildFund::execute()
 {
     CUser* user = GetUser();
     register int amount = m_fund;
-    register int characNo;
     register int guildKey = user->get_charac_guildkey();
-    characNo = user->get_charac_no(-1);
+    register int characNo = user->get_charac_no(-1);
     GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
         ->SendAddGuildFund(characNo, guildKey, amount,
                            Packet_Add_Guild_Fund::eFundType_GM);
@@ -264,7 +268,10 @@ void CSetMultiboxFailCnt::parse()
 
 // ORIG execute 0x084b34f8：set_multiboxLotteryItemFailCnt(v)；v > 2 时追加
 // 下发 0x1c6 空包头通知客户端（多重盒子抽取失败次数刷新）。
-// [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 见 class_func_reports/game_master__CSetMultiboxFailCnt/execute.md。
+// [b28d-solo-GmCmds_F] AE：删具名 int cnt 局部（P0：ORIG 0x084b34f8 两次直读 this+0x8，
+// 无槽往返 ⇒ 原码无该局部）后帧 0x30→0x20、user 槽 -0x10→-0xc、PacketGuard -0x1c→-0x18
+// 全对齐；61=61，仅 .o 重定位占位差（AE）。
+// ORIG 报告：docs/class_func_reports/game_master__CSetMultiboxFailCnt/execute.md。
 void CSetMultiboxFailCnt::execute()
 {
     CUser* user = GetUser();
@@ -272,9 +279,8 @@ void CSetMultiboxFailCnt::execute()
     {
         return;
     }
-    int cnt = m_failCnt;
-    user->set_multiboxLotteryItemFailCnt(cnt);
-    if (cnt > 2)
+    user->set_multiboxLotteryItemFailCnt(m_failCnt);
+    if (m_failCnt > 2)
     {
         PacketGuard packet;
         packet.clear();
@@ -291,8 +297,12 @@ void CSetMultiboxFailCnt::execute()
 // ORIG ctor 0x082a80b4：基类 ctor → 自身 vptr；+0x08 标量未初始化。
 
 // ORIG parse 0x084a921a：trim(args)；+0x08 = atoi(args)（教程标记）。
-// 【N 封顶】4.1 在 atoi 前提前物化 this 入 edx（mov 0x8(%ebp),%edx;
-// mov %eax,0x8(%edx)）；4.4 恒暂存 atoi 结果入 edx 再取 this（+1 条）。
+// [b28d-solo-GmCmds_F] N76/P211 封顶（字段类型两端冲突，P211 反例判据）：
+// parse 0x084a921a 的 store 为 LHS-first（mov 0x8(%ebp),%edx; mov %eax,0x8(%edx)），
+// 要求 m_flag 与 RHS(atoi int) 同型（int）；但同类 execute 0x084a9252 为两段中转
+// （mov 0x8(%eax),%eax; mov %eax,%ebx），要求 m_flag 为 unsigned 与 int flag 异型。
+// 实测 m_flag→int：parse 19=19 AE 但 execute 由 AE 转 DIFF（+2 段）⇒ 净负，回退保持
+// unsigned int；parse 记 RHS-first+edx 中转（+1 条）豁免。GameMasterCmd.h 未改动。
 void CSetTutorialFlagCmd::parse()
 {
     trim(m_parser->m_args);

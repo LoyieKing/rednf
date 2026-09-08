@@ -351,7 +351,7 @@ bool Arad_DB_kAradEventItemLog::dispatch(int code, int uid, Stream* stream)
     // ORIG 0x081851dc：inSert into log_arad_event_stat (...) values (now(), %u, %u, %u, %d)。
     //   返回值经 %ebx 缓存（4.1 EH 形）：早退 0x08185224 mov$0,%ebx、
     //   成功 0x0818535e? mov$1,%ebx、catch 0x08185343 mov$0,%ebx。
-    register bool ret asm("ebx");
+    register bool ret;
     arad::SigAradEventItemLog* sig = stream->GetOutBuffer<arad::SigAradEventItemLog>();
     if (sig == 0)
     {
@@ -390,7 +390,7 @@ bool Arad_DB_kSetCharacCreateTime::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x081853b2：upDate charac_info set create_time=from_unixtime(%u) where charac_no=%u。
     //   %ebx 缓存返回（catch 0x08185544 / 成功 0x08185565 / merge 0x0818556a）。
-    register bool ret asm("ebx");
+    register bool ret;
     arad::SigSetCharacCreateTime* sig = stream->GetOutBuffer<arad::SigSetCharacCreateTime>();
     if (sig == 0)
     {
@@ -426,12 +426,15 @@ done:
 //   SigLoadRewardEventItem(count + eventId[10] + characNo[10]) →
 //   make_internal_stream_jpn(0x26, uid) + put_binary(0x56) →
 //   MsgQueueMgr::put(DISPATCH_Q)。返回值 = put 的返回值。
+// b28d-solo-Arad_InternalDispatcher: AE（clean 口径）——ORIG 0x08186f7c，204/204 条
+//   助记符逐条全等，残差仅 .o 未解析重定位伪差；p167 调用点差集 CLEAR；
+//   P0 已清寄存器绑定（N96；保留纯 register 存储类提示，P231 合规）。
 bool Arad_DB_kLoadRewardEventItem::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x08186f7c：GetOutBuffer<arad::SigLoadRewardEventItem> 模板实例。
     //   %ebx 缓存返回（4.1 EH 形）：put 结果 0x0818583e `mov %eax,%ebx`，
     //   catch 0x081858b0 `mov$0,%ebx`，merge 0x081858d1 `mov%ebx,%eax`。
-    register bool ret asm("ebx");
+    register bool ret;
     arad::SigLoadRewardEventItem* sig = stream->GetOutBuffer<arad::SigLoadRewardEventItem>();
     if (sig == 0)
     {
@@ -479,8 +482,10 @@ bool Arad_DB_kLoadRewardEventItem::dispatch(int code, int uid, Stream* stream)
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
             "localjapan/Arad_DatabaseDispatcher.cpp", 0x7b8), true);
         make_internal_stream_jpn(guard, (ENUM_INTERNALPACKET_JPN)0x26, uid);
-        // ORIG 0x08185806/0x0818581d：两级 operator* → put_binary（技巧35）。
-        guard.operator*()->put_binary(&out, 0x56);
+        // ORIG 0x08185806/0x0818581d：`call CStreamGuard::operator->` 后再
+        //   `call CStreamGuard::put_binary`（p167 差集：ORIG 无 operator*）⇒
+        //   源形为 `guard->put_binary(...)`（P167 判据）。
+        guard->put_binary(&out, 0x56);
 
         ret = GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
@@ -498,7 +503,7 @@ bool Arad_DB_kSaveRewardEventItem::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x081858de：inSert into event_reward_item_arad values (%d,%u,%u,%u,from_unixtime(%u),now())。
     //   %ebx 缓存返回（4.1 EH 形）。
-    register bool ret asm("ebx");
+    register bool ret;
     arad::SigSaveRewardEventItem* sig = stream->GetOutBuffer<arad::SigSaveRewardEventItem>();
     if (sig == 0)
     {
@@ -535,11 +540,14 @@ done:
 //   SigServerState（m_flag/m_count + tagData[20]，逐行填 m_category/m_code/
 //   get_binary(msg,0xc)）→ make_internal_stream_jpn(0x29, -1) + put_binary(0x195)
 //   → DISPATCH_Q，成功返回 true。
+// b28d-solo-Arad_InternalDispatcher: AE（clean 口径）——ORIG 0x08187024，224/224 条
+//   助记符逐条全等，残差仅 .o 未解析重定位伪差；p167 调用点差集 CLEAR；
+//   P0 已清寄存器绑定（N96；保留纯 register 存储类提示，P231 合规）。
 bool Arad_DB_kLoadServerState::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x08187024：GetOutBuffer<arad::SigServerState> 模板实例。
     //   %ebx 缓存返回（4.1 EH 形）。
-    register bool ret asm("ebx");
+    register bool ret;
     arad::SigServerState* sig = stream->GetOutBuffer<arad::SigServerState>();
     if (sig == 0)
     {
@@ -585,8 +593,10 @@ bool Arad_DB_kLoadServerState::dispatch(int code, int uid, Stream* stream)
             "localjapan/Arad_DatabaseDispatcher.cpp", 0x83f), true);
 
         make_internal_stream_jpn(guard, (ENUM_INTERNALPACKET_JPN)0x29, -1);
-        // ORIG 0x08186017/0x08186031：两级 `call operator*; call put_binary`（技巧35）。
-        guard.operator*()->put_binary(&out, 0x195);
+        // ORIG 0x08186017/0x08186031：`call CStreamGuard::operator->` 后再
+        //   `call CStreamGuard::put_binary`（p167 差集：ORIG 无 operator*）⇒
+        //   源形为 `guard->put_binary(...)`（P167 判据）。
+        guard->put_binary(&out, 0x195);
 
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
@@ -608,7 +618,7 @@ bool Arad_DB_kSaveServerState::dispatch(int code, int uid, Stream* stream)
 {
     // ORIG 0x08185abe：flag==0 → deLete by category/code；否则 inSert(msg blob→str)。
     //   %ebx 缓存返回（4.1 EH 形）。
-    register bool ret asm("ebx");
+    register bool ret;
     arad::SigServerState* sig = stream->GetOutBuffer<arad::SigServerState>();
     if (sig == 0)
     {
@@ -659,7 +669,7 @@ bool Arad_DB_kAvatarHiddenOptionSave::dispatch(int code, int uid, Stream* stream
 {
     // ORIG 0x081860f4：upDate user_items set hidden_option where charac_no/slot/it_id。
     //   %ebx 缓存返回（4.1 EH 形）。
-    register bool ret asm("ebx");
+    register bool ret;
     arad::SigAradAvatarHiddenOptionSave* sig =
         stream->GetOutBuffer<arad::SigAradAvatarHiddenOptionSave>();
     if (sig == 0)
@@ -697,7 +707,7 @@ bool Arad_DB_kAvatarEnduranceSave::dispatch(int code, int uid, Stream* stream)
     (void)code;
     (void)uid;
     // %ebx 缓存返回（4.1 EH 形，ORIG 0x081862d0 同族）。
-    register bool ret asm("ebx");
+    register bool ret;
     arad::SigAradAvatarEnduranceSave* sig =
         stream->GetOutBuffer<arad::SigAradAvatarEnduranceSave>();
     if (sig == 0)
@@ -740,7 +750,7 @@ bool Arad_DB_kResetLimitedCreateCharacPerMid::dispatch(int code, int uid, Stream
     // ORIG 0x08186492：truncate limit_create_character。
     // ORIG 4.1 EH 函数 bool 返回值经 %ebx 缓存、尾部 `mov %ebx,%eax` 出栈
     //   （成功 0x081865e8 `mov $0x1,%ebx`；catch 0x081865c7 `mov $0,%ebx`）。
-    register bool ret asm("ebx");
+    register bool ret;
     try
     {
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, (ENUM_SERVER_GROUP)0);

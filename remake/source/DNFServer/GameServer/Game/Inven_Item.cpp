@@ -100,13 +100,14 @@ void stAmplifyOption_t::getValues(unsigned char& type,
 
 void STEnchantedSkillOption::reset()
 {
-    // ORIG 0x8500fe4：三次位清（&0xfffffffe, &0xfffffff9, &0x7）→ 全字节清零
-    // b28d-60：P266 uchar 左值读旋钮 `*(unsigned char*)&f` —— 直接经 uchar 左值
-    // 读改写（免隐式提升中转）；ORIG 每段 `movzbl (%eax),%edx; and $imm,%edx;
-    // mov %dl,(%eax)`（单段直落 %edx）。
-    *(unsigned char*)&m_field = (unsigned char)(*(unsigned char*)&m_field & 0xfffffffe);
-    *(unsigned char*)&m_field = (unsigned char)(*(unsigned char*)&m_field & 0xfffffff9);
-    *(unsigned char*)&m_field = (unsigned char)(*(unsigned char*)&m_field & 0x7);
+    // [b28d-solo-Inven_Item] ORIG 0x080cb778（W，0x26 字节）三段位清：
+    //   movzbl (%eax),%edx; and $0xfe/%edx; mov %dl,(%eax) ×3（掩码 0xfe/0xf9/0x7）
+    // ⇒ 源形 = 位域清零（1+2+5 布局）。uchar 标量/指针 cast 形 4.4 恒发
+    //   `movzbl (%eax),%eax; mov %eax,%edx; and…; mov this,%eax`（+4 条，探针 E1
+    //   r1/r2/r3 三形同），位域形逐条全等（探针 E2/E3）。
+    m_bits.m_flag = 0;
+    m_bits.m_type = 0;
+    m_bits.m_skillId = 0;
 }
 
 void RandomOptionField::reset()
@@ -318,15 +319,16 @@ void Inven_Item::setCopy(const Inven_Item& other)
     m_fieldd = other.m_fieldd;
     // b28d-60：P247/P29——ORIG 0x814a688 起为「一次载入 this/other + 连续
     // disp 拷贝」形；原 (char*)&m + k 指针算术使 4.4 逐字段重算地址（add 链，
-    // 60→92 insn）。改具名视图/整体赋值：m_amp0Int（+0x11 四字节视角）、
-    // m_random/m_reserved 整体结构赋值（4.4 对 20B POD 发 5 连发 mov，与 ORIG 同）。
-    // +0x11 四字节：具名 union 视角 m_amp0Int（disp 折叠）。残余 4 条装载序
-    // （ORIG LHS-first `mov this,%eax; mov other,%edx; mov 0x11(%edx),%edx`，
-    // 4.4 恒 RHS-first）——P211 同型化已试（int/unsigned/视图/引用 cast 四形），
-    // 落 N76 封顶。
-    m_amp.m_amp0Int = other.m_amp.m_amp0Int;
+    // 60→92 insn）。改具名视图/整体赋值：m_random/m_reserved 整体结构赋值
+    // （4.4 对 20B POD 发 5 连发 mov，与 ORIG 同）。
+    // b28d-solo-Inven_Item：+0x11/+0x33 两处 ORIG 为 LHS-first
+    // （`mov this,%eax; mov other,%edx; mov d(%edx),…; mov …,d(%eax)`），标量/
+    // union 标量视角形 4.4 恒 RHS-first（N76）。改结构赋值形即复现：
+    // +0x11 → stAmplifyHeadView 四字节结构（P247，CCreatureMgr setCopy 同法）；
+    // +0x33 → UpgradeSeparateInfo 整体赋值（1 字节 POD 结构赋值，探针 D2 全等）。
+    m_amp.m_amp0Head = other.m_amp.m_amp0Head;
     m_random = other.m_random;
-    m_upgradeSep.m_field = other.m_upgradeSep.m_field;
+    m_upgradeSep = other.m_upgradeSep;
     m_reserved = other.m_reserved;
 }
 
@@ -354,8 +356,16 @@ int Inven_Item::GetInventoryType()
     int result;
     if ((unsigned char)m_field1 < 0xb)
     {
-        // b28d-60：P231 纯 register 存储建议——ORIG 无 u 栈槽（全程 %eax 复用
-        // shl 结果）；具名普通局部恒占槽（-0x8），register 使 4.4 免槽。
+        // [b28d-solo-Inven_Item] N 封顶（语义等价，仅跨版本 codegen 差）：
+        // ①开头 ORIG `movzbl 0x1(%eax),%eax; movzbl %al,%eax; cmp $0xa,%eax`
+        //   （4.1 保留 (unsigned char) 转换的二次零扩展）；4.4 恒折 8 位比较
+        //   `cmp $0xa,%al`（探针 f_ucast/f_uicast/f_plain 三形同）。
+        // ②三次掩码测试 ORIG `mov %ebx,%eax; mov %eax,%edx; and $imm,%edx`
+        //   （4.1 把 u 留在 %eax、用 %edx 作 and 临时），4.4 恒
+        //   `mov %ebx,%eax; and $imm,%eax`（每次自 %ebx 重载，N18a/N7 族）。
+        // 已试 12 形（register 体内/体外、int/unsigned、嵌套 if、!=0、三元、
+        // 双 register 变量、具名槽）+ 4.4.6 后端复测，全部同形 ⇒ 不可造。
+        // P231 纯 register 仍必要（免 u 栈槽，否则帧/槽全错位）。
         register unsigned int u = 1u << m_field1;
         if (u & 0x61f)
         {
@@ -386,7 +396,9 @@ int Inven_Item::GetItemSpace() const
     int result;
     if ((unsigned char)m_field1 < 0xb)
     {
-        // b28d-60：同 GetInventoryType，P231 register 免 u 槽。
+        // [b28d-solo-Inven_Item] 同 GetInventoryType：N 封顶（跨版本冗余 zext
+        // `movzbl %al,%eax` 被 4.4 折叠 + and 临时寄存器选择 4.1 %edx / 4.4 %eax）；
+        // P231 register 免 u 槽，控制流与返回值语义一致。
         register unsigned int u = 1u << m_field1;
         if (u & 0x61f)
         {

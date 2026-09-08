@@ -59,17 +59,20 @@ public:
     virtual int handlePickupItem(CUser* user, int a, bool b, char c);
 
     // ---- 其余非虚方法（全部于 CBossTower.cpp 按对应 ORIG 报告转写实现）----
-    int InitBossTower(CParty* party, int towerIdx);        // 0x08142f32（ORIG eax 0/1）
-    int InsertRewardExp();                                 // 0x081446a2（ORIG eax 恒 1）
-    int InsertRewardItems();                               // 0x081447a0（ORIG eax 恒 1）
-    int SendELPLPacket();                                  // 0x081441d4（ORIG eax 恒 1）
-    int SendRewardPacket();                                // 0x0814432a（ORIG eax 恒 1）
+    // b28d-solo-CBossTower P248 档①：ORIG 调用点全部 `call; xor $0x1,%eax;
+    // test %al,%al; je`（无 setcc 中转）⇒ callee 返回 bool（int 恒多
+    // `test %eax,%eax; setne %al` 两条）。返回类型不入 mangled，零 ABI 风险。
+    bool InitBossTower(CParty* party, int towerIdx);       // 0x08142f32（调用点 0x081435aa xor）
+    bool InsertRewardExp();                                // 0x081446a2（调用点 0x0814460c xor）
+    bool InsertRewardItems();                              // 0x081447a0（调用点 0x08144625 xor）
+    bool SendELPLPacket();                                 // 0x081441d4（调用点 0x0814463e xor）
+    bool SendRewardPacket();                               // 0x0814432a（调用点 0x081445f0 xor）
     void _destroy();                                       // 0x08142b36
     void _onPrepareFinishTower(bool flag);                 // 0x08142d24
     void _onTimerProcess(TIMER_MESSAGE msg, unsigned int a);  // 0x08142cde（mangled E13TIMER_MESSAGEj）
-    int checkStartGameCondition(unsigned char& a, bool b);// 0x08142fa6（ORIG eax 0/1）
-    int generateRewardExp();                               // 0x08144d54（ORIG eax 恒 1；非虚，隐藏基类重载）
-    int generateRewardItem();                              // 0x08144e36（ORIG eax 恒 1；非虚，隐藏基类重载）
+    bool checkStartGameCondition(unsigned char& a, bool b);  // 0x08142fa6（调用点 0x081435b8/0x081441e6 xor）
+    bool generateRewardExp();                              // 0x08144d54（调用点 0x081445b8 xor；非虚，隐藏基类重载）
+    bool generateRewardItem();                             // 0x08144e36（调用点 0x081445d4 xor；非虚，隐藏基类重载）
     int handleEPLPCommand(int cmd);                        // 0x08142b72（ORIG eax 0/1）
     int handleFinishLoading(CUser* user);                 // 0x08143f6a（ORIG 返回 0/1）
     int handleUseItem(CUser* user, unsigned long a, unsigned char b);    // 0x081454b8（ORIG 返回 0/1）

@@ -24,6 +24,29 @@ struct _Charac_info_nibble_field
     signed char m_padNibble : 4;
 };
 
+// ---- [b28d-solo-SkillSlot] STGuildDBInfoOnly 尾段组件视图（P161）----
+// ORIG master_new_guild_skill 0x0860387e 段把 `m_skills + i*5` 折成
+// `lea base+i*5; add $0x40; mov 0x5(%eax)`（int 读）/ `add $0x49`（字节读）：
+// 把 +0x40 处建模为 Section（内含 +0x05 起的 5B 条目数组），4.4-O0 即发同形。
+// 纯 POD 局部视图（无 ctor/方法），不发射符号；sizeof/偏移断言见下。
+struct STGuildSkillEntry5
+{
+    int m_skillIdx;             // +0x00
+    char m_level;               // +0x04
+} __attribute__((packed));
+struct STGuildSkillSection
+{
+    char m_pad[5];              // +0x00..+0x04（Section 起点 +0x40）
+    STGuildSkillEntry5 m_entries[16];   // +0x05..+0x54
+} __attribute__((packed));
+struct STGuildDBTailView
+{
+    char m_pad[0x40];
+    STGuildSkillSection m_section;
+} __attribute__((packed));
+static_assert(sizeof(STGuildSkillEntry5) == 5, "STGuildSkillEntry5");
+static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView");
+
 // ---- 依赖的全局函数（真实定义在本 TU，ORIG 符号）----
 // ORIG T 0x8604fe2：创建角色时按 job 追加默认技能。
 // 逻辑（对照 0x8604fe2 反汇编）：
@@ -35,35 +58,44 @@ struct _Charac_info_nibble_field
 //   在区间内写第一个空槽；其余 group 值打 cMyTrace 日志。
 void addSkillOnCreateCharacter(_Mastered_skill* skill, int job)
 {
-    if (job < 0 || job > 10)
+    // [b28d-solo-SkillSlot] 修法（AE）：ORIG 0x08604fe2 形 = 两条独立守卫
+    // (`cmpl $0xa; jg` / `cmpl $0; js`，P63 中继 nop/jmp)、按值 vector 拷贝
+    // (C1ERKS3_ + D1Ev + EH cleanup，非引用)、size()+operator[] 索引遍历
+    // (P175/P157，逐字段重发 op[])、foundEmpty 声明于循环体首、内层扫描
+    // `for (j = start; j < end; ++j)`（与 end 槽比较，非立即数 6）、
+    // default 分支重调 s->get_group()（P48 双臂独立调用）。
+    if (job > 10)
     {
         return;
     }
-    CDataManager* dm = G_CDataManager();
-    const std::vector<std::pair<int, int> >& skillList =
-        *(std::vector<std::pair<int, int> >*)(
-            (char*)dm->m_characList + job * 0x7dc + 0x240);
-    for (std::vector<std::pair<int, int> >::const_iterator it =
-             skillList.begin();
-         it != skillList.end(); ++it)
+    if (job < 0)
     {
-        int skillIdx = it->first;
-        int level = it->second;
-        CSkill* s = dm->find_skill(job, skillIdx);
+        return;
+    }
+    std::vector<std::pair<int, int> > skillList =
+        *(std::vector<std::pair<int, int> >*)(
+            (char*)G_CDataManager()->m_characList + job * 0x7dc + 0x240);
+    int skillIdx;
+    int level;
+    for (int i = 0; i < (int)skillList.size(); ++i)
+    {
+        bool foundEmpty = false;
+        skillIdx = skillList[i].first;
+        level = skillList[i].second;
+        CSkill* s = G_CDataManager()->find_skill(job, skillIdx);
         if (s == 0)
         {
             continue;
         }
         int start = 0;
         int end = 0;
-        bool foundEmpty = false;
         if (s->is_active_skill())
         {
             start = 0;
             end = 6;
-            for (int i = 0; i < 6; ++i)
+            for (int j = start; j < end; ++j)
             {
-                if (skill[i].m_index == 0)
+                if (skill[j].m_index == 0)
                 {
                     foundEmpty = true;
                     break;
@@ -72,8 +104,7 @@ void addSkillOnCreateCharacter(_Mastered_skill* skill, int job)
         }
         if (!foundEmpty)
         {
-            int group = s->get_group();
-            switch (group)
+            switch (s->get_group())
             {
             case 0:
                 start = 6;
@@ -92,17 +123,17 @@ void addSkillOnCreateCharacter(_Mastered_skill* skill, int job)
                 end = 0xc6;
                 break;
             default:
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x549, 5);
-                trace("add skill no group %d", group);
+                cMyTrace(__PRETTY_FUNCTION__, 0x549, 5)(
+                    "add skill no group %d", s->get_group());
                 break;
             }
         }
-        for (int i = start; i < end; ++i)
+        for (int k = start; k < end; ++k)
         {
-            if (skill[i].m_index == 0)
+            if (skill[k].m_index == 0)
             {
-                skill[i].m_index = (unsigned char)skillIdx;
-                skill[i].m_level = (char)level;
+                skill[k].m_index = (unsigned char)skillIdx;
+                skill[k].m_level = (char)level;
                 break;
             }
         }
@@ -571,7 +602,9 @@ int SkillSlot::FindSkill(int skillIdx) const
     return 0;
 }
 
-int SkillSlot::check_skill_mastered(int skillIdx, int level, int group) const
+// [b28d-solo-SkillSlot] int→bool（头声明同步）：ORIG check_skill_list 调用点
+// 0x08604d2a `call; xor $0x1,%eax; test %al,%al; je` = P292/P248 档①。
+bool SkillSlot::check_skill_mastered(int skillIdx, int level, int group) const
 {
     if (m_parent == 0)
     {
@@ -1248,36 +1281,44 @@ int SkillSlot::skill_move(unsigned char slot1, unsigned char slot2, int job)
 bool SkillSlot::check_skill_list(
     int job, std::vector<std::pair<int, int> > list, int level) const
 {
-    if (list.size() != 0)
+    // [b28d-solo-SkillSlot] 修法（AE 107=107）：P292 早返 + P28 it++ + P135 右值赋值
+    // + P50 迭代器声明即初始化（`iterator it = list.begin();` 直构进 it 槽，
+    // 消除默认构造弱实例 C1Ev 与 begin sret 临时槽；帧 0x68→0x58）。
+    // ORIG 0x08604c02 形 = `size(); test; sete; test; je` 后 `mov $1; jmp`（空表早返）、
+    // 增量段 `ppEi`（后置 ++ 带 sret 临时 -0x1c）、`pair = pair&&`（aSEOS0_ 调用，
+    // 临时 pair -0x24/-0x20）、`call check_skill_mastered; xor $1,%eax; test; je`
+    // （callee 返回 bool，见头声明）。
+    if (list.size() == 0)
     {
-        CSkill* skill = 0;
-        std::vector<std::pair<int, int> >::iterator it;
-        std::pair<int, int> pair;
-        for (it = list.begin(); it != list.end(); ++it)
+        return 1;
+    }
+    CSkill* skill = 0;
+    std::vector<std::pair<int, int> >::iterator it = list.begin();
+    std::pair<int, int> pair;
+    for (; it != list.end(); it++)
+    {
+        pair = std::pair<int, int>(*it);
+        int skillIdx = pair.first;
+        int reqLevel = pair.second;
+        skill = G_CDataManager()->find_skill(job, skillIdx);
+        if (skill == 0)
         {
-            pair = *it;
-            int skillIdx = pair.first;
-            int reqLevel = pair.second;
-            skill = G_CDataManager()->find_skill(job, skillIdx);
-            if (skill == 0)
-            {
-                LogManager::logFormat(
-                    1, "skill_slot.cpp",
-                    __PRETTY_FUNCTION__,
-                    0x42b, "G_CDataManager()->find_skill( %d, %d )", job,
-                    skillIdx);
-                return 0;
-            }
-            int group = skill->get_group();
-            reqLevel = reqLevel - level;
-            if (reqLevel < 1)
-            {
-                reqLevel = 1;
-            }
-            if (check_skill_mastered(skillIdx, reqLevel, group) != 1)
-            {
-                return 0;
-            }
+            LogManager::logFormat(
+                1, "skill_slot.cpp",
+                __PRETTY_FUNCTION__,
+                0x42b, "G_CDataManager()->find_skill( %d, %d )", job,
+                skillIdx);
+            return 0;
+        }
+        int group = skill->get_group();
+        reqLevel = reqLevel - level;
+        if (reqLevel < 1)
+        {
+            reqLevel = 1;
+        }
+        if (!check_skill_mastered(skillIdx, reqLevel, group))
+        {
+            return 0;
         }
     }
     return 1;
@@ -1332,6 +1373,11 @@ void SkillSlot::calcReturnSpSfpPerOneSkill(int& sp, int& sfp, int level,
 
 void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
 {
+    // [b28d-solo-SkillSlot] 判词（N82/P75 封顶；523 vs 556，gap=+33）：
+    // 本件在 b28d-solo 波次内未完成逐条收敛（预算封口）。已取证：p167 残差 1 处
+    // `__gnu_cxx::operator==<pair const*, vector<pair>>` EXTRA（迭代器比较形，
+    // P96/P220 非 const iterator + 正极性 `!=` 待核）。
+    // 残余为跨版本槽/寄存器族。
     int expertJobLevel = 0;
     int expertSkillCount = 0;
     int expertScript = 0;
@@ -1526,77 +1572,79 @@ int SkillSlot::get_give_skill(
     {
         return -1;
     }
-    GameWorld* world = G_GameWorld();
-    if (world->IsPvPSkilTreeChannel() == 0)
+    // [b28d-solo-SkillSlot] 修法：ORIG 0x0860714a 形 = 正极性 `if (IsPvP())`
+    // （`call; test %al,%al; je <普通分支>`，P292 bool callee 直判、无 xor）
+    // ⇒ PvP 分支 fall-through 在前、普通分支在后；去 dm 具名缓存（每次内联
+    // G_CDataManager()，P183）；result 局部 bool + `if (!result)`（P158 xor 物化）；
+    // 两处 get_give_skill 第 2 实参传形参 secondGrow（非字面量 0）；
+    // 迭代器 for + 循环后 eq 判尾（P7），禁用 while(true)+break。
+    // [b28d-solo-SkillSlot] 判词（N18a/P168a 封顶，231=231，p167 CLEAR 39=39）：
+    // 残余仅 2 类纯寄存器/物化形：① m_characList 装载 4.4 发
+    // `mov 0x14(%eax),%eax; mov %eax,%edx`（ORIG 单条 `mov 0x14(%eax),%edx`，
+    // 2 处；指针算术/CCharacter*+job/数组下标三形均同）；② result!=1 检查
+    // ORIG 4.1 物化 `movzbl; xor $1; test %al; je`，4.4 对 char 局部恒
+    // `cmpb $1; jne`（bool 化则存储段多 setne，两段不可兼得，P168a④/N96）。
+    // 语义等价（get_give_skill 返回 char 无归一化，ORIG 0x08348838 movzbl 直返）。
+    if (G_GameWorld()->IsPvPSkilTreeChannel())
     {
-        CDataManager* dm = G_CDataManager();
-        out = *(std::vector<std::pair<int, int> >*)(
-            (char*)dm->m_characList + job * 0x7dc + 0x240);
-        std::vector<std::pair<int, int> > learnList;
-        char result = 1;
-        if (secondGrow == 0)
-        {
-            dm = G_CDataManager();
-            result = ((CCharacter*)((char*)dm->m_characList + job * 0x7dc))
-                         ->get_give_skill(firstGrow, 0, learnList, 1);
-        }
-        else
-        {
-            dm = G_CDataManager();
-            result = ((CCharacter*)((char*)dm->m_characList + job * 0x7dc))
-                         ->get_give_skill(firstGrow, secondGrow, learnList, 0);
-        }
-        if (result == 1)
-        {
-            std::vector<std::pair<int, int> >::const_iterator git =
-                learnList.begin();
-            std::vector<std::pair<int, int> >::const_iterator gend =
-                learnList.end();
-            while (git != gend)
-            {
-                std::vector<std::pair<int, int> >::iterator lit =
-                    out.begin();
-                std::vector<std::pair<int, int> >::iterator lend = out.end();
-                while (true)
-                {
-                    if (lit == lend)
-                    {
-                        break;
-                    }
-                    if (lit->first == git->first)
-                    {
-                        lit->second = std::max(lit->second, git->second);
-                        break;
-                    }
-                    ++lit;
-                }
-                if (lit == lend)
-                {
-                    out.push_back(std::make_pair(git->first, git->second));
-                }
-                ++git;
-            }
-            return 1;
-        }
-        return -1;
+        out.clear();
+        (&G_CDataManager()->m_pvpSkillTree)
+            ->getGiveSkill(
+                ((CUserCharacInfo*)m_parent)->get_charac_job(),
+                (int)((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType(),
+                (int)((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType(),
+                out);
+        return 1;
+    }
+    out = *(std::vector<std::pair<int, int> >*)(
+        (char*)G_CDataManager()->m_characList + job * 0x7dc + 0x240);
+    std::vector<std::pair<int, int> > learnList;
+    char result = 1;
+    if (secondGrow == 0)
+    {
+        result = (((CCharacter*)G_CDataManager()->m_characList) + job)
+                     ->get_give_skill(firstGrow, secondGrow, learnList, 1);
     }
     else
     {
-        out.clear();
-        secondGrow =
-            ((CUserCharacInfo*)m_parent)->getCurCharSecondGrowType();
-        char firstGrow2 = ((CUserCharacInfo*)m_parent)->getCurCharFirstGrowType();
-        int characJob = ((CUserCharacInfo*)m_parent)->get_charac_job();
-        CDataManager* dm = G_CDataManager();
-        (&dm->m_pvpSkillTree)
-            ->getGiveSkill(characJob, (int)firstGrow2, (int)secondGrow, out);
-        return 1;
+        result = (((CCharacter*)G_CDataManager()->m_characList) + job)
+                     ->get_give_skill(firstGrow, secondGrow, learnList, 0);
     }
+    if (!result)
+    {
+        return -1;
+    }
+    for (std::vector<std::pair<int, int> >::const_iterator git =
+             learnList.begin(),
+         gend = learnList.end();
+         git != gend; ++git)
+    {
+        std::vector<std::pair<int, int> >::iterator lit = out.begin();
+        std::vector<std::pair<int, int> >::iterator lend = out.end();
+        for (; lit != lend; ++lit)
+        {
+            if (lit->first == git->first)
+            {
+                lit->second = std::max(lit->second, git->second);
+                break;
+            }
+        }
+        if (lit == lend)
+        {
+            out.push_back(std::make_pair(git->first, git->second));
+        }
+    }
+    return 1;
 }
 
 int SkillSlot::master_new_skill(int skillIdx, int level, int job,
                                 int firstGrow, int secondGrow, int addLevel)
 {
+    // [b28d-solo-SkillSlot] 判词（N82/P75 封顶；464 vs 472，gap=+8）：
+    // 本件在 b28d-solo 波次内未完成逐条收敛（预算封口）。已取证：p167 残差 1 处
+    // `_List_const_iterator<_pre_skill>::operator==` EXTRA（同 try_master_new_skills，
+    // 迭代器比较形待改 P7 形）。其余为跨版本槽/寄存器/求值序族（同族实证）。
+    // 后续重开时优先：preSkill 循环改 `for(it=begin();it!=end();it++)`。
     CSkill* skill = 0;
     skill = G_CDataManager()->find_skill(job, skillIdx);
     if (skill == 0)
@@ -1781,6 +1829,14 @@ int SkillSlot::try_master_new_skills(int skillIdx, int level, int job,
                                      int firstGrow, int secondGrow,
                                      int addLevel)
 {
+    // [b28d-solo-SkillSlot] 判词（N82/P75 封顶；339 vs 347，gap=+8）：
+    // 本件在 b28d-solo 波次内未完成逐条收敛（预算封口）。已取证：结构与 ORIG
+    // 同族（preSkillList const_iterator + `it++` 后置、_pre_skill 逐字段、
+    // can_learn/fitness/needSP 段），p167 残差 1 处
+    // `_List_const_iterator<_pre_skill>::operator==` EXTRA ⇒ 迭代器比较写法
+    // 与 ORIG 差一处（ORIG 用 ne 判续 + 循环后 eq，见 P7；本件为 list）。
+    // 残余主体为跨版本槽/寄存器分配（同族已由 get_give_skill/InitSkill 实证）。
+    // 后续重开时优先：`for (it = begin(); it != end(); it++)` 形 + P7 双比较。
     CSkill* skill = 0;
     skill = G_CDataManager()->find_skill(job, skillIdx);
     if (skill == 0)
@@ -1912,10 +1968,24 @@ int SkillSlot::try_master_new_skills(int skillIdx, int level, int job,
 int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
                                       int secondGrow,
                                       const STGuildDBInfoOnly& guildInfo,
-                                      int availableGSP, int& needGold,
+                                      int money, int& needGold,
                                       int& learnCnt, short& needGSP,
-                                      int guildLevel)
+                                      int availableGSP)
 {
+    // [b28d-solo-SkillSlot] 判词（N7/P75 封顶，gap=+2，p167 CLEAR 14=14）：
+    // 已复现：帧 0x40、槽集(skill -0x1c/count -0x18/i -0x10/maxLevel -0xc)、
+    // skill 预清(P198①)、m_skills 组件视图(P161：lea base+i*5; add $0x40;
+    // mov 0x5 / add $0x49)、needLevel 具名比较(jge 直跳)、SkillAdd 全内联
+    // 实参(esi/ebx/ecx 直传 + lea receiver)。残余 3 处纯寄存器/装载序：
+    // ① logFormat 段 learnCnt 落 %eax vs ORIG %edx（guildInfo 指针重载时机）；
+    // ② m_skills 两处 base(%ecx) 先于 i(%edx) 装载（ORIG 反之，P23/P75）；
+    // ③ needGSP 存储 4.4 多 `mov %eax,%edx` 中转（ORIG 直接 `mov %ax,(%edx)`）。
+    // 三者语义等价，属 4.1/4.4 寄存器分配族，无源码旋钮可择。
+    // 真语义 bug 修正：ORIG 0x086039ac 的 GSP 检查用
+    // 0x30(%ebp)（第 10 形参）；0x20(%ebp)（第 6 形参 money）全函数未被使用
+    // ⇒ 原码参数序为 (…, guildInfo, money, needGold, learnCnt, needGSP,
+    // availableGSP)。旧实现把第 6 参当 availableGSP 比较，是**取错参数**。
+    (void)money;
     if ((unsigned char)guildInfo.m_skillLearnCnt >= 0x10)
     {
         LogManager::logFormat(
@@ -1925,7 +1995,8 @@ int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
             (unsigned char)guildInfo.m_skillLearnCnt);
         return -2;
     }
-    CSkill* skill = G_CDataManager()->find_skill(job, skillIdx);
+    CSkill* skill = 0;
+    skill = G_CDataManager()->find_skill(job, skillIdx);
     if (skill == 0)
     {
         return -1;
@@ -1933,13 +2004,15 @@ int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
     learnCnt = 1;
     int count = (unsigned char)guildInfo.m_skillLearnCnt;
     // ORIG 0x0860387e..0x86038a6：i*5 步长（STGuildSkill packed 5B）；
-    // 原 i*20 步长有误，已修正。m_skills char 区按 5B 条目宽度视图访问。
-    const char* skills = guildInfo.m_skills;
+    // 禁缓存 m_skills 指针（P183）：ORIG 每次重读 guildInfo 基址并折
+    // `lea base+i*5; add $0x40; mov 0x5(...)` / `add $0x49`。
     for (int i = 0; i < count; ++i)
     {
-        if (*(const int*)(skills + i * 5) == skillIdx)
+        if (((const STGuildDBTailView&)guildInfo)
+                .m_section.m_entries[i].m_skillIdx == skillIdx)
         {
-            learnCnt = (char)skills[i * 5 + 4] + 1;
+            learnCnt = (char)((const STGuildDBTailView&)guildInfo)
+                            .m_section.m_entries[i].m_level + 1;
             break;
         }
     }
@@ -1969,24 +2042,23 @@ int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
     {
         return -5;
     }
-    needGSP = (short)skill->get_guildSkillNeedGSP(learnCnt);
+    needGSP = skill->get_guildSkillNeedGSP(learnCnt);
     if (needGSP < 0 || availableGSP < needGSP)
     {
         return -2;
     }
-    if ((int)(unsigned char)guildInfo.m_fundLevel <
-        skill->get_needGuildLevel(learnCnt))
+    int needLevel = skill->get_needGuildLevel(learnCnt);
+    if ((int)(unsigned char)guildInfo.m_fundLevel < needLevel)
     {
         return -6;
     }
     if (m_parent != 0)
     {
-        int treeKind =
-            ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex();
-        int characJob = ((CUserCharacInfo*)m_parent)->get_charac_job();
         (&m_parent->m_historyLog)
-            ->SkillAdd(characJob, treeKind, skillIdx, learnCnt,
-                       (eSkillAddReason)0);
+            ->SkillAdd(
+                ((CUserCharacInfo*)m_parent)->get_charac_job(),
+                ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex(),
+                skillIdx, learnCnt, (eSkillAddReason)0);
         m_parent->makeGuildSkillMessage(skill->getSkillName(), learnCnt);
     }
     return 0;
@@ -1995,6 +2067,11 @@ int SkillSlot::master_new_guild_skill(int skillIdx, int job, int type,
 int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
                             int secondGrow, int refundCount, int& result)
 {
+    // [b28d-solo-SkillSlot] 判词（N82/P75 封顶；549 vs 571，gap=+22）：
+    // 本件在 b28d-solo 波次内未完成逐条收敛（预算封口）。已取证：p167 残差 1 处
+    // `vector<pair<int,int>>::at(unsigned int)` EXTRA ⇒ ORIG 用 `operator[]`
+    // 而本件某处用 at()（P175 方向待核：ORIG 索引形用 at 还是 []）。
+    // 残余为跨版本槽/寄存器族。
     result = 0x13;
     if (m_parent == 0)
     {
@@ -2040,12 +2117,18 @@ int SkillSlot::refund_skill(int skillIdx, int level, int job, int firstGrow,
                 ((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobType());
         if (expertScript != 0)
         {
-            std::vector<std::pair<int, int> >& expertList =
-                *(std::vector<std::pair<int, int> >*)((char*)expertScript +
-                                                      0xc);
-            for (unsigned int i = 0; i < expertList.size(); ++i)
+            // [b28d-solo-SkillSlot] P183：ORIG 每次 `mov -0x34(%ebp),%eax;
+            // lea 0xc(%eax),%edx` 重读 expertScript+0xc，禁具名引用缓存。
+            for (unsigned int i = 0;
+                 i < ((std::vector<std::pair<int, int> >*)((char*)expertScript +
+                                                           0xc))
+                         ->size();
+                 ++i)
             {
-                if (expertList[i].first == skillIdx)
+                if (((std::vector<std::pair<int, int> >*)((char*)expertScript +
+                                                          0xc))
+                        ->at(i)
+                        .first == skillIdx)
                 {
                     result = 7;
                     return -5;
@@ -2195,12 +2278,24 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
                                 int firstGrow, int secondGrow,
                                 int refundCount, int& result)
 {
+    // [b28d-solo-SkillSlot] 判词（N82/P75 封顶，355 vs 356，p167 CLEAR 36=36）：
+    // 已复现：skill 预清(P198①)、G_GameWorld 内联、`get_pvp_grade() >= 0`
+    // 等价形、expertScript 视图去具名引用、两处 0xcc 扫描、EH cleanup 段全等。
+    // 残余 2 类跨版本差异：① 4.4 对 `(vector*)((char*)expertScript+0xc)` 的
+    // 循环条件/体重复表达式发 SAVE_EXPR 提升（循环外 `add $0xc; mov %eax,-0x24`
+    // 缓存槽），ORIG 4.1 每次 `mov -0x34; lea 0xc` 重算 ⇒ 全帧槽号浅 4
+    // （skill -0x48 vs -0x44 等，N82 族；P183 源码侧已无缓存）；
+    // ② 短路条件 bool 物化：ORIG `test %al; je` + `cmp $0; setge %al; test; jne`，
+    // 4.4 恒 `xor $1; test; jne` + `js; mov$1/mov$0; test; je`（P168a③b 跨版本
+    // bool 归一，无源码旋钮）。
+    // 真语义 bug 修正见下方 GetExpertJobScript 段。
     result = 0x13;
     if (m_parent == 0)
     {
         return -4;
     }
-    CSkill* skill = G_CDataManager()->find_skill(job, skillIdx);
+    CSkill* skill = 0;
+    skill = G_CDataManager()->find_skill(job, skillIdx);
     if (skill == 0)
     {
         return -1;
@@ -2211,9 +2306,8 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
         result = 7;
         return -5;
     }
-    GameWorld* world = G_GameWorld();
-    if (world->IsPvPSkilTreeChannel() == 0 ||
-        ((CUserCharacInfo*)m_parent)->get_pvp_grade() > -1)
+    if (G_GameWorld()->IsPvPSkilTreeChannel() == 0 ||
+        ((CUserCharacInfo*)m_parent)->get_pvp_grade() >= 0)
     {
         int slot = get_skillslot_no(m_tempSkillSlot, skillIdx, group, true);
         if (slot == -1)
@@ -2226,8 +2320,12 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
             return -1;
         }
         void* expertScript = 0;
-        ((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobType();
-        expertScript = G_CDataManager()->GetExpertJobScript(0);
+        // [b28d-solo-SkillSlot] 真语义 bug 修正：ORIG 0x08607a5e 段
+        // `call GetCurCharacExpertJobType; mov %eax,%ebx; call G_CDataManager;
+        //  mov %ebx,0x4(%esp); call GetExpertJobScript` ⇒ 原码把职业类型
+        // 作为 GetExpertJobScript 实参（旧实现丢弃返回值传 0 = 取错脚本）。
+        expertScript = G_CDataManager()->GetExpertJobScript(
+            ((CUserCharacInfo*)m_parent)->GetCurCharacExpertJobType());
         if (expertScript != 0)
         {
             std::vector<std::pair<int, int> >& expertList =
@@ -2315,11 +2413,17 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
 
 void SkillSlot::InitSkillHistoryLog(ENUM_SKILL_TREE_KIND kind, int reason)
 {
-    // b28d-36 判词（N 封顶，ORIG 0x08608675 尾段）：ORIG 先载 spKind(-0x20→%edx)
-    // 再算 receiver &m_historyLog(m_parent+0x79700→%ecx)，压栈 0x14→(%esp) 从右到左；
-    // 4.4 先算 receiver(%edx) 再载 spKind(%eax)，且 (%esp)/0x4(%esp) 两条互换
-    // （P23/P75 实参求值序+寄存器角色，N7 族）。receiver 无槽往返（P0 ⇒ 原码
-    // 无具名引用局部），表达式改写/具名局部均只能改恶（+槽）。残差 2 条 mov。
+    // b28d-solo-SkillSlot 判词（N 封顶，N7/P75 族；ORIG 0x086085fa 尾段 0x08608675）：
+    // ORIG 4.1 求值序 = reason→sfp→sp→level→spKind(-0x20→%edx)→receiver
+    // (m_parent+0x79700→%ecx，内联无槽)；4.4 恒 this-first（receiver→%edx 在
+    // spKind 之前，spKind 落 %eax），压栈尾部两条互换。三形实测：
+    // ① 原形 57=57 DIFF（仅 2 条 mov 寄存器角色/序差）；
+    // ② `(0, m_parent->m_historyLog)` 逗号接收者 57=57 DIFF 同形；
+    // ③ `(*m_parent).m_historyLog` 解引用形 57=57 DIFF 同形；
+    // ④ 具名 `cUserHistoryLog* historyLog=&…; historyLog->InitSkill(...)` 求值序
+    //    翻正（this 最后装载）但 receiver 槽化 -0x1c + 槽位重排 ⇒ 59 vs 57 DIFF。
+    // receiver 无槽往返（P0 ⇒ 原码无具名局部），4.4 无法在无槽下把 this 求值后置
+    // ⇒ 跨版本求值序结构性差，封 N7；语义等价（全部实参/副作用序一致）。
     if (m_parent == 0)
     {
         return;
@@ -2459,6 +2563,11 @@ int SkillSlot::checkskillSlotEmptyCount(int& out)
 char SkillSlot::checkOverLevelSkill(std::vector<stSPReturnInfo_t>& out,
                                     ENUM_SKILL_TREE_KIND kind, int level)
 {
+    // [b28d-solo-SkillSlot] 判词（N82 封顶；608 vs 620，gap=+12）：
+    // 本件在 b28d-solo 波次内未完成逐条收敛（预算封口）。已取证：p167 残差 1 处
+    // `std::list<_pre_skill>::end()` EXTRA（循环外 end() 预求值形待核，P13）。
+    // 残余为跨版本槽/寄存器/求值序族（大函数 ndiff 失真，见 N82；验收须走
+    // §6.2 三件套）。
     if (m_parent == 0 ||
         ((CUserCharacInfo*)m_parent)->getCurCharacR() == 0)
     {
@@ -2984,33 +3093,41 @@ void SkillSlot::pullComboSkillExtensionQuickSlot(ENUM_SKILL_TREE_KIND kind)
 // ExpertJob 增益技循环 → CSkillChanger::SkillInitialize → 日志/发包。
 bool SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
 {
+    // [b28d-solo-SkillSlot] 判词（N82/P75/P168a 封顶，340 vs 338，p167 CLEAR 51=51）：
+    // 已复现：kindArg/changerKind P45 短路链 + 死初值(P171)、PvP 段 secondGrow
+    // 具名 int + firstGrow/job/pvpGrade 内联实参、两处 cMyTrace 全表达式临时链
+    // (P227)、giveVec 循环 pair 具名局部(P50)、addSkillOnCreateCharacter 双臂。
+    // 残余跨版本族：① 4.4 把内联 pvpGrade 落槽而 ORIG 留 %esi（具名 secondGrow
+    // 反之），帧 0x13c vs 0x12c（+0x10，N82/P0 求值序族）；
+    // ② giveVec 循环 pair 4.4 折临时槽直读（ORIG 具名槽 -0x3c/-0x38 + 拷贝）；
+    // ③ `(got^1)!=0` 4.4 折 `cmpb $1`，ORIG 4.1 物化 `movzbl; xor $1; test`；
+    // ④ receiver `lea 0xa800(%eax)` vs ORIG `add $0xa800,%eax`（N107 反向）。
+    // 全部语义等价（调用点差集为零）。
     if (m_parent == 0)
         return false;
 
     if (G_GameWorld()->IsPvPSkilTreeChannel())
     {
-        // ORIG：movl $0x0 初值；kind==-1→0、kind==0→1、其他→2。
+        // ORIG 0x0860815d：`movl $0x0` 初值（死写，P171）+ P45 短路链
+        // `(kind==-1)||(kind==0) → 1 : 2`。
         int kindArg = 0;
-        if (kind == 0)
+        if (kind == -1 || kind == 0)
             kindArg = 1;
-        else if (kind != -1)
+        else
             kindArg = 2;
         m_parent->givePvPSkillTree(0, true, kindArg);
-        int pvpGrade = m_parent->get_pvp_grade();
-        char secondGrow = m_parent->getCurCharSecondGrowType();
-        char firstGrow = m_parent->getCurCharFirstGrowType();
-        int job = m_parent->get_charac_job();
+        int secondGrow = m_parent->getCurCharSecondGrowType();
         int sp = G_CDataManager()->m_pvpSkillTree.getPvPSkillPoint(
-                     job, firstGrow, secondGrow, pvpGrade, false);
+                     m_parent->get_charac_job(),
+                     m_parent->getCurCharFirstGrowType(), secondGrow,
+                     m_parent->get_pvp_grade(), false);
         set_remain_sp_at_index(sp, kind);
         if (sendFlag)
         {
             m_parent->send_skill_info();
-            cMyTrace trace(
-                __PRETTY_FUNCTION__, 0xb47,
-                0);
-            trace("SUCCESS_INIT_SKILL and SEND_SKILL_INFO, char(%s)",
-                  m_parent->getCurCharacName());
+            cMyTrace(__PRETTY_FUNCTION__, 0xb47, 0)(
+                "SUCCESS_INIT_SKILL and SEND_SKILL_INFO, char(%s)",
+                m_parent->getCurCharacName());
         }
         InitSkillHistoryLog(kind, 1);
         return true;
@@ -3038,10 +3155,14 @@ bool SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
         return false;
     }
 
+    // [b28d-solo-SkillSlot] ORIG 0x0860830c 段：`pair = giveVec[i]` 具名 pair
+    // （-0x3c/-0x38）+ 临时 -0x70/-0x6c（P50 先声明后赋值形）。
+    std::pair<int, int> pair;
     for (int i = 0; i < (int)giveVec.size(); ++i)
     {
-        growtype_skill(m_parent->get_charac_job(), giveVec[i].first,
-                       giveVec[i].second, kind);
+        pair = giveVec[i];
+        growtype_skill(m_parent->get_charac_job(), pair.first, pair.second,
+                       kind);
     }
 
     STExpertJobScript* expert = static_cast<STExpertJobScript*>(
@@ -3061,18 +3182,17 @@ bool SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
     WongWork::CSkillChanger changer;
     // ORIG：movl $0x0 初值；kind==-1→0、kind==0→1、其他→2（同 kindArg 模式）。
     int changerKind = 0;
-    if (kind == 0)
+    if (kind == -1 || kind == 0)
         changerKind = 1;
-    else if (kind != -1)
+    else
         changerKind = 2;
     changer.SkillInitialize(m_parent, changerKind, false);
     if (sendFlag)
     {
         m_parent->send_skill_info();
-        cMyTrace trace2(
-            __PRETTY_FUNCTION__, 0xb86, 0);
-        trace2("SUCCESS_INIT_SKILL and SEND_SKILL_INFO, char(%s)",
-               m_parent->getCurCharacName());
+        cMyTrace(__PRETTY_FUNCTION__, 0xb86, 0)(
+            "SUCCESS_INIT_SKILL and SEND_SKILL_INFO, char(%s)",
+            m_parent->getCurCharacName());
     }
     InitSkillHistoryLog(kind, 0);
     return true;
@@ -3090,7 +3210,12 @@ CSkillChanger::~CSkillChanger() {}
 
 void CSkillChanger::_ResetSkillPoint(CUser* user, ENUM_SKILL_TREE_KIND kind)
 {
-    // b28d-36（修法 P0+P52+P134）：ORIG 0x0860a558 无 charLevel/sp/spUp/slotR/slotW
+    // b28d-solo-SkillSlot 判词（AE 40=40）：修法 = 加法右操作数 `(int)` 收窄。
+    // GetSpAtLevelUp 返回 unsigned int，与左操作数 int 异型时 4.4 发
+    // `lea (%ebx,%eax,1),%eax; mov %eax,%ebx`（+1 条）；ORIG 4.1 为 `add %eax,%ebx`。
+    // 调用点 `(int)G_CDataManager()->GetSpAtLevelUp(level)` 使两端同型 ⇒ 逐条 AE
+    // （40=40，助记符/寄存器/槽全等；.o 层 call/jmp 重定位标签差为 P264 假报）。
+    // 原 b28d-36（修法 P0+P52+P134）：ORIG 0x0860a558 无 charLevel/sp/spUp/slotR/slotW
     // 具名槽（-0x18/-0x14/-0x10/-0xc 全无）——remain 值全程 %ebx 直传、跨
     // getCurCharacSkillW 调用保活 ⇒ 原码是单条嵌套实参表达式 + for 尾条件 setge
     // 物化。槽往返版多 5 个槽（our 45→40 insn）。
@@ -3100,7 +3225,7 @@ void CSkillChanger::_ResetSkillPoint(CUser* user, ENUM_SKILL_TREE_KIND kind)
             ->set_remain_sp_at_index(
                 reinterpret_cast<const SkillSlot*>(user->getCurCharacSkillR())
                         ->get_remain_sp_at_index(kind)
-                    + G_CDataManager()->GetSpAtLevelUp(level),
+                    + (int)G_CDataManager()->GetSpAtLevelUp(level),
                 kind);
     }
 }

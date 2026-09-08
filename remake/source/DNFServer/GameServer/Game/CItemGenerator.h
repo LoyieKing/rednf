@@ -538,7 +538,17 @@ public:
     int loadScript(char const* path);            // T 0x08535344（虚槽 +0x04）
 
 protected:
-    struct stGenItemProb_t { int v[7]; };
+    // v[2..6] 的数组视角 w[0..4]（+0x08 起）：ORIG 0x08535948 以 disp=8 折叠索引
+    // （`mov 0x8(%eax,%edx,4)` / `mov %eax,0x8(%edx,%ebx,4)`），4.4 对 `v[2+j]`
+    // 恒生 lea 两步（P30）；匿名 union 视图零 sizeof/偏移/符号影响。
+    struct stGenItemProb_t
+    {
+        union
+        {
+            int v[7];
+            struct { int m_lo, m_hi; int w[5]; };
+        };
+    };
 
     std::vector<stGenItemProb_t> m_probs;        // +0x18
     std::vector<stGenItemProb_t> m_probsSub;     // +0x24（ctor 构造；装载未用）
@@ -564,7 +574,14 @@ public:
     int loadScript(char const* path);            // T 0x085373ee（虚槽 +0x04）
 
 protected:
-    struct stGenItemProb_t { int v[7]; };
+    struct stGenItemProb_t
+    {
+        union
+        {
+            int v[7];
+            struct { int m_lo, m_hi; int w[5]; };
+        };
+    };
 
     std::vector<stGenItemProb_t> m_probs;        // +0x18
     std::vector<stGenItemProb_t> m_probsSub;     // +0x24

@@ -4,7 +4,20 @@
 
 #include "Divide_C_ClassIP_EndIP.h"
 
-#include <cstring>
+#include <string.h>
+
+// [b28d-solo-Divide_C_ClassIP_EndIP · P306 族/跨编译环境] ORIG 的 libstdc++ 在 gcc 4.1
+// 环境（glibc string.h 未定义 __CORRECT_ISO_CPP_STRING_H_PROTO）以 inline 形式发射
+// std::strrchr(char*, int)（ORIG nm：W 0x08265244，体 = 转发 strrchr@plt，14 条指令）；
+// 本仓 4.4 头因 __GNUC_PREREQ(4,4) 走 glibc extern "C++" 重载（asm 名 strrchr），
+// std::strrchr 恒解析为 C 符号 ⇒ 调用点与 ORIG 差一个 _ZSt7strrchrPci。
+// 按 ORIG 同一 inline 体在此声明（非发明符号：符号/体/弱绑定均见 ORIG 二进制）。
+namespace std {
+inline char* strrchr(char* s, int c)
+{
+    return __builtin_strrchr(s, c);
+}
+}
 
 // ============================================================================
 // ORIG @ 0x086b1dd5 [0x086b1dd5, 0x086b1e84]
@@ -16,16 +29,15 @@
 //   `mov -0x10(%ebp),%eax; add $0x1,%eax; add 0x10(%ebp),%eax` 由 len 重算
 //   ⇒ 原码持有的是长度局部量、末段地址按 src+len+1 表达式现算（非 dot+1）。
 // ============================================================================
-// [b28 BM2 判词·AE] 3 参版清单 NEAR(2) 为全二进制 call/jmp 目标标签伪差；
-// fresh /tmp/tu_Divide_C_ClassIP_EndIP.o fn_diff_tu 归一 0 差（55=55 逐条）。
+// [b28d-solo-Divide_C_ClassIP_EndIP 判词 · AE] 清单 NEAR(1) → fresh TU compare
+// `ae`（60=60 逐条；清单 NEAR 系 .o 重定位标签伪差）。P167 调用点差集 CLEAR
+// （std::strrchr wrapper 归位见文件头注释）。语义/控制流/栈槽与 ORIG 0x086b1dd5 全等。
 void Divide_C_ClassIP_EndIP(char* out, char* end, char* src)
 {
-    // [b28d-39 判词 · AE] ORIG 0x086b1dd5：fresh 复验 TU ae（60=60 逐条），
-    // 清单 NEAR(1) 为 .o 重定位标签伪差；语义/控制流与 ORIG 全等。
     if (src == 0)
         return;
 
-    char* dot = strrchr(src, '.');      // +0x14: call _ZSt7strrchrPci
+    char* dot = std::strrchr(src, '.');  // +0x14: call _ZSt7strrchrPci
     if (dot == 0)
         return;
 
@@ -48,6 +60,13 @@ void Divide_C_ClassIP_EndIP(char* out, char* end, char* src)
 // ORIG @ 0x086b1e85 [0x086b1e85, 0x086b1f59]：同上拆分逻辑，各失败分支
 // 在 *err 写入状态码后返回（src空=1 / 无'.'=2 / 前缀>12=3 / 末段>4=4 /
 // out空=5 / end空=6）；完整成功（两输出非空）不写 err。
+// [b28d-solo-Divide_C_ClassIP_EndIP 判词 · AE] 清单 DIFF(9) → fresh TU compare
+// `ae`（69=69 逐条）。两处修法：
+//   ① P222 极性翻转：`if(end!=0) goto l2; goto l6;` 在 4.4 恒反演成
+//      `je l6; jmp l2`（旧判词误封 N223）；改写 `if(end==0) goto l6; goto l2;`
+//      即复现 ORIG `cmpl $0xc(%ebp); jne l2; jmp l6` 的极性与 l5→l2→l6 块序。
+//   ② 文件头 std::strrchr wrapper 复现 ORIG `call _ZSt7strrchrPci`（p167 归零）。
+// 残余 2 条跳转目标前对齐 nop 由 compare 口径剥离（§6.1/P223 判词族），非语义差。
 // ============================================================================
 void Divide_C_ClassIP_EndIP(char* out, char* end, char* src, char* err)
 {
@@ -57,7 +76,7 @@ void Divide_C_ClassIP_EndIP(char* out, char* end, char* src, char* err)
         return;
     }
 
-    char* dot = strrchr(src, '.');
+    char* dot = std::strrchr(src, '.');
     if (dot == 0)
     {
         *err = 2;
@@ -78,24 +97,18 @@ void Divide_C_ClassIP_EndIP(char* out, char* end, char* src, char* err)
         return;
     }
 
-    // [b28 P223·v5 探针 /tmp/l2_p9.cpp] ORIG 0x086b1e85 块序
-    // [out判定 je→l5][strncpy][end判定 jne→l2; jmp→l6][l5:*err5][l2:strncpy2][l6:*err6]
-    // 复现形 = 显式双 goto + 冷标签源序 l5→l2→l6；if/else 嵌套形产 `je 尾岛` 反极性
-    // + `jmp` 中继缺失（ndiff 23→~8）。两 nop 岛（je/jne 目标块前对齐垫）与 ORIG
-    // 直落为链接布局伪差（b22 判词族）。语义不变。
+    // ORIG 块序：[out判定 je→l5][strncpy][end判定 jne→l2; jmp→l6][l5:*err5]
+    // [l2:strncpy2][l6:*err6]。复现形 = 显式双 goto + 冷标签源序 l5→l2→l6。
     if (out == 0)
         goto l5;
     strncpy(out, src, len);
-    // [b28d-39 判词 · N223/跨版本] ORIG 0x086b1f21 end 守卫为 `jne COPY2; jmp ERR6`
-    // 双跳形；4.4 对 `if(end!=0) goto l2; goto l6;` 恒 CFG 反演为 `je l6; jmp l2`
-    // （早返 if/else 形亦产 `jne COPY2` 但把 out 守卫打反、且多 2 条），冷块物理
-    // 位置由 GCC BB 序决定不可源码控制。残余仅 1 条助记符（je↔jne）+ 2 nop 岛，
-    // 三分支可观察行为逐条相等；禁 asm 桥（P0）。
-    if (end != 0)
+    // [P222] ORIG 0x086b1f21 为 `jne l2; jmp l6` 双跳；两形互试后取
+    // `if(end==0) goto l6;`（正极性写法产 `je l6; jmp l2` 反极性，勿用）。
+    if (end == 0)
     {
-        goto l2;
+        goto l6;
     }
-    goto l6;
+    goto l2;
 l5:
     *err = 5;
     return;

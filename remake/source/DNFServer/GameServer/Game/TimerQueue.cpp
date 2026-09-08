@@ -31,7 +31,7 @@ TimerEntry::TimerEntry() throw()
 }
 bool TimerEntry::operator<(const TimerEntry& other) const throw()
 {
-    // b28d-49 @0x80f6364：ORIG 24 条 —— this.lo→%ecx、this.hi→%ebx（callee-saved，
+    // b28d-49 @0x80f6364：ORIG 23 条 —— this.lo→%ecx、this.hi→%ebx（callee-saved，
     // push esi/ebx），hi 有符号 jg/jl、lo 无符号 jae，结果经 %esi 归一返回。
     // 源码形 = 纯 register 存储类（P231，非 asm 绑定）+ 头内 32 位双字视图；
     // 残差（%ecx/%esi 角色互换、比较方向反演）属 4.1 预载操作数 vs 4.4 惰性装载，
@@ -40,13 +40,17 @@ bool TimerEntry::operator<(const TimerEntry& other) const throw()
     // 结果单变量 %esi（`mov $0x1,%esi` … `mov %esi,%eax`）；4.4 恒惰性装载且
     // 只用 callee-saved（探针 h1-h4 四形：%esi/%ebx/%edi 角色互换 + 比较方向反演）。
     // 语义已对齐（hi 有符号、lo 无符号；旧 long long 版 hi 无符号 = 真语义偏差，已修）。
+    // b28d-solo-TimerQueue 判词：N 封顶（N7+N18a）。本轮七形实测（fndiff ndiff，
+    // ORIG 23 条）：本形(==优先) 24（最小）/ 原 if-return 27 / 三目链 32 /
+    // register bool ret 30 / 3×register 32 / 取反尾 27 / 交换 if 序 27 —— 全形非 0。
+    // ORIG「other 一次装载(hi→%edx,lo→%eax) + this.lo→%ecx + 结果 %esi 预置
+    // + jg/jl/jae 单变量归一」为 4.1 特有寄存器分配；P248 三档旋钮不适用
+    //（无字段可换型、返回 bool 已同型）⇒ 语义已对齐，封顶。
     register unsigned int thisLo = words.lo;
     register int thisHi = words.hi;
-    if (thisHi > other.words.hi)
-        return true;
-    if (thisHi < other.words.hi)
-        return false;
-    return thisLo >= other.words.lo;
+    if (thisHi == other.words.hi)
+        return thisLo >= other.words.lo;
+    return thisHi > other.words.hi;
 }
 
 TimerQueue::TimerQueue()   // 声明同步去 throw()：ORIG create landing pad 证据
@@ -60,12 +64,18 @@ TimerQueue::~TimerQueue() throw()
 
 void TimerQueue::InsertTimer(TimerEntry& entry) throw()
 {
-    // b28d-49 判词：NEAR 封顶（N82 槽布局：Guard/msg/it/end 深槽 vs 我方浅槽 +
-    // P61/P178 make_pair 引用传实参）。@0x8630cec
+    // b28d-solo-TimerQueue 判词：AE（94=94 逐条，P167 CLEAR）。两处关键：
+    // ① `int msg;` 声明前置到 Guard 之前、赋值留在 push 之后 —— 4.4 栈槽按声明序
+    //    「先声明浅」（P212/N98），据此把 ORIG 的 Guard(-0x34 深)/msg(-0x30 浅) 翻正；
+    // ② ORIG 的 -0x10/-0xc 两槽不是具名 one/msg2，而是 `std::make_pair((int)entry.msg, 1)`
+    //    右值引用参数的临时物化 —— 具名左值版选错 make_pair<int&,int&> 实例（ORIG 为
+    //    make_pair<int,int>），直接实参形调用点差集归零且逐条 AE（P167 判据②）。
+    // 残余具名 mp/cp 形（ndiff 38）与 hoist 形（32）均劣。@0x8630cec
+    int msg;
     Guard<Mutex> guard(&m_mutex);
     m_queue.push(entry);
 
-    int msg = entry.msg;
+    msg = entry.msg;
     std::map<int, int>::iterator it = m_map.find(msg);
     if (it != m_map.end())
     {
@@ -73,11 +83,7 @@ void TimerQueue::InsertTimer(TimerEntry& entry) throw()
     }
     else
     {
-        int one = 1;
-        int msg2 = entry.msg;
-        std::pair<int, int> mp = std::make_pair(msg2, one);
-        std::pair<const int, int> cp(mp);
-        m_map.insert(cp);
+        m_map.insert(std::make_pair((int)entry.msg, 1));
     }
 }
 
@@ -133,8 +139,11 @@ size_t TimerQueue::GetQueueSize() throw()
 
 void TimerQueue::write_timer_queue_log() throw()
 {
-    // b28d-49 判词：N 封顶（N82 槽布局整体平移 0x18：ORIG log/it/end/buf 在
-    // -0x30..-0x4c，我方 -0x18..-0x34；+ N89 string/迭代器内联）。P167 CLEAR。@0x863101e
+    // b28d-solo-TimerQueue 判词：AE（130=130，P227 全表达式临时链）。原形「具名
+    // const char* str + 具名 cMyTrace trace」使 4.4 把 c_str 结果落槽（-0x10/-0xc）
+    // 并把 trace 临时压深（-0x44/-0x54）——即 b28d-49「N82 整体浅移 0x18」判词的根因；
+    // 改 cMyTrace(...)(...) 后 4.4 在 ctor 前求值 c_str 并以 %ebx 跨 ctor 保活、
+    // trace 临时落 -0x2c/-0x18，与 ORIG 逐条 AE。@0x863101e
     std::string log;
     log.clear();
 
@@ -149,18 +158,14 @@ void TimerQueue::write_timer_queue_log() throw()
         // P23：ORIG 仅当 log 长度 > 0x800 才构造 cMyTrace 并输出。
         if (log.length() > 0x800)
         {
-            const char* str = log.c_str();
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x101, 0);
-            trace("TIMER_QUEUE_LOG : %s", str);
+            cMyTrace(__PRETTY_FUNCTION__, 0x101, 0)("TIMER_QUEUE_LOG : %s", log.c_str());
         }
         log.clear();
     }
 
     if (log.length() != 0)
     {
-        const char* str2 = log.c_str();
-        cMyTrace trace2(__PRETTY_FUNCTION__, 0x107, 0);
-        trace2("TIMER_QUEUE_LOG : %s", str2);
+        cMyTrace(__PRETTY_FUNCTION__, 0x107, 0)("TIMER_QUEUE_LOG : %s", log.c_str());
     }
 }
 

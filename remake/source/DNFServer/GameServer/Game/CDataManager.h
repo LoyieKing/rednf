@@ -1755,7 +1755,11 @@ struct BuyUpgradeData
     // 字段）、+0xc string 赋值、+0x10 vector<FieldType::T> 赋值、+0x1c
     // LevelFieldDataMap 赋值；返 *this。
     BuyUpgradeData& operator=(const BuyUpgradeData& other);   // ORIG W 0x88a5784
-    int getFieldData(int level, FieldType::T ft);             // ORIG T 0x088a2c62
+    // b28d-solo-advancealtar_misc：ORIG 0x088a2c62 两条返回路径均为
+    //   `call _Rb_tree_iterator<pair<const FieldType::T,FieldData>>::operator-> ; add $0x4,%eax`
+    //   = &pair.second（FieldData*），非解引用取值 ⇒ 返回类型 FieldData*（返回类型不入
+    //   mangled，全仓无调用点，零 ABI 影响）。
+    FieldData* getFieldData(int level, FieldType::T ft);      // ORIG T 0x088a2c62
     int getFieldType(int idx) const;                          // ORIG T 0x088a3012
     int getMaxLevel() const;                                  // ORIG T 0x088a3322
     int getMinLevel() const;                                  // ORIG T 0x088a33c0
@@ -1788,9 +1792,13 @@ public:
     void reset();
     // ORIG T 0x889a930 / 0x889a032：[time line]/[phase] 段解析与 ActionDefine
     // 指针回填（AltarMisc 批次定义于 advancealtar_misc.cpp）。
-    int importPhase(TimeLine& timeLine);
-    int checkAndSetActionDefine(TimeLine& timeLine,
-                                const std::map<int, ActionDefine>& defines);
+    // b28d-solo-advancealtar_misc：两件均为 **static** 成员（P245/P281 判据：
+    // ORIG 首参 timeLine 读 0x8(%ebp) 且全程无 this；push_back 的 this 即
+    // timeLine+0）。非 static 声明使整帧 +4 错位（timeLine 0xc/defines 0x10）。
+    // static 不入 mangling，符号名不变。
+    static int importPhase(TimeLine& timeLine);
+    static int checkAndSetActionDefine(TimeLine& timeLine,
+                                       const std::map<int, ActionDefine>& defines);
     int importStageTimeLineParameter(const char* path);
     int importSummonObject();   // ORIG _ZN12advancealtar22StageTimeLineParameter18importSummonObjectEv 0x0889a21e T
                                 // （[summon object] 段逐行解析；0=段结束/成功，非 0=错误码）
@@ -2564,7 +2572,14 @@ struct channel_info_t
     std::string m_dungeonKey;       // +0x0c（命中分类后复制的键名副本）
     std::vector<int>* m_pBonusRates;  // +0x10（别名指向 channel_dungeon_info_t::m_intList）
     unsigned char m_bonusRate;      // +0x14（getBonusRate 以 /1000.0f 转 float）
-    float m_gridPercent[10];        // +0x18..+0x40（等级区间百分比）
+    // op= 0x088dd3c6 对 +0x18..+0x40 发 src 缓存 %edx + %ecx 中转的整块 dword 拷贝
+    // （结构赋值形）⇒ 双视图：数组名供消费点下标访问，块视图供整体赋值（P246）。
+    struct GridPercentBlock { float m_v[10]; };
+    union
+    {
+        float m_gridPercent[10];    // +0x18..+0x40（等级区间百分比）
+        GridPercentBlock m_gridBlock;
+    };
 };
 
 struct channel_script_t
@@ -2595,7 +2610,10 @@ private:
 //      与 stVendingMachineInfo_t ctor 0x0891b36a/clear 0x0891b3fe 实证）----
 struct stVendingMachineOutput_t
 {
-    int m_itemId;           // +0x00（行首列）
+    // b28d-solo-GmCmds_E：改 unsigned int——ORIG processVendingMachineItemLottery
+    // 0x084b0550 `mov (%eax),%edx` 单段（与 Inven_Item::m_addInfo unsigned 同型，
+    // P211）；int 时 4.4 恒插 `mov %eax,%edx` 中转。宽度/偏移/mangled 不变。
+    unsigned int m_itemId;  // +0x00（行首列）
     int m_cumWeight;        // +0x04（m_giveCount/m_bonusCount 运行累计）
     unsigned int m_count;   // +0x08（第三列）
 };                          // sizeof 0xc

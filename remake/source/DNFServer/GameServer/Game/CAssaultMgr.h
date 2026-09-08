@@ -489,7 +489,7 @@ public:
     int OnTimeoutConnectP2P(unsigned int a, int b);               // ORIG 0x82efa52（ORIG 返回恒 1）
     int OnTimeoutCompleteLoad(unsigned int a, int b);             // ORIG 0x82ef818（ORIG 返回恒 1）
     int OnTimeoutConnectP2PAfterAssault(unsigned int a, int b);   // ORIG 0x82ef9d8（ORIG 返回恒 1，成功路径 eax=1）
-    void OnTimeoutCompleteLoadAfterAssault(unsigned int a, int b); // ORIG 0x82ef86e
+    int OnTimeoutCompleteLoadAfterAssault(unsigned int a, int b);  // ORIG 0x82ef86e（尾 mov $1,%eax ⇒ 非 void，P159）
     void FreeAssaultPlace(int id, CAssaultPlace* place);          // ORIG T 0x82edb6a
     // ---- W6_AssaultMgr 批（本批 23 符号 + 链接依赖）----
     CAssaultPlace* _GetAssaultPlace(unsigned int id, int authenValue); // ORIG T 0x82eda94

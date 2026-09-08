@@ -12,10 +12,6 @@ T_Rect::T_Rect()
     clear();
 }
 
-T_Rect::~T_Rect()
-{
-}
-
 void T_Rect::clear()
 {
     m_00 = 0;

@@ -32,27 +32,35 @@
 // 由成员声明序自动构造；此处仅复刻 ORIG 的标量初值与容器清理操作。
 CBattle_Field::CBattle_Field()
 {
-    // [b28d-39 判词 · N82/N93] ORIG 0x082a44fe：ORIG 数组构造 3 元素×0x1c 步进、
-    // 4.4 为 9 元素×0xc 步进（成员数组建模粒度差）+ 帧 0x20 vs 0x50；
-    // 逐字段写入集合一致，语义等价（N82 槽族）。
+    // [b28d-solo-CBattle_Field_missing 判词 · N91] ORIG 0x082a44fe：CBattle_Field.h
+    // 已按 ORIG 修正（m_endX/m_endY/m_field14/m_field18 + m_curPos[4] +
+    // m_lastPos[4]，R2 已广播）后，前 190 条指令与 ORIG 逐条一致（两组 4 次
+    // pair C1Ev、m_party=0 首写、链式 -1、清零循环、标量初值、SetCurSeatNo 全对齐，
+    // 帧同为 sub $0x20）。残余 = 4.4 为 ctor 内非平凡成员恒发的 EH cleanup 残段
+    //（_Unwind_Resume 链，ORIG 4.1 零 cleanup）；P216 突破口需给成员类 ctor/dtor
+    // 批量加 throw()（跨多文件），本波未做。
     // —— 位置链：起点/终点槽对夫妇构完后按 ORIG 置初值 ——
     // ORIG：m_lastY(+0x6c) = -1，再沿 +0x68/+0x64/+0x60/+0x18/+0x14/+0x10/+0x0c/
     // +0x08/+0x04 级联，故 m_startX/m_startY、m_curX/m_curY、m_lastX/m_lastY、
-    // pair[0].first/.second、pair[1].first/.second 均为 -1。
-    m_startX = -1;
-    m_startY = -1;
-    m_lastY  = -1;
-    m_lastX  = -1;
-    m_curY   = -1;
-    m_curX   = -1;
-    m_pos[0] = std::make_pair(-1, -1);   // +0x0c
-    m_pos[1] = std::make_pair(-1, -1);   // +0x14
-    // ORIG 用 pair ctor 构造 pair[2..9]（默认 0）后再置 0；此处复刻最终值。
-    for (int i = 2; i < 10; ++i)
-        m_pos[i] = std::make_pair(0, 0);
+    // m_endX/m_endY(+0xc/+0x10)、m_field14/m_field18(+0x14/+0x18) 均为 -1。
+    // [b28d-solo-CBattle_Field_missing] 4.4 链式赋值自**最右端**起 store ⇒ 把
+    // ORIG 首写端放最右：m_lastY(0x6c)→0x68→0x64→0x60→0x18→0x14→0x10→0xc→
+    // 0x8→0x4。m_curPos/m_lastPos 由隐式 C1 构造（pair 默认 0），ctor 体不写
+    //（ORIG 亦只发两组 C1Ev）。
+    m_party = NULL;                        // +0x00（ORIG 首写，在链式 -1 之前）
+    m_startX = m_startY = m_endX = m_endY = m_field14 = m_field18 =
+        m_curX = m_curY = m_lastX = m_lastY = -1;
+    // ORIG C1Ev 构造后再显式清零两组 pair[4]（0x0830a4xx 段 `movl $0x0,
+    // 0xc/0x10(%eax,%edx,8)`，索引 edx=i+2 / i+6，循环 i<=3）。
+    for (int i = 0; i < 4; ++i)
+    {
+        m_curPos[i].first  = 0;
+        m_curPos[i].second = 0;
+        m_lastPos[i].first  = 0;
+        m_lastPos[i].second = 0;
+    }
 
     // —— 标量初值（逐字段对应 ORIG ctor 汇编）——
-    m_party            = NULL;              // +0x00  movl $0x0,(%eax)
     m_firstEnterDungeon = 1;                // +0x5c  movb $0x1,0x5c
     m_mapHeight        = 0;                 // +0x190
     m_mapWidth         = m_mapHeight;       // +0x18c = (+0x190)
@@ -115,23 +123,26 @@ int CBattle_Field::pickup_item(int uid)
 // 全字段清零链，逐字段按 ORIG 汇编映射到 CBattle_Field.h 具名成员。
 void CBattle_Field::reset_field()
 {
-    // [b28d-39 判词 · N4/P30] ORIG 0x0830a1f6：残余仅循环内 4 处
-    // `mov idx,%edx; add $K,%edx` vs 4.4 `mov idx,%eax; lea K(%eax),%edx`
-    // （add-vs-lea 两步寻址固有差，P30 穷举到顶）；语义逐条等价。
+    // [b28d-solo-CBattle_Field_missing 判词 · AE] ORIG 0x0830a1f6：头建模修正
+    //（m_curPos[4]/m_lastPos[4] 具名数组）后与 ORIG 逐条一致——原 m_pos[i+2]/
+    // [i+6] 的 add-vs-lea 残差消除（ORIG 的 add $0x2/$0x6 + disp 0xc 与数组基址
+    // +0x1c/+0x3c 索引 seat 地址等价）。
     // —— 位置/尺寸链 ——
     m_dungeonIndex = 0;                     // +0x194
     m_mapHeight    = 0;                     // +0x190
     m_mapWidth     = m_mapHeight;           // +0x18c
     // 位置链：pair[1].second/+0x18 → ... → m_startX，最终全 0。
     // ORIG 为链式复制（0x18→0x14→0x64→0x60→0x10→0xc→0x8→0x4），多重赋值复现。
-    m_startX = m_startY = m_pos[0].first = m_pos[0].second = m_curX =
-        m_curY = m_pos[1].first = m_pos[1].second = 0;
-    for (int i = 0; i < 4; ++i)             // pair[2..5] 与 pair[6..9] 清零
+    // [b28d-solo-CBattle_Field_missing] 4.4 链式赋值自最右端起 store ⇒ 把 ORIG
+    // 首写端 m_field18(0x18) 放最右：0x18→0x14→0x64→0x60→0x10→0xc→0x8→0x4。
+    m_startX = m_startY = m_endX = m_endY = m_curX = m_curY =
+        m_field14 = m_field18 = 0;
+    for (int i = 0; i < 4; ++i)             // m_curPos[0..3] 与 m_lastPos[0..3] 清零
     {
-        m_pos[i + 2].first  = 0;
-        m_pos[i + 2].second = 0;
-        m_pos[i + 6].first  = 0;
-        m_pos[i + 6].second = 0;
+        m_curPos[i].first  = 0;
+        m_curPos[i].second = 0;
+        m_lastPos[i].first  = 0;
+        m_lastPos[i].second = 0;
     }
     m_firstEnterDungeon = 1;                // +0x5c
 
@@ -202,9 +213,10 @@ void CBattle_Field::reset_field()
 // 从 CDataManager 的 hellparty 脚本值（float 数组）拷贝各组比例；分母 10000.0f。
 void CBattle_Field::reset_hell_party_value()
 {
-    // [b28d-39 判词 · N4/N107] ORIG 0x0830a57c：残余为成员偏移取址
-    // `mov 0x4(%eax),%edx`（4.1 折叠）vs 4.4 `add $0x4,%eax; mov (%eax),%edx`
-    // （N107 成员常量偏移 4.4 恒 add）；语义等价。
+    // [b28d-solo-CBattle_Field_missing 判词 · N107/N94] ORIG 0x0830a57c：残余为
+    // 成员常量偏移取址（`flds 0x10(%eax)` vs 4.4 `add $0x10,%eax; flds (%eax)`，
+    // N107 六形探针全产 add）+ 数组元素 `0x8(%eax,%edx,4)` vs 4.4 shl+add
+    // （N94 scaled-index 拆分约束）；语义等价。
     // ORIG（reset_hell_party_value.md 0x0830a583..0x0830a6f7）P48 no-CSE：
     // 每个字段/数组元素各自 fresh G_CDataManager()->get_hellparty_script_values()，
     // 共 9 对 G_CDataManager/get_hellparty_script_values 调用（6 固定 + 3 循环整组）。
@@ -470,9 +482,11 @@ bool CBattle_Field::checkBloodSpawnOrder(short smallRound)
 void CBattle_Field::BloodMonsterSpawnPacket(int cnt, int time, short smallRound,
                                             short nextRound)
 {
-    // [b28d-39 判词 · N82/N91] ORIG 0x08305992：ORIG 帧 0x3a0（含 0x3xx 栈上
-    // 组包缓冲）vs 4.4 帧 0x50；大局部对象槽布局跨版本不可控（N82），
-    // 组包内容与发送次数逐条对齐；语义等价。
+    // [b28d-solo-CBattle_Field_missing 判词 · N82/P157] ORIG 0x08305992：ORIG 帧
+    // 0x3a0 含 map_monster 栈对象（-0x370，调 map_monster::C1Ev）与逐字段
+    // operator->() 重调；本仓实现无该局部、走 mapInfo 缓存 + it->second 引用，
+    // 帧/结构差未闭合（需按 ORIG 完整重写，本波未做）；组包内容与发送次数
+    // 语义等价。
     PacketGuard packet;
     packet.put_header(0, 0xd2);
     packet.put_short(cnt);
@@ -528,8 +542,9 @@ void CBattle_Field::BloodMonsterSpawnPacket(int cnt, int time, short smallRound,
 void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
                                     int timerKey, int phaseIdx)
 {
-    // [b28d-39 判词 · N82/N93] ORIG 0x0830553a：帧 0x6c vs 0x8c、全帧槽号平移
-    // （N82 lifetime 槽复用差）+ 形参 spill 槽方向（N93）；语义逐条等价。
+    // [b28d-solo-CBattle_Field_missing 判词 · N82/N93] ORIG 0x0830553a：删 hi/tq
+    // 具名局部后帧 0x7c vs ORIG 0x6c（仍差 0x10 槽基 + 3 条指令），N82 lifetime
+    // 槽复用/槽基族；逐字段语义等价。
     const short spawnCnt = (short)get_blood_spawn_cnt_of_phase(smallRound, nextRound);
     int spawnTime = get_blood_spawn_time_of_phase(smallRound);
     const short roundOrder = (short)m_bloodRound.getBloodRoundOrder();
@@ -566,14 +581,12 @@ void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
     }
     if ((int)nextRound < totalPhase - 1)
     {
-        const unsigned int key = (unsigned int)m_party->gen_timer_key((TIMER_MESSAGE)timerKey);
-        int hi = spawnTime >> 31;
-        TimerQueue* tq = G_TimerQueue();
-        tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
-                                    m_party->GetPartyIndex(),
-                                    (TIMER_MESSAGE)timerKey,
-                                    (long long)spawnTime,
-                                    (int)key, 0);
+        const int key = (int)m_party->gen_timer_key((TIMER_MESSAGE)timerKey);
+        G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
+                                                m_party->GetPartyIndex(),
+                                                (TIMER_MESSAGE)timerKey,
+                                                (long long)spawnTime,
+                                                key, 0);
     }
     else
     {
@@ -614,15 +627,12 @@ void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
             }
             if (prevRound == curRound && prevDiff == curDiff)
             {
-                const unsigned int key =
-                    (unsigned int)m_party->gen_timer_key((TIMER_MESSAGE)0x16);
-                int hi = nextTime >> 31;
-                TimerQueue* tq = G_TimerQueue();
-                tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
-                                            m_party->GetPartyIndex(),
-                                            (TIMER_MESSAGE)0x16,
-                                            (long long)nextTime,
-                                            (int)key, 0);
+                const int key = (int)m_party->gen_timer_key((TIMER_MESSAGE)0x16);
+                G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
+                                                        m_party->GetPartyIndex(),
+                                                        (TIMER_MESSAGE)0x16,
+                                                        (long long)nextTime,
+                                                        key, 0);
             }
             else
             {
@@ -641,33 +651,33 @@ void CBattle_Field::BloodPhaseSpawn(short smallRound, short& nextRound,
 // ---------------------------------------------------------------------------
 int CBattle_Field::BloodPhaseSpawnTimerResgister(short smallRound)
 {
-    // [b28d-39 判词 · N82/N93] ORIG 0x083053d2：帧 0x4c vs 0x5c + 具名局部槽号
-    // 整体平移；语义逐条等价。
+    // [b28d-solo-CBattle_Field_missing] ORIG 0x083053d2：
+    // ①无 curRound/hi/tq 具名局部——smallRound 形参 spill 槽 `addw $1` 自增、
+    //   long long 高半字由 %esi 承载、receiver 直接 G_TimerQueue()（P52 链式）；
+    // ②`cnt==0` 写 `++cnt`（ORIG addl 形，P38）；
+    // ③循环体用 smallRound 本身（非副本），`++smallRound` 在
+    //   incBloodSmallRoundOrder 之前。
     int cnt = get_blood_spawn_cnt_of_small_round(smallRound);
     if (cnt < 0 || 10 < cnt)
         return -1;
     if (cnt == 0)
-        cnt = 1;
-    short curRound = smallRound;
+        ++cnt;
     for (int i = 0; i < cnt; ++i)
     {
-        int interval = get_blood_spawn_small_round_interval(curRound);
+        int interval = get_blood_spawn_small_round_interval(smallRound);
         if (interval < 1)
             return -1;
-        if (m_bloodCrazyRound == curRound)
+        if (m_bloodCrazyRound == smallRound)
             BloodCrazyMonsterSpawnPacket();
-        m_bloodSpawnCnt[i] = curRound;
+        m_bloodSpawnCnt[i] = smallRound;
         m_bloodSpawnTime[i] = 0;
-        const unsigned int key =
-            (unsigned int)m_party->gen_timer_key((TIMER_MESSAGE)(0x17 + i));
-        int hi = interval >> 31;
-        TimerQueue* tq = G_TimerQueue();
-        tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
-                                    m_party->GetPartyIndex(),
-                                    (TIMER_MESSAGE)(0x17 + i),
-                                    (long long)interval,
-                                    (int)key, 0);
-        ++curRound;
+        const int key = (int)m_party->gen_timer_key((TIMER_MESSAGE)(0x17 + i));
+        G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1,
+                                                m_party->GetPartyIndex(),
+                                                (TIMER_MESSAGE)(0x17 + i),
+                                                (long long)interval,
+                                                key, 0);
+        ++smallRound;
         m_bloodRound.incBloodSmallRoundOrder();
     }
     return 0;
@@ -712,6 +722,8 @@ void CBattle_Field::BloodSpawnTimerManager(bool onStart, bool isMinimal)
     //   CBattle_Field + m_bloodReward+0x2b8 = m_party+0xddc，ORIG 实证）；
     // ②局部集 round(-0x14)/smallRound(-0x12)/last(-0x10)/isFirst(-0xd)/
     //   interval(-0xc)，无具名 r（ORIG 直比 %eax，sete 物化）。
+    // ③残余 1 条：ORIG BODY 内 `cmpb $0,-0x1c(%ebp)` 为死比较（无分支消费者，
+    //   4.1 逐条发射），4.4 的 `if (onStart)` 必产 je ⇒ P184/N184 死块变体封顶。
     const short roundOrder = (short)m_bloodRound.getBloodRoundOrder();
     const short smallRoundOrder = (short)m_bloodRound.getBloodSmallRoundOrder();
     const short lastSmallRoundOrder = (short)m_bloodRound.getBloodLastSmallRoundOrder();
@@ -775,9 +787,16 @@ int CBattle_Field::getNextRoundDifficulty(short round)
 // ---------------------------------------------------------------------------
 bool CBattle_Field::forceValuesToChangeRound(short round, short smallRound, int diff)
 {
-    // [b28d-39 判词 · N82/N93] ORIG 0x08305f50：具名 int 槽 -0x18 与实参装载序
-    // 跨版本相反（N93/N82）；语义逐条等价。
-    const short nextOrder = (short)getNextSamllRoundOrder(round, diff);
+    // [b28d-solo-CBattle_Field_missing] ORIG 0x08305f50：
+    // ①`int nextDiff = diff` 具名槽 -0x18（P0 槽往返）仅供首次调用；
+    // ②short result(-0x12) 预清 0；③GetCurrentMapInfo 每用点重调（begin/end/
+    //   erase 后重 begin），无判空（P140/P157）；④循环内 it->second 逐字段重读。
+    // ⑤残余 N82/N93：本仓 -0x24/-0x28 槽基 vs ORIG -0x20/-0x24，且 4.4 把
+    //   continue 处的循环条件内联（`end()` 每轮在尾块求值）vs ORIG 回跳 cond 块
+    //   （for(;;)+break 已试，仍差 3 条）；槽基/循环布局跨版本族封顶。
+    int nextDiff = diff;
+    const short nextOrder = (short)getNextSamllRoundOrder(round, nextDiff);
+    short result = 0;
     if (nextOrder == 0)
     {
         LogManager::logFormat(
@@ -787,27 +806,28 @@ bool CBattle_Field::forceValuesToChangeRound(short round, short smallRound, int 
             (int)round);
         return 0;
     }
-    if (smallRound < nextOrder)
+    if (nextOrder > smallRound)
     {
         for (int i = 0; i < nextOrder; ++i)
             m_bloodPhaseClear[i] = true;
         MapInfo* mapInfo = GetCurrentMapInfo();
-        if (mapInfo != 0)
+        std::map<int, map_monster>::iterator it =
+            GetCurrentMapInfo()->m_monsterMap.begin();
+        for (;;)
         {
-            std::map<int, map_monster>::iterator it = mapInfo->m_monsterMap.begin();
-            while (it != mapInfo->m_monsterMap.end())
-            {
-                if ((int)(unsigned short)it->second.m_bloodRoundOrder2 > (int)round)
-                    break;
-                if (it->second.m_bloodRoundOrder2 == round &&
-                    (int)(signed char)it->second.m_bloodSpawned == diff)
-                    break;
-                std::map<int, map_monster>::iterator victim = it;
-                ++it;
-                mapInfo->m_monsterMap.erase(victim);
-            }
+            if (it == GetCurrentMapInfo()->m_monsterMap.end())
+                break;
+            if ((int)(unsigned short)it->second.m_bloodRoundOrder2 > (int)round)
+                break;
+            if (it->second.m_bloodRoundOrder2 == round &&
+                (int)(signed char)it->second.m_bloodSpawned == diff)
+                break;
+            mapInfo->m_monsterMap.erase(it);
+            it = GetCurrentMapInfo()->m_monsterMap.begin();
+            result = 0;
         }
     }
+    (void)result;
     m_bloodRound.setBloodSmallRoundOrder(nextOrder);
     return 1;
 }
@@ -883,21 +903,31 @@ void CBattle_Field::startUltimateRound()
 // ---------------------------------------------------------------------------
 int CBattle_Field::CBloodClearRewardData::getUltimateRewardItem()
 {
-    // [b28d-39 判词 · N86/N93] ORIG 0x083070ca：ORIG 具名临时槽 -0x18/-0x14/-0x10
-    // vs 4.4 -0x20/-0x1c/-0x24（槽向相反）+ G_CDataManager 调用链装载序；
-    // 语义逐条等价。
-    const int clearPoint = getUltimateRoundClearPoint();
-    std::map<int, STUltimateRewardProb>::const_iterator it =
+    // [b28d-solo-CBattle_Field_missing] ORIG 0x083070ca：
+    // ①声明序 it(-0x20)/itEnd(-0x1c)/clearPoint(-0x18)/f4(-0x14)/f8(-0x10)
+    //   （4.1 先声明深；语句序 clearPoint→f4=0→f8=0→itEnd=end()→it=find()）；
+    // ②非 const iterator（ORIG `_ZNKSt17_Rb_tree_iterator…eq` 非 const_iterator，P96）；
+    // ③P157 两次独立 operator->() 取 second.m_field4/second.m_field8，禁引用缓存。
+    int clearPoint = getUltimateRoundClearPoint();
+    int f0 = 0;
+    int f4 = 0;
+    std::map<int, STUltimateRewardProb>::iterator itEnd =
+        G_CDataManager()->m_bloodDungeon.m_map358.end();
+    std::map<int, STUltimateRewardProb>::iterator it =
         G_CDataManager()->m_bloodDungeon.m_map358.find(clearPoint);
-    if (it == G_CDataManager()->m_bloodDungeon.m_map358.end())
+    if (it == itEnd)
         return -1;
     int roll = get_rand_int(100);
-    const STUltimateRewardProb& p = it->second;
-    if (roll < p.m_field4)
+    f0 = it->second.m_field0;
+    f4 = it->second.m_field4;
+    // [b28d-solo-CBattle_Field_missing] ORIG 布局：`jg then(在后)` + else 直落
+    // ⇒ 否定早返形（P222/P59）。
+    if (roll <= f4)
         return 0x4e4;
-    if (p.m_field0 + p.m_field4 < roll)
-        return -1;
-    return 0x4e3;
+    f0 += f4;
+    if (roll <= f0)
+        return 0x4e3;
+    return -1;
 }
 
 // ---------------------------------------------------------------------------
@@ -933,19 +963,18 @@ void CBattle_Field::CBloodClearRewardData::setRewardItemAddInfo(float rate,
 void CBattle_Field::CBloodClearRewardData::onFinishBloodRound(
     bool isClear, short round, CParty* party, const CDungeon* dungeon)
 {
-    // [b28d-39 判词 · N7/N82] ORIG 0x08306fc4：callee-saved 角色互换
-    // （push esi+ebx vs 仅 push ebx）+ 帧 0x40 vs 0x54（N82）；语义逐条等价。
+    // [b28d-solo-CBattle_Field_missing] ORIG 0x08306fc4：
+    // ①无 dungeonName/playTime 具名局部——实参右到左求值：GetDungeonName 落
+    //   %ebx 跨 getPlayTime/getBloodRoundClearTime 保活（P52/P226 内联实参）；
+    // ②两次 `/1000` 共用编译器临时槽 -0x1c（无源码局部）；
+    // ③addPlayTime(getBloodRoundClearTime()) 每用点重调（P48 去缓存）。
     if (isClear)
         setBloodClear(true);
     m_bloodRound = (int)round;
     m_endTick = GlobalData::s_systemTime_.getCurTickCount();
-    // P48 去缓存每用点重取：ORIG 0x8306fc4 对 getBloodRoundClearTime 两次独立
-    // 重调（+0x50 addPlayTime / +0x94 historyBloodRoundClear），不缓存。
     addPlayTime(getBloodRoundClearTime());
-    const char* dungeonName = dungeon->GetDungeonName();
-    unsigned int playTime = getPlayTime();
     party->historyBloodRoundClear(m_bloodRound, getBloodRoundClearTime() / 1000,
-                                  playTime / 1000, dungeonName);
+                                  getPlayTime() / 1000, dungeon->GetDungeonName());
 }
 
 // ---------------------------------------------------------------------------
@@ -974,6 +1003,9 @@ short CBattle_Field::getNextSamllRoundOrder(short round, int diff)
     //   end() 每轮重求（P13 反向）；
     // ③P157/P183 it->second 逐字段重读（两次 operator->()），禁引用缓存；
     // ④short result 预清 `movw $0x0,-0xa(%ebp)`，尾 movzwl 直返。
+    // ⑤残余：ORIG 增量段 `ppEi` 后置迭代器（sret 临时 -0x10）构成三槽阶梯，
+    //   4.4 对结果未使用的后置 ++ 恒折 ppEv 免临时槽 ⇒ 迭代器槽整体浅 4
+    //   （N113 封顶）。
     short result = 0;
     std::map<int, map_monster>::iterator it = GetCurrentMapInfo()->m_monsterMap.begin();
     for (; it != GetCurrentMapInfo()->m_monsterMap.end(); ++it)

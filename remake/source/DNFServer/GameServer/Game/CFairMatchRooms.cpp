@@ -145,6 +145,9 @@ bool CFairMatch::_CheckObserver(PvP_Room* room, CUser* /*user*/)
 }
 
 // CheckJoinable ORIG T 0x08562a6e 报告 CheckJoinable.md
+// b28d-solo-CFairMatchRooms 判词：N196——两处 `pc>=X`/`total>X` 被 4.4 折成反向
+// 比较（cmp %ebx,%eax; setle/setl vs ORIG cmp %eax,%ebx; setge/setg，同语义不同
+// compare 方向，源形不可择）；余 1 条跳表重定位伪差。call 差集 8=8 CLEAR。
 int CFairMatch::CheckJoinable(PvP_Room* room, CUser* user)
 {
     if (!CheckUnusableEquipmentInUser(user))
@@ -239,6 +242,8 @@ bool CFairMatch::_CheckRematchable(PvP_Room* room) const
 }
 
 // CheckMatchable ORIG T 0x08565c54 报告 CheckMatchable.md
+// b28d-solo-CFairMatchRooms 判词：AE——myUser/otherUser 提函数头 + 循环变量 i 提头
+// 共用同一槽（P212），逐条全等（.o 仅重定位标签差）。call 差集 0=0。
 bool CFairMatch::CheckMatchable(IMatch* other)
 {
     // b28d-solo-CFairMatchRooms：ORIG 槽序 myUser@-0x14 / otherUser@-0x10 /
@@ -390,6 +395,8 @@ void CFairMatch::_RegisterWaitingRoom(PvP_Room* /*room*/)
 
 // _ChangeTeamLeader ORIG T 0x8563272 报告 _ChangeTeamLeader.md
 // 离队者恰为队长座位 → 该队首名在座玩家接任并 0x13d 包通知全队
+// b28d-solo-CFairMatchRooms 判词：AE——m_leaderSeat[2] 数组化（CFairMatch.h，偏移
+// 0xb8/0xbc 与 sizeof 不变）+ 去 PlayerInfoThird 引用缓存，逐条全等。
 void CFairMatch::_ChangeTeamLeader(PvP_Room* room,
                                    ENUM_SCHOOL_MATCH_TEAM teamIdx,
                                    int oldLeaderSeat)
@@ -528,6 +535,9 @@ int CFairMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
 // ===================================================================== //
 
 // _CheckMovableRoom ORIG T 0x85663ed8?（README 0x08563ed8）报告同名 md
+// b28d-solo-CFairMatchRooms 判词：N18a/N7——4.4 把 out 地址跨 `if(*out)` 缓存进
+// %ebx（push ebx），ORIG 每次重算 out；赋值已用 void** 同型视图达成 P211 档③
+// LHS-first 直存。call 差集 5=5 CLEAR。
 int CFairMatch::_CheckMovableRoom(IMatch* other, PvP_Room* /*room*/,
                                   PvP_Room** out)
 {
@@ -562,6 +572,9 @@ int CFairMatch::_CheckMovableRoom(IMatch* other, PvP_Room* /*room*/,
 }
 
 // _PullOutRoom ORIG T 0x856633ce?（README 0x085633ce）报告同名 md
+// b28d-solo-CFairMatchRooms 判词：N87/P87——ORIG 在 CSwitchLog ctor 前把 room 存
+// -0x2c 槽并缓存变参（edi/esi/ebx），4.4 求值序/帧不同（帧 0x4c vs 0x3c）。
+// call 差集 10=10 CLEAR。
 void CFairMatch::_PullOutRoom(CUser* user, PvP_Room* room, int seat)
 {
     {
@@ -585,6 +598,8 @@ void CFairMatch::_PullOutRoom(CUser* user, PvP_Room* room, int seat)
 }
 
 // _PutInRoom ORIG T 0x856334bc?（README 0x085634bc）报告同名 md
+// b28d-solo-CFairMatchRooms 判词：N87/P112——CSwitchLog 变参求值序 + 帧槽平移
+// （ORIG result@-0x1c vs 我方 -0x20）；call 差集 21=21 CLEAR。
 int CFairMatch::_PutInRoom(CUser* user, PvP_Room* room, bool observer)
 {
     PacketGuard pkt;
@@ -617,6 +632,8 @@ int CFairMatch::_PutInRoom(CUser* user, PvP_Room* room, bool observer)
 }
 
 // _MakeRoom ORIG T 0x8563692 报告 _MakeRoom.md
+// b28d-solo-CFairMatchRooms 判词：N93——PacketGuard 等局部槽方向相反
+// （ORIG -0x3c vs 我方 -0x2c，帧同为 0x7c），声明序不可翻。call 差集 45=45 CLEAR。
 PvP_Room* CFairMatch::_MakeRoom(CUser* user)
 {
     PacketGuard pkt;
@@ -714,6 +731,9 @@ void CFairMatch::_MoveRoom(PvP_Room* to, PvP_Room* from, bool observerFlag)
 }
 
 // OnMatchRoom ORIG T 0x8564150 报告 OnMatchRoom.md。ORIG 失败路径 → 0；成功 → 1。
+// b28d-solo-CFairMatchRooms 判词：N82——帧 0x1ac vs 0x1bc + cMyTrace/CSwitchLog 槽位
+// 平移；已修语义：删 !matched 分支多余 trace 块（p167 50=50 CLEAR）、nameBuf[256]={0}
+// 单缓冲复用两次、去 pWaitingRoomList_ null 守卫（Ghidra C 无守卫）。
 int CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
 {
     if (m_matchNotifyId != notifyId) {
@@ -729,7 +749,10 @@ int CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
     m_leaderSeat[0] = room->GetManagerSeat();
 
     IMatch* other = 0;
-    bool matched = pWaitingRoomList_ != 0 && pWaitingRoomList_->Match(this, &other);
+    // b28d-solo-CFairMatchRooms：Ghidra C 实证 ORIG 直接解引用
+    // pWaitingRoomList_（无 null 守卫）——`cVar2 = (**(*pWaitingRoomList_+8))(...)`
+    // 无 test/je 前置。照抄原码行为（P171）。
+    bool matched = pWaitingRoomList_->Match(this, &other);
     if (!matched) {   // 等待表 vtable[+0x08]=Match
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
@@ -847,6 +870,9 @@ int CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
 
 // _ReturnTeam ORIG T 0x85664dea?（README 0x08564dea）报告同名 md
 // 把 room 内指定队成员退回各自新开房；excludedUser 不参与搬运
+// b28d-solo-CFairMatchRooms 判词：N87——CSwitchLog 变参求值序（ORIG 先缓存
+// get_index/get_pvp_battle_mode 到 edi/ebx）+ push edi/帧 0x4c vs 0x40。
+// call 差集 11=11 CLEAR。
 PvP_Room* CFairMatch::_ReturnTeam(PvP_Room* room, int teamNo, CUser* excluded)
 {
     {
@@ -887,6 +913,8 @@ PvP_Room* CFairMatch::_ReturnTeam(PvP_Room* room, int teamNo, CUser* excluded)
 }
 
 // _PullOutRoomTeam ORIG T 0x85665d86?（README 0x08565d86）报告同名 md
+// b28d-solo-CFairMatchRooms 判词：N87/P87——变参求值序（ORIG teamIdx→edi/
+// room→esi 跨 ctor 保活）+ 帧 0x5c vs 0x50。call 差集 10=10 CLEAR。
 int CFairMatch::_PullOutRoomTeam(PvP_Room* room, ENUM_SCHOOL_MATCH_TEAM teamIdx)
 {
     {
@@ -931,6 +959,9 @@ int CFairMatch::_PullOutRoomTeam(PvP_Room* room, ENUM_SCHOOL_MATCH_TEAM teamIdx)
 // ORIG 4.1 先载第4参 team(-0x10)→%eax，再 seat→0x10；4.4 先载第2参
 // userSeat(-0xc)→%eax。b28d 复测 (int)team 冗余 cast 形无变化（P41 在此不触发）
 // ⇒ 跨版本实参装载调度，禁绑定形（P0）⇒ N82附 封顶。
+// b28d-solo-CFairMatchRooms 判词：N93/N98——team/userSeat 两标量槽方向相反
+// （4.4 按首次使用序给 team 浅槽），交换声明会反转 get_team/get_user_seat 的
+// call 序；N82附 五实参装载时刻差。call 差集 2=2 CLEAR。
 int CFairMatch::OnWalkOut(PvP_Room* room, int seat)
 {
     const int team = room->get_team(seat);
@@ -953,6 +984,9 @@ int CFairMatch::CheckRematch(PvP_Room* room)
 }
 
 // OnEndFight ORIG T 0x8565048 报告 OnEndFight.md
+// b28d-solo-CFairMatchRooms 判词：N82附/P0——mgrTeam 槽 -0x20 vs -0x1c + ORIG 对
+// _ReturnTeam 返回值多发一次保守 spill（4.4 不发）；if/else 极性（P222）与
+// rep movsl 结构赋值（P83）已翻正。call 差集 9=9 CLEAR。
 void CFairMatch::OnEndFight(PvP_Room* room)
 {
     const int mgrTeam = room->get_manager_team();
@@ -1019,6 +1053,9 @@ void CFairMatch::OnReward(PvP_Room* room, int winTeam, bool draw)
 // UpdateScore ORIG T 0x8565700 报告 UpdateScore.md
 // 遍历 teamIdx 队 4 槽在座玩家逐个结算；win/lose/result 即报告 param5/6/7。
 // info 仅取 m_job(+5)/m_growType 低 nibble(+6)（ORIG asm 读 info+5/+6）。
+// b28d-solo-CFairMatchRooms 判词：N82——4.4 把 killCnt/playCount 落槽而 ORIG 用
+// %ebx/%edi（寄存器分配），帧 0x6c vs 0x7c。已修真语义：job/grow 改取第 2 参 info
+// （原实现取 m_teams[teamIdx].m_players[0] 与 ORIG 契约不符）。call 差集 17=17 CLEAR。
 void CFairMatch::UpdateScore(PvP_Room* room, PlayerInfoThird& info,
                              ENUM_SCHOOL_MATCH_TEAM teamIdx,
                              int win, int lose, int result)
@@ -1075,6 +1112,10 @@ void CFairMatch::UpdateScore(PvP_Room* room, PlayerInfoThird& info,
 }
 
 // GiveTrainingSeal ORIG T 0x85652c8 报告 GiveTrainingSeal.md
+// b28d-solo-CFairMatchRooms 判词：N82——remain/bonusRemain 槽号平移（ORIG
+// -0x10/-0x11 vs 我方 -0x18/-0x19）+ dailyLimit 寄存器/槽差。已修语义：P183 去
+// sps 引用/score 指针缓存使 p167 49=49 CLEAR（原缺 12×G_CDataManager、
+// 9×GetCharacExpandData、2×SetLastTrainingSealBonusCount）。
 void CFairMatch::GiveTrainingSeal(CUser* user, bool win)
 {
     if (user->getCurCharacR() == 0)
@@ -1086,7 +1127,10 @@ void CFairMatch::GiveTrainingSeal(CUser* user, bool win)
     // GetCharacExpandData(7)（10 次）；我方缓存 sps 引用/score 指针只发 1/1 次。
     // 且 win 三目必须展开为两条独立路径（ORIG 各路径各一条 call：
     // SetLastTrainingSealBonusCount ORIG 6 条 vs 我方 4 条）。
-    const unsigned dailyLimit = FM_SPS().m_schoolMatchDailyPlayLimit;
+    // b28d-solo-CFairMatchRooms：ORIG `movzwl 0x49e0(%eax),%eax; movzwl %ax,%ebx`
+    // 值留 callee-saved %ebx 跨 GetCharacExpandData/GetDailyPlayCount 保活、
+    // 无栈槽 ⇒ 纯 register 存储类提示（P231/P0 合规，非 asm 绑定）。
+    register const unsigned dailyLimit = FM_SPS().m_schoolMatchDailyPlayLimit;
     const int remain = static_cast<int>(dailyLimit -
         reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
             static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))->GetDailyPlayCount());
@@ -1172,6 +1216,8 @@ void CFairMatch::GiveTrainingSeal(CUser* user, bool win)
 }
 
 // OnRematchTimeout ORIG T 0x85665f92 报告 OnRematchTimeout.md
+// b28d-solo-CFairMatchRooms 判词：N82/N87——变参求值序 + 全帧槽平移；两处手写
+// dword 循环已改结构赋值复现 rep movsl（P83）；call 差集 46=46 CLEAR。
 void CFairMatch::OnRematchTimeout(PvP_Room* room)
 {
     const int rematchable = CheckRematch(room);
@@ -1249,6 +1295,8 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
 
 // OnAskRematch ORIG T 0x856664a0 报告 OnAskRematch.md
 // param：0=拒绝 1=接受 2=全队同意提交；队决定写入 m_field04(team)
+// b28d-solo-CFairMatchRooms 判词：N82——帧 0x6c vs 0x5c + CSwitchLog 变参求值序；
+// call 差集 41=41 CLEAR。
 void CFairMatch::OnAskRematch(CUser* user, int decision)
 {
     PvP_Room* room = static_cast<PvP_Room*>(user->GetPVPRoom());
@@ -1332,6 +1380,9 @@ void CFairMatch::OnAskRematch(CUser* user, int decision)
 }
 
 // OnEndPvPResult ORIG T 0x8566694c 报告 OnEndPvPResult.md
+// b28d-solo-CFairMatchRooms 判词：N87——CSwitchLog 变参求值序 + 槽平移
+// （ORIG -0x30 vs 我方 -0x34）；去 PlayerInfoThird 引用缓存已归位。
+// call 差集 29=29 CLEAR。
 void CFairMatch::OnEndPvPResult(PvP_Room* room, CUser* user)
 {
     const int seat = room->get_user_seat(user);
@@ -1434,6 +1485,9 @@ void CFairMatch::OnCompleteLoad(CUser* user)
 // `movl $0x0,0xc(%esp)` 的先后交换——4.1 值先载、4.4 常量先写（P75/N82附 装载时刻
 // 跨版本调度）。探针 /tmp/l2_p3.cpp w1-w7（具名/拆分/语句表达式/cast 全形）不可翻；
 // 禁 register 绑定（P0/N96）。其余逐条同。
+// b28d-solo-CFairMatchRooms 判词：N82附/P75——唯一残差 = _ReturnTeam 第 3/4 实参
+// 装载序（4.1 先 reload mgrTeam 再写 $0；4.4 反之），跨版本实参调度不可择
+// （具名/拆分/cast 形已试）；call 差集 5=5 CLEAR。
 void CFairMatch::OnConnectP2PTimeout(PvP_Room* room)
 {
     if (m_field04 == 4) {
@@ -1509,6 +1563,9 @@ void CFairMatch::OnConnectP2P(CUser* user, PvP_Room* room,
 // 队员循环读 this+0x24+i*0x10（m_teams[0]）；else 分支相反（0x1c / 0x6c）。
 // BLOCKED 局部依赖：CEloRating::calc 本体与 PvPGlobalEnvironmentVariable::
 // school_match_elo_k_ 定义尚未由任何 TU 提供（仅 ORIG 符号）。
+// b28d-solo-CFairMatchRooms 判词：AE——去 PlayerInfoThird 引用缓存 + memberRating/
+// oppositeRating 声明序翻转，逐条全等；仅剩 elo_k 全局重定位伪差。
+// call 差集 6=6 CLEAR。
 void CFairMatch::_UpdateRating(int teamNo, ENUM_ELO_RATING_SYSTEM system)
 {
     // b28d-solo-CFairMatchRooms：ORIG 槽序 memberRating@-0x18（浅）/

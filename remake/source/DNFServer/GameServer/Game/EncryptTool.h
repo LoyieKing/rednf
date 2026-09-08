@@ -16,6 +16,7 @@
 //     返回 padding 后长度（int）。
 
 class CRijndael;
+class Encryption;
 
 class EncryptTool
 {
@@ -27,6 +28,9 @@ public:
     void createEncKey();
 
 private:
+    // [b28d-solo-Encryption] DecryptBody 需按 ORIG 0x0848dd69 的成员访问形
+    // `mov 0x204(%eax),%eax` 取 m_rijndael（裸偏移 +0x204 生 add+mov 两段）。
+    friend class Encryption;
     unsigned char m_key[16][0x20];  // +0x000 16 组密钥源（ctor 由静态表填充）
     int           m_keyIndex;       // +0x200
     CRijndael*    m_rijndael;       // +0x204

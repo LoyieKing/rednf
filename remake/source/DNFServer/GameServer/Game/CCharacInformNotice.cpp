@@ -15,14 +15,18 @@ static const int kInformNoticeBit = 8;
 #include <string.h>
 
 // ============================================================================
-// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
-//   checkInformNoticeFlag 0x080e4892 DIFF(33/28) N96+N18a+P168a④：ORIG
-//     m_flags 落槽→sar/and→xor$1/test 常量岛；4.4 对 sar/and 后 eax 恒以
-//     movzbl 加宽顶掉 xor 段，无绑定不可复现（清绑后自然形，P0 合规）⇒ 封顶。
-//   handleInformNoticeFlag 0x080e4806 DIFF(55/54) 修法：P223 多岛形（三失败
-//     出口各落独立 nop 岛，负条件 goto 连续尾标签，探针 fA 逐条复现三岛）；
-//     残差 = N18a 两段物化 ×2 + 第三守卫 4.4 `xor$1;test;jne` vs ORIG `test;je`
-//     （P168a①/P292 bool 归一，无绑定不可造）⇒ 封顶。P167 CLEAR(2/2)。
+// [b28d-solo-CCharacInformNotice] 本 TU 判词表（verdict = check_tu_routed.sh fresh .o）：
+//   checkInformNoticeFlag 0x080e4892 FIXED→AE（33=33）：P56 if-return 形复现 ORIG
+//     尾部 `xor$1; test%al; je; mov$1; jmp; mov$0` 常量岛；.o 残余仅未重定位分支
+//     目标显示（P264）。
+//   handleInformNoticeFlag 0x080e4806 DIFF(55/54) N 封顶：P223 三岛形（`!f()` 负
+//     条件 goto 连续尾标签 L1/L2/L3，逐岛复现）；残差①第三守卫 4.4
+//     `xor$1;test%al;jne` vs ORIG `test%al;je`（P168a①/P292 bool 归一不可造；
+//     正向 if 可消 xor 但 4.4 把 if-false 落点前置并 jump-thread 岛2/岛3，51<55 更劣）；
+//     ②两处 N18a 反向折叠（ORIG movzbl→edx→ebx、lea→edx→ecx 中转，4.4 恒单段）。
+//     P248 三档试尽：m_flags 元素改 1 字节 enum 仅翻第一处中转（/tmp/cn_probe4.cpp
+//     v10/v13/v15），第二处与 xor 在 12 形下均不可翻（/tmp/cn_probe5..9.cpp）；
+//     4.4.6 后端复测同形（非 N7 后端敏感族）。P167 CLEAR(2/2)。
 // ============================================================================
 
 
@@ -43,6 +47,10 @@ void CCharacInformNotice::_reset()
 }
 
 // ORIG T 0x080e4892：bit>7 或 byte>0xf → 0；否则返回 !(flag bit set)
+// [b28d-solo-CCharacInformNotice] 判词 AE(33=33)：P56 if-return 形修复——ORIG 尾部为
+//   `xor$1,%eax; test%al,%al; je; mov$1; jmp; mov$0`（bool 归一 if-return 岛），
+//   原先 `return !expr;` 只发 xor 直返（28 条）⇒ 改 `if(!expr) return true;
+//   return false;` 后逐条对齐（.o 残余仅重定位分支目标显示，P264）。
 bool CCharacInformNotice::checkInformNoticeFlag(unsigned int bit, unsigned int byteIdx)
 {
     if (bit > 7)
@@ -50,26 +58,25 @@ bool CCharacInformNotice::checkInformNoticeFlag(unsigned int bit, unsigned int b
     if (byteIdx >= InformNotice::kInformNoticeIndex)
         return false;
     // [b28c-L15 P0/N96] 存量 register asm("eax") 绑定已清除（全域禁绑，N96）。
-    //   ORIG 0x080e4ab8 形：m_flags[byteIdx] 落槽 → sar/and → `xor $0x1,%eax;
-    //   test %al,%al` + mov$1/mov$0 常量岛。P168a④：int 表达式任何源形均仍拆两段
-    //   （N18a），且 4.4 对 sar/and 后的 eax 恒以 movzbl 加宽顶掉 xor 段
-    //   （P168a③ 总闸），无绑定即不可复现 ⇒ 落自然形，N96+N18a+P168a④ 封顶。
-    //   ①X2 无绑定形（uchar 局部 ^= 1 + if）实测恒三段栈槽物化（`mov %al,-0x5;
-    //     xorb $1,-0x5; cmpb $0,-0x5`），命中 P168a④ ⇒ 维持 N；
-    //   ②裸 register（无 asm 绑定，采纳 lane22/23 实测：可免槽、且能复现 4.1 的
-    //     bool 归一常量岛）本点位实测劣于③——4.4 把 t 钉到 %ebx 并多插一条
-    //     `mov %eax,%ebx`（ORIG 值已在 %eax，`and/xor $1,%eax; test %al` 零中转），
-    //     AE 归一后差 7 行 vs ③ 的 5 行 ⇒ 不采纳；
-    //   ③本行：裸自然形（P168a①）——sar/and 后取反直返，残 5 条 = 4.1 bool 归一岛。
     unsigned char v = m_flags[byteIdx];
-    return !(((int)v) >> bit & 1);
+    if (!(((int)v) >> bit & 1))
+        return true;
+    return false;
 }
 
 // ORIG T 0x080e4806：flag&7=bit，flag>>3=byte；check 真则置位并 alter。
-// b28d-55 P223 多岛形：ORIG 三失败出口各落独立 nop 岛（+0x7d nop;jmp / +0x80
-// nop;jmp / +0x83 nop，标签序=守卫序）⇒ 负条件 goto 到连续尾标签（探针
-// /tmp/b28d_l55/probe_p223.cpp fA 逐条复现三岛）。byteIdx 含初始化须包内层复合块
-// （P223 扩展：4.4 拒 goto 跨同层非平凡初始化声明）。
+// [b28d-solo-CCharacInformNotice] 判词 DIFF(55/54) N 封顶：P223 多岛形——ORIG 三失败
+//   出口各落独立 nop 岛（+0x7d nop;jmp / +0x80 nop;jmp / +0x83 nop，标签序=守卫序），
+//   负条件 goto 到连续尾标签 L1/L2/L3 逐岛复现。byteIdx 含初始化须包内层复合块
+//   （P223 扩展：4.4 拒 goto 跨同层非平凡初始化声明）。
+//   残差 N：①第三守卫 ORIG `call; test%al,%al; je` vs 4.4 `call; xor$1; test%al,%al;
+//   jne`（P168a①/P292 bool 归一恒物化；`==0`/`==false`/`!f()`/`return` 同形；正向
+//   if 可消 xor 但 4.4 前置 if-false 落点并 jump-thread 岛2/岛3 → 51<55 更劣）；
+//   ②两处 N18a 反向折叠：ORIG `movzbl 0x5(%ecx,%edx,1),%edx; mov %edx,%ebx` 与
+//   `lea (%ebx,%edx,1),%edx; mov %edx,%ecx`，4.4 恒单段直落。
+//   P248 三档试尽（探针 /tmp/cn_probe*.cpp）：m_flags 元素 1 字节 enum 化翻正第一处
+//   中转（v10/v13/v15），第二处中转与 xor 在 1u/1/+=/具名/register/uchar 截断/enum
+//   RHS 共 12 形下均不可翻；4.4.6 后端复测同形（非 N7 后端敏感族）。
 void CCharacInformNotice::handleInformNoticeFlag(unsigned int flag)
 {
     unsigned int bit = flag & 7;
@@ -89,9 +96,6 @@ L1:;
 L2:;
 L3:;
 END:;
-    // 残差 N：①ORIG movzbl→edx→ebx / lea→edx→ecx 两段物化为 N18a 反向折叠
-    //（4.4 恒单段不可造）；②第三守卫 ORIG `test %al,%al; je` vs 4.4 `xor $0x1;
-    //  test %al,%al; jne`（P168a①/P292 bool 归一，无绑定不可造）。
 }
 
 // ORIG T 0x080e48ec：movzbl 0x5(%edx,%eax,1),%eax 直返（P9：返回 unsigned char，单条零扩展）。

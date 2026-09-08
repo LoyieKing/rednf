@@ -202,6 +202,10 @@ public:
     char m_pad3b8[0x30];                      // +0x3b8
     int m_minLevel;                           // +0x3e8
     int m_maxLevel;                           // +0x3ec
+    // [b28d-solo-CListTables] 补足权威 sizeof（STMonsterScript.h 尾部注释 0x1cc4；
+    // ORIG load_monsters 帧 0x1d1c / script 槽 -0x1d0c 实证），此前截断到 0x3f0
+    // 导致栈帧仅 0x44c。
+    char m_pad3f0[0x1cc4 - 0x3f0];            // +0x3f0..0x1cc4
 };
 
 struct MonsterKillItem
@@ -490,12 +494,15 @@ CMap* CMapList::find_map(int idx)
 int CMapList::insert_map(int channel, int key, CMap* map,
                          std::vector<PVPMAP_DATA>& pvpData)
 {
+    // [b28d-solo-CListTables N(N82)] 202/194：范围检查改内联 get_index()（去具名槽）
+    // 已修；残差为 PvPMapInfo 拷贝/memcpy 检查段槽位与装载序差 ⇒ 封顶。
     if (find_map(map->get_index()) != 0)
     {
         return 0;
     }
-    int mapIdx = map->get_index();
-    if (mapIdx > 0xc350 && mapIdx <= 0xc738)
+    // [b28d-solo-CListTables] ORIG 0x0834f18e：范围检查为内联表达式（每次重调
+    // get_index()，无具名槽往返；P0 右值直传）。
+    if (map->get_index() > 0xc350 && map->get_index() <= 0xc738)
     {
         m_pvpMapCount++;
         PvPMapInfo info;
@@ -662,6 +669,8 @@ int CMonsterManager::insert_monster(int level, int monsterIdx)
 
 // [b28d-32 N93/N98] ORIG 0x0834fdee：迭代器 it/end 槽序 ORIG it 深 end 浅，
 // 4.4 按首次使用序分配不可翻（声明序交换反劣 61），54=54 助记符全等。
+// [b28d-solo-CListTables N98/N93] 复验 54=54 NEAR：ORIG it(-0x2c)/end(-0x24) vs
+// 4.4 it(-0x24)/end(-0x2c) 槽互换；交换声明序需额外 C1Ev（+5 条）反劣 ⇒ 封顶。
 bool CMonsterManager::insert_monster(int level, CMonster* monster)
 {
     // [b28d-32] ORIG 0x0834fdee：迭代器先默认构造（C1Ev）再 find 赋值
@@ -681,13 +690,21 @@ bool CMonsterManager::insert_monster(int level, CMonster* monster)
 // [b28d-32 N(P75/N89): 扫描器/STL 内联与槽位差（215/203） | ORIG 0x0834fa84]
 int CMonsterManager::load_monsters()
 {
+    // [b28d-solo-CListTables N(N82/P292): 215/215 + p167 CLEAR，残差为槽号与
+    // `if(f())` 的 xor 折叠方向（ORIG `xor $1; test; je` vs 4.4 直 `test; je`）；
+    // 负形早退实测 216 条反劣 ⇒ 保持正向形封顶。 | ORIG 0x0834fa84]
     if (sync_script::GetInstanceSyncScript()->truncate_monster_info_table())
     {
         char* path = 0;
         CMonster* monster = 0;
-        for (std::map<int, std::string>::iterator it =
-                 g_stMonsterScriptFileList.begin();
-             it != g_stMonsterScriptFileList.end(); ++it)
+        // [b28d-solo-CListTables] ORIG 有一处未使用的 list<int>::iterator C1Ev
+        // （p167 MISSING 1；P171/P232 死局部照抄）。
+        std::list<int>::iterator unusedIt;
+        // [b28d-solo-CListTables] ORIG：主循环 map 迭代器先 C1Ev 后 begin() 赋值
+        // （P50）+ 尾后置 it++（ppEi，P28）。
+        std::map<int, std::string>::iterator it;
+        it = g_stMonsterScriptFileList.begin();
+        while (it != g_stMonsterScriptFileList.end())
         {
             path = (char*)it->second.c_str();
             if (path == 0)
@@ -723,6 +740,7 @@ int CMonsterManager::load_monsters()
                 insert_monster(i, monster->get_index());
             }
             insert_monster(monster->get_index(), monster);
+            it++;
         }
         return 1;
     }
@@ -784,6 +802,8 @@ CSkill* CSkillList::find_skill(int jobType, int skillIdx)
 // [b28d-32 N(P75/N93): 装载序/槽位差（125/118） | ORIG 0x083519a6]
 void CSkillList::insert_skill(int jobType, CSkill* skill)
 {
+    // [b28d-solo-CListTables N(N82)] 125/125：it 先 C1Ev 后 find 赋值（P50）已对齐，
+    // 残差为 idx/it/end/trace 槽位整体错位（4.1/4.4 槽分配策略差）⇒ 封顶。
     if (skill == 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0xf91, 5);
@@ -873,25 +893,35 @@ int CSkillList::get_ran_groupskill_index(int jobType, int group, int skillIdx)
 // [b28d-32 N(P75/N93): 实参装载序与块序差（163/185） | ORIG 0x08351e18]
 void CSkillList::set_post_learning_skill(int jobType, CSkill* skill)
 {
-    if (skill != 0 && skill->m_preSkillList.size() != 0)
+    // [b28d-solo-CListTables 真语义 bug 修复] ORIG 0x08351e62/0x08351e94：find/insert
+    // 的 map key 取 `it->+0x00`（ptEv 结果直传，_pre_skill::m_index），旧实现误用
+    // m_jobType(+0x04)（get_post_learning_skill 亦以 skillIdx 为 key 互证）。
+    // value 为 pair<int,int> C1Ev 后逐字段赋值（-0x38/-0x34）；&& 拆嵌套 if 复现
+    // 4.1 的 `setne %al; test` 第二条件物化（P225 推广）。
+    if (skill != 0)
     {
-        for (std::list<_pre_skill>::iterator it =
-                 skill->m_preSkillList.begin();
-             it != skill->m_preSkillList.end(); ++it)
+        if (skill->m_preSkillList.size() != 0)
         {
-            std::map<int, std::vector<std::pair<int, int> > >::iterator found =
-                m_postLearningMap[jobType].find(it->m_jobType);
-            std::pair<int, int> value(skill->get_index(), it->m_jobType);
-            if (found == m_postLearningMap[jobType].end())
+            for (std::list<_pre_skill>::iterator it =
+                     skill->m_preSkillList.begin();
+                 it != skill->m_preSkillList.end(); ++it)
             {
-                std::vector<std::pair<int, int> > vec;
-                vec.push_back(value);
-                m_postLearningMap[jobType].insert(
-                    std::make_pair(it->m_jobType, vec));
-            }
-            else
-            {
-                found->second.push_back(value);
+                std::map<int, std::vector<std::pair<int, int> > >::iterator
+                    found = m_postLearningMap[jobType].find(it->m_index);
+                std::pair<int, int> value;
+                value.first = skill->get_index();
+                value.second = it->m_jobType;
+                if (found == m_postLearningMap[jobType].end())
+                {
+                    std::vector<std::pair<int, int> > vec;
+                    vec.push_back(value);
+                    m_postLearningMap[jobType].insert(
+                        std::make_pair(it->m_index, vec));
+                }
+                else
+                {
+                    found->second.push_back(value);
+                }
             }
         }
     }
@@ -922,6 +952,9 @@ __gnu_cxx::hash_map<int, CSkill*>* CSkillList::getSkillList(int jobType)
 // [b28d-32 N(P75/N89): 大解析函数 STL 内联/槽位差（866/845） | ORIG 0x08350c26]
 int CSkillList::init()
 {
+    // [b28d-solo-CListTables N(§6.2/N82)] 866/880 + p167 CLEAR(111/111)：主循环/
+    // 尾循环迭代器 C1Ev+ppEi、s2/s3/s4 Import 与 insert 各自 printf、push_back(Oi)
+    // 右值 全部对齐；残差为槽位/块形差 ⇒ 按超大函数三件套封顶。
     STSkillScript script;
     CSkill* skill = 0;
     sync_script::GetInstanceSyncScript()->truncate_skill_index();
@@ -930,9 +963,11 @@ int CSkillList::init()
     int path = 0;
     for (job = 0; job <= 10; ++job)
     {
-        for (std::map<int, std::string>::iterator it =
-                 g_staSkillScriptFileList[job].begin();
-             it != g_staSkillScriptFileList[job].end(); ++it)
+        // [b28d-solo-CListTables] ORIG：主循环 map 迭代器先 C1Ev 后 begin() 赋值
+        // （P50）+ 尾后置 it++（ppEi，P28）。
+        std::map<int, std::string>::iterator it;
+        it = g_staSkillScriptFileList[job].begin();
+        while (it != g_staSkillScriptFileList[job].end())
         {
             path = (int)it->second.c_str();
             if (path == 0)
@@ -960,27 +995,41 @@ int CSkillList::init()
                     return 0;
                 }
                 STSkillScript s2;
-                if (!ImportSkillScript(&s2, (const char*)path, (ENUM_CHARACTERJOB)job, 4, -1) ||
-                    !sync_script::GetInstanceSyncScript()
-                         ->insert_skill_info(&s2, job, 4))
+                // [b28d-solo-CListTables] ORIG 0x08350e20/0x08350e6f：Import 与
+                // insert_skill_info 各自独立 printf（两条消息串不同）。
+                if (!ImportSkillScript(&s2, (const char*)path, (ENUM_CHARACTERJOB)job, 4, -1))
                 {
                     printf("Skill Script Error: %s\n", (const char*)path);
+                    return 0;
+                }
+                if (!sync_script::GetInstanceSyncScript()
+                         ->insert_skill_info(&s2, job, 4))
+                {
+                    printf("insert_skill_info Error: %s\n", (const char*)path);
                     return 0;
                 }
                 STSkillScript s3;
-                if (!ImportSkillScript(&s3, (const char*)path, (ENUM_CHARACTERJOB)job, 6, -1) ||
-                    !sync_script::GetInstanceSyncScript()
-                         ->insert_skill_info(&s3, job, 6))
+                if (!ImportSkillScript(&s3, (const char*)path, (ENUM_CHARACTERJOB)job, 6, -1))
                 {
                     printf("Skill Script Error: %s\n", (const char*)path);
                     return 0;
                 }
+                if (!sync_script::GetInstanceSyncScript()
+                         ->insert_skill_info(&s3, job, 6))
+                {
+                    printf("insert_skill_info Error: %s\n", (const char*)path);
+                    return 0;
+                }
                 STSkillScript s4;
-                if (!ImportSkillScript(&s4, (const char*)path, (ENUM_CHARACTERJOB)job, 11, -1) ||
-                    !sync_script::GetInstanceSyncScript()
-                         ->insert_skill_info(&s4, job, 11))
+                if (!ImportSkillScript(&s4, (const char*)path, (ENUM_CHARACTERJOB)job, 11, -1))
                 {
                     printf("Skill Script Error: %s\n", (const char*)path);
+                    return 0;
+                }
+                if (!sync_script::GetInstanceSyncScript()
+                         ->insert_skill_info(&s4, job, 11))
+                {
+                    printf("insert_skill_info Error: %s\n", (const char*)path);
                     return 0;
                 }
             }
@@ -1053,7 +1102,9 @@ int CSkillList::init()
             }
             for (unsigned int i = 0; i < script.m_vec204.size(); ++i)
             {
-                skill->m_guildSkillNeedGSP.push_back(script.m_vec204.at(i));
+                // [b28d-solo-CListTables] ORIG push_back(Oi) 右值重载（p167）。
+                skill->m_guildSkillNeedGSP.push_back(
+                    static_cast<int&&>(script.m_vec204.at(i)));
             }
             for (unsigned int i = 0; i < script.m_vec210.size(); ++i)
             {
@@ -1079,18 +1130,22 @@ int CSkillList::init()
             skill->setSkillName(script.m_name.c_str());
             skill->m_pvpSkillGrade = script.m_field38;
             insert_skill(job, skill);
+            it++;
         }
     }
     for (int i = 0; i <= 10; ++i)
     {
-        __gnu_cxx::hash_map<int, CSkill*>::iterator it = m_skillList[i].begin();
+        // [b28d-solo-CListTables] ORIG：尾部循环迭代器先 C1Ev 后 begin() 赋值
+        // （P50）+ 后置 ++it（ppEi，P28）。
+        __gnu_cxx::hash_map<int, CSkill*>::iterator it;
+        it = m_skillList[i].begin();
         __gnu_cxx::hash_map<int, CSkill*>::iterator end = m_skillList[i].end();
         while (it != end)
         {
             skill = it->second;
             skill->set_prelearned_skill();
             set_post_learning_skill(i, skill);
-            ++it;
+            it++;
         }
     }
     return 1;
@@ -1335,6 +1390,9 @@ bool QuestList::select_mail_quest(std::list<int>& out,
                                   const WongWork::CQuestClear& clear,
                                   const stSelectQuestParam& param)
 {
+    // [b28d-solo-CListTables N(N112/N93)] 113/109：const_iterator + 5 独立 guard
+    // （xor/je 落点已对齐）；残差 4 条 nop 岛（4.4 jump-thread continue/goto 尾岛）
+    // + it/questIdx 槽互换 ⇒ 封顶。
     out.clear();
     // [b28d-solo-CListTables] ORIG 0x08355304：quest 函数头清零（-0xc）、迭代器为
     // const_iterator（begin() 结果走 C1<Pi> 转换构造）、每条件独立 guard
@@ -1378,14 +1436,21 @@ void QuestList::allowable_questlist_as_npc(
     std::list<int>& out, const std::multimap<int, int>& npcList,
     stSelectQuestParam& param, const WongWork::CQuestClear& clear, bool flag)
 {
+    // [b28d-solo-CListTables N(P292/bool 链)] 131/126 + p167 CLEAR：it C1Ev+ppEi /
+    // range C1Ev+op= 已对齐；残差 5 条为 Check_Quest 调用点 bool 形（ORIG
+    // `xor $1;test %al` vs 4.4 `test %eax;je`），改返回类型需跨 TU .h 广播 ⇒ 封顶。
     Quest* quest = 0;
-    for (std::list<int>::iterator it = m_listE0.begin();
-         it != m_listE0.end(); ++it)
+    // [b28d-solo-CListTables] ORIG 0x0835556c：it 先 C1Ev 后 begin() 赋值（P50）
+    // + 尾后置 it++（ppEi）；range 先 C1Ev 再 `range = equal_range(...)`
+    // （op=(&&) 赋值，同 GetDailyQuestList）。
+    std::list<int>::iterator it;
+    it = m_listE0.begin();
+    while (it != m_listE0.end())
     {
         int npcIdx = *it;
         std::pair<std::multimap<int, int>::const_iterator,
-                  std::multimap<int, int>::const_iterator> range =
-            npcList.equal_range(npcIdx);
+                  std::multimap<int, int>::const_iterator> range;
+        range = npcList.equal_range(npcIdx);
         for (std::multimap<int, int>::const_iterator cit = range.first;
              cit != range.second; ++cit)
         {
@@ -1397,6 +1462,7 @@ void QuestList::allowable_questlist_as_npc(
                 out.push_back(param.m_questIdx);
             }
         }
+        it++;
     }
 }
 
@@ -1455,12 +1521,18 @@ END1:;
 // 改为真实 `item->GetItemType() == 8`。残差 N89 内联差 991/983。
 bool QuestList::load_list()
 {
+    // [b28d-solo-CListTables N(§6.2/N82/N89)] 991/992 + p167 CLEAR(122/122) + gap=1：
+    // P282 vptr+0xc 虚槽已对齐（双侧 `add $0xc; mov (%eax),%edx; call *%edx`）；
+    // make_pair→value_type(9)、const_iterator(2)、(*mit)、size() 内联、直接
+    // set_quest 全部对齐；残差仅槽位/STL 内联形 ⇒ 封顶。
     QuestScript script;
     Quest* quest = 0;
     sync_script::GetInstanceSyncScript()->truncate_quest_category();
-    for (std::map<int, std::string>::iterator it =
-             g_questScriptFileList.begin();
-         it != g_questScriptFileList.end(); ++it)
+    // [b28d-solo-CListTables] ORIG 0x08353c..：主循环 map 迭代器先 C1Ev 默认构造
+    // 再 begin() 赋值（P50 复活）+ 尾部后置 it++（ppEi，P28）。
+    std::map<int, std::string>::iterator it;
+    it = g_questScriptFileList.begin();
+    while (it != g_questScriptFileList.end())
     {
         char* path = (char*)it->second.c_str();
         if (path == 0)
@@ -1474,7 +1546,8 @@ bool QuestList::load_list()
                                   "Quest Script Error: %s\n", path);
             return 0;
         }
-        if (!script.m_dailySchedule.empty())
+        // [b28d-solo-CListTables] ORIG 用 size()（p167: MISSING vector<_DailySchedule>::size）。
+        if (script.m_dailySchedule.size() != 0)
         {
             // ORIG 0x8353eb1：lea script+0x2dc 直传 AddDailSchedule
             // （vector<_DailySchedule> const&，ORIG 0x8125c3c），无逐项转换。
@@ -1483,11 +1556,13 @@ bool QuestList::load_list()
         }
         if (!script.m_monsterKillList.empty())
         {
-            for (std::vector<MonsterKillItem>::iterator mit =
-                     script.m_monsterKillList.begin();
-                 mit != script.m_monsterKillList.end(); ++mit)
+            // [b28d-solo-CListTables] ORIG 用非 const iterator + deEv（P167：it-> 改 (*it).）
+            // + 先 C1Ev 后赋值 + 尾后置 mit++（ppEi，P28/P50）。
+            std::vector<MonsterKillItem>::iterator mit;
+            mit = script.m_monsterKillList.begin();
+            while (mit != script.m_monsterKillList.end())
             {
-                CItem* item = G_CDataManager()->find_item(mit->m_itemIdx);
+                CItem* item = G_CDataManager()->find_item((*mit).m_itemIdx);
                 if (item == 0)
                 {
                     LogManager::logFormat(
@@ -1495,7 +1570,7 @@ bool QuestList::load_list()
                         0x136f,
                         "Quest Script Error: %s - Monster Kill Item %d is not "
                         "Exist\n",
-                        path, mit->m_itemIdx);
+                        path, (*mit).m_itemIdx);
                     return 0;
                 }
                 if (!(item->is_stackable() && item->GetItemType() == 8))
@@ -1505,9 +1580,10 @@ bool QuestList::load_list()
                         0x1375,
                         "Quest Script Error: %s - Monster Kill Item %d is not "
                         "Quest Item\n",
-                        path, mit->m_itemIdx);
+                        path, (*mit).m_itemIdx);
                     return 0;
                 }
+                mit++;
             }
         }
         if (script.m_questDataType == 2 || script.m_questDataType == 6)
@@ -1529,8 +1605,10 @@ bool QuestList::load_list()
                     (int)script.m_questData.size());
                 return 0;
             }
-            std::vector<int>::iterator vit = script.m_questData.begin();
-            std::vector<int>::iterator vend = script.m_questData.end();
+            // [b28d-solo-CListTables] ORIG 用 const_iterator（p167: C1<Pi> 转换构造 + deEv
+            // + ppEi + ne(const,const)）。
+            std::vector<int>::const_iterator vit = script.m_questData.begin();
+            std::vector<int>::const_iterator vend = script.m_questData.end();
             while (vit != vend)
             {
                 int v1 = *vit++;
@@ -1579,30 +1657,34 @@ bool QuestList::load_list()
         }
         else if (script.m_questDataType == 1)
         {
-            int size = (int)script.m_questData.size();
+            // [b28d-solo-CListTables] ORIG 0x0835440a.. 每处重调
+            // script.m_questData.size()（10 次调用，无 size 具名缓存）。
             if (script.m_questDataSubType == 4)
             {
-                if (size != 2)
+                if (script.m_questData.size() != 2)
                 {
                     LogManager::logFormat(
                         1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x13c4,
                         "Quest Script Error: %s - Quest Data Type is %d, But "
                         "Argumemt Size is Wrong(%d)\n",
-                        path, script.m_questDataType, size);
+                        path, script.m_questDataType,
+                        (int)script.m_questData.size());
                     return 0;
                 }
             }
             else if (script.m_questDataSubType == 6)
             {
-                if (size != 2 && size != 3)
+                if (script.m_questData.size() != 2 &&
+                    script.m_questData.size() != 3)
                 {
                     LogManager::logFormat(
                         1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x13cc,
                         "Quest Script Error: %s - Quest Data Type is %d, But "
                         "Argumemt Size is Wrong(%d)\n",
-                        path, script.m_questDataType, size);
+                        path, script.m_questDataType,
+                        (int)script.m_questData.size());
                     return 0;
                 }
             }
@@ -1611,25 +1693,27 @@ bool QuestList::load_list()
                      (script.m_questDataSubType > 6 &&
                       script.m_questDataSubType < 0xc))
             {
-                if (size != 3)
+                if (script.m_questData.size() != 3)
                 {
                     LogManager::logFormat(
                         1, "data_manager.cpp", __PRETTY_FUNCTION__,
                         0x13d4,
                         "Quest Script Error: %s - Quest Data Type is %d, But "
                         "Argumemt Size is Wrong(%d)\n",
-                        path, script.m_questDataType, size);
+                        path, script.m_questDataType,
+                        (int)script.m_questData.size());
                     return 0;
                 }
             }
-            else if (size != 4)
+            else if (script.m_questData.size() != 4)
             {
                 LogManager::logFormat(
                     1, "data_manager.cpp", __PRETTY_FUNCTION__,
                     0x13dc,
                     "Quest Script Error: %s - Quest Data Type is %d, But "
                     "Argumemt Size is Wrong(%d)\n",
-                    path, script.m_questDataType, size);
+                    path, script.m_questDataType,
+                    (int)script.m_questData.size());
                 return 0;
             }
         }
@@ -1664,58 +1748,61 @@ bool QuestList::load_list()
             trace("[%s][%d]", __PRETTY_FUNCTION__, 0x13ff);
             return 0;
         }
-        QuestScript script2(script);
-        quest->set_quest(script2);
+        // [b28d-solo-CListTables] ORIG 0x08354d..：直接按值传 script（调用点仅 1 次
+        // C1ERKS_ + 1 次 D1Ev），无具名 script2 副本。
+        quest->set_quest(script);
         insert_NPC(script.m_npcIdx);
-        m_questMap.insert(std::make_pair(script.m_index, quest));
+        m_questMap.insert(std::map<int, Quest*>::value_type(script.m_index, quest));
         if (script.m_questType == 4)
         {
             m_npcQuestList2.insert(
-                std::make_pair(script.m_npcIdx, script.m_index));
+                std::multimap<int, int>::value_type(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 5)
         {
             m_npcQuestList1.insert(
-                std::make_pair(script.m_npcIdx, script.m_index));
+                std::multimap<int, int>::value_type(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 0)
         {
             m_npcQuestList0.insert(
-                std::make_pair(script.m_npcIdx, script.m_index));
+                std::multimap<int, int>::value_type(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 2)
         {
             m_npcQuestList4.insert(
-                std::make_pair(script.m_npcIdx, script.m_index));
+                std::multimap<int, int>::value_type(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 6)
         {
             m_npcQuestList5.insert(
-                std::make_pair(script.m_npcIdx, script.m_index));
+                std::multimap<int, int>::value_type(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 3)
         {
             m_npcQuestList7.insert(
-                std::make_pair(script.m_npcIdx, script.m_index));
+                std::multimap<int, int>::value_type(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 1)
         {
             m_npcQuestList3.insert(
-                std::make_pair(script.m_npcIdx, script.m_index));
+                std::multimap<int, int>::value_type(script.m_npcIdx, script.m_index));
         }
         else if (script.m_questType == 8)
         {
             m_npcQuestList6.insert(
-                std::make_pair(script.m_npcIdx, script.m_index));
+                std::multimap<int, int>::value_type(script.m_npcIdx, script.m_index));
         }
         if (script.m_mailQuestFlag != -1)
         {
             m_vecD4.push_back(script.m_index);
         }
+        it++;
     }
     if (!m_vecD4.empty())
     {
-        for (std::vector<int>::iterator it = m_vecD4.begin();
+        // [b28d-solo-CListTables] ORIG 用 const_iterator（p167: C1IPi 共 2 处）。
+        for (std::vector<int>::const_iterator it = m_vecD4.begin();
              it != m_vecD4.end(); ++it)
         {
             int questIdx = *it;

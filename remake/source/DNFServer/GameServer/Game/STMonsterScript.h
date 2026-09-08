@@ -373,8 +373,12 @@ struct MonsterBaseParameter
 
     // ORIG clear W 0x08a3ce4a：v[0..12] 直写 + 双写循环 v[13+i]/v[17+i]
     // + v[21..23] 直写（分段与解析列组一致，实证 08a3ce4a）
-    // [b28d-23 N·P30] ORIG 0x0834852e：`add $0xc,%edx; movl $0,0x4(%eax,%edx,4)`
-    // vs 4.4 `lea 0xd(%eax),%edx; movl $0,(%eax,%edx,4)`（add-vs-lea + disp 折叠）⇒ N。
+    // [b28d-solo-STMonsterScript N·P30] 权威 ORIG 0x08a3ce4a（nm -S 0xe1；旧注释 0x0834852e
+    // 系撞名报告 CCharacter::clear 地址，已更正）：两处 `mov i,%edx; mov this,%eax;
+    // add $0xc/$0x10,%edx; movl $0,0x4(%eax,%edx,4)`（base=param+4、idx=i+0xc/i+0x10）
+    // vs 4.4 `mov i,%eax; lea 0xd/0x11(%eax),%edx; movl $0,(%eax,%edx,4)`（base=param+0）。
+    // 二维具名视图可产 add（S85 实证）但行宽 12 的 [2][12] 从 +4 起会撑大 sizeof 4 字节
+    // （96→100）破坏 vector 步长/rep movsl 0x18 ⇒ 不可用；指针形/语句表达式更劣 ⇒ N 封顶。
     void clear()
     {
         m_value[0] = 0;   m_value[1] = 0;   m_value[2] = 0;   m_value[3] = 0;
@@ -544,7 +548,15 @@ struct stEnamyDropAvatarInfo_t
 
     int m_field00;                              // +0x00
     int m_field04;                              // +0x04
-    float m_field08[9];                         // +0x08..+0x2b（clear 两循环清零；float 实证）
+    // [b28d-solo-STMonsterScript] +0x08..+0x2b：ORIG clear/op= 第二循环按两步索引
+    //   `mov i,%r; add/lea $0x4,%r`（P30 反例解）访问 +0x18+4i；一维 `[i+4]` 在 4.4.6
+    //   恒折 `lea 0x4(%r)`。二维视角 `[1][i]` 逐条复现 ORIG（探针 /tmp/solo_probe1.cpp）；
+    //   i=4 越界至 +0x28 第 9 个 float —— ORIG 原码即如此写（P171 照抄越界），
+    //   内存仍在 union 36B 内。union 尺寸 36B，sizeof/偏移/mangled 零变化。
+    union {
+        float m_field08[9];                     // 一维视角（float 实证）
+        float m_field08v[2][4];                 // 二维视角（ORIG 第二循环寻址形）
+    };
     int m_field2c;                              // +0x2c
     std::vector<stEnamyDropAvatarElement_t> m_elements;  // +0x30
 };  // sizeof == 0x3c
@@ -655,7 +667,13 @@ public:
     STMonsterScript();
     ~STMonsterScript();
     // ORIG op= W 0x08377994 为编译器合成版（无自赋值检查、rep movsl、尾部
-    // eax=this）。不显式声明，由编译器按成员序隐式合成，指令级与 ORIG 一致。
+    // eax=this）。不显式声明，由编译器按成员序隐式合成。
+    // [b28d-solo-STMonsterScript] 复验：1200/1272，gap=72，p167 89/89 CLEAR。
+    // 残差全为 4.4 隐式拷贝的分块启发式差异（N90/P26）：ORIG(4.1) 对相邻标量段
+    // 缓存 src/dst 基址后连发 store（如 +0x64/+0x68/+0x6c 三 int 共 7 条），
+    // 4.4 恒逐字段重载双基址（11 条）；16 处 short+char 段（+0x369/+0x36b 等）
+    // ORIG 走 rep movsl 整块，4.4 逐字段拷贝跳过尾部 padding。源码侧不可控
+    // （隐式函数 + 改成员声明会动全仓消费点）⇒ N 封顶。
     void Clear();
 
     int m_index;                         // +0x000（Clear=0；[name] 首列/isNamedMonster）

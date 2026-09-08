@@ -101,8 +101,10 @@ struct STStackablePackageData
         m_field4 = 0;
     }
 
-    int m_field0;   // +0x00
-    int m_field4;   // +0x04
+    // [b28d-solo-CMailBoxHelper R2] unsigned（ORIG make_pair<unsigned const&,
+    // unsigned const&> + pair<int,int>::C1<unsigned,unsigned>，0x08553a9x 段）
+    unsigned int m_field0;   // +0x00
+    unsigned int m_field4;   // +0x04
 };
 
 // ---- CountinuousItemOption（ORIG T 0x0898c770 C1 / 0x0898c784 clear；sizeof 3）----
@@ -165,22 +167,32 @@ struct STEnchantSystemMapKey : public STEnchantSystemData
 
     bool operator<(const STEnchantSystemMapKey& o) const
     {
+        // [b28d-solo-CItemUpgrade] ORIG 0x0854b1c8（57 条）布局 = 「每字段先 < 后
+        // !=，所有 != 用 jne 直跳**唯一**尾部 mov $0 块，无 nop 中继岛」。4.4 对
+        // 平铺 `if(x!=y) return false;` 恒内联出独立 mov$0+jmp 岛（/tmp/probe_lt.cpp
+        // lt_orig 实测 3 岛）；改「正条件包裹 + 单尾 return false」（lt_wrap 实测
+        // jne 直跳共享尾、零岛）即复现。m_b 有符号序（P196 0x854b201 jge）保留。
+        // 残余：m_a/m_c 装载 4.1 两段 eax→edx 中转 vs 4.4 单段（P254 需字段
+        // enum 化，但 = 0 赋值点在 STEquipmentScript.cpp/STStackableScript.cpp，
+        // 跨 TU 不可改 ⇒ 记 N/P254 封顶）。
         if (m_a < o.m_a)
             return true;
-        if (m_a != o.m_a)
-            return false;
-        // ORIG 0x854b201: m_b(+0x4) 第二条比较 `cmp %al,%dl; jge`=有符号字节序；
-        // 原 (unsigned char) 版产 jae，m_b≥0x80 时与 ORIG 不一致。改 (signed char)。
-        if (static_cast<signed char>(m_b) < static_cast<signed char>(o.m_b))
-            return true;
-        if (static_cast<unsigned char>(m_b) != static_cast<unsigned char>(o.m_b))
-            return false;
-        if (m_c < o.m_c)
-            return true;
-        if (m_c != o.m_c)
-            return false;
-        if (m_fieldC < o.m_fieldC)
-            return true;
+        if (m_a == o.m_a)
+        {
+            if (static_cast<signed char>(m_b) < static_cast<signed char>(o.m_b))
+                return true;
+            if (static_cast<unsigned char>(m_b) ==
+                static_cast<unsigned char>(o.m_b))
+            {
+                if (m_c < o.m_c)
+                    return true;
+                if (m_c == o.m_c)
+                {
+                    if (m_fieldC < o.m_fieldC)
+                        return true;
+                }
+            }
+        }
         return false;
     }
 };

@@ -326,8 +326,8 @@ void CParty::CheckClearQuestHellParty(std::vector<int>& out)
 //     4.4 恒 ebp-0x18 起（帧顶多留 4B gap；double framePad 反致下移，实测）。
 //  ② N88/P197④ 槽比 setne 物化：ORIG 0x085a8153 `cmpl $0xffffffff,-0x14;
 //     setne %al; test %al,%al; je`（4.1 槽比零产物）；4.4-O0 对槽比恒出
-//     `cmpl;je` 直跳——P197④ 探针实证源形不可复现（while+break 变体经
-//     P225 边界核验：本处含 else 早返，两比较不可避免）。
+//     `cmpl;je` 直跳——P197④ 探针实证源形不可复现（P225 while+break 形
+//     要求单一条件+循环退出，本处 else 早返含 return false 无法单比较承载）。
 //  ③ N7/N18b 寄存器角色差（slot 装载 eax↔edx）。
 // ============================================================================
 bool CParty::UseSealDoorItems(std::vector<int>& itemIds)
@@ -408,7 +408,7 @@ bool CParty::UseSealDoorItems(std::vector<int>& itemIds)
 // （P292 2 条形）+ m_sealDoorFlag unsigned char + 本函数返回 unsigned char
 // （P9 movzbl 直返；.h 三处已 R2 广播，CParty.cpp 定义已由 Main 代落同步）。
 // ============================================================================
-int CParty::CheckHaveHellPartyPassItem(CDungeon const* dungeon,
+unsigned char CParty::CheckHaveHellPartyPassItem(CDungeon const* dungeon,
                                                 ENUM_DUNGEON_TYPE type)
 {
     if (m_hellWorldMap == 0)

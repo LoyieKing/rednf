@@ -8,21 +8,26 @@
 // （CEventBase 权威声明见 CGuildServerProxy.h，本文件内仅保留
 // CCeraShopBonusItemEvent 及其局部基类）。
 // ============================================================================
-// b28d-45 判词汇总（本 TU 9 件，ORIG 地址见各函数注释）：
-//   Manager::C1 0x080e10c0 DIFF15 N77：4.1 对 m_loader 前置 zero-init（5×movl $0，
-//     落 map 内部）；4.4 按 CWG434 不 emit，value-init 形已试无效。
-//   readTime 0x08abf166 DIFF35 FIX：n/ok 声明序交换对齐发射序（123:124）；
-//     余 1 条在 ScanInt/__cxa_throw 段 → N82。
-//   InputBuyInfoDetail 0x080e117a DIFF21 N95：find/end 迭代器 sret 槽浅移 8。
-//   LoadProcess 0x080e142a DIFF51 N77/N94：new 结果 %edx 缓存 + `add 0x10(%ebp)`
-//     两步寻址 vs 4.4 落槽重载/lea 折形。
-//   LoadScript 0x08abf3cc DIFF65 N89/N78：ORIG movb×3 预清 + 3 处 jmp;nop 岛。
-//   LoadScriptDaily 0x08abf4de DIFF145 N82/N93：帧 0x8c/0x90 + bool/迭代器槽向。
-//   InputBuyInfo 0x080e129a DIFF102 FIX：P251/P261 if 链→switch（无槽 cmp 链对齐）；
-//     余槽/帧差 N82。
-//   makeSyncPacket 0x080e0f3a DIFF108 N98/P274：ORIG 两语句累加「载槽→add→回写」
-//     三连不可造（4.4 恒 `add %eax,-0x14` 内存直加）。
-//   FindUserInfoDetail 0x080e0ab7 DIFF60 N95：迭代器 sret 槽深移 8。
+// b28d-solo-CCeraShopAddRestrict 判词汇总（本 TU 9 件，ORIG 地址见各函数注释）：
+//   Manager::C1 0x080e09bc AE：P299/CWG434——CUser.h ScriptLoader 删用户空 ctor
+//     使 m_loader 的 value-init 前置零初始化（5×`movl $0`）复现（/tmp/probe_sl.cpp）。
+//   InputBuyInfoDetail 0x080e1196 AE：m_count int→unsigned（P211档③，CUser.h 代落）
+//     + pair 临时直构（P278）+ `new paramDaily()` value-init（P90/P299）。
+//   readTime 0x08abf164 AE：`return 1` 移入 try 块（P229/N104 正常路径尾物化）。
+//   LoadProcess 0x080e142a AE：`new paramDaily()` + SIG `m_items` 具名数组视图
+//     （P291，SigTypes_B.h 字段化）+ m_count unsigned。
+//   FindUserInfoDetail 0x080e0a43 NEAR→N 封顶：P196 比较方向 + m_count unsigned 已修；
+//     残余 N95 槽基差 8 + N86 insert sret 槽位；p167 CLEAR 129=129。
+//   InputBuyInfo 0x080e129a AE：m_result 具型化 paramDaily*（P211档③ LHS-first，
+//     CUser.h 代落）+ switch（P251/P261）。
+//   LoadScript 0x08abf3cc AE：`while(true){if(!ScanType)break;}`（P283 头部条件）
+//     + 3 个 dead bool 预清（P232）。
+//   makeSyncPacket 0x080e0f3a AE：P274 累加异型 cast + 去 buf 具名指针（P183）
+//     + empty 正极性 else 形（P292）+ P223 尾空标签 nop 岛。
+//   LoadScriptDaily 0x08abf4de N 封顶：P292 readTime 返回 bool、P214③ t1/t2={0}、
+//     P223 双岛 goto、P167 operator==（printf 岛布局）、P185 printf 原文；残余
+//     N95 槽基差 8 + N93 块内槽序 + N7 寄存器中转（edi/eax）；p167 CLEAR 154=154。
+//   注：__static_initialization_and_destruction_0ii 为 TU 级静态初始化（非清单件）。
 
 #include <ctime>
 #include <cstring>
@@ -76,12 +81,26 @@ class DB_SaveCerashopAddRestrictType;
 namespace CerashopAddRestrict
 {
 
+// b28d-solo-CCeraShopAddRestrict: AE（83=83，仅 .o 重定位显示差；P283 头部条件 +
+// P232 三个 dead bool 预清）。
 int ScriptLoader::LoadScript()
 {
     if (!loadRDARScriptFile("Etc/", "NewCashShop_Restrict.etc"))
         return -1;
     std::string section;
-    while (ScanType(section, true)) {
+    // [b28d-solo P232] ORIG 0x08abf404 三条 `movb $0x0,-0xb|-0xa|-0x9(%ebp)` 是
+    // 原码三个 dead bool 局部的初始化（section 因此落 -0x10 槽）；探针
+    // /tmp/probe_bool.cpp f2 实测 4.4 同形（未使用亦不 DCE）。
+    bool isAccountSection = false;
+    bool isCharacSection = false;
+    bool sectionHandled = false;
+    // [b28d-solo P283/P164] ORIG 0x08abf3f9：循环头直落 ScanType（条件在头部），
+    // 成功路径经 +0x46/+0x49/+0x4c 三个 nop 岛回跳；4.4 对 `while(cond)` 恒
+    // 旋转成「body 在前、cond 在后」。`while(true){ if(!ScanType) break; ... }`
+    // 复现头部条件 + `xor $1; test %al; jne 退出` 形。
+    while (true) {
+        if (!ScanType(section, true))
+            break;
         if (section == "[account restrict]") {
             if (LoadScriptDaily(RestrictType::RestrictType_Account) < 0)
                 return -1;
@@ -93,6 +112,8 @@ int ScriptLoader::LoadScript()
     return 0;
 }
 
+// b28d-solo-CCeraShopAddRestrict: N 封顶（154=154、p167 CLEAR；残余 N95 槽基差 8 +
+// N93 块内槽序 + N7 寄存器中转 edi/eax；语义闭合）。
 int ScriptLoader::LoadScriptDaily(RestrictType::T type)
 {
     // ORIG 0x08abf4de：首 token 用 ScanTypeOrInt(isType, s, ok, true) 解析
@@ -100,37 +121,61 @@ int ScriptLoader::LoadScriptDaily(RestrictType::T type)
     // 字段顺序 ipgNo, fieldA, fieldB, t1, t2, fieldC（fieldA/fieldB 在时间前）；
     // readTime 失败 → 返回 -1；find 命中（重复 ipgNo）→ printf + 返回 -1；
     // 末尾 m_infoMap.insert(make_pair(ipgNo, info))。
-    bool isType = false;
     std::string str;
+    bool isType = false;
     bool ok = false;
+    // [b28d-solo P232] ORIG 0x08abf4fd 第三个 dead bool（-0x25）预清零。
+    bool dailyLoaded = false;
     while (true) {
-        int v0 = ScanTypeOrInt(isType, str, ok, true);
+        // [b28d-solo P214③] ORIG 0x08abf501 循环头 4 条 `movl $0,-0x4e|-0x4a|
+        // -0x56|-0x52` = t1[4]/t2[4] 的 `={0}` 预清（每轮重清，8 字节各 2 dword）。
+        short t1[4] = {0}, t2[4] = {0};
+        // [b28d-solo P0] ORIG 0x08abf53e `mov %eax,-0x5c`（ScanTypeOrInt 结果直接
+        // 落 ipgNo 槽，后续 printf/find/pair 全用该槽）；`int v0` + 二次转换多一对
+        // 存/取（-0x2c→-0x64）。
+        unsigned int ipgNo = (unsigned int)ScanTypeOrInt(isType, str, ok, true);
+        // [b28d-solo P223/BM8] ORIG 0x08abf547/0x08abf556 两个独立 nop 岛
+        //（+0x1e8/+0x1eb）各自 `jne` 到共享 `mov $0,%ebx` 块 ⇒ 两条独立否定
+        // goto + 连续尾标签串；`if(isType)return 0; if(!ok)return 0;` 使 4.4
+        // 产就地 `mov $0,%ebx; jmp` 且极性反转。
         if (isType)
-            return 0;
+            goto daily_is_type;
         if (!ok)
-            return 0;
-        unsigned int ipgNo = (unsigned int)v0;
+            goto daily_not_ok;
         int fieldA = ScanInt((bool*)0);
         int fieldB = ScanInt((bool*)0);
-        short t1[8], t2[8];
-        extern int readTime(short* buf);
+        // [b28d-solo P292] ORIG 调用点 `call readTime; xor $1,%eax; test %al,%al`
+        // ⇒ callee 返回 bool（int 返回产 `test %eax; sete %al`）。mangled 不含
+        // 返回类型，改声明零 ABI 风险。
+        extern bool readTime(short* buf);
         if (!readTime(t1))
             return -1;
         if (!readTime(t2))
             return -1;
         extern unsigned int uint32Time(short* buf);
-        int start = (int)uint32Time(t1);
+        // [b28d-solo P226] ORIG 0x08abf612 `call uint32Time; mov %eax,%edi`（值升格
+        // callee-saved 跨第二次 uint32Time 保活，无槽往返）；普通具名局部使 4.4 落槽。
+        register int start = (int)uint32Time(t1);
         int end = (int)uint32Time(t2);
         int fieldC = ScanInt((bool*)0);
-        if (m_infoMap.find(ipgNo) != m_infoMap.end())
-        {
-            printf("[character restrict]already registered ipg_no:%u\n", ipgNo);
+        // [b28d-solo P167/P123] ORIG 0x08abf5ff 调 `_Rb_tree_iterator::operator==`
+        //（eq）非 operator!=；且 `je <printf 岛>` + 正常路径直落 ⇒ 源码为
+        // `if (find == end) { 插入 } else { printf; return -1; }`。
+        if (m_infoMap.find(ipgNo) == m_infoMap.end()) {
+            InfoDaily* info = new InfoDaily(type, ipgNo, (unsigned int)fieldA,
+                                            start, end, fieldB, fieldC);
+            // [b28d-solo P192/P178] ORIG 无 make_pair 调用，直接 value_type 转换
+            // ctor（`_ZNSt4pairIKjPN...EEC1IRjRS3_EEOT_OT0_`）。
+            m_infoMap.insert(
+                std::map<unsigned int, InfoDaily*>::value_type(ipgNo, info));
+        } else {
+            // [b28d-solo P185] ORIG rodata 原文（无前缀/无 \n）。
+            printf("already registed ipg_no:%u", ipgNo);
             return -1;
         }
-        InfoDaily* info = new InfoDaily(type, ipgNo, (unsigned int)fieldA,
-                                        start, end, fieldB, fieldC);
-        m_infoMap.insert(std::make_pair(ipgNo, info));
     }
+daily_is_type:;
+daily_not_ok:;
     return 0;
 }
 
@@ -159,7 +204,10 @@ bool ScriptLoader::FindIpgNo(unsigned int ipgNo)
 }
 
 // ---- readTime / uint32Time ----
-int readTime(short* out)
+// [b28d-solo P292] 返回类型 bool：ORIG 调用点 `xor $1,%eax; test %al,%al`（bool
+// callee 的 `!f()`）；int 返回在 4.4 产 `test %eax; sete %al`。mangled 不含返回类型。
+// b28d-solo-CCeraShopAddRestrict: AE（124=124，仅 .o 重定位显示差；P229/N104）。
+bool readTime(short* out)
 {
     // b28d-45 试形：ORIG 0x08abf16x 先 `movl $0,-0x10`（n）后 `movb $0,-0x11`（ok）
     // ⇒ 交换声明序对齐发射序。
@@ -179,14 +227,17 @@ int readTime(short* out)
         out[n++] = (short)ScanInt(&ok);
         if (!ok)
             throw "start time";
+        // [b28d-solo P229/N104] ORIG 0x08abf2c3：正常路径尾在 `call __cxa_throw`
+        // 之后立即 `mov $0x1,%ebx; jmp <函数尾>`（try 正常出口），4.4 把该物化
+        // 落在函数尾共享块 ⇒ 源码须把 `return 1` 写在 try 块内。
+        return true;
     }
     catch (const char* msg)
     {
         LogManager::logFormat(1, "../RDARScriptCeraShopAddRestrictType.cpp", "readTime",
                               37, "readTime() Load fail. %s", msg);
-        return 0;
+        return false;
     }
-    return 1;
 }
 
 unsigned int uint32Time(short* buf)
@@ -208,6 +259,8 @@ unsigned int uint32Time(short* buf)
 //   idxMap.find(key)：未命中 insert(key,0) 取返回迭代器；it->second += add；
 //   dailyMap.find(key)：命中 → now<nextDate 时 (count+idx)<=field8 → 1 否则 0；
 //     超期 → count=0，idx<=field8 → 1 否则 0；未命中 → field8<idx → 0 否则 1。
+// b28d-solo-CCeraShopAddRestrict: NEAR→N 封顶（129=129、p167 CLEAR；残余 N95 槽基差 8
+// + N86 insert sret 槽位；P196 比较方向与 m_count unsigned 已修）。
 static int FindUserInfoDetail(
     std::map<unsigned int, unsigned int>& idxMap,
     std::map<unsigned int, paramDaily*>& dailyMap,
@@ -235,7 +288,11 @@ static int FindUserInfoDetail(
         }
         return 0;
     }
-    if ((unsigned int)info->m_field8 < (unsigned int)it->second)
+    // [b28d-solo P196] ORIG 0x080e0bcd 段：先载 it->second 到 %edx、后载
+    // info->m_field8 到 %eax，`cmp %eax,%edx; seta` ⇒ 源码须写
+    // `it->second > m_field8`；反向书写 `m_field8 < it->second` 使 4.4
+    // 先物化左操作数到 %ebx 并产 `setb`（比较方向反演）。
+    if ((unsigned int)it->second > (unsigned int)info->m_field8)
         return 0;
     return 1;
 }
@@ -264,6 +321,8 @@ static int GetCalcDay(const InfoDaily* info)
 // ORIG 0x080e1196（命名空间级，T mangled；InputBuyInfoDetail.md 全文转写）：
 //   m.find(key)：命中 → m_count += count；未命中 → new paramDaily 清零、
 //   m_count=count、m_ipgNo=key 后 insert；尾 m_nextDate=GetCalcDay(info)，返回 pd。
+// b28d-solo-CCeraShopAddRestrict: AE（77=77，仅 .o 重定位显示差；P211档③ m_count
+// unsigned + P278 pair 临时 + P90/P299 value-init）。
 paramDaily* InputBuyInfoDetail(
     std::map<unsigned int, paramDaily*>& m,
     const InfoDaily* info, unsigned int key, unsigned int count)
@@ -276,17 +335,18 @@ paramDaily* InputBuyInfoDetail(
         // add 0x14(%ebp),%edx`（内存直加）；`(int)count` 反使 4.4 先载 eax。
         result->m_count += count;
     } else {
-        paramDaily* pd = new paramDaily;
-        pd->m_ipgNo = 0;
-        pd->m_count = 0;
-        pd->m_nextDate = 0;
+        // [b28d-solo P90/P299] ORIG 0x080e120e：`call _Znwj` 后立即内联 3 条
+        // `movl $0x0,(|0x4|0x8)(%eax)` 且 pd 存槽在清零之后 ⇒ 原码是 value-init
+        // `new paramDaily()`（POD 零初始化），不是「具名 pd + 三条手动清零」
+        //（后者 4.4 先存槽再逐条重载，多 3 条 mov）。
+        paramDaily* pd = new paramDaily();
         pd->m_count = count;
         pd->m_ipgNo = key;
-        // [b28c-4 P192] 必须用 map 的 value_type（pair<const uint,paramDaily*>）直构：
-        // 写 std::pair<unsigned int,...> 使 insert(const value_type&) 需转换构造，
-        // 多一对 sret+拷贝（+3 insn、帧 0x38→0x48）。
-        std::map<unsigned int, paramDaily*>::value_type p(key, pd);
-        m.insert(p);
+        // [b28d-solo P278] ORIG 0x080e1248：pair 临时直构于 -0x14（ctor this 即
+        // `lea -0x14,(%esp)`）、insert sret -0x1c；具名 p 形把 pair 落 -0x28 且
+        // insert sret 落 -0x14（槽序整体反向）。类型仍用 map::value_type 直构，
+        // 保持 ORIG 的 pair<unsigned&,paramDaily*&> 转换 ctor 符号。
+        m.insert(std::map<unsigned int, paramDaily*>::value_type(key, pd));
         result = pd;
     }
     result->m_nextDate = GetCalcDay(info);
@@ -300,6 +360,8 @@ paramDaily* InputBuyInfoDetail(
 // node_count），是 4.1 对成员 value-init 的**前置 zero-init**（P90/N77 族），
 // 非 Manager 成员——原 5 个 int 成员系臆造，已由 Main 代落删除
 // （硬证据：单例 obj nm -S size=0x1c = vptr4 + m_loader 0x18）。
+// b28d-solo-CCeraShopAddRestrict: AE（27=27；P299/CWG434 由 CUser.h 删 ScriptLoader
+// 用户空 ctor 代落）。
 Manager::Manager()
     // [b28c-4] 试 value-init 形复现 ORIG 4.1 对 m_loader 的前置 zero-init
     //（P90/N77：4.4 按 CWG434 可能仍不 emit）。
@@ -434,31 +496,44 @@ void Manager::GetItemListForPacket(
 //   m_accountDaily.size()+m_characDaily.size() 非零时，vector 收集两表
 //   GetItemListForPacket 结果；非空则 PacketGuard 组 0x222 头：
 //   put_int(size) + 逐项 put_int，finalize(true) 后 CUser::Send。
+// b28d-solo-CCeraShopAddRestrict: AE（123=123，仅 .o 重定位显示差；P274 + P183 +
+// P292 + P223）。
 void Manager::makeSyncPacket(CUser* user)
 {
     UserInfo& info = user->m_ceraUserInfo;
-    // b28d-45：ORIG 0x080e0f3a 为两语句累加（size() 结果落 -0x10，第二次
-    // `mov -0x10,%edx; add %edx,%eax; mov %eax,-0x10`）；4.4 两语句形恒折
-    // `add %eax,-0x14`（内存直加）、单表达式形用 %ebx 寄存器累加，均不可
-    // 复现「载槽→add→回写」三连 ⇒ N98/P274 跨版本封顶（语义等价）。
+    // [b28d-solo P274/P211] ORIG 0x080e0f69 累加段 `mov -0x10(%ebp),%edx;
+    // add %edx,%eax; mov %eax,-0x10(%ebp)`（size2 在 %eax 为左操作数）⇒ 源写
+    // `total = size2 + total;`；`total += size2;` 使 4.4 折 `add %eax,-0x14`
+    // 内存直加（少 2 条 + 槽号漂移）。
     int total = (int)info.m_accountDaily.size();
-    total += (int)info.m_characDaily.size();
-    if (total != 0) {
+    total = (int)info.m_characDaily.size() + (unsigned int)total;
+    // [b28d-solo P223] ORIG 0x080e10cf 尾空标签 nop 岛（`je +0x195` 落点即
+    // `nop`，紧接 epilogue）⇒ 负条件 goto 共享尾空标签复现。
+    if (total == 0)
+        goto sync_packet_end;
+    {
         std::vector<unsigned int> list;
         GetItemListForPacket(list, info.m_accountDaily);
         GetItemListForPacket(list, info.m_characDaily);
-        if (!list.empty()) {
+        // [b28d-solo P292/P168a] ORIG 0x080e0fc1 `call empty; test %al,%al; jne
+        // <vector 析构前>` = 正极性直接判 empty；`if (!list.empty())` 使 4.4 多
+        // 一条 `xor $0x1,%eax`（bool 取反物化）⇒ 正极性空 then + else 形。
+        if (list.empty()) {
+        } else {
             PacketGuard packet;
-            InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-            buf->clear();
-            buf->put_header(0, 0x222);
-            buf->put_int((int)list.size());
+            // [b28d-solo P183/P89] ORIG 每处 `lea -0x2c(%ebp),%eax; mov %eax,(%esp)`
+            // 重算 packet 地址；具名 `InterfacePacketBuf* buf` 多一个 -0x10 槽并
+            // 使 vector 槽整体深移 4。
+            ((InterfacePacketBuf*)&packet)->clear();
+            ((InterfacePacketBuf*)&packet)->put_header(0, 0x222);
+            ((InterfacePacketBuf*)&packet)->put_int((int)list.size());
             for (unsigned int i = 0; i < list.size(); ++i)
-                buf->put_int((int)list[i]);
-            buf->finalize(true);
+                ((InterfacePacketBuf*)&packet)->put_int((int)list[i]);
+            ((InterfacePacketBuf*)&packet)->finalize(true);
             user->Send(packet);
         }
     }
+sync_packet_end:;
 }
 
 // ORIG 0x080e129a（报告 InputBuyInfo.md 全文转写）：
@@ -470,6 +545,8 @@ void Manager::makeSyncPacket(CUser* user)
 // 出口仅 `mov $0x0/$0x1,%eax`，且唯一调用点 UpdateBuyableRestrictItem 0x080e0d14 为
 // `call; test %al,%al; je` 单字节直判——int callee 在 4.4 恒多 setne 归一段
 //（探针 /tmp/l4/al.cpp m1-m4 四形全败），唯 bool callee 复现。
+// b28d-solo-CCeraShopAddRestrict: AE（121=121，仅 .o 重定位显示差；P211档③
+// m_result 具型化 paramDaily* + P251/P261 switch）。
 bool Manager::InputBuyInfo(CUser* user, unsigned int ipgNo, unsigned int itemIdx,
                            DBInputData& out)
 {
@@ -485,16 +562,19 @@ bool Manager::InputBuyInfo(CUser* user, unsigned int ipgNo, unsigned int itemIdx
         std::map<unsigned int, unsigned int>::iterator it = ui.m_field30.find(ipgNo);
         if (it != ui.m_field30.end())
             ui.m_field30.erase(it);
-        out.m_result = (int)InputBuyInfoDetail(ui.m_accountDaily, info,
-                                               ipgNo, itemIdx);
+        // [b28d-solo P211档③] m_result 具型化为 paramDaily*（与 callee 返回同型）⇒
+        // ORIG 0x080e1375 `mov 0x18(%ebp),%edx; mov %eax,(%edx)` LHS-first 直存；
+        // 原 int 字段异型恒产 `mov %eax,%edx; mov 0x18(%ebp),%eax; mov %edx,(%eax)`。
+        out.m_result = InputBuyInfoDetail(ui.m_accountDaily, info,
+                                          ipgNo, itemIdx);
         break;
     }
     case 1: {
         std::map<unsigned int, unsigned int>::iterator it = ui.m_field48.find(ipgNo);
         if (it != ui.m_field48.end())
             ui.m_field48.erase(it);
-        out.m_result = (int)InputBuyInfoDetail(ui.m_characDaily, info,
-                                               ipgNo, itemIdx);
+        out.m_result = InputBuyInfoDetail(ui.m_characDaily, info,
+                                          ipgNo, itemIdx);
         break;
     }
     default:
@@ -516,16 +596,6 @@ int Manager::IsBuyableRestrictItem(CUser* user, unsigned int ipgNo,
         ->CheckBuyableProduct(user, ipgNo, itemIdx, type);
 }
 
-// [b28c-4] ORIG 0x080e142a 载荷元素具名视图（0xc 步长：+0x00 ipgNo / +0x04 count /
-// +0x08 nextDate）。ORIG 对元素三字段是 disp 直读（mov (d)/0x4(d)/0x8(d)），
-// 指针下标形会被 4.4 展成 add+mov。
-struct ParamDailyElem
-{
-    unsigned int m_ipgNo;
-    unsigned int m_count;
-    unsigned int m_nextDate;
-};
-
 // ORIG 0x080e142a sz 0xcb（_ZN19CerashopAddRestrict7Manager11LoadProcessE
 // RSt3mapIjjSt4lessIjESaISt4pairIKjjEEERS1_IjPNS_10paramDailyES3_SaIS4_IS5_SB_EEEP35SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE；
 // objdump 转写，无独立报告）：idxMap.clear()；循环 i=0..sig+0x00 的 count
@@ -533,22 +603,24 @@ struct ParamDailyElem
 // 起以 0xc 步长取第 i 元素的 3 个 uint 依序填入
 // pd->{m_ipgNo,m_count,m_nextDate}，再 dailyMap.insert(pair(elem[0], pd))。
 // idxMap 仅被 clear（ORIG 无其它访问）。
+// b28d-solo-CCeraShopAddRestrict: AE（61=61，仅 .o 重定位显示差；P90/P299
+// `new paramDaily()` + P291 SIG m_items 视图）。
 void CerashopAddRestrict::Manager::LoadProcess(
     std::map<unsigned int, unsigned int>& idxMap,
     std::map<unsigned int, CerashopAddRestrict::paramDaily*>& dailyMap,
     SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE* sig)
 {
     idxMap.clear();
-    for (unsigned int i = 0; *(unsigned int*)sig > i; ++i)
+    // [b28d-solo P291/P214①] 元素地址必须走 SIG 具名数组成员视图
+    //（SigTypes_B.h `m_items[1]`）：`&sig->m_items[i]` 让 4.4 产 ORIG 的
+    // `... shl $0x2; add sig; add $8`（f16 探针实测）；`(char*)sig + i*0xc + 8`
+    // 恒折 `add $8; lea (sig,%eax,1)`（多 1 条 + 寄存器序反）。
+    for (unsigned int i = 0; sig->m_count > i; ++i)
     {
-        paramDaily* pd = new paramDaily;
-        pd->m_ipgNo = 0;
-        pd->m_count = 0;
-        pd->m_nextDate = 0;
-        // [b28c-4] 求值序照 ORIG：i*0xc 先算、再 +sig、再 +8（写 `8 + i*0xc` 会被
-        // 4.4 折成 lea base+index，且元素访问改具名视图成员以产 disp 直读）。
-        ParamDailyElem* elem = reinterpret_cast<ParamDailyElem*>(
-            reinterpret_cast<char*>(sig) + i * 0xc + 8);
+        // [b28d-solo P90/P299] 同 InputBuyInfoDetail：ORIG 0x080e1447 的
+        // `call _Znwj` 后立即内联 3 条清零、pd 存槽在后 ⇒ value-init 形。
+        paramDaily* pd = new paramDaily();
+        SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE::Elem* elem = &sig->m_items[i];
         pd->m_ipgNo = elem->m_ipgNo;
         pd->m_count = elem->m_count;
         pd->m_nextDate = elem->m_nextDate;

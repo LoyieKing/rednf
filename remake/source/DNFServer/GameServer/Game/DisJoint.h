@@ -26,7 +26,21 @@ struct DisJointResult
 {
     DisJointResult();  // ORIG _ZN14DisJointResultC1Ev W 0x082347a2
 
-    int m_f[10];       // +0x00..+0x24（10 int）
+    // [b28d-solo-ItemUpgradeVtableB2] ctor 0x082347a2 的第二组清零是
+    // `mov -0x4(%ebp),%edx; mov 0x8(%ebp),%eax; add $0x4,%edx;
+    //  movl $0x0,0x4(%eax,%edx,4)`（偏移 0x14 拆成索引 add 4 + disp 4）⇒
+    // 原码是**两个独立数组成员**（各 5 int）而非单数组 m_f[i+5]（4.4 对后者
+    // 恒折 lea 5(%eax)，探针 fA..fF 与 c1/c2 复证）。加 union 双视图后
+    // 具名 m_a/m_b 访问即逐条复现（探针 c7）。
+    union
+    {
+        int m_f[10];   // +0x00..+0x24（10 int，全量兼容视图）
+        struct
+        {
+            int m_a[5];  // +0x00..+0x13
+            int m_b[5];  // +0x14..+0x27
+        };
+    };
 };  // sizeof == 0x28
 
 // ---- LotteryInfo：唯一权威声明见 LotteryInfo.h（原本地副本删除，布局一致；

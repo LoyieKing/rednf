@@ -56,17 +56,30 @@ static __thread char gNumberToStringBuffer[8][0x40];
 // 符号、链接不合并，.tbss 变 0x210、缓冲区偏移错误地变成 GS-0x210。
 // 删除伪造定义后，仅保留 libstdc++ 提供的唯一副本，TLS 布局恢复 GS-0x208。
 
-// b28d-20 判词（ORIG 0x0810904b，22 insn）：IDENTICAL_AE（AE 归一后逐条相等，
-// compare_tu clean 口径）。唯一残差为 TLS LE 偏移：ORIG `lea -0x3c550(%eax)` vs
-// 我方 `.o` 未解析 `lea 0x0(%eax)`（链接后 -0x208），属跨 TU TLS 组合并布局
-// （P280 族，链接期产物，非本函数源码可控），无源码改动。
+// [b28d-solo-DNFFunctionLib] AE（ORIG 0x0810904b，22 insn）——本泳道 fresh 复验：
+// /tmp/tu_DNFFunctionLib.o `_Z14NumberToStringji` 22/22 逐条同序，唯 3 处重定位差：
+// ①TLS LE `lea 0x0(%eax),%eax`+R_386_TLS_LE ↔ ORIG `lea -0x3c550(%eax),%eax`；
+// ②`movl $0x0,0x4(%esp)`+R_386_32 .rodata ↔ ORIG `movl $0x8b446ea`（"%u"）；
+// ③`call sprintf`+R_386_PC32 ↔ ORIG `call sprintf@plt`。函数体形 =
+// `sprintf(gNumberToStringBuffer[index], "%u", value); return
+// gNumberToStringBuffer[index];`（P0：无具名局部，实参/返回值右值直传；二维 TLS
+// 数组使 &buf[index] 折 lea 而非 add）。残差归因：TLS LE 偏移属跨 TU/链接期 TLS 组
+// 布局（P280 族）；.o 重定位标签差属 P264 显示口径 —— game_func_report
+// --no-compile 因 md 撞名（NumberToString.md 为 ji 基线）假报 DIFF，TU 口径 ae。
+// 无源码改动；无 register asm 绑定（P0 合规）。
 char* NumberToString(unsigned int value, int index) {
     sprintf(gNumberToStringBuffer[index], "%u", value);
     return gNumberToStringBuffer[index];
 }
 
-// b28d-20 判词（ORIG 0x08109098，29 insn）：IDENTICAL_AE，同 ji 版；
-// 残差仅 TLS LE 偏移 -0x3c550 vs 我方 -0x208（P280 族），无源码改动。
+// [b28d-solo-DNFFunctionLib] AE（ORIG 0x08109098，29 insn）——本泳道 fresh 复验：
+// /tmp/tu_DNFFunctionLib.o `_Z14NumberToStringyi` 29/29 逐条同序，唯 3 处重定位差：
+// ①TLS LE `lea 0x0(%eax),%eax`+R_386_TLS_LE ↔ ORIG `lea -0x3c550(%eax),%eax`（两处）；
+// ②`movl $0x3,0x4(%esp)`+R_386_32 .rodata ↔ ORIG `movl $0x8b446ed`（"%qu"）；
+// ③`call sprintf`+R_386_PC32 ↔ ORIG `call sprintf@plt`。函数体形同 ji 版；ulonglong
+// 形参的 -0x10/-0xc 双槽 + %ecx 缓存 buffer 地址为 i386 8 字节实参 ABI 拆分形
+// （ORIG 同形，非具名局部）。残差归因同上（P280 TLS 组布局 / P264 重定位显示口径）。
+// 无源码改动；无 register asm 绑定（P0 合规）。
 char* NumberToString(unsigned long long value, int index) {
     sprintf(gNumberToStringBuffer[index], "%qu", value);
     return gNumberToStringBuffer[index];

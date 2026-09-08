@@ -56,23 +56,9 @@ struct stAvatarEmblemInfo_t;  // 定义在 CInventory.h / AuctionItem.h（30B，
 // ORIG checkBonusPoint 0x868ec5c：getWpBonusPoint()/getExpBonusPoint() 返回
 // 8 字节视图 {int type; int value;}；type==0 → 加 CUserCharacInfo 基础值
 // (m_base)、type==1 → 加百分比附加值 (m_add)，value 为加数。
-struct WpBonusPointData
-{
-    // ORIG W ctor 0x08513a6e（独立符号，调 out-of-line clear()）→ ctor/clear 均 out-of-line。
-    WpBonusPointData();
-    void clear();
-    int m_type;     // +0x00（0=基础 / 1=附加）
-    int m_value;    // +0x04
-};
-
-struct ExpBonusPointData
-{
-    // ORIG W ctor 0x08513a9a（独立符号，调 out-of-line clear()）→ ctor/clear 均 out-of-line。
-    ExpBonusPointData();
-    void clear();
-    int m_type;     // +0x00（0=基础 / 1=附加）
-    int m_value;    // +0x04
-};
+// [b28d-solo-CEquipItem] WpBonusPointData/ExpBonusPointData 定义已按 §4.4 下沉到
+// STItemScript.h（与 STEquipmentScript 的 m_wpBonus81c/m_expBonus824 统一为同一类型；
+// 经 CItem.h → STItemScript.h 在本头可见），此处不再重复定义。
 
 class STEquipmentScript;
 
@@ -197,7 +183,13 @@ public:
     char m_randomGrade;                    // +0x1c9
     float m_field1cc;                      // +0x1cc (ORIG flds 位读)
     int m_field1d0;                        // +0x1d0
-    int m_field1d4;                        // +0x1d4
+    // [b28d-solo-CEquipItem] ORIG set_item 0x0850fe2e 段 `mov 0x60c(%eax),%edx` 为
+    // float→int 位拷贝单条 disp；`*(int*)&float` 取址形 4.4 恒 add+mov（N107）⇒
+    // 本字段包匿名 union 增 float 位视图（sizeof/偏移/mangled 不变，仅 +0x1d4 增一别名）。
+    union {
+        int m_field1d4;                    // +0x1d4
+        float m_assaultCostDiscount;       // +0x1d4（float 位视图）
+    };
     char m_auraOptionType;                 // +0x1d8
     int m_auraOptionValue;                 // +0x1dc
     WpBonusPointData m_wpBonus1e0;         // +0x1e0（8 字节：type@+0x1e0/value@+0x1e4；与 m_field1e0..1e4 同布局）

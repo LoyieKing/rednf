@@ -837,7 +837,11 @@ public:
     // ORIG caller Dispatcher_DepositMoney::dispatch_sig 0x0822508c `test %al,%al; je`
     // 直判 ⇒ bool 返回（int 下 4.4 产 setne 归一段；DispS18 证据/Main 代落 batch-18）
     bool WithdrawMoney(unsigned int money);
-    int CheckMoneyLimit(unsigned int money);
+    // [b28d-solo-CAccountCargo 代落 P292/P168a] int→bool：ORIG 0x0828a1f0 段
+    // `call <CheckMoneyLimit>; xor $0x1,%eax; test %al,%al; je`（bool callee 判据）；
+    // int 声明产 `test %eax,%eax; sete %al`。定义在 CAccountCargo.cpp（返回 0/1），
+    // 返回类型不入 mangled；消费点仅 CAccountCargo.cpp:396。
+    bool CheckMoneyLimit(unsigned int money);
     void AddMoney(unsigned int money);
     void SubMoney(unsigned int money);
     unsigned int GetMoney();
@@ -1457,7 +1461,12 @@ struct InfoDaily
 struct paramDaily
 {
     unsigned int m_ipgNo;  // +0x00
-    int m_count;           // +0x04
+    // [b28d-solo-CCeraShopAddRestrict P211档③ 代落] int→unsigned int：
+    // ORIG InputBuyInfoDetail 0x080e11fb `mov (%eax),%eax; mov %eax,%edx; add mem,%edx;
+    // mov this,%eax; mov %edx,(%eax)`（形参 count 为 unsigned，mangled ...jj 不可动）；
+    // 字段 int 形多 1 条且目标寄存器错。sizeof/偏移/mangled 不变；消费点仅
+    // CCeraShopAddRestrict.cpp + DB_CerashopAddRestrict.cpp（后者已显式 cast）。
+    unsigned int m_count;  // +0x04
     int m_nextDate;        // +0x08
 };
 
@@ -1468,7 +1477,12 @@ public:
     // 调用点不生成析构/异常清理调用）。
     DBInputData() : m_result(0), m_pInfo(0) {}
 
-    int m_result;         // +0x00（InputBuyInfo 写入结果：1=已登记）
+    // [b28d-solo-CCeraShopAddRestrict P211档③ 代落] int→paramDaily*：
+    // ORIG 0x080e1375 / 0x080e1404 调用点 `call InputBuyInfoDetail; mov 0x18(%ebp),%edx;
+    // mov %eax,(%edx)` 为同型 LHS-first 直存；int 字段（callee 返回 paramDaily*）
+    // 反产异型 RHS-first + 中转（InputBuyInfo 121 vs 123）。sizeof 0x8/偏移/mangled
+    // 不变；DB_CerashopAddRestrict.cpp:85/102 的 reinterpret_cast 同型仍合法。
+    paramDaily* m_result;  // +0x00（InputBuyInfo 写入 InputBuyInfoDetail 的 paramDaily* 结果）
     InfoDaily* m_pInfo;   // +0x04
     // b28c C28L4 代落（Main）：原 char m_pad[0x8]（sizeof 0x10，Lane2R 推定）删除。
     // 证据：①ORIG W C1/C2 0x080e243c 仅 2 条 zero store（+0/+4）；②DB_SaveCerashopAddRestrictType
@@ -1481,7 +1495,11 @@ public:
 class ScriptLoader
 {
 public:
-    ScriptLoader() {}
+    // [b28d-solo-CCeraShopAddRestrict P299/CWG434 代落] 删用户默认 ctor：
+    // ORIG Manager::C1 0x080e09bc 在调 ScriptLoader::C1 前对 m_loader(+0x08..+0x18)
+    // 发 5 条 movl $0（value-init 前置清零）；用户提供的空 ctor 会抑制该清零。
+    // 隐式 ctor 仍发射 W C1/C2（map 成员非平凡，体同 ORIG size 0x13）。
+    // sizeof/mangled/全部偏移不变；全仓仅 CCeraShopAddRestrict.cpp 消费本类。
     ~ScriptLoader() {}
 
     int LoadScript();
@@ -2916,10 +2934,14 @@ public:
     void ReturnToSelectCharacList(bool param);
     void LogoutCachedCharacter(unsigned char param);
     void SetCharacInfo(int slot, char* data);
-    int SetCharacLevel(int level);
-    // 返回 int：ORIG 调用点 test %al 消费返回值（Model22 桥清点证据；定义 W7_UserOnlyC.cpp
-    // :455 与桥行 DisPatcher_DebugCommand_cmds.cpp:92 由 Model22 同步归正）。
-    int SetSkillLevel(int skillIdx, int level);
+    // [b28d-solo-DisPatcher_DebugCommand_cmds 代落 P248档①] int→bool：ORIG
+    // 0x0858f496 `call SetCharacLevel; xor $1,%eax; test %al,%al; je`（!=1 物化，
+    // bool 唯一解）；定义 CUser.cpp:6419 返回 0/1，消费点 Dispatchers.cpp:2946
+    // `int result = ...` 保持 0/1 语义。返回类型不入 mangled。
+    bool SetCharacLevel(int level);
+    // 同上：ORIG 0x0858eb1c `call SetSkillLevel; test %al,%al; je`（无 setne/xor）；
+    // 定义 W7_UserOnlyC.cpp:464 返回 0/1。
+    bool SetSkillLevel(int skillIdx, int level);
     void onSelectCharacter();
     void select_charac_set_visible_values(char value);
     void UpdateCharacView();
@@ -3359,9 +3381,10 @@ public:
     void master_new_skill(stBuySkillInfo& info, bool flag);                    // 0x0866afa2
     bool master_new_skills(_Mastered_skill* skills,                          // 0x0866b53e
                            ENUM_SKILL_TREE_KIND kind);
-    // 返回 int：ORIG 0x0867b048 尾 `mov eax,0x1;ret`、早退 mov eax,0（Model22 实证；
-    // 消费点 Arad:362/369 忽略值、CEventCharacterHandler:357 if 兼容，mangled 不变）
-    int ChangeGrowType_GM(int a, int b);                                       // 0x0867b048
+    // [b28d-solo-DisPatcher_DebugCommand_cmds 代落 P248档①] int→bool：ORIG
+    // 0x0858ef58 `call ChangeGrowType_GM; test %al,%al; je`（无 setne）；定义
+    // CUser.cpp:6658 返回 0/1，消费点 Arad:362/369 忽略值。返回类型不入 mangled。
+    bool ChangeGrowType_GM(int a, int b);                                      // 0x0867b048
     int AddItem(int itemIdx, int count, eItemAddReason reason,                 // 0x0867b6d4
                 ENUM_ITEMSPACE& space, int slot);
     void ReCalcChattingEmoticon();                                             // 0x08689a22
@@ -3622,7 +3645,11 @@ public:
         void SetMissionParameter(int kind, int value);                      // @0x08662558
         void setPcRoomPlayTimeData(unsigned int startTime, unsigned int total, unsigned char rewardCnt);  // @0x0868f808
         void SetPuUser(bool flag);                                          // @0x08692b58
-        int  SetPvpRecord(PvpResultType& record);                           // @0x0864deea(ORIG 恒返 1)
+        // [b28d-solo-Inter_LoadEtc_impl 代落 P292/P248档①] int→bool：ORIG 调用点
+        // Inter_LoadEtc::SetPvpRecord 0x084c2983 `call; xor $0x1,%eax; test %al,%al; je`
+        // （bool callee 唯一形）；定义 CUserOnlyOrig.cpp:6762 恒返回 1。
+        // 返回类型不入 mangled（_ZN5CUser12SetPvpRecordER13PvpResultType 不变）。
+        bool SetPvpRecord(PvpResultType& record);                           // @0x0864deea(ORIG 恒返 1)
         void setQuestPoint(int qp);                                         // @0x0868acfe
         void SetReceivedRequestType(char type);                             // @0x082308cc W
         void setRecipeEqiupmentOption(Inven_Item& outItem, stEquipCondition cond, int matUpgrade,

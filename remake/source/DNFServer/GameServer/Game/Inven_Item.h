@@ -23,7 +23,15 @@ class STEnchantedSkillOption
 public:
     void reset();
 
-    unsigned char m_field;   // +0x00
+    // +0x00：ORIG reset 0x080cb778 三段位清掩码 = 0xfe/0xf9/0x7 ⇒ 1+2+5 位域
+    // 布局（bit0 标志 / bit1-2 类型 / bit3-7 技能 id；名称为 [推断]，ORIG 无
+    // DWARF 成员名）。外部消费点（CItemUpgrade.cpp 等）按整体字节 m_field
+    // 读写，故保留标量别名；sizeof 1 / 偏移零影响。
+    union
+    {
+        unsigned char m_field;   // +0x00（整体字节口径）
+        struct { unsigned char m_flag:1, m_type:2, m_skillId:5; } m_bits;
+    };
 };
 
 class RandomOptionField
@@ -131,8 +139,20 @@ class ChronicleRandomOptionInfo
 public:
     void reset();
 
-    STEnchantedSkillOption m_skill0;  // +0x00
-    STEnchantedSkillOption m_skill1;  // +0x01
+    // [b28d-solo-CItemUpgrade] ORIG make3rdChroniclePacket 0x0854aa86 以索引访问
+    // 两附魔槽：`mov i,%eax; mov &item,%edx; movzbl 0x1f(%edx,%eax,1),%eax`
+    // （0x1f = Inven_Item::m_random 偏移 + 本类 +0x00，disp 折叠）。
+    // 用 `(&m_skill0.m_field)[i]` 取址形 4.4 恒先 lea 0x1f 再 lea 索引（+2 条/处，
+    // P235 判据）⇒ 匿名 union 增数组视角。sizeof/偏移/mangled 零变化。
+    union
+    {
+        struct
+        {
+            STEnchantedSkillOption m_skill0;  // +0x00
+            STEnchantedSkillOption m_skill1;  // +0x01
+        };
+        unsigned char m_enchFields[2];        // +0x00..+0x01 数组视角
+    };
     int m_field2;                     // +0x02
     RandomOption m_random;            // +0x06
 };
@@ -214,6 +234,13 @@ public:
         ITEM_TYPE_9 = 9,
         ITEM_TYPE_10 = 10,
         ITEM_TYPE_INVALID = 0xb
+    };
+
+    // ORIG 嵌套枚举（mangled _ZN10Inven_Item10INVEN_SLOTE；CMailBoxHelper
+    // make_pair 第二参类型证据 0x08553672/0x08553407）。零布局影响。
+    enum INVEN_SLOT
+    {
+        INVEN_SLOT_0 = 0
     };
 
     bool m_field0;                 // +0x00（ORIG bool：movzbl;xor $0x1;test %al,%al 惯用式，WarRoom::HandleItemDrop 0x086bfad7）

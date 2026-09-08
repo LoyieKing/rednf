@@ -21,9 +21,7 @@
 // 非多态 POD（8 字节两 int，无 vtable/typeinfo）；属主 TU 提供真实空析构，
 // 供 vector<AdditionalDungeonInfo>（QuestScript::m_field16c）析构实例化引用。
 // ============================================================================
-AdditionalDungeonInfo::~AdditionalDungeonInfo()
-{
-}
+
 
 void CDungeonExpStatistic::InsertDatabase()
 {

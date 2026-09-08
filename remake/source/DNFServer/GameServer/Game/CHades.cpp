@@ -122,21 +122,17 @@ void CHades::ExpUp(unsigned int flag)
 // ORIG 0x084b9718：缓存(m_connSec) 与 proxy 当前连接秒数不一致则重登并同步 cate=3。
 bool CHades::needLogin()
 {
-    // b28d-D42 verdict=NEAR [N7/N22] ORIG 0x084b9718 orig/ours=28/28 ndiff=3。
-    // 残差仅 cmp 操作数序（ORIG cmp %eax,%ebx vs 我们 cmp %ebx,%eax）与
-    // setne %al↔%bl（P78 汇聚寄存器跨版本差）；交换源码操作数实测不可翻。
-    // ORIG 将缓存值保持在 callee-saved 寄存器（push %ebx）并经 setne/test 判定，
-    // register 限定符诱导相同分配形态。
-    // b26 N 封顶（N22）：残差仅 cmp %eax,%ebx / setne %al / test %al vs
-    // cmp %ebx,%eax / setne %bl / test %bl——call 结果与缓存值比较方向 4.4
-    // 恒反，交换源码操作数（cached != f()）实测不可翻。
-    // [b28c-16 实证保留] C28L28 口径「默认不留 register，删除即劣化才保留」：
-    // 删 register 后本件 NEAR→DIFF（帧 $0x14→$0x28 + cached/differ 双槽往返
-    // + push/pop %ebx 消失）⇒ 值确需跨 GetHadesSocketConnSec 保活，保留裸形。
+    // b28d-solo-CHades verdict=NEAR [N22] ORIG 0x084b9718 orig/ours=28/28
+    // （check_tu_routed 口径 NEAR，残差 1 处）。
+    // 唯一残差 = cmp 操作数序：ORIG `cmp %eax,%ebx`（dst=缓存局部）vs 4.4
+    // `cmp %ebx,%eax`（dst=call 结果）——N22「4.4 恒把 call 结果当 dst」；
+    // 探针六形（操作数交换 / unsigned / short / !(==) / 具名 cur）全产
+    // `cmpl %ebx,%eax`，不可翻。
+    // setne 目标寄存器差（%al↔%bl）已消：删「register bool differ 具名局部」、
+    // 条件直写 if（探针 fA setne %bl → fC setne %al）。register int cached 为
+    // P231 纯存储类提示（非 asm 绑定），保 callee-saved 免槽跨 call 保活。
     register int cached = m_connSec;
-    register bool differ =
-        (GlobalData::s_hades_proxy->GetHadesSocketConnSec() != cached);
-    if (differ)
+    if (GlobalData::s_hades_proxy->GetHadesSocketConnSec() != cached)
     {
         Send_Login();
         StdCateUpdate(3, 0);
@@ -186,9 +182,12 @@ void CHades::Send_Login()
 // PC房 IP(+0x28) 非空时，清零输出缓冲后拷贝该 IP。
 void CHades::GetIP(char* out)
 {
-    // b28d-D42 verdict=DIFF [N102] ORIG 0x084b9774 orig/ours=38/37 ndiff=20。
-    // 残差为 `add $0x8e418,%eax; movzbl (%eax),%eax` 两步寻址被 4.4 折成
-    // 单条 `movzbl 0x8e418(%eax),%eax`（N102 七种源形探针全败）+ 尾 nop 对齐豁免。
+    // b28d-solo-CHades verdict=DIFF [N102] ORIG 0x084b9774 orig/ours=40/39，
+    // 唯一残差 = ORIG `add $0x8e418,%eax; movzbl (%eax),%eax` 两步数组退化读被
+    // 4.4 折成单条 `movzbl 0x8e418(%eax),%eax`（N102：下标/*arr/指针局部/数组
+    // 引用/嵌套成员八形探针全折 disp，唯裸偏移出 add 而 §4.3 禁）。
+    // 两处 nop 岛（+0x84/+0x87）已由下方双否定 goto + L1/L2 尾空标签串复现
+    // （P223/BM8），strncpy 源实参的数组退化 `add` 形亦已同构。
     m_user->m_network.GetPeerIP2(out, 4);
     // [b28c-16] P223/BM8 尾标签串：ORIG `jne +0x84(nop)/je +0x87(nop)/体尾
     // jmp +0x88` 三岛 ⇒ 两否定 goto + L1/L2 空标签串（4.4 对嵌套 if 恒
@@ -281,10 +280,12 @@ void CHades::Send_ChangeGold()
 void CHades::RunHadesAction(unsigned int a1, unsigned int a2, unsigned int a3,
                             unsigned int a4, char* a5)
 {
-    // b28d-D42 verdict=DIFF [P78/N78] ORIG 0x084b95bc orig/ours=98/102 ndiff=100。
-    // 汇聚变量 punish 4.1 留 %al、4.4 固定 %bl（P78 实证件，register 裸形已用，
-    // P231 三条件满足仍差寄存器名）；语义等价封顶。
-    register bool punish;
+    // b28d-solo-CHades verdict=AE [P214①] ORIG 0x084b95bc orig/ours=98/98
+    // （check_tu_routed 口径 AE；.o 级 diff 仅未解析 call/jcc 重定位）。
+    // 汇聚条件直写 `if ((a1&1)!=0 && !isHackUserTimer())` 即复现 ORIG
+    // `je 岛; call; xor $1; test; je 同岛; mov $1; jmp; 岛: mov $0; test %al; je`
+    // 及 `sub $0x28` 保守帧；旧「register bool punish + if(punish)」多
+    // `mov %eax,%ebx` + push %ebx 且 setne 落 %bl（P78 假象，非不可翻）。
 
     if (a1 != 0x40)
         m_user->m_historyLog.HadesHistoryLog(a1, a2, a3, a4);
@@ -296,8 +297,7 @@ void CHades::RunHadesAction(unsigned int a1, unsigned int a2, unsigned int a3,
         DB_HadesPunish::makeRequest(m_user->get_acc_id(), 2, a2, a3, a4, a5);
     }
 
-    punish = (a1 & 1) != 0 && !m_user->isHackUserTimer();
-    if (punish)
+    if ((a1 & 1) != 0 && !m_user->isHackUserTimer())
     {
         m_user->setHackUserFlag();
         m_user->setHackUserTimer();

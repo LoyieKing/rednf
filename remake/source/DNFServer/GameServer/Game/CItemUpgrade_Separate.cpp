@@ -99,27 +99,24 @@ IItemUpgrade::IItemUpgrade() {}                               // ORIG T 0x080fc8
 IItemUpgrade::~IItemUpgrade() {}                              // ORIG T 0x080fc842（非虚）
 
 // ORIG T 0x080fc850：put_header(1,cmd) → 虚调槽 0 → 0=finalize+Send / 否则错误包。
-// [b28d-51] 判词 N（ORIG 0x080fc850，N82/N89 族）：帧/槽方向差 + 模板实例差集；
-// 语义/调用集齐，byte 层封顶。
+// [b28d-solo-CItemUpgrade_Separate] AE：`while (result == 0) { …; return; }` + 尾随
+// else 体复现 ORIG 的 `cmpl $0; sete %al; test %al,%al; je <else>` 物化 + then 尾
+// 共享尾 jmp（探针 /tmp/b28d_51/p7.cpp g 逐条全等；if/else 形 4.4 恒折 jne 直跳）。
+// 虚调目标 %edx 亦已对齐（原 N7 残余随 S125 CDataManager.h static 化后消失）。
 void IItemUpgrade::item_upgrade_system(CUser* user, MSG_ITEM_UPGRADE* msg, int cmd)
 {
     int result = 0;
     PacketGuard pg;
     pg.put_header(1, cmd);
     result = this->ProcUpgrade(user, msg, &pg);
-    // [b27 封顶] 残差：ORIG 槽比零 sete 物化（P197④ 反形）；4.4 直形恒 jne
-    // 直跳，bool 中转形反多 cmpb 槽读（实测 +3）——sete 形不可造。
-    // 另虚调用 call 目标 ORIG %edx vs 4.4 恒 %eax（N7）。
-    if (result == 0)
+    while (result == 0)
     {
         pg.finalize(true);
         user->Send(pg);
+        return;
     }
-    else
-    {
-        user->SendCmdErrorPacket2Byte(static_cast<ENUM_CMDPACKET>(cmd),
-                                      static_cast<unsigned short>(result & 0xffff));
-    }
+    user->SendCmdErrorPacket2Byte(static_cast<ENUM_CMDPACKET>(cmd),
+                                  static_cast<unsigned short>(result & 0xffff));
 }
 
 // ============================ GenuineDamageUpgradeTable ============================
@@ -133,13 +130,16 @@ GenuineDamageUpgradeTable::~GenuineDamageUpgradeTable() {}    // ORIG W 0x0811ee
 // ORIG T 0x08912a54。浮点读取：statWeightsByRarity[rarity]（this+(rarity+8)*4）
 // 与 weaponWeights[a][b]（this+((6a+b)+12)*4+8）；分母 *(int*)this；useAlt 选择
 // info.m_b / info.m_a；尾 +0.5f（DAT_08e122e8）后截断。
-// [b28d-51] 判词 N（ORIG 0x08912a54，N85/N82 族）：x87 比较/返回形态跨版本差
-// + 帧槽方向差；语义/调用集齐，byte 层封顶。
+// [b28d-solo-CItemUpgrade_Separate] 重写：ORIG 为 result 具名 float（P232 扩展二段
+// 零初始化）、altBias 运行时 flds/fmulp/fstps（pointFive/two 必须非 const 静态量，
+// 否则 4.4 折 fld1）、if/else 两臂各自完整计算（非三目共享 multiplier）、
+// 乘法书写序 m_b*(count/divisor+altBias)*weapon*stat 使 4.4 浮点栈序与 ORIG 逐条一致。
 int GenuineDamageUpgradeTable::getGenuineUpgradeDamage(ENUM_RARITY rarity, int a, int b,
                                                        int key, int count, bool useAlt)
 {
-    static const float pointFive = 0.5f;   // ORIG .data 093f4fb0
-    static const float two = 2.0f;         // ORIG .data 093f4fb4
+    static float pointFive = 0.5f;   // ORIG .data 093f4fb0（非 const ⇒ 4.4 不折 fld1）
+    static float two = 2.0f;         // ORIG .data 093f4fb4
+    float result = 0.0f;
     const float altBias = two * pointFive;
 
     if (key == 0)
@@ -147,26 +147,43 @@ int GenuineDamageUpgradeTable::getGenuineUpgradeDamage(ENUM_RARITY rarity, int a
         return 0;
     }
 
-    // P48 no-CSE：ORIG 三元两分支各 fresh m_infos[key]（operator[] 共 2 次）。
-    const int multiplier = useAlt ? m_infos[key].m_b : m_infos[key].m_a;
-
-    float result =
-        m_statWeightsByRarity[static_cast<int>(rarity)] *
-        m_weaponWeights[a][b] *
-        (static_cast<float>(count) / static_cast<float>(m_divisor) + altBias) *
-        static_cast<float>(multiplier);
+    // P48 no-CSE：ORIG 两臂各 fresh m_infos[key]（operator[] 共 2 次），且各臂
+    // 完整展开乘链（非三目共享）。
+    if (useAlt)
+    {
+        result = static_cast<float>(m_infos[key].m_b) *
+                 (static_cast<float>(count) / static_cast<float>(m_divisor) + altBias) *
+                 m_weaponWeights[a][b] *
+                 m_statWeightsByRarity[static_cast<int>(rarity)];
+    }
+    else
+    {
+        result = static_cast<float>(m_infos[key].m_a) *
+                 (static_cast<float>(count) / static_cast<float>(m_divisor) + altBias) *
+                 m_weaponWeights[a][b] *
+                 m_statWeightsByRarity[static_cast<int>(rarity)];
+    }
 
     result += kRoundHalf;
     return static_cast<int>(result);
 }
 
 // ORIG T(_ZNK…) 0x08912b88。
-// [b28d-51] 判词 N（ORIG 0x08912b88，N82 族）：表查找槽序/帧方向差；
-// 语义/调用集齐，byte 层封顶。
+// [b28d-solo-CItemUpgrade_Separate] 重写：eps 死局部（-0x14，P232 扩展 float 二段
+// 常量初始化）、count 具名预置 0（-0x10）、factor 1.0f 两句式（1.0f 落槽不被折）、
+// 乘加拆两句（ORIG 不融合 fmuls/fadds）、第二次 end 检查照抄 ORIG 的 it==m_infos.end()
+// 重复形（ORIG 0x08912c90 lea 0x158 实证；mit 无 end 检查，缺键时 ORIG/我方同为
+// 越界解引用，行为一致）。p167 8=8 CLEAR。判词 N（N95/N82 + N92/N18a 族）：残余 =
+// ①4.4 浅槽基恒比 ORIG 深 8（eps/count/factor -0x1c/-0x18/-0x14 vs -0x14/-0x10/-0xc；
+// 帧 0x58 vs 0x68，加 char[0x10]/double pad 只会整体平移 0x10，N95 不可上移）；
+// ②ORIG `mov -0x50,%eax; mov -0x4c,%edx` 的 64 位宽读 vs 4.4 只读低 dword（N92）。
 int GenuineDamageUpgradeTable::getGenuineUpgradeMaterialCnt(unsigned char growth, int sepLv,
                                                             ENUM_EQUIPMENTTYPE type,
                                                             ENUM_RARITY rarity) const
 {
+    const float eps = 1e-7f;      // ORIG -0x14 dead init（0x33d6bf95 立即数）
+    (void)eps;
+
     if (type != static_cast<ENUM_EQUIPMENTTYPE>(10))
     {
         return -1;
@@ -176,7 +193,9 @@ int GenuineDamageUpgradeTable::getGenuineUpgradeMaterialCnt(unsigned char growth
         return -1;
     }
 
-    float factor = 1.0f * m_itemWeightsByRarity[static_cast<int>(rarity)];
+    int count = 0;
+    float factor = 1.0f;
+    factor = m_itemWeightsByRarity[static_cast<int>(rarity)] * factor;
 
     std::map<int, GenuineDamageUpgradeInfo>::const_iterator it =
         m_infos.find(sepLv + 1);
@@ -186,19 +205,19 @@ int GenuineDamageUpgradeTable::getGenuineUpgradeMaterialCnt(unsigned char growth
     }
     // ORIG 0x08912b88：pt() 后 flds 0x10(%eax) = pair+0x10 = value+0xc = m_goldRate
     // （import 第 4 值；m_materialRate +0x10 从不被 import 写入）
-    factor = kMatEpsilon.f + factor * it->second.m_goldRate;
+    factor = it->second.m_goldRate * factor;
+    factor = kMatEpsilon.f + factor;   // ORIG 0x08912c59：flds factor 先于 flds kMatEpsilon
 
     std::map<int, GenuineDamageUpgradeMaterialInfo>::const_iterator mit =
         m_materials.find(static_cast<int>(growth));
-    if (mit == m_materials.end())
+    if (it == m_infos.end())   // ORIG 照抄：第二次检查对象仍是 it/m_infos（0x08912c90）
     {
         return -1;
     }
 
-    const float scaled =
-        static_cast<float>(mit->second.m_materialCount) * factor;
-    const long long wide = static_cast<long long>(scaled);   // ORIG fistpll
-    int count = static_cast<int>(wide);                      // 取低 dword
+    const long long wide = static_cast<long long>(
+        static_cast<float>(mit->second.m_materialCount) * factor);   // ORIG fistpll
+    count = static_cast<int>(wide);                                  // 取低 dword
     if (count == 0)
     {
         return 1;
@@ -208,21 +227,24 @@ int GenuineDamageUpgradeTable::getGenuineUpgradeMaterialCnt(unsigned char growth
 
 // ORIG T 0x08912d10（sret 返回；静态局部 temp 经 __cxa_guard 初始化）。
 // [b28c-32] verdict=DIFF：N86/N82（sret 按值返回类对象 + 函数局部 static guard 临时槽跨版本差）。
-// [b28d-51] 判词 N（ORIG 0x08912d10，N86/N82 族）：sret 按值返回 + 函数局部
-// static guard 临时槽跨版本差；语义/调用集齐，byte 层封顶。
+// [b28d-solo-CItemUpgrade_Separate] 修布局：`if (m_maxLevel < key) return temp;` 早返形
+// 复现 ORIG 0x08912d53 的 `jge <find块>` 正极性（旧 `>=` 包裹形 4.4 产 `jl <temp块>` 反向
+// 布局）。残余 N86/N82：ORIG 两处独立 temp 拷贝块 vs 4.4 共享尾块（sret/临时槽跨版本差）。
 OutLineEFFECTInfoTemp GenuineDamageUpgradeTable::getEffectInfo(int key)
 {
     static OutLineEFFECTInfoTemp temp;
 
-    if (m_maxLevel >= key)
+    if (m_maxLevel < key)
     {
-        std::map<int, OutLineEFFECTInfoTemp>::iterator it =
-            m_effects.find(key);
-        std::map<int, OutLineEFFECTInfoTemp>::const_iterator cit(it);
-        if (cit != m_effects.end())
-        {
-            return cit->second;
-        }
+        return temp;
+    }
+
+    std::map<int, OutLineEFFECTInfoTemp>::iterator it =
+        m_effects.find(key);
+    std::map<int, OutLineEFFECTInfoTemp>::const_iterator cit(it);
+    if (cit != m_effects.end())
+    {
+        return cit->second;
     }
     return temp;
 }
@@ -236,11 +258,13 @@ namespace WongWork
 // new CMTRand(time) 存 +0x18c → 100 次 randInt(m_randRange) 热身。
 CItemUpgrade_Separate::CItemUpgrade_Separate()
 {
-    // [b28d-51] 判词 N（0x0811dfc0，N98/N82附 槽分配方向族）：ORIG time 临时@-0x24/
-    // range@-0x20（4.1 按声明序深→浅）；4.4 按首次使用序浅→深 ⇒ 临时恒 -0x20、
-    // 具名 range 恒 -0x24。四形实测均不可翻：①range 前置声明 ②声明移至 new 后
-    // ③range 落循环体块作用域 ④裸 register/(void)&range；具名 seed 另致 lea 延后到
-    // new 之后（更差）。帧 0x2c/指令 80=80 全等，仅 2 处槽号差 ⇒ N 封顶。
+    // [b28d-solo-CItemUpgrade_Separate] 判词 N（0x0811dfc0，N98/N82附 族）：两形互斥，
+    // 4.4 下不可兼得——①匿名临时实参形：lea -0x24,%esi 提前于 _Znwj 且 %esi 跨 call
+    // 保活（与 ORIG 同），但槽序反（临时 -0x20/range -0x24）；②具名 seed 形（含
+    // register/const/引用 cast/语句表达式/range 声明后置/全头部声明共 11 形，探针
+    // /tmp/b28d_51/p1..p5）：槽序正（seed -0x24/range -0x20/i -0x1c）但 lea 恒延后到
+    // _Znwj 之后落 %edx。ORIG = 提前 lea + 深槽。取①（NEAR：助记符序列全等，仅 2 处
+    // 槽号差）不取②（DIFF）。语义/调用集齐，byte 层封顶。
     m_randRange = 100000;
     unsigned long range;
     m_rand = new CMTRand(static_cast<unsigned long>(time(0)));
@@ -276,30 +300,35 @@ int CItemUpgrade_Separate::_GetPenaltyType(unsigned char /*a*/, ENUM_RARITY /*ra
 }
 
 // ORIG T 0x0811e2e2。
-// [b28d-51] 判词 N（ORIG 0x0811e2e2，N82/N86 族）：map find sret 槽阶梯 +
-// 帧方向差；语义/调用集齐，byte 层封顶。
+// [b28d-solo-CItemUpgrade_Separate] 判词 N（ORIG 0x0811e2e2，setcc-fold + N7 族）：
+// 修法——条件内联 GetUpgradeSeparate（含 0x0811e30e 死调用，p167 11=11 CLEAR）、
+// rarity/itemType 内联实参、gold 走 long long+fistpll。残余：①ORIG `!(a()>b)` 的
+// `jg;mov $1/%0;test` 物化 vs 4.4 `setle;test` 直跳（setcc-fold，跨版本后端差）；
+// ②虚调目标 ORIG %edx vs 4.4 %eax + rarity/itemType 的 %ebx/%esi 角色互换（N7，
+// P230 判 4.4.6 后端敏感族）。帧 push esi/ebx+sub $0x50 与 ORIG 全等；语义/调用集齐。
 bool CItemUpgrade_Separate::_GetUpgradeInfo(const Inven_Item* item, const CItem* citem,
                                             const GenuineDamageUpgradeTable& table,
                                             STUpgradeInfo* out, int level)
 {
-    const unsigned char sepLv =
-        static_cast<unsigned char>(item->m_upgradeSep.GetUpgradeSeparate());
-    if (!(sepLv > static_cast<unsigned char>(table.m_maxLevel)))
+    // [b28d-solo-CItemUpgrade_Separate] ORIG 0x0811e2f3/0x0811e30e：条件内联
+    // GetUpgradeSeparate（4.1 `!(a() > b)` 求值两次，第二次结果丢弃）+ movzbl/int 比较
+    // （jg 有符号），复现两次调用 + jg 形。
+    if (!(static_cast<int>(item->m_upgradeSep.GetUpgradeSeparate()) > table.m_maxLevel))
     {
+        (void)item->m_upgradeSep.GetUpgradeSeparate();   // ORIG 0x0811e30e 死调用（结果丢弃）
         return false;
     }
 
     const unsigned char growth =
         static_cast<unsigned char>(
             reinterpret_cast<const CEquipItem*>(citem)->getGrowthGrade(level));
-    const int rarity = citem->get_rarity();
-    const int itemType = citem->GetItemType();
+    // ORIG 0x0811e34d/0x0811e35f：rarity→%ebx、itemType→%esi 内联实参（无具名槽）。
     const int materialCnt = table.getGenuineUpgradeMaterialCnt(
         growth,
         static_cast<int>(static_cast<unsigned char>(
             item->m_upgradeSep.GetUpgradeSeparate())),
-        static_cast<ENUM_EQUIPMENTTYPE>(itemType),
-        static_cast<ENUM_RARITY>(rarity));
+        static_cast<ENUM_EQUIPMENTTYPE>(citem->GetItemType()),
+        static_cast<ENUM_RARITY>(citem->get_rarity()));
     if (materialCnt < 0)
     {
         return false;
@@ -315,12 +344,21 @@ bool CItemUpgrade_Separate::_GetUpgradeInfo(const Inven_Item* item, const CItem*
     }
 
     out->m_materialCnt = materialCnt;
-    // ORIG 0x0811e138：pt() 后 flds 0xc(%eax) = pair+0xc = value+0x8 = m_levelRate
-    out->m_gold = static_cast<int>(kGoldBase * it->second.m_levelRate);
+    // ORIG 0x0811e138：pt() 后 flds 0xc(%eax) = pair+0xc = value+0x8 = m_levelRate；
+    // fistpll 64 位截断后取低 dword（ORIG 0x0811e445 + mov -0x38/-0x34）。
+    const long long goldWide =
+        static_cast<long long>(kGoldBase * it->second.m_levelRate);
+    out->m_gold = static_cast<int>(goldWide);
     return true;
 }
 
 // ORIG T 0x0811e138（const）。
+// [b28d-solo-CItemUpgrade_Separate] 判词 N（ORIG 0x0811e138，N7 族）：修法——haveCount
+// 直用 matItem.m_addInfo2（%edi 跨调用保活）、rarity/itemType/sepLv 全部内联实参、
+// materialItemIdx 具名槽、m_fieldb 双零扩展 32 位比较、两次独立虚调 GetItemType
+// （P282 真语义缺口已补）。p167 10=10 CLEAR；gap=1（133 vs 132）。残余仅 N7：
+// 虚调目标 ORIG %edx vs 4.4 %eax、rarity/itemType 的 %ebx/%esi 角色互换及实参槽
+// 0xc/0x10 互换（P230 判 4.4.6 后端敏感族）。
 int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_Item& item,
                                            const CItem* citem, const Inven_Item& matItem,
                                            const GenuineDamageUpgradeTable& table,
@@ -335,25 +373,23 @@ int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_It
     {
         return 1;
     }
-    if (matItem.m_addInfo != mit->second.m_materialItemIdx)
+    const int materialItemIdx = mit->second.m_materialItemIdx;   // ORIG -0x1c 具名槽
+    if (matItem.m_addInfo != materialItemIdx)
     {
         return 0x16;
     }
 
-    const unsigned int haveCount = matItem.m_addInfo2;         // Inven_Item +0x07（int，具名字段）
-
-    // [b28d-51] P282/P48：ORIG 0x0811e1fa 与 0x0811e24e 两次独立虚调
-    // citem->GetItemType()（vptr+0xc），求值序 rarity→itemType→sepLv；
-    // 旧码缓存 itemType 单次调用 ⇒ 调用点差集缺 1 个虚调（真语义缺口）。
-    const int rarity = citem->get_rarity();
-    const int itemType = citem->GetItemType();
-    const unsigned char sepLv =
-        static_cast<unsigned char>(item.m_upgradeSep.GetUpgradeSeparate());
-    const int needCnt = const_cast<GenuineDamageUpgradeTable&>(table)
-                            .getGenuineUpgradeMaterialCnt(growth, sepLv,
-                                                          static_cast<ENUM_EQUIPMENTTYPE>(itemType),
-                                                          static_cast<ENUM_RARITY>(rarity));
-    if (haveCount < static_cast<unsigned int>(needCnt))
+    // [b28d-solo-CItemUpgrade_Separate] ORIG 0x0811e1e2：haveCount 直用 matItem.m_addInfo2
+    // （%edi 跨调用保活），rarity/itemType/sepLv 全部内联实参（%ebx/%esi/%edx，右→左求值）；
+    // P282/P48：0x0811e1fa 与 0x0811e24e 两次独立虚调 citem->GetItemType()（vptr+0xc）。
+    if (matItem.m_addInfo2 <
+        static_cast<unsigned int>(const_cast<GenuineDamageUpgradeTable&>(table)
+            .getGenuineUpgradeMaterialCnt(
+                growth,
+                static_cast<int>(static_cast<unsigned char>(
+                    item.m_upgradeSep.GetUpgradeSeparate())),
+                static_cast<ENUM_EQUIPMENTTYPE>(citem->GetItemType()),
+                static_cast<ENUM_RARITY>(citem->get_rarity()))))
     {
         return 0x16;
     }
@@ -361,8 +397,9 @@ int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_It
     {
         return 0x13;
     }
-    if (item.m_fieldb !=
-        static_cast<unsigned short>(
+    // ORIG 0x0811e271：movzwl 0xb(%eax),%eax + movzwl %ax,%ebx（双零扩展 ⇒ 32 位比较）
+    if (static_cast<int>(item.m_fieldb) !=
+        static_cast<int>(
             reinterpret_cast<const CEquipItem*>(citem)->get_endurance()))
     {
         return 7;
@@ -378,7 +415,13 @@ int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_It
 }
 
 // ORIG T 0x0811e468。
-// [b28d-51] 判词 N（ORIG 0x0811e468，N82 族）：帧/槽方向差；语义/调用集齐。
+// [b28d-solo-CItemUpgrade_Separate] 判词 N（ORIG 0x0811e468，setcc-fold/N2 族；p167
+// 6=6 CLEAR）：形 k
+// （探针 /tmp/b28d_51/p9.cpp k）复现 gold@-0xc、limit@%ebx 跨 randInt 保活、range@-0x10、
+// 「limit 先求值→range 内联赋值→randInt」求值序、push %ebx+sub $0x24 帧。残余 5 条：
+// ORIG 的 failed 为 4.1 寄存器化分支赋值（`jae;mov $1,%eax;jmp;mov $0,%eax;test %al,%al;je`），
+// 4.4 对 `<` 恒 setcc（setb+test+je）且具名 bool 恒槽化（register/无初始化/两分支赋值
+// p/q/m 三形实测：setb+分支写槽或 setb %bl），跨版本后端差不可造。语义/调用集齐。
 bool CItemUpgrade_Separate::_DoProcUpgrade(CUser* user, Inven_Item* item,
                                            const STUpgradeInfo* info)
 {
@@ -395,21 +438,18 @@ bool CItemUpgrade_Separate::_DoProcUpgrade(CUser* user, Inven_Item* item,
         }
     }
 
-    bool failed = false;
-    if (info->m_gold != 0)
+    const int gold = info->m_gold;
+    if (gold != 0)
     {
-        const unsigned int limit =
-            static_cast<unsigned int>(info->m_gold * 10);
-        unsigned long range = m_randRange;
-        const unsigned int roll =
-            static_cast<unsigned int>(m_rand->randInt(range));
-        failed = limit < roll;
+        unsigned long range;
+        if (static_cast<unsigned int>(gold * 10) <
+            static_cast<unsigned int>(m_rand->randInt(range = m_randRange)))
+        {
+            return false;
+        }
     }
-    if (!failed)
-    {
-        item->m_upgradeSep.IncUpgradeSeparate();
-    }
-    return !failed;
+    item->m_upgradeSep.IncUpgradeSeparate();
+    return true;
 }
 
 // ORIG T 0x0811e53a：header 0x56 全服广播分离强化结果。
@@ -432,15 +472,20 @@ void CItemUpgrade_Separate::_NoticeUpgrade(const CUser* user, const Inven_Item& 
 }
 
 // ORIG T 0x0811e66e：vtable 槽 0 主流程。
-// [b28d-51] 判词 N（ORIG 0x0811e66e，N82 巨件族）：PacketGuard 与多分支槽复用
-// 方向差（调用集/指令集齐）；按 §6.2 判语义完成、byte 层封顶。
+// [b28d-solo-CItemUpgrade_Separate] 判词 N（ORIG 0x0811e66e，N7 + setcc-fold 族）：
+// 修法——matItem 默认构造+赋值（补 Inven_Item::C1Ev）、第三次 getCurCharacInvenW、
+// get_charac_level 两处内联、success 三目展开为 if/else（补第 5 个 put_byte call）、
+// IsRandomOption 正极性两臂各自内联 makeGuild/GetUpgrade/GetUpgradeSeparate、
+// msg 槽位改 movzwl 零扩展、find_item 链式 receiver。p167 43=43 CLEAR（0 missing/
+// 0 extra）。残余：虚调目标 %eax vs %edx（N7）+ `cond!=0` setne 物化（setcc-fold）；
+// 帧 push edi/esi/ebx 与 ORIG 全等。按 §6.2 判语义完成、byte 层封顶。
 int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
                                        PacketGuard* packet)
 {
     CInventory* invenW = user->getCurCharacInvenW();
 
     Inven_Item item = invenW->GetInvenSlot(INVEN_TYPE_EQUIP,
-                                           static_cast<short>(msg->m_targetSlot));  // MSG_ITEM_UPGRADE +0x1b
+                                           msg->m_targetSlot);  // MSG_ITEM_UPGRADE +0x1b（movzwl 零扩展）
     if (item.isEmpty())
     {
         return 4;
@@ -451,15 +496,18 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         return 4;
     }
 
-    Inven_Item matItem = invenW->GetInvenSlot(INVEN_TYPE_EQUIP,
-                                              static_cast<short>(msg->m_materialSlot));  // +0x23
+    // ORIG 0x0811e6f5/0x0811e7e9：matItem 先 Inven_Item::C1Ev 默认构造（-0xf6），
+    // 再由 GetInvenSlot 的 sret 临时（-0x138）逐字段隐式赋值拷贝。
+    Inven_Item matItem;
+    matItem = invenW->GetInvenSlot(INVEN_TYPE_EQUIP,
+                                   msg->m_materialSlot);  // +0x23（movzwl 零扩展）
     if (matItem.isEmpty())
     {
         return 0x16;
     }
 
-    CDataManager* dataMgr = G_CDataManager();
-    CItem* citem = dataMgr->find_item(item.m_addInfo);
+    // ORIG 0x0811e80d：item.m_addInfo 先入 %ebx 跨 G_CDataManager call 保活（P52 链式）。
+    CItem* citem = G_CDataManager()->find_item(item.m_addInfo);
     if (citem == 0)
     {
         return 4;
@@ -467,14 +515,15 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
 
     const GenuineDamageUpgradeTable* table = getUpgradeInfoTable();
     STUpgradeInfo info;
-    const int level = user->get_charac_level();
 
-    if (!_GetUpgradeInfo(&item, citem, *table, &info, level))
+    // ORIG 0x0811e850/0x0811e8a1：get_charac_level 两处内联独立调用（P48 无 CSE）。
+    if (!_GetUpgradeInfo(&item, citem, *table, &info, user->get_charac_level()))
     {
         return 0xd;
     }
 
-    const int cond = _CheckCondition(user, item, citem, matItem, *table, level);
+    const int cond = _CheckCondition(user, item, citem, matItem, *table,
+                                     user->get_charac_level());
     if (cond != 0)
     {
         return cond;
@@ -496,7 +545,9 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
     packet->put_byte(1);
     packet->put_short(matSlot);
 
-    Inven_Item refreshed = invenW->GetInvenSlot(INVEN_TYPE_EQUIP, matSlot);
+    // ORIG 0x0811e94a：第三次 getCurCharacInvenW（receiver 右值直落）。
+    Inven_Item refreshed =
+        user->getCurCharacInvenW()->GetInvenSlot(INVEN_TYPE_EQUIP, matSlot);
     packet->put_int(refreshed.get_add_info());
     packet->put_byte(static_cast<char>(sepOld));
 
@@ -505,7 +556,15 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         _NoticeUpgrade(user, item, success);
     }
 
-    packet->put_byte(success ? 0 : 1);
+    // ORIG 0x0811ea54：三目两臂各发独立 put_byte call（4.4 折单 call 丢 1 个调用点）。
+    if (success)
+    {
+        packet->put_byte(0);
+    }
+    else
+    {
+        packet->put_byte(1);
+    }
 
     const unsigned char sepNow =
         static_cast<unsigned char>(item.m_upgradeSep.GetUpgradeSeparate());
@@ -519,19 +578,27 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         invenW->update_item(INVEN_TYPE_EQUIP, slot, item);
     }
 
-    user->m_historyLog.SeparateUpgradeItem(citem->get_index(), sepOld, sepNow, success);
+    // ORIG 0x0811eb91：sepNow 实参内联 GetUpgradeSeparate（不用 -0x1c 变量）。
+    user->m_historyLog.SeparateUpgradeItem(
+        citem->get_index(), sepOld,
+        static_cast<int>(item.m_upgradeSep.GetUpgradeSeparate()), success);
 
-    const char* guildName;
-    if (!citem->IsRandomOption())
+    // ORIG 0x0811ebd8/0x0811ec41：IsRandomOption 正极性两臂，各自内联完整实参
+    // （makeGuild/GetUpgrade/GetUpgradeSeparate 各 2 次调用）。
+    if (citem->IsRandomOption())
     {
-        guildName = citem->GetItemName();
+        user->makeGuildItemSeparateUpgradMessage(
+            msg->m_28, sepOld,
+            static_cast<int>(item.m_upgradeSep.GetUpgradeSeparate()), success,
+            item.GetUpgrade());
     }
     else
     {
-        guildName = msg->m_28;   // MSG_ITEM_UPGRADE +0x28（guild 名串）
+        user->makeGuildItemSeparateUpgradMessage(
+            citem->GetItemName(), sepOld,
+            static_cast<int>(item.m_upgradeSep.GetUpgradeSeparate()), success,
+            item.GetUpgrade());
     }
-    user->makeGuildItemSeparateUpgradMessage(guildName, sepOld, sepNow, success,
-                                             item.GetUpgrade());
     return 0;
 }
 
@@ -542,26 +609,29 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
 // ORIG W 0x0811ed32：低 5 位自增（模 32），保留高位（bit5=交易限制等）。
 void UpgradeSeparateInfo::IncUpgradeSeparate()
 {
-    // [b28d-51] 判词 N（ORIG W 0x0811ed32，N7 寄存器角色族）：4.1 位域 store 把
-    // 截断掩码就地施于 %eax、再 mov %eax,%ecx 插入；4.4.7/4.4.6 恒先把值挪到
-    // %edx 再掩码（多 1 条 mov，this 落 %eax）——16 形探针（/tmp/b28d_51_probe_inc*.cpp）
-    // 含位域/联合/局部/显式掩码/cast 全试均不可复现。语义等价（低 5 位 +1 模 32）。
-    m_bits.m_lo = m_bits.m_lo + 1;
+    // [b28d-solo-CItemUpgrade_Separate] AE：位域前置自增 `++m_bits.m_lo` 复现 ORIG
+    // 0x0811ed32 的「截断掩码就地施于 %eax + 再掩码写回」形（探针 /tmp/b28d_51/p6.cpp
+    // 形 b 逐条全等；`= m_lo + 1` 与 `+= 1` 恒多一条 `mov %eax,%edx` 中转）。
+    ++m_bits.m_lo;
 }
 
 // ============================ CUser 公会公告 ============================
 
 // ORIG T 0x0867a242：成功且新等级>5 用 game_server_msg_248；失败且旧等级>5 用
 // game_server_msg_249；前缀 game_server_msg_247 取 10 字节；长度<120 才发公会板。
-// [b28d-51] 判词 N（ORIG 0x0867a242，N82/N89 族）：std::string 临时槽 + 模板
-// 实例跨版本差；语义/调用集齐，byte 层封顶。
+// [b28d-solo-CItemUpgrade_Separate] 判词 N（ORIG 0x0867a242，N78/N82/N89 族）：
+// 修法——4 处 `char X[N]` 改 `= {0}` 初始化、board 声明序前置、消除 4 个 EXTRA
+// memset call（p167 71=71 CLEAR，0 missing/0 extra）。残余：①ORIG board[120] 为
+// 4.1 内联 rep stos / tail[255] 对齐剥离展开，4.4 恒 call memset（N78）；②std::string
+// 构造/析构临时槽阶梯与模板实例跨版本差（N82/N89）；gap=10（516 vs 506）。按 §6.2
+// 判语义完成、byte 层封顶。
 void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
                                                int newLevel, bool success, int upgrade)
 {
-    char prefix[10];
-    std::memset(prefix, 0, sizeof(prefix));
-    char board[120];
-    std::memset(board, 0, sizeof(board));
+    // ORIG 0x0867a257/0x0867a26d：board[120] rep stos 先、prefix 三条 movl/movl/movw
+    // 后（声明序 board 在前；显式 memset 会多发 4 个 call，p167 EXTRA 实证）。
+    char board[120] = {0};
+    char prefix[10] = {0};
 
     const char* prefixStr =
         g_scriptStringManager_.findString(4, "game_server_msg_247",
@@ -581,8 +651,7 @@ void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
         std::string line(prefix);
         std::string body(msgBuf);
 
-        char tail[255];
-        std::memset(tail, 0, sizeof(tail));
+        char tail[255] = {0};
         if (upgrade == 0)
         {
             std::sprintf(tail, "%s %d", name, newLevel);
@@ -622,8 +691,7 @@ void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
         std::string line(prefix);
         std::string body(msgBuf);
 
-        char tail[255];
-        std::memset(tail, 0, sizeof(tail));
+        char tail[255] = {0};
         if (upgrade == 0)
         {
             std::sprintf(tail, "%s %d", name, oldLevel + 1);

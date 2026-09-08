@@ -31,19 +31,28 @@ public:
 extern CDataManager* G_CDataManager();
 
 // ORIG 0x898c79d：线性插值
-// [b28d-D43] N85 x87：ORIG 整数比较链 vs 4.4 fildl/fdivrp/fucomip 浮点
-// lowering（ORIG 0x0898c79d；帧 0x68 vs 0x58）。
+// [b28d-solo-CEquipItem] 逐条还原（ORIG 0x0898c79d；帧 0x68）：
+//   ① vSpan/vLevel/vDiff 三个 int 槽按 ORIG 顺序先算（vDiff=d-c 在 x87 段之前，槽 -0x24）；
+//   ② ratio 的钳位是 `ratio <= 0.0`（ORIG `fucompp;fnstsw;test $0x45,%ah;sete;test;je`），
+//      不是旧写的 `ratio == 0.0`（后者 4.4 产 fucomip+jne/jp 双跳）；
+//   ③ `double diff = (double)vDiff;` 具名局部复现 ORIG `fildl -0x24;fstpl -0x50`。
+//   x87 比较 lowering 需 -march=i486 才出 ORIG 的 fnstsw/sahf 形（P230 补；已上报 Main 路由）。
 int getLevelLinearAbility(int a, int b, int c, int d, int level)
 {
+    double diff;                                    // ORIG：声明在函数头（深槽 -0x50）
     int vSpan = b - a;                              // ORIG：先求除数（-0x2c）
     int vLevel = level - a;                         // ORIG：再求被除数（-0x28）
+    int vDiff = d - c;                              // ORIG：-0x24（在 x87 段之前）
     double ratio = (double)vLevel / (double)vSpan;
-    if (ratio == 0.0)                      // ORIG：冗余特判（设回 0），字节对齐保留
+    // ORIG `fucompp;fnstsw;test $0x45,%ah;sete;test;je` = !(x>0) 钳回 0；
+    // 4.4-i486 对 `x <= 0` 产 `test $0x5,%ah;sete`（仅掩码少 C3 位，助记符序列同 ⇒ NEAR）。
+    if (ratio <= 0.0)
         ratio = 0.0;
     if (ratio > 1.0)
         ratio = 1.0;
-    double result = floor(ratio * 1000000.0 + 0.5L);
-    double result2 = (result / 1000000.0) * (double)(d - c);
+    diff = (double)vDiff;                           // ORIG：-0x50
+    // ORIG 无具名 result 局部：floor 结果留 st0 直接续算（`fldl const;fdivrp;fmull -0x50`）。
+    double result2 = floor(ratio * 1000000.0 + 0.5L) / 1000000.0 * diff;
     int out = (int)((double)c + result2);
     if (out < 0)
         out = 0;
@@ -118,20 +127,20 @@ bool CEquipItem::IsAvatarOptionValid(char idx) const
     return 1;
 }
 
-// [b28d-D43] N18a/P248 寄存器中转：ORIG 单段 `mov 0x234(%eax),%eax; cmp` vs 4.4 多 `mov %eax,%ebx; cmp %ebx; mov %ebx,%eax`（三档类型旋钮试尽）（ORIG 0x0851388e）。
+// [b28d-solo-CEquipItem] ORIG 0x0851388e（34 条，N 封顶）：值全程寄存器直传（无槽往返）
+// ⇒ P0 判原码为内联表达式右值；4.1 对 `&&` 两侧同一 this->m_itemType 的两次读复用为单条
+// `mov 0x234(%eax),%eax`（cmp 与 shl 共用 %eax）。4.4 -O0 无该复用：内联形恒发第二次读
+// （36 条），register 局部形（P231 合法）改出 `mov %eax,%ebx; cmp %ebx; ja; mov %ebx,%eax`
+// 两条中转（同 36 条，掩码段寄存器分配差异）。两形实测（/tmp/p1/t.cpp f_inline/f_reg、
+// t2.cpp g1..g7、t3.cpp h1..h6、4.4.6 后端同形）均差 2 条 ⇒ 跨版本 CSE 结构性封顶。
 bool CEquipItem::checkItemUpgradePossible() const
 {
     if (IsImpossibleUpgrade())
     {
         return 0;
     }
-    // [b28d-D43] N18a/P248：ORIG 0x0851388e 段单段直落（`mov 0x234(%eax),%eax`
-    // 后 cmp/shl 复用 %eax），4.4 对具名局部恒多 `mov %eax,%ebx`+`mov %ebx,%eax`
-    // 两段（裸 register 保留可免槽；去 register 反而落槽 -0xc 帧 0x14→0x24，
-    // 两形实测均不可造 ⇒ 封顶）。
-    register unsigned int itemType = m_itemType;
-    if (itemType < 0x16 &&
-        ((1 << itemType) & 0x3ff400U) != 0)
+    if ((unsigned int)m_itemType < 0x16 &&
+        ((1 << (unsigned int)m_itemType) & 0x3ff400U) != 0)
     {
         return 1;
     }
@@ -269,7 +278,14 @@ bool CEquipItem::verify()
 
 // ===================== make_item（ORIG 0x851098a） =====================
 
-// [b28d-D43] N89/N82 大函数（182/184）：STL out-of-line 实例+槽分区（ORIG 0x0851098a）。
+// [b28d-solo-CEquipItem] ORIG 0x0851098a（182/184）：仅剩两处结构性残差，N 封顶。
+//   ① 位掩码段（0x08510b7f 段）ORIG 为单次读 `mov 0x234(%eax),%eax`（cmp 与 shl 共用
+//      %eax）：4.1 对 `&&` 两侧同一 this->m_itemType 的两次读复用为一次；4.4 -O0 内联形
+//      恒发第二次 `mov 0x8(%ebp),%eax; mov 0x234(%eax),%eax`（+2 条），register 局部形
+//      换成 `mov %eax,%ebx`+`mov %ebx,%eax` 两条中转（净差同）⇒ 跨版本同表达式字段读
+//      CSE 差异，封顶（探针 /tmp/p1/t.cpp f_inline/f_reg）。
+//   ② G_CEnvironment 段（0x08510ba3 段）ORIG 值先入 %eax、&item+0x15 入 %edx；4.4 恒
+//      互换（助记符序列全等仅寄存器角色互换 = N7；本 TU 已路由 4.4.6 后端仍存）。
 void CEquipItem::make_item(Inven_Item& item) const
 {
     if (IsAvatarItem())
@@ -338,6 +354,18 @@ void CEquipItem::make_item(Inven_Item& item) const
 
 // ===================== set_item（ORIG 0x850fd84） =====================
 
+// [b28d-solo-CEquipItem] ORIG 0x0850fd84（669=669 AE；p167 32/32 CLEAR）修复要点：
+//   ① 真语义 bug：`(T*)0x941f750` 把全局变量**地址**当对象指针 ⇒ 改取
+//      `GlobalData::s_pCompoundBindCube` 的**指针值**（ORIG `mov 0x941f750,%eax`，P237）；
+//   ② bool 族源字段化（P136/P300）：STItemScript/STEquipmentScript 的 11 个 char 字段
+//      （m_usable[0xb]、m_fieldd0/d9/da/10f、m_6f4/5/6、m_7ac/7bc/888）改 bool 后直存；
+//   ③ cMyTrace 全表达式临时链（P227）复现 ctor 前右起求 varargs + 跨 ctor 保活；
+//   ④ m_field1d4 包匿名 union float 视图复现单条位拷贝（N107 取址形恒 add+mov）；
+//   ⑤ Wp/ExpBonus 类型统一（stBonusPointData_t 副本删除，§4.4）+ trivial op= 整体赋值
+//      复现 P246 的 dest 缓存 %ecx 块拷贝；
+//   ⑥ m_880 char→unsigned char 复现两段零扩展装载；
+//   ⑦ m_experienceAmount float 视图（替旧 `(int)` 转换 7 条）、m_compound110/
+//      m_additionalExp120 结构整体赋值（P246）、m_auraOptionType 直存。
 void CEquipItem::set_item(STEquipmentScript& script)
 {
     m_index = script.m_field0;
@@ -359,10 +387,12 @@ void CEquipItem::set_item(STEquipmentScript& script)
     strcpy(buf, script.m_strac.c_str());
     if (!CodePage::script2Database((char*)script.m_strac.c_str(), buf))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x553, 5);
-        trace("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
-              CodePage::database(), script.m_strac.c_str(),
-              __PRETTY_FUNCTION__, 0x553);
+        // [b28d-solo-CEquipItem] ORIG 在 ctor 之前右起求 varargs 并跨 ctor 保活
+        // （edi/esi/ebx）⇒ P227 全表达式临时链形（具名 trace 会先构造后求值）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x553, 5)(
+            "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
+            CodePage::database(), script.m_strac.c_str(),
+            __PRETTY_FUNCTION__, 0x553);
     }
     m_str2c = buf;
     m_attachType = script.m_field8;
@@ -380,7 +410,9 @@ void CEquipItem::set_item(STEquipmentScript& script)
     m_stackable = 0;
     m_int58 = script.m_184;
     m_int5c = script.m_180;
-    m_randomTable.m_field10 = (int)script.m_artifact738.m_expRate;
+    // [b28d-solo-CEquipItem] ORIG `mov 0x750(%eax),%edx` 单条位拷贝 ⇒ 走 +0x10 float 视图
+    // （float=float 直搬），旧 `(int)` 转换形多 flds/fnstcw/fistpl 七条。
+    m_randomTable.m_experienceAmount = script.m_artifact738.m_expRate;
     m_randomTable.m_field14 = script.m_6bc;
     m_randomTable.m_field20 = script.m_artifact738.m_minLevel;
     if (script.m_field1b4 == 0x16)
@@ -483,7 +515,10 @@ void CEquipItem::set_item(STEquipmentScript& script)
     m_field1c0 = script.m_17c;
     if (script.m_814 != 2)
     {
-        ((ExtreamDungeon::CCompound_ExtreamDun_Item*)0x941f750)
+        // [b28d-solo-CEquipItem] ORIG `mov 0x941f750,%eax; mov %eax,(%esp)` = 取
+        // GlobalData::s_pCompoundBindCube **指针值**（+0x941f750 存的是 void*）；
+        // 旧硬编码 `(T*)0x941f750` 直传变量地址 = 真语义 bug（P237）。
+        ((ExtreamDungeon::CCompound_ExtreamDun_Item*)GlobalData::s_pCompoundBindCube)
             ->ForceResultItemRule_Setting(m_index, script.m_814 != 0,
                                           script.m_818);
     }
@@ -496,12 +531,11 @@ void CEquipItem::set_item(STEquipmentScript& script)
     m_float100 = script.m_expertJob.m_field1c;
     m_vec104.clear();
     m_vec104 = script.m_expertJob.m_usable;
-    m_compound110.m_field0 = script.m_expertJob.m_variation.m_field0;
-    m_compound110.m_field4 = script.m_expertJob.m_variation.m_field4;
+    // [b28d-solo-CEquipItem] ORIG dest 缓存 %ecx + 两读交错 = 8 字节结构整体赋值（P246）。
+    m_compound110 = script.m_expertJob.m_variation;
     m_float118 = script.m_expertJob.m_field10;
     m_float11c = script.m_expertJob.m_field14;
-    m_additionalExp120.m_field0 = script.m_expertJob.m_additionalExp.m_field0;
-    m_additionalExp120.m_field4 = script.m_expertJob.m_additionalExp.m_field4;
+    m_additionalExp120 = script.m_expertJob.m_additionalExp;
     m_set128 = script.m_set11c;
     // ORIG set_item @ 0x850fd84 +0x8a1..+0x8f9 reads STEquipmentScript
     // +0x604/+0x608/+0x60c, i.e. EquipmentParameterInfo
@@ -509,17 +543,19 @@ void CEquipItem::set_item(STEquipmentScript& script)
     // fistp sequence; the final field is copied as one dword by ORIG.
     m_field1cc = script.m_param1c0.m_upgradeCostDiscount;
     m_field1d0 = static_cast<int>(script.m_param1c0.m_upgradeProbIncrease);
-    m_field1d4 = *reinterpret_cast<const int*>(
-        &script.m_param1c0.m_assaultCostDiscount);
+    // [b28d-solo-CEquipItem] ORIG 单条 `mov 0x60c(%eax),%edx` 位拷贝 ⇒ float 视图直搬。
+    m_assaultCostDiscount = script.m_param1c0.m_assaultCostDiscount;
+    // [b28d-solo-CEquipItem] ORIG 两段装载 `movzbl 0x880(%eax),%eax; mov %eax,%edx`
+    //（源字段 unsigned char 的零扩展 + 目标 char 转换中转）。
     m_auraOptionType = script.m_880;
     m_auraOptionValue = script.m_884;
     {
         // ORIG 依字节偏移读 STEquipmentScript +0x81c/+0x820/+0x824/+0x828
         //（+0x81c/+0x820=wpBonus、+0x824/+0x828=expBonus，具名成员见 STEquipmentScript.h）。
-        m_wpBonus1e0.m_type = script.m_wpBonus81c.m_type;
-        m_wpBonus1e0.m_value = script.m_wpBonus81c.m_value;
-        m_expBonus1e8.m_type = script.m_expBonus824.m_type;
-        m_expBonus1e8.m_value = script.m_expBonus824.m_value;
+        // [b28d-solo-CEquipItem] ORIG dest 缓存 %ecx + 两读交错 = 8 字节整体赋值（P246）；
+        // 类型统一后 trivial op= 直接块拷贝，不发射符号。
+        m_wpBonus1e0 = script.m_wpBonus81c;
+        m_expBonus1e8 = script.m_expBonus824;
     }
     m_avatarAbility = script.m_param1c0.m_avatar264;
     if (script.m_890 == 1)
@@ -683,32 +719,46 @@ int CEquipItem::getAvatarPeriod(unsigned char a) const
 // ORIG 0x8150f36：填充 emblem 的小孔类型。
 // 1) 先将 m_vec180（vector<ushort>）逐项写入 emblem.stEmblemSocket[i].emblemSocketType_
 // 2) 依 slot 选择 m_avatarSelect 项并写入其 socketType 数组（index 续接）
-// [b28d-D43] N82/N95 帧/槽平移（152/165）（ORIG 0x?）。
+// [b28d-solo-CEquipItem] 逐条还原（ORIG 0x8150f36）：
+//   ① 第一循环 ORIG 无 index<5 上限（P140：ORIG 无防御就照抄直访）且 end() 循环前求值一次
+//      （P13 缓存 end）；
+//   ② slot 范围检查与 empty() 检查是**两个独立 if**（ORIG 各出一段 bool 物化，
+//      P133 独立守卫不可合并）；
+//   ③ slot==-1 分支同样缓存 end()；
+//   ④ 残余：ORIG `add $0x8,%ecx; movzwl 0x4(%eax,%ecx,2)` 是 4.1 对 +0x14 数组下标的
+//      add+disp 拆形，4.4 恒折单 disp 0x14(%eax,%edx,2)（P30/N4 结构性伪影，封顶）。
 void CEquipItem::getAvatarSocket(int slot, stAvatarEmblemInfo_t& emblem) const
 {
     size_t index = 0;
-    for (std::vector<unsigned short>::const_iterator it = m_vec180.begin();
-         it != m_vec180.end() && index < 5; ++it, ++index)
+    std::vector<unsigned short>::const_iterator it = m_vec180.begin();
+    std::vector<unsigned short>::const_iterator e = m_vec180.end();
+    for (; it != e; ++it)
+    {
         emblem.stEmblemSocket[index].emblemSocketType_ = *it;
+        index++;
+    }
 
-    if (slot < -1 || (unsigned)slot >= m_avatarSelect.size() ||
-        m_avatarSelect.empty())
+    if (slot < -1 || slot >= (int)m_avatarSelect.size())
+        return;
+    if (m_avatarSelect.empty())
         return;
 
     int selIndex = slot;
     if (slot == -1)
     {
         // 找第一个 m_field10 > 0 的选项
-        std::vector<stAvatarTypeSelect_t>::const_iterator it =
+        std::vector<stAvatarTypeSelect_t>::const_iterator it2 =
             m_avatarSelect.begin();
-        while (it != m_avatarSelect.end())
+        std::vector<stAvatarTypeSelect_t>::const_iterator e2 =
+            m_avatarSelect.end();
+        while (it2 != e2)
         {
             ++selIndex;
-            if (it->m_field10 > 0)
+            if (it2->m_field10 > 0)
                 break;
-            ++it;
+            ++it2;
         }
-        if (it == m_avatarSelect.end())
+        if (it2 == e2)
             return;
     }
 
@@ -716,7 +766,8 @@ void CEquipItem::getAvatarSocket(int slot, stAvatarEmblemInfo_t& emblem) const
     if (index + (size_t)p->m_field10 > 4)
         return;
 
-    for (int i = 0; i < p->m_field10; ++i, ++index)
+    // ORIG 增量段序：先 index++ 再 i++（`addl $0x1,-0x18` 在 `addl $0x1,-0xc` 之前）。
+    for (int i = 0; i < p->m_field10; ++index, ++i)
         emblem.stEmblemSocket[index].emblemSocketType_ = p->m_socketType[i];
 }
 
@@ -767,12 +818,13 @@ int CEquipItem::get_hatch_item_id() const
 }
 
 // ===================== RandomItemTable::Set（G6 物品表；ORIG T 0x89bba40）=====================
-// ORIG 反汇编（89bba40）语义：
+// [b28d-solo-CEquipItem] ORIG 0x089bba40 逐条还原：
 //   1. m_vec4.clear(); m_field0 = 0;
-//   2. 遍历 source：取 pr.first = *it 后自增；若已到 end 则 break；
-//      否则 m_field0 += *it（累加后一个元素），m_vec4.push_back(pr)（second 保持 0），再自增。
-//   即：相邻元素配对，偶下标进 pair.first（second=0），奇下标累加进 m_field0；奇数长度时末尾丢弃。
-// [b28d-D43] N82 帧：ORIG sub $0x38 vs 4.4 push %ebx+sub $0x34（callee-saved 需求差）（ORIG 0x089bba40）。
+//   2. 遍历 source：pair 默认构造；pr.first = *it；it++；
+//      若 it == end 则 break；否则 m_field0 += *it；
+//      **pr.second = m_field0**（累计权重上界，GetRandomItemIndex 依此判定区间；
+//      旧重建漏写该赋值 = 真语义 bug）；m_vec4.push_back(pr)；it++。
+// 增量用后置 it++（ORIG 增量段为 operator++(int)/ppEi，P28 增量侧推论）。
 void RandomItemTable::Set(std::vector<int>* source)
 {
     m_vec4.clear();
@@ -782,12 +834,14 @@ void RandomItemTable::Set(std::vector<int>* source)
     {
         std::pair<int, int> pr;
         pr.first = *it;
-        ++it;
+        it++;
         if (it == source->end())
             break;
-        m_field0 += *it;
+        pr.second = *it;
+        m_field0 += pr.second;
+        pr.second = m_field0;
         m_vec4.push_back(pr);
-        ++it;
+        it++;
     }
 }
 

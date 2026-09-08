@@ -41,6 +41,14 @@ struct IsNoneUnicodeRange : public RestrictInputtingNameData
     // ORIG W _ZNK23restrict_inputting_name18IsNoneUnicodeRangeclEw 0x08ac321c：
     // return !RestrictInputtingNameData::isInRange(ch);
     bool operator()(wchar_t ch) const;
+
+    // [b28d-solo] ORIG 4.1 对谓词按值传参时从栈槽读字节（isWideStrInUnicodeRange
+    // 0x08ac2e0c `movzbl -0x11(%ebp),%edx; mov %dl,0x8(%esp)`）；4.4 对**空类**对象
+    // 做标量替换改传 `%bl`（探针 /tmp/probe_sra2.cpp：空类 push %ebx+sub $0x24+mov %bl，
+    // 带 1 字节成员 sub $0x28+movzbl -N(%ebp)）。加 1 字节成员后 4.4 复现槽读取；
+    // sizeof 仍 1（空类 sizeof==1），基类布局/全部偏移/mangled/符号集零变化，
+    // C1 体仍只调基类 C1（ORIG 亦不写该字节）。无业务语义，仅恢复 ORIG 字节传递形态。
+    char m_reserved;
 };
 
 bool isWideStrInUnicodeRange(const wchar_t* str);      // ORIG T 0x08ac2de4

@@ -27,7 +27,11 @@ private:
 
     unsigned int m_tcpCount; // +0x00（ORIG %10 用无符号魔数除法）
     unsigned int m_udpCount; // +0x04
-    LogEntry m_logs[20];     // +0x08：[0..9]=TCP，[10..19]=UDP
+    // +0x08：二维具名视图 [0][0..9]=TCP、[1][0..9]=UDP（ORIG 0x0859926c/0x0859940e 实证
+    // 4.4 对 `m_logs[1][idx]` 发 `mov idx,%r; add $0xa,%r; mov d(%base,%r,8)` 两步索引形；
+    // 一维 `m_logs[idx+10]` 恒被折成 `lea 0xa(%r)` 单条 ⇒ P30/N81 反例解 = P291 具名数组视图）。
+    // sizeof/偏移不变：2*10*8 = 20*8 = 0xa0，m_logs 起点仍 +0x08。
+    LogEntry m_logs[2][10];
 
     static_assert(sizeof(LogEntry) == 8, "CPacketTracer::LogEntry size");
 };

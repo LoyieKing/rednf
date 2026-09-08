@@ -92,6 +92,9 @@ bool CEpoll<CSession>::UnregisterSession(CSession* session)
 //             sendRet=OnSend()，<0 时 evOk=false。
 //   ERR|HUP(0x18)：OnError 失败 → Unregister+Disconnect。
 //   任一事件失败将 ok 置 false 并继续遍历（循环尾恒返回 true）。
+// [b28d-solo-ExchangeServer_Infra 判词·N（P168a③b 跨版本 bool ABI）] 唯一残差 =
+// OnConnect 后 ok 回读形（ORIG `movzbl -0x1d; test %al,%al` vs 4.4 恒折
+// `cmpb $0,-0x1d`，五形实测不可翻，详见函数体内注释）。170 vs 169 封顶。
 template <>
 bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
 {
@@ -146,9 +149,14 @@ bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
             if ((session->GetTriggerSessionEventType() & 0x10) != 0)
             {
                 ok = session->OnConnect();
-                if (ok)                  // [b28-L11 判 N] ORIG 回读 movzbl+test 形 4.4 恒折
-                                         //   cmpb $0,slot（uchar cast 亦被折，实测）——
-                                         //   源形不可择，与 hunk1 P75 装载时刻差同封顶。
+                // [b28d-solo-ExchangeServer_Infra 判词·N（P168a③b 跨版本 bool ABI）]
+                // ORIG 0x8496089 回读形 `movzbl -0x1d(%ebp),%eax; test %al,%al; je`；
+                // 4.4 对 bool 局部条件恒折单条 `cmpb $0x0,-0x1d(%ebp); je`（少 1 条）。
+                // 本波实测五形全部同折：(unsigned char)ok / (int)ok / (unsigned int)ok /
+                // 局部类型改 uchar（反使 `if(!ok)` 段也折 cmpb）/ `*reinterpret_cast<
+                // unsigned char*>(&ok)`（多 lea+movzbl 且 ok 槽 -0x1d→-0x29 帧漂）。
+                // 语义等价（bool 域内 test 与 cmp $0 同判），封顶。
+                if (ok)
                     session->SetTriggerSessionEventType(0x7);
             }
             else if ((session->GetTriggerSessionEventType() & 0x2) != 0)
@@ -236,9 +244,14 @@ bool CSessionManager<CSession, PacketGuard, CEpoll>::TryListen(
 {
     CSession* session = 0;
     session = CSession::Listen(port, ip);
-    register bool z asm("al") = (session == 0);
-    if (z)
+    // [b28d-solo-ExchangeServer_Infra] P0/N96 清绑：ORIG 0x8495592 段
+    // `cmpl $0x0,-0xc(%ebp); sete %al; test %al,%al; je`（无 z 槽）⇒ P225
+    // while+break 族（原 `register bool z asm("al")` 已删）。
+    while (session == 0)
+    {
         return 0;
+        break;
+    }
     return RegisterSession(session, 8);
 }
 
@@ -252,10 +265,10 @@ bool CSessionManager<CSession, PacketGuard, CEpoll>::TryConnect(
     CSession* session = CSession::Connect(ip, port);
     if (session == 0)
         return false;
-    register unsigned char v asm("eax") =
-        static_cast<unsigned char>(RegisterSession(session, 0x14));
-    v ^= 1;
-    if (v)
+    // [b28d-solo-ExchangeServer_Infra] P0/N96 清绑：RegisterSession 返回 bool
+    // ⇒ P168a 定论裸形 `if (!boolcall())` 直产 ORIG 0x8495548 段
+    // `call; xor $0x1,%eax; test %al,%al; je`（原 uchar v 绑定已删）。
+    if (!RegisterSession(session, 0x14))
         return false;
     session->AddTriggerSessionEventType(0x10);
     return true;
@@ -292,6 +305,9 @@ CCacheCharacterMgr::~CCacheCharacterMgr()
 
 // AcquireCharacter ORIG 0x8490a8a：map 命中→memset+刷新 cacheTime 直接复用；
 // 未命中且池空→CollectGarbage 回收，仍无则失败返回 0；否则池 Acquire+清零。
+// [b28d-solo-ExchangeServer_Infra 判词·AE] 三路（命中直返 / 池空回收失败返 0 /
+// 池 Acquire 清零）与 ORIG 逐条全等；池 Acquire 后 `while (mem != 0) {…; break;}`
+// （P225）复现 ORIG 四段物化 `cmpl $0,-0xc; setne %al; test %al,%al; je`。
 CACHE_CHARACTER_TYPE* CCacheCharacterMgr::AcquireCharacter(int characNo)
 {
     Guard<Mutex> g(&m_mutex);
@@ -323,12 +339,13 @@ CACHE_CHARACTER_TYPE* CCacheCharacterMgr::AcquireCharacter(int characNo)
 
 // FreeCharacter ORIG 0x8490bf4：池 Free；(1000-remain)!=map.size() 时 cMyTrace 告警
 // （line=0x4e）。
-// [b28d-lane15 判词·N（N7/N18a 寄存器中转）] 本波已修：Size() 常量 1000（P119 头内
-// inline 4.4 恒发 call）、trace 全表达式临时链（P37/P227）、格式串按 ORIG .rodata
-// 0x08c78398 实测 "FreeCharacter() error (%d,%d,%d)" 且实参序 (1000,remain,size)。
-// 残差 2 条：ORIG `mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax; mov %eax,%ebx`
-// 四段中转 vs 4.4 `mov %edx,%ebx; sub %eax,%ebx`（N7/N18a 寄存器角色差），
-// 另一条为重定位伪差。封顶。
+// [b28d-lane15] 已修：Size() 常量 1000（P119 头内 inline 4.4 恒发 call）、trace
+// 全表达式临时链（P37/P227）、格式串按 ORIG .rodata 0x08c78398 实测
+// "FreeCharacter() error (%d,%d,%d)" 且实参序 (1000,remain,size)。
+// [b28d-solo-ExchangeServer_Infra 判词·AE] 原 N 判词（N7/N18a 四段中转不可造）作废：
+// ORIG 0x8490c31 链 `mov $0x3e8,%edx; mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax;
+// mov %eax,%ebx` 的 ecx→eax 中转来自 **unsigned 域**（P248 档③ cast 旋钮）——条件写
+// `static_cast<unsigned int>(1000 - m_pool.Remain()) != m_map.size()` 即逐条全等。
 void CCacheCharacterMgr::FreeCharacter(CACHE_CHARACTER_TYPE* mem)
 {
     Guard<Mutex> g(&m_mutex);
@@ -338,7 +355,7 @@ void CCacheCharacterMgr::FreeCharacter(CACHE_CHARACTER_TYPE* mem)
     // 4.4-O0 对同一头内定义恒发 out-of-line call（P119）。按 ORIG 形直写 1000
     // （N=1000 模板实参，语义等价；同时消掉 ORIG 不存在的 Size 调用点）。
     // 且 ORIG 的 used 无栈槽（`mov %eax,%ebx` 寄存器保活）⇒ 不设具名局部（P0）。
-    if (1000 - m_pool.Remain() != static_cast<int>(m_map.size()))
+    if (static_cast<unsigned int>(1000 - m_pool.Remain()) != m_map.size())
     {
         // [b28d-lane15] ORIG .rodata 0x08c78398 实测 = "FreeCharacter() error (%d,%d,%d)"，
         // 实参装载 0x8/0xc/0x10 = 1000 / remain / map.size()（非我方旧推断的
@@ -380,9 +397,10 @@ bool CCacheCharacterMgr::GetCacheCharacter(int characNo,
 }
 
 // CollectGarbage ORIG 0x8490992：回收 cacheTime 距今 >0x1d 秒的条目。
-// [b28d-lane15 判词·N（N82/N93 槽布局）] 残差为局部对象槽 -0x1c vs -0x18 与
-// 迭代器 cur/erase 段的槽重排（ORIG 把 erase 参数经 lea 直传，4.4 多一次槽中转）；
-// 调用序列/长度一致（72 vs 70）。语义等价，封顶。
+// [b28d-solo-ExchangeServer_Infra 判词·AE] 原 N 判词（N82/N93 槽布局）作废：
+// ORIG 0x8490a3c 增量段调 `_ZSt17_Rb_tree_iterator…ppEi`（后置 ++，带 sret 临时槽
+// -0x14）并把旧值直传 erase ⇒ 原码是 `m_map.erase(it++);`（P28 增量侧推论）；
+// 具名 cur 拷贝 + 前置 ++it 会改发 ppEv 并丢临时槽（it 槽 -0x1c→-0x18）。改后全等。
 bool CCacheCharacterMgr::CollectGarbage()
 {
     unsigned int now = static_cast<unsigned int>(time(0));
@@ -393,9 +411,11 @@ bool CCacheCharacterMgr::CollectGarbage()
         if ((int)(now - it->second->m_cacheTime) > 0x1d)
         {
             m_pool.Free(it->second);
-            std::map<int, CACHE_CHARACTER_TYPE*>::iterator cur = it;
-            ++it;
-            m_map.erase(cur);
+            // [b28d-solo-ExchangeServer_Infra] P28 增量侧推论：ORIG 0x8490a3c 段
+            // 调 `_ZSt17_Rb_tree_iteratorI...EppEi`（后置 ++，带 sret 临时槽 -0x14）
+            // 并把旧值直接作 erase 实参 ⇒ 原码是 `m_map.erase(it++);`；写成
+            // 具名 cur 拷贝 + 前置 ++it 会改发 ppEv 并丢临时槽（it 槽 -0x1c→-0x18）。
+            m_map.erase(it++);
             removed = true;
         }
         else
@@ -455,27 +475,40 @@ void CExchangeServerHitRate::Reset()
 void CExchangeServerHitRate::IncrementDBLoadCount()
 {
     ++m_dbLoadCount;
-    register bool z asm("al") = (m_dbLoadCount == 0);
-    if (z)
+    // [b28d-solo-ExchangeServer_Infra] P0/N96 清绑：ORIG 0x823466a 段
+    // `mov (%eax),%eax; test %eax,%eax; sete %al; test %al,%al; je` 且全帧无
+    // 局部槽 ⇒ P225 while+break 四段物化形（原 `register bool z asm("al")` 已删）。
+    while (m_dbLoadCount == 0)
+    {
         ++m_dbLoadOverflowCount;
+        break;
+    }
 }
 
 // IncrementCacheLoadCount ORIG 0x823468a：+4 自增，归零则 (+0xc) +1。
 void CExchangeServerHitRate::IncrementCacheLoadCount()
 {
     ++m_cacheLoadCount;
-    register bool z asm("al") = (m_cacheLoadCount == 0);
-    if (z)
+    // [b28d-solo-ExchangeServer_Infra] P0/N96 清绑（同 IncrementDBLoadCount，
+    // ORIG 0x823469a 段同形 `test; sete; test; je` 无槽）⇒ P225 while+break。
+    while (m_cacheLoadCount == 0)
+    {
         ++m_cacheLoadOverflowCount;
+        break;
+    }
 }
 
 // IncrementCacheLoadFailCount ORIG 0x848f35e：+0x10 自增，归零则 (+0x14) +1。
 void CExchangeServerHitRate::IncrementCacheLoadFailCount()
 {
     ++m_cacheLoadFailCount;
-    register bool z asm("al") = (m_cacheLoadFailCount == 0);
-    if (z)
+    // [b28d-solo-ExchangeServer_Infra] P0/N96 清绑（ORIG 0x848f36e 段同形）⇒
+    // P225 while+break 四段物化。
+    while (m_cacheLoadFailCount == 0)
+    {
         ++m_cacheLoadFailOverflowCount;
+        break;
+    }
 }
 
 int CExchangeServerHitRate::GetDBLoadCount()                 // 0x863bfb0
@@ -562,56 +595,53 @@ CExchangeServerThread::~CExchangeServerThread()
 }
 
 // dispatch ORIG 0x8493bfe（disasm 5001-5119，rodata 字符串已从 .rodata 提取）：
-// [b28d-lane15 判词·N（N93/N82 cMyTrace 槽组）] 残差为四个 cMyTrace 局部对象槽
-// -0x50 vs -0x20 的整体平移（4.4 兄弟块具名对象槽序反向，P221 族）+ 字符串重定位
-// 伪差；指令数与助记符序列一致（102=102）。语义等价，封顶。
+// [b28d-solo-ExchangeServer_Infra 判词·AE] 原 N 判词（N93/N82 cMyTrace 槽组）作废：
+// ①四个 cMyTrace 改「构造即调用」全表达式临时链（P221/P227）⇒ 槽
+// -0x50/-0x40/-0x30/-0x20 与 ORIG 全等；②msg 局部类型 int→Stream*（GetMessage
+// 原返回类型）后 DispatchMessage/FreeMessage 段 this 先装载 + `lea 0xc(%eax),%edx`
+// 与 ORIG 逐条全等（int 形 4.4 恒先装实参并折 `add $0xc,%edx`）。102=102 AE。
 void CExchangeServerThread::dispatch(void* arg)
 {
     (void)arg;
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x451, 0);
-    trace("Exchange Server Thread start! %d",
-          static_cast<int>(sizeof(CACHE_CHARACTER_TYPE)));
+    // [b28d-solo-ExchangeServer_Infra] P221/P227：ORIG 四个 cMyTrace 槽
+    // -0x50/-0x40/-0x30/-0x20（深→浅，按出现序）；具名对象形 4.4 恒反向
+    // （-0x20/-0x40/-0x50/…）⇒ 改「构造即调用」全表达式临时链复现 ORIG 槽向。
+    cMyTrace(__PRETTY_FUNCTION__, 0x451, 0)(
+        "Exchange Server Thread start! %d",
+        static_cast<int>(sizeof(CACHE_CHARACTER_TYPE)));
 
     if (!m_exchangeServer.PreparePassiveSocket())
     {
-        cMyTrace traceErr(
-            __PRETTY_FUNCTION__,
-            0x459, 0);
-        traceErr("\n\n\n\n\n\nExchange Server starting error!\n\n\n\n\n\nShudown~~");
+        cMyTrace(__PRETTY_FUNCTION__, 0x459, 0)(
+            "\n\n\n\n\n\nExchange Server starting error!\n\n\n\n\n\nShudown~~");
         exit(-1);
     }
 
     if (!m_exchangeServer.SendExchangeServerInfo())
     {
-        cMyTrace traceInfo(
-            __PRETTY_FUNCTION__,
-            0x469, 0);
-        traceInfo("SendExchangeServerInfo failed!");
+        cMyTrace(__PRETTY_FUNCTION__, 0x469, 0)("SendExchangeServerInfo failed!");
         return;                       // ORIG jmp 尾部
     }
 
     while (!GlobalData::s_server_stop)         // 标志 @0x0940bd64
     {
         // P15 赋值即条件（同 WaitForEvent OnAccept 判据）。
-        int msg = 0;
-        if ((msg = reinterpret_cast<int>(m_exchangeServer.GetMessage())) != 0)
+        Stream* msg = 0;
+        if ((msg = m_exchangeServer.GetMessage()) != 0)
         {
             // flag 取流缓冲首 dword（ORIG mov (%eax) 后作为 FreeMessage 第三参）。
-            int flag = *reinterpret_cast<int*>(
-                reinterpret_cast<Stream*>(msg)->get_buffer());
-            m_exchangeServer.DispatchMessage(reinterpret_cast<Stream*>(msg));
-            m_exchangeServer.FreeMessage(reinterpret_cast<Stream*>(msg), flag);
+            int flag = *reinterpret_cast<int*>(msg->get_buffer());
+            // [b28d-solo-ExchangeServer_Infra] P277：ORIG 0x8493d1a/0x8493d2e 段
+            // 先算 this（`mov 0x8(%ebp),%eax; lea 0xc(%eax),%edx`）再装实参 ⇒
+            // receiver 走 cast 前置形；隐式成员访问 4.4 恒先装实参（add $0xc 形）。
+            m_exchangeServer.DispatchMessage(msg);
+            m_exchangeServer.FreeMessage(msg, flag);
         }
         m_exchangeServer.GetNetworkEvent();
         OS_API::Sleep(0xa);                        // ORIG 10ms 节拍
     }
 
-    cMyTrace traceEnd(
-        __PRETTY_FUNCTION__,
-        0x482, 0);
-    traceEnd("Exchange Server Thread End!");
+    cMyTrace(__PRETTY_FUNCTION__, 0x482, 0)("Exchange Server Thread End!");
 }
 
 // GetInstanceExchangeServerThread ORIG 0x8493e8d：guard 单例

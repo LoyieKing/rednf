@@ -456,7 +456,7 @@ void CBattle_Field::add_monster_APC_AI_by_rate(map_monster& mob, int& uid, int x
 {
     if (m_pDungeon == NULL)
         return;
-    if ((m_pos[0].first == x && m_pos[0].second == y) ||
+    if ((m_endX == x && m_endY == y) ||
         (m_startX == x && m_startY == y))                                  // +0xc/+0x10、+0x4/+0x8
     {
         return;
@@ -859,7 +859,7 @@ void CBattle_Field::moveMap_4_Log(int x, int y, const GridScript* gs)
 // [b28d-D9] 槽差/P167：ORIG 多一段 get_map_index 类调用序 + 槽差；调用差集待核（ORIG 0x083079ba sz 0x0000016f）
 int CBattle_Field::check_boss_map(int x, int y)
 {
-    if (m_pos[0].first == x && m_pos[0].second == y &&                     // +0xc/+0x10
+    if (m_endX == x && m_endY == y &&                                      // +0xc/+0x10
         m_pDungeon != NULL && m_pDungeon->m_bossRoom90c.m_0 == 1)
     {
         for (std::vector<stConditionEnterBossRoomStatus_t>::const_iterator it =
@@ -1003,29 +1003,29 @@ void CBattle_Field::choose_random_bossmap_from_dummymaps(const CDungeon* dungeon
 
     if (dungeon->IsHaveDummyMap())
     {
-        if (m_pos[0].first != x || m_pos[0].second != y)                  // +0xc/+0x10
+        if (m_endX != x || m_endY != y)                                   // +0xc/+0x10
             return;
         if (static_cast<unsigned int>(m_dummyMapPosIdx) <
             m_dummyMapPos.size())                                         // +0xcc < +0xc0.size
         {
             const std::pair<int, int>& next = m_dummyMapPos[m_dummyMapPosIdx];
-            m_pos[0].first = next.first;
-            m_pos[0].second = next.second;
+            m_endX = next.first;
+            m_endY = next.second;
 
-            MapInfo* info = GetMapInfoFromPos(m_pos[0].first, m_pos[0].second, false);
+            MapInfo* info = GetMapInfoFromPos(m_endX, m_endY, false);
             if (info->m_visited)
             {
-                GetMapInfoFromPos(m_pos[0].first, m_pos[0].second, false)->m_visited = 0;
-                GetMapInfoFromPos(m_pos[0].first, m_pos[0].second, false)->m_mapType = 2;
+                GetMapInfoFromPos(m_endX, m_endY, false)->m_visited = 0;
+                GetMapInfoFromPos(m_endX, m_endY, false)->m_mapType = 2;
             }
 
             int curX = -1;
             int curY = -1;
             getCurPosXY(curX, curY);
-            if (m_pos[0].first == curX && m_pos[0].second == curY)
+            if (m_endX == curX && m_endY == curY)
             {
                 flag = false;
-                GetMapInfoFromPos(m_pos[0].first, m_pos[0].second, false)->m_mapType = 2;
+                GetMapInfoFromPos(m_endX, m_endY, false)->m_mapType = 2;
             }
 
             mapId = dungeon->ChooseRandomMap(2, gs->m_gridValue, dir);
@@ -1047,8 +1047,8 @@ void CBattle_Field::choose_random_bossmap_from_dummymaps(const CDungeon* dungeon
             const std::pair<int, int>& pos = m_gridMaze->m_vec20[i];
             if (pos.first == x && pos.second == y)
             {
-                m_pos[0].first = x;                                       // +0xc
-                m_pos[0].second = y;                                      // +0x10
+                m_endX = x;                                               // +0xc
+                m_endY = y;                                               // +0x10
                 // ORIG 083081e6..083081eb：getGridR 返回引用地址直接写入 mapId。
                 mapId = static_cast<int>(
                     reinterpret_cast<long>(&m_gridMaze->getGridR(x, y)));
@@ -1069,7 +1069,7 @@ int CBattle_Field::get_candidator_map(const CDungeon* dungeon, const GridScript*
     if (mapId != -1)
         return 0;
 
-    if (m_pos[0].first == x && m_pos[0].second == y)                      // +0xc/+0x10
+    if (m_endX == x && m_endY == y)                                       // +0xc/+0x10
     {
         if (gs->m_secondCandidates.empty())                               // gs+0x10
         {
@@ -1089,7 +1089,7 @@ int CBattle_Field::get_candidator_map(const CDungeon* dungeon, const GridScript*
             }
         }
     }
-    else if (m_pos[1].first == x && m_pos[1].second == y &&               // +0x14/+0x18
+    else if (m_field14 == x && m_field18 == y &&                          // +0x14/+0x18
              m_questStageMap != 0)                                        // +0x19c
     {
         mapId = m_questStageMap;

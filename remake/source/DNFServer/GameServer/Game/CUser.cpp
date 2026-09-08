@@ -6416,7 +6416,7 @@ void CUser::OnDisconnect()
 
 // 0x0867a95c（返回 1 成功 / 0 角色为空；DisPatcher_DebugCommand 以 !=1 判失败）
 // b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867a95c | _ZN5CUser14SetCharacLevelEi
-int CUser::SetCharacLevel(int level)
+bool CUser::SetCharacLevel(int level)
 {
     // 0x0867a95c 主分支（SetCharacLevel.md）：等级钳制[1,200]；按方向取
     // GetSpAtLevelUp 计算 SP 增量加到树 0/1 并 clamp；exp=get_level_exp；
@@ -6655,7 +6655,7 @@ void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
 // 返回 int：ORIG 0x0867b048 尾 `mov eax,0x1; ret`、早退 `mov eax,0x0`
 // （Model22 桥清零实证；声明 CUser.h:3330 由 Main 代落）。
 // b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x0867b048 | _ZN5CUser17ChangeGrowType_GMEii
-int CUser::ChangeGrowType_GM(int a, int b)
+bool CUser::ChangeGrowType_GM(int a, int b)
 {
     if (getCurCharacR() == 0)
         return 0;

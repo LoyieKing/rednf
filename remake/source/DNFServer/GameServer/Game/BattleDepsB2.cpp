@@ -458,13 +458,15 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
     {
         for (int i = 0; i < 4; ++i)
         {
-            m_pos[2 + i] = std::make_pair(startPos.second, startPos.first);
-            m_pos[6 + i] = std::make_pair(startPos.second, startPos.first);
+            m_curPos[i] = std::make_pair(startPos.second, startPos.first);
+            m_lastPos[i] = std::make_pair(startPos.second, startPos.first);
         }
     }
 
-    m_pos[0] = bossPos;                          // +0x0c 终点槽
-    m_pos[1] = adjBossPos;                       // +0x14 相邻槽
+    m_endX = bossPos.first;                      // +0x0c 终点槽
+    m_endY = bossPos.second;                     // +0x10
+    m_field14 = adjBossPos.first;                // +0x14 相邻槽
+    m_field18 = adjBossPos.second;               // +0x18
     m_hellPosX = maze->m_30;                     // +0x1c0
     m_hellPosY = maze->m_34;                     // +0x1c4
     m_hellMapIdx = maze->m_2c;                   // +0x1bc
@@ -478,7 +480,7 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
         {
             for (int col = 0; col < maze->m_width; ++col)
             {
-                if ((m_pos[0].first == col && m_pos[0].second == row) ||
+                if ((m_endX == col && m_endY == row) ||
                     (m_startX == col && m_startY == row))
                     continue;
 

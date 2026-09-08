@@ -404,10 +404,19 @@ public:
     CParty* m_party;                       // +0x00
     int m_startX;                          // +0x04
     int m_startY;                          // +0x08
-    // +0x0c 起为 10 元素 pair 数组（ORIG getCurPosXY 08300da6 / getLastPosXY
-    // 08300e44 / swap_curpos_xy 0830878e 实证）：槽 0=终点（check_end_point
-    // 比对 +0xc/+0x10）、槽 2+seat=当前位置、槽 6+seat=上次位置。
-    std::pair<int, int> m_pos[10];         // +0x0c（0x50 字节，+0x0c..+0x5b）
+    // +0x0c..+0x1b = 4 个标量、+0x1c/+0x3c = 两组 pair[4]：
+    // ①ORIG C1 0x082a44fe 只对 +0x1c/+0x3c 两组各 4 个元素发
+    //   _ZNSt4pairIiiEC1Ev（+0xc..+0x1b 无构造调用）⇒ 原码前 4 个不是 pair；
+    // ②ORIG getCurPosXY 08300da6 / getLastPosXY 08300e44 / swap_curpos_xy
+    //   0830878e 的索引段 `add $0x2/$0x6,%edx` + `disp 0xc` 与
+    //   base+0x1c/0x3c + 索引 seat 地址等价（this+0xc+(seat+2)*8 =
+    //   this+0x1c+seat*8）。sizeof/偏移不变（4*4+2*4*8 = 0x50）。
+    int m_endX;                            // +0x0c（原 m_pos[0].first；check_end_point 终点 X）
+    int m_endY;                            // +0x10（原 m_pos[0].second）
+    int m_field14;                         // +0x14（原 m_pos[1].first，仅 ctor 置 -1/reset 置 0）
+    int m_field18;                         // +0x18（原 m_pos[1].second）
+    std::pair<int, int> m_curPos[4];       // +0x1c（原 m_pos[2..5]，seat 当前位置）
+    std::pair<int, int> m_lastPos[4];      // +0x3c（原 m_pos[6..9]，seat 上次位置）
     char m_firstEnterDungeon;              // +0x5c
     char m_pad5d[3];                       // +0x5d
     int m_curX;                            // +0x60

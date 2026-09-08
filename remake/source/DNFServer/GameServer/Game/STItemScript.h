@@ -15,6 +15,31 @@
 #include <utility>
 #include <vector>
 
+// ---- [war room point bonus] / [war room monster exp bonus] 载体（8 字节，int type/int value）。
+// [b28d-solo-CEquipItem] 原分处 CEquipItem.h（WpBonusPointData/ExpBonusPointData）与
+// STEquipmentScript.h（stBonusPointData_t 同布局副本）；ORIG nm 只有
+// WpBonusPointData/ExpBonusPointData 两个符号，且 STEquipmentScript::C1（0x0898ddd0/dde0）
+// 在 +0x81c/+0x824 直接 call `_ZN16WpBonusPointDataC1Ev` / `_ZN17ExpBonusPointDataC1Ev`
+// ⇒ 两处本为同一类型。按 §4.4 合并到本公共头（CEquipItem.h 与 STEquipmentScript.h
+// 共同 include 链），删除 stBonusPointData_t 重复定义。布局/符号名不变。
+struct WpBonusPointData
+{
+    // ORIG W ctor 0x08513a6e（独立符号，调 out-of-line clear()）→ ctor/clear 均 out-of-line。
+    WpBonusPointData();
+    void clear();
+    int m_type;     // +0x00（0=基础 / 1=附加）
+    int m_value;    // +0x04
+};
+
+struct ExpBonusPointData
+{
+    // ORIG W ctor 0x08513a9a（独立符号，调 out-of-line clear()）→ ctor/clear 均 out-of-line。
+    ExpBonusPointData();
+    void clear();
+    int m_type;     // +0x00（0=基础 / 1=附加）
+    int m_value;    // +0x04
+};
+
 // ---- 全局专家职业类型（ORIG 全局 enum，mangled E20ENUM_EXPERT_JOB_TYPE） ----
 
 enum ENUM_EXPERT_JOB_TYPE
@@ -38,7 +63,8 @@ public:
     void clear();
     // ORIG（readCondtion/ImportSpecialMonsterDrop 族按字节写 +0x105..+0x10d）：
     // 该区是 9 个独立 flag 字节，不是 {int,int,char}。总大小保持 9。
-    char m_enable;          // +0x00（ORIG +0x105：[special monster drop] 开关）
+    bool m_enable;          // +0x00（ORIG +0x105：[special monster drop] 开关；
+                            //  bool：ORIG getter 0x8539e00 `movzbl; ret` 无归一，P292）
     char m_difficulty[5];   // +0x01..+0x05（easy/medium/hard/ultimate/hero）
     char m_dungeonType[3];  // +0x06..+0x08（normal/ancient/dimension）
 };
@@ -125,7 +151,10 @@ public:
     char m_field30;                  // +0x30
     bool m_field31;                  // +0x31（CEquipItem::set_item 直拷到 m_boolF8 实证 bool）
     int m_field34;                   // +0x34
-    char m_usable[0xb];              // +0x38
+    // [b28d-solo-CEquipItem] ORIG set_item 0x0850fe60 段 `movzbl 0x38(%ecx,%edx,1),%ecx;
+    // mov %cl,dst` 对 bool 目标直存（无 test/setne）⇒ 源数组元素为 bool（P136/P300）。
+    // 与同结构 m_field31 已 bool 化同判据；宽度/偏移/sizeof/mangled 不变。
+    bool m_usable[0xb];              // +0x38
     std::set<int> m_set44;           // +0x44
     int m_field5c;                   // +0x5c
     int m_field60;                   // +0x60
@@ -152,12 +181,12 @@ public:
     int m_fieldc4;                   // +0xc4
     int m_fieldc8;                   // +0xc8
     int m_fieldcc;                   // +0xcc
-    char m_fieldd0;                  // +0xd0
+    bool m_fieldd0;                  // +0xd0
     char m_fieldd1;                  // +0xd1
     int m_fieldd4;                   // +0xd4
     char m_fieldd8;                  // +0xd8
-    char m_fieldd9;                  // +0xd9
-    char m_fieldda;                  // +0xda
+    bool m_fieldd9;                  // +0xd9
+    bool m_fieldda;                  // +0xda
     std::set<int> m_setdc;           // +0xdc
     int m_fieldf4;                   // +0xf4
     int m_fieldf8;                   // +0xf8
@@ -166,7 +195,7 @@ public:
     char m_field104;                 // +0x104
     STSpecialMonsterDrop m_specialDrop;  // +0x105（9 字节）
     char m_field10e;                     // +0x10e
-    char m_field10f;                     // +0x10f
+    bool m_field10f;                     // +0x10f
     std::vector<std::pair<int, int> > m_vec110;  // +0x110
     std::set<ENUM_ITEM_CATEGORY> m_set11c;       // +0x11c
     unsigned short m_field134;       // +0x134

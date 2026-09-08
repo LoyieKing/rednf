@@ -2,8 +2,9 @@
 // 全局 3 张排行榜表（ORIG BSS 0x941f8c0 起，每表 0x70f4，getRankTable 懒构造）。
 // 布局依据 ctor 0x082a787c / _getRankingTable 0x08469d90 / _getBestRecordTable
 // 0x08469dae / stBestRecord_t ctor 0x082a76c0 / getVirtualRank 0x08468de0：
-//   +0x0000 塔记录块 m_towers[5]（每塔 0x390 = 0x98 前缀 + 5×0x98 stBestRecord_t 槽，
-//            槽 0 = 该塔当前榜首，+0x90 标志位为 checkRenewTopRecord 的“有纪录”位）
+//   +0x0000 塔记录块 m_towers[5]（每塔 0x390 = 6×0x98 stBestRecord_t 槽 0..5，
+//            槽 1 = 该塔当前榜首（+0x128 = 0x98+0x90），+0x90 标志位为
+//            checkRenewTopRecord 的“有纪录”位；槽 0 为未用前缀但同样被构造）
 //   +0x11d0 hash_map<uint,uint> m_rankingTables[5]（stride 0x14）
 //   +0x1234 hash_map<uint,stBestRecord_t> m_bestTables[5]
 //   +0x1298 std::map<uint,uint> m_rankMap[5][200]（rank map；[塔][层]，层 stride 0x18，
@@ -117,9 +118,9 @@ public:
             m_playTime = 0;
         }
         // ORIG 两运算符均为非 const 成员（mangled 无 K：_ZN...teq/gtERKS1_）
-        // [b28d-55] DIFF→AE 口径：唯一残差 = jmp 后 1 条对齐 nop（§6.1/N112，
-        //   compare_tu 口径已剥离）；指令序列与 ORIG 逐条同形，P167 CLEAR(0/0)。
-        //   ORIG 0x08469ce4。
+        // [b28d-solo-W6_RankMailDeps] AE（compare_tu clean，23 insn 与 ORIG 逐条
+        //   同形）——唯一残差 = jmp 后 1 条对齐 nop（§6.1/N112，compare_tu 口径
+        //   已剥离）；P167 CLEAR(0/0)。ORIG 0x08469ce4。
         bool operator>(const stBestRecord_t& other)
         {
             // ORIG 0x08469ce4：cmp 0x88 jne→GT岛@8469d16（seta）；
@@ -180,14 +181,20 @@ public:
         // asm +0x021..+0x032 `imul $0x98,%ecx(slotIdx); imul $0x390,%edx
         // (towerIdx); lea; add; add $0x90`（docs/class_func_reports/
         // WongWork__CDeathTowerRanking/registRanker.md）实证塔块为 6×0x98 连续
-        // 纪录槽（slotIdx 0..5），本“前缀”即 slotIdx==0 槽；m_slots[0]（+0x98）
-        // 为 checkRenewTopRecord 榜首。stBestRecord_t 有用户 ctor，不可入 union
-        // （C++98），故前缀槽在 W6_RankMailDeps.cpp 以
-        // `reinterpret_cast<stBestRecord_t*>(&m_towers[i]) + slotIdx` 的具类型
-        // stride 寻址访问（非裸字节偏移；ORIG 双 imul 形态保持）。
-        char m_pad0[0x98];           // +0x00 前缀（= registRanker slotIdx 0 槽区）
-        stBestRecord_t m_slots[5];   // +0x98..+0x390
+        // 纪录槽（slotIdx 0..5）。
+        // [b28d-Main 代落·S108 提案] 原建模 `char m_pad0[0x98] + m_slots[5]` 与 ORIG
+        // 两处直接反汇编矛盾：①C1 0x082a787c 内层倒计数初值 5 ⇒ 每塔 6 次
+        // stBestRecord_t::C1（前缀槽 0 同样被构造，char pad 不构造）；②init
+        // 0x084680a4 实证槽 1..5 的 m_flag90/memcpy(A..E)/m_field94/m_playTime/
+        // m_stage 全部按 `slot*0x98 + 塔基` 直算（memcpy 目的 +0x98/+0x130/+0x1c8/
+        // +0x260/+0x2f8，各 +0x04），即槽 0..5 起于塔基 +0x00，槽 1 为榜首
+        // （+0x128 = 0x98+0x90，checkRenewTopRecord 0x08468290 实证）。
+        // 旧模型下 CDeathTower.cpp::init 的 m_slots[1..5] 实为槽 2..6 且越界写。
+        // sizeof(stTowerBlock) 仍 0x390（6×0x98），m_towers 之后全部成员偏移不变。
+        stBestRecord_t m_slots[6];   // +0x000..+0x390（ORIG 槽 0..5；槽 1 = 榜首）
     };
+    // C++98 兼容尺寸校验（不用 static_assert：本头未注入 SA_COMPAT）
+    typedef char _stTowerBlock_size_check[(sizeof(stTowerBlock) == 0x390) ? 1 : -1];
     // ORIG T 0x08468cb6（_ZN8WongWork18CDeathTowerRanking17_makeRecordPacketERKNS0_14stBestRecord_tER11PacketGuard，
     // 定义 CompoundDeathLCB.cpp）：单条纪录序列化——4 成员名 strlen+put_str、
     // 各 put_byte(+0x80/+0x84 槽内 flag 对)，末尾 stage(short)/playTime(int)/名次(int)。

@@ -222,14 +222,13 @@ void CEventCharacterHandler::_SetClearedQuest(CUser* user)
 
 bool CEventCharacterHandler::_MasterNewSkill(CUser* user, int skillIdx, int count)
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x0848e7d6 用 `movzbl 0x1(%eax)`（disp 折叠），
-    // 4.4 发 `add $1,%eax; movzbl (%eax)`（N4/P30 族，源形不可择）；语义等价。
+    // [b28d-solo-CEventCharacterHandler] ORIG 0x0848e7d6 用 `movzbl 0x1(%eax)`
+    // （disp 折叠）。旧判词「源形不可择」作废：buf 声明为数组指针
+    // `unsigned char (*)[2]` 后 4.4 复现 `mov slotNo,%eax; add %eax,%eax;
+    // add buf,%eax; movzbl 1(%eax)`（/tmp/s107/m3.cpp k1/k2 探针实证）。
     // ORIG 0x0848e7d6：skill 两段式（入口 movl $0,-0x18 预清）；job 内联
     // rvalue 经 %ebx 跨 G_CDataManager call（P197②）；getCurCharacSkillR
     // 两独立重调（+0x5a/+0x8e，P48）。
-    // [B24D判词 N][b28c-L19 复核：单下标 buf[slotNo*2+1] 形实测同 DIFF，封顶] 语义正确：find_skill→get_group+get_skillslot_no+buf→
-    //   m_count=(char)(count-(buf[slot*2+1]))→<=0早返→master_new_skill。diff=
-    //   ORIG movzbl 0x1(%eax) disp内联 vs 我方 add$1+movzbl（多1条），lowering。
     const CSkill* skill = 0;
     skill = (const CSkill*)G_CDataManager()->find_skill(user->get_charac_job(),
                                                         skillIdx);
@@ -241,7 +240,7 @@ bool CEventCharacterHandler::_MasterNewSkill(CUser* user, int skillIdx, int coun
     int group = skill->get_group();
     int slotNo = ((SkillSlot*)user->getCurCharacSkillR())->get_skillslot_no(
         skillIdx, group, ENUM_SKILL_TREE_KIND_0, true);
-    unsigned char* buf = (unsigned char*)
+    unsigned char (*buf)[2] = (unsigned char (*)[2])
         ((SkillSlot*)user->getCurCharacSkillR())->get_skillslot_buf(
             ENUM_SKILL_TREE_KIND_0);
     if (buf == 0)
@@ -253,8 +252,8 @@ bool CEventCharacterHandler::_MasterNewSkill(CUser* user, int skillIdx, int coun
     info.m_field0 = 0;
     info.m_skillIdx = (char)skillIdx;
     // ORIG +0xc5：`add -0xc(buf),%eax; movzbl 0x1(%eax)`——(buf+2*slotNo) 先行、
-    // +1 留 disp。b28c-L19 试单下标形（P30 折叠判据）；仍 add$1+base 则记 N。
-    info.m_count = (char)((char)count - (char)buf[slotNo * 2 + 1]);
+    // +1 留 disp（数组指针视图触发 4.4 disp 折叠）。
+    info.m_count = (char)((char)count - (char)buf[slotNo][1]);
     if ((signed char)info.m_count <= 0)
     {
         return false;
@@ -267,13 +266,17 @@ bool CEventCharacterHandler::_MasterNewSkill(CUser* user, int skillIdx, int coun
 bool CEventCharacterHandler::_AddItem(CUser* user, unsigned long itemIdx, int count,
                                       int reason)
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x0848e8e2 用 esi 跨调用缓存 + 帧 0x40，
-    // 我们帧 0x54（N82/P52 族）；语义等价。
+    // [b28d-solo-CEventCharacterHandler] ORIG 0x0848e8e2 逐条对应：
+    // ① start/end 无槽往返（P0）⇒ 内联实参，end 值经 %ebx 跨第二个 getCurSec
+    //    调用保活（P52/P226 形）；② stack 无具名局部（P183）⇒ 每次 cast 重读；
+    // ③ slot<0 走共享尾 mov$0 岛（js 落尾）⇒ P222 正向包裹；
+    // ④ name/accStr 无槽（%esi/%ebx 跨 ctor 保活）⇒ P227 全表达式临时链。
     if (itemIdx == 0xffffffff)
     {
-        long start = GlobalData::s_systemTime_.getCurSec();
-        long end = GlobalData::s_systemTime_.getCurSec() + 0x15180;
-        WongWork::CHandlePremium::handleSetUserPCRoom(user, start, end);
+        WongWork::CHandlePremium::handleSetUserPCRoom(
+            user,
+            GlobalData::s_systemTime_.getCurSec(),
+            GlobalData::s_systemTime_.getCurSec() + 0x15180);
     }
 
     const CItem* item = G_CDataManager()->find_item((int)itemIdx);
@@ -281,29 +284,24 @@ bool CEventCharacterHandler::_AddItem(CUser* user, unsigned long itemIdx, int co
     {
         if (item->is_stackable())
         {
-            const CStackableItem* stack = (const CStackableItem*)item;
-            if (stack->getStackableLimit() < count)
+            if (((const CStackableItem*)item)->getStackableLimit() < count)
             {
-                count = stack->getStackableLimit();
+                count = ((const CStackableItem*)item)->getStackableLimit();
             }
         }
     }
 
     ENUM_ITEMSPACE itemSpace;
     int slot = user->AddItem((int)itemIdx, count, (eItemAddReason)6, itemSpace, reason);
-    if (slot < 0)
+    if (slot >= 0)
     {
-        return false;
+        cMyTrace(__PRETTY_FUNCTION__, 0xda, 0)(
+            "%s:'%s' GM Mode Add Item(%d).",
+            NumberToString(user->get_acc_id(), 0), user->getCurCharacName(), slot);
+        user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)itemSpace, slot);
+        return true;
     }
-
-    const char* name = user->getCurCharacName();
-    char* accStr = NumberToString(user->get_acc_id(), 0);
-    cMyTrace tr(
-        __PRETTY_FUNCTION__,
-        0xda, 0);
-    tr("%s:'%s' GM Mode Add Item(%d).", accStr, name, slot);
-    user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)itemSpace, slot);
-    return true;
+    return false;
 }
 bool CEventCharacterHandler::_SetLevel(CUser* user, int level)
 {
@@ -314,6 +312,15 @@ bool CEventCharacterHandler::_SetLevel(CUser* user, int level)
 
     bool bChanged = true;
     int diff = level - user->get_charac_level();
+    // [b28d-solo-CEventCharacterHandler] P212 全头部声明复现 ORIG 槽位（b28d S107）：
+    // 4.4 对函数头声明按「先声明浅」分配（/tmp/s107/p5 探针实证），ORIG 槽对为
+    // newLevelUp -0x28 / maxLevelUp -0x24 / newLevelDown -0x20 / maxLevelDown -0x1c
+    // ⇒ 头部声明序取浅→深 maxLevelDown/newLevelDown/maxLevelUp/newLevelUp，
+    // 块内仅赋值（store 时机 newLevel 先、常量后与 ORIG 同）。旧 N98 封顶判词作废。
+    int maxLevelDown;
+    int newLevelDown;
+    int maxLevelUp;
+    int newLevelUp;
     if (diff == 0)
     {
         bChanged = false;
@@ -322,23 +329,18 @@ bool CEventCharacterHandler::_SetLevel(CUser* user, int level)
     {
         for (int i = 0; i < diff; ++i)
         {
-            // [b28d-34] N98 封顶（ndiff 16→16 NEAR）：ORIG 0x08c9xxx 需
-            // 「newLevel 深(-0x28)/maxLevel 浅(-0x24)」+「call 先、常量后」；
-            // 4.4 首次使用序把 store 时机与槽深绑死 ⇒ 两形互斥：maxLevel 先声明
-            // 得槽序对但常量提前写；newLevel 先声明得 store 时机对但槽序反
-            // （实测两形各 2 hunk）。保留 store 时机对齐形，槽号整体平移 8。
-            int newLevel = user->get_charac_level() + 1;
-            int maxLevel = 0x46;
-            user->SetCharacLevel(std::min(maxLevel, newLevel));
+            newLevelUp = user->get_charac_level() + 1;
+            maxLevelUp = 0x46;
+            user->SetCharacLevel(std::min(maxLevelUp, newLevelUp));
         }
     }
     else
     {
         for (int i = 0; i > diff; --i)
         {
-            int newLevel = user->get_charac_level() - 1;
-            int maxLevel = 0x46;
-            user->SetCharacLevel(std::min(maxLevel, newLevel));
+            newLevelDown = user->get_charac_level() - 1;
+            maxLevelDown = 0x46;
+            user->SetCharacLevel(std::min(maxLevelDown, newLevelDown));
         }
     }
     return bChanged;
@@ -375,18 +377,18 @@ bool CEventCharacterHandler::_SetGrowType(CUser* user, int growTypeKind, int gro
 
 bool CEventCharacterHandler::_makeEventCharacter(CUser* user, int level)
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x0848e2a4 用 edi/esi/ebx 缓存 + 帧 0x6c，
-    // 4.4 无 edi 且帧不同（N82 族）；语义等价。
+    // [b28d-solo-CEventCharacterHandler] ORIG 0x0848e2a4 用 edi(cmdIdx)/esi(name)/
+    // ebx(accStr) 缓存 + 帧 0x6c；name/accStr 无槽（P0）⇒ P227 全表达式临时链
+    // 令三值跨 cMyTrace ctor 保活（_AddItem 同法）。
     int cmdIdx = -1;
     if (!_checkMakeCommand(user, level, cmdIdx))
     {
         return false;
     }
 
-    const char* name = user->getCurCharacName();
-    char* accStr = NumberToString(user->get_acc_id(), 0);
-    cMyTrace tr(__PRETTY_FUNCTION__, 0x2b, 0);
-    tr("%s:'%s' Make Event Character(%d) level(%d).", accStr, name, cmdIdx, level);
+    cMyTrace(__PRETTY_FUNCTION__, 0x2b, 0)(
+        "%s:'%s' Make Event Character(%d) level(%d).",
+        NumberToString(user->get_acc_id(), 0), user->getCurCharacName(), cmdIdx, level);
 
     STEventCharacterInfo info;
     if (!G_CDataManager()->m_eventCharacScript.GetEventCharacterInfo(cmdIdx, level, info))
@@ -422,13 +424,14 @@ bool CEventCharacterHandler::_makeEventCharacter(CUser* user, int level)
     std::vector<std::pair<int, int> >::iterator skillIt = info.m_skillList.begin();
     for (; skillIt != info.m_skillList.end(); ++skillIt)
     {
-        _MasterNewSkill(user, skillIt->first, skillIt->second);
+        // P167：ORIG 发 __normal_iterator::operator*（deEv）而非 operator->（ptEv）。
+        _MasterNewSkill(user, (*skillIt).first, (*skillIt).second);
     }
 
     std::vector<STEventCharacterItem>::iterator itemIt = info.m_itemList.begin();
     for (; itemIt != info.m_itemList.end(); ++itemIt)
     {
-        _AddItem(user, itemIt->m_itemIdx, itemIt->m_count, itemIt->m_reason);
+        _AddItem(user, (*itemIt).m_itemIdx, (*itemIt).m_count, (*itemIt).m_reason);
     }
 
     _UpdateEventCharacInfo(user);

@@ -50,10 +50,11 @@ static int getSocketCount(const stAvatarEmblemInfo_t* emblem)
 void AvatarRechargeServer::SendDurability(CUser* user, char param2, short param3,
                                           char param4, int param5)
 {
-    // [b28c-L9] 残差 2 = 4.1 为前两级各发射一枚空 else 中继岛
-    // （0x08190494 `nop; jmp exit`、0x08190497 `nop`）；4.4 三形实测均不闭合
-    // （否定早返 +2 jmp、正向嵌套 −2 jmp、P223 尾 goto 标签串 +2 jmp）
-    // ⇒ 空块条数跨版本不可择（P223/P184 负例），保持可读早返形。
+    // [b28d-solo-AvatarRechargeServer] N 封顶（P223 负例，本文档已列 SendDurability）：
+    // ORIG 0x08190494 岛 A(`nop;jmp exit`)+0x08190497 岛 B(`nop`) 仅**前两级**早返有岛，
+    // 第 3/4 级 `jne +0x82` 直落 epilogue；4.4 岛数恒=条件数(4) ⇒ 49 vs 45。
+    // 已试三形均不闭合：否定早返 +2 jmp、正向嵌套 −2 jmp、P223 尾 goto 标签串 +2 jmp；
+    // 合并第 3/4 条件只得 3 岛。P167 callsite 3=3 CLEAR ⇒ 语义等价，保持可读早返形。
     if (user == 0)
         return;
     if (user->get_state() != 5)
@@ -71,6 +72,10 @@ void AvatarRechargeServer::SendDurability(CUser* user, char param2, short param3
 
 // ============================================================================
 // CalcDurability —— ORIG T 0x0819049a _ZN...14CalcDurabilityEP5CUseri
+// [b28d-solo-AvatarRechargeServer] AE（86=86）：①槽 0..9 循环体
+// `if (!CalcDurabilityDetail(...)) continue;` 复现 ORIG 0x081904f5
+// `xor $1,%eax; test %al,%al`（je 落循环增量处被 4.1 jump-thread）；
+// ②rates 遍历缓存 size（P13）：`for(i=0,n=rates.size(); i<n; ++i)`。
 // ============================================================================
 void AvatarRechargeServer::CalcDurability(CUser* user, int count)
 {
@@ -79,10 +84,17 @@ void AvatarRechargeServer::CalcDurability(CUser* user, int count)
         std::vector<int> rates;
         rates.reserve(10);
         for (int slot = 0; slot <= 9; ++slot)
-            CalcDurabilityDetail(user, slot, rates);
+        {
+            // [b28d-solo-AvatarRechargeServer] ORIG 0x081904f5 `xor $1,%eax; test %al,%al`
+            // （je 落循环增量处被 4.1 jump-thread）⇒ 原码是 `if (!Detail(...)) continue;`。
+            if (!CalcDurabilityDetail(user, slot, rates))
+                continue;
+        }
         if (!rates.empty())
         {
-            for (std::vector<int>::size_type i = 0; i < rates.size(); ++i)
+            // [b28d-solo-AvatarRechargeServer] P13 循环 end 缓存：ORIG 0x08190562
+            // `call size; mov %eax,-0xc` 每轮不重算，条件 `cmp -0xc,%eax; setb`。
+            for (std::vector<int>::size_type i = 0, n = rates.size(); i < n; ++i)
                 UpdateAvatarEndurance((CUser::eSendTarget)2, user,
                                       (short)rates[i]);
         }
@@ -110,8 +122,13 @@ bool AvatarRechargeServer::CheckConditionUseRecharge(
     }
     // b28d-lane25：P167 差集实证 ORIG 0x081907b8/0x081907cd 直接内联
     // map find/end + eq（end() 在左控实参序，P74 补充），不调 IsEmblemRechargeStone。
+    // [b28d-solo-AvatarRechargeServer] ORIG 0x081907b8 先 `call end`（sret -0x20）后
+    // `call find`（sret -0x1c，key 物化 -0x18）⇒ 具名 end 迭代器声明在前。
+    // 残余 NEAR=2：4.1 先声明占深槽（end -0x20/find -0x1c）vs 4.4 相反（N93 类对象
+    // 槽方向跨版本不可翻；P293 单表达式形 4.4 恒 find 先 ⇒ DIFF 更差，已回退）。
+    std::map<int, int>::iterator itEnd = m_emblemRechargeStoneMap.end();
     std::map<int, int>::iterator it = m_emblemRechargeStoneMap.find(stone->m_addInfo);
-    if (m_emblemRechargeStoneMap.end() == it)
+    if (itEnd == it)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0x11);
         LogManager::logFormat(
@@ -151,35 +168,45 @@ bool AvatarRechargeServer::CheckConditionUseRecharge(
     const stAvatarEmblemInfo_t* socketData =
         (const stAvatarEmblemInfo_t*)user->getCurCharacInvenR()->GetAvatarItemMgrR()->getJewelSocketData(
             avatar->m_addInfo2);
-    sig->maxEndurance = *(int*)((char*)this + 4) * getSocketCount(socketData);
-    if ((int)(unsigned int)(unsigned short)avatar->m_fieldSplit.m_avatarEndur <
+    // [b28d-solo-AvatarRechargeServer] 具名化基类上限字段（原 `*(int*)((char*)this+4)`
+    // 裸偏移，§4.3 禁）；ORIG 0x08190a66 `jl <成功块>` 先 call 后读 +4 的求值序。
+    // ORIG 0x08190a66 段：`call getSocketCount; mov 0x4(%edx),%edx; imul %eax,%edx`
+    // ⇒ 书写序 count * limit（左操作数先求值，与 UseEmblem 同）。
+    sig->maxEndurance = getSocketCount(socketData) * m_rechargeLimit;
+    if ((int)(unsigned int)(unsigned short)avatar->m_fieldSplit.m_avatarEndur >=
         sig->maxEndurance)
     {
-        return true;
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0xd8);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            "bool AvatarRechargeServer::CheckConditionUseRecharge(CUser*, "
+            "arad::SigAradUseAvatarRecharge*)",
+            0xcd,
+            "USE AVATAR RECHANGE : already max endurance [ui_id:%d] [charac_no:%d]",
+            avatar->m_addInfo2, user->getCurCharacNo());
+        return false;
     }
-
-    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0xd8);
-    LogManager::logFormat(
-        1, "localjapan/Arad_EmblemReformServer.cpp",
-        "bool AvatarRechargeServer::CheckConditionUseRecharge(CUser*, "
-        "arad::SigAradUseAvatarRecharge*)",
-        0xcd,
-        "USE AVATAR RECHANGE : already max endurance [ui_id:%d] [charac_no:%d]",
-        avatar->m_addInfo2, user->getCurCharacNo());
-    return false;
+    return true;
 }
 
 // ============================================================================
 // Recharge —— ORIG T 0x08190a70
 // 删充值石 → 按 [emblem recharge stone info][itemId] 加耐久（clamp 上限）
 // → 回传 addEndurance/enduranceAfter → DB 保存流。
+// [b28d-solo-AvatarRechargeServer] NEAR（231=231，仅 4 行槽号差）：
+// ①P59/P168a 负极性 guard（delete_item 失败块前置，ORIG 0x08190b5a `xor$1;test;je`）；
+// ②P227 两处 cMyTrace 全表达式临时链 + P139 __PRETTY_FUNCTION__；
+// ③P171 照抄 ORIG 只判 avatar->isEmpty()（无判空比较）；
+// ④map 键具名物化槽（ORIG 0x08190cae `mov %eax,-0x3c`）。
+// 残余 = 4.1 map-key 临时槽 -0x3c / trace1 -0x4c vs 4.4 -0x4c/-0x48（N82/N93
+// 槽分配方向）；P167 callsite 25=25 CLEAR。
 // ============================================================================
 bool AvatarRechargeServer::Recharge(CUser* user,
                                     arad::SigAradUseAvatarRecharge* sig)
 {
-    const CInventory* invenR = user->getCurCharacInvenR();
+    int mapKey;   // ORIG 0x08190cae 的 key 物化槽（-0x3c）——声明提前试验
     const Inven_Item* stoneRef =
-        invenR->GetInvenRef(1, (int)sig->stoneSlot);
+        user->getCurCharacInvenR()->GetInvenRef(1, (int)sig->stoneSlot);
     const int stoneItemId = stoneRef->m_addInfo;   // ORIG 判空前读取，忠实保序
     if (stoneRef == 0 || stoneRef->isEmpty())
     {
@@ -189,90 +216,101 @@ bool AvatarRechargeServer::Recharge(CUser* user,
         return false;
     }
 
-    if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)1, sig->stoneSlot, 1,
+    // [b28d-solo-AvatarRechargeServer] P59/P168a：ORIG 0x08190b5a
+    // `xor $1,%eax; test %al,%al; je <成功块>` ⇒ 负极性 guard（成功路径 fall-through）。
+    if (!user->getCurCharacInvenW()->delete_item((INVEN_TYPE)1, sig->stoneSlot, 1,
                             (eItemDelReason)3, true))
     {
-        user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
-                                 sig->stoneSlot);
-        cMyTrace trace(
-            "bool AvatarRechargeServer::Recharge(CUser*, "
-            "arad::SigAradUseAvatarRecharge*)",
-            0xe8, 0);
-        trace("USE AVATAR RECHANGE : delete_item() success. [slot:%d] "
-              "[charac_no:%d]",
-              (int)sig->stoneSlot, user->getCurCharacNo());
-
-        Inven_Item* avatar = user->getCurCharacInvenW()->GetInvenRef(2, (int)sig->avatarSlot);
-        if (avatar == 0 || avatar->isEmpty())
-        {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0x16);
-            ARAD::PRINT_ERROR::isEmpty((char*)"USE AVATAR RECHANGE", user,
-                                       sig->avatarSlot);
-            return false;
-        }
-
-        int newEndur = (int)avatar->m_fieldSplit.m_avatarEndur +
-                       m_emblemRechargeStoneMap[stoneItemId];
-        if (newEndur > sig->maxEndurance)
-            newEndur = sig->maxEndurance;
-        sig->addEndurance =
-            newEndur - (int)avatar->m_fieldSplit.m_avatarEndur;
-        avatar->m_fieldSplit.m_avatarEndur = (unsigned short)newEndur;
-        sig->enduranceAfter =
-            (unsigned int)(unsigned short)avatar->m_fieldSplit.m_avatarEndur;
-
-        user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)1,
-                                 sig->avatarSlot);
-        cMyTrace trace2(
-            "bool AvatarRechargeServer::Recharge(CUser*, "
-            "arad::SigAradUseAvatarRecharge*)",
-            0xfe, 0);
-        trace2("USE AVATAR RECHARGE : success [slot:%d] [item_id:%d] "
-               "[Endurance:%d] [charac_no:%d]",
-               (int)sig->avatarSlot, avatar->m_addInfo,
-               (int)(unsigned short)avatar->m_fieldSplit.m_avatarEndur,
-               user->getCurCharacNo());
-
-        arad::SigAradAvatarEnduranceSave save;   // ORIG ctor：清 +0/+4
-        save.uiId = (unsigned int)avatar->m_addInfo2;
-        save.endurance =
-            (unsigned int)(unsigned short)avatar->m_fieldSplit.m_avatarEndur;
-        SaveAvatarEnduranceUnit(save);
-        return true;
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0x13);
+        ARAD::PRINT_ERROR::delete_item((char*)"USE AVATAR RECHANGE", user,
+                                       sig->stoneSlot);
+        return false;
     }
 
-    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0x13);
-    ARAD::PRINT_ERROR::delete_item((char*)"USE AVATAR RECHANGE", user,
-                                   sig->stoneSlot);
-    return false;
+    user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
+                             sig->stoneSlot);
+    // [b28d-solo-AvatarRechargeServer] P227 全表达式临时链 + P139 __PRETTY_FUNCTION__
+    // （ORIG 0x08190bd0..0x08190c20 先求 varargs 再 call cMyTrace::C1）。
+    cMyTrace(__PRETTY_FUNCTION__, 0xe8, 0)(
+        "USE AVATAR RECHANGE : delete_item() success. [slot:%d] "
+        "[charac_no:%d]",
+        (int)sig->stoneSlot, user->getCurCharacNo());
+
+    Inven_Item* avatar = user->getCurCharacInvenW()->GetInvenRef(2, (int)sig->avatarSlot);
+    // ORIG 0x08190c50 只判 isEmpty（无 `avatar==0` 比较，原码直接解引用）⇒ P171 照抄。
+    if (avatar->isEmpty())
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0x16);
+        ARAD::PRINT_ERROR::isEmpty((char*)"USE AVATAR RECHANGE", user,
+                                   sig->avatarSlot);
+        return false;
+    }
+
+    // ORIG 0x08190cae `mov -0x24(%ebp),%eax; mov %eax,-0x3c(%ebp); lea -0x3c(%ebp),%eax`
+    // ⇒ map 键经临时槽中转（4.1 对 operator[] const key& 的物化）。
+    int newEndur = (int)avatar->m_fieldSplit.m_avatarEndur +
+                   m_emblemRechargeStoneMap[mapKey = stoneItemId];
+    if (newEndur > sig->maxEndurance)
+        newEndur = sig->maxEndurance;
+    sig->addEndurance =
+        newEndur - (int)avatar->m_fieldSplit.m_avatarEndur;
+    avatar->m_fieldSplit.m_avatarEndur = (unsigned short)newEndur;
+    sig->enduranceAfter =
+        (unsigned int)(unsigned short)avatar->m_fieldSplit.m_avatarEndur;
+
+    user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)1,
+                             sig->avatarSlot);
+    cMyTrace(__PRETTY_FUNCTION__, 0xfe, 0)(
+        "USE AVATAR RECHARGE : success [slot:%d] [item_id:%d] "
+        "[Endurance:%d] [charac_no:%d]",
+        (int)sig->avatarSlot, avatar->m_addInfo,
+        (int)(unsigned short)avatar->m_fieldSplit.m_avatarEndur,
+        user->getCurCharacNo());
+
+    arad::SigAradAvatarEnduranceSave save;   // ORIG ctor：清 +0/+4
+    save.uiId = (unsigned int)avatar->m_addInfo2;
+    save.endurance =
+        (unsigned int)(unsigned short)avatar->m_fieldSplit.m_avatarEndur;
+    SaveAvatarEnduranceUnit(save);
+    return true;
 }
 
 // ============================================================================
 // UseEmblem —— ORIG T 0x08190ed8
-// 徽章合成加耐久：累加 grades 在 [recharge use emblem info] 的数值并 clamp。
+// 徽章合成加耐久：累加 grades 在 [emblem recharge] 的数值并 clamp。
+// [b28d-solo-AvatarRechargeServer] AE（181=181）：真语义 bug 修正 —— ORIG
+// 0x08190f39 `lea 0x20(%eax),%edx` = Server+0x20 = m_emblemRechargeMap
+// （旧源码误用 m_useEmblemGradeRateMap this+0x38）；另 P52 链式去 invenR +
+// P227 trace 全表达式临时链 + P13 end 缓存 / P50 迭代器先声明后赋值。
 // ============================================================================
 bool AvatarRechargeServer::UseEmblem(CUser* user, std::vector<int>& grades,
                                      Inven_Item* emblemItem, short slot)
 {
-    const CInventory* invenR = user->getCurCharacInvenR();
+    // [b28d-solo-AvatarRechargeServer] P52 链式：ORIG 0x08190ee8 `mov 0x14(%ebp),%eax;
+    // mov 0x7(%eax),%ebx` 把 m_addInfo2 升格 %ebx 跨两 call 保活，无 invenR 具名槽。
     const stAvatarEmblemInfo_t* socketData =
-        (const stAvatarEmblemInfo_t*)invenR->GetAvatarItemMgrR()->getJewelSocketData(
+        (const stAvatarEmblemInfo_t*)user->getCurCharacInvenR()->GetAvatarItemMgrR()->getJewelSocketData(
             emblemItem->m_addInfo2);
+    // ORIG 0x08190f1b `call getSocketCount; mov 0x4(%edx),%edx; imul %edx,%eax`
+    // ⇒ 原码书写序为 count * limit（具名基类字段，原裸偏移 §4.3 禁）。
     const int maxEndurance =
-        *(int*)((char*)this + 4) * getSocketCount(socketData);
+        getSocketCount(socketData) * m_rechargeLimit;
 
     int addSum = 0;
-    for (std::vector<int>::size_type i = 0; i < grades.size(); ++i)
+    // [b28d-solo-AvatarRechargeServer] 真语义修正：ORIG 0x08190f39/0x08190f7d
+    // `lea 0x20(%eax),%edx` = Server+0x20 = m_emblemRechargeMap（[emblem recharge]），
+    // 旧源码误用 m_useEmblemGradeRateMap（this+0x38）。循环形照 ORIG：迭代器先声明
+    // 后赋值（P50，C1Ev 默认构造）+ end 缓存（P13）+ i/n 缓存。
+    std::map<int, int>::iterator it;
+    std::map<int, int>::iterator itEnd = m_emblemRechargeMap.end();
+    for (std::vector<int>::size_type i = 0, n = grades.size(); i < n; ++i)
     {
-        // b28d-lane25：P167 差集实证 ORIG 非 const iterator + 先声明后赋值（P50/P96）。
-        std::map<int, int>::iterator it;
-        it = m_useEmblemGradeRateMap.find(grades[i]);
-        if (it != m_useEmblemGradeRateMap.end())
+        it = m_emblemRechargeMap.find(grades[i]);
+        if (it != itEnd)
             addSum += it->second;
     }
 
-    CInventory* invenW = user->getCurCharacInvenW();
-    Inven_Item* avatar = invenW->GetInvenRef(2, (int)slot);
+    Inven_Item* avatar = user->getCurCharacInvenW()->GetInvenRef(2, (int)slot);
     if (avatar == 0 || avatar->isEmpty())
     {
         ARAD::PRINT_ERROR::isEmpty((char*)"USE AVATAR RECHANGE", user,
@@ -288,15 +326,15 @@ bool AvatarRechargeServer::UseEmblem(CUser* user, std::vector<int>& grades,
 
     UpdateAvatarEndurance((CUser::eSendTarget)1, user, slot);
 
-    cMyTrace trace(
-        "bool AvatarRechargeServer::UseEmblem(CUser*, "
-        "std::vector<int, std::allocator<int> >&, Inven_Item*, short int)",
-        0x142, 0);
-    trace("USE EMBLEM + RECHARGE : success [slot:%d] [item_id:%d] "
-          "[Endurance:%d] [charac_no:%d]",
-          (int)slot, avatar->m_addInfo,
-          (int)(unsigned short)emblemItem->m_fieldSplit.m_avatarEndur,
-          user->getCurCharacNo());
+    // [b28d-solo-AvatarRechargeServer] P227 全表达式临时链：ORIG 0x081910a2..0x081910e4
+    // 先把 getCurCharacNo→%ebx、emblem 耐久→-0x64、item_id→%edi、slot→%esi 全部求值，
+    // 再 call cMyTrace::C1，之后逐槽压 operator() 实参（P139 用 __PRETTY_FUNCTION__）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x142, 0)(
+        "USE EMBLEM + RECHARGE : success [slot:%d] [item_id:%d] "
+        "[Endurance:%d] [charac_no:%d]",
+        (int)slot, avatar->m_addInfo,
+        (int)(unsigned short)emblemItem->m_fieldSplit.m_avatarEndur,
+        user->getCurCharacNo());
 
     arad::SigAradAvatarEnduranceSave save;   // ORIG ctor：清 +0/+4
     save.uiId = (unsigned int)avatar->m_addInfo2;
@@ -404,14 +442,17 @@ void AvatarRechargeServer::GmSetEnduranceReduceRate(CUser* user, bool enable,
 // ============================================================================
 // UpdateAvatarEndurance —— ORIG T 0x081913f6
 // 组 0x220 包：uid 低 16 位 / slot / item_idx / 耐久计数，SendPacket 上报。
+// [b28d-solo-AvatarRechargeServer] AE：P48 去 invenW 具名缓存
+// （ORIG 0x0819142a `mov %eax,(%esp); call GetInvenRef` 结果右值直传实参槽）。
 // ============================================================================
 void AvatarRechargeServer::UpdateAvatarEndurance(CUser::eSendTarget target,
                                                  CUser* user, short slot)
 {
     if (slot < 0 || slot > 9)
         return;
-    CInventory* invenW = user->getCurCharacInvenW();
-    Inven_Item* item = invenW->GetInvenRef(0, (int)slot);
+    // [b28d-solo-AvatarRechargeServer] P48 去缓存：ORIG 0x0819142a `mov %eax,(%esp);
+    // call GetInvenRef` 无 invenW 槽（getCurCharacInvenW 结果右值直传实参槽）。
+    Inven_Item* item = user->getCurCharacInvenW()->GetInvenRef(0, (int)slot);
     if (item == 0 || item->isEmpty())
         return;
 
@@ -488,17 +529,16 @@ int AvatarRechargeServer::GetRateFromEmblemGrade(int grade)
 // → DB_Q。不触碰 this，与 ORIG 一致保持静态。
 void AvatarRechargeServer::SaveAvatarEnduranceUnit(arad::SigAradAvatarEnduranceSave& save)
 {
-    // ORIG（idx66 报告）：Acquire 结果直传 CStreamGuard ctor 出参槽（P0 无具名
-    // 局部）；make_internal_stream_jpn 后经 operator->() 再 put_binary。
-    // [b23S3C] 在途复验：fresh .o 52=52（norm），仅 put_binary 实参装载寄存器/时刻
-    // 差（P75 跨版本形），方向正确保留。
-    // [b28c-L9] 复核定稿 ndiff=3：ORIG `mov 0x8(%ebp),%edx; mov %edx,0x4(%esp)`，
-    // 4.4 提前把同一值升格 %ebx 跨 call 保活（N7 角色轮换 + N18a 单段直落不可造）。
+    // [b28d-solo-AvatarRechargeServer] AE：ORIG（idx66 报告）Acquire 结果直传
+    // CStreamGuard ctor 出参槽（P0 无具名局部）；make_internal_stream_jpn 后经
+    // operator->() 再 put_binary。旧 DIFF 根因 = 实参冗余 `(char*)` cast 令 4.4
+    // 提前把 &save 升格 %ebx 跨 call 保活；删 cast 写 `put_binary(&save, 8)` 后
+    // 复现 ORIG `mov 0x8(%ebp),%edx; mov %edx,0x4(%esp)`（52=52，compare_tu AE）。
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("localjapan/Arad_EmblemReformServer.cpp", 0x10f),
         true);
     ARAD::DISPATCHER::make_internal_stream_jpn(guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x31, 0xffffffff);
-    guard->put_binary((char*)&save, 8);
+    guard->put_binary(&save, 8);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 

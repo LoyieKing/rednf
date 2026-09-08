@@ -372,8 +372,8 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
     case 0x1c:
     {
         pkt->put_byte(m_mazeType);                         // +0x1ac
-        pkt->put_byte(m_pos[0].first);                     // +0x0c
-        pkt->put_byte(m_pos[0].second);                    // +0x10
+        pkt->put_byte(m_endX);                             // +0x0c
+        pkt->put_byte(m_endY);                             // +0x10
         pkt->put_byte(m_hellPosX);                         // +0x1c0
         pkt->put_byte(m_hellPosY);                         // +0x1c4
         pkt->put_byte(m_bloodState);                       // +0x1b4
@@ -445,8 +445,8 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
     case 0xd4:
     {
         pkt->put_byte(m_mazeType);
-        pkt->put_byte(m_pos[0].first);
-        pkt->put_byte(m_pos[0].second);
+        pkt->put_byte(m_endX);
+        pkt->put_byte(m_endY);
         pkt->put_byte(0);
         pkt->put_byte(0);
         pkt->put_byte(m_bloodState);

@@ -168,7 +168,17 @@ private:
     // m_stlGap* 为两者实现尺寸差的忠实还原（非语义字段）。
     std::multimap<ENUM_HACKTYPE, HackTypeInfo_t> m_hackTypeMap;     // +0x00
     unsigned int m_totalTradeType;                                  // +0x18【推断命名】
-    unsigned long long m_totalTradeValue;                           // +0x1c【推断命名】
+    // +0x1c【推断命名】：ORIG checkTotalTradeRuleOver 对高/低 dword 直发
+    // `mov 0x20(%eax),%edx`（无 64 位移位链）⇒ 需具名双视角（P260/P235 同族）。
+    union
+    {
+        unsigned long long m_totalTradeValue;                       // +0x1c
+        struct
+        {
+            unsigned int m_totalTradeLo;                            // +0x1c
+            unsigned int m_totalTradeHi;                            // +0x20
+        };
+    };
     std::multimap<unsigned short, HackIPCounter_t> m_ipCounterMap;        // +0x24
     char m_stlGap1[4];                                              // 0x3c..0x40 版本间隙
     std::multimap<unsigned short, HackFullIPCounter_t> m_fullIPCounterMap;// +0x40

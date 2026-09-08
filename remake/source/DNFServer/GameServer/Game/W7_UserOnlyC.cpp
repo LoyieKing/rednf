@@ -461,7 +461,7 @@ bool CUser::Parsing(int received)
 
 // 返回 int：ORIG 0x0867b51c 尾 `mov eax,0x1; ret`（成功）/早退 `mov eax,0x0`
 // （runnable 假 / skill==0）——Model22 桥清零证据；签名与 CUser.h 同步（Main 代落）。
-int CUser::SetSkillLevel(int skillIdx, int level)
+bool CUser::SetSkillLevel(int skillIdx, int level)
 {
     // b28d-52：ORIG 0x0867b528 `movzbl 0x711d8(%eax); xor $1; test; jne` =
     // `!m_gmUserFlag`（P248② bool 字段 + 裸 !field；该偏移 = Client_Spec+0xbfc，

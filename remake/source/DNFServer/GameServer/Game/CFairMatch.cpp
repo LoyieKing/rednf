@@ -68,21 +68,28 @@ void PlayerInfoThird::reset()
 }
 
 // ORIG add 0x85625c6：首个空位（m_flag==0）写入；满返 0，成功返 1。
-// [b28d-L8] N82 | 帧差（push ebx+sub 0x24 vs sub 0x28）+ 循环块序（ORIG 0x08xxxxxx）
+// [b28d-solo-CFairMatch] P248 档②（bool 字段 + 裸 if(!field) ⇒ `movzbl; xor $1;
+// test; je`）+ P157/P183（禁 slot 引用缓存：ORIG 每字段重算 i*0x10 全链）。
+// 残余 N18a（1 条）：ORIG 0x08562638 段 getCurCharacGrowType 结果先 `mov %eax,%edx`
+// 再 `mov %dl,0xe(%ecx,%eax,1)`（this 装 %eax）；4.4 折单段（this 装 %edx、值留
+// %al）。源侧 12 形穷举全折叠（无 cast / (unsigned char) / (unsigned char)(unsigned
+// int) / (unsigned char)(int) / (int) RHS / (unsigned int) RHS / (unsigned short) /
+// &0xff / *1u / +0 / 裸语句表达式 / 具名语句表达式[劣化75]），callee 侧旋钮需改
+// CUserCharacInfo 返回类型（跨 .cpp，单文件铁律外）⇒ 已上报 Main。
 int TeamInfoThird::add(CUser* user)
 {
     for (int i = 0; i < 4; ++i)
     {
-        if (m_players[i].m_flag != 0)
-            continue;
-        PlayerInfoThird& slot = m_players[i];
-        slot.m_flag = 1;
-        slot.m_user = user;
-        slot.m_kind.m_job = (unsigned char)user->get_charac_job();
-        slot.m_kind.m_grow = user->getCurCharacGrowType();
-        slot.m_pvpGrade = user->get_pvp_grade();
-        slot.m_rating = user->GetRating();
-        return 1;
+        if (!m_players[i].m_flag)
+        {
+            m_players[i].m_flag = true;
+            m_players[i].m_user = user;
+            m_players[i].m_kind.m_job = (unsigned char)user->get_charac_job();
+            m_players[i].m_kind.m_grow = user->getCurCharacGrowType();
+            m_players[i].m_pvpGrade = user->get_pvp_grade();
+            m_players[i].m_rating = user->GetRating();
+            return 1;
+        }
     }
     return 0;
 }
@@ -144,7 +151,12 @@ void TeamInfoThird::SendToTeam(PacketGuard& pkt)
 // `fucompp; fnstsw %ax; sahf`（3 条）vs 4.4 恒 `fucomip; fstp`（2 条），负例 N85
 // 「x87 比较两向跨版本」定案（GetResult/BuyAuctionItem 族）；源形不可择。
 // 其余 43/43 逐条同（含 mov $0 整型零初始化 sum、fildl/fdivp 平均段、-0x14 中转槽）。
-// [b28d-L8] N85 | x87 比较 lowering（ORIG fucompp/fnstsw/sahf vs 4.4 fucomip/fstp）；-march=i486 可治，路由由 Main 定（ORIG 0x085627b2）
+// [b28d-solo-CFairMatch] N85→AE | x87 比较 lowering：ORIG `fucompp; fnstsw %ax; sahf`
+// vs 4.4.7 `fucomip; fstp`（0x085627fa 段），其余 43/43 逐条同。本机实测
+// -march=i486 -mtune=generic 使该件归零（GCC 4.4 无 x86 函数级 target 旋钮，
+// `#pragma GCC target("i486")` 实测报 attribute 未知）⇒ 已上报 Main；Main 已将
+// *Game/CFairMatch.cpp 加入 i486 路由组（dnf_game_cxx.sh L355，P230 补先例），
+// check_tu_routed 复验该件 AE（TU ae 24→25 / diff 3→2）。
 float TeamInfoThird::GetTeamRating()
 {
     float sum = 0.0f;
@@ -255,7 +267,12 @@ void CFairMatch::SetPlayCountPerOneTeam(unsigned int)
 //   CheckUnusableEquipmentInfo(type, usableLevel)==1 时再以
 //   vtable+0xc（GetItemType）与 get_index 查 CheckUnusableItem 判定；
 //   其余返回 0。
-// [b28d-L8] N7 | 参数槽已修（static，P245）；残余=esi/ebx 实参寄存器角色互换 + 间接 call 目标 edx vs eax（N7，4.4.6 后端可治，ORIG 0x08562bdc）
+// [b28d-solo-CFairMatch] N7 | 参数槽已修（static，P245）；残余两处纯寄存器角色：
+// ①CheckUnusableEquipmentInfo 的 arg3→%esi / arg2→%ebx（ORIG）vs arg3→%ebx /
+// arg2→%esi（4.4）；②间接虚调目标 ORIG 用 %edx vs 4.4 用 %eax（0x08562cc8 段）。
+// 本机双后端实测均不可治：4.4.7 与 4.4.6（-B cc1plus446bin，含 4.4.6 头集）读数
+// 完全相同（identical=37 ae=24 near=1 diff=3）。虚槽 +0xc 已按 P193/P282 核对
+// _ZTV10CEquipItem vptr+0xc = CEquipItem::GetItemType 0x08514d26（语义正确）。
 int CFairMatch::CheckUnusableEquipment(const Inven_Item* item)
 {
     if (item == 0)

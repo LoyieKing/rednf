@@ -183,8 +183,11 @@ struct upgrade_info_t
     upgrade_info_t()
     {
         // ①（逐条写：4.1 展开发形；写成循环会被 4.4 保留循环而丢 8×2 展开）
-        m_prob00[0] = 0; m_prob00[1] = 0; m_prob00[2] = 0; m_prob00[3] = 0;
-        m_prob00[4] = 0; m_prob00[5] = 0; m_prob00[6] = 0; m_prob00[7] = 0;
+        // [b28d-solo-CItemUpgrade] 前 8 字 ORIG 0x0854b288..0x0854b2dc 为
+        // `mov $0x0,%edx; mov %edx,N(%eax)` 两段（P238 常量 store edx 中转）⇒
+        // 源字段必须是 float 视角；int 视角 m_prob00[k]=0 4.4 恒折单条 movl $0。
+        m_f00[0] = 0.0f; m_f00[1] = 0.0f; m_f00[2] = 0.0f; m_f00[3] = 0.0f;
+        m_f00[4] = 0.0f; m_f00[5] = 0.0f; m_f00[6] = 0.0f; m_f00[7] = 0.0f;
         // ②
         m_prob20[0] = 0;
         m_prob20[1] = 0;
@@ -198,21 +201,40 @@ struct upgrade_info_t
             m_w38[i] = 0;
         }
         // ④（ORIG 两个四字数组共用一个循环计数器）
+        // [b28d-solo-CItemUpgrade] ORIG 0x0854b34d/0x0854b35f 两 store 均带
+        // `mov $0x0,%edx; mov %edx,0xc(%eax,%ecx,4)` 中转（P238）⇒ 源字段用
+        // float 视角；int 视角 m_w4c[j]=0 4.4 恒折单条 movl $0。
         for (int j = 0; j <= 3; ++j)
         {
-            m_w4c[j] = 0;
-            m_w5c[j] = 0;
+            m_f4c[j] = 0.0f;
+            m_f5c[j] = 0.0f;
         }
     }
-    int m_prob00[8];        // +0x00..+0x1f 概率/等级混合区（float 视图见
-                            //   get_upgrade_info/CItemAmplifier.cpp）
-    int m_prob20[3];        // +0x20..+0x2b 同区尾字
+    // [b28d-solo-CItemAmplifier] +0x00..+0x1f 与 +0x20..+0x2b 加 float 视角：
+    // get_upgrade_info 0x089004ed.. 段 ORIG 为 `mov 0xc(%ebp),%eax; flds
+    // 0x4(%eax)` 的**常量 disp 折叠**形；`((float*)out)[i]` 写法 4.4 恒
+    // `lea/add + flds (%reg)`（每点多 1-2 条）。匿名 union 双视角零布局改动
+    // （sizeof/偏移/静态断言不变），消费方仍用 int 名。
+    union {
+        int m_prob00[8];    // +0x00..+0x1f 概率/等级混合区
+        float m_f00[8];     // +0x00 同区 float 视角
+    };
+    union {
+        int m_prob20[3];    // +0x20..+0x2b 同区尾字
+        float m_f20[3];     // +0x20 同区 float 视角
+    };
     int m_recipeItem;       // +0x2c（材料 item idx / 强化商品）
     int m_meterialCount;    // +0x30（材料数量）
     int m_discountBase;     // +0x34（折扣基数；updateUpgradeTable... 亦写 +0x2c/+0x30）
     int m_w38[5];           // +0x38..+0x48（ORIG C1 循环 ③ 清五字）
-    int m_w4c[4];           // +0x4c..+0x58（循环 ④ 组一）
-    int m_w5c[4];           // +0x5c..+0x68（循环 ④ 组二）
+    union {
+        int m_w4c[4];       // +0x4c..+0x58（循环 ④ 组一）
+        float m_f4c[4];     // +0x4c 同区 float 视角（get_upgrade_info 0x13..0x16）
+    };
+    union {
+        int m_w5c[4];       // +0x5c..+0x68（循环 ④ 组二）
+        float m_f5c[4];     // +0x5c 同区 float 视角（get_upgrade_info 0x17..0x1a）
+    };
 };
 static_assert(sizeof(upgrade_info_t) == 0x6c, "upgrade_info_t size drift");
 static_assert(offsetof(upgrade_info_t, m_recipeItem) == 0x2c, "info +0x2c");

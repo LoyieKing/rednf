@@ -49,6 +49,35 @@ inline unsigned int& create_result_code(SIG_CREATE_CHARAC* sig)
 #define LOGIN_FIELD(T, base, off) \
     (reinterpret_cast<T*>(base)[(off) / sizeof(T)])
 
+// 【ABI 镜像】SIG_CREATE_CHARAC 主属性区具名视图（ORIG 0x0818af9a 各
+//   `mov off(%eax)` disp 单条实证；pack(1) 使 +0x26 等非对齐 int 折叠 disp，
+//   替代 LOGIN_FIELD 指针加法在 4.4 下多出的 add+mov 两步形）。POD 无符号发射。
+#pragma pack(push, 1)
+struct SigCreateCharacAttrView
+{
+    char m_pad00[0x26];
+    unsigned int   m_maxHP;      // +0x26
+    unsigned int   m_maxMP;      // +0x2a
+    unsigned short m_phyAtk;     // +0x2e
+    unsigned short m_phyDef;     // +0x30
+    unsigned short m_magAtk;     // +0x32
+    unsigned short m_magDef;     // +0x34
+    char m_pad36[0x60 - 0x36];   // +0x36..+0x5f（spec_property 8B / element 0x22B 区）
+    unsigned int   m_invenWt;    // +0x60
+    unsigned short m_hpRegen;    // +0x64
+    unsigned short m_mpRegen;    // +0x66
+    unsigned int   m_moveSpd;    // +0x68
+    unsigned short m_atkSpd;     // +0x6c
+    unsigned short m_castSpd;    // +0x6e
+    unsigned short m_hitRecov;   // +0x70
+    unsigned short m_jump;       // +0x72
+    unsigned int   m_chaWt;      // +0x74
+};
+#pragma pack(pop)
+
+#define SIG_ATTR(sig, field) \
+    (reinterpret_cast<const SigCreateCharacAttrView*>(sig)->field)
+
 } // namespace
 
 namespace ARAD
@@ -165,6 +194,10 @@ int CREATE_QUERY::arad_sp_create_character_check(MySQL* db, SIG_CREATE_CHARAC* s
 
 // ORIG 0x0818af9a：inSert into charac_info ……（新角色主记录，含两张 blob）。
 // 列名/占位与字段映射完全照抄 ORIG 格式串与实参顺序。
+// b28d-solo-ARAD_Database verdict=DIFF(193/195) N 封顶：P167 调用点集 8/8 CLEAR；
+//   残余=槽组整体平移（ORIG escName -0x5c / spill -0xac..-0x7c vs 4.4 -0x98/-0x58..，
+//   N82/N95 槽分配策略）+ maxHP/maxMP 无槽（ORIG 用 %esi/%edi）+ insert 返回值尾部
+//   双 return 块序（ORIG Bfalse-ret0 在前，4.4 恒 Btrue-ret1 在前，N93附）。语义闭合。
 int CREATE_QUERY::arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
     if (arad_sp_create_character_check(db, sig) != 0)
@@ -173,47 +206,44 @@ int CREATE_QUERY::arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig)
     }
 
     // ORIG：库名 = G_CEnvironment()->m_dbConnInfo[(ENUM_DB_HANDLE_IDX)2].m_db(+0x42)，
-    // 该 map 为 private 且无访问器，此处在类外按 ABI 镜像定位 +0x68 后调用 operator[]。
-    // ORIG：库名 = G_CEnvironment()->m_dbConnInfo[(ENUM_DB_HANDLE_IDX)2].m_db(+0x42)，
-    // 经 get_db_conn_info accessor 具名访问（+0x68）。
-    typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DbConnInfoMap;
-    DbConnInfoMap& connMap = G_CEnvironment()->get_db_conn_info();
-    char const* dbName = connMap[static_cast<ENUM_DB_HANDLE_IDX>(2)].m_db;
-
-    if (arad_sp_charater_name_check(db, sig, dbName) != 0)
+    // 具名直访 public m_dbConnInfo（+0x68）内联进 name_check 第三实参（ORIG 无
+    // connMap/dbName 具名槽；operator[] 的 key 临时槽 -0x20 由右值实参自然产生）。
+    if (arad_sp_charater_name_check(
+            db, sig,
+            G_CEnvironment()->m_dbConnInfo[
+                static_cast<ENUM_DB_HANDLE_IDX>(2)].m_db) != 0)
     {
         return -1;
     }
 
-    char escName[60];                                // ORIG 60 字节清零缓冲
-    memset(escName, 0, sizeof(escName));
+    char escName[60] = {0};                          // ORIG 0x818b015 rep stos 60B
     db->escape_string(escName, sig->m_name);
 
-    // blob 序列化：spec_property 取 +0x36 起 8 字节、element_resist 取 +0x3e 起 0x22 字节
-    //（【ABI 镜像】同落 SigTypes.h 权威头 m_jobData 区间内，具名化待脚本域收口）。
-    char* specProperty =
-        db->blob_to_str(0, reinterpret_cast<char*>(sig) + 0x36, 8);
-    char* elementResist =
-        db->blob_to_str(1, reinterpret_cast<char*>(sig) + 0x3e, 0x22);
+    // 【ABI 镜像】charac 主属性打包区（+0x26..+0x79 内散列整型，按报告字节宽读取）。
+    // ORIG 0x818b4a9 起为 insert 实参右→左求值 spill：具名局部按 ORIG 槽深→浅
+    // （-0xac..-0x6c）顺序声明，4.4 全头部声明同向分配即逐槽对齐。
+    int expertJob        = static_cast<int>(static_cast<char>(sig->m_pad25)); // -0xac
+    int maxFatigue       = DEFAULT_MAX_FATIGUE;                              // -0xa8
+    unsigned int chaWt   = SIG_ATTR(sig, m_chaWt);                           // -0xa4
+    int jump             = static_cast<short>(SIG_ATTR(sig, m_jump));        // -0xa0
+    int hitRecov         = static_cast<short>(SIG_ATTR(sig, m_hitRecov));    // -0x9c
+    unsigned int castSpd = SIG_ATTR(sig, m_castSpd);                         // -0x98
+    unsigned int atkSpd  = SIG_ATTR(sig, m_atkSpd);                          // -0x94
+    unsigned int moveSpd = SIG_ATTR(sig, m_moveSpd);                         // -0x90
+    int mpRegen          = static_cast<short>(SIG_ATTR(sig, m_mpRegen));     // -0x8c
+    int hpRegen          = static_cast<short>(SIG_ATTR(sig, m_hpRegen));     // -0x88
+    unsigned int invenWt = SIG_ATTR(sig, m_invenWt);                         // -0x84
+    // blob 序列化：element_resist 取 +0x3e 起 0x22 字节、spec_property 取 +0x36 起 8 字节
+    char* elementResist  = db->blob_to_str(1, reinterpret_cast<char*>(sig) + 0x3e, 0x22); // -0x80
+    char* specProperty   = db->blob_to_str(0, reinterpret_cast<char*>(sig) + 0x36, 8);    // -0x7c
+    unsigned int magDef  = SIG_ATTR(sig, m_magDef);                          // -0x78
+    unsigned int magAtk  = SIG_ATTR(sig, m_magAtk);                          // -0x74
+    unsigned int phyDef  = SIG_ATTR(sig, m_phyDef);                          // -0x70
+    unsigned int phyAtk  = SIG_ATTR(sig, m_phyAtk);                          // -0x6c
+    unsigned int maxMP   = SIG_ATTR(sig, m_maxMP);      // %u（ORIG 无槽，寄存器直传）
+    unsigned int maxHP   = SIG_ATTR(sig, m_maxHP);      // %d（ORIG 无槽，寄存器直传）
 
-    // 【ABI 镜像】charac 主属性打包区（+0x26..+0x79 内散列整型，按报告字节宽读取）
-    unsigned int maxHP   = LOGIN_FIELD(unsigned int, sig, 0x26);      // %d
-    unsigned int maxMP   = LOGIN_FIELD(unsigned int, sig, 0x2a);      // %u
-    unsigned int phyAtk  = LOGIN_FIELD(unsigned short, sig, 0x2e);    // %d(zero-extend)
-    unsigned int phyDef  = LOGIN_FIELD(unsigned short, sig, 0x30);
-    unsigned int magAtk  = LOGIN_FIELD(unsigned short, sig, 0x32);
-    unsigned int magDef  = LOGIN_FIELD(unsigned short, sig, 0x34);
-    unsigned int invenWt = LOGIN_FIELD(unsigned int, sig, 0x60);
-    int hpRegen          = static_cast<short>(LOGIN_FIELD(unsigned short, sig, 0x64));
-    int mpRegen          = static_cast<short>(LOGIN_FIELD(unsigned short, sig, 0x66));
-    unsigned int moveSpd = LOGIN_FIELD(unsigned int, sig, 0x68);
-    unsigned int atkSpd  = LOGIN_FIELD(unsigned short, sig, 0x6c);
-    unsigned int castSpd = LOGIN_FIELD(unsigned short, sig, 0x6e);
-    int hitRecov         = static_cast<short>(LOGIN_FIELD(unsigned short, sig, 0x70));
-    int jump             = static_cast<short>(LOGIN_FIELD(unsigned short, sig, 0x72));
-    unsigned int chaWt   = LOGIN_FIELD(unsigned int, sig, 0x74);
-
-    if (db->insert(
+    int ret = db->insert(
             "inSert into charac_info "
             "( m_id,charac_name,job,sex,maxHP,maxMP,phy_attack,phy_defense,mag_attack,"
             "mag_defense,element_resist,spec_property,inven_weight,hp_regen,mp_regen,"
@@ -228,12 +258,12 @@ int CREATE_QUERY::arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig)
             maxHP, maxMP, phyAtk, phyDef, magAtk, magDef,
             elementResist, specProperty,
             invenWt, hpRegen, mpRegen, moveSpd, atkSpd, castSpd, hitRecov, jump,
-            chaWt, DEFAULT_MAX_FATIGUE,
-            static_cast<int>(static_cast<char>(sig->m_pad25))) != 0)
+            chaWt, maxFatigue, expertJob);
+    if (ret == 0)
     {
-        return -1;
+        return 0;
     }
-    return 0;
+    return -1;
 }
 // ORIG 0x0818b26d：inSert into charac_stat …… 失败时错误码置 2。
 int CREATE_QUERY::arad_sp_create_charac_stat(MySQL* db, SIG_CREATE_CHARAC* sig)
@@ -252,43 +282,46 @@ int CREATE_QUERY::arad_sp_create_charac_stat(MySQL* db, SIG_CREATE_CHARAC* sig)
 // ORIG 0x0818b2b7：inSert into inventory ……
 //   m_giftFindOk(+0x533f)==0 → 无背包快照，仅插空库存（coin 由送币事件定）；
 //   否则把 +0x3a9 起 0x3b55 字节 zip 压缩为 blob 连同原串一并入库。
+// b28d-solo-ARAD_Database：ORIG 0x818b2b7 全头部声明（P212）——memset(zipBuf)/
+//   zipLen/invenSrc 三条在 giftFindOk 判断之前；giftFindOk==0 分支的 insert 返回值
+//   按 ORIG 不检查（P171 照抄不写）；主流程 insert 四可变实参右→左求值（coin 先入
+//   %esi、两个 blob_to_str 结果 %ebx/%eax 寄存器直传，无具名局部槽）。
+// b28d-solo-ARAD_Database verdict=DIFF(85/84)：P167 8/8 CLEAR；残余=memset 首参
+//   edx 中转（待解条目，字面量/&arr[0]/sizeof 均试过无效）+ compress_zip 实参
+//   装载序（同 create_equip）。语义闭合。
 int CREATE_QUERY::arad_sp_create_inven(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
-    if (sig->m_giftFindOk == 0)
-    {
-        if (db->insert(
-                "inSert into inventory  (charac_no, coin, money)  values(%u, %d) ",
-                sig->m_characNo) != 0)
-        {
-            return -1;
-        }
-        if (WongWork::CEventMgr::GetCoinCharacCreate() != 0)
-        {
-            return -1;
-        }
-        return 0;
-    }
-
     static const unsigned int kInvenSrcLen = sourceInvenSize;   // ORIG 背包快照长度
     char zipBuf[0x4152];
     memset(zipBuf, 0, sizeof(zipBuf));
     unsigned int zipLen = 0x4152;
-    // ORIG 判定与 equip 相反：compress 返回非 0 即放弃（逐指令转写，勿"修正"）
-    if (compress_zip(zipBuf, zipLen,
-                     reinterpret_cast<char*>(sig) + 0x3a9, kInvenSrcLen))
-    {
-        return -1;
-    }
+    char* invenSrc = reinterpret_cast<char*>(sig) + 0x3a9;
 
-    int coin = WongWork::CEventMgr::GetCoinCharacCreate();
-    char* invenRaw = db->blob_to_str(0, reinterpret_cast<char*>(sig) + 0x3a9,
-                                     kInvenSrcLen);
-    char* invenZip = db->blob_to_str(0, zipBuf, static_cast<int>(zipLen));
-    if (db->insert("inSert into inventory (charac_no, inventory,coin) "
-                   "values(%u, '%s',%d)",
-                   sig->m_characNo, invenZip, invenRaw, coin) != 0)
+    if (sig->m_giftFindOk != 0)
     {
-        return -1;
+        // ORIG 判定与 equip 相反：compress 返回非 0 即放弃（逐指令转写，勿"修正"）
+        if (compress_zip(zipBuf, zipLen, invenSrc, kInvenSrcLen))
+        {
+            return -1;
+        }
+        if (db->insert("inSert into inventory (charac_no, inventory,coin) "
+                       "values(%u, '%s',%d)",
+                       sig->m_characNo,
+                       db->blob_to_str(0, zipBuf, static_cast<int>(zipLen)),
+                       db->blob_to_str(0, invenSrc, kInvenSrcLen),
+                       WongWork::CEventMgr::GetCoinCharacCreate()) != 0)
+        {
+            return -1;
+        }
+    }
+    else
+    {
+        db->insert("inSert into inventory  (charac_no, coin, money)  values(%u, %d) ",
+                   sig->m_characNo);
+        if (WongWork::CEventMgr::GetCoinCharacCreate() != 0)
+        {
+            return -1;
+        }
     }
     return 0;
 }
@@ -306,16 +339,22 @@ int CREATE_QUERY::arad_sp_create_expand_inven(MySQL* db, SIG_CREATE_CHARAC* sig)
 }
 
 // ORIG 0x0818b443：初始 equipslot 快照（+0x4e01 起 0x2dc 字节）zip 后 upDate 入库。
+// b28d-solo-ARAD_Database：ORIG 0x818b44e 起为内联 memset 对齐剥离慢路（P214③/
+//   P253：`char zipBuf[0x333]={0}` 复现 rep stos 慢路与 push edi/ebx 帧）；
+//   compress_zip 结果无槽往返（`xor $0x1,%eax; test %al,%al`，P0 右值内联）；
+//   update 实参右→左求值：charac_no 先入 %ebx 跨 blob_to_str 保活，blob 返回值
+//   %eax 直传（无 equipZip 槽）。
+// b28d-solo-ARAD_Database verdict=DIFF(91/91)：P167 4/4 CLEAR；残余=compress_zip
+//   第3参局部读与第4参立即数压栈先后（ORIG 先读局部，4.4 先压常量，P75/N-G 跨版本
+//   调度）。语义闭合。
 int CREATE_QUERY::arad_sp_create_equip(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
     static const unsigned int kEquipSrcLen = sourceEquipSize;    // ORIG 初始装备区长度
-    char zipBuf[0x333];
-    memset(zipBuf, 0, sizeof(zipBuf));
+    char zipBuf[0x333] = {0};
     unsigned int zipLen = 0x333;
-    bool compressed = compress_zip(zipBuf, zipLen,
-                                   reinterpret_cast<char*>(&sig->m_giftItem),
-                                   kEquipSrcLen);   // +0x4e01 初始装备区
-    if (!compressed)
+    char* equipSrc = reinterpret_cast<char*>(&sig->m_giftItem);  // ORIG -0xc 具名局部
+    if (!compress_zip(zipBuf, zipLen, equipSrc,
+                      kEquipSrcLen))   // +0x4e01 初始装备区
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",
@@ -324,9 +363,9 @@ int CREATE_QUERY::arad_sp_create_equip(MySQL* db, SIG_CREATE_CHARAC* sig)
         return -1;
     }
 
-    char* equipZip = db->blob_to_str(0, zipBuf, static_cast<int>(zipLen));
     if (db->update(" upDate inventory set equipslot='%s' where charac_no = %u ",
-                   equipZip, sig->m_characNo) != 0)
+                   db->blob_to_str(0, zipBuf, static_cast<int>(zipLen)),
+                   sig->m_characNo) != 0)
     {
         return -1;
     }
@@ -422,6 +461,10 @@ int CREATE_QUERY::arad_sp_create_npc_relationship(MySQL* db, SIG_CREATE_CHARAC* 
 // ORIG 0x0818b706：member_info 主账号信息。逐列解析失败仅 trace 并返 0（ORIG 如此）；
 //   成功时写 passwd 数值(+0xc0)、regdate(+0xcc)、hangame 标志(+0x38dd)、
    // ssn 拼接(+0x2284)与出生年(+0xc8)。【ABI 镜像】字段见 login_field 标注偏移。
+// b28d-solo-ARAD_Database verdict=DIFF(353/352) N 封顶：P167 调用点集 34/34 CLEAR；
+//   残余=cMyTrace 具名对象槽号组（ORIG -0xb0/-0xa0/…/-0x40 递减 vs 4.4 -0x34/… 递增，
+//   P221 临时链两形互试后反劣 355 ⇒ 保持具名）+ 槽号/寄存器分配（N82）。col 已按 ORIG
+//   0x818b7f0 段 `addl $1,槽; mov 槽` 统一为 `++col`。语义闭合。
 int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
@@ -445,11 +488,8 @@ int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2
     }
     if (db->get_n_rows() != 1)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x1f5, 5);
-        trace("query get_n_rows() ERROR m_id=%u",
-              data->m_accId);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x1f5, 5);
+        trace("query get_n_rows() ERROR m_id=%u", data->m_accId);
         return 0;
     }
 
@@ -457,80 +497,61 @@ int LOGIN_QUERY::arad_sp_select_account_info(SIG_LOGIN_DATA* data, char* param_2
     unsigned int sssn = 0;                    // second_ssn
     unsigned int regMid = 0;                  // mid(from_unixtime(reg_date))
     unsigned int hangameFlag = 0;
-    int col = 1;
-    if (!db->get_uint(col, data->m_accId))       // col1
+    // ORIG 0x818b7f0 起 col 槽 -0xc 为 0，各调用实参为 `addl $1,槽; mov 槽,%eax`
+    //   ⇒ 源形统一 `++col`（先自增后读）。
+    int col = 0;
+    if (!db->get_uint(++col, data->m_accId))       // col1
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x201, 5);
-        trace("user m_id ERROR m_id=%u",
-              data->m_accId);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x201, 5);
+        trace("user m_id ERROR m_id=%u", data->m_accId);
         return 0;
     }
     if (!db->get_str(++col, param_2, 0x84))                              // col2
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x207, 5);
-        trace("user password ERROR m_id=%u",
-              data->m_accId);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x207, 5);
+        trace("user password ERROR m_id=%u", data->m_accId);
         return 0;
     }
-    if (!db->get_uint(col++, fssn))
+    if (!db->get_uint(++col, fssn))
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x20d, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x20d, 5);
         trace("user fssn ERROR m_id=%u", data->m_accId);
         return 0;
     }
-    if (!db->get_uint(col++, sssn))
+    if (!db->get_uint(++col, sssn))
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x213, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x213, 5);
         trace("user sssn ERROR m_id=%u", data->m_accId);
         return 0;
     }
-    if (!db->get_uint(col++, regMid))
+    if (!db->get_uint(++col, regMid))
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x219, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x219, 5);
         trace("user regdate ERROR m_id=%u", data->m_accId);
         return 0;
     }
-    if (!db->get_str(col++, data->m_userDetailIpPort, 0x80))  // user_name（+0x2184）
+    if (!db->get_str(++col, data->m_userDetailIpPort, 0x80))  // user_name（+0x2184）
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x21f, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x21f, 5);
         trace("user user_name ERROR m_id=%u", data->m_accId);
         return 0;
     }
-    if (!db->get_str(col++, data->m_userDetailSsn, 0x80))  // email（+0x2204）
+    if (!db->get_str(++col, data->m_userDetailSsn, 0x80))  // email（+0x2204）
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x225, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x225, 5);
         trace("user email ERROR m_id=%u", data->m_accId);
         return 0;
     }
-    if (!db->get_str(col++, reinterpret_cast<char*>(data), 0x1e))           // user_id
+    if (!db->get_str(++col, reinterpret_cast<char*>(data), 0x1e))           // user_id
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x22b, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x22b, 5);
         trace("user id ERROR m_id=%u", data->m_accId);
         return 0;
     }
-    if (!db->get_uint(col++, hangameFlag))                                  // col9
+    if (!db->get_uint(++col, hangameFlag))                                  // col9
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x231, 5);
-        trace("user HanGameUser Check ERROR m_id=%u",
-              data->m_accId);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x231, 5);
+        trace("user HanGameUser Check ERROR m_id=%u", data->m_accId);
         return 0;
     }
 
@@ -812,9 +833,10 @@ int LOGIN_QUERY::arad_sp_update_fail_record(SIG_LOGIN_DATA* data)
 
 // ORIG 0x0818c76f：先取旧 mousepass 再写入 history 表。
 // b28d-50：memset→`char[36]={0}` 已复现 ORIG rep stos 段与 push edi/ebx 帧
-//   （P214③/P253）；残余尾部 `test %eax,%eax; sete %al; test %al,%al; je` 为
-//   4.1 的 setcc 物化，4.4 对 `x==0` 恒折直跳或落槽（探针 /tmp/arad_probe/z1/z2
-//   六形全败）⇒ setcc-fold N 封顶，语义等价（86/84 条，仅差该 2 条）。
+//   （P214③/P253）。
+// b28d-solo-ARAD_Database：尾部 `test %eax,%eax; sete %al; test %al,%al; je`
+//   由 `if (getAffectedRowCount() == 0) return -1; return 0;` 复现（P197④ 寄存器
+//   直比物化；三元 `?:` 形反产 jne 直跳）。探针 /tmp/arad_p2.cpp f1 逐条全等。
 int LOGIN_QUERY::arad_sp_update_history(SIG_LOGIN_DATA* data, int modifyType)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
@@ -850,7 +872,11 @@ int LOGIN_QUERY::arad_sp_update_history(SIG_LOGIN_DATA* data, int modifyType)
     {
         return -1;
     }
-    return db->getAffectedRowCount() == 0 ? -1 : 0;
+    if (db->getAffectedRowCount() == 0)
+    {
+        return -1;
+    }
+    return 0;
 }
 
 // ORIG 0x0818c4f3：按时间窗查 member_mousepass_history 决定 Goblin 奖励标志。
@@ -906,32 +932,45 @@ int LOGIN_QUERY::arad_sp_load_event_entry(
         return -1;
     }
 
-    // P0：Ghidra C 直接读 env+0x378（=m_serverEnvir.m_serverGroup），勿经 get_server_group helper
-    int serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
+    // P0：Ghidra C 直接读 env+0x378（=m_serverEnvir.m_serverGroup）内联为实参，
+    //   ORIG 无 serverGroup 局部槽（值在 %edx 直传）。
     if (!db->set_query(
             "seLect event_id,unix_timestamp(occ_date),server_id,charac_no,"
             "unix_timestamp(obtain_date) from dnf_event_entry where m_id=%d "
             "and server_id in(0,%d)",
-            data->m_accId, serverGroup))
+            data->m_accId, G_CEnvironment()->m_serverEnvir.m_serverGroup))
     {
         return -1;
     }
 
     // P0：Ghidra C 中 entry（local_2c）为函数级局部，循环外声明一次复用（免每轮 dtor）
+    // b28d-solo-ARAD_Database：ORIG 0x818c96b 起五守卫各带独立 nop 中继岛（P223
+    //   多岛形：`if(!c) goto Lk` 标签序=守卫序 + 各岛尾 goto 循环尾），且每守卫为
+    //   `call; xor $1,%eax; test %al,%al; jne <岛>`（get_int 返回 bool 裸形，P292）。
+    // b28d-solo-ARAD_Database verdict=DIFF(111/112)：P167 11/11 CLEAR；残余=set_query
+    //   判定 1 条 xor——ORIG 0x818c951 为 `test %al,%al; je 主流程`（无 xor，即原码把
+    //   set_query 成功判为失败，与同 TU arad_sp_convert_pass_pad_info 0x818c16a 的
+    //   `xor $1; test; je` 相反）⇒ ORIG 原码疑似判定反向 bug，照抄会跳过事件装载，
+    //   保持语义正确记 N（N 封顶）。
     DB_Login::tagDNFEventEntry entry;
     for (unsigned int row = 0; row < static_cast<unsigned int>(db->get_n_rows());
          ++row)
     {
         // P0：Ghidra C 无 occDate/serverId/characNo/obtainDate 中间局部 ——
         // 5 个 get_int 直接写 tagDNFEventEntry 各字段（+0/+8/+0xc/+0x10/+0x14）
-        if (db->get_int(0, entry.m_eventId) &&
-            db->get_int(1, entry.m_occDate) &&
-            db->get_int(2, entry.m_serverId) &&
-            db->get_int(3, entry.m_characNo) &&
-            db->get_int(4, entry.m_obtainDate))
-        {
-            out.push_back(entry);
-        }
+        if (!db->get_int(0, entry.m_eventId)) goto skip1;
+        if (!db->get_int(1, entry.m_occDate)) goto skip2;
+        if (!db->get_int(2, entry.m_serverId)) goto skip3;
+        if (!db->get_int(3, entry.m_characNo)) goto skip4;
+        if (!db->get_int(4, entry.m_obtainDate)) goto skip5;
+        out.push_back(entry);
+        goto skipend;
+    skip1: goto skipend;
+    skip2: goto skipend;
+    skip3: goto skipend;
+    skip4: goto skipend;
+    skip5:;
+    skipend:;
     }
     return 0;
 }
@@ -961,15 +1000,29 @@ int LOGIN_QUERY::arad_sp_select_member_brodcast(
         return -1;
     }
 
-    unsigned int startTime = 0;
-    unsigned int characNo = 0;
-    unsigned int serverId = 0;
-    DBMgr::stUserDBInfo_t userInfo;
-    // P0：Ghidra C 无 memset —— get_uint(0) 直接写 stUserDBInfo_t 首成员
-    if (!db->get_uint(0, reinterpret_cast<unsigned int&>(userInfo.m_userDBIdx)) ||
-        !db->get_uint(1, characNo) ||
-        !db->get_uint(2, serverId) ||
-        !db->get_uint(3, startTime))
+    // b28d-solo-ARAD_Database：ORIG 0x818cb10 起逐条独立守卫（每条
+    //   `call; xor $1,%eax; test %al,%al; je <成功继续>`，P168a bool callee 裸形）；
+    //   仅 startTime 有零初始化槽（-0x1c）。ORIG 把 col0/1/2 直接写 userInfo 三个
+    //   连续成员（-0x18/-0x14/-0x10），无独立 characNo/serverId 槽。
+    // b28d-solo-ARAD_Database verdict=DIFF(132/130)：P167 12/12 CLEAR；残余=
+    //   startTime/userInfo 槽组平移 4（4.4 聚合优先深槽 vs 4.1 标量先深，N82附）+
+    //   比较方向（ORIG `cmp %eax,%ebx; setg` vs 我们 `cmp %edx,%eax; setl`，折痕
+    //   等价，P196）+ flag 直存 1 条 eax→edx 中转。语义闭合。
+    unsigned int startTime = 0;                 // ORIG -0x1c
+    DBMgr::stUserDBInfo_t userInfo;             // ORIG -0x18：col0/1/2 复用 +0/+4/+8
+    if (!db->get_uint(0, reinterpret_cast<unsigned int&>(userInfo.m_userDBIdx)))
+    {
+        return -1;
+    }
+    if (!db->get_uint(1, reinterpret_cast<unsigned int&>(userInfo.m_userDBType)))
+    {
+        return -1;
+    }
+    if (!db->get_uint(2, reinterpret_cast<unsigned int&>(userInfo.m_serverGroup)))
+    {
+        return -1;
+    }
+    if (!db->get_uint(3, startTime))
     {
         return -1;
     }
@@ -987,13 +1040,14 @@ int LOGIN_QUERY::arad_sp_select_member_brodcast(
         GlobalData::s_db_mgr->addUserDBInfo(userIdx, userInfo);
     }
     // P0：Ghidra C 直接偏移写 —— 0x39ac/0x39a8 对应具名字段（login_field 外联 call 需免）
-    data->m_tournamentAccountFlag = characNo;
-    data->m_tournamentServerGroup = serverId;
+    data->m_tournamentAccountFlag = userInfo.m_userDBType;
+    data->m_tournamentServerGroup = userInfo.m_serverGroup;
     return 0;
 }
 
 // ORIG 0x0818cc74：member_premium 首条生效记录 → SIG premium 表格区。
-// b21 verdict=DIFF（N 残余）：202/190。调用点集全等（GetDBHandle/select/get_n_rows×n/fetch/
+// b28d-solo-ARAD_Database verdict=DIFF（N 残余）：202/190。P167 调用点集 16/16 CLEAR
+//   （GetDBHandle/select/get_n_rows×n/fetch/
 //   get_int×3/cMyTraceC1+cMyTracecl×3/vector::push_back/LogManager::logFormat）。
 //   premium 写位与 restrictedGoods/Count 偏移已逐位核（m_premiums@+0x2298 使字段落
 //   +0x2298/+0x229c/+0x22a0/+0x22a4=ORIG +0x2290+{8,c,10,14}）；cMyTrace trace 引用局部
@@ -1338,7 +1392,7 @@ int ARAD::Arad_DB_Charac_Dispatcher::create_charac_npc_relationship(
 // WongWork::CEventMgr::GetCoinCharacCreate —— ORIG T 0x0848f002 objdump 转写。
 // GetRepeatEvent(5) 且事件 IsEventing → CCoinEventOnCoinCharCreate::GetCoinNoOnCreateCharac；
 // 否则默认 5。
-// b28d-50 N7：ORIG 0x0848f045 `mov (%eax),%edx; …; call *%edx`（目标 %edx、this
+// b28d-solo-ARAD_Database N7 封顶：ORIG 0x0848f045 `mov (%eax),%edx; …; call *%edx`（目标 %edx、this
 //   %eax），4.4.7 恒目标 %eax、this %edx（间接 call 族，P230补：4.4.6 后端才出
 //   %edx 形）。本 TU 未路由 446（改路由表属 Main 权限，禁自改）；源形不可择 ⇒ N7
 //   封顶，语义等价（虚槽 +0x34 = IsEventing 已核）。

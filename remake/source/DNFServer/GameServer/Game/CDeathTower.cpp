@@ -281,11 +281,11 @@ int CDeathTowerRanking::checkRenewTopRecord(unsigned int towerIdx,
 {
     // [b28d-solo-CDeathTower] NEAR 3（31/33）：ORIG `add $0x128` 单条 vs 4.4 拆
     // 0x120+disp8（N94，0x128%8==0）+ 返回值 bool 加宽 movzbl（P9）；P167 CLEAR。
-    // ORIG 0x08468290：塔块 +0x128（= m_towers[i].m_slots[0] 起点 +0x98 内
+    // ORIG 0x08468290：塔块 +0x128（= m_towers[i].m_slots[1] 起点 +0x98 内
     // flag +0x90）movzbl 读取，!=1 直接返回 0；否则构造默认 stBestRecord_t，
     // 将 param_2（clearTime）写 m_stage(+0x88)、param_3（playTime）写
     // m_playTime(+0x8c)（0x3f/0x45 两条 movl），调 stBestRecord_t::operator>
-    // (tmp, m_towers[towerIdx].m_slots[0])（ORIG call 0x08469ce4）。
+    // (tmp, m_towers[towerIdx].m_slots[1])（ORIG call 0x08469ce4）。
     // 范式36：删 topSlot 具名中转（4.4 多 1 个 4B 槽 ⇒ ORIG tmp 基址 -0xa0 平移
     // -0xa4）；ORIG 0x084682a5/0x08468320 两处独立 imul 0x390 地址重算。
     // flag 判形 ORIG 0x084682ae：movzbl (%eax); xor $0x1; test %al; je —— (x^1) truthy。
@@ -293,12 +293,12 @@ int CDeathTowerRanking::checkRenewTopRecord(unsigned int towerIdx,
     // 4.4 恒 movzbl %al,%eax 加宽（直写形折 cmp$1，变量形多槽两步——P168a③
     // 同族），test %al 形不可造。另 m_flag90 偏移 0x128 拆 0x120+disp8 为
     // 4.4 常量折叠策略（N94 邻族），ORIG add $0x128 全常量形不可定向。
-    if (!m_towers[towerIdx].m_slots[0].m_flag90)
+    if (!m_towers[towerIdx].m_slots[1].m_flag90)
         return 0;
     stBestRecord_t tmp;
     tmp.m_playTime = playTime;
     tmp.m_stage = clearTime;
-    return tmp > m_towers[towerIdx].m_slots[0];
+    return tmp > m_towers[towerIdx].m_slots[1];
 }
 
 int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
@@ -320,8 +320,8 @@ int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
     // 2) 新纪录 == 表级最优 → 返回表级纪录存故名次（+0x70ec = m_tableBest.m_field94）。
     if (newRec == m_tableBest)
         return m_tableBest.m_field94;
-    // 3) 新纪录严格优于该塔当前榜首（+0x98 槽 0）→ 名次 1。
-    if (newRec > m_towers[towerIdx].m_slots[0])
+    // 3) 新纪录严格优于该塔当前榜首（+0x98 = 槽 1）→ 名次 1。
+    if (newRec > m_towers[towerIdx].m_slots[1])
         return 1;
 
     // ---- 层内 rank map（键=通关时间，值=名次）插值 ----

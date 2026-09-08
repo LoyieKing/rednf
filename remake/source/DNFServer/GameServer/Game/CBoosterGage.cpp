@@ -78,7 +78,7 @@ public:
     unsigned int GetUID() const;
     unsigned int get_acc_id() const;
     int GetAccountLastPlayTime();
-    char GetServerGroup() const;
+    ENUM_SERVER_GROUP GetServerGroup() const;  // ORIG 无 movsbl（返回 4 字节枚举）
     CBoosterGage* GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE eType) const;
     void Send(PacketGuard& packetGuard);
 };
@@ -188,41 +188,46 @@ int CBoosterGage::get_booster_point(unsigned long dwItemIdx)
     return cRet;
 }
 
-// [b28d-32 N(N78/P116): ORIG memset 内联 rep stos 慢路 vs 4.4 call（210/177） | ORIG 0x080dc6d6]
+// [b28d-solo-CBoosterGage AE] 210=210 AE（check_tu_routed clean；p167 25/25 CLEAR）。
+// 修法（N78 突破口）：①`char szPost[0x100] = {0}` 令 4.4 发 rep stos 内联（P214③）；
+// ②前置死局部 `char cPad1[1]` 把 szPost 顶到非 4 对齐槽 -0x13d（与 ORIG 同址）⇒
+// 4.4 随即发与 4.1 相同的「对齐剥离 + 主 stos + 尾 2/1 字节」慢路（P232 死局部）；
+// ③strTitle/strBody 具名变量改全表达式临时链 GetServerString(...).c_str()，复现 ORIG
+// 「strncpy 后立即 D1」的块作用域析构序；④pItem 空判改裸早返，复现 `je 尾岛; jmp body`。
+// ORIG 0x080dc6d6。
 void CBoosterGage::make_postar(CUser* pUser, const Inven_Item& item,
                                const char* pAgency, int nPeriod)
 {
-    char szPost[0x100];
-    memset(szPost, 0, sizeof(szPost));  // ORIG：memset 0x100（gcc4.4 `= {0}` 仅清 0x40）
+    // [b28d-solo-CBoosterGage] 死局部把 szPost 顶到非 4 对齐槽 -0x13d（与 ORIG 同址），
+    // 触发 4.4 `= {0}` 的对齐剥离 rep stos 慢路（P232 死局部 + N78 突破口）。
+    char cPad1[1];
+    char szPost[0x100] = {0};  // ORIG 内联 rep stos 0x100 字节（P214③/P253）
     char szTitle[0x14];
-    std::string strTitle = g_ServerString_.GetServerString(0x436, NULL);
-    strncpy(szTitle, strTitle.c_str(), 0x14);
-    std::string strBody = g_ServerString_.GetServerString(0x437, NULL);
-    strncpy(szPost, strBody.c_str(), 0xff);
+    strncpy(szTitle, g_ServerString_.GetServerString(0x436, NULL).c_str(), 0x14);
+    strncpy(szPost, g_ServerString_.GetServerString(0x437, NULL).c_str(), 0xff);
 
     CItem* pItem = G_CDataManager()->find_item(item.m_addInfo);
-    if (pItem != NULL)
+    if (pItem == NULL)
+        return;
+    if (pItem->IsAvatarItem())
     {
-        if (pItem->IsAvatarItem())
-        {
-            int nExpireDate = 0;
-            if (nPeriod != 0 && nPeriod != 0x16d)
-                nExpireDate = GlobalData::s_systemTime_.getCurSec() + nPeriod * 0x15180;
-            WongWork::CMailBoxHelper::ReqDBSendNewAvatarMail(
-                pUser, pUser->getCurCharacNo(), item.m_addInfo, nExpireDate,
-                0, -1, pAgency, szPost, (int)strlen(szPost));
-        }
-        else if (pItem->IsCreatureItem())
-        {
-            WongWork::CMailBoxHelper::ReqDBSendNewCreatureMail(
-                pUser, pUser->getCurCharacNo(), item, szPost, (int)strlen(szPost));
-        }
-        else
-        {
-            WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-                szTitle, item, 0, pUser->getCurCharacNo(), szPost,
-                (int)strlen(szPost), 0, (ENUM_SERVER_GROUP)pUser->GetServerGroup(), 0, 0);
-        }
+        int nExpireDate = 0;
+        if (nPeriod != 0 && nPeriod != 0x16d)
+            nExpireDate = GlobalData::s_systemTime_.getCurSec() + nPeriod * 0x15180;
+        WongWork::CMailBoxHelper::ReqDBSendNewAvatarMail(
+            pUser, pUser->getCurCharacNo(), item.m_addInfo, nExpireDate,
+            0, -1, pAgency, szPost, (int)strlen(szPost));
+    }
+    else if (pItem->IsCreatureItem())
+    {
+        WongWork::CMailBoxHelper::ReqDBSendNewCreatureMail(
+            pUser, pUser->getCurCharacNo(), item, szPost, (int)strlen(szPost));
+    }
+    else
+    {
+        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+            szTitle, item, 0, pUser->getCurCharacNo(), szPost,
+            (int)strlen(szPost), 0, (ENUM_SERVER_GROUP)pUser->GetServerGroup(), 0, 0);
     }
 }
 
@@ -245,9 +250,12 @@ void CBoosterGage::log_booster_gage_bonus_reward(
                  strLog.c_str(), pUser->getCurCharacNo());
 }
 
-// [b28d-32 判词·N82] ORIG 0x080dcbd6：NEAR 封顶（118/118 条），残余 = 帧差
-// 引发的全帧槽号平移
-// （ORIG -0x64 vs 4.4 -0x24，N82/P182 族），助记符序列全等。
+// [b28d-solo-CBoosterGage N82] 118/118 助记符全等（NEAR）、p167 13/13 CLEAR；残余 = 槽序：
+// ORIG nSlot@-0x64（函数级标量紧接形参 spill 区）、invenItem sret@-0x5d；
+// 4.4 恒「聚合对象优先占低槽、标量分区排布」（N82附）⇒ invenItem@-0x61、nSlot@-0x24，
+// 帧两侧同为 0xa0。已试尽无旋钮：声明序交换（4.4 按首次使用序，N98 无效）、
+// int[1] 数组化、struct 包裹、内层块收窄 invenItem 作用域、死局部 char[1]
+// （仅把 nSlot 推深 4B 且破坏帧）。ORIG 0x080dcbd6。
 int CBoosterGage::AddAvatarItem(std::vector<std::pair<int, int> >& itemList,
                                 bool bIsFirst, CUser* pUser, const Inven_Item& item,
                                 int nCount, bool bFlag, char cType, char cParam,
@@ -410,7 +418,10 @@ void CBoosterGage::ResetDaily()
     m_dwTotalGage = 0;
 }
 
-// [b28d-32 N(EH 尾岛): ORIG 正常路径 jmp 尾岛 + 异常段居中，4.4 就地内联 epilogue（N104 族），81/80 | ORIG 0x080dd340]
+// [b28d-solo-CBoosterGage N104] 81/80（ORIG 尾含 1 条对齐 nop ⇒ 净 80=80），p167 15/15 CLEAR、
+// 槽位集全等（guard@-0x14、pData@-0xc，bRet 走裸 register %ebx 与 ORIG 同）、逐条同构；
+// 唯一残差 = EH 段物理位置：ORIG 正常路径 `jmp` 尾岛、landing pad 居中，4.4 恒正常路径
+// fall-through 到 guard D1、pad 置尾（N104 无源码旋钮；throw() 会删 ORIG 存在的 pad）。ORIG 0x080dd340。
 bool CBoosterGage::_saveData(CUser* pUser)
 {
     // [b28c-11] N 封顶（81/80）：残余 = EH 段布局——ORIG 正常路径 `jmp` 尾岛

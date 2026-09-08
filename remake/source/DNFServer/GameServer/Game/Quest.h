@@ -56,7 +56,9 @@ struct stQuestTargetCharacter_t
         m_secondGrow = secondGrow;
     }
     // ORIG D1/D2 0x08a6956a（W 0x5）：平凡空体析构。
-    ~stQuestTargetCharacter_t() {}
+    // [b28d-Main 代落·S141 P12] 删用户空析构：ORIG importQuestScript
+    // 0x08a61813..0x08a65acf 段 calls=517 内零 D1 调用（0x08a6956a 仅他处 W）
+    // ⇒ 隐式 trivial 析构。sizeof/偏移/mangled 不变。
     // ORIG 为 _ZN24stQuestTargetCharacter_teqERKS_（非 const 成员，W 0x08a65fe6）
     bool operator==(const stQuestTargetCharacter_t& o)
     {

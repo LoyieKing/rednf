@@ -782,7 +782,17 @@ public:
     //   m_sealDoorItemsOk→+0x1c9 同名落 BF.h；tracer/padc94/padcb0/padcc5/padcdc/
     //   padcee/padCBattleField2 由 BF.h 既有/占位成员接管。
     CBattle_Field m_battleField;             // +0xb24..0x17f3
-    unsigned char m_padResult[0x50];    // +0x17f4 GameResultSet
+    // [b28d-solo-CParty] P235 匿名 union 双视角：ORIG onBloodClear 0x085b7cd8
+    // `movzwl 0x183e(%eax),%eax` 为单条 disp（=GameResultSet+0x4a）⇒ 需要
+    // +0x183e 处的具名 unsigned short 视角。m_padResult 原样保留（C1/D1 零影响），
+    // 仅增别名视角；sizeof/偏移/mangled 不变。
+    union {
+        unsigned char m_padResult[0x50];    // +0x17f4 GameResultSet
+        struct {
+            unsigned char m_resultPad[0x4a];        // +0x17f4..+0x183d
+            unsigned short m_resultField4a;         // +0x183e GameResultType 尾字段
+        } m_resultView;
+    };
     std::map<int, int> m_killMobCounter;   // +0x1844（ORIG DieMob dispatch_sig
                                            //   击杀计数 map，size 0x18 同位）
 

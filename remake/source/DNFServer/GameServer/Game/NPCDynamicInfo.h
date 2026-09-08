@@ -29,7 +29,10 @@ class PacketGuard;
 class CNPCDynamicInfo
 {
 public:
-    CNPCDynamicInfo(const CNPCScript* script);
+    // [b28d-Main 代落·S139 N100] 加 throw()：ORIG C1 为 nothrow（CNPCDynamicInfoManager::add
+    // 的 new-expression 无 landing pad/operator delete 清理路径）；仅标量赋值，
+    // 异常规范不改变 mangled 名/sizeof/布局。
+    CNPCDynamicInfo(const CNPCScript* script) throw();
 
     // ORIG 0x085804b2 T：条件更新 mood；返回当前 mood（enum，直传 getMood）。
     ENUM_NPC_MOOD changeMood(bool flag);

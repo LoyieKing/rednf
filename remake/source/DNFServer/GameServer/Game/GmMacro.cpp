@@ -20,11 +20,12 @@ stMacroData::stMacroData() throw()                      // 0x084b3f6a
     m_len = 0;
 }
 
-stMacroData::~stMacroData() throw()                    // 0x084b5db4（ORIG D1 空体：push ebp/mov/pop/ret）
-{
-    // m_data 释放由 CMacro::Reset 循环负责（ORIG operator delete[] 实证）；
-    // 析构不释放：vector<stMacroData> push_back 为浅拷贝，释放会导致 double-free。
-}
+// b28d-solo-GmMacro：stMacroData 无用户析构（隐式 trivial）。
+// ORIG nm 0x084b5db4 W 0x5 = 编译器隐式 trivial D1；ORIG Recording 0x084a8802 正常
+// 路径无 dtor call、vector 清理走 _Destroy_aux<true>（trivial 分支）。我方旧用户空
+// dtor 使 4.4 判 non-trivial：正常路径多 1 次 dtor call + push_back 处 EH landing
+// （~stMacroData ×2 + _Unwind_Resume + push esi/ebx），Recording 53 vs ORIG 35。
+// m_data 释放仍由 CMacro::Reset 循环负责（浅拷贝 push_back，析构释放会 double-free）。
 
 // ---- CMacro ----
 
@@ -100,13 +101,14 @@ stMacroData* CMacro::GetCurCmd()                        // 0x084a87e2
     return &m_data[m_curIdx];
 }
 
-// 0x084a8802。【b28 判词 N-EH】ORIG 35 = ours 正常路径逐条全等；额外 18 条为
-// 4.4 对 new[]/memcpy/push_back throwing call 恒发的 landing cleanup 块
-// （stMacroData ctor/dtor 已 throw() 仍发；push %esi/%ebx 随之），4.1 同形源码
-// 不布 guard-cleanup——「跨版本 new-expression landing-pad 抑制」负例在册。
-// b28d-D42 verdict=DIFF [N-EH/N83] ORIG 0x084a8802 orig/ours=35/53 ndiff=50。
-// P216 throw() 法不可用：涉事 callee 为 libstdc++ operator new[]/memcpy/
-// vector::push_back（禁改头），4.4 恒布 landing ⇒ 语义等价封顶。
+// b28d-solo-GmMacro verdict=AE ORIG 0x084a8802 orig/ours=35/36（1 条尾 nop，
+// §6.1 对齐填充豁免），p167 CLEAR 4/4。修法：删除 stMacroData 用户空析构
+// （GameMasterCmd.h 声明 + 本文件定义）——ORIG nm 0x084b5db4 W 0x5 系编译器隐式
+// trivial D1，ORIG 正常路径无 dtor call、vector 清理走 _Destroy_aux<true>；我方旧
+// 用户 dtor 使 4.4 判 non-trivial，正常路径多 1 次 dtor call 且 push_back 处布
+// EH landing（~stMacroData ×2 + _Unwind_Resume + push esi/ebx），53 vs 35。
+// 旧 b28 判词 N-EH/N83（P216 throw() 法不可用）作废：非平凡性源自我方用户 dtor，
+// 删声明即复现 ORIG（P12/P71 判据；dtor 符号由 vector 使用点隐式发射，nm 仍在）。
 void CMacro::Recording(int type, int sub, char* data, int len)
 {
     stMacroData rec;
@@ -149,8 +151,11 @@ void CMacro::OnSend(int type, int sub)                  // 0x084a88aa
     }
 }
 
-// b28d-D42 verdict=AE(IDENTICAL) ORIG 0x084a8924 orig/ours=97/97 ndiff=0。
-// 修法：P222 正向包裹 + P171 外层已判后的死重测照抄 + 三支 Acquire 内联直传。
+// b28d-solo-GmMacro verdict=AE ORIG 0x084a8924 orig/ours=97/97，p167 CLEAR 18/18。
+// 修法：P222 正向包裹 + P171 外层已判后的死重测照抄 + 三支 Acquire 内联直传；
+// 本轮 p167 命中 1 处重载选错：operator<<(GetUID()) 原码选 operator<<(int)
+// （ORIG +0x104 call 0x080c8c56；不 cast 会选 0x080e2292 unsigned 版），
+// 实参处 static_cast<int> 后调用点差集清零（线格式同为 4 字节，位模式不变）。
 void CMacro::SendPacket(char const* data, int len)      // 0x084a8924
 {
     int total = len + 8;
@@ -175,7 +180,9 @@ void CMacro::SendPacket(char const* data, int len)      // 0x084a8924
     // CStreamGuard::operator* 返回 this 指针（CStreamGuard.h:27-28）；链式显式调用
     // 令 op<< 的 this=operator* 返回值（%eax→(%esp)），对齐 ORIG +0xf0/+0x10f。
     guard.operator*()->operator<<(0);
-    guard.operator*()->operator<<(m_user->GetUID());
+    // P167：ORIG +0x104 call 0x080c8c56 = operator<<(int)（GetUID 返回 unsigned int，
+    // 原码在实参处显式转 int）；不 cast 会选 operator<<(unsigned int) 0x080e2292。
+    guard.operator*()->operator<<(static_cast<int>(m_user->GetUID()));
     guard.operator->()->put_binary(const_cast<char*>(data), len);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
 }

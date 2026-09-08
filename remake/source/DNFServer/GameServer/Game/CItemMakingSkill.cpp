@@ -1,4 +1,6 @@
-// [b28d-D43] N81/N4 scaled store：ORIG `mov %cx,0x4(%eax,%edx,2)` vs 4.4 add 链（P205 三形实测仍展开）（ORIG 0x08545b42）。
+// [b28d-solo-CItemMakingSkill] verdict: getData=IDENTICAL_AE、GetPrevExpGap=IDENTICAL_AE
+// （check_tu_routed：identical+ae=4 / diff=0 / near=0；两件残余仅 .o 未解析重定位目标，
+//   clean 归一后与 ORIG 逐条相等）。
 // CItemMakingSkill.cpp —— CItemMakingSkill::getData(char*) const
 // （OrigItemMaking15 批；本 TU 独占 CItemMakingSkill.cpp/.h）。
 //
@@ -13,24 +15,37 @@
 // getData 仅序列化技能表段，characNo 不由本函数写。
 // 循环写法照 P2（cmpl $imm; setle ⇔ for(int i=0; i<=N; ++i)）。
 //
-// [b28-L14] 残差封顶 N 类（P30/N6 单条 scaled 寻址不可折 + N18a 双段 regmove）：
-//   ORIG 0x08545b57 循环体 = `mov -0x4,%edx; mov -0x4,%ecx; mov 0x8(%ebp),%eax;
-//   movzwl 0x6(%eax,%ecx,2),%ecx; mov -0x8(%ebp),%eax; mov %cx,0x4(%eax,%edx,2)`
-//   —— 4.1 把「i 基址 + 常数 2」折进单条 disp+scale。4.4 -O0 对含常数下标的
-//   store/load 恒展开 add/shl 链：`out[i+2]`、`(out+2)[i]`（P205 形实测仍展开，
-//   因基数是寄存器而非段基址）、`*(unsigned short*)((char*)pData+4+i*2)`
-//   三形均产 6 条；读侧 `0x6(%eax,%ecx,2)` 可折但目标 `0x4(%eax,%edx,2)` 不可。
-//   两侧同证 = 跨版本寻址折叠固有差（同 N81/N94 族），语义等价（11 项 ushort
-//   搬移到 pData+4）。
+// [b28d-solo-CItemMakingSkill] 修复记录（旧 [b28d-D43]/[b28-L14] 的 N81/N4
+//   「scaled store 不可折」判词作废）：ORIG 0x08545b57 循环体
+//   `mov -0x4,%edx; mov -0x4,%ecx; mov 0x8(%ebp),%eax; movzwl 0x6(%eax,%ecx,2),%ecx;
+//   mov -0x8(%ebp),%eax; mov %cx,0x4(%eax,%edx,2)` 的复现钥匙是**成员数组视图**
+//   （ItemMakingSkillSaveView::m_skillLevels 位于 +0x04），不是 `ptr[i+2]` 常数下标：
+//   P30 判据——成员视图 offset>0 由 4.4 折成单条 disp+scale，而指针+常数下标
+//   恒展开 add/shl 链。读侧 `m_skillLevels[i]`（+0x06）两侧同为成员视图。
 #include "CItemMakingSkill.h"
 
 #include "CDataManager.h"   // G_CDataManager() / GetItemMakingSkill() / stItemMakingSkill
 
+// [b28d-solo-CItemMakingSkill] SIG_ITEM_MAKING_SKILL 序列化视图（ORIG getData
+// 0x08545b42 / _saveData 0x08545276 双证）：+0x00 characNo（4 字节，本函数不写）
+// ＋ +0x04 m_skillLevels[11]（ushort ×11），总 0x1c（与 SigTypes_B.h
+// SIG_ITEM_MAKING_SKILL 布局一致）。成员数组视图让 4.4 -O0 复现 ORIG 单条
+// `mov %cx,0x4(%eax,%edx,2)`——P30 判据：成员视图 offset>0 单 disp 折叠，
+// 而 `ptr[i+K]` 常数下标恒展开 add/shl 链（旧判词 N81/N4 作废）。
+namespace
+{
+struct ItemMakingSkillSaveView
+{
+    int m_characNo;                    // +0x00
+    unsigned short m_skillLevels[11];  // +0x04..+0x19
+};
+}  // namespace
+
 void CItemMakingSkill::getData(char* pData) const
 {
-    unsigned short* out = (unsigned short*)pData;
+    ItemMakingSkillSaveView* out = reinterpret_cast<ItemMakingSkillSaveView*>(pData);
     for (int i = 0; i <= 0xa; ++i)
-        out[i + 2] = m_skillLevels[i];
+        out->m_skillLevels[i] = m_skillLevels[i];
 }
 // ============================================================================
 // CItemMakingSkill::GetPrevExpGap —— ORIG T 0x08545b7e（OrigItemGen20 批）。
@@ -41,13 +56,24 @@ void CItemMakingSkill::getData(char* pData) const
 //   双判，jbe 为无符号比较）；否则返回 档位[idx].first - 档位[idx-1].first
 //   （两次 vector::operator[]，idx 与 idx-1；ORIG mov (%eax),%ebx/sub 形态）。
 // ============================================================================
-// [b28d-D43] N82/N95 槽平移：ORIG idx 寄存器直比 vs 4.4 -0xc→%ebx 槽中转（ORIG 0x08545b7e）。
+// [b28d-solo-CItemMakingSkill] 修复记录（旧 [b28d-D43] 的 N82/N95「槽平移/idx 寄存器
+//   直比不可复现」判词作废）：
+//   ① 守卫按 ORIG 方向写 `size() <= (unsigned)idx || idx == 0`——P209：unsigned 比较
+//      在 4.4 恒先载寄存器；写成 `(unsigned)idx >= size()` 多 `mov idx,%ebx` 且比较方向反。
+//   ② idx 局部声明为 unsigned int（P218 扩展）：同时翻正 4.4 的
+//      `cmp -0xc(%ebp),%eax`（内存直比、无中转）与主流程 receiver 的 ORIG 形
+//      `mov table,%eax; lea 0x18(%eax),%edx; mov idx,%eax`。
+//   ③ table 声明为 `const stItemMakingSkill*`（P107/P270 符号级 cv 判据）：
+//      p167 差集实证 ORIG 调 `_ZNKSt6vector…ixEj`（const operator[]），
+//      非 const 指针会发 `_ZNSt6vector…ixEj`（2 处符号级错配）。
+//   语义：level<=0 ⇒ idx=0xFFFFFFFF ⇒ 命中守卫返回 0，与 ORIG 无符号比较逐位一致；
+//   主流程 idx/idx-1 作 vector 下标同值。
 int CItemMakingSkill::GetPrevExpGap(int level)
 {
-    stItemMakingSkill* table =
-        reinterpret_cast<stItemMakingSkill*>(G_CDataManager()->GetItemMakingSkill());
-    int idx = level - 1;
-    if (static_cast<unsigned int>(idx) >= table->m_vec18.size() || idx == 0)
+    const stItemMakingSkill* table =
+        reinterpret_cast<const stItemMakingSkill*>(G_CDataManager()->GetItemMakingSkill());
+    unsigned int idx = static_cast<unsigned int>(level - 1);
+    if (table->m_vec18.size() <= idx || idx == 0)
         return 0;
     return table->m_vec18[idx].first - table->m_vec18[idx - 1].first;
 }

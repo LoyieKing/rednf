@@ -81,7 +81,10 @@ public:
     int m_killedMonster2;// +0x44
     int m_field48;       // +0x48
     int m_field4c;       // +0x4c
-    char m_arr50[4];     // +0x50
+    // [b28d-solo-CParty] P248 档②/P292：ORIG CParty::map_load_forced_finish
+    // 0x085b1f50 对 +0x37c+i（=+0x50+i）为 `movzbl; xor $1; test %al,%al; je`
+    // ⇒ 字段为 bool[4]（char 恒 test/jne 无 xor 物化）。1 字节/偏移/sizeof 不变。
+    bool m_arr50[4];     // +0x50
     // [b28d-51] P248 档②：ORIG changePartyMemberInfo 0x085a8d4c/0x085a8d62/0x085a8d78
     // 对 +0x380/+0x384/+0x388 三组标志均为 `movzbl; xor $1; test; je`（`!=1`/`==1`
     // 在 bool 上折成取反；char 恒 cmpb $1，6 形探针复证）⇒ 原字段是 bool[4]。

@@ -27,23 +27,10 @@
 #include "EquipmentParameterInfo.h"
 #include "STItemScript.h"
 
-// ---- [war room point bonus]/[war room monster exp bonus] 载体（8 字节 POD）。
-// 与 CEquipItem.h 的 WpBonusPointData/ExpBonusPointData 同布局（int type/int value，
-// ORIG clear 置 type=2/value=0）；为避免 STEquipmentScript.h ↔ CEquipItem.h 循环
-// 包含，此处以同布局本地类型承载，ABI 完全一致。
-#ifndef DNF_STBONUSPOINTDATA_DEFINED
-#define DNF_STBONUSPOINTDATA_DEFINED
-struct stBonusPointData_t
-{
-    int m_type;    // +0x00
-    int m_value;   // +0x04
-
-    // ORIG WpBonusPointData::clear（0x8513a82）/ExpBonusPointData::clear 同型：
-    // type=2、value=0。ORIG C1 0x0898d25e 构造子对象时置位，STEquipmentScript::Clear
-    // 不清 +0x81c/+0x824，故必须随构造初始化。
-    stBonusPointData_t() : m_type(2), m_value(0) {}
-};
-#endif
+// ---- [war room point bonus]/[war room monster exp bonus] 载体。
+// [b28d-solo-CEquipItem] 原本地副本 stBonusPointData_t 已删除：ORIG nm 只有
+// WpBonusPointData/ExpBonusPointData，且本类 C1（0x0898ddd0/dde0）直接 call 二者的 C1
+// ⇒ 类型统一为 STItemScript.h 的 WpBonusPointData/ExpBonusPointData（§4.4 重复定义合并）。
 
 
 class STKeyCommand;
@@ -391,9 +378,12 @@ public:
     int m_6e0;                                    // +0x6e0（[fixed select type]）
     int m_6e4;                                    // +0x6e4（-1；[hardcoding cooltime] 0xc8f）
     std::vector<STChangeStatusRate> m_rate6e8;    // +0x6e8（[change status on change hp]）
-    char m_6f4;                                   // +0x6f4（impossible: upgrade）
-    char m_6f5;                                   // +0x6f5（impossible: amplify upgrade）
-    char m_6f6;                                   // +0x6f6（impossible: disjoint）
+    // [b28d-solo-CEquipItem] ORIG set_item 0x0850fea0 段对 bool 目标字段直存
+    // （`movzbl src,%edx; mov %dl,dst`，无 test/setne）⇒ 源字段为 bool（P136/P300）。
+    // 宽度 1 字节/偏移/sizeof/mangled 全不变；赋值点均为 0/1 常量。
+    bool m_6f4;                                   // +0x6f4（impossible: upgrade）
+    bool m_6f5;                                   // +0x6f5（impossible: amplify upgrade）
+    bool m_6f6;                                   // +0x6f6（impossible: disjoint）
     int m_6f8;                                    // +0x6f8（[usable period after unsealing]）
     std::map<ItemUpgradeType::T, std::pair<int, int> > m_upgrade6fc;  // +0x6fc（[limit upgradable level]）
     std::set<int> m_set714;                       // +0x714（Clear 插入 20；[usable module] 重填）
@@ -412,9 +402,9 @@ public:
     int m_798;                                    // +0x798（-1；[part set index]）
     int m_79c;                                    // +0x79c（-1；[effect part set index]）
     std::vector<int> m_vec7a0;                    // +0x7a0（[reference effect part set index]）
-    char m_7ac;                                   // +0x7ac（[clear avatar]）
+    bool m_7ac;                                   // +0x7ac（[clear avatar]）
     std::vector<std::string> m_vec7b0;            // +0x7b0（[image packs]）
-    char m_7bc;                                   // +0x7bc（[epic routing]）
+    bool m_7bc;                                   // +0x7bc（[epic routing]）
     int m_7c0;                                    // +0x7c0（-1；[special ability]）
     int m_7c4;                                    // +0x7c4（-1；[chat emoticon index]）
     char m_7c8;                                   // +0x7c8（[required full set for chatting emoticon]）
@@ -431,8 +421,8 @@ public:
     int m_810;                                    // +0x810（[quest item drop rate bonus]）
     char m_814;                                   // +0x814（2；[Force Result Item Rule]）
     int m_818;                                    // +0x818（Force Result Item Rule 第二值）
-    stBonusPointData_t m_wpBonus81c;              // +0x81c（[war room point bonus]）
-    stBonusPointData_t m_expBonus824;             // +0x824（[war room monster exp bonus]）
+    WpBonusPointData m_wpBonus81c;                // +0x81c（[war room point bonus]）
+    ExpBonusPointData m_expBonus824;              // +0x824（[war room monster exp bonus]）
     char m_82c;                                   // +0x82c（[Uncompoundable]）
     std::vector<int> m_vec830;                    // +0x830（[remove avatar] getModuleType 列）
     std::string m_str83c;                         // +0x83c（[setback img] 名称）
@@ -442,9 +432,11 @@ public:
     std::vector<bool> m_vec864;                   // +0x864（对应开关列）
     std::string m_str878;                         // +0x878（[msg balloon on mucu skill]）
     int m_87c;                                    // +0x87c
-    char m_880;                                   // +0x880（-1）
+    // [b28d-solo-CEquipItem] ORIG set_item 0x0850fe7a 段 `movzbl 0x880(%eax),%eax`
+    // 为零扩展读 ⇒ 本字段为 unsigned char（原 char 声明给不出该形）。
+    unsigned char m_880;                          // +0x880（-1）
     int m_884;                                    // +0x884
-    char m_888;                                   // +0x888（[random option]）
+    bool m_888;                                   // +0x888（[random option]）
     char m_889;                                   // +0x889（1；random option 参数）
     char m_88a;                                   // +0x88a（[enable dye] 第一开关）
     char m_88b;                                   // +0x88b（第二开关）

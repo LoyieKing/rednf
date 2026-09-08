@@ -351,7 +351,19 @@ case "$(basename "$src" .cpp)" in
                 # CUser：ORIG 为 4.4.6（构造/EH 着陆垫链、子对象寄存器形态；
                 # CUser agent 验证 c6446r 更接近，建议与 CItemList 同路由）
                 exec "$C6446R" "$@" ;;
-            *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp | *Game/STEquipmentScript.cpp | *Game/CCreatureMgr.cpp | *Game/OnlyOrigBatch12.cpp)
+            *Game/CItemAmplifier.cpp)
+                # b28d-S106：N7 间接 call 目标 4.4.7 恒 %eax / 4.4.6 与 ORIG 同用 %edx
+                # （checkInvestableItem 3 处 GetItemType 虚调 + generateAmplifyItem
+                # isAmplifyPollutionItem）。实测 TU ae 191→193 / near 4→2 / diff 不变，
+                # 其余 4 件两后端读数一致 ⇒ 零回归。
+                exec "$C6446R" "$@" ;;
+            *Game/CItemUpgrade_Separate.cpp)
+                # b28d-S126：item_upgrade_system 虚调目标 %edx + sete/test/je 物化在
+                # 4.4.6 下与 ORIG 全等（NEAR→AE）。实测 TU ae 94→95 / near 2→1 /
+                # diff 8 不变 ⇒ 零回归。
+                exec "$C6446R" "$@" ;;
+            *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp | *Game/STEquipmentScript.cpp | *Game/CCreatureMgr.cpp | *Game/OnlyOrigBatch12.cpp | \
+            *Game/CFairMatch.cpp | *Game/CEquipItem.cpp | *Game/CAccountCargo.cpp)
                 # b28d-6：ORIG CompareRating 的 x87 比较为 fucompp/fnstsw/sahf；4.4 需
                 # -march=i486 才出该 lowering（P230 补）。实测 TU ae 51→52 / diff 24→23。
                 # b28d-D44：LinkMiscSecuTimerSolo::GetMarketConditionRate 同族 x87 比较，
@@ -360,6 +372,14 @@ case "$(basename "$src" .cpp)" in
                 # CCreature::IsDieCreature），实测 ae 393→396 / diff 30→27 零回归。
                 # b28d-D56：STEquipmentScript 的 float 比较需 fucompp/fnstsw/sahf 形
                 # （-march=i486 才关 CMOV/SSE 比较 lowering；探针 lane56/x87.cpp 逐条命中）。
+                # b28d-S79：CFairMatch::TeamInfoThird::GetTeamRating 的 x87 比较同族，
+                # 该旗标下 TU identical=37 不变 / ae 24→25 / diff 3→2 零回归。
+                # b28d-S115：CEquipItem 的 getLevelLinearAbility ORIG 为
+                # fucompp;fnstsw;sahf;seta / test $0x45,%ah;sete（4.4 默认产 fucomip）
+                # ⇒ 该旗标下 DIFF→NEAR（identical 191 / ae 375 不变）零回归。
+                # b28d-S124：CAccountCargo 的 GetEmptySlot/GetSpecificItemSlot 为
+                # MIN_EXPR cmov（ORIG `cmp; jbe; mov $0x38`），仅 i486 可消；
+                # CheckMoneyLimit 64 位比较段同族。预期 3 件转 AE 零回归。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
             *Game/CExpandEquipslot.cpp)
                 # CExpandEquipslot：loadData 虚调用寄存器形态需 4.4.6

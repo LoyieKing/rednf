@@ -133,7 +133,7 @@ bool CBattle_Field::check_end_point()
     int x = -1;
     int y = -1;
     getCurPosXY(x, y);
-    if (m_pos[0].first == x && m_pos[0].second == y)
+    if (m_endX == x && m_endY == y)
     {
         return true;
     }
@@ -247,7 +247,7 @@ int CBattle_Field::GetCurPosX()
         // `lea` 合成（实测 P168 值绑定 register asm("edx") 反产 mov%eax,%edx
         // +回读 6 条，负结论已回报），合法源码无法复现直落形——记 N81 附族
         // （4.1 索引 regmove/load 落点），行集仍 5 条。
-        return m_pos[m_curSeatNo + 2].first;
+        return m_curPos[m_curSeatNo].first;
     }
     else
     {
@@ -261,7 +261,7 @@ int CBattle_Field::GetCurPosY()
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap())
     {
         // 同上（ORIG 0x085bf3ba 区同构，N81 附族标注）。
-        return m_pos[m_curSeatNo + 2].second;
+        return m_curPos[m_curSeatNo].second;
     }
     else
     {
@@ -269,7 +269,7 @@ int CBattle_Field::GetCurPosY()
     }
 }
 
-// N81 附族：m_pos[m_curSeatNo+6] 索引段同上（add vs lea 直落，不可复现）。
+// N81 附族：m_lastPos[m_curSeatNo] 索引段同上（add vs lea 直落，不可复现）。
 // [b28d-solo-CBattle_Field] N4/P30 封顶（49=49，+6 索引段两处）：ORIG
 // `mov 0x114(%eax),%edx; add $0x6,%edx` vs 4.4 `mov mem,%eax; lea 0x6(%eax),%edx`
 // （ORIG 0x0830eac8 段）。
@@ -279,8 +279,8 @@ MapInfo* CBattle_Field::GetLastMapInfo()
     int y = -1;
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap())
     {
-        x = m_pos[m_curSeatNo + 6].first;
-        y = m_pos[m_curSeatNo + 6].second;
+        x = m_lastPos[m_curSeatNo].first;
+        y = m_lastPos[m_curSeatNo].second;
     }
     else
     {
@@ -290,7 +290,7 @@ MapInfo* CBattle_Field::GetLastMapInfo()
     return GetMapInfoFromPos(x, y, false);
 }
 
-// N81 附族：m_pos[m_curSeatNo+2] 索引段 `mov mem,%eax`+`lea` 合成 vs ORIG
+// N81 附族：m_curPos[m_curSeatNo] 索引段 `mov mem,%eax`+`lea` 合成 vs ORIG
 // `mov mem,%edx`+`add` 直落（同 GetCurPosX/Y，4.1 索引 regmove 落点，合法源码
 // 不可复现——负面结论同列）。
 // [b28d-solo-CBattle_Field] N4/P30 同 GetCurPosX（51=51，+2 索引段两处；ORIG 0x08300da6）。
@@ -299,8 +299,8 @@ void CBattle_Field::getCurPosXY(int& x, int& y)
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap() &&
         m_curSeatNo >= 0 && m_curSeatNo < 4)
     {
-        x = m_pos[m_curSeatNo + 2].first;
-        y = m_pos[m_curSeatNo + 2].second;
+        x = m_curPos[m_curSeatNo].first;
+        y = m_curPos[m_curSeatNo].second;
     }
     else
     {
@@ -309,15 +309,15 @@ void CBattle_Field::getCurPosXY(int& x, int& y)
     }
 }
 
-// N81 附族：m_pos[m_curSeatNo+6] 索引段同上（add vs lea 直落，不可复现）。
+// N81 附族：m_lastPos[m_curSeatNo] 索引段同上（add vs lea 直落，不可复现）。
 // [b28d-solo-CBattle_Field] N4/P30 同族（47=47，+6 索引段两处；ORIG 0x08300e44）。
 void CBattle_Field::getLastPosXY(int& x, int& y)
 {
     if (m_pDungeon->IsEnterEachMap() &&
         m_curSeatNo >= 0 && m_curSeatNo < 4)
     {
-        x = m_pos[m_curSeatNo + 6].first;
-        y = m_pos[m_curSeatNo + 6].second;
+        x = m_lastPos[m_curSeatNo].first;
+        y = m_lastPos[m_curSeatNo].second;
     }
     else
     {
@@ -327,7 +327,7 @@ void CBattle_Field::getLastPosXY(int& x, int& y)
     }
 }
 
-// N81 附族：m_pos[...+6]/[...+2] 索引段 + make_pair 传参同理（add vs lea 直落，
+// N81 附族：m_lastPos[...]/m_curPos[...] 索引段 + make_pair 传参同理（add vs lea 直落，
 // 不可复现）。
 // [b28d-solo-CBattle_Field] N4/P30 同族（76=76，+6/+2 索引段 + make_pair<int&,int&> 段；ORIG 0x0830878e）。
 void CBattle_Field::swap_curpos_xy(int x, int y)
@@ -335,8 +335,8 @@ void CBattle_Field::swap_curpos_xy(int x, int y)
     if (m_pDungeon != 0 && m_pDungeon->IsEnterEachMap() &&
         m_curSeatNo >= 0 && m_curSeatNo < 4)
     {
-        m_pos[m_curSeatNo + 6] = m_pos[m_curSeatNo + 2];
-        m_pos[m_curSeatNo + 2] = std::make_pair<int&, int&>(x, y);
+        m_lastPos[m_curSeatNo] = m_curPos[m_curSeatNo];
+        m_curPos[m_curSeatNo] = std::make_pair<int&, int&>(x, y);
     }
     else
     {

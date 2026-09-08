@@ -28,7 +28,15 @@ public:
     // （`mov %eax,%edx; mov 0x8(%ebp),%eax; mov %edx,(%eax)`）；int 字段 ← int
     // atoi 同型时 4.4 恒 LHS 地址先载。字段改 unsigned int（与 int RHS 异型）
     // 即复现；值域为非负 mission id，比较/写出语义不变。
-    unsigned int m_mission;   // +0x00（clear 置 0；findMissionValue 比对目标）
+    // [b28d-solo-HeroMissionEvent] ORIG 0x081680e9 比较点 `mov (%eax),%eax;
+    // cmp 0x10(%ebp),%eax`（两侧同为 MissionNo::T 枚举 ⇒ 4.4 折叠为内存源比较）。
+    // 匿名 union 双视角：m_mission（unsigned，保持既有消费点）与 m_missionType
+    // （枚举视图）同址 +0x00；sizeof/偏移/mangled 零影响（P235）。
+    union
+    {
+        unsigned int m_mission;   // +0x00（clear 置 0；put_short/输出用）
+        HeroMissionCondition::MissionNo::T m_missionType;  // +0x00 枚举视图
+    };
     unsigned short m_field4;  // +0x04
     unsigned short m_field6;  // +0x06
     unsigned short m_field8;  // +0x08

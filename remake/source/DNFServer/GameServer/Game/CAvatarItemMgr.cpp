@@ -1,4 +1,4 @@
-// [b28d-38 判词] 本 TU 11 件最终状态：
+// [b28d-solo-CAvatarItemMgr 判词] 本 TU 最终状态（单文件泳道 4 件 + 既有件）：
 //  _AssignTempKey 0x082f9e02 NEAR（N95/N82 槽基差：ORIG counter@-0xc vs 4.4 恒 -0x4；13 形探针）
 //  UnRegistItem 0x082f9d.. AE（单表达式 find()!=end() 翻求值序 + erase(key)）
 //  EraseAvatarItem AE（同上）
@@ -7,9 +7,12 @@
 //  UpdateEndurance AE（P222 否定条件块序 + pair 直构 + endIt 具名）
 //  RegistItem(iiiPKc…) 0x082f901c AE（早返形 + _FindItem/Acquire 独立变量）
 //  RegistNotAssignedAvatarItem(iiPKcb…) 0x082f9xxx AE（SetData 三分支物理内联 P165）
-//  AddEmblemEndurance 0x082f9e4c DIFF（p167 CLEAR 12/12；N4/P30 i*6+2 disp 折叠 + 槽号）
+//  AddEmblemEndurance 0x082f9e4c DIFF→N18a 封顶（p167 CLEAR 12/12；本轮 P291 具名数组成员
+//   视图消 lea+mov（104 vs 105）、P223 取反 goto 尾标签复现空 then 占位岛；残余 1 条
+//   ORIG `mov mem,%eax; mov %eax,%ebx` 中转 = N18a「4.4 恒折单步不可造」+ 装载序 NEAR）
 //  Reset 0x082f9ae4 NEAR（p167 CLEAR 25/25；const_iterator 双端转换+去缓存/null 检查；N93 槽向）
-//  GetItem 0x082f9d.. DIFF（p167 CLEAR 16/16；去 item 缓存 + 结构赋值替 memcpy(N84)；槽号）
+//  GetItem 0x082f925c AE（p167 CLEAR 16/16；P13 endIt 具名缓存 + P191 i 双初始化 +
+//   P0 去 jewelData 槽内联表达式；槽位 i@-0xc/it@-0x10/end@-0x14 与 ORIG 全等）
 // df_game_r Game/ WongWork::CAvatarItemMgr 实现（独立 TU，从 GameStubs.cpp 拆出）。
 // 语义字段：m_registeredItems/m_waitAssignItems/m_tempKeyCounter/m_emblemEnduranceMap
 //          /m_enduranceUpdateMap。
@@ -30,6 +33,13 @@ struct JewelSocketSlot
 {
     short m_pad;
     int m_itemId;
+} __attribute__((packed));
+
+// [b28d-solo-CAvatarItemMgr] P291：具名数组成员视图使 4.4 把 base+i*6+2 折叠为
+// 单条 `mov 0x2(%eax,%ecx,1),%eax`（指针下标形恒折 lea+mov，多 1 条）。
+struct JewelSocketData
+{
+    JewelSocketSlot m_slots[5];
 } __attribute__((packed));
 }
 
@@ -54,6 +64,10 @@ void CAvatarItemMgr::Reset()
     if (m_registeredItems.empty() && m_waitAssignItems.empty())
         return;
 
+    // [b28d-solo-CAvatarItemMgr] 判词：NEAR（15 差，全为槽号/reloc 显示）＝
+    // ORIG 具名迭代器分区 it1@-0x24/endIt2@-0x20，4.4 按首次使用序给
+    // it1@-0x20/endIt2@-0x24（互换）；4.4 恒先求 end 再 begin，声明序/块作用域
+    // 穷举不可翻 ⇒ N93/N82附 槽向封顶。p167 CLEAR 25/25。
     // [b28d-38] P167：ORIG 用 _Rb_tree_const_iterator（转换构造×4/op->×3/op++×2/
     // op!=×2）⇒ 两侧均先转 const_iterator（混合比较会生成 operator!=<PK,P> 变体）。
     std::map<int, Avatar_Item*>::const_iterator it = m_registeredItems.begin();
@@ -83,6 +97,9 @@ int CAvatarItemMgr::_MakeTempKey(int key) const { return key | 0x80000000; }
 
 int CAvatarItemMgr::_AssignTempKey()
 {
+    // [b28d-solo-CAvatarItemMgr] 判词：NEAR（2 差）＝纯槽号差 ORIG counter@-0xc vs
+    // 4.4 -0x4（帧 0x28 已对齐）；本轮再测 double framePad×1/×2、counter 先声明、
+    // 8/0x10/0x18 数组维共 6 形，4.4 单标量恒落 -0x4 ⇒ N95/N82 槽基策略封顶。
     // ORIG 帧 0x28：P31 dummy local 撑帧（4.4 对 ≥16 字节数组保槽，标量死局部
     // 会被消除；探针 /tmp/slotprobe5.cpp 帧对齐实证）。残余 counter 槽 -0x4 vs
     // ORIG -0xc 为 4.1 单标量首槽策略差（探针 slotprobe6/7/8x/90/91 全败），
@@ -134,6 +151,10 @@ void CAvatarItemMgr::AddAvatarItem(int key, Avatar_Item* item)
     AddEmblemEndurance(key, item);
 }
 
+// [b28d-solo-CAvatarItemMgr] 判词：DIFF→N18a 封顶（105 vs 104）。本轮 P291 具名数组成员
+// 视图（JewelSocketData::m_slots[i].m_itemId）消 lea+mov、P223 取反 goto 尾空标签复现
+// 空 then 占位岛（jmp+nop）；残余 1 条 ORIG 实参两段中转 `mov mem,%eax; mov %eax,%ebx`
+// = N18a（4.4 恒折单步入 %ebx，P226 语句表达式实测无效）。p167 12/12 CLEAR。
 void CAvatarItemMgr::AddEmblemEndurance(int key, const Avatar_Item* item)
 {
     const char* jewelData = item->getJewelSocketData();
@@ -142,15 +163,23 @@ void CAvatarItemMgr::AddEmblemEndurance(int key, const Avatar_Item* item)
     {
         // [b28d-38] P0/P48：ORIG 对同一表达式读两次（test 与 find_item 实参各一次），
         // 无 itemId 具名槽；grade 无具名槽（P52 链式实参跨 receiver call 保活 ebx）。
-        if (((const JewelSocketSlot*)jewelData)[i].m_itemId != 0)
+        // [b28d-solo-CAvatarItemMgr] P223：ORIG 空 then 占位岛
+        // （`je <nop>; body; jmp <incr>; nop; incr:`）⇒ 取反 goto 尾空标签。
+        if (((const JewelSocketData*)jewelData)->m_slots[i].m_itemId == 0)
+            goto next_slot;
         {
+            // [b28d-solo-CAvatarItemMgr] 判词：N18a 封顶——ORIG 实参两段中转
+            // `mov 0x2(%eax,%ecx,1),%eax; mov %eax,%ebx`，4.4 恒折单步入 %ebx
+            // （P226 语句表达式实测无效）；残余装载序 ecx/edx 互换属 P30 伪影。
+            // p167 CLEAR 12/12。
             CItem* citem = G_CDataManager()->find_item(
-                ((const JewelSocketSlot*)jewelData)[i].m_itemId);
+                ((const JewelSocketData*)jewelData)->m_slots[i].m_itemId);
             if (citem == 0)
                 return;
             totalEndurance += (short)ARAD::Singleton<AvatarRechargeServer>::Get()
                                   ->GetRateFromEmblemGrade(citem->get_grade());
         }
+    next_slot:;
     }
     std::map<int, int>::iterator it = m_emblemEnduranceMap.find(key);
     // [b28d-38] P167：ORIG 调 operator==（非 !=）、insert 实参构造成员模板为
@@ -346,20 +375,28 @@ Avatar_Item* CAvatarItemMgr::GetAvatarInfo(int key) const
     return _FindItemAll(key);
 }
 
+// [b28d-solo-CAvatarItemMgr] 判词：DIFF→IDENTICAL_AE（127=127，TU clean 口径）。
+// P13 endIt 具名缓存（ORIG end 循环外单次求值）+ P191 i 双初始化（两条 movl $0）+
+// P0 去 jewelData 具名槽内联表达式；槽位 i@-0xc/it@-0x10/end@-0x14 与 ORIG 全等。
+// p167 16/16 CLEAR。
 bool CAvatarItemMgr::GetItem(AvatarDetailInfo* info, int* count) const
 {
+    // [b28d-solo-CAvatarItemMgr] P13/P191：end 迭代器具名缓存（ORIG end() 在循环外
+    // 单次求值），i 双初始化（`int i=0;` + `for(i=0;…)` 两条 movl $0 都要写）。
+    std::map<int, Avatar_Item*>::const_iterator it = m_registeredItems.begin();
+    std::map<int, Avatar_Item*>::const_iterator endIt = m_registeredItems.end();
     int i = 0;
-    for (std::map<int, Avatar_Item*>::const_iterator it = m_registeredItems.begin();
-         it != m_registeredItems.end() && i <= 0x72; ++it, ++i)
+    for (i = 0; it != endIt && i <= 0x72; ++it, ++i)
     {
         // [b28d-38] P157/P167：ORIG 4 次 operator->（每点重发 it->second），无 item 缓存。
         info[i].m_key = it->first;
         info[i].m_expireDate = it->second->GetExpireDate();
         info[i].m_registTime = it->second->GetRegistTime();
         strncpy(info[i].m_ipgAgencyNo, it->second->GetIPGAgencyNo(), 0x19);
-        // [b28d-38] P167/N84：ORIG 无 memcpy call ⇒ 结构体直接赋值（rep movsl 展开）。
-        const char* jewelData = it->second->getJewelSocketData();
-        info[i].m_jewelSocket = *(const stAvatarEmblemInfo_t*)jewelData;
+        // [b28d-solo-CAvatarItemMgr] P0/P167：ORIG 无 jewelData 具名槽（值寄存器直传）
+        // ⇒ 内联表达式；结构体直接赋值（逐字段展开，无 memcpy call）。
+        info[i].m_jewelSocket =
+            *(const stAvatarEmblemInfo_t*)it->second->getJewelSocketData();
         info[i].m_expansionInfo =
             *(const stAvatarExpansionInfo_t*)it->second->getExnansionInfoRef();
     }

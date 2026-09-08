@@ -278,39 +278,37 @@ void STMonsterEquipment::clear()
 }
 
 // ---- stEnamyDropAvatarInfo_t 成员（ORIG W 0x088cc10c / op= W 0x08366ea8）----
-// b28c-L20: N(跨版本 lowering) — clear 残差 ndiff=4 全在第二循环索引：ORIG 0x088cc10c
-// 为 `mov i,%edx; mov this,%eax; lea 0x4(%edx),%ecx`（先载 i、再载 this、后 lea 完成），
-// 4.4 恒 `mov i,%eax; lea 0x4(%eax),%ecx; mov this,%eax`。probe 11 形（i+4 / 4+i /
-// *(a+i+4) / int 视图 / 语句表达式 / 逗号 / volatile 索引 / long 索引 / 显式 this-> /
-// (*this). / -march=i486）全部产 lea 且 this 装载恒在 lea 之后 ⇒ 源码形不可择，N 封顶。
-// 4.4.6 后端实测（/tmp/tu_STMonsterScript_446.o）：仍 ndiff=4（该族 lowering 两后端同形）。
-// [b28d-23 N·N4/P30] 第二循环 ORIG 0x88cc158 `mov i,%edx; mov this,%eax; lea 0x4(%edx),%ecx` vs 4.4 `mov i,%eax; lea 0x4(%eax),%ecx; mov this,%eax`；11 形探针（含 i+4/4+i/视图/语句表达式/volatile/-march=i486）全败 ⇒ N。ORIG 0x088cc10c
+// [b28d-solo-STMonsterScript] 修法（P30 反例解 / P291 具名数组成员视图）：第二循环索引
+// `m_field08[i+4]` 在 4.4.6 恒折 `mov i,%eax; lea 0x4(%eax),%r`（this 装载被排到 lea 后），
+// 与 ORIG 的 `mov i,%edx; mov this,%eax; lea 0x4(%edx),%ecx` 反序。改走头内匿名 union 的
+// 二维视角 `m_field08v[1][i]`（行宽 4 ⇒ 行偏移 add/lea $0x4）后，clear 第二循环与 ORIG
+// 逐条全等（探针 /tmp/solo_probe1.cpp clear_v2，4.4.6）。i=4 时 [1][4] 越界至 +0x28 第 9 个
+// float —— ORIG 原码即如此写（P171 照抄），内存仍在 union 36B 内。
+// ORIG 0x088cc10c
 void stEnamyDropAvatarInfo_t::clear()
 {
     m_field00 = 0;                 // movl $0,(%eax)
     m_field04 = 0;                 // movl $0,0x4
     for (int i = 0; i <= 3; ++i)
-        m_field08[i] = 0;          // [base+8+4i]
-    for (int i = 0; i <= 4; ++i)   // lea 0x4(%edx)+scale4 实证 → 索引 i+4
-        m_field08[i + 4] = 0;
+        m_field08v[0][i] = 0;      // [base+8+4i]
+    for (int i = 0; i <= 4; ++i)   // [base+8+4(i+4)]：ORIG `lea 0x4(%edx)` 形
+        m_field08v[1][i] = 0;
     m_field2c = 0;
     m_elements.clear();            // vector<element>::clear(+0x30)
 }
 
-// b28c-L20: N(跨版本 lowering) — op= 残差 ndiff=8：ORIG 0x08366ea8 对两处 a[i+4]
-// 就地 `mov i,%reg; add $0x4,%reg`（4.1 复用 i 所在寄存器），4.4 恒
-// `mov i,%eax; lea 0x4(%eax),%reg`（ORIG-only=add ×2 / OURS-only=lea ×2，各多 1 条 mov）。
-// probe 同 clear（11 形全 lea）⇒ 不可翻，N 封顶。
-// 4.4.6 后端实测（/tmp/tu_STMonsterScript_446.o）：仍 ndiff=8（该族 lowering 两后端同形）。
-// [b28d-23 N·N4/P30] 两处 a[i+4]：ORIG `mov i,%reg; add $0x4,%reg` vs 4.4 lea（各多 1 mov）⇒ N。ORIG 0x08366ea8
+// [b28d-solo-STMonsterScript] 修法同 clear：ORIG 对两处 a[i+4] 就地 `mov i,%reg;
+// add $0x4,%reg`（4.1 复用 i 所在寄存器），4.4 一维形恒 `lea`；二维视角 `m_field08v[1][i]`
+// 逐条复现 ORIG add 形（探针 /tmp/solo_probe1.cpp op_v2，4.4.6）。
+// ORIG 0x08366ea8
 void stEnamyDropAvatarInfo_t::operator=(const stEnamyDropAvatarInfo_t& other)
 {
     m_field00 = other.m_field00;
     m_field04 = other.m_field04;
     for (int i = 0; i <= 3; ++i)
-        m_field08[i] = other.m_field08[i];
+        m_field08v[0][i] = other.m_field08v[0][i];
     for (int i = 0; i <= 4; ++i)
-        m_field08[i + 4] = other.m_field08[i + 4];
+        m_field08v[1][i] = other.m_field08v[1][i];
     m_field2c = other.m_field2c;
     m_elements = other.m_elements;   // vector op=
 }
@@ -369,7 +367,10 @@ int getRandomChampionElement(const STMonsterScript* script, int seed)
 // ===========================================================================
 // ImportMonsterBaseTable —— ORIG T 0x08a3c736（全量转写）
 // ===========================================================================
-// [b28d-23 N·N82/N89] 169/181（大解析件）⇒ N。ORIG 0x08a3c736
+// [b28d-solo-STMonsterScript] 修法：①循环退出改 `if(!ok) break;` + 循环外 return true
+// （P164 尾部共享块落点，消 OURS 多出的 `mov $1; jmp`）；②`row > size()` 保持无符号比较
+// （ORIG `seta`，原 static_cast<int> 产有符号 `setl`）；③else 分支内 resize 后共享
+// `vec[row] = param`（P276 共享调用点，消重复 rep movsl 段）。ORIG 0x08a3c736
 bool ImportMonsterBaseTable(STMonsterScript* script, const char* path)
 {
     if (!loadRDARScriptFile(g_szMonsterScriptBaseDirectory, path))
@@ -383,7 +384,7 @@ bool ImportMonsterBaseTable(STMonsterScript* script, const char* path)
     {
         level = ScanInt(&ok);                  // +0x53 首列 level；!ok → 正常结束
         if (!ok)
-            return true;                       // +0x2d4 mov eax,1
+            break;                             // +0x2d4 跳出 → 循环外 mov eax,1
         param.m_value[0] = level;              // +0xac
         // +0x7b..0x87 写入序列按 ORIG：[3][4][5][6] → [1][2] → [7]..[12]
         param.m_value[3] = ScanInt(static_cast<bool*>(0));         // -0xe0
@@ -408,16 +409,15 @@ bool ImportMonsterBaseTable(STMonsterScript* script, const char* path)
 
         if (row == static_cast<int>(script->m_baseParameters.size()))
             script->m_baseParameters.push_back(param);            // +0x1f4 追加
-        else if (row > static_cast<int>(script->m_baseParameters.size()))
-        {
-            // +0x22b 行号跳跃：以默认行 resize(row+1)，再覆写目标行
-            script->m_baseParameters.resize(row + 1, MonsterBaseParameter());
-            script->m_baseParameters[row] = param;                // rep movsl
-        }
         else
-            script->m_baseParameters[row] = param;                // +0x29e 覆写
+        {
+            if (row > script->m_baseParameters.size())            // +0x22b 行号跳跃（无符号）
+                script->m_baseParameters.resize(row + 1, MonsterBaseParameter());
+            script->m_baseParameters[row] = param;                // +0x29e 共享覆写 rep movsl
+        }
         ++row;                                 // +0x2cb
     }
+    return true;                               // +0x2d4
 }
 
 // ===========================================================================
@@ -426,7 +426,16 @@ bool ImportMonsterBaseTable(STMonsterScript* script, const char* path)
 //   +0x38 elemAttack、+0x58 elemDefense、+0x78 attr17Base、+0x100+8k statBaseK、
 //   +0x14 flag14；+0x1a8 float 槽现落 m_statBase27（位型访问【推断】）。
 // ===========================================================================
-// [b28d-23 N·N82] 481/508（大件）⇒ N。ORIG 0x088b9603
+// [b28d-solo-STMonsterScript] 修法（ndiff 424→33，gap=1，p167 25/25 CLEAR）：
+// ①`!empty()` → `size() != 0`（P292：ORIG `test %eax,%eax; setne` 为非 bool callee 形）；
+// ②四元素抗性表改 for 循环（ORIG 0x203 为循环，此前误作 4 次展开，多 ~28 条）；
+// ③**真语义 bug ×2**：ORIG 0x3b7/0x3df 读 param+0x34+4i / param+0x44+4i 即
+//   m_value[13+i]/[17+i]，原码误写 [12+i]/[16+i]（差 1 个字段）；
+// ④补 `char framePad[0x8]`（P232）使帧 0x64→0x74、bool spill 槽 -0x3c/-0x40→-0x4c/-0x50
+//   与 ORIG 精确对齐。
+// 残余 N：P209（signed 局部 `if(t==4)` 4.4 恒 mem 直比）、P30/N4（索引 add↔lea 分解）、
+// N7/N18a（bool→char 赋值 4.4 多 `mov %eax,%edx` 中转）、P223（循环出口 jmp/nop 岛位次）。
+// ORIG 0x088b9603
 void setBasicAbilityByLevel(const STMonsterScript* script, ActiveStaticInfo* info,
                             int level, int dungeonIdx, int roleType,
                             bool flagA, bool flagB)
@@ -437,10 +446,12 @@ void setBasicAbilityByLevel(const STMonsterScript* script, ActiveStaticInfo* inf
     const int diff = level - script->m_levelByDiff[0];        // -0x3c
     const int diffSpan = script->m_levelByDiff[1] -
                          script->m_levelByDiff[0];             // -0x38
+    char framePad[0x8];                    // [b28d-solo] P232：ORIG 帧 0x74 的 0x10 空洞
+    (void)framePad;
     const int tableIdx = getMonsterTableIndex(script, dungeonIdx,
                                               roleType, flagA, flagB);
-    if (tableIdx == 4)
-        level = dungeonIdx;                    // +0x85 难度表 4 用副本等级查行
+    if (tableIdx == 4)                         // +0x85 难度表 4 用副本等级查行
+        level = dungeonIdx;                    // （P209：4.4 signed 局部恒 mem 直比，N）
 
     // +0x93..0x15c：g_monsterBaseParameters[tableIdx] 中首列==level 的首个命中；
     // 脚本自带基础表时改取脚本内同下标行（operator[] 无界，忠实 ORIG）。
@@ -450,7 +461,7 @@ void setBasicAbilityByLevel(const STMonsterScript* script, ActiveStaticInfo* inf
     {
         if (g_monsterBaseParameters[tableIdx][i].m_value[0] == level)
         {
-            if (!script->m_baseParameters.empty())              // +0x102
+            if (script->m_baseParameters.size() != 0)           // +0x102
                 param = &script->m_baseParameters[i];
             else
                 param = &g_monsterBaseParameters[tableIdx][i];
@@ -473,16 +484,12 @@ void setBasicAbilityByLevel(const STMonsterScript* script, ActiveStaticInfo* inf
     info->m_statBase14 = param->m_value[10];   //         [v10@+28]
     info->m_flag14 = script->m_flag3b8;        // +0x1ed movzbl/movb 直拷
 
-    // +0x206：四属性抗性低/高对 → 元素攻击（GetLinearData(低, 高, 差, 跨度)）；
-    // ORIG 四次直呼（无指针表），保持一致以贴合栈帧
-    info->m_elemAttack[0] = GetLinearDataForMonsterAbility(
-        script->m_resistTable[0][0], script->m_resistTable[0][1], diff, diffSpan);
-    info->m_elemAttack[1] = GetLinearDataForMonsterAbility(
-        script->m_resistTable[1][0], script->m_resistTable[1][1], diff, diffSpan);
-    info->m_elemAttack[2] = GetLinearDataForMonsterAbility(
-        script->m_resistTable[2][0], script->m_resistTable[2][1], diff, diffSpan);
-    info->m_elemAttack[3] = GetLinearDataForMonsterAbility(
-        script->m_resistTable[3][0], script->m_resistTable[3][1], diff, diffSpan);
+    // +0x206：四属性抗性低/高对 → 元素攻击（GetLinearData(低, 高, 差, 跨度)）
+    for (int i = 0; i <= 3; ++i)
+    {
+        info->m_elemAttack[i] = GetLinearDataForMonsterAbility(
+            script->m_resistTable[i][0], script->m_resistTable[i][1], diff, diffSpan);
+    }
 
     // +0x25c：17 组线性能力表对 → attr17Base
     for (int i = 0; i <= 16; ++i)
@@ -533,8 +540,8 @@ void setBasicAbilityByLevel(const STMonsterScript* script, ActiveStaticInfo* inf
         info->m_elemDefense[i] = GetLinearDataForMonsterAbility(
             script->m_paramTable[i][0], script->m_paramTable[i][1],
             diff, diffSpan);
-        info->m_elemAttack[i] += param->m_value[12 + i];      // +0x3b7
-        info->m_elemDefense[i] += param->m_value[16 + i];     // +0x3df
+        info->m_elemAttack[i] += param->m_value[13 + i];      // +0x3b7 [param+0x34+4i]
+        info->m_elemDefense[i] += param->m_value[17 + i];     // +0x3df [param+0x44+4i]
     }
 
     info->m_statBase6 += param->m_value[21];   // +0x41c [+54]
@@ -560,11 +567,6 @@ void setBasicAbilityByLevel(const STMonsterScript* script, ActiveStaticInfo* inf
 // ===========================================================================
 namespace {
 
-bool scanTag(std::string& tag)
-{
-    return ScanType(tag, true);
-}
-
 static const char* const kMonsterActiveStatusTags[17] = {
     "[slow resistance]", "[freeze resistance]", "[poison resistance]",
     "[stun resistance]", "[curse resistance]", "[blind resistance]",
@@ -582,7 +584,13 @@ int scanValue()
 }  // namespace
 
 
-// [b28d-23 N·N82] 13841/13816 ⇒ N。ORIG 0x08a12827
+// [b28d-solo-STMonsterScript N·N82] 13759/13725，gap=34；p167（1742/1687）：
+// MISSING 61 = string dtor×28/ctor×14/op=×5（ORIG 的标签比较用临时 string，本实现
+// 走 c_str/线性比较）+ ScanInt×13 + vector<int>::push_back(int&&)×1；
+// EXTRA 6 = vector<int>::clear×2 + vector<string>::clear/push_back + ScanStr + importAIInfoScript。
+// 本轮已消 EXTRA 6（memcpy×5 → 同型 float 直赋；scanTag wrapper → 直调 ScanType）。
+// 余量属「骨架+标签分派级复原 vs ORIG 全量 13.8k 指令」的覆盖差，逐标签重写超出
+// 单文件单波成本 ⇒ N 封顶（缺口清单已列，供后续批次按标签逐项补齐）。ORIG 0x08a12827
 int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
                         bool flag)
 {
@@ -605,7 +613,7 @@ int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
     int moduleId = -1;
     int subId = -1;
     bool nameSeen = false;
-    while (scanTag(tag))
+    while (ScanType(tag, true))                // [b28d-solo] 去 scanTag wrapper（p167 EXTRA）
     {
         moduleId = -1;
         subId = -1;
@@ -1556,11 +1564,11 @@ case 0xbe0:  // "[attack kind]"
                 float value = ScanFloat(&ok);
                 if (!ok)
                     break;
-                memcpy(&method.m_field08, &value, sizeof(value));
+                method.m_field08 = value;      // [b28d-solo] 同型 float 直赋（原 memcpy 为 EXTRA）
                 value = ScanFloat(static_cast<bool*>(0));
-                memcpy(&method.m_field0c, &value, sizeof(value));
+                method.m_field0c = value;
                 value = ScanFloat(static_cast<bool*>(0));
-                memcpy(&method.m_field10, &value, sizeof(value));
+                method.m_field10 = value;
                 method.m_field00 = ScanInt(static_cast<bool*>(0)) != 0;
                 method.m_field18 = ScanInt(static_cast<bool*>(0));
                 method.m_field14 = ScanInt(static_cast<bool*>(0));
@@ -4133,16 +4141,14 @@ case 0x1035:  // "[drop avatar item]"
                 float rate = ScanFloat(&ok);
                 if (!ok)
                     return 0;
-                memcpy(&script->m_dropAvatarInfo.m_field08[i],
-                       &rate, sizeof(rate));
+                script->m_dropAvatarInfo.m_field08[i] = rate;   // [b28d-solo] 同型 float 直赋
             }
             for (int i = 4; i < 9; ++i)
             {
                 float rate = ScanFloat(&ok);
                 if (!ok)
                     return 0;
-                memcpy(&script->m_dropAvatarInfo.m_field08[i],
-                       &rate, sizeof(rate));
+                script->m_dropAvatarInfo.m_field08[i] = rate;
             }
             script->m_dropAvatarInfo.m_field00 = ScanInt(&ok);
             if (!ok)
@@ -5384,7 +5390,11 @@ case 0x12fb:  // "[start immune time]"
     return 1;
 }
 
-// [b28d-23 N·N82] 6791/6783 ⇒ N。ORIG 0x08a22520
+// [b28d-solo-STMonsterScript N·N85] 6790/6782，gap=8；p167 877/877 CLEAR。
+// 残差全为 x87 比较 lowering：ORIG(4.1) `fucompp/fnstsw/sahf` ×10 vs 4.4
+// `fucomip/fstp(+fxch)` ×10（N85），另 2 处分支极性/1 处 sete-setae。
+// P230 补载明该族可由 `-march=i486 -mtune=generic` 消解，但属路由/旗标变更
+// （本波禁改路由，由 Main 统一处理）⇒ N 封顶。ORIG 0x08a22520
 bool exportMonsterScript(
     STMonsterScript* script, const char* path,
     std::map<std::string, std::vector<std::string> >& extra)

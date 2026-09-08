@@ -7,27 +7,51 @@
 // importItemOverpowerDesc/exportEquipmentParameterScript）为真实语义的
 // 简化实现（关键字行驱动，ORIG 0x0899cd6c..0x089bf67f）。
 // ============================================================================
-// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o；
-//   P167 = 调用点差集口径，CLEAR 表示调用多重集与 ORIG 全等）：
-//   getStatusType 0x089a74a2              DIFF(49/48) N76：store RHS-first 不可翻
-//   SASPROPERTY::operator= 0x083dbdfc     DIFF(52/38) N90：ORIG 逐字段重载 vs 4.4 基址缓存
-//   GetStatValue 0x089914b9               DIFF(88/87) P167残差：ORIG push_backERKf（具名 float 局部）
-//   GetStatByCondition 0x08991384         DIFF(95/94) 同上
-//   GetApplyStatusInRange 0x08991229      DIFF(106/101) 同上 ×2
-//   GetSkillLevelUp 0x08991086            DIFF(124/122) 同上 ×2
-//   scanThen 0x089a123c                   DIFF(136/105) P167残差：局部对象生命周期（string/vector 各少 2）
-//   importItemOverpowerDesc 0x089bf290    DIFF(269/261) P167 CLEAR
-//   importSkillDataUp 0x088c049c           DIFF(395/378) P167 CLEAR
-//   GetSkillPhase 0x089be70c              DIFF(319/276) P167 EXTRA _Unwind_Resume ×2（EH 段）
-//   clear 0x089193c0                      DIFF(506/494) P167 CLEAR
-//   importAllSkillItem 0x089bec41         DIFF(391/371) P167 CLEAR
-//   GetSkillApplyCondition 0x089bd8ea     DIFF(849/789) P167残差 2（超大件 N82 口径）
-//   exportEquipmentParameterScript 0x089acf78 DIFF(1506/1436) P167残差 5
-//   readCondtion 0x0899ce3b               DIFF(3665/3621) P167残差（513 vs 511）
-//   importEquipmentParameterInfo 0x089a75ea DIFF(4823/5054) P167残差（664 vs 609）
-//   readAction 0x089a13e5                 DIFF(5357/5276) P167残差（640 vs 634）
-//   共同归因：4.1/4.4 寄存器分配·栈槽复用·EH 布局差（N7/N18a/N82/N104 族）；
+// [b28d-solo-EquipmentParameterInfo] 本 TU 判词表（verdict = game_func_report
+//   --no-compile 新鲜 .o + compare_tu_game_orig；P167 = 调用点差集口径）：
+//   getStatusType 0x089a74a2              DIFF N76：store RHS-first 不可翻。已试尽
+//     P211 三档旋钮（调用侧 (unsigned)/(ENUM)/双层 cast/`out[0]`/unsigned 左值视图；
+//     左值视图反多 `mov 0x8(%ebp),%ebx`）；callee 跨 TU、目标为 int* 形参解引用。
+//   SASPROPERTY::operator= 0x083dbdfc     DIFF N90：ORIG/我方均为 W 隐式合成
+//     （nm 实证）；4.1 逐字段重载双基址 vs 4.4 基址缓存+ecx 中转，源形不可控。
+//   addString 0x089c2e98                  DIFF N：内层 `while(b)` 条件 ORIG 4.1
+//     `cmpb $0,-0xd; jne` 直判 vs 4.4 恒插 `setne %al; test %al`（char/bool/裸条件
+//     三形实测；char 形已取最接近者）。
+//   GetStatValue 0x089914b9               ✅ AE（具名 fval 先物化 + `if(!ok)` 负极性早退）
+//   GetStatByCondition 0x08991384         ✅ AE（同）
+//   SASPROPERTY::C1ERKS0_ 0x083cb038      DIFF N90：同 operator=（W 隐式、跨版本
+//     逐字段 vs 基址缓存 codegen）。
+//   GetApplyStatusInRange 0x08991229      ✅ AE（单一 bool ok + 两次 ScanInt 共用 +
+//     具名 f1/f2 紧跟 fildl/fstps + 负极性早退）
+//   GetSkillLevelUp 0x08991085            ✅ AE（具名 f1/f2；`(float)(unsigned int)`
+//     getCharacterJob 复现 fildll 零扩展；P223 goto 尾标签共享 return 1）
+//   scanThen 0x089a123c                   ✅ AE（补 ORIG 两个 dead local：
+//     vector<vector<float>> + string；P223 goto 尾标签共享 return true）
+//   importItemOverpowerDesc 0x089bf290    DIFF P167 CLEAR ⇒ 语义完成、byte 层 N 封顶；
+//     附真语义修正：s_first 由 static 改局部（ORIG 0x089bf2a8 局部标志，每次调用丢首 token）
+//   importSkillDataUp 0x088c049c           DIFF P167 CLEAR ⇒ 语义完成、N 封顶
+//   GetSkillPhase 0x089be70c              DIFF：静态符号名照 ORIG 改 __lookup/__init_lock/
+//     __inited；双检+逐条 !__inited insert 守卫形重写；**删两处 continue 真语义 bug**
+//     （ORIG 建表后继续用当前 token 查表）；残差 = 4.4 多 2 个 _Unwind_Resume（N104）。
+//   clear 0x089193c0                      DIFF P167 CLEAR ⇒ 语义完成、N 封顶
+//   importAllSkillItem 0x089bec41         DIFF P167 CLEAR ⇒ 语义完成、N 封顶；
+//     附真语义修正：s_first static→局部（ORIG 0x089becbd 局部标志）
+//   GetSkillApplyCondition 0x089bd8ea     DIFF P167 CLEAR（本波补 2 个 SpinLock::leave
+//     调用点：块2/块3 与主表同形 `if(__inited) leave` + `if(!__inited){leave;__inited=true}`）
+//     ⇒ 超大件 N82 口径（799/849，槽号/EH 布局）
+//   exportEquipmentParameterScript 0x089acf78 DIFF：本波修 `it++`（P28 ppEi）+
+//     `std::min<int>`（0x089ae30a）；残差 = avatar 段 ORIG 用 std::string name
+//     （C1EPKcRKSaIcE+allocator）而本文件为历史 buf/snprintf 简化实现 + empty 结构差
+//   readCondtion 0x0899ce3b               DIFF P167 仅 EXTRA _Unwind_Resume ×2（N104 EH 布局）
+//   importEquipmentParameterInfo 0x089a75ea DIFF：历史简化实现结构差（p167 664 vs 609：
+//     多 string D1×6/ScanInt×5/operator==×5 等；MISSING push_backEOi/LevelUpSkill::clear/
+//     getActiveStatusToEnumValue 各 1）⇒ N（P165 结构还原未做）
+//   readAction 0x089a13e5                 DIFF：P165 循环抽象 vs ORIG 物理展开
+//     （ScanFloat 静态点 13 vs 15、push_back EOf 多 4）+ N82 全帧槽号 ⇒ N
+//   共同归因：4.1/4.4 寄存器分配·栈槽复用·EH 布局差（N7/N18a/N76/N82/N90/N104 族）。
 //   P167 CLEAR 件按 §6.2 判「语义完成、byte 层 N 封顶」。
+//   P0/N96：本文件全域无 `register asm` 绑定（grep 零命中）；`asm(".set …")` 仅用于
+//   P203 点号匿名类型符号别名（非绑定）。
 //   [D47 委派件] EquipmentParameterInfo::operator= (W 隐式) 0x083662ca
 //     DIFF(716/797)：修法①删 m_pad441[3]（P26，ORIG 拷贝段跳过 +0x441..0x443）
 //     使 803→797；残差 = ORIG 对相邻标量分组的块拷贝（+0xb0..+0xbc 双基址缓存、
@@ -42,6 +66,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <limits>   // ORIG export @0x89adeab 尾区：numeric_limits<float>::epsilon() 调用两处
+#include <algorithm>  // ORIG export 0x089ae30a：std::min<int>（_ZSt3minIiERKT_S2_S2_）
 
 #include "DNFLexWrapper.h"
 #include "LogManager.h"
@@ -131,6 +156,7 @@ EquipmentParameterInfo::tt_159::operator=(const tt_159& other)
 // ORIG 0x089193c0（0x928 字节）：标量清零 + 数组循环清零 + 容器 clear。
 // 所有已解析的数组/标量均通过 EquipmentParameterInfo 具名字段访问；重复清零
 // 保留 ORIG 的最终状态，字段类型与偏移以 EquipmentParameterInfo.h 为准。
+// [b28d-solo-EquipmentParameterInfo] clear：P167 CLEAR ⇒ 语义完成、byte 层 N 封顶（N82 槽号）。
 void EquipmentParameterInfo::clear()
 {
     m_field0 = 2;
@@ -317,12 +343,15 @@ void EquipmentParameterInfo::clear()
 // ORIG 0x089c2e98：遍历查找 str 已存在的 key（无则 size()+1），m[key]=str 后返回 key。
 // 残差（3 条）：ORIG 4.1 对内层 if(b) 做块旋转（deref 后 jmp 岛 + b 复测回跳 L3），
 // 4.4 恒将 b 守卫前置于比较块，源形不可翻（同 N 族块排布）。
+// [b28d-solo-EquipmentParameterInfo] addString DIFF N：1 字节局部条件物化跨版本差（三形实测）。
 int EquipmentParameterInfo::addString(std::string str)
 {
     // [b28c-6] N（跨版本 bool 物化）：内层 while(b) 条件 ORIG 4.1 直发
     // `cmpb $0,-0xd; jne`，4.4 恒插 `setne %al; test %al,%al`（char/bool/
     // uchar/显式比较四形均实测不可去，P168a③b 族）。ndiff 2 封顶。
     int key = -1;
+    // [b28d-solo-EquipmentParameterInfo] ORIG 内层 `cmpb $0,-0xd; jne` 直判
+    // （无 setne）⇒ 条件上下文写 `while (b)` 而非 `while (b != 0)`。
     char b = 0;
     if (!b)
     {
@@ -334,7 +363,7 @@ int EquipmentParameterInfo::addString(std::string str)
             // 随后 `jmp` 进入 while(b) 条件块（89c2f22 在 body 之后 = 回边形）；
             // 命中 break 至 it++，未命中 b=0 退出。
             std::pair<const int, std::string>& p = *it;
-            while (b != 0)
+            while (b)
             {
                 if (p.second == str)
                 {
@@ -446,6 +475,7 @@ static int getTargetTag(int* out)
     return 0;
 }
 
+// [b28d-solo-EquipmentParameterInfo] DIFF N76：store RHS 值先不可翻（P211 三档旋钮试尽）。
 static int getStatusType(int* out)
 {
     // [b28c-lane24] ORIG 0x089a74a2：`if (*out != 0x4d) return 1;` ⇒ je 失败块 +
@@ -454,8 +484,12 @@ static int getStatusType(int* out)
     std::string s;
     if (ScanStr(&s))
     {
-        // [b28c-lane24] P211 异型化探针实测反劣（4.4 缓存 out 地址跨 call，+1 条），
-        // 回退直存形；残余 store 序（ORIG RHS 值先 vs 4.4 LHS 先）为 N76。
+        // [b28d-solo-EquipmentParameterInfo] N76 封顶：ORIG 为 RHS 值先 +
+        // `mov %eax,%edx` 中转，4.4 恒 LHS 地址先。已试尽 P211 三档旋钮：
+        // ①调用侧 (unsigned int)/(ENUM) /双层 cast/`out[0]`/unsigned 左值视图
+        //   （末者反多 `mov 0x8(%ebp),%ebx` 一条）；②callee 跨 TU 定义于
+        //   GameScriptEnumHelpers.cpp（返回类型异型化需改他人 .cpp，超泳道）；
+        //   ③目标为 int* 形参解引用，字段侧不可动 ⇒ 无源形可翻。
         *out = getChangeStatusType(s);
         if (*out != 0x4d)
             return 1;
@@ -473,6 +507,7 @@ static int getSign(int* out)
     return 0;
 }
 
+// [b28d-solo-EquipmentParameterInfo] AE：具名 fval 先物化 + `if(!ok)` 负极性早退；P167 CLEAR。
 int GetStatValue(std::vector<float>* v)
 {
     std::string s;
@@ -480,16 +515,18 @@ int GetStatValue(std::vector<float>* v)
     float st = (float)getChangeStatusType(s);
     if (!ScanStr(&s)) return 0;
     float pct = (s == "%") ? 1.0f : 0.0f;
+    // [b28d-solo-EquipmentParameterInfo] P0：ORIG `mov %eax,-0x2c; fildl; fstps -0x1c`
+    // 中 -0x2c 是 int→float 转换的匿名临时（非具名 int 局部）⇒ ScanInt 结果直接
+    // 作为 (float) 操作数，fval 具名（0x0899154d..0x08991553）。
     bool ok = false;
-    int val = ScanInt(&ok);
-    if (ok)
-    {
-        v->push_back(st);
-        v->push_back(pct);
-        v->push_back((float)val);
-        return 1;
-    }
-    return 0;
+    float fval = (float)ScanInt(&ok);
+    // ORIG 0x0899155a 检查形 `movzbl ok; xor $1; test %al; je <push块>` ⇒
+    // 负极性早退（失败块直落），push 成功后 return 1。
+    if (!ok) return 0;
+    v->push_back(st);
+    v->push_back(pct);
+    v->push_back(fval);
+    return 1;
 }
 
 bool GetStat(std::vector<float>* v)
@@ -501,6 +538,7 @@ bool GetStat(std::vector<float>* v)
     GetStatValue(v);
 }
 
+// [b28d-solo-EquipmentParameterInfo] AE：同 GetStatValue；P167 CLEAR。
 int GetStatByCondition(std::vector<float>* v)
 {
     v->push_back(38.0f);
@@ -510,17 +548,15 @@ int GetStatByCondition(std::vector<float>* v)
     if (!ScanStr(&s)) return 0;
     float pct = (s == "%") ? 1.0f : 0.0f;
     bool ok = false;
-    int val = ScanInt(&ok);
-    if (ok)
-    {
-        v->push_back(st);
-        v->push_back(pct);
-        v->push_back((float)val);
-        return 1;
-    }
-    return 0;
+    float fval = (float)ScanInt(&ok);   // ORIG -0x2c 为转换匿名临时，无具名 int
+    if (!ok) return 0;
+    v->push_back(st);
+    v->push_back(pct);
+    v->push_back(fval);
+    return 1;
 }
 
+// [b28d-solo-EquipmentParameterInfo] AE：单一 bool ok + 具名 f1/f2；P167 CLEAR。
 int GetApplyStatusInRange(std::vector<float>* v)
 {
     v->push_back(39.0f);
@@ -529,18 +565,21 @@ int GetApplyStatusInRange(std::vector<float>* v)
     float st = (float)getChangeStatusType(s);
     if (!ScanStr(&s)) return 0;
     float pct = (s == "%") ? 1.0f : 0.0f;
-    // ORIG 0x089912c8：ScanInt(bool*) 形式，失败不中止（值取 0 继续）。
-    bool ok1 = false;
-    int v1 = ScanInt(&ok1);
-    bool ok2 = false;
-    int v2 = ScanInt(&ok2);
+    // ORIG 0x089912c8/0x089912e0：两次 ScanInt 共用同一 bool 槽（-0x19），
+    // 各自紧跟 `fildl/fstps` 物化具名 float（-0x20/-0x24）；检查在两次之后
+    // （0x089912f4 `movzbl; xor $1; test; je`）⇒ 负极性早退。
+    bool ok = false;
+    float f1 = (float)ScanInt(&ok);     // ORIG -0x2c 转换临时复用，无具名 int
+    float f2 = (float)ScanInt(&ok);
+    if (!ok) return 0;
     v->push_back(st);
     v->push_back(pct);
-    v->push_back((float)v1);
-    v->push_back((float)v2);
+    v->push_back(f1);
+    v->push_back(f2);
     return 1;
 }
 
+// [b28d-solo-EquipmentParameterInfo] AE：具名 f1/f2 + (float)(unsigned int) fildll + P223 goto 尾标签。
 int GetSkillLevelUp(std::vector<float>* v)
 {
     std::string s;
@@ -551,7 +590,11 @@ int GetSkillLevelUp(std::vector<float>* v)
         if (!ScanTypeOrStr(isType, s, true)) return 0;
         if (isType)
         {
-            return (s == "[/skill levelup]") ? 1 : 0;
+            // [b28d-solo-EquipmentParameterInfo] ORIG 0x089910ec `test %al; jne <尾共享
+            // mov $1,%ebx>` + `mov $0,%ebx` 失败块 ⇒ P223 尾标签法（goto 跳出循环到
+            // 共享 return 1 出口）。
+            if (s == "[/skill levelup]") goto L_skillLevelUp_ret1;
+            return 0;
         }
         v->push_back(29.0f);
         if (s == "[common]")
@@ -560,13 +603,22 @@ int GetSkillLevelUp(std::vector<float>* v)
         }
         else
         {
-            v->push_back((float)getCharacterJob(s.c_str()));
+            // ORIG 0x0899115c `mov $0,%edx; mov %eax,-0x38; mov %edx,-0x34; fildll`
+            // ⇒ 返回值按 unsigned 走零扩展转 float（signed 会生 fildl）。
+            v->push_back((float)(unsigned int)getCharacterJob(s.c_str()));
         }
+        // [b28d-solo-EquipmentParameterInfo] P167：ORIG 0x08991198/0x089911cf
+        // `mov val,%eax; mov %eax,-0x2c; fildl; fstps -0x24/-0x28` ⇒ (float)val
+        // 先物化到具名 float，push_back 取左值（push_backERKf 非 EOf）。
         if (!ScanInt(&val)) return 0;
-        v->push_back((float)val);
+        float f1 = (float)val;
+        v->push_back(f1);
         if (!ScanInt(&val)) return 0;
-        v->push_back((float)val);
+        float f2 = (float)val;
+        v->push_back(f2);
     }
+L_skillLevelUp_ret1:
+    return 1;
 }
 
 int getBuffToEnumValue(std::string& s)
@@ -629,6 +681,7 @@ int getEquipmentTypeToEnumValue(std::string& s)
 // 成功返回 true（1）。ORIG 的 __lookup 静态 map + 惰性初始化仅为编译期
 // 优化，行为等价于按关键字字符串 if/else；此处省略惰性初始化直接分派。
 // ============================================================================
+// [b28d-solo-EquipmentParameterInfo] N：P165 循环抽象 vs ORIG 物理展开 + N82 全帧槽号。
 bool readAction(const std::string& line, EquipmentParameterInfo* info,
                 std::string& out, std::vector<float>& values, int idx)
 {    // [N类豁免] 残余 DIFF 归因（范式库 §7 跨版本组）：本函数指令多重集已与 ORIG
@@ -1724,6 +1777,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
 // Scan* 消费词法流并向 values push「tag 常量 + 参数」；失败的分支按其
 // ORIG 语义处理（多数分支不检查扫描结果；[is stat]/[equipment upgrade]
 // 任一步失败即直接 return，不再 push）。
+// [b28d-solo-EquipmentParameterInfo] P167 仅 EXTRA _Unwind_Resume×2 ⇒ N104 EH 布局封顶。
 void readCondtion(EquipmentParameterInfo* info, std::string& line,
                   std::vector<int>& values)
 {    // [N类豁免] 残余 DIFF 归因（范式库 §7 跨版本组）：本函数指令多重集已与 ORIG
@@ -2858,12 +2912,18 @@ void scanIf(EquipmentParameterInfo* info, int idx)
 }
 
 
+// [b28d-solo-EquipmentParameterInfo] AE：补 ORIG 两个 dead local + P223 goto 尾标签。
 bool scanThen(std::string line, EquipmentParameterInfo* info, int idx)
 {
     // ORIG 0x89a123c：循环 ScanType(token,true)；"[/then]" 返回 true；
     // readAction 失败或 EOF 返回 false；values 非空时收集到局部
     // vector<vector<float>>（ORIG 局部，未外传）。
     std::vector<std::vector<float> > collected;
+    // [b28d-solo-EquipmentParameterInfo] P171/P232 dead local 照抄：ORIG 0x089a124f
+    // /0x089a125a 在函数头构造 -0x20（vector<vector<float>>）与 -0x24（string），
+    // 全程只被析构（0x089a1398/0x089a1376），无读取 ⇒ 原码声明未使用的局部。
+    std::vector<std::vector<float> > collectedUnused;
+    std::string tokenUnused;
     std::string token;
     for (;;)
     {
@@ -2873,7 +2933,9 @@ bool scanThen(std::string line, EquipmentParameterInfo* info, int idx)
         }
         if (token == "[/then]")
         {
-            return true;
+            // [b28d-solo-EquipmentParameterInfo] ORIG 0x089a12a9 `jne 089a1348`
+            // （nop + mov $1,%ebx 就地块）⇒ P223 尾标签法。
+            goto L_scanThen_ret1;
         }
         std::vector<float> values;
         if (!readAction(line, info, token, values, idx))
@@ -2885,6 +2947,8 @@ bool scanThen(std::string line, EquipmentParameterInfo* info, int idx)
             collected.push_back(values);
         }
     }
+L_scanThen_ret1:
+    return true;
 }
 
 // ---- SASPROPERTY 子解析 helper（ORIG static，本 TU） ----
@@ -2914,6 +2978,7 @@ static int GetItemGrowtype(EquipmentParameterInfo::SASPROPERTY* sp)
 //     0x2f69 [except for ex skill]|3 位或入 flags，==0 返回 0，否则写
 //     m_head[6]（+0x18）。
 // 任一 ScanType/ScanInt/ScanStr 失败、或子表/主表未命中 → 返回 0。
+// [b28d-solo-EquipmentParameterInfo] P167 CLEAR（本波补 2 个 SpinLock::leave 点）⇒ 超大件 N82 封顶。
 static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
 {
     if (sp == 0) return 0;
@@ -2993,18 +3058,26 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
                     static bool __inited = false;
                     if (!__inited)
                     {
+                        // [b28d-solo-EquipmentParameterInfo] P167：ORIG 0x089bdfcb enter
+                        // → 0x089bdfe2 `if (__inited) leave`（点1）→ inserts →
+                        // 0x089be186 `if (!__inited) { leave; __inited = true; }`（点2）
+                        // 与主表块同形（两个 leave 调用点）。
                         __init_lock.enter();
-                        if (!__inited)
+                        if (__inited)
                         {
+                            __init_lock.leave();
+                        }
                             if (!__inited)
                             __lookup.insert(std::pair<const char* const, int>("[passive]", 0x2f49));
                             if (!__inited)
                             __lookup.insert(std::pair<const char* const, int>("[active]", 0x2f4c));
                             if (!__inited)
                             __lookup.insert(std::pair<const char* const, int>("[all]", 0x2f4f));
+                        if (!__inited)
+                        {
+                            __init_lock.leave();
                             __inited = true;
                         }
-                        __init_lock.leave();
                     }
                     std::map<const char*, int, less_TCHAR>::const_iterator it =
                         __lookup.find(str.c_str());
@@ -3030,9 +3103,13 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
                         static bool __inited = false;
                         if (!__inited)
                         {
+                            // 同块2：ORIG 0x089be41f enter → 0x089be436 leave（点1）→
+                            // inserts → 0x089be60a `leave; __inited = true`（点2）。
                             __init_lock.enter();
-                            if (!__inited)
+                            if (__inited)
                             {
+                                __init_lock.leave();
+                            }
                                 if (!__inited)
                                 __lookup.insert(std::pair<const char* const, int>("[normal skill]", 0x2f60));
                                 if (!__inited)
@@ -3041,9 +3118,11 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
                                 __lookup.insert(std::pair<const char* const, int>("[ex skill]", 0x2f66));
                                 if (!__inited)
                                 __lookup.insert(std::pair<const char* const, int>("[except for ex skill]", 0x2f69));
+                            if (!__inited)
+                            {
+                                __init_lock.leave();
                                 __inited = true;
                             }
-                            __init_lock.leave();
                         }
                         std::map<const char*, int, less_TCHAR>::const_iterator it =
                             __lookup.find(str.c_str());
@@ -3070,33 +3149,51 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
 // GetSkillPhase —— ORIG 0x89be70c（static local）。消费 [skill phase] 块：
 // 惰性初始化 static map（"[all]"→0x2f8c … "[fourth]"→0x2f9b），ScanStr 读
 // token 查表，命中写 sp->m_head[7] = phase（0..5）并返回 1，未命中返回 0。
+// [b28d-solo-EquipmentParameterInfo] GetSkillPhase：符号名照 ORIG + 双检形重写 + 删 continue 真 bug；残差 N104。
 static int GetSkillPhase(EquipmentParameterInfo::SASPROPERTY* sp)
 {
     if (!sp) return 0;
-    static std::map<const char*, int, less_TCHAR> s_phaseMap;
-    static SpinLock s_lock;
-    static bool s_init = false;
+    // [b28d-solo-EquipmentParameterInfo] 符号名照 ORIG nm：__lookup/__init_lock/__inited。
+    static std::map<const char*, int, less_TCHAR> __lookup;
+    static SpinLock __init_lock;
+    static bool __inited = false;
     std::string token;
     for (;;)
     {
         if (!ScanStr(&token)) return 0;
-        if (!s_init)
+        if (!__inited)
         {
-            s_lock.enter();
-            if (s_init) { s_lock.leave(); continue; }
-            s_phaseMap.insert(std::pair<const char* const, int>("[all]", 0x2f8c));
-            s_phaseMap.insert(std::pair<const char* const, int>("[common]", 0x2f8f));
-            s_phaseMap.insert(std::pair<const char* const, int>("[first]", 0x2f92));
-            s_phaseMap.insert(std::pair<const char* const, int>("[second]", 0x2f95));
-            s_phaseMap.insert(std::pair<const char* const, int>("[third]", 0x2f98));
-            s_phaseMap.insert(std::pair<const char* const, int>("[fourth]", 0x2f9b));
-            s_lock.leave();
-            s_init = true;
-            continue;   // ORIG 置 init 后重新 ScanStr（89bebf2 jmp 89be755）
+            // [b28d-solo-EquipmentParameterInfo] P165①/P167：ORIG 0x089be911 enter →
+            // 0x089be91d 双检 `if (__inited) { leave; ... }` → 逐条 `if (!__inited)
+            // insert` 守卫（0x089be997 起）→ 0x089bebdf leave + 0x089bebeb
+            // `__inited = true` → 回 guard 检查**继续用当前 token 查表**。
+            // 原 `continue`（重新 ScanStr）会丢弃当前 token ⇒ 真语义 bug，已删。
+            __init_lock.enter();
+            if (__inited)
+            {
+                __init_lock.leave();
+            }
+            else
+            {
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[all]", 0x2f8c));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[common]", 0x2f8f));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[first]", 0x2f92));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[second]", 0x2f95));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[third]", 0x2f98));
+                if (!__inited)
+                __lookup.insert(std::pair<const char* const, int>("[fourth]", 0x2f9b));
+                __init_lock.leave();
+                __inited = true;
+            }
         }
         std::map<const char*, int, less_TCHAR>::const_iterator it =
-            s_phaseMap.find(token.c_str());
-        int id = (it != s_phaseMap.end()) ? it->second : -1;
+            __lookup.find(token.c_str());
+        int id = (it != __lookup.end()) ? it->second : -1;
         switch (id)
         {
         case 0x2f8c: sp->m_head[7] = 5; return 1;
@@ -3113,6 +3210,7 @@ static int GetSkillPhase(EquipmentParameterInfo::SASPROPERTY* sp)
 // ORIG：static map<const char*,int> 懒初始化——首次调用丢弃第一个 token（仅
 // 触发初始化），其后未知 token 一律返回 0（default 分支）；[skill levelup] 的
 // GetSkillLevelUp 直接填充 sp.m_vec20（+0x20），非局部 vector。
+// [b28d-solo-EquipmentParameterInfo] importAllSkillItem：P167 CLEAR ⇒ N 封顶；s_first static→局部（真语义修正）。
 static int importAllSkillItem(EquipmentParameterInfo* info)
 {
     EquipmentParameterInfo::SASPROPERTY sp;
@@ -3121,7 +3219,10 @@ static int importAllSkillItem(EquipmentParameterInfo* info)
     sp.m_head[6] = 7;   sp.m_head[7] = 5;
     std::string token;
     bool terminated = false;
-    static bool s_first = true;   // ORIG static map 懒初始化：首次调用丢弃首 token
+    // [b28d-solo-EquipmentParameterInfo] 真语义修正：ORIG 0x089becbd
+    // `movb $0x1,-0x1d(%ebp)` 是**局部**标志（每次调用都丢弃首 token），
+    // 原 static 只在首次调用丢弃 ⇒ 语义偏差。
+    bool s_first = true;
     while (ScanType(token, true))
     {
         if (s_first)
@@ -3210,11 +3311,13 @@ static int importAllSkillItem(EquipmentParameterInfo* info)
 // 忠实保留）：token 耗尽（未 terminated）返回 0；terminated 且 m_428 为**空**
 // 时置 m_424=m_425=1 返回 1；terminated 且 m_428 非空返回 0。未知 token 返回
 // 0（default）；首次调用丢弃首 token（static map 懒初始化）。
+// [b28d-solo-EquipmentParameterInfo] importItemOverpowerDesc：P167 CLEAR ⇒ N 封顶；s_first static→局部（真语义修正）。
 static int importItemOverpowerDesc(EquipmentParameterInfo* info)
 {
     std::string token;
     bool terminated = false;
-    static bool s_first = true;
+    // ORIG 0x089bf2a8 `movb $0x1,-0x1d(%ebp)`：局部标志（同 importAllSkillItem）。
+    bool s_first = true;
     while (ScanType(token, true))
     {
         if (s_first)
@@ -3292,6 +3395,7 @@ static int importItemOverpowerDesc(EquipmentParameterInfo* info)
 //   （ORIG 经 param_1+0x434 子指针，字段未建模则跳过），返回 1。
 //   本版覆盖已具名字段关键字；其余关键字落入结尾（返回 1 不中断脚本）。
 // ============================================================================
+// [b28d-solo-EquipmentParameterInfo] N：历史简化实现结构差（p167 664 vs 609），P165 结构还原未做。
 bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
                                   std::string& path, const char* dir,
                                   int& a, int& b)
@@ -4604,6 +4708,7 @@ done:
 // 注：ORIG 的 %.2f/%.1f 传参经 fistpl 取整后按 int 传入（Ghidra ROUND 伪影，原
 // 生即为未定义 vararg 用法）；此处以可读 double 直出（数值舍入差异记录于报告）。
 // avatar 能力标签表与 importEquipmentParameterInfo 内一致（AVTVARIATION_TAG_NAME）。
+// [b28d-solo-EquipmentParameterInfo] 修 it++（P28）/std::min<int>；残差 avatar 段 string 形 + empty 结构 ⇒ N。
 void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
 {
     if (!file || !info)
@@ -4782,8 +4887,10 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
     if (!info->m_levelUpSkills[0].empty())
     {
         fprintf(file, "[skill levelup]\n");
+        // [b28d-solo-EquipmentParameterInfo] P28 增量侧：ORIG 0x089ae21b 增量段为
+        // `ppEi`（后置、带 sret 临时槽）⇒ 源形必须写 it++。
         for (std::vector<LevelUpSkill>::iterator it = info->m_levelUpSkills[0].begin();
-             it != info->m_levelUpSkills[0].end(); ++it)
+             it != info->m_levelUpSkills[0].end(); it++)
         {
             if ((*it).m_job == 0xb)
                 fwrite("[common]", 1, 8, file);
@@ -4807,8 +4914,9 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
         fprintf(file, "[avatar select ability]\n");
         if (info->m_avatar264[0].m_field0 != 0)
         {
-            int n = (int)info->m_avatar264.size();
-            if (n > 100) n = 100;
+            // ORIG 0x089ae2e8..0x089ae311：`movl $0x64,-0x30; call size;
+            // mov %eax,-0x2c; call std::min<int>` ⇒ 源码是 std::min(size,100)。
+            int n = std::min((int)info->m_avatar264.size(), 100);
             // ORIG 0x89ae3xx..：逐条先 snprintf 进 0x100 栈缓冲再 fprintf(file,buf)；
             // 字段读取逐次重读 operator[]（P157），job 名经临时 string c_str()。
             for (int i = 0; i < n; ++i)
@@ -4870,6 +4978,7 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
 //   行为等价于按标签字符串 if/else（同本文件 readAction 注释约定）。对象在函数顶部构造
 //   一次、逐条覆写复用；未知标签不消费 level token，key/level 保持上一轮/ctor 默认。
 // ============================================================================
+// [b28d-solo-EquipmentParameterInfo] importSkillDataUp：P167 CLEAR ⇒ 语义完成、byte 层 N 封顶。
 void importSkillDataUp(std::vector<EquipmentSkillDataUp>& out)
 {
     out.reserve(0x14);

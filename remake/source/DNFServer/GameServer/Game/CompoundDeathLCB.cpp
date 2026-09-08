@@ -140,10 +140,17 @@ namespace WongWork {
 //   ③ 余 14 insn 逐块核对为：每字段拷贝前 ORIG 重发 `mov %ebx,%eax`（this 重载，
 //      4.4 寄存器缓存不重发，6 处）、job 段 `jmp/nop` 中继岛、末尾对齐 nop
 //      （§6.1 豁免）⇒ 判**语义完成、byte 层 N76/N82/N18a 封顶**，勿再耗轮次。
+// 【b28d-solo-CompoundDeathLCB 定案】达成 **AE**：523/523 逐条全等（clean
+//   519=519，仅 .o 重定位标签伪差，P264）。本轮修法：①三步 GetInvenSlot 临时改
+//   `*&expr` 匿名临时 ⇒ 4.4 复用同一槽（帧 0x11c→0x8c=ORIG，槽位集全等）；
+//   ②`m_tables[f00]` 每迭代重取（P183 禁缓存）；③循环内 `found=idx; break;` 直赋
+//   （删 cand×4）；④job 段 `!=` 否定早返 + P226 语句表达式（消 bothUsable 槽）；
+//   ⑤switch→if-else 链（P17）；⑥每分支尾各一份 `if(found)break`（ORIG 各一份）；
+//   ⑦删冗余 (int) cast（P41/P254）＋索引 `static_cast<unsigned int>` 触发 4.4
+//   中转（P211 异型化，消最后 2 条）。
 CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
     const CUser* user, const MSG_COMPOUND_AVATAR* msg) const
 {
-    // [b28d-48 复核] 维持 N76/N82/N18a 封顶（NDIFF 453，529/519 条）。
     tagCompoundInfo info;                        // ORIG C1 0x08334344
     info.clear();                                // ORIG clear 0x0833424a
 
@@ -158,19 +165,19 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
 
     // 三步形（0x08331f64..0x08332043）：临时槽 + 逐字段拷贝；每次重取
     // getCurCharacInvenR（P183/P48 禁缓存 inv）。
-    Inven_Item avatarSlot = user->getCurCharacInvenR()->GetInvenSlot(
+    // [b28d-solo-CompoundDeathLCB] ORIG 三步**复用同一 -0x88 临时槽**（0x08331fxx/
+    // 0x083320xx 三次 GetInvenSlot 的 sret 目标同址；帧 0x8c）⇒ 用块作用域同名
+    // 局部让 4.4 复用槽（三个不同名局部会各占 0x3d 字节，帧 0x11c，实测 +0x90）。
+    info.m_avatar = *&user->getCurCharacInvenR()->GetInvenSlot(
         1, static_cast<int>(static_cast<short>(msg->m_avatarSlot)));
-    info.m_avatar = avatarSlot;
 
     info.m_field08 = msg->m_materialSlotA;
-    Inven_Item materialSlotA = user->getCurCharacInvenR()->GetInvenSlot(
+    info.m_materialA = *&user->getCurCharacInvenR()->GetInvenSlot(
         2, static_cast<int>(static_cast<short>(msg->m_materialSlotA)));
-    info.m_materialA = materialSlotA;
 
     info.m_field48 = msg->m_materialSlotB;
-    Inven_Item materialSlotB = user->getCurCharacInvenR()->GetInvenSlot(
+    info.m_materialB = *&user->getCurCharacInvenR()->GetInvenSlot(
         2, static_cast<int>(static_cast<short>(msg->m_materialSlotB)));
-    info.m_materialB = materialSlotB;
 
     info.m_scriptA = G_CDataManager()->find_item(
         static_cast<int>(msg->m_materialItemIdA));
@@ -184,10 +191,11 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
     }
     // ORIG 0x08332133/0x0833215c：msg 两 itemIdx 必须与槽内物品 addInfo
     //（Inven_Item+0x02，即 info+0x0c / info+0x4c）一致，任一不符 → errorFlag。
-    if (static_cast<int>(msg->m_materialItemIdA) !=
-            static_cast<int>(info.m_materialA.m_addInfo) ||
-        static_cast<int>(msg->m_materialItemIdB) !=
-            static_cast<int>(info.m_materialB.m_addInfo))
+    // [b28d-solo-CompoundDeathLCB] 两侧同为 unsigned int ⇒ 裸比较（ORIG
+    // 0x08332201 `mov 0x11(%eax),%edx` 单段直读）；冗余 `(int)` cast 令 4.4
+    // 多一条 `mov %eax,%edx` 中转（P41/P254 变体）。
+    if (msg->m_materialItemIdA != info.m_materialA.m_addInfo ||
+        msg->m_materialItemIdB != info.m_materialB.m_addInfo)
     {
         info.m_errorFlag = true;
         return info;
@@ -196,41 +204,46 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
     // m_field00=job；无匹配保持 clear 哨兵 0xb → 直接返回（不设 error）。
     for (int job = 0; job <= 10; ++job)
     {
-        // ORIG 0x083322xx 发形：先 `check_job_type(A) == check_job_type(B)`，
-        // 命中后再各调一次并做 **bool 汇聚岛**（`test; je 岛; mov$1/mov$0;
-        // test%al; je`）⇒ 两条件必须写成命名 bool（P84/P133）；三条独立
-        // continue 会让 4.4 直接 cmp/jcc（实测少 6 insn）。
-        if (info.m_scriptA->check_job_type(static_cast<char>(job)) ==
+        // [b28d-solo-CompoundDeathLCB] ORIG 0x08332269 首段为 `cmp %al,%dl;
+        // setne %al; test; jne <continue>` ⇒ 源码是否定早返 `if (A != B)
+        // continue;`（P196/P133 极性判据；写 `==` 会产 sete/je 反形）。
+        // 第二段 `mov$1/mov$0; test %al,%al; je` 是**无槽**寄存器汇聚岛（P0）
+        // ⇒ 用 P226 语句表达式包住短路条件（具名 bool 会多 store+cmpb 两条）。
+        if (info.m_scriptA->check_job_type(static_cast<char>(job)) !=
             info.m_scriptB->check_job_type(static_cast<char>(job)))
         {
-            const bool bothUsable =
-                (info.m_scriptA->check_job_type(static_cast<char>(job)) != 0 &&
-                 info.m_scriptB->check_job_type(static_cast<char>(job)) != 0);
-            if (bothUsable)
-            {
-                info.m_field00 = job;        // ORIG +0x00
-                break;
-            }
+            continue;
+        }
+        if (({ info.m_scriptA->check_job_type(static_cast<char>(job)) != 0 &&
+               info.m_scriptB->check_job_type(static_cast<char>(job)) != 0; }))
+        {
+            info.m_field00 = job;        // ORIG +0x00
+            break;
         }
     }
     if (info.m_field00 == 0xb)                   // ORIG 0x0833221b：无匹配
         return info;
 
-    const tagCompoundAvatarTable& table = m_tables[info.m_field00];
     unsigned int found = 0;                      // -0x2c：匹配到的 rec 下标
-    for (unsigned int idx = 1; idx < table.m_avatars.size(); ++idx)  // -0x24
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x083322fb 每次迭代重发 `m_tables[f00]`
+    // 完整取址（f00*0xc + this，P183 禁缓存；引用局部会占槽并把帧撑大）。
+    for (unsigned int idx = 1; idx < m_tables[static_cast<unsigned int>(info.m_field00)].m_avatars.size();
+         ++idx)  // -0x24
     {
-        const tagCompoundAvatar* rec = table.getCompoundAvatarInfo(
-            static_cast<int>(idx));
+        const tagCompoundAvatar* rec =
+            m_tables[static_cast<unsigned int>(info.m_field00)].getCompoundAvatarInfo(
+                static_cast<int>(idx));
         if (rec == 0)
             continue;
 
         // ORIG 4 个类型分支**各自完整展开**一遍迭代器遍历（begin/end/operator!=/operator++/operator-> 各 4 组，槽 -0x30/-0x34…-0x48/-0x4c），
         // 不是提公共 vector 指针后单循环（P165 物理展开 / N-C）。
-        switch (msg->m_type)
+        // [b28d-solo-CompoundDeathLCB] ORIG 0x08332329 为线性比较链
+        //（`test %al,%al; jne` / `cmp $0x1,%al; jne` / `cmp $0x3,%al; jne`）
+        // ⇒ 原码是 if-else-if 链而非 switch（P17；switch 令 4.4 发决策树
+        // cmp/jg/je 共 +10 条）。
+        if (msg->m_type == 0)
         {
-            case 0:
-            {
                 // 声明即初始化：ORIG 各分支把 begin()/end() 的 sret 目标**直接**
                 // 指到本组迭代器槽（0x083323xx 区无 normal_iterator 默认构造调用），
                 // 故不可先 `iterator it;` 再赋值；found 经 cand 变量传递（ORIG 用
@@ -239,21 +252,28 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
                     rec->m_tailA.begin();
                 std::vector<std::pair<int, int> >::const_iterator last =
                     rec->m_tailA.end();
-                unsigned int cand = found;
+                // [b28d-solo-CompoundDeathLCB] ORIG 0x08332370..0x083323b7 循环体形：
+                // 命中直接 `found = idx; break;`（无 cand 中转槽；四个 case 的 cand
+                // 各占 4 字节 ⇒ 帧多 0x10）。
                 while (it != last)
                 {
-                    cand = idx;
-                    if (static_cast<int>(info.m_avatar.m_addInfo) == it->first)
+                    // ORIG 0x08332370 `mov 0x94(%eax),%esi` 单段直读 ⇒ 两侧同为
+                    // unsigned（`(int)` cast 会令 4.4 多一条 eax→esi 中转）。
+                    if (info.m_avatar.m_addInfo ==
+                        static_cast<unsigned int>(it->first))
                     {
+                        found = idx;
                         break;
                     }
                     ++it;
                 }
-                found = cand;
-                break;
-            }
-            case 1:
-            {
+                // ORIG 0x083323b7：每个分支循环后各有一份 `cmpl $0,-0x28(%ebp);
+                // je <下一 else-if>; jmp <跳出>`（= if (found != 0) break;）
+                if (found != 0)
+                    break;
+        }
+        else if (msg->m_type == 1)
+        {
                 // 声明即初始化：ORIG 各分支把 begin()/end() 的 sret 目标**直接**
                 // 指到本组迭代器槽（0x083323xx 区无 normal_iterator 默认构造调用），
                 // 故不可先 `iterator it;` 再赋值；found 经 cand 变量传递（ORIG 用
@@ -262,21 +282,21 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
                     rec->m_tailB.begin();
                 std::vector<std::pair<int, int> >::const_iterator last =
                     rec->m_tailB.end();
-                unsigned int cand = found;
                 while (it != last)
                 {
-                    cand = idx;
-                    if (static_cast<int>(info.m_avatar.m_addInfo) == it->first)
+                    if (info.m_avatar.m_addInfo ==
+                        static_cast<unsigned int>(it->first))
                     {
+                        found = idx;
                         break;
                     }
                     ++it;
                 }
-                found = cand;
-                break;
-            }
-            case 3:
-            {
+                if (found != 0)
+                    break;
+        }
+        else if (msg->m_type == 3)
+        {
                 // 声明即初始化：ORIG 各分支把 begin()/end() 的 sret 目标**直接**
                 // 指到本组迭代器槽（0x083323xx 区无 normal_iterator 默认构造调用），
                 // 故不可先 `iterator it;` 再赋值；found 经 cand 变量传递（ORIG 用
@@ -285,21 +305,21 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
                     rec->m_tailC.begin();
                 std::vector<std::pair<int, int> >::const_iterator last =
                     rec->m_tailC.end();
-                unsigned int cand = found;
                 while (it != last)
                 {
-                    cand = idx;
-                    if (static_cast<int>(info.m_avatar.m_addInfo) == it->first)
+                    if (info.m_avatar.m_addInfo ==
+                        static_cast<unsigned int>(it->first))
                     {
+                        found = idx;
                         break;
                     }
                     ++it;
                 }
-                found = cand;
-                break;
-            }
-            case 4:
-            {
+                if (found != 0)
+                    break;
+        }
+        else if (msg->m_type == 4)
+        {
                 // 声明即初始化：ORIG 各分支把 begin()/end() 的 sret 目标**直接**
                 // 指到本组迭代器槽（0x083323xx 区无 normal_iterator 默认构造调用），
                 // 故不可先 `iterator it;` 再赋值；found 经 cand 变量传递（ORIG 用
@@ -308,24 +328,23 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
                     rec->m_cube.m_vec.begin();
                 std::vector<std::pair<int, int> >::const_iterator last =
                     rec->m_cube.m_vec.end();
-                unsigned int cand = found;
                 while (it != last)
                 {
-                    cand = idx;
-                    if (static_cast<int>(info.m_avatar.m_addInfo) == it->first)
+                    if (info.m_avatar.m_addInfo ==
+                        static_cast<unsigned int>(it->first))
                     {
+                        found = idx;
                         break;
                     }
                     ++it;
                 }
-                found = cand;
-                break;
-            }
-            default:
-                continue;                    // 其它类型跳过本轮
+                if (found != 0)
+                    break;
         }
-        if (found != 0)
-            break;
+        else
+        {
+            continue;                        // 其它类型跳过本轮
+        }
     }
     info.m_field04 = static_cast<unsigned int>(found);  // ORIG +0x6cd
     info.m_type = msg->m_type;                   // ORIG +0x6d9
@@ -356,8 +375,12 @@ CCompoundAvatar::tagCompoundInfo CCompoundAvatar::_MakeCompoundInfo(
 int CCompoundAvatar::_CheckCondition(const CUser* user,
                                      const tagCompoundInfo& info) const
 {
-    // [b28d-48 复核] N82 封顶（NDIFF 565，616/610 条）：巨件帧/槽平移 +
-    // 判定链块序。
+    // 【b28d-solo-CompoundDeathLCB 判词】DIFF 封顶（§6.2）：ORIG 611 / ours 615、
+    // p167 CLEAR(52/52)。本轮修法：table 引用内联（P183）、m_field04 检查前移至
+    // CI_UsableType1 之前、while+break 拆 &&（P225）、尾段正极性包裹（P214①）。
+    // 残余 = 间接虚调用目标寄存器 N7 ×18（4.4.7 恒 %eax / ORIG %edx；本 TU 换
+    // 4.4.6 后端实测 n7 50→10 但 TU 整体 ae/near/diff 变差 ⇒ 不路由）+ 尾段
+    // 块序/槽号（N82/N93 族）。
     // 分离模式(type4)仅允许指定物品 0x2898c4。
     if (info.m_type == 4 && info.m_avatar.m_addInfo != 0x2898c4)
     {
@@ -402,20 +425,22 @@ int CCompoundAvatar::_CheckCondition(const CUser* user,
     {
         return 0x17;
     }
-    if (!(CI_UsableType1(info.m_scriptA) && CI_UsableType1(info.m_scriptB)))
-    {
-        throw static_cast<ENUM_ERROR>(0x17);                    // __cxa_throw
-    }
-    // ORIG 0x08332792：recipe 下标为 0 → 0x17（位于 throw 之后、取表之前）。
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x08332792 的 `m_field04 == 0 → 0x17`
+    // 位于 CI_UsableType1 虚检查（0x0833292f）**之前**（历史注释位置有误）。
     if (info.m_field04 == 0)
     {
         return 0x17;
     }
+    if (!(CI_UsableType1(info.m_scriptA) && CI_UsableType1(info.m_scriptB)))
+    {
+        throw static_cast<ENUM_ERROR>(0x17);                    // __cxa_throw
+    }
 
-    const tagCompoundAvatarTable& table =
-        m_tables[info.m_field00];
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x083327a5 直接把 `m_tables[m_field00]`
+    // 取址内联进调用点（`mov 0x4(%eax),%ecx` 先物化实参、后算表地址）；
+    // 具名 table 引用会占槽（P183 禁缓存）。
     const tagCompoundAvatar* rec =
-        table.getCompoundAvatarInfo(info.m_field04);            // -0x1c
+        m_tables[info.m_field00].getCompoundAvatarInfo(info.m_field04);  // -0x1c
 
     if (!(info.m_scriptA->get_rarity() < 2 &&
           info.m_scriptB->get_rarity() < 2))
@@ -453,8 +478,15 @@ int CCompoundAvatar::_CheckCondition(const CUser* user,
             it = rec->m_optsB[CI_SubType(info.m_scriptA)].begin();
             last = rec->m_optsB[CI_SubType(info.m_scriptA)].end();
         }
-        while (it != last && it->first != info.m_fieldD0)
+        // [b28d-solo-CompoundDeathLCB] ORIG 循环体为 `cmp; sete %al; test %al,%al;
+        // jne <找到出口>` 的 bool 物化形（P225）⇒ 拆成 while(条件) + if break，
+        // 合并 && 会令 4.4 直产 je/jne 直跳（无 setcc）。
+        while (it != last)
         {
+            if (it->first == info.m_fieldD0)
+            {
+                break;
+            }
             ++it;
         }
         if (it == last)
@@ -534,17 +566,20 @@ int CCompoundAvatar::_CheckCondition(const CUser* user,
     {
         return 0x13;
     }
-    if (noExpireA || (remainA > 5 && remainB > 5))
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x08332dcx 尾段为 `jg <继续>` +
+    // `mov $0x18,%eax; jmp`（早返岛）⇒ 正极性包裹改写（P214①；负极性
+    // `if(cond){...} return 0x18;` 会让 4.4 产 jle 反形）。
+    if (!(noExpireA || (remainA > 5 && remainB > 5)))
     {
-        // 分离升级位标记禁拆者不允许操作。
-        if (info.m_materialA.m_upgradeSep.IsTradeRestriction() ||
-            info.m_materialB.m_upgradeSep.IsTradeRestriction())
-        {
-            return 0x17;
-        }
-        return 0;
+        return 0x18;
     }
-    return 0x18;
+    // 分离升级位标记禁拆者不允许操作。
+    if (info.m_materialA.m_upgradeSep.IsTradeRestriction() ||
+        info.m_materialB.m_upgradeSep.IsTradeRestriction())
+    {
+        return 0x17;
+    }
+    return 0;
 }
 
 // ============================== _ProcCompoundCore ===========================
@@ -567,9 +602,10 @@ int CCompoundAvatar::_CheckCondition(const CUser* user,
 int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
                                        tagCompoundAvatarTable* table)
 {
-    // [b28d-48 复核] N82 封顶（NDIFF 626，636/651 条）：巨件帧/槽平移 +
-    // 容器模板实例；CCompoundAvatar.h m_field0c unsigned 化后本件 fresh
-    // 复验无回归。
+    // 【b28d-solo-CompoundDeathLCB 判词】DIFF 封顶（§6.2）：ORIG 653 / ours 636、
+    // p167 CLEAR(61/61)、无缺失调用。残余 = 块序/极性（`if (m_fieldD6==0 ||
+    // m_type==4)` ORIG then 在后、4.4 在前）+ 间接虚调用 N7 + 帧 0xcc vs 0xc0
+    //（ORIG 多 callee-saved %edi）+ 权重抽样段物理展开差异（N82/N164 族）。
     CInventory* inv = user->getCurCharacInvenW();
     const tagCompoundAvatar* rec =
         table->getCompoundAvatarInfo(info.m_field04);
@@ -785,50 +821,52 @@ int CCompoundAvatar::_ProcCompoundCore(CUser* user, tagCompoundInfo& info,
 
 // ORIG 0x08333ecc。统计服上报本次分离的两件头像分级；注意 B 组 subType 也读
 // scriptA 的 vtbl+0xc（ORIG 如此）。
-// 【batch-12 标注】o=79 n=78（gap 11 → 1）：调用点差集归零；余 1 = ORIG 多一条
-//   callee-saved `push`（帧/寄存器分配，N82）+ 尾部对齐 nop（§6.1 豁免）⇒ N 封顶。
+// 【b28d-solo-CompoundDeathLCB 判词】NEAR（79/79 逐条全等；帧 `push %ebx;
+//   sub $0x54`、全部槽号、`lea -0x3c(%ebp),%ebx` 与 ORIG 全等）。修法：
+//   ①两组分级复用同一 gradeIdx 槽（P160，两个独立局部会各占一槽 +4 帧）；
+//   ②proxy 具名局部改单语句链式调用（P52，消槽且 &packet 升格 ebx）。
+//   残余 = CI_SubType 虚调用目标寄存器 N7 ×2（4.4.7 恒 %eax / ORIG %edx）。
 void CCompoundAvatar::_SendDisjointAvatarStatistic(tagCompoundInfo& info)
 {
-    // [b28d-48 复核] N82 封顶（NDIFF 76，78/79 条）：callee-saved push 差 +
-    // 帧/槽平移。
     Packet_Avater_Disjoint_Statistic packet;
 
     const CItem* scriptA = info.m_scriptA;
     const CItem* scriptB = info.m_scriptB;
 
     packet.m_field0a = 2;                                      // -0x36/local_36
-    // ORIG 0x08333ef6..0x08333f33：先 `movl $0,-0xc` 建分级**中间槽**，
-    // 命中分支 `movl $2,-0xc` + jmp，未命中分支 get_grade 后落同槽，
-    // 末尾统一 `mov -0xc,%eax` 写包字段 ⇒ 三目直写包成员会丢整组槽
-    // （实测每组少 5-6 insn，两组共 11）。
-    int gradeIdxA = 0;
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x08333ef6/0x08333f52 两组分级**复用同一
+    // -0xc 槽**（各以 `movl $0,-0xc` 重新初始化）⇒ 源码必须是同一个具名局部
+    // 两次使用（P160 复用槽；两个独立局部会各占一槽，实测 +4 帧）。
+    int gradeIdx = 0;
     if (scriptA->get_rarity() == 2)
     {
-        gradeIdxA = 2;
+        gradeIdx = 2;
     }
     else
     {
-        gradeIdxA = scriptA->get_grade() - 1;
+        gradeIdx = scriptA->get_grade() - 1;
     }
-    packet.m_gradeIdxA = gradeIdxA;
+    packet.m_gradeIdxA = gradeIdx;
     packet.m_subTypeA = CI_SubType(scriptA);
     packet.m_flagA = 0;
-    int gradeIdxB = 0;
+    gradeIdx = 0;
     if (scriptB->get_rarity() == 2)
     {
-        gradeIdxB = 2;
+        gradeIdx = 2;
     }
     else
     {
-        gradeIdxB = scriptB->get_grade() - 1;
+        gradeIdx = scriptB->get_grade() - 1;
     }
-    packet.m_gradeIdxB = gradeIdxB;
+    packet.m_gradeIdxB = gradeIdx;
     packet.m_subTypeB = CI_SubType(scriptA);                   // 【ORIG 怪癖】保留
     packet.m_flagB = 0;
 
-    CStatisticServerProxy* proxy =
-        GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0);
-    proxy->SendPacket(reinterpret_cast<char*>(&packet),
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x08333fa7：`lea -0x3c(%ebp),%ebx` 先把
+    // &packet 升格 callee-saved，再求 receiver（GetServerProxy）⇒ 单语句链式
+    // 表达式（P52）；具名 proxy 局部会多一个槽且 &packet 退化为实参处现算。
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0)
+        ->SendPacket(reinterpret_cast<char*>(&packet),
                       static_cast<int>(sizeof(packet)));       // 0x28
 }
 
@@ -838,22 +876,23 @@ void CCompoundAvatar::_SendDisjointAvatarStatistic(tagCompoundInfo& info)
 char* CCompoundAvatar::_generateIPGNo(const CUser* user, long curSec,
                                       char* buf) const
 {
-    // [b28d-48] N82 封顶（NDIFF 44，57/56 条）：ORIG 先 lea -0x48 传 sret 的
-    // time/localtime_r 形 vs 4.4 实参先物化槽；帧/槽平移。
-    time_t t = static_cast<time_t>(curSec);
+    // [b28d-solo-CompoundDeathLCB] ORIG 0x08333df6 直取形参地址（无 time_t t
+    // 局部槽）且把 localtime_r 返回值存具名指针槽 -0x1c 后经 p-> 读字段
+    //（P43/P0）；五个 snprintf 实参全内联、右起求值（characNo→mday→mon→
+    // year%2000→serverId），characNo 升格 %esi 跨 G_CEnvironment 保活
+    //（P226/P227 形）。
+    // 【定案】达成 **AE**：56/56 逐条全等（仅字符串立即数重定位标签伪差）。
     struct tm lt;
-    localtime_r(&t, &lt);
-    const int characNo = user->getCurCharacNo();
+    struct tm* p = localtime_r(&curSec, &lt);
     // ORIG 0x08333e63 `mov 0x1b0(%eax),%eax`（4 字节读）= CEnvironment+0x198
     //（m_serverEnvir）+0x18 → Server_Envir::m_channelNo（通道号；同
     // CDataManager.cpp:1461 具名口径）。
-    const int serverId = G_CEnvironment()->m_serverEnvir.m_channelNo;
     OS_API::snprintf(buf, 0x14, "C%02d%02d%02d%02d%010d",
-                     serverId,
-                     (lt.tm_year + 1900) % 2000,
-                     lt.tm_mon + 1,
-                     lt.tm_mday,
-                     characNo);
+                     G_CEnvironment()->m_serverEnvir.m_channelNo,
+                     (p->tm_year + 1900) % 2000,
+                     p->tm_mon + 1,
+                     p->tm_mday,
+                     user->getCurCharacNo());
     return buf;
 }
 
@@ -902,11 +941,13 @@ void CDeathTowerRanking::makeMyBestRecordPacket(unsigned int towerIdx,
                                                 unsigned int key,
                                                 PacketGuard& packet)
 {
-    // [b28d-48 复核] N86/N82 封顶（NDIFF 23，61/63 条）：hash_map
-    // const_iterator 转换构造/槽布局跨版本差（4.1 临时槽+拷贝 vs 4.4 直构）。
-    // [b27 封顶] 残差（63 vs 61）：hash_map const_iterator 转换构造/迭代器
-    // 槽布局跨版本差（N86 族：4.1 临时槽+拷贝 vs 4.4 直构；find→const_iterator
-    // 转换与 it->second 槽化）——调用链/判形/序列化序全等。
+    // 【b28d-solo-CompoundDeathLCB 判词】NEAR（63/63 助记符逐条全等；仅 find/end
+    // 两组的 sret 临时与迭代器槽号互换：ORIG find 临时 -0x28/it -0x30、
+    // last -0x20/end 临时 -0x18；我们 it -0x28/find 临时 -0x20、end 临时 -0x18/
+    // last -0x30）。修法：补具名引用局部 `const stBestRecord_t& rec = it->second;`
+    // 复现 ORIG ptEv 后 `add $0x4` + 槽回读（63→63）。试过「先声明后赋值」形
+    // ⇒ EXTRA `_Hashtable_const_iterator::C1Ev` ×2（P50 负例，已回退）；指针/引用
+    // best、const/非 const 变量四形槽号不变 ⇒ N86/N93 封顶。
     BestMap* best = _getBestRecordTable(towerIdx);
     const BestMap::const_iterator it = best->find(key);
     const BestMap::const_iterator last = best->end();
@@ -917,7 +958,10 @@ void CDeathTowerRanking::makeMyBestRecordPacket(unsigned int towerIdx,
     else
     {
         packet.put_byte(1);
-        _makeRecordPacket(it->second, packet);
+        // ORIG 0x08468c42..c4a：ptEv 后 `add $0x4,%eax; mov %eax,-0xc(%ebp)`，
+        // 再于实参处 `mov -0xc(%ebp),%eax` 回读 ⇒ 原码有具名引用局部（P0 槽往返）。
+        const stBestRecord_t& rec = it->second;
+        _makeRecordPacket(rec, packet);
     }
 }
 
@@ -931,15 +975,12 @@ void CDeathTowerRanking::makeTopRankerRecordPacket(unsigned int towerIdx,
     // 常量折叠与 -0x10 基址槽）。
     // [b27] 残差：ORIG 先载 0xc(towerIdx)/-0xc(i) 后两 imul、我们 eax 预载
     // m_towers 且 lea 合并——N18a 族寄存器序不可定向，语义/循环界/槽序已全等。
-    // [b28d-48] P205 左结合拆两乘积（base + towerIdx*0x390 + i*0x98）把 26→25
-    // 条（消 `mov %edx,%ecx` 中转）；4.4 恒先物化 this 基址 + lea 合并，ORIG
-    // 0x08468c77 段为最后 `add 0x8(%ebp),%eax`——四形实测（char* 双项括号/
-    // 交换项/具类型 stride/左结合）均 25 条且 this-first 不可翻 ⇒ N18a 封顶。
+    // 【b28d-solo-CompoundDeathLCB 定案】达成 **AE**：24/24 逐条全等。修法 =
+    // 组件视图 `m_towers[towerIdx].m_slots[i]`（数组退化两级索引令 4.4 发
+    // `mov 0xc(%ebp),%eax; mov -0xc,%edx; imul 0x98; imul 0x390; lea; add
+    // 0x8(%ebp),%eax`，与 ORIG 全等；旧 char* 算术形 25 条且 this-first 不可翻）。
     for (int i = 1; i <= 5; ++i)
-        _makeRecordPacket(
-            *reinterpret_cast<stBestRecord_t*>(
-                reinterpret_cast<char*>(m_towers) + towerIdx * 0x390 + i * 0x98),
-            packet);
+        _makeRecordPacket(m_towers[towerIdx].m_slots[i], packet);
 }
 
 }  // namespace WongWork

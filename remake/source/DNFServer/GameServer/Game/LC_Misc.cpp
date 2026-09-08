@@ -76,11 +76,15 @@ void Secu_HackLogCheck::DieMob(const MSG_MONSTER_DIE* msg)
         m_flag223 = Check223();
     if (m_flag224 != 0)
         m_flag224 = Check224();
+    // b28d-solo-LC_Misc 判词 [N(P223/P63 epilogue-threading)]：ORIG 0x0827a882
+    // 第三支 `je 0x0827a895`（leave）与早退出口同址，body 直落 epilogue；4.4 对
+    // 平铺 `if(flag!=0){body}` 恒多 `jmp <leave>; nop` 中继岛（fresh 实测 42 条 vs
+    // ORIG 41 条，p167 调用点差集 0/0 CLEAR）。三形实测均不消：①否定早返
+    // `if (flag == 0) return;` → 两个岛（43 条）；②共享尾标签 `goto end; … end:;`
+    // → 仍 jmp+nop；③显式 return/空 else 形反劣。P223 边界：4.4 自身
+    // epilogue-threading 尾岛不可造（ORIG 无岛、我方多出）⇒ 语义等价封顶。
     if (m_flag225 != 0)
         m_flag225 = Check225();
-    // b28d-36 判词（N 封顶）：ORIG 0x0827a8a4 最后一支 body 直落 epilogue；
-    // 4.4 平铺 if 恒多 `jmp <epilogue>; nop` 岛（P63/P223 边界：只治空 then
-    // 占位岛，不治 epilogue-threading）。显式 return 试形反多一岛，已回退。
 }
 
 // ---------------------------------------------------------------------------
@@ -176,12 +180,14 @@ bool StrikerScript::checkSkillIndex(short firstGrowType, short secondGrowType,
     // 使其占 -0xc、pass 反占 -0x10（槽互换 + 帧 0x48→0x38）。
     std::vector<StrikerSkill>* vec = 0;
     int pass = 0;
-    // b28d-36 判词（N 封顶，ORIG 0x08a9e8xx）：vec@-0x10 / pass@-0xc 与 ORIG
-    // 全对齐（全头部声明 + 双零初始化，P212/P191 形已落）。残余 = 帧 0x48 vs
-    // 0x38（+0x10）连带形参 spill 槽 -0x2c/-0x30 vs -0x1c/-0x20 与迭代器 sret
-    // 槽 -0x1c/-0x18 vs -0x18/-0x14 整体平移；P232 `char framePad[0x10]` 撑帧
-    // 实测使槽位更劣（-0x1c→-0x28）⇒ 帧/槽族 N82+P112 封顶。
-    for (pass = 0; pass < 2; ++pass)
+    // b28d-solo-LC_Misc 判词 [AE]（修法，P25/P28；旧 b28d-36 N82/P112 帧差判词
+    // 作废）：ORIG 尾部 `cmpl $0x1,-0xc; setle %al; test %al,%al; jne` + 入口
+    // `jmp <cond>` = 4.1 while 形（for 恒 `cmpl; jle` 直跳、无 setcc 物化），且
+    // 增量段调 `ppEi`（后置 `it++` 带独立 sret 临时槽，P28 增量侧推论；原 `++it`
+    // 走 `ppEv` 且是 ORIG 无的符号）。原 for 头 `pass = 0` 另生一条重复
+    // `movl $0,-0xc`。改 while + it++ 后帧 0x38→0x48、形参 spill 槽与迭代器
+    // 槽组同 ORIG（-0x2c/-0x30、-0x1c/-0x18/-0x14），p167 7=7 CLEAR。
+    while (pass <= 1)
     {
         if (pass == 0)
             vec = getStrikerSkillVector(firstGrowType, secondGrowType);
@@ -191,11 +197,12 @@ bool StrikerScript::checkSkillIndex(short firstGrowType, short secondGrowType,
             return false;
 
         for (std::vector<StrikerSkill>::iterator it = vec->begin();
-             it != vec->end(); ++it)
+             it != vec->end(); it++)
         {
             if (it->m_field00 == skillIndex)
                 return true;
         }
+        ++pass;
     }
     return false;
 }

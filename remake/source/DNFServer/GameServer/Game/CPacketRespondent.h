@@ -54,11 +54,14 @@ public:
     // ORIG finalize(bool)：置 m_autoSend=1 后转发 InterfacePacketBuf::finalize。
     void finalize(bool encryptRequired);                         // W 0x083403b8
     // ORIG Send()：清 m_autoSend 后 m_user->Send(*this)，透传其返回值。
-    int Send();                                                  // W 0x083403e0
+    // [b28d-solo-CPacketRespondent P248档①] ORIG 0x083403e0 尾 `call CUser::Send; leave; ret`
+    // 无 movzbl ⇒ 与 callee CUser::Send(bool) 同型；声明 int 使 4.4 插 `movzbl %al,%eax`。
+    bool Send();                                                 // W 0x083403e0
     // ORIG Broadcast(vill, area)：门区直发本人，否则 GameWorld 区域广播。
-    // 返回类型 int（ORIG caller 0x833a747 call 后 `mov %eax,%ebx` 无 movzbl、
-    // 体内 0x834047e `mov $0x1,%eax` dword 直写 + gate 路径 Send %eax 直通）。
-    int Broadcast(int vill, int area);                           // W 0x08340404
+    // [b28d-solo-CPacketRespondent P248档①] 同上：gate 路径 `call Send; jmp 尾` 直通，
+    // 与 CUser::Send(bool) 同型；ORIG caller 0x833a747 `mov %eax,%ebx` 直通（4.1 不插
+    // bool→int 零扩展，4.4 插）。
+    bool Broadcast(int vill, int area);                          // W 0x08340404
     // ORIG SendAll()：GameWorld 全服广播，恒返回 true。
     bool SendAll();                                              // W 0x0834048a
     // ORIG IsGateArea(user, area)：user 所在村 gate_area == area。

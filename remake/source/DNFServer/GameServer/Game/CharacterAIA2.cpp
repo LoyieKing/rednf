@@ -1449,7 +1449,7 @@ class CNPCScript;  // 仅持指针，前置声明足够
 class CNPCDynamicInfo
 {
 public:
-    CNPCDynamicInfo(const CNPCScript* script);   // ORIG W 0x0858191c
+    CNPCDynamicInfo(const CNPCScript* script) throw();   // ORIG W 0x0858191c（nothrow，见 NPCDynamicInfo.h）
 
     const CNPCScript* m_script;  // +0x00（changeMood/giveGiftItem 等报告域使用）
     int m_moodState;             // +0x04（ctor 置 3）
@@ -1457,7 +1457,7 @@ public:
     int m_fieldc;                // +0x0c（ctor 置 0）
 };
 
-CNPCDynamicInfo::CNPCDynamicInfo(const CNPCScript* script)
+CNPCDynamicInfo::CNPCDynamicInfo(const CNPCScript* script) throw()
     : m_script(script), m_moodState(3), m_field8(0x7fffffff), m_fieldc(0)
 {
 }

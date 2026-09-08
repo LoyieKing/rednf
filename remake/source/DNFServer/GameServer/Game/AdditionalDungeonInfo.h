@@ -16,7 +16,8 @@
 class AdditionalDungeonInfo
 {
 public:
-    ~AdditionalDungeonInfo();
+    // [b28d-Main 代落·S141 P12] 删用户析构声明：ORIG 0x08a6887c 仅他处 W，
+    // importQuestScript 段零 D1 调用 ⇒ 隐式 trivial。sizeof/偏移/mangled 不变。
 
     int m_field0;   // +0x00（"[dungeon info]" 首 ScanInt，语义推断）
     int m_field4;   // +0x04（"[dungeon info]" 次 ScanInt，语义推断）
