@@ -1312,8 +1312,8 @@ void SkillSlot::calcReturnSpSfpPerOneSkill(int& sp, int& sfp, int level,
         }
         if (isSteal)
         {
-            int penalty = skill->GetStealSPPenalty();
-            need = getSkillSpendSPOnSteal(need, penalty);
+            // b28d-36（P0）：ORIG 无 penalty 具名槽（0x086066xx 段 ebx/eax 直传）
+            need = getSkillSpendSPOnSteal(need, skill->GetStealSPPenalty());
         }
         if (need < 0)
         {

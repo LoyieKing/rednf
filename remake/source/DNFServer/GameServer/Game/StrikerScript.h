@@ -115,14 +115,14 @@ struct StrikerSkillAddCommand
 struct StrikerDirectionType
 {
     enum T { T_0 = 0, T_1 = 1 };      // ORIG mangled NS_1TE（嵌套枚举 T）
-    StrikerDirectionType() : m_type(0) {}
+    StrikerDirectionType() : m_type(T_0) {}
     void setType(int type)
     {
         // b28c-L19：ORIG 0x08a9d7fa 双 nop 岛（js +0x19 / jg +0x1c / body 尾 jmp），
         // P223 goto 尾空标签形精确复现（探针 /tmp/l19_probe6.cpp 逐条全等）。
         if (type < 0) goto L_neg;
         if (type > 1) goto L_pos;
-        m_type = type;
+        m_type = (T)type;
         goto L_end;
     L_neg:
         ;
@@ -133,7 +133,12 @@ struct StrikerDirectionType
         ;
     }
     bool isType(T type);           // ORIG T 0x08a9d81a（定义 OnlyOrigBatch11.cpp）
-    unsigned int m_type;  // +0x00（b28c-L19：ORIG store 序 RHS 先 ⇒ 与 int 形参异型，探针实证）
+    // b28d-D66：ORIG isType 0x08a9d81a 为 `mov (%eax),%eax; cmp 0xc(%ebp),%eax`
+    // （同型 enum==enum 的 mem 直比形，P209 的 unsigned 形参寄存器装载被消）⇒ 字段真型
+    // 是 enum T 而非 unsigned int；探针 /tmp/d66_probe4.cpp A/B 双结构实证：字段 enum 时
+    // isType 逐条等于 ORIG，且 setType（含 nop 岛与 RHS-first store 序）与 unsigned 版
+    // 逐字节相同。sizeof/偏移/mangled 零影响。
+    T m_type;  // +0x00
 };  // 0x4
 
 class StrikerScript

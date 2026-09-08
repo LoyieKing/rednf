@@ -1478,45 +1478,42 @@ bool DB_Login::CreateAccount(SIG_LOGIN_DATA* sig, MySQL* db)
 
 bool DB_Login::_DecryptUserInfo(char* hex, char* out, unsigned int mid)
 {
-    bool ok = false;
-    unsigned char cipherBuf[128];    // ORIG：未清零（Hex2Binary 全量覆盖）
-
+    // b28d-68 修法：ORIG 0x0841300e。①Initialize 后 cipherBuf 0x80 字节 rep stos 清零
+    // （原注释「未清零」误判，ORIG 0x08413075..0x08413089 实证）；②strlen(hex) 三处
+    // 表达式直用（ORIG 每处独立 call，P0 禁缓存局部）；③cMyTrace 全表达式临时链
+    // （ORIG 槽 -0x4c/-0x3c/-0x2c 深→浅，P221/P227）；④Decrypt 返回值比较用 while
+    // 形复现 4.1 setne/test/je 物化（P225）；⑤成功/失败直接 return 常量（ORIG 无 ok 局部）；
+    // ⑥ret 入口初始化 0x6fffffff（ORIG 0x0841301a）。
+    // 残差 N7/P75：Hex2Binary 第三实参 ORIG 多 `mov %eax,%edx` 中转、Decrypt 第三实参
+    // 我方多该中转（4.4 先 lea 第一实参地址 ⇒ len/out 落 edx）；(int)/(unsigned int)/
+    // 无 cast 三形实测均不翻（P248 三档试尽）。p167 CLEAR、gap=0（140=140）。
+    unsigned int ret = 0x6fffffff;
     CRijndael cipher;
     cipher.Initialize("sbTgiYsfxpfg5fox", 0x20, CRijndael::sm_chain0, 0x10,
                       0x10, 0, 0);
-    size_t hexLen = strlen(hex);
-    if (hexLen >> 1 >= 0x81)
+    unsigned char cipherBuf[128] = {0};
+    if (strlen(hex) >> 1 >= 0x81)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x3815, 5);
-        trace("DB_Login::_DecryptUserInfo ERROR m_id=%s", NumberToString(mid, 0));
+        cMyTrace(__PRETTY_FUNCTION__, 0x3815, 5)(
+            "DB_Login::_DecryptUserInfo ERROR m_id=%s", NumberToString(mid, 0));
         return false;
     }
-    if (!DNFFLib::Hex2Binary(hex, cipherBuf, (int)(hexLen >> 1)))
+    if (!DNFFLib::Hex2Binary(hex, cipherBuf, (int)(strlen(hex) >> 1)))
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x381b, 5);
-        trace("DB_Login::_DecryptUserInfo::Hex2Binary ERROR m_id=%s", NumberToString(mid, 0));
+        cMyTrace(__PRETTY_FUNCTION__, 0x381b, 5)(
+            "DB_Login::_DecryptUserInfo::Hex2Binary ERROR m_id=%s", NumberToString(mid, 0));
         return false;
     }
-    unsigned int ret = cipher.Decrypt(reinterpret_cast<const char*>(cipherBuf), out,
-                                      (unsigned int)(hexLen >> 1));
-    if (ret == 0x6fffffff)
+    ret = cipher.Decrypt(reinterpret_cast<const char*>(cipherBuf), out,
+                         strlen(hex) >> 1);
+    while (ret != 0x6fffffff)
     {
-        ok = true;
+        cMyTrace(__PRETTY_FUNCTION__, 0x3820, 5)(
+            "DB_Login::_DecryptUserInfo::Decrypt ERROR m_id=%s ret=%u",
+            NumberToString(mid, 0), ret);
+        return false;
     }
-    else
-    {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x3820, 5);
-        trace("DB_Login::_DecryptUserInfo::Decrypt ERROR m_id=%s ret=%u",
-              NumberToString(mid, 0), ret);
-        ok = false;
-    }
-    return ok;
+    return true;
 }
 
 // ============================================================================

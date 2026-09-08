@@ -92,7 +92,8 @@ static unsigned int ROL(unsigned int value, int count)
 
 static unsigned int ROR(unsigned int value, int count)
 {
-    return (value >> count) | (value << (32 - count));
+    value = (value >> count) | (value << (32 - count));
+    return value;
 }
 
 // ORIG _ZL3pi1Pm @0x80b46c9：buf[1] ^= buf[0]。

@@ -156,10 +156,13 @@ extern CSystemTime s_systemTime_;
 #pragma pack(push, 1)
 struct SIG_SAVE_EXPAND_CHARAC
 {
-    int m_characNo;              // +0x00
+    // b28d-65 [P211档③]：ORIG 0x0849xxxx store 为 RHS-first+`mov %eax,%edx` 中转
+    // ⇒ 字段与 RHS 异型。m_characNo 改 unsigned（RHS get_charac_no 返 int）；
+    // m_switch1/2 改 char（与 getCur*EquipslotSwitch 返 char 同型，去 cast 后 LHS-first）。
+    unsigned int m_characNo;     // +0x00
     Inven_Item m_items[0x24];    // +0x04
-    unsigned char m_switch1;     // +0x898
-    unsigned char m_switch2;     // +0x899
+    char m_switch1;              // +0x898
+    char m_switch2;              // +0x899
     char m_pad[0x89c - 0x89a];   // +0x89a
 };
 #pragma pack(pop)
@@ -413,8 +416,8 @@ bool CExpandEquipslot::_saveData(CUser* pUser)
             pData->m_items[i].setCopy(m_expandAvatarSlot[i % 0xc]);
         }
     }
-    pData->m_switch1 = (unsigned char)pUser->getCurChannelEquipslotSwitch();
-    pData->m_switch2 = (unsigned char)pUser->getCurExpandEquipslotSwitch();
+    pData->m_switch1 = pUser->getCurChannelEquipslotSwitch();
+    pData->m_switch2 = pUser->getCurExpandEquipslotSwitch();
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return 1;
 }
@@ -532,6 +535,9 @@ int CExpandEquipslot::Send_Expand_Equip_Info(CUser* pUser)
 // 装备切换 / 移动
 // ============================================================================
 
+// b28d-65：m_slot 无符号比较已修（ORIG 0x084995b8 jbe/ja，源码加 (unsigned short) cast）；
+//   残余 N93/N82附（迭代器 -0xa4/-0xa0/-0x9c 与 Inven_Item 槽向，4.4 恒反向）+
+//   短路物化岛（ORIG 0x084997b6 段 mov$1/mov$0+test%al）⇒ 封顶。
 int CExpandEquipslot::EquipslotSwitch(CUser* pUser, char flag,
                                       char channelSwitch, char expandSwitch)
 {
@@ -566,7 +572,8 @@ int CExpandEquipslot::EquipslotSwitch(CUser* pUser, char flag,
          it != refVec.end(); it++)
     {
         item_lock::stItemLockRef& ref = *it;
-        if (ref.m_slot > 9 && ref.m_slot < 0x16)
+        // b28d-65：ORIG 0x084995b8 段用 jbe/ja（无符号）⇒ m_slot(short) 按无符号比较。
+        if ((unsigned short)ref.m_slot > 9 && (unsigned short)ref.m_slot < 0x16)
         {
             if (ref.m_space == 3)
             {
@@ -598,8 +605,10 @@ int CExpandEquipslot::EquipslotSwitch(CUser* pUser, char flag,
             party->Reset_party_overlapped_drop_ratio();
         }
         Inven_Item slotItem2 = inven->GetInvenSlot(0, 10);
-        if (slotItem2.m_addInfo != 0 ||
-            m_equipSlot[0].m_addInfo != 0)
+        // b28d-65 [N/P214①]：ORIG 0x084997af 段对 `a!=0||b!=0` 物化 `mov$1/mov$0`+test%al
+        // （4.1 短路汇聚物化）；4.4-O0 恒折直跳。具名 bool 可补物化岛但落槽 2 条
+        // 且把 curChannel 槽 -0x1e 顶到 -0x22（P226 零槽形语句表达式实测无效）⇒ 保持直跳形。
+        if (slotItem2.m_addInfo != 0 || m_equipSlot[0].m_addInfo != 0)
         {
             // CUser 冻结头 +0x796f4 即 CCharacterView（本 TU 用本地最小 CUser 视图，
             // 不能并入 CUser.h；保持具名视图 + 文档化基址访问）
@@ -624,6 +633,8 @@ int CExpandEquipslot::EquipslotSwitch(CUser* pUser, char flag,
 //   IsAvatarItem/IsCreatureItem/IsEquipable/PeriodAfterUnsealing、setCopy 双方向均逐条核对）。
 //   残余：字符串/__PRETTY_FUNCTION__/数据地址【AE】、虚表调用寄存器分配（mov %edx vs mov %eax）、
 //   setne 位置（N-86b）。帧/switch 早返结构一致。
+// b28d-65：残余 = N7（间接 call 目标 4.4.7 恒 %eax vs ORIG %edx；P230 补：4.4.6 可修，
+//   本波不改路由表）+ 比较物化岛（setne+test）+ 对齐 nop ⇒ 封顶。
 int CExpandEquipslot::Move_Item(CUser* pUser, int type, int slot, int space,
                                 int expandSlot)
 {
@@ -717,6 +728,10 @@ int CExpandEquipslot::Move_Item(CUser* pUser, int type, int slot, int space,
     }
 }
 
+// b28d-65：真差异已修（Move_Item 实参来源改形参 type/space，见函数内注释）；残余
+//   N93（slotItem1/slotItem2 两 Inven_Item 槽向相反，类对象直接初始化不可翻）+
+//   4.4 短路/比较不物化（ORIG 0x08499c8a `mov$1/mov$0+test`、0x08499ce8 setne+test 岛）
+//   + 对齐 nop ⇒ 封顶。
 int CExpandEquipslot::Change_Equip(CUser* pUser, int type, int slot,
                                    int space, int expandSlot)
 {
@@ -785,7 +800,9 @@ int CExpandEquipslot::Change_Equip(CUser* pUser, int type, int slot,
                 }
             }
             int moveRet = 0;
-            moveRet = Move_Item(pUser, 0, slot, 0x12, expandSlot - 10);
+            // b28d-65 真差异修正：ORIG 0x08499cb0 段压栈为 (pUser,type,slot,space,expandSlot-10)
+            // —— 实参来源是形参 type/space（分支保证其值为 0/0x12），非字面量（P97/P171 照抄来源）。
+            moveRet = Move_Item(pUser, type, slot, space, expandSlot - 10);
             if (moveRet != 0)
             {
                 return moveRet;

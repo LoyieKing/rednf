@@ -69,14 +69,16 @@ static_assert(sizeof(stGenerateRefClearReward_t) == 0x10,
 
 void CClearReward::setDropRatio(float ratio)
 {
-    for (int grp = 0; grp < 6; ++grp)
+    for (int grp = 0; grp <= 5; ++grp)      // ORIG 0x08538687 setle（有符号 <=5）
     {
         m_workProbs[grp] = m_scriptProbs[grp];
         for (size_t i = 0; i < m_workProbs[grp].size(); ++i)
         {
             // ORIG 085385c8：roundFloat(value * ratio) 回写工作副本。
-            m_workProbs[grp][i].v[2] =
-                static_cast<int>(roundFloat(static_cast<float>(m_workProbs[grp][i].v[2]) * ratio));
+            // 单次 operator[] 后经具名引用读两处（P157 例外；P167 原报 EXTRA ×1）。
+            stGenItemProb_t& prob = m_workProbs[grp][i];
+            prob.v[2] =
+                static_cast<int>(roundFloat(static_cast<float>(prob.v[2]) * ratio));
         }
     }
 }
@@ -347,18 +349,23 @@ int CClearReward::generateGoldCardBlankItem(Inven_Item& item)
         return 0;
     int cum = 0;
     int pick = get_rand_int(m_goldCardBlankTotal);
-    for (size_t i = 0; i < m_goldBlanks.size(); ++i)
+    // [b28d-63] ORIG 0x085391a9：const_iterator begin/end 头部各求值一次 +
+    // operator!=/operator++/operator->（P167 原报 EXTRA operator[] ×4）。
+    std::vector<stGoldCardBlankItemInfo_t>::const_iterator it = m_goldBlanks.begin();
+    std::vector<stGoldCardBlankItemInfo_t>::const_iterator endIt = m_goldBlanks.end();
+    while (it != endIt)
     {
-        cum += m_goldBlanks[i].v[0];
+        cum += it->v[0];
         if (pick < cum)
         {
-            if (m_goldBlanks[i].v[1] == -1)
+            if (it->v[1] == -1)
                 return 0;
-            item.m_addInfo = m_goldBlanks[i].v[1];
+            item.m_addInfo = it->v[1];
             G_CDataManager()->m_itemList->create_item(
-                static_cast<ENUM_ITEM_CREATE_TYPE>(1), item, m_goldBlanks[i].v[2]);
+                static_cast<ENUM_ITEM_CREATE_TYPE>(1), item, it->v[2]);
             return 1;
         }
+        ++it;
     }
     return 0;
 }
@@ -369,18 +376,22 @@ int CClearReward::generatePcRoomCardBlankItem(Inven_Item& item)
         return 0;
     int cum = 0;
     int pick = get_rand_int(m_pcRoomBlankTotal);
-    for (size_t i = 0; i < m_pcRoomBlanks.size(); ++i)
+    // [b28d-63] 同 generateGoldCardBlankItem：ORIG 0x0853904f 起 const_iterator 遍历。
+    std::vector<stGoldCardBlankItemInfo_t>::const_iterator it = m_pcRoomBlanks.begin();
+    std::vector<stGoldCardBlankItemInfo_t>::const_iterator endIt = m_pcRoomBlanks.end();
+    while (it != endIt)
     {
-        cum += m_pcRoomBlanks[i].v[0];
+        cum += it->v[0];
         if (pick < cum)
         {
-            if (m_pcRoomBlanks[i].v[1] == -1)
+            if (it->v[1] == -1)
                 return 0;
-            item.m_addInfo = m_pcRoomBlanks[i].v[1];
+            item.m_addInfo = it->v[1];
             G_CDataManager()->m_itemList->create_item(
-                static_cast<ENUM_ITEM_CREATE_TYPE>(1), item, m_pcRoomBlanks[i].v[2]);
+                static_cast<ENUM_ITEM_CREATE_TYPE>(1), item, it->v[2]);
             return 1;
         }
+        ++it;
     }
     return 0;
 }

@@ -7566,6 +7566,12 @@ Party::Party()
     Reset();
 }
 
+// b28d-Main 恢复：D49 曾误删本定义（与 CParty::~CParty 不同类），导致全域
+// `undefined reference to Party::~Party()`。ORIG W 0x08486a1e 为空体。
+Party::~Party()
+{
+}
+
 void Party::Reset()
 {
     PlayInfo::Reset();

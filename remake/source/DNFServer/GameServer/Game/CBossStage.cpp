@@ -524,8 +524,8 @@ int CBossStage::KillMonsterGetExp(const map_monster& mob, unsigned int& exp)
 }
 
 // ---- SendMapInfoPacket（ORIG 0x0814ce12）----
-// [b28d-62] N89+P96：ORIG 非 const iterator，我方 const_iterator（转换 ctor ×4 +
-//   const 版 operator 族）+ getParty 缓存差。ORIG 0x0814ce12
+// [b28d-62] 修: P96 迭代器改非 const（消转换 ctor ×4 + const 版 operator 族，
+//   263→243）；余 N82 帧/槽差（sub 0x3dc vs 0x380）+ getParty 缓存。ORIG 0x0814ce12
 int CBossStage::SendMapInfoPacket()
 {
     PacketGuard packet;
@@ -536,7 +536,9 @@ int CBossStage::SendMapInfoPacket()
 
     MapInfo& stage = m_stageData;
     packet.put_byte((int)stage.m_monsterMap.size());
-    for (std::map<int, map_monster>::const_iterator it =
+    // [b28d-62] P96：ORIG 用非 const `_Rb_tree_iterator`（p167 MISSING ptEv/*++/!= 族）
+    //   ⇒ 改 iterator，消 const_iterator 转换 ctor ×4 与 const 版 operator 族。
+    for (std::map<int, map_monster>::iterator it =
              stage.m_monsterMap.begin();
          it != stage.m_monsterMap.end(); ++it)
     {
@@ -551,7 +553,7 @@ int CBossStage::SendMapInfoPacket()
     }
 
     packet.put_byte((int)stage.m_itemMap.size());
-    for (std::map<int, map_item>::const_iterator it = stage.m_itemMap.begin();
+    for (std::map<int, map_item>::iterator it = stage.m_itemMap.begin();
          it != stage.m_itemMap.end(); ++it)
     {
         const map_item& item = it->second;

@@ -242,8 +242,10 @@ void CMissionList_Charac::_reset()
 // ============================================================================
 void CMissionList_Charac::Update_EnterWorld_event(CUser& user)
 {
-    int type = G_GameWorld()->GetChannelType();
-    if ((type == 0xf) || (type == 0x10))
+    // [b28d-64] P48：ORIG 0x085e600a/0x085e6014 两次独立 `G_GameWorld()->
+    // GetChannelType()`（无 CSE，无 type 局部槽）；具名 type 会少 4 条调用且槽漂。
+    if (G_GameWorld()->GetChannelType() == 0xf ||
+        G_GameWorld()->GetChannelType() == 0x10)
     {
         alter();
         std::vector<int> out;
@@ -301,15 +303,16 @@ void CMissionList_Charac::Update_Revenge_event(CUser& user,
                                                PVP_BATTLE_MODE mode,
                                                bool win)
 {
-    if ((G_GameWorld()->GetChannelType() == 0xf) &&
-        (getIndex_byKind(0x1b) == 0))
+    // [b28d-64] P133 补/P223 BM8：ORIG 0x085e6229/0x085e623d 两守卫各自
+    // `setne %al; test %al,%al; jne` 物化 + 独立 nop 岛（+0x143/+0x146），
+    // 合并 && 被 4.4 折成直跳（少 setne 与两岛）。拆两条否定 goto + 尾标签串。
+    // win 分支 ORIG 0x085e6244 `cmpb $0,-0x2c; je <清零块>` ⇒ 正向 if(win){alter}。
+    if (G_GameWorld()->GetChannelType() != 0xf)
+        goto L_notchannel;
+    if (getIndex_byKind(0x1b) != 0)
+        goto L_hasmission;
     {
-        if (win == false)
-        {
-            m_missionList[0xc].m_streak = 0;
-            m_missionList[0x16].m_streak = 0;
-        }
-        else
+        if (win)
         {
             alter();
             std::vector<int> out;
@@ -319,7 +322,14 @@ void CMissionList_Charac::Update_Revenge_event(CUser& user,
             check_mission_kind(0x16, user, param, out);
             Send_Cleared_Mission_List(user, out);
         }
+        else
+        {
+            m_missionList[0xc].m_streak = 0;
+            m_missionList[0x16].m_streak = 0;
+        }
     }
+L_hasmission:;
+L_notchannel:;
 }
 
 void CMissionList_Charac::Update_GameOver_event(

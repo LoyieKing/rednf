@@ -357,11 +357,12 @@ WindowsExeFile::~WindowsExeFile()
         delete m_image;      // ORIG _ZdlPv（new[]/delete 不匹配为 ORIG 原样，同 LoadClientFile）
         m_image = 0;
     }
-    // ORIG 0x08573744..：迭代器形——begin 一次性入临时槽（-0x14），每轮 end()
-    // 重取临时（-0x1c）+ operator!=/operator*（多次直调），delete 后 *it=0，
-    // operator++ 回边；无 size/operator[] 索引链。
-    for (std::vector<WindowsExeConstantSection*>::iterator it = m_sections.begin();
-         it != m_sections.end(); ++it)
+    // ORIG 0x08573744..：迭代器形——独立 C1Ev（0x0857374e）+ begin 临时槽
+    // （-0x1c）再拷入 it（-0x14）；每轮 end() 重取临时 + operator!=/operator*，
+    // delete 后 *it=0，operator++ 回边；无 size/operator[] 索引链（P50 复活）。
+    std::vector<WindowsExeConstantSection*>::iterator it;
+    it = m_sections.begin();
+    for (; it != m_sections.end(); ++it)
     {
         if (*it != 0)
         {
@@ -370,8 +371,8 @@ WindowsExeFile::~WindowsExeFile()
         }
     }
     m_sections.clear();
-    for (std::vector<WindowsExeConstantSection*>::iterator it = m_commonSections.begin();
-         it != m_commonSections.end(); ++it)
+    it = m_commonSections.begin();
+    for (; it != m_commonSections.end(); ++it)
     {
         if (*it != 0)
         {
@@ -648,12 +649,16 @@ WindowsDataFileFamily::WindowsDataFileFamily()
 
 WindowsDataFileFamily::~WindowsDataFileFamily()
 {                                                            // 0x08574f7c
-    for (std::size_t i = 0; i < m_files.size(); ++i)
+    // [b28d-64] P50 复活：ORIG 0x08574f8a 独立 iterator::C1Ev + begin() 临时槽
+    // （-0x1c）再拷入 it（-0x10）⇒ 先声明后赋值；索引 for 会少默认构造与临时槽。
+    std::vector<WindowsDataFile*>::iterator it;
+    it = m_files.begin();
+    for (; it != m_files.end(); ++it)
     {
-        if (m_files[i] != 0)
+        if (*it != 0)
         {
-            delete m_files[i];
-            m_files[i] = 0;
+            delete *it;
+            *it = 0;
         }
     }
     m_files.clear();
@@ -803,12 +808,16 @@ WindowsExeFileFamily::WindowsExeFileFamily()
 
 WindowsExeFileFamily::~WindowsExeFileFamily()                // 0x08574500
 {
-    for (std::size_t i = 0; i < m_exeFiles.size(); ++i)
+    // [b28d-64] 同 ~WindowsDataFileFamily：ORIG 0x0857450e iterator C1Ev +
+    // begin 临时槽（-0x1c）⇒ 先声明后赋值。
+    std::vector<WindowsExeFile*>::iterator it;
+    it = m_exeFiles.begin();
+    for (; it != m_exeFiles.end(); ++it)
     {
-        if (m_exeFiles[i] != 0)
+        if (*it != 0)
         {
-            delete m_exeFiles[i];
-            m_exeFiles[i] = 0;
+            delete *it;
+            *it = 0;
         }
     }
     m_exeFiles.clear();
@@ -947,6 +956,9 @@ bool WindowsExeFileFamily::GenerateRange(long* outSecIdx,
             (static_cast<unsigned long>(m_randMax) + 1U);
 
     const Interval& section = m_intervals[m_curSectionIndex];
+    // [b28d-64 N 封顶] ORIG 0x08574bca `movb $0x0,-0x9` 预清位置早于 section 载入、
+    // 且无双 movb/cmpb 回读；初始化式/两句式/if 形三探针实测 109/110/110（ORIG 106），
+    // 残余为 4.4 预清落点与 setbe 物化顺序差（P198 边界）⇒ 取最短初始化式封顶。
     bool clipped =
         static_cast<unsigned long>(section.m_start + section.m_size) <=
         m_curOffset + span;

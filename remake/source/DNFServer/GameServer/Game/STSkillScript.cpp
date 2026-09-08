@@ -137,9 +137,13 @@ void STSkillScript::Clear()
     m_field0 = 0;
     m_str4 = "";
     m_str8 = "";
+    m_14 = 0;                            // ORIG 0x83750f2：m_14 在 m_strc 之前
     m_strc = "";
-    m_14 = 0;
     m_vec18.clear();
+    // [b28d-63] ORIG 0x8375128/0x8375138：+0x204/+0x210 的 clear 紧接 +0x18
+    // 之后（P167 原报 MISSING vector<int>::clear ×3）。
+    m_vec204.clear();
+    m_vec210.clear();
     m_vec24.clear();
     m_30 = 1;
     m_34 = 1;
@@ -194,14 +198,13 @@ void STSkillScript::Clear()
     m_1d4 = 0;
     m_1d5 = 0;
     m_1d8 = -1;
-    m_vec1dc.clear();
     m_1e8 = 0;
     m_1ec = 0;
     m_1f0 = 0;
     m_1f4 = 0;
+    m_vec1dc.clear();
+    m_vecf4.clear();                    // ORIG 0x8375463：0xf4 二次 clear（P171 照抄）
     m_vec1f8.clear();
-    m_vec204.clear();
-    m_vec210.clear();
     m_21c = 0;
     m_220 = 0;
     m_224 = -1;
@@ -223,6 +226,9 @@ void STSkillScript::Clear()
     m_str278.clear();
     m_280 = 1;
     m_vec284.clear();
+    m_290 = 0;                          // [0x837559x] ORIG 在 0x284 之后清 0x290
+    m_vec294.clear();                   // [0x8375xxx] ORIG clear 0x294
+    m_vec2a0.clear();                   // ORIG clear 0x2a0
 }
 
 

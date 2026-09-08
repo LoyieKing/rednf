@@ -470,15 +470,19 @@ bool CQuestShop::_saveData(CUser* user)
     view->m_main.m_qp = static_cast<unsigned int>(getQp());
     view->m_main.m_initCount = static_cast<unsigned int>(getInitCount());
     view->m_main.m_questPiece = static_cast<unsigned int>(getPiece()); // 0xa6
+    // b28d-36（修法 P13/P28）：ORIG 0x085efc7e 段先 end()→-0x20、后 begin()→-0x24，
+    // 循环 cond 只重调 operator!=（不重算 end）⇒ 原码缓存 end 迭代器；每轮 end()
+    // 版多一个 -0x18 临时槽并把 guard 顶到 -0x20（ORIG -0x1c）。
+    std::map<unsigned char, short>::iterator itEnd = m_buyingStatus.end();
     for (std::map<unsigned char, short>::iterator it =
              m_buyingStatus.begin();
-         it != m_buyingStatus.end(); ++it)
+         it != itEnd; ++it)
     {
         const unsigned char key = it->first;        // -0xb
         const unsigned short value = static_cast<unsigned short>(it->second);
         if (it->first > 0x4c)                       // cmp $0x4c seta → skip
             continue;
-        reinterpret_cast<QuestShopStatusView*>(view)->m_statusCounts[key] = value;   // mov %cx,0xc(key*2)
+        view->m_main.m_statusCounts[key] = value;   // mov %cx,0xc(key*2)
     }
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard); // DB_Q @GlobalData
     return 1;                                       // ebx=1

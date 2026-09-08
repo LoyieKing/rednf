@@ -347,7 +347,9 @@ int CCreatureMgr::SetOverSkillTime(const int& itemIdx)
 
         // b28d-61 [P167 MISSING `CCreatureItem::GetItemId()`]：ORIG 0x0833c5xx
         // `call GetItemId; cmp %eax,%ebx; sete` 为真实调用，旧形直读 +0x04 字段。
-        if (m_equippedCreature->GetItemId() == itemIdx)
+        // CCreature 为镜像类（基区 +0x00..+0x1b 与 CCreatureItem 一致），
+        // 按 CCreature.cpp 既有 P201 做法经 reinterpret_cast 调用权威方法。
+        if (reinterpret_cast<CCreatureItem*>(m_equippedCreature)->GetItemId() == itemIdx)
         {
             if (!m_equippedCreature->IsCreatureScript())
             {
@@ -433,14 +435,10 @@ bool CCreatureMgr::EventEvoluteCreature(int creatureId, int minLevel, int slot)
 {
     if (m_equippedCreature != 0)
     {
-        if (m_equippedCreature->GetLevel() < minLevel)
-        {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x10c2, 0);
-            trace("event evolute creature error : low creature level.");
-        }
-        else
+        // b28d-61 [P222 正向包裹翻极性，ORIG 0x0833da3x `cmp 0x10(%ebp),%eax;
+        // setge %al; test %al,%al; je +0xcc`]：旧「GetLevel()<minLevel 早判」
+        // 产 setl 且 trace 块落 fall-through；改正向 if 后 trace 归 else。
+        if (m_equippedCreature->GetLevel() >= minLevel)
         {
             if (m_equippedCreature->EventEvolute(m_user, creatureId, slot))
             {
@@ -448,6 +446,13 @@ bool CCreatureMgr::EventEvoluteCreature(int creatureId, int minLevel, int slot)
                 pkt.MakeNotipacketCreatureItemList(&m_creatureItems, 0xee);
                 return true;
             }
+        }
+        else
+        {
+            cMyTrace trace(
+                __PRETTY_FUNCTION__,
+                0x10c2, 0);
+            trace("event evolute creature error : low creature level.");
         }
     }
     return false;
@@ -685,7 +690,7 @@ bool CCreatureMgr::checkMaxCreatureLevel(int itemId, bool growFlag) const
         CCreature* entry = reinterpret_cast<CCreature*>(it->second);
         if (entry != 0)
         {
-            if (entry->GetItemId() == itemId)
+            if (reinterpret_cast<CCreatureItem*>(entry)->GetItemId() == itemId)
             {
                 if (entry->IsGrowCreature() == growFlag)
                     return entry->isMaxLevel();

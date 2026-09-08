@@ -67,7 +67,7 @@ struct CHARAC_QUEST_SHOP_DATA
     union
     {
         CHARAC_QUEST_SHOP_DATA_FIELDS m_data;    // +0x00c..+0xa5
-        unsigned short m_statusCounts[0x4d];      // 同区计数视角
+        short m_statusCounts[0x4d];               // 同区计数视角（b28d-36 试：异型化翻 store 序）
     };
     unsigned int   m_questPiece;             // +0x0a6
 };

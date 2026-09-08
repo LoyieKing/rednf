@@ -597,8 +597,10 @@ void CDisjointer::OnCloseMission(CUser* user, ENUM_CLOSE_MISSION_TYPE type)
     packet.finalize(true);
 
     int area = user->get_area(false);
-    char vill = (char)user->getCurCharacVill();
-    G_GameWorld()->send_to_area(vill, area, packet);
+    // b28d-61 [P200 短整直传实参，ORIG 0x085d30xx `call getCurCharacVill;
+    // movsbl %al,%esi`]：旧形具名 char 局部多 `mov %al,-0x9; movsbl -0x9,%ebx`
+    // 槽往返；去局部后隐式提升直产 2 操作数 movsbl。
+    G_GameWorld()->send_to_area((int)user->getCurCharacVill(), area, packet);
 
     village_object::Zone zone(user->getCurCharacVill(), user->get_area(false));
     if (!GlobalData::s_villageObjectMgr->unregister_object(zone, &m_machine))
@@ -768,18 +770,24 @@ void CEnchanter::OnCloseMission(CUser* user, ENUM_CLOSE_MISSION_TYPE type)
     }
     else
     {
-        if ((unsigned int)(user->get_unique_id() & 0xffff) != m_peerUid)
+        // b28d-61 [P222 正向包裹翻极性，ORIG 0x0849c87x `cmp %eax,%edx; sete
+        // %al; test %al,%al; je +0x187`]：旧「否定早返」形产 setne/jne 反极性。
+        if ((unsigned int)(user->get_unique_id() & 0xffff) == m_peerUid)
+        {
+            m_user->SetCurCharacExpertJob(0);
+            m_peer->SetCurCharacExpertJob(0);
+            peer = m_user;
+        }
+        else
             return;
-        m_user->SetCurCharacExpertJob(0);
-        m_peer->SetCurCharacExpertJob(0);
-        peer = m_user;
     }
 
     if (type == ENUM_CLOSE_MISSION_TYPE_1 || type == ENUM_CLOSE_MISSION_TYPE_2)
     {
-        bool sendPeer =
-            (peer != 0 && peer->getCurCharacR() != 0 && m_user != m_peer);
-        if (sendPeer)
+        // b28d-61 [P214① 正条件内联，ORIG 0x0849c9xx 无具名 bool 槽]
+        // 旧 `bool sendPeer = A && B && C; if (sendPeer)` 多 `mov %al,-0x9;
+        // cmpb $0,-0xa` 槽物化。
+        if (peer != 0 && peer->getCurCharacR() != 0 && m_user != m_peer)
         {
             PacketGuard packet;
             packet.put_header(0, 0x9e);

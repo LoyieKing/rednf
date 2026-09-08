@@ -81,6 +81,12 @@ bool COpensslRSA::Init()
 // ORIG T 0x0816c28a：path 空 → false；BIO_new(BIO_s_file()) →
 // BIO_ctrl(bio,0x6c,3,(GetAppFolder()+path).c_str())（BIO_C_SET_FILENAME）→
 // PEM_read_bio_RSA_PUBKEY(bio,0,0,0) 存 m_rsa → BIO_free_all → key 非空真。
+// b28d-36 判词（N104+P78，ORIG 0x0816c28a）：块内容逐条对齐，仅两处跨版本差：
+// ①EH 尾块相对序——ORIG 正常路径尾块居最末、unwind 块居中（0x816c308..0x816c345），
+// 4.4 把同一段 epilogue 就地内联、unwind 压最末，difflib 放大成 ~24 行 rotate；
+// ②返回汇聚寄存器——ORIG 各 return 直接 `mov $0/1,%eax`（0x816c298/0x816c38c/0x816c393），
+// 4.4 因 return 前需析构 full/rel 两个 string 而用 %ebx 汇聚、尾 `mov %ebx,%eax`。
+// 语义等价（三 return 与 ORIG 同控制流），封顶。
 bool COpensslRSA::Init(const char* path)
 {
     if (path == 0)
