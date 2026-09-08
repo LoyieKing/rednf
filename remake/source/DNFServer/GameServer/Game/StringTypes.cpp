@@ -672,13 +672,20 @@ CharString& CharString::format(const char* formatStr, ...)
 {
     va_list argList;
     va_start(argList, formatStr);
-    // N 封顶注：ORIG 0x08ad8afa 体内联 vsnprintf+双 placement-C1 直发形依赖 4.1.2 非平凡
-    // union 扩展（单条 call C1Ev，零 operator-new 噪声）；4.4.7 拒 union 且 placement new
-    // 经本类 operator new[](size_t, void*) 产 `_ZnwjPv`+null 检查双噪声（实测 61 vs 53）。
-    // 委托 vformat=语义等价最小形；字节级同形属类层专批（b25 trivial 化）一并解。
-    // [b28d-34] 复核维持 N83（ORIG 0x08ad8afa）：4.4 placement operator new 恒发
-    // _ZnwjPv call+size 装载行+EH 段（内联展开实测 61 vs ORIG 53），封顶。
-    this->vformat(formatStr, argList);
+    // [b28d-solo-StringTypes] 收敛（ORIG 0x08ad8afa）：ORIG format 体是 vformat 逻辑的
+    // **独立副本**（体内无 call vformat；4.1 前端把头内 inline vformat 展开进 format）。
+    // 旧「委托 vformat」形只 15 条 vs ORIG 53 条且调用点差集巨大，改为展开完整逻辑；
+    // 余下仅 N83（placement operator new 4.4 恒发 _ZnwjPv call+判空）封顶。
+    int length = vsnprintf(reinterpret_cast<char*>(0), 0, formatStr, argList);
+    if (length == 0)
+    {
+        new (this) CharString();
+        va_end(argList);
+        return *this;
+    }
+    CharStringData* newData = CharStringData::create(length);
+    ss_vsprintf(newData->getBuffer(), length + 1, formatStr, argList);
+    new (this) CharString(newData);
     va_end(argList);
     return *this;
 }
@@ -1410,8 +1417,19 @@ WideString& WideString::format(const wchar_t* formatStr, ...)
 {
     va_list argList;
     va_start(argList, formatStr);
-    this->vformat(formatStr, argList);   // CharString::format 同案（N 封顶，b25 类层批）
-    // [b28d-34] 复核维持 N83（ORIG 0x08adbbe4，同 CharString::format）。
+    // [b28d-solo-StringTypes] 收敛（ORIG 0x08adbbe4）：同 CharString::format——
+    // ORIG 体是 vformat 逻辑的独立副本（无 call vformat），展开完整逻辑；
+    // 余下仅 N83（placement operator new）封顶。
+    int length = vswprintf(reinterpret_cast<wchar_t*>(0), 0, formatStr, argList);
+    if (length == 0)
+    {
+        new (this) WideString();
+        va_end(argList);
+        return *this;
+    }
+    WideStringData* newData = WideStringData::create(length);
+    ss_vswprintf(newData->getBuffer(), length + 1, formatStr, argList);
+    new (this) WideString(newData);
     va_end(argList);
     return *this;
 }

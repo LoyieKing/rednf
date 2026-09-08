@@ -559,7 +559,7 @@ unsigned int CNPCScriptList::getFavorLevelValue(unsigned int level) const
         return getMaxFavorValue();
     if (level == 0)
         return 0;
-    char pad[0x14];   // [b28d-solo] 帧撑到 ORIG sub $0x18（P232 dead local）
+    char pad[0x8];   // [b28d-solo] 帧撑到 ORIG sub $0x18（P232 dead local）
     (void)pad;
     return m_npcCommon.m_favorExp[level];   // N: 4.4 恒产双 movzwl(返回 ushort→uint)，ORIG 4.1 单条 0x858177d
 }
@@ -575,9 +575,7 @@ void CNPCScriptList::_destroy()
         e(m_npcMap.end());
     while (it != e)
     {
-        CNPCScript* script = it->second;
-        if (script != 0)
-            delete script;
+        delete it->second;
         ++it;
     }
     m_npcMap.clear();
@@ -1234,9 +1232,9 @@ int reseal_table_t::get_reseal_cost(unsigned char param_1,
         return -4;
 
     // (param_2-1)/10（0x66666667 乘法魔数 → 无符号除 10 的 32 位无符号截断）
-    unsigned int idx = (unsigned int)(param_2 - 1) / 10u;
-    if (m_vec.size() <= idx)      // setbe → vector::size() <= idx
-        idx = m_vec.size() - 1;   // 取末元素
+    int idx = (param_2 - 1) / 10;
+    if (m_vec.size() <= (unsigned int)idx)   // setbe → vector::size() <= idx
+        idx = (int)m_vec.size() - 1;         // 取末元素
     // return m_vec[idx]*m_arr1[param_1] + param_3*m_arr2[param_1]
     // （ORIG imul 为 32 位模 2^32，此处用无符号累加再一次性转 int 保持位模式）
     unsigned int result =
@@ -2342,11 +2340,12 @@ int PowerParameterScript::GetBreakBonus(int winCount)
 // [b28d-19] N：P75 —— 实参装载时刻跨版本调度差（map.find 键/this 装载序）；ORIG 0x08a59db4。
 bool PowerParameterScript::checkPowerWarServer(int a, int b)
 {
+    std::pair<int, int> p;
     std::vector<std::pair<int, int> >::iterator it = m_powerWarServerList.begin();
     std::vector<std::pair<int, int> >::iterator e = m_powerWarServerList.end();
     for (; it != e; ++it)
     {
-        std::pair<int, int> p = *it;
+        p = *it;
         if (p.first == a && p.second == b)
             return true;
     }
@@ -2459,10 +2458,7 @@ void CWorldMapList::destroy()
     for (; it != e; ++it)
     {
         CWorldMap* worldMap = it->second;
-        if (worldMap != 0)
-        {
-            delete worldMap;
-        }
+        delete worldMap;
         worldMap = 0;
     }
     m_map.clear();

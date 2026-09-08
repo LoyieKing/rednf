@@ -518,6 +518,13 @@ bool CAssaultPlace::_IsBroadcastRunaway(CUser* user)
 // 广播逃跑公告（ServerParameter 的 notice 模板 + 双方角色名）。
 void CAssaultPlace::_BroadcastRunaway(CUser* user, int index)
 {
+    // b28d-solo-CAssaultMgr: N 封顶（N18a/N82 附）— ORIG 103 vs ours 106 条，两处
+    // 结构性差异：①ORIG 把 len 复用 msg 对象内 padding 槽（len@-0x11c=msg+0xe）
+    // ⇒ buf@-0x52a（mod4=2，对齐剥离先 2 字节）；4.4 标量分区（len@-0x1f）使
+    // buf@-0x52d（mod4=1，先 1 字节，+2 条）；②ORIG 三处双零扩展
+    //（`movzbl mem,%eax; movzbl %al,%eax`×2 + `movzwl`），4.4 对局部 uchar 恒单次
+    //（探针 /tmp/probe_zext{,2}.cpp：全局 uchar 双扩展、局部 uchar 单扩展）。
+    // 语义等价（len/len2 值域 0..0xff/0x10e）。
     char buf[0x400] = {0};
     // b28d-L3：ORIG 0x82eab7a 段把 name→%esi、curName→%ebx 跨 notice 求值
     // 保活、三值均无槽往返（P0）⇒ 三具名局部内联为 sprintf 实参（变参右到左
@@ -624,6 +631,9 @@ int CAssaultPlace::_SendCloseAssault(CUser* user, int tick)
 // merge」族）。其余残余：帧 0x80 vs 0x70 + 全槽平移（N82/P112）、尾多 1 条
 // `jmp <epilogue>` 岛边（跨版本 nop;jmp 岛/jump-threading 族）、`add $0x70` vs
 // `sub $0xffffff80` 文本形差。语义完成、byte 层 N 封顶。
+// b28d-solo-CAssaultMgr: N 封顶（§6.2 三件套复核）— P167 calls 63 vs 64，
+// MISSING=0、EXTRA 仅 1×_Unwind_Resume（N104 EH 块序/merge 族）；gap=2（453 vs
+// 455）；残差全为 N82 帧/槽平移 + N104 尾块序，无语义缺口。
 // ============================================================================
 void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
 {
@@ -1119,7 +1129,14 @@ bool CStaticDisposition::MoveUser(CForcedMoveCharacter* fm)  // ORIG 0x82e65ee
 // fresh .o 复验 our=154/orig=158，调用点差集仅 C1/C2 同名差，语义等价。
 CStaticDisposition::CStaticDisposition(CUser** users, int* counts) // ORIG 0x82e62aa
 {
-    // b28d-L3: DIFF/N86 — ORIG 0x82e62aa 二维索引 `mov -0x20,%edx; mov -0x1c,%eax; shl $2,%edx; lea (%edx,%eax,1),%eax; add %eax,%eax`
+    // b28d-solo-CAssaultMgr: N 封顶（P30/N94/P205 族）— 唯一实质残差是
+    // ASSAULT_RECT_PLAYER_POINT[idx].m_y 的地址折叠：ORIG 0x82e63d4 段
+    // `shl $2,%edx; lea (%edx,%eax,1),%eax; add %eax,%eax; add $1,%eax;
+    // mov TABLE(,%eax,4)`（7 条，(idx*2+1)*4），4.4 恒折 `shl $3; add; mov
+    // 0x4(,%eax,8)`（4 条）。探针 /tmp/probe_arr{,2,3}.cpp：int 引用视图
+    // （a2）产 `mov $TABLE,%eax` 基址形且指令序不同、二维 int 数组（b1）产
+    // `add %eax,%eax; add $1` 但 add-vs-lea 与 ORIG 不齐（P30 定性）。
+    // m_x 段（idx*8 直接）两侧一致；其余仅重定位/地址显示与尾 nop 豁免。
     m_iconPos.m_x = ASSAULT_RECT_ICON_POINT.m_x;
     m_iconPos.m_y = ASSAULT_RECT_ICON_POINT.m_y;
     for (int j = 0; j <= 1; ++j)
@@ -1157,6 +1174,12 @@ bool CDynamicDisposition::SetVirtualMap(std::vector<MapArea>* areas) // ORIG 0x8
 
 CDynamicDisposition::CDynamicDisposition(CUser** users, int* counts) // ORIG 0x82e6032
 {
+    // b28d-solo-CAssaultMgr: N 封顶（N87 跨版本 16 位移位 lowering）— 修后
+    // ORIG 165 = ours 165 条，唯一残差 2× `shr %ax`（ORIG）vs `sar %eax`（4.4）：
+    // ORIG 在 unsigned short 宽度做逻辑右移（`shr %ax; movzwl %ax,%eax`），
+    // 4.4 恒提升 int 后算术右移（探针 /tmp/probe_shr.cpp 五形：含 uint 化 f5 仅得
+    // 32 位 `shr %edx`，无 `shr %ax`）。值域 0..0xffff 正数，sar/shr 语义等价。
+    // 另两处已修：m_users 循环拷贝（+5）、m_matrices 拆具名成员消数组构造循环+EH。
     // b28d-solo-CAssaultMgr: ORIG 0x82e6055 段用循环拷贝 m_users
     //（`movl $0,-0xc; jmp cond; ...; addl $1,-0xc; cmpl $1; setle; test; jne`），
     // 展开赋值恒少 5 条。
@@ -1505,10 +1528,12 @@ void CAssaultMgr::FreeAssaultPlace(int id, CAssaultPlace* place)
 // ORIG T 0x82e9ad6 size 0x52d：关场主流程 —— 全员按 PowerWar/普通分支
 // 发关闭包并回补体力，广播状态与图标， ghost 记录，定时两队重载，
 // 清场后归还池。
-// 收敛口径（batch-14 EmoC11）：o=374 n=387。已修 PartyInfo::Get 发明 wrapper
-// 改 m_field00 直访（ORIG nm 无该符号、两处 `mov 0x12c(%eax)` 直读，P154/P169）。
-// 残 +13 = 循环体 slotUser 槽装载 vs ORIG callee-saved 接力 + ONLY-ORIG
-// 1×GetUser 重取点（P183 反向警告域，逐点展开反增差），N82/N76 封顶。
+// b28d-solo-CAssaultMgr: N 封顶（§6.2 三件套）— P167 calls 60 vs 60 **CLEAR**
+// （本波修 3 处：①PartyInfo::Get 非发明符号——ORIG nm W 0x82f060a 真实存在，
+// 旧「发明 wrapper」判词作废，改头声明+外联定义恢复 2 个 call 点（P119）；
+// ②0x082e9c63 SetAssaultPlace 前重取 m_assaulters[i].GetUser()（P183 反向）。
+// 残 374 vs 391 = N82 帧/槽平移（我方多 bool 栈化 `mov %al,-N; cmpb $0,-N`
+// 与 slotUser 槽装载 vs ORIG callee-saved 接力）+ N76，无语义缺口。
 void CAssaultPlace::CloseAssault()
 {
     // b28d-L3: DIFF/N82 — ORIG 0x082e... 372 vs 383

@@ -841,7 +841,8 @@ int CQuickPartySystemManager::match_proper_party(
                 1, "QuickParty.cpp",
                 __PRETTY_FUNCTION__,
                 0x188, "QUICK_PARTY_LOG : ABNOMAL QUICK PARTY INDEX (%d)!!",
-                party ? party->get_quick_party_index() : 0);
+                party->get_quick_party_index());   // [b28d-solo-QuickParty] P171 照抄：
+                                                   // ORIG 0x08269f7x 无 party 判空直接调用
         }
         return 0x12;
     }
