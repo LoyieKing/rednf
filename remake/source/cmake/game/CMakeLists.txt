@@ -762,6 +762,7 @@ dnf_service(game
         ${SVC_DIR}/DNFLexWrapperLoadStream.cpp
         ${SVC_DIR}/DNFLexCore.cpp
         ${SVC_DIR}/CompiledDNFLexCore.cpp
+        ${SVC_DIR}/WStringInst.cpp   # libstdc++ wstring 显式实例化 TU（路由见 SRC_OPTS）
         ${SVC_DIR}/FlexLexerEngine.cpp   # vendored flex 2.5.35 引擎（原 FlexLexerCore.cpp 已删）
         ${SVC_DIR}/Arad_Script.cpp
         ${SVC_DIR}/SlangFilter.cpp
@@ -904,7 +905,9 @@ dnf_service(game
         "${SVC_DIR}/DNFLexCore.cpp|-O2 -std=gnu++98"
         "${SVC_DIR}/DNFLexWrapper.cpp|-O2 -std=gnu++98"
         "${SVC_DIR}/DNFLexWrapperStream.cpp|-O2 -std=gnu++98"
-        "${SVC_DIR}/WStringInst.cpp|-O2 -std=gnu++98"
+        # ORIG 的 libstdc++ wstring-inst.o 为 Red Hat 32 位默认 -march=i486 -mtune=generic 构建；
+        # gnu++0x 头补出 initializer_list 族 7 符号（4.4 头），三者齐备后整 TU 与 ORIG 零差。
+        "${SVC_DIR}/WStringInst.cpp|-O2 -std=gnu++0x -march=i486 -mtune=generic"
     LIBS
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libgcc_eh.a
