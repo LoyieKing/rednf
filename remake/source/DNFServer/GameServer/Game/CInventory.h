@@ -547,7 +547,9 @@ class CInventory
 {
 public:
     CInventory();
+    CInventory(const CInventory& other);
     ~CInventory();
+    CInventory& operator=(const CInventory& other);
 
     void reset();
     void setCopy(const CInventory& other);
