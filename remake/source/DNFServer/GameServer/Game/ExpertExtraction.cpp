@@ -266,6 +266,9 @@ int CAlchemistExtraction::_check_error(CUser* user, short a, short b)
 
 // ============================================================================
 // CAlchemistExtraction::check_error —— ORIG T 0x084a3716
+// b28d-54 判词：ORIG 0x084a3716 尾部 `call *%ecx; mov %eax,-0xc(%ebp);
+//   mov -0xc(%ebp),%eax`（槽往返）⇒ 原码有具名局部 `e = _check_error(...); return e;`
+//   （P0：ORIG 有槽往返 ⇒ 必须声明局部；直接 `return f()` 丢 store/load 对）。
 // ============================================================================
 int CAlchemistExtraction::check_error(CUser* user, char a, short b, short c)
 {
@@ -278,7 +281,8 @@ int CAlchemistExtraction::check_error(CUser* user, char a, short b, short c)
     {
         return 4;
     }
-    return _check_error(user, b, c);
+    e = _check_error(user, b, c);
+    return e;
 }
 
 // ============================================================================
@@ -381,6 +385,7 @@ int CEnchanterExtraction::_check_error(CUser* user, short a, short b)
 
 // ============================================================================
 // CEnchanterExtraction::check_error —— ORIG T 0x084a3cb6
+// b28d-54 判词：同 CAlchemistExtraction::check_error（ORIG 尾部槽往返 ⇒ 具名局部）。
 // ============================================================================
 int CEnchanterExtraction::check_error(CUser* user, char a, short b, short c)
 {
@@ -393,7 +398,8 @@ int CEnchanterExtraction::check_error(CUser* user, char a, short b, short c)
     {
         return 4;
     }
-    return _check_error(user, b, c);
+    e = _check_error(user, b, c);
+    return e;
 }
 
 // ============================================================================
@@ -530,6 +536,7 @@ int CDollControllerExtraction::_check_error(CUser* user, short a, short b)
 
 // ============================================================================
 // CDollControllerExtraction::check_error —— ORIG T 0x084a43aa
+// b28d-54 判词：同 CAlchemistExtraction::check_error（ORIG 尾部槽往返 ⇒ 具名局部）。
 // ============================================================================
 int CDollControllerExtraction::check_error(CUser* user, char a, short b, short c)
 {
@@ -542,7 +549,8 @@ int CDollControllerExtraction::check_error(CUser* user, char a, short b, short c
     {
         return 4;
     }
-    return _check_error(user, b, c);
+    e = _check_error(user, b, c);
+    return e;
 }
 
 // ============================================================================

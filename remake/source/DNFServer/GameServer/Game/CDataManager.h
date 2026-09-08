@@ -654,9 +654,12 @@ struct rewardKey
     {
     }
 
-    unsigned char m_job;     // +0x00（[job type]：getCharacterJobToEnumValue）
-    unsigned char m_a;       // +0x01（[job type] ScanInt#1）
-    unsigned char m_b;       // +0x02（[job type] ScanInt#2）
+    // b28d-52：ORIG operator< 0x080f121a 三级比较均为 `setl`（8 位有符号，
+    // P196 符号序判据）⇒ 三字节字段真实类型是 signed char（值域 ≥0x80 时
+    // 比较结果分叉，属真语义差）。宽度/偏移/sizeof(5) 不变。
+    signed char m_job;       // +0x00（[job type]：getCharacterJobToEnumValue）
+    signed char m_a;         // +0x01（[job type] ScanInt#1）
+    signed char m_b;         // +0x02（[job type] ScanInt#2）
     rewardSubKey m_sub;      // +0x03（[/sub type] 两字节）
 
     void clear()   // ORIG W 0x080f12ac 语义（[/job type] 调用）
@@ -668,11 +671,22 @@ struct rewardKey
     }
     bool operator<(const rewardKey& o) const
     {
-        if (m_job != o.m_job) return m_job < o.m_job;
-        if (m_a != o.m_a) return m_a < o.m_a;
-        if (m_b != o.m_b) return m_b < o.m_b;
-        // ORIG 0x080f1267：调用外部 rewardSubKey::operator<（OnlyOrigBatch12.cpp）
-        return m_sub < o.m_sub;
+        // b28d-52：ORIG 0x080f121a 布局 = 三级 `cmp;jne <尾块>` 嵌套 + 尾
+        // call rewardSubKey::operator<（P222 正向包裹）；比较用 `setl`（有符号
+        // 8 位）——字段已按 P196 声明 signed char，此处不再加冗余 cast。
+        if (m_job == o.m_job)
+        {
+            if (m_a == o.m_a)
+            {
+                if (m_b == o.m_b)
+                    // ORIG 0x080f1267：调用外部 rewardSubKey::operator<
+                    // （OnlyOrigBatch12.cpp）
+                    return m_sub < o.m_sub;
+                return m_b < o.m_b;
+            }
+            return m_a < o.m_a;
+        }
+        return m_job < o.m_job;
     }
 };
 struct SlotBoundKey
@@ -1670,6 +1684,7 @@ struct stCharacLinkSystem_t
 class StrikerScript;       // 最小镜像见 CDataManager.cpp（专属 TU 待落地）
 class CharacManageScript;  // 同上
 
+#include "advancealtar_SummonObject.h"  // b28d-52：_SummonObject 叶子头（本文件下方 _Action/m_summonMap 需要）
 #include "AdvanceAltarField.h"  // advancealtar 共享类型（FieldType/FieldData/_RewardItem/
                                 // AchievementRewardData 权威定义；本文件 RewardParameter 需要）
 
@@ -1678,19 +1693,8 @@ namespace advancealtar
 
 // _SummonObject（ORIG C1 0x08134650 W：memset(this,0,0x24)，sizeof=0x24；
 //   字段写入点见 importSummonObject 0x0889a21e 报告）。
-struct _SummonObject
-{
-    _SummonObject();             // ORIG 0x08134650 W（memset 0x24）
-    int m_id;                    // +0x00（亦作 m_summonMap 的 key）
-    unsigned char m_isEnemy;     // +0x04（"enemy"=1 / "friend"=0）
-    int m_type;                  // +0x08（"normal"=0 / "named"=1 / "boss"=2）
-    int m_field0c;               // +0x0c
-    unsigned short m_field10;    // +0x10（ScanInt 低 16 位存储）
-    int m_field14;               // +0x14
-    int m_field18;               // +0x18
-    int m_field1c;               // +0x1c
-    int m_field20;               // +0x20
-};                               // sizeof 0x24
+// b28d-52：类型定义已迁 advancealtar_ProcStage.h（本头 include 之，见文件头），
+// 使 _SummonObjectMs::m_summon 可用真实类型（消 N83 placement-new）。
 
 // _Action（ORIG C1 0x0889b978 W：memset(this,0,0x14)，sizeof=0x14；
 //   字段写入点见 importActionDefine 0x0889a56e 报告）。

@@ -124,7 +124,7 @@ void CClearReward::generateRandomItem(stGenerateRefData_t const& ref,
                                 kRefClearRewardCtx),
                             *reinterpret_cast<int const*>(&ref),
                             result,
-                            *reinterpret_cast<float const*>(&ref.m_field04));
+                            ref.m_field04f);
     }
     else
     {

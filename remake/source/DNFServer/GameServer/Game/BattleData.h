@@ -69,17 +69,26 @@ public:
     char m_flag28[4];    // +0x28
     int m_field2c;       // +0x2c
     int m_field30;       // +0x30
-    int m_field34;       // +0x34
-    int m_field38;       // +0x38
+    // [b28d-51] P246/P180 u64 别名：ORIG changeBattleDataOnMoveMap 0x085a8ef4
+    // 以 `mov $0,%edx; mov %eax,0x360; mov %edx,0x364`（零扩展 64 位整体存）写
+    // +0x34/+0x38 ⇒ 原码为 64 位字段赋值。别名不改偏移/尺寸；两 int 名保留。
+    union {                       // +0x34 moveTick（lo/hi）
+        struct { int m_field34; int m_field38; };
+        unsigned long long m_moveTick;
+    };
     int m_killedMonster0;// +0x3c
     int m_killedMonster1;// +0x40
     int m_killedMonster2;// +0x44
     int m_field48;       // +0x48
     int m_field4c;       // +0x4c
     char m_arr50[4];     // +0x50
-    char m_arr54[4];     // +0x54
-    char m_arr58[4];     // +0x58
-    char m_arr5c[4];     // +0x5c
+    // [b28d-51] P248 档②：ORIG changePartyMemberInfo 0x085a8d4c/0x085a8d62/0x085a8d78
+    // 对 +0x380/+0x384/+0x388 三组标志均为 `movzbl; xor $1; test; je`（`!=1`/`==1`
+    // 在 bool 上折成取反；char 恒 cmpb $1，6 形探针复证）⇒ 原字段是 bool[4]。
+    // 1 字节/偏移/sizeof 不变；消费点赋值仅 0/1。
+    bool m_arr54[4];     // +0x54
+    bool m_arr58[4];     // +0x58
+    bool m_arr5c[4];     // +0x5c
     char m_arr60[4];     // +0x60
     int m_arr64[4];      // +0x64
     Inven_Item m_itemGroups0[4][2];  // +0x74

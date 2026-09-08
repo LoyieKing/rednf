@@ -484,18 +484,14 @@ void CParty::SaveCoin(eCoinSubReason reason)
 // ---------------------------------------------------------------------------
 void CParty::changeBattleDataOnMoveMap(bool firstVisit)
 {
-    BattleData& d = bd(this);
-
-    unsigned int now = GlobalData::s_systemTime_.getCurTickCount();
-    d.m_field34 = now;                                   // +0x360 低
-    d.m_field38 = 0;                                     // +0x364 高
-
-    now = GlobalData::s_systemTime_.getCurTickCount();   // 第二次取时
-    d.m_field18 = now;                                   // +0x344 低
-    d.m_field1c = 0;                                     // +0x348 高
+    // [b28d-51] P183 禁引用缓存 + P246 u64 别名：ORIG 0x085a8ef4/0x085a8f1c 为
+    // 零扩展 64 位整体存（mov $0,%edx; mov %eax,0x360; mov %edx,0x364），
+    // 且无具名 now 局部（call 结果 eax 直存）；两次独立取时。
+    bd(this).m_moveTick = GlobalData::s_systemTime_.getCurTickCount();
+    bd(this).m_enterTick = GlobalData::s_systemTime_.getCurTickCount();
 
     if (!firstVisit)                                     // movzbl xor $1 test je
-        ++d.m_field68c;                                  // +0x9b8
+        ++bd(this).m_field68c;                           // +0x9b8
 }
 
 // ---------------------------------------------------------------------------
@@ -529,26 +525,30 @@ bool CParty::canFatigueUp(unsigned char flag)
 // ---------------------------------------------------------------------------
 void CParty::changePartyMemberInfo(MSG_MOVE_MAP& info, char slot)
 {
-    const int idx = (int)slot;
-    if (!_checkValidUser(idx))
-        return;
-
-    if (m_battleData.m_arr54[idx] != 1)                            // +0x380+slot
+    // [b28d-51] 正向包裹（P222）：ORIG 0x085a8d38 为 `call; test %al,%al; je 尾部`
+    // （4.4 对 bool callee 的 `!call` 恒加 xor$1 ⇒ 必须写正极 if 包体）。
+    // 且 ORIG 每次用 slot 都重新 movsbl -0xc(%ebp)（无具名 int idx 局部，P0）。
+    if (_checkValidUser(slot))
     {
-        if (m_battleData.m_arr58[idx] == 1 ||                  // +0x384+slot
-            m_battleData.m_arr5c[idx] == 1)                        // +0x388+slot
+        if (m_battleData.m_arr54[slot] != 1)                       // +0x380+slot
         {
-            m_battleData.m_arr58[idx] = 0;
+            // [b28d-51] 反写（探针 z7）：ORIG 两条件 `xor$1;test;je <clear>` 同落
+            // clear 岛、increment 落 fall-through ⇒ 源码须写 `==0 && ==0` 包 increment。
+            if (m_battleData.m_arr58[slot] == 0 &&                 // +0x384+slot
+                m_battleData.m_arr5c[slot] == 0)                   // +0x388+slot
+            {
+                ++bd(this).m_arr64[slot];                    // this+(slot+0xe0)*4+0x10
+            }
+            else
+            {
+                m_battleData.m_arr58[slot] = 0;
+            }
         }
-        else
-        {
-            ++bd(this).m_arr64[idx];                     // this+(slot+0xe0)*4+0x10
-        }
-    }
-    m_battleData.m_arr5c[idx] = 0;
+        m_battleData.m_arr5c[slot] = 0;
 
-    if (canFatigueUp(info.m_field17))                    // movzbl 0x17(%eax)
-        memberUser(this, idx)->FatigueUp(0);             // T 0x08655c60
+        if (canFatigueUp(info.m_field17))                    // movzbl 0x17(%eax)
+            memberUser(this, slot)->FatigueUp(0);            // T 0x08655c60
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -999,9 +999,11 @@ void CParty::send_dungeon_fail_msg()
     if (static_cast<unsigned short>(m_battleField.m_villageMonsterId) != 0)
         seconds = 3;
 
-    const int key = gen_timer_key((TIMER_MESSAGE)0xe);
+    // [b28d-51] P24：key 必须内联为实参（ORIG gen_timer_key 先于 m_partyIndex 装载、
+    // 结果留 %ebx 跨 G_TimerQueue call），具名局部引入 -0xc 槽并致帧 0x34→0x30 反。
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
-                                (TIMER_MESSAGE)0xe, seconds, key, 0);
+                                (TIMER_MESSAGE)0xe, seconds,
+                                gen_timer_key((TIMER_MESSAGE)0xe), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -1174,16 +1176,16 @@ void CParty::InsertTournamentDungeonTimer(TIMER_MESSAGE msg)
     {
     case (TIMER_MESSAGE)0x2e:
     {
-        unsigned int key = (unsigned int)gen_timer_key(msg);
+        // [b28d-51] P24：key 内联实参（ORIG key 留 %ebx、m_partyIndex 留 %esi；
+        // 具名 key 局部引入 -0x10/-0xc 双槽并使帧 0x20→0x30）。
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
-                                    msg, 0x28, (int)key, 0);
+                                    msg, 0x28, (int)gen_timer_key(msg), 0);
         break;
     }
     case (TIMER_MESSAGE)0x2f:
     {
-        unsigned int key = (unsigned int)gen_timer_key(msg);
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
-                                    msg, 4, (int)key, 0);
+                                    msg, 4, (int)gen_timer_key(msg), 0);
         break;
     }
     default:
@@ -1291,15 +1293,17 @@ const char* CParty::GetNoSendSetPlayResultUser(int slot)
 {
     // ORIG 0x085b2384 + Ghidra 双证：field4 **!=0** 且 pUser 非空且
     // getCurCharacR 非空才返回昵称；pUser 地址每次重算（无局部缓存 spill）。
-    // [N-类·setcc-fold] 剩 5：getCurCharacR!=0 的 bool 物化 ORIG 4.1 出
-    // test; setne%al; test; je，4.4.7 恒折 test;je+mov1/jmp/mov0 分支形
-    // （范式库负例 setcc-fold，probe 全试无源码复现）。
-    if (m_member[slot].m_pUser != 0 && m_member[slot].m_field4 != 0 &&
-        reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser)
-            ->getCurCharacR() != 0)
+    // [b28d-51] ORIG 0x085b23e0 第三条件出 `test; setne%al; test; je` 物化，
+    // 前两条为直跳 ⇒ 源码非单一 && 链：前两条件合并 if，第三条件独立嵌套 if
+    // （probe g1 裸 if(call) 在 4.4 亦产 setne；&& 链 g5/g6/g7 恒折直跳）。
+    if (m_member[slot].m_pUser != 0 && m_member[slot].m_field4 != 0)
     {
-        return reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser)
-            ->getCurCharacName();
+        if (reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser)
+                ->getCurCharacR() != 0)
+        {
+            return reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser)
+                ->getCurCharacName();
+        }
     }
     return "";
 }
@@ -1502,10 +1506,10 @@ void CParty::sendPremiumGoldCardStatistic(int type, int value1, int value2)
     packet.m_stat.m_field0 = (unsigned char)type;
     packet.m_stat.m_field1 = value1;
     packet.m_stat.m_field5 = value2;
-    CStatisticServerProxy* proxy =
-        GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0);
-    if (proxy != 0)
-        proxy->SendPacket((char*)&packet, 0x13);
+    // [b28d-51] P171 照抄：ORIG 无 proxy 判空（GetServerProxy 结果直接作 receiver，
+    // 单表达式链 + &packet 留 %ebx 跨 call）；具名 proxy 局部引入 -0xc 槽、帧 +4。
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0)
+        ->SendPacket((char*)&packet, 0x13);
 }
 
 // ---------------------------------------------------------------------------
@@ -1569,18 +1573,20 @@ int CParty::get_rate_level_difference()
 {
     if (m_battleField.m_pDungeon == 0)
         return 0;
-    int diff = m_battleField.m_pDungeon->get_standard_level() - getMemberMaxLevel();
-    if (diff < 0)
-        diff = -diff;
+    // [b28d-51] ORIG 0x085b5a07 用 `sar $0x1f/xor/sub` 位技巧取绝对值（4.1 对
+    // __builtin_abs 的形）；`if (diff<0) diff=-diff;` 在 4.4 恒产 negl 分支形。
+    const int diff = __builtin_abs(
+        m_battleField.m_pDungeon->get_standard_level() - getMemberMaxLevel());
+    // [b28d-51] 块序（N93附）反写：ORIG 0x085b5a14 段 11..19→2 落 fall-through、
+    // 0..10→1 与 20+→3/0 各为岛 ⇒ 必须写成「11..19 显式区间 + 20+ 显式早返」形
+    // （探针 /tmp/b28d_51_probe_abs3.cpp f7 逐条全等；f4/f5/f8/f9 均块序反）。
     if (diff < 0xb)
         return 1;
-    if (diff < 0xb || 0x13 < diff)
-    {
-        if (diff < 0x14)
-            return 0;
+    if (diff > 0xa && diff <= 0x13)
+        return 2;
+    if (diff >= 0x14)
         return 3;
-    }
-    return 2;
+    return 0;
 }
 
 // ---------------------------------------------------------------------------

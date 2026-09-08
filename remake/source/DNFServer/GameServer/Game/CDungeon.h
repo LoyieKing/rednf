@@ -778,8 +778,11 @@ public:
     char m_minAttackPartyMember;    // +0x878（CheckEnterVillageAttackRevenge 下界，
                                     //      signed char 比较，085ba85d）
     char m_maxAttackPartyMember;    // +0x879（同上上界，085ba84b）
-    char m_villageAttackEventFlag;  // +0x87a（script+0x316；非 0 启用村庄攻击事件
+    bool m_villageAttackEventFlag;  // +0x87a（script+0x316；非 0 启用村庄攻击事件
                                     //      成员数/复仇数校验与疲劳豁免【推断】）
+                                    // [b28d-51] P248 档②：ORIG 0x085a8cda
+                                    //  `movzbl 0x87a; xor $1; test; je` = bool 字段
+                                    //  + `==0/!` 形；char 恒无 xor。sizeof/偏移不变。
     char m_maxRevengeCount;         // +0x87b（复仇次数上限，byte 比较 085ba8bb）
     int m_87c;                      // +0x87c（script+0xa4；-1 哨兵，语义未证）
     int m_880[5];                   // +0x880（std::copy 自 script+0x128）

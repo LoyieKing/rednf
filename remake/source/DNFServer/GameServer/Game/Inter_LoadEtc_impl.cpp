@@ -499,11 +499,16 @@ int Inter_LoadEtc::_fnEnumQuestClear(unsigned int questIdx, char* ctx)
     // ORIG 两 je 直跳同出口（嵌套 if 消 && 汇聚 bool 岛，P197④ 反向）。
     if (quest != 0)
     {
-        // [b28d-53] ORIG `call; test %al,%al; je` 免归一形 ⇒ 裸判（P32/P73）；
-        // `!= 0` 会引入 `setne %al; test %al,%al`。
+        // [b28d-53 判词·依赖上报] ORIG 0x084c2b55 调用点 `call; test %al,%al; je`
+        // 免归一形（P292/P248 档①）；我方 callee 声明 `char check_clear_send()`
+        // （signed char）致 4.4 生 `test %al; setne %al; test %al; je`。
+        // ORIG callee 0x084e923c 为 `movzbl 0x44(%eax),%eax; ret` 单字节直返
+        // （P9 ⇒ uchar/bool）。已上报 Main 分派 Quest.cpp 属主把返回类型
+        // char→unsigned char（Quest.h:403 + Quest.cpp:391），落地后本处裸判归位。
+        // 残余：lea-vs-add ×2（N107 封顶）+ put_short 实参装载序（P23）。
         if (quest->check_clear_send())
         {
-            buf->put_short((int)questIdx);   // ORIG 直传完整 int（截断在 put_short 内）
+            buf->put_short(questIdx);   // ORIG 直传完整 32 位（截断在 put_short 内）
             ++(*count);
         }
     }
@@ -859,25 +864,30 @@ void Inter_LoadEtc::processCheckInvalidExpPerLevel(CUser& user)
     int levelExpHigh = (unsigned)G_CDataManager()->get_level_exp(
         user.get_charac_level() + 1);
     unsigned exp = (unsigned)user.get_charac_exp();
-    if (!(exp < levelExpLow || levelExpHigh < exp))
-        return;
-
-    if (user.isTradePunishType(1))
-        return;
-    user.SetTradePunishType(1);
-
-    DB_SaveUserHandicap::makeRequest(user.get_acc_id(), 0x9c42, 0xb, 0, 3, 0);
-
-    cMyTrace trace(__PRETTY_FUNCTION__,
-                   0x6c7d, 5);
-    trace("[InvalidExp] Invalid character exp per level. "
-          "(mid:%u, charac:%u, level:%d, exp:%d,%d,%d)",
-          user.get_acc_id(),
-          user.get_charac_no(-1),
-          user.get_charac_level(),
-          user.get_charac_exp(),
-          levelExpLow,
-          levelExpHigh);
+    // [b28d-53] ORIG 0x084e8556 段：`mov levelExpLow; cmp exp; ja body` +
+    // `mov exp; cmp levelExpHigh; jbe end` = 双守卫共享尾（P257 正向包裹消
+    // 早返形多发的 jmp+nop 岛）。残余：第二比较 4.4 恒折 `levelExpHigh >= exp`
+    // 方向（ORIG 为 `exp <= levelExpHigh`）⇒ N18b/N22 比较方向族，97/97 封顶。
+    if (exp < levelExpLow || exp > levelExpHigh)
+    {
+        // [b28d-53] ORIG 0x084e8577 `call; xor $1,%eax; test %al; je end`
+        // ⇒ bool callee + 取反形（P168a①）。
+        if (!user.isTradePunishType(1))
+        {
+            user.SetTradePunishType(1);
+            DB_SaveUserHandicap::makeRequest(user.get_acc_id(), 0x9c42, 0xb, 0, 3, 0);
+            // ORIG 0x084e860b 段：ctor 前求 varargs 并保活（N80/P227 全表达式临时链）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x6c7d, 5)(
+                "[InvalidExp] Invalid character exp per level. "
+                "(mid:%u, charac:%u, level:%d, exp:%d,%d,%d)",
+                user.get_acc_id(),
+                user.get_charac_no(-1),
+                user.get_charac_level(),
+                user.get_charac_exp(),
+                levelExpLow,
+                levelExpHigh);
+        }
+    }
 }
 
 void Inter_LoadEtc::_checkUserDisadvantage(CUser* user)

@@ -188,7 +188,14 @@ struct stGenerateRefData_t
     ~stGenerateRefData_t();
 
     int m_dropRate;                 // +0x00（ctor=100）
-    int m_field04;                  // +0x04（ctor=0）
+    // b28d-53：ORIG generateRandomItem 0x08538773 `mov 0x4(%eax),%edx` 单条 disp 读
+    // 该 4 字节并位重解释为 float 实参；4.4 对 `*(float*)&m_field04` / float 引用视图
+    // 恒折 `add $0x4; mov (%eax)` 两步 ⇒ 权威头匿名 union 双视角（P235/P219，
+    // sizeof/偏移/对齐/mangled 零影响）。
+    union {
+        int m_field04;              // +0x04（ctor=0）
+        float m_field04f;           // +0x04（位重解释 float 视角）
+    };
     std::vector<bool> m_forceTag;   // +0x08（ctor: clear + 2×push_back(false)；0x14 字节）
     float m_field1c;                // +0x1c（ctor=1.0f）
     int m_premiumDropRate;          // +0x20（setPremiumDropRate 写 0/-1/rate）

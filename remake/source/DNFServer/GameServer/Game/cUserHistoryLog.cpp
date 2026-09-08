@@ -307,9 +307,15 @@ void cUserHistoryLog::GuildAddExp(unsigned int guildKey,
     const time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm local;
     struct tm* r = localtime_r(&now, &local);
+    // b28d-50：ORIG 0x08685be2 段把 tm_year/tm_mon+1/tm_mday 各落具名槽
+    // （-0x14/-0x10/-0xc，P0 槽往返⇒原码有具名局部），调用点再 `lea 0x76c(%eax)`；
+    // 直接内联读 r-> 字段会丢槽并改帧（0x78→0x70 + push esi/ebx）。
+    int year = r->tm_year;
+    int month = r->tm_mon + 1;
+    int day = r->tm_mday;
     m_user->LogHistory(
         "GuildAddExp,\"%d/%d/%d\",%d,\"%s\",%d,%d",
-        r->tm_year + 1900, r->tm_mon + 1, r->tm_mday,
+        year + 1900, month, day,
         guildKey, guildDBInfo, characNo, exp);
 }
 
@@ -488,9 +494,11 @@ void cUserHistoryLog::BillingFail(ENUM_BILLING_TYPE type,
                                   unsigned long long tranNo, int amount,
                                   int code, char* reason)
 {
-    char* str = NumberToString(tranNo, 0);
+    // b28d-50：ORIG 0x08685838 的 NumberToString 结果直留 %eax 落 0xc(%esp)（无
+    // str 槽）；具名局部多一槽且使 ull spill 由 -0x10/-0xc 漂到 -0x20/-0x1c、
+    // 帧 0x34→0x48、丢 push ebx。内联实参即复现（P0 表达式直传）。
     m_user->LogHistory("BILLING, Fail,%d,%s,%d,%d,%s",
-                       (int)type, str, amount, code, reason);
+                       (int)type, NumberToString(tranNo, 0), amount, code, reason);
 }
 
 // ============================================================================
@@ -1267,8 +1275,12 @@ void cUserHistoryLog::GuildCreate(unsigned int guildKey, const char* guildName,
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm broken;
     struct tm* r = localtime_r(&now, &broken);
+    // b28d-50：同 GuildAddExp——ORIG 0x086859a2 段三具名日期槽 -0x14/-0x10/-0xc。
+    int year = r->tm_year;
+    int month = r->tm_mon + 1;
+    int day = r->tm_mday;
     m_user->LogHistory("GuildCreate,\"%d/%d/%d\",%d,\"%s\",%d",
-                       r->tm_year + 0x76c, r->tm_mon + 1, r->tm_mday,
+                       year + 0x76c, month, day,
                        guildKey, guildName, characNo);
 }
 
@@ -1402,9 +1414,12 @@ void cUserHistoryLog::SelectCubeForPremiumService(int a)
 // ORIG _ZN15cUserHistoryLog21SendBuffertoClientLogEishb @0x08686e3a
 void cUserHistoryLog::SendBuffertoClientLog(int kind, short a, unsigned char b, bool c)
 {
-    const char* name = (kind == 0) ? "ANTIBOT" : "DPROTO";
+    // b28d-50：ORIG 0x08686e3a 在右起 varargs（c→%esi, b→%ebx, a→%ecx）之后才求
+    // %s 三元并直留 %eax（无槽，push esi/ebx + sub 0x30）；具名 `name` 局部会提前
+    // 物化到 -0xc 槽并改帧（0x44）。内联三元即复现。
     m_user->LogHistory("SendBuffertoClient [%s],%d,%d,%d",
-                       name, (int)a, (unsigned)b, (unsigned)c);
+                       (kind == 0) ? "ANTIBOT" : "DPROTO",
+                       (int)a, (unsigned)b, (unsigned)c);
 }
 
 // ORIG _ZN15cUserHistoryLog23SendMailForCeraShopGiftEjcjj @0x086848da

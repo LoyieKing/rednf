@@ -29,6 +29,7 @@
 #include "NOTIPacketStruct.h"           // _NotiAdvanceAltarSpawnUnit/_NotiAdvanceAltarClearStage（ProcStage 发送用）
 #include "advancealtar_StageDifficulty.h"  // StageDifficulty::T
 #include "AdvanceAltarField.h"     // _RewardItem 完整定义（ShopType 幂等块已收敛）
+#include "advancealtar_SummonObject.h"  // b28d-52：_SummonObject 叶子头（_SummonObjectMs::m_summon 真实子对象）
 #include "advancealtar_StageDifficulty.h"  // StageDifficulty::T
 
 class CUser;
@@ -74,7 +75,10 @@ struct _MapMonsterSummary
     unsigned char m_posX;      // +0x0a（_mapMonster+0x20 低字节；dieMob/isEndStage
                                //   ORIG 兼作已创建怪死亡标记读写同一偏移）
     unsigned char m_champion;  // +0x0b（_mapMonster+0x1c）
-    unsigned char m_padC;      // +0x0c（memset 尾字节；发送前无显式写入）
+    // b28d-52：ORIG dieMob 0x0812e283 `movzbl 0xe(%eax); xor $1,%eax; test; je`
+    // ⇒ P248 档② 字段 bool 化（原 unsigned char 恒 cmp $1/jne）。宽度 1、
+    // 偏移 +0x0c、sizeof 0xd、memset 范围均不变。
+    bool m_padC;               // +0x0c（memset 尾字节；发送前无显式写入）
 
     _MapMonsterSummary() { std::memset(this, 0, 0xd); }
 };                             // sizeof 0xd
@@ -111,8 +115,7 @@ struct _SummonObjectMs
     unsigned char m_deadFlag;        // +0x0c（dieMob 击杀置 1）
     unsigned char m_padD[3];         // +0x0d
     int m_sentFlag;                  // +0x10（summonObjectAndSendPacket 发包后置 1）
-    unsigned char m_summon[0x24];    // +0x14 = _SummonObject（memcpy 整体拷贝；
-                                     //   +0x00 m_id / +0x1c / +0x20 见权威头）
+    _SummonObject m_summon;          // +0x14（真实子对象 ⇒ 编译器发 C1 call）
 };                                   // sizeof 0x38
 
 typedef char _assert_summon_object_ms_size[(sizeof(_SummonObjectMs) == 0x38) ? 1 : -1];

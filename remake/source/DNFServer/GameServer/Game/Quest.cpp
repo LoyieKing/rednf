@@ -388,7 +388,7 @@ bool Quest::CheckKillMonster(int mapIdx, int dungeonIdx, int killCount,
     return 1;
 }
 
-char Quest::check_clear_send() const
+bool Quest::check_clear_send() const
 {
     return m_clearSendFlag;
 }

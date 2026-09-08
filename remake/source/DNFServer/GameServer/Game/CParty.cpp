@@ -1593,6 +1593,9 @@ int CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,
                 return 0;
             int needCount = getHellPartyEntranceItemNeedCount(dungeon->get_min_level());
             haveCount = 0;
+            // b28d-49 判词：N 封顶。P167 差集显示 ORIG 用非 const
+            // `__normal_iterator<Pi>`（de/pp/ne），但改 iterator 实测 identical 131→127
+            // 回归（list2 为 const 引用上下文 + 全 TU 匹配退化）⇒ 保持 const_iterator。
             for (std::vector<int>::const_iterator it = list2.begin();
                  it != list2.end(); ++it)
             {
@@ -1895,20 +1898,17 @@ int CParty::GetUserPosition(CUser* user)
             (m_manager == 0) ? "NoMember" : m_manager->getCurCharacName());
     for (int i = 0; i <= 3; ++i)
     {
+        // b28d-49 @0x85b4c63：ORIG 单次 sprintf —— `_checkValidUser(i) ? 名字 : "N/A"`
+        // 三元内联（je 跳过 getCurCharacName 后 %eax 直接进 0x8(%esp)）；
+        // if/else 两臂各写一次 sprintf 会多一次调用（ndiff 8）。
         if (i == 3)
-        {
-            if (_checkValidUser(i))
-                sprintf(nameBuf, "\"%s\"", m_member[i].m_pUser->getCurCharacName());
-            else
-                sprintf(nameBuf, "\"%s\"", "N/A");
-        }
+            sprintf(nameBuf, "\"%s\"",
+                    _checkValidUser(i)
+                        ? m_member[i].m_pUser->getCurCharacName() : "N/A");
         else
-        {
-            if (_checkValidUser(i))
-                sprintf(nameBuf, "\"%s\",", m_member[i].m_pUser->getCurCharacName());
-            else
-                sprintf(nameBuf, "\"%s\",", "N/A");
-        }
+            sprintf(nameBuf, "\"%s\",",
+                    _checkValidUser(i)
+                        ? m_member[i].m_pUser->getCurCharacName() : "N/A");
         strncat(buf, nameBuf, 0xff);
     }
     buf[0xff] = '\0';
@@ -2337,12 +2337,11 @@ bool CParty::IsEventCharacParty()
     }
     else
     {
-        // 保留 vtable 形态：ORIG IsEventCharacParty.md 085b9ffd-0x03c 即
-        // `mov (%eax),%eax; add $0x34,%eax; mov (%eax),%edx; call *%edx`
-        //（EventNewCharacterReward 虚槽间接调用；虚函数语义名无 ORIG 证据，
-        //  §4.3 禁编造 → 不替换为具名虚调用）。
-        char (*fn)(void*, int) = *(char(**)(void*, int))((*(int*)reward) + 0x34);
-        b = fn(reward, 0) != 1;
+        // b28d-49 @0x85b9ffd：P282 槽序还原 —— ORIG `add $0x34,%eax; mov (%eax),%edx;
+        // call *%edx` 与 checkFreeRevivalCondition 0x085be466 的 IsEventing 同槽
+        //（vptr+0x34）⇒ 真身 = CEventBase::IsEventing(0)。改用真实虚调用（去掉历史
+        // 函数指针局部，帧 0x38→0x28、槽 -0x14/-0x15 消失）。
+        b = !reward->IsEventing(0);
     }
     if (b)
     {
@@ -3124,9 +3123,14 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         return 8;
     }
 
-    int minLevel = dungeon->get_min_level();               // -0x68
-    if (minLevel >= 2 && IsLightServer() != 0)
-        minLevel = dungeon->get_min_level();               // 两分支同值，保留结构
+    // b28d-49 @0x85a0b17：ORIG 三调 get_min_level（85a0b26 条件 / 85a0b46 then /
+    // 85a0b56 else），条件序 = IsLightServer 先、`get_min_level() > 1` 后（P157 逐点重调，
+    // 不缓存）。原「先赋初值再条件重调」只有 2 次调用（P167 MISSING -1）。
+    int minLevel;
+    if (IsLightServer() != 0 && dungeon->get_min_level() > 1)
+        minLevel = dungeon->get_min_level();
+    else
+        minLevel = dungeon->get_min_level();
 
     if (m_manager->IsGameMasterMode() != 1 &&
         minLevel > m_manager->get_charac_level())
@@ -3339,8 +3343,10 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         dungeon->isTowerOfDespairDungeon() == 0 &&
         dungeon->isTournamentDungeon() == 0)
     {
+        // b28d-49 @0x85a18c6：ORIG 第三实参是重调 get_member_count()（`mov %esi,0xc(%esp)`），
+        // 非 startCount 缓存（P157/P0；P167 MISSING get_member_count -1）。
         shop.m_openCode = GlobalData::s_secret_shop->LotteryNpc(
-            dungeon->get_index(), dungeon->get_standard_level(), startCount);
+            dungeon->get_index(), dungeon->get_standard_level(), get_member_count());
     }
     else
     {
@@ -3400,10 +3406,14 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         m_member[i].m_pUser->m_character.m_f20 = startCount;   // user+0x8e054
         m_member[i].m_pUser->m_field8e074 = 0;                 // user+0x8e074（CUser 直属字段；Layout_D 布局修正）
 
-        int stdLvl = m_battleField.m_pDungeon->get_standard_level();
-        int muLvl = m_member[i].m_pUser->get_charac_level();
+        // b28d-49 @0x85a1c34：ORIG 无 stdLvl/muLvl 缓存 —— 条件里逐点重调
+        // get_standard_level（85a1c34/85a1c6b）+ get_charac_level（85a1c56/85a1c8d），
+        // 每项 `lea ±5/±3` 就地折叠（P157/P0；P167 各 MISSING -1）。
         bool properLevel =
-            ((muLvl >= stdLvl - 5) && (muLvl <= stdLvl + 3));
+            ((m_member[i].m_pUser->get_charac_level() >=
+              m_battleField.m_pDungeon->get_standard_level() - 5) &&
+             (m_member[i].m_pUser->get_charac_level() <=
+              m_battleField.m_pDungeon->get_standard_level() + 3));
         if (properLevel)
         {
             bd.m_flag28[0] = 1;                // +0x354
@@ -3440,8 +3450,15 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
 
         if (getManager()->getMoveSpace() != 1)
         {
-            GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(
-                dungeonIdx, partyType == 1);
+            // b28d-49 @0x85a1e6e：ORIG 按 `cmpl $0x1,-0x6c(%ebp); je` 分两臂各发一次
+            // IncrementDungeonEntrance（85a1e8b false / 85a1ea9 true），非 bool 实参直传
+            //（P167 MISSING GetInstanceDungeonEntranceLog/IncrementDungeonEntrance 各 -1）。
+            if (partyType != 1)
+                GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(
+                    dungeonIdx, false);
+            else
+                GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(
+                    dungeonIdx, true);
         }
         if (partyType != 1)
             m_member[i].m_pUser->IncCurCharacDungeonPlayCount();
@@ -3468,7 +3485,12 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
     send_loadingcheck_msg();
 
     CEventBase* ev57 = GlobalData::s_event_manager->GetRepeatEvent(0x57);
-    SetWeekendEvent(ev57->IsEventing(0) ? true : false);
+    // b28d-49 @0x85a2076：ORIG 两臂各发一次 SetWeekendEvent（85a2086 true / 85a209b false），
+    // 三目形只发一次（P167 MISSING SetWeekendEvent -1）。
+    if (ev57->IsEventing(0))
+        SetWeekendEvent(true);
+    else
+        SetWeekendEvent(false);
 
     QuickParty::RewardData_Param rewardParam(this);
     QuickParty::RewardData_Result rewardResult;
@@ -4543,7 +4565,12 @@ void CParty::map_load_forced_finish()
         {
             for (int i = 0; i <= 3; ++i)                // -0xc
             {
-                if (_checkValidUser(i) && m_battleData.m_arr50[i] != 1)
+                // b28d-49 @0x85b1f31：ORIG 两独立守卫各自 `xor $0x1,%eax; test %al,%al`
+                //（P133 拆守卫 + P168a 裸 `!` 形）：`!call` → jne <continue 岛>，
+                // `!m_arr50[i]` → je <跳过 giveup_game>。合并 && 链产 cmp$1 物化岛（ndiff 6）。
+                if (!_checkValidUser(i))
+                    continue;
+                if (!m_battleData.m_arr50[i])
                     giveup_game(m_member[i].m_pUser, false, false, false);
             }
             if (get_member_count() > 0)
@@ -4715,22 +4742,24 @@ void CParty::CompleteCardSelect()
         {
             for (int z = 0; z <= 3; ++z)                // -0x10
             {
-                if (_checkValidUser(z))
+                // b28d-49 @0x85b485x：ORIG `call _checkValidUser; xor $0x1,%eax;
+                // test %al,%al; jne <continue>` ⇒ 负极性早退（P168a 裸形）；正极性包裹
+                // 产 `test;je` 且缺 xor（ndiff 1）。
+                if (!_checkValidUser(z))
+                    continue;
+                if (!IsSelectCard((char)z, eClearRewardCardType_t_0))
                 {
-                    if (!IsSelectCard((char)z, eClearRewardCardType_t_0))
+                    m_field204[0][i] = (char)z;
+                    if ((unsigned char)m_field204[0][i] == 0xff)
                     {
-                        m_field204[0][i] = (char)z;
-                        if ((unsigned char)m_field204[0][i] == 0xff)
-                        {
-                            LogManager::logFormat(
-                                1, "party.cpp",
-                                __PRETTY_FUNCTION__, 0x36f8,
-                                "INIT_CARD_NUM != dungeon_reward_card_[i]==>> "
-                                "dungeon_reward_card_[i] = %d, i = %d, z = %d",
-                                (int)(char)m_field204[0][i], i, z);
-                        }
-                        break;
+                        LogManager::logFormat(
+                            1, "party.cpp",
+                            __PRETTY_FUNCTION__, 0x36f8,
+                            "INIT_CARD_NUM != dungeon_reward_card_[i]==>> "
+                            "dungeon_reward_card_[i] = %d, i = %d, z = %d",
+                            (int)(char)m_field204[0][i], i, z);
                     }
+                    break;
                 }
             }
         }
@@ -4765,6 +4794,7 @@ bool CParty::IsCompleteCardSelectOfMembers(eClearRewardCardType_t type)
             }
             else
             {
+                // b28d-49 判词 @0x85b48xx：AE（P223 nop 岛由 compare 口径 strip 后全等）。
                 continue;   // ORIG +0x98 nop 块（4.1/4.4 continue 空块产物）
             }
         }
@@ -4924,6 +4954,8 @@ void CParty::MakeTournamentReward(CTournamentDungeonReward& reward)
     if (expRound < 0)
         expRound = 0;
 
+    // b28d-49 判词：N 封顶。P167 差集 ORIG 为非 const find + const_iterator 转换构造
+    //（EXTRA），但同批 iterator 改型实测全 TU identical 回归 ⇒ 保持 const_iterator。
     std::map<unsigned char, unsigned int>::const_iterator itExp =
         dungeon->m_map8d8.find((unsigned char)expRound);
     if (itExp != dungeon->m_map8d8.end())

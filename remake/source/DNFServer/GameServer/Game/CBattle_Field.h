@@ -293,7 +293,7 @@ public:
     void setPremiumDropRate(WongWork::stGenerateRefData_t& ref, int premiumRate);  // 0830b848
     void startUltimateRound();                                // 083064de
     unsigned char IsAssignNPCByPotion();                               // 0822cee2
-    static unsigned char IsEnableHellDungeon();                               // 0830ed07
+    static bool IsEnableHellDungeon();                               // 0830ed07（b28d-Main: P292 更正版，5 调用点 `call; test %al,%al; je` 无 setne ⇒ bool）
     char IsFirstEnterDungeon();                               // 08307656
     unsigned char IsVisitedCurrentMap();                               // 085bf2e8
     bool SetDamagedPacketCnt(int uid);                        // 08308f4e
@@ -305,7 +305,7 @@ public:
     void AddTournamentMonster(const TournamentInfo& info, std::list<_mapMonster>& mobList,
                               bool isUltimate);              // 08304718
     bool DestroyPassiveObject(int idx);                       // 082ff3ec
-    static char* GetEnableHellDungeon();                             // 0822cf26
+    static bool* GetEnableHellDungeon();                             // 0822cf26（bool 链：被指全局字节为 bool，使 IsEnableHellDungeon 体保持 movzbl 直返）
     void InsertTournamentInfo(std::vector<int>& indexes,
                               std::vector<TournamentInfo>& infos,
                               std::map<short, TournamentInfo>& roundMap);  // 08303e02

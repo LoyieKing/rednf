@@ -100,6 +100,8 @@ bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
     // （实参装载时刻跨版本差异）。探针 /tmp/l10_probe8/9.cpp 六形（cast/语句表达式/
     // 具名指针）均不可翻；具名 `socklen_t* plen=&len` 反而多槽往返（P0 反例）。
     // 语义等价：槽位 -0x20/-0x1c 与 ORIG 相同，仅 1 条 lea 位置差。
+    // b28d-49 复核 @0x8483732：结论不变 —— 除该 1 条 lea 位置外，全部残差为
+    // call/字符串地址重定位（AE 口径归一）；P75 封顶。
     int err;
     sockaddr_in from;
     socklen_t len;
@@ -145,6 +147,8 @@ bool CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
 {
     // b28c-L10 判词（DIFF 2，P75）：同 RecvFromClient（ORIG &len 先物化到 %ebx，
     // 4.4 延后到压栈点）；六形探针全败，语义等价。
+    // b28d-49 复核 @0x8483a52：逐行 diff 仅 1 条 `lea -0x20(%ebp),%ebx` 位置差 +
+    // call/字符串地址重定位；P75 封顶。
     int err;
     sockaddr_in from;
     socklen_t len;

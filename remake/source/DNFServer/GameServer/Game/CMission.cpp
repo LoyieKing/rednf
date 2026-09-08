@@ -1069,7 +1069,11 @@ bool CMission_combo_clear::_isAcceptCondition(const CUser& user) const
     combo_script_key key;
     key.m_job = (char)user.get_charac_job();
     key.m_growType = (short)user.getCurCharFirstGrowType();
-    return m_comboMap.find(key) != m_comboMap.end();
+    // b28d-50：ORIG 0x085e438c 尾为 test %al,%al; je <mov $0>; mov $1; jmp;
+    // mov $0（P56 分支形态）；`return find()!=end();` 4.4 直返 call 结果（-5 条）。
+    if (m_comboMap.find(key) != m_comboMap.end())
+        return true;
+    return false;
 }
 
 bool CMission_combo_clear::isClearable(MissionInfo& info, bool&) const
@@ -1127,14 +1131,12 @@ int CMission_combo_clear::_Reward(CUser& user) const
 }
 
 // ORIG W 0x085e692a：sret 返回 {m_gradeMin, m_gradeMax}（8 字节）。
-// [b28c-lane12 判词·N] 残余 3 条为跨版本固有：①ORIG 4.1 两 load 先于两 store
-// 且右到左（+0x1c 先）；4.4 四形探针（逐字段/= {}/临时/C 复合字面量，
-// /tmp/l12_probe3.cpp f1-f5）恒左到右或带 $0x0 预清；②ORIG 尾 `mov %ecx,%eax`
-// （4.1 sret 函数回传指针）4.4 不发射。助记符序列/指令数全等 ⇒ NEAR 封顶。
+// b28d-50 AE：旧 b28c-lane12「N 封顶」判词作废——ORIG 该形为 **8 字节 POD 整体
+// 拷贝**（`mov 0x1c(%eax),%edx; mov 0x18(%eax),%eax; mov %eax,(%ecx); mov %edx,0x4(%ecx);
+// mov %ecx,%eax`），与 C1 0x085e304b 同族；CMission.h 把 +0x18 改为匿名 union
+// 双视角（m_gradeMin/m_gradeMax | MissionRankRange m_rankRange，偏移不变）后
+// `return m_rankRange;` 即逐条复现（探针 /tmp/arad_probe/r3.cpp 实证）。
 MissionRankRange CMission::GetRankRange() const
 {
-    MissionRankRange r;
-    r.gradeMin = m_gradeMin;
-    r.gradeMax = m_gradeMax;
-    return r;
+    return m_rankRange;
 }

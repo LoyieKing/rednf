@@ -68,9 +68,9 @@ int CBossTower::handleDieUser(CUser* user)
     if (_checkMemberDie())
     {
         onFinishStage();
-        // [N 封顶] ORIG 0x08143ac0 movzbl+xor$1+test/je；4.4 对 !=1 恒 `cmp $1`
-        // （含 ^1 写法被前端 fold），P197-④ 族无源形可复现。
-        if (m_prepareFinishFlag != 1)
+        // b28d-54 翻正：ORIG 0x08143ab6 `movzbl 0xafc(%eax),%eax; xor $1,%eax;
+        // test %al,%al; je` ⇒ 字段 bool 化（CBossTower.h）+ 裸 `if(!f)`（P248 档②）。
+        if (!m_prepareFinishFlag)
             _onPrepareFinishTower(false);
     }
     return 1;
@@ -212,15 +212,19 @@ bool CBossTower::handleDropItem(CUser* user, int a, int b, char c, int d, int e)
 int CBossTower::handleKillMonster(CUser* user, unsigned short a, unsigned short b,
                                   const MSG_MONSTER_DIE& die, int* d)
 {
-    // ORIG mov %al,-0x9 截断 + xor$1 槽化判定（第57件同款）。
-    char killed = (char)CBossStage::handleKillMonster(user, a, b, die, d);
+    // b28d-54 翻正：ORIG 0x08143f03 `mov %al,-0x9; movzbl -0x9,%eax; xor $1,%eax;
+    // test %al,%al; je` ⇒ 局部是 bool（P248 档②；char 恒 `cmpb $0,-0x9; jne`）。
+    // 仅改局部类型，被调 CBossStage::handleKillMonster 保持 int（历史实测 bool 化
+    // 其大 body 致全帧槽漂移回归）。
+    bool killed = (bool)CBossStage::handleKillMonster(user, a, b, die, d);
     if (!killed)
         return 0;
     if (m_stageData.m_monsterMap.empty())
     {
         onFinishStage();
-        if (static_cast<unsigned int>(m_stageCur) >=
-            static_cast<unsigned int>(m_stageMax))
+        // b28d-54：m_stageCur 已同型化为 unsigned（CBossStage.h）⇒ 去 cast 后
+        // 4.4 复现 ORIG 0x08143f38 单段 `mov 0xae0(%eax),%edx`（P211 档③）。
+        if (m_stageCur >= m_stageMax)
         {
             _onPrepareFinishTower(true);
         }

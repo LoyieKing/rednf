@@ -86,11 +86,14 @@ void DisjointScript::clear()
     // （P197③ 双段式）与 4.4 单段 + 帧/槽平移。
     // ORIG 0x08375bca：5 容器 clear → 4 LotteryInfo::clear → +0xbc=-1 →
     // skills clear → (+0xcc,+0xdc) 清零 → 三重循环清零 m_grid。
-    for (int i = 0; i < 5; ++i)
+    // [b28d-48] P191 配套：ORIG 0x08375bca 双 `movl $0,-0x20`（`int i=0;`
+    // 与 `for(i=0;…)` 两条初始化都发射），for-init 声明形只发一条。
+    int i = 0;
+    for (i = 0; i < 5; ++i)
     {
         m_cubeIndexVecs[i].clear();
     }
-    for (int i = 0; i < 4; ++i)
+    for (i = 0; i < 4; ++i)
     {
         m_legacyInfo[i].clear();
     }

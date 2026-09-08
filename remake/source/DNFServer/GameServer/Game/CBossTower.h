@@ -86,7 +86,10 @@ private:
                                     //   _onPrepareFinishTower 结算时长起点）
     int m_towerEndTick;             // +0xaf8（handleStartGame 清零；
                                     //   _onPrepareFinishTower 置当前 tick）
-    char m_prepareFinishFlag;       // +0xafc（_onPrepareFinishTower(bool) 写入）
+    // b28d-54：char→bool。ORIG handleDieUser 0x08143ab6 `movzbl 0xafc(%eax),%eax;
+    //   xor $1,%eax; test %al,%al; je`（P248 档②：字段 bool 化 + 裸 `if(!f)` 才产
+    //   xor 物化；char 恒 `cmp $1`）。宽度 1、sizeof 0xb18、偏移全不变。
+    bool m_prepareFinishFlag;       // +0xafc（_onPrepareFinishTower(bool) 写入）
     CBossDungeonEntranceLog m_dungeonLog;  // +0xb00..+0xb18（0x18）
     // 总尺寸 0xb18
 };

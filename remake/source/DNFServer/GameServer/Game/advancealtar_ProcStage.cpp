@@ -142,9 +142,9 @@ CUser* CharacData::getUser() const
 // ----------------------------------------------------------------------------
 _SummonObjectMs::_SummonObjectMs()
 {
-    // gcc 4.4 不支持显式 ctor 调用语法（Fix14_F 记录），用 placement new 复现
-    // ORIG 子对象构造序列（ctor 本身 memset 0x24）。m_summon 字节槽即 _SummonObject@+0x14。
-    new (static_cast<void*>(m_summon)) _SummonObject;
+    // b28d-52：m_summon 改真实成员后由编译器自动发 _SummonObject::C1 call
+    // （ORIG 0x08134677 `add $0x14,%eax; call _SummonObject::C1Ev`），
+    // 无需 placement new（消 N83 的 extern _ZnwjPv + EH cleanup 段）。
     std::memset(this, 0, sizeof(*this));
 }
 
@@ -171,8 +171,10 @@ void ProcStage::ProcSummonObjectMs::reset()
     m_currentMs = 0;
     m_deadCount = 0;
     m_aliveDelta = 0;
-    for (std::vector<_SummonObjectMs*>::iterator it = m_summons.begin();
-         it != m_summons.end(); ++it)
+    // b28d-52：ORIG 0x0812d478 begin 结果经 const_iterator 转换构造（P96/P270：
+    // `__normal_iteratorIPKP...` 转换 ctor），增量段为后置 ppEi（P28）。
+    for (std::vector<_SummonObjectMs*>::const_iterator it = m_summons.begin();
+         it != m_summons.end(); it++)
     {
         delete *it;
     }
@@ -266,7 +268,7 @@ void ProcStage::ProcSummonObjectMs::summonObjectAndSendPacket()
 
                 NOTIPacketStruct::_NotiAdvanceAltarSpawnUnit body;
                 body.m_spawnIndex = static_cast<unsigned short>(so->m_seq);
-                std::memcpy(&body.m_summon, so->m_summon, 0x24);
+                std::memcpy(&body.m_summon, &so->m_summon, 0x24);
 
                 PacketGuard guard;
                 guard.put_header(0, 0x20b);
@@ -296,7 +298,7 @@ void ProcStage::ProcSummonObjectMs::debugLog() const
              it != m_summons.end(); ++it)
         {
             const _SummonObjectMs* so = *it;
-            const _SummonObject* sm = reinterpret_cast<const _SummonObject*>(so->m_summon);
+            const _SummonObject* sm = &so->m_summon;
             trace("\tVecotr Ms = %06d ActionDefineId=%d ObjectId=%d spawndId=%d isDead=%d ObjectType=%d ObjectIndex=%d\n",
                   so->m_ms, so->m_actionDefineId,
                   sm->m_id,
@@ -313,7 +315,7 @@ void ProcStage::ProcSummonObjectMs::debugLog() const
              it != m_summonMap.end(); ++it)
         {
             const _SummonObjectMs* so = it->second;
-            const _SummonObject* sm = reinterpret_cast<const _SummonObject*>(so->m_summon);
+            const _SummonObject* sm = &so->m_summon;
             trace("\tMap Ms = %06d ActionDefineId=%d ObjectId=%d spawndId=%d isDead=%d ObjectType=%d ObjectIndex=%d\n",
                   so->m_ms, so->m_actionDefineId,
                   sm->m_id,
@@ -348,7 +350,7 @@ bool ProcStage::ProcSummonObjectMs::dieMob(unsigned short mobSeq, unsigned short
         CUser* user = m_characData->getUser();
         if (user != 0)
         {
-            const int monsterId = reinterpret_cast<const _SummonObject*>(so->m_summon)->m_id;
+            const int monsterId = so->m_summon.m_id;
             HistoryLog::killMonster(*user, monsterId, msg);
         }
         return 1;
@@ -506,7 +508,7 @@ bool ProcStage::makeCurrentPhaseSummonObject()
                     so->m_seq = m_field14;
                     m_field14 = static_cast<short>(m_field14 + 1);
                     so->m_actionDefineId = define->m_id;
-                    std::memcpy(so->m_summon, it->m_pSummon, 0x24);
+                    std::memcpy(&so->m_summon, it->m_pSummon, 0x24);
                     m_summonObjectMs.insertSummonObject(*so);
                     spawnMs += it->m_nextDelayMs;
                     if (firstIndex == -1)
@@ -969,12 +971,15 @@ bool ProcStage::dieMob(unsigned short mobSeq, unsigned short param,
     {
         std::map<short, _MapMonsterSummary>::iterator it =
             m_createdMapMonsters.find(static_cast<short>(mobSeq));
-        if (it == m_createdMapMonsters.end() || it->second.m_padC == 1)
+        // b28d-52：ORIG 0x0812e26f 起为「两负跳汇聚 + mov$1/mov$0 物化 + test」
+        // （P214① 汇聚块）：正极性 && 短路直写条件（P0：ORIG 汇聚值无槽往返 ⇒
+        // 无具名 bool 局部），字段按 P248 档② bool 化后用裸 !field。
+        if (it != m_createdMapMonsters.end() && !it->second.m_padC)
         {
-            return false;
+            it->second.m_padC = true;
+            return true;
         }
-        it->second.m_padC = 1;   // 兼用字段：已创建怪死亡标记 [objdump 0x0812e2a9 读 pair+0xe=m_padC]
-        return true;
+        return false;
     }
     return true;
 }
@@ -1090,15 +1095,17 @@ bool ProcStage::endProcAllKillMonster()
     }
     if (getStageType() == 1)
     {
-        const StageDifficulty::T diff =
-            static_cast<StageDifficulty::T>(getStageDifficulty());
-        if (startStage(getStageIndex(), diff) == 0)
+        // b28d-52：ORIG 0x0812ea64 为正向包裹（P222）——`test; setne; je <ret0 块>`
+        // 成功路径 fall-through 调 clearStageAndReward；且 difficulty 经 %ebx
+        // 跨 getStageIndex 调用保活（P0：无槽 ⇒ 表达式内联实参）。
+        if (startStage(getStageIndex(),
+                       static_cast<StageDifficulty::T>(getStageDifficulty())) != 0)
         {
-            m_state = State::S_N3;
-            return false;              // ORIG ret0：进入下一轮奖励态
+            clearStageAndReward();
+            return true;
         }
-        clearStageAndReward();
-        return true;
+        m_state = State::S_N3;
+        return false;                  // ORIG ret0：进入下一轮奖励态
     }
     clearStageAndReward();
     return true;
@@ -1350,17 +1357,14 @@ void ProcStage::sendClearStage(const std::vector<_RewardItem>& rewards,
 // ----------------------------------------------------------------------------
 void HistoryLog::leaveDungeon(CUser& user, const ProcStage& procStage)
 {
-    char memberNames[255];
-    for (unsigned int i = 0; i < sizeof(memberNames); ++i)
-    {
-        memberNames[i] = 0;
-    }
+    // b28d-52：ORIG 0x08133abc `mov $0x40,%edx; rep stos` = 0x100 字节零初始化
+    // （P214③：char buf[N]={0} 复现 4.1 rep stos；旧 255 + 显式循环为逐字节形）。
+    char memberNames[0x100] = {0};
     getMemberNames(&user, memberNames);
 
-    const int difficulty = procStage.getStageDifficulty();
-    const int stageIndex = procStage.getStageIndex();
-    cUserHistoryLog* hist = &user.m_historyLog;
-    hist->LeaveDungeon(stageIndex, difficulty, memberNames, 0);
+    // P0：ORIG 无 difficulty/stageIndex 槽（difficulty 入 %ebx 跨调用保活）⇒ 实参内联。
+    user.m_historyLog.LeaveDungeon(procStage.getStageIndex(),
+                                   procStage.getStageDifficulty(), memberNames, 0);
 }
 
 // ----------------------------------------------------------------------------

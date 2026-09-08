@@ -949,8 +949,11 @@ int CUser::exchange_interspace_expand(int fromSpace, int fromSlot,
         return 0x15;
     }
 
-    if (getCurChannelEquipslotSwitch() != channelSwitchReq
-        || getCurExpandEquipslotSwitch() != expandSwitchReq)
+    // b28d-49 @0x865f6ba：ORIG `call getCurChannelEquipslotSwitch; cmp -0x1c(%ebp),%al;
+    // jne` = 8 位同型比较；getter 返 unsigned char + 形参 char 触发 4.4 32 位扩展
+    //（movzbl+movsbl+cmp reg），调用点 (char) 收窄即复现（探针 g4）。
+    if ((char)getCurChannelEquipslotSwitch() != channelSwitchReq
+        || (char)getCurExpandEquipslotSwitch() != expandSwitchReq)
         return 1;
 
     int unusedSlot = 0;

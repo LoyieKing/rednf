@@ -400,7 +400,7 @@ public:
     bool CheckKillMonster(int mapIdx, int dungeonIdx, int killCount,
                           ENUM_QUEST_ENEMY_TYPE enemyType,
                           std::vector<MonsterKillItem>& out) const;
-    char check_clear_send() const;
+    bool check_clear_send() const;  // b28d-Main 终裁(P292 更正版)：ORIG 0x084e923c 体 `movzbl 0x44(%eax),%eax; ret` + 调用点 0x084c2b55 `call; test %al,%al; je`（无 setne）⇒ 字段与返回类型同时 bool
 
     // 触发 / 奖励
     int get_init_trigger() const;
@@ -430,7 +430,7 @@ public:
     int m_questCountLimit;                     // +0x28
     std::vector<std::vector<int> > m_intDataList;  // +0x2c
     std::vector<int> m_antiQuestList;          // +0x38
-    char m_clearSendFlag;                      // +0x44
+    bool m_clearSendFlag;                      // +0x44（b28d-Main: P292 更正版判据，ORIG 体 movzbl 直返+调用点无 setne）
     char m_pad45[3];
     std::vector<DungeonClearItem> m_clearItems;    // +0x48
     std::vector<MonsterKillItem> m_killItems;      // +0x54

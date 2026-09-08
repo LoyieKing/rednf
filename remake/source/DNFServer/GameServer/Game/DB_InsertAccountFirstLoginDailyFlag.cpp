@@ -44,14 +44,20 @@ bool DB_InsertAccountFirstLoginDailyFlag::dispatch(int /*userIdx*/, int /*slot*/
                                                   (ENUM_SERVER_GROUP)0);
     unsigned int local_20 = 0;   // m_id
     unsigned int local_24 = 0;   // charac_no
-    int          local_28 = 0;   // 事件记录类型（0x19c）
+    // P0/P171：ORIG 0x0843e93e 仅对 p1/p2 预清（movl $0），p3 无预清（直接读入）。
+    int          local_28;       // 事件记录类型（0x19c）
+    // b28d-52/P171：ORIG 0x0843e8f0 头有 `movl $0x0,-0x14(%ebp)` 死写入
+    // （该槽此后不再被读），照抄保留。
+    int          local_14 = 0;
+    (void)local_14;
     *s >> local_20;
     *s >> local_24;
     *s >> local_28;
 
-    CDataManager* dm = G_CDataManager();
+    // P0：ORIG 无 dm 槽（G_CDataManager() 结果经 %eax 直传 get_event_script_mng）。
     EventClassify::CEventScriptMng* sm =
-        static_cast<EventClassify::CEventScriptMng*>(dm->get_event_script_mng());
+        static_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng());
     if (local_28 != 0x19c)
         return 0;
 
@@ -59,11 +65,11 @@ bool DB_InsertAccountFirstLoginDailyFlag::dispatch(int /*userIdx*/, int /*slot*/
     if (ent == 0)
         return 0;
 
-    // ORIG 0x0843e99c/0x0843ea12：toTString(const std::string&) 转换表名。
-    std::string& tableName = ent->get_db_table_name();
-    // P48 no-CSE：ORIG 两条 set_query 各 fresh toTString(tableName)（共 2 次）。
+    // ORIG 0x0843e99c/0x0843ea12：两处均为 fresh 虚调用
+    // `ent->get_db_table_name()`（vptr+0x20，P48 no-CSE / P282），结果直接作
+    // toTString 实参，无具名引用缓存（旧版缓存导致第二次虚调用缺失）。
     db->set_query("upDate %s set charac_no=%u, occ_date=now() where m_id=%u",
-                  toTString(tableName), local_24, local_20);
+                  toTString(ent->get_db_table_name()), local_24, local_20);
     if (!db->exec(true))
         return 0;
 
@@ -71,7 +77,7 @@ bool DB_InsertAccountFirstLoginDailyFlag::dispatch(int /*userIdx*/, int /*slot*/
     {
         db->set_query("inSert into %s(m_id, charac_no, occ_date) "
                       "values(%u, %u, now())",
-                      toTString(tableName), local_20, local_24);
+                      toTString(ent->get_db_table_name()), local_20, local_24);
         if (!db->exec(true))
             return 0;
     }

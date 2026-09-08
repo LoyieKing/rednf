@@ -74,8 +74,14 @@ protected:
     int m_missionIndex;                            // +0x0c
     int m_field10;                                 // +0x10
     int m_prevMissionIndex;                        // +0x14
-    int m_gradeMin;                                // +0x18
-    int m_gradeMax;                                // +0x1c
+    // +0x18：ORIG 为 8 字节 POD 整体成员——C1 0x085e304b（`lea 0x18(%eax),%ecx;
+    // …; mov %eax,(%ecx); mov %edx,0x4(%ecx)`）与 GetRankRange 0x085e692a 同形
+    // （整体拷贝，P246/P235）。匿名 union 双视角：字段名与 `m_rankRange` 并存，
+    // 偏移 +0x18/+0x1c、sizeof、后续成员偏移全部不变。
+    union {
+        struct { int m_gradeMin; int m_gradeMax; };
+        MissionRankRange m_rankRange;
+    };                                             // +0x18
     int m_rateMin;                                 // +0x20
     int m_rateMax;                                 // +0x24
     int m_grade;                                   // +0x28

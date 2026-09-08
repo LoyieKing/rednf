@@ -66,7 +66,10 @@ protected:
     int m_endTick;             // +0x9ec（handleMoveMap 计时终点【推断：通关时刻】）
     CDungeon* m_dungeon;       // +0x9f0（consistMap/handleMoveMap/掉落域）
     MapInfo m_stageData;       // +0x9f4（0xec；ctor 显式构造+Clear）
-    int m_stageCur;            // +0xae0（当前层，ctor=1）
+    // b28d-54：int→unsigned int（P211 同型化）。ORIG handleKillMonster 0x08143f38
+    //   `mov 0xae0(%eax),%edx; mov 0xae4(%eax),%eax; cmp %eax,%edx; jb` 单段装载；
+    //   int 字段恒多一条 eax→edx 中转。宽度/sizeof 0xaf0/偏移全不变。
+    unsigned int m_stageCur;   // +0xae0（当前层，ctor=1）
     unsigned int m_stageMax;       // +0xae4（P211 异型化：getRandomTowerMaxStage 返 int
                                //  ⇒ RHS-first+edx 中转 = ORIG InitBossTower 形）
     int m_difficulty;          // +0xae8

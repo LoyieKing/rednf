@@ -55,7 +55,9 @@ public:
     unsigned short m_field3e; // +0x3e
     unsigned short m_field40; // +0x40
     unsigned short m_field42; // +0x42
-    int m_field44;            // +0x44
+    unsigned int m_field44;   // +0x44（b28d-54：ORIG 0x084b7596 无符号比较 jae +
+                              //   0x084b758b 单段 `mov 0x44(%eax),%edx` ⇒ 字段与 RHS
+                              //   同型化（P211），int 恒多一条 eax→edx 中转）
     unsigned short m_field48; // +0x48
     unsigned short m_field4a; // +0x4a
     int m_field4c;            // +0x4c
@@ -118,9 +120,9 @@ int GameResultType::UpdateHighScore(const GameResultType& other)
         m_field48 = other.m_field48;
         flags |= 8;
     }
-    // N18a 反向：ORIG 0x084b75a0 `mov 0x44(%eax),%edx` 单段直落 edx；
-    // 4.4 恒先载 %eax 再 `mov %eax,%edx` 中转（探针不可翻），封顶。
-    if ((unsigned)other.m_field44 < (unsigned)m_field44)
+    // b28d-54 判词：ORIG 0x084b7588 段 `mov 0x44(%eax),%edx; cmp %eax,%edx; jae`
+    //   ⇒ 无符号比较 + 单段装载；字段改 unsigned int（与 RHS 同型，P211 档③）。
+    if (other.m_field44 < m_field44)
     {
         m_field44 = other.m_field44;
         flags |= 4;
