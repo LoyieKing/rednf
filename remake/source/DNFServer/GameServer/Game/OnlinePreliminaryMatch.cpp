@@ -169,7 +169,11 @@ void CEloRating::calc(float& ratingSelf, float& ratingOther,
     // ORIG 0x0844dcf0：`mov 0x10(%ebp),%eax; cmp $1/je; cmp $2/je; test/jne`
     // 决策树（P17/P46/P208）⇒ 源形为 switch（if-else 链恒内存直比）。
     // case 按数值升序书写（P46：4.4 树根取 (lo+hi)/2=1，叶块按 case 序排放）
-    switch (sys)
+    // [b28d-solo-OnlinePreliminaryMatch] P305：ENUM_ELO_RATING_SYSTEM 仅定义
+    // `_0=0`（SchoolMatchEnums.h），-fstrict-enums 判值域 {0} ⇒ 裸 switch(sys)
+    // 静默删 case 1/2（实测 .o 仅剩 0.0f/0.5f 两叶，1.0f 块消失=真语义 bug，
+    // ORIG 三叶全在）。改 `switch((int)sys)` 绕开值域裁剪（S18 规避法）。
+    switch ((int)sys)
     {
     case 0:
         score = 0.0f;
@@ -385,8 +389,10 @@ void COnlinePreliminary::_RegisterWaitingRoom(PvP_Room* /*room*/)
 /* ORIG T 0x08560082 前置的门禁函数 —— 见 _GetRating 家族段上方注释 */
 
 /* ORIG T 0x085606e0（mangled 无 K → 非 const 成员） */
-    // [b28 判词 N96+P168a④] X2 寄存器 xor/钉值物化形需 register 绑定；绑定 P0 全域禁用后无源形，N 封顶。
-int COnlinePreliminary::_CheckSameTeam(PvP_Room* /*room*/, CUser* user)
+    // [b28d-solo-OnlinePreliminaryMatch] P248档① 翻案：调用点 CheckJoinable
+    // @08560866 `call; xor $1,%eax; test %al,%al; je` ⇒ callee 返回 bool
+    // （P292 表：bool 返回才出 xor 形）。旧 N96 判词作废，返回类型 int→bool。
+bool COnlinePreliminary::_CheckSameTeam(PvP_Room* /*room*/, CUser* user)
 {
     /* ORIG @085606f2 cmp $-1,%eax; sete %al; test %al,%al; je —— 裸 if 直判即产
      * sete+test（无独立 bool 槽，帧 sub $0x14 与 ORIG 全等）；具名 bool 反 spill 到
@@ -402,8 +408,9 @@ int COnlinePreliminary::_CheckSameTeam(PvP_Room* /*room*/, CUser* user)
 }
 
 /* ORIG T 0x08560736（mangled 无 K → 非 const 成员；第二参为 PvP_Room*，报告变量名 param_2 有误【推断修正】） */
-    // [b28 判词 N96+P168a④] X2 寄存器 xor/钉值物化形需 register 绑定；绑定 P0 全域禁用后无源形，N 封顶。
-int COnlinePreliminary::_CheckObserver(PvP_Room* room, CUser* /*user*/)
+    // [b28d-solo-OnlinePreliminaryMatch] P248档① 翻案：同 _CheckSameTeam，
+    // CheckJoinable @0856088d 调用点 xor 形 ⇒ 返回类型 int→bool。
+bool COnlinePreliminary::_CheckObserver(PvP_Room* room, CUser* /*user*/)
 {
     int observers = 0;
     for (int i = 0; i <= 7; ++i)
@@ -489,22 +496,15 @@ int COnlinePreliminary::CheckJoinable(PvP_Room* room, CUser* user)
     switch (m_field04)
     {
     case 0:
-        /* ORIG 双 `xor $1,%eax; test %al,%al; je`(@08560866/@0856088d)：
-         * 两 call 均 int 返回取反判 → X1 变形（register uchar 绑 eax + ^=1，
-         * 主体 `if(!call) return 4` 连判【Main 批准铺池】） */
-        {
-            unsigned char st =
-                (unsigned char)_CheckSameTeam(room, user);  // b28 P0：X2 裸形
-            st ^= 1;
-            if (st)
-                return 4;
-            unsigned char ob =
-                (unsigned char)_CheckObserver(room, user);  // b28 P0：X2 裸形
-            ob ^= 1;
-            if (ob)
-                return 4;
-            return 0;
-        }
+        /* [b28d-solo-OnlinePreliminaryMatch] P248档①：_CheckSameTeam/
+         * _CheckObserver 返回类型 int→bool 后，裸 `if(!call) return 4;`
+         * 直产 ORIG @08560866/@0856088d 的 `call; xor $1,%eax; test %al,%al;
+         * je`（旧 uchar 栈化三段 mov%al,-N;xorb$1,-N;cmpb 与帧 +0x10 一并消）。 */
+        if (!_CheckSameTeam(room, user))
+            return 4;
+        if (!_CheckObserver(room, user))
+            return 4;
+        return 0;
     case 3:                     /* 叶岛序（P46：叶排放=case 书写序，跳表
                                  * @8ca230c：3→0 岛、1/4/5→共享 4 岛、
                                  * 2/default→共享 4 岛） */
@@ -1070,7 +1070,11 @@ int COnlinePreliminary::OnWalkOut(PvP_Room* room, int a)
 {
     int team = room->get_team(a);
     CUser* u = reinterpret_cast<CUser*>(room->get_user_seat(a));
-    OnLeaveRoom(u, room, a, team);
+    /* [b28d-solo-OnlinePreliminaryMatch] ORIG @08561fc6-0x5d 压参序实证：
+     * 0xc(%esp)=team(-0x10 槽)、0x10(%esp)=a(0x10(%ebp)) ⇒ 第 3 参是
+     * get_team(a) 的 team 值、第 4 参是座位号 a。原写 (a, team) 使
+     * OnLeaveRoom 的 teamGroup 收到座位号 = 真语义 bug；按 ORIG 交换。 */
+    OnLeaveRoom(u, room, team, a);
     return 1;
 }
 

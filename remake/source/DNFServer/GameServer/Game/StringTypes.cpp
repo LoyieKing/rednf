@@ -241,6 +241,7 @@ bool CharString::isWhiteSpace() const
 
 unsigned int CharString::getHash() const
 {
+    // [b28d-solo-StringTypes] verdict=AE：残差仅 N112 循环出口对齐 nop（§6.1 豁免）。
     // [b28d-34] AE（compare_tu 口径，ndiff 2→0）：残差仅 4.4 循环出口 nop 填充
     // （4.1 无；-falign-loops=1/-fno-align-jumps 实测无效）⇒ §6.1 对齐 nop 豁免；
     // 归一后逐条全等。ORIG 0x08ad6c1c。
@@ -672,10 +673,11 @@ CharString& CharString::format(const char* formatStr, ...)
 {
     va_list argList;
     va_start(argList, formatStr);
-    // [b28d-solo-StringTypes] 收敛（ORIG 0x08ad8afa）：ORIG format 体是 vformat 逻辑的
+    // [b28d-solo-StringTypes] verdict=N83 封顶（ORIG 0x08ad8afa）：ORIG format 体是 vformat 逻辑的
     // **独立副本**（体内无 call vformat；4.1 前端把头内 inline vformat 展开进 format）。
     // 旧「委托 vformat」形只 15 条 vs ORIG 53 条且调用点差集巨大，改为展开完整逻辑；
-    // 余下仅 N83（placement operator new 4.4 恒发 _ZnwjPv call+判空）封顶。
+    // 展开后 53 vs 62，余下 9 条全为 N83（placement operator new 4.4 恒发
+    // _ZnwjPv call+判空，两处 ×4~5）⇒ 封顶，语义等价。
     int length = vsnprintf(reinterpret_cast<char*>(0), 0, formatStr, argList);
     if (length == 0)
     {
@@ -693,8 +695,12 @@ CharString& CharString::format(const char* formatStr, ...)
 // ORIG T 0x08ad8b9e：length==0 → this->C1Ev()（**就地默认构造覆盖**，旧 data 不 detach——
 // ORIG 体实证无 ~CharString/D1 调用）；否则 create(length)+ss_vsprintf 后 this->C1EP14CharStringData
 // 就地覆盖；尾 return *this。
-// [b28d-34] 复核维持 N83：ORIG 内联 placement new（0 call）；4.4 发 _ZnwjPv call+
-// 判空+EH 残段（58 vs 49），源形不可控。
+// [b28d-solo-StringTypes] verdict=N83 封顶（ORIG 0x08ad8b9e）：ORIG 两处就地覆盖为
+// 单条 `call CharString::C1Ev` / `call CharString::C1EP14CharStringData`（4.1 前端
+// 内联 placement new）；4.4 对 `new (this) T(...)` 恒发 `_ZnwjPv` call + 判空
+// （每处 +4~5 条，58 vs 49）。显式构造调用语法 `this->CharString::CharString()`
+// 在 4.4 编译报「错误地使用了 struct」（探针 /tmp/s23/p3.cpp）⇒ 无合法源形，
+// 语义等价（就地构造覆盖、旧 data 不 detach 均保持）。
 CharString& CharString::vformat(const char* formatStr, va_list argList)
 {
     int length = vsnprintf(reinterpret_cast<char*>(0), 0, formatStr, argList);
@@ -718,21 +724,47 @@ int CharString::tokenize(const CharString& str, std::vector<CharString>* tokenVe
                          const char* dropDelimiters, const char* returnDelimiters,
                          bool isKeepEmptyToken)
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x08ad8c6c 循环出口岛/落点与 4.4 循环旋转
-    // 布局差（clean 269=269，仅岛位置不同）；N82/P164 族，语义等价。
+    // [b28d-solo-StringTypes] 收敛（ORIG 0x08ad8c6c）：①ORIG 的 `*d0` 判定为
+    // `test *d0; je <远处 d1 分支>` + drop 分支直落；4.4 对原 if/else 顺序产
+    // 反向布局（jne 跳 else + d1 分支直落），交换两臂并取反条件即复现块序。
+    // ②按 P212 全头部声明（i/c/d0/d1/drop-newLen，声明序=ORIG 槽深序）复现
+    // ORIG 槽位 i=-0x20/c=-0x19/d0=-0x18/d1=-0x14/newLen=-0x10。
     const char* strBuf = str.c_str();
     int strLen = str.length();
     int nextStartIdx = 0;
     int tokenCount = 0;
-    for (int i = 0; i < strLen; ++i)
+    int i;
+    char c;
+    const char* d0;
+    const char* d1;
+    int newLen;
+    for (i = 0; i < strLen; ++i)
     {
-        char c = strBuf[i];
-        const char* d0 = dropDelimiters;
+        c = strBuf[i];
+        d0 = dropDelimiters;
         while (*d0 != '\0' && *d0 != c)
             ++d0;
-        if (*d0 == '\0')
+        if (*d0 != '\0')
         {
-            const char* d1 = returnDelimiters;
+            newLen = i - nextStartIdx;
+            if (newLen == 0)
+            {
+                if (isKeepEmptyToken)
+                {
+                    tokenVector->push_back(CharString());
+                    tokenCount = tokenCount + 1;
+                }
+            }
+            else
+            {
+                tokenVector->push_back(mid(str, nextStartIdx, newLen));
+                tokenCount = tokenCount + 1;
+            }
+            nextStartIdx = i + 1;
+        }
+        else
+        {
+            d1 = returnDelimiters;
             while (*d1 != '\0' && *d1 != c)
                 ++d1;
             if (*d1 != '\0')
@@ -755,24 +787,6 @@ int CharString::tokenize(const CharString& str, std::vector<CharString>* tokenVe
                 tokenCount = tokenCount + 1;
                 nextStartIdx = i + 1;
             }
-        }
-        else
-        {
-            int newLen = i - nextStartIdx;
-            if (newLen == 0)
-            {
-                if (isKeepEmptyToken)
-                {
-                    tokenVector->push_back(CharString());
-                    tokenCount = tokenCount + 1;
-                }
-            }
-            else
-            {
-                tokenVector->push_back(mid(str, nextStartIdx, newLen));
-                tokenCount = tokenCount + 1;
-            }
-            nextStartIdx = i + 1;
         }
     }
     if (nextStartIdx != strLen)
@@ -825,8 +839,14 @@ int CharString::tokenizeNewLine(const CharString& str,
 CharString CharString::join(const std::vector<CharString>& stringVector,
                             const CharString& separator)
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x08ad920e 帧 0x60 vs 4.4 0x40 + 迭代器/临时
-    // 槽序差（P28/N86 族）；语义等价。
+    // [b28d-solo-StringTypes] verdict=N 封顶（跨版本循环 lowering，ORIG 0x08ad920e）：
+    // P167 调用点差集 CLEAR（26=26）——已按 ORIG 改写 `(*it)`/`it++`/`it != begin()`
+    // 与具名 `const CharString& token = *it;`（P28/P167，operator*/operator++(int)/
+    // begin/operator!= 全部对齐）。残差 gap=30 全为 4.1 对 bool 返回的
+    // `operator!=(it,end)` 循环条件物化：ORIG 每循环发
+    // `movb $0,-flag; …; xorb $1,-flag; cmpb; je` 的 runOnce 岛（Ghidra 记
+    // token_runOnce，0x08ad9268/0x08ad9348），4.4 恒直跳 `call; test %al; jne`；
+    // for/while/do-while 三源形实测同产物（164~166 vs 196）⇒ 语义等价、N 封顶。
     if (stringVector.empty())
     {
         return CharString();
@@ -834,10 +854,13 @@ CharString CharString::join(const std::vector<CharString>& stringVector,
     const char* separatorStrSrc = separator.c_str();
     int separatorStrLen = separator.length();
     int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
-    for (std::vector<CharString>::const_iterator it = stringVector.begin();
-         it != stringVector.end(); ++it)
+    std::vector<CharString>::const_iterator it = stringVector.begin();
+    std::vector<CharString>::const_iterator itEnd = stringVector.end();
+    while (it != itEnd)
     {
-        totalLength += it->length();
+        const CharString& token = *it;
+        totalLength += token.length();
+        it++;
     }
     if (totalLength == 0)
     {
@@ -845,19 +868,20 @@ CharString CharString::join(const std::vector<CharString>& stringVector,
     }
     CharStringData* newData = CharStringData::createTerminated(totalLength);
     char* newDataBuf = newData->getBuffer();
-    bool tokenFirst = true;
-    for (std::vector<CharString>::const_iterator it = stringVector.begin();
-         it != stringVector.end(); ++it)
+    std::vector<CharString>::const_iterator it2 = stringVector.begin();
+    std::vector<CharString>::const_iterator itEnd2 = stringVector.end();
+    while (it2 != itEnd2)
     {
-        if (separatorStrLen >= 1 && !tokenFirst)
+        if (separatorStrLen >= 1 && it2 != stringVector.begin())
         {
             memcpy(newDataBuf, separatorStrSrc, separatorStrLen);
             newDataBuf += separatorStrLen;
         }
-        int tokenLength = it->length();
-        memcpy(newDataBuf, it->c_str(), tokenLength);
+        const CharString& token = *it2;
+        int tokenLength = token.length();
+        memcpy(newDataBuf, token.c_str(), tokenLength);
         newDataBuf += tokenLength;
-        tokenFirst = false;
+        it2++;
     }
     return CharString(newData);
 }
@@ -995,6 +1019,7 @@ bool WideString::isWhiteSpace() const
 
 unsigned int WideString::getHash() const
 {
+    // [b28d-solo-StringTypes] verdict=AE：残差仅 N112 循环出口对齐 nop（§6.1 豁免）。
     // [b28d-34] AE（同 CharString::getHash，nop 豁免）。ORIG 0x08ad9c74。
     // ORIG：isEmpty 结果直接 test %al（bool 返回值不物化），空串走 mov $0,%eax
     // 常量岛提前 return；value=0 初始化在检查之后落槽。
@@ -1417,7 +1442,7 @@ WideString& WideString::format(const wchar_t* formatStr, ...)
 {
     va_list argList;
     va_start(argList, formatStr);
-    // [b28d-solo-StringTypes] 收敛（ORIG 0x08adbbe4）：同 CharString::format——
+    // [b28d-solo-StringTypes] verdict=N83 封顶（ORIG 0x08adbbe4）：同 CharString::format——
     // ORIG 体是 vformat 逻辑的独立副本（无 call vformat），展开完整逻辑；
     // 余下仅 N83（placement operator new）封顶。
     int length = vswprintf(reinterpret_cast<wchar_t*>(0), 0, formatStr, argList);
@@ -1435,7 +1460,8 @@ WideString& WideString::format(const wchar_t* formatStr, ...)
 }
 
 // CharString::vformat 同形（ORIG T 0x08adbc88）。
-// [b28d-34] 复核维持 N83（同 CharString::vformat）。
+// [b28d-solo-StringTypes] verdict=N83 封顶（ORIG 0x08adbc88）：同 CharString::vformat
+// （4.4 placement operator new 恒发 `_ZnwjPv` call + 判空，无合法源形可内联）。
 WideString& WideString::vformat(const wchar_t* formatStr, va_list argList)
 {
     int length = vswprintf(reinterpret_cast<wchar_t*>(0), 0, formatStr, argList);
@@ -1459,20 +1485,45 @@ int WideString::tokenize(const WideString& str, std::vector<WideString>* tokenVe
                          const wchar_t* dropDelimiters, const wchar_t* returnDelimiters,
                          bool isKeepEmptyToken)
 {
-    // [b28d-34] 复核维持 DIFF（同 CharString::tokenize）。ORIG 0x08adbd56。
+    // [b28d-solo-StringTypes] 收敛（ORIG 0x08adbd56）：同 CharString::tokenize，
+    // 交换两臂 + 取反条件复现 ORIG 的 `je <远处 d1 分支>` + drop 分支直落块序，
+    // 并按 P212 全头部声明复现槽位。
     const wchar_t* strBuf = str.c_str();
     int strLen = str.length();
     int nextStartIdx = 0;
     int tokenCount = 0;
-    for (int i = 0; i < strLen; ++i)
+    int i;
+    wchar_t c;
+    const wchar_t* d0;
+    const wchar_t* d1;
+    int newLen;
+    for (i = 0; i < strLen; ++i)
     {
-        wchar_t c = strBuf[i];
-        const wchar_t* d0 = dropDelimiters;
+        c = strBuf[i];
+        d0 = dropDelimiters;
         while (*d0 != 0 && *d0 != c)
             ++d0;
-        if (*d0 == 0)
+        if (*d0 != 0)
         {
-            const wchar_t* d1 = returnDelimiters;
+            newLen = i - nextStartIdx;
+            if (newLen == 0)
+            {
+                if (isKeepEmptyToken)
+                {
+                    tokenVector->push_back(WideString());
+                    tokenCount = tokenCount + 1;
+                }
+            }
+            else
+            {
+                tokenVector->push_back(mid(str, nextStartIdx, newLen));
+                tokenCount = tokenCount + 1;
+            }
+            nextStartIdx = i + 1;
+        }
+        else
+        {
+            d1 = returnDelimiters;
             while (*d1 != 0 && *d1 != c)
                 ++d1;
             if (*d1 != 0)
@@ -1495,24 +1546,6 @@ int WideString::tokenize(const WideString& str, std::vector<WideString>* tokenVe
                 tokenCount = tokenCount + 1;
                 nextStartIdx = i + 1;
             }
-        }
-        else
-        {
-            int newLen = i - nextStartIdx;
-            if (newLen == 0)
-            {
-                if (isKeepEmptyToken)
-                {
-                    tokenVector->push_back(WideString());
-                    tokenCount = tokenCount + 1;
-                }
-            }
-            else
-            {
-                tokenVector->push_back(mid(str, nextStartIdx, newLen));
-                tokenCount = tokenCount + 1;
-            }
-            nextStartIdx = i + 1;
         }
     }
     if (nextStartIdx != strLen)
@@ -1565,7 +1598,8 @@ int WideString::tokenizeNewLine(const WideString& str,
 WideString WideString::join(const std::vector<WideString>& stringVector,
                             const WideString& separator)
 {
-    // [b28d-34] 复核维持 DIFF（同 CharString::join）。ORIG 0x08adc2f4。
+    // [b28d-solo-StringTypes] verdict=N 封顶（ORIG 0x08adc2f4）：同 CharString::join，
+    // P167 调用点差集 CLEAR；残差为 4.1 循环条件 bool 物化 lowering（gap≈30）。
     if (stringVector.empty())
     {
         return WideString();
@@ -1573,10 +1607,13 @@ WideString WideString::join(const std::vector<WideString>& stringVector,
     const wchar_t* separatorStrSrc = separator.c_str();
     int separatorStrLen = separator.length();
     int totalLength = (static_cast<int>(stringVector.size()) - 1) * separatorStrLen;
-    for (std::vector<WideString>::const_iterator it = stringVector.begin();
-         it != stringVector.end(); ++it)
+    std::vector<WideString>::const_iterator it = stringVector.begin();
+    std::vector<WideString>::const_iterator itEnd = stringVector.end();
+    while (it != itEnd)
     {
-        totalLength += it->length();
+        const WideString& token = *it;
+        totalLength += token.length();
+        it++;
     }
     if (totalLength == 0)
     {
@@ -1584,19 +1621,20 @@ WideString WideString::join(const std::vector<WideString>& stringVector,
     }
     WideStringData* newData = WideStringData::createTerminated(totalLength);
     wchar_t* newDataBuf = newData->getBuffer();
-    bool tokenFirst = true;
-    for (std::vector<WideString>::const_iterator it = stringVector.begin();
-         it != stringVector.end(); ++it)
+    std::vector<WideString>::const_iterator it2 = stringVector.begin();
+    std::vector<WideString>::const_iterator itEnd2 = stringVector.end();
+    while (it2 != itEnd2)
     {
-        if (separatorStrLen >= 1 && !tokenFirst)
+        if (separatorStrLen >= 1 && it2 != stringVector.begin())
         {
             memcpy(newDataBuf, separatorStrSrc, separatorStrLen * sizeof(wchar_t));
             newDataBuf += separatorStrLen;
         }
-        int tokenLength = it->length();
-        memcpy(newDataBuf, it->c_str(), tokenLength * sizeof(wchar_t));
+        const WideString& token = *it2;
+        int tokenLength = token.length();
+        memcpy(newDataBuf, token.c_str(), tokenLength * sizeof(wchar_t));
         newDataBuf += tokenLength;
-        tokenFirst = false;
+        it2++;
     }
     return WideString(newData);
 }
@@ -2132,9 +2170,11 @@ WideString operator+(wchar_t ch, const WideString& src2)
 }
 
 // ---- StringUnorderedMap 显式实例化（CNRDScriptData 等使用）----
-// [b28d-34] StringUnorderedMap<...,float>/<...,int>::insert（ORIG 0x08080b6c）：
-// 复核维持 DIFF——clean 96=96，残差仅末尾析构 call 落点（ORIG 在 jmp 之后、
-// 我们在 jmp 之前），N104/EH 尾块序封顶，语义等价。
+// [b28d-solo-StringTypes] StringUnorderedMap<...,float>::insert verdict=N104 封顶
+// （ORIG 0x08080b6c）：clean 96=96，助记符序列全等，唯一残差是 EH 尾块相对序——
+// ORIG 把正常路径的 Value D1 放函数最末（0x8080c82），4.4 就地内联在 jmp 前、
+// unwind 块压最末（N104：块内容逐条全等、两尾块互换）⇒ 语义等价、N 封顶。
+// <...,int>::insert 同模板实例，同判。
 #include "HashMap.h"
 
 template class StringUnorderedMap<CharStringHashTrait, std::string>;

@@ -1758,7 +1758,7 @@ unsigned int CUserCharacInfo::getCurCharacPayCoin() const
 
 
 
-int CUserCharacInfo::getCurCharacNo() const
+unsigned int CUserCharacInfo::getCurCharacNo() const
 {
     return m_selected ? CUR->m_characNo : 0;
 }

@@ -135,6 +135,7 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
                 ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26, ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28, ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
                 ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
                 ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
+                item.m_field0,
                 reseal, guid);
         }
         // ORIG：getItemXPos/YPos(m_user + 0x79700)（history 子对象 +0x40/+0x42 网格坐标）。
@@ -157,6 +158,7 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
             ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26, ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28, ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
             ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
             ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
+            item.m_field0,
             reseal, guid);
     }
 }
@@ -185,6 +187,7 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
                 ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26, ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28, ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
                 ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
                 ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
+                item.m_field0,
                 reseal, guid);
         }
     }
@@ -205,6 +208,7 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
             ((const InvenByteView*)&item)->m_b25, ((const InvenByteView*)&item)->m_b26, ((const InvenByteView*)&item)->m_b27, ((const InvenByteView*)&item)->m_b28, ((const InvenByteView*)&item)->m_b29, ((const InvenByteView*)&item)->m_b2a,
             ((const InvenByteView*)&item)->m_b2b, ((const InvenByteView*)&item)->m_b2c, ((const InvenByteView*)&item)->m_b2d, ((const InvenByteView*)&item)->m_b2e, ((const InvenByteView*)&item)->m_b2f, ((const InvenByteView*)&item)->m_b30,
             ((const InvenByteView*)&item)->m_b31, ((const InvenByteView*)&item)->m_b32,
+            item.m_field0,
             reseal, guid);
     }
 
@@ -530,8 +534,9 @@ void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, i
     int lineCount = (int)((float)count / 15.0f) + 1;
     for (int line = 0; line < lineCount; line++)
     {
-        char buf[1024];
-        memset(buf, 0, 0x100);
+        // ORIG 0x08685ef2 段：rep stos ecx=0x100 dwords = 0x400 字节（整块 buf 清零，P116/P253）。
+        // 旧 memset(buf,0,0x100) 只清 0x100 字节（少清 0x300）——真语义缺口。
+        char buf[1024] = {0};
         memcpy(buf, "SaveLethe", 10);
         strcat(buf, header);
 
@@ -554,8 +559,8 @@ void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, i
         sprintf(tmp + 0x10, "%d/%d/%d", a, n, b);
         strcat(buf, tmp + 0x10);
 
-        char chunk[512];
-        memset(chunk, 0, 0x80);
+        // ORIG 0x08685ff3 段：rep stos ecx=0x80 dwords = 0x200 字节（整块 chunk 清零）。
+        char chunk[512] = {0};
         for (int k = 0; k < n; k++)
         {
             int idx = vec[start + k].first;
@@ -1594,9 +1599,10 @@ void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int 
             ++petCount;
     }
 
-    // +0x7b 处回归用户标记【推断：ORIG *(int*)(charac+0x7b)，该字段未具名】
-    int returnUserFlag = *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(m_user->getCurCharacR()) + 0x7b);
+    // +0x7b 处回归用户标记 = _Charac_info::m_field7b（CUser.h:546，int）。
+    // ORIG 0x08683dxx 单条 `mov 0x7b(%eax),%eax`（具名成员 disp 折叠）；
+    // 裸偏移 `*(int*)(char*+0x7b)` 使 4.4 发 `add $0x7b; mov (%eax),%eax` 两步（§4.3 禁裸偏移）。
+    int returnUserFlag = m_user->getCurCharacR()->m_field7b;
     // ORIG 先取 GetFirstLogin 落字节槽(-0x39)再判（勿内联 bool 物化）
     unsigned char isFirstLogin = m_user->GetFirstLogin();
     if (returnUserFlag == 0 && isFirstLogin != 0)

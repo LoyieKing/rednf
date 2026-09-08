@@ -698,7 +698,7 @@ public:
     void SetIsAffectedExpDouble(bool flag);
 
     // ---- 基础属性 ----
-    int getCurCharacNo() const;
+    unsigned int getCurCharacNo() const;  // b28d-Main 实验(S25/P211档③)：ORIG 调用点 0x08638f3b/0x08274e4e 两段物化需 unsigned 返回
     const char* getCurCharacName() const;
     int get_charac_level() const;
     int get_charac_job() const;

@@ -52,6 +52,10 @@ CAssaultPlace* CAssaultMgr::_GetAssaultPlace(unsigned int id)
 
 int CAssaultMgr::OnMoveArea(CUser* user)
 {
+    // b28d-solo-CAssaultMgr: AE — 本波修两处：①`place==0/!IsArea` 双 continue
+    // 改嵌套正向 if 包裹（P296，消 xor$1 + 双 jmp+nop 岛）；②area 删 (char)
+    // cast（ORIG 0x82ef6bf get_area 返回 int 直传 `mov %eax,%ebx`，getCurCharacVill
+    // 才 movsbl）⇒ 157→149 与 ORIG 150 逐条 AE（余 1 条尾 nop 对齐豁免）。
     // b28d-L3: DIFF/N82 — ORIG 0x082eb... 临时对象槽 -0x24 vs 我方 -0x28（N82/P112 槽序）
     // ORIG 0x82ef610：向进入袭击区域的玩家汇总可见图标（包 0x86）。
     // 整函数 try/catch(int)（尾 landing `cmp $0x1,%edx; je resume` +
@@ -424,6 +428,9 @@ void CAssaulter::DetachUser()
 // 全局地址/槽号显示（AE 后核销）。
 void CAssaulter::GiveupPanalty()
 {
+    // b28d-solo-CAssaultMgr: AE — 尾块由「空 then + else body」改单出口正向
+    // 包裹 `if (ghostTime != 0)`（消 4.4 尾 `jmp <epilogue>; nop` +2），
+    // 144→142 与 ORIG 142 逐条 AE。
     // b28d-L3: DIFF/N7+N82 — ORIG 0x82e6694.. chaos/level 实参内联后帧 0x24 vs ORIG 0x20、缺 push %esi（ORIG 值留 %esi 跨调用）
     // P183/P157：ORIG 不缓存 m_user（每点 `mov this; mov (%eax)` 重装载，
     // penalty/now 处才用 %esi/%ebx 跨调用缓存）——重建禁 named user。
@@ -833,6 +840,7 @@ void CExtraMatrix::MovePoint(const Point2d& delta) // ORIG 0x82e597c
 bool CExtraMatrix::CheckPoint(std::vector<MapArea>* areas,
                               Point2d& out)        // ORIG 0x82e5b4e
 {
+    // b28d-solo-CAssaultMgr: IDENTICAL_AE（清单 NEAR 2 → AE；路由口径复验）
     // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x82e5b4e
     for (std::vector<Point2d>::iterator it = m_points.begin();
          it != m_points.end(); ++it)
@@ -1034,6 +1042,7 @@ void CAssaulter::DieUser()             // ORIG T 0x82e6a40
 
 bool CAssaulter::ChangeHp(int hp)      // ORIG T 0x82e6694
 {
+    // b28d-solo-CAssaultMgr: IDENTICAL_AE（清单 NEAR 2 → AE；路由口径复验）
     // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x82e6694
     if (hp < 0 || hp > 100)
     {
@@ -1062,6 +1071,7 @@ RET1:
 
 const char* CAssaulter::GetCharacName() const    // ORIG T 0x82e663c
 {
+    // b28d-solo-CAssaultMgr: IDENTICAL_AE（清单 NEAR 1 → AE；路由口径复验）
     // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x82e663c
     // ORIG 0x82e663c：je→尾岛 `mov $""`，call 分支 fall-through 在前（技巧23 双 goto 钉块序）
     if (m_user == 0)
@@ -1263,6 +1273,7 @@ const char* CAssaultPlace::GetAnotherTeamCharacName(int idx)   // ORIG T 0x82eb3
 
 void CAssaultPlace::AbuseUser(CUser* user)      // ORIG T 0x82eb5e2（size 0x192）
 {
+    // b28d-solo-CAssaultMgr: IDENTICAL_AE（清单 NEAR 1 → AE；446h46 路由口径）
     // b28d-L3: IDENTICAL_AE — b28d-L3：446h46 路由后 fresh 复验 AE（TSV 的 NEAR 系 447 口径 stale 伪差
     // ORIG 0x82eb5e2 转写：检查段第一次 getCurSec（`movl $0x941f714,(%esp)`），
     // 块内**第二次独立** getCurSec 重算差值入 callee-saved %esi（P48 双臂

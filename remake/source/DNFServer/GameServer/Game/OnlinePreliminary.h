@@ -286,8 +286,12 @@ public:
     void _PullOutRoom(CUser* user, PvP_Room* room, int seat);
     void _ReturnTeam(PvP_Room* room, int team, CUser* user);
     void _UpdateRating(int diff, ENUM_ELO_RATING_SYSTEM sys);
-    int  _CheckObserver(PvP_Room* room, CUser* user);
-    int  _CheckSameTeam(PvP_Room* room, CUser* user);
+    // [b28d-solo-OnlinePreliminaryMatch] P292/P248档①：CheckJoinable 调用点
+    // ORIG @08560866/@0856088d 为 `call; xor $0x1,%eax; test %al,%al; je`
+    // ⇒ callee 返回类型是 bool（int 返回恒产 sete 四段）。返回类型不入
+    // mangled/布局，同 CFairMatch.h:140-141 的既有 bool 判例（P22 实证）。
+    bool _CheckObserver(PvP_Room* room, CUser* user);
+    bool _CheckSameTeam(PvP_Room* room, CUser* user);
     int  _CheckMatchable(PvP_Room* room) const;
     int  _GetOppositeTeam(int team);
     void _IncreaseWinCount(ENUM_SCHOOL_MATCH_TEAM team);

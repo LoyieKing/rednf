@@ -151,7 +151,10 @@ int TCPSocket::send(char* buffer, unsigned int length)
         // [b28d-D43] P0/N96 清绑：原 register bool over asm("al") 删除（全域禁
         // 绑定）。ORIG 0x081af722 为 setg %al; test %al,%al; je（无槽往返）⇒ 按
         // P0「无槽 = 无具名局部」写裸条件。
-        if (m_sendRetryCount > static_cast<int>(TCPSocket::MAX_SEND_RETRY))
+        // [b28d-solo-nexon_cash] P225：ORIG `cmp $0x64; setg %al; test %al,%al;
+        // je` 物化形 ⇒ 裸 if 在 4.4 折 `jle` 直跳；改 while+break 族
+        // （body 末 return）即复现 setg 物化。
+        while (m_sendRetryCount > static_cast<int>(TCPSocket::MAX_SEND_RETRY))
         {
             m_sendRetryCount = 0;                                 // 0x081af72c
             return -100;                                          // 0x081af733
@@ -278,7 +281,9 @@ bool TCPSocket::connect(const char* host, unsigned short port)
     adrs.sin_addr.s_addr = inet_addr(host);
     adrs.sin_port = htons(port);
 
-    socklen_t len = sizeof(adrs);
+    // [b28d-solo-nexon_cash] P218/P290：len 声明为 int（非 socklen_t/unsigned）
+    // 触发 4.4 提前装载 `mov -0xc(%ebp),%ecx`（ORIG 0x081afa3d 序），DIFF→AE。
+    int len = sizeof(adrs);
     if (::connect(m_socket, reinterpret_cast<struct sockaddr*>(&adrs), len) < 0)
         return false;
 
@@ -635,10 +640,14 @@ int UDPSocket::recv(char* buffer, int length)
     if (buffer == 0 || length <= 0)
         return -1;
 
-    socklen_t addrlen = 16;
+    // [b28d-solo-nexon_cash] P218/P290：addrlen 由 socklen_t 改 int + 显式
+    // reinterpret_cast<socklen_t*> 触发 4.4 提前 `lea -0x10(%ebp),%ebx`
+    // （ORIG 0x081af0ff 序），P75 装载时刻差消除，DIFF→AE。
+    int addrlen = 16;
     int n = static_cast<int>(::recvfrom(
         m_socket, buffer, length, 0,
-        reinterpret_cast<struct sockaddr*>(m_from), &addrlen));
+        reinterpret_cast<struct sockaddr*>(m_from),
+        reinterpret_cast<socklen_t*>(&addrlen)));
     if (n < 0)
     {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN)
@@ -777,9 +786,10 @@ ByteBuffer::ByteBuffer(char* buffer, unsigned int len)
 // `ByteBuffer&` + 字段直写产 17 条逐字段 store（ORIG 16 条 sret 构造）。
 ByteBuffer ByteBuffer::wrap(char* buffer, unsigned int len)
 {
-    // [b28d-D43] N-P190附注②：ORIG `sub $0x14` vs 4.4 自然帧 `sub $0xc`；
-    // 4.4 局部区量化步长 16（char[4]/char[8]/float×2/double 实测均落 $0x1c/$0x20），
-    // 无 pad 组合可达 $0x14 ⇒ 帧差封顶；体 16/16 条全等（仅 call 重定位显示差）。
+    // [b28d-solo-nexon_cash] N 封顶（帧量化跨版本）：ORIG `sub $0x14` vs 4.4
+    // `sub $0xc`。实测 4.4 帧增量恒 align16(局部需求)（char[4]/char[8]/int 均
+    // 落 $0x1c），$0x14 不可达（P190 附注②/N95 族）。体 16/16 条全等，仅帧
+    // sub/add 立即数差，语义等价。
     return ByteBuffer(buffer, len);
 }
 
@@ -1089,9 +1099,13 @@ void UserBalance::addNewTransaction(Transaction* tx)
 // [b28d-D43] P23/P75 求值序：ORIG erase 两实参 end,end,begin,remove 序 vs 4.4 remove 提前（ORIG 0x081b1530）。
 void UserBalance::removeTransaction(Transaction* tx)
 {
-    std::vector<Transaction*>::iterator last = std::remove(
-        m_transactions.begin(), m_transactions.end(), tx);
-    m_transactions.erase(last, m_transactions.end());
+    // [b28d-solo-nexon_cash] P23/P75：ORIG 0x081b1530 求值序 = 外层 erase 的
+    // end()(-0x18) → 内层 remove 的 end()(-0x10)/begin()(-0xc) → remove →
+    // erase；具名 last 两句式令 4.4 求值序 end/begin/remove/end 反形 ⇒ 必须
+    // 写单表达式嵌套形。
+    m_transactions.erase(
+        std::remove(m_transactions.begin(), m_transactions.end(), tx),
+        m_transactions.end());
 }
 
 // ORIG 0x081b147c：遍历删除 expired 者（tx->cancel() 退款+出管理器表，
@@ -1369,7 +1383,9 @@ ByteBuffer NCashImpl::get_data_header(unsigned char& a, unsigned char& b,
 {
     // [b28d-D43] ORIG 0x081ad168 无 in 的 ctor call（wrap 的 sret 即 in 槽，
     // %ebx=get_data_header sret 槽）：直接初始化形令 4.4 把 in 地址传给 wrap。
-    // 帧：ORIG `sub $0x10` vs 4.4 `sub $0xc`（N-P190附注②量化差，指令 39/39 全等）。
+    // [b28d-solo-nexon_cash] N 封顶（帧量化跨版本）：ORIG `sub $0x10` vs 4.4
+    // `sub $0xc`；实测补 4 字节未用局部跳 $0x1c，$0x10 不可达（P190 附注②）。
+    // 指令 39/39 全等，仅帧 sub/add 立即数差，语义等价。
     ByteBuffer in = ByteBuffer::wrap(reinterpret_cast<char*>(m_inMsg.body()),
                                      m_inMsg.body_length());
     in >> a;

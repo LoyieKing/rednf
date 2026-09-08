@@ -734,11 +734,12 @@ bool CPrivateStore::EnterPrivateStore()
     }
 
     // ORIG 0x85c8dd6：find() 结果 sret=-0x18 作 operator!= 的 this，第二次
-    // end() 结果 -0xc 作实参。左操作数内联写 `find(...) != end()` 时 4.4 把
-    // find 实参求值序翻成 begin 先（P75）；右操作数内联写 `end() != find(...)`
-    // 则 find 实参序与 ORIG 全等，仅余比较点 this/实参装载对调 3 行
-    // （P75 跨版本实参装载序），封顶 NEAR。
-    if (m_users.end() != std::find(m_users.begin(), m_users.end(), m_pBuyer))
+    // end() 结果 -0xc 作实参。裸 `find(...) != end()` 使 4.4 先求实参 end()
+    // （P75）；具名迭代器固定 find 先求值（P74 补充②旋钮一），再以正极
+    // `found != end()` 命中 this=find/arg=end 的 ORIG 形态。
+    std::list<CUser*>::iterator found =
+        std::find(m_users.begin(), m_users.end(), m_pBuyer);
+    if (found != m_users.end())
     {
         m_errorHandler.Do(0x14);
         return false;
@@ -2283,9 +2284,10 @@ void CPrivateStoreMgr::GetStoreBuyer(IBuyer** out, CUser* user, unsigned short s
     CUser* sellerUser = 0;
     // ORIG：参数直落（mov %ax,-0x1c 单槽），无具名中转。
     sellerUser = G_GameWorld()->find_from_world(sellerIndex);
-    // ORIG +0x2d 死 cmpl $0x0,-0xc(%ebp)（无 jcc）：4.1 遗留。4.4 前端对一切
-    // discarded null 检查整块消除（探针 /tmp/l6p/p.cpp,q.cpp：if(p){}/p!=0;/
-    // (void)(p!=0)/while(p==0)break 全无纯 cmp 形）→ N 封顶，仅此 1 条差。
+    // ORIG +0x2d 死 cmpl $0x0,-0xc(%ebp)（无 jcc）：4.1 遗留。
+    if (sellerUser == 0)
+    {
+    }
     GetStoreBuyer(out, user, sellerUser);
 }
 

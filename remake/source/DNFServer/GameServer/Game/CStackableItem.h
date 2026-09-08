@@ -293,8 +293,8 @@ struct stLimitCubeInfo
 struct stGlobalEffect_t
 {
     int m_field0;    // +0x00
-    int m_field4;    // +0x04
-    float m_field8;  // +0x08
+    float m_field4;  // +0x04（ORIG createGlobalEffectInfo 0x089bae94 fstps 存浮点）
+    int m_field8;    // +0x08（ORIG 同函数整数 mov 存，非浮点）
 };
 
 #include "LotteryInfo.h"   // LotteryInfo 唯一权威定义（原本地副本删除；布局一致）

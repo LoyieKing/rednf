@@ -29,6 +29,7 @@
 #include "CBattle_Field.h"         // BF 视图转发（先例：CParty.cpp checkBossRoom）
 #include "CDataManager.h"          // G_CDataManager()/find_dungeon/get_dimensionInout
 #include "CInventory.h"            // check_item_exist/GetInvenSlot
+#include "SECRET_SHOP_DATA.h"      // SECRET_SHOP_DATA::m_info（GetUserSecretShop 具名视图）
 #include "PacketGuard.h"            // PacketGuard（InterfacePacketBuf 子类）
 #include "TimerQueue.h"             // G_TimerQueue/InsertTimer/gen_timer_key 支持
 #include "CGuildServerProxy.h"     // CEventBase/CEventManager::GetRepeatEvent→IsEventing
@@ -446,10 +447,14 @@ void* CParty::GetUserSecretShop(CUser* user)
     // sub %eax,%edx; lea 0x2a0(%edx),%eax; add this; add $8`
     if (slot >= 0 && slot <= 3)
     {
-        // b28d-45 复测：指针算术形（m_padShop+4+(slot*4)*7）反劣（多 lea 0x2a4
-        // 缓存，26 insns 槽序更差）⇒ 维持下标形；ORIG lea 链
-        // `shl $2; lea (,eax,8); sub; lea 0x2a0(%edx)` 属 N94/P30 折形封顶。
-        return &m_padShop[4 + (slot * 4) * 7];
+        // b28d-solo-CPartyOnlyOrig：改用权威具名视图 —— ORIG 地址
+        // this+0x2a8+slot*0x1c = SECRET_SHOP_DATA(+0x2a4).m_info[slot]（+0x04，
+        // SECRET_SHOP_INFO 0x1c）。类型化数组索引让 4.4 产出 ORIG 的
+        // `shl$2; lea(,eax,8); sub` 28x 强度归约链（裸 `slot*0x1c+4` 下标形
+        // 被 4.4 重结合成 `(slot*7+1)*4`）；残余 `mov %eax,%ecx` 中转与
+        // 常量拆分（4.1 lea 0x2a0+8 vs 4.4 add 0x2a4+4）归 N107/P30 封顶。
+        return &reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)
+                    ->m_info[slot];
     }
     return 0;
 }
@@ -639,7 +644,9 @@ void CParty::set_recv_party_packet_flag(CUser* user)
     {
         return;
     }
-    reinterpret_cast<CPartyResultRecvFlag*>(m_pad1dc)->SetRecvFlag(slot);
+    // b28d-solo-CPartyOnlyOrig：receiver 用取数组地址形 `&m_pad1dc`
+    // （ORIG 0x085b3f58 `lea 0x1dc(%eax),%edx`）；数组名退化形产 add（N107）。
+    reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->SetRecvFlag(slot);
 }
 
 // ORIG T 0x085b3f72（recv_party_packet_all.md）：全员均已回包才返回 true。
@@ -1101,16 +1108,12 @@ bool CParty::isMonsterDrop_item(int monsterIdx)
     // ORIG O@0x33..0x4b：found!=0 先 cmpb 直判（跳过 body → 返 1 岛），
     // 体内 m_count 真值取反 movzbl;xor$1;test（asm al 钉位）；两 je 同达
     // 返 1 岛。
-    if (found != 0)
+    // b28d-solo-CPartyOnlyOrig：P0 判读 —— ORIG 第二判定 `movzbl -0x60;
+    // xor $0x1; test %al; je` 全程寄存器直传（无槽往返）⇒ 原码无 cnt 局部，
+    // 取反表达式内联进短路条件（此前 X2 两语句形落栈槽，多 3 条）。
+    if (found != 0 && (item.m_count ^ 1) != 0)
     {
-        // b28d-45 P0/N96 清绑：`register unsigned char cnt asm("eax")` 删除，
-        // 按 P168a④ X2 两语句形（4.4 落栈槽物化，最短合规形）。
-        unsigned char cnt = item.m_count;
-        cnt ^= 1;
-        if (cnt != 0)
-        {
-            return false;
-        }
+        return false;
     }
     return true;
 }
@@ -1132,10 +1135,11 @@ void CParty::kill_blood_monster(CUser* user, int monsterIdx,
 unsigned char CParty::DestroyPassiveObject(int param)
 {
     // [ORIG 0x085a3b6a 物化形] 声明初始化 0 + call 后赋值两段（movb$0 再
-    // movzbl reload）+拆&&嵌套。b28d-45：ORIG 回读为 `movzbl -0x9,%eax;
-    // test %al,%al`（uchar 零扩展回读），bool 局部 4.4 恒 cmpb 直比 ⇒ 改 uchar。
-    unsigned char destroyed = 0;
-    destroyed = static_cast<unsigned char>(
+    // movzbl reload）+拆&&嵌套。b28d-solo-CPartyOnlyOrig：ORIG O@0x25 为
+    // `movzbl -0x9,%eax; test %al,%al; je`（零扩展回读 + 直测，P292 字段/局部
+    // bool 形）⇒ 局部改 bool（uchar 局部 4.4 恒折 `cmpb $0` 直比）。
+    bool destroyed = false;
+    destroyed = static_cast<bool>(
         reinterpret_cast<CBattle_Field*>(&m_battleField)
             ->DestroyPassiveObject(param));
     if (destroyed)   // ORIG O@0x25 movzbl reload+test
@@ -1147,7 +1151,7 @@ unsigned char CParty::DestroyPassiveObject(int param)
             ClearDungeon();
         }
     }
-    return destroyed;
+    return static_cast<unsigned char>(destroyed);
 }
 
 // ORIG T 0x085b9f28（SetRidableObjectState.md）：坐骑状态转发战场层（返回值穿透）。

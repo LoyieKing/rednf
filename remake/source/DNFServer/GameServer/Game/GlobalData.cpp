@@ -1341,7 +1341,9 @@ bool CaptchaGen::addFont(const char* font, int size)
     return true;
 }
 
-// [b28d-18 N18a] p167 CLEAR；ORIG 全局计数两段装载，4.4 单段（N18a 反向） | ORIG 0x080de83c
+// [b28d-solo-GlobalData] 归零 100=100：P211 档③ 类型旋钮——三个静态计数
+// unsigned int→int + 使用处 (unsigned int) cast，复现 `mov <A>,%edx; mov %edx,%ecx`
+// 两段 divisor 装载（旧 N18a 判词作废）；CaptchaGen.h 同步（R2 已广播） | ORIG 0x080de83c
 void CaptchaGen::generateText(CountryCode code, int len, unsigned short* out)
 {
     // [b23S3C] ORIG 0x080de83c：三分支各独立循环（i 槽 -0x14/-0x10/-0xc），
@@ -4595,7 +4597,8 @@ bool CDBConnector::Connect(DBInfoMap infoMap)
     return true;
 }
 
-// [b28d-18 NEAR] 修：P157 逐字段重读（4 次 ptEv）+ 负极性守卫（P222）+ register group（P231）；NDIFF 31→4 | ORIG 0x080ec8f8
+// [b28d-solo-GlobalData] 归零 67=67：group 内联为实参表达式复现 R2L 装载序
+// （先 &second 后 m_tail；具名/register 局部均提前，P52/P157）；p167 CLEAR | ORIG 0x080ec8f8
 bool CDBConnector::ConnectWithServerGroup(DBInfoMap infoMap)
 {
     // ORIG 0x080ec8f8：遍历连接表；idx==0 跳过；以 +0x168 处 server group
@@ -7865,7 +7868,10 @@ int RentalMachineDimension::CheckupAllRentalItems(
 }
 
 // ---- PcRoom::Rent —— T 0x082704e6（Rent.md 全文转写）------------------------
-// [b28d-18 NEAR] 修：const_iterator 三段循环（p167 MISSING）；NDIFF 42→9 | ORIG 0x082704e6
+// [b28d-solo-GlobalData] 归零 169=169：①真语义 bug——首守卫 ORIG 为
+// `!IsPcRoomUser && !m_field11`（两条 je 同落继续块，旧写 `|| m_field11==1` 逻辑相反）；
+// ②RentInput::m_field11 uchar→bool（P248 档②）+ 嵌套 if（P133①）；
+// ③m_bEquip 取反+两臂交换（P47/P222）| ORIG 0x082704e6
 int RentalMachinePcRoom::Rent(CUser& user,
                               const InstanceRentalSystem::RentInput& input,
                               InstanceRentalSystem::RentOutput& output)
@@ -7936,7 +7942,8 @@ int RentalMachinePcRoom::Rent(CUser& user,
 }
 
 // ---- Dimension::Rent —— T 0x0826ec22（Rent.md 全文转写）---------------------
-// [b28d-18 NEAR] 修：const_iterator 三段循环（p167 MISSING begin/end/ne/deEv/ppEv）；CLEAR 21/21；NDIFF 37→3 | ORIG 0x0826ec22
+// [b28d-solo-GlobalData] 归零 176=176：m_bEquip 分支条件取反+两臂交换复现
+// ORIG else-first 布局（`test;je <ProcessInsertItem>`，P47/P222）；p167 CLEAR 21/21 | ORIG 0x0826ec22
 int RentalMachineDimension::Rent(CUser& user,
                                  const InstanceRentalSystem::RentInput& input,
                                  InstanceRentalSystem::RentOutput& output)
