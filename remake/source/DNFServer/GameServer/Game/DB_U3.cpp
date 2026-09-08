@@ -198,7 +198,11 @@ void DB_ReqSaveHackUserPunish::makeRequest(unsigned int uid, unsigned int type,
     struct View
     {
         unsigned int m_accId;                      // +0x00
-        unsigned int m_type;                       // +0x04
+        // +0x04。int 字段←unsigned 形参异型 = 4.4 RHS-first 3 条形
+        // （ORIG 0x08425494 `mov 0xc(%ebp),%edx; mov -0xc(%ebp),%eax;
+        // mov %edx,0x4(%eax)`；同型 jA 形反产 LHS-first，探针 k4.cpp jD；
+        // 与 SigTypes_E.h::m_punish 同批改同源证据）。
+        int m_type;                                // +0x04
         char m_ip[0x10];                           // +0x08
     };
     View* v =

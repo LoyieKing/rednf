@@ -10447,18 +10447,12 @@ int DisPatcher_UseEquip::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x33, (unsigned char)(errNo & 0xff));
         return -1;
     }
-    // ORIG +0x4d/+0x53：param→远槽 -0x10（out 先声明）、msg→近槽 -0xc（req 后
-    // 声明，技21）。slot 值 `movzbl; movsbl %al,%ebx` 直落 %ebx（技2）。
+    // b28 清违规：register asm 绑定 P0 全域禁用（N96），恢复纯 C++ 单语句
+    // 链形（P52：slot 表达式先物化跨 receiver 调用存活；P200：拓宽直传实参）。
+    // 残差 `movsbl→eax 中转再落 ebx` = N18a 单段直落不可造，封顶。
     stOnUseEquipParam& out = static_cast<stOnUseEquipParam&>(param);
     MSG_DECREASE_DURABILITY& req = *reinterpret_cast<MSG_DECREASE_DURABILITY*>(&msg);
-    // `movsbl %al,%ebx` 直落 callee-saved = N 类（单条 sext 直落不可造），
-    // register asm("ebx") 绑定为本 TU 最优形（ndiff 20 vs 26/27）。
-    register int slot asm("ebx") = (int)(signed char)req.m_0d;
-    CInventory* inven = user->getCurCharacInvenW();  // thunk 0x80da28e
-    // ORIG +0x7a 双钉 store（技45）。
-    register int ue asm("edx") = inven->use_equip(slot);
-    register stOnUseEquipParam* dst asm("eax") = &out;
-    dst->m_errNo = ue;
+    out.m_errNo = user->getCurCharacInvenW()->use_equip((int)(signed char)req.m_0d);
     out.m_8 = req.m_0d;   // ORIG +0x85 `movzbl 0xd(%eax),%edx` 单步 QI 直存（同型）
     return errNo;
 }

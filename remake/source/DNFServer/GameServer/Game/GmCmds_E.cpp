@@ -95,9 +95,13 @@ void CMobileRestrictCommand::parse()
     if (m_parser != 0)
     {
         m_str0 = m_parser->m_extra[1];
+        // ORIG 常量岛物化形（test;je;mov$1;jmp;mov$0;store）：三目 `?:1:0`
+        // 复现（探针 /tmp/bl5/probeA.cpp a4 实证）；`!=0`+cast 4.4 折 setne。
         m_restrictSwitch =
-            static_cast<unsigned int>(StringToNumber(m_parser->m_extra[2].c_str()) != 0);
+            StringToNumber(m_parser->m_extra[2].c_str()) ? 1 : 0;
+        return;                              // ORIG 尾 `jmp;leave;ret`（4.1 显式 return 形）
     }
+    return;
 }
 
 // ORIG execute 0x084b3c60：m_str0=="mobile" 时改 garena auth data +0x2c 字节并打日志；
@@ -229,19 +233,20 @@ const char* CMonsterDropTest::checkCommandExecuteError(CParty* party)
 }
 
 // ORIG processDungeonDrop(CParty*, map&, map2&) 0x084ad8dc：按 mode 分派击杀模拟。
-// 【N 封顶】4.1 else-if 链把 then 块中置（test; je→single 块）且 else-if
-// 条件复用 eax 残值；4.4 then 恒 fall-through 且重读 m_mode（+2 条），
-// 无源形可同时复现块中置与寄存器复用。
+// ORIG 决策树 `test;je→S;sub$2;cmp$1;ja→end;jmp→P` 为 switch case 0 +
+// case 2..3 range 形（P46/P163 族），case 升序书写复现块序。
 void CMonsterDropTest::processDungeonDrop(CParty* party, DropStat& drop,
                                           GradeStat& grade)
 {
-    if (m_mode == 0)
+    switch (static_cast<unsigned int>(m_mode))
     {
+    case 0:
         singleMapMonsterKill(party, drop, grade);
-    }
-    else if (static_cast<unsigned int>(m_mode - 2) < 2u)
-    {
+        break;
+    case 2:
+    case 3:
         passedMapMonsterKill(party, drop, grade);
+        break;
     }
 }
 
@@ -452,13 +457,14 @@ void CMonsterDropTest::makeGoldItemDropList(std::list<map_item>& items, DropStat
         if (it->m_item.m_addInfo == 0)
         {
             std::map<int, int>::iterator mit = out.find(it->m_item.m_addInfo2);
-            if (mit == out.end())
+            // P222 正向包裹：ORIG 块序 = je→insert、increment fall-through。
+            if (mit != out.end())
             {
-                out.insert(std::make_pair(it->m_item.m_addInfo2, 1));
+                mit->second++;
             }
             else
             {
-                mit->second++;
+                out.insert(std::make_pair(it->m_item.m_addInfo2, 1));
             }
         }
     }
@@ -764,14 +770,13 @@ void CPcroomPremiumCmd::execute()
 // ORIG ctor 0x082a89e2：基类 ctor → 自身 vptr，无数据成员。
 
 // ORIG parse 0x084b3d12：仅读 m_parser 判存（mov/test/ret），无副作用。
-// 【N 封顶】ORIG 保留 dead test 无分支；4.4 对空 if 恒消除 test
-// （探针 A1-A8 实证：空体/空语句/显式转换全删，asm barrier 形加 je），
-// 无合规源形可复现，ndiff 1（test 行）。
+// 4.1 保留 dead test 无分支；探针实证 `if (p) return;` 形在 4.4 复现
+// load/test/pop-ret 同形（/tmp/bl5/probe2.cpp k2）。
 void CPcroomRewardReset::parse()
 {
-    if (m_parser)
+    if (m_parser != 0)
     {
-        // ORIG 无分支体（test 后直接 ret）
+        return;
     }
 }
 
@@ -1039,7 +1044,9 @@ void CRecipeSuccess::parse()
         {
             m_result = 0;
         }
+        return;                              // ORIG 尾 `jmp;leave;ret`（4.1 显式 return 形）
     }
+    return;
 }
 
 // ORIG execute 0x084b3a34：GetUser()->recipeForceProbability(slot)。

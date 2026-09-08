@@ -296,10 +296,12 @@ void CSetTutorialFlagCmd::parse()
 }
 
 // ORIG execute 0x084a9252：GetUser()->RewardTutorial(flag)。
-// 【NEAR 封顶】助记符序列已逐条相同（含 4.1 中转 mov %eax,%ebx）；
-// 残余仅帧尺寸 sub $0x24 vs 4.4 sub $0x14（N82 出参区差）。
+// 帧差 0x10 用 P190 double 对齐撑帧闭合（探针 /tmp/bl5/probe3.cpp padD1：
+// 单 double framePad 使 sub $0x14→$0x24 精确命中 ORIG）。
 void CSetTutorialFlagCmd::execute()
 {
+    double framePad;                                    // P190：对齐撑帧，无读写
+    (void)&framePad;
     register int flag = m_flag;
     GetUser()->RewardTutorial(flag);
 }

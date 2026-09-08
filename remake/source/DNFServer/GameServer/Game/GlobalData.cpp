@@ -463,9 +463,11 @@ int CmmChannelProxy::RecvPacket()
     // ORIG 0x081064b8：`mov 0x18,%eax; shr $0x5,%eax; mov %eax,%edx;
     // mov -0xdc(%ebp,%eax,4),%ebx … mov %eax,-0xdc(%ebp,%edx,4)` —— 位索引
     // 单份计算（%eax）后复制到 %edx 供尾 store。4.4 默认重算两份 ⇒
-    // register asm("eax") 钉索引值（技巧 28）。
-    register unsigned long ix asm("eax") =
-        static_cast<unsigned long>(m_sock) >> 5;
+    unsigned long ix =
+        static_cast<unsigned long>(m_sock) >> 5;  // b28 P0 清绑定（N96）
+    // [b28 判词 N96+N18a/P179] ORIG 单次 scratch（shr 结果 %eax 直用+mov %eax,%edx
+    // 复制、无槽往返）需绑定形；绑定禁用后具名局部=槽往返、内联=双份重算
+    // （探针 /tmp/l12p8.cpp f/g 两形均不合），N 封顶。
     readfds.fds_bits[ix] |= (1UL << (static_cast<unsigned long>(m_sock) & 31));
     ret = select(m_sock + 1, &readfds, 0, 0, &tv);
     if (ret <= 0)
@@ -483,11 +485,9 @@ int CmmChannelProxy::RecvPacket()
                                     static_cast<size_t>(0x80000 - m_field1c)));
     // ORIG 0x081065a8：`mov -0x24,%eax; shr $0x1f,%eax; test %al,%al; je`——
     // 显式移位形（`>0x7fffffffu` / 裸 `>>31` 均被 4.4 fold 成 cmpl/jns），
-    // register asm(eax) 中转保 shr（技巧28 同族）。
-    register unsigned int sgn asm("eax");
-    sgn = static_cast<unsigned int>(nread) >> 31;
-    // ORIG 0x081065ab `shr $0x1f,%eax; test %al,%al; je` —— 8 位 test。
-    if (static_cast<unsigned char>(sgn))
+    // b28 P0 清绑后恢复：具名局部反引入槽往返，表达式内联 uchar 化实测
+    // 与 ORIG 同形（探针 /tmp/l12p7.cpp f：`mov; shr $0x1f,%eax; test %al; je`）。
+    if (static_cast<unsigned char>(static_cast<unsigned int>(nread) >> 31))
     {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
         {
@@ -1282,6 +1282,13 @@ CaptchaGen::~CaptchaGen()
     // 技巧5/15）；0x080de74b `setg` ⇒ 两侧 int 有符号比较；循环体 FT_Done_Face
     // （0x080de731）；循环后 FT_Done_FreeType(m_library)（0x080de75a）再落
     // vector 成员 dtor。
+    // [b28 判词·N·EH 可见性] ORIG 49 vs 我们 33：ORIG 4.1 对**外部 FreeType .so**
+    // 不透明调用布 landing（push esi/ebx + cleanup vector D1 + _Unwind_Resume 段，
+    // 16 insn）；本仓 FreeType 以 extern "C" 占位定义**同 TU 内联可见**（1138 起），
+    // 4.4 throw 分析判 nothrow → 无 landing。探针 /tmp/l2_p10.cpp 实证改 extern 声明
+    // 即产 landing，但搬移 shim 定义会同时改 ctor/addFont（已 AE）调用点形态，
+    // 风险>收益；`throw(...)` spec（-fno-enforce-eh-specs）与 try/catch{throw;}
+    // 实测均无效（33 不变）。属 N 类「跨工具链第三方符号可见性」，语义等价豁免。
     for (int i = 0; i < (int)m_faces.size(); ++i)
     {
         FT_Done_Face(m_faces[i]);
@@ -1325,6 +1332,10 @@ void CaptchaGen::generateText(CountryCode code, int len, unsigned short* out)
 {
     // [b23S3C] ORIG 0x080de83c：三分支各独立循环（i 槽 -0x14/-0x10/-0xc），
     // 表/计数直引全局静态成员（movzwl table(,%eax,1) 索引形），勿归一成共享循环。
+    // [b28 判词·N18a×3] 各分支 `m_rng() % kXxxCount`：ORIG 4.1 先 `mov g,%edx`
+    // 再 `mov %edx,%ecx`（divisor 两段物化），4.4 恒直 `mov g,%ecx` 单段（N18a
+    // 「4.4 恒折单步 regmove」反向不可造）；三分支共差 3 insn（97 vs 100），
+    // div/mod 输入输出逐条等。
     if (code == CountryCode::korea)
     {
         for (int i = 0; i < len; ++i)
@@ -4638,7 +4649,9 @@ void CLevelDungeonPlayStatistic::IncreaseLevelDungeonPlay(int level, int playCou
         // 之前（level 跨 ctor call 保活 ⇒ 4.1 直落 callee-saved %ebx，
         // 并连带 push/pop %ebx 与帧 0x64）。4.4 默认在 operator() 处重新
         // reload ⇒ register asm("ebx") + 声明位置钉住早装载（技巧 2/13/28）。
-        register int lv asm("ebx") = level;
+        // [b28 判词 N80/N96] ORIG 值跨 cMyTrace ctor 直落 %ebx（callee-saved
+        // 提前物化）；4.4 ctor 后求值，绑定禁用 ⇒ N 封顶。
+        int lv = level;  // b28 P0 清绑定（保留声明位点）
         cMyTrace tr(__PRETTY_FUNCTION__,
                     0x550, 0);
         tr("LEVEL_DUNGEON_PLAY_STATISTIC wrong level(%d)", lv);
@@ -4730,6 +4743,8 @@ void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
         m_keys[i].m_data[2] = key.m_data[2];
     }
 }
+// （b28 试 P216 throw() 回滚：4.4 判 ctor pure 后连 call 一起消除，ORIG 有 call，
+//  得不偿失；CExpertJobMgr::C1 残差为 N77/P90 value-init 清零段。）
 expert_job::CExpertJobFactory::CExpertJobFactory()
 {
     // ORIG 0x0849f68c：两个 StaticPool 成员构造。
@@ -4740,8 +4755,12 @@ expert_job::CExpertJobFactory::~CExpertJobFactory()
 }
 expert_job::CExpertJobMgr::CExpertJobMgr()
 {
-    // ORIG 0x0849e102：new(0x60, nothrow) CExpertJobFactory，失败 printf 后继续。
-    m_factory = new (std::nothrow) CExpertJobFactory;
+    // ORIG 0x0849e102：首条 `movl $0x0,(%eax)` 预清槽 + new(nothrow) T()
+    //（4.1 value-init 前置 rep stos 清零，4.4 按 CWG434 不 emit = N77/P90
+    //  跨版本记录）+ 结果统一写回 + 成员回读判 0 后 printf。
+    m_factory = 0;
+    CExpertJobFactory* p = new (std::nothrow) CExpertJobFactory();
+    m_factory = p;
     if (m_factory == 0)
     {
         printf("memory error func(%s) line(%d)",
@@ -4883,6 +4902,7 @@ IRentalMachine* InstanceRentalSystem::getMachine(int idx)
 
 // Ready（ORIG T 0x082701dc）：遍历机器表；任一为空或其槽3 Ready() 返回非 1
 // 即返回 false，全部就绪（含空表）返回 true。
+// [b28 判词 N7] 残差=call *%edx↔%eax 换名+对调，主体 56 行同形封顶。
 bool InstanceRentalSystem::Ready()
 {
     for (std::map<int, IRentalMachine*>::iterator it = m_impl->m_machines.begin();
@@ -4906,6 +4926,7 @@ bool InstanceRentalSystem::Ready()
 
 // Rent 分发（ORIG T 0x08270288）：按 RentInput.m_machineKey 取机器并经槽2
 // 调用；无机器时 ORIG 直接返回 1。
+// [b28 判词 N7] 残差=call *%edx↔%eax 换名+实参链寄存对调，29 行主体同形封顶。
 int InstanceRentalSystem::Rent(CUser& user, const RentInput& input,
                                RentOutput& output)
 {
@@ -4927,6 +4948,8 @@ online_preliminary::CTeamFactory::~CTeamFactory()
 {
     // ORIG 0x08588e42：StaticPool 成员析构。
 }
+// [b28 判词 N77] ORIG 4.1 `new (nothrow) T()` value-init 前置 rep stos 12 dword
+// 清零+临时槽；4.4 CWG434 不 emit——placement/显式 memset 变 call 均不可翻，封顶。
 online_preliminary::COnlinePreliminaryTeamMgr::COnlinePreliminaryTeamMgr()
     : m_factory(0)
 {
@@ -4981,25 +5004,22 @@ void online_preliminary::COnlinePreliminaryTeamMgr::OnLoadTeamInfo(
 
 // ---- IBusiness / CBusinessImpl（报告 docs/class_func_reports/CBusinessImpl/）----
 
-IBusiness::IBusiness()
-{
-    // ORIG W 0x082a7c24：仅设 vptr（编译器生成）。
-}
-
+// P210 附注（b28 BL14 翻案，Main 2026-09-08 广播）：派生 ctor 定义前置到同
+// TU 基类 ctor 之前 ⇒ 4.4 对该 callee 不可见、恢复 ORIG 保守 outgoing
+// `sub $0x18`（0x082a7c3b），旧「帧舍入 N + dead pad」判词作废（pad 删）。
 CBusinessImpl::CBusinessImpl()
 {
     // ORIG 0x082a7c32：call IBusiness ctor + 设 vptr（编译器生成序列）。
-    // ORIG 0x082a7c3b `sub $0x18,%esp`（4.1 ctor 宽松帧）→ dead pad 撑帧
-    // （技巧31）。char[N] 维度、裸 int、volatile int 三种探针均
-    // 无法把 4.4 帧从 0x14 抬到 ORIG 0x082a7c3b 的 0x18（4.4 对未读未写局部
-    // 一律不分配槽，含 volatile）⇒ 余 4B 属 4.1/4.4 帧舍入差（N 类）。
-    char pad[12];
-    (void)pad;
 }
 
 CBusinessImpl::~CBusinessImpl()
 {
     // ORIG 0x082a7c4e：仅重置 vptr（编译器生成序列）。
+}
+
+IBusiness::IBusiness()
+{
+    // ORIG W 0x082a7c24：仅设 vptr（编译器生成）。
 }
 
 int CBusinessImpl::SendBuffertoClient(int a, int b, int c, unsigned int d,
@@ -5567,7 +5587,9 @@ random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
         // ORIG 0x085f0dbc：`mov -0x20(%ebp),%eax`（seed 实参 t）在循环体最前
         // 装载、跨 `imul`/`lea` 地址计算保活 ⇒ register asm("eax") 钉住早装载
         // 并把基址挤到 %ecx（技巧 28）。
-        register unsigned long tv asm("eax") = t;
+        // [b28 判词 N18a/N96] ORIG 早装载跨 imul/lea 保活 %eax 需绑定；
+        // 禁用后无源形，N 封顶。
+        unsigned long tv = t;  // b28 P0 清绑定
         m_rand[i].seed(tv);
     }
     m_field08 = 0;
@@ -7737,6 +7759,7 @@ int RentalMachineDimension::Rent(CUser& user,
 // ORIG _ZN20InstanceRentalSystem17CheckRentableItemEij T 0x082702dc【objdump】：
 // machine = getMachine(type)；machine==0 → 返 1（视为可用）；否则尾调虚槽
 // vptr+0x10 CheckRentableItem(itemIdx)。（OnlyOrig_CreatureJob.EJEnchanter 批补）
+// [b28 判词 N7] 残差=call *%edx↔%eax 换名+伴随寄存对调，主体同形封顶。
 bool InstanceRentalSystem::CheckRentableItem(int type, unsigned int itemIdx)
 {
     IRentalMachine* machine = getMachine(type);

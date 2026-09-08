@@ -1018,24 +1018,24 @@ int scanModuleType()
 // ---------------------------------------------------------------------------
 static int gCodePage = 0;   // ORIG _ZL9gCodePage 0x09501e90
 
-int setCodePage(int nNewCodePage)
-{
-    const int old = gCodePage;
-    gCodePage = nNewCodePage;
-    return old;
-}
-
 // getCodePage —— ORIG @ 0x8adea10：mov 0x9501e90,%eax 直返全局 codepage。
 int getCodePage()
 {
     return gCodePage;
 }
 
+// [b28 P210] 调用者定义移到 callee 之前：4.4 对「TU 内已见定义的 callee」按其实
+// 帧精确继承 outgoing（塌缩 sub $0x4）；ORIG 0x0808ec67 帧 0x18 为 callee 未见时
+// 保守形。前置定义后恢复保守大帧。
 // setCodePageByLocal — ORIG @ 0x808ec64：setCodePage(950 /*0x3b6*/)。
-// 【残差豁免·NEAR】指令序列与 ORIG 逐条等（push/mov/sub/movl$/call/leave/ret），
-// 唯一差 = 帧 sub $0x18 vs $0x4（ORIG 0x0808ec67）——负例表「跨版本 outgoing
-// frame」族；dummy 局部会新增 store 破坏 7 条指令正文，无法源码复现。
 void setCodePageByLocal()
 {
     setCodePage(950);
+}
+
+int setCodePage(int nNewCodePage)
+{
+    const int old = gCodePage;
+    gCodePage = nNewCodePage;
+    return old;
 }

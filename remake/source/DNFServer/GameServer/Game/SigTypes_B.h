@@ -145,6 +145,14 @@ struct SIG_CREATURE_ITEM
     int m_field70;              // +0x70（ChangeOwner p7；同上）→ 总 0x74（ORIG memset 覆盖范围）
 };
 static_assert(sizeof(SIG_CREATURE_ITEM) == 0x74, "SIG_CREATURE_ITEM ABI drift");
+// +0x08 物品 idx 具名视图（P95/P82 手法）：ORIG CDBMsgSender::{Evolute,Event,
+// Hatch}Creature 写点为 buf 基址 disp8 折叠 `mov %edx,0x8(%eax)`；
+// *reinterpret_cast<int*>(&m_item[4]) 形在 4.4 展开 add $0x8（探针 /tmp/bl8_probe6.o f5）。
+struct SigCreatureItemIdxView
+{
+    char m_pre[8];
+    int  m_itemIdx;    // SIG_CREATURE_ITEM+0x08（compat 区 m_itemIdx）
+};
 struct SIG_CREATURE_ITEM_LAYOUT_MIRROR
 {
     char m_hdr[0x04];
@@ -352,7 +360,12 @@ static_assert(sizeof(SIG_FAIR_PVP_SCORE_ENTRY) == 0x10,
 
 struct SIG_FAIR_PVP_SCORE
 {
-    int m_characNo;                            // +0x00
+    // [b28 P211] _saveData 0x084a57fe 两 store 序实证换型：+0x00 store 为
+    // RHS-first（`mov %eax,%edx; mov -0xc,%eax; mov %edx,(%eax)`）⇒ unsigned
+    // 字段 ← int 返回（转换中转）；+0x680 store 为 LHS-first（`mov -0xc,%edx;
+    // mov %eax,0x680(%edx)`）⇒ int 字段 ← int 返回同型。探针 /tmp/l2_p7.o
+    // s4/s1 分别复现两形。宽度/偏移/sizeof 0x688 不变。
+    unsigned int m_characNo;                   // +0x00
     int m_modeStats[2][3];                     // +0x04..+0x18（modeA0..2 / modeB0..2）
     int m_field1c;                             // +0x1c（↔ CFairPvPScore::m_field40）
     int m_field20;                             // +0x20（↔ m_field44）
@@ -364,7 +377,8 @@ struct SIG_FAIR_PVP_SCORE
     unsigned char m_recentResults[10];         // +0x670..0x679
     char m_pad67a[2];                          // +0x67a..0x67b
     int m_dailyPlayCount;                      // +0x67c
-    unsigned int m_lastPlayTime;               // +0x680（from_unixtime 时间戳；CFairPvPScore 写 getCurSec）
+    int m_lastPlayTime;                        // +0x680（from_unixtime 时间戳；CFairPvPScore 写 getCurSec；
+                                               // [b28] 改 int 复现 ORIG LHS-first store 形）
     unsigned char m_giveItem;                  // +0x684
     char m_pad685[3];                          // +0x685..0x687
 };
@@ -579,10 +593,13 @@ struct SIG_IN_GAME_ADVERTISEMENT_LOG
 {
     unsigned int m_accId;            // +0x00（get_acc_id）
     unsigned int m_characNo;         // +0x04（get_charac_no(-1)）
-    unsigned char m_type;            // +0x08（param_2，写入字节）
+    // +0x08（param_2 char 形参，写入字节）。字段与形参同型(char) ⇒ 4.4 出
+    // ORIG 0x080fda56 的 LHS-first 3 条形；uchar 字段异型反产 RHS-first
+    // （探针 wl.cpp iB vs iA，fresh ndiff 4 实证后翻案）。
+    char m_type;
     unsigned char m_pad09;           // +0x09
     short m_adType;                  // +0x0a（param_3）
-    unsigned char m_flag;            // +0x0c（param_4，写入字节）
+    char m_flag;                     // +0x0c（param_4 char 形参；同型化同上）
     unsigned char m_pad0d[3];        // +0x0d
     unsigned int m_extra;            // +0x10（param_5）
     int m_dungeonIdx;                // +0x14（state=5 时副本 idx，否则 -1）
@@ -600,7 +617,12 @@ struct SIG_IP_MONITOR_PUNISH
 #pragma pack(push, 1)
 struct SIG_ITEM_DICTIONARY_FLAG
 {
-    int m_characNo;              // +0x00
+    unsigned int m_characNo;     // +0x00（unsigned：CItemDictionary::_saveData ORIG
+                                 //   0x0811d6fd `mov %eax,%edx; mov -0xc(%ebp),%eax;
+                                 //   mov %edx,(%eax)` 值先载形 = 字段与 int RHS 异型才
+                                 //   产生的转换中转（P211/B25 sig 字段版，探针
+                                 //   /tmp/bl9p/field.o fA(int,LHS先)/fB(unsigned,值先)；
+                                 //   sizeof/偏移不变，ctor 写常量 0 机器码不受影响）
     unsigned char m_data[5000];  // +0x04
 
     // ORIG W 0x0848fab2：movl 0→+0 + memset(+0x4,0,0x1388)。

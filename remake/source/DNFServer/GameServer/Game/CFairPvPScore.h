@@ -41,7 +41,12 @@ namespace fair_pvp
 {
 
 // JobKey —— 职业键（ctor 0x84a643a W；operator< 0x84a63f2 W：
-// 先比 int job，相等再比 unsigned char 子键）。
+// 先比 job，相等再比子键字节）。
+// [b28 P211 反形异型化] 字段类型由 int/unsigned char 恢复为与 ORIG ctor 发射形
+// 一致的 enum/signed char：探针 /tmp/l2_p2.cpp JK 形 C1 与 ORIG 0x84a643a 13 条
+// 逐字全等（store1 LHS 地址先 this→value；store2 uchar 形参→schar 字段触发转换
+// 中转 = RHS 先 movzbl+this 重载）。sizeof 0x08、+0x00/+0x04 偏移不变；
+// operator< 为 byte cmp + jge（movzbl/movsbl 低 8 位比较结果同向），语义不变。
 class JobKey
 {
 public:
@@ -49,8 +54,9 @@ public:
 
     bool operator<(const JobKey& rhs) const;
 
-    int           m_job;   // +0x00
-    unsigned char m_sub;   // +0x04
+    ENUM_CHARACTERJOB m_job;  // +0x00（4B，比较按 int 宽度 cmpl）
+    signed char       m_sub;  // +0x04（ORIG operator< 0x84a63f2 以 byte cmp+jge
+                               // 有符号序比较，P196 实证值域可 ≥0x80）
 };  // sizeof 0x08
 
 // CFairPvPScore 本体。charac_expand::CData 基类：vptr@+0x00、
@@ -86,12 +92,11 @@ public:
     std::list<unsigned char> m_recentResults_;                      // +0x20（最多保留 10 条）
 
     // 模式统计记录 ×2（每模式连续三项计数，loadData/getData 按 0xc 步进序列化）
-    int m_modeA0;  // +0x28
-    int m_modeA1;  // +0x2c
-    int m_modeA2;  // +0x30
-    int m_modeB0;  // +0x34
-    int m_modeB1;  // +0x38
-    int m_modeB2;  // +0x3c
+    // [b28 P172] _reset 0x084a5942 循环体 ORIG 对 st[i][k] 发「this→ecx、i*3→
+    // add/add+shl、lea (ecx,ea)、add $0x28/0x2c/0x30 尾折叠」六步全链（探针
+    // /tmp/l2_p6.cpp r1 与 4.4 逐字同形）⇒ 原码为 2D 数组成员而非 6 标量；
+    // m_modeA0..m_modeB2 = m_modeStats[0..1][0..2]，偏移/sizeof 不变（+0x28..0x3c）。
+    int m_modeStats[2][3];  // +0x28（A=m_modeStats[0][0..2]，B=[1][0..2]）
 
     int m_field40;              // +0x40（resultKind==2 计数）
     int m_field44;              // +0x44（resultKind==3 计数）

@@ -145,7 +145,9 @@ public:
     int m_field28;                    // +0x28
     int m_field2c;                    // +0x2c
     int m_field30;                    // +0x30
-    int m_field34;                    // +0x34
+    unsigned int m_field34;           // +0x34（P211 异型化：ctor int 形参→unsigned 字段
+                                      //   触发 4.4 RHS-first store=ORIG 形，b28-L11；
+                                      //   读取侧 395 已显式 (unsigned int) cast，行为不变）
     int m_field38;                    // +0x38
 
     int OnKillVillageMonster(CUser* user, unsigned short zone, bool flag);

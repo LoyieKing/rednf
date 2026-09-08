@@ -46,23 +46,31 @@ namespace exchange_server
 // ---------------------------------------------------------------------------
 // ctor — ORIG 0x848ffd0 size 0x53：
 // 基类构造后清零 +0x851a0/+0x851a4、+0xc 置 1。
-// ORIG 基类构造后先在栈上建一个局部 CNetwork 临时并立即析构（lea -0x851a8;
-// C1;D1，对 *this 无副作用）。该临时对可观察行为无任何影响，且重建引入后 4.4
-// 工具链会为具备非平凡析构的临时额外生成 EH landing pad（push esi/ebx +
-// _Unwind_Resume），反而比 ORIG 4.1 的 20 条多出 15 条指令，因此按 N 族跨版本
-// 结构性差异省略（语义等价，字节层 N 封顶）。
-// [b22判词·N] ORIG 0x848ffd0 基类 ctor 后于栈帧内建匿名 CNetwork<95000,450000>
-// 临时（lea -0x851a8;C1;C1;D1）并因此撑出 sub $0x851b8 巨型帧；该临时对 *this
-// 无可观察副作用，且 4.4 工具链会为非平凡析构临时额外出 EH landing pad，复现
-// 反而指令膨胀。+0xc 写 movb $0x1 低字节（m_field0c 为基类 int，仅低字节被用作
-// 标志），4.4 对 char* 取址成员写产 add+movb 而非 ORIG 的 disp(%eax) 单条——属
-// 跨版本寻址伪影。三者均不可源码复现，语义等价（帧/临时/寻址 N 封顶）。
+// [b28-L11 翻案 b22判词·N] ORIG 基类 ctor 后于栈帧建匿名 CNetwork<95000,450000>
+// dead 临时（lea -0x851a8;C1;D1）撑 sub $0x851b8 巨型帧。dead temp 直书 +
+// ~CNetwork()/CNetwork() throw()（P216）后 4.4 零 EH 代价、帧精确复现；
+// +0xc 单字节写用 P82 具名视图折叠单条 disp（旧取址形展 add+movb 两条）。
 // ---------------------------------------------------------------------------
+// P82 具名尾部视图：ORIG `movb $0x1,0xc(%eax)` 单条 disp 写（int 字段低字节）。
+// `*(char*)&m_field0c` 取址形 4.4 展成 add+movb 两条；视图成员访问折叠单条。
+namespace {
+struct NetFlagView
+{
+    char m_pad00[0xc];   // +0x00..+0x0b
+    char m_flag0c;       // +0x0c（CNetwork::m_field0c 低字节，ORIG movb 实证）
+};
+}  // namespace
+
 CSession::CSession()
 {
+    // [b28-L11 复验] 先按 ORIG 直书 dead temp 实测 4.4 EH 代价（b22 判词称 +15）。
+    {
+        CNetwork<95000, 450000> deadTmp;
+    }
     m_triggerEventType = 0;
     m_channelNo = 0;
-    *(char*)&m_field0c = 1;   // ORIG movb $0x1,0xc(%eax)（仅写低字节）
+    // ORIG movb $0x1,0xc(%eax)（仅写低字节；throw() 后 dead-temp 直书零 EH 代价）
+    ((NetFlagView*)this)->m_flag0c = 1;
 }
 
 // D1 — ORIG 0x8495662 size 0x13，仅调基类析构（隐式空体一致）。
@@ -419,9 +427,11 @@ CSession* CSession::Connect(const char* ip, int port)
 }
 
 // ---------------------------------------------------------------------------
-// Disconnect — ORIG 0x84908f2 size 0x9f
+// Disconnect — ORIG 0x84908f2 size 0x9f（P159：函数尾 `mov $0x1,%eax` ⇒ bool true；
+// b28-L11 补 return true：gap 1→0；残差 12 全为 vtable+12 FreeSession 虚调用
+// N7 寄存器互换（{ecx,eax,edx} 组，4.4 间接 call 恒 %eax，负例表 N7 附）。
 // ---------------------------------------------------------------------------
-void CSession::Disconnect()
+bool CSession::Disconnect()
 {
     cMyTrace(__PRETTY_FUNCTION__, 0x25e, 0)("Disconnect Exchange Server");
 
@@ -435,6 +445,7 @@ void CSession::Disconnect()
 
     // vtable+12 FreeSession(this)
     ES()->FreeSession(this);
+    return true;   // ORIG 尾 `mov $0x1,%eax`
 }
 
 }  // namespace exchange_server

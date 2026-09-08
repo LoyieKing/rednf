@@ -150,8 +150,11 @@ struct PrivateStorePos : public PrivateStoreZone
     PrivateStorePos(unsigned char a, unsigned char b, short field2, short field4);
     void clear();
 
-    unsigned short m_field2;   // +0x02
-    unsigned short m_field4;   // +0x04
+    // short（非 ushort）：ORIG C1Ehhss 0x85cb72c 两 store 均 LHS-first =
+    // P211/BL2 判据「字段与形参同型」实证；读取侧 ORIG 一律 movzwl 零扩展
+    // 作 uint 实参（调用点无 sign 语义），写入值 0x172/0xbe 正区间不变。
+    short m_field2;   // +0x02
+    short m_field4;   // +0x04
 };
 
 // ---- CCharacterControllerPrivate（私商开店起点控制器；ORIG C1 W 0x85d0f90 /

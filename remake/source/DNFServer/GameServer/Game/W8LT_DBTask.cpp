@@ -3759,6 +3759,8 @@ bool DB_LoadDungeonClear::AradLoadMemberDungeonClear(SIG_LOAD_DUNGEON_CLEAR* sig
 // 取全部 dungeon 串，逐行拼入 m_clearData（逗号分隔），总长超 0x1800 即错。
 // N22 封顶（ndiff1）：`cmp %eax,%ebx`（ORIG，dst=局部）vs `cmp %ebx,%eax`（4.4
 // 恒 dst=call 结果方）；其余为跳表 R_386_32 重定位归一项。NL6 2026-09-08。
+// [b28 判词 N22] 尾环 `cmp %eax,%ebx`(dst=局部) vs 4.4 恒 `cmp %ebx,%eax`(dst=call
+// 结果)——负例表在册，NEAR 2 封顶。
 bool DB_LoadDungeonClear::AradLoadDungeonClear(SIG_LOAD_DUNGEON_CLEAR* sig)
 {
     if (AradLoadMemberDungeonClear(sig))
@@ -5562,8 +5564,8 @@ bool DB_SaveEventItem::_UpdateEventYegamInfo(int id, int type)
 // 不存在则 insert，存在则 update stack_count。
 bool DB_SaveEventItem::_HardCodeEventItems(SIG_SAVE_EVENTITEM* sig)
 {
-    // [N] 唯一真差 = ORIG je 目标块首 1 条对齐 nop（+0x1e，4.1 布局产物）；
-    // 4.4 -O0 不产块首 nop，源码不可控（ndiff 24 全为该偏移错位连锁，封顶）。
+    // [b28-L11 fresh] 旧「je 目标块首对齐 nop 错位 ndiff 24」判词已由 nop 对齐
+    // 剥离口径（§6.1）消解，fresh ndiff=0（AE 归一后逐条全等）。
     static const int handleIdx = 3;
     if (sig->m_field0c != 0x65ae)
     {
@@ -8611,7 +8613,11 @@ bool DB_LoadNoCacheData::dispatch(int userIdx, int slot, Stream* stream)
     if (sig == 0)
         return 0;
     memset(sig, 0, 0x2c);
-    ((int*)sig)[0] = characNo;
+    sig->m_characNo = characNo;   // P211 异型(int RHS→unsigned 字段)翻 RHS-first 装载序
+                                  //   =ORIG 形；转换中转 `mov %eax,%edx` 为 4.4 恒产
+                                  //   加宽段(N18a 反向不可造)→ ndiff 3 封顶。旧裸
+                                  //   偏移形同点 LHS-first ndiff 2，按 §4.3 具名化
+                                  //   口径优先取具名形。
     LoadBloodDungeonReward(sig);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;

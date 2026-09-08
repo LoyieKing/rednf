@@ -114,7 +114,10 @@ public:
     std::string getMailContent();                        // T 0x08165004（condition+0x10 sret）
     bool rewardProcess(CUser* user);                     // T 0x0816502e
 
-    unsigned int m_missionCode;        // +0x04（ctor 写入）
+    // +0x04（ctor 写入）。与 ctor 形参 MissionNo::T 同型 ⇒ 4.4 store 出
+    // ORIG 0x08164f12 的 LHS-first 3 条形（探针 p211.cpp B5；uint 字段异型
+    // 反产 RHS-first=B1 形，fresh ndiff 2 实证后翻案）。
+    HeroMissionCondition::MissionNo::T m_missionCode;
     HeroMissionCondition m_condition;  // +0x08
 };
 

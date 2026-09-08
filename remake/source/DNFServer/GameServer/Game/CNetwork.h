@@ -39,8 +39,10 @@ template <int N1, int N2>
 class CNetwork
 {
 public:
-    CNetwork();
-    ~CNetwork();
+    // P216（b28-L11）：throw() 消调用者 4.4 冗余 landing pad（ORIG 4.1 CSession::C1
+    // dead-temp 形 20 条无 EH；-fno-enforce-eh-specs 下本 W 体尺寸不变、无 guard）。
+    CNetwork() throw();
+    ~CNetwork() throw();
 
     int get_socket();
     void disconnect();
@@ -111,7 +113,7 @@ public:
 };
 
 template <int N1, int N2>
-CNetwork<N1, N2>::CNetwork()
+CNetwork<N1, N2>::CNetwork() throw()
     : m_sock(-1), m_field10(0), m_field14(0), m_recvOffset(0), m_bBufOffsetTrace(0),
       m_sendSize(0), m_natType(0), m_ip(0), m_port(0), m_innerIp(0), m_mutex()
 {
@@ -120,7 +122,7 @@ CNetwork<N1, N2>::CNetwork()
 }
 
 template <int N1, int N2>
-CNetwork<N1, N2>::~CNetwork()
+CNetwork<N1, N2>::~CNetwork() throw()
 {
 }
 

@@ -12,7 +12,7 @@ namespace game_master
 {
 
 // ---- stMacroData ----
-stMacroData::stMacroData()                              // 0x084b3f6a
+stMacroData::stMacroData() throw()                      // 0x084b3f6a
 {
     m_cmd = 0;
     m_sub = 0;
@@ -20,7 +20,7 @@ stMacroData::stMacroData()                              // 0x084b3f6a
     m_len = 0;
 }
 
-stMacroData::~stMacroData()                            // 0x084b5db4（ORIG D1 空体：push ebp/mov/pop/ret）
+stMacroData::~stMacroData() throw()                    // 0x084b5db4（ORIG D1 空体：push ebp/mov/pop/ret）
 {
     // m_data 释放由 CMacro::Reset 循环负责（ORIG operator delete[] 实证）；
     // 析构不释放：vector<stMacroData> push_back 为浅拷贝，释放会导致 double-free。
@@ -143,19 +143,20 @@ void CMacro::SendPacket(char const* data, int len)      // 0x084a8924
     int total = len + 8;
     CStreamGuard guard(true);
     // P0：ORIG 无 Stream* 槽——Set(pool->Acquire(...)) 三支各自内联直传。
-    // 第二分支首条 `cmpl $0xfff/-0xc; jle big` 为外层已判后的死重测（P171 照抄），
-    // 对应源形 `total < 0x1000 || total > 0x3fff`。
+    // 第二分支首条 `cmpl $0xfff/-0xc; jle big` 为外层已判后的死重测（P171 照抄）；
+    // 正向包裹形（P222/探针 /tmp/bl5/probeB.cpp f3）使中段 `cmpl $0x3fff; jg→big岛、
+    // fall-through mid(0xf1)` 与 ORIG 块序一致。
     if (total < 0x1000)
     {
         guard.Set(GlobalData::s_small_stream_pool->Acquire("GameMaster.cpp", 0xed));
     }
-    else if (total < 0x1000 || total > 0x3fff)
+    else if (total >= 0x1000 && total <= 0x3fff)
     {
-        guard.Set(GlobalData::s_big_stream_pool->Acquire("GameMaster.cpp", 0xf5));
+        guard.Set(GlobalData::s_stream_pool->Acquire("GameMaster.cpp", 0xf1));
     }
     else
     {
-        guard.Set(GlobalData::s_stream_pool->Acquire("GameMaster.cpp", 0xf1));
+        guard.Set(GlobalData::s_big_stream_pool->Acquire("GameMaster.cpp", 0xf5));
     }
     // ORIG 每 << 先 operator*（+0xc7/+0xf0），uid 经 %ebx 跨 call 直传无槽。
     // CStreamGuard::operator* 返回 this 指针（CStreamGuard.h:27-28）；链式显式调用

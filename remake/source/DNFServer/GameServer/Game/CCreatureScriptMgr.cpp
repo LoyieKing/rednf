@@ -191,7 +191,9 @@ CCreatureScript* CCreatureScriptMgr::FindCreatureScript(int creatureId)
 // ORIG RegisterCreatureIdAndItemId @ 0x833d54a。
 bool CCreatureScriptMgr::RegisterCreatureIdAndItemId(int creatureId, int itemId)
 {
-    std::map<int, int>::const_iterator it = m_creatureIdToItemId.find(creatureId);
+    // P50/P96：ORIG find 返回 iterator 直存（const_iterator 会额外引入转换临时+
+    // 拷贝构造，帧 +0x10/多两条 lea——实测 we-larger 10 条）。
+    std::map<int, int>::iterator it = m_creatureIdToItemId.find(creatureId);
     if (it != m_creatureIdToItemId.end())
     {
         cMyTrace trace(

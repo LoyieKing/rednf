@@ -74,11 +74,9 @@ void CExchangeServer::Reset()
 {
     m_flag38 = false;
     m_flag39 = false;
-    // N92：ORIG `mov 0x8(%ebp),%edx; mov %eax,0x3c(%edx)`（返回值留 eax 直 store）；
-    // 4.4.7 对 call 返回 long(time_t=__SLONGWORD_TYPE)→unsigned int 字段的 store 恒物化
-    // `mov %eax,%edx` 中转（+1 条）。直赋值/取址解引用/static_cast/C cast/加0/局部槽/
-    // helper 返回 unsigned/三目 9 形探针全败（/tmp/l13/probe_reset*.o），不可翻。
-    m_resetTime3c = (unsigned int)time(NULL);
+    // N92 翻案（b28 L11）：中转仅见于 long→unsigned int 字段；字段改 time_t 同型(long)
+    // 后直存形 `mov 0x8(%ebp),%edx; mov %eax,0x3c(%edx)` 与 ORIG 全等（探针 l11_n92）。
+    m_resetTime3c = time(NULL);
 }
 
 // ---------------------------------------------------------------------------
@@ -98,8 +96,12 @@ bool CExchangeServer::GetNetworkEvent()
 int CExchangeServer::GetExchangeServerCount(CONNECT_TYPE type)
 {
     int count = 0;
-    for (std::map<int, ExchangeServerInfo>::iterator it = m_serverMap.begin();
-         it != m_serverMap.end(); ++it)
+    // P212 头部声明 + P13 缓存 end：ORIG 头段 begin→-0x10、end→-0x14 各求值一次，
+    // 4.4 头部声明先声明浅 ⇒ it=-0x10/e=-0x14 精确命中（旧 for-init + 条件内
+    // 重调 end() 致循环体多 5 条重评线）。
+    std::map<int, ExchangeServerInfo>::iterator it = m_serverMap.begin();
+    std::map<int, ExchangeServerInfo>::iterator end = m_serverMap.end();
+    for (; it != end; ++it)
     {
         if (it->second.m_type08 == type)
         {
@@ -141,11 +143,17 @@ bool CExchangeServer::TrySend(int serverId, PacketGuard& guard)
 {
     std::map<int, ExchangeServerInfo>::iterator it =
         m_serverMap.find(serverId);
-    if (it == m_serverMap.end() || it->second.m_pSession == NULL)
+    // P168a③b 实测定稿（探针 /tmp/l11_x.cpp f7）：合并 && 使 4.4 出 mov$1/mov$0
+    // 岛；**嵌套 if** 形下第二条件出 ORIG 的 `test; setne %al; test; je <共享FAIL尾>`
+    // 物化形，bool callee(ne) 第一条件直 `test %al; je` 与 ORIG 全等。
+    if (it != m_serverMap.end())
     {
-        return false;
+        if (it->second.m_pSession != 0)
+        {
+            return m_sessionMgr.TrySend(it->second.m_pSession, guard);
+        }
     }
-    return m_sessionMgr.TrySend(it->second.m_pSession, guard);
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +162,11 @@ bool CExchangeServer::TrySend(int serverId, PacketGuard& guard)
 bool CExchangeServer::AttachSessionInExchangeServer(int serverId,
                                                     CSession* session)
 {
+    // [b28-L11 判 N·N93附+P75] 残差两类：①函数级 iterator 对(-0x20/-0x1c)与
+    // if 尾块内 cMyTrace(-0x18) 的槽深方向跨版本相反（N93 附：兄弟/块内对象
+    // 分配方向，P212 头部声明法对带参 ctor 类不可用）；②ORIG push %ebx 将
+    // session 形参跨 cMyTrace ctor 调用保活（`mov %ebx,0x8(%esp)`），4.4 恒在
+    // 组参点重读形参槽（P75/N82附 多实参首值寄存器对调）——ndiff 22 封顶。
     session->SetChannelNo(serverId);
     std::map<int, ExchangeServerInfo>::iterator it =
         m_serverMap.find(serverId);
@@ -266,8 +279,10 @@ bool CExchangeServer::SendResponseCharacInfo(int a, int b, void* data,
 bool CExchangeServer::SendResponseCharacInfo(int a, int b, void* data,
                                              int len)
 {
-    // [N] 纯转发件：ORIG sub $0x38 vs 4.4 sub $0x28——4.1 outgoing 区恒多预留
-    // 0x10，跨版本帧豁免（同 ForwardRequestCharac，ndiff 2 封顶）。
+    // P190 撑帧（同 ForwardRequestCharac）：双 double 取址 pad 使 4.4 帧 0x28→0x38。
+    double framePad1, framePad2;
+    (void)&framePad1;
+    (void)&framePad2;
     return SendResponseCharacInfo_forchina(a, b, data, len);
 }
 
@@ -415,8 +430,12 @@ bool CExchangeServer::ForwardRequestCharac_forchina(int a, int b,
 bool CExchangeServer::ForwardRequestCharac(int a, int b, void* data,
                                            int len)
 {
-    // [N] 纯转发件：ORIG sub $0x38 vs 4.4 sub $0x28——4.1 outgoing 区恒多预留
-    // 0x10，跨版本帧豁免（ndiff 2 封顶）。
+    // P190 撑帧：ORIG(4.1) sub $0x38 vs 4.4 紧凑 $0x28；两个 double 局部（仅取址）
+    // 触发 4.4 8B 对齐撑帧 +0x10 精确命中，outgoing %esp 槽位不受影响
+    // （探针 /tmp/l11_pad.cpp f1=0x28/f2=0x38）。
+    double framePad1, framePad2;
+    (void)&framePad1;
+    (void)&framePad2;
     return ForwardRequestCharac_forchina(a, b, data, len);
 }
 
@@ -957,6 +976,10 @@ Stream* CExchangeServer::GetMessage()
 // ---------------------------------------------------------------------------
 bool CExchangeServer::FreeMessage(Stream* stream, int flag)
 {
+    // [b28-L11 判 N·N93] 助记符序列 88=88 全等，残差 8 = 三 switch 臂 cMyTrace
+    // 对象槽深方向跨版本相反（4.1 先声明→-0x3c 深，4.4→-0x1c 浅）。块文本序
+    // 即 ORIG 汇编布局序（case1,0,2），交换块序可翻槽号但毁块布局（两约束
+    // 死锁）；cMyTrace 带参 ctor 不可 P212 头部声明化。N93 主案在册勿再试。
     if (stream == 0)
     {
         return false;                                 // ORIG: mov $0x0,%eax 后走公共尾

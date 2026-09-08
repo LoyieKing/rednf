@@ -70,9 +70,10 @@ bool CBattle_Field::MakeBasicRoundInfo(int memberCount,
         roundInfo.push_back(info);
         ++round;
     }
-    if (round == 15)
-        return true;
-    return false;
+    // ORIG 尾块：cmpl $0xf; je →mov$1 岛；false 臂原地 fall-through（P47 镜像）。
+    if (round != 15)
+        return false;
+    return true;
 }
 
 // ---------------------------------------------------------------------------

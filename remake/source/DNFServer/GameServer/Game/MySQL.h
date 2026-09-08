@@ -14,7 +14,10 @@
 //   +0x18  int             m_nFields
 //   +0x1c  char            m_query[0x6001]
 //   +0x601d char           m_blob[10][0x6001]
-//   +0x42028 size_t        m_queryLen
+//   +0x42028 int           m_queryLen（ORIG set_query 尾 store `mov 0x8(%ebp),%eax;
+//                          mov -0xc(%ebp),%edx; mov %edx,0x42028(%eax)` LHS 先形；
+//                          4.4 同型 int 局部即复现，size_t/unsigned 字段恒生 RHS 先
+//                          ——探针 /tmp/l15_p1.cpp fN vs fA/fK，P217 同型化族）
 //   +0x4202c int           m_dbError
 //   +0x42030 char          m_host[0x10]
 //   +0x42040 unsigned int  m_port
@@ -119,7 +122,7 @@ private:
     int m_nFields;                    // +0x18
     char m_query[0x6001];             // +0x1c
     char m_blob[10][0x6001];          // +0x601d
-    size_t m_queryLen;                // +0x42028
+    int m_queryLen;                   // +0x42028（ORIG int 形态，见布局表注）
     int m_dbError;                    // +0x4202c
     char m_host[0x10];                // +0x42030
     unsigned int m_port;              // +0x42040

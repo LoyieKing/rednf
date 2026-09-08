@@ -321,7 +321,11 @@ static_assert(sizeof(SIG_LOAD_CHARAC) == 0x703, "SIG_LOAD_CHARAC ABI drift");
 
 struct SIG_LOAD_CHARAC_HOTKEY_OPTION
 {
-    char m_pad[0xc4];
+    // +0x00 uint 视图（DB 载荷 accId，Dispatcher_SaveGameOption_2::process
+    // 0x081cee64 store `call get_acc_id; mov -0xc,%edx; mov %eax,(%edx)`
+    // 具名字段同型直存形实证，探针 store.cpp hC；pad 解引用形反产 LHS 早载
+    // 跨 call %ebx 缓存）。sizeof 0xc4 不变。
+    union { unsigned int m_uid; char m_pad[0xc4]; };
 };
 
 struct SIG_LOAD_CLEANPAD_POINT
@@ -837,7 +841,12 @@ static_assert(offsetof(SIG_LOAD_KILL_MONSTER_INFO, m_characNo) == 0xafc8, "SIG_L
 
 struct SIG_LOAD_NO_CACHE_DATA
 {
-    char m_pad[0x2c];
+    union {
+        unsigned int m_characNo;   // +0x00（ORIG dispatch 0x08446e.. `movl %edx,(%eax)`
+                                   //   int RHS→unsigned 字段 = P211 异型 RHS-first 形，
+                                   //   b28-L11；协议 charac_no 非负，unsigned 仅表线格式）
+        char m_pad[0x2c];
+    };
 };
 
 struct SIG_LOAD_POWER_WAR_STATUE_INFO

@@ -165,15 +165,12 @@ int PVP_CHANNEL::is_all_pvp_channel()
 }
 
 // is_winpoint_pvp_channel @ 0x0819770a：channelType ∈ {4, 8}
-// N18b：ORIG `mov -0xc,%eax; cmp $4,%eax`(寄存器装载)，4.4 恒折 `cmpl $4,-0xc`(内存直比)；
-// 无源码写法可复现寄存器装载。语义已正确。
+// b28 实测：P209 unsigned-cast 混合形不生效（4.4 对槽值+imm 比较仍恒折 `cmpl $K,mem`，
+// 两段物化与反向操作数均不可造，N18b 全域）；残差 2 行 cmp 形态（语义等价）。
 int PVP_CHANNEL::is_winpoint_pvp_channel()
 {
-    // ORIG 0x081976xx：call 结果 `mov %eax,-slot` 后两次 `mov -slot,%eax;
-    // cmp $K,%eax` 两段物化；4.4 裸局部折 `cmpl $K,mem`（N18b 反向）。
-    // P85 register 形实测被 4.4 折回 cmpl mem（约束无效），维持普通局部。
     int channelType = G_GameWorld()->GetChannelType();
-    if (channelType == 4 || channelType == 8)
+    if ((unsigned int)channelType == 4 || channelType == 8)
         return 1;
     return 0;
 }

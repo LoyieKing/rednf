@@ -161,6 +161,21 @@ void CAssaultMgr::SetAssaultChannel(bool flag)
     m_bAssaultChannel = flag;
 }
 
+bool CAssaultPlace::GetTeam(CUser* user, ENUM_ASSAULT_TEAM& team)
+{
+    // b28 BL6: N96/P0 清理 register asm + P182 强撑 pad——还原自然形；
+    // P210 定义前置（移于 CAssaulter::GetUser 之前）复现 ORIG 0x28 保守帧。
+    // ORIG `cmp; sete; test; je` 物化岛 = 4.1.2 O0 setcc 顶产物（P197④/N93附
+    // 同族），4.4 恒 `cmp; je` 直跳，残差封顶。
+    for (int i = 0; i <= 7; ++i) {
+        if (m_assaulters[i].GetUser() == user) {
+            team = m_assaulters[i].GetTeam();
+            return true;
+        }
+    }
+    return false;
+}
+
 // ---- CAssaulter 访问器（ORIG 布局：+0x00 user / +0x04 team / +0x08 state）----
 
 CUser* CAssaulter::GetUser()
@@ -289,27 +304,6 @@ bool CAssaultPlace::ExistUser(CUser* user)
         register bool same asm("al") = (m_assaulters[i].GetUser() == user);
         if (same)
             return true;
-    }
-    return false;
-}
-
-bool CAssaultPlace::GetTeam(CUser* user, ENUM_ASSAULT_TEAM& team)
-{
-    // b26 NEAR 封顶:outgoing 帧尺寸差(ORIG 0x28 vs 4.4 0x14,负例表
-    // 「outgoing 帧」跨版本族)+循环变量槽连锁平移(-0xc↔-0x4),余逐条相等。
-    // ORIG T 0x82e6cdc：cmp+sete+test 三连接（技巧22 register bool al）。
-    // 技巧31：i 槽 ORIG 在 -0xc（近侧 8B 为 4.1 未引用 temp）⇒ 后置 dead pad
-    // 撑出同槽位（(void)pad 置于末次使用之后，技巧31 规则1）。
-    int i;
-    volatile char pad[8];
-    for (i = 0; i <= 7; ++i)
-    {
-        register bool same asm("al") = (m_assaulters[i].GetUser() == user);
-        if (same)
-        {
-            team = m_assaulters[i].GetTeam();
-            return true;
-        }
     }
     return false;
 }
@@ -1321,18 +1315,18 @@ void CAssaultPlace::_MakeUserState(PacketGuard* packet)
 // ORIG T 0x82e6e2c：移除指定槽位用户并联动村庄/断线检测子系统。
 void CAssaultPlace::_DelUser(int index, bool flag)
 {
-    // ORIG +0x24：flag 短路后第二项 `cmp $4; setg %al; test %al; je`——嵌套
-    // if + 内层 register bool asm("al") setg 物化（整表达式 && 在 4.4 落岛）。
+    // b28 BL6: N96/P0 清理 register asm 绑定违例，还原自然形。ORIG +0x24 的
+    // `cmp $4; setg %al; test %al; je` 无槽物化岛（setcc-fold 负例族）源形
+    // 不可造，残差封顶。
     if (flag)
     {
-        register bool over4 asm("al") =
-            m_assaulters[index].GetState() > (ENUM_ASSAULT_STATE)4;
-        if (over4)
+        if (m_assaulters[index].GetState() > (ENUM_ASSAULT_STATE)4)
         {
-        // ORIG +0x3f：GetUser 结果落 callee-saved %ebx 跨 GetInstance 调用直落
-        // arg（技巧 28 免槽形，实测有效再留）。
-        register CUser* delUser asm("ebx") = m_assaulters[index].GetUser();
-        disconnect_detecter::GetInstanceDisconnectDetecter()->UnregisterUser(delUser);
+            // b28 BL6: P0——ORIG 内层 GetUser 无槽往返（4.1 走 %ebx 直缓存，
+            // 禁绑定形）⇒ 实参右值直传；嵌套 if 裸形 `cmp $4; setg; test; je`
+            // 与 ORIG 同形（f1 探针实证）。
+            disconnect_detecter::GetInstanceDisconnectDetecter()->UnregisterUser(
+                m_assaulters[index].GetUser());
         }
     }
     int team = m_assaulters[index].GetTeam();
@@ -1346,18 +1340,20 @@ void CAssaultPlace::_DelUser(int index, bool flag)
     if (delUser->getCurCharacR() != 0)
     {
 
-    register bool powerWarVill asm("al") =
-        GlobalData::s_power_manager->IsPowerWarEventOn()
-        && delUser->getCurCharacVill() == 7;
     // ORIG +0x0f2：EndPvP 段 getCurSec 差值落 %edx 跨装载直落 0xc(%esp)
     // （P44 变参即时求值，无 now 槽）；+0x13d G_GameWorld 结果 %eax 直通
     // receiver（P89 合并形，无 world 槽）；area 参数 get_area 结果直落。
-    if (!powerWarVill)
-    {
-        delUser->m_historyLog.EndPvP(
-            (ENUM_PVP_HISTORY_REASON)5, m_teamFlag[team],
-            GlobalData::s_systemTime_.getCurSec() - m_abuseSec);
-    }
+    // b28 BL6 v7: P223 goto 尾空标签——保 ORIG `&&` 直测极性
+    // （call on; test; je skip→vill check）+ 体尾 jmp 中继岛；ORIG 的
+    // mov$1/mov$0 无槽物化段 = 4.1 setcc 汇聚顶产物（setcc-fold 负例）。
+    if (GlobalData::s_power_manager->IsPowerWarEventOn()
+        && delUser->getCurCharacVill() == 7)
+        goto POWERWAR_VILL;
+    delUser->m_historyLog.EndPvP(
+        (ENUM_PVP_HISTORY_REASON)5, m_teamFlag[team],
+        GlobalData::s_systemTime_.getCurSec() - m_abuseSec);
+POWERWAR_VILL:
+    ;
 
     Village* village = G_GameWorld()->getUserVillage(delUser);
     if (village != 0)

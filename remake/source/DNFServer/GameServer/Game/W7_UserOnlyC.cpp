@@ -81,7 +81,8 @@ CPacketVerifier::CPacketVerifier()
     Init();                    // ORIG C1: checker ctor(空体) + Init
 }
 
-void CPacketVerifier::Init()
+void CPacketVerifier::Init() throw()   // P216：头（Main 代落 CUser.h:938）同步；
+                                       // C1 对 Init call 不再布 EH cleanup
 {
     m_lastClass = 0;
     m_lastId = 0;

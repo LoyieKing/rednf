@@ -37,6 +37,10 @@ namespace fair_pvp
 
 // ---------------------------------------------------------------------------
 // 3. CFairMatch::GetPlayCountPerOneTeam —— ORIG 0x08562834 恒返 1。
+//    [b28 判词·N146 式切片伪差·Main 裁定] nm size 0x15 把尾 nop×10+dead ret 计入
+//    切片（range [0x08562834,0x08562849)），函数体 5 条 push/mov/mov$1/pop/ret 与
+//    本实现逐字全等；strip_nop_padding 不吞 body 内 dead ret → 判 DIFF(1)。
+//    与 b25c NL21 同判例族；源码侧无可动，引 ORIG 地址为证。
 // ---------------------------------------------------------------------------
 int CFairMatch::GetPlayCountPerOneTeam()
 {

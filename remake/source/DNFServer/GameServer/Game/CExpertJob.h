@@ -139,8 +139,10 @@ public:
     int UseMaterialOfRecipe(PacketGuard* packet);  // ORIG T 0x0849c536
 
 private:
-    unsigned int m_user;        // +0x00（RawOffsetCleanupB：SetData 0x0849bf08 实证）
-    unsigned int m_item;        // +0x04
+    CUser* m_user;       // +0x00（RawOffsetCleanupB：SetData 0x0849bf08 实证。
+                         //   b28 指针字段化：ORIG 3 段 LHS-first 直存形=同型指针赋值）
+    CItem* m_item;       // +0x04（同上：ORIG `mov 0x8(%ebp),%edx; mov %eax,0x4(%edx)`
+                         //   指针域直存 find_item 返回值）
     unsigned int m_itemIndex;   // +0x08
     unsigned short m_slot;      // +0x0c
     unsigned short m_field0e;   // +0x0e
@@ -183,7 +185,9 @@ public:
     static void IncreaseExpertJobExp(CUser* user, int exp);
 
 protected:
-    int m_type;         // +0x04（职业类型；派生类成员起于 +0x8）
+    ENUM_EXPERT_JOB_TYPE m_type;  // +0x04（职业类型；派生类成员起于 +0x8。
+                                  //  b28：字段枚举化使 SetType store 序 = ORIG
+                                  //  LHS-first（探针 /tmp/l3/p1.cpp fC））
 };
 
 // CCharacExpertJob：专家职业角色扩展数据（charac_expand 槽 0）。基类
@@ -369,9 +373,13 @@ private:
     unsigned int m_uid;                 // +0x30
     unsigned int m_peerUid;             // +0x34
     int m_field38;                      // +0x38【推断占位】
-    int m_field3c;                      // +0x3c【推断占位】
-    int m_field40;                      // +0x40【推断占位】
-    int m_peerRequestType;              // +0x44
+    CItem* m_field3c;                   // +0x3c（b28 指针字段化：= m_materials[1].m_item
+                                        //  的 CItem* 快照，ORIG 直存指针）
+    CItem* m_field40;                   // +0x40（b28 字段化：ORIG OnTryEnchant
+                                        //  find_item 返回值直存 `mov %eax,0x40(%edx)`
+                                        //  无 int 中转；消费点全为 CItem*/子类指针）
+    ENUM_PEER_REQUEST_TYPE m_peerRequestType;  // +0x44（b28 枚举化：SetPeerRequestType
+                                               //  store 序 LHS-first，同 p1.cpp fC）
 };
 // CExpertJobFactory（ORIG W 0x0849f68c）：两个池，sizeof 0x60。
 // ctor/dtor 定义 GlobalData.cpp。

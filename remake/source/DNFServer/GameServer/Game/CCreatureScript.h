@@ -21,7 +21,7 @@ class CCreatureScript
 {
 public:
     CCreatureScript();                 // ORIG 0x833c77e
-    ~CCreatureScript();                // ORIG 0x833c848
+    ~CCreatureScript();                // ORIG 0x833c848（P216 throw() 实测无效——landing 源自本 D1 成员 dtor 清理链而非 callee ctor，判 N91）
 
     // ORIG 0x833c8e8：从原生 CreatureScript* 拷贝字段。
     void Set(CreatureScript* script);

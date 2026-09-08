@@ -565,45 +565,48 @@ float CDataManager::BaseExpPenalty(int levelA, int levelB)
 
 // ORIG 0x08360716：float 比较用 fucompp+fnstsw+sahf（i486 形态）、循环体
 // fildll/fmuls/fistpll（64 位零扩展中间量）——以 target attribute 与强转链复刻。
-// 残余 DIFF = 跨版本负例（范式库「跨版本」行）：4.1 在循环回边后保留
-// `jmp +0xbf; nop` 空中转岛、NaN 分支 je 落 nop 再 fall-through（0x083607d4/
-// 0x083607be），4.4.7 jump-threading 直落 leave ret，语义等价不可翻。
+// 尾部 `jmp; nop` 空块中继岛（0x083607d4）按 P223 用「if(相等) goto end; …
+// end:;」形复现。
 __attribute__((target("arch=i486"))) void CDataManager::SetExpRate(float rate)
 {
-    if (m_expRate != rate)
+    if (m_expRate == rate)
+        goto end;
+    memcpy(m_mobReward, m_mobRewardBackup, 0x324);
+    m_expRate = rate;
+    for (int i = 0; i <= 200; ++i)
     {
-        memcpy(m_mobReward, m_mobRewardBackup, 0x324);
-        m_expRate = rate;
-        for (int i = 0; i <= 200; ++i)
-        {
-            m_mobReward[i] =
-                (int)(long long)((float)(unsigned long long)(unsigned int)m_mobReward[i] *
-                                 rate);
-        }
+        m_mobReward[i] =
+            (int)(long long)((float)(unsigned long long)(unsigned int)m_mobReward[i] *
+                             rate);
     }
+end:
+    ;
 }
 
 // ORIG 0x083607d8：ratio 先行物化到局部（fmuls 直乘内存槽），两段循环分别
 // 遍历 m_genRefs1(+0x468)/m_genRefs0(+0x428)，元素 +0x10=m_dropRate 按
-// ROUND(v*ratio) 截断缩放；float 比较为 i486 形态。
+// ROUND(v*ratio) 截断缩放；float 比较为 i486 形态。尾部空块中继岛按 P223
+// goto 尾空标签形复现；x87 分步 flds+fdivp vs 4.4 fdivs 折叠属 N85附②。
 __attribute__((target("arch=i486"))) void CDataManager::SetItemDropRate(float rate)
 {
-    if (m_dropRate != rate)
+    float ratio;   // 声明先于 goto（POD 无初始化声明可跨越，C++98 [stmt.dcl]）
+    if (m_dropRate == rate)
+        goto end;
+    ratio = m_dropRate / rate;
+    m_dropRate = rate;
+    m_itemGeneratorMgr->setDropRatio(rate);
+    for (int i = 0; i < (int)m_serverParameter.m_genRefs1.size(); ++i)
     {
-        float ratio = m_dropRate / rate;
-        m_dropRate = rate;
-        m_itemGeneratorMgr->setDropRatio(rate);
-        for (int i = 0; i < (int)m_serverParameter.m_genRefs1.size(); ++i)
-        {
-            sItemGenRef& ref = m_serverParameter.m_genRefs1[i];
-            ref.m_dropRate = (int)((float)ref.m_dropRate * ratio);
-        }
-        for (int i = 0; i < (int)m_serverParameter.m_genRefs0.size(); ++i)
-        {
-            sItemGenRef& ref = m_serverParameter.m_genRefs0[i];
-            ref.m_dropRate = (int)((float)ref.m_dropRate * ratio);
-        }
+        sItemGenRef& ref = m_serverParameter.m_genRefs1[i];
+        ref.m_dropRate = (int)((float)ref.m_dropRate * ratio);
     }
+    for (int i = 0; i < (int)m_serverParameter.m_genRefs0.size(); ++i)
+    {
+        sItemGenRef& ref = m_serverParameter.m_genRefs0[i];
+        ref.m_dropRate = (int)((float)ref.m_dropRate * ratio);
+    }
+end:
+    ;
 }
 
 // ===================== PvP/排行 =====================
@@ -922,18 +925,15 @@ void CDataManager::set_lottery_use_cost(unsigned int money, unsigned int cost)
     m_lotteryNeedMoney.add_lottery_needMoney(money, cost);
 }
 
-// 残余 DIFF = 跨版本负例（「空 else nop;jmp 岛」类）：ORIG then 赋值后多发
-// `jmp +0x26` + `nop` 中继（0x08365e9d/0x08365e9e），4.4.7 直落统一 leave，
-// 序列与语义均等价，不可翻。
+// P223（b28）：ORIG `jg nop岛; body; jmp leave; nop; leave` 空块中继岛，
+// 复现形=「if(越界) goto end; body; end:;」goto 尾空标签。
 void CDataManager::set_original_dimensionInout(int idx, char value)
 {
-    if (idx < 6)
-    {
-        m_originalDimensionInout[idx] = value;
-    }
-    else
-    {
-    }
+    if (idx > 5)
+        goto end;
+    m_originalDimensionInout[idx] = value;
+end:
+    ;
 }
 
 void CDataManager::reset_dimensionInout()

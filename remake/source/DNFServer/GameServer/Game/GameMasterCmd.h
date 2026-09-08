@@ -138,8 +138,8 @@ private:
 // ---- 宏录制/回放 ----
 struct stMacroData                                       // sizeof = 12
 {
-    stMacroData();                                       // 0x084b3f6a
-    ~stMacroData();                                      // 0x084b5db4
+    stMacroData() throw();                               // 0x084b3f6a（P216：消调用者 4.4 冗余 landing）
+    ~stMacroData() throw();                              // 0x084b5db4
 
     unsigned char m_cmd;                                 // +0x00 包类型
     unsigned char m_sub;                                 // +0x01 子类型

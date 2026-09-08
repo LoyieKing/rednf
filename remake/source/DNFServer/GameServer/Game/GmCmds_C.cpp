@@ -231,10 +231,10 @@ void CEndEvent::execute()
     Packet_Monitor_Event_End packet;
     packet.m_eventCode = static_cast<unsigned int>(m_eventCode);
     // ORIG：GetServerProxy 结果 eax 直通 receiver（无 proxy 具名槽）；packet 基址
-    // 跨 call 物化 %ebx（4.1 跨 call 缓存习惯，X register 复现）。
-    register char* pPkt asm("ebx") = reinterpret_cast<char*>(&packet);
+    // 跨 call 物化 %ebx 为 4.1 调度产物。N96/P0：register asm 绑定全域禁用，
+    // 保持自然表达式直传（残差记 N18a/N7 族）。
     GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
-        ->SendTcpPacket(pPkt, 0xe);
+        ->SendTcpPacket(reinterpret_cast<char*>(&packet), 0xe);
 }
 
 // ========================================================================

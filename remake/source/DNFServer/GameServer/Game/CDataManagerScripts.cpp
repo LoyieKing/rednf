@@ -2674,21 +2674,15 @@ pvp_channel_info_t::pvp_channel_info_t()
 
 bool STExpertJobScript::isBoundaryExpValue(int exp)
 {
-    // ORIG 0x849f423 push %ebx + 0x849f430 mov 0xc(%ebp),%ebx：exp 跨 call 驻
-    // callee-saved 寄存器；i 槽 -0xc 先初始化（0x849f42b）。
     size_t i = 0;
     for (; i < m_expVec.size(); ++i)
     {
-        // ORIG exp→ebx 装载位于循环体首条（每轮重装载），4.4 对函数级
-        // register 局部恒前置单次装载（N88 位置差）；体内声明复现逐轮装载。
-        register int e = exp;
-        if (m_expVec[i].m_exp == e)
+        // [b28-L11 清违例] 原 `register int e asm` 体内声明违反 P0/N96 全域禁令，
+        // 按 P168 修订还原表达式直读语义（ORIG exp 无槽往返=右值直用）。
+        if (m_expVec[i].m_exp == exp)
             return true;
     }
     return false;
-    // 残差 ndiff 2（32=32）定性：exp→ebx 逐轮装载已由体内声明复现；
-    // `cmp %eax,%ebx`（ORIG，dst=exp 局部）vs `cmp %ebx,%eax`（4.4 恒
-    // dst=call 结果方）= N22，probe 穷举不可翻。
 }
 
 // STExpertJobScript::GetLevel（TSV 修复发明符号：_ZN17STExpertJobScript8GetLevelEj，ORIG 0x08693ba0）。

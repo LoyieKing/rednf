@@ -141,7 +141,9 @@ bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
             if ((session->GetTriggerSessionEventType() & 0x10) != 0)
             {
                 ok = session->OnConnect();
-                if (ok)
+                if (ok)                  // [b28-L11 判 N] ORIG 回读 movzbl+test 形 4.4 恒折
+                                         //   cmpb $0,slot（uchar cast 亦被折，实测）——
+                                         //   源形不可择，与 hunk1 P75 装载时刻差同封顶。
                     session->SetTriggerSessionEventType(0x7);
             }
             else if ((session->GetTriggerSessionEventType() & 0x2) != 0)
@@ -155,7 +157,7 @@ bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
         if (events[i].events & 0x18)      // EPOLLERR|EPOLLHUP
         {
             ok = session->OnError();      // ORIG `mov %al,-0x1d` 覆写 ok 槽
-            if (!ok)
+            if (!ok)                      // 语义同 ORIG；残差在 OnConnect 块槽回读形（见彼处判词）
             {
                 UnregisterSession(session);
                 session->Disconnect();
@@ -293,7 +295,7 @@ CACHE_CHARACTER_TYPE* CCacheCharacterMgr::AcquireCharacter(int characNo)
     {
         mem = it->second;
         memset(mem, 0, sizeof(CACHE_CHARACTER_TYPE));
-        mem->m_cacheTime = static_cast<unsigned int>(time(0));
+        mem->m_cacheTime = time(0);   // P217 同型直存（ORIG `mov -0xc,%edx; mov %eax,0x34880(%edx)`）
         return mem;
     }
     if (m_pool.Remain() == 0)
@@ -305,7 +307,7 @@ CACHE_CHARACTER_TYPE* CCacheCharacterMgr::AcquireCharacter(int characNo)
     if (mem != 0)
     {
         memset(mem, 0, sizeof(CACHE_CHARACTER_TYPE));
-        mem->m_cacheTime = static_cast<unsigned int>(time(0));
+        mem->m_cacheTime = time(0);   // P217 同型直存（同上）
     }
     return mem;
 }

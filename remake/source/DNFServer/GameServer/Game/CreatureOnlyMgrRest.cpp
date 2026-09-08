@@ -92,12 +92,13 @@ bool CCreatureMgr::ChangeOwner(Inven_Item* item, int slotFrom, int mapSizeHint,
 }
 
 // ORIG _ZN13user_creature12CCreatureMgr11ItemEvoluteEi T 0x0833d6c2（ItemEvolute.md）：
-// 装备宠存在则转发 CCreature::ItemEvolute(m_user, itemIdx)，否则 0。
+// 装备宠存在则**直通透传** CCreature::ItemEvolute(m_user, itemIdx) 的 %eax
+// （call 后无 test/movzbl，直接 jmp 尾 leave;ret），否则尾块 mov $0。
 int CCreatureMgr::ItemEvolute(int itemIdx)
 {
-    if (m_equippedCreature == 0)
-        return 0;
-    return m_equippedCreature->ItemEvolute(m_user, itemIdx) ? 1 : 0;
+    if (m_equippedCreature != 0)
+        return m_equippedCreature->ItemEvolute(m_user, itemIdx);
+    return 0;
 }
 
 // ORIG _ZN13user_creature12CCreatureMgr12ChangeSlotNoEP10Inven_Itemii
@@ -490,9 +491,10 @@ bool CCreatureMgr::LoadCreatureTempPeriod(
 // set_add_info(value) 返 1；否则 0。
 bool CCreatureMgr::SetCreatureItemAddInfo(int slot, int value)
 {
-    // ORIG：getCurCharacInvenRefW(user) → GetInvenRef(inv,3,slot)。
-    CInventory* inv = m_user->getCurCharacInvenRefW();
-    Inven_Item* item = inv->GetInvenRef(3, slot);
+    // ORIG 0x833b620+7：entry `movl $0,-0xc`（item 两段式 P197③）；refW 结果
+    // 无槽往返（P0）⇒ 嵌套实参直传 GetInvenRef 首参。
+    Inven_Item* item = 0;
+    item = m_user->getCurCharacInvenRefW()->GetInvenRef(3, slot);
     if (item == 0)
         return false;
     if (item->m_addInfo == 0)   // +0x02
@@ -538,19 +540,21 @@ bool CCreatureMgr::InsertCreatureItemResult(SIG_CREATURE_ITEM* sig)
 // 广播 SendCreatureItemInfo。
 bool CCreatureMgr::UpdateCreatureItemResult(SIG_CREATURE_ITEM* sig)
 {
+    // Inven_Item 有用户 ctor，{0}/value-init 不可用（编译拒）；ORIG 该区为
+    // 4.1 内联 rep stos（N78），4.4 恒 call memset——负例在册。
     Inven_Item localItem;
     memset(&localItem, 0, sizeof(localItem));
     reinterpret_cast<Inven_Item_Compatible*>((void*)sig->m_item)->makeInvenItem(localItem);
 
-    if (LoadCreatureItem(&localItem,
-                         reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
-                             (char*)sig + 0x2c)))
-    {
-        if (sig->m_field64 == 4)
-            SendCreatureItemInfo(sig);
-        return true;
-    }
-    return false;
+    // ORIG tail `call; xor $0x1,%eax(dead flags-consumed); …mov$0`＝P168a② 直分支
+    // 负判形（==0/! 早返失败），成功路径 fall-through 共享尾 mov$1。
+    if (!LoadCreatureItem(&localItem,
+                          reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
+                              (char*)sig + 0x2c)))
+        return false;
+    if (sig->m_field64 == 4)
+        SendCreatureItemInfo(sig);
+    return true;
 }
 
 // ORIG _ZN13user_creature12CCreatureMgr7EvoluteEiib T 0x083beb4

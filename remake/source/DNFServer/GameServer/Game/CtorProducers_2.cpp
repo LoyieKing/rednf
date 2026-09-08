@@ -54,17 +54,20 @@ void DisjointSkillScript::clear()
     m_field0c = 4;
 }
 
-// ---- DisjointScript::._381（命名类 _381；成员 +0x00 int m_count / +0x04 vector<int> m_items）----
+// ---- DisjointScript::._381（命名类 t_381；成员 +0x00 int m_count / +0x04 vector<int> m_items）----
 // ORIG ctor _ZN14DisjointScript5._381C1Ev t 0x08348088 (0x16)：仅构造 +4 vector<int>；
 // dtor _ZN14DisjointScript5._381D1Ev t 0x0834809e：逆序析构 vector。
-// GCC 对 ctor/dtor 的 asm 别名无效（硬限制），故自然名 `_381`(4_381) 处重建原 ctor/dtor，
-// 末尾 `.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。布局不变。
-DisjointScript::_381::_381()
+// GCC 对 ctor/dtor 的 asm 别名无效（硬限制），故在命名类自然名处重建原 ctor/dtor，
+// 末尾 `.globl`+`.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。
+// 命名类取 5 字符 `t_381`（自然 mangled `5t_381*`）+ 别名 global 化：objdump 对同址
+// 符号按 (1) binding 强 (2) strcmp 小 选标注名，`5._381*` 第 20 字节 '.' < 't' 胜出，
+// 于是 DisjointScript C1/D1 内 4 处 call 标注与 compare 的 nm 切片都命中 ORIG 点号名。
+DisjointScript::t_381::t_381()
 {
     // ORIG 0x08348088：仅默认构造 members（vector 初值由自动构造完成）。
 }
 
-DisjointScript::_381::~_381()
+DisjointScript::t_381::~t_381()
 {
     // ORIG 0x0834809e：逆序析构各成员（vector 自动析构）。
 }
@@ -404,10 +407,27 @@ bool SDCActiveStatusSyncServer::loadActiveStatusScript()
 // ============================ DisjointScript::._381 别名 ============================
 // GCC 对 ctor/dtor 的 asm 别名（asm("...")）无效（硬限制）；对匿名嵌套 struct 又按
 // 本 TU/行号计数命名（如 4._44），与 ORIG `5._381` 不一致。故在 DisjointScript 类内
-// 命名 `_381`，用 `.set` 把自然 mangled `4_381*` 强制改名为 ORIG 带点号 `5._381*`。
-// ORIG 为局部 `t` 符号：命名类成员默认 W/全局 weak，binding 不敏感（compare 按符号名匹配），
-// 以 nm 存在为准。cf. docs/class_func_reports/DisJoint 匿名 ._381（0x08348088/0x0834809e）。
-asm(".set _ZN14DisjointScript5._381C1Ev, _ZN14DisjointScript4_381C1Ev");
-asm(".set _ZN14DisjointScript5._381C2Ev, _ZN14DisjointScript4_381C2Ev");
-asm(".set _ZN14DisjointScript5._381D1Ev, _ZN14DisjointScript4_381D1Ev");
-asm(".set _ZN14DisjointScript5._381D2Ev, _ZN14DisjointScript4_381D2Ev");
+// 命名 `t_381`（5 字符），用 `.globl`+`.set` 把自然 mangled `5t_381*` 强制改名为 ORIG
+// 带点号 `5._381*`。
+// 必须 `.globl`+`.type @function`+`.size`：objdump 打印段头/解析 call 目标时，同址多
+// 符号先比 binding（global > local，探针 /tmp/bl9p/al2.so：local 别名输给自然名），
+// 同 binding 再取 strcmp 最小名（探针 al4.so/al5.so：`2Aaa` 胜 `3run`，`4Zzz` 负）。
+// 5 字符类名使自然名 `5t_381*` 与别名 `5._381*` 前 19 字节相同，第 20 字节 '.'(0x2e)
+// < 't'(0x74) ⇒ 别名为标注名（= ORIG nm 行一致，compare 亦能按点号名切出函数体）。
+// cf. docs/class_func_reports/DisjointScript__._381/（ORIG 0x08348088/0x0834809e）。
+asm(".globl _ZN14DisjointScript5._381C1Ev\n"
+    ".set _ZN14DisjointScript5._381C1Ev, _ZN14DisjointScript5t_381C1Ev\n"
+    ".type _ZN14DisjointScript5._381C1Ev, @function\n"
+    ".size _ZN14DisjointScript5._381C1Ev, 22");
+asm(".globl _ZN14DisjointScript5._381C2Ev\n"
+    ".set _ZN14DisjointScript5._381C2Ev, _ZN14DisjointScript5t_381C2Ev\n"
+    ".type _ZN14DisjointScript5._381C2Ev, @function\n"
+    ".size _ZN14DisjointScript5._381C2Ev, 22");
+asm(".globl _ZN14DisjointScript5._381D1Ev\n"
+    ".set _ZN14DisjointScript5._381D1Ev, _ZN14DisjointScript5t_381D1Ev\n"
+    ".type _ZN14DisjointScript5._381D1Ev, @function\n"
+    ".size _ZN14DisjointScript5._381D1Ev, 22");
+asm(".globl _ZN14DisjointScript5._381D2Ev\n"
+    ".set _ZN14DisjointScript5._381D2Ev, _ZN14DisjointScript5t_381D2Ev\n"
+    ".type _ZN14DisjointScript5._381D2Ev, @function\n"
+    ".size _ZN14DisjointScript5._381D2Ev, 22");

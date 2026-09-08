@@ -78,7 +78,11 @@ struct SIG_SAVE_GOLD_ZERO_TRADE_LOG
 struct SIG_SAVE_HACK_USER_PUNISH
 {
     unsigned int m_accId;
-    unsigned int m_punish;
+    // +0x04。ORIG 0x08425494 写2 为 RHS-first 3 条形（`mov 0xc(%ebp),%edx;
+    // mov -0xc(%ebp),%eax; mov %edx,0x4(%eax)`），写1（m_accId=uid 同型）
+    // LHS-first——异型（int 字段←unsigned 形参）才翻出 RHS-first（探针
+    // k4.cpp jD；同型=jA LHS-first，fresh ndiff 2 实证）。
+    int m_punish;
     char m_ip[0x10];
 };
 

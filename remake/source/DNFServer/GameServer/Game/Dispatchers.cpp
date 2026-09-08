@@ -9973,17 +9973,13 @@ int Dispatcher_Open_Guild_Board::process(CUser* user, MSG_BASE& msg, ParamBase& 
     BoardMsgView* const pm =
         reinterpret_cast<BoardMsgView*>(&msg);        // -0x1c
     (void)pp;
-    // 【batch-19 实测】register asm(edi/esi/ebx) 版帧与 ORIG 全等（push esi/edi、0x2c）
-    // 但多 3 条冗余符号扩展（movsbl %al,%eax;mov %eax,%edi + 用前再 mov %edi,%eax;
-    // movsbl %al,%edi 重物化，P196 语义 fold，register asm 无法压制）；自然局部版
-    // 帧 0x34 失配。保留 register 版（帧优先，N 档记）。
-    register int page asm("edi") = (signed char)pm->m_page;
-    register unsigned int guildkey asm("esi") = (unsigned int)user->get_charac_guildkey();
-    register unsigned int characNo asm("ebx") = (unsigned int)user->getCurCharacNo();
-    // GetServerProxy 结果免槽直用（技巧36/37）：不建 proxy 中转变量，否则它占
-    // 一个 4B 槽并把 param/msg 两 dead 槽整体推离 ORIG 的 -0x20/-0x1c。
+    // P52 单语句形（register asm 绑定违 P0/N96 已删）：R→L 实参求值使
+    // (char)pm->m_page 先物化（ORIG 0x15-0x1f movzbl+movsbl 单段入 %edi），
+    // guildkey/characNo call 结果跨 GetServerProxy 存活入 callee-saved；
+    // GetServerProxy 结果免槽直用，不建 proxy 中转变量（防 dead 槽推移）。
     GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
-        ->SendGuildBoardOpen(characNo, guildkey, page);
+        ->SendGuildBoardOpen(user->getCurCharacNo(), user->get_charac_guildkey(),
+                             static_cast<char>(pm->m_page));
     return 0;
 }
 int Dispatcher_Open_Guild_Board::read(PacketBuf& packet, MSG_BASE& msg)
@@ -10549,7 +10545,7 @@ int Dispatcher_SaveGameOption_2::process(CUser* user, MSG_BASE& msg, ParamBase& 
     guard.operator*()->operator<<((int)user->GetUID());
     SIG_LOAD_CHARAC_HOTKEY_OPTION* sig =
         guard.operator->()->GetInBuffer<SIG_LOAD_CHARAC_HOTKEY_OPTION>();
-    *(unsigned int*)&sig->m_pad[0] = user->get_acc_id();
+    sig->m_uid = user->get_acc_id();
     sig->m_pad[4] = (char)user->GetCharacHotKeyType(user->get_charac_job());
     memcpy(&sig->m_pad[5], &reinterpret_cast<HotkeyMsgView*>(pm)->m_option, 0xbc);
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);

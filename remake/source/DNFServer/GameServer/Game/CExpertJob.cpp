@@ -86,9 +86,9 @@ CExpertJob::~CExpertJob() {}
 int CExpertJob::GetType() { return m_type; }
 
 // ORIG 0x849f148：*(int*)(this+0x04) = type。
-// [B24D判词 N] 语义正确：m_type=(int)type；diff=mov 0xc(%ebp),%edx 与 mov 0x8(%ebp),%eax
-//   装载序互换（GCC4.1 vs 4.4），7/7 纯 lowering 表示差异，语义等价。
-void CExpertJob::SetType(ENUM_EXPERT_JOB_TYPE type) { m_type = (int)type; }
+// b28：字段枚举化（CExpertJob.h m_type）后 4.4 store 序翻为 LHS-first，
+// 与 ORIG mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx 同形。
+void CExpertJob::SetType(ENUM_EXPERT_JOB_TYPE type) { m_type = type; }
 
 // ORIG 0x85d3d7e：IObject 基类构造 -> Rectangle(+0x04) -> CUser*+0x14 清零 ->
 // std::string(+0x18) 默认构造。
@@ -368,16 +368,18 @@ int CCharacExpertJob::get_recipe(int index) const
 // set_recipe 0x0832b264：未置位则置位并返回 1；已置位返回 0。
 int CCharacExpertJob::set_recipe(int index)
 {
-    int idx = index / 8;
-    int bit = index % 8;
+    // b28：4.4 对 index/8 恒出 lea+cmovs（4.1 为 sar/shr/lea 三步、无 cmov）；
+    // 改 (index + ((index>>31)&7)) >> 3 恒等复现 ORIG 三步形（负数经边界检查返 0，
+    // 越界读不可达）。
+    int idx = (index + ((index >> 31) & 7)) >> 3;
+    int bit = index % 8;   // ORIG 保留完整除余链（mov/sar/shr/add/and/sub）
     if (idx < 0 || idx > 0x1d)
         return 0;
-    if ((((int)(char)m_recipeFlag[idx] >> bit) & 1) == 0)
-    {
-        m_recipeFlag[idx] |= (unsigned char)(1 << bit);
-        return 1;
-    }
-    return 0;
+    // b28 P222 两形互试：负极早返（ORIG je→set 岛形，al=1 即失败直落 mov$0）。
+    if ((((int)(char)m_recipeFlag[idx] >> bit) & 1) != 0)
+        return 0;
+    m_recipeFlag[idx] |= (unsigned char)(1 << bit);
+    return 1;
 }
 
 
@@ -388,12 +390,14 @@ bool CCharacExpertJob::learnRecipe(unsigned long recipeIndex, STExpertJobScript*
 {
     int idx = -1;                                   // ORIG：-1 初始化
     idx = script->GetRecipeInfoIndex(recipeIndex);
-    if (idx < 0)
+    // b28：ORIG 判负形为 `(unsigned)idx >> 31` 提取符号位 + test/je 岛（P222 互试）。
+    if (((unsigned int)idx >> 31) != 0)
         return 0;
     stRecipeInfo* info = script->GetRecipeInfo(idx);
     if (info == 0)
         return 0;
-    if (param + 2 < (int)(unsigned int)info->m_field8)   // ushort 零扩展后有符号比较
+    // b28 P222 互试：正极性 `mf8 > param+2 → 0`（ORIG cmp %edx,%eax; jle continue）。
+    if ((int)(unsigned int)info->m_field8 > param + 2)
         return 0;
     set_recipe(idx);
     alter();

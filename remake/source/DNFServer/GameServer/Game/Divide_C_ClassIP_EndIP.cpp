@@ -74,26 +74,30 @@ void Divide_C_ClassIP_EndIP(char* out, char* end, char* src, char* err)
         return;
     }
 
-    // ORIG 正向条件（`cmpl $0,0x8(%ebp); je +0xa4` 前跳到冷块 *err=5，
-    // fall-through 才是 strncpy）⇒ 原码是 if(out){...}else *err=5，非守卫式早退。
-    // [b22判词·N]（本函数非 idx67 分派件，同文件同根因一并修）残余 1 insn：
-    //   ORIG 块序为 [out判定][strncpy(out)][end判定][*err=5][strncpy(end)][*err=6]，
-    //   我方为 [...][end判定][strncpy(end)][*err=6][*err=5]——三个错误分支的
-    //   可观察行为逐条相等（out==0→*err=5 且不动 end；end==0→strncpy(out) 后
-    //   *err=6；两者非空→双 strncpy 且不写 err），仅 GCC 基本块放置序不同
-    //   （多一条 jmp、冷块位置不同），源码层无稳定控制手段。
-    if (out != 0)
+    // [b28 P223·v5 探针 /tmp/l2_p9.cpp] ORIG 0x086b1e85 块序
+    // [out判定 je→l5][strncpy][end判定 jne→l2; jmp→l6][l5:*err5][l2:strncpy2][l6:*err6]
+    // 复现形 = 显式双 goto + 冷标签源序 l5→l2→l6；if/else 嵌套形产 `je 尾岛` 反极性
+    // + `jmp` 中继缺失（ndiff 23→~8）。两 nop 岛（je/jne 目标块前对齐垫）与 ORIG
+    // 直落为链接布局伪差（b22 判词族）。语义不变。
+    if (out == 0)
+        goto l5;
+    strncpy(out, src, len);
+    // [b28 N 判词] ORIG 0x086b1f21 end 守卫为 `jne COPY2; jmp ERR6` 双跳形；4.4
+    // CFG 对 `je→ERR6 岛` 化简恒产反向单跳（空块垫 P223 亦被 fold，实测无效），
+    // 冷块物理位置由 GCC BB 序决定不可源码控制。残余 1 条助记符（je↔jne）+
+    // 2 nop 岛差，三分支可观察行为逐条相等。禁 asm 桥（P0）。
+    if (end != 0)
     {
-        strncpy(out, src, len);
-
-        if (end != 0)
-            strncpy(end, src + len + 1, endLen);
-        else
-            *err = 6;
+        goto l2;
     }
-    else
-    {
-        *err = 5;
-    }
+    goto l6;
+l5:
+    *err = 5;
+    return;
+l2:
+    strncpy(end, src + len + 1, endLen);
+    return;
+l6:
+    *err = 6;
     return;                                          // 成功路径不写 err
 }

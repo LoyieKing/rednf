@@ -2577,15 +2577,13 @@ int CUser::get_aura_avatar_option_value(int idx)
     // 结果免槽）；界检查单条无符号 `cmp $2; jg`（(unsigned)idx>2 吸收负数）；
     // 取值**二次** getCurCharacR call（结果直用 `add $0x4a0; mov 0x1(%eax,%edx,4)`
     // scaled 单级，scaled 分解残差记 N）。
-    register bool nul asm("al");
-    nul = (getCurCharacR() == 0);
-    if (nul)
+    // b28 重构（P0/N96 去绑定）：界检查 `>=0 && <=2` 正向包裹 ⇒ 4.4 产
+    // `cmpl $0,mem; js BAD; cmpl $2,mem; jg BAD` 双跳共享尾 -1 块（P222 族）。
+    if (getCurCharacR() == 0)
         return -1;
-    if (idx < 0)              // ORIG 双 mem cmp（js+jg）各跳共享尾块（P133 独立守卫）
-        return -1;
-    if (idx > 2)
-        return -1;
-    return (&getCurCharacR()->m_auraValue0)[idx];
+    if (idx >= 0 && idx <= 2)
+        return (&getCurCharacR()->m_auraValue0)[idx];
+    return -1;
 }
 
 void CUser::SetTradeSpace(int idx)
@@ -2676,10 +2674,9 @@ void CUser::insert_pvp_masterid_walkingout_me(unsigned int id)
 
 void CUser::update_old_pvp_point()
 {
-    // ORIG 0x8??：writable 走 %ebx（`mov %eax,%ebx` 单条，register 型 callee-saved
-    // 直落技巧 2）；readable 无槽链式（`call; mov 0x8(%eax),%eax; mov %eax,0xc(%ebx)`）。
-    register PvpResultType* writable asm("ebx") = getPVPResultW();
-    writable->m_oldExpPoint = getPVPResultR()->m_expPoint;
+    // ORIG 0x8??：writable `%mov eax,%ebx` 单条跨 call 存活；P0/N96 去绑定改
+    // 链式单语句（LHS receiver 跨 RHS call 保活，P52），残差记 N18a。
+    getPVPResultW()->m_oldExpPoint = getPVPResultR()->m_expPoint;
 }
 
 void CUser::SetSaveRentalInfoToExchange(bool flag)
@@ -2698,7 +2695,7 @@ bool CUser::isAffectedPremium(ENUM_PREMIUM_TYPE type) const
     return m_premium.CheckPremium((int)type);
 }
 
-char CUser::IsPermissionPrivateStore()
+bool CUser::IsPermissionPrivateStore()
 {
     return isAffectedPremium((ENUM_PREMIUM_TYPE)8);
 }
@@ -2956,8 +2953,8 @@ int CUser::CheckMoveTown(int vill)
     // 4.4 恒先载 %eax（具名 uv 槽双 spill 更差，probe），保留 cast 形 ndiff=1。
     if (static_cast<unsigned int>(vill) <= 10)   // ORIG: ja 无符号比较
     {
-        register int moveMask = 1 << vill;   // ORIG: shl 形式且不落栈（register）
-        if (moveMask & 0x580)
+        // P0/N96 去绑定：表达式直用（ORIG shl %cl 三段+and 中转，残差 N18a/P85）。
+        if ((1 << vill) & 0x580)
             return 0;
     }
     	Village* village = G_GameWorld()->GetVillage(vill);
@@ -3196,9 +3193,9 @@ int CUser::SendCmdPacket(eSendTarget target, ENUM_CMDPACKET cmd, int param)
     // cmd→%ebx 缓存、logFormat、%ebx=0 汇合 0x867c2c4 dtor 尾。
     PacketGuard packet;
     ((InterfacePacketBuf*)&packet)->put_header(1, (int)cmd);
-    register int cv asm("eax");   // ORIG 0x867c201 独立装载+寄存器 cmp（mem 直折反形）
-    cv = (int)cmd;
-    if (cv != 0x41)
+    if (static_cast<unsigned int>(cmd) != 0x41)
+        // P0/N96 去绑定；ORIG `mov 0x10,%eax; cmp $0x41,%eax` reg cmp——
+        // P209：4.4 对 unsigned 比较恒先载寄存器（signed enum 直折 mem cmp 反形）。
         goto BAD;
     ((InterfacePacketBuf*)&packet)->put_byte(1);
     ((InterfacePacketBuf*)&packet)->put_byte(param);
@@ -5438,9 +5435,8 @@ void CUser::SendCashData(bool flag)
 void CUser::recover_stamina()
 {
     // ORIG 0x8657859-0x8657874：两次独立装载 `cmp $0x2,%eax; jle` / `cmp $0x5,%eax; je`，
-    // 均落 0x865797d `mov $0,%eax` dead 岛后 fall epi（技巧 24：goto 落点岛 + register
-    // asm(eax) dead 置零复现）。
-    register int zdead asm("eax");
+    // 均落 0x865797d `mov $0,%eax` dead 岛后 fall epi（P0/N96：dead eax 置零与
+    // 尾 dead 读为 4.1 寄存器遗留，4.4 无源码等价发射，去绑定后记 N 封顶）。
     if (m_chState <= 2 || m_chState == 5)
         goto RET0;
     {
@@ -5460,13 +5456,11 @@ void CUser::recover_stamina()
         }
         // ORIG 0x8657969-0x8657978：pg dtor merge 后 dead 读（技巧 16 原地双零扩展）；
         // 两分支共落。
-        register int tailStamina asm("eax") = getCurCharacR()->m_stamina;
-        (void)tailStamina;
+        (void)getCurCharacR();   // ORIG dead call 有副作用必须保留；尾 movzbl
+                                 //   dead 读 4.4 不发射（残差 1-2 条，N96 代价）。
     }
     goto RET1;
 RET0:;
-    zdead = 0;
-    (void)zdead;
 RET1:;
 }
 
@@ -6724,7 +6718,9 @@ void CUser::ResetItemByScript(std::vector<std::pair<int, int> >& list)
     // 残差 P75/N80 族（跨版本实参装载中转寄存器差）：两处 operator[](i) 的
     // 实参 i 装载 ORIG 4.1 经 %edx 中转入 0x4(%esp)，4.4 恒 %eax。求值序/槽位/
     // 调用全同，仅中转寄存器名差，源形不可复现。
-    std::vector<stResetItemInfo::ResetItem>* items =
+    // p167 差集（b28）：ORIG 走 `operator[](uint) const`×2 + make_pair<int const&,int>
+    // ⇒ 原码以 const 指针访问（容器 cv 限定决定实例化，P96）。
+    const std::vector<stResetItemInfo::ResetItem>* items =
         G_CDataManager()->GetResetItemInfo();
     int now = GlobalData::s_systemTime_.getCurSec();
     for (size_t i = 0; i < items->size(); ++i)
@@ -8669,16 +8665,12 @@ int CUser::gainGuildSkillExp(int exp)
     // -0xc 再 imul（具名物化补齐槽后 learned/skill 平移归位）。
     char learned = 0;
     learned = (char)IsGuildSkillLearn(0xc9);
-    register bool isZero asm("al");
-    isZero = (learned == 0);
-    if (isZero)
+    // P0/N96：去绑定。ORIG `cmpb $0,-0x11; sete %al; test; jne` 物化岛为 4.1
+    // 槽比零产物（P197④：4.4 对槽比恒出 cmp/jne 直跳，源形不可复现）。
+    if (learned == 0)
         return 0;
     CSkill* skill = 0;
-    {
-        register int job asm("ebx");
-        job = get_charac_job();
-        skill = G_CDataManager()->find_skill(job, 0xc9);
-    }
+    skill = G_CDataManager()->find_skill(get_charac_job(), 0xc9);
     // ORIG 0x0864fbdc-0x86fbfd：gradeIdx（=learned-1）跨 operator[] call 存活于
     // %ebx（callee-saved）；P200/P197② 直传形——拓宽表达式作 at() 实参直传，
     // 4.4 即出 `movsbl -0x11; sub $1; mov %eax,%ebx` 并入 %ebx（禁 register-asm
@@ -8782,12 +8774,8 @@ void CUser::make_charac_stat(PacketGuard& packet)
 void CUser::incPlayExpAdd(int v)
 {
     // ORIG 0x86972a0-0x86972a9：mov field,%edx; mov 0xc(%ebp),%eax; add %eax,%edx（不折叠 add MEM）。
-    // 4.4 对 += 恒折 `mov %eax,%edx; add MEM,%edx`；register asm("edx")+asm("eax") 双绑定复现（probe23 c 实证）。
-    register int cur asm("edx");
-    cur = m_gameOption.m_playExpAdd;
-    register int inc asm("eax");
-    inc = v;
-    m_gameOption.m_playExpAdd = cur + inc;  // 残差：4.4 load 恒经 %eax 中转（N18a）
+    // 4.4 字段载入恒经 %eax 中转，单段直落 %edx 不可造（N18a/N96；register 绑定全域禁用）。
+    m_gameOption.m_playExpAdd = m_gameOption.m_playExpAdd + v;
 }
 
 // 0x0866a9a0 gain_sp：SP 双树（0/1）clamp 0x7fffffff 后累加。
@@ -9166,14 +9154,9 @@ void CUser::RecoverCoin(unsigned int v)
         return;
     CCoinEventPerDay* pEvent =
         (CCoinEventPerDay*)GlobalData::s_event_manager->GetRepeatEvent(4);
-    register bool eventOn asm("al");
-    eventOn = false;
-    if (pEvent != 0)
-    {
-        if (pEvent->IsEventing((CUser*)0))
-            eventOn = true;
-    }
-    if (eventOn)
+    // P0/N96 去绑定：短路守卫直判（P224 极性族）——具名 eventOn bool 槽反使
+    // pEvent 平移 -0xc→-0x10（ORIG eventOn 为 4.1 al 物化无槽，N96 代价）。
+    if (pEvent != 0 && pEvent->IsEventing((CUser*)0))
     {
         v = pEvent->GetCoinNoPerDay(get_charac_level());
         getCurCharacInvenR()->GetCoin();
@@ -9519,8 +9502,9 @@ char CUser::is_equip_aura_avatar(char slot, int& out)
         return 0x11;
     // ORIG 0x868e088-0x868e09c：itemIdx 载 %eax 后 `mov %eax,%ebx` 跨 G_CDataManager
     // call 缓存（push %ebx/帧 0x34），find_item 结果落 -0xc（equip 槽），item 槽 -0x10。
-    register int itemIdx asm("ebx") = item->m_addInfo;
-    CEquipItem* equip = (CEquipItem*)G_CDataManager()->find_item(itemIdx);
+    // P0/N96 去绑定：字段作实参直传（P200 拓宽并入 callee-saved，跨 receiver
+    // call 保活），残差记 N18a。
+    CEquipItem* equip = (CEquipItem*)G_CDataManager()->find_item(item->m_addInfo);
     if (equip == 0)
         return 0x11;
     if (equip->is_aura_avatar_option(slot) != (char)1)
@@ -12118,9 +12102,12 @@ void CUser::SetNeedCheckOverEquipItem()
     for (unsigned int i = 0; i < m_characList.size(); ++i)
     {
         _Charac_info& r = m_characList[i];
-        if (&r != 0)     // ORIG then 尾冗余 `jmp merge` = 4.1 CFG 边保留（4.4 折叠，N 类
-                         //   残差 ndiff=1；反向 guard goto 实测同吞）。
-            r.m_needCheckOverEquipItem = 1;
+        // P223（b28 BL9 实证形）：`if(c==e) goto L; body; L:;` 精确复现
+        // ORIG `je 岛; body; jmp; nop` 空 then 占位岛。
+        if (&r == 0)
+            goto NEXT;
+        r.m_needCheckOverEquipItem = 1;
+    NEXT:;
     }
 }
 // ============================================================================

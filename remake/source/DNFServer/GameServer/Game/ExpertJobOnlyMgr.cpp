@@ -128,10 +128,9 @@ int CAlchemist::CheckUsableStackableItem(CUser* user, CItem const* item)
                 CUser* member = party->get_user(i);
                 if (member != 0)
                 {
-                    register bool gt asm("al") =
-                        member->GetUseAPCPotionTime() >
-                        GlobalData::s_systemTime_.getCurSec();
-                    if (gt)
+                    // b28：清 register asm 绑定（N96/P0 全域禁），直测内联。
+                    if (member->GetUseAPCPotionTime() >
+                        GlobalData::s_systemTime_.getCurSec())
                         return 0;
                 }
             }
@@ -155,9 +154,8 @@ int CAlchemist::GetAssaultPrevent(CUser* user, bool* peerFlag)
             CUser* member = party->get_user(i);
             if (member != 0 && member != user)
             {
-                register bool ex asm("al") =
-                    IsExistContinuousEffectItem(member, 0x27ac4a);
-                if (ex)
+                // b28：清 register asm（N96/P0），裸 if 直测。
+                if (IsExistContinuousEffectItem(member, 0x27ac4a))
                 {
                     if (peerFlag != 0)
                     {
@@ -469,8 +467,8 @@ void CExpertJobMgr::OnRequestPeer(CUser* requester, CUser* target,
 {
     unsigned int err = 0;
     err = IsAvailableRequestPeer(requester, target, type, packet);
-    register bool enz asm("al") = (err != 0);
-    if (enz)
+    // b28：清 register asm（N96/P0 全域禁）——直测短路条件。
+    if (err != 0)
     {
         requester->SendCmdPeerErrorPacket((ENUM_CMDPACKET)10, type,
                                           (unsigned char)err, packet);
@@ -782,12 +780,9 @@ int CCharacExpertJob::SendExpertJobInfo(CUser* user)
         {
             for (int i = 0; i < 0xf0; ++i)
             {
-                // ORIG 0x0832b54f xor $1/test %al/jne（bool 物化 continue，X1 自救）；
-                // 0x0832b5a0/a3/a6 三个 nop;jmp continue 块 = 嵌套 if-continue 结构。
-                register unsigned char recipeOk asm("eax") =
-                    (unsigned char)get_recipe(i);
-                recipeOk ^= 1;
-                if (recipeOk)
+                // b28：清 register asm（N96/P0 全域禁）。ORIG `xor $1/test %al`
+                // 为 4.1 !int 直测 lowering（4.4 恒折 test/je），值域 0/1 等价改写。
+                if (!get_recipe(i))
                     continue;
                 // [b23S3C] P197③/P198①：ORIG 0x0832b556 先 `movl $0x0,-0xc(%ebp)`
                 // 再 GetRecipeInfo ⇒ 两句式。

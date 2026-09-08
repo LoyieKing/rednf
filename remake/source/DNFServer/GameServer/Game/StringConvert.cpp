@@ -80,6 +80,9 @@ int getTCharBufferSize()       // ORIG T 0x08adeaa6
 // ---------------------------------------------------------------------------
 
 // _Z6insertRK10CharStringiPKci 0x08ad771a
+// [b28 判词·N] AE-NEAR(2)：第二 memcpy 的 srcLength(0x18)/src(0x10) 装载——4.1 先
+// 读远参入 %edx 再读近参入 %ecx，4.4 恒先近后远（P209 附 memcpy 装载跨版本定论，
+// 探针 e19；N82附 多实参寄存器对调）。2 行相邻互换，禁 register 绑定（P0/N96）。
 CharString insert(const CharString& str, int pos, const char* src, int srcLength)
 {
     if (str.length() == 0)
@@ -131,6 +134,8 @@ CharString insert(const CharString& str, int pos, char src)
 // ---------------------------------------------------------------------------
 
 // _Z6insertRK10WideStringiPKwi 0x08ada76a
+// [b28 判词·N] 同 CharString 版：memcpy 实参装载序 4.1/4.4 互换（P209 附/N82附），
+// 2 行寄存器对调，禁绑定形（P0）。
 WideString insert(const WideString& str, int pos, const wchar_t* src, int srcLength)
 {
     if (str.length() == 0)

@@ -82,6 +82,14 @@ bool MessageKey::operator<(const MessageKey& rhs) const
 }
 // ===================== CTimeInterval（基类） =====================
 
+// P210：派生 ctor 定义前置于基类 ctor 定义之前——4.4 对「TU 内尚未见定义」的
+// callee 不精确继承 outgoing，取保守大帧（ORIG sub $0x18；b28-L11 复验旧
+// 「16k+4 不可达」判词：帧差根因是定义顺序而非 pad 量化）。
+CUnixTimeInterval::CUnixTimeInterval() : CTimeInterval()
+{
+    // ORIG C1 仅调基类 ctor + 换 vptr；m_last 清零由 ORIG value-init 在调用点内联（gcc4.1）
+}
+
 // ORIG @0x085702c6：仅设 vptr。
 CTimeInterval::CTimeInterval()
 {
@@ -92,6 +100,10 @@ CTimeInterval* CTimeInterval::Create()
     // ORIG @0x0856f974：operator new(0xc) → 三槽 u32 清零 →
     // 构造派生 CUnixTimeInterval（ORIG call _ZN15message_counter17CUnixTimeIntervalC1Ev，
     // 置派生 vtable；基类构造为空实现）→ 返回。
+    // [b28-L11 判 N·N77] 三 movl $0 前置清零 = 4.1 对 `new T()` value-init 的
+    // 老规则（CWG434 后 4.4 对 user-ctor 类不再 emit memset/直存段；手写
+    // memset/cast 清零形均改调用布局，N77 判词在册）。语义等价（ctor 已写
+    // vptr+基类成员），ndiff 3 封顶。
     return new CUnixTimeInterval();   // ORIG：_Znwj(0xc) → C1（置 vptr）
 }
 
@@ -109,12 +121,6 @@ long long CTimeInterval::GetTimeInterval()      // W 空覆盖 @0x08570182
 }
 
 // ===================== CUnixTimeInterval（派生） =====================
-
-CUnixTimeInterval::CUnixTimeInterval() : CTimeInterval()
-{
-    // ORIG C1 仅调基类 ctor + 换 vptr；m_last 清零由 ORIG value-init 在调用点内联（gcc4.1）
-    // [N] 帧差 sub $0x18 vs $0x4：4.1 -O0 outgoing 区恒预留 +0x14，跨版本豁免（ndiff 2 封顶）。
-}
 
 // ORIG @0x08570236：gettimeofday(&this->m_last, 0)。
 void CUnixTimeInterval::SetLastTime()

@@ -189,9 +189,14 @@ void CVillageAttackedFightCmd::execute()
     {
         int ret = 0;
         ret = party->OnFightVillageMonster(GetUser(), 0);
-        if (!!(ret != 0))
+        // 4.1 bool 物化+je 形：while(cond){body;break} 使 4.4 保留
+        // cmpl/setne/test/je 四段（探针 /tmp/bl5/probe7.cpp m1 实证）。
+        while (ret != 0)
+        {
             GetUser()->SendCmdErrorPacket((ENUM_CMDPACKET)0x10b,
                                           (unsigned char)ret);
+            break;
+        }
     }
 }
 
@@ -314,9 +319,11 @@ void CDropItem::execute()
     packet.set_index(0xf);
 
     typedef int (*DispatchFn)(void*, CUser*, PacketBuf*);
-    // ORIG 返回值经 bool 化后未消费（test/setne/test 形态），忠实转写。
-    (bool)(*reinterpret_cast<DispatchFn*>(*(void**)dispatcher))(
-        dispatcher, GetUser(), packet.get());
+    // ORIG 返回值经 bool 物化后丢弃（test/setne/test 无消费者）：
+    // `while (call != 0) break;` 形复现（探针 /tmp/bl5/probe6.cpp q1 实证）。
+    while ((*reinterpret_cast<DispatchFn*>(*(void**)dispatcher))(
+               dispatcher, GetUser(), packet.get()) != 0)
+        break;
 }
 
 // ============================================================================

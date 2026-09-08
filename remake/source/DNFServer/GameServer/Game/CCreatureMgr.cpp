@@ -107,7 +107,7 @@ float CStomach::IncrementValue(float amount)
 // ORIG Reset @ 0x83370b0（逐字段转写）。
 void CCreature::Reset()
 {
-    m_creatureItemType = 1;            // +0x08 = 1（列表包要求 type==1）
+    m_creatureItemType = CREATURE_ITME_TYPE_CREATURE;  // +0x08 = 1（列表包要求 type==1）
     m_uid = 0;                         // +0x0c
     m_slotNo = 0;                      // +0x10
     m_state = 2;                       // +0x3c = 2
@@ -1280,7 +1280,7 @@ bool CDBMsgSender::EvoluteCreature(int uid, int itemIdx)
     // mov %edx,0x8(%eax)（值先基后、单段 disp8）。4.4 store 恒基先+add 折叠
     // （N76 口径），probe register 钉 %edx/%eax 均反产多余 mov，维持最简形。
     buf->m_addInfo2 = uid;                            // +0x30
-    *reinterpret_cast<int*>(&buf->m_item[4]) = itemIdx;  // buf+0x08（ORIG 折叠）
+    reinterpret_cast<SigCreatureItemIdxView*>(buf)->m_itemIdx = itemIdx;  // buf+0x08 disp8
     return true;
 }
 
@@ -1303,10 +1303,10 @@ bool CDBMsgSender::InsertCreatureItem(CUser* user, Inven_Item* item, int slot,
         return false;
     SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();
     memset(buf, 0, 0x74);
-    // ORIG：`lea 0x4(%eax),%edx` 临时 this（无 compat 槽，技巧 36）；同族
-    // RecvMail 0x833ff71 的 register %eax 钉 item 装填序。
-    register Inven_Item* itemAx asm("eax") = item;
-    reinterpret_cast<Inven_Item_Compatible*>(&buf->m_item)->setCopy(*itemAx);
+    // ORIG：`lea 0x4(%eax),%edx` 临时 this（无 compat 槽）。【N96/P0 违例清零】
+    // 历史 register asm("eax") 钉装填序已删，回与 RecvMail/SendMail 同构裸形；
+    // 残差 lea-vs-add + store 序 = N81/N76。
+    reinterpret_cast<Inven_Item_Compatible*>(&buf->m_item)->setCopy(*item);
     buf->m_slot = slot;                               // +0x2c
     buf->m_characNo = user->getCurCharacNo();         // +0x48
     buf->m_stomachValue = 100;                        // +0x44（固定 100）
@@ -1316,10 +1316,9 @@ bool CDBMsgSender::InsertCreatureItem(CUser* user, Inven_Item* item, int slot,
     buf->m_expireTick = expireTick;                   // +0x58
     buf->m_ceraOrderNo = (int)user->get_cera_item_order_no();  // +0x60
 
-    // ORIG：itemIdx 跨 find_item call 存活于 %ebx（`mov %eax,%ebx` …
-    // `mov %ebx,0x4(%esp)`），prologue push %ebx + frame 0x24。
-    register int itemIdx asm("ebx") = item->m_addInfo;  // +0x02（ORIG mov 0x2(%eax)）
-    CItem* found = G_CDataManager()->find_item(itemIdx);
+    // 【N96/P0 违例清零】register asm("ebx") 已删；P197② 裸语句表达式复现
+    // ORIG `mov 0x2(%eax),%eax; mov %eax,%ebx`…`mov %ebx,0x4(%esp)` callee-saved 直传。
+    CItem* found = G_CDataManager()->find_item(({ item->m_addInfo; }));  // +0x02
     if (found == 0)
         return false;
     if (found->is_stackable())
@@ -1354,7 +1353,9 @@ bool CDBMsgSender::InsertCreatureItem(CUser* user, Inven_Item* item, int slot,
 bool CCreatureItemConverter::SetEggItem(Inven_Item* item)
 {
     // ORIG 0x08336eae：入口无 null 检查（直 `mov 0x2(%eax),%eax`），删臆造判空。
-    CItem* found = G_CDataManager()->find_item(item->m_addInfo);
+    // ORIG push %ebx：`mov 0x2(%eax),%eax; mov %eax,%ebx` 跨 call 直落寄存器
+    // （P0 无槽往返）⇒ P197② 裸语句表达式实参形（CArtifact::EquipArtifact 同法实证）。
+    CItem* found = G_CDataManager()->find_item(({ item->m_addInfo; }));
     if (found == 0)
         return 0;
     if (found->is_stackable())
@@ -1480,9 +1481,9 @@ void CCreatureItem::SetSlotNo(int slotNo)
 
 // ORIG _ZN13user_creature13CCreatureItem18GetCreatureItemTypeEv W 0x0833ef98
 //（本批改为外联定义：SwapCreature 链按 ORIG 外联调用形态取类型）。
-int CCreatureItem::GetCreatureItemType()
+CREATURE_ITME_TYPE CCreatureItem::GetCreatureItemType()
 {
-    return m_creatureItemType;
+    return m_creatureItemType;   // 同型直返（enum）
 }
 
 // ORIG _ZN13user_creature14COverSkillTime9checkTimeEv T 0x0833d65e：
@@ -1905,20 +1906,17 @@ bool CCreatureMgr::RegisterCreatureItem(CCreatureItem* item, int uid)
     // ORIG 0x833a798：`test;setne %al;test;je` 查重物化（技巧 22）；true 块
     // uid→%esi（0x833a7a1 `mov 0x10(%ebp),%esi`）、get_unique_id 结果
     // `movzwl %ax,%ebx`（0x833a7b2）跨 ctor call 存活，trace 变参寄存器直传
-    // （0x833a7d8 `mov %esi,0xc(%esp); mov %ebx,0x8(%esp)`）。PF 串 @0x8c2f140。
-    register int uidSx asm("esi");
-    register unsigned int uniqBx asm("ebx");
-    register bool dup asm("al");
-    dup = (FindCreatureItem(uid) != 0);
-    if (dup)
+    // PF 串 @0x8c2f140。
+    // 【N96/P0 违例清零】历史 register asm("esi"/"ebx"/"al") 绑定形已删；
+    // 自然局部形下 4.4 的 uid 槽往返/movzwl 二段/spill 中转均不可钉寄存器，
+    // 残余为 N18a/N76 跨版本装载序。
+    unsigned int uniqBx = 0;
+    if (FindCreatureItem(uid) != 0)
     {
-        uidSx = uid;
-        // ORIG 0x833a7b2 `movzwl %ax,%ebx`：赋值点即零扩展进 %ebx（int 载体），
-        // ushort 载体使 4.4 把扩展推到 use 点（movzwl %dx 二段）。
         uniqBx = (unsigned short)m_user->get_unique_id();
         cMyTrace trace(
             __PRETTY_FUNCTION__, 0xbb4, 5);
-        trace("RegisterCreatureItem failed. uid(%d), key(%d)\n", uniqBx, uidSx);
+        trace("RegisterCreatureItem failed. uid(%d), key(%d)\n", uniqBx, uid);
         return false;
     }
     m_creatureItems.insert(std::make_pair(uid, item));
@@ -1957,8 +1955,8 @@ bool CDBMsgSender::HatchCreature(int uid, int flag, int itemIdx)
     buf->m_hdr |= 0x244;   // ORIG asm 833fcf0：or $0x244（0x200|0x40|0x4）
     buf->m_addInfo2 = uid;                            // +0x30
     buf->m_flag50 = (unsigned char)flag;              // +0x50
-    // ORIG 0x833fd0f：无 compat 槽，`mov %edx,0x8(%eax)` buf 基址直存。
-    *reinterpret_cast<int*>(&buf->m_item[4]) = itemIdx;  // buf+0x08
+    // ORIG 0x833fd0f：无 compat 槽，`mov %edx,0x8(%eax)` buf 基址直存（具名视图折叠）。
+    reinterpret_cast<SigCreatureItemIdxView*>(buf)->m_itemIdx = itemIdx;  // buf+0x08
     CItem* item = G_CDataManager()->find_item(itemIdx);
     buf->m_days = item->getUsablePeriod();            // +0x54
     buf->m_expireTick = item->getExpirationDate();    // +0x58

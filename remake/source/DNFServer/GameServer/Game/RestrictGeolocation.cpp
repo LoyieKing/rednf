@@ -3,6 +3,15 @@
 // Main 批准：W6_ARAD；声明=权威 RestrictGeolocation.h）。
 //
 // ORIG 证据：docs/class_func_reports/RestrictGeolocation/*.md（地址见头文件注释）。
+// [b28 判词·N] _GLOBAL__I__ZN19RestrictGeolocationC2Ev @0x0817113b NEAR(2)：
+// 唯一真差 = sub $0x18 vs $0x8（8/8 其余逐条同）。根因：ORIG __static_init
+// @0x081710fb(0x40B) 动态初始化 2 对象——ios_base::Init @0x93f56f2（`<iostream>`
+// include 链，__cxa_atexit dtor 0x86da140）+ 全局 std::string("ABCDEFGH…"@0x8ae5878)
+// @0x93f56f4（Sso 短优化路径），4.1 按 callee 实帧保守取 0x18；本 TU 现无
+// ioinit/string 对象 ⇒ 4.4 继承空壳 callee 塌缩为 0x8（P210 同形机制，但
+// _GLOBAL__I 为编译器末置发射、定义不可前移，无源码解）。属 P155/P128 结构
+// 噪音族（_GLOBAL__I 内容/TU 归属）；真正缺口在 __static_init（DIFF 40 行：
+// ios_base::Init + string("ABCDEFGH…") 对象归属本 TU 未还原），已上报 Main。
 // 工程未链 libGeoIP，GeoIP_* 经 dlsym 动态查找【推断，保持原重建口径】。
 // ============================================================================
 

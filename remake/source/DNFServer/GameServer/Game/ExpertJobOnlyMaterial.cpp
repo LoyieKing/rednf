@@ -77,12 +77,11 @@ int ExpertJobMaterial::SetData(CUser* user, unsigned short area,
         return 0x15;
 
     m_itemIndex = static_cast<unsigned int>(invenRef->m_addInfo);
-    m_item = reinterpret_cast<unsigned int>(
-        G_CDataManager()->find_item(invenRef->m_addInfo));
+    m_item = G_CDataManager()->find_item(invenRef->m_addInfo);
     if (reinterpret_cast<CItem*>(m_item) == 0)
         return 0x15;
 
-    m_user = reinterpret_cast<unsigned int>(user);
+    m_user = user;
     m_slot = slot;
     m_field0e = area; // ORIG 0x0849bfbc 写 area（-0x1c(%ebp)）到 +0xe
     return 0;
@@ -92,10 +91,11 @@ int ExpertJobMaterial::SetData(CUser* user, unsigned short area,
 // 材料必须是 stackable 且 GetItemType()==3（配方类，vtable slot3 @+0x0c）。
 int ExpertJobMaterial::IsRecipe()
 {
-    CItem* item = reinterpret_cast<CItem*>(m_item);
-    if (!item->is_stackable())
+    // b28：P0/P183 去缓存——ORIG 每次调用独立物化 m_item 载入（无具名局部槽），
+    // vcall this 参数二次重读成员。
+    if (!reinterpret_cast<CItem*>(m_item)->is_stackable())
         return 0x17;
-    if (item->GetItemType() != 3)
+    if (reinterpret_cast<CItem*>(m_item)->GetItemType() != 3)
         return 0x17;
     return 0;
 }
@@ -157,10 +157,15 @@ CItem* ExpertJobMaterial::FindMonsterCard(
     {
         CStackableItem* found = static_cast<CStackableItem*>(
             G_CDataManager()->find_item(it->first));
-        if (found == 0 || !found->is_stackable())
+        // b28 P133：ORIG 两独立守卫各 je 直落统一增量尾 ⇒ 逐条独立 if。
+        if (found == 0)
             continue;
-        if (found->get_sub_type() == 1)
-            return found;
+        // b28 P222：正极性包（ORIG `call;test%al;je 尾` 直落形）。
+        if (found->is_stackable())
+        {
+            if (found->get_sub_type() == 1)
+                return found;
+        }
     }
     return 0;
 }

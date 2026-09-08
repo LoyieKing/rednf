@@ -25,7 +25,9 @@
 // 此处仅保留访问别名。ORIG 经完整类型直接成员寻址，本 TU 以同布局视图等价。
 int DEFAULT_MAX_FATIGUE = 0;  // ORIG 全局（0x9370f5c），原 GameStubs.cpp 定义迁移
 
-#define CUR ((CharacInfoFields*)m_selected)
+// 具型视图直读（CUserCharacInfo.h 匿名 union m_selView）：值 cast 触发 4.4
+// 二段拷贝（探针 /tmp/bl10/p2.cpp getE vs getF），直读复现 ORIG 单段装载。
+#define CUR (m_selView)
 
 // ORIG 平坦窗口视图（P1 组件视图：pad 前置使成员寻址折叠为单条 disp/scale 指令，
 // 与具名字段等偏移；ORIG 源码即以“基址+魔数下标”形态书写，直接成员下标会丢
@@ -62,9 +64,9 @@ static_assert(offsetof(LoadEtcEffectItemWindow, m_entries) == 0x8,
 
 CUserCharacInfo::~CUserCharacInfo()
 {
-    m_dungeonClear.~CDungeonClear();
-    m_battleRecord.~map();
-    m_pvpResult.~PvpResultType();
+    // 空体：隐式成员逆序析构（m_dungeonClear→m_battleRecord→m_pvpResult =
+    // ORIG +0xb4→+0x9c→+0x18 调用序）。显式伪析构调用使 4.4 每调用点再布
+    // cleanup 链（+22 条 vs ORIG 43）。
 }
 
 void CUserCharacInfo::useWinPoint(int point, eWPSubReason)
@@ -95,14 +97,16 @@ void CUserCharacInfo::subtractCurCharacExp(int exp)
 }
 
 
-// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
+// [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
+// 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
 void CUserCharacInfo::subUltimateInoutValue(char index)
 {
     CUR->m_saveBloodInout = 1;
     --CUR->m_ultimateInout[index];
 }
 
-// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
+// [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
+// 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
 void CUserCharacInfo::subDemensionInoutValue(char index)
 {
     if (index > 5 || index < 0)
@@ -212,7 +216,8 @@ void CUserCharacInfo::set_charac_visible_values(char values)
 }
 
 
-// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
+// [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
+// 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
 void CUserCharacInfo::set_charac_visible_teleport_(bool flag)
 {
     if (m_selected)
@@ -222,7 +227,8 @@ void CUserCharacInfo::set_charac_visible_teleport_(bool flag)
 }
 
 
-// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
+// [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
+// 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
 void CUserCharacInfo::set_charac_visible_grow_avatar(bool flag)
 {
     if (m_selected)
@@ -315,14 +321,12 @@ void CUserCharacInfo::setWeekendBonusFatigue(unsigned short value)
 }
 
 
-// ORIG `mov 0x10(%eax),%ecx` 单段直落 %ecx；4.4 恒 %eax→%ecx 二段拷贝（N18a 族），语义等价。
+// [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
+// 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
 void CUserCharacInfo::setWeekendBonusExp(unsigned int exp, int percent)
 {
     if (m_selected)
     {
-        // ORIG `mov 0x10(%eax),%ecx` 单段直落 %ecx；4.4 hardreg 绑定仍产
-        // %eax→mov %ecx 二段（register asm("ecx") probe 无效，N18a 实证），
-        // 维持直写。
         CUR->m_weekendBonusExp = (int)((double)exp * (percent / 100.0f));
     }
 }
@@ -348,7 +352,8 @@ void CUserCharacInfo::setUpgradeSeparateFalseFlag(char flag)
 }
 
 
-// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
+// [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
+// 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
 void CUserCharacInfo::setUltimateInoutValue(char index, char value)
 {
     CUR->m_saveBloodInout = 1;
@@ -379,8 +384,8 @@ void CUserCharacInfo::setSaveCharacOption(bool flag)
     m_saveCharacOption = flag;
 }
 
-// ORIG 0x0868e1f6 `mov 0x10(%eax),%ecx` 单段直落 %ecx（跨 fildll 浮算缓存 CUR）；
-// 4.4 恒 %eax→%ecx 二段拷贝（N18a 族）。浮算/写回/重读曲线全等，语义等价。同 setWeekendBonusExp。
+// [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
+// 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
 int CUserCharacInfo::setPremiumBonusExp(unsigned int exp, int percent)
 {
     if (m_selected)
@@ -475,7 +480,8 @@ void CUserCharacInfo::setDisguiseCharac(bool flag, unsigned char kind,
 {
     // [N] 指令序逐条全等，唯 spill 槽平移：ORIG -0xc/-0x10/-0x14（帧 0x28）vs
     // 4.4 -0x4/-0x8/-0xc（帧 0x14，4.4 参数 spill 槽紧贴 ebp 恒形）——跨版本
-    // 槽分配豁免（ndiff 14 封顶）。
+    // 槽分配豁免（ndiff 14 封顶）。P190 系实测：double/char[4]/char[8] 垫槽
+    // 均使 spill 整体下移 16（-0x14 起，4.4 对垫槽区 16 量化），无法精确 +8。
     if (m_selected)
     {
     CUR->m_isDisguiseCharac = flag;
@@ -485,7 +491,8 @@ void CUserCharacInfo::setDisguiseCharac(bool flag, unsigned char kind,
 }
 
 
-// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
+// [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
+// 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
 void CUserCharacInfo::setDemensionInoutValue(char index, char value)
 {
     if (index > 5 || index < 0)
@@ -743,8 +750,9 @@ void CUserCharacInfo::setCurCharac(_Charac_info* p)
     m_selected = p;
 }
 
-// ORIG 0x0864e2d8 `mov 0x10(%eax),%edx` 单段直落 %edx×2；4.4 恒 %eax→%edx 二段拷贝
-// （N18a 族），身位字节 shl/sar/and/or 逻辑逐条与 ORIG 全等，语义等价。
+// [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
+// 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
+// （身位字节 shl/sar/and/or 逻辑逐条全等）
 void CUserCharacInfo::setCurCharGrowthType(char first, char second)
 {
     if (first > 6)
@@ -758,8 +766,9 @@ void CUserCharacInfo::setCurCharGrowthType(char first, char second)
 
 
 
-// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx×2；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
-// 同 setCurCharGrowthType（身位字节写逻辑逐条与 ORIG 一致）。
+// [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
+// 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
+// 同 setCurCharGrowthType（身位字节写逻辑逐条一致）。
 void CUserCharacInfo::setCurCharChangingGrowthType(char first, char second)
 {
     if (first > 6)
@@ -858,12 +867,16 @@ void CUserCharacInfo::setBloodBestRecord(unsigned int time, int round, int recor
     {
         if (!flag)
             setBloodBestRecordUpdate(true);
-        int local[2];
-        local[0] = round;
-        local[1] = (int)time;
+        // ORIG（0x086880a3-0x086880c4）实参槽序：0x4(%esp)=lea 0x14(%ebp)
+        // （&record），0x8(%esp)=lea -0x38(%ebp)（&local{-0x38=round,-0x34=time}）
+        // ⇒ make_pair(record, local)。旧形把两实参对调且把 record+flag 裸字节
+        // 重读成 Blood 值——真语义 bug（P196 族），按 ORIG 恢复：key=record、
+        // value=stBloodBestRecord{m_round=round,m_time=time} 具名局部。
+        stBloodBestRecord local;
+        local.m_round = round;
+        local.m_time = time;
         CUR->m_bloodBestMap.m_map.insert(
-            std::make_pair<int&, stBloodBestRecord&>(
-                local[0], *(stBloodBestRecord*)&record));
+            std::make_pair<int&, stBloodBestRecord&>(record, local));
         CUR->m_bloodBestRound = round;
         CUR->m_bloodBestTime = time;
     }
@@ -1416,8 +1429,7 @@ char CUserCharacInfo::getUpgradeSeparateFlaseFlag()
 
 unsigned char CUserCharacInfo::getUltimateInoutValue(char index)
 {
-    // ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），
-    // register 绑 %edx 反产 swap 多 2 行 → 维持直写。
+    // [b28] 值 cast 伪差已消（m_selView 直读），本函数 AE。
     return CUR->m_ultimateInout[index];
 }
 
@@ -1588,7 +1600,8 @@ unsigned short CUserCharacInfo::getDisguiseIndex()
     return m_selected ? CUR->m_disguiseIndex : 0;
 }
 
-// ORIG `mov 0x10(%eax),%edx` 单段直落 %edx；4.4 恒 %eax 二段拷贝（N18a 族），语义等价。
+// [b28] 已消：旧「4.4 恒二段拷贝（N18a）」系指针值 cast 伪差，CUR 改具型
+// 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
 unsigned char CUserCharacInfo::getDemensionInoutValue(char index)
 {
     if (index > 5 || index < 0)
@@ -2155,10 +2168,11 @@ void CUserCharacInfo::calcHelpAbuseRatioBeforeLevelUp(int param)
 
 void CUserCharacInfo::calcHelpAbuseRatio(unsigned int param, register bool flag)
 {
+    // ORIG `mov 0x10(%ebp),%eax; mov %al,-0x24(%ebp)` 单段直存（P35）。
+    // 残余：4.4 数组槽 anchor 使帧 0x30 vs ORIG 0x24（1 条 sub 差）。实测
+    // char[0x23]+具名标量、标量前置/后置、fE 型 bottom-spill 均在 4.4 成员
+    // 语境落 -0x1/-0x24+帧量化 16，不可精确 0x24（P182 不强凑，N95 族）。
     char unused[0x24];
-    // ORIG `mov 0x10(%ebp),%eax; mov %al,-0x24(%ebp)` 单段直存 = 形参寄存器化
-    // （P35 探针 /tmp/l16/p8.cpp v3）：register bool 直落 unused[0]，4.4 消
-    // entry-spill 二段。残余：4.4 数组槽 16 对齐 sub $0x30 vs ORIG $0x24（1 条）。
     unused[0] = flag;
     (void)param;
 }
@@ -2858,9 +2872,11 @@ void CUserCharacInfo::IncFatigueBatteryCharging(short value)
         ServerParameterScript* sp =
             (ServerParameterScript*)((char*)G_CDataManager() +
                                      offsetof(CDataManager, m_serverParameter));
-        unsigned short old = CUR->m_fatigueBattery;
+        // P209 翻案：old 声明 signed short 出 ORIG 直 `cmp -0xa(%ebp),%ax`
+        // 内存比较（探针 /tmp/bl10/p5.cpp h1/h2）。
+        short old = (short)CUR->m_fatigueBattery;
         CUR->m_fatigueBattery = (unsigned short)(CUR->m_fatigueBattery + value);
-        if ((short)CUR->m_fatigueBattery < (short)old ||
+        if ((short)CUR->m_fatigueBattery < old ||
             (int)(short)CUR->m_fatigueBattery > (int)sp->m_fatigueTable5c0.m_capLimit)
         {
             CUR->m_fatigueBattery = sp->m_fatigueTable5c0.m_capLimit;
@@ -3415,24 +3431,25 @@ int CUserCharacInfo::GetAssaultCount()
     return m_selected ? CUR->m_assaultCount : 0;
 }
 
-// ORIG 0x08645e5e：两处 `mov 0x10(%eax),%ecx` 单段直落 %ecx vs 4.4 %eax→%ecx 二段（N18a）；
-// 尾块 `if(m_chaosPoint<0)` 后 ORIG 直 fall-through 进 epilogue，4.4 发 jmp 中继 ×2
-// （P63/跨版本跳转布局）。全部 je/jle/jns 落点合规同 ORIG，无任一分支反转，语义等价。
 void CUserCharacInfo::GainCurCharacChaosExp(int exp)
 {
-    if (!m_selected || CUR->m_chaosPoint <= 0)
-        return;
-    CUR->m_chaosExp += exp;
-    int percent = G_CDataManager()->get_level_exp_percent(get_charac_level(), 1);
-    if (CUR->m_chaosExp > percent && percent > 0)
+    // P63 正极性包裹：否定早返 `if(!sel||cp<=0)return` 使 4.4 为两条短路测试
+    // 各发空 else 桩（nop;jmp 中继 ×2，+4 条）；正极 `if(sel&&cp>0){主流程}`
+    // 时 je/jle 直达尾 epilogue，与 ORIG 0x08645e5e 一致。
+    if (m_selected && CUR->m_chaosPoint > 0)
     {
-        enableSaveCharacStat();
-        CUR->m_chaosPoint -= CUR->m_chaosExp / percent;
-        CUR->m_chaosExp %= percent;
-        if (CUR->m_chaosPoint < 0)
+        CUR->m_chaosExp += exp;
+        int percent = G_CDataManager()->get_level_exp_percent(get_charac_level(), 1);
+        if (CUR->m_chaosExp > percent && percent > 0)
         {
-            CUR->m_chaosPoint = 0;
-            CUR->m_chaosExp = 0;
+            enableSaveCharacStat();
+            CUR->m_chaosPoint -= CUR->m_chaosExp / percent;
+            CUR->m_chaosExp %= percent;
+            if (CUR->m_chaosPoint < 0)
+            {
+                CUR->m_chaosPoint = 0;
+                CUR->m_chaosExp = 0;
+            }
         }
     }
 }
@@ -3675,9 +3692,12 @@ void CUserCharacInfo::DecFatigueBatteryCharging(short value)
     if (m_selected)
     {
         enableSaveCharacStat();
-        unsigned short old = CUR->m_fatigueBattery;
+        // P209 翻案：old 必须声明为 **signed short**——unsigned short 局部使 4.4
+        // 恒物化 `movzwl 槽,%eax; cmp %ax,%dx` 三段；signed 局部出 ORIG 直
+        // `cmp -0xa(%ebp),%ax` 内存比较（探针 /tmp/bl10/p5.cpp h1/h2 对照）。
+        short old = (short)CUR->m_fatigueBattery;
         CUR->m_fatigueBattery = (unsigned short)(CUR->m_fatigueBattery - value);
-        if ((short)CUR->m_fatigueBattery < 0 || (short)CUR->m_fatigueBattery > (short)old)
+        if ((short)CUR->m_fatigueBattery < 0 || (short)CUR->m_fatigueBattery > old)
             CUR->m_fatigueBattery = 0;
     }
 }

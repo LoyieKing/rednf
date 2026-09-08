@@ -572,8 +572,8 @@ int TimerFatigueReset::dispatch_sig(int p1, int p2, unsigned int p3)
     // ORIG 每处均重新取 env。
     // ORIG 0x0863375d `mov 0x37c(%eax),%ebx` 单段直落 callee-saved 跨 update 调用；
     // 绑定版消 int 槽（guard1/guard2 槽归位 -0x14/-0x1c），装载恒两段
-    // （N18a 残差 1 行）；volatile 指针读反产 add+mov 三段（更差，弃）
-    register int dailyResetHour asm("ebx") = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
+    // N96/P0：绑定形已废，自然局部（ORIG 寄存器直落残差记 N18a/N76）。
+    int dailyResetHour = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
     static_cast<EventClassify::CEventScriptMng*>(
             G_CDataManager()->get_event_script_mng())
         ->update_time_values(dailyResetHour);
@@ -644,10 +644,10 @@ bool TimerFatigueReset::RegistNextTimer()
 
     const int hour = pt->tm_hour;                            // -0x24（08633a33 直读）
     // ORIG 0x08633a40/0x45/0x47：三字段各 `mov -0x28,%eax` 重读 + 单段直落
-    // callee-saved edi/esi/ebx（跨 cMyTrace 双 call 存活）——register 绑定复现
-    register int sec asm("edi") = pt->tm_sec;
-    register int min asm("esi") = pt->tm_min;
-    register int hr asm("ebx") = pt->tm_hour;
+    // N96/P0：绑定形已废（跨 call 保活残差记 N76/N82附）。
+    int sec = pt->tm_sec;
+    int min = pt->tm_min;
+    int hr = pt->tm_hour;
 
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x572, 0);
@@ -752,12 +752,12 @@ int TimerStatisticsLog::dispatch_sig(int p1, int p2, unsigned int p3)
     int cacheLoadOverflowCount = exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadOverflowCount();
     // ORIG 0x08634010/0x0863401f/0x0863402e：后三 getter 结果直落
     // %edi/%esi/%ebx 跨 ctor 存活；绑定版残差=装载时多一条重排 mov（probe 实测
-    // 优于槽版 2 行）
-    register int cacheLoadCount asm("edi") =
+    // N96/P0：绑定形已废（三 callee 结果寄存器缓存残差记 N76/N82附）。
+    int cacheLoadCount =
         exchange_server::GetInstanceExchangeServerHitRate()->GetCacheLoadCount();
-    register int dbLoadOverflowCount asm("esi") =
+    int dbLoadOverflowCount =
         exchange_server::GetInstanceExchangeServerHitRate()->GetDBLoadOverflowCount();
-    register int dbLoadCount asm("ebx") =
+    int dbLoadCount =
         exchange_server::GetInstanceExchangeServerHitRate()->GetDBLoadCount();
 
     cMyTrace trace(__PRETTY_FUNCTION__, 0x637, 0);
@@ -1463,13 +1463,10 @@ int TimerStatisticLevel::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     G_GameWorld()->UpdateStatistic4ChannelUserLev();
     // ORIG 0x086358c0：CalcNextTime 结果 `mov %eax,%ebx` 驻寄存器，
-    // 0x086358d3 `sub %eax,%ebx` 原地减、0x086358ea `mov %ebx,0x10(%esp)` 直传
-    // （register asm("ebx") 复现，无槽 → 帧 0x24）。
-    // ORIG 0x086358c5/0x086358d3：`mov %eax,%ebx` + `sub %eax,%ebx` 原地。
-    // 4.4 对 asm 寄存器赋值恒产拷贝链，用显式 asm 落 sub 形。
-    register int delay asm("ebx") = CalcNextTime();
-    asm volatile("sub %%eax, %%ebx" : "+b"(delay)
-                 : "a"(GlobalData::s_systemTime_.getCurSec()) : "cc");
+    // N96/P0：asm volatile 同禁。自然两段式（ORIG 寄存器原地 sub 直落残差
+    // 记 N18a 族，槽化 store/load 为 4.4 常态）。
+    int delay = CalcNextTime();
+    delay -= static_cast<int>(GlobalData::s_systemTime_.getCurSec());
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                 (TIMER_MESSAGE)0x55, delay, 0, 0);
     return 1;
@@ -1583,8 +1580,9 @@ int TimerCheckMailTimeOut::dispatch_sig(int p1, int p2, unsigned int p3)
     // ORIG 0x08635d0f：单出口 result(%ebx) + 四段判错，各 setXX %al 物化
     // （0x08635d9x `cmp $0x1,%eax; setle` / `cmp 0x10,%eax; setne` / `cmp 0x14,%eax; setne`）
     // → `test %al,%al; je` 前跳；result=1 在 PacketGuard dtor(0x08635e64) 之前。
-    register int result asm("ebx");
-    register bool bad asm("al");
+    // N96/P0：绑定形已废，自然具名局部（setXX 物化链残差记 N85/setcc-fold）。
+    int result;
+    bool bad;
     CUser* user = G_CGameManager()->getUser(p1, 7);   // ORIG 第二实参为常量 7
     if (user == 0) {
         result = 0;
@@ -1647,9 +1645,10 @@ int TimerCreature::dispatch_sig(int p1, int p2, unsigned int p3)
     died = user->getCurCharacInvenW()->GetCreatureMgrW()->CheckDiedCreature();
     (void)died;
     // ORIG 8635f32 `movzbl -0x9,%eax; xor $1,%eax; test %al; je`：
-    // register asm("eax") 承载 x^1（in-place 原地 xor，阻 fold-const 吸收）。
-    register unsigned char invR asm("eax") = saveInventory ^ 1;
-    if (invR)
+    // N96/P0：绑定形全域禁用后无合法源形可阻 fold-const（探针 /tmp/l7_m.cpp
+    // m1/m3 恒折 `cmpb $1,-0x9; je`；register-hint n1 形溢入 %ebx 改帧）——
+    // setcc-fold 负例在册，取最短 gap 折叠形，残差 3 行封顶。
+    if ((unsigned char)(saveInventory ^ 1))
     {
         user->disableSaveInven();
     }
@@ -2023,7 +2022,7 @@ int TimerDungeonDataStatistic::dispatch_sig(int p1, int p2, unsigned int p3)
     // ORIG 0x0863680a-0x08636824：Regist byte 槽 -0x9 物化 + `xor $0x1; test; je`
     // 双岛直存 %ebx 跨 dtor（绑定消 bool byte 槽），单出口 return %ebx
     bool ok = RegistNextTimer();
-    register int ret asm("ebx");
+    int ret;   // N96/P0：绑定形已废
     if (ok != 1)
         ret = false;
     else
@@ -2048,10 +2047,10 @@ bool TimerDungeonDataStatistic::RegistNextTimer()
     // ORIG 0x086368a7-0x086368e1：chn 全程 %ecx、x=chn/30（0x88888889+sar4 魔数）
     // 存 %ebx（sign 修正后）、2x=%edx；`shl $4; sub %edx` =30x；
     // tm_min = chn-30x = chn%30（P196：旧 /15*45 形在 chn≥15 分叉系误判）。
-    // register 绑定消 spill 槽（pt/-0x18 等槽序归位）。
-    register int chn asm("ecx") = G_CEnvironment()->m_serverEnvir.m_channelNo; // +0x1b0
-    register int x asm("ebx") = chn / 30;
-    register int x2 asm("edx") = x * 2;
+    // N96/P0：绑定形已废（槽序归位残差记 N82/P112）。
+    int chn = G_CEnvironment()->m_serverEnvir.m_channelNo; // +0x1b0
+    int x = chn / 30;
+    int x2 = x * 2;
     pt->tm_min = chn - (x2 * 16 - x2);
     int target = static_cast<int>(mktime(pt));
     if (pt->tm_hour <= curHour)
@@ -2075,10 +2074,9 @@ int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     if ((unsigned short)user->get_unique_id() != p2)
         return 0;
-    // P168a X2：同上（bool callee 直判域内 ==0 ⇔ ^1 为真）
-    register unsigned char rc asm("eax") = (unsigned char)user->IsRecvEvent();
-    rc ^= 1;
-    if (rc)
+    // N96/P0：uchar callee 无槽折叠形（probe /tmp/l7_m.cpp：4.4 恒折
+    // cmpb$1 直判，xor 寄存器物化属 setcc-fold 负例）。
+    if ((unsigned char)(user->IsRecvEvent() ^ 1))
     {
         // ORIG 0x086369e6：DisConnSig(0x1d, false, 0) 断线
         user->DisConnSig((DISCONN_SIG)0x1d, false, 0);
@@ -2136,14 +2134,11 @@ int TimerLightServerNotice::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int p3
     packet.put_str(notices[p3].m_message.c_str(), len);
     packet.finalize(true);
     G_GameWorld()->send_all(guard);
-    // P168a①②/技巧21：ORIG 0x08636c00 `mov %al,-0x9; movzbl; xor $0x1; test; je`
-    // 双岛直存 %ebx 跨 guard dtor（具名 bool 落 byte 槽 + register ret asm(ebx)）
-    // P168a①②/X2：具名 bool 落 byte 槽 -0x9 后 reload+xor1（register asm(eax)
-    // 承载 (unsigned char)(done^1) 阻 cmpb 折叠），双岛存 %ebx 跨 guard dtor
     const bool done = RegistNextTimer(static_cast<int>(p3));
-    register int ret asm("ebx");
-    register unsigned char dv asm("eax") = (unsigned char)(done ^ 1);
-    if (dv)
+    // N96/P0：绑定形已废；具名 bool done 槽 + 自然 if(!done)（4.4 恒折
+    // cmpb 直判，ORIG movzbl+xor 寄存器物化属 setcc-fold 负例在册）。
+    int ret;
+    if (!done)
         ret = 0;
     else
         ret = 1;
@@ -2680,9 +2675,10 @@ int TimerFinishItemEffect::dispatch_sig(int p1, int p2, unsigned int p3)
 void TimerFinishItemEffect::_processSepecialEffectContinuousItem(CUser* user,
                                                                  unsigned int itemIdx)
 {
-    // ORIG 0x08637d6b：mov 0x10(%ebp),%eax; cmp $0x1cd1,%eax; jne 尾（技巧28 破融合 + 正向块 fall-through）
-    register unsigned int idxR asm("eax") = itemIdx;
-    if (idxR == 0x1cd1)
+    // ORIG 0x08637d6b：mov 0x10(%ebp),%eax; cmp $0x1cd1,%eax; jne 尾。
+    // N96/P0：绑定形已废，直读形参数（4.4 对形参比较恒折 mem cmp，残差
+    // 记 N18b/P85 跨版本装载时刻）。
+    if (itemIdx == 0x1cd1)
         user->SetExpAffectItemEffect(false, 0.0f);
 }
 
@@ -2823,13 +2819,11 @@ int TimerAssaultSuperPowerState::dispatch_sig(int p1, int p2, unsigned int p3)
     if (user == NULL) {
         return 0;
     }
-    // ORIG 0x08634180：短路 && 表达式物化于 %al（8634196 mov$1 / 863419d mov$0
-    // 双岛 merge → 86341a2 `test %al,%al; je`），无 bool 具名槽。
-    // 技巧22：register bool asm("al") 承载。
-    register bool mismatch asm("al");
-    mismatch = (p3 != 0 &&
-                static_cast<unsigned int>(user->getCurCharacNo()) != p3);
-    if (mismatch)
+    // ORIG 0x08634180：短路 && 物化 %al 双岛 merge（mov$1/mov$0 + test%al）。
+    // N96/P0：绑定形已废；短路直判为 4.4 常态（4.1 merge 岛形属跨版本 bool
+    // ABI 负例在册）。
+    if (p3 != 0 &&
+        static_cast<unsigned int>(user->getCurCharacNo()) != p3)
         return 0;
     user->SetCurCharacSuperState(false);
     pvp_assault::CAssaultPlace::SendUserState(user);
@@ -2972,11 +2966,8 @@ void TimerGeneratePowerUp::generatePowerUp(std::vector<CUser*>& users, int count
     while (count > selected && loopCnt <= 10000)
     {
         CUser* picked = users[rand() % total];
-        // P168a X2：uchar callee `call; xor $0x1,%eax; test %al; je`——
-        // register unsigned char asm("eax") 承载 ^=1 in-place 阻 fold
-        register unsigned char pu asm("eax") = (unsigned char)picked->IsPowerUp();
-        pu ^= 1;
-        if (pu)
+        // N96/P0：uchar callee 无槽折叠形（xor 寄存器物化属 setcc-fold 负例）。
+        if ((unsigned char)(picked->IsPowerUp() ^ 1))
         {
             picked->SetPowerUp(true);
             buf.push_back(picked);
@@ -3136,7 +3127,7 @@ int TimerRevivalCharac::dispatch_sig(int p1, int p2, unsigned int p3)
     // PacketGuard 于 else 块内构造+dtor（0x08638f39 call D1）后 result=1。
     // 技巧2：result 驻 %ebx（ORIG 0x08638ea5 `mov $0x0,%ebx`×3 / 0x08638f61
     // `mov %ebx,%eax` 单出口），PacketGuard 回 -0x18、帧 0x20。
-    register int result asm("ebx");
+    int result;   // N96/P0：绑定形已废（单出口 %ebx 驻留残差记 N82附）
     CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
     if (user == 0) {
         result = 0;
@@ -3339,9 +3330,10 @@ bool Timer_Midnight::RegistNextTimer()
     std::tm timePoint;
     std::tm* pt = localtime_r(&nowSec, &timePoint);
     const int hourNow = pt->tm_hour;
-    register int secNow asm("edi") = pt->tm_sec;
-    register int minNow asm("esi") = pt->tm_min;
-    register int hrNow asm("ebx") = pt->tm_hour;
+    // N96/P0：绑定形已废（跨 call 保活残差记 N76/N82附）。
+    int secNow = pt->tm_sec;
+    int minNow = pt->tm_min;
+    int hrNow = pt->tm_hour;
     cMyTrace trace(__PRETTY_FUNCTION__, 0x1293, 0);
     trace("Reset all user's fatigue!(%02d:%02d:%02d)", hrNow, minNow, secNow);
     pt->tm_hour = 0;
@@ -3775,8 +3767,8 @@ void Timer_ReturnUserTimeout::registNextTimer(int p1, int p2, unsigned int p3)
     // ORIG 0x0863ae10：getCurSec 结果驻 %eax（无 now 槽），call 后再装载 p3
     // `mov 0x10(%ebp),%edx; mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax` 三步拷贝链，
     // delta 落具名槽
-    // -0xc(%ebp)，0x10(%esp) 装载走 `mov -0xc(%ebp),%edx` 两步。
-    register unsigned int cur asm("eax");
+    // N96/P0：绑定形已废，两段式具名局部（P197③ 双槽形）。
+    unsigned int cur;
     cur = GlobalData::s_systemTime_.getCurSec();
     int delta;
     delta = static_cast<int>(p3) - static_cast<int>(cur);

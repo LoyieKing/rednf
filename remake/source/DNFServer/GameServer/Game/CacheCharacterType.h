@@ -47,7 +47,9 @@ public:
     APSystem::_SIG_LOAD_ACTION_POINT m_actionPoint; // +0x1eb13  ENUM 0x11
     advancealtar::_CharacAdvanceAltarDbData m_altar;// +0x1f804  ENUM 0x19
     SIG_LOAD_ETC m_etc;                             // +0x1fd20  ENUM 0x20
-    unsigned int m_cacheTime;                       // +0x34880   缓存时间戳（AcquireCharacter 写 time(0)）
+    long m_cacheTime;                               // +0x34880   缓存时间戳（AcquireCharacter 写 time(0)；
+                                                    //   P217：time_t 同型直存消 4.4 mov%eax,%edx 中转，
+                                                    //   sizeof/偏移不变，b28-L11 探针 l11_n92 实证）
     SIG_LOAD_KILL_MONSTER_INFO m_expand;            // +0x34884  ENUM 0x282
     char m_memberFlag[0xc];                         // +0x3f850   成员脏标记
 };

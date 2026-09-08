@@ -219,7 +219,7 @@ public:
     // ---- ORIG W 内联访问器（nm --defined-only 实证，体为单字段读写）----
     int GetItemId();                      // W 0x833efa4（外联定义 CreatureOnlySimple.cpp；ORIG 调用形态为 call）
     void SetItemId(int itemId) { m_itemId = itemId; }           // W 0x833efb0
-    int GetCreatureItemType();                                  // W 0x833ef98（定义 CCreatureMgr.cpp，ORIG 外联调用形态）
+    CREATURE_ITME_TYPE GetCreatureItemType();  // W 0x833ef98（定义 CCreatureMgr.cpp，ORIG 外联调用形态；返回类型不入 mangled，Set 内同型直存 LHS-first 实证）
     void SetCreatureItemType(CREATURE_ITME_TYPE type);   // ORIG W 0x833efe2（外联 CreatureOnlySimple.cpp；ORIG 无 int 版符号）
     int GetUid();                                               // W 0x833efbe（外联定义
                                                                 //   CreatureOnlySimple.cpp；
@@ -238,7 +238,9 @@ public:
 
     int m_vptr;            // +0x00（ORIG vptr 槽；本镜像以整型保持偏移）
     int m_itemId;          // +0x04
-    int m_creatureItemType;// +0x08
+    CREATURE_ITME_TYPE m_creatureItemType;  // +0x08（ORIG SetCreatureItemType 0x833efe2
+                                            //  store LHS-first ⇒ 字段必为 enum 同型，
+                                            //  探针 /tmp/bl8_probe3.cpp）
     int m_uid;             // +0x0c
     int m_slotNo;          // +0x10
     unsigned char m_noCharge; // +0x14

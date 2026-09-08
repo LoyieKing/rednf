@@ -643,6 +643,10 @@ int LOGIN_QUERY::arad_sp_select_punish_second_user(SIG_LOGIN_DATA* data)
 // ORIG 0x0818c0e0：member_mousepass（GoblinPad）加载。
 int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
 {
+    // b28 P212：enableFlag 在 ORIG 占 -0x1d（深槽，4.1 按声明序分配）；4.4 对
+    // 块内才使用/带初值的局部优先浅槽 ⇒ 提至函数头、去初值（ORIG 写入点即
+    // get_byte(5) 前 movb $0x0,-0x1d 形），使深槽阶梯与 ORIG 对齐。
+    char enableFlag;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   static_cast<ENUM_SERVER_GROUP>(0));
     if (db == 0)
@@ -689,7 +693,6 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
         return -1;
     }
 
-    char enableFlag = 0;
     if (!db->get_str(0, data->m_passPadPassword, 0x24))   // +0x38e1
     {
         LogManager::logFormat(
@@ -735,6 +738,7 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
             0x2e6, "%s", "Goblin Validity Time Parsing error");
         return -1;
     }
+    enableFlag = 0;   // ORIG movb $0x0,-0x1d 预清（P198-①两句式）
     if (!db->get_byte(5, enableFlag))                       // enable_flag
     {
         LogManager::logFormat(

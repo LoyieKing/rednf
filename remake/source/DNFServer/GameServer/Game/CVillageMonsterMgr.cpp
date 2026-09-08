@@ -167,8 +167,9 @@ void CVillageMonsterMgr::OnMoveArea(CUser* user)
     // ORIG 0x86b45bc：Zone(curVill, curArea) 查找，命中则转交区域处理。
     // P36/P52：ORIG 0x86b45bc get_area 值经 %ebx 跨 getCurCharacVill 调用保活
     // （无栈槽 ⇒ 无具名局部），vill 为内联右值直进 eax。
-    register unsigned char area asm("ebx") = (unsigned char)user->get_area(false);
-    Zone zone(user->getCurCharacVill(), area);
+    // [b28-L11 清违例] 原 register asm("ebx") 绑定违反 P0/N96 全域禁令；改
+    // P52 单语句内联实参形（右起求值，get_area 结果由编译器升格 callee-saved）。
+    Zone zone(user->getCurCharacVill(), (unsigned char)user->get_area(false));
     std::map<Zone, CVillageMonsterArea>::iterator it = m_areas.find(zone);
     // ORIG 0x86b45bc 实为 eq + jne 早退形，且 pt 后 +0x4 经具名槽 -0xc（P0 指针局部）。
     if (it == m_areas.end())
@@ -282,13 +283,10 @@ int CVillageMonster::OnFightVillageMonster(CUser* user, int& out1, int& out2)
 {
     if (m_state != 0)
         return 0x13;
-    // P133 反向：ORIG 0x86b3240 是 jg/jle 直分支常量岛（bool 汇聚无槽），
-    // 探针 /tmp/dl17p/p2.cpp g4：内联短路 bool 赋值形 4.4 复现直分支；
-    // register bool 绑 %eax 复现 ORIG 的 mov$1/mov$0 岛 + test %al 直测（无槽）。
-    register bool out asm("eax") =
-        abs((int)user->get_posX() - m_field04) > MONSTER_MOVE_PIXEL ||
-        abs((int)user->get_posY() - m_field08) > MONSTER_MOVE_PIXEL;
-    if (out)
+    // [b28-L11 清违例] 原 register bool asm("eax") 违反 P0/N96；还原 P133
+    // 内联短路判定形（探针 dl17p/p2.cpp g4：内联短路 4.4 复现直分支）。
+    if (abs((int)user->get_posX() - m_field04) > MONSTER_MOVE_PIXEL ||
+        abs((int)user->get_posY() - m_field08) > MONSTER_MOVE_PIXEL)
         return 0x63;
     OnChangeState(ENUM_VILLAGE_MONSTER_STATE_1);
     m_partyIndex = (int)user->GetPartyIndex();
@@ -304,12 +302,11 @@ int CVillageMonster::OnFightVillageMonster(CUser* user, int& out1, int& out2)
 // ============================================================================
 bool CVillageMonster::MakeVillageMonsterPositionPacket(PacketGuard& packet)
 {
-    // X2 形（X2_DISPATCH.tsv，probe /tmp/xg2.cpp 形 E）：ORIG T 0x86b36e6 是
-    // `movzbl 0x10(%eax),%eax; xor $0x1,%eax; test %al,%al; je BODY`，
-    // `字段 != 1` 在 4.4 只产 `cmp $0x1,%al`。
-    register unsigned char mv asm("eax") = m_field10;
-    mv ^= 1;
-    if (mv)
+    // [b28-L11 判 N96 负例] ORIG T 0x86b36e6 = `movzbl; xor $0x1,%eax; test; je`
+    // （寄存器 xor 无槽）。具名局部 X2 形 4.4 落槽（mov/xorb/cmpb 槽三段，实测
+    // ndiff 7）；register 绑定形已全域禁用（P0/N96）；裸 `!= 1` 产 cmp+jne 反演
+    // 异形——保持可读正确 C++，机器码层 N96/N 封顶。
+    if (m_field10 != 1)
         return false;
     // 以下保持原序：三次 put_short 后清零 m_field10。
     packet.put_short(m_id);
@@ -472,7 +469,10 @@ void CVillageMonsterMgr::OnStartVillageAttacked()
     if (m_field04 != 1)
     {
         OnCreateVillageMonster();
-        m_field04 = 1;
+        m_field04 = 1;   // [b28-L11 判 N] ORIG 尾 `jmp leave; nop` 岛系 4.1 块出口
+                         //   布局产物；4.4 tail-merge 消除（goto+空标签形实测同样
+                         //   不产 jmp，P223 负例）——负例表「空 else nop;jmp 岛 vs
+                         //   jump-threading」在册，ndiff 1 封顶。
     }
 }
 

@@ -238,6 +238,10 @@ struct SigAradAvatarHiddenOptionSave
 //      ORIG 无 W C1 符号，纯 POD）----
 // SigAradAvatarConvert —— AvatarConvertServer::CheckCondition 0x08192212 /
 // Convert 0x081926de 实证偏移。
+// b28（P142）：pack(1) 使类有效对齐=1——Dispatcher_AradAvatarConvert::dispatch_sig
+// ORIG 0x081a00be 把本对象放 -0x1a(%ebp)（非 4 对齐），4.4 自然对齐恒落 -0x1c；
+// put_binary(&sig,0xe) 精确闭合字段尾（+0x0c+2）。字段偏移不变。
+#pragma pack(push, 1)
 struct SigAradAvatarConvert
 {
     SigAradAvatarConvert();   // 定义在 Game/W8_AradSig.cpp
@@ -248,12 +252,17 @@ struct SigAradAvatarConvert
     int            m_resultItemId;   // +0x08（Convert 写回：make_item 的物品 index）
     short          m_resultCount;    // +0x0c（Convert 写回：GetInfo::m_count）
 };                                   // sizeof = 0x10
+#pragma pack(pop)
 
 // SigAradEmblemCompound —— EmblemCompoundServer::GetEmblemInfo 0x08191818
 // （idx*8 元素 {slot,grade,itemIdx}）/ CheckCondition / Process 0x08191afa。
 // ORIG W materialInfo::init 0x81a0a0c（清 word0/word2/dword4）；外层两实例位于
 // +0/+8【ORIG Ctor 0x81a0a2c→init 0x81a0a40 证据：materialInfo.init(this) 与
 // materialInfo.init(this+8)，且仅清 +0x14 selectIdx，不清 resultIdx】。
+// b28（P142）：pack(1) + 删 m_pad——Dispatcher_AradEmblemCompound::dispatch_sig
+// ORIG 0x0819fd7e 把本对象放 -0x22(%ebp)（2 对齐），put_binary(&sig,0x16) 精确闭合
+// m_selectIdx 尾（+0x14+2=0x16）⇒ 类有效对齐 1、ORIG sizeof 0x16；字段偏移不变。
+#pragma pack(push, 1)
 struct SigAradEmblemCompound
 {
     struct materialInfo
@@ -273,8 +282,8 @@ struct SigAradEmblemCompound
     int            m_itemId1;        // +0x0c（写回）
     int            m_resultIdx;      // +0x10（Process 写回合成结果物品 index）
     unsigned short m_selectIdx;      // +0x14（Process 读：getRandomIndex 选择序号）
-    char           m_pad[2];         // +0x16 对齐 pad → sizeof = 0x18
 };
+#pragma pack(pop)
 
 // SigAvatarHiddenOptionChange —— AvatarFixedHiddenOptionServer::
 // CheckCondition 0x0817e4c6 / ChangeHiddenOption 0x0817e8d6 偏移实证。

@@ -139,6 +139,10 @@ void TeamInfoThird::SendToTeam(PacketGuard& pkt)
 }
 
 // ORIG GetTeamRating 0x85627b2：非零 rating 求平均，全零返 0。
+// [b28 判词·N85] AE-ndiff≈4：唯一真差 = `rating != 0.0f` 的 x87 比较 4.1 发
+// `fucompp; fnstsw %ax; sahf`（3 条）vs 4.4 恒 `fucomip; fstp`（2 条），负例 N85
+// 「x87 比较两向跨版本」定案（GetResult/BuyAuctionItem 族）；源形不可择。
+// 其余 43/43 逐条同（含 mov $0 整型零初始化 sum、fildl/fdivp 平均段、-0x14 中转槽）。
 float TeamInfoThird::GetTeamRating()
 {
     float sum = 0.0f;
@@ -188,10 +192,15 @@ CFairMatch::~CFairMatch()
 // IMatch 覆盖（本批符号）
 // ---------------------------------------------------------------------------
 
-// ORIG GetUserList 0x8565184：memcpy 第一支队伍（m_teams[0]，0x48 字节）到出参。
+// ORIG GetUserList 0x8565184：内联 rep movsl（18 dword）拷贝第一支队伍
+// （m_teams[0]，0x48 字节）到出参。
+// [b28 P83] 4.1 把常量 memcpy 内联成 rep movsl 而 4.4 恒 call memcpy（N84）；
+// 改结构整体赋值 `*(TeamInfoThird*)out = m_teams[0]` 触发 4.4 发射同形
+// rep movsl 三件套缓存（探针 /tmp/l2_p5.cpp z2：dst→edi/src→esi/count→ecx，
+// 与 ORIG `mov $0x12,%eax; lea 0x1c(%eax),%ebx` 结构一致）。语义不变。
 void CFairMatch::GetUserList(void* out)
 {
-    memcpy(out, &m_teams[0], sizeof(TeamInfoThird));
+    *reinterpret_cast<TeamInfoThird*>(out) = m_teams[0];
 }
 
 // ORIG RequestMap 0x8562bae：mapNo=0；mode!=6 时取 CDataManager::GetPvPMode。

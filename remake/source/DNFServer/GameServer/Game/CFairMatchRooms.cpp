@@ -444,18 +444,25 @@ void CFairMatch::OnLeaveRoom(CUser* user, PvP_Room* room,
     _SendMatchStatePacket(5, 1);
 }
 
-// OnUnregisterMatch ORIG T 0x85663cc6?（README 行：0x08563cc6）报告同名 md
+// OnUnregisterMatch ORIG T 0x85663cc6（README 行：0x08563cc6）报告同名 md
+// [b28 P222-y10 DIFF→NEAR] 否定合并前置形已翻正块序（ndiff 20→6）；残余 6 行 =
+// DelRoom 虚槽 call *%ecx vs *%eax = N7 封顶。
 // ORIG 返回 int：条件不满足 → 0；执行 → 1。
 int CFairMatch::OnUnregisterMatch(CUser* /*user*/, PvP_Room* /*room*/)
 {
-    if (m_field04 == 1 || m_field04 == 2) {
-        m_field04 = 0;
-        // ORIG +0x2d..0x48 无判空直调 vtable[+0x04]（忠实模拟 ORIG 未定义行为，P148）。
-        pWaitingRoomList_->DelRoom(this);
-        _SendMatchStatePacket(5, 1);
-        return 1;
-    }
-    return 0;
+    // [b28 P59 变体·y10 探针 /tmp/l2_p5.cpp] 否定合并 `!=1 && !=2` return 0 前置形
+    // 令 4.4 产 ORIG 0x08563cc6 布局：cmp$1;je body / cmp$2;je body（双 je 同目标）
+    // / fall-through `mov $0;jmp` false 岛 / body 尾 `mov $1`。旧正极性共享体形产
+    // `jne end` 反向+岛换位（DIFF 20 中真差 4 行）。goto 形带 nop 岛（y3）不用。
+    // 语义不变：仅 f04∈{1,2} 时注销并返 1，否则 0。
+    if (m_field04 != 1 && m_field04 != 2)
+        return 0;
+    m_field04 = 0;
+    // ORIG +0x2d..0x48 无判空直调 vtable[+0x04]（忠实模拟 ORIG 未定义行为，P148）。
+    // 残余 call *%ecx vs call *%eax = N7（4.4 间接 call 目标恒 %eax）。
+    pWaitingRoomList_->DelRoom(this);
+    _SendMatchStatePacket(5, 1);
+    return 1;
 }
 
 // OnRegisterMatch ORIG T 0x85623bba?（README 0x08563bba）报告同名 md
@@ -878,6 +885,9 @@ int CFairMatch::_PullOutRoomTeam(PvP_Room* room, ENUM_SCHOOL_MATCH_TEAM teamIdx)
 
 // OnWalkOut ORIG T 0x8564fb2 报告 OnWalkOut.md。ORIG 返回 1。
 // 转发到本类虚槽 +0x2c（OnLeaveRoom(user,room,team,seat)）
+// [b28 判词·N] AE-ndiff=12：vtable[+0x2c] 虚调用 call *%ecx vs *%eax（N7）+
+// 五实参装载 4.1「-0x10/0x10 两值先载寄存器、再自右写槽」vs 4.4「逐参自左载即写」
+// 寄存器对调（N82附，b26 NL23 定性）。禁绑定形（P0）。
 int CFairMatch::OnWalkOut(PvP_Room* room, int seat)
 {
     const int team = room->get_team(seat);
@@ -1328,6 +1338,10 @@ void CFairMatch::OnCompleteLoad(CUser* user)
 }
 
 // OnConnectP2PTimeout ORIG T 0x8564d3a 报告 OnConnectP2PTimeout.md
+// [b28 判词·N] AE-ndiff=2：唯一真差 = _ReturnTeam 实参装载中 mgrTeam 槽 reload 与
+// `movl $0x0,0xc(%esp)` 的先后交换——4.1 值先载、4.4 常量先写（P75/N82附 装载时刻
+// 跨版本调度）。探针 /tmp/l2_p3.cpp w1-w7（具名/拆分/语句表达式/cast 全形）不可翻；
+// 禁 register 绑定（P0/N96）。其余逐条同。
 void CFairMatch::OnConnectP2PTimeout(PvP_Room* room)
 {
     if (m_field04 == 4) {
@@ -1350,6 +1364,8 @@ void CFairMatch::OnConnectP2PTimeout(PvP_Room* room)
 //   （ORIG 先读 m_user 存槽再判 m_flag，Send 用槽）。残余=+0x40 兜底虚槽调用 ORIG 用 %edx
 //   承载 fn、我们用 %eax（寄存器文本差 _NEAR_）+ 双层索引 ORIG 用 lea 链、我们用更紧凑寻址
 //   （计数已对称）。
+// [b28 判词·N] AE-ndiff=6：残余全为 +0x40 兜底虚槽 call *%edx(ORIG) vs call *%eax
+// (4.4) = N7（间接 call 目标恒 %eax，b26 NL28 8 件实证族）。其余逐条同。
 void CFairMatch::OnConnectP2P(CUser* user, PvP_Room* room,
                               char* addr, int port)
 {

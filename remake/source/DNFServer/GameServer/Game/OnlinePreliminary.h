@@ -90,13 +90,14 @@ struct PlayCountInfo
 {
     PlayCountInfo() : m_count(0), m_flag(0) {}
     // ORIG ctor 0x86ca0e4：bool 直存（mov %dl,0x4），无三目规范化。
-    // DL7：尾部 this/movzbl 两 load 次序 4.4 恒 RHS 先（函数体赋值同形实测
-    // 不可翻，P112 调度不可控）⇒ N76 变体封顶。
+    // b28 翻案（P211 异型化族）：m_flag uchar→bool ⇒ 4.4 尾 store 序翻为
+    // LHS 地址先 = ORIG 形（/tmp/l12p1.cpp B/D 探针：bool 字段恒 `mov this;
+    // movzbl; mov dl`，uchar 字段恒 RHS 先）。
     PlayCountInfo(unsigned int count, bool flag)
         : m_count(count), m_flag(flag) {}
 
     unsigned int  m_count;  // +0x00
-    unsigned char m_flag;   // +0x04（对方本日已交手标记）
+    bool          m_flag;   // +0x04（对方本日已交手标记）
     char          m_pad[3]; // +0x05..0x07（保持未初始化语义由编译器补位）
 };
 
@@ -119,12 +120,12 @@ struct PlayCountInfoEx
 {
     PlayCountInfoEx() : m_count(0), m_flag(0) {}
     // ORIG ctor 0x86ca141：bool 直存（mov %dl,0x4），无三目规范化。
-    // DL7：同 PlayCountInfo，N76 变体封顶。
+    // b28：同 PlayCountInfo，m_flag uchar→bool 翻 N76 变体。
     PlayCountInfoEx(unsigned int count, bool flag)
         : m_count(count), m_flag(flag) {}
 
     unsigned int   m_count;  // +0x00
-    unsigned char  m_flag;   // +0x04
+    bool           m_flag;   // +0x04
     char           m_pad[3]; // +0x05..0x07
 };
 

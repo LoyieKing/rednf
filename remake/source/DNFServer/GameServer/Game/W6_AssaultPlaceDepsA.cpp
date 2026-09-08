@@ -44,11 +44,12 @@ int CAssaultPlace::_GetTeamCount(ENUM_ASSAULT_TEAM team)
 void CAssaultPlace::_GetTeamCount(int* counts, ENUM_ASSAULT_STATE state)
 {
     for (int i = 0; i < 8; ++i) {
-        if (m_assaulters[i].Empty()) {
-        } else {
-            if ((int)m_assaulters[i].GetState() == (int)state) {
-                ++counts[(int)m_assaulters[i].GetTeam()];
-            }
+        // b28 BL6: f3 岛形（P164 族）——Empty continue→nop 岛，正向 == 包 ++，
+        // 体尾 4.4 保留前向 jmp 统一尾（ORIG 0x82e7288 jne/je/jmp+nop 全等）。
+        if (m_assaulters[i].Empty())
+            continue;
+        if ((int)m_assaulters[i].GetState() == (int)state) {
+            ++counts[(int)m_assaulters[i].GetTeam()];
         }
     }
 }
@@ -193,7 +194,7 @@ void CAssaultPlace::ClearBadP2PUser()
         _GetConnectP2PMaxMinPoint(minX, maxX);
         if (minX == maxX)
             return;          // asm cmp max,min je end
-        _ClearConnectP2PRelative(minX);
+        _ClearConnectP2PRelative(maxX);   // ORIG -0x14=maxX 槽（第三实参引用）
     }
 }
 
@@ -205,10 +206,12 @@ void CAssaultPlace::_ChangeDieState(int index)
     m_assaulters[index].SetState((ENUM_ASSAULT_STATE)6);
     if (GlobalData::s_event_manager->GetRepeatEvent(0x20)->IsEventing((CUser*)0)) {
     } else {
-        // die = IsPowerWarEventOn() ? (vill != 7) : true
-        if (GlobalData::s_power_manager->IsPowerWarEventOn()
-                ? ((CUserCharacInfo*)m_assaulters[index].GetUser())->getCurCharacVill() != 7
-                : true)
+        // b28 BL6: 短路 `||` 实测 4.4 对 `!boolcallee()` 出 `xor $0x1,%eax;
+        // test %al,%al; jne` 寄存器直传形（DE v6 实证），对齐 ORIG +0x59。
+        // （&&+goto 形实测 7 行劣化；残 1 条 ORIG 汇聚 test 前向 jmp 岛族。）
+        if (!GlobalData::s_power_manager->IsPowerWarEventOn()
+            || ((CUserCharacInfo*)m_assaulters[index].GetUser())
+                   ->getCurCharacVill() != 7)
             m_assaulters[index].DieUser();
     }
 }
@@ -429,6 +432,9 @@ void CAssaultPlace::ConnectP2P(CUser* user, char* ip, int len)
     StartAssault();
     if (m_parties[0].m_field00 != 0)
         ((CParty*)m_parties[0].m_field00)->SetAssaultState('\x04');
+    // b28 BL6 实测：早返守卫形反增 2 jmp（4.4 epilogue 复制）；回退原形，
+    // 残 1 条体尾 jmp 中继 = 4.1 fall-through 折叠 vs 4.4 显式边（跨版本
+    // jump-threading 负例族）。
     if (m_parties[1].m_field00 != 0)
         ((CParty*)m_parties[1].m_field00)->SetAssaultState('\x04');
 }
@@ -602,6 +608,10 @@ void CAssaultPlace::EvadeAssaultPlace(CUser* user)
         throw (ENUM_ERROR)0x13;
 
     int idx = _GetUserIndex(user, true);
+    // b28 BL6 实测：交换操作数序→4.4 走 %ebx callee-saved+push 更劣（13）；
+    // 保留原序，残差 4 条 = 4.4 把 this 装载选入 %eax 触发原值 spill %edx
+    // （N18a 反向 regmove 假象，同 TU 探针 f0/f3/f4 均出 ORIG 形、真实函数
+    // 上下文不可造）判跨版本寄存器分配。
     if ((int)m_assaulters[idx].GetTeam() != m_winTeam /*+0x124*/)
         throw (ENUM_ERROR)0x13;
 
@@ -716,7 +726,9 @@ int CAssaultPlace::_VictoryBonus(CUser* user, char side)
         }
         _SendVictoryBonus(enemy, myVictory, penaltyValue, winCount, breakBonus);
     }
-    return breakBonus + penaltyValue;
+    // b28 BL6: 4.4 右操作数先入 %eax（ORIG 尾块 eax=-0x18=breakBonus/edx=-0x1c=pen），
+    // 交换加法两侧复现 ORIG lea 序（数学等价）。
+    return penaltyValue + breakBonus;
 }
 
 // ---------------------------------------------------------------------------
@@ -765,9 +777,8 @@ void CAssaultPlace::_DispositionUser(CUser** users)
                                         m_pos.m_y /*+0x11c*/, &disposition))
         throw (ENUM_ERROR)0x03;
 
-    int flagX = 0;
-    int flagY = 0;
-    disposition.GetFlagPoint(flagX, flagY);   // this+0x110 / +0x114 输出目标
+    // b28 BL6: P0——ORIG 无 flagX/flagY 槽往返，出参直绑 m_posBase(+0x110/+0x114)。
+    disposition.GetFlagPoint(m_posBase.m_x, m_posBase.m_y);   // this+0x110 / +0x114 输出目标
     _SendGiveAlarm();
     _SendUserInfo();
     _SendUserUdpIpPort();

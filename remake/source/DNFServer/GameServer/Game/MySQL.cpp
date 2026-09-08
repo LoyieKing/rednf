@@ -73,15 +73,13 @@ bool MySQL::init_db_handle()
 {
     if (m_dbHandle != 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x81, 5);
-        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x81);
+        cMyTrace(__PRETTY_FUNCTION__, 0x81, 5)("[%s][%d]", __PRETTY_FUNCTION__, 0x81);
         return false;
     }
     m_dbHandle = mysql_init(0);
     if (m_dbHandle == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x8c, 5);
-        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x8c);
+        cMyTrace(__PRETTY_FUNCTION__, 0x8c, 5)("[%s][%d]", __PRETTY_FUNCTION__, 0x8c);
         return false;
     }
     return true;
@@ -196,8 +194,7 @@ bool MySQL::set_query(const char* fmt, ...)
     int len = strlen(m_query);
     if (len > 0x5fff)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x169, 5);
-        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x169);
+        cMyTrace(__PRETTY_FUNCTION__, 0x169, 5)("[%s][%d]", __PRETTY_FUNCTION__, 0x169);
         return false;
     }
     m_queryLen = len;

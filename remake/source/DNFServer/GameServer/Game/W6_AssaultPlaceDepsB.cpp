@@ -306,11 +306,12 @@ int CAssaultPlace::_ClearConnectP2PRelative(int idx)
 void CAssaultPlace::_PowerWarAssaultCheckIn()
 {
     for (int i = 0; i <= 7; ++i) {
-        if (!m_assaulters[i].Empty()) {
-            CUser* u = m_assaulters[i].GetUser();
-            long now = GlobalData::s_systemTime_.getCurSec();
-            u->SetPowerWarLastPlayTime(now);
-        }
+        // b28 BL6: P0——ORIG 无 now 槽往返（getCurSec 结果寄存器直传出参槽）；
+        // 正向 Empty continue 岛形复现 ORIG 0x82e72fa test/jne+jmp 尾岛。
+        if (m_assaulters[i].Empty())
+            continue;
+        CUser* u = m_assaulters[i].GetUser();
+        u->SetPowerWarLastPlayTime(GlobalData::s_systemTime_.getCurSec());
     }
 }
 
@@ -377,12 +378,14 @@ void CAssaultPlace::_SendStraightVictories(CUser* user)
                 packet.put_byte(party->get_member_count());
                 for (int i = 0; i <= 3; ++i) {
                     CUser* member = party->get_user(i);
-                    if (member != 0) {
-                        const char* name = member->getCurCharacName();
-                        int len = static_cast<int>(strlen(name));
-                        packet.put_int(len);
-                        packet.put_str(name, len);
-                    }
+                    // b28 BL6: guard-continue 岛形——ORIG 0x82ec61f je→nop 岛 +
+                    // 体尾前向 jmp 统一尾（4.4 直落形被折叠，continue 岛复现）。
+                    if (member == 0)
+                        continue;
+                    const char* name = member->getCurCharacName();
+                    int len = static_cast<int>(strlen(name));
+                    packet.put_int(len);
+                    packet.put_str(name, len);
                 }
                 packet.put_int(victories & 0xffff);
                 packet.put_byte(static_cast<int>(static_cast<signed char>(user->getPowerSide())));
@@ -832,8 +835,9 @@ void CAssaultPlace::DieUser(int victimIdx, int killerIdx, MSG_DIE_ASSAULT_PLAYER
 // ORIG T 0x82ed3fe DieUser(CUser*, int, MSG_DIE_ASSAULT_PLAYER&)
 void CAssaultPlace::DieUser(CUser* user, int killerIdx, MSG_DIE_ASSAULT_PLAYER& msg)
 {
-    int idx = _GetUserIndex(user, true);
-    DieUser(idx, killerIdx, msg);
+    // b28 BL6: P0——ORIG 切片无 idx 槽往返，返回值寄存器直传出参槽；
+    // 具名局部引入 -0xc 双 store/load +帧差。嵌套实参复现 ORIG 0x82ed3fe 形态。
+    DieUser(_GetUserIndex(user, true), killerIdx, msg);
 }
 
 // ---------------------------------------------------------------------------
@@ -933,14 +937,16 @@ void CAssaultPlace::_AddTeam(CUser* user, ENUM_ASSAULT_TEAM team)
     CParty* party = 0;
     if (user->CheckInParty())
         party = static_cast<CParty*>(user->GetParty());
-    if (party == 0) {
-        _AddUser(user, team);
-    } else {
+    // b28 BL6: P59 双向布局——ORIG 0x82e70f2 `cmpl $0; je <else体后置>` 要求
+    // 正极性 if(party!=0){for…}else{_AddUser}，体尾前向 jmp 共享出口。
+    if (party != 0) {
         for (int i = 0; i <= 3; ++i) {           // cmpl $0x3 … setle
             CUser* member = party->get_user(i);
             if (member != 0)
                 _AddUser(member, team);
         }
+    } else {
+        _AddUser(user, team);
     }
 }
 

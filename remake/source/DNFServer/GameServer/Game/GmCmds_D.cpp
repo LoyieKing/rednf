@@ -619,7 +619,9 @@ void CLevelUp::parse()
         int level = static_cast<int>(                       // ORIG 中间变量 -0xc(%ebp)
             StringToNumber(m_parser->m_extra[1].c_str()));
         setLevel(level);
+        return;                                             // ORIG 尾 `jmp;leave;ret`（4.1 显式 return 形）
     }
+    return;
 }
 
 // ORIG execute 0x084b38e2：栈构 DisPatcher_DebugCommand 后委托设级。
@@ -654,7 +656,9 @@ void CHeroMissionCommand::parse()
             StringToNumber(m_parser->m_extra[2].c_str()));
         m_param = static_cast<unsigned int>(
             StringToNumber(m_parser->m_extra[3].c_str()));
+        return;                                             // ORIG 尾 `jmp;leave;ret`（4.1 显式 return 形）
     }
+    return;
 }
 
 // ORIG execute 0x084b3e5e："set"→processMission，"reset"→setEventData("")，

@@ -490,13 +490,13 @@ template class GlobalInstance<CGameManager>;
 bool CGameManager::init()
 {
     m_pCraneMinigameMgr = new CraneMinigameManager;
-    // ORIG 0x08294231..：`call init; xor $0x1,%eax; test %al,%al; je mov1 /
+    //（ORIG 0x08294231..：`call init; xor $0x1,%eax; test %al,%al; je mov1 /
     // 非零→mov 0` 即 return (r==1)（真值归一，非取反——原实现 !r 语义写反，
     // init 失败/成功与调用方判定相反，真实 BUG）。X1 形复现 xor 直落+0/1 物化。
-    register unsigned char v asm("eax") =
-        (unsigned char)GetCraneMinigameManager()->init();
-    v ^= 1;
-    if (v)
+    // N96/P0：禁 register 绑定。无槽折叠形（probe /tmp/l7_h.cpp h2）：
+    // 4.4 产 `cmp$1,%al; setne; test; je` 直比寄存器，残差 xor vs cmp+setne
+    // 2 行（setcc-fold 负例在册）；槽化 X2 会污染 frame（f1/f3 实测更差）。
+    if ((((unsigned char)GetCraneMinigameManager()->init()) ^ 1) != 0)
         return 0;
     return 1;
 }
@@ -600,11 +600,12 @@ void CGameManager::insertUserByAccID(CUser* user)
     unsigned int accId2 = user->get_acc_id();
     if (accId2 == 0)
     {
-        // P52/P87：ORIG get_acc_name 值入 %ebx 跨 cMyTrace ctor 调用保活
-        //（call; mov %eax,%ebx），具名局部落槽双 store→改 register 形。
-        register const char* name asm("ebx") = user->get_acc_name();
+        // N80 封顶（b28 fresh 复验）：ORIG 在 cMyTrace ctor call 之前取
+        // get_acc_name 值并跨 ctor 保活于 %ebx（尾 store 单段直落）；4.4 恒
+        // ctor 后求值且 0x8(%esp) 装载经 %eax 中转（+1 mov）。具名/内联/
+        // 语句表达式三形探针不可翻（N80/N96），禁 register 绑定（P0）。
         cMyTrace tr(__PRETTY_FUNCTION__, 0x91d, 5);
-        tr("[QQID_ERROR]CGameManager::insertUserByAccID  qq_id:%s", name);
+        tr("[QQID_ERROR]CGameManager::insertUserByAccID  qq_id:%s", user->get_acc_name());
     }
     else
     {
@@ -1350,9 +1351,8 @@ void CGameManager::checkOutDeathTower(CUser* user)
     tower = getDeathTower(user->getDeathTowerIndex());
     if (tower != 0)
         {
-            register unsigned char left asm("eax") = (unsigned char)tower->onLeaveUser(user);
-            left ^= 1;
-            if (left)
+            // N96/P0：无槽折叠形（cmp$1,%al; setne; test; je，残差 xor 族 2 行）。
+            if ((((unsigned char)tower->onLeaveUser(user)) ^ 1) != 0)
             {
                 LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x123a,
                                       "DeathTower checkOutDeathTower ID[%d] ACCID[%s]",
@@ -1445,10 +1445,9 @@ void CGameManager::checkOutBossTower(CUser* user)
             // **vptr 偏移**，实际被调的是 **CBossTower::handleLeaveUser(CUser*)**。
             // 头文件虚声明顺序本身与 ORIG 完全一致，无需改布局（零 ABI 风险）。
             // X1 形（probe /tmp/xg2.cpp 形 B）：裸 (bool)(x^1) 产 cmp$1;setne，
-            // 绑 %eax 才直落 xor；残差 call *%eax vs ORIG *%edx 属 N7 寄存器名族。
-            register unsigned char left asm("eax") = (unsigned char)tower->handleLeaveUser(user);
-            left ^= 1;
-            if (left)
+            // N96/P0：bool callee 裸形（P168a①）直产 call;xor$1;test;je；
+            // 残差 call *%eax vs ORIG *%edx 属 N7 寄存器名族。
+            if (!tower->handleLeaveUser(user))
             {
                 LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x11d9,
                                       "BossTower checkOutBossTower ID[%d] ACCID[%s]",
@@ -1523,20 +1522,18 @@ void CGameManager::returnAdvanceAltar(advancealtar::StageControl* control)
 
 void CGameManager::checkOutAdvanceAltar(CUser* user)
 {
-    // P133 独立守卫 + X1 register 形（xor 物化）+ P63 goto 尾（空块 4.4 穿透，N 残差）。
+    // P133 独立守卫 + X1 自然形（xor 物化）+ P63 goto 尾（空块 4.4 穿透，N 残差）。
     advancealtar::StageControl* control;
     if (user == 0) goto end;
     {
-        register unsigned char in asm("eax") = (unsigned char)user->checkInAdvanceAltar();
-        in ^= 1;
-        if (in) goto end;
+        // N96/P0：bool callee 裸形。
+        if (!user->checkInAdvanceAltar()) goto end;
     }
     control = getAdvanceAltar(user->getAdvanceAltarIndex());
     if (control == 0) goto end;
     {
-        register unsigned char left asm("eax") = (unsigned char)control->leaveUser();
-        left ^= 1;
-        if (left)
+        // N96/P0：char callee 无槽折叠形。
+        if ((((unsigned char)control->leaveUser()) ^ 1) != 0)
         {
             LogManager::logFormat(1, "App.cpp",
                                   __PRETTY_FUNCTION__, 0x11ef,

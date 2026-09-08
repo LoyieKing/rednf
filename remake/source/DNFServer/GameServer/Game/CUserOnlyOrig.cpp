@@ -938,10 +938,10 @@ void CUser::AddCurCharacMercenaryInfo()
     // probe p5/f14：register short asm("bx") 产 `movzwl mem,%ebx` 单段直落
     //（ORIG 同形；register ushort + 显式比较 cast 反生两段）；比较侧 (short)(short)
     // 复现 ORIG `cmp %ax,%bx; setl`（16 位 signed）。
-    register short lv asm("bx") = (unsigned short)getCurCharacR()->m_level;
-    // ORIG 0x0868e5d0：`cmp %ax,%bx; setl %al; test; jne`——16 位寄存器比较+bool
-    // 物化（技巧22），limit 侧 movzwl 0xa8e0(%eax) 同型免槽
-    if (static_cast<bool>((short)lv < (short)G_CDataManager()->m_mercenarySystem.m_field4))
+    // P0/N96 去绑定（单段 movzwl→%ebx 不可造，N18a）。(short) 有符号比较
+    //（P196 族：ORIG setl=signed 16 位，双 ushort cast 反产 setb 语义分叉）。
+    if ((short)getCurCharacR()->m_level <
+        (short)G_CDataManager()->m_mercenarySystem.m_field4)
         return;
 
     CHARAC_LOAD_MERCENARY info;
@@ -1440,15 +1440,16 @@ bool CUser::CheckDeleteCharacTime(int slot)
     // CommonTime 6 字节写入视图（+0 年+?/+1 月/+2 日/+3 时/+4 分，SetCurTime
     // 0x82a4224..0x82a427f 逐条 movb 实证）。ORIG 槽基 -0x20（8B）⇒ char[8] 缓冲；
     // 技巧31：前置 0x10 dead 缓冲复现 4.1 帧 0x34（outgoing 与 locals 间空洞）
-    unsigned int frameGapA, frameGapB;   // 技巧31：先声明=近槽（4.4 实测），填 -0x18/-0x14
-    (void)frameGapA; (void)frameGapB;
+    unsigned int frameGapA;              // 技巧31 填 -0x18；b28：ok bool 占 -0x14
+    (void)frameGapA;                     //   空洞，删一个 gap 把 tt 推回 -0x20（P31）。
     char tt[8];                           // 后声明=远槽 → 基址 -0x20（ORIG）
     reinterpret_cast<CommonTime*>(tt)->SetCurTime();       // ORIG 0x0864a837 lea -0x20; call
     // ORIG 0x0864a85a/0x0864a87e/0x0864a8a2：三段比较各调一次 operator[]，
     // 逐字节 `movzbl 0x39+k(%eax),%edx; movzbl -0x20+k(%ebp),%eax; cmp %al,%dl`；
     // 4.1 && 物化 bool 岛（+0x7e mov$1 / +0x85 mov$0 / test;je）⇒ 具名 bool
     // 技巧22：register bool asm("al") 免 -0x11 槽，物化后直 `test %al,%al; je`
-    register bool ok asm("al");
+    // P0/N96 去绑定：具名 bool 两段式（P198①）；ORIG al 物化无槽，残差记 N96 代价。
+    bool ok = false;
     ok = (unsigned char)m_characList[slot].m_delReqTime[0] == (unsigned char)tt[0]
            && (unsigned char)m_characList[slot].m_delReqTime[1] == (unsigned char)tt[1]
            && (unsigned char)m_characList[slot].m_delReqTime[2] == (unsigned char)tt[2];
@@ -1456,9 +1457,8 @@ bool CUser::CheckDeleteCharacTime(int slot)
     {
         // ORIG 0x0864a8da-0x0864a8eb：ci 小时 *60 结果跨 call 存 %ebx（shl 链
         // mov %edx,%ebx; sub %eax,%ebx）⇒ register asm("ebx") 钉 callee-saved
-        register int reqH60 asm("ebx") =
-            (int)m_characList[slot].m_delReqTime[3] * 60;   // ORIG call +0x92
-        int req = reqH60 + (int)m_characList[slot].m_delReqTime[4];  // ORIG -0x10 (+0xd0 二次 call)
+        int req = (int)m_characList[slot].m_delReqTime[3] * 60   // ORIG call +0x92
+                  + (int)m_characList[slot].m_delReqTime[4];     // ORIG -0x10 (+0xd0 二次 call)
         int now = (int)tt[3] * 60 + (int)tt[4];             // ORIG -0xc（本地槽直读）
         // ORIG 0x0864a930：`mov -0x10,%eax; mov -0xc,%edx; mov %edx,%ecx;
         // sub %eax,%ecx; mov %ecx,%eax; cmp $0x59f,%eax; jg 岛(mov$1)`
@@ -4769,12 +4769,11 @@ void CUser::processReturnUser()
         // bool 型绑 %esi（全等直落单条装载），int 绑 %ebx，保跨 call 无槽。
         // ORIG 0x08691f93 `movzbl %al,%esi`：4.4 恒物化两段（movzbl %al,%eax; mov %eax,%esi，
         // probe p6.h2 实证），单段直落 callee-saved 为 N18a 变体；bool 绑定少一条残差。
-        register bool flg asm("esi") = IsReturnUserFirstLogin();
-        register int expTime asm("ebx");
-        expTime = GetReturnUserExpireTime();
-        DB_UpdateReturnUserFirstLogin::makeRequest(get_acc_id(),
-            expTime,
-            flg);
+        // P0/N96：实参内联 R2L 求值序保真（b28 fresh AE）。
+        DB_UpdateReturnUserFirstLogin::makeRequest(
+            get_acc_id(),
+            GetReturnUserExpireTime(),
+            (int)IsReturnUserFirstLogin());
         SetReturnUserFirstUserLogin(false);
     }
     }
@@ -9384,14 +9383,14 @@ void CUser::setCharacLinkBonusSetting(int slot, bool flag)
 SKIP_SET:;
 }
 
-int CUser::isCharacLinkBonusSetting(char slot)   // CUser.h 已落 int（ORIG movzbl 直返）
+unsigned char CUser::isCharacLinkBonusSetting(char slot)   // CUser.h 已落 uchar（Main b28：4.4 int 返 uchar 恒两段，uchar 单段与 ORIG 尾全等）
 {
     // ORIG 0x084ecd52（getLinkCharacNo 同族）：`movsbl -0xc,%ebx` 跨 get_charac_count
     // 存活 + `cmp %eax,%ebx; jge`/`cmpb $0,-0xc; jns` → mov$1/$0 物化 + `test%al;
     // je body`；尾 `movzbl 0x124f(%eax),%eax; ret` 直返无 setne ⇒ 原返回 int
     // （CUser.h 已 Main 落 bool→int，技巧33/P9）。
-    register int idx asm("ebx") = static_cast<int>(slot);
-    if ((idx >= get_charac_count()) || (slot < 0))
+    // getLinkCharacNo 同族实证形（b28 fresh AE）：sext 左操作数跨 call 升格 %ebx。
+    if ((static_cast<int>(slot) >= get_charac_count()) || (slot < 0))
         return 0;
     return m_characList[static_cast<int>(slot)].m_linkBonusSetting;
 }
@@ -9413,8 +9412,8 @@ int CUser::getLinkCharacNo(char index)
     // `cmp %eax,%ebx; jge`/`cmpb $0,-0xc; jns` → mov$1/$0 物化 `test%al; je body`
     // （bad = count<=idx || idx<0，setCharacLinkBonusSetting 同族实证形）；body 内
     // `movsbl -0xc(%ebp),%eax` 从槽重读 index（P48，不用 ebx）。
-    register int idx asm("ebx") = static_cast<int>(index);
-    if ((idx >= get_charac_count()) || (index < 0))
+    // P0/N96 去绑定：sext 左操作数跨 call 升格 %ebx（b28 fresh AE 实证形）。
+    if ((static_cast<int>(index) >= get_charac_count()) || (index < 0))
         return 0;
     return m_characList[static_cast<int>(index)].m_characNo;
 }
@@ -9725,11 +9724,11 @@ void CUser::setCharacLevelUpGift_AccountOnce(SIG_LEVELUP_GIFT_ACCOUNT_ONCE& sig)
     struct GiftEntry { int m_first; int m_second; };
     for (int i = 0; i < 11; ++i)
     {
-        if (reinterpret_cast<const GiftEntry*>(&sig)[i].m_second == 0)
+        if (reinterpret_cast<GiftEntry*>(&sig)[i].m_second == 0)
             break;
         m_levelUpGift.m_map.insert(std::make_pair(
-            reinterpret_cast<const GiftEntry*>(&sig)[i].m_first,
-            reinterpret_cast<const GiftEntry*>(&sig)[i].m_second));
+            reinterpret_cast<GiftEntry*>(&sig)[i].m_first,
+            reinterpret_cast<GiftEntry*>(&sig)[i].m_second));
     }
 }
 
@@ -12137,12 +12136,15 @@ bool CUser::is_recipe_items_avatar_type(
     // 具名变量；signed setg ⇒ idx 为 int、size 经 int 化比较）。
     CItem* item = 0;
     int idx = 0;
+    // P212：avatar（ORIG al 物化无槽）声明提后占近槽，保 item=-0x10/idx=-0xc 深槽序。
+    bool avatar;
     while (idx < static_cast<int>(items.size()))
     {
         // ORIG 0x0868c49d-0x0868c4c7：&& 物化 bool（双 je 落 mov$0 块、真路 mov$1、
         // merge `test %al; je ++`），短路嵌套形缺 mov$1/jmp/mov$0 段（P84/技巧8）。
         item = G_CDataManager()->find_item(items[idx].first);
-        register bool avatar asm("al") = (item != 0 && item->IsAvatarItem());
+        // P0/N96 去绑定：具名 bool && 链物化（P84 形）。
+        avatar = (item != 0 && item->IsAvatarItem());
         if (avatar)
             return true;
         ++idx;

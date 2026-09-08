@@ -2700,7 +2700,7 @@ class stOnUseEquipParam : public ParamBase
 {
 public:
     stOnUseEquipParam();
-    int m_errNo;            // +0x04（use_equip 返回码）
+    unsigned int m_errNo;   // +0x04（use_equip 返回码；P211 异型化触发转换中转=ORIG 0x081c0e4a 形，b28 BL12 代落）
     unsigned char m_8;      // +0x08（回显 MSG_DECREASE_DURABILITY m_0d）
 };
 

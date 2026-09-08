@@ -166,10 +166,9 @@ bool DB_CreateCharac::_createCharacQuest(unsigned int characNo)
                                                   E_SERVER_GROUP_NONE);
     db->set_query("inSert into new_charac_quest(charac_no, clear_quest) values(%u,'')",
                   characNo);
-    // ORIG 尾岛（技巧 1/22 同 isExistNPCScript）：xor$1/test/je<mov$1 岛> = 透传 exec。
-    register bool fail __asm__("al");
-    fail = !db->exec(true);
-    if (fail)
+    // P168a①：callee 返回 bool 一律裸形——`if (!db->exec(true)) return false;`
+    // 直产 ORIG 尾岛 call;xor$1;test;je（N96 全域禁 register 绑定，旧形删除）。
+    if (!db->exec(true))
         return false;
     return true;
 }
@@ -193,10 +192,8 @@ bool DB_CreateCharac::_createCharacDungeon(unsigned int accId)
         db->set_query("inSert into member_dungeon (m_id,dungeon) values (%s,'')",
                       NumberToString(accId, 0));
     }
-    // ORIG 尾岛（技巧 1/22 同 isExistNPCScript）：透传 exec 返回值。
-    register bool fail2 __asm__("al");
-    fail2 = !db->exec(true);
-    if (fail2)
+    // P168a① 裸形（N96 清理）。
+    if (!db->exec(true))
         return false;
     return true;
 }
@@ -662,12 +659,12 @@ bool DB_CreateCharac::_CreateNewCharacStat(SIG_CREATE_CHARAC* sig)
         sig->m_characNo);
     if (!db->exec(true))
     {
-        register const char* accIdStr __asm__("ebx");   // ORIG 跨 C1 call 保活（P87）
-        accIdStr = NumberToString(sig->m_accId, 0);
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x10fb, 5);
-        trace("DB_CreateCharac::_CreateNewCharacStat, exec() ERROR m_id=%s",
-              accIdStr);
+        // N96 清理：register asm("ebx") 绑定删除。ORIG 为 4.1 ctor 前求值并
+        // %ebx 跨调用保活（N80 三探针不可翻，P197② 语句表达式亦回退帧漂）；
+        // 取合法裸内联形（NDIFF 最优），语义与调用点压参同值。
+        cMyTrace(__PRETTY_FUNCTION__, 0x10fb, 5)(
+            "DB_CreateCharac::_CreateNewCharacStat, exec() ERROR m_id=%s",
+            NumberToString(sig->m_accId, 0));
         sig->m_resultCode = 2;
         return false;
     }
@@ -786,15 +783,16 @@ bool DB_CreateCharac::CreateSkill(SIG_CREATE_CHARAC* sig)
 // ===========================================================================
 bool DB_CreateCharac::CreatePvP(unsigned int characNo)
 {
-    // [N] 槽位差 db@-0xc/ok@-0xd（4.1）vs -0x10/-0x9（4.4 outgoing 顶对齐固定布局，
-    // 探针 l5p9 不可翻）；xor$1 岛与槽化 bool 往返两侧同形（ndiff 10 封顶）。
+    // N93 翻案（P212 标量例外）：4.1 先声明占浅槽（db@-0xc，ok@-0xd 后声明更深）；
+    // 4.4.7 相反——把 ok 先声明（无初始化、仅赋值使用），db 后声明，
+    // 4.4 槽序翻为 ok 深 db 浅 = ORIG 位。register asm("al") 绑定（N96 违例）删除，
+    // 裸 `if(!ok)` 形与 ORIG mov%al,-off;movzbl;xor$1;test;je 同形（P168a①）。
+    bool ok;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
     db->set_query("inSert into pvp_result (charac_no) values(%u)", characNo);
-    bool ok = db->exec(true);   // ORIG -0xd bool 槽 + xor$1 岛（P22/P194）
-    register bool fail __asm__("al");
-    fail = !ok;
-    if (fail)
+    ok = db->exec(true);
+    if (!ok)
         return false;
     return true;
 }
@@ -806,12 +804,14 @@ bool DB_CreateCharac::GetCharacNo(SIG_CREATE_CHARAC* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
-    unsigned int identity = WongWork::DBCommon::GetIdentity(db);
+    // P211 异型化翻法（探针 /tmp/bl10/p9.cpp w1/w2）：局部声明 **int** 而字段
+    // unsigned ⇒ 4.4 store 翻为 ORIG 的 RHS 值先载（`mov -0xc,%edx; mov p,%eax`），
+    // 无额外中转条数；同型 unsigned 恒 LHS 地址先载。
+    int identity = (int)WongWork::DBCommon::GetIdentity(db);
     if (identity == 0)
     {
         return false;
     }
-    // [N76] ORIG rhs(-0xc 槽) 先载 vs 4.4 LHS 先载，probe 全试不可翻（ndiff 2 封顶）。
     sig->m_characNo = identity;
     return true;
 }

@@ -723,7 +723,10 @@ bool CPrivateStore::EnterPrivateStore()
         return false;
     }
 
-    if (std::find(m_users.begin(), m_users.end(), m_pBuyer) != m_users.end())
+    // ORIG 0x85c8dd6：!= 右操作数 `m_users.end()`（+0x30 sentinel，ebx 跨 call
+    // 保活）先于 find() 求值 = 4.1 操作数右先；4.4 恒左先（P75）。同类型两侧
+    // operator!= 符号不变，对调操作数使 end 落左操作数即复现右先装载序。
+    if (m_users.end() != std::find(m_users.begin(), m_users.end(), m_pBuyer))
     {
         m_errorHandler.Do(0x14);
         return false;
@@ -1594,10 +1597,14 @@ bool CPrivateStore::GetItemInfo(CUser* user, PrivateStoreItem& item)
 int CPrivateStore::SendUsers(PacketGuard* packet, CUser* excludeA, CUser* excludeB)
 {
     int sentCount = 0;
-    std::list<CUser*>::iterator it = m_users.begin();
+    // ORIG 0x85c7adc 槽集：sentCount@-0x10、it@-0x1c（**默认构造 C1Ev + 后赋值**，
+    // begin() 经 sret 临时 -0x2c 中转拷贝）、user@-0xc（函数头预置 0，循环内复用）。
+    std::list<CUser*>::iterator it;
+    CUser* user = 0;
+    it = m_users.begin();
     while (it != m_users.end())
     {
-        CUser* user = *it;
+        user = *it;
         if (user != excludeA && user != 0)
         {
             user->Send(*packet);
@@ -2100,6 +2107,9 @@ CCharacterControllerPrivate::CCharacterControllerPrivate() : m_startPos() {}
 // 计算私商开店起始坐标：pos 先清零再写 village 号(a)；user/world/village 缺失
 // 时仅 trace 并保持 b=0。注意 ORIG 后两个失败分支复用 "G_GameWorld call failed"
 // 文案（0x8cbd0cf，原版即如此），逐字保留。
+// 【b28 封顶】残 6 行：①trace 临时槽方向 -0x40↔-0x20 两对（N93附 兄弟块槽深
+// 跨版本反向，穷举实证不可翻）；②world/village 判空的 `cmp;sete;test;je` 物化岛
+// 4 行（P197④：4.4 槽比恒 cmp/jne 直跳，register 绑定已按 N96 全域清除）。
 void CCharacterControllerPrivate::GetStartPoint(CUser* user, PrivateStorePos& pos)
 {
     pos.m_field2 = 0x172;
@@ -2110,25 +2120,20 @@ void CCharacterControllerPrivate::GetStartPoint(CUser* user, PrivateStorePos& po
     Village* village = 0;
     if (user == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x183, 5);
-        trace("pUser == NULL");
+        cMyTrace(__PRETTY_FUNCTION__, 0x183, 5)("pUser == NULL");
         return;
     }
     pos.m_a = (unsigned char)user->getCurCharacVill();
     world = G_GameWorld();
-    register bool world0 asm("al") = (world == 0);  // P194 sete;test;je 物化岛
-    if (world0)
+    if (world == 0)   // N96：register asm 绑定全域禁用（P0），改自然判空形
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x18b, 5);
-        trace("G_GameWorld call failed");
+        cMyTrace(__PRETTY_FUNCTION__, 0x18b, 5)("G_GameWorld call failed");
         return;
     }
     village = world->getUserVillage(user);
-    register bool village0 asm("al") = (village == 0);  // P194
-    if (village0)
+    if (village == 0)   // N96：同上
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x190, 5);
-        trace("G_GameWorld call failed");  // ORIG 原样复用该文案（0x8cbd0cf）
+        cMyTrace(__PRETTY_FUNCTION__, 0x190, 5)("G_GameWorld call failed");
         return;
     }
     pos.m_b = (unsigned char)village->get_gate_area();
@@ -2664,11 +2669,15 @@ inline PrivateStoreZone::PrivateStoreZone(unsigned char a, unsigned char b)
 
 inline PrivateStorePos::PrivateStorePos() : PrivateStoreZone(0, 0), m_field2(0), m_field4(0) {}
 
-// ORIG W 0x85cb72c：zone 基类构造后写 +0x2/+0x4。
+// ORIG W 0x85cb72c：zone 基类构造（init 列表）后，+0x2/+0x4 每 store 重读
+// 0x8(%ebp)（P29 函数体赋值形：`mov this→%eax; movzwl val→%edx; mov %dx,off`），
+// init 列表会被 4.4 展成值先装载（RHS-first）与 ORIG LHS-first 相反。
 inline PrivateStorePos::PrivateStorePos(unsigned char a, unsigned char b,
                                         short field2, short field4)
-    : PrivateStoreZone(a, b), m_field2(field2), m_field4(field4)
+    : PrivateStoreZone(a, b)
 {
+    m_field2 = field2;
+    m_field4 = field4;
 }
 
 // ORIG W 0x85cb784。

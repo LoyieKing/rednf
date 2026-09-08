@@ -80,8 +80,14 @@ std::vector<int> CItemDictionary::getGainItemList() {
                 itemIdx = i * kItemDictionaryBit + bit;
                 std::map<int, int>::iterator it =
                     G_CDataManager()->m_mapA940.find(itemIdx);
-                if (it != G_CDataManager()->m_mapA940.end())
-                    result.push_back(it->second);
+                // ORIG 0x0811dc6e `test %al,%al; jne +0xe8` + body 尾 `jmp +0xe9` +
+                // `+0xe8: nop`：4.1 发射「jne → 空块 nop 中继岛」。4.4 对空 then/else
+                // 恒 jump-threading（探针 /tmp/bl9p/nop2.o fA：无岛），唯 `goto` 到函数
+                // 体尾的空标签可复现（fC：`jne <nop>; body; jmp <nop 后>; nop`）。
+                if (it == G_CDataManager()->m_mapA940.end())
+                    goto GAIN_NO_HIT;
+                result.push_back(it->second);
+            GAIN_NO_HIT:;
             }
     }
     return result;
@@ -169,7 +175,11 @@ void CItemDictionary::setGainItemFlag(CUser* user, unsigned int item)
     if (user == 0)
         return;
     CItem* ci = G_CDataManager()->find_item(static_cast<int>(item));
-    if (ci != 0 && ci->is_stackable())
+    // 语义纠错（b28 lane9）：ORIG 0x0811d833 处 `cmpl $0,-0x10; je <mov $1>`——
+    // find_item 返回空指针时物化 bVar1=true 直接早退（与 is_stackable 命中同出口）；
+    // 旧写法 `ci != 0 && is_stackable()` 短路使 ci==0 落入主体、错调 setItemCheckFlag。
+    // 恢复 Ghidra C 原式 (ci == 0 || is_stackable) 为真即返回。
+    if (ci == 0 || ci->is_stackable())
     {
         return;
     }

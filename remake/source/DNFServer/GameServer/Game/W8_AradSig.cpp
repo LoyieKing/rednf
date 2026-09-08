@@ -75,15 +75,11 @@ void SigAradAvatarConvert::init()
 // SigAradEmblemCompound::materialInfo::init —— ORIG W 0x081a0a0c：
 //   movw $0x0,(%eax)[slot]; movw $0x0,0x2(%eax)[grade]; movl $0x0,0x4(%eax)[itemIdx]
 // ---------------------------------------------------------------------------
-void SigAradEmblemCompound::materialInfo::init()
-{
-    slot = 0;
-    grade = 0;
-    itemIdx = 0;
-}
-
+// P210：SigAradEmblemCompound::init 定义须先于本 callee，否则 4.4 按 materialInfo::init
+// 帧精确继承 outgoing（caller 帧 0x18→0x4 与 ORIG 0x18 反）。
 // ---------------------------------------------------------------------------
 // SigAradEmblemCompound —— ORIG W C1/C2 0x081a0a2c -> init() 0x081a0a40：
+//   sub $0x18（ORIG 保守 outgoing 帧）
 //   movw $0x0,0x14(%eax)                        // 清 m_selectIdx
 //   call materialInfo::init(this)               // 清 {m_slot0,m_grade0,m_itemId0}
 //   eax += 0x8; call materialInfo::init(this+8) // 清 {m_slot1,m_grade1,m_itemId1}
@@ -99,6 +95,13 @@ void SigAradEmblemCompound::init()
     m_selectIdx = 0;
     reinterpret_cast<materialInfo*>(this)->init();
     reinterpret_cast<materialInfo*>((char*)this + 8)->init();
+}
+
+void SigAradEmblemCompound::materialInfo::init()
+{
+    slot = 0;
+    grade = 0;
+    itemIdx = 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -145,15 +148,16 @@ SigSetCharacCreateTime::SigSetCharacCreateTime()
     init();
 }
 
+// P210：init 定义先于 set（ORIG init 帧 0x18，4.4 若先见 set 定义则继承其小帧）。
+void SigSetCharacCreateTime::init()
+{
+    set(0, 0);
+}
+
 void SigSetCharacCreateTime::set(unsigned int characNo, unsigned int createTime)
 {
     m_characNo = characNo;
     m_createTime = createTime;
-}
-
-void SigSetCharacCreateTime::init()
-{
-    set(0, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -164,6 +168,17 @@ void SigSetCharacCreateTime::init()
 // 仅清 m_head 九字节（memcpy 常量定长在 -O0 展开为同形态写入）；
 // eventKind/growType/itemIndex/tail 不初始化。
 // ---------------------------------------------------------------------------
+#pragma pack(push, 1)
+// b28：fY 探针（/tmp/bl14_p3.o）实证 pack(1) 具名字段视图直赋复现 ORIG `movl $0x0,0x1(%eax)`
+// disp 直存形；`*(unsigned*)(m_head+K)=0` 指针算术形 4.4 恒拆 add+movl（+2 条）。
+struct SigAradJumpingInitView
+{
+    char m_h0;
+    unsigned int m_head1;
+    unsigned int m_head5;
+};
+#pragma pack(pop)
+
 SigAradJumpingCharacter::SigAradJumpingCharacter()
 {
     init();
@@ -171,9 +186,9 @@ SigAradJumpingCharacter::SigAradJumpingCharacter()
 
 void SigAradJumpingCharacter::init()
 {
-    m_head[0] = 0;
-    *reinterpret_cast<unsigned int*>(m_head + 1) = 0;
-    *reinterpret_cast<unsigned int*>(m_head + 5) = 0;
+    ((SigAradJumpingInitView*)this)->m_h0 = 0;
+    ((SigAradJumpingInitView*)this)->m_head1 = 0;
+    ((SigAradJumpingInitView*)this)->m_head5 = 0;
 }
 
 // ---------------------------------------------------------------------------

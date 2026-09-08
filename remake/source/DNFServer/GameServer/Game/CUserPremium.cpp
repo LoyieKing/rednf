@@ -1249,6 +1249,15 @@ int CUserPremium::LoadPremiumInfo(const char* path)
 } // namespace WongWork
 
 // ---- _Additioal_info 字段算术（ORIG df_game_r 逐指令转写；全局作用域类）----
+// operator+=（ORIG W _ZN15_Additioal_infopLERKS_ @0x08693cea）：仅转发 add，
+//   无引用返回（ORIG 函数尾未装载 this 到 eax）。
+//   P210 定义前置：置于 add 定义之前，4.4 对未见面定义的 callee 用保守
+//   outgoing 帧（复现 ORIG 4.1 帧 0x18 vs 继承 add 小帧的 0x8）。
+void _Additioal_info::operator+=(const _Additioal_info& other)
+{
+    add(other);
+}
+
 // add（ORIG W _ZN15_Additioal_info3addERKS_ @0x08146300）：int@+0x00/+0x04 32 位加；
 //   u16@+0x08..+0x0e 显式加；循环 i=0..3 加 u16[i] @ (i+8)*2（即 m_field10[4]）；
 //   循环 j=0..0x10 加 u16[j] @ 0x18+2j（即 m_field18[17]）；
@@ -1309,15 +1318,6 @@ void _Additioal_info::subtract(const _Additioal_info& other)
     m_field4a -= other.m_field4a;
     m_field4c += other.m_field4c;   // ORIG：加法（非减）
     m_field4e += other.m_field4e;   // ORIG：加法（非减）
-}
-
-// operator+=（ORIG W _ZN15_Additioal_infopLERKS_ @0x08693cea）：仅转发 add，
-//   无引用返回（ORIG 函数尾未装载 this 到 eax）。
-void _Additioal_info::operator+=(const _Additioal_info& other)
-{
-    // [N] 转发 add：ORIG sub $0x18 vs 4.4 sub $0x8——4.1 outgoing 区恒多预留
-    // 0x14，跨版本帧豁免（ndiff 2 封顶）。
-    add(other);
 }
 
 // ORIG W 0x0830ed48 _ZN8WongWork12CUserPremium25GetAddIndependentDropRateEij

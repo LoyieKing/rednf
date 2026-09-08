@@ -548,7 +548,15 @@ public:
     char m_saveCargo;              // +0x0b
     char m_field0c;                // +0x0c
     char m_pad0d[3];               // +0x0d..0x0f
-    _Charac_info* m_selected;      // +0x10
+    // +0x10 匿名 union：m_selected 真实指针 + 同偏移具型视图 m_selView。
+    // 探针 /tmp/bl10/p2.cpp getE/getF 实证：指针**值 cast**（(Fields*)ptr）使
+    // 4.4-O0 恒产 `mov 0x10(%eax),%eax; mov %eax,%edx` 二段拷贝（此前误归因
+    // N18a）；经具型成员直读即复现 ORIG(4.1) 单段 `mov 0x10(%eax),%edx`。
+    // 两成员均平凡指针，sizeof/偏移不变；仅 CUserCharacInfo.cpp 消费。
+    union {
+        _Charac_info* m_selected;
+        CharacInfoFields* m_selView;
+    };
     _Charac_info* m_tag;           // +0x14
     PvpResultType m_pvpResult;     // +0x18（0x84）
     std::map<int, GameResultType> m_battleRecord;  // +0x9c（0x18）

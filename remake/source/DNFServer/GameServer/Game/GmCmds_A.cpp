@@ -1036,7 +1036,9 @@ void CBillingRechargeCommand::parse()
     {
         m_str0 = m_parser->m_extra[1];
         m_amount = StringToNumber(m_parser->m_extra[2].c_str());
+        return;                                    // ORIG 尾 `jmp;leave;ret`（4.1 显式 return 形）
     }
+    return;
 }
 
 // ORIG execute 0x084b3ad4：cera→虚表[1](type=5)、point→虚表[3](type=4) 充值下单，

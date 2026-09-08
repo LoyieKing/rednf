@@ -227,12 +227,12 @@ CDisjointMachine::CDisjointMachine(CUser* user, char const* name, int level,
     m_name              = name;                 // +0x18
     m_field1c           = level;                // +0x1c
     m_field20           = grade;                // +0x20（char）
-    m_field24           = (unsigned short)x;    // +0x24
-    m_field28           = (unsigned short)y;    // +0x28
+    m_field24           = x;                    // +0x24（ORIG 全宽 mov，无 ushort 截断）
+    m_field28           = y;                    // +0x28
 
-    m_rect.m_pos.m_x    = x - 0x50;             // Rectangle +0x00
+    m_rect.m_pos.m_x    = m_field24 - 0x50;     // Rectangle +0x00（ORIG 成员回读）
     m_rect.m_width      = 0xa0;                 // +0x08
-    m_rect.m_pos.m_y    = y - 0x32;             // +0x04
+    m_rect.m_pos.m_y    = m_field28 - 0x32;     // +0x04（同上）
     m_rect.m_height     = 0x64;                 // +0x0c
 }
 
@@ -241,10 +241,9 @@ CDisjointMachine::CDisjointMachine(CUser* user, char const* name, int level,
 CDisjointMachine& CDisjointMachine::operator=(CDisjointMachine const& other)
 {
     village_object::IObject::operator=(other);   // ORIG W 0x85ccadc 同款空操作
-    m_rect.m_pos.m_x = other.m_rect.m_pos.m_x;
-    m_rect.m_pos.m_y = other.m_rect.m_pos.m_y;
-    m_rect.m_width   = other.m_rect.m_width;
-    m_rect.m_height  = other.m_rect.m_height;
+    // b28：结构整体赋值（探针 /tmp/l3/p6.cpp 实证 4.4 出 ORIG 的 dest/src 双缓存
+    // 4-dword 连发形：mov 0x4(%edx),%ecx…末条 %edx 自复用，逐字段形则 16 条异形）。
+    m_rect = other.m_rect;
     m_user           = other.m_user;
     m_name           = other.m_name;
     m_field1c        = other.m_field1c;
@@ -485,22 +484,39 @@ void CExpertJobMgr::FreeExpertJob(CExpertJob* job)
 //      job 非空时按 GetType() 分派到对应池。 ----
 void CExpertJobFactory::FreeExpertJob(CExpertJob* job)
 {
-    if (job == 0)
-        return;
-    switch (job->GetType())
+    // b28：正极性包 if（P214①族/探针 /tmp/l3/p4.cpp fs2）——负极性 return
+    // 早退使 4.4 尾块前多插 jmp+nop 中继；正包形末 case fall-through leave。
+    if (job != 0)
     {
-    case 1:
-        m_enchanterPool.Free((CEnchanter*)job);
-        break;
-    case 3:
-        m_disjointerPool.Free((CDisjointer*)job);
-        break;
+        switch (job->GetType())
+        {
+        case 1:
+            m_enchanterPool.Free((CEnchanter*)job);
+            break;
+        case 3:
+            m_disjointerPool.Free((CDisjointer*)job);
+            break;
+        }
     }
 }
 
 // ---------------------------------------------------------------------------
 // CDisjointMachine getter（ORIG W 0x85d3e06 / 0x082347e0 / 0x85d3e12）
+// P210：以下 CDisjointer 包装（grade/isMine）必须定义于 get_user/get_grade
+// 之前，否则 4.4 继承 callee outgoing 帧塌缩（sub $0x4 vs ORIG $0x18）。
 // ---------------------------------------------------------------------------
+// get_disjoint_machine_grade（ORIG T 0x85d1f0a：movsbl m_machine.get_grade()）
+int CDisjointer::get_disjoint_machine_grade()
+{
+    return (int)m_machine.get_grade();
+}
+
+// isMine（ORIG W 0x08234854）：m_machine.get_user() == user
+bool CDisjointer::isMine(CUser* user)
+{
+    return m_machine.get_user() == user;
+}
+
 // get_disjoint_cost（ORIG W 0x085d3e50）
 int CDisjointer::get_disjoint_cost() const
 {
@@ -538,12 +554,6 @@ bool CDisjointer::check_disjoint_endurance()
         return true;
 }
 
-// get_disjoint_machine_grade（ORIG T 0x85d1f0a：movsbl m_machine.get_grade()）
-int CDisjointer::get_disjoint_machine_grade()
-{
-    return (int)m_machine.get_grade();
-}
-
 // IsAvailableJob（ORIG W 0x849f596：恒返 1）
 bool CDisjointer::IsAvailableJob() { return true; }
 
@@ -554,13 +564,10 @@ void CDisjointer::Reset() { m_machine.reset(); }
 // targetUser=分解机主人；requestUser=发起请求者。
 void CDisjointer::OnStartMission(CUser* targetUser, CUser* requestUser)
 {
-    register bool lackMoney asm("eax") = false;
-    if (targetUser != requestUser)
-    {
-        if (requestUser->getCurCharacMoney() < m_machine.get_cost())
-            lackMoney = true;
-    }
-    if (lackMoney)
+    // b28：清 register asm 绑定（N96/P0 全域禁），ORIG 物化岛形为 4.1 CFG 产物，
+    // 先按最短语义（&& 短路 + 直接 throw）复测。
+    if (targetUser != requestUser &&
+        requestUser->getCurCharacMoney() < m_machine.get_cost())
         throw static_cast<ENUM_ERROR>(0x15);
 
     if (!targetUser->CheckMoney(m_machine.get_cost()))   // ORIG CheckMoney 返 1 为足额
@@ -604,12 +611,6 @@ void CDisjointer::OnCloseMission(CUser* user, ENUM_CLOSE_MISSION_TYPE type)
 
     user->SetCurCharacExpertJob(0);
     GlobalData::s_ExpertJobMgr->FreeExpertJob(this);
-}
-
-// isMine（ORIG W 0x08234854）：m_machine.get_user() == user
-bool CDisjointer::isMine(CUser* user)
-{
-    return m_machine.get_user() == user;
 }
 
 // complete_disjoint（报告 complete_disjoint.md，ORIG T 0x085d31a0 sz 0x42d）。
@@ -735,7 +736,7 @@ void CEnchanter::Reset()
     m_field38 = 0;
     SetType((ENUM_EXPERT_JOB_TYPE)1);
     m_field3c = 0;
-    m_peerRequestType = 0;   // ORIG 写序：+0x44 先于 +0x40，语义同清零
+    m_peerRequestType = ENUM_PEER_REQUEST_TYPE_0;   // ORIG 写序：+0x44 先于 +0x40
     m_field40 = 0;
 }
 

@@ -41,7 +41,11 @@ public:
 
 protected:
     bool m_apply;                  // +0x04（派生策略 ctor 清 0；基类 ctor 不初始化）
-    int m_code;                    // +0x08（ctor 参数）
+    // +0x08（ctor 参数）。类型与形参 RestrictCategory::Enum 同型：
+    // ORIG C1 W 0x0816ee? store 形 `mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx;
+    // mov %edx,0x8(%eax)`（LHS-first）= 4.4 同型 store 形（探针 p211.cpp B5）；
+    // int 字段←enum 形参异型反产 RHS-first（B1/B2 实测）。
+    RestrictCategory::Enum m_code;
     ServicePolicy m_svc;           // +0x0c
 };
 

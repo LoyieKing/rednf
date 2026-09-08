@@ -4533,8 +4533,10 @@ int Inter_MonitorGuildMemberNamingReply::dispatch_sig(CUser* user, char* data, i
 
     // ORIG 0x084cc262：pPkt 物化在 null 岛之后（技巧13：声明位置=落栈时机）。
     Inter_MonitorGuildMemberNamingReplyPktView* pPkt = reinterpret_cast<Inter_MonitorGuildMemberNamingReplyPktView*>(data);
-    // ORIG 0x084cc26b `mov 0x12(%eax),%ebx` + 0x084cc281 `cmp %eax,%ebx`（dst=reg，
-    // N22 不可翻；asm("ebx") 钉形反产两段+edx 中转，实测劣化）。
+    // ORIG 0x084cc262-268：pPkt 槽往返（mov %eax,-0xc; mov -0xc,%eax）⇒ 具名局部；
+    // 0x084cc26b 字段值直落 %ebx 跨 call 存活，cmp %eax,%ebx。b28 实测：具名局部
+    // （无 register）4.4 将字段值槽化→cmp -0xc(%eax) 且帧 0x20→0x30（N22 恒 call
+    // 结果在 eax）；翻转比较操作数同产反向（N18b/N22）。维持原形，残差 cmp 方向 1 行。
     register unsigned int charIdMsg = pPkt->m_12;
     if (user->get_charac_no(-1) != charIdMsg)
         return 0;
@@ -10303,13 +10305,11 @@ int Inter_PvPChannelUserCount::dispatch_sig(CUser* /*user*/, char* data, int /*l
         (unsigned int)CLeagueMatch::GetBattleMode() & 0xff;
     // ORIG 0x084d82bc `mov -0xc(%ebp),%ebx`：ebx 从 pPkt 局部槽装载后跨 call
     // 传参（0x084d82de `mov %ebx,0x4(%esp)`），帧 push %ebx/sub 0x24。
-    // N22 族封顶：4.4 对 asm 绑定 init 恒拷贝传播直读参数槽 `mov 0x10(%ebp),%ebx`；
-    // volatile 指针/两步赋值/asm memory、+m 屏障 4 形 probe（l8_probe8-12，
-    // c6root 4.4.7）均不可复现单段槽读（屏障后反而两段 eax 中转）。
-    register char* pCached asm("ebx") = data;
+    // P52：pPkt 实参值先物化并跨 GetServerProxy 调用存活（callee-saved 独占）；
+    // 原 register asm("ebx") 绑定违反 P0/N96 已删，源侧以槽局部 pPkt 直传复现。
     GlobalData::s_monitor_proxy_mgr->GetServerProxy(
         (ENUM_SERVER_GROUP)pPkt->m_1e
-        )->SendTcpPacket(pCached, 0x2a);
+        )->SendTcpPacket(reinterpret_cast<char*>(pPkt), 0x2a);
     return 0;
 }
 
@@ -14099,6 +14099,7 @@ struct Inter_ReqAddPvPBuddyPktView
 };
 #pragma pack(pop)
 
+// [b28 判词 N22] 唯一残差 `cmp %eax,%ebx`↔`cmp %ebx,%eax`（dst 方向），负例在册。
 int Inter_ReqAddPvPBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     // ORIG +0x10：包基址槽在首条 call 之前即物化（-0x10）。

@@ -142,6 +142,8 @@ void CBattle_Field::setDungeonClearTrace(int mapId, int maxBoss, int killedBoss,
     m_dungeonClearTracer.SetMaxBossCount(maxBoss);
     m_dungeonClearTracer.SetKilledBossCount(killedBoss);
     m_dungeonClearTracer.SetKilledMonsterCount(killedMonster);
+    // ORIG 尾部 `movl $0x0,-0x4(%ebp)`（dead 局部）不可复现：4.4 局部槽基恒从
+    // ebp-8 起且帧顶留 gap（N95），补声明反致 sub $0x18→$0x28 帧漂，负结论。
 }
 
 // ORIG 0x0830dc74：当前图 m_playInfo.m_startTick(+0x7c) ← 系统 tick。

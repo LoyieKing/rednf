@@ -87,13 +87,9 @@ void CCreatureItem::SetCreatureItemType(user_creature::CREATURE_ITME_TYPE type)
     m_creatureItemType = type;
 }
 
-// ORIG _ZN13user_creature13CCreatureItem9GetItemIdEv W 0x0833efa4（size 0x0b）：
-// mov 0x4(%eax),%eax 直返。ORIG 为外联弱符号，CEgg::SaveCreatureItem 等以 call 调
-// （不内联）；故头内仅声明、此处外联定义以产出真实 call。
-int CCreatureItem::GetItemId()
-{
-    return m_itemId;
-}
+// CCreatureItem::GetItemId 定义后置至 CEgg::SaveCreatureItem 之后（P210：4.4 对
+// TU 内已见定义的 callee 精确继承 outgoing，SaveCreatureItem 帧塌缩 sub $0x4；
+// 未前置时保守大帧=sub $0x18 与 ORIG 4.1 一致）。
 
 // ORIG _ZN13user_creature13CCreatureItem6GetUidEv W 0x0833efbe（S23B：
 // SetStomach 0x08339ee0+0x69 实证调用点为 call，内联形违 ORIG，同 GetItemId 案）。
@@ -138,7 +134,7 @@ CEgg::CEgg()
 // +0x08/+0x0c/+0x10 清零、+0x14 字节清零（均为基类字段）。
 void CEgg::Reset()
 {
-    m_creatureItemType = 0;  // +0x08
+    m_creatureItemType = CREATURE_ITME_TYPE_EGG;  // +0x08
     m_uid = 0;               // +0x0c
     m_slotNo = 0;            // +0x10
     m_noCharge = 0;          // +0x14（字节）
@@ -167,7 +163,7 @@ bool CEgg::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     SetItemId(item->m_addInfo);     // *(int*)(item+0x02) 驱动脚本解析
     m_uid = info->m_uid;            // +0x0c ← info+0x04
     m_slotNo = info->m_slotNo;      // +0x10 ← info+0x00
-    m_creatureItemType = (int)(char)info->m_creatureItemType;  // movsbl +0x24
+    m_creatureItemType = (CREATURE_ITME_TYPE)(int)(char)info->m_creatureItemType;  // movsbl +0x24
     m_expireTime = info->m_expireTime;                          // +0x18 ← info+0x28
     item->m_field0 = 1;             // *item = (Inven_Item)0x1（首字节置 1）
     m_noCharge = (info->m_noCharge != 0);                       // setne → +0x14
@@ -205,8 +201,17 @@ bool CEgg::SaveCreatureItem(Inven_Item* item,
     info->m_creatureItemType =
         (unsigned char)m_creatureItemType;                      // +0x24 低字节
     info->m_noCharge = m_noCharge;  // info+0x26 ← this+0x14（movzbl 还原再写）
-    info->m_stat = m_stat;          // info+0x27 ← this+0x15
+    info->m_stat = m_stat;          // +0x27 ← this+0x15
     return true;
+}
+
+// ORIG _ZN13user_creature13CCreatureItem9GetItemIdEv W 0x0833efa4（size 0x0b）：
+// mov 0x4(%eax),%eax 直返。ORIG 为外联弱符号，CEgg::SaveCreatureItem 以 call 调
+// （不内联）；头内仅声明、此处外联定义产出真实 call。定义**置于 SaveCreatureItem
+// 之后**（P210）：调用点不见定义→保守 outgoing 帧 sub $0x18 与 ORIG 一致。
+int CCreatureItem::GetItemId()
+{
+    return m_itemId;
 }
 
 // ============================================================================
@@ -223,6 +228,9 @@ void CDBMsgSender::Cancel()
 {
     if (m_stream == 0)
         return;
+    // P163 实测否决：补 `case 0:` 使 4.4 走二分树（js/jle），ORIG 为线性
+    // cmp$1;cmp$2;test;je——维持裸 case1/2/default，残 1 条 dead `test %eax`
+    // 系 4.1 树尾 0 判 leaf（N3 族豁免）。
     switch (m_stream->m_poolType)
     {
         case 1: GlobalData::s_small_stream_pool->Free(m_stream); break;

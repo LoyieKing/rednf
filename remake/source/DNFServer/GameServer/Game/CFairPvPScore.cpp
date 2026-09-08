@@ -59,21 +59,24 @@ bool JobKey::operator<(const JobKey& rhs) const
 {
     if (m_job < rhs.m_job)
         return true;
-    if (m_job != rhs.m_job)
-        return false;
-    // ORIG 0x84a63f2: 第二比较 `cmp %al,%dl; jge` 为有符号字节比较（jge 系）；
-    // 原 (unsigned char) 版本产 setb/jae，当 m_sub≥0x80 时与 ORIG 语义不一致
-    // （0x80..0xFF 有符号视为负）。改 (signed char) 复现 ORIG 有符号序。
-    if ((signed char)m_sub < (signed char)rhs.m_sub)
-        return true;
+    // [b28 P59 块序试验] ORIG 0x84a63f2：第二比较 `cmp;jne 尾mov$0`（!= 为跳走
+    // 侧、== fall-through 进第三段）；false 出口共享物理尾块（84a6433 mov$0 在
+    // 三段之后）。等值嵌套形令 4.4 反向排布尝试。
+    if (m_job == rhs.m_job) {
+        // ORIG 0x84a63f2: 第三比较 `cmp %al,%dl; jge 尾`（jge=跳 false 尾，
+        // < 落 true 岛）。字段 P211 恢复 signed char，直接比较即原有符号序。
+        if (m_sub < rhs.m_sub)
+            return true;
+    }
     return false;
 }
 
 // ---- ORIG 0x84a643a JobKey::JobKey(ENUM_CHARACTERJOB, unsigned char) -------
 JobKey::JobKey(ENUM_CHARACTERJOB job, unsigned char sub)
 {
-    // [B24D判词 N] 语义正确：m_job=job;m_sub=sub；diff=mov/movzbl 寄存器装载序
-    // 差异（GCC4.1 vs 4.4），13/13 纯 lowering，语义等价。report NO 由 diff 兜底。
+    // [b28 P211 AE] 字段 enum/schar 化后本体与 ORIG 0x84a643a 13 条逐字同形
+    // （探针 /tmp/l2_p2.cpp JK 实证）：store1 this→value→movl；store2 RHS 先
+    // movzbl→this 重载→movb。旧 B24D N 判词作废。
     m_job = job;
     m_sub = sub;
 }
@@ -85,9 +88,9 @@ void CFairPvPScore::_reset()
     m_recentResults_.clear();
     for (int i = 0; i < 2; ++i)
     {
-        (&m_modeA0)[i * 3 + 0] = 0;
-        (&m_modeA0)[i * 3 + 1] = 0;
-        (&m_modeA0)[i * 3 + 2] = 0;
+        m_modeStats[i][0] = 0;
+        m_modeStats[i][1] = 0;
+        m_modeStats[i][2] = 0;
     }
     m_field40 = 0;
     m_field44 = 0;
@@ -152,16 +155,16 @@ void CFairPvPScore::getData(char* pData) const
 
     for (int i = 0; i < 2; ++i)
     {
-        sig->m_modeStats[i][0] = (&m_modeA0)[i * 3 + 0];
-        sig->m_modeStats[i][1] = (&m_modeA0)[i * 3 + 1];
-        sig->m_modeStats[i][2] = (&m_modeA0)[i * 3 + 2];
+        sig->m_modeStats[i][0] = m_modeStats[i][0];
+        sig->m_modeStats[i][1] = m_modeStats[i][1];
+        sig->m_modeStats[i][2] = m_modeStats[i][2];
     }
     sig->m_field1c = m_field40;
     sig->m_field20 = m_field44;
     sig->m_winStreak = m_winStreak;
     sig->m_bestWinStreak = m_bestWinStreak;
     sig->m_dailyPlayCount = m_dailyPlayCount;
-    sig->m_lastPlayTime = (unsigned int)m_field54;
+    sig->m_lastPlayTime = m_field54;   // [b28] 字段 int 化后同型直存（P211 换型）
     sig->m_giveItem = m_giveItem;
 }
 
@@ -189,9 +192,9 @@ void CFairPvPScore::UpdateScore(int jobId, int subKey, int mode,
             it->second.m_cnt1 += cnt1;
             it->second.m_cnt2 += cnt2;
         }
-        m_modeA0 += cnt0;
-        m_modeA1 += cnt1;
-        m_modeA2 += cnt2;
+        m_modeStats[0][0] += cnt0;
+        m_modeStats[0][1] += cnt1;
+        m_modeStats[0][2] += cnt2;
     }
     else
     {
@@ -199,9 +202,9 @@ void CFairPvPScore::UpdateScore(int jobId, int subKey, int mode,
             ++m_field40;
         else if (resultKind == 3)
             ++m_field44;
-        m_modeB0 += cnt0;
-        m_modeB1 += cnt1;
-        m_modeB2 += cnt2;
+        m_modeStats[1][0] += cnt0;
+        m_modeStats[1][1] += cnt1;
+        m_modeStats[1][2] += cnt2;
     }
 
     if (cnt0 != 0)
@@ -233,8 +236,8 @@ void CFairPvPScore::UpdateScore(int jobId, int subKey, int mode,
 void CFairPvPScore::MakePacketSocre(PacketGuard& pkt, int mode) const
 {
     pkt.put_byte(mode);
-    pkt.put_int(m_modeA0);
-    pkt.put_int(m_modeB0);
+    pkt.put_int(m_modeStats[0][0]);
+    pkt.put_int(m_modeStats[1][0]);
 
     int winCnt = 0;
     int loseCnt = 0;
@@ -260,10 +263,10 @@ void CFairPvPScore::MakePacketSocre(PacketGuard& pkt, int mode) const
     if (mode != 1)
         return;
 
-    pkt.put_int(m_modeA1);
-    pkt.put_int(m_modeA2);
-    pkt.put_int(m_modeB1);
-    pkt.put_int(m_modeB2);
+    pkt.put_int(m_modeStats[0][1]);
+    pkt.put_int(m_modeStats[0][2]);
+    pkt.put_int(m_modeStats[1][1]);
+    pkt.put_int(m_modeStats[1][2]);
     pkt.put_byte((int)m_jobScore_.size());
     for (std::map<JobKey, FAIR_PVP_SCORE_MODE_COUNT>::const_iterator it =
              m_jobScore_.begin();
@@ -385,9 +388,9 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
     // 区块 3：两份模式统计记录
     for (int i = 0; i < 2; ++i)
     {
-        (&m_modeA0)[i * 3 + 0] = sig->m_modeStats[i][0];
-        (&m_modeA0)[i * 3 + 1] = sig->m_modeStats[i][1];
-        (&m_modeA0)[i * 3 + 2] = sig->m_modeStats[i][2];
+        m_modeStats[i][0] = sig->m_modeStats[i][0];
+        m_modeStats[i][1] = sig->m_modeStats[i][1];
+        m_modeStats[i][2] = sig->m_modeStats[i][2];
     }
     m_field40 = sig->m_field1c;
     m_field44 = sig->m_field20;
@@ -485,20 +488,22 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
     // 上次结算时间早于维护点 → 按累计成绩补发两封结算邮件
     if (m_field54 != 0 && (unsigned int)m_field54 <= 0x4ddd89efu)
     {
-        const int sumA = m_modeA0 + m_modeA1 + m_modeA2;
+        const int sumA = m_modeStats[0][0] + m_modeStats[0][1] + m_modeStats[0][2];
         const int bonusSumA50 = (sumA >= 10 && sumA <= 0x31) ? 10 : 0;
         const int bonusSumA60 = (sumA > 0x31) ? 60 : 0;
-        const int bonusA15 = (m_modeA0 >= 10 && m_modeA0 <= 0x31) ? 15 : 0;
-        const int bonusA90 = (m_modeA0 > 0x31) ? 90 : 0;
-        const int sumB = m_modeB0 + m_modeB1 + m_modeB2;
+        const int bonusA15 = (m_modeStats[0][0] >= 10 && m_modeStats[0][0] <= 0x31) ? 15 : 0;
+        const int bonusA90 = (m_modeStats[0][0] > 0x31) ? 90 : 0;
+        const int sumB = m_modeStats[1][0] + m_modeStats[1][1] + m_modeStats[1][2];
         const int bonusSumB50 = (sumB >= 10 && sumB <= 0x31) ? 10 : 0;
         const int bonusSumB60 = (sumB > 0x31) ? 60 : 0;
-        const int bonusB15 = (m_modeB0 >= 10 && m_modeB0 <= 0x31) ? 15 : 0;
-        const int bonusB90 = (m_modeB0 > 0x31) ? 90 : 0;
+        const int bonusB15 = (m_modeStats[1][0] >= 10 && m_modeStats[1][0] <= 0x31) ? 15 : 0;
+        const int bonusB90 = (m_modeStats[1][0] > 0x31) ? 90 : 0;
 
-        const int total = m_modeB0 * 2 + m_modeA0 * 2 + m_modeB1 +
-                          m_modeB2 + m_modeB0 * 3 + m_modeA1 + m_modeA2 +
-                          m_modeA0 * 2 + bonusSumA50 + bonusSumA60 + bonusA15 +
+        const int total = m_modeStats[1][0] * 2 + m_modeStats[0][0] * 2 +
+                          m_modeStats[1][1] +
+                          m_modeStats[1][2] + m_modeStats[1][0] * 3 + m_modeStats[0][1] +
+                          m_modeStats[0][2] +
+                          m_modeStats[0][0] * 2 + bonusSumA50 + bonusSumA60 + bonusA15 +
                           bonusA90 + bonusSumB50 + bonusSumB60 + bonusB15 +
                           bonusB90;
 

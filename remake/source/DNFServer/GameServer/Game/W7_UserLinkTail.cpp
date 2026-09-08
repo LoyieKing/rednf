@@ -91,7 +91,7 @@ CParty* CUser::GetUserListByParty(std::vector<CUser*>& out)
         for (int i = 0; i <= 3; ++i)
         {
             CUser* u = party->get_user(i);
-            if (u != 0 && u != this)
+            if (u != 0 && this != u)   // P222 两形互试：4.1 产 `cmp %eax,0x8(%ebp)` mem-dst
                 out.push_back(u);
         }
     }

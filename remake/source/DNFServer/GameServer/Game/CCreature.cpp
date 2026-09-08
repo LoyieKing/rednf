@@ -140,7 +140,9 @@ bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     SetItemId(item->m_addInfo);                    // *(int*)(item+2) 驱动脚本解析
     m_uid = info->m_uid;                           // → +0x0c
     m_slotNo = info->m_slotNo;                     // → +0x10
-    m_creatureItemType = (int)(char)info->m_creatureItemType;  // movsbl 符号扩展
+    // enum 字段直接 cast 赋值使 4.4 movsbl 拆两段（+%eax 中转）；int& 视图同宽
+    // 直存复现 ORIG `movsbl %al,%edx; mov %edx,0x8(%eax)` 单段形。
+    reinterpret_cast<int&>(m_creatureItemType) = (int)(char)info->m_creatureItemType;  // movsbl
     m_stomach.SetStomachValue((float)info->m_stomachValue);
     strncpy(m_name, info->m_name, 0xc);            // → +0x1c，12B（ORIG call strncpy PLT）
     // ORIG 8338657：xor $0x1 取反形（X1：bool 字段 register 取反，movzbl+test+je
@@ -178,7 +180,10 @@ bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     if (!mgr->RegisterCreatureItem(reinterpret_cast<CCreatureItem*>(this),
                                    info->m_uid))
         return false;
-    Inven_Item* slotItem =
+    // P197③双槽置 0：ORIG 块入口 `movl $0,-0xc` 预清 + 后续独立赋值两段式
+    //（`T* p=0;` + `p=f()` 合并形缺 init 行）。
+    Inven_Item* slotItem = 0;
+    slotItem =
         user->getCurCharacInvenW()->GetInvenRef(
             3, reinterpret_cast<CCreatureItem*>(this)->GetSlotNo());
     slotItem->set_add_info(m_uid);
@@ -422,7 +427,8 @@ bool user_creature::CDBMsgSender::EventEvoluteCreature(int uid, int itemIdx, int
     memset(buf, 0, 0x74);
     buf->m_hdr |= 0x248;
     buf->m_addInfo2 = uid;                            // +0x30（先写，ORIG 序）
-    ((Inven_Item_Compatible*)(void*)buf->m_item)->m_itemIdx = itemIdx;  // +0x08
+    // ORIG `mov %edx,0x8(%eax)` buf 基址 disp8 直存（具名视图，探针 bl8_probe6 f5）。
+    reinterpret_cast<SigCreatureItemIdxView*>(buf)->m_itemIdx = itemIdx;  // +0x08
     buf->m_exp = exp;                                 // +0x4c（SigTypes 已具名 m_exp）
     CItem* item = G_CDataManager()->find_item(itemIdx);
     buf->m_days = item->getUsablePeriod();            // +0x54

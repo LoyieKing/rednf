@@ -126,6 +126,8 @@ WideString reverse(const WideString& str)
 // ---------------------------------------------------------------------------
 
 // _Z6removeRK10CharStringii 0x08ad7a01
+// [b28 判词·N] NEAR：第 2 个 memcpy 的 pos(0x10)/removeLength(0x14) 装载 4.1 先
+// 远后近、4.4 先近后远（P209 附 memcpy / N82附 寄存器对调），2 行互换纯文本差。
 CharString remove(const CharString& str, int pos, int removeLength)
 {
     if (removeLength == 0)
@@ -143,6 +145,7 @@ CharString remove(const CharString& str, int pos, int removeLength)
 }
 
 // _Z6removeRK10WideStringii 0x08adaa7a
+// [b28 判词·N] 同 CharString 版 memcpy 装载序互换（P209 附/N82附），禁绑定形（P0）。
 WideString remove(const WideString& str, int pos, int removeLength)
 {
     if (removeLength == 0)

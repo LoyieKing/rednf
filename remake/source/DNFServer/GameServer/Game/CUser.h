@@ -935,7 +935,7 @@ public:
     CPacketVerifier();
     ~CPacketVerifier() {}
 
-    void Init();               // ORIG W：全部字段清零 + checker.reset()
+    void Init() throw();       // ORIG W：全部字段清零 + checker.reset()（P216：b28 BL0 代落，消 C1Ev 0x8696fe0 侧 4.4 冗余 landing）
     int UpdatePacket(const _header& hdr);  // ORIG W：重复包检测，返回错误码
     unsigned short GetSequence();          // ORIG W：读 +0x14
 
@@ -2531,7 +2531,7 @@ public:
     void UpdateRating(float rating);   // ORIG W 0x08568e9c _ZN5CUser12UpdateRatingEf（Elo 个人分回写；定义归 CUser 域）
     void* GetSecretShopData();
     void* GetPICSMap();
-    char IsPermissionPrivateStore();
+    bool IsPermissionPrivateStore();   // b28 BL0 代落：ORIG 体内 return isAffectedPremium(8)（callee bool）+消费点 0x85cacc0 test%al;je 直判（P22）；mangled 不变
     bool IsEquipAvatar();
     bool IsHavePremiumAdvantage() const;
     void RecoverFatigue(int value);
@@ -3391,7 +3391,7 @@ public:
     int inc_multiboxLotteryItemFailCnt();                                    // 0x080fdf56 W
     void incPcRoomPlayTimeRewardCnt();                                       // 0x08110dd0 W
     int getLinkCharacNo(char index);                                         // 0x0869736e W
-    int isCharacLinkBonusSetting(char index);   // ORIG 0x084ecd52 尾 movzbl 0x124f(%eax),%eax;ret 直返无归一⇒int（bool 反产 test;setne，CUOC7 P9/技巧33）
+    unsigned char isCharacLinkBonusSetting(char index);   // b28 BL1 探针定夺：uchar 返回单段 movzbl=ORIG 0x084ecd52 尾全等（int 返回 4.4 恒两段；mangled 不变）
     int GetPowerWarPartyVictory();                                           // 0x0868856c T（ORIG 定义尾自带 movzwl 扩展，调用点直存）
     int getQuestPoint();                                                     // 0x0868ad52 T
     int getReturnUserLevelKey(int level, int mode);                          // 0x0869230a T

@@ -35,8 +35,8 @@ unsigned int GetIdentity(MySQL* db);   // _ZN8WongWork8DBCommon11GetIdentityEP5M
 struct SigMailboxSendNewMailView
 {
     int m_field00;                  // +0x00（sendResult 写 0；insertMailData 视为 senderName 起始）
-    int m_field04;                  // +0x04
-    int m_field08;                  // +0x08
+    unsigned int m_field04;         // +0x04（b28 P211：异型化 int 形参→值先载=ORIG）
+    unsigned int m_field08;         // +0x08（同上；enum 形参异型）
     char m_pad0c[0x1e - 0x0c];      // +0x0c..+0x1d（senderName 余部）
     int m_senderCharacNo;           // +0x1e
     unsigned int m_amount;          // +0x22

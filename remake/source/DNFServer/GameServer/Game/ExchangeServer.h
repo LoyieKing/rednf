@@ -80,7 +80,7 @@ public:
     // 实为静态成员；ORIG 返回寄存器承载新分配的 session 指针（0=失败）。
     static CSession* Listen(int port, const char* ip);   // ORIG 0x8490767
     static CSession* Connect(const char* ip, int port);  // ORIG 0x8490829
-    void Disconnect();                   // ORIG 0x84908f2
+    bool Disconnect();                   // ORIG 0x84908f2（P159：尾 mov$0x1,%eax 判 bool）
 
 private:
     int m_triggerEventType;              // +0x851a0（int：形参 Ei 同型直赋，
@@ -220,7 +220,10 @@ private:
                                          m_sessionMgr;    // +0x0c（sizeof 0x2c）
     bool m_flag38;                       // +0x38（SetMaster→1 / SetSlave→0）
     bool m_flag39;                       // +0x39（Reset 清零）
-    unsigned int m_resetTime3c;          // +0x3c（Reset 置 time(0)）
+    long m_resetTime3c;                  // +0x3c（Reset 置 time(0)；time_t 同型直存，
+                                         //   实证 /tmp/l11_n92.cpp：4.4 对 long 字段
+                                         //   `mov this,%edx; mov %eax,(%edx)` 与 ORIG 同形，
+                                         //   uint 字段则恒多 mov%eax,%edx 中转=N92 真身）
     ExchangeServerInfo m_localInfo;      // +0x40
     std::map<int, ExchangeServerInfo> m_serverMap;   // +0x50（sizeof 0x18）
     EXCHANGE_SERVER_TYPE m_serverType68;  // +0x68（枚举字段：SetServerType 枚举

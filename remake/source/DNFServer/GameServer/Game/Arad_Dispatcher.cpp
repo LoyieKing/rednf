@@ -49,6 +49,16 @@ namespace ARAD
 {
 
 // ============================================================================
+// Arad_Dispatcher_BuyItemCheck_Impl —— ORIG C1 @0x0818e9cc：基类码 0x1fa。
+// P210：本 ctor 定义必须先于基类 Arad_Dispatcher(int) ——基类 ctor 本 TU 可见时
+// 4.4 按其后继帧精确继承 outgoing（帧 0x18→0x8，与 ORIG 0x18 反）。
+// ============================================================================
+Arad_Dispatcher_BuyItemCheck_Impl::Arad_Dispatcher_BuyItemCheck_Impl()
+    : Arad_Dispatcher(0x1fa)
+{
+}
+
+// ============================================================================
 // Arad_Dispatcher —— ORIG C1 @0x0818edd0：vptr 由编译器写；m_code = code（+0x04）。
 // ============================================================================
 Arad_Dispatcher::Arad_Dispatcher(int code)
@@ -200,14 +210,6 @@ bool Arad_Dispatcher_Manager::db_dispatch(int code, int uid, Stream* stream)
     return true;
 }
 
-// ============================================================================
-// Arad_Dispatcher_BuyItemCheck_Impl —— ORIG C1 @0x0818e9cc：基类码 0x1fa。
-// ============================================================================
-Arad_Dispatcher_BuyItemCheck_Impl::Arad_Dispatcher_BuyItemCheck_Impl()
-    : Arad_Dispatcher(0x1fa)
-{
-}
-
 Arad_Dispatcher_BuyItemCheck_Impl::~Arad_Dispatcher_BuyItemCheck_Impl()
 {
 }
@@ -263,7 +265,8 @@ int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)7,
                                                   (ENUM_SERVER_GROUP)0);
     ARAD_DATAS::BuyItemInfo info;
-    memset(&info, 0, sizeof(info));
+    // b28：ORIG 0x0818eb31 GetDBHandle 后直接 `lea -0x28+0xc >>`——info 无预清
+    // call（P131）；原 memset(0x14) 在 4.4 展开 call memset = +5 条伪差，删。
     *stream >> info.mid;
     *stream >> info.characNo;
     *stream >> info.ipgNo;
@@ -282,13 +285,16 @@ int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
         ret = -1;
         goto out;
     }
+    // b28：去块包裹+早 goto——4.4 对「块内对象+goto 提前退」恒每臂展开 guard D1
+    // （ORIG 0x0818ed3e 直 jmp 尾共享 D1@0x818ed60）；统一尾使 D1 单点发射。
+    // chk 用 char* 视图形：ORIG 判空/写均 `mov -0x1c` 直读槽（P183 反向：`(char*)chk`
+    // cast 形 4.4 恒重算 lea+1，+1 条）。
+    if (DATABASE::ITEM_QUERY::arad_sp_buy_item_check(info) != 0)
     {
-        if (DATABASE::ITEM_QUERY::arad_sp_buy_item_check(info) != 0)
-        {
-            ret = -1;
-            goto out;
-        }
-
+        ret = -1;
+    }
+    else
+    {
         // P134：Acquire 内联进 CStreamGuard ctor 消中间槽（ORIG 直 `mov %eax,0x4`）。
         CStreamGuard guard(
             GlobalData::s_stream_pool->Acquire(
@@ -296,9 +302,8 @@ int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
             true);
         guard.operator*()->operator<<(code);
         guard.operator*()->operator<<(uid);
-        typedef ARAD::INTERNAL_PACKET::PURCHASE_COUNT_CHECK PurchaseCountCheck;
-        PurchaseCountCheck* chk =
-            guard.operator->()->GetInBuffer<PurchaseCountCheck>();
+        char* chk = (char*)
+            guard.operator->()->GetInBuffer<ARAD::INTERNAL_PACKET::PURCHASE_COUNT_CHECK>();
         if (chk == 0)
         {
             LogManager::logFormat(
@@ -311,12 +316,11 @@ int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
         }
         else
         {
-            *(char*)chk = info.buyable;
-            memcpy((char*)chk + 1, msg, 0x3f84);
+            *chk = info.buyable;
+            memcpy(chk + 1, msg, 0x3f84);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         }
         ret = 0;
-        goto out;
     }
 out:
     return ret;
