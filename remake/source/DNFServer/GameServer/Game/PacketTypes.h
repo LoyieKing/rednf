@@ -1855,7 +1855,7 @@ private:
     char m_gap7e[2];            // +0x7e 对齐填充
 public:
     // ORIG C1 直接六连清零 +0x80..+0x94（ORIG 无独立 Mid 类型/符号 —— 平铺字段）
-    int m_80;                   // +0x80
+    unsigned int m_80;          // +0x80（b28c C28L19 代落：ORIG 0x081becdd 单步直落 callee-saved vs 同函数 +0xb0 int 三段，P211）
     int m_84;                   // +0x84
     int m_88;                   // +0x88
     int m_8c;                   // +0x8c
