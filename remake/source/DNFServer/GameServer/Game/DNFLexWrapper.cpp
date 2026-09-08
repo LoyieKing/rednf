@@ -147,8 +147,11 @@ int DNFLexWrapper::getToken()
     return lastToken_;
 }
 
+// [b28d-solo-DNFLexWrapper] N 封顶（N7/N18a 寄存器角色互换 + 块落点）：ORIG 0x08ace2f0；
+// optimize("O2,no-if-conversion,no-omit-frame-pointer") 下 62 insn vs ORIG 68（剥 7 条对齐填充
+// 62:61）：c 在 %ecx(ORIG)/%eax(4.4)、d 复用 c 的 sub vs lea、skip_space 块落点差不可翻；
+// O0/O1/register 三形实测更劣（109/67/62，O1 另产 cmovne）。P167 CLEAR(0/0) 语义等价。
 __attribute__((optimize("O2,no-if-conversion,no-omit-frame-pointer")))
-// [b28d-L1] N 封顶（-O2 路由）：ORIG 0x08ace2f0；4.1 内联 strlen/字符分类 vs 4.4-O2 call 形态差（N98）。P167 CLEAR（0/0）语义等价。
 int DNFLexWrapper::getDecimal()
 {
     char* p;
@@ -159,7 +162,7 @@ int DNFLexWrapper::getDecimal()
 
     if (lexType_ == LEX_TYPE_NORMAL)
     {
-        p = const_cast<char*>(dnfLex_.YYText());
+        p = dnfLex_.yytext;
         c = *p;
         if (c == '\0')
             goto ret0;
@@ -239,14 +242,12 @@ float DNFLexWrapper::getFloat()
 // getPairInt（ORIG 0x8ace630）：NORMAL 对 yytext+1 拷贝 0x100 字节并保证终止后
 // strtol base 10（跳过成对 token 前导字符，如 "=123"）；COMPILED 返回
 // lastIntValue_；其它 lexType 返回 0。
-// [b28d-L1] N 封顶（-O2 路由）：ORIG 0x08ace630；4.1 内联 strlen 为 word-at-a-time（N98）而 4.4-O2 恒发 call，另含 callee-saved 装载序差。P167 CLEAR（2/2）语义等价。
+// [b28d-solo-DNFLexWrapper] AE：ORIG 0x08ace630；-O2 路由下 4.4 内联 strlen 为 word-at-a-time
+// （与 ORIG 同形），残余 cmov 段由 target("arch=i486") 消除（P230①）⇒ 54=54 逐条同形（P167 CLEAR 2/2）。
+__attribute__((target("arch=i486")))
 int DNFLexWrapper::getPairInt()
 {
-    // [b28c-11] N 封顶（54/56）：残余 = ORIG 4.1 把 `strlen(buffer)` 内联为
-    // word-at-a-time 序列（0x8ace688 起），4.4 -O0 恒发 call strlen（探针
-    // /tmp/l11p/sl.cpp：strlen 与 __builtin_strlen 在 4.4 -O0 均为 call）⇒
-    // 帧 0x114/0x128 与 2 条 call 不可复现。语义等价（已改 dnfLex_.yytext 成员直读
-    // 消 YYText() call，见 FlexLexer.h yytext public 化）。
+    // 语义：NORMAL 用 yytext 成员直读（免 YYText() call），strncpy 0x100 + strlen 截尾 + strtol。
     if (lexType_ != LEX_TYPE_NORMAL)
     {
         int r = 0;
@@ -260,11 +261,12 @@ int DNFLexWrapper::getPairInt()
     return (int)__strtol_internal(buffer, 0, 10, 0);
 }
 
-// [b28d-L1] N 封顶（-O2 路由）：ORIG 0x08ace5a0；同 getPairInt 的 4.1 内联 strlen vs 4.4 call（N98）+ 装载序差。P167 CLEAR（1/1）语义等价。
+// [b28d-solo-DNFLexWrapper] AE：ORIG 0x08ace5a0；target("arch=i486") 消 cmov ⇒ 41=41 逐条同形
+// （.bss 静态 buffer 的 R_386_32 绝对地址按 AE 口径归一 <A>；P167 CLEAR 1/1）。
+__attribute__((target("arch=i486")))
 char* DNFLexWrapper::getPairStr()
 {
-    // [b28c-11] N 封顶（41/41）：同 getPairInt 的 4.1 内联 strlen vs 4.4 call
-    // （0x8ace5d3 起 word-at-a-time 展开）；帧 0x18/0x28 差同源。
+    // 语义：NORMAL 用静态 buffer + yytext 成员直读；COMPILED 返回 lastStringValue_。
     static char buffer[0x100];
     if (lexType_ == LEX_TYPE_NORMAL)
     {
@@ -355,7 +357,9 @@ DNFLexWrapper::~DNFLexWrapper()
 // token 码：2=dec、3=hex、4=float、5/6=type、7=string、9=pair(int,str)。
 // ============================================================================
 
-// [b28d-L1] N89 封顶（-O2 路由）：ORIG 0x088bdea9；P167 GAP 全为 -O2 内联/优化决策差（ORIG 发 toTString/getType/string::operator= call，4.4 内联 toTString 并选 string::assign）。ORIG 每次重取 g_dnfLex 地址 vs 4.4 callee-saved 缓存同属 -O2 分配差。语义等价。
+// [b28d-solo-DNFLexWrapper] AE：ORIG 0x088bdea9；optimize("O0") 复现 4.1 -O0 帧/槽，
+// token 5/6 拆两个独立 else-if（ORIG 两体重复 getType→toTString→assign 序列）⇒ 101=101。
+__attribute__((optimize("O0")))
 int ScanAll(int* intOut, float* floatOut, std::string* strOut)
 {
     int token = g_dnfLex.getToken();
@@ -379,7 +383,12 @@ int ScanAll(int* intOut, float* floatOut, std::string* strOut)
         if (strOut != 0)
             *strOut = toTString(g_dnfLex.getString());
     }
-    else if (token == 5 || token == 6)
+    else if (token == 5)
+    {
+        if (strOut != 0)
+            *strOut = toTString(g_dnfLex.getType());
+    }
+    else if (token == 6)
     {
         if (strOut != 0)
             *strOut = toTString(g_dnfLex.getType());
@@ -398,7 +407,9 @@ int ScanAll(int* intOut, float* floatOut, std::string* strOut)
     return token;
 }
 
-// [b28d-L1] N82 封顶（-O2 路由）：ORIG 0x088bde5a；P167 CLEAR（1/1）⇒ 语义完成；残余为寄存器/装载形态差。
+// [b28d-solo-DNFLexWrapper] AE：ORIG 0x088bde5a；optimize("O0") 复现 4.1 -O0 帧 0x38、
+// 双局部槽 -0x10/-0xc 与 (float)v 的 -0x1c 转换临时 ⇒ 25=25 逐条同形。
+__attribute__((optimize("O0")))
 int ScanAll(float* value, std::string* str)
 {
     int v = 0;

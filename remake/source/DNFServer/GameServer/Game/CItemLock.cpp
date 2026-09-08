@@ -69,6 +69,48 @@ public:
 };
 
 int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space);   // ORIG W 0x080f7845（switch 映射；权威定义 CTitleBook.cpp）
+
+// [b28d-solo-CItemLock] DB 区块 8 字节条目的 POD 块拷贝视图（布局镜像
+// stItemLockInfo）。stItemLockInfo 带用户 ctor（非 POD）⇒ 4.4 对其赋值恒逐字段
+// 「读-写」交替、且对 +4 成员先发 `add $4`；**两 int 成员**的 POD 视图令 4.4 发
+// ORIG 的 movdi 展开「先读高字、再读低字、后连写两字」（探针
+// /tmp/b28d_solo_CItemLock/probe_copy3.cpp v11/v12 逐条同形）。平凡 ctor/op=/dtor
+// ⇒ 零符号发射，sizeof/偏移/mangled 不受影响。
+struct stItemLockInfoPod
+{
+    int m_unlockSec;          // +0x00
+    int m_stateWord;          // +0x04（m_state + m_pad5[3] 的整字视图）
+};
+static_assert(sizeof(stItemLockInfoPod) == sizeof(stItemLockInfo),
+              "stItemLockInfoPod ABI drift");
+
+// std::pair<const unsigned char, stItemLockInfo> 的 POD 布局镜像：以直接成员访问
+// 让 4.4 把 +4/+8 偏移折进 mov 的 disp（v12），避免 `&it->second` 的 `add $4`
+// （v11 多一条、v1 退化为逐字段交替）。
+struct stItemLockInfoPairPod
+{
+    unsigned char m_first;        // +0x00
+    char m_pad3[3];               // +0x01
+    stItemLockInfoPod m_second;   // +0x04
+};
+static_assert(sizeof(stItemLockInfoPairPod) ==
+                  sizeof(std::pair<const unsigned char, stItemLockInfo>),
+              "stItemLockInfoPairPod ABI drift");
+
+// SIG_ITEM_LOCK_UPDATE（0x324）载荷视图：+0x00 角色编号、+0x04 起 100×8 锁条目。
+// m_characNo 声明 unsigned（与 get_charac_no 的 int 返回值异型，P211 档③）⇒ 复现
+// ORIG 0x854182d `call; mov %eax,%edx; mov -0x10(%ebp),%eax; mov %edx,(%eax)`
+// （RHS-first+中转）；m_locks 为成员数组 ⇒ 复现 ORIG 0x85418c0 scaled 直存
+// `mov %eax,0x4(%ecx,%ebx,8)`（探针 /tmp/b28d_solo_CItemLock/probe_save.cpp g/h2）。
+// 仅本 TU 视图；线格式字节与 sizeof 不变。
+struct SIG_ITEM_LOCK_UPDATEView
+{
+    unsigned int m_characNo;          // +0x00
+    stItemLockInfoPod m_locks[0x64];  // +0x04（0x64×8 = 0x320）
+};
+static_assert(sizeof(SIG_ITEM_LOCK_UPDATEView) == sizeof(SIG_ITEM_LOCK_UPDATE),
+              "SIG_ITEM_LOCK_UPDATEView ABI drift");
+
 // ORIG 匿名常量（rodata 内联实例 _ZN9item_lockL20CHECK_ITEM_LOCK_TIMEE
 namespace item_lock
 {
@@ -258,11 +300,13 @@ void CItemLock::UpdateItem(CUser* user, Inven_Item* item)
 // 已解锁项清锁并 UpdateItem；倒计时项按频道 equipslot 开关重映射 space
 // (3<->0x12)，写 space/slot/state，state==2 再写剩余秒数；末尾回填计数，
 // finalize 后发送并清空 m_lockList。
-// [b28d-41] DIFF（残差 N82/N95 + P197④）：残差 (a) `getCurChannelEquipslotSwitch()
-// ==1` / `state==0` 的 4.1 setcc 物化（`sete %al; test`）4.4 恒折直跳；(b) 帧/槽
-// 平移（it -0x3c、remainSec -0x38、countIndex -0x34、state -0x1c）。已照 ORIG
-// 0x85428a6 归位：put_short(count) 用变量、state/remainSec 声明于循环外且 state 为
-// int、space 实参写 (unsigned char)（双段 movzbl，char 直传生 cbtw）。
+// [b28d-solo-CItemLock] 本轮修法：①`state==0` 用 while+goto 复现 4.1 槽比零
+// setcc 物化（P225/P197④）；②`getCurChannelEquipslotSwitch()==1 && …` 拆嵌套 if
+// 复现首条件 sete（P225 推广）；③m_slot 比较与 put_short 实参按 unsigned short
+// 复现 ORIG `ja`/双段 movzwl；④outSpace/item 提至循环体头（outSpace 先声明）复现
+// ORIG 槽序 -0x11/-0x10。put_short(count) 用变量、state/remainSec 声明于循环外且
+// state 为 int、space 实参 (unsigned char) 同前。
+// [b28d-solo-CItemLock] VERDICT: AE（compare_tu 口径）—— P303/P225 等范式修法见体注。
 void CItemLock::SendItemLockList(CUser* user)
 {
     PacketGuard packet;
@@ -283,34 +327,49 @@ void CItemLock::SendItemLockList(CUser* user)
          it != m_lockList.end(); ++it)
     {
         stItemLockRef& ref = *it;
+        // [b28d-solo-CItemLock] ORIG 槽序：ref -0x18、outSpace -0x11、item -0x10
+        // （4.1 按声明序，先声明占深槽）⇒ 两局部提至循环体头部、outSpace 先声明。
+        unsigned char outSpace;
+        Inven_Item* item;
         state = GetItemLockInfo((unsigned char)ref.m_lock, remainSec);
-        if (state == 0)
+        // [b28d-solo-CItemLock] P225/P197④：ORIG 0x854285b `cmpl $0,-0x1c;
+        // sete %al; test %al,%al; je` 的槽比零 setcc 物化用 while+goto 复现
+        // （4.4 直写 `if (state==0)` 恒折 `cmpl;jne`；while 条件保留 setcc 段）。
+        while (state == 0)
         {
             // 已解锁：清除物品上的锁位并同步（ORIG 经 GetCurCharacInventoryRef
             // 全分派：含 cargo(space=2)/title(space=0x13..0x16)）。
             // [b28d-41] ORIG 0x85428ce `movzbl 0x1(%eax),%eax; movzbl %al,%eax`
             // 双段零扩展 ⇒ 实参写 (unsigned char)（char 直传生 cbtw 符号扩展）。
-            Inven_Item* slot = user->GetCurCharacInventoryRef(
+            item = user->GetCurCharacInventoryRef(
                 (unsigned char)ref.m_space, ref.m_slot);
-            if (slot != 0)
+            if (item != 0)
             {
-                slot->m_amp.SetLock(0);
-                UpdateItem(user, slot);
+                item->m_amp.SetLock(0);
+                UpdateItem(user, item);
             }
+            goto send_list_next;   // 跳过 else 路径（ORIG A 路尾 jmp）
         }
-        else
         {
-            unsigned char outSpace = (unsigned char)ref.m_space;
-            if (user->getCurChannelEquipslotSwitch() == 1 &&
-                (ref.m_slot > 9 || ref.m_slot < 0x16))
+            outSpace = (unsigned char)ref.m_space;
+            // [b28d-solo-CItemLock] P225 推广：ORIG 0x85428de `cmp $1,%al;
+            // sete %al; test %al,%al; je` ⇒ && 必须拆嵌套 if（合并形 4.4 折直跳）。
+            // 内层 slot 比较为无符号（ORIG 0x85428f3 `ja`），原码恒真短路照抄。
+            if (user->getCurChannelEquipslotSwitch() == 1)
             {
-                if (ref.m_space == 3)
-                    outSpace = 0x12;
-                else if (ref.m_space == 0x12)
-                    outSpace = 3;
+                if ((unsigned short)ref.m_slot > 9 ||
+                    (unsigned short)ref.m_slot < 0x16)
+                {
+                    if (ref.m_space == 3)
+                        outSpace = 0x12;
+                    else if (ref.m_space == 0x12)
+                        outSpace = 3;
+                }
             }
             packet.put_byte(outSpace);
-            packet.put_short(ref.m_slot);
+            // [b28d-solo-CItemLock] ORIG 0x8542936 `movzwl 0x2(%eax),%eax;
+            // movzwl %ax,%eax` 双段零扩展 ⇒ 实参 (unsigned short)（signed 生 cwtl）。
+            packet.put_short((unsigned short)ref.m_slot);
             packet.put_byte(state);
             if (state == 2)
             {
@@ -322,6 +381,7 @@ void CItemLock::SendItemLockList(CUser* user)
             }
             ++count;
         }
+    send_list_next:;
     }
     packet.put_byte(countIndex, count);
     packet.finalize(true);
@@ -377,10 +437,10 @@ int CItemLock::IsAbleItemUnlockCancel(unsigned char lock) const
 
 // ORIG 0x8542192：物品未带锁号时从空闲池取出一个号，写 {unlockSec=now,
 // state=1} 入 map；alter 后把新号写回物品并发请求包；日志 reason=0。
-// [b28d-41] DIFF（残差 N82/N95）：调用序列逐条一致，残差仅帧 0x68 vs ORIG 0x58
-// 与全帧槽平移 4~8（item -0x10/-0xc、info -0x30/-0x38；4.4 槽基自 ebp-8 起且按
-// 首次使用分配，P112/N95）。已照 ORIG 0x854221a 归位：删多余 memset、具名 uchar
-// lock、m_state 先于 m_unlockSec 赋值、删 empty() 检查（ORIG 直接 top）。
+// [b28d-solo-CItemLock] 本轮修法：insert 实参改内联直构（无具名 value；槽序
+// make_pair/-0x18 → pair/-0x24 → insert sret/-0x2c 与 ORIG 一致）。既有权宜：
+// 删多余 memset、具名 uchar lock、m_state 先于 m_unlockSec 赋值、删 empty()。
+// [b28d-solo-CItemLock] VERDICT: AE —— 内联 insert 直构实参 + 内联 history receiver。
 int CItemLock::DoItemLock(CUser* user, int space, int slot)
 {
     Inven_Item* item =
@@ -404,27 +464,33 @@ int CItemLock::DoItemLock(CUser* user, int space, int slot)
     info.m_state = 1;
     info.m_unlockSec = GlobalData::s_systemTime_.getCurSec();
 
-    std::pair<std::map<unsigned char, stItemLockInfo>::key_type,
-              std::map<unsigned char, stItemLockInfo>::mapped_type> value =
-        std::make_pair(lock, info);
-    m_lockMap.insert(value);
+    // [b28d-solo-CItemLock] 内联直构实参（同 PushItemLock 判据）：ORIG
+    // 0x854222d make_pair@-0x18 → converting ctor@-0x24 → insert(const&) sret@-0x2c。
+    m_lockMap.insert(
+        std::pair<std::map<unsigned char, stItemLockInfo>::key_type,
+                  std::map<unsigned char, stItemLockInfo>::mapped_type>(
+            std::make_pair(lock, info)));
 
     alter();
     item->m_amp.SetLock(lock);
     UpdateItem(user, item);
     SendRequestItemLock(user, space, slot);
 
-    cUserHistoryLog* history = (cUserHistoryLog*)((char*)user + 0x79700);  // §4.3 例外（见顶注）
-    history->ItemLockUsingLog(0, space, slot, item->m_addInfo,
-                              item->m_addInfo2);
+    // [b28d-solo-CItemLock] 内联 receiver（§4.3 跨 TU 隔离例外见顶注）：ORIG
+    // 0x85422e3 无 history 具名槽，`mov 0xc(%ebp),%ecx; add $0x79700,%ecx` 在
+    // item 字段实参之后求值（P0/P52 内联形）。
+    ((cUserHistoryLog*)((char*)user + 0x79700))
+        ->ItemLockUsingLog(0, space, slot, item->m_addInfo,
+                           item->m_addInfo2);
     return 1;
 }
 
 // ORIG 0x854231a：物品已上锁且 map 命中时置 state=2 / unlockSec=now，
 // 计时器 +1 并回发剩余秒数；日志 reason=1。
-// [b28d-41] DIFF（残差 N82/N95）：调用序列一致，残差仅帧/槽平移
-// （item -0x14/-0x10、lock -0x19/-0x15、it -0x20/-0x1c）。已照 ORIG 0x854235a
-// 归位：具名 uchar lock 局部（find 复用同槽，消除二次 GetLock 与 sete 归一）。
+// [b28d-solo-CItemLock] 本轮修法：remain 改 P198① 预清两句式（ORIG 0x8542475
+// `movl $0x0,-0xc(%ebp)`）+ history receiver 内联。既有权宜：具名 uchar lock
+// 局部（find 复用同槽，消除二次 GetLock 与 sete 归一）。
+// [b28d-solo-CItemLock] VERDICT: AE —— P198① remain 预清两句式 + 内联 history receiver。
 int CItemLock::DoItemUnlock(CUser* user, int space, int slot)
 {
     Inven_Item* item =
@@ -450,24 +516,28 @@ int CItemLock::DoItemUnlock(CUser* user, int space, int slot)
     alter();
     m_lockTimer.IncreaseItemLockTimer(user);
 
-    int remain = it->second.m_unlockSec + ITEM_UNLOCK_WAITING_TIME -
-                 GlobalData::s_systemTime_.getCurSec();
+    // [b28d-solo-CItemLock] P198① 预清两句式：ORIG 0x8542475 在 call 前有
+    // `movl $0x0,-0xc(%ebp)`（remain 预清），合写初始化式会丢该行。
+    int remain = 0;
+    remain = it->second.m_unlockSec + ITEM_UNLOCK_WAITING_TIME -
+             GlobalData::s_systemTime_.getCurSec();
     if (remain < 0)
         remain = 0;
 
     SendRequestItemUnlock(user, space, slot, remain);
 
-    cUserHistoryLog* history = (cUserHistoryLog*)((char*)user + 0x79700);  // §4.3 例外（见顶注）
-    history->ItemLockUsingLog(1, space, slot, item->m_addInfo,
-                              item->m_addInfo2);
+    // [b28d-solo-CItemLock] 内联 receiver（ORIG 0x8542488 无 history 槽）。
+    ((cUserHistoryLog*)((char*)user + 0x79700))
+        ->ItemLockUsingLog(1, space, slot, item->m_addInfo,
+                           item->m_addInfo2);
     return 1;
 }
 
 // ORIG 0x85424c2：物品已上锁且 map 命中时置 state=1 / unlockSec=now，
 // 计时器 -1；日志 reason=2。
-// [b28d-41] DIFF（残差 N82/N95）：调用序列一致，残差仅帧 0x44 vs 0x34 与全帧
-// 槽平移 4（item -0x10/-0xc、lock -0x15/-0x11、it -0x1c/-0x18）。已照 ORIG
-// 0x85424f0 归位：具名 uchar lock 局部 + find 复用同槽（消除二次 GetLock）。
+// [b28d-solo-CItemLock] 本轮修法：history receiver 内联（去多余具名槽，帧
+// 0x44→0x34 与 ORIG 一致）。既有权宜：具名 uchar lock 局部 + find 复用同槽。
+// [b28d-solo-CItemLock] VERDICT: AE —— 内联 history receiver（去多余具名槽）。
 int CItemLock::DoItemUnlockCancel(CUser* user, int space, int slot)
 {
     Inven_Item* item =
@@ -495,9 +565,10 @@ int CItemLock::DoItemUnlockCancel(CUser* user, int space, int slot)
 
     SendRequestItemUnlockCancel(user, space, slot);
 
-    cUserHistoryLog* history = (cUserHistoryLog*)((char*)user + 0x79700);  // §4.3 例外（见顶注）
-    history->ItemLockUsingLog(2, space, slot, item->m_addInfo,
-                              item->m_addInfo2);
+    // [b28d-solo-CItemLock] 内联 receiver（ORIG 0x85425e5 无 history 槽）。
+    ((cUserHistoryLog*)((char*)user + 0x79700))
+        ->ItemLockUsingLog(2, space, slot, item->m_addInfo,
+                           item->m_addInfo2);
     return 1;
 }
 
@@ -512,13 +583,10 @@ int CItemLock::OnItemUnlockWaitTimeout(CUser* user)
 //   新条目 state==0                → 号回收进空闲池；
 //   state==2 且已过等待期          → 清 info 后回收 + alter；
 //   其余                           → 继续计时再入 map（state==2 时续上计时器）。
+// [b28d-solo-CItemLock] VERDICT: AE —— insert 实参内联直构（无具名 value 临时）。
 void CItemLock::PushItemLock(CUser* user, unsigned char lock,
                              stItemLockInfo* info)
 {
-    // [b28d-41] NEAR（compare_tu 口径）：75/75 条逐条全等，仅尾部
-    // make_pair/pair 移动构造/insert 返回临时三者槽布局差（ORIG tmp-0x14/
-    // value-0x20/ret-0x28 vs 4.4 tmp-0x28/value-0x14/ret-0x1c）；声明序/两段式/
-    // pad 均不可翻（N82 族，b26N82 判词延续）。
     if (info->m_state == 0)
     {
         m_lockStack.push(lock);
@@ -539,22 +607,27 @@ void CItemLock::PushItemLock(CUser* user, unsigned char lock,
         m_lockTimer.IncreaseItemLockTimer(user);
     }
 
-    std::pair<std::map<unsigned char, stItemLockInfo>::key_type,
-              std::map<unsigned char, stItemLockInfo>::mapped_type> value =
-        std::make_pair(lock, *info);
-    m_lockMap.insert(value);
+    // [b28d-solo-CItemLock] AE：旧 NEAR 残差（tmp/value/ret 三槽置换，判 N82）
+    // 作废 —— 真因是原码**无具名 value**、insert 实参为内联直构临时：
+    // ORIG 0x8542b2d make_pair@-0x14 → converting ctor(pair&&)@-0x20 →
+    // insert(const&) sret@-0x28（探针 /tmp/b28d_solo_CItemLock/probe_pair.cpp
+    // fB 逐条同形；具名 value 形 fA 恰产我方旧槽序）。语义等价（返回值本即丢弃）。
+    m_lockMap.insert(
+        std::pair<std::map<unsigned char, stItemLockInfo>::key_type,
+                  std::map<unsigned char, stItemLockInfo>::mapped_type>(
+            std::make_pair(lock, *info)));
 }
 
 // ORIG 0x8542b80：遍历 map，将已过 3 天等待期且 state==2 的条目逐个收尾：
 // FindItemLock 定位物品槽 → 清物品锁号 + DB 包；equipslot 开关频道空间重映射
 // (3<->0x12)；SendItemUnlock 后号回收进空闲池、erase 条目、计时器 -1、alter、
 // 日志 reason=3；FindItemLock 失败直接返回。结束后 NextItemLockTimer 链式续期。
-// [b28d-41] DIFF（残差 N82/N95 + P197④）：残差 (a) `==1` 的 4.1 setcc 物化 4.4
-// 折直跳；(b) 帧 0x58 vs 0x40 与槽平移（now -0x18/-0x10、space/slotVal
-// -0x2c/-0x28 vs -0x24/-0x20）。已照 ORIG 归位：删 due 具名 bool（0x8542bfa 短路
-// 结果直落 %eax，P0）、删 space/slotVal 预清（0x8542c29 直接传址）、erase(it++)
-// （0x8542d3b ppEi）、删 sendSpace 直接改 space（0x8542cc9）、删日志前多余
-// `if (item != 0)`（ORIG 0x8542d71 直接读 item->m_addInfo2 无守卫，P171）。
+// [b28d-solo-CItemLock] 本轮修法：①`if (A && B)` 正极性 + 体尾 continue 复现
+// ORIG 0x8542bfa 的 mov$1/mov$0 物化与「体尾 jmp 条件、++it 置体后」布局；
+// ②`getCurChannelEquipslotSwitch()==1 && …` 拆嵌套 if 复现首条件 sete；③history
+// receiver 内联。既有权宜：删 space/slotVal 预清（直接传址）、erase(it++)、
+// 直接改 space 出参、日志前不设 item 守卫（P171）。
+// [b28d-solo-CItemLock] VERDICT: AE —— 正极性 if(A&&B)+体尾 continue + && 拆嵌套 if。
 void CItemLock::PopItemLock(CUser* user)
 {
     if (m_lockTimer.GetTimerCount() == 0)
@@ -565,60 +638,68 @@ void CItemLock::PopItemLock(CUser* user)
     std::map<unsigned char, stItemLockInfo>::iterator it = m_lockMap.begin();
     while (it != m_lockMap.end())
     {
-        // [b28d-41] ORIG 0x8542bfa：`mov $1,%eax; jmp; mov $0,%eax; test %al,%al;
-        // je` —— 短路结果直落 %eax 无栈槽 ⇒ 原码无具名 bool（P0）；具名 due 形
-        // 多 `mov %al,-0x15; movzbl; xor $1` 三步（本函数帧 +0x18 的主因）。
-        if (!(now >= it->second.m_unlockSec + ITEM_UNLOCK_WAITING_TIME &&
-              it->second.m_state == 2))
+        // [b28d-solo-CItemLock] ORIG 0x8542bfa `mov $1,%eax; jmp; mov $0,%eax;
+        // test %al,%al; je <body>` —— 正极性 `if (A && B)` + 体尾 continue
+        // 复现该物化与 ORIG 的「体尾 jmp 条件、++it 块置体后」布局（旧 `if
+        // (!(A&&B)) { ++it; continue; }` 形 4.4 产反向极性且 ++it 块前置）。
+        if (now >= it->second.m_unlockSec + ITEM_UNLOCK_WAITING_TIME &&
+            it->second.m_state == 2)
         {
-            ++it;
+            // [b28d-41] ORIG 0x8542c29 直接把 &space/-&slotVal 入参（lea
+            // -0x20/-0x24 后即 call），无 `movl $0,-N` 预清 ⇒ 原码不初始化这两个
+            // 出参（P131/P171）。
+            ENUM_ITEMSPACE space;
+            int slotVal;
+            if (!((const CUserCharacInfo*)user)->FindItemLock(
+                    it->first, space, slotVal, (CUser*)user))
+                return;  // ORIG：定位失败立即退出（保留遍历位置）
+
+            Inven_Item* item =
+                user->GetCurCharacInventoryRef((unsigned short)space,
+                                               (unsigned short)slotVal);
+            if (item != 0)
+            {
+                item->m_amp.SetLock(0);
+                UpdateItem(user, item);
+            }
+
+            // [b28d-41] ORIG 0x8542cc9 `mov -0x20(%ebp),%eax; cmp $3; jne;
+            // movl $0x12,-0x20(%ebp)` —— 直接改 space 出参本身，无 sendSpace 局部
+            // （具名副本多 2 条 + 一槽，P0/P171）。
+            // [b28d-solo-CItemLock] P225 推广：ORIG 0x8542c55 `cmp $1,%al;
+            // sete %al; test %al,%al; je` ⇒ && 拆嵌套 if（合并形 4.4 折直跳 +
+            // 多 bool 物化块）。
+            if (user->getCurChannelEquipslotSwitch() == 1)
+            {
+                if (slotVal > 9 && slotVal < 0x16)
+                {
+                    if (space == (ENUM_ITEMSPACE)3)
+                        space = (ENUM_ITEMSPACE)0x12;
+                    else if (space == (ENUM_ITEMSPACE)0x12)
+                        space = (ENUM_ITEMSPACE)3;
+                }
+            }
+
+            SendItemUnlock(user, (int)space, slotVal);
+            m_lockStack.push(it->first);
+            // [b28d-41] ORIG 0x8542d?? 用 ppEi（后置 it++ 带 sret 临时）⇒ 原码
+            // erase(it++)（P28 后置增量），具名 next + 前置 ++next 形多一槽+一条调用。
+            m_lockMap.erase(it++);
+
+            m_lockTimer.DecreaseItemLockTimer();
+            alter();
+
+            // [b28d-41] ORIG 0x8542d71 直接读 item->m_addInfo2（无
+            // `if (item != 0)` 守卫）⇒ 删除多余条件（P171）。
+            // [b28d-solo-CItemLock] 内联 receiver（ORIG 0x8542d88 无 history 槽）。
+            ((cUserHistoryLog*)((char*)user + 0x79700))
+                ->ItemLockUsingLog(3, (int)space, slotVal,
+                                   item->m_addInfo, item->m_addInfo2);
+            // 体尾 continue：erase(it++) 已推进迭代器，跳过下方 ++it（ORIG 体尾
+            // jmp 至条件块）。
             continue;
         }
-
-        // [b28d-41] ORIG 0x8542c29 直接把 &space/-&slotVal 入参（lea -0x20/-0x24
-        // 后即 call），无 `movl $0,-N` 预清 ⇒ 原码不初始化这两个出参（P131/P171）。
-        ENUM_ITEMSPACE space;
-        int slotVal;
-        if (!((const CUserCharacInfo*)user)->FindItemLock(it->first, space,
-                                                          slotVal,
-                                                          (CUser*)user))
-            return;  // ORIG：定位失败立即退出（保留遍历位置）
-
-        Inven_Item* item =
-            user->GetCurCharacInventoryRef((unsigned short)space,
-                                           (unsigned short)slotVal);
-        if (item != 0)
-        {
-            item->m_amp.SetLock(0);
-            UpdateItem(user, item);
-        }
-
-        // [b28d-41] ORIG 0x8542cc9 `mov -0x20(%ebp),%eax; cmp $3; jne;
-        // movl $0x12,-0x20(%ebp)` —— 直接改 space 出参本身，无 sendSpace 局部
-        // （具名副本多 2 条 + 一槽，P0/P171）。
-        if (user->getCurChannelEquipslotSwitch() == 1 &&
-            slotVal > 9 && slotVal < 0x16)
-        {
-            if (space == (ENUM_ITEMSPACE)3)
-                space = (ENUM_ITEMSPACE)0x12;
-            else if (space == (ENUM_ITEMSPACE)0x12)
-                space = (ENUM_ITEMSPACE)3;
-        }
-
-        SendItemUnlock(user, (int)space, slotVal);
-        m_lockStack.push(it->first);
-        // [b28d-41] ORIG 0x8542d?? 用 ppEi（后置 it++ 带 sret 临时）⇒ 原码
-        // erase(it++)（P28 后置增量），具名 next + 前置 ++next 形多一槽+一条调用。
-        m_lockMap.erase(it++);
-
-        m_lockTimer.DecreaseItemLockTimer();
-        alter();
-
-        cUserHistoryLog* history = (cUserHistoryLog*)((char*)user + 0x79700);  // §4.3 例外（见顶注）
-        // [b28d-41] ORIG 0x8542d71 直接读 item->m_addInfo2（无 `if (item != 0)`
-        // 守卫）⇒ 删除多余条件（P171）。
-        history->ItemLockUsingLog(3, (int)space, slotVal,
-                                  item->m_addInfo, item->m_addInfo2);
+        ++it;
     }
 
     m_lockTimer.NextItemLockTimer(user);
@@ -752,40 +833,37 @@ void CItemLock::SendRequestItemUnlockCancel(CUser* user, int space, int slot)
 
 // ORIG 0x8541714：pData 为 100 × 8 字节 DB 区块；自 i=99 向下 PushItemLock
 // （lock 号 = i+1），使低号位最终落在栈顶（与空闲号池 LIFO 序一致）。恒真。
+// [b28d-solo-CItemLock] VERDICT: AE —— 具型指针 data+i 复现 ORIG 偏移 add 序。
 bool CItemLock::loadData(CUser* user, char* pData)
 {
-    // [b28d-41] N7/N18a 封顶（ORIG 0x08541714，ndiff 4）：ORIG 偏移计算
-    // `mov i,%eax; shl $3,%eax; mov %eax,%edx; add -0x10(%ebp),%edx`（偏移先物化
-    // 入 %edx、data 作 add 内存源）；4.4 恒 `mov data,%edx; … add %eax,%edx`（LHS 先载）。
-    // 本轮实测 13 形：data+i*8 / (int)data+i*8 / i*8+(int)data / &data[i*8] /
-    // data+(i<<3) / (unsigned)data+… / (char*)(i*8)+(long)data / (S*)data+i /
-    // &((S*)data)[i] / data+i*sizeof(S) / ((S*)data)+i / (long)i*8 / i*8L /
-    // register 指针 / register int / (unsigned char*)data —— 全产 LHS-first
-    // （探针 /tmp/d41_p1.cpp、/tmp/d41_p2.cpp、/tmp/d41_p3.cpp），属 4.1↔4.4
-    // add 展开序固有差；函数其余 28 条逐条全等。
-    char* data = pData;   // ORIG 0x854171d mov %eax,-0x10 存槽复用
+    // [b28d-solo-CItemLock] AE：ORIG 0x08541714 `mov i,%eax; shl $3,%eax;
+    // mov %eax,%edx; add -0x10(%ebp),%edx` —— 索引先物化入 %edx、data 作 add
+    // 内存源。旧判 N7/N18a（13 形 char* 算术全产 LHS-first）作废：真因是原码
+    // **具型指针局部** `stItemLockInfo* data`，`data + i` 由 sizeof=8 自然缩放出
+    // 同一条 shl $3 链（探针 /tmp/b28d_solo_CItemLock/probe_add.cpp fF 逐条全等，
+    // 同族 P255 数组名退化直传）。偏移/语义不变（stItemLockInfo 恰 8 字节）。
+    stItemLockInfo* data = (stItemLockInfo*)pData;   // ORIG 0x854171d 存槽 -0x10
     for (int i = 99; i >= 0; --i)
     {
-        PushItemLock(user, (unsigned char)(i + 1),
-                     (stItemLockInfo*)(data + i * 8));
+        PushItemLock(user, (unsigned char)(i + 1), data + i);
     }
     return true;
 }
 
 // ORIG 0x8541958：map 逆编号回写 DB 区块（idx = key-1 ∈ [0,99]；每项 8 字节
 // = unlockSec + {state,pad} 4 字节整体）；越界记 LogManager 错误。
-// [b28d-41] DIFF（残差 N7 + N84/N90）：已改结构整体赋值（ORIG 0x85419da 单次
-// ptEv + 读 +8/+4 写两 dword）。残差 (a) 偏移 add 序 `mov i,%eax; shl; mov %eax,
-// %ebx; add data,%ebx`（ORIG 0x85419da）vs 4.4 LHS-first——13 形探针全败（N7，
-// 同 loadData）；(b) 8 字节结构拷贝读序 ORIG「先读全再写全」vs 4.4 读-写交替
-// （N84/N90 族）。
+// [b28d-solo-CItemLock] 本轮修法：具型 POD 指针 `data + idx` 复现 ORIG 0x85419da
+// 偏移 add 序；POD 视图赋值复现 8 字节「先读全再写全」块拷贝（旧 N7/N84/N90
+// 判词作废）。
+// [b28d-solo-CItemLock] VERDICT: AE —— 具型 POD 指针 + POD 视图块拷贝（先读全再写全）。
 void CItemLock::getData(char* pData) const
 {
-    // [b28d-41] ORIG 0x8541958：pData 先存具名局部 -0x10（P0 槽往返），
-    // 循环体只调一次 ptEv（读 +4/+8 两字段写 8 字节）⇒ 原码是结构整体赋值
-    // `*(stItemLockInfo*)(data+idx*8) = it->second;`（P54/P83），逐字段两次
-    // ptEv 形多一次调用与整帧槽移。
-    char* data = pData;
+    // [b28d-solo-CItemLock] AE：旧 DIFF（N7 偏移 add 序 + N84/N90 拷贝读序）
+    // 作废 —— ①具型 POD 指针 `data + idx` 复现 ORIG 0x85419da `mov i,%eax;
+    // shl $3,%eax; mov %eax,%ebx; add -0x10(%ebp),%ebx`（同 loadData）；②POD 视图
+    // 赋值复现 `mov 0x8(%eax),%edx; mov 0x4(%eax),%eax; mov %eax,(%ebx);
+    // mov %edx,0x4(%ebx)` 先读全再写全（探针 fD）。语义为同一 8 字节块拷贝。
+    stItemLockInfoPod* data = (stItemLockInfoPod*)pData;   // ORIG 存槽 -0x10
     for (std::map<unsigned char, stItemLockInfo>::const_iterator it =
              m_lockMap.begin();
          it != m_lockMap.end(); ++it)
@@ -799,18 +877,21 @@ void CItemLock::getData(char* pData) const
                 0x6c, "itemlock error index %d", idx);
             continue;
         }
-        *(stItemLockInfo*)(data + idx * 8) = it->second;
+        // 直接成员访问（保留 const_iterator::operator-> 调用链，P103）⇒ 4.4 把
+        // +4/+8 折进 disp 并发 movdi 展开（ORIG 0x85419da 段逐条同形）。
+        *(data + idx) =
+            ((const stItemLockInfoPairPod*)it.operator->())->m_second;
     }
 }
 
 // ORIG 0x854176e：SIG_ITEM_LOCK_UPDATE（0x324 字节）出队至 LOGDB→DB_Q(2)：
 // << 0x1b8、<< uid；GetInBuffer 清零后 +0 = get_charac_no(-1)，随后与 getData
 // 相同的 idx/key-1 校验与写入；越界 LogManager 错误；put(DB_Q) 后析构。恒真。
-// [b28d-41] DIFF（残差 N76 + N84/N90）：已改结构整体赋值（ORIG 0x85418a9 单次
-// ptEv + 读 +8/+4 写两 dword）。残差 (a) `*(int*)sig = get_charac_no(-1)` store
-// 序：ORIG 0x854182d 为 RHS-first + edx 中转，4.4 对同型 (int←int) 恒 LHS-first
-// +%ebx 跨 call 保活；探针 /tmp/d41_p7.cpp fM 证明该形需 callee 返回类型异型
-// （档①，改 CUser.h 冻结头）⇒ N76 封顶；(b) 8 字节拷贝读序 N84/N90。
+// [b28d-solo-CItemLock] 本轮修法：SIG 载荷视图 SIG_ITEM_LOCK_UPDATEView
+// （unsigned m_characNo + m_locks[0x64]）⇒ characNo store 复现 ORIG 0x854182d
+// RHS-first+%edx 中转（unsigned 字段与 int 返回值异型，P211 档③），锁条目复现
+// ORIG 0x85418c0 scaled 直存 + POD 块拷贝（旧 N76/N84/N90 判词作废）。
+// [b28d-solo-CItemLock] VERDICT: AE —— SIG 载荷视图（unsigned characNo + m_locks[0x64]）+ POD 块拷贝。
 bool CItemLock::_saveData(CUser* user)
 {
     CStreamGuard guard(
@@ -818,14 +899,15 @@ bool CItemLock::_saveData(CUser* user)
     **guard << 0x1b8;
     **guard << (int)user->GetUID();
 
-    SIG_ITEM_LOCK_UPDATE* sig = guard->GetInBuffer<SIG_ITEM_LOCK_UPDATE>();
+    // [b28d-solo-CItemLock] AE：旧 DIFF（N76 store 序 + N84/N90 拷贝序 + 索引
+    // 复合乘式）作废 —— ①载荷视图 SIG_ITEM_LOCK_UPDATEView（+0 characNo、
+    // +4 起 100×8）复现 ORIG scaled 直存 0x4(%ecx,%ebx,8)；②m_characNo unsigned
+    // 化（与 int 返回值异型）复现 ORIG RHS-first + %edx 中转；③POD 视图赋值复现
+    // ORIG 先读全再写全块拷贝（同 getData）。
+    SIG_ITEM_LOCK_UPDATEView* sig =
+        (SIG_ITEM_LOCK_UPDATEView*)guard->GetInBuffer<SIG_ITEM_LOCK_UPDATE>();
     memset(sig, 0, 0x324);
-    // [b28d-41] ORIG 0x854182d：`call get_charac_no; mov %eax,%edx;
-    // mov -0x10(%ebp),%eax; mov %edx,(%eax)` = RHS-first + edx 中转。4.4 对同型
-    // (int←int) 恒 `mov sig,%ebx; call; mov %eax,(%ebx)`（LHS 跨 call 保活）；
-    // 探针 /tmp/d41_p7.cpp fM 证明该形需 callee 返回类型异型（档①，改 CUser.h
-    // 冻结头）——已上报 Main，本轮按 N76 封顶。
-    *(int*)sig = user->get_charac_no(-1);
+    sig->m_characNo = user->get_charac_no(-1);
 
     for (std::map<unsigned char, stItemLockInfo>::iterator it =
              m_lockMap.begin();
@@ -840,10 +922,8 @@ bool CItemLock::_saveData(CUser* user)
                 0x59, "itemlock error index %d", idx);
             continue;
         }
-        // [b28d-41] ORIG 0x85418a9 只调一次 ptEv，随后 `mov 0x8(%eax),%edx;
-        // mov 0x4(%eax),%eax; mov %eax,0x4(%ecx,%ebx,8); mov %edx,0x8(...)`
-        // ⇒ 结构整体赋值（P54/P83），逐字段两次 ptEv 形多一次调用。
-        *(stItemLockInfo*)((char*)sig + idx * 8 + 4) = it->second;
+        sig->m_locks[idx] =
+            ((const stItemLockInfoPairPod*)it.operator->())->m_second;
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);

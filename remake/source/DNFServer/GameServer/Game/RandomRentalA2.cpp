@@ -109,7 +109,8 @@ bool RandomOptionField::empty() const
 
 unsigned char RandomOption::get_option_index(ENUM_RANDOM_OPTION_NUMBER num)
 {
-    // [b28d-59 判词] 封 N4/N30（ORIG 0x085f4040）：22/21 条，ORIG 双寄存器寻址
+    // [b28d-solo-RandomRentalA2 判词] NEAR 21/21（ORIG 0x085f4040）：数组视图形
+    // 已复现 ORIG 双寄存器寻址；旧判词：
     // `movzbl (%eax,%ecx,1)` vs 4.4 lea+movzbl 两段 + 帧 0x18 vs 0x8。语义等价。
     // [b28c-11] NEAR 封顶：ORIG `movzbl (%eax,%ecx,1),%eax`（双寄存器寻址）vs
     // 4.4 `lea (%ecx,%eax,1),%eax; movzbl (%eax),%eax`（N4/N30 族，不可折叠）。
@@ -126,7 +127,8 @@ unsigned char RandomOption::get_option_index(ENUM_RANDOM_OPTION_NUMBER num)
 
 void RandomOption::set_first_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v)
 {
-    // [b28d-59 判词] 封 N1/N95（ORIG 0x085f4078）：26/26 条，残差=帧 0x28 vs 0xc、
+    // [b28d-solo-RandomRentalA2 判词] NEAR 26/26（ORIG 0x085f4078）：P210 定义
+    // 后置 + 数组元素视图已复现帧 0x28 与两步 lea；残余仅 this/num 装载序。旧判词：
     // v 槽 -0xc vs -0x4（4.1 槽基差）+ 两步 lea。语义等价。
     // [b28c-11] NEAR 封顶（26/26 条）：残余 = 帧 0x28/0xc、v 槽 -0xc/-0x4、
     // 地址两步 lea（ORIG `lea (%ecx,%eax,1),%eax; lea 0x1(%eax),%edx`）vs 4.4
@@ -143,7 +145,7 @@ void RandomOption::set_first_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char 
 
 void RandomOption::set_second_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v)
 {
-    // [b28d-59 判词] 封 N1/N95（ORIG 0x085f40be）：同 set_first_value。语义等价。
+    // [b28d-solo-RandomRentalA2 判词] NEAR 26/26（ORIG 0x085f40be）：同 set_first_value。
     // [b28c-11] NEAR 封顶（26/26 条）：同 set_first_value（N1 两步 lea + 帧/槽差）。
     // W 0x85f40be：change_option ? this[0xc]=v；恒写 this[num*3+2]=v
     if (change_option(num))
@@ -159,7 +161,7 @@ void RandomOption::set_second_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char
 // 与 ORIG 4.1 完全一致（探针 probe4.cpp c1 实证）。
 bool RandomOption::change_option(ENUM_RANDOM_OPTION_NUMBER num)
 {
-    // [b28d-59 判词] 封 N99/N82（ORIG 0x085f4002）：23/22 条，位折叠 `and $3` 与窄化
+    // [b28d-solo-RandomRentalA2 判词] DIFF 22/23（ORIG 0x085f4002）：旧判词：
     // 的先后跨版本不可择 + 帧 0x18 vs 0x4。语义等价。
     // [b28c-11] NEAR 封顶（22/22 条）：4.4 对 `(unsigned char)(x & 3)` 恒先窄化
     // （movzbl %al,%eax; mov %eax,%edx; and $3,%edx）而 ORIG 4.1 先 and 后窄化
@@ -319,8 +321,13 @@ static const int MAX_OPTION_VALUE = 100;
 
 int CRandomOptionItemHandle::_get_level_limit(ENUM_RARITY rarity, int level)
 {
-    // [b28d-59 判词] 封 N82/P183（ORIG 0x085f0f9a）：77/74 条，残差=指针/视图缓存
+    // [b28d-solo-RandomRentalA2 判词] DIFF 74/75（ORIG 0x085f0f9a）：P0/P48 script
+    // 内联 + char framePad 撑帧已归位 key/it/end 槽；残余 bound(-0x20)/end(-0x10)
+    // 与 ORIG (-0x10/-0x14) 互换（N93/N82 槽分配族）。旧判词：
     // 形（ORIG `lea 0x18(%eax),%ecx` 单条 vs 4.4 具名局部 + 槽序）。语义等价。
+    // P190/P232：ORIG 槽基比 4.4 深 4 ⇒ 死局部撑帧。
+    char framePad[4];
+    (void)framePad;
     RandomApplicationKey key((unsigned char)rarity, (unsigned char)level);
     // [b28d-solo-RandomRentalA2] P0/P48：ORIG 每处 map 访问独立调 GetRandomOption
     // （`call; lea 0x18(%eax),%ecx` 直传，无具名 script 槽）。
@@ -342,7 +349,8 @@ int CRandomOptionItemHandle::_get_level_limit(ENUM_RARITY rarity, int level)
 // ---- _get_part_type —— T 0x085f1088（_get_part_type.md 全文转写）----------
 int CRandomOptionItemHandle::_get_part_type(int limit)
 {
-    // [b28d-59 判词] 封 N82/P183（ORIG 0x085f1088）：78/84 条，残差=视图指针缓存
+    // [b28d-solo-RandomRentalA2 判词] NEAR 84/84（ORIG 0x085f1088）：P0/P48 + P222
+    // 正向包裹 + 迭代器循环已复现指令序列；残余 bound/end 槽互换（N93/N82）。旧判词：
     // 形（ORIG `lea 0x30(%eax),%ecx` 单条）+ 帧槽序。语义等价。
     // [b28d-solo-RandomRentalA2] P0/P48：ORIG 每处 map 访问独立调 GetRandomOption。
     // P212：块内标量提前到函数头（4.4 块级槽方向与 4.1 相反）；残余仅
@@ -376,7 +384,8 @@ int CRandomOptionItemHandle::_get_part_type(int limit)
 int CRandomOptionItemHandle::_get_part_type_by_ItemGroup(
     int limit, const std::vector<int>& itemGroups) const
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f11a4）：192/182 条，残差=局部槽序/指针缓存
+    // [b28d-solo-RandomRentalA2 判词] DIFF 192/180（ORIG 0x085f11a4）：P0/P48 script
+    // 内联已消缓存局部；残余循环形态/槽序。旧判词：
     // （P183 族）。语义等价。
     // [b28d-solo-RandomRentalA2] P0/P48：ORIG 每处 map 访问独立调 GetRandomOption。
     std::map<int, PartSelectonValue>::iterator it =
@@ -421,7 +430,8 @@ int CRandomOptionItemHandle::_get_part_type_by_ItemGroup(
 // ---- _get_base_item —— T 0x085f1426（同名报告全文转写）-------------------
 int CRandomOptionItemHandle::_get_base_item(ENUM_RARITY rarity, int limit)
 {
-    // [b28d-59 判词] 封 N82/P183（ORIG 0x085f1426）：84/92 条，残差=帧 0x38 vs 0x48
+    // [b28d-solo-RandomRentalA2 判词] NEAR 92/92（ORIG 0x085f1426）：P0/P48 + P222 +
+    // 迭代器循环 + char framePad 已复现帧与指令序列；残余 bound/end 槽互换。旧判词：
     // + `lea 0x48(%eax),%ecx` 单条 vs 4.4 具名局部。语义等价。
     // P190/P232：ORIG 全帧槽基比 4.4 深 4 ⇒ 死局部撑帧。
     char framePad[4];
@@ -459,7 +469,8 @@ int CRandomOptionItemHandle::_get_option_type(unsigned long /*itemIdx*/,
                                               ENUM_RARITY rarity, int level,
                                               int group, unsigned char& outType)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f2338）：184/165 条，残差=局部槽序/物化次数
+    // [b28d-solo-RandomRentalA2 判词] DIFF 184/176（ORIG 0x085f2338）：P0/P183
+    // provider 每次重取已归位；残余槽序/物化次数。旧判词：
     // （P183 族）。语义等价。
     RandomApplicationKey key((unsigned char)rarity, (unsigned char)level);
 
@@ -505,7 +516,8 @@ int CRandomOptionItemHandle::_get_option_quantity(ENUM_RARITY rarity, int level,
                                                   int grade, int optType,
                                                   int& outQuantity)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f25b0）：212/223 条，残差=局部槽序/物化次数。
+    // [b28d-solo-RandomRentalA2 判词] DIFF 212/220（ORIG 0x085f25b0）：P0/P48 五处
+    // GetRandomOption 内联 + w 标量局部已归位；残余槽序/物化次数。旧判词：
     // 语义等价。
     // [b28d-solo-RandomRentalA2] P0/P48：ORIG 5 处独立调 GetRandomOption
     // （两次 find + 两次 end + 循环内 m_veca8 基址），无具名 script 槽。
@@ -577,7 +589,8 @@ int CRandomOptionItemHandle::_choose_option_group(ENUM_RARITY rarity, int level,
                                                   int grade, int optType,
                                                   int group, int& outGroup)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f2882）：193/149 条，残差=局部槽序/物化次数
+    // [b28d-solo-RandomRentalA2 判词] DIFF 193/172（ORIG 0x085f2882）：P0/P183
+    // 4 处 provider 虚调内联已归位；残余槽序/物化次数。旧判词：
     // （P183 族）。语义等价。
     unsigned char keyBytes[8];
     keyBytes[0] = (unsigned char)rarity;
@@ -629,7 +642,8 @@ int CRandomOptionItemHandle::_choose_option_group(ENUM_RARITY rarity, int level,
 // ---- _get_option_value —— T 0x085f2b02（同名报告全文转写）----------------
 int CRandomOptionItemHandle::_get_option_value(int minV, int maxV)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f2b02）：100/96 条，残差=帧 0xa8 vs 0xb8
+    // [b28d-solo-RandomRentalA2 判词] DIFF 96/100（ORIG 0x085f2b02）：残差=帧
+    // 0xa8 vs 0xb8 + 槽序（N82/P112）。旧判词：
     // + 槽序。语义等价。
     unsigned long bound =
         (unsigned long)reinterpret_cast<RandomOptionScript*>(
@@ -663,7 +677,8 @@ unsigned int CRandomOptionItemHandle::reset_option(unsigned long /*itemIdx*/,
                                                    int optionType,
                                                    RandomOption* options)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f39d2）：210/198 条，残差=局部槽序/物化次数。
+    // [b28d-solo-RandomRentalA2 判词] DIFF 210/196（ORIG 0x085f39d2）：P0/P48 四处
+    // GetRandomOption 内联已归位；残余槽序/物化次数。旧判词：
     // 语义等价。
     // [b28d-solo-RandomRentalA2] P0/P48：ORIG 4 处独立调 GetRandomOption
     // （set200 find/end + map1e8 find/end），无具名 script 槽。
@@ -722,7 +737,8 @@ unsigned int CRandomOptionItemHandle::reset_option(unsigned long /*itemIdx*/,
 unsigned int CRandomOptionItemHandle::RegenVer_choose_item(
     ENUM_RARITY rarity, int level, const std::vector<int>& itemGroups)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f1802）：170/176 条，残差=局部槽序/物化次数。
+    // [b28d-solo-RandomRentalA2 判词] DIFF 170/173（ORIG 0x085f1802）：P0/P48
+    // table/script 内联已归位；残余槽序/物化次数。旧判词：
     // 语义等价。
     int limit = _get_level_limit(rarity, level);
 
@@ -790,7 +806,8 @@ bool CRandomOptionItemHandle::give_option(unsigned long itemIdx,
                                           int group, int grade,
                                           RandomOption* opts)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f2cc6）：433/432 条，残差=局部槽序/物化次数
+    // [b28d-solo-RandomRentalA2 判词] DIFF 434/430（ORIG 0x085f2cc6）：P0/P48 四处
+    // GetRandomOption 内联已归位；残余槽序/物化次数。旧判词：
     // （P183 族）。语义等价。
     unsigned char outGrade = 0;
     int err = 0;
@@ -921,7 +938,8 @@ bool CRandomOptionItemHandle::RegenVer_give_option(
     unsigned long itemIdx, ENUM_RARITY rarity, int level, int group, int grade,
     RandomOption* opts, RegenerationROI* roi, int optType)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f1bb0）：505/488 条，残差=局部槽序/物化次数。
+    // [b28d-solo-RandomRentalA2 判词] DIFF 506/486（ORIG 0x085f1bb0）：P0/P48 四处
+    // GetRandomOption 内联已归位；残余槽序/物化次数。旧判词：
     // 语义等价。
     unsigned char outGrade = 0;
     int err = 0;
@@ -1074,7 +1092,8 @@ int CRandomOptionItemHandle::RegenVer_get_option_quantity(
     ENUM_RARITY rarity, int level, int grade, int optType, int& outQuantity,
     RegenerationROI* roi)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f1a62）：99/114 条，残差=局部槽序/物化次数。
+    // [b28d-solo-RandomRentalA2 判词] DIFF 99/112（ORIG 0x085f1a62）：P0/P48 四处
+    // GetRandomOption 内联已归位；残余槽序/物化次数。旧判词：
     // 语义等价。
     // [b28d-solo-RandomRentalA2] P0/P48：ORIG 4 处独立调 GetRandomOption
     // （两次 find + 两次 end），无具名 script 槽。
@@ -1141,8 +1160,14 @@ void RegenerationROI::SendMessageToCUser(CUser* user, const char* msg)
 // ---- _Select_Part —— T 0x085f8ec2（报告缺失，objdump 直转）----------------
 void RegenerationROI::_Select_Part(int partIdx, std::vector<int>& out)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f8ec2）：132/132 条，残差=帧 0x40 vs 0x50
+    // [b28d-solo-RandomRentalA2 判词] DIFF 132/131（ORIG 0x085f8ec2）：P0/P183
+    // names/nameTable 内联已消引用缓存；残余帧/槽序。旧判词：
     // + 局部槽序。语义等价。
+    // P190：ORIG 槽基比 4.4 深 0x10 ⇒ 取址 double 撑帧。
+    double framePad1;
+    (void)&framePad1;
+    char framePad2[4];
+    (void)framePad2;
     std::map<int, str_index_to_itemgroup>::iterator it =
         m_regenerator.m_map0.find(partIdx);
 
@@ -1176,7 +1201,8 @@ void RegenerationROI::_Select_Part(int partIdx, std::vector<int>& out)
 int RegenerationROI::_Calculate_RegenCost(int partIdx, int optType, int lv0,
                                           int lv1)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f9094）：246/236 条，残差=局部槽序/物化次数。
+    // [b28d-solo-RandomRentalA2 判词] DIFF 246/236（ORIG 0x085f9094）：残余槽序/
+    // 物化次数（N82/P183 族）。旧判词：
     // 语义等价。
     int cost1 = 0;
     int cost2 = 0;
@@ -1250,7 +1276,8 @@ int RegenerationROI::_Calculate_RegenCost(int partIdx, int optType, int lv0,
 void RegenerationROI::_RandomLevel(int lv0, int lv1, select_base_item& sb,
                                    std::stringstream& ss)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f93cc）：202/204 条，残差=局部槽序/物化次数。
+    // [b28d-solo-RandomRentalA2 判词] DIFF 202/204（ORIG 0x085f93cc）：残余槽序/
+    // 物化次数（N82 族）。旧判词：
     // 语义等价。
     ss << "try regen:lv:" << lv0 << "," << lv1 << "\n";
 
@@ -1326,7 +1353,8 @@ int RegenerationROI::RegenVer_get_option_quantity(int lo, int hi)
 // ---- RegenVer_get_option_value —— T 0x085f8da6（同名报告全文转写）---------
 int RegenerationROI::RegenVer_get_option_value(int minV, int maxV)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f8da6）：92/117 条，残差=局部槽序/物化次数。
+    // [b28d-solo-RandomRentalA2 判词] DIFF 92/117（ORIG 0x085f8da6）：残余槽序/
+    // 物化次数（N82 族；ratios 内联实测反劣 117→118 已回退）。旧判词：
     // 语义等价。
     unsigned long bound = (unsigned long)m_regenerator.m_field48;
     int r = m_regeneratorPtr->randInt(bound);
@@ -1363,7 +1391,9 @@ int RegenerationROI::Regenerate(int baseLv0, int baseLv1, int partIdx,
                                 int optType, int& outCost, Inven_Item& outItem,
                                 CUser* user)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f8646）：435/409 条，残差=局部槽序/物化次数
+    // [b28d-solo-RandomRentalA2 判词] DIFF 435/416（ORIG 0x085f8646）：P282/P48
+    // 双 GetRandomOptionGrade 虚调已补齐（vptr+0x50 = _ZNK5CItem20GetRandomOptionGradeEv，
+    // vtable word22 实证）；残余槽序/物化次数。旧判词：
     // （P183 族，大函数按 §6.2 三件套口径）。语义等价。
     std::stringstream ss(std::ios::out | std::ios::in);
     select_base_item sb;
@@ -1400,7 +1430,9 @@ int RegenerationROI::Regenerate(int baseLv0, int baseLv1, int partIdx,
 
     int chosenIdx = (int)handle.RegenVer_choose_item((ENUM_RARITY)2, sb.m_level0,
                                                      parts);
-    ss << "base item index : " << chosenIdx << "\n";
+    // [b28d-solo-RandomRentalA2] P167：ORIG 日志重载 = _ZNSolsEm(ulong)/
+    // _ZNSolsEi(int)/_ZNSolsEt(ushort)/_ZNSolsEi(int) —— 逐值对齐重载。
+    ss << "base item index : " << (unsigned long)chosenIdx << "\n";
 
     CItem* base = G_CDataManager()->find_item(chosenIdx);
     if (base == 0)
@@ -1414,7 +1446,7 @@ int RegenerationROI::Regenerate(int baseLv0, int baseLv1, int partIdx,
     int usableLevel = base->getUsableLevel();
     int optionGrade = base->GetRandomOptionGrade();   // vtable 槽20（+0x50）
 
-    ss << "rarity : " << rarity << " level : " << usableLevel
+    ss << "rarity : " << rarity << " level : " << (unsigned short)usableLevel
        << " base item item : " << optionGrade << "\n";
 
     outItem.reset();
@@ -1423,8 +1455,11 @@ int RegenerationROI::Regenerate(int baseLv0, int baseLv1, int partIdx,
                                               1);
 
     bool ok = handle.RegenVer_give_option(
-        (unsigned long)chosenIdx, (ENUM_RARITY)rarity, usableLevel,
-        base->getItemGroupName(), base->GetRandomOptionGrade(),
+        // [b28d-solo-RandomRentalA2] P48：ORIG 在此处重新调用 get_rarity/
+        // getUsableLevel（不用上方日志用的缓存局部），实参求值序右→左。
+        (unsigned long)chosenIdx, (ENUM_RARITY)base->get_rarity(),
+        base->getUsableLevel(), base->getItemGroupName(),
+        base->GetRandomOptionGrade(),
         &outItem.m_random.m_random, this, optType);
 
     if (ok)
@@ -1433,8 +1468,10 @@ int RegenerationROI::Regenerate(int baseLv0, int baseLv1, int partIdx,
         {
             const unsigned char* slot =
                 reinterpret_cast<const unsigned char*>(&outItem) + 0x25 + i * 3;
-            ss << "[" << i << "] :" << (unsigned int)slot[0] << ":"
-               << (unsigned int)slot[1] << ":" << (unsigned int)slot[2] << "\n";
+            // ORIG 循环三值走 operator<<(int)（显式 (int) 提升，避免选到
+            // char/signed char 重载）。
+            ss << "[" << i << "] :" << (int)slot[0] << ":" << (int)slot[1]
+               << ":" << (int)slot[2] << "\n";
         }
         SendMessageToCUser(user, ss.str().c_str());
         return 0;
@@ -1454,7 +1491,9 @@ namespace random_option
 //   阈值=pt()+0x8（m_field4）；2026-08-30 修正字段选择。）
 int CRandomOptionItemHandle::_random_application(ENUM_RARITY rarity, int level)
 {
-    // [b28d-59 判词] 封 N82/P183（ORIG 0x085f0ec2）：69/67 条，残差=视图指针缓存形
+    // [b28d-solo-RandomRentalA2 判词] NEAR 67/67（ORIG 0x085f0ec2）：P0/P48 双
+    // GetRandomOption + unsigned long bound + char framePad 已复现指令序列；
+    // 残余 bound/end 槽互换（N93/N82）。旧判词：
     // + 槽序。语义等价。
     // P190/P232：ORIG 槽基比 4.4 深 4 ⇒ 死局部撑帧对齐。
     char framePad[4];
@@ -1487,7 +1526,8 @@ int CRandomOptionItemHandle::_random_application(ENUM_RARITY rarity, int level)
 unsigned int CRandomOptionItemHandle::choose_item(ENUM_RARITY& rarity,
                                                   int level)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x085f1560）：201/205 条，残差=局部槽序/物化次数。
+    // [b28d-solo-RandomRentalA2 判词] DIFF 201/205（ORIG 0x085f1560）：P0/P48
+    // table 内联已归位；残余槽序/物化次数。旧判词：
     // 语义等价。
     if (m_disabled == 0)
     {

@@ -38,7 +38,7 @@ void STCeraShopItem::clear()
     m_field8 = 0xfffffffe;
     m_fieldc = 0xffffffff;
     m_field10 = 0;
-    m_field14 = 0xffffffff;
+    m_field14 = (ENUM_CERA_SHOP_ITEM_NO)0xffffffff;
     m_field18 = (char)0xff;
     m_field1c = 1;
     m_field20 = 0;
@@ -51,7 +51,7 @@ void STCeraShopItem::clear()
     m_field3c = (char)0xff;
     m_name = "";
     m_field80 = 0;
-    m_field44f = 0.0f;
+    m_field44 = 0.0f;
     m_field48 = 0;
     m_field4c = 0;
     m_field50 = 0;
@@ -105,14 +105,13 @@ bool STCeraShopItem::isLimitSaleItem()
 // ============================================================================
 
 // ---- SetItem @ 0x8510c1a ----
-// 残余 1 insn（N 类豁免）：m_itemIdx 读 ORIG 0x08510…为 `mov 0x14(%eax),
-// %eax; mov %eax,%edx` 两段物化，4.4.7 恒折单段 `mov 0x14(%eax),%edx`
-// （N18a：regmove 落 callee 不可复现）。
+// [b28d-solo-CCeraShopGoods] AE：m_itemIdx 读 ORIG 0x08510c24 为
+// `mov 0x14(%eax),%eax; mov %eax,%edx` 两段物化 ⇒ 按 P254 把
+// STCeraShopItem::m_field14 改为 ENUM_CERA_SHOP_ITEM_NO（enum 源字段→int
+// 目标保留 eax→edx 中转；int 字段 4.4 恒折单段）。原 N18a 判词作废
+// （P248 档③类型旋钮）。sizeof/偏移/mangled 不变。
 void CCeraShopGoods::SetItem(const STCeraShopItem& item)
 {
-    // b28d-35: DIFF→N 封顶（N18a 单段折叠，84/83 差 1 条）。ORIG @0x08510c1a：
-    //   `mov 0x14(%eax),%eax; mov %eax,%edx` 两段（P254 enum 化可翻，但
-    //   m_field14 为 int 且消费面广，改型风险 > 收益）⇒ 保留单段形。
     m_itemIdx = item.m_field14;
     m_stackCount = item.m_field1c;
     m_goldPrice = item.m_field2c;
@@ -196,15 +195,16 @@ int CCeraShopGoods::GetExpiryDate() const
 
 float CCeraShopGoods::GetBonusWeight() const
 {
-    // ORIG 0x0854c588：`mov 0x2c(%eax),%eax; mov %eax,-0x4(%ebp); flds
-    // -0x4(%ebp)`（9 insn）—— 单条 disp 装载 + 槽 spill + flds。
-    // [b28d-35] N 封顶（N18a/N85 族，跨版本 type-pun 读展开差）：三形实测——
-    //   ①成员取址位读（本形）10 条：add+mov；②具名 int 局部 + 位读 12 条
-    //   （4.4 多发 lea+mov 到临时 -0x14）；③局部 union i/f 双视图 12 条同形
-    //   （探针 /tmp/d35_gbw.cpp f1-f6、/tmp/d35_gbw2.cpp g1-g6 共 12 形）。
-    //   4.1 的 `mov mem→槽; flds 槽`（9 条）在 4.4 不可复现；语义/值域一致，
-    //   取最短可读形。
-    return *reinterpret_cast<const float*>(&m_bonusWeight);
+    // [b28d-solo-CCeraShopGoods] N85 封顶（10 vs 9，助记符序列差 2 条 mov）：
+    // ORIG 0x0854c588 `mov 0x2c(%eax),%eax; mov %eax,-0x4(%ebp); flds
+    // -0x4(%ebp)`（sub $0x4，具名 float 局部被直接 flds）。4.4-O0 对
+    // 「具名 float 局部 + return」恒多发 `mov -0x4,%eax; mov %eax,-0x14;
+    // flds -0x14`（返回临时槽，sub $0x14）。五形实测同形不可翻：①具名
+    // float 局部（本形）②声明后赋值两句 ③register float ④float[1] 元素
+    // ⑤P226 语句表达式；直写 `return m_bonusWeight;` 折 `flds disp`（5 条，
+    // 更远）。语义/值域一致，取最短可读形。
+    float v = m_bonusWeight;
+    return v;
 }
 
 CItem* CCeraShopGoods::GetRelatedItem() const
@@ -238,24 +238,31 @@ bool ScanType(std::string& token, bool consume);
 int ScanInt(bool* ok);
 bool ScanStr(std::string* value);
 
-// 残余 DIFF 归因（N 类豁免，结构/语义/调用序已按报告全量转写）：
-//  ① 4.1 主链 39 对 `nop; jmp loop_head` 空 else 岛（0x089c→正确为
-//     0x088fdd31..0x088fdd5c 区起，报告 +0x007c 后）= 负例“空 else
-//     nop;jmp 岛 vs jump-threading”；
-//  ② item/串临时基槽深度差（ORIG item@-0x180/section@-0x84 vs 4.4
-//     -0x14c/-0x64，帧 0x190 vs 0x160）= P112 4.1/4.4 槽分配方向伪影，
-//     槽号差异在链接 AE 前以行差计；
-//  ③ bonus/mileage 环若干 `movzbl; xor$1; test` 与 jcc 目标镜像 = 负例
-//     jump-threading；④ .o 串/符号重定位立即数显示差（链接后消除）。
+// [b28d-solo-CCeraShopGoods] N 封顶（§6.2 三件套口径，ORIG @0x088fdcb5
+// size 0x1df4 = 1768 insn）：
+//  ① gap = 1768 vs 1778（我方多 10 条，0.6%）；
+//  ② 调用点差集（p167）：MISSING 0；EXTRA 仅 +2 `stCeraShopBonusItemInfo_t::
+//     D1Ev` —— ORIG 该 TU 中该类型为 trivial（bi 直接落栈槽 -0xc0/-0xbc/
+//     -0xb8，无 ctor/dtor 调用，0x088ff2c4..0x088ff36f 实证）；重建共享头
+//     CItemList.h:148 声明了用户析构（ORIG W 0x089363da，W9_StructMisc.cpp:23
+//     定义）⇒ 局部 bi 析构 2 处调用。消除须删共享头析构声明并同步
+//     W9_StructMisc.cpp 定义（跨 TU，非本泳道）。原 24 项差集已全部闭合：
+//     [cart/gift/cerapoint disallowance] 拆为三个独立分支（各 probe/find/
+//     ScanInt/eq 条件）、[not stackable buy] 与尾扫描用具名 endIt 复现
+//     ne<iterator,const_iterator>+转换构造、[npc info] 改函数级 str2、
+//     [exceptional...] 补 pair<unsigned int,int> 局部；
+//  ③ 帧/槽：ORIG sub $0x190、section@-0x84 vs 4.4 sub $0x180、section@-0x7c
+//     = N82（4.1 不按 lifetime 复用槽 / 4.4 槽按首次使用序分配）＋主链空
+//     else nop;jmp 岛 jump-threading ＋ N89（STL 内联实例）族；逐块语义
+//     比对一致（全部 ScanInt/ScanStr/push_back/find/迭代器调用点匹配）。
 bool importCashShopItemList(
     char* path, std::vector<STCeraShopItem>* itemList,
     std::vector<stCeraShopBonusInfo_t>& bonusList, void* param4, int* param5,
     std::map<int, std::vector<std::vector<int> > >* limitMap,
     std::vector<int>* param7)
 {
-    // b28d-35: DIFF→N 封顶（§6.2 巨件口径：ORIG @0x088fdcb5 size 0x1df4；
-    //   我方 1595 vs ORIG 1739，残余为 N82 帧/槽 + N78 内联清零 + N89 STL 内联
-    //   + jump-threading 块序，逐块语义比对一致）。
+    // [b28d-solo-CCeraShopGoods] 判词见函数头：calls 差集仅 +2（共享头
+    // 析构声明 vs ORIG trivial 视图），gap -10，帧/槽 N82 族。
     if (!loadRDARScriptFile("", path))
         return 0;
 
@@ -289,8 +296,9 @@ bool importCashShopItemList(
         {
             for (int i = 0; i < 0x10; ++i)
             {
-                std::string s;
-                ScanStr(&s);
+                // [b28d-solo-CCeraShopGoods] ORIG 0x088fddb0：ScanStr 写函数级
+                // str2（-0x88），无局部 string（ORIG 仅 2 次 SsC1Ev）。
+                ScanStr(&str2);
                 
                 ScanInt(&ok);
             }
@@ -325,7 +333,7 @@ bool importCashShopItemList(
                 item.m_field4 = seq;
                 ++seq;
                 item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field14 = (ENUM_CERA_SHOP_ITEM_NO)ScanInt(static_cast<bool*>(0));
                 item.m_field22 = ScanInt(static_cast<bool*>(0));
                 item.m_field20 = ScanInt(static_cast<bool*>(0));
                 item.m_field10 = ScanInt(static_cast<bool*>(0));
@@ -349,7 +357,7 @@ bool importCashShopItemList(
                 item.m_field4 = seq;
                 ++seq;
                 item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field14 = (ENUM_CERA_SHOP_ITEM_NO)ScanInt(static_cast<bool*>(0));
                 item.m_field22 = ScanInt(static_cast<bool*>(0));
                 item.m_field20 = ScanInt(static_cast<bool*>(0));
                 item.m_field10 = ScanInt(static_cast<bool*>(0));
@@ -377,7 +385,7 @@ bool importCashShopItemList(
                 STCeraShopItem item;
                 item.m_field0 = 1;
                 item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field14 = (ENUM_CERA_SHOP_ITEM_NO)ScanInt(static_cast<bool*>(0));
                 item.m_field1c = ScanInt(static_cast<bool*>(0));
                 item.m_field2c = ScanInt(static_cast<bool*>(0));
                 item.m_field30 = ScanInt(static_cast<bool*>(0));
@@ -404,7 +412,7 @@ bool importCashShopItemList(
                 STCeraShopItem item;
                 item.m_field0 = 2;
                 item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field14 = (ENUM_CERA_SHOP_ITEM_NO)ScanInt(static_cast<bool*>(0));
                 item.m_field1c = ScanInt(static_cast<bool*>(0));
                 item.m_field2c = ScanInt(static_cast<bool*>(0));
                 item.m_field30 = ScanInt(static_cast<bool*>(0));
@@ -432,7 +440,7 @@ bool importCashShopItemList(
                 STCeraShopItem item;
                 item.m_field0 = 2;
                 item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field14 = (ENUM_CERA_SHOP_ITEM_NO)ScanInt(static_cast<bool*>(0));
                 item.m_field1c = ScanInt(static_cast<bool*>(0));
                 item.m_field2c = ScanInt(static_cast<bool*>(0));
                 item.m_field30 = ScanInt(static_cast<bool*>(0));
@@ -460,7 +468,7 @@ bool importCashShopItemList(
                 STCeraShopItem item;
                 item.m_field0 = 9;
                 item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field14 = (ENUM_CERA_SHOP_ITEM_NO)ScanInt(static_cast<bool*>(0));
                 item.m_field1c = ScanInt(static_cast<bool*>(0));
                 item.m_field2c = ScanInt(static_cast<bool*>(0));
                 item.m_field30 = ScanInt(static_cast<bool*>(0));
@@ -488,7 +496,7 @@ bool importCashShopItemList(
                 STCeraShopItem item;
                 item.m_field0 = 3;
                 item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field14 = (ENUM_CERA_SHOP_ITEM_NO)ScanInt(static_cast<bool*>(0));
                 item.m_field1c = ScanInt(static_cast<bool*>(0));
                 item.m_field2c = ScanInt(static_cast<bool*>(0));
                 item.m_field30 = ScanInt(static_cast<bool*>(0));
@@ -529,7 +537,7 @@ bool importCashShopItemList(
                 STCeraShopItem item;
                 item.m_field8 = itemIdx;
                 item.m_field0 = ScanInt(static_cast<bool*>(0));   // +0x00 类型
-                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field14 = (ENUM_CERA_SHOP_ITEM_NO)ScanInt(static_cast<bool*>(0));
                 item.m_field1c = ScanInt(static_cast<bool*>(0));
                 item.m_field34 = ScanInt(static_cast<bool*>(0));
                 ScanStr(&item.m_name);
@@ -551,7 +559,7 @@ bool importCashShopItemList(
                     break;
                 STCeraShopItem item;
                 item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field14 = (ENUM_CERA_SHOP_ITEM_NO)ScanInt(static_cast<bool*>(0));
                 item.m_field2c = ScanInt(static_cast<bool*>(0));
                 item.m_field30 = ScanInt(static_cast<bool*>(0));
                 item.m_field38 = ScanInt(static_cast<bool*>(0));
@@ -568,11 +576,11 @@ bool importCashShopItemList(
                 itemList[7].push_back(item);
             }
         }
-        else if (section == "[cart disallowance]" ||
-                 section == "[gift disallowance]" ||
-                 section == "[cerapoint disallowance]")
+        else if (section == "[cart disallowance]")
         {
-            
+            // [b28d-solo-CCeraShopGoods] ORIG 0x088fed3b..0x088feea0：三个分区各为
+            // 独立分支（各自 probe C1/D1 + find + ScanInt），循环条件用
+            // `it == end()`（__gnu_cxx::eq）而非 !=（0x088fee36 实证）。
             while (true)
             {
                 itemIdx = ScanInt(&ok);
@@ -584,15 +592,47 @@ bool importCashShopItemList(
                 {
                     std::vector<STCeraShopItem>::iterator it =
                         std::find(itemList[i].begin(), itemList[i].end(), probe);
-                    if (it != itemList[i].end())
-                    {
-                        if (section == "[cart disallowance]")
-                            it->m_field52 = 1;
-                        else if (section == "[gift disallowance]")
-                            it->m_field50 = 1;
-                        else
-                            it->m_field51 = 1;
-                    }
+                    if (it == itemList[i].end())
+                        continue;
+                    it->m_field52 = 1;
+                }
+            }
+        }
+        else if (section == "[gift disallowance]")
+        {
+            while (true)
+            {
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
+                    break;
+                STCeraShopItem probe;
+                probe.m_field8 = itemIdx;
+                for (int i = 0; i < 0x10; ++i)
+                {
+                    std::vector<STCeraShopItem>::iterator it =
+                        std::find(itemList[i].begin(), itemList[i].end(), probe);
+                    if (it == itemList[i].end())
+                        continue;
+                    it->m_field50 = 1;
+                }
+            }
+        }
+        else if (section == "[cerapoint disallowance]")
+        {
+            while (true)
+            {
+                itemIdx = ScanInt(&ok);
+                if (ok != true)
+                    break;
+                STCeraShopItem probe;
+                probe.m_field8 = itemIdx;
+                for (int i = 0; i < 0x10; ++i)
+                {
+                    std::vector<STCeraShopItem>::iterator it =
+                        std::find(itemList[i].begin(), itemList[i].end(), probe);
+                    if (it == itemList[i].end())
+                        continue;
+                    it->m_field51 = 1;
                 }
             }
         }
@@ -660,8 +700,12 @@ bool importCashShopItemList(
             }
             for (int i = 0; i < 0x10; ++i)
             {
-                for (std::vector<STCeraShopItem>::iterator it = itemList[i].begin();
-                     it != itemList[i].end(); ++it)
+                // [b28d-solo-CCeraShopGoods] ORIG 0x088ff49f begin → 0x088ff4c2
+                // end → 0x088ff4da const_iterator 转换构造 → 0x088ff56a
+                // ne<iterator,const_iterator>；具名 endIt 复现混合比较。
+                std::vector<STCeraShopItem>::iterator it = itemList[i].begin();
+                std::vector<STCeraShopItem>::const_iterator endIt = itemList[i].end();
+                for (; it != endIt; ++it)
                 {
                     for (unsigned int k = 0; k < indexList.size(); ++k)
                     {
@@ -719,7 +763,7 @@ bool importCashShopItemList(
                     break;
                 STCeraShopItem item;
                 item.m_field8 = itemIdx;
-                item.m_field14 = ScanInt(static_cast<bool*>(0));
+                item.m_field14 = (ENUM_CERA_SHOP_ITEM_NO)ScanInt(static_cast<bool*>(0));
                 item.m_field1c = ScanInt(static_cast<bool*>(0));
                 item.m_field2c = ScanInt(static_cast<bool*>(0));
                 item.m_field30 = ScanInt(static_cast<bool*>(0));
@@ -737,10 +781,13 @@ bool importCashShopItemList(
         {
             
             do {
-                unsigned int price = (unsigned int)ScanInt(&ok);
+                // [b28d-solo-CCeraShopGoods] ORIG 0x088ff915 pair<unsigned int,int>
+                // 默认构造（C1Ev），0x088ff923/0x088ff94b 两次 ScanInt 逐字段写。
+                std::pair<unsigned int, int> p;
+                p.first = (unsigned int)ScanInt(&ok);
                 if (ok != true)
                     break;
-                int val = ScanInt(&ok);
+                p.second = ScanInt(&ok);
             } while (ok);
         }
     }
@@ -748,8 +795,11 @@ bool importCashShopItemList(
     // LAB_088ff96d：全部 16 桶中，item->m_field10 != 0 的条目置 m_field50 = 1。
     for (int i = 0; i < 0x10; ++i)
     {
-        for (std::vector<STCeraShopItem>::iterator it = itemList[i].begin();
-             it != itemList[i].end(); ++it)
+        // ORIG 0x088ff997 begin → 0x088ff9ba end → 0x088ff9d2 const_iterator
+        // 转换构造 → 0x088ffa26 ne<iterator,const_iterator>。
+        std::vector<STCeraShopItem>::iterator it = itemList[i].begin();
+        std::vector<STCeraShopItem>::const_iterator endIt = itemList[i].end();
+        for (; it != endIt; ++it)
         {
             if (it->m_field10 != 0)
                 it->m_field50 = 1;

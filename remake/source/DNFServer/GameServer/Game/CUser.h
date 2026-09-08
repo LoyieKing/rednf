@@ -2692,7 +2692,7 @@ public:
     int get_multiboxLotteryItemFailCnt();
     int GetCurCharacUsedFatigueQuantity();
     bool isHumanCertified();
-    unsigned char isLoadingHackGold();   // ORIG movzbl 直返（无 bool 规范化）
+    bool isLoadingHackGold();   // b28d-Main(P292)：ORIG 0x0867fbe0 调用点 `call; xor $1; test %al; je` ⇒ bool（字段 m_loadingHackGold 已 bool，体直透）
     bool isSaveInformNoticeFlag();
     int CheckMaxLuckyLevel();
     void OnRecvEvent();
@@ -2832,7 +2832,7 @@ public:
     void SendOpenflag();
     void SendMoenyLog();
     void SendRevengeDungeon();
-    int SendEffectItemInfo(unsigned int itemIdx);   // ORIG T 0x08659366（返回 Send() 结果；LoadEffectItemInfo 判 ==1）
+    bool SendEffectItemInfo(unsigned int itemIdx);   // b28d-Main(P292)：ORIG 0x086591e9 调用点 `call; xor $1; test %al; je` ⇒ bool
     // ORIG T 0x0868a782：升级罐产出统计。vec 长度==2 时按 Inven_Item+2 的 addInfo
     // 定位罐子（itemIdx==0x28be7b 为罐子），另一元素为产出道具，组
     // Packet_Event_UpgradeJar_Output_Statistic_GTS（0x106e/0x12）经 statistic proxy 下发。
@@ -3571,7 +3571,7 @@ public:
     void Send_SoloPlay_Reject_NotiPack(const char* msg, ENUM_SOLO_PLAY_REJECT_MODE mode,
                                        ENUM_SOLO_PLAY_REJECT_MSG code);
     void SendCeraShopGiftStatisticLog(unsigned int arg1, unsigned int arg2, unsigned long val64, unsigned int arg4);
-    unsigned int SendCoolTimeItemInfo(unsigned int nowMs);
+    bool SendCoolTimeItemInfo(unsigned int nowMs);   // b28d-Main(P292)：ORIG 0x086590da 同形 ⇒ bool
         // ---- Send 族（ORIG 地址已核 nm）----
     void SendEventBringUpInfo(); void SendHasNoGoWithApcQuestInParty(Quest const* quest);
                                                            // ORIG T 0x0866d972 _ZN5CUser30SendHasNoGoWithApcQuestInPartyEPK5Quest

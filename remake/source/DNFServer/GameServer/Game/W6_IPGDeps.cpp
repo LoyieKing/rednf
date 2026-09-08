@@ -64,20 +64,37 @@ stIPGStatus_t::stIPGStatus_t()
 // CIPGMgr —— 数据池与请求队列
 // ---------------------------------------------------------------------------
 
-// ORIG T 0x08104600 (0x6c)：循环对每个 worker 调 vtable 槽0（stop()），随后对
-// 数组基址调用槽2 deleting dtor 一次（delete[] 形态），最后清指针。
-// b28d-60 verdict=N：ORIG 43 vs 66 insn——delete[] 元素 dtor 循环展开形 + 数组
-// 索引（shl/add）跨版本差异（N78/N91 族）；stop() 虚调与 delete[] 调用点一致。
+// ORIG T 0x08104600 (0x6c)。
+// [b28d-solo-W6_IPGDeps] verdict=NEAR（43=43，残差仅 N7）。修法（三处真修复）：
+// ① 循环体 ORIG 0x08104618 无 i*0x10 缩放（`mov this; mov (%eax),%eax; mov (%eax),%edx;
+//    call *%edx`）⇒ 原码对首元素 `m_workers->stop()`（非 m_workers[i]），照抄 P171；
+// ② ORIG 0x08104648 段单次 D0 调用、无数组 cookie/元素循环 ⇒ 原码 `delete m_workers`
+//    （非 delete[]），照抄；③ ThreadInterface.h 虚函数声明序修正（stop 移到虚析构前，
+//    vtable 槽0=stop 与 ORIG _ZTV13ThreadInterface@0x8ce6b90 逐槽一致）；
+//    ④ 空 else{return;} 复现 ORIG 0x08104667 尾 `jmp;nop` 岛（P285）。
+// 残差：间接 call 目标寄存器 ORIG %edx vs 4.4.7 %eax（N7，P230 补：4.4.6 后端才同形，
+// 路由表不可改）；语义/调用点/帧全等。
 void CIPGMgr::Finalize()
 {
     if (m_workers != 0)
     {
         for (unsigned int i = 0; i < m_workerCount; ++i)
         {
-            m_workers[i].stop();
+            // [b28d-solo-W6_IPGDeps] ORIG 0x08104618 循环体无 i*0x10 缩放：
+            // `mov this; mov (%eax),%eax; mov (%eax),%edx; call *%edx`（vptr+0
+            // = stop，见 ThreadInterface.h 槽序修正）⇒ 原码对首元素调用，照抄 P171。
+            m_workers->stop();
         }
-        delete[] m_workers;
+        // [b28d-solo-W6_IPGDeps] ORIG 0x08104648 段单次 D0（vptr+8）调用、无数组
+        // cookie/元素析构循环 ⇒ 原码为单对象 `delete m_workers`（非 delete[]），照抄。
+        delete m_workers;
         m_workers = 0;
+    }
+    else
+    {
+        // [b28d-solo-W6_IPGDeps] ORIG 0x08104667 尾 `jmp;nop` 岛：4.4 对纯正向
+        // if 恒 jump-thread，空 else{return;} 保留体尾岛（P285）。
+        return;
     }
 }
 
@@ -102,19 +119,22 @@ void CIPGMgr::FreeIPGData(SIPGData* data)
 
 // ORIG T 0x08104754 (0x95)：queued 且 workerCount!=0 → Guard(reqMutex) 入队，
 // 返回 0；否则同步调 workers[0].ProcIPGSync 并透传其结果。
-// b28d-60 verdict=N：Guard EH 段 + `return 0` 寄存器策略（ORIG mov$0 经 ebx、
-// 4.4 直接 eax）+ Proc 结果槽化；调用点/P167 一致（P194/N91 族）。
+// [b28d-solo-W6_IPGDeps] verdict=AE（52=52）。修法：把 `Guard<Mutex> guard` 包进
+// 内层复合块、`return 0` 移到 Guard 作用域外 ⇒ 4.4 复现 ORIG 0x081047c7 在
+// Guard dtor 之后物化 `mov $0x0,%eax`（原形提前到 %ebx 缓存）。其余（Guard EH 段、
+// Proc 尾）逐条同形。
 SIPGData* CIPGMgr::PutIPGRequest(SIPGData* data, bool queued)
 {
     // ORIG 块序：queued==0/count==0 的 Proc 块为 fall-through 共享出口
     //（Proc 段在函数尾，je 直跳汇入）——P63 共享出口形。
-    // [b27 封顶] 正极性嵌套形最优（52 vs 52）。残差 = 队列块 mov $0 经 ebx
-    //（4.4 return 0 寄存器策略，P194）+ Proc 结果槽化 + Guard EH 段差（N91）。
-    // flag 汇聚/共享出口两形探针均劣化（-0x10 槽平移+result 双槽），维持。
     if (queued != 0 && m_workerCount != 0)
     {
-        Guard<Mutex> guard(&m_reqMutex);
-        m_reqQueue.push(data);
+        // [b28d-solo-W6_IPGDeps] ORIG 0x081047c7 `mov $0x0,%eax` 在 Guard dtor
+        // 之后物化（return 0 在 Guard 作用域外）；4.4 原形提前到 %ebx 缓存。
+        {
+            Guard<Mutex> guard(&m_reqMutex);
+            m_reqQueue.push(data);
+        }
         return 0;
     }
     return m_workers->ProcIPGSync(data);
@@ -140,18 +160,14 @@ SIPGData* CIPGMgr::_GetIPGRequest()
 
 // ORIG W 0x081010ae (0x45)：objdump 转写（无独立报告）——
 // status+0=pool.Remain、+4=pool.Size、+8=reqQueue.size。
-// b28d-60 verdict=N76/NL22（复证）：前 2 store ORIG LHS-first vs 4.4 RHS-first，
-// 第 3 store（size_t 无转换）反向；字段 int/unsigned 两旋钮互斥（P248 反例模式）。
+// [b28d-solo-W6_IPGDeps] 修法：字段改 int（P211/P248 档③）+ 删三个冗余 cast——
+// 前 2 store 与 Remain/Size() 的 int 返回同型 ⇒ LHS-first；第 3 store 与
+// queue::size() 的 size_t 异型 ⇒ RHS-first+edx 中转。三 store 装载序与 ORIG 同形。
 void CIPGMgr::getIPGStatus(stIPGStatus_t& status)
 {
-    // [b27 封顶] 唯一残差 = 前 2 store 装载序：ORIG LHS 槽先（mov 0xc(%ebp),%edx
-    // → mov %eax,(%edx)），4.4 恒 RHS 先（mov %eax,%edx 中转 + LHS 后载，N76
-    // 已异型 int→uint 边界内；第 3 store queue::size 返回 size_t 无转换恰为
-    // 4.4 恒形两侧同形）。字段同型化已试不消中转（int 同型仍 RHS 先），
-    // N76/NL22 封顶。
-    status.m_field00 = (unsigned int)m_pool.Remain();
-    status.m_field04 = (unsigned int)m_pool.Size();
-    status.m_field08 = (unsigned int)m_reqQueue.size();
+    status.m_field00 = m_pool.Remain();
+    status.m_field04 = m_pool.Size();
+    status.m_field08 = m_reqQueue.size();
 }
 
 // ---------------------------------------------------------------------------
@@ -182,6 +198,12 @@ SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForChina(SIPGData* /*data*/)
 // mov (%edx),%ecx` = vptr+0x34 = slot13 = IIPGHelperInterface::IPGResult
 // （TaiwanCash.h:244；vptr+0x2c=slot11 才是 IPGQuery）⇒ 调用目标为
 // IPGResult(req, res)（压栈序 arg1=req@0x4/arg2=res@0x8），非 IPGQuery。已上报 Main 裁定。
+// [b28d-solo-W6_IPGDeps] verdict=NEAR（58=58，残差仅 N7）。修法：① 内联
+// `m_mgr->GetIPGHelper()->IPGResult(req,res)`（ORIG helper 指针无槽往返，P0/P52，
+// 消 -0xc 具名槽）；② req==0 判定改 `while(req==0){Sleep;goto next_iteration;}`
+// 复现 ORIG `cmpl $0,-0x10; sete %al; test %al,%al; je <Proc>` 的 ==0 物化
+// （P225 while 形；4.4 对 if 恒折 jne 直跳）。残差=虚调用目标寄存器 ORIG %ecx/
+// 实参 %edx vs 4.4 %edx/%ecx（N7，4.4.7 后端固有）。
 void CIPGMgr::CIPGWorker::dispatch(void* /*arg*/)
 {
     SIPGData* req = 0;
@@ -189,24 +211,27 @@ void CIPGMgr::CIPGWorker::dispatch(void* /*arg*/)
     while (!GlobalData::s_server_stop)
     {
         req = m_mgr->_GetIPGRequest();
-        if (req == 0)
+        // [b28d-solo-W6_IPGDeps] ORIG 0x081052a0 `cmpl $0,-0x10; sete %al;
+        // test %al,%al; je <Proc>` = 4.1 的 ==0 bool 物化；4.4 对 if 恒折 jne
+        // 直跳。按 P225（while 形复现 setcc 物化）用 while+goto 尾标签形。
+        while (req == 0)
         {
             OS_API::Sleep(10);
-            continue;
+            goto next_iteration;
         }
         res = ProcIPGSync(req);
 
-        IIPGHelperInterface* helper = m_mgr->GetIPGHelper();
+        // [b28d-solo-W6_IPGDeps] ORIG 0x081052d7 段：GetIPGHelper() 结果留 %eax
+        // 直作 receiver（无具名局部槽往返）⇒ 内联链式调用（P0/P52）。
         // ORIG vptr+0x34 = slot13 IPGResult(req, res)（vtable 0x08b420a0 逐槽实证）。
-        helper->IPGResult(req, res);
-
-
+        m_mgr->GetIPGHelper()->IPGResult(req, res);
         if (res != 0)
         {
             m_mgr->FreeIPGData(res);
             res = 0;
         }
         m_mgr->FreeIPGData(req);
+next_iteration:;
     }
 }
 
@@ -223,8 +248,11 @@ void CIPGMgr::CIPGWorker::dispatch(void* /*arg*/)
 // 保留供 0x08175f94 等真实 call 点使用）。残差为 N82 槽序/ndiff 951 字节层
 // 排布（详见 docs/asm_translation_patterns.md 负例表）。
 // ---------------------------------------------------------------------------
-// b28d-60 verdict=N82：P167 调用点差集 CLEAR（50/50，0 缺 0 多）⇒ 语义完成；
-// 601=601 指令数相等，残差为帧/槽层排布（b25 已核销 getBillingCash 6 处）。
+// [b28d-solo-W6_IPGDeps] verdict=DIFF/N82（601=601）。§6.2 三件套：① gap=0
+// （601=601）；② p167 调用点差集 CLEAR（50/50，0 缺 0 多，/tmp/tu_W6_IPGDeps.o
+// 复验）；③ 语义逐块比对已完成（b25 核销 getBillingCash 6 处 → 直接成员访问）。
+// 残差为 4.4 槽复用策略与 difflib 窗口错位（N82/N95 族，ndiff 与完成度反向）；
+// 语义完成、byte 层 N 封顶。
 SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
 {
     SIPGData* result = 0;
@@ -424,8 +452,12 @@ SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
 
 namespace WongWork { namespace IPG {
 
-// b28d-60 verdict=N/P75：唯一残差=addrLen 实参装载时刻（ORIG 先载 -0xc→%ecx，
-// 4.4 在 m_sock 装载后）——跨版本实参调度差异，语义/调用点一致。
+// [b28d-solo-W6_IPGDeps] verdict=DIFF/N(P75)（48=48）。唯一残差 = connect 三实参
+// 求值序：ORIG `mov -0xc(%ebp),%ecx`(arg3 addrLen) → `lea -0x1c`(arg2) →
+// `mov (%eax),%eax`(arg1 m_sock) = 严格从右到左；4.4.7 为 arg2→arg1→arg3。
+// 探针 /tmp/probe_argorder{,2,3,4,5}.cpp 五形穷举（直接调用/void* cast/union
+// &sa/具名指针/结构体转换）均无 arg3-first 形 ⇒ 跨版本实参调度差异封顶（P75）；
+// 语义/调用点/帧一致。
 int CIPGMgr::CIPGWorker::CIPGNetwork::ConnectTo(const char* ip, unsigned short port)
 {
     sockaddr_in addr;
@@ -453,7 +485,10 @@ int CIPGMgr::CIPGWorker::CIPGNetwork::ConnectTo(const char* ip, unsigned short p
 // ---------------------------------------------------------------------------
 
 // ORIG T 0x08100b3e (0x153)。
-// b28d-60 verdict=N：P167 CLEAR（9/9，0 缺 0 多）⇒ 语义完成；残差=帧/槽分配。
+// [b28d-solo-W6_IPGDeps] verdict=DIFF/N(N81/N102)（92 vs 91）。P167 CLEAR（9/9）
+// ⇒ 语义完成；唯一残差 = `m_ipgIP[0]` 读：ORIG 0x08100ba7 `add $0x2b8,%eax;
+// movzbl (%eax),%eax` 两步，4.4 对数组元素直读恒折 `movzbl 0x2b8(%eax),%eax`
+// 单步（N102 七形探针全败；指针中转引入槽位，探针 40/41）。其余助记符序列全等。
 int CIPGHelper::Initialize(unsigned int param1, unsigned int param2)
 {
     if (m_mgr != 0)
@@ -515,12 +550,19 @@ CIPGMgr* CIPGHelper::GetIPGMgr()
 }
 
 // ORIG T 0x08100a2e (0x10f)。
-// b28d-60 verdict=N：P167 CLEAR（9/9）⇒ 语义完成；残差=帧/槽（N82）。
+// [b28d-solo-W6_IPGDeps] verdict=AE（74=74）。修法（三处）：① 删 accStr 具名局部，
+// NumberToString 结果内联作 snprintf 第 4 变参（ORIG 0x08100a56 无槽往返，P0/P134）；
+// ② SIPGData::m_uid unsigned→int ⇒ ORIG 0x08100b22 `call GetUID; mov %eax,%edx;
+// mov -0xc(%ebp),%eax; mov %edx,0x20(%eax)` 的 RHS-first+中转（P211 档③/BL2）；
+// ③ m_notifyFlag unsigned char→bool + 源 `(unsigned char)flag` ⇒ ORIG 0x08100b31
+// LHS-first（P300）。P167 CLEAR（9/9）。
 SIPGData* CIPGHelper::_SetIPGData(CUser* user, IPG_DATA_TYPE type, bool flag)
 {
     SIPGData* data = m_mgr->AllocIPGData();
-    char* accStr = NumberToString(user->get_acc_id(), 0);      // _Z14NumberToStringji
-    OS_API::snprintf(data->m_account, 0x14, "%s", accStr);
+    // [b28d-solo-W6_IPGDeps] ORIG 0x08100a56 段：NumberToString 结果无槽往返
+    // （直接 `mov %eax,0xc(%esp)` 作 snprintf 第 4 变参）⇒ 内联实参（P0/P134）。
+    OS_API::snprintf(data->m_account, 0x14, "%s",
+                     NumberToString(user->get_acc_id(), 0));   // _Z14NumberToStringji
     strncpy(data->m_accName, user->get_acc_name(), 0x28);      // ORIG n=0x28 > m_accName[0x14]【越界写】
     memcpy(data->m_gameCode, "DUNF", 5);                       // DAT_08b41459 = "DUNF\0"
     data->m_recordLen = m_dataTableA[type];
@@ -528,7 +570,10 @@ SIPGData* CIPGHelper::_SetIPGData(CUser* user, IPG_DATA_TYPE type, bool flag)
     data->m_productCode = (unsigned short)m_dataTableB[type];
     data->m_uid = user->GetUID();
     data->m_type = type;
-    data->m_notifyFlag = flag;   // ORIG mov %dl,0x24 直存参数字节
+    // [b28d-solo-W6_IPGDeps] ORIG 0x08100b31 段 `mov -0xc(%ebp),%eax;
+    // movzbl -0x1c(%ebp),%edx; mov %dl,0x24(%eax)` = LHS-first；按 P300 以
+    // uchar 源形（cast）翻转 4.4 的 RHS-first。
+    data->m_notifyFlag = (unsigned char)flag;   // ORIG mov %dl,0x24 直存参数字节
     return data;
 }
 
@@ -579,32 +624,38 @@ void CIPGHelper::IPGInput(CUser* user,
 }
 
 // ORIG T 0x080ffca4 (0x203)。
-// b28d-60 verdict=N：P167 CLEAR（18/18）；残差=槽位（N82）。
+// [b28d-solo-W6_IPGDeps] verdict=AE（121=121）。修法：① 删 in 具名局部，全字段走
+// `data->m_cmd.m_input.*` 成员链（ORIG 各点 add/lea $0xdd/0xe8/… 重算，P0/P183）；
+// ② SIPGDataInputView::m_price unsigned→int（P211 档③）⇒ ORIG 0x080ffdxx
+// `mov 0x14(%ebp),%edx; mov -0xc(%ebp),%eax; mov %edx,0x98(%eax)` RHS-first 3 条形。
+// P167 CLEAR（18/18）。
 void CIPGHelper::IPGInput(CUser* user, unsigned char serviceType, unsigned int price,
                           const char* p4, const char* p5, const char* p6,
                           const char* p7, const char* p8, void* callback)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_INPUT, true);
-    SIPGDataInputView* in = &data->m_cmd.m_input;
-    strncpy(in->m_argDD, p4, 0xb);
-    strncpy(in->m_argE8, p5, 0xc);
-    strncpy(in->m_argF4, p6, 0x14);
+    // [b28d-solo-W6_IPGDeps] ORIG 0x080ffca4 无 in 具名中转（data 槽单承载，
+    // 各字段 add/lea $0xdd/0xe8/0xf4/0x108/0x16c/0x1d0/0x202/0x210/0x24c/0x26d 重算）
+    // ⇒ 全成员链（P0/P183）。
+    strncpy(data->m_cmd.m_input.m_argDD, p4, 0xb);
+    strncpy(data->m_cmd.m_input.m_argE8, p5, 0xc);
+    strncpy(data->m_cmd.m_input.m_argF4, p6, 0x14);
     if (p7 != 0)
     {
-        strncpy(in->m_arg108, p7, 100);
+        strncpy(data->m_cmd.m_input.m_arg108, p7, 100);
     }
     if (p8 != 0)
     {
-        strncpy(in->m_arg16C, p8, 100);
+        strncpy(data->m_cmd.m_input.m_arg16C, p8, 100);
     }
-    strncpy(in->m_userName, user->GetUserName(), 0x32);
-    strncpy(in->m_ssn, user->GetSsnString(), 0xe);
-    strncpy(in->m_email, user->GetUserEMail(), 0x3c);
-    memset(in->m_zero24C, 0, 7);
+    strncpy(data->m_cmd.m_input.m_userName, user->GetUserName(), 0x32);
+    strncpy(data->m_cmd.m_input.m_ssn, user->GetSsnString(), 0xe);
+    strncpy(data->m_cmd.m_input.m_email, user->GetUserEMail(), 0x3c);
+    memset(data->m_cmd.m_input.m_zero24C, 0, 7);
     strncpy(data->m_account, user->get_acc_name(), 0x20);     // ORIG n=0x20 > m_account[0x14]【越界写】
     strncpy(data->m_characName, user->getCurCharacName(), 0x1e); // ORIG n=0x1e > m_characName[0x14]【越界写】
-    in->m_serviceType = serviceType;
-    in->m_price = price;
+    data->m_cmd.m_input.m_serviceType = serviceType;
+    data->m_cmd.m_input.m_price = price;
     data->m_callback = callback;
     m_mgr->PutIPGRequest(data, true);
 }
@@ -680,52 +731,59 @@ void CIPGHelper::IPGOutput(CUser* user,
 }
 
 // ORIG T 0x081000f6 (0x137)。
-// b28d-60 verdict=N：P167 CLEAR（11/11）；残差=视图链 reloc + 槽位（N82）。
+// [b28d-solo-W6_IPGDeps] verdict=AE（76=76）。修法：删 `SIPGDataPointView* pt`
+// 具名局部，全部改 `data->m_cmd.m_point.*` 成员链（ORIG 0x081000f6 各字段
+// `add $0x8c/0x94/0xac/0xb0/0xb1/0xb2` 直接重算，无槽往返，P0/P183）。
+// P167 CLEAR（11/11）。
 void CIPGHelper::IPGOutputPoint(CUser* user,
                                 const char* p2, const char* p3, const char* p4,
                                 const char* p5, const char* p6, void* callback)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_POINT, true);
-    SIPGDataPointView* pt = &data->m_cmd.m_point;
+    // [b28d-solo-W6_IPGDeps] ORIG 0x081000f6 无 pt 具名中转（data 槽单承载，
+    // 各字段 add $0x8c/0x94/0xac/0xb0/0xb1/0xb2 直接重算）⇒ 全成员链访问（P0/P183）。
     sprintf(data->m_account, "%d", user->get_acc_id());
     strncpy(data->m_accName, user->get_acc_name(), 0x28);        // ORIG n=0x28【越界写】
     strncpy(data->m_gameCode, user->getCurCharacName(), 0x28);   // ORIG n=0x28 > m_gameCode[5]【越界写】
-    strncpy(pt->m_itemNo, p2, 8);
-    strncpy(pt->m_arg94, p4, 0x15);  // asm 只写 p4，p5 不落盘
-    pt->m_point = (unsigned int)atoi(p3);
-    pt->m_command = 0x55;            // 'U'：输出点模式
-    pt->m_cmdA = 0;
-    pt->m_cmdB = 0;
+    strncpy(data->m_cmd.m_point.m_itemNo, p2, 8);
+    strncpy(data->m_cmd.m_point.m_arg94, p4, 0x15);  // asm 只写 p4，p5 不落盘
+    data->m_cmd.m_point.m_point = (unsigned int)atoi(p3);
+    data->m_cmd.m_point.m_command = 0x55;            // 'U'：输出点模式
+    data->m_cmd.m_point.m_cmdA = 0;
+    data->m_cmd.m_point.m_cmdB = 0;
     data->m_callback = callback;
     m_mgr->PutIPGRequest(data, true);
 }
 
 // ORIG T 0x0810034e (0x18f)。返回值恒为请求临时块地址（调用前已释放）——ORIG 如此。
-// b28d-60 verdict=N：P167 CLEAR（11/11）；残差=槽位/视图链（N82）。
+// [b28d-solo-W6_IPGDeps] verdict=NEAR（108=108，残差仅 N7）。修法：删 out/rv 具名
+// 局部，全字段走 `req->m_cmd.m_output.*` / `res->m_cmd.m_output.*` 成员链
+// （ORIG 各点 add $0x69/0x71/0x7d/0x91/0xf5/0x173 重算，P0/P183）。残差=虚调用
+// 目标寄存器 ORIG %edx vs 4.4 %eax（N7）。P167 CLEAR（11/11）。
 SIPGData* CIPGHelper::IPGOutputSimulation(CUser* user,
                                           const char* p2, const char* p3,
                                           const char* p4, const char* p5,
                                           const char* p6, void* callback)
 {
     SIPGData* req = _SetIPGData(user, IPG_TYPE_OUTPUT, true);
-    SIPGDataOutputView* out = &req->m_cmd.m_output;
-    strncpy(out->m_price, p2, 8);
-    strncpy(out->m_pay, p3, 0xc);
-    strncpy(out->m_arg7D, p4, 0x14);
+    // [b28d-solo-W6_IPGDeps] ORIG 0x0810034e 无 out/rv 具名中转（req 槽单承载，
+    // 各字段 add $0x69/0x71/0x7d/0x91/0xf5/0x173 重算）⇒ 全成员链（P0/P183）。
+    strncpy(req->m_cmd.m_output.m_price, p2, 8);
+    strncpy(req->m_cmd.m_output.m_pay, p3, 0xc);
+    strncpy(req->m_cmd.m_output.m_arg7D, p4, 0x14);
     if (p5 != 0)
     {
-        strncpy(out->m_desc91, p5, 100);
+        strncpy(req->m_cmd.m_output.m_desc91, p5, 100);
     }
     if (p6 != 0)
     {
-        strncpy(out->m_descF5, p6, 100);
+        strncpy(req->m_cmd.m_output.m_descF5, p6, 100);
     }
     req->m_callback = callback;
 
     SIPGData* res = m_mgr->AllocIPGData();
-    SIPGDataOutputView* rv = &res->m_cmd.m_output;
     memcpy(&res->m_account, &req->m_account, req->m_recordLen);  // 长度取 req+0 记录长（ORIG mov (%eax)）
-    memcpy(rv->m_resultCode, "0", 2);                            // DAT_08b41446
+    memcpy(res->m_cmd.m_output.m_resultCode, "0", 2);            // DAT_08b41446
     res->m_recordLen = req->m_recordLen;
     res->m_type = req->m_type;
 
@@ -738,133 +796,151 @@ SIPGData* CIPGHelper::IPGOutputSimulation(CUser* user,
 }
 
 // ORIG T 0x081004de (0x138)。
+// [b28d-solo-W6_IPGDeps] verdict=AE（77=77）。修法：① 删 cv 具名局部，全字段走
+// `data->m_cmd.m_cancel.*` 成员链（ORIG 各点 add $0x69/0x7e/… 重算，P0/P183）；
+// ② tran 拷贝改匿名 union 视图整体赋值 `data->m_cmd.m_cancel.m_tran = *tran`
+// （TaiwanCash.h P246 双视角）⇒ 复现 ORIG 尾部 tran 指针单载 + 3 dword 连续拷贝。
 void CIPGHelper::IPGOutputCancel(CUser* user,
                                  const char* p2, const char* p3, const char* p4,
                                  const char* p5, const char* p6, const char* p7,
                                  void* callback, Taiwan::BillTransaction* tran)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_OUTPUT_CANCEL, false);
-    SIPGDataCancelView* cv = &data->m_cmd.m_cancel;
-    strncpy(cv->m_arg69, p2, 0x15);
-    strncpy(cv->m_arg7E, p3, 8);
-    strncpy(cv->m_arg86, p4, 0xc);
-    strncpy(cv->m_arg92, p5, 0x14);
+    // [b28d-solo-W6_IPGDeps] ORIG 0x081004de 无 cv 具名中转（data 槽单承载，
+    // 各字段 add $0x69/0x7e/0x86/0x92/0xa6/0x10a 直接重算）⇒ 全成员链（P0/P183）。
+    strncpy(data->m_cmd.m_cancel.m_arg69, p2, 0x15);
+    strncpy(data->m_cmd.m_cancel.m_arg7E, p3, 8);
+    strncpy(data->m_cmd.m_cancel.m_arg86, p4, 0xc);
+    strncpy(data->m_cmd.m_cancel.m_arg92, p5, 0x14);
     if (p6 != 0)
     {
-        strncpy(cv->m_argA6, p6, 100);
+        strncpy(data->m_cmd.m_cancel.m_argA6, p6, 100);
     }
     if (p7 != 0)
     {
-        strncpy(cv->m_arg10A, p7, 100);
+        strncpy(data->m_cmd.m_cancel.m_arg10A, p7, 100);
     }
     data->m_callback = callback;
-    cv->m_tranField0 = tran->m_field0;
-    cv->m_tranNo = tran->m_tranNo;
+    // [b28d-solo-W6_IPGDeps] ORIG 0x081004de 尾部 `mov 0x2c(%ebp),%edx` 载 tran
+    // 指针一次跨 3 个 dword store（%ecx 中转）存活 ⇒ union 视图整体赋值（P246）。
+    data->m_cmd.m_cancel.m_tran = *tran;
     m_mgr->PutIPGRequest(data, true);
 }
 
 // ORIG T 0x08100616 (0x179)：Alloc 响应块 → 拷 req/res 字段 → 投递（无前置保留字段）。
-// b28d-60 verdict=N：P167 CLEAR（9/9）；残差=槽位/视图链（N82）。
+// [b28d-solo-W6_IPGDeps] verdict=AE（97=97）。修法：① 删 dv/rv/sv 具名局部，req/res
+// 各点成员链重算（P0/P183）；② tran 拷贝改 union 视图整体赋值
+// `d->m_cmd.m_cancel.m_tran = res->m_cmd.m_output.m_tran`（P246）⇒ ORIG 尾部
+// res 指针单载 + 3 dword 连续拷贝。P167 CLEAR（9/9）。
 void CIPGHelper::IPGOutputCancel(SIPGData* req, SIPGData* res)
 {
     SIPGData* d = m_mgr->AllocIPGData();
-    SIPGDataCancelView* dv = &d->m_cmd.m_cancel;
-    const SIPGDataOutputView* rv = &req->m_cmd.m_output;
-    const SIPGDataOutputView* sv = &res->m_cmd.m_output;
+    // [b28d-solo-W6_IPGDeps] ORIG 0x08100616 无 dv/rv/sv 具名中转（d 槽单承载，
+    // req/res 各点 `mov 0xc/0x10(%ebp),%eax; add $0xNN` 重算）⇒ 全成员链（P0/P183）。
     memcpy(&d->m_account, &req->m_account, 0x41);
     // 响应块 +0x16e 文本槽（ORIG 08100650 `add $0x16e` 作 strncpy 源，n=0x15）。
-    strncpy(dv->m_arg69, res->m_cmd.m_cancel.m_srcMsg16E, 0x15);
-    strncpy(dv->m_arg7E, rv->m_price, 8);
-    strncpy(dv->m_arg92, rv->m_arg7D, 0x14);
-    strncpy(dv->m_arg86, rv->m_pay, 0xc);
-    if (&rv->m_desc91[0] != 0)   // ORIG 081006e3 `add $0x91,%eax; test %eax,%eax`：恒真遗留
+    strncpy(d->m_cmd.m_cancel.m_arg69, res->m_cmd.m_cancel.m_srcMsg16E, 0x15);
+    strncpy(d->m_cmd.m_cancel.m_arg7E, req->m_cmd.m_output.m_price, 8);
+    strncpy(d->m_cmd.m_cancel.m_arg92, req->m_cmd.m_output.m_arg7D, 0x14);
+    strncpy(d->m_cmd.m_cancel.m_arg86, req->m_cmd.m_output.m_pay, 0xc);
+    if (&req->m_cmd.m_output.m_desc91[0] != 0)   // ORIG 081006e3 `add $0x91,%eax; test %eax,%eax`：恒真遗留
     {
-        strncpy(dv->m_argA6, rv->m_desc91, 100);
+        strncpy(d->m_cmd.m_cancel.m_argA6, req->m_cmd.m_output.m_desc91, 100);
     }
-    if (&rv->m_descF5[0] != 0)   // 同上（ORIG 08100715）
+    if (&req->m_cmd.m_output.m_descF5[0] != 0)   // 同上（ORIG 08100715）
     {
-        strncpy(dv->m_arg10A, rv->m_descF5, 100);
+        strncpy(d->m_cmd.m_cancel.m_arg10A, req->m_cmd.m_output.m_descF5, 100);
     }
-    dv->m_tranField0 = sv->m_tranField0;
-    dv->m_tranNo = sv->m_tranNo;
+    // [b28d-solo-W6_IPGDeps] ORIG 0x08100616 尾部：res 指针单次装载 + 3 dword
+    // 连续拷贝（0x1dc/0x1e0/0x1e4 → 0x1f0/0x1f4/0x1f8）⇒ 结构整体赋值形。
+    d->m_cmd.m_cancel.m_tran = res->m_cmd.m_output.m_tran;
     d->m_notifyFlag = 0;
     m_mgr->PutIPGRequest(d, true);
 }
 
 // ORIG T 0x08100cd2 (0x138)。
-// b28d-60 verdict=N：P167 CLEAR（8/8）；残差=槽位（N82）。
+// [b28d-solo-W6_IPGDeps] verdict=AE（77=77）。修法：① 删 cv 具名局部，全字段走
+// `data->m_cmd.m_cancel.*` 成员链（P0/P183）；② tran 拷贝改匿名 union 视图整体赋值
+// `data->m_cmd.m_cancel.m_tran = *tran`（P246）⇒ ORIG 尾部单载 + 3 dword 连续拷贝。
+// P167 CLEAR（8/8）。
 void CIPGHelper::IPGOutputConfirm(CUser* user,
                                   const char* p2, const char* p3, const char* p4,
                                   const char* p5, const char* p6, const char* p7,
                                   void* callback, Taiwan::BillTransaction* tran)
 {
     SIPGData* data = _SetIPGData(user, IPG_TYPE_OUTPUT_CONFIRM, false);
-    SIPGDataCancelView* cv = &data->m_cmd.m_cancel;
-    strncpy(cv->m_arg69, p2, 0x15);
-    strncpy(cv->m_arg7E, p3, 8);
-    strncpy(cv->m_arg86, p4, 0xc);
-    strncpy(cv->m_arg92, p5, 0x14);
+    // [b28d-solo-W6_IPGDeps] ORIG 0x08100cd2 无 cv 具名中转（data 槽单承载，
+    // 各字段 add $0x69/0x7e/0x86/0x92/0xa6/0x10a 直接重算）⇒ 全成员链（P0/P183）。
+    strncpy(data->m_cmd.m_cancel.m_arg69, p2, 0x15);
+    strncpy(data->m_cmd.m_cancel.m_arg7E, p3, 8);
+    strncpy(data->m_cmd.m_cancel.m_arg86, p4, 0xc);
+    strncpy(data->m_cmd.m_cancel.m_arg92, p5, 0x14);
     if (p6 != 0)
     {
-        strncpy(cv->m_argA6, p6, 100);
+        strncpy(data->m_cmd.m_cancel.m_argA6, p6, 100);
     }
     if (p7 != 0)
     {
-        strncpy(cv->m_arg10A, p7, 100);
+        strncpy(data->m_cmd.m_cancel.m_arg10A, p7, 100);
     }
     data->m_callback = callback;
-    cv->m_tranField0 = tran->m_field0;
-    cv->m_tranNo = tran->m_tranNo;
+    // [b28d-solo-W6_IPGDeps] ORIG 0x08100cd2 尾部：tran 指针单次装载 + 3 dword
+    // 连续拷贝 ⇒ 结构整体赋值形（逐字段赋值使 4.4 重载指针 ×3）。
+    data->m_cmd.m_cancel.m_tran = *tran;
     m_mgr->PutIPGRequest(data, true);
 }
 
 // ORIG T 0x08100e0a (0x194)：前置写保留字段后按 Cancel 同款拷 req/res → 投递。
-// b28d-60 verdict=N：P167 CLEAR（9/9）；残差=槽位/视图链（N82）。
+// [b28d-solo-W6_IPGDeps] verdict=AE（103=103）。修法：① 删 dv/rv/sv 具名局部，
+// req/res 各点成员链重算（P0/P183）；② tran 拷贝改 union 视图整体赋值（P246）
+// ⇒ ORIG 尾部 res 指针单载 + 3 dword 连续拷贝。P167 CLEAR（9/9）。
 void CIPGHelper::IPGOutputConfirm(SIPGData* req, SIPGData* res)
 {
     SIPGData* d = m_mgr->AllocIPGData();
-    SIPGDataCancelView* dv = &d->m_cmd.m_cancel;
-    const SIPGDataOutputView* rv = &req->m_cmd.m_output;
-    const SIPGDataOutputView* sv = &res->m_cmd.m_output;
+    // [b28d-solo-W6_IPGDeps] ORIG 0x08100e0a 无 dv/rv/sv 具名中转（d 槽单承载，
+    // req/res 各点 `mov 0xc/0x10(%ebp),%eax; add $0xNN` 重算）⇒ 全成员链（P0/P183）。
     d->m_uid = 0xffffffff;                       // ORIG 08100e24 `movl $0xffffffff,0x20`
     d->m_type = (IPG_DATA_TYPE)5;                // ORIG 08100e2e `movl $0x5,0x1c`
     d->m_notifyFlag = 0;
     memcpy(&d->m_account, &req->m_account, 0x41);
     // 响应块 +0x16e 文本槽（ORIG 08100e5f `add $0x16e`）。
-    strncpy(dv->m_arg69, res->m_cmd.m_cancel.m_srcMsg16E, 0x15);
-    strncpy(dv->m_arg7E, rv->m_price, 8);
-    strncpy(dv->m_arg92, rv->m_arg7D, 0x14);
-    strncpy(dv->m_arg86, rv->m_pay, 0xc);
-    if (&rv->m_desc91[0] != 0)   // ORIG 081006e3 `add $0x91,%eax; test %eax,%eax`：恒真遗留
+    strncpy(d->m_cmd.m_cancel.m_arg69, res->m_cmd.m_cancel.m_srcMsg16E, 0x15);
+    strncpy(d->m_cmd.m_cancel.m_arg7E, req->m_cmd.m_output.m_price, 8);
+    strncpy(d->m_cmd.m_cancel.m_arg92, req->m_cmd.m_output.m_arg7D, 0x14);
+    strncpy(d->m_cmd.m_cancel.m_arg86, req->m_cmd.m_output.m_pay, 0xc);
+    if (&req->m_cmd.m_output.m_desc91[0] != 0)   // ORIG 081006e3 `add $0x91,%eax; test %eax,%eax`：恒真遗留
     {
-        strncpy(dv->m_argA6, rv->m_desc91, 100);
+        strncpy(d->m_cmd.m_cancel.m_argA6, req->m_cmd.m_output.m_desc91, 100);
     }
-    if (&rv->m_descF5[0] != 0)   // 同上（ORIG 08100715）
+    if (&req->m_cmd.m_output.m_descF5[0] != 0)   // 同上（ORIG 08100715）
     {
-        strncpy(dv->m_arg10A, rv->m_descF5, 100);
+        strncpy(d->m_cmd.m_cancel.m_arg10A, req->m_cmd.m_output.m_descF5, 100);
     }
-    dv->m_tranField0 = sv->m_tranField0;
-    dv->m_tranNo = sv->m_tranNo;
+    // [b28d-solo-W6_IPGDeps] ORIG 0x08100e0a 尾部：res 指针单次装载 + 3 dword
+    // 连续拷贝（0x1dc/0x1e0/0x1e4 → 0x1f0/0x1f4/0x1f8）⇒ 结构整体赋值形。
+    d->m_cmd.m_cancel.m_tran = res->m_cmd.m_output.m_tran;
     d->m_notifyFlag = 0;
     m_mgr->PutIPGRequest(d, true);
 }
 
-// b28d-60 verdict=N：P167 CLEAR（22/22）；残差=槽位/Guard 链（N82/N91）。
 // ORIG T 0x0810085e (0x1d0)：结果回传流 —— Acquire→header 0x48/err -1→按有无
 // 响应数据组织 0/1 分支 put_binary(req[,res])→回调数据或回收。
+// [b28d-solo-W6_IPGDeps] verdict=AE（120=120）。修法：① 删 stream 具名局部，
+// `Acquire(...)` 内联作 CStreamGuard ctor 实参（ORIG 0x0810086e 无槽往返，P259，
+// guard 槽回 -0x10）；② 两处 if/else 按 ORIG 块序翻转写（P47/P59）：res!=0 块直落
+// + res==0 块 je 落后（0x08100985）、notifyFlag!=0 块直落 + Free 块 je 落后
+// （0x081009eb）。P167 CLEAR（22/22）。
 void CIPGHelper::IPGResult(SIPGData* req, SIPGData* res)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("IPGHelper.cpp", 0x196);
-    CStreamGuard guard(stream, true);
+    // [b28d-solo-W6_IPGDeps] ORIG 0x0810085e：Acquire 结果无具名局部，直接作
+    // CStreamGuard ctor 实参（P259）⇒ 内联实参；guard 槽回到 ORIG -0x10。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("IPGHelper.cpp", 0x196), true);
 
     guard.operator*()->operator<<(0x48);
     guard.operator*()->operator<<(-1);
-    if (res == 0)
-    {
-        guard.operator*()->operator<<('\0');
-        guard->put_binary(req, 0x2dc);   // 整块线格式序列化（P156 豁免：协议字节流 n=sizeof(SIPGData)）
-    }
-    else
+    // [b28d-solo-W6_IPGDeps] ORIG 块序：res!=0 块直落于前、res==0 块经 je 落于后
+    //（0x08100985 <+0x127>）⇒ 写 if (res != 0){B} else {A}（P47/P59 极性布局）。
+    if (res != 0)
     {
         // ORIG 081008f5：载荷前 0x41 字节整段搬运（跨 m_account/m_accName/
         // m_characName/m_gameCode 与 m_cmd 首部），非单字段写。
@@ -876,14 +952,21 @@ void CIPGHelper::IPGResult(SIPGData* req, SIPGData* res)
         guard->put_binary(res, 0x2dc);   // 同上（线格式整块）
         guard->put_binary(req, 0x2dc);   // 同上
     }
-
-    if (req->m_notifyFlag == 0)
+    else
     {
-        GlobalData::s_stream_pool->Free(guard);
+        guard.operator*()->operator<<('\0');
+        guard->put_binary(req, 0x2dc);   // 整块线格式序列化（P156 豁免：协议字节流 n=sizeof(SIPGData)）
+    }
+
+    // [b28d-solo-W6_IPGDeps] ORIG 块序：msgq put 块直落于前、Free 块经 je 落于后
+    //（0x081009eb <+0x18d>）⇒ 写 if (notifyFlag != 0){put} else {Free}。
+    if (req->m_notifyFlag != 0)
+    {
+        GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
     }
     else
     {
-        GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
+        GlobalData::s_stream_pool->Free(guard);
     }
 }
 

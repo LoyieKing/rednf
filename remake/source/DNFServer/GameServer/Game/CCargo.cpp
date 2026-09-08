@@ -191,8 +191,11 @@ int CCargo::insert_item(const Inven_Item& item)
     return -1;
 }
 
-// [b28d-N18b] fresh 复验 90=90：残差 = `cmp mem,reg` 折叠方向（ORIG `cmp %eax,%ecx;
-// setl` vs 4.4 `cmp %eax,%edx; jge`，N18b/N7 族）+ 帧 0x10 vs 0x20；语义全等。
+// [b28d-solo-CCargo] AE（fresh 90=90；compare_tu clean 口径）——三处翻正：
+// ①`if (!checkStackableLimit(...)) return -10;` 否定守卫（P168a① 产
+// `call; xor $0x1; test; je <成功直落>`）；②尾块序 `if (==) {…; return slot;} return -1;`
+// （P222；ORIG else 块在函数尾直落）；③P48 最后 += 加数独立重调。
+// 原 N18b（cmp 方向）+ 帧 0x10/0x20 残差随块序翻正一并消失。
 int CCargo::_AddStackItem(const Inven_Item& item, int slot)
 {
     if (m_pItems[slot].m_addInfo == item.m_addInfo) {
@@ -204,24 +207,25 @@ int CCargo::_AddStackItem(const Inven_Item& item, int slot)
             // [b28d-P226] ORIG 两 get_add_info 在同一实参表达式内：首值升格 %ebx
             // 跨第二 call 保活（`call; mov %eax,%ebx; call; lea (%ebx,%eax,1),%edx`）
             // ⇒ 禁具名 cur/inc 局部（会槽化）。
-            if (checkStackableLimit((unsigned long)m_pItems[slot].m_addInfo,
-                                    m_pItems[slot].get_add_info()
-                                        + item.get_add_info())) {
-                // P48 去缓存：ORIG +0x0f3 对最后 += 的加数独立重调
-                // item.get_add_info（不复用 inc）。
-                m_pItems[slot].m_addInfo2 =
-                    m_pItems[slot].m_addInfo2 + item.get_add_info();
-            } else {
+            // [b28d-P168a①] ORIG `call; xor $0x1,%eax; test %al,%al; je <成功直落>`
+            // ⇒ 否定守卫形（正极性 `if (call())` 4.4 产直 test 无 xor）。
+            if (!checkStackableLimit((unsigned long)m_pItems[slot].m_addInfo,
+                                     m_pItems[slot].get_add_info()
+                                         + item.get_add_info()))
                 return -10;
-            }
+            // P48 去缓存：ORIG +0x0f3 对最后 += 的加数独立重调
+            // item.get_add_info（不复用 inc）。
+            m_pItems[slot].m_addInfo2 =
+                m_pItems[slot].m_addInfo2 + item.get_add_info();
         }
-    } else {
-        return -1;
+        return slot;
     }
-    return slot;
+    return -1;
 }
 
-// [b28d-N18b] fresh 复验 65/64 NEAR：内联实参后仅余 cmp 操作数序（N18b）。
+// [b28d-solo-CCargo] AE（fresh 65=65；compare_tu clean 口径）——尾块序翻正：
+// ORIG `jne <ret -1 块，物理最末直落 epilogue>` + `mov 0x10(%ebp),%eax; jmp` 在前
+// ⇒ 源码 `if (==) {…; return slot;} return -1;`（P222 正向包裹）。原 N18b 判词作废。
 int CCargo::_tryAddStackItem(const Inven_Item& item, int slot) const
 {
     if (m_pItems[slot].m_addInfo == item.m_addInfo) {
@@ -233,26 +237,25 @@ int CCargo::_tryAddStackItem(const Inven_Item& item, int slot) const
                                  m_pItems[slot].get_add_info()
                                      + item.get_add_info()))
             return -10;
-    } else {
-        return -1;
+        return slot;
     }
-    return slot;
+    return -1;
 }
 
-// [b28d-N82] fresh 复验 82/81：残差 = 循环体两块物理序（ORIG 先 ret 循环后 slot
-// 循环，4.4 相反）+ 局部槽 -0x14/-0x10 平移（N93/N82）；返回码语义全等。
+// [b28d-solo-CCargo] AE（fresh 82=82；compare_tu clean 口径）——①if/else 交换：
+// ORIG 循环分支（ret2@-0x10, i@-0x14）物理在前、slot 分支（ret1@-0xc）在后
+// （`cmp; je +0xac`）；②尾段 `if (addInfo==0) return slot; return -1;` 复现 ORIG
+// `test; jne <ret -1 块>` + slot 块 jmp / -1 块直落。原 N82 槽平移判词作废。
 int CCargo::tryInsertItemSpecialSlot(const Inven_Item& item, int slot) const
 {
     if (!IsOperatorable(slot))
         return -2;
     if (!item.isEquipableItemType()) {
-        if (m_pItems[slot].m_addInfo == item.m_addInfo) {
-            int ret = _tryAddStackItem(item, slot);
-            if (ret >= 0)
-                return slot;
-            if (ret == -10)
-                return -1;
-        } else {
+        // [b28d-solo-CCargo] ORIG 0x0850b570 块序：循环分支（ret2@-0x10, i@-0x14）
+        // 物理在前、slot 分支（ret1@-0xc）在后（`cmp; je +0xac`）⇒ 源码写
+        // `if (addInfo != item.addInfo) { 循环 } else { slot }`（4.4 分支块序与
+        // 源码 if/else 同向，取反条件即翻正；语义等价）。
+        if (m_pItems[slot].m_addInfo != item.m_addInfo) {
             for (int i = 0; i < 0x98; ++i) {
                 int ret = _tryAddStackItem(item, i);
                 if (ret >= 0)
@@ -260,11 +263,19 @@ int CCargo::tryInsertItemSpecialSlot(const Inven_Item& item, int slot) const
                 if (ret == -10)
                     return -1;
             }
+        } else {
+            int ret = _tryAddStackItem(item, slot);
+            if (ret >= 0)
+                return slot;
+            if (ret == -10)
+                return -1;
         }
     }
-    if (m_pItems[slot].m_addInfo != 0)
-        return -1;
-    return slot;
+    // [b28d-solo-CCargo] ORIG 尾段 `test %eax,%eax; jne <ret -1>` + slot 返回块
+    // 在前 jmp、-1 块在最后直落 ⇒ 源码写 `if (==0) return slot; return -1;`。
+    if (m_pItems[slot].m_addInfo == 0)
+        return slot;
+    return -1;
 }
 
 int CCargo::insert_item_special_slot(Inven_Item& item, int slot)
@@ -304,8 +315,11 @@ int CCargo::insert_item_special_slot(Inven_Item& item, int slot)
 }
 
 // ---- 删除 ----
-// [b28d-N82] fresh 复验 116/122：残差 = 局部槽平移 + 减法装载序（P211/N76）+
-// isEquipableItemType 调用点 xor 位置；删除语义全等。
+// [b28d-solo-CCargo] AE（fresh 116=116；compare_tu clean 口径）——①isEquipableItemType
+// 正极性 bool 守卫（ORIG `test %al,%al; je`，无 xor/setne）+ 分支交换（装备路径在前）；
+// ②删具名 cur 局部（P0/P48：两次独立重读 m_addInfo2，`<=0` 对应 ORIG jle）；
+// ③goto 尾标签串 ZERO/ONE 复现 `jle <mov $0; jmp>; mov $1 直落` 尾块序（P223）。
+// 原 N82 判词作废。
 bool CCargo::delete_item(int idx, int count, eItemDelReason reason)
 {
     if (!IsOperatorable(idx))
@@ -315,21 +329,31 @@ bool CCargo::delete_item(int idx, int count, eItemDelReason reason)
     if (count < 1)
         return 0;
     m_sorted = 0;
-    if (!m_pItems[idx].isEquipableItemType()) {
+    // [b28d-solo-CCargo] ORIG 0x0850b794：`test %al,%al; je <非装备路径>`（正极性
+    // + bool callee，无 xor/setne）⇒ 源码写 `if (isEquipable()) {_ResetSlot} else {…}`；
+    // 装备路径块物理在前。
+    if (m_pItems[idx].isEquipableItemType()) {
+        _ResetSlot(idx, reason);
+    } else {
         if (m_pItems[idx].m_addInfo2 == count) {
             _ResetSlot(idx, reason);
         } else {
-            int cur = m_pItems[idx].m_addInfo2;
-            if (cur == count || cur - count < 0)
-                return 0;
-            m_pItems[idx].m_addInfo2 = cur - count;
+            // [b28d-solo-CCargo] ORIG 无具名 cur 局部（P0/P48）：`mov 0x7(%eax),%eax;
+            // sub count; test; jle` 两次独立重读 m_addInfo2。
+            if (m_pItems[idx].m_addInfo2 - count <= 0)
+                goto ZERO;
+            m_pItems[idx].m_addInfo2 = m_pItems[idx].m_addInfo2 - count;
             m_pParent->m_historyLog.ItemDelCargo(
                 m_pItems[idx].m_addInfo, count,
                 m_pItems[idx].m_addInfo2, reason);
         }
-    } else {
-        _ResetSlot(idx, reason);
     }
+    goto ONE;
+    // [b28d-solo-CCargo] ORIG 尾块序：`jle <+0x15d mov $0; jmp>` 早退块在
+    // `+0x164 mov $1` 之前 ⇒ goto 尾标签串（P223；平铺 return 会被 4.4 就地物化）。
+ZERO:
+    return 0;
+ONE:
     return 1;
 }
 
@@ -475,6 +499,9 @@ bool CCargo::isUpgradable(int capacity) const   // b28d-Main：与 CUserCharacIn
     return 1;
 }
 
+// [b28d-solo-CCargo] AE（fresh 60=60；compare_tu clean 口径）——双 goto 尾标签串复现
+// ORIG `je +0xaa`（ta==9999）/`je +0xa3`（addInfo 相等）两 return 0 出口块
+// （+0xa3 在 +0xaa 前）；ta/tb 有符号序 + addInfo 无符号序（P196）。残差仅 .o 短地址显示。
 int CCargo::_CompareSlot(const void* a, const void* b)
 {
     const Inven_Item* ia = (const Inven_Item*)a;
@@ -511,91 +538,107 @@ void CCargo::sort()
 }
 
 // ---- 发包 ----
-// [b28d-N82] fresh 复验 114/118：残差 = PacketGuard/InterfacePacketBuf 调用点
-// 帧策略差（P210/N82）+ 循环内 GetLock 重读形；包字段序全等。
+// [b28d-solo-CCargo] AE（fresh 114=114；compare_tu clean 口径）——①删 buf 指针局部
+// （P183 地址重物化：ORIG 每处 `lea -0x1c(%ebp),%eax` 重发）；②put_short(count)
+// 具名重读（P244：ORIG `mov -0x10(%ebp),%eax` 非立即数 0）；③GetLock 内联实参
+// （P200：`call; movzbl %al,%ebx` 跨 GetCharacExpandDataR 保活；具名/register 两形
+// 实测多槽或两段零扩展）。原 N82 判词作废。
 void CCargo::SendItemLockList() const
 {
     if (m_pParent == 0)
         return;
     PacketGuard packet;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->clear();
-    buf->put_header(0, 0xfb);
-    int countIdx = buf->get_index();
+    // [b28d-solo-CCargo] P183 地址重物化：ORIG 每处调用都重发 `lea -0x1c(%ebp),%eax`
+    // （无 buf 指针局部）；P244：put_short 实参是具名 count（ORIG `mov -0x10(%ebp),%eax;
+    // mov %eax,0x4(%esp)`，非立即数 0）。
+    ((InterfacePacketBuf*)&packet)->clear();
+    ((InterfacePacketBuf*)&packet)->put_header(0, 0xfb);
+    int countIdx = ((InterfacePacketBuf*)&packet)->get_index();
     int count = 0;
-    buf->put_short(0);
+    ((InterfacePacketBuf*)&packet)->put_short(count);
     for (int i = 0; i < 0x98; ++i) {
         if (m_pItems[i].m_amp.GetLock() != 0) {
-            buf->put_byte(2);
-            buf->put_short(i);
-            unsigned char lock = m_pItems[i].m_amp.GetLock();
-            CExpandEquipslot* expand = m_pParent->GetCharacExpandDataR(
-                (ENUM_CHARAC_EXPAND_TYPE)2);
-            reinterpret_cast<item_lock::CItemLock*>(expand)->MakeItemLockPacket(
-                packet, lock);
+            ((InterfacePacketBuf*)&packet)->put_byte(2);
+            ((InterfacePacketBuf*)&packet)->put_short(i);
+            // [b28d-solo-CCargo] ORIG `call GetLock; movzbl %al,%ebx; …call
+            // GetCharacExpandDataR; mov %ebx,0x8(%esp)`（实参先于 receiver 求值、
+            // 零扩展升格 %ebx）⇒ P200 内联实参形（禁具名/register 中间局部）。
+            reinterpret_cast<item_lock::CItemLock*>(
+                m_pParent->GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)2))
+                ->MakeItemLockPacket(packet, m_pItems[i].m_amp.GetLock());
             ++count;
         }
     }
-    buf->put_byte(countIdx, count);
-    buf->finalize(true);
+    ((InterfacePacketBuf*)&packet)->put_byte(countIdx, count);
+    ((InterfacePacketBuf*)&packet)->finalize(true);
     m_pParent->Send(packet);
 }
 
-// [b28d-N82] fresh 复验 184/187：残差 = put_* 链的 4.1/4.4 实参装载序与帧差
-// （P75/N82）；包字段序/条件分支全等。
+// [b28d-solo-CCargo] N 封顶（fresh 184/185；唯余 1 条 mov 中转）——已翻正：
+// ①删 buf 指针局部（P183）；②删 world 局部 + IsEnchantRevisionChannel 正极性
+// （ORIG `call; test %al,%al; je <m_fieldd>`）；③GetItemCount 保持 int（LHS-first 直存）。
+// 残差 = GetCapacity 调用点：ORIG `mov 0xc(%ebp),%edx; mov %eax,0x4(%esp); mov %edx,(%esp)`
+// vs 4.4 `mov %eax,%edx; mov 0xc(%ebp),%eax; mov %edx,0x4(%esp); mov %eax,(%esp)`。
+// 归因 P248 档①两端冲突：callee 返回类型是唯一旋钮——改 int 可翻正此点（同函数
+// GetItemCount int 处实测 LHS-first；unsigned 化后两处同变 RHS-first，已回退），但
+// CUser.cpp:10586 `sig->m_cargoCapacity = GetCapacity()`（SigTypes m_cargoCapacity=
+// unsigned int，+0xa8e0）需 unsigned 才同型直存（b28d-solo-CUser 定案）⇒ 禁单段翻正。
+// 实测 (int) / (int)(unsigned int) / P226 语句表达式三形均无效。语义全等，byte 层 N 封顶。
 int CCargo::MakeItemList(PacketGuard* packet) const
 {
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)packet;
-    buf->put_header(0, 0xd);
-    buf->put_byte(2);
-    buf->put_short(GetCapacity());
-    buf->put_short(GetItemCount());
+    // [b28d-solo-CCargo] P183：ORIG 无 buf 具名指针（每处 `mov 0xc(%ebp),%eax` 直用
+    // 形参）；P0：无 world 局部（`call G_GameWorld; mov %eax,(%esp); call IsEnchant…`
+    // 右值内联），且正极性 `if (IsEnchantRevisionChannel())`（ORIG `test; je <m_fieldd>`）。
+    ((InterfacePacketBuf*)packet)->put_header(0, 0xd);
+    ((InterfacePacketBuf*)packet)->put_byte(2);
+    // [b28d-solo-CCargo] ORIG 0x0850bf41 `mov 0xc(%ebp),%edx; mov %eax,0x4(%esp);
+    // mov %edx,(%esp)`（receiver 入 edx、值留 eax）；4.4 恒 `mov %eax,%edx;
+    // mov 0xc(%ebp),%eax`（值入 edx）⇒ 唯余 1 条 N（N7/N18a 族寄存器角色）。
+    // P248 档①两端冲突：callee 返回类型是唯一旋钮——改 int 可翻正此点（同函数
+    // GetItemCount int 处实测 LHS-first），但 CUser.cpp:10586
+    // `sig->m_cargoCapacity = GetCapacity()`（SigTypes m_cargoCapacity=unsigned int）
+    // 需 unsigned 才同型直存（b28d-solo-CUser 定案）⇒ 禁单段翻正，封 N。
+    // 实测：(int) cast / (int)(unsigned int) / P226 语句表达式三形均无效；
+    // GetItemCount unsigned 化后两处同变 RHS-first（已回退）。
+    ((InterfacePacketBuf*)packet)->put_short(GetCapacity());
+    ((InterfacePacketBuf*)packet)->put_short(GetItemCount());
     for (int i = 0; i < 0x98; ++i) {
         if (m_pItems[i].m_addInfo != 0) {
-            buf->put_short(i);
-            buf->put_int(m_pItems[i].m_addInfo);
-            buf->put_int(m_pItems[i].m_addInfo2);
-            buf->put_byte((int)GetIntegratedPvPItemAttr(m_pItems[i]) & 0xff);
-            buf->put_short(m_pItems[i].m_fieldb);
-            buf->put_byte(m_pItems[i].m_field0);
-            GameWorld* world = G_GameWorld();
-            if (!world->IsEnchantRevisionChannel())
-                buf->put_int(m_pItems[i].m_fieldd);
+            ((InterfacePacketBuf*)packet)->put_short(i);
+            ((InterfacePacketBuf*)packet)->put_int(m_pItems[i].m_addInfo);
+            ((InterfacePacketBuf*)packet)->put_int(m_pItems[i].m_addInfo2);
+            ((InterfacePacketBuf*)packet)->put_byte(
+                (int)GetIntegratedPvPItemAttr(m_pItems[i]) & 0xff);
+            ((InterfacePacketBuf*)packet)->put_short(m_pItems[i].m_fieldb);
+            ((InterfacePacketBuf*)packet)->put_byte(m_pItems[i].m_field0);
+            if (G_GameWorld()->IsEnchantRevisionChannel())
+                ((InterfacePacketBuf*)packet)->put_int(0);
             else
-                buf->put_int(0);
-            buf->put_byte(m_pItems[i].m_amp.getAbilityType() & 0xff);
-            buf->put_short(m_pItems[i].m_amp.getAbilityValue() & 0xffff);
+                ((InterfacePacketBuf*)packet)->put_int(m_pItems[i].m_fieldd);
+            ((InterfacePacketBuf*)packet)->put_byte(
+                m_pItems[i].m_amp.getAbilityType() & 0xff);
+            ((InterfacePacketBuf*)packet)->put_short(
+                m_pItems[i].m_amp.getAbilityValue() & 0xffff);
             G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
                 m_pParent, m_pItems[i], packet);
-            buf->put_packet(m_pItems[i]);
+            ((InterfacePacketBuf*)packet)->put_packet(m_pItems[i]);
         }
     }
-    buf->finalize(true);
+    ((InterfacePacketBuf*)packet)->finalize(true);
     return 1;
 }
 
-// b21 verdict=DIFF（N 布局残余）：调用点集与 ORIG 全等（put_short/int×/byte×/GetIntegratedPvPItemAttr/
-//   G_GameWorld/IsEnchantRevisionChannel/getAbilityType/getAbilityValue/G_CDataManager/
-//   make3rdChroniclePacket/put_packet×2，28=28）；仅余 4.1 把空槽块置函数尾由 `je` 跳入 vs 4.4
-//   内联 `jne` 后（块调度）及少量寄存器分配 (190/189)。禁 buf/world 引用局部（P0：ORIG 右值内联）。
-//   语义完成，byte 层 N 封顶。
-// [b28d-N82] fresh 复验 190=190：残差 = 4.1/4.4 槽号错位（N82）+ 成员重读形
-// （P183）；p167 调用点差集 CLEAR。
+// [b28d-solo-CCargo] AE（fresh 190=190；compare_tu clean 口径）——if/else 交换：
+// ORIG `test %eax,%eax; je <+0x1e0 空槽块>`（非空块直落、空槽块在函数尾 `jmp +0x29e`）
+// ⇒ 源码 `if (m_addInfo != 0) {非空} else {空槽}`。p167 调用点差集 CLEAR（28=28）。
+// 原 b21 verdict=DIFF / N82 判词作废（块序翻正后槽号自然对齐）。
 void CCargo::MakeItemPacket(PacketGuard* packet, int slot) const
 {
     ((InterfacePacketBuf*)packet)->put_short(slot);
-    if (m_pItems[slot].m_addInfo == 0) {
-        ((InterfacePacketBuf*)packet)->put_int(-1);
-        ((InterfacePacketBuf*)packet)->put_int(0);
-        ((InterfacePacketBuf*)packet)->put_byte(0);
-        ((InterfacePacketBuf*)packet)->put_short(0);
-        ((InterfacePacketBuf*)packet)->put_byte(0);
-        ((InterfacePacketBuf*)packet)->put_int(0);
-        ((InterfacePacketBuf*)packet)->put_byte(0);
-        ((InterfacePacketBuf*)packet)->put_short(0);
-        ((InterfacePacketBuf*)packet)->put_byte(0);
-        ((InterfacePacketBuf*)packet)->put_packet(g_emptySlot);
-    } else {
+    // [b28d-solo-CCargo] ORIG 0x0850c160 `test %eax,%eax; je <+0x1e0 空槽块>`：
+    // 非空块直落、空槽块在函数尾（`jmp +0x29e` 收尾）⇒ 源码写
+    // `if (addInfo != 0) {非空} else {空槽}`（4.4 分支块序与源码同向）。
+    if (m_pItems[slot].m_addInfo != 0) {
         ((InterfacePacketBuf*)packet)->put_int(m_pItems[slot].m_addInfo);
         ((InterfacePacketBuf*)packet)->put_int(m_pItems[slot].m_addInfo2);
         ((InterfacePacketBuf*)packet)->put_byte(
@@ -613,5 +656,16 @@ void CCargo::MakeItemPacket(PacketGuard* packet, int slot) const
         G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
             m_pParent, m_pItems[slot], packet);
         ((InterfacePacketBuf*)packet)->put_packet(m_pItems[slot]);
+    } else {
+        ((InterfacePacketBuf*)packet)->put_int(-1);
+        ((InterfacePacketBuf*)packet)->put_int(0);
+        ((InterfacePacketBuf*)packet)->put_byte(0);
+        ((InterfacePacketBuf*)packet)->put_short(0);
+        ((InterfacePacketBuf*)packet)->put_byte(0);
+        ((InterfacePacketBuf*)packet)->put_int(0);
+        ((InterfacePacketBuf*)packet)->put_byte(0);
+        ((InterfacePacketBuf*)packet)->put_short(0);
+        ((InterfacePacketBuf*)packet)->put_byte(0);
+        ((InterfacePacketBuf*)packet)->put_packet(g_emptySlot);
     }
 }

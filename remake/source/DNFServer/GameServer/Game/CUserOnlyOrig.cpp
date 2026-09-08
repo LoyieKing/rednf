@@ -837,14 +837,9 @@ void CUser::_processUnlimitChallenge(unsigned int level, char kind)
 {
     CLevelRewardTableMgr* mgr = CLevelRewardTableMgr::GetInstance();
     if (mgr == 0) return;
-    // ORIG 0x0864a5c8：`xor $0x1,%eax; test %al,%al; jne`。IsOn() 返 uchar(ORIG 0x08697792 movzbl 全字)，
-    // 写法 (IsOn() ^ 1) 被 4.4 fold 成 cmp $1；具名掩码槽阻断 fold-const 保 xor。
-    {
-        register unsigned char onv __asm__("eax") = mgr->IsOn();
-        onv ^= 1;   // X2 形（AraC9 处方 2026-09-05，IsOn 现 uchar 返回
-                    // DataManagerInitDepends.h:353）：ORIG 0x864a5cf `xor $0x1,%eax; test %al,%al; je`
-        if (onv) return;
-    }
+    // b28d-Main(P0 清绑 + P292)：IsOn() 已 bool 化（S47），裸 `if (!IsOn()) return;`
+    // 直产 ORIG 0x0864a5cf `xor $0x1,%eax; test %al,%al; jne`，无需 register asm 绑定。
+    if (!mgr->IsOn()) return;
     if (mgr->IsOnServer(G_CEnvironment()->m_serverEnvir.m_serverGroup)
         == false) return;
     if (mgr->IsHaveStartLevelReward() == false) return;

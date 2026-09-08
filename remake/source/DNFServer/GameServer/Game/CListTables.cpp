@@ -545,8 +545,12 @@ void CMapList::LoadPvPSinglePlayableMap(char* path)
     for (std::map<int, PvPMapInfo>::iterator it = mapPvpMapInfo_.begin();
          it != mapPvpMapInfo_.end(); ++it)
     {
-        sprintf(buf, "pvp deathmatch single play %d", it->second.m_mapIdx);
-        it->second.m_playable = data.getInt(buf) == 1;
+        // [b28d-solo-CListTables] ORIG 0x0834f4ba：ptEv 一次后把 &it->second 存具名
+        // 指针槽 -0xc（mov %eax,-0xc(%ebp) / 复用回读），sprintf 与 m_playable 写
+        // 均经该槽（P0 有槽往返 ⇒ 原码有具名局部）。
+        PvPMapInfo* p = &it->second;
+        sprintf(buf, "pvp deathmatch single play %d", p->m_mapIdx);
+        p->m_playable = data.getInt(buf) == 1;
     }
 }
 
@@ -561,6 +565,10 @@ bool CMapList::GetPvpMapInfo(int idx, PvPMapInfo& info)
         // （-0xc 槽回读 41 条）/裸 register 指针（40 条但 %ebx 保存+恢复，ORIG 地址
         // 在 caller-saved %eax ⇒ 违反 C28L28 判据）均不闭合；落 N：P183 地址重物化
         // 跨版本差（4.1 复用 ptEv 地址，4.4 二次物化）。
+        // [b28d-solo-CListTables N(P183): 38/44，ORIG 无槽 + 单次 ptEv（4.1 前端
+        // SAVE_EXPR 合并同一 &it->second，地址留 %eax 跨 cmp→memcpy）；4.4 二次物化
+        // ptEv。具名指针形/引用形实测 41 条（多 -0xc 槽，ORIG 无该槽）、结构赋值形
+        // 46 条（多一次自比较）均不闭合 ⇒ 保持无具名局部原形，落 N。 | ORIG 0x0834f5c8]
         if (&info != &it->second)
         {
             memcpy(&info, &it->second, 5);
@@ -1193,28 +1201,40 @@ bool QuestList::check_ahead_quest(int questIdx,
             0x14b7, "find_quest(%d)", questIdx);
         return 0;
     }
-    if (!quest->m_vec2c.empty())
+    // [b28d-solo-CListTables] ORIG 0x08354fc8：empty() 正形 guard（call empty;
+    // test; je 循环；非空 fall-through 到 return 1）+ 外层 size 具名局部 -0x1c +
+    // 内层 size 具名局部 -0x14（P157 每次重读 operator[]）。
+    if (quest->m_vec2c.empty())
     {
-        for (unsigned int i = 0; i < quest->m_vec2c.size(); ++i)
+        return 1;
+    }
+    // [b28d-solo-CListTables] ORIG 0x08355042：empty 检查后无条件发射一次
+    // __normal_iterator<int*,vector<int>>::C1Ev（-0x28 槽），全函数未再使用
+    // ⇒ 原码存在未使用的迭代器局部（P171 照抄死写入/P232 死局部占帧）。
+    std::vector<int>::iterator unusedIt;
+    unsigned int aheadIdx;
+    unsigned int size1 = quest->m_vec2c.size();
+    for (unsigned int i = 0; i < size1; ++i)
+    {
+        unsigned int size2 = quest->m_vec2c[i].size();
+        // [b28d-solo-CListTables] P158：ORIG `movzbl found; xor $1; test; je`
+        // ⇒ found 为 bool 且条件写 !found（char+!=1 在 4.4 折 cmpb $1）。
+        bool found = false;
+        for (unsigned int j = 0; j < size2; ++j)
         {
-            char found = 0;
-            for (unsigned int j = 0; j < quest->m_vec2c[i].size(); ++j)
+            aheadIdx = quest->m_vec2c[i][j];
+            if (!clear.isClearedQuest(aheadIdx))
             {
-                unsigned int aheadIdx = quest->m_vec2c[i][j];
-                if (!clear.isClearedQuest(aheadIdx))
-                {
-                    found = 1;
-                    break;
-                }
-            }
-            if (found != 1)
-            {
-                return 1;
+                found = true;
+                break;
             }
         }
-        return 0;
+        if (!found)
+        {
+            return 1;
+        }
     }
-    return 1;
+    return 0;
 }
 
 // [b28d-32 N(P75/N93): 栈拷贝/装载序与分支块序差（88/79） | ORIG 0x0835511e]
@@ -1230,24 +1250,28 @@ bool QuestList::check_anti_quest(int questIdx,
             0x150a, "find_quest(%d)", questIdx);
         return 0;
     }
-    for (std::vector<int>::iterator it = quest->m_antiQuestList.begin();
-         it != quest->m_antiQuestList.end(); ++it)
+    // [b28d-solo-CListTables] ORIG 0x0835511e：具名迭代器先 C1Ev 默认构造（-0x2c）
+    // 再 `it = begin()`（sret 临时 -0x3c，P50 复活）+ while 每轮调 end()（-0x28）
+    // + 尾后置 `it++`（ppEi 临时 -0x14，P28）；antiIdx 为 int（-0xc，ORIG
+    // `cmpl $0x752f; jle` 有符号，P196）。
+    std::vector<int>::iterator it;
+    it = quest->m_antiQuestList.begin();
+    while (it != quest->m_antiQuestList.end())
     {
-        unsigned int antiIdx = *it;
+        int antiIdx = *it;
         if (antiIdx > 29999)
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x151a, 5);
-            trace("[%s][%d]",
-                  __PRETTY_FUNCTION__,
-                  0x151a);
+            // [b28d-solo-CListTables] P221：全表达式临时链翻 sibling/具名对象槽方向
+            // （ORIG trace 槽 -0x24 浅于 it -0x2c；具名形 4.4 恒相反）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x151a, 5)(
+                "[%s][%d]", __PRETTY_FUNCTION__, 0x151a);
             return 0;
         }
         if (clear.isClearedQuest(antiIdx))
         {
             return 0;
         }
+        it++;
     }
     return 1;
 }

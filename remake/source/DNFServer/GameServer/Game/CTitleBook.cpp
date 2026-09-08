@@ -48,7 +48,9 @@ int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space)
 }
 // ---- ORIG 真实符号（自由函数 / 跨类方法，普通 C++ 声明，无 extern "C" 桥） ----
 // _checkTimeoutItem（ORIG 0x867cf8d T）定义于 CDataManagerScripts.cpp。
-int _checkTimeoutItem(const Inven_Item& item);
+// b28d-solo-CTitleBook（P248 档①）：ORIG 调用点 0x086412ba 为 `call; test %al,%al;
+// jne`（bool callee 裸形）；原 int 声明使 4.4 生 `test %eax,%eax`。
+bool _checkTimeoutItem(const Inven_Item& item);
 // NumberToString（ORIG 0x810904b T，定义于 LinkFinalDeps.cpp）——失败日志用。
 char* NumberToString(unsigned int value, int radix);
 // GetIntegratedPvPItemAttr（ORIG 0x84fc5ff T）定义于 CDataManagerScripts.cpp。
@@ -102,8 +104,10 @@ public:
                                 bool bLog, bool b);
     int insertItemIntoEquipment(Inven_Item item, eItemAddReason reason,
                                 bool bLog, bool b);
-    int delete_item(INVEN_TYPE invenType, int slot, int count,
-                    eItemDelReason reason, bool bLog);
+    // b28d-solo-CTitleBook（P248 档①）：ORIG putTitle 调用点 0x0864227d 为
+    // `call; xor $0x1,%eax; test %al,%al; je`（bool callee 裸形）⇒ 返回 bool。
+    bool delete_item(INVEN_TYPE invenType, int slot, int count,
+                     eItemDelReason reason, bool bLog);
 };
 
 
@@ -260,8 +264,11 @@ Inven_Item CTitleBook::getTitleSlotR(ENUM_TITLE_BOOK_CATEGORY category,
 bool CTitleBook::findItemLock(unsigned char lock, ENUM_ITEMSPACE& space,
                               int& slot) const
 {
-    int category = 0;
-    for (;;)
+    // b28d-solo-CTitleBook（P2/P25）：ORIG 0x08641124 为双层标准 for 布局
+    // （外层 init → jmp 条件 → 内层 init → jmp 条件；外层 `cmpl $3; setle`，
+    // 内层 `mov TITLE_BOOK_MAX(,%eax,4); cmp i; setg`）。原 `for(;;)+continue`
+    // 形在 4.4 多一条 nop 中继（ndiff 5 NEAR）。
+    for (int category = 0; category <= 3; ++category)
     {
         for (int i = 0; i < TITLE_BOOK_MAX[category]; ++i)
         {
@@ -272,9 +279,6 @@ bool CTitleBook::findItemLock(unsigned char lock, ENUM_ITEMSPACE& space,
                 return 1;
             }
         }
-        if (++category <= 3)
-            continue;
-        return 0;
     }
     return 0;
 }
@@ -327,9 +331,10 @@ void CTitleBook::sendListOtherUser(CUser* user,
 
 bool CTitleBook::isAbleItemLock(unsigned long itemIdx)
 {
-    // [b28c-6] N82/P75：std::find 三实参（begin/end/value）装载序与迭代器槽基
-    // 跨版本差（ORIG begin/end 槽 -0x14/-0x18、value 取 &0x8(%ebp)；4.4 槽基浅
-    // 4 且 find 调用位置后移），120=120 条数全等仅槽/序差。ndiff 24 封顶。
+    // b28d-solo-CTitleBook 终判（N93 槽序封顶）：C28L8 具名 fitFound 已把助记符
+    // 序列对齐 ORIG（120=120，NEAR）——ORIG find sret -0x1c / 具名迭代器 it -0x24；
+    // 4.4 把 fitFound 落最深处 -0x24、it 退 -0x20（4.1/4.4 具名局部与匿名 sret 的
+    // 槽分配方向相反）。裸实参/语句表达式/声明后赋值/头部声明 6 形实测均不可复现。
     for (std::map<int, std::vector<stTitleElement> >::iterator it =
              ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.begin();
          it != ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.end();
@@ -339,9 +344,13 @@ bool CTitleBook::isAbleItemLock(unsigned long itemIdx)
         {
             // ORIG 0x8641468 的 std::find 以 unsigned long（itemIdx 原类型）实例化，
             // 不做 (int) 转换。
-            if (std::find(it->second[i].m_fitJobs.begin(),
+            // b28d-solo-CTitleBook（C28L8 具名左操作数）：ORIG 0x08642f5a 先求值
+            // find（sret -0x1c）再求值比较端 end()（-0x10）；裸形 4.4 先求值右操作数。
+            std::vector<int>::iterator fitFound =
+                std::find(it->second[i].m_fitJobs.begin(),
                           it->second[i].m_fitJobs.end(),
-                          itemIdx) != it->second[i].m_fitJobs.end())
+                          itemIdx);
+            if (fitFound != it->second[i].m_fitJobs.end())
             {
                 if (it->second[i].m_achievementIdx == -1)
                 {
@@ -357,9 +366,13 @@ bool CTitleBook::isAbleItemLock(unsigned long itemIdx)
 bool CTitleBook::_checkFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
                                int slot)
 {
-    // b28d-167/96：p167 差集 MISSING const operator[] + EXTRA const ptEv/非 const
-    // operator[] ⇒ ORIG 用 const_iterator + `(*it).second`（deEv）。
-    std::map<int, std::vector<stTitleElement> >::const_iterator it =
+    // b28d-solo-CTitleBook（P96/P270）：ORIG 0x08642d42 map::find 为非 const 版
+    // （`findERS7_` 无 K），it 即 `iterator`；写 const_iterator 会多一次转换构造
+    // （4.4 额外 call + 临时槽 -0x24，帧 0x38→0x48）。
+    // 终判（N93 槽序封顶）：pVec 缓存 + 具名 fitFound 后 133→111 条（=ORIG 111，
+    // NEAR）；残余仅 find sret 与 it 的槽号互换（ORIG it -0x28 / sret -0x1c；
+    // 4.4 fitFound -0x28 / it -0x24），6 形源码实测不可翻。
+    std::map<int, std::vector<stTitleElement> >::iterator it =
         ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.find(
             (int)category);
     if (it == ((CTitleBookMgrRaw*)G_CDataManager())
@@ -367,17 +380,26 @@ bool CTitleBook::_checkFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
     {
         return 0;
     }
-    if ((int)slot >= (int)it->second.size())
+    // b28d-solo-CTitleBook（P157 反向：ORIG 缓存）：ORIG 0x08642daf 把
+    // `(*it).second` 的地址缓存到具名局部 -0xc（ptEv + `add $0x4`），后续
+    // size()/三次 operator[] 全部复用该局部；逐次展开会多发 ptEv。
+    const std::vector<stTitleElement>* pVec = &(*it).second;
+    if ((int)slot >= (int)pVec->size())
     {
         return 0;
     }
-    if (std::find(it->second[slot].m_fitJobs.begin(),
-                  it->second[slot].m_fitJobs.end(),
-                  itemIdx) != it->second[slot].m_fitJobs.end())
+    // b28d-solo-CTitleBook（C28L8 具名左操作数）：ORIG 0x08642e2d 先求值 find
+    // （sret -0x1c）再求值比较端 end()（-0x10）；裸 `find() != end()` 4.4 先求值
+    // 右操作数 ⇒ 具名 find 结果固定求值序与槽序。
+    std::vector<int>::const_iterator fitFound =
+        std::find((*pVec)[slot].m_fitJobs.begin(),
+                  (*pVec)[slot].m_fitJobs.end(),
+                  itemIdx);
+    if (fitFound != (*pVec)[slot].m_fitJobs.end())
     {
         return 1;
     }
-    if (it->second[slot].m_achievementIdx == -1)
+    if ((*pVec)[slot].m_achievementIdx == -1)
     {
         return 1;
     }
@@ -389,16 +411,23 @@ bool CTitleBook::_getFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY& category,
 {
     // [b28c-6] N82/P75：同 isAbleItemLock——std::find 实参装载序 + 迭代器槽基
     // 跨版本差，115=115 全等仅槽/序差。ndiff 24 封顶。
-    for (std::map<int, std::vector<stTitleElement> >::iterator it =
-             ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.begin();
-         it != ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.end();
+    std::map<int, std::vector<stTitleElement> >::iterator it =
+        ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.begin();
+    for (; it != ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.end();
          ++it)
     {
         for (unsigned int i = 0; i < it->second.size(); ++i)
         {
-            if (std::find(it->second[i].m_fitJobs.begin(),
+            // b28d-solo-CTitleBook（P278 具名返回值，N93 槽序封顶）：ORIG
+            // 0x08642baa find sret 落 -0x1c（深于实参临时 end -0x18/begin -0x14）；
+            // 4.4 把具名 fitFound 落最深处 -0x24、匿名形落 -0x18（均与 ORIG 差 4）。
+            // 实测 6 形（裸实参/具名初始化/声明后赋值/语句表达式/实参具名/头部声明）
+            // 均不可复现，判 N93 槽分配方向封顶（115=115 助记符全等）。
+            std::vector<int>::iterator fitFound =
+                std::find(it->second[i].m_fitJobs.begin(),
                           it->second[i].m_fitJobs.end(),
-                          itemIdx) != it->second[i].m_fitJobs.end())
+                          itemIdx);
+            if (fitFound != it->second[i].m_fitJobs.end())
             {
                 category = (ENUM_TITLE_BOOK_CATEGORY)it->first;
                 slot = (int)i;
@@ -412,12 +441,20 @@ bool CTitleBook::_getFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY& category,
 void CTitleBook::deleteTimeoutItem(
     const std::vector<std::pair<int, int> >& list)
 {
+    // b28d-solo-CTitleBook 终判（P223 边界封顶）：p167 差集 CLEAR（33=33 调用）、
+    // 175 vs 177 仅差 else 体尾一条冗余 `jmp .+1; nop`（4.4 jump-threading 失效，
+    // jmp 目标即下一条 nop）。6 形实测（if/else-if、else{}+嵌套、continue×2、
+    // goto 尾标签×2、空 else）均恒多该 2 条 ⇒ 判结构性伪影封顶。
     std::vector<std::pair<int, int> > toDelete;
     for (int category = 0; category < 4; ++category)
     {
         for (int i = 0; i < TITLE_BOOK_MAX[category]; ++i)
         {
-            Inven_Item* item = m_category[category] + i;
+            // b28d-solo-CTitleBook：ORIG 0x08641285 缓存 `const Inven_Item* item`
+            //（-0xc）——make_pair 实参取 `lea 0x2(%eax)`（const 左值 ⇒ 模板参
+            // `<unsigned long const&, int const&>`）；reset 则重新完整展开
+            // `m_category[category][i]`（P183，故 item 必须为 const 指针）。
+            const Inven_Item* item = m_category[category] + i;
             if (item->m_addInfo == 0)
             {
                 continue;
@@ -425,7 +462,7 @@ void CTitleBook::deleteTimeoutItem(
             if (_checkTimeoutItem(*item) ||
                 (_isMatchedItem(item->m_addInfo, list) != -1))
             {
-                item->reset();
+                m_category[category][i].reset();
                 alter();
             }
             // §4.3 跨TU隔离例外：本 TU CDataManager 为最小镜像类（仅 find_item）；
@@ -436,9 +473,15 @@ void CTitleBook::deleteTimeoutItem(
                          (char*)G_CDataManager() + 0xb658)
                          ->IsInvalidItem2Delete(item->m_addInfo))
             {
+                // ORIG make_pair<unsigned long const&, int const&>：实参直接取
+                // m_addInfo 地址（+0x02）⇒ 用同尺寸 unsigned long 左值视图
+                //（P266 先例；布局/取值不变）。
                 toDelete.push_back(
-                    std::make_pair(item->m_addInfo, item->m_addInfo2));
-                item->reset();
+                    std::make_pair(
+                        *reinterpret_cast<const unsigned long*>(
+                            &item->m_addInfo),
+                        item->m_addInfo2));
+                m_category[category][i].reset();
                 alter();
             }
         }
@@ -504,6 +547,10 @@ int CTitleBook::getTitle(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
                          int slot, int itemIdx, ENUM_ITEMSPACE space,
                          int& outSlot)
 {
+    // b28d-solo-CTitleBook 终判：389=389、p167 差集 CLEAR（27=27 调用）⇒ AE。
+    // 本件修三处：① cMyTrace 全表达式临时链（P227，ORIG ctor 前右起求 varargs）；
+    // ② GetLock 谓词内联（P198②，去具名 uchar 槽往返）；③ 装备分支补
+    // `title.m_field0 = 0`（ORIG 0x08642a49 `movb $0x0,-0x91(%ebp)`，真语义缺口）。
     CTitleBook* book = (CTitleBook*)user->GetCharacExpandData(
         (ENUM_CHARAC_EXPAND_TYPE)0xe);
     if (!book)
@@ -548,10 +595,12 @@ int CTitleBook::getTitle(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
             title, eItemAddReason_7, true, false);
         if (ret < 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x2a5, 5);
-            trace("insertItemIntoInventory failed(title) %s %d %d",
-                  NumberToString(user->get_acc_id(), 0),
-                  user->getCurCharacNo(), title.m_addInfo);
+            // P227：ORIG 0x08641e88 段在 cMyTrace ctor 前右起求 varargs 并跨
+            // ctor 保活 ⇒ 全表达式临时链形。
+            cMyTrace(__PRETTY_FUNCTION__, 0x2a5, 5)(
+                "insertItemIntoInventory failed(title) %s %d %d",
+                NumberToString(user->get_acc_id(), 0),
+                user->getCurCharacNo(), title.m_addInfo);
         }
         outSlot = ret;
     }
@@ -569,20 +618,24 @@ int CTitleBook::getTitle(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
         {
             return 6;
         }
-        unsigned char lock = title.m_amp.GetLock();
-        if ((lock != 0) && (title.m_field0 != 0))
+        // P198②：ORIG 0x08642a1b 段为 `call GetLock; test %al,%al; je`（直测返回
+        // 寄存器、无槽）⇒ 谓词内联；提具名 uchar 局部会多 `mov %al,-off; cmpb $0`。
+        if ((title.m_amp.GetLock() != 0) && (title.m_field0 != 0))
         {
             return 1;
         }
+        // 真语义缺口（ORIG 0x08642a49 `movb $0x0,-0x91(%ebp)`）：装备分支把称号
+        // 移入背包前先清本地副本 title.m_field0（bool +0x00），再 _deleteTitle。
+        title.m_field0 = 0;
         book->_deleteTitle(category, slot);
         int ret = inven->insertItemIntoEquipment(
             title, eItemAddReason_7, true, false);
         if (ret < 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x2c7, 5);
-            trace("insertItemIntoEquipment failed(title) %s %d %d",
-                  NumberToString(user->get_acc_id(), 0),
-                  user->getCurCharacNo(), title.m_addInfo);
+            cMyTrace(__PRETTY_FUNCTION__, 0x2c7, 5)(
+                "insertItemIntoEquipment failed(title) %s %d %d",
+                NumberToString(user->get_acc_id(), 0),
+                user->getCurCharacNo(), title.m_addInfo);
         }
         user->send_equip(ret);
     }
@@ -593,6 +646,12 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
                          int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
                          int titleSlot)
 {
+    // b28d-solo-CTitleBook 终判（P75/N7 封顶）：p167 差集 CLEAR（33=33 调用）、
+    // 335=335 条；已修 Inven_Item C1Ev（sret 直构）、send_equip(slot)、cMyTrace 临时链、
+    // delete_item→bool、sectionIdx int 化（消 `lea` vs `add`）。残余 2 处纯装载时机/
+    // 寄存器选择差：① GetInvenSlot 的 sret/invenType/slot 装载序（ORIG edx/eax/ecx）；
+    // ② delete_item 在压完 3 立即数后才载 invenType，4.4 提前载入 %eax 保活。
+    // 属跨版本 O0 调度差（语义/ABI/调用点全等）⇒ P75 封顶。
     CTitleBook* book = (CTitleBook*)user->GetCharacExpandData(
         (ENUM_CHARAC_EXPAND_TYPE)0xe);
     if (!book)
@@ -606,16 +665,20 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
     CInventory* inven = (CInventory*)user->getCurCharacInvenW();
     int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space);
 
-    Inven_Item invenItem;
-    invenItem = inven->GetInvenSlot(invenType, slot);
+    // b28d-solo-CTitleBook（P0/P183）：ORIG 0x086420b6 把 GetInvenSlot 的 sret
+    // 直构进 invenItem 槽（-0x8d）——「先声明后赋值」会多发一次 Inven_Item::C1Ev
+    //（p167 EXTRA +1）。
+    Inven_Item invenItem = inven->GetInvenSlot(invenType, slot);
     if ((itemIdx != 0) && (invenItem.m_addInfo != itemIdx))
     {
         return 2;
     }
 
-    unsigned int sectionIdx =
-        CAchievement::_getSectionIdx(category, titleSlot);
-    if (sectionIdx != 0xffffffff)
+    // P218：ORIG 0x08642115 先把 sectionIdx 载入 %esi 跨 G_CDataManager 调用保活
+    //（`mov -0x24(%ebp),%esi; call; add $0xa794,%eax`）；unsigned 局部使 4.4 改为
+    // 调用后重载（`lea 0xa794(%eax),%edx; mov -0x24(%ebp),%eax`）⇒ 索引局部 int 化。
+    int sectionIdx = CAchievement::_getSectionIdx(category, titleSlot);
+    if (sectionIdx != -1)
     {
         // ORIG 0x8642129：按值拷贝 sections[sectionIdx]（析构后判定），
         // 检查 +0x30 m_lockMessage 非空即锁定、返回 0xc。
@@ -649,7 +712,8 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
     }
     if ((invenType == 0) && (slot == 0xb))
     {
-        user->send_equip(0xb);
+        // ORIG 0x0864229a 传 slot 形参（0x10(%ebp)）而非立即数 0xb。
+        user->send_equip(slot);
     }
 
     Inven_Item old = book->getTitleSlotR(category, titleSlot);
@@ -661,10 +725,12 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
                 old, eItemAddReason_7, true, false);
             if (ret < 0)
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x24f, 5);
-                trace("insertItemIntoInventory failed(title) %s %d %d",
-                      NumberToString(user->get_acc_id(), 0),
-                      user->getCurCharacNo(), old.m_addInfo);
+                // P227：ORIG 0x086423bb 在 cMyTrace ctor 前右起求 varargs 并跨
+                // ctor 以 %esi/%ebx 保活 ⇒ 全表达式临时链形。
+                cMyTrace(__PRETTY_FUNCTION__, 0x24f, 5)(
+                    "insertItemIntoInventory failed(title) %s %d %d",
+                    NumberToString(user->get_acc_id(), 0),
+                    user->getCurCharacNo(), old.m_addInfo);
             }
         }
         else if (invenType == 0)
@@ -673,10 +739,10 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
                 old, eItemAddReason_7, true, false);
             if (ret < 0)
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x256, 5);
-                trace("insertItemIntoEquipment failed(title) %s %d %d",
-                      NumberToString(user->get_acc_id(), 0),
-                      user->getCurCharacNo(), old.m_addInfo);
+                cMyTrace(__PRETTY_FUNCTION__, 0x256, 5)(
+                    "insertItemIntoEquipment failed(title) %s %d %d",
+                    NumberToString(user->get_acc_id(), 0),
+                    user->getCurCharacNo(), old.m_addInfo);
             }
             else
             {
@@ -790,8 +856,10 @@ bool CTitleBook::_checkInsertTitle(ENUM_TITLE_BOOK_CATEGORY category,
 bool CTitleBook::_checkMovetoInven(ENUM_TITLE_BOOK_CATEGORY category,
                                    int slot)
 {
-    // b28d-167/96：同 _checkFitSlot——ORIG const operator[]（ixEj 的 K 版）。
-    std::map<int, std::vector<stTitleElement> >::const_iterator it =
+    // b28d-solo-CTitleBook（P96/P270 + P157 反向）：ORIG 0x08641c52 用非 const
+    // map::find（`findERS7_` 无 K）⇒ it 为 iterator；且 `(*it).second` 缓存到具名
+    // 局部 -0xc（ptEv + `add $0x4`）后复用，operator[] 为 const 版（ixEj 的 K 版）。
+    std::map<int, std::vector<stTitleElement> >::iterator it =
         ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.find(
             (int)category);
     if (it == ((CTitleBookMgrRaw*)G_CDataManager())
@@ -799,25 +867,36 @@ bool CTitleBook::_checkMovetoInven(ENUM_TITLE_BOOK_CATEGORY category,
     {
         return 0;
     }
-    if ((int)slot >= (int)(*it).second.size())
+    const std::vector<stTitleElement>* pVec = &(*it).second;
+    if ((int)slot >= (int)pVec->size())
     {
         return 0;
     }
-    return (*it).second[slot].m_achievementIdx == -1;
+    // P56：ORIG 0x08641d01 为 sete/test/je + mov$1/jmp/mov$0 分支形 ⇒ 写 if-return。
+    if ((*pVec)[slot].m_achievementIdx == -1)
+    {
+        return 1;
+    }
+    return 0;
 }
 
 bool CTitleBook::_getOwnerTitleInfo(ENUM_TITLE_BOOK_CATEGORY& category,
                                     int& slot, Inven_Item* out)
 {
-    const CInventory* inven =
-        (const CInventory*)m_user->getCurCharacInvenR();
-    // b28d-167：p167 EXTRA Inven_Item::C1Ev ⇒ ORIG 无具名 Inven_Item 局部
-    //（GetInvenSlot 返回值直接赋 *out）。
-    *out = inven->GetInvenSlot(0, 0xb);
-    if ((out->m_addInfo != 0) &&
-        _getFitSlot(out->m_addInfo, category, slot))
+    // b28d-solo-CTitleBook（P0 寄存器直传 + P183）：ORIG 0x0864199b
+    // `call getCurCharacInvenR; …; mov %eax,0x4(%esp)`——返回值无具名局部槽
+    //（原写 `const CInventory* inven` 多一条 `mov %eax,-0xc(%ebp)` 并撑帧 +0x10）。
+    *out = ((const CInventory*)m_user->getCurCharacInvenR())
+               ->GetInvenSlot(0, 0xb);
+    // P133/P214①：ORIG 0x08641a34/0x08641a56 两条 `je` 同落尾 mov$0 出口
+    //（成功路径 fall-through 到 mov$1）⇒ 正向嵌套 if 包裹；`&&` 会物化 bool、
+    // 否定式 `if(!f())` 会多 xor $1。
+    if (out->m_addInfo != 0)
     {
-        return 1;
+        if (_getFitSlot(out->m_addInfo, category, slot))
+        {
+            return 1;
+        }
     }
     return 0;
 }

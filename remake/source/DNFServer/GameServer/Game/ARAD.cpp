@@ -32,9 +32,11 @@ namespace ARAD
 // ScriptManager（ORIG LoadScript 0x81a11dc / DestroyScript 0x81a12f8 /
 // RegistScript 0x81a136c / Init 0x81a13f6）
 // ============================================================================
-// b28d-60 verdict=NEAR：P13 end 缓存（-0x30 一次求值）+ cMyTrace 成功路径第4/5参
-// 修正 (false,true)（ORIG 0x081a1286 `movl $0x1,0x14; movl $0x0,0x10`）；残差=槽位
-// 分配（ORIG it -0x2c/e -0x30/trace -0x28/-0x18 vs 4.4 反向，N82/P112）。
+// b28d-solo-ARAD verdict=IDENTICAL/AE：P13 end 缓存 + P221 全表达式临时链
+//（`cMyTrace(...)("Fail"/"Success")`）——具名 cMyTrace 时 4.4 把聚合对象排到低槽
+//（fail -0x30/success -0x20、标量 it -0xc/e -0x10），临时链后槽位与 ORIG 逐一对齐
+//（it -0x2c / e -0x30 / fail -0x28 / success -0x18）。残余 diff 全为 .o 未 relink
+// 的 call/jmp 与 .rodata 重定位显示（§6.3 假阳性）。
 bool ScriptManager::LoadScript()
 {
     // ORIG 0x81a11dc：Init() 后遍历 set 调用各脚本 Load()；全成功返回 1，
@@ -49,13 +51,12 @@ bool ScriptManager::LoadScript()
         if (!(*it)->Load())
         {
             // ORIG 0x81a1276：失败记 cMyTrace(pretty, 0x12, 9, true, true) + "Fail"。
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x12, 9, true, true);
-            trace("Fail");
+            // b28d-solo-ARAD：P221 全表达式临时链（槽序试探）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x12, 9, true, true)("Fail");
             return false;
         }
         // ORIG 0x81a12f4：每次成功记 cMyTrace(pretty, 0x15, 9, true, false) + "Success"。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x15, 9, false, true);
-        trace("Success");
+        cMyTrace(__PRETTY_FUNCTION__, 0x15, 9, false, true)("Success");
     }
     return true;
 }
@@ -137,8 +138,9 @@ std::string Arad_InterfaceGameScript::scriptDataName() const
 ExceptionItem::ExceptionItem() {}
 ExceptionItem::~ExceptionItem() {}
 
-// b28d-60 verdict=NEAR：P283 goto 尾标签复现 4.1「begin 后 jmp 到底部条件块」
-//（原 while(true)+break 生 setle/jne 条件置顶）；残差=GetInt 临时槽 -0x20 vs -0x28（N82）。
+// b28d-solo-ARAD verdict=IDENTICAL/AE：P283 goto 尾标签复现 4.1「begin 后 jmp 到底部
+// 条件块」；具名 `int idx` 由块内提至函数级 + 具名 insert 结果 `res`（P212/P247 槽序
+// 旋钮）后槽位与 ORIG 全对齐（idx -0x20 / insert sret -0x28 / .second -0x24）。
 int ExceptionItem::parsing(char* data)
 {
     Arad_Script script;
@@ -150,11 +152,15 @@ int ExceptionItem::parsing(char* data)
     // b28d-60：P283 4.1「begin 后无条件 jmp 到底部条件块」布局——原 while(true)+
     // break 使 4.4 条件置顶（setle/jne end）；改 goto 尾标签复现 setg/jne body。
     int r = 0;
+    int idx;   // b28d-solo-ARAD：P212 全头部声明（槽序试探）
     goto check;
 loop_body:
     {
-        int idx = script.GetInt(r, "material_exception_item_index");
-        if (!m_exceptionItemIndex.insert(std::make_pair(idx, idx)).second)
+        idx = script.GetInt(r, "material_exception_item_index");
+        // b28d-solo-ARAD：具名 sret 槽试探（ORIG insert sret 在 -0x28、.second -0x24）。
+        std::pair<std::map<int, int>::iterator, bool> res =
+            m_exceptionItemIndex.insert(std::make_pair(idx, idx));
+        if (!res.second)
             return 0x33;   // ORIG insert 失败（.second==0）→ 0x33
         ++r;
     }
@@ -181,8 +187,10 @@ bool ExceptionItem::find_index(int index)
 PurchaseLimitItem::PurchaseLimitItem() {}
 PurchaseLimitItem::~PurchaseLimitItem() {}
 
-// b28d-60 verdict=N82/P112：P283 goto 尾标签已修循环布局；残差=GetRowNum 检查块与
-// r=0 的相对布局 + 帧槽整体 -4（-0x88/-0x2c vs -0x8c/-0x34）；调用点/P167 一致。
+// b28d-solo-ARAD verdict=IDENTICAL/AE：Info 提到循环外构造一次（ORIG 0x81a21dc 在
+// r=0 之前）+ Item_Index 写入 Info+0x04（make_pair first = `lea -0x2c; add $0x4`，
+// 即 info.reserved 槽）+ 具名 insert 结果 res ⇒ 槽位全对齐（script -0x88 / Info -0x2c /
+// insert sret -0x34 / .second -0x30）。残余仅 4.4 循环对齐 nop（§6.1 豁免）。
 int PurchaseLimitItem::parsing(char* data)
 {
     Arad_Script script;
@@ -190,18 +198,25 @@ int PurchaseLimitItem::parsing(char* data)
         return 0x4c;                  // ORIG 0x81a21ab：Load 失败返 0x4c
     if (script.GetRowNum() == 0)
         return 0x4f;                  // ORIG 0x81a21cc：无行返 0x4f
-    // b28d-60：P283 goto 尾标签（同 ExceptionItem::parsing）。
+    // b28d-solo-ARAD：ORIG 0x81a21dc 在 r=0 之前**循环外**构造一次 Info（-0x2c），
+    // 循环内复用 ⇒ Info 声明必须在函数级（原循环体内声明使 script 槽 -0x8c、Info -0x34）。
+    Info info;
     int r = 0;
     goto check;
 loop_body:
     {
-        Info info;
-        unsigned int idx = (unsigned int)script.GetInt(r, "Item_Index");
+        // b28d-solo-ARAD：ORIG 0x81a220a 把 Item_Index 写入 Info+0x04（reserved 槽，
+        // make_pair 的 first 即 `lea -0x2c; add $0x4`），非独立 idx 局部。
+        info.reserved = (unsigned int)script.GetInt(r, "Item_Index");
         info.purchaseType = (unsigned short)script.GetInt(r, "purchase_Type");
         info.limitCount = (unsigned short)script.GetInt(r, "puchase_limit_count");
         // ORIG 0x81a2297：insert 而非 operator[]（重复 key 保留首条），
         // 插入失败（已存在）返 0x5c。
-        if (!m_purchaseLimitMap.insert(std::make_pair(idx, info)).second)
+        // b28d-solo-ARAD：具名 sret（同 ExceptionItem）令 4.4 把 insert 返回槽排到
+        // ORIG 的 -0x34（.second -0x30），Info 上移到 -0x2c。
+        std::pair<std::map<unsigned int, Info>::iterator, bool> res =
+            m_purchaseLimitMap.insert(std::make_pair(info.reserved, info));
+        if (!res.second)
             return 0x5c;
         ++r;
     }
@@ -234,8 +249,10 @@ bool PurchaseLimitItem::find(unsigned int itemIndex, Info& out)
 AradBonusItem::AradBonusItem() {}
 AradBonusItem::~AradBonusItem() {}
 
-// b28d-60 verdict=N82/P112：P283 goto 尾标签已修循环布局；残差=槽位整体 -4 与
-// GetRowNum 检查块位置（ORIG `lea -0x38;call` 在 r=0 之前）；语义/调用点一致。
+// b28d-solo-ARAD verdict=IDENTICAL/AE：ORIG 0x81a23f8 在 r=0 之前**循环外**构造
+// 一次 Data（-0x38），循环内复用；make_pair 实例 `_ZSt9make_pairIRjRN13AradBonusItem4DataEE`
+// 的 first = &Data+0x04（即 unsigned int itemId 字段），无独立 itemIdx 局部
+//（ORIG 0x81a2426 `call GetInt; mov %eax,-0x34` 直存字段）。
 int AradBonusItem::parsing(char* data)
 {
     Arad_Script script;
@@ -243,19 +260,22 @@ int AradBonusItem::parsing(char* data)
         return 0x79;
     if (script.GetRowNum() == 0)
         return 0x7c;
-    // b28d-60：P283 goto 尾标签（同 ExceptionItem::parsing）。
+    // b28d-solo-ARAD：Data 循环外构造（同 PurchaseLimitItem::Info）。
+    Data d;
     int r = 0;
     goto check;
 loop_body:
     {
-        Data d;
-        // P167：ORIG make_pair<unsigned&,Data&> 第一参为 unsigned int 局部，
-        // 经 pair<unsigned,Data> 转换构造 pair<const int,Data> 插入 map<int,Data>。
-        unsigned int itemIdx = (unsigned int)script.GetInt(r, "item_id");
-        d.itemId = (int)itemIdx;
+        // ORIG 0x81a2426/0x81a2446/0x81a2467：item_id→Data+4、bonus_type→Data+8、
+        // bonus_value→Data+0（GetInt 结果直存，无中间局部）。
+        d.itemId = (unsigned int)script.GetInt(r, "item_id");
         d.bonusType = (unsigned short)script.GetInt(r, "bonus_type");
         d.bonusValue = script.GetInt(r, "bonus_value");
-        if (!m_bonusMap.insert(std::make_pair(itemIdx, d)).second)
+        // b28d-solo-ARAD：具名 sret 令 insert 返回槽落 ORIG 的 -0x40（.second -0x3c），
+        // Data 上移到 -0x38。
+        std::pair<std::map<int, Data>::iterator, bool> res =
+            m_bonusMap.insert(std::make_pair(d.itemId, d));
+        if (!res.second)
             return 0x88;   // ORIG insert 失败（.second==0）→ 0x88
         ++r;
     }
@@ -265,17 +285,18 @@ check:
     return 0;
 }
 
-// b28d-60 verdict=N82/P112：P220 正极包裹已修（ORIG `test;je <尾 mov$0 岛>`）；
-// 残差=槽位（key -0x1c vs -0x14、find sret -0x20 vs -0x18）+ const_iterator
-// 转换构造（P96/P270 两旋钮已试）。语义等价（map<int,Data> 命中拷 10 字节）。
+// b28d-solo-ARAD verdict=IDENTICAL/AE：P96/P270 非 const iterator（消 const_iterator
+// 转换构造 call）+ P0 具名 key（ORIG 0x81a2535 `mov %eax,-0x1c`）+ P247 具名 Data tmp
+// 后结构整体赋值（ORIG 0x81a2590 逐字段读节点到 -0x14/-0x10/-0xc，再 memcpy(out,&tmp,10)
+// 带自赋值检查）。槽位 key -0x1c / find -0x20 / end -0x18 / tmp -0x14 全对齐。
 bool AradBonusItem::find(unsigned int itemId, Data& out)
 {
     // ORIG 0x81a252c：map<int,Data> 命中写 out（拷 10 字节）返回 true。
-    // b28d-60：P220 正极包裹（ORIG `test;je <尾 mov$0 岛>`，非 `==end` 早返）。
-    std::map<int, Data>::const_iterator it = m_bonusMap.find((int)itemId);
+    int key = itemId;   // ORIG 具名 key 槽（-0x1c）
+    std::map<int, Data>::iterator it = m_bonusMap.find(key);
     if (it != m_bonusMap.end())
     {
-        out = it->second;
+        out = Data(it->second);
         return true;
     }
     return false;
@@ -290,8 +311,10 @@ bool AradBonusItem::find(unsigned int itemId, Data& out)
 Arad_Mileage_Data::Arad_Mileage_Data() {}
 Arad_Mileage_Data::~Arad_Mileage_Data() {}
 
-// b28d-60 verdict=N82/P112：残差=r 槽 -0x18 vs -0x14 + logFormat 实参槽对调
-//（ORIG -0x10/-0x14/-0xc vs 4.4 -0xc/-0x10/-0x14）；调用点/字符串/P167 一致。
+// b28d-solo-ARAD verdict=IDENTICAL/AE：补具名 `int found = find(ipg)`（P0 槽往返，
+// ORIG 0x81a3598 `mov %eax,-0xc`）后全帧槽位对齐（script -0x74 / r -0x18 / ipg -0x14 /
+// percent -0x10 / found -0xc / Data -0x20），154=154 指令全等；残余 diff 全为 .o
+// 未 relink 的 call/jmp 与 .rodata 重定位显示（§6.3 假阳性）。
 int Arad_Mileage_Data::parsing(char* data)
 {
     Arad_Script script;
@@ -320,7 +343,11 @@ int Arad_Mileage_Data::parsing(char* data)
     {
         int ipg = script.GetInt(r, "ipg_no");
         int percent = script.GetInt(r, "percent");
-        if (find(ipg) < 0)
+        // b28d-solo-ARAD：P0——ORIG 0x81a3598 `call find; mov %eax,-0xc(%ebp)` 有具名
+        // 结果槽（-0xc），判断为 `cmpl $0x0,-0xc; jns <错误块>`；内联 find() 被 4.4
+        // 折成 `shr $0x1f,%eax` 且整帧浅 4（script -0x70 vs ORIG -0x74）。
+        int found = find(ipg);
+        if (found < 0)
         {
             Data d(ipg, percent);
             m_mileageList.push_back(d);
@@ -510,15 +537,22 @@ int Arad_VillageAttackRewardItem::parsing(char* data)
     return 0;
 }
 
-// b28d-60 verdict=N93/N82：P13 end 缓存已修；残差=begin/end 槽序（ORIG end 先求值
-// -0x14、begin -0x10；4.4 反向）——N93 类块级对象槽方向。
+// b28d-solo-ARAD verdict=IDENTICAL/AE：ORIG 0x81a3e3c 不是循环而是
+// `std::find(begin, end, out)`——Ghidra C 第四实参即 out（0x10(%ebp)），
+// Data::operator== 仅比 winPoint（Arad_DataManager.h:357），故 winPoint 形参未使用
+//（ORIG 全程无 0xc(%ebp) 读取，原码遗留，P171 照抄）；命中后 `out = *it`
+//（ORIG 0x81a3ed1 三对 dword mov = 结构整体赋值 P247）。
 bool Arad_VillageAttackRewardItem::find_reward_item(int winPoint, Data& out)
 {
-    // b28d-60：P13 end 缓存（ORIG end() 在循环外一次，-0x14 槽）。
-    for (std::vector<Data>::const_iterator it = m_rewardList.begin(),
-                                            e = m_rewardList.end();
-         it != e; ++it)
-        if (it->winPoint == winPoint) { out = *it; return true; }
+    // ORIG 0x81a3e52：std::find<iterator,Data>(sret -0x18, begin -0x10, end -0x14, out)。
+    (void)winPoint;   // ORIG 未使用该形参（比较值取自 out）
+    std::vector<Data>::iterator it =
+        std::find(m_rewardList.begin(), m_rewardList.end(), out);
+    if (it != m_rewardList.end())
+    {
+        out = *it;
+        return true;
+    }
     return false;
 }
 
@@ -563,89 +597,75 @@ int Arad_DataManager::Destroy()
     return 1;
 }
 
-// b28d-60 verdict=N82：P167 调用点差集 CLEAR（43/43，0 缺 0 多）⇒ 语义完成；
-// 残差为帧/槽分配（ORIG 345 vs 331 insn，gap 14），byte 层 N 封顶。
+// b28d-solo-ARAD verdict=IDENTICAL/AE：P118/P139 第一参用 __FUNCTION__（ORIG 局部静态符号
+// _ZZN4ARAD16Arad_DataManager12initAradDataEvE12__FUNCTION__）；P221 全部
+// cMyTrace 改「构造即调用」全表达式临时链复现 ORIG 递减槽序（-0x100…-0x30）；
+// P197③ ep/openResult 用「声明=0 + 独立赋值」两句式（ORIG 0x08188304 -0x20、
+// 0x08188691 -0x1c 各一条 movl $0）；单基类指针变量 script 复用 -0x20 槽（P211 档③
+// 派生→基类赋值中转）；P225 5 处 open 检查改 `while(openResult != 0){…return}` 复现
+// `cmpl $0,槽; setne; test; je`；trace2(0x59) 标志位按 ORIG 为 (true,false)。
+// 345=345 指令全等，clean 归一化 0 残差。
 bool Arad_DataManager::initAradData()
 {
-
+    // b28d-solo-ARAD：ORIG 0x08188304 单槽 -0x20 初始化一次，ep/st 两段复用同一
+    // 基类指针变量（Ghidra local_24 被两派生类型共用；虚调用 vptr+8=槽2=loadScriptData）。
+    // 派生*→基类* 的赋值另出 ORIG `mov %ebx,%eax; mov %eax,-0x20` 中转（P211 档③）。
+    Arad_InterfaceGameScript* script = 0;
     // 各段起始/失败/成功均按 ORIG 记 cMyTrace（line/flag/bC/bD 逐点核对）：
     // 段①起(0x48,9,1,0)、Fail(0x4c/0x52,9,1,1)、Success(0x55,9,0,1)；
-    // 段②起(0x59,9,0,1)、Fail(0x5d/0x63,9,1,1)、Success(0x66,9,0,1)；
+    // 段②起(0x59,9,1,0)、Fail(0x5d/0x63,9,1,1)、Success(0x66,9,0,1)；
     // 段③起(0x94,9,1,0)、open 失败(0x97/0x9d/0xa3/0xb2/0xbb,9,1,1) 带
     // "…script load fail. (line:%d)" 参数为 open 返回值。
-    cMyTrace trace0("initAradData", 0x48, 9, true, false);
-    trace0("\t- Loading Event Period Script - ");
-    Arad_EventPeriodDataManager* ep = new Arad_EventPeriodDataManager();
-    if (ep == 0 || !ep->loadScriptData())
+    cMyTrace(__FUNCTION__, 0x48, 9, true, false)("\t- Loading Event Period Script - ");
+    script = new Arad_EventPeriodDataManager();
+    if (script == 0 || !script->loadScriptData())
     {
-        cMyTrace trace("initAradData", 0x4c, 9, true, true);
-        trace("Fail");
+        cMyTrace(__FUNCTION__, 0x4c, 9, true, true)("Fail");
         return false;
     }
-    if (!__insertGameScript(ep))
+    if (!__insertGameScript(script))
     {
-        cMyTrace trace("initAradData", 0x52, 9, true, true);
-        trace("Fail");
+        cMyTrace(__FUNCTION__, 0x52, 9, true, true)("Fail");
         return false;
     }
-    cMyTrace trace1("initAradData", 0x55, 9, false, true);
-    trace1("Success");
+    cMyTrace(__FUNCTION__, 0x55, 9, false, true)("Success");
 
-    cMyTrace trace2("initAradData", 0x59, 9, false, true);
-    trace2("\t- Loading Statistics Item List - ");
-    Arad_StatisticsEventItemList* st = new Arad_StatisticsEventItemList();
-    if (st == 0 || !st->loadScriptData())
+    cMyTrace(__FUNCTION__, 0x59, 9, true, false)("\t- Loading Statistics Item List - ");
+    script = new Arad_StatisticsEventItemList();
+    if (script == 0 || !script->loadScriptData())
     {
-        cMyTrace trace("initAradData", 0x5d, 9, true, true);
-        trace("Fail");
+        cMyTrace(__FUNCTION__, 0x5d, 9, true, true)("Fail");
         return false;
     }
-    if (!__insertGameScript(st))
+    if (!__insertGameScript(script))
     {
-        cMyTrace trace("initAradData", 0x63, 9, true, true);
-        trace("Fail");
+        cMyTrace(__FUNCTION__, 0x63, 9, true, true)("Fail");
         return false;
     }
-    cMyTrace trace3("initAradData", 0x66, 9, false, true);
-    trace3("Success");
+    cMyTrace(__FUNCTION__, 0x66, 9, false, true)("Success");
 
-    cMyTrace trace4("initAradData", 0x94, 9, true, false);
-    trace4("\t- Loading NexonFolder Script - ");
-    int openResult = m_exceptionItem.open("Nexon/AradSpecialUseItems.txt");
-    if (openResult != 0)
-    {
-        cMyTrace trace("initAradData", 0x97, 9, true, true);
-        trace("AradSpecialUseItems script load fail. (line:%d)", openResult);
-        return false;
-    }
+    int openResult = 0;
+    cMyTrace(__FUNCTION__, 0x94, 9, true, false)("\t- Loading NexonFolder Script - ");
+    openResult = m_exceptionItem.open("Nexon/AradSpecialUseItems.txt");
+    while (openResult != 0) { cMyTrace(__FUNCTION__, 0x97, 9, true, true)(
+        "AradSpecialUseItems script load fail. (line:%d)", openResult);
+    return false; }
     openResult = m_purchaseLimitItem.open("Nexon/AradSpecialUseItems.txt");
-    if (openResult != 0)
-    {
-        cMyTrace trace("initAradData", 0x9d, 9, true, true);
-        trace("AradSpecialUseItems script load fail. (line:%d)", openResult);
-        return false;
-    }
+    while (openResult != 0) { cMyTrace(__FUNCTION__, 0x9d, 9, true, true)(
+        "AradSpecialUseItems script load fail. (line:%d)", openResult);
+    return false; }
     openResult = m_bonusItem.open("Nexon/AradSpecialUseItems.txt");
-    if (openResult != 0)
-    {
-        cMyTrace trace("initAradData", 0xa3, 9, true, true);
-        trace("AradSpecialUseItems script load fail. (line:%d)", openResult);
-        return false;
-    }
+    while (openResult != 0) { cMyTrace(__FUNCTION__, 0xa3, 9, true, true)(
+        "AradSpecialUseItems script load fail. (line:%d)", openResult);
+    return false; }
     openResult = m_mileageData.open("Nexon/CeraShopMileage.txt");
-    if (openResult != 0)
-    {
-        cMyTrace trace("initAradData", 0xb2, 9, true, true);
-        trace("CeraShopMileage script load fail. (line:%d)", openResult);
-        return false;
-    }
+    while (openResult != 0) { cMyTrace(__FUNCTION__, 0xb2, 9, true, true)(
+        "CeraShopMileage script load fail. (line:%d)", openResult);
+    return false; }
     openResult = m_villageAttackReward.open("Nexon/VillageAttackRewardItem.txt");
-    if (openResult != 0)
-    {
-        cMyTrace trace("initAradData", 0xbb, 9, true, true);
-        trace("VillageAttackRewardItem script load fail. (line:%d)", openResult);
-        return false;
-    }
+    while (openResult != 0) { cMyTrace(__FUNCTION__, 0xbb, 9, true, true)(
+        "VillageAttackRewardItem script load fail. (line:%d)", openResult);
+    return false; }
     return true;
 }
 
@@ -681,11 +701,13 @@ Arad_InterfaceGameScript* Arad_DataManager::findGameScript(std::string name)
 template class Singleton<Arad_DataManager>;
 template class Singleton<ScriptManager>;
 
-// b28d-60 verdict=N（bool→int 零扩展）：ORIG 0x0819798d `call CUser::Send; mov %eax,%ebx`
-//（4.1 bool→int 不归一），4.4 恒 `movzbl %al,%ebx`。Send 为 bool（P174 串定）不可改，
-// 本函数返回 int（ORIG 全宽返回）。残差 1 条 movzbl，语义等价。
-int notifyOpenMessageDialog(CUser* user, int a, int b,
-                            const AradServerStateMessage& msg)
+// b28d-solo-ARAD verdict=IDENTICAL/AE：P248 档①（callee 返回类型旋钮）——返回类型
+// int→bool 复现 ORIG 0x0819798d `call CUser::Send; mov %eax,%ebx`（4.4 对 int 返回恒
+// `movzbl %al,%ebx`；bool 返回直出全宽 mov，探针 /tmp/probe_arad2.cpp f_bool）。
+// 返回类型不入 mangled；调用点（Arad_ServerStateManager/GameWorld/Inter_LoadEtc）均
+// 作语句调用忽略返回值，语义等价（0=失败，非0=成功）。
+bool notifyOpenMessageDialog(CUser* user, int a, int b,
+                             const AradServerStateMessage& msg)
 {
     // [b23判词·AE假阳性] 65/65 归一化逐条相等（含 guard 局部 -0x18 寻址、put_binary
     // 的 `movl $0xc` 长度实参、异常清理路径的 %ebx/%esi 交换序）；残余 diff 全为未

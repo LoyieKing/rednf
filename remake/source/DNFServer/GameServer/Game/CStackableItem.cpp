@@ -405,7 +405,10 @@ int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
 //   若 source 仍有剩余元素：m_field24 = (tail==1)，m_field25 = (tail==2)（均读同一元素），
 //   且 extra!=0 时 m_vec28 = *extra。
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// [b28d-N90] fresh 复验 225/217：维持 N90。
+// [b28d-solo-CStackableItem] fresh 复验 226/227 NEAR（起点 225/217）：已按 ORIG 重写——
+// `int n = *it; it++;` 拆句、`int i = 0; for (i = 0; …)` 双初始化（P191）、
+// pair 逐字段赋值、尾部改早退 `if (it == source->end()) return;`（P214）。
+// 残余 = 帧 0x78 vs 0x68 与 n/i/迭代器组槽位非均匀偏移（N95 槽基 + N82 族）。
 void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
                       std::vector<std::pair<int, int> >* extra)
 {
@@ -513,7 +516,11 @@ void createLotteryInfo(LotteryInfo* info, std::vector<int>* source)
 //   b (vector<int>)：field8=b[0]，fieldc=b[1]
 //   c (vector<int>)：m_defaultCount/Idx/Num/Flag + m_items(stDefaultItem) 流
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// [b28d-N90] fresh 复验 652/638：维持 N90（多层 vector 迭代器外联 + N82 槽平移）。
+// [b28d-solo-CStackableItem] fresh 复验 667/656（起点 652/638）：a 部分已按 ORIG 重写
+// ——`vec(*itA)` → `it = (*itA).begin()`（deEv 非 ptEv）→ unit 构造/clear；边界一律
+// `(*itA).end()`；失败路径改正极性早退 `if (it == (*itA).end()) break;`；b 部分改
+// `if (it == b->end()) return;`；c 部分 `*it`/`it++` 拆句 + 内层 break（ndiff 902→499）。
+// 残余 = 内层 do-while 岛数（ORIG 4 尾岛 vs 4.4 3）+ c 部分极性 eq+jne vs ne+je。
 void createStackableMultiBoxLotteryInfo(
     MultiBoxLotteryInfo* info,
     std::vector<std::vector<int> >* a, std::vector<int>* b,
@@ -525,80 +532,103 @@ void createStackableMultiBoxLotteryInfo(
     }
     info->clear();
     // ---- 解析 a：构建 m_units ----
-    for (std::vector<std::vector<int> >::iterator itA = a->begin();
-         itA != a->end(); ++itA)
+    // [b28d-solo-CStackableItem] ORIG 0x89bafd1：`vec(*itA)` → `it = (*itA).begin()`
+    // → `unit` 构造/clear（it 先于 unit）；所有边界比较用 **(*itA).end()**（原码如此，
+    // 非 vec.end()）；每次 `*it` 与 `it++` 为两条独立语句。
+    std::vector<std::vector<int> >::iterator itA = a->begin();
+    while (itA != a->end())
     {
-        std::vector<int> vec = *itA;
+        std::vector<int> vec(*itA);
+        std::vector<int>::iterator it = (*itA).begin();
         MultiBoxLotteryInfo::LotteryUnit unit;
         unit.clear();
-        std::vector<int>::iterator it = vec.begin();
-        unit.m_count = *it++;
-        unit.m_defaultIdx = *it++;
-        if (it != vec.end())
+        unit.m_count = *it;
+        it++;
+        unit.m_defaultIdx = *it;
+        it++;
+        if (it == (*itA).end())
         {
-            unit.m_defaultNum = *it++;
-            if (it != vec.end())
-            {
-                unit.m_defaultFlag = (*it++ != 0);
-                if (it != vec.end())
-                {
-                    while (it != vec.end())
-                    {
-                        std::pair<int, int> p_item, p_bonus;
-                        p_item.first = *it++;
-                        if (it == vec.end()) break;
-                        p_item.second = *it++;
-                        if (it == vec.end()) break;
-                        p_bonus.first = *it++;
-                        if (it == vec.end()) break;
-                        p_bonus.second = *it++;
-                        if (it == vec.end()) break;
-                        unit.m_items.push_back(p_item);
-                        unit.m_bonus.push_back(p_bonus);
-                    }
-                    info->m_units.push_back(unit);
-                    continue;
-                }
-            }
+            break;
         }
-        break;  // 单元数据不足 → 终止整个主循环（ORIG ebx=0 退出）
+        unit.m_defaultNum = *it;
+        it++;
+        if (it == (*itA).end())
+        {
+            break;
+        }
+        unit.m_defaultFlag = (*it != 0);
+        it++;
+        if (it == (*itA).end())
+        {
+            break;
+        }
+        while (it != (*itA).end())
+        {
+            std::pair<int, int> p_item, p_bonus;
+            p_item.first = *it;
+            it++;
+            if (it == (*itA).end()) break;
+            p_item.second = *it;
+            it++;
+            if (it == (*itA).end()) break;
+            p_bonus.first = *it;
+            it++;
+            if (it == (*itA).end()) break;
+            p_bonus.second = *it;
+            it++;
+            unit.m_items.push_back(p_item);
+            unit.m_bonus.push_back(p_bonus);
+        }
+        info->m_units.push_back(unit);
+        itA++;
     }
     // ---- 解析 b：field8 / fieldc ----
     if (!b->empty())
     {
         std::vector<int>::iterator it = b->begin();
-        info->m_field8 = *it++;
-        if (it != b->end())
+        info->m_field8 = *it;
+        it++;
+        if (it == b->end())
         {
-            info->m_fieldc = *it++;
+            return;
         }
+        info->m_fieldc = *it;
+        it++;
     }
     // ---- 解析 c：默认项 + m_items ----
     std::vector<int>::iterator it = c->begin();
     if (it != c->end())
     {
-        info->m_default.m_defaultCount = *it++;
+        info->m_default.m_defaultCount = *it;
+        it++;
         if (it != c->end())
         {
-            info->m_default.m_defaultIdx = *it++;
+            info->m_default.m_defaultIdx = *it;
+            it++;
             if (it != c->end())
             {
-                info->m_default.m_defaultNum = *it++;
+                info->m_default.m_defaultNum = *it;
+                it++;
                 if (it != c->end())
                 {
-                    info->m_default.m_defaultFlag = (char)*it++;
+                    info->m_default.m_defaultFlag = (char)*it;
+                    it++;
                     if (it != c->end())
                     {
                         while (it != c->end())
                         {
                             MultiBoxLotteryInfo::stDefaultItem item;
-                            item.m_itemIdx = *it++;
-                            if (it == c->end()) return;
-                            item.m_prob = *it++;
-                            if (it == c->end()) return;
-                            item.m_count = *it++;
-                            if (it == c->end()) return;
-                            item.m_flag = (char)*it++;
+                            item.m_itemIdx = *it;
+                            it++;
+                            if (it == c->end()) break;
+                            item.m_prob = *it;
+                            it++;
+                            if (it == c->end()) break;
+                            item.m_count = *it;
+                            it++;
+                            if (it == c->end()) break;
+                            item.m_flag = (char)*it;
+                            it++;
                             info->m_default.m_items.push_back(item);
                         }
                     }
@@ -613,8 +643,6 @@ class CChattingEmoticonList
 public:
     void* find_emoticon(int idx);
 };
-
-// ===================== STStackableScript 工作布局（脚本表批次细化） =====================
 
 class STStackableScript
 {
@@ -667,7 +695,7 @@ public:
     char m_field104;                     // +0x104
     STSpecialMonsterDrop m_specialDrop;  // +0x105
     char m_field10e;                     // +0x10e
-    char m_field10f;                     // +0x10f
+    bool m_field10f;                     // +0x10f
     std::vector<std::pair<int, int> > m_vec110;  // +0x110
     std::set<STItemScript::ENUM_ITEM_CATEGORY> m_set11c;  // +0x11c
     char m_pad134[0x1c];                 // +0x134
@@ -690,18 +718,18 @@ public:
     int m_field1b0;                      // +0x1b0
     int m_field1b4;                      // +0x1b4
     char m_pad1b8;                       // +0x1b8
-    bool m_field1b9;                     // +0x1b9
-    bool m_field1ba;                     // +0x1ba
-    bool m_field1bb;                     // +0x1bb
-    bool m_field1bc;                     // +0x1bc
-    bool m_field1bd;                     // +0x1bd
-    bool m_field1be;                     // +0x1be
-    bool m_field1bf;                     // +0x1bf
-    char m_field1c0;                     // +0x1c0
+    unsigned char m_field1b9;            // +0x1b9
+    unsigned char m_field1ba;            // +0x1ba
+    unsigned char m_field1bb;            // +0x1bb
+    unsigned char m_field1bc;            // +0x1bc
+    unsigned char m_field1bd;            // +0x1bd
+    unsigned char m_field1be;            // +0x1be
+    char m_field1bf;                     // +0x1bf
+    bool m_field1c0;                     // +0x1c0
     char m_pad1c1[3];                    // +0x1c1
     int m_field1c4;                      // +0x1c4
     char m_pad1c8[8];                    // +0x1c8
-    bool m_field1d0;                     // +0x1d0
+    char m_field1d0;                     // +0x1d0
     char m_pad1d1[0xf];                  // +0x1d1
     int m_field1e0;                      // +0x1e0
     int m_field1e4;                      // +0x1e4
@@ -740,11 +768,11 @@ public:
     char m_pad382[2];                    // +0x382
     char m_pad384[0x10];                 // +0x384
     unsigned short m_field394;           // +0x394
-    char m_field396;                     // +0x396
+    bool m_field396;                     // +0x396
     char m_pad397;                       // +0x397
     unsigned short m_field398;           // +0x398
     char m_field39a;                     // +0x39a
-    char m_field39b;                     // +0x39b
+    bool m_field39b;                     // +0x39b
     int m_field39c;                      // +0x39c
     char m_field3a0;                     // +0x3a0
     char m_field3a1;                     // +0x3a1
@@ -754,7 +782,7 @@ public:
     std::vector<std::pair<int, int> > m_vec3c0;  // +0x3c0
     int m_field3cc;                      // +0x3cc
     char m_field3d0;                     // +0x3d0
-    char m_field3d1;                     // +0x3d1
+    bool m_field3d1;                     // +0x3d1
     char m_pad3d2[2];                    // +0x3d2
     std::vector<std::pair<int, int> > m_vec3d4;  // +0x3d4
     int m_field3e0;                      // +0x3e0
@@ -1221,15 +1249,24 @@ struct CItemView
     char m_pad[0x8c];
     int m_int8c;                 // +0x8c
     char m_pad90[0xc];           // +0x90
-    char m_padac[0x24];          // +0xac
+    // ORIG set_item 0x0850e0xx：`mov %dl,0xd0(%eax)`、`mov %edx,0xfc(%eax)`、
+    // `mov %edx,0x100(%eax)` ⇒ m_charD0@0xd0、m_intFC@0xfc、m_int100@0x100。
+    // 旧 pad 0x24 使三处偏移整体少 0x10（真语义 bug）。
+    char m_padac[0x34];          // +0x9c..0xcf
     char m_charD0;               // +0xd0
     char m_padD1[0x2b];          // +0xd1
     int m_intFC;                 // +0xfc
     int m_int100;                // +0x100
 };
 
-// [b28d-N82] fresh 复验 1059/1099：大件残差 = 4.1/4.4 全帧槽号错位（N82/P112）+
-// string/vector/map 外联实例差（N89）；p167 调用点与字段赋值序全等。
+// [b28d-solo-CStackableItem] fresh 复验 1060/1073（起点 1059/1100）：已修——
+// ①CItemView 三处偏移整体少 0x10（m_charD0@0xc0→0xd0、m_intFC 0xec→0xfc、
+//   m_int100 0xf0→0x100）真语义 bug；②删 ORIG 全函数无写入的
+//   `m_boolF8 = script.m_field31`（P171）；③删 scriptText/strncpy 冗余缓冲，
+//   script2Database 直传 m_strac.c_str()；④cMyTrace 改全表达式临时链（P227）；
+//   ⑤镜像 STStackableScript 13 字段按 ORIG `movzbl` 单段形改型；⑥m_field364→int。
+// 残余 = 装载序/中转（N76/P211）、`m_vec94[i]` lea-vs-add（N107）、比较方向
+// seta-vs-setb（N18b）、帧 0x26c vs 0x27c（N95）。
 void CStackableItem::set_item(STStackableScript& script)
 {
     char buf[500];
@@ -1347,7 +1384,7 @@ void CStackableItem::set_item(STStackableScript& script)
     {
         if (script.m_vec94.size() > 1)
         {
-            for (int i = 1; i < (int)script.m_vec94.size(); ++i)
+            for (int i = 1; i < script.m_vec94.size(); ++i)
             {
                 int t = GetEquipmentTypeStringToEnum(script.m_vec94[i]);
                 if (t != 0x16)

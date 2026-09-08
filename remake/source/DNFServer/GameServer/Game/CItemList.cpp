@@ -1885,7 +1885,7 @@ bool CItemList::Load_Goods_File(const char* path)
             {
                 m_lottoMap.insert(std::make_pair<unsigned long&, int&>(
                     (unsigned long&)shopList[i][j].m_field10,
-                    shopList[i][j].m_field14));
+                    (int&)shopList[i][j].m_field14));
             }
         }
     }

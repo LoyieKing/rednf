@@ -202,11 +202,16 @@ enum IPG_DATA_TYPE
 // ORIG：ctor W 0x080ee3de 清零 +0/+4/+8；CIPGMgr::getIPGStatus W 0x081010ae
 // 依次写 pool Remain→+0、pool Size→+4、reqQueue size→+8。
 // 字段名【推断】，偏移/写序实证；sizeof 仅建模可证实的 0xc。
+// [b28d-solo-W6_IPGDeps] 字段类型 unsigned int→int（P211/P248 档③）：ORIG
+// 0x081010c6/0x081010dc 前 2 store 为 LHS-first 直存（`mov 0xc(%ebp),%edx;
+// mov %eax,(%edx)`）⇒ 字段与 DynamicPool::Remain/Size() 的 int 返回同型；第 3
+// store 0x081010f2 为 RHS-first+edx 中转（queue::size() 返回 size_t，异型）。
+// 宽度/sizeof 0xc/偏移/mangled 全不变；消费点 GameMain.cpp:1732 varargs %d 位模式不变。
 struct stIPGStatus_t
 {
-    unsigned int m_field00;  // +0x00（pool Remain）
-    unsigned int m_field04;  // +0x04（pool Size）
-    unsigned int m_field08;  // +0x08（reqQueue size）
+    int m_field00;  // +0x00（pool Remain）
+    int m_field04;  // +0x04（pool Size）
+    int m_field08;  // +0x08（reqQueue size）
 
     stIPGStatus_t();         // ORIG W 0x080ee3de（C1=C2 同址）
 };
@@ -270,7 +275,10 @@ public:
 struct SIPGDataInputView
 {
     char m_pad69[0x2f];          // +0x69（本族未访问）
-    unsigned int m_price;        // +0x98（IPGInput 9 参 price）
+    // [b28d-solo-W6_IPGDeps] unsigned→int（P211 档③）：ORIG 0x080ffdxx
+    // m_price store 为 RHS-first 3 条形（`mov 0x14(%ebp),%edx; mov -0xc(%ebp),%eax;
+    // mov %edx,0x98(%eax)`，值来自形参槽无中转）⇒ 字段与 unsigned int 形参异型。
+    int m_price;                 // +0x98（IPGInput 9 参 price）
     char m_pad9C[0x41];          // +0x9c
     char m_argDD[0xb];           // +0xdd（strncpy n=0xb）
     char m_argE8[0xc];           // +0xe8（strncpy n=0xc）
@@ -317,8 +325,14 @@ struct SIPGDataOutputView
     char m_pad159[0x1a];         // +0x159
     char m_resultCode[4];        // +0x173（case2/case6 sprintf "%d"；Sim memcpy "0",2）
     char m_message[0x65];        // +0x177（case2 memcpy n=1；case6 strncpy "cera point",100）
-    unsigned int m_tranField0;   // +0x1dc（← 局部 BillTransaction.m_field0）
-    unsigned long long m_tranNo; // +0x1e0（← 局部 tran.m_tranNo；0x1e0/0x1e4 两 dword）
+    // [b28d-solo-W6_IPGDeps] 匿名 union 双视角（P246/P263）：保留逐字段访问名，
+    // 并新增 Taiwan::BillTransaction 整体视图，使 `m_tran = *tran` 生成 ORIG 的
+    // disp 基址三 dword 拷贝（取址 cast 形恒多 1 条 add，N107）。
+    union
+    {
+        struct { unsigned int m_tranField0; unsigned long long m_tranNo; };
+        Taiwan::BillTransaction m_tran;
+    };                           // +0x1dc（12B；0x1dc/0x1e0/0x1e4 三 dword）
     char m_recvCharac[0x3a];     // +0x1e8（getCurCharacName n=0x3a；case2 purchase 末串）
     char m_pad222[0xb6];         // +0x222
 };
@@ -342,8 +356,13 @@ struct SIPGDataCancelView
     unsigned int m_resTranField0;   // +0x1dc（响应块 tran.m_field0）
     unsigned long long m_resTranNo; // +0x1e0（响应块 tran.m_tranNo，0x1e0/0x1e4）
     char m_pad1E8[8];            // +0x1e8
-    unsigned int m_tranField0;   // +0x1f0（`mov %ecx,0x1f0(%eax)`）
-    unsigned long long m_tranNo; // +0x1f4（0x1f4/0x1f8；case3/case5 读回 BillTransaction）
+    // [b28d-solo-W6_IPGDeps] 匿名 union 双视角（P246/P263）：保留逐字段访问名 +
+    // Taiwan::BillTransaction 整体视图（disp 基址三 dword 拷贝，消 N107 的 add）。
+    union
+    {
+        struct { unsigned int m_tranField0; unsigned long long m_tranNo; };
+        Taiwan::BillTransaction m_tran;
+    };                           // +0x1f0（12B；0x1f0/0x1f4/0x1f8）
     char m_pad1FC[0xdc];         // +0x1fc
 };
 
@@ -411,8 +430,15 @@ struct SIPGData
     //（int 字段 4.4 恒折单段 `mov 0x1c(%eax),%edx`）。宽度/偏移/sizeof 0x2dc/
     // mangled 不变。
     IPG_DATA_TYPE m_type;        // +0x1c（081048dc `mov 0x1c(%eax),%eax` switch 键）
-    unsigned int m_uid;          // +0x20（08100b22 `mov %edx,0x20(%eax)` = CUser::GetUID；Confirm 重载写 0xffffffff）
-    unsigned char m_notifyFlag;  // +0x24（`mov %dl,0x24(%eax)` 直存 flag；IPGResult 081009c5 `movzbl 0x24` 决定入队/回收）
+    // [b28d-solo-W6_IPGDeps] unsigned→int（P211 档③/BL2）：_SetIPGData ORIG 0x08100b22
+    // `call GetUID; mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,0x20(%eax)` =
+    // call 返回值异型 ⇒ RHS-first+中转；IPGResult 内存→内存拷贝段两侧同形不变。
+    int m_uid;                   // +0x20（08100b22 `mov %edx,0x20(%eax)` = CUser::GetUID；Confirm 重载写 0xffffffff）
+    // [b28d-solo-W6_IPGDeps] unsigned char→bool（P300 反向）：_SetIPGData
+    // ORIG 0x08100b31 段 LHS-first（`mov -0xc(%ebp),%eax; movzbl -0x1c(%ebp),%edx;
+    // mov %dl,0x24(%eax)`）⇒ uchar 源 + bool 目标同型；当前 bool 源 + uchar 目标
+    // 恒 RHS-first。
+    bool m_notifyFlag;           // +0x24（`mov %dl,0x24(%eax)` 直存 flag；IPGResult 081009c5 `movzbl 0x24` 决定入队/回收）
     char m_pad25[3];             // +0x25（ORIG 无访问）
     char m_account[0x14];        // +0x28（snprintf/sprintf 账号；case2 strcpy / case6 strncpy ""）
     char m_accName[0x14];        // +0x3c（get_acc_name strncpy n=0x28【ORIG 越界】；getBalance/purchase/ceraPoint 入参）

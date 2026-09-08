@@ -5014,9 +5014,9 @@ bool CUser::isHumanCertified()
     return m_humanCertified;
 }
 
-unsigned char CUser::isLoadingHackGold()
+bool CUser::isLoadingHackGold()
 {
-    return (unsigned char)m_mcap.m_loadingHackGold;
+    return m_mcap.m_loadingHackGold;
 }
 
 bool CUser::isSaveInformNoticeFlag()

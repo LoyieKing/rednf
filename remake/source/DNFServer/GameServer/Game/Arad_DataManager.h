@@ -135,8 +135,12 @@ private:
 // ORIG nm "guard variable for ARAD::Singleton<ARAD::Arad_DataManager>::Get()::obj"）。
 // 模板定义唯一，各 TU 显式/隐式实例化；ARAD.cpp/CCeraShopAddRestrict.cpp 不得再定义。
 // ============================================================================
-int notifyOpenMessageDialog(CUser* user, int a, int b,
-                            const AradServerStateMessage& msg);  // ORIG 0x81978dd
+// b28d-solo-ARAD：返回类型 int→bool（P248 档①）——ORIG 0x0819798d `call Send;
+// mov %eax,%ebx`（4.1 bool→int 不归一），4.4 对 int 返回恒 `movzbl %al,%ebx`；
+// 改 bool 后 4.4 直出 `mov %eax,%ebx`（探针 /tmp/probe_arad2.cpp f_bool）。
+// 返回类型不入 mangled（符号不变）；全部调用点均作语句调用、忽略返回值。
+bool notifyOpenMessageDialog(CUser* user, int a, int b,
+                             const AradServerStateMessage& msg);  // ORIG 0x81978dd
 
 // ORIG T 0x08197d00 _ZN4ARAD19notifySystemMessageEP5CUserPc：
 // 系统提示消息（PacketGuard 组包 Send）。定义归 Arad 域 TU，此处仅声明。
@@ -204,14 +208,17 @@ class PurchaseLimitItem : public Arad_ScriptLoader
 {
 public:
     // ORIG Info ctor _ZN17PurchaseLimitItem4InfoC1Ev @0x081a405e 清零 8 字节：
-    //   +0x00 ushort purchaseType、+0x02 ushort limitCount、+0x04 int（未用/保留）。
+    //   +0x00 ushort purchaseType、+0x02 ushort limitCount、+0x04 unsigned int
+    //   （b28d-solo-ARAD：parsing 把 Item_Index 写入此槽，make_pair 实例为
+    //   _ZSt9make_pairIRjRN17PurchaseLimitItem4InfoEE ⇒ 该字段为 unsigned int；
+    //   Dispatchers.cpp 仅作 ==0 与 (unsigned int) 输出，改型零影响）。
     // find@0x081a2310 拷贝 8 字节（+4 与 +8 处两 dword），故 Info 为 8 字节宽。
     struct Info
     {
         Info() { purchaseType = 0; limitCount = 0; reserved = 0; }
         unsigned short purchaseType;   // +0x00
         unsigned short limitCount;     // +0x02
-        int reserved;                  // +0x04（ORIG Info::Info 清零，parsing 不填）
+        unsigned int reserved;         // +0x04（ORIG = Item_Index，见上）
     };
 
     PurchaseLimitItem();
@@ -231,16 +238,19 @@ private:
 // AradBonusItem —— Arad_DataManager::m_bonusItem（+0x54）。
 // ORIG ctor @0x08188c0c、dtor @0x08188c36；size = 0x1c。
 // 成员：+0x04 std::map<int,AradBonusItem::Data> m_bonusMap。
-// 内嵌 Data：+0x00 int itemId +0x04 int bonusValue +0x08 ushort bonusType（size 0xa，pad→0xc）。
+// 内嵌 Data（b28d-solo-ARAD 修正字段序/类型）：+0x00 int bonusValue +0x04 unsigned int
+// itemId +0x08 ushort bonusType（size 0xa，pad→0xc，sizeof 仍 12）。
+// 依据：parsing 0x081a246a make_pair 实例 `_ZSt9make_pairIRjRN13AradBonusItem4DataEE`
+// （first = &Data+0x04，unsigned int&；item_id 存 +0x04、bonus_value 存 +0x00）。
 // ============================================================================
 class AradBonusItem : public Arad_ScriptLoader
 {
 public:
     struct Data
     {
-        Data() { itemId = 0; bonusValue = 0; bonusType = 0; }
-        int itemId;           // +0x00
-        int bonusValue;       // +0x04
+        Data() { bonusValue = 0; itemId = 0; bonusType = 0; }
+        int bonusValue;            // +0x00
+        unsigned int itemId;       // +0x04
         unsigned short bonusType;  // +0x08
     };
 

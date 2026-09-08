@@ -93,6 +93,12 @@ extern "C" int pthread_cancel(pthread_t) __attribute__((weak));
 
 namespace
 {
+// b28d-solo-OnlyOrigBatch7_Force verdict=DIFF（N 封顶）ORIG 0x086d9230
+// _ZN12_GLOBAL__N_116get_atomic_mutexEv（41 条）：ORIG 为函数局部静态互斥
+// （__cxa_guard_acquire/release + 24B 临时清零拷贝到静态 0x948b2f0），即
+// 4.1 的非平凡初始化发射；4.4 对 PTHREAD_MUTEX_INITIALIZER（全零常量）走
+// 静态初始化（.bss 直返、无 guard）⇒ guard/构造发射差异不可复现（N 封顶）。
+// 语义等价：同一 TU 单例互斥，初值同为全零。
 pthread_mutex_t& get_atomic_mutex()
 {
     static pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;

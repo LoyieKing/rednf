@@ -232,7 +232,7 @@ public:
     int GetCargoData(int itemIdx, Inven_Item& out) const;
     const Inven_Item* get_cargo_start() const;
     unsigned int GetCapacity() const;   // ORIG GetInventory 0x864d646 m_cargoCapacity 直存=同型（P211 反向定案；mangled 无返回类型 ABI 零变）
-    int GetItemCount() const;
+    int GetItemCount() const;   // b28d-solo-CCargo：保持 int（MakeItemList 0x0850bf50 调用点 LHS-first 直存；改 unsigned 反使两处均 RHS-first 中转，实测回退）
     bool IsOperatorable(int idx) const;
 
     // ---- 插入 / 删除 / 移动 ----

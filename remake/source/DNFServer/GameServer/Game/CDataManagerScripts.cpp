@@ -852,7 +852,7 @@ bool* GetLightServerFlag()
 //   注：ORIG vtable（0x8c96da8）实证 @4=IsAvatarItem、@18=PeriodAfterUnsealing、
 //   @19=IsRandomOption（NEW 原实现误用 IsCreatureItem/IsRandomOption，已纠正）。
 // [b28d-solo-CDataManagerScripts] DIFF→N：P52 链式已翻正（`G_CDataManager()->find_item(item.m_addInfo)` ⇒ 实参先物化 %ebx，帧 push ebx/sub 0x24 对齐）；残余 P63 共享出口（ORIG 多 return 0 的 je 直达尾块 vs 4.4 就地物化）+ 短路物化岛；ORIG 0x0867cf8d。
-int _checkTimeoutItem(const Inven_Item& item)
+bool _checkTimeoutItem(const Inven_Item& item)   // b28d-Main(P292/P248档①)：ORIG 0x086412ba 调用点 `call; test %al,%al; jne` ⇒ bool
 {
     // ORIG 0x0867cf8f：实参 item.m_addInfo 先物化 %ebx 再 call G_CDataManager()
     // ⇒ 单条链式表达式（P52），勿拆具名 dm 局部（会生 -0x18 槽 + 换序）。

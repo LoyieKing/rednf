@@ -239,6 +239,9 @@ bool CFairMatch::_CheckRematchable(PvP_Room* room) const
 // CheckMatchable ORIG T 0x08565c54 报告 CheckMatchable.md
 bool CFairMatch::CheckMatchable(IMatch* other)
 {
+    // b28d-solo-CFairMatchRooms：ORIG 槽序 myUser@-0x14 / otherUser@-0x10 /
+    // i@-0xc（4.1 先声明更深）⇒ 两个 CUser* 均声明在函数头，myUser 在前。
+    CUser* myUser = 0;
     CUser* otherUser = 0;
     for (int i = 0; i < 4; ++i) {
         otherUser = other->GetUser(static_cast<unsigned>(i));
@@ -246,12 +249,15 @@ bool CFairMatch::CheckMatchable(IMatch* other)
     }
     if (otherUser == 0) return false;
 
-    CUser* myUser = 0;
     for (int i = 0; i < 4; ++i) {
         myUser = GetUser(static_cast<unsigned>(i));
         if (myUser != 0) break;
     }
-    return myUser != 0;
+    // b28d-solo-CFairMatchRooms：ORIG 尾 `cmpl $0,-0x10(%ebp); jne <mov$1>;
+    // mov $0,%eax; jmp; <mov$1>` ⇒ P56/P47 分支形（`return myUser != 0;`
+    // 生 setne 物化，与 ORIG 的 mov$0/mov$1 双岛不符）。
+    if (myUser == 0) return false;
+    return true;
 }
 
 // GetGap ORIG T 0x856491c 报告 GetGap.md —— 双 call 内联差：4.4 实测
@@ -525,7 +531,11 @@ int CFairMatch::_CheckMovableRoom(IMatch* other, PvP_Room* /*room*/,
         if ((member = other->GetUser(static_cast<unsigned>(i))) != 0) break;
     }
     if (member != 0) {
-        *out = reinterpret_cast<PvP_Room*>(member->GetPVPRoom());
+        // b28d-solo-CFairMatchRooms：ORIG `mov 0x14(%ebp),%edx; mov %eax,(%edx);
+        // mov 0x14(%ebp),%eax; mov (%eax),%eax; jne` ⇒ 两句式（store 后重读）。
+        // 目标经 void** 视图与 GetPVPRoom() 返回 void* 同型 ⇒ P211 档③
+        // LHS-first 直存（异型 PvP_Room* 目标恒 RHS-first+edx 中转）。
+        *reinterpret_cast<void**>(out) = member->GetPVPRoom();
         if (*out != 0) return 1;
         cMyTrace trace(
             __PRETTY_FUNCTION__,
@@ -552,11 +562,13 @@ void CFairMatch::_PullOutRoom(CUser* user, PvP_Room* room, int seat)
             user->get_acc_name(), user->getCurCharacName(),
             room->get_index(), room->get_pvp_battle_mode(), seat);
     }
-    const int ok = room->OnSetPVPSeatState(
-        user, seat,
-        static_cast<ENUM_SEAT_STATE>(0xfe),
-        static_cast<ENUM_WALKOUT_TYPE>(2));
-    if (!ok) {
+    // b28d-solo-CFairMatchRooms：P292 档①——ORIG 尾部 `xor $1,%eax; test %al,%al;
+    // je`（bool callee 裸否定形，无 setne/槽物化）⇒ 源码直写 if(!call())，
+    // 删具名 int ok 局部（该局部在 ORIG 无槽往返）。
+    if (!room->OnSetPVPSeatState(
+            user, seat,
+            static_cast<ENUM_SEAT_STATE>(0xfe),
+            static_cast<ENUM_WALKOUT_TYPE>(2))) {
         room->reset();
         G_CGameManager()->PutPvp(room);
     }
@@ -711,19 +723,10 @@ int CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
     if (!matched) {   // 等待表 vtable[+0x08]=Match
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
-        {
-            CSwitchLog l0("virtual bool fair_pvp::CFairMatch::OnMatchRoom(PvP_Room*, int)",
-                          0xcb0, 0, 0);
-            char nameBuf[256]; nameBuf[0] = '\0';
-            GetUserName(this, nameBuf);
-            l0("pvp@log 1 call match(%x), %s ",
-               reinterpret_cast<void*>(this), nameBuf);
-            char nameBuf2[256];
-            GetUserName(other, nameBuf2);
-            CSwitchLog l1("virtual bool fair_pvp::CFairMatch::OnMatchRoom(PvP_Room*, int)",
-                          0xcb1, 0, 0);
-            l1("pvp@log 1 opposite match(%x), %s ", other, nameBuf2);
-        }
+        // b28d-solo-CFairMatchRooms：ORIG 只有两处 trace 块（0xcb0/0xcb1 与
+        // 0xcbb/0xcbc）；Ghidra C 实证 !matched 分支直接 return 0（无
+        // CSwitchLog/GetUserName）⇒ 删除本分支误加的 trace（p167 EXTRA
+        // 2×CSwitchLogC1/op()/GetUserName）。
         return 0;
     }
 
@@ -776,8 +779,11 @@ int CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
             _SendMatchStatePacket(1, 1);
             return 0;
         }
+        // b28d-solo-CFairMatchRooms：ORIG `uVar10 == (uVar7 & 0xff)`（Ghidra C
+        // 实证）⇒ GetPlayCountPerOneTeam() 结果按 uchar 截断后再比。
         if (static_cast<CFairMatch*>(it)->GetPlayerCount()
-            == static_cast<int>(GetPlayCountPerOneTeam())) {
+            == static_cast<int>(static_cast<unsigned char>(
+                   GetPlayCountPerOneTeam()))) {
             leaderTeamSide = 1;
             // 【推断】ORIG +0x28 为 manager 用户指针；PvP_Room.h 现声明 int
             managerUser = reinterpret_cast<CUser*>(moveTarget->GetManager());
@@ -942,10 +948,9 @@ void CFairMatch::OnEndFight(PvP_Room* room)
     }
     _ReturnTeam(room, mgrTeam, 0);
     if (mgrTeam != 1) {
-        // m_teams[1] 整块 memcpy 到 m_teams[0]（0x12 个 int）
-        unsigned* dst = reinterpret_cast<unsigned*>(&m_teams[0]);
-        const unsigned* src = reinterpret_cast<const unsigned*>(&m_teams[1]);
-        for (int n = 0x12; n != 0; --n) *dst++ = *src++;
+        // b28d-solo-CFairMatchRooms：P83/N84——ORIG 是结构整体赋值 `rep movsl`
+        // 0x12 dwords（TeamInfoThird 0x48 字节）；手写指针循环生逐 dword 循环。
+        m_teams[0] = m_teams[1];
     }
     m_teams[0].refresh();
     m_teams[1].reset();
@@ -1042,47 +1047,81 @@ void CFairMatch::GiveTrainingSeal(CUser* user, bool win)
         return;
 
     bool bonusRemain = true;
-    ServerParameterScript& sps = FM_SPS();
-    const unsigned dailyLimit = sps.m_schoolMatchDailyPlayLimit;
-    CFairPvPScore* score = reinterpret_cast<CFairPvPScore*>(
-        user->GetCharacExpandData(static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)));
-    const int remain =
-        static_cast<int>(dailyLimit - score->GetDailyPlayCount());
+    // b28d-solo-CFairMatchRooms：P183 去缓存铁律。ORIG（p167 实证）每处 SPS 成员
+    // 访问都重发 G_CDataManager()（13 次）、每处 score 访问都重发
+    // GetCharacExpandData(7)（10 次）；我方缓存 sps 引用/score 指针只发 1/1 次。
+    // 且 win 三目必须展开为两条独立路径（ORIG 各路径各一条 call：
+    // SetLastTrainingSealBonusCount ORIG 6 条 vs 我方 4 条）。
+    const unsigned dailyLimit = FM_SPS().m_schoolMatchDailyPlayLimit;
+    const int remain = static_cast<int>(dailyLimit -
+        reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+            static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))->GetDailyPlayCount());
     if (remain <= 0) {
-        score->SetRemainBonusCount(0);
+        reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+            static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))->SetRemainBonusCount(0);
         bonusRemain = false;
     } else {
-        score->SetRemainBonusCount(remain);
+        reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+            static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))->SetRemainBonusCount(remain);
     }
 
     int sealTotal = 0;
     if (GetPlayCountPerOneTeam() == 1) {
-        sealTotal += static_cast<int>(sps.m_schoolMatchSeal[win ? 0 : 1]);
+        if (win)
+            sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[0]);
+        else
+            sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[1]);
         if (!bonusRemain) {
-            score->SetLastTrainingSealBonusCount(0);
+            reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+                static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
+                ->SetLastTrainingSealBonusCount(0);
+        } else if (win) {
+            sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[2]);
+            reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+                static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
+                ->SetLastTrainingSealBonusCount(
+                    static_cast<int>(FM_SPS().m_schoolMatchSeal[2]));
         } else {
-            sealTotal += static_cast<int>(sps.m_schoolMatchSeal[win ? 2 : 3]);
-            score->SetLastTrainingSealBonusCount(
-                static_cast<int>(sps.m_schoolMatchSeal[win ? 2 : 3]));
+            sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[3]);
+            reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+                static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
+                ->SetLastTrainingSealBonusCount(
+                    static_cast<int>(FM_SPS().m_schoolMatchSeal[3]));
         }
     } else {
-        sealTotal += static_cast<int>(sps.m_schoolMatchSeal[win ? 4 : 5]);
+        if (win)
+            sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[4]);
+        else
+            sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[5]);
         if (!bonusRemain) {
-            score->SetLastTrainingSealBonusCount(0);
+            reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+                static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
+                ->SetLastTrainingSealBonusCount(0);
+        } else if (win) {
+            sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[6]);
+            reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+                static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
+                ->SetLastTrainingSealBonusCount(
+                    static_cast<int>(FM_SPS().m_schoolMatchSeal[6]));
         } else {
-            sealTotal += static_cast<int>(sps.m_schoolMatchSeal[win ? 6 : 7]);
-            score->SetLastTrainingSealBonusCount(
-                static_cast<int>(sps.m_schoolMatchSeal[win ? 6 : 7]));
+            sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[7]);
+            reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+                static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
+                ->SetLastTrainingSealBonusCount(
+                    static_cast<int>(FM_SPS().m_schoolMatchSeal[7]));
         }
     }
-    score->SetLastTrainingSealCount(sealTotal);
+    reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+        static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
+        ->SetLastTrainingSealCount(sealTotal);
     if (sealTotal <= 0)
         return;
 
     std::vector<std::pair<int,int> > giveList;
     std::vector<int> updatedSlots;
-    std::pair<int,int> entry(static_cast<int>(0xcf0), sealTotal);
-    giveList.push_back(entry);
+    // b28d-solo-CFairMatchRooms：P135——ORIG 选 push_back(O&&) 右值重载，
+    // 具名左值 entry 会选 push_back(RKS1_)（p167 EXTRA 实证）。
+    giveList.push_back(std::pair<int,int>(static_cast<int>(0xcf0), sealTotal));
     CInventory* inven = user->getCurCharacInvenW();
     const int insertResult = inven->insert_event_items(
         giveList, updatedSlots,
@@ -1144,9 +1183,9 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
             pkt.put_header(0, 0x13b);
             pkt.finalize(true);
             m_teams[1].SendToTeam(pkt);
-            unsigned* dst = reinterpret_cast<unsigned*>(&m_teams[0]);
-            const unsigned* src = reinterpret_cast<const unsigned*>(&m_teams[1]);
-            for (int n = 0x12; n != 0; --n) *dst++ = *src++;
+            // b28d-solo-CFairMatchRooms：P83/N84——ORIG 0x08566131 为结构整体
+            // 赋值 rep movsl（0x12 dwords）。
+            m_teams[0] = m_teams[1];
             m_teams[0].refresh();
             m_teams[1].reset();
             m_fieldB0 = 0;
@@ -1164,9 +1203,9 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
         m_teams[0].SendToTeam(pkt);
         m_teams[1].SendToTeam(pkt);
         if (m_teams[0].size() == 0) {
-            unsigned* dst = reinterpret_cast<unsigned*>(&m_teams[0]);
-            const unsigned* src = reinterpret_cast<const unsigned*>(&m_teams[1]);
-            for (int n = 0x12; n != 0; --n) *dst++ = *src++;
+            // b28d-solo-CFairMatchRooms：P83/N84——ORIG 0x08566265 为结构整体
+            // 赋值 rep movsl（0x12 dwords）。
+            m_teams[0] = m_teams[1];
         }
         m_teams[0].refresh();
         m_teams[1].reset();

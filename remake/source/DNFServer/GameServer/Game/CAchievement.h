@@ -83,10 +83,11 @@ public:
     bool _verifyTrigger(unsigned int id, unsigned short t0, unsigned short t1,
                         unsigned short t2);
     // ORIG mangled 名 _ZN12CAchievement18_verifyAchievementEj（带一个 uint
-    // 形参；loadData 以 (unsigned int)this 调用，函数体经形参访问本对象）。
-    // b28d-68：ORIG 0x0828d092 首参读 0x8(%ebp) 且全程无 this ⇒ static
-    //（P245/P281；static 不入 mangling，符号/ABI 不变）。
-    static void _verifyAchievement(unsigned int self);
+    // 形参，未使用）。b28d-solo：ORIG loadData 0x0828c956 调用点压两实参
+    //（(%esp)=this、0x4(%esp)=in->m_saveTime），体内 0x8(%ebp)=this 解引用
+    // +8=m_user ⇒ 非 static 成员（static 版会把 m_saveTime 当 this 解引用，
+    // 真 UB）。static 不入 mangling，符号/ABI/sizeof 不变。
+    void _verifyAchievement(unsigned int self);
     void _checkComplete(unsigned int id);
     bool isClearedAchievement(unsigned int id);
     void _forceClear(unsigned int id);

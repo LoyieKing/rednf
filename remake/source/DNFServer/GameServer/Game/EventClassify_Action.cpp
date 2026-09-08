@@ -244,7 +244,7 @@ int CEventActionMng::process_gold_mail_send(CUser* user, Action_SendMail& mail)
 
     WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
         sender, item,
-        (unsigned int)mail.m_gold,
+        mail.m_gold,
         (unsigned int)user->getCurCharacNo(),
         title, (int)std::strlen(title),
         (unsigned int)(signed char)mail.m_coin,

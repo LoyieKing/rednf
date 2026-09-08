@@ -33,6 +33,16 @@
 //   m_field22=sale type（insertCeraShopItemIntoDB 的 c 分支选择 0/1），
 //   m_field10=m_lottoMap 键（GetRestrictCode 查询源）。
 // ============================================================================
+// [b28d-solo-CCeraShopGoods] m_field14（it_no）的枚举视图：ORIG 4.1 对
+// enum 源字段→int 目标保留
+// `mov mem,%eax; mov %eax,%edx` 两段中转（P254，SetItem 0x08510c24 实证；
+// 探针 /tmp/s65/p1.cpp f_member_enum 复证），int 字段在 4.4 恒折单段。
+// 底层仍 4 字节，sizeof/偏移/mangled 不变（字段类型不入 mangled）。
+enum ENUM_CERA_SHOP_ITEM_NO
+{
+    CERA_SHOP_ITEM_NO_NONE = -1
+};
+
 struct STCeraShopItem
 {
     STCeraShopItem();
@@ -48,7 +58,7 @@ struct STCeraShopItem
     int m_field8;                     // +0x08（operator== 比较位）
     int m_fieldc;                     // +0x0c（groupIdx）
     int m_field10;                    // +0x10（subGroupIdx）
-    int m_field14;                    // +0x14（itemIdx）
+    ENUM_CERA_SHOP_ITEM_NO m_field14; // +0x14（itemIdx，enum 视图）
     char m_field18;                   // +0x18
     int m_field1c;                    // +0x1c（stackCount）
     char m_field20;                   // +0x20（sticker）
@@ -61,11 +71,11 @@ struct STCeraShopItem
     int m_field38;                    // +0x38（ceraPrice）
     char m_field3c;                   // +0x3c
     std::string m_name;               // +0x40
-    union {
-        int m_field44;                // +0x44（bonusWeight，int 视图：SetItem 读取）
-        float m_field44f;             // +0x44（float 视图：clear 常数 store 的 edx
-                                      //   中转形复现，P238；sizeof/偏移/mangled 不变）
-    };
+    float m_field44;                  // +0x44（bonusWeight；[b28d-solo-
+                                      //   CCeraShopGoods] P238 float 字段常数
+                                      //   store 的 edx 中转形；4.4 读取/拷贝为
+                                      //   mov 直搬，与 int 同形；C1ERKS_/aSERKS_
+                                      //   隐式拷贝 src-first 需标量字段）
     int m_field48;                    // +0x48
     int m_field4c;                    // +0x4c
     char m_field50;                   // +0x50（giftDisallow）
@@ -127,7 +137,9 @@ public:
     int m_featuredIdx;                // +0x20
     int m_sticker;                    // +0x24
     int m_expiryDate;                 // +0x28
-    int m_bonusWeight;                // +0x2c
+    float m_bonusWeight;              // +0x2c（bonusWeight；[b28d-solo-
+                                      //   CCeraShopGoods] P252 具名 float 局部
+                                      //   复现 GetBonusWeight 的槽往返形）
     int m_field30;                    // +0x30
     char m_giftDisallow;              // +0x34
     char m_ceraPointDisallow;         // +0x35

@@ -75,31 +75,37 @@
 // 外部 DB 请求类最小声明区（owner=DB 域批次，定义不在本批）；
 // namespace/class 形态与 ORIG mangled 对齐，均 nm 实证。
 // ---------------------------------------------------------------------------
+// b28d-solo-W8_CU_G：权威声明见 W7LinkDB.cpp:28/44 与 CUserOnlyOrig.cpp:93 ——
+// 两者均 **static void**。ORIG 调用点 0x0867fc32/0x0867fcfb 的 (%esp) 是第 1 实参
+// （get_acc_id()），非 this 槽 ⇒ 静态调用（P88）；原非静态声明多压临时对象 this，
+// 使全部实参右移 4B。
 struct DB_AutoPunishedSecondUserData {       // ORIG makeRequest T 0x0843a790 _ZN...makeRequestEjyjj
-    int makeRequest(unsigned int accId, unsigned long long gold,
-                    unsigned int uid, unsigned int who);
+    static void makeRequest(unsigned int accId, unsigned long long gold,
+                            unsigned int uid, unsigned int who);
 };
 struct DB_InsertAutoPunishSecondUser {       // ORIG makeRequest T 0x0842e34e _ZN...makeRequestEjjyb
-    int makeRequest(unsigned int accId, unsigned int who,
-                    unsigned long long gold, bool punishFlag);
+    static void makeRequest(unsigned int accId, unsigned int who,
+                            unsigned long long gold, bool punishFlag);
 };
+// 其余五类同 W7LinkDB.cpp:36/50/60/66/72 权威声明：均 static void（原 int 非静态
+// 声明使调用点多压临时对象 this + 返回值形态错，P88）。
 struct DB_HackIPSave {                       // ORIG makeRequest T 0x08436ff8 _ZN...makeRequestEPKcS1_jj
-    int makeRequest(const char* startIp, const char* rawIp,
-                    unsigned int a, unsigned int b);
+    static void makeRequest(const char* startIp, const char* rawIp,
+                            unsigned int a, unsigned int b);
 };
 struct DB_InsertAutoPunishFirstUser {        // ORIG makeRequest T 0x0842dd7c _ZN...makeRequestEjPKcjjjjtj
-    int makeRequest(unsigned int accId, const char* ip,
-                    unsigned int p1, unsigned int p2, unsigned int p3,
-                    unsigned int p4, unsigned short type, unsigned int p6);
+    static void makeRequest(unsigned int accId, const char* ip,
+                            unsigned int p1, unsigned int p2, unsigned int p3,
+                            unsigned int p4, unsigned short type, unsigned int p6);
 };
 struct DB_ForceSaveSimpleSSO {               // ORIG makeRequest T 0x084281ae _ZN...makeRequestEji
-    int makeRequest(unsigned int accId, int errCnt);
+    static void makeRequest(unsigned int accId, int errCnt);
 };
 struct DB_CountOfHumanCertify {              // ORIG makeRequest T 0x084283ca _ZN...makeRequestEj
-    int makeRequest(unsigned int accId);
+    static void makeRequest(unsigned int accId);
 };
 struct DB_SaveGiveAvengerTitleFlag {         // ORIG makeRequest T 0x084422dc _ZN...makeRequestEijj
-    int makeRequest(int uid, unsigned int accId, unsigned int characNo);
+    static void makeRequest(int uid, unsigned int accId, unsigned int characNo);
 };
 
 
@@ -140,39 +146,62 @@ int CUser::getCharacAntibotSerialNum() const
 
 // ORIG 0x0867fbba：已 loading 时累加并按规则判定惩罚入库；否则置 loading 标志
 // 并记首条未加载流水（DB_AutoPunishedSecondUserData::makeRequest(accId,gold,uid,who)）。
-// b28d-21: DIFF/N 封顶 — ORIG 0x0867ec2e 帧 sub $0x30 vs 重建 $0x54（多 0x24 槽，
-// 4.4 聚合优先占低槽 N82/P112 族）+ 首条件 ORIG `xor $1,%eax; test` vs 4.4
-// `test %al; sete`（setcc-fold）。语义等价，byte 层 N 封顶。
+// b28d-solo-W8_CU_G: DIFF/N7 封顶（100/101）— 本波修 5 处：
+// ①真 ABI bug：两个 DB 请求类局部声明非静态（多压临时对象 this，实参整体右移 4B）
+//   ⇒ 改 `static void`（权威声明 W7LinkDB.cpp:28/44、CUserOnlyOrig.cpp:93；ORIG
+//   调用点 0x0867fc32/0x0867fcfb 的 (%esp) 为第 1 实参 get_acc_id()，P88）；
+// ②真语义 bug：末尾 DB_InsertAutoPunishSecondUser::makeRequest 第 3 参原写 totalNow，
+//   ORIG 0x0867fce6 读 -0x10/-0xc = 形参 gold ⇒ 改传 gold；
+// ③isLoadingHackGold uchar→bool（P292，Main 代落 CUser.h:2695/CUser.cpp:5017）⇒
+//   首条件 `xor $1; test; je` 复现 0x0867fbe5；
+// ④去 totalNow/cntNow/punish8 具名局部（ORIG 全程 ebx:esi/eax 寄存器直传，P0）⇒
+//   帧 0x54→0x30，spill 槽 -0x10/-0xc/-0x18/-0x14 与 ORIG 全等；
+// ⑤`gold + totalGold` 交换书写序复现 ORIG 0x0867fc3f 先载 totalGold 入 eax:edx。
+// 余 1 条：this=全局指针 g_autoPunishRuleHackTypeMgr 装载 ORIG `mov g,%edx` 直落
+// vs 4.4 `mov g,%eax; mov %eax,%edx`（N7 寄存器角色互换）。
 void CUser::gainMoneyFromHackUser(unsigned int who, unsigned long long gold,
                                   unsigned int cnt, unsigned long long totalGold)
 {
     if (!isLoadingHackGold())
     {
         setLoadHackGold(true);
-        DB_AutoPunishedSecondUserData().makeRequest(get_acc_id(), gold, GetUID(), who);
+        DB_AutoPunishedSecondUserData::makeRequest(get_acc_id(), gold, GetUID(), who);
         return;
     }
 
-    incTotalHackUserTradeGold(totalGold + gold);
+    // b28d-solo-W8_CU_G：ORIG 0x0867fc3f 先载 totalGold(-0x18/-0x14) 入 eax:edx、
+    // 后载 gold 入 ecx:ebx ⇒ 4.4 先求右操作数，写 `gold + totalGold`（加法交换律）。
+    incTotalHackUserTradeGold(gold + totalGold);
     incTotalHackUserTradeCnt(cnt);
 
-    unsigned long long totalNow = getTotalHackUserTradeGold();
-    unsigned int cntNow = static_cast<unsigned int>(getTotalHackUserTradeCnt());
-    if (GlobalData::g_autoPunishRuleHackTypeMgr->checkTotalTradeRuleOver(cntNow, totalNow))
+    // b28d-solo-W8_CU_G：ORIG 0x0867fc7f/0x0867fc8e 两 getter 结果全程寄存器
+    //（ebx:esi / eax，无槽往返，P0）⇒ 内联实参，勿声明 totalNow/cntNow 具名局部。
+    if (GlobalData::g_autoPunishRuleHackTypeMgr->checkTotalTradeRuleOver(
+            static_cast<unsigned int>(getTotalHackUserTradeCnt()),
+            getTotalHackUserTradeGold()))
     {
         SetTradePunishType(8);
     }
-    bool punish8 = isTradePunishType(8);
-    DB_InsertAutoPunishSecondUser().makeRequest(
-        get_acc_id(), who, totalNow, punish8 != false);
+    // b28d-solo-W8_CU_G 真语义修正：ORIG 0x0867fce6 末尾 makeRequest 第 3 参读
+    // -0x10/-0xc（形参 gold 槽），**非** getTotalHackUserTradeGold() 结果
+    //（该值仅用于 checkTotalTradeRuleOver，ebx:esi 之后即弃）。原码传 totalNow
+    // 属参数传错，已改正为 gold。
+    DB_InsertAutoPunishSecondUser::makeRequest(
+        get_acc_id(), who, gold, isTradePunishType(8));
 }
 
 // ORIG 0x0867f748：黑名单/惩罚注册入口。
 // type==2 lookOuts1；type==3 IP 监视登记（一次性）；type==10 ARS 延迟惩罚定时器；
 // 其它走即时 OnPunishUser + 0x81 定时器；尾部对非惩罚状态账号补发首犯入库包。
-// b28d-21: DIFF/N 封顶 — ORIG 0x0867f748 帧 sub $0x90 vs 重建 $0xc0（多 0x30；
-// ORIG 首参 ushort 截断槽 -0x6c + 单段 movzwl→%esi，重建多 -0x16 二次截断槽与
-// cMyTrace 提前物化）；N82/N95 槽族 + P75 实参装载序。
+// b28d-solo-W8_CU_G: DIFF/N 封顶（277/270）— 本波修 3 处：
+// ①真语义 bug：type==10 分支原 printf 实参再调一次 get_rand_int(0x122)（消耗额外
+//   随机数），ORIG 0x0867f988 只调一次并存 -0x14 槽供 printf+InsertTimer 复用 ⇒ 合并；
+// ②p167 EXTRA +2 memset：ORIG 0x0867f832/0x0867f86e 对 startIp/rawIp 各发 4×movl
+//   内联清零 ⇒ 改 `char x[17] = {0}` 数组初始化；
+// ③DB 类局部声明非静态→static void（P88，见文件头声明区）。
+// 修后 p167 CLEAR(31/31)。余 N82/N95 槽族：ORIG 单个 ushort 截断槽 -0x6c + 单段
+// movzwl→%esi，4.4 恒拆 -0x7c/-0x16 双截断槽（cMyTrace 实参改用 notifyType 后不变）
+// + P75 实参装载序。语义等价。
 void CUser::setHackUser(unsigned int p1, unsigned int p2, unsigned int p3,
                         unsigned int p4, unsigned short type, unsigned int p6)
 {
@@ -184,7 +213,7 @@ void CUser::setHackUser(unsigned int p1, unsigned int p2, unsigned int p3,
                        0x7e55, 0);
         char* idStr = NumberToString(get_acc_id(), 0);
         trace("m_id : %s, SetHackUser : %d(%d)\t  %d(%d)   ApplyFlag = %d\n",
-              idStr, p1, p2, p3, p4, static_cast<unsigned int>(type));
+              idStr, p1, p2, p3, p4, static_cast<unsigned int>(notifyType));
     }
 
     if (type == 2)
@@ -197,10 +226,10 @@ void CUser::setHackUser(unsigned int p1, unsigned int p2, unsigned int p3,
         {
             return;
         }
-        char startIp[17];
-        memset(startIp, 0, sizeof(startIp));
-        char rawIp[17];
-        memset(rawIp, 0, sizeof(rawIp));
+        // b28d-solo-W8_CU_G：ORIG 0x0867f832/0x0867f86e 对两数组各发 4×movl
+        //（16B 内联清零，无 memset call；p167 EXTRA +2 memset）⇒ 用数组初始化。
+        char startIp[17] = {0};
+        char rawIp[17] = {0};
         m_network.GetPeerIP2(rawIp, 0x10);
         Divide_C_ClassIP_EndIP(startIp, static_cast<char*>(0), rawIp);
 
@@ -208,7 +237,7 @@ void CUser::setHackUser(unsigned int p1, unsigned int p2, unsigned int p3,
         m_mcap.m_hackIpLogged = true;
         m_historyLog.IPCounterLog_InsertIp(static_cast<int>(p1),
                                            static_cast<int>(p3), startIp);
-        DB_HackIPSave().makeRequest(startIp, rawIp, p1, p3);
+        DB_HackIPSave::makeRequest(startIp, rawIp, p1, p3);
         return;
     }
     else if (type == 10)
@@ -218,8 +247,11 @@ void CUser::setHackUser(unsigned int p1, unsigned int p2, unsigned int p3,
         {
             return;
         }
-        printf("ARS TRADE PUNISH USER - Rand Sec : %d\n", get_rand_int(0x122) + 10);
+        // b28d-solo-W8_CU_G 真语义修正：ORIG 0x0867f988 只调 get_rand_int 一次
+        //（结果存 -0x14 槽），printf 与 InsertTimer 复用同值；原码 printf 实参又调
+        // 一次 get_rand_int（p167 EXTRA +1，且消耗额外随机数）⇒ 合并为单次。
         int waitSec = get_rand_int(0x122) + 10;
+        printf("ARS TRADE PUNISH USER - Rand Sec : %d\n", waitSec);
         G_TimerQueue()->InsertTimer(static_cast<TimerEntry::OBJ_TYPE>(0),
                                     static_cast<int>(GetUID()),
                                     static_cast<TIMER_MESSAGE>(0x97), waitSec,
@@ -255,7 +287,7 @@ void CUser::setHackUser(unsigned int p1, unsigned int p2, unsigned int p3,
 
     char ip[17];
     m_network.GetPeerIP2(ip, 0x10);
-    DB_InsertAutoPunishFirstUser().makeRequest(
+    DB_InsertAutoPunishFirstUser::makeRequest(
         get_acc_id(), ip, p1, p2, p3, p4, notifyType, p6);
 }
 
@@ -303,13 +335,13 @@ bool CUser::checkHumanCertify(int len, unsigned short* answer)
               static_cast<unsigned int>(answer[4]));
     }
 
-    DB_CountOfHumanCertify().makeRequest(get_acc_id());
+    DB_CountOfHumanCertify::makeRequest(get_acc_id());
 
     if (memcmp(answer, m_capchaCertify, static_cast<size_t>(len)) == 0)
     {
         if (m_humanCertifyErrorCnt != 0)
         {
-            DB_ForceSaveSimpleSSO().makeRequest(get_acc_id(), 0);
+            DB_ForceSaveSimpleSSO::makeRequest(get_acc_id(), 0);
         }
         m_humanCertifyErrorCnt = 0;
         setHumanCertified(true);
@@ -319,7 +351,7 @@ bool CUser::checkHumanCertify(int len, unsigned short* answer)
     ++m_humanCertifyErrorCnt;
     if (isCleanPadVerifyLimit() && m_field8e3ed)
     {
-        DB_ForceSaveSimpleSSO().makeRequest(get_acc_id(), m_humanCertifyErrorCnt);
+        DB_ForceSaveSimpleSSO::makeRequest(get_acc_id(), m_humanCertifyErrorCnt);
         SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x91), 8);
     }
     setHumanCertified(true);
@@ -349,9 +381,12 @@ bool CUser::VerifyCleanPadVeriData(unsigned int value)
 // 控制流/栈槽/EH landing pad 全对齐；call 目标占位、数据地址 `movl $0x0,(%esp)`
 // （&s_capchaDataManager）、字符串立即数为 --no-compile .o 重定位假阳性（§6.3），
 // relink 后转 AE。语义等价。
-// b28d-21: DIFF/N 封顶 — 承 b22 判词：唯一真差异为 memcpy 首参 dst
-// （this+0x8e0ec）地址物化 ORIG `mov+add` vs 4.4 `lea`（N 族 lea-vs-add）；
-// 另有 +0x8e0f8 成员读 ORIG 两段 vs 重建单段（N18a）。ORIG 0x0868a51a。
+// b28d-solo-W8_CU_G: DIFF/N 封顶 — 三处 N 族：①memcpy 首参 dst(this+0x8e0ec)
+// ORIG `mov 0x8(%ebp),%edx; add $0x8e0ec,%edx` 两步 vs 4.4 恒 `lea 0x8e0ec(%eax),%edx`
+// 单条（probe /tmp/solo_g/probe_memcpy.cpp 六形：数组名/&dst[0]/reinterpret_cast/
+// static_cast/(char*) 全产 lea，且 4.4 恒 dst 先求值 vs ORIG src 先）⇒ N107 负例
+// （memcpy 首参专用）；②put_binary 实参装载 eax/edx 互换（N7）；③+0x8e0f8 成员读
+// ORIG `mov mem,%eax; mov %eax,%esi` 两段 vs 4.4 单段（N18a）。155/154 语义等价。
 unsigned int CUser::reqSendMailCertify()
 {
     if (GlobalData::s_capchaDataManager.isEmpty())
@@ -565,7 +600,7 @@ char CUser::VerifyPresentAvengerTitle()
         unsigned int characNo2 = getCurCharacNo();
         unsigned int accId2 = get_acc_id();
         int uid = (int)GetUID();
-        DB_SaveGiveAvengerTitleFlag().makeRequest(uid, accId2, characNo2);
+        DB_SaveGiveAvengerTitleFlag::makeRequest(uid, accId2, characNo2);
 
         int idxVal = itemIdx;
         unsigned int characNo3 = getCurCharacNo();
@@ -794,34 +829,45 @@ unsigned char CUser::getInformNoticeFlag(int idx)
     return m_informNoticeFlags[idx];   // ORIG 0x0868fa76 单 movzbl 0x8ebb1(%edx,%eax,1)
 }
 
-// b28d-21: DIFF/N 封顶 — ORIG 0x0868f956 读 m_informNoticeFlags[byte] 与
-// lea 结果各多一条寄存器中转（`movzbl→%edx; mov %edx,%ebx` / `lea→%edx; mov %edx,%ecx`），
-// 4.4 恒折单段（N18a 正向，字段/RHS 均已异型仍不可造）；另 ORIG 尾 3 条 jmp 中继
-// vs 重建 1 条（P63 散布 return 岛，负例）。语义等价。
+// b28d-solo-W8_CU_G: DIFF/N 封顶 — ORIG 0x0868f956 三失败出口各落独立 nop 岛
+//（+0x83 nop;jmp / +0x86 nop;jmp / +0x89 nop，标签序=守卫序）⇒ P223 负条件
+// goto 连续尾标签形复现三岛（探针同 CCharacInformNotice::handleInformNoticeFlag
+// 同族定案 0x080e4806）。残差 N：①ORIG 读值/和值各多一条寄存器中转
+//（`movzbl→%edx; mov %edx,%ebx` / `lea→%edx; mov %edx,%ecx`），4.4 恒折单段
+//（N18a 正向，字段/RHS 均已异型仍不可造）；②第三守卫 ORIG `test %al,%al; je`
+// vs 4.4 `xor $0x1; test; jne`（P168a①/P292 bool 归一，无绑定不可造）。
+// 55/54，语义等价。
 void CUser::handleInformNoticeFlag(unsigned int bitIndex)
 {
     // P133：ORIG 三守卫各自 jne/je 直跳统一失败出口（bit>7 → byte 计算 →
     // byte>0xf → check），独立 if 不可合并短路。
     unsigned int bit = bitIndex & 7;
     if (bit > 7)
-        return;
-    unsigned int byte = bitIndex >> 3;
-    if (byte > 0xf)
-        return;
-    // ORIG test;je→失败出口（body fall-through），正向条件。
-    if (checkInformNoticeFlag(bit, byte))
+        goto L1;
     {
+        unsigned int byte = bitIndex >> 3;
+        if (byte > 0xf)
+            goto L2;
+        if (!checkInformNoticeFlag(bit, byte))
+            goto L3;
         // ORIG lea (%ebx,%edx,1) 加法形 ⇒ 源码 +（位不重叠与 | 等价）。
         // b28d-21 试验：ORIG 0x0868f956 读值/和值各多一条 mov 中转
         //（movzbl→%edx; mov %edx,%ebx），去显式截断 cast 试翻。
         m_informNoticeFlags[byte] = m_informNoticeFlags[byte] + (1 << bit);
         enableSaveInformNoticeFlag();
+        goto END;
     }
+L1:;
+L2:;
+L3:;
+END:;
 }
 
-// b28d-21: DIFF/N 封顶 — ORIG 0x0868f900 循环体 `movzbl (%edx),%ecx` 单段直落，
-// 4.4 对 `m[i] = src[i]` / 显式 cast 两形恒发 `movzbl (%edx),%edx; mov %edx,%ecx`
-// 两段（N18a 反向，P266 `*(unsigned char*)` 形亦实测无效）。语义等价。
+// b28d-solo-W8_CU_G: NEAR/N — P285 空 else{return;} 复现 ORIG 0x0868f900 尾
+// `jmp;nop` 岛（ndiff 13→3，29/29 指令）。残 1 条：循环体 ORIG 单段
+// `movzbl (%edx),%ecx`，4.4 恒 `movzbl (%edx),%edx; mov %edx,%ecx` 两段
+//（N18a 反向）；probe 12 形全败（m[i]=src[i]/(uchar)cast/&0xff/uchar* 下标/
+// reinterpret_cast/局部指针）。语义等价。
 void CUser::loadInformNoticeFlag(char* src)
 {
     resetInformNoticeFlag();
@@ -834,6 +880,10 @@ void CUser::loadInformNoticeFlag(char* src)
             m_informNoticeFlags[i] = src[i];
         }
         sendInformNoticeFlag();
+    }
+    else
+    {
+        return;
     }
 }
 
@@ -873,55 +923,70 @@ void CUser::sendInformNoticeFlag()
 // 连续效果道具（effect / cooltime）载入与下发
 // ===========================================================================
 // ORIG 0x08659366：0xae 包头 + 数量 + 逐条目{idx, expire-now}下发。
-// b28d-21: DIFF/N 封顶 — ORIG 0x08659366 帧/槽整体深 4~8（PacketGuard 与 count/
-// info 引用槽位分配差，N82/P112 族）；ORIG `mov %al,-0x15` 截断槽 + movzbl 回读
-// 与重建同形。调用点差集为 0，语义完成。
-int CUser::SendEffectItemInfo(unsigned int itemIdx)
+// b28d-solo-W8_CU_G: IDENTICAL/AE — ①循环体恢复两个具名局部（ORIG 0x086593de/
+// 0x086593f5 两次 operator[] 结果落 -0x10/-0xc 槽，P0 槽往返判据），帧/PacketGuard
+// 槽随之回到 -0x28；②循环变量 unsigned→int（P218 扩展：4.4 尾测由 `mov i,%edx;
+// cmp %eax,%edx; setl` 折回 ORIG `movzbl count,%eax; cmp i,%eax; setg`）；
+// ③返回类型 int→bool（P248 档①，Main 代落 CUser.h:2835）⇒ `mov %eax,%ebx` 直传。
+// 90/90 逐条 EQ。
+bool CUser::SendEffectItemInfo(unsigned int itemIdx)
 {
     PacketGuard packet;
     packet.put_header(0, 0xae);
     std::vector<ContinuousItemInfo>* list = GetCurCharacEffectItemList();
     unsigned char count = static_cast<unsigned char>(list->size());
     packet.put_byte(static_cast<int>(count));
-    for (unsigned int i = 0;
-         static_cast<int>(i) < static_cast<int>(count); ++i)
+    for (int i = 0; i < static_cast<int>(count); ++i)
     {
-        // b28d-21：P167 差集 ORIG 有 `vector::operator[]` 每次重调（P157），
-        // 删 `ContinuousItemInfo& info = (*list)[i];` 引用缓存，逐字段重读。
-        packet.put_int((*list)[i].m_itemIdx);
-        packet.put_int(static_cast<int>((*list)[i].m_expireTime - itemIdx));
+        // b28d-solo-W8_CU_G：ORIG 0x086593de/0x086593f5 两次 operator[] 各存
+        // 具名局部（-0x10 idx / -0xc expire，P0 槽往返实证）⇒ 恢复具名局部。
+        unsigned int idx = (*list)[i].m_itemIdx;
+        unsigned int expire = (*list)[i].m_expireTime;
+        packet.put_int(idx);
+        packet.put_int(static_cast<int>(expire - itemIdx));
     }
     packet.finalize(true);
     return Send(packet);
 }
 
 // ORIG 0x086591fe：0xac 包头 + cooltime 表项迭代下发。
-// b28d-21: DIFF/N 封顶 — ORIG 0x086591fe 帧 sub $0x40 vs 重建 $0x30，迭代器
-// 临时槽（-0x18/-0x30）与 count 槽整体浅移（N82/N86 迭代器槽族）；调用序全等。
-unsigned int CUser::SendCoolTimeItemInfo(unsigned int nowMs)
+// b28d-solo-W8_CU_G: IDENTICAL/AE — ①`it = list->begin()` 提前到 size()/put_byte
+// 之前（ORIG 0x0865923a begin 的 sret 直落 -0x30 it 槽）；②循环体恢复两个具名
+// 局部（ORIG 0x0865927d/0x0865928d 两次 operator-> 结果落 -0x10/-0xc 槽）；
+// ③返回类型 unsigned int→bool（P248 档①，Main 代落 CUser.h:3574）。帧 0x40、
+// 槽位（-0x2c guard/-0x30 it/-0x18 list/-0x11 count）与 ORIG 全等，106/106 EQ
+//（ORIG 尾 1 条对齐 nop，§6.1 豁免）。
+bool CUser::SendCoolTimeItemInfo(unsigned int nowMs)
 {
     PacketGuard packet;
     packet.put_header(0, 0xac);
     std::vector<ContinuousItemInfo>* list = GetCurCharacCoolTimeItemList();
+    // b28d-solo-W8_CU_G：ORIG 0x0865923a begin() 先于 size()/put_byte（P0 槽序
+    // 与求值序判据：begin 的 sret 直接落 it 槽 -0x30，无默认 ctor）。
+    std::vector<ContinuousItemInfo>::iterator it = list->begin();
     unsigned char count = static_cast<unsigned char>(list->size());
     packet.put_byte(static_cast<int>(count));
-    for (std::vector<ContinuousItemInfo>::iterator it = list->begin();
-         it != list->end(); it++)   // b28d-21：P167 差集 ORIG 为 ppEi（后置，
+    for (; it != list->end(); it++)   // b28d-21：P167 差集 ORIG 为 ppEi（后置，
                                     // P28 增量侧推论），改 it++。
     {
-        packet.put_int(it->m_itemIdx);
-        packet.put_int(static_cast<int>(it->m_expireTime - nowMs));
+        // b28d-solo-W8_CU_G：ORIG 0x0865927d/0x0865928d 两次 operator-> 结果
+        // 各存具名局部（-0x10 idx / -0xc expire，P0 槽往返实证）。
+        unsigned int idx = it->m_itemIdx;
+        unsigned int expire = it->m_expireTime;
+        packet.put_int(idx);
+        packet.put_int(static_cast<int>(expire - nowMs));
     }
     packet.finalize(true);
-    return static_cast<unsigned int>(Send(packet));
+    return Send(packet);
 }
 
 // ORIG 0x086590f0：DB 载入 effect 连用表 → 过滤有效条目 → 特效回调 → 清理无效并发送。
-// b28d-21: 已修 P183（删 `const CONT_ENTRY& entry` 缓存引用，ORIG 每字段重发
-// `mov i,%edx; mov info,%eax; mov 0x8(%eax,%edx,8),%eax` 全链）——ndiff 68→5。
-// 余 5 行：①守卫「1 直落 + 2 岛」（ORIG 0x8659097/0x865909a 独立 nop 岛）= P223
-// 边界负例（4.4 岛数恒=条件数或 0）；②尾 `xor $1,%eax; test; je`（0x86590da）
-// vs 4.4 `cmp $1; sete`（setcc-fold）。N 封顶。
+// b28d-solo-W8_CU_G: AE — ①P183（删 `const CONT_ENTRY& entry` 缓存引用，每字段重发
+// `mov i,%edx; mov info,%eax; mov 0x8(%eax,%edx,8),%eax` 全链）；②守卫「1 直落 + 2 岛」
+// 用 P223 多岛形：正向 if 包裹第一守卫（jbe 直跳循环尾）+ 第二/三守卫独立 goto 连续尾
+// 标签（L2/L3/NEXT），ORIG 0x8659097/0x865909a 两岛逐条复现；③尾 `!=1` 改 bool 返回
+// 旋钮（P248 档①：SendEffectItemInfo int→bool，Main 已代落 CUser.h）⇒ `xor $1; test; je`
+// 复现 0x86591e9。81/81，compare_tu 判 AE。
 bool CUser::LoadEffectItemInfo(CONTINUOUS_ITEM_INFO* info)
 {
     unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
@@ -933,17 +998,25 @@ bool CUser::LoadEffectItemInfo(CONTINUOUS_ITEM_INFO* info)
         // `mov i,%edx; mov info,%eax; mov 0x8(%eax,%edx,8),%eax` 全链
         //（P183 地址重物化铁律）⇒ 不得缓存 `const CONT_ENTRY& entry`。
         // 守卫形态：ORIG 第 1 条件 jbe 直跳循环尾（无岛），第 2/3 条件各落独立
-        // nop 中继岛（0x8659097/0x865909a）——「1 直落 + 2 岛」属 P223 边界负例
-        //（4.4 岛数恒=条件数或 0），故保留 && 短路（余 2 jmp 封 N）。
-        if (curSec < info->m_entries[i].m_expireTime &&
-            static_cast<unsigned int>(info->m_entries[i].m_itemIdx) < 0x7fffffffu &&
-            info->m_entries[i].m_expireTime < 0x77359401u)
+        // nop 中继岛（0x8659097/0x865909a）⇒ P223 多岛形：三条独立失败 goto +
+        // 连续尾标签（标签序=守卫序）。
+        if (info->m_entries[i].m_expireTime > curSec)
         {
-            ContinuousItemInfo ci;
-            ci.m_itemIdx = info->m_entries[i].m_itemIdx;
-            ci.m_expireTime = info->m_entries[i].m_expireTime;
-            _processSpeicalContinuousTimeItem(static_cast<unsigned int>(ci.m_itemIdx));
-            list->push_back(ci);
+            if (static_cast<unsigned int>(info->m_entries[i].m_itemIdx) > 0x7ffffffe)
+                goto L2;
+            if (info->m_entries[i].m_expireTime > 0x77359400)
+                goto L3;
+            {
+                ContinuousItemInfo ci;
+                ci.m_itemIdx = info->m_entries[i].m_itemIdx;
+                ci.m_expireTime = info->m_entries[i].m_expireTime;
+                _processSpeicalContinuousTimeItem(static_cast<unsigned int>(ci.m_itemIdx));
+                list->push_back(ci);
+            }
+            goto NEXT;
+        L2:;
+        L3:;
+        NEXT:;
         }
     }
     ClearUselessEffectItem(curSec);
@@ -955,8 +1028,10 @@ bool CUser::LoadEffectItemInfo(CONTINUOUS_ITEM_INFO* info)
 }
 
 // ORIG 0x08658ff6：DB 载入 cooltime 表 → 过滤 → 清理无效 → 下发 0xac 包。
-// b28d-21: 已修 P183（同上，ndiff 66→5）；余 P223 边界负例（1 直落 + 2 岛）
-// + 尾 setcc-fold（ORIG 0x08658ff6）。N 封顶。
+// b28d-solo-W8_CU_G: AE — 同 LoadEffectItemInfo：P183 去缓存引用 + P223 多岛形
+//（ORIG 0x08659097/0x0865909a 两岛）+ SendCoolTimeItemInfo bool 返回旋钮
+//（P248 档①，Main 代落 CUser.h:3574）⇒ `xor $1; test; je` 复现 0x086590da。
+// 76/76 指令（ORIG 尾多 1 条对齐 nop，§6.1 豁免），compare_tu 判 AE。
 bool CUser::LoadCoolTimeItemInfo(CONTINUOUS_ITEM_INFO* info)
 {
     unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
@@ -965,15 +1040,25 @@ bool CUser::LoadCoolTimeItemInfo(CONTINUOUS_ITEM_INFO* info)
     for (int i = 0; i < static_cast<int>(static_cast<signed char>(info->m_count)); ++i)
     {
         // b28d-21：同 LoadEffectItemInfo，ORIG 0x08658ff6 逐字段重发完整
-        // imul/lea 寻址（P183）⇒ 不缓存 entry 引用；守卫「1 直落 + 2 岛」= P223 负例。
-        if (curSec < info->m_entries[i].m_expireTime &&
-            static_cast<unsigned int>(info->m_entries[i].m_itemIdx) < 0x7fffffffu &&
-            info->m_entries[i].m_expireTime < 0x77359401u)
+        // imul/lea 寻址（P183）⇒ 不缓存 entry 引用。
+        // b28d-solo-W8_CU_G：守卫「1 直落 + 2 岛」（ORIG 0x08659097/0x0865909a）
+        // ⇒ 正向 if 包裹（第一守卫 jbe 直跳循环尾）+ 第二/三守卫独立 goto 尾标签。
+        if (info->m_entries[i].m_expireTime > curSec)
         {
-            ContinuousItemInfo ci;
-            ci.m_itemIdx = info->m_entries[i].m_itemIdx;
-            ci.m_expireTime = info->m_entries[i].m_expireTime;
-            list->push_back(ci);
+            if (static_cast<unsigned int>(info->m_entries[i].m_itemIdx) > 0x7ffffffe)
+                goto L2;
+            if (info->m_entries[i].m_expireTime > 0x77359400)
+                goto L3;
+            {
+                ContinuousItemInfo ci;
+                ci.m_itemIdx = info->m_entries[i].m_itemIdx;
+                ci.m_expireTime = info->m_entries[i].m_expireTime;
+                list->push_back(ci);
+            }
+            goto NEXT;
+        L2:;
+        L3:;
+        NEXT:;
         }
     }
     ClearUselessCooltimeItem(curSec);

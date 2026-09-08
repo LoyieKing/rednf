@@ -36,8 +36,13 @@ public:
     // 且 new 表达式按 potentially-throw 生成 cleanup（ORIG Init 各线程 new 均有
     // delete+Unwind pad，如 0x0829a4f3）。定义落 GlobalData.cpp（Main 批准属主）。
     ThreadInterface();
-    virtual ~ThreadInterface() {}          // 0x08630b46 / 0x08630b6c
     virtual void stop() {}                 // 0x08630c14（槽0，空体）
+    // [b28d-solo-W6_IPGDeps] 声明序修正：stop 必须在虚析构之前，否则 GCC 把
+    // [D1,D0,stop,dispatch] 排成 vtable，stop 落 slot2（vptr+8）；ORIG
+    // _ZTV13ThreadInterface @0x8ce6b90（objdump -s 实证，vptr=_ZTV+8）为
+    // slot0=stop(0x08630c14)/slot1=D1(0x08630b46)/slot2=D0(0x08630b6c)/
+    // slot3=pure_virtual。CIPGMgr::Finalize 0x08104618 `call *vptr+0` 即 stop。
+    virtual ~ThreadInterface() {}          // 0x08630b46（槽1）/ 0x08630b6c（槽2 D0）
     // 槽3 线程体。ORIG 纯虚（nm 无 ThreadInterface::dispatch 符号）；六个派生
     // 线程类（DBThread/DispatchThread/NetworkThread/UdpThread/MonitorTcpThread/
     // AcceptThread）均已覆盖（ThreadDispatchers 批次，T 符号见各 dispatch 报告）。
