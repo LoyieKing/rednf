@@ -498,12 +498,13 @@ float channel_script_t::getBonusRate(unsigned char channel, unsigned int channel
     // ORIG 0x088dce3c：getChannelInfo → 遍历 m_pBonusRates（vector<int>），命中则
     // 返回 (float)m_bonusRate / 1000.0f；否则 0.0f。
     channel_info_t* info = getChannelInfo(channel, channelNo);
-    if (info == 0 || info->m_pBonusRates == 0)
+    if (info == 0)
         return 0.0f;
-    std::vector<int>& rates = *info->m_pBonusRates;
-    for (size_t i = 0; i < rates.size(); ++i)
+    if (info->m_pBonusRates == 0)
+        return 0.0f;
+    for (size_t i = 0; i < info->m_pBonusRates->size(); ++i)
     {
-        if (rates.at(i) == (int)dungeonIndex)
+        if (info->m_pBonusRates->at(i) == dungeonIndex)
             return (float)info->m_bonusRate / 1000.0f;
     }
     return 0.0f;
@@ -1114,7 +1115,7 @@ void stBloodDungeon_t::clear()
     // +0x330=1.0f → memset(+0x324,0,0xc) → memset(+0x340,0,0x18) → +0x358 clear。
     //   【N】循环条件 ORIG `mov -0xc,%eax; cmp $0xc7,%eax`（先载入寄存器），
     //   4.4 O0 恒折 `cmpl $0xc7,-0xc(%ebp)`（mem 直比），语义全等，register 形差。
-    for (unsigned int i = 0; i <= 199; ++i)
+    for (register unsigned int i = 0; i <= 199; ++i)
         m_rate[i] = 1.0f;
     m_vec334.clear();
     m_field320 = 1;
@@ -1137,7 +1138,7 @@ stDeathTower_t::stDeathTower_t()
     m_rewardGoldWeight = 1.0f;
     //   【N】循环条件 ORIG `mov -0xc,%eax; cmp $0xc7,%eax`（先载入寄存器），
     //   4.4 O0 恒折 `cmpl $0xc7,-0xc(%ebp)`（mem 直比），语义全等，register 形差。
-    for (unsigned int i = 0; i < 200; ++i)
+    for (register unsigned int i = 0; i < 200; ++i)
     {
         m_rewardExpWeight[i] = 1.0f;          // this+0x04+i*4
         m_rewardCardNum[i] = 0;               // this+0x324+i*4
@@ -1379,8 +1380,7 @@ void CNPCRelationEventManager::AddDislikeItemInfo(unsigned short idx,
     if (it == m_npcEventMap.end())
         return;
     stNPCRelationEventInfo* node = it->second;
-    int item = static_cast<int>(itemId);
-    node->m_dislikeItems.push_back(item);
+    node->m_dislikeItems.push_back(itemId);
 }
 
 // ---- CNPCRelationEventManager::GetFavorIndex（ORIG 0x890d3d0：
@@ -2663,7 +2663,8 @@ stCompoundRate* STExpertJobScript::GetCompoundRate(int level)
     if (m_compoundRateVec.empty())
         return 0;
     std::vector<stCompoundRate>::iterator it = m_compoundRateVec.begin();
-    for (; it != m_compoundRateVec.end(); ++it)
+    std::vector<stCompoundRate>::iterator e = m_compoundRateVec.end();
+    for (; it != e; ++it)
     {
         if (it->m_level >= level)
             return &(*it);

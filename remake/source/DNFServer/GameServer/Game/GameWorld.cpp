@@ -2109,28 +2109,29 @@ void GameWorld::move_position(CUser* user, int x, int y, int z,
     if (check_valid_area(vill, area))
     {
         Village* village = getUserVillage(user);
-        if (village == NULL)
+        // ORIG 0x086c57e2 `cmpl $0,-0x10; je 后置 trace 块` ⇒ 正极性 if(village!=0) 直落 body。
+        if (village != NULL)
+        {
+            Area* pArea = village->getArea(area);
+            if (pArea != NULL)
+            {
+                // ORIG 0x086c5814 `test %al,%al; je Send 块` ⇒ 正极性 if(visible) 直落 send_to_all。
+                if (user->IsCurCharacVisible())
+                {
+                    pArea->send_to_all(packet);
+                }
+                else
+                {
+                    user->Send(packet);
+                }
+            }
+        }
+        else
         {
             cMyTrace trace(
                 __PRETTY_FUNCTION__,
                 0x5ec, 5);
             trace("%d %d", vill, area);
-        }
-        else
-        {
-            Area* pArea = village->getArea(area);
-            if (pArea != NULL)
-            {
-                // ORIG +0x181~+0x183 test %al;je Send：可见真值 fallthrough send_to_all；! 形态消 4.4 setne
-                if (!user->IsCurCharacVisible())
-                {
-                    user->Send(packet);
-                }
-                else
-                {
-                    pArea->send_to_all(packet);
-                }
-            }
         }
     }
 }

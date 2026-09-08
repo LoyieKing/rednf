@@ -46,8 +46,9 @@
 // ============================================================================
 // [b28d-solo-InitScriptProducers_5] 本 TU 判词表（verdict = check_tu_routed.sh
 // fresh .o，compare_tu_game_orig AE 口径；TU 合计 identical=8 ae=35 diff=2，
-// 余 2 件 __static_initialization_and_destruction_0ii/__tcf_0 为编译器合成，
-// 见上方 __tcf_0 判词）：
+// 余 2 件 __static_initialization_and_destruction_0ii/__tcf_0 为编译器合成
+// （本 TU 全局对象集合决定；同名 local 撞名 → §6.3 索引伪差集，见上方 __tcf_0
+// 判词；无独立可写源码函数体）：
 //   initItemShopScript 0x089dc4f8        AE   __builtin_strcat 形（43/43）
 //   initStageMapScript 0x088a9e6c        AE   __builtin_strcat 形（43/43）
 //   initExpertJobScript 0x0896d830       AE   __builtin_strcat 形（43/43）

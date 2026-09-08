@@ -177,13 +177,16 @@ void CQuickPartySystemManager::init_quick_party_pool(const CDungeon* dungeon)
         for (int i = 0; i < 4; ++i) {
             // [b28d-solo-QuickParty] 修法（P226/P0）：ORIG 0x08269d00 的 special 物化在
             // %al（mov $1/jmp、mov $0、test %al,%al），无栈槽；具名 bool 使 4.4 落 -0x9。
-            if (((dungeon->getDungeonKind() == 1) ||
-                 (dungeon->get_blood_dungeon_type() > 0) ||
-                 (dungeon->getQuestNpcDungeon() != 0)) == false ||
-                i == 0) {
-                key.m_dungeonDiff = (signed char)i;
-                m_poolMap.insert(std::make_pair(key, data));
-            }
+            if (!((dungeon->getDungeonKind() == 1) ||
+                  (dungeon->get_blood_dungeon_type() > 0) ||
+                  (dungeon->getQuestNpcDungeon() != 0)))
+                goto do_insert;
+            if (i != 0)
+                goto next_diff;
+        do_insert:
+            key.m_dungeonDiff = (signed char)i;
+            m_poolMap.insert(std::make_pair(key, data));
+        next_diff: ;
         }
     }
 }

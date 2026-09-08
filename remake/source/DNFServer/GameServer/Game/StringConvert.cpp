@@ -27,8 +27,14 @@
 #include <string.h>   // memcmp / memcpy / strlen
 #include <wchar.h>    // wcslen
 
-// ORIG 单元内 static _ZL9gCodePage（bss 0x9501e90，全二进制仅读无写，恒 0）；
-// convertToWideString(PKc) 以内存读取传入（AE 口径下与 ORIG 形态一致）。
+// [b28d-solo-StringConvert 判词·真语义 bug·跨 TU 重复] ORIG _ZL9gCodePage 仅 1 份
+// @0x09501e90，getCodePage 0x08adea10 / setCodePage 0x08adea1a / convertToWideString(PKc)
+// 0x08adf3f9 同 TU 共享，且 ORIG 有真实写入路径 setCodePageByLocal 0x0808ec64→setCodePage
+// （调用点 0x0829f842）。重建 4 处独立 static（本 TU / GameScriptEnumHelpers.cpp /
+// StringResource.cpp / Library/Include/Core/UnicodeConvert.cpp）⇒ setCodePage 写他 TU
+// 副本、本 TU 读恒 0 副本，码页设置对字符串转换失效（语义分叉，非形态差）。
+// 修法跨 .cpp：统一权威定义 + extern 声明（建议落 ORIG 归属 TU），需 Main 派单；
+// 本 TU 暂保留 static 以保证本 TU 编译与 ORIG 读取形态（mov 0x9501e90 形 AE 归一）。
 static unsigned int gCodePage;
 
 // ORIG 0x08adf57f 定义于 StringResource.cpp；本 TU 显式声明，确保
