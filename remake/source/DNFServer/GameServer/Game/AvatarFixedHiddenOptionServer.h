@@ -75,7 +75,10 @@ struct STAvatarHiddenAbilityVariation
     // 布 landing（P216 消 4.4 冗余 landing，体非空故 call 不被折叠）。
     STAvatarHiddenAbilityVariation(AVATAR_HIDDEN_ABILITY_TYPE::T type, int value, int rate) throw();
     STAvatarHiddenAbilityVariation(AVATAR_HIDDEN_ABILITY_TYPE::T type, float value, int rate);
-    ~STAvatarHiddenAbilityVariation();
+    // [b28d-56] 删用户空析构（P12）：ORIG clearScript 0x088b00e0 构造临时对象后
+    // **无 D1 调用**（40 条内无 `call D1`）⇒ ORIG 析构为编译器隐式 trivial；
+    // 用户空析构使 4.4 判 non-trivial ⇒ 临时对象析构 call + EH landing（+18 条）。
+    // ORIG 的 W D1 0x088b0aae 由 vector 清理点隐式发射，删声明后仍会发射。
 
     AVATAR_HIDDEN_ABILITY_TYPE::T m_type;   // +0x00
     bool m_bFloatValue;                     // +0x04

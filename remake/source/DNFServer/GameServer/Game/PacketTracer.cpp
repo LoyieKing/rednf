@@ -20,6 +20,11 @@ void CPacketTracer::AddTcpLog(int flag, int value)
 
 void CPacketTracer::AddUdpLog(int flag, int value)
 {
+    // [b28d-56 判词·N] 封顶 N81/P30（add-vs-lea）：ORIG 0x0859926c 为
+    // `mov -0x4(%ebp),%ecx; mov 0xc(%ebp),%eax; mov %eax,%edx; mov 0x8(%ebp),%eax;
+    // add $0xa,%ecx; mov ...(%eax,%ecx,8)`；4.4 恒折 `lea 0xa(%eax),%ecx`（探针
+    // /tmp/lane56/lea.cpp f1..f7 七形全产 lea/add+shl 链，无一产 ORIG 的
+    // 「索引寄存器 + add 常数」两步形）。语义等价，源形不可择。
     // [b28c-lane17] 判词：34=34、除两处 `m_logs[idx + 10]` 的地址折叠形外逐条
     // 同形。ORIG 4.1 = `mov idx,%r; ...; add $0xa,%r`（两步），4.4 恒
     // `lea 0xa(%eax),%r`（单条）；实测 `10+idx`/`(unsigned)`/指针算术/具名 off
@@ -54,6 +59,10 @@ void CPacketTracer::AbsoluteTcpWriteLog()
 
 void CPacketTracer::AbsoluteUdpWriteLog()
 {
+    // [b28d-56 判词·N] 封顶 N81/P30（同 AddUdpLog）：ORIG 0x0859949b 段
+    // `mov -0xc(%ebp),%edx; mov 0x8(%ebp),%eax; add $0xa,%edx; mov 0xc(%eax,%edx,8),%edx`
+    // 的两步 add 形不可由任何合法源形复现（探针 /tmp/lane56/lea.cpp 七形实测）。
+    // 其余段（%ebx 跨 cMyTrace ctor 保活）保持 ORIG 形。
     char buf[0x800] = { '\0' };
     for (int i = 0; i <= 9; ++i)
     {

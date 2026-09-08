@@ -330,10 +330,9 @@ char CParty::GetFirstValidMemberState()
 {
     for (int i = 0; i < 4; ++i)
     {
-        // [X2·callee xor-化] ORIG 0x085ba574 O@9-12 `call; xor$1; test; je`。
-        register unsigned char v asm("eax") = (unsigned char)_checkValidUser(i);
-        v ^= 1;
-        if (v)
+        // [b28d-51] P0/N96 清绑（原 `register uchar v asm("eax")`）；ORIG
+        // 0x085ba574 O@9-12 `call; xor$1; test; je` 由裸 `!call` 形承载。
+        if (!_checkValidUser(i))
         {
             continue;
         }
@@ -470,9 +469,8 @@ void CParty::SaveCoin(eCoinSubReason reason)
     (void)reason;
     for (int i = 0; i < 4; ++i)
     {
-        register unsigned char v asm("eax") = (unsigned char)_checkValidUser(i);
-        v ^= 1;
-        if (v)
+        // [b28d-51] P0/N96 清绑（原 `register uchar v asm("eax")`）。
+        if (!_checkValidUser(i))
         {
             continue;
         }
@@ -1161,15 +1159,10 @@ void CParty::GetLuckPoint(CLuckPoint* luckPoint, bool onlyAlive)
             continue;
         // [X2·技巧22 精化形] ORIG 0x085b61be O@17-22：`cmpb $0,onlyAlive;
         // je` 短路 + `movzbl liveFlag; xor$1,%eax; test; je` 真值取反判。
-        if (onlyAlive)
-        {
-            register unsigned char lf asm("eax") = m_battleData.m_arr54[i];
-            lf ^= 1;
-            if (lf)
-            {
-                continue;
-            }
-        }
+        // [b28d-51] P0/N96 清绑（原 `register uchar lf asm("eax")`）；arr54
+        // 已 bool 化，`!arr54[i]` 即 ORIG `xor$1; test; je` 语义。
+        if (onlyAlive && !m_battleData.m_arr54[i])
+            continue;
         luckPoint->AddUser(m_member[i].m_pUser);
     }
 }

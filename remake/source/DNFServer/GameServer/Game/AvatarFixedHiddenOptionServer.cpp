@@ -41,9 +41,6 @@ STAvatarHiddenAbilityVariation::STAvatarHiddenAbilityVariation(
     m_nRate = rate;         // +0x10
 }
 
-STAvatarHiddenAbilityVariation::~STAvatarHiddenAbilityVariation()
-{
-}
 
 // ============================================================================
 // ARAD::SCRIPT::AvatarFixedHiddenOption

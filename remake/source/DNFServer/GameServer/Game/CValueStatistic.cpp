@@ -25,19 +25,21 @@ void CValueStatistic::stValueStatistic::reset()
 bool CValueStatistic::AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user,
                                         unsigned int value)
 {
-    int fieldIdx = (int)field;
-    // ORIG 0x0860d682：校验 field [0,0x1d] 且 level∈(0,0x47)；非法记日志并返 false。
-    if (fieldIdx < 0 || fieldIdx >= 0x1e ||
-        user->get_charac_level() <= 0 || user->get_charac_level() >= 0x47)
+    // [b28d-59] ORIG 0x0860d682：无 fieldIdx/level 具名局部（P0：形参直读 +
+    // 索引处内联 get_charac_level()，0x0860d7a5 每次重调）；条件为
+    // field<0(js) / field>0x1d(jg) / level<=0(jle) / level>0x46(jle) 四项短路，
+    // 汇聚 bool 后 `test %al; je`。插入路径也是 `+= value`（读-加-写，非直接赋值）。
+    if (field < 0 || field > 0x1d ||
+        user->get_charac_level() <= 0 || user->get_charac_level() > 0x46)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x306, false);
-        // ORIG 0x0860d6ea：trace 实参序为 (field, level)（0x8(%esp)=field、
-        // 0xc(%esp)=level），输出 "(%d,%d)" 为 field,level。
-        trace("VALUE_STATISTIC wrong index (%d,%d)",
-              fieldIdx, user->get_charac_level());
+        // [b28d-59] 全表达式临时链（P227）：ORIG 0x0860d6d2 在 cMyTrace ctor 之前
+        // 求 varargs（get_charac_level → %ebx、field → %esi 跨 ctor 保活），具名
+        // trace 会把它挪到 ctor 之后。实参序 (field, level)。
+        cMyTrace(__PRETTY_FUNCTION__, 0x306, false)(
+            "VALUE_STATISTIC wrong index (%d,%d)",
+            field, user->get_charac_level());
         return false;
     }
-    int level = user->get_charac_level();
 
     ENUM_SERVER_GROUP group = user->GetServerGroup();
     std::map<ENUM_SERVER_GROUP, stValueStatistic>::iterator it = m_data.find(group);
@@ -45,12 +47,12 @@ bool CValueStatistic::AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user
     {
         stValueStatistic stat;
         stat.reset();
-        stat.m_values[level][fieldIdx] = value;
+        stat.m_values[user->get_charac_level()][field] += value;
         m_data.insert(std::make_pair(group, stat));
     }
     else
     {
-        it->second.m_values[level][fieldIdx] += value;
+        it->second.m_values[user->get_charac_level()][field] += value;
     }
     return true;
 }
@@ -75,7 +77,12 @@ int CValueStatistic::InsertValueStatistic()
                     break;
                 }
             }
-            if (hasValue)
+            // [b28d-59] ORIG 0x0860d933 `movzbl hasValue; xor $1; test; jne` ⇒
+            // 原码取反形（P168a②直分支形）。
+            if (hasValue == false)
+            {
+                continue;
+            }
             {
                 // ORIG 0x0860d8a4：ctor（PacketHeader(0x17ca,0x86)+m_level=0）构造，
                 // 随后 m_level=level 与 memcpy m_values；不再整体 memset。
