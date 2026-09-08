@@ -94,6 +94,10 @@ bool ARAD::SCRIPT::AvatarFixedHiddenOption::isMaterialItemIndex(int itemIndex)
 bool ARAD::SCRIPT::AvatarFixedHiddenOption::parseAbility(
     std::vector<STAvatarHiddenAbilityVariation>& variations, std::string& tag)
 {
+    // [b28d-56 判词·N] N82/N89：ORIG 0x088aef52 975 条 vs 我们 1078 条（帧 0x38c vs
+    // 0x3ac、static map 惰性注册块 + 迭代器三槽阶梯）；p167 残余仅
+    // MISSING `_Rb_tree_const_iterator::ne`+`SpinLock::leave` / EXTRA `eq`（P220 极性
+    // + 锁形差）。语义完成。
     // ORIG：__lookup 为 map<const char*,int,less_TCHAR>，__init_lock 为 SpinLock，
     // __inited 在锁保护下置位；使用真实公共类型以保留跨 TU 依赖和初始化语义。
     typedef std::map<const char*, int, less_TCHAR> LookupMap;
@@ -442,6 +446,9 @@ int AvatarFixedHiddenOptionServer::GetSkillIndex(ENUM_RARITY rarity)
 bool AvatarFixedHiddenOptionServer::CheckCondition(
     CUser* user, arad::SigAvatarHiddenOptionChange* sig)
 {
+    // [b28d-56 判词·N] N7/N82附：ORIG 0x0817e4c6 236 条 vs 我们 239 条；残余为
+    // 寄存器角色差（ORIG 全程 %edx 算 materialSlot：`mov 0x10(%ebp),%edx;
+    // movzwl (%edx),%edx; movswl %dx,%edx`；4.4 恒 %eax+cwtl）。语义完成。
     CInventory* invW = user->getCurCharacInvenW();
     // 材料槽（INVEN 1）—— ORIG 以 sret 形式调用 GetInvenSlot（按值返回）
     Inven_Item material;
@@ -506,6 +513,9 @@ bool AvatarFixedHiddenOptionServer::CheckCondition(
 bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(
     CUser* user, arad::SigAvatarHiddenOptionChange* sig)
 {
+    // [b28d-56 判词·N] N7/N82附：ORIG 0x0817e8d6 230 条 vs 我们 234 条；残余为
+    // prologue 寄存器分配（ORIG push edi/esi/ebx + sub 0x7c vs 我们 push esi/ebx +
+    // sub 0x70）与实参装载序。语义完成。
     if (user->getCurCharacInvenW()->delete_item(INVEN_TYPE(1), (int)sig->m_materialSlot, 1,
                           eItemDelReason(3), true) != 1)
     {

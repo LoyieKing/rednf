@@ -217,21 +217,21 @@ bool CRedeemItem::loadData(CUser* pUser, char* pData)
 {
     (void)pUser;
     _reset();   // ORIG 0x085f7846：虚调 vtable slot7
-    int count;
-    memcpy(&count, pData + 4, 4);
+    // [b28d-62] P167：ORIG 0x085f7850 为 `mov 0x4(%eax),%eax` 直读（无 memcpy
+    //   call；旧形 3 处 memcpy 全是 EXTRA）。
+    int count = *(int*)(pData + 4);
     for (int i = 0; i < count; ++i)
     {
         const char* entry = pData + i * 0x44;
-        int check;
-        memcpy(&check, entry + 0xa, 4);   // ORIG mov 0xa(%eax,%edx,1)
+        int check = *(int*)(entry + 0xa);   // ORIG mov 0xa(%eax,%edx,1)
         if (check == 0)
         {
             alter();   // ORIG 0x085f7875: charac_expand::CData::alter()
         }
         else
         {
-            Inven_Item_Expand_RedeemInfo info;
-            memcpy(&info, entry + 8, sizeof(info));
+            Inven_Item_Expand_RedeemInfo info =
+                *(const Inven_Item_Expand_RedeemInfo*)(entry + 8);
             m_redeemList.push_back(info);
         }
     }
@@ -243,11 +243,14 @@ bool CRedeemItem::_saveData(CUser* pUser)
     Stream* stream =
         GlobalData::s_stream_pool->Acquire("Redeem_Item.cpp", 0x108);
     CStreamGuard guard(stream, true);
-    guard << (int)0x1f4;
-    guard << (int)pUser->GetUID();
+    // [b28d-62] P103/P132 + P96：ORIG 走 operator* 2 次 + operator-> 1 次
+    //   （p167 MISSING 实证）；list 迭代器用**非 const** iterator（const_iterator
+    //   多 2 次转换构造 + 整套 const 版 operator*/*++/!= = EXTRA 实证）。
+    **guard << (int)0x1f4;
+    **guard << (int)pUser->GetUID();
 
     SIG_REDEEMINFO_LIST_TO_DB* sig =
-        guard.GetInBuffer<SIG_REDEEMINFO_LIST_TO_DB>();
+        guard->GetInBuffer<SIG_REDEEMINFO_LIST_TO_DB>();
     if (sig == 0)
         return false;
     memset(sig, 0, 0x59c);
@@ -256,11 +259,12 @@ bool CRedeemItem::_saveData(CUser* pUser)
     *reinterpret_cast<int*>(sigBuf) = pUser->get_charac_no(-1);
     *reinterpret_cast<int*>(sigBuf + 4) = (int)m_redeemList.size();
     int i = 0;
-    for (std::list<Inven_Item_Expand_RedeemInfo>::const_iterator it =
+    for (std::list<Inven_Item_Expand_RedeemInfo>::iterator it =
              m_redeemList.begin();
          it != m_redeemList.end(); ++it, ++i)
     {
-        memcpy(sigBuf + 8 + i * 0x44, &*it, 0x44);
+        // [b28d-62] N84：ORIG 用结构整体赋值（rep movsl），显式 memcpy 生 call。
+        *(Inven_Item_Expand_RedeemInfo*)(sigBuf + 8 + i * 0x44) = *it;
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;
@@ -312,8 +316,8 @@ bool CItemMakingSkill::loadData(CUser* pUser, char* pData)
     _reset();   // ORIG 0x08545218：虚调 vtable slot7
     for (int i = 0; i <= 0xa; ++i)
     {
-        unsigned short v;
-        memcpy(&v, pData + 4 + i * 2, 2);
+        // [b28d-62] P167：ORIG 为 `movzwl` 直读（无 memcpy call，EXTRA 实证）。
+        unsigned short v = *(const unsigned short*)(pData + 4 + i * 2);
         if (v > 0x3e7)
             m_skillLevels[i] = 0x3e8;
         else

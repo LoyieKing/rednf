@@ -476,7 +476,10 @@ public:
 private:
     // 布局实证（Initialize/IPGRequest/_SetIPGData 访问序）；字段名【推断】。
     CIPGMgr* m_mgr;                // +0x04
-    unsigned int m_dataTableA[7];  // +0x08..+0x23（Initialize 写常量表）
+    // b28d-60：unsigned→int。依据 P265/P254：ORIG IPGRequest 0x081007f2
+    // `mov 0x8(%eax,%edx,4),%eax; mov %eax,%edx` 两段中转（int 元素赋给 unsigned
+    // 字段的转换形；unsigned 元素恒单段）。宽度/偏移/mangled 不变。
+    int m_dataTableA[7];           // +0x08..+0x23（Initialize 写常量表）
     char m_str24[0x14];            // +0x24（Initialize 自 environment+0x2b8 复制）
     unsigned int m_dataTableB[7];  // +0x38..+0x53（Initialize 写常量表，含 +0x50=0）
 };

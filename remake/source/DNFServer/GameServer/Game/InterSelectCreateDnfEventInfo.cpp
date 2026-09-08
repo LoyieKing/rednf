@@ -110,6 +110,10 @@ void InterSelectCreateDnfEventInfo::makeRequest(int rate, int hour, int eventDay
 // check_error 同口径；CGuildServerProxy.h 槽位注释与 ORIG 槽序有出入，用直调保 ABI）。
 int InterSelectCreateDnfEventInfo::dispatch_sig(CUser* user, char* data, int len)
 {
+    // [b28d-56 判词·N] N7/P282：vcall 偏移已核（两处 vptr+0x34 = _ZTV+0x3c =
+    // word[15]，P48 无 CSE 各自独立调用，P167 CLEAR 0 missing/0 extra）；残余为
+    // 4.4.7 间接 call 目标恒 %eax vs ORIG %edx（N7，4.4.6 后端可翻，本 TU 未路由）
+    // + 槽号平移 4（msg -0x14 vs -0x10）。真语义 bug 已修（m_rate/m_hour）。
     Msg* msg = reinterpret_cast<Msg*>(data);
     if (msg == 0)
     {

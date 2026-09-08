@@ -47,7 +47,30 @@ void CQueryCounter::IncreaseQueryCount(const std::string& query)
     }
     std::map<std::string, std::map<int, QUERY_INFO>::iterator>::iterator it =
         m_queryIDMap.find(query);
-    if (it != m_queryIDMap.end())
+    // [b28d-62] P220 极性翻转：ORIG 0x085eccfc 调 operator==（`it == end` 为真直落
+    //   未命中分支），我方 `!=` 生相反块序；m_bLogDB 正极性（`test %al; je else`，
+    //   ORIG 0x085ecd0f 实证）⇒ 未命中分支内先 stream 后 SaveQuery。
+    if (it == m_queryIDMap.end())
+    {
+        if (m_bLogDB)
+        {
+            CStreamGuard guard(GlobalData::s_stream_pool->Acquire("QueryCounter.cpp", 0x1d2), true);
+            **guard << 0xbe;
+            **guard << -1;
+            **guard << (int)query.size();
+            guard->put_binary((void*)query.c_str(), (int)query.size());
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+        }
+        else
+        {
+            int qid = 0;
+            if (SaveQuery(query.c_str(), qid))
+            {
+                RegisterQuery(query.c_str(), qid, 0);
+            }
+        }
+    }
+    else
     {
         m_current = it->second;
         if (m_current->second.count == 0)
@@ -55,23 +78,6 @@ void CQueryCounter::IncreaseQueryCount(const std::string& query)
             m_totalQueryCount = m_totalQueryCount + 1;
         }
         m_current->second.count = m_current->second.count + 1;
-    }
-    else if (!m_bLogDB)
-    {
-        int qid = 0;
-        if (SaveQuery(query.c_str(), qid))
-        {
-            RegisterQuery(query.c_str(), qid, 0);
-        }
-    }
-    else
-    {
-        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("QueryCounter.cpp", 0x1d2), true);
-        **guard << 0xbe;
-        **guard << -1;
-        **guard << (int)query.size();
-        guard->put_binary((void*)query.c_str(), (int)query.size());
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
 }
 
@@ -83,8 +89,10 @@ void CQueryCounter::UpdateQueryCounter()
     int curTime = time(0);
     **guard << curTime;
     **guard << m_totalQueryCount;
+    // [b28d-62] P28 增量侧：ORIG 增量段调 operator++(int)（后置，带独立 sret
+    //   临时槽）⇒ 源形必写 `it++`（`++it` 走 ppEv 免临时槽）。
     for (std::map<int, QUERY_INFO>::iterator it = m_queryInfoMap.begin();
-         it != m_queryInfoMap.end(); ++it)
+         it != m_queryInfoMap.end(); it++)
     {
         int qid = it->first;
         int count = it->second.count;

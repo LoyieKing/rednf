@@ -73,11 +73,14 @@ void StatisticsToObserveCrash::incUserLastCrashPacketID(int userIdx)
     std::map<int, int>::iterator it = m_crashPacketID.find(userIdx);
     if (it == m_crashPacketID.end())
     {
-        m_crashPacketID.insert(std::make_pair(userIdx, 1));
+        // [b28d-62] P167：ORIG 直接构造 value_type（pair<int&,int> 模板 ctor），
+        //   非 make_pair（多一对 make_pair+转换 ctor call）。
+        m_crashPacketID.insert(std::map<int, int>::value_type(userIdx, 1));
     }
     else
     {
-        it->second += 1;
+        // [b28d-62] P167：ORIG 走 operator*（deEv），非 operator->（ptEv）。
+        (*it).second += 1;
     }
 }
 
@@ -98,11 +101,11 @@ void StatisticsToObserveCrash::incUserLastCrashDungeonID(int userIdx)
     std::map<int, int>::iterator it = m_crashDungeonID.find(userIdx);
     if (it == m_crashDungeonID.end())
     {
-        m_crashDungeonID.insert(std::make_pair(userIdx, 1));
+        m_crashDungeonID.insert(std::map<int, int>::value_type(userIdx, 1));
     }
     else
     {
-        it->second += 1;
+        (*it).second += 1;
     }
 }
 
@@ -123,11 +126,11 @@ void StatisticsToObserveCrash::incUserLastCrashPlayStatus(int userIdx)
     std::map<int, int>::iterator it = m_crashPlayStatus.find(userIdx);
     if (it == m_crashPlayStatus.end())
     {
-        m_crashPlayStatus.insert(std::make_pair(userIdx, 1));
+        m_crashPlayStatus.insert(std::map<int, int>::value_type(userIdx, 1));
     }
     else
     {
-        it->second += 1;
+        (*it).second += 1;
     }
 }
 

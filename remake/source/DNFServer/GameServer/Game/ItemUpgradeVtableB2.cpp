@@ -100,19 +100,27 @@ public:
 bool expert_job::CAlchemist::IsExistContinuousEffectItem(CUser* user,
                                                          int itemId)
 {
-    if (((const CUserCharacInfo*)user)->getCurCharacR() == 0)
+    // [b28d-64] P214①/P56：ORIG 0x085d1232 `test;setne;test;je <尾 mov$0>` =
+    // 正向包裹（负形早返产 sete）；命中支 ORIG 0x085d12b5/12bc 两独立
+    // `mov $1/$0 + jmp` 岛 ⇒ if/return 两条（直返比较结果会折 setb 直跳）。
+    // 迭代器槽：ORIG begin→-0x10（浅）/end→-0x14（深）。
+    if (((const CUserCharacInfo*)user)->getCurCharacR() != 0)
     {
-        return false;
-    }
-    const std::vector<ContinuousItemInfo>* list =
-        ((const CUserCharacInfo*)user)->GetCurCharacEffectItemListR();
-    for (std::vector<ContinuousItemInfo>::const_iterator it = list->begin();
-         it != list->end(); ++it)
-    {
-        if (it->m_itemIdx == itemId)
+        const std::vector<ContinuousItemInfo>* list =
+            ((const CUserCharacInfo*)user)->GetCurCharacEffectItemListR();
+        std::vector<ContinuousItemInfo>::const_iterator it = list->begin();
+        std::vector<ContinuousItemInfo>::const_iterator last = list->end();
+        for (; it != last; ++it)
         {
-            return (unsigned)GlobalData::s_systemTime_.getCurSec() <
-                   it->m_expireTime;
+            if (it->m_itemIdx == itemId)
+            {
+                if ((unsigned)GlobalData::s_systemTime_.getCurSec() <
+                    it->m_expireTime)
+                {
+                    return true;
+                }
+                return false;
+            }
         }
     }
     return false;
@@ -469,48 +477,45 @@ unsigned char CItemUpgrade::_getUpgradeRateByUpgradeItem(
 bool CItemUpgrade::_CheckTargetUsableLv(const Inven_Item& material,
                                         const Inven_Item& target) const
 {
-    // ORIG（Ghidra uVar5）各分支写同一结果槽 + 统一出口（P63）：散布 return 让
-    // 4.4 为每个出口生成独立 epilogue 中继，实测 result 汇聚形 78/73 优于
-    // 散布形 78/71；余 5 insn 为 m_char320 的 xor$1/test 布尔物化（4.1 对
-    // 值域 [0,1] 字节比较的发形，4.4 恒 cmp $0x1 → N6/N18b 族）。
-    bool result;
+    // [b28d-64] P194：ORIG 各出口直接 `mov $0/$1,%eax; jmp end`（0x08548c69/
+    // 0x08548c86/0x08548ca7/…），无汇聚 bool 槽；汇聚形（-0x19）令每出口
+    // 改走 `movb $..,-0x19; jmp` 且末尾多 movzbl（+5 条）。
     CItem* matScript = G_CDataManager()->find_item(material.m_addInfo);
     if (matScript == 0)
     {
-        result = false;
+        return false;
     }
-    else if (!matScript->is_stackable())
+    if (!matScript->is_stackable())
     {
-        result = true;
+        return true;
     }
-    else
+    const CStackableItem* stack = (const CStackableItem*)matScript;
+    if (stack->m_char320 != 1)
     {
-        const CStackableItem* stack = (const CStackableItem*)matScript;
-        if (stack->m_char320 != 1)
-        {
-            result = true;
-        }
-        else
-        {
-            CItem* tgtScript = G_CDataManager()->find_item(target.m_addInfo);
-            if (tgtScript == 0)
-            {
-                result = false;
-            }
-            else if (!target.isEquipableItemType())
-            {
-                result = false;
-            }
-            else
-            {
-                // 目标可用等级须位于材料脚本的区间 [m_int318, m_int31c]。
-                const int usable = tgtScript->getUsableLevel();
-                result = !(usable < stack->m_int318 ||
-                           stack->m_int31c < usable);
-            }
-        }
+        return true;
     }
-    return result;
+    CItem* tgtScript = G_CDataManager()->find_item(target.m_addInfo);
+    if (tgtScript == 0)
+    {
+        return false;
+    }
+    if (!target.isEquipableItemType())
+    {
+        return false;
+    }
+    // ORIG 0x08548cf0 `mov -0x1c,%eax; mov %eax,-0x18` 具名副本槽，再取
+    // [m_int318, m_int31c] 区间与 getUsableLevel 比较。
+    const CItem* usableScript = tgtScript;
+    const int minLv = stack->m_int318;
+    const int maxLv = stack->m_int31c;
+    const int usable = usableScript->getUsableLevel();
+    // [b28d-64] P272/P222：ORIG 0x08548d14 `mov -0x14; cmp -0xc; jg fail` +
+    // `mov -0xc; cmp -0x10; jle ok` ⇒ 左操作数写 minLv、第二项写 usable>maxLv。
+    if (minLv > usable || usable > maxLv)
+    {
+        return false;
+    }
+    return true;
 }
 
 // ============================================================================
@@ -537,15 +542,17 @@ int CItemUpgrade::_ProcPortableUpgradeItem(const Inven_Item& material,
     {
         return 0;
     }
-    const std::vector<int>& levels = stack->m_vec3a0;
-    if (levels.size() != MaxPortableItemActionIntCount)
+    // [b28d-64] P0/P183：ORIG 0x08548dd9 无 vector 引用局部（引用引入 -0x18 指针槽，
+    // 使后续槽整体下移 4）；直接成员表达式访问。up 槽 ORIG 0x08548e1e 为
+    // `mov %al,-0x9`（单字节槽）⇒ 局部类型 unsigned char，比较处 (int) 提宽。
+    if (stack->m_vec3a0.size() != MaxPortableItemActionIntCount)
     {
         return 4;
     }
-    const int minUp = levels[0];
-    const int maxUp = levels[1];
-    const int up = (int)target.GetUpgrade();
-    if (up < minUp || maxUp < up)
+    const int minUp = stack->m_vec3a0[0];
+    const int maxUp = stack->m_vec3a0[1];
+    const unsigned char up = target.GetUpgrade();
+    if ((int)up < minUp || (int)up > maxUp)
     {
         return 0x13;
     }

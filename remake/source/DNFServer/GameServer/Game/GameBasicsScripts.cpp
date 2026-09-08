@@ -64,6 +64,9 @@ int PvPSkillTreeParameterScript::getPvPSkillPoint(
     // （_ZN15PvPSkillTreeKeyC1Ehhh，ORIG W 0x08a5e768），第三实参为立即数 0（ORIG
     // 无 secondGrow 形参槽写）；且 `movl $0x0,-0xc`（points）在**函数头**（P212 全
     // 头部声明）。旧码默认 ctor + 逐字段赋值 ⇒ p167 MISSING 三参 ctor/EXTRA 默认 ctor。
+    // [b28d-56 判词·N] 残余 N82：ORIG 131 条 vs 我们 131 条（key 三参 ctor 与
+    // points 头声明已对齐；残余为 grade 钳制分支布局 `jge` vs `jle`（P59/P222 极性）
+    // 与 map 迭代器槽 -0x28 vs -0x18）。语义完成。
     int points = 0;
     if (grade < m_field4c)
         grade = m_field4c;

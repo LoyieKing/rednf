@@ -367,6 +367,10 @@ void CAssaultPlace::EndAssault()
     }
 
     int aliveCounts[2] = { 0, 0 };
+    // [b28d-62] P232：ORIG 0x082e9a71 有 dead bool 预清 `movb $0x0,-0x9`（后续
+    //   无读取），缺失导致 i 槽 -0xc vs ORIG -0x10 全帧浅 4 ⇒ 按原样补声明。
+    bool allDead = false;
+    (void)allDead;
     _GetTeamCountAliveUser(aliveCounts);  // -0x24 起（两连 int）
     if (aliveCounts[0] == 0)
         m_teamFlag[1] = 1;                // this+0x121
@@ -796,8 +800,7 @@ void CAssaultPlace::_DispositionUser(CUser** users)
 // ---------------------------------------------------------------------------
 void CAssaultPlace::_MakeUserInfo(PacketGuard* p, ENUM_USERINFO type)
 {
-    if (p == 0)
-        return;
+    // [b28d-62] P171：ORIG 0x082e8b6e 无空指针守卫，删多余 `if (p==0) return;`。
     p->put_header(0, 2);
     p->put_byte((int)type);
     int indexSlot = 0;
@@ -805,11 +808,12 @@ void CAssaultPlace::_MakeUserInfo(PacketGuard* p, ENUM_USERINFO type)
     indexSlot = p->get_index();
     p->put_short(count);
     for (int i = 0; i < 8; ++i) {
-        if (!m_assaulters[i].Empty()) {
-            CUser* user = m_assaulters[i].GetUser();
-            user->make_basic_info((char*)p, (char)type);
-            count = count + 1;
-        }
+        // [b28d-62] ORIG 0x082e8be3 `test %al,%al; jne <循环尾>` ⇒ `if (Empty()) continue;`
+        //   （正极性直测）；user 免槽直用（P134，ORIG 无 -0xc 指针槽）。
+        if (m_assaulters[i].Empty())
+            continue;
+        m_assaulters[i].GetUser()->make_basic_info((char*)p, (char)type);
+        count = count + 1;
     }
     p->put_short(indexSlot, count);
     p->finalize(true);

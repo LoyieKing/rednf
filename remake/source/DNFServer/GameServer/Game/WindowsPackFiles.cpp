@@ -35,25 +35,28 @@ extern "C" void* memset(void*, int, std::size_t);
 bool LoadClientFile(unsigned long* outSize, void** outBuf, const char* path)
 {
     FILE* fp = fopen(path, "rb");
-    if (fp == 0)
+    // [b28d-64] P59/P63：ORIG 0x08572f5a `je <尾部 mov $0; leave; ret>` 单跳，
+    // 负形早返被 4.4 内联成 `jne body; mov $0; jmp` 岛 ⇒ 改正向包裹让失败出口归共享尾。
+    if (fp != 0)
     {
-        return false;
-    }
-    fseek(fp, 0, SEEK_END);
-    *outSize = static_cast<unsigned long>(ftell(fp));
-    fseek(fp, 0, SEEK_SET);
-    unsigned char* buf = new unsigned char[*outSize];
-    *outBuf = buf;
-    std::size_t n = fread(*outBuf, *outSize, 1, fp);
-    if (n != 1)
-    {
-        delete buf;          // ORIG _ZdlPv（new[]/delete 不匹配为 ORIG 原样）
-        *outBuf = 0;
+        fseek(fp, 0, SEEK_END);
+        *outSize = static_cast<unsigned long>(ftell(fp));
+        fseek(fp, 0, SEEK_SET);
+        // [b28d-64] P0/P292：ORIG 0x08572fb5 new[] 结果 %edx 直载（无 buf 槽）；
+        // 0x08572fe1 fread 结果寄存器直比 `setne %al; test %al; je`（无具名 n 槽）；
+        // 0x08572ff3 delete 为显式 `operator delete`（无 4.4 自带判空 test/je）。
+        *outBuf = new unsigned char[*outSize];
+        if (fread(*outBuf, *outSize, 1, fp) != 1)
+        {
+            operator delete(*outBuf);   // ORIG _ZdlPv（new[]/delete 不匹配为 ORIG 原样）
+            *outBuf = 0;
+            fclose(fp);
+            return false;
+        }
         fclose(fp);
-        return false;
+        return true;
     }
-    fclose(fp);
-    return true;
+    return false;
 }
 
 // ---------------------------------------------------------------------------
@@ -1167,19 +1170,26 @@ bool WindowsCodeProtectorServer::IsDifferentExeVersionRoughly() // 0x08575970
 {
     if (m_exeFamily != 0)
     {
+        // [b28d-64] P50 复活：ORIG 0x0857598a 独立 `iterator::C1Ev` 默认构造 +
+        // begin() 临时槽（-0x2c）再拷入 it（-0x1c）⇒ 先声明后赋值。
+        std::vector<WindowsExeFile*>::iterator it;
+        WindowsExeFile* f;
         unsigned long maxFileSize = 0;
-        // ORIG：迭代器 for 循环（begin/end/++/de）
-        for (std::vector<WindowsExeFile*>::iterator it =
-                 m_exeFamily->m_exeFiles.begin();
-             it != m_exeFamily->m_exeFiles.end(); ++it)
+        it = m_exeFamily->m_exeFiles.begin();
+        for (; it != m_exeFamily->m_exeFiles.end(); ++it)
         {
-            if (maxFileSize < (*it)->m_size)
+            // [b28d-64] P0：ORIG 0x085759c1 具名 f（-0x14 槽往返）且每轮两读；
+            // 比较方向按 ORIG `cmp -0x10(%ebp),%eax; jbe`（m_size > maxFileSize）。
+            f = *it;
+            if (f->m_size > maxFileSize)
             {
-                maxFileSize = (*it)->m_size;
+                maxFileSize = f->m_size;
             }
         }
-        if (static_cast<unsigned long>(
-                m_exeFamily->GetTotalIntervalSize() * 2) <= maxFileSize)
+        // [b28d-64] P47/P191：ORIG 0x08575a1c `ja <尾 mov $0>` + fall `mov $1` ⇒
+        // if(cond) return false; return true;（原三目/直返产 setbe 物化 +4 条）。
+        unsigned long total = m_exeFamily->GetTotalIntervalSize();
+        if (total * 2 <= maxFileSize)
         {
             return true;
         }

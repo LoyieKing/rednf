@@ -77,6 +77,9 @@ void CHandlePremium::handleNotifyPremiumInfo(CUser* user, int type, int remainSe
 // 定时 + handleNotifyPremiumInfo/handlePremiumEffect + 租赁物品包。
 void CHandlePremium::handleSetUserPCRoom(CUser* user, long start, long end)
 {
+    // [b28d-56 判词·N] NEAR(ndiff 8)：ORIG 0x086b02fe 179 条 vs 我们 179 条，
+    // 助记符序列全等，仅两处多实参 call 首值 callee-saved 互换（%esi↔%ebx，
+    // N82附「多实参 call 首值寄存器对调」源形不可择）。语义完成。
     // [b23S3C] P48 去缓存：无 remain 槽——ORIG 每使用点重取 (end-curSec)（7 条/处
     // ×5）；InsertTimer 实参全内联（4.1 右→左求值序 acc_id→diff→uid→G_TQ 实证，
     // 具名局部改序即偏差）；affected bool 槽 movb 直落（ORIG `mov %al,-0x1d` 无
@@ -127,6 +130,9 @@ void CHandlePremium::handleSetUserPCRoom(CUser* user, long start, long end)
 // 收尾 RecalcAdditionalInfo/SendNotiPacket + ProcPremiumFatigue/SendFatigue/SendCoin。
 void CHandlePremium::handlePremiumEffect(CUser* user, ENUM_PREMIUM_TYPE type)
 {
+    // [b28d-56 判词·N] N82：ORIG 0x086afc32 456 条 vs 我们 434 条（帧 0xec vs 0xfc、
+    // 槽号整体平移）；P157 已修 11 处 operator[] MISSING→6；残余 6 处为缺字段访问
+    // （ORIG 12 次 vs 我们 6 次）+ getCurCharacInvenR 内联差。
     CUserPremium* premium = user->GetPremiumInfoW();
     int curSec = GlobalData::s_systemTime_.getCurSec();
     if (!user->IsPremiumUser())
@@ -237,6 +243,8 @@ void CHandlePremium::handlePremiumEffect(CUser* user, ENUM_PREMIUM_TYPE type)
 //  0x53/0x57 → 表情重算；0x21 → Lethe 标志）+ 通知。
 void CHandlePremium::handlePremiumTimeout(CUser* user)
 {
+    // [b28d-56 判词·N] N82：ORIG 0x086afa7c 118 条 vs 我们 113 条（ORIG `push %ebx;
+    // sub $0x44` vs 我们 `sub $0x48`，SUserPremiumInfo 返回槽 -0x1c vs -0x20）；语义完成。
     SUserPremiumInfo info = user->GetPremiumInfo()->CheckPremiumTimeout();
     int timeoutType = info.m_type;
     if (timeoutType == 0xc)

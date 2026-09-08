@@ -102,13 +102,20 @@ int CClearReward::getRewardItemRatePerMapMaxCount(int mapCount) const
 
 int CClearReward::_getGenItemProbIdx(int value, eClearRewardDropProb_t drop)
 {
-    const std::vector<stGenItemProb_t>& probs = m_workProbs[drop];
-    for (size_t i = 0; i < probs.size(); ++i)
+    // [b28d-63] ORIG 0x08538694：基址 `this+drop*0xc+0x60` 每次重算（无具名
+    // vector 引用局部，P0/P183）；循环体单次 operator[] 存 -0xc 后读两字段
+    // （P157 例外）；尾部 size()<=i ⇒ mov $0xffffffff 岛。
+    size_t i = 0;
+    while (i < m_workProbs[drop].size())
     {
-        if (value >= probs[i].v[0] && value <= probs[i].v[1])
-            return static_cast<int>(i);
+        const stGenItemProb_t& prob = m_workProbs[drop][i];
+        if (value >= prob.v[0] && value <= prob.v[1])
+            break;
+        ++i;
     }
-    return -1;
+    if (m_workProbs[drop].size() <= i)
+        return -1;
+    return static_cast<int>(i);
 }
 
 void CClearReward::generateRandomItem(stGenerateRefData_t const& ref,

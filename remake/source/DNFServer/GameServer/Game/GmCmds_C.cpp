@@ -266,32 +266,38 @@ void CEnduranceCmd::execute()
 {
     CUserCharacInfo* ci = GetUser();
     CUser* user = static_cast<CUser*>(ci);
+    // [b28d-63] ORIG 0x084aa879 起：bool 取反守卫 + 两次独立槽位比较各落
+    // 独立 nop 岛（0x15f/0x162/0x165/0x168）⇒ P223 负条件 goto + 尾标签串；
+    // m_slot 每次直读（无具名局部，P0）。
     if (!user->isGMUser())
-    {
-        return;
-    }
-    int slot = m_slot;
-    if (!(slot > 9 && slot <= 0x15))
-    {
-        return;
-    }
+        goto END1;
+    if (m_slot <= 9)
+        goto END2;
+    if (m_slot > 0x15)
+        goto END3;
 
-    Inven_Item* item =
-        const_cast<CInventory*>(ci->getCurCharacInvenW())->GetInvenRef(0, slot);
-    if (item == 0 || item->m_addInfo == 0)
     {
-        return;
+        Inven_Item* item =
+            const_cast<CInventory*>(ci->getCurCharacInvenW())->GetInvenRef(0, m_slot);
+        if (item == 0)
+            return;
+        if (item->m_addInfo == 0)
+            goto END4;
+
+        item->m_fieldb = m_endurance;
+
+        PacketGuard packet;
+        packet.put_header(0, 0xe);
+        packet.put_byte(3);
+        packet.put_short(1);
+        ci->getCurCharacInvenR()->MakeItemPacket(INVEN_TYPE_INVEN, m_slot, packet);
+        packet.finalize(true);
+        user->Send(packet);
     }
-
-    item->m_fieldb = m_endurance;
-
-    PacketGuard packet;
-    packet.put_header(0, 0xe);
-    packet.put_byte(3);
-    packet.put_short(1);
-    ci->getCurCharacInvenR()->MakeItemPacket(INVEN_TYPE_INVEN, slot, packet);
-    packet.finalize(true);
-    user->Send(packet);
+END1:;
+END2:;
+END3:;
+END4:;
 }
 
 // ========================================================================

@@ -345,12 +345,16 @@ PvP_MissionSystem::PvP_MissionSystem()
       m_dailyMissionKind(),
       m_baseMissionExp()
 {
-    CMTRand* rand = new CMTRand();
-    rand->seed((unsigned long)time(0));   // ORIG CMTRand(time(0))：initialize+reload 覆盖全部状态
-    m_trand = rand;
+    // b28d-61 [ORIG 0x085e1b16-0x085e1b5d `movl $0x0,(%esp); call time; mov %eax,-0x24;
+    // lea -0x24,%esi; movl $0x9c8,(%esp); call new; call CMTRand::C1ERKm`]：直接
+    // `new CMTRand(time(0))`（ctor 吃 unsigned long const&，临时占槽 -0x24），
+    // 非「默认构造 + seed()」两段。
+    m_trand = new CMTRand((unsigned long)time(0));
     m_field3c = 0;
     m_dailyMissionKind.reset();
-    m_kindMissionList.resize(0x24);   // ORIG resize 0x24 个 list<CMission*>
+    // ORIG 0x085e1b78-0x085e1b9b：先构造空 list 临时（-0x20），再调
+    // vector::resize(0x24, list)（085e7444 按值传第二参）——非单参 resize。
+    m_kindMissionList.resize(0x24, std::list<CMission*>());
 }
 
 // ============================================================================
@@ -418,12 +422,24 @@ CMission* PvP_MissionSystem::Factory(const MissionScript& script)
 // ============================================================================
 bool PvP_MissionSystem::Load_list()
 {
+    // b28d-61 按 ORIG 0x085e1dc6 逐段还原：
+    // ① path 函数级声明先清零（P198 两句式，ORIG `movl $0x0,-0xc` 在函数头）；
+    // ② 非 const iterator（ORIG begin 为非 const 版，无转换构造）；
+    // ③ insert(make_pair(idx,mission))（ORIG 085e7567 make_pair + 085e75de
+    //    map::insert(pair const&)，非 operator[]）；
+    // ④ m_kindMissionList[kind] 无边界防御（P140，ORIG 直接下标）；
+    // ⑤ grade/kind 每次内联调用 getter（无具名 int 槽，ORIG sete/test/je 形）；
+    // ⑥ `m_dailyMissionKind[kind] = true`（ORIG bitset::operator[] + reference::op=，
+    //    非 set()&0x1f）。
+    const char* path = 0;
+    // ⑦ 声明序 path→it→script：ORIG 发射序为 path 清零、begin、script 构造
+    //    （script 槽 -0xc4 最深），故 it 的初始化必须写在 script 声明之前。
+    std::map<int, std::string>::iterator it =
+        g_PvpMissionScriptFileList.m_fileMap.begin();
     MissionScript script;
-    for (std::map<int, std::string>::const_iterator it =
-             g_PvpMissionScriptFileList.m_fileMap.begin();
-         it != g_PvpMissionScriptFileList.m_fileMap.end(); ++it)
+    for (; it != g_PvpMissionScriptFileList.m_fileMap.end(); ++it)
     {
-        const char* path = it->second.c_str();
+        path = it->second.c_str();
         if (path == 0)
             break;
         if (!importPvpMissionScript(&script, path))
@@ -434,15 +450,10 @@ bool PvP_MissionSystem::Load_list()
         CMission* mission = Factory(script);
         if (mission == 0)
             return false;
-        int idx = mission->GetMissionIndex();
-        m_missionMap[idx] = mission;
-        unsigned int kind = mission->GetMissionKind();
-        if (kind < m_kindMissionList.size())
-            m_kindMissionList[kind].push_back(mission);
-        int grade = mission->GetMissionGrade();
-        if (grade == 2)
-            m_dailyMissionKind.set(
-                (unsigned int)mission->GetMissionKind() & 0x1f);
+        m_missionMap.insert(std::make_pair(mission->GetMissionIndex(), mission));
+        m_kindMissionList[mission->GetMissionKind()].push_back(mission);
+        if (mission->GetMissionGrade() == 2)
+            m_dailyMissionKind[mission->GetMissionKind()] = true;
     }
     sort_list();
     return true;
@@ -648,14 +659,18 @@ void PvP_MissionSystem::get_New_DailyMission(
     }
 }
 
-void PvP_MissionSystem::sort_list()
+int PvP_MissionSystem::sort_list()
 {
     // b28d-61 [P175/P225，ORIG 0x085e20d4 `call operator[](i)` + `cmp -0x10(%ebp),
     // %eax; seta %al`]：索引循环（size() 左操作数 + seta 四段物化），非迭代器。
+    // P159：ORIG 尾 `mov $0x0,%eax` ⇒ 返回 int（非 void）。
+    // P0：ORIG 把 operator[] 结果写 -0xc 槽再回读 ⇒ 原码有具名引用局部。
     unsigned int i = 0;
     while (m_kindMissionList.size() > i)
     {
-        m_kindMissionList[i].sort(MissionLessThan());
+        std::list<CMission*>& l = m_kindMissionList[i];
+        l.sort(MissionLessThan());
         i++;
     }
+    return 0;
 }

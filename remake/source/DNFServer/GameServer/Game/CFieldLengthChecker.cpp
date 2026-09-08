@@ -19,6 +19,10 @@ CFieldLengthChecker::~CFieldLengthChecker()
 
 void CFieldLengthChecker::AddField(char const* query)
 {
+    // [b28d-56 判词·N] N82/N91：ORIG 0x0817? 623 条 vs 我们 611 条；find 重载已按
+    // p167 修正（MISSING/EXTRA 各 6→0）；残余为 string 局部槽基差 8（ORIG -0x41 起
+    // 非 4 对齐槽基）+ 4.4 对 string 临时析构多布 EH landing（P216 边界：callee 为
+    // libstdc++ 不可加 throw()）。语义完成。
     if (fieldLength_.empty()) {
         std::string s(query);
         std::string a;

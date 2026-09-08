@@ -179,6 +179,8 @@ int CSecretShopStatistic::GetNpcIndex(int pos)
 
 int CSecretShopStatistic::GetDungeonData(int npcIdx, int dungeonIdx)
 {
+    // [b28d-56 判词·N] N82：ORIG 0x085f? 100 条 vs 我们 80 条（帧 0x88 vs 0x78、
+    // map operator[] 地址折叠形 `mov %eax,%edx; add this,%edx` vs 我们单链）；语义完成。
     int pos = GetNpcPos(npcIdx);
     std::map<int, SECRET_SHOP_STATISTIC_DATA>& m = m_pos[pos];
     std::map<int, SECRET_SHOP_STATISTIC_DATA>::iterator it = m.find(dungeonIdx);
@@ -219,6 +221,8 @@ void CSecretShopStatistic::RecordPrice(int npcIdx, int dungeonIdx, int price)
 
 void CSecretShopStatistic::SendSecretShopStatistic()
 {
+    // [b28d-56 判词·N] N82：ORIG 107 条 vs 我们 93 条（ORIG `push %ebx; sub $0xfe4`
+    // vs 我们 `sub $0xfe8`，大栈帧寄存器分配差）；语义完成。
     // ORIG 0x85fd278：包在循环外构造一次（PacketHeader(0x1b69,0xfb2)，
     // m_count=0）；对每个 pos，若 map 非空：memset 数据区（0xfa0），
     // 逐项拷贝 SECRET_SHOP_STATISTIC_DATA 的全部 5 个 int（m_data[0]=dungeonIdx
@@ -267,6 +271,8 @@ int IBuyRule::CheckLimit(SECRET_SHOP_INFO& info, int itemIdx, int count, int& re
 int IBuyRule::InsertItemIntoInventory(CUser* user, int itemIdx, int count,
                                       Inven_Item& out)
 {
+    // [b28d-56 判词·N] N82：ORIG 83 条 vs 我们 86 条（实参装载序 + 局部槽 -0x10 vs
+    // -0x14/-0x18 链）；语义完成。
     CDataManager* dm = G_CDataManager();
     CItem* item = dm->find_item(itemIdx);
     if (item == 0)
@@ -285,6 +291,8 @@ int IBuyRule::InsertItemIntoInventory(CUser* user, int itemIdx, int count,
 void IBuyRule::SendSecretShopBuyItem(CUser* user, int slot, Inven_Item& item,
                                      int a, int b, int c)
 {
+    // [b28d-56 判词·N] N82/P183：ORIG 103 条 vs 我们 107 条（我们多 `mov %eax,-0x10`
+    // 缓存；PacketGuard 槽 -0x14 vs -0x1c）；语义完成。
     PacketGuard packet;
     InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
     buf->put_header(1, 0x129);
@@ -333,6 +341,8 @@ CBuyItembyGold::CBuyItembyGold(CSecretShopStatistic& statistic)
 bool CBuyItembyGold::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
                              int count)
 {
+    // [b28d-56 判词·N] N82：ORIG 159 条 vs 我们 166 条（帧/槽号平移 -0x18 vs -0x24，
+    // 旧 b21 N 判词继续有效）；语义完成。
     // [b21 N] 语义已闭合：err-outer/sale-inner 双守卫、CheckLimit、money、InsertItem、
     // use_money/SendSecretShopBuyItem/LogValueStatistic/BuyItem/RecordPrice 调用链与实参
     // （total/remain/slot/&info.m_shopper/*GetSecretShopData/getDungeonIdxAfterClear）逐条
@@ -388,6 +398,8 @@ CBuyItembyRecipe::CBuyItembyRecipe(CSecretShopStatistic& statistic)
 bool CBuyItembyRecipe::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
                                int count)
 {
+    // [b28d-56 判词·N] N82：ORIG 182 条 vs 我们 189 条（ORIG `push %ebx; sub $0xc4`
+    // vs 我们 `sub $0xe8`）；语义完成。
     SALE_INFO* sale = info.m_retailer.GetSaleInfo(itemIdx);
     unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0x43);
     if (err != 0)
@@ -442,6 +454,8 @@ bool CBuyItembyRecipe::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
 
 CSecretShop::CSecretShop()
 {
+    // [b28d-56 判词·N] N82/N93：ORIG 124 条 vs 我们 126 条（局部 string 临时槽
+    // -0x44/-0x4c 声明序 + map insert 实参装载序）；语义完成。
     // ORIG：map.insert(pair)（非 operator[]）；m_pRand = new CMTRand(time(0))
     // （PvPTypes.h 权威 CMTRand 的 const unsigned long& 种子 ctor，
     //  符号 _ZN7CMTRandC1ERKm @0x080cba2a；ORIG 无 CMTRand(time_t) 重载，
@@ -492,6 +506,8 @@ int CSecretShop::LotteryNpc(int dungeonIdx, int level, int price)
 void CSecretShop::LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx,
                                int level, int price)
 {
+    // [b28d-56 判词·N] N82/P183：ORIG 55 条 vs 我们 56 条（我们多 `mov %eax,-0x10`
+    // 缓存 G_CDataManager 结果；ORIG 每处 use 各自 fresh call，P48）；语义完成。
     // P48 no-CSE：ORIG 每处 use 各自 fresh G_CDataManager()（GetItemByDungeonIdx /
     // GetItemByDungeonLev 各一处，共 2 次）。
     // m_pRand 即 PvPTypes.h 权威全局 CMTRand；GetItemByDungeonIdx/Lev 形参
@@ -520,6 +536,8 @@ void CSecretShop::LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx,
 
 void CSecretShop::CheckLottery()
 {
+    // [b28d-56 判词·N] N82/N89：ORIG 304 条 vs 我们 284 条（帧/槽号平移 + map 迭代器
+    // 与 STL 模板内联差；p167: MISSING `ne` / EXTRA `ix`+`eq`+`size` 为遍历形差）。
     // ORIG 0x85fad20：统计工具 —— 对 CDataManager 地下城表中每个地下城，
     // 以 dungeonIdx=0x3ea(1002)、level=get_index()、price=get_standard_level()
     // 抽取 10000 次 LotteryItems，统计各商品出现次数，并把百分比写入
@@ -579,6 +597,8 @@ void CSecretShop::CheckLottery()
 
 void CSecretShop::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx, int count)
 {
+    // [b28d-56 判词·N] N82：ORIG 82 条 vs 我们 85 条（ORIG `push %ebx; sub $0x34`
+    // vs 我们 `sub $0x48`）；语义完成。
     SALE_INFO* sale = info.GetSaleInfo(itemIdx);
     if (sale == 0)
         return;
@@ -703,6 +723,8 @@ bool SecretShopScript::GetItems(CMTRand* rand,
     // [b28d-56 判词·P196] ORIG 0x08a82a?? `cmp %edx,%eax; setb %al`（无符号序）
     // ⇒ 源码为无符号比较；旧 `(int)size() < m_maxCount` 产有符号 `setl`，
     // 值域 ≥0x80 时语义分叉（size 为 size_t、m_maxCount 为 int，ORIG 照抄无符号）。
+    // [b28d-56 判词·N] 残余 N82/N86：ORIG 156 条 vs 我们 159 条（map 迭代器三槽阶梯 +
+    // string/vector 模板内联差）；语义完成。
     if (sales.m_sales.size() < (unsigned int)sales.m_maxCount) {
         // 商品数少于上限：直接全部列出
         for (std::map<int, stSaleInfo>::iterator it = sales.m_sales.begin();
@@ -850,6 +872,8 @@ void SecretShopScript::verifyNpc(std::multimap<int, stDungeonNpc>& npcMap)
 //     辅助构造函数写入，未逐指令核对）。
 int importSecretShopScript(SecretShopScript* script, const char* path)
 {
+    // [b28d-56 判词·N] N82/N89：ORIG 630 条 vs 我们 601 条（帧 0x320 vs 0x2a0，
+    // 巨件槽号平移；p167 EXTRA 为 make_pair/Ss 临时族，语义完成）。
     if (!loadRDARScriptFile("", path))
     {
         return 0;

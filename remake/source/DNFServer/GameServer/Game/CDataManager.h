@@ -2645,7 +2645,7 @@ public:
     int get_WithinMissionIndex(int idx) const;
     std::list<CMission*>& get_kind_mission_list(unsigned int idx);
     int get_BaseMissionExp_byRank(unsigned short rank) const;
-    void sort_list();
+    int sort_list();   // b28d-61 [P159]：ORIG 0x085e20f0 尾 `mov $0x0,%eax` ⇒ int
 private:
     std::map<int, CMission*> m_missionMap;                        // +0x00
     std::vector<std::list<CMission*> > m_kindMissionList;         // +0x18

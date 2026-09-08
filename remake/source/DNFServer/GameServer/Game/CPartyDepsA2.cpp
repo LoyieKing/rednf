@@ -506,34 +506,39 @@ int CParty::GetDungeonIndex_isTOD(int& dungeonIdx, int& apcIdx)
 // ============================================================================
 // SetProperDungeonEvent —— ORIG T 0x085bb62a（报告 CParty/SetProperDungeonEvent.md）
 // ============================================================================
-void CParty::SetProperDungeonEvent(CUser* user, int characInfoAsInt)
+void CParty::SetProperDungeonEvent(CUser* user, int param)
 {
-    CUserCharacInfo* characInfo =
-        reinterpret_cast<CUserCharacInfo*>(characInfoAsInt);
-    characInfo->ClearProperDungeonUser();
+    // [b28d-63] ORIG 0x085bb62a：两 bool 取反守卫（xor$1/test/jne）+ 两个
+    // jl/jg 各落独立 nop 岛（0x736/0x739/0x73c/0x73f）⇒ P223 多岛形；
+    // dungeon 取 **this->m_battleField.m_pDungeon**（ORIG `0x8(%ebp)+0xcac`），
+    // user 经 CUser 基类接口直调（ORIG `0xc(%ebp)` 三次）；param 未被 ORIG 使用。
+    user->ClearProperDungeonUser();
 
-    CDungeon* dungeon =
-        reinterpret_cast<CUserCurDungeonView*>(user)->m_dungeon;
-    if (G_CDataManager()->m_conditionDungeon.isEventDungeon(
-            dungeon->get_index()))
+    if (!G_CDataManager()->m_conditionDungeon.isEventDungeon(
+            m_battleField.m_pDungeon->get_index()))
+        goto END1;
+    if (!G_CDataManager()->m_conditionDungeon.isApplyLevel(
+            user->get_charac_level()))
+        goto END2;
     {
-        if (G_CDataManager()->m_conditionDungeon.isApplyLevel(
-                characInfo->get_charac_level()))
-        {
-            int standardLevel = dungeon->get_standard_level();
-            int minLevel = dungeon->get_min_level();
-            int zero = 0;
-            int lower = std::max(minLevel, zero);
-            int upperBound = standardLevel + 1;
-            int cap = 0x46;
-            int upper = std::min(upperBound, cap);
-            int level = characInfo->get_charac_level();
-            if (lower <= level && level <= upper)
-            {
-                characInfo->SetProperDungeonUser();
-            }
-        }
+        int standardLevel = m_battleField.m_pDungeon->get_standard_level();
+        int minLevel = m_battleField.m_pDungeon->get_min_level();
+        int zero = 0;
+        int lower = std::max(minLevel, zero);
+        int upperBound = standardLevel + 1;
+        int cap = 0x46;
+        int upper = std::min(upperBound, cap);
+        int level = user->get_charac_level();
+        if (level < lower)
+            goto END3;
+        if (level > upper)
+            goto END4;
+        user->SetProperDungeonUser();
     }
+END1:;
+END2:;
+END3:;
+END4:;
 }
 
 // ============================================================================

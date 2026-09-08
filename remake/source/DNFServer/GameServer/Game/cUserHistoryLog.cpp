@@ -638,18 +638,18 @@ void cUserHistoryLog::QPAdd(int before, int questIdx, int add)
 // m_pad 即 MSG_BASE 后的 +0x0d 起原字节区）。条件为 mail 非空 且 收件人名非空。
 void cUserHistoryLog::SendMail(MSG_MAILBOX_SEND* mail, unsigned int a)
 {
-    if (mail != 0 && mail->m_name11[0] != 0) {
-        char* nstr = NumberToString(a, 0);
-        const char* mailBody = mail->m_text45;        // +0x45 邮件文本
-        int f3d = mail->m_extra3d;                    // +0x3d
-        int f39 = (int)mail->m_itemId39;              // +0x39（64 位 id 低 32 位）
-        unsigned short f37 = mail->m_slot37;          // +0x37
-        unsigned char f36 = mail->m_space36;          // +0x36
-        int f2e = (int)mail->m_gold2e;                // +0x2e
-        m_user->LogHistory("MailS,%s,%d,%d,%d,%d,%d,\"%s\",%s",
-                           mail->m_name11, f2e, static_cast<int>(f36), static_cast<int>(f37),
-                           f39, f3d, mailBody, nstr);
-    }
+    // b28d-65：ORIG 0x086847ea 两条独立早退（je 分落两个 jmp/nop 中继，P63）：
+    // 第二守卫 `add $0x11; test %eax,%eax` 是数组退化比较（恒真、无 movzbl）
+    // ⇒ 原码写 `mail->m_name11 == 0`（P171 照抄原码恒真形）；nstr/f2e/f36/f37
+    // 无槽往返 ⇒ 内联实参（P0），mailBody/f3d/f39 有槽 ⇒ 具名局部。
+    if (mail == 0)
+        return;
+    if (mail->m_name11 == 0)
+        return;
+    m_user->LogHistory("MailS,%s,%d,%d,%d,%d,%d,\"%s\",%s",
+                       mail->m_name11, mail->m_gold2e, mail->m_space36,
+                       mail->m_slot37, mail->m_itemId39, mail->m_extra3d,
+                       mail->m_text45, NumberToString(a, 0));
 }
 
 void cUserHistoryLog::MoveArea(int a, int b, int c, int d, int e)
@@ -781,10 +781,11 @@ void cUserHistoryLog::UseSelectBooster(unsigned int a, int b, int c,
     char buffer[0x400];
     memset(buffer, 0, sizeof(buffer));
     unsigned int i = 0;
-    while (i < items.size() && strlen(buffer) + 0xd < 0x3ff)
+    while (i < items.size())
     {
-        char* p = buffer + strlen(buffer);
-        sprintf(p, "%d,", items[i].m_addInfo);
+        if (strlen(buffer) + 0xd > 0x3fe)
+            break;
+        sprintf(buffer + strlen(buffer), "%d,", items[i].m_addInfo);
         ++i;
     }
     m_user->LogHistory("UseSelectBooster,%u,%d,%d,%s", a, b, c, buffer);
@@ -904,12 +905,11 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
                                           char const* name1, char const* name2)
 {
     CItemGloballyUniqueIdentifierPrint print;
-    const char* guid = print(
-        *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
+    const char* guid = print(*({ (const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]; }));
     m_user->LogHistory(
         "Item+,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
-        (int)invenType, (int)item.m_addInfo, addNew, addOld, (int)reason,
+        (int)invenType, item.m_addInfo, addNew, addOld, (int)reason,
         name1, name2,
         item.GetUpgrade(),
         (unsigned)item.m_fieldb,
@@ -934,12 +934,11 @@ void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const
                                           char const* name1, char const* name2)
 {
     CItemGloballyUniqueIdentifierPrint print;
-    const char* guid = print(
-        *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
+    const char* guid = print(*({ (const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]; }));
     m_user->LogHistory(
         "Item-,%d,%d,%d,%d,%d,\"%s\",%d,%d,"
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
-        (int)invenType, (int)item.m_addInfo, delNew, delOld, (int)reason,
+        (int)invenType, item.m_addInfo, delNew, delOld, (int)reason,
         name2,
         item.GetUpgrade(),
         (unsigned)item.m_fieldb,
@@ -1291,8 +1290,11 @@ void cUserHistoryLog::GuildJoin(unsigned int guildKey, const char* guildName,
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm broken;
     struct tm* r = localtime_r(&now, &broken);
+    int year = r->tm_year;
+    int month = r->tm_mon + 1;
+    int day = r->tm_mday;
     m_user->LogHistory("GuildJoin,\"%d/%d/%d\",%d,\"%s\",%d,%d,%d",
-                       r->tm_year + 0x76c, r->tm_mon + 1, r->tm_mday,
+                       year + 0x76c, month, day,
                        guildKey, guildName, characNo, (unsigned)a, (int)b);
 }
 
@@ -1303,8 +1305,11 @@ void cUserHistoryLog::GuildOut(unsigned int guildKey, const char* guildName,
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm broken;
     struct tm* r = localtime_r(&now, &broken);
+    int year = r->tm_year;
+    int month = r->tm_mon + 1;
+    int day = r->tm_mday;
     m_user->LogHistory("GuildOut,\"%d/%d/%d\",%d,\"%s\",%d,%d,%d",
-                       r->tm_year + 0x76c, r->tm_mon + 1, r->tm_mday,
+                       year + 0x76c, month, day,
                        guildKey, guildName, characNo, (int)a, (unsigned)b);
 }
 
@@ -1316,8 +1321,11 @@ void cUserHistoryLog::GuildChangeGrade(unsigned int guildKey, const char* guildN
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm broken;
     struct tm* r = localtime_r(&now, &broken);
+    int year = r->tm_year;
+    int month = r->tm_mon + 1;
+    int day = r->tm_mday;
     m_user->LogHistory("GuildChangeGrade,\"%d/%d/%d\",%d,\"%s\",%d,%d,%d,%d",
-                       r->tm_year + 0x76c, r->tm_mon + 1, r->tm_mday,
+                       year + 0x76c, month, day,
                        guildKey, guildName, characNo, grade,
                        (unsigned)(oldGrade & 0xff), (unsigned)(newGrade & 0xff));
 }

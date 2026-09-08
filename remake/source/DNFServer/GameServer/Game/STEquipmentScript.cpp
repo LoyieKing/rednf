@@ -85,6 +85,9 @@ void STEquipmentStatInfo::clear()  // ORIG 0x0898d272：10 直接 + 循环 i<=3(
                                    // + +0x38 + 循环 j<=16(+0x3c) + +0x80/+0x84
                                    // + 循环 k<=3(+0x88)；38 int 全清，sizeof 0x98
 {
+    // [b28d-56 判词·N] N81/P30：ORIG 0x0898d2?? 三处循环体发 scaled 直存
+    // `movl $0x0,0x8(%eax,%edx,4)`（索引寄存器 = 局部 +K 两步 add）；4.4 恒折
+    // `shl $2; lea (%edx,%eax,1)`（7 形探针见 /tmp/lane56/lea.cpp 族）⇒ 封顶。
     m_hpMax = 0;
     m_mpMax = 0;
     m_phyAtt = 0;
@@ -114,11 +117,16 @@ void STEquipmentStatInfo::clear()  // ORIG 0x0898d272：10 直接 + 循环 i<=3(
 
 STEquipmentAniScript::STEquipmentAniScript()
 {
+    // [b28d-56 判词·N] N91/EH：ORIG 0x0898d0?? 298 条 vs 我们 353 条，成员数组
+    // 隐式构造循环 4.4 恒布 landing pad + _Unwind_Resume（throw() 法对 D1 侧无效，
+    // P216 边界）；语义完成。
     clear();
 }
 
 void STEquipmentAniScript::clear()  // ORIG 0x0898ce62（m_field0=0，各 string 置 ""）
 {
+    // [b28d-56 判词·N] N82/N93：ORIG 0x0898ce62 帧 sub 0x28 vs 我们 0x18（成员
+    // string 清理块布局差，118/107），助记符序列同、槽号平移。
     m_field0 = 0;
     m_str04.clear();
     m_str08.clear();
@@ -396,6 +404,9 @@ STEquipmentScript::artifact_info::artifact_info()  // 0x0898f084
 
 bool STEquipmentScript::artifact_info::isUsable() const  // 0x0898f0fe
 {
+    // [b28d-56 判词·N] N85：-march=i486 路由后 x87 比较已转 fucompp/fnstsw，
+    // 但 ORIG 0x0898f10? 为 `sahf; sete %al; setnp %dl; and %edx,%eax; xor $1`
+    // 四段布尔物化（6 处 float `!=0` 判定），4.4 恒 `sahf; jne; jp` 直跳（110/86）。
     if (m_minLevel == 0 && m_physAttack == 0 && m_magAttack == 0 &&
         m_mpRate == 0.0f && m_chargeRate == 0.0f && m_overChargeRate == 0.0f &&
         m_expRate == 0.0f && m_physCrit == 0.0f && m_magCrit == 0.0f &&
@@ -425,6 +436,9 @@ bool STEquipmentScript::artifact_info::isUsable() const  // 0x0898f0fe
 bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                            bool flag, int a, int idx)
 {
+    // [b28d-56 判词·N] N82/N89：ORIG 0x089a???? 9771 条 vs 我们 9838 条（帧 0x19fc
+    // vs 0x1a2c，巨件全帧槽号平移 + STL 模板内联差；§6.2 三件套口径：语义完成、
+    // byte 层 N 封顶）。禁止再耗轮次。
     // 声明顺序 = ORIG prologue 构造/初始化执行顺序（帧槽位由声明序决定，
     // 注释内为 ORIG %ebp 槽位，报告 0x08991b00-0x08991d8b）：
     std::string tmp;                       // ORIG -0x106c（各 case 第一读取暂存）
@@ -4060,6 +4074,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
 bool EquipmentScriptSpecialMonsterDrop(STEquipmentScript* script,
                                        std::string str, const char* path)
 {
+    // [b28d-56 判词·N] N82：ORIG 0x08991856 172 条 vs 我们 197 条（帧 0x20 vs 0x30、
+    // string 实参槽 -0x10 vs -0x18）；语义完成。
     // ORIG 0x08991856（与 StackableScriptSpecialMonsterDrop 0x89ae906 同构，
     // 目标为 STEquipmentScript 继承自 STItemScript 的 m_specialDrop +0x105）。
     (void)path;
@@ -4137,6 +4153,8 @@ bool EquipmentScriptSpecialMonsterDrop(STEquipmentScript* script,
 bool importArtifactInfo(STEquipmentScript::artifact_info& info,
                         std::string str)
 {
+    // [b28d-56 判词·N] N82/N89：ORIG 0x089bd079 448 条 vs 我们 351 条（帧 0x11c vs
+    // 0x10c、static map 注册块槽序、STL 模板内联差）；语义完成。
     // ORIG T 0x089bd079（0x7cb，报告全文转写）：函数级静态 lookup 表
     // （map<const char*,int,less_TCHAR> @0x94fdf28 + SpinLock @0x94fdf40 +
     // 就绪字节 @0x94fdf44）双检锁惰性建表；11 个 [creature *] 关键字 → id
@@ -4245,6 +4263,8 @@ std::map<std::string, STEquipmentAniScript>* getMapEquipmentAniScript()
 //      + 就绪字节 @0x94fde44，双检锁形态）；未知标签令整个导入失败。 ----
 static bool GetItemCategory(STItemScript* item)
 {
+    // [b28d-56 判词·N] N82：ORIG 0x089bfdc5 244 条 vs 我们 219 条，帧差 + static
+    // map 惰性注册块槽序（P165 三段法已落）；语义完成。
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static bool __inited = false;
@@ -4295,6 +4315,8 @@ static bool GetItemCategory(STItemScript* item)
 //      就绪字节 @0x94fde24）。ScanStr 返回值不检查——空 token 必然 miss，
 static bool GetAuraAvatarOption(STEquipmentScript* script)
 {
+    // [b28d-56 判词·N] N82：ORIG 0x089c019b 243 条 vs 我们 229 条，同 GetItemCategory
+    // （static map 惰性注册 + 帧差），语义完成。
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static bool __inited = false;
@@ -4400,6 +4422,8 @@ int scanWorldType()
 // command->m_vecC，'!'','~' 设超时后把 unit 追加进 m_vec0）。收尾再追加残 unit。
 bool importCommand(STKeyCommand* command)
 {
+    // [b28d-56 判词·N] N82/N93：ORIG 0x088c167a 254 条 vs 我们 268 条（槽 -0x34 vs
+    // -0x38、局部 string/vector 声明序差）；语义完成。
     if (command == 0)
         return false;
 
@@ -4469,6 +4493,8 @@ bool importCommand(STKeyCommand* command)
 // ---- ORIG T 0x088c1a0d：[effect] 条目解析 ----
 bool importEffect(effect::STEffect& effect)
 {
+    // [b28d-56 判词·N] N82/N89：ORIG 0x088c1a0d 307 条 vs 我们 305 条，帧/槽号
+    // 平移 + STL 模板内联差；语义完成（P167 差集仅 STL 模板族）。
     std::string tag;
     std::string value;
     while (true)
@@ -4555,8 +4581,10 @@ void setEquipmentAniScriptLay(
     std::string* path, STEquipmentScript* script,
     ENUM_CHARACTERJOB job, equipmentAniType::T aniType)
 {
-    char buf[0x200];
-    memset(buf, 0, sizeof(buf));
+    // [b28d-56 判词·P214③/N78] ORIG 0x089c1cb9 用 `lea -0x24c(%ebp),%ebx; mov $0x0,%eax;
+    // mov $0x80,%edx; rep stos %eax,%es:(%edi)`（0x80 dwords = 512B）⇒ 原码是
+    // `char buf[0x200] = {0};`（显式零初始化触发 4.4 rep stos）；旧 `memset` 生 call。
+    char buf[0x200] = {0};
     const STEquipmentAniScript& def = table->find(*key)->second;
 
     EquipmentAniInfoScript& infoRef = script->addAniInfo(job);
@@ -4634,6 +4662,8 @@ void setEquipmentAniScriptLay(
 // ORIG t 0x089bf6ca：[usable list] —— 关键字→typeSel(1..5) + 每项等级下限。
 static bool GetExpertJobTypeList(STItemScript* item)
 {
+    // [b28d-56 判词·N] N82：ORIG 0x089bf6ca 327 条 vs 我们 318 条（帧 0xbc vs 0xcc、
+    // static map 注册块 + string 局部槽序）；语义完成。
     if (item == 0)
         return false;
     item->m_expertJob.m_usable.clear();
@@ -4705,6 +4735,10 @@ static bool GetExpertJobTypeList(STItemScript* item)
 // ORIG t 0x089bfc2f：-100.0 哨兵（0x8e1a574）视为未设置。
 bool GetExpertJobValueMaterialVariation(STItemScript* item)
 {
+    // [b28d-56 判词·N] N85 续：-march=i486 路由后 ORIG 0x089bfc2f 的
+    // `fucompp; fnstsw %ax; test $0x5,%ah; sete %al; test %al,%al; je` 已复现到
+    // fucompp/fnstsw 段，残余仅 4.4 的 `sahf; jne; jp` 直跳 vs ORIG 的
+    // `test $0x5,%ah; sete` 布尔物化（跨版本 x87 比较 lowering，27/27 长度全等）。
     // [b28c-lane25 判词·N85] ORIG 0x089bfc5a：x87 比较两向
     // `flds -100.0f; fucompp; fnstsw %ax; test $0x5,%ah; sete`（4.1）；
     // 4.4 恒 `flds; fxch; fucomip; fstp; jne; jp`（N85 已录）。语义等价，封顶。

@@ -33,7 +33,9 @@ int CUserPlayTimeStatisticMgr::InsertUserPlayTime()
 {
     // ORIG 0x0860cd14：map 为空直接返回 1；否则按 ≤20 条/批经 LOGDB 队列
     // 写 SIG_USER_PLAY_TIME_STATISTIC（+0 计数，+4 起每条 {accId, playSec, count}）。
-    if (m_userPlayInfo.empty())
+    // [b28d-62] P197④：ORIG 调 map::size()（非 empty()，后者 out-of-line 且无
+    //   sete 段；p167 差集 MISSING size / EXTRA empty 实证）。
+    if (m_userPlayInfo.size() == 0)
     {
         return 1;
     }
@@ -49,9 +51,12 @@ int CUserPlayTimeStatisticMgr::InsertUserPlayTime()
         {
             Stream* stream = GlobalData::s_stream_pool->Acquire("Statistics.cpp", 0x24a);
             guard.Set(stream);
-            guard << 0xb6;
-            guard << -1;
-            sig = guard.GetInBuffer<SIG_USER_PLAY_TIME_STATISTIC>();
+            // [b28d-62] P103/P132：ORIG 走 operator* 2 次（`**guard << ...`，
+            //   CStreamGuard::operator* 返回 this 指针）+ `guard->GetInBuffer<...>()`
+            //   （operator-> 1 次）——p167 差集实证（旧形 `guard << ...` 0 次）。
+            **guard << 0xb6;
+            **guard << -1;
+            sig = guard->GetInBuffer<SIG_USER_PLAY_TIME_STATISTIC>();
             memset(sig, 0, 0xf4);
         }
         sig->m_entries[n].m_accId = accId;
@@ -84,8 +89,12 @@ int CUserPlayTimeStatisticMgr::UpdateUserPlayTime(unsigned int accId, int playSe
     std::map<unsigned int, stUserPlayInfo_t>::iterator it = m_userPlayInfo.find(accId);
     if (it != m_userPlayInfo.end())
     {
-        it->second.m_playSec = it->second.m_playSec + playSec;
-        it->second.m_count = it->second.m_count + 1;
+        // [b28d-62] P167/P36：ORIG 0x0860cc90 只发 1 次 operator-> 并把
+        //   `&it->second` 缓存到 -0xc（info 指针局部），逐字段经 info-> 访问；
+        //   直写 4 次 it->second 会多发 3 次 ptEv call。
+        stUserPlayInfo_t* info = &it->second;
+        info->m_playSec = info->m_playSec + playSec;
+        info->m_count = info->m_count + 1;
     }
     else
     {
@@ -112,8 +121,9 @@ CUserPlayTimeStatisticMgr* GetInstanceUserPlayTimeStatisticMgr()
 // ============================================================================
 int CreateUserPlayTimeQuery(std::string& query, SIG_USER_PLAY_TIME_STATISTIC* sig)
 {
-    char buf[0x400];
-    memset(buf, 0, 0x400);
+    // [b28d-62] P214③：ORIG 0x084255d7 `rep stos`（0x100 dword）⇒ 源形
+    //   `char buf[N] = {0}`；显式 memset 会退化为 call。
+    char buf[0x400] = {0};
     for (int i = 0; i < sig->m_count; ++i)
     {
         sprintf(buf, "(%s,%d,%d,now())",
