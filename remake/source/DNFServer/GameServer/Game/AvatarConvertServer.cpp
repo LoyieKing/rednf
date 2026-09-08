@@ -513,9 +513,12 @@ bool AvatarConvertServer::Convert(CUser* user,
     }
     packet.finalize(true);
     user->Send(packet);
-    bool isRechargeStone = ARAD::Singleton<AvatarRechargeServer>::Get()
-                               ->m_script.IsEmblemRechargeStone(
-                                   sig->m_resultItemId);
+    // b28c-9 已把原成员 m_script 改为首个非主基类（ARAD::SCRIPT::AvatarRecharge
+    // 落 +0x04），此处改走基类引用（ORIG 0x08190200 布局：+0x00 vptr / +0x04 脚本体）。
+    bool isRechargeStone =
+        static_cast<ARAD::SCRIPT::AvatarRecharge&>(
+            *ARAD::Singleton<AvatarRechargeServer>::Get())
+            .IsEmblemRechargeStone(sig->m_resultItemId);
     StatisticsAvatarDisjoint(item, isRechargeStone ? 1 : 0);
 
     // 统计合成的 [resultItemId, addInfo] 对
