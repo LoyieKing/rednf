@@ -96,6 +96,8 @@ void cUserHistoryLog::SetTrader(const char* accName, const char* characName)
     strncpy(m_traderAccount, characName, 0x1e);
 }
 
+// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] 数组退化 add-vs-disp 单条
+// （4.1 `add $0x22; movzbl (%eax)` vs 4.4 单 disp；七形探针穷举 /tmp/l2_probe10.cpp t1..t7）。
 void cUserHistoryLog::AvatarItemAdd(int itemIdx, int avatarUid, const char* agency, eAvatarItemAddReason reason)
 {
     // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
@@ -113,6 +115,9 @@ void cUserHistoryLog::AvatarItemAdd(int itemIdx, int avatarUid, const char* agen
 // ORIG 0x8682e84：reason∈{1,2} 且交易中（m_traderCharac[0]!=0）→ 交易格式；
 // 否则常规格式（含 getItemXPos/YPos(m_user+0x79700) 网格坐标【推断】）。
 // 14 个 hex 字节 = item+0x25..0x32（ChronicleRandomOptionInfo 区）。
+// [b28d-solo-cUserHistoryLog] DIFF 372/370：已补两分支缺失的 item.m_field0 vararg（ORIG item+0
+// 字节，真缺口，P253 同族）；残差 N80（print ctor 前 op 实参 %ebx 保活）+ N82附（print/guid 槽向）
+// + N107（取址 add-vs-lea）+ N18a（charac edi 保活 vs 落槽）。
 void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
                               const Inven_Item& item, eItemAddReason reason)
 {
@@ -165,6 +170,8 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
 
 // ORIG 0x868340a：与 ItemAdd 对应的删除日志（无 XPos/YPos，11 个 %d）；
 // 尾部 reason==8 且 ITEM_TYPE==1 时补 "Compound-" 日志。
+// [b28d-solo-cUserHistoryLog] DIFF 410/412：已补两分支 item.m_field0 vararg；p167 调用点差集
+// CLEAR（22=22）；残差同 ItemAdd（N80+N82附+N107），+2 条为 upgrade 装载形差。
 void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
                               const Inven_Item& item, eItemDelReason reason)
 {
@@ -231,6 +238,7 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
     }
 }
 
+// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] add-vs-disp（同 AvatarItemAdd）。
 void cUserHistoryLog::AvatarItemDel(int itemIdx, int avatarUid, const char* agency, eAvatarItemDelReason reason)
 {
     // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
@@ -244,6 +252,7 @@ void cUserHistoryLog::AvatarItemDel(int itemIdx, int avatarUid, const char* agen
 }
 
 // b28d-65 [N4/N102]：同 CreatureItemAdd；ORIG 0x08684f38。
+// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] add-vs-disp（同 TradeBegin）。
 void cUserHistoryLog::CreatureItemDel(INVEN_TYPE invenType, int itemIdx, int count, int addInfo, int type, eItemDelReason reason)
 {
     // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
@@ -263,6 +272,7 @@ void cUserHistoryLog::CreatureItemDel(INVEN_TYPE invenType, int itemIdx, int cou
     }
 }
 
+// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] add-vs-disp（同 TradeBegin）。
 void cUserHistoryLog::MoneyAddTrade(int money, int add, eMoneyAddReason reason)
 {
     // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
@@ -271,6 +281,7 @@ void cUserHistoryLog::MoneyAddTrade(int money, int add, eMoneyAddReason reason)
                            m_traderCharac, m_traderAccount);
 }
 
+// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] add-vs-disp（同 TradeBegin）。
 void cUserHistoryLog::MoneySubTrade(int money, int sub, eMoneySubReason reason)
 {
     // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
@@ -399,6 +410,7 @@ void cUserHistoryLog::LeaveDungeon(int dungeonIdx, int unk, const char* memberNa
 
 // b28d-65 [N4/N102]：残余仅 m_traderCharac[0] add-vs-disp 1 条（同 TradeBegin 判词）；
 //   ORIG 0x08684e3c，78=77+1 封顶。
+// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] add-vs-disp（同 TradeBegin）。
 void cUserHistoryLog::CreatureItemAdd(INVEN_TYPE invenType, int itemIdx, int count, int addInfo, int type, eItemAddReason reason)
 {
     // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
@@ -514,24 +526,34 @@ void cUserHistoryLog::BillingFail(ENUM_BILLING_TYPE type,
 //   收集非空技能（跳过 0x8a..0x95 保留区），按每 15 个一批写入
 //   "SaveLethe,%d, %d/%d/%d<,或/>%d/%d…" 的 Lethe 保存日志。
 // ============================================================================
+// [b28d-solo-cUserHistoryLog] DIFF 257/260：修真 bug——buf 清零 0x100→整块 0x400 字节
+// （ORIG rep stos ecx=0x100 dwords，P116/P253）、chunk 0x80→0x200；make_pair 去 (int) cast
+// 以匹配 ORIG 实例 make_pair<uchar const&,char const&>（0x0869c165）；lineCount/end 预清（P198①）。
+// 残差 N78（tmp memset 恒 call）+ N107（&tmp[0x10] lea+add）+ 字符串地址 AE 伪差。
 void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, int b,
                                 eSkillSaveReason reason)
 {
+    // ORIG 0x08685e02 段首 `movl $0xf,-0x44(%ebp)`（具名 15 局部，P0 槽往返）。
+    int perLine = 15;
     char header[16];
     sprintf(header, ",%d, ", (int)reason);
 
+    // ORIG 0x08685dfb 段：lineCount(-0x40) 预清先于 vec 构造（P198① 预清两句式）。
+    int lineCount = 0;
     std::vector<std::pair<int, int> > vec;
     int count = 0;
     for (int i = 0; i < 0xcc; i++)
     {
         if (skills[i].m_index != 0 && (i < 0x8a || 0x95 < i))
         {
-            vec.push_back(std::make_pair((int)skills[i].m_index, (int)skills[i].m_level));
+            // ORIG 0x0869c165 实例 = make_pair<unsigned char const&, char const&>
+            // （C++0x 完美转发重载，实参为无 cast 的左值）；(int) cast 会选错实例。
+            vec.push_back(std::make_pair(skills[i].m_index, skills[i].m_level));
             count++;
         }
     }
 
-    int lineCount = (int)((float)count / 15.0f) + 1;
+    lineCount = (int)((float)count / 15.0f) + 1;
     for (int line = 0; line < lineCount; line++)
     {
         // ORIG 0x08685ef2 段：rep stos ecx=0x100 dwords = 0x400 字节（整块 buf 清零，P116/P253）。
@@ -541,7 +563,8 @@ void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, i
         strcat(buf, header);
 
         int start = line * 0xf;
-        int end;
+        // ORIG 0x08685f48 段：`movl $0x0,-0x2c`（end 预清 0，P198① 两句式）。
+        int end = 0;
         if (line < lineCount - 1)
         {
             end = start + 0xe;
@@ -566,6 +589,8 @@ void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, i
         {
             int idx = vec[start + k].first;
             int lvl = vec[start + k].second;
+            // ORIG 0x08686009 段把 tmp 清零内联为 4 条 movl（0x10 字节）；4.4 对 memset 恒发
+            // call（N78）且 int 视图写退化为 lea+movl（实测 266 条）⇒ 保持 call 形，N78 封顶。
             memset(tmp, 0, 0x10);
             if (k % 3 == 0)
                 sprintf(tmp, ",%d/%d", idx, lvl);
@@ -695,6 +720,8 @@ void cUserHistoryLog::ChangeItemLimitCount(int a, int b, int itemIdx, int d, int
     return;
 }
 
+// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] 数组退化 add-vs-disp 单条
+// （ORIG 0x0868503e 两步；4.4 折单条 disp，七形探针穷举）。本文件交易中判族共同判词。
 void cUserHistoryLog::TradeBegin()
 {
     // b28c-L2 [N4 封顶·本文件交易中判族]：ORIG（0x08685047 TradeBegin / 0x08682xxx
@@ -711,6 +738,7 @@ void cUserHistoryLog::TradeBegin()
 
 // b28d-65 [N4/N102]：残余仅 m_traderCharac[0] 数组退化 add-vs-disp 1 条（同 TradeBegin
 //   判词，七形探针封顶）；ORIG 0x0868507c，53=53。
+// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] add-vs-disp（同 TradeBegin）。
 void cUserHistoryLog::TradeEnd(eTradeEndReason reason, int a, int b, int c, int d)
 {
     // b28c-L2 [N4 封顶]：同 TradeBegin 的 m_traderCharac[0] add 寻址族。
@@ -916,6 +944,8 @@ void cUserHistoryLog::RemovePrivateStore(int zoneA, int zoneB, char const* name)
 // b28d-65 复核：去 (int)m_addInfo 冗余 cast 消 N18a 两段中转 ⇒ 165=165；
 //   残余仅 N80（ctor 前实参保活）+ N82附（print@-0x2d/guid@-0x80 槽向）+ N107
 //   （取址 add-vs-lea）三族，P226 语句表达式实测零收益 ⇒ 维持封顶。
+// [b28d-solo-cUserHistoryLog] DIFF 165/165：残差 N80（print ctor 前 op 实参 %ebx 保活）+
+// N82附（print@-0x2d/guid@-0x80 槽向）+ N107（取址 add-vs-lea）；P226 语句表达式实测零收益。
 void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const& item,
                                           int addNew, int addOld, eItemAddReason reason,
                                           char const* name1, char const* name2)
@@ -947,6 +977,7 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
 // b28c-L2 fresh 复验 ndiff 13（orig 163/our 164）：封顶族与 PrivateStoreItemAdd 同
 //   （N80 具名 print ctor 前实参保活 + N82附 聚合/标量槽向 + N18a 单段直落），判词见上。
 // b28d-65 复核：去 (int)m_addInfo 冗余 cast ⇒ 163=163；残余同 Add（N80+N82附+N107）。
+// [b28d-solo-cUserHistoryLog] DIFF 163/163：封顶族同 PrivateStoreItemAdd（N80+N82附+N107）。
 void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const& item,
                                           int delNew, int delOld, eItemDelReason reason,
                                           char const* name1, char const* name2)
@@ -1198,6 +1229,8 @@ void cUserHistoryLog::EndRidable(eRidableType type, int a)
 // ORIG _ZN15cUserHistoryLog6ExpAddEii13eExpAddReasoni @0x08684bd0：
 //   仅当 reason>0xc 或 (1<<reason)&0x1892==0 时记录（排除常规来源）；
 //   日志第三参数与判断均用 reason（reasonIdx 未参与）。
+// [b28d-solo-cUserHistoryLog] DIFF 32/31：N6 封顶——4.4 前端恒折 (1u<<reason)&0x1892 为
+// (0x1892>>reason)&1（shr+and$1），ORIG 的 shl+and 不可造；局部阻断引入 store/load 反劣。
 void cUserHistoryLog::ExpAdd(int exp, int sp, eExpAddReason reason, int reasonIdx)
 {
     // N6: ORIG 4.1 `(1u<<reason)&0x1892`(shl;and 0x1892), 4.4 前端恒折为
@@ -1530,6 +1563,9 @@ void cUserHistoryLog::ItemLockUsingLog(unsigned char lockType, int a, int b, int
 
 // ORIG _ZN15cUserHistoryLog9CeraPointE23ENUM_CERAPOINT_LOG_TYPEj @0x0868593c：
 //   尾参为当前余额 CUser::GetCeraPoint()。
+// [b28d-solo-cUserHistoryLog] DIFF 19/20：N96+N18a 封顶——ORIG 把 GetCeraPoint 返回值留 %eax
+// 跨三条实参装载直落 0x10(%esp)；4.4 因 this 必须占 %eax 恒先 mov %eax,%ecx 转存（P0 清绑后
+// 绑定形 19/19 禁用，表达式直读为最优合法形）。
 void cUserHistoryLog::CeraPoint(ENUM_CERAPOINT_LOG_TYPE type, unsigned int amount)
 {
     // b28c-L2 [P0 清绑 · 落 N96+P168a④]：原存 `register int balance __asm__("eax")`
@@ -1552,6 +1588,9 @@ void cUserHistoryLog::CeraPoint(ENUM_CERAPOINT_LOG_TYPE type, unsigned int amoun
 // ORIG _ZN15cUserHistoryLog5LoginEPKcS1_iihi @0x08683d86（Login.md 全量转写）：
 //   扫描背包 invenType=0 槽 10..0x13 统计强化/稀有件、invenType=2 全槽计数、
 //   回归判定 local_60、专家职业等级，输出 "IP+,..." 18 字段行。
+// [b28d-solo-cUserHistoryLog] DIFF 241/241：裸偏移 *(int*)(charac+0x7b) → 具名
+// _Charac_info::m_field7b（CUser.h:546）复现 ORIG 单条 disp；残差 N108/P223（两循环 continue
+// 守卫分落 +0x118/+0x119 岛，4.4 恒合并共享出口）——正向包裹/嵌套 if 实测各劣 4 条，已回退。
 void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int param4,
                             unsigned char loginType, int param6)
 {

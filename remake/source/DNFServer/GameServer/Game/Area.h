@@ -18,7 +18,8 @@
 //   +0x70 std::vector<std::pair<int,int> > m_npcPositions（AssignNpc 坐标）
 //   +0x7c std::vector<MapArea> m_mapAreas
 //   +0x88 std::vector<std::pair<int,int> > m_moveAbleArea（IsMovalbeArea）
-//   +0x94 uchar m_bExistItemShopNPC（IsExistItemShopNPC / set_area 0x7f NPC）
+//   +0x94 bool  m_bExistItemShopNPC（IsExistItemShopNPC / set_area 0x7f NPC；
+//               P292/P248 档②：ORIG set_area `movzbl 0x94; xor $1; test; je` ⇒ bool）
 // sizeof = 0x98（0x95..0x97 对齐填充）。
 // ============================================================================
 
@@ -77,7 +78,7 @@ public:
     std::vector<std::pair<int, int> > m_npcPositions;  // +0x70
     std::vector<MapArea> m_mapAreas;                   // +0x7c
     std::vector<std::pair<int, int> > m_moveAbleArea;  // +0x88
-    unsigned char m_bExistItemShopNPC;                 // +0x94
+    bool m_bExistItemShopNPC;                          // +0x94（bool/uchar 同宽，偏移不变）
     char m_pad95[0x98 - 0x95];   // +0x95
 };
 

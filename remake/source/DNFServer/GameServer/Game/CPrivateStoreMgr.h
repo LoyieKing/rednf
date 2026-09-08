@@ -162,7 +162,10 @@ struct PrivateStorePos : public PrivateStoreZone
 class CCharacterControllerPrivate
 {
 public:
-    CCharacterControllerPrivate();
+    CCharacterControllerPrivate() throw();
+    // [b28d-solo-CPrivateStoreMgr] P216：RecreatePrivateStore 静态局部 guard 段
+    // ORIG 无 __cxa_guard_abort/_Unwind_Resume ⇒ 4.4 需判该 ctor nothrow 才不布
+    // cleanup。异常规格不入 mangling，符号/布局零影响。
     void GetStartPoint(CUser* user, PrivateStorePos& pos);
     void MoveCharacterStartPoint(CUser* user);            // ORIG W 0x85cc9d2：把用户移回开店起点
 

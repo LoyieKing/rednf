@@ -79,7 +79,14 @@ struct PVP_ROOM_INFO
     std::string title;   // +0x00
     char byte4;          // +0x04
     short short6;        // +0x06
-    unsigned char byte8;  // +0x08（ORIG get_room_info 0x085d92d2 movzbl 单级装载=uchar）
+    /* +0x08（ORIG get_room_info 0x085d92d2 movzbl 单级装载=单字节）。
+     * [b28d-solo-OnlinePreliminaryMatch] uchar→bool：ORIG _MakeRoom
+     * @08561050 传 create_room 第 5 参(bool) 为 `movzbl 0x10(%eax),%eax;
+     * movzbl %al,%edi` 无 test/setne；4.4 对 uchar 字段隐式转 bool 恒插
+     * test;setne。写点 PvP_Room.cpp:1937 赋 m_isExistPassword（0/1 语义），
+     * 消费点 CFairMatchRooms.cpp:619 / CLeagueMatch.cpp:836 均按布尔用。
+     * sizeof/偏移/mangled 零影响（1 字节不变）。 */
+    bool byte8;           // +0x08
     std::string passwd;  // +0x0c
 };
 

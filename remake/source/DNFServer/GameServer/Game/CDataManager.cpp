@@ -440,11 +440,11 @@ void CDataManager::get_mob_reward(int level, unsigned int& out) const
         out = 0;
         return;
     }
-    // [b28c-lane12 判词·N18a] 唯一残差：ORIG `mov 0x4(%eax,%edx,4),%edx` 复用
-    // index 寄存器直落，4.4 恒 load 到 %eax 再 `mov %eax,%edx`（+1 条）。
-    // (unsigned int) cast 实测零效（前端不改 load 目标寄存器）；字段 int 受
-    // MySQL::get_short(int&) 与 memcpy 消费面约束不可同型化 ⇒ N81附/N18a 封顶。
-    out = m_mobReward[level];
+    // [b28d-solo-CDataManager] ORIG `mov 0x4(%eax,%edx,4),%edx` 单段直落 edx
+    // （unsigned 目标与源同型）；源 int 数组直读会多 `mov %eax,%edx` 中转。
+    // 修法 = CDataManager.h 的匿名 union 同址 unsigned 视角 m_mobRewardU
+    // （P235/P246，sizeof/偏移/mangled 零影响；探针 /tmp/p_sp/f.cpp 逐条全等）。
+    out = m_mobRewardU[level];
 }
 
 int CDataManager::set_mob_reward()
@@ -959,23 +959,23 @@ bool ChattingEmoticonBase::isCommonEmoticon(const CUser& user) const
     return isUsable(user);
 }
 
-// P85/P0：ORIG 判定链先 `mov 0xc(%ebp),%eax` 物化后 cmp $imm,%eax（形参无槽
-// 往返 ⇒ 表达式直用；历史 register 绑定形已按 P0 全域清除）。
-// [b28d-lane16 DIFF] ORIG 080e5dde：P85/P0：ORIG 判定链先 `mov 0xc(%ebp),%eax` 物化后 cmp $imm,%eax（形参无槽
+// [b28d-solo-CDataManager] 原嵌套 if 形被 4.4 折成内存直比（cmpl $imm,0xc(%ebp)），
+// ORIG 为形参物化 + 寄存器比较链。改 switch 连续 case 组（0x2898bf/c0→53、
+// c1/c2→57）即复现 `mov 0xc(%ebp),%eax; cmp $0x2898bf,%eax; jl fail; …`
+// 决策链（P251/P261 switch 判据 + 探针 /tmp/p_sp/h.cpp f6 逐条全等）。
 void ChattingEmoticonBase::AddPremiumIndex(int index)
 {
     // ORIG 0x080e5dde：特定 index 映射到 premium 槽位集合。
-    // [b28d-lane16] 按 Ghidra C 原码形（嵌套 if：外层 `index > 0x2898be` 包裹，
-    // 内层 `<=0x2898c0 → 53` / `<=0x2898c2 → 57`）复现 ORIG 的
-    // `cmp $0x2898bf; jl fail` + `jle L53` + `jg fail` + `jmp L57` 链
-    // （旧早返平铺形多 2 条尾岛 jmp/nop）。残余 `mov 0xc(%ebp),%eax` 物化
-    // （P85）与边界常量 ±1（P196）为跨版本结构性差异。
-    if (index > 0x2898be)
+    switch (index)
     {
-        if (index <= 0x2898c0)
-            m_set.insert(0x53);
-        else if (index <= 0x2898c2)
-            m_set.insert(0x57);
+    case 0x2898bf:
+    case 0x2898c0:
+        m_set.insert(0x53);
+        break;
+    case 0x2898c1:
+    case 0x2898c2:
+        m_set.insert(0x57);
+        break;
     }
 }
 
@@ -1446,8 +1446,7 @@ stDeathTower_t* CDataManager::GetTowerScript(unsigned int dungeonIdx)
         // trace ctor 受 if 路守护不可头部化（P212 不适用）；声明序交换=构造序
         // 变化反劣（N93 实证）。dungeonIdx→%ebx 直传段已同形。语义等价封顶。
         register unsigned int idx = dungeonIdx;
-        cMyTrace trace("stDeathTower_t* CDataManager::GetTowerScript(unsigned int)", 0xd44, 5);
-        trace("Dungeon idx not found : %u", idx);
+        cMyTrace(__FUNCTION__, 0xd44, 5)("not finnd tower : %u", idx);
     }
     return &it->second;
 }
@@ -2029,19 +2028,23 @@ int CDataManager::set_pvp_grade()
     // [b28d-lane16 真语义缺口] ORIG 0x08360aaa-0x08360ab2 先调 RefPvpGrade::Clear()
     // （p167 差集 MISSING -1 _ZN11RefPvpGrade5ClearEv）；原重建缺失该清表调用。
     GlobalData::s_ref_pvp_grade->Clear();
-    int lastGrade = 0;
+    // [b28d-solo-CDataManager] ORIG 入口清零序 -0x14(prevExp) → -0x10(lastGrade)
+    // ⇒ 声明序 prevExp 先（4.1/4.4 同向：先声明占深槽）。循环体序按 ORIG
+    // 0x08360aff：++lastGrade → data.curr=prevExp → data.next → prevExp →
+    // SetPvpGrade（三次独立 op[]，P48）。
     int prevExp = 0;
+    int lastGrade = 0;
     stPvpRefTable_t table;
     if (importPvPReferenceTable("Etc/pvp_ref.etc", table) != 0)
         return 0;
     for (unsigned int i = 1; i < (unsigned int)table.m_count; ++i)
     {
         RefPvpGrade::RefPvpGradeData data;
+        ++lastGrade;
         data.curr = prevExp;
         data.next = table.m_grades[i].b;
-        GlobalData::s_ref_pvp_grade->SetPvpGrade(table.m_grades[i].a, data);
         prevExp = table.m_grades[i].b;
-        ++lastGrade;
+        GlobalData::s_ref_pvp_grade->SetPvpGrade(table.m_grades[i].a, data);
     }
     GlobalData::s_ref_pvp_grade->set(table);
     GlobalData::s_ref_pvp_grade->SetLastGrade(lastGrade);
@@ -3862,20 +3865,20 @@ int CDataManager::getClearTimeBonusPoint(int avgTime, int clearTime)
     if (avgTime == 0 || clearTime == 0)
         return result;
 
-    diff = avgTime - clearTime;
-
     typedef std::vector<stBonusPointValues> Vec;
-    // ORIG 槽深序：prev(-0x28) 比 cur(-0x20) 深 ⇒ 4.4 先声明置深，
-    // 声明序取 prev → cur（ctor 调用序 cur 在前由赋值使用序无关，
-    // ORIG ctor 序 -0x20 先——4.1 构造按声明、4.4 同；槽位与调用序
-    // 以 ORIG 汇编 0x08363af0(-0x20)/0x08363afb(-0x28) 为准折中）。
-    stBonusPointValues prev;
+    // [b28d-solo-CDataManager] ORIG 0x08363af0：先构造 cur(-0x20) 再 prev(-0x28)
+    // ⇒ 声明序 cur → prev；diff 赋值在两次 ctor 之后（ORIG 0x08363b06）。
     stBonusPointValues cur;
+    stBonusPointValues prev;
+    diff = avgTime - clearTime;
     // 指针形 const_cast：4.4 对引用 cast 结果会物化临时槽（把 cur 起整体
     // 平移 4B），指针形直传 this 与 ORIG `lea 0x5120(%eax)` 一致。
+    // end 缓存到 e（ORIG 0x08363b30 循环外一次 end → -0x30，循环条件只 ne(it,e)；
+    // 旧形每次迭代重调 end() 使 it/end 槽位与 ORIG 相反，P13）。
     for (Vec::iterator it =
-             const_cast<Vec*>(&m_rankSystem.m_dungeonRank.m_vec18)->begin();
-         it != const_cast<Vec*>(&m_rankSystem.m_dungeonRank.m_vec18)->end();
+             const_cast<Vec*>(&m_rankSystem.m_dungeonRank.m_vec18)->begin(),
+         e = const_cast<Vec*>(&m_rankSystem.m_dungeonRank.m_vec18)->end();
+         it != e;
          it++)
     {
         cur = *it;

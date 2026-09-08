@@ -28,6 +28,7 @@
 // ============================================================================
 
 #include <algorithm>
+#include <cerrno>
 #include <cstdio>
 #include <cstring>
 #include <map>
@@ -40,15 +41,11 @@
 #include "CVillageMonsterMgr.h"
 #include "CTimeGate.h"
 #include "CDataManager.h"
+#include "CSchoolMgr.h"   // CBelong 权威声明点（IsRight 纯虚，返回 bool）
 #include "NPCScript.h"
 #include "GlobalData.h"
 #include "PacketGuard.h"
 #include "TownAreaScript.h"
-
-// ---------------------------------------------------------------------------
-// 跨类最小声明（无权威头的残留）
-// ---------------------------------------------------------------------------
-class CBelong;
 
 // createLotteryInfo（ORIG 0x89babc5，自由函数；定义于 CStackableItem.cpp，
 // 无权威头——CStackableItem.cpp 同样局部声明）
@@ -142,7 +139,7 @@ private:
     std::vector<std::pair<int, int> > m_npcPositions;  // +0x70
     std::vector<MapArea> m_mapAreas;                   // +0x7c
     std::vector<std::pair<int, int> > m_moveAbleArea;  // +0x88
-    unsigned char m_bExistItemShopNPC;                 // +0x94
+    bool m_bExistItemShopNPC;                          // +0x94（P292/P248 档②）
     char m_pad95[0x98 - 0x95];   // +0x95
 };
 
@@ -152,7 +149,7 @@ private:
 Area::Area()
 {
     m_areaIndex = -1;
-    m_bExistItemShopNPC = 0;
+    m_bExistItemShopNPC = false;
     m_field6c = 1;
 }
 
@@ -164,6 +161,9 @@ Area::~Area()
 // ---------------------------------------------------------------------------
 // GetUserCount：统计 m_UsersInArea 中 state > 2 的在线用户
 // ---------------------------------------------------------------------------
+// [b28d-solo-Area] verdict=NEAR（P167 CLEAR 8=8；69=69 助记符全同）。修法：P50 先声明后
+// 赋值 + P283 goto 尾条件 + P28 后置 it++ + P198① user 预清。残余 = 4 个匿名 sret 临时槽
+// 号互换（N93/N98：4.4 匿名槽按首次使用分配，方向与 4.1 相反，语义等价）。
 int Area::GetUserCount() const
 {
     // [b28d-48] ORIG 086c31f2 切片：user 预清(-0x10) → it 默认构造(-0x20) →
@@ -256,13 +256,15 @@ END:;
 // ---------------------------------------------------------------------------
 // get_user_id_list：输出 state > 2 的在线用户 unique_id
 // ---------------------------------------------------------------------------
+// [b28d-solo-Area] verdict=NEAR（P167 CLEAR 10=10）。修法：push_back 实参改
+// get_unique_id() 临时右值 ⇒ 选中 ORIG 的 push_back(EOt)（P234，原 RKt 属重载选错）；
+// 残余 = end/ppEi/push_back 临时槽号平移（N93/N98 匿名槽方向）。
 void Area::get_user_id_list(std::vector<unsigned short>& out)
 {
     // [b28d-48] 同 GetUserCount 族：ORIG 086c305e 的 user 预清(-0xc) + P50 先声明
     // 后赋值 + P283 goto 尾条件 + P28 后置 it++（ppEi sret -0x18）+ id 具名槽(-0x12)。
     // 收口：NDIFF 66→5（74=74，NEAR），残差 = id/end/pp sret 槽号互换（N93）。
     CUser* user = 0;
-    unsigned short id;
     std::map<unsigned short, CUser*>::iterator it;
     it = m_UsersInArea.begin();
     goto check;
@@ -273,8 +275,9 @@ loop_body:
         it++;
         goto check;
     }
-    id = user->get_unique_id();
-    out.push_back(id);
+    // [b28d-solo-Area] ORIG 086c30fa `mov %ax,-0x12; lea -0x12; call
+    // push_back(EOt)` ⇒ 实参是 get_unique_id() 的临时右值（无具名 id 局部）。
+    out.push_back(user->get_unique_id());
     it++;
 check:
     if (it != m_UsersInArea.end())
@@ -284,20 +287,29 @@ check:
 // ---------------------------------------------------------------------------
 // hasNPC：m_npcIdList 是否包含指定 NPC
 // ---------------------------------------------------------------------------
+// [b28d-solo-Area] verdict=NEAR（46=46 逐条同形）。修法：`!=` 直返改 `==` + if/return
+// 两臂（P56/P196：ORIG 086c214c 调 operator== 后 test/je 取反；原 ne 直返形态不同）。
+// 残余 = operator== 两实参装载序互换（ORIG 先 lea end(-0xc) 再 lea find(-0x18)，4.4 相反；
+// 语义等价，N22/N7 装载序族）。
 bool Area::hasNPC(unsigned int npcId) const
 {
-    // [b28d-48 判 N·跨版本] ORIG 086c214c：end()→-0x14 先于 begin()→-0x10
-    // （R2L 实参求值序），find 第 3 参直接 `lea 0xc(%ebp),%edx`（形参槽取址）；
-    // 4.4 恒先 begin()、并把 npcId spill 到 -0xc 再取址（形参取址保守化），
-    // find 实参装载序与迭代器临时槽随之错位（NDIFF 23，41/46）。源侧 cast/
-    // 引用绑定/显式缓存三形均不改 4.4 的 spill ⇒ 封 N。
-    return std::find(m_npcIdList.begin(), m_npcIdList.end(), npcId) !=
-           m_npcIdList.end();
+    // [b28d-solo-Area] ORIG 086c214c 调 `_ZN9__gnu_cxxeq…` 后 test/je 两臂
+    // （P56：bool 返回勿直 return 表达式；P196：eq+取反=源形 `==` 加分支）。
+    if (m_npcIdList.end() ==
+        std::find(m_npcIdList.begin(), m_npcIdList.end(), npcId))
+        return false;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
 // insert_user：进图（村庄广播 0x18 / 普通广播 0x17 + 各管理器 OnMoveArea）
 // ---------------------------------------------------------------------------
+// [b28d-solo-Area] verdict=DIFF（P167 CLEAR 63=63；307/306 条，唯一结构差 = 1 条 EH jmp）。
+// 修法：补 ORIG 的 try/catch（086c275f..086c2821，__cxa_begin_catch×1/end_catch×2 +
+// errno/strerror）；insert 实参改 `pair<const unsigned short, CUser*>(...)`（ORIG mangled
+// C1ItRS2_EEOT_OT0_）；logFormat/put_short 重新调 get_unique_id（P92）；iterator 先声明
+// 后赋值（P50）。残余 = N104（4.1 catch 正常路径多 1 条 jmp 到 end_catch，4.4 合并）+ 
+// packet/id 槽位平移（-0x30/-0x22 vs -0x2c/-0x32，N82/N98）——语义与调用点已闭合。
 void Area::insert_user(CUser* user)
 {
     // [b28d-48] N82 封顶（NDIFF 203，276/307 条）：帧 0x50 vs 0x60 +
@@ -326,19 +338,40 @@ void Area::insert_user(CUser* user)
     else
         user->set_state(ch_state_3);
 
+    // [b28d-solo-Area] ORIG 086c2734 iterator 默认构造（P50 先声明后赋值）；
+    // 086c27a1 失败分支 logFormat 与 086c28ad put_short 都重新调 get_unique_id
+    // （P92 按 ORIG 来源读取，不用 id 槽）。
+    std::map<unsigned short, CUser*>::iterator it;
     unsigned short id = user->get_unique_id();
-    if (m_UsersInArea.find(id) != m_UsersInArea.end())
+    // [b28d-solo-Area] ORIG 086c275f..086c2821 为 try 块（catch @086c2842，
+    // __cxa_begin_catch×1 + __cxa_end_catch×2）：find/insert/put_header 全在
+    // try 内；insert 用 `pair<const unsigned short, CUser*>`（ORIG mangled
+    // `C1ItRS2_EEOT_OT0_`），catch 打印 errno 串。
+    try
     {
-        LogManager::logFormat(1, "world.cpp",
-                                 __PRETTY_FUNCTION__, 0x1a7,
-                                 "m_UsersInArea.find(%d)", (int)id);
-        return;
+        it = m_UsersInArea.find(id);
+        if (it != m_UsersInArea.end())
+        {
+            LogManager::logFormat(1, "world.cpp",
+                                     __PRETTY_FUNCTION__, 0x1a7,
+                                     "m_UsersInArea.find(%d)",
+                                     (int)user->get_unique_id());
+            return;
+        }
+
+        m_UsersInArea.insert(std::pair<const unsigned short, CUser*>(
+            user->get_unique_id(), user));
+
+        packet.put_header(0, 0x17);
+    }
+    catch (...)
+    {
+        LogManager::logFormat(1, "world.cpp", __PRETTY_FUNCTION__, 0x1af,
+                                 "[EXCEPTION insert_user In AREA] - code = %s",
+                                 strerror(errno));
     }
 
-    m_UsersInArea.insert(std::pair<unsigned short, CUser*>(id, user));
-
-    packet.put_header(0, 0x17);
-    packet.put_short(id);
+    packet.put_short(user->get_unique_id());
     packet.put_byte(m_villageIndex);
     packet.put_byte(user->get_area(true));
     packet.put_short(user->get_posX());
@@ -361,6 +394,9 @@ void Area::insert_user(CUser* user)
 // ---------------------------------------------------------------------------
 // make_power_war_hp_of_vill：收集在线用户 PowerWar HP 到包并计数
 // ---------------------------------------------------------------------------
+// [b28d-solo-Area] verdict=NEAR（P167 CLEAR 10=10）。修法：主流程尾序照 ORIG 改
+// put_short → it++ → ++count（086c2ccc ppEi 先于 086c2ce9 ++count）。残余 = 匿名 sret
+// 槽号互换（N93/N98）。
 void Area::make_power_war_hp_of_vill(PacketGuard& packet, int& count)
 {
     // [b28d-48] 同 GetUserCount 族（ORIG 086c2c1e）：user 预清 + P50 先声明后赋值
@@ -377,9 +413,10 @@ loop_body:
         it++;
         goto check;
     }
+    // [b28d-solo-Area] ORIG 086c2ccc 先 it++（ppEi -0x10）再 086c2ce9 ++count。
     packet.put_short(user->getPowerWarHP());
-    ++count;
     it++;
+    ++count;
 check:
     if (it != m_UsersInArea.end())
         goto loop_body;
@@ -434,18 +471,16 @@ void Area::send_area_users(CUser* user)
 // ---------------------------------------------------------------------------
 // send_group：按 CBelong 虚谓词（vtable slot 0）过滤后发送
 // ---------------------------------------------------------------------------
-class CBelong
-{
-public:
-    virtual char IsBelong(CUser* user) = 0;
-};
-
+// [b28d-solo-Area] verdict=NEAR（P167 CLEAR 9=9）。修法（真修复）：删本文件重复定义的
+// 局部 `class CBelong`（含发明符号 IsBelong，违 §4.4/N114），include 权威头 CSchoolMgr.h，
+// 调用改 `belong->IsRight(user)`（ORIG 086c2eaf vptr+0 即 CBelong 唯一虚函数 IsRight；
+// 返回 bool ⇒ test %al; je 无 setne，P292）。残余 = 匿名 sret 槽号互换（N93/N98）。
 void Area::send_group(PacketGuard& packet, CBelong* belong)
 {
-    // [b28d-48] 同 GetUserCount 族（ORIG 086c2e1e）。
-    // 收口：NDIFF 78→32（80/82），残差 = IsBelong 返回 char 的 bool 物化
-    // （setne/test/je vs ORIG test/je）+ sret 槽号；IsBelong 改 bool 会动 vtable
-    // mangled，不改 ⇒ N 封顶。
+    // [b28d-solo-Area] ORIG 086c2e1e 调 vptr+0（CBelong 唯一虚函数）且返回
+    // bool 直判（test %al,%al; je，无 setne ⇒ P292）；权威声明点=CSchoolMgr.h
+    // 的 `virtual bool IsRight(CUser*)`（本文件原局部 class CBelong 属重复
+    // 定义+发明符号 IsBelong，已删）。
     CUser* user = 0;
     std::map<unsigned short, CUser*>::iterator it;
     it = m_UsersInArea.begin();
@@ -457,7 +492,7 @@ loop_body:
         it++;
         goto check;
     }
-    if (belong->IsBelong(user))
+    if (belong->IsRight(user))
         user->Send(packet);
     it++;
 check:
@@ -468,6 +503,8 @@ check:
 // ---------------------------------------------------------------------------
 // send_to_all：向 state > 2 的在线用户广播包
 // ---------------------------------------------------------------------------
+// [b28d-solo-Area] verdict=NEAR（P167 CLEAR 9=9）。修法：P50+P283+P28 后置 it++。
+// 残余 = 3 个匿名 sret 槽号互换（N93/N98）。
 void Area::send_to_all(PacketGuard& packet)
 {
     // [b28d-48] 同 GetUserCount 族（ORIG 086c2d2a）：user 预清 + P50 先声明后赋值
@@ -491,6 +528,9 @@ check:
         goto loop_body;
 }
 
+// [b28d-solo-Area] verdict=NEAR（P167 CLEAR 9=9）。修法：ORIG 086c2f95 死比较
+// `cmp; sete %al; test %al,%al`（无分支）用 `while (users[i] == user) break;` 复现
+// （P225 dead 变体；`(void)(a==b)`/三目均被 4.4 DCE）。残余 = 匿名 sret 槽号互换（N93/N98）。
 void Area::send_to_all(PacketGuard& packet, std::vector<CUser*>& users)
 {
     // [b28d-48] 同 GetUserCount 族（ORIG 086c2f2c）。
@@ -504,9 +544,10 @@ loop_body:
     // ORIG 086c2f2c：内层对 users 逐一比较，结果未使用（死代码），保留遍历。
     for (std::vector<CUser*>::size_type i = 0; i < users.size(); ++i)
     {
-        if (users[i] == user)
-        {
-        }
+        // [b28d-solo-Area] ORIG 086c2f95 `cmp; sete %al; test %al,%al` 后无分支
+        // （死比较：4.1 照发 bool 物化、4.4 DCE）⇒ P225 dead 变体 while+break。
+        while (users[i] == user)
+            break;
     }
     if (user == 0 || user->get_state() <= 2)
     {
@@ -523,6 +564,12 @@ check:
 // ---------------------------------------------------------------------------
 // set_area：由 TownAreaScript/STMapScript 初始化区域（NPC/传送/怪物注册）
 // ---------------------------------------------------------------------------
+// [b28d-solo-Area] verdict=DIFF（P167 CLEAR 38=38；310/309 条）。修法：pair 默认构造+
+// 逐字段赋值、it/itEnd 具名提升、`(*it).m_x` 与 `it->m_npcId` 混用（deEv×2+ptEv×4）、
+// G_CDataManager()->m_npcScriptList 内联（去 dataMgr/npcList 局部）、`(*it).m_vill` 具名
+// 指针、m_bExistItemShopNPC bool 化 + 裸 `if(!field)`（P292/P248 档②）。残余 = ①
+// `m_areaType = script.m_areaType` 缺 eax→edx 中转（P254：需字段/形参 enum 化，仅 2 条，
+// 未采用）；②全帧槽位偏移 4~8 + 1 条差（N82/N93 匿名槽方向）。
 void Area::set_area(int vill, TownAreaScript& script, STMapScript& mapScript)
 {
     // [b28d-48] N82 封顶（NDIFF 285，307/310 条）：帧 0x9c vs 0x8c +
@@ -543,31 +590,39 @@ void Area::set_area(int vill, TownAreaScript& script, STMapScript& mapScript)
 
     if (!mapScript.m_assignNpcs.empty())
     {
-        for (std::vector<AssignNpc>::iterator it = mapScript.m_assignNpcs.begin();
-             it != mapScript.m_assignNpcs.end(); ++it)
+        // [b28d-solo-Area] ORIG 086c1dcd 顺序 = pair C1Ev(-0x40) → itEnd=end()(-0x44)
+        // → it=begin()(-0x48)，循环体只赋值不构造（pos/itEnd/it 均为循环外具名）。
+        std::pair<int, int> pos;
+        std::vector<AssignNpc>::iterator itEnd = mapScript.m_assignNpcs.end();
+        std::vector<AssignNpc>::iterator it = mapScript.m_assignNpcs.begin();
+        for (; it != itEnd; ++it)
         {
-            AssignNpc& npc = *it;
-            std::pair<int, int> pos(npc.m_x, npc.m_y);
+            // 坐标两处 `(*it).`（deEv，086d34da×2），npcId 四处独立 `it->`（ptEv）。
+            pos.first = (*it).m_x;
+            pos.second = (*it).m_y;
             m_npcPositions.push_back(pos);
-            m_npcIdList.push_back(npc.m_npcId);
+            m_npcIdList.push_back(it->m_npcId);
 
-            if (m_bExistItemShopNPC != 1)
+            // [b28d-solo-Area] ORIG 086c1e64 `movzbl 0x94; xor $1; test; je`
+            // ⇒ 字段 bool + 裸 `if(!field)`（P292/P248 档②）；赋值直存 %al。
+            // 086c1e72.. 的 G_CDataManager()->m_npcScriptList 为内联表达式
+            // （无 dataMgr/npcList 具名局部）。
+            if (!m_bExistItemShopNPC)
             {
-                CDataManager* dataMgr = G_CDataManager();
-                CNPCScriptList* npcList = dataMgr->m_npcScriptList;
-                CNPCScript* npcScript =
-                    (CNPCScript*)npcList->find((unsigned int)npc.m_npcId);
+                CNPCScript* npcScript = (CNPCScript*)
+                    G_CDataManager()->m_npcScriptList->find(
+                        (unsigned int)it->m_npcId);
                 if (npcScript != 0)
                 {
-                    m_bExistItemShopNPC = (unsigned char)
+                    m_bExistItemShopNPC =
                         npcScript->isExistRole(ENUM_NPC_ROLE_0);
                 }
             }
 
-            if (npc.m_npcId == 0x7f)
+            if (it->m_npcId == 0x7f)
             {
                 GlobalData::s_timeGate_->SetTimeGate(vill,
-                                          m_areaIndex, npc.m_npcId,
+                                          m_areaIndex, it->m_npcId,
                                           0x118a, 0x11bc);
                 village_object::Zone zone((unsigned char)vill,
                                           (unsigned char)m_areaIndex);
@@ -580,18 +635,24 @@ void Area::set_area(int vill, TownAreaScript& script, STMapScript& mapScript)
     m_mapAreas = mapScript.m_mapAreas;
     for (unsigned int i = 0; i < mapScript.m_townPaths.size(); ++i)
     {
-        TownPath& tp = mapScript.m_townPaths[i];
-        m_moveAbleArea.push_back(std::make_pair(tp.m_field1c, tp.m_field20));
+        // [b28d-solo-Area] ORIG 086c1fa1/086c1fbc 两次独立 operator[]（无引用缓存）。
+        m_moveAbleArea.push_back(std::make_pair(
+            mapScript.m_townPaths[i].m_field1c,
+            mapScript.m_townPaths[i].m_field20));
     }
 
     stAttackedMapInfo_t* attackedInfo = 0;
-    std::vector<stAttackedMapInfo_t>* infoList =
-        &G_CDataManager()->m_villageAttacked.m_mapList;
-    for (std::vector<stAttackedMapInfo_t>::iterator it = infoList->begin();
-         it != infoList->end(); ++it)
+    // [b28d-solo-Area] ORIG 086c202e/086c208a 每次 begin/end 前重新调
+    // G_CDataManager()（无 infoList 具名局部，P157 逐次重读）。
+    for (std::vector<stAttackedMapInfo_t>::iterator it =
+             G_CDataManager()->m_villageAttacked.m_mapList.begin();
+         it != G_CDataManager()->m_villageAttacked.m_mapList.end(); ++it)
     {
-        if (it->m_vill == m_villageIndex && it->m_area == m_areaIndex)
-            attackedInfo = &*it;
+        // [b28d-solo-Area] ORIG 086c204d 解引用一次存具名指针 -0x1c（Ghidra
+        // local_1c），再两次读该指针字段 ⇒ 具名 `&*it` 缓存（P0 有槽往返）。
+        stAttackedMapInfo_t* pInfo = &*it;
+        if (pInfo->m_vill == m_villageIndex && pInfo->m_area == m_areaIndex)
+            attackedInfo = pInfo;
     }
 
     if (!mapScript.m_attackedMonsters.empty() && attackedInfo != 0)
@@ -606,6 +667,9 @@ void Area::set_area(int vill, TownAreaScript& script, STMapScript& mapScript)
 // ---------------------------------------------------------------------------
 // take_fish：按权重随机取鱼（类型 2；权重表 m_lottery.m_items，兜底 defaultIdx）
 // ---------------------------------------------------------------------------
+// [b28d-solo-Area] verdict=NEAR（P167 CLEAR 9=9）。修法：`cur = std::pair<int,int>(*it)`
+// 选 ORIG 的 `aSEOS0_` 右值赋值（P135）；it 声明在 cur 之前（构造序照 ORIG 086c2214/1f）。
+// 残余 = 匿名临时槽偏移（N93/N98）。
 int Area::take_fish()
 {
     // [b28d-48] P59 正向包裹：ORIG 0x086c2xxx 为 `jne <尾部 return -1>`、
@@ -616,16 +680,17 @@ int Area::take_fish()
         int result = 0;
         int randVal = get_rand_int(100000);
         int sum = 0;
-        std::pair<int, int> cur;
-        // P50 先声明后赋值 + P283 goto 尾条件 + P28 后置 it++（ORIG 0x086c2214
-        // it 默认构造 -0x28、cur -0x30、begin sret -0x3c、ppEi -0x18）。
-        // 收口：NDIFF 74→51（79/74），残差 = cur=pair 赋值 ORIG 走外联
-        // operator= 而我们内联逐字段 + 槽号平移（N84/N93）。
+        // [b28d-solo-Area] P50 先声明后赋值 + P283 goto 尾条件 + P28 后置 it++；
+        // ORIG 构造序 = it C1Ev(-0x28) 先于 cur C1Ev(-0x30) ⇒ 声明序 it 在 cur 前
+        // （4.4 先声明者占浅槽，与 ORIG 同向）。
         std::vector<std::pair<int, int> >::iterator it;
+        std::pair<int, int> cur;
         it = m_lottery.m_items.begin();
         goto check;
     loop_body:
-        cur = *it;
+        // [b28d-solo-Area] ORIG 086c226d 调 `_ZNSt4pairIiiEaSEOS0_`（右值赋值，
+        // P135：显式构造临时 pair 再赋值 ⇒ 选 move operator=，与 ORIG 同符号）。
+        cur = std::pair<int, int>(*it);
         sum += cur.second;
         if (sum > randVal)
         {

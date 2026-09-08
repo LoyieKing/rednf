@@ -160,9 +160,10 @@ int TeamInfo::size() const       // ORIG T 0x0855cd26
 // （+0x00/08/0c/10/14/18），GCC4.1 语义；4.4 视 user-provided ctor 类免置零直调。
 // placement-new+try 实测反引入 operator new(void*,ptr) call + EH spill，C++98
 // 无法复现该置零序列，语义等价（残差 6 insns），按 N 族结案，勿再开轮。
-// [b28d-solo-CLeagueMatch] DIFF 67/61·N77+N104：ORIG 0x0855cd74 对 new
-// PVP_ROOM_INFO 发 6 条 value-init 清零（+0x00/08/0c/10/14/18），4.4 按 CWG434
-// 不 emit（placement-new/try 实测反引 EH spill）；另含 N104 EH 尾块序差。
+// [b28d-solo-CLeagueMatch] AE（TU 口径）：67=67 全等。原 N77 残差（new
+// PVP_ROOM_INFO 的 6 条 value-init 清零 +0x00/08/0c/10/14/18）随 PvPTypes.h
+// PVP_ROOM_INFO 保持「无用户 ctor」而恢复（P299：用户 ctor 抑制 value-init）；
+// EH 尾块序亦已归一。本件无需再改。
 CLeagueMatch::CLeagueMatch()
 {
     if (pWaitingRoomList_ == 0)
@@ -814,8 +815,10 @@ unsigned char CLeagueMatch::GetPlayCountPerOneTeam()  // ORIG W 0x084ed37b：mov
     return nPlayerCountPerOneTeam_;
 }
 
-// [b28d-solo-CLeagueMatch] DIFF 196/201·N93/N94：局部槽基差 4（-0x2c vs -0x34）
-// + 块序；p167 调用点差集 CLEAR（39/39），语义闭合。
+// [b28d-solo-CLeagueMatch] AE（TU 口径）：196=196 全等。修法=删 passwd/title
+// 引用缓存局部（P183/P0，消 2 个指针槽 -0x24/-0x20）+ S27 PvPTypes.h
+// PVP_ROOM_INFO::byte8 uchar→bool（消 uchar→bool 的 test/setne 2 条）。
+// p167 调用点差集 CLEAR（39/39）。
 PvP_Room* CLeagueMatch::_MakeRoom(CUser* user)   // ORIG T 0x0855d572
 {
     PacketGuard pkt;
@@ -829,12 +832,13 @@ PvP_Room* CLeagueMatch::_MakeRoom(CUser* user)   // ORIG T 0x0855d572
         return 0;
     }
 
-    std::string const& passwd = m_roomInfo.passwd;
-    std::string const& title = m_roomInfo.title;
+    // [b28d-solo-CLeagueMatch] P183/P0：ORIG 0x0855d5xx 每处重算
+    // `mov 0x8(%ebp),%eax; add $0x14/$0x8,%eax`（无 passwd/title 引用缓存槽）⇒ 删引用
+    // 局部改直接成员访问，消 2 个指针槽（-0x24/-0x20）。
     int err = pvp->create_room(user, m_roomInfo.byte4,
-                               const_cast<char*>(title.c_str()), m_roomInfo.short6,
-                               m_roomInfo.byte8 != 0, passwd.c_str(),
-                               static_cast<int>(passwd.length()),
+                               const_cast<char*>(m_roomInfo.title.c_str()), m_roomInfo.short6,
+                               m_roomInfo.byte8 != 0, m_roomInfo.passwd.c_str(),
+                               static_cast<int>(m_roomInfo.passwd.length()),
                                static_cast<PVP_BATTLE_MODE>(2));
     if (err >= 1) {
         pkt.put_byte(0);

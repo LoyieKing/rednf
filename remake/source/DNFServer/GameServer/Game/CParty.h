@@ -485,7 +485,9 @@ public:
     int CheckEnterVillageAttackRevenge(CDungeon const* dungeon);
     bool CheckHaveHellPartyPassItem(CDungeon const* dungeon, ENUM_DUNGEON_TYPE type);
     bool CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool flag);
-    int CheckHellCoinLimint(int param);   // ORIG eax=0/1（checkLimitUsedCoinCondition 消费）
+    // b28d-solo-CPartyOnlyOrig：ORIG checkLimitUsedCoinCondition 0x085be6xx 调用点
+    // `call; xor $0x1,%eax; test %al,%al; je`（P292/P168a）⇒ bool 返回。
+    bool CheckHellCoinLimint(int param);  // ORIG eax=0/1（checkLimitUsedCoinCondition 消费）
     bool checkDugeonInoutTime(int param);  // ORIG 尾部 isDungeonOpen 直落透传（无 movzbl）
     int checkInoutConditionDungeon(CDungeon const* dungeon, ENUM_DUNGEON_MODE mode,
                                    ENUM_CMDPACKET cmd);   // ORIG 返回错误码（0x85abc80）
@@ -736,6 +738,9 @@ public:
                                         //   ORIG `mov tbl,%edx; mov param,%eax; cmp %eax,%edx`
                                         //   = 元素 unsigned + 形参 int；sizeof/偏移不变）
     // ---- CPartyResultRecvFlag 区（+0x1dc，0x34 字节） ----
+    // b28d-solo-CPartyOnlyOrig 备注：曾试「匿名 union + 具名 m_recvFlag」以复现
+    // ORIG receiver `lea 0x1dc(%eax),%edx`，但 GCC 4.4 拒绝 union 含带构造函数
+    // 成员（CPartyResultRecvFlag 有用户 C1）⇒ 回退；残余 lea/add 归 N107。
     unsigned char m_pad1dc[0x4];     // +0x1dc
     char m_dungeonClearState;        // +0x1e0
     int m_field1e4[2][4];            // +0x1e4 (compiler aligns to 4)

@@ -70,8 +70,10 @@ public:
     // ---- 登录主流程子步骤（ORIG 地址见注释）----
     MySQL* _getGameDB(ENUM_DB_HANDLE_IDX idx);              // T 0x0840f4f8
     MySQL* _GetDNFAccountDB();                              // T 0x08411bae
-    static void RemovePreminuInfo(SIG_LOGIN_DATA* sig,
-                                  std::vector<int>& ids);   // T 0x084128c4
+    // [b28d-solo-DB_Login] P245：ORIG 首参读 0xc(%ebp)（sig）、0x10（ids）⇒ 非 static
+    // （this@0x8；旧 static 使整帧 -4 错位）。static 不入 mangled ⇒ 符号名不变。
+    void RemovePreminuInfo(SIG_LOGIN_DATA* sig,
+                           std::vector<int>& ids);          // T 0x084128c4
     unsigned int _IsPunishedUser(unsigned int mid);         // T 0x084129d6
     unsigned int _isPunishedHackUser(unsigned int mid);     // T 0x08412ac8
     bool GetPunishUserInfo(SIG_LOGIN_DATA* sig);            // T 0x08410cf6
@@ -83,10 +85,11 @@ public:
     void _getSecurityCardInfo(SIG_LOGIN_DATA* sig);         // T 0x084111e2
     int _getPassPadInfo(SIG_LOGIN_DATA* sig);               // T 0x0841144a
     int _getRewardInfo(SIG_LOGIN_DATA* sig);                // T 0x084115f8
-    static void _LoadDNFEventEntry(unsigned int mid,
-                                   vecDNFEventEntry_t& out);// T 0x08411bda
-    static void _LoadEventItem(SIG_LOGIN_DATA* sig, int serverId,
-                               vecDNFEventEntry_t& entries);// T 0x08411d7e
+    // [b28d-solo-DB_Login] P245：ORIG 首参均读 0xc(%ebp)（mid / sig）⇒ 非 static。
+    void _LoadDNFEventEntry(unsigned int mid,
+                            vecDNFEventEntry_t& out);       // T 0x08411bda
+    void _LoadEventItem(SIG_LOGIN_DATA* sig, int serverId,
+                        vecDNFEventEntry_t& entries);       // T 0x08411d7e
     void GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
                         vecDNFEventEntry_t& entries);       // T 0x08411ee8
     bool IsPCRoomIP(char* ip);                              // T 0x08412c52

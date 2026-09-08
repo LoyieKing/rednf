@@ -102,7 +102,7 @@ int Dispatcher_RegisterToBlackList::process(CUser* user, MSG_BASE& msg, ParamBas
 
         // strncpy(msg+0x14, len=msg+0x10)（MSG_REGISTER_TO_BLACKLIST 名字字段）
         MSG_REGISTER_TO_BLACKLIST& req =
-            static_cast<MSG_REGISTER_TO_BLACKLIST&>(msg);
+            reinterpret_cast<MSG_REGISTER_TO_BLACKLIST&>(msg);
 
         // MSG_REGISTER_TO_BLACKLIST 布局未还原（PacketTypes.h 占位 m_pad）：
         // ORIG 读 +0x10（u32 len）、+0x14（名字首址）——保持偏移访问并标注。

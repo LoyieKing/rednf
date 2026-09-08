@@ -82,10 +82,6 @@ int CWaitingRoomList::doMatch(IMatch* me, std::multimap<float, IMatch*>& out)
 // CLeagueMatchRoomList
 // ============================================================================
 
-CLeagueMatchRoomList::CLeagueMatchRoomList()
-{
-}
-
 bool CLeagueMatchRoomList::AddRoom(IMatch* room)
 {
     m_roomMap.insert(std::make_pair(room, 1));

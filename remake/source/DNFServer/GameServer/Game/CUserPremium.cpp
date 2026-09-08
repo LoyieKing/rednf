@@ -717,15 +717,16 @@ void CUserPremium::AddPremium(int type, int start, int end, int flag)
     startPremium(type, true);
 }
 
-// [b28d-L1] N93 封顶：ORIG 0x086adba6；两处 std::max 临时槽方向 -0x18/-0x14 vs -0xc/-0x10（4.1 先声明深槽）。P167 CLEAR（2/2）语义等价；其余为全局表 reloc 归一。
+// [b28d-solo-CUserPremium] N93/N82 封顶（b28d 复测）：ORIG 0x086adba6 两处
+// std::max 临时槽对为四个独立槽（if 臂 dec/zero=-0x18/-0x14、else 臂=-0x10/-0xc）；
+// 4.4 对互斥分支标量按「首次使用序→浅到深」分配并复用两槽（-0xc/-0x10 与
+// -0x14/-0x18）。P212 全头部声明（4 标量）实测槽位不变；P246/P247 POD 结构体
+// 承载四槽虽翻正槽位但每处取址多 1 条 add（61 vs 59，ndiff 10 vs 13，净负）⇒
+// 回退块内声明，判 N93（槽方向）+N82（4.1 不复用/4.4 复用）。P167 CLEAR（2/2）。
 void CUserPremium::RemovePremium(int type)
 {
     // ORIG 0x86adba6：计数递减走 std::max<int>(zero, dec) 调用形（两临时
     // 槽分支各独立，非三目）；链全重算。
-    // [b27 封顶] 唯一残差 = 两分支 max 临时槽对：ORIG 4.1 按分支分配独立槽
-    // 对（-0x18/-0x14 与 -0x10/-0xc，N82 不按 lifetime 复用）；4.4 复用同槽
-    // （-0xc/-0x10）⇒ 全帧槽平移，源码不可定向（分支顺序/声明序不改变
-    // 复用策略）。其余助记符序列全等。
     if (m_entries[type].m_state != 2)
     {
         m_entries[type].m_type = 0;
@@ -841,14 +842,22 @@ void CUserPremium::ReCalcAdvantage()
                                   .first)
                           .m_count)
             {
-                int category =
+                // [b28d-solo-CUserPremium] P167：ORIG 该 body 有**两个**
+                // vector<SPremiumOverEquipableInfo>::operator[] 调用点
+                // （lhs 索引 + max 第一实参各重算一次，无 category 具名局部；
+                // ORIG 共 3 处调用 vs 旧形 2 处 ⇒ MISSING×1）。
+                m_overEquipableLevel[
                     g_vecPremiumOverEquipableInfo
                         .operator[](
                             g_SPremiumInfo[slot].m_returnPairs68[i].first)
-                        .m_slots[j];
-                m_overEquipableLevel[category] = std::max(
-                    m_overEquipableLevel[category],
-                    g_SPremiumInfo[slot].m_returnPairs68[i].second);
+                        .m_slots[j]] =
+                    std::max(
+                        m_overEquipableLevel[
+                            g_vecPremiumOverEquipableInfo
+                                .operator[](
+                                    g_SPremiumInfo[slot].m_returnPairs68[i].first)
+                                .m_slots[j]],
+                        g_SPremiumInfo[slot].m_returnPairs68[i].second);
                 j++;
             }
         }
@@ -873,13 +882,18 @@ void CUserPremium::ReCalcAdvantage()
                     m_returnItemMap.find(itemIndex);
                 if (it == m_returnItemMap.end())
                 {
-                    std::pair<int, int> np(itemIndex,
-                        g_SPremiumInfo[slot].m_returnPairs94[i].second);
-                    m_returnItemMap.insert(np);
+                    // [b28d-solo-CUserPremium] P167：ORIG 调 make_pair<int&,int&>
+                    // + pair<const int,int>::C1<int,int>(pair<int,int>&&)（右值
+                    // 转换构造）；旧具名 pair 左值走拷贝版（EXTRA 两符号）。
+                    m_returnItemMap.insert(std::make_pair(itemIndex,
+                        g_SPremiumInfo[slot].m_returnPairs94[i].second));
                 }
                 else
                 {
-                    it->second = it->second +
+                    // [b28d-solo-CUserPremium] P167：ORIG 只发 1 次 ptEv
+                    // （`it->second += x` 复合赋值形）；写成 `it->second =
+                    // it->second + x` 4.4 会发 2 次 ptEv。
+                    it->second +=
                         g_SPremiumInfo[slot].m_returnPairs94[i].second;
                 }
                 j++;
@@ -899,26 +913,25 @@ void CUserPremium::setPremiumState(ENUM_PREMIUM_TYPE type, ENUM_PREMIUM_STATE st
     m_entries[(int)type].m_state = (int)state;
 }
 
-// [b28d-L1] N82 封顶：ORIG 0x086ae834；P167 CLEAR（0/0）⇒ 语义完成。残余为控制流块序/槽位形态差（real diff 24：表访问 reloc + movb/mov 物化形 + 迭代顺序）。
+// [b28d-solo-CUserPremium] P225 修法：ORIG 0x086ae834 的 mask[0]==-1 分支是
+// `mov $1,%eax; jmp end`（return true 直返，非 ok=true 落槽）；循环为
+// while+break 形（体首 mask==-1 je 出口、尾测 `cmpl $6; setle; test; jne`），
+// 旧 for&& 形使 4.4 折成 `jg` 直跳（缺 setle 物化）。
 bool CUserPremium::_CheckApply(int type, tm t)
 {
     // ORIG 0x86ae834：结果落 bool 槽 local_9（命中不早退，继续迭代）；
     // mask 每判定独立全链（无 def 缓存）；+0x18 即 tm_wday。
     bool ok = false;
     if (g_SPremiumInfo[type].m_applyDayMask[0] == -1)
+        return true;
+    int i = 0;
+    while (i < 7)
     {
-        ok = true;
-    }
-    else
-    {
-        for (int i = 0;
-             i < 7 &&
-             g_SPremiumInfo[type].m_applyDayMask[i] != -1;
-             ++i)
-        {
-            if (g_SPremiumInfo[type].m_applyDayMask[i] == t.tm_wday)
-                ok = true;
-        }
+        if (g_SPremiumInfo[type].m_applyDayMask[i] == -1)
+            break;
+        if (g_SPremiumInfo[type].m_applyDayMask[i] == t.tm_wday)
+            ok = true;
+        ++i;
     }
     return ok;
 }
@@ -966,12 +979,14 @@ void CUserPremium::RecalcAdditionalInfo(CUser const* user)
         static_cast<const _Additioal_info*>(user->getCurCharacAddInfoR());
     // probe p16/m1：4.4 乘法 L2R 求值——ORIG 先 *(addInfo 槽) 后 m_8bd ⇒ 左操作数
     // 必为 addInfo->field（原写 m_additionalBase 在左=先读 m_8bd，反序）。
-    m_additionalInfo.m_field00 = static_cast<int>(
-        (static_cast<unsigned int>(addInfo->m_field00) *
-         static_cast<unsigned int>(m_additionalBase.m_field00)) / 100U);
-    m_additionalInfo.m_field04 = static_cast<int>(
-        (static_cast<unsigned int>(addInfo->m_field04) *
-         static_cast<unsigned int>(m_additionalBase.m_field04)) / 100U);
+    // [b28d-solo-CUserPremium] P235/P211：ORIG 读侧为单段 `mov (%eax),%edx`
+    // （无 eax→edx 中转）⇒ 源用 unsigned int 同型视图 m_maxHP/m_maxMP/
+    // m_moveSpeed 直读；`static_cast<unsigned int>(int 视图)` 使 4.4 多发
+    // `mov %eax,%edx` 两段（3 处 ×7 条 = ndiff 21）。
+    m_additionalInfo.m_maxHP =
+        addInfo->m_maxHP * m_additionalBase.m_maxHP / 100U;
+    m_additionalInfo.m_maxMP =
+        addInfo->m_maxMP * m_additionalBase.m_maxMP / 100U;
     m_additionalInfo.m_field08 = static_cast<unsigned short>(
         (static_cast<int>(addInfo->m_field08) *
          static_cast<int>(m_additionalBase.m_field08)) / 100);
@@ -999,9 +1014,8 @@ void CUserPremium::RecalcAdditionalInfo(CUser const* user)
     m_additionalInfo.m_field40 = static_cast<unsigned short>(
         (static_cast<short>(addInfo->m_field40) *
          static_cast<short>(m_additionalBase.m_field40)) / 100);
-    m_additionalInfo.m_field42 = static_cast<int>(
-        (static_cast<unsigned int>(addInfo->m_field42) *
-         static_cast<unsigned int>(m_additionalBase.m_field42)) / 100U);
+    m_additionalInfo.m_moveSpeed =
+        addInfo->m_moveSpeed * m_additionalBase.m_moveSpeed / 100U;
     m_additionalInfo.m_field46 = static_cast<unsigned short>(
         (static_cast<int>(addInfo->m_field46) *
          static_cast<int>(m_additionalBase.m_field46)) / 100);
@@ -1150,13 +1164,15 @@ std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
     if (m_entries[type].m_type != 0 && m_entries[type].m_type < 0x6a &&
         g_SPremiumInfo[m_entries[type].m_type].m_kind == 1)
     {
-        for (int i = 0;
-             i < 5 &&
-             g_SPremiumInfo[m_entries[type].m_type]
-                     .m_advantageItems[i]
-                     .first != 0;
-             ++i)
+        // [b28d-solo-CUserPremium] P225：ORIG 循环为「尾测 setle 物化 + 体首
+        // first==0 出口」形；for&& 合并条件使 4.4 折 jg/bool 物化（ndiff 38）。
+        int i = 0;
+        while (i < 5)
         {
+            if (g_SPremiumInfo[m_entries[type].m_type]
+                    .m_advantageItems[i]
+                    .first == 0)
+                break;
             std::pair<int, int> p;
             p.first = g_SPremiumInfo[m_entries[type].m_type]
                           .m_advantageItems[i]
@@ -1165,6 +1181,7 @@ std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
                            .m_advantageItems[i]
                            .second;
             items.push_back(p);
+            ++i;
         }
     }
     return items;
@@ -1266,12 +1283,10 @@ int CUserPremium::LoadPremiumInfo(const char* path)
         }
         else
         {
-            // [b28d-L1] 修法（P167/P96）：ORIG 调非 const 迭代器族
-            // （ptEv/ppEv/ne(N,N)）；const_iterator 使 4.4 额外发 const 转换
-            // 构造 + ptEv(PKN)/ppEv(PKN)/混合 ne(PKN,PS2_)（P167 报 EXTRA×5/
-            // MISSING×3）。按 ORIG cv 限定改非 const iterator。
-            std::vector<premium_script_parsing::STPremiumItemData>::iterator it;
-            for (it = table[i].m_premiumItems.begin();
+            // [b28d-solo-CUserPremium] P50：ORIG 无 `iterator::C1Ev` 调用（P167
+            // EXTRA×1）⇒ 迭代器必须 for 初始化处直构，禁「先声明后赋值」。
+            for (std::vector<premium_script_parsing::STPremiumItemData>::iterator
+                     it = table[i].m_premiumItems.begin();
                  it != table[i].m_premiumItems.end(); ++it)
             {
                 data.m_c4 = it->m_termFlag;
@@ -1363,27 +1378,17 @@ void _Additioal_info::subtract(const _Additioal_info& other)
 // ORIG W 0x0830ed48 _ZN8WongWork12CUserPremium25GetAddIndependentDropRateEij
 // 二参（unsigned，1..4）选 m_independentDropRates 列；一参（int，0..0x69）选
 // g_SPremiumInfo 行；越界返回 0。
-// [b28d-L1] N93附 封顶：ORIG 0x0830ed48 段 `cmpl $0; js <mov$0 岛>`；4.4 对 if(<0) 恒 jns 前跳反形（goto/共享块/两 return 序均试不翻）。P167 CLEAR（1/1）语义等价；另含全局表 reloc。
+// [b28d-solo-CUserPremium] P133/P258 修法：ORIG 0x0830ed48 的两组越界检查是
+// **短路或**形（`cmp 0; je bad; cmp 4; jbe ok` 与 `cmp 0; js bad; cmp 0x69;
+// jle ok`，两失败块各自独立 mov$0）；旧独立早返形使 4.4 对 level<0 产 jns 反跳。
 unsigned int WongWork::CUserPremium::GetAddIndependentDropRate(int level, unsigned int type)
 {
-    // ORIG 0x830ed48：平铺早退形（je/js/jle bad 直跳共享 mov$0 出口）；
-    // type-1 落 uchar 槽 -0x9（mov %al,-0x9;movzbl -0x9 回读，P0 具名局部）
-    // ORIG je 0x5a bad 块（4.4 对 ==0 恒 jne 反形，goto 保留 je 极性）
-    // idx 前置声明（C++98 goto 跨初始化禁令；赋值仍 mov %al,-0x9 单步）
-    unsigned char idx;
-    if (type == 0)
-        goto L0;
-    if (type > 4)
+    // ORIG 0x830ed48：两组短路或守卫各自独立物化 mov$0 失败块；
+    // type-1 落 uchar 槽 -0x9（mov %al,-0x9;movzbl -0x9 回读，P0 具名局部）。
+    if (type == 0 || type > 4)
         return 0;
-    if (level < 0)
+    if (level < 0 || level > 0x69)
         return 0;
-    if (level > 0x69)
-        return 0;
-    // [b27 封顶] 残差 = js/jns 极性（ORIG level<0 js 直落 mov$0 岛；4.4 对
-    // if(<0) 恒 jns 前跳反形，goto/共享块/两 return 序均试不翻，N93附 同族
-    // 跨版本 lowering）+ vector[] 基址 add 立即数 reloc。语义/槽/守卫序全等。
-    idx = static_cast<unsigned char>(type - 1);
+    unsigned char idx = static_cast<unsigned char>(type - 1);
     return g_SPremiumInfo[level].m_independentDropRates[idx];
-L0:
-    return 0;
 }

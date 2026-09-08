@@ -132,7 +132,15 @@ private:
     char m_field30;                     // +0x030
     char m_pad31[3];                    // +0x031
     WarField m_field;                   // +0x034（0xf8）
-    void* m_slots[6];                   // +0x12c（ORIG Create 0x086bac7b this-先行直存指针=void* 元素探针实证）
+    // b28d-solo-WarRoom [P235/P301]：匿名 union 双视角。void* 视角保留既有语义；
+    // CUser* 视角消除调用点 `(CUser*)m_slots[i]` cast 造成的
+    // `mov mem,%eax; mov %eax,%ebx` 二段装载（ORIG 各调用点均为单段直落
+    // callee-saved）。两视角同为 6×4B @+0x12c ⇒ sizeof/全部偏移/mangled 零影响。
+    union
+    {
+        void* m_slots[6];               // +0x12c（ORIG Create 0x086bac7b this-先行直存指针=void* 元素探针实证）
+        CUser* m_slotsUser[6];          // +0x12c 同址视角（调用点直用，免 cast 二段）
+    };
     WARROOM_STATE m_state;              // +0x144（ORIG SetState 0x082a5a56 this-先行装载=成员与形参同类型探针实证）
     int m_slotState[6];                 // +0x148
     int m_timerKey[9];                  // +0x160（GenTimerKey 数组，msg 0x40..0x47 → 下标 1..8）

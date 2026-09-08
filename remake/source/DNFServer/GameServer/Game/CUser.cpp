@@ -4198,7 +4198,7 @@ void CUser::setHumanCertifyErrorCnt(int cnt)
     m_humanCertifyErrorCnt = cnt;
 }
 
-unsigned char CUser::isSendMailCertified()
+bool CUser::isSendMailCertified()
 {
     return m_field8e3ed;
 }
@@ -4223,7 +4223,7 @@ void CUser::resetDungeonClearHackCheck()
     m_mcap.m_field54c = 0;
 }
 
-unsigned char CUser::IsRecvEvent()
+bool CUser::IsRecvEvent()
 {
     return m_mcap.m_recvEventWaiting;
 }

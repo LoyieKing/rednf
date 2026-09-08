@@ -203,7 +203,8 @@ private:
     char m_field5dc[12];                // +0x5dc（battle_reset memset 0xc；无 getter 证据）
     Mutex m_mutex;                      // +0x5e8
     int m_joinCount;                    // +0x600
-    unsigned char m_isExistPassword;    // +0x604（ORIG IsExistPassword 读）
+    bool m_isExistPassword;             // +0x604（[b28d-solo-PvP_Room] P248 档②：PVP_ROOM_INFO::byte8
+                                        //   bool 化后 get_room_info 需同型源；ORIG 0x085d6bxx 直存）
     char m_password[0xb];               // +0x605（CheckPassword 0x085dded5 memcmp 基址）
     int m_passwordLen;                  // +0x610（CheckPassword 0x085ddeb7 读比对）
     unsigned char m_battleEndFlag;      // +0x614（request_fight 入口非 0 即拒；time_out 置 1）

@@ -53,8 +53,12 @@ public:
     void on_move_area(class CUser* user);   // ORIG 0x86b71da
     int register_object(village_object::Zone zone, village_object::IObject* object);
                                            // ORIG 0x86b6f58：碰撞检测通过后注册，命中返 1
-    int unregister_object(village_object::Zone zone, village_object::IObject* object);
+    bool unregister_object(village_object::Zone zone, village_object::IObject* object);
                                            // ORIG T 0x86b70d0：map find→std::find→erase，命中返 1
+                                           // [b28d-solo-CPrivateStoreMgr] P292 档①：ORIG
+                                           // 调用点 MoveToGate 0x085c75xx `call; xor $0x1,%eax;
+                                           // test %al,%al; je` ⇒ 返回 bool（mangled 不含返回
+                                           // 类型，符号/布局零影响）。
 
 private:
     std::map<village_object::Zone, std::list<village_object::IObject*> > m_objects;

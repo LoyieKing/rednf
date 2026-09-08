@@ -315,7 +315,7 @@ MsgClearQuestIndex::MsgClearQuestIndex() : m_questIdxs() {}  // ORIG 0x8231a3a�
 MsgClearQuestIndex& MsgClearQuestIndex::operator=(const MsgClearQuestIndex& other)
 {
     // ORIG 0x8235266：基类子对象整体赋值（3×dword + 尾字节），随后 count/vector
-    static_cast<MSG_BASE&>(*this) = static_cast<const MSG_BASE&>(other);
+    reinterpret_cast<MSG_BASE&>(*this) = reinterpret_cast<const MSG_BASE&>(other);
     m_count = other.m_count;
     m_questIdxs = other.m_questIdxs;
     return *this;

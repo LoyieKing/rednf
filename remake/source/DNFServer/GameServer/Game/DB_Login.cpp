@@ -1136,18 +1136,21 @@ void DB_Login::_LoadDNFEventEntry(unsigned int mid, vecDNFEventEntry_t& out)
 void DB_Login::_LoadEventItem(SIG_LOGIN_DATA* sig, int serverId,
                               vecDNFEventEntry_t& entries)
 {
-    int seen[10];
-    for (int i = 0; i < 10; ++i)
+    // [b28d-solo-DB_Login] P167 差集：ORIG 走 begin/end/operator->/operator++/operator!=
+    // （我方旧索引形多 size/operator[]）；迭代器双缓存照 P13，箭头形照 P167 新判据。
+    int seen[10] = {0};
+    vecDNFEventEntry_t::iterator it = entries.begin();
+    vecDNFEventEntry_t::iterator itEnd = entries.end();
+    while (it != itEnd)
     {
-        seen[i] = 0;
-    }
-    for (size_t k = 0; k < entries.size(); ++k)
-    {
-        int eventId = entries[k].m_eventId;
-        if (eventId < 10)
+        // P223 负条件 goto 尾标签：复现 ORIG `setg; test; jne <nop 岛>` 布局。
+        if (it->m_eventId > 9)
         {
-            seen[eventId] = 1;
+            goto next;
         }
+        seen[it->m_eventId] = 1;
+    next:
+        ++it;
     }
     for (int eventId = 0; eventId < 10; ++eventId)
     {
@@ -1159,23 +1162,23 @@ void DB_Login::_LoadEventItem(SIG_LOGIN_DATA* sig, int serverId,
         {
         case 2:
             WongWork::EventATI::ArrangeATIEventItem(
-                sig->m_accId, (unsigned int)&entries);
+                sig->m_accId, (unsigned int)serverId);
             break;
         case 3:
             WongWork::EventSigong::ArrangeSigongEventItem(
-                sig->m_accId, (unsigned int)&entries);
+                sig->m_accId, (unsigned int)serverId);
             break;
         case 5:
             WongWork::EventMuz::ArrangeMuzEventItem(
-                sig->m_accId, (unsigned int)&entries);
+                sig->m_accId, (unsigned int)serverId);
             break;
         case 6:
             WongWork::EventAlttle::ArrangeAlttleEventItem(
-                sig->m_accId, (unsigned int)&entries);
+                sig->m_accId, (unsigned int)serverId);
             break;
         case 7:
             WongWork::EventFCCombo::ArrangeFCComboEventItem(
-                sig->m_accId, (unsigned int)&entries);
+                sig->m_accId, (unsigned int)serverId);
             break;
         default:
             break;
@@ -1388,15 +1391,31 @@ void DB_Login::GetPremiumInfo(int /*param*/, SIG_LOGIN_DATA* sig,
 void DB_Login::RemovePreminuInfo(SIG_LOGIN_DATA* sig, std::vector<int>& ids)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
+    // [b28d-solo-DB_Login] P232/P28：ORIG 有 `movl $0x0,-0xc(%ebp)` dead int 槽
+    // （db=-0x10），且 begin() 先于 end() 求值（-0x18/-0x14 临时 → -0x1c/-0x20 转换）。
+    int slotPad = 0;
     // [b28d-38] P167：ORIG 两端均 const_iterator（end() 亦转换构造）；混合比较
     // 会实例化 operator!=<PK,P> 变体（我们原形）。
+    std::vector<int>::const_iterator it = ids.begin();
     std::vector<int>::const_iterator endIt = ids.end();
-    for (std::vector<int>::const_iterator it = ids.begin(); it != endIt; ++it)
+    for (; it != endIt; ++it)
     {
         db->set_query("deLete from dnf_event_entry where m_id=%s and event_id=%d",
                       NumberToString(sig->m_accId, 0), *it);
-        db->exec(true);
+        // ORIG 0x08412996..0x084129a9：`xor $1; test; jne <nop 岛>` + dead 读
+        // sig+0x2938（共享头 pad 区，原码字段未具名；P171 死读照抄 + P223 goto 尾标签）。
+        if (!db->exec(true))
+        {
+            goto nextEntry;
+        }
+        if (SGFC(unsigned char, sig, 0x2938) == 0)
+        {
+            goto nextEntry;
+        }
+    nextEntry:
+        ;
     }
+    (void)slotPad;
 }
 
 // ============================================================================

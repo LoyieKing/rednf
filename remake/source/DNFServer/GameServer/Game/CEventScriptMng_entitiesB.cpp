@@ -33,11 +33,16 @@ CFatigueQuantity::~CFatigueQuantity()
 
 // ORIG 0x0810f95e：虚调度 set_event_record_type（vtable+0x18）写 m_recordType=key，
 // 然后把绑定脚本存到 +0x1c。
-// [b28d-lane6] NEAR·N76+N7：ORIG 0x0811039x 指针 store RHS-first（mov 0x10(%ebp),%edx; mov 0x8(%ebp),%eax; mov %edx,0x1c(%eax)），4.4 同型指针恒 LHS-first（P211）；虚调用目标 %ecx↔%eax=N7（4.4.6 后端可消 N7，TU 统计不变）。
+// [b28d-solo-CEventScriptMng_entitiesB] NEAR·N7+N76 封顶（语义闭合，ORIG 0x0810f95e）。
 void CFatigueQuantity::set_event_data(int key, InGameEventScript* script)
 {
-    /* N7 封顶（b26 NL26）：唯一残差为虚调用 vfn/this/key 寄存器分配差
-     * （ORIG vfn=ecx,this=eax vs 4.4 vfn=eax,this=edx），负例表 N7。 */
+    /* [b28d-solo-CEventScriptMng_entitiesB] NEAR·N7+N76 封顶。残差仅两处：
+     * ①虚调用寄存器：ORIG `mov (%eax),%ecx`（vfn=%ecx,this=%eax）vs 4.4.7
+     *   vfn=%eax,this=%edx（N7）；本 TU 未路由 4.4.6，且 4.4.6 目标为 %edx≠%ecx。
+     * ②同型指针 store 序：ORIG 4.1 RHS-first（mov 0x10(%ebp),%edx; mov 0x8(%ebp),%eax;
+     *   mov %edx,0x1c(%eax)）vs 4.4 LHS-first（N76/P211 档③）；探针 Ent1..E10 十形
+     *   证实同型指针不可翻，唯一 RHS-first 形要求 RHS 为派生指针，而 mangled 固定
+     *   形参 InGameEventScript*（改字段为派生型会破坏 +0x1c 全仓消费点）。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -64,7 +69,9 @@ CExchangeRandomItemReward::~CExchangeRandomItemReward()
 // ORIG 0x0810eb06：同 CFatigueQuantity 模式。
 void CExchangeRandomItemReward::set_event_data(int key, InGameEventScript* script)
 {
-    /* N7 封顶（b26 NL26）：同 CFatigueQuantity::set_event_data 判词。 */
+    /* [b28d-solo-CEventScriptMng_entitiesB] NEAR·N7+N76 封顶（同
+     * CFatigueQuantity::set_event_data 判词：虚调用 vfn/this 寄存器差 +
+     * 同型指针 store RHS-first 不可翻）。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -78,7 +85,8 @@ CAvatarDisjointRandomReward::~CAvatarDisjointRandomReward()
 // ORIG 0x0810f37a：同 CFatigueQuantity 模式。
 void CAvatarDisjointRandomReward::set_event_data(int key, InGameEventScript* script)
 {
-    /* N7 封顶（b26 NL26）：同 CFatigueQuantity::set_event_data 判词。 */
+    /* [b28d-solo-CEventScriptMng_entitiesB] NEAR·N7+N76 封顶（同
+     * CFatigueQuantity::set_event_data 判词）。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -92,7 +100,8 @@ CObjectBringUp::~CObjectBringUp()
 // ORIG 0x0810fcb2：同 CFatigueQuantity 模式。
 void CObjectBringUp::set_event_data(int key, InGameEventScript* script)
 {
-    /* N7 封顶（b26 NL26）：同 CFatigueQuantity::set_event_data 判词。 */
+    /* [b28d-solo-CEventScriptMng_entitiesB] NEAR·N7+N76 封顶（同
+     * CFatigueQuantity::set_event_data 判词）。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -108,30 +117,37 @@ std::string& CObjectBringUp::get_db_table_name()
 // 「(当前已用疲劳 - 增量) < t 且 当前已用疲劳 >= t」即发该对邮件；
 // 发信成功读 m_mail.m_itemIdx 记日志后返回（ORIG 单次发放语义）。
 // 全程不缓存脚本指针（与 ORIG 同）。
-// [b28d-lane6] DIFF·N93：帧 0x40 vs 0x50 + 具名局部槽偏移（语义闭合）。
+// [b28d-solo-CEventScriptMng_entitiesB] AE（compare_tu 口径，138=138）。修法：
+// P0 去 usedBase/threshold/hit 具名局部（ORIG 无槽往返）⇒ 帧 0x50→0x40；
+// CEventActionMng mng 移入内层循环作用域复现 ORIG 槽布局（mng -0x21/it -0x1c/
+// vit -0x20）；第二条件改写 `*vit <= used` 保左→右求值序（*vit→%ebx 先于
+// getCurCharacUsedFatigue→%eax）；外层 it->/ptEv 替 (*it)./deEv（P167）。
 void CObjectBringUp::sendEventItemFromFatigue(CUser* user, unsigned int fatigue)
 {
     if (static_cast<ObjectBringUpScript*>(m_script1c)->m_ruleMails1c.empty())
         return;
-    unsigned int usedBase =
-        (unsigned int)user->getCurCharacUsedFatigue() & 0xffffu;
-    unsigned int remaining = usedBase - fatigue;   // ORIG local_14（32 位回绕忠实）
-    CEventActionMng mng;
+    // P0：ORIG 无 usedBase 槽往返（movzwl; sub 0x10(%ebp),%eax; mov %eax,-0x10）
+    // ⇒ 原码是内联右值，remaining 为唯一具名局部（32 位回绕忠实）。
+    unsigned int remaining =
+        ((unsigned int)user->getCurCharacUsedFatigue() & 0xffffu) - fatigue;
     for (std::vector<std::pair<std::vector<unsigned int>, ::Action_SendMail> >::iterator it =
              static_cast<ObjectBringUpScript*>(m_script1c)->m_ruleMails1c.begin();
          it != static_cast<ObjectBringUpScript*>(m_script1c)->m_ruleMails1c.end(); ++it)
     {
-        for (std::vector<unsigned int>::iterator vit = (*it).first.begin();
-             vit != (*it).first.end(); ++vit)
+        // ORIG 外层访问走 operator->（ptEv），内层走 operator*（deEv）；
+        // threshold 无具名槽（每次重发 *vit，P157/P183）。
+        for (std::vector<unsigned int>::iterator vit = it->first.begin();
+             vit != it->first.end(); ++vit)
         {
-            unsigned int threshold = *vit;
-            bool hit = (remaining < threshold) &&
-                       (((unsigned int)user->getCurCharacUsedFatigue() & 0xffffu)
-                            >= threshold);
-            if (hit)
+            CEventActionMng mng;
+            // ORIG 第二条件先求 *vit（→%ebx）后求 getCurCharacUsedFatigue（→%eax）
+            // ⇒ 写成 `*vit <= used` 保持左→右求值序（等价无符号比较）。
+            if ((*vit > remaining) &&
+                (*vit <= ((unsigned int)user->getCurCharacUsedFatigue()
+                          & 0xffffu)))
             {
                 int sent = mng.process_action_send_mail(
-                    user, EVENT_MAIL_REF((*it).second), true);
+                    user, EVENT_MAIL_REF(it->second), true);
                 if (sent != 0)
                 {
                     LogManager::logFormat(1, "EventClassify.cpp",
@@ -139,7 +155,7 @@ void CObjectBringUp::sendEventItemFromFatigue(CUser* user, unsigned int fatigue)
                         0x803,
                         "CObjectBringUp::sendEventItemFromFatigue(m_id:%d, charac_no:%d, reward:%d)",
                         user->get_acc_id(), user->getCurCharacNo(),
-                        (*it).second.m_itemIdx);
+                        it->second.m_itemIdx);
                     return;
                 }
             }
@@ -156,7 +172,8 @@ CPurchaseCashItemBonus::~CPurchaseCashItemBonus()
 // ORIG 0x0810f996：同 CFatigueQuantity 模式。
 void CPurchaseCashItemBonus::set_event_data(int key, InGameEventScript* script)
 {
-    /* N7 封顶（b26 NL26）：同 CFatigueQuantity::set_event_data 判词。 */
+    /* [b28d-solo-CEventScriptMng_entitiesB] NEAR·N7+N76 封顶（同
+     * CFatigueQuantity::set_event_data 判词）。 */
     set_event_record_type(key);
     m_script1c = script;
 }
@@ -172,19 +189,21 @@ std::string& CPurchaseCashItemBonus::get_db_table_name()
 // 命中脚本 m_set0c（[item idx start]/[item idx end] 区间导入的目标商品集合）
 // 时向 DB 队列发 DB_UpdatePurchaseCashItemBonus（m_id, acc_id）请求，
 // 并以 cMyTrace 记 "updateTargetGoodsCount(%d)"（acc_id）。
-// [b28d-lane6] DIFF·N93：ORIG 0x08110xxx 帧 0x48 无 callee-saved（我们 push %ebx+sub 0x44）+ find 槽序。
+// [b28d-solo-CEventScriptMng_entitiesB] AE（compare_tu 口径，71=71，帧 0x48 无
+// callee-saved）。修法：P293 具名迭代器固定 find→end 求值序（ORIG sret -0x38/-0x20；
+// 4.4 单表达式 `find()!=end()` 恒先 end 后 find）；accId 声明 unsigned 消 %ebx
+// 跨 GetUID 保活（P290 反向）；两处 cMyTrace 改全表达式临时链复现 ORIG 槽深（P221）。
 void CPurchaseCashItemBonus::updateTargetGoodsCount(
     CUser* user, unsigned int characNo, stCeraShopIPGRequest_t* request)
 {
     if (user == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x737, 0);
-        trace("Purchase Error Not Found User(charac_no:%d)", characNo);
+        cMyTrace(__PRETTY_FUNCTION__,
+                 0x737, 0)(
+            "Purchase Error Not Found User(charac_no:%d)", characNo);
         return;
     }
-    int accId = user->get_acc_id();
+    unsigned int accId = (unsigned int)user->get_acc_id();
     // P293：ORIG find 先求值（sret -0x38）、end 后求值（sret -0x20）；
     // 4.4 对单表达式 `find()!=end()` 恒先 end 后 find ⇒ 具名迭代器固定求值序。
     std::set<unsigned int>::iterator it =
@@ -193,10 +212,9 @@ void CPurchaseCashItemBonus::updateTargetGoodsCount(
     if (it != static_cast<PurchaseCashItemBonusScript*>(m_script1c)->m_set0c.end())
     {
         DB_UpdatePurchaseCashItemBonus::makeRequest(user->GetUID(), accId);
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x742, 0);
-        trace("CPurchaseCashItemBonus::updateTargetGoodsCount(%d)", accId);
+        cMyTrace(__PRETTY_FUNCTION__,
+                 0x742, 0)(
+            "CPurchaseCashItemBonus::updateTargetGoodsCount(%d)", accId);
     }
 }
 
@@ -220,7 +238,10 @@ bool CPurchaseCashItemBonus::verifyGiveBonusReward(
 // ORIG 0x0810fb34：按购买数遍历 m_ruleMails24 规则-邮件对发奖励邮件。
 // user 为空仅记 LogManager 告警返回 false；命中规则且发信成功读
 // mail.m_itemIdx 记日志并将返回置 false（ORIG 返回值语义：true=本轮未发放）。
-// [b28d-lane6] DIFF·N93：ORIG 0x08110xxx bool 槽 -0x9 vs 我们 -0x11 + lea 0x24 vs add/mov 缓存。
+// [b28d-solo-CEventScriptMng_entitiesB] AE（compare_tu 口径，97=97；sent 槽 -0x9）。
+// 修法：P198① result 循环外预清零（ORIG movl $0x0,-0x10）；删 rules 引用缓存，
+// 每轮重发 `m_script1c->m_ruleMails24` 取址链（P157/P183）；it->/ptEv 替
+// (*it)./deEv 并对 verifyGiveBonusReward/process_action_send_mail 逐次重发（P167）。
 bool CPurchaseCashItemBonus::sendPurchaseBonusReward(CUser* user, int count)
 {
     if (user == 0)
@@ -231,19 +252,24 @@ bool CPurchaseCashItemBonus::sendPurchaseBonusReward(CUser* user, int count)
             "CPurchaseCashItemBonus::sendPurchaseBonusReward(pUser(NULL))");
         return false;
     }
+    // ORIG local_14 在循环前预清零（movl $0x0,-0x10）⇒ 声明于循环外（P198①）。
+    int result = 0;
     bool sent = true;                       // ORIG local_d
     CEventActionMng mng;                    // ORIG 循环外构造一次
-    std::vector<std::pair<PurchaseCashItemBonusScript::PurchaseBonusRule,
-                          ::Action_SendMail> >& rules =
-        static_cast<PurchaseCashItemBonusScript*>(m_script1c)->m_ruleMails24;
+    // ORIG 每次 begin()/end() 重发完整 `m_script1c->m_ruleMails24` 取址链
+    // （无 rules 引用缓存，P157/P183）；迭代器访问走 operator->（ptEv）。
     for (std::vector<std::pair<PurchaseCashItemBonusScript::PurchaseBonusRule,
-                               ::Action_SendMail> >::iterator it = rules.begin();
-         it != rules.end(); ++it)
+                               ::Action_SendMail> >::iterator it =
+             static_cast<PurchaseCashItemBonusScript*>(m_script1c)
+                 ->m_ruleMails24.begin();
+         it != static_cast<PurchaseCashItemBonusScript*>(m_script1c)
+                   ->m_ruleMails24.end();
+         ++it)
     {
-        if (verifyGiveBonusReward((*it).first, count))
+        if (verifyGiveBonusReward(it->first, count))
         {
-            int result = mng.process_action_send_mail(
-                user, EVENT_MAIL_REF((*it).second), true);
+            result = mng.process_action_send_mail(
+                user, EVENT_MAIL_REF(it->second), true);
             if (result != 0)
             {
                 LogManager::logFormat(1, "EventClassify.cpp",
@@ -251,7 +277,7 @@ bool CPurchaseCashItemBonus::sendPurchaseBonusReward(CUser* user, int count)
                     0x763,
                     "CPurchaseCashItemBonus::sendPurchaseBonusReward(m_id:%d, charac_no:%d, reward:%d)",
                     user->get_acc_id(), user->getCurCharacNo(),
-                    (*it).second.m_itemIdx);
+                    it->second.m_itemIdx);
                 sent = false;
             }
         }

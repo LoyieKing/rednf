@@ -636,8 +636,12 @@ struct rewardSubKey
         m_action = 0;
     }
 
-    unsigned char m_type;     // +0x00（getSubKeyType）
-    unsigned char m_action;   // +0x01（getSubKeyAction）
+    // b28d-solo-OnlyOrigBatch12：ORIG operator< 0x080f11a2 为 movzbl 装载 +
+    // cmpb + setl（有符号字节比较）⇒ 原码字段是 signed char；unsigned char 令
+    // 4.4 对 `<` 比较多一条 `mov %eax,%edx` regmove（ltA 探针实证），改 signed
+    // 后逐条命中。sizeof/偏移/mangled 不变；值域 0..3（getSubKeyType/Action 返 char）。
+    signed char m_type;       // +0x00（getSubKeyType）
+    signed char m_action;     // +0x01（getSubKeyAction）
 
     void clear() { m_type = 0; m_action = 0; }   // ORIG W 0x080f11de 语义
 
@@ -3690,7 +3694,14 @@ public:
         };
         char m_rawAA74[0x328];
     };                                            // +0xaa74
-    int m_mobReward[201];                         // +0xada4
+    // +0xada4：get_mob_reward 的 ORIG 形 `mov 0x4(%eax,%edx,4),%edx`（unsigned
+    // 目标直落、无 int→unsigned 中转，探针 /tmp/p_sp/f.cpp）⇒ 匿名 union 增同址
+    // unsigned 视角（P235/P246；sizeof/偏移/mangled 零影响，m_mobRewardBackup 仍 +0xb0c8）。
+    union
+    {
+        int m_mobReward[201];                     // +0xada4
+        unsigned int m_mobRewardU[201];
+    };
     int m_mobRewardBackup[201];                   // +0xb0c8
     float m_expRate;                              // +0xb3ec
     float m_dropRate;                             // +0xb3f0

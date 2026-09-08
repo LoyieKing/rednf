@@ -3249,12 +3249,12 @@ public:
     void SetTutorialSkipable(unsigned char flag);
     int getHumanCertifyTimerKey();
     void setHumanCertifyErrorCnt(int cnt);
-    unsigned char isSendMailCertified();
+    bool isSendMailCertified();  // b28d-Main(P292)：ORIG 0x086371a4 调用点 `call; test %al,%al; je` ⇒ bool（字段 m_field8e3ed 已 bool，体直透）
     void setRestingUserRestrict(bool flag);
     void setPunishTradeAlert(short alert);
     short getPunishTradeAlert();
     void resetDungeonClearHackCheck();
-    unsigned char IsRecvEvent();
+    bool IsRecvEvent();  // b28d-Main(P292)：ORIG 0x086369b8 调用点 `call; xor $1; test %al; je` ⇒ bool（字段 m_recvEventWaiting 已 bool）
     int GetAutoClientRate();
     bool isARSUserKick();   // ORIG 0x08638c1a test %al;je 直判 ⇒ bool
     void setSecuReward(bool flag);

@@ -264,7 +264,7 @@ public:
 
     int m_itemIdx;     // +0x00（-1 = 无入场物品；check_item_exist/make_item 实证）
     int m_itemCount;   // +0x04（需求数量，m_addInfo2 比较实证）
-    char m_enableFlag; // +0x08（非 0 启用校验；TOD 0x7fc/CParty m_8 实证）
+    bool m_enableFlag; // +0x08（b28d-Main P292：ORIG 0x0859e7fe `movzbl; xor $1; test; je` ⇒ bool；非 0 启用校验）
 };
 
 #include "advancealtar_StageDifficulty.h"  // StageType 权威定义（叶子头）
@@ -700,7 +700,7 @@ public:
     bool isRiskDungeon() const;   // ORIG 调用点按字节谓词测试（checkDungeonDifficulty 0x85be932）
     bool isTournamentDungeon() const;
     int getTournamentRoundFatigue() const;
-    int getLimitCoinDiff(int diff, int& out) const;
+    bool getLimitCoinDiff(int diff, int& out) const;  // b28d-Main(P292)：ORIG 0x085be61a 调用点 `call; test %al,%al; je` ⇒ bool
     bool checkFreeRevivalCondition(int diff) const;
     bool IsEnterEachMap() const;
     bool IsOpenEvenEnemy() const;

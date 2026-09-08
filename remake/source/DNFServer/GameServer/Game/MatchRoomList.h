@@ -127,7 +127,8 @@ private:
 class CLeagueMatchRoomList : public IRoomList
 {
 public:
-    CLeagueMatchRoomList();
+    // CLeagueMatchRoomList() 不声明：ORIG nm 为 W 隐式合成（b28d-Main P299/CWG434，
+    // 用户空 ctor 会抑制 `new T()` 的 value-init 前置置零）
 
     virtual bool AddRoom(IMatch* room);
     virtual bool DelRoom(IMatch* room);

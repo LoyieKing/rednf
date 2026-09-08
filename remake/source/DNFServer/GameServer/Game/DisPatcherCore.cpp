@@ -928,7 +928,7 @@ unsigned int DisPatcher_SelectCharac::check_error(CUser* user, MSG_BASE& msg)
     {
         return 0x7fffffff;
     }
-    MSG_CHARAC_SELECT& sel = static_cast<MSG_CHARAC_SELECT&>(msg);
+    MSG_CHARAC_SELECT& sel = reinterpret_cast<MSG_CHARAC_SELECT&>(msg);
     if (G_GameWorld()->GetChannelType() == 0xe)
     {
         unsigned int uVar6 = user->getOnlinePreliminaryCharacNo();

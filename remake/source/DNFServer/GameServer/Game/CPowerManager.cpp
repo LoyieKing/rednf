@@ -16,6 +16,23 @@
 #include "MsgQueueMgr.h"
 #include "CPrivateStoreMgr.h"
 #include "CSharedServerMessageManager.h"
+// [b28d-solo] SIG_LOAD_POWER_WAR_STATUE_INFO（0x80）载荷具名视图（P80/P99）：
+// 偏移逐字段依 ORIG SetPowerWarUserStatueInfo 反汇编（0x0847ed4e 段）实证；
+// +0x4d..+0x4f 为 ORIG 未访问空洞（显式 pad 表达布局，不参与写入）。
+#pragma pack(push, 1)
+struct PowerWarStatueView
+{
+    unsigned int m_characNo;   // +0x00
+    char m_name[0x1e];         // +0x04
+    char m_job;                // +0x22（与目标 m_rankings[].m_job 同型，P211 档③）
+    char m_level;              // +0x23
+    char m_grow;               // +0x24
+    char m_guildName[0x28];    // +0x25
+    char m_pad4d[3];           // +0x4d..+0x4f
+    int m_guildId;             // +0x50
+    int m_equipment[11];       // +0x54（0x2c）
+};
+#pragma pack(pop)
 // ---- CPowerManager（PowerWar 管理器，ORIG 0x0847e998 域，布局 0x208）----
 // report: docs/class_func_reports/CPowerManager.md。对象为 GlobalData.cpp
 // 的 m_pad[0x208]（offset 布局一致：+0x00 winnerSide / +0x04/+0x08 分数 /
@@ -50,17 +67,23 @@ float CPowerManager::GetPowerWarResponPenalty(CUser* user)
     return penalty;
 }
 
-// [b28d-28] NEAR | ORIG 0x08480e92 | N82：4.1 不复用已死槽（fistpl 结果槽 -0xc
-// vs 4.4 复用 ghostTime 槽 -0x1c），仅 2 行槽号差，语义等价。
+// [b28d-solo-CPowerManager] NEAR(18=18, gap 0) | ORIG 0x08480e92 | 已按 P0 补双
+// 具名局部（ghostTime 源 / n 结果）消 fistpl 复用；残差 = 4.4 槽分配（ghostTime
+// -0x10、cw -0x1a/-0x1c vs ORIG -0x1c/-0x1e/-0x20）⇒ N82/P112 封顶（framePad
+// 前置/后置 + n 预清三形实测：槽号不变，预清反 +1 条）。
 int CPowerManager::GetPowerWarGhostTime(CUser* user, float f)
 {
     // ORIG 0x08480e92：(int)(ghostTime * f)，fistpl 就近取整。
     (void)user;
     // [b28c-L9] ORIG 帧 sub $0x28（结果槽 -0xc、转换源 -0x1c、cw -0x1e/-0x20），
     // 4.4 仅 $0x18 ⇒ P190 double framePad 撑帧；残余 2 = N82（4.1 不复用 -0xc/-0x1c）。
+    // [b28d-solo] P0：ORIG 两个槽往返（源 -0x1c / 结果 -0xc）⇒ 原码有两个具名
+    // 局部（4.4 对匿名转换临时会复用源槽）。
+    int ghostTime = G_CDataManager()->m_powerParameter.m_ghostTime;
+    int n = (int)((float)ghostTime * f);
     double framePad;
     (void)&framePad;
-    return (int)((float)G_CDataManager()->m_powerParameter.m_ghostTime * f);
+    return n;
 }
 
 
@@ -120,8 +143,10 @@ bool CPowerManager::IsWinerSide(char side)
     return m_winnerSide == side;
 }
 
-// [b28d-28] DIFF | ORIG 0x0847fb02 | P167 CLEAR（69/69 call 多重集全等）；
-// 残差为 N82 槽/寄存器分配 + 视图寻址形态（4.1 lea 折叠 vs 4.4 add 链）。
+// [b28d-solo-CPowerManager] AE | ORIG 0x0847fb02 | 388=388 clean 全等，P167 69/69。
+// 本轮修复：P0/P23 lastPlay 内联、P0/P52 三值内联实参（%edi/%esi/%ebx 跨 call
+// 保活）、P292 档② isOriginal char→bool、P225 while 形复现 enterLimit setne 物化、
+// P198① cooldown 两句式预清。
 int CPowerManager::ProcessJoinPowerWar(CUser* user, char side)
 {
     // ORIG 0x0847fb02：加入/退出 PowerWar 的完整校验与处理。
@@ -176,14 +201,21 @@ int CPowerManager::ProcessJoinPowerWar(CUser* user, char side)
             return 1;
         }
         enterLimit = CheckPowerWarEnterLimit(user);
-        if (enterLimit != 0)
+        // [b28d-solo] P225：ORIG `cmpl $0,slot; setne %al; test %al,%al; je`（4.1
+        // bool 物化后条件分支）唯一复现形 = while (v != 0) { body; break; }。
+        while (enterLimit != 0)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xc3, (unsigned char)(enterLimit & 0xff));
             return 1;
         }
-        int cooldown = G_CDataManager()->m_powerParameter.m_powerWarCooldownMinutes * 0x3c;
-        long lastPlay = user->getCurCharacLastPlayTickPowerWar();
-        if (GlobalData::s_systemTime_.getCurSec() - lastPlay <= cooldown)
+        // [b28d-solo] P198①：ORIG 在 G_CDataManager call 前有 `movl $0x0,-0x1c`
+        // 预清 ⇒ 声明与赋值必须两句式。
+        int cooldown = 0;
+        cooldown = G_CDataManager()->m_powerParameter.m_powerWarCooldownMinutes * 0x3c;
+        // [b28d-solo] P0/P23：ORIG 无 lastPlay 具名槽（getCurSec→%ebx 跨 call 保活、
+        // lastPlay 直落 %eax 后 sub），源码须内联右值（左操作数先求值）。
+        if (GlobalData::s_systemTime_.getCurSec() -
+                user->getCurCharacLastPlayTickPowerWar() <= cooldown)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xc3, 0x84);
             return 1;
@@ -200,33 +232,32 @@ int CPowerManager::ProcessJoinPowerWar(CUser* user, char side)
         }
     }
     user->setCurrCharacJoinPower(side);
-    char isOriginal = 0;
+    // [b28d-solo] P292 档②：ORIG `movzbl slot,%eax; xor $1,%eax; test %al,%al; je`
+    // ⇒ 局部须 bool（char 产 `cmpb $0` 直比）。
+    bool isOriginal = false;
     // ORIG 两次 getPowerSide()（cmp $3 / cmp $4 独立调用，P183 反向勿缓存）。
     if (user->getPowerSide() == 3 || user->getPowerSide() == 4)
-        isOriginal = 1;
+        isOriginal = true;
     if (side == 1)
     {
         if (isOriginal)
         {
-            unsigned char side2 = user->getPowerSide();
-            unsigned int guildKey = (unsigned int)user->get_charac_guildkey();
-            unsigned int charNo = (unsigned int)user->getCurCharacNo();
-            CGuildServerProxy* proxy = GlobalData::s_guild_proxy_mgr
-                                           ->GetServerProxy((ENUM_SERVER_GROUP)0);
-            proxy->SendApplyOriginalPowerSide(charNo, guildKey, side2);
+            // [b28d-solo] P0/P52：ORIG 三值全经 callee-saved（%edi/%esi/%ebx）跨
+            // GetServerProxy 调用保活，无栈槽 ⇒ 具名局部必须内联为实参表达式。
+            GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0)
+                ->SendApplyOriginalPowerSide((unsigned int)user->getCurCharacNo(),
+                                             (unsigned int)user->get_charac_guildkey(),
+                                             (unsigned char)user->getPowerSide());
         }
-        long t = GlobalData::s_systemTime_.getCurSec();
-        user->SetPowerWarLastPlayTime(t);
-        unsigned short stamina = (unsigned short)user->getCurCharacStamina();
-        user->setPowerWarHP(stamina & 0xff);
+        user->SetPowerWarLastPlayTime(GlobalData::s_systemTime_.getCurSec());
+        user->setPowerWarHP((unsigned char)user->getCurCharacStamina());
         user->resetStraightVictories();
         GlobalData::s_power_manager->IncreasePowerUserCount((char)user->getPowerSide());
     }
     else
     {
         GlobalData::s_power_manager->DecreasePowerUserCount((char)user->getPowerSide());
-        long t = GlobalData::s_systemTime_.getCurSec();
-        user->setCurCharacLastPlayTickPowerWar(t);
+        user->setCurCharacLastPlayTickPowerWar(GlobalData::s_systemTime_.getCurSec());
         user->SetCurCharacChaosDieTime(0);
         user->m_characterView.enableSaveCharacView();
     }
@@ -308,8 +339,10 @@ void CPowerManager::LoadRankerInfo()
     **guard << G_CEnvironment()->m_serverEnvir.m_serverGroup;   // ORIG env+0x378 直读
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
-// [b28d-28] DIFF | ORIG 0x0847f1b0 | N18b/P209附：unsigned 局部 for 尾测 4.4 恒
-// 折 `cmpl $2,-0x4(%ebp)`；ORIG 两段 `mov slot,%eax; cmp $2,%eax` 源形不可造。
+// [b28d-solo-CPowerManager] DIFF→N18b | ORIG 0x0847f1b0 | 唯一残差 = 尾测
+// `mov slot,%eax; cmp $2,%eax` vs 4.4 `cmpl $2,slot`（1 条，27/28）。探针
+// /tmp/p_loop{,2,3}.cpp 8 形（for/while/do-while/int/unsigned/2>=i/!(i>2)/取址/
+// register）全败：取址形尾测命中但增量段 +2 条（净劣化）⇒ N18b/P209附 封顶。
 bool CPowerManager::CheckCompleteDBLoadStatueInfo()
 {
     // [b28c-L9] fresh 复验 ndiff 5→2 封顶：残差即下述 N18b 一条（unsigned 局部
@@ -339,8 +372,8 @@ void CPowerManager::SetPowerWarStartTime(unsigned char y, unsigned char m,
     m_powerWarStartTime[3] = h;
 }
 
-// [b28d-28] DIFF | ORIG 0x0847ebec | 同 CheckCompleteDBLoadStatueInfo：N18b/P209附
-// （unsigned 循环尾测内存直比折叠，1 行差）。
+// [b28d-solo-CPowerManager] DIFF→N18b | ORIG 0x0847ebec | 同 CheckComplete 件：
+// 唯一残差 = 尾测两段物化（103/104），P167 CLEAR 12/12 ⇒ N18b/P209附 封顶。
 void CPowerManager::SetPowerWarUserRankingInfo(unsigned int* charNos)
 {
     // ORIG 0x0847ebec：characNo==0 -> 置 flag，否则写 +0x2c 并发 DB 消息 0x166。
@@ -366,8 +399,12 @@ void CPowerManager::SetPowerWarUserRankingInfo(unsigned int* charNos)
 
 
 
-// [b28d-28] DIFF | ORIG 0x0847ed4e | P167 CLEAR（7/7）；残差为 N82 槽分配 +
-// 4.1 数组寻址 `lea (%edx,%eax,1)` vs 4.4 `shl/add` 链（N94 族）。
+// [b28d-solo-CPowerManager] 语义完成 / byte 层 N | ORIG 0x0847ed4e | 本轮修复：
+// 真语义缺口 m_flag=1（ORIG memcpy 后 `movb $0x1,0x8(%eax)`，9 条，原缺）+ pack(1)
+// 具名视图消 add 链（P80/P99/P183）+ P222 正向 if 包裹 + P227/P139 全表达式临时链
+// + __PRETTY_FUNCTION__ + P211 档③ 同型化（3 处 uchar→char 中转清零）。
+// 残差 = N4（9 处 `lea 0(,%eax,4),%edx;mov` vs `shl $2,%eax;mov`，条数相同）
+// + N18b 尾测 1 条；P167 CLEAR 7/7，351/352。
 void CPowerManager::SetPowerWarUserStatueInfo(SIG_LOAD_POWER_WAR_STATUE_INFO* info)
 {
     // ORIG 0x0847ed4e：按 characNo（info+0x00）匹配条目，拷贝雕像字段并置 flag，
@@ -375,48 +412,65 @@ void CPowerManager::SetPowerWarUserStatueInfo(SIG_LOAD_POWER_WAR_STATUE_INFO* in
     // SIG_LOAD_POWER_WAR_STATUE_INFO 仅建模为 m_pad[0x100]，字段按 ORIG 偏移访问：
     // +0x00 characNo / +0x04 name(0x1e) / +0x22 job / +0x23 level / +0x24 grow /
     // +0x25 guildName(0x28) / +0x50 guildId / +0x54 equipment(0x2c)。
-    const unsigned char* src = (const unsigned char*)info->m_pad;
-    for (int i = 0; i < 3; ++i)
+    // [b28d-solo] P183：ORIG 每字段重读形参并 disp 折叠（`mov 0xc(%ebp),%eax;
+    // movzbl 0x22(%eax),%edx`），禁 src 指针缓存（缓存生 add 链且帧 +4）。
+    // [b28d-solo] P222/P59：ORIG `cmp; jne <循环尾>` 匹配即直落 body ⇒ 正向
+    // `if (匹配) { body; break; }`（原 `if (!=) continue;` 产反向 je 块布局）。
+    for (unsigned int i = 0; i < 3; ++i)
     {
-        if (m_rankings[i].m_characNo != *(const unsigned int*)(src + 0x00))
-            continue;
-        m_rankings[i].m_job = (char)*(const unsigned char*)(src + 0x22);
-        m_rankings[i].m_level = (char)*(const unsigned char*)(src + 0x23);
-        m_rankings[i].m_grow = (char)*(const unsigned char*)(src + 0x24);
-        m_rankings[i].m_guildId = *(const int*)(src + 0x50);
-        strncpy(m_rankings[i].m_name, (const char*)(src + 0x04), 0x1e);
-        strncpy(m_rankings[i].m_guildName, (const char*)(src + 0x25), 0x28);
-        memcpy(m_rankings[i].m_equipment, src + 0x54, 0x2c);
-        // ORIG 0x0847f0e5：cMyTrace(3 参) + "Set Statue Ranker ..." 变参日志。
-        // 注意 ORIG 压栈 job/lev 槽位互换（lev 值在 job 槽、job 值在 lev 槽），
-        // 且 EQUP 用 m_equipment[0..8] 与 [10]（跳过 [9]）——忠实保留。
-        cMyTrace trace(
-            "void CPowerManager::SetPowerWarUserStatueInfo(SIG_LOAD_POWER_WAR_STATUE_INFO*)",
-            0xa4, 0);
-        trace("Set Statue Ranker %s(%d), job:%d, lev:%d, grow:%d, guild_name:%s, guild_id:%d, EQUP [head:%d][hair:%d][face:%d][jacket:%d][pants:%d][shoes:%d][breast:%d][waist:%d][skin:%d][weapon:%d]",
-              m_rankings[i].m_name, m_rankings[i].m_characNo,
-              static_cast<int>(m_rankings[i].m_level),
-              static_cast<int>(m_rankings[i].m_job),
-              static_cast<int>(m_rankings[i].m_grow),
-              m_rankings[i].m_guildName, m_rankings[i].m_guildId,
-              m_rankings[i].m_equipment[0], m_rankings[i].m_equipment[1],
-              m_rankings[i].m_equipment[2], m_rankings[i].m_equipment[3],
-              m_rankings[i].m_equipment[4], m_rankings[i].m_equipment[5],
-              m_rankings[i].m_equipment[6], m_rankings[i].m_equipment[7],
-              m_rankings[i].m_equipment[8], m_rankings[i].m_equipment[10]);
-        break;
+        if (m_rankings[i].m_characNo == ((const PowerWarStatueView*)info)->m_characNo)
+        {
+            m_rankings[i].m_job = ((const PowerWarStatueView*)info)->m_job;
+            m_rankings[i].m_level = ((const PowerWarStatueView*)info)->m_level;
+            m_rankings[i].m_grow = ((const PowerWarStatueView*)info)->m_grow;
+            m_rankings[i].m_guildId = ((const PowerWarStatueView*)info)->m_guildId;
+            strncpy(m_rankings[i].m_name,
+                    ((const PowerWarStatueView*)info)->m_name, 0x1e);
+            strncpy(m_rankings[i].m_guildName,
+                    ((const PowerWarStatueView*)info)->m_guildName, 0x28);
+            memcpy(m_rankings[i].m_equipment,
+                   ((const PowerWarStatueView*)info)->m_equipment, 0x2c);
+            // [b28d-solo] 真语义缺口修复：ORIG 0x0847f0xx `movb $0x1,0x8(%eax)`
+            // （this+i*0x84+0x28 = 元素 +0x00 m_flag）在 memcpy 之后、cMyTrace 之前。
+            m_rankings[i].m_flag = 1;
+            // ORIG 0x0847f0e5：cMyTrace(3 参) + "Set Statue Ranker ..." 变参日志。
+            // 注意 ORIG 压栈 job/lev 槽位互换（lev 值在 job 槽、job 值在 lev 槽），
+            // 且 EQUP 用 m_equipment[0..8] 与 [10]（跳过 [9]）——忠实保留。
+            // [b28d-solo] P227/P139：ORIG 在 ctor 前求值全部 varargs 并跨 ctor 保活
+            // （`mov 0x378…` 类装载先于 `call cMyTrace::C1`），且 file 串为
+            // `_ZZ…__PRETTY_FUNCTION__` 局部静态符号（ORIG 0x08c72f80）⇒ 全表达式
+            // 临时链 + __PRETTY_FUNCTION__。
+            cMyTrace(__PRETTY_FUNCTION__, 0xa4, 0)
+                ("Set Statue Ranker %s(%d), job:%d, lev:%d, grow:%d, guild_name:%s, guild_id:%d, EQUP [head:%d][hair:%d][face:%d][jacket:%d][pants:%d][shoes:%d][breast:%d][waist:%d][skin:%d][weapon:%d]",
+                  m_rankings[i].m_name, m_rankings[i].m_characNo,
+                  static_cast<int>(m_rankings[i].m_level),
+                  static_cast<int>(m_rankings[i].m_job),
+                  static_cast<int>(m_rankings[i].m_grow),
+                  m_rankings[i].m_guildName, m_rankings[i].m_guildId,
+                  m_rankings[i].m_equipment[0], m_rankings[i].m_equipment[1],
+                  m_rankings[i].m_equipment[2], m_rankings[i].m_equipment[3],
+                  m_rankings[i].m_equipment[4], m_rankings[i].m_equipment[5],
+                  m_rankings[i].m_equipment[6], m_rankings[i].m_equipment[7],
+                  m_rankings[i].m_equipment[8], m_rankings[i].m_equipment[10]);
+            break;
+        }
     }
     if (CheckCompleteDBLoadStatueInfo())
         SendPowerWarUserStatueInfo(0);
 }
 
+// [b28d-solo-CPowerManager] AE | ORIG 0x0847f5de | 186=186 clean 全等（P227 全
+// 表达式临时链复现两 trace 槽序 + varargs 跨 ctor 保活）；P139 恢复
+// `_ZZN13CPowerManager12ClearMVPInfoEvE19__PRETTY_FUNCTION__` 局部静态符号。
 void CPowerManager::ClearMVPInfo()
 {
     // [b28d-28] ORIG 0x0847f5fe/-0x38 与 0x0847f83x/-0x28：两个 cMyTrace 槽
     // 深→浅（4.1 方向）；具名对象 4.4 恒反向 ⇒ 用全表达式临时链（P227/P221）
     // 复现槽序，同时使 `tr(...)` 的 varargs（G_CEnvironment()->+0x378）在
     // ctor 前求值并以 %ebx 跨 call 保活（ORIG 0x0847f84x `mov 0x378(%eax),%ebx`）。
-    cMyTrace("void CPowerManager::ClearMVPInfo()", 0x143, 0)("CLEAR MVP INFO");
+    // [b28d-solo] P139：ORIG file 串为 `_ZZN13CPowerManager12ClearMVPInfoEvE19
+    // __PRETTY_FUNCTION__`（0x08c72f40）⇒ 传 __PRETTY_FUNCTION__ 恢复局部静态符号。
+    cMyTrace(__PRETTY_FUNCTION__, 0x143, 0)("CLEAR MVP INFO");
     memset(m_rankings, 0, sizeof(m_rankings));
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DNF_PowerManager.cpp", 0x149), true);
@@ -427,7 +481,7 @@ void CPowerManager::ClearMVPInfo()
     **guard << G_CEnvironment()->m_serverEnvir.m_serverGroup;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 
-    cMyTrace("void CPowerManager::ClearMVPInfo()", 0x152, 0)
+    cMyTrace(__PRETTY_FUNCTION__, 0x152, 0)
         ("PUT DB MSG - E_DELETE_POWER_WAR_STATUE_MESSAGE / server_group : %d",
          G_CEnvironment()->m_serverEnvir.m_serverGroup);
 
@@ -498,42 +552,59 @@ void CPowerManager::IncreaePowerWarPointInChannel(char side, int point)
         m_side2ChannelPoint += point;
 }
 
-// [b28d-28] DIFF | ORIG 0x0847f200 | P167 EXTRA +2 strlen = N98（4.1 内联
-// strlen word-at-a-time，4.4 恒 call）；余为 N82 槽/寄存器差。
+// [b28d-solo-CPowerManager] 语义完成 / byte 层 N | ORIG 0x0847f200 | 本轮修复：
+// len 具名缓存消 EXTRA +2 strlen（P167 22/22 CLEAR）、P47 正极性 if/else、P212
+// 全头部声明（槽位全等 pkt-0x28/count-0x1c/len-0x18/i-0x14/i2-0x10/j-0xc）、
+// P171 死预清 len=0。唯一残差 = N18b 尾测 1 条（236/237）。
 void CPowerManager::SendPowerWarUserStatueInfo(CUser* user)
 {
     // ORIG 0x0847f200：组 SEND 雕像信息包（0xb6），含各条目姓名/职业/等级/
     // 成长/公会名/公会id/装备，user==0 全服广播，否则单发。
+    // [b28d-solo] P212：ORIG 槽深序 count(-0x1c) < len(-0x18) < i(-0x14) <
+    // i2(-0x10) < j(-0xc)；4.4 块内局部按首次使用序分配 ⇒ 全部提至函数头声明
+    // （声明序 = ORIG 槽深序），块内仅赋值。
     PacketGuard pkt;
+    int count;
+    int len;
+    unsigned int i;
+    int i2;
+    int j;
     pkt.put_header(0, 0xb6);
-    int count = 0;
-    for (int i = 0; i < 3; ++i)
+    count = 0;
+    for (i = 0; i < 3; ++i)
         if (m_rankings[i].m_characNo != 0)
             ++count;
     pkt.put_byte((int)(char)count);
-    for (int i = 0; i < count; ++i)
+    len = 0;   // [b28d-solo] P171：ORIG 0x0847f2xx `movl $0x0,-0x18` 死预清（照抄）
+    for (i2 = 0; i2 < count; ++i2)
     {
-        pkt.put_int((int)strlen(m_rankings[i].m_name));
-        pkt.put_str(m_rankings[i].m_name, strlen(m_rankings[i].m_name));
-        pkt.put_byte((int)(char)m_rankings[i].m_job);
-        pkt.put_byte((int)(char)m_rankings[i].m_level);
-        pkt.put_byte((int)(char)m_rankings[i].m_grow);
-        pkt.put_int((int)strlen(m_rankings[i].m_guildName));
-        pkt.put_str(m_rankings[i].m_guildName, strlen(m_rankings[i].m_guildName));
-        pkt.put_int(m_rankings[i].m_guildId);
-        for (int j = 0; j < 0xb; ++j)
+        // [b28d-solo] P0/P102：ORIG 用单一具名 len 槽（-0x18）缓存 strlen 结果，
+        // put_int/put_str 共用 ⇒ 每处仅 1 次 strlen（原内联两次 = EXTRA +2 strlen）。
+        len = (int)strlen(m_rankings[i2].m_name);
+        pkt.put_int(len);
+        pkt.put_str(m_rankings[i2].m_name, len);
+        pkt.put_byte((int)(char)m_rankings[i2].m_job);
+        pkt.put_byte((int)(char)m_rankings[i2].m_level);
+        pkt.put_byte((int)(char)m_rankings[i2].m_grow);
+        len = (int)strlen(m_rankings[i2].m_guildName);
+        pkt.put_int(len);
+        pkt.put_str(m_rankings[i2].m_guildName, len);
+        pkt.put_int(m_rankings[i2].m_guildId);
+        for (j = 0; j < 0xb; ++j)
         {
-            if (m_rankings[i].m_equipment[j] == 0 || j == 9)
+            if (m_rankings[i2].m_equipment[j] == 0 || j == 9)
                 pkt.put_int(-1);
             else
-                pkt.put_int(m_rankings[i].m_equipment[j]);
+                pkt.put_int(m_rankings[i2].m_equipment[j]);
         }
     }
     pkt.finalize(true);
-    if (user == 0)
-        G_GameWorld()->send_all(pkt);
-    else
+    // [b28d-solo] P47/P222：ORIG `cmp; je <send_all 段>`（Send 直落）⇒ 正极性
+    // `if (user != 0) Send; else send_all;`（原 ==0 首臂产反向 jne 块布局）。
+    if (user != 0)
         user->Send(pkt);
+    else
+        G_GameWorld()->send_all(pkt);
 }
 
 int CPowerManager::GetPowerUserCount(char side)
@@ -551,8 +622,8 @@ int CPowerManager::GetPowerWarPointInChannel(char side)
     return side == 1 ? m_side1ChannelPoint : m_side2ChannelPoint;
 }
 
-// [b28d-28] DIFF | ORIG 0x0847eba0 | N18b/P209附：同 CheckCompleteDBLoadStatueInfo
-// （`mov slot,%eax; cmp $2,%eax` 两段物形不可造，1 行差）。
+// [b28d-solo-CPowerManager] DIFF→N18b | ORIG 0x0847eba0 | 唯一残差 = 尾测
+// `mov slot,%eax; cmp $2,%eax`（1 条，27/28）⇒ N18b/P209附 封顶（同前，探针已证）。
 int CPowerManager::GetRankingByCharacNo(unsigned int charNo)
 {
     // [b28c-L9] fresh 复验 ndiff 5→2 封顶：同上 N18b（`mov slot,%eax; cmp $2,%eax`

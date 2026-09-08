@@ -1667,7 +1667,7 @@ int Dispatcher_UseDye::check_error(CUser* user, MSG_BASE& msg)
 }
 int Dispatcher_UseDye::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_USE_DYE& req = static_cast<MSG_USE_DYE&>(msg);
+    MSG_USE_DYE& req = reinterpret_cast<MSG_USE_DYE&>(msg);
     if (!packet.get_short(*reinterpret_cast<short*>(&req.m_0e)))
     {
         return LineFunc(0x6245,
@@ -1807,7 +1807,7 @@ Dispatcher_Teleport::~Dispatcher_Teleport() {}
 
 int Dispatcher_Teleport::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_TELEPORT& req = static_cast<MSG_TELEPORT&>(msg);
+    MSG_TELEPORT& req = reinterpret_cast<MSG_TELEPORT&>(msg);
     if (!packet.get_short(req.m_field0e))
     {
         return LineFunc(0x2b34,
@@ -2072,7 +2072,7 @@ int Dispatcher_SkillInit::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         __PRETTY_FUNCTION__,
                         p->m_4, 0);
     }
-    MSG_SKILL_INIT& req = static_cast<MSG_SKILL_INIT&>(msg);
+    MSG_SKILL_INIT& req = reinterpret_cast<MSG_SKILL_INIT&>(msg);
     // b28d-D0: 源字段 char / 目标字段 unsigned char 异型 ⇒ 4.4 恒 `movzbl mem,%eax;
     //   mov %eax,%edx` 两段；ORIG 0x081e5a01 单段 `movzbl 0xd(%eax),%edx`。
     //   档③同型化：以 uchar 视图读源字段（P235 具名视图，布局不变）。
@@ -2086,7 +2086,7 @@ int Dispatcher_SkillInit::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 int Dispatcher_SkillInit::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081e5934：读一个字节到 msg 的 m_0d
-    MSG_SKILL_INIT& req = static_cast<MSG_SKILL_INIT&>(msg);
+    MSG_SKILL_INIT& req = reinterpret_cast<MSG_SKILL_INIT&>(msg);
     if (!packet.get_byte(req.m_0d))
     {
         return LineFunc(0x5f26, __PRETTY_FUNCTION__,
@@ -2297,7 +2297,7 @@ int Dispatcher_BlueMarble::check_error(CUser* user, MSG_BASE& msg)
 {
     // ORIG 0x081e60xx 入口即 `mov 0x10(%ebp),%eax; mov %eax,-0x14(%ebp)` —— msg 引用槽
     // 在 user 判空**之前**物化（技巧13 声明位=落栈时机）；我方原放在判空之后 ⇒ 前 5 行错位。
-    const MSG_BLUE_MARBLE& req = static_cast<const MSG_BLUE_MARBLE&>(msg);
+    const MSG_BLUE_MARBLE& req = reinterpret_cast<const MSG_BLUE_MARBLE&>(msg);
     if (user == 0)
     {
         return -1;
@@ -2349,7 +2349,7 @@ int Dispatcher_BlueMarble::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         __PRETTY_FUNCTION__,
                         p->m_4, 0);
     }
-    const MSG_BLUE_MARBLE& req = static_cast<const MSG_BLUE_MARBLE&>(msg);
+    const MSG_BLUE_MARBLE& req = reinterpret_cast<const MSG_BLUE_MARBLE&>(msg);
     BlueMarble* marble = static_cast<BlueMarble*>(user->getBlueMarble());
     // ORIG 0x081e60xx：`cmpl $0x0,-0xc(%ebp); je <return 0 岛>` —— 非空才 fall 进
     // switch（技巧17：ORIG fall-through 块在前），空指针路径跳尾岛。
@@ -2372,7 +2372,7 @@ int Dispatcher_BlueMarble::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 }
 int Dispatcher_BlueMarble::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_BLUE_MARBLE& req = static_cast<MSG_BLUE_MARBLE&>(msg);
+    MSG_BLUE_MARBLE& req = reinterpret_cast<MSG_BLUE_MARBLE&>(msg);
     if (!packet.get_byte(req.m_0d))
     {
         return LineFunc(0x609a,
@@ -2477,7 +2477,7 @@ Dispatcher_ComboSkill::~Dispatcher_ComboSkill() {}
 //   首差: je     0825f43c <+0x6e> | jmp    0825f441 <+0x73> | mov    $0x0,%eax
 int Dispatcher_ComboSkill::check_error(CUser* user, MSG_BASE& msg)
 {
-    const MSG_COMBO_SKILL& req = static_cast<const MSG_COMBO_SKILL&>(msg);
+    const MSG_COMBO_SKILL& req = reinterpret_cast<const MSG_COMBO_SKILL&>(msg);
     // b28d-D0: P133 拆独立守卫 —— ORIG 0x0825f3e7 段三条件各自物化
     //   （user==0 直跳；state<3 出 setle；job!=9 出 setne）；合并 || 链被 4.4 折成直跳。
     if (user == 0)
@@ -2510,7 +2510,7 @@ int Dispatcher_ComboSkill::check_error(CUser* user, MSG_BASE& msg)
 int Dispatcher_ComboSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stComboSkill& out = static_cast<stComboSkill&>(param);
-    MSG_COMBO_SKILL& req = static_cast<MSG_COMBO_SKILL&>(msg);
+    MSG_COMBO_SKILL& req = reinterpret_cast<MSG_COMBO_SKILL&>(msg);
     out.m_result = check_error(user, msg);
     if (out.m_result > 0)
     {
@@ -2542,7 +2542,7 @@ int Dispatcher_ComboSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 //   首差: movw   $0x0,-0x42(%ebp) | movb   $0x0,-0x43(%ebp) | movb   $0x0,-0x44(%ebp)
 int Dispatcher_ComboSkill::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_COMBO_SKILL& req = static_cast<MSG_COMBO_SKILL&>(msg);
+    MSG_COMBO_SKILL& req = reinterpret_cast<MSG_COMBO_SKILL&>(msg);
     std::map<short, std::vector<int>, std::less<short>,
              std::allocator<std::pair<short const, std::vector<int> > > >&
         comboMap = req.m_comboMap;
@@ -3246,7 +3246,7 @@ int Dispatcher_MotionHack::read(PacketBuf& packet, MSG_BASE& msg)
 int Dispatcher_MotionHack::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     (void)param;
-    MSG_MOTION_HACK& req = static_cast<MSG_MOTION_HACK&>(msg);
+    MSG_MOTION_HACK& req = reinterpret_cast<MSG_MOTION_HACK&>(msg);
     if (req.m_field0d != 0)
     {
         user->getHackAnalyzer()->addServerHackCnt(
@@ -4194,7 +4194,7 @@ Dispatcher_BossDieCheck::~Dispatcher_BossDieCheck() {}
 int Dispatcher_BossDieCheck::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stBossDieCheckParam& out = static_cast<stBossDieCheckParam&>(param);
-    MSG_BOSS_DIE_CHECK& req = static_cast<MSG_BOSS_DIE_CHECK&>(msg);
+    MSG_BOSS_DIE_CHECK& req = reinterpret_cast<MSG_BOSS_DIE_CHECK&>(msg);
     char* pReq = reinterpret_cast<char*>(&req);
     unsigned short& bossSeq =
         *reinterpret_cast<unsigned short*>(pReq + 0x10);   // +0x10 word
@@ -4259,7 +4259,7 @@ int Dispatcher_BossDieCheck::process(CUser* user, MSG_BASE& msg, ParamBase& para
 //   首差: sub    $0x28,%esp | mov    -0xc(%ebp),%eax | add    $0xe,%eax
 int Dispatcher_BossDieCheck::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_BOSS_DIE_CHECK& req = static_cast<MSG_BOSS_DIE_CHECK&>(msg);
+    MSG_BOSS_DIE_CHECK& req = reinterpret_cast<MSG_BOSS_DIE_CHECK&>(msg);
     char* pReq = reinterpret_cast<char*>(&req);
     unsigned short& unkE =
         *reinterpret_cast<unsigned short*>(pReq + 0xe);
@@ -4395,7 +4395,7 @@ int Dispatcher_CodeCheckSum::read(PacketBuf& packet, MSG_BASE& msg) { return 0; 
 //   首差: mov    0x10(%ebp),%eax | mov    %eax,-0x10(%ebp) | movzwl 0x10(%eax),%eax
 int Dispatcher_CollectItems::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_COLLECT_ITEMS& req = static_cast<MSG_COLLECT_ITEMS&>(msg);
+    MSG_COLLECT_ITEMS& req = reinterpret_cast<MSG_COLLECT_ITEMS&>(msg);
     short& slot = req.m_itemIdx;              // +0xe word
     unsigned short& count = req.m_count;      // +0x10
 
@@ -4475,7 +4475,7 @@ int Dispatcher_CollectItems::process(CUser* user, MSG_BASE& msg, ParamBase& para
     // （StartGame@1231 形：值 %edx/base %eax）；delete_item count/slot 实参直传升格
     // esi/ebx（P197②）；m_itemIdx 双 movzwl=(uint)(ushort) 两段 cast；strlen/strncpy
     // 各自重取 getName（P48）；proxy 链式右值。
-    MSG_COLLECT_ITEMS& req = static_cast<MSG_COLLECT_ITEMS&>(msg);
+    MSG_COLLECT_ITEMS& req = reinterpret_cast<MSG_COLLECT_ITEMS&>(msg);
     stCollectItems* const out = static_cast<stCollectItems*>(&param);
     // [b28c-31] P0/N96 清绑：原 `register int ec asm("edx")` +
     // `register stCollectItems* dst asm("eax")` 全域禁用 ⇒ P231 裸 register 载体。
@@ -4866,7 +4866,7 @@ int Dispatcher_InformNotice::check_error(CUser* user, MSG_BASE& msg)
     {
         return 1;
     }
-    const MSG_INFORM_NOTICE& req = static_cast<const MSG_INFORM_NOTICE&>(msg);
+    const MSG_INFORM_NOTICE& req = reinterpret_cast<const MSG_INFORM_NOTICE&>(msg);
     // ORIG 0x081e3008（报告 Dispatcher_InformNotice/check_error.md 全文已读）：
     // 尾块 jbe→return 0（真体后置），fall-through return -1。
     if ((unsigned int)req.m_noticeFlag > 0x7f)
@@ -4894,7 +4894,7 @@ int Dispatcher_InformNotice::process(CUser* user, MSG_BASE& msg, ParamBase& para
                         __PRETTY_FUNCTION__,
                         out.m_4, 0);
     }
-    MSG_INFORM_NOTICE& req = static_cast<MSG_INFORM_NOTICE&>(msg);   // ORIG 块内 -0xc 存储
+    MSG_INFORM_NOTICE& req = reinterpret_cast<MSG_INFORM_NOTICE&>(msg);   // ORIG 块内 -0xc 存储
     user->handleInformNoticeFlag((unsigned int)req.m_noticeFlag);
     return 0;
 }
@@ -5183,7 +5183,7 @@ int Dispatcher_ScanBotByDll::process(CUser* user, MSG_BASE& msg, ParamBase& para
     {
         return 0;
     }
-    MSG_SCAN_DLL& req = static_cast<MSG_SCAN_DLL&>(msg);
+    MSG_SCAN_DLL& req = reinterpret_cast<MSG_SCAN_DLL&>(msg);
     const int hackType = req.m_field0d + 0x352;
     const int setEtcResult = user->SetETC((short)hackType, (int)req.m_field11);
     user->getHackAnalyzer()->addServerHackCnt(
@@ -5205,7 +5205,7 @@ int Dispatcher_ScanBotByDrv::process(CUser* user, MSG_BASE& msg, ParamBase& para
     {
         return 0;
     }
-    MSG_SCAN_DRV& req = static_cast<MSG_SCAN_DRV&>(msg);
+    MSG_SCAN_DRV& req = reinterpret_cast<MSG_SCAN_DRV&>(msg);
     int scanResult = req.m_field0d;
     WongWork::CHackAnalyzer* analyzer = user->getHackAnalyzer();
     analyzer->setBaseHackType((WongWork::ENUM_HACKTYPE)0x708);
@@ -5294,7 +5294,7 @@ int Dispatcher_TitleBookGet::process(CUser* user, MSG_BASE& msg, ParamBase& para
 }
 int Dispatcher_TitleBookGet::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_TITLEBOOK_GET& m = static_cast<MSG_TITLEBOOK_GET&>(msg);
+    MSG_TITLEBOOK_GET& m = reinterpret_cast<MSG_TITLEBOOK_GET&>(msg);
     if (!packet.get_int(m.m_itemSpace))
     {
         return LineFunc(0x420c,
@@ -5334,7 +5334,7 @@ Dispatcher_TitleBookPut::~Dispatcher_TitleBookPut() {}
 //   首差: je     081d788e <+0x140> | movl   $0x0,0x4(%esp) | lea    -0x1c(%ebp),%eax
 int Dispatcher_TitleBookPut::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_TITLEBOOK_PUT& m = static_cast<MSG_TITLEBOOK_PUT&>(msg);
+    MSG_TITLEBOOK_PUT& m = reinterpret_cast<MSG_TITLEBOOK_PUT&>(msg);
 
     if (user->get_state() <= 2)
     {
@@ -5378,7 +5378,7 @@ int Dispatcher_TitleBookPut::process(CUser* user, MSG_BASE& msg, ParamBase& para
 }
 int Dispatcher_TitleBookPut::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_TITLEBOOK_PUT& m = static_cast<MSG_TITLEBOOK_PUT&>(msg);
+    MSG_TITLEBOOK_PUT& m = reinterpret_cast<MSG_TITLEBOOK_PUT&>(msg);
     if (!packet.get_int(m.m_itemSpace))
     {
         return LineFunc(0x41d4,
@@ -5673,7 +5673,7 @@ int Dispatcher_ChangeEmotion::process(CUser* user, MSG_BASE& msg, ParamBase& par
 
     // 声明顺序决定落槽：ORIG 0x081d1cex 先物化 msg→-0x14、后物化 param→-0x10
     // （技巧21 先声明占远槽），我方原顺序相反导致两槽互换 + 后续 `mov -0x10/%-0x14` 全错。
-    MSG_CHANGE_EMOTION& req = static_cast<MSG_CHANGE_EMOTION&>(msg);
+    MSG_CHANGE_EMOTION& req = reinterpret_cast<MSG_CHANGE_EMOTION&>(msg);
     stChangeEmotionParam& out = static_cast<stChangeEmotionParam&>(param);
     out.m_4 = req.m_emotionIdx;                                 // msg+0x0d short → param+0x04
 
@@ -6689,7 +6689,7 @@ Dispatcher_SelectStriker::~Dispatcher_SelectStriker() {}
 //   首差: push   %edi | push   %esi | sub    $0x3c,%esp
 int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
 {
-    const MSG_SELECT_STRIKER& m = static_cast<const MSG_SELECT_STRIKER&>(msg);
+    const MSG_SELECT_STRIKER& m = reinterpret_cast<const MSG_SELECT_STRIKER&>(msg);
     if (user == 0)
     {
         return 0xffffffff;
@@ -6750,7 +6750,7 @@ int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
 //   首差: sub    $0x30,%esp | mov    0x14(%ebp),%eax | mov    %eax,-0x14(%ebp)
 int Dispatcher_SelectStriker::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    const MSG_SELECT_STRIKER& m = static_cast<const MSG_SELECT_STRIKER&>(msg);
+    const MSG_SELECT_STRIKER& m = reinterpret_cast<const MSG_SELECT_STRIKER&>(msg);
     int err = check_error(user, msg);
     *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 0x4) = err;   // ParamBase+0x04
     if (err >= 1)
@@ -7859,7 +7859,7 @@ int Dispatcher_P2P_Statistics::check_error(CUser* user, MSG_BASE& msg)
 int Dispatcher_P2P_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     (void)param;                                                // ORIG 不读写 param
-    MSG_P2P_STATISTICS& req = static_cast<MSG_P2P_STATISTICS&>(msg);
+    MSG_P2P_STATISTICS& req = reinterpret_cast<MSG_P2P_STATISTICS&>(msg);
 
     Packet_P2P_Statistics pkt;
     pkt.m_p2pUser = (int)(signed char)req.m_0d - (int)(signed char)req.m_0e;  // +0x0a
@@ -7914,7 +7914,7 @@ int Dispatcher_P2P_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& pa
 
 int Dispatcher_P2P_Statistics::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_P2P_STATISTICS& data = static_cast<MSG_P2P_STATISTICS&>(msg);
+    MSG_P2P_STATISTICS& data = reinterpret_cast<MSG_P2P_STATISTICS&>(msg);
     if (!packet.get_byte(*reinterpret_cast<char*>(&data.m_0d)))
     {
         return LineFunc(0x591a,
@@ -8766,7 +8766,7 @@ int Dispatcher_DonateGuildFund::process(CUser* user, MSG_BASE& msg, ParamBase& p
         if (user->get_charac_guildkey() != 0)
         {
             MSG_DONATE_GUILD_FUND& donateMsg =
-                static_cast<MSG_DONATE_GUILD_FUND&>(msg);
+                reinterpret_cast<MSG_DONATE_GUILD_FUND&>(msg);
             if (user->getCurCharacMoney() < donateMsg.m_donateMoney)
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0x15b, 0xa);
@@ -9025,7 +9025,7 @@ int Dispatcher_MailBox_Extract::check_error(CUser* user, MSG_BASE& msg)
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,%edx | mov    -0x10(%ebp),%eax
 int Dispatcher_MailBox_Extract::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_MAILBOX_EXTRACT_ITEM& mref = static_cast<MSG_MAILBOX_EXTRACT_ITEM&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
+    MSG_MAILBOX_EXTRACT_ITEM& mref = reinterpret_cast<MSG_MAILBOX_EXTRACT_ITEM&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
     int err = check_error(user, msg);
     *(int*)((char*)&param + 4) = err;
     if (err < 1)
@@ -9216,7 +9216,7 @@ int Dispatcher_SaveQuestNotify::check_error(CUser* user, MSG_BASE& msg)
     {
         return -2;
     }
-    const MSG_SAVE_QUEST_NOTIFY& req = static_cast<const MSG_SAVE_QUEST_NOTIFY&>(msg);
+    const MSG_SAVE_QUEST_NOTIFY& req = reinterpret_cast<const MSG_SAVE_QUEST_NOTIFY&>(msg);
     for (int i = 0; i <= 9; ++i)
     {
         int questIdx = *reinterpret_cast<const int*>(req.m_0d + i * 4); // +0x0d+i*4
@@ -9248,7 +9248,7 @@ int Dispatcher_SaveQuestNotify::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    MSG_SAVE_QUEST_NOTIFY& req = static_cast<MSG_SAVE_QUEST_NOTIFY&>(msg);
+    MSG_SAVE_QUEST_NOTIFY& req = reinterpret_cast<MSG_SAVE_QUEST_NOTIFY&>(msg);
     for (int i = 0; i < (int)count; ++i)
     {
         unsigned int value = 0;
@@ -9274,7 +9274,7 @@ int Dispatcher_SaveQuestNotify::read(PacketBuf& packet, MSG_BASE& msg)
 int Dispatcher_SaveQuestNotify::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     saveQuestNotifyParam& res = static_cast<saveQuestNotifyParam&>(param);
-    const MSG_SAVE_QUEST_NOTIFY& req = static_cast<const MSG_SAVE_QUEST_NOTIFY&>(msg);
+    const MSG_SAVE_QUEST_NOTIFY& req = reinterpret_cast<const MSG_SAVE_QUEST_NOTIFY&>(msg);
 
     int err = check_error(user, msg);
     res.m_errorCode = err;
@@ -9465,7 +9465,7 @@ Dispatcher_ApproveJoinGuild::~Dispatcher_ApproveJoinGuild() {}
 //   首差: push   %esi | sub    $0x30,%esp | mov    %eax,-0xc(%ebp)
 int Dispatcher_ApproveJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_APPROVE_JOIN_GUILD& mref = static_cast<MSG_APPROVE_JOIN_GUILD&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
+    MSG_APPROVE_JOIN_GUILD& mref = reinterpret_cast<MSG_APPROVE_JOIN_GUILD&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
     if (user->get_state() != 3)
     {
         return 0;
@@ -9766,7 +9766,7 @@ int Dispatcher_Equipslot_Switch::check_error(CUser* user, MSG_BASE& msg)
 int Dispatcher_Equipslot_Switch::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stEquipslotSwitch& out = static_cast<stEquipslotSwitch&>(param);
-    MSG_EQUIPSLOT_SWITCH& req = static_cast<MSG_EQUIPSLOT_SWITCH&>(msg);
+    MSG_EQUIPSLOT_SWITCH& req = reinterpret_cast<MSG_EQUIPSLOT_SWITCH&>(msg);
     char* pReq = reinterpret_cast<char*>(&req);
     int err = check_error(user, msg);
     if (err > 0)
@@ -9793,7 +9793,7 @@ int Dispatcher_Equipslot_Switch::process(CUser* user, MSG_BASE& msg, ParamBase& 
 //   首差: sub    $0x28,%esp | mov    -0xc(%ebp),%eax | add    $0xd,%eax
 int Dispatcher_Equipslot_Switch::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_EQUIPSLOT_SWITCH& req = static_cast<MSG_EQUIPSLOT_SWITCH&>(msg);
+    MSG_EQUIPSLOT_SWITCH& req = reinterpret_cast<MSG_EQUIPSLOT_SWITCH&>(msg);
     char* pReq = reinterpret_cast<char*>(&req);
     char& flagD = pReq[0xd];
     char& flagE = pReq[0xe];
@@ -9902,7 +9902,7 @@ int Dispatcher_InformNotice_2nd::check_error(CUser* user, MSG_BASE& msg)
     {
         return 1;
     }
-    const MSG_INFORM_NOTICE_2ND& req = static_cast<const MSG_INFORM_NOTICE_2ND&>(msg);
+    const MSG_INFORM_NOTICE_2ND& req = reinterpret_cast<const MSG_INFORM_NOTICE_2ND&>(msg);
     if ((unsigned int)req.m_noticeFlag > 0x7f)
     {
         return -1;
@@ -9978,7 +9978,7 @@ int Dispatcher_MemberEnterReply::check_error(CUser* user, MSG_BASE& msg)
 //   首差: mov    %eax,-0x10(%ebp) | mov    %eax,%edx | mov    -0x10(%ebp),%eax
 int Dispatcher_MemberEnterReply::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_MEMBER_ENTER_REPLY& mref = static_cast<MSG_MEMBER_ENTER_REPLY&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
+    MSG_MEMBER_ENTER_REPLY& mref = reinterpret_cast<MSG_MEMBER_ENTER_REPLY&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
     *(int*)((char*)&param + 4) = check_error(user, msg);
     int err = *(int*)((char*)&param + 4);
     if (err >= 1)
@@ -10664,7 +10664,7 @@ int Dispatcher_RequestJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& 
 }
 int Dispatcher_RequestJoinGuild::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_REQUEST_GUILD_JOIN& data = static_cast<MSG_REQUEST_GUILD_JOIN&>(msg);
+    MSG_REQUEST_GUILD_JOIN& data = reinterpret_cast<MSG_REQUEST_GUILD_JOIN&>(msg);
     if (!packet.get_int(data.m_0d))
     {
         return LineFunc(0x3506,
@@ -11219,7 +11219,7 @@ int Dispatcher_ChangeHostWarRoom::check_error(CUser* user, MSG_BASE& msg)
         return LineFunc(0x41b4, pretty, 0, 0);
     }
     const MSG_CHANGE_HOST_WARROOM& req =
-        static_cast<const MSG_CHANGE_HOST_WARROOM&>(msg);
+        reinterpret_cast<const MSG_CHANGE_HOST_WARROOM&>(msg);
     signed char warRoom = static_cast<signed char>(req.m_pad[0]);
     if (warRoom < 0 || warRoom > 5)
     {
@@ -11490,7 +11490,7 @@ int Dispatcher_DeleteToBlackList::process(CUser* user, MSG_BASE& msg, ParamBase&
         return LineFunc(0x26ea, __PRETTY_FUNCTION__, p->m_4, user->get_acc_id());
     {
         MSG_DELETE_TO_BLACKLIST& mref =
-            static_cast<MSG_DELETE_TO_BLACKLIST&>(msg);   // ORIG -0xc
+            reinterpret_cast<MSG_DELETE_TO_BLACKLIST&>(msg);   // ORIG -0xc
         Packet_Delete_To_BlackList packet;                // ORIG local_40
         // accId → packet.m_accId(+0x0a)；name → m_name(+0x0e)（ORIG C1 memset 区实测）。
         packet.m_accId = user->get_acc_id();
@@ -11628,7 +11628,7 @@ int Dispatcher_GuildCargoPopItem::process(CUser* user, MSG_BASE& msg, ParamBase&
         return 0;
     }
 
-    MSG_GUILD_CARGO_POP_ITEM& req = static_cast<MSG_GUILD_CARGO_POP_ITEM&>(msg);
+    MSG_GUILD_CARGO_POP_ITEM& req = reinterpret_cast<MSG_GUILD_CARGO_POP_ITEM&>(msg);
     CItem* item = G_CDataManager()->find_item(req.m_itemIdx);   // msg+0x0f
 
     Packet_Guild_Guild_Cargo_Pop_Item pkt;
@@ -11950,7 +11950,7 @@ Dispatcher_SecretShopBuyItem::~Dispatcher_SecretShopBuyItem() {}
 //   首差: sub    $0x38,%esp | mov    %eax,-0x18(%ebp) | mov    %eax,%edx
 int Dispatcher_SecretShopBuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_SECRET_SHOP_BUY_ITEM& mref = static_cast<MSG_SECRET_SHOP_BUY_ITEM&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
+    MSG_SECRET_SHOP_BUY_ITEM& mref = reinterpret_cast<MSG_SECRET_SHOP_BUY_ITEM&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
     *(int*)((char*)&param + 4) = check_error(user, msg, param);
     int err = *(int*)((char*)&param + 4);
     if (err >= 1)
@@ -12291,7 +12291,7 @@ int Dispatcher_AchievementTrigger::process(CUser* user, MSG_BASE& msg,
     {
         return 0;
     }
-    MSG_ACHIEVEMENT_TRIGGER& m = static_cast<MSG_ACHIEVEMENT_TRIGGER&>(msg);
+    MSG_ACHIEVEMENT_TRIGGER& m = reinterpret_cast<MSG_ACHIEVEMENT_TRIGGER&>(msg);
     unsigned short t15 = (unsigned short)m.m_field15;
     unsigned short t13 = (unsigned short)m.m_field13;
     unsigned short t11 = (unsigned short)m.m_field11;
@@ -12965,7 +12965,7 @@ int Dispatcher_CompatibilityIndex::process(CUser* user, MSG_BASE& msg, ParamBase
 }
 int Dispatcher_CompatibilityIndex::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_COMPATIBILITY_INDEX& data = static_cast<MSG_COMPATIBILITY_INDEX&>(msg);
+    MSG_COMPATIBILITY_INDEX& data = reinterpret_cast<MSG_COMPATIBILITY_INDEX&>(msg);
     if (!packet.get_byte(data.m_0d))
     {
         return LineFunc(0x58df,
@@ -13235,7 +13235,7 @@ int Dispatcher_GuildCargoMoveItem::process(CUser* user, MSG_BASE& msg, ParamBase
         return 0;
     }
 
-    MSG_GUILD_CARGO_MOVE_ITEM& req = static_cast<MSG_GUILD_CARGO_MOVE_ITEM&>(msg);
+    MSG_GUILD_CARGO_MOVE_ITEM& req = reinterpret_cast<MSG_GUILD_CARGO_MOVE_ITEM&>(msg);
 
     Packet_Guild_Guild_Cargo_Move_Item pkt;
     pkt.m_guildKey = user->get_charac_guildkey();               // → +0x0a
@@ -13778,7 +13778,7 @@ Dispatcher_TitleBookOtherUser::~Dispatcher_TitleBookOtherUser() {}
 // msg+0xd（unsigned short）为目标 uniqueId；两侧均要求 get_state() > 2。
 int Dispatcher_TitleBookOtherUser::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_TITLEBOOK_OTHERUSER& mref = static_cast<MSG_TITLEBOOK_OTHERUSER&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
+    MSG_TITLEBOOK_OTHERUSER& mref = reinterpret_cast<MSG_TITLEBOOK_OTHERUSER&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
     (void)param;
     // ORIG 0x081d7d56（报告 Dispatcher_TitleBookOtherUser/process.md 全文已读）：
     // 三段早退（bool 物化 state<=2 / null / bool 物化 state<=2），局部仅 mref@-0x10、
@@ -13845,7 +13845,7 @@ int Dispatcher_ValidateScriptHash::process(CUser* user, MSG_BASE& msg, ParamBase
     {
         return 0;
     }
-    MSG_SCRIPT_HASH& req = static_cast<MSG_SCRIPT_HASH&>(msg);
+    MSG_SCRIPT_HASH& req = reinterpret_cast<MSG_SCRIPT_HASH&>(msg);
     const int hackType = get_hack_type((char)req.m_field0d);
     user->getHackAnalyzer()->addServerHackCnt(
         user, (WongWork::ENUM_HACKTYPE)hackType, 1u,
@@ -14544,14 +14544,14 @@ int Dispatcher_PvpMissionHPPercent::process(CUser* user, MSG_BASE& msg, ParamBas
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    MSG_PVP_MISSION_HP_PERCENT& req = static_cast<MSG_PVP_MISSION_HP_PERCENT&>(msg);
+    MSG_PVP_MISSION_HP_PERCENT& req = reinterpret_cast<MSG_PVP_MISSION_HP_PERCENT&>(msg);
     stSendClearedMission& cleared = static_cast<stSendClearedMission&>(param);
     user->UpdateMissionCondition(req.m_hpPercents, cleared.m_missionIdxs);
     return 0;
 }
 int Dispatcher_PvpMissionHPPercent::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_PVP_MISSION_HP_PERCENT& data = static_cast<MSG_PVP_MISSION_HP_PERCENT&>(msg);
+    MSG_PVP_MISSION_HP_PERCENT& data = reinterpret_cast<MSG_PVP_MISSION_HP_PERCENT&>(msg);
     packet.get_byte(data.m_0d);
     if (data.m_0d == 0 || data.m_0d > 4)
     {
@@ -14938,7 +14938,7 @@ int Dispatcher_SaveCharacterOption::process(CUser* user, MSG_BASE& msg, ParamBas
         return 0;
     }
     user->setSaveCharacOption(true);
-    MSG_SAVE_CHARACTER_OPTION& req = static_cast<MSG_SAVE_CHARACTER_OPTION&>(msg);
+    MSG_SAVE_CHARACTER_OPTION& req = reinterpret_cast<MSG_SAVE_CHARACTER_OPTION&>(msg);
     user->SetCurCharacOption(req.m_option);            // +0x11 CharacterOption
     return 0;
 }
@@ -15331,7 +15331,7 @@ int Dispatcher_UpgradeItemSeparate::process(CUser* user, MSG_BASE& msg, ParamBas
     dp = &param;
     (void)dp;
     MSG_ITEM_UPGRADE* pm;
-    pm = static_cast<MSG_ITEM_UPGRADE*>(&msg);
+    pm = reinterpret_cast<MSG_ITEM_UPGRADE*>(&msg);
     // ORIG 0x081cc15e 链式直取 m_itemUpgradeSeparate（无 system 具名槽）。
     ((WongWork::IItemUpgrade*)G_CDataManager()->m_itemUpgradeSeparate)
         ->item_upgrade_system(user, pm, 0x1b7);
@@ -15500,7 +15500,7 @@ int Dispatcher_WarRoomWpPerMonster::check_error(CUser* user, MSG_BASE& msg)
 //   首差: mov    %eax,-0x1c(%ebp) | cmpl   $0x0,-0x1c(%ebp) | mov    -0x1c(%ebp),%eax
 int Dispatcher_WarRoomWpPerMonster::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_WARROOM_WP_PER_MONSTER& mref = static_cast<MSG_WARROOM_WP_PER_MONSTER&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
+    MSG_WARROOM_WP_PER_MONSTER& mref = reinterpret_cast<MSG_WARROOM_WP_PER_MONSTER&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
     // ORIG 0x081d5ca8
     int err = check_error(user, msg);
     if (err > 0)
@@ -15572,7 +15572,7 @@ int Dispatcher_AbnormalUseStackable::check_error(CUser* user, MSG_BASE& msg) { r
 int Dispatcher_AbnormalUseStackable::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     (void)param;
-    MSG_ABNORMAL_USE_STACKABLE& req = static_cast<MSG_ABNORMAL_USE_STACKABLE&>(msg);
+    MSG_ABNORMAL_USE_STACKABLE& req = reinterpret_cast<MSG_ABNORMAL_USE_STACKABLE&>(msg);
     int err = check_error(user, msg);
     if (err == 0)
     {
@@ -16317,7 +16317,7 @@ int Dispatcher_ItemHyperLinkMessage::check_error(CUser* user, MSG_BASE& msg)
         return -1;
     }
     const MSG_ITEM_HYPER_LINK_MESSAGE& req =
-        static_cast<const MSG_ITEM_HYPER_LINK_MESSAGE&>(msg);
+        reinterpret_cast<const MSG_ITEM_HYPER_LINK_MESSAGE&>(msg);
     unsigned char type = req.m_typeD;
     return type == 0x24 || type == 0x25 || type == 0x21 || type == 7 ? -1 : 0;
 }
@@ -16329,7 +16329,7 @@ int Dispatcher_ItemHyperLinkMessage::check_error(CUser* user, MSG_BASE& msg)
 int Dispatcher_ItemHyperLinkMessage::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_ITEM_HYPER_LINK_MESSAGE& m =
-        static_cast<MSG_ITEM_HYPER_LINK_MESSAGE&>(msg);
+        reinterpret_cast<MSG_ITEM_HYPER_LINK_MESSAGE&>(msg);
     if (!packet.get_byte(m.m_typeD))
         return LineFunc(0x4765,
                         __PRETTY_FUNCTION__,
@@ -16410,7 +16410,7 @@ int Dispatcher_ItemHyperLinkMessage::process(CUser* user, MSG_BASE& msg,
     stItemHyperLinkMessage& outParam =
         static_cast<stItemHyperLinkMessage&>(param);
     MSG_ITEM_HYPER_LINK_MESSAGE& m =
-        static_cast<MSG_ITEM_HYPER_LINK_MESSAGE&>(msg);
+        reinterpret_cast<MSG_ITEM_HYPER_LINK_MESSAGE&>(msg);
 
     int err = check_error(user, msg);
     outParam.m_4 = err;
@@ -16585,7 +16585,7 @@ int Dispatcher_ItemHyperLinkMessage::process(CUser* user, MSG_BASE& msg,
         DB_InsertPoliceSaveChatting::makeRequest(
             user->getCurCharacNo(), (char)m.m_typeD, m.m_text18);
     }
-    G_GameWorld()->send_chat_msg_hyper_link(user, static_cast<MSG_ITEM_HYPER_LINK_MESSAGE&>(m),
+    G_GameWorld()->send_chat_msg_hyper_link(user, reinterpret_cast<MSG_ITEM_HYPER_LINK_MESSAGE&>(m),
                                             (ENUM_NOTIPACKET)0x172);
     return 0;
 }
@@ -16775,7 +16775,7 @@ int Dispatcher_PartyTeleportConfirm::process(CUser* user, MSG_BASE& msg, ParamBa
             p.m_result, 0);
     }
     MSG_PARTY_TELEPORT_CONFIRM& m =
-        static_cast<MSG_PARTY_TELEPORT_CONFIRM&>(msg);
+        reinterpret_cast<MSG_PARTY_TELEPORT_CONFIRM&>(msg);
     p.m_bConfirm = m.m_confirmFlag;
     CParty* party = static_cast<CParty*>(user->GetParty());
     if (party != 0)
@@ -17040,7 +17040,7 @@ int Dispatcher_Register_Quick_Party::process(CUser* user, MSG_BASE& msg,
                                              ParamBase& param)
 {
     stQuickPartyParam& pref = static_cast<stQuickPartyParam&>(param);  // 裸偏移→具名字段（同偏移同宽度）
-    MSG_QUICK_PARTY& mref = static_cast<MSG_QUICK_PARTY&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
+    MSG_QUICK_PARTY& mref = reinterpret_cast<MSG_QUICK_PARTY&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
     int err = check_error(user, msg, param);
     if (err > 0)
     {
@@ -17252,7 +17252,7 @@ int Dispatcher_SeriaRoom_Deco_Event::process(CUser* user, MSG_BASE& msg, ParamBa
     // p.m_4（ORIG 2 条 `mov -0x14,%edx; mov %eax,0x4(%edx)`，无 err 槽 P0）；GCD/代理
     // 每用点重取（P48：ORIG 两次 getCurCharacInvenR/G_CDataManager call）；vaild 判定
     // ORIG `xor $1;test%al;je` ==1 直测（P194）；deleteFlag 预清两句式保留死块。
-    MSG_SERIAROOM_DECO_EVENT& req = static_cast<MSG_SERIAROOM_DECO_EVENT&>(msg);
+    MSG_SERIAROOM_DECO_EVENT& req = reinterpret_cast<MSG_SERIAROOM_DECO_EVENT&>(msg);
     stSeriaRoomDecoEvent& p = static_cast<stSeriaRoomDecoEvent&>(param);
     p.m_4 = check_error(user, msg);
     if (p.m_4 >= 1)
@@ -17283,7 +17283,7 @@ int Dispatcher_SeriaRoom_Deco_Event::process(CUser* user, MSG_BASE& msg, ParamBa
 }
 int Dispatcher_SeriaRoom_Deco_Event::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_SERIAROOM_DECO_EVENT& req = static_cast<MSG_SERIAROOM_DECO_EVENT&>(msg);
+    MSG_SERIAROOM_DECO_EVENT& req = reinterpret_cast<MSG_SERIAROOM_DECO_EVENT&>(msg);
     if (!packet.get_short(req.m_decoEventId))
     {
         return LineFunc(0x5fff,
@@ -17423,7 +17423,7 @@ int Dispatcher_Client_Spec_Statistic::process(CUser* user, MSG_BASE& msg, ParamB
     {
         return -1;
     }
-    MSG_CLIENT_SPEC_STATISTIC& req = static_cast<MSG_CLIENT_SPEC_STATISTIC&>(msg);
+    MSG_CLIENT_SPEC_STATISTIC& req = reinterpret_cast<MSG_CLIENT_SPEC_STATISTIC&>(msg);
     *(unsigned char*)((char*)&param + 4) =
         *(unsigned char*)(reinterpret_cast<char*>(&req) + 0xd);
     memcpy(user->getClientHWSpec(), reinterpret_cast<char*>(&req) + 0xe, 0xbf8);
@@ -17992,7 +17992,7 @@ Dispatcher_Break_Away_Quest_Check::~Dispatcher_Break_Away_Quest_Check() {}
 int Dispatcher_Break_Away_Quest_Check::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stBreakAwayParam& res = static_cast<stBreakAwayParam&>(param);  // -0x10（ORIG 缓存 param）
-    MSG_BREAK_AWAY& req = static_cast<MSG_BREAK_AWAY&>(msg);        // -0xc（ORIG 缓存 msg）
+    MSG_BREAK_AWAY& req = reinterpret_cast<MSG_BREAK_AWAY&>(msg);        // -0xc（ORIG 缓存 msg）
     if (req.m_checkFlag != 0)                                   // msg+0x0d byte（ORIG 正例 fall-through）
     {
         if (user->getBreakAwayDungeonClearCnt() == 0)
@@ -18073,7 +18073,7 @@ int Dispatcher_ChangeAnotherSkillTree::check_error(CUser* user, MSG_BASE& msg)
         return 0x13;
     }
     const MSG_CHANGE_ANOTHER_SKILL_TREE& req =
-        static_cast<const MSG_CHANGE_ANOTHER_SKILL_TREE&>(msg);
+        reinterpret_cast<const MSG_CHANGE_ANOTHER_SKILL_TREE&>(msg);
     // b28d-D0: P200 拓宽直传实参 —— ORIG 0x081d20e5 `movzbl 0xd(%eax),%eax;
     //   movsbl %al,%ebx` 值升格 callee-saved 跨 GetCurCharacSkillTreeIndex 存活；
     //   经具名 int 局部退化 `mov %eax,-0x10; mov -0x10,%eax; movsbl %al,%eax`。
@@ -18107,7 +18107,7 @@ int Dispatcher_ChangeAnotherSkillTree::process(CUser* user, MSG_BASE& msg, Param
                         __PRETTY_FUNCTION__,
                         p.m_result, 0);
     }
-    MSG_CHANGE_ANOTHER_SKILL_TREE& req = static_cast<MSG_CHANGE_ANOTHER_SKILL_TREE&>(msg);
+    MSG_CHANGE_ANOTHER_SKILL_TREE& req = reinterpret_cast<MSG_CHANGE_ANOTHER_SKILL_TREE&>(msg);
     // b28d-D0: ORIG 0x081d2009 `movzbl 0xd(%eax),%eax; test %al,%al` 无 treeIdx 槽
     //   （P0 表达式直读）；具名 uchar treeIdx 落槽 -0x9 并使 req 深移 4（-0x14 vs ORIG -0x10）。
     if ((unsigned char)req.m_0d == 0)
@@ -18125,7 +18125,7 @@ int Dispatcher_ChangeAnotherSkillTree::process(CUser* user, MSG_BASE& msg, Param
 int Dispatcher_ChangeAnotherSkillTree::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_CHANGE_ANOTHER_SKILL_TREE& req =
-        static_cast<MSG_CHANGE_ANOTHER_SKILL_TREE&>(msg);
+        reinterpret_cast<MSG_CHANGE_ANOTHER_SKILL_TREE&>(msg);
     if (!packet.get_byte(req.m_0d))
     {
         return LineFunc(0x2ec2,
@@ -18570,7 +18570,7 @@ int Dispatcher_Float_RDATA_Modulation::process(CUser* user, MSG_BASE& msg,
     {
         return 0;
     }
-    MSG_FLOAT_RDATA_MODULATION& m = static_cast<MSG_FLOAT_RDATA_MODULATION&>(msg);
+    MSG_FLOAT_RDATA_MODULATION& m = reinterpret_cast<MSG_FLOAT_RDATA_MODULATION&>(msg);
     unsigned int d1 = m.m_encoded1 ^ 0x59ab991f;
     unsigned int d2 = m.m_encoded2 ^ 0x1f93712b;
     WongWork::CHackAnalyzer* ha = user->getHackAnalyzer();
@@ -18709,7 +18709,7 @@ Dispatcher_RequestCharacSkillInfo::~Dispatcher_RequestCharacSkillInfo() {}
 //   首差: mov    0x10(%ebp),%eax | mov    %eax,-0x10(%ebp) | mov    %eax,-0xc(%ebp)
 int Dispatcher_RequestCharacSkillInfo::check_error(CUser* user, MSG_BASE& msg)
 {
-    MSG_REQUEST_CHARAC_SKILL_INFO& mref = static_cast<MSG_REQUEST_CHARAC_SKILL_INFO&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
+    MSG_REQUEST_CHARAC_SKILL_INFO& mref = reinterpret_cast<MSG_REQUEST_CHARAC_SKILL_INFO&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
     if (user == 0)
     {
         return -1;
@@ -18739,7 +18739,7 @@ int Dispatcher_RequestCharacSkillInfo::check_error(CUser* user, MSG_BASE& msg)
 //   首差: sub    $0x30,%esp | mov    0x14(%ebp),%eax | mov    %eax,-0x18(%ebp)
 int Dispatcher_RequestCharacSkillInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_REQUEST_CHARAC_SKILL_INFO& mref = static_cast<MSG_REQUEST_CHARAC_SKILL_INFO&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
+    MSG_REQUEST_CHARAC_SKILL_INFO& mref = reinterpret_cast<MSG_REQUEST_CHARAC_SKILL_INFO&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
     int err = check_error(user, msg);
     *(int*)((char*)&param + 4) = err;
     if (err > 0)
@@ -19659,7 +19659,7 @@ int Dispatcher_Enchant_3rdChronicleItem::check_error(CUser* user, MSG_BASE& msg)
         return 7;
     }
 
-    MSG_ENCHANT& req = static_cast<MSG_ENCHANT&>(msg);
+    MSG_ENCHANT& req = reinterpret_cast<MSG_ENCHANT&>(msg);
 
     const int secu =
         GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0x27);
@@ -19710,7 +19710,7 @@ int Dispatcher_Enchant_3rdChronicleItem::process(CUser* user, MSG_BASE& msg, Par
     }
 
     stEnchantParam& out = static_cast<stEnchantParam&>(param);   // +0x04 结果槽
-    MSG_ENCHANT& req = static_cast<MSG_ENCHANT&>(msg);
+    MSG_ENCHANT& req = reinterpret_cast<MSG_ENCHANT&>(msg);
 
     PacketGuard pg;                                              // try 域 @081d37e3..081d3846
     pg.put_header(1, 0x173);
@@ -19730,7 +19730,7 @@ int Dispatcher_Enchant_3rdChronicleItem::read(PacketBuf& packet, MSG_BASE& msg)
     // 无具名引用槽——每处 `mov 0x10(%ebp),%eax` 直读参数（帧 0x18）。
     // 具名引用中转变量=4.4 多 1 个 4B 槽⇒删中转改 cast 内联（技巧36/37）。
     if (!packet.get_short(*reinterpret_cast<unsigned short*>(
-            &static_cast<MSG_ENCHANT&>(msg).m_13)))
+            &reinterpret_cast<MSG_ENCHANT&>(msg).m_13)))
     {
         return LineFunc(
             0x3158,
@@ -19738,7 +19738,7 @@ int Dispatcher_Enchant_3rdChronicleItem::read(PacketBuf& packet, MSG_BASE& msg)
             0, 0);
     }
     if (!packet.get_int(*reinterpret_cast<unsigned long*>(
-            &static_cast<MSG_ENCHANT&>(msg).m_15)))
+            &reinterpret_cast<MSG_ENCHANT&>(msg).m_15)))
     {
         return LineFunc(
             0x315a,
@@ -19746,7 +19746,7 @@ int Dispatcher_Enchant_3rdChronicleItem::read(PacketBuf& packet, MSG_BASE& msg)
             0, 0);
     }
     if (!packet.get_short(*reinterpret_cast<unsigned short*>(
-            &static_cast<MSG_ENCHANT&>(msg).m_0d)))
+            &reinterpret_cast<MSG_ENCHANT&>(msg).m_0d)))
     {
         return LineFunc(
             0x315d,
@@ -19754,14 +19754,14 @@ int Dispatcher_Enchant_3rdChronicleItem::read(PacketBuf& packet, MSG_BASE& msg)
             0, 0);
     }
     if (!packet.get_int(*reinterpret_cast<unsigned long*>(
-            &static_cast<MSG_ENCHANT&>(msg).m_0f)))
+            &reinterpret_cast<MSG_ENCHANT&>(msg).m_0f)))
     {
         return LineFunc(
             0x315f,
             __PRETTY_FUNCTION__,
             0, 0);
     }
-    if (!packet.get_byte(static_cast<MSG_ENCHANT&>(msg).m_19))
+    if (!packet.get_byte(reinterpret_cast<MSG_ENCHANT&>(msg).m_19))
     {
         return LineFunc(
             0x3162,
@@ -19832,7 +19832,7 @@ int Dispatcher_GoldTakeIncreasingAmount::process(CUser* user, MSG_BASE& msg, Par
             return -1;
         }
         stGoldTakeIncreasingAmount& p = static_cast<stGoldTakeIncreasingAmount&>(param);
-        MSG_GOLD_TAKE_INCREASING_AMOUNT& req = static_cast<MSG_GOLD_TAKE_INCREASING_AMOUNT&>(msg);
+        MSG_GOLD_TAKE_INCREASING_AMOUNT& req = reinterpret_cast<MSG_GOLD_TAKE_INCREASING_AMOUNT&>(msg);
         p.m_4 = *(int*)((char*)&req + 0xd);
         if (p.m_4 == 0xf68a)
         {
@@ -20211,7 +20211,7 @@ int Dispatcher_Select_Item_Grwoth_Power::process(CUser* user, MSG_BASE& msg, Par
         return -1;
     }
 
-    MSG_GROWTH_POWER& req = static_cast<MSG_GROWTH_POWER&>(msg);
+    MSG_GROWTH_POWER& req = reinterpret_cast<MSG_GROWTH_POWER&>(msg);
     stGrowthPowerParam& out = static_cast<stGrowthPowerParam&>(param);
     CDataManager* dm = G_CDataManager();
 
@@ -20295,7 +20295,7 @@ int Dispatcher_Select_Item_Grwoth_Power::process(CUser* user, MSG_BASE& msg, Par
 
 int Dispatcher_Select_Item_Grwoth_Power::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_GROWTH_POWER& req = static_cast<MSG_GROWTH_POWER&>(msg);
+    MSG_GROWTH_POWER& req = reinterpret_cast<MSG_GROWTH_POWER&>(msg);
     if (!packet.get_byte(req.m_0d))
     {
         return LineFunc(0x4a55,
@@ -20343,7 +20343,7 @@ int Dispatcher_SeriaRoom_Ani_Deco_Event::check_error(CUser* user, MSG_BASE& msg)
 }
 int Dispatcher_SeriaRoom_Ani_Deco_Event::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_SERIAROOM_DECO_EVENT& req = static_cast<MSG_SERIAROOM_DECO_EVENT&>(msg);
+    MSG_SERIAROOM_DECO_EVENT& req = reinterpret_cast<MSG_SERIAROOM_DECO_EVENT&>(msg);
     if (!packet.get_short(req.m_decoEventId))
     {
         return LineFunc(0x6540,
@@ -20370,7 +20370,7 @@ int Dispatcher_UpdateContractOfCubeInfo::process(CUser* user, MSG_BASE& msg,
                                                  ParamBase& param)
 {
     MSG_UPDATE_CONTRACT_OF_CUBE_INFO& m =
-        static_cast<MSG_UPDATE_CONTRACT_OF_CUBE_INFO&>(msg);
+        reinterpret_cast<MSG_UPDATE_CONTRACT_OF_CUBE_INFO&>(msg);
     stUpdateContractOfCubeInfo& p = static_cast<stUpdateContractOfCubeInfo&>(param);
     p.m_8 = m.m_useFlag;
     p.m_9 = m.m_selectIdx;
@@ -20581,7 +20581,7 @@ int Dispatcher_UseRightOfChangeGrowType::check_error(CUser* user, MSG_BASE& msg)
 //   首差: sub    $0x38,%esp | mov    %eax,-0x14(%ebp) | mov    -0x14(%ebp),%edx
 int Dispatcher_UseRightOfChangeGrowType::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_RIGHT_OF_CHANGE_GROW_TYPE& mref = static_cast<MSG_RIGHT_OF_CHANGE_GROW_TYPE&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
+    MSG_RIGHT_OF_CHANGE_GROW_TYPE& mref = reinterpret_cast<MSG_RIGHT_OF_CHANGE_GROW_TYPE&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
     *(int*)((char*)&param + 4) = check_error(user, msg);
     int err = *(int*)((char*)&param + 4);
     if (err >= 1)
@@ -20804,7 +20804,7 @@ int Dispatcher_Buy_Charac_Status_Using_QP::check_error(CUser* user, MSG_BASE& ms
 //   首差: mov    %eax,-0x1c(%ebp) | cmpl   $0x0,-0x1c(%ebp) | cmpl   $0x0,-0x1c(%ebp)
 int Dispatcher_Buy_Charac_Status_Using_QP::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_QUEST_SHOP& mref = static_cast<MSG_QUEST_SHOP&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
+    MSG_QUEST_SHOP& mref = reinterpret_cast<MSG_QUEST_SHOP&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
     int err = check_error(user, msg);
     if (err >= 1)
     {
@@ -21368,7 +21368,7 @@ int Dispatcher_Expand_Equipslot_Flag_Update::process(CUser* user, MSG_BASE& msg,
     // [b28c-34] ORIG 0x081d5f4a 段：两引用槽在两道 early-return 之后才初始化
     // （req=msg→-0x14 深、out=param→-0x10 浅）；提到函数头会前移 store 并反槽序。
     MSG_EXPAND_EQUIPSLOT_FLAG_UPDATE& req =
-        static_cast<MSG_EXPAND_EQUIPSLOT_FLAG_UPDATE&>(msg);
+        reinterpret_cast<MSG_EXPAND_EQUIPSLOT_FLAG_UPDATE&>(msg);
     stExpandEquipslotFlagUpdate& out = static_cast<stExpandEquipslotFlagUpdate&>(param);
     // [b28c-34] ORIG 0x081d5f8f `mov %al,-0x9(%ebp); cmpb $0x13,-0x9(%ebp)`：
     // 结果按 char 单字节落槽（原 int 生 movzbl+cmpl 两段）。
@@ -22119,7 +22119,7 @@ int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BAS
     {
         return 0x13;
     }
-    MSG_GROWTH_EQUIPMENT& req = static_cast<MSG_GROWTH_EQUIPMENT&>(msg);
+    MSG_GROWTH_EQUIPMENT& req = reinterpret_cast<MSG_GROWTH_EQUIPMENT&>(msg);
     if (user->CheckItemLock(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)req.m_0d), req.m_11))
     {
         return 0xd5;
@@ -22170,7 +22170,7 @@ int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BAS
 int Dispatcher_GrowthWeaponEventChangeInfinity::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stGrowthEquipment& out = static_cast<stGrowthEquipment&>(param);
-    MSG_GROWTH_EQUIPMENT& req = static_cast<MSG_GROWTH_EQUIPMENT&>(msg);
+    MSG_GROWTH_EQUIPMENT& req = reinterpret_cast<MSG_GROWTH_EQUIPMENT&>(msg);
     out.m_4 = check_error(user, msg);
     if (out.m_4 > 0)
     {
@@ -22274,7 +22274,7 @@ int Dispatcher_SaveGameOption_ChattingEmoticon::process(CUser* user, MSG_BASE& m
 int Dispatcher_SaveGameOption_ChattingEmoticon::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON& data =
-        static_cast<MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON&>(msg);
+        reinterpret_cast<MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON&>(msg);
     if (!packet.get_short(data.m_count))
     {
         return LineFunc(0x2934,
@@ -22329,7 +22329,7 @@ Dispatcher_ComboSkillExtensionQuickSlotReset::~Dispatcher_ComboSkillExtensionQui
 int Dispatcher_ComboSkillExtensionQuickSlotReset::check_error(CUser* user, MSG_BASE& msg)
 {
     const MSG_COMBO_SKILL_EXTENSION_QUICK_SLOT_RESET& req =
-        static_cast<const MSG_COMBO_SKILL_EXTENSION_QUICK_SLOT_RESET&>(msg);
+        reinterpret_cast<const MSG_COMBO_SKILL_EXTENSION_QUICK_SLOT_RESET&>(msg);
     // b28d-D0: 同 ComboSkill::check_error，ORIG 0x0825f5ad 段三条件独立物化（P133）。
     if (user == 0)
     {
@@ -22362,7 +22362,7 @@ int Dispatcher_ComboSkillExtensionQuickSlotReset::process(CUser* user, MSG_BASE&
     stComboSkillExtensionQuickSlotReset& out =
         static_cast<stComboSkillExtensionQuickSlotReset&>(param);
     MSG_COMBO_SKILL_EXTENSION_QUICK_SLOT_RESET& req =
-        static_cast<MSG_COMBO_SKILL_EXTENSION_QUICK_SLOT_RESET&>(msg);
+        reinterpret_cast<MSG_COMBO_SKILL_EXTENSION_QUICK_SLOT_RESET&>(msg);
     out.m_4 = check_error(user, msg);
     if (out.m_4 > 0)
     {
@@ -23536,7 +23536,7 @@ int Dispatcher_BlueMarbleConfirmInfo::check_error(CUser* user, MSG_BASE& msg)
 int Dispatcher_BlueMarbleConfirmInfo::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_BLUE_MARBLE_CONFIRM_INFO& req =
-        static_cast<MSG_BLUE_MARBLE_CONFIRM_INFO&>(msg);
+        reinterpret_cast<MSG_BLUE_MARBLE_CONFIRM_INFO&>(msg);
     if (!packet.get_byte(reinterpret_cast<char&>(req.m_0d)))        // +0x0d flag
     {
         return LineFunc(24845,
@@ -23572,7 +23572,7 @@ int Dispatcher_BlueMarbleConfirmInfo::process(CUser* user, MSG_BASE& msg, ParamB
     }
     // ORIG 0x81e6357：msg 死绑定（-0x2c）在两个 m_4 检查之后（P31/范式13 时机）。
     MSG_BLUE_MARBLE_CONFIRM_INFO& req =
-        static_cast<MSG_BLUE_MARBLE_CONFIRM_INFO&>(msg);
+        reinterpret_cast<MSG_BLUE_MARBLE_CONFIRM_INFO&>(msg);
     // P4：1024 字节栈数组内联清零（rep stos 形态）
     char path[1024] = { '\0' };
     sprintf(path, "./log/%s/BlueMarbleConfirmInfo",
@@ -23888,7 +23888,7 @@ int Dispatcher_MailBox_Send::process(CUser* user, MSG_BASE& msg, ParamBase& para
     }
     if (needCertify) {
         // ORIG 0x081ccaa6: user->set_MailMsgData(&msg) 后返回 0（等待回执）
-        user->set_MailMsgData(static_cast<MSG_MAILBOX_SEND*>(&msg));
+        user->set_MailMsgData(reinterpret_cast<MSG_MAILBOX_SEND*>(&msg));
         return 0;
     }
 
@@ -23897,7 +23897,7 @@ int Dispatcher_MailBox_Send::process(CUser* user, MSG_BASE& msg, ParamBase& para
     {
         MSG_CHECK_MAIL_RECEIVER chk;
         chk.set<MSG_CHECK_MAIL_RECEIVER::ENUM_MAILBOX_CHECKTYPE_0, MSG_MAILBOX_SEND>(
-            static_cast<const MSG_MAILBOX_SEND&>(msg));
+            reinterpret_cast<const MSG_MAILBOX_SEND&>(msg));
         rc = WongWork::CMailBoxHelper::ReqDBCheckReceiver(user, mbName(msg), &chk);
     }
     if (rc != 0) {
@@ -24173,7 +24173,7 @@ bool Dispatcher_MonstercardBind::_bind_process(
 // ==== Dispatcher_MonstercardBind::read (ORIG 0x081d82e8 T) ====
 int Dispatcher_MonstercardBind::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_MONSTERCARD_BIND& m = static_cast<MSG_MONSTERCARD_BIND&>(msg);
+    MSG_MONSTERCARD_BIND& m = reinterpret_cast<MSG_MONSTERCARD_BIND&>(msg);
     // ORIG：get_short 直接读入 MSG 字段（msg+0xd/0xf/0x11，无临时变量）
     if (!packet.get_short(reinterpret_cast<short&>(m.m_0d)))
     {
@@ -24217,7 +24217,7 @@ int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg)
         return -1;
     }
 
-    MSG_MONSTERCARD_BIND& m = static_cast<MSG_MONSTERCARD_BIND&>(msg);
+    MSG_MONSTERCARD_BIND& m = reinterpret_cast<MSG_MONSTERCARD_BIND&>(msg);
 
     // 卡 1（msg+0x0d）：须为非堆叠怪物卡且绑定数据索引有效
     // ORIG：每次 GetInvenSlot 前重新 getCurCharacInvenR()（不缓存指针）
@@ -24321,7 +24321,7 @@ int Dispatcher_MonstercardBind::process(CUser* user, MSG_BASE& msg,
                                         ParamBase& param)
 {
     stMonstercardBind& res = static_cast<stMonstercardBind&>(param);
-    MSG_MONSTERCARD_BIND& m = static_cast<MSG_MONSTERCARD_BIND&>(msg);
+    MSG_MONSTERCARD_BIND& m = reinterpret_cast<MSG_MONSTERCARD_BIND&>(msg);
 
     res.m_4 = check_error(user, msg);
     if (res.m_4 > 0)
@@ -24488,7 +24488,7 @@ int Dispatcher_PartyTeleport::check_error(CUser* user, MSG_BASE& msg)
     {
         return -1;
     }
-    MSG_PARTY_TELEPORT& req = static_cast<MSG_PARTY_TELEPORT&>(msg);
+    MSG_PARTY_TELEPORT& req = reinterpret_cast<MSG_PARTY_TELEPORT&>(msg);
     if (user->get_state() != 3)
     {
         return 0x13;
@@ -24561,7 +24561,7 @@ int Dispatcher_PartyTeleport::check_error(CUser* user, MSG_BASE& msg)
 // ==== Dispatcher_PartyTeleport::read (ORIG 0x081dbe70) ====
 int Dispatcher_PartyTeleport::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_PARTY_TELEPORT& req = static_cast<MSG_PARTY_TELEPORT&>(msg);
+    MSG_PARTY_TELEPORT& req = reinterpret_cast<MSG_PARTY_TELEPORT&>(msg);
     if (!packet.get_byte(req.m_field0d))                      // +0x0d village（uchar& 重载）
     {
         return LineFunc(19231,
@@ -24607,7 +24607,7 @@ int Dispatcher_PartyTeleport::process(CUser* user, MSG_BASE& msg, ParamBase& par
     unsigned char& echoState = *reinterpret_cast<unsigned char*>(pbase + 0x8); // +0x08 回显
     int& auraRemain = *reinterpret_cast<int*>(pbase + 0xc);       // +0x0c 光环剩余秒
 
-    MSG_PARTY_TELEPORT& req = static_cast<MSG_PARTY_TELEPORT&>(msg);
+    MSG_PARTY_TELEPORT& req = reinterpret_cast<MSG_PARTY_TELEPORT&>(msg);
 
     err = check_error(user, msg);
     echoState = req.m_field0d;
@@ -24731,7 +24731,7 @@ int Dispatcher_PcRoomRentItem::check_error(CUser* user, MSG_BASE& msg)
         // ①ORIG 0x081e577x：msg 引用槽在 state/characR 判定**之后**才物化
         //   （`mov 0x10(%ebp),%eax; mov %eax,-0xc(%ebp)`，技巧13 声明位=落栈时机）；
         //   我方在函数入口物化，槽号亦从 -0xc 漂到 -0x10。
-        MSG_RENT_ITEM& req = static_cast<MSG_RENT_ITEM&>(msg);
+        MSG_RENT_ITEM& req = reinterpret_cast<MSG_RENT_ITEM&>(msg);
         // ②ORIG 对该 byte 字段是**两次独立装载 + 寄存器测**（`movzbl 0xe(%eax),%eax;
         //   testb %al,%al; jle` 与再装载一次 `cmp $2,%al; jle`），我方具名 char 局部
         //   使 4.4 折成 `mov %al,-0x9(%ebp)` + 两次 `cmpb $K,-0x9(%ebp)`（技巧36）。
@@ -24770,7 +24770,7 @@ int Dispatcher_PcRoomRentItem::check_error(CUser* user, MSG_BASE& msg)
 //   首差: mov    %eax,-0x10(%ebp) | mov    -0x10(%ebp),%eax | movl   $&_ZZN25Dispatcher_PcRoomRentItem4readER9PacketBufR8MSG_BASEE19__PRETTY_FUNCTION__,0x4(%esp
 int Dispatcher_PcRoomRentItem::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_RENT_ITEM& req = static_cast<MSG_RENT_ITEM&>(msg);
+    MSG_RENT_ITEM& req = reinterpret_cast<MSG_RENT_ITEM&>(msg);
     if (!packet.get_byte(reinterpret_cast<char&>(req.m_0e)))          // +0x0e type
     {
         return LineFunc(24124,
@@ -24816,7 +24816,7 @@ int Dispatcher_PcRoomRentItem::read(PacketBuf& packet, MSG_BASE& msg)
 int Dispatcher_PcRoomRentItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stRentItemParam& out = static_cast<stRentItemParam&>(param);
-    MSG_RENT_ITEM& req = static_cast<MSG_RENT_ITEM&>(msg);
+    MSG_RENT_ITEM& req = reinterpret_cast<MSG_RENT_ITEM&>(msg);
 
     out.m_4 = check_error(user, msg);
     if (out.m_4 != 0)
@@ -24993,7 +24993,7 @@ Dispatcher_PurifyItem::~Dispatcher_PurifyItem()
 //   首差: mov    -0xc(%ebp),%eax | add    $0xd,%eax | movl   $&_ZZN21Dispatcher_PurifyItem4readER9PacketBufR8MSG_BASEE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_PurifyItem::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_PURIFY_ITEM& m = static_cast<MSG_PURIFY_ITEM&>(msg);
+    MSG_PURIFY_ITEM& m = reinterpret_cast<MSG_PURIFY_ITEM&>(msg);
 
     unsigned short word = 0;
     unsigned long itemIdx = 0;
@@ -25052,7 +25052,7 @@ int Dispatcher_PurifyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         0, 0);
     }
 
-    MSG_PURIFY_ITEM& m = static_cast<MSG_PURIFY_ITEM&>(msg);
+    MSG_PURIFY_ITEM& m = reinterpret_cast<MSG_PURIFY_ITEM&>(msg);
 
     if (G_GameWorld()->GetChannelType() == 7)
     {
@@ -25230,7 +25230,7 @@ inline int& rfErr(ParamBase& p) { return RF(p).m_err; }                         
 // ==== Dispatcher_RefundSkill::read (ORIG 0x081da6fe) ====
 int Dispatcher_RefundSkill::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_REFUND_SKILL& req = static_cast<MSG_REFUND_SKILL&>(msg);
+    MSG_REFUND_SKILL& req = reinterpret_cast<MSG_REFUND_SKILL&>(msg);
     if (!packet.get_int(req.m_0d))  // 技能 id
         return LineFunc(0x48e5, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_11)))  // 技能树选择（signed byte 读入）
@@ -25311,7 +25311,7 @@ LOUT:
 //   首差: mov    %eax,-0x2c(%ebp) | mov    -0x2c(%ebp),%edx | mov    %eax,0x18(%edx)
 int Dispatcher_RefundSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_REFUND_SKILL& req = static_cast<MSG_REFUND_SKILL&>(msg);
+    MSG_REFUND_SKILL& req = reinterpret_cast<MSG_REFUND_SKILL&>(msg);
 
     rfErr(param) = check_error(user, msg);                      // +0x18 错误码
     if (rfErr(param) > 0)
@@ -25782,7 +25782,7 @@ int Dispatcher_StackableActionUse::check_error(CUser* user, MSG_BASE& msg)
     {
         return -1;
     }
-    MSG_STACKABLE_ACTION_USE& req = static_cast<MSG_STACKABLE_ACTION_USE&>(msg);
+    MSG_STACKABLE_ACTION_USE& req = reinterpret_cast<MSG_STACKABLE_ACTION_USE&>(msg);
 
     // 背包校验和不一致仅记 hack 计数，不中断（ORIG 形态）
     if (user->getCurCharacInvenCheckSum() != req.m_10)
@@ -25837,7 +25837,7 @@ int Dispatcher_StackableActionUse::check_error(CUser* user, MSG_BASE& msg)
 // ==== Dispatcher_StackableActionUse::read (ORIG 0x0825df72) ====
 int Dispatcher_StackableActionUse::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_STACKABLE_ACTION_USE& req = static_cast<MSG_STACKABLE_ACTION_USE&>(msg);
+    MSG_STACKABLE_ACTION_USE& req = reinterpret_cast<MSG_STACKABLE_ACTION_USE&>(msg);
     if (!packet.get_short(req.m_0d))                     // +0x0d slot
     {
         return LineFunc(251,
@@ -25889,7 +25889,7 @@ int Dispatcher_StackableActionUse::process(CUser* user, MSG_BASE& msg, ParamBase
     short& echoSlot = *reinterpret_cast<short*>(pbase + 0x8);     // +0x08 回显槽位
     char& echoType = *reinterpret_cast<char*>(pbase + 0xa);       // +0x0a 回显类型
 
-    MSG_STACKABLE_ACTION_USE& req = static_cast<MSG_STACKABLE_ACTION_USE&>(msg);
+    MSG_STACKABLE_ACTION_USE& req = reinterpret_cast<MSG_STACKABLE_ACTION_USE&>(msg);
 
     err = check_error(user, msg);
     echoType = static_cast<char>(req.m_0f);
@@ -26019,7 +26019,7 @@ struct UseDyeDyeInfoView
 int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stUseDye& out = static_cast<stUseDye&>(param);
-    MSG_USE_DYE& req = static_cast<MSG_USE_DYE&>(msg);
+    MSG_USE_DYE& req = reinterpret_cast<MSG_USE_DYE&>(msg);
 
     int err = check_error(user, msg);
     out.m_4 = err;
@@ -26166,7 +26166,7 @@ int Dispatcher_Teleport::check_error(CUser* user, MSG_BASE& msg, ParamBase& para
     // pm/ref/party/out），money 三比较与两实参处每点重取 ref->m_addInfo/req 字段
     // （P48）；party 段 teleport/state 双现取（ORIG 2 组 call）；out 声明置 party 块后。
     // 同口径 fresh .o 复验 163→106（HEAD 值槽版更差）。残余=4.1 &&链 stub 重复比较布局。
-    MSG_TELEPORT& req = static_cast<MSG_TELEPORT&>(msg);
+    MSG_TELEPORT& req = reinterpret_cast<MSG_TELEPORT&>(msg);
     if (user->get_state() <= 2 || user->getCurCharacR() == 0)
         return -1;
     if (user->get_state() > 4)
@@ -26232,7 +26232,7 @@ int Dispatcher_Teleport::check_error(CUser* user, MSG_BASE& msg, ParamBase& para
 int Dispatcher_Teleport::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stTeleportParam& out = static_cast<stTeleportParam&>(param);
-    MSG_TELEPORT& req = static_cast<MSG_TELEPORT&>(msg);
+    MSG_TELEPORT& req = reinterpret_cast<MSG_TELEPORT&>(msg);
 
     out.m_4 = check_error(user, msg, param);
     if (out.m_4 > 0)
@@ -26569,7 +26569,7 @@ int Dispatcher_CeraPackageOpen::process(CUser* user, MSG_BASE& msg,
 // ==== Dispatcher_ExpertExtraction::read (ORIG 0x081d9336) ====
 int Dispatcher_ExpertExtraction::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_EXPERT_EXTRACTION& m = static_cast<MSG_EXPERT_EXTRACTION&>(msg);
+    MSG_EXPERT_EXTRACTION& m = reinterpret_cast<MSG_EXPERT_EXTRACTION&>(msg);
     if (!packet.get_byte(reinterpret_cast<char&>(m.m_0d)))
     {
         return LineFunc(0x45ac, __PRETTY_FUNCTION__, 0, 0);
@@ -26608,7 +26608,7 @@ int Dispatcher_ExpertExtraction::process(CUser* user, MSG_BASE& msg, ParamBase& 
         return LineFunc(0x45bf, __PRETTY_FUNCTION__, p.m_4, 0);
     }
 
-    MSG_EXPERT_EXTRACTION& m = static_cast<MSG_EXPERT_EXTRACTION&>(msg);
+    MSG_EXPERT_EXTRACTION& m = reinterpret_cast<MSG_EXPERT_EXTRACTION&>(msg);
     expert_extraction::CExtraction* ex = GlobalData::g_ExtractionMgr->get_extracter(
         expert_extraction::GetExtracterType((ENUM_EXPERT_JOB_TYPE)m.m_0d));
     if (ex == 0)
@@ -26653,7 +26653,7 @@ int Dispatcher_ExpertExtraction::check_error(CUser* user, MSG_BASE& msg)
     {
         return -1;
     }
-    MSG_EXPERT_EXTRACTION& m = static_cast<MSG_EXPERT_EXTRACTION&>(msg);
+    MSG_EXPERT_EXTRACTION& m = reinterpret_cast<MSG_EXPERT_EXTRACTION&>(msg);
 
     // b28d-D0: ORIG 0x081d966d `movzbl 0xd(%eax),%eax; movsbl %al,%eax` 两段
     //   ⇒ 源为 uchar 读 + 显式转 signed char 再入 enum（直接 (ENUM)m_0d 只出 movzbl）。
@@ -26761,7 +26761,7 @@ int Dispatcher_FatigueAttendance::check_error(CUser* user, MSG_BASE& msg)
 // ==== Dispatcher_FatigueAttendance::read (ORIG 0x081dafa4) ====
 int Dispatcher_FatigueAttendance::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_FATIGUE_ATTENDANCE& req = static_cast<MSG_FATIGUE_ATTENDANCE&>(msg);
+    MSG_FATIGUE_ATTENDANCE& req = reinterpret_cast<MSG_FATIGUE_ATTENDANCE&>(msg);
     // ORIG：get_int(&msg+0xd)；失败走 LineFunc(0x49b3)。
     if (!packet.get_int(req.m_0d))
     {
@@ -26778,7 +26778,7 @@ int Dispatcher_FatigueAttendance::read(PacketBuf& packet, MSG_BASE& msg)
 //   首差: push   %esi | sub    $0x40,%esp | mov    %eax,-0x2c(%ebp)
 int Dispatcher_FatigueAttendance::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_FATIGUE_ATTENDANCE& req = static_cast<MSG_FATIGUE_ATTENDANCE&>(msg);
+    MSG_FATIGUE_ATTENDANCE& req = reinterpret_cast<MSG_FATIGUE_ATTENDANCE&>(msg);
     // stFatigueAttendance 字段（现 m_pad[0x40] 占位；建议宿主字段化）：
     //   +0x04 int  errNo（check_error 结果，send 消费）
     //   +0x08 int  当日序号（= req.m_0d 回填，send 以 short 发出）
@@ -27657,7 +27657,7 @@ void Dispatcher_RequestIngameAdvertisement::sendRewardItemSystemMail(
 //   首差: sub    $0x9c,%esp | mov    %eax,-0x2c(%ebp) | mov    %eax,-0x28(%ebp)
 int Dispatcher_SeriaRoom_Ani_Deco_Event::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_SERIAROOM_DECO_EVENT& req = static_cast<MSG_SERIAROOM_DECO_EVENT&>(msg);
+    MSG_SERIAROOM_DECO_EVENT& req = reinterpret_cast<MSG_SERIAROOM_DECO_EVENT&>(msg);
     stSeriaRoomDecoEvent& res = static_cast<stSeriaRoomDecoEvent&>(param);
     int err = check_error(user, msg);
     res.m_4 = err;
@@ -27986,7 +27986,7 @@ void Dispatcher_Skill_Command_Customizing::send(CUser* user, ParamBase& param)
 // ==== Dispatcher_SoloTeleport::read (ORIG 0x081e1b9c) ====
 int Dispatcher_SoloTeleport::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_SOLO_TELEPORT& req = static_cast<MSG_SOLO_TELEPORT&>(msg);
+    MSG_SOLO_TELEPORT& req = reinterpret_cast<MSG_SOLO_TELEPORT&>(msg);
     // ORIG 0x081e1b9c：get_int 直收 `mov -0xc,%eax; add $0x30,%eax` 现址（无 temp+回写）。
     if (!packet.get_int(reinterpret_cast<int&>(req.m_30)))
     {
@@ -28046,7 +28046,7 @@ int Dispatcher_SoloTeleport::read(PacketBuf& packet, MSG_BASE& msg)
 //   首差: mov    %eax,-0x14(%ebp) | mov    0x10(%ebp),%eax | mov    -0x10(%ebp),%eax
 int Dispatcher_SoloTeleport::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    MSG_SOLO_TELEPORT& req = static_cast<MSG_SOLO_TELEPORT&>(msg);
+    MSG_SOLO_TELEPORT& req = reinterpret_cast<MSG_SOLO_TELEPORT&>(msg);
     stSoloTeleportParam& res = static_cast<stSoloTeleportParam&>(param);
 
     // ORIG:m_44 存全局槽地址(&g_pTeleport[0] 或 &g_pTeleport[1],即 Teleport**;
@@ -28099,7 +28099,7 @@ int Dispatcher_SoloTeleport::check_error(CUser* user, MSG_BASE& msg, ParamBase& 
     {
         return -1;
     }
-    MSG_SOLO_TELEPORT& req = static_cast<MSG_SOLO_TELEPORT&>(msg);
+    MSG_SOLO_TELEPORT& req = reinterpret_cast<MSG_SOLO_TELEPORT&>(msg);
     if (req.m_30 == -1 && req.m_34 == -1)
     {
         return -1;

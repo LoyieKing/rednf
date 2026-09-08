@@ -316,17 +316,29 @@ bool TCPSocket::connect_nonb(const char* host, unsigned short port,
                         // 全体高 4（-0x38 vs -0x3c）。
     result = ::connect(m_socket,
                        reinterpret_cast<struct sockaddr*>(&adrs), len);
-    // [b23S3C] ORIG 短路首项 shr $0x1f 物化形源不可翻（4.4 对 `result<0`/
-    // `(result>>31)!=0` 恒折 cmp/jns，N76 族）；FD_ZERO 手写位循环实测更差
-    // （4.4 数组写折 shl+add，N81）且 rep stos 形为 N78 跨版本，保留宏形。
+    // [b28d-solo-nexon_cash] N 封顶：ORIG 短路首项 `mov; shr $0x1f; test %al,%al;
+    // je`（4.1 符号位物化）；4.4 对 result<0 / (unsigned)result>>31 / (result>>31)
+    // 均折 `cmpl $0; jns`（N76 族，本次再证）。另 ORIG select 后 if 链的
+    // mov$1/jmp/test 汇聚物化（N3 族）与 getsockopt 实参右到左求值序（P75）同为
+    // 跨版本结构性差异；已修 FD_ZERO 显式循环/FD_SET unsigned/soError 无预清与
+    // 槽序，语义等价。
     if (result < 0 && errno != 0x73 /*EINPROGRESS*/ &&
         errno != EINTR && errno != EAGAIN && errno != EAGAIN)
         return false;
     if (result != 0)
     {
         fd_set writeSet;
-        FD_ZERO(&writeSet);
-        FD_SET(m_socket, &writeSet);
+        // [b28d-solo-nexon_cash] P212/P30：ORIG 0x081afb74 为显式位循环
+        // （i=0..0x1f, pset->fds_bits[i]=0 的 setbe/jne 回边），与 pollReadEvent
+        // 已 AE 的形一致；FD_ZERO 宏在 4.4 折 rep stos（N78 反形）。
+        unsigned int i;
+        fd_set* pset;
+        pset = &writeSet;
+        for (i = 0; i <= 0x1f; ++i)
+            pset->fds_bits[i] = 0;
+        // [b28d-solo-nexon_cash] ORIG 0x081afbb0 `shr $0x5` 无符号移位 ⇒ fd
+        // 实参须 unsigned（否则 4.4 出 sar+cmovs，N97）。
+        FD_SET(static_cast<unsigned int>(m_socket), &writeSet);
 
         result = ::select(m_socket + 1, 0, &writeSet, 0, &timeout);
         if (result < 0 && errno != EINTR)
@@ -334,8 +346,12 @@ bool TCPSocket::connect_nonb(const char* host, unsigned short port,
         if (result <= 0)
             return false;
 
-        int soError = 0;
+        // [b28d-solo-nexon_cash] P171：ORIG 0x081afc6a 无 soError 预清
+        // （仅 movl $0x4,-0x40 写 optLen），槽序 soError@-0x44/optLen@-0x40。
+        // [b28d-solo-nexon_cash] P212：块内 4.4 先声明占浅槽 ⇒ optLen 先声明
+        // 得 -0x40、soError 后声明得 -0x44（=ORIG 槽序）。
         socklen_t optLen = 4;
+        int soError;
         if (::getsockopt(m_socket, 1 /*SOL_SOCKET*/, 4 /*SO_ERROR*/,
                          &soError, &optLen) < 0)
             return false;
@@ -819,14 +835,16 @@ ByteBuffer& ByteBuffer::operator<<(const char* value)
 // [b28d-D43] N82/N89 大函数（124/124）：STL 实例化 + 槽平移（ORIG 0x081acd1e）。
 ByteBuffer& ByteBuffer::operator<<(const wchar_t* value)
 {
-    size_t len = wcslen(value);
-    size_t bytes = len * 2;
+    // [b28d-solo-nexon_cash] P0/P48：ORIG 0x081acd2d 的 wcslen 结果直接
+    // `add %eax,%eax`（无具名 len 局部槽），且 0x081ace63 在 wcsncpy 前二次
+    // 调 wcslen ⇒ 原码无 len 局部，字节数就地计算。
+    size_t bytes = wcslen(value) * 2;
     if (bytes > (size_t)std::numeric_limits<unsigned short>::max())
         throw std::invalid_argument("string too long");
     if (static_cast<unsigned int>(length() + bytes) <= m_capacity)
     {
         *this << static_cast<unsigned short>(bytes);
-        wcsncpy(reinterpret_cast<wchar_t*>(m_writePtr), value, len);
+        wcsncpy(reinterpret_cast<wchar_t*>(m_writePtr), value, wcslen(value));
         m_writePtr += bytes;
     }
     return *this;
@@ -1203,34 +1221,6 @@ unsigned int TransactionManager::getNextTransactionID()
 // 由计费库链接期提供，此处仅声明。
 // ===========================================================================
 
-namespace {
-
-// chargeCash 的函数作用域静态工作缓冲（ORIG b 符号实证）：
-//   data@0x09405640 / wide_data@0x9405a40 / enc_data@0x94069e0 / send_data@0x9407980
-struct ChargeCashBuffers
-{
-    char     data_[1000];
-    wchar_t  wideData_[2000];
-    wchar_t  encData_[2000];
-    char     sendData_[1000];
-};
-ChargeCashBuffers& ccBufs()
-{
-    static ChargeCashBuffers bufs;   // 等价 ORIG 四个独立函数级 static
-    return bufs;
-}
-
-
-
-inline void traceRecvError(int errCode, const char* plain)
-{
-    cMyTrace trace(__FUNCTION__, 0x303, 0);
-    trace("NCashImpl::chargeCash Recv Error!! packet_id:%d, data:%s",
-          errCode, plain);
-}
-
-}  // namespace
-
 // ===========================================================================
 // NCashImpl
 // ===========================================================================
@@ -1456,7 +1446,10 @@ Lsilent:
 }
 
 // ORIG 0x081ad316：手组包头（不走 set_data_header！仅自增 requestID 不写入）。
-// [b28d-D43] N82/N95 帧/槽平移（大函数 106/112）（ORIG 0x081ad316）。
+// [b28d-solo-nexon_cash] N 封顶：rc 预清/三元组无预清/声明序已归位后，残余
+// 仅为 ORIG 0x081ad430 wrap 实参装载寄存器差（ORIG `lea in,%edx; mov body,%eax`
+// vs 4.4 `mov body,%edx; lea in,%eax`，P75/N7 跨版本装载调度，our 107 vs
+// orig 106），语义等价。
 int NCashImpl::checkEntrance(const char* userName, char& outStatus)
 {
     if (!reconnect())
@@ -1471,7 +1464,9 @@ int NCashImpl::checkEntrance(const char* userName, char& outStatus)
     out << userName;
     _increaseRequestID();  // ORIG: 自增但不入包
 
-    int rc = send_msg(out.length());
+    // [b28d-solo-nexon_cash] P198①：ORIG 0x081ad3a9 预清 rc 后才 call send_msg。
+    int rc = 0;
+    rc = send_msg(out.length());
     if (rc != 0)
         return rc;
 
@@ -1479,10 +1474,12 @@ int NCashImpl::checkEntrance(const char* userName, char& outStatus)
     if (rc != 0)
         return rc;
 
+    // [b28d-solo-nexon_cash] P212/P171：ackPid/statusByte 先声明占浅槽
+    // （ORIG -0x21/-0x22）、in 后声明占深槽 -0x34；ORIG 无 movb $0 预清。
+    unsigned char ackPid;
+    unsigned char statusByte;
     ByteBuffer in = ByteBuffer::wrap(reinterpret_cast<char*>(m_inMsg.body()),
                                      m_inMsg.body_length());
-    unsigned char ackPid = 0;
-    unsigned char statusByte = 0;
     in >> ackPid;
     in >> statusByte;
     outStatus = static_cast<char>(statusByte);
@@ -1501,7 +1498,9 @@ int NCashImpl::getBalance(const char* userId, int& balanceOut)
     ByteBuffer msg = set_data_header(0x00, 0x00);
     msg << userId;
 
-    int rc = send_msg(msg.length());
+    // [b28d-solo-nexon_cash] P198①：ORIG 0x081ad4de 预清 rc 后才 call send_msg。
+    int rc = 0;
+    rc = send_msg(msg.length());
     if (rc != 0)
         return rc;
 
@@ -1509,14 +1508,16 @@ int NCashImpl::getBalance(const char* userId, int& balanceOut)
     if (rc != 0)
         return rc;
 
-    unsigned char ackPid = 0, errCode = 0;
-    unsigned int reqId = 0;
-    get_data_header(ackPid, errCode, reqId);
+    // [b28d-solo-nexon_cash] 真语义 bug：ORIG 0x081ad58c 直接复用
+    // get_data_header 的 sret 对象（-0x34）继续 `in >> balanceOut`（读 body
+    // 第 4 个字段）；旧形重新 wrap 入包 body 从头读（字段错位 + 多 3 调用）。
+    // P171/P212：三元组无预清；具名 in 承载 sret（与 msg@-0x1c 同布局）。
+    unsigned char ackPid, errCode;
+    unsigned int reqId;
+    ByteBuffer in = get_data_header(ackPid, errCode, reqId);
     if (errCode != 0)
         return handle_cash_error(errCode);
 
-    ByteBuffer in = ByteBuffer::wrap(reinterpret_cast<char*>(m_inMsg.body()),
-                                     m_inMsg.body_length());
     in >> balanceOut;
     printf("[%s] Remain cash: %d\n", __FUNCTION__, balanceOut);
     return 0;
@@ -1637,21 +1638,25 @@ int NCashImpl::gift(unsigned long long productSeq, int cashType,
     msg << extra1;
     msg << extra2;
 
-    int rc = send_msg(msg.length());
+    // [b28d-solo-nexon_cash] P198①：ORIG 0x081adae2 预清 rc 后才 call send_msg。
+    int rc = 0;
+    rc = send_msg(msg.length());
     if (rc != 0)
         return rc;
     rc = recv_msg();
     if (rc != 0)
         return rc;
 
-    unsigned char ackPid = 0, errCode = 0;
-    unsigned int reqId = 0;
-    get_data_header(ackPid, errCode, reqId);
+    // [b28d-solo-nexon_cash] 真语义 bug（同 getBalance）：ORIG 0x081adb81 复用
+    // get_data_header 的 sret 对象（-0x34）继续读 trOut.m_type/m_id；旧形重新
+    // wrap 入包 body 从头读（字段错位 + 多 C1/body/body_length/wrap 4 调用）。
+    // 三元组无预清（P171），具名 in 承载 sret（msg@-0x1c 同布局）。
+    unsigned char ackPid, errCode;
+    unsigned int reqId;
+    ByteBuffer in = get_data_header(ackPid, errCode, reqId);
     if (errCode != 2)
         return handle_cash_error(errCode);
 
-    ByteBuffer in = ByteBuffer::wrap(reinterpret_cast<char*>(m_inMsg.body()),
-                                     m_inMsg.body_length());
     in >> trOut.m_type;
     in >> trOut.m_id;
     printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", __FUNCTION__,
@@ -1724,7 +1729,8 @@ int NCashImpl::cancel(unsigned char trFlag, unsigned int trId)
 
     unsigned char ackPid, errCode;
     unsigned int reqId;
-    // [b28d-solo-nexon_cash] P212 试形：具名 in 承载 get_data_header 的 sret。
+    // [b28d-solo-nexon_cash] P212：具名 in 承载 get_data_header 的 sret，令 4.4
+    // 槽位与 ORIG 全等（msg@-0x1c / sret@-0x34）⇒ AE。
     ByteBuffer in = get_data_header(ackPid, errCode, reqId);
     (void)in;
     // [b28d-solo-nexon_cash] 真语义 bug：同 confirm（ORIG 0x081ade11 后
@@ -1735,66 +1741,103 @@ int NCashImpl::cancel(unsigned char trFlag, unsigned int trId)
     return 0;
 }
 
-// ORIG 0x081ade34：无 reconnect 前置；组"%s|%i|%i|%s|%s|%s|%s|%i" 明文 →
+// ORIG 0x081ade34：无 reconnect 前置；组"%s|%i|%i|%i|%s|%s|%s|%s|%i" 明文 →
 // mbstowcs → Adler32(宽串字节) → EncodeDressStringWide(key=0x1b1bde64) →
 // wcstombs 回 ASCII 密文入包 + 协议键 qword + adler qword。
-// snprintf token-to-slot 错位处标【推断】（见批次报告 artifact://58982 复核指引）。
-// [b28d-D43] N82/N89 大函数（196/223）（ORIG 0x081ade34）。
+// [b28d-solo-nexon_cash] 本波修真 bug 3 处：①4 个函数级 static 缓冲（ORIG 符号
+// _ZZ...E4data/E9wide_data/E8enc_data/E9send_data，尺寸 0x3e8/0xfa0/0xfa0/0x3e8）
+// 替代 struct+getter（旧形发明符号 + memset 长度 0x1f40 错）；②格式串 9 token
+// （iv/code 为 %i，旧形漏传 pD/code 且 iv 当 char*）；③adler 为 unsigned long long
+// （8 字节槽 0x081adfdd）。帧/槽已全对齐；N 封顶残余 = 4.1 局部物化/EH 段差
+// （P0/N82 族，our 200 vs orig 196，多数为 .o 重定位伪差）。
 int NCashImpl::chargeCash(char* sessionKey, unsigned char h1, unsigned char h2,
                           int iv, char* pA, char* pB, char* pC, char* pD,
                           int code, NXTransaction& trOut)
 {
-    ChargeCashBuffers& bufs = ccBufs();
-    memset(bufs.data_, 0, sizeof(bufs.data_));
-    memset(bufs.wideData_, 0, sizeof(bufs.wideData_));
-    memset(bufs.encData_, 0, sizeof(bufs.encData_));
-    memset(bufs.sendData_, 0, sizeof(bufs.sendData_));
+    // [b28d-solo-nexon_cash] ORIG 4 个函数级 static 缓冲（nm 实证）：
+    // _ZZ...chargeCash...E4data@0x09405640(0x3e8) / E9wide_data@0x9405a40(0xfa0)
+    // / E8enc_data@0x94069e0(0xfa0) / E9send_data@0x9407980(0x3e8)，均 b 段。
+    // 旧 struct+ccBufs() getter 造发明符号且访问经局部引用缓存；ORIG 每次直压
+    // 静态地址立即数 ⇒ 必须函数内 static 声明。
+    // [b28d-solo-nexon_cash] nm 尺寸实证：data/send_data 0x3e8、wide_data/enc_data
+    // 0xfa0（wchar_t=4B ⇒ wchar_t[1000]；旧 [2000] 使 memset 长度 0x1f40 与 ORIG
+    // 的 0xfa0 不符且符号尺寸翻倍）。
+    static char data[1000];
+    static wchar_t wide_data[1000];
+    static wchar_t enc_data[1000];
+    static char send_data[1000];
+
+    memset(data, 0, sizeof(data));
+    memset(wide_data, 0, sizeof(wide_data));
+    memset(enc_data, 0, sizeof(enc_data));
+    memset(send_data, 0, sizeof(send_data));
 
     ByteBuffer msg = set_data_header(0x02, 0x01);
 
-    (void)iv;
-    (void)code;  // ORIG varargs 保留区【推断】：token 消费只覆盖前 8 个
+    // [b28d-solo-nexon_cash] ORIG 0x081ade75..0x081ade83：set_data_header 后
+    // 立即 3 条 movl（-0x2c=0xe8c3f80b 未消费槽 + -0x28/-0x24=qword key
+    // 0x00000000F3D8266F）⇒ 原码为具名局部（P232 dead 标量照样占槽）。
+    int deadField = static_cast<int>(0xe8c3f80bu);
+    unsigned long long frameKey = 0x00000000F3D8266FULL;
+    (void)deadField;
 
-    snprintf(bufs.data_, sizeof(bufs.data_),
-             "%s|%i|%i|%s|%s|%s|%s|%i",
+    // [b28d-solo-nexon_cash] 真语义 bug：ORIG 0x081adefa..0x081adf2a 在栈上
+    // 构造 27 字节 fmt = "%s|%i|%i|%i|%s|%s|%s|%s|%i"（9 token），并在
+    // 0x081adf3c..0x081adf6a 压 9 个变参 sessionKey,h1,h2,iv,pA,pB,pC,pD,code
+    // （0x18(%ebp)=iv 与 0x2c(%ebp)=code 均参与）⇒ 旧形把 iv 当 char* cast、
+    // 少传 pD/code 且 fmt 仅 8 token（输出串错位）。
+    char fmt[] = "%s|%i|%i|%i|%s|%s|%s|%s|%i";
+    snprintf(data, sizeof(data), fmt,
              sessionKey,
              static_cast<int>(h1),
              static_cast<int>(h2),
-             reinterpret_cast<char*>(static_cast<size_t>(iv)),
-             pA, pB, pC, pD);
+             iv,
+             pA, pB, pC, pD,
+             code);
 
-    size_t len = strlen(bufs.data_) + 1;
-    mbstowcs(bufs.wideData_, bufs.data_, len);
+    size_t len = strlen(data) + 1;
+    mbstowcs(wide_data, data, len);
 
-    size_t wlen = wcslen(bufs.wideData_);
-    unsigned int adler = Encryption::Adler32(
-        reinterpret_cast<char*>(bufs.wideData_),
-        static_cast<unsigned int>(wlen * 2));
+    // [b28d-solo-nexon_cash] P0/P211：ORIG 0x081adfc4 的 wcslen 结果直接
+    // `lea (%eax,%eax,1),%edx`（无 wlen 具名槽）；Adler32 返回值零扩展后存
+    // 8 字节槽（0x081adfdd `mov $0x0,%edx` + -0x18/-0x14）⇒ 原码是
+    // unsigned long long adler。
+    unsigned long long adler = Encryption::Adler32(
+        reinterpret_cast<char*>(wide_data),
+        static_cast<unsigned int>(wcslen(wide_data) * 2));
 
-    Encryption::EncodeDressStringWide(bufs.wideData_, bufs.encData_,
+    Encryption::EncodeDressStringWide(wide_data, enc_data,
                                       0x1b1bde64u);
 
-    size_t enclenChars = wcslen(bufs.encData_);
-    wcstombs(bufs.sendData_, bufs.encData_, enclenChars);
+    size_t enclenChars = wcslen(enc_data);
+    wcstombs(send_data, enc_data, enclenChars);
 
-    msg << bufs.sendData_;
-    msg << 0x00000000F3D8266FULL;         // [-0x28/-0x24] 帧 key【推断】
-    msg << static_cast<unsigned long long>(adler);
+    msg << send_data;
+    msg << frameKey;                      // [-0x28/-0x24] 帧 key
+    msg << adler;
 
-    int rc = send_msg(msg.length());
+    // [b28d-solo-nexon_cash] P198①：ORIG 预清 rc 后才 call send_msg。
+    int rc = 0;
+    rc = send_msg(msg.length());
     if (rc != 0)
         return rc;
     rc = recv_msg();
     if (rc != 0)
         return rc;
 
-    unsigned char ackPid = 0, errCode = 0;
-    unsigned int reqId = 0;
+    // [b28d-solo-nexon_cash] P171：三元组无预清。
+    unsigned char ackPid, errCode;
+    unsigned int reqId;
     get_data_header(ackPid, errCode, reqId);
 
     if (errCode != 2)
     {
-        traceRecvError(static_cast<int>(errCode), bufs.data_);
+        // [b28d-solo-nexon_cash] §4.1/P154：删发明符号
+        // _ZN5nexon4cash12_GLOBAL__N_114traceRecvErrorEiPKc（ORIG nm 无此符号）。
+        // ORIG 0x081ae105..0x081ae145 为就地具名 cMyTrace 两句式（ctor + op()）。
+        cMyTrace trace(__FUNCTION__, 0x303, 0);
+        trace("NCashImpl::chargeCash Recv Error!! packet_id:%d, data:%s",
+              static_cast<int>(errCode), data);
         return static_cast<int>(errCode);
     }
 
