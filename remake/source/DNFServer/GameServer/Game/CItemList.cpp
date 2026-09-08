@@ -1464,7 +1464,7 @@ void CItemList::getCeraShopBonusItem(int idx, unsigned long& outItem,
                 it->m_items.end();
             while (it2 != end2)
             {
-                sum = it2->m_field8 + sum;
+                sum = sum + it2->m_field8;
                 if (sum > rand)
                 {
                     // ORIG 仅写 64 位出参低 32 位（int→ulong 不做零扩展高位写）。
@@ -2162,8 +2162,8 @@ bool CCompound_ExtreamDun_Item::_AddItem(CEquipItem& item)          // ORIG 0x83
     }
     // ORIG 槽：entry@-0x1c、entry2@-0x14（连排声明复现槽序）。
     OUTPUT_ITEM_STR entry(item.getUsableLevel(), item.get_index());
-    OUTPUT_ITEM_STR entry2(item.getUsableLevel(), item.get_index());
     m_data.m_resultItems[cat].push_back(static_cast<OUTPUT_ITEM_STR&&>(entry));
+    OUTPUT_ITEM_STR entry2(item.getUsableLevel(), item.get_index());
     m_data.m_bindItems[item.getItemGroupName()][cat].push_back(
         static_cast<OUTPUT_ITEM_STR&&>(entry2));
     return true;
@@ -2218,9 +2218,13 @@ bool CCompound_ExtreamDun_Item::_isPossibleResultItem(              // ORIG 0x83
 
     if (item.get_gen_rate() == 0)
     {
-        return _convertInputItem(
-                   (ENUM_UNUSABLE_EQUIPMENT_TYPE)
-                       item.GetUsableEquipmentType()) == 1;
+        if (_convertInputItem(
+                (ENUM_UNUSABLE_EQUIPMENT_TYPE)
+                    item.GetUsableEquipmentType()) == 1)
+        {
+            return true;
+        }
+        return false;
     }
 
     // gen_rate!=0 → 虚表槽 +0x4c 回调裁决（非零→false，零→true）。
@@ -2526,16 +2530,18 @@ CCompound_ExtreamDun_Item::_determine_level_bonus(
     // ORIG +0xb8c+bind*0x30+0xc：**m_rates[0]**（不随 inRarity；rarity 只入
     // _index）。返回 pair(下界=v[idx-1]+1, 上界=v[idx])（+0xca61-0xcbf1 装配实证，
     // 0x4(%esp)=first 临时、0x8=second 引用）。
-    const std::vector<unsigned int>& rates =
-        m_lvBonus[(int)bind].m_rates[0];
-    if (idxOut == 0 || rates.size() <= idxOut)
+    // [b28d-solo] P183/P157：ORIG 无 rates 引用局部（每次重算
+    // m_lvBonus[bind].m_rates[0] 地址；0x832c9ca 段 `add $0xb80; add 0xc(%ebp);
+    // add $0xc` 逐次出现）⇒ 去缓存引用。
+    if (idxOut == 0 || m_lvBonus[(int)bind].m_rates[0].size() <= idxOut)
     {
         int lo = 0;
         int hi = 0;
         return std::pair<unsigned int, unsigned int>(lo, hi);  // pair<int,int> 形
     }
-    return std::pair<unsigned int, unsigned int>(rates[idxOut - 1] + 1,
-                                                 rates[idxOut]);
+    return std::pair<unsigned int, unsigned int>(
+        m_lvBonus[(int)bind].m_rates[0][idxOut - 1] + 1,
+        m_lvBonus[(int)bind].m_rates[0][idxOut]);
 }
 
 // [b28d-20] _determine_level_bonus（ORIG 0x832cadc，95/83，nd 71）：同 Eii 版

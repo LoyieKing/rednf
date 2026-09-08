@@ -15,9 +15,9 @@
 //   +0x0ac m_fieldAC        OnConnectP2P 完成连接计数
 //   +0x0b0 m_fieldB0        已完赛局数（OnReward ++，<3 允许续赛）
 //   +0x0b4 m_fieldB4        _SetEnterCharacNo 写入的进场角色号
-//   +0x0b8 m_fieldB8        队0 队长座位（OnMatchRoom 存 GetManagerSeat()；
+//   +0x0b8 m_leaderSeat[0]  队0 队长座位（OnMatchRoom 存 GetManagerSeat()；
 //                           OnAskRematch 存队伍重赛决定，双用【推断】）
-//   +0x0bc m_fieldBC        队1 队长座位（OnMatchRoom 尾 get_user_seat(房主)；
+//   +0x0bc m_leaderSeat[1]  队1 队长座位（OnMatchRoom 尾 get_user_seat(房主)；
 //                           双用同上）
 //   +0x0c0 m_fieldC0        IMatch* next match（GetNextMatch/SetNextMatch 槽）
 //
@@ -151,15 +151,17 @@ int CFairMatch::CheckJoinable(PvP_Room* room, CUser* user)
         return 1;
     // ORIG +0x2e：pc 直落 callee-saved %ebx 跨 GetPlayCountPerOneTeam 调用。
     register const int pc = room->get_player_count();
-    // b28d-196/211：ORIG `cmp %eax,%ebx; setge`（ebx=pc 为左操作数）⇒ 源码按
-    // `pc >= X` 书写（`X <= pc` 反产 cmp %ebx,%eax; setle，语义等价但寄存器序反）。
-    if ((bool)(pc >= static_cast<int>(
-            static_cast<unsigned char>(GetPlayCountPerOneTeam())) * 2))
+    // b28d-196/211：ORIG `cmp %eax,%ebx; setge %al; test %al,%al; je`（ebx=pc
+    // 为左操作数）⇒ 试 P225 X3 形（while+单 return 复现 4.1 的 setcc 四段物化）。
+    while (pc >= static_cast<int>(
+               static_cast<unsigned char>(GetPlayCountPerOneTeam())) * 2) {
         return 4;
+    }
     register const int total = m_teams[0].size() + m_teams[1].size();
-    if ((bool)(total > static_cast<int>(
-            static_cast<unsigned char>(GetPlayCountPerOneTeam())) * 2))
+    while (total > static_cast<int>(
+               static_cast<unsigned char>(GetPlayCountPerOneTeam())) * 2) {
         return 4;
+    }
     // ORIG +0x8d..0x99 跳表（cmp $5/ja/jmp *table）⇒ switch（P17）；
     // 叶块排布序 = case 书写序（P46）：0 → 3 → 1/4/5 与 default。
     switch (m_field04) {
@@ -243,13 +245,16 @@ bool CFairMatch::CheckMatchable(IMatch* other)
     // i@-0xc（4.1 先声明更深）⇒ 两个 CUser* 均声明在函数头，myUser 在前。
     CUser* myUser = 0;
     CUser* otherUser = 0;
-    for (int i = 0; i < 4; ++i) {
+    // b28d-solo-CFairMatchRooms：ORIG 两个循环共用同一 i 槽（-0xc）⇒ i 提到
+    // 函数头声明一次（4.4 对两个独立 for-init i 各占一槽，整体槽深 +4）。
+    int i;
+    for (i = 0; i < 4; ++i) {
         otherUser = other->GetUser(static_cast<unsigned>(i));
         if (otherUser != 0) break;
     }
     if (otherUser == 0) return false;
 
-    for (int i = 0; i < 4; ++i) {
+    for (i = 0; i < 4; ++i) {
         myUser = GetUser(static_cast<unsigned>(i));
         if (myUser != 0) break;
     }
@@ -324,8 +329,8 @@ int CFairMatch::OnCreateRoom(CUser* user)
     m_teams[0].add(user);
     m_fieldB0 = 0;
     m_fieldB4 = 0;
-    m_fieldB8 = 0;
-    m_fieldBC = 0;
+    m_leaderSeat[0] = 0;
+    m_leaderSeat[1] = 0;
     m_fieldC0 = 0;
     return 0;
 }
@@ -389,19 +394,24 @@ void CFairMatch::_ChangeTeamLeader(PvP_Room* room,
                                    ENUM_SCHOOL_MATCH_TEAM teamIdx,
                                    int oldLeaderSeat)
 {
+    // b28d-solo-CFairMatchRooms：Ghidra C 实证 ORIG 每次访问均重算
+    // `*(int*)(this + (teamIdx+0x2c)*4 + 8)`（数组索引形，无引用局部槽；
+    // 三目引用形会生 cmpl/jne/add 分支 + -0x14 引用槽）。循环内亦直接
+    // 逐字段重算地址（P157/P183 去引用缓存）。
     CUser* newLeader = 0;
-    int& leaderSeatRef = (teamIdx == 0) ? m_fieldB8 : m_fieldBC;
-    if (leaderSeatRef == oldLeaderSeat) {
+    if (m_leaderSeat[teamIdx] == oldLeaderSeat) {
         for (int i = 0; i < 4; ++i) {
-            PlayerInfoThird& s = m_teams[teamIdx].m_players[i];
-            if (s.m_flag != 0) { newLeader = s.m_user; break; }
+            if (m_teams[teamIdx].m_players[i].m_flag != 0) {
+                newLeader = m_teams[teamIdx].m_players[i].m_user;
+                break;
+            }
         }
     }
     if (newLeader != 0) {
-        leaderSeatRef = room->get_user_seat(newLeader);
+        m_leaderSeat[teamIdx] = room->get_user_seat(newLeader);
         PacketGuard pkt;
         pkt.put_header(0, 0x13d);
-        pkt.put_short(leaderSeatRef);
+        pkt.put_short(m_leaderSeat[teamIdx]);
         pkt.finalize(true);
         m_teams[teamIdx].SendToTeam(pkt);
     }
@@ -716,7 +726,7 @@ int CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
         return 0;
 
     room->setReamtchable(GetPlayCountPerOneTeam() == 1);
-    m_fieldB8 = room->GetManagerSeat();
+    m_leaderSeat[0] = room->GetManagerSeat();
 
     IMatch* other = 0;
     bool matched = pWaitingRoomList_ != 0 && pWaitingRoomList_->Match(this, &other);
@@ -735,15 +745,19 @@ int CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
         {
+            // b28d-solo-CFairMatchRooms：Ghidra C 实证——单一 nameBuf[256]={0}
+            // （4.1 全量清零展开 rep stos，~15 条）+ 复用同一缓冲两次 GetUserName，
+            // CSwitchLog 对象紧跟各自 GetUserName 之后构造。
+            char nameBuf[256] = {0};
+            GetUserName(this, nameBuf);
             CSwitchLog l0("virtual bool fair_pvp::CFairMatch::OnMatchRoom(PvP_Room*, int)",
                           0xcb0, 0, 0);
-            char nameBuf[256]; GetUserName(this, nameBuf);
             l0("pvp@log 1 call match(%x), %s ",
                reinterpret_cast<void*>(this), nameBuf);
-            char nameBuf2[256]; GetUserName(other, nameBuf2);
+            GetUserName(other, nameBuf);
             CSwitchLog l1("virtual bool fair_pvp::CFairMatch::OnMatchRoom(PvP_Room*, int)",
                           0xcb1, 0, 0);
-            l1("pvp@log 1 opposite match(%x), %s ", other, nameBuf2);
+            l1("pvp@log 1 opposite match(%x), %s ", other, nameBuf);
         }
         return 0;
     }
@@ -753,15 +767,18 @@ int CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
         m_field04 = 2;
         _SendMatchStatePacket(1, 1);
         {
+            // b28d-solo-CFairMatchRooms：同 0xcb0 块（Ghidra C 实证同一 nameBuf
+            // 清零一次并复用两次）。
+            char nameBuf[256] = {0};
+            GetUserName(this, nameBuf);
             CSwitchLog l0("virtual bool fair_pvp::CFairMatch::OnMatchRoom(PvP_Room*, int)",
                           0xcbb, 0, 0);
-            char nameBuf[256]; GetUserName(this, nameBuf);
             l0("pvp@log 2 call match(%x), %s ",
                reinterpret_cast<void*>(this), nameBuf);
-            char nameBuf2[256]; GetUserName(other, nameBuf2);
+            GetUserName(other, nameBuf);
             CSwitchLog l1("virtual bool fair_pvp::CFairMatch::OnMatchRoom(PvP_Room*, int)",
                           0xcbc, 0, 0);
-            l1("pvp@log 2 opposite match(%x), %s ", other, nameBuf2);
+            l1("pvp@log 2 opposite match(%x), %s ", other, nameBuf);
         }
         return 0;
     }
@@ -798,7 +815,7 @@ int CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
         _SendMatchStatePacket(3, 2);
         _MoveRoom(moveTarget, room, leaderTeamSide == 0);
     }
-    m_fieldBC = room->get_user_seat(managerUser);
+    m_leaderSeat[1] = room->get_user_seat(managerUser);
     if (pWaitingRoomList_) pWaitingRoomList_->DelRoom(this);
     m_field04 = 4;
     _SendMatchStatePacket(2, 2);
@@ -817,7 +834,7 @@ int CFairMatch::OnMatchRoom(PvP_Room* room, int notifyId)
     for (int t = 0; t < 2; ++t) {
         pkt.clear();
         pkt.put_header(0, 0x13d);
-        pkt.put_short((t == 0) ? m_fieldB8 : m_fieldBC);
+        pkt.put_short(m_leaderSeat[t]);
         pkt.finalize(true);
         m_teams[t].SendToTeam(pkt);
     }
@@ -882,12 +899,15 @@ int CFairMatch::_PullOutRoomTeam(PvP_Room* room, ENUM_SCHOOL_MATCH_TEAM teamIdx)
     }
     int lastTeam = 0;
     for (int i = 0; i < 4; ++i) {
-        PlayerInfoThird& s = m_teams[teamIdx].m_players[i];
-        if (s.m_flag != 0 && s.m_user != 0) {
-            const int seat = room->get_user_seat(s.m_user);
+        // b28d-solo-CFairMatchRooms：P157/P183 去引用缓存（ORIG 每处字段访问
+        // 重算完整地址，无引用槽）。
+        if (m_teams[teamIdx].m_players[i].m_flag != 0 &&
+            m_teams[teamIdx].m_players[i].m_user != 0) {
+            const int seat =
+                room->get_user_seat(m_teams[teamIdx].m_players[i].m_user);
             if (seat != -1) {
                 lastTeam = room->get_team(seat);
-                _PullOutRoom(s.m_user, room, seat);
+                _PullOutRoom(m_teams[teamIdx].m_players[i].m_user, room, seat);
             }
         }
     }
@@ -997,14 +1017,20 @@ void CFairMatch::UpdateScore(PvP_Room* room, PlayerInfoThird& info,
                              int win, int lose, int result)
 {
     (void)teamIdx;
-    (void)info;
     for (int i = 0; i < 4; ++i) {
-        PlayerInfoThird& s = m_teams[teamIdx].m_players[i];
-        if (s.m_flag == 0 || s.m_user == 0)
+        // b28d-solo-CFairMatchRooms：P157/P183 去引用缓存（ORIG 每处字段访问
+        // 重算 `this + i*0x10 + teamIdx*0x48 + 0x24/0x28`，无指针槽）。
+        if (m_teams[teamIdx].m_players[i].m_flag == 0 ||
+            m_teams[teamIdx].m_players[i].m_user == 0)
             continue;
-        CUser* user = s.m_user;
+        CUser* user = m_teams[teamIdx].m_players[i].m_user;
         const int seat = room->get_user_seat(user);
-        if (seat < 0 || seat > 7)
+        // b28d-solo-CFairMatchRooms：ORIG（Ghidra C）为两条独立早返
+        // （`if (seat < 0) return; if (7 < seat) return;`），合并 || 会产
+        // 不同控制流（P133）。
+        if (seat < 0)
+            return;
+        if (seat > 7)
             return;
         {
             CSwitchLog log(
@@ -1018,12 +1044,13 @@ void CFairMatch::UpdateScore(PvP_Room* room, PlayerInfoThird& info,
         CRelayBattleMgr& relay = room->m_relayMgr;   // PvP_Room +0x620
         const int killCnt = relay.GetKillCount(seat);
         const unsigned playCount = GetPlayCountPerOneTeam() & 0xff;
-        // ORIG asm：job=info+5 字节、subKey=info+6 低 nibble（info 为队长视图）
-        PlayerInfoThird& cap = m_teams[teamIdx].m_players[0];
+        // b28d-solo-CFairMatchRooms：ORIG（Ghidra C）job=param_2+5、
+        // grow=param_2+6 低 nibble —— param_2 即本函数第 2 参 info。
+        // 原实现取 m_teams[teamIdx].m_players[0] 属真语义偏差（契约应为形参）。
         CFairPvPScore* score = reinterpret_cast<CFairPvPScore*>(
             user->GetCharacExpandData(static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)));
-        score->UpdateScore(static_cast<int>(cap.m_kind.m_job),
-                           cap.m_kind.m_grow & 0xf,
+        score->UpdateScore(static_cast<int>(info.m_kind.m_job),
+                           info.m_kind.m_grow & 0xf,
                            static_cast<int>(playCount),
                            win, lose, result, killCnt);
 
@@ -1403,7 +1430,7 @@ void CFairMatch::OnConnectP2PTimeout(PvP_Room* room)
     if (m_field04 == 4) {
         _SendMatchStatePacket(4, 2);
         int mgrTeam = room->get_manager_team();
-        _ReturnTeam(room, mgrTeam, 0);
+        _ReturnTeam(room, mgrTeam, static_cast<CUser*>(0));
         if (mgrTeam != 1) {
             m_teams[0] = m_teams[1];
         }
@@ -1475,16 +1502,21 @@ void CFairMatch::OnConnectP2P(CUser* user, PvP_Room* room,
 // school_match_elo_k_ 定义尚未由任何 TU 提供（仅 ORIG 符号）。
 void CFairMatch::_UpdateRating(int teamNo, ENUM_ELO_RATING_SYSTEM system)
 {
-    float oppositeRating = 0.0f;
+    // b28d-solo-CFairMatchRooms：ORIG 槽序 memberRating@-0x18（浅）/
+    // oppositeRating@-0x1c（深）⇒ 4.4 按首次使用序，声明序须 memberRating 在前。
     float memberRating = 0.0f;
+    float oppositeRating = 0.0f;
     CUser* member = 0;
     if (teamNo == 1) {
         oppositeRating = static_cast<float>(m_teams[1].GetTeamRating());
         for (int i = 0; i < 4; ++i) {
-            PlayerInfoThird& s = m_teams[0].m_players[i];
-            if (s.m_flag != 0 && s.m_user != 0) {
-                member = s.m_user;
-                memberRating = s.m_rating;
+            // b28d-solo-CFairMatchRooms：P157/P183 去引用缓存——ORIG 每处字段
+            // 访问都重算完整地址（mov i; mov this; add $1; shl $4; add; add $0x14），
+            // 无 -0x14 指针槽。
+            if (m_teams[0].m_players[i].m_flag != 0 &&
+                m_teams[0].m_players[i].m_user != 0) {
+                member = m_teams[0].m_players[i].m_user;
+                memberRating = m_teams[0].m_players[i].m_rating;
                 CEloRating::calc(memberRating, oppositeRating, system,
                                  PvPGlobalEnvironmentVariable::school_match_elo_k_);
                 member->UpdateRating(memberRating);
@@ -1493,10 +1525,10 @@ void CFairMatch::_UpdateRating(int teamNo, ENUM_ELO_RATING_SYSTEM system)
     } else {
         oppositeRating = static_cast<float>(m_teams[0].GetTeamRating());
         for (int i = 0; i < 4; ++i) {
-            PlayerInfoThird& s = m_teams[1].m_players[i];
-            if (s.m_flag != 0 && s.m_user != 0) {
-                member = s.m_user;
-                memberRating = s.m_rating;
+            if (m_teams[1].m_players[i].m_flag != 0 &&
+                m_teams[1].m_players[i].m_user != 0) {
+                member = m_teams[1].m_players[i].m_user;
+                memberRating = m_teams[1].m_players[i].m_rating;
                 CEloRating::calc(memberRating, oppositeRating, system,
                                  PvPGlobalEnvironmentVariable::school_match_elo_k_);
                 member->UpdateRating(memberRating);

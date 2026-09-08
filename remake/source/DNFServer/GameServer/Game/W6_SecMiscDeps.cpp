@@ -82,7 +82,7 @@ void WongWork::CSecurityCardCenter::init()
     // 逐个 push 进 m_characterSet；+0x484 置 1。（字符集数据段 0x93ac1e0）
     static const unsigned char characterSet[] =
         "+<>?@#$&ABCDEFGHIJKLMNPQRSTUVWXYZ123456789";
-    Initialize("n6;fw;vjfs0fuguf", 0x10, CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
+    m_cipher.Initialize("n6;fw;vjfs0fuguf", 0x10, CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
     // ORIG `cmp $0x29,%eax; setbe` = 无符号 `i<=41`（P2 setbe=unsigned）。
     // 4.4 对 int 出 setle → 循环计数器改 unsigned 对齐 setbe。
     for (unsigned int i = 0; i < 42; ++i)
@@ -94,52 +94,55 @@ void WongWork::CSecurityCardCenter::init()
 
 char* WongWork::CSecurityCardCenter::encryptString(char const* src, char* out)
 {
-    // [b28d-39 判词 · N82/N78] ORIG 0x085fe2e2：帧 0x220 vs 0x238 + callee-saved
-    // 角色（push edi/ebx vs 无）+ 栈缓冲清零 rep stos vs memset（N78）；缓冲尺寸
-    // 0x100 与清零长度逐条对齐，语义等价。
+    // [b28d-solo-W6_SecMiscDeps 判词 · P253/P214③/P198①] ORIG 0x085fe2e2：帧 0x220。
+    // **真语义 bug 修正**：旧 `memset(plain,0,0x40)` 少清 0xc0 字节——ORIG 两处
+    // `mov $0x40,%edx; …; rep stos` 的 0x40 是 **dword 计数**（0x40×4=0x100 字节，
+    // P116/P253）⇒ 必须 `char plain[0x100] = {0}`（P214③ 复现 rep stos）。
+    // 另：paddedLength 预清零（P198①）、length 槽复用为 hexLength、异常路径直接
+    // `return 0`（ORIG ebx=0，无 result 局部）。
     // ORIG T 0x085fe2e2 (size 0x161)。两块 256 字节栈缓冲清零 → strncpy 0x100
     // → strlen → IMethod::GetBlockSize 取块大小并向上取整 → Pad → CRijndael::
     // Encrypt（asm 为非虚派发直呼）→ Binary2Hex 转十六进制并以 len*2+1 下标补
     // '\0'。异常路径返回 NULL（ORIG catch 吞掉后 ebx=0）。
-    char plain[0x100];
-    unsigned char cipher[0x100];
-    memset(plain, 0, 0x40);      // ORIG：rep stos 仅清 0x40 字节（两块）
-    memset(cipher, 0, 0x40);
+    char plain[0x100] = {0};
+    unsigned char cipher[0x100] = {0};
     strncpy(plain, src, 0x100);
     size_t length = strlen(plain);
-    char* result = out;
+    int paddedLength = 0;
     try
     {
-        const int blockSize = IMethod::GetBlockSize((unsigned int*)0);
-        int paddedLength;
-        if (blockSize < 0)
+        const int blockSize = m_cipher.GetBlockSize((unsigned int*)0);
+        // 块序照 ORIG：`js L_neg` 远跳 + else 块落函数尾（内部 rem==0 的 je 落中部）
+        if (blockSize >= 0)
         {
-            paddedLength = (int)length;
-        }
-        else if ((int)length % blockSize == 0)
-        {
-            paddedLength = (int)length;
+            if ((int)length % blockSize == 0)
+            {
+                paddedLength = (int)length;
+            }
+            else
+            {
+                paddedLength = ((int)length / blockSize + 1) * blockSize;
+            }
         }
         else
         {
-            paddedLength = ((int)length / blockSize + 1) * blockSize;
+            paddedLength = (int)length;
         }
         if (blockSize >= 0)
         {
-            IMethod::Pad(plain, (int)length, (unsigned int*)0);
+            m_cipher.Pad(plain, (int)length, (unsigned int*)0);
         }
-        CRijndael::Encrypt(plain, reinterpret_cast<char*>(cipher),
-                           (size_t)paddedLength);
-        const int hexLength = paddedLength * 2 + 1;
+        m_cipher.Encrypt(plain, reinterpret_cast<char*>(cipher),
+                         (size_t)paddedLength);
+        length = (size_t)(paddedLength * 2 + 1);
         DNFFLib::Binary2Hex(cipher, paddedLength, out);
-        out[hexLength] = '\0';
-        result = out;
+        out[length] = '\0';
     }
     catch (...)
     {
-        result = 0;   // ORIG __cxa_begin_catch/__cxa_end_catch → 返回 0
+        return 0;   // ORIG __cxa_begin_catch/__cxa_end_catch → ebx=0
     }
-    return result;
+    return out;
 }
 
 char* WongWork::CSecurityCardCenter::generateCertKey(char* out)
@@ -163,22 +166,19 @@ void WongWork::CSecurityCardCenter::_updateTimeCount()
 
 char* WongWork::CSecurityCardCenter::generateServerKey(char* out)
 {
-    // [b28d-39 判词 · N7/N82] ORIG 0x085fe0ec：callee-saved 三件套角色互换
-    // （ORIG push edi/esi/ebx、帧 0x3c vs 4.4 无 push、帧 0x48）+ 局部槽号平移；
-    // 格式串与各实参来源逐条对齐，语义等价。
+    // [b28d-solo-W6_SecMiscDeps 判词 · P0/P200] ORIG 0x085fe0ec：random5/timeCount/
+    // channelNo/serverGroup 全程 callee-saved（%ebx/%edi/%esi/%eax）无栈槽往返 ⇒
+    // 原码无这些具名局部，必须内联进 snprintf 实参位（P0）；仅 curSec 占 -0x1c
+    // 具名槽。旧具名局部版每值各多 store+load 且无 push edi/esi/ebx。
     // ORIG T 0x085fe0ec (size 0x91)：
     // "%02d%02d%010d%05d%05d"(env+0x378, env+0x1b0, curSec, timeCount, rand5)
     _updateTimeCount();
     const int curSec = s_systemTime_.getCurSec();
-    const int random5 = get_rand_int(99999);
-    const unsigned short timeCount = m_timeCount;
     // CEnvironment 服务器标识字段尚未具名化（域外批次负责），按既有口径偏移读。
-    const int serverIdB =
-                G_CEnvironment()->m_serverEnvir.m_serverGroup;   // +0x378（%02d 第 1 槽）
-    const int serverIdA =
-                G_CEnvironment()->m_serverEnvir.m_channelNo;     // +0x1b0（%02d 第 2 槽）
     OS_API::snprintf(out, 0x21, "%02d%02d%010d%05d%05d",
-                     serverIdB, serverIdA, curSec, timeCount, random5);
+                     G_CEnvironment()->m_serverEnvir.m_serverGroup,  // +0x378
+                     G_CEnvironment()->m_serverEnvir.m_channelNo,    // +0x1b0
+                     curSec, m_timeCount, get_rand_int(99999));
     return out;
 }
 
@@ -212,24 +212,24 @@ bool WongWork::CSecurityCardCenter::checkPhoneNumber(char const* phone) const
 
 char* WongWork::CSecurityCardCenter::generateCardData(char* out) const
 {
-    // [b28d-39 判词 · N88/N93] ORIG 0x085fe1ba：帧 0x40 vs 0x30、具名 int 预清
-    // `movl $0x26,-0x18` 位置前置（N88）+ 槽序跨版本（N93）；随机取槽与字符集
-    // 写入集合一致，语义等价。
+    // [b28d-solo-W6_SecMiscDeps 判词 · P13/P171/P232] ORIG 0x085fe1ba：帧 0x40。
+    // 源码形态按 ORIG 反汇编还原：①`movl $0x26,-0x18` 死局部（写后从未读，
+    // P171/P232 照抄）；②`for (pos=0; pos<=0x25; ++pos)`（4.1 尾测 setbe 物化 +
+    // jmp 到条件块）；③begin/end 各求值一次后缓存（P13，`it != end` 用缓存槽
+    // -0x28/-0x2c）；④seen 声明先于 pick（槽 -0x10/-0xc）。
     // ORIG T 0x085fe1ba (size 0x128)：拷贝 m_characterSet 至临时 list；循环
     // （pos<=0x25 继续）：以 list.size() 为上界随机取槽，顺序迭代到第 pick 个
     // 元素写出并 erase（每字符只使用一次）。
     std::list<unsigned char> pool(m_characterSet);
-    unsigned int pos = 0;
-    do
+    int unusedLimit = 0x26;   // ORIG -0x18：写后从未读（死局部，照抄）
+    (void)unusedLimit;
+    for (unsigned int pos = 0; pos <= 0x25; ++pos)
     {
-        if (pos > 0x25)
-        {
-            break;
-        }
-        const int pick = get_rand_int((int)pool.size());
         int seen = 0;
-        for (std::list<unsigned char>::iterator it = pool.begin();
-             it != pool.end(); /* 分支内手动推进 */)
+        const int pick = get_rand_int((int)pool.size());
+        std::list<unsigned char>::iterator it = pool.begin();
+        std::list<unsigned char>::iterator end = pool.end();
+        while (it != end)
         {
             if (seen == pick)
             {
@@ -240,17 +240,30 @@ char* WongWork::CSecurityCardCenter::generateCardData(char* out) const
             ++seen;
             ++it;
         }
-        ++pos;
-    } while (true);
+    }
     return out;
 }
 
 // ============================ WongWork::CSecurityCard =======================
 
+namespace
+{
+// CSecurityCard 答案表布局视图（ORIG 表基址 this+0x08，`movzbl 0x8(%eax,%edx,1)`
+// 实证；仅 TU 局部 POD 布局视图，无成员函数/无符号发射）。
+struct CSecurityCardAnswerView
+{
+    char m_pad08[8];
+    unsigned char m_table[0x64];
+};
+}
+
 bool WongWork::CSecurityCard::checkAnswer(unsigned char ansA, unsigned char ansB) const
 {
-    // [b28d-39 判词 · N82/N93] ORIG 0x085fdf6a：帧 0x8 vs 0x18 + 形参 spill 槽
-    // -0x4/-0x8 vs -0x14/-0x18（N93）；答案表索引与比较结果逐条等价。
+    // [b28d-solo-W6_SecMiscDeps 判词 · P0/P157/P235/P222] ORIG 0x085fdf6a：帧 0x8，
+    // 形参 spill -0x4/-0x8；rowA/colA/rowB/colB 与 table 指针**无槽往返**
+    // （ORIG `movzbl 0x3d(%eax); movsbl %al,%edx; …; movzbl 0x8(%eax,%edx,1)`）
+    // ⇒ 原码全部内联表达式 + 表按 this+8 具名数组视角访问（disp 折叠）；
+    // 比较用 P222 正向包裹（ORIG `jne <共享 false 尾块>`）。
     // ORIG W 0x085fdf6a (size 0xbb)。问题四元组 @0x3c..0x3f；答案表基址 this+8，
     // 第一问索引 = question[1]*10 + question[0]，第二问 = question[3]*10 +
     // question[2]；表值与答案均经 movsbl/zbl 后整数值比较。
@@ -259,23 +272,22 @@ bool WongWork::CSecurityCard::checkAnswer(unsigned char ansA, unsigned char ansB
     {
         return false;
     }
-    const unsigned char* table =
-        reinterpret_cast<const unsigned char*>(this) + 8;
-    const signed char rowA = static_cast<signed char>(m_question3c[1]);
-    const signed char colA = static_cast<signed char>(m_question3c[0]);
-    if (static_cast<signed char>(table[rowA * 10 + colA]) !=
+    if (static_cast<signed char>(
+            reinterpret_cast<const CSecurityCardAnswerView*>(this)->m_table[
+                static_cast<signed char>(m_question3c[1]) * 10 +
+                static_cast<signed char>(m_question3c[0])]) ==
         static_cast<int>(ansA))
     {
-        return false;
+        if (static_cast<signed char>(
+                reinterpret_cast<const CSecurityCardAnswerView*>(this)->m_table[
+                    static_cast<signed char>(m_question3c[3]) * 10 +
+                    static_cast<signed char>(m_question3c[2])]) ==
+            static_cast<int>(ansB))
+        {
+            return true;
+        }
     }
-    const signed char rowB = static_cast<signed char>(m_question3c[3]);
-    const signed char colB = static_cast<signed char>(m_question3c[2]);
-    if (static_cast<signed char>(table[rowB * 10 + colB]) !=
-        static_cast<int>(ansB))
-    {
-        return false;
-    }
-    return true;
+    return false;
 }
 
 // ============================ WongWork::CGMAccounts =========================
@@ -322,22 +334,25 @@ unsigned short WongWork::CUserPremium::getCeraShopDiscountRate() const
 std::vector<WongWork::SUserPremiumInfo> WongWork::CUserPremium::GetPremiumInfoList(
     int type) const
 {
-    // [b28d-39 判词 · N93/N88] ORIG 0x086ade9c：具名 int 槽 -0x1c vs -0x20 方向
-    // 相反（N93）+ 预清 `movl $0x1` 位置前置（N88）；返回 vector 元素与过滤条件
-    // 逐条等价。
-    // ORIG T 0x086ade9c (size 0xb6)：sret 按值返回 vector。遍历 entries[1..0x69]
-    //（stride 0x14），m_type != 0 且 filter==0x270f 或等于 m_type 时 push_back。
+    // [b28d-solo-W6_SecMiscDeps 判词 · P157/P183] ORIG 0x086ade9c：sret=0x8(%ebp)、
+    // this=0xc(%ebp)（m_entries@+0x00）；ORIG 每处字段读都重发完整 `i*0x14 + this`
+    // 链（shl/add/shl + `mov (%eax,%ecx,1)`），**无** entries 指针槽与元素引用槽 ⇒
+    // 源码必须逐字段下标直写（禁 `entries`/`entry` 缓存，旧版多 9 条槽往返）。
+    // ORIG T 0x086ade9c (size 0xb6)：遍历 entries[1..0x69]（stride 0x14），
+    // m_type != 0 且 filter==0x270f 或等于 m_type 时 push_back。
     std::vector<SUserPremiumInfo> list;
-    const SUserPremiumInfo* entries =
-        m_entries;   // CUserPremium::m_pad[0x848] 已字段化为 SUserPremiumInfo m_entries[0x6a]
     for (int i = 1; i <= 0x69; ++i)
     {
-        const SUserPremiumInfo& entry = entries[i];
-        if (entry.m_type != 0 &&
-            (type == 0x270f || entry.m_type == type))
-        {
-            list.push_back(entry);
-        }
+        // P223 多岛形：ORIG 两失败出口落**不同** nop 岛（0x86adf15 / 0x86adf18，
+        // 各带/共享 jmp 到循环尾 0x86adf19）⇒ 两条独立否定 goto + 标签串，
+        // 标签序 = 守卫序（合并 && 会被 4.4 jump-thread 成 0 岛）。
+        if (m_entries[i].m_type == 0)
+            goto fail1;
+        if (type != 0x270f && m_entries[i].m_type != type)
+            goto fail2;
+        list.push_back(m_entries[i]);
+fail1:;
+fail2:;
     }
     return list;
 }

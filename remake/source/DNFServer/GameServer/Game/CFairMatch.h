@@ -167,8 +167,8 @@ public:  // 布局字段（偏移契约固定，勿增删；语义随实现标�
     /*+0x0ac*/ int m_fieldAC;
     /*+0x0b0*/ int m_fieldB0;
     /*+0x0b4*/ int m_fieldB4;
-    /*+0x0b8*/ int m_fieldB8;
-    /*+0x0bc*/ int m_fieldBC;
+    /*+0x0b8*/ int m_leaderSeat[2];   // [0]/[1] 两队队长座位（ORIG 0x08563272/
+                                      // 0x08564150 均为 `this+0xb8+idx*4` 数组索引形）
     /*+0x0c0*/ IMatch* m_fieldC0;     // ctor 清零（next match 槽；指针与 SetNextMatch
                                       // 形参同型=真类型化，NL7 判据 N76 翻形）
 };

@@ -231,7 +231,7 @@ int CompiledDNFLex::GetOffset() const
     // [b28d-56 判词·N] 封顶 N108（std::deque）：ORIG 0x8acff20 24 条 vs 我们 71 条
     // （4.4 对 deque end()/begin()/back() 恒 extern call + 迭代器 12B vs 16B）。
     stream_t* p = streamStack_.end()._M_cur;
-    if (p == streamStack_.begin()._M_cur)
+    if (__builtin_expect(p == streamStack_.begin()._M_cur, 0))
         goto fail;
     {
         stream_t** node = streamStack_.end()._M_node;
@@ -244,7 +244,7 @@ int CompiledDNFLex::GetOffset() const
 fail:
     return -1;
 have:
-    if (p->buffer == 0)
+    if (__builtin_expect(p->buffer == 0, 0))
         goto fail;
     return (int)(offset_ - p->buffer);
 }
@@ -273,15 +273,17 @@ bool CompiledDNFLex::isEnd()
     // [b28d-56 判词·N] 封顶 N108（std::deque）：ORIG 0x8ad0000 23 条 vs 我们 68 条
     // （与 patterns N108 记载的 isEnd 23→68 / GetOffset 24→71 完全一致）。
     stream_t* p = streamStack_.end()._M_cur;
-    if (p == streamStack_.begin()._M_cur)
-        return false;
-    stream_t** node = streamStack_.end()._M_node;
-    if (p == streamStack_.end()._M_first)
-        p = *(node - 1) + STREAM_NODE_ELEMS;
-    p = p - 1;
-    if (p == 0)
-        return false;
-    return p->buffer + p->size <= offset_;
+    if (!__builtin_expect(p == streamStack_.begin()._M_cur, 0))
+    {
+        stream_t** node = streamStack_.end()._M_node;
+        if (p == streamStack_.end()._M_first)
+            p = *(node - 1) + STREAM_NODE_ELEMS;
+        p = p - 1;
+        if (__builtin_expect(p == 0, 0))
+            return false;
+        return p->buffer + p->size <= offset_;
+    }
+    return false;
 }
 
 // ---- LexerError（ORIG 0x8acfe10）----
@@ -301,6 +303,13 @@ bool CompiledDNFLex::LoadStream(const char* dir, const char* filename,
 }
 
 // ---- getStr(std::string&)（ORIG 0x8ad00d0）：按字符串表索引取串。----
+// [b28d-solo-CompiledDNFLexCore 判词·N] 封顶：跨版本 -O2 共享 `return false` 块布局。
+// 本 TU 路由 4.4.6 -O2 -std=gnu++98（dnf_game_cxx.sh: *Game/CompiledDNFLexCore.cpp）。
+// ORIG 0x8ad00d0 把 fail 块放检查链中段（`cmp $0x9; jne more` 的 fall-through），
+// 4.4.6 -O2 恒放函数尾并把该判断反转为 `je fail`。六形实测均不可翻：
+// ①goto fail/more ②短路 && 链 ③独立守卫 ④显式 return+goto ⑤__builtin_expect(0/1)
+// ⑥per-function optimize("no-reorder-blocks")（退化为 -O0 形态）。
+// 比较序 9/4/0/1 与全部指令逐条相同，仅块位置差 2 处 ⇒ 语义等价，N 封顶。
 bool CompiledDNFLex::getStr(std::string& stringBuffer)
 {
     // [b28d-56 判词·N] 封顶 N108 + P168 成员重复装载（旧 b28-L14 判词继续有效）。
@@ -314,18 +323,15 @@ bool CompiledDNFLex::getStr(std::string& stringBuffer)
     int tok = lastToken_;
     unsigned d = (unsigned)tok - 2;
     if (d <= 1)
-        goto fail;
-    if (tok != DNF_TOK_PAIR_INT)
-        goto more;
-fail:
-    return false;
-more:
+        return false;
+    if (tok == DNF_TOK_PAIR_INT)
+        return false;
     if (tok == DNF_TOK_FLOAT)
-        goto fail;
+        return false;
     if (tok == DNF_TOK_EOF)
-        goto fail;
+        return false;
     if (tok == DNF_TOK_ERROR)
-        goto fail;
+        return false;
     int index = readIntFromBuffer(offset_);
     return stringManager_->getString(index, &stringBuffer);
 }

@@ -292,9 +292,10 @@ void CUser::setHackUser(unsigned int p1, unsigned int p2, unsigned int p3,
 }
 
 // ORIG 0x084fa298：对角色列表首元素起 size()*0x14d1 字节做 MD5 摘要。
-// b28d-21: NEAR 封顶 — ORIG 0x084fa298 md5_context 槽基 -0xe0 vs 重建 -0xe8：
-// 4.4-O0 局部槽基恒从 ebp-8 起（帧顶留 8B gap），4.1 可顶到 ebp（N95 定性，
-// double framePad 反致下移、声明序调整不可上移）。指令/助记符全等，仅 3 处 lea disp 差。
+// b28d-solo-W8_CU_G: NEAR/N95 封顶 — ORIG 0x084fa298 md5_context 槽基 -0xe0 vs
+// 重建 -0xe8：4.4-O0 局部槽基恒从 ebp-8 起（帧顶留 8B gap），4.1 大局部可顶到 ebp
+//（N95 定性；double framePad 反致下移、int pad/声明序调整不可上移）。帧同 0xf4、
+// 指令/助记符逐条全等，仅 3 处 lea disp 差（32/32）。语义等价。
 void CUser::getHashCode(unsigned char* digestOut)
 {
     md5_context ctx;
@@ -309,8 +310,15 @@ void CUser::getHashCode(unsigned char* digestOut)
 }
 
 // ORIG 0x0867f4c8：CleanPad 人机认证应答比对（验证码头 5×ushort 逐项日志后 memcmp）。
-// b28d-21: DIFF/N 封顶 — 承 b21 判词（N82 帧/槽 + orig 具名局部占槽）；
-// ORIG 0x0867f4c8。15/15 调用点全等，语义完成，byte 层 N。
+// b28d-solo-W8_CU_G: DIFF/N 封顶（160/160，ndiff 148→37）— 本波修 3 处：
+// ①P227 全表达式临时链 `cMyTrace(f,l,v)(...)`：ORIG 0x0867f4d1..0x0867f598 在 ctor
+//   前右起求值全部 varargs + NumberToString（具名 trace + 语句形恒 ctor 先）；
+// ②CUser.h:2445 匿名 union 双视角 `m_capchaCertifyW[5]`（P235，Main 代落）⇒ 5 处
+//   读取由 add+movzwl 三步折回 ORIG 单条 `movzwl 0x8e0fxx(%eax),%eax`；
+// ③varargs 中 orig 组实参顺序改为 [0..4]（ORIG 压栈序 0xc/%esi=orig[0] … 0x1c/-0x34
+//   =orig[4]，P23/压栈序判读）⇒ 求值序 [4]→[0] 与 ORIG 全等。
+// 余：@0x0867f5e7 字符串地址归一化伪差（§6.3）+ memcmp 后分支布局/比较方向
+// （N93附/N22 族，160=160 指令逐条同构）。15/15 调用点全等，语义完成。
 bool CUser::checkHumanCertify(int len, unsigned short* answer)
 {
     // b21 verdict=DIFF（N 残余）：160/166。15=15 调用点全等（get_acc_id×n/NumberToString/
@@ -320,19 +328,23 @@ bool CUser::checkHumanCertify(int len, unsigned short* answer)
     //   `const unsigned short* orig` 具名局部占槽(ORIG 直读 this+0x8e0ec 偏移族)。语义全等，
     //   byte 层 N 封顶。
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x7e07, 0);
-        char* idStr = NumberToString(get_acc_id(), 0);
-        const unsigned short* orig =
-            reinterpret_cast<const unsigned short*>(m_capchaCertify);
-        trace("checkHumanCertify m_id:%s, orig:%x%x%x%x%x, ans:%x%x%x%x%x",
-              idStr,
-              static_cast<unsigned int>(orig[4]), static_cast<unsigned int>(orig[3]),
-              static_cast<unsigned int>(orig[2]), static_cast<unsigned int>(orig[1]),
-              static_cast<unsigned int>(orig[0]),
-              static_cast<unsigned int>(answer[0]), static_cast<unsigned int>(answer[1]),
-              static_cast<unsigned int>(answer[2]), static_cast<unsigned int>(answer[3]),
-              static_cast<unsigned int>(answer[4]));
+        // b28d-solo-W8_CU_G：P227 全表达式临时链 —— ORIG 0x0867f4d1..0x0867f598 在
+        // cMyTrace ctor 之前右起求值全部 varargs（answer[4..0]→槽、orig[4..0]→槽/寄存器）
+        // 与 NumberToString；具名 trace + 语句形恒 ctor 先。
+        // 另：ORIG 每次 `mov 0x8(%ebp),%eax; movzwl 0x8e0f4(%eax),%eax` 重载 this 直读
+        // 偏移（P183）⇒ 不设 orig 指针局部；用 CUser.h 匿名 union 双视角
+        // `m_capchaCertifyW[5]`（P235，Main 代落）让 4.4 折叠单条 disp。
+        cMyTrace(__PRETTY_FUNCTION__, 0x7e07, 0)(
+            "checkHumanCertify m_id:%s, orig:%x%x%x%x%x, ans:%x%x%x%x%x",
+            NumberToString(get_acc_id(), 0),
+            static_cast<unsigned int>(m_capchaCertifyW[0]),
+            static_cast<unsigned int>(m_capchaCertifyW[1]),
+            static_cast<unsigned int>(m_capchaCertifyW[2]),
+            static_cast<unsigned int>(m_capchaCertifyW[3]),
+            static_cast<unsigned int>(m_capchaCertifyW[4]),
+            static_cast<unsigned int>(answer[0]), static_cast<unsigned int>(answer[1]),
+            static_cast<unsigned int>(answer[2]), static_cast<unsigned int>(answer[3]),
+            static_cast<unsigned int>(answer[4]));
     }
 
     DB_CountOfHumanCertify::makeRequest(get_acc_id());
@@ -440,10 +452,12 @@ unsigned int CUser::reqSendMailCertify()
 // 安全奖励物品发放（sendSecuRewardItem）
 // ORIG 0x0868833c：交易中或背包满 → 系统邮件退还；否则入背包并回填落位。
 // ===========================================================================
-// b28d-21: 已修 p167 缺口 — 还原 ORIG 栈缓冲形（body@-0x15f 0xff + title@-0x22
-// 0x14 + 两次 strncpy 长度 0x14/0xff + ReqDBSendNewSystemMail 传 title/body，
-// 0x086884a6/0x086884c4/0x086884df）⇒ 调用点差集 CLEAR（9=9），ndiff 142→137。
-// 余 N84（Inven_Item 建模尺寸 vs ORIG 帧 0x1b0）+ N82 槽族。ORIG 0x0868833c。
+// b28d-solo-W8_CU_G: DIFF/N 封顶（149/147）— 承 b28d-21：ORIG 栈缓冲形（body@-0x15f
+// 0xff + title@-0x22 0x14 + 两次 strncpy 长度 0x14/0xff + ReqDBSendNewSystemMail 传
+// title/body，0x086884a6/0x086884c4/0x086884df）；p167 CLEAR(9=9)。本波复验残差：
+// ①序言 ORIG `push %esi; push %ebx` vs 4.4 无 callee-saved（Inven_Item 局部拷贝形差）；
+// ②全部局部槽整体平移 7B（ORIG -0x5f/-0x23 vs 4.4 -0x66/-0x2a）⇒ N84（Inven_Item
+// 建模尺寸 vs ORIG 0x1b0 帧）+ N82 槽族，跨 TU 结构建模差异非本 TU 可控。语义等价。
 void CUser::sendSecuRewardItem(Inven_Item* item, ENUM_SECURITY_REWARD_TYPE type,
                                int* outSlotVec)
 {
@@ -512,10 +526,12 @@ void CUser::SetAccountCargoDBData(Inven_Item* items, unsigned int money,
 // ORIG 0x0868b552：事件码 0x8e + 创建时间窗判定，job==4 且未成长一级角色首次
 // 登录 → 发放 0x28d3af 物品邮件并置 flag/DB 记录。
 // ===========================================================================
-// b28d-21: DIFF/N 封顶 — P0 清绑完成（原 `register asm("ebx"/"esi")` 改纯 register，
-// 非绑定形，P231/P248）；清绑后 340=340 指令数全等，残差为 ORIG accId→%ebx/
-// createTime→%esi 与 4.4 分配的 callee-saved 角色互换（N7）+ 部分槽号（N82）。
-// ORIG 0x0868b552。
+// b28d-solo-W8_CU_G: DIFF/N 封顶（341/338）— P0 清绑完成（原 `register asm("ebx"/"esi")`
+// 改纯 register 存储类提示，非绑定形，P231/P248 合规）；清绑后指令数近全等，残差：
+// ①ORIG accId→%ebx / createTime→%esi 与 4.4 的 %esi/%ebx 角色互换（N7）；
+// ②槽号整体平移 0x24（-0x35/-0x3c vs -0x59/-0x60，N82 聚合优先占低槽）；
+// ③std::string 临时（"Arad_EventPeriodDataManager"）构造多一槽中转（N86 直构族）。
+// 48/48 调用点全等（p167 CLEAR），语义完成。ORIG 0x0868b552。
 char CUser::VerifyPresentAvengerTitle()
 {
     // ORIG T 0x868b552 全录（报告 docs/class_func_reports/CUser/VerifyPresentAvengerTitle.md
@@ -678,9 +694,13 @@ void CUser::rewardExp(int expBase, int& bonusA, int& bonusB,
 // 入经验）、累计字段、升级判定（_check_level_up，producer=CUserCheckLevel.cpp）、
 // SP/SFP 返还与日志、升级后任务/公会/监控器通知、疲劳奖励 channel 组收尾、
 // 专家职业经验结算与 55 级清动作点。
-// b28d-21: DIFF/N 封顶 — ORIG 0x0866a3fe 帧 sub $0x6c vs 重建 $0x9c（多 0x30 槽，
-// N82/P112 族）；ORIG 对形参 `cmpl $1,0x18(%ebp)` 直读 vs 重建经 -0x50 槽中转
-// （P0：ORIG 无该槽往返 ⇒ 原码表达式直读）。语义全等，byte 层 N。
+// b28d-solo-W8_CU_G: DIFF/N 封顶（388/392，ndiff 102→60）— 本波按 P0 去 3 组
+// 无槽往返的具名局部（ORIG 全表达式直读）：
+// ①`reasonVal`（ORIG `cmpl $1/$2,0x18(%ebp)` 形参直读两次）；
+// ②`skillR`（ORIG getCurCharacSkillR() 结果直接作 receiver 调 get_remain_*_at_index）；
+// ③`serverGroup`/`guildProxy`/`monitorProxy`（ORIG 全链式单语句，无槽）。
+// 修后帧 0x9c→0x8c（余差 0x10 = N82/P112 槽族），槽位平移 0x10；66/66 调用点全等
+//（p167 CLEAR）。语义等价。
 bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
                         eExpAddReason reason, int param, bool flag)
 {
@@ -697,8 +717,10 @@ bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
     {
         exp = 0;
     }
-    const int reasonVal = static_cast<int>(reason);
-    if (reasonVal == 1 || reasonVal == 2)
+    // b28d-solo-W8_CU_G：ORIG 0x0866a4xx 对形参直读两次
+    // `cmpl $1,0x18(%ebp)…; cmpl $2,0x18(%ebp)`（无槽往返，P0）⇒ 去 reasonVal
+    // 具名局部，使用点内联 cast 表达式。
+    if (static_cast<int>(reason) == 1 || static_cast<int>(reason) == 2)
     {
         m_character.m_f34 += exp;
     }
@@ -709,11 +731,15 @@ bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
     if (get_charac_level() < 0x55)
     {
         levelUp = _check_level_up(exp, sp, sfp, reason, param);
-        SkillSlot* skillR = reinterpret_cast<SkillSlot*>(const_cast<char*>(getCurCharacSkillR()));
-        int spBefore = skillR->get_remain_sp_at_index(static_cast<ENUM_SKILL_TREE_KIND>(0));
+        // b28d-solo-W8_CU_G：ORIG 0x0866a5xx getCurCharacSkillR() 结果直接作 receiver
+        //（无 skillR 具名局部/槽，P0 表达式直传）。
+        int spBefore = reinterpret_cast<SkillSlot*>(
+            const_cast<char*>(getCurCharacSkillR()))->
+            get_remain_sp_at_index(static_cast<ENUM_SKILL_TREE_KIND>(0));
         gain_sp(sp);
-        skillR = reinterpret_cast<SkillSlot*>(const_cast<char*>(getCurCharacSkillR()));
-        int sfpBefore = skillR->get_remain_sfp_at_index(static_cast<ENUM_SKILL_TREE_KIND>(2));
+        int sfpBefore = reinterpret_cast<SkillSlot*>(
+            const_cast<char*>(getCurCharacSkillR()))->
+            get_remain_sfp_at_index(static_cast<ENUM_SKILL_TREE_KIND>(2));
         gain_sfp(sfp);
         history_log_sp(spBefore, sp, eSPAddReason_0);
         history_log_sfp(sfpBefore, sfp, eSPAddReason_0);
@@ -745,24 +771,20 @@ bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
         _UpdateUserInfo4Guild();
 
         {
-            unsigned int serverGroup = GetServerGroup();
-            CGuildServerProxy* guildProxy =
-                GlobalData::s_guild_proxy_mgr->GetServerProxy(
-                    static_cast<ENUM_SERVER_GROUP>(serverGroup));
-            guildProxy->SendCharLevelGrowType(get_acc_id(),
-                                              static_cast<unsigned int>(get_charac_no(-1)),
-                                              static_cast<short>(get_charac_level()),
-                                              static_cast<short>(getCurCharacGrowType()));
+            GlobalData::s_guild_proxy_mgr->GetServerProxy(
+                static_cast<ENUM_SERVER_GROUP>(GetServerGroup()))->
+                SendCharLevelGrowType(get_acc_id(),
+                                      static_cast<unsigned int>(get_charac_no(-1)),
+                                      static_cast<short>(get_charac_level()),
+                                      static_cast<short>(getCurCharacGrowType()));
         }
         {
-            unsigned int serverGroup = GetServerGroup();
-            CMonitorServerProxy* monitorProxy =
-                GlobalData::s_monitor_proxy_mgr->GetServerProxy(
-                    static_cast<ENUM_SERVER_GROUP>(serverGroup));
-            monitorProxy->SendCharLevelGrowType(get_acc_id(),
-                                                static_cast<unsigned int>(get_charac_no(-1)),
-                                                static_cast<short>(get_charac_level()),
-                                                static_cast<short>(getCurCharacGrowType()));
+            GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+                static_cast<ENUM_SERVER_GROUP>(GetServerGroup()))->
+                SendCharLevelGrowType(get_acc_id(),
+                                      static_cast<unsigned int>(get_charac_no(-1)),
+                                      static_cast<short>(get_charac_level()),
+                                      static_cast<short>(getCurCharacGrowType()));
         }
 
         if (!VerifyPresentAvengerTitle())

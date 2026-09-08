@@ -148,7 +148,7 @@ CDungeon* TowerOfDespairMgr::Get_CDungeonByLayer(unsigned int layer)
 // TowerOfDespairMgr::Get_DungeonIndexByLayer —— ORIG T 0x08643d76
 //   （报告 TowerOfDespairMgr/Get_DungeonIndexByLayer.md）
 // ============================================================================
-unsigned int TowerOfDespairMgr::Get_DungeonIndexByLayer(unsigned int layer)
+int TowerOfDespairMgr::Get_DungeonIndexByLayer(unsigned int layer)
 {
     if (layer == 0 || 100 < layer)
     {
@@ -203,11 +203,10 @@ bool CParty::IsExistCharacter(int characNo)
     {
         if (!_checkValidUser(local_10))
             continue;
-        // [b28d-53 判词 N18b/N22/P85] ORIG 0x085b62a8 段 `mov 0xc(%ebp),%edx;
-        // cmp %edx,%eax`（4.1 先载 int 形参入寄存器再比较）；4.4 恒折
-        // `cmp 0xc(%ebp),%eax` 内存直比——交换操作数 / unsigned 化两形实测均无效。
-        // 41/39，语义等价，byte 层 N 封顶。
-        if (characNo == m_member[local_10].m_pUser->getCurCharacNo())
+        // [b28d-solo-CPartyDepsA2] ORIG 0x085b62a8 段 `mov 0xc(%ebp),%edx;
+        // cmp %edx,%eax`（call 后读形参入 edx）；把 call 放左操作数避免 4.4
+        // 跨 call 缓存形参到 %ebx（P52/P0：左操作数先物化）。
+        if (m_member[local_10].m_pUser->getCurCharacNo() == characNo)
         {
             return true;
         }
@@ -285,8 +284,11 @@ bool CParty::BloodHandleDieUser(CUser* user)
 void CParty::CheckClearQuestHellParty(std::vector<int>& out)
 {
     out.clear();
-    int local_14 = 0;
-    for (local_14 = 0; local_14 <= 3; ++local_14)
+    // [b28d-solo-CPartyDepsA2] ORIG 0x085a7a83 只有一条 `movl $0x0,-0x10`
+    // （for-init 单次）⇒ 循环变量不在声明处初始化；且 ORIG 0x085a7b1b 段
+    // getCurCharacQuestR 结果直传 isClearQuest 的 this、无 UserQuest* 具名局部
+    // （P0 槽-局部律：我们的 -0xc 槽即该多出的局部）。
+    for (int local_14 = 0; local_14 <= 3; ++local_14)
     {
         if (!_checkValidUser(local_14))
             continue;
@@ -297,8 +299,9 @@ void CParty::CheckClearQuestHellParty(std::vector<int>& out)
         while (it != endIt)
         {
             questId = *it;
-            UserQuest* quest = m_member[local_14].m_pUser->getCurCharacQuestR();
-            if (!(quest->isClearQuest(questId)))
+            if (!(m_member[local_14]
+                      .m_pUser->getCurCharacQuestR()
+                      ->isClearQuest(questId)))
             {
                 out.push_back(local_14);
                 break;
@@ -380,23 +383,28 @@ bool CParty::CheckHaveHellPartyPassItem(CDungeon const* dungeon,
     {
         return true;
     }
-    bool skip;
-    if ((m_hellWorldMap->IsInHellDungeon()) && (type == 1))
-    {
-        skip = false;
-    }
-    else
-    {
-        skip = true;
-    }
-    if (skip)
+    // [b28d-solo-CPartyDepsA2] ORIG 0x085a7bba 段：`call; xor $0x1; test %al;
+    // jne <mov $1 岛>` + `cmpl $0x1,0x10(%ebp); je <mov $0 岛>` ⇒ 原码是负极性
+    // 短路单 return `!A || B`（P214①/P258），非具名 bool skip——我们的
+    // -0x9 槽 + movb 写即该多出的局部（P0 槽-局部律）。
+    if (!m_hellWorldMap->IsInHellDungeon() || type != 1)
     {
         return true;
     }
 
     std::vector<int> sealCondItems;
-    if (!CheckDestroyConditionSealDoor(dungeon, sealCondItems,
-                                       m_hellWorldMap->m_field34))
+    // [b28d-solo-CPartyDepsA2] ORIG 0x085a7c15 `call; test %al,%al;
+    // je <packet 块>` ⇒ 成功分支（m_sealDoorFlag=1）在 then、packet 块为
+    // 直落 else（P59/P222 正向布局），勿写 `if (!call())`。
+    // [b28d-solo-CPartyDepsA2] ORIG 0x085a7c15 `call; test %al,%al; je`
+    // （2 条，无 setne 物化）⇒ 被调实际返回单字节 bool；头声明 int 且定义
+    // 在 CParty.cpp（他人 TU，不可改头）⇒ 按 P3 调用点 (unsigned char) 收窄。
+    if ((unsigned char)CheckDestroyConditionSealDoor(
+            dungeon, sealCondItems, m_hellWorldMap->m_field34))
+    {
+        m_sealDoorFlag = 1;
+    }
+    else
     {
         PacketGuard packet;
         packet.put_header(1, 0x10);
@@ -412,10 +420,6 @@ bool CParty::CheckHaveHellPartyPassItem(CDungeon const* dungeon,
         packet.finalize(true);
         send_to_party(packet);
         m_sealDoorFlag = 0;
-    }
-    else
-    {
-        m_sealDoorFlag = 1;
     }
     return m_sealDoorFlag;
 }
@@ -459,23 +463,31 @@ void CParty::SendPartyMemberTagChracInfo()
 // ============================================================================
 int CParty::GetDungeonIndex_isTOD(int& dungeonIdx, int& apcIdx)
 {
+    // [b28d-solo-CPartyDepsA2] ORIG 0x085bacca 函数头 `movb $0x0,-0x19`、
+    // 0x085bad2a 命中后 `movb $0x1,-0x19`（Ghidra local_1d 只写不读）⇒ 原码
+    // 保留了写后未读的 bool 局部（P171/P184 照抄，勿删）。
+    bool todFlag = false;
     TowerOfDespairMgr* tod =
         reinterpret_cast<TowerOfDespairMgr*>(GlobalData::s_pTowerOfDespairMgr);
     if (tod == 0)
     {
-        cMyTraceNoop trace;
-        trace("Error : DungeonIndex : %d", dungeonIdx);
+        // [b28d-solo-CPartyDepsA2] ORIG 0x085bace1 的 cMyTraceNoop 槽在 -0x2d
+        // （cMyTrace -0x2c 之前，先声明更深）；具名对象 4.4 反产 -0x1a ⇒
+        // P221 全表达式临时链翻 sibling 块槽向。
+        cMyTraceNoop()("Error : DungeonIndex : %d", dungeonIdx);
         return 0x13;
     }
 
     if (tod->GetBaseLayerIndex() == dungeonIdx)
     {
+        todFlag = true;
         CUser* manager = m_manager;   // ORIG this+0x74
         if (manager == 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           0x41bb, 5);
-            trace("TOD no Dungeon Manager!");
+            // [b28d-solo-CPartyDepsA2] ORIG 0x085bad55 cMyTrace 槽 -0x2c、
+            // cMyTraceNoop -0x2d、todayLayer -0x30 均在 msg 之后深侧；
+            // 4.4 把具名对象反放浅侧 ⇒ P221 全表达式临时链（两 trace 同形）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x41bb, 5)("TOD no Dungeon Manager!");
             return 0x13;
         }
 
@@ -483,11 +495,16 @@ int CParty::GetDungeonIndex_isTOD(int& dungeonIdx, int& apcIdx)
             manager->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xd));
         TOD_Layer todayLayer = state->getTodayEnterLayer();
 
-        dungeonIdx = static_cast<int>(tod->Get_DungeonIndexByLayer(
-            todayLayer.GetLayer()));
+        // [b28d-solo-CPartyDepsA2] ORIG 0x085badf6 段 `mov 0xc(%ebp),%edx;
+        // mov %eax,(%edx)`（LHS-first 直存）⇒ 原码无显式 cast（P211：显式
+        // static_cast<int> 使 RHS 异型 ⇒ 4.4 反产 RHS-first + edx 中转）。
+        dungeonIdx = tod->Get_DungeonIndexByLayer(todayLayer.GetLayer());
 
-        CDungeon* target = G_CDataManager()->find_dungeon(dungeonIdx);
-        int err = tod->CheckEnterable(manager, target);
+        // [b28d-solo-CPartyDepsA2] ORIG 0x085badc5 段：find_dungeon 结果经
+        // %eax 直传 CheckEnterable 第三实参，无 CDungeon* target 具名局部
+        // （P0 槽-局部律：我们的 -0x10 槽即该多出的局部）。
+        int err = tod->CheckEnterable(manager,
+                                      G_CDataManager()->find_dungeon(dungeonIdx));
         if (err != 0)
         {
             return err;
@@ -521,17 +538,28 @@ void CParty::SetProperDungeonEvent(CUser* user, int param)
             user->get_charac_level()))
         goto END2;
     {
-        int standardLevel = m_battleField.m_pDungeon->get_standard_level();
-        int minLevel = m_battleField.m_pDungeon->get_min_level();
-        int zero = 0;
-        int lower = std::max(minLevel, zero);
-        int upperBound = standardLevel + 1;
-        int cap = 0x46;
-        int upper = std::min(upperBound, cap);
-        int level = user->get_charac_level();
-        if (level < lower)
+        // [b28d-solo-CPartyDepsA2] ORIG 槽序（浅→深）standardLevel -0x10、
+        // cap -0x14、zero -0x18、minLevel -0x1c、upperBound -0x20、level -0xc；
+        // max/min 结果就地写回 minLevel/upperBound 槽 ⇒ 先声明后赋值 +
+        // 声明序按 ORIG 槽序（P198 孪生/P244 具名局部判据）。
+        int standardLevel;
+        int cap;
+        int zero;
+        int minLevel;
+        int upperBound;
+        int level;
+
+        standardLevel = m_battleField.m_pDungeon->get_standard_level();
+        minLevel = m_battleField.m_pDungeon->get_min_level();
+        zero = 0;
+        minLevel = std::max(minLevel, zero);
+        upperBound = standardLevel + 1;
+        cap = 0x46;
+        upperBound = std::min(upperBound, cap);
+        level = user->get_charac_level();
+        if (level < minLevel)
             goto END3;
-        if (level > upper)
+        if (level > upperBound)
             goto END4;
         user->SetProperDungeonUser();
     }
@@ -554,17 +582,27 @@ void CParty::SetProperLevelDungeon(CUser* user)
             m_battleField.m_pDungeon->get_index()))
         goto END1;
     {
-        int standardLevel = m_battleField.m_pDungeon->get_standard_level();
-        int minLevel = m_battleField.m_pDungeon->get_min_level();
-        int zero = 0;
-        int lower = std::max(minLevel, zero);
-        int upperBound = standardLevel + 1;
-        int cap = 0x46;
-        int upper = std::min(upperBound, cap);
-        int level = user->get_charac_level();
-        if (level < lower)
+        // [b28d-solo-CPartyDepsA2] 同 SetProperDungeonEvent：ORIG 槽序
+        // standardLevel -0x10 / cap -0x14 / zero -0x18 / minLevel -0x1c /
+        // upperBound -0x20 / level -0xc，max/min 就地写回 ⇒ 先声明后赋值。
+        int standardLevel;
+        int cap;
+        int zero;
+        int minLevel;
+        int upperBound;
+        int level;
+
+        standardLevel = m_battleField.m_pDungeon->get_standard_level();
+        minLevel = m_battleField.m_pDungeon->get_min_level();
+        zero = 0;
+        minLevel = std::max(minLevel, zero);
+        upperBound = standardLevel + 1;
+        cap = 0x46;
+        upperBound = std::min(upperBound, cap);
+        level = user->get_charac_level();
+        if (level < minLevel)
             goto END2;
-        if (level > upper)
+        if (level > upperBound)
             goto END3;
         user->SetProperLevelDungeonUser();
     }

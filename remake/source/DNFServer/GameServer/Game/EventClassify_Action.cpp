@@ -32,7 +32,11 @@ namespace EventClassify
 // process_action_send_mail（ORIG 0x0810cf32）
 // 返回：3=user 为空；0x11=物品表未命中；0=成功（MakeItemPacket 失败亦回 0）。
 // ============================================================================
-// [b28d-L14 N82附] ORIG 0x0810cf32；p167 CLEAR（41/41）；残差=槽深/寄存器分配。
+// [b28d-solo-EventClassify_Action] ORIG 0x0810cf32，381=381 AE（p167 41/41 CLEAR）。
+//   本件修法：①mail.m_itemIdx 先落具名 int itemIdx（ORIG -0x18）、find_item(itemIdx)；
+//   ②IsAvatarItem 两处改正极性 `if (IsAvatarItem()) {avatar} else {insert}`（ORIG
+//     `test %al,%al; je <else>`）；③PacketGuard 内删 sendOk 预清局部，改
+//     `if (!MakeItemPacket(...)) return 0;` 内联（ORIG `call; xor $1; test; je`）。
 int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail,
                                               bool flag)
 {
@@ -46,7 +50,7 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
     }
 
     Inven_Item item;
-    item.m_addInfo = mail.m_itemIdx;   // +0x02（item idx）
+    int itemIdx = mail.m_itemIdx;      // +0x20
     int addInfo = mail.m_addInfo;      // +0x24
 
     if (mail.m_jobMap.size() != 0)
@@ -55,7 +59,7 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
             mail.m_jobMap.find(user->get_charac_job());
         if (it != mail.m_jobMap.end())
         {
-            item.m_addInfo = it->second.first;    // +4 pair.first
+            itemIdx = it->second.first;           // +4 pair.first
             addInfo = it->second.second;          // +8 pair.second
         }
     }
@@ -63,6 +67,7 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
         addInfo = 1;
 
     int slot = -1;
+    item.m_addInfo = itemIdx;          // +0x02（item idx）
     item.set_add_info(addInfo);        // +0x07 m_addInfo2
 
     if (item.m_addInfo == 1)           // 金币（cav）→ 直发流程
@@ -71,8 +76,7 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
     }
     else
     {
-        CDataManager* mgr = G_CDataManager();
-        CItem* citem = mgr->find_item(item.m_addInfo);
+        CItem* citem = G_CDataManager()->find_item(itemIdx);
         if (citem == 0)
             return 0x11;
 
@@ -85,16 +89,16 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
             {
                 failed = true;
             }
-            else if (citem->IsAvatarItem() == 0)   // vtable 槽4
+            else if (citem->IsAvatarItem())        // vtable 槽4
             {
-                slot = user->getCurCharacInvenW()->insertItemIntoInventory(
-                    item, (eItemAddReason)0xd, true, true);
+                slot = process_avatar_send(user, item, citem);
                 if (slot == -1)
                     failed = true;
             }
             else
             {
-                slot = process_avatar_send(user, item, citem);
+                slot = user->getCurCharacInvenW()->insertItemIntoInventory(
+                    item, (eItemAddReason)0xd, true, true);
                 if (slot == -1)
                     failed = true;
             }
@@ -103,23 +107,22 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
             {
                 PacketGuard packet;
                 packet.put_header(0, 0xe);
-                bool sendOk = true;
-                if (citem->IsAvatarItem() == 0)
-                {
-                    packet.put_byte(0);
-                    packet.put_short(1);
-                    sendOk = user->getCurCharacInvenR()->MakeItemPacket(
-                        (INVEN_TYPE)1, slot, packet);
-                }
-                else
+                if (citem->IsAvatarItem())
                 {
                     packet.put_byte(1);
                     packet.put_short(1);
-                    sendOk = user->getCurCharacInvenR()->MakeItemPacket(
-                        (INVEN_TYPE)2, slot, packet);
+                    if (!user->getCurCharacInvenR()->MakeItemPacket(
+                            (INVEN_TYPE)2, slot, packet))
+                        return 0;
                 }
-                if (!sendOk)
-                    return 0;
+                else
+                {
+                    packet.put_byte(0);
+                    packet.put_short(1);
+                    if (!user->getCurCharacInvenR()->MakeItemPacket(
+                            (INVEN_TYPE)1, slot, packet))
+                        return 0;
+                }
                 packet.finalize(true);
                 user->Send(packet);
             }
@@ -148,16 +151,13 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
 // process_coin_send（ORIG 0x0810d4ae）
 // m_field1c!=0：事件币直加（GetEventCoin+add_info → SetEventCoin → 日志 →
 //               SaveMoneyCoin/SendCoin）；否则置 endurance=1 走 DB 邮件。
-// [N18a] ORIG @0x0810d4ae 尾段 ReqDBSendNewSystemMail 实参装载：4.1 将 mail.m_gold
-//   直落 scratch edx（characNo 留 eax），4.4-O0 恒把 characNo 从 eax 中转 edx 再
-//   用 eax 装 gold（多一条 `mov %eax,%edx`）。p167 调用点 19/19 CLEAR（0 miss/0
-//   extra），语义完整；scratch reg 方向属 4.1↔4.4 分配差异，删/加 cast 试错不可翻。
+// [b28d-solo-EventClassify_Action] ORIG 0x0810d4ae，169=169 AE（p167 19/19 CLEAR）。
+//   旧判词记的「characNo eax→edx 中转」系旧 .o 假象：fresh 编译后尾段
+//   `call getCurCharacNo; mov 0x10(%ebp),%edx; mov 0x28(%edx),%edx` 与 ORIG 全等。
 // ============================================================================
 int CEventActionMng::process_coin_send(CUser* user, Action_SendMail& mail,
                                        Inven_Item& item)
 {
-    // [b28c-L0 N7/N18a/P75] 语义完成；残差为虚调用寄存器分配（N7）、
-    // call 结果中转（N18a）与实参装载序（P75），169=170 仅 1 条中转。
     if (mail.m_field1c != 0)
     {
         user->getCurCharacInvenW()->SetEventCoin(
@@ -193,32 +193,32 @@ int CEventActionMng::process_coin_send(CUser* user, Action_SendMail& mail,
 // genIPGNo(type7) 取 IPG 号 → AddAvatarItem(idx, usablePeriod,0,0,-1,ipg,2,0,0)
 // 成功后按槽内物品与当前时间回填剩余日期到 item +0x07 并清 upgrade 位。
 // ============================================================================
-// [b28d-L14 N82附] ORIG 0x0810d0ac；残差=callee-saved 独占形（ORIG push edi/esi +
-// `mov %eax,%esi`）vs 4.4 槽化(-0x18)（P52/P37 边界）。
+// [b28d-solo-EventClassify_Action] ORIG 0x0810d70c，79=79 AE。
+//   本件修法：①ipg/usablePeriod 去具名局部改内联实参（P0/P200）⇒ 复现 ORIG
+//     esi(ipg)/ebx(usablePeriod)/edi(item.m_addInfo) callee-saved 独占；
+//   ②GetRemainDate 的 addInfo2 实参改匿名嵌套 sret
+//     `GetRemainDate(GetInvenSlot(2,slot).m_addInfo2, now)`（P278）⇒ ipgBuf@-0x75、
+//     sret@-0x5d 槽序与帧 0x9c 与 ORIG 全等（具名 slotItem 时两者互换、NEAR）。
 int CEventActionMng::process_avatar_send(CUser* user, Inven_Item& item,
                                          CItem const* citem)
 {
-    int slot = -1;
     char ipgBuf[24];
-    char* ipg = WongWork::CGenUniqueNo::genIPGNo(
-        (WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)7,
-        (unsigned int)user->getCurCharacNo(), ipgBuf);
-
-    int usablePeriod = citem->getUsablePeriod();
+    int slot = -1;
     slot = user->getCurCharacInvenW()->AddAvatarItem(
-        item.m_addInfo, usablePeriod,
+        item.m_addInfo, citem->getUsablePeriod(),
         /*b*/ false, /*c*/ 0, /*d*/ (char)-1,
-        ipg, (eAvatarItemAddReason)2, /*e*/ false, /*f*/ 0);
+        WongWork::CGenUniqueNo::genIPGNo(
+            (WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)7,
+            (unsigned int)user->getCurCharacNo(), ipgBuf),
+        (eAvatarItemAddReason)2, /*e*/ false, /*f*/ 0);
 
     if (slot != -1)
     {
         int now = GlobalData::s_systemTime_.getCurSec();
-        Inven_Item slotItem =
-            user->getCurCharacInvenR()->GetInvenSlot(2, slot);
-        int remainDate =
+        item.m_addInfo2 =                                   // +0x07
             user->getCurCharacInvenR()->GetAvatarItemMgrR()->GetRemainDate(
-                slotItem.m_addInfo2, now);
-        item.m_addInfo2 = remainDate;   // +0x07
+                user->getCurCharacInvenR()->GetInvenSlot(2, slot).m_addInfo2,
+                now);
         item.SetUpgrade(0);
     }
     return slot;
@@ -230,8 +230,9 @@ int CEventActionMng::process_avatar_send(CUser* user, Inven_Item& item,
 // ============================================================================
 int CEventActionMng::process_gold_mail_send(CUser* user, Action_SendMail& mail)
 {
-    // [b28c-L0 N18a/N22/P75] 语义完成；残差为 getCurCharacNo 结果中转
-    // （mov %eax,%edx）与 ReqDBSendNewSystemMail 实参寄存器对调，139=140。
+    // [b28d-solo-EventClassify_Action] ORIG 0x0810d83c，139=139 AE。
+    //   旧判词记的 getCurCharacNo eax→edx 中转系旧 .o 假象；fresh 编译后
+    //   尾段 `mov 0x10(%ebp),%edx; mov 0x28(%edx),%edx` 与 ORIG 全等。
     Inven_Item item;
     item.m_addInfo = -1;
 
@@ -244,7 +245,7 @@ int CEventActionMng::process_gold_mail_send(CUser* user, Action_SendMail& mail)
 
     WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
         sender, item,
-        mail.m_gold,
+        (unsigned int)mail.m_gold,
         (unsigned int)user->getCurCharacNo(),
         title, (int)std::strlen(title),
         (unsigned int)(signed char)mail.m_coin,
@@ -255,17 +256,14 @@ int CEventActionMng::process_gold_mail_send(CUser* user, Action_SendMail& mail)
 // ============================================================================
 // process_mail_send（ORIG 0x0810da1c）
 // citem 为空回 0x11；avatar 物品不入邮件（仅清局部缓冲），其余走 DB 邮件。
-// [b21] 分支极性修复：IsAvatarItem 测试改 `if (IsAvatarItem()) {avatar 死缓冲} else
-//   {DB 邮件}`，对齐 ORIG `test %al,%al; je <DB>` 块序。title[256]={0}/sender[30]={0}
-//   预清、findString(4,toTString)=strncpy、ReqDBSendNewSystemMail 九参（gold/no/
-//   title/strlen/mailPad/coin/server_group/b/b）逐条对齐。残余 N82：ReqDBSend 实参
-//   装载信封序寄存器分配异；`add $C`/`A $C` 归一伪差。无子母，封 N。
+// [b28d-solo-EventClassify_Action] ORIG 0x0810da1c，173=173 AE。
+//   分支极性 `if (IsAvatarItem()) {avatar 死缓冲} else {DB 邮件}` 与
+//   title[256]={0}/sender[30]={0} 预清、findString(4,toTString)=strncpy、
+//   ReqDBSendNewSystemMail 九参装载逐条对齐（旧 N82 判词系旧 .o 假象，已撤销）。
 // ============================================================================
 int CEventActionMng::process_mail_send(CUser* user, Action_SendMail& mail,
                                        Inven_Item& item, CItem const* citem)
 {
-    // [b28c-L0 N7/N18a/P75] 语义完成；残差为虚调用寄存器（call *%edx↔*%eax）、
-    // call getCurCharacNo 结果中转与实参装载序，173=174。
     if (citem == 0)
         return 0x11;
 
@@ -304,6 +302,14 @@ int CEventActionMng::process_mail_send(CUser* user, Action_SendMail& mail,
 //   GetItemType()==6  → find_item + get_lotto_item → push(m_addInfo,m_addInfo2)
 //   GetItemType()==16 → getBoosterItem(list) → 逐条 push(m_itemIdx,m_addInfo)
 // 其它类型返回 0x17；find 失败或空结果返回 0x11。
+// [b28d-solo-EventClassify_Action] ORIG 0x0810dc5a，176 vs 170（差 6 条=唯一残差），
+//   N 封顶。残差=case 16 循环内 `if (it->m_itemIdx == 0) return 0x11;` 的 0/1 物化：
+//   ORIG(4.1) 发「`call ptEv; mov (%eax),%eax; test; je L1; call ptEv(丢弃);
+//   mov $0; jmp L2; L1: mov $1; L2: test %al,%al; je`」= 分支+常量且条件表达式二次
+//   求值；4.4 恒折 `test; sete %al; test; je`（一次求值）。已试 `==0` / `!` /
+//   具名 bool / while 四形，sete 恒不变 ⇒ setcc-fold 跨版本负例（P197④ 族）。
+//   可修部分已落：CStackableItem* stackable 具名局部（ORIG -0xc）复现
+//   `mov -0x10(%ebp),%eax; mov %eax,-0xc(%ebp)` 两条。
 // ============================================================================
 int CEventActionMng::getResultItemFromLottery(unsigned int lotteryId,
                                               std::vector<std::pair<int, int> >& out)
@@ -331,8 +337,9 @@ int CEventActionMng::getResultItemFromLottery(unsigned int lotteryId,
     }
     case 16:
     {
+        CStackableItem* stackable = static_cast<CStackableItem*>(citem);
         std::vector<stStackableBoosterItemInfo_t> boosters;
-        static_cast<CStackableItem*>(citem)->getBoosterItem(boosters);
+        stackable->getBoosterItem(boosters);
         for (std::vector<stStackableBoosterItemInfo_t>::const_iterator it =
                  boosters.begin();
              it != boosters.end(); ++it)

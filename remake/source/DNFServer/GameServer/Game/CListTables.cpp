@@ -451,16 +451,22 @@ CMapList::~CMapList()
 // [b28d-32 N(P223/N89): 迭代器/STL 形态与岛差（82/95） | ORIG 0x0834f08c]
 void CMapList::destroy()
 {
-    CMap* map = 0;
-    __gnu_cxx::hash_map<int, CMap*>::iterator it;
-    it = m_mainMap.begin();
-    while (it != m_mainMap.end())
+    // [b28d-solo-CListTables] ORIG 0x0834f08c：同 QuestList::destroy 形——for-init
+    // 逗号式直构 it/end、`(*it)`（deEv）、前置 `++it`（ppEv）、map 无 0 初始化。
+    CMap* map;
+    for (__gnu_cxx::hash_map<int, CMap*>::iterator it = m_mainMap.begin(),
+             end = m_mainMap.end();
+         it != end;
+         ++it)
     {
-        map = it->second;
+        map = (*it).second;
         delete map;
-        it++;
     }
     m_mainMap.clear();
+    // [b28d-solo-CListTables N(N1/N94): 82/83，ORIG 把下标 i+1 折进常数
+    // （i*0x14+0x10+0x4），4.4 对 m_mapList[i+1] 恒多一条 `lea 0x1(%eax),%edx`；
+    // (m_mapList+1)[i] / (m_mapList+i)[1] 两形实测反多 lea+add（85 条）⇒ 保持
+    // 下标形，落 N。 | ORIG 0x0834f11c]
     for (int i = 0; i <= 14; ++i)
     {
         m_mapList[i + 1].clear();
@@ -738,21 +744,25 @@ CSkillList::~CSkillList()
 // [b28d-32 N(P223/N89): ORIG 尾岛与 STL 调用形差（71/98） | ORIG 0x08350b42]
 void CSkillList::destroy()
 {
-    __gnu_cxx::hash_map<int, CSkill*>::iterator it;
-    __gnu_cxx::hash_map<int, CSkill*>::iterator end;
-    CSkill* skill = 0;
+    // [b28d-solo-CListTables] ORIG 0x08350b42：每轮取具名指针 p=&m_skillList[i]
+    // （-0x14，地址计算 i*0x14+this 存槽）+ q=&m_groupSkillMap[i]（-0xc，
+    // i*0x18+0xdc+this）+ 内层 for-init 逗号式直构 begin/end（无 C1Ev）+
+    // `(*it)`（deEv）/前置 `++it`（ppEv）；skill 无 0 初始化。
     for (int i = 0; i <= 10; ++i)
     {
-        it = m_skillList[i].begin();
-        end = m_skillList[i].end();
-        while (it != end)
+        __gnu_cxx::hash_map<int, CSkill*>* p = &m_skillList[i];
+        CSkill* skill;
+        for (__gnu_cxx::hash_map<int, CSkill*>::iterator it = p->begin(),
+                 end = p->end();
+             it != end;
+             ++it)
         {
-            skill = it->second;
+            skill = (*it).second;
             delete skill;
-            it++;
         }
-        m_skillList[i].clear();
-        m_groupSkillMap[i].clear();
+        p->clear();
+        std::multimap<int, CSkill*>* q = &m_groupSkillMap[i];
+        q->clear();
     }
 }
 
@@ -1090,14 +1100,17 @@ QuestList::~QuestList()
 // [b28d-32 N(P223/N89): ORIG 空块岛与迭代器/STL 形态差（81/93） | ORIG 0x08353c86]
 void QuestList::destroy()
 {
-    Quest* quest = 0;
-    __gnu_cxx::hash_map<int, Quest*>::iterator it;
-    it = m_questMap.begin();
-    while (it != m_questMap.end())
+    // [b28d-solo-CListTables] ORIG 0x08353c86：for-init 逗号式同时直构 it=begin()
+    // 与 end=m.end()（两个 sret 槽 -0x14/-0x1c，ORIG 条件区不重调 end）+
+    // operator*（deEv，P167 ⇒ `(*it)`）+ 前置 `++it`（ppEv）+ quest 无 0 初始化。
+    Quest* quest;
+    for (__gnu_cxx::hash_map<int, Quest*>::iterator it = m_questMap.begin(),
+             end = m_questMap.end();
+         it != end;
+         ++it)
     {
-        quest = it->second;
+        quest = (*it).second;
         delete quest;
-        it++;
     }
     m_questMap.clear();
     m_npcQuestList0.clear();
@@ -1174,16 +1187,25 @@ int QuestList::Check_Quest(Quest* quest, stSelectQuestParam& param,
     // （-0x24..-0xd，+0x14 为 char），随后各检查用负形早退
     // `call; xor $1,%eax; test %al,%al; je fail; mov $0,%eax; jmp end`
     // （exposeQuest/check_possible 仍用原 param，其余用副本字段），尾 return 1。
-    stSelectQuestParam paramCopy = param;
+    // [b28d-solo-CListTables] ORIG 0x08355474：逐字段重载 param 基址拷贝
+    // （+0x14 单字节 movzbl/mov %al），4.4 隐式拷贝折成基址复用 + dword 块
+    // （+0x14 按 4 字节搬）⇒ 写显式逐字段赋值。
+    int level = param.m_level;
+    int job = param.m_job;
+    int firstGrow = param.m_firstGrow;
+    int secondGrow = param.m_secondGrow;
+    int pvpGrade = param.m_pvpGrade;
+    char powerSide = param.m_powerSide;
+    int questIdx = param.m_questIdx;
     if (!quest->exposeQuest())
         return 0;
     if (!quest->check_possible(param))
         return 0;
-    if (!check_ahead_quest(paramCopy.m_questIdx, clear))
+    if (!check_ahead_quest(questIdx, clear))
         return 0;
-    if (!check_anti_quest(paramCopy.m_questIdx, clear))
+    if (!check_anti_quest(questIdx, clear))
         return 0;
-    if (!quest->check_power_side(paramCopy.m_powerSide))
+    if (!quest->check_power_side(powerSide))
         return 0;
     return 1;
 }
@@ -1364,23 +1386,31 @@ void QuestList::allowable_questlist_as_npc(
 // [b28d-32 N(P89/N134): 具名局部/STL 调用链形态差（106/85） | ORIG 0x0835589e]
 void QuestList::GetDailyQuestList(std::list<int>& out)
 {
-    for (std::list<int>::iterator it = m_listE0.begin();
-         it != m_listE0.end(); ++it)
+    // [b28d-solo-CListTables] ORIG 0x0835589e：it 先 C1Ev 默认构造（-0x24）再
+    // `it = begin()`（sret -0x3c 拷贝）、quest 函数头清零（-0xc，P171 死初始化）、
+    // range 先 C1Ev（-0x34）再 `range = equal_range(...)`（临时 -0x1c + op=）、
+    // cit 初始化式（-0x38）、it++/cit++ 均后置（ppEi，临时 -0x10/-0x14）。
+    std::list<int>::iterator it;
+    Quest* quest = 0;
+    std::pair<std::multimap<int, int>::const_iterator,
+              std::multimap<int, int>::const_iterator> range;
+    it = m_listE0.begin();
+    while (it != m_listE0.end())
     {
         int npcIdx = *it;
-        std::pair<std::multimap<int, int>::const_iterator,
-                  std::multimap<int, int>::const_iterator> range =
-            m_npcQuestList7.equal_range(npcIdx);
-        for (std::multimap<int, int>::const_iterator cit = range.first;
-             cit != range.second; ++cit)
+        range = m_npcQuestList7.equal_range(npcIdx);
+        std::multimap<int, int>::const_iterator cit = range.first;
+        while (cit != range.second)
         {
             int questIdx = cit->second;
-            Quest* quest = find_quest(questIdx);
+            quest = find_quest(questIdx);
             if (quest != 0 && quest->m_field8 == 3)
             {
                 out.push_back(questIdx);
             }
+            cit++;
         }
+        it++;
     }
 }
 

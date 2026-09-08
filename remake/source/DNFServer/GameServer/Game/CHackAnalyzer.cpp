@@ -9,9 +9,6 @@
 #include "CHackAnalyzer.h"
 
 #include <algorithm>
-#include <iostream>   // b28d-solo-CHackAnalyzer: ORIG TU 静态初始化含
-                      // std::ios_base::Init C1+__cxa_atexit（0x080f97b4 实证）
-                      // ⇒ 原 TU 经头链引入流头；补此 include 复现该 TU 级符号。
 #include <string.h>
 
 #include "CUser.h"

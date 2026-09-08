@@ -292,7 +292,11 @@ namespace WongWork
 // WongWork::CSecurityCardCenter —— 安全卡服务中心。ORIG 布局：CRijndael@0x0
 // sizeof 0x47c、list<unsigned char> m_characterSet @0x47c、ushort m_timeCount
 // @0x484。ctor 0x082a6654 / init 0x085fe05e；其余方法定义 W6_SecMiscDeps.cpp。
-class CSecurityCardCenter : public CRijndael
+// [b28d-solo-W6_SecMiscDeps] CRijndael 是**成员子对象**而非基类：ORIG nm 无
+// _ZTV/_ZTIN8WongWork19CSecurityCardCenterE、无 D0/D1/D2；ORIG C1 0x082a6654 调
+// _ZN9CRijndaelC1Ev（非 C2）且全程无派生类 vptr 写（CRijndael::C1 0x080b60ac
+// 内部写 _ZTV9CRijndael+8）。布局/sizeof 0x488/mangled 全不变。
+class CSecurityCardCenter
 {
 public:
     CSecurityCardCenter();
@@ -305,6 +309,7 @@ public:
     char* generateCardData(char* out) const;              // ORIG T 0x085fe1ba
 
 private:
+    CRijndael m_cipher;                        // +0x0（ORIG C1 调 CRijndael::C1 的成员子对象）
     std::list<unsigned char> m_characterSet;   // +0x47c（init push_back 42 字符）
 public:
     unsigned short m_timeCount;                // +0x484（_updateTimeCount；init 置 1）

@@ -2442,7 +2442,7 @@ public:
     char m_pad8e099[3];                                     // +0x8e099..0x8e09b
     int m_childrensDaySlots[10];                            // +0x8e09c..0x8e0c3（ClearChildrensDayEvent 置 -1 表 A）
     int m_childrensDayPeriods[10];                          // +0x8e0c4..0x8e0eb（ClearChildrensDayEvent 置 -1 表 B）
-    char m_capchaCertify[0xa];                              // +0x8e0ec（reqHumanCertify
+    union { char m_capchaCertify[0xa]; unsigned short m_capchaCertifyW[5]; };  // +0x8e0ec（b28d-Main P235：W 视角复现 ORIG 单条 disp movzwl）                              // +0x8e0ec（reqHumanCertify
                                                             //   memcpy 验证码头 0xa 字节）
     char m_pad8e0f6[2];                                     // +0x8e0f6..0x8e0f7
     int m_humanCertifyTimerKey;                             // +0x8e0f8

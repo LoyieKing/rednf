@@ -103,7 +103,9 @@ public:
     void _Set_APCIndexByLayer(unsigned int layer);     // 0x08643cf4
 
     CDungeon* Get_CDungeonByLayer(unsigned int layer);          // ORIG T 0x08643d14
-    unsigned int Get_DungeonIndexByLayer(unsigned int layer);   // ORIG T 0x08643d76
+    // [b28d-solo-CPartyDepsA2] 返回类型 unsigned int→int：ORIG 调用点
+    // 0x085badf6 LHS-first 直存（P211 同型化旋钮）；mangled/布局不变。
+    int Get_DungeonIndexByLayer(unsigned int layer);            // ORIG T 0x08643d76
     int Get_APCIndexByLayer(unsigned int layer);                // ORIG T 0x08643d9c（不在表=−1）
     int GetBaseLayerIndex();                                    // ORIG T 0x086440a0
     int CheckEnterable(CUser* user, const CDungeon* dungeon);   // ORIG T 0x086440ee
