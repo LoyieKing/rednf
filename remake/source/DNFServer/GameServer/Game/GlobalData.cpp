@@ -127,6 +127,7 @@ namespace DNFFLib { int Binary2Hex(unsigned char const*, int, char*); }   // _ZN
 #include "PacketHeader.h"         // 权威 10 字节线格式头（UdpThread::_processUDPData packetId 视图）
 #include "RandomOptionScript.h"   // RandomOptionScript::m_providerNormal148(+0x148) 权威成员（CRandomOptionItemHandle ctor）
 #include "XorRand4.h"             // XorRand4 权威声明（定义 XorRand.cpp；本 TU 原重复 inline 副本已删）
+#include "RandGen.h"              // RandGen::getFloat(XorRand4*,float,float)（ORIG 0x08ae02a4）
 
 // ============================================================================
 // 依赖类最小 stub（符号/布局属后续批次；本 TU 只用于还原 GlobalData 函数）
@@ -1014,7 +1015,6 @@ public:
     static int kTaiwanAlphabetCount;    // VA 0x08b2c534（26）
     static int kJapaneseHirakanaCount;  // VA 0x08b2c4f0（72）
 private:
-    static float getFloat(XorRand4& rng, float lo, float hi);
     void* m_library;             // +0x00（ORIG FT_Library；本还原中为句柄占位）
     std::vector<void*> m_faces;  // +0x04
     XorRand4 m_rng;              // +0x10
@@ -1375,12 +1375,6 @@ void CaptchaGen::generateText(CountryCode code, int len, unsigned short* out)
     }
 }
 
-float CaptchaGen::getFloat(XorRand4& rng, float lo, float hi)
-{
-    unsigned int v = rng() % 0xffffu;
-    return (float)v * (1.0f / 65536.0f) * (hi - lo) + lo;
-}
-
 // [b28d-18 N82] 残差=槽位/STL（N82/N89） | ORIG 0x080deade
 void CaptchaGen::generateImage(int width, int height, const unsigned short* text, int len,
                                const ImageOption& opt, GreyImage* image)
@@ -1428,10 +1422,12 @@ void CaptchaGen::generateImage(int width, int height, const unsigned short* text
     {
         unsigned int faceIdx = m_rng() % m_faces.size();
         (void)faceIdx;
-        (void)getFloat(m_rng, opt.m_fieldc, opt.m_field10);   // 旋角
-        (void)getFloat(m_rng, opt.m_fieldc, opt.m_field10);
-        (void)getFloat(m_rng, opt.m_field14, opt.m_field18);  // 缩放
-        (void)getFloat(m_rng, opt.m_field14, opt.m_field18);
+        // ORIG 0x08176xxx 段：调外部 RandGen::getFloat(&m_rng,…)（0x08ae02a4），
+        // 本 TU 原 CaptchaGen::getFloat 为发明符号（ORIG nm 无）⇒ 改用权威函数。
+        (void)RandGen::getFloat(&m_rng, opt.m_fieldc, opt.m_field10);   // 旋角
+        (void)RandGen::getFloat(&m_rng, opt.m_fieldc, opt.m_field10);
+        (void)RandGen::getFloat(&m_rng, opt.m_field14, opt.m_field18);  // 缩放
+        (void)RandGen::getFloat(&m_rng, opt.m_field14, opt.m_field18);
         (void)(m_rng() & 2);                                   // 镜像位
         (void)(m_rng() & 2);
 
@@ -1467,10 +1463,14 @@ void CaptchaGen::generateImage(int width, int height, const unsigned short* text
     // 波形扭曲（ORIG 第四段：cos/sin 16.16 定点偏移 + 双线性采样）
     GreyImage tmp;
     tmp.init(width, height, 0);
-    float freq = getFloat(m_rng, opt.m_field24, opt.m_field28);
-    float amp = getFloat(m_rng, opt.m_field2c, opt.m_field30);
-    std::vector<int> cosTbl(width);
-    std::vector<int> sinTbl(height);
+    float freq = RandGen::getFloat(&m_rng, opt.m_field24, opt.m_field28);
+    float amp = RandGen::getFloat(&m_rng, opt.m_field2c, opt.m_field30);
+    // ORIG：默认构造 + resize(n, 0)（p167 MISSING `vector()`×2 + `resize`×2；
+    // 我们原 `vector(n)` 产 EXTRA `vector(unsigned, int const&)` + allocator 族）。
+    std::vector<int> cosTbl;
+    std::vector<int> sinTbl;
+    cosTbl.resize((unsigned)width, 0);
+    sinTbl.resize((unsigned)height, 0);
     for (int x = 0; x < width; ++x)
     {
         cosTbl[x] = (int)(65536.0f * cosf((float)x * freq) * amp);
@@ -3995,9 +3995,11 @@ bool ItemVendingMachine::_CheckEnableAvatarCondition(const CCeraShopGoods* goods
     out.init();
     related = goods->GetRelatedItem();
     CEquipItem* equip = static_cast<CEquipItem*>(related);
+    // ORIG 0x08176794 段（p167 MISSING `operator[](unsigned int) const`×4）：
+    // 原码是 const 引用视图 ⇒ 声明 const 指针转型（P270 旋钮）。
     void* vec = equip->getAvatarTypeSelect();
-    std::vector<stAvatarTypeSelect_t>& select =
-        *static_cast<std::vector<stAvatarTypeSelect_t>*>(vec);
+    const std::vector<stAvatarTypeSelect_t>& select =
+        *static_cast<const std::vector<stAvatarTypeSelect_t>*>(vec);
     int idx = (signed char)c;
     if (select.empty() || idx >= (int)select.size())
         return false;

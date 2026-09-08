@@ -821,9 +821,11 @@ bool CQuickPartySystemManager::check_quick_party_min_count(
 int CQuickPartySystemManager::match_proper_party(
     const STQuickPartyPoolMap_Key& key, CParty* party, CUser* user)
 {
-    bool abnormal =
-        (party == 0) || (party->get_quick_party_index() != -1);
-    if (abnormal)
+    // [b28d-solo-QuickParty] 修法（P226）：ORIG 0x08269f4a 的 abnormal 物化在 %al
+    // （mov $1/mov $0/test %al），无栈槽；具名 bool 使 4.4 发 `mov %al,-0x2d; cmpb $0,-0x2d`。
+    if (({
+            (party == 0) || (party->get_quick_party_index() != -1);
+        }))
     {
         if (party == 0 && user != 0)
         {
@@ -931,9 +933,13 @@ int CQuickPartySystemManager::match_proper_party(
 // [b28d-L1] N82 封顶：ORIG 0x0826b222；P167 CLEAR（37/37）⇒ 语义完成，残余为槽位/帧形态差（real diff 264 全为 disp/reg）。
 CParty* CQuickPartySystemManager::make_quick_party(CQuickParty* qp)
 {
-    std::list<CUser*> detached;
     if (qp == 0)
         return 0;
+
+    // [b28d-solo-QuickParty] 修法（P0/声明序）：ORIG 0x0826b22a 先 `cmpl $0x0,0xc(%ebp);
+    // jne` 再构造 detached（0x0826b23a 后）⇒ 原码 detached 声明在 qp 判空之后；提前
+    // 声明使 4.4 把 detached 排深 4 并整体平移全帧槽号。
+    std::list<CUser*> detached;
 
     // 选 host：优先 EPLP 等待态>1 的队伍，否则任一 quick party 属性队伍。
     CParty* host = 0;

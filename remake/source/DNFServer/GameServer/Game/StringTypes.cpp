@@ -270,9 +270,12 @@ char CharString::getAt(int idx) const
 
 CharString CharString::setAt(int idx, char ch)
 {
-    // [b28d-34] 复核维持 DIFF（N82 族）：ORIG 0x08ad6ca2 用 edi/esi 跨调用缓存
-    // 且帧 0x2c；4.4 帧 0x20 并多一次 getData/create 调用序，源形不可择
-    // （P0/P183 表达式化已试）；语义等价。
+    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad6ca2）：①删 `char* dest` 具名缓存
+    // （P183），memcpy 三实参按 ORIG 求值序内联——size(`getLength()+1`)→edi、
+    // src(`thisData->getBuffer()`)→esi、dst(`newData->getBuffer()`)→eax；
+    // ②两个指针局部按 P212 全头部声明（thisData 先 ⇒ 4.4 先声明深 -0x20、
+    // newData 后 ⇒ -0x1c），复现 ORIG 槽序（旧 N82 判词作废）。
+    CharStringData* thisData;
     CharStringData* newData;
     if (buffer_[idx] == ch)
     {
@@ -280,10 +283,9 @@ CharString CharString::setAt(int idx, char ch)
     }
     else
     {
-        CharStringData* thisData = getData();
+        thisData = getData();
         newData = CharStringData::create(thisData->getLength());
-        char* dest = newData->getBuffer();
-        memcpy(dest, thisData->getBuffer(), thisData->getLength() + 1);
+        memcpy(newData->getBuffer(), thisData->getBuffer(), thisData->getLength() + 1);
         newData->getBuffer()[idx] = ch;
         return CharString(newData);
     }
@@ -303,13 +305,15 @@ bool CharString::startsWith(const char* pat, bool isIgnoreCase) const
 bool CharString::endsWith(const char* pat, bool isIgnoreCase) const
 {
     int patLength = static_cast<int>(strlen(pat));
-    // [b28d-34] ORIG 0x08ad9xxx：`cmp; setl %al; test %al; je body; mov$0,%eax;
-    // jmp end`（tooShort 早退岛，无槽 ⇒ 原码无 bool 局部）。早退 return false 形。
+    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad6e02）：早退 `if (length() < patLength)
+    // return false;` 保持；残差仅 `length() - patLength` 物化段（同 right 族），
+    // 改左结合 `c_str() + length() - patLength` 复现 ORIG 六段
+    // （P205 拆形族；旧 N-86b 判词作废）。
     if (length() < patLength)
         return false;
     if (isIgnoreCase)
-        return strncasecmp(c_str() + (length() - patLength), pat, patLength) == 0;
-    return strncmp(c_str() + (length() - patLength), pat, patLength) == 0;
+        return strncasecmp(c_str() + length() - patLength, pat, patLength) == 0;
+    return strncmp(c_str() + length() - patLength, pat, patLength) == 0;
 }
 
 char CharString::front() const
@@ -319,15 +323,11 @@ char CharString::front() const
 
 char CharString::back() const
 {
-    // [b28c-16 P0 清绑 + N96] 原 register asm("eax") 绑定违反 P0 全域禁则，
-    // 已按 P0 清除。自然形（`if(len())`/`!=0`/`>0`/cast，探针 p9 b1..b5）
-    // 4.4 恒多 `setcc %al; test %al,%al` 两条 bool 物化 vs ORIG 单条
-    // `test %eax,%eax; je` ⇒ 落 N96（绑定赋值中转）+P168a④。
-    // [b28d-34] 复核维持 N96/P168a④（ORIG 0x08ad6edc）：4.4 对 int callee 条件
-    // 调用恒物化 setne+test，源形五探针全败；语义等价。
-    if (length())
-        return buffer_[length() - 1];
-    return '\0';
+    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad6edc）：`if(length())` 形在 4.4
+    // 恒物化 `test %eax,%eax; setne %al; test %al,%al; je`（P292 int callee 侧），
+    // ORIG 4.1 为直判 `test %eax,%eax; je`。改三目 `cond ? a : b`（P47 族）
+    // 即复现直判 + 零分支后置岛布局，逐条与 ORIG 全等。
+    return length() ? buffer_[length() - 1] : '\0';
 }
 
 CharString::const_iterator CharString::begin() const
@@ -1015,7 +1015,9 @@ wchar_t WideString::getAt(int idx) const
 
 WideString WideString::setAt(int idx, wchar_t ch)
 {
-    // [b28d-34] 复核维持 DIFF（N82 族，同 CharString::setAt）。ORIG 0x08ad9cf8。
+    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad9cf8）：同 CharString::setAt，
+    // 删 `wchar_t* dest` 缓存 + P212 全头部声明复现槽序。
+    WideStringData* thisData;
     WideStringData* newData;
     if (buffer_[idx] == ch)
     {
@@ -1023,10 +1025,9 @@ WideString WideString::setAt(int idx, wchar_t ch)
     }
     else
     {
-        WideStringData* thisData = getData();
+        thisData = getData();
         newData = WideStringData::create(thisData->getLength());
-        wchar_t* dest = newData->getBuffer();
-        memcpy(dest, thisData->getBuffer(),
+        memcpy(newData->getBuffer(), thisData->getBuffer(),
                (thisData->getLength() + 1) * sizeof(wchar_t));
         newData->getBuffer()[idx] = ch;
         return WideString(newData);
@@ -1047,14 +1048,13 @@ bool WideString::startsWith(const wchar_t* pat, bool isIgnoreCase) const
 bool WideString::endsWith(const wchar_t* pat, bool isIgnoreCase) const
 {
     int patLength = static_cast<int>(wcslen(pat));
-    // [b28d-34] 同 CharString::endsWith：早退 return false 形复现 ORIG 0x08ad9xxx
-    // `setl; test; je body` + `mov$0,jmp` 岛；残差仅 `length()-patLength` 物化段
-    // （N-86b，与 right 族同）。
+    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad9df8）：同 CharString::endsWith，
+    // 左结合 `c_str() + length() - patLength` 复现 4.1 六段物化（P205 拆形族）。
     if (length() < patLength)
         return false;
     if (isIgnoreCase)
-        return wcsncasecmp(c_str() + (length() - patLength), pat, patLength) == 0;
-    return wcsncmp(c_str() + (length() - patLength), pat, patLength) == 0;
+        return wcsncasecmp(c_str() + length() - patLength, pat, patLength) == 0;
+    return wcsncmp(c_str() + length() - patLength, pat, patLength) == 0;
 }
 
 wchar_t WideString::front() const
@@ -1064,11 +1064,9 @@ wchar_t WideString::front() const
 
 wchar_t WideString::back() const
 {
-    // [b28c-16 P0 清绑 + N96] 同上。
-    // [b28d-34] 复核维持 N96/P168a④（ORIG 0x08ad9f36）。
-    if (length())
-        return buffer_[length() - 1];
-    return 0;
+    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad9f36）：同 CharString::back，
+    // 三目复现 4.1 直判 `test;je` + 零值岛后置（P47 族）。
+    return length() ? buffer_[length() - 1] : 0;
 }
 
 WideString::const_iterator WideString::begin() const
@@ -1740,18 +1738,19 @@ CharString mid(const CharString& str, int start, int length)
 
 CharString right(const CharString& str, int length)
 {
-    // [b28c-16 定论 N-86b] 残差仅 `str.length() - length` 的物化段数：ORIG 4.1
-    // 发 `mov %eax,%edx; mov 0x10(%ebp),%eax; mov %edx,%ecx; sub %eax,%ecx;
-    // mov %ecx,%eax` 五段（无槽往返 ⇒ P0 无具名局部），4.4 恒折 `sub MEM,%eax`
-    // 单条；同一算术多 codegen，源形不可择。
-    // [b28d-34] 复核维持 N-86b（ORIG 0x08ad7fe5）。
+    // [b28d-solo-StringTypes] 归零（ORIG 0x08ad7fe5）：旧 N-86b 判词作废。残差
+    // `str.length() - length` 的物化段数由**表达式结合序**决定：写
+    // `p + (len - length)` 时 4.4 折 `sub MEM,%eax` 单条；改左结合
+    // `p + len - length`（指针先加长度再减，语义等价）即复现 ORIG 六段
+    // `mov %eax,%edx; mov 0x10(%ebp),%eax; mov %edx,%ecx; sub %eax,%ecx;
+    // mov %ecx,%eax`（P205 拆形族，探针 /tmp/s23/p2.cpp r3 逐条命中）。
     if (str.length() <= length)
     {
         return CharString(str);
     }
     else
     {
-        return CharString(str.c_str() + (str.length() - length), length);
+        return CharString(str.c_str() + str.length() - length, length);
     }
 }
 
@@ -1801,15 +1800,15 @@ WideString mid(const WideString& str, int start, int length)
 
 WideString right(const WideString& str, int length)
 {
-    // [b28c-16 定论 N-86b] 同 right(CharString)：4.1 五段物化 vs 4.4 单条折叠。
-    // [b28d-34] 复核维持 N-86b（ORIG 0x08adb099）。
+    // [b28d-solo-StringTypes] 归零（ORIG 0x08adb099）：同 right(CharString)，
+    // 左结合 `p + len - length` 复现 4.1 六段物化（P205 拆形族）。
     if (str.length() <= length)
     {
         return WideString(str);
     }
     else
     {
-        return WideString(str.c_str() + (str.length() - length), length);
+        return WideString(str.c_str() + str.length() - length, length);
     }
 }
 

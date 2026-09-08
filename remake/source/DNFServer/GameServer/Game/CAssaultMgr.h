@@ -99,7 +99,10 @@ class PartyInfo
 public:
     PartyInfo() : m_field00(0) {}
 
-    unsigned int Get() { return (unsigned int)m_field00; } // ORIG 0x82f060a
+    // b28d-solo-CAssaultMgr: P119——ORIG 0x82f060a 为**独立 W 符号**且 CloseAssault
+    // 调用点真发 `call`（P167 差集 ×2）；头内 inline 体被 4.4 内联展开 ⇒ 改头声明、
+    // 本 TU 外联定义（消费点仅 CAssaultMgr.cpp CloseAssault）。
+    unsigned int Get();                                    // ORIG 0x82f060a
     void Set(CParty* party);                               // ORIG 0x82f05fc
 
     CParty* m_field00;   // ORIG Set 0x82f05fc this 先载直存 ⇒ 成员即 CParty*
@@ -271,7 +274,10 @@ public:
         : m_user(0), m_team((ENUM_ASSAULT_TEAM)0)
     {
     }
-    ~CAssaulter() {}                                  // ORIG D1/D2 0x82e6636 空
+    // b28d-solo-CAssaultMgr: P210 三分律——原头内 inline 空体使 4.4 在
+    // CAssaultPlace::~CAssaultPlace 的数组析构循环里保守撑帧 sub $0x14；
+    // 改头声明 + 本 TU 外联定义（置于 caller 之前）即精确继承 ORIG sub $0x4。
+    ~CAssaulter();                                    // ORIG D1/D2 0x82e6636 空
 
     CUser* GetUser();                                 // ORIG W 0x82f0542（读 +0）
     bool Empty();                                     // ORIG W 0x82f055c（+0==0）

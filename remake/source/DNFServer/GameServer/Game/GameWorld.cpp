@@ -189,6 +189,7 @@ void GameWorld::destroy()
 }
 
 // [b28d-11b] N：帧差 0x10（N82）@0x086c4134
+// [b28d-solo-GameWorld] _ZN9GameWorld4initEv verdict=DIFF 274/276 N82 封顶（帧 0xac vs 0xbc + 槽组平移 + N89 STL 内联）。
 bool GameWorld::init()
 {
     // ORIG +0x00c：GetInstanceSyncScript 结果直转实参，无命名局部
@@ -399,6 +400,7 @@ void GameWorld::UpdateChannelUser()
 }
 
 // [b28d-11b] N：帧差 0x20（N82）@0x086cb17c
+// [b28d-solo-GameWorld] _ZN9GameWorld30updateDetailChannelServiceInfoEv verdict=DIFF 308/326 N82/N89 封顶（帧 0xa0 vs 0xc0 + map 局部槽组平移）。
 void GameWorld::updateDetailChannelServiceInfo()
 {
     std::map<int, int> countMap;
@@ -478,6 +480,7 @@ void GameWorld::updateDetailChannelServiceInfo()
     }
 }
 // [b28d-11b] N：帧差 0x20 + 局部槽（N82）@0x086cd0b0
+// [b28d-solo-GameWorld] _ZN9GameWorld30UpdateStatistic4ChannelUserLevEv verdict=DIFF 121/134 N82/P259 封顶（帧 0x30 vs 0x50 + Stream/Acquire 槽组；Acquire 内联实参试形见 P259）。
 void GameWorld::UpdateStatistic4ChannelUserLev()
 {
     Stream* stream = GlobalData::s_stream_pool->Acquire("world.cpp", 0x14ab);
@@ -771,6 +774,8 @@ bool GameWorld::InsertUserToIDMap(const char* name, unsigned int id)
     // （it=-0x14/last=-0x18）；allocator 临时 -0xd vs -0x9 同族。声明序/两语句序
     // 均不可翻（make_unique_id 同判例）。
     std::map<std::string, SimpleInfo>::iterator it = m_idMap.find(strName);   // +0x098
+    // [b28d-solo-GameWorld] _ZN9GameWorld17InsertUserToIDMapEPKcj verdict=AE
+    // （内联 end() 恢复 find 先/end 后调用序 + end sret 浅槽，P220/P293）
     // b28d-solo-GameWorld：ORIG 0x086cd611 end sret 落浅槽 -0xc（匿名临时），
     // 具名 last 会被 4.4 排到深槽 -0x18 ⇒ 内联 end() 保留 find 先/end 后调用序。
     // b28d-lane11：P198② 谓词整体内联（ORIG +0x0c8/+0x0d7 `test %al,%al` 直测
@@ -834,6 +839,7 @@ int GameWorld::GetIDUserInIDMap(const char* name)
 }
 
 // [b28d-11b] N：帧差 + 寄存器分配（N82/N7）@0x086c4e50
+// [b28d-solo-GameWorld] _ZN9GameWorld16reach_game_worldEP5CUser verdict=DIFF 271/241 N82/N7 封顶（帧 add vs sub 0x70 + callee-saved 角色互换）。
 bool GameWorld::reach_game_world(CUser* user)
 {
     if (user == NULL)
@@ -912,6 +918,7 @@ bool GameWorld::reach_game_world(CUser* user)
 }
 
 // [b28d-11b] N：帧差 0x10 + bool 物化（N82）@0x086c5288
+// [b28d-solo-GameWorld] _ZN9GameWorld16leave_game_worldEP5CUser verdict=DIFF 298/265 N82 封顶（帧 0x70 vs 0x60 + bool 物化/槽组）。
 bool GameWorld::leave_game_world(CUser* user)
 {
     if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()))
@@ -1124,6 +1131,7 @@ CUser* GameWorld::find_user_from_world_byaccid_loop(unsigned int accId)
  }
 
 // [b28d-11b] N：帧差 0x14 + push esi（N82）@0x086cafaa
+// [b28d-solo-GameWorld] _ZN9GameWorld13arrange_usersEv verdict=DIFF 119/117 N82/P221 封顶（ORIG push esi 保活 cMyTrace 实参 vs 4.4 %ebx 单缓存）。
 void GameWorld::arrange_users()
 {
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
@@ -1187,6 +1195,7 @@ int GameWorld::get_UserCount_InWorld()
 }
 
 // [b28d-11b] N：帧差 0x10（N82）@0x086cd2f6
+// [b28d-solo-GameWorld] _ZN9GameWorld17UpdateNatTypeUserEv verdict=DIFF 173/178 N82 封顶（帧 0x60 vs 0x70 + map 槽组平移）。
 void GameWorld::UpdateNatTypeUser()
 {
     std::map<int, int> natMap;
@@ -1350,6 +1359,7 @@ void GameWorld::send_to_area(int vill, int area, PacketGuard& packet)
         return;
     }
     // b28d-lane11：P0/N96 清绑（原 register bool asm("al")）。
+    // verdict=AE（P198② 谓词内联 + 全 47=47 助记符对齐）
     // [b28d-solo-GameWorld] _ZN9GameWorld12send_to_areaEiiR11PacketGuard：P198② 谓词
     // 内联（ORIG 0x86c8189 `call size; cmp; setl %al; test; jne` 无槽往返）。
     if ((int)g_townScriptFileList.size() < vill)   // ORIG 0x86c8189 setl %al
@@ -1385,6 +1395,7 @@ void GameWorld::send_to_area(int vill, int area, PacketGuard& packet,
         return;
     }
     // b28d-lane11：P0/N96 清绑。
+    // verdict=AE（P198② 谓词内联）
     // [b28d-solo-GameWorld] _ZN9GameWorld12send_to_areaEiiR11PacketGuardP7CBelong：
     // P198② 谓词内联（ORIG setl 无槽往返，具名 sizeBad 多 mov/cmpb 两条）。
     if ((int)g_townScriptFileList.size() < vill)
@@ -1416,6 +1427,7 @@ void GameWorld::send_to_area(int vill, int area, PacketGuard& packet,
 {
     // 同上族（vector 版）
     // b28d-lane11：P0/N96 清绑。
+    // verdict=AE（P198② 谓词内联）
     // [b28d-solo-GameWorld] _ZN9GameWorld12send_to_areaEiiR11PacketGuardRSt6vectorIP5CUserSaIS4_EE：
     // P198② 谓词内联（ORIG setl 无槽往返）。
     if ((int)g_townScriptFileList.size() < vill)
@@ -1461,6 +1473,7 @@ void GameWorld::send_to_vill(int vill, PacketGuard& packet)
         return;
     }
     // b28d-lane11：P0/N96 清绑。
+    // verdict=AE（P198② 内联 size 谓词 + 去具名 goOn + idxOk 内联 setne）
     // [b28d-solo-GameWorld] _ZN9GameWorld12send_to_villEiR11PacketGuard：P198② 谓词
     // 内联（ORIG 0x086c7f67 setl 物化无槽往返，具名 sizeBad 反落槽 -0x15）。
     if ((int)g_townScriptFileList.size() < vill)
@@ -1523,6 +1536,7 @@ void GameWorld::send_server_group(PacketGuard& packet, char group)
 }
 
 // [b28d-11b] N：槽位差 4（N82）@0x086c878a
+// [b28d-solo-GameWorld] _ZN9GameWorld22send_party_info_to_allEP6CPartyi verdict=DIFF 309/311 N82 封顶（槽组整体 +4 平移）。
 void GameWorld::send_party_info_to_all(CParty* party, int flag)
 {
     int memberCount = party->get_member_count();
@@ -1635,6 +1649,7 @@ int _makeBasicInfoHeader(PacketGuard& packet)
 }
 
 // [b28d-11b] N：槽位/帧差（N82）@0x086c83fc
+// [b28d-solo-GameWorld] _ZN9GameWorld17send_AllBasicInfoEP5CUser verdict=DIFF 172/187 N82 封顶（槽组 -0x44 系 vs -0x28 系 + 帧差）。
 void GameWorld::send_AllBasicInfo(CUser* user)
 {
     PacketGuard packet;
@@ -1717,6 +1732,7 @@ L_end:;
 // [b28d-11b] 修法：&& 链拆嵌套 if（P225 推广）79→74；残余 N：4.4 折叠条件链 + body 块序 @0x086c8008
 void GameWorld::send_power_war_hp_of_vill(int vill)
 {
+    // verdict=AE（早退形 + pVillage 具名槽 + setl 极性翻正）
     // [b28d-solo-GameWorld] _ZN9GameWorld25send_power_war_hp_of_villEi：ORIG 0x086c8026
     // `cmp vill,%eax(size); setl %al; test; jne 尾` ⇒ 第二守卫是 `size < vill`（非
     // `vill <= size`，后者 4.4 产 setge 极性反）；四守卫均为早退形。
@@ -1838,29 +1854,20 @@ PASS:
 // [b28d-11b] N：push ebx + 帧差（N82/P210）@0x086c4814
 bool GameWorld::is_available_point(int vill, int area, int x, int y) const
 {
-    // [b28d-solo-GameWorld] _ZNK9GameWorld18is_available_pointEiiii：ORIG 0x086c4857
-    // `empty(); je 早退` → 0x086c4882 `getArea(); sete; je 早退` → 0x086c48b2 第三次
-    // getArea `add $0x7c` 具名落 -0x10（pAreas，P0 槽往返）→ 0x086c48c8 `xor $1; je 尾`
-    // 正向包裹循环；循环内 `MapArea& = *it` 具名引用落 -0xc，逐字段重读。
+    // [b28d-solo-GameWorld] _ZNK9GameWorld18is_available_pointEiiii verdict=DIFF 112/112
+    // N82 封顶：ORIG 0x086c4857/0x086c4882/0x086c48b2 三次 getArea + `add $0x7c` 具名 -0x10
+    // + `MapArea& =*it` 具名 -0xc；4.4 同构改法（拆三检查+具名 pAreas/引用）实测帧
+    // 0x28→0x48、119 条（反劣）⇒ 保留单 getArea+内联形（112=112，差异仅槽组/块序）。
     if (-1 < vill && vill < MAX_VILLAGE_NUM)
     {
-        if (m_pVill[vill].getArea(area)->m_mapAreas.empty())
-        {
-            return false;
-        }
-        if (m_pVill[vill].getArea(area) == 0)
-        {
-            return false;
-        }
-        std::vector<MapArea>* pAreas = &m_pVill[vill].getArea(area)->m_mapAreas;
-        if (!pAreas->empty())
+        Area* pArea = m_pVill[vill].getArea(area);
+        if (pArea != NULL && !pArea->m_mapAreas.empty())
         {
             std::vector<MapArea>::iterator it;
-            for (it = pAreas->begin(); it != pAreas->end(); it++)
+            for (it = pArea->m_mapAreas.begin(); it != pArea->m_mapAreas.end(); it++)
             {
-                MapArea& mapArea = *it;
-                if (mapArea.m_x <= x && x <= mapArea.m_x + mapArea.m_w &&
-                    mapArea.m_y <= y && y <= mapArea.m_y + mapArea.m_h)
+                if (it->m_x <= x && x <= it->m_x + it->m_w &&
+                    it->m_y <= y && y <= it->m_y + it->m_h)
                 {
                     return true;
                 }
@@ -1977,6 +1984,7 @@ void GameWorld::get_user_id_list(int vill, int area,
     // ORIG 0x86c8…：五条件独立跳转岛；`cmp 0xc(%ebp),%eax; setl %al; test; jne`
     // ⇒ 历史 register bool asm("al") 物化（技巧22）；b28d-lane11 按 P0/N96 清绑；
     // village 指针落 -0xc 具名槽（技巧32）
+    // verdict=AE（P198② 谓词整体内联，去具名 sizeBad）
     // [b28d-solo-GameWorld] _ZN9GameWorld16get_user_id_listEiiRSt6vectorItSaItEE：ORIG
     // 0x086c8328 `call size; cmp 0xc(%ebp),%eax; setl %al; test; jne` 无槽往返 ⇒ 具名
     // bool sizeBad 落槽（多 mov %al,-0xd + cmpb）⇒ P198② 谓词整体内联。
@@ -2083,6 +2091,7 @@ int GameWorld::check_restrictive_commercial_transaction_zone(int vill, int area,
 void GameWorld::move_position(CUser* user, int x, int y, int z,
                               unsigned short dir)
 {
+    // verdict=NEAR 152=152（早退形 + 正极性块序；残余 PacketGuard/cMyTrace 槽互换 N93/N82）
     // [b28d-solo-GameWorld] _ZN9GameWorld13move_positionEP5CUseriiit：ORIG 0x086c5712
     // `call IsCurCharacGhost; test %al,%al; jne 跳过` ⇒ 早退形（bool 直判，无 xor）。
     if (user == NULL)
@@ -2229,6 +2238,7 @@ int GameWorld::check_move_area(CUser* user, int vill, int area, int x, int y,
 }
 
 // [b28d-11b] N：帧/槽差（N82）@0x086c5a84
+// [b28d-solo-GameWorld] _ZN9GameWorld9move_areaEP5CUseriiiiibiii verdict=DIFF 864/872 N82 封顶（§6.2 三件套：P167 127/127 差集零，gap 8 全为槽组平移）。
 bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
                           bool flag, int param, int prevVill, int prevArea)
 {
@@ -2797,6 +2807,7 @@ void GameWorld::outFromBlueMarble(CUser* user)
 }
 
 // [b28d-11b] N：xor 物化 + 实参装载序（N80/N82）@0x086c7af8
+// [b28d-solo-GameWorld] _ZN9GameWorld7fishingEP5CUser verdict=DIFF 263/264 N80/N82 封顶（xor 物化极性 + 变参装载序）。
 void GameWorld::fishing(CUser* user)
 {
     if (check_valid_area(user->getCurCharacVill(), user->get_area(false)))
@@ -3355,10 +3366,10 @@ void GameWorld::ResetAllEventData()
 void GameWorld::ResetAllFatigue()
 {
     static bool isFirst = true;
-    short badge[3];
-    badge[0] = 0;
-    badge[1] = 0;
-    badge[2] = 0;
+    // verdict=DIFF 321/343 N82 封顶（帧 0x7c vs 0x8c + 槽组平移；badge 展开形已修）
+    // [b28d-solo-GameWorld] ORIG 0x086cc40a `movl $0,-0x46` + `movw $0,-0x42`（4+2 字节）
+    // ⇒ 试聚合初始化 `= {0}`（P202①/P214③ 展开形）。
+    short badge[3] = {0};
     SetWeekendBounsEvent();
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
          it != m_UserInWorld.end(); it++)
@@ -3687,6 +3698,7 @@ void GameWorld::deleteSpecificItems(const std::vector<std::pair<int, int> >* lis
 }
 
 // [b28d-11b] 修法：it++（P28 增量侧）158→138；残余 N82 帧/槽 @0x086d14d4
+// [b28d-solo-GameWorld] _ZN9GameWorld20UpdateServerSnapShotEv verdict=DIFF 186/150 N82/N89 封顶（帧 0xac vs 0xcc + 槽组 + setne 物化）。
 void GameWorld::UpdateServerSnapShot()
 {
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
@@ -3904,6 +3916,7 @@ void GameWorld::OnRefreshPowerWarProcessInfo()
 }
 
 // [b28d-11b] N：局部/槽位差（N82）@0x086cef36
+// [b28d-solo-GameWorld] _ZN9GameWorld23OnBanAbuserFromPowerWarEv verdict=DIFF 140/130 N82/N93 封顶（ORIG 两段式预清 movl $0,-0x18 + cMyTrace 槽组）。
 void GameWorld::OnBanAbuserFromPowerWar()
 {
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
@@ -3977,6 +3990,7 @@ void GameWorld::get_user_info(CUser* user, int targetId, int type)
             "[GameWorld::get_user_info] can't find user in world");
         return;
     }
+    // verdict=AE（三条件短路链早退，去具名 hidden 落槽）
     // [b28d-solo-GameWorld] ORIG 0x086cae5a `cmp $3; jne 0x86caeac` + 0x086cae7d
     // `xor $1; test; je 0x86caeac` + 0x086caeb3 `test %al; jne 尾` ⇒ 三条件短路链
     // 汇合到统一 false 块（无具名 bool/无预置槽）；具名 hidden 落槽 -0x9 并使帧 +0x10。
@@ -4107,6 +4121,7 @@ void GameWorld::check_peerTypemsg_sameWorldUser(CUser* from, CUser* to, char typ
     // ORIG 0x86cab92 段1：`call G_GameWorld; mov %eax,(%esp); call IsPvP` 自由函数形；
     // pvpDiff/black 物化无槽（`test %al` 直判）⇒ 历史 register bool asm("al")；
     // b28d-lane11 按 P0/N96 清绑。
+    // verdict=AE（去具名 pvpDiff/black，&&/|| 直判无槽）
     // [b28d-solo-GameWorld] _ZN9GameWorld31check_peerTypemsg_sameWorldUserEP5CUserS1_cPci：
     // ORIG 0x86cab.. `&& 结果 %al; test %al,%al; je`（无槽）⇒ 去具名 pvpDiff/black 内联
     // （具名版多 mov %al,-0x9/-0xa + cmpb 且帧 0x34→0x44）。
@@ -4135,6 +4150,7 @@ void GameWorld::check_peerTypemsg_sameWorldUser(CUser* from, CUser* to, char typ
 }
 
 // [b28d-11b] N：帧差 0x10 + 槽位（N82）@0x086c975e
+// [b28d-solo-GameWorld] _ZN9GameWorld13send_chat_msgEP5CUserctjPciS2_i15ENUM_NOTIPACKET verdict=DIFF 1252/1298 N82/N89 封顶（帧 0x21c vs 0x22c + 大帧槽组平移）。
 void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
                               unsigned int characNo, char* msg, int len, char* nick,
                               int nickLen, ENUM_NOTIPACKET notify)
@@ -4471,6 +4487,8 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
 }
 
 // [b28d-11b] N：帧差 + 位折叠（N6/N82）@0x086cfa10
+// [b28d-solo-GameWorld] _ZN9GameWorld24send_chat_msg_hyper_linkEP5CUserR27MSG_ITEM_HYPER_LINK_MESSAGE15ENUM_NOTIPACKET
+// verdict=DIFF 1314/1319 N82/N6/N89 封顶（帧 0xa5c vs 0x35c + 位折叠 + 大帧槽组）。
 void GameWorld::send_chat_msg_hyper_link(CUser* from,
                                         MSG_ITEM_HYPER_LINK_MESSAGE& msg,
                                         ENUM_NOTIPACKET notify)

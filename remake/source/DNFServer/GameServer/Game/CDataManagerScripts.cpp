@@ -497,12 +497,13 @@ float channel_script_t::getBonusRate(unsigned char channel, unsigned int channel
 {
     // ORIG 0x088dce3c：getChannelInfo → 遍历 m_pBonusRates（vector<int>），命中则
     // 返回 (float)m_bonusRate / 1000.0f；否则 0.0f。
+    size_t i;
     channel_info_t* info = getChannelInfo(channel, channelNo);
     if (info == 0)
         return 0.0f;
     if (info->m_pBonusRates == 0)
         return 0.0f;
-    for (size_t i = 0; i < info->m_pBonusRates->size(); ++i)
+    for (i = 0; i < info->m_pBonusRates->size(); ++i)
     {
         if (info->m_pBonusRates->at(i) == dungeonIndex)
             return (float)info->m_bonusRate / 1000.0f;
@@ -558,6 +559,8 @@ unsigned int CNPCScriptList::getFavorLevelValue(unsigned int level) const
         return getMaxFavorValue();
     if (level == 0)
         return 0;
+    char pad[0x14];   // [b28d-solo] 帧撑到 ORIG sub $0x18（P232 dead local）
+    (void)pad;
     return m_npcCommon.m_favorExp[level];   // N: 4.4 恒产双 movzwl(返回 ushort→uint)，ORIG 4.1 单条 0x858177d
 }
 
@@ -568,8 +571,9 @@ void CNPCScriptList::_destroy()
 {
     __gnu_cxx::hash_map<unsigned int, CNPCScript*>::const_iterator
         it(m_npcMap.begin());
-    while (it != __gnu_cxx::hash_map<unsigned int, CNPCScript*>::const_iterator(
-                       m_npcMap.end()))
+    __gnu_cxx::hash_map<unsigned int, CNPCScript*>::const_iterator
+        e(m_npcMap.end());
+    while (it != e)
     {
         CNPCScript* script = it->second;
         if (script != 0)
@@ -1115,7 +1119,7 @@ void stBloodDungeon_t::clear()
     // +0x330=1.0f → memset(+0x324,0,0xc) → memset(+0x340,0,0x18) → +0x358 clear。
     //   【N】循环条件 ORIG `mov -0xc,%eax; cmp $0xc7,%eax`（先载入寄存器），
     //   4.4 O0 恒折 `cmpl $0xc7,-0xc(%ebp)`（mem 直比），语义全等，register 形差。
-    for (register unsigned int i = 0; i <= 199; ++i)
+    for (unsigned int i = 0; i <= 199; ++i)
         m_rate[i] = 1.0f;
     m_vec334.clear();
     m_field320 = 1;
@@ -1138,7 +1142,7 @@ stDeathTower_t::stDeathTower_t()
     m_rewardGoldWeight = 1.0f;
     //   【N】循环条件 ORIG `mov -0xc,%eax; cmp $0xc7,%eax`（先载入寄存器），
     //   4.4 O0 恒折 `cmpl $0xc7,-0xc(%ebp)`（mem 直比），语义全等，register 形差。
-    for (register unsigned int i = 0; i < 200; ++i)
+    for (unsigned int i = 0; i < 200; ++i)
     {
         m_rewardExpWeight[i] = 1.0f;          // this+0x04+i*4
         m_rewardCardNum[i] = 0;               // this+0x324+i*4
@@ -2338,10 +2342,12 @@ int PowerParameterScript::GetBreakBonus(int winCount)
 // [b28d-19] N：P75 —— 实参装载时刻跨版本调度差（map.find 键/this 装载序）；ORIG 0x08a59db4。
 bool PowerParameterScript::checkPowerWarServer(int a, int b)
 {
-    for (std::vector<std::pair<int, int> >::iterator it =
-             m_powerWarServerList.begin(); it != m_powerWarServerList.end(); ++it)
+    std::vector<std::pair<int, int> >::iterator it = m_powerWarServerList.begin();
+    std::vector<std::pair<int, int> >::iterator e = m_powerWarServerList.end();
+    for (; it != e; ++it)
     {
-        if (it->first == a && it->second == b)
+        std::pair<int, int> p = *it;
+        if (p.first == a && p.second == b)
             return true;
     }
     return false;
@@ -2447,7 +2453,10 @@ CWorldMapList::~CWorldMapList()
 void CWorldMapList::destroy()
 {
     // ORIG 0x8374752：局部变量暂存 second、delete、清零局部（不写回 map 值）。
-    for (std::map<int, CWorldMap*>::iterator it = m_map.begin(); it != m_map.end(); ++it)
+    std::map<int, CWorldMap*>::iterator it;
+    std::map<int, CWorldMap*>::iterator e = m_map.end();
+    it = m_map.begin();
+    for (; it != e; ++it)
     {
         CWorldMap* worldMap = it->second;
         if (worldMap != 0)

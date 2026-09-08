@@ -183,6 +183,13 @@ bool CAssaultPlace::GetTeam(CUser* user, ENUM_ASSAULT_TEAM& team)
 
 // ---- CAssaulter 访问器（ORIG 布局：+0x00 user / +0x04 team / +0x08 state）----
 
+// b28d-solo-CAssaultMgr: P210 三分律②——外联定义置于 CAssaultPlace::~CAssaultPlace
+// 之前，使 4.4 对其数组析构循环精确继承 ORIG 的 sub $0x4 帧（原头内 inline 为①，
+// 保守撑帧 sub $0x14 ⇒ D1 NEAR 2）。
+CAssaulter::~CAssaulter()
+{
+}
+
 CUser* CAssaulter::GetUser()
 {
     // ORIG W 0x82f0542：mov (%eax),%eax
@@ -552,8 +559,12 @@ void CAssaultPlace::_MakeCloseAssault(PacketGuard* p, int tick)
 // ORIG T 0x82e8d60：_MakeUserState(PacketGuard*, CUser*) —— 包 0x03 + state。
 void CAssaultPlace::_MakeUserState(PacketGuard* p, CUser* user)
 {
-    // b28d-L3: DIFF/N18a — ORIG 0x82e8d60+0x30 call GetUserState 后 `mov %eax,%edx`
-    // 冗余中转；4.4 恒折直落，P248 三档旋钮无解（探针 /tmp/pbq.cpp）。
+    // b28d-solo-CAssaultMgr: N 封顶（N18a）— ORIG 0x82e8d60+0x30 `call
+    // GetUserState; mov %eax,%edx; mov p,%eax; mov %edx,0x4(%esp)`（34 条）；
+    // 4.4 恒折 `mov p,%edx; mov %eax,0x4(%esp)`（33 条，少 1 条 hop）。P248 三档
+    // 旋钮全试：探针 /tmp/probe_pb{,2,3,4}.cpp 十一形（int/uint/long/char/uchar/
+    // enum/字段 cast/callee 返回 unsigned/具名局部）4.4 均产 this-first 无中转；
+    // ORIG 同 TU SendUserState 同表达式亦无 hop（ORIG 自身分裂两形）。
     p->put_header(0, 3);
     p->put_byte(1);
     p->put_short(user->get_unique_id() & 0xffff);
@@ -780,6 +791,12 @@ int Point2d::operator-(const Point2d& o) const
 void PartyInfo::Set(CParty* party)                 // ORIG 0x82f05fc
 {
     m_field00 = party;
+}
+
+// ORIG W 0x82f060a（size 0xa）：mov 0x0(%eax),%eax; ret —— 外联定义（P119）
+unsigned int PartyInfo::Get()
+{
+    return (unsigned int)m_field00;
 }
 
 CandidatePoint::CandidatePoint() : m_point() {}    // +0 故意不初始化（ORIG 同）
@@ -1274,11 +1291,10 @@ CAssaultPlace::CAssaultPlace()
 
 CAssaultPlace::~CAssaultPlace()
 {
-    // b28d-L3: NEAR/N-帧 — 4.4 对数组析构循环帧恒 sub $0x14（ORIG 0x82f13b6 为 sub $0x4）
-    // b28 BM4 判词（N-帧/P210 系）：编译器生成数组析构循环，4.4 对 D1 循环
-    // 帧恒 sub $0x14（/tmp/d1probe{,2}.cpp 双探针：任意非平凡元素 dtor 循环
-    // 均 0x14，源体不可干预——空体即此形）；ORIG 4.1 为 sub $0x4。指令流
-    // 逐条同（仅 sub/add 立即数差 2 行），NEAR 4 封顶。
+    // b28d-solo-CAssaultMgr: AE（原 NEAR 2，旧 N-帧判词作废）——P210 三分律②：
+    // 把 CAssaulter::~CAssaulter 由头内 inline 空体改为本 TU 外联定义并置于本
+    // caller 之前（CAssaultMgr.cpp:189），4.4 对 assaulters[8] 析构循环由保守
+    // sub $0x14 翻为精确继承 ORIG 0x82f13b6 的 sub $0x4，逐条 AE。
 }
 
 // ORIG T 0x82e6d3a：m_pos.x/y 非零才向所在区域广播。
@@ -1319,8 +1335,9 @@ void CAssaultPlace::_SendUserState()
 // ORIG T 0x82e8c5a：包 0x03 全场用户状态；先记录写位置，尾部回填人数。
 void CAssaultPlace::_MakeUserState(PacketGuard* packet)
 {
-    // b28d-L3: DIFF/N18a — 同双参重载（ORIG 0x82e8c5a 段）：call GetUserState 后
-    // `mov %eax,%edx` 中转 4.4 恒折，P248 三档旋钮无解 ⇒ N18a 封顶。
+    // b28d-solo-CAssaultMgr: N 封顶（N18a）— 同双参重载：ORIG 0x82e8c5a+0x0a9
+    // `call GetUserState; mov %eax,%edx; mov packet,%eax; ...`（73 条）vs 4.4 折
+    // this-first（72 条，少 1 条 hop）。探针矩阵同双参件（11 形全败）。
     // ORIG 0x82e8c5a +0x0b：`movl $0,-0x14; movl $0,-0x10` 双清零在前、
     // get_index 覆写 index 在后（dead init 照抄 P171，与 MakeView 同法）。
     packet->put_header(0, 3);
@@ -1538,7 +1555,10 @@ void CAssaultPlace::CloseAssault()
         }
         lastVill = (int)slotUser->getCurCharacVill();
 
-        slotUser->SetAssaultPlace(0);
+        // b28d-solo-CAssaultMgr: ORIG 0x082e9c63 在 SetAssaultPlace 前**重取**
+        // `m_assaulters[i].GetUser()`（P167 MISSING ×1；ORIG 调用点直读展开，
+        // 非缓存 slotUser）。
+        m_assaulters[i].GetUser()->SetAssaultPlace(0);
         if (m_assaulters[i].IsPowerWarWinner())
         {
             if (slotUser->getPowerWarHP() < 0x1e)
@@ -1594,20 +1614,22 @@ void CAssaultPlace::CloseAssault()
         GlobalData::s_power_manager->IsPowerWarEventOn() && lastVill == 7;
     if (reloadParty)
     {
-        // P154/P169：PartyInfo::Get 为重建发明 wrapper——ORIG 两处均
-        // `mov 0x12c(%eax)` 字段直读直判（同 TimeoutCloseAssault/Leave 段
-        // m_field00 用法），无 call 站点。
-        if (m_parties[0].m_field00 != 0)
+        // b28d-solo-CAssaultMgr: ORIG 0x082e9f01/0x082e9f4e 两处 `call
+        // PartyInfo::Get` 后 `mov %eax,-0x10/-0xc; cmpl $0,-...`（具名 party
+        // 局部），非 m_field00 直读（P119 恢复外联 Get 调用点）。
+        CParty* party0 = (CParty*)m_parties[0].Get();
+        if (party0 != 0)
         {
-            CParty* party = (CParty*)m_parties[0].m_field00;
             TimerCompleteLoadAfterAssaultTimeout::registNextTimer(
-                0x3c, party->GetPartyIndex(), party->gen_timer_key((TIMER_MESSAGE)0x2a));
+                0x3c, party0->GetPartyIndex(),
+                party0->gen_timer_key((TIMER_MESSAGE)0x2a));
         }
-        if (m_parties[1].m_field00 != 0)
+        CParty* party1 = (CParty*)m_parties[1].Get();
+        if (party1 != 0)
         {
-            CParty* party = (CParty*)m_parties[1].m_field00;
             TimerCompleteLoadAfterAssaultTimeout::registNextTimer(
-                0x3c, party->GetPartyIndex(), party->gen_timer_key((TIMER_MESSAGE)0x2a));
+                0x3c, party1->GetPartyIndex(),
+                party1->gen_timer_key((TIMER_MESSAGE)0x2a));
         }
     }
 

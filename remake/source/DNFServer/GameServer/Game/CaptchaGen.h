@@ -73,7 +73,6 @@ public:
     static int kTaiwanAlphabetCount;    // VA 0x08b2c534（26）
     static int kJapaneseHirakanaCount;  // VA 0x08b2c4f0（72）
 private:
-    static float getFloat(XorRand4& rng, float lo, float hi);
     void* m_library;             // +0x00（ORIG FT_Library；本还原中为句柄占位）
     std::vector<void*> m_faces;  // +0x04
     XorRand4 m_rng;              // +0x10
