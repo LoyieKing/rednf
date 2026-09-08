@@ -429,16 +429,15 @@ void CAssaultPlace::ConnectP2P(CUser* user, char* ip, int len)
             allConnected = 0;
     }
 
-    if (!allConnected)
-        return;
-    StartAssault();
-    if (m_parties[0].m_field00 != 0)
-        ((CParty*)m_parties[0].m_field00)->SetAssaultState('\x04');
-    // b28 BL6 实测：早返守卫形反增 2 jmp（4.4 epilogue 复制）；回退原形，
-    // 残 1 条体尾 jmp 中继 = 4.1 fall-through 折叠 vs 4.4 显式边（跨版本
-    // jump-threading 负例族）。
-    if (m_parties[1].m_field00 != 0)
-        ((CParty*)m_parties[1].m_field00)->SetAssaultState('\x04');
+    // [b28d-62] 正向包裹复现 ORIG 尾部 fall-through（早返 `if(!allConnected)return;`
+    // 使 4.4 发体尾 `jmp <epilogue>; nop` 中继，ORIG 4.1 直落 leave；P257/P285）。
+    if (allConnected) {
+        StartAssault();
+        if (m_parties[0].m_field00 != 0)
+            ((CParty*)m_parties[0].m_field00)->SetAssaultState('\x04');
+        if (m_parties[1].m_field00 != 0)
+            ((CParty*)m_parties[1].m_field00)->SetAssaultState('\x04');
+    }
 }
 
 // ---------------------------------------------------------------------------

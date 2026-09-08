@@ -148,22 +148,23 @@ void CDungeonClear::fromString(CUser* pUser, char* str)
 
 int CDungeonClear::toString(char* buf, unsigned int bufSize) const
 {
-    int offset;
-    int written;
-    std::map<short, char>::const_iterator it;
-    std::map<short, char>::const_iterator end;
-
     if (m_map.empty())
     {
         return 0;
     }
 
-    it = m_map.begin();
-    end = m_map.end();
-    written = OS_API::snprintf(buf, bufSize, "%d|%d",
-                               (int)it->first, (int)it->second);
-    offset = written;
+    // b28d-60：P50 直构——原「先声明后赋值」触发两个 iterator 默认 ctor
+    // C1Ev（帧 0x44 vs ORIG 0x34、+20 insn）。ORIG 顺序：empty → offset/written
+    // 清零 → begin 直构 it → 首段 snprintf → ++it → end 直构 → while。
+    int offset = 0;
+    int written = 0;
+    std::map<short, char>::const_iterator it = m_map.begin();
+    // ORIG 首段 snprintf 结果直存 -0x10(offset)，无 written 中转（written 仅
+    // 在循环内使用，函数头仍需 `int written = 0;` 的 -0xc 清零）。
+    offset = OS_API::snprintf(buf, bufSize, "%d|%d",
+                              (int)it->first, (int)it->second);
     ++it;
+    std::map<short, char>::const_iterator end = m_map.end();
     while (it != end)
     {
         written = OS_API::snprintf(buf + offset, bufSize - offset,
@@ -179,25 +180,41 @@ int CDungeonClear::toString(char* buf, unsigned int bufSize) const
     return offset;
 }
 
-void CDungeonClear::toString(std::string& out, int nUnknown) const
+int CDungeonClear::toString(std::string& out, int nUnknown) const
 {
-    out.clear();
-
     if (m_map.empty())
-        return;
+        return 0;
 
-    bool first = true;
-
-    for (std::map<short, char>::const_iterator it = m_map.begin();
-         it != m_map.end(); ++it)
+    // b28d-60：按 ORIG 0x08484558 逐条重写——原实现（clear + resize(+64) 固定
+    // 缓冲 + first 标志）与 ORIG 完全不同。ORIG：resize(nUnknown) 一次，
+    // curSize(-0x24)=nUnknown、written(-0x20)=0，首段 snprintf("%d|%d") 用
+    // (c_str, curSize)，循环内 snprintf(c_str+written, curSize-written, ",%d|%d")，
+    // 返回负则 resize(curSize+nUnknown)、curSize+=nUnknown 后重试同元素。
+    int curSize = nUnknown;
+    out.resize((unsigned int)nUnknown);
+    int written = 0;
+    int w = 0;
+    std::map<short, char>::const_iterator it = m_map.begin();
+    written = OS_API::snprintf(const_cast<char*>(out.c_str()),
+                               (unsigned int)curSize, "%d|%d",
+                               (int)it->first, (int)it->second);
+    ++it;
+    std::map<short, char>::const_iterator end = m_map.end();
+    while (it != end)
     {
-        // P167/Ghidra：ORIG 用 out.resize(outlen+64) + out.c_str() 直接作 OS_API::snprintf 目标
-        out.resize(out.size() + 64);
-        char* dst = const_cast<char*>(out.c_str()) + out.size() - 64;
-        int w = OS_API::snprintf(dst, 64, "%s%d|%d", first ? "" : ",", (int)it->first, (int)it->second);
-        out.resize(out.size() - 64 + (unsigned int)w);
-        first = false;
+        w = OS_API::snprintf(const_cast<char*>(out.c_str()) + written,
+                             (unsigned int)(curSize - written), ",%d|%d",
+                             (int)it->first, (int)it->second);
+        if (w < 0)
+        {
+            out.resize((unsigned int)(nUnknown + curSize));
+            curSize += nUnknown;
+            continue;
+        }
+        written += w;
+        ++it;
     }
+    return written;
 }
 
 } // namespace WongWork

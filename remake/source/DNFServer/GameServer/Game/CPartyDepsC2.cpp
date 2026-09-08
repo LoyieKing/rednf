@@ -60,12 +60,20 @@ struct BloodDungeonCountsView
 
 }  // namespace
 
+// [b28d-59] ORIG 0x085b2002/0x085b2009 以内存读引用 _ZL37CONST_SINGLE_MAP_LOADING_
+// WAIT_TIMEOUT / _ZL36CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT（非立即数）⇒
+// static volatile const int 阻止 4.4 常量折叠（同 CDeathTower.cpp 0x8467122 先例）。
+static volatile const int CONST_SINGLE_MAP_LOADING_WAIT_TIMEOUT = 0x78;
+static volatile const int CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT = 0x5a;
+
 // ---------------------------------------------------------------------------
 // increase_ancient_dungeon_ticket —— ORIG T 0x0859bc9a
 // 报告：docs/class_func_reports/CParty/increase_ancient_dungeon_ticket.md
 // ---------------------------------------------------------------------------
 void CParty::increase_ancient_dungeon_ticket()
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x0859bc9a）：213/215 条，残差=首条件取反形
+    //（ORIG `xor $1; test; jne` vs 我方 `cmp $1,%al; jne`）+ 槽位布局。语义等价。
     if (m_battleField.m_pDungeon == 0)
         return;
     // movzbl 0x89c：要求副本 +0x89c 字节 == 1 才继续
@@ -135,6 +143,10 @@ void CParty::increase_ancient_dungeon_ticket()
 // ---------------------------------------------------------------------------
 bool CParty::isDungeonDifficultyInfromNotice(bool flag)
 {
+    // [b28d-59 判词] 封 N（P292/P248档① 跨 TU bool 链，ORIG 0x085be8a0）：49/47 条，
+    // 残差首条=ORIG `call getMemberDungeonFlag; test %al; je`（bool callee）vs 我方
+    // `setne %al`（CUserCharacInfo.h:923 声明 unsigned char）。整链同改需动
+    // CUserCharacInfo.h/.cpp（非本泳道 TU）⇒ 记 N 待属主同步；其余差异同源。
     // this+0x74 = m_manager（CUserCharacInfo 基类方法直呼）
     if (m_manager->getMemberDungeonFlag())           // W 0x085bfaec（bool 直判：ORIG test;je 单物化）
         return false;
@@ -169,9 +181,18 @@ bool CParty::isGuildParty()
         key = m_member[i].m_pUser->get_charac_guildkey();  // W 0x0822f46c
         if (key == 0)
             return false;
-        if (key != guildKey && guildKey != -1)
-            return false;
-        result = true;
+        // [b28d-59] ORIG 0x085b4a47/0x085b4a4d 两处 movb $1,-0x15（P47 块布局）：
+        // key!=guildKey 时先判 guildKey==-1，两臂各写 result=true。
+        if (key != guildKey)
+        {
+            if (guildKey != -1)
+                return false;
+            result = true;
+        }
+        else
+        {
+            result = true;
+        }
         guildKey = key;
     }
     return result;
@@ -186,6 +207,8 @@ bool CParty::isGuildParty()
 // ---------------------------------------------------------------------------
 bool CParty::isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& param)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x085b11ee）：83/80 条，残差=帧内槽序 +
+    // 条件极性（jle/jg 落点相同）。语义等价。
     // ORIG 0x085b11ee：dungeon->get_standard_level() 结果存槽（local -0x28）；
     // G_CDataManager() 每次取字段时重新调用（-O0 无 CSE，ORIG 每轮 loop 4 次重取），
     // 无命名 mgr/ev 局部（P0 槽律）。字段经 m_serverParameter(+0x68)
@@ -236,6 +259,8 @@ bool CParty::isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& para
 // ---------------------------------------------------------------------------
 bool CParty::make_blood_dungeon_info(CUser* user, PacketGuard& packet)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x0859e0d2）：233/257 条，残差=帧 0x34 vs 0x44
+    // + 局部槽整体平移（-0x18 vs -0x28）。语义等价。
     if (m_hellWorldMap == 0)
     {
         // G_GameWorld W 0x080da3a7；GetWorldMapIndex T 0x086cebe0
@@ -334,6 +359,8 @@ void CParty::make_blood_dungeon_info_blank(PacketGuard& packet)
 // ---------------------------------------------------------------------------
 bool CParty::move_map(MSG_MOVE_MAP& info)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x085a8f4e）：266/268 条，残差=局部槽序
+    //（-0x30 vs -0x34 等）。语义等价。
     PacketGuard packet;   // ORIG 在状态检查前构造，所有出口析构
 
     if (m_state != 2)
@@ -424,15 +451,19 @@ void CParty::send_loadingcheck_msg()
 {
     m_pad119 = 0;   // this+0x119 字节清零（装载检查标志）
 
-    int timeout = 0x5a;   // CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT
-    if (get_member_count() == 1)
-        timeout = 0x78;   // CONST_SINGLE_MAP_LOADING_WAIT_TIMEOUT
+    // [b28d-59] ORIG 0x085b1ffd..0x085b200e：cmp $1; jne; mov A,%eax; jmp;
+    // mov B,%eax; mov %eax,-0xc ⇒ 三目形 + 全局常量内存读（非 if 赋值形）。
+    const int timeout =
+        get_member_count() == 1 ? CONST_SINGLE_MAP_LOADING_WAIT_TIMEOUT
+                                : CONST_PARTY_MAP_LOADING_WAIT_TIMEOUT;
 
-    const int key = gen_timer_key((TIMER_MESSAGE)0xb);
     // InsertTimer(objType=1, param1=m_partyIndex(+0x64), msg=0xb, sec=timeout,
     //             param2=key, param3=0)
+    // [b28d-59] key 内联实参（P24：ORIG 0x085b201f gen_timer_key 先算入 %ebx、
+    // m_partyIndex 入 %esi，G_TimerQueue() 置后；具名 key 局部会多栈槽）。
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, m_partyIndex,
-                                (TIMER_MESSAGE)0xb, timeout, key, 0);
+                                (TIMER_MESSAGE)0xb, timeout,
+                                gen_timer_key((TIMER_MESSAGE)0xb), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -443,6 +474,10 @@ void CParty::set_random_reward(QuickParty::RandomBuffType type,
                                QuickParty::RewardData_Param param,
                                QuickParty::RewardData_Result& result)
 {
+    // [b28d-59 判词] 封 N18b/P265（ORIG 0x0859b8fa）：51/49 条，残差=`m_field1ae8`
+    // （unsigned int）与 enum 形参比较的两段装载（ORIG `mov mem,%eax; cmp mem,%eax`
+    // 一段）。字段改 enum 会使 store 段（0x0859b814 P211 异型 RHS-first）回归
+    // ⇒ 两端冲突，P248 反例口径封顶。语义等价。
     if (!is_quick_party())                  // is_quick_party W 0x0822d952
         return;
     if (m_field1ae8 == 0xb)                 // BASIC_REWARD_CARD_GOLD 占用时跳过

@@ -65,6 +65,9 @@ typedef char lvl_2nd_sciprt_size_assert[sizeof(LevelupSupport2ndScript) == 0x24 
 // cMyTrace(pretty,0x18,9,true,false) → 清脚本 map → loadScript()==0 才继续：
 // 清 m_stepIndexMap/m_events → 按 map 升序写入 level→档位序号 与
 // EventInfo(level 截断 ushort, 0)。迭代器递增为 ORIG 的 operator++(int) 形态。
+// [b28d-N82] fresh 复验 110/114：残差 = 迭代器三槽阶梯（ORIG -0x3c/-0x40/-0x44
+// 深→浅，4.4 -0x18/-0x2c/-0x44）与 4.4 缺 push %ebx（callee-saved 需求差）
+// —— P28/N82 槽方向族；块序/调用点全等，语义等价。
 // ============================================================================
 bool LevelupSupportEventManger::Load()
 {
@@ -122,6 +125,7 @@ LevelupSupportEventManger::GetDefaultEventInfo() const
 // LevelupSupport2ndEventManger::Load —— 报告 Load.md @0x081477e4。
 // cMyTrace(pretty,0xb7,9,true,false) → 清脚本 map（manager+0x8 =
 // m_script.m_stepItems）→ 返回 loadScript()==0。
+// [b28d-N82] 同 EventManger::Load（0x08146e3c）：帧 0x?? 与迭代器槽方向差。
 // ============================================================================
 bool LevelupSupport2ndEventManger::Load()
 {
@@ -152,6 +156,9 @@ int LevelupSupport2ndEventManger::Destroy()
 // 忠实】/ new vector + swap 转移 + insert）。任一节内 ScanType 失败视为正常
 // 结束：unloadRDARScriptFile 后返回 0；打开失败直接返回 -1。
 // ============================================================================
+// [b28d-N86] fresh 复验 210/213：残差 = std::string 局部（-0x44 vs -0x4c）+
+// vector<ItemInfo> 构造/析构/swap 的 libstdc++ 外联槽整体平移 8B（P112/N86），
+// 解析分支与全部调用点一一对应 ⇒ 语义等价、byte 层封顶。
 int LevelupSupportSciprt::loadScript()
 {
     if (!loadRDARScriptFile("Event/", "tw_LevelupSupport.evt"))
@@ -230,6 +237,8 @@ void LevelupSupportSciprt::clearScript()
 // 与 [mail title]/[mail content]（ScanStr 直写两个 string 成员）。重复 [level]
 // 路径同样不 unloadRDARScriptFile。
 // ============================================================================
+// [b28d-N86] fresh 复验 264/267（ORIG 0x08ab55a4）：同 LevelupSupportSciprt::
+// loadScript（0x08ab514c）——string/vector/map 局部槽整体平移 + swap 形差异。
 int LevelupSupport2ndScript::loadScript()
 {
     if (!loadRDARScriptFile("Event/", "tw_LevelupSupport2nd.evt"))

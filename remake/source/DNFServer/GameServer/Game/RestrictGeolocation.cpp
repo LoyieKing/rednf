@@ -155,6 +155,9 @@ bool RestrictGeolocation::isAllow(std::string account, std::string ip)
     //  - 允许表命中 → log Success → true；
     //  - 未命中且 server_group==3（Global）→ log Success Global → true；
     //  - 其余 → 记 SIG_SAVE_GEO_REJECT(0x11b,msg=-1) 入 DB 队列 → false。
+    // [b28d-N82] fresh 复验 237/241：差值 = 4 个具名 cMyTrace 对象槽方向
+    // （ORIG 深→浅 -0x54/-0x44…，4.4 浅→深）与 string 形参拷贝帧 +8
+    // （P221/N82 帧策略族；P221 全表达式临时链对本例实测不翻）⇒ 语义等价封顶。
     if (m_geoip == 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x44, 5);

@@ -71,6 +71,9 @@ public:
     //   If = 0xa028）、参数槽位（fmt@0xc/val@0x10、tmp@-0xa008）、float 的
     //   `flds 0x10(%ebp)/fstpl 0xc(%esp)` 传参形、AppendString 调用目标全部一致；
     //   AppendString 本体为 AE。⇒ N 族（指令选择/DCE 层），不可复现，语义等价。
+    //   [b28d-N] fresh 复验（四实例 33/26 同形）维持 N：①memset 立即数物化
+    //   9 形探针全败；②死 strlen 被 4.4 tree-DCE（/tmp/l11p/dce.cpp 实证），
+    //   volatile 反劣 ⇒ 封顶。ORIG 0x08627cbc/0x08627e60/0x08627d48/0x08627dd4。
     template <typename T>
     void Insert(char* fmt, T val);                          // 0x08627cbc..e60
 

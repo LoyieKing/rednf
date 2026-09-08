@@ -494,7 +494,10 @@ public:
     std::set<int> m_set368;               // +0x368
     std::set<int> m_set380;               // +0x380
     bool m_avatarOptionChange;            // +0x398
-    int m_int39c;                         // +0x39c
+    // [b28d-N254] ORIG 0x0822ca58 `mov 0x39c(%eax),%eax; mov %eax,%edx` 两段装载
+    // ⇒ 字段类型为 enum（int 字段 4.4 恒折单段，P254）。StackableAction::Type 4 字节，
+    // sizeof/偏移/mangled 零变化。
+    StackableAction::Type m_int39c;       // +0x39c
     std::vector<int> m_vec3a0;            // +0x3a0
     std::vector<StackableAction::UsablePlace> m_usablePlaces;  // +0x3ac
     std::vector<StackableAction::UsableServerType> m_usableServers;  // +0x3b8

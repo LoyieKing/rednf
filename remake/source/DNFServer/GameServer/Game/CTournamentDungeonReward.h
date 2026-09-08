@@ -31,12 +31,10 @@ public:
     // ORIG C1/C2 W 0x08285546：仅 call Clear。
     TournamentRewardType() { Clear(); }
 
-    void Clear()
-    {
-        m_id = -1;
-        m_field04 = 0;
-        m_flag08 = static_cast<char>(0xff);
-    }
+    // ORIG T 0x08284750 (size 0x1f)：Clear 为**外联强符号**（非头内 inline）⇒
+    // 定义在 CTournamentDungeonReward.cpp 且位于全部 caller 之前（P210②），
+    // 使 4.4 精确继承其小 outgoing 帧（ResetReward 0x28→0x14）。
+    void Clear();
 
     int m_id;        // +0x00
     int m_field04;   // +0x04

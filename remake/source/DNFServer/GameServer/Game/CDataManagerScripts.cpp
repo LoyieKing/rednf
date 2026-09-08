@@ -656,7 +656,7 @@ void* AccountCargoScript::GetNextUpgradeInfo(int idx)
 // GetNpcIdx：遍历 equal_range 区间，累加 stDungeonNpc::m_rate（+0x8），
 // 首次累计 > target 时输出 m_npcIdx（+0x4）并返回 1，遍历完返回 0。
 // ============================================================================
-char SecretShopScript::GetNpcIdx(
+bool SecretShopScript::GetNpcIdx(
     int& out, int target,
     std::pair<std::multimap<int, stDungeonNpc>::iterator,
               std::multimap<int, stDungeonNpc>::iterator>& range)
@@ -677,7 +677,7 @@ char SecretShopScript::GetNpcIdx(
     return 0;
 }
 
-char SecretShopScript::GetNpcByDungeonIdx(int& out, int a, int b)
+bool SecretShopScript::GetNpcByDungeonIdx(int& out, int a, int b)
 {
     std::pair<std::multimap<int, stDungeonNpc>::iterator,
               std::multimap<int, stDungeonNpc>::iterator> range =
@@ -685,7 +685,7 @@ char SecretShopScript::GetNpcByDungeonIdx(int& out, int a, int b)
     return GetNpcIdx(out, a, range);
 }
 
-char SecretShopScript::GetNpcByDungeonLev(int& out, int a, int b)
+bool SecretShopScript::GetNpcByDungeonLev(int& out, int a, int b)
 {
     // ORIG 0x8a8293c：GetLevelIdx(b) → +0x18（m_levelNpcMap）equal_range →
     // GetNpcIdx（返回其 char 结果）。

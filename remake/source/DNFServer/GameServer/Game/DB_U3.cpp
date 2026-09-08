@@ -4,8 +4,11 @@
 //   DB_InsertCeraItemHistory::makeRequest       0x0844511a
 // 包构建约定：StreamPool::Acquire("DBThread.cpp", <行号>) → CStreamGuard →
 // 写 opcode/字段 → MsgQueueMgr::put(DB_Q, guard)。
-// 类声明与 CMailBoxHelper.cpp 中的前置声明逐字一致（ORIG 返回 void，此处
-// 沿用调用方声明的 int 以保持类定义一致；mangled 符号不含返回类型）。
+// b28d-61 [P159]：ORIG 两函数尾部均无 `mov $0x0,%eax`（直接 leave;ret）⇒ 实际
+// 返回 void。原「沿用调用方 int 声明」使 4.4 多出 `mov $0x0,%ebx`+`mov %ebx,%eax`
+// （返回值跨 guard 析构保活）与 EH 状态初始化；本 TU 声明/定义改 void，调用方
+// （CMailBoxHelper.cpp/CTradeSpace.cpp 局部前置声明 int）均为语句调用不取返回值，
+// mangled 不含返回类型，链接无影响。
 
 #include "CStreamGuard.h"
 #include "StreamPool.h"
@@ -26,17 +29,17 @@ char* NumberToString(unsigned int value, int radix);
 class DB_AccountHack_CheckMyAccount
 {
 public:
-    static int makeRequest(unsigned int uid, unsigned int accId,
-                           unsigned int a, unsigned int money,
-                           char* senderName, int nameLen);
+    static void makeRequest(unsigned int uid, unsigned int accId,
+                            unsigned int a, unsigned int money,
+                            char* senderName, int nameLen);
     bool dispatch(int userIdx, int slot, Stream* stream);   // ORIG 0x8439f06
 };
 
 class DB_InsertCeraItemHistory
 {
 public:
-    static int makeRequest(int itemIdx, unsigned int senderCharacNo,
-                           unsigned int receiverCharacNo, char flag);
+    static void makeRequest(int itemIdx, unsigned int senderCharacNo,
+                            unsigned int receiverCharacNo, char flag);
     bool dispatch(int userIdx, int slot, Stream* stream);   // ORIG 0x8445032
 };
 
@@ -47,11 +50,11 @@ public:
 // [b28c-33 判词 N104] ORIG 正常路径尾块居末、unwind 块居中（81 条）；4.4 就地内联
 // epilogue、unwind 压最末且正常路径多 1 条 `mov $0x0,%ebx`（EH 状态初始化，82 条）。
 // 块内容逐条全等，仅两尾块互换 ⇒ N104（按 §6.2 三件套验收，p167 待核）。
-int DB_AccountHack_CheckMyAccount::makeRequest(unsigned int uid,
-                                               unsigned int accId,
-                                               unsigned int a,
-                                               unsigned int money,
-                                               char* senderName, int nameLen)
+void DB_AccountHack_CheckMyAccount::makeRequest(unsigned int uid,
+                                                unsigned int accId,
+                                                unsigned int a,
+                                                unsigned int money,
+                                                char* senderName, int nameLen)
 {
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8846), true);
@@ -67,7 +70,6 @@ int DB_AccountHack_CheckMyAccount::makeRequest(unsigned int uid,
     std::strncpy(sig->m_name, senderName, nameLen);
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    return 0;
 }
 
 // ---- DB_InsertCeraItemHistory::makeRequest ORIG @ 0x0844511a ----
@@ -76,10 +78,10 @@ int DB_AccountHack_CheckMyAccount::makeRequest(unsigned int uid,
 // [b28c-31] N（EH 尾布局）：ORIG 0x0844523x 的 cleanup 块（CStreamGuard D1 +
 // _Unwind_Resume）在函数中段、正常路径 `jmp` 汇入 ret 块；4.4 恒置函数尾
 // 并 fall-through（跨版本 EH 布局，P63 族）。
-int DB_InsertCeraItemHistory::makeRequest(int itemIdx,
-                                          unsigned int senderCharacNo,
-                                          unsigned int receiverCharacNo,
-                                          char flag)
+void DB_InsertCeraItemHistory::makeRequest(int itemIdx,
+                                           unsigned int senderCharacNo,
+                                           unsigned int receiverCharacNo,
+                                           char flag)
 {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xac1b),
                        true);
@@ -91,7 +93,6 @@ int DB_InsertCeraItemHistory::makeRequest(int itemIdx,
     guard.operator*()->operator<<(flag);
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    return 0;
 }
 
 
@@ -298,15 +299,16 @@ void DB_Insert0712WinterEventCoupon::makeRequest(unsigned int accId,
 {
     // b28c-33：ORIG 0x0842e648 两次 _makeRequest 复用同一 -0xc 槽（P160 复用律）
     // ⇒ 单一具名 stream 局部，勿声明 first/second 两个槽。
+    // b28d-61 探针：外层裸早返 + 内层裸 if（ORIG 首失败出口 +0x94 nop 岛、
+    // body2 尾 jmp +0x95）——裸早返/ goto 尾标签 / 空 else 三形实测均多出两对
+    // jmp+nop 中继（43 insn）。
     Stream* stream = _makeRequest((ENUM_INTERNALPACKET)0x112, accId, characNo, count);
+    if (stream == 0)
+        return;
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, stream);
+    stream = _makeRequest((ENUM_INTERNALPACKET)0x113, accId, characNo, count);
     if (stream != 0)
-    {
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, stream);
-        stream =
-            _makeRequest((ENUM_INTERNALPACKET)0x113, accId, characNo, count);
-        if (stream != 0)
-            GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, stream);
-    }
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, stream);
 }
 
 // ============================================================================

@@ -10,6 +10,7 @@
 
 #include <map>
 #include <vector>
+#include <algorithm>
 #include <cstdlib>
 #include <cmath>
 #include <ctime>
@@ -699,7 +700,10 @@ bool SecretShopScript::GetItems(CMTRand* rand,
                                 std::vector<secretshop::SALE_INFO>& out,
                                 stDungeonSales& sales)
 {
-    if ((int)sales.m_sales.size() < sales.m_maxCount) {
+    // [b28d-56 判词·P196] ORIG 0x08a82a?? `cmp %edx,%eax; setb %al`（无符号序）
+    // ⇒ 源码为无符号比较；旧 `(int)size() < m_maxCount` 产有符号 `setl`，
+    // 值域 ≥0x80 时语义分叉（size 为 size_t、m_maxCount 为 int，ORIG 照抄无符号）。
+    if (sales.m_sales.size() < (unsigned int)sales.m_maxCount) {
         // 商品数少于上限：直接全部列出
         for (std::map<int, stSaleInfo>::iterator it = sales.m_sales.begin();
              it != sales.m_sales.end(); ++it) {
@@ -740,9 +744,14 @@ bool SecretShopScript::GetItems(CMTRand* rand,
 bool SecretShopScript::IsExistItem(std::vector<secretshop::SALE_INFO>& out,
                                    int itemIdx)
 {
-    for (unsigned int i = 0; i < out.size(); ++i)
-        if (out[i].m_itemIdx == itemIdx)
-            return true;
+    // [b28d-56 判词·AE] ORIG 0x08a82f6a 为 std::find：begin→-0x14、end→-0x10、
+    // find sret→-0x18、end→-0xc 四槽（P96 非 const iterator，P293 find 先/end 后），
+    // 尾 `test %al; je; mov $1; jmp; mov $0`。旧索引 for 循环仅 28 条、缺全部
+    // 迭代器调用（43 vs 28）。
+    std::vector<secretshop::SALE_INFO>::iterator it =
+        std::find(out.begin(), out.end(), itemIdx);
+    if (it != out.end())
+        return true;
     return false;
 }
 

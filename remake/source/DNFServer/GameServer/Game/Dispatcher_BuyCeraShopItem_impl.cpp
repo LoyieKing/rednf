@@ -89,6 +89,9 @@ extern char* NumberToString(unsigned int value, int radix);
 
 int Dispatcher_BuyCeraShopItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x081fd396，§6.2 巨件三件套）：P167 调用点差集
+    // 96/96 CLEAR（0 缺 0 多）、指令 1010/1002、帧 sub $0x7fb0 vs $0x7fbc；残差=槽序
+    // /callee-saved 组（push 序）。语义完成，byte 层封顶。
     static const char kPretty[] = "virtual int Dispatcher_BuyCeraShopItem::dispatch_sig(CUser*, PacketBuf&)";
     // ORIG 帧（sub $0x7fbc）：msg = -0x4008（MSG_BUY_CERASHOP_ITEM 0x3f84，
     // **无 memset**，全部 get_* 原地写入；未初始化读忠实保留——ORIG 各

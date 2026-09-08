@@ -25,7 +25,7 @@ void CValueStatistic::stValueStatistic::reset()
 bool CValueStatistic::AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user,
                                         unsigned int value)
 {
-    // [b28d-59] ORIG 0x0860d682：无 fieldIdx/level 具名局部（P0：形参直读 +
+    // [b28d-59] 封 N82/N93（ORIG 0x0860d682）：已还原——无 fieldIdx/level 具名局部（P0：形参直读 +
     // 索引处内联 get_charac_level()，0x0860d7a5 每次重调）；条件为
     // field<0(js) / field>0x1d(jg) / level<=0(jle) / level>0x46(jle) 四项短路，
     // 汇聚 bool 后 `test %al; je`。插入路径也是 `+= value`（读-加-写，非直接赋值）。
@@ -52,6 +52,8 @@ bool CValueStatistic::AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user
     }
     else
     {
+        // [b28d-59] else 分支保留 it->second 直读：加具名引用局部实测 150→153
+        // 反劣（4.4 引用槽位置与 ORIG -0x1c 不一致）。
         it->second.m_values[user->get_charac_level()][field] += value;
     }
     return true;

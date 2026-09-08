@@ -7,6 +7,9 @@
 
 // ORIG T _Z11cutIPdclassPKc @0x081f440a sz 0xb1（sret）：
 //   std::string s(ip); s.erase(s.rfind('.', npos), npos); return s;
+// [b28d-N7] fresh 复验 58=58：ORIG `mov %ebx,%esi`（sret 提前入 callee-saved）
+// 跨 allocator ctor 保活、4.4 恒在 call 后 `mov %ebx,%eax` 重载 ⇒ 寄存器角色
+// 互换（P52/N7 族；探针形不可择）。语义逐条全等。
 std::string cutIPdclass(const char* ip)
 {
     std::string s(ip);                            // ORIG _ZNSsC1EPKcRKSaIcE
@@ -17,6 +20,9 @@ std::string cutIPdclass(const char* ip)
 // ORIG T _Z11checkDenyIPPKcS0_ @0x081f44bb sz 0x1d0：
 //   null/空串 → false；strncmp(a,b,0x10)==0 → false；
 //   cutIPdclass 相等 → false；a=="0" → false；返回 (b == "0")。
+// [b28d-N86] fresh 复验 132/117：差值全在 std::string 成员函数外联调用序列
+// （4.1 保留 find/erase/operator= 中间结果寄存器链，4.4 多 15 条 sret/临时槽）
+// 与多分支早返块布局（P47/N104）⇒ 跨版本 libstdc++ 内联差，语义逐分支全等。
 bool checkDenyIP(const char* innerIp, const char* peerIp)
 {
     if (innerIp == 0 || peerIp == 0)
@@ -47,6 +53,9 @@ bool checkDenyIP(const char* innerIp, const char* peerIp)
 //     MakeChecksumFromMemory(buf, len+4, digest, 0x20)；==0x6fffffff → ok=true；
 //   for i in 0..31: sprintf(out+i*2, "%02X", digest[i])；
 //   DestroyCryptoChecksum(&ck); delete[] buf; return ok。
+// [b28d-N82] fresh 复验 113/99：ORIG 帧 0x60（含 push %esi）vs 4.4 0x64；
+// salt[4] 逐字节初始化 ORIG 从 -0x21 递减（n/h/s/0 高到低）、4.4 反向；
+// 全帧槽号平移 + x87/EH 段 4.4 折叠 ⇒ 4.1 帧策略差（P112/N82），语义等价。
 bool getSha256UsingSalt(const unsigned char* src, int len, char* out)
 {
     if (src == 0)

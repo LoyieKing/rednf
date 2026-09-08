@@ -104,6 +104,8 @@ bool CEnchanter::_DrawEnchant()
 // ---------------------------------------------------------------------------
 int CEnchanter::_TryEnchantMine(CUser* user, stItemPos_t* pos)
 {
+    // [b28d-56 判词·N] 封顶 N93/N82：ORIG 0x0849d7b6 ret 槽 -0x18 vs 我们 -0x14
+    // （4 字节槽序差，其余助记符/长度 189/190 对齐）；具名 ret 声明序不可翻。
     int ret = 0;
     if ((ret = m_materials[0].SetData(user, (unsigned short)pos->m_itemSpace,
                                       pos->m_slot)) != 0)
@@ -229,6 +231,9 @@ int CEnchanter::_TryEnchantOther(CUser* user, stItemPos_t* pos)
 int CEnchanter::_PutItemForEnchant(CUser* user, int kind, stItemPos_t* pos,
                                    int money)
 {
+    // [b28d-56 判词·N] 封顶 N7/N82附：ORIG 0x0849d344 prologue `push %esi; push %ebx`
+    // vs 我们 `push %edi; push %esi; push %ebx`（多 callee-saved + 帧 0x30 vs 0x3c），
+    // 助记符序列同、寄存器角色差；多实参 call 首值 callee-saved 对调源形不可择。
     if (user->getCurCharacR() == 0)
         return 3;
 
@@ -354,6 +359,8 @@ void CEnchanter::OnPutItemForEnchant(CUser* user, MSG_STATIC_COMMAND* msg)
 // b28c-1 N18a: 字段装载 4.4 单段直落 %ebx vs ORIG mov mem,%eax; mov %eax,%ebx（P226 实测无效）。
 void CEnchanter::OnTryEnchant(CUser* user, MSG_STATIC_COMMAND* msg)
 {
+    // [b28d-56 判词·N] 维持 b28c-1 的 N18a 封顶（P254 enum 化/P226 语句表达式均无效：
+    // ORIG 0x0849dfcc `mov 0xe(%eax),%eax; mov %eax,%ebx` 两段升格不可造）。
     int err = 0;   // ORIG 首条 movl $0,-0xc：err 声明置函数头
     // b28c-1：ORIG `mov 0xe(%eax),%eax; mov %eax,%ebx` 两段升格 vs 4.4 单段
     //  直落 %ebx（N18a 族）；P226 语句表达式实测无效，维持自然形。
@@ -458,6 +465,8 @@ void CEnchanter::SetPeerRequestType(ENUM_PEER_REQUEST_TYPE type)
 // ---------------------------------------------------------------------------
 int CEnchanter::_DoEnchant(ENUM_TRY_ENCHANT_TYPE type)
 {
+    // [b28d-56 判词·N] 封顶 N82/P182：ORIG 0x0849cb2c 帧 `sub $0x60` vs 我们
+    // `add $<A>,%esp`（大帧 4.4 用 add 形）；553/552 条、助记符序列同，仅帧/槽号差。
     // ---- 门禁块 1：对家有效且双方不同时校验登记费用 ----
     if (m_peer != 0 && m_peer->getCurCharacR() != 0 && m_user != m_peer)
     {

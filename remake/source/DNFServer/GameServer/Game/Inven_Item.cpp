@@ -101,14 +101,12 @@ void stAmplifyOption_t::getValues(unsigned char& type,
 void STEnchantedSkillOption::reset()
 {
     // ORIG 0x8500fe4：三次位清（&0xfffffffe, &0xfffffff9, &0x7）→ 全字节清零
-    // [b28c-30] N18a 封顶：ORIG 每段 `movzbl (%eax),%edx; and $imm,%edx;
-    // mov %dl,(%eax)`（装载目标=运算寄存器 %edx，单段直落）；4.4 恒
-    // `movzbl (%eax),%eax; mov %eax,%edx; and …` 两段且重载 this。
-    // 探针 /tmp/l30_probe2.cpp 10 形（直赋/复合赋值/static_cast/int 局部/
-    // 指针/引用/纯 register）全败。
-    m_field = (unsigned char)(m_field & 0xfffffffe);
-    m_field = (unsigned char)(m_field & 0xfffffff9);
-    m_field = (unsigned char)(m_field & 0x7);
+    // b28d-60：P266 uchar 左值读旋钮 `*(unsigned char*)&f` —— 直接经 uchar 左值
+    // 读改写（免隐式提升中转）；ORIG 每段 `movzbl (%eax),%edx; and $imm,%edx;
+    // mov %dl,(%eax)`（单段直落 %edx）。
+    *(unsigned char*)&m_field = (unsigned char)(*(unsigned char*)&m_field & 0xfffffffe);
+    *(unsigned char*)&m_field = (unsigned char)(*(unsigned char*)&m_field & 0xfffffff9);
+    *(unsigned char*)&m_field = (unsigned char)(*(unsigned char*)&m_field & 0x7);
 }
 
 void RandomOptionField::reset()
@@ -318,16 +316,18 @@ void Inven_Item::setCopy(const Inven_Item& other)
     m_fieldb = other.m_fieldb;
     m_attr = other.m_attr;
     m_fieldd = other.m_fieldd;
-    *(int*)((char*)&m_amp + 0) = *(const int*)((const char*)&other.m_amp + 0);
-    *(int*)((char*)&m_random + 0) = *(const int*)((const char*)&other.m_random + 0);
-    *(int*)((char*)&m_random + 4) = *(const int*)((const char*)&other.m_random + 4);
-    *(int*)((char*)&m_random + 8) = *(const int*)((const char*)&other.m_random + 8);
-    *(int*)((char*)&m_random + 12) = *(const int*)((const char*)&other.m_random + 12);
-    *(int*)((char*)&m_random + 16) = *(const int*)((const char*)&other.m_random + 16);
+    // b28d-60：P247/P29——ORIG 0x814a688 起为「一次载入 this/other + 连续
+    // disp 拷贝」形；原 (char*)&m + k 指针算术使 4.4 逐字段重算地址（add 链，
+    // 60→92 insn）。改具名视图/整体赋值：m_amp0Int（+0x11 四字节视角）、
+    // m_random/m_reserved 整体结构赋值（4.4 对 20B POD 发 5 连发 mov，与 ORIG 同）。
+    // +0x11 四字节：具名 union 视角 m_amp0Int（disp 折叠）。残余 4 条装载序
+    // （ORIG LHS-first `mov this,%eax; mov other,%edx; mov 0x11(%edx),%edx`，
+    // 4.4 恒 RHS-first）——P211 同型化已试（int/unsigned/视图/引用 cast 四形），
+    // 落 N76 封顶。
+    m_amp.m_amp0Int = other.m_amp.m_amp0Int;
+    m_random = other.m_random;
     m_upgradeSep.m_field = other.m_upgradeSep.m_field;
-    m_reserved.m_field0 = other.m_reserved.m_field0;
-    m_reserved.m_field4 = other.m_reserved.m_field4;
-    m_reserved.m_field8 = other.m_reserved.m_field8;
+    m_reserved = other.m_reserved;
 }
 
 int Inven_Item::getPackedCode1() const
@@ -352,10 +352,11 @@ int Inven_Item::getKey() const
 int Inven_Item::GetInventoryType()
 {
     int result;
-    unsigned int u;
     if ((unsigned char)m_field1 < 0xb)
     {
-        u = 1u << m_field1;
+        // b28d-60：P231 纯 register 存储建议——ORIG 无 u 栈槽（全程 %eax 复用
+        // shl 结果）；具名普通局部恒占槽（-0x8），register 使 4.4 免槽。
+        register unsigned int u = 1u << m_field1;
         if (u & 0x61f)
         {
             result = 1;
@@ -383,10 +384,10 @@ int Inven_Item::GetInventoryType()
 int Inven_Item::GetItemSpace() const
 {
     int result;
-    unsigned int u;
     if ((unsigned char)m_field1 < 0xb)
     {
-        u = 1u << m_field1;
+        // b28d-60：同 GetInventoryType，P231 register 免 u 槽。
+        register unsigned int u = 1u << m_field1;
         if (u & 0x61f)
         {
             result = 0;

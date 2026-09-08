@@ -56,7 +56,8 @@ CItemGenRateTable::~CItemGenRateTable()
 
 void CItemGenRateTable::init()
 {
-    // ORIG 0x085345b6：旧表非空则 operator delete；time(0) 播种 new 0x9c8（单棵）。
+    // [b28d-59 判词] 封 N18a（ORIG 0x085345b6）：见下。旧表非空则 operator delete；
+    // time(0) 播种 new 0x9c8（单棵）。
     // ORIG lea -0x1c(%ebp),%esi 跨 new（esi 挂 seed 地址）。4.4 恒
     // `mov %esi,0x4(%esp)` 形不可造（lea esi / -0x1c 槽缓存两形探针全败
     // 26/25），N18a 族封顶。
@@ -104,6 +105,8 @@ bool CItemGenRateTable::_itemTypeVerify(int type, const CItem* item)
 
 void CItemGenRateTable::generateTable(stGenItemRange_t* range, bool keepRandomOption)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x0853466c）：指令数 197/196 全等，残差=帧
+    // 0x64 vs 0x84 的槽位布局差（4.4 聚合临时占槽策略）。语义等价。
     // 报告 generateTable.md（T 0x0853466c）逐循环转写。槽址 =
     // type*0x7110+rarity*0x12d8+level*24 ⇒ m_slots[type][rarity][level]。
     __gnu_cxx::hash_map<int, CItem*>* grades =
@@ -170,7 +173,8 @@ CSecialIMonsterDropItemGenRateTable::~CSecialIMonsterDropItemGenRateTable()
 
 void CSecialIMonsterDropItemGenRateTable::init()
 {
-    // ORIG 0x08534c1a：与 CItemGenRateTable::init 同款。
+    // [b28d-59 判词] 封 N18a（ORIG 0x08534c1a）：与 CItemGenRateTable::init 同款
+    // （lea -0x1c,%esi 跨 new 的 4.1 regmove 不可造）。
     if (m_rand != 0)
         delete m_rand;
     unsigned long seed = time(0);
@@ -209,6 +213,8 @@ bool CSecialIMonsterDropItemGenRateTable::_itemTypeVerify(int type, const CItem*
 
 void CSecialIMonsterDropItemGenRateTable::generateTable(stGenItemRange_t* range)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x08534cd0）：222/220 条，残差=帧 0x6c vs 0x7c
+    // 槽位差。语义等价。
     // 报告 generateTable.md（T 0x08534cd0）：五重循环 a(0..4) b(0..2) type(1..4)
     // rarity(0..5) level(1..200)；槽址 a*0x69ff0+b*0x23550+type*0x7110+
     // rarity*0x12d8+level*24。过滤要求 isSpecialMonsterDropItem /
@@ -281,6 +287,8 @@ CMonsterDrop_Hell::~CMonsterDrop_Hell()
 
 int CMonsterDrop_Hell::loadScript(char const* path)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x08535344）：273/277 条，残差=局部槽序
+    //（-0x48 vs -0x34 等，4.4 按首次使用序分配）。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x302;
     std::string token;
@@ -373,6 +381,8 @@ CSpecialMonsterDrop::~CSpecialMonsterDrop()
 
 int CSpecialMonsterDrop::loadScript(char const* path)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x085373ee）：375/377 条，残差=局部槽序
+    //（-0x5c vs -0x48 等）。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x5fb;
     std::string token;
@@ -501,6 +511,8 @@ CMonsterDrop::CMonsterDrop(int count)
 
 int CMonsterDrop::loadScript(char const* path)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x08537938）：523/540 条，残差=帧 0x90 vs 0xa0
+    // + 局部槽序（4.4 首次使用序）。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x66b;
     std::string token;
@@ -697,6 +709,8 @@ int CObjectDrop::loadScript(char const* path)
 CClearReward::CClearReward(int count)
     : CItemGenerator(count)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x0853a968）：189/194 条，残差=帧 0x3c vs 0x2c
+    // + 成员构造槽序（4.4 聚合对象优先占低槽）。语义等价。
     // ORIG 0x0853a968：基类 → vptr 0x08c9a700 → 7×vector(+0x18 步进 0xc，第 7 个在
     // +0x60) → 表 ctor(+0x2a8) → 两个空白卡 vector(+0x23b40/+0x23b78) →
     // 金卡费用表 [201] 清零 → +0x23b38=0.0f → +0x23b3c=0 → +0x23b74=0 →
@@ -712,6 +726,8 @@ CClearReward::CClearReward(int count)
 
 int CClearReward::loadScript(char const* path)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x085392c0）：645/651 条，残差=局部槽序
+    //（-0x54 vs -0x48 等）。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x943;
     std::string section;
@@ -940,6 +956,8 @@ CGeneratorCommonData::~CGeneratorCommonData() {}
 
 int CGeneratorCommonData::loadScript(const char* path)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x08534456）：98/100 条，残差=局部声明序
+    //（int -0x10 vs bool -0x15 的分配序）+ 立即数装载差。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x1d8;
     std::string token;
@@ -1054,6 +1072,8 @@ CAutoMarketConditionsControl* CDataManager::GetAutoMarketContitionsControl()
 // ============================================================================
 int CAutoMarketConditionsControl::GetGoldDropAmountRate(int level, int gold)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x082f89bc）：100/98 条，残差=帧 0x54 vs 0x64
+    // + 首分支极性（je vs jne 落点相同）。语义等价。
     int result = 0;                         // ORIG prolog 后立即清零（-0x14）
     double rate;                            // ORIG 不预初始化（仅 else 路径赋值）
     if (m_field00 == 0)

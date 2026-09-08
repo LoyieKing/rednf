@@ -113,6 +113,10 @@ const CompiledDNFLex::stream_t* CompiledDNFLex::GetInputStream() const
 // offset_ = 新栈顶 offset。返回 true。
 bool CompiledDNFLex::PopInputStream(bool pop_all)
 {
+    // [b28d-56 判词·N] 封顶 N108（std::deque）：ORIG 0x8ad0000 族对 deque 访问器
+    // 全部内联为字段访存（无 extern call），4.4-O0 恒发 out-of-line call；且
+    // 4.1 _Deque_iterator 含 4 指针(16B) vs 4.4 三指针(12B)，成员偏移不可同时满足
+    // （-march=i486 实测无效）。本件 134/66，语义等价，源形不可择。
     if (streamStack_.empty())
         return false;
     if (!pop_all)
@@ -149,6 +153,7 @@ void CompiledDNFLex::CloseInputStream()
 bool CompiledDNFLex::PushInputStream(const char* dir, const char* filename,
                                      char* buffer, unsigned int bufferSize)
 {
+    // [b28d-56 判词·N] 封顶 N108（std::deque，同 PopInputStream）。
     // ORIG 栈上 stream_t：只默认构造两棵 string，size/buffer/offset 不先清零。
     stream_t stream;
     if (dir == 0)
@@ -223,6 +228,8 @@ bool CompiledDNFLex::IsStream() const
 // ---- GetOffset（ORIG 0x8acff20）：--finish 后取 buffer；空/指针 0/buffer 0 → -1。----
 int CompiledDNFLex::GetOffset() const
 {
+    // [b28d-56 判词·N] 封顶 N108（std::deque）：ORIG 0x8acff20 24 条 vs 我们 71 条
+    // （4.4 对 deque end()/begin()/back() 恒 extern call + 迭代器 12B vs 16B）。
     stream_t* p = streamStack_.end()._M_cur;
     if (p == streamStack_.begin()._M_cur)
         goto fail;
@@ -245,6 +252,7 @@ have:
 // ---- getStreamName（ORIG 0x8ad0290）：NRVO 槽上 copy dir 再 append(filename)；空/空指针 "NONE"。----
 std::string CompiledDNFLex::getStreamName() const
 {
+    // [b28d-56 判词·N] 封顶 N108（std::deque）：ORIG 0x8ad0290 60 条 vs 我们 139 条。
     stream_t* p = streamStack_.end()._M_cur;
     if (p == streamStack_.begin()._M_cur)
         return std::string("NONE");
@@ -262,6 +270,8 @@ std::string CompiledDNFLex::getStreamName() const
 // ---- isEnd（ORIG 0x8ad0000）：--finish 后 buffer+size <= offset_；空/空指针返回 0。----
 bool CompiledDNFLex::isEnd()
 {
+    // [b28d-56 判词·N] 封顶 N108（std::deque）：ORIG 0x8ad0000 23 条 vs 我们 68 条
+    // （与 patterns N108 记载的 isEnd 23→68 / GetOffset 24→71 完全一致）。
     stream_t* p = streamStack_.end()._M_cur;
     if (p == streamStack_.begin()._M_cur)
         return false;
@@ -293,6 +303,7 @@ bool CompiledDNFLex::LoadStream(const char* dir, const char* filename,
 // ---- getStr(std::string&)（ORIG 0x8ad00d0）：按字符串表索引取串。----
 bool CompiledDNFLex::getStr(std::string& stringBuffer)
 {
+    // [b28d-56 判词·N] 封顶 N108 + P168 成员重复装载（旧 b28-L14 判词继续有效）。
     // [b28-L14] 残差封顶 N 类（P168 成员重复装载 + N89 反向跨版本内联）：
     // ORIG 0x8ad00d0 把 this 缓存 %edx、tok 一次载入 %eax 后全程复用
     // （`mov 0x8(%edx),%eax; lea -0x2(%eax),%ecx; cmp $0x1,%ecx; …; cmp
@@ -322,6 +333,7 @@ more:
 // ---- getStr(char*, int)（ORIG 0x8ad0190）----
 bool CompiledDNFLex::getStr(char* buffer, int maxSize)
 {
+    // [b28d-56 判词·N] 封顶 N108（std::deque，66/78）。
     int tok = lastToken_;
     unsigned d = (unsigned)tok - 2;
     if (d <= 1)
@@ -438,6 +450,7 @@ void CompiledDNFLex::destroy()
 // 读下一个 STRING 记号作文件名，LoadStream+PushInputStream 切入包含文件。
 int CompiledDNFLex::getToken()
 {
+    // [b28d-56 判词·N] 封顶 N108（std::deque，199/296）。
     // ORIG uses the std::deque internals directly; at -O0 end()._M_xxx
     // re-materializes an iterator each time (4 end + 1 begin = 5 calls).
     // Reuse two iterators.
@@ -541,6 +554,8 @@ recurse:
 }
 
 // ---- CompiledDNFLex()（ORIG 0x8ad07c0，默认构造：create(true) 自建串表）----
+// [b28d-56 判词·N] 封顶 N108（std::deque：deque C1 与迭代器布局 16B vs 12B，
+// ORIG 118/119 条 vs 我们 74/75 条）。
 CompiledDNFLex::CompiledDNFLex()
     : offset_(0),
       lastToken_(0),
@@ -558,6 +573,7 @@ CompiledDNFLex::CompiledDNFLex()
 }
 
 // ---- CompiledDNFLex(ScriptStringManager*)（ORIG 0x8ad0580：create(false)）----
+// [b28d-56 判词·N] 封顶 N108（std::deque，同 C1Ev）。
 CompiledDNFLex::CompiledDNFLex(ScriptStringManager* pStringManager)
     : offset_(0),
       lastToken_(0),

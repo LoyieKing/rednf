@@ -134,16 +134,17 @@ Inven_Item* CCargo::GetCargoRef(int idx)
 
 
 // ---- get_cargo_slot @ 0x850b2b4（按值返回 Inven_Item） ----
-// ORIG 0x850b2b4：call IsOperatorable → xor $0x1 → test → je 0xaf（空 item 分支）。
-// 即 IsOperatorable==true（索引合法）→ 返回 memset 全 0 的空 item；
-// IsOperatorable==false → memmove 返回 m_pItems[idx] 原样内容。分支与直觉相反，以 ORIG 为准。
+// ORIG 0x850b2b4：`call IsOperatorable; xor $0x1; test %al,%al; je +0xaf` ——
+// je 落点 +0xaf 为 `mov this+0x4,%edx; imul $0x3d; memcpy(sret, &m_pItems[idx],0x3d)`，
+// 即 **IsOperatorable==1（合法索引）→ 返回 m_pItems[idx] 原内容**；
+// IsOperatorable==0 → `Inven_Item out; memset(&out,0,0x3d);` 返空 item。
+// [b28d 真语义 bug 修正] 旧码分支内容互换（!IsOperatorable 返回原内容），已按 ORIG 翻转。
+// [b28d-N86] fresh 复验 68/104：形态残差 = 4.1 不省略「临时 + memset + 拷贝到 sret」
+// 两段（N86）；语义已与 ORIG 分支一一对应（返回 m_pItems[idx] / 空 item）。
 Inven_Item CCargo::get_cargo_slot(int idx) const
 {
-    if (!IsOperatorable(idx)) {
-        Inven_Item out;
-        memmove(&out, &m_pItems[idx], 0x3d);
-        return out;
-    }
+    if (IsOperatorable(idx))
+        return m_pItems[idx];
     Inven_Item out;
     memset(&out, 0, sizeof(out));
     return out;
@@ -154,7 +155,7 @@ int CCargo::GetCargoData(int itemIdx, Inven_Item& out) const
 {
     for (int i = 0; i <= 0x97; ++i) {
         if (m_pItems[i].m_addInfo == itemIdx) {
-            memcpy(&out, &m_pItems[i], sizeof(Inven_Item));
+            out = m_pItems[i];   // [b28d-N84] ORIG 逐 dword 拷贝非 memcpy
             return i;
         }
     }
@@ -186,24 +187,22 @@ int CCargo::insert_item(const Inven_Item& item)
     return -1;
 }
 
-void CCargo::_AddItem(const Inven_Item& item, int slot)
-{
-    memcpy(&m_pItems[slot], &item, sizeof(Inven_Item));
-    ++m_itemCount;
-    m_sorted = 0;
-}
-
+// [b28d-N18b] fresh 复验 90=90：残差 = `cmp mem,reg` 折叠方向（ORIG `cmp %eax,%ecx;
+// setl` vs 4.4 `cmp %eax,%edx; jge`，N18b/N7 族）+ 帧 0x10 vs 0x20；语义全等。
 int CCargo::_AddStackItem(const Inven_Item& item, int slot)
 {
     if (m_pItems[slot].m_addInfo == item.m_addInfo) {
         m_sorted = 0;
-        int add = item.get_add_info();
-        if (0x7fffffff - add < m_pItems[slot].m_addInfo2) {
+        // [b28d-P0] ORIG 无槽往返（add 直入 sub 的寄存器）⇒ 内联实参。
+        if (0x7fffffff - item.get_add_info() < m_pItems[slot].m_addInfo2) {
             m_pItems[slot].m_addInfo2 = 0;
         } else {
-            int cur = m_pItems[slot].get_add_info();
-            int inc = item.get_add_info();
-            if (checkStackableLimit((unsigned long)m_pItems[slot].m_addInfo, cur + inc)) {
+            // [b28d-P226] ORIG 两 get_add_info 在同一实参表达式内：首值升格 %ebx
+            // 跨第二 call 保活（`call; mov %eax,%ebx; call; lea (%ebx,%eax,1),%edx`）
+            // ⇒ 禁具名 cur/inc 局部（会槽化）。
+            if (checkStackableLimit((unsigned long)m_pItems[slot].m_addInfo,
+                                    m_pItems[slot].get_add_info()
+                                        + item.get_add_info())) {
                 // P48 去缓存：ORIG +0x0f3 对最后 += 的加数独立重调
                 // item.get_add_info（不复用 inc）。
                 m_pItems[slot].m_addInfo2 =
@@ -218,16 +217,17 @@ int CCargo::_AddStackItem(const Inven_Item& item, int slot)
     return slot;
 }
 
+// [b28d-N18b] fresh 复验 65/64 NEAR：内联实参后仅余 cmp 操作数序（N18b）。
 int CCargo::_tryAddStackItem(const Inven_Item& item, int slot) const
 {
     if (m_pItems[slot].m_addInfo == item.m_addInfo) {
-        int add = item.get_add_info();
-        if (0x7fffffff - add < m_pItems[slot].m_addInfo2) {
+        if (0x7fffffff - item.get_add_info() < m_pItems[slot].m_addInfo2) {
             return -1;
         }
-        int cur = m_pItems[slot].get_add_info();
-        int inc = item.get_add_info();
-        if (!checkStackableLimit((unsigned long)m_pItems[slot].m_addInfo, cur + inc))
+        // [b28d-P226] 同 _AddStackItem：内联实参保留首值 callee-saved 形。
+        if (!checkStackableLimit((unsigned long)m_pItems[slot].m_addInfo,
+                                 m_pItems[slot].get_add_info()
+                                     + item.get_add_info()))
             return -10;
     } else {
         return -1;
@@ -235,6 +235,8 @@ int CCargo::_tryAddStackItem(const Inven_Item& item, int slot) const
     return slot;
 }
 
+// [b28d-N82] fresh 复验 82/81：残差 = 循环体两块物理序（ORIG 先 ret 循环后 slot
+// 循环，4.4 相反）+ 局部槽 -0x14/-0x10 平移（N93/N82）；返回码语义全等。
 int CCargo::tryInsertItemSpecialSlot(const Inven_Item& item, int slot) const
 {
     if (!IsOperatorable(slot))
@@ -298,6 +300,8 @@ int CCargo::insert_item_special_slot(Inven_Item& item, int slot)
 }
 
 // ---- 删除 ----
+// [b28d-N82] fresh 复验 116/122：残差 = 局部槽平移 + 减法装载序（P211/N76）+
+// isEquipableItemType 调用点 xor 位置；删除语义全等。
 bool CCargo::delete_item(int idx, int count, eItemDelReason reason)
 {
     if (!IsOperatorable(idx))
@@ -328,8 +332,9 @@ bool CCargo::delete_item(int idx, int count, eItemDelReason reason)
 // ---- _ResetSlot @ 0x850b1a0 ----
 void CCargo::_ResetSlot(int idx, eItemDelReason reason)
 {
-    Inven_Item saved;
-    memcpy(&saved, &m_pItems[idx], sizeof(Inven_Item));
+    // [b28d-N84] ORIG 无默认 ctor call，直接逐 dword 拷贝 ⇒ 拷贝初始化（隐式拷贝
+    // 构造内联），禁「默认构造 + 赋值」两段（多 3 条 ctor call）。
+    Inven_Item saved = m_pItems[idx];
     m_pItems[idx].reset();
     if (saved.isEquipableItemType()) {
         m_pParent->m_historyLog.ItemDelCargo(saved.m_addInfo, 1, 0, reason);
@@ -361,8 +366,21 @@ void CCargo::update_item(int idx, const Inven_Item& item)
     if (m_pItems[idx].m_addInfo == 0) {
         _AddItem(item, idx);
     } else {
-        memcpy(&m_pItems[idx], &item, sizeof(Inven_Item));
+        // [b28d-N84] 同 _AddItem：ORIG 逐 dword 拷贝（0x0850bb.. 段）非 memcpy。
+        m_pItems[idx] = item;
     }
+}
+
+// [b28d-P210②] ORIG 0x0850c4ba 位于全部 caller 之后（insert_item/update_item/
+// tryInsertItemSpecialSlot 均在前）⇒ 4.4 对「未见定义」的 callee 用保守 outgoing
+// 帧（sub $0x18，与 ORIG 一致）；定义前置会使 caller 帧塌缩为 0xc。
+void CCargo::_AddItem(const Inven_Item& item, int slot)
+{
+    // ORIG 为逐 dword 字段拷贝（packed 类对齐=1 路径，16×mov+movzbl 尾字节），
+    // 非 memcpy 调用 ⇒ 结构体直接赋值（P54/P83/N84）。
+    m_pItems[slot] = item;
+    ++m_itemCount;
+    m_sorted = 0;
 }
 // ---- 查询 ----
 int CCargo::check_slot_empty(int idx) const
@@ -464,22 +482,19 @@ int CCargo::_CompareSlot(const void* a, const void* b)
         return -1;
     if (ta > tb)
         return 1;
-    // ORIG 尾块：ta==9999 与 addInfo 相等共享 mov$0 返回块（je 正跳），
-    // 4.1 identical-return 合并 ⇒ 源码用嵌套 if 形态（探针 /tmp/p_cs2.cpp）。
-    // 残差 N：4.1 尾块串联 jmp 跳板（mov$1→+0xa1→+0xa8→end 两级中继）4.4 直达，
-    // 助记符序列 58/60，语义逐分支全等。
-    // [b28c-16] 两 return 0 出口独立（ORIG `je +0xa3:mov$0;jmp +0xa8` 与
-    // `+0xaa:mov$0` 两物理块）⇒ 相等判定改正向 `== → return 0` 早返，
-    // 不再 fall 到共享尾。
-    if (ta != 9999)
-    {
-        if (ia->m_addInfo == ib->m_addInfo)
-            goto ZERO;
-        if ((unsigned int)ia->m_addInfo < (unsigned int)ib->m_addInfo)
-            return -1;
-        return 1;
-    }
-ZERO:
+    // [b28d-P223] ORIG 0x0850bc5a 两 return 0 出口为**尾部独立块**：
+    // `je +0xaa`（ta==9999）与 `je +0xa3`（addInfo 相等）各自 `mov $0`，块序
+    // +0xa3 在 +0xaa 前 ⇒ 双 goto 尾标签串（平铺 return 会被 4.4 就地物化）。
+    if (ta == 9999)
+        goto ZERO_AA;
+    if (ia->m_addInfo == ib->m_addInfo)
+        goto ZERO_A3;
+    if ((unsigned int)ia->m_addInfo < (unsigned int)ib->m_addInfo)
+        return -1;
+    return 1;
+ZERO_A3:
+    return 0;
+ZERO_AA:
     return 0;
 }
 
@@ -492,6 +507,8 @@ void CCargo::sort()
 }
 
 // ---- 发包 ----
+// [b28d-N82] fresh 复验 114/118：残差 = PacketGuard/InterfacePacketBuf 调用点
+// 帧策略差（P210/N82）+ 循环内 GetLock 重读形；包字段序全等。
 void CCargo::SendItemLockList() const
 {
     if (m_pParent == 0)
@@ -520,6 +537,8 @@ void CCargo::SendItemLockList() const
     m_pParent->Send(packet);
 }
 
+// [b28d-N82] fresh 复验 184/187：残差 = put_* 链的 4.1/4.4 实参装载序与帧差
+// （P75/N82）；包字段序/条件分支全等。
 int CCargo::MakeItemList(PacketGuard* packet) const
 {
     InterfacePacketBuf* buf = (InterfacePacketBuf*)packet;
@@ -556,6 +575,8 @@ int CCargo::MakeItemList(PacketGuard* packet) const
 //   make3rdChroniclePacket/put_packet×2，28=28）；仅余 4.1 把空槽块置函数尾由 `je` 跳入 vs 4.4
 //   内联 `jne` 后（块调度）及少量寄存器分配 (190/189)。禁 buf/world 引用局部（P0：ORIG 右值内联）。
 //   语义完成，byte 层 N 封顶。
+// [b28d-N82] fresh 复验 190=190：残差 = 4.1/4.4 槽号错位（N82）+ 成员重读形
+// （P183）；p167 调用点差集 CLEAR。
 void CCargo::MakeItemPacket(PacketGuard* packet, int slot) const
 {
     ((InterfacePacketBuf*)packet)->put_short(slot);

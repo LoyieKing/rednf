@@ -2339,8 +2339,8 @@ class SecretShopScript
 public:
     SecretShopScript();
     ~SecretShopScript();
-    char GetNpcByDungeonIdx(int& out, int a, int b);
-    char GetNpcByDungeonLev(int& out, int a, int b);
+    bool GetNpcByDungeonIdx(int& out, int a, int b);  // b28d-Main(P292): ORIG 0x085fac00 调用点 `xor $1` ⇒ bool；体直透 GetNpcIdx
+    bool GetNpcByDungeonLev(int& out, int a, int b);  // b28d-Main(P292): 同族 bool
     bool GetItemByDungeonIdx(CMTRand* rand, std::vector<secretshop::SALE_INFO>& out,
                              int dungeonIdx, int level, bool event);
     bool GetItemByDungeonLev(CMTRand* rand, std::vector<secretshop::SALE_INFO>& out,
@@ -2382,7 +2382,7 @@ public:
     // ORIG 0x8a82998：遍历 equal_range 结果累加 stDungeonNpc::m_rate（+0x8），
     // 首次超过 target 时 *out = m_npcIdx（+0x4）并返回 1；否则 0。
     // 供 GetNpcByDungeonIdx/Lev（0x8a828f8/0x8a8293c）调用。
-    char GetNpcIdx(int& out, int target,
+    bool GetNpcIdx(int& out, int target,
                    std::pair<std::multimap<int, stDungeonNpc>::iterator,
                              std::multimap<int, stDungeonNpc>::iterator>& range);
 };

@@ -95,7 +95,11 @@ struct map_monster
     short m_bloodRoundOrder;        // +0x33e
     short m_bloodSpawnIdx;          // +0x340
     short m_bloodPhaseIdx;          // +0x342
-    char m_bloodKillFlag;           // +0x344
+    // b28d-60：char→bool。依据 ORIG kill_blood_monster 0x0830d66c
+    // `movzbl -0x28(%ebp),%eax; xor $0x1,%eax; test %al,%al; jne`（P292/P73：
+    // bool 字段 + 裸 if(!f) 才出 xor$1 取反物化；char 产 `cmpb $1`）。
+    // 宽度 1B、pack(1) 下全部偏移/sizeof 0x34c 不变。
+    bool m_bloodKillFlag;           // +0x344
     char m_bloodDifficulty;         // +0x345
     short m_bloodRoundOrder2;       // +0x346
     char m_bloodSpawned;            // +0x348

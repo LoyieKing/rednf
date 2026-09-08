@@ -153,6 +153,11 @@ int BingoEvent::reqBingoQuizMark(CUser& user, int quizValue)
         {
             if (diff > 3)
             {
+                // [b28d-58] DIFF N（P85 + P238 反向）：ORIG 0x080ca376 段
+                // `mov -0x10(%ebp),%eax; cmp $0x3,%eax; jle` + `mov $0x3,%eax;
+                // mov %eax,-0x10(%ebp)`（局部载入比较 + 常量经 eax 中转 store）；
+                // 4.4-O0 对 signed int 局部恒 `cmpl $0x3,mem` 直比 + `movl $3,mem`
+                // 直存（`(int)3u` 异型化亦折）⇒ 2 条封顶，语义等价。
                 diff = 3;
             }
             static_cast<BingoData*>(user.getBingoData())->m_pad4 =

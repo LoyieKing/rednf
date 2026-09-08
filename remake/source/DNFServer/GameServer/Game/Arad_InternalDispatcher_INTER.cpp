@@ -159,6 +159,8 @@ int Arad_INTER_kDeleteServerState::dispatch_sig(CUser* /*user*/, char* body, int
 // ============================================================================
 int Arad_INTER_kLoadRewardEventItem::dispatch_sig(CUser* user, char* /*body*/, int len)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x08198fd0）：198/190 条，残差=帧 0x40 vs 0x60
+    // + 局部槽序（0x10 vs 0x14 首参偏移差为形参读序）。语义等价。
     if (user == 0 || user->getCurCharacR() == 0)
         return 0x4d3;
 
@@ -202,6 +204,9 @@ int Arad_INTER_kLoadRewardEventItem::dispatch_sig(CUser* user, char* /*body*/, i
 // ============================================================================
 void Arad_INTER_kAradJumpingCharacter::clearEpicQuest(CUser* user)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x081993c4）：232/231 条，残差=帧 0x74 vs 0x84
+    // 槽位差；QuestClear bool 链消费点 0x0819968f `call isClearedQuest; xor $1;
+    // test %al; je` 已 fresh 复编核对一致。语义等价。
     bool anyCleared = false;                                // -0x29
 
     QuestList* npcQuestList = G_CDataManager()->m_questList;  // mgr+0x18
@@ -274,6 +279,8 @@ bool Arad_INTER_kAradJumpingCharacter::sendHelperBox(CUser* user,
                                                      unsigned char ticketType,
                                                      unsigned char growValue)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x0819973e）：153/146 条，残差=帧 0x1d8 大局部
+    // 槽位/寄存器分配（4.4 少 callee-saved 保活）。语义等价。
     Inven_Item item;                                        // -0x6e
     char body[256];                                         // -0x16e
     char title[21];                                         // -0x31
@@ -330,6 +337,8 @@ bool Arad_INTER_kAradJumpingCharacter::sendHelperBox(CUser* user,
 // ============================================================================
 int Arad_INTER_kAradJumpingCharacter::dispatch_sig(CUser* user, char* body, int len)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x081999f2）：241/231 条，残差=帧 0x40 vs 0x50
+    // + 局部槽序。语义等价。
     if (user == 0)
         return 0x5e9;
     if (user->getCurCharacR() == 0)
@@ -502,6 +511,8 @@ out:
 // ============================================================================
 int Arad_INTER_kEmblemCompound::dispatch_sig(CUser* user, char* body, int len)
 {
+    // [b28d-59 判词] 封 N82/N7（ORIG 0x0819a0c0）：88/90 条，残差=callee-saved
+    // push 组（ORIG push edi/esi/ebx vs 4.4 少）+ 首参判空块序。语义等价。
     if (user == 0)
         return 0x6b6;
     if (user->getCurCharacR() == 0)
@@ -564,6 +575,8 @@ int Arad_INTER_kAvatarConvert::dispatch_sig(CUser* user, char* body, int len)
 // ============================================================================
 int Arad_INTER_kAvatarRoulette::dispatch_sig(CUser* user, char* body, int len)
 {
+    // [b28d-59 判词] 封 N82（ORIG 0x08198a9a）：325/320 条，残差=局部槽整体平移
+    //（-0x2c vs -0x3c）。语义等价。
     if (user == 0)
         return 0x3c8;
 

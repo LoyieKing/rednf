@@ -84,7 +84,9 @@ void Dispatcher_UseBoosterItem::_onBoosterItemUseResult(CUser* user, std::vector
 }
 
 // _onBoosterItemUseResult_OnlyOne(CUser*, vector<Inven_Item>&, int) —— ORIG 0x08209a5e
-// [b28c-32] verdict=DIFF：N82 实参装载序（第4参 ORIG %eax 直压 vs 4.4 %edx 保活）。
+// b28d-60：P277 receiver cast 前置——原写法 `static_cast<GrowthEquipEvent*>(evt2)->f(args)`
+// 恒 this-first（receiver 先入 %eax、实参经 %edx）；把 cast 移到赋值点（具名派生指针）
+// 复现 ORIG 的「实参先装 %eax、receiver 最后压栈」序。
 void Dispatcher_UseBoosterItem::_onBoosterItemUseResult_OnlyOne(CUser* user, std::vector<Inven_Item>& items, int itemId)
 {
     if (items.size() != 1)
@@ -97,10 +99,10 @@ void Dispatcher_UseBoosterItem::_onBoosterItemUseResult_OnlyOne(CUser* user, std
     if (static_cast<GrowthEquipEvent*>(
             GlobalData::s_event_manager->GetRepeatEvent(100))->IsEventing(0))
     {
-        CEventBase* evt2 = GlobalData::s_event_manager->GetRepeatEvent(100);
+        GrowthEquipEvent* evt2 =
+            static_cast<GrowthEquipEvent*>(GlobalData::s_event_manager->GetRepeatEvent(100));
         if (evt2 != 0)
-            static_cast<GrowthEquipEvent*>(evt2)->SelectGrowthWeapon(
-                *user, itemId, it->m_addInfo);
+            evt2->SelectGrowthWeapon(*user, itemId, it->m_addInfo);
     }
 }
 

@@ -607,16 +607,27 @@ bool WindowsExeFile::LoadWindowsExeFile(const char* path)    // 0x085740de
     return true;
 }
 
-void WindowsExeFile::GenerateChecksum(CodeHackChecksum* ck, long sectionIdx,
+bool WindowsExeFile::GenerateChecksum(CodeHackChecksum* ck, long sectionIdx,
                                       unsigned long offset, unsigned long len) // 0x085743d4
 {
-    long total = static_cast<long>(m_commonSections.size());
-    if (sectionIdx < total)
+    // [b28d-58] P0：ORIG 无 total 槽（`cmp 0x10(%ebp),%eax; setle %al; test;
+    // je`），条件内联 size()；失败返回 0、成功返回 1（见 .h 返回类型判词）。
+    if (static_cast<long>(m_commonSections.size()) <= sectionIdx)
+        return false;
     {
-        const WindowsExeConstantSection& sec = *m_commonSections[sectionIdx];
-        CalculateMemoryChecksum(ck, len,
-                                m_image + sec.fileOffset + (offset - sec.start));
+        // [b28d-58] P157/P183：ORIG 每字段重取 operator[]（两次 call），不缓存
+        // 引用（ORIG 0x085743d4 段两次 `call vector::operator[]`）；求值序为
+        // 先 `(offset - start)`（第一次取 start）再 fileOffset（第二次）——
+        // 中间值各占一槽（ORIG -0x10/-0xc/-0x14）⇒ 具名局部形。
+        unsigned char* addr;
+        unsigned long d;
+        unsigned long sum;
+        d = offset - m_commonSections[sectionIdx]->start;
+        sum = d + m_commonSections[sectionIdx]->fileOffset;
+        addr = m_image + sum;
+        CalculateMemoryChecksum(ck, len, addr);
     }
+    return true;
 }
 
 // ===========================================================================
@@ -1049,13 +1060,16 @@ bool WindowsCodeProtectorServer::FindExeFamilyFile(const char* name) // 0x085755
 WindowsDataFileFamily*
 WindowsCodeProtectorServer::FindDataFamilyFile(const char* name) // 0x0857562e
 {
-    // ORIG：迭代器 for 循环（begin/end/++/de）
-    for (std::vector<WindowsDataFileFamily*>::iterator it =
-             m_dataFamilies.begin(); it != m_dataFamilies.end(); ++it)
+    // [b28d-58] P50 复活：ORIG 0x0857562e 先默认构造 iterator（C1Ev @0x08576da0）
+    // + begin() 临时槽（-0x1c）再赋值 `it = begin()`；初始化式形被 4.4 折叠。
+    std::vector<WindowsDataFileFamily*>::iterator it;
+    it = m_dataFamilies.begin();
+    for (; it != m_dataFamilies.end(); ++it)
     {
-        if (strcmp((*it)->m_name, name) == 0)
+        WindowsDataFileFamily* f = *it;
+        if (strcmp(f->m_name, name) == 0)
         {
-            return *it;
+            return f;
         }
     }
     return 0;

@@ -44,12 +44,12 @@ void StrToBitset(unsigned char* data, std::bitset<256>& bitset)
         for (int j = 0; j < 8; ++j)
             bitset[i * 8 + j] = (data[i] >> j) & 1;
 }
-// ORIG 0x8a5a90a：bitset → 32 字节（ORIG mangled 第二参为 std::string&）
-// [b28c-13 N] 残余：ORIG 0x08a5a8d2 段 `mov %eax,%edx; movzbl byte,%eax;
-// lea (%edx,%eax,1),%eax; mov %al,byte`（读-加-写三段 + 槽 -0x11）；4.4-O0 对
-// `byte += x`/`byte = byte + x`/`x + byte` 三形实测恒折 `add %al,byte` 内存直加
-// （P183 折叠铁律），且 i 槽 -0x14 vs ORIG -0x10（N93 块级槽方向）。语义等价
-// （unsigned char 回绕 + out[i] 截断同）。
+// ORIG 0x8a5a86c：bitset → 32 字节（第二参 std::string&，resize(0x20) 后逐字节写）
+// [b28d-58] DIFF N（P183 折叠 + N98 槽序）：ORIG 0x08a5a8d2 段为读-加-写三段
+//   `mov %eax,%edx; movzbl byte,%eax; lea (%edx,%eax,1),%eax; mov %al,byte`；
+//   4.4-O0 对 `x+byte` / `byte+x` / `+=` / `+(int)byte` 四形恒折 `add %al,byte`
+//   内存直加（P183 折叠铁律）；i 槽 ORIG -0x10 vs 4.4 -0x14（N98 首次使用序，
+//   声明序不可翻）。语义等价（uchar 回绕 + out[i] 截断同）。
 void BitsetToStr(const std::bitset<256>& bitset, std::string& out)
 {
     out.resize(0x20);
@@ -71,8 +71,9 @@ void BitsetToStr(const std::bitset<256>& bitset, unsigned char* out)
 {
     for (int i = 0; i < 32; ++i)
     {
-        // ORIG 槽序 j(-0x10)、byte(-0x11)、i(-0xc)：j 先于 byte 初始化（P28/P191
-        // 双 init 形），内层循环槽往返 movzbl/lea 形。
+        // [b28d-58] DIFF N（同 Ss 重载）：ORIG 槽 i(-0x10)/byte(-0x11)/j(-0xc)，
+        // 4.4 为 i(-0x14)/j(-0x10)/byte(-0x9)（N98 首次使用序不可翻）；加法段
+        // ORIG 读-加-写三段 vs 4.4 `add %al,byte`（P183 折叠）——语义等价。
         int j = 0;
         unsigned char byte = 0;
         for (j = 0; j < 8; ++j)
@@ -688,6 +689,11 @@ void CMissionList_Charac::ResetDaily()
 
 void CMissionList_Charac::Reset_DailyMission()
 {
+    // [b28d-58] DIFF N104（EH 尾块相对序）：槽位集与 ORIG 全等——daily -0x38、
+    //   bitset::reference -0x34、newList -0x44、trace -0x2c（P221 全表达式临时链
+    //   `cMyTrace(...)(...)` 翻正 trace 槽方向，具名对象被 4.4 放最深 -0x44）。
+    //   残差仅 ORIG 正常 epilogue 在前 / unwind 块在函数最末，4.4 相反（difflib
+    //   rotate 放大 ~30 行），gap=1，语义等价。
     std::bitset<32> daily = G_CDataManager()->get_daily_mission_kind();
     for (int i = 0; i < 0x20; ++i)
     {
@@ -703,8 +709,10 @@ void CMissionList_Charac::Reset_DailyMission()
     if (newList.empty())
     {
         // ORIG 0x85e5607：cMyTrace 5/0x669 记 "[@missionSystem] Daily Mission List is Empty!!"
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x669, 5);
-        trace("[@missionSystem] Daily Mission List is Empty!!");
+        // [b28d-58] 试 P221 全表达式临时链：具名 trace 被 4.4 放最深槽 -0x44，
+        // ORIG 为 -0x2c（块内对象槽方向相反）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x669, 5)(
+            "[@missionSystem] Daily Mission List is Empty!!");
     }
     for (unsigned int i = 0; i < newList.size(); ++i)
     {

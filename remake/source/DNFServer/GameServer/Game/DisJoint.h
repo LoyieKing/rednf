@@ -43,10 +43,13 @@ struct DisjointSkillScript
     DisjointSkillScript();   // ORIG _ZN19DisjointSkillScriptC1Ev W 0x084735fe
     void clear();            // ORIG _ZN19DisjointSkillScript5clearEv W 0x084735d2
 
-    int m_field00;   // +0x00（clear 置 0xb）
-    int m_field04;   // +0x04（clear 置 0）
-    int m_field08;   // +0x08（clear 置 0）
-    int m_field0c;   // +0x0c（clear 置 4）
+    int m_field00;          // +0x00（clear 置 0xb）
+    int m_field04;          // +0x04（clear 置 0）
+    int m_field08;          // +0x08（clear 置 0）
+    unsigned int m_field0c; // +0x0c（clear 置 4；b28d-58：ORIG GetAddtionalSkill
+                            // 0x084731e5 `mov -0x10(%ebp),%eax; mov %eax,%edx`
+                            // 两段中转 ⇒ 原码字段为 unsigned（探针 J1/J2 对照）；
+                            // 宽度/偏移/sizeof 不变）
 };  // sizeof == 0x10（4×int；方法定义：CtorProducers_2.cpp）
 
 class DisjointScript

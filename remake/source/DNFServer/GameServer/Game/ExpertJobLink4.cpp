@@ -924,9 +924,16 @@ int DisPatcher_DisJointItem::_checkDisjointableItem(const Inven_Item& item,
 
     if (itemObj->IsImpossibleDisjoint())   // ORIG vptr+0x38（IsImpossibleDisjoint，非 CharacCargo）
         return 0x13;
+    // b28d-61 [P286 单 case switch 复现寄存器比较，ORIG 0x081fa183
+    // `mov -0xc(%ebp),%eax; cmp $0x2,%eax; jne`]：if 形（int/unsigned/const/cast
+    // 六形探针 /tmp/b61_probe_att{,2}.cpp）4.4 恒折 `cmpl $0x2,-0xc` 内存直比；
+    // 单 case switch 得寄存器链。
     int attachType = itemObj->GetAttachType();
-    if (attachType == 2)
+    switch (attachType)
+    {
+    case 2:
         return 0x11;
+    }
     return 0;
 }
 

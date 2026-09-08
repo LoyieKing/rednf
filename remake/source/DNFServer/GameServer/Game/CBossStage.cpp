@@ -390,7 +390,9 @@ bool CBossStage::moveNextStage()
     if (!m_stageData.m_monsterMap.empty())
         return false;
     // ORIG 0x0814d1ee `jb` 跳增块、mov$0 fall-through：条件写作 >= 早退布局。
-    if ((unsigned int)m_stageCur >= (unsigned int)m_stageMax)
+    // [b28d-62] 删同型冗余 cast：ORIG 0x814d1dd `mov 0xae0(%eax),%edx` 单段直落；
+    //   `(unsigned int)` cast 使 4.4 多一条 `mov %eax,%edx` 中转（P41 变体）。
+    if (m_stageCur >= m_stageMax)
         return false;
     m_stageCur += 1;
     return true;
@@ -433,14 +435,17 @@ bool CBossStage::randomMapIndex(int& index)
 bool CBossStage::killMonsterErase(unsigned short uidParam, map_monster& mob,
                                   int& outCount)
 {
-    int uid = uidParam;                           // ORIG 以 int 局部承接（无 ushort 槽）
+    int uid = uidParam;                           // ORIG -0x18 key 槽（int 承接）
+    // [b28d-62] erase 的 key 用内联 `(int)uidParam`（ORIG 0x0814d2d3 从 -0x2c 形参
+    //   截断槽重算并落**新槽** -0xc），非复用 uid 槽；find/end 保持直构形
+    //   （先声明后赋值实测 68→78 劣化，P50 复活不适用本件）。
     std::map<int, map_monster>::const_iterator it =
         m_stageData.m_monsterMap.find(uid);
     if (it != m_stageData.m_monsterMap.end())
     {
         mob = it->second;                             // map_monster::operator=
         outCount = (unsigned char)it->second.m_level;   // ORIG pair+0x14 = mob+0x10
-        m_stageData.m_monsterMap.erase(uid);          // by-key erase
+        m_stageData.m_monsterMap.erase((int)uidParam); // by-key erase
         return true;
     }
     return false;

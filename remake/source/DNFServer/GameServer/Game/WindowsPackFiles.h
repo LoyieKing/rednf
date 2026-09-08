@@ -132,7 +132,10 @@ public:
     void Sort();                                 // T @0x0857415c
     bool MakeCommonWindowsExeConstantSections(const IntervalSet& intervals); // T @0x085741c6
     bool LoadWindowsExeFile(const char* path);   // T @0x085740de
-    void GenerateChecksum(CodeHackChecksum* ck, long sectionIdx,
+    // [b28d-58] 返回类型 void→bool（ORIG 0x085743d4 成功路径尾 `mov $0x1,%eax`、
+    // 失败路径 `mov $0x0,%eax`；返回类型不入 mangled，符号/ABI 不变；唯一调用点
+    // WindowsPackFiles.cpp:994 忽略返回值）。
+    bool GenerateChecksum(CodeHackChecksum* ck, long sectionIdx,
                           unsigned long offset, unsigned long len);  // T @0x085743d4
 
     unsigned long  m_size;                       // +0x00 文件字节数

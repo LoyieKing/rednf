@@ -87,8 +87,12 @@ int CUser::IsAbleItemUnlock(int space, int slot, int& outSec) const
     result = ((item_lock::CItemLock*)GetCharacExpandDataR(
                   (ENUM_CHARAC_EXPAND_TYPE)2))
                  ->IsAbleItemUnlock(lock, outSec);
-    if (result != 0)
+    // [b28d-62] P225 X3 形：ORIG 0x08646c5f 为 `cmpl $0,-0xc; setne %al;
+    //   test %al,%al; je <mov $0 岛>`（4.1 槽比 bool 物化）；4.4 对 if 恒直跳
+    //   ⇒ 写 while+break 精确复现（语义等价：条件真时立即 return）。
+    while (result != 0) {
         return result;
+    }
     return 0;
 }
 
@@ -112,8 +116,11 @@ int CUser::IsAbleItemUnlockCancel(int space, int slot) const
     result = ((item_lock::CItemLock*)GetCharacExpandDataR(
                   (ENUM_CHARAC_EXPAND_TYPE)2))
                  ->IsAbleItemUnlockCancel(lock);
-    if (result != 0)
+    // [b28d-62] P225 X3 形（同 IsAbleItemUnlock）：ORIG 0x08646d2f `cmpl
+    //   $0,-0xc; setne %al; test %al,%al; je <mov $0 岛>` ⇒ while+break。
+    while (result != 0) {
         return result;
+    }
     return 0;
 }
 
@@ -285,9 +292,11 @@ CItemMakingSkill::CItemMakingSkill()
     //   抑制已由 P210/BM11 覆盖（caller 前置于 callee ctor 定义）——本 TU 看不到
     //   CMTRand ctor 体（定义在 CUserCharacInfo 链外 TU），R3 跨 TU 迁定义不可行
     //   ⇒ 判 N88+N18a，语义零差，勿再开轮。
-    unsigned long seed = time(0);
-    // ORIG 0x08545134：lea -0x1c,%esi —— 4.4 对实参 &seed 表达式自然产 lea（P0）。
-    m_rand = new CMTRand(seed);
+    // [b28d-62] 试临时实参形：ORIG 0x08545131..0x0854514b 为
+    //   `call time; mov %eax,-0x1c(%ebp); lea -0x1c(%ebp),%esi; new; CMTRand(esi)`
+    // ⇒ 原码把 time(0) 作**实参内联表达式**（临时槽 -0x1c 供 const& 绑定），
+    //   4.1 在 new 之前预取地址入 %esi；具名 seed 形 4.4 后置 lea（历史判词）。
+    m_rand = new CMTRand(time(0));
 }
 
 CItemMakingSkill::~CItemMakingSkill()

@@ -359,8 +359,13 @@ bool CCharacExpertJob::InitScript(STExpertJobScript* script)
 // b28c-1 N97: 手写除形后余 mov/sar/shr/lea vs 4.4 sar/shr/add 寄存器选择差。
 int CCharacExpertJob::get_recipe(int index) const
 {
-    // b28c-1：ORIG 0x0832b306 `mov;sar $0x1f;shr $0x1d;lea;sar $3` 四步
-    //  ⇒ 手写 (index + ((unsigned)(index>>31) >> 29)) >> 3 复现（N97 翻形）。
+    // [b28d-62] N97 封顶（三形实测）：ORIG 0x0832b30d `mov %eax,%edx; sar $0x1f,%edx;
+    //   shr $0x1d,%edx; lea (%edx,%eax,1),%eax; sar $3`（4.1 有符号 /8 lowering，
+    //   index 留 %eax、sign 走 %edx）；本形 4.4 恒覆盖 %eax 再回读形参
+    //   (`sar/shr %eax; add 0xc(%ebp),%eax`，38 条，差 1 条 + 寄存器名)；
+    //   `index/8` 生 cmovs 版（N97 原文）、`(unsigned)index>>31>>29` 被折成 35 条
+    //   更劣、裸 register 使 idx 免槽且比较改寄存器版（39 vs 38 但槽位全错）
+    //   ⇒ 源形不可造，语义等价封顶（ORIG 0x0832b306）。
     int idx = (index + (int)(((unsigned int)(index >> 31)) >> 29)) >> 3;
     int bit = index % 8;
     if (idx < 0 || idx > 0x1d)
@@ -372,9 +377,10 @@ int CCharacExpertJob::get_recipe(int index) const
 // b28c-1 N97: 同上（手写 (index+((uint)(index>>31)>>29))>>3 已消 cmovs）。
 int CCharacExpertJob::set_recipe(int index)
 {
-    // b28：4.4 对 index/8 恒出 lea+cmovs（4.1 为 sar/shr/lea 三步、无 cmov）；
-    // 改 (index + ((index>>31)&7)) >> 3 恒等复现 ORIG 三步形（负数经边界检查返 0，
-    // 越界读不可达）。
+    // [b28d-62] N97 封顶（同 get_recipe 三形实测）：ORIG 0x0832b26b 为 4.1 有符号
+    // /8 lowering `mov %eax,%edx; sar $0x1f,%edx; shr $0x1d,%edx; lea (%edx,%eax,1),
+    // %eax; sar $3`；本手写 sign 形 4.4 恒覆盖 %eax 后回读形参（差 1 条 + 寄存器名），
+    // `index/8` 生 cmovs、裸 register 使 idx 免槽 ⇒ 语义等价封顶（ORIG 0x0832b264）。
     int idx = (index + (int)(((unsigned int)(index >> 31)) >> 29)) >> 3;
     int bit = index % 8;   // ORIG 保留完整除余链（mov/sar/shr/add/and/sub）
     if (idx < 0 || idx > 0x1d)
@@ -396,7 +402,9 @@ bool CCharacExpertJob::learnRecipe(unsigned long recipeIndex, STExpertJobScript*
     int idx = -1;                                   // ORIG：-1 初始化
     idx = script->GetRecipeInfoIndex(recipeIndex);
     // b28：ORIG 判负形为 `(unsigned)idx >> 31` 提取符号位 + test/je 岛（P222 互试）。
-    if ((int)((unsigned int)idx >> 31) != 0)
+    // [b28d-62] 加 (unsigned char) 收窄：4.4 对 int 版恒折 `cmpl $0,-0x10; jns`；
+    //   ORIG 是 `mov idx,%eax; shr $0x1f,%eax; test %al,%al; je`（P266 字节比较形）。
+    if ((unsigned char)((unsigned int)idx >> 31) != 0)
         return 0;
     stRecipeInfo* info = script->GetRecipeInfo(idx);
     if (info == 0)

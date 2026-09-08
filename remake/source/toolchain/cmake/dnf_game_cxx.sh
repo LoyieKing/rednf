@@ -350,11 +350,13 @@ case "$(basename "$src" .cpp)" in
                 # CUser：ORIG 为 4.4.6（构造/EH 着陆垫链、子对象寄存器形态；
                 # CUser agent 验证 c6446r 更接近，建议与 CItemList 同路由）
                 exec "$C6446R" "$@" ;;
-            *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp)
+            *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp | *Game/STEquipmentScript.cpp)
                 # b28d-6：ORIG CompareRating 的 x87 比较为 fucompp/fnstsw/sahf；4.4 需
                 # -march=i486 才出该 lowering（P230 补）。实测 TU ae 51→52 / diff 24→23。
                 # b28d-D44：LinkMiscSecuTimerSolo::GetMarketConditionRate 同族 x87 比较，
                 # 该旗标下 ndiff 8→0。
+                # b28d-D56：STEquipmentScript 的 float 比较需 fucompp/fnstsw/sahf 形
+                # （-march=i486 才关 CMOV/SSE 比较 lowering；探针 lane56/x87.cpp 逐条命中）。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
             *Game/CExpandEquipslot.cpp)
                 # CExpandEquipslot：loadData 虚调用寄存器形态需 4.4.6

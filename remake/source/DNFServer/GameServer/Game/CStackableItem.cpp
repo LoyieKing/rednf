@@ -30,6 +30,8 @@
 // C28L17/18/21 三方写权 CItemList.cpp + Arad_ItemBonus.cpp 消费面），spec 已广播交
 // Main 统一批次；改动清单=头继承表 + CStackableItem.cpp 12 处 + Arad_ItemBonus.cpp:431
 // + CItemList.cpp:1986 去 `m_arad148.` 前缀。
+// [b28d-N(布局建模)] fresh 复验 292=292 维持 N：唯一残差 = 本类 vptr 写入时机
+// （AradItemInfo 须为次基类，跨 CItemList.cpp/Arad_ItemBonus.cpp 消费面，spec 交 Main）。
 CStackableItem::CStackableItem()
 {
 }
@@ -403,6 +405,7 @@ int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
 //   若 source 仍有剩余元素：m_field24 = (tail==1)，m_field25 = (tail==2)（均读同一元素），
 //   且 extra!=0 时 m_vec28 = *extra。
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
+// [b28d-N90] fresh 复验 225/217：维持 N90。
 void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
                       std::vector<std::pair<int, int> >* extra)
 {
@@ -470,6 +473,7 @@ void LotteryInfo::clear()
 }
 // ORIG 0x89babc5：src 相邻元素配对填充 m_items，m_counts 每对补 1；奇数时 break
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
+// [b28d-N90] fresh 复验 97/85：维持 N90（同上，迭代器外联 + 帧差）。
 void createLotteryInfo(LotteryInfo* info, std::vector<int>* source)
 {
     info->clear();
@@ -498,6 +502,7 @@ void createLotteryInfo(LotteryInfo* info, std::vector<int>* source)
 //   b (vector<int>)：field8=b[0]，fieldc=b[1]
 //   c (vector<int>)：m_defaultCount/Idx/Num/Flag + m_items(stDefaultItem) 流
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
+// [b28d-N90] fresh 复验 652/638：维持 N90（多层 vector 迭代器外联 + N82 槽平移）。
 void createStackableMultiBoxLotteryInfo(
     MultiBoxLotteryInfo* info,
     std::vector<std::vector<int> >* a, std::vector<int>* b,
@@ -806,6 +811,7 @@ int CStackableItem::check_able_To_use(int job, int level)
 // b28c-L8 fresh 复验：44 行口径 29=29、NDIFF=4，判词维持 N82（callee
 // _ZNK5CItem14check_job_typeEc 定义在 CItem.cpp 0x0850d728 = 跨 TU ⇒ P210 定义前置不可用；
 // P190 double framePad 反向撑帧亦不可（本例是 4.4 多撑，需减帧））。
+// [b28d-N82] fresh 复验 29=29 维持 N82（帧 0x28 vs 0x10 + 2 char 槽平移）。
 bool CStackableItem::check_change_job_type(char changeJob,
                                            char checkJob) const
 {
@@ -820,6 +826,8 @@ bool CStackableItem::check_change_job_type(char changeJob,
     return (char)m_arad148.m_field4 == changeJob;
 }
 
+// [b28d-N90] fresh 复验 101/102：残差 = 双层 vector 迭代器三槽阶梯 + 外联
+// （N86/N90 族）；元素字段序/概率比较全等。
 void CStackableItem::getBoosterItem(
     std::vector<stStackableBoosterItemInfo_t>& out) const
 {
@@ -912,6 +920,7 @@ int CStackableItem::get_amplify_reinforce_count(int count)
 }
 
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
+// [b28d-N90] fresh 复验 118/108：维持 N90。
 void CStackableItem::get_limit_cube_item(std::pair<int, int>& out)
 {
     int itemIdx = 0;
@@ -1018,6 +1027,8 @@ bool CStackableItem::verifyStackableAction(StackableAction::Type type) const
     // mov 0xc(%ebp),%eax; cmp %eax,%edx`（字段读两段），4.4 恒折单段直落 %edx；
     // (int)/(unsigned) cast 互换与 std::underlying_type 形均不改（N18a 反向判词：
     // `mov mem,%eax; mov %eax,%reg` 单段 regmove 不可造）⇒ 残 1 行封顶。
+    // [b28d-P254 翻案] m_int39c 改 StackableAction::Type（enum，CStackableItem.h）
+    // 后 4.4 复现两段装载 ⇒ 本件 IDENTICAL（10=10）。旧 N18a 判词作废。
     return m_int39c == type;
 }
 
@@ -1075,6 +1086,7 @@ void CStackableItem::make_item(Inven_Item& item) const
 // ===================== get_lotto_item（ORIG 0x850ebfc） =====================
 
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
+// [b28d-N90] fresh 复验 134/128：维持 N90。
 void CStackableItem::get_lotto_item(char* out)
 {
     Inven_Item* pItem = (Inven_Item*)out;
@@ -1127,6 +1139,7 @@ void CStackableItem::get_lotto_item(char* out)
 // ===================== verifyUsablePlace（ORIG 0x850e9f4） =====================
 
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
+// [b28d-N90] fresh 复验 94/99：维持 N90（vector 迭代器 + std::find 外联/槽平移）。
 bool CStackableItem::verifyUsablePlace(CUser* user)
 {
     if (m_usablePlaces.empty())
@@ -1180,6 +1193,8 @@ struct CItemView
     int m_int100;                // +0x100
 };
 
+// [b28d-N82] fresh 复验 1059/1099：大件残差 = 4.1/4.4 全帧槽号错位（N82/P112）+
+// string/vector/map 外联实例差（N89）；p167 调用点与字段赋值序全等。
 void CStackableItem::set_item(STStackableScript& script)
 {
     char buf[500];
@@ -1406,7 +1421,7 @@ void CStackableItem::set_item(STStackableScript& script)
     m_set368 = script.m_set480;
     m_set380 = script.m_set498;
     m_avatarOptionChange = script.m_field4b0;
-    m_int39c = script.m_field1e8;
+    m_int39c = (StackableAction::Type)script.m_field1e8;  // [b28d-N254] enum 字段
     m_vec3a0 = script.m_vec1ec;
     m_usablePlaces = script.m_vec1f8;
     if (m_int39c == 0x2c)
@@ -1444,6 +1459,7 @@ void CStackableItem::set_item(STStackableScript& script)
 // ===================== get_multibox_default_item（ORIG 0x850f136） =====================
 
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
+// [b28d-N90] fresh 复验 153/144：维持 N90。
 void CStackableItem::get_multibox_default_item(
     std::vector<std::pair<Inven_Item, bool> >* out)
 {
@@ -1491,6 +1507,8 @@ void CStackableItem::get_multibox_default_item(
 
 // ===================== get_multibox_default_item_arad（ORIG 0x850f38a） =====================
 
+// [b28d-N90] fresh 复验 208/265：维持 N90 + 静态局部 guard 形差（P21/N89）；
+// 该函数含 ORIG 静态表 guard（0x943de58）。
 void CStackableItem::get_multibox_default_item_arad(
     std::vector<std::pair<Inven_Item, bool> >* out)
 {
@@ -1554,6 +1572,7 @@ void CStackableItem::get_multibox_default_item_arad(
 // ===================== get_multibox_lottery_item（ORIG 0x850edda） =====================
 
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
+// [b28d-N90] fresh 复验 214/201：维持 N90。
 void CStackableItem::get_multibox_lottery_item(
     std::vector<std::pair<Inven_Item, bool> >* out)
 {
@@ -1707,6 +1726,7 @@ CStackableItem::CoolTimeOption CStackableItem::GetCoolTimeOption()
     // 直读（uchar 视图实测反劣 +1：4.4 对 uchar→ushort 追加 movzbl %dl 归一）。
     // 残差 1 条 = 4.4 第二读复用 %edx 覆盖基址 ⇒ 需重载 0xc(%ebp)，而 4.1 用
     // %ecx/%edx 分列（N7/N18a 型寄存器分配固有差，实测两形均不可翻）。
+    // [b28d-N7] fresh 复验 10/11 维持 N7（/tmp/gc_probe.cpp f1..f8 八形全产 %edx）。
     opt.sec  = m_option2d8.m_sec16;
     opt.flag = m_option2d8.m_field2;
     return opt;
@@ -1719,6 +1739,7 @@ CStackableItem::CoolTimeOption CStackableItem::GetEffectItemOption()
 {
     CoolTimeOption opt;
     opt.sec  = m_option2e4.m_sec16;    // b28c-L8：同 GetCoolTimeOption（ORIG 0x086946f4）
+                                       // [b28d-N7] fresh 复验 10/11 维持 N7。
     opt.flag = m_option2e4.m_field2;
     return opt;
 }

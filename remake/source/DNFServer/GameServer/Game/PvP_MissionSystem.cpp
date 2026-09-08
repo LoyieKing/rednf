@@ -401,7 +401,10 @@ CMission* PvP_MissionSystem::Factory(const MissionScript& script)
     case 0xd: result = new CMission_move_channel(script, script.m_field7c); break;
     case 0xe: result = new CMission_move_channel_total(script, script.m_field7c); break;
     case 0xf: result = new CMission_combo_clear(script, script.m_comboMap); break;
-    default:  result = 0; break;
+    // b28d-61 [P171 照抄不写]：ORIG 0x85e213b 入口已 `movl $0x0,-0x1c`，default
+    // 无赋值直落 return；旧 `default: result = 0;` 多出 `movl $0x0,-0x1c`+jmp
+    // （384 vs 382）。
+    default:  break;
     }
     return result;
 }

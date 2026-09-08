@@ -78,6 +78,8 @@ int Avatar_Item::updateEmblemSocket(unsigned int grade, unsigned int itemId)
     // `add $0x20;mov %ecx` 直算 + itemId 提前物化进 callee-saved（push
     // %ebx 由其实现）——N18a/N7 族寄存器分配/物化序不可定向（探针 42
     // 具名元素直写亦不匹配）。
+    // [b28d-N7] fresh 复验 28/30 维持 N：ORIG `lea 0x20(%eax),%edx` 两步 disp
+    // vs 4.4 `add $0x20,%eax` 单步 + itemId 提前入 callee-saved ⇒ P30/N7 封顶。
     if (m_emblemInfo.stEmblemSocket[grade].emblemSocketType_ == 0)
         return 0;
     m_emblemInfo.stEmblemSocket[grade].emblemItemIdx_ = (int)itemId;
@@ -130,14 +132,18 @@ void CHandlePremium::handleReturn2CharacView(CUser* user)
 // CHandlePremium::handleRemoveOneDayLethePremium —— T 0x086b0594。
 // isAffectedPremium(0x21) 时撤销该 premium、取限制物品码并移除受限物品、通知；
 // 无条件置非使用 Lethe 状态并 trace 角色名。
+// [b28d-P0 修复] ORIG 0x086b05e4 段内联链（无 itemList/restrictCode 具名局部）
+// ⇒ 已改表达式直传；残差 cMyTrace 具名对象槽方向（N82/P221）。
 void CHandlePremium::handleRemoveOneDayLethePremium(CUser* user)
 {
     if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
     {
         handleSetUserPremium(user, (ENUM_PREMIUM_TYPE)0x21, 0, 0, 0, true);
-        CItemList* itemList = G_CDataManager()->getItemList();
-        int restrictCode = itemList->GetRestrictCode(0xc5);
-        user->RemoveRestrictedGoods(restrictCode);
+        // [b28d-P0] ORIG 0x086b0?? 内联链 `call G_CDataManager; mov 0xc(%eax),%eax;
+        // call GetRestrictCode; call RemoveRestrictedGoods`（无具名局部槽往返）
+        // ⇒ 表达式直传，禁 itemList/restrictCode 具名缓存。
+        user->RemoveRestrictedGoods(
+            G_CDataManager()->getItemList()->GetRestrictCode(0xc5));
         handleNotifyPremiumInfo(user, 0x21, 0);
     }
     user->SetOneDayLetheFlag(CPremiumLetheManager::NOT_USE_LETHE_STATE);
@@ -188,6 +194,9 @@ void CCompoundAvatar::_SendError(CUser* user, ENUM_ERROR err)
 
 // ---------------------------------------------------------------------------
 // _SendResult —— T 0x08333a9c：组 0x66 结果包。
+// [b28d-N82] fresh 复验 226/203：残差 = PacketGuard 栈对象 + 多字段 put_* 链的
+// 4.1/4.4 outgoing 帧策略差（P210/N82）+ put_header 字面量装载序（P75）；
+// 包字段序/全部调用点全等 ⇒ 语义等价封顶。
 void CCompoundAvatar::_SendResult(CUser* user, const tagCompoundInfo& info)
 {
     PacketGuard packet;
@@ -244,6 +253,9 @@ void CCompoundAvatar::_SendResult(CUser* user, const tagCompoundInfo& info)
 // ProcCompound —— T 0x083338c2。
 // Make → CheckCondition(错误抛 ENUM_ERROR) → Core(同) → Result + 统计；
 // 全程捕获 ENUM_ERROR 转 _SendError。
+// [b28d-N91] fresh 复验 123/115：ORIG 0x083338c2 的 try/catch EH 段与 4.4
+// landing pad/cleanup 布局差（N91/N104 族）+ tagCompoundInfo 局部槽方向；
+// 业务调用链（_ProcCompoundCore/_SendResult/_SendDisjointAvatarStatistic）全等。
 void CCompoundAvatar::ProcCompound(CUser* user, const MSG_COMPOUND_AVATAR* msg)
 {
     try
@@ -289,6 +301,9 @@ int CUserPremium::GetAddQuestItemDropRate(int level)
 // CItemUpgrade::find3rdChronicleEnchantData —— ORIG T 0x0854a916。
 // itemScript=CDataManager::find_item(typeIdx)；空→0；map@item+0x2f4 查 key，
 // 未命中→0；命中返回 &it->second（Ghidra 报告 node+0x10 语义即 second 地址）。
+// [b28d-N107] fresh 复验 44/45：残差 = 成员常量偏移取址 `lea 0x2f4(%eax),%ecx`
+// vs 4.4 `add $0x2f4,%eax`（N107 六形探针全败）+ 局部槽整体平移 4（N82）。
+// map find/end 调用点与返回语义全等。
 STEnchantSystemMapData* CItemUpgrade::find3rdChronicleEnchantData(
     STEnchantSystemMapKey key, int type)
 {
@@ -306,6 +321,8 @@ STEnchantSystemMapData* CItemUpgrade::find3rdChronicleEnchantData(
 
 // ---------------------------------------------------------------------------
 // CItemUpgrade::_getAdditionalDisjointItem(bool 版) —— ORIG T 0x08546a96。
+// [b28d-N82] fresh 复验 85=85：残差 = at() 结果/条件值具名局部槽（-0x14/-0xa）
+// 与 make_pair 临时槽方向（P178/N93）+ cMyTrace 块序；分支/调用点全等。
 void CItemUpgrade::_getAdditionalDisjointItem(
     unsigned int up, const CItem* itemScript,
     std::vector<std::pair<int, int> >& items,
@@ -341,6 +358,8 @@ void CItemUpgrade::_getAdditionalDisjointItem(
 // _ZN8WongWork12CItemUpgrade20ProcUpgradeChronicleEP5CUsersjsjcRSt6vectorIiSaIiEE
 // 三代编年史升级：A 槽材料券 + B 槽目标装备；扣 emancipate 材料、按
 // chanceGrade 抽 equipGrade 样本、构造结果物品删旧插新。错误码 0x16/0x11。
+// [b28d-N82] fresh 复验 349/408：大件残差 = 4.1/4.4 全帧槽号错位（N82/P112）+
+// vector/map 外联实例差（N89）；p167 调用点差集 CLEAR、错误码/分支全等。
 int CItemUpgrade::ProcUpgradeChronicle(CUser* user, short slotA, unsigned int,
                                        short slotB, unsigned int,
                                        char chanceGrade, std::vector<int>& out)

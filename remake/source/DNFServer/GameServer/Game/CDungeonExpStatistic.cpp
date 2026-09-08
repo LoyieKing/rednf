@@ -41,9 +41,12 @@ void CDungeonExpStatistic::InsertDatabase()
     **guard << 0x116;
     **guard << -1;
     **guard << (int)m_map.size();
+    // b28d-61 [P212/N98：4.4 槽按声明序先声明深]：ORIG it@-0x38（begin 先调用）、
+    // endIt@-0x3c；旧形 endIt 先声明致两槽互换（NEAR 9）。it 提前声明（仍直构，
+    // 非先声明后赋值，不触发 P50 默认 ctor 弱实例）后槽位与 ORIG 一致。
+    std::map<int, stDungeonExp>::iterator it = m_map.begin();
     std::map<int, stDungeonExp>::iterator endIt = m_map.end();
-    for (std::map<int, stDungeonExp>::iterator it = m_map.begin();
-         it != endIt; ++it)
+    for (; it != endIt; ++it)
     {
         **guard << it->first;
         e1 = it->second;

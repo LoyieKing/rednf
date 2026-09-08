@@ -128,6 +128,8 @@ struct SigMailboxSendReplyView
 //   （探针 s_uint：`call; mov 0x8(%ebp),%edx; mov %eax,0x4(%edx)`），而共享头
 //   SigTypes_D.h 的 SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL 仅有 m_data[0x3a9] pad，
 //   翻正需改共享头（本任务约束 5 禁止）⇒ 保持语义正确的 cast 视图访问。
+// [b28d-N76] fresh 复验 105=105：残差 = 上述 LHS-first 装载序（唯一差异行），
+// 已试形 20+ 均不可择（P211 边界：已异型件直接封顶）⇒ 维持 N76。
 // ============================================================================
 bool DB_MailBox_Req_System_Multi_Mail::_InsertLetter(
     MySQL* db, SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL* sigRaw)
@@ -159,6 +161,9 @@ bool DB_MailBox_Req_System_Multi_Mail::_InsertLetter(
 // _InsertPostal —— ORIG 0x0844372e：std::string 拼 "(...)" 20 列（循环 count
 // 个附件，i!=0 时 gold 清 0；每项 getValues/GetUpgradeSeparate/blob_to_str 等）
 // → set_query(postal insert ... values %s) → exec 失败 cMyTrace → 1。
+// [b28d-N86] fresh 复验 269/276：残差 = std::string 局部（-0x30 vs -0x34）与
+// 20 列 sprintf 变参的 4.1/4.4 装载序 + libstdc++ append/clear 外联差（P75/N86），
+// 调用点差集与列序全等 ⇒ 语义等价、byte 层封顶。
 // ============================================================================
 bool DB_MailBox_Req_System_Multi_Mail::_InsertPostal(
     MySQL* db, SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL* sigRaw)
