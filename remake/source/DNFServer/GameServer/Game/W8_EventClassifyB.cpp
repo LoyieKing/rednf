@@ -91,6 +91,7 @@ bool CObjectBringUp::verifyGiveBringUpReward(
 // 不缓存 script（P36：ORIG 每次重读 this+0x1c）；flag!=0 分支 ORIG 对
 // size()/getCurUseBringUpMaterialTotal 各调用两次（P48 无 CSE），条件先 size
 // 后 total（setbe 方向）。
+// [b28d-L14 N82附] ORIG 0x0810e7c4；p167 CLEAR（10/10）；残差=bool 汇聚物化+槽深。
 bool CObjectBringUp::verifyMaterialItemByRule(CUser* user,
                                               unsigned int itemIdx)
 {
@@ -128,6 +129,7 @@ bool CObjectBringUp::verifyMaterialItemByRule(CUser* user,
 // 相对 pair 为 +0x2c；非 m_gold）。比较装载序：先 operator[]([1]) 后
 // operator->(当前元素)。getBringUpRewardFlag() 用 if(flag) continue 布局
 // （P59：call;test;jne 循环尾）。日志参数与 __PRETTY_FUNCTION__ 照 ORIG。
+// [b28d-L14 N82附] ORIG 0x0810e2b0；p167 CLEAR（58/58）；残差=槽深/常量装载。
 bool CObjectBringUp::sendBringUpReward(CUser* user,
                                        std::vector<int>& rewardVec,
                                        unsigned char& flag)
@@ -232,6 +234,7 @@ char CUsedFatigueGiveItem::get_user_type() const
 // ============================================================================
 // CPcRoomPlayTime::processEventPcRoomPlayTime（ORIG 0x0811089c）
 // ============================================================================
+// [b28d-L14 N82附] ORIG 0x0811089c；p167 CLEAR（24/24）；残差=槽深/寄存器分配。
 int CPcRoomPlayTime::processEventPcRoomPlayTime(CUser* user)
 {
     // [b28c-L0 N22] 首比较 ORIG `cmp %edx,%eax`（call 结果留 %eax），4.4 恒
@@ -313,6 +316,7 @@ void CEventScriptMng::send_event_init_record_data(CUser* user)
 // get_acc_id —— 与 ORIG +0x0b8..+0x0ed 压栈一致（当前实现曾误用 hit->first
 // 且 second.first/second.second 颠倒）。ORIG 的 ++it 位于外层 if 体内
 // （second==false 时不递增——忠实转写 ORIG 控制流）。尾部不清 update 表。
+// [b28d-L14 N82附] ORIG 0x0810f5b8；p167 CLEAR（18/18）；残差=槽深/寄存器分配。
 void CEventScriptMng::process_update_ingame_history(CUser* user)
 {
     if (user == 0)
@@ -355,8 +359,9 @@ void CEventScriptMng::process_update_ingame_history(CUser* user)
 int CExchangeRandomItemReward::getRewardItem(
     std::vector<std::pair<int, int> >& out)
 {
-    // [b28c-L0 NEAR·N82附] 槽深/寄存器差，语义全同。
+    // [b28d-L14 实测] 提升 actionMng 到循环前（ORIG 声明序 it→actionMng→end→result）。
     int result = 0;
+    CEventActionMng actionMng;
     for (std::vector<int>::iterator it =
              static_cast<ExchangeRandomItemRewardScript*>(m_script1c)
                  ->m_ints18.begin();
@@ -364,7 +369,6 @@ int CExchangeRandomItemReward::getRewardItem(
                    ->m_ints18.end();
          ++it)
     {
-        CEventActionMng actionMng;
         result = actionMng.getResultItemFromLottery((unsigned int)*it,
                                                     out);
         if (result != 0)
@@ -512,14 +516,14 @@ int CExchangeRandomItemReward::sendRandomItemReward(
     CUser* user, std::vector<std::pair<int, int> >& rewards,
     std::vector<int>& recordVec, unsigned char& flag)
 {
-    // [b28c-L0 NEAR·N82附] 迭代器槽深差（it -0x18 vs -0x14），语义全同。
+    // [b28d-L14 实测] 提升 actionMng 到循环前（ORIG 声明序 it→actionMng→end→result）。
     int result = 0;
+    CEventActionMng actionMng;
     for (std::vector<std::pair<int, int> >::iterator it = rewards.begin();
          it != rewards.end(); ++it)
     {
         static_cast<ExchangeRandomItemRewardScript*>(m_script1c)
             ->m_mail.set_item(it->first, it->second);
-        CEventActionMng actionMng;
         result = actionMng.process_action_send_mail(
             user, static_cast<ExchangeRandomItemRewardScript*>(m_script1c)
                       ->m_mail, true);
@@ -557,7 +561,12 @@ int CAvatarDisjointRandomReward::checkAvatarDisjointError(
     if (citem->get_grade() == 0 || citem->get_grade() > 3)
         return 0x13;
 
-    if (!citem->getUsableItemType(2))            // ORIG vtable slot +0x24
+    // [Main b28d 修正] Ghidra 原码为 vtable+0x24 的间接调用（arg=2，返回值 ==1 才继续）。
+    // 按 Itanium 槽序（vptr = _ZTV+8）：vptr+0x24 = _ZTV+0x2c = word[11] =
+    // **isEnableAvatarFunc**（CItem 虚序：… IsClearAvatar[8] IsEnchantalbe[9]
+    // getUsableItemType[10] isEnableAvatarFunc[11] …；CEquipItem/探针 vtable 双侧逐槽一致）。
+    // 旧重建误认成 getUsableItemType（那是 vptr+0x20）⇒ 运行时调错虚函数，已改正。
+    if (!citem->isEnableAvatarFunc((ENUM_AVATAR_FUNC_FILTER)2))
         return 0x17;
 
     if (user->getCurCharacInvenW()->GetAvatarItemMgrR()->GetExpireDate(
@@ -622,17 +631,17 @@ void CAvatarDisjointRandomReward::SendDisjointAvatarStatistic(
 int CAvatarDisjointRandomReward::getRewardItem(
     CItem const* citem, std::vector<std::pair<int, int> >& out)
 {
-    // [b28c-L0 NEAR·P190附注②] 正文 53=53 全同，仅帧 sub 0x28 vs 0x38
-    // （4.4 outgoing 区量化差，无源码形可减）。
+    // [b28d-L14 实测] 声明序 grade→actionMng（ORIG grade -0x11、actionMng -0x12）。
     int result = 0;
     const char grade = (char)citem->get_grade();
+    CEventActionMng actionMng;
     std::map<char, unsigned int>::iterator it =
         static_cast<AvatarDisjointRandomRewardScript*>(m_script1c)
             ->m_map08.find(grade);
     if (it == static_cast<AvatarDisjointRandomRewardScript*>(m_script1c)
                   ->m_map08.end())
         return 0x15;
-    result = CEventActionMng().getResultItemFromLottery(it->second, out);
+    result = actionMng.getResultItemFromLottery(it->second, out);
     if (result != 0)
         return result;
     return 0;
@@ -641,6 +650,8 @@ int CAvatarDisjointRandomReward::getRewardItem(
 // SendCreateEmblemStatistic（ORIG 0x0810f742）
 // ORIG 写入序：先 put_grade（slots[i+1]）后 put_value（slots[i]）——get_grade
 // 调用在 value 读取之前（+0x09c vs +0x0ae）。size>5 判断（cmp $5;seta）。
+// [b28d-L14 P30/N82附] ORIG 0x0810f742；p167 CLEAR（13/13）；数组下标 add-vs-lea
+// 组合差（ORIG `mov n,%ebx` 直用 vs 4.4 `lea 1(%eax),%ebx`）+ 基址 -0x40/-0x44。
 void CAvatarDisjointRandomReward::SendCreateEmblemStatistic(
     std::vector<std::pair<int, int> >& rewards)
 {
@@ -680,14 +691,14 @@ void CAvatarDisjointRandomReward::SendCreateEmblemStatistic(
 int CAvatarDisjointRandomReward::sendRandomItemReward(
     CUser* user, std::vector<std::pair<int, int> >& rewards)
 {
-    // [b28c-L0 NEAR·N82附] 槽深差，语义全同。
+    // [b28d-L14 实测] 提升 actionMng 到循环前（ORIG 声明序 it→actionMng→end→result）。
     int result = 0;
+    CEventActionMng actionMng;
     for (std::vector<std::pair<int, int> >::iterator it = rewards.begin();
          it != rewards.end(); ++it)
     {
         static_cast<AvatarDisjointRandomRewardScript*>(m_script1c)
             ->m_mail.set_item(it->first, it->second);
-        CEventActionMng actionMng;
         result = actionMng.process_action_send_mail(
             user, static_cast<AvatarDisjointRandomRewardScript*>(m_script1c)
                       ->m_mail, false);
