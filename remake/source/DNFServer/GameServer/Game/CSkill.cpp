@@ -325,6 +325,7 @@ bool CSkill::IsStealable(int firstGrowType, int secondGrowType) const
 bool CSkill::can_learn(int level, int firstGrowType, int secondGrowType,
                        int targetLevel) const
 {
+    // b28d-37 [P194/X 族封顶，ORIG 0x83?]：ORIG `jge` 直跳 vs 4.4 `setl+test+je` 物化（int 比较物化不可翻）；107/115。
     int maxLevel;
     if (secondGrowType < 1)
     {
@@ -370,6 +371,7 @@ bool CSkill::can_learn(int level, int firstGrowType, int secondGrowType,
 int CSkill::getMaxSkillLevel(int level, int firstGrowType,
                              int secondGrowType) const
 {
+    // b28d-37 [真语义 bug 修复，ORIG 0x08350700]：maxLevel 须取 min((level-m_levelLimit)+1, maxLevel)（旧实现恒无操作致上限偏大）；残 cmov（P230① -march=i486 可消，待路由）+ N82 帧。
     int maxLevel;
     if (secondGrowType < 1)
     {
@@ -393,6 +395,9 @@ int CSkill::getMaxSkillLevel(int level, int firstGrowType,
     // ⇒ maxLevel = min((level-m_levelLimit)+1, maxLevel)（v+1<=maxLevel 时上限缩小）。
     // 旧实现 `if (v+1 > keep) maxLevel = keep;` 恒为无操作（keep==maxLevel），
     // 导致返回上限偏大（v+1<=maxLevel 时未缩小）。改三元 min 形。
+    // [N 封顶] 残差：4.4 三元产 `cmovle`（ORIG 为 jle 分支），P230① -march=i486
+    // 可消 cmov 族但本波不改路由 ⇒ 待 Main 统一路由变更后复测；另帧 0x20 vs
+    // ORIG 0x38 属 N82 槽分区。78/77。
     maxLevel = ((level - m_levelLimit) + 1 < maxLevel)
                    ? (level - m_levelLimit) + 1
                    : maxLevel;

@@ -104,6 +104,9 @@ stMacroData* CMacro::GetCurCmd()                        // 0x084a87e2
 // 4.4 对 new[]/memcpy/push_back throwing call 恒发的 landing cleanup 块
 // （stMacroData ctor/dtor 已 throw() 仍发；push %esi/%ebx 随之），4.1 同形源码
 // 不布 guard-cleanup——「跨版本 new-expression landing-pad 抑制」负例在册。
+// b28d-D42 verdict=DIFF [N-EH/N83] ORIG 0x084a8802 orig/ours=35/53 ndiff=50。
+// P216 throw() 法不可用：涉事 callee 为 libstdc++ operator new[]/memcpy/
+// vector::push_back（禁改头），4.4 恒布 landing ⇒ 语义等价封顶。
 void CMacro::Recording(int type, int sub, char* data, int len)
 {
     stMacroData rec;
@@ -146,6 +149,8 @@ void CMacro::OnSend(int type, int sub)                  // 0x084a88aa
     }
 }
 
+// b28d-D42 verdict=AE(IDENTICAL) ORIG 0x084a8924 orig/ours=97/97 ndiff=0。
+// 修法：P222 正向包裹 + P171 外层已判后的死重测照抄 + 三支 Acquire 内联直传。
 void CMacro::SendPacket(char const* data, int len)      // 0x084a8924
 {
     int total = len + 8;

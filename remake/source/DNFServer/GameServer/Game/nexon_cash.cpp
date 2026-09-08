@@ -700,17 +700,17 @@ ByteBuffer::ByteBuffer(char* buffer, unsigned int len)
 {
 }
 
-// ORIG 0x081ae9b8：调用 ctor 后按值返回 this（-O0 下 sret 形态等价于自赋值）。
-ByteBuffer& ByteBuffer::wrap(char* buffer, unsigned int len)
+// [b28d-D43] ORIG 0x081ae9b8：static 成员 + 按值 sret 返回 —— 体 = 单次
+// `call ByteBuffer::C1EPcj(sret, buffer, len)` + `mov %ebx,%eax; ret $0x4`，
+// 全字段由 ctor 覆盖（无 this 参与）。调用点（0x081ad43b 等）只压
+// sret/buffer/len 三参、无 this ⇒ P88/P245 static 判据。旧重建的
+// `ByteBuffer&` + 字段直写产 17 条逐字段 store（ORIG 16 条 sret 构造）。
+ByteBuffer ByteBuffer::wrap(char* buffer, unsigned int len)
 {
-    // [b27L8] ORIG 0x081ae9b8 = 单次 ctor 调用复用（4.1 GNU 扩展 ctor 直调
-    // 形）。4.4 拒 this->ByteBuffer::ByteBuffer() 扩展、placement new 恒出
-    // _ZnwjPv+dtor call（N83）⇒ 字段直写等价展开。
-    m_start = buffer;
-    m_writePtr = buffer;
-    m_readPtr = buffer;
-    m_capacity = len;
-    return *this;
+    // [b28d-D43] P190 帧律：ORIG `sub $0x14`（4.4 自然帧 $0xc）
+    double framePad; (void)&framePad;
+    double framePad2; (void)&framePad2;
+    return ByteBuffer(buffer, len);
 }
 
 // 内联通用形态：cap 校验通过则逐字节大端写入，推进 write 游标；
@@ -1294,11 +1294,11 @@ ByteBuffer NCashImpl::set_data_header(unsigned char packetId, unsigned char flag
 ByteBuffer NCashImpl::get_data_header(unsigned char& a, unsigned char& b,
                                       unsigned int& c)
 {
-    // [b27L8] ORIG 无 ByteBuffer ctor call（body_length→body→wrap 直连，
-    // checkEntrance 0x081ad316 同形）：in 为空默认构造 + wrap 全字段覆盖，
-    // 4.x -O0 对类内空默认 ctor 均省略 call（探针 /tmp/l8_probe2.cpp gdh1）。
-    ByteBuffer in;
-    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
+    // [b28d-D43] ORIG 0x081ad168 无 in 的 ctor call（wrap 的 sret 即 in 槽，
+    // %ebx=get_data_header sret 槽）：直接初始化形令 4.4 把 in 地址传给 wrap。
+    double framePad; (void)&framePad;   // P190：ORIG `sub $0x10`（4.4 自然帧 $0xc）
+    ByteBuffer in = ByteBuffer::wrap(reinterpret_cast<char*>(m_inMsg.body()),
+                                     m_inMsg.body_length());
     in >> a;
     in >> b;
     in >> c;
@@ -1389,8 +1389,8 @@ int NCashImpl::checkEntrance(const char* userName, char& outStatus)
     if (rc != 0)
         return rc;
 
-    ByteBuffer in(0, 0);
-    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
+    ByteBuffer in = ByteBuffer::wrap(reinterpret_cast<char*>(m_inMsg.body()),
+                                     m_inMsg.body_length());
     unsigned char ackPid = 0;
     unsigned char statusByte = 0;
     in >> ackPid;
@@ -1424,8 +1424,8 @@ int NCashImpl::getBalance(const char* userId, int& balanceOut)
     if (errCode != 0)
         return handle_cash_error(errCode);
 
-    ByteBuffer in(0, 0);
-    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
+    ByteBuffer in = ByteBuffer::wrap(reinterpret_cast<char*>(m_inMsg.body()),
+                                     m_inMsg.body_length());
     in >> balanceOut;
     printf("[%s] Remain cash: %d\n", __FUNCTION__, balanceOut);
     return 0;
@@ -1558,8 +1558,8 @@ int NCashImpl::gift(unsigned long long productSeq, int cashType,
     if (errCode != 2)
         return handle_cash_error(errCode);
 
-    ByteBuffer in(0, 0);
-    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
+    ByteBuffer in = ByteBuffer::wrap(reinterpret_cast<char*>(m_inMsg.body()),
+                                     m_inMsg.body_length());
     in >> trOut.m_type;
     in >> trOut.m_id;
     printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", __FUNCTION__,
@@ -1686,8 +1686,8 @@ int NCashImpl::chargeCash(char* sessionKey, unsigned char h1, unsigned char h2,
         return static_cast<int>(errCode);
     }
 
-    ByteBuffer in(0, 0);
-    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
+    ByteBuffer in = ByteBuffer::wrap(reinterpret_cast<char*>(m_inMsg.body()),
+                                     m_inMsg.body_length());
     in >> trOut.m_type;
     in >> trOut.m_id;
     printf("[%s] CHARGE_CASH OK, db_id: %u, transaction_id: %u\n", __FUNCTION__,

@@ -146,8 +146,10 @@ bool ScriptLoader::FindIpgNo(unsigned int ipgNo)
 // ---- readTime / uint32Time ----
 int readTime(short* out)
 {
-    bool ok = false;
+    // b28d-45 试形：ORIG 0x08abf16x 先 `movl $0,-0x10`（n）后 `movb $0,-0x11`（ok）
+    // ⇒ 交换声明序对齐发射序。
     int n = 0;
+    bool ok = false;
     try
     {
         out[n++] = (short)ScanInt(&ok);

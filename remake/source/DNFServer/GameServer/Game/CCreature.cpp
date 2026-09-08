@@ -46,6 +46,7 @@ namespace user_creature
 //（fucompp+sahf，含 NaN 判定）→ 不可保存；其余 state 恒真。
 bool CStomach::IsSaveStomach(CREATURE_STATE state)
 {
+    // b28d-37 [N85+N82 封顶，ORIG 0x83?]：x87 比较两向（ORIG fucompp/fnstsw/sahf/sete vs 4.4 fucomip/fstp/setae；P230 换 -march=i486 可消，本波不改路由）+ 槽残差；38/34。
     bool saveOk = true;
     int s = (int)state;
     if (s == 1)
@@ -265,6 +266,7 @@ int CCreature::GetSkillRecoveryTime()
 //（EvoluteMulty.md 全转写）：进化目标由调用方给定 creatureId（isEvoluationCreature 校验）。
 bool CCreature::EvoluteMulty(CUser* user, int creatureId)
 {
+    // b28d-37 [N82 封顶，ORIG 0x83?]：帧/槽残差（179/174）。
     if (m_script == 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x843, 5);
@@ -308,6 +310,7 @@ bool CCreature::EvoluteMulty(CUser* user, int creatureId)
 // 0x833d6c2 call 后无 movzbl 归一（P159/P9 bool→int 判据）。
 int CCreature::ItemEvolute(CUser* user, int itemIdx)
 {
+    // b28d-37 [N82 封顶，ORIG 0x83?]：帧/槽残差（173/170）。
     if (m_script == 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x89b, 5);
@@ -351,6 +354,7 @@ int CCreature::ItemEvolute(CUser* user, int itemIdx)
 // GetGrowItemCountforLevelUp()（0→0x19）。包通知携带 param_3(slot)。
 bool CCreature::EventEvolute(CUser* user, int creatureId, int slot)
 {
+    // b28d-37 [N82 封顶，ORIG 0x83?]：帧/槽残差（246/244）。
     if (m_script == 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__,
@@ -423,6 +427,7 @@ bool CCreature::EventEvolute(CUser* user, int creatureId, int slot)
 
 bool user_creature::CDBMsgSender::EventEvoluteCreature(int uid, int itemIdx, int exp)
 {
+    // b28d-37 [N76 封顶复核，ORIG 0x833fddc]：P248 档③字段侧旋钮已试（m_itemIdx int→unsigned 后 store 仍 LHS-first，与 D23 回退实测一致），源码侧直赋/语句表达式亦不可翻；ORIG RHS-first 3 条形保留 N76。
     if (m_stream == 0)
         return false;
     SIG_CREATURE_ITEM* buf = GetInBuffer<SIG_CREATURE_ITEM>();

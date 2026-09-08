@@ -248,10 +248,10 @@ bool CAccountCargo::MoveItem(int from, int to)
 // ---- 查询 ----
 int CAccountCargo::GetEmptySlot()
 {
-    // [b28c-11] AE（需 TU 级 -march=i486 -mtune=generic）：三目 cmova 残差在该旗标下消失
-    // （P230；未加旗标时 4.4 出 cmova 而 ORIG 4.1 无 CMOV）。
-    // ORIG：capacity 寄存器内三目折叠后统一落槽；循环 i<limit 生成
-    // setl（i 载入与 limit 槽比）。4.4 三目 cmova 为固有残差（2 条）。
+    // [b28d-46 判词·N/P230] 28/28 指令数全等、调用点差集零；残差 = 4.4 三目 MIN_EXPR
+    // 展开 cmova（`mov $0x38,%edx; cmova`）vs ORIG 4.1 `cmp;jbe;mov $0x38,%eax`。
+    // if 语句形实测更劣（先落槽 + 内存比较，4 条）；P230 定论：该族仅 -march=i486
+    // 可消（TU 路由由 Main 决策，本波不改路由表）⇒ 封顶。ORIG 0x0828a580。
     int limit = (int)(m_capacity > 0x38 ? 0x38 : m_capacity);
     for (int i = 0; i < limit; ++i) {
         if (m_slots[i].m_addInfo == 0)
@@ -271,7 +271,8 @@ int CAccountCargo::CheckSlotEmpty(int slot)
 
 int CAccountCargo::GetSpecificItemSlot(int itemIdx)
 {
-    // [b28c-11] AE（需 TU 级 -march=i486 -mtune=generic，同 GetEmptySlot）。
+    // [b28d-46 判词·N/P230] 同 GetEmptySlot：三目 MIN_EXPR cmova 残差，
+    // 仅 -march=i486 可消（Main 路由决策），封顶。ORIG 0x0828a61a。
     int limit = (int)(m_capacity > 0x38 ? 0x38 : m_capacity);
     for (int i = 0; i < limit; ++i) {
         if (itemIdx == m_slots[i].m_addInfo)

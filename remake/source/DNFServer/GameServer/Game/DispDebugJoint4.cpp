@@ -80,6 +80,8 @@ static const char g_disjointSourceFile[] = "PacketDispatcher_Impl_1.cpp";
 // ===========================================================================
 char DisPatcher_DebugCommand::_debugCommandSetLevel(CUser* user, int level)
 {
+    // b28d-37 [N18a 封顶，ORIG 0x0858efde]：`mov $I,%eax` vs `mov $I,%ebx`
+    // callee-saved 分配差（264/266），语义闭合。
     if (!user->isGMUser())                       // +0x00e isGMUser; !=1 → ret 0
         return 0;
     if (level > 0x46)                            // +0x024 cmpl $0x46; jle 继续

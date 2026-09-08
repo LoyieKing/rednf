@@ -38,6 +38,7 @@ void CPad::init()
 // cMyTrace 日志（[Before]/[After]Goblin Certified，line 65/74）。
 void CPad::reset()
 {
+    // b28d-37 [N78/N82 封顶，ORIG 0x8?]：ORIG 内联 rep stos 清零 vs 4.4 循环/调用形（P116/N78 族）。
     if (isCertified())
     {
         int checkTime = (int)(m_checkTime28 + 0xb4);
@@ -213,6 +214,7 @@ int WongWork::CSecurityCard::getRequestState()
 void WongWork::CSecurityCard::generateQuestion(short& a, short& b, short& c,
                                                short& d)
 {
+    // b28d-37 [N82/N78 封顶，ORIG 0x8?]：帧/槽 + 内联清零残差。
     char q0 = m_question3c[0];
     char q1 = m_question3c[1];
     char q2 = m_question3c[2];
@@ -246,6 +248,7 @@ void WongWork::CSecurityCard::generateQuestion(short& a, short& b, short& c,
 // ===========================================================================
 void CUser::sendBackSecurityAuthRequest()
 {
+    // b28d-37 [N78/P60 封顶，ORIG 0x86?]：ORIG 内联 rep stos 清零 vs 4.4 循环/调用形（P116/N78 族）；236/230。
     short question[3];      // -0x94/-0x92/-0x90（问题四元组前三个）
     short answers[29];      // -0x8e..（第四元组起，29×short 缓冲）
     for (int i = 0; i < 3; ++i)

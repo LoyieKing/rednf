@@ -28,13 +28,20 @@
 int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space)
 {
     int result = 6;
-    switch (space) {
+    switch ((int)space) {
     case (ENUM_ITEMSPACE)3:   result = 0; break;
     case (ENUM_ITEMSPACE)1:   result = 2; break;
     case (ENUM_ITEMSPACE)0:   result = 1; break;
     case (ENUM_ITEMSPACE)7:   result = 3; break;
     case (ENUM_ITEMSPACE)2:   result = 4; break;
     case (ENUM_ITEMSPACE)0x12: result = 5; break;
+    // b28d-163：ORIG 为 0..0x12 全覆盖跳表（未列项与 default 共块）；
+    // 补全 case 使 4.4 密度判定选跳表而非 if 链（P163 反向应用）。
+    case (ENUM_ITEMSPACE)4:  case (ENUM_ITEMSPACE)5:  case (ENUM_ITEMSPACE)6:
+    case (ENUM_ITEMSPACE)8:  case (ENUM_ITEMSPACE)9:  case (ENUM_ITEMSPACE)0xa:
+    case (ENUM_ITEMSPACE)0xb: case (ENUM_ITEMSPACE)0xc: case (ENUM_ITEMSPACE)0xd:
+    case (ENUM_ITEMSPACE)0xe: case (ENUM_ITEMSPACE)0xf: case (ENUM_ITEMSPACE)0x10:
+    case (ENUM_ITEMSPACE)0x11:
     default:  result = 6; break;
     }
     return result;

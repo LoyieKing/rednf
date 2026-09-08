@@ -373,13 +373,12 @@ unsigned char CBattle_Field::IsEnableHellDungeon()
 
 void CBattle_Field::set_dungeon_diff(char diff)
 {
-    // ORIG 0x830ed21：`movzbl 0xc(%ebp),%edx; cmp $0x4,%edx; jbe` + clamp 臂
-    // `push $0x4; pop %edx`（值恒驻寄存器、不回写形参槽）。b28 按 P0/N96 清除
-    // 存量 `register char diff` 绑定形：4.4 对形参写回恒落槽（movb $4,0xc）再
-    // 读回，4.1 跨块寄存器驻留不可合法复现（N96→N18a 反向判词），落判词封顶。
-    if ((unsigned char)diff > 4)
-        diff = 4;
-    m_dungeonDiff = (unsigned char)diff;
+    // [b28d-D43] ORIG 0x0830ed21：`movzbl 0xc(%ebp),%edx; cmp $0x4,%edx; jbe`
+    // + clamp 臂 `push $0x4; pop %edx`（值恒驻寄存器、无形参槽写回）⇒ 原码是
+    // 三目 clamp 表达式（P35/P77：ORIG 无 spill 槽即表达式右值直用）；改写
+    // `if(..) diff=4;` 会引入 movb $4,-0x4 写回槽（12→15）。
+    m_dungeonDiff =
+        (unsigned char)((unsigned char)diff > 4 ? 4 : (unsigned char)diff);
 }
 
 bool CBattle_Field::setBloodState(ENUM_BLOOD_STATE state)

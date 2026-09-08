@@ -299,7 +299,10 @@ public:
     bool CheckItemLock(unsigned char b) const;             // ORIG 0x8541a96
     void MakeItemLockPacket(PacketGuard& packet, unsigned char b) const;  // ORIG 0x85426a6
 
-    unsigned char GetItemLockInfo(unsigned char lock, int& outSec) const;  // ORIG 0x854261e
+    // [b28d-41] 返回类型 int（非 uchar）：ORIG 0x854261e 尾双段零扩展
+    // `movzbl 0x8(%eax),%eax; movzbl %al,%eax` 只在 int 返回 + uchar 字段表达式下
+    // 复现（探针 /tmp/d41_p4.cpp gB；P248 档①/SIGFIX）。返回类型不入 mangled。
+    int GetItemLockInfo(unsigned char lock, int& outSec) const;  // ORIG 0x854261e
     void UpdateItem(CUser* user, Inven_Item* item);        // ORIG 0x8541e4e
 
     // ---- 锁 / 解锁业务（ORIG 报告 docs/class_func_reports/item_lock__CItemLock/）----
@@ -313,7 +316,9 @@ public:
     void PopItemLock(CUser* user);                                      // ORIG 0x8542b80
     void PushItemLock(CUser* user, unsigned char lock, stItemLockInfo* info);  // ORIG 0x8542a8a
     void VerifyItemLock(CUser* user);                                   // ORIG 0x8542e98
-    int _findItem(unsigned char lock);                                  // ORIG 0x8542e12
+    // [b28d-41] 返回类型 int→bool：ORIG VerifyItemLock 调用点 0x8542f09 为
+    // `call; xor $0x1,%eax; test %al,%al; je`（bool callee 裸形，P248 档①）。
+    bool _findItem(unsigned char lock);                                 // ORIG 0x8542e12
 
     void SendItemUnlock(CUser* user, int space, int slot);              // ORIG 0x85420e0
     void SendRequestItemLock(CUser* user, int space, int slot);         // ORIG 0x8541ea0

@@ -154,7 +154,9 @@ public:
     // 探针 l8_probe3：{} 恒 call、=default 发射 out-of-line C1Ev，均不可用）。
     __attribute__((always_inline)) ByteBuffer() {}
     ByteBuffer(char* buffer, unsigned int capacity);    // ORIG 0x081ae9e2
-    ByteBuffer& wrap(char* buffer, unsigned int capacity); // ORIG 0x081ae9b8（按值返回 this）
+    // [b28d-D43] ORIG 0x081ae9b8：static（P88/P245 —— 调用点 0x081ad43b/0x081ad316
+    // 段只压 sret+buffer+len 三参、无 this）＋按值 sret 返回（体尾 `ret $0x4`）。
+    static ByteBuffer wrap(char* buffer, unsigned int capacity);
 
     unsigned int length() const;                        // ORIG 0x081acf60
 

@@ -157,11 +157,12 @@ std::vector<stItemLockRef>& CItemLock::GetItemLockRefVec()
 }
 
 // ORIG 0x854261e：map 查找；命中返回 state 并写解锁时刻，未命中返回 0。
-unsigned char CItemLock::GetItemLockInfo(unsigned char lock, int& outSec) const
+// [b28d-41] 返回类型 uchar→int：ORIG 尾 `movzbl 0x8(%eax),%eax; movzbl %al,%eax`
+// 双段零扩展由 int 返回 + uchar 字段表达式复现（探针 /tmp/d41_p4.cpp gB；P248 档①），
+// 4.4 对 uchar 返回恒折叠单段。返回类型不入 mangled，调用点隐式截断语义不变。
+int CItemLock::GetItemLockInfo(unsigned char lock, int& outSec) const
 {
-    // [b28c-6] P222 已修（5→1）：唯一残差 = ORIG 尾 `movzbl 0x8(%eax),%eax;
-    // movzbl %al,%eax` 二次零扩展（4.1 返回值截断物化），4.4 只发一条
-    // movzbl（int/uchar cast 均不可造）⇒ 跨版本返回归一化差，N 封顶。
+    // [b28c-6] P222 已修（5→1）：残差为返回归一化，已由 int 返回类型消解。
     std::map<unsigned char, stItemLockInfo>::const_iterator it =
         m_lockMap.find(lock);
     // P222 正向包裹：ORIG `test;je 尾部零块; <then>; …; jmp end; 零块:mov $0`
@@ -169,7 +170,7 @@ unsigned char CItemLock::GetItemLockInfo(unsigned char lock, int& outSec) const
     if (it != m_lockMap.end())
     {
         outSec = it->second.m_unlockSec;
-        return it->second.m_state & 0xff;
+        return it->second.m_state;
     }
     return 0;
 }
@@ -368,26 +369,29 @@ int CItemLock::DoItemLock(CUser* user, int space, int slot)
                                        (unsigned short)slot);
     if (item == 0)
         return 0;
-    if (item->m_amp.GetLock() != 0)
+    // [b28d-41] ORIG 0x85421d3：`call GetLock; mov %al,-0x2d; movzbl -0x2d,%eax;
+    // test %al,%al; je` ⇒ 具名 uchar 局部（P0 槽往返）；内联两次调用形产 setne
+    // 归一 + 帧 +0x10。
+    unsigned char lock = item->m_amp.GetLock();
+    if (lock != 0)
         return 0;
-    if (m_lockStack.empty())
-        return 0;  // ORIG 池空即无可分配号（栈 top 为 undefined 前提）
-
-    unsigned char newLock = m_lockStack.top();
+    // ORIG 0x85421f6 无 empty() 调用，直接 top()→pop()（P171：ORIG 不写即删）。
+    lock = m_lockStack.top();
     m_lockStack.pop();
 
     stItemLockInfo info;
-    memset(&info, 0, sizeof(info));
-    info.m_unlockSec = GlobalData::s_systemTime_.getCurSec();
+    // ORIG 0x854221a 顺序：C1Ev 清零后先 `movb $0x1,-0x34`（m_state）再 getCurSec
+    // → `mov %eax,-0x38`（m_unlockSec）；无显式 memset（ctor 自身逐字节清零）。
     info.m_state = 1;
+    info.m_unlockSec = GlobalData::s_systemTime_.getCurSec();
 
     std::pair<std::map<unsigned char, stItemLockInfo>::key_type,
               std::map<unsigned char, stItemLockInfo>::mapped_type> value =
-        std::make_pair(newLock, info);
+        std::make_pair(lock, info);
     m_lockMap.insert(value);
 
     alter();
-    item->m_amp.SetLock(newLock);
+    item->m_amp.SetLock(lock);
     UpdateItem(user, item);
     SendRequestItemLock(user, space, slot);
 
@@ -406,11 +410,15 @@ int CItemLock::DoItemUnlock(CUser* user, int space, int slot)
                                        (unsigned short)slot);
     if (item == 0)
         return 0;
-    if (item->m_amp.GetLock() == 0)
+    // [b28d-41] ORIG 0x854235a：具名 uchar 局部 -0x15（`mov %al,-0x15;
+    // movzbl -0x15,%eax; test; jne`），find 复用同槽；内联两次调用形产 sete
+    // 归一 + 帧 +0x10。
+    unsigned char lock = item->m_amp.GetLock();
+    if (lock == 0)
         return 0;
 
     std::map<unsigned char, stItemLockInfo>::iterator it =
-        m_lockMap.find(item->m_amp.GetLock());
+        m_lockMap.find(lock);
     if (it == m_lockMap.end())
         return 0;
 
@@ -442,11 +450,15 @@ int CItemLock::DoItemUnlockCancel(CUser* user, int space, int slot)
                                        (unsigned short)slot);
     if (item == 0)
         return 0;
-    if (item->m_amp.GetLock() == 0)
+    // [b28d-41] ORIG 0x85424f0：`call GetLock; mov %al,-0x11; movzbl -0x11,%eax;
+    // test %al,%al; jne` ⇒ 具名 uchar 局部（P0 槽往返），且 find 复用同一槽
+    // （`lea -0x11,%edx`）；内联两次调用形多一次 GetLock 调用 + 帧 +0x10。
+    unsigned char lock = item->m_amp.GetLock();
+    if (lock == 0)
         return 0;
 
     std::map<unsigned char, stItemLockInfo>::iterator it =
-        m_lockMap.find(item->m_amp.GetLock());
+        m_lockMap.find(lock);
     if (it == m_lockMap.end())
         return 0;
 
@@ -577,7 +589,9 @@ void CItemLock::PopItemLock(CUser* user)
 }
 
 // ORIG 0x8542e12：m_lockList 中存在指定 lock 号的引用 → 1，否则 0。
-int CItemLock::_findItem(unsigned char lock)
+// [b28d-41] 返回类型 int→bool：ORIG VerifyItemLock 调用点 `call; xor $0x1,%eax;
+// test %al,%al; je` 是 bool callee 裸形（P248 档①），int 返回恒产 sete 归一。
+bool CItemLock::_findItem(unsigned char lock)
 {
     for (std::vector<stItemLockRef>::iterator it = m_lockList.begin();
          it != m_lockList.end(); ++it)
@@ -586,9 +600,9 @@ int CItemLock::_findItem(unsigned char lock)
         // operator* 结果指针落槽回读（P0 有槽往返 ⇒ 原码具名引用）。
         stItemLockRef& ref = *it;
         if (ref.m_lock == lock)
-            return 1;
+            return true;
     }
-    return 0;
+    return false;
 }
 
 // ORIG 0x8542e98：核对 map 中所有锁定/倒计时条目是否仍被 m_lockList 引用；
@@ -604,26 +618,30 @@ void CItemLock::VerifyItemLock(CUser* user)
     while (it != m_lockMap.end())
     {
         unsigned int state = (unsigned int)it->second.m_state;
-        if (state != 1 && state != 2)
+        // [b28d-41] ORIG 0x8542ede：`cmp $1; je <继续块>; cmp $2; jne <++it 块>`
+        // = 正极性 `state==1 || state==2` 短路；4.4 对 `!=1 && !=2` 恒合并
+        // `je/je` 同落点（少一条 jne 分支），故改正向包裹。
+        if (state == 1 || state == 2)
         {
-            ++it;
-            continue;
-        }
-
-        if (_findItem(it->first))
-        {
-            ++it;
+            if (!_findItem(it->first))
+            {
+                m_lockStack.push(it->first);
+                // [b28d-41] ORIG 0x8542f47 `call ppEi`（sret 临时 -0x14）⇒
+                // 原码 erase(it++)（P28 后置增量）；`next=it; ++next; erase(it)`
+                // 形产 ppEv 且多拷贝槽。
+                m_lockMap.erase(it++);
+                if (state == 2)
+                    m_lockTimer.DecreaseItemLockTimer();
+                changed = true;
+            }
+            else
+            {
+                ++it;
+            }
         }
         else
         {
-            m_lockStack.push(it->first);
-            std::map<unsigned char, stItemLockInfo>::iterator next = it;
-            ++next;
-            m_lockMap.erase(it);
-            it = next;
-            if (state == 2)
-                m_lockTimer.DecreaseItemLockTimer();
-            changed = true;
+            ++it;
         }
     }
 
@@ -718,6 +736,11 @@ bool CItemLock::loadData(CUser* user, char* pData)
 // = unlockSec + {state,pad} 4 字节整体）；越界记 LogManager 错误。
 void CItemLock::getData(char* pData) const
 {
+    // [b28d-41] ORIG 0x8541958：pData 先存具名局部 -0x10（P0 槽往返），
+    // 循环体只调一次 ptEv（读 +4/+8 两字段写 8 字节）⇒ 原码是结构整体赋值
+    // `*(stItemLockInfo*)(data+idx*8) = it->second;`（P54/P83），逐字段两次
+    // ptEv 形多一次调用与整帧槽移。
+    char* data = pData;
     for (std::map<unsigned char, stItemLockInfo>::const_iterator it =
              m_lockMap.begin();
          it != m_lockMap.end(); ++it)
@@ -731,10 +754,7 @@ void CItemLock::getData(char* pData) const
                 0x6c, "itemlock error index %d", idx);
             continue;
         }
-        *(int*)(pData + idx * 8) = it->second.m_unlockSec;
-        // +4 写整 4 字节（state + pad，ORIG mov 0x8(%eax) 整字读写口径）。
-        *(unsigned int*)(pData + idx * 8 + 4) =
-            *(const unsigned int*)&it->second.m_state;
+        *(stItemLockInfo*)(data + idx * 8) = it->second;
     }
 }
 
@@ -750,6 +770,11 @@ bool CItemLock::_saveData(CUser* user)
 
     SIG_ITEM_LOCK_UPDATE* sig = guard->GetInBuffer<SIG_ITEM_LOCK_UPDATE>();
     memset(sig, 0, 0x324);
+    // [b28d-41] ORIG 0x854182d：`call get_charac_no; mov %eax,%edx;
+    // mov -0x10(%ebp),%eax; mov %edx,(%eax)` = RHS-first + edx 中转。4.4 对同型
+    // (int←int) 恒 `mov sig,%ebx; call; mov %eax,(%ebx)`（LHS 跨 call 保活）；
+    // 探针 /tmp/d41_p7.cpp fM 证明该形需 callee 返回类型异型（档①，改 CUser.h
+    // 冻结头）——已上报 Main，本轮按 N76 封顶。
     *(int*)sig = user->get_charac_no(-1);
 
     for (std::map<unsigned char, stItemLockInfo>::iterator it =
@@ -765,9 +790,10 @@ bool CItemLock::_saveData(CUser* user)
                 0x59, "itemlock error index %d", idx);
             continue;
         }
-        *(int*)((char*)sig + idx * 8 + 4) = it->second.m_unlockSec;
-        *(unsigned int*)((char*)sig + idx * 8 + 8) =
-            *(const unsigned int*)&it->second.m_state;
+        // [b28d-41] ORIG 0x85418a9 只调一次 ptEv，随后 `mov 0x8(%eax),%edx;
+        // mov 0x4(%eax),%eax; mov %eax,0x4(%ecx,%ebx,8); mov %edx,0x8(...)`
+        // ⇒ 结构整体赋值（P54/P83），逐字段两次 ptEv 形多一次调用。
+        *(stItemLockInfo*)((char*)sig + idx * 8 + 4) = it->second;
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);

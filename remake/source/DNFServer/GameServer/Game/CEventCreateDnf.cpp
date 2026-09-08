@@ -46,6 +46,9 @@ bool CEventCreateDnf::IsRewardCondition()
 
 void CEventCreateDnf::SetEventInfo(int hour, int rate, int reloadInterval)
 {
+    // b28d-D42 verdict=AE(IDENTICAL) ORIG 0x081640d4 orig/ours=96/93。
+    // 修法：P227 全表达式 cMyTrace 临时链（3 处）+ P272 两臂发射序反写
+    // （kIng 0x95 在前、kReward 0x9a 在后，判据 hour>=m_startHour && <m_endHour）。
     // ORIG 0x081640d4：GetState()==2 且 hour 落在 [m_endHour, m_startHour) →
     // 只打 trace（保持 kReward），不更新 rate。
     if (GetState() == State::kReward && hour < m_startHour && hour >= m_endHour)
@@ -81,7 +84,8 @@ void CEventCreateDnf::StartEvent()
     SetEventFlag(true);
     setState(State::kWaiting);
     RegistStartTimer(true);
-    // b28d-D42 P227/P87：ORIG 0x08163b34 在 cMyTrace ctor 之前右起求 varargs
+    // b28d-D42 verdict=AE(IDENTICAL) ORIG 0x08163b36 orig/ours=46/46。
+    // 修法 P227/P87：ORIG 在 cMyTrace ctor 之前右起求 varargs
     // 并保活 callee-saved（edi=reloadInterval、esi=endHour、ebx=startHour），
     // 具名 trace 两语句形使 4.4 退化为栈槽 ⇒ 全表达式临时链复现。
     cMyTrace("CEventCreateDnf::StartEvent()", 0x1d, 0)(
@@ -91,7 +95,10 @@ void CEventCreateDnf::StartEvent()
 
 void CEventCreateDnf::StartEvent(Word_Param param)
 {
-    // b28d-D42 P244：ORIG 0x08163c5c 先把 &param 存 -0xc 槽再逐字节重读
+    // b28d-D42 verdict=DIFF [N102/N4] ORIG 0x08163be0 orig/ours=73/71 ndiff=64。
+    // P244 已复现 `&param` 具名槽；残余为 ORIG `movzbl 0x1(%eax),%edx` 单条
+    // disp 被 4.4 折成 `add $1,%eax; movzbl (%eax),%edx`（N102 反向，源形不可择）
+    // + 帧 0x38 vs 0x28（N82）。P244：ORIG 先把 &param 存 -0xc 槽再逐字节重读
     // （`lea 0xc(%ebp),%eax; mov %eax,-0xc(%ebp); movzbl (%eax),%edx`）。
     const unsigned char* p = reinterpret_cast<const unsigned char*>(&param);
     m_startHour = p[0];
@@ -139,7 +146,10 @@ void CEventCreateDnf::RegistStartTimer(bool immediate)
     local.tm_sec = 0;
     const std::time_t startSec = mktime(&local);
 
-    // b28d-D42 P272：ORIG 0x08163fc2 为 `jl <kIng 块>` + kWaiting 块直落
+    // b28d-D42 verdict=NEAR [N7] ORIG 0x08163e7c orig/ours=124/124。
+    // 修法：P272 臂序反写（`startSec >= now` 使 kWaiting 块直落）+ P227 trace
+    // 临时链；残余仅间接 call 目标寄存器 %edx↔%eax（N7，4.4.7 恒 %eax）。
+    // P272：ORIG 0x08163fc2 为 `jl <kIng 块>` + kWaiting 块直落
     // （else-first）⇒ 条件取反成 `startSec >= now` 复现臂序。
     if (startSec >= now)
     {
@@ -169,6 +179,9 @@ void CEventCreateDnf::RegistStartTimer(bool immediate)
 
 void CEventCreateDnf::RegistNextTimer()
 {
+    // b28d-D42 verdict=DIFF [N7+N82] ORIG 0x08163d4c orig/ours=74/76 ndiff=33。
+    // 残差：①间接 call 目标 %edx↔%eax（N7）；②tm 字段槽基 -0x44/-0x4c 平移 4
+    // 与部分指令序（P112/N82 跨版本槽分配）。语义已对齐（P28 赋值序已按 ORIG）。
     // LinkE2 按 ORIG T 0x08163d4c sz0x12f 逐指令转写：
     // !IsEventing(0)（vtable 槽调用，虚函数 IsEventing）→ 直接返回。
     if (!IsEventing(0))
@@ -207,6 +220,9 @@ void CEventCreateDnf::RegistNextTimer()
 
 void CEventCreateDnf::SendReward(CUser* user)
 {
+    // b28d-D42 verdict=DIFF [N82/N89] ORIG 0x0816426c orig/ours=177/179 ndiff=149。
+    // 残差为帧/槽号平移（局部大缓冲 szTitle/szContents 槽基差，P112/N82）与
+    // vector/pair STL 内联差（N89）；语义按报告逐条对齐。
     std::vector<std::pair<int, int> > items;                     // ORIG local_30
 
     // ORIG 0x0816428d：ARAD::Singleton<CreateDnfEventSciprtServer>::Get()；

@@ -116,6 +116,8 @@ void Cipher::GetOriginalKey(unsigned char* dst)
 
 void Cipher::AdjustDataSize(int key, int* size) const
 {
+    // [b28d-46 判词·AE] 45/45 指令数全等、调用点差集零；ORIG 0x080973c0。
+    // Cipher 属加密/哈希类：按用户规则只要求算法正确（本件语义已逐条对应），豁免 byte 层。
     int type = GetCryptoType(key);
     int v = *size;
     int bs = m_graphs[type]->GetBlockSize();

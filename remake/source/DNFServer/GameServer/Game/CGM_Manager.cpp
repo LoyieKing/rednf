@@ -111,6 +111,7 @@ void CGM_Manager::SetGmLevel(unsigned int accId, int level)
 // 否则返回 exec 结果。
 bool CGM_Manager::LoadGmDataFromDb(unsigned int accId)
 {
+    // b28d-37 [N104/N82 封顶，ORIG 0x8299740]：EH 尾块相对序（4.4 把 epilogue 就地内联、unwind 压末）+ 槽位残差（cMyTrace -0x24 vs ORIG -0x30）；123/118。
     bool ok = false;                       // ORIG 槽 -0xd
     int rows = 0;                          // ORIG 槽 -0xc
     m_db->set_query("seLect level from gm_manifest where m_id = %s",

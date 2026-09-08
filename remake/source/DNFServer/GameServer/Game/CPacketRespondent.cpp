@@ -47,7 +47,8 @@ void CPacketRespondent::finalize(bool encryptRequired)
 }
 
 // ORIG Send @ 0x083403e0：+0x1c=0；CUser::Send(*this) 结果透传（int）。
-// b28d-40: ORIG 0x083403e0，AE（唯一残差 = call 重定位标签显示）。
+// b28d-40: N 封顶——残差 = call 重定位标签 + 跨版本 bool→int 零扩展（ORIG 4.1
+// `call CUser::Send; leave; ret` 直透传 %eax，4.4 插 movzbl %al,%eax）。ORIG 0x083403e0。
 int CPacketRespondent::Send()
 {
     m_autoSend = 0;
@@ -58,7 +59,8 @@ int CPacketRespondent::Send()
 //   +0x1c=0；vill==0 && area==0 → 返回 0；
 //   IsGateArea(m_user, area) → m_user->Send(*this)；
 //   否则 G_GameWorld()->send_to_area(vill, area, *this)；返回 1。
-// b28d-40: ORIG 0x08340404，AE（唯一残差 = call 重定位标签显示）。
+// b28d-40: N 封顶——同 Send（gate 路径 bool→int 零扩展 + call 重定位标签）。
+// ORIG 0x08340404。
 int CPacketRespondent::Broadcast(int vill, int area)
 {
     m_autoSend = 0;

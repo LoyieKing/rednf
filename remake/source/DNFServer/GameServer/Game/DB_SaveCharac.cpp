@@ -146,6 +146,12 @@ bool DB_SaveCharac::_SaveCharacManageInfo(SIG_SAVE_CHARAC* sig)
 // ===========================================================================
 bool DB_SaveCharac::_SaveCharacInfo(SIG_SAVE_CHARAC* sig)
 {
+    // [b28d-46 判词·N/P75] 345/345 指令数全等、p167 调用点差集 CLEAR（9/9）、db=-0x1c
+    // 与 r=-0x1d 逐槽一致；残差仅两分支各一处 blob_to_str varargs 实参求值序
+    // （ORIG 4.1 左先 elementResist→specProperty / 4.4 右先，暂存槽 -0x5c/-0x58 vs
+    // -0x9c/-0x98），两次调用无副作用、语义等价 ⇒ P75 跨版本结构性 DIFF 封顶。
+    // ORIG 0x08415eda。
+    bool r;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     if (sig->m_bSaveInfo != 0 && sig->m_bSaveInfoSub != 0)
     {
@@ -198,7 +204,7 @@ bool DB_SaveCharac::_SaveCharacInfo(SIG_SAVE_CHARAC* sig)
             (unsigned int)sig->m_maxPremiumFatigue, (unsigned int)sig->m_guildRight,
             (int)sig->m_eventCharacLevel, sig->m_characNo);
     }
-    bool r = db->exec(true);
+    r = db->exec(true);
     if (r != 1)
         return false;
     return true;
@@ -211,8 +217,10 @@ bool DB_SaveCharac::_SaveCharacInfo(SIG_SAVE_CHARAC* sig)
 // ===========================================================================
 bool DB_SaveCharac::_SaveCharacStat(SIG_SAVE_CHARAC* sig)
 {
-    // [b28c-lane25 判词·NEAR/N82] 302/302 指令数全等、调用点差集零；残差为 4.1 帧
-    // 0x2xx vs 4.4 槽号整体平移（N82 lifetime 槽复用差异），语义完成，byte 层封顶。
+    // [b28d-46 判词·AE] 302/302 指令数全等、p167 调用点差集 CLEAR（5/5）。
+    // `bool r;` 全头部声明（P212）使 db=-0x1c、r=-0x1d 与 ORIG 逐槽一致 ⇒ AE-EQUAL。
+    // ORIG 0x084163f2。
+    bool r;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     db->set_query(
         "upDate charac_stat set village=%d,exp=%d,HP=%d,fatigue=%d,"
@@ -251,7 +259,7 @@ bool DB_SaveCharac::_SaveCharacStat(SIG_SAVE_CHARAC* sig)
         (int)sig->m_channelEquipslotSwitch, (int)sig->m_expandEquipslotSwitch,
         (int)sig->m_visibleFlags, (int)sig->m_growthPowerReward,
         sig->m_chaosResponTime, sig->m_characNo);
-    bool r = db->exec(true);
+    r = db->exec(true);
     if (r != 1)
         return false;
     WongWork::CSimpleSSO::stUpdateSSOExpireTime_t sso;

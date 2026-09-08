@@ -443,7 +443,9 @@ void* CParty::GetUserSecretShop(CUser* user)
     // sub %eax,%edx; lea 0x2a0(%edx),%eax; add this; add $8`
     if (slot >= 0 && slot <= 3)
     {
-        return &m_padShop[4 + (slot * 4) * 7];
+        // b28d-45 试形：数组名参与算术（P214①/P205）对齐 ORIG 的 lea 链
+        // `shl $2; lea (,eax,8); sub; lea 0x2a0(%edx)`。
+        return m_padShop + 4 + (slot * 4) * 7;
     }
     return 0;
 }
@@ -627,10 +629,13 @@ void CParty::setMonsterMoveHack()
 void CParty::set_recv_party_packet_flag(CUser* user)
 {
     int slot = GetMemberSlotNo(const_cast<const CUser*>(user));
-    if (slot >= 0)
+    // b28d-45 P223 变体：ORIG 0x085b3f70 体尾 `jmp +0x3c; nop` 岛（4.4 对
+    // 正向 if 恒 jump-thread）⇒ 改裸早返形复现。
+    if (slot < 0)
     {
-        reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->SetRecvFlag(slot);
+        return;
     }
+    reinterpret_cast<CPartyResultRecvFlag*>(m_pad1dc)->SetRecvFlag(slot);
 }
 
 // ORIG T 0x085b3f72（recv_party_packet_all.md）：全员均已回包才返回 true。
@@ -644,7 +649,7 @@ bool CParty::recv_party_packet_all()
         }
         // N96 清绑：ORIG call; xor$1; test; jne 岛——4.4 对 uchar callee 恒
         // setXX 物化（P168a④ 在册），裸形取最小差。
-        if (!reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->IsRecv(i))
+        if (!reinterpret_cast<CPartyResultRecvFlag*>(m_pad1dc)->IsRecv(i))
             return false;
     }
     return true;
@@ -680,19 +685,20 @@ bool CParty::TimeoutCompleteAfterAssault()
             {
                 continue;
             }
-            if (reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->IsRecv(i))
+            // b28d-45 P248 档①：IsRecv 已 bool 化，ORIG 0x085a467 为
+            // `call; xor $0x1; test %al,%al; je`（正向 if 包裹），非 continue 形。
+            if (!reinterpret_cast<CPartyResultRecvFlag*>(m_pad1dc)->IsRecv(i))
             {
-                continue;
+                // P227 全表达式临时链：R2L 求值 name(→%esi)/partyIdx(→%ebx)
+                // 跨 ctor 保活（ORIG +0x0a6/+0x0b3）
+                cMyTrace(__PRETTY_FUNCTION__, 0x1fa, 0)(
+                    "CParty::TimeoutCompleteAfterAssault(index:%d, name:%s)",
+                    GetPartyIndex(),
+                    reinterpret_cast<CUserCharacInfo*>(get_user(i))
+                        ->getCurCharacName());
+                leave_user(get_user(i),
+                           static_cast<ENUM_PARTY_INFO_TYPE>(2));
             }
-            // P227 全表达式临时链：R2L 求值 name(→%esi)/partyIdx(→%ebx)
-            // 跨 ctor 保活（ORIG +0x0a6/+0x0b3）
-            cMyTrace(__PRETTY_FUNCTION__, 0x1fa, 0)(
-                "CParty::TimeoutCompleteAfterAssault(index:%d, name:%s)",
-                GetPartyIndex(),
-                reinterpret_cast<CUserCharacInfo*>(get_user(i))
-                    ->getCurCharacName());
-            leave_user(get_user(i),
-                       static_cast<ENUM_PARTY_INFO_TYPE>(2));
         }
     }
     return 1;
@@ -948,10 +954,11 @@ int CParty::CheckMemberLastTryAssaultTime()
         // ORIG 0x85bcb2e 域：info 槽(-0x14) 物化 → getCurSec(-0x10) → killTime；
         // 4.4 R→L/寄存器分配异构（单表达式形实测 48 insn 更差，见Lane6探针轮），
         // 残差为槽序/求值序 N82 族，维持双语句最优 43 基线。
+        // b28d-45 试形：ORIG 先物化 info 到 -0x14（具名局部）再 getCurSec。
+        CUserCharacInfo* info =
+            reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser);
         int curSec = GlobalData::s_systemTime_.getCurSec();
-        int lastKillTime =
-            reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser)
-                ->GetCurCharacChaosKillTime();
+        int lastKillTime = info->GetCurCharacChaosKillTime();
         if (curSec < lastKillTime + 600)
         {
             return 1;
@@ -1095,8 +1102,9 @@ void CParty::kill_blood_monster(CUser* user, int monsterIdx,
 unsigned char CParty::DestroyPassiveObject(int param)
 {
     // [ORIG 0x085a3b6a 物化形] 声明初始化 0 + call 后赋值两段（movb$0 再
-    // movzbl reload）+拆&&嵌套。
-    bool destroyed = false;                             // P158：bool 汇聚触发 movzbl+test 物化
+    // movzbl reload）+拆&&嵌套。b28d-45：ORIG 回读为 `movzbl -0x9,%eax;
+    // test %al,%al`（uchar 零扩展回读），bool 局部 4.4 恒 cmpb 直比 ⇒ 改 uchar。
+    unsigned char destroyed = 0;
     destroyed = static_cast<unsigned char>(
         reinterpret_cast<CBattle_Field*>(&m_battleField)
             ->DestroyPassiveObject(param));

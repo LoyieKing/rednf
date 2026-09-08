@@ -63,6 +63,9 @@
 // ctor 先清零 14 组，再按 type 填 dispatch 表（respond fn 地址，offset 全 0）。
 SpecialItemHandler::SpecialItemHandler(WongWork::CCeraShop* owner)
 {
+    // b28d-D42 verdict=DIFF [N82] ORIG 0x0827bcec orig/ours=64/76 ndiff=59。
+    // 残差为 14 组表项构造的寄存器/槽分配差（P112/N82 跨版本）；布局与
+    // 写入序（fn+offset 逐对）已按 ORIG 对齐。
     m_owner = owner;
     for (int i = 0; i < 0xe; ++i)
     {
@@ -106,6 +109,9 @@ SpecialItemHandler::SpecialItemHandler(WongWork::CCeraShop* owner)
 bool SpecialItemHandler::execute(int type, const STSpecailItem_Param& param,
                                  STSpecailItem_Result& result)
 {
+    // b28d-D42 verdict=DIFF [N81+N82] ORIG 0x0827be0a orig/ours=43/30 ndiff=37。
+    // 残差：ORIG `mov 0x4(%eax,%edx,8)` scaled 直存被 4.4 折 shl/add 链（N81）
+    // + 结果缓存栈槽（ORIG 全寄存器）；语义等价封顶。
     if (type > 0xd)
         return false;
     Entry& e = m_entries[type];
@@ -147,16 +153,20 @@ void SpecialItemHandler::respond_special_item_cargo_abs(int type,
                                                         const STSpecailItem_Param& param,
                                                         STSpecailItem_Result& result)
 {
-    CUser* user = static_cast<CUser*>(param.m_user);
-    int value = param.m_value;
-    // ORIG 0x827bee6..：getCurCharacCargoR 逐点重发（GetCapacity/isUpgradable
-    // 各双次物化（P48：UpgradeCargo 处 target 重算）。
-    if (user->getCurCharacCargoR()->isUpgradable(
-            user->getCurCharacCargoR()->GetCapacity() + value) == 1)
+    // b28d-D42 verdict=DIFF [N18a+N82] ORIG 0x0827bee6 orig/ours=55/57 ndiff=39。
+    // P0/P52 去具名槽后余 ORIG 两段 `mov mem,%eax; mov %eax,%ebx` 中转被 4.4
+    // 折单段（N18a）+ 帧差；语义等价封顶。
+    // b28d-D42 P0/P52：ORIG 0x0827bee6 无 user/value 具名槽——param.m_value
+    // 从载荷直读入 %edx 与 capacity 相加后存 %ebx 跨 call 保活；user 逐点重读
+    // `mov 0x10(%ebp),%eax; mov (%eax),%eax`（P48 无 CSE）。
+    if (static_cast<CUser*>(param.m_user)->getCurCharacCargoR()->isUpgradable(
+            static_cast<CUser*>(param.m_user)->getCurCharacCargoR()->GetCapacity() +
+            param.m_value) == 1)
     {
-        user->getCurCharacCargoW()->UpgradeCargo(
-            user->getCurCharacCargoR()->GetCapacity() + value);
-        m_owner->_sendCargoUpgradePacket(user, type);
+        static_cast<CUser*>(param.m_user)->getCurCharacCargoW()->UpgradeCargo(
+            static_cast<CUser*>(param.m_user)->getCurCharacCargoR()->GetCapacity() +
+            param.m_value);
+        m_owner->_sendCargoUpgradePacket(static_cast<CUser*>(param.m_user), type);
     }
     else
     {
@@ -179,17 +189,22 @@ void SpecialItemHandler::respond_special_item_skill_confirm(int,
                                                             const STSpecailItem_Param& param,
                                                             STSpecailItem_Result&)
 {
-    CUser* user = static_cast<CUser*>(param.m_user);
+    // b28d-D42 P28/P0：ORIG 0x0827cdd0 先取 mgr（-0x1c 槽）；user 无具名槽
+    // （每处 `mov 0x10(%ebp),%eax; mov (%eax),%eax` 逐点重读 param.m_user）。
     CPremiumLetheManager* mgr = G_CGameManager()->GetPremiumLetheManager();
-    // P87/N80 形：三变参值按 ORIG 序（style→no→name）先于 ctor 物化。
-    int style = user->GetCurCharacSkillTreeIndex();
-    int characNo = user->getCurCharacNo();
-    const char* charName = user->getCurCharacName();
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x1e1, 0);
-    trace("ONE_DAY_LETHE : BUY_SKILL_CONFIRM_TICKET, char(%s), char_no(%d), style(%d)",
-          charName, characNo, style);
-    if (mgr != 0)
-        mgr->ConfirmSkillReq(user);
+    // b28d-D42 P227/P87：ORIG 0x0827cdd0 在 cMyTrace ctor 前右起求 varargs
+    // 并保活 edi/esi/ebx（style→edi、characNo→esi、charName→ebx）⇒ 全表达式
+    // 临时链形（具名三局部会退化为栈槽）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x1e1, 0)(
+        "ONE_DAY_LETHE : BUY_SKILL_CONFIRM_TICKET, char(%s), char_no(%d), style(%d)",
+        static_cast<CUser*>(param.m_user)->getCurCharacName(),
+        static_cast<CUser*>(param.m_user)->getCurCharacNo(),
+        static_cast<CUser*>(param.m_user)->GetCurCharacSkillTreeIndex());
+    // b28d-D42 P223 变体：ORIG 0x0827cdd0 尾部为 `jmp <epilogue>; nop` 岛
+    // ⇒ 裸早返形复现（if(mgr==0) return;）。
+    if (mgr == 0)
+        return;
+    mgr->ConfirmSkillReq(static_cast<CUser*>(param.m_user));
 }
 
 // ---- respond_special_item_skill_tree_style —— ORIG 0x0827ce7e ----
@@ -199,14 +214,14 @@ void SpecialItemHandler::respond_special_item_skill_tree_style(int,
                                                                const STSpecailItem_Param& param,
                                                                STSpecailItem_Result&)
 {
-    CUser* user = static_cast<CUser*>(param.m_user);
+    // b28d-D42 P28：ORIG 0x0827ce7e 先取 mgr（-0x10 槽）后取 user（-0xc 槽）。
     CPremiumLetheManager* mgr = G_CGameManager()->GetPremiumLetheManager();
-    // P87/N80 形：两变参值先于 ctor 物化（ORIG 0x0827ce7e 区 edi/ebx 缓存）。
-    int characNo = user->getCurCharacNo();
-    const char* charName = user->getCurCharacName();
-    cMyTrace trace(__PRETTY_FUNCTION__, 499, 0);
-    trace("SKILL_TREE_STYLE : BUY_SKILL_TREE_STYLE, char(%s), char_no(%d)",
-          charName, characNo);
+    CUser* user = static_cast<CUser*>(param.m_user);
+    // b28d-D42 P227：ORIG 0x0827ce7e 区 edi/ebx 缓存两变参值（先于 ctor）⇒
+    // 全表达式临时链。
+    cMyTrace(__PRETTY_FUNCTION__, 499, 0)(
+        "SKILL_TREE_STYLE : BUY_SKILL_TREE_STYLE, char(%s), char_no(%d)",
+        user->getCurCharacName(), user->getCurCharacNo());
     user->SetCurCharacSkillTreeIndex(0);
     user->UpdateData();
     mgr->InitSkill(user, true, (ENUM_SKILL_TREE_KIND)1);
@@ -258,6 +273,8 @@ void SpecialItemHandler::respond_special_item_cerapoint_giftcard(
 void SpecialItemHandler::respond_special_item_charac_slot_extend(
     int type, const STSpecailItem_Param& param, STSpecailItem_Result&)
 {
+    // b28d-D42 verdict=DIFF [N82/N89] ORIG 0x0827c0c2 orig/ours=92/92 ndiff=64。
+    // 残差为帧/槽号平移 + CStreamGuard/STL 内联差；语义按报告逐条对齐。
     CUser* user = static_cast<CUser*>(param.m_user);
     user->incCharacSlotLimit(static_cast<unsigned char>(param.m_value));
 
@@ -279,6 +296,8 @@ void SpecialItemHandler::respond_special_item_charac_slot_extend(
 void SpecialItemHandler::respond_special_item_inventory_upgrade(
     int type, const STSpecailItem_Param& param, STSpecailItem_Result& result)
 {
+    // b28d-D42 verdict=DIFF [N82/N89] ORIG 0x0827bf90 orig/ours=92/92 ndiff=62。
+    // 残差为帧/槽号平移 + 日志/STL 内联差；语义按报告逐条对齐。
     CUser* user = static_cast<CUser*>(param.m_user);
     // ORIG 0x827bf90..：getCurCharacInvenR（const 版，无 enableSaveInven 副作用）
     // 与 get_inventory_capacity 各 5+ 处逐点重发（P48/P183 禁缓存）。
@@ -916,6 +935,8 @@ int CCeraShop::checkBuyingCondition(CUser* user, unsigned int a, unsigned long i
 // ============================================================================
 int CCeraShop::_CheckConditionPutonAvatar(CUser* user)
 {
+    // b28d-D42 verdict=AE(IDENTICAL) ORIG 0x08324966 orig/ours=54/54 ndiff=0。
+    // 修法：P48 两循环各自入口一次 getCurCharacInvenR 静态调用点（禁缓存）。
     // ORIG 两循环各自入口一次 getCurCharacInvenR 静态调用点（P48）。
     for (int i = 0; i <= 9; ++i)
     {
@@ -2058,6 +2079,9 @@ int CCeraShop::_processItem(CUser* user, Inven_Item item, int count, int& restri
                             std::vector<Inven_Item>& items,
                             stCeraShopItemParam_t& param)
 {
+    // b28d-D42 verdict=DIFF [N93附] ORIG 0x08325b22 orig/ours=147/146 ndiff=8。
+    // 残差仅尾部双 return 块发射序相反（ORIG ret0 块在 ret-slot 块之前；
+    // N93附 四形探针全败）；语义等价封顶。
     int slot = -1;
     if (!ProcessSpecialItem(user, item.m_addInfo, count, restrictCode, curSec,
                             flag, items, param, 0, 0, false, item.m_addInfo2))

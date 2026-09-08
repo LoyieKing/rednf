@@ -122,6 +122,9 @@ void CHades::ExpUp(unsigned int flag)
 // ORIG 0x084b9718：缓存(m_connSec) 与 proxy 当前连接秒数不一致则重登并同步 cate=3。
 bool CHades::needLogin()
 {
+    // b28d-D42 verdict=NEAR [N7/N22] ORIG 0x084b9718 orig/ours=28/28 ndiff=3。
+    // 残差仅 cmp 操作数序（ORIG cmp %eax,%ebx vs 我们 cmp %ebx,%eax）与
+    // setne %al↔%bl（P78 汇聚寄存器跨版本差）；交换源码操作数实测不可翻。
     // ORIG 将缓存值保持在 callee-saved 寄存器（push %ebx）并经 setne/test 判定，
     // register 限定符诱导相同分配形态。
     // b26 N 封顶（N22）：残差仅 cmp %eax,%ebx / setne %al / test %al vs
@@ -183,6 +186,9 @@ void CHades::Send_Login()
 // PC房 IP(+0x28) 非空时，清零输出缓冲后拷贝该 IP。
 void CHades::GetIP(char* out)
 {
+    // b28d-D42 verdict=DIFF [N102] ORIG 0x084b9774 orig/ours=38/37 ndiff=20。
+    // 残差为 `add $0x8e418,%eax; movzbl (%eax),%eax` 两步寻址被 4.4 折成
+    // 单条 `movzbl 0x8e418(%eax),%eax`（N102 七种源形探针全败）+ 尾 nop 对齐豁免。
     m_user->m_network.GetPeerIP2(out, 4);
     // [b28c-16] P223/BM8 尾标签串：ORIG `jne +0x84(nop)/je +0x87(nop)/体尾
     // jmp +0x88` 三岛 ⇒ 两否定 goto + L1/L2 空标签串（4.4 对嵌套 if 恒
@@ -275,6 +281,9 @@ void CHades::Send_ChangeGold()
 void CHades::RunHadesAction(unsigned int a1, unsigned int a2, unsigned int a3,
                             unsigned int a4, char* a5)
 {
+    // b28d-D42 verdict=DIFF [P78/N78] ORIG 0x084b95bc orig/ours=98/102 ndiff=100。
+    // 汇聚变量 punish 4.1 留 %al、4.4 固定 %bl（P78 实证件，register 裸形已用，
+    // P231 三条件满足仍差寄存器名）；语义等价封顶。
     register bool punish;
 
     if (a1 != 0x40)
