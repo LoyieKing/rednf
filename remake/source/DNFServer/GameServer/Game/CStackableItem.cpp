@@ -752,7 +752,10 @@ public:
     char m_pad40f[9];                    // +0x40f
     int m_field418;                      // +0x418
     BoosterSelectInfo m_boosterSelect;   // +0x41c
-    char m_field438;                     // +0x438
+    // [b28d-P248档③] ORIG set_item 0x0850e1e2 store 侧 `movzbl 0x438(%eax),%edx;
+    // mov %dl,0x320(%eax)`（bool→bool 直存，无 test/setne 归一化）⇒ 本字段同型化为
+    // bool，与 CStackableItem.h m_char320 bool 配对（宽度 1B、偏移/布局零变化）。
+    bool m_field438;                     // +0x438
     char m_pad439[3];                    // +0x439
     int m_field43c;                      // +0x43c
     int m_field440;                      // +0x440

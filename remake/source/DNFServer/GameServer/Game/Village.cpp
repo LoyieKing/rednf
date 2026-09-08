@@ -50,6 +50,8 @@ Village::~Village()
     // m_users（map）由编译器隐式析构（ORIG：destroy() 后 map D1）
 }
 
+// [b28d-62] N18b：cmp 操作数序（写 `m_pAreas == pEnd` 亦不可翻）+ N112 对齐
+//   nop；39=39，p167 CLEAR。ORIG 0x086c3348
 void Village::destroy()
 {
     if (m_pAreas)
@@ -77,6 +79,8 @@ void Village::destroy()
     }
 }
 
+// [b28d-62] N89/P50：ORIG 用 `Area::~Area` + `operator delete[]`（数组删除），
+//   我方 placement new/delete 形态 + 迭代器 cv 差。ORIG 0x086c33b8
 bool Village::set_village(TownScript& script)
 {
     bool result = false;

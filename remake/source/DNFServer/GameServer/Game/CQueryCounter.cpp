@@ -35,6 +35,8 @@ void CQueryCounter::Reset()
     m_totalQueryCount = 0;
 }
 
+// [b28d-62] 修：P220 极性翻转（`it == end` 直落未命中分支）+ m_bLogDB 正极性。
+//   ORIG 0x085ecc5e
 void CQueryCounter::IncreaseQueryCount(const std::string& query)
 {
     if (query.find("log_query_ref", 0) != std::string::npos)
@@ -81,6 +83,8 @@ void CQueryCounter::IncreaseQueryCount(const std::string& query)
     }
 }
 
+// [b28d-62] 修：迭代器增量改后置 `it++`（P28 增量侧：ORIG 调 operator++(int)）。
+//   ORIG 0x085ecee6
 void CQueryCounter::UpdateQueryCounter()
 {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("QueryCounter.cpp", 0x1f1), true);
@@ -117,6 +121,7 @@ void CQueryCounter::SetResponseTime(double responseTime)
     }
 }
 
+// [b28d-62] N82：p167 CLEAR。ORIG 0x085ed18a
 bool CQueryCounter::LoadQueryTable()
 {
     MySQL* mysql = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
@@ -159,6 +164,7 @@ bool CQueryCounter::LoadQueryTable()
     return true;
 }
 
+// [b28d-62] N82：p167 CLEAR。ORIG 0x085ed3a2
 bool CQueryCounter::SaveQuery(const char* query, int& qid)
 {
     MySQL* mysql = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
@@ -199,6 +205,8 @@ bool CQueryCounter::SaveQuery(const char* query, int& qid)
     return false;
 }
 
+// [b28d-62] N95/N82：槽基整体差 0x10（4.4 槽基自 ebp-8 起，N95）；p167 CLEAR。
+//   ORIG 0x085ed5ae
 bool CQueryCounter::RegisterQuery(const char* query, int qid, int type)
 {
     QUERY_INFO info;

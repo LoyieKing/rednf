@@ -29,6 +29,7 @@ CUserPlayTimeStatisticMgr::~CUserPlayTimeStatisticMgr()
     // ORIG D1 0x086107ec（W，0x13 字节）。
 }
 
+// [b28d-62] 修：P197④ size()==0 + P103/P132 `**guard`/`guard->` 链。ORIG 0x0860cd14
 int CUserPlayTimeStatisticMgr::InsertUserPlayTime()
 {
     // ORIG 0x0860cd14：map 为空直接返回 1；否则按 ≤20 条/批经 LOGDB 队列
@@ -82,6 +83,7 @@ int CUserPlayTimeStatisticMgr::InsertUserPlayTime()
     return 1;
 }
 
+// [b28d-62] 修：P167 info 指针缓存（1×operator-> 替 4×ptEv）。ORIG 0x0860cc38
 int CUserPlayTimeStatisticMgr::UpdateUserPlayTime(unsigned int accId, int playSec)
 {
     // ORIG 0x0860cc38：命中 → +0 累加 playSec、+4 计数 +1；未命中 → 插入
@@ -119,6 +121,7 @@ CUserPlayTimeStatisticMgr* GetInstanceUserPlayTimeStatisticMgr()
 //   "(%s,%d,%d,now())"（accId, channel_no, count），条目间逗号分隔。
 // 末尾返回 1。
 // ============================================================================
+// [b28d-62] AE：P214③ char buf={0} 复现 rep stos（去 memset call）。ORIG 0x084255bb
 int CreateUserPlayTimeQuery(std::string& query, SIG_USER_PLAY_TIME_STATISTIC* sig)
 {
     // [b28d-62] P214③：ORIG 0x084255d7 `rep stos`（0x100 dword）⇒ 源形

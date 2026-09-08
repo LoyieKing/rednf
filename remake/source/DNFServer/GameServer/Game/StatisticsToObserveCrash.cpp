@@ -67,6 +67,8 @@ void StatisticsToObserveCrash::incAbnormalDownUserCount()
     m_abnormalDownUserCount += 1;
 }
 
+// [b28d-62] AE：value_type 直构 + `(*it).second`（P167：去 make_pair 转换 ctor
+//   与 ptEv）。ORIG 0x0860bb88
 void StatisticsToObserveCrash::incUserLastCrashPacketID(int userIdx)
 {
     Guard<Mutex> guard(&m_mutex);
@@ -95,6 +97,7 @@ int StatisticsToObserveCrash::getUserLastCrashPacketID(int userIdx)
     return 0;
 }
 
+// [b28d-62] AE：同 incUserLastCrashPacketID。ORIG 0x0860bd2e
 void StatisticsToObserveCrash::incUserLastCrashDungeonID(int userIdx)
 {
     Guard<Mutex> guard(&m_mutex);
@@ -120,6 +123,7 @@ int StatisticsToObserveCrash::getUserLastCrashDungeonID(int userIdx)
     return 0;
 }
 
+// [b28d-62] AE：同 incUserLastCrashPacketID。ORIG 0x0860bed4
 void StatisticsToObserveCrash::incUserLastCrashPlayStatus(int userIdx)
 {
     Guard<Mutex> guard(&m_mutex);

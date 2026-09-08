@@ -345,7 +345,9 @@ int CCreatureMgr::SetOverSkillTime(const int& itemIdx)
         if (m_equippedCreature->IsDieCreature())
             return 1;
 
-        if (*(&itemIdx) == m_equippedCreature->m_itemId)   // CCreatureItem 基区 +0x04
+        // b28d-61 [P167 MISSING `CCreatureItem::GetItemId()`]：ORIG 0x0833c5xx
+        // `call GetItemId; cmp %eax,%ebx; sete` 为真实调用，旧形直读 +0x04 字段。
+        if (m_equippedCreature->GetItemId() == itemIdx)
         {
             if (!m_equippedCreature->IsCreatureScript())
             {
@@ -677,12 +679,17 @@ bool CCreatureMgr::checkMaxCreatureLevel(int itemId, bool growFlag) const
              m_creatureItems.begin();
          it != m_creatureItems.end(); ++it)
     {
+        // b28d-61 [P167 MISSING GetItemId + P225 拆嵌套 if]：ORIG 0x0833bb0x
+        // `call GetItemId; cmp 0xc(%ebp),%eax; sete; test; je` 与
+        // `cmp -0x1c(%ebp),%al; sete; test; je` 两段独立物化 ⇒ 嵌套 if。
         CCreature* entry = reinterpret_cast<CCreature*>(it->second);
-        if (entry != 0 &&
-            entry->m_itemId == itemId &&
-            entry->IsGrowCreature() == growFlag)
+        if (entry != 0)
         {
-            return entry->isMaxLevel();
+            if (entry->GetItemId() == itemId)
+            {
+                if (entry->IsGrowCreature() == growFlag)
+                    return entry->isMaxLevel();
+            }
         }
     }
     return false;

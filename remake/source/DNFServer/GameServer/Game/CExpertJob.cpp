@@ -155,6 +155,7 @@ CEnchanter::~CEnchanter() {}
 // GetSuccessRate @ 0x849b2e8：查 m_recipeLevelMap（itemIndex→所需等级），
 // 所需等级 - 当前等级 = 等级差 → GetCompoundRate(差) 取率表项；variation =
 // ROUND(CInventory::GetExpertJobCompoundRateVariation(type, level))。
+// [b28d-62] N82：p167 CLEAR。ORIG 0x0849b2e8
 stCompoundRate* CExpertJob::GetSuccessRate(CUser* user, CStackableItem const* item,
                                            int& variation)
 {
@@ -186,6 +187,8 @@ stCompoundRate* CExpertJob::GetSuccessRate(CUser* user, CStackableItem const* it
 // IsSuccess @ 0x849b462：base 成功率 = rate->m_successRate + variation；
 // 随机 100 < base 则成功：resultExp ∈ [expMin, expMax]，再加
 // GetExpertJobAddtionalExp 的额外经验（概率 m_field0，量 m_field4）。
+// [b28d-62] N85+N18b：x87 比较 fucompp/fnstsw vs fucomip/fstp + cmp 操作数序；
+//   P0 内联 base/level 后 93/92，p167 CLEAR。ORIG 0x0849b462
 bool CExpertJob::IsSuccess(CUser* user, CStackableItem const* item, int& resultExp)
 {
     int variation = 0;
@@ -212,6 +215,8 @@ bool CExpertJob::IsSuccess(CUser* user, CStackableItem const* item, int& resultE
 
 // IsLearnRecipe @ 0x849b590：GetRecipeInfoIndex(itemIndex) 找到 recipe 且
 // 已学习（get_recipe）或 GM → true；否则对应 cMyTrace + false。
+// [b28d-62] AE：P227 trace 全表达式链 + P0/P134 expand 免槽内联 + P266 字节
+//   收窄 + P198① 预清 + get_recipe bool 化；105=105，p167 CLEAR。ORIG 0x0849b590
 bool CExpertJob::IsLearnRecipe(CUser* user, CStackableItem const* item)
 {
     STExpertJobScript* script = (STExpertJobScript*)
@@ -258,6 +263,7 @@ bool CExpertJob::IsLearnRecipe(CUser* user, CStackableItem const* item)
 // 处理 isBoundaryExpValue + isExpertJobLimitLevel；SetCurCharacExpertJobExp +
 // make_basic_info 包；非边界本地 Send，边界则 LogHistory + send_all + 升级技能
 // m_growSkillVec 循环 + send_skill_info + quest 包。
+// [b28d-62] N82：p167 CLEAR。ORIG 0x0849ae40
 void CExpertJob::IncreaseExpertJobExp(CUser* user, int exp)
 {
     if (user->getCurCharacR() == 0)
@@ -367,6 +373,8 @@ bool CCharacExpertJob::InitScript(STExpertJobScript* script)
 // get_recipe 0x0832b306：idx = index/8（带符号除），越界(<0 || >0x1d)返回 0；
 // 返回 bitmap 第 (index%8) 位。
 // b28c-1 N97: 手写除形后余 mov/sar/shr/lea vs 4.4 sar/shr/add 寄存器选择差。
+// [b28d-62] N97：有符号 /8 lowering（4.1 mov/sar/shr/lea vs 4.4 覆盖 %eax 回读
+//   形参）；返回类型改 bool 后调用点 xor $1 形归零。ORIG 0x0832b306
 bool CCharacExpertJob::get_recipe(int index) const
 {
     // [b28d-62] N97 封顶（三形实测）：ORIG 0x0832b30d `mov %eax,%edx; sar $0x1f,%edx;
@@ -385,6 +393,7 @@ bool CCharacExpertJob::get_recipe(int index) const
 
 // set_recipe 0x0832b264：未置位则置位并返回 1；已置位返回 0。
 // b28c-1 N97: 同上（手写 (index+((uint)(index>>31)>>29))>>3 已消 cmovs）。
+// [b28d-62] N97：同 get_recipe（三形实测）。ORIG 0x0832b264
 int CCharacExpertJob::set_recipe(int index)
 {
     // [b28d-62] N97 封顶（同 get_recipe 三形实测）：ORIG 0x0832b26b 为 4.1 有符号
@@ -406,6 +415,8 @@ int CCharacExpertJob::set_recipe(int index)
 // learnRecipe 0x0832b3c0：GetRecipeInfoIndex(recipeIndex)；index<0 → 0；
 // GetRecipeInfo(index) 为空 → 0；recipeInfo->m_field8 <= param+2 才 set_recipe + alter。
 // b28c-1 N: 符号位测试 4.4 恒折 cmpl/jns vs ORIG mov/shr/test（跨版本 lowering）。
+// [b28d-62] AE：P266 字节收窄符号测试（P198① 预清）后 46=46，p167 CLEAR。
+//   ORIG 0x0832b3c0
 bool CCharacExpertJob::learnRecipe(unsigned long recipeIndex, STExpertJobScript* script,
                                   int param)
 {

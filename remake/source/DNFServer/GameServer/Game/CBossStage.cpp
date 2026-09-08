@@ -77,6 +77,8 @@ void CBossStage::reset()
 // moveNextStage → randomMapIndex →（GM 强制图/难度）→ find_map → reset →
 // consistMap（失败 throw ENUM_ERROR(1)，catch 后广播 0x30 包并返回 0）→
 // 记 startTick → SendMapInfoPacket。
+// [b28d-62] N82：p167 CLEAR（0 missing/0 extra），273/280 助记符同序；残差为
+//   帧/槽号（4.1 生命周期穿插 vs 4.4 分区复用），语义完成。ORIG 0x0814f66a
 int CBossStage::handleMoveMap(unsigned short* mapIndex)
 {
     if (_checkMemberDie())
@@ -160,6 +162,9 @@ int CBossStage::handleMoveMap(unsigned short* mapIndex)
 // 拾取分发：stageData_.item（MapInfo@+0x9f4 的 m_itemMap@+0xa18）按 itemUID
 // 查找；金币（m_item.m_addInfo==0）走 GoldPickupItem；否则 find_item 后按
 // 队伍人数/存活数/rarity 分发 Routing/Random/Normal。
+// [b28d-62] N89/P96：p167 显示 ORIG 用非 const _Rb_tree_iterator，我方
+//   const_iterator（转换 ctor ×2 + const 版 operator 族）+ getParty 缓存差。
+//   ORIG 0x0814fa76
 int CBossStage::handlePickupItem(CUser* user, int itemUID, bool flag,
                                  char& outRarity)
 {
@@ -260,6 +265,8 @@ int CBossStage::handlePickupItem(CUser* user, int itemUID, bool flag,
 // ---- handleDropItem（ORIG 0x0814ff4a）----
 // 丢弃：dropItem 成功 → 取 +0xa34 序号（-1 回执失败包）→ MapInfo::Add_Item →
 // 0x28 广播包 → 0x32 成功回执给丢弃者；失败/越限 → 0x32 失败回执。
+// [b28d-62] N82+P52：p167 EXTRA 1×getParty（ORIG 缓存 party 指针跨调用），
+//   其余 0/0；280/280。ORIG 0x0814ff4a
 bool CBossStage::handleDropItem(CUser* user, int a, int b, char c, int d, int e)
 {
     if (e < 0)
@@ -325,6 +332,8 @@ bool CBossStage::handleDropItem(CUser* user, int a, int b, char c, int d, int e)
 // ---- handleKillMonster（ORIG 0x08150388）----
 // 击杀：killMonsterErase → partyType==1（PowerWar）时 0x26 广播即返回 →
 // KillMonsterGetExp → KillMonster 日志 → killMonsterDropItem。
+// [b28d-62] N82：p167 EXTRA getParty/get_party_type 各 1（ORIG 缓存结果），
+//   188/193。ORIG 0x08150388
 int CBossStage::handleKillMonster(CUser* user, unsigned short a,
                                   unsigned short b, const MSG_MONSTER_DIE& die,
                                   int* out)
@@ -385,6 +394,8 @@ int CBossStage::handleKillMonster(CUser* user, unsigned short a,
 // 时 m_stageCur+=1 进入下一层。
 // [N18a 封顶] 残差仅 0x814d1dd `mov 0xae0(%eax),%edx` 单步直落；4.4 恒折
 // `mov %eax; mov %eax,%edx` 两步（N18a：单段 regmove 不可复现），其余 27 条逐条同形。
+// [b28d-62] AE：删同型冗余 cast（P41 变体：cast 致 `mov %eax,%edx` 中转）后
+//   28=28，p167 CLEAR。ORIG 0x0814d1b6
 bool CBossStage::moveNextStage()
 {
     if (!m_stageData.m_monsterMap.empty())
@@ -401,6 +412,7 @@ bool CBossStage::moveNextStage()
 // ---- randomMapIndex（ORIG 0x0814f4fc）----
 // acc/roll 先置零；栈上 vector 拷贝后遍历；getRandomTowerMapIndexes 在
 // find 与 end 处各调用一次（ORIG 两次外呼）。
+// [b28d-62] N82：p167 CLEAR，109/112。ORIG 0x0814f4fc
 bool CBossStage::randomMapIndex(int& index)
 {
     int acc = 0;
@@ -432,6 +444,8 @@ bool CBossStage::randomMapIndex(int& index)
 // ---- killMonsterErase（ORIG 0x0814d214）----
 // find(uid) → const_iterator 判 end() → mob=it->second、outCount=(uchar)+0x14、
 // erase(by key) → true；未找到 false。
+// [b28d-62] N82：erase key 改内联 `(int)uidParam`（新临时槽）后 68=68；残差仅
+//   uid 与 find-sret 槽互换（P112 槽序不可推）。p167 CLEAR。ORIG 0x0814d214
 bool CBossStage::killMonsterErase(unsigned short uidParam, map_monster& mob,
                                   int& outCount)
 {
@@ -454,6 +468,8 @@ bool CBossStage::killMonsterErase(unsigned short uidParam, map_monster& mob,
 // ---- KillMonsterGetExp（ORIG 0x0814d300）----
 // 对每名有效队员：get_mob_reward → getMonsterTotalExp → 死亡之塔两层费率 →
 // sumGainedEachExp → calcHelpAbuseRatio → gain_exp_sp(+Noti) → CheckQuestMonster。
+// [b28d-62] N82：p167 EXTRA getParty/get_party_type 各 1（ORIG 缓存结果）。
+//   ORIG 0x0814d300
 int CBossStage::KillMonsterGetExp(const map_monster& mob, unsigned int& exp)
 {
     CParty* party = getParty();
@@ -508,6 +524,8 @@ int CBossStage::KillMonsterGetExp(const map_monster& mob, unsigned int& exp)
 }
 
 // ---- SendMapInfoPacket（ORIG 0x0814ce12）----
+// [b28d-62] N89+P96：ORIG 非 const iterator，我方 const_iterator（转换 ctor ×4 +
+//   const 版 operator 族）+ getParty 缓存差。ORIG 0x0814ce12
 int CBossStage::SendMapInfoPacket()
 {
     PacketGuard packet;
@@ -553,6 +571,8 @@ int CBossStage::SendMapInfoPacket()
 
 // ---- GoldPickupItem（ORIG 0x0814f0e6）----
 // 金币按存活队员平分（拾取者拿余数），逐槽写 0x27 包并 erase 掉落物。
+// [b28d-62] N82：p167 EXTRA isMemberAlive/getParty 各 1（ORIG 缓存结果）。
+//   ORIG 0x0814f0e6
 bool CBossStage::GoldPickupItem(CUser* user, unsigned int uid,
                                 const map_item& item)
 {
@@ -620,6 +640,7 @@ bool CBossStage::GoldPickupItem(CUser* user, unsigned int uid,
 }
 
 // ---- RoutingPickupItem（ORIG 0x0814e57a）----
+// [b28d-62] N82：p167 CLEAR。ORIG 0x0814e57a
 bool CBossStage::RoutingPickupItem(CUser* user, unsigned int uid,
                                    map_item& item)
 {
@@ -669,6 +690,7 @@ int pickupRouteKind(const CItem* script)
 }  // namespace
 
 // ---- NormalPickupItem（ORIG 0x0814ecec）----
+// [b28d-62] N82：p167 CLEAR。ORIG 0x0814ecec
 bool CBossStage::NormalPickupItem(CUser* user, unsigned int uid,
                                   const map_item& item)
 {
@@ -741,6 +763,7 @@ bool CBossStage::NormalPickupItem(CUser* user, unsigned int uid,
 
 // ---- RandomPickupItem（ORIG 0x0814e684）----
 // 存活且背包可容纳的成员各掷 1..100，最高者获得物品；广播含四人掷点。
+// [b28d-62] N82：p167 CLEAR。ORIG 0x0814e684
 bool CBossStage::RandomPickupItem(CUser* user, unsigned int uid,
                                   const map_item& item)
 {
@@ -856,6 +879,7 @@ bool CBossStage::RandomPickupItem(CUser* user, unsigned int uid,
 // ---- dropItem（ORIG 0x0814de1a）----
 // 按 invenType 取出物品构建掉落 map_item，再从原容器删除并记流通统计。
 // type：0=背包/金币、2=仓库、3=装备栏、7=造物。
+// [b28d-62] N82：p167 CLEAR。ORIG 0x0814de1a
 bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
                           map_item& out)
 {
@@ -992,6 +1016,8 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
 // ---- killMonsterDropItem（ORIG 0x0814d628）----
 // 怪物/APC 掉落生成 → 逐件构建 map_item（count=1、dropIndex=b、
 // createTick=当前秒）入 MapInfo → 0x26 包广播。
+// [b28d-62] N89+N84：const_iterator 族/put_binary(char*) 签名/memcpy + getParty×3
+//   缓存差。ORIG 0x0814d628
 bool CBossStage::killMonsterDropItem(const map_monster& mob, int eraseCnt,
                                      unsigned short a, unsigned short b)
 {
@@ -1116,6 +1142,8 @@ bool CBossStage::killMonsterDropItem(const map_monster& mob, int eraseCnt,
 // 任一 AI 查询失败返回 false。map_monster 具名字段映射：
 //   m_field11 半字 = ORIG +0x11/+0x12 两字节写、m_field13/m_field14 同名、
 //   m_dropCnt(+0x2c) 收布点/脚本怪掉落数。
+// [b28d-62] N89+N82：const/非 const 迭代器族 + map 拷贝 ctor + getParty。
+//   ORIG 0x0814bef4
 bool CBossStage::consistMap(const CMap* map)
 {
     m_stageData.m_mapIndex = map->get_index();

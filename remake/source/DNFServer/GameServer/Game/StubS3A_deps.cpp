@@ -30,6 +30,7 @@ struct ItemMakingSkillReqView
 // 1. CUser::IsAbleItemLock(int,int) const —— ORIG T 0x08646a9c
 //    报告 docs/class_func_reports/CUser/IsAbleItemLock.md 全文转写。
 //    0x15=21 无物品/无 item 定义；0x13=19 业务不可锁；0x11=17 attach 型不可锁。
+// [b28d-62] N82：p167 CLEAR。ORIG 0x08646a9c
 int CUser::IsAbleItemLock(int space, int slot) const
 {
     const Inven_Item* item =
@@ -131,6 +132,8 @@ int CUser::IsAbleItemUnlockCancel(int space, int slot) const
 //    quest->m_intDataList(+0x2c, vector<vector<int>>) 每组逐 questIdx：
 //    find_quest 后递归本函数，并 getCurCharacQuestW()+4 处 CQuestClear
 //    setClearedQuest(questIdx)。
+// [b28d-62] N93/P50：ORIG 有 normal_iterator 默认构造 + vector<vector<int>>::
+//   operator[]（先声明后赋值形），我方缺；85/82。ORIG 0x086686ed
 void _postCheckForceChangeGrowType4AheadQuest(CUser* user, Quest* quest)
 {
     std::vector<std::vector<int> >& groups = quest->m_intDataList;   // +0x2c
@@ -163,6 +166,7 @@ void _postCheckForceChangeGrowType4AheadQuest(CUser* user, Quest* quest)
 //    （无独立报告，d_aa_body.cpp objdump 0x080ebe06..0x080ebcbb 转写）。
 //    this+0x10（m_field10）=材料 item idx；this+0x14 低 16 位符号扩展=数量。
 //    0x11=材料不符；0x16=数量校验/删除失败；0=成功。
+// [b28d-62] N82：p167 CLEAR。ORIG 0x080ebe06
 int CraneMinigameManager::startUseMaterial(CUser* user, int slot)
 {
     const CInventory* inven = user->getCurCharacInvenR();   // ORIG 0x080da27e
@@ -213,6 +217,8 @@ void CRedeemItem::_reset()
     m_redeemList.clear();   // ORIG 0x085f7b7d: std::list::clear(this+8)
 }
 
+// [b28d-62] 修：3 处 memcpy→直读/结构赋值（P167/N84），去 memcpy call 与
+//   多余 ctor。ORIG 0x085f7830
 bool CRedeemItem::loadData(CUser* pUser, char* pData)
 {
     (void)pUser;
@@ -238,6 +244,8 @@ bool CRedeemItem::loadData(CUser* pUser, char* pData)
     return true;
 }
 
+// [b28d-62] 修：CStreamGuard operator*/-> 链 + 非 const list iterator + 结构赋值
+//   （P103/P132/P96/N84）。ORIG 0x085f7998
 bool CRedeemItem::_saveData(CUser* pUser)
 {
     Stream* stream =
@@ -285,6 +293,8 @@ bool CRedeemItem::_saveData(CUser* pUser)
 //     _reset 0x085453ba：memset(this+6, 0, 0x16)（m_skillLevels[11]）。
 // ---------------------------------------------------------------------------
 
+// [b28d-62] AE：time(0) 内联实参（临时槽供 const& 绑定）复现 4.1 new 前预取
+//   %esi；48=48。ORIG 0x08545108
 CItemMakingSkill::CItemMakingSkill()
 {
     // ORIG 0x08545125：time(0) → operator new(0x9c8) → CMTRand(seed)
@@ -310,6 +320,7 @@ CItemMakingSkill::~CItemMakingSkill()
     m_rand = 0;
 }
 
+// [b28d-62] 修：memcpy→movzwl 直读（P167），去 memcpy call。ORIG 0x08545202
 bool CItemMakingSkill::loadData(CUser* pUser, char* pData)
 {
     (void)pUser;
@@ -326,6 +337,8 @@ bool CItemMakingSkill::loadData(CUser* pUser, char* pData)
     return true;
 }
 
+// [b28d-62] N18a：历史判词保留（死 regmove 两段，三档类型旋钮已穷举）。
+//   ORIG 0x08545276
 bool CItemMakingSkill::_saveData(CUser* pUser)
 {
     // b28c-L5 代落判词（lane14 件，DELEGATED→本 TU 属主）：87→86，残差为

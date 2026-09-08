@@ -900,12 +900,16 @@ void cUserHistoryLog::RemovePrivateStore(int zoneA, int zoneB, char const* name)
 //     guid @-0x1c（4 处 lea + 2 处 mov 共 6 行）。声明序/pad/临时链均不可翻（N82附）。
 //   其余 2 行 = `mov 0x2(%eax),%ebx` 单段直落 vs 4.4 两段中转（N18a）。
 //   帧尺寸 sub $0xec、26 个 vararg 装载序与全部 call 目标/宽度与 ORIG 逐条一致。
+// b28d-65 复核：去 (int)m_addInfo 冗余 cast 消 N18a 两段中转 ⇒ 165=165；
+//   残余仅 N80（ctor 前实参保活）+ N82附（print@-0x2d/guid@-0x80 槽向）+ N107
+//   （取址 add-vs-lea）三族，P226 语句表达式实测零收益 ⇒ 维持封顶。
 void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const& item,
                                           int addNew, int addOld, eItemAddReason reason,
                                           char const* name1, char const* name2)
 {
     CItemGloballyUniqueIdentifierPrint print;
-    const char* guid = print(*({ (const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]; }));
+    const char* guid = print(
+        *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
     m_user->LogHistory(
         "Item+,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
@@ -929,12 +933,14 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
 // b21 NEAR：语义与 ORIG 全等（%s 仅 name2=param_8 正确）。修：补齐 item+0x00 字节 vararg。
 // b28c-L2 fresh 复验 ndiff 13（orig 163/our 164）：封顶族与 PrivateStoreItemAdd 同
 //   （N80 具名 print ctor 前实参保活 + N82附 聚合/标量槽向 + N18a 单段直落），判词见上。
+// b28d-65 复核：去 (int)m_addInfo 冗余 cast ⇒ 163=163；残余同 Add（N80+N82附+N107）。
 void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const& item,
                                           int delNew, int delOld, eItemDelReason reason,
                                           char const* name1, char const* name2)
 {
     CItemGloballyUniqueIdentifierPrint print;
-    const char* guid = print(*({ (const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]; }));
+    const char* guid = print(
+        *(const itemGloballyUniqueIdentifier_t*)(const void*)&item.m_amp.m_pad4[0]);
     m_user->LogHistory(
         "Item-,%d,%d,%d,%d,%d,\"%s\",%d,%d,"
         "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",

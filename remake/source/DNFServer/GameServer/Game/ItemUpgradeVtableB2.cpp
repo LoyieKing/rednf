@@ -490,7 +490,9 @@ bool CItemUpgrade::_CheckTargetUsableLv(const Inven_Item& material,
         return true;
     }
     const CStackableItem* stack = (const CStackableItem*)matScript;
-    if (stack->m_char320 != 1)
+    // [b28d-64] P248 档②：字段 bool 化后 `if (!field)` 直产 ORIG 0x08548c9c
+    // `movzbl 0x320; xor $1; test %al; je`（char 字段恒折 `cmp $0x1,%al; je`，gap 1）。
+    if (!stack->m_char320)
     {
         return true;
     }

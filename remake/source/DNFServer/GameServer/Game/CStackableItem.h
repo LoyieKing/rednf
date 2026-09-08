@@ -476,7 +476,9 @@ public:
     char m_char316;                       // +0x316
     int m_int318;                         // +0x318
     int m_int31c;                         // +0x31c
-    char m_char320;                       // +0x320
+    bool m_char320;                       // +0x320（区间启用标记；ORIG
+                                          // _CheckTargetUsableLv 0x08548c9c
+                                          // `movzbl; xor $1; test; je` 按 bool 读取）
     bool m_char321;                       // +0x321（可删除标记；ORIG movzbl 按 bool 读取）
     int m_int324;                         // +0x324
     int m_int328;                         // +0x328

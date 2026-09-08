@@ -221,6 +221,7 @@ EVENT_DONE:
 // ---------------------------------------------------------------------------
 // ORIG T 0x82ebb9c (size 0xc7)：_ProcessChaos(int killer, int victim)
 // ---------------------------------------------------------------------------
+// [b28d-62] N82：p167 CLEAR。ORIG 0x082ebb9c
 void CAssaultPlace::_ProcessChaos(int killer, int victim)
 {
     if (victim < 0 || victim > 7)
@@ -262,6 +263,7 @@ void CAssaultPlace::_ProcessChaos(int killer, int victim)
 // 返回 1=成功开战（ebx 结果），0=转结束流程。
 // PowerWar 计数段依赖 CPowerWarLog（WAMgr 组权威头）。
 // ---------------------------------------------------------------------------
+// [b28d-62] N82：p167 CLEAR（297/299）。ORIG 0x082e9502
 bool CAssaultPlace::StartAssault()
 {
     ClearBadP2PUser();
@@ -354,6 +356,8 @@ bool CAssaultPlace::StartAssault()
 // ---------------------------------------------------------------------------
 // ORIG T 0x82e99a2 (size 0x133)：EndAssault() —— 单播结算包 + 清场计时
 // ---------------------------------------------------------------------------
+// [b28d-62] N82：槽序（i -0xc vs ORIG -0x10；ORIG dead bool -0x9 补声明无效，
+//   4.4 DCE）；p167 CLEAR。ORIG 0x082e99a2
 void CAssaultPlace::EndAssault()
 {
     for (int i = 0; i < 8; ++i) {
@@ -385,6 +389,7 @@ void CAssaultPlace::EndAssault()
 // ORIG T 0x82ea004 (size 0x183)：TimeoutEndAssault()
 // state==4 才推进到 5 并 EndAssault。
 // ---------------------------------------------------------------------------
+// [b28d-62] N82：p167 CLEAR（0/0），106/104。ORIG 0x082ea004
 void CAssaultPlace::TimeoutEndAssault()
 {
     cMyTrace trace(__PRETTY_FUNCTION__,
@@ -414,6 +419,8 @@ void CAssaultPlace::TimeoutEndAssault()
 // ---------------------------------------------------------------------------
 // ORIG T 0x82eb956 (size 0x197)：ConnectP2P(CUser*, char*, int)
 // ---------------------------------------------------------------------------
+// [b28d-62] AE：正向 if 包裹（P257/P285）消除体尾 `jmp+nop` 中继；p167 CLEAR；
+//   108=108。ORIG 0x082eb956
 void CAssaultPlace::ConnectP2P(CUser* user, char* ip, int len)
 {
     if (m_state != 3)
@@ -447,6 +454,8 @@ void CAssaultPlace::ConnectP2P(CUser* user, char* ip, int len)
 // ---------------------------------------------------------------------------
 // ORIG T 0x82eb774 (size 0x1e1)：CompleteLoad(CUser*)
 // ---------------------------------------------------------------------------
+// [b28d-62] N82/N18b：p167 CLEAR；残差=槽差 + sete/jne 物化 + PacketGuard 槽
+//   -0x20 vs -0x1c。ORIG 0x082eb774
 void CAssaultPlace::CompleteLoad(CUser* user)
 {
     if (m_state != 2)
@@ -486,6 +495,7 @@ void CAssaultPlace::CompleteLoad(CUser* user)
 // [b28c-L7][SIGFIX:pvp_assault::CAssaultPlace::TimeoutConnectP2P] char→bool
 //（ORIG __PRETTY_FUNCTION__ 串 "bool ...TimeoutConnectP2P()"，tsv 第 16 行；
 // mangled 不变；`started` 局部保持 char——它是 ORIG 的字节槽，非返回通道）。
+// [b28d-62] N82：p167 EXTRA getCurCharacName ×1（ORIG 缓存）。ORIG 0x082ea716
 bool CAssaultPlace::TimeoutConnectP2P()
 {
     if (m_state != 3)
@@ -567,6 +577,7 @@ bool CAssaultPlace::TimeoutConnectP2P()
 // ---------------------------------------------------------------------------
 // ORIG T 0x82ed43e (size 0x1b5)：RevivalUser(CUser*, int&)
 // ---------------------------------------------------------------------------
+// [b28d-62] N82：p167 CLEAR。ORIG 0x082ed43e
 void CAssaultPlace::RevivalUser(CUser* user, int& result)
 {
     if (!((CUserCharacInfo*)user)->IsCurCharacGhost())
@@ -606,6 +617,8 @@ void CAssaultPlace::RevivalUser(CUser* user, int& result)
 // ---------------------------------------------------------------------------
 // ORIG T 0x82eb49c (size 0x145)：EvadeAssaultPlace(CUser*)
 // ---------------------------------------------------------------------------
+// [b28d-62] N18a/N7：GetTeam 结果与 m_winTeam 的 cmp 操作数角色互换（4.4 this
+//   入 %eax 触发原值 spill）；交换操作数序实测更劣。p167 CLEAR。ORIG 0x082eb49c
 void CAssaultPlace::EvadeAssaultPlace(CUser* user)
 {
     if ((unsigned int)(m_state - 2) > 1u) {
@@ -630,6 +643,8 @@ void CAssaultPlace::EvadeAssaultPlace(CUser* user)
 // ORIG T 0x82ecaee (size 0x2cd)：_SendHoldVictory(CUser*, CUser*, int)
 // 包 0x109：双方连破名单广播（无队用单名，有队 4 成员名）。
 // ---------------------------------------------------------------------------
+// [b28d-62] N98：p167 EXTRA 4×strlen（4.1 内联 word-at-a-time vs 4.4 恒 call）。
+//   ORIG 0x082ecaee
 void CAssaultPlace::_SendHoldVictory(CUser* userA, CUser* userB, int winTeam)
 {
     PacketGuard packet;
@@ -744,6 +759,7 @@ int CAssaultPlace::_VictoryBonus(CUser* user, char side)
 // 双队长各自队伍列出并布阵。依赖 _AddUser/_MoveUser/_MoveAssaultPlace/
 // _SendUserUdpIpPort（B 组交付）。
 // ---------------------------------------------------------------------------
+// [b28d-62] N82：p167 CLEAR。ORIG 0x082e8098
 void CAssaultPlace::_SeparateTeam(CUser* leader1, CUser* leader2)
 {
     std::vector<CUser*> lists[2];
@@ -798,6 +814,8 @@ void CAssaultPlace::_DispositionUser(CUser** users)
 // ORIG T 0x82e8b66 (size 0xf3)：_MakeUserInfo(PacketGuard*, ENUM_USERINFO)
 // 包 0x02：byte(type)+short(count)+逐人 basic_info。
 // ---------------------------------------------------------------------------
+// [b28d-62] AE：删 P171 多余空指针守卫 + Empty() 正极性 continue + P134 user
+//   免槽内联；71=71，p167 CLEAR。ORIG 0x082e8b66
 void CAssaultPlace::_MakeUserInfo(PacketGuard* p, ENUM_USERINFO type)
 {
     // [b28d-62] P171：ORIG 0x082e8b6e 无空指针守卫，删多余 `if (p==0) return;`。
@@ -824,6 +842,7 @@ void CAssaultPlace::_MakeUserInfo(PacketGuard* p, ENUM_USERINFO type)
 // 年龄门槛 0xf（PowerWar 中 vill==7 时 0xc）；<0x1e 级未入场检查 → 0xe/0xd；
 // 组队分支：party is_limit_minimum_age→0x5f、is_limit_minimum_level→0xff/0xfe。
 // ---------------------------------------------------------------------------
+// [b28d-62] N82：p167 CLEAR。ORIG 0x082e75ca
 void CAssaultPlace::_AvailableAssault(CUser* user, int& result)
 {
     CParty* party = 0;
