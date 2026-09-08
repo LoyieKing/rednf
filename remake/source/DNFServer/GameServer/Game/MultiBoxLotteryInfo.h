@@ -68,7 +68,8 @@ public:
     {
     public:
         LotteryDefaultArad(unsigned int a, unsigned int b, unsigned int c);  // ORIG W 0x8513e30
-        ~LotteryDefaultArad();   // ORIG W 0x8522962（用户空析构，size 5）
+        // ~LotteryDefaultArad() 不声明：ORIG 实例化 _ZNSt12_Destroy_auxILb1EE（trivial 析构）
+        // + W D1 0x8522962 由使用点隐式发射（b28d-Main P12/P71）。
 
         unsigned int m_field0;   // +0x00
         unsigned int m_field4;   // +0x04

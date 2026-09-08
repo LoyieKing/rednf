@@ -416,38 +416,49 @@ void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
     {
         return;
     }
-    int n = *it++;
-    for (int i = 0; i < n; ++i)
+    int n = *it;
+    it++;
+    int i = 0;
+    for (i = 0; i < n; ++i)
     {
         std::pair<int, int> p;
-        p.first = *it++;
-        p.second = *it++;
+        p.first = *it;
+        it++;
+        p.second = *it;
+        it++;
         info->m_vec0.push_back(p);
     }
-    n = *it++;
-    for (int i = 0; i < n; ++i)
+    n = *it;
+    it++;
+    for (i = 0; i < n; ++i)
     {
         std::pair<int, int> p;
-        p.first = *it++;
-        p.second = *it++;
+        p.first = *it;
+        it++;
+        p.second = *it;
+        it++;
         info->m_vecC.push_back(p);
     }
-    n = *it++;
-    for (int i = 0; i < n; ++i)
+    n = *it;
+    it++;
+    for (i = 0; i < n; ++i)
     {
         std::pair<int, int> p;
-        p.first = *it++;
-        p.second = *it++;
+        p.first = *it;
+        it++;
+        p.second = *it;
+        it++;
         info->m_vec18.push_back(p);
     }
-    if (it != end)
+    if (it == source->end())
     {
-        info->m_field24 = (*it == 1);
-        info->m_field25 = (*it == 2);
-        if (extra != 0)
-        {
-            info->m_vec28 = *extra;
-        }
+        return;
+    }
+    info->m_field24 = (*it == 1);
+    info->m_field25 = (*it == 2);
+    if (extra != 0)
+    {
+        info->m_vec28 = *extra;
     }
 }
 // ============================================================================
@@ -479,17 +490,17 @@ void createLotteryInfo(LotteryInfo* info, std::vector<int>* source)
     info->clear();
     std::vector<int>::iterator it = source->begin();
     info->m_defaultIdx = *it;
-    ++it;
+    it++;
     info->m_defaultCount = 1;
     while (it != source->end())
     {
         std::pair<int, int> p;
         p.first = *it;
-        ++it;
+        it++;
         if (it == source->end())
             break;
         p.second = *it;
-        ++it;
+        it++;
         info->m_items.push_back(p);
         info->m_counts.push_back(1);
     }
@@ -720,8 +731,11 @@ public:
     char m_pad35c[4];                    // +0x35c
     char m_field360;                     // +0x360
     char m_pad361[3];                    // +0x361
-    unsigned short m_field364;           // +0x364
-    char m_pad366[0x1a];                 // +0x366
+    // ORIG set_item 0x0850dcf4 `mov 0x364(%eax),%edx; mov %edx,0x28c(%eax)`
+    // 4 字节直读 ⇒ 该字段为 int（ushort 版恒产 movzwl 双段）。pad 同步缩短保持
+    // +0x380 后续偏移不变。
+    int m_field364;                      // +0x364
+    char m_pad368[0x18];                 // +0x368
     unsigned short m_field380;           // +0x380
     char m_pad382[2];                    // +0x382
     char m_pad384[0x10];                 // +0x384
@@ -829,14 +843,19 @@ bool CStackableItem::check_change_job_type(char changeJob,
     return (char)m_arad148.m_field4 == changeJob;
 }
 
-// [b28d-N90] fresh 复验 101/102：残差 = 双层 vector 迭代器三槽阶梯 + 外联
-// （N86/N90 族）；元素字段序/概率比较全等。
+// [b28d-solo-CStackableItem] fresh 复验 101/102：外层/内层 end() 已按 P13 缓存、
+// 结构逐条对齐；残差 2 条 = while 条件 4.4 恒 `mov i,%ebx; cmp m_count,%ebx; setb`
+// 而 ORIG 为 `mov m_count,%eax; cmp i,%eax; seta`（比较方向/寄存器折叠 N18b 族；
+// 反写 `m_count > i` 实测劣化 +2 已回退）。
 void CStackableItem::getBoosterItem(
     std::vector<stStackableBoosterItemInfo_t>& out) const
 {
-    for (std::vector<stStackableBoosterElement_t>::const_iterator it =
-             m_booster.m_elements.begin();
-         it != m_booster.m_elements.end(); ++it)
+    // ORIG 0x850f76e/0x850f793：外层 begin/end 在循环外各求值一次（P13）。
+    std::vector<stStackableBoosterElement_t>::const_iterator it =
+        m_booster.m_elements.begin();
+    std::vector<stStackableBoosterElement_t>::const_iterator itEnd =
+        m_booster.m_elements.end();
+    for (; it != itEnd; ++it)
     {
         int i = 0;
         // ORIG 0x850f75e：m_count/m_prob 均按无符号比较（seta/setb）。
@@ -844,9 +863,12 @@ void CStackableItem::getBoosterItem(
                < static_cast<unsigned int>(it->m_count))
         {
             int rand = get_rand_int(it->m_prob);
-            for (std::vector<stStackableBoosterItemInfo_t>::const_iterator it2 =
-                     it->m_items.begin();
-                 it2 != it->m_items.end(); ++it2)
+            // ORIG 0x850f7e5/0x850f7f3：内层 begin/end 亦各求值一次（P13）。
+            std::vector<stStackableBoosterItemInfo_t>::const_iterator it2 =
+                it->m_items.begin();
+            std::vector<stStackableBoosterItemInfo_t>::const_iterator it2End =
+                it->m_items.end();
+            for (; it2 != it2End; ++it2)
             {
                 int idx = it2->m_itemIdx;
                 if (static_cast<unsigned int>(rand)
@@ -922,10 +944,16 @@ int CStackableItem::get_amplify_reinforce_count(int count)
     return bestKey;
 }
 
-// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// [b28d-N90] fresh 复验 118/108：维持 N90。
+// [b28d-solo-CStackableItem] ORIG 0x850fbe4 两循环复用同一 const_iterator 槽 -0x48
+// （第二循环 `it = begin()` 重新赋值），循环体先 operator*（deEv）取引用地址入槽
+// （-0x10/-0xc），再 `add %eax,total/sum`；增量段为 ppEi（后置）⇒ 源写 `it++`。
+// fresh 复验 118/119：指令数/序列已对齐；残差 = range 与第一循环迭代器组的槽方向
+// 相反（ORIG range=-0x38 在临时槽之后、it=-0x48；4.4 恒 range=-0x44、it=-0x48 的
+// 声明序实测两形均差 0x10，N95/N93 槽分配族）+ 比较方向 `cmp sum,rand;ja` vs
+// `cmp rand,sum;jb`（N18b 族，`sum>=rand`/`!(rand>=sum)` 三形实测同形）。
 void CStackableItem::get_limit_cube_item(std::pair<int, int>& out)
 {
+    unsigned long range;
     int itemIdx = 0;
     int count = 0;
     int total = 0;
@@ -933,24 +961,25 @@ void CStackableItem::get_limit_cube_item(std::pair<int, int>& out)
         m_limitCube.m_results.begin();
     while (it != m_limitCube.m_results.end())
     {
-        total += it->m_prob;
-        ++it;
+        const stLimitCubeResult& r = *it;
+        total += r.m_prob;
+        it++;
     }
-    unsigned long range = total;
+    range = total;
     unsigned int rand = m_pRand->randInt(range);
     int sum = 0;
-    std::vector<stLimitCubeResult>::const_iterator it2 =
-        m_limitCube.m_results.begin();
-    while (it2 != m_limitCube.m_results.end())
+    it = m_limitCube.m_results.begin();
+    while (it != m_limitCube.m_results.end())
     {
-        sum += it2->m_prob;
+        const stLimitCubeResult& r = *it;
+        sum += r.m_prob;
         if (rand <= sum)
         {
-            itemIdx = it2->m_itemIdx;
-            count = it2->m_count;
+            itemIdx = r.m_itemIdx;
+            count = r.m_count;
             break;
         }
-        ++it2;
+        it++;
     }
     out.first = itemIdx;
     out.second = count;
@@ -1088,8 +1117,9 @@ void CStackableItem::make_item(Inven_Item& item) const
 
 // ===================== get_lotto_item（ORIG 0x850ebfc） =====================
 
-// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// [b28d-N90] fresh 复验 134/128：维持 N90。
+// [b28d-solo-CStackableItem] ORIG 0x850ebfc：pairIt 先声明（默认构造 C1Ev，P50）后
+// `pairIt = begin()`；循环体 `item = std::pair<int,int>(*pairIt)` 走 aSEOS0_（P135），
+// 之后一律读 item.first/second（-0x44/-0x40）；countIt 为 const_iterator 转换构造。
 void CStackableItem::get_lotto_item(char* out)
 {
     Inven_Item* pItem = (Inven_Item*)out;
@@ -1097,19 +1127,22 @@ void CStackableItem::get_lotto_item(char* out)
     unsigned long range = 100000;
     int rand = m_pRand->randInt(range);
     int sum = 0;
-    std::vector<std::pair<int, int> >::iterator pairIt = m_lotto.m_items.begin();
-    std::vector<int>::const_iterator countIt = m_lotto.m_counts.begin();
+    std::vector<std::pair<int, int> >::iterator pairIt;
     int count = 1;
+    std::vector<int>::const_iterator countIt = m_lotto.m_counts.begin();
+    std::pair<int, int> item;
+    pairIt = m_lotto.m_items.begin();
     while (pairIt != m_lotto.m_items.end())
     {
-        sum += pairIt->second;
-        if (rand < sum)
+        item = std::pair<int, int>(*pairIt);
+        sum += item.second;
+        if (sum > rand)
         {
-            itemIdx = pairIt->first;
+            itemIdx = item.first;
             count = *countIt;
             break;
         }
-        ++pairIt;
+        pairIt++;
         ++countIt;
     }
     if (itemIdx == 0 && count > 0)
@@ -1117,22 +1150,19 @@ void CStackableItem::get_lotto_item(char* out)
         pItem->m_addInfo = 0;
         pItem->m_addInfo2 = count;
     }
-    else if (itemIdx == -1)
-    {
-        itemIdx = m_lotto.m_defaultIdx;
-        count = m_lotto.m_defaultCount;
-        if (itemIdx == 0)
-        {
-            pItem->m_addInfo = 0;
-            pItem->m_addInfo2 = count;
-            return;
-        }
-        pItem->m_addInfo = itemIdx;
-        G_CDataManager()->m_itemList->create_item(
-            (ENUM_ITEM_CREATE_TYPE)2, *pItem, count);
-    }
     else
     {
+        if (itemIdx == -1)
+        {
+            itemIdx = m_lotto.m_defaultIdx;
+            count = m_lotto.m_defaultCount;
+            if (itemIdx == 0)
+            {
+                pItem->m_addInfo = itemIdx;
+                pItem->m_addInfo2 = count;
+                return;
+            }
+        }
         pItem->m_addInfo = itemIdx;
         G_CDataManager()->m_itemList->create_item(
             (ENUM_ITEM_CREATE_TYPE)2, *pItem, count);
@@ -1141,34 +1171,36 @@ void CStackableItem::get_lotto_item(char* out)
 
 // ===================== verifyUsablePlace（ORIG 0x850e9f4） =====================
 
-// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// [b28d-N90] fresh 复验 94/99：维持 N90（vector 迭代器 + std::find 外联/槽平移）。
+// [b28d-solo-CStackableItem] ORIG 0x850e9f4：place 为 UsablePlace 类型（find 实例
+// `…EEEES3_ET_S9_S9_RKT0_` 的 RKT0_=UsablePlace，int 版 mangled 为 `…EEEiE`）；
+// 比较为单表达式 `find(...) == m_usablePlaces.end()`（end() 求值两次：-0x18 供
+// 比较、-0x10 供 find），迭代器为非 const iterator（eq 实例 `eqIPN…`）。
 bool CStackableItem::verifyUsablePlace(CUser* user)
 {
     if (m_usablePlaces.empty())
     {
         return 1;
     }
-    int place = 0;
+    StackableAction::UsablePlace place =
+        static_cast<StackableAction::UsablePlace>(0);
     if (G_GameWorld()->IsPVPChannel())
     {
-        place = 3;
+        place = StackableAction::USABLE_PLACE_PVP;
     }
     else
     {
         switch (user->get_state())
         {
         case 5:
-            place = 2;
+            place = StackableAction::USABLE_PLACE_DUNGEON;
             break;
         case 3:
-            place = 1;
+            place = StackableAction::USABLE_PLACE_VILLAGE;
             break;
         }
     }
-    std::vector<StackableAction::UsablePlace>::const_iterator it =
-        std::find(m_usablePlaces.begin(), m_usablePlaces.end(), place);
-    if (it == m_usablePlaces.end())
+    if (std::find(m_usablePlaces.begin(), m_usablePlaces.end(), place)
+        == m_usablePlaces.end())
     {
         return 0;
     }
@@ -1201,7 +1233,7 @@ struct CItemView
 void CStackableItem::set_item(STStackableScript& script)
 {
     char buf[500];
-    unsigned long seed = (unsigned long)time(0) + (unsigned long)script.m_field0;
+    unsigned long seed = time(0) + script.m_field0;
     m_pRand = new CMTRand(seed);
     m_index = script.m_field0;
     m_grade = script.m_field4;
@@ -1215,7 +1247,6 @@ void CStackableItem::set_item(STStackableScript& script)
     {
         G_CDataManager()->set_AuctionRegFreeCeraItem(m_index);
     }
-    m_boolF8 = script.m_field31;
     __asm__ __volatile__(
         "movl $0, %%eax\n\t"
         "movl $0x7d, %%edx\n\t"
@@ -1224,16 +1255,12 @@ void CStackableItem::set_item(STStackableScript& script)
         "rep stosl\n\t"
         : : "b"(buf) : "eax", "edx", "ecx", "edi", "memory");
     strcpy(buf, script.m_strac.c_str());
-    char scriptText[256];
-    strncpy(scriptText, script.m_strac.c_str(), sizeof(scriptText) - 1);
-    scriptText[sizeof(scriptText) - 1] = '\0';
-    if (!CodePage::script2Database(scriptText, buf))
+    if (!CodePage::script2Database((char*)script.m_strac.c_str(), buf))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x80, 5);
-        trace("Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
-              CodePage::database(), script.m_strac.c_str(),
-              "void CStackableItem::set_item(STStackableScript&)", 0x80);
+        cMyTrace(__PRETTY_FUNCTION__, 0x80, 5)(
+            "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
+            CodePage::database(), script.m_strac.c_str(),
+            "void CStackableItem::set_item(STStackableScript&)", 0x80);
     }
     m_str2c = buf;
     m_usablePeriod = script.m_fieldf4;
@@ -1461,8 +1488,13 @@ void CStackableItem::set_item(STStackableScript& script)
 
 // ===================== get_multibox_default_item（ORIG 0x850f136） =====================
 
-// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// [b28d-N90] fresh 复验 153/144：维持 N90。
+// [b28d-solo-CStackableItem] ORIG 0x850f136：rand/sum/itemIdx/count/flag 声明在函数头
+// （-0x20/-0x1c/-0x18/-0x14/-0xd），循环体内先 `it = begin()`（-0x2c）再
+// get_rand_int(1000000)；内层 while 每次调 end()、增量 `it++`（ppEi）。
+// fresh 复验 153/152：结构逐条对齐；残差 = ①`sum += (*it).m_prob` ORIG 4.1 走
+// `mov mem,%edx; mov sum,%eax; lea (edx,eax)` 四段、4.4 恒折 `mov mem,%eax;
+// add %eax,sum`（加法折叠 N18b 族，`prob+sum`/`sum+prob` 两序实测同形）；②比较
+// 方向 `cmp sum,rand;jle` vs `cmp rand,sum;jge`（N18b，`!(rand>=sum)` 实测劣化 +4）。
 void CStackableItem::get_multibox_default_item(
     std::vector<std::pair<Inven_Item, bool> >* out)
 {
@@ -1470,26 +1502,30 @@ void CStackableItem::get_multibox_default_item(
     {
         return;
     }
+    int rand = 0;
+    int sum = 0;
+    int itemIdx = 0;
+    int count = 0;
+    bool flag = false;
     for (unsigned int i = 0;
-         i < (unsigned int)m_multiBox.m_default.m_defaultCount; ++i)
+         i < (unsigned int)m_multiBox.m_default.m_defaultCount; i++)
     {
-        int rand = get_rand_int(1000000);
-        int sum = 0;
-        int itemIdx = 0;
-        int count = 0;
-        bool flag = false;
-        for (std::vector<MultiBoxLotteryInfo::stDefaultItem>::iterator it =
-                 m_multiBox.m_default.m_items.begin();
-             it != m_multiBox.m_default.m_items.end(); ++it)
+        std::vector<MultiBoxLotteryInfo::stDefaultItem>::iterator it =
+            m_multiBox.m_default.m_items.begin();
+        rand = get_rand_int(1000000);
+        sum = 0;
+        itemIdx = 0;
+        while (it != m_multiBox.m_default.m_items.end())
         {
-            sum += it->m_prob;
-            if (rand < sum)
+            sum += (*it).m_prob;
+            if (sum > rand)
             {
-                itemIdx = it->m_itemIdx;
-                count = it->m_count;
-                flag = it->m_flag != 0;
+                itemIdx = (*it).m_itemIdx;
+                count = (*it).m_count;
+                flag = (*it).m_flag != 0;
                 break;
             }
+            it++;
         }
         if (itemIdx == 0)
         {
@@ -1510,8 +1546,9 @@ void CStackableItem::get_multibox_default_item(
 
 // ===================== get_multibox_default_item_arad（ORIG 0x850f38a） =====================
 
-// [b28d-N90] fresh 复验 208/265：维持 N90 + 静态局部 guard 形差（P21/N89）；
-// 该函数含 ORIG 静态表 guard（0x943de58）。
+// [b28d-solo-CStackableItem] ORIG 0x850f38a：**static 成员**（首参 0x8(%ebp)、无 this，
+// P245/P281）；静态表 push_back 走右值重载 push_backEOS1_（临时对象直传，P270）；
+// 选择循环 rand<=sum、operator*、it++（ppEi），pair.second 直写 0。
 void CStackableItem::get_multibox_default_item_arad(
     std::vector<std::pair<Inven_Item, bool> >* out)
 {
@@ -1523,59 +1560,57 @@ void CStackableItem::get_multibox_default_item_arad(
         defaultItemListArad;
     if (defaultItemListArad.empty())
     {
-        MultiBoxLotteryInfo::LotteryDefaultArad a(0x28be16, 10, 50000);
-        defaultItemListArad.push_back(a);
-        MultiBoxLotteryInfo::LotteryDefaultArad b(0x28be16, 0x32, 25000);
-        defaultItemListArad.push_back(b);
-        MultiBoxLotteryInfo::LotteryDefaultArad c(0x28be16, 100, 5000);
-        defaultItemListArad.push_back(c);
-        MultiBoxLotteryInfo::LotteryDefaultArad d(0x28d150, 1, 10000);
-        defaultItemListArad.push_back(d);
+        defaultItemListArad.push_back(
+            MultiBoxLotteryInfo::LotteryDefaultArad(0x28be16, 10, 50000));
+        defaultItemListArad.push_back(
+            MultiBoxLotteryInfo::LotteryDefaultArad(0x28be16, 0x32, 25000));
+        defaultItemListArad.push_back(
+            MultiBoxLotteryInfo::LotteryDefaultArad(0x28be16, 100, 5000));
+        defaultItemListArad.push_back(
+            MultiBoxLotteryInfo::LotteryDefaultArad(0x28d150, 1, 10000));
     }
+    int rand = 0;
+    int sum = 0;
     int itemIdx = 0;
     int count = 0;
-    int flag = 0;
-    int sum = 0;
-    // ORIG 0x0850f4xx：`call vector::empty; test %al; je` 判空形（非 size()
-    // 比较，旧 `unsigned i=0; i<size()` 死码形已废）。
-    if (!defaultItemListArad.empty())
+    unsigned int i = 0;
+    if (i < defaultItemListArad.size())
     {
-        int rand = get_rand_int(100000);
+        rand = get_rand_int(100000);
         sum = 0;
         itemIdx = 0;
         for (std::vector<MultiBoxLotteryInfo::LotteryDefaultArad>::iterator
                  it = defaultItemListArad.begin();
-             it != defaultItemListArad.end(); ++it)
+             it != defaultItemListArad.end(); it++)
         {
-            sum += it->m_field8;
-            if (rand <= sum)
+            sum += (*it).m_field8;
+            if (sum >= rand)
             {
-                itemIdx = it->m_field0;
-                count = it->m_field4;
+                itemIdx = (*it).m_field0;
+                count = (*it).m_field4;
                 break;
             }
         }
+        Inven_Item item;
+        item.m_addInfo = itemIdx;
+        G_CDataManager()->m_itemList->create_item(
+            (ENUM_ITEM_CREATE_TYPE)2, item, count);
+        std::pair<Inven_Item, bool> p;
+        p.first = item;
+        p.second = false;
+        out->push_back(p);
     }
-    if (itemIdx == 0)
-    {
-        itemIdx = m_multiBox.m_default.m_defaultIdx;
-        count = m_multiBox.m_default.m_defaultNum;
-        flag = m_multiBox.m_default.m_defaultFlag;
-    }
-    Inven_Item item;
-    item.m_addInfo = itemIdx;
-    G_CDataManager()->m_itemList->create_item(
-        (ENUM_ITEM_CREATE_TYPE)2, item, count);
-    std::pair<Inven_Item, bool> p;
-    p.first = item;
-    p.second = flag != 0;
-    out->push_back(p);
 }
 
 // ===================== get_multibox_lottery_item（ORIG 0x850edda） =====================
 
-// 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
-// [b28d-N90] fresh 复验 214/201：维持 N90。
+// [b28d-solo-CStackableItem] ORIG 0x850edda：rand/sum/itemIdx/count/flag 声明在函数头
+// （-0x24/-0x20/-0x1c/-0x18/-0xd）；外层 while 每次调 end()、增量 unitIt++（ppEi）；
+// unit 拷贝构造落 -0x68；内层双迭代器 itemIt(-0x40)/bonusIt(-0x44) 均 ppEi，
+// 字段访问走 operator*（deEv）。
+// fresh 复验 215/216：结构/槽位逐条对齐；残差 2 条 = `p.second = flag`（char→bool）
+// ORIG 4.1 直接 `movzbl -0xd; mov %al` 不归一化，4.4 恒 `cmpb $0,-0xd; setne`（bool
+// 赋值归一化跨版本差，N/B 族；flag 改 bool 则 default 分支反向多 2 条，净差相同）。
 void CStackableItem::get_multibox_lottery_item(
     std::vector<std::pair<Inven_Item, bool> >* out)
 {
@@ -1583,40 +1618,43 @@ void CStackableItem::get_multibox_lottery_item(
     {
         return;
     }
-    for (std::vector<MultiBoxLotteryInfo::LotteryUnit>::iterator unitIt =
-             m_multiBox.m_units.begin();
-         unitIt != m_multiBox.m_units.end(); ++unitIt)
+    int rand = 0;
+    int sum = 0;
+    int itemIdx = 0;
+    int count = 0;
+    char flag = 0;
+    std::vector<MultiBoxLotteryInfo::LotteryUnit>::iterator unitIt =
+        m_multiBox.m_units.begin();
+    while (unitIt != m_multiBox.m_units.end())
     {
         MultiBoxLotteryInfo::LotteryUnit unit(*unitIt);
-        for (int i = 0; i < unit.m_count; ++i)
+        for (int i = 0; i < unit.m_count; i++)
         {
-            int rand = get_rand_int(1000000);
-            int sum = 0;
-            int itemIdx = 0;
-            int count = 0;
-            bool flag = false;
             std::vector<std::pair<int, int> >::iterator it =
                 unit.m_items.begin();
             std::vector<std::pair<int, int> >::iterator it2 =
                 unit.m_bonus.begin();
+            rand = get_rand_int(1000000);
+            sum = 0;
+            itemIdx = 0;
             while (it != unit.m_items.end())
             {
-                sum += it->second;
-                if (rand < sum)
+                sum += (*it).second;
+                if (sum > rand)
                 {
-                    itemIdx = it->first;
-                    count = it2->first;
-                    flag = it2->second != 0;
+                    itemIdx = (*it).first;
+                    count = (*it2).first;
+                    flag = (*it2).second != 0;
                     break;
                 }
-                ++it;
-                ++it2;
+                it++;
+                it2++;
             }
             if (itemIdx == 0)
             {
                 itemIdx = unit.m_defaultIdx;
                 count = unit.m_defaultNum;
-                flag = unit.m_defaultFlag != 0;
+                flag = unit.m_defaultFlag;
             }
             Inven_Item item;
             item.m_addInfo = itemIdx;
@@ -1627,6 +1665,7 @@ void CStackableItem::get_multibox_lottery_item(
             p.second = flag;
             out->push_back(p);
         }
+        unitIt++;
     }
 }
 

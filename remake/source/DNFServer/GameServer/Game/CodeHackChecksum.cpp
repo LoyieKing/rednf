@@ -140,7 +140,8 @@ void CodeHackChecksumData::AddCodeHackChecksum(const CodeHackChecksum& c)      /
     m_checksums.push_back(c);
 }
 
-// [b28d-lane16 DIFF] ORIG 0808a662：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-CodeHackChecksum AE] ORIG 0x0808a662：显式 `(const char*)` 实参形
+// 闭合 memcmp 装载序（见函数体内 P268 cast 旋钮注释）；仅余 call 重定位伪差。
 bool CodeHackChecksumData::IsRightChecksum(const CodeHackChecksum* p) // T @0x0808a662
 {
     // [b28d-lane16] ORIG 0x0808a668 `lea -0x14(%ebp); call __normal_iterator::C1Ev`
@@ -152,11 +153,11 @@ bool CodeHackChecksumData::IsRightChecksum(const CodeHackChecksum* p) // T @0x08
     for (; it != m_checksums.end(); ++it)
     {
         const CodeHackChecksum* e = &(*it);
-        // [b28d-lane16 N-P75] ORIG 0x0808a69e `mov 0xc(%ebp),%edx; mov -0xc(%ebp),%eax;
-        // movl $0x20,0x8(%esp)`（先求 p/e 入寄存器再压常量）；4.4 恒右到左即时压参
-        // （`movl $0x20,0x8(%esp)` 先）。sizeof/0x20/具名三形实测同形 ⇒ 跨版本实参
-        // 装载调度差异，语义等价封顶。
-        if (std::memcmp(e, p, 0x20) == 0)
+        // [b28d-solo-CodeHackChecksum] ORIG 0x0808a69e 先载 p→%edx / e→%eax 再压常量；
+        // 4.4 对裸指针实参恒即时右到左压参（常量先）⇒ 显式 `(const char*)` cast
+        // 复现 ORIG「先求值后压栈」调度（P268 cast 旋钮族；探针 /tmp/probe_chc2.cpp
+        // g1 裸形 vs g2 cast 形）。
+        if (std::memcmp((const char*)e, (const char*)p, 0x20) == 0)
             return true;
     }
     return false;
@@ -203,7 +204,9 @@ CodeHackCheckRange* CodeHackChecksumEx::GetCodeHackCheckRange()                 
 // 序列化布局：<int8 len> <len 字节文件名> <8 字节 range> <int8 count>
 //             <count × 32 字节 CodeHackCheckpoint>……（长度字节按 ORIG 以
 //             movzbl/movsbl 有符号读取转写）。
-// [b28d-lane16 DIFF] ORIG 0808a802：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-CodeHackChecksum N-P75 封顶] ORIG 0x0808a802：唯一残差 = Add 调用点
+// 的 this/实参装载序（ORIG this-first，4.4 实参-first，见循环内注释），八形探针
+// 均不可翻 ⇒ 跨版本求值序，语义等价。
 void CodeHackChecksumEx::setData(const char* serialized)
 {
     // ORIG 直接推进形参槽（addl $0x4,0xc(%ebp)）——下文直接以 serialized 使用。
@@ -223,14 +226,18 @@ void CodeHackChecksumEx::setData(const char* serialized)
         std::memcpy(buf, serialized, sizeof(buf));        // memcpy(local_34,p,0x20)
         serialized += 0x20;                               // addl $0x20
         AddCodeHackChecksum(*reinterpret_cast<CodeHackChecksum*>(buf));  // push_back
-        // [b28d-lane16 N76 封顶] ORIG 0x0808a89e `mov 0x8(%ebp),%eax; lea -0x34(%ebp),%edx`
-        // = this 先载/实参地址后算；4.4 恒 lea 实参先（receiver 表达式化五形实测：
-        // 裸调用/static_cast 向上/reinterpret_cast 引用/显式 this-> 均不变）⇒ 求值序
-        // 跨版本结构性差异，封顶（语义等价，1 条装载序）。
+        // [b28d-solo-CodeHackChecksum N-P75 封顶] ORIG 0x0808a89e `mov 0x8(%ebp),%eax;
+        // lea -0x34(%ebp),%edx`（this 先求值，实参后）；4.4 对成员调用恒先求实参、
+        // 后求 this（求值序右到左）。本波八形实测均不翻：裸调用/显式 this->/
+        // Data:: 限定/reinterpret_cast 向上/static_cast 向上/(*this)/&buf[0]/
+        // 派生类调基类方法/逗号表达式（探针 /tmp/probe_chc.cpp、probe_chc2.cpp
+        // sA-sE、probe_chc3.cpp tA-tF、probe_chc4.cpp uA-uD）⇒ 跨版本实参/this
+        // 求值序差异（P75），语义等价，封顶。
     }
 }
 
-// [b28d-lane16 DIFF] ORIG 0808a8c8：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-CodeHackChecksum AE] ORIG 0x0808a8c8：与 Data 版同形，显式
+// `(const char*)` 实参形闭合（见函数体内注释）；仅余 call 重定位伪差。
 bool CodeHackChecksumEx::IsRightChecksum(const CodeHackChecksum* p) // T @0x0808a8c8
 {
     // [b28d-lane16] 与 CodeHackChecksumData::IsRightChecksum 同形：ORIG 0x0808a8ce
@@ -241,8 +248,11 @@ bool CodeHackChecksumEx::IsRightChecksum(const CodeHackChecksum* p) // T @0x0808
     for (; it != m_checksums.end(); ++it)
     {
         const CodeHackChecksum* e = &(*it);
-        // [b28d-lane16 N-P75] memcmp 实参装载调度跨版本差异（同 Data 版）。
-        if (std::memcmp(e, p, 0x20) == 0)
+        // [b28d-solo-CodeHackChecksum] memcmp 实参须显式 `(const char*)` 形：
+        // ORIG 0x0808a8ce 先载 p→%edx / e→%eax 再压常量，4.4 对裸指针实参
+        // 恒即时右到左压参（常量先）；显式 cast 使 4.4 复现「先求值后压栈」
+        // 调度（P268 cast 旋钮族，Data 版同形 0x0808a69e）。
+        if (std::memcmp((const char*)e, (const char*)p, 0x20) == 0)
             return true;
     }
     return false;

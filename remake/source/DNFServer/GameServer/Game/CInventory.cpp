@@ -448,6 +448,7 @@ CInventory::~CInventory()
 }
 CInventory::CInventory(const CInventory& other)
 {
+    // b28d-solo-CInventory：157/196，N84 封顶（ORIG 隐式 rep movsl 块拷贝；全仓无 U 引用不可删显式定义）。
     // b28d-37 [N84 封顶，ORIG 0x869??]：同 aSERKS_——C1ERKS_ 为 W 隐式拷贝但全仓无 U 引用（无发射点），回退显式定义封顶。157/196。
     m_pParent = other.m_pParent;
     m_money = other.m_money;
@@ -478,6 +479,7 @@ CInventory::CInventory(const CInventory& other)
 
 CInventory& CInventory::operator=(const CInventory& other)
 {
+    // b28d-solo-CInventory：116/116，N84 封顶（ORIG rep movsl 隐式拷贝，全仓无 U 引用不可删显式定义）。
     // b28d-37 [N84 封顶，ORIG 0x869d73c]：ORIG aSERKS_ 为 W 隐式合成（rep movsl 0x18c dwords + word）；隐式版与 ORIG AE 但全仓 `nm -u` 无 U 引用（_Charac_info 以 blob 建模、外部走 setCopy）⇒ 无发射点，回退显式定义封顶。116/116。
     m_pParent = other.m_pParent;
     m_money = other.m_money;
@@ -701,6 +703,7 @@ Inven_Item* CInventory::GetInvenStart(int invenType) const
 
 Inven_Item CInventory::GetInvenSlot(int invenType, int slot) const
 {
+    // b28d-solo-CInventory：256/170，P167 调用点 CLEAR；差为 libstdc++ 模板内联 ⇒ N89 封顶。
     // b28d-37 [N89/N82 封顶，ORIG 0x850?]：P167 调用点差集 CLEAR（0 missing/0 extra）⇒ 语义闭合；ORIG 256 vs our 170 差为 libstdc++ 模板内联/帧复用（N89 族）。
     Inven_Item item;
     if (CheckValidSlot(invenType, slot) != 1)
@@ -777,36 +780,37 @@ int CInventory::GetInvenSlotByRef(int invenType, int slot, Inven_Item& item)
 
 void CInventory::GetInvenData(int invenType, void* out, int size) const
 {
+    // b28d-solo-CInventory：已修——5 处 memcpy 长度改用形参 size（ORIG 实证 0x14(%ebp)），73/73 仅余重定位伪差 ⇒ AE（待 relink）。
     switch (invenType)
     {
     case 0:
         if (size == 0x632)
         {
-            memcpy(out, m_invenItem, 0x632);
+            memcpy(out, m_invenItem, size);
         }
         break;
     case 1:
         if (size == 0x4a58)
         {
-            memcpy(out, m_pEquipSlot, 0x4a58);
+            memcpy(out, m_pEquipSlot, size);
         }
         break;
     case 2:
         if (size == 0x1905)
         {
-            memcpy(out, m_pAvatarSlot, 0x1905);
+            memcpy(out, m_pAvatarSlot, size);
         }
         break;
     case 3:
         if (size == 0x39aa)
         {
-            memcpy(out, m_pCreatureSlot, 0x39aa);
+            memcpy(out, m_pCreatureSlot, size);
         }
         break;
     case 5:
         if (size == 0x2dc)
         {
-            memcpy(out, &m_invenItem[10], 0x2dc);
+            memcpy(out, &m_invenItem[10], size);
         }
         break;
     }
@@ -1116,6 +1120,7 @@ int CInventory::QuickEmptyCount() const
 
 int CInventory::GetRemainCapacity(INVEN_TYPE invenType, Inven_Item::ITEM_TYPE type) const
 {
+    // b28d-solo-CInventory：113/129，type switch 被 4.4 折 bitmask（ORIG 用跳表 jmp *%eax）+ push %ebx 差 ⇒ N18a/N82 封顶。
     // b28d-37 [N18a/N82 封顶，ORIG 0x84f?]：push %ebx 差 + 帧/槽残差（113/129）。
     int count = 0;
     switch (invenType)
@@ -1361,6 +1366,7 @@ int CInventory::GetSlotItemType(int slot) const
 
 void CInventory::getHashCode(unsigned char* out)
 {
+    // b28d-solo-CInventory：41/41，6 处 lea -0xe0↔-0xe8 全帧槽基差 ⇒ N95 封顶（4.4 帧顶恒留 8B gap）。
     // b28d-37 [N95 封顶，ORIG 0x084fa91c]：fresh 复验 orig 41 / our 41（NDIFF=6，
     // 全为 6 处 `lea -0xe0(%ebp)` vs `lea -0xe8(%ebp)`）。md5_context 大局部
     // （0xdc 字节）4.1 可顶到 ebp（outgoing 区含 8B gap），4.4-O0 局部槽基恒从
@@ -1378,6 +1384,7 @@ void CInventory::getHashCode(unsigned char* out)
 
 int CInventory::getPackedCodeArray1(unsigned long* out, int maxCount)
 {
+    // b28d-solo-CInventory：138/141，帧/槽与寄存器分配残差 ⇒ N82 封顶。
     // b28d-37 [N82 封顶，ORIG 0x84f?]：帧/槽与寄存器分配残差（138/141）。
     int count = 0;
     for (int i = 0; i < 0x1a; i++)
@@ -1512,6 +1519,7 @@ size_t CInventory::getSortedKeyArray(unsigned long* out, int maxCount)
 // 残余 |gap|=4 = ORIG movzwl 双段零扩展 vs register 变量 spill 形态差（勿再按 ndiff 迭代）。
 int CInventory::makeCheckSum(int a, int b) const
 {
+    // b28d-solo-CInventory：169/173，ORIG v 零扩展（movzwl %ax,%ebx）跨 GetUpgrade 保活 vs 我方 %esi ⇒ N18a 封顶。
     // b28d-37 [N18a 封顶，ORIG 0x84f?]：movzwl 两段 vs 单段 + 寄存器分配（169/173）。
     int sum = 0;
     // ORIG 三处 GetUpgrade 独立调用点（两循环分支各自物化，勿合并共享）。
@@ -1652,6 +1660,7 @@ int CInventory::UseUpCoin(unsigned int amount)
 
 int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int param)
 {
+    // b28d-solo-CInventory：207/207，帧 0x6c/0x5c + bool spill/trace/money 三槽位差 ⇒ N82附（聚合对象优先占低槽）封顶。
     // b28d-37：ORIG 0x84ff29c 槽序 money(-0x40) < trace(-0x38) < limit(-0x28)
     // < oldMoney(-0x24) < gained(-0x20) < i(-0x1c)。块内 `int money` 被 4.4
     // 分配到浅槽(-0x1c)且整帧 +0x10；按 P212 提到函数头并置于槽深序首位复现。
@@ -1721,6 +1730,7 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
 
 bool CInventory::use_money(int amount, eMoneySubReason reason, bool bLog)
 {
+    // b28d-solo-CInventory：166/163，cMyTrace 槽序/帧残差 ⇒ N82/P221 封顶（两形互试已做）。
     // b28d-37 [N82/P221 封顶，ORIG 0x84fef?]：cMyTrace 对象槽序与帧残差
     // （166/163；P221 临时链两形互试按 ORIG 槽址择一）。
     int oldMoney;
@@ -1782,6 +1792,7 @@ int CInventory::getValidMoney(int add)
 
 int CInventory::GetInvenData(int itemIdx, Inven_Item& out) const
 {
+    // b28d-solo-CInventory：214/213，StartEndPos 实参装载寄存器 %eax↔%edx + 死写缺 ⇒ P0/P211/N7 封顶。
     // b28d-37 [P0/P211 封顶，ORIG 0x84f?]：lea vs mov 中转、缺 `mov $I,%eax`
     // 死写（214/213）。
     int type = GetItemType(itemIdx);
@@ -2108,6 +2119,7 @@ int CInventory::insertInvenItemIntoCoresspondingSpace(Inven_Item item, eItemAddR
 // [N82 封顶] batch-10：差集 18=18 归零；残余 gap=4 同上（esi/edi 持值形态差）。
 int CInventory::stackInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason reason, bool bLog)
 {
+    // b28d-solo-CInventory：192/188，callee-saved/槽残差 ⇒ N82 封顶。
     // b28d-37 [N82 封顶，ORIG 0x850?]：callee-saved/槽残差（192/188）。
     if (item.m_field1 == 1)
     {
@@ -2169,6 +2181,7 @@ int CInventory::stackInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason reas
 int CInventory::stackInvenItemIntoCorrespondingSpace(Inven_Item item, eItemAddReason reason,
                                                      bool bLog)
 {
+    // b28d-solo-CInventory：209/205，同 stackInvenItemIntoQuickSlot ⇒ N82 封顶。
     // b28d-37 [N82 封顶，ORIG 0x850?]：同 stackInvenItemIntoQuickSlot（209/205）。
     if (item.m_field1 == 1)
     {
@@ -2328,6 +2341,7 @@ int CInventory::tryStackInvenItemIntoCorrespondingSpace(Inven_Item item) const
 
 int CInventory::insertItemIntoInventory(Inven_Item item, eItemAddReason reason, bool bLog, bool b)
 {
+    // b28d-solo-CInventory：428/426，比较/装载形态 ⇒ P211/P265 封顶。
     // b28d-37 [P211/P265 封顶，ORIG 0x84f?]：比较/装载形态残差（428/426）。
     if (item.m_addInfo == 0)
     {
@@ -2511,6 +2525,7 @@ int CInventory::tryInsertItemIntoInventory(Inven_Item item) const
 
 int CInventory::insertItemIntoEquipment(Inven_Item item, eItemAddReason reason, bool bLog, bool b)
 {
+    // b28d-solo-CInventory：88/88，if/else 极性已改（ORIG je 落 logFormat 尾块）⇒ 仅余 N7 间接 call 目标 %eax↔%edx 封顶。
     // b28d-37 [N7 封顶，ORIG 0x84ff8??]：间接 call 目标寄存器 %eax↔%edx 互换（ORIG `mov (%eax),%edx;...call *%edx` vs 4.4 `mov (%eax),%eax;...call *%eax`）；P230 换 4.4.6 后端可翻，本波不改路由 ⇒ 封顶。88/88，语义闭合。
     CItem* pItem = G_CDataManager()->find_item(item.m_addInfo);
     if (pItem == 0)
@@ -2524,17 +2539,17 @@ int CInventory::insertItemIntoEquipment(Inven_Item item, eItemAddReason reason, 
     m_invenItem[pItem->GetItemType()].setCopy(item);
     if (bLog)
     {
-        if (m_pParent == 0)
+        if (m_pParent != 0)
+        {
+            m_pParent->m_historyLog.ItemAdd(
+                (INVEN_TYPE)1, 1, 1, item, reason);
+        }
+        else
         {
             LogManager::logFormat(
                 1, "inventory.cpp",
                 __PRETTY_FUNCTION__,
                 0x14f9, "History ERROR, m_pParent NULL, ItemAdd ");
-        }
-        else
-        {
-            m_pParent->m_historyLog.ItemAdd(
-                (INVEN_TYPE)1, 1, 1, item, reason);
         }
     }
     return pItem->GetItemType();
@@ -3187,6 +3202,7 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item, INVEN_TYPE invenT
 // ============================================================================
 bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const
 {
+    // b28d-solo-CInventory：1073/1072，P167 CLEAR；N82/N89 封顶。
     // b28d-37 [N82/N89 封顶，ORIG 0x84fc6bc]：P183 去视图缓存已应用；P167 调用点 CLEAR；1073/1072。
     // [§6.2 闭合 · b20] P167 149/149 归零；ORIG 在本 const 方法内走
     // put_binary(const char*,int)（PKc 重载），expansion/expInfo 已常量化对齐
@@ -3435,6 +3451,7 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
 int CInventory::MakeSecuRewarditemPacket(INVEN_TYPE invenType, int slot,
                                          PacketGuard& packet) const
 {
+    // b28d-solo-CInventory：66/68，分支块序+实参中转残差 ⇒ N82/P222 封顶。
     // b28d-37 [N82/P222 封顶，ORIG 0x850?]：分支块序 + 实参中转残差（66/68）。
     InterfacePacketBuf& buf = reinterpret_cast<InterfacePacketBuf&>(packet);
     if (invenType != INVEN_TYPE_EQUIP)
@@ -3457,6 +3474,7 @@ int CInventory::RemoveFPItem()
 
 int CInventory::RemoveFPItem(Inven_Item* inven, Inven_Item* equip)
 {
+    // b28d-solo-CInventory：73/77，N108/P223 负例确认（4.4 岛数恒=条件数或 0）封顶。
     // b28d-37 [N108/P223 负例，ORIG 0x850a2bc]：我方多 2 个 `jmp+nop` 岛（ORIG 双岛 je 落点 +0x314/+0x317，4.4 岛数恒=条件数或 0，探针 l2_probe9 R1-R4 四式全败）⇒ 封顶。73/77。
     // ORIG 0x850a2d7..+0x43：三条件各为 || 短路 je/jbe/ja → INC 岛（0x850a314/
     // 0x850a317 4.1 nop 落点）；COND setle i<=0x19 / i<=0x137（i 槽 -0x10/-0xc）。
@@ -3498,6 +3516,7 @@ int CInventory::RemoveKCItem()
 
 int CInventory::RemoveKCItem(Inven_Item* inven, Inven_Item* equip)
 {
+    // b28d-solo-CInventory：142/146，同 RemoveFPItem（N108/P223 负例）封顶。
     // b28d-37 [N108/P223 负例，ORIG 0x850a0b7]：同 RemoveFPItem——我方多 2 个
     // jmp+nop 岛（4.4 不给『1 直落+2 岛』组合）；142/146。
     // ORIG 0x850a0b7..+0x4f：三条件 || 短路 je/jbe/ja → INC 岛(0x850a17f/
@@ -3774,6 +3793,7 @@ int CInventory::try_use_item(int slot, int count, int invenType) const
 void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& f, int& g,
                                      int& h)
 {
+    // b28d-solo-CInventory：178/173，分支极性+nop 落点残差 ⇒ N82/P222 封顶。
     // b28d-37 [N82/P222 封顶，ORIG 0x850?]：分支极性与 nop 落点残差（178/173）。
     if (a < 9 && b < 5)
     {
@@ -3850,6 +3870,7 @@ void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& 
 int CInventory::erase_repeated_item(const std::vector<std::pair<int, int> >& items,
                                     std::vector<std::pair<int, int> >& out)
 {
+    // b28d-solo-CInventory：158/159，帧/槽残差 ⇒ N82 封顶。
     // b28d-37 [N82 封顶，ORIG 0x850?]：帧/槽残差（158/159）。
     for (std::vector<std::pair<int, int> >::const_iterator it = items.begin(); it != items.end();
          ++it)
@@ -3904,6 +3925,7 @@ int CInventory::erase_repeated_item(const std::vector<std::pair<int, int> >& ite
 
 bool CInventory::tryDeleteEventItems(const std::vector<std::pair<int, int> >& items)
 {
+    // b28d-solo-CInventory：362/347，P167 MISSING ppEi×2 ⇒ N113 封顶。
     if (m_pParent->getGmQuestFlag())
     {
         return true;
@@ -4047,6 +4069,7 @@ bool CInventory::tryDeleteEventItems(const std::vector<std::pair<int, int> >& it
 
 int CInventory::tryInsertEventItems(const std::vector<std::pair<int, int> >& items)
 {
+    // b28d-solo-CInventory：297/256，P167 MISSING ppEi×3（N113：4.4 对结果未使用的后置 ++ 恒折 ppEv）⇒ 封顶。
     int insertCount = 0;
     if (items.size() == 0)
     {
@@ -4119,6 +4142,7 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
                                    eMoneySubReason moneyReason, eItemDelReason itemReason,
                                    bool bLog)
 {
+    // b28d-solo-CInventory：675/651，P167 MISSING ppEi×2 ⇒ N113 封顶。
     if (m_pParent->getGmQuestFlag())
     {
         return 1;
@@ -4331,6 +4355,7 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
 int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
                                          eMoneyAddReason moneyReason, eItemAddReason itemReason)
 {
+    // b28d-solo-CInventory：429/371，P167 EXTRA setCopy×2（ORIG 内联拷贝）⇒ N82/N84 封顶。
     // b28d-37 [N82 封顶，ORIG 0x850?]：帧/槽残差；P167 EXTRA `Inven_Item::setCopy`×2 系 ORIG 内联拷贝形差异（无 MISSING）；429/371。
     if (item.m_addInfo == 0)
     {
@@ -4435,6 +4460,7 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
 
 void CInventory::MoveClearAvatar(int a, int b, int c, int d, int e, int f)
 {
+    // b28d-solo-CInventory：268/273，N7 间接 call 目标寄存器封顶（4.4.7 后端固有）。
     // b28d-37 [N7 封顶，ORIG 0x850?]：间接 call 目标寄存器 %eax↔%edx 互换（P230 换后端可翻）；268/273。
     CItem* pClearItem = 0;
     CItem* pTargetItem = 0;
@@ -4509,6 +4535,7 @@ void CInventory::MoveClearAvatar(int a, int b, int c, int d, int e, int f)
 
 void CInventory::SendAvatarEvent(int a, int b, int c, int d, int e) const
 {
+    // b28d-solo-CInventory：249/262，比较链块序 + 槽残差 ⇒ N82 封顶。
     // b28d-37 [N82 封顶，ORIG 0x850?]：bool 物化/槽残差（249/262）。
     if (m_pParent == 0)
     {
@@ -4629,6 +4656,7 @@ void CInventory::ExpiredAvatarItem(PacketGuard* packet)
 int CInventory::CalBlankSlot(int* out,
                              const std::vector<std::pair<int, int> >& items) const
 {
+    // b28d-solo-CInventory：312/326，分支/帧残差 ⇒ N82 封顶。
     // b28d-37 [N82 封顶，ORIG 0x850?]：分支/帧残差（312/326）。
     if (items.size() == 0)
     {
@@ -4763,6 +4791,7 @@ int CInventory::CalBlankSlot(int* out,
 int CInventory::CalNeedSlot(int* out,
                             const std::vector<std::pair<int, int> >& items) const
 {
+    // b28d-solo-CInventory：238/239，帧/槽残差 ⇒ N82 封顶。
     // b28d-37 [N82 封顶，ORIG 0x850?]：帧/槽残差（238/239）。
     if (items.size() == 0)
     {
@@ -4867,6 +4896,7 @@ int CInventory::CalNeedSlot(int* out,
 
 int CInventory::CheckNeedItemList(const std::vector<std::pair<int, int> >& items) const
 {
+    // b28d-solo-CInventory：324/315，帧/槽残差 ⇒ N82 封顶。
     // b28d-37 [N82 封顶，ORIG 0x850?]：帧/槽残差（324/315）。
     if (m_pParent->getGmQuestFlag())
     {
@@ -5230,6 +5260,7 @@ int CInventory::AddAvatarItem(int itemIdx, int avatarUid, bool b, char c, char d
                               const char* agency, eAvatarItemAddReason reason, bool e,
                               unsigned short f)
 {
+    // b28d-solo-CInventory：208/206，帧/槽残差 ⇒ N82 封顶。
     // b28d-37 [N7+N82 封顶，ORIG 0x850?]：间接 call 寄存器角色互换（P230 换后端可翻）+ 槽残差（208/206）。
     CItem* pItem = G_CDataManager()->find_item(itemIdx);
     if (pItem == 0 || !pItem->IsAvatarItem())
@@ -5277,6 +5308,7 @@ int CInventory::AddAvatarItem(int itemIdx, int avatarUid, bool b, char c, char d
 // qsort 段串扰风险，判 N82 不强求。
 int CInventory::SortInvenSlot(Inven_Item::ITEM_TYPE type)
 {
+    // b28d-solo-CInventory：170/165，push esi/ebx callee-saved 差 ⇒ N18a 封顶。
     // b28d-37 [N18a 封顶，ORIG 0x850?]：push esi/ebx callee-saved 差（170/165）。
     int start = 0;
     int end = 0;
@@ -5350,6 +5382,7 @@ int CInventory::SortInvenSlot(Inven_Item::ITEM_TYPE type)
 
 int CInventory::ChangeEquip(INVEN_TYPE invenType, int slot, int equipSlot)
 {
+    // b28d-solo-CInventory：124/123，两处 4.1 槽比零 setne 物化（P197④ 4.4 恒折直跳）+ 尾 nop ⇒ setcc-fold/N93附 封顶；P225 while+break 实测 127 条劣化已回退。
     // b28d-37 [setcc-fold + N93附 封顶，ORIG 0x084fc37e]：ORIG 两处 `cmpl $0,-N; setne %al; test` 为 4.1 槽比零物化（P197④ 4.4 恒折直跳）；具名 bool 局部实测槽化劣化；尾 nop 落点属 N93附。详注见 case 1/2 体。
     if (CheckValidSlot(invenType, slot) != 1)
     {
@@ -5503,6 +5536,7 @@ bool CInventory::_SaveAvatarItem(int slot, int expireDate, bool b, char c,
                                  const char* agency, unsigned long hidden,
                                  const stAvatarExpansionInfo_t& expansion)
 {
+    // b28d-solo-CInventory：117/117，ORIG push %edi + sub 0x5c vs 我方 sub 0x60（callee-saved 缓存差）⇒ N18a/N82 封顶。
     // b28d-37 [N18a/N82 封顶，ORIG 0x8509e78]：callee-saved push 差 + 槽位残差（117=117 指令数，语义闭合）。
     if (m_pParent == 0)
         return false;
@@ -5578,6 +5612,7 @@ void SIG_AVATAR_INSERT::setJewelSocket(const stAvatarEmblemInfo_t& emblem)
 // ============================================================================
 int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, int dstSlot)
 {
+    // b28d-solo-CInventory：1282/1290，P167 CLEAR（80/80）；N82/N80/N6 封顶。
     // b28d-37 [N82 封顶，ORIG 0x08500688]：P167 调用点差集 CLEAR（80/80）；帧/槽复用残差（1282/1290），语义闭合。
     if (!(CheckValidSlot((int)invenType, slot) == 1 &&
           CheckValidSlot((int)dstType, dstSlot) == 1))
@@ -5954,6 +5989,7 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
 int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                               ENUM_EQUIPSLOT equipSlot) const
 {
+    // b28d-solo-CInventory：658/659，帧/槽 + libstdc++ 模板内联 ⇒ N82/N89 封顶。
     // b28d-37 [N82/N89 封顶，ORIG 0x84f?]：帧/槽 + libstdc++ 模板内联残差（658/659）。
     // [§6.2 闭合 · b20] P167 80/80 归零：本 const 方法 6 处 put_binary 已按
     // ORIG 走 PKc（const char*）重载（含 pExpansion 常量化，同宽同槽零扰动）。
@@ -6215,6 +6251,7 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
 bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                              eItemDelReason reason, bool bLog)
 {
+    // b28d-solo-CInventory：625/617，P167 CLEAR；帧/槽残差 ⇒ N82 封顶。
     // b28d-37 [N82 封顶，ORIG 0x850?]：帧/槽残差；P167 调用点 CLEAR（39/39）；625/617。
     if (CheckValidSlot(invenType, slot) != 1)
     {
@@ -6462,6 +6499,7 @@ int CInventory::insert_event_items(const std::vector<std::pair<int, int> >& item
                                    eItemAddReason itemReason, bool bLog,
                                    const char* a, const char* b)
 {
+    // b28d-solo-CInventory：871/874，N113（ppEi）封顶，语义闭合。
     // b28d-37 [N82/N89 封顶，ORIG 0x8506bb2]：P167 调用点差集 CLEAR（95/95）⇒ 语义闭合；871/874 差为帧/槽与模板内联。
     typedef std::vector<std::pair<int, int> >::const_iterator Iterator;
     int count = 0;
@@ -6706,6 +6744,7 @@ finish_value_statistic:
 void CInventory::SendItemLockList(const Inven_Item* items, int count,
                                   ENUM_ITEMSPACE space) const
 {
+    // b28d-solo-CInventory：113/115，槽平移 4/8；P212 全头部声明实测无改善已回退 ⇒ N82 封顶。
     // b28d-37 [N82 封顶，ORIG 0x850?]：帧/槽残差（112/114）。
     if (m_pParent == 0)
         return;
@@ -6781,6 +6820,7 @@ void CInventory::SendItemLockListCreature() const
 // ============================================================================
 bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
 {
+    // b28d-solo-CInventory：728/726，P167 108/108 归零；N82/N89 封顶。
     // b28d-37 [N82/N89 封顶，ORIG 0x84f?]：同 MakeEquipList（728/726）。
     // [§6.2 闭合 · b20] P167 108/108 归零：3 处 put_binary 已对齐 ORIG 的
     // PKc（const char*）重载（去 (char*) 强转 + expansion 常量化，零扰动）。

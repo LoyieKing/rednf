@@ -257,8 +257,13 @@ public:
     bool FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot) const;  // b28d-Main(P292)：ORIG 0x08680e5a 调用点 `call; test %al,%al; je` ⇒ bool
 
     // ---- 扩容 / 排序 ----
-    int UpgradeCargo(int capacity);
-    int isUpgradable(int capacity) const;
+    // b28d-solo-CCeraShop_Special(P292)：ORIG 0x0827be8a 调用点 `call; xor $0x1,%eax;
+    // test %al,%al; je`（3 条）⇒ 返回 bool；int 恒产 `cmp $1; setne; test`（4 条）。
+    // 返回类型不入 mangled；定义 CCargo.cpp:450 需同步（已上报 Main）。
+    bool UpgradeCargo(int capacity);
+    // b28d-solo-CCeraShop_Special(P292)：ORIG 0x0827bee6 调用点 `call; xor $0x1,%eax;
+    // test %al,%al; je`（3 条）⇒ 返回 bool。定义 CCargo.cpp:469 需同步（已上报 Main）。
+    bool isUpgradable(int capacity) const;
     void sort();
     static int _CompareSlot(const void* a, const void* b);
 

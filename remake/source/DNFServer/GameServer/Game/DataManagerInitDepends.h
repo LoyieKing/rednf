@@ -350,7 +350,7 @@ public:
     ~CLevelRewardTableMgr();   // ORIG 0x0868777c
     static CLevelRewardTableMgr* GetInstance();                  // ORIG W 0x0837505b
     void SetChallengeInfo(stUnlimitChallengeInfo& info);         // ORIG 0x08687828
-    unsigned char IsOn();                    // ORIG W 0x08697792 体=movzbl (this)+ret 直返（P9：m_flag 为 uchar 字段、ORIG 无 setne ⇒ 返回类型 uchar；mangled 无返回类型零 ABI 风险。caller xor 形按 X2 自救：register uchar asm(eax)+^=1，见 CUserDepsB processLevelUpEvent）
+    bool IsOn();                             // ORIG W 0x08697792 体=movzbl (this)+ret 直返（bool 字段直返同形）；P292 调用点判别：ORIG _processLevelReward 0x0868748b / CUserOnlyOrig 0x0864a5c8 均为 `call; xor $0x1,%eax; test %al,%al` ⇒ 返回类型 bool（uchar 恒产 test;sete 两段）。m_flag 同步 bool 化保直返形（mangled 无返回类型，零 ABI 风险）
     bool IsChallengingJob(char job);                  // ORIG T 0x08687792（定义 CUserDepsB.cpp）
     bool IsOnServer(int serverIdx);                   // ORIG T 0x08687d6c（W7_CUserFix 补；实现 owner=CUserDepsB.cpp）
     bool IsHaveStartLevelReward();                    // ORIG T 0x08687d18（同上）
@@ -358,7 +358,7 @@ public:
     CLevelRewardTable* GetProperLevelRewardTableR(int) const; // ORIG T 0x08687e6e（恒返 0；定义 CUserDepsB.cpp）
     static CLevelRewardTableMgr* levelRewardTableMgr;            // ORIG B 0x09473978
 
-    unsigned char m_flag;                 // +0x00
+    bool m_flag;                          // +0x00（ctor 写 0；IsOn 直返 movzbl）
     CLevelRewardTable* m_table;           // +0x04
     std::vector<int> m_vec8;              // +0x08
 };  // sizeof 0x14

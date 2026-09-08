@@ -16,12 +16,16 @@ namespace advancealtar
 // ORIG T 0x0812f9a2（StageControl.md 全文）：m_index=-1 →
 //   ProcStage::ProcStage(this+4, characData@this+0x98)（T 0x812dc18）+
 //   CharacData::CharacData(this+0x98)（T 0x812d024）。
-// 子对象以字节槽持有（advancealtar.h 布局注释），此处 placement 构造；
-// [B24D判词 N] 语义正确：m_index=-1 + ProcStage(*characData)@+0x04 +
-//   CharacData@+0x98 placement 构造（槽宽恰成 0x94/0x28）。差异=advancealtar.h↔
-//   ProcStage.h include 环致字节槽 placement new → GCC 生成 operator new +
-//   test/je + EH landing pad（多 ~28 条）vs ORIG 真成员直构；P67 EH 表示差异
-//   （b22 判词 N 族已述），可观察语义等价。
+// 子对象以字节槽持有（advancealtar.h 布局注释），此处 placement 构造。
+// [b28d-solo-StageControl] C1：ORIG 34 / ours 62。ORIG 为真成员直构（`lea 0x98(%eax),
+//   %edx` + `add $0x4,%eax` + call ProcStage::C1(CharacData&) + call CharacData::C1，
+//   仅 esi/ebx + sub 0x10 帧）。我方字节槽 + placement new ⇒ N83：4.4-O0 恒发
+//   `movl $0x94,(%esp); call _ZnwjPv`（size 装载行）+ test/je + 每子对象一段 EH
+//   cleanup（~28 条）。修法唯一路径 = StageControl 成员改真实类型，但
+//   advancealtar.h → advancealtar_ProcStage.h → NOTIPacketStruct.h → advancealtar.h
+//   为双向 include 环（NOTIPacketStruct.h 需 advancealtar::_Stage），成员化须拆环
+//   （波及全仓 include CGameManager.h/advancealtar.h 的 TU）。语义等价（m_index=-1 +
+//   ProcStage(*characData)@+0x04 + CharacData@+0x98，槽宽恰 0x94/0x28）。N 封顶（N83/P67）。
 StageControl::StageControl()
 {
     m_index = -1;
@@ -37,19 +41,13 @@ StageControl::StageControl()
 //   `mov this,%eax; add $0x98/0x4,%eax; mov %eax,(%esp)`，ORIG 无具名局部（P0：
 //   指针全程寄存器/出参槽直传）→ 此处亦内联 reinterpret_cast，不落 -0xc 槽。
 //
-// [b22判词·N族(P67 EH 析构清理落点)] ORIG（gcc4.1.2）把 ProcStage(+0x04) 与
-//   CharacData(+0x98) 作为真实数据成员，编译器自动生成的 D1 为二者析构建 try 区：
-//   CharacData::~CharacData 若抛，落点 `mov %edx,%ebx; mov %eax,%esi; ProcStage~D1;
-//   _Unwind_Resume` 仍销毁 ProcStage 再续抛 ⇒ 多出 `push %esi/%ebx; sub $0x10` 帧、
-//   一处 jmp 中继、整段 landing pad（orig 29 vs 语义体 13，差 16=EH 机械）。本重建
-//   StageControl 因 advancealtar.h↔advancealtar_ProcStage.h 双向 include 环
-//   （StageControl 定义处 ProcStage/CharacData 仅前向声明、类型不完整）以
-//   `unsigned char m_procStage[0x94]/m_characData[0x28]` 字节槽持子对象，用户显式
-//   析构体内 GCC4.4.7 不为「非成员自动析构」建 EH 清理（实测：即便改真实成员，4.4.7
-//   空体 D1 亦不出此 pad，见探针），故无法复现该落点；且 sizeof(ProcStage)/
-//   sizeof(CharacData) 恰等槽宽（0x94/0x28），成员化需拆 include 环（越界改动、
-//   波及全体 advancealtar TU）。可观察语义（逆序销毁 CharacData→ProcStage，参数
-//   指针/调用序/出参槽装载逐条同 ORIG）完整一致，byte 层 N 封顶。
+// [b28d-solo-StageControl] D1：ORIG 29 / ours 13。ORIG（真成员自动 D1）把
+//   CharacData::~CharacData(+0x98) 建 try 区，抛时落点 `mov %edx,%ebx; mov %eax,%esi;
+//   ProcStage~D1(+0x04); _Unwind_Resume` 后仍走正常路径 ProcStage~D1 ⇒ push esi/ebx +
+//   sub 0x10 帧 + 整段 landing pad。我方字节槽 + 显式析构调用无 EH 清理（P67/N91：
+//   4.4 对用户显式析构体不建该 pad）。与 C1 同根因（成员化须拆 include 环，见 C1 判词）。
+//   可观察语义（逆序销毁 CharacData→ProcStage，指针/调用序/出参槽逐条同 ORIG）等价。
+//   N 封顶（P67/N91）。
 StageControl::~StageControl()
 {
     reinterpret_cast<CharacData*>(reinterpret_cast<char*>(this) + 0x98)->~CharacData();
@@ -212,7 +210,7 @@ int StageControl::selectStage(CUser* user, int stageId,
     // [b28d-solo-StageControl] P183/P0：ORIG 每个访问点重算 this+0x98 / this+0x4
     // （无 getCharacData/getProcStage call、无具名指针槽）；逐点表达式直用。
     reinterpret_cast<CharacData*>(m_characData)->m_field0 =
-        (unsigned int)user->m_advanceAltar.getCurrentRidableId();
+        user->m_advanceAltar.getCurrentRidableId();
     reinterpret_cast<CharacData*>(m_characData)->setUser(user);
     reinterpret_cast<CharacData*>(m_characData)->setSlotItem();
 
@@ -378,9 +376,11 @@ void StageControl::gotoStage(CUser* user)
     Village* vill = G_GameWorld()->getUserVillage(user);
     if (vill == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x585, 5);
-        trace("%d", (int)user->getCurCharacVill());
+        // [b28d-solo-StageControl] P227：ORIG 在 ctor 前求 vararg 实参并以 %ebx 跨
+        //   ctor 保活（`call getCurCharacVill; movsbl %al,%ebx; ... call C1; mov %ebx,
+        //   0x8(%esp)`）⇒ 全表达式临时链形。
+        cMyTrace(__PRETTY_FUNCTION__, 0x585, 5)(
+            "%d", (int)user->getCurCharacVill());
         return;
     }
     // [b23S3C] P48：ORIG 两次独立 get_area(false)——+0x80 结果 eax 直落
@@ -388,9 +388,8 @@ void StageControl::gotoStage(CUser* user)
     Area* area = vill->getArea(user->get_area(false));
     if (area == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x58c, 5);
-        trace("%d", user->get_area(false));
+        cMyTrace(__PRETTY_FUNCTION__, 0x58c, 5)(
+            "%d", user->get_area(false));
         return;
     }
 
@@ -424,7 +423,14 @@ void StageControl::gotoStage(CUser* user)
  // 遍历 CMap::get_monster_list()（按值返回 list<_mapMonster>），对每只怪
  // getTowerInfo(monster.m_orderIdx, out, out)（+0x2c），命中即计数。
 // ----------------------------------------------------------------------------
-// [b28d-D9] N95/N89：ORIG getMap 直调+具名槽；4.4 inline getter 展开差 + 槽基差（ORIG 0x081307a6 sz 0x0000015b）
+// [b28d-solo-StageControl] getCenterCount：ORIG 103 / ours 99。已对齐：P183 去
+//   procStage/characData 具名指针槽（直接 this+4 / this+0x98）；P28 增量段 it++（ppEi
+//   后置带 sret 临时槽）；P96 非 const iterator（去转换构造临时）；ORIG -0x10 list 指针
+//   具名槽（monsterList = &monsters，begin/end 从槽取 this）逐条复现。
+//   唯一残差 = hit 取反物化：ORIG `movzbl -0x9,%eax; xor $1,%eax; test %al,%al; jne
+//   <skip>; ++count; jmp; nop`（8 条）vs 4.4 `cmpb $1,-0x9; jne; ++count`（P168a④：
+//   寄存器 xor 物化无绑定不可达，X2 两语句落栈槽；`hit^1` 被折 mem 直比 N18b）。
+//   语义等价（hit!=0 ⇒ ++count）。N 封顶（P168a④/N18b 族）。
 int StageControl::getCenterCount() const
 {
     // [b28d-solo-StageControl] P183：ORIG 直接 `this+4` 调 getMap、`this+0x98` 调
@@ -476,33 +482,52 @@ int StageControl::getCenterCount() const
  // 并遍历怪物表逐只构造 _MapMonsterSummary（仅 getTowerInfo 命中者
  // addCreatedMapMonster + put_binary(0xd)）；否则 put_int(0)；finalize→Send。
 // ----------------------------------------------------------------------------
-// [b28d-D9] N89/N95：getCharacData/getProcStage out-of-line call + 槽基差（289 vs 280）（ORIG 0x081301e0 sz 0x00000416）
+// [b28d-solo-StageControl] sendMapInfo：ORIG 293 / ours 290。已修：P183 去
+//   getCharacData/getProcStage out-of-line call 与具名 procStage 槽（每点重算
+//   this+0x98/this+0x4）；body ctor 移到 map 判空后/getTimeLine 前（ORIG 0x0813026e）；
+//   P214① sendMonsters 改直接 `if (a||b)`（无具名 bool 槽）；else 分支具名 zero 局部；
+//   Send 前重新 `this+0x98` 调 getUser；P190 两个取址 double 撑帧 0x80→0x90（帧已对齐）。
+//   残差 = 槽基浅 0x10（N95/N82：4.4 按首次使用序分配，framePad 只改帧不移动既有槽；
+//   ORIG 额外 -0x20 死计数器/-0x18 list 指针槽实测引入即反劣 290→302）；
+//   循环增量 N113：ORIG ppEi 后置在 4.4 恒折 ppEv（实测 it++ 反劣 290→298）。
+//   语义逐条等价。N 封顶（N95/N82/N113 族）。
 void StageControl::sendMapInfo()
 {
-    CUser* user = getCharacData()->getUser();
+    // [b28d-solo-StageControl] P183：ORIG 每访问点重算 this+0x98 / this+0x4
+    // （无 getCharacData/getProcStage out-of-line call、无具名 procStage 指针槽）。
+    // P190 附注：ORIG 帧 0x90 vs 4.4 紧凑帧 0x80 ⇒ 2 个取址 double 撑帧 +0x10。
+    double framePad0;
+    double framePad1;
+    (void)&framePad0;
+    (void)&framePad1;
+    CUser* user = reinterpret_cast<CharacData*>(m_characData)->getUser();
     if (user == 0)
     {
         return;
     }
-    ProcStage* procStage = getProcStage();
-    CMap* map = procStage->getMap();
+    CMap* map = reinterpret_cast<ProcStage*>(m_procStage)->getMap();
     if (map == 0)
     {
         return;
     }
-    TimeLine* timeLine = procStage->getTimeLine();
+    // ORIG 0x0813026e：body ctor 在 map 判空之后、getTimeLine 之前（Ghidra local_5c）。
+    NOTIPacketStruct::_NotiAdvanceAltarMapInfo body;
+    TimeLine* timeLine =
+        reinterpret_cast<ProcStage*>(m_procStage)->getTimeLine();
     if (timeLine == 0)
     {
         return;
     }
 
-    NOTIPacketStruct::_NotiAdvanceAltarMapInfo body;
-    body.m_stageType = procStage->getStageType();
-    body.m_currentSurvivalRoundNo = procStage->getCurrentSurvivalRoundNo();
+    body.m_stageType =
+        reinterpret_cast<ProcStage*>(m_procStage)->getStageType();
+    body.m_currentSurvivalRoundNo =
+        reinterpret_cast<ProcStage*>(m_procStage)->getCurrentSurvivalRoundNo();
     body.m_mapIndex = map->get_index();
     // TimeLine+0x0c = m_summary（TimeLineSummary）+0x00 = m_field0（int，`mov 0xc(%eax)`）。
     body.m_currentPhaseIndex = timeLine->m_summary.m_field0;
-    body.m_mapBasisLevel = procStage->getMapBasisLevel();
+    body.m_mapBasisLevel =
+        reinterpret_cast<ProcStage*>(m_procStage)->getMapBasisLevel();
 
     PacketGuard guard;
     guard.put_header(0, 0x20a);
@@ -515,9 +540,10 @@ void StageControl::sendMapInfo()
         guard.put_binary(reinterpret_cast<const char*>(&*it), 0xc);
     }
 
-    const bool sendMonsters = procStage->getStageType() != 1 ||
-                              !procStage->isSurvivalModeFirstRound();
-    if (sendMonsters)
+    // ORIG 0x08130391：`cmp $1,%eax; jne L_true; call; test; je L_false; L_true: mov $1;
+    // jmp; L_false: mov $0; test %al,%al; je L_else` —— 无具名 bool 槽（P214①）。
+    if (reinterpret_cast<ProcStage*>(m_procStage)->getStageType() != 1 ||
+        !reinterpret_cast<ProcStage*>(m_procStage)->isSurvivalModeFirstRound())
     {
         std::list<_mapMonster> monsters = map->get_monster_list();
         guard.put_int(getCenterCount());
@@ -541,17 +567,22 @@ void StageControl::sendMapInfo()
                 summary.m_posX = static_cast<unsigned char>(
                     it->m_posX);                          // +0x20 低字节
                 summary.m_champion = it->m_champion;      // +0x1c
-                procStage->addCreatedMapMonster(summary);
+                reinterpret_cast<ProcStage*>(m_procStage)->
+                    addCreatedMapMonster(summary);
                 guard.put_binary(reinterpret_cast<char*>(&summary), 0xd);
             }
         }
     }
     else
     {
-        guard.put_int(0);
+        // ORIG 0x08130570：`movl $0x0,-0xc(%ebp); mov -0xc(%ebp),%eax; ... put_int`
+        // —— 具名零局部（P0 槽往返），非字面量直压。
+        int zero = 0;
+        guard.put_int(zero);
     }
     guard.finalize(true);
-    user->Send(guard);
+    // ORIG 0x0813059c：Send 前重新 `this+0x98` 调 getUser（不复用开头 user 槽）。
+    reinterpret_cast<CharacData*>(m_characData)->getUser()->Send(guard);
 }
 
 // ---- TimeLine / Phase / TimeLineSummary（ORIG advancealtar__TimeLine 报告）----

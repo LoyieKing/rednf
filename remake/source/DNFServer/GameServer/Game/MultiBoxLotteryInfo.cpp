@@ -18,8 +18,6 @@ MultiBoxLotteryInfo::LotteryDefaultArad::LotteryDefaultArad(
 {
 }
 
-MultiBoxLotteryInfo::LotteryDefaultArad::~LotteryDefaultArad() {}
-
 // ---- stDefaultItem ----
 MultiBoxLotteryInfo::stDefaultItem::stDefaultItem()
 {

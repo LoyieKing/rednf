@@ -107,6 +107,56 @@ bool RandomOptionField::empty() const
     return m_field0 == 0;  // W 0x811ed22：movzbl (%eax); test; sete
 }
 
+unsigned char RandomOption::get_option_index(ENUM_RANDOM_OPTION_NUMBER num)
+{
+    // [b28d-59 判词] 封 N4/N30（ORIG 0x085f4040）：22/21 条，ORIG 双寄存器寻址
+    // `movzbl (%eax,%ecx,1)` vs 4.4 lea+movzbl 两段 + 帧 0x18 vs 0x8。语义等价。
+    // [b28c-11] NEAR 封顶：ORIG `movzbl (%eax,%ecx,1),%eax`（双寄存器寻址）vs
+    // 4.4 `lea (%ecx,%eax,1),%eax; movzbl (%eax),%eax`（N4/N30 族，不可折叠）。
+    // W 0x85f4040：change_option ? this[0xa] : this[num*3+0]
+    if (change_option(num))
+    {
+        return m_fielda.m_field0;
+    }
+    // [b28d-solo-RandomRentalA2] 数组视图形 `(*arr)[i]` 复现 ORIG 双寄存器寻址
+    // `movzbl (%eax,%ecx,1),%eax`（指针算术形恒折 lea+movzbl；探针 probe1.cpp getC 实证）。
+    // 残余仅 this/num 两条装载序（N4/N30 跨版本寄存器分配）。
+    return (*reinterpret_cast<const RandomOptionField(*)[3]>(this))[num].m_field0;
+}
+
+void RandomOption::set_first_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v)
+{
+    // [b28d-59 判词] 封 N1/N95（ORIG 0x085f4078）：26/26 条，残差=帧 0x28 vs 0xc、
+    // v 槽 -0xc vs -0x4（4.1 槽基差）+ 两步 lea。语义等价。
+    // [b28c-11] NEAR 封顶（26/26 条）：残余 = 帧 0x28/0xc、v 槽 -0xc/-0x4、
+    // 地址两步 lea（ORIG `lea (%ecx,%eax,1),%eax; lea 0x1(%eax),%edx`）vs 4.4
+    // `add $0x1,%eax; lea (%ecx,%eax,1),%edx`（N1 两步常量算术折叠）。
+    // W 0x85f4078：change_option ? this[0xb]=v；恒写 this[num*3+1]=v
+    if (change_option(num))
+    {
+        m_fielda.m_field1 = v;
+    }
+    // [b28d-solo-RandomRentalA2] 数组元素视图复现 ORIG 两步 lea
+    // `lea (%ecx,%eax,1),%eax; lea 0x1(%eax),%edx`（探针 probe2.cpp s4 实证）。
+    (*reinterpret_cast<RandomOptionField(*)[3]>(this))[num].m_field1 = v;
+}
+
+void RandomOption::set_second_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v)
+{
+    // [b28d-59 判词] 封 N1/N95（ORIG 0x085f40be）：同 set_first_value。语义等价。
+    // [b28c-11] NEAR 封顶（26/26 条）：同 set_first_value（N1 两步 lea + 帧/槽差）。
+    // W 0x85f40be：change_option ? this[0xc]=v；恒写 this[num*3+2]=v
+    if (change_option(num))
+    {
+        m_fielda.m_field2 = v;
+    }
+    // [b28d-solo-RandomRentalA2] 同 set_first_value（探针 probe2.cpp s4 实证）。
+    (*reinterpret_cast<RandomOptionField(*)[3]>(this))[num].m_field2 = v;
+}
+
+// [b28d-solo-RandomRentalA2] P210：change_option 定义后置于三个调用者之后，
+// 使 4.4 对仅声明的 callee 走保守帧（get 0x18 / set 0x28，v spill@-0xc），
+// 与 ORIG 4.1 完全一致（探针 probe4.cpp c1 实证）。
 bool RandomOption::change_option(ENUM_RANDOM_OPTION_NUMBER num)
 {
     // [b28d-59 判词] 封 N99/N82（ORIG 0x085f4002）：23/22 条，位折叠 `and $3` 与窄化
@@ -122,49 +172,6 @@ bool RandomOption::change_option(ENUM_RANDOM_OPTION_NUMBER num)
             return true;
     }
     return false;
-}
-
-unsigned char RandomOption::get_option_index(ENUM_RANDOM_OPTION_NUMBER num)
-{
-    // [b28d-59 判词] 封 N4/N30（ORIG 0x085f4040）：22/21 条，ORIG 双寄存器寻址
-    // `movzbl (%eax,%ecx,1)` vs 4.4 lea+movzbl 两段 + 帧 0x18 vs 0x8。语义等价。
-    // [b28c-11] NEAR 封顶：ORIG `movzbl (%eax,%ecx,1),%eax`（双寄存器寻址）vs
-    // 4.4 `lea (%ecx,%eax,1),%eax; movzbl (%eax),%eax`（N4/N30 族，不可折叠）。
-    // W 0x85f4040：change_option ? this[0xa] : this[num*3+0]
-    if (change_option(num))
-    {
-        return m_fielda.m_field0;
-    }
-    // P0：去 self 局部（ORIG 保持 this 在寄存器 movzbl (%eax,%ecx,1)）。直接内联 cast。
-    return *(reinterpret_cast<const unsigned char*>(this) + (int)num * 3);
-}
-
-void RandomOption::set_first_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v)
-{
-    // [b28d-59 判词] 封 N1/N95（ORIG 0x085f4078）：26/26 条，残差=帧 0x28 vs 0xc、
-    // v 槽 -0xc vs -0x4（4.1 槽基差）+ 两步 lea。语义等价。
-    // [b28c-11] NEAR 封顶（26/26 条）：残余 = 帧 0x28/0xc、v 槽 -0xc/-0x4、
-    // 地址两步 lea（ORIG `lea (%ecx,%eax,1),%eax; lea 0x1(%eax),%edx`）vs 4.4
-    // `add $0x1,%eax; lea (%ecx,%eax,1),%edx`（N1 两步常量算术折叠）。
-    // W 0x85f4078：change_option ? this[0xb]=v；恒写 this[num*3+1]=v
-    if (change_option(num))
-    {
-        m_fielda.m_field1 = v;
-    }
-    // P0：ORIG 无 self 局部槽，this 寄存器直读
-    *(reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(this) + 1) + (int)num * 3) = v;
-}
-
-void RandomOption::set_second_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v)
-{
-    // [b28d-59 判词] 封 N1/N95（ORIG 0x085f40be）：同 set_first_value。语义等价。
-    // [b28c-11] NEAR 封顶（26/26 条）：同 set_first_value（N1 两步 lea + 帧/槽差）。
-    // W 0x85f40be：change_option ? this[0xc]=v；恒写 this[num*3+2]=v
-    if (change_option(num))
-    {
-        m_fielda.m_field2 = v;
-    }
-    *(reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(this) + 2) + (int)num * 3) = v;
 }
 
 DifferentWeightValue::DifferentWeightValue()
@@ -315,12 +322,11 @@ int CRandomOptionItemHandle::_get_level_limit(ENUM_RARITY rarity, int level)
     // [b28d-59 判词] 封 N82/P183（ORIG 0x085f0f9a）：77/74 条，残差=指针/视图缓存
     // 形（ORIG `lea 0x18(%eax),%ecx` 单条 vs 4.4 具名局部 + 槽序）。语义等价。
     RandomApplicationKey key((unsigned char)rarity, (unsigned char)level);
-    RandomOptionScript* script =
-        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
-
+    // [b28d-solo-RandomRentalA2] P0/P48：ORIG 每处 map 访问独立调 GetRandomOption
+    // （`call; lea 0x18(%eax),%ecx` 直传，无具名 script 槽）。
     std::map<RandomApplicationKey, LevelLimitDecisionValue>::iterator it =
-        script->m_map18.find(key);
-    if (it != script->m_map18.end())
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map18.find(key);
+    if (it != reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map18.end())
     {
         unsigned long bound =
             (unsigned long)(it->second.m_field0 + it->second.m_field4);
@@ -338,24 +344,29 @@ int CRandomOptionItemHandle::_get_part_type(int limit)
 {
     // [b28d-59 判词] 封 N82/P183（ORIG 0x085f1088）：78/84 条，残差=视图指针缓存
     // 形（ORIG `lea 0x30(%eax),%ecx` 单条）+ 帧槽序。语义等价。
-    RandomOptionScript* script =
-        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
-
-    std::map<int, PartSelectonValue>::iterator it = script->m_map30.find(limit);
-    if (it == script->m_map30.end())
+    // [b28d-solo-RandomRentalA2] P0/P48：ORIG 每处 map 访问独立调 GetRandomOption。
+    // P212：块内标量提前到函数头（4.4 块级槽方向与 4.1 相反）；残余仅
+    // bound(-0x18)/end 临时(-0x14) 与 ORIG 互换（N93/N82 槽分配族）。
+    unsigned long bound;
+    unsigned int r;
+    std::map<int, PartSelectonValue>::iterator it =
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map30.find(limit);
+    // P222：ORIG `je <fail 岛>` + body 直落 ⇒ 正向包裹（早返形多 mov$0/jmp）。
+    if (it != reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map30.end())
     {
-        return 0;
-    }
+        bound = (unsigned long)it->second.m_fieldC;
+        r = (unsigned int)m_rand[2].randInt(bound);
 
-    unsigned long bound = (unsigned long)it->second.m_fieldC;
-    unsigned int r = (unsigned int)m_rand[2].randInt(bound);
-
-    std::vector<PartSelectonField>& vec = it->second.m_vec0;
-    for (std::size_t i = 0; i < vec.size(); ++i)
-    {
-        if (r < (unsigned int)vec[i].m_weight)
+        // ORIG 为迭代器循环（begin 槽 -0x20 / 每轮重调 end 槽 -0x10 /
+        // operator-> 取 m_weight、m_partType），非 size() 索引循环；
+        // 且每次重取 it->second.m_vec0（无 vec 引用局部）。
+        for (std::vector<PartSelectonField>::iterator i = it->second.m_vec0.begin();
+             i != it->second.m_vec0.end(); ++i)
         {
-            return vec[i].m_partType;
+            if (r < (unsigned int)i->m_weight)
+            {
+                return i->m_partType;
+            }
         }
     }
     return 0;
@@ -367,11 +378,10 @@ int CRandomOptionItemHandle::_get_part_type_by_ItemGroup(
 {
     // [b28d-59 判词] 封 N82（ORIG 0x085f11a4）：192/182 条，残差=局部槽序/指针缓存
     // （P183 族）。语义等价。
-    RandomOptionScript* script =
-        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
-
-    std::map<int, PartSelectonValue>::iterator it = script->m_map30.find(limit);
-    if (it == script->m_map30.end())
+    // [b28d-solo-RandomRentalA2] P0/P48：ORIG 每处 map 访问独立调 GetRandomOption。
+    std::map<int, PartSelectonValue>::iterator it =
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map30.find(limit);
+    if (it == reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map30.end())
     {
         return 0;
     }
@@ -413,27 +423,29 @@ int CRandomOptionItemHandle::_get_base_item(ENUM_RARITY rarity, int limit)
 {
     // [b28d-59 判词] 封 N82/P183（ORIG 0x085f1426）：84/92 条，残差=帧 0x38 vs 0x48
     // + `lea 0x48(%eax),%ecx` 单条 vs 4.4 具名局部。语义等价。
+    // P190/P232：ORIG 全帧槽基比 4.4 深 4 ⇒ 死局部撑帧。
+    char framePad[4];
+    (void)framePad;
     RandomApplicationKey key((unsigned char)rarity, (unsigned char)limit);
-    RandomOptionScript* script =
-        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
-
+    // [b28d-solo-RandomRentalA2] P0/P48：ORIG 每处 map 访问独立调 GetRandomOption。
     std::map<RandomApplicationKey, BaseItemSelectionValue>::iterator it =
-        script->m_map48.find(key);
-    if (it == script->m_map48.end())
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map48.find(key);
+    // P222：ORIG `je <fail 岛>` + body 直落 ⇒ 正向包裹。
+    if (it != reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map48.end())
     {
-        return 0;
-    }
+        unsigned long bound = (unsigned long)it->second.m_fieldC;
+        unsigned int r = (unsigned int)m_rand[3].randInt(bound);
 
-    unsigned long bound = (unsigned long)it->second.m_fieldC;
-    unsigned int r = (unsigned int)m_rand[3].randInt(bound);
-
-    std::vector<unsigned int>& vec = it->second.m_vec0;
-    unsigned int idx = 0;
-    for (std::size_t i = 0; i < vec.size(); ++i, ++idx)
-    {
-        if (r < vec[i])
+        // ORIG 为迭代器循环（begin 槽 -0x28 / 每轮重调 end 槽 -0x14 /
+        // operator* 取元素 / 独立 idx 槽 -0xc），非 size() 索引循环。
+        unsigned int idx = 0;
+        for (std::vector<unsigned int>::iterator i = it->second.m_vec0.begin();
+             i != it->second.m_vec0.end(); ++i, ++idx)
         {
-            return (int)idx;
+            if (r < *i)
+            {
+                return (int)idx;
+            }
         }
     }
     return 0;
@@ -451,24 +463,26 @@ int CRandomOptionItemHandle::_get_option_type(unsigned long /*itemIdx*/,
     // （P183 族）。语义等价。
     RandomApplicationKey key((unsigned char)rarity, (unsigned char)level);
 
-    CRandomOptionGive* provider = static_cast<CRandomOptionGive*>(m_optionSet);
-    std::map<RandomApplicationKey, std::map<int, RandomOptionGive> >& giveMap =
-        provider->get_option_type();  // CRandomOptionGive 纯虚 ORIG 名（UserMiscLink 批改名）
-
+    // [b28d-solo-RandomRentalA2] P0/P183：ORIG 每处 map 操作都重取 m_optionSet
+    // 并虚调 get_option_type()（find/end 各一次，无 provider/giveMap 具名局部）。
+    // CRandomOptionGive 纯虚 ORIG 名（UserMiscLink 批改名）
     std::map<RandomApplicationKey,
              std::map<int, RandomOptionGive> >::const_iterator outer =
-        giveMap.find(key);
-    if (outer == giveMap.end())
+        static_cast<CRandomOptionGive*>(m_optionSet)->get_option_type().find(key);
+    if (outer ==
+        static_cast<CRandomOptionGive*>(m_optionSet)->get_option_type().end())
     {
         return 0x23f;
     }
 
-    const std::map<int, RandomOptionGive>& inner = outer->second;
-    std::map<int, RandomOptionGive>::const_iterator g = inner.find(-1);
-    if (g == inner.end())
+    // ORIG 具名常量局部（movl $0xffffffff,-0x48(%ebp)）。
+    int defaultKey = -1;
+    std::map<int, RandomOptionGive>::const_iterator g =
+        outer->second.find(defaultKey);
+    if (g == outer->second.end())
     {
-        g = inner.find(group);
-        if (g == inner.end())
+        g = outer->second.find(group);
+        if (g == outer->second.end())
         {
             return 0x255;
         }
@@ -493,9 +507,8 @@ int CRandomOptionItemHandle::_get_option_quantity(ENUM_RARITY rarity, int level,
 {
     // [b28d-59 判词] 封 N82（ORIG 0x085f25b0）：212/223 条，残差=局部槽序/物化次数。
     // 语义等价。
-    RandomOptionScript* script =
-        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
-
+    // [b28d-solo-RandomRentalA2] P0/P48：ORIG 5 处独立调 GetRandomOption
+    // （两次 find + 两次 end + 循环内 m_veca8 基址），无具名 script 槽。
     unsigned char keyBytes[4];
     keyBytes[0] = (unsigned char)rarity;
     keyBytes[1] = 0xff;
@@ -505,13 +518,13 @@ int CRandomOptionItemHandle::_get_option_quantity(ENUM_RARITY rarity, int level,
     int mapKey;
     std::memcpy(&mapKey, keyBytes, 4);
     std::map<int, OptionQuantityValue>::iterator it =
-        script->m_mapb4.find(mapKey);
-    if (it == script->m_mapb4.end())
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_mapb4.find(mapKey);
+    if (it == reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_mapb4.end())
     {
         keyBytes[1] = (unsigned char)level;
         std::memcpy(&mapKey, keyBytes, 4);
-        it = script->m_mapb4.find(mapKey);
-        if (it == script->m_mapb4.end())
+        it = reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_mapb4.find(mapKey);
+        if (it == reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_mapb4.end())
         {
             return 0x26c;
         }
@@ -526,9 +539,13 @@ int CRandomOptionItemHandle::_get_option_quantity(ENUM_RARITY rarity, int level,
     unsigned int total = 0;
     for (short i = (short)(it->second.m_minA - 1); i < it->second.m_maxB; ++i)
     {
-        QuantityRatio& qr = script->m_veca8[i];
-        weights.push_back(qr.m_weight4);
-        total += qr.m_weight4;
+        // ORIG：每轮一次 operator[]，值存 -0x14 后 push_back / total 各读一次
+        // （P0 有槽往返 ⇒ 具名标量局部 w）。
+        unsigned int w = reinterpret_cast<RandomOptionScript*>(GetRandomOption())
+                             ->m_veca8[i]
+                             .m_weight4;
+        weights.push_back(w);
+        total += w;
     }
 
     if (weights.empty())
@@ -569,18 +586,24 @@ int CRandomOptionItemHandle::_choose_option_group(ENUM_RARITY rarity, int level,
     keyBytes[3] = (unsigned char)optType;
     *(unsigned int*)(keyBytes + 4) = (unsigned int)group;   // ORIG mov 0x1c(%ebp)→键区+4
 
-    CRandomOptionGive* provider = static_cast<CRandomOptionGive*>(m_optionSet);
-    std::map<unsigned long long, OptionGroupChoiceValue>& choiceMap =
-        provider->get_option_group_choice();
-
+    // [b28d-solo-RandomRentalA2] P0/P183：ORIG 4 处独立重取 m_optionSet 并虚调
+    // get_option_group_choice()（find/end ×2），无 provider/choiceMap 具名局部。
     // ORIG find 直传 &键区 8 字节引用（无中间 u64 拷贝）。
     std::map<unsigned long long, OptionGroupChoiceValue>::iterator it =
-        choiceMap.find(*reinterpret_cast<const unsigned long long*>(keyBytes));
-    if (it == choiceMap.end())
+        static_cast<CRandomOptionGive*>(m_optionSet)
+            ->get_option_group_choice()
+            .find(*reinterpret_cast<const unsigned long long*>(keyBytes));
+    if (it == static_cast<CRandomOptionGive*>(m_optionSet)
+                  ->get_option_group_choice()
+                  .end())
     {
         keyBytes[1] = (unsigned char)level;
-        it = choiceMap.find(*reinterpret_cast<const unsigned long long*>(keyBytes));
-        if (it == choiceMap.end())
+        it = static_cast<CRandomOptionGive*>(m_optionSet)
+                 ->get_option_group_choice()
+                 .find(*reinterpret_cast<const unsigned long long*>(keyBytes));
+        if (it == static_cast<CRandomOptionGive*>(m_optionSet)
+                      ->get_option_group_choice()
+                      .end())
         {
             return 0x29e;
         }
@@ -642,8 +665,8 @@ unsigned int CRandomOptionItemHandle::reset_option(unsigned long /*itemIdx*/,
 {
     // [b28d-59 判词] 封 N82（ORIG 0x085f39d2）：210/198 条，残差=局部槽序/物化次数。
     // 语义等价。
-    RandomOptionScript* script =
-        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
+    // [b28d-solo-RandomRentalA2] P0/P48：ORIG 4 处独立调 GetRandomOption
+    // （set200 find/end + map1e8 find/end），无具名 script 槽。
     ENUM_RANDOM_OPTION_NUMBER slot = (ENUM_RANDOM_OPTION_NUMBER)optionType;
 
     if (options->get_option_index(slot) == 0)
@@ -653,15 +676,17 @@ unsigned int CRandomOptionItemHandle::reset_option(unsigned long /*itemIdx*/,
 
     // set<unsigned long> @+0x200：禁重置道具黑名单；命中即拒绝。
     unsigned long idx = (unsigned long)options->get_option_index(slot);
-    if (script->m_set200.find(idx) != script->m_set200.end())
+    if (reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_set200.find(idx) !=
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_set200.end())
     {
         return 0x17;
     }
 
     // map<unsigned char, ResetValues> @+0x1e8：按稀有度取重置区间。
     std::map<unsigned char, ResetValues>::iterator rv =
-        script->m_map1e8.find((unsigned char)rarity);
-    if (rv == script->m_map1e8.end())
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())
+            ->m_map1e8.find((unsigned char)rarity);
+    if (rv == reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map1e8.end())
     {
         return 0x13;
     }
@@ -716,15 +741,14 @@ unsigned int CRandomOptionItemHandle::RegenVer_choose_item(
     BaseItemKey key((unsigned char)rarity, (unsigned char)limit,
                     (unsigned short)partType);
 
-    RandomOptionScript* script =
-        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
     // ORIG：外层 map<int,...> 键 = BaseItemKey 小端 int 打包
-    std::map<int, std::map<int, BaseItemValue> >& table =
-        script->m_baseItems60;
+    // [b28d-solo-RandomRentalA2] P0/P48：ORIG 2 处独立调 GetRandomOption
+    // （find/end 各一），无 table/script 具名局部。
     std::map<int, std::map<int, BaseItemValue> >::const_iterator outer =
-        table.find(*(int*)&key);
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())
+            ->m_baseItems60.find(*(int*)&key);
 
-    if (outer == table.end())
+    if (outer == reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_baseItems60.end())
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
@@ -814,15 +838,15 @@ bool CRandomOptionItemHandle::give_option(unsigned long itemIdx,
 
     // 不同权重表：map<short, DifferentWeightValue> @+0xf4；
     // 键 short = 低字节 rarity | 高字节 outGrade（asm -0x6e/-0x6d 实证）。
-    RandomOptionScript* script =
-        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
+    // [b28d-solo-RandomRentalA2] P0/P48：ORIG 4 处独立调 GetRandomOption
+    // （mapf4 find/end + map160 find/end），无具名 script 槽。
     DifferentWeightValue dwTmp;  // ORIG 未使用临时（O0 保留 ctor call）
     unsigned short dwRaw =
         (unsigned short)(((unsigned short)(unsigned char)rarity) |
                          ((unsigned short)outGrade << 8));
     std::map<short, DifferentWeightValue>::iterator dw =
-        script->m_mapf4.find((short)dwRaw);
-    if (dw == script->m_mapf4.end())
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_mapf4.find((short)dwRaw);
+    if (dw == reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_mapf4.end())
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
@@ -837,8 +861,8 @@ bool CRandomOptionItemHandle::give_option(unsigned long itemIdx,
 
     // 组值表：map<int, OptionGroupValue> @+0x160。
     std::map<int, OptionGroupValue>::iterator ogIt =
-        script->m_map160.find(groupId);
-    if (ogIt == script->m_map160.end())
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map160.find(groupId);
+    if (ogIt == reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map160.end())
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
@@ -961,15 +985,15 @@ bool CRandomOptionItemHandle::RegenVer_give_option(
         return false;
     }
 
-    RandomOptionScript* script =
-        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
+    // [b28d-solo-RandomRentalA2] P0/P48：ORIG 4 处独立调 GetRandomOption
+    // （mapf4 find/end + map160 find/end），无具名 script 槽。
     DifferentWeightValue dwTmp;  // ORIG 未使用临时（O0 保留 ctor call）
     unsigned short dwRaw =
         (unsigned short)(((unsigned short)(unsigned char)rarity) |
                          ((unsigned short)outGrade << 8));
     std::map<short, DifferentWeightValue>::iterator dw =
-        script->m_mapf4.find((short)dwRaw);
-    if (dw == script->m_mapf4.end())
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_mapf4.find((short)dwRaw);
+    if (dw == reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_mapf4.end())
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
@@ -984,8 +1008,8 @@ bool CRandomOptionItemHandle::RegenVer_give_option(
     int dwB = dw->second.m_field4;
 
     std::map<int, OptionGroupValue>::iterator ogIt =
-        script->m_map160.find(groupId);
-    if (ogIt == script->m_map160.end())
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map160.find(groupId);
+    if (ogIt == reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map160.end())
     {
         LogManager::logFormat(
             1, "RandomOption.cpp",
@@ -1052,9 +1076,8 @@ int CRandomOptionItemHandle::RegenVer_get_option_quantity(
 {
     // [b28d-59 判词] 封 N82（ORIG 0x085f1a62）：99/114 条，残差=局部槽序/物化次数。
     // 语义等价。
-    RandomOptionScript* script =
-        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
-
+    // [b28d-solo-RandomRentalA2] P0/P48：ORIG 4 处独立调 GetRandomOption
+    // （两次 find + 两次 end），无具名 script 槽。
     unsigned char keyBytes[4];
     keyBytes[0] = (unsigned char)rarity;
     keyBytes[1] = 0xff;
@@ -1064,13 +1087,13 @@ int CRandomOptionItemHandle::RegenVer_get_option_quantity(
     int mapKey;
     std::memcpy(&mapKey, keyBytes, 4);
     std::map<int, OptionQuantityValue>::iterator it =
-        script->m_mapb4.find(mapKey);
-    if (it == script->m_mapb4.end())
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_mapb4.find(mapKey);
+    if (it == reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_mapb4.end())
     {
         keyBytes[1] = (unsigned char)level;
         std::memcpy(&mapKey, keyBytes, 4);
-        it = script->m_mapb4.find(mapKey);
-        if (it == script->m_mapb4.end())
+        it = reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_mapb4.find(mapKey);
+        if (it == reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_mapb4.end())
         {
             return 0x1ad;
         }
@@ -1126,14 +1149,15 @@ void RegenerationROI::_Select_Part(int partIdx, std::vector<int>& out)
     std::string groupName;
     if (it != m_regenerator.m_map0.end())
     {
-        std::vector<std::string>& names = it->second.m_vec8;
-        for (std::size_t i = 0; i < names.size(); ++i)
+        // [b28d-solo-RandomRentalA2] P0/P183：ORIG 每轮重取 it->second.m_vec8
+        // （`call it->second; add $0xc`）且 getItemGroupNameTable() 两次独立调用
+        // （find/end 各一次），无 names/nameTable 引用缓存局部。
+        for (std::size_t i = 0; i < it->second.m_vec8.size(); ++i)
         {
-            groupName = names[i];
-            std::map<std::string, int>& nameTable = getItemGroupNameTable();
+            groupName = it->second.m_vec8[i];
             std::map<std::string, int>::const_iterator f =
-                nameTable.find(groupName);
-            if (f != nameTable.end())
+                getItemGroupNameTable().find(groupName);
+            if (f != getItemGroupNameTable().end())
             {
                 out.push_back(f->second);
             }
@@ -1400,8 +1424,8 @@ int RegenerationROI::Regenerate(int baseLv0, int baseLv1, int partIdx,
 
     bool ok = handle.RegenVer_give_option(
         (unsigned long)chosenIdx, (ENUM_RARITY)rarity, usableLevel,
-        base->getItemGroupName(), optionGrade, &outItem.m_random.m_random, this,
-        optType);
+        base->getItemGroupName(), base->GetRandomOptionGrade(),
+        &outItem.m_random.m_random, this, optType);
 
     if (ok)
     {
@@ -1432,14 +1456,19 @@ int CRandomOptionItemHandle::_random_application(ENUM_RARITY rarity, int level)
 {
     // [b28d-59 判词] 封 N82/P183（ORIG 0x085f0ec2）：69/67 条，残差=视图指针缓存形
     // + 槽序。语义等价。
+    // P190/P232：ORIG 槽基比 4.4 深 4 ⇒ 死局部撑帧对齐。
+    char framePad[4];
+    (void)framePad;
     RandomApplicationKey key((unsigned char)rarity, (unsigned char)level);
-    RandomOptionScript* table =
-        reinterpret_cast<RandomOptionScript*>(GetRandomOption());
+    // [b28d-solo-RandomRentalA2] P0/P48：ORIG 两次独立调用 GetRandomOption
+    // （find / end 各一次，`mov %eax,%edx` 寄存器直传无槽），去 table 局部。
     std::map<RandomApplicationKey, RandomApplicationValue>::iterator it =
-        table->m_map0.find(key);
-    if (it != table->m_map0.end())
+        reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map0.find(key);
+    if (it != reinterpret_cast<RandomOptionScript*>(GetRandomOption())->m_map0.end())
     {
-        const int bound = it->second.m_field4 + it->second.m_field0;
+        // ORIG 只占一个 bound 槽（lea -0x10(%ebp),%edx 直取址传引用）⇒ 原码
+        // bound 即 unsigned long（randInt(const unsigned long&)）。
+        const unsigned long bound = it->second.m_field4 + it->second.m_field0;
         const unsigned long roll =
             static_cast<unsigned long>(m_rand->randInt(bound));
         if (static_cast<unsigned int>(it->second.m_field4) < roll)
@@ -1488,12 +1517,13 @@ unsigned int CRandomOptionItemHandle::choose_item(ENUM_RARITY& rarity,
             BaseItemKey key((unsigned char)rarity,
                             (unsigned char)levelLimit,
                             (unsigned short)partType);
-            RandomOptionScript* table =
-                reinterpret_cast<RandomOptionScript*>(GetRandomOption());
             // ORIG：外层 map<int,...> 键 = BaseItemKey 小端 int 打包
+            // [b28d-solo-RandomRentalA2] P0/P48：ORIG 2 处独立调 GetRandomOption。
             std::map<int, std::map<int, BaseItemValue> >::iterator it =
-                table->m_baseItems60.find(*(int*)&key);
-            if (it == table->m_baseItems60.end())
+                reinterpret_cast<RandomOptionScript*>(GetRandomOption())
+                    ->m_baseItems60.find(*(int*)&key);
+            if (it == reinterpret_cast<RandomOptionScript*>(GetRandomOption())
+                          ->m_baseItems60.end())
             {
                 rarity = static_cast<ENUM_RARITY>(0);
                 return 0xffffffff;

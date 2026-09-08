@@ -60,15 +60,18 @@ private:
     void respond_special_item_cerapoint_giftcard(int type, const STSpecailItem_Param& param,
                                                  STSpecailItem_Result& result);          // 0x0827de4e
 
-    // ORIG fn 为普通函数指针（4 字节，ctor 直接存 respond_* 地址；成员指针 8 字节
-    // 会使 Entry=12、sizeof=0xac，与 ORIG 0x74 不符）→ 用显式 this 的自由函数形态。
-    typedef void (*RespondFn)(SpecialItemHandler* self, int type,
-                              const STSpecailItem_Param& param,
-                              STSpecailItem_Result& result);
+    // b28d-solo-CCeraShop_Special：ORIG execute 0x0827be0a 使用 4.1 **成员函数
+    // 指针（PMF）**调用序列——`mov ptr; and $1; test; je` 虚判定 + `self =
+    // this + adj` 调整（Ghidra C 亦见 `(*pcVar2)(this + *(int*)(this+type*8+8),…)`）。
+    // 普通函数指针不会产生该序列。PMF 在 i386 为 {ptr@+0, adj@+4} 双字 = 8 字节，
+    // 与 ORIG Entry 步长 8 / sizeof 0x74 完全一致（旧「PMF 使 Entry=12」的结论
+    // 来自 PMF+offset 双字段，改为纯 PMF 后不成立）。
+    typedef void (SpecialItemHandler::*RespondFn)(int type,
+                                                  const STSpecailItem_Param& param,
+                                                  STSpecailItem_Result& result);
     struct Entry
     {
-        RespondFn fn;      // +0
-        int offset;        // +4
+        RespondFn fn;      // +0（PMF: ptr@+0 / adj@+4，adj 恒 0）
     };
     WongWork::CCeraShop* m_owner;  // +0x00
     Entry m_entries[14];           // +0x04（14 * 8 = 0x70）

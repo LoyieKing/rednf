@@ -170,13 +170,13 @@ int CUser::change_equip_expand(int space, int slot, int dstSpace,
 // 首字段）。
 void CUser::eventDeliveryBuyItem(int deliveryType, const Inven_Item& item)
 {
-    // b28d-40: N82 封顶——帧 0x40 vs 0x58 + 对象槽/callee-saved 分配差，语义闭合。
-    // ORIG 0x0866463c。
+    // b28d-solo-CUserDepsB: NEAR——P23/P24 实参内联（去三具名槽，帧 0x58→0x40、
+    // 42=42 指令全等）；残差 N7：第 3/第 2 实参 callee-saved 角色互换（ORIG
+    // serverGroup→%esi、characNo→%ebx；4.4 →%ebx、%esi），探针同构形给 ORIG 分配、
+    // 本 TU 因可见 GetServerGroupToPvP 定义而反转，源形不可择。ORIG 0x0866463c。
     BuyItemDeliveryMsg msg;                        // lea -0x20(%ebp) ctor
-    int serverGroup = GetServerGroupToPvP();       // T 0x0864a97c
-    int characNo = getCurCharacNo();               // W 0x080cbc4e
-    unsigned int accId = get_acc_id();             // W 0x080da36e
-    msg.setBaseData(2, accId, characNo, serverGroup);  // W 0x086978ec
+    msg.setBaseData(2, get_acc_id(), getCurCharacNo(),
+                    GetServerGroupToPvP());        // W 0x086978ec
     msg.m_deliveryType = deliveryType;             // -0x10(%ebp) → +0x10
     msg.m_item = &item;                            // -0xc(%ebp) → +0x14
     GlobalData::s_event_manager->eventDeliveryNotify(
@@ -203,13 +203,20 @@ void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
     table = mgr->GetProperLevelRewardTableR();     // T 0x08687e62
     if (table == 0)
         return;
-    if (mgr->IsChallengingJob(job))                // T 0x08687792
+    int rewardItemNo = 0;                          // ORIG -0x20 初值 0（声明在
+                                                   // IsChallengingJob 之前）
+    // 真语义 bug 修正：ORIG 0x086874cb `call IsChallengingJob; xor $1; test; jne
+    // 早退岛` 与 Ghidra C `if (cVar2 == 1) { 主体 }` 均表明返回**真**才继续；
+    // 旧写 `if (IsChallengingJob(job)) return;` 语义反。
+    if (!mgr->IsChallengingJob(job))               // T 0x08687792
         return;
     int jobIdx = table->GetProperJobIndex(job);    // T 0x08687e78
     int levelIdx = table->GetProperLevelIndex(level);  // T 0x086876c8
-    if (levelIdx < 0 || jobIdx < 0)
+    if (levelIdx < 0)
         return;
-    int rewardItemNo = table->GetRewardItemNo(jobIdx, levelIdx);  // local_24
+    if (jobIdx < 0)
+        return;
+    rewardItemNo = table->GetRewardItemNo(jobIdx, levelIdx);      // local_24
     int itemCount = table->GetItemCount(jobIdx, levelIdx);        // local_18
     if (itemCount < 0)
         return;
@@ -225,20 +232,25 @@ void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
     }
     else if (rewardItemNo == 1)
     {
-        // +0x177..+0x188 直写字段：+1=2、+2=itemNo、+7=count、+11=1(word)。
+        // ORIG 0x086875d5..0x086875ec 写序：+2=1（立即数，条件已证 ==1）、
+        // +1=2、+7=itemCount、+11=1(word)。
+        item.m_addInfo = 1;
         item.m_field1 = 2;
-        item.m_addInfo = rewardItemNo;
         item.m_addInfo2 = itemCount;
         item.m_fieldb = 1;
         item.ResetItemAttr();                      // W 0x080cb892
     }
     else
     {
-        CItem* script = G_CDataManager()->find_item(rewardItemNo);  // T 0x0835fa32
+        // P231 纯 register（无 asm 绑定，P0 合规）：ORIG 0x086875f9
+        // `mov -0x20(%ebp),%ebx` 跨 G_CDataManager 调用保活（callee-saved）；
+        // 直接内联实参 4.4 用 %edx 中转且不 push %ebx（全帧浅 4）。
+        register int itemNo = rewardItemNo;
+        CItem* script = G_CDataManager()->find_item(itemNo);  // T 0x0835fa32
         if (script == 0)
             return;                                // je +0x25f 直接出口
+        item.m_addInfo = rewardItemNo;             // ORIG 0x0868761a 先写再 make_item
         script->make_item(item);                   // vtable+8 虚槽（CItem 槽 2）
-        item.m_addInfo = rewardItemNo;             // -0x78 ← rewardItemNo
         item.set_add_info(itemCount);              // W 0x080cb884
     }
     ENUM_SERVER_GROUP serverGroup = GetServerGroup();  // W 0x080cbc90
@@ -377,23 +389,22 @@ void CUser::processLevelUpEventReward(bool growupFlag)
 // HeroMissionEvent::processMission(user, MissionNo 4, 0)。
 void CUser::processLevelUpEvent()
 {
-    // b28d-40: N82 封顶——槽序平移 + 虚调用链寄存器分配差，语义闭合。ORIG 0x0869115a。
-    CEventManager* mgr = GlobalData::s_event_manager;
-    CEventBase* event = mgr->GetRepeatEvent(0x68);
-    if (event->IsEventing(0))
+    // b28d-solo-CUserDepsB: AE——P0/P183 去缓存：ORIG 0x08691160 每次都重新
+    // `mov &s_event_manager,%eax` 并把 GetRepeatEvent 结果留在 %eax 直接做虚调用
+    // （无 mgr/event 具名槽）；仅第二段判空有 -0xc 槽（原码具名 levelUpToJob）。
+    // 71=71 逐条同构。ORIG 0x0869115a。
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x68)->IsEventing(0))
     {
         // 二次取同一事件（ORIG 再次 GetRepeatEvent(0x68)），判空后调用。
         NewAccountLevelUpEventToJob* levelUpToJob =
             reinterpret_cast<NewAccountLevelUpEventToJob*>(
-                mgr->GetRepeatEvent(0x68));
+                GlobalData::s_event_manager->GetRepeatEvent(0x68));
         if (levelUpToJob != 0)
             levelUpToJob->processLevelUpToJob(*this, false);  // T 0x081b82a4
     }
-    event = mgr->GetRepeatEvent(0x9e);
-    if (event->IsEventing(0))
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x9e)->IsEventing(0))
         ARAD::Singleton<LevelupSupportEventManger>::Get()->UpdateEventInfo(this);
-    event = mgr->GetRepeatEvent(0xa3);
-    if (event->IsEventing(0))
+    if (GlobalData::s_event_manager->GetRepeatEvent(0xa3)->IsEventing(0))
         ARAD::Singleton<LevelupSupport2ndEventManger>::Get()->Process(this);
     ARAD::Singleton<HeroMissionEvent>::Get()->processMission(
         this, HeroMissionCondition::MissionNo::T_4, 0);       // T 0x081672be
@@ -407,9 +418,10 @@ int CUser::getCurCharacInvenCheckSum() const
 {
     if (getCurCharacR() == 0)                      // W 0x08120432
         return 0;
-    // b28d-40: P52/P0 单语句链式实参（两实参升格 %esi/%ebx 跨 receiver 调用保活）。
-    // 残差 N18a：ORIG 0x0864e0e2 `mov 0x796e0(%eax),%eax; mov %eax,%esi` 两段
-    // 中转 vs 4.4 恒折 `mov 0x796e0(%eax),%esi`；字段侧旋钮受 CUser.h 冻结限制。
+    // b28d-solo-CUserDepsB: AE——P52/P0 单语句链式实参（两实参升格 %esi/%ebx 跨
+    // receiver 调用保活）+ P248 档③字段类型旋钮：m_checkSumSeed 由 int 改
+    // unsigned int（Main 代落，连同 m_backupSeed）后复现 ORIG 0x0864e0e2 两段
+    // `mov 0x796e0(%eax),%eax; mov %eax,%esi`（int 字段 4.4 恒折单段）。
     return getCurCharacInvenR()->makeCheckSum(getPVPResultR()->m_winPoint,
                                               m_checkSumSeed);   // T 0x0850ae7a
 }
@@ -421,9 +433,9 @@ int CUser::getCurCharacSkillCheckSum() const
 {
     if (getCurCharacR() == 0)
         return 0;
-    // b28d-40: P52/P0 单语句链式实参（seed 升格 %ebx 跨 getCurCharacSkillR 保活）。
-    // 残差 N18a：ORIG 0x0864e139 `mov 0x796e0(%eax),%eax; mov %eax,%ebx` 两段
-    // 中转 vs 4.4 恒折单段；字段侧旋钮受 CUser.h 冻结限制。
+    // b28d-solo-CUserDepsB: AE——P52/P0 单语句链式实参（seed 升格 %ebx 跨
+    // getCurCharacSkillR 保活）+ P248 档③字段 unsigned 化后复现 ORIG 0x0864e139
+    // `mov 0x796e0(%eax),%eax; mov %eax,%ebx` 两段。
     return reinterpret_cast<const SkillSlot*>(getCurCharacSkillR())
         ->makeCheckSum(m_checkSumSeed);            // T 0x086066f2
 }
@@ -494,19 +506,12 @@ bool stLevelUpRewardItemScript::get_data_when_growup(
     const LevelUpRewardItemTableKey& key,
     std::vector<LevelUpRewardItemData>& out)
 {
-    // b28d-40: N82 封顶——帧 0x48 vs 0x28 + 迭代器/实参槽分配差，语义闭合。ORIG 0x081b895a。
-    for (std::map<LevelUpRewardItemTableKey, LevelUpRewardItemData>::iterator
-             it = m_map0.begin();
-         it != m_map0.end(); ++it)
-    {
-        if (it->first.m_grow != key.m_grow)
-            continue;
-        if (it->first.m_job != key.m_job)
-            continue;
-        if (it->first.m_lv > key.m_lv)
-            continue;
-        out.push_back(it->second);
-    }
+    // b28d-solo-CUserDepsB: AE——ORIG 0x081b895a 是 std::for_each(begin,end,
+    // GetGrowUpRewardItemFunctor(key,out)) 单语句（functor sret -0x18 / end -0x10 /
+    // begin -0xc / for_each 返回临时 -0x20）+ `return !out.empty()`（xor $1）；
+    // 手写三条件循环多 36 条（谓词逐条物化 + 三个 jmp/nop 岛）。
+    std::for_each(m_map0.begin(), m_map0.end(),
+                  GetGrowUpRewardItemFunctor(key, out));
     return !out.empty();
 }
 
@@ -550,8 +555,9 @@ bool CLevelRewardTable::GetJobAffection()
     return m_jobAffection;
 }
 
-// ORIG W 0x08697792 sz 0xc：movzbl (this) 直返全字（无 setne，P9）——uchar 返回。
-unsigned char CLevelRewardTableMgr::IsOn()
+// ORIG W 0x08697792 sz 0xc：movzbl (this) 直返全字（无 setne）——m_flag/返回
+// 均 bool 时同形（P32 直返）；调用点 xor 形按 P292 要求 bool 返回。
+bool CLevelRewardTableMgr::IsOn()
 {
     return m_flag;
 }
@@ -607,14 +613,19 @@ bool CLevelRewardTableMgr::IsHaveStartLevelReward()
 // ORIG T 0x08687d6c：size()==1 或 v[0]==0 ⇒ 全服生效；否则遍历含 serverIdx 才 true。
 bool CLevelRewardTableMgr::IsOnServer(int serverIdx)
 {
-    // b28d-40: N/P75 封顶——形参比较装载序跨版本差（ORIG 先载形参寄存器再比），
-    // 语义闭合。ORIG 0x08687d6c。
-    if (m_vec8.size() == 1 || (m_vec8.size() != 0 && m_vec8[0] == 0))
+    // b28d-solo-CUserDepsB: AE——①P171 照抄：ORIG 0x08687d7b 短路链只有
+    // `size()==1 || operator[](0)==0`（无 size()!=0 守卫，空表走 operator[] 越界，
+    // 与 Ghidra C 一致）；②P96/P270 非 const iterator 消转换构造；③P28 后置 it++
+    // 复现 ppEi 三槽阶梯（it -0x14 / end -0x10 / ++临时 -0xc），74=74 逐条同构。
+    if (m_vec8.size() == 1 || m_vec8[0] == 0)
         return true;
     if (m_vec8.empty())
         return false;
-    for (std::vector<int>::const_iterator it = m_vec8.begin();
-         it != m_vec8.end(); ++it)
+    // P96/P270：ORIG 0x08687dd7 begin() 直写 it 槽、无 iterator→const_iterator
+    // 转换构造（两处 ppEi/operator!= 均为非 const 版）⇒ 必须用可变 iterator。
+    // P28 增量侧：ORIG 0x08687e24 调 `ppEi`（后置版，带独立 sret 临时槽）⇒ 写 it++。
+    for (std::vector<int>::iterator it = m_vec8.begin();
+         it != m_vec8.end(); it++)
     {
         if (*it == serverIdx)
             return true;
@@ -640,51 +651,62 @@ bool LevelupSupportEventManger::CheckNewStep(int level)
 // state=1 并 DB 上报；末尾按 CheckNewStep 发送状态包（level 或 0）。
 void LevelupSupportEventManger::UpdateEventInfo(CUser* user)
 {
-    // b28d-40: N82 封顶——槽 -0x1c vs -0x20 + bool 槽物化 + 全局重定位，语义闭合。
-    // ORIG 0x081471c6。
+    // b28d-solo-CUserDepsB: AE——①P214① 正极性包裹 `if(A||B){主流程}` 复现
+    // ORIG 0x081471ec 的 mov$1/mov$0 短路物化 + 0x0814721d `test;je 尾`
+    // （具名 bool pass 恒槽化 movb/-0x19；语句表达式/register 两形实测均劣化）；
+    // ②循环上界是**本类 m_events**（ORIG 0x08147248 `this+0x34`）而非
+    // user->m_levelupEvents（P171 照抄原码对象选择）；③P157 循环体逐次重调
+    // operator[]（去具名 info 引用）；④真语义 bug 修正：makeRequest 第2/3参
+    // 为 (characNo, level)——W8LT_DBTask.cpp dispatch 读流序 characNo→level→state、
+    // InterDispatcher.cpp:17832 / UserMiscLink.cpp:522 两调用点同序，ORIG
+    // 0x081472f2 压栈 `$1, level, characNo, uid` 实证。114=114，残差仅
+    // N7/P75：uid/characNo 两实参装载时刻（ORIG 即时逐参载入 vs 4.4 先保活
+    // uid 于 %eax）。ORIG 0x081471c6。
     int level = user->get_charac_level();
-    bool pass;
-    if (CheckNewStep(level))
+    // P214① 正极性包裹：复现 ORIG 0x081471ec 的短路物化岛（test/jne L_pass →
+    // B 假落 mov$0）+ 0x0814721d `test %al,%al; je 函数尾`（主流程直落）。
+    if (CheckNewStep(level) ||
+        GlobalData::s_GM_Manager->GetCurrentGmMode(
+            user->get_acc_id()))                   // T 0x08299276
     {
-        pass = true;
+        unsigned int uid = user->GetUID();         // W 0x080c8c96
+        int characNo = user->getCurCharacNo();
+        unsigned int i = 0;
+        unsigned int count = m_events.size();      // ORIG this+0x34（非 user）
+        for (; i < count; ++i)
+        {
+            // P214① && 正极性包裹：复现 ORIG 的 mov$1/mov$0 物化岛。
+            if (user->m_levelupEvents[i].m_level <= level &&
+                user->m_levelupEvents[i].m_state != 2)
+            {
+                user->m_levelupEvents[i].m_state = 1;   // movw $0x1, 0x2
+                DB_SaveEventLevelupSupport::makeRequest(
+                    static_cast<int>(uid), characNo,
+                    static_cast<int>(user->m_levelupEvents[i].m_level), 1);
+            }
+        }
+        if (CheckNewStep(level))
+            SendCharacState(user, level);
+        else
+            SendCharacState(user, 0);
     }
-    else
-    {
-        pass = GlobalData::s_GM_Manager->GetCurrentGmMode(
-            user->get_acc_id());                   // T 0x08299276
-    }
-    if (!pass)
-        return;
-    unsigned int uid = user->GetUID();             // W 0x080c8c96
-    int characNo = user->getCurCharacNo();
-    for (unsigned int i = 0; i < user->m_levelupEvents.size(); ++i)
-    {
-        LevelupSupportEventManger::EventInfo& info = user->m_levelupEvents[i];
-        if (info.m_level > level)                  // jg 跳过
-            continue;
-        if (info.m_state == 2)                     // ==2 视为已完成跳过
-            continue;
-        info.m_state = 1;                          // movw $0x1, 0x2
-        DB_SaveEventLevelupSupport::makeRequest(static_cast<int>(uid),
-                                                info.m_level, characNo, 1);
-    }
-    if (CheckNewStep(level))
-        SendCharacState(user, level);
-    else
-        SendCharacState(user, 0);
 }
 
 // ORIG T 0x0814701e sz 0x146（静态）。包头 0x22a：byte 数量 + 每档 (int level,
 // byte state) + byte state 参数，finalize(true) 后 Send。
 void LevelupSupportEventManger::SendCharacState(CUser* user, int state)
 {
-    // b28d-40: N82 封顶——帧 0x30 vs 0x20 + 对象槽 -0x1c vs -0x18，语义闭合。
+    // b28d-solo-CUserDepsB: AE——P13/P212：ORIG 0x08147076 先把 i 清 0（-0x10）、
+    // size() 一次求值缓存到 -0xc（循环头不重调），故写「i=0 声明 + count=size()
+    // 声明 + for(;i<count;)」；帧 0x30/槽位与 ORIG 全等，93=93 逐条同构。
     // ORIG 0x0814701e。
     PacketGuard packet;                            // C1 0x0858dd4c
     packet.clear();
     packet.put_header(0, 0x22a);
     packet.put_byte(static_cast<int>(user->m_levelupEvents.size()));
-    for (unsigned int i = 0; i < user->m_levelupEvents.size(); ++i)
+    unsigned int i = 0;
+    unsigned int count = user->m_levelupEvents.size();
+    for (; i < count; ++i)
     {
         packet.put_int(static_cast<int>(user->m_levelupEvents[i].m_level));
         packet.put_byte(static_cast<int>(user->m_levelupEvents[i].m_state));
@@ -700,7 +722,9 @@ void LevelupSupportEventManger::SendCharacState(CUser* user, int state)
 // set_add_info((short)count) → ReqDBSendNewSystemMail（第七参固定 0xf）。
 void LevelupSupport2ndEventManger::Process(CUser* user)
 {
-    // b28d-40: N82 封顶——全局对象绝对寻址 vs 4.4 重定位占位 + 槽序平移，语义闭合。
+    // b28d-solo-CUserDepsB: AE——P13 缓存 items->size()（ORIG 0x08147a8d 一次求值
+    // 存 -0x10）+ P23/P52 find_item 实参内联（at(i).m_itemIndex 升格 %ebx 跨
+    // G_CDataManager 调用，无具名槽）；164=164 逐条同构（余差为 .o 重定位占位）。
     // ORIG 0x08147880。
     if (user == 0)
         return;
@@ -718,11 +742,15 @@ void LevelupSupport2ndEventManger::Process(CUser* user)
         4, m_script.m_mailTitle.c_str(), (bool*)0);
     const char* mailContent = g_scriptStringManager_.findString(
         4, m_script.m_mailContent.c_str(), (bool*)0);
-    for (unsigned int i = 0; i < items->size(); ++i)
+    // b28d-solo-CUserDepsB: P13 缓存 size()（ORIG 0x08147a8d 一次求值存 -0x10）
+    // + P23/P52 find_item 实参内联（ORIG 0x08147a9f at(i).m_itemIndex 升格 %ebx
+    // 跨 G_CDataManager 调用保活，无具名槽）。
+    unsigned int i = 0;
+    unsigned int count = items->size();
+    for (; i < count; ++i)
     {
         // ORIG 用 vector::at(i)（_ZNKSt6vector…2atEj，边界检查）。
-        int itemIdx = items->at(i).m_itemIndex;
-        CItem* script = G_CDataManager()->find_item(itemIdx);
+        CItem* script = G_CDataManager()->find_item(items->at(i).m_itemIndex);
         if (script == 0)
             continue;
         Inven_Item item;
@@ -740,9 +768,11 @@ void LevelupSupport2ndEventManger::Process(CUser* user)
 // ---- DB 请求封装 ----
 
 // ORIG T 0x0844cc2e sz 0x10a："DBThread.cpp"/0xc25a 流，头 0x34f + 四 int，
-// 入 DB_Q（QUEUE_IDX 2）。
-void DB_SaveEventLevelupSupport::makeRequest(int accId, int level,
-                                             int characNo, int state)
+// 入 DB_Q（QUEUE_IDX 2）。流序 = (accId, characNo, level, state)：
+// W8LT_DBTask.cpp DB_SaveEventLevelupSupport::dispatch 读流 characNo→level→state
+// （ORIG 0x0844cafe）实证第 2/3 参语义，形参名据此修正。
+void DB_SaveEventLevelupSupport::makeRequest(int accId, int characNo,
+                                             int level, int state)
 {
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xc25a), true);

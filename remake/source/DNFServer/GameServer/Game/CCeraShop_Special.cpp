@@ -51,6 +51,52 @@
 // +0x10 ceraParam* +0x14 count +0x18 time(long) +0x1c flag +0x1d/1e/1f char
 // +0x20 extra(ctor 置 1)；Result 仅 int m_value）。本 TU 经 CCeraShop.h 获得。
 
+// P254 视图：STSpecailItem_Param 的 m_user 以 CUser* 读取（void* 视图恒多一条
+// `mov %eax,%reg` 中转，CUser* 视图直入目标寄存器）。sizeof/偏移/mangled 零影响。
+struct STSpecailItem_ParamTypedView
+{
+    CUser* m_user;                       // +0x00
+    int m_itemIdx;                       // +0x04
+    int m_value;                         // +0x08（cargo：ORIG 单段直入 %ebx）
+};
+
+// P254/P265 视图：m_value 以 enum 类型读取 ⇒ 复现 ORIG 4.1 的两段实参装载
+// `mov mem,%eax; mov %eax,%ecx`（giftcard 0x0827de4e 实证）。
+struct STSpecailItem_ParamValueEnumView
+{
+    void* m_user;                        // +0x00
+    int m_itemIdx;                       // +0x04
+    ENUM_CERA_SPECIALITEM m_value;       // +0x08
+};
+
+// P49：寻址助手用宏（static inline 在 -O0 仍产真实 call 符号）。
+#define CERA_PARAM_TYPED(p) \
+    (reinterpret_cast<const STSpecailItem_ParamTypedView*>(&(p)))
+#define CERA_PARAM_VALUE_ENUM(p) \
+    (reinterpret_cast<const STSpecailItem_ParamValueEnumView*>(&(p)))
+
+// P82/P95 具名视图：SIG_EXTEND_CHARAC_SLOT 载荷（ORIG 0x0827c0c2 逐字段
+// `mov -0xc(%ebp),%edx; mov %eax,(%edx)` / `mov %al,0x4(%edx)` 实证）。
+// 用 char* 裸指针访问时 4.4 会把基址缓存进 %ebx 并发 lea；具名成员访问
+// 折叠为槽重读 + disp。
+struct SlotExtendPayloadView
+{
+    unsigned int m_accId;        // +0x00（与 get_acc_id() 同型 ⇒ LHS-first）
+    unsigned char m_slotEffect;  // +0x04（与 getSlotEffectCount() 同型）
+    unsigned char m_slotLimit;   // +0x05（与 getCharacSlotLimit() 同型）
+};
+
+// P82 具名视图：SIG_SAVE_CRAZY_LEVELUP_EVENT 载荷（ORIG 0x08327454 逐字段
+// `mov -0xc(%ebp),%edx; mov %eax,0x5(%edx)` / `0x9(%edx)` 实证）。
+#pragma pack(push, 1)
+struct SaveCrazyLevelupPayloadView
+{
+    char m_tag[5];                // +0x00（"0707\0"）
+    unsigned int m_accId;         // +0x05
+    int m_characNo;               // +0x09（与 get_charac_no() 同型 ⇒ LHS-first）
+};
+#pragma pack(pop)
+
 // ============================================================================
 // SpecialItemHandler —— ORIG 全局类（mangled _ZN18SpecialItemHandler…，非 WongWork 前缀）。
 // 权威声明见 SpecialItemHandler.h；本 TU 为唯一实现点。
@@ -63,61 +109,36 @@
 // ctor 先清零 14 组，再按 type 填 dispatch 表（respond fn 地址，offset 全 0）。
 SpecialItemHandler::SpecialItemHandler(WongWork::CCeraShop* owner)
 {
-    // b28d-D42 verdict=DIFF [N82] ORIG 0x0827bcec orig/ours=64/76 ndiff=59。
-    // 残差为 14 组表项构造的寄存器/槽分配差（P112/N82 跨版本）；布局与
-    // 写入序（fn+offset 逐对）已按 ORIG 对齐。
+    // b28d-solo：Entry.fn 改真实 PMF（见 SpecialItemHandler.h 判据）。PMF 赋值
+    // 在 4.4 发 ptr+adj 双 store，与 ORIG 每项 `movl $fn,disp; movl $0,disp+4`
+    // 成对写同形。
     m_owner = owner;
     for (int i = 0; i < 0xe; ++i)
-    {
         m_entries[i].fn = 0;
-        m_entries[i].offset = 0;
-    }
-    // ORIG 0x0827bcec：按登记表序逐对写 fn + offset=0（-O0 每 entry 两条
-    // store；offset 虽已被循环清零，ORIG 仍成对重写——照抄）。
-    m_entries[1].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_cargo);
-    m_entries[1].offset = 0;
-    m_entries[7].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_cargo_abs);
-    m_entries[7].offset = 0;
-    m_entries[11].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_inventory_upgrade);
-    m_entries[11].offset = 0;
-    m_entries[8].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_charac_slot_extend);
-    m_entries[8].offset = 0;
-    m_entries[5].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_package);
-    m_entries[5].offset = 0;
-    m_entries[6].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_booster);
-    m_entries[6].offset = 0;
-    m_entries[12].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_booster_selection);
-    m_entries[12].offset = 0;
-    m_entries[9].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_skill_confirm);
-    m_entries[9].offset = 0;
-    m_entries[10].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_skill_tree_style);
-    m_entries[10].offset = 0;
-    m_entries[2].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_premium);
-    m_entries[2].offset = 0;
-    m_entries[13].fn = reinterpret_cast<RespondFn>(&SpecialItemHandler::respond_special_item_cerapoint_giftcard);
-    m_entries[13].offset = 0;
+    // ORIG 0x0827bcec：按登记表序写 PMF（ptr + adj=0 成对 store）。
+    m_entries[1].fn = &SpecialItemHandler::respond_special_item_cargo;
+    m_entries[7].fn = &SpecialItemHandler::respond_special_item_cargo_abs;
+    m_entries[11].fn = &SpecialItemHandler::respond_special_item_inventory_upgrade;
+    m_entries[8].fn = &SpecialItemHandler::respond_special_item_charac_slot_extend;
+    m_entries[5].fn = &SpecialItemHandler::respond_special_item_package;
+    m_entries[6].fn = &SpecialItemHandler::respond_special_item_booster;
+    m_entries[12].fn = &SpecialItemHandler::respond_special_item_booster_selection;
+    m_entries[9].fn = &SpecialItemHandler::respond_special_item_skill_confirm;
+    m_entries[10].fn = &SpecialItemHandler::respond_special_item_skill_tree_style;
+    m_entries[2].fn = &SpecialItemHandler::respond_special_item_premium;
+    m_entries[13].fn = &SpecialItemHandler::respond_special_item_cerapoint_giftcard;
 }
 
 // ---- SpecialItemHandler::execute —— ORIG 0x0827be0a ----
-// 表驱动分发：type<0xe 时取 m_entries[type] 的 respond fn，以 (this+offset) 为接收者调用。
-// ORIG 的 flag 低 1 位为“间接表”标记；本对象所有条目均为直接 respond 地址（低位置 0），
-// 故等价于直接调用。type 越界返回 0。
-// 【N 标注】ORIG 调用点携带 4.1 单字成员函数指针（{delta;ptr-1} 双字折叠 + bit0
-// 间接判定）寻址岛（30 insn 形）；4.4 PMF ABI 为 8 字节双字，合法 C++ 无法在
-// 4 字节表槽复现该 itoc 单字形 ⇒ execute/C1 的 -13/-12 gap 记跨版本 PMF ABI
-// 结构性差异（负例表“跨版本 bool ABI”同族），语义派发等价，byte 层封顶。
+// 表驱动分发：type<0xe 时取 m_entries[type] 的 respond PMF 调用。
+// ORIG 用 4.1 PMF 调用序列（ptr bit0 虚判定 + adj this 调整）；本对象所有条目
+// 均为非虚成员函数（adj=0、ptr bit0=0），itoc 直接路径。
 bool SpecialItemHandler::execute(int type, const STSpecailItem_Param& param,
                                  STSpecailItem_Result& result)
 {
-    // b28d-D42 verdict=DIFF [N81+N82] ORIG 0x0827be0a orig/ours=43/30 ndiff=37。
-    // 残差：ORIG `mov 0x4(%eax,%edx,8)` scaled 直存被 4.4 折 shl/add 链（N81）
-    // + 结果缓存栈槽（ORIG 全寄存器）；语义等价封顶。
     if (type > 0xd)
         return false;
-    Entry& e = m_entries[type];
-    SpecialItemHandler* self =
-        reinterpret_cast<SpecialItemHandler*>(reinterpret_cast<char*>(this) + e.offset);
-    e.fn(self, type, param, result);
+    (this->*m_entries[type].fn)(type, param, result);
     return true;
 }
 
@@ -139,11 +160,11 @@ void SpecialItemHandler::respond_special_item_cargo(int type,
     // 判定 `xor $1,%eax; test %al,%al; je <成功>`（4.1 对 x==1 的 xor 展开）。
     // 4.4 的 if/else 恒 then-first（je 落 else）⇒ 条件取反成 `!= 1` 使失败块直落；
     // 残余 xor vs cmp 为 4.4 折叠差异（N18a 同族，见判词）。
-    if (static_cast<CUser*>(param.m_user)->getCurCharacCargoW()->UpgradeCargo(
-            param.m_value) != 1)
+    if (!CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoW()->UpgradeCargo(
+            CERA_PARAM_TYPED(param)->m_value))
         result.m_value = 0x17;
     else
-        m_owner->_sendCargoUpgradePacket(static_cast<CUser*>(param.m_user), type);
+        m_owner->_sendCargoUpgradePacket(CERA_PARAM_TYPED(param)->m_user, type);
 }
 
 // ---- respond_special_item_cargo_abs —— ORIG 0x0827bee6 ----
@@ -159,18 +180,18 @@ void SpecialItemHandler::respond_special_item_cargo_abs(int type,
     // b28d-D42 P0/P52：ORIG 0x0827bee6 无 user/value 具名槽——param.m_value
     // 从载荷直读入 %edx 与 capacity 相加后存 %ebx 跨 call 保活；user 逐点重读
     // `mov 0x10(%ebp),%eax; mov (%eax),%eax`（P48 无 CSE）。
-    if (static_cast<CUser*>(param.m_user)->getCurCharacCargoR()->isUpgradable(
-            static_cast<CUser*>(param.m_user)->getCurCharacCargoR()->GetCapacity() +
-            param.m_value) == 1)
+    if (!CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoR()->isUpgradable(
+            CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoR()->GetCapacity() +
+            CERA_PARAM_TYPED(param)->m_value))
     {
-        static_cast<CUser*>(param.m_user)->getCurCharacCargoW()->UpgradeCargo(
-            static_cast<CUser*>(param.m_user)->getCurCharacCargoR()->GetCapacity() +
-            param.m_value);
-        m_owner->_sendCargoUpgradePacket(static_cast<CUser*>(param.m_user), type);
+        result.m_value = 0x12;
     }
     else
     {
-        result.m_value = 0x12;
+        CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoW()->UpgradeCargo(
+            CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoR()->GetCapacity() +
+            CERA_PARAM_TYPED(param)->m_value);
+        m_owner->_sendCargoUpgradePacket(CERA_PARAM_TYPED(param)->m_user, type);
     }
 }
 
@@ -263,8 +284,10 @@ void SpecialItemHandler::respond_special_item_cerapoint_giftcard(
     // 复现该中转（int 字段 + enum 实参 ⇒ 4.4 保留 eax 中转）。
     (*reinterpret_cast<void (***)(void*, void*, int, int, int, int)>(
         GlobalData::s_pIPGHelper))[3](
-        GlobalData::s_pIPGHelper, param.m_user,
-        (ENUM_CERA_SPECIALITEM)(int)param.m_value, 2, 0, 0);
+        GlobalData::s_pIPGHelper,
+        CERA_PARAM_VALUE_ENUM(param)->m_user,
+        CERA_PARAM_VALUE_ENUM(param)->m_value,
+        2, 0, 0);
 }
 
 // ---- respond_special_item_charac_slot_extend —— ORIG 0x0827c0c2 ----
@@ -275,19 +298,23 @@ void SpecialItemHandler::respond_special_item_charac_slot_extend(
 {
     // b28d-D42 verdict=DIFF [N82/N89] ORIG 0x0827c0c2 orig/ours=92/92 ndiff=64。
     // 残差为帧/槽号平移 + CStreamGuard/STL 内联差；语义按报告逐条对齐。
-    CUser* user = static_cast<CUser*>(param.m_user);
-    user->incCharacSlotLimit(static_cast<unsigned char>(param.m_value));
+    CERA_PARAM_TYPED(param)->m_user->incCharacSlotLimit(
+        static_cast<unsigned char>(CERA_PARAM_TYPED(param)->m_value));
 
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("SpecialItemHandler.cpp", 0x8d),
                            true);
     guard.operator*()->operator<<((int)0x28a);
     guard.operator*()->operator<<(-1);
-    char* buf = reinterpret_cast<char*>(guard->GetInBuffer<SIG_EXTEND_CHARAC_SLOT>());
-    *reinterpret_cast<int*>(buf + 0) = static_cast<int>(user->get_acc_id());
-    buf[4] = static_cast<char>(user->getSlotEffectCount());
-    buf[5] = static_cast<char>(user->getCharacSlotLimit());
+    SlotExtendPayloadView* buf = reinterpret_cast<SlotExtendPayloadView*>(
+        guard->GetInBuffer<SIG_EXTEND_CHARAC_SLOT>());
+    buf->m_accId =
+        static_cast<int>(CERA_PARAM_TYPED(param)->m_user->get_acc_id());
+    buf->m_slotEffect = static_cast<char>(
+        CERA_PARAM_TYPED(param)->m_user->getSlotEffectCount());
+    buf->m_slotLimit = static_cast<char>(
+        CERA_PARAM_TYPED(param)->m_user->getCharacSlotLimit());
     GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
-    m_owner->_sendCharacSlotExtendPacket(user, type);
+    m_owner->_sendCharacSlotExtendPacket(CERA_PARAM_TYPED(param)->m_user, type);
 }
 
 // ---- respond_special_item_inventory_upgrade —— ORIG 0x0827bf90 ----
@@ -301,15 +328,14 @@ void SpecialItemHandler::respond_special_item_inventory_upgrade(
     CUser* user = static_cast<CUser*>(param.m_user);
     // ORIG 0x827bf90..：getCurCharacInvenR（const 版，无 enableSaveInven 副作用）
     // 与 get_inventory_capacity 各 5+ 处逐点重发（P48/P183 禁缓存）。
-    if (user->getCurCharacInvenR()->get_inventory_capacity() >= 0x10)
+    if (user->getCurCharacInvenR()->get_inventory_capacity() > 0xf)
     {
         result.m_value = 0x12;
         return;
     }
-    int newCap =
-        user->getCurCharacInvenR()->get_inventory_capacity() + param.m_value;
     user->m_historyLog.ExpandInventory(
-        user->getCurCharacInvenR()->get_inventory_capacity(), newCap, 0);
+        user->getCurCharacInvenR()->get_inventory_capacity(),
+        user->getCurCharacInvenR()->get_inventory_capacity() + param.m_value, 0);
     // ORIG set 处 this 仍是第 5 次 getCurCharacInvenR（const 视图强转，
     // 全函数 InvenR×6 / capacity×5 静态调用点，无 W 版）。
     const_cast<CInventory*>(user->getCurCharacInvenR())->set_inventory_capacity(
@@ -318,7 +344,7 @@ void SpecialItemHandler::respond_special_item_inventory_upgrade(
         user->GetServerGroup(), user->GetUID(),
         (unsigned int)user->getCurCharacNo(),
         user->getCurCharacInvenR()->get_inventory_capacity());
-    m_owner->_sendInventoryUpgradePacket(user, type);
+    m_owner->_sendInventoryUpgradePacket(CERA_PARAM_TYPED(param)->m_user, type);
 }
 
 // ---- respond_special_item_booster —— ORIG 0x0827ca4a ----
@@ -967,7 +993,7 @@ int CCeraShop::_CheckConditionPutonAvatar(CUser* user)
 // ============================================================================
 // b28d-D42 verdict=DIFF [N82] ORIG 0x08323f86 orig/ours=566/563 ndiff=530。
 // 巨件帧/槽平移（P112/N82）；语义按报告逐条对齐。
-int CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long itemIdx,
+bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long itemIdx,
                                      unsigned int b, unsigned short c, unsigned char d,
                                      unsigned short e)
 {
@@ -1781,30 +1807,42 @@ bool CCeraShop::ProcessSpecialItem(CUser* user, int itemIdx, int count,
     if (user->getCurCharacR() == 0)
         return false;
 
-    // 特殊商品分类：先查 premium 数据映射（g_map_premium_item_data 未建模，
-    // ORIG 命中时固定 type=2），未命中则走 IsSpecialItem。
     int type = 0;
     int value = 0;
     bool f = false;
 
-    if (!IsSpecialItem(itemIdx, type, value, f))
-        return false;
+    // ORIG 0x0832587e：先 end() 后 find(itemIdx) 再 operator==（P293 求值序），
+    // 命中（迭代器不相等）时 type=2 直落 else 块，未命中才走 IsSpecialItem。
+    std::map<unsigned long, STPremiumItemData>::const_iterator e =
+        g_map_premium_item_data.end();
+    if (e == g_map_premium_item_data.find((unsigned long)itemIdx))
+    {
+        if (!IsSpecialItem(itemIdx, type, value, f))
+            return false;
+    }
+    else
+    {
+        type = 2;
+    }
 
     if (count == 0 && (itemIdx == 0x10 || itemIdx == 0x28d171))
         count = 50000;
 
-    // GetPremiumLetheManager 结果在 ORIG 中为死存储（+0x68 局部），省略。
+    // ORIG 死存储（-0xc 槽）：结果未被使用但 O0 保留读取。
+    CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
+    (void)lethe;
 
     STSpecailItem_Param p(items, param);
+    // ORIG 字段写入序：value → user → itemIdx → count → time → flag → c1/c2/flag2 → extra。
+    p.m_value = value;
     p.m_user = user;
     p.m_itemIdx = itemIdx;
-    p.m_value = value;
     p.m_count = count;
     p.m_time = curSec;
-    p.m_flag = flag ? 1 : 0;
+    p.m_flag = flag;
     p.m_char1d = (unsigned char)c1;
     p.m_char1e = (unsigned char)c2;
-    p.m_char1f = flag2 ? 1 : 0;
+    p.m_char1f = flag2;
     p.m_extra = extra;
 
     // m_handler：CCeraShop +0x00 的 SpecialItemHandler*（权威具名成员，ctor new 填充）。
@@ -1829,27 +1867,27 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, const CCeraShopGoods* goods,
                                       unsigned int param3, unsigned char param4,
                                       unsigned short param5, char param6, int& outCode)
 {
-    int groupIdx = goods->GetGroupIdx();
-    if (groupIdx == 1 && param6 == 0)
+    if (goods->GetGroupIdx() == 1 && param6 == 0)
     {
         // ORIG：三取值各自现场 getCurCharacInvenR（P48/P183 禁缓存）。
-        unsigned int coin = user->getCurCharacInvenR()->GetCoin();
-        unsigned int payCoin = user->getCurCharacInvenR()->GetPayCoin();
-        unsigned int eventCoin = user->getCurCharacInvenR()->GetEventCoin();
-        int stackCount = goods->GetStackCount();
-        if ((int)(coin + payCoin + eventCoin + (unsigned int)stackCount) < 0x186a1)
+        unsigned int coin = user->getCurCharacInvenR()->GetCoin() +
+                            user->getCurCharacInvenR()->GetPayCoin() +
+                            user->getCurCharacInvenR()->GetEventCoin();
+        unsigned int stackCount = (unsigned int)goods->GetStackCount();
+        if ((int)(coin + stackCount) > 0x186a0)
         {
-            outCode = 0;
-            return true;
+            outCode = 0x4f;
+            return false;
         }
-        outCode = 0x4f;
-        return false;
+        outCode = 0;
+        return true;
     }
-    unsigned short expiryDate = (unsigned short)goods->GetExpiryDate();
-    unsigned int stackCount = (unsigned int)goods->GetStackCount();
-    unsigned long itemIdx = (unsigned long)goods->GetItemIdx();
-    bool ok = _CheckBuyingCondition(user, param3, itemIdx, (unsigned int)stackCount,
-                                    (unsigned short)expiryDate, param4, param5);
+    // P0：ORIG 委托段三实参无槽往返（esi/ebx/eax 直传）⇒ 内联实参。
+    bool ok = false;
+    ok = _CheckBuyingCondition(user, param3, (unsigned long)goods->GetItemIdx(),
+                               (unsigned int)goods->GetStackCount(),
+                               (unsigned short)goods->GetExpiryDate(), param4,
+                               param5);
     if (!ok)
         outCode = 8;
     return ok;
@@ -2056,28 +2094,30 @@ void CCeraShop::_processCoin(CUser* user, unsigned short value, bool)
 // xor/sete 物化方向与寄存器分配差；语义等价封顶。
 void CCeraShop::autoUnsealItem(const CItem* item, Inven_Item& invItem)
 {
-    if (item != 0 && item->IsRandomOption())
+    // b28d-solo P223 多岛形：ORIG 两守卫各落独立 nop 岛（item==0 → nop;jmp；
+    // !IsRandomOption → nop），合并 && 会被 4.4 归一成 bool 岛 ⇒ 拆两条独立早返。
+    if (item == 0)
+        return;
+    if (!item->IsRandomOption())
+        return;
+    int original = getOriginalItem();
+    if (original != 0)
     {
-        int original = getOriginalItem();
-        if (original != 0)
+        const CItem* origItem = G_CDataManager()->find_item(original);
+        if (origItem != 0 && origItem->IsRandomOptionUnseal())
         {
-            const CItem* origItem = G_CDataManager()->find_item(original);
-            if (origItem != 0 && origItem->IsRandomOptionUnseal())
+            // ORIG 实参序 vtable 槽核对 —— get_rarity/getUsableLevel/
+            // getItemGroupName/GetRandomOptionGrade(vtable+0x50)；
+            // options = invItem.m_random.m_random（ORIG &invItem+0x25）。
+            if (!GlobalData::g_randomOptionHandle->give_option(
+                    (unsigned long)invItem.m_addInfo,
+                    (ENUM_RARITY)item->get_rarity(), item->getUsableLevel(),
+                    item->getItemGroupName(), item->GetRandomOptionGrade(),
+                    &invItem.m_random.m_random))
             {
-                // ORIG 实参序 vtable 槽核对 —— get_rarity/getUsableLevel/
-                // getItemGroupName/GetRandomOptionGrade(vtable+0x50)；
-                // options = invItem.m_random.m_random（ORIG &invItem+0x25）。
-                if (!GlobalData::g_randomOptionHandle->give_option(
-                        (unsigned long)invItem.m_addInfo,
-                        (ENUM_RARITY)item->get_rarity(),
-                        item->getUsableLevel(), item->getItemGroupName(),
-                        item->GetRandomOptionGrade(), &invItem.m_random.m_random))
-                {
-                    LogManager::logFormat(
-                        1, "CeraShop.cpp",
-                        __PRETTY_FUNCTION__,
-                        0x2131, "autoUnsealItem : %d", invItem.m_addInfo);
-                }
+                LogManager::logFormat(1, "CeraShop.cpp", __PRETTY_FUNCTION__,
+                                      0x2131, "autoUnsealItem : %d",
+                                      invItem.m_addInfo);
             }
         }
     }
@@ -2127,9 +2167,11 @@ int CCeraShop::_processItem(CUser* user, Inven_Item item, int count, int& restri
                 (int)std::strlen(msg));
             slot = 0;
         }
-        return slot;
+        goto end;
     }
     return 0;
+end:
+    return slot;
 }
 
 // ============================================================================
@@ -2314,20 +2356,19 @@ void CCeraShop::_onBuySpecialItem(CUser* user, ENUM_CERA_SPECIALITEM,
                                   unsigned long itemIdx)
 {
     // ORIG: (param_4 - 0x3f < 0xb) && ((1 << ((param_4 - 0x3f) & 0x1f)) & 0x7df) != 0
-    unsigned int k = (unsigned int)(itemIdx - 0x3f);
-    if (k < 0xb && ((1u << (k & 0x1f)) & 0x7dfu) != 0)
+    if ((unsigned int)(itemIdx - 0x3f) < 0xb &&
+        ((1u << (itemIdx - 0x3f)) & 0x7dfu) != 0)
     {
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire("CeraShop.cpp", 0x1971),
                                true);
         guard.operator*()->operator<<((int)0xb4);
         guard.operator*()->operator<<(-1);
-        SIG_SAVE_CRAZY_LEVELUP_EVENT* buf =
-            guard->GetInBuffer<SIG_SAVE_CRAZY_LEVELUP_EVENT>();
-        std::memcpy(buf, "0707", 5);  // DAT_08c25e65 = "0707\0"
-        *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(buf) + 5) =
-            user->get_acc_id();
-        *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(buf) + 9) =
-            user->get_charac_no(-1);
+        SaveCrazyLevelupPayloadView* buf =
+            reinterpret_cast<SaveCrazyLevelupPayloadView*>(
+                guard->GetInBuffer<SIG_SAVE_CRAZY_LEVELUP_EVENT>());
+        std::memcpy(buf->m_tag, "0707", 5);  // DAT_08c25e65 = "0707\0"
+        buf->m_accId = user->get_acc_id();
+        buf->m_characNo = user->get_charac_no(-1);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
     }
 

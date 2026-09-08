@@ -9,6 +9,9 @@
 #include "CHackAnalyzer.h"
 
 #include <algorithm>
+#include <iostream>   // b28d-solo-CHackAnalyzer: ORIG TU 静态初始化含
+                      // std::ios_base::Init C1+__cxa_atexit（0x080f97b4 实证）
+                      // ⇒ 原 TU 经头链引入流头；补此 include 复现该 TU 级符号。
 #include <string.h>
 
 #include "CUser.h"
@@ -44,8 +47,8 @@ namespace WongWork
 // m_cntRegion(=this+0x28) + (t-0x65)*4；B 表槽 = this + (t-0x65+0xf44)*4 + 8，
 // 即 m_cntRegion + (t-0x65+0xf44)*4 + 8 - 0x28。getServerHackCnt 0x08695086 /
 // addServerHackCnt 0x080f8c7e 反汇编核实）。
-#define HACK_CNT_A(T) (*(int*)((char*)m_serverHackCntA + ((((int)(T)) - 0x65) * 4)))
-#define HACK_CNT_B(T) (*(int*)((char*)m_serverHackCntB + ((((int)(T)) - 0x65) * 4)))
+#define HACK_CNT_A(T) (m_serverHackCntA[(int)(T) - 0x65])
+#define HACK_CNT_B(T) (m_serverHackCntB[(int)(T) - 0x65])
 // 数组成员式槽访问（ORIG resetServerHackCnt 0x0869509c / setServerHackAccumulatedCnt
 // 0x084eb57c / resetServerHackAccumulatedCnt 0x086950b6 的 lea idx+disp8 复合寻址形）。
 #define HACK_SLOT_A(T) (m_serverHackCntA[(int)(T) - 0x65])
@@ -168,7 +171,8 @@ bool CHackAnalyzer::CheckExceptionCnt(ENUM_HACKTYPE type, int cnt)
     return false;
 }
 
-// b28d-31: N 封顶（复核 b27，sret 跨版本 lowering）——ORIG 0x080f8320。
+// b28d-solo-CHackAnalyzer: AE（const_iterator 转换构造 + (int)type 内联实参
+// 复现 ORIG 0x080f8320 的 P96/P236 形；旧「N 封顶 sret lowering」判词作废）。
 bool CHackAnalyzer::CheckHackRateByPartyCount(ENUM_HACKTYPE type, int count)
 {
     // ORIG 0x080f8320：std::find 于 m_checkRateHackTypes(+0x7a24) 查 type；
@@ -188,7 +192,8 @@ bool CHackAnalyzer::CheckHackRateByPartyCount(ENUM_HACKTYPE type, int count)
     return false;
 }
 
-// b28d-31: N 封顶（复核 b27）——ORIG 0x080f842e。
+// b28d-solo-CHackAnalyzer: AE（同 CheckHackRateByPartyCount 的 P96/P236 形；
+// ORIG 0x080f842e）。
 bool CHackAnalyzer::CheckHackRateByDifficult(ENUM_HACKTYPE type, int lvDiff,
                                              int difficult)
 {
@@ -214,7 +219,7 @@ bool CHackAnalyzer::CheckHackRateByDifficult(ENUM_HACKTYPE type, int lvDiff,
     return false;
 }
 
-// b28d-31: 本波 check_tu 复核为 AE（299/299，无实质残差）。
+// b28d-solo-CHackAnalyzer: AE（299/299，无实质残差；ORIG 0x080f8550）。
 void CHackAnalyzer::AddCheckRateHackTypeList()
 {
     // ORIG 0x080f8550：前 18 项压入 m_checkRateHackTypes(+0x7a24)，
@@ -284,8 +289,9 @@ void CHackAnalyzer::ReqDBSaveHackInfo(unsigned int uid, unsigned int type,
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 }
 
-// b28d-31: N 封顶（N89 镜像/P197）——ORIG 0x080f8080；91 vs 79（4.1 内联
-// 展开 vs 4.4 out-of-line），p167 待核。
+// b28d-solo-CHackAnalyzer: AE（const_iterator + 独立 begin/end 局部 + `it->`
+// 实参（ORIG 4 次 operator->）+ 死拷贝 info + 尾部显式 return；旧 N89/P197
+// 判词作废）——ORIG 0x080f8080。
 void CHackAnalyzer::reportHackInfo()
 {
     if (m_hackInfoList.empty())
@@ -317,8 +323,8 @@ void CHackAnalyzer::resetHackInfo()
     m_field7a08 = 0;
 }
 
-// b28d-31: N 封顶（N82/P254）——ORIG 0x080f7fd2；33 vs 48（帧结构 +
-// movzbl 两段中转）。
+// b28d-solo-CHackAnalyzer: AE（stHackInfo_t 平凡析构 + m_value unsigned +
+// `m_flag04 | flag` 左操作数序；旧 N82/P254 判词作废）——ORIG 0x080f7fd2。
 void CHackAnalyzer::_addHackInfo(ENUM_REPORT_4_HACK_FLAG flag,
                                  ENUM_HACKTYPE type, int value)
 {
@@ -492,7 +498,8 @@ void CHackAnalyzer::_analyzeEquipmentUpgradeHack(unsigned short const* table)
     }
 }
 
-// b28d-31: N 封顶（P223 边界）——ORIG 0x080f7eb6；尾部多 1 组 [nop;jmp]。
+// b28d-solo-CHackAnalyzer: AE（窗口检查改正向包裹 `if (<= 0xa) {...}`，
+// ORIG 0x080f7eb6 双出口岛形逐条对齐；旧 P223 边界判词作废）。
 void CHackAnalyzer::_analyzeMonsterDieHack()
 {
     // ORIG 0x080f7eb6（_analyzeMonsterDieHack.md）：采集窗口 <11 秒且 kill 记录
@@ -600,8 +607,22 @@ void CHackAnalyzer::onUpdateHackCount(CUser* user, ENUM_HACKTYPE type, int a,
     user->onUpdateHackCount(type, a, b, c);
 }
 
-// b28d-31: N 封顶（N82/P183）——ORIG 0x080f8c7e；211 vs 230（帧/槽 + 地址
-// 重物化次数差）。
+// CParty 子对象视图（b28d-solo-CHackAnalyzer）：ORIG addServerHackCnt 0x080f8db5
+// 对 party+0xcac 直读指针（`mov 0xcac(%eax),%eax`）、对 party+0xb24 取内嵌子对象
+// 地址（`add $0xb24,%eax; call get_dungeon_diff`）。按 §8.3 未建模子对象具名化，
+// 避免 char* 加法把 disp 折成 add 指令（P82/P301）。
+namespace {
+struct CPartyHackView
+{
+    char m_pad0[0xcac];
+    CDungeon* m_pDungeon;                    // +0xcac（CDungeon*；0xb24 内嵌
+                                             // CBattle_Field 仍用真实类型 cast 取址）
+};
+}
+
+// b28d-solo-CHackAnalyzer: AE（CParty 视图 + 嵌套 if + 三目 lvDiff + 去
+// (int)count cast + 去 dungeon/memberCount 局部；旧 N82/P183 判词作废）
+// ——ORIG 0x080f8c7e。
 void CHackAnalyzer::addServerHackCnt(CUser* user, ENUM_HACKTYPE type,
                                      unsigned int count, unsigned int a,
                                      unsigned int b)
@@ -627,29 +648,36 @@ void CHackAnalyzer::addServerHackCnt(CUser* user, ENUM_HACKTYPE type,
 
 
     CParty* party = (CParty*)user->GetParty();
-    if (party != 0 && user->get_state() == 5)
+    // b28d-solo-CHackAnalyzer: ORIG 0x080f8d66 为嵌套 if（第二条件发
+    // `cmp $5; sete; test; je`，探针 /tmp/p_and.cpp f2 实证 4.4 唯一同形；
+    // `&&` 形 f1 恒产 mov$1/mov$0 岛）。
+    if (party != 0)
     {
-        int memberCount = party->get_member_count();
-        if (!CheckHackRateByPartyCount(type, memberCount))
-            return;
-        // [hc 收] ORIG：party+0xcac 为 CDungeon*，party+0xb24 为 CBattle_Field
-        // （§8.3 未建模子对象占位址跳，get_standard_level/get_dungeon_diff 具名消费）。
-        // ORIG：pc/dungeon 均不落槽，直接对 party 寄存器偏移寻址。
-        if (*(CDungeon**)((char*)party + 0xcac) != 0)
+        if (user->get_state() == 5)
         {
-            CDungeon* dungeon = *(CDungeon**)((char*)party + 0xcac);
-            // ORIG：条件与 else 分支各调用一次 getter（-O0 不复用）。
-            int lvDiff;
-            if (((CUserCharacInfo*)user)->get_charac_level() -
-                    dungeon->get_standard_level() <
-                0)
-                lvDiff = 0;
-            else
-                lvDiff = ((CUserCharacInfo*)user)->get_charac_level() -
-                         dungeon->get_standard_level();
-            int diff = ((CBattle_Field*)((char*)party + 0xb24))->get_dungeon_diff();
-            if (!CheckHackRateByDifficult(type, lvDiff, diff))
+            // ORIG：get_member_count 结果直通实参（无 memberCount 局部）。
+            if (!CheckHackRateByPartyCount(type, party->get_member_count()))
                 return;
+            // [hc 收] ORIG：party+0xcac 为 CDungeon*（指针）、party+0xb24 为
+            // 内嵌 CBattle_Field（§8.3 未建模子对象具名视图，P82/P301：视图
+            // 成员访问保 disp 折叠 `mov 0xcac(%eax),%eax`；char* 加法会退化成
+            // add $0xcac）。ORIG dungeon 不落槽、两臂各重读一次（P48/P183）。
+            if (((CPartyHackView*)party)->m_pDungeon != 0)
+            {
+                // ORIG 三目形（test/js 直跳，P47；if/else 赋值会发 shr$31 物化）。
+                int lvDiff =
+                    (((CUserCharacInfo*)user)->get_charac_level() -
+                         ((CPartyHackView*)party)->m_pDungeon->get_standard_level() <
+                     0)
+                        ? 0
+                        : ((CUserCharacInfo*)user)->get_charac_level() -
+                              ((CPartyHackView*)party)->m_pDungeon
+                                  ->get_standard_level();
+                if (!CheckHackRateByDifficult(
+                        type, lvDiff,
+                        ((CBattle_Field*)((char*)party + 0xb24))->get_dungeon_diff()))
+                    return;
+            }
         }
     }
 
@@ -660,8 +688,12 @@ void CHackAnalyzer::addServerHackCnt(CUser* user, ENUM_HACKTYPE type,
         return;
 
     {
-        HACK_CNT_A(type) += (int)count;
-        HACK_CNT_B(type) += (int)count;
+        // b28d-solo-CHackAnalyzer: 勿加 (int)count 冗余 cast——ORIG 0x080f8eb9
+        // `movl 0x8(%eax,%edx,4),%eax; addl 0x14(%ebp),%eax; mov %eax,%edx` 为
+        // int 字段 += unsigned 形参（异型 ⇒ add mem+中转，P274 反向；探针
+        // /tmp/p_add.cpp f2 逐条同形；加 cast 变同型恒产 lea 三操作数 f1）。
+        HACK_CNT_A(type) += count;
+        HACK_CNT_B(type) += count;
         onUpdateHackCount(user, type, count, a, b);
     }
 }
@@ -728,6 +760,8 @@ bool Secu_AccountHacking::isAvatar(unsigned int itemIdx)
     return false;
 }
 
+// b28d-solo-CHackAnalyzer: NEAR 封顶（P75/N76 跨版本装载序）——ORIG 0x08278b48；
+// 循环体 m_entries[i] 恒 base-first（六形实测），仅两 load 序差、指令数全等。
 void Secu_AccountHacking::sendMail(char const* name, MSG_CHECK_MAIL_RECEIVER* msg)
 {
     // §4.3 裸偏移清零 —— 载荷具名视图（本 TU 私有，不动冻结头）：
@@ -810,7 +844,10 @@ void Secu_AccountHacking::sendMail(char const* name, MSG_CHECK_MAIL_RECEIVER* ms
     }
 }
 
-// b28d-31: N 封顶（N82）——ORIG 0x08278cce；166 vs 169（帧/槽）。
+// b28d-solo-CHackAnalyzer: AE（正极性 || 守卫 + name!=0 块序 + 真语义 bug
+// 修正（addServerHackCnt 实参 (a,money)、GoldTracking 实参 (trackType,a,ip,
+// money,fatigue)）+ 内联 fatigue + 无 cast 除法 + 尾部 return 岛形；旧 N82
+// 判词作废）——ORIG 0x08278cce。
 void Secu_AccountHacking::sendGold(char const* name, unsigned int a,
                                    unsigned int money, unsigned int b,
                                    unsigned char trackType, char* ip)
@@ -818,45 +855,56 @@ void Secu_AccountHacking::sendGold(char const* name, unsigned int a,
     // ORIG T 0x08278cce（sendGold.md）：同名角色或金额<=500 直返；否则按 name
     // 是否为空分别走 analyze 加计数（附 Hades 金币追踪）/ DB 查询；
     // fatigue<=100 时按比例分档 setPatten(0/1/2)。
-    if (!(isSameAccountCharacter(name)) && money > 500)
-    {
-        if (name == (char const*)0)
-        {
-            ((CUser*)m_userP)->getHackAnalyzer()->addServerHackCnt(
-                (CUser*)m_userP, (WongWork::ENUM_HACKTYPE)0x2ce, 1, money, 0);
-            unsigned int fatigue =
-                (unsigned int)((CUser*)m_userP)->getCurCharacUsedFatigue();
-            ((XNuclear::CHades*)((CUser*)m_userP)->getHades())
-                ->GoldTracking(trackType, money, ip, a, fatigue);
-        }
-        else
-        {
-            DB_SelectCharacMid::makeRequest(
-                (int)((CUser*)m_userP)->GetUID(), 0, name, 0x2ce, money, 0);
-        }
+    // b28d-solo-CHackAnalyzer: 守卫写正极性 `||`（ORIG 0x08278cee 为
+    // mov$1/mov$0 岛形；`!(A)&&B` 反形在 4.4 恒直跳，探针 /tmp/p_or.cpp
+    // g1 逐条同形）。
+    if (isSameAccountCharacter(name) || money <= 500)
+        return;
 
-        if (m_userP != 0)
-        {
-            unsigned int fatigue =
-                (unsigned int)((CUser*)m_userP)->getCurCharacUsedFatigue();
-            if (fatigue <= 100)
-            {
-                unsigned long long numMoney = money;   // ORIG fildll
-                unsigned long long numB = b;           // ORIG fildll
-                int ratio = (int)(_S_HACK_RATIO_COEF_100F *
-                                  ((double)numMoney / (double)numB));
-                // ORIG 0x08278cce：先无条件 setPatten(GOLD_3)，再按比例分档
-                // ratio>0x45→GOLD_0，0x32..0x45→GOLD_1，0x1e..0x31→GOLD_2。
-                setPatten(AccountHackingType::GOLD_3, name, a, money);
-                if (ratio > 0x45)
-                    setPatten(AccountHackingType::GOLD_0, name, a, money);
-                else if (ratio > 0x31)
-                    setPatten(AccountHackingType::GOLD_1, name, a, money);
-                else if (ratio > 0x1d)
-                    setPatten(AccountHackingType::GOLD_2, name, a, money);
-            }
-        }
+    // ORIG 0x08278d0f：`cmpl $0,name; je <name==0 块>` ⇒ then 块是 name!=0
+    // （P47 块序：先写 makeRequest 分支）。
+    if (name != (char const*)0)
+    {
+        DB_SelectCharacMid::makeRequest(
+            (int)((CUser*)m_userP)->GetUID(), 0, name, 0x2ce, money, 0);
     }
+    else
+    {
+        // ORIG 0x08278d6a 实参序 (user, 0x2ce, 1, a, money)（第 4/5 参 = a/money，
+        // 旧重建误写 (money, 0)，真语义 bug 已修）。
+        ((CUser*)m_userP)->getHackAnalyzer()->addServerHackCnt(
+            (CUser*)m_userP, (WongWork::ENUM_HACKTYPE)0x2ce, 1, a, money);
+        // ORIG 0x08278db7 实参序 (trackType, a, ip, money, fatigue)（第 2/4 参
+        // = a/money，旧重建误写 (money, ..., a)，真语义 bug 已修）；fatigue
+        // 内联实参（无具名局部，ORIG 直通 esi）。
+        ((XNuclear::CHades*)((CUser*)m_userP)->getHades())
+            ->GoldTracking(trackType, a, ip, money,
+                           ((CUser*)m_userP)->getCurCharacUsedFatigue());
+    }
+
+    // ORIG 0x08278ddc：`&&` 岛形（探针 /tmp/p_and2.cpp h1）；fatigue 为
+    // unsigned short ⇒ 16 位比较 `cmp $0x64,%ax`（勿加 (unsigned int) cast）。
+    if (m_userP != 0 &&
+        ((CUser*)m_userP)->getCurCharacUsedFatigue() <= 100)
+    {
+        // ORIG 0x08278e0e：两次 fildll 复用同一 8 字节临时槽（-0x28），无
+        // unsigned long long 具名局部、无 2^64 修正段 ⇒ 直接 (double)uint 形。
+        int ratio = (int)(((double)money / (double)b) *
+                          _S_HACK_RATIO_COEF_100F);
+        // ORIG 0x08278cce：先无条件 setPatten(GOLD_3)，再按比例分档
+        // ratio>0x45→GOLD_0，0x32..0x45→GOLD_1，0x1e..0x31→GOLD_2。
+        setPatten(AccountHackingType::GOLD_3, name, a, money);
+        if (ratio > 0x45)
+            setPatten(AccountHackingType::GOLD_0, name, a, money);
+        else if (ratio > 0x31)
+            setPatten(AccountHackingType::GOLD_1, name, a, money);
+        else if (ratio > 0x1d)
+            setPatten(AccountHackingType::GOLD_2, name, a, money);
+    }
+    // ORIG 尾岛 [nop;jmp]×2 + [nop]（0x23a/0x23b、0x23d/0x23e、0x240）：
+    // 显式尾部 return 令 4.4 保留各早退中继块（P63/P285；缺此 return 时
+    // 4.4 jump-thread 合并成单 nop，ndiff=2）。
+    return;
 }
 
 bool Secu_AccountHacking::isSameAccountCharacter(char const* name)

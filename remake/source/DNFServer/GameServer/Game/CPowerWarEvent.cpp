@@ -36,9 +36,11 @@ CPowerWarEvent::~CPowerWarEvent()
 // ORIG 0x08267dea：环境为 1/2 时向 monitor 发 Event_End 包；
 // 否则事件未进行中则直接返回，进行中则开始力战（关终极副本、发配置、
 // 挂三个定时器）。
-// [b28d-26] NEAR 收敛至 1 处：P221 全表达式临时链（cMyTrace(...)(fmt)）后
-//   槽位/块序全对齐，仅余 N7 间接 call 目标寄存器（ORIG `call *%edx` vs
-//   4.4.7 `call *%eax`，0x08267e26 段；P230：4.4.6 后端可消，本 TU 未路由）⇒ N7 封顶。
+// [b28d-solo-CPowerWarEvent] AE（446h47 路由后）。P221 全表达式临时链收口槽位/块序；
+//   唯一曾存残差=虚调 IsEventing(0) 间接目标寄存器（ORIG 0x08267e80 `mov (%eax),%edx` +
+//   0x08267e90 `call *%edx`、this 入 %eax；4.4.7 恒目标 %eax、this 入 %edx = N7）。
+//   P230：本件属 N7 敏感族，Main 已将本 TU 纳入 446h47「仅换 4.4.6 后端」路由 ⇒
+//   compare_tu_game_orig: identical=2 ae=11 near=0（本件由 NEAR 转 AE）；p167 CLEAR 50=50。
 void CPowerWarEvent::StartEvent(Word_Param param)
 {
     if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
@@ -102,7 +104,10 @@ void CPowerWarEvent::StartEvent(Word_Param param)
 
 // ---------------------------------------------------------------------------
 // ORIG 0x082679fa：同 StartEvent(Word_Param)，但不写 m_param。
-// [b28d-26] NEAR 同族收敛：P221 临时链后仅余 N7（`call *%edx` vs `call *%eax`）⇒ N7 封顶。
+// [b28d-solo-CPowerWarEvent] AE（446h47 路由后）。与 StartEvent(Word_Param) 同族：
+//   P221 临时链后唯一曾存残差=虚调 IsEventing(0) 目标寄存器（ORIG 0x08267a90
+//   `mov (%eax),%edx` + 0x08267aa0 `call *%edx`，this 入 %eax；4.4.7 恒 %eax/%edx 对调）。
+//   P230：446h47 路由后本件由 NEAR 转 AE（compare_tu_game_orig near 3→0）；p167 CLEAR 50=50。
 void CPowerWarEvent::StartEvent()
 {
     if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
@@ -166,8 +171,11 @@ void CPowerWarEvent::StartEvent()
 // ORIG 0x082681e2：环境为 1/2 时直接返回；事件未进行中直接返回；
 // 进行中则关力战（开终极副本、OnEndPowerWar/CancelPowerUp 广播、
 // 清共享服务器消息、强制关闭 assault、触发 0x35 事件）。
-// [b28d-26] NEAR 收敛至 1 处：P221 临时链（含 0xde/0xe1/0xe4/0x110 四 trace）后
-//   槽位/块序全对齐，仅余 N7 间接 call 寄存器（0x08268226 段 `call *%edx` vs `*%eax`）⇒ N7 封顶。
+// [b28d-solo-CPowerWarEvent] AE（446h47 路由后）。P221 临时链（含 0xde/0xe1/0xe4/0x110
+//   四 trace）收口槽位/块序，唯一曾存残差=虚调 IsEventing(0) 目标寄存器（ORIG 0x08268226
+//   `mov (%eax),%edx` + 0x08268236 `call *%edx`、this 入 %eax；4.4.7 恒目标 %eax = N7）。
+//   P230：446h47 路由后本件由 NEAR 转 AE（compare_tu_game_orig near 3→0）；p167 CLEAR 34=34。
+//   另修正真语义 bug：0xe4 trace 文本 ORIG .rodata 0x8bf0544 为 "…DUNGEON OPEN!!"（旧写 CLOSE）。
 void CPowerWarEvent::EndEvent()
 {
     if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
@@ -198,7 +206,9 @@ void CPowerWarEvent::EndEvent()
         else
         {
             cMyTrace(__PRETTY_FUNCTION__, 0xe4, 0)   // ORIG 0x0826834d 行号 0xe4
-                ("ULTIMATE_LOG : ALLEADY ULTIMATE DUNGEON CLOSE!!");
+                // [b28d-solo-CPowerWarEvent] 真语义 bug 修正：ORIG .rodata 0x8bf0544 实为
+                // "…DUNGEON OPEN!!"（objdump -s 核验），旧文写 CLOSE 与 ORIG 不一致。
+                ("ULTIMATE_LOG : ALLEADY ULTIMATE DUNGEON OPEN!!");
         }
         PacketGuard packet;
         packet.put_header(0, 0xa0);

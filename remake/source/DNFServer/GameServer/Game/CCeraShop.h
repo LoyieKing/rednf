@@ -83,9 +83,11 @@ public:
                              unsigned int b, unsigned short c, unsigned char d,
                              unsigned short e);                                 // 0x08323f2a
     // 六参重载（ORIG mangled jmjtht；实现在 CCeraShop_Special.cpp）。
-    int _CheckBuyingCondition(CUser* user, unsigned int goodsNo, unsigned long itemIdx,
-                              unsigned int stackCount, unsigned short expiry,
-                              unsigned char selByte, unsigned short selSlot);   // 0x08323f86
+    // b28d-solo-CCeraShop_Special(P292/P9)：ORIG 0x08324810 goods 委托调用点
+    // `call; mov %al,-0x21(%ebp)`（直接存 al、无 test/setne 归一）⇒ 返回 bool。
+    bool _CheckBuyingCondition(CUser* user, unsigned int goodsNo, unsigned long itemIdx,
+                               unsigned int stackCount, unsigned short expiry,
+                               unsigned char selByte, unsigned short selSlot);  // 0x08323f86
     bool _CheckValidCount(CCeraShopGoods const** goodsList);                       // 0x08323af4
     int _CheckConditionPutonAvatar(CUser* user);                               // 0x08324966
     bool ProcessSpecialItem(CUser* user, int itemIdx, int count, int& restrictCode,

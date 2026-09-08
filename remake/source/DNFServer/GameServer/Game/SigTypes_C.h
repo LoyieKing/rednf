@@ -1002,7 +1002,10 @@ struct CHARAC_LOAD_MERCENARY
 // NOTE_MARKER_NOOP
     short m_level;                // +0x04（AddCurCharacMercenaryInfo 写 charac+0x27）
     char m_name[0x1e];            // +0x06..0x23（Reset memset(this+6,0,0x1e)）
-    unsigned char m_field24;      // +0x24（Reset 写 0）
+    // [b28d-solo-CUserMissingA2] P292/档②：ORIG 0x0868e459 判脏标记为
+    // `movzbl 0x24(%eax),%eax; test %al,%al; je`（无 setne 物化）⇒ 字段为 bool
+    // （uchar 会多一条 `setne %al`）。宽度/偏移/sizeof 不变（1 字节）。
+    bool m_field24;               // +0x24（Reset 写 0；alter 写 1/save_complete 写 0）
     char m_pad25[3];              // +0x25..0x27（Reset 不触碰）
     int m_field28;                // +0x28（Reset 写 0）
     int m_field2c;                // +0x2c（Reset 写 0；GetCompetitionState 竞技结束秒）

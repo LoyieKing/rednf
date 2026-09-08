@@ -1160,14 +1160,16 @@ int BlueMarble::setResultItem(int seat, Inven_Item& item)
     }
 }
 
-// [b28d-solo-BlueMarble NEAR(36)/N7+P82] P0 去缓存/register 化：addInfo、
-// msg268/msg269、mailRet 三个具名局部内联（ORIG 分别直入 %ebx、直作 strncpy
-// 实参、`test;sete;test;je` 无槽比较）、serverGroup/len 纯 register 复现
-// callee-saved 保活（P231/P248）、characNo 内联实参。177/179 gap 2。
-// 余 36 条：①%esi/%ebx 角色互换（ORIG serverGroup→ebx、len→esi；4.4 恒
-// serverGroup→esi，声明序交换实测无效 ⇒ N7/N109）；②MSG 视图三字段的 base
-// lea（ORIG 折叠 -0x236/-0x232 绝对 disp + `add $0x11`，4.4 视图访问恒先
-// lea base ⇒ P82/P235；裸偏移被 §4.3 禁用不可回退）。ORIG 0x080d800e
+// [b28d-solo-BlueMarble N(N7/N102)] P0 去缓存/register 化 + P235 union 视角后
+// 177=177 gap 0。修法：addInfo/msg268/msg269/mailRet 四个具名局部内联
+// （ORIG 分别直入 %ebx、直作 strncpy 实参、`test;sete;test;je` 无槽比较）、
+// serverGroup/len 纯 register 复现 callee-saved 保活（P231/P248）、characNo
+// 内联实参、MSG 载荷改 char[0x145]+union{raw,MSG_MAILBOX_SEND msg} 视角
+// （P235；完整类型成员直访问使三字段 store 折叠为 -0x236/-0x232 绝对 disp）。
+// 余 14 条：①%esi/%ebx 角色互换（ORIG serverGroup→ebx、len→esi；4.4 按首次
+// 使用恒 serverGroup→esi，声明序交换实测无效 ⇒ N7/N109）；②strncpy dst
+// `lea -0x26f; add $0x11` vs 4.4 `lea -0x26f; lea 0x11` 且 dst 计算提前
+// （数组退化 add 寻址 ⇒ N102/N4 封顶）。ORIG 0x080d800e
 int BlueMarble::insertItem(int seat, Inven_Item& item, eItemAddReason reason)
 {
     // ORIG 0x080d801c `mov 0x7(%eax),%ebx`（Inven_Item::m_addInfo2）直入
@@ -1204,19 +1206,21 @@ int BlueMarble::insertItem(int seat, Inven_Item& item, eItemAddReason reason)
             // ORIG 栈槽 local_273（0x145）= MSG_MAILBOX_SEND 载荷（权威布局
             // PacketTypes.h：m_name11@+0x11 / m_itemId39@+0x39 / m_extra3d@+0x3d；
             // 写指令 `mov %eax,-0x236/-0x232(%ebp)` 均 4 字节 ⇒ 字段宽一致）。
-            // 保留 char 数组载体（ORIG 该槽未 4 字节对齐：-0x273(%ebp)），且
-            // 不引入额外局部指针变量（O0 下会多占栈槽、改变指令数）：逐处
-            // reinterpret_cast 直读；不新增对象（MSG_BASE ctor 会多出 call）。
-            char local_273[0x145];
-            memset(local_273, 0, 0x145);
-            strncpy(reinterpret_cast<MSG_MAILBOX_SEND*>(local_273)->m_name11,
-                    local_2e, 0x1d);                   // +0x11 收件人角色名
-            reinterpret_cast<MSG_MAILBOX_SEND*>(local_273)->m_itemId39 =
-                static_cast<unsigned long>(item.m_addInfo);   // +0x39 附件物品 id
-            reinterpret_cast<MSG_MAILBOX_SEND*>(local_273)->m_extra3d =
-                item.m_addInfo2;                       // +0x3d 附件 add_info
-            m_users[seat].getUser()->m_historyLog.SendMail(
-                reinterpret_cast<MSG_MAILBOX_SEND*>(local_273), 0);
+            // 载体用 char[0x145]（ORIG 该槽 1 字节对齐：-0x26f(%ebp)）+ 匿名
+            // union 视角：完整类型成员直访问让 4.4 折叠 disp（P235），
+            // 避免逐处 reinterpret_cast 的 base lea；MSG_MAILBOX_SEND 为
+            // pack(1) POD（无 ctor/dtor）⇒ union 平凡、sizeof 0x145/align 1 不变。
+            union MailPayload {
+                char raw[0x145];
+                MSG_MAILBOX_SEND msg;
+            };
+            MailPayload local_273;
+            memset(local_273.raw, 0, 0x145);
+            strncpy(local_273.msg.m_name11, local_2e, 0x1d); // +0x11 收件人名
+            local_273.msg.m_itemId39 =
+                static_cast<unsigned long>(item.m_addInfo);  // +0x39 附件物品 id
+            local_273.msg.m_extra3d = item.m_addInfo2;       // +0x3d 附件 add_info
+            m_users[seat].getUser()->m_historyLog.SendMail(&local_273.msg, 0);
         }
     }
     else

@@ -411,7 +411,9 @@ public:
     void get_limit_cube_item(std::pair<int, int>& out);
     void get_lotto_item(char* out);
     void get_multibox_default_item(std::vector<std::pair<Inven_Item, bool> >* out);
-    void get_multibox_default_item_arad(std::vector<std::pair<Inven_Item, bool> >* out);
+    // ORIG 0x0850f38a 首参读 0x8(%ebp) 且全程无 this ⇒ static 成员（P245/P281；
+    // static 不入 mangling，符号名不变，调用点可继续用 obj->method(...)）。
+    static void get_multibox_default_item_arad(std::vector<std::pair<Inven_Item, bool> >* out);
     // ORIG _ZNK14CStackableItem27IsUse2ndUpgradeTableRecipeEv W 0x0869475e（实现=Wave9 CUserRest body）
     bool IsUse2ndUpgradeTableRecipe() const;
     void get_multibox_lottery_item(std::vector<std::pair<Inven_Item, bool> >* out);

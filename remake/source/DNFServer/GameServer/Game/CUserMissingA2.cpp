@@ -146,6 +146,8 @@ int CUser::GetCharacHotKeyType(int characJob)
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82：ORIG 0x0868ea68；p167 CLEAR（8/8），残差为帧/槽号与
 // callee-saved 分配（4.1 保守帧 vs 4.4 紧凑帧），语义闭合。
+// [b28d-solo-CUserMissingA2] 复验 96/93（重定位归一）：残差为局部槽整体平移 +
+// 多余临时槽（4.4 按首次使用序分配）；p167 CLEAR 8/8 ⇒ N82 封顶。
 int CUser::CalcMercenaryAvatarBonus() const
 {
     int best = 10;
@@ -536,6 +538,9 @@ float CHARAC_LOAD_MERCENARY::GetRewardCritical(int dice) const
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82附/P52：ORIG 0x081b2ed2；ORIG push esi + sub 0x20（值跨 call
 // 保活 callee-saved），4.4 延迟装载 + 帧 0x24；p167 CLEAR（4/4），语义闭合。
+// [b28d-solo-CUserMissingA2] 修复：整数乘操作数交换为 `m_field0 * vec[..].first`
+// （P243 同族）⇒ 32/32 与 ORIG 逐条同形（m_field0 先入 %esi 跨 call 保活 +
+// push esi/sub $0x20 帧），转 AE。
 int CHARAC_LOAD_MERCENARY::GetCompetitionPeriodSecond(char periodIdx) const
 {
     if (!CheckCompetitionPeriodIndex(periodIdx))
@@ -544,9 +549,11 @@ int CHARAC_LOAD_MERCENARY::GetCompetitionPeriodSecond(char periodIdx) const
     // ORIG 0x081b2f06：`call G_CDataManager; mov 0xa8dc(%eax),%esi`（右操作数
     // 先物化并升格 callee-saved，跨下一次 call 保活）⇒ P226 裸语句表达式形
     // 复现值升格（P200 方向：值作普通表达式直传，不经具名中间局部）。
-    return G_CDataManager()->m_mercenarySystem
-               .m_vec14[static_cast<int>(periodIdx)].first
-           * ({ (int)G_CDataManager()->m_mercenarySystem.m_field0; });
+    // P243 同族（整数乘）：ORIG 0x081b2efd 先求 m_field0（→%esi 跨 call 保活）再
+    // 求 vec[...].first（→%eax），`imul %esi,%eax` ⇒ 源写「m_field0 * first」。
+    return (int)G_CDataManager()->m_mercenarySystem.m_field0
+           * G_CDataManager()->m_mercenarySystem
+                 .m_vec14[static_cast<int>(periodIdx)].first;
 }
 
 // ----------------------------------------------------------------------------
@@ -556,23 +563,28 @@ int CHARAC_LOAD_MERCENARY::GetCompetitionPeriodSecond(char periodIdx) const
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N93附/N18a：ORIG 0x081b2f32；bool 物化方向 + 具名局部槽/帧差，
 // p167 CLEAR（8/8），语义闭合。
+// [b28d-solo-CUserMissingA2] 修复：8 位有符号比较 + 无具名 bool 物化 + 两句式
+// term（分子落 -0xc 槽回读）+ unsigned `divl` ⇒ 84/87；残余 N18a（ORIG 分子
+// edx/ecx 双中转 3 条，4.4 恒单段）。
 int CHARAC_LOAD_MERCENARY::GetCompetitionPeriodTerm(bool* isFinalPeriod) const
 {
     if (!CheckCompetitionPeriodIndex(static_cast<char>(m_field31)))
         return 0;
     const std::vector<std::pair<int, float> >& vec =
         G_CDataManager()->m_mercenarySystem.m_vec14;
-    bool bInvalid;
-    if (vec.empty())
-        bInvalid = true;
-    else if (static_cast<unsigned int>(static_cast<char>(m_field31)) <= vec.size())
-        bInvalid = false;
-    else
-        bInvalid = true;
-    if (bInvalid)
+    // ORIG 0x081b2f76：`call empty; test; jne L1; call size; cmp %al,%dl; jge L2;
+    // L1: mov $1; L2: mov $0; test; je body` —— 8 位有符号比较 + 无具名 bool
+    // （P158 反向：具名 bool 产 -0xd 槽往返，ORIG 用 %eax 直接物化）。
+    if (vec.empty() ||
+        static_cast<char>(vec.size()) < static_cast<char>(m_field31))
         return 0;
-    int term = (GlobalData::s_systemTime_.getCurSec() - m_field28) /
-               G_CDataManager()->m_mercenarySystem.m_field0;
+    // ORIG 0x081b2fcb：分子先落 -0xc 槽（`mov %eax,-0xc` + 回读 →%ebx），除法
+    // 后再写回同一槽 ⇒ 两句式（P38 拆语句）；`divl`（无符号）⇒ 商按 unsigned 求。
+    int term = GlobalData::s_systemTime_.getCurSec() - m_field28;
+    term = static_cast<int>(
+        static_cast<unsigned int>(term)
+        / static_cast<unsigned int>(
+            G_CDataManager()->m_mercenarySystem.m_field0));
     if (term < vec[static_cast<int>(static_cast<char>(m_field31))].first)
     {
         if (isFinalPeriod != 0)
@@ -670,6 +682,9 @@ int CHARAC_LOAD_MERCENARY::GetRewardGold(CUser* user,
 // [b28d-27] DIFF（cv 旋钮待修）：ORIG 0x081b3276；p167 差集显示 ORIG 用 const
 // 迭代器/const operator[]（_ZNKSt6vector...ixEj ×4、_ZNKSt17_Rb_tree_iterator...ptEv ×3、
 // _ZNKSt6vector...emptyEv），我方用非 const 版（+4/+3/+2）⇒ N89/P96 封顶。
+// [b28d-solo-CUserMissingA2] 修复：const 指针/引用（pArea/pArea2/group/dropLists/
+// list）+ 非 const map iterator + `m_itemList` 成员直访（消 getItemList EXTRA×2）
+// ⇒ p167 50/49（余 empty 为工具口径，.o 内实有该调用）；残差 N82 槽序，367/383。
 bool CHARAC_LOAD_MERCENARY::GetRewardItem(
     CUser* user, competition_reward_result& result, Inven_Item& item,
     std::string& msg)
@@ -682,7 +697,7 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
     if (!CheckCompetitionAreaIndex(static_cast<char>(m_field30), m_level))
         return false;
 
-    stMercenaryCompetitionArea* pArea = &G_CDataManager()
+    const stMercenaryCompetitionArea* pArea = &G_CDataManager()
         ->m_mercenarySystem.m_vec40[static_cast<int>(static_cast<char>(m_field30))];
     if (pArea->m_areaLevel == 0)
         m_field30 = 0;
@@ -697,7 +712,7 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
     if (dropRate <= itemDropDice)
         return false;
 
-    stMercenaryCompetitionArea* pArea2 = &G_CDataManager()
+    const stMercenaryCompetitionArea* pArea2 = &G_CDataManager()
         ->m_mercenarySystem.m_vec40[static_cast<int>(static_cast<char>(m_field30))];
     unsigned long groupRange =
         static_cast<unsigned long>(pArea2->m_groupIdSum);
@@ -722,7 +737,7 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
     if (pArea2->m_groups.size() <= groupIdx)
         groupIdx = 0;
 
-    stMercenaryRewardGroup& group = pArea2->m_groups[groupIdx];
+    const stMercenaryRewardGroup& group = pArea2->m_groups[groupIdx];
     msg = group.m_name;
 
     if (!group.m_mobList.empty())
@@ -733,15 +748,15 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
         mobDice = probabilityRewardItem.randInt(mobRange);
         int mobIdx = FindRelativeProb<int>(group.m_mobList, mobDice);
 
-        std::map<int, std::pair<int, int> >::const_iterator it =
+        std::map<int, std::pair<int, int> >::iterator it =
             G_CDataManager()->m_independentDrop.m_map24.find(mobIdx);
         if (it != G_CDataManager()->m_independentDrop.m_map24.end())
         {
-            std::vector<IndependentDropListInfo>& dropLists =
+            const std::vector<IndependentDropListInfo>& dropLists =
                 G_CDataManager()->m_independentDrop.m_vec0;
             if (it->second.first < (int)dropLists.size())
             {
-                std::vector<std::pair<int, int> >& list =
+                const std::vector<std::pair<int, int> >& list =
                     dropLists[it->second.first].m_list04;
                 unsigned long dropRange =
                     static_cast<unsigned long>(it->second.second);
@@ -755,7 +770,7 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
                     {
                         item.m_addInfo = list[j].first;
                         item.m_addInfo2 = 1;
-                        G_CDataManager()->getItemList()->create_item(
+                        G_CDataManager()->m_itemList->create_item(
                             ENUM_ITEM_CREATE_TYPE_1, item, 1);
                         result.m_8 = 1;
                         return true;
@@ -777,7 +792,7 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
         {
             item.m_addInfo = group.m_itemList[k].first;
             item.m_addInfo2 = 1;
-            G_CDataManager()->getItemList()->create_item(
+            G_CDataManager()->m_itemList->create_item(
                 ENUM_ITEM_CREATE_TYPE_1, item, 1);
             result.m_8 = 1;
             return true;
@@ -794,6 +809,8 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82/N89：ORIG 0x081b3b68；p167 CLEAR（49/49），残差为 STL 实例
 // 形态与帧/槽分配，语义闭合。
+// [b28d-solo-CUserMissingA2] 复验 364/357：p167 CLEAR 49/49，残差为帧/槽与 STL
+// 实例形态 ⇒ N82/N89 封顶。
 bool CHARAC_LOAD_MERCENARY::Reward(CUser* user,
                                    competition_reward_result& result)
 {
@@ -884,6 +901,8 @@ bool CHARAC_LOAD_MERCENARY::Reward(CUser* user,
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82/N86：ORIG 0x081b3814；p167 CLEAR（30/30），残差为容器迭代器
 // 临时槽 + 帧分配，语义闭合。
+// [b28d-solo-CUserMissingA2] 复验 248/245：帧 0x8c vs 0x7c + 全槽平移（N82），
+// p167 CLEAR 30/30 ⇒ 封顶。
 bool CHARAC_LOAD_MERCENARY::Competition(CUser* user, char periodIdx,
                                         char areaIdx)
 {
@@ -948,6 +967,8 @@ bool CHARAC_LOAD_MERCENARY::Competition(CUser* user, char periodIdx,
 // [b28d-27] NEAR N93：ORIG 0x08697474；ORIG end()槽 -0x14 / find()槽 -0x10（4.1
 // 先声明占深槽），4.4 恒反向（先声明浅槽）；交换声明序会改调用序（ORIG end 先、
 // find 后）⇒ 封顶。p167 CLEAR（5/5），语义闭合。
+// [b28d-solo-CUserMissingA2] 复验 47/47：p167 CLEAR 5/5；N93 槽序不可翻
+// （交换声明序会改 end/find 调用序）⇒ 封顶。
 int CUser::GetETC(short key)
 {
     std::map<short, int>::iterator e = m_mapEtc.end();
@@ -1066,6 +1087,9 @@ int CUser::Competition_Mercenary_Charac(unsigned int slot, char modeA, char mode
 // [b28d-27] DIFF N18a 反向：ORIG 0x086914cc；ORIG `mov (%eax),%esi` 单段直落
 // callee-saved，4.4 恒经 %eax 两段；旧探针族（具名/内联/register）均不翻 ⇒ 封顶。
 // p167 CLEAR（7/7），语义闭合。
+// [b28d-solo-CUserMissingA2] 复验 44/43：P226 裸语句表达式与 P231 纯 register
+// 两形实测均不翻（register 反使 isWin 装载序劣化），ORIG `mov (%eax),%esi`
+// 单段直落不可造 ⇒ N18a 反向封顶。
 void CUser::updateBingoData()
 {
     // 语义闭合（ndiff 43/44 残 1 条定性）：ORIG `mov (%eax),%esi` 为 m_needSave
@@ -1087,27 +1111,49 @@ void CUser::updateBingoData()
 // SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD（sig+0=characNo、+4=m_time、+8=m_round、
 // +0xc=key）到 LOGDB 队列；末尾 setBloodBestRecordUpdate(false)。
 // ----------------------------------------------------------------------------
-// [b28d-27] DIFF（p167 MISSING 3）：ORIG 0x08651de6；ORIG 多 3 条调用（stream/
-// 迭代器族），我方索引/引用实现语义等价但符号族不同（N89 类）。
+// [b28d-27] DIFF（p167 MISSING 3）：ORIG 0x08651de6。
+// [b28d-solo-CUserMissingA2] 已修复为 **AE**（127/127；p167 24/24 CLEAR）：
+// [b28d-solo-CUserMissingA2] 迭代器族归位：ORIG 0x08651de6 用**非 const**
+// `_Rb_tree_iterator`（p167：MISSING 非 const begin/end/ptEv/ppEv/ne，EXTRA 我方
+// const 版全族）⇒ 原码 cur 为非 const 指针；本函数只读遍历，用 const_cast 取回
+// 非 const 视图（不改共享头，避免全仓重编译）。循环条件形 = `it != map.end()`
+// （ORIG end 调用点在循环底部，无 end 具名缓存）。
+// [b28d-solo-CUserMissingA2] store 序：ORIG 4 处 store 全为 RHS-first + disp 直存
+// （`mov RHS,%edx; mov sig,%eax; mov %edx,disp(%eax)`）⇒ 原码是**具名视图结构成员
+// 赋值**（裸 `*(unsigned int*)((char*)sig+K)` 产 lea+ebx 跨 call 缓存，DIFF）；
+// 字段类型须与 RHS 精确同型（probe /tmp/b28d_solo/probe_view4.cpp fK 逐条实证）。
+struct BloodBestRecordSigView
+{
+    unsigned int m_characNo;   // +0x00（getCurCharacNo 返回 unsigned int，同型免中转）
+    unsigned int m_time;       // +0x04（stBloodBestRecord::m_time）
+    int m_round;               // +0x08（stBloodBestRecord::m_round）
+    int m_key;                 // +0x0c（pair::first）
+};
+
 void CUser::UpdateBloodRecord()
 {
-    const _Charac_info* cur = getCurCharacR();
+    _Charac_info* cur = const_cast<_Charac_info*>(getCurCharacR());
     if (cur == 0)
         return;
-    for (std::map<int, stBloodBestRecord>::const_iterator it = cur->m_bloodBestRecords.begin(),
-         e = cur->m_bloodBestRecords.end(); it != e; ++it)
+    for (std::map<int, stBloodBestRecord>::iterator it = cur->m_bloodBestRecords.begin();
+         it != cur->m_bloodBestRecords.end(); ++it)
     {
-        Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0x1bbb);
-        CStreamGuard guard(stream, true);
-        guard << 0x140;
-        guard << (int)GetUID();
-        SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD* sig =
-            guard.GetInBuffer<SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD>();
+        // P259：ORIG 0x08651e43 无 stream 具名局部（Acquire 返回值直传 C1 的
+        // 0x4(%esp)）⇒ 必须内联实参，否则多一个 -0x10 槽并使全帧槽号平移 -4。
+        CStreamGuard guard(
+            GlobalData::s_stream_pool->Acquire("user.cpp", 0x1bbb), true);
+        // P132/P103：ORIG 0x08651e60/0x08651e9f 显式调 CStreamGuard::operator*()
+        // （`de`×2）与 operator->()（`pt`×1）再转发 ⇒ 必须保留代理链
+        // （直接 `guard <<`/`guard.GetInBuffer` 少 3 条 call）。
+        (*guard)->operator<<(0x140);
+        (*guard)->operator<<((int)GetUID());
+        BloodBestRecordSigView* sig = reinterpret_cast<BloodBestRecordSigView*>(
+            guard.operator->()->GetInBuffer<SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD>());
         memset(sig, 0, 0x10);
-        *reinterpret_cast<unsigned int*>(sig) = (unsigned int)getCurCharacNo();
-        *reinterpret_cast<unsigned int*>((char*)sig + 4) = it->second.m_time;
-        *reinterpret_cast<unsigned int*>((char*)sig + 8) = it->second.m_round;
-        *reinterpret_cast<unsigned int*>((char*)sig + 12) = (unsigned int)it->first;
+        sig->m_characNo = getCurCharacNo();
+        sig->m_time = it->second.m_time;
+        sig->m_round = it->second.m_round;
+        sig->m_key = it->first;
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     }
     setBloodBestRecordUpdate(false);
@@ -1122,6 +1168,8 @@ void CUser::UpdateBloodRecord()
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82：ORIG 0x0865da4e；p167 CLEAR（7/7），残差为帧/槽分配，
 // 语义闭合。
+// [b28d-solo-CUserMissingA2] 复验 89/87：帧 0x38 vs 0x28+push %ebx + 多余局部槽，
+// p167 CLEAR 7/7 ⇒ N82 封顶。
 void CUser::SetEquipment(int slot, void* invenData, int size, void* outData)
 {
     int* cnt = (int*)outData;
@@ -1160,6 +1208,8 @@ void CUser::SetEquipment(int slot, void* invenData, int size, void* outData)
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82：ORIG 0x086925c4；p167 CLEAR（29/29），残差为帧/槽与
 // 寄存器分配，语义闭合。
+// [b28d-solo-CUserMissingA2] 复验 168/161：多 push %edi + 帧 0x1bc vs 0x190
+// （多余局部槽），p167 CLEAR 29/29 ⇒ N82 封顶。
 void CUser::processFatigueCharac(int usedMin)
 {
     int job = get_charac_job();
@@ -1206,9 +1256,12 @@ void CUser::processFatigueCharac(int usedMin)
 // [b28d-27] DIFF N7+P52：ORIG 0x086792d6；虚调用 callee 寄存器 %eax↔%edx 互换
 // （4.4 间接 call 目标恒 %eax）+ 值先物化 callee-saved 缺失；p167 CLEAR（32/32），
 // 语义闭合。
+// [b28d-solo-CUserMissingA2] 修复 P290：rewardItemId int→unsigned ⇒ find_item
+// 实参升格 %ebx 跨 G_CDataManager call 保活（ORIG 0x08679609 对齐）；残余仅 N7
+// （本 TU 路由 4.4.7 ⇒ 间接 call 目标恒 %eax），201/201。
 void CUser::processAwakenReward(char stage)
 {
-    int rewardItemId = 0x3c0;
+    unsigned int rewardItemId = 0x3c0;
     int sealCount = 1;
     char mailMsg[256];
     char mailTitle[21];
@@ -1277,28 +1330,39 @@ void CUser::processAwakenReward(char stage)
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF（p167 MISSING 4）：ORIG 0x0868e36a；ORIG 多 4 条调用（STL 族），
 // 我方实现语义等价但实例/形式不同（N89 类）+ 帧差。
+// [b28d-solo-CUserMissingA2] 复验 136/132：p167 20/20 CLEAR；残余为槽序
+// （4.4 首次使用序 vs 4.1）+ `imul $0x54` 强度归约（4.4 恒 shl/add 链）+
+// `*db` store 序 ⇒ N82/N101 封顶。
+// [b28d-solo-CUserMissingA2] p167 归位：ORIG 0x0868e36a 调 CStreamGuard::operator*
+// ×2 + operator-> ×1（代理链）、operator[] ×3（P157 逐次重读，非引用缓存）、
+// 结构整体赋值 `rep movsl 0x15`（非 memcpy）；row 为每次从 *db 读的具名局部。
+struct MercenaryDbHeadView
+{
+    unsigned int m_count;   // +0x00（SIG_MERCENARY_DB_DATA 首 dword = 行数）
+};
+
 unsigned int CUser::SaveMercenaryData()
 {
     if (m_mercenaryMgr.m_characs.empty())
         return 1;
-    Stream* stream = GlobalData::s_stream_pool->Acquire("user.cpp", 0xab3b);
-    CStreamGuard guard(stream, true);
-    guard << 0x2b3;
-    guard << (int)GetUID();
-    SIG_MERCENARY_DB_DATA* db = guard.GetInBuffer<SIG_MERCENARY_DB_DATA>();
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("user.cpp", 0xab3b), true);
+    (*guard)->operator<<(0x2b3);
+    (*guard)->operator<<((int)GetUID());
+    SIG_MERCENARY_DB_DATA* db =
+        guard.operator->()->GetInBuffer<SIG_MERCENARY_DB_DATA>();
     memset(db, 0, 0xbd4);
 
-    unsigned int row = 0;
     for (unsigned int i = 0; i < m_mercenaryMgr.m_characs.size(); ++i)
     {
-        CHARAC_LOAD_MERCENARY& mc = m_mercenaryMgr.m_characs[i];
-        if (mc.m_field24 != 0)
+        if (m_mercenaryMgr.m_characs[i].m_field24 != 0)
         {
-            CHARAC_LOAD_MERCENARY* dst =
-                (CHARAC_LOAD_MERCENARY*)((char*)db + 4 + row * 0x54);
-            memcpy(dst, &mc, 0x54);
-            *((unsigned int*)db) = row + 1;
-            mc.save_complete();
+            unsigned int row =
+                reinterpret_cast<MercenaryDbHeadView*>(db)->m_count;
+            ((CHARAC_LOAD_MERCENARY*)((char*)db + 4))[row] =
+                m_mercenaryMgr.m_characs[i];
+            reinterpret_cast<MercenaryDbHeadView*>(db)->m_count = row + 1;
+            m_mercenaryMgr.m_characs[i].save_complete();
         }
     }
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
@@ -1344,6 +1408,9 @@ void CUser::updatePcRoomPlayTime()
 // [b28d-27] DIFF（p167 MISSING 8 族）：ORIG 0x08664e8e；ORIG 用迭代器遍历
 // （begin/end/C1Ev/ptEv/deEv/ppEv/ne 共 14 次），我方索引遍历 ⇒ 符号族不同
 // （P175/N89 类），语义等价。
+// [b28d-solo-CUserMissingA2] 修复：const_iterator（rewards 指针 const 化）+
+// P50 先声明后赋值 + 缓存 end + 4 迭代器全头部声明 ⇒ 148/163、p167 差 2
+// （4.1 把内层 for-init 旋转到外层体末尾，4.4 恒置开头）⇒ N164/N82 封顶。
 bool CUser::_fnStatQuestClear(unsigned int questIdx, char* context)
 {
     CUser* user = *(CUser**)context;
@@ -1357,12 +1424,18 @@ bool CUser::_fnStatQuestClear(unsigned int questIdx, char* context)
     if (q->m_fieldB8 != 0 && q->m_fieldB8 != 0x19)
         return 1;
 
-    std::vector<RewardItemInfo>* rewards = user->getUserQuestRewardItem(q, user);
-    for (std::vector<RewardItemInfo>::iterator ri = rewards->begin();
-         ri != rewards->end(); ++ri)
+    const std::vector<RewardItemInfo>* rewards =
+        user->getUserQuestRewardItem(q, user);
+    // P50 复活（b28c C28L29/C28L14）：ORIG 0x08664e8e 有独立 `const_iterator::C1Ev`
+    // （×4）+ `C1IPiE` 转换构造（×2）+ 纯 const `ne` ⇒ 原码是「先声明后赋值 +
+    // 缓存 end」形（初始化式形会被 4.4 折掉 C1Ev 并改 ne 重载）。
+    std::vector<RewardItemInfo>::const_iterator ri;
+    std::vector<RewardItemInfo>::const_iterator re;
+    std::vector<int>::const_iterator ii;
+    std::vector<int>::const_iterator ie;
+    for (ri = rewards->begin(), re = rewards->end(); ri != re; ++ri)
     {
-        for (std::vector<int>::iterator ii = elixirIds->begin();
-             ii != elixirIds->end(); ++ii)
+        for (ii = elixirIds->begin(), ie = elixirIds->end(); ii != ie; ++ii)
         {
             if (ri->m_itemIdx == *ii)
             {
@@ -1390,6 +1463,8 @@ const int elixir_item_id[8] = { 1039, 1040, 1041, 1042, 1043, 1044, 1045, 1046 }
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82：ORIG 0x08664c50；p167 CLEAR（18/18），残差为帧/槽分配，
 // 语义闭合。
+// [b28d-solo-CUserMissingA2] 复验 120/118：槽整体平移 4 + 多余临时槽（N82），
+// p167 CLEAR 18/18 ⇒ 封顶。
 void CUser::calc_quest_stat(_Additioal_info& ai)
 {
     std::vector<int> elixirIds;

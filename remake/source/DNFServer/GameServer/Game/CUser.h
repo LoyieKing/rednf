@@ -2314,8 +2314,8 @@ public:
     unsigned char m_seedBackup796da[6];                     // +0x796da..0x796df（无 ORIG 具名访问；CUser::backupSeed
                                                             //   0x859506f 读 *(int*)(this+0x796e0)——即本块 +6 与
                                                             //   m_checkSumSeed 相邻视图，保持 6 字节 pad）
-    int m_checkSumSeed;                                     // +0x796e0（getCurCharacInven/SkillCheckSum 的 makeCheckSum 种子）
-    int m_backupSeed;                                       // +0x796e4
+    unsigned int m_checkSumSeed;                            // +0x796e0（b28d-Main P211档③：ORIG 0x0864e0dc/0x0864e139 两段装载 ⇒ unsigned）
+    unsigned int m_backupSeed;                              // +0x796e4（b28d-Main 试验：与 m_checkSumSeed 同型化）
     std::vector<_Charac_info> m_characList;                 // +0x796e8
     CCharacterView m_characterView;                         // +0x796f4
     int m_field796f8;                                       // +0x796f8（HistoryLog::WriteLevelUp 文件句柄）

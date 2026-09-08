@@ -447,7 +447,7 @@ bool CCargo::FindItemLock(unsigned char lock, ENUM_ITEMSPACE& space, int& slot) 
 
 // ORIG 0x850c656：m_capacity==0 或 m_capacity>capacity 拒绝；仅 m_capacity<capacity
 // 升级（==拒绝）。ORIG 汇编 test/je→mov$0 + Ghidra C 双证，旧注释语义相反。
-int CCargo::UpgradeCargo(int capacity)
+bool CCargo::UpgradeCargo(int capacity)   // b28d-Main：与 CUserCharacInfo.h:263 声明同步（P292 bool callee）
 {
     // [b28c-16] P222 注（两形互试）/同族 isUpgradable 实证：ORIG 第二段
     // `cmp; jl +0x31(升级块在后); fall mov $0; jmp end` ⇒ 源形必须是负极
@@ -466,7 +466,7 @@ int CCargo::UpgradeCargo(int capacity)
 // m_capacity==0 直接 return 0（与 `m_capacity>capacity` 共享 ret0 块）。
 // 旧写 `m_capacity != 0 && m_capacity > capacity` 在 capacity∈[1,0x98] 时误返 1；
 // 短路形 `==0 || >` 同时复现 ORIG 的 je/fall 共享块（P214①/P59）。
-int CCargo::isUpgradable(int capacity) const
+bool CCargo::isUpgradable(int capacity) const   // b28d-Main：与 CUserCharacInfo.h:266 同步（P292 bool callee）
 {
     if (m_capacity == 0 || m_capacity > capacity)
         return 0;
