@@ -61,6 +61,9 @@ bool CValueStatistic::AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user
 
 int CValueStatistic::InsertValueStatistic()
 {
+    // [b28d-59] AE（ORIG 0x0860d8a4）：修掉 group 局部缺失（恢复具名 group 槽 -0x1c）、
+    // 删 proxy 判空（P171）、条件改 `if (hasValue == false) continue;`（P168a② 取反形）
+    // 后 105/105 逐条一致。
     for (std::map<ENUM_SERVER_GROUP, stValueStatistic>::iterator it = m_data.begin();
          it != m_data.end(); ++it)
     {

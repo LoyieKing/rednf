@@ -105,18 +105,21 @@ void CDungeonClear::AradfromString(CUser* pUser, const char* str)
 void CDungeonClear::enumDungeonClear(CUser* pUser, bool (*fn)(short, char, char*), ...) const
 {
     // ORIG 0x084846e2：变参起始指针直接作为回调第三参（char*）。
+    // b28d-60：去 `char* va` 二级槽（ORIG 仅 -0x20 一槽）、dungeonIdx 改 int
+    //（ORIG `movzwl; cwtl; mov %eax,-0x1c` 四字节存 + 回调处 cwtl 截断）、
+    // 去 pDataMgr 局部（ORIG 嵌套实参直传）、回调结果不落 bool 槽（ORIG 直接
+    // `call *%eax; xor $1,%eax; test`）、end 缓存进 for 头（P13）。
     va_list ap;
     va_start(ap, fn);
-    char* va = (char*)ap;
 
-    for (std::map<short, char>::const_iterator it = m_map.begin();
-         it != m_map.end(); ++it)
+    for (std::map<short, char>::const_iterator it = m_map.begin(),
+                                               e = m_map.end();
+         it != e; ++it)
     {
-        short dungeonIdx = it->first;
+        int dungeonIdx = it->first;
         char diff = it->second;
 
-        CDataManager* pDataMgr = G_CDataManager();
-        CDungeon* pDungeon = pDataMgr->find_dungeon(dungeonIdx);
+        CDungeon* pDungeon = G_CDataManager()->find_dungeon(dungeonIdx);
         char questCleared = 0;
         unsigned int questId = 0;
         if (pDungeon)
@@ -130,8 +133,7 @@ void CDungeonClear::enumDungeonClear(CUser* pUser, bool (*fn)(short, char, char*
                 diff = 4;
         }
 
-        bool bContinue = fn(dungeonIdx, diff, va);
-        if (!bContinue)
+        if (!fn((short)dungeonIdx, diff, ap))
             break;
     }
     va_end(ap);

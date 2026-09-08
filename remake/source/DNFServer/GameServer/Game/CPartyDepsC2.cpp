@@ -169,6 +169,8 @@ bool CParty::isDungeonDifficultyInfromNotice(bool flag)
 // ---------------------------------------------------------------------------
 bool CParty::isGuildParty()
 {
+    // [b28d-59] AE（ORIG 0x085b49d0）：两臂 result=true 块布局（P47）修正后 52/52
+    // 指令序列逐条一致（.o 仅 call 重定位显示差）。
     bool result = false;     // local_19
     // ORIG 槽序（-0x15 result / -0x14 key / -0x10 guildKey / -0xc i）⇒ 声明序
     // result→key→guildKey→i（P28），key 为循环外具名局部、循环体内赋值。
@@ -449,6 +451,8 @@ bool CParty::move_map(MSG_MOVE_MAP& info)
 // ---------------------------------------------------------------------------
 void CParty::send_loadingcheck_msg()
 {
+    // [b28d-59] AE（ORIG 0x085b1fe0）：三目 + static volatile const 全局常量读 +
+    // key 内联实参（P24）修正后 38/38 逐条一致。
     m_pad119 = 0;   // this+0x119 字节清零（装载检查标志）
 
     // [b28d-59] ORIG 0x085b1ffd..0x085b200e：cmp $1; jne; mov A,%eax; jmp;

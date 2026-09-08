@@ -422,9 +422,10 @@ int Arad_INTER_kAvatarHiddenOptionChange::dispatch_sig(CUser* user, char* body, 
                               0x669, "AVATAR HIDDENOPTION CHANGE INTER_DSP(SigAvatarHiddenOptionChange) null.");
         return 0x66a;
     }
-    // ORIG 0x08199dx：call; test %eax,%eax; sete %al; test; je ＝ P194②
-    // `register bool z asm("al") = (x == 0); if (z)` 物化形（int callee 非 bool）。
-    register bool z asm("al") = (user->getCurCharacR() == 0);
+    // [b28d-59 P0 清绑] ORIG 0x08199dx：call; test %eax,%eax; sete %al; test; je
+    // ＝ P194② `bool z = (x == 0); if (z)` 物化形（int callee 非 bool）；
+    // 原 `register bool z asm("al")` 绑定已按 P0/N96 清为纯表达式。
+    bool z = (user->getCurCharacR() == 0);
     if (z)
         return 0x670;
 
@@ -452,10 +453,10 @@ int Arad_INTER_kAvatarHiddenOptionChange::dispatch_sig(CUser* user, char* body, 
 // ============================================================================
 int Arad_INTER_kUseAvatarRecharge::dispatch_sig(CUser* user, char* body, int len)
 {
-    // ORIG 0x08199fxx：各失败路径 `mov $imm,%ebx; jmp end`＝ register int 出口
-    // 寄存跨 call 存活（4.1 register int→ebx；4.4 对无跨 call 生命周期的 ret 恒
-    // 内联 eax，裸 register 无效（实测）⇒ X 族 asm 绑定 %ebx（P168a/P194 先例）。
-    register int ret asm("ebx");
+    // [b28d-59 P0 清绑] ORIG 0x08199fxx：各失败路径 `mov $imm,%ebx; jmp end`＝
+    // 出口寄存器跨 call 存活；原 `register int ret asm("ebx")` 绑定已按 P0/N96
+    // 清为纯 register 存储类提示（P231：裸 register 合法且仍参与分配决策）。
+    register int ret;
     if (user == 0)
     {
         ret = 0x68e;

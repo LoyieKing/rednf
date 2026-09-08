@@ -37,8 +37,11 @@ bool ScriptManager::LoadScript()
     // ORIG 0x81a11dc：Init() 后遍历 set 调用各脚本 Load()；全成功返回 1，
     // 否则 cMyTrace "Fail" 返回 0；每次成功也记 "Success"。
     Init();
-    for (std::set<ScriptInterface*>::const_iterator it = m_scripts.begin();
-         it != m_scripts.end(); ++it)
+    // b28d-60：P13 end 缓存（ORIG end() 在循环外一次 → -0x30 槽）；
+    // 成功路径 cMyTrace 第4/5参 ORIG 为 (0,1) ⇒ 源码 (false, true)（原 true,false 反）。
+    for (std::set<ScriptInterface*>::const_iterator it = m_scripts.begin(),
+                                                     e = m_scripts.end();
+         it != e; ++it)
     {
         if (!(*it)->Load())
         {
@@ -48,7 +51,7 @@ bool ScriptManager::LoadScript()
             return false;
         }
         // ORIG 0x81a12f4：每次成功记 cMyTrace(pretty, 0x15, 9, true, false) + "Success"。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x15, 9, true, false);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x15, 9, false, true);
         trace("Success");
     }
     return true;
@@ -71,13 +74,17 @@ void ScriptManager::RegistScript(ScriptInterface* s, int priority)
     // ORIG 0x81a136c：find 已存在（重复注册）→
     // printf("Arad_ScriptManager::RegistScript() Duplicate Class : Line(%d)\n", priority) + exit(0)；
     // 不存在 → insert，返回 true。
+    // b28d-60：NEAR 残差=insert 后 `leave` 前一条对齐 nop（ORIG 无）——if/else
+    // 双块形替代 guard-return 试探（消 4.4 的块对齐 nop）。
     if (m_scripts.find(s) == m_scripts.end())
     {
         m_scripts.insert(s);
-        return;
     }
-    printf("Arad_ScriptManager::RegistScript() Duplicate Class : Line(%d)", priority);
-    exit(0);
+    else
+    {
+        printf("Arad_ScriptManager::RegistScript() Duplicate Class : Line(%d)", priority);
+        exit(0);
+    }
 }
 
 void ScriptManager::Init()
@@ -135,16 +142,20 @@ int ExceptionItem::parsing(char* data)
     if (script.GetRowNum() == 0)
         return 0x2a;
     // ORIG 循环每轮重调 GetRowNum
+    // b28d-60：P283 4.1「begin 后无条件 jmp 到底部条件块」布局——原 while(true)+
+    // break 使 4.4 条件置顶（setle/jne end）；改 goto 尾标签复现 setg/jne body。
     int r = 0;
-    while (true)
+    goto check;
+loop_body:
     {
-        if (script.GetRowNum() <= r)
-            break;
         int idx = script.GetInt(r, "material_exception_item_index");
         if (!m_exceptionItemIndex.insert(std::make_pair(idx, idx)).second)
             return 0x33;   // ORIG insert 失败（.second==0）→ 0x33
         ++r;
     }
+check:
+    if (script.GetRowNum() > r)
+        goto loop_body;
     return 0;
 }
 
@@ -172,11 +183,11 @@ int PurchaseLimitItem::parsing(char* data)
         return 0x4c;                  // ORIG 0x81a21ab：Load 失败返 0x4c
     if (script.GetRowNum() == 0)
         return 0x4f;                  // ORIG 0x81a21cc：无行返 0x4f
+    // b28d-60：P283 goto 尾标签（同 ExceptionItem::parsing）。
     int r = 0;
-    while (true)
+    goto check;
+loop_body:
     {
-        if (script.GetRowNum() <= r)   // ORIG 每轮重调 GetRowNum
-            break;
         Info info;
         unsigned int idx = (unsigned int)script.GetInt(r, "Item_Index");
         info.purchaseType = (unsigned short)script.GetInt(r, "purchase_Type");
@@ -187,6 +198,9 @@ int PurchaseLimitItem::parsing(char* data)
             return 0x5c;
         ++r;
     }
+check:
+    if (script.GetRowNum() > r)
+        goto loop_body;
     return 0;
 }
 
@@ -220,11 +234,11 @@ int AradBonusItem::parsing(char* data)
         return 0x79;
     if (script.GetRowNum() == 0)
         return 0x7c;
+    // b28d-60：P283 goto 尾标签（同 ExceptionItem::parsing）。
     int r = 0;
-    while (true)
+    goto check;
+loop_body:
     {
-        if (script.GetRowNum() <= r)   // ORIG 每轮重调 GetRowNum
-            break;
         Data d;
         // P167：ORIG make_pair<unsigned&,Data&> 第一参为 unsigned int 局部，
         // 经 pair<unsigned,Data> 转换构造 pair<const int,Data> 插入 map<int,Data>。
@@ -236,6 +250,9 @@ int AradBonusItem::parsing(char* data)
             return 0x88;   // ORIG insert 失败（.second==0）→ 0x88
         ++r;
     }
+check:
+    if (script.GetRowNum() > r)
+        goto loop_body;
     return 0;
 }
 

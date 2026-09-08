@@ -192,15 +192,17 @@ bool CExpertJob::IsSuccess(CUser* user, CStackableItem const* item, int& resultE
     stCompoundRate* rate = GetSuccessRate(user, item, variation);
     if (rate == 0)
         return false;
-    int base = rate->m_successRate + variation;
-    if (get_rand_int(100) < base)
+    // [b28d-62] P0：ORIG 0x0849b49c 把 `rate->m_successRate + variation` 放 %ebx
+    //   跨 get_rand_int 保活（无栈槽）⇒ 内联实参，禁具名 base 局部。
+    if (get_rand_int(100) < rate->m_successRate + variation)
     {
         resultExp = get_rand_int(rate->m_expMax - rate->m_expMin + 1) + rate->m_expMin;
         CInventory* inven = (CInventory*)user->getCurCharacInvenR();
         STItemScript::SEXPERTJOB::stExpertJobAdditionalExp ae;
-        int level = user->GetCurExpertJobLevel(user->GetCurCharacExpertJobExp());
+        // [b28d-62] P0：ORIG 0x0849b51f level 落 %ebx（无槽）⇒ 内联实参。
         inven->GetExpertJobAddtionalExp(
-            (ENUM_EXPERT_JOB_TYPE)user->GetCurCharacExpertJobType(), level, ae);
+            (ENUM_EXPERT_JOB_TYPE)user->GetCurCharacExpertJobType(),
+            user->GetCurExpertJobLevel(user->GetCurCharacExpertJobExp()), ae);
         if ((float)get_rand_int(100) < ae.m_field0)
             resultExp += ae.m_field4;
         return true;
@@ -221,8 +223,11 @@ bool CExpertJob::IsLearnRecipe(CUser* user, CStackableItem const* item)
               user->getCurCharacNo());
         return false;
     }
-    int idx = script->GetRecipeInfoIndex(((CItem*)item)->get_index());
-    if (idx < 0)
+    // [b28d-62] P198① 预清必写：ORIG 0x0849b60f `movl $0xffffffff,-0xc` 后独立赋值；
+    //   符号测试用 P266 字节收窄形（4.4 对 `idx < 0` 恒折 cmpl/jns）。
+    int idx = -1;
+    idx = script->GetRecipeInfoIndex(((CItem*)item)->get_index());
+    if ((unsigned char)((unsigned int)idx >> 31) != 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x146, 0);
         trace("EXPERT_JOB_ERROR : GetRecipeInfoIndex() charac_no(%d)",
@@ -231,7 +236,9 @@ bool CExpertJob::IsLearnRecipe(CUser* user, CStackableItem const* item)
     }
     CCharacExpertJob* expand =
         (CCharacExpertJob*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0);
-    if (expand->get_recipe(idx) != 1)
+    // [b28d-62] ORIG 0x0849b6b0 `call get_recipe; xor $0x1,%eax; test %al,%al; je`
+    //   ⇒ 取反物化形（`!call()`），非 `!= 1` 的 cmp 形。
+    if (!expand->get_recipe(idx))
     {
         if (!GlobalData::s_pGMAccounts_->isGM(user->get_acc_id()))
         {

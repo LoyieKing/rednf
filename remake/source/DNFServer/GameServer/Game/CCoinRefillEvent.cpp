@@ -33,7 +33,9 @@ void CCoinRefillEvent::StartEvent()
 
 void CCoinRefillEvent::StartEvent(Word_Param param)
 {
-    // ORIG 0x0832be82。
+    // [b28d-59 判词] 封 N82（ORIG 0x0832be82）：122/132 条、P167 调用点 6/6 CLEAR
+    // （0 缺 0 多）⇒ 语义完成；残差=callee-saved 组（ORIG push edi/esi/ebx）+
+    // 物化次数。byte 层封顶。
     SetEventFlag(true);
     memset(&m_timeCount, -1, 0x14);
     m_times[0] = G_CEnvironment()->m_serverEnvir.m_fatigueTime;  // env+0x37c 当前小时槽
@@ -134,7 +136,9 @@ int CCoinRefillEvent::getNextEventTime(tm const& cur) const
 
 void CCoinRefillEvent::registNextRefillTimer() const
 {
-    // ORIG 0x0832c1fe。
+    // [b28d-59 判词] 封 N82/P231（ORIG 0x0832c1fe）：93/93 条、P167 调用点 9/9 CLEAR
+    // ⇒ 语义完成；残差=帧 0x94 vs 0xa8 + ORIG 用 %ebx 跨调用保活（callee-saved）。
+    // byte 层封顶。
     int curSec = GlobalData::s_systemTime_.getCurSec();
     tm cur;
     localtime_r(reinterpret_cast<time_t*>(&curSec), &cur);
