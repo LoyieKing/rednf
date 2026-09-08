@@ -49,6 +49,9 @@ int Global::CBossTowerFunc::DieMob(CUser* user, unsigned short mobSeq,
 // ORIG 0x0827a81c（报告 Secu_HackLogCheck/DieMob.md）：
 // msg->m_fieldF(+0x0f short) != 0xffff 时：SetMonsterInfo(msg)；m_flag223/224/225
 // 非 0 者分别以 Check223/224/225 结果刷新。
+// [b28c-27] N18a：ORIG 8429xx `call Check223; mov 0x8(%ebp),%edx; mov %al,0x38(%edx)`
+// 为 call 返回 char 单字节直存；4.4 恒经 `mov %eax,%edx` 截断中转（+2 条/处）。
+// 删 cast、字段 unsigned 化、bool 化均实测不可翻（P168a③b 边界），语义等价。
 void Secu_HackLogCheck::DieMob(const MSG_MONSTER_DIE* msg)
 {
     if (msg->m_fieldF == -1)
@@ -57,11 +60,11 @@ void Secu_HackLogCheck::DieMob(const MSG_MONSTER_DIE* msg)
     SetMonsterInfo(msg);
 
     if (m_flag223 != 0)
-        m_flag223 = static_cast<unsigned char>(Check223());
+        m_flag223 = Check223();
     if (m_flag224 != 0)
-        m_flag224 = static_cast<unsigned char>(Check224());
+        m_flag224 = Check224();
     if (m_flag225 != 0)
-        m_flag225 = static_cast<unsigned char>(Check225());
+        m_flag225 = Check225();
 }
 
 // ---------------------------------------------------------------------------
@@ -184,7 +187,16 @@ int CEnvironment::getProcessSequence() const
 std::vector<StrikerSkill>* StrikerScript::getStrikerSkillVector(short first,
                                                                 short second)
 {
-    int key = static_cast<int>(static_cast<unsigned short>(first));
+    // [b28c-lane17] ORIG 0x08a9e7ec：两 short 形参各自 spill 后**直接 16 位
+    // 存进 key 槽对**（`mov %ax,-0x10; movzwl -0x20,%eax; mov %ax,-0xe`），
+    // 未做 int 零扩展中转；find 实参按 int 读槽。原写 `int key = (int)(ushort)`
+    // 使 4.4 先 `movzwl %ax,%eax` 再存 32 位（少 1 条、形不同）。
+    // [b28c-lane17] 三形实测（裸 (int)(ushort) / 16 位视图写槽对 / 直传）
+    // 唯一不引入 lea 地址物化或 movzwl 32 位扩展的是下面这形：
+    // 4.4 对「ushort→int 局部」的 lowering 与 ORIG 逐条同形。
+    unsigned short uw = static_cast<unsigned short>(first);
+    int key = static_cast<int>(uw);
+    (void)second;
     std::map<int, std::vector<StrikerSkill>*>::iterator it =
         m_skillMap.find(key);
     if (it != m_skillMap.end())
@@ -213,13 +225,12 @@ void Secu_MonsterCheck::SetMonsterInfo(const MSG_MONSTER_DIE* msg)
 // ORIG T 0x0827b288 sz 0x5c（init223.md）：active 未置 1 时记录首杀快照。
 void Secu_MonsterCheck::init223(const MSG_MONSTER_DIE* msg)
 {
-    // X2 形（X2_DISPATCH.tsv，probe /tmp/xg2.cpp 形 E 实证）：ORIG @0x0827b294
-    // 对 byte 真值判断走 `movzbl 0x4(%eax),%eax; xor $0x1,%eax; test %al,%al; je`，
-    // 而 `字段 != 1` 在 4.4 恒产单条 `cmp $0x1,%al`（缺 xor+test 两段、多一条 cmp）。
-    // 必须绑 %eax 的具名 unsigned char + 显式 `^= 1`（绑 %al 或用裸 `!` 会被折叠）。
-    register unsigned char act asm("eax") = m_active223;
-    act ^= 1;
-    if (act)
+    // b28c-lane12 P0 清绑：删 `register unsigned char asm("eax")` 绑定与
+    // register 关键字（C28L20A 反例：裸 register 强制 callee-saved 占用破帧）。
+    // b28c-L20 复验定稿：Main 已代落 CUser.h:1731 `bool m_active223`（档②字段类型旋钮），
+    // 清绑后裸 `!m_active223` 即复现 ORIG @0x0827b294 `movzbl 0x4(%eax),%eax;
+    // xor $0x1,%eax; test %al,%al; je` ⇒ fresh 27/27 ndiff=0（AE，原 N 判词作废）。
+    if (!m_active223)
     {
         m_field08 = msg->m_mobSeq;       // +0x08 ← msg+0x0d
         m_field0a = msg->m_killPairA24;  // +0x0a ← msg+0xa24
@@ -271,7 +282,10 @@ char Secu_MonsterCheck::Check223()
     if (m_field08 == m_curKillCount)
         return 1;
     char result = 1;
-    if (m_active223 != 0)
+    // b28c Main（采纳 C28L7 spec）：m_active223 已 bool 化，此处须**裸测**——
+    // `!= 0` 使 4.4 物化 `cmpl $0,-off; setne %al; mov %al,-off2`（ORIG 为
+    // `cmpl $0,-0x10; jg` 直分支），并连带局部槽整体平移 4（P219/P22 同族）。
+    if (m_active223)
     {
         int dx = static_cast<int>(static_cast<unsigned short>(m_field0a)) -
                  static_cast<int>(static_cast<unsigned short>(m_curX));

@@ -1519,8 +1519,8 @@ public:
         std::map<unsigned int, paramDaily*,
                  std::less<unsigned int>,
                  std::allocator<std::pair<unsigned int const, paramDaily*> > >& m);
-    int InputBuyInfo(CUser* user, unsigned int ipgNo, unsigned int itemIdx,
-                     DBInputData& out);
+    bool InputBuyInfo(CUser* user, unsigned int ipgNo, unsigned int itemIdx,
+                      DBInputData& out);  // b28c C28L4 代落（档①）：ORIG 调用点 0x080e0d14 `test %al,%al; je` 无 setne 归一 + 体 0x080e129a 出口仅 mov$0/$1；int callee 四形探针全产 setne（P168a 定论）
     static void LoadProcess(std::map<unsigned int, unsigned int>&,
                             std::map<unsigned int, class paramDaily*>&,
                             struct SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE*);  // ORIG T @0x080e142a
@@ -1763,9 +1763,12 @@ public:
     void DieMob(const MSG_MONSTER_DIE* msg);// ORIG T 0x0827a81c（blocked：定义待补）
     void MoveMap();                         // ORIG T 0x0827a7f4；定义见 UserCoreDepsB2.cpp
 
-    bool m_flag223;    // +0x38（MoveMap 置 1 / DieMob 存 Check223 结果；b28c C28L27 代落：ORIG 0x0827a857 `mov %al,0x38(%edx)` 单字节直存，uchar 字段恒多 mov %eax,%edx 截断中转）
-    bool m_flag224;    // +0x39（同上）
-    bool m_flag225;    // +0x3a（同上）
+    unsigned char m_flag223;    // +0x38（MoveMap 置 1 / DieMob 存 Check223 结果）
+    unsigned char m_flag224;    // +0x39
+    unsigned char m_flag225;    // +0x3a
+    // b28c C28L27：三字段曾按「档②」bool 化，fresh 实测**劣化**（DieMob 41/46→41/49：bool 字段
+    // 接收 char callee 返回值需 `test %al; setne %dl` 归一到 0/1），故回退。P248 档②适用前提
+    // = 「该字段自身被裸测」；纯存储汇聚点（char callee → 字段）bool 化反引入归一化段。
 };  // sizeof 0x3b → 与原 m_pad[0x3c] 对齐一致
 class PIReceiverManager
 {
