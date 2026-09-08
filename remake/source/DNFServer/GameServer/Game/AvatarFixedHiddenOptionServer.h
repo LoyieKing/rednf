@@ -70,7 +70,10 @@ struct AVATAR_HIDDEN_ABILITY_TYPE
 // ----------------------------------------------------------------------------
 struct STAvatarHiddenAbilityVariation
 {
-    STAvatarHiddenAbilityVariation(AVATAR_HIDDEN_ABILITY_TYPE::T type, int value, int rate);
+    // [b28d-56] 加 throw()：ORIG clearScript 0x088b00e0 对 push_back(临时对象) 无
+    // EH landing（无 _Unwind_Resume/析构 cleanup 段）；4.4 因外联弱 ctor 可能抛而
+    // 布 landing（P216 消 4.4 冗余 landing，体非空故 call 不被折叠）。
+    STAvatarHiddenAbilityVariation(AVATAR_HIDDEN_ABILITY_TYPE::T type, int value, int rate) throw();
     STAvatarHiddenAbilityVariation(AVATAR_HIDDEN_ABILITY_TYPE::T type, float value, int rate);
     ~STAvatarHiddenAbilityVariation();
 
@@ -145,7 +148,9 @@ public:
     // ORIG 0x0817e3e8：对 6 个桶跳过下标 0 的种子元素，把 m_nRate 累加写入
     // m_cumulativeRate[i]（reserve(count-1)，与 ORIG 一致依赖 clearScript 的种子保证非空）。
     // 恒返回 1。
-    int Init();
+    // [b28d-56] int→bool（ORIG Load 0x0817e1bd 调用点 `call; xor $1; test %al; je`
+    // = bool callee，P292/P248 档①；mangled 不含返回类型，ABI/布局不变）。
+    bool Init();
 
     // ORIG 0x0817e4c6 CheckCondition / 0x0817e8d6 ChangeHiddenOption
     // （Arad_INTER_kAvatarHiddenOptionChange 派发链调用）。仅声明，定义由

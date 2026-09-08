@@ -8,6 +8,13 @@
 //   CAICharacter::generateIndependentItem    0x0834a13a
 //   CMonster::generateIndependentItem        0x0834f876
 // ============================================================================
+// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
+//   independentItemRateControl 0x0834972f DIFF(114/116) P167 CLEAR(8/8)；
+//     残差 = +0x3f 字段建模（ORIG movzbl 0x3f 独立字节 vs 我方 ushort@0x3e >>8，
+//     P196 类字段宽度/布局）与局部槽差（N82 族）。
+//   generateIndependentItem 0x0834989a   DIFF(351/333) P167 残差：ORIG 用
+//     const_iterator（IPKSt4pair）而本实现用 iterator + 多 2 次 getItemList()。
+// ============================================================================
 #include "MonsterIndependentDrop.h"
 
 #include <algorithm>

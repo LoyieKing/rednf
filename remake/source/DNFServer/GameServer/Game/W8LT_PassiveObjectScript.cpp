@@ -270,6 +270,8 @@ void STPassiveObjectScript::clear()
 // 导出 STPassiveObjectScript 为中间文本（fopen "wb" + fprintf/fwrite），
 // 收尾 convertBinaryToText 转最终脚本；fopen 失败返 0，成功返 1。
 // ===========================================================================
+// [b28d-51] 判词 N（ORIG 0x08a29f69，N82 巨件族）：import 链多分支槽复用 +
+// 模板/迭代器实例跨版本差（§6.2：调用集/指令集齐）；byte 层封顶。
 int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
 {
     static char saveFileName[0x100];

@@ -48,6 +48,8 @@ void online_preliminary::COnlinePreliminaryTeamMgr::ResetDailyMidnight()
 //（报告 online_preliminary__COnlinePreliminaryTeamMgr/OnEnterUser.md）。
 // 键语义：teamData 头部 int teamId —— find/make_pair 的 const int& 参数在
 // ABI 上直接复用 teamData 指针解引用（ORIG 0x01a 传 edx=teamData 作引用）。
+// [b28d-54 N] ORIG 0x085887c8：帧/槽整体平移（N82）+ map 迭代器临时槽（N86）；
+//   调用序列全等。
 bool online_preliminary::COnlinePreliminaryTeamMgr::OnEnterUser(CUser* user, char* teamData)
 {
     int teamId = *reinterpret_cast<int*>(teamData);
@@ -96,6 +98,8 @@ bool online_preliminary::COnlinePreliminaryTeamMgr::OnEnterUser(CUser* user, cha
 // ORIG 0x08588ae8 T
 // _ZN18online_preliminary25COnlinePreliminaryTeamMgr11OnLeaveUserEP5CUser
 //（报告 OnLeaveUser.md）。
+// [b28d-54 N] ORIG 0x08588ae8：槽整体平移 4（N82/N95）+ 迭代器/临时槽（N86）；
+//   调用序列全等。
 void online_preliminary::COnlinePreliminaryTeamMgr::OnLeaveUser(CUser* user)
 {
     int teamId = user->GetCurCharacOnlinePreliminaryTeamId();  // 0x08645de2

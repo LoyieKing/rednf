@@ -22,7 +22,7 @@ typedef char avatar_fixed_hidden_option_server_size_assert[
 // STAvatarHiddenAbilityVariation —— ORIG ctor W 0x088b01e8 / 0x088b021a、dtor W 0x088b0aae
 // ============================================================================
 STAvatarHiddenAbilityVariation::STAvatarHiddenAbilityVariation(
-    AVATAR_HIDDEN_ABILITY_TYPE::T type, int value, int rate)
+    AVATAR_HIDDEN_ABILITY_TYPE::T type, int value, int rate) throw()
 {
     m_type = type;          // +0x00
     m_bFloatValue = false;  // +0x04 = 0
@@ -65,11 +65,16 @@ ARAD::SCRIPT::AvatarFixedHiddenOption::~AvatarFixedHiddenOption()
 // reserve(count-1) 非负，与 ORIG 一致）。
 void ARAD::SCRIPT::AvatarFixedHiddenOption::clearScript()
 {
-    for (int i = 0; i < 6; ++i)
+    // [b28d-56 判词·AE] ORIG 0x088b00e6 循环前先清零两具名 int 槽（-0x14/-0x10，
+    // P0 槽往返 ⇒ 原码有具名局部），ctor 实参从槽读（0x8(%esp)=value@-0x10、
+    // 0xc(%esp)=rate@-0x14）；循环上界为 `i<=5`（ORIG 尾 setle，P2）。
+    int rate = 0;
+    int value = 0;
+    for (int i = 0; i <= 5; ++i)
     {
         m_abilities[i].clear();
         m_abilities[i].push_back(
-            STAvatarHiddenAbilityVariation(AVATAR_HIDDEN_ABILITY_TYPE::NONE, 0, 0));
+            STAvatarHiddenAbilityVariation(AVATAR_HIDDEN_ABILITY_TYPE::NONE, value, rate));
     }
 }
 
@@ -321,11 +326,14 @@ bool AvatarFixedHiddenOptionServer::Load()
     // [b28c-16 修正] 具名 bool 局部反多 -0x9 槽 + setne 物化（帧 0x38→0x48）。
     // ORIG 实为「失败标志汇聚 eax → 尾部 !r 归一」：`jA L1(mov$1) / Init→xor$1
     // →je L0(mov$0) / L2: test;je L3; mov$0 / L3: mov$1` ⇒ 源形 = `!(A || B)`。
-    // [b28c-16 定论 N] 4.1 把失败标志寄存器化（无槽往返，P0 无局部）并做
-    // xor$1 + 尾部二次 bool 归一；4.4 恒折 `test/je` 且不物化 ⇒ 跨版本
-    // bool 物化/寄存器化差（N2/P78 族）。三种源形（&&直返 / 具名 bool /
-    // !(A||B)）实测 our_insns 31/33/31 vs ORIG 37，语义全等。
-    return loadScript() == 0 && Init() != 0;
+    // [b28d-56 判词·AE] 旧判 N 作废：真因是 Init 返回类型 int（非 bool）致调用点
+    // 无 xor 段。ORIG 0x0817e1ae 段为 `call loadScript; test %eax,%eax; jne <fail>；
+    // call Init; xor $1,%eax; test %al,%al; je <ok>；fail: mov $1; jmp；ok: mov $0;
+    // test %al,%al; je <ret1>; mov $0; ret1: mov $1`（P214① 正条件短路物化）。
+    // 探针 /tmp/lane56/load.cpp L1/L4 逐条复现；依赖 Init 返回类型 bool（已改）。
+    if (loadScript() != 0 || !Init())
+        return false;
+    return true;
 }
 
 // ORIG 0x0817e1e2：恒返回 1（接口 void 化同 CerashopAddRestrict::Manager 先例）。
@@ -336,7 +344,10 @@ int AvatarFixedHiddenOptionServer::Destroy()
 
 // ORIG 0x0817e3e8：6 个桶各自把下标 1..count-1 的 m_nRate（元素 +0x10）累加成前缀和
 // push 入 m_cumulativeRate[i]，之前 reserve(count-1)。恒返回 1。
-int AvatarFixedHiddenOptionServer::Init()
+// [b28d-56] 返回类型 int→bool：ORIG Load 0x0817e1bd 对 Init 的调用点形为
+// `call; xor $1,%eax; test %al,%al; je`（bool callee 特征，P292/P248 档①）；
+// int callee 恒 `test %eax; sete; test`。mangled 不含返回类型，符号/ABI 不变。
+bool AvatarFixedHiddenOptionServer::Init()
 {
     for (int i = 0; i < 6; ++i)
     {
@@ -349,7 +360,7 @@ int AvatarFixedHiddenOptionServer::Init()
             m_cumulativeRate[i].push_back(cumulative);
         }
     }
-    return 1;
+    return true;
 }
 
 // ============================================================================
@@ -400,13 +411,16 @@ bool AvatarFixedHiddenOptionServer::IsVaildSkillIndex(ENUM_RARITY rarity,
 
 int AvatarFixedHiddenOptionServer::GetSkillIndex(ENUM_RARITY rarity, int randIdx)
 {
-    std::vector<int>& rates = m_cumulativeRate[rarity];
     // ORIG 0x0817e23e：无 empty() 前置检查，直接 back()（GetRandomInput 保证非空进入）。
-    if (!(randIdx < rates.back() && 0 <= randIdx))
+    // [b28d-56 判词·AE] P183/P157 去引用缓存：ORIG 每处访问都重发完整
+    // `mov rarity,%edx; mov %edx,%eax; add %eax,%eax; add %edx,%eax; shl $2;
+    // add $0x50; add this` 链（back/end/begin/begin 共 4 处），无 rates 引用槽。
+    if (!(randIdx < m_cumulativeRate[rarity].back() && 0 <= randIdx))
         return -1;
     std::vector<int>::iterator up =
-        std::upper_bound(rates.begin(), rates.end(), randIdx);
-    return (int)(up - rates.begin()) + 1;
+        std::upper_bound(m_cumulativeRate[rarity].begin(),
+                         m_cumulativeRate[rarity].end(), randIdx);
+    return (int)(up - m_cumulativeRate[rarity].begin()) + 1;
 }
 
 int AvatarFixedHiddenOptionServer::GetSkillIndex(ENUM_RARITY rarity)

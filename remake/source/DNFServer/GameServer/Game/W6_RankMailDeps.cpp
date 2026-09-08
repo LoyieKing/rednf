@@ -38,6 +38,9 @@ namespace {
 } // namespace
 
 // ORIG T 0x08468614 (size 0x300) —— registRanker.md
+// [b28d-55] DIFF(N) — 修法：三处 insert 改 value_type(make_pair(...)) 双层临时链，
+//   复现 ORIG make_pair+pair C1IjjE/C1IjS3_（P178/P86）；P167 CLEAR(8/8)。
+//   残余 = 4.1/4.4 寄存器·槽位分配差（N7/N82 族）。ORIG 0x08468614。
 void WongWork::CDeathTowerRanking::registRanker(
     unsigned int towerIdx, unsigned int slotIdx,
     const struct stDeathTowerRecordMemberInfo_t* members,
@@ -82,7 +85,10 @@ void WongWork::CDeathTowerRanking::registRanker(
     //   dup 改写均收敛为同一语义对）。
     RankMap& row = m_rankMap[towerIdx][stageVal];
     std::pair<RankMap::iterator, bool> r =
-        row.insert(RankMap::value_type(playTime, slotIdx));
+        // b28d-55（P178/P86）：ORIG 双层临时链 make_pair → value_type 右值构造
+        // （P167 差集：make_pair<unsigned&,unsigned&> + pair<const unsigned,unsigned>
+        //  ::C1IjjE）；4.4 对 value_type(a,b) 直构折叠掉 make_pair。
+        row.insert(RankMap::value_type(std::make_pair(playTime, slotIdx)));
     if (!r.second)
         r.first->second = slotIdx;
     // asm +0x2b4..+0x2f5: 表级最优纪录比较，更优则整块拷贝（rep movsl 0x26*4）。
@@ -94,6 +100,10 @@ void WongWork::CDeathTowerRanking::registRanker(
 }
 
 // ORIG T 0x08468594 (size 0x80) —— resetRanking.md
+// [b28d-55] DIFF(N) — 内层 unsigned 局部 for 尾测：ORIG 寄存器比较
+//   （mov -0xc,%eax; cmp $0xc7,%eax; setbe; test; jne），4.4 恒折
+//   `cmpl $0xc7,-0xc(%ebp)` 内存直比（P209 附，9→1 实证）⇒ 无源码解，封顶。
+//   语义等价（unsigned < 200）。ORIG 0x08468594。
 void WongWork::CDeathTowerRanking::resetRanking()
 {
     // asm: 外层 cmp $0x4/setle ⇒ i<=4（有符号，P2）；内层 cmp $0xc7/setbe ⇒ s<=199。
@@ -106,6 +116,10 @@ void WongWork::CDeathTowerRanking::resetRanking()
 }
 
 // ORIG T 0x084683da (size 0xf3) —— registRanking.md
+// [b28d-55] DIFF(N) — 修法：value_type(make_pair(key,rank)) 复现 ORIG
+//   make_pair<unsigned&,unsigned&> + pair<const unsigned,unsigned>::C1IjjE
+//   （P178/P86），P167 CLEAR(10/10)。残余 = 寄存器/槽位差（N82 族）。
+//   ORIG 0x084683da。
 void WongWork::CDeathTowerRanking::registRanking(unsigned int tableIdx,
                                                  unsigned int key,
                                                  unsigned int rank)
@@ -113,7 +127,7 @@ void WongWork::CDeathTowerRanking::registRanking(unsigned int tableIdx,
     // asm +0x18..+0x81: ranking 子表 insert(key→rank)，重复键改写。
     RankTable& rt = *_getRankingTable(tableIdx);
     std::pair<RankTable::iterator, bool> rr =
-        rt.insert(RankTable::value_type(key, rank));
+        rt.insert(RankTable::value_type(std::make_pair(key, rank)));
     if (!rr.second)
         rr.first->second = rank;
     // asm +0x93..+0xf2: best 子表 find(key)；命中则其记录存故名次(+0x94)=rank。
@@ -138,6 +152,9 @@ void WongWork::CDeathTowerRanking::updateRanking(unsigned int tableIdx,
 }
 
 // ORIG T 0x08468914 (size 0x238) —— registBestRecord.md
+// [b28d-55] DIFF(N) — 修法：insert 改 value_type(make_pair(key,rec)) 复现 ORIG
+//   make_pair<unsigned&,stBestRecord_t&> + pair C1IjS3_（P178），P167 CLEAR(14/14)。
+//   残余 = 结构整体赋值/帧槽差（N82/N90 族）。ORIG 0x08468914。
 void WongWork::CDeathTowerRanking::registBestRecord(
     unsigned int towerIdx, unsigned int key,
     const struct stDeathTowerRecordMemberInfo_t* members,
@@ -171,7 +188,9 @@ void WongWork::CDeathTowerRanking::registBestRecord(
     // 覆盖为本次纪录（hash_map operator[] + rep movsl 0x26*4）。
     BestMap& bt = *_getBestRecordTable(towerIdx);
     std::pair<BestMap::iterator, bool> br =
-        bt.insert(BestMap::value_type(key, rec));
+        // b28d-55（P178）：ORIG make_pair<unsigned&,stBestRecord_t&> → value_type
+        // 右值构造（P167 差集实证）。
+        bt.insert(BestMap::value_type(std::make_pair(key, rec)));
     if (!br.second)
         bt[key] = rec;   // P83：ORIG operator[] + rep movsl 0x26 = 结构整体赋值
 }

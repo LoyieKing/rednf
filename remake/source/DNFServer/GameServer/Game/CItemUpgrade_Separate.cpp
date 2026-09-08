@@ -99,6 +99,8 @@ IItemUpgrade::IItemUpgrade() {}                               // ORIG T 0x080fc8
 IItemUpgrade::~IItemUpgrade() {}                              // ORIG T 0x080fc842（非虚）
 
 // ORIG T 0x080fc850：put_header(1,cmd) → 虚调槽 0 → 0=finalize+Send / 否则错误包。
+// [b28d-51] 判词 N（ORIG 0x080fc850，N82/N89 族）：帧/槽方向差 + 模板实例差集；
+// 语义/调用集齐，byte 层封顶。
 void IItemUpgrade::item_upgrade_system(CUser* user, MSG_ITEM_UPGRADE* msg, int cmd)
 {
     int result = 0;
@@ -131,6 +133,8 @@ GenuineDamageUpgradeTable::~GenuineDamageUpgradeTable() {}    // ORIG W 0x0811ee
 // ORIG T 0x08912a54。浮点读取：statWeightsByRarity[rarity]（this+(rarity+8)*4）
 // 与 weaponWeights[a][b]（this+((6a+b)+12)*4+8）；分母 *(int*)this；useAlt 选择
 // info.m_b / info.m_a；尾 +0.5f（DAT_08e122e8）后截断。
+// [b28d-51] 判词 N（ORIG 0x08912a54，N85/N82 族）：x87 比较/返回形态跨版本差
+// + 帧槽方向差；语义/调用集齐，byte 层封顶。
 int GenuineDamageUpgradeTable::getGenuineUpgradeDamage(ENUM_RARITY rarity, int a, int b,
                                                        int key, int count, bool useAlt)
 {
@@ -157,6 +161,8 @@ int GenuineDamageUpgradeTable::getGenuineUpgradeDamage(ENUM_RARITY rarity, int a
 }
 
 // ORIG T(_ZNK…) 0x08912b88。
+// [b28d-51] 判词 N（ORIG 0x08912b88，N82 族）：表查找槽序/帧方向差；
+// 语义/调用集齐，byte 层封顶。
 int GenuineDamageUpgradeTable::getGenuineUpgradeMaterialCnt(unsigned char growth, int sepLv,
                                                             ENUM_EQUIPMENTTYPE type,
                                                             ENUM_RARITY rarity) const
@@ -202,6 +208,8 @@ int GenuineDamageUpgradeTable::getGenuineUpgradeMaterialCnt(unsigned char growth
 
 // ORIG T 0x08912d10（sret 返回；静态局部 temp 经 __cxa_guard 初始化）。
 // [b28c-32] verdict=DIFF：N86/N82（sret 按值返回类对象 + 函数局部 static guard 临时槽跨版本差）。
+// [b28d-51] 判词 N（ORIG 0x08912d10，N86/N82 族）：sret 按值返回 + 函数局部
+// static guard 临时槽跨版本差；语义/调用集齐，byte 层封顶。
 OutLineEFFECTInfoTemp GenuineDamageUpgradeTable::getEffectInfo(int key)
 {
     static OutLineEFFECTInfoTemp temp;
@@ -268,6 +276,8 @@ int CItemUpgrade_Separate::_GetPenaltyType(unsigned char /*a*/, ENUM_RARITY /*ra
 }
 
 // ORIG T 0x0811e2e2。
+// [b28d-51] 判词 N（ORIG 0x0811e2e2，N82/N86 族）：map find sret 槽阶梯 +
+// 帧方向差；语义/调用集齐，byte 层封顶。
 bool CItemUpgrade_Separate::_GetUpgradeInfo(const Inven_Item* item, const CItem* citem,
                                             const GenuineDamageUpgradeTable& table,
                                             STUpgradeInfo* out, int level)
@@ -332,10 +342,13 @@ int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_It
 
     const unsigned int haveCount = matItem.m_addInfo2;         // Inven_Item +0x07（int，具名字段）
 
-    const unsigned char sepLv =
-        static_cast<unsigned char>(item.m_upgradeSep.GetUpgradeSeparate());
+    // [b28d-51] P282/P48：ORIG 0x0811e1fa 与 0x0811e24e 两次独立虚调
+    // citem->GetItemType()（vptr+0xc），求值序 rarity→itemType→sepLv；
+    // 旧码缓存 itemType 单次调用 ⇒ 调用点差集缺 1 个虚调（真语义缺口）。
     const int rarity = citem->get_rarity();
     const int itemType = citem->GetItemType();
+    const unsigned char sepLv =
+        static_cast<unsigned char>(item.m_upgradeSep.GetUpgradeSeparate());
     const int needCnt = const_cast<GenuineDamageUpgradeTable&>(table)
                             .getGenuineUpgradeMaterialCnt(growth, sepLv,
                                                           static_cast<ENUM_EQUIPMENTTYPE>(itemType),
@@ -344,7 +357,7 @@ int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_It
     {
         return 0x16;
     }
-    if (itemType != 10)
+    if (citem->GetItemType() != 10)
     {
         return 0x13;
     }
@@ -354,7 +367,10 @@ int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_It
     {
         return 7;
     }
-    if (table.m_maxLevel < static_cast<int>(sepLv) + 1)
+    // [b28d-51] P48：ORIG 0x0811e29c 末检再次独立调 GetUpgradeSeparate
+    // （不复用 sepLv 局部）——p167 差集曾缺 1 个该调用。
+    if (table.m_maxLevel <
+        static_cast<int>(item.m_upgradeSep.GetUpgradeSeparate()) + 1)
     {
         return 0x5f;
     }
@@ -362,6 +378,7 @@ int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_It
 }
 
 // ORIG T 0x0811e468。
+// [b28d-51] 判词 N（ORIG 0x0811e468，N82 族）：帧/槽方向差；语义/调用集齐。
 bool CItemUpgrade_Separate::_DoProcUpgrade(CUser* user, Inven_Item* item,
                                            const STUpgradeInfo* info)
 {
@@ -415,6 +432,8 @@ void CItemUpgrade_Separate::_NoticeUpgrade(const CUser* user, const Inven_Item& 
 }
 
 // ORIG T 0x0811e66e：vtable 槽 0 主流程。
+// [b28d-51] 判词 N（ORIG 0x0811e66e，N82 巨件族）：PacketGuard 与多分支槽复用
+// 方向差（调用集/指令集齐）；按 §6.2 判语义完成、byte 层封顶。
 int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
                                        PacketGuard* packet)
 {
@@ -534,6 +553,8 @@ void UpgradeSeparateInfo::IncUpgradeSeparate()
 
 // ORIG T 0x0867a242：成功且新等级>5 用 game_server_msg_248；失败且旧等级>5 用
 // game_server_msg_249；前缀 game_server_msg_247 取 10 字节；长度<120 才发公会板。
+// [b28d-51] 判词 N（ORIG 0x0867a242，N82/N89 族）：std::string 临时槽 + 模板
+// 实例跨版本差；语义/调用集齐，byte 层封顶。
 void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
                                                int newLevel, bool success, int upgrade)
 {

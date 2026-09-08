@@ -37,15 +37,22 @@ bool Arad_Script::Create()
 {
     // ORIG 0x0817b72a 头部 test;jne+test;je 双检 = 源形 `if (cells_ == 0)
     // delete[] cells_;`（外层 ==0 守卫 + delete[] 编译器自带 null 守卫）。
-    // [b28c-13 N18a] 残余：ORIG 0x0817b768 `mov (%eax),%eax; mov %eax,%edx`
-    // （载入后经第二寄存器中转）；4.4-O0 恒折单步 `mov (%eax),%edx`（N18a
-    // 反向不可造，P211 异型化只作用于 store 方向）。其余 shl 段已由
-    // bufBytes_ unsigned 化对齐（0x0817b775 `shl $7,%eax; mov %eax,%edx`）。
+    // [b28d-58] 载入中转已由 `(int)(cols_ * (unsigned int)rows_) * 0x80` 复现
+    // （探针 F1/F3）：ORIG 0x0817b768 `mov (%eax),%eax; mov %eax,%edx` +
+    // 0x0817b775 `shl $7,%eax; mov %eax,%edx` 逐条全等。
+    // [b28d-58] 残余 N18a（memset size 实参）：ORIG 0x0817b7aa
+    // `mov 0x10(%eax),%eax; mov %eax,%edx; mov %edx,0x8(%esp)`，4.4 恒折
+    // `mov 0x10(%eax),%edx`。三档旋钮试尽：字段改 int 可复现两段（I3 探针）
+    // 但反破 shl 段（I1/I2 恒 mov;shl）；`(size_t)(int)` / `(unsigned long)`
+    // cast 恒折叠（H2/H4 探针）⇒ 1 条 mov 封顶，语义等价（gap=1）。
     if (cells_ == 0)
         delete[] cells_;
     cols_ = 0x20;
     rows_ = 0x100;
-    bufBytes_ = (cols_ * rows_) * 0x80;
+    // [b28d-58] 载入中转（ORIG 0x0817b768 `mov (%eax),%eax; mov %eax,%edx`）：
+    // 探针 F1/F3 实证 `(int)(左 * (unsigned int)右) * 0x80` 使 4.4 复现两段载入
+    // + `shl;mov` 形（双 int 或无 cast 恒单段 `mov mem,%edx`）。
+    bufBytes_ = (int)(cols_ * (unsigned int)rows_) * 0x80;
     cells_ = new char[bufBytes_];
     if (cells_ == 0)
         return 0;
@@ -60,9 +67,10 @@ bool Arad_Script::Create()
 bool Arad_Script::ExpandCol()
 {
     // [b28c-13 N18a] 残余同 Create：ORIG 0x0817b816 `mov 0x4(%eax),%eax;
-    // mov %eax,%edx` 载入中转，4.4 恒折 `mov 0x4(%eax),%edx`。
+    // mov %eax,%edx` 载入中转 —— [b28d-58] 已由 `(int)(rows_ * (unsigned int)cols_)
+    // << 7` 复现（探针 E1/E4 逐条命中）。
     cols_ = cols_ + 0x20;
-    bufBytes_ = rows_ * cols_ << 7;
+    bufBytes_ = (int)(rows_ * (unsigned int)cols_) << 7;
     char* n = new char[bufBytes_];
     if (n == 0)
         return 0;
@@ -74,13 +82,19 @@ bool Arad_Script::ExpandCol()
 
 bool Arad_Script::ExpandRow()
 {
+    // [b28d-58] AE（探针 A7/subI）：ORIG 0x0817b892 的 shl 段为 `mov %eax,%edx;
+    // shl $0x7,%edx`（先搬后移，与 Create 的 `shl;mov` 相反）⇒ 原码是 unsigned
+    // 常量乘法 `rows_ * cols_ * 128u`（探针 A1..A5 全 shl;mov，仅 `* 128u` 命中）；
+    // memset size 段 ORIG `mov m,%eax; sub nsz,%eax; mov %eax,%edx` 需 int-int
+    // 减法（探针 subI 逐条全等；unsigned-int 会产 RHS-first `mov m,%edx; sub`）
+    // ⇒ 显式 `(int)bufBytes_ - nsz`。
     rows_ = rows_ * 2;
-    bufBytes_ = rows_ * cols_ << 7;
+    bufBytes_ = rows_ * cols_ * 128u;
     char* n = new char[bufBytes_];
     if (n == 0)
         return 0;
     int nsz = bufBytes_;
-    std::memset(n + nsz, 0, (size_t)(bufBytes_ - nsz));
+    std::memset(n + nsz, 0, (size_t)((int)bufBytes_ - nsz));
     std::memcpy(n, cells_, (size_t)nsz);
     delete[] cells_;
     cells_ = n;

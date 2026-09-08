@@ -1128,7 +1128,9 @@ int CMission_combo_clear::_Reward(CUser& user) const
 
     std::map<combo_script_key, combo_script_data>::const_iterator it =
         m_comboMap.find(key);
-    if (it == m_comboMap.end()) return 1;
+    // b28d-50：ORIG 0x085e43xx 实参序 (%esp)=end、0x4(%esp)=it（同 _isAcceptCondition，
+    // P74补②/P220 反序）——`end() == it` 复现。
+    if (m_comboMap.end() == it) return 1;
 
     std::vector<std::pair<int, int> > items;
     items.push_back(it->second.m_bonus);

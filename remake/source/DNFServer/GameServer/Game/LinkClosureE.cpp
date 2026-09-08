@@ -79,6 +79,8 @@ CBuffGroup::CBuffGroup(CUser* user)
     m_user = user;
 }
 
+// [b28d-54 N] ORIG 0x08697c64：帧 0x14→0x24 + 4.4 把 |x| 绝对值段槽化
+//   （ORIG `sar/xor/sub` 全寄存器 vs 4.4 mov 落槽两次，N82/N18a）；语义等价。
 char CBuffGroup::IsRight(CUser* user)
 {
     if (user->get_charac_level() > 0x45)
@@ -104,6 +106,7 @@ char CBuffGroup::IsRight(CUser* user)
 // 包 0x100（param→int, 0xe10）直发 + send_to_area（带 CBuffGroup）；
 // 包 0x103（get_unique_id 低 16 位, param）send_to_area（无 belong）。
 // ---------------------------------------------------------------------------
+// [b28d-54 N] ORIG 0x0865defc：槽整体平移 8（N82/N95）；调用序列全等。
 void SendLV70Buff(CUser* user, unsigned long buff)
 {
     CBuffGroup group(user);
@@ -189,6 +192,8 @@ cUserHistoryLog* userHistoryLogOf(CUser* user)
 // ORIG T _ZNK16CItemMakingSkill13GetSkillLevelE21ENUM_ITEM_MAKING_TYPEP5CUser
 // @0x08545c0c。报告 GetSkillLevel.md：idxByExp = 第一个 vec[i].first > 当前点数
 // 的下标；idxByLevel = 第一个 user 等级 < vec[i].second 的下标；取 min。
+// [b28d-54 N] ORIG 0x08545c0c：循环局部槽/扩展宽度差（ORIG movswl %ax,%ebx vs
+//   4.4 落槽 -0x12 回读，N82/P200）；语义等价。
 int CItemMakingSkill::GetSkillLevel(ENUM_ITEM_MAKING_TYPE type, CUser* user) const
 {
     const stItemMakingSkill* table =
@@ -226,6 +231,7 @@ int CItemMakingSkill::GetItemMakingSkillLevel(const CStackableItem* item, CUser*
 // @0x0854571c。报告 UpSkillLevel.md：type>0xa 或表空守卫 → 直接返回；
 // 仅当 point∈(0,m_bonusExp] 且 point<=vec.back().first 时加值；随后按等级
 // （0x46 级钳 vec.back().first / 否则逐档钳制）+ 1000 上限 clamp；alter() 通知。
+// [b28d-54 N] ORIG 0x0854571c：帧 0x34→0x44 + 槽平移（N82）+ 迭代器/临时槽（N86）。
 void CItemMakingSkill::UpSkillLevel(ENUM_ITEM_MAKING_TYPE type, int point, CUser* user)
 {
     const stItemMakingSkill* table =
@@ -298,6 +304,7 @@ void CItemMakingSkill::UpSkillLevel(ENUM_ITEM_MAKING_TYPE type, int point, CUser
 // @0x085453e0。报告 GainItemMakingSkillPoint.md：随机 gained = rand % m_bonusExp
 // + m_exp（0x28/0x24）；等级/点数上限违规时 errCode/gained 清零（0xd/0x16/0x5f）；
 // UpSkillLevel 后 gained=新增量；包 0x15f 应答 + ItemMakingSkillAdd 日志。
+// [b28d-54 N] ORIG 0x085453e0：帧/槽整体平移（N82）+ 迭代器/模板槽（N86/N108）。
 void CItemMakingSkill::GainItemMakingSkillPoint(const CStackableItem* item, CUser* user)
 {
     const ENUM_ITEM_MAKING_TYPE type =
@@ -371,6 +378,8 @@ void CItemMakingSkill::GainItemMakingSkillPoint(const CStackableItem* item, CUse
 // → find_item 失败 logFormat+0；否则 item.make_item(inven)（CItem vtable slot
 //   +0x8）→ 读 endurance → ARAD::send_mail(info)。
 // ---------------------------------------------------------------------------
+// [b28d-54 N] ORIG 0x081a329e：局部初始化语句序（ORIG 先 put 后写 flag 槽，P239）
+//   + 槽平移（N82）；调用序列全等。
 int Arad_GiftItem_Set::send_mail(CUser* user, int p2, int p3, int p4, int giftIdx)
 {
     Data* data = find(giftIdx, p4, p3);
@@ -431,6 +440,7 @@ public:
                                int job, int level, int grow1, int grow2);
 };
 
+// [b28d-54 N] ORIG 0x08145e64：帧/槽整体平移（N82）+ memcpy 展开形（N78）。
 void InitializeCharacStat::initCharacStat(_Additioal_info& info,
                                           unsigned int characNo, int job,
                                           int level, int grow1, int grow2)
@@ -514,6 +524,8 @@ void InitializeCharacStat::initCharacStat(_Additioal_info& info,
 //     user 等级 < vec[i].second 且当前值 > vec[i].first 时钳到 vec[i].first 并停；
 //   clamp：值 >0x3e8 → 0x3e8；alter() 通知；Send_ItemMakingSkillList(user)。
 // ============================================================================
+// [b28d-54 N] ORIG 0x08545d24：帧 0x34→0x44 + 成员取址 `lea 0x18(%eax)` vs 4.4
+//   `add $0x18`（N107）+ 槽平移（N82）。
 void CItemMakingSkill::SetItemMakingSkillPoint(int skillIdx, int point,
                                                CUser* user)
 {

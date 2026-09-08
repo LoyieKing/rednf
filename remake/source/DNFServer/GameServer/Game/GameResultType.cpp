@@ -102,6 +102,8 @@ void GameResultType::Clear()
     memset(m_shot, 0, sizeof(m_shot));
 }
 
+// [b28d-54 修复] ORIG 0x084b750c：m_field44 改 unsigned int（P211 档③同型化）后
+//   4.4 复现 ORIG 单段 `mov 0x44(%eax),%edx` + 无符号 jae；整函数 AE。
 int GameResultType::UpdateHighScore(const GameResultType& other)
 {
     int flags = 0;

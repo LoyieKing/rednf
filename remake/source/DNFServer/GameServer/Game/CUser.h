@@ -3087,7 +3087,7 @@ public:
     bool isGMUser();
     bool IsGameMasterMode() const;
     void SetGameMasterMode(bool flag);
-    char GetEventCreateDnfReward();
+    bool GetEventCreateDnfReward();  // b28d-Main 代落(P292)：ORIG 0x08160cba 调用点 `call; xor $0x1,%eax; test %al,%al; je` ⇒ bool；字段 +0x8ec30 已 bool，体保持 movzbl 直返
     void SetPowerUp(bool flag);
     int SetETC(short key, int value);
 

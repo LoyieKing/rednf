@@ -52,6 +52,8 @@
 // 拍卖 GM 角色号表（ORIG d _ZL6gmList @0x093701d8，文件级静态，5×int）
 static int gmList[5] = { 0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae };
 
+// [b28d-51] 判词 N（ORIG 0x08213e8a，N82/N89 族）：dispatch 模板栈布局 +
+// 临时槽阶梯跨版本差；语义/调用集齐，byte 层封顶。
 int Dispatcher_AuctionRegistItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     unsigned char payType;                                   // -0x45

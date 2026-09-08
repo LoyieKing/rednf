@@ -84,51 +84,52 @@ void CCoinRefillEvent::EndEvent()
 
 int CCoinRefillEvent::getLastEventTime() const
 {
-    // [b28c-35] 真语义 bug 已修（索引整体 -1，见上）；残余 N：ORIG 0x0832c0f5 把
-    // `m_times[count-1]` 折叠为单条 `mov 0xc(%eax,%edx,4)`（disp = 0x10-4），
-    // 4.4 产 `lea -0x1; add $0x4; mov (%eax,%edx,4)` 三段（不做 0x10-4 代数合并），
-    // 源形（下标/指针/局部）均不可择。
-    // ORIG 0x0832c0b8。头布局注释：m_times[i-1] 对应 ORIG `this+i*4+0xc`
-    // （m_times 基址 +0x10 = +0xc+4）⇒ 源码索引须整体比 ORIG 的 i 小 1。
-    // 旧形 `m_times[m_timeCount]` / `m_times[i]` / `m_times[i-1]` 是**真语义 bug**
-    // （越界读 m_times[4]，ORIG 0x0832c0f5 地址 = this+0xc+count*4 = m_times[count-1]）。
+    // [b28d-59] ORIG 0x0832c0b8：改用 m_slots[i] 单数组视角（P235 union 双视角）
+    // 复现 ORIG 的 `mov 0xc(%eax,%edx,4)` 折叠形；逻辑槽 i 语义与
+    // ORIG `this+i*4+0xc` 逐条一致（旧 b28c-35 真语义 bug 修正保持不变）。
     int curSec = GlobalData::s_systemTime_.getCurSec();
     tm cur;
     localtime_r(reinterpret_cast<time_t*>(&curSec), &cur);
-    if (cur.tm_hour < m_times[0])
+    if (cur.tm_hour < m_slots[1])
     {
-        return m_times[m_timeCount - 1];
+        return m_slots[m_timeCount];
     }
     for (int i = 2; i <= m_timeCount; i = i + 1)
     {
-        if (cur.tm_hour < m_times[i - 1])
+        if (cur.tm_hour < m_slots[i])
         {
-            return m_times[i - 2];
+            return m_slots[i - 1];
         }
     }
-    return m_times[m_timeCount - 1];
+    return m_slots[m_timeCount];
 }
 
 int CCoinRefillEvent::getNextEventTime(tm const& cur) const
 {
-    // ORIG 0x0832c148：找第一个 != m_fatigueTime 且 > cur.tm_hour 的槽；
-    // 否则跳过 == m_fatigueTime 槽；全失败返回基准槽 m_times[0]。
+    // [b28d-59] ORIG 0x0832c148：m_slots[i] 单数组视角（mov 0xc(%eax,%edx,4)）；
+    // 独立 continue 守卫（P133：不得合并 && 短路）——第一循环 `== fatigueTime
+    // continue`（sete/jne 形），第二循环 `!= fatigueTime return`（setne/je 形）。
+    // 语义：找第一个 != m_fatigueTime 且 > cur.tm_hour 的槽；否则跳过
+    // == m_fatigueTime 槽；全失败返回基准槽 m_slots[1]（= m_times[0]）。
     for (int i = 1; i <= m_timeCount; i = i + 1)
     {
-        if (m_times[i] != G_CEnvironment()->m_serverEnvir.m_fatigueTime &&
-            cur.tm_hour < m_times[i])
+        if (m_slots[i] == G_CEnvironment()->m_serverEnvir.m_fatigueTime)
         {
-            return m_times[i];
+            continue;
+        }
+        if (cur.tm_hour < m_slots[i])
+        {
+            return m_slots[i];
         }
     }
     for (int i = 1; i <= m_timeCount; i = i + 1)
     {
-        if (m_times[i] != G_CEnvironment()->m_serverEnvir.m_fatigueTime)
+        if (m_slots[i] != G_CEnvironment()->m_serverEnvir.m_fatigueTime)
         {
-            return m_times[i];
+            return m_slots[i];
         }
     }
-    return m_times[0];
+    return m_slots[1];
 }
 
 void CCoinRefillEvent::registNextRefillTimer() const

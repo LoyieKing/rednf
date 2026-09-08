@@ -69,6 +69,8 @@ bool CExtraction::_check_need_slot(CUser* user)
 //   已鉴定（0xae）、可分解（0x17）、非绑定（0x11）、未锁（0xd5）、
 //   安全保护 CheckItemRarity（0x28）返回其错误码。
 // ============================================================================
+// [b28d-54 N] ORIG 0x084a2a5e：`cmpl $imm,mem` vs ORIG 载寄存器后比较（P209）
+//   + 实参装载序（P23/P75）；调用序列全等（180 vs 181）。
 int CExtraction::check_error(CUser* user, char a, short b, short c)
 {
     if (G_GameWorld()->IsPVPChannel())
@@ -149,6 +151,7 @@ int CExtraction::check_error(CUser* user, char a, short b, short c)
 //   → 副本试插（0x35,0,1）；成功后真实背包删材料再插入，outSlots 输出
 //   {插入槽, 物品索引, add_info}。
 // ============================================================================
+// [b28d-54 N] ORIG 0x084a2cec：帧/槽平移（N82）+ 模板实例槽（N86）；调用序列全等。
 bool CExtraction::inven_process(CUser* user, short param,
                                 std::vector<std::pair<int, int> >& needItems,
                                 std::vector<int>& outSlots)
@@ -244,6 +247,9 @@ int CAlchemistExtraction::get_extraction_count(Inven_Item item)
 //   材料1（槽 a）的 +0x334 等级字段 → 脚本允许等级；材料2（槽 b）的
 //   usableLevel（0 时 grade）；超出 → 0xd。
 // ============================================================================
+// [b28d-54 N] ORIG 0x084a35f2：4.4 槽复用（mat1/mat2/limit 压缩，帧 -4，
+//   N82/N95）+ 装载序（P23）。三派生类同族（Enchanter 0x084a3b92 /
+//   DollController 0x084a4286 同形）。语义等价。
 int CAlchemistExtraction::_check_error(CUser* user, short a, short b)
 {
     Inven_Item item1 = user->getCurCharacInvenR()->GetInvenSlot(1, (int)a);
@@ -290,6 +296,7 @@ int CAlchemistExtraction::check_error(CUser* user, char a, short b, short c)
 //   按结果表随机选一条目（CMTRand），命中则 get_extraction_count 作数量，
 //   needItems 输出 {itemId, count}。
 // ============================================================================
+// [b28d-54 N] ORIG 0x084a3182：帧/槽平移（N82）+ 模板/寄存器角色（N7/N86）。
 bool CAlchemistExtraction::extraction(CUser* user, short param,
                                       std::vector<std::pair<int, int> >& needItems)
 {
@@ -363,6 +370,7 @@ int CEnchanterExtraction::get_extraction_count(Inven_Item item)
 // ============================================================================
 // CEnchanterExtraction::_check_error —— ORIG T 0x084a3b92（+0x338 等级字段）
 // ============================================================================
+// [b28d-54 N] ORIG 0x084a3b92：同 CAlchemistExtraction::_check_error（N82/N95 槽复用）。
 int CEnchanterExtraction::_check_error(CUser* user, short a, short b)
 {
     Inven_Item item1 = user->getCurCharacInvenR()->GetInvenSlot(1, (int)a);
@@ -406,6 +414,7 @@ int CEnchanterExtraction::check_error(CUser* user, char a, short b, short c)
 // CEnchanterExtraction::extraction —— ORIG T 0x084a37c6
 //   无 result_type 分支（Enchanter 单结果表）。
 // ============================================================================
+// [b28d-54 N] ORIG 0x084a37c6：帧/槽平移（N82）+ 模板/寄存器角色（N7/N86）。
 bool CEnchanterExtraction::extraction(CUser* user, short param,
                                       std::vector<std::pair<int, int> >& needItems)
 {
@@ -485,6 +494,7 @@ int CDollControllerExtraction::get_doll_controller_extraction_type(CEquipItem co
 // CDollControllerExtraction::get_extraction_count —— ORIG T 0x084a41a8
 //   按类型：0→grade/10；1→(grade-0x14)/10；2→(grade-0x28)/10；0 → 1。
 // ============================================================================
+// [b28d-54 N] ORIG 0x084a41a8：帧/槽平移（N82）+ 寄存器角色（N7）。
 int CDollControllerExtraction::get_extraction_count(Inven_Item item)
 {
     CItem* c = G_CDataManager()->find_item(item.m_addInfo);
@@ -514,6 +524,7 @@ int CDollControllerExtraction::get_extraction_count(Inven_Item item)
 // ============================================================================
 // CDollControllerExtraction::_check_error —— ORIG T 0x084a4286（+0x33c 等级字段）
 // ============================================================================
+// [b28d-54 N] ORIG 0x084a4286：同 CAlchemistExtraction::_check_error（N82/N95 槽复用）。
 int CDollControllerExtraction::_check_error(CUser* user, short a, short b)
 {
     Inven_Item item1 = user->getCurCharacInvenR()->GetInvenSlot(1, (int)a);
@@ -556,6 +567,7 @@ int CDollControllerExtraction::check_error(CUser* user, char a, short b, short c
 // ============================================================================
 // CDollControllerExtraction::extraction —— ORIG T 0x084a3dce
 // ============================================================================
+// [b28d-54 N] ORIG 0x084a3dce：帧/槽平移（N82）+ 模板/寄存器角色（N7/N86）。
 bool CDollControllerExtraction::extraction(CUser* user, short param,
                                            std::vector<std::pair<int, int> >& needItems)
 {

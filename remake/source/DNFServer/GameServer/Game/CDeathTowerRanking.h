@@ -117,6 +117,9 @@ public:
             m_playTime = 0;
         }
         // ORIG 两运算符均为非 const 成员（mangled 无 K：_ZN...teq/gtERKS1_）
+        // [b28d-55] DIFF→AE 口径：唯一残差 = jmp 后 1 条对齐 nop（§6.1/N112，
+        //   compare_tu 口径已剥离）；指令序列与 ORIG 逐条同形，P167 CLEAR(0/0)。
+        //   ORIG 0x08469ce4。
         bool operator>(const stBestRecord_t& other)
         {
             // ORIG 0x08469ce4：cmp 0x88 jne→GT岛@8469d16（seta）；

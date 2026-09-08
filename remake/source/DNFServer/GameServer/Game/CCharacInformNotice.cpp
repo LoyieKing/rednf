@@ -14,6 +14,16 @@ static const int kInformNoticeBit = 8;
 #include "StreamPool.h"
 #include <string.h>
 
+// ============================================================================
+// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
+//   checkInformNoticeFlag 0x080e4892 DIFF(33/28) N96+N18a+P168a④：ORIG
+//     m_flags 落槽→sar/and→xor$1/test 常量岛；4.4 对 sar/and 后 eax 恒以
+//     movzbl 加宽顶掉 xor 段，无绑定不可复现（清绑后自然形，P0 合规）⇒ 封顶。
+//   handleInformNoticeFlag 0x080e4806 DIFF(55/54) 修法：P223 多岛形（三失败
+//     出口各落独立 nop 岛，负条件 goto 连续尾标签，探针 fA 逐条复现三岛）；
+//     残差 = N18a 两段物化 ×2 + 第三守卫 4.4 `xor$1;test;jne` vs ORIG `test;je`
+//     （P168a①/P292 bool 归一，无绑定不可造）⇒ 封顶。P167 CLEAR(2/2)。
+// ============================================================================
 
 
 // ORIG C1 0x080e4790：基类 CData ctor（隐式）后 _reset。

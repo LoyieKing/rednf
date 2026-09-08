@@ -43,7 +43,10 @@ CLuckPoint::~CLuckPoint() {}
 stGenerateRefData_t::stGenerateRefData_t()
 {
     m_dropRate = 100;
-    m_field04 = 0;
+    // b28d-54 翻正（P238）：ORIG 0x0814a9f8 `mov $0x0,%edx; mov %edx,0x4(%eax)`
+    //   常数经 edx 中转；int 字段恒折单条 movl。经 D53 的匿名 union float 视图
+    //   `m_field04f = 0.0f` 复现中转（sizeof/偏移/mangled 不变）。
+    m_field04f = 0.0f;
     m_forceTag.clear();
     m_forceTag.push_back(false);
     m_forceTag.push_back(false);
@@ -192,6 +195,9 @@ int CItemGenerator::getGeneratorType()
 //     importGenuineUpgradeTable("Etc/Upgrade_Separate.etc", t) 失败返回 0
 //     （static 保留，与 ORIG 一致：失败仅本次返回 0）。
 // ============================================================================
+// [b28d-54 N] ORIG 0x0891229d：`new GenuineDamageUpgradeTable()` 后的 value-init
+//   清零 ORIG 内联 rep stos（0x188 字节）vs 4.4 call memset（N77/N78）+ 指针缓存
+//   ebx/esi 寄存器化（N2）；语义等价（构造+清零序列一致）。
 GenuineDamageUpgradeTable* getGenuineUpgradeTable()
 {
     static GenuineDamageUpgradeTable* genuineDamageUpgradeTable = 0;

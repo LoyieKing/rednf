@@ -121,6 +121,8 @@ struct BloodDungeonCountsViewD2
 // type=0 → CharacManageScript::GetExpBonus(manageLevel)；
 // type=1 → GetGoldBonus(manageLevel) * (double)(uint)param（fildll 无符号扩展）。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x085ada30，N82/N86 族）：帧 0x24 vs 0x44——我方多具名
+// 局部（ORIG 结果直传 %st/%eax）；语义/调用集齐，byte 层封顶。
 float CParty::CalcurateManageBonus(ManageBonusType::T type, CUser* user,
                                    unsigned int param)
 {
@@ -159,6 +161,8 @@ float CParty::CalcurateManageBonus(ManageBonusType::T type, CUser* user,
 // 错误码：0xab 人数不足且非 GM；0xac 等级不足（写出槽号）；0xad 维度入场券缺失
 // （characR+0xeb8+possible 字节 <1 且 partyType!=1 且非 GM）；遍历完返回 1。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x0859f1ce，N82 帧槽族）：帧 0x34 vs 0x44、flag 槽
+// -0x1c vs -0x2c；语义/调用集齐，byte 层封顶。
 int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& flag,
                                        bool checkMinParty)
 {
@@ -231,6 +235,8 @@ int CParty::CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& f
 // 常量实证（objdump rodata）：0x08cbbbfc=10.0f（乘）、0x08cbbc00=0.1f（加）。
 // 三组命中样本带外统计过半 → 全体有效成员 addServerHackCnt 0xd9/0xda/0xdb。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x085bb0ac，N82 族）：全局单例地址装载 + 帧槽方向差；
+// 语义/调用集齐，byte 层封顶。
 void CParty::CheckHackAverageHitCount()
 {
     if (GlobalData::s_villageMonsterMgr->OnEvent())      // 村庄袭击中跳过（0x82f0f44）
@@ -345,17 +351,15 @@ bool CParty::HasAllMemberSelection()
 {
     for (int i = 0; i < 4; ++i)
     {
-        // [X2+技巧22] ORIG 0x085ba1c0 O@9-21：`call; xor$1; test; jne` +
-        // `call; test;sete%al; test; je`（al 直存 bool 物化，无槽 spill）。
-        register unsigned char v asm("eax") = (unsigned char)_checkValidUser(i);
-        v ^= 1;
-        if (v)
+        // [b28d-51] P0/N96 清绑：删 `register uchar v asm("eax")` 与
+        // `register bool s asm("al")`（全域禁绑定）；改裸 bool 形。
+        // ORIG 0x085ba1c0 O@9-21 原形 `call; xor$1; test; jne` +
+        // `call; test;sete%al; test; je`（4.4 清绑后物化路径见函数头判词）。
+        if (!_checkValidUser(i))
         {
             continue;
         }
-        register bool s asm("al") =
-            m_routingData.GetMemberRoutingState(i) == 0;
-        if (s)
+        if (m_routingData.GetMemberRoutingState(i) == 0)
         {
             return false;
         }
@@ -589,6 +593,8 @@ void CParty::changePartyMemberInfoOnMoveMap(MSG_MOVE_MAP& info, bool firstVisit)
 //   （IsVisitedCurrentMap xor$1 vs setne）、P196 折向（info.m_39 movsbl vs
 //   movzbl：槽位值域 0..3 无 ≥0x80 分叉，非真反）——语义与调用序列零缺口。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x085a83a2，N82 族）：帧 0x6c vs 0x8c、首值槽
+// -0x38 位置差；语义/调用集齐，byte 层封顶。
 bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
 {
     const int prevAux = m_field1ab8;                     // -0x38（上一辅助计数）
@@ -747,6 +753,8 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
 // check_allmember_loading —— ORIG T 0x085b17a4
 // 报告：docs/class_func_reports/CParty/check_allmember_loading.md
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x085b17a4，N82 族）：帧 0x9c vs 0xdc、flag 槽
+// -0x6c vs 4.4 更深；语义/调用集齐，byte 层封顶。
 void CParty::check_allmember_loading(bool flag)
 {
     const int memberCount = get_member_count();
@@ -892,6 +900,8 @@ void CParty::check_allmember_loading(bool flag)
 // 返回错误码并写出违规成员槽：血图 10/0x5f/0xf5；m_bloodDungeonType==2 图 0xf4~0xf8；
 // 其余 0xf3（人数超限）；通过返回 0。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x0859f7fa，N82 族）：帧 0x34 vs 0x44、循环槽
+// -0x24 vs 4.4 更浅；语义/调用集齐，byte 层封顶。
 int CParty::check_dungeon_start(CDungeon const* dungeon, int& param)
 {
     if (dungeon->m_bloodDungeonType == 1)
@@ -1027,6 +1037,8 @@ void CParty::send_to_party_cmd_error(ENUM_CMDPACKET cmd, unsigned char error)
 // 仅 GM 有效成员参与平均：ORIG 中 isGMUser() 结果为 0 时 je 跳到循环尾
 // （不累加等级/计数）；成员数为 0 时 ORIG idivl 除零同样崩溃，忠实保留。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x0859f612，N82 帧槽族）：ORIG 帧 0x38 五槽
+// （-0x19/-0x18/-0x14/-0x10/-0xc）vs 4.4 0x28 四槽（缺 -0x18 死槽）+ callee 形态差。
 bool CParty::setStandardDimensionLevel(CDungeon const* dungeon)
 {
     (void)dungeon;
@@ -1211,6 +1223,8 @@ CUser* CParty::GetMemberSlotNo(unsigned int characNo)
 // CParty::VoteLackUser —— ORIG T 0x085b3c90（报告 VoteLackUser.md）：
 //   缺人投票（cElection<int,4,4>），投票成功后 0xf 定时器 0x9c4ms。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x085b3c90，N82附/N93 槽序族）：cMyTrace 对象 ORIG -0x30
+// vs 4.4 -0x24、user 局部 -0x10 vs -0x14（同型局部槽方向相反）；语义/调用集齐。
 int CParty::VoteLackUser(CUser* user, int victimIdx)
 {
     if (victimIdx < 0 || victimIdx > 3)
@@ -1310,6 +1324,8 @@ const char* CParty::GetNoSendSetPlayResultUser(int slot)
 // CParty::SetPlayResult —— ORIG T 0x085b2412（报告 SetPlayResult.md）：
 //   结算一个成员：写排行/最佳时间、发送结算、清奖励、统计缺口告警。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x085b2412，N82 族）：帧 0x7c vs 0x5c——ORIG 多栈临时/
+// 槽复用方向差；语义/调用集齐，byte 层封顶。
 int CParty::SetPlayResult(CUser* user)
 {
     if (get_dungeon_clear_state() != 1)
@@ -1354,6 +1370,8 @@ int CParty::SetPlayResult(CUser* user)
 // CParty::MakeQuestRewardPacket —— ORIG T 0x085bd7ae（报告
 //   MakeQuestRewardPacket.md）：任务清图奖励物品包（20 任务槽 × 清图物品表）。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x085bd7ae，N82/N86 族）：帧 0xe0 vs 0xd0、PacketGuard
+// 与临时槽阶梯方向差；语义/调用集齐，byte 层封顶。
 void CParty::MakeQuestRewardPacket(PacketGuard* packet, CUser* user)
 {
     int count = 0;
@@ -1413,6 +1431,8 @@ void CParty::MakeQuestRewardPacket(PacketGuard* packet, CUser* user)
 // CParty::OnTimeoutBossDie —— ORIG T 0x085aa5d4（报告 OnTimeoutBossDie.md）：
 //   超时击杀当前 Boss（BF.m_apcAllKilledSec）：遍历怪物→击杀→失败按队伍类型收尾。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x085aa5d4，N82 族）：帧差 + GetMemberSlotNo 结果槽
+// -0x10 vs 4.4 更浅；语义/调用集齐，byte 层封顶。
 int CParty::OnTimeoutBossDie(int monsterId, unsigned int characNo)
 {
     if (bf(this).m_apcAllKilledSec != monsterId)
@@ -1514,6 +1534,8 @@ void CParty::sendPremiumGoldCardStatistic(int type, int value1, int value2)
 // CParty::historyBloodRoundClear —— ORIG T 0x085b7db6：逐有效成员写
 //   cUserHistoryLog::BloodRoundClear（CUser+0x79700）。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x085b7db6，N82/N78 族）：char[0x40]={0} 已复现 rep stos
+// 但 4.1 帧 0x130（含 edi/ebx 与额外槽）vs 4.4 0x70；循环体/调用集齐。
 void CParty::historyBloodRoundClear(int round, unsigned int clearTime,
                                     unsigned int playTime, const char* dungeonName)
 {
@@ -1536,6 +1558,8 @@ void CParty::historyBloodRoundClear(int round, unsigned int clearTime,
 //   地狱值累计（上限钳制 + send_hellParty_value）。
 //   +0xd0c..+0xd5b（m_padcee 未建模 hell 值表区）按报告偏移访问。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x085b58ac，N82/P30 族）：ORIG `add $0x348; mov (%eax,%edx,4)`
+// 两步索引 vs 4.4 折 disp；帧 0x48 vs 0x38；语义/调用集齐。
 void CParty::cal_hellparty_value(int dungeonDiff, int rateLevelDiff, int memberCount)
 {
     if (rateLevelDiff == 0 || memberCount < 0 || dungeonDiff >= 5)
@@ -1608,6 +1632,8 @@ void TOD_UserState::ClearLayer()
 // 三段形；4.4 直构 iterator 无 C2Ev 弱实例可落（P50 实测改三段形
 // missing_in_game +2、ndiff 反化 31→30，已回退）。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x085ff020，N86/N93 族）：iterator 默认构造槽 + find
+// sret 槽阶梯方向跨版本相反（ORIG sub 0x38/-0x10 起 vs 4.4 0x28/-0x14 起）。
 const char* TowerOfDespair_APC_Mgr::Get_APC_Name_byIndex(const TOD_Layer& layer)
 {
     std::map<TOD_Layer, SendingAPC_Info>::const_iterator it =
@@ -1682,6 +1708,8 @@ struct Packet_TowerOfDespair_Statistic_GTS
 // CParty::ClearDungeon —— ORIG T 0x085a9330（报告 ClearDungeon.md 逐段转写）：
 //   清图流程：普通/绝望塔/巡回分支 → 动作点/统计/奖励 → 时间与地狱值结算。
 // ---------------------------------------------------------------------------
+// [b28d-51] 判词 N（ORIG 0x085a9330，N82 巨件族）：帧 0x170 vs 0x1e0、多分支
+// 槽复用方向差（指令集/调用集齐）；按 §6.2 判语义完成、byte 层封顶。
 void CParty::ClearDungeon()
 {
     if (m_tournamentVictory != 0)

@@ -8,6 +8,16 @@
 //   IsEventing 0x080f7820（W）：转发 CEventBase::IsEventing
 //   SelectGrowthWeapon 0x080f73be / SendGrowthWeaponEventInfo 0x080f7226
 //   GiftGrowthWeaponBox 0x080f7050（礼包邮件 + DB_EventSaveGrowthWeapon）
+// ============================================================================
+// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
+//   StartAction 0x080f7710           DIFF(51/51) 修法：非 const _Rb_tree_iterator
+//     + `it++` 后置（P50/P96/P28）+ 去 world 具名局部、G_GameWorld() 内联进
+//     begin/end 表达式（P0/P183）；P167 CLEAR(9/9)。
+//   SendGrowthWeaponEventInfo 0x080f7226 DIFF(117/116) P167 CLEAR(22/22)；
+//     残差 = P77 short→int 拓宽实参形 + 帧槽差（N82 族）。
+//   GiftGrowthWeaponBox 0x080f7050   DIFF(115/116) P167 EXTRA ×1：
+//     CEnvironment::get_server_group 多 1 次（ORIG 该路径不调）——待后续核对。
+// ============================================================================
 #include "GrowthEquipEvent.h"
 
 #include "CUser.h"
@@ -233,10 +243,16 @@ void GrowthEquipEvent::StartAction()
 {
     // ORIG：遍历 GameWorld 用户表（map<ushort,CUser*>），对 get_state()>2 的
     // 在线用户逐个补发 SendGrowthWeaponEventInfo。
-    GameWorld* world = G_GameWorld();
-    for (std::map<unsigned short, CUser*>::const_iterator it =
-             world->m_UserInWorld.begin();
-         it != world->m_UserInWorld.end(); ++it)
+    // b28d-55（P50/P96/P28）：ORIG 用**非 const** _Rb_tree_iterator（ne/ptEv/ppEi
+    // 三个非 const 实例，P167 差集实证）⇒ const_iterator 会额外生成
+    // _Rb_tree_const_iterator 转换构造与 const 版成员；增量段 ORIG 为 ppEi（后置）
+    // ⇒ 源写 `it++`。
+    // P0/P183：ORIG 无 world 槽——begin/end 两处各自 `call G_GameWorld;
+    // lea 0x134(%eax),%edx` 就地折叠（ORIG 0x080f7716 / 0x080f778a 两处独立调用），
+    // 故 G_GameWorld() 内联进循环头/条件表达式。
+    for (std::map<unsigned short, CUser*>::iterator it =
+             G_GameWorld()->m_UserInWorld.begin();
+         it != G_GameWorld()->m_UserInWorld.end(); it++)
     {
         CUser* user = it->second;
         if (user->get_state() > 2)

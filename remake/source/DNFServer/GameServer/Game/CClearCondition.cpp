@@ -47,6 +47,8 @@ bool CClearCondition::IsClearCondition()
     return m_flag <= m_count;
 }
 
+// [b28d-51] 判词 N（ORIG 0x082fefce，N82 族）：switch 决策树 + 帧槽方向差；
+// 语义/调用集齐，byte 层封顶。
 bool CClearCondition::ClearCondition(ENUM_DUNGEON_CLEAR_CONDITION_TYPE type, int idx)
 {
     if ((int)type < 0 || (int)type > 4)
@@ -86,6 +88,8 @@ bool CClearCondition::ClearCondition(ENUM_DUNGEON_CLEAR_CONDITION_TYPE type, int
     return true;
 }
 
+// [b28d-51] 判词 N（ORIG 0x082fef12，N82/N86 族）：vector 迭代器/临时槽
+// 阶梯方向差（ORIG 帧 0x28 vs 4.4 0x24+ebx）；语义/调用集齐，byte 层封顶。
 void CClearCondition::SetDungeonClearConditionVector(
     std::vector<DungeonClearCondition>& vec)
 {

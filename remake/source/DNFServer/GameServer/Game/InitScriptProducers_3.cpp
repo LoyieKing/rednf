@@ -25,6 +25,21 @@
 //
 // 声明唯一出处 DataManagerInitDepends.h（本文件在 CDataManager.h 之后包含之）。
 // ============================================================================
+// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
+//   stTitleElement::C1 0x08aa95ae   DIFF(40/40) 修法：CTitleBook.h ctor 体顺序
+//     （P239，标量全落 ctor 体按 ORIG 书写序）；P167 CLEAR(4/4)，残差仅 call
+//     重定位标签显示 ⇒ AE 口径。
+//   stTitleSection::C1 0x08aa979e   DIFF(118/119) P167 CLEAR，帧/槽残差 N82
+//   importSlangName 0x089081a3      DIFF(125/120) 修法：push_back 右值化
+//     （static_cast<unsigned char&&/unsigned short&&>，P270）；P167 CLEAR(18/18)。
+//   importTitleBookEtcScript 0x08aa8110 DIFF(650/650) P167 CLEAR，超大件 N 封顶
+//   importPVPChannelList 0x08901f10 DIFF(278/275) P167 CLEAR
+//   importOldEquipmentStatInfo 0x08a58174 DIFF(357/367) 修法：find==end 正极性
+//     （P220/P222）+ value_type(itemIndex,info) 引用构造（P192）；P167 CLEAR(38/38)。
+//   importQuestParameterScript 0x08a6b660 DIFF(447/446) P167 残差 memcpy ×1
+//   importGuildParameterScript 0x08978d48 DIFF(507/522) P167 残差（调用差 4）
+//   importPowerParameterScript 0x08a592bc DIFF(638/629) P167 CLEAR
+// ============================================================================
 
 #include "CDataManager.h"
 #include "sync_script.h"         // CSyncScript/STEquipmentPartSetPiece（须先于 deps 头，与 CDataManager.cpp 口径一致）
@@ -207,15 +222,20 @@ bool importOldEquipmentStatInfo(const char* dir)
             return false;
         }
 
-        if (g_equipmentStatInfoMap.find(itemIndex) != g_equipmentStatInfoMap.end())
+        // b28d-55（P220/P222 + P167 差集实证）：ORIG 用**正极性** `find == end`
+        // （差集：ORIG 有 _Rb_tree_iterator::eq 而无 ne）+ 插入用
+        // value_type(itemIndex, info) 引用构造（pair C1IRjRS1_），make_pair 形是
+        // 我们多出的调用（P192/P178）。
+        if (g_equipmentStatInfoMap.find(itemIndex) == g_equipmentStatInfoMap.end())
+        {
+            g_equipmentStatInfoMap.insert(
+                std::map<unsigned int, STEquipmentStatInfo>::value_type(itemIndex, info));
+        }
+        else
         {
             LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
                                   __FUNCTION__, 0x92,
                                   "Redundant Old Equipment Stat Info! itemIndex = %d", itemIndex);
-        }
-        else
-        {
-            g_equipmentStatInfoMap.insert(std::make_pair(itemIndex, info));
         }
     }
     return true;
@@ -1105,7 +1125,9 @@ bool importSlangName(char* path, SlangNameData* out)
             while (((ch = static_cast<unsigned char>(ScanInt(&ok))), ok))
             {
                 ok = false;
-                out->m_charList.push_back(ch);
+                // b28d-55（P270/P234）：ORIG 走 push_back(T&&)=EOh，具名左值恒选
+                // RKh；static_cast<T&&> 零额外 call 且选中同一右值重载。
+                out->m_charList.push_back(static_cast<unsigned char&&>(ch));
             }
             ok = false;
         }
@@ -1115,7 +1137,8 @@ bool importSlangName(char* path, SlangNameData* out)
             while (((ch = static_cast<unsigned short>(ScanInt(&ok))), ok))
             {
                 ok = false;
-                out->m_shortList.push_back(ch);
+                // b28d-55（P270）：同上，ORIG 为 push_backEOt。
+                out->m_shortList.push_back(static_cast<unsigned short&&>(ch));
             }
             ok = false;
         }

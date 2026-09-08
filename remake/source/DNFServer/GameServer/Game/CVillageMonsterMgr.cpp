@@ -71,6 +71,8 @@ int GetDistance(pvp_assault::Point2d a, pvp_assault::Point2d b);
 namespace pvp_assault
 {
 
+// [b28d-51] 判词 N（ORIG 0x082e5a0b，N82 槽序族）：循环索引/上限槽整体平移
+// （-0x14/-0x10 vs -0x18/-0xc）；语义/调用集齐，byte 层封顶。
 bool IsIncludeVirtualMoveAreas(std::vector<MapArea>* areas, int x, int y,
                               int& outX, int& outY, int margin)
 {
@@ -252,6 +254,8 @@ unsigned short CVillageMonster::GetUID() const
 //   试探新位置，用 IsIncludeVirtualMoveAreas 裁剪到虚拟移动区内；若距旧位置
 //   的曼哈顿距离 > 0x31 保留新位置并置 m_field10=1，否则回退旧位置。
 // ============================================================================
+// [b28d-51] 判词 N（ORIG 0x086b310c，N82/N86 族）：迭代器三槽阶梯方向差；
+// 语义/调用集齐，byte 层封顶。
 void CVillageMonster::OnRunVillageMonster(std::vector<MapArea>* areas, int idx)
 {
     m_field10 = 0;
@@ -321,6 +325,8 @@ bool CVillageMonster::MakeVillageMonsterPositionPacket(PacketGuard& packet)
 //   区域无人 → 直接返回；否则逐怪物转 OnRunVillageMonster(m_areaList, m_field30)，
 //   然后 SendVillageMonsterPosition 并 ++m_field30（轮转槽）。
 // ============================================================================
+// [b28d-51] 判词 N（ORIG 0x086b3f06，N82/N86 族）：map 迭代器槽阶梯 + 实参缓存
+// 方向差；语义/调用集齐，byte 层封顶。
 void CVillageMonsterArea::OnRunVillageMonster()
 {
     if (G_GameWorld()->GetUserCount(m_field28, m_field2c) == 0)
@@ -342,6 +348,8 @@ void CVillageMonsterArea::OnRunVillageMonster()
 //   MakeVillageMonsterPositionPacket（成功则 count++）；回填 count；
 //   finalize(true)；count!=0 时 SendPacket。
 // ============================================================================
+// [b28d-51] 判词 N（ORIG 0x086b3962，N82 族）：PacketGuard/临时槽方向差；
+// 语义/调用集齐，byte 层封顶。
 void CVillageMonsterArea::SendVillageMonsterPosition()
 {
     PacketGuard packet;
@@ -367,6 +375,8 @@ void CVillageMonsterArea::SendVillageMonsterPosition()
 // CVillageMonsterArea::GetAttackedMonster —— ORIG T 0x86b3aea
 //   返回首个 m_attackWeight >= idx 的怪物；全不满足返回最后一个；空表返回 0。
 // ============================================================================
+// [b28d-51] 判词 N（ORIG 0x086b3aea，N82/N86 族）：vector begin/end 迭代器
+// 临时槽阶梯方向差；语义/调用集齐，byte 层封顶。
 STAttackedMonster* CVillageMonsterArea::GetAttackedMonster(int idx)
 {
     if (m_monsterList.empty())
@@ -387,6 +397,8 @@ STAttackedMonster* CVillageMonsterArea::GetAttackedMonster(int idx)
 //   size%3，m_field20/m_field24 取表 +0x14/+0x18），insert 后发 0xf6 新怪物包，
 //   注册 0x86 生成定时器（param：m_field38/m_field28/m_field2c），返回 1。
 // ============================================================================
+// [b28d-51] 判词 N（ORIG 0x086b3bd4，N82/N86 族）：map size/迭代器临时槽方向差；
+// 语义/调用集齐，byte 层封顶。
 int CVillageMonsterArea::OnCreateVillageMonster()
 {
     if ((unsigned int)m_field34 <= (unsigned int)m_monsters.size())
@@ -567,6 +579,8 @@ void CVillageMonsterMgr::OnRegenVillageMonster(int a, int b)
 //   从队伍村战状态区取 zone（+0xc4c；0 → 0x15）与 vill/area（+0xc50/+0xc54），
 //   Zone 命中区域转交 Area::OnKillVillageMonster(user, zone, flag)。
 // ============================================================================
+// [b28d-51] 判词 N（ORIG 0x086b4866，N82 族）：callee-saved 需求差（ORIG 无
+// esi/ebx push 而 4.4 有）+ 帧 0x48 vs 0x40；语义/调用集齐，byte 层封顶。
 int CVillageMonsterMgr::OnKillVillageMonster(CUser* user, bool flag)
 {
     CParty* party = (CParty*)user->GetParty();
@@ -591,6 +605,8 @@ int CVillageMonsterMgr::OnKillVillageMonster(CUser* user, bool flag)
 //   怪物 m_field20/m_field24 写入队伍村战状态区（+0xcb8/+0xc58）、zon/ vill/area
 //   落位（+0xc4c/+0xc50/+0xc54），并向队伍广播 0xf3，返回 0。
 // ============================================================================
+// [b28d-51] 判词 N（ORIG 0x086b4672，N82 族）：uint16 形参截断槽 + 帧 0x60 vs
+// 0x70；语义/调用集齐，byte 层封顶。
 int CVillageMonsterMgr::OnFightVillageMonster(CUser* user, unsigned short zone)
 {
     unsigned short z = zone;

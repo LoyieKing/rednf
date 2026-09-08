@@ -23,8 +23,8 @@ class CDungeonEntranceLog
 public:
     void DecrementDungeonEntrance(int a, bool b);   // ORIG 0x860e324
     void IncrementDungeonEntrance(int a, bool b);   // ORIG 0x860e1ee
-    void InsertDungeonEntrance();                    // ORIG 0x860e59c
-    void InsertDungeonEntrance_Hour();               // ORIG 0x860e38e
+    int InsertDungeonEntrance();                     // ORIG 0x860e59c（尾 mov %ebx,%eax ⇒ int 返回 1）
+    int InsertDungeonEntrance_Hour();                // ORIG 0x860e38e（尾 mov %ebx,%eax ⇒ int 返回 1）
 
     std::map<int, STDungeonInoutCnt> m_inoutMap;
 };

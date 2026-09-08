@@ -47,11 +47,18 @@
 
 #include "STCharacterScript.h"
 
+// [b28d-51] 判词 N（ORIG 0x083678a0，N82/N91 族）：STSecondGrowTypeData::C1 为
+// STCharacterScript.h L127 头内 inline（clear() 体），7× 数组构造链槽/帧差；
+// 语义/构造集齐，byte 层封顶。
+// [b28d-51] 判词 N（ORIG 0x08368348，N82/N91 族）：vector/string 成员构造 +
+// EH cleanup 残段跨版本差；语义/构造集齐，byte 层封顶。
 STCharacterScript::STCharacterScript()
 {
     Clear();
 }
 
+// [b28d-51] 判词 N（ORIG 0x08376362，N82/N91 族）：成员析构链 + EH 尾块序
+// （N104）跨版本差；语义/析构集齐，byte 层封顶。
 STCharacterScript::~STCharacterScript()
 {
 }

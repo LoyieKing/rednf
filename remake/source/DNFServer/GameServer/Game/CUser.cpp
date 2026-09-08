@@ -3737,7 +3737,7 @@ void CUser::SetGameMasterMode(bool flag)
         proxy->SendTcpPacket((char*)&pkt, 0xe);
     }
 }
-char CUser::GetEventCreateDnfReward()
+bool CUser::GetEventCreateDnfReward()
 {
     return m_eventCreateDnfReward;
 }

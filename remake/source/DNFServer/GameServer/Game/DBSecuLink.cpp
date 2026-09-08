@@ -260,6 +260,8 @@ void DB_SecurityCardActivate::makeRequest(int uid, unsigned int accId,
 // cMyTrace 构造 (name=__PRETTY_FUNCTION__, line, 0)；mid = NumberToString(
 // get_acc_id(), 0)。
 // ----------------------------------------------------------------------------
+// [b28d-54 N] ORIG 0x08286a30：帧/槽平移 + 寄存器角色（N82/N7）；四分支控制流
+//   与 trace/循环调用序列全等（251 vs 245）。
 void Secu_DataControl::SetControlData(CUser* user, unsigned char type,
                                       unsigned short v1, unsigned short v2)
 {
@@ -572,6 +574,9 @@ bool DB_SecurityCardActivate::dispatch(int userIdx, int slot, Stream* stream)
 //     sig+0x04, sig+0x37, sig+0x5e, 0)。
 // catch (ENUM_ERROR& e) → _sendResult(this, slot, 0,0,0,0, e)。返 1。
 // ============================================================================
+// [b28d-54 修复] ORIG 0x0842af94：唯一残差为 localtime_r 两实参求值序
+//   （ORIG arg2 先）；`unsigned int now` + reinterpret_cast 使 4.4 arg1 先。
+//   改 `time_t now` + 纯 `&now` 后与 ORIG 同形（289=289，AE）。
 bool DB_SecurityCardIssue::dispatch(int userIdx, int slot, Stream* stream)
 {
     if (!DBDispatcher::dispatch(userIdx, slot, stream))
@@ -675,6 +680,9 @@ bool DB_SecurityCardIssue::dispatch(int userIdx, int slot, Stream* stream)
 //   job/grow_type/sex，有行则 fetch 后 get_str(0,name,0x1e) / get_byte(1..4,
 //   lev/job/grow_type/sex) → put(DISPATCH_Q) → 返 1。
 // ============================================================================
+// [b28d-54 修复] ORIG 0x0843d87c：唯一残差为 now/occ 两局部装载序
+//   （ORIG `mov -0x38(occ),%edx; mov -0x18(now),%ecx`）；now 改 int 与 occ 同型后
+//   4.4 复现同序（347=347，AE）。
 bool DB_GuildJoinList::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db1 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_8,
@@ -706,7 +714,9 @@ bool DB_GuildJoinList::dispatch(int userIdx, int slot, Stream* stream)
     SIG_GUILD_JOIN_LIST* reply =
         guard->GetInBuffer<SIG_GUILD_JOIN_LIST>();
     int occ = 0;                 // ORIG -0x38（声明于 time 前）
-    unsigned int now = static_cast<unsigned int>(time(0));
+    // b28d-54：ORIG 0x0843dc8c 段 `mov -0x38(occ),%edx; mov -0x18(now),%ecx;
+    //   sub %edx,%ebx` 先载 occ（P211 异型侧）；改 now 为 int 与 occ 同型试翻。
+    int now = static_cast<int>(time(0));
     int nRows;
     nRows = (unsigned int)db1->get_n_rows() > 0x32
                 ? 0x32
@@ -723,7 +733,7 @@ bool DB_GuildJoinList::dispatch(int userIdx, int slot, Stream* stream)
             return 0;
         if (!db1->get_int(2, occ))
             return 0;
-        reply->m_list.m_entry[i].m_remainTime = static_cast<int>(now) - occ;
+        reply->m_list.m_entry[i].m_remainTime = now - occ;
     }
 
     for (int j = 0; j < nRows; ++j)

@@ -10,6 +10,8 @@
 
 void CDungeonEntranceLog::IncrementDungeonEntrance(int dungeonIdx, bool isParty)
 {
+    // [b28d-59] AE（ORIG 0x860e1ee）：指令序列逐条一致，.o 层仅 call 重定位标签
+    // 未解析的显示差（AE 口径归零）；95/95。
     // ORIG 0x860e1ee：存在路径 isParty 仅 ++m_partyEnter（不加 total/curInside）；
     // 插入路径 isParty 时 ++m_partyEnter 且 ++m_total/++m_curInside（不对称，忠实复刻）。
     std::map<int, STDungeonInoutCnt>::iterator it = m_inoutMap.find(dungeonIdx);
@@ -50,18 +52,25 @@ void CDungeonEntranceLog::DecrementDungeonEntrance(int dungeonIdx, bool /*isPart
         it->second.m_curInside -= 1;   // ORIG 节点 +0x10 -1（未命中不动）
 }
 
-void CDungeonEntranceLog::InsertDungeonEntrance()
+int CDungeonEntranceLog::InsertDungeonEntrance()
 {
-    // ORIG 0x860e59c：map 非空时把 (key, m_enter, m_partyEnter) 写入 Statistics DB
-    // 流（msg 0xe0, LOGDB_Q=4），随后清空 map。
-    if (m_inoutMap.size() == 0)   // ORIG call size(); cmpl $0x0; jg
-        return;
+    // [b28d-59] 封 N82附/N98（ORIG 0x860e59c）：已还原 int 返回 1（尾 mov %ebx,%eax）、
+    // 具名 nSize 槽 -0xc、早退 `cmpl $0,-0xc; jg body; mov $1,%ebx; jmp end`（125/125
+    // 指令数全等）。残差=槽位相对序：4.4 把编译器临时 end() sret 放浅槽 -0x10、具名
+    // guard/it 下沉（-0x18/-0x1c），4.1 为 guard -0x14 / it -0x18 / end 临时 -0x1c
+    // （声明序）；源码不可控编译器临时槽（P232/N98），语义等价。
+    // 语义：map 非空时把 (key, m_enter, m_partyEnter) 写入 Statistics DB 流
+    //（msg 0xe0, LOGDB_Q=4），随后清空 map。
+    int nSize = m_inoutMap.size();
+    if (nSize <= 0)
+        return 1;
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("Statistics.cpp", 0x4da), true);
     **guard << 0xe0;
     **guard << -1;
-    **guard << (int)m_inoutMap.size();
-    for (std::map<int, STDungeonInoutCnt>::iterator it = m_inoutMap.begin();
-         it != m_inoutMap.end(); ++it)
+    **guard << nSize;
+    // [b28d-59] it 提到 for 外（ORIG 槽序 guard -0x14 / it -0x18 / end 临时 -0x1c）。
+    std::map<int, STDungeonInoutCnt>::iterator it = m_inoutMap.begin();
+    for (; it != m_inoutMap.end(); ++it)
     {
         **guard << it->first;
         **guard << it->second.m_enter;        // 节点 +0x4
@@ -69,20 +78,26 @@ void CDungeonEntranceLog::InsertDungeonEntrance()
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
     m_inoutMap.clear();
+    return 1;
 }
 
-void CDungeonEntranceLog::InsertDungeonEntrance_Hour()
+int CDungeonEntranceLog::InsertDungeonEntrance_Hour()
 {
-    // ORIG 0x860e38e：map 非空时把 (key, m_total, m_curInside) 写入 Statistics DB
-    // 流（msg 0xe1, LOGDB_Q=4），随后归零 m_total（ORIG 清节点 +0xc）。
-    if (m_inoutMap.size() == 0)   // ORIG call size(); cmpl $0x0; jg
-        return;
+    // [b28d-59] 封 N82附/N98（ORIG 0x860e38e）：与 InsertDungeonEntrance 同构——已还原
+    // int 返回 1、具名 nSize 槽 -0xc、早退 `jg body; mov $1,%ebx`；残差同件（4.4 编译器
+    // 临时 end() sret 占浅槽致 guard/it 下沉），语义等价。语义：map 非空时把
+    // (key, m_total, m_curInside) 写入 Statistics DB 流（msg 0xe1, LOGDB_Q=4），
+    // 随后归零 m_total（ORIG 清节点 +0xc）。
+    int nSize = m_inoutMap.size();
+    if (nSize <= 0)
+        return 1;
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("Statistics.cpp", 0x4b5), true);
     **guard << 0xe1;
     **guard << -1;
-    **guard << (int)m_inoutMap.size();
-    for (std::map<int, STDungeonInoutCnt>::iterator it = m_inoutMap.begin();
-         it != m_inoutMap.end(); ++it)
+    **guard << nSize;
+    // [b28d-59] it 提到 for 外（同 InsertDungeonEntrance 的 ORIG 槽序）。
+    std::map<int, STDungeonInoutCnt>::iterator it = m_inoutMap.begin();
+    for (; it != m_inoutMap.end(); ++it)
     {
         **guard << it->first;
         **guard << it->second.m_total;       // 节点 +0xc
@@ -92,6 +107,7 @@ void CDungeonEntranceLog::InsertDungeonEntrance_Hour()
     for (std::map<int, STDungeonInoutCnt>::iterator it = m_inoutMap.begin();
          it != m_inoutMap.end(); ++it)
         it->second.m_total = 0;
+    return 1;
 }
 
 CDungeonEntranceLog* GetInstanceDungeonEntranceLog()

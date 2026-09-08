@@ -39,6 +39,8 @@ void CItemLimitEdition::updateCurSellNum(unsigned int count)
     ((CItemLimitEditionView*)this)->m_curSellNum = (int)count;
 }
 
+// [b28d-51] 判词 N（ORIG 0x085130e8，N82/N86 族）：PacketGuard 引用形参 +
+// sret/临时槽方向差；语义/调用集齐，byte 层封顶。
 void CItemLimitEdition::makeInfoPacket(PacketGuard& packet) const
 {
     InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
@@ -184,6 +186,8 @@ CItemLimitEditionMgr::~CItemLimitEditionMgr()
     clear();
 }
 
+// [b28d-51] 判词 N（ORIG 0x084e975e，N82/N86 族）：map insert pair 临时槽 +
+// 帧方向差；语义/调用集齐，byte 层封顶。
 void CItemLimitEditionMgr::registItem(const stItemLimitEditionItemInfo_t& info)
 {
     // ORIG 0x084e975e：new CItemLimitEdition(info)，按 getIPGNO 查重，命中则删旧并 erase，
@@ -230,6 +234,8 @@ int CItemLimitEditionMgr::updateItem(unsigned int itemIdx, unsigned int count)
     return 1;
 }
 
+// [b28d-51] 判词 N（ORIG 0x0834852e，N86/N89 族）：hash_map 迭代器转换构造 +
+// 临时槽阶梯跨版本差（ORIG 帧 0x34 vs 4.4 0x24）；语义/调用集齐，byte 层封顶。
 void CItemLimitEditionMgr::clear()
 {
     // ORIG 0x08374d4e：遍历容器 delete 每个项，再容器 clear()。
@@ -261,6 +267,8 @@ bool CItemLimitEditionMgr::empty() const
     return m_items.empty();
 }
 
+// [b28d-51] 判词 N（ORIG 0x085132ca，N82/N86 族）：迭代器/临时槽方向差；
+// 语义/调用集齐，byte 层封顶。
 void CItemLimitEditionMgr::makeItemLimitEditionInfo(PacketGuard& packet) const
 {
     // ORIG 0x085132ca：get_index 留计数位，循环遍历 m_items 调 makeInfoPacket，
@@ -281,6 +289,8 @@ void CItemLimitEditionMgr::makeItemLimitEditionInfo(PacketGuard& packet) const
     buf->put_byte(countIdx, count);
 }
 
+// [b28d-51] 判词 N（ORIG 0x08513382，N82/N86 族）：迭代器/临时槽方向差；
+// 语义/调用集齐，byte 层封顶。
 void CItemLimitEditionMgr::makeItemLimitEditionRemoveInfo(PacketGuard& packet) const
 {
     // ORIG 0x08513382：get_index 留计数位，循环遍历 m_items 写 getIPGNO，

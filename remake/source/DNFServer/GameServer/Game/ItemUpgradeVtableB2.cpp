@@ -202,6 +202,10 @@ unsigned short CStackableItem::GetAmplifyReinforceValue()
 // ============================================================================
 // DisJointResult ctor @ 0x082347a2：循环 i=0..4 将 m_f[i] 与 m_f[i+1] 清零
 // （等价整体清零 10 个 int）。
+// [b28d-58] DIFF N4（P30 add-vs-lea 族）：m_f[i+5] 的索引计算 ORIG 4.1 发
+//   `add $0x4,%edx; movl $0,0x4(%eax,%edx,4)`（5 拆 4+disp4），4.4 恒
+//   `lea 0x5(%eax),%edx`（探针 fA..fF 六写法：下标/拆形/指针算术/二维视图
+//   全落 lea 或 shl+add）⇒ 源形不可择；其余 17 条助记符与 ORIG 全等。
 // ============================================================================
 DisJointResult::DisJointResult()
 {
@@ -309,6 +313,9 @@ namespace WongWork
 
 // ============================================================================
 // _getUpgradeCountByUpgradeItem @ 0x08548e68
+//   [b28d-58] AE（P46 叶块排放序 = case 书写序）：原 case 序 1d29/1c6a/1c6b/1c69…
+//   使各 je 落点与 ORIG 叶块错位；改 ORIG 排放序 1c69/1c6a/1c6b/1d29/1e3f/1e40/1e86
+//   后逐条全等（ORIG 0x08548ecd..0x08548ee5）。
 //   默认按材料 idx 映射强化档位（仅非增幅物品）；材料为堆叠物时改读
 //   ReinforceTicket/AmplifyReinforceTicket 数值（[0,0x1f] 越界归零）。
 //   增幅券在目标无增幅能力时报 ENUM_ERROR 0x13。
@@ -326,10 +333,12 @@ unsigned short CItemUpgrade::_getUpgradeCountByUpgradeItem(
     {
         switch (material.m_addInfo)
         {
-            case 0x1d29: count = 7;  break;
+            // 叶块排放序 = case 书写序（P46）；照 ORIG +0x65..+0x95 排：
+            // 1c69/1c6a/1c6b/1d29/1e3f/1e40/1e86（ORIG 0x08548ecd..ee5）。
+            case 0x1c69: count = 7;  break;
             case 0x1c6a: count = 10; break;
             case 0x1c6b: count = 12; break;
-            case 0x1c69: count = 7;  break;
+            case 0x1d29: count = 7;  break;
             case 0x1e3f: count = 3;  break;
             case 0x1e40: count = 5;  break;
             case 0x1e86: count = 13; break;

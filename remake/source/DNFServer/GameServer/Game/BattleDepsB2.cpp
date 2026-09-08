@@ -25,6 +25,23 @@
 //   MapInfo/MazeScript/GridScript/stHellParty_t 均用权威头具名成员；
 //   仅 CDataManager+0x49d0 一处 ORIG 未建模字段保持直接读取（见 ConsistMap 注释）。
 // ============================================================================
+// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
+//   GetHellPartyEventType 0x082ffb06   DIFF(13/14) N7/N22：ORIG 留 call 结果 %eax
+//     作基址、索引 movsbl→%edx；4.4 ISel 恒 index→%eax、base 挪 %edx（+1 mov）。
+//     视图 cast/指针算术/具名基址三形 probe 不可翻（P230 的 4.4.6 后端可治 N7，
+//     本 TU 未路由 4.4.6，禁改路由表）⇒ 封顶。
+//   CheckHellPartyCondition 0x082ff988 DIFF(52/53) 修法：删 bd/vals 指针局部与
+//     具名 bool（P0/P183），嵌套正向 if + return；残差 = 4.4 对「调用结果参与的
+//     比较」恒物化 setge/test（P168a③b bool 归一，4.1 直 jl）⇒ 封顶。
+//   setQuestMazeInfo 0x0830e170       DIFF(117/128) P167 CLEAR，帧/槽残差 N82
+//   ConsistMap 0x083031d2             DIFF(271/266) P167 CLEAR
+//   GetAppropriateMaze 0x082ff128     DIFF(217/230) 修法：size() 三次独立调用
+//     （==1/>1/%size()，P167 差集实证）+ push_back(static_cast<T&&>) 右值重载
+//     （P270/P234）；P167 CLEAR(25/25)。
+//   MoveMap 0x08308ae6                DIFF(326/317) P167 残差：ORIG 多 1 次
+//     GetCurrentMapInfo（Ghidra C 三处 vs 我方两处，ORIG 0x083090xx 段）
+//   SetGridPath 0x082ffb30            DIFF(1101/1083) P167 残差 1（超大件 §6.2）
+// ============================================================================
 
 #include <algorithm>
 #include <cstdlib>
@@ -209,23 +226,28 @@ MazeScript* CBattle_Field::GetAppropriateMaze(ENUM_DUNGEON_DIFFICULTY diff) cons
                 if (questType == 0)
                 {
                     if (maze->m_54 <= (int)diff)
-                        candidates.push_back(maze);
+                        // b28d-55（P270/P234）：ORIG 走 push_back(T&&)=EOS1_，
+                        // 左值 maze 恒选 RKS1_；static_cast<T&&> 是纯语言构造（零
+                        // 额外 call）且选中同一右值重载，P167 差集 25/25 CLEAR。
+                        candidates.push_back(static_cast<MazeScript*&&>(maze));
                 }
                 else
                 {
-                    candidates.push_back(maze);
+                    candidates.push_back(static_cast<MazeScript*&&>(maze));
                 }
             }
 
-            size_t cnt = candidates.size();
-            if (cnt == 1)
+            // b28d-55（P167 差集实证）：ORIG 三次独立 size() 调用
+            // （`==1`→sete / `>1`→seta / `%size()`→结果缓存 -0x3c 槽），
+            // 无 cnt 具名缓存。
+            if (candidates.size() == 1)
             {
                 picked = candidates[0];
                 found = true;
             }
-            else if (cnt >= 2)
+            else if (candidates.size() > 1)
             {
-                picked = candidates[::rand() % cnt];
+                picked = candidates[::rand() % candidates.size()];
                 found = true;
             }
         }

@@ -53,6 +53,8 @@
 //   sp/sfp    — 升级时按 GetSpAtLevelUp(next)/>49 返还的输出引用；
 //   reason    — eExpAddReason，函数体未读取（调用约定占位）；
 //   hadesFlag — 非 0 时向 XNuclear::CHades::ExpUp 上报经验。
+// [b28d-54 N] ORIG 0x08662aea：大件帧/槽平移（N82）+ 跨版本短整扩展/寄存器角色
+//   （N97/N7）；控制流与调用序列全等（406 vs 408）。
 bool CUser::_check_level_up(int expAdd, int& sp, int& sfp,
                             CUser::eExpAddReason reason, int hadesFlag)
 {

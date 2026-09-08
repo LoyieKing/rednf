@@ -7,6 +7,29 @@
 // importItemOverpowerDesc/exportEquipmentParameterScript）为真实语义的
 // 简化实现（关键字行驱动，ORIG 0x0899cd6c..0x089bf67f）。
 // ============================================================================
+// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o；
+//   P167 = 调用点差集口径，CLEAR 表示调用多重集与 ORIG 全等）：
+//   getStatusType 0x089a74a2              DIFF(49/48) N76：store RHS-first 不可翻
+//   SASPROPERTY::operator= 0x083dbdfc     DIFF(52/38) N90：ORIG 逐字段重载 vs 4.4 基址缓存
+//   GetStatValue 0x089914b9               DIFF(88/87) P167残差：ORIG push_backERKf（具名 float 局部）
+//   GetStatByCondition 0x08991384         DIFF(95/94) 同上
+//   GetApplyStatusInRange 0x08991229      DIFF(106/101) 同上 ×2
+//   GetSkillLevelUp 0x08991086            DIFF(124/122) 同上 ×2
+//   scanThen 0x089a123c                   DIFF(136/105) P167残差：局部对象生命周期（string/vector 各少 2）
+//   importItemOverpowerDesc 0x089bf290    DIFF(269/261) P167 CLEAR
+//   importSkillDataUp 0x088c049c           DIFF(395/378) P167 CLEAR
+//   GetSkillPhase 0x089be70c              DIFF(319/276) P167 EXTRA _Unwind_Resume ×2（EH 段）
+//   clear 0x089193c0                      DIFF(506/494) P167 CLEAR
+//   importAllSkillItem 0x089bec41         DIFF(391/371) P167 CLEAR
+//   GetSkillApplyCondition 0x089bd8ea     DIFF(849/789) P167残差 2（超大件 N82 口径）
+//   exportEquipmentParameterScript 0x089acf78 DIFF(1506/1436) P167残差 5
+//   readCondtion 0x0899ce3b               DIFF(3665/3621) P167残差（513 vs 511）
+//   importEquipmentParameterInfo 0x089a75ea DIFF(4823/5054) P167残差（664 vs 609）
+//   readAction 0x089a13e5                 DIFF(5357/5276) P167残差（640 vs 634）
+//   共同归因：4.1/4.4 寄存器分配·栈槽复用·EH 布局差（N7/N18a/N82/N104 族）；
+//   P167 CLEAR 件按 §6.2 判「语义完成、byte 层 N 封顶」。
+// ============================================================================
+// ============================================================================
 
 #include "EquipmentParameterInfo.h"
 

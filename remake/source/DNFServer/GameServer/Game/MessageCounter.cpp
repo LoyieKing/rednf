@@ -97,6 +97,9 @@ CTimeInterval::CTimeInterval()
 
 CTimeInterval* CTimeInterval::Create()
 {
+    // [b28d-51] 判词 N（ORIG 0x0856f974，N77 族）：三 movl $0 前置清零 = 4.1 对
+    // `new T()` value-init 老规则（CWG434 后 4.4 对 user-ctor 类不 emit；手写
+    // memset/placement-new 均改布局）。语义/构造集齐，byte 层封顶。
     // [b28c-27] N77 复核：ORIG 三 movl $0 前置清零 = 4.1 对 `new T()` value-init
     // 老规则（CWG434 后 4.4 对 user-ctor 类不 emit；手写 memset/cast 清零形均改
     // 调用布局）。语义等价（ctor 已写 vptr+基类成员），ndiff 3 封顶。
@@ -155,6 +158,8 @@ CMessageCounter::~CMessageCounter() {}
 
 // ORIG IncreaseMessage @0x0856f9c4：命中则 ++count → 64 位累加耗时字节 →
 // 滑动平均 avg = newBytes*(1/n') + oldAvg*((n'-1)/n')；未命中插入全零记录。
+// [b28d-51] 判词 N（ORIG 0x0856f9c4，N82/N89 族）：map 查找/插入临时槽阶梯 +
+// MessageKey 构造跨版本差；语义/调用集齐，byte 层封顶。
 void CMessageCounter::IncreaseMessage(unsigned int id, unsigned char type,
                                       unsigned short size, long long bytes)
 {
@@ -185,6 +190,8 @@ void CMessageCounter::IncreaseMessage(unsigned int id, unsigned char type,
 // ORIG WriteLog @0x0856fbb0：LOGDB_Q(#4) 投递 SIG_INSERT_RESPONSE_TIME；
 // 满 100 条续包；SIG: int baseSec@0 / int count@4 /
 // entries[100]@+8 每 0x14。收尾 map.clear()。
+// [b28d-51] 判词 N（ORIG 0x0856fbb0，N82/N89 族）：map 迭代器 + snprintf 变参
+// 装载序跨版本差；语义/调用集齐，byte 层封顶。
 void CMessageCounter::WriteLog()
 {
     if (m_map.empty())

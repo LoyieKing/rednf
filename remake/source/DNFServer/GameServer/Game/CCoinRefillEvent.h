@@ -23,9 +23,20 @@ public:
     void registNextRefillTimer() const;              // 0x0832c1fe
 
 private:
-    int m_timeCount;   // +0x0c（已登记小时槽数，0..4；-1 = 事件未初始化）
-    int m_times[4];    // +0x10..+0x1c（小时槽；m_times[0] 为当前小时基准槽，
-                       //        m_times[i-1] 对应逻辑槽 i，即 ORIG this+i*4+0xc）
+    // [b28d-59] ORIG 统一数组视角（P235 union 双视角）：getLastEventTime
+    // 0x0832c0f5 / getNextEventTime 0x0832c15e 对逻辑槽 i 恒发
+    // `mov 0xc(%eax,%edx,4)`（基址 +0xc，索引 i）⇒ 原码按单数组
+    // m_slots[i] 访问（m_slots[0]=m_timeCount、m_slots[1..4]=m_times[0..3]）。
+    // sizeof/偏移零变化：union 起始 +0x0c、总长 0x14。
+    union
+    {
+        struct
+        {
+            int m_timeCount;   // +0x0c（已登记小时槽数，0..4；-1 = 未初始化）
+            int m_times[4];    // +0x10..+0x1c（小时槽；m_times[0] 为基准槽）
+        };
+        int m_slots[5];        // +0x0c..+0x1f（m_slots[i] 即 ORIG this+i*4+0xc）
+    };
 };
 
 #endif  // GAME_CCOINREFILLEVENT_H_

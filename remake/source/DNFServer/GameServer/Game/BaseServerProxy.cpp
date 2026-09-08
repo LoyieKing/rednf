@@ -8,6 +8,13 @@
 
 #include "GameBase.h"
 
+// ============================================================================
+// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
+//   InitTcp 0x082fd47c  DIFF(171/167) P167 CLEAR(25/25)；本 TU 经
+//     dnf_game_cxx.sh 路由 C6446R（4.4.6 后端，N7 敏感族翻正）；残差 =
+//     errnoVal/ret 寄存器互换（路由表注释已记，P230 N7 边界）⇒ N 封顶。
+// ============================================================================
+
 BaseServerProxy::BaseServerProxy(char* ip, int port, char* name)
     : m_ip(ip), m_port(port), m_serverName(name)
 {

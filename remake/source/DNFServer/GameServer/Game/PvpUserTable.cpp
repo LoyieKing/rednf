@@ -50,6 +50,8 @@ void PvpUserTable::Clear()
     m_winTeam = -1;
 }
 
+// [b28d-54 N] ORIG 0x085d4980：帧 0x24→0x28 + `push %ebx` 差（ORIG ebx 缓存
+//   成员基址）——4.4 寄存器分配（N7/N82）。语义等价。
 int PvpUserTable::Set(int team, CUser* user)
 {
     if (!IsValidTeam(team) || user == 0)
@@ -97,6 +99,9 @@ int PvpUserTable::GetTeamUserCount(int team)
     return count;
 }
 
+// [b28d-54 N] ORIG 0x085d4ab8：`user==0 || grade>9` 短路物化方向反（ORIG
+//   jg/jne vs 4.4 jle/je，P194/P272 族；三种源形实测同差）；IsValidConvertedGrade
+//   bool 化 + 两独立守卫已翻正，95=95。语义等价。
 float PvpUserTable::GetExpectVal(int grade1, int grade2, CUser* user)
 {
     int saved1 = grade1;
@@ -140,6 +145,7 @@ float PvpUserTable::GetExpectVal(int grade1, int grade2, CUser* user)
     return 0.024f * (float)(grade1 - grade2) + 0.5f;
 }
 
+// [b28d-54 N] ORIG 0x085d4bd0：帧/槽平移（N82）+ 调用序列全等。
 int PvpUserTable::Calculate()
 {
     memset(this, 0, 0x100);
@@ -177,6 +183,7 @@ int PvpUserTable::Calculate()
     return 1;
 }
 
+// [b28d-54 N] ORIG 0x085d4d5e：帧/槽平移（N82）+ 寄存器角色（N7）。
 bool PvpUserTable::GetTeamVsTeamPoint(int team1, int team2)
 {
     int count1 = GetTeamUserCount(team1);
@@ -244,6 +251,7 @@ int PvpUserTable::GetGhostVsTeamPoint(int team, int)
     return 1;
 }
 
+// [b28d-54 N] ORIG 0x085d5064：帧/槽平移（N82）+ 寄存器角色（N7）；调用序列全等。
 int PvpUserTable::GetResult(int team, bool isWinTeam, int mode)
 {
     if (!IsValidTeam(team))
@@ -385,6 +393,8 @@ void PvpUserTable::CheckDan()
     }
 }
 
+// [b28d-54 N] ORIG 0x085d585e：4.4 多一个循环局部槽 + `push %ebx`（三目 flag
+//   写形致 ebx 缓存），N82/N7 族。语义等价。
 void PvpUserTable::SetWinTeam(int team)
 {
     m_winTeam = team;

@@ -114,6 +114,8 @@ void CCalcCharacStat::InitializeStat(_Additioal_info* out, int job)
 // ORIG 汇编不物化 (short)value：逐 case 以 32 位 value 乘 50 后 movw 截断
 // （mod 2^16 与 s16 乘加等价）；case 物理布局序 = 4,6,5,7,2,3,8,9
 // （ORIG 块序 +0x1f/+0x4c/+0x79/+0xa6/+0xd3/+0xea/+0x103/+0x120）。
+// [b28d-54 N 复核] ORIG 0x0831e85c：case9 循环体寄存器角色互换（N7）+ jump table
+//   基址 reloc（AE 归一）；switch/各 case/store 序全等，语义等价。
 void CCalcCharacStat::ApplyElixerItem(_Additioal_info* out, int statIdx, int value)
 {
     // [b27 封顶] 残差仅 case9 循环体寄存器角色（ORIG arr值→ebx/i基址重读→ecx，
@@ -196,6 +198,8 @@ _Additioal_info* CCalcCharacStat::CalcStat(_Additioal_info* out, int job,
 
 // ORIG T 0x0831ed6c _ZN8WongWork15CCalcCharacStat13_CalcSwordmanEP15_Additioal_infoii
 // 报告：_CalcSwordman.md。secondType 只认 0..4，越界不改写。
+// [b28d-54 N] 4.1 内联 16 位算术 vs 4.4 cwtl/movswl 显式扩展 + `add imm,%eax;mov`
+//   vs `lea imm(%eax)` 折叠（N1/N97 族）；语义等价。
 _Additioal_info* CCalcCharacStat::_CalcSwordman(_Additioal_info* out,
                                                 int secondType, int level)
 {
@@ -287,6 +291,7 @@ _Additioal_info* CCalcCharacStat::_CalcSwordman(_Additioal_info* out,
 
 // ORIG T 0x0831f282 _ZN8WongWork15CCalcCharacStat12_CalcFighterEP15_Additioal_infoii
 // 报告：_CalcFighter.md。
+// [b28d-54 N] 同 _CalcSwordman（短整扩展/lea 折叠，N1/N97）；语义等价。
 _Additioal_info* CCalcCharacStat::_CalcFighter(_Additioal_info* out,
                                                int secondType, int level)
 {
@@ -378,6 +383,8 @@ _Additioal_info* CCalcCharacStat::_CalcFighter(_Additioal_info* out,
 //   `add imm,%eax; mov %eax,%edx`、我们用 `lea imm(%eax),%edx`（lea 折叠少 1 条）；
 //   cwtl/movswl 短整符号扩展 4.1 内联 16 位算、4.4 显式扩宽。同 TU _CalcGunner/Fighter/
 //   Swordman 沿用同型（非本棒）。
+// [b28d-54 N 复核] ORIG 0x0831fc3a：既有判例（ADeepY4[5]）——短整扩展/lea 折叠族，
+//   语义与 Ghidra C 逐条一致。
 _Additioal_info* CCalcCharacStat::_CalcMage(_Additioal_info* out,
                                             int secondType, int level)
 {
@@ -467,6 +474,7 @@ _Additioal_info* CCalcCharacStat::_CalcMage(_Additioal_info* out,
 
 // ORIG T 0x0831f75c _ZN8WongWork15CCalcCharacStat11_CalcGunnerEP15_Additioal_infoii
 // 报告：_CalcGunner.md。
+// [b28d-54 N] 同 _CalcMage（短整扩展/lea 折叠，N1/N97）；语义等价。
 _Additioal_info* CCalcCharacStat::_CalcGunner(_Additioal_info* out,
                                               int secondType, int level)
 {

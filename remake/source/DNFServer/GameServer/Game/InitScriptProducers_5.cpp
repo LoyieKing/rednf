@@ -39,6 +39,19 @@
 // 伪差集（§6.3 撞名族），非实现缺口。本 .o __tcf_0 已按本 TU 全局集合正确合成析构
 // 循环（0x4b0/0x28 对位图案表元素尺寸）。语义等价，不可源码复现，保留判词。
 // ============================================================================
+// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
+//   initItemShopScript 0x089dc4f8        DIFF(43/41) N-G/P75：ORIG 先把 memcpy
+//   initStageMapScript 0x088a9e6c        DIFF(43/41) 实参 n/src 压栈再算 dst 并
+//   initExpertJobScript 0x0896d830       DIFF(43/41) 经 `mov (%esp),%eax; mov
+//   initPvpMissionSystem 0x08a5aad5      DIFF(43/41) %eax,(%esp)` 正规化（4.1
+//   initAICharacterScript 0x088c98d4     DIFF(43/41) builtin 形），4.4 恒先算 dst；
+//   initPvPSkillTreeScript 0x08a5cd6c    DIFF(43/41) 多形探针不可翻 ⇒ 封顶。
+//   initEventCharacterScript 0x0895ae5c  DIFF(43/41) 语义等价（目录分隔符追加）。
+//   initIndependentDropScript 0x0897c01c DIFF(43/41)
+//   initChattingEmoticonScriptList 0x088e30f8 DIFF(43/41)
+//   initCreatureScript 0x08a35d37        DIFF(66/65) 同族 + 一处常量初始化差
+//   initWorldMapScript 0x08ab000c        DIFF(145/141) P167 CLEAR，byte 层 N 封顶
+// ============================================================================
 
 #include <map>
 #include <string>

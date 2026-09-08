@@ -7,6 +7,12 @@
 //   docs/class_func_reports/CUser/RefillItemByScript.md
 //   docs/class_func_reports/CUser/sendCharacQuestPiece.md
 // ============================================================================
+// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
+//   RefillItemByScript 0x086890be  DIFF(204/204) P167 CLEAR(18/18)；残差 =
+//     ①虚调用 `call *%eax`（4.4.7 间接 call 目标恒 %eax，ORIG 用 %edx）=N7，
+//     本 TU 未路由 4.4.6（禁改路由表）⇒ 封顶；②vector::operator[] 的
+//     this/index 装载序（ORIG this 先入 %eax，4.4 先算 index）。
+// ============================================================================
 
 #include "CUser.h"
 #include "CDataManager.h"

@@ -381,7 +381,9 @@ public:
     int m_438;                                         // +0x438（clear 置 -1）
     int m_43c;                                         // +0x43c（clear 置 -1）
     char m_440;                                        // +0x440（clear 置 0）
-    char m_pad441[3];                                  // +0x441..0x443
+    // b28d-55（P26/P74）：ORIG 隐式 operator= 拷贝段**跳过** +0x441..0x443
+    // （0x080f.../0x08366xx 段实证：+0x440 后直接 +0x444）⇒ 该 3 字节是编译器
+    // 自然对齐填充，非成员。显式 char[3] 会被逐字节搬移，删除后由编译器填充。
     float m_upgradeCostDiscount;                       // +0x444 [upgrade cost discount]
     float m_upgradeProbIncrease;                       // +0x448 [upgrade prob increase]
     float m_assaultCostDiscount;                       // +0x44c [assault cost discount]
@@ -552,7 +554,6 @@ struct EquipmentParameterInfoLayoutMirror
     int m_438;
     int m_43c;
     char m_440;
-    char m_pad441[3];
     float m_upgradeCostDiscount;
     float m_upgradeProbIncrease;
     float m_assaultCostDiscount;
