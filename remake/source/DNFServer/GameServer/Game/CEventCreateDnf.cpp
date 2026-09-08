@@ -50,21 +50,25 @@ void CEventCreateDnf::SetEventInfo(int hour, int rate, int reloadInterval)
     // 只打 trace（保持 kReward），不更新 rate。
     if (GetState() == State::kReward && hour < m_startHour && hour >= m_endHour)
     {
-        cMyTrace trace("CEventCreateDnf::SetEventInfo(int, int, int)", 0x8e, 0);
-        trace("[Taiwan, CreateDnfEvent] State:kReward rate:%d", (int)m_rate);
+        // b28d-D42 P227：ORIG 0x081640d4 的 cMyTrace 为全表达式临时链
+        // （varargs 在 ctor 前右起求值并保活 callee-saved）。
+        cMyTrace("CEventCreateDnf::SetEventInfo(int, int, int)", 0x8e, 0)(
+            "[Taiwan, CreateDnfEvent] State:kReward rate:%d", (int)m_rate);
         return;
     }
-    if (hour < m_startHour || hour >= m_endHour)
+    // b28d-D42 P272：ORIG 0x081640d4 两臂发射序为 kIng(0x95) 在前、
+    // kReward(0x9a) 在后且判据 `jle`（正极性德摩根形）⇒ 反写条件。
+    if (hour >= m_startHour && hour < m_endHour)
     {
-        setState(State::kReward);
-        cMyTrace trace("CEventCreateDnf::SetEventInfo(int, int, int)", 0x9a, 0);
-        trace("[Taiwan, CreateDnfEvent] State:kReward rate:%d", rate);
+        setState(State::kIng);
+        cMyTrace("CEventCreateDnf::SetEventInfo(int, int, int)", 0x95, 0)(
+            "[Taiwan, CreateDnfEvent] State:kIng rate:%d", rate);
     }
     else
     {
-        setState(State::kIng);
-        cMyTrace trace("CEventCreateDnf::SetEventInfo(int, int, int)", 0x95, 0);
-        trace("[Taiwan, CreateDnfEvent] State:kIng rate:%d", rate);
+        setState(State::kReward);
+        cMyTrace("CEventCreateDnf::SetEventInfo(int, int, int)", 0x9a, 0)(
+            "[Taiwan, CreateDnfEvent] State:kReward rate:%d", rate);
     }
 
     m_rate = static_cast<unsigned short>(rate);
@@ -77,17 +81,22 @@ void CEventCreateDnf::StartEvent()
     SetEventFlag(true);
     setState(State::kWaiting);
     RegistStartTimer(true);
-    cMyTrace trace("CEventCreateDnf::StartEvent()", 0x1d, 0);
-    trace("[Taiwan, CreateDnfEvent] Start! startTime:%2dh, endTime:%2dh, reLoadInterval:%d",
-          (int)m_startHour, (int)m_endHour, (int)m_reloadInterval);
+    // b28d-D42 P227/P87：ORIG 0x08163b34 在 cMyTrace ctor 之前右起求 varargs
+    // 并保活 callee-saved（edi=reloadInterval、esi=endHour、ebx=startHour），
+    // 具名 trace 两语句形使 4.4 退化为栈槽 ⇒ 全表达式临时链复现。
+    cMyTrace("CEventCreateDnf::StartEvent()", 0x1d, 0)(
+        "[Taiwan, CreateDnfEvent] Start! startTime:%2dh, endTime:%2dh, reLoadInterval:%d",
+        (int)m_startHour, (int)m_endHour, (int)m_reloadInterval);
 }
 
 void CEventCreateDnf::StartEvent(Word_Param param)
 {
-    m_startHour = static_cast<unsigned char>(param.m_duration & 0xff);
-    m_endHour = static_cast<unsigned char>((param.m_duration >> 8) & 0xff);
-    m_reloadInterval = static_cast<unsigned short>(
-        static_cast<unsigned char>(param.m_field2 & 0xff) * 60);
+    // b28d-D42 P244：ORIG 0x08163c5c 先把 &param 存 -0xc 槽再逐字节重读
+    // （`lea 0xc(%ebp),%eax; mov %eax,-0xc(%ebp); movzbl (%eax),%edx`）。
+    const unsigned char* p = reinterpret_cast<const unsigned char*>(&param);
+    m_startHour = p[0];
+    m_endHour = p[1];
+    m_reloadInterval = static_cast<unsigned short>(p[2] * 60);
     if (m_startHour < 24 && m_endHour < 24 &&
         m_reloadInterval > 59 && m_reloadInterval < 3601)
         StartEvent();
@@ -130,7 +139,19 @@ void CEventCreateDnf::RegistStartTimer(bool immediate)
     local.tm_sec = 0;
     const std::time_t startSec = mktime(&local);
 
-    if (startSec < now)
+    // b28d-D42 P272：ORIG 0x08163fc2 为 `jl <kIng 块>` + kWaiting 块直落
+    // （else-first）⇒ 条件取反成 `startSec >= now` 复现臂序。
+    if (startSec >= now)
+    {
+        // 起始时刻未到：setState(kWaiting) + 注册到 startSec 的定时器。
+        setState(State::kWaiting);
+        G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0xae,
+                                    static_cast<int>(startSec - now), 0, 0);
+        cMyTrace("CEventCreateDnf::RegistStartTimer(bool)", 0x6e, 0)(
+            "[Taiwan, CreateDnfEvent] next db load time:%d",
+            static_cast<int>(startSec));
+    }
+    else
     {
         // 起始时刻已过：DB makeRequest + setState(kIng) +
         // 以 reloadInterval 步长推进到下一个 >=now 的时刻，注册定时器。
@@ -141,18 +162,8 @@ void CEventCreateDnf::RegistStartTimer(bool immediate)
             next += static_cast<int>(m_reloadInterval);
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0xae,
                                     next - static_cast<int>(now), 0, 0);
-        cMyTrace trace("CEventCreateDnf::RegistStartTimer(bool)", 0x7e, 0);
-        trace("[Taiwan, CreateDnfEvent] next db load time:%d", next);
-    }
-    else
-    {
-        // 起始时刻未到：setState(kWaiting) + 注册到 startSec 的定时器。
-        setState(State::kWaiting);
-        G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0xae,
-                                    static_cast<int>(startSec - now), 0, 0);
-        cMyTrace trace("CEventCreateDnf::RegistStartTimer(bool)", 0x6e, 0);
-        trace("[Taiwan, CreateDnfEvent] next db load time:%d",
-              static_cast<int>(startSec));
+        cMyTrace("CEventCreateDnf::RegistStartTimer(bool)", 0x7e, 0)(
+            "[Taiwan, CreateDnfEvent] next db load time:%d", next);
     }
 }
 
@@ -169,9 +180,11 @@ void CEventCreateDnf::RegistNextTimer()
     localtime_r(&curSec, &local);
 
     // tm_sec=0 / tm_min=0 / tm_hour=m_endHour（this+0x11 byte，ORIG movzbl 0x11）
-    local.tm_sec = 0;
-    local.tm_min = 0;
+    // b28d-D42 P28：ORIG 0x08163d4c 的赋值序为 tm_hour 先（-0x44）、再 tm_min
+    // （-0x48）、tm_sec（-0x4c）。
     local.tm_hour = m_endHour;
+    local.tm_min = 0;
+    local.tm_sec = 0;
     const std::time_t startSec = mktime(&local);
 
     // startSec >= curSec → setState(kReward=2)（ORIG jl 8163ddd 跳过路径取反）
@@ -188,8 +201,8 @@ void CEventCreateDnf::RegistNextTimer()
     // trace("[Taiwan, CreateDnfEvent] next db load time:%d", m_reloadInterval+getCurSec())
     const int next = static_cast<int>(m_reloadInterval) +
                      GlobalData::s_systemTime_.getCurSec();
-    cMyTrace trace("CEventCreateDnf::RegistNextTimer()", 0x55, 0);
-    trace("[Taiwan, CreateDnfEvent] next db load time:%d", next);
+    cMyTrace("CEventCreateDnf::RegistNextTimer()", 0x55, 0)(
+        "[Taiwan, CreateDnfEvent] next db load time:%d", next);
 }
 
 void CEventCreateDnf::SendReward(CUser* user)

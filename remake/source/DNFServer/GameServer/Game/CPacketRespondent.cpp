@@ -280,6 +280,7 @@ void CPacketRespondent::MakeNotipacketResponseCreature()
 void CPacketRespondent::MakeNotipacketCreatureItemList(
     const std::map<int, CCreatureItem*>* items, int slot)
 {
+    // b28d-40: N82 封顶——帧 0x38 vs 0x48 + 槽序平移，语义闭合。ORIG 0x083409e0。
     clear();
     put_header(0, 0x69);
 

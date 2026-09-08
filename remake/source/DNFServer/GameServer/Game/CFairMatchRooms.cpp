@@ -896,9 +896,11 @@ int CFairMatch::_PullOutRoomTeam(PvP_Room* room, ENUM_SCHOOL_MATCH_TEAM teamIdx)
 
 // OnWalkOut ORIG T 0x8564fb2 报告 OnWalkOut.md。ORIG 返回 1。
 // 转发到本类虚槽 +0x2c（OnLeaveRoom(user,room,team,seat)）
-// [b28 判词·N] AE-ndiff=12：vtable[+0x2c] 虚调用 call *%ecx vs *%eax（N7）+
-// 五实参装载 4.1「-0x10/0x10 两值先载寄存器、再自右写槽」vs 4.4「逐参自左载即写」
-// 寄存器对调（N82附，b26 NL23 定性）。禁绑定形（P0）。
+// b28d-75（N82附/P75 封顶，语义等价）：vtable[+0x2c] 虚调用目标寄存器两侧同为
+// %ecx（b28d 复核，旧 N7 判词已不适用）；唯一真差 = 五实参装载时刻：
+// ORIG 4.1 先载第4参 team(-0x10)→%eax，再 seat→0x10；4.4 先载第2参
+// userSeat(-0xc)→%eax。b28d 复测 (int)team 冗余 cast 形无变化（P41 在此不触发）
+// ⇒ 跨版本实参装载调度，禁绑定形（P0）⇒ N82附 封顶。
 int CFairMatch::OnWalkOut(PvP_Room* room, int seat)
 {
     const int team = room->get_team(seat);

@@ -3888,11 +3888,16 @@ bool CInventory::tryDeleteEventItems(const std::vector<std::pair<int, int> >& it
         return false;
     }
     int okCount = 0;
-    for (std::vector<std::pair<int, int> >::const_iterator it = items.begin(); it != items.end();
-         ++it)
+    // b28d-37：同 tryInsertEventItems——P167 差集 MISSING ppEi/C1Ev/pair::C1Ev/aSEOS0_，
+    // 按 P50 反例复活（先声明后赋值）+ P135（具名 pair 右值赋值）改形。
+    std::vector<std::pair<int, int> >::const_iterator it;
+    it = items.begin();
+    for (; it != items.end(); it++)
     {
-        int itemIdx = it->first;
-        int amount = it->second;
+        std::pair<int, int> entry;
+        entry = std::pair<int, int>(*it);
+        int itemIdx = entry.first;
+        int amount = entry.second;
         if (itemIdx == 0)
         {
             if (use_money(amount, (eMoneySubReason)4, false))
@@ -4095,11 +4100,16 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
     {
         return 0;
     }
-    for (std::vector<std::pair<int, int> >::const_iterator it = items.begin(); it != items.end();
-         ++it)
+    // b28d-37：同 tryInsertEventItems——P167 差集 MISSING ppEi/C1Ev/pair::C1Ev/aSEOS0_，
+    // 按 P50 反例复活（先声明后赋值）+ P135（具名 pair 右值赋值）改形。
+    std::vector<std::pair<int, int> >::const_iterator it;
+    it = items.begin();
+    for (; it != items.end(); it++)
     {
-        int itemIdx = it->first;
-        int amount = it->second;
+        std::pair<int, int> entry;
+        entry = std::pair<int, int>(*it);
+        int itemIdx = entry.first;
+        int amount = entry.second;
         bool found = false;
         if (itemIdx == 0)
         {

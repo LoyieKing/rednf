@@ -145,6 +145,8 @@ CEventManager::CEventManager()
 
 CEventManager::~CEventManager()
 {
+    // b28d-40: N7/N82 封顶——遍历槽 -0xc/-0x10 平移 + 虚调用寄存器轮转，语义闭合。
+    // ORIG 0x08114d4e。
     for (int i = 0; i <= 0xa5; ++i)
     {
         CEventBase* event = m_events[i];
@@ -199,6 +201,8 @@ void CEventManager::dailyresetData()
 
 int filterEvent(int type)
 {
+    // b28d-40: N82 封顶——帧 0x14 vs 0x24 + 实参槽中转（getChannelType 结果具名槽），
+    // 语义闭合。ORIG 0x08115bf4。
     if (type == 2)
         return 0;
     GameWorld* world = G_GameWorld();
@@ -230,6 +234,7 @@ struct EventAddInfo
 
 void CEventManager::MakeNotiEventInfo(PacketGuard& packet, CUser* user)
 {
+    // b28d-40: N82 封顶——帧/槽平移 + 中间对象槽中转，语义闭合。ORIG 0x08115de2。
     std::vector<EventAddInfo> extra;
     packet.clear();
     packet.put_header(0, 0x6c);
@@ -276,6 +281,8 @@ void CEventManager::MakeNotiEventInfo(PacketGuard& packet, CUser* user)
 
 void CEventManager::BroadcastEventInfo()
 {
+    // b28d-40: N82 封顶——帧/槽平移（对象槽 -0x10/-0x18 vs -0x20/-0x24），语义闭合。
+    // ORIG 0x08116108。
     GameWorld* world = G_GameWorld();
     if (world == 0)
         return;
@@ -294,6 +301,7 @@ void CEventManager::BroadcastEventInfo()
 
 bool CEventManager::TriggerEventStart(int idx, Word_Param param)
 {
+    // b28d-40: N82 封顶——帧/槽平移 + bool 物化段，语义闭合。ORIG 0x08115cc6。
     if (filterEvent(idx))
         return 1;
     CEventBase* event = GetRepeatEvent(idx);
@@ -308,6 +316,7 @@ bool CEventManager::TriggerEventStart(int idx, Word_Param param)
 
 bool CEventManager::TriggerEventEnd(int idx)
 {
+    // b28d-40: N82 封顶——帧/槽平移 + setne 物化段，语义闭合。ORIG 0x08115d60。
     if (filterEvent(idx))
         return 1;
     CEventBase* event = GetRepeatEvent(idx);
@@ -348,6 +357,8 @@ bool CEventManager::TriggerEventEnd(int idx)
 // 详见 docs/asm_translation_patterns.md 负例表；try/catch joiner 与槽位一致）。
 bool CEventManager::InitEventManager()
 {
+    // b28d-40: N82/N80 封顶——927=927 指令，残差为槽号平移与 cMyTrace 变参保活顺序
+    // （P227 全表达式链已试）；ORIG 0x08114dcc。
     try
     {
         m_events[1]  = new CUnlimitFatigueEvent;
@@ -415,6 +426,7 @@ bool CEventManager::InitEventManager()
 
 bool CEventManager::LoadEventFromDB()
 {
+    // b28d-40: N82 封顶——帧 0x6c vs 0x68 + callee-saved 分配差，语义闭合。ORIG 0x081159b6。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     CEnvironment* env = G_CEnvironment();
     db->set_query(
@@ -502,6 +514,8 @@ int CEventTable::GetEventId(int idx)
 
 int _FindEventTable(int id, const char* name, bool& dup)
 {
+    // b28d-40: N 封顶——槽序差 + 全局事件表访问形（ORIG 0x936fa60 绝对寻址 vs
+    // 4.4 成员 disp），语义闭合。ORIG 0x0811a15d。
     for (int i = 0; i < CEventTable::GetEventTableCount(); ++i)
     {
         if (events[i].id == id)
@@ -522,6 +536,8 @@ int _FindEventTable(int id, const char* name, bool& dup)
 // 的事件表索引记入集合，最后将「未在 DB 中」的事件表索引追加到 out，返回是否成功。
 bool CEventTable::VerifyEventTable(std::vector<int>& out)
 {
+    // b28d-40: N78/N82 封顶——帧 0x17c vs 0x170 + memset 展开形差，语义闭合。
+    // ORIG 0x0811a1e0。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, E_SERVER_GROUP_NONE);
     db->set_query("seLect event_id, event_name from dnf_event_info");
     if (!db->exec(true))
@@ -563,6 +579,8 @@ bool CEventTable::VerifyEventTable(std::vector<int>& out)
 // dnf_event_info，exec 成功返回 1，出错码 0x426（诱骗重复）或失败返回 0。
 bool CEventTable::InsertEventTable(std::vector<int>& ids)
 {
+    // b28d-40: N78/N82 封顶——帧 0x15c vs 0x150 + memset 展开形差，语义闭合。
+    // ORIG 0x0811a4d4。
     if (ids.empty())
         return true;
 

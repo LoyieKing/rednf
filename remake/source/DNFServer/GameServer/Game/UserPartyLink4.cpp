@@ -132,6 +132,9 @@ void CUser::deleteGuildExpBook()
     // ndiff 4→27（gap +5，多出 mov/lea/call），TU 合计 90→87 连带回退三分，
     // 已回退。pair 的 first/second 写入序差（ORIG 先 first 后 second）
     // 属 4.4 对 `pair<ENUM,int>` → `pair<int,int>` 转换的固定形态，标 N。
+    // b28d-45 复测：右值引用具名化（static_cast<T&&> 控声明序）反劣 117→121、
+    // NEAR→DIFF，确认 pair 临时槽序为 4.4 固定形态，维持 N 封顶（ORIG
+    // 0x0867e8b6 first 临时=-0x10 / second=-0xc）。
     requestItems.push_back(
         std::make_pair((ENUM_HARDCODE_ITEM)ENUM_HARDCODE_ITEM_0, 0x4b0));
 

@@ -76,6 +76,9 @@ CAutoPunishRuleBlackIPMgr::stIPInfo_t::stIPInfo_t(unsigned char minIp,
 bool CAutoPunishRuleBlackIPMgr::addBlackIP(unsigned long addr, unsigned char minIp,
                                            unsigned char maxIp)
 {
+    // b28d-40: N93 封顶——具名 info 与 make_pair/pair/insert 临时对象槽分配方向相反
+    // （ORIG info -0xa 浅→临时 -0x20 深；4.4 info -0x1e 深→临时 -0x10 浅）。
+    // 块作用域形实测无效。ORIG 0x084eb5c0。
     {
         stIPInfo_t info(minIp, maxIp);
         m_map.insert(std::make_pair(addr, info));
@@ -90,6 +93,8 @@ bool CAutoPunishRuleBlackIPMgr::addBlackIP(unsigned long addr, unsigned char min
 // ----------------------------------------------------------------------------
 bool CAutoPunishRuleBlackIPMgr::isBlackIP(char const* ip)
 {
+    // b28d-40: N78/N82 封顶——memset 展开形差（ORIG 逐 dword 清零 vs 4.4 call）+
+    // 帧 0x58 vs 0x68，语义闭合。ORIG 0x084eb63e。
     char ipBuf[0x10];
     memset(ipBuf, 0, sizeof(ipBuf));           // 逐 dword 清零 -0x2a 区
     strncpy(ipBuf, ip, 0x10);                  // strncpy(ipBuf, param, 0x10)
@@ -147,6 +152,8 @@ void CAutoPunishRuleHackTypeMgr::setHackCnt(ENUM_HACKTYPE type1, unsigned int va
                                             unsigned int v5, unsigned int v6,
                                             unsigned int v7)
 {
+    // b28d-40: N93 封顶——具名 info/info2 与 make_pair/pair/insert 临时对象槽分配
+    // 方向相反（ORIG 浅→深，4.4 深→浅）；块作用域形实测无效。ORIG 0x084eb854。
     HackTypeInfo_t info(type1, (unsigned short)value1,
                         type2, (unsigned short)value2,
                         (unsigned short)v5, (unsigned short)v6, v7);
@@ -192,6 +199,8 @@ stHacktypeExceptionInfo_t CAutoPunishRuleHackTypeMgr::GetExceptionCnt(int key)
 void CAutoPunishRuleHackTypeMgr::setIPCounterData(unsigned int a, unsigned int b,
                                                   char* ip, unsigned int cnt)
 {
+    // b28d-40: N/P75 封顶——HackIPCounter_t 构造实参装载序跨版本差，语义闭合。
+    // ORIG 0x080f9218。
     HackIPCounter_t entry(a, b, ip, cnt);
     m_ipCounterMap.insert(std::make_pair((unsigned short)a, entry));
 
@@ -210,6 +219,8 @@ void CAutoPunishRuleHackTypeMgr::setIPCounterData(unsigned int a, unsigned int b
 int CAutoPunishRuleHackTypeMgr::_findIPCount(unsigned int a, unsigned int b,
                                              char const* ipStr)
 {
+    // b28d-40: N82/N93 封顶——帧 0x58 vs 0x48 + pack(1) 键槽基址平移，语义闭合。
+    // ORIG 0x080f9322。
     typedef std::multimap<unsigned short, HackIPCounter_t> IpCounterMap;
     IpCounterMap::const_iterator it = m_ipCounterMap.lower_bound((unsigned short)a);
     IpCounterMap::const_iterator endIt = m_ipCounterMap.upper_bound((unsigned short)a);
@@ -261,6 +272,8 @@ void CAutoPunishRuleHackTypeMgr::ResetIpCounterData()
 void CAutoPunishRuleHackTypeMgr::setFullIPCounterData(unsigned int a, unsigned int b,
                                                       char* ip, unsigned int cnt)
 {
+    // b28d-40: N/P75 封顶——HackFullIPCounter_t 构造实参装载序跨版本差，语义闭合。
+    // ORIG 0x080f946a。
     HackFullIPCounter_t entry(a, b, ip, cnt);
     m_fullIPCounterMap.insert(std::make_pair((unsigned short)a, entry));
 
@@ -278,6 +291,7 @@ void CAutoPunishRuleHackTypeMgr::setFullIPCounterData(unsigned int a, unsigned i
 int CAutoPunishRuleHackTypeMgr::_findFullIPCount(unsigned int a, unsigned int b,
                                                  char const* ipStr)
 {
+    // b28d-40: N82/N93 封顶——帧 0x48 vs 0x38 + 键槽基址平移，语义闭合。ORIG 0x080f9574。
     typedef std::multimap<unsigned short, HackFullIPCounter_t> FullCounterMap;
     FullCounterMap::const_iterator it = m_fullIPCounterMap.lower_bound((unsigned short)a);
     FullCounterMap::const_iterator endIt = m_fullIPCounterMap.upper_bound((unsigned short)a);
@@ -333,6 +347,8 @@ bool CAutoPunishRuleHackTypeMgr::_checkApplyFlag(
     std::vector<stLookOuts>& lookOutsA, std::vector<tyIPCounters>& ipCounters,
     std::vector<stLookOuts>& lookOutsB, char* ip)
 {
+    // b28d-40: N82/N91 封顶——帧 0x40 vs 0x44 + bool 物化/EH 段差，语义闭合。
+    // ORIG 0x0869550c。
     if (info.m_value3 == 1 || info.m_value3 == 5)
     {
         outInfo.CopyStruct(info);
@@ -422,6 +438,8 @@ bool CAutoPunishRuleHackTypeMgr::checkMaxHackCntOver(
     std::vector<tyIPCounters>& ipCounters, std::vector<stLookOuts>& lookOutsB,
     char* ip)
 {
+    // b28d-40: N82 封顶——帧 0x54 + callee-saved（push ebx）分配差，语义闭合。
+    // ORIG 0x08695360。
     std::multimap<ENUM_HACKTYPE, HackTypeInfo_t>::iterator lower =
         m_hackTypeMap.lower_bound(type);
     std::multimap<ENUM_HACKTYPE, HackTypeInfo_t>::const_iterator cit = lower;
@@ -467,6 +485,7 @@ bool CAutoPunishRuleHackTypeMgr::checkMaxHackCntOver(
 bool CAutoPunishRuleHackTypeMgr::checkTotalTradeRuleOver(unsigned int tradeType,
                                                          unsigned long long total) const
 {
+    // b28d-40: N82 封顶——帧 0x8 vs 0x18 + u64 拆分槽序差，语义闭合。ORIG 0x08531fd2。
     unsigned int totalLo = (unsigned int)(total & 0xffffffffULL);
     unsigned int totalHi = (unsigned int)(total >> 32);
 

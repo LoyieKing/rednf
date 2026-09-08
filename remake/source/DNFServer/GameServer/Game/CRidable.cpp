@@ -50,6 +50,7 @@ bool CRidable::SetRidableObjectState(int idx, eRidableObjectState state)
 // make_pair 值传递），故此处用局部左值 + 直接 pair 构造对齐符号集。
 void CRidable::GetObjectPos(std::vector<std::pair<int, int> >& out)
 {
+    // b28d-40: N82 封顶——帧 0x48 vs 0x38 + 迭代器/pair 槽序差，语义闭合。ORIG 0x082fec2c。
     for (std::map<int, DungeonRidableObject>::const_iterator it = m_objects.begin();
          it != m_objects.end(); ++it)
     {
@@ -65,6 +66,7 @@ void CRidable::GetObjectPos(std::vector<std::pair<int, int> >& out)
 // m_field10@+0x10/m_field14@+0x14/m_field18@+0x18/m_state@+0x1c。
 void CRidable::CheckAppearRidableObject(CParty*, int a, int b, PacketGuard* p)
 {
+    // b28d-40: N82 封顶——对象槽 -0x24/-0x28 平移 + 帧差，语义闭合。ORIG 0x082fe9c8。
     int counter = 0;
     int idx = p->get_index();
     p->put_byte(0);

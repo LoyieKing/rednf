@@ -33,6 +33,8 @@ void CCommunityServerProxy::Init()
 // 失败 cMyTrace 报错返 0（P15 赋值即条件 + P37 临时链式 trace）。
 int CCommunityServerProxy::InitTcp()
 {
+    // b28d-40: N80 封顶——P226 语句表达式已试，strerror/errno/ret 升格 callee-saved
+    // 的求值序与保活寄存器仍差 2 条；帧 0x4c vs 0x40。ORIG 0x0846c674。
     if (m_ip.length() == 0 || m_tcpPort == 0)
     {
         return 0;

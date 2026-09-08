@@ -85,6 +85,8 @@
 int CUser::change_equip_expand(int space, int slot, int dstSpace,
                                int dstSlot, int* outSlot)
 {
+    // b28d-40: N82 封顶——帧 0x38 vs 0x48 + 形参比较内存直比（P85），语义闭合。
+    // ORIG 0x0865f382。
     if (space == 3)
     {
         if (slot <= 9 || slot > 0x15)      // cmpl $0x9 jle / cmpl $0x15 jle
@@ -168,6 +170,8 @@ int CUser::change_equip_expand(int space, int slot, int dstSpace,
 // 首字段）。
 void CUser::eventDeliveryBuyItem(int deliveryType, const Inven_Item& item)
 {
+    // b28d-40: N82 封顶——帧 0x40 vs 0x58 + 对象槽/callee-saved 分配差，语义闭合。
+    // ORIG 0x0866463c。
     BuyItemDeliveryMsg msg;                        // lea -0x20(%ebp) ctor
     int serverGroup = GetServerGroupToPvP();       // T 0x0864a97c
     int characNo = getCurCharacNo();               // W 0x080cbc4e
@@ -188,6 +192,8 @@ void CUser::eventDeliveryBuyItem(int deliveryType, const Inven_Item& item)
 void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
                                 char job)
 {
+    // b28d-40: N82 封顶——帧 0x1c4 vs 0x1c8 + 槽序平移（bool 槽/中转），语义闭合。
+    // ORIG 0x0868745e。
     CLevelRewardTableMgr* mgr = CLevelRewardTableMgr::GetInstance();
     CLevelRewardTable* table = 0;                  // local_28 初值 0
     if (!mgr->IsOn())   // uchar 返回（P9 翻转后）此点 4.4 产 test;sete 两段；
@@ -249,6 +255,7 @@ void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
 // 道具邮件。标题/正文取 m_mailTitle(+0x10c)/m_mailContents(+0x110)。
 void CUser::_postQuestTriggerItem(const Quest* quest)
 {
+    // b28d-40: N82 封顶——帧 0xdc vs 0xe8 + callee-saved 分配差，语义闭合。ORIG 0x086689ee。
     const std::vector<int>& items = quest->m_mailItems;
     ENUM_SERVER_GROUP serverGroup = GetServerGroup();
     int characNo = getCurCharacNo();
@@ -305,6 +312,8 @@ void CUser::_postQuestTriggerItem(const Quest* quest)
 // 经 cUserHistoryLog::SendMail 落日志。
 void CUser::processLevelUpEventReward(bool growupFlag)
 {
+    // b28d-40: N82 封顶——帧 0x2fc vs 0x310 + 全局重定位/槽平移，语义闭合。
+    // ORIG 0x08663cc0。
     CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x5d);
     if (event->IsEventing(0) != true)              // vtable+0x34（槽 13）==1 继续
         return;
@@ -368,6 +377,7 @@ void CUser::processLevelUpEventReward(bool growupFlag)
 // HeroMissionEvent::processMission(user, MissionNo 4, 0)。
 void CUser::processLevelUpEvent()
 {
+    // b28d-40: N82 封顶——槽序平移 + 虚调用链寄存器分配差，语义闭合。ORIG 0x0869115a。
     CEventManager* mgr = GlobalData::s_event_manager;
     CEventBase* event = mgr->GetRepeatEvent(0x68);
     if (event->IsEventing(0))
@@ -484,6 +494,7 @@ bool stLevelUpRewardItemScript::get_data_when_growup(
     const LevelUpRewardItemTableKey& key,
     std::vector<LevelUpRewardItemData>& out)
 {
+    // b28d-40: N82 封顶——帧 0x48 vs 0x28 + 迭代器/实参槽分配差，语义闭合。ORIG 0x081b895a。
     for (std::map<LevelUpRewardItemTableKey, LevelUpRewardItemData>::iterator
              it = m_map0.begin();
          it != m_map0.end(); ++it)
@@ -596,6 +607,8 @@ bool CLevelRewardTableMgr::IsHaveStartLevelReward()
 // ORIG T 0x08687d6c：size()==1 或 v[0]==0 ⇒ 全服生效；否则遍历含 serverIdx 才 true。
 bool CLevelRewardTableMgr::IsOnServer(int serverIdx)
 {
+    // b28d-40: N/P75 封顶——形参比较装载序跨版本差（ORIG 先载形参寄存器再比），
+    // 语义闭合。ORIG 0x08687d6c。
     if (m_vec8.size() == 1 || (m_vec8.size() != 0 && m_vec8[0] == 0))
         return true;
     if (m_vec8.empty())
@@ -627,6 +640,8 @@ bool LevelupSupportEventManger::CheckNewStep(int level)
 // state=1 并 DB 上报；末尾按 CheckNewStep 发送状态包（level 或 0）。
 void LevelupSupportEventManger::UpdateEventInfo(CUser* user)
 {
+    // b28d-40: N82 封顶——槽 -0x1c vs -0x20 + bool 槽物化 + 全局重定位，语义闭合。
+    // ORIG 0x081471c6。
     int level = user->get_charac_level();
     bool pass;
     if (CheckNewStep(level))
@@ -663,6 +678,8 @@ void LevelupSupportEventManger::UpdateEventInfo(CUser* user)
 // byte state) + byte state 参数，finalize(true) 后 Send。
 void LevelupSupportEventManger::SendCharacState(CUser* user, int state)
 {
+    // b28d-40: N82 封顶——帧 0x30 vs 0x20 + 对象槽 -0x1c vs -0x18，语义闭合。
+    // ORIG 0x0814701e。
     PacketGuard packet;                            // C1 0x0858dd4c
     packet.clear();
     packet.put_header(0, 0x22a);
@@ -683,6 +700,8 @@ void LevelupSupportEventManger::SendCharacState(CUser* user, int state)
 // set_add_info((short)count) → ReqDBSendNewSystemMail（第七参固定 0xf）。
 void LevelupSupport2ndEventManger::Process(CUser* user)
 {
+    // b28d-40: N82 封顶——全局对象绝对寻址 vs 4.4 重定位占位 + 槽序平移，语义闭合。
+    // ORIG 0x08147880。
     if (user == 0)
         return;
     if (m_script.m_jobType != user->get_charac_job())

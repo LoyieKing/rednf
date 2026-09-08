@@ -30,6 +30,8 @@
 int Dispatcher_CompoundEmblem::_selectJewelTypeIndex(
     unsigned int count, const unsigned short* sockets) const
 {
+    // b28d-40: N82/N93 封顶——帧 0x78 vs 0x74+push ebx + 具名数组槽序差，语义闭合。
+    // ORIG 0x08220a60。
     int socketCounts[5] = {0, 0, 0, 0, 0};   // 各类型计数（ORIG local_54[6..10]）
     int accums[5]        = {0, 0, 0, 0, 0};   // 各类型累计权重（local_54[1..5]）
     int total            = 0;                 // 权重总和（local_54[0]）
@@ -64,6 +66,7 @@ int Dispatcher_CompoundEmblem::_selectJewelTypeIndex(
 void Dispatcher_CompoundEmblem::SendCreateEmblemInfo(
     const std::vector<std::pair<int, int> >& created)
 {
+    // b28d-40: N82 封顶——帧 0x74 vs 0x64 + 迭代器/局部槽平移，语义闭合。ORIG 0x08221dde。
     Packet_Emblem_Create_Statistic packet;
 
     // ORIG 0x08221dfb seta：size()>5 直接返回。
@@ -94,6 +97,11 @@ void Dispatcher_CompoundEmblem::SendCreateEmblemInfo(
 }
 int Dispatcher_CompoundEmblem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
+    // b28d-40: 真语义 bug 修正 3 处——① 11 次 CItem::get_grade() 使用点重读（原缓存
+    // gradeA/B，P157/P183）；② invA/invB 校验改 m_addInfo（+0x02，ORIG 0x08220f54
+    // 字段直读；原误用 get_add_info +0x07）；③ isEnableAvatarSocketAction 单调用
+    // +具名槽（P0）。callsite 差集 158 vs 156；残 = N82 槽平移 + EH _Unwind_Resume
+    // + make_pair 实参类型旋钮（受 CStackableItem.h 共享头限制）。ORIG 0x08220bb2。
     static const char SELF[] = "virtual int Dispatcher_CompoundEmblem::dispatch_sig(CUser*, PacketBuf&)";
 
     if (user->get_state() != 3)

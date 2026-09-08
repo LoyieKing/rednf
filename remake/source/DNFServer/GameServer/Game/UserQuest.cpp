@@ -208,6 +208,7 @@ int UserQuest::get_quest(SIG_LOAD_QUEST* sig) const
 
 void UserQuest::get_quest_info(char* buf) const
 {
+    // b28d-40: N82 封顶——帧/槽平移（-0x54 vs -0x50 等），语义闭合。ORIG 0x086abba8。
     stSelectQuestParam selectParam(m_user);
 
     InterfacePacketBuf* pb = reinterpret_cast<InterfacePacketBuf*>(buf);
@@ -282,6 +283,8 @@ void UserQuest::set_authen_data(QUEST_CONDITION cond, int v1, int v2)
 
 int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
 {
+    // b28d-40: N82 封顶——帧 0xcc vs 0xc0 + 字符串地址重定位/槽平移，语义闭合。
+    // ORIG 0x086abf38。
     if (m_user == 0)
     {
         LogManager::logFormat(1, "user_quest.cpp",
@@ -880,6 +883,8 @@ void UserQuest::ResetUrgentQuestWaitingList()
 
 bool UserQuest::hasEpicQuest()
 {
+    // b28d-40: N4 封顶——`lea 0x4(%edx)` vs 4.4 `add $0x4,%eax`（add-vs-lea），
+    // 语义闭合。ORIG 0x086ad266。
     if (m_user == 0)
     {
         return false;
