@@ -32,6 +32,9 @@ namespace ARAD
 // ScriptManager（ORIG LoadScript 0x81a11dc / DestroyScript 0x81a12f8 /
 // RegistScript 0x81a136c / Init 0x81a13f6）
 // ============================================================================
+// b28d-60 verdict=NEAR：P13 end 缓存（-0x30 一次求值）+ cMyTrace 成功路径第4/5参
+// 修正 (false,true)（ORIG 0x081a1286 `movl $0x1,0x14; movl $0x0,0x10`）；残差=槽位
+// 分配（ORIG it -0x2c/e -0x30/trace -0x28/-0x18 vs 4.4 反向，N82/P112）。
 bool ScriptManager::LoadScript()
 {
     // ORIG 0x81a11dc：Init() 后遍历 set 调用各脚本 Load()；全成功返回 1，
@@ -134,6 +137,8 @@ std::string Arad_InterfaceGameScript::scriptDataName() const
 ExceptionItem::ExceptionItem() {}
 ExceptionItem::~ExceptionItem() {}
 
+// b28d-60 verdict=NEAR：P283 goto 尾标签复现 4.1「begin 后 jmp 到底部条件块」
+//（原 while(true)+break 生 setle/jne 条件置顶）；残差=GetInt 临时槽 -0x20 vs -0x28（N82）。
 int ExceptionItem::parsing(char* data)
 {
     Arad_Script script;
@@ -176,6 +181,8 @@ bool ExceptionItem::find_index(int index)
 PurchaseLimitItem::PurchaseLimitItem() {}
 PurchaseLimitItem::~PurchaseLimitItem() {}
 
+// b28d-60 verdict=N82/P112：P283 goto 尾标签已修循环布局；残差=GetRowNum 检查块与
+// r=0 的相对布局 + 帧槽整体 -4（-0x88/-0x2c vs -0x8c/-0x34）；调用点/P167 一致。
 int PurchaseLimitItem::parsing(char* data)
 {
     Arad_Script script;
@@ -227,6 +234,8 @@ bool PurchaseLimitItem::find(unsigned int itemIndex, Info& out)
 AradBonusItem::AradBonusItem() {}
 AradBonusItem::~AradBonusItem() {}
 
+// b28d-60 verdict=N82/P112：P283 goto 尾标签已修循环布局；残差=槽位整体 -4 与
+// GetRowNum 检查块位置（ORIG `lea -0x38;call` 在 r=0 之前）；语义/调用点一致。
 int AradBonusItem::parsing(char* data)
 {
     Arad_Script script;
@@ -256,14 +265,20 @@ check:
     return 0;
 }
 
+// b28d-60 verdict=N82/P112：P220 正极包裹已修（ORIG `test;je <尾 mov$0 岛>`）；
+// 残差=槽位（key -0x1c vs -0x14、find sret -0x20 vs -0x18）+ const_iterator
+// 转换构造（P96/P270 两旋钮已试）。语义等价（map<int,Data> 命中拷 10 字节）。
 bool AradBonusItem::find(unsigned int itemId, Data& out)
 {
     // ORIG 0x81a252c：map<int,Data> 命中写 out（拷 10 字节）返回 true。
+    // b28d-60：P220 正极包裹（ORIG `test;je <尾 mov$0 岛>`，非 `==end` 早返）。
     std::map<int, Data>::const_iterator it = m_bonusMap.find((int)itemId);
-    if (it == m_bonusMap.end())
-        return false;
-    out = it->second;
-    return true;
+    if (it != m_bonusMap.end())
+    {
+        out = it->second;
+        return true;
+    }
+    return false;
 }
 
 // ============================================================================
@@ -275,6 +290,8 @@ bool AradBonusItem::find(unsigned int itemId, Data& out)
 Arad_Mileage_Data::Arad_Mileage_Data() {}
 Arad_Mileage_Data::~Arad_Mileage_Data() {}
 
+// b28d-60 verdict=N82/P112：残差=r 槽 -0x18 vs -0x14 + logFormat 实参槽对调
+//（ORIG -0x10/-0x14/-0xc vs 4.4 -0xc/-0x10/-0x14）；调用点/字符串/P167 一致。
 int Arad_Mileage_Data::parsing(char* data)
 {
     Arad_Script script;
@@ -493,10 +510,14 @@ int Arad_VillageAttackRewardItem::parsing(char* data)
     return 0;
 }
 
+// b28d-60 verdict=N93/N82：P13 end 缓存已修；残差=begin/end 槽序（ORIG end 先求值
+// -0x14、begin -0x10；4.4 反向）——N93 类块级对象槽方向。
 bool Arad_VillageAttackRewardItem::find_reward_item(int winPoint, Data& out)
 {
-    for (std::vector<Data>::const_iterator it = m_rewardList.begin();
-         it != m_rewardList.end(); ++it)
+    // b28d-60：P13 end 缓存（ORIG end() 在循环外一次，-0x14 槽）。
+    for (std::vector<Data>::const_iterator it = m_rewardList.begin(),
+                                            e = m_rewardList.end();
+         it != e; ++it)
         if (it->winPoint == winPoint) { out = *it; return true; }
     return false;
 }
@@ -542,6 +563,8 @@ int Arad_DataManager::Destroy()
     return 1;
 }
 
+// b28d-60 verdict=N82：P167 调用点差集 CLEAR（43/43，0 缺 0 多）⇒ 语义完成；
+// 残差为帧/槽分配（ORIG 345 vs 331 insn，gap 14），byte 层 N 封顶。
 bool Arad_DataManager::initAradData()
 {
 
@@ -658,6 +681,9 @@ Arad_InterfaceGameScript* Arad_DataManager::findGameScript(std::string name)
 template class Singleton<Arad_DataManager>;
 template class Singleton<ScriptManager>;
 
+// b28d-60 verdict=N（bool→int 零扩展）：ORIG 0x0819798d `call CUser::Send; mov %eax,%ebx`
+//（4.1 bool→int 不归一），4.4 恒 `movzbl %al,%ebx`。Send 为 bool（P174 串定）不可改，
+// 本函数返回 int（ORIG 全宽返回）。残差 1 条 movzbl，语义等价。
 int notifyOpenMessageDialog(CUser* user, int a, int b,
                             const AradServerStateMessage& msg)
 {

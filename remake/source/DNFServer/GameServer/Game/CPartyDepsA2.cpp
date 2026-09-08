@@ -543,8 +543,11 @@ void CParty::SetProperLevelDungeon(CUser* user)
 {
     user->ClearProperLevelDungeonUser();
 
-    if (G_CDataManager()->m_conditionDungeon.isEventDungeon(
+    // [b28d-63] ORIG 0x085bb781：`xor $1; test; jne <nop 岛>` + 后段两独立
+    // `jl/jg` 各落独立岛（0xe1/0xe4）⇒ P223 多岛形：负条件 goto + 尾标签串。
+    if (!G_CDataManager()->m_conditionDungeon.isEventDungeon(
             m_battleField.m_pDungeon->get_index()))
+        goto END1;
     {
         int standardLevel = m_battleField.m_pDungeon->get_standard_level();
         int minLevel = m_battleField.m_pDungeon->get_min_level();
@@ -554,9 +557,13 @@ void CParty::SetProperLevelDungeon(CUser* user)
         int cap = 0x46;
         int upper = std::min(upperBound, cap);
         int level = user->get_charac_level();
-        if (lower <= level && level <= upper)
-        {
-            user->SetProperLevelDungeonUser();
-        }
+        if (level < lower)
+            goto END2;
+        if (level > upper)
+            goto END3;
+        user->SetProperLevelDungeonUser();
     }
+END1:;
+END2:;
+END3:;
 }

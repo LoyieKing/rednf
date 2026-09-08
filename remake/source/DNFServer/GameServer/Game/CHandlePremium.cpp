@@ -136,18 +136,20 @@ void CHandlePremium::handlePremiumEffect(CUser* user, ENUM_PREMIUM_TYPE type)
 
     for (size_t i = 0; i < infoList.size(); ++i)
     {
-        const SUserPremiumInfo& info = infoList[i];
-        int iType = info.m_type;
-        if (curSec < info.m_start)          // ORIG 0x086afd3f：未开始（+0x4）→ 定时
+        // [b28d-56 判词·P157] ORIG 每处字段访问都重发 `vector<SUserPremiumInfo>::operator[]`
+        // （p167: ORIG 12 次 vs 旧码引用缓存 1 次 ⇒ MISSING 11）；逐处写
+        // `infoList[i].m_xxx`，禁引用缓存。
+        int iType = infoList[i].m_type;
+        if (curSec < infoList[i].m_start)   // ORIG 0x086afd3f：未开始（+0x4）→ 定时
         {
             // 未开始：注册开始定时（msg 6）。
             G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, (int)user->GetUID(),
-                                        (TIMER_MESSAGE)6, info.m_start - curSec,
+                                        (TIMER_MESSAGE)6, infoList[i].m_start - curSec,
                                         iType, user->get_acc_id());
         }
         else
         {
-            if (user->getCurCharacLastPlayTick() <= info.m_end)
+            if (user->getCurCharacLastPlayTick() <= infoList[i].m_end)
             {
                 // 到期且上次游玩不晚于结束：发优势物品 + 金币。
                 std::vector<std::pair<int, int> > items = premium->GetAdvantageItem(iType);
@@ -191,10 +193,10 @@ void CHandlePremium::handlePremiumEffect(CUser* user, ENUM_PREMIUM_TYPE type)
 
             // 每日定时（仅在 premium 定义需每日检查时）。
             if (g_SPremiumInfo[iType].m_checkTerm != 0 &&
-                info.m_end > curSec)
+                infoList[i].m_end > curSec)
             {
                 G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0, (int)user->GetUID(),
-                                            (TIMER_MESSAGE)4, info.m_end - curSec,
+                                            (TIMER_MESSAGE)4, infoList[i].m_end - curSec,
                                             iType, user->get_acc_id());
             }
             if (premium->IsNeedCheckEveryday())

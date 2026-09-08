@@ -328,8 +328,7 @@ void CGrowhWeaponEvent::execute()
     }
     GrowthWeaponEvent* data =
         static_cast<GrowthWeaponEvent*>(user->getGrowthWeaponEventdata());
-    unsigned char resetFlag = m_resetFlag;
-    if (resetFlag != 0)
+    if (m_resetFlag)                 // [0x084b296c 字段直测，无具名局部 P0]
     {
         data->m_field8 = 0;
         data->m_field4 = 0;
@@ -340,8 +339,7 @@ void CGrowhWeaponEvent::execute()
     }
     else
     {
-        int timepiece = m_timepiece;
-        data->m_field10 = static_cast<short>(timepiece);
+        data->m_field10 = static_cast<short>(m_timepiece);   // [0x084b29b6 直读]
         data->m_fieldc = 0;
         DB_EventUpdateGrowthWeaponTimepiece::makeRequest(
             user->get_acc_id(),
@@ -377,9 +375,10 @@ void CGuildDebug::execute()
     packet.m_field16 = m_param2;
     packet.m_field1a = m_f1;  // +0x10
 
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x1e);
+    // ORIG 0x084ac7cc：size 读包内 packetSize（双段 movzwl），&packet 与 size 先物化
+    // %ebx/%esi 跨 GetServerProxy call 保活（P52 链式 receiver + R2L 实参独占）。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendTcpPacket(reinterpret_cast<char*>(&packet), packet.packetSize);
 }
 
 // ========================================================================

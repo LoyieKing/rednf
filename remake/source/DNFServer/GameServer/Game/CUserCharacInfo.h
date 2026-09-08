@@ -470,7 +470,7 @@ struct CharacInfoFields
     char m_curExEquipSlotStat;             // +0x123e
     unsigned char m_eventCharacterGrowtype;     // +0x123f
     char m_pad1240;                    // +0x1240
-    unsigned char m_memberDungeonFlag;     // +0x1241
+    bool m_memberDungeonFlag;              // +0x1241（b28d-Main: P292 更正版，getMemberDungeonFlag 调用点 0x085be8ba `call; test %al,%al; je` 无 setne ⇒ bool）
     unsigned char m_revengeCount;          // +0x1242
     unsigned char m_revengeDungeonCount;   // +0x1243
     unsigned char m_villageAttackDBUpdate; // +0x1244
@@ -920,7 +920,7 @@ public:
     void IncProperDungeonClearCount();
     void SetProperDungeonClearCount(short count);
     void ClearProperDungeonClearCount();
-    unsigned char getMemberDungeonFlag() const;
+    bool getMemberDungeonFlag() const;
     void setMemberDungeonFlag(bool flag);
     int GetCurCharacDungeonPlayCount() const;
     void IncCurCharacDungeonPlayCount();

@@ -406,7 +406,11 @@ struct SIPGData
     char m_envCode[0x14];        // +0x04（strncpy 自 CIPGHelper+0x24，n=0x14；语义=环境/站点码【推断】）
     unsigned short m_productCode; // +0x18（08100b0e `mov %dx,0x18(%eax)` ← m_dataTableB[type]，2B）
     char m_pad1A[2];             // +0x1a（ORIG 无访问；m_type 实证在 +0x1c）
-    int m_type;                  // +0x1c（IPG_DATA_TYPE；081048dc `mov 0x1c(%eax),%eax` switch 键）
+    // b28d-60：int→IPG_DATA_TYPE（enum，4B）。依据 P254：ORIG IPGRequest
+    // 0x081007ee `mov 0x1c(%eax),%eax; mov %eax,%edx` 两段中转 ⇒ 字段为 enum
+    //（int 字段 4.4 恒折单段 `mov 0x1c(%eax),%edx`）。宽度/偏移/sizeof 0x2dc/
+    // mangled 不变。
+    IPG_DATA_TYPE m_type;        // +0x1c（081048dc `mov 0x1c(%eax),%eax` switch 键）
     unsigned int m_uid;          // +0x20（08100b22 `mov %edx,0x20(%eax)` = CUser::GetUID；Confirm 重载写 0xffffffff）
     unsigned char m_notifyFlag;  // +0x24（`mov %dl,0x24(%eax)` 直存 flag；IPGResult 081009c5 `movzbl 0x24` 决定入队/回收）
     char m_pad25[3];             // +0x25（ORIG 无访问）

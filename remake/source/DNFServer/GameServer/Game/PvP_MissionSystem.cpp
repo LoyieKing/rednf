@@ -368,9 +368,10 @@ PvP_MissionSystem::~PvP_MissionSystem()
     for (std::map<int, CMission*>::iterator it = m_missionMap.begin();
          it != m_missionMap.end(); ++it)
     {
-        CMission* m = it->second;
-        if (m != 0)
-            delete m;
+        // b28d-61 [P141/P157，ORIG 0x085e1c8x `mov 0x4(%eax),%eax; test %eax,%eax;
+        // je`]：无具名局部、无显式判空——delete 自带空指针守卫；旧形多
+        // `mov %eax,-0xc` + 双重 cmpl。
+        delete it->second;
     }
     m_missionMap.clear();
 }
@@ -454,12 +455,16 @@ bool PvP_MissionSystem::Load_list()
 bool PvP_MissionSystem::Load_EtcParameter()
 {
     MissionParameterScript param;
-    bool ok = importPvpMissionParameterScript(param);
-    if (ok)
-        copy_missionParameter(param);
-    else
+    // b28d-61 [P292/P63，ORIG 0x085e1ffx `call; xor $0x1,%eax; test %al,%al;
+    // je +0x38`]：具名 bool ok + return ok 使 4.4 产槽物化 `mov %al,-0x9;
+    // cmpb $0,-0x9`；改负条件早返（bool 直判 + 两臂共享 ebx 出口）。
+    if (!importPvpMissionParameterScript(param))
+    {
         puts("Mission Parameter Error!");
-    return ok;
+        return false;
+    }
+    copy_missionParameter(param);
+    return true;
 }
 
 // ============================================================================
@@ -645,7 +650,12 @@ void PvP_MissionSystem::get_New_DailyMission(
 
 void PvP_MissionSystem::sort_list()
 {
-    for (std::vector<std::list<CMission*> >::iterator it = m_kindMissionList.begin();
-         it != m_kindMissionList.end(); ++it)
-        it->sort(MissionLessThan());
+    // b28d-61 [P175/P225，ORIG 0x085e20d4 `call operator[](i)` + `cmp -0x10(%ebp),
+    // %eax; seta %al`]：索引循环（size() 左操作数 + seta 四段物化），非迭代器。
+    unsigned int i = 0;
+    while (m_kindMissionList.size() > i)
+    {
+        m_kindMissionList[i].sort(MissionLessThan());
+        i++;
+    }
 }

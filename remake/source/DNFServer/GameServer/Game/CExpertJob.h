@@ -204,7 +204,11 @@ public:
     virtual ~CCharacExpertJob();           // ORIG W 0x0832bd52 / 0x0832bd22
 
     bool InitScript(STExpertJobScript* script);       // ORIG 0x0832b36c
-    int get_recipe(int index) const;                  // ORIG 0x0832b306
+    // [b28d-62] 返回类型 int→bool（P292/P248 档①）：ORIG 两处调用点均为
+    // `call get_recipe; xor $0x1,%eax; test %al,%al; je`（IsLearnRecipe 0x0849b6b0）
+    // 与 `xor $1; jne`（SendExpertJobInfo 0x0832b454）⇒ callee 实为 bool。
+    // 返回类型不入 mangled，符号/ABI/布局零影响；宽度语义仍 0/1。
+    bool get_recipe(int index) const;                 // ORIG 0x0832b306
     int set_recipe(int index);                        // ORIG 0x0832b264
     bool learnRecipe(unsigned long recipeIndex, STExpertJobScript* script, int param); // ORIG 0x0832b3c0 调用点 0x085d17d5 test%al 直测(S23C 取证,Main 代落)
 

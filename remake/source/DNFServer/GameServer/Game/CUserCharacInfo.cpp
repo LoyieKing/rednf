@@ -1576,9 +1576,9 @@ PvpResultType* CUserCharacInfo::getPVPResultR() const
     return const_cast<PvpResultType*>(&m_pvpResult);
 }
 
-unsigned char CUserCharacInfo::getMemberDungeonFlag() const
+bool CUserCharacInfo::getMemberDungeonFlag() const
 {
-    return m_selected ? (int)(unsigned char)CUR->m_memberDungeonFlag : 1;
+    return m_selected ? CUR->m_memberDungeonFlag : true;
 }
 
 

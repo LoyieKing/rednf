@@ -218,9 +218,11 @@ bool CExpertJob::IsLearnRecipe(CUser* user, CStackableItem const* item)
         G_CDataManager()->GetExpertJobScript(user->GetCurCharacExpertJobType());
     if (script == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x13f, 0);
-        trace("EXPERT_JOB_ERROR : GetExpertJobScript() charac_no(%d)",
-              user->getCurCharacNo());
+        // [b28d-62] P227 全表达式临时链：ORIG 0x0849b5c9 先把 getCurCharacNo 结果
+        //   入 %ebx 跨 cMyTrace::C1 保活，再调 op()；具名 trace 对象会槽化并错序。
+        cMyTrace(__PRETTY_FUNCTION__, 0x13f, 0)(
+            "EXPERT_JOB_ERROR : GetExpertJobScript() charac_no(%d)",
+            user->getCurCharacNo());
         return false;
     }
     // [b28d-62] P198① 预清必写：ORIG 0x0849b60f `movl $0xffffffff,-0xc` 后独立赋值；
@@ -229,22 +231,23 @@ bool CExpertJob::IsLearnRecipe(CUser* user, CStackableItem const* item)
     idx = script->GetRecipeInfoIndex(((CItem*)item)->get_index());
     if ((unsigned char)((unsigned int)idx >> 31) != 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x146, 0);
-        trace("EXPERT_JOB_ERROR : GetRecipeInfoIndex() charac_no(%d)",
-              user->getCurCharacNo());
+        cMyTrace(__PRETTY_FUNCTION__, 0x146, 0)(
+            "EXPERT_JOB_ERROR : GetRecipeInfoIndex() charac_no(%d)",
+            user->getCurCharacNo());
         return false;
     }
-    CCharacExpertJob* expand =
-        (CCharacExpertJob*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0);
     // [b28d-62] ORIG 0x0849b6b0 `call get_recipe; xor $0x1,%eax; test %al,%al; je`
-    //   ⇒ 取反物化形（`!call()`），非 `!= 1` 的 cmp 形。
-    if (!expand->get_recipe(idx))
+    //   ⇒ 取反物化形（`!call()`）；expand 结果**免槽直用**（P0/P134：ORIG 无
+    //   expand 槽，%eax 直接作 get_recipe 的 this）⇒ 内联表达式。
+    if (!((CCharacExpertJob*)user->GetCharacExpandData(
+              (ENUM_CHARAC_EXPAND_TYPE)0))
+             ->get_recipe(idx))
     {
         if (!GlobalData::s_pGMAccounts_->isGM(user->get_acc_id()))
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x14e, 0);
-            trace("EXPERT_JOB_ERROR : get_recipe() charac_no(%d)",
-                  user->getCurCharacNo());
+            cMyTrace(__PRETTY_FUNCTION__, 0x14e, 0)(
+                "EXPERT_JOB_ERROR : get_recipe() charac_no(%d)",
+                user->getCurCharacNo());
             return false;
         }
     }
@@ -364,7 +367,7 @@ bool CCharacExpertJob::InitScript(STExpertJobScript* script)
 // get_recipe 0x0832b306：idx = index/8（带符号除），越界(<0 || >0x1d)返回 0；
 // 返回 bitmap 第 (index%8) 位。
 // b28c-1 N97: 手写除形后余 mov/sar/shr/lea vs 4.4 sar/shr/add 寄存器选择差。
-int CCharacExpertJob::get_recipe(int index) const
+bool CCharacExpertJob::get_recipe(int index) const
 {
     // [b28d-62] N97 封顶（三形实测）：ORIG 0x0832b30d `mov %eax,%edx; sar $0x1f,%edx;
     //   shr $0x1d,%edx; lea (%edx,%eax,1),%eax; sar $3`（4.1 有符号 /8 lowering，
@@ -377,7 +380,7 @@ int CCharacExpertJob::get_recipe(int index) const
     int bit = index % 8;
     if (idx < 0 || idx > 0x1d)
         return 0;
-    return ((int)(char)m_recipeFlag[idx] >> bit) & 1;
+    return (((int)(char)m_recipeFlag[idx] >> bit) & 1);
 }
 
 // set_recipe 0x0832b264：未置位则置位并返回 1；已置位返回 0。

@@ -24,12 +24,15 @@ void CFieldLengthChecker::AddField(char const* query)
         std::string a;
         std::string b;
         std::string c;
-        size_t pos = s.find('(');
+        // [b28d-56 判词·P167] ORIG 0x0817? 六处调用 `find(char const*, size_type)`
+        // （`_ZNKSs4findEPKcj`），旧码 `find(char)` 选 `find(char, size_type)`
+        // 重载 ⇒ p167 MISSING/EXTRA 各 6。改为字符串字面量实参。
+        size_t pos = s.find("(");
         a = s.substr(0, pos);
         b = s.substr(pos + 1, std::string::npos);
-        pos = b.find(')');
+        pos = b.find(")");
         c = b.substr(0, pos);
-        while ((pos = c.find(';')) != std::string::npos) {
+        while ((pos = c.find(";")) != std::string::npos) {
             fieldNames_.push_back(c.substr(0, pos));
             c = c.substr(pos + 1, std::string::npos);
             fieldLength_.push_back(0);
@@ -45,14 +48,14 @@ void CFieldLengthChecker::AddField(char const* query)
         size_t pos = s.find("values(");
         a = s.substr(0, pos);
         b = s.substr(pos + 7, std::string::npos);
-        pos = b.find(')');
+        pos = b.find(")");
         c = b.substr(0, pos);
-        for (int i = 0; i < fieldLength_.size() && (pos = c.find(';')) != std::string::npos; ++i) {
+        for (int i = 0; i < fieldLength_.size() && (pos = c.find(";")) != std::string::npos; ++i) {
             std::string val;
             if (c[0] == '\'') {
                 pos = 0;
                 do {
-                    pos = c.find('\'', pos + 1);
+                    pos = c.find("'", pos + 1);
                     if (pos == std::string::npos)
                         return;
                 } while (c[pos - 1] == '\\');
