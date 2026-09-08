@@ -57,6 +57,9 @@ CItemGenRateTable::~CItemGenRateTable()
 void CItemGenRateTable::init()
 {
     // ORIG 0x085345b6：旧表非空则 operator delete；time(0) 播种 new 0x9c8（单棵）。
+    // ORIG lea -0x1c(%ebp),%esi 跨 new（esi 挂 seed 地址）。4.4 恒
+    // `mov %esi,0x4(%esp)` 形不可造（lea esi / -0x1c 槽缓存两形探针全败
+    // 26/25），N18a 族封顶。
     if (m_rand != 0)
         delete m_rand;
     unsigned long seed = time(0);
@@ -968,18 +971,17 @@ int* CGeneratorCommonData::getGoldGenTable(unsigned char level)
     // ORIG T 0x08533424：静态返回区（bss 0x943ded0，函数局部 static 名 ret）；
     // level>0xc8 回退表项 0 并按 0 级取费率；末次经 AutoMarket 折算写回首字。
     static GoldGenEntry ret;
-    unsigned char lv = level;
-    if (lv > 0xc8)
+    if (level > 0xc8)
     {
         ret = m_goldGenTable[0];
-        lv = 0;
+        level = 0;
     }
     else
     {
-        ret = m_goldGenTable[lv];
+        ret = m_goldGenTable[level];
     }
     ret.m_base = G_CDataManager()->GetAutoMarketContitionsControl()->GetGoldDropAmountRate(
-        (int)lv, ret.m_base);
+        (int)level, ret.m_base);
     return &ret.m_base;
 }
 

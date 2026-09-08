@@ -59,7 +59,7 @@ public:
     virtual bool _checkMemberDie();                            // ORIG 0x08149382
     virtual int checkAllMemberReady(int);                      // ORIG 0x081493fe
     virtual int handleDieUser(CUser* user);                    // ORIG 0x081494a4（bool 化实测使 4.4 epilogue 走 %ebx 合并+调用点 setne 物化回归，维持 int）
-    virtual int handleLeaveUser(CUser* user);                  // ORIG 0x08149724
+    virtual bool handleLeaveUser(CUser* user);                 // ORIG 0x08149724（[b27 DL3R] ORIG 调用点 CBossTower 0x08143b04 为 `call; test %al,%al; je` 单字节直判 ⇒ callee 返回 bool/uchar；mangled 不含返回类型，ABI 安全）
 
     // ---- 非虚成员 ----
     void InitPlayUser(int questCond, int towerIdx);   // ORIG 0x0814926e
@@ -79,8 +79,10 @@ protected:  // 派生类 CBossTower::handleUseItem 写 m_useItemCount/m_memberFi
     CParty* m_party;             // +0x04
     int m_field8;                // +0x08
     char m_allMemberReady;       // +0x0c
-    unsigned char m_memberAlive[4]; // +0x0d（ORIG isMemberAlive 以 movzbl 零扩展读取）
-    char m_memberReady[4];       // +0x11
+    bool m_memberAlive[4];       // +0x0d（ORIG setMemberAlive 0x0814a7e4 this先+movzbl回读序，
+                                 //   探针实证 bool 数组+bool 形参直赋唯一匹配；isMemberAlive
+                                 //   movzbl 零扩展直返同形）
+    bool m_memberReady[4];       // +0x11（setMemberReady 0x08145692 同 setMemberAlive 实证）
     int m_rewardExp[4];          // +0x18（generateRewardExp 逐成员写入，16 字节）
     stRewardItem_t m_memberReward[4];  // +0x28（4 * 0x268 = 0x9a0）
     int m_useItemCount[4];       // +0x9c8（handleUseItem 0xbdd 道具逐槽计数；reset 清零）

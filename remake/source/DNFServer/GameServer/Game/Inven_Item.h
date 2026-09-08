@@ -181,9 +181,9 @@ public:
     unsigned char GetUpgrade() const;
     void SetUpgrade(unsigned char upgrade);
     void IncUpgrade();
-    int GetItemAttr() const;
+    unsigned char GetItemAttr() const;
     void SetItemAttr(unsigned char attr);
-    int GetReSealCount() const;
+    unsigned char GetReSealCount() const;
     void SetReSealCount(unsigned char count);
     unsigned char GetTradeLimitCount() const;
     void SetTradeLimitCount(unsigned char count);

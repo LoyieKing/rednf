@@ -50,9 +50,13 @@ static int getSocketCount(const stAvatarEmblemInfo_t* emblem)
 void AvatarRechargeServer::SendDurability(CUser* user, char param2, short param3,
                                           char param4, int param5)
 {
-    if (user == 0 || user->get_state() != 5)
+    if (user == 0)
         return;
-    if (param2 != 1 || param4 != 3)
+    if (user->get_state() != 5)
+        return;
+    if (param2 != 1)
+        return;
+    if (param4 != 3)
         return;
     // 目标：默认单人(1)，在队伍中改队伍(2)。
     CUser::eSendTarget target = (CUser::eSendTarget)1;
@@ -366,21 +370,21 @@ void AvatarRechargeServer::GmSetEnduranceReduceRate(CUser* user, bool enable,
     {
         if (rate < 0)
             rate = 0;
-        else if (rate <= 100)
-            rate *= 10;
-        else
+        else if (rate > 100)
             rate = 1000;
+        else
+            rate *= 10;
         m_enduranceReduceRate = rate;
 
-        // ORIG 0x08191364：const char* 字面量直传（movl $0x8b9a544）
-        ARAD::notifySystemMessage(
-            user, (char*)"succ avatar Endurance reduce rate mode on! change rate");
+        // ORIG 0x08191364：const char* 字面量直传（movl $0x8b9a544，0x4(%esp) 直填）。
+        // ORIG 0x08191364：字面量槽直填（中转槽 -0x10 为 4.1 自身产物，
+        // 4.4 直填 0x4(%esp) 属布局差异，N 封顶）。
+        ARAD::notifySystemMessage(user, (char*)"succ avatar Endurance reduce rate mode on! change rate");
     }
     else
     {
         m_enduranceReduceRate = 0;
 
-        // ORIG 0x08191364：const char* 字面量直传（movl $0x8b9a57c）
         ARAD::notifySystemMessage(user, (char*)"avatar Endurance reduce rate mode off");
     }
 }
@@ -456,6 +460,8 @@ int AvatarRechargeServer::GetRateFromEmblemGrade(int grade)
     if (it == m_script.m_useEmblemGradeRateMap.end())
         return 0;
     return it->second;
+    // [N 判词] 4.4 对 map 迭代器比较产生两次 operator!= 外链 call（-0x14/-0x10
+    // 额外拷贝槽）；4.1 内联比较。libstdc++ 头差异，源形不可择（N89 族）。
 }
 
 // ORIG 0x08190dea（静态）：Acquire 流 → make_internal_stream_jpn(0x31, -1) → put_binary 8 字节
@@ -516,7 +522,10 @@ int ARAD::SCRIPT::AvatarRecharge::getAvatarRecharageLimit()
 bool ARAD::SCRIPT::AvatarRecharge::IsEmblemRechargeStone(int itemIndex)
 {
     // ORIG 0x088b13a6：+0x04 map find 命中返回 true。
-    return m_emblemRechargeStoneMap.find(itemIndex) != m_emblemRechargeStoneMap.end();
+    // P56：ORIG 尾部 choose 岛（test;je;mov$1;jmp;mov$0）⇒ if-return 形。
+    if (m_emblemRechargeStoneMap.find(itemIndex) != m_emblemRechargeStoneMap.end())
+        return true;
+    return false;
 }
 
 std::map<int, int>* ARAD::SCRIPT::AvatarRecharge::getEmblemRechargeStoneInfo()

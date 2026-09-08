@@ -116,6 +116,9 @@ void CCalcCharacStat::InitializeStat(_Additioal_info* out, int job)
 // （ORIG 块序 +0x1f/+0x4c/+0x79/+0xa6/+0xd3/+0xea/+0x103/+0x120）。
 void CCalcCharacStat::ApplyElixerItem(_Additioal_info* out, int statIdx, int value)
 {
+    // [b27 封顶] 残差仅 case9 循环体寄存器角色（ORIG arr值→ebx/i基址重读→ecx，
+    // 4.4 值→ecx/i→ebx+lea 直算——N7 族角色互换）+ jump table 基址 reloc。
+    // switch/各 case/store 序全等。
     switch (statIdx)
     {
     case 4:

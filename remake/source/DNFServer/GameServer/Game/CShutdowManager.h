@@ -26,7 +26,8 @@ public:
     unsigned int GetLastMsgResponseCount();
     unsigned int GetLastMsgCount();
 
-    char m_flag;                        // +0x00
+    bool m_flag;                        // +0x00（ORIG EnableShutdown 0x082a6f70
+                                        // bool 直赋序实证；P33）
     char m_pad1[3];
     int m_field4;                       // +0x04
     int m_field8;                       // +0x08

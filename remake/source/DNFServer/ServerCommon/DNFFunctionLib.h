@@ -35,7 +35,7 @@ int get_rand_int(int range);
 char* NumberToString(unsigned int value, int index);
 char* NumberToString(unsigned long long value, int index);
 void PrintBackTrace();
-unsigned long StringToNumber(char const* str);
+int StringToNumber(char const* str);
 char checkTimeToday(long t, int hour);
 long GetCurrentResetBaseTime(long t, int hour);  // T 0x0810912a（_Z23GetCurrentResetBaseTimeli）
 void Char2Hex(unsigned char c, char* out);

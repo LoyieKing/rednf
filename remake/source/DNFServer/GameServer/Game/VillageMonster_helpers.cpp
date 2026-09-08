@@ -146,6 +146,15 @@ void CVillageMonsterArea::SendPacket(PacketGuard& packet)
 // PacketHeader(0x1772, 0x2b) + [4](uid,characNo) @ +0x0a + flag byte @ +0x2a
 struct Packet_VillageMonsterFightResult
 {
+    Packet_VillageMonsterFightResult()   // ORIG W 0x86b4b84；P223 双成员索引对形
+        : m_flag(0)
+    {
+        for (int i = 0; i <= 3; ++i)
+        {
+            m_uids[i] = 0;
+            m_characNos[i] = 0;
+        }
+    }
     unsigned short m_header0;   // +0x00
     unsigned short m_header2;   // +0x02
     char m_pad4[6];             // +0x04
@@ -182,15 +191,7 @@ void CVillageMonster::SendVillageMonsterFightResult(CUser* user, bool flag)
         return;
 
     Packet_VillageMonsterFightResult pkt;
-    pkt.m_header0 = 0x1772;
-    pkt.m_header2 = 0x2b;
-    memset(pkt.m_pad4, 0, sizeof(pkt.m_pad4));
-    for (int i = 0; i <= 3; ++i)
-    {
-        pkt.m_uids[i] = 0;
-        pkt.m_characNos[i] = 0;
-    }
-    pkt.m_flag = 0;
+    // ORIG ctor 0x86b4b84：PacketHeader(0x1772,0x2b) + m_flag=0 + m_keys[8] 清零。
 
     for (int i = 0; i <= 3; ++i)
     {
@@ -199,7 +200,8 @@ void CVillageMonster::SendVillageMonsterFightResult(CUser* user, bool flag)
         {
             pkt.m_uids[i] = member->GetUID();
             pkt.m_characNos[i] = member->get_charac_no(-1);
-            if (GlobalData::s_villageMonsterMgr->OnEvent() && flag)
+            if (GlobalData::s_villageMonsterMgr->OnEvent())
+                if (flag)
                 member->IncVillageAttackCount();
         }
     }

@@ -104,12 +104,13 @@ int TeamInfoThird::del(CUser* user)
 // 之后与 reset 相同置 m_field00=0、m_field04=2。
 void TeamInfoThird::refresh()
 {
+    int deadSlot = 0;  // ORIG -0x10 死槽（0x85624e5 movl $0x0 初始化后未读）
     for (int i = 0; i < 4; ++i)
     {
-        if (m_players[i].m_flag == 0 || m_players[i].m_user == 0)
-            m_players[i].m_rating = 0.0f;
-        else
+        if (m_players[i].m_flag != 0 && m_players[i].m_user != 0)
             m_players[i].m_rating = m_players[i].m_user->GetRating();
+        else
+            m_players[i].m_rating = 0.0f;
     }
     m_field00 = 0;
     m_field04 = 2;
@@ -284,32 +285,32 @@ int CFairMatch::CheckUnusableEquipment(const Inven_Item* item)
 // ORIG _GetOppositeTeam 0x8564f8c：1↔2，其余原样返回。
 int CFairMatch::_GetOppositeTeam(int team)
 {
-    if (team == 1)
+    switch (team)
+    {
+    case 1:
         return 2;
-    if (team == 2)
+    case 2:
         return 1;
-    return team;
+    default:
+        return team;
+    }
 }
 
 // ORIG _GetOtherTeam 0x8566476：0↔1，否则 2。
 ENUM_SCHOOL_MATCH_TEAM CFairMatch::_GetOtherTeam(ENUM_SCHOOL_MATCH_TEAM team)
 {
-    switch (team)
-    {
-    case 0:
+    if (team == (ENUM_SCHOOL_MATCH_TEAM)0)
         return (ENUM_SCHOOL_MATCH_TEAM)1;
-    case 1:
+    if (team == (ENUM_SCHOOL_MATCH_TEAM)1)
         return (ENUM_SCHOOL_MATCH_TEAM)0;
-    default:
-        return (ENUM_SCHOOL_MATCH_TEAM)2;
-    }
+    return (ENUM_SCHOOL_MATCH_TEAM)2;
 }
 
 // ORIG W 0x08234f64：movzbl 0x5b 直返（m_giveItem 字节）。
 // [B24D判词 N] 语义正确：return m_giveItem（movzbl 0x5b 直返）。diff=ORIG GCC4.1
 //   冗余 `movzbl %al,%eax` 双零扩展 vs 我方单 movzbl（4.4 已优化），7/6 纯 lowering
 //   表示差异，语义等价。报告 NO 由 nm/objdump diff 兜底。
-unsigned char CFairPvPScore::GetGiveItem() const
+int CFairPvPScore::GetGiveItem() const
 {
     return m_giveItem;
 }

@@ -101,7 +101,7 @@ void CShutdowManager::Reset()
 //   *(bool*)this = on。
 void CShutdowManager::EnableShutdown(bool on)
 {
-    m_flag = static_cast<char>(on);
+    m_flag = on;
 }
 
 // ORIG 0x082a36bc（_ZN15CShutdowManager15OnAllUserLogoutEv，T，70 条）：

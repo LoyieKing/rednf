@@ -49,7 +49,8 @@ public:
     void resetSaveFlags();                             // ORIG 清零 +0x7530 save-flag
     void enumQuestClear(bool (*cb)(unsigned int, char*), ...) const;  // ORIG 遍历 1..0x752f
 
-    unsigned char m_cleared[0x7530];   // +0x00（0x7530，与 UserQuest.cpp 布局一致）
+    STClearedQuest m_cleared[0x7530];  // +0x00（0x7530；元素类型化以复现 ORIG
+                                       //   C1 per-element call 循环形，b27 判定）
 };
 
 }  // namespace WongWork

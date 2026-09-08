@@ -334,23 +334,25 @@ void CMonsterDropTest::singleMapMonsterKill(CParty* party, DropStat& drop,
     std::list<map_item> items;
     int killCnt = 100;
     std::vector<bool> flags;
-    flags.push_back(true);
-    flags.push_back(true);
+    bool flagOn1 = true;                                     // ORIG -0x12/-0x11 双 bool 槽
+    bool flagOn2 = true;
+    flags.push_back(flagOn1);
+    flags.push_back(flagOn2);
 
-    CBattle_Field* bf = &party->m_battleField;
-    MapInfo* cur = bf->GetCurrentMapInfo();
+    MapInfo* cur = party->m_battleField.GetCurrentMapInfo();
 
     for (unsigned int round = 0; round < static_cast<unsigned int>(m_count); round++)
     {
         for (std::map<int, map_monster>::iterator it = cur->m_monsterMap.begin();
              it != cur->m_monsterMap.end(); ++it)
         {
-            if (it->second.m_dropCnt == 100)
+            if (it->second.m_dropCnt != 100)
             {
-                processKillMonster(party, *cur, it->second, flags, killCnt, items);
-                getDungeonDropResult(items, drop, grade);
-                items.clear();
+                continue;
             }
+            processKillMonster(party, *cur, it->second, flags, killCnt, items);
+            getDungeonDropResult(items, drop, grade);
+            items.clear();
         }
     }
 }
@@ -1025,12 +1027,11 @@ void CRecipeSuccess::parse()
 {
     if (m_parser != 0)
     {
-        std::string& arg = m_parser->m_extra[1];
-        if (arg == "success")
+        if (m_parser->m_extra[1] == "success")       // ORIG P48：两臂独立 op[] 调用
         {
             m_result = 1;
         }
-        else if (arg == "fail")
+        else if (m_parser->m_extra[1] == "fail")
         {
             m_result = 2;
         }

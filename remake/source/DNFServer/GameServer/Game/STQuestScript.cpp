@@ -388,6 +388,8 @@ void TrainingQuestScript::suffleTrainingQuests()
     MyRandom rnd(count);
     for (int i = 0; i <= 0x45; ++i)
     {
+        // ORIG 0x08aafd9c：call empty; test %al,%al; jne（bool 直取返回值，
+        // 谓词不具名——具名 bool 反多 xor 反相行，P198②）。
         if (!m_questProb[i].empty())
         {
             std::random_shuffle(m_questProb[i].begin(), m_questProb[i].end(), rnd);

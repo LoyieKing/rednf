@@ -87,7 +87,7 @@ struct map_monster
     ActiveStaticInfo m_active;      // +0x38（0x2f0 字节）
     std::vector<int> m_mobList;     // +0x328
     short m_hellPartyGroupIdx;      // +0x334
-    short m_hellPartyGroupOrder;    // +0x336
+    unsigned short m_hellPartyGroupOrder;    // +0x336（ORIG 0x0830d704 movzwl 零扩展读实证）
     char m_hellPartyScriptIdx;      // +0x338
     char m_pad339;                  // +0x339
     short m_bloodSmallRoundOrder;   // +0x33a

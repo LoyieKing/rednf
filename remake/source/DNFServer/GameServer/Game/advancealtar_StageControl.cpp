@@ -254,6 +254,10 @@ void StageControl::sendEplp(StageEndType::T endType)
 // ----------------------------------------------------------------------------
 void StageControl::onEplp(StageEndType::T endType)
 {
+    // ORIG 0x813064a：bool 岛 -0x9（预清 movb $0x0、条件链物化 movb $0/$1、无读者——
+    // 4.1 保留死 store；volatile 强制 4.4 保留写与槽）。
+    volatile bool flag = false;
+    flag = (!(endType < 0) && endType > 2 && endType == 3);
     sendEplp(endType);
     Timer_StageControl::RegistTimerEPLPReturnVillage(getIndex());
 }
@@ -277,8 +281,10 @@ void StageControl::onClearReward(StageEndType::T endType)
 {
     if (!(endType < 0) && endType > 2 && endType == 3)
     {
-        getProcStage()->setState(ProcStage::State::S_N6);
-        Timer_StageControl::RegistTimerEPLP(getIndex(), (StageEndType::T)3);
+        // ORIG 0x0813060e：this+4 直访问 m_procStage 槽（无 getProcStage call）、
+        // mov (%eax) 直读 m_index（无 getIndex call）、第二参透传 endType（0x81330629）。
+        reinterpret_cast<ProcStage*>(m_procStage)->setState(ProcStage::State::S_N6);
+        Timer_StageControl::RegistTimerEPLP(m_index, endType);
     }
 }
 

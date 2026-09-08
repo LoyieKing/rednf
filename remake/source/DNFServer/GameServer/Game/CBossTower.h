@@ -50,7 +50,7 @@ public:
 
     // ---- 虚函数 override ----
     virtual int handleDieUser(CUser* user);       // 0x08143a62
-    virtual int handleLeaveUser(CUser* user);     // 0x08143ae2
+    virtual bool handleLeaveUser(CUser* user);    // 0x08143ae2（随基类 bool 化同步；ORIG 尾 mov$0/mov$1 常量直返无规范化）
     virtual int handleMoveMap(unsigned short* mapIndex);  // 0x08143996
     virtual bool handleDropItem(CUser* user, int a, int b, char c, int d, int e);  // 随基类 CBossStage bool 化同步（ORIG 尾 mov$0/mov$1 常量无规范化）  // 0x08143e5e
     virtual int handleKillMonster(CUser* user, unsigned short a, unsigned short b,

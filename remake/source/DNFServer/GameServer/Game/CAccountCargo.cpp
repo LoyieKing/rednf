@@ -249,10 +249,10 @@ bool CAccountCargo::MoveItem(int from, int to)
 // ---- 查询 ----
 int CAccountCargo::GetEmptySlot()
 {
-    unsigned int limit = m_capacity;
-    if (0x38 < limit)
-        limit = 0x38;
-    for (int i = 0; (int)limit > i; ++i) {
+    // ORIG：capacity 寄存器内三目折叠后统一落槽；循环 i<limit 生成
+    // setl（i 载入与 limit 槽比）。4.4 三目 cmova 为固有残差（2 条）。
+    int limit = (int)(m_capacity > 0x38 ? 0x38 : m_capacity);
+    for (int i = 0; i < limit; ++i) {
         if (m_slots[i].m_addInfo == 0)
             return i;
     }
@@ -270,10 +270,8 @@ int CAccountCargo::CheckSlotEmpty(int slot)
 
 int CAccountCargo::GetSpecificItemSlot(int itemIdx)
 {
-    unsigned int limit = m_capacity;
-    if (0x38 < limit)
-        limit = 0x38;
-    for (int i = 0; (int)limit > i; ++i) {
+    int limit = (int)(m_capacity > 0x38 ? 0x38 : m_capacity);
+    for (int i = 0; i < limit; ++i) {
         if (itemIdx == m_slots[i].m_addInfo)
             return i;
     }
@@ -318,7 +316,11 @@ int CAccountCargo::CheckMoneyLimit(unsigned int money)
     void* info = G_CDataManager()->m_accountCargo.GetCurrUpgradeInfo(m_capacity);
     if (info == 0)
         return 0;
-    if (*(unsigned int*)((char*)info + 4) < (unsigned int)(m_money + money))
+    // ORIG：64 位槽比较（total 先双清零落槽，比较链 ja/jb/jae）。
+    long long total = 0;
+    total = (long long)(m_money + money);
+    if ((unsigned long long)*(unsigned int*)((char*)info + 4) <
+        (unsigned long long)total)
         return 0;
     return 1;
 }
@@ -407,11 +409,11 @@ bool CAccountCargo::WithdrawMoney(unsigned int money)
 void CAccountCargo::SendNotifyMoney(ENUM_CMDPACKET cmd)
 {
     PacketGuard packet;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->put_header(1, cmd);
-    buf->put_byte(1);
-    buf->put_int(m_money);
-    buf->finalize(true);
+    // ORIG：无 buf 槽，每调用点重新 lea packet 地址（P0 右值直传）。
+    ((InterfacePacketBuf*)&packet)->put_header(1, cmd);
+    ((InterfacePacketBuf*)&packet)->put_byte(1);
+    ((InterfacePacketBuf*)&packet)->put_int(m_money);
+    ((InterfacePacketBuf*)&packet)->finalize(true);
     m_pUser->Send(packet);
 }
 
@@ -609,17 +611,17 @@ void CAccountCargo::UpgradeAccountCargo(CUser* user)
 void CAccountCargo::SendNotifyRecipe(CUser* user, int slot, bool flag)
 {
     PacketGuard packet;
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->put_header(0, 0xe);
-    buf->put_byte(0);
+    // ORIG：无 buf 槽，每调用点重新 lea packet 地址（P0 右值直传）。
+    ((InterfacePacketBuf*)&packet)->put_header(0, 0xe);
+    ((InterfacePacketBuf*)&packet)->put_byte(0);
     if (flag) {
-        buf->put_short(2);
+        ((InterfacePacketBuf*)&packet)->put_short(2);
         ((CInventory*)user->getCurCharacInvenR())->MakeItemPacket(INVEN_TYPE_EQUIP, slot, packet);
     } else {
-        buf->put_short(1);
+        ((InterfacePacketBuf*)&packet)->put_short(1);
     }
     ((CInventory*)user->getCurCharacInvenR())->MakeItemPacket(INVEN_TYPE_EQUIP, 0, packet);
-    buf->finalize(true);
+    ((InterfacePacketBuf*)&packet)->finalize(true);
     user->Send(packet);
 }
 

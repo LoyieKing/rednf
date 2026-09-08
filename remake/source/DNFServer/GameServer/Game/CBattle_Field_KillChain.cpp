@@ -82,15 +82,18 @@ void CBattle_Field::KillHellPartyGroupMonsterCnt(MapInfo& mapInfo,
     if (m_killedAllHellGroups != 0)
         return;
 
-    const int groupIdx = static_cast<unsigned short>(mob.m_hellPartyGroupOrder);
-    std::map<int, int>::iterator it = mapInfo.m_hellPartyGroup.find(groupIdx);
+    // P0：ORIG 无 groupIdx 槽（logFormat 参数处 movzwl 0x336 直读重读），
+    // 表达式直写两处内联。
+    std::map<int, int>::iterator it =
+        mapInfo.m_hellPartyGroup.find(
+            static_cast<int>(mob.m_hellPartyGroupOrder));
     if (it == mapInfo.m_hellPartyGroup.end())
     {
         LogManager::logFormat(
             1, "battle_field.cpp", s_bfkc_pretty_kill_hell, 0x1dd9,
             "HELLPARTY_LOG : HELLPARTY GROUP INDEX (%d), MAP INDEX (%d) : "
             "KILL HELL GROUP ERROR!!\n",
-            groupIdx, mapInfo.m_mapIndex);
+            static_cast<int>(mob.m_hellPartyGroupOrder), mapInfo.m_mapIndex);
         return;
     }
 

@@ -333,9 +333,11 @@ bool CSyncScript::insert_artifact_info_to_db(STEquipmentScript* script)
     {
         return true;
     }
+    /* 声明序 = ORIG 槽序（p@-0x10 先、db@-0xc 后；4.1/4.4 标量槽向相反，
+     * N93 标量例外翻转声明序即可，探针 /tmp/l5_mul4.cpp）。 */
+    const STEquipmentScript::artifact_info& art = script->m_artifact738;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)5,
                                                   (ENUM_SERVER_GROUP)0);
-    const STEquipmentScript::artifact_info& art = script->m_artifact738;
     if (!db->set_query(
             "inSert into dnf_artifact_info(it_id, creature_min_level, "
             "physical_attack, magical_attack, skill_consume_mp_rate, "
@@ -934,26 +936,30 @@ bool CSyncScript::insert_aicharacter_info_to_db(int idx,
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
-    if (idx == 0 || script.m_str4.length() == 0)
+    /* w2 源形（4.4 双 je 同目标汇聚块 = ORIG 形；探针 /tmp/l5_cnd3.cpp w2）。
+     * ORIG escaped 清零 rep stos（N78），显式 {0} 初始化复现。 */
+    if (idx != 0 && script.m_str4.length() != 0)
     {
-        return true;
+        static char aicharacter_info_name[0xf0];
+        memset(aicharacter_info_name, 0, sizeof(aicharacter_info_name));
+        char escaped[0x400] = { 0 };
+        // ORIG：script2Database 输出到 escaped（栈），escape_string 目标与 set_query 用 static 缓冲。
+        if (!CodePage::script2Database((char*)script.m_str4.c_str(), escaped))
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0xb95, 5)(
+                "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
+                CodePage::database(), script.m_str4.c_str(),
+                __PRETTY_FUNCTION__, 0xb95);
+        }
+        db->escape_string(aicharacter_info_name, escaped);
+        db->set_query("inSert into dnf_aicharacter_info(idx, ai_name_kr) values(%d, '%s')",
+                      idx, aicharacter_info_name);
+        /* t2 形（探针 /tmp/l5_ret.cpp）：ORIG exec 后 xor $1/test 物化；
+         * exec 成功 fall-through 与块外 return true 共享单一尾块（ORIG L_end 合一）。 */
+        if (!db->exec(true))
+            return false;
     }
-    static char aicharacter_info_name[0xf0];
-    memset(aicharacter_info_name, 0, sizeof(aicharacter_info_name));
-    char escaped[0x400];
-    memset(escaped, 0, sizeof(escaped));
-    // ORIG：script2Database 输出到 escaped（栈），escape_string 目标与 set_query 用 static 缓冲。
-    if (!CodePage::script2Database((char*)script.m_str4.c_str(), escaped))
-    {
-        cMyTrace(__PRETTY_FUNCTION__, 0xb95, 5)(
-            "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
-            CodePage::database(), script.m_str4.c_str(),
-            __PRETTY_FUNCTION__, 0xb95);
-    }
-    db->escape_string(aicharacter_info_name, escaped);
-    db->set_query("inSert into dnf_aicharacter_info(idx, ai_name_kr) values(%d, '%s')",
-                  idx, aicharacter_info_name);
-    return db->exec(true);
+    return true;
 }
 
 bool CSyncScript::truncate_aicharacter_info_table()
@@ -983,26 +989,30 @@ bool CSyncScript::insert_town_info_to_db(const TownScript& script)
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
-    if (script.m_field0 == 0 || script.m_str4.length() == 0)
+    /* w2 源形（4.4 双 je 同目标汇聚块 = ORIG 形；探针 /tmp/l5_cnd3.cpp w2）。
+     * ORIG escaped 清零 rep stos（N78），显式 {0} 初始化复现。 */
+    if (script.m_field0 != 0 && script.m_str4.length() != 0)
     {
-        return true;
+        static char town_name[0xf0];
+        memset(town_name, 0, sizeof(town_name));
+        char escaped[0x400] = { 0 };
+        // ORIG：script2Database 输出到 escaped（栈），escape_string 目标与 set_query 用 static 缓冲。
+        if (!CodePage::script2Database((char*)script.m_str4.c_str(), escaped))
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0xbc2, 5)(
+                "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
+                CodePage::database(), script.m_str4.c_str(),
+                __PRETTY_FUNCTION__, 0xbc2);
+        }
+        db->escape_string(town_name, escaped);
+        db->set_query("inSert into dnf_town_info(idx, town_name_kr) values(%d, '%s')",
+                      script.m_field0, town_name);
+        /* t2 形（探针 /tmp/l5_ret.cpp）：ORIG exec 后 xor $1/test 物化；
+         * exec 成功 fall-through 与块外 return true 共享单一尾块（ORIG L_end 合一）。 */
+        if (!db->exec(true))
+            return false;
     }
-    static char town_name[0xf0];
-    memset(town_name, 0, sizeof(town_name));
-    char escaped[0x400];
-    memset(escaped, 0, sizeof(escaped));
-    // ORIG：script2Database 输出到 escaped（栈），escape_string 目标与 set_query 用 static 缓冲。
-    if (!CodePage::script2Database((char*)script.m_str4.c_str(), escaped))
-    {
-        cMyTrace(__PRETTY_FUNCTION__, 0xbc2, 5)(
-            "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
-            CodePage::database(), script.m_str4.c_str(),
-            __PRETTY_FUNCTION__, 0xbc2);
-    }
-    db->escape_string(town_name, escaped);
-    db->set_query("inSert into dnf_town_info(idx, town_name_kr) values(%d, '%s')",
-                  script.m_field0, town_name);
-    return db->exec(true);
+    return true;
 }
 
 bool CSyncScript::truncate_town_info_table()
@@ -1032,26 +1042,30 @@ bool CSyncScript::insert_monster_info_to_db(const STMonsterScript& script)
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
-    if (script.m_index == 0 || script.m_name.length() == 0)
+    /* w2 源形（4.4 双 je 同目标汇聚块 = ORIG 形；探针 /tmp/l5_cnd3.cpp w2）。
+     * ORIG escaped 清零 rep stos（N78），显式 {0} 初始化复现。 */
+    if (script.m_index != 0 && script.m_name.length() != 0)
     {
-        return true;
+        static char monster_name[0xf0];
+        memset(monster_name, 0, sizeof(monster_name));
+        char escaped[0x400] = { 0 };
+        // ORIG：script2Database 输出到 escaped（栈），escape_string 目标与 set_query 用 static 缓冲。
+        if (!CodePage::script2Database((char*)script.m_name.c_str(), escaped))
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0xb63, 5)(
+                "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
+                CodePage::database(), script.m_name.c_str(),
+                __PRETTY_FUNCTION__, 0xb63);
+        }
+        db->escape_string(monster_name, escaped);
+        db->set_query("inSert into dnf_monster_info(idx, mon_name_kr) values(%d, '%s')",
+                      script.m_index, monster_name);
+        /* t2 形（探针 /tmp/l5_ret.cpp）：ORIG exec 后 xor $1/test 物化；
+         * exec 成功 fall-through 与块外 return true 共享单一尾块（ORIG L_end 合一）。 */
+        if (!db->exec(true))
+            return false;
     }
-    static char monster_name[0xf0];
-    memset(monster_name, 0, sizeof(monster_name));
-    char escaped[0x400];
-    memset(escaped, 0, sizeof(escaped));
-    // ORIG：script2Database 输出到 escaped（栈），escape_string 目标与 set_query 用 static 缓冲。
-    if (!CodePage::script2Database((char*)script.m_name.c_str(), escaped))
-    {
-        cMyTrace(__PRETTY_FUNCTION__, 0xb63, 5)(
-            "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
-            CodePage::database(), script.m_name.c_str(),
-            __PRETTY_FUNCTION__, 0xb63);
-    }
-    db->escape_string(monster_name, escaped);
-    db->set_query("inSert into dnf_monster_info(idx, mon_name_kr) values(%d, '%s')",
-                  script.m_index, monster_name);
-    return db->exec(true);
+    return true;
 }
 
 bool CSyncScript::truncate_monster_info_table()
@@ -1380,8 +1394,11 @@ bool CSyncScript::insert_mapping_equip_info_to_db(std::map<int, int>& mapping)
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
-    for (std::map<int, int>::iterator it = mapping.begin();
-         it != mapping.end(); ++it)
+    /* f3 源形（begin/end 头部预求值 + jmp 进尾判 = ORIG 形）+ it++ 后置
+     * （ORIG ppEi 含临时槽，探针 /tmp/l5_pp.cpp f3）。 */
+    std::map<int, int>::iterator it = mapping.begin();
+    std::map<int, int>::iterator map_end = mapping.end();
+    while (it != map_end)
     {
         if (it->second != 0)
         {
@@ -1392,6 +1409,7 @@ bool CSyncScript::insert_mapping_equip_info_to_db(std::map<int, int>& mapping)
                 return false;
             }
         }
+        it++;
     }
     return true;
 }

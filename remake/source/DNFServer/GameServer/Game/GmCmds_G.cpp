@@ -374,7 +374,7 @@ namespace game_master
 void CUpgradeCardDebug::parse()
 {
     trim(m_parser->m_args);
-    reinterpret_cast<IntSlotView*>(this)->m_slot = atoi(m_parser->m_args.c_str());
+    m_itemIdx = atoi(m_parser->m_args.c_str());
 }
 
 // ORIG SendChatMsg(CUser*, char*) @0x084b1e8a：strlen 后经

@@ -35,6 +35,9 @@ long long CAdvanceAltarLog::getType(long long key)
 // mov $0,%eax 后 mov %edx,%eax 残留，sar $0x1f 符号扩展为 64 位）。
 long long CAdvanceAltarLog::getIndex(long long key)
 {
+    // ORIG 0x08157314..+0x26：sub $0x8 + mov eax,edx / mov $0,eax 死序 + sar 0x1f
+    // ——4.1 对 (int)key→(long long) 截断-扩链的死序残留。探针三形（无局部/
+    // 单 int 局部/单 ll 局部）：4.4 恒 sub $0x18 参数槽拷贝或丢 sar 尾 → N 封顶。
     return static_cast<int>(key);
 }
 

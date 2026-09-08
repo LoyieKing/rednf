@@ -204,7 +204,9 @@ private:
     // ORIG T 0x08422938：DeviceAccountDB 句柄取回。
     static MySQL* _getDBHandleForDevideAccountDB();
     // ORIG T 0x084231b6：mousepass.fail_cnt 与 security_grade.goblin_fail_cnt 同步。
-    static int _updateFailCnt(unsigned int mid, int failCnt, char* ip);
+    // 返回 bool（ORIG 尾 0x084232dd `test %al,%al; leave; ret` 无 movzbl
+    // 规范化 ⇒ bool 直返；调用点仅语句式消费，mangled 不含返回类型）。
+    static bool _updateFailCnt(unsigned int mid, int failCnt, char* ip);
     // ORIG T 0x08423914：写 member_mousepass_history_%Y%m 月份表。
     static bool _updateHistory(unsigned int mid, int modifyType, char* ip);
 };
@@ -217,7 +219,7 @@ MySQL* DB_MouseRegister::_getDBHandleForDevideAccountDB()
     return db;
 }
 
-int DB_MouseRegister::_updateFailCnt(unsigned int mid, int failCnt, char* ip)
+bool DB_MouseRegister::_updateFailCnt(unsigned int mid, int failCnt, char* ip)
 {
     (void)ip;   // ORIG 形参未被函数体消费（Ghidra 同）。
     MySQL* db = _getDBHandleForDevideAccountDB();
@@ -229,6 +231,10 @@ int DB_MouseRegister::_updateFailCnt(unsigned int mid, int failCnt, char* ip)
     grade->set_query(
         "upDate member_security_grade set goblin_fail_cnt=%d where m_id=%s",
         failCnt, NumberToString(mid, 0));
+    // 实测三形后取双 return（bool 返回）：判定段 xor/test/jne+or/test/jne+
+    // mov$1/mov$0 与 ORIG 全等；汇聚 bool 局部形 4.4 必落 -0x9 槽（4 条差）
+    // 反劣。残差仅尾部 jmp+mov$0（4.4 双 return 分离块 vs ORIG 汇聚共同
+    // leave，跨版本块排布 N 族）。
     if (!(grade->exec(true) && grade->getAffectedRowCount() != 0))
     {
         grade->set_query(
@@ -236,7 +242,7 @@ int DB_MouseRegister::_updateFailCnt(unsigned int mid, int failCnt, char* ip)
             NumberToString(mid, 0), failCnt);
         return !grade->exec(true);
     }
-    return 0;
+    return false;
 }
 
 bool DB_MouseRegister::_updateHistory(unsigned int mid, int modifyType, char* ip)
@@ -556,8 +562,10 @@ int DB_MouseRegister::_modifyPassword(unsigned int mid, const char* pwd,
             GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5dcd), true);
         (**guard) << 0x245;
         (**guard) << param4;
+        // ORIG 0x0842373b 实有中间槽（`mov %eax,-0xc; movzbl -0x2c,%edx;
+        // mov -0xc,%eax; mov %edx,(%eax)`）＝ 具名 p 变量形态。
         p = guard->GetInBuffer<SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD>();
-        *reinterpret_cast<unsigned int*>(p) = param5;  // ORIG `movzbl param5,%edx` 直展
+        *reinterpret_cast<unsigned int*>(p) = param5;
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
     return 0;
@@ -644,6 +652,8 @@ int DB_MouseRegister::dispatch(int param1, int param2, Stream* stream)
             GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5b59), true);
         (**guard2) << 0x246;
         (**guard2) << param2;
+        // ORIG 0x08422a94 实有中间槽（`mov %eax,-0xc; mov -0xc,%eax; movl
+        // $0,(%eax)`）＝ 具名 p 变量形态（fn_diff_tu 实证）。
         p = guard2->GetInBuffer<SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD>();
         *reinterpret_cast<unsigned int*>(p) = 0;
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard2);

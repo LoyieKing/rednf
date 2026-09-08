@@ -59,7 +59,7 @@ public:
     void* GetExpansionInfo(int key) const;
     bool SetAvatarColor(int key, short color1, short color2);
     Avatar_Item* GetAvatarInfo(int key) const;
-    int GetItem(AvatarDetailInfo* info, int* count) const;
+    bool GetItem(AvatarDetailInfo* info, int* count) const;   // ORIG 0x82f925c 尾 mov$1 直返；GetInventoryInfo 调用点 xor$1 直判= bool 形（mangled 无返回类型 ABI 零变）
     bool UnRegistItem(int key);
     Avatar_Item* EraseAvatarItem(int key);
     bool isSocketAvatar(int key);       // ORIG T 0x082f9228 非 const（_ZN...14isSocketAvatarEi）

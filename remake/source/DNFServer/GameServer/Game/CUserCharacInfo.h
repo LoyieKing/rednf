@@ -231,7 +231,7 @@ public:
     Inven_Item* GetCargoRef(int idx);
     int GetCargoData(int itemIdx, Inven_Item& out) const;
     const Inven_Item* get_cargo_start() const;
-    int GetCapacity() const;
+    unsigned int GetCapacity() const;   // ORIG GetInventory 0x864d646 m_cargoCapacity 直存=同型（P211 反向定案；mangled 无返回类型 ABI 零变）
     int GetItemCount() const;
     bool IsOperatorable(int idx) const;
 

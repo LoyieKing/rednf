@@ -716,6 +716,10 @@ void CUserPremium::RemovePremium(int type)
 {
     // ORIG 0x86adba6：计数递减走 std::max<int>(zero, dec) 调用形（两临时
     // 槽分支各独立，非三目）；链全重算。
+    // [b27 封顶] 唯一残差 = 两分支 max 临时槽对：ORIG 4.1 按分支分配独立槽
+    // 对（-0x18/-0x14 与 -0x10/-0xc，N82 不按 lifetime 复用）；4.4 复用同槽
+    // （-0xc/-0x10）⇒ 全帧槽平移，源码不可定向（分支顺序/声明序不改变
+    // 复用策略）。其余助记符序列全等。
     if (m_entries[type].m_state != 2)
     {
         m_entries[type].m_type = 0;
@@ -882,6 +886,8 @@ void CUserPremium::ReCalcAdvantage()
 
 void CUserPremium::setPremiumState(ENUM_PREMIUM_TYPE type, ENUM_PREMIUM_STATE state)
 {
+    // [b27 封顶] 残差 = 寻址/缓存形：ORIG this→ecx + lea0x10→edx 两步 disp，
+    // 4.4 恒 this→ebx + add 直算（N18a/N7 族寄存器分配差，加 1 条 push %ebx）。
     m_entries[(int)type].m_state = (int)state;
 }
 
@@ -1332,6 +1338,9 @@ unsigned int WongWork::CUserPremium::GetAddIndependentDropRate(int level, unsign
         return 0;
     if (level > 0x69)
         return 0;
+    // [b27 封顶] 残差 = js/jns 极性（ORIG level<0 js 直落 mov$0 岛；4.4 对
+    // if(<0) 恒 jns 前跳反形，goto/共享块/两 return 序均试不翻，N93附 同族
+    // 跨版本 lowering）+ vector[] 基址 add 立即数 reloc。语义/槽/守卫序全等。
     idx = static_cast<unsigned char>(type - 1);
     return g_SPremiumInfo[level].m_independentDropRates[idx];
 L0:

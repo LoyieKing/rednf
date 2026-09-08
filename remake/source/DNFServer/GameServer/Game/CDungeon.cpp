@@ -917,7 +917,8 @@ stSecondEventMonster_t::~stSecondEventMonster_t()
 // call 目标 reloc 即 memset（§6.3 占位假阳性）。语义等价。
 void STMonsterTypeSpawnProb::clear()
 {
-    memset(this, 0, sizeof(STMonsterTypeSpawnProb));
+    // P68 正向：ORIG 0x88f2c6a 实参序「this 先物化→0x10→0x0」＝ 带 cast 形。
+    memset((char*)this, 0, sizeof(STMonsterTypeSpawnProb));
 }
 
 STMonsterTypeSpawnProb::STMonsterTypeSpawnProb()

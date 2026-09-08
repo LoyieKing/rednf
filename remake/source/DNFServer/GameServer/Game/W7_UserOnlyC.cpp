@@ -834,6 +834,5 @@ bool CDungeon::VerifyMaze() const
 
 int CStackableItem::GetMonsterCardId()
 {
-    return *reinterpret_cast<const int*>(
-        reinterpret_cast<const char*>(this) + 0x2b8);
+    return m_int2b8;
 }

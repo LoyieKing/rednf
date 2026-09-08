@@ -146,13 +146,19 @@ bool CUser::IsOldLotteryItem(unsigned int itemIdx)
 // ===========================================================================
 unsigned int CUser::SellItemTimeChecker(unsigned int nowSec, unsigned int interval)
 {
-    if ((nowSec - m_mcap.m_sellTimeChkBaseSec) > interval) {
-        // 超窗重置：基准秒=本次时间、计数清零
-        m_mcap.m_sellTimeChkBaseSec = nowSec;
-        m_mcap.m_sellTimeHitCount = 0;
-    } else {
-        ++m_mcap.m_sellTimeHitCount;
-    }
+    // ORIG 0x08230256：条件 = `(nowSec - m_sellTimeChkBaseSec) > interval`
+    // （nowSec→edx→ecx 中转 sub %eax,%ecx，cmp interval/ja）——重置块后置
+    // （ja 直跳），++ 块 fall + jmp 公共出口（goto 形复现块序）；重置块内
+    // 先 hitCount=0 后 base=nowSec。
+    if ((nowSec - m_mcap.m_sellTimeChkBaseSec) > interval)
+        goto reset;
+    ++m_mcap.m_sellTimeHitCount;
+    goto done;
+reset:
+    // 超窗重置：基准秒=本次时间、计数清零
+    m_mcap.m_sellTimeHitCount = 0;
+    m_mcap.m_sellTimeChkBaseSec = nowSec;
+done:
     return static_cast<unsigned int>(m_mcap.m_sellTimeHitCount);
 }
 

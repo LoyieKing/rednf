@@ -755,10 +755,13 @@ bool CPrivateStore::ExitPrivateStore()
 
     std::list<CUser*>::iterator found =
         std::find(m_users.begin(), m_users.end(), m_pBuyer);
-    if (!m_users.empty() && found == m_users.end())
+    if (!m_users.empty())
     {
-        m_errorHandler.Do(0x15);
-        return false;
+        if (found == m_users.end())
+        {
+            m_errorHandler.Do(0x15);
+            return false;
+        }
     }
 
     CPacketBufPrivate packet;
@@ -2505,12 +2508,13 @@ void CPacketBufPrivate::MakeNotipacketCompleteDisplay(unsigned short sellerIndex
     put_short((int)sellerIndex);
     put_int((int)subject.length());
     put_str(subject.c_str(), (int)subject.length());
-    // ORIG 0x85cbc52 尾：bool 槽 movzbl 重载 + xor$1 + test/je（探针 x14 v2 形
-    // = `if (!p) {A} else {B}` 写法；`if (p)` 会折成 cmpb 直判）。
-    if (!dollCreated)
-        put_byte(0);
-    else
+    // ORIG 0x85cbce6-0x85cbd1a：首 if 对 bool 槽 cmpb 直判走 put_byte(1)
+    // （块尾 jmp 跳过 else 块）；else if(!p) 段 movzbl+xor$1+test 走
+    // put_byte(0) —— else-if 链形（非 if/else 直配，否则无二次测试段）。
+    if (dollCreated)
         put_byte(1);
+    else if (!dollCreated)
+        put_byte(0);
     finalize(true);
 }
 

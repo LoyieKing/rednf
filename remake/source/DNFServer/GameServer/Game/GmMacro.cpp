@@ -120,11 +120,12 @@ void CMacro::OnRecv(int type, int sub, char* data, int len)     // 0x084a8870
 
 void CMacro::OnSend(int type, int sub)                  // 0x084a88aa
 {
-    if (m_state == 1)
+    switch (m_state)
     {
+    case 1:
         Recording(type, sub, 0, 0);
-    }
-    else if (m_state == 2)
+        break;
+    case 2:
     {
         stMacroData* cur = GetCurCmd();
         if (static_cast<int>(cur->m_cmd) == type &&
@@ -132,6 +133,8 @@ void CMacro::OnSend(int type, int sub)                  // 0x084a88aa
         {
             NextCmd();
         }
+        break;
+    }
     }
 }
 

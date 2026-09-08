@@ -1711,6 +1711,7 @@ StatChangeInfo CStackableItem::GetStatChangeInfo()
 // ORIG 0x08694746 (W 非 const)：flds +0x2e8 —— 返回经验加成比例(float)
 float CStackableItem::GetExpAffectRatio()
 {
+    // 残差 1 条：4.4 取址恒 add $0x2e8 前置（N18a 族），ORIG 为 disp 直读。
     return *(float*)&m_int2e8;
 }
 

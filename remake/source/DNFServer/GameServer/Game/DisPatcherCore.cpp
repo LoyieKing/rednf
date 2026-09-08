@@ -6213,12 +6213,11 @@ int DisPatcher_Compound::dispatch_sig(CUser* user, PacketBuf& packet)
     // ORIG +0x1c8..+0x1f5：右→左求值 count(movzwl 两段→%ecx)、type==1（`cmp $1,%al;
     // sete %al; movzbl %al,%edx` bool 物化经具名量传参，技9）、itemId(→%eax)；
     // 分支 `cmpl $0,-0xc; jle fail岛` ⇒ 成功 guard 块是 fall-through（技17）。
-    // P168a-②：ORIG `movzbl -0xf,%eax; cmp $0x1,%al; sete %al; movzbl %al,%edx` =
-    // `sete %al` 岛形 → register bool asm("al") 直产（dl 绑定反产 mov$1/$0 岛）。
-    register bool isOneType asm("al");
-    isOneType = (msg.m_type == '\x01');
+    // ORIG 实参求值右→左：count(movzwl→ecx) 先、type==1(sete 岛→edx) 次、
+    // itemId(→eax) 最后——实参内联表达式直产（register asm 强制提前反致
+    // movzwl/sete 块序倒置）。
     int local_10 = user->compound_item(static_cast<int>(msg.m_itemId),
-                                       isOneType, msg.m_count, 0x1b);
+                                       msg.m_type == '\x01', msg.m_count, 0x1b);
     if (local_10 > 0)
     {
         PacketGuard local_30;

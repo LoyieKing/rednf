@@ -126,15 +126,16 @@ int TaiwanCash::purchase(unsigned long long uid, int price, int pay,
     if (!checkResultCode(query.m_resultCode))
         return query.m_resultCode;
 
-    trans.m_field0 = query.m_trans.m_field0;
-    trans.m_tranNo = query.m_trans.m_tranNo;
+    // [b27L8] ORIG 0x08173a00：12B 结构整体赋值 dest 缓存形（mov %edx,(%eax)
+    // 三连）+ N2S 返回 %ebx 跨 ctor 保活（mov %eax,%ebx 两步）⇒ 整体赋值+register。
+    trans = query.m_trans;
 
     // ORIG：NumberToString(trans.m_tranNo) + cMyTrace("[Taiwan, Billing] PurchaseQuery
     // Account:%s, Charac:%s, Price:%d, Transaction:%s")。此处保留等价 trace 面，
     // 经由 cMyTrace（GameTypes.h 局部实现）输出。【推断：等价日志】
     // ORIG 0x08173a00 直调 NumberToString(trans.m_tranNo,0)（禁 snprintf 替代）。
     {
-        char* tranStr = NumberToString(
+        register char* tranStr asm("ebx") = NumberToString(
             static_cast<unsigned long long>(trans.m_tranNo), 0);
         cMyTrace trace(__FUNCTION__, 0x81, 0);
         trace("[Taiwan, Billing] PurchaseQuery Account:%s, Charac:%s, Price:%d, Transaction:%s",
@@ -163,9 +164,6 @@ namespace WongWork { namespace IPG {
 
 CIPGMgr::CIPGMgr(IIPGHelperInterface* helper)
     : m_workers(0),
-      m_workerCount(0),
-      m_param2(0),
-      m_reqQueue(),
       m_resQueue(),
       m_pool(1000),
       m_helper(helper),
@@ -348,12 +346,12 @@ int TaiwanCash::gift(unsigned long long uid, int price, int pay,
     if (!checkResultCode(query.m_resultCode))
         return query.m_resultCode;
 
-    trans.m_field0 = query.m_trans.m_field0;
-    trans.m_tranNo = query.m_trans.m_tranNo;
+    // [b27L8] ORIG 0x08173b20：12B 结构整体赋值 dest 缓存形 + N2S %ebx 保活。
+    trans = query.m_trans;
 
     // ORIG +0x0bf 直调 NumberToString(m_tranNo,0)（禁 snprintf 替代，P167 判据）。
     {
-        char* tranStr = NumberToString(
+        register char* tranStr asm("ebx") = NumberToString(
             static_cast<unsigned long long>(trans.m_tranNo), 0);
         cMyTrace trace(__FUNCTION__, 0x95, 0);
         trace("[Taiwan, Billing] GiftQuery Account:%s, SendCharac:%s, RecvCharac:%s, Price:%d, Transaction:%s",
@@ -403,11 +401,14 @@ int TaiwanCash::charge(char* p1, unsigned char serviceType, unsigned char p3,
     if (!checkResultCode(query.m_resultCode))
         return query.m_resultCode;
 
-    trans.m_field0 = query.m_trans.m_field0;
-    trans.m_tranNo = query.m_trans.m_tranNo;
+    // [b27L8] ORIG 0x08173972 为 12B 结构整体赋值形（dest 缓存 + 3 连 mov，
+    // BillTransaction 平凡 POD）；逐字段两行赋值出 dest 重载形（P195/P206 族）。
+    trans = query.m_trans;
 
     {
-        char* tranStr = NumberToString(
+        // ORIG 0x081739a3: N2S 返回经 %ebx 跨 cMyTrace ctor 保活（mov %eax,%ebx
+        // → mov %ebx,0x14(%esp) 两步）；具名普通局部 4.4 落槽三步 ⇒ register。
+        register char* tranStr asm("ebx") = NumberToString(
             static_cast<unsigned long long>(trans.m_tranNo), 0);
         cMyTrace trace(__FUNCTION__, 0xce, 0);
         trace("[Taiwan, Billing] ChargeQuery Account:%s, Price:%d, Transaction:%s",
@@ -454,11 +455,11 @@ int TaiwanCash::purchase(unsigned long long uid, int price, int pay,
     if (!checkResultCode(query.m_resultCode))
         return query.m_resultCode;
 
-    trans.m_field0 = query.m_trans.m_field0;
-    trans.m_tranNo = query.m_trans.m_tranNo;
+    // [b27L8] ORIG 0x081738e6：12B 结构整体赋值 dest 缓存形 + N2S %ebx 保活。
+    trans = query.m_trans;
 
     {
-        char* tranStr = NumberToString(
+        register char* tranStr asm("ebx") = NumberToString(
             static_cast<unsigned long long>(trans.m_tranNo), 0);
         cMyTrace trace(__FUNCTION__, 0x6e, 0);
         trace("[Taiwan, Billing] PurchaseQuery Account:%s, Charac:%s, Price:%d, Transaction:%s",

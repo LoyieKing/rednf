@@ -2515,14 +2515,22 @@ void CUser::DecreaseGuildPowerWarPoint(unsigned int point)
 
 bool CUser::is_fighting()   // CUser.h:2556 已 bool 化（Main 落，ORIG 0x867ed68 尾 mov$0/$1 直返 + caller test %al 无 setne）
 {
-    int state = m_chState;
-    if ((unsigned)state > 10)
-        return false;
-    int bit = 1 << state;
+    register int bit;   // 跨标签 goto 用无初始化 POD（P177）
+    // ORIG 0x867ed68：无 state/bit 槽（P0 全寄存器直通）——ja 直跳后置 zero 块、
+    // 两 mask 岛（mov$1/mov$0）后置共享（goto 形复现 jcc 方向与块序）；
+    // (bit&0xdf)!=0 与 fall 同值返 0 = 死块照抄（P171）。残差：ORIG shl 源 eax
+    // 单读直通 + ebx→eax→edx 双中转（N18a/寄存器直通跨版本）。
+    if ((unsigned)m_chState > 10)
+        goto zero;
+    bit = 1 << (int)m_chState;
     if ((bit & 0x720) != 0)
-        return true;
+        goto one;
     if ((bit & 0xdf) == 0)
-        return false;
+        goto zero;
+    return false;
+one:
+    return true;
+zero:
     return false;
 }
 
@@ -2573,7 +2581,9 @@ int CUser::get_aura_avatar_option_value(int idx)
     nul = (getCurCharacR() == 0);
     if (nul)
         return -1;
-    if (idx < 0 || idx > 2)   // ORIG 双 mem cmp（js+jg）；unsigned 合并形反产 jbe+岛
+    if (idx < 0)              // ORIG 双 mem cmp（js+jg）各跳共享尾块（P133 独立守卫）
+        return -1;
+    if (idx > 2)
         return -1;
     return (&getCurCharacR()->m_auraValue0)[idx];
 }
@@ -5752,11 +5762,10 @@ bool CUser::isDuplicationMessage(const std::string& msg)
 {
     // ORIG 0x08688826：比较实参 = `lea 0x79664/0x79668(%eax),%edx` + `mov %eax,
     // 0x4(%esp)` ⇒ **m_str[i] == msg**（str 在左占 this 槽，原 msg==str 反序）；
-    // idx 单 byte 槽 -0x9 + `movsbl %al,%eax` 原地（具名 slot 指针中转变量多占
-    // -0xc/-0xd 两槽致帧与序全偏，技巧 36 删中转）。
+    // ORIG -0x9 槽 = dup 结果槽；索引无槽——`movzbl 0x7966c; movsbl %al,%eax`
+    // 原地（(char) 有符号 cast 内联，具名 idx 局部多占槽致 dup 漂到 -0xa）。
     bool dup = (m_str79664[0] == msg) || (m_str79664[1] == msg);
-    unsigned char idx = m_dupMsgSlotIdx;
-    m_str79664[idx] = msg;   // 写址 this+0x79664+idx*4（Ghidra (idx+0x1e598)*4 换算）
+    m_str79664[(char)m_dupMsgSlotIdx] = msg;   // 写址 this+0x79664+idx*4（Ghidra (idx+0x1e598)*4 换算）
     m_dupMsgSlotIdx = m_dupMsgSlotIdx ^ 1;   // ORIG 0x8688?? `mov 0x8; movzbl 0x7966c` 重读成员
     return dup;
 }
@@ -6018,11 +6027,13 @@ void CUser::add_inventory_item(unsigned int itemId)
 	((InterfacePacketBuf*)&packet)->put_header(0, 0xe);
 	((InterfacePacketBuf*)&packet)->put_byte(0);
 	((InterfacePacketBuf*)&packet)->put_short(1);
-	if (getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, slot, packet))
-	{
-		((InterfacePacketBuf*)&packet)->finalize(true);
-		Send(packet);
-	}
+	// ORIG 0x0865cb??：`call; xor $1,%eax; test %al,%al; jne 尾` = if(!f()) goto
+	// 尾出口反形（4.4 正向 if 生 test/je 无 xor）。
+	if (!getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, slot, packet))
+		goto done;
+	((InterfacePacketBuf*)&packet)->finalize(true);
+	Send(packet);
+done:;
 }
 
 void CUser::send_MissionList()
@@ -10395,7 +10406,17 @@ bool CUser::GetCharacInfo(SIG_LOAD_CHARAC* sig) const
 }
 
 // ORIG T 0x0864d646：填充 SIG_LOAD_INVENTORY 的背包/金币/装备镜像/cargo/avatar 区。
-int CUser::GetInventory(SIG_LOAD_INVENTORY* sig)
+// creature tail 视图：&m_invenType3+0x38b6 = sig+0x12787（ORIG 单条 add，4.4 对
+// 成员地址+常量恒拆双 add ⇒ P82 常量视图折叠单 lea）。
+namespace
+{
+struct SIG_LI_CreatureTailView
+{
+    char m_pad[0x12787];
+    char m_tail[0xf4];
+};
+}   // namespace
+bool CUser::GetInventory(SIG_LOAD_INVENTORY* sig)
 {
     // P183：ORIG 每字段访问独立 getCurCharacInvenR()/getCurCharacCargoR() 重物化
     //（P167 缺 getCurCharacInvenR×11 + getCurCharacCargoR×1），禁指针缓存。
@@ -10410,41 +10431,45 @@ int CUser::GetInventory(SIG_LOAD_INVENTORY* sig)
     memcpy(&sig->m_equipMirror, getCurCharacInvenR()->m_invenItem, 0x53e);
     // creature tail：m_invenType3 区内 +0x38b6 跨条目 0xf4 B（源 m_invenItem[22..25]，
     // ORIG 0x0864d646 忠实保留跨对齐写）。
-    memcpy((char*)&sig->m_invenType3 + 0x38b6,
+    memcpy(((SIG_LI_CreatureTailView*)sig)->m_tail,
            &getCurCharacInvenR()->m_invenItem[22], 0xf4);
     getCurCharacInvenR()->GetClearAvatar((unsigned long*)&sig->m_clearAvatar);
-    sig->m_cargoCapacity =
-        (unsigned int)getCurCharacCargoR()->GetCapacity();
+    sig->m_cargoCapacity = getCurCharacCargoR()->GetCapacity();   // 同型直存（GetCapacity 已 unsigned 化）
     getCurCharacCargoR()->get_cargo(&sig->m_cargo);
     sig->m_avatarCoin = getCurCharacInvenR()->m_avatarCoin.Get();   // CInventory::m_avatarCoin@+0x658
     sig->m_inventoryCapacity = getCurCharacInvenR()->get_inventory_capacity();
-    return 1;
+    return true;
 }
 
 // ORIG T 0x0864d4ba：填充 SIG_LOAD_INVENTORY（含 GetInventory + creature + avatar + tag + rent）。
-void CUser::GetInventoryInfo(SIG_LOAD_INVENTORY* sig)
+bool CUser::GetInventoryInfo(SIG_LOAD_INVENTORY* sig)
 {
     sig->m_result = 0;
-    CExpandEquipslot* expand2 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)2);
-    expand2->getData((char*)&sig->m_locks[0]);   // 真实虚调用 getData @ vtable+8
-    CExpandEquipslot* expand9 = GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)9);
-    expand9->getData((char*)&sig->m_expandEquip);
+    // ORIG 0x864d4ba：getData 虚调用 receiver 无槽（P0 内联右值直通
+    // `mov (%eax),%edx; add $8; mov (%edx),%ecx; call *%ecx`）——具名 expand
+    // 局部落 -0x14/-0x10 槽生槽化 DIFF。
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)2)->getData(
+        (char*)&sig->m_locks[0]);   // 真实虚调用 getData @ vtable+8
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)9)->getData(
+        (char*)&sig->m_expandEquip);
 
     // X 族定稿（2026-09-05 CUserC8，判据②直分支/③消费者齐）：ORIG 0x864d534-
     // 0x864d5b3 为三段 `call; xor $0x1,%eax; test %al,%al; jne 共享FAIL岛` 的
     // **短路直落链**（无 bFailed 暂存、无 (x^1)|| 逗号物化）——ORIG xor $1（非
     // 1 语义即真）⇒ 条件用 `== 1`（uchar 提升 int 零扩展，bool 返回会多 movzbl）；
     // GetItem 两出参指针先求值缓存 %esi/%ebx（lea 在 getCurCharacInvenR 调用前）。
-    bool failed = (GetInventory(sig) != 1) ||
-                  (getCurCharacInvenR()->GetCreatureMgrR()
-                       ->GetCreatureItem(sig) != 1) ||
-                  (((CInventory*)getCurCharacInvenR())->GetAvatarItemMgrR()->GetItem(
-                       reinterpret_cast<AvatarDetailInfo*>(&sig->m_avatarDetail),
-                       &sig->m_avatarCount) != 1);
-    if (failed)
+
+    // ORIG 三段均 `call; xor $1,%eax; test %al,%al; jne FAIL岛` = !boolcall()
+    // 直判形（P168a①）——GetInventory/GetCreatureItem/GetItem 已 bool 化；
+    // 无 bFailed 暂存槽（P198② 内联直测，帧 0x10）。
+    if (!GetInventory(sig) ||
+        !getCurCharacInvenR()->GetCreatureMgrR()->GetCreatureItem(sig) ||
+        !(((CInventory*)getCurCharacInvenR())->GetAvatarItemMgrR()->GetItem(
+              reinterpret_cast<AvatarDetailInfo*>(&sig->m_avatarDetail),
+              &sig->m_avatarCount)))
     {
         sig->m_result = 1;
-        return;
+        return false;   // ORIG FAIL 岛 mov$0
     }
 
     if (getTagCharacR() != 0)
@@ -10452,6 +10477,7 @@ void CUser::GetInventoryInfo(SIG_LOAD_INVENTORY* sig)
     removeRentalItemInfoFromInvenLoadBuf(sig, 1);
     removeRentalItemInfoFromInvenLoadBuf(sig, 2);
     sig->m_maxEquipLevel = GetCurCharacMaxEquipLevel();
+    return true;   // ORIG 成功尾 mov$1
 }
 
 // ORIG T 0x0869067c：TAG 角色背包 → TAG_CHARAC_INVEN_DATA。
@@ -11859,14 +11885,19 @@ void CUser::_processSpeicalContinuousTimeItem(unsigned int itemIdx)
     CItem* pItem = G_CDataManager()->find_item((int)itemIdx);
     if (pItem == 0)
         return;
-    if (!pItem->is_stackable())
-        return;
-    CStackableItem* stack = (CStackableItem*)pItem;
-    if (!stack->IsExpAffect())
-        return;
-    float ratio = stack->GetExpAffectRatio();
-    if (ratio > 0.0f)
-        SetExpAffectItemEffect(true, ratio);
+    // ORIG 0x08659b60：is_stackable/IsExpAffect 均正向 `test %al,%al; je 共享尾
+    // 出口`（无 xor/jne 反形）⇒ 源码正向嵌套 if（P59 反向）；ratio 槽 -0xc
+    // fstps+flds 往返；x87 fucompp/fnstsw/sahf 段属 N85 跨版本豁免。
+    if (pItem->is_stackable())
+    {
+        CStackableItem* stack = (CStackableItem*)pItem;
+        if (stack->IsExpAffect())
+        {
+            float ratio = stack->GetExpAffectRatio();
+            if (ratio > 0.0f)
+                SetExpAffectItemEffect(true, ratio);
+        }
+    }
 }
 
 // ORIG _ZN5CUser17CheckCoolTimeItemEm @ 0x0865e994 (T)
@@ -12067,9 +12098,12 @@ void CUser::incQuestPoint(int qp, int questIdx, bool send)
 // ============================================================================
 void CUser::RemoveRestrictedGoods(int state)
 {
-    std::list<int>::iterator it = std::find(m_list711ec.begin(),
-                                            m_list711ec.end(), state);
-    if (it != m_list711ec.end())
+    // ORIG 0x0864d90a：b/end/it 三迭代器各落槽 -0x10/-0x14/-0x18——end() 仅
+    // call 一次（具名 e 局部缓存，it != e 复用）；find 结果槽 sret -0x18。
+    std::list<int>::iterator b = m_list711ec.begin();
+    std::list<int>::iterator e = m_list711ec.end();
+    std::list<int>::iterator it = std::find(b, e, state);
+    if (it != e)
         m_list711ec.erase(it);
 }
 

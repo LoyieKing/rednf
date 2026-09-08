@@ -185,10 +185,10 @@ bool CHackAnalyzer::CheckHackRateByPartyCount(ENUM_HACKTYPE type, int count)
     int idx = count - 1;
     if (idx < 0 || idx > 3 || _S_HACK_CHECK_RATE_BY_PARTYCOUNT[idx] == 100)
         return true;
-    // [N 归因] ORIG 尾形 setle+test+mov$1/$0（无槽 bool 临时规范化）；本
-    // toolchain gcc4.4.7 对所有具名 bool 中间形均物化槽读（cmpb/movzbl，probe
-    // 7 形实证），三目形被折叠为 setle 直返——跨版本 lowering 差，判 NEAR 收。
-    return get_rand_int(100) <= _S_HACK_CHECK_RATE_BY_PARTYCOUNT[idx];
+    // ORIG 尾段 if 常量岛（同 CheckHackRateByDifficult b27 判定）。
+    if (get_rand_int(100) <= _S_HACK_CHECK_RATE_BY_PARTYCOUNT[idx])
+        return true;
+    return false;
 }
 
 bool CHackAnalyzer::CheckHackRateByDifficult(ENUM_HACKTYPE type, int lvDiff,
@@ -211,7 +211,10 @@ bool CHackAnalyzer::CheckHackRateByDifficult(ENUM_HACKTYPE type, int lvDiff,
     chance -= _S_HACK_CHECK_RATE_BY_DIFFICULT[difficult];
     if (chance <= 0x18 && (int)type != 0x86)
         chance = 0x19;
-    return get_rand_int(100) <= chance;
+    // ORIG 尾段 if 常量岛（setle 后 je mov$1/jmp/mov$0 块形，非 setcc 直返）。
+    if (get_rand_int(100) <= chance)
+        return true;
+    return false;
 }
 
 void CHackAnalyzer::AddCheckRateHackTypeList()
@@ -438,11 +441,14 @@ void CHackAnalyzer::_analyzeDifficultyHack(char level)
 void CHackAnalyzer::_analyzeMemoryHack(unsigned int val)
 {
     // ORIG 0x080f7dce（_analyzeMemoryHack.md）。
+    // ORIG je/jne 双侧汇入统一 leave（P63 共享出口）：if(!=0&&val){body} 形
+    // 消除 4.4 jmp/nop 中继（探针 f2 形）。
     if (checkCollectedHack(REPORT_4_HACK_FLAG_MEMORY))
         return;
-    if (val == 0)
-        return;
-    _addHackInfo(REPORT_4_HACK_FLAG_MEMORY, (ENUM_HACKTYPE)0x3bc, (int)val);
+    if (val != 0)
+    {
+        _addHackInfo(REPORT_4_HACK_FLAG_MEMORY, (ENUM_HACKTYPE)0x3bc, (int)val);
+    }
 }
 
 void CHackAnalyzer::_analyzeEquipmentUpgradeHack(unsigned short const* table)
@@ -459,6 +465,9 @@ void CHackAnalyzer::_analyzeEquipmentUpgradeHack(unsigned short const* table)
         // 槽数组、+0x1c 为背包 ptr 槽区基址裸偏移跳入槽项；语义承载 = 槽序列
         // （§5.3 未建模子对象占位 / 序列化缓冲豁免，GetUpgrade 具名访问槽内字段）。
         // ORIG 地址链三步（imul;+0x10;+inv;+0xc）无槽中转 ⇒ this 内联表达式。
+        // [b27 封顶] 唯一残差 = 寻址链寄存器序：ORIG i→imul→+0x10→+inv→+0xc
+        // （eax 单承载），4.4 恒 inv 先载 + 0x1c 常量合并 + edx 双承载（分组
+        // 括号/中间指针/局部 off 三形探针 45/46 均不匹配），N18a/N81 族。
         if (((const Inven_Item*)((char const*)inv + (i * 0x3d + 0x10) + 0xc))
                 ->GetUpgrade() != table[i])
         {
@@ -492,8 +501,10 @@ void CHackAnalyzer::_analyzeMonsterDieHack()
         _addHackInfo(REPORT_4_HACK_FLAG_MONSTER_DIE, (ENUM_HACKTYPE)0x3c0,
                      m_field24 - m_field20);
     }
-    // [N 归因·在册] 尾部残余一条重复 jmp：checkCollectedHack then 块
-    // 「空 then [nop;jmp] 尾结构」跨版本 lowering（见在册 N），语义等价。
+    // [b27 封顶] 残余 = 尾部多 1 组 [nop;jmp]（87 vs 89）：addHackInfo 后
+    // 双出口「jmp;nop;jmp;nop」4.4 lowering（if(it==e) 块 + 空 then 出口
+    // 两形均复现 ORIG 单 [jmp;nop]，探针对照无效），在册 N 跨版本 lowering，
+    // 语义等价。
 }
 
 void CHackAnalyzer::analyzeMonsterDieHack()

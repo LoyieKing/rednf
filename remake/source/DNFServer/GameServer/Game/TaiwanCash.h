@@ -159,12 +159,17 @@ public:
     {
         Guard<Mutex> guard(&m_mutex);
         increaseRequest();
-        // 嵌套正向形：4.4 出 test;je 链 + 共享后置失败块（ORIG 0x08173f0c 同形）。
-        if (query.setQuery(m_mysql)) {
-            if (query.execQuery(m_mysql)) {
-                return query.getResult(m_mysql);  // ORIG 透传形（bool 化后 mov %eax,%ebx）
-            }
-        }
+        // [b27L8] ORIG（各实例 0x0817xxxx）为 bool ok 常量岛汇聚形：
+        // call setQuery/execQuery; test;je → mov $1,%eax; jmp join; mov $0,%eax;
+        // join: test %al → getResult 直传 ebx / false。探针 l8_probe4 V5
+        // （register bool ok = a&&b; if(ok)）4.4 出同形且 ok 保持寄存器
+        // 直测（ORIG join: test %al,%al 无槽；asm("ebx") 4.4 直测 %al——
+        // asm("eax") 反生 mov %eax,%ebx 中转，探针 pb6/pb7）；
+        // 嵌套 if 形出直跳链无岛。
+        register bool ok asm("ebx") =
+            query.setQuery(m_mysql) && query.execQuery(m_mysql);
+        if (ok)
+            return query.getResult(m_mysql);
         return false;
     }
 

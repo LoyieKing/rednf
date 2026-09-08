@@ -117,10 +117,13 @@ bool CBattle_Field::checkClearedNamedMonsterMap(unsigned char idx, int uid)
 void* CDataManager::get_hellparty_groupOrder_map(int idx)
 {
     HellPartyGroupOrderMapPool* pool = Get_instance_groupOrder_map_pool();
-    HellPartyGroupOrderMapPool::iterator it = pool->find(idx);
-    if (it == pool->end())
-        return NULL;
-    return &it->second;                           // pair<const int, ...>+4
+    // ORIG：it 先默认构造（C1Ev），find 按值返回到临时槽再赋值（4.1 无 copy-elision）；
+    // 判定用 operator!=，命中分支 fall-through，NULL 块在尾部。
+    HellPartyGroupOrderMapPool::iterator it;
+    it = pool->find(idx);
+    if (it != pool->end())
+        return &it->second;                       // pair<const int, ...>+4
+    return NULL;
 }
 
 // ==================================================================
@@ -275,11 +278,14 @@ int CBattle_Field::getAddChampionMobCnt()
 
     // CMap+0x12c 非 1 时按密度掷点追加一只。ORIG setg 物化→密度比较独立
     // register bool 物化（P194）。
-    register bool denser asm("al") =
-        (baseCnt * 100 / (m_mapHeight * m_mapWidth) > get_rand_int(100));
-    if (!m_pMap->m_12c && denser)
+    // ORIG 0x08301xx 序：先测 m_12c（xor$1/test/je），后算 denser
+    // （0x18c Width 先载 ecx、0x190 Height 后载 ebx、setg 物化）——嵌套 if 形。
+    if (m_pMap->m_12c == 0)
     {
-        championCnt += 1;
+        register bool denser asm("al") =
+            (baseCnt * 100 / (m_mapWidth * m_mapHeight) > get_rand_int(100));
+        if (denser)
+            championCnt += 1;
     }
     return championCnt;
 }

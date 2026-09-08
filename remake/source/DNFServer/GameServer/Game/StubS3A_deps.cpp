@@ -269,6 +269,7 @@ CItemMakingSkill::CItemMakingSkill()
 {
     // ORIG 0x08545125：time(0) → operator new(0x9c8) → CMTRand(seed)
     unsigned long seed = time(0);
+    // ORIG 0x08545134：lea -0x1c,%esi —— 4.4 对实参 &seed 表达式自然产 lea（P0）。
     m_rand = new CMTRand(seed);
 }
 

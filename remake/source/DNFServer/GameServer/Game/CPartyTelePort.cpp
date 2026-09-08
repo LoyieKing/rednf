@@ -28,7 +28,9 @@ struct TeleportEffect
 // ORIG W 0x0822d764：memset(this,0,4)
 void stPartyTelePort::reset()
 {
-    memset((char*)this, 0, 4);
+    // P68：ORIG 0x0822d764 实参序「0x4→0x0→this」＝ 无 cast 形（cast 引发
+    // 4.4 先载 this）。
+    memset(this, 0, 4);
 }
 
 unsigned char stPartyTelePort::get_teleport_village() const

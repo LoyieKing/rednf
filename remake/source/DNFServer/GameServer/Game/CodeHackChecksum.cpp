@@ -145,6 +145,9 @@ CodeHackChecksumEx::CodeHackChecksumEx()                  // T @0x0808a700
 {
     std::memset(m_fileName, 0, sizeof(m_fileName));       // memset(this+0xc,0,0x104)
     std::memset(&m_range, 0, sizeof(m_range));            // memset(this+0x110,0,8)
+    // ORIG 0x0808a74f..0x0808a766：memset 后对 m_range 两 int 预清直写（0x114 先/0x110 后）。
+    m_range.m_size = 0;
+    m_range.m_start = 0;
 }
 
 CodeHackChecksumEx::~CodeHackChecksumEx()                 // T @0x0808a76c
@@ -157,6 +160,9 @@ CodeHackChecksumEx::CodeHackChecksumEx(const CodeHackChecksumEx& other)        /
     , m_range(other.m_range)
 {
     std::memcpy(m_fileName, other.m_fileName, sizeof(m_fileName));
+    // [N84 判词] ORIG 0x08575f10 该拷贝为 rep movsl 0x41 展开（4.1 常量尺寸
+    // 大块拷贝启发式）；4.4.7 -O0 恒 call memcpy（探针 z1/z2：循环 int/char
+    // 形均不折叠）。源形不可择，语义等价，N 封顶。
 }
 
 void CodeHackChecksumEx::SetFileName(const char* name)    // T @0x0808a7ae
@@ -181,23 +187,25 @@ CodeHackCheckRange* CodeHackChecksumEx::GetCodeHackCheckRange()                 
 //             movzbl/movsbl 有符号读取转写）。
 void CodeHackChecksumEx::setData(const char* serialized)
 {
-    const unsigned char* p = reinterpret_cast<const unsigned char*>(serialized);
-    int nameLen = static_cast<signed char>(*p);           // movzbl+movsbl
-    p += 4;                                               // addl $0x4,0xc(%ebp)
-    std::strncpy(m_fileName, toTString(reinterpret_cast<const char*>(p)), nameLen);
-    p += nameLen;                                         // 名称缓冲推进
-    std::memcpy(&m_range, p, sizeof(m_range));            // memcpy(this+0x110,__src,8)
-    p += 8;                                               // addl $0x8,0xc(%ebp)
-    int count = static_cast<signed char>(*p);             // local_14 = (signed char)*__src[8]
-    p += 4;                                               // addl $0x4
+    // ORIG 直接推进形参槽（addl $0x4,0xc(%ebp)）——下文直接以 serialized 使用。
+    int nameLen = static_cast<signed char>(*serialized);  // movzbl+movsbl
+    serialized += 4;                                      // addl $0x4
+    std::strncpy(m_fileName, toTString(serialized), nameLen);
+    serialized += nameLen;                                // 名称缓冲推进
+    std::memcpy(&m_range, serialized, sizeof(m_range));   // memcpy(this+0x110,__src,8)
+    serialized += 8;                                      // addl $0x8
+    int count = static_cast<signed char>(*serialized);    // local_14
+    serialized += 4;                                      // addl $0x4
     for (int i = 0; i < count; ++i)
     {
         // ORIG 循环体仅 memcpy 到栈缓冲 + Add（无 entry 构造——ORIG 的
         // CodeHackChecksum ctor 为弱符号从未被调用）；reinterpret 避免 C1/D1。
         unsigned char buf[0x20];
-        std::memcpy(buf, p, sizeof(buf));                 // memcpy(local_34,p,0x20)
-        p += 0x20;                                        // addl $0x20
+        std::memcpy(buf, serialized, sizeof(buf));        // memcpy(local_34,p,0x20)
+        serialized += 0x20;                               // addl $0x20
         AddCodeHackChecksum(*reinterpret_cast<CodeHackChecksum*>(buf));  // push_back
+        // [N 残差] ORIG 0x0808a894 实参 lea -0x34 在 this 装载之后（mov 0x8(%ebp),%eax
+        // 先）；4.4 恒 lea 先/this 后（N76 store 载入序族，实参地址先形），源形不可择。
     }
 }
 

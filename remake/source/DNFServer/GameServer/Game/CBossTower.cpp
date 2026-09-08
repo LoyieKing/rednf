@@ -83,13 +83,27 @@ int CBossTower::handleDieUser(CUser* user)
 //   无成员 → _destroy 并返回 0；（party 空或全员死）→ onFinishStage +
 //   _onPrepareFinishTower(false)；否则按人数 switch 写 m_difficulty(+0xae8)
 //   （1..4 → 0..3）；返回 1。
-int CBossTower::handleLeaveUser(CUser* user)
+// [b27 DL3R 复核判词 N 封顶] 177:176。已翻案两处（diff 行 135→129）：
+//   ① CBossPlay::handleLeaveUser 返回类型 int→bool（ORIG 本函数 0x08143b04
+//     `call; test %al,%al; je` 单字节直判 ⇒ callee bool/uchar；callee 行数
+//     128:131 int/bool 实测无差，零成本）；头段 `==0`/`!f()` 在 4.4 恒产 xor
+//     物形，改正向包裹形（body 入 if 块 + 尾共享 `return 0` 岛）后 xor 消失、
+//     je 直达尾岛 fall-through 与 ORIG 同形。② switch 前 `int members =
+//     get_member_count()` 具名局部复现 ORIG `mov %eax,-0x1c; mov -0x1c,%eax`
+//     槽往返（P0）。残余均为在册 N：成员名表清零展开 1B peel 段+基址 -0x11d
+//     奇数槽（N82/P95 帧槽基差）；finishNow 布尔物化 ORIG 落 eax 常量岛无槽
+//     vs 4.4 bool 局部必占槽（N82/N18b 族）；`call *%eax` vs ORIG `*%edx`
+//     （N7）；m_difficulty 读 ORIG eax→ebx 两步 vs 4.4 直落 ebx（N18a）；
+//     histTrace/partyType 槽号 ±1 平移（N82）。
+bool CBossTower::handleLeaveUser(CUser* user)
 {
     if (user == 0)
         return 0;
-    if (!CBossPlay::handleLeaveUser(user))
-        return 0;
-
+    // [b27 DL3R 形探针 f1] ORIG 0x08143b04 `call; test %al,%al; je <尾部共享
+    // mov$0 岛>`（无 xor、je 直达 fall-through 岛）。4.4 对 `==0`/`!f()` 均产
+    // xor 物形 ⇒ 改正向包裹：body 落 if 内，`return 0` 收敛为块后岛。
+    if (CBossPlay::handleLeaveUser(user))
+    {
     char memberNames[255] = "";               // ebp-0x11d（内联展开清零 0xff）
 
     const char partyTypeByte =
@@ -104,10 +118,10 @@ int CBossTower::handleLeaveUser(CUser* user)
     histTrace("member_count : %d", m_party->get_member_count());
 
     if (m_party == 0 || m_party->get_member_count() < 1)
-    {
+        {
         _destroy();
         return 0;
-    }
+        }
 
     bool finishNow = false;
     if (m_party == 0)
@@ -116,13 +130,16 @@ int CBossTower::handleLeaveUser(CUser* user)
         finishNow = true;
 
     if (finishNow)
-    {
+        {
         onFinishStage();
         _onPrepareFinishTower(false);
-    }
+        }
     else
-    {
-        switch (m_party->get_member_count())
+        {
+            // ORIG 0x08143cbc `call; mov %eax,-0x1c; mov -0x1c,%eax; cmp $2`：
+            // 槽往返 ⇒ 原码具名局部（P0），switch 条件不直调。
+            int members = m_party->get_member_count();
+            switch (members)
         {
         case 1:
             m_difficulty = 0;
@@ -138,9 +155,11 @@ int CBossTower::handleLeaveUser(CUser* user)
             break;
         default:
             break;
-        }
     }
+        }
     return 1;
+    }
+        return 0;
 }
 
 // ORIG T 0x08143996：
@@ -196,7 +215,9 @@ bool CBossTower::handleDropItem(CUser* user, int a, int b, char c, int d, int e)
 int CBossTower::handleKillMonster(CUser* user, unsigned short a, unsigned short b,
                                   const MSG_MONSTER_DIE& die, int* d)
 {
-    if (!CBossStage::handleKillMonster(user, a, b, die, d))
+    // ORIG mov %al,-0x9 截断 + xor$1 槽化判定（第57件同款）。
+    char killed = (char)CBossStage::handleKillMonster(user, a, b, die, d);
+    if (!killed)
         return 0;
     if (m_stageData.m_monsterMap.empty())
     {
@@ -230,8 +251,12 @@ int CBossTower::handlePickupItem(CUser* user, int a, bool b, char c)
         return 0;
     }
 
+    // ORIG mov %al,-0x9 槽化。char 中转（mov %al 截断）已消 setne 物化；
+    // bool 中转生 setne（+2），本形残差最小（82:80）。
     char serverRarity = 0;   // ebp-0x1d
-    if (!CBossStage::handlePickupItem(user, a, b, serverRarity))
+    char picked;             // ORIG -0x9 槽（mov %al 截断形）
+    picked = (char)CBossStage::handlePickupItem(user, a, b, serverRarity);
+    if (!picked)
         return 0;
 
     if (serverRarity != c)

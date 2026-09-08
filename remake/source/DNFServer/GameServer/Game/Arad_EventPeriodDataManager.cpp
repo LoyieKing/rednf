@@ -70,11 +70,7 @@ void Arad_EventPeriodDataManager::addUserRewardData(
     {
         EventRewardItemArad item(sig.m_eventCodes[i], user->get_acc_id(),
                                  sig.m_characNos[i]);
-        if (!isRewarded(item))
-        {
-            addUserRewardData(user, item);
-        }
-        else
+        if (isRewarded(item))
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_EventPeriodDataManager.cpp",
@@ -83,6 +79,10 @@ void Arad_EventPeriodDataManager::addUserRewardData(
                 0xe3,
                 "[FnReward] already reward item. (mid:%u, charac:%u, event:%d)",
                 user->get_acc_id(), user->get_charac_no(-1), sig.m_eventCodes[i]);
+        }
+        else
+        {
+            addUserRewardData(user, item);
         }
     }
 }

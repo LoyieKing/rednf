@@ -105,6 +105,9 @@ void IItemUpgrade::item_upgrade_system(CUser* user, MSG_ITEM_UPGRADE* msg, int c
     PacketGuard pg;
     pg.put_header(1, cmd);
     result = this->ProcUpgrade(user, msg, &pg);
+    // [b27 封顶] 残差：ORIG 槽比零 sete 物化（P197④ 反形）；4.4 直形恒 jne
+    // 直跳，bool 中转形反多 cmpb 槽读（实测 +3）——sete 形不可造。
+    // 另虚调用 call 目标 ORIG %edx vs 4.4 恒 %eax（N7）。
     if (result == 0)
     {
         pg.finalize(true);

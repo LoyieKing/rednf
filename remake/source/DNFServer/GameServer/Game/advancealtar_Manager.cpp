@@ -699,13 +699,12 @@ int CharacAdvanceAltarManager::resetSlot(advancealtar::AdvanceAltarData& cur,
     {
         return 3;
     }
-    std::map<unsigned char, _Slot>::iterator it =
-        slots->find(static_cast<unsigned char>(data.m_field4));
+    std::map<unsigned char, _Slot>::iterator it = slots->find(data.m_field4);
     if (it == slots->end())
     {
         return 2;
     }
-    if (it->second.m_byte0 == 1)
+    if (it->second.m_byte0 == 1)   // 残差 xor/test vs cmp/sete 属 setcc-fold 负例（探针 (x^1)==0 仍折）
     {
         return 2;                          // 锁定槽
     }
@@ -1049,8 +1048,10 @@ AdvanceAltarData* CharacAdvanceAltarManager::getAdvanceAltarDataByIndex(int idx)
     {
         return 0;
     }
-    return reinterpret_cast<AdvanceAltarData*>(
-        reinterpret_cast<char*>(this) + idx * sizeof(AdvanceAltarData) + 4);
+    // ORIG：mov 0xc(%ebp),%eax; imul $0xd0,%eax,%eax; add 0x8(%ebp),%eax; add $0x4,%eax
+    //（getAdvanceAltarDataByIndex.md）。成员数组下标寻址（同 setCurrentAdvanceAltarData
+    // 的 m_data[i] 自然寻址形）；char* 乘法+加 4 混排会触发 4.4 恒折 (i*0x34+1)<<2。
+    return &m_data[idx];
 }
 
 // ---- ORIG T 0x08131254（setCurrentAdvanceAltarData.md 全文）----
@@ -1173,7 +1174,7 @@ bool CharacAdvanceAltarManager::clearStage(int stageIdx, StageDifficulty::T diff
                                            bool& bOut)
 {
     unlockBuy = false;   // ORIG 首指令 *param_7=0（其余引用路径不改写）
-    AdvanceAltarData* cur = getCurrentAdvanceAltarData();   // *(int*)this 判空
+    AdvanceAltarData* cur = m_currentAdvanceAltarData;   // ORIG 0x813176a mov (%eax) 直读 this+0（无 getter call）
     if (cur == 0)
     {
         return false;

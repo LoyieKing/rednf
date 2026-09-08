@@ -391,8 +391,8 @@ int importSpPerLevelReferenceTable(const char* path, stSpPerLevelTable& table)
 //                              {+0xc,+8,+0} 三 int，自增键插入 +0x170。
 // loadRDARScriptFile 失败→false；其余路径均 true。
 // ============================================================================
-bool importGenuineUpgradeTable(const char* path,
-                               GenuineDamageUpgradeTable* table)
+int importGenuineUpgradeTable(const char* path,
+                              GenuineDamageUpgradeTable* table)
 {
     if (!loadRDARScriptFile("", path))
         return false;

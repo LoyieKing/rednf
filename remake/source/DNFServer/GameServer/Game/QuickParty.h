@@ -98,7 +98,7 @@ public:
 private:
     int m_partyIndex[4];                 // +0x00（登记的 party index，-1=空）
     int m_quickPartyIndex;               // +0x10（StaticPool 槽位）
-    unsigned char m_firstMatchingCnt;    // +0x14
+    char m_firstMatchingCnt;             // +0x14（ORIG set_first_matching_cnt 0x826b766 截断→this→movzbl 序=P33 char 成员形，uchar 成员为截断→movzbl→this 形 DIFF）
     unsigned char m_pad15;
     short m_dungeonIndex;                // +0x16
     char m_dungeonDiff;                  // +0x18

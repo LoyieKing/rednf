@@ -892,6 +892,9 @@ void CDeathTowerRanking::makeMyBestRecordPacket(unsigned int towerIdx,
                                                 unsigned int key,
                                                 PacketGuard& packet)
 {
+    // [b27 封顶] 残差（63 vs 61）：hash_map const_iterator 转换构造/迭代器
+    // 槽布局跨版本差（N86 族：4.1 临时槽+拷贝 vs 4.4 直构；find→const_iterator
+    // 转换与 it->second 槽化）——调用链/判形/序列化序全等。
     BestMap* best = _getBestRecordTable(towerIdx);
     const BestMap::const_iterator it = best->find(key);
     const BestMap::const_iterator last = best->end();
@@ -910,9 +913,18 @@ void CDeathTowerRanking::makeMyBestRecordPacket(unsigned int towerIdx,
 void CDeathTowerRanking::makeTopRankerRecordPacket(unsigned int towerIdx,
                                                    PacketGuard& packet)
 {
-    stBestRecord_t* slots = m_towers[towerIdx].m_slots;
-    for (int i = 0; i < 5; ++i)
-        _makeRecordPacket(slots[i], packet);
+    // ORIG 0x08468c68：i 从 1 起（movl $1,-0xc → cmpl $5,setle ⇒ i<=5），
+    // 槽址 = m_towers + towerIdx*0x390 + i*0x98（双 imul 直用 m_towers 基址，
+    // 不经 m_slots 具名 +0x98 偏移；具名 slots 局部会引入 add $0x90/+0x8
+    // 常量折叠与 -0x10 基址槽）。
+    // [b27] 残差：ORIG 先载 0xc(towerIdx)/-0xc(i) 后两 imul、我们 eax 预载
+    // m_towers（mov $0,%eax 常量形）且 ecx 中转——N18a 族寄存器序不可定向
+    //（探针 43 全局数组形亦多 1 条），语义/循环界/槽序已全等。
+    for (int i = 1; i <= 5; ++i)
+        _makeRecordPacket(
+            *reinterpret_cast<stBestRecord_t*>(
+                reinterpret_cast<char*>(m_towers) + (i * 0x98 + towerIdx * 0x390)),
+            packet);
 }
 
 }  // namespace WongWork

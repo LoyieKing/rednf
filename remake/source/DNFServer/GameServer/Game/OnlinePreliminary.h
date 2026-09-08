@@ -90,6 +90,8 @@ struct PlayCountInfo
 {
     PlayCountInfo() : m_count(0), m_flag(0) {}
     // ORIG ctor 0x86ca0e4：bool 直存（mov %dl,0x4），无三目规范化。
+    // DL7：尾部 this/movzbl 两 load 次序 4.4 恒 RHS 先（函数体赋值同形实测
+    // 不可翻，P112 调度不可控）⇒ N76 变体封顶。
     PlayCountInfo(unsigned int count, bool flag)
         : m_count(count), m_flag(flag) {}
 
@@ -117,6 +119,7 @@ struct PlayCountInfoEx
 {
     PlayCountInfoEx() : m_count(0), m_flag(0) {}
     // ORIG ctor 0x86ca141：bool 直存（mov %dl,0x4），无三目规范化。
+    // DL7：同 PlayCountInfo，N76 变体封顶。
     PlayCountInfoEx(unsigned int count, bool flag)
         : m_count(count), m_flag(flag) {}
 

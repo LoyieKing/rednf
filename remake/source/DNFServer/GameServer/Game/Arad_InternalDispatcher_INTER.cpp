@@ -399,6 +399,9 @@ int Arad_INTER_kAradJumpingCharacter::dispatch_sig(CUser* user, char* body, int 
 // ============================================================================
 int Arad_INTER_kAvatarHiddenOptionChange::dispatch_sig(CUser* user, char* body, int len)
 {
+    #pragma pack(push, 1)
+    struct SigHV { char m_pad0[2]; short m_f2; unsigned short m_f4; };
+    #pragma pack(pop)
     // ORIG ebx 出口寄存：各失败路径直接设值返回（检查顺序 user→sig→getCurCharacR）。
     if (user == 0)
         return 0x664;
@@ -410,7 +413,10 @@ int Arad_INTER_kAvatarHiddenOptionChange::dispatch_sig(CUser* user, char* body, 
                               0x669, "AVATAR HIDDENOPTION CHANGE INTER_DSP(SigAvatarHiddenOptionChange) null.");
         return 0x66a;
     }
-    if (user->getCurCharacR() == 0)
+    // ORIG 0x08199dx：call; test %eax,%eax; sete %al; test; je ＝ P194②
+    // `register bool z asm("al") = (x == 0); if (z)` 物化形（int callee 非 bool）。
+    register bool z asm("al") = (user->getCurCharacR() == 0);
+    if (z)
         return 0x670;
 
     // P48：ORIG 每次使用均重调 Singleton<...>::Get()，不许提升到局部。
@@ -423,8 +429,10 @@ int Arad_INTER_kAvatarHiddenOptionChange::dispatch_sig(CUser* user, char* body, 
     packet.clear();
     packet.put_header(1, 0x24c);
     packet.put_byte(1);
-    packet.put_short((int)*(short*)((char*)sig + 2));
-    packet.put_short((unsigned int)*(unsigned short*)((char*)sig + 4));
+    // ORIG movzwl 0x2(%eax)/0x4(%eax) disp 折叠＝ pack(1) 视图字段访问
+    // （(char*)sig+N 实参恒 add 分解，探针 /tmp/l18p/q2.cpp）。
+    packet.put_short((int)((const SigHV*)sig)->m_f2);
+    packet.put_short((unsigned int)((const SigHV*)sig)->m_f4);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -435,36 +443,58 @@ int Arad_INTER_kAvatarHiddenOptionChange::dispatch_sig(CUser* user, char* body, 
 // ============================================================================
 int Arad_INTER_kUseAvatarRecharge::dispatch_sig(CUser* user, char* body, int len)
 {
+    // ORIG 0x08199fxx：各失败路径 `mov $imm,%ebx; jmp end`＝ register int 出口
+    // 寄存跨 call 存活（4.1 register int→ebx；4.4 对无跨 call 生命周期的 ret 恒
+    // 内联 eax，裸 register 无效（实测）⇒ X 族 asm 绑定 %ebx（P168a/P194 先例）。
+    register int ret asm("ebx");
     if (user == 0)
-        return 0x68e;
+    {
+        ret = 0x68e;
+        goto out;
+    }
     if (user->getCurCharacR() == 0)
-        return 0x691;
-
-    arad::SigAradUseAvatarRecharge* sig = (arad::SigAradUseAvatarRecharge*)body;   // ORIG 读 0x10(%ebp)=body
-    if (sig == 0)
     {
-        LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
-                              0x696, "AVATAR USE AVATAR RECHARGE INTER_DSP(SigAradUseAvatarRecharge) null.");
-        return 0x697;
+        ret = 0x691;
+        goto out;
     }
 
-    // P48 + ORIG 寄存器出口：! 语义产生 xor $0x1 翻转；Check/Recharge 每次各自 Get()。
-    if (!Singleton<AvatarRechargeServer>::Get()->CheckConditionUseRecharge(user, sig))
-        return 0;
-    if (!Singleton<AvatarRechargeServer>::Get()->Recharge(user, sig))
-        return 0;
     {
-        PacketGuard packet;
-        packet.clear();
-        packet.put_header(1, 0x24d);
-        packet.put_byte(1);
-        packet.put_int((int)sig->enduranceAfter);       // +0x0c（操作后耐久）
-        packet.put_int(sig->addEndurance);              // +0x04（本次增加耐久）
-        packet.put_short((unsigned int)sig->avatarSlot);  // +0x00（avatar 槽）
-        packet.finalize(true);
-        user->Send(packet);
+        arad::SigAradUseAvatarRecharge* sig = (arad::SigAradUseAvatarRecharge*)body;   // ORIG 读 0x10(%ebp)=body
+        if (sig == 0)
+        {
+            LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
+                                  0x696, "AVATAR USE AVATAR RECHARGE INTER_DSP(SigAradUseAvatarRecharge) null.");
+            ret = 0x697;
+            goto out;
+        }
+
+        // P48 + ORIG 寄存器出口：! 语义产生 xor $0x1 翻转；Check/Recharge 每次各自 Get()。
+        if (!Singleton<AvatarRechargeServer>::Get()->CheckConditionUseRecharge(user, sig))
+        {
+            ret = 0;
+            goto out;
+        }
+        if (!Singleton<AvatarRechargeServer>::Get()->Recharge(user, sig))
+        {
+            ret = 0;
+            goto out;
+        }
+        {
+            PacketGuard packet;
+            packet.clear();
+            packet.put_header(1, 0x24d);
+            packet.put_byte(1);
+            packet.put_int((int)sig->enduranceAfter);       // +0x0c（操作后耐久）
+            packet.put_int(sig->addEndurance);              // +0x04（本次增加耐久）
+            packet.put_short((unsigned int)sig->avatarSlot);  // +0x00（avatar 槽）
+            packet.finalize(true);
+            user->Send(packet);
+            ret = 0;
+            goto out;
+        }
     }
-    return 0;
+out:
+    return ret;
 }
 
 // ============================================================================

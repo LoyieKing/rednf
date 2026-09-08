@@ -87,7 +87,10 @@ int EventAlttle::CheckAlreadyGetAlttleItem(unsigned int uid, int itemNo)
         return 0;
 
     int check = 0;
-    return (!db->get_int(0, check) || check == 0) ? 0 : 1;
+    // ORIG 尾段 if 块常量岛（非三目 sete 折叠）：if/return 分离形。
+    if (!db->get_int(0, check) || check == 0)
+        return 0;
+    return 1;
 }
 
 // ----------------------------------------------------------------------------
@@ -202,7 +205,15 @@ int EventSigong::CheckAlreadyGetSigongItem(unsigned int id, int itemNo)
         return 0;
 
     int check = 0;
-    return (!db->get_int(0, check) || check == 0) ? 0 : 1;
+    // ORIG 尾段（+0x7a..+0xa4）：XOR 后 jne→mov$1；check!=0 jne→mov$0；
+    // 尾 test;je→mov$1/else mov$0。语义 = if(!get_int) return 1; if(check)
+    // return 0; return 1。三目/if-else/汇聚式 5 形探针（51/三目）均被 4.4
+    // 折叠为 test汇聚+movzbl，XOR 块+常量岛不可造——N93附/setcc 同族封顶。
+    if (!db->get_int(0, check))
+        return 1;
+    if (check != 0)
+        return 0;
+    return 1;
 }
 
 // ----------------------------------------------------------------------------
@@ -314,6 +325,9 @@ int EventEverland::CheckAlreadyGetEverlandItem(unsigned int id, int itemNo)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
                                                   (ENUM_SERVER_GROUP)0);
+    // [b27] 原三目尾段改 if/return（-3 条）；唯一残差 = GetItemType==1 处
+    // 4.4 恒 sete+test 物化 vs ORIG 直 jne（探针 52/53/54 三形全同，N18b
+    // 同族跨版本 ABI）。
     if (CWebEvent::GetItemType(4, itemNo) == 1)
     {
         db->set_query("seLect coin_check from event_everland_info where id=%s", NumberToString(id, 0));

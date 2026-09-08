@@ -172,19 +172,19 @@ int CUser::customizingSkillCommand(STSkillCommandData& data)
 // 4. bool CUser::defaultSkillCommand() @0x086550ee
 bool CUser::defaultSkillCommand()
 {
+    // ORIG 0x086550ee：R=(cmds==0||empty) 常量岛 mov$1/mov$0 落 eax 直测
+    // （test %al; je body），无具名槽；空/无 → return false，非空 →
+    // clear+enableSaveSkill+return true（P56 岛形直测）。
     std::map<int, STSkillCommandData>* cmds =
         reinterpret_cast<std::map<int, STSkillCommandData>*>(
             const_cast<char*>(getSkillCommand()));
-    bool emptyOrNone = true;
-    if (cmds != 0 && !cmds->empty())
-        emptyOrNone = false;
-
-    if (!emptyOrNone)
-    {
-        cmds->clear();
-        enableSaveSkill();
-    }
-    return !emptyOrNone;
+    // R 无槽：register bool 绑 %eax（P194②/P78），4.4 常量岛直落 eax+test %al。
+    register bool emptyOrNone asm("eax") = (cmds == 0) || cmds->empty();
+    if (emptyOrNone)
+        return false;
+    cmds->clear();
+    enableSaveSkill();
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -209,8 +209,10 @@ void CUser::initAllSkill()
 {
     // ORIG 0x0868fc46：直接读 getCurCharacR()->m_field7b(+0x7b) 与
     // 0x50c79ed0 比较（setl），不经 getCurCharacLastPlayTick 转发。
-    // P0：ORIG threshold 槽预置（movl $0x50c79ed0）；SkillSlot 每次右值直调。
-    int allSkillLimit = (int)0x50c79ed0;
+    // P0：ORIG threshold 槽双写（0x0868fc5b: movl $0x50076318 后立即
+    // movl $0x50c79ed0 覆写同槽）⇒ 源码「声明=旧值 + 覆写」两句式（P197③ 族）。
+    int allSkillLimit = (int)0x50076318;
+    allSkillLimit = (int)0x50c79ed0;
     if (getCurCharacR()->m_field7b < allSkillLimit)
     {
         ((SkillSlot*)getCurCharacSkillW())->clear_all_skills((ENUM_SKILL_TREE_KIND)0);

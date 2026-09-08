@@ -30,6 +30,10 @@ namespace WongWork
 CItemUpgrade::~CItemUpgrade()
 {
     // ORIG 0x85462c6：析构 +0x4e8 的 CMTRand*（构造时 new，见 0x8546247）。
+    // [b27 封顶] 残差 = 基类析构变体展开序：ORIG 4.1 D1 全量变体（IItemUpgradeD1
+    // this+0 → TableD1 this+4），4.4 恒 D2 展开 + 显式 add $0x4（TableD2 this+4
+    // → IItemUpgradeD2 this+0）。reloc/objdump 实证两布局等价（IItemUpgrade@+0、
+    // Table@+4 无错位），跨版本 ABI 惯例不可定向。
     if (m_rand)
     {
         ::operator delete(m_rand);
@@ -395,6 +399,8 @@ bool CItemUpgrade::isDoEnchant(const Inven_Item& item, char* buf)
     // 为 buf[0]。`==0` 负向判定翻转分支极性（免 xor 物化），buf[0] 直落、buf[1]
     // 走 jne 尾岛。残余仅 `movzbl %al`+`test %eax`（4.4 uchar→int 展宽）见 N/P196
     // 注，语义正确。
+    // [b27 复证封顶] bit 测试段 ORIG and 后 test %al 8 位直测 vs 4.4 恒
+    // movzbl %al,%eax 加宽（P168a③ 同族，uchar 字段位与不可造）。
     if ((item.m_random.m_skill0.m_field & 1u) == 0u)
         bufVal = (signed char)buf[0];
     else

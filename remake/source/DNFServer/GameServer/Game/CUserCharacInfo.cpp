@@ -2153,13 +2153,13 @@ void CUserCharacInfo::calcHelpAbuseRatioBeforeLevelUp(int param)
 }
 
 
-void CUserCharacInfo::calcHelpAbuseRatio(unsigned int param, bool flag)
+void CUserCharacInfo::calcHelpAbuseRatio(unsigned int param, register bool flag)
 {
     char unused[0x24];
-    // ORIG `mov 0x10(%ebp),%eax; mov %al,-0x24(%ebp)` 单段直存；4.4 bool 形参
-    // 恒 entry spill 归一化（-0x34 槽+二段，去 (char) cast 不消）→ 跨版本 bool
-    // ABI 天花板。frame 差 = 4.1 无 param 槽。
-    unused[0] = (char)flag;
+    // ORIG `mov 0x10(%ebp),%eax; mov %al,-0x24(%ebp)` 单段直存 = 形参寄存器化
+    // （P35 探针 /tmp/l16/p8.cpp v3）：register bool 直落 unused[0]，4.4 消
+    // entry-spill 二段。残余：4.4 数组槽 16 对齐 sub $0x30 vs ORIG $0x24（1 条）。
+    unused[0] = flag;
     (void)param;
 }
 

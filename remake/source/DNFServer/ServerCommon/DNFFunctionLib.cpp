@@ -106,7 +106,7 @@ void PrintBackTrace() {
     free(symbols);
 }
 
-unsigned long StringToNumber(char const* str) {
+int StringToNumber(char const* str) {
     if (str == NULL) {
         return 0;
     }

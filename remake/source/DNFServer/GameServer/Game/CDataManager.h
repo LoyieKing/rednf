@@ -3475,7 +3475,9 @@ public:
     // ---- 其它 ----
     bool InitLoginState(ENUM_SERVER_GROUP serverGroup, int channelNo);  // ORIG _ZN12CDataManager14InitLoginStateE17ENUM_SERVER_GROUPi（0x8360306，返回 bool）
     static int loadAdvanceAltarTimeLineParameter(advancealtar::StageTimeLineParameter& param);  // ORIG 静态：调用点仅压 ref 实参（0x8359eee add $0x62d0 后单 push）
-    int init();
+    // ORIG 0x08358332：bool（AradAppSystem::script_load 调用点 xor$1/test/je
+    // bool 直判形实证 0x0817deb9；script_load 差异修复，DL7 2026-09-08）。
+    bool init();
     void destroy();
     int initRandomOptionItem();
     int initFairPVPSkillPoint();

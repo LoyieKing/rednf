@@ -982,21 +982,19 @@ bool Dispatcher_AradJumpingCharacter::checkWorkState(CUser* user,
     }
     if (sig.m_eventKind == 1)
     {
-        if (item.m_addInfo != 0x28d468)
-        {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
-            return false;
-        }
+        // ORIG 0x0819f25e：`je +0x2a4(mov$1 共享岛)`＝正向 true 直判（反向
+        // != 形产独立 mov$1;jmp 岛，4.4 jump-threading 差）。
+        if (item.m_addInfo == 0x28d468)
         return true;
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
+        return false;
     }
     if (sig.m_eventKind == 2)
     {
-        if (item.m_addInfo != 0x28d469)
-        {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
-            return false;
-        }
+        if (item.m_addInfo == 0x28d469)
         return true;
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
+        return false;
     }
     user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x11);
     return false;

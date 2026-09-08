@@ -1110,7 +1110,8 @@ public:
     char m_pad[0x2f];             // +0x00..0x2e（未命名前段，保持 CSecurityCard 真实偏移）
     bool m_activate2f;              // +0x2f（isActivate；P33 bool 字段使 setter 生成 ORIG 形态）
     bool m_certified30;             // +0x30（isCertified；同上）
-    unsigned char m_certFlag31;     // +0x31（getCertFlag/isCertFlagOn；char 源字节存储，保持 uchar）
+    char m_certFlag31;              // +0x31（getCertFlag/isCertFlagOn；ORIG setCertFlag
+                                    //   0x084ebd9a this先+movzbl回读序，探针实证 char 字段唯一匹配）
     char m_pad32[2];                // +0x32..0x33
     int m_failCnt34;                // +0x34（getFailCnt/incFailCnt）
     int m_certCnt38;                // +0x38（setSecurityCardInfo 第6参写入；getCertCnt 读）
@@ -3107,7 +3108,7 @@ public:
     // ---- 角色内存快照填充（CacheCharacterMemory 依赖；ORIG 符号，定义由 producer 提供）----
     void GetRentInfo(SIG_LOAD_INVENTORY& sig);                      // 0x086769b4
     bool GetCharacInfo(SIG_LOAD_CHARAC* sig) const;                 // 0x0864bc04
-    void GetInventoryInfo(SIG_LOAD_INVENTORY* sig);                 // 0x0864d4ba
+    bool GetInventoryInfo(SIG_LOAD_INVENTORY* sig);                 // 0x0864d4ba（P159：ORIG FAIL 岛 mov$0/成功尾 mov$1 ⇒ 非 void；mangled 无返回类型 ABI 零变）
     void GetTicket(SIG_LOAD_TICKET* sig) const;                     // 0x0867846e
     // ---- 角色内存快照填充 helper（CacheCharacterMemory 链依赖；ORIG 符号）----
     int GetPcRoomRentInfo(SIG_SAVE_PC_ROOM_RENT_ITEM* sig);         // 0x086769ea
@@ -3117,7 +3118,7 @@ public:
     int getTagCharacInfo(int idx, unsigned int characNo,
                          TAG_CHARAC_DATA* out) const;               // 0x086904f0
     bool getTagCharacInventory(TAG_CHARAC_INVEN_DATA* out) const;   // 0x0869067c
-    int GetInventory(SIG_LOAD_INVENTORY* sig);                      // 0x0864d646
+    bool GetInventory(SIG_LOAD_INVENTORY* sig);                     // 0x0864d646（ORIG 尾 mov$1 直返；调用点 xor$1/test/jne = bool callee 直判形；mangled 无返回类型 ABI 零变）
     int removeRentalItemInfoFromInvenLoadBuf(SIG_LOAD_INVENTORY* sig,
                                              int param);            // 0x0867776c
     bool GetDungeonClear(SIG_LOAD_DUNGEON_CLEAR* sig) const;        // 0x0864de58

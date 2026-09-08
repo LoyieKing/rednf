@@ -196,6 +196,8 @@ int CGMAccounts::loadGMAccounts(char const* /*path*/)
 // ORIG T 0x081093ee appendGM(unsigned,unsigned)：恒返回 0。
 int CGMAccounts::appendGM(unsigned int /*mid*/, unsigned int /*type*/)
 {
+    int dead_frame;                        // ORIG sub $0x10,%esp + leave（0x10 无读写帧）
+    (void)&dead_frame;                     // P31 dead local 帧差对齐（探针实证取址保槽）
     return 0;
 }
 
@@ -204,12 +206,16 @@ int CGMAccounts::appendGM(unsigned int /*mid*/, unsigned int /*type*/)
 void CGMAccounts::AppendGM_Sys(unsigned int mid, char type)
 {
     // ORIG：POD 直接赋值（stGMInfo_t 无用户 ctor，ORIG nm 无 C1 符号）。
-    CGMAccounts::stGMInfo_t info;
+    CGMAccounts::stGMInfo_t info = {};   // ORIG 零填 -0x18/-0x14 两槽后覆写
     info.mid = mid;
     info.type = static_cast<unsigned int>(static_cast<int>(type));
     m_gmList.push_back(info);
 
-    char* midStr = NumberToString(mid, 0);   // ORIG radix 参数为 0
+    // ORIG NumberToString → %ebx 跨 CMyFileLog ctor 保活（P44/P24 即时求值形）。
+    // [b27 封顶] 残差：帧 0x48 vs 0x34（outgoing/槽策略 N82 族）+ NumberToString
+    // 结果 %ebx（ORIG）vs -0xc 槽化（4.4 恒，N18a）；内联实参形反致 ctor/调用
+    // 次序错（ctor 先于 NumberToString）。info={} 零填已复现。维持 midStr 形。
+    char* midStr = NumberToString(mid, 0);
     CMyFileLog log("AppendGM_Sys", 0xcd);
     log("./log/Init", "GM List Add mid:%s", midStr);
 }

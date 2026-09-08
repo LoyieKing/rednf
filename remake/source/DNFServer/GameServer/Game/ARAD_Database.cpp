@@ -336,10 +336,14 @@ int CREATE_QUERY::arad_sp_create_equip(MySQL* db, SIG_CREATE_CHARAC* sig)
 // ORIG 0x0818b588：inSert into skill（+0x79 起 0x198 字节技能树 blob）。
 int CREATE_QUERY::arad_sp_create_skill(MySQL* db, SIG_CREATE_CHARAC* sig)
 {
-    char* skillBlob =
-        db->blob_to_str(0, sig->m_masteredSkillA, 0x198);   // +0x79 技能树 blob
+    // ORIG 0x818b58e：0x198 先落 -0xc 槽并被 blob_to_str 第三参读用（P0 具名
+    // 局部）；blob 返回值 eax 寄存器直传 insert 第三参（无 skillBlob 槽）。
+    int len = 0x198;
     if (db->insert("inSert into skill (charac_no, skill_slot) values(%u, '%s')",
-                   sig->m_characNo, skillBlob) != 0)
+                   sig->m_characNo,
+                   // ORIG `mov 0xc(%ebp),%edx; add $0x79,%edx`＝指针算术形（4.4
+                   // 字段访问生 lea，N4 族）；+0x79 线格式 blob 地址。
+                   db->blob_to_str(0, (void*)((char*)sig + 0x79), len)) != 0)
     {
         return -1;
     }

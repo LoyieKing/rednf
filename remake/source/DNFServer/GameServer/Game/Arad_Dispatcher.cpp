@@ -160,23 +160,26 @@ bool Arad_Dispatcher_Manager::inter_dispatch(int code, CUser* user,
             0x7d, "Not found Inter_Dispatch_Code[%d]", code);
         return false;
     }
+    // ORIG 0x0818ffeb：`cmpl $0,-0x10; je end(mov$1)`＝ err!=0 才进错误块
+    // （尾 mov$1 落函数尾，反向 choose 岛不可用 P63/P191）。
     const int err = d->inter_dispatch(user, body, len);
-    if (err == 0)
-        return true;
-
-    unsigned int accId = 0;
-    if (user != 0)
+    if (err != 0)
     {
-        accId = user->get_acc_id();
-        user->DisConnSig((DISCONN_SIG)2, 1, err + 1000000);
+        unsigned int accId = 0;
+        if (user != 0)
+        {
+            accId = user->get_acc_id();
+            user->DisConnSig((DISCONN_SIG)2, 1, err + 1000000);
+        }
+        LogManager::logFormat(
+            1, "localjapan/Arad_Dispatch_Manager.cpp",
+            "bool ARAD::Arad_Dispatcher_Manager::inter_dispatch("
+            "ARAD::Arad_Dispatcher_Manager::INTERNAL_PACKET_CODE, CUser*, char*, int)",
+            0x8d, "Inter Dispatch Result Error Inter_Dispatch_Code[%d] user_acc_id[%d]",
+            code, accId);
+        return false;
     }
-    LogManager::logFormat(
-        1, "localjapan/Arad_Dispatch_Manager.cpp",
-        "bool ARAD::Arad_Dispatcher_Manager::inter_dispatch("
-        "ARAD::Arad_Dispatcher_Manager::INTERNAL_PACKET_CODE, CUser*, char*, int)",
-        0x8d, "Inter Dispatch Result Error Inter_Dispatch_Code[%d] user_acc_id[%d]",
-        code, accId);
-    return false;
+    return true;
 }
 
 bool Arad_Dispatcher_Manager::db_dispatch(int code, int uid, Stream* stream)
@@ -212,24 +215,33 @@ Arad_Dispatcher_BuyItemCheck_Impl::~Arad_Dispatcher_BuyItemCheck_Impl()
 int Arad_Dispatcher_BuyItemCheck_Impl::inter_dispatch(CUser* user,
                                                       char* body, int /*len*/)
 {
+    // P82/P99：本地 pack(1) 尾部视图使 4.4 折叠 `mov 0x3a(%eax),%eax`
+    // （裸 (b+0x3a) cast 恒 add 分解，探针 /tmp/l18p/p.cpp）。
+    #pragma pack(push, 1)
+    struct ItemIdxView { char m_pad[0x3a]; unsigned int m_idx; };
+    #pragma pack(pop)
     // ORIG 0x0818ea3e：
     //   body[0]==1 → ItemVendingMachine::BuyItem(user, *(MSG*)(body+1))；
     //               成功返回 0，失败 logFormat(…0x40…) 返回 -1。
     //   body[0]!=1 → CCeraShop::ProcessError(s_pCeraShop,user,0x74,0,0,1,1,0)，返回 0。
-    if (body[0] != '\x01')
+    // ORIG 0x0818ea44：body 形参 spill 至 -0xc 槽（P0 具名局部）；0x0818ea4a
+    // `movzbl (%eax),%eax; xor $0x1,%eax; test; je`＝ `!*(bool*)b` 直判形
+    // （xor 精确判 b==1，P171 原码 bool 视角照抄）。
+    char* b = body;
+    if (!*(bool*)b)
     {
         GlobalData::s_pCeraShop->ProcessError(user, 0x74, 0, 0, 1, 1, '\0');
         return 0;
     }
     if (!GlobalData::s_pItemVendingMachine->BuyItem(
-            user, *(const MSG_BUY_CERASHOP_ITEM*)(body + 1)))
+            user, *(const MSG_BUY_CERASHOP_ITEM*)(b + 1)))
     {
         LogManager::logFormat(
             1, "localjapan/Arad_Dispatcher_BuyItemCheck_Impl.cpp",
             "virtual int ARAD::Arad_Dispatcher_BuyItemCheck_Impl::inter_dispatch("
             "CUser*, char*, int)", 0x40,
             "[ERROR] BuyItem() Result Error ItemIdx(%d)",
-            *(unsigned int*)(body + 0x3a));
+            ((const ItemIdxView*)b)->m_idx);
         return -1;
     }
     return 0;
@@ -245,6 +257,9 @@ int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
     //   闭合封 N。
     // ORIG 0x0818eb0c：读 BuyItemInfo ← stream；GetOutBuffer<MSG_BUY_CERASHOP_ITEM>；
     // arad_sp_buy_item_check 通过后组装 PURCHASE_COUNT_CHECK 内部包入 DB 队列。
+    // ORIG 0x0818ebxx：各出口 `mov $imm,%ebx`＝ register int 出口寄存
+    // （4.4 裸 register 不绑寄存器（实测），X 族 asm 绑定 %ebx）。
+    register int ret asm("ebx");
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)7,
                                                   (ENUM_SERVER_GROUP)0);
     ARAD_DATAS::BuyItemInfo info;
@@ -264,38 +279,47 @@ int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
             "[ERROR] MSG_BUY_CERASHOP_ITEM GetOutBuffer => MID[%d], CHARIDX[%d], "
             "ITEMIDX[%d], CHECKTYPE[%d]",
             info.mid, info.characNo, info.ipgNo, (int)info.checkType);
-        return -1;
+        ret = -1;
+        goto out;
     }
-    if (DATABASE::ITEM_QUERY::arad_sp_buy_item_check(info) != 0)
-        return -1;
+    {
+        if (DATABASE::ITEM_QUERY::arad_sp_buy_item_check(info) != 0)
+        {
+            ret = -1;
+            goto out;
+        }
 
-    // P134：Acquire 内联进 CStreamGuard ctor 消中间槽（ORIG 直 `mov %eax,0x4`）。
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire(
-            "localjapan/Arad_Dispatcher_BuyItemCheck_Impl.cpp", 0x71),
-        true);
-    guard.operator*()->operator<<(code);
-    guard.operator*()->operator<<(uid);
-    typedef ARAD::INTERNAL_PACKET::PURCHASE_COUNT_CHECK PurchaseCountCheck;
-    PurchaseCountCheck* chk =
-        guard.operator->()->GetInBuffer<PurchaseCountCheck>();
-    if (chk == 0)
-    {
-        LogManager::logFormat(
-            1, "localjapan/Arad_Dispatcher_BuyItemCheck_Impl.cpp",
-            "virtual int ARAD::Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch("
-            "int, int, Stream*)", 0x7b,
-            "ITEM_PURCHASE_COUNT_CHECK MID[%d], CHARIDX[%d], ITEMIDX[%d], "
-            "CHECKTYPE[%d]",
-            info.mid, info.characNo, info.ipgNo, (int)info.checkType);
+        // P134：Acquire 内联进 CStreamGuard ctor 消中间槽（ORIG 直 `mov %eax,0x4`）。
+        CStreamGuard guard(
+            GlobalData::s_stream_pool->Acquire(
+                "localjapan/Arad_Dispatcher_BuyItemCheck_Impl.cpp", 0x71),
+            true);
+        guard.operator*()->operator<<(code);
+        guard.operator*()->operator<<(uid);
+        typedef ARAD::INTERNAL_PACKET::PURCHASE_COUNT_CHECK PurchaseCountCheck;
+        PurchaseCountCheck* chk =
+            guard.operator->()->GetInBuffer<PurchaseCountCheck>();
+        if (chk == 0)
+        {
+            LogManager::logFormat(
+                1, "localjapan/Arad_Dispatcher_BuyItemCheck_Impl.cpp",
+                "virtual int ARAD::Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch("
+                "int, int, Stream*)", 0x7b,
+                "ITEM_PURCHASE_COUNT_CHECK MID[%d], CHARIDX[%d], ITEMIDX[%d], "
+                "CHECKTYPE[%d]",
+                info.mid, info.characNo, info.ipgNo, (int)info.checkType);
+        }
+        else
+        {
+            *(char*)chk = info.buyable;
+            memcpy((char*)chk + 1, msg, 0x3f84);
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        }
+        ret = 0;
+        goto out;
     }
-    else
-    {
-        *(char*)chk = info.buyable;
-        memcpy((char*)chk + 1, msg, 0x3f84);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-    return 0;
+out:
+    return ret;
 }
 
 // ============================================================================

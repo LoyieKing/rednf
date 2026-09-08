@@ -74,7 +74,9 @@ public:
     ItemVendingMachine();   // 0x0854c3e4
     ~ItemVendingMachine();  // 0x0854c42a
     // ORIG BuyItem 0x0854c4d0：仅委托 ProcessBuyRequestEx(this, user, msg) 后返回 1。
-    int BuyItem(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg);
+    // bool 化（DL18 Lane18）：ORIG 调用点 0x0818eac0 call;xor$1;test;je =
+    // bool callee 直判形；int 声明生 sete 物化。mangled 无返回类型，ABI 零变。
+    bool BuyItem(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg);
     // ORIG ProcessBuyRequestEx 0x081769f6：BuyItem 的唯一真实依赖（115KB 报告）。
     int ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg);
 

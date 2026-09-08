@@ -892,7 +892,7 @@ void CUser::_updateSaveOption()
     // SIG_CHARACTER_OPTION 协议视图：+0x00 characNo + 0x04 CharacterOption(0x200)。
     struct SIG_CHARACTER_OPTION_VIEW
     {
-        unsigned int m_characNo;
+        int m_characNo;   // getCurCharacNo 返 int 同型——ORIG 0x08652dde store 直存无中转（P211 同型化）
         CharacterOption m_option;
     };
     // ORIG 0x08652dde：GetInBuffer<SIG_CHARACTER_OPTION>（0x204 占位协议视图）

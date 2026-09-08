@@ -619,7 +619,8 @@ protected:
 public:   // 类外 typedef 需可见（布局零变化，仅访问级别调整）
     struct stFirstMobHuntingWeight_t
     {
-        stFirstMobHuntingWeight_t();
+        stFirstMobHuntingWeight_t() throw();   // [b27 DL3R 探针] 无抛体：4.1 侧对
+                                               // 本 ctor 调用未布 Special cleanup landing
         int m_weight;      // +0x00
         int m_field04;     // +0x04
     };

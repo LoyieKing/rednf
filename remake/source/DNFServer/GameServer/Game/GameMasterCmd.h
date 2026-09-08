@@ -769,7 +769,8 @@ public:
     virtual void parse();                            // ORIG T 0x084b0a34
     virtual void execute();                          // ORIG T 0x084b0a6e
 
-    int m_itemIdx;                                   // +0x08
+    unsigned int m_itemIdx;                          // +0x08（parse 尾 mov %eax,%edx 中转
+                                                     //  ⇒ unsigned，P211 异型化）
 };
 class CIndependentDrop : public CCommand
 {
@@ -888,8 +889,8 @@ public:
     CLevelUp() {}                      // ORIG W 0x082a8956（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084b388c
     virtual void execute();                          // ORIG T 0x084b38e2
-    void getLevel();                                       // 辅助（ORIG T 0x084b398e，签名见报告）
-    void setLevel();                                       // 辅助（ORIG T 0x084b395c，签名见报告）
+    int getLevel();                                        // ORIG T 0x084b398e（mangled getLevelEv）
+    void setLevel(int);                                    // ORIG T 0x084b395c（mangled setLevelEi）
 
     int m_level;                                // +0x08（ORIG POD：等级）
 };
@@ -912,7 +913,9 @@ public:
     std::string m_str0;                              // +0x08
     int m_amount;                                    // +0x0c（ORIG parse 0x084b3acb 写、
                                                      //  execute 0x084b3b11/0x084b3b8c 读；
-                                                     //  C1 new $0x10 @0x082a8a28 块实证）
+                                                     //  C1 new $0x10 @0x082a8a28 块实证；
+                                                     //  parse 尾 this先入edx 直存形 ⇒ 与 int 版
+                                                     //  StringToNumber 同型直赋（P211/探针 g1））
 };
 class CMobileRestrictCommand : public CCommand
 {

@@ -249,7 +249,10 @@ void Secu_GoldControl::SubImportMoney(unsigned int value)
 }
 void Secu_GoldControl::AddAuctionMoney(unsigned int value)
 {
-    if (value > 4999)
+    // P63：ORIG if 块出口统一 → 尾部 jmp;nop 中继；early-return 形使 4.4
+    // 同产 jbe→中继（现形 jbe 直落 epilogue 少中继）。
+    if (value <= 4999)
+        return;
     {
         m_cur.m_auctionAdd += value;
         m_cur.m_count[0]++;
@@ -280,7 +283,9 @@ void Secu_GoldControl::AddAuctionMoney(unsigned int value)
 // m_total.m_count[1]++，再 GoldMinus(value, 2)（无 GoldTracking）。
 void Secu_GoldControl::SubAuctionMoney(unsigned int value)
 {
-    if (value > 4999)
+    // P63 同 AddAuctionMoney。
+    if (value <= 4999)
+        return;
     {
         m_cur.m_auctionSub += value;
         m_total.m_auctionSub += value;

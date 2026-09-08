@@ -904,7 +904,7 @@ int CCreatureMgr::GetCreatureItemId() const
 // 整条目由 (**(%CCreatureItem vtable + 0xc))(item, Inven_Item&, dst, this+0x1c)
 // 虚调用序列化填充（该方法未建模），本重建按 ORIG 汇编只补条目首 dword 与
 // m_expireTime（+0x28，ORIG 另有 mov %eax,(%edx) 由 getExpireTime 返回值写入）。
-int CCreatureMgr::GetCreatureItem(SIG_LOAD_INVENTORY* sig) const
+bool CCreatureMgr::GetCreatureItem(SIG_LOAD_INVENTORY* sig) const
 {
     memset(sig->m_creature, 0, sizeof(sig->m_creature));   // ORIG 0x1ed8
     int count = 0;

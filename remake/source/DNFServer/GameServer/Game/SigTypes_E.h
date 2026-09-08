@@ -97,9 +97,9 @@ struct SIG_SAVE_HACK_USER_PUNISH
 struct SIG_SAVE_INVENTORY
 {
     unsigned int m_accId;              // +0x000
-    unsigned int m_characNo;           // +0x004
+    int m_characNo;                    // +0x004（getCurCharacNo 返 int 同型——ORIG 0x0864fd80 store 直存无中转，P211 同型化）
     char m_saveFlag;                   // +0x008（0=完整背包保存，1=仅 AvatarCoin 保存）
-    unsigned int m_money;              // +0x009
+    int m_money;                       // +0x009（getCurCharacMoney 返 int 同型——ORIG 0x0864fd80 store 直存无中转，P211 同型化）
     unsigned int m_coin;               // +0x00d
     unsigned int m_payCoin;            // +0x011
     unsigned int m_eventCoin;          // +0x015

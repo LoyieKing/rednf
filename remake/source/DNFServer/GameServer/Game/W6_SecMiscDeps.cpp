@@ -65,8 +65,9 @@ using namespace GlobalData;
 WongWork::CSecurityCardCenter::CSecurityCardCenter()
 {
     // ORIG 0x082a6654 W：构造 CRijndael@0x0（0x47c 子块）与 list<uchar>@0x47c；
-    // 时间计数不在此写入（init() 置 1）。基类与 m_characterSet 为具名成员，
-    // 由 C++ 默认构造完成对应子对象初始化。
+    // 尾 movl $0x8,(%eax)=vptr 写（4.1 非虚 this 调用约定：C1 内层链写 vptr
+    // 形，CRijndael C1 0x082a6662 前部无 vptr 写差 2 条不可造，N18a 族封顶）。
+    // 时间计数不在此写入（init() 置 1）。
 }
 
 void WongWork::CSecurityCardCenter::init()

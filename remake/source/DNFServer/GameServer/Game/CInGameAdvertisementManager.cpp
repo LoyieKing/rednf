@@ -76,8 +76,10 @@ stInGameADExposeCondition* CAdvertisementExposeInfo::getExposeCondition()
 CInGameAdvertisementManager::CInGameAdvertisementManager()
 {
     time_t now = time(0);
-    // ORIG lea &now 早于 operator new：time_t → const unsigned long& 临时绑定形。
-    m_rand = new CMTRand(now);
+    // ORIG 0x080fdd8a：time 结果槽 -0x1c 单槽直绑（lea -0x1c 早于 operator new，
+    // %esi 跨调用缓存 &now）。const unsigned long& 形参 → time_t 槽同址绑定。
+    // 4.4 对 &now 实参表达式自然产 lea -0x1c 并物化（P0：寄存器仅承载表达式值）。
+    m_rand = new CMTRand(*reinterpret_cast<unsigned long*>(&now));
 }
 
 // ORIG W _ZN27CInGameAdvertisementManagerD1Ev @0x080fca7c：delete m_rand(+0x18)

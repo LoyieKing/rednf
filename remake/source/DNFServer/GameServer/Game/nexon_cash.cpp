@@ -347,18 +347,17 @@ bool TCPSocket::connect_nonb(const char* host, unsigned short port,
 // peer.setOptNonBlock(); return true。
 bool TCPSocket::accept(TCPSocket& peer)
 {
-    socklen_t len = sizeof(peer.m_pad04);  // 16 == sizeof(sockaddr_in)
+    socklen_t len = 16;  // sizeof(sockaddr_in)
     peer.m_socket = ::accept(m_socket, reinterpret_cast<struct sockaddr*>(
-                                            peer.m_pad04), &len);
+                                            &peer.m_sinFamily), &len);
     if (peer.m_socket < 0 || peer.m_socket == INVALID_SOCKET)
         return false;
 
-    // ORIG 0x081aff78：memcpy(dst=&peer.m_peerAdrs(+0x14), src=peer+0x08
-    // （lea 0x8 单步 = sin_addr 区），4)。
-    memcpy(&peer.m_peerAdrs, peer.m_pad04 + 4, 4);
+    // ORIG 0x081aff78：memcpy(dst=&peer.m_peerAdrs(+0x14), src=peer+0x08 单步)。
+    memcpy(&peer.m_peerAdrs, &peer.m_sinAddr, 4);
     // ORIG 0x081aff87：movzwl 0x6(%eax) 单步 disp 直读 sin_port（peer+0x06），
     // 0x081aff91 mov %dx,0x18(%eax) 存 m_peerPort。
-    peer.m_peerPort = *reinterpret_cast<unsigned short*>(peer.m_pad04 + 2);
+    peer.m_peerPort = peer.m_sinPort;
     peer.setOptNonBlock();
     return true;
 }
@@ -701,8 +700,13 @@ ByteBuffer::ByteBuffer(char* buffer, unsigned int len)
 // ORIG 0x081ae9b8：调用 ctor 后按值返回 this（-O0 下 sret 形态等价于自赋值）。
 ByteBuffer& ByteBuffer::wrap(char* buffer, unsigned int len)
 {
-    this->~ByteBuffer();
-    new (this) ByteBuffer(buffer, len);
+    // [b27L8] ORIG 0x081ae9b8 = 单次 ctor 调用复用（4.1 GNU 扩展 ctor 直调
+    // 形）。4.4 拒 this->ByteBuffer::ByteBuffer() 扩展、placement new 恒出
+    // _ZnwjPv+dtor call（N83）⇒ 字段直写等价展开。
+    m_start = buffer;
+    m_writePtr = buffer;
+    m_readPtr = buffer;
+    m_capacity = len;
     return *this;
 }
 
@@ -714,8 +718,9 @@ ByteBuffer& ByteBuffer::wrap(char* buffer, unsigned int len)
 // 写 ushort 长度前缀（大端）+ strncpy(len 字节，不含 NUL）+ 游标前进 strlen。
 ByteBuffer& ByteBuffer::operator<<(const char* value)
 {
-    int len = strlen(value);
-    if (len > (int)std::numeric_limits<unsigned short>::max())
+    // [b27L8] ORIG 0x081acc8d 为 setb（无符号比较）⇒ len 无符号；int 形 4.4 出 setl。
+    unsigned int len = strlen(value);
+    if (len > (unsigned)std::numeric_limits<unsigned short>::max())
         throw std::invalid_argument("string length too long: must shorter than max(unsigned short)");
     if (length() + len <= m_capacity)
     {
@@ -1198,6 +1203,8 @@ int NCashImpl::recv_msg()
 // ORIG 0x081aeb3c：按 body_length 继续收 body 区（flags 同 0x100）。
 int NCashImpl::recv_body()
 {
+    // [b27L8] ORIG 0x081aeb4b movzwl %ax,%esi 单步；4.4 对 asm("esi") 赋值
+    // 恒经 eax 中转（+1 条）；ushort 形丢零扩展（语义险，探针已弃）。
     register unsigned int bodyLen asm("esi") = m_inMsg.body_length();
     register unsigned char* body asm("ebx") = m_inMsg.body();
     int n = static_cast<int>(::recv(m_socket.getHandle(), body, bodyLen, 0x100));
@@ -1271,7 +1278,10 @@ ByteBuffer NCashImpl::set_data_header(unsigned char packetId, unsigned char flag
 ByteBuffer NCashImpl::get_data_header(unsigned char& a, unsigned char& b,
                                       unsigned int& c)
 {
-    ByteBuffer in(0, 0);
+    // [b27L8] ORIG 无 ByteBuffer ctor call（body_length→body→wrap 直连，
+    // checkEntrance 0x081ad316 同形）：in 为空默认构造 + wrap 全字段覆盖，
+    // 4.x -O0 对类内空默认 ctor 均省略 call（探针 /tmp/l8_probe2.cpp gdh1）。
+    ByteBuffer in;
     in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
     in >> a;
     in >> b;
@@ -1423,15 +1433,18 @@ int NCashImpl::purchase(unsigned long long productSeq, int cashType,
     msg << m_paramB;
     msg << static_cast<short>(m_fieldC);
 
-    int rc = send_msg(msg.length());
+    // [b27L8] ORIG send_msg call 前 movl $0x0,-0xc 预清 ⇒ P198① 两句式。
+    int rc = 0;
+    rc = send_msg(msg.length());
     if (rc != 0)
         return rc;
     rc = recv_msg();
     if (rc != 0)
         return rc;
 
-    unsigned char ackPid = 0, errCode = 0;
-    unsigned int reqId = 0;
+    // [b27L8] ORIG 无 ackPid/errCode/reqId 预清（movb/movl 缺失）⇒ 未初始化声明。
+    unsigned char ackPid, errCode;
+    unsigned int reqId;
     // [b23S3C] P192：以 sret 返回值续读 trOut（消本函数 C1/wrap/body/
     // body_length EXTRA×4）。
     ByteBuffer in = get_data_header(ackPid, errCode, reqId);

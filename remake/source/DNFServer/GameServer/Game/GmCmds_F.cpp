@@ -256,8 +256,7 @@ void CSetMultiboxFailCnt::parse()
 {
     m_failCnt = 0;
     trim(m_parser->m_args);
-    std::vector<std::string>& extra = m_parser->m_extra;
-    m_failCnt = atoi(extra[1].c_str());   // ORIG 直接 operator[](1)，无边界检查
+    m_failCnt = atoi(m_parser->m_extra[1].c_str());   // ORIG 直接 operator[](1)，无边界检查
 }
 
 // ORIG execute 0x084b34f8：set_multiboxLotteryItemFailCnt(v)；v > 2 时追加

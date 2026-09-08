@@ -629,8 +629,9 @@ bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int guildId, STGuildProxy&
 void CGuildServerProxy::ChangeGuildNameInProxy(unsigned int guildId, char* name)
 {
     std::map<unsigned int, STGuildProxy>::iterator it = m_guildInfoMap.find(guildId);
-    std::map<unsigned int, STGuildProxy>::iterator endIt = m_guildInfoMap.end();
-    if (it == endIt)
+    // N93 槽序：ORIG 0x846ea3e end() 结果占 -0x10（浅于 find 的 -0x14），
+    // 具名 endIt 局部使 4.4 反排；内联临时形复现。
+    if (it == m_guildInfoMap.end())
     {
         LogManager::logFormat(1, "DF_GuildServerProxy.cpp", __PRETTY_FUNCTION__, 0x860,
                               "Find fail from guild info proxy(guild_id:%d)", guildId);

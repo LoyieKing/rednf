@@ -744,7 +744,7 @@ struct SIG_LOAD_INVENTORY
     TAG_CHARAC_INVEN_DATA m_tagInven;              // +0x00c（getTagCharacInventory 填充；
                                                    //   RequestDBInventory_forchina 调 clear）
     int      m_result;                            // +0x4030
-    int      m_money;                             // +0x4034
+    unsigned int m_money;                         // +0x4034（P211 异型化：get_money 返 int，ORIG 0x864d646 store 带 mov %eax,%edx 中转 ⇒ 字段 unsigned）
     unsigned int m_coin;                          // +0x4038
     unsigned int m_payCoin;                       // +0x403c
     unsigned int m_eventCoin;                     // +0x4040
@@ -768,7 +768,7 @@ struct SIG_LOAD_INVENTORY
     unsigned int m_avatarCoin;                    // +0x14780（AvatarCoin::Get）
     stItemLockInfo m_locks[0x64];                 // +0x14784（0x64×8 = 0x320 → +0x14aa4）
     SIG_SAVE_EXPAND_EQUIPSLOT m_expandEquip;      // +0x14aa4（0x898 → +0x1533c）
-    int      m_inventoryCapacity;                 // +0x1533c（get_inventory_capacity）
+    unsigned int m_inventoryCapacity;             // +0x1533c（P211 异型化：get_inventory_capacity 返 int，ORIG GetInventory 0x864d646 尾 store 带 mov %eax,%edx 中转 ⇒ 字段 unsigned；唯一写点 CUser.cpp GetInventory）
     int      m_creatureCount2;                    // +0x15340（GetCreatureItem 第二区计数）
     SIG_POSTAL_CREATURE_TEMP_PERIOD m_tempPeriods[0x14];  // +0x15344（0x14×8 = 0xa0 → +0x153e4）
     SIG_SAVE_PC_ROOM_RENT_ITEM m_rentPcRoom;      // +0x153e4（ORIG C1 0x8491cbe 构造）

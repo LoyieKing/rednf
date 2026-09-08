@@ -316,7 +316,7 @@ Avatar_Item* CAvatarItemMgr::GetAvatarInfo(int key) const
     return _FindItemAll(key);
 }
 
-int CAvatarItemMgr::GetItem(AvatarDetailInfo* info, int* count) const
+bool CAvatarItemMgr::GetItem(AvatarDetailInfo* info, int* count) const
 {
     int i = 0;
     for (std::map<int, Avatar_Item*>::const_iterator it = m_registeredItems.begin();
@@ -342,6 +342,9 @@ bool CAvatarItemMgr::UnRegistItem(int key)
         return false;
     m_registeredItems.erase(key);
     m_AvatarItemPool.Free(item);
+    // [b27 封顶] 残差 = find!=end 双实参求值序（ORIG 4.1 先 end 后 find，
+    // 4.4 先 find 后 end——求值序由编译器固定不可定向，N/P23 族）。
+    // EraseAvatarItem 同款（end 槽 -0x14/-0x10 对调同根）。
     std::map<int, int>::iterator it = m_emblemEnduranceMap.find(key);
     if (it != m_emblemEnduranceMap.end())
         m_emblemEnduranceMap.erase(it);
@@ -391,6 +394,8 @@ void CAvatarItemMgr::SaveEndurance()
 {
     if (m_enduranceUpdateMap.empty())
         return;
+    // [b27 封顶] 残差 = begin/end 槽号互换（ORIG begin@-0xc/end@-0x10，
+    // 4.4 反向——P212 类对象槽向差；endIt 先声明形实测反劣）。循环体/clear 全等。
     for (std::map<int, int>::iterator it = m_enduranceUpdateMap.begin();
          it != m_enduranceUpdateMap.end(); ++it)
     {

@@ -52,32 +52,10 @@ LogWriter::~LogWriter()
 void LogManager::logFormat(int level, const char* file, const char* func,
                            int line, const char* fmt, ...)
 {
-    prepareData();
-    if (s_data->data[level])
-    {
-        char buf[0x4000];
-        va_list ap;
-        va_start(ap, fmt);
-        if (vsnprintf(buf, sizeof(buf), fmt, ap) == -1)
-        {
-            buf[sizeof(buf) - 1] = 0;
-        }
-        va_end(ap);
-        if (s_indent > 0)
-        {
-            std::string str;
-            for (int i = 0; i < s_indent; ++i)
-            {
-                str += "\t";
-            }
-            str += buf;
-            s_data->data[level]->log(file, func, line, str.c_str());
-        }
-        else
-        {
-            s_data->data[level]->log(file, func, line, buf);
-        }
-    }
+    // ORIG 权威二进制运行时行为 = no-op：入口字节 0x8ad3c0a 被热补为 0xc3(ret)
+    // （原 push %ebp 0x55 覆盖，nm size 0x197 含 patch 前死代码体；Ghidra C 同判
+    // `{ return; }`，objdump -s 实证）。重建为空体对齐 ORIG 可观察行为。
+    (void)level; (void)file; (void)func; (void)line; (void)fmt;
 }
 
 void LogManager::logString(int level, const char* file, const char* func,

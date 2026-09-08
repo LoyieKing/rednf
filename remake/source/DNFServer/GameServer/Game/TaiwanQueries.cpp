@@ -513,9 +513,11 @@ bool GiftQuery::getResult(MySQL& db)
 // ORIG T 0x08174ac6（C2 同址别名）：trans 前 12 字节逐 dword 拷贝进 m_trans；
 // ORIG 尾部 movl $0x0,(%eax) 清零 m_resultCode（+0x00）。
 ConfirmQuery::ConfirmQuery(const BillTransaction& trans)
-    : m_resultCode(0)
 {
-    memcpy(&m_trans, &trans, sizeof(BillTransaction));
+    // [b27L8] ORIG 0x08174d08：trans 整体赋值在前、m_resultCode=0 在后
+    // （同 CancelQuery 0x08174ce2 形）。
+    m_trans = trans;
+    m_resultCode = 0;
 }
 
 // ORIG T 0x08174aec
@@ -559,9 +561,11 @@ bool ConfirmQuery::getResult(MySQL& db)
 
 // ORIG T 0x08174ce2（C2 同址别名）；ORIG 尾部同样清零 m_resultCode（+0x00）。
 CancelQuery::CancelQuery(const BillTransaction& trans)
-    : m_resultCode(0)
 {
-    memcpy(&m_trans, &trans, sizeof(BillTransaction));
+    // [b27L8] ORIG 0x08174ce2：trans 12B 整体赋值（dest 缓存三连 mov）在前、
+    // m_resultCode=0 在后；memcpy 形出 call 且 m_resultCode(0) 列表形提前。
+    m_trans = trans;
+    m_resultCode = 0;
 }
 
 // ORIG T 0x08174d08
@@ -607,9 +611,12 @@ bool CancelQuery::getResult(MySQL& db)
 ChargeQuery::ChargeQuery(const char* account, const char* p2, const char* p3,
                          unsigned int price, char chargeType)
     : m_account(account), m_p2(p2), m_p3(p3), m_price(price),
-      m_chargeType(chargeType), m_resultCode(0)
+      m_chargeType(chargeType)
 {
     m_trans.init();
+    // [b27L8] ORIG 0x08174efe：m_resultCode=0（movl $0x0,0x14）在 m_trans.init
+    // call 之后发射；初始化列表形会提前到 call 前。
+    m_resultCode = 0;
 }
 
 // ORIG T 0x08174f52：%d 打印有符号 chargeType。
@@ -759,6 +766,8 @@ void SigLoadRestrictPolicy::init()
 void SigLoadRestrictPolicy::set(int restrictValue, int index, char flag)
 {
     m_restrictValue = restrictValue;
+    // [b27L8] ORIG 0x0815de02 物化序 index→this→flag，4.4 恒 index→flag→this
+    // （N18a 族寄存器物化序差；指针算术形丢 scaled-index 更劣，探针已证）。
     m_extra[index] = flag;
     ++m_count;
 }
@@ -814,12 +823,19 @@ bool GarenaCyberCafe(unsigned short cafeFlag)
 bool GarenaCheckTimeStamp(unsigned int nowA, unsigned int nowB,
                           unsigned int serverC, unsigned int serverD)
 {
-    if (nowA + 300 > nowB)          // ja：无符号 >
-        return true;
-    if (nowA != serverC)
+    // [b27L8] ORIG 0x08173080 = 嵌套守卫形（P194/P59 反形）：条件成立跳走
+    // （ja/je/jb 到 return 岛），失败直落下一判（探针 l8_probe6 g3 逐条同）；
+    // 平铺 if-return 形 4.4 出条件不成立跳下一判的反极性链。
+    if (!(nowA + 300 > nowB))       // ja：无符号 >
+    {
+        if (nowA != serverC)        // je 失败直落
+        {
+            if (!(serverD + 300 < nowB))  // jb：无符号 <
+                return true;
+            return false;
+        }
         return false;
-    if (serverD + 300 < nowB)       // jb：无符号 <（ORIG 分支常量岛，setcc 折叠仅 return 表达式形）
-        return false;
+    }
     return true;
 }
 

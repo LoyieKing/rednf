@@ -317,9 +317,9 @@ struct SIG_MILEAGE_STRUCT
 {
     // Lane9 字段化（§8.3）：ORIG CUser::LoadMileage 0x086507b0 三写实证
     // (0)=acc_id、(4)=characNo、(8)=0；布局/sizeof 不变。
-    unsigned int m_accId;      // +0x00
-    unsigned int m_characNo;   // +0x04
-    unsigned int m_mileage;    // +0x08
+    unsigned int m_accId;      // +0x00（get_acc_id 返 unsigned 同型直存）
+    int m_characNo;            // +0x04（getCurCharacNo 返 int 同型——ORIG 0x086507b0/0x08650642 store 直存无中转，P211 同型化）
+    int m_mileage;             // +0x08（GetMileage 返 int 同型）
 };
 
 // SIG_MOUSE_REGISTER（0x59）—— ORIG 权威布局
@@ -835,7 +835,8 @@ struct SIG_SAVE_EVENTITEM
     unsigned int m_field0c;   // +0x0c ←param_3
     unsigned int m_field10;   // +0x10 ←param_4
     unsigned int m_field14;   // +0x14 ←param_6
-    unsigned char m_field18;  // +0x18（bool 尾参）
+    bool m_field18;           // +0x18（bool 尾参；ORIG 0x086c1910 store 序 view先+movzbl
+                              //   回读，探针实证 bool 字段+bool 形参直赋唯一匹配）
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_SAVE_EVENTITEM) == 0x19, "SIG_SAVE_EVENTITEM ABI drift");

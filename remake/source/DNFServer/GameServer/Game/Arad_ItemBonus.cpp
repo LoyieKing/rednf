@@ -102,8 +102,11 @@ bool CheckAccountItem(CUser* user, unsigned int itemIndex,
                       class PurchaseLimitItem::Info& out)
 {
     (void)user;  // ORIG 不使用 user 形参（Ghidra/汇编均无引用）
-    Arad_DataManager* mgr = Singleton<Arad_DataManager>::Get();
-    return !mgr->getPurchaseLimitItem()->find(itemIndex, out);
+    // P0：ORIG 无 mgr 局部（Get→getPurchaseLimitItem→find 寄存器直传）；
+    // 尾部 choose 岛（test;je;mov$0;jmp;mov$1）＝ P56 if-return 形。
+    if (Singleton<Arad_DataManager>::Get()->getPurchaseLimitItem()->find(itemIndex, out))
+        return false;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -203,7 +206,11 @@ bool CeraShopPurcahseCountBonus::LoadScript()
 // ---------------------------------------------------------------------------
 bool CeraShopPurcahseCountBonus::CheckBonusItem(int key)
 {
-    return m_bonusMap.find(key) != m_bonusMap.end();
+    // ORIG 求值序：find 先、end 后（左侧表达式先物化）+ P56 choose 岛形。
+    std::map<int, std::vector<PurcahseBonus> >::iterator it = m_bonusMap.find(key);
+    if (it == m_bonusMap.end())
+        return false;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -223,8 +230,11 @@ void CeraShopPurcahseCountBonus::GiveBonusItem(CUser* user,
     PurcahseBonus local;
     std::map<int, std::vector<PurcahseBonus> >::iterator it =
         m_bonusMap.find(goodsIdx);
-    if (_findBonusItem(it->second, local, threshold))
-        _processBonusItem(user, goodsIdx, local);
+    // ORIG 0x081abf8x：`call _findBonusItem; xor $0x1,%eax; test; jne 尾`＝
+    // !boolcall() 负形早退（P168a①），正向 if 落 je 形。
+    if (!_findBonusItem(it->second, local, threshold))
+        return;
+    _processBonusItem(user, goodsIdx, local);
 }
 
 // ---------------------------------------------------------------------------

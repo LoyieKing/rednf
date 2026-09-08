@@ -97,9 +97,10 @@ int CDataManager::initRandomOptionItem()
          ++outerIt)
     {
         count = 0;
+        // ORIG：++innerIt 先于 ++count 发射 ⇒ ++count 位于 for-third（逗号序）。
         for (std::map<int, BaseItemValue>::iterator innerIt =
                  outerIt->second.begin();
-             innerIt != outerIt->second.end(); ++innerIt)
+             innerIt != outerIt->second.end(); ++innerIt, ++count)
         {
             if (!((CDataManagerBaseItemView*)this)
                      ->m_lookupIndex.insert(
@@ -109,7 +110,6 @@ int CDataManager::initRandomOptionItem()
             {
                 return 0;
             }
-            ++count;
         }
     }
     return 1;

@@ -9,6 +9,7 @@
 #include "AvatarCoin.h"
 #include "CUser.h"
 #include "CUserCharacInfo.h"
+#include "CInventory.h"               // m_avatarCoin 真实成员访问（_GetSaveInvenBase）
 #include "CStreamGuard.h"
 #include "StreamPool.h"
 #include "MsgQueueMgr.h"
@@ -90,11 +91,13 @@ void CUser::_GetSaveInvenBase(SIG_SAVE_INVENTORY* out)
     }
     else
     {
-        out->m_avatarCoin = coinOf(const_cast<char*>(
-            reinterpret_cast<const char*>(getCurCharacInvenR())))->Get();
+        // ORIG 0x0864fd80：getCurCharacInvenR 结果 add $0x658 直落 Get receiver
+        //（无 coinOf call；真实成员 CInventory::m_avatarCoin @+0x658）。
+        out->m_avatarCoin = getCurCharacInvenR()->m_avatarCoin.Get();
     }
-    setCurCharacLastPlayTick(
-        static_cast<long>(GlobalData::s_systemTime_.getCurSec()));
+    // ORIG 0x0864fd80 尾：getCurSec 结果落 -0xc 槽再装载（P0 具名局部）。
+    unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
+    setCurCharacLastPlayTick(static_cast<long>(curSec));
 }
 
 // ---- AvatarCoin::SaveToDB ORIG @ 0x081800d6 ----

@@ -510,7 +510,10 @@ void CMonsterDrop::_generateMonseterSpecificItem(CMonster const* monster,
     itemIdx = Mon_drop_item_index2(monster,
                                    static_cast<unsigned int>(idxType),
                                    m_random.generateNumber(2, 10000));
-    if (itemIdx != -2)
+    // ORIG cmpl -0xc;setne %al;test %al;je 统一出口（P194 register bool
+    // asm("eax") 形，探针 f2 全等）。
+    register bool ok __asm__("eax") = (itemIdx != -2);
+    if (ok)
     {
         Inven_Item inv;
         inv.m_addInfo = itemIdx;
@@ -529,8 +532,9 @@ void CMonsterDrop::_generateMonseterSpecificItem(CMonster const* monster,
 void CMonsterDrop::generateRandomItem(stGenerateRefData_t const& ref,
                                       stGenerateResult_t& result)
 {
-    // ORIG movzbl +0x35; cmp $0x3; jg（零扩展后符号比较 >3 == u8 >= 4）
-    if (static_cast<int>(static_cast<unsigned char>(ref.m_field35)) > 3)
+    // ORIG movzbl +0x35; cmp $0x3,%al; jg（movzbl 零扩展 + 8 位有符号比较；
+    //   探针实证 (signed char)(unsigned char)x > 3 形）
+    if (static_cast<signed char>(static_cast<unsigned char>(ref.m_field35)) > 3)
         return;
 
     bool done = false;                                  // local_25
@@ -636,7 +640,7 @@ void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
 }
 
 // ---- CMonsterDrop::stFirstMobHuntingWeight_t ctor — ORIG W 0x0853a6ae ----
-WongWork::CMonsterDrop::stFirstMobHuntingWeight_t::stFirstMobHuntingWeight_t()
+WongWork::CMonsterDrop::stFirstMobHuntingWeight_t::stFirstMobHuntingWeight_t() throw()
 {
     m_field04 = 1;
     m_weight = m_field04;                              // [+4]=1 后拷回 [+0]

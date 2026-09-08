@@ -845,14 +845,13 @@ void CBindCubeTest::execute()
 // ORIG parse 0x084b22ca：三标记清零、token 计数清零，trim 后整串交给 getParam。
 void BlueMarbleSet::parse()
 {
-    m_flag0 = 0;
     m_flag1 = 0;
     m_flag2 = 0;
+    m_flag0 = 0;
     m_param = 0;
 
     trim(m_parser->m_args);
-    std::string args(m_parser->m_args);
-    this->getParam(args);
+    this->getParam(m_parser->m_args);
 }
 
 // ORIG getParam 0x084b235c：按空格切 token（≤16），tokens[0]=="move"/"enter" 置
@@ -1036,7 +1035,7 @@ void CBillingRechargeCommand::parse()
     if (m_parser != 0)
     {
         m_str0 = m_parser->m_extra[1];
-        m_amount = static_cast<int>(StringToNumber(m_parser->m_extra[2].c_str()));
+        m_amount = StringToNumber(m_parser->m_extra[2].c_str());
     }
 }
 

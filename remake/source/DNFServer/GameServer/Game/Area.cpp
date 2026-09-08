@@ -348,13 +348,18 @@ void Area::send_area_users(CUser* user)
     packet.put_byte(user->get_area(true));
 
     int index = packet.get_index();
-    int count = 0;
+    int count;
+    count = 0;    // P197③ 双段式（ORIG movl $0x0,-0xc 预清独立行）
     packet.put_short((int)m_UsersInArea.size());
 
+    CUser* u = 0;    // ORIG begin 后 `movl $0x0,-0xc(%ebp)`＝循环外空预置
     for (std::map<unsigned short, CUser*>::iterator it = m_UsersInArea.begin();
          it != m_UsersInArea.end(); it++)
     {
-        CUser* u = it->second;
+        u = it->second;
+        // ORIG 0x086c240x: xor$1;test;je 后 cmp+choose 岛＝bool callee 直判的
+        // 4.1 xor 形（P168a③b 跨版本 bool ABI，4.4 恒 test+jne，N 豁免）；
+        // 负形 continue 实测第二条件落直跳 cmp 反更差，维持正向 ||。
         if (u->IsCurCharacVisible() || u == user)
         {
             packet.put_short(u->get_unique_id());

@@ -603,6 +603,10 @@ void CMailBoxHelper::ReqDBRemoveMail(CUser const* user, unsigned int* mailIdx, b
         reinterpret_cast<MailBoxDelMailV*>(guard->GetInBuffer<SIG_MAILBOX_DEL_MAIL>());
     v->m_count = mailIdx[0];
     // ORIG 0855681c 循环：dst 基址 = 消息首（int 下标含 +0 count 槽），i 从 1。
+    // [b27 DL3R 判词 N 封顶] 90:92：循环体内 ORIG 4.1 发 scaled 直存
+    // `mov %ecx,(%eax,%edx,4)` 且 RHS 值先物化 ecx；4.4 恒 LHS 地址先（N76）+
+    // shl/lea 折单步（N81 探针复测：dst[i]=src[i]、*(dst+i)、char*+i*4 三形
+    // 均产 mov %edx,(%eax)，scaled 不可造）。其余 88 行全等（含 EH 段）。
     for (unsigned int i = 1; i <= mailIdx[0]; ++i)
         reinterpret_cast<unsigned int*>(v)[i] = mailIdx[i];
     v->m_type = a ? 2u : 1u;
@@ -1236,7 +1240,10 @@ bool CMailBoxHelper::_DoGetPackageAvatar(CUser* user, CMailBox::CMail const* mai
         register const int uid = pkg.m_addInfo2; // +0x07 avatar uid（跨调用 %ebx）
         if (user->getCurCharacInvenR()->GetAvatarItemMgrR()->GetExpireDate(uid) == -1)
             return false;
-        if (user->getCurCharacInvenW()->tryInsertAvatarIntoInventory(pkg) < 0)
+        // ORIG +0x116：`shr $0x1f,%eax; test %al` 判负（探针 47 实证
+        // (f() >> 31) != 0 形复现；`< 0` 恒 js/jns 单跳）。
+        if ((user->getCurCharacInvenW()->tryInsertAvatarIntoInventory(pkg) >>
+             31) != 0)
         {
             err = (ENUM_ERROR)4;
             return false;
@@ -1247,7 +1254,10 @@ bool CMailBoxHelper::_DoGetPackageAvatar(CUser* user, CMailBox::CMail const* mai
         int slot = 0;
         slot = user->getCurCharacInvenW()->insertAvatarIntoInventory(
             pkg, (eAvatarItemAddReason)5, true);
-        if (slot < 0)
+        // ORIG 同款判负形（槽→shr $0x1f→test）。neg 具名中转会引入独立槽
+        // 帧漂移（探针 49 反证）——4.4 对 call 结果直 shr（无槽）+ 槽值比较
+        // shr（N18a 两步）两形分立，此处槽值两步不可造，维持封顶。
+        if ((slot >> 31) != 0)
             return false;
         user->getCurCharacInvenW()->SendAvatarEvent(0x36, pkg.m_addInfo2, 0, slot + 10, 0);
         register const char* sysName =
@@ -1399,8 +1409,12 @@ int CMailBoxHelper::_DoSendNewMail(CUser* user, Inven_Item const& item,
     SIG_MAILBOX_SEND_NEW_MAIL* msg =
         guard.operator->()->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL>();
     std::memset(msg, 0, 0x168);
-    _makeSendMailData(msg, user->getCurCharacName(), user->getCurCharacNo(), item,
-                      nDestCharacNo, nAmount, pTitle, nTitleLen, 0, nType);
+    _makeSendMailData(msg, user->getCurCharacName(), user->getCurCharacNo(),
+                      item, nDestCharacNo, nAmount, pTitle, nTitleLen, 0,
+                      nType);
+    // ORIG 两步形：call GetServerGroup 后 mov -0xc(%ebp),%edx 中转 store；
+    // 4.4 同两步恒 ebx 缓存（sret 前已物化），N18a 族不可翻（穷举含
+    // 逗号表达式单式）。
     reinterpret_cast<MailBoxSendNewMailV*>(msg)->m_serverGroup =
         user->GetServerGroup();
     if (!bA)
@@ -1653,6 +1667,13 @@ int CMailBoxHelper::ReqDBSendNewSystemMultiMail(const char* pSender,
     msg->m_nA = nA;
     msg->m_characNo = nCharacNo;
     std::strcpy(msg->m_title, pTitle);
+    // ORIG store 序（+0x122 后）：m_count/+0x388(0x14=nCount) →
+    // m_nA/+0x38c(0x18) → m_characNo/+0x11e(0x1c) → strcpy(0x20=pTitle) →
+    // m_titleLen/+0x399(0x24) → m_nB/+0x390(0x28) →
+    // m_serverGroup/+0x395(0x2c) → m_flag/+0x394(-0x2c 槽 movzbl 中转) →
+    // m_unk3a5/+0x3a5($1)。
+    // 残差（b27 判定）：m_titleLen 单条 N76 store 装载序（4.1 LHS 槽先 vs
+    // 4.4 RHS 值先，N76 已异型边界内封顶），其余 0x390/0x395/0x394 序全等。
     msg->m_titleLen = nTitleLen;
     msg->m_nB = nB;
     msg->m_serverGroup = nServerGroup;

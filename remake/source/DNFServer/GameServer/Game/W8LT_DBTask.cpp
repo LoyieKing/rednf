@@ -1216,6 +1216,9 @@ int DB_GatheringParyStatus::save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, i
     char buf[0x10];
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4, E_SERVER_GROUP_NONE);
     bool ok;
+    // ORIG 0x8421…：`lea (%ecx,%eax);add $0x20;mov 0xe(%eax)` 三段：
+    // 4.4 对语句内联合表达式恒折叠单 add（两步拆分则指针落槽多 2 对），
+    // 装载序（idx 先/sig 后）不可控 → N18a 残差 2 对，行为等价。
     sprintf(buf, "%d.%d.%d.%d",
             (unsigned char)sig->m_tryEntries[idx][2],
             (unsigned char)sig->m_tryEntries[idx][3],
@@ -1235,10 +1238,6 @@ int DB_GatheringParyStatus::save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, i
         sig->m_field1c,
         (unsigned char)sig->m_tryEntries[idx][1],
         buf,
-        // ORIG 0x8421…：`lea (%ecx,%eax);add $0x20;mov 0xe(%eax)` 三段：
-        // 先行指针 lea(sig,10i)、再 add $0x20、disp 0xe。ul 往返形可对齐
-        // add/disp 但 spill 多 1 行（N18a：4.4 不提前保 sig 于 %ecx）；
-        // 取 g1 直写形（ndiff 4 = 装载序+add/lea 序，行为等价）。
         reinterpret_cast<const DB_TryNatView*>(
             reinterpret_cast<const char*>(
                 sig) + idx * 10 + 0x20)->m_f,
@@ -1264,6 +1263,7 @@ int DB_GatheringParyStatus::save_dnf_party_result_history(SIG_PARTY_STATUS* sig,
     char buf[0x10];
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4, E_SERVER_GROUP_NONE);
     bool ok;
+    // 同 pvp 版：N18a 残差 2 对（装载序+折叠），行为等价。
     sprintf(buf, "%d.%d.%d.%d",
             (unsigned char)sig->m_tryEntries[idx][2],
             (unsigned char)sig->m_tryEntries[idx][3],
@@ -1283,8 +1283,6 @@ int DB_GatheringParyStatus::save_dnf_party_result_history(SIG_PARTY_STATUS* sig,
         sig->m_field1c,
         (unsigned char)sig->m_tryEntries[idx][1],
         buf,
-        // ORIG 0x842156a：同 pvp 版取 DB_TryNatView g1 直写形（残留
-        // 装载序/add-lea 序 2 对，N18a）。
         reinterpret_cast<const DB_TryNatView*>(
             reinterpret_cast<const char*>(
                 sig) + idx * 10 + 0x20)->m_f,

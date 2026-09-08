@@ -151,6 +151,11 @@ bool WongWork::CSimpleSSO::getGameStartTime(unsigned int mId, long& loginTime,
 bool WongWork::CSimpleSSO::checkValidPassword(unsigned int mId, char const* a,
                                               char const* b, stOutputData_t& out)
 {
+    // [b27 封顶] 残差（帧 0xf8 vs 0x38 + 实参装载序）：ORIG P210 同 TU
+    // callee _getGameStartTime 大帧被精确继承（0xf8 出参）；4.4 不继承
+    // outgoing 只按本函数实参算帧（0x38），且 0x18 槽先→lea 序 vs 4.4
+    // lea 先（P75）。定义顺序已核（_getGameStartTime 定义在后，若前置
+    // 则 4.4 应继承大帧——实测两序均试不翻）。语义/调用链全等。
     unsigned int v1 = 0;  // ORIG -0x18(%ebp)
     unsigned int v2 = 0;  // ORIG -0x14(%ebp)
     return _getGameStartTime(mId, *reinterpret_cast<long*>(&v2),
@@ -165,6 +170,13 @@ bool WongWork::CSimpleSSO::checkValidPassword_Jpn(unsigned int mId, char const* 
     unsigned int v2 = 0;
     getGameStartTime(mId, *reinterpret_cast<long*>(&v1),
                      *reinterpret_cast<long*>(&v2), out);
+    // ORIG 判定形：call IsGm 后直接 test %al（bool 返回直测，无 XOR 前缀）
+    // + je 跳尾 mov$1 —— if(IsGm){...} 正极性 + 尾部 mov $1;jmp 中继保持
+    //（ORIG +0xae..+0xba，中继属在册 N 跨版本 lowering 保留）。
+    // [b27 封顶] 残差 = getGameStartTime 实参装载序（ORIG 0x18 槽先 → lea
+    // -0x20；4.4 恒 lea 先 → 0x18 后，P75 跨版本实参调度序不可定向）+
+    // 尾 mov$1 中继缺失（if 形无中继，early-return 形反生 XOR 前缀——两形
+    // 探针均不匹配 ORIG 组合）。语义/调用链/其余指令全等。
     if (GlobalData::s_GM_Manager->IsGm(mId))
     {
         if (strncmp(a, b, 0x84) == 0)

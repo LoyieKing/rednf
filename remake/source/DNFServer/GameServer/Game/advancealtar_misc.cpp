@@ -340,9 +340,8 @@ StageDifficulty::T StageDifficulty::getNextDifficulty(StageDifficulty::T diff)
 //   （IsEventing(CUser*)）以参数 0 调用；返回 IsEventing!=false。
 bool isOnEvent()
 {
-    CEventManager* mgr = GlobalData::s_event_manager;               // [objdump 0x812cfac]
-    CEventBase* event = mgr->GetRepeatEvent(0x77);                  // [objdump 0x812cfbc]
-    return event->IsEventing((CUser*)0);                            // vptr+0x34 槽
+    // P183 禁指针缓存：ORIG 每步重物化，无具名局部（0x812cfac/cfbc 实证）。
+    return GlobalData::s_event_manager->GetRepeatEvent(0x77)->IsEventing((CUser*)0);
 }
 // ============================================================================
 bool isOpenAdvanceAltar()

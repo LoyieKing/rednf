@@ -31,7 +31,8 @@ static const unsigned short C_ARAD_PROD_TYPE = 0x2d;  // _ZN5nexon4cashL16C_ARAD
 // TCPSocket —— BSD TCP 封装（独立类，非继承层级）
 // 布局（ctor 0x081af4cc）：
 //   +0x00 int    m_socket (-1)
-//   +0x04 char   m_pad04[0x10]      （本类未引用，保留区）
+//   +0x04 sockaddr_in 视图（accept 回填源，ORIG 0x081aff78 lea 0x8/
+//        0x081aff87 movzwl 0x6 单步 disp 实证 = 字段化依据）
 //   +0x14 u32    m_peerAdrs         （网络序 in_addr）
 //   +0x18 u16    m_peerPort         （网络序存储，getPeerPort 原样返回）
 //   +0x1c int    m_sendRetryCount （ORIG 0x081af722 `cmp $0x64; setg` 有符号比较）
@@ -83,7 +84,10 @@ private:
 
 private:
     int            m_socket;         // +0x00
-    char           m_pad04[0x10];    // +0x04（未引用保留区）
+    unsigned short m_sinFamily;      // +0x04（sockaddr_in.sin_family）
+    unsigned short m_sinPort;        // +0x06（网络序，accept 回填）
+    unsigned int   m_sinAddr;        // +0x08（网络序，accept 回填源）
+    char           m_pad0c[8];       // +0x0c..+0x13（未引用保留区）
     unsigned int   m_peerAdrs;       // +0x14
     unsigned short m_peerPort;       // +0x18
     int            m_sendRetryCount; // +0x1c（ORIG setg 有符号，0x081af71f-0x081af722）
@@ -144,6 +148,11 @@ private:
 class ByteBuffer
 {
 public:
+    // [b27L8] 空默认构造：ORIG get_data_header 0x081ad168 对 in 无 ctor call
+    // （wrap 全字段覆盖，checkEntrance 0x081ad316 同形）。4.1 前端展开空
+    // ctor 为 0 条；4.4 -O0 恒 call ⇒ always_inline 强制展开（体空无 call；
+    // 探针 l8_probe3：{} 恒 call、=default 发射 out-of-line C1Ev，均不可用）。
+    __attribute__((always_inline)) ByteBuffer() {}
     ByteBuffer(char* buffer, unsigned int capacity);    // ORIG 0x081ae9e2
     ByteBuffer& wrap(char* buffer, unsigned int capacity); // ORIG 0x081ae9b8（按值返回 this）
 

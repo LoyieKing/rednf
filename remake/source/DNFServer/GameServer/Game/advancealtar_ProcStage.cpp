@@ -382,7 +382,8 @@ ProcStage::~ProcStage()
 // ORIG T 0x0812e146（incCurrentMs.md 全文）：m_field8 += gmTimeSpeed_ * 1000。
 void ProcStage::incCurrentMs()
 {
-    m_field8 += Manager::gmTimeSpeed_ * 1000;
+    int speed = Manager::gmTimeSpeed_ * 1000;   // ORIG -0x4 槽往返（P0 具名局部）
+    m_field8 = m_field8 + speed;
 }
 
 // ----------------------------------------------------------------------------
@@ -612,7 +613,7 @@ void ProcStage::reset(StageType::T type)
     m_map = 0;                    // ORIG +0x74 总是清零
     m_summonObjectMs.reset();
 
-    if (type != StageType::STAGE_SURVIVAL)
+    if ((unsigned int)type != 1u)   // ORIG reg 形比较（P209：unsigned 载寄存器）
     {
         m_state = 7;
         m_field14 = 0;
@@ -750,9 +751,9 @@ int ProcStage::startStage(int stageId, StageDifficulty::T diff)
 // ----------------------------------------------------------------------------
 void ProcStage::addCreatedMapMonster(_MapMonsterSummary& summary)
 {
-    const short seq = m_field14;
-    summary.m_seq = seq;
-    m_field14 = static_cast<short>(seq + 1);
+    // P0：ORIG 无 seq 槽（0x812e177 movzwl 后寄存器直存/lea 自增），原码为内联右值。
+    summary.m_seq = m_field14;
+    m_field14 = static_cast<short>(m_field14 + 1);
     m_createdMapMonsters.insert(std::make_pair(summary.m_seq, summary));
 }
 
@@ -919,7 +920,9 @@ int CharacData::summonSlotUnit(unsigned char slot, int need)
         return 4;
     }
     // +0x18 = m_strPtr 双解引（mov 0x18(%eax);mov(%eax)）。
-    const int cost = *reinterpret_cast<int*>(cfg->m_strPtr) * it->second.m_field8;
+    // ORIG 0x812d…：先读 it->second.m_field8（0xc(%eax)→%edx）再解 m_strPtr，
+    // imul %edx —— 乘法左操作数为 m_field8（求值顺序复现）。
+    const int cost = it->second.m_field8 * *reinterpret_cast<int*>(cfg->m_strPtr);
     if (it->second.m_needGage == need && cost <= m_gage)
     {
         m_gage -= cost;

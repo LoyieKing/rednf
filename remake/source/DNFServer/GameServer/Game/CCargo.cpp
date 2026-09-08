@@ -77,7 +77,7 @@ bool CCargo::get_cargo(void* out) const
 }
 
 // ---- 槽位访问 ----
-int CCargo::GetCapacity() const
+unsigned int CCargo::GetCapacity() const
 {
     return m_capacity;
 }

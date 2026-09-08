@@ -229,7 +229,7 @@ void CCharacStatCmd::execute()
 void CChoiceItem::parse()
 {
     trim(m_parser->m_args);
-    m_itemIdx = atoi(m_parser->m_args.c_str());
+    m_itemIdx = static_cast<unsigned int>(atoi(m_parser->m_args.c_str()));
 }
 
 // ORIG execute 0x084b0a6e。

@@ -590,16 +590,15 @@ __attribute__((target("arch=i486"))) void CDataManager::SetItemDropRate(float ra
 {
     if (m_dropRate != rate)
     {
-        float old = m_dropRate;
-        float ratio = old / rate;
+        float ratio = m_dropRate / rate;
         m_dropRate = rate;
         m_itemGeneratorMgr->setDropRatio(rate);
-        for (unsigned int i = 0; i < m_serverParameter.m_genRefs1.size(); ++i)
+        for (int i = 0; i < (int)m_serverParameter.m_genRefs1.size(); ++i)
         {
             sItemGenRef& ref = m_serverParameter.m_genRefs1[i];
             ref.m_dropRate = (int)((float)ref.m_dropRate * ratio);
         }
-        for (unsigned int i = 0; i < m_serverParameter.m_genRefs0.size(); ++i)
+        for (int i = 0; i < (int)m_serverParameter.m_genRefs0.size(); ++i)
         {
             sItemGenRef& ref = m_serverParameter.m_genRefs0[i];
             ref.m_dropRate = (int)((float)ref.m_dropRate * ratio);
@@ -1432,8 +1431,10 @@ stDeathTower_t* CDataManager::GetTowerScript(unsigned int dungeonIdx)
         m_deathTowerMap.find(dungeonIdx);
     if (it == m_deathTowerMap.end())
     {
+        // ORIG：dungeonIdx 先物化到 %ebx 跨 C1+cl 两调用保活（P87 register 形）。
+        register unsigned int idx = dungeonIdx;
         cMyTrace trace("stDeathTower_t* CDataManager::GetTowerScript(unsigned int)", 0xd44, 5);
-        trace("Dungeon idx not found : %u", dungeonIdx);
+        trace("Dungeon idx not found : %u", idx);
     }
     return &it->second;
 }
@@ -2097,7 +2098,7 @@ bool CDataManager::InitLoginState(ENUM_SERVER_GROUP serverGroup, int channelNo)
 // vector<_DailySchedule>、SDCActiveStatusSyncServer、AvatarRoulette）由 C++
 // 作用域析构，与 ORIG 异常清理块（+0x6df2..+0x6e96）等价。
 // ---------------------------------------------------------------------------
-int CDataManager::init()
+bool CDataManager::init()
 {
     // ORIG 版本五元组落在具名区最浅端（槽 -0xf1c/-0xf18/-0xf14/-0xf10/
     // -0xf0c，紧邻临时 arena 基址 -0xf08）；标量局部在本 GCC 下会进顶部

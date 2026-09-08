@@ -45,7 +45,14 @@ struct STBaseResponse : public ParamBase
 //      _SetSlotData 12B（req+0x18 起整块，首 int 槽类型判别）；ResetStarType
 //      opaque 枚举包装——ORIG mangled N15CMDPacketStruct13ResetStarType1TE，
 //      枚举器名【推断】。advancealtar.h 留同守卫副本）----
-struct _SetSlotData { int m_type; int m_field4; int m_field8; };
+struct _SetSlotData
+{
+    int m_type;
+    unsigned char m_field4;   // ORIG resetSlot 0x08132bfa find 直接引用 &data+4
+                              //（无 movzbl 转换临时）⇒ key_type 真型 uchar；
+                              // +pad3 保持 12B 布局、m_field8 +0x8 不变
+    int m_field8;
+};
 
 #ifndef DNF_GAME_CMDPACKET_RESETSTARTYPE_DEFINED
 #define DNF_GAME_CMDPACKET_RESETSTARTYPE_DEFINED

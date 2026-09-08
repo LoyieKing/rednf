@@ -574,7 +574,7 @@ bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
 // [report SendResult.md / objdump 0x813ea46]
 bool DB_Load::SendResult(int uid, int uniqueId, _CharacAdvanceAltarDbData& data, bool ok)
 {
-    if (!ok)
+    if (!ok)          // 残差 cmpb mem 直判 vs movzbl+xor+test 属 P209 镜像 N（4.4 bool 直判恒载寄存器）
         return true;
     // ORIG 无 stream 具名槽：Acquire 结果经 eax 直传（P0/P89）。
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
@@ -1032,13 +1032,15 @@ bool convertZipToString(MySQL* mysql, int col, char* zipBuf, unsigned int zipCap
     const int zlen = mysql->get_binary_length(col);
     if (zlen == 0)
         return true;
-    if (!(zipCap > static_cast<unsigned int>(zlen)))
+    // ORIG 0x813dc73：mov 0x14(%ebp),%eax; cmp -0x10(%ebp),%eax（左=zipCap 参数载寄存器）。
+    // 反向 (unsigned)zlen >= zipCap 试图让 4.4 同向装载（P209 姊妹探针）。
+    if (static_cast<unsigned int>(zlen) >= zipCap)
         return false;
     std::memset(zipBuf, 0, zipCap);
     if (!mysql->get_binary(col, zipBuf, zlen))
         return false;
     const unsigned int rawLen = (*reinterpret_cast<unsigned int*>(zipBuf)) & 0x3fffffff;
-    if (!(strCap > rawLen))
+    if (rawLen >= strCap)
         return false;
     std::memset(strBuf, 0, strCap);
     unsigned int len = rawLen;

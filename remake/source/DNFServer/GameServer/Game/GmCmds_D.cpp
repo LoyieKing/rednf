@@ -107,12 +107,6 @@ void GmD_CIndependentDrop_printClient(CIndependentDrop* self, CUser* user,
 void GmD_CIndependentDrop_SendChatMsg(CIndependentDrop* self, CUser* user,
                                       char* msg)
     __asm__("_ZN11game_master16CIndependentDrop11SendChatMsgEP5CUserPc");
-// ORIG W 0x084b395c game_master::CLevelUp::setLevel(int)
-void GmD_CLevelUp_setLevel(CLevelUp* self, int level)
-    __asm__("_ZN11game_master8CLevelUp8setLevelEi");
-// ORIG W 0x084b398e game_master::CLevelUp::getLevel()
-int GmD_CLevelUp_getLevel(CLevelUp* self)
-    __asm__("_ZN11game_master8CLevelUp8getLevelEv");
 
 // ---------------------------------------------------------------------------
 // 本地 POD 镜像：头内占位槽位按 ORIG 真实类型的具名访问（生成 disp 寻址，
@@ -300,7 +294,7 @@ void CLinkSystem::execute()
 void CGetCashInven::parse()
 {
     trim(m_parser->m_args);
-    ((GmDFld<short>*)this)->f08 = static_cast<short>(atoi(m_parser->m_args.c_str()));
+    m_cashType = static_cast<short>(atoi(m_parser->m_args.c_str()));
 }
 
 // ORIG execute 0x084ac846：空函数（push ebp; mov ebp,esp; pop ebp; ret）。
@@ -319,7 +313,7 @@ void CGetCashInven::execute()
 void CItemDropInDungeon::parse()
 {
     trim(m_parser->m_args);
-    ((GmDFld<int>*)this)->f08 = atoi(m_parser->m_args.c_str());
+    m_itemIdx = atoi(m_parser->m_args.c_str());
 }
 
 // ORIG execute 0x084abce8：可堆叠或 avatar/creature 类型(idx 0x16/0x17) 物品跳过，
@@ -364,7 +358,7 @@ void CItemDropInDungeon::execute()
 void CInGameEventSetDay::parse()
 {
     trim(m_parser->m_args);
-    ((GmDFld<int>*)this)->f08 = atoi(m_parser->m_args.c_str());
+    m_day = atoi(m_parser->m_args.c_str());
 }
 
 // ORIG execute 0x084b0a08：event_script_mng->test_process_change_day(day)。
@@ -624,7 +618,7 @@ void CLevelUp::parse()
     {
         int level = static_cast<int>(                       // ORIG 中间变量 -0xc(%ebp)
             StringToNumber(m_parser->m_extra[1].c_str()));
-        GmD_CLevelUp_setLevel(this, level);
+        setLevel(level);
     }
 }
 
@@ -637,7 +631,7 @@ void CLevelUp::execute()
         return;
     }
     DisPatcher_DebugCommand dispatcher;                       // local_14
-    dispatcher._debugCommandSetLevel(user, GmD_CLevelUp_getLevel(this));
+    dispatcher._debugCommandSetLevel(user, getLevel());
 }
 
 // ===========================================================================
@@ -822,26 +816,26 @@ void GmD_CIndependentDrop_SendChatMsg(CIndependentDrop* self, CUser* user,
 }
 
 // ORIG setLevel 0x084b395c：>70 截 70；<=0 归 1；其余原值。
-void GmD_CLevelUp_setLevel(CLevelUp* self, int level)
+void CLevelUp::setLevel(int level)
 {
     if (!(level < 71))                                       // cmpl $0x46; jle
     {
-        ((GmDFld<int>*)self)->f08 = 70;
+        m_level = 70;
     }
     else if (level < 1)
     {
-        ((GmDFld<int>*)self)->f08 = 1;
+        m_level = 1;
     }
     else
     {
-        ((GmDFld<int>*)self)->f08 = level;
+        m_level = level;
     }
 }
 
 // ORIG getLevel 0x084b398e。
-int GmD_CLevelUp_getLevel(CLevelUp* self)
+int CLevelUp::getLevel()
 {
-    return ((GmDFld<int>*)self)->f08;
+    return m_level;
 }
 
 } // namespace game_master

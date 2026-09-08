@@ -165,12 +165,16 @@ T_END:
 void CVillageMonsterMgr::OnMoveArea(CUser* user)
 {
     // ORIG 0x86b45bc：Zone(curVill, curArea) 查找，命中则转交区域处理。
-    unsigned char area = (unsigned char)user->get_area(false);
-    unsigned char vill = user->getCurCharacVill();
-    Zone zone(vill, area);
+    // P36/P52：ORIG 0x86b45bc get_area 值经 %ebx 跨 getCurCharacVill 调用保活
+    // （无栈槽 ⇒ 无具名局部），vill 为内联右值直进 eax。
+    register unsigned char area asm("ebx") = (unsigned char)user->get_area(false);
+    Zone zone(user->getCurCharacVill(), area);
     std::map<Zone, CVillageMonsterArea>::iterator it = m_areas.find(zone);
-    if (it != m_areas.end())
-        it->second.OnMoveArea(user);
+    // ORIG 0x86b45bc 实为 eq + jne 早退形，且 pt 后 +0x4 经具名槽 -0xc（P0 指针局部）。
+    if (it == m_areas.end())
+        return;
+    CVillageMonsterArea* areaObj = &it->second;
+    areaObj->OnMoveArea(user);
 }
 
 bool CVillageMonsterMgr::OnEvent()
@@ -278,9 +282,13 @@ int CVillageMonster::OnFightVillageMonster(CUser* user, int& out1, int& out2)
 {
     if (m_state != 0)
         return 0x13;
-    if (abs((int)user->get_posX() - m_field04) > MONSTER_MOVE_PIXEL)
-        return 0x63;
-    if (abs((int)user->get_posY() - m_field08) > MONSTER_MOVE_PIXEL)
+    // P133 反向：ORIG 0x86b3240 是 jg/jle 直分支常量岛（bool 汇聚无槽），
+    // 探针 /tmp/dl17p/p2.cpp g4：内联短路 bool 赋值形 4.4 复现直分支；
+    // register bool 绑 %eax 复现 ORIG 的 mov$1/mov$0 岛 + test %al 直测（无槽）。
+    register bool out asm("eax") =
+        abs((int)user->get_posX() - m_field04) > MONSTER_MOVE_PIXEL ||
+        abs((int)user->get_posY() - m_field08) > MONSTER_MOVE_PIXEL;
+    if (out)
         return 0x63;
     OnChangeState(ENUM_VILLAGE_MONSTER_STATE_1);
     m_partyIndex = (int)user->GetPartyIndex();
@@ -431,9 +439,14 @@ int CVillageMonsterArea::OnFightVillageMonster(CUser* user, unsigned short zone,
 {
     std::map<unsigned short, CVillageMonster>::iterator it =
         m_monsters.find(zone);
-    if (it == m_monsters.end())
-        return 0x15;
-    return it->second.OnFightVillageMonster(user, out1, out2);
+    // P0：ORIG 0x86b3fe2 有 -0xc 槽 ⇒ 原码有具名 monster 指针局部；
+    // ne 正形 + 尾部 0x15 块（je +0x87）。
+    if (it != m_monsters.end())
+    {
+        CVillageMonster* monster = &it->second;
+        return monster->OnFightVillageMonster(user, out1, out2);
+    }
+    return 0x15;
 }
 
 // ============================================================================
@@ -542,9 +555,11 @@ void CVillageMonsterMgr::OnRegenVillageMonster(int a, int b)
         return;
     Zone zone((unsigned char)a, (unsigned char)b);
     std::map<Zone, CVillageMonsterArea>::iterator it = m_areas.find(zone);
-    if (it == m_areas.end())
-        return;
-    it->second.OnCreateVillageMonster();
+    // P133：ORIG 0x86b4338 用 operator!=（je 出口正形）非早退 eq。
+    if (it != m_areas.end())
+    {
+        it->second.OnCreateVillageMonster();
+    }
 }
 
 // ============================================================================

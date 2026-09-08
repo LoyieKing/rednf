@@ -26,9 +26,8 @@ MSG_BLUE_MARBLE::MSG_BLUE_MARBLE()
     m_0d = 0;  // ORIG C1：+0xd byte 清零
 }
 MSG_BLUE_MARBLE_CONFIRM_INFO::MSG_BLUE_MARBLE_CONFIRM_INFO()
-    : m_0e(0xffff)
-{  // ORIG C1：+0xd byte、+0xe word=-1
-    m_0d = 0;
+    : m_0d(0), m_0e(0xffff)
+{  // ORIG 0x822e39a：+0xd byte=0 先、+0xe word=0xffff 后
 }
 MSG_BREAK_AWAY::MSG_BREAK_AWAY() : m_checkFlag(0) {}
 // 字段化后保持占位版语义：+0xd 包头后全量清零（ORIG 无出线 ctor，此为本仓库构造约定）。

@@ -130,9 +130,10 @@ public:
 static_assert(sizeof(GenuineDamageUpgradeTable) == 0x188,
               "GenuineDamageUpgradeTable size drift");
 
-bool importGenuineUpgradeTable(const char* path,
-                               GenuineDamageUpgradeTable* table);
-    // ORIG T 0x08912336（eax 流出 bool；定义 ScriptDepsB.cpp）
+int importGenuineUpgradeTable(const char* path,
+                              GenuineDamageUpgradeTable* table);
+    // ORIG T 0x08912336（尾部 mov %ebx,%eax 直透，无 movzbl ⇒ int 非 bool；
+    //   调用方 LoadUpgradeScript 透传亦无 movzbl。定义 ScriptDepsB.cpp）
 
 namespace WongWork
 {

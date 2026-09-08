@@ -24,15 +24,16 @@ void CGenUniqueNo::_updateTimeCount()
 char* CGenUniqueNo::GenUniqueNo(char* out)
 {
     _updateTimeCount();
-    CEnvironment* env = G_CEnvironment();
-    // ORIG 0x084b7721：实参1 = *(env+0x378)（m_serverGroup）、
-    // 实参2 = *(env+0x1b0)（m_channelNo）、实参3 = getCurSec、实参4 = m_nTimeCount。
-    // 曾误作 (channelNo, processSequence, …)，已按 ORIG 修正。
+    // [b27] G_CEnvironment() 两次内联调用（P48）；参数序 (channelNo,
+    // serverGroup, sec, m_nTimeCount)（ORIG esp 槽实证）；getCurSec 预语句
+    // 落槽。已 31=31 全条数。
+    // [b27 封顶] 残差 = m_nTimeCount 读位（ORIG 延后至 env#1 后，4.4 右→左
+    // 恒最先，P75 不可定向）+ sec/t 槽号/寄存器（esi↔ebx）跨版本分配差。
+    int sec = GlobalData::s_systemTime_.getCurSec();
     snprintf(out, 0x14, "%02d%02d%10d%05d",
-             env->m_serverEnvir.m_serverGroup,
-             env->m_serverEnvir.m_channelNo,
-             GlobalData::s_systemTime_.getCurSec(),
-             (unsigned int)m_nTimeCount);
+             G_CEnvironment()->m_serverEnvir.m_channelNo,
+             G_CEnvironment()->m_serverEnvir.m_serverGroup,
+             sec, (unsigned int)m_nTimeCount);
     return out;
 }
 

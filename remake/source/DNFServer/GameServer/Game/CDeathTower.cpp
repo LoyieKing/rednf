@@ -273,14 +273,11 @@ int CDeathTowerRanking::checkRenewTopRecord(unsigned int towerIdx,
     // 范式36：删 topSlot 具名中转（4.4 多 1 个 4B 槽 ⇒ ORIG tmp 基址 -0xa0 平移
     // -0xa4）；ORIG 0x084682a5/0x08468320 两处独立 imul 0x390 地址重算。
     // flag 判形 ORIG 0x084682ae：movzbl (%eax); xor $0x1; test %al; je —— (x^1) truthy。
-    // 范式26+(unsigned long) 往返阻 4.4 disp 折叠（ORIG 0x084682a8 lea 后
-    // 单条 add $0x128,%eax + movzbl (%eax),%eax）；xor 先入 %eax 变量再判
-    // 阻 fold-const 把 (x^1)!=0 折成 cmp$1。
-    // P0：fx 无栈槽（绑 %eax，ORIG 0x084682ae xor $0x1,%eax 于 %eax 内完成）；
-    // 先物化到变量再 if 阻 fold-const 把 (x^1)!=0 折成 cmp$1。
-    register unsigned int fx asm("eax");
-    fx = (unsigned int)m_towers[towerIdx].m_slots[0].m_flag90 ^ 1u;
-    if (fx)
+    // [b27 封顶] flag 判形 ORIG xor $1 于 %eax 内 + test %al（8 位直测）；
+    // 4.4 恒 movzbl %al,%eax 加宽（直写形折 cmp$1，变量形多槽两步——P168a③
+    // 同族），test %al 形不可造。另 m_flag90 偏移 0x128 拆 0x120+disp8 为
+    // 4.4 常量折叠策略（N94 邻族），ORIG add $0x128 全常量形不可定向。
+    if ((m_towers[towerIdx].m_slots[0].m_flag90 ^ 1u) != 0)
         return 0;
     stBestRecord_t tmp;
     tmp.m_playTime = playTime;
@@ -498,10 +495,16 @@ CDeathTower::CDeathTower()
 {
     // ORIG 0x82a75da：CDungeonMgr/CStage/CPlayData 子对象 ctor 由编译器生成；
     // 函数体仅将 m_timerKeys[TIMER_MESSAGE 0x48..0x4e] 清零。
+    // [b27 封顶] 唯一残差 = EH cleanup 段：4.4 对 CStage 子对象 ctor 异常路径
+    // 恒发 ~CStage call + _Unwind_Resume（N91：4.1 对 non-trivial dtor 元素
+    // 隐式构造不生成 EH 残段），禁删子对象 dtor ⇒ 无源码解。主体/槽/循环全等。
     for (int i = 0x48; i <= 0x4e; ++i)
         m_timerKeys[i - 0x48] = 0;
 }
 
+// [b27 封顶] D1 残差（33 vs 43）= CStage 析构 EH 双份 epilogue（4.4 恒发
+// ~CStage cleanup 块 + ebx/esi 保存，4.1 merge 为单块）——N91 同根（C1 同判
+// 见 ctor 注），无源码解。
 CDeathTower::~CDeathTower() {}
 
 int CDeathTower::getIdx()
@@ -1171,8 +1174,10 @@ void CDeathTower::_onClear(bool isLast)
         user = m_party->get_user(i);
         if (user == 0 || !m_party->checkValidUser(i))
             continue;
-        user = m_party->get_user(i);   // ORIG 二次取 user（null 判定与使用分离）
-        user->setChattingMessageCount(0);
+        // ORIG 二次 get_user 后 eax 直传 setChattingMessageCount 实参槽
+        //（无 -0xc 回读；具名 user 复制生 [mov %eax,-0xc; mov -0xc,%eax]
+        // 额外往返）。
+        m_party->get_user(i)->setChattingMessageCount(0);
         // CUser +0x79700：cUserHistoryLog（public 成员 m_historyLog，CUser.h 2197）
         user->m_historyLog.DungeonClearInfo((int)isLast, playTime / 1000);
     }

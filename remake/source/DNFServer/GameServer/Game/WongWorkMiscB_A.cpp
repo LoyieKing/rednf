@@ -73,6 +73,11 @@ void Avatar_Item::setColor(short color1, short color2)
 //   起始 +0x21）；socketType(u16)==0 → return 0；否则写入 itemIdx 并 return 1。
 int Avatar_Item::updateEmblemSocket(unsigned int grade, unsigned int itemId)
 {
+    // [b27 封顶] 残差（28 vs 30）：写段 ORIG `lea 0x20(%eax),%edx; mov
+    // 0x10(%ebp),%eax; mov %eax,0x3(%edx)` 两步 disp 4.1 形 vs 4.4
+    // `add $0x20;mov %ecx` 直算 + itemId 提前物化进 callee-saved（push
+    // %ebx 由其实现）——N18a/N7 族寄存器分配/物化序不可定向（探针 42
+    // 具名元素直写亦不匹配）。
     if (m_emblemInfo.stEmblemSocket[grade].emblemSocketType_ == 0)
         return 0;
     m_emblemInfo.stEmblemSocket[grade].emblemItemIdx_ = (int)itemId;

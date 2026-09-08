@@ -95,7 +95,7 @@ public:
 
     int m_openCode;              // +0x00
     SECRET_SHOP_INFO m_info[4];  // +0x04
-    char m_buying[4];            // +0x74
+    bool m_buying[4];            // +0x74（ORIG SetBuying 0x08ab1532 store 序=bool 数组成员形：idx→this→movzbl→store，P33 族探针 p27g 实证）
     char m_pad[0x10];            // +0x78..+0x87（保留区）
 };
 

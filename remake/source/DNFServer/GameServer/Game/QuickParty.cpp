@@ -563,7 +563,7 @@ bool CQuickParty::is_empty_quick_party()
 // ---- set_first_matching_cnt @0x0826b75a（W 内联）：直写 +0x14 字节 ----
 void CQuickParty::set_first_matching_cnt(char cnt)
 {
-    m_firstMatchingCnt = static_cast<unsigned char>(cnt);
+    m_firstMatchingCnt = cnt;
 }
 
 // ---- find_quick_party_in_pool @0x0826a9fe：
@@ -571,11 +571,13 @@ void CQuickParty::set_first_matching_cnt(char cnt)
 CQuickParty* CQuickPartySystemManager::find_quick_party_in_pool(
     std::list<int>& pool)
 {
+    CQuickParty* qp = 0;             // ORIG -0x10 头部 movl $0x0 初始化
+    int qpIndex;                     // ORIG -0xc 深槽
     while (!pool.empty())
     {
-        int qpIndex = pool.front();
+        qpIndex = pool.front();
         pool.pop_front();
-        CQuickParty* qp = G_CGameManager()->GetQuickParty(qpIndex);
+        qp = G_CGameManager()->GetQuickParty(qpIndex);
         if (qp != 0)
             return qp;
         cMyTrace trace(
@@ -583,7 +585,7 @@ CQuickParty* CQuickPartySystemManager::find_quick_party_in_pool(
             0x29c, 5);
         trace("QUICK_PARTY_LOG : NO INTENDED ROUTINE!!");
     }
-    return 0;
+    return qp;
 }
 
 // ---- pop_quick_party_in_pool @0x0826ae64：

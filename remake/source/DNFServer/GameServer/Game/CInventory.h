@@ -308,7 +308,7 @@ public:
     int GetRemainDate(int uid, int nowSec) const;            // ORIG _ZNK...13GetRemainDateEii 0x0833d78e
     CCreatureItem* FindCreatureItem(int uid) const;          // ORIG 0x08339292（_ZNK）
     CArtifact* GetArtifact(int slot);  // ORIG _ZN13user_creature12CCreatureMgr11GetArtifactEi T 0x833be56（槽 0x17..0x1a → m_artifacts[0..3]）
-    int GetCreatureItem(SIG_LOAD_INVENTORY* sig) const;       // ORIG _ZNK13user_creature12CCreatureMgr15GetCreatureItemEP18SIG_LOAD_INVENTORY 0x833b80c
+    bool GetCreatureItem(SIG_LOAD_INVENTORY* sig) const;      // ORIG 0x833b80c 尾 mov$1 直返；GetInventoryInfo 调用点 xor$1 直判= bool 形（mangled 无返回类型 ABI 零变）
     // ---- ORIG 布局（Reset.md 0x833a45a / InsertCreatureItem.md 0x833b204 反汇编）----
     void RenameCreature(const char* name, int creatureIdx, int slot);  // ORIG _ZN13user_creature12CCreatureMgr14RenameCreatureEPKcii 0x08339b6e
     bool Hatch(int addInfo);                                           // ORIG _ZN13user_creature12CCreatureMgr5HatchEi 0x08339fa0

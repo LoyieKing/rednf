@@ -3200,7 +3200,7 @@ ItemVendingMachine::~ItemVendingMachine()
     // ORIG 0x0854c42a：析构 CeraShopPurcahseCountBonus@+8 + CCeraShop@+0。
     // map 成员自动析构；CCeraShop 为 stub 区（推断：无真实析构语义）。
 }
-int ItemVendingMachine::BuyItem(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
+bool ItemVendingMachine::BuyItem(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 {
     // ORIG 0x0854c4d0：仅委托 ProcessBuyRequestEx(this, user, msg) 后返回 1。
     ProcessBuyRequestEx(user, msg);
@@ -4934,6 +4934,9 @@ online_preliminary::COnlinePreliminaryTeamMgr::COnlinePreliminaryTeamMgr()
     // CTeamFactory；失败 logFormat 后继续。
     // ORIG 0x0858860c 首两条 `mov 0x8(%ebp),%eax; movl $0x0,(%eax)` 先于 map
     // ctor —— m_factory 清零是 mem-init（声明序）而非 body 赋值。
+    // N77 定论（DL7 复测）：ORIG 0x0858867e rep stos $0xc dword（0x30 全清）
+    // ＝ `new T()` value-init；4.4 CWG434 对 user-ctor 类不 emit（加括号
+    // 实测仍无 rep stos）⇒ 连同 0x10 帧差与 ebx/esi/edi 缓存差 N77+N82附 封顶。
     m_factory = new (std::nothrow) CTeamFactory;
     if (m_factory == 0)
     {
@@ -5220,8 +5223,8 @@ expert_extraction::CExtraction::CExtraction()
     // 0x084a296c：CMTRand ctor 形参为 const unsigned long&（mangled ERKm，
     // 32 位 ulong=4B → time 结果单 dword 落槽 0x084a2956、lea 槽址作实参）。
     unsigned long t = (unsigned long)time(0);
-    //（残余差：ORIG 0x084a2959 将 seed 槽地址提前物化 %esi、0x084a296c 直填
-    // arg2；4.4 恒在 new 之后 lea 临时寄存器再填 ⇒ 4.1/4.4 new-EH 块序差，标 N。）
+    // ORIG 0x084a2959：seed 槽地址提前物化 %esi —— 4.4 对实参 &t 表达式
+    // 自然产 lea（P0：寄存器仅承载表达式值）。
     m_rand = new CMTRand(t);
 }
 expert_extraction::CExtraction::~CExtraction()
@@ -5243,16 +5246,17 @@ expert_extraction::CExtractionMgr::CExtractionMgr()
     m_slots[0] = new CAlchemistExtraction();
     m_slots[1] = new CEnchanterExtraction();
     m_slots[2] = new CDollControllerExtraction();
+    // [N83 判词] ORIG 0x084a3047：value-init 双 movl 前清在 C1 前（4.1 前端
+    // 内联 placement）；4.4 恒 extern new+EH 块 + zero-init 折叠进 C1。
+    // 显式 operator new+placement new 探针（TU 实测 75→117）反劣：EH 残段
+    // 翻倍。源形不可择，语义等价，N 封顶。
 }
 expert_extraction::CExtractionMgr::~CExtractionMgr()
 {
     // ORIG 0x84a311a：for i∈[0,2] if(m_slots[i]) delete m_slots[i];（不置空）。
     for (int i = 0; i < 3; ++i)
     {
-        if (m_slots[i])
-        {
-            delete m_slots[i];
-        }
+        delete m_slots[i];   // 4.4 delete 自带 test/je 判空（P207）→ 与 ORIG 单判同形
     }
 }
 // ---- Teleport / NPC_Teleport / User_Teleport（报告 Teleport/、NPC_Teleport/、User_Teleport/）----
