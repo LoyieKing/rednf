@@ -2198,14 +2198,23 @@ void MonitorTcpThread::dispatch(void* arg)
             GlobalData::s_monitor_proxy_mgr->GetServerProxyArraySize();
         for (int i = 0; i < proxyCount; ++i)
         {
-            CMonitorServerProxy* mon =
-                GlobalData::s_monitor_proxy_mgr->GetServerProxyArrayAt(i);
-            int s = mon->GetTcpHandler()->get_socket();
-            if (s != -1 && FD_ISSET(s, &readfds))
+            // ORIG 0x0857e089..0x0857e254：select 后同样逐处重调三元链
+            // （if 1 次 + FD_ISSET 双求值 2 次；OnTcpRecv 前仅 1 次
+            // GetServerProxyArrayAt，无 GetTcpHandler）。
+            if (GlobalData::s_monitor_proxy_mgr->GetServerProxyArrayAt(i)
+                        ->GetTcpHandler()
+                        ->get_socket() != -1 &&
+                FD_ISSET(GlobalData::s_monitor_proxy_mgr
+                             ->GetServerProxyArrayAt(i)
+                             ->GetTcpHandler()
+                             ->get_socket(),
+                         &readfds))
             {
                 // b28c-l23 SIGFIX 消费点：OnTcpRecv 已 bool 化（lane28/lane12），
                 // bool callee ⇒ 裸形（P168a①：ORIG `call; xor$1; testb; je`）。
-                if (!mon->OnTcpRecv())
+                if (!GlobalData::s_monitor_proxy_mgr
+                         ->GetServerProxyArrayAt(i)
+                         ->OnTcpRecv())
                 {
                     LogManager::logFormat(
                         1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x449,
@@ -2221,9 +2230,18 @@ void MonitorTcpThread::dispatch(void* arg)
                         MsgQueueMgr::DISPATCH_Q, guard);
                 }
             }
-            if (s != -1 && FD_ISSET(s, &writefds))
+            if (GlobalData::s_monitor_proxy_mgr->GetServerProxyArrayAt(i)
+                        ->GetTcpHandler()
+                        ->get_socket() != -1 &&
+                FD_ISSET(GlobalData::s_monitor_proxy_mgr
+                             ->GetServerProxyArrayAt(i)
+                             ->GetTcpHandler()
+                             ->get_socket(),
+                         &writefds))
             {
-                int sendRet = mon->OnTcpSend();
+                int sendRet = GlobalData::s_monitor_proxy_mgr
+                                  ->GetServerProxyArrayAt(i)
+                                  ->OnTcpSend();
                 if (sendRet < 0)
                 {
                     LogManager::logFormat(
@@ -2241,13 +2259,19 @@ void MonitorTcpThread::dispatch(void* arg)
                         MsgQueueMgr::DISPATCH_Q, guard);
                 }
             }
-            CGuildServerProxy* guild =
-                GlobalData::s_guild_proxy_mgr->GetServerProxyArrayAt(i);
-            s = guild->GetTcpHandler()->get_socket();
-            if (s != -1 && FD_ISSET(s, &readfds))
+            if (GlobalData::s_guild_proxy_mgr->GetServerProxyArrayAt(i)
+                        ->GetTcpHandler()
+                        ->get_socket() != -1 &&
+                FD_ISSET(GlobalData::s_guild_proxy_mgr
+                             ->GetServerProxyArrayAt(i)
+                             ->GetTcpHandler()
+                             ->get_socket(),
+                         &readfds))
             {
                 // b28c-l23 SIGFIX 消费点：bool callee ⇒ 裸形（P168a①）
-                if (!guild->OnTcpRecv())
+                if (!GlobalData::s_guild_proxy_mgr
+                         ->GetServerProxyArrayAt(i)
+                         ->OnTcpRecv())
                 {
                     LogManager::logFormat(
                         1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x46f,
@@ -2263,9 +2287,18 @@ void MonitorTcpThread::dispatch(void* arg)
                         MsgQueueMgr::DISPATCH_Q, guard);
                 }
             }
-            if (s != -1 && FD_ISSET(s, &writefds))
+            if (GlobalData::s_guild_proxy_mgr->GetServerProxyArrayAt(i)
+                        ->GetTcpHandler()
+                        ->get_socket() != -1 &&
+                FD_ISSET(GlobalData::s_guild_proxy_mgr
+                             ->GetServerProxyArrayAt(i)
+                             ->GetTcpHandler()
+                             ->get_socket(),
+                         &writefds))
             {
-                int sendRet = guild->OnTcpSend();
+                int sendRet = GlobalData::s_guild_proxy_mgr
+                                  ->GetServerProxyArrayAt(i)
+                                  ->OnTcpSend();
                 if (sendRet < 0)
                 {
                     LogManager::logFormat(

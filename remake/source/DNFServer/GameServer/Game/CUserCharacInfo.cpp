@@ -3450,6 +3450,11 @@ int CUserCharacInfo::GetCurCharacAssaultFatigueCount()
     return m_selected ? CUR->m_assaultFatigueCount : 0;
 }
 
+// [b28d-solo-CUserCharacInfo N4/P30+N18a 封顶] ORIG 0x08677f24：两处字段直赋为单段
+// `mov 0x4(%eax),%edx`（4.4 多 `mov %eax,%edx` 中转）；数组写 ORIG 保留 disp
+// `lea 0x460(%ebx),%ecx; mov %edx,0x10(%eax,%ecx,8)`，4.4 把 +0x10 折成索引 +2
+// （`lea 0x2(%esi),%edx; mov %eax,(%ebx,%edx,8)`，106 vs 100 条）⇒ 常量折叠/寄存器
+// 分配差异，语义等价。
 void CUserCharacInfo::GetContinuousItemInfo(SIG_LOAD_ETC* p) const
 {
     p->m_cooltimeCharacNo = p->m_characNo;
