@@ -1728,7 +1728,7 @@ public:
     char Check225();
 
     CUser* m_user;              // +0x00
-    unsigned char m_active223;  // +0x04（init223 置 1 / Reset 清零）
+    bool m_active223;  // +0x04（init223 置 1 / Reset 清零；b28c C28L20A/lane12 代落：X2 族 bool 字段 + 裸 !field 直产 ORIG movzbl;xor$1;test;je，见 P219/P168a 补录）
     // ORIG init224/225 0x…：`movzbl 0x5; xor $1; test; je`（P22 ⇒ bool，uchar+!=1 出 cmp$1 反）；
     // A822W 取证，LC_Misc 条件形同步（!m_active 裸测）。
     bool m_active224;           // +0x05
@@ -1763,9 +1763,9 @@ public:
     void DieMob(const MSG_MONSTER_DIE* msg);// ORIG T 0x0827a81c（blocked：定义待补）
     void MoveMap();                         // ORIG T 0x0827a7f4；定义见 UserCoreDepsB2.cpp
 
-    unsigned char m_flag223;    // +0x38（MoveMap 置 1 / DieMob 存 Check223 结果）
-    unsigned char m_flag224;    // +0x39
-    unsigned char m_flag225;    // +0x3a
+    bool m_flag223;    // +0x38（MoveMap 置 1 / DieMob 存 Check223 结果；b28c C28L27 代落：ORIG 0x0827a857 `mov %al,0x38(%edx)` 单字节直存，uchar 字段恒多 mov %eax,%edx 截断中转）
+    bool m_flag224;    // +0x39（同上）
+    bool m_flag225;    // +0x3a（同上）
 };  // sizeof 0x3b → 与原 m_pad[0x3c] 对齐一致
 class PIReceiverManager
 {
@@ -3118,8 +3118,8 @@ public:
     // ---- 角色内存快照填充 helper（CacheCharacterMemory 链依赖；ORIG 符号）----
     int GetPcRoomRentInfo(SIG_SAVE_PC_ROOM_RENT_ITEM* sig);         // 0x086769ea
     int GetDimensionRentInfo(SIG_SAVE_DIMENSION_RENT_ITEM* sig);    // 0x08676bec
-    int getCharacInfoDetail(int idx, unsigned int characNo,
-                            CHARAC_DATA* out) const;                // 0x0864bdba
+    bool getCharacInfoDetail(int idx, unsigned int characNo,
+                             CHARAC_DATA* out) const;               // 0x0864bdba（b28c C28L5 代落：全出口仅 mov$1/mov$0 P159 + 消费点 0x0864bdf2 xor$1/test%al P168a①）
     int getTagCharacInfo(int idx, unsigned int characNo,
                          TAG_CHARAC_DATA* out) const;               // 0x086904f0
     bool getTagCharacInventory(TAG_CHARAC_INVEN_DATA* out) const;   // 0x0869067c

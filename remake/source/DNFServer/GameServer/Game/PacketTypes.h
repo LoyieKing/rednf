@@ -2005,11 +2005,10 @@ public:
     char m_pad06[0x3e];       // 保持占位总长 0x44
 };
 
-// ORIG _ZN25competition_reward_resultC1Ev：+0 int、+4 int 清零、+8 byte 清零，sizeof 0xc
 class competition_reward_result
 {
 public:
-    competition_reward_result();
+    competition_reward_result() throw();  // b28c C28L32 代落：P216——ORIG SendMercenaryReturnResult::C1 0x0824d624 14 条无 landing，4.4 对成员构造布 cleanup+_Unwind_Resume（29 条）
     int m_0;
     int m_4;
     unsigned char m_8;
