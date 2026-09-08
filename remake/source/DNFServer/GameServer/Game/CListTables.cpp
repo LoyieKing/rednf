@@ -218,6 +218,13 @@ class QuestScript
 public:
     QuestScript();
     ~QuestScript();
+    // [Main b28d · ODR] 本文件是 QuestScript 的**局部镜像类**（布局 0x364 ≠ Quest.h 权威类
+    // 0x30c）。若让编译器隐式生成拷贝构造，会发射与权威类同名的弱符号
+    // `_ZN11QuestScriptC1ERKS_`（小/大版本竞争，链接器选择不定，可能把 0x364 版套到
+    // 0x30c 权威对象上越界）。此处仅**声明**抑制本 TU 发射，拷贝使用点
+    // （CListTables.cpp:1558 `QuestScript script2(script);`）解析到权威类的隐式 W
+    // （ORIG 0x0837adc8 W 0xd65，N84 处置②），两类的成员偏移在 0x30c 内逐一对齐。
+    QuestScript(const QuestScript&);
     int m_index;                            // +0x00
     char m_pad4[0xd0];                      // +0x04
     int m_questType;                        // +0xd4
