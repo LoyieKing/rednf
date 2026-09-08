@@ -113,14 +113,15 @@ void stLevelUpRewardItemScript::GetGrowUpRewardItemFunctor::operator()(
     const std::pair<const LevelUpRewardItemTableKey,
                     LevelUpRewardItemData>& p) const
 {
-    // b25c：ORIG 四早退共享出口（jne/jne/jg 同落 +0x59），平铺 if-return 在
-    // 4.4 生 4 个 jmp 中继（P63）。正向嵌套形共享函数尾；ORIG 块3 为 16 位
-    // cmp+jg（无 cast 直接比较，4.1 宽度行为，4.4 整型提升恒 32 位 → N 残差）。
+    // b28c-L20: AE — 真语义修正：ORIG 0x081b893d `cmp %ax,%dx; jg 函数尾`
+    // 跳过 push_back ⇒ 命中条件为 `p.first.m_lv <= m_key->m_lv`（与
+    // get_data_when_growup 0x081b895a 注释「pair.lv <= key.lv 才 push」一致）；
+    // 原写 `>` 为方向反（P196 真反族）。三早退共享函数尾，嵌套正向形（P63）。
     if (m_key->m_grow == p.first.m_grow)
     {
         if (m_key->m_job == p.first.m_job)
         {
-            if (p.first.m_lv > m_key->m_lv)
+            if (p.first.m_lv <= m_key->m_lv)
             {
                 m_out->push_back(p.second);
             }

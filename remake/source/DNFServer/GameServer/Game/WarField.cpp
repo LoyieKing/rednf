@@ -105,7 +105,7 @@ int WarField::CheckPickupItem(int idx, int owner,
     if (curSec - it->second.m_createTick < 10)
     {
         if (!(it->second.m_dropIndex == (unsigned short)-1 ||
-              (unsigned int)it->second.m_dropIndex == owner))
+              it->second.m_dropIndex == owner))
         {
             return 0x1c;
         }

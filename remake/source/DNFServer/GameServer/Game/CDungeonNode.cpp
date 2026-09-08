@@ -47,7 +47,7 @@ void PlayInfo::operator+=(const PlayInfo& other)
     m_f34 += other.m_f34;
 }
 
-int CDungeonNode::InsertDB(const DungeonKey& key)
+bool CDungeonNode::InsertDB(const DungeonKey& key)   // SIGFIX: bool（ORIG 串）
 {
     for (std::map<int, Monster>::iterator it = m_monsterMap.begin(); it != m_monsterMap.end(); ++it)
     {
@@ -148,11 +148,13 @@ bool CDungeonNode::UpdateMonster(SIG_DUNGEON_DATA_STATISTIC* stat)
 // ============================================================================
 bool CDungeonNode::UpdateSkill(SIG_DUNGEON_DATA_STATISTIC* stat)
 {
-    int dummy;
     std::map<int, CDungeonJobNode>::iterator it = m_jobMap.find(stat->m_job);
     if (it == m_jobMap.end())
         return false;
-    it->second.UpdateSkill(stat);
+    // ORIG 0x084855d4：operator-> 后 `add $0x4,%eax; mov %eax,-0xc(%ebp)` ——
+    // 源码取具名节点指针再调用（直接 it->second.UpdateSkill 会折成 lea+直调）。
+    CDungeonJobNode* node = &it->second;
+    node->UpdateSkill(stat);
     return true;
 }
 
@@ -190,7 +192,7 @@ bool CDungeonJobNode::UpdateSkill(SIG_DUNGEON_DATA_STATISTIC* stat)
 // CDungeonJobNode::InsertDB(DungeonKey const&, int) —— ORIG T 0x08485e00
 // 遍历 m_skillMap：m_useCount!=0 时写 log_dungeon_skill（失败即返 0），随后 Reset。
 // ============================================================================
-int CDungeonJobNode::InsertDB(const DungeonKey& key, int job)
+bool CDungeonJobNode::InsertDB(const DungeonKey& key, int job)   // SIGFIX: bool
 {
     for (std::map<int, Skill>::iterator it = m_skillMap.begin(); it != m_skillMap.end(); ++it)
     {
@@ -235,7 +237,7 @@ CDungeonSuccessNode::CDungeonSuccessNode()
     STGrowthType grow;
     for (int job = 0; job <= 0xa; ++job)
     {
-        key.m_job = job;
+        key.m_job = (ENUM_CHARACTERJOB)job;   // b28c-36: JobKey::m_job enum 化连带
         for (int sub = 0; sub <= 5; ++sub)
         {
             grow.m_growthType = 0;
@@ -256,7 +258,7 @@ CDungeonSuccessNode::CDungeonSuccessNode()
 // 遍历 m_jobMap 转 CSuccessJobNode::InsertDB(key, flag, jobKey)；
 // 再遍历 m_partyMap：m_f3c!=0 时写 log_dungeon_party（失败即返 0），随后 Reset。
 // ============================================================================
-int CDungeonSuccessNode::InsertDB(const DungeonKey& key, bool flag)
+bool CDungeonSuccessNode::InsertDB(const DungeonKey& key, bool flag)   // SIGFIX: bool
 {
     for (std::map<JobKey, CSuccessJobNode>::iterator itJob = m_jobMap.begin(); itJob != m_jobMap.end(); ++itJob)
     {
@@ -337,7 +339,7 @@ CSuccessJobNode::CSuccessJobNode()
 // m_charac.m_f3c!=0 时写 log_dungeon_charac（失败即返 0）；
 // 再遍历 m_jobPartyMap：m_count!=0 时写 log_dungeon_party_job（失败即返 0），随后 Reset。
 // ============================================================================
-int CSuccessJobNode::InsertDB(const DungeonKey& key, bool flag, const JobKey& jobKey)
+bool CSuccessJobNode::InsertDB(const DungeonKey& key, bool flag, const JobKey& jobKey)   // SIGFIX: bool
 {
     if (m_charac.m_f3c != 0)
     {

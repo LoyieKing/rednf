@@ -37,7 +37,10 @@ public:
     bool IsGm(unsigned int accId);
     unsigned char TurnGmMode(unsigned int accId);   // ORIG 0x0829917c，返回切换后的模式
     char GetCurrentGmMode(unsigned int accId);      // ORIG T 0x08299276（Batch8 实现，补声明）
-    char LoadGmListFromDb();   // ORIG T 0x08299530（Ghidra char __thiscall，返回 ok 原文）
+    // b28c-l23 SIGFIX：ORIG __PRETTY_FUNCTION__ 串 @0x08c1b280 =
+    // "bool CGM_Manager::LoadGmListFromDb()"（P174）；体尾 `movzbl -0x11(%ebp),%ebx`
+    // 直返 bool 局部 ok ⇒ char 为 Ghidra 误读。mangled 不含返回类型，ABI 零变。
+    bool LoadGmListFromDb();   // ORIG T 0x08299530
     void SetGmLevel(unsigned int accId, int level);   // ORIG T 0x0829932a
     bool LoadGmDataFromDb(unsigned int accId);        // ORIG T 0x08299740
 

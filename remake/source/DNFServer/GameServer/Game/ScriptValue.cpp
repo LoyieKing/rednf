@@ -153,13 +153,25 @@ void pushScriptValue(std::vector<float>& values, ScriptValue& v)
 //   ScanStr(&s)；失败 → false；
 //   data.percent = (s == "%") ? 1 : 0；
 //   ok=false；data.value = (float)ScanInt(&ok)；ok==false → false；否则 true。
+// [b28c-L23 N76/P211 三档试尽] 唯一结构残差 = `data.type = getChangeStatusType(s)`
+// 的 store 方向：ORIG @0x088bda54 为 RHS 值先 + `mov %eax,%edx` 中转（3 条），4.4 对
+// 「int 字段 ← int callee」恒 LHS 地址先（2 条）。档① 改 getChangeStatusType 返回类型
+// 会打坏其 8 处跨 TU 消费点（含 5 处 `(float)` 转换）故不采；档② 字段 type
+// int→unsigned 会改 ChangeStatusData 全部消费段；档③ 调用点 `(unsigned int)` cast
+// 实测被前端折叠（ndiff 12→12 零改善）⇒ 落 N76，其余 9 行是连锁 jmp 偏移。
 bool scanChangeStatusData(ChangeStatusData& data)
 {
     std::string s;
     bool isType = false;
     if (!ScanTypeOrStr(isType, s, true)) return false;
     if (isType) return false;
-    data.type = getChangeStatusType(s);
+    // b28c-l23（P211 双向开关·调用侧异型化）：ORIG @0x088bda54 为
+    // `call getChangeStatusType; mov %eax,%edx; mov 0x8(%ebp),%eax; mov %edx,(%eax)`
+    // = RHS 值先物化 + 中转 ⇒ 字段(int) 与 RHS 必**异型**；int↔int 同型时 4.4 恒
+    // LHS 地址先（`mov 0x8,%edx; mov %eax,(%edx)`）。共享函数返回类型不入 mangled 但
+    // 有 8 处跨 TU 消费点（改之风险大），故在**本调用点**做 unsigned 视图转换，
+    // 触发 4.4 的转换中转 = ORIG 形；语义（值域 0..0x4d）零变化。
+    data.type = (unsigned int)getChangeStatusType(s);
     if (!ScanStr(&s)) return false;
     data.percent = (s == "%") ? 1 : 0;
     bool ok = false;

@@ -88,8 +88,19 @@ public:
     const GridScript& getGridR(int x, int y) const;  // ORIG 0822adc2（实现在 MazeScript.cpp）
     void clear();
 
-    int m_width;                              // +0x00（clear 置 1）
-    int m_height;                             // +0x04（clear 置 1）
+    // +0x00/+0x04：匿名 union{struct,数组}——①struct 聚合使 ORIG C1ERKS
+    // 0x08376d92/aSERKS 的成对搬移可复现（C28L20C 同法）；②数组视图使 clear
+    // 0x088f2a76 的 `for(i=0;i<=1;++i) arr[i]=1` 索引写可复现（ORIG 用
+    // `movl $0x1,(%eax,%edx,4)` 循环而非两条直写）。布局/偏移/访问语法不变。
+    union
+    {
+        struct
+        {
+            int m_width;                          // +0x00（clear 置 1）
+            int m_height;                         // +0x04（clear 置 1）
+        };
+        int m_dims[2];                            // 同布局数组视图（clear 循环用）
+    };
     std::vector<GridScript> m_grids;          // +0x08
     std::vector<std::pair<int, int> > m_vec14;  // +0x14
     std::vector<std::pair<int, int> > m_vec20;  // +0x20

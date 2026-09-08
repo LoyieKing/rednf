@@ -366,11 +366,10 @@ void CConditionEventManager::GetConditionRewardInfo(
 // （GetParty 非空且 is_quick_party），再以快速集合（useQuickPartyAdd=1）更新判定。
 bool CConditionEventManager::IsDoubleGoldCard(CUser* user, char step)
 {
-    // [b26L17 判词 N82] check bool 字节槽 -0xd vs -0xe（1 字节槽基差），
-    //   118/118 助记符全等。
-    bool check = CheckErrorCardForStep(user, step);
-    bool doubleGoldCard;
-    if (!check)
+    // [b28c-L15] ORIG 只用一个 bool 局部（CheckErrorCardForStep 与
+    //   IsDoubleGoldCardProcess 结果共用 -0xd 槽）⇒ 合并原 check/doubleGoldCard。
+    bool doubleGoldCard = CheckErrorCardForStep(user, step);
+    if (!doubleGoldCard)
         return false;
     int curIdx = GetCurEventIndex();
     std::vector<stConditionEventRewardInfo> infos;

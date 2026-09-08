@@ -41,8 +41,10 @@ float CPowerManager::GetPowerWarResponPenalty(CUser* user)
     if ((unsigned int)user->GetCurCharacChaosStateTime() <
         (unsigned int)G_CDataManager()->m_powerParameter.m_penaltyThreshold)
     {
+        // [b28c-L9] ORIG 0x08480f03：`mov $0,%edx; mov %eax,-0x20; mov %edx,-0x1c;
+        // fildll` = unsigned int→float 的 64 位零扩展路径（P196 符号性）。
         penalty = 2.0f -
-                  (float)user->GetCurCharacChaosStateTime() /
+                  (float)(unsigned long long)(unsigned int)user->GetCurCharacChaosStateTime() /
                       (float)G_CDataManager()->m_powerParameter.m_penaltyThreshold;
     }
     return penalty;
@@ -52,6 +54,10 @@ int CPowerManager::GetPowerWarGhostTime(CUser* user, float f)
 {
     // ORIG 0x08480e92：(int)(ghostTime * f)，fistpl 就近取整。
     (void)user;
+    // [b28c-L9] ORIG 帧 sub $0x28（结果槽 -0xc、转换源 -0x1c、cw -0x1e/-0x20），
+    // 4.4 仅 $0x18 ⇒ P190 double framePad 撑帧；残余 2 = N82（4.1 不复用 -0xc/-0x1c）。
+    double framePad;
+    (void)&framePad;
     return (int)((float)G_CDataManager()->m_powerParameter.m_ghostTime * f);
 }
 
@@ -300,6 +306,8 @@ void CPowerManager::LoadRankerInfo()
 }
 bool CPowerManager::CheckCompleteDBLoadStatueInfo()
 {
+    // [b28c-L9] fresh 复验 ndiff 5→2 封顶：残差即下述 N18b 一条（unsigned 局部
+    // `i <= 2` 4.4 恒 `cmpl $2,-0x4(%ebp)`，ORIG 0x0847f1bf 为 `mov slot,%eax; cmp`）。
     // ORIG 0x847f1bf 尾部 addl;mov slot;cmp;setbe 含 mov slot,%eax —— 探针
     // /tmp/l6/probe5.cpp 三形（do-while/++i/i++）4.4 恒折 cmpl $2,mem（N18b 族
     // mem 操作数比较折叠），源形不可复现，维持 for（残差 1 insn）。
@@ -328,7 +336,8 @@ void CPowerManager::SetPowerWarStartTime(unsigned char y, unsigned char m,
 void CPowerManager::SetPowerWarUserRankingInfo(unsigned int* charNos)
 {
     // ORIG 0x0847ebec：characNo==0 -> 置 flag，否则写 +0x2c 并发 DB 消息 0x166。
-    for (int i = 0; i < 3; ++i)
+    // [b28c-L9] ORIG 0x0847ec0e 尾部 `mov slot,%eax; cmp $2,%eax; setbe` ⇒ 无符号循环变量。
+    for (unsigned int i = 0; i < 3; ++i)
     {
         if (charNos[i] != 0)
         {
@@ -519,6 +528,8 @@ int CPowerManager::GetPowerWarPointInChannel(char side)
 
 int CPowerManager::GetRankingByCharacNo(unsigned int charNo)
 {
+    // [b28c-L9] fresh 复验 ndiff 5→2 封顶：同上 N18b（`mov slot,%eax; cmp $2,%eax`
+    // 两段物形不可造），助记符序列全等 ⇒ NEAR。
     // N18b 族同上（mov slot,%eax 不可复现），维持 for。
     for (unsigned int i = 0; i <= 2; ++i)
         if (m_rankings[i].m_characNo == charNo)

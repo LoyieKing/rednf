@@ -80,7 +80,10 @@ private:
     char*         m_recvBuf;         // +0x2c
     int  m_affectedRow;              // +0x30（ORIG getAffectedRowCount 以 sar 符号扩展返回 → signed）
     char          m_query[0x1001];   // +0x34
-    unsigned long m_queryLen;        // +0x1038
+    long          m_queryLen;        // +0x1038（ORIG set_query 0x08120572 用有符号
+                                     // jg 比较、0x08120534 store 为 RHS-先+中转
+                                     // ⇒ 字段 signed（P211 异型化：size_t RHS 异型
+                                     // 触发 RHS-first）；宽度/mangled 不变）
 };
 
 #endif  // GAME_DBMWCLIENT_H_

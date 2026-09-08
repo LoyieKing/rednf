@@ -28,6 +28,15 @@ struct STKeyCommandUnit
 #endif
 
 // ---- 技能等级特征（0x24 字节；Clear 0x08a9b164）----
+// 头部 8 字节：clear 走数组索引循环（ORIG 0x08a9b17a `(%eax,%edx,4)`），
+// 而 C1ERKS_/operator=（0x08a9b6d6/0x08a9b7d4）走整体块拷贝（dest 缓存 ecx 形）
+// ⇒ union 双视图：数组名给 clear，union 整体赋值给拷贝/赋值（b28c-L15）。
+union SkillLevelFeatureHead
+{
+    int m_arr[2];                          // +0x00 数组视图
+    struct { int m_lo; int m_hi; } m_pair; // +0x00 成员视图
+};
+
 class SkillLevelFeature
 {
 public:
@@ -37,7 +46,7 @@ public:
     SkillLevelFeature& operator=(const SkillLevelFeature& other);
     void clear();
 
-    int m_field0[2];                  // +0x00
+    SkillLevelFeatureHead m_field0;   // +0x00
     std::string m_str8;               // +0x08
     std::vector<std::pair<int, int> > m_vecC;  // +0x0c
     std::vector<float> m_vec18;       // +0x18

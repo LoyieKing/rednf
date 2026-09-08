@@ -785,10 +785,10 @@ void premium_helper_function::cal_end_time(CUser* user, long& start, long& end,
     {
         // ORIG 0x827d03c：外层 GetPremiumInfo 返回经出参槽直传，仅内层结果
         // 具名槽 -0xc（P52/P0）。
-        // [N 封顶] 残差：① g_SPremiumInfo[type] 访问 ORIG `mov &g_SPremiumInfo
-        // +0x8(%eax)` 全局 disp 折叠，4.4 恒先算 elem 基址再 mov 0x8(%eax)；
-        // ② 尾比较 ORIG `cmp %eax,%edx;jle` vs 4.4 `cmp %eax,%ecx;jge`（N22
-        // 操作数方向不可翻）。链式调用已闭合。
+        // b28c-L20: AE — 旧 [N 封顶] 两条判词均作废：① g_SPremiumInfo[type]
+        // 访问现为单条 `mov <A>(%eax)`（全局 disp 折叠，与 ORIG 同形）；
+        // ② 尾比较改书写序 limit 在左（见下）后 ORIG `cmp %eax,%edx; jle`
+        // 逐条复现，非 N22。
         WongWork::SUserPremiumInfo* info =
             user->GetPremiumInfo()->GetPremiumInfo(type);
         if (info->m_type == type)
@@ -805,8 +805,12 @@ void premium_helper_function::cal_end_time(CUser* user, long& start, long& end,
     {
         end = (long)term * 0x15180 + base;
     }
+    // b28c-L20: AE — 尾比较 ORIG 0x827d0bf 为「RHS(limit) 先物化 edx、start 后载 eax、
+    // `cmp %eax,%edx; jle`」= 源码书写序 limit 在左（探针 /tmp/l20_probe.cpp f2b：
+    // `lim > start` 产 `cmp start,%eax; jle` 同族）；写 `start < limit` 4.4 恒
+    // LHS 先载 + `jge`（旧 N22 判词作废）。
     if (g_SPremiumInfo[type].m_timeLimit != 0 &&
-        start < g_SPremiumInfo[type].m_timeLimit)
+        g_SPremiumInfo[type].m_timeLimit > start)
     {
         end = (long)g_SPremiumInfo[type].m_timeLimit;
     }
@@ -856,17 +860,19 @@ unsigned char premium_helper_function::is_notify(CUser* user, int type)
 
 // ---- write_log —— ORIG 0x0827d2df ----
 // type==0x53/0x57：重算+发表情；type==8：组 2 包并广播 basic_info。
+// b28c-L20: AE — P17/P46：ORIG 0x827d2e7 为 switch 线性链（`mov 0xc(%ebp),%eax`
+// 一次载入 + 三 `cmp $imm,%eax/je` 复用 + 两 je 同目标 + 尾 jmp）；if/else-if
+// 在 4.4 生 `cmpl $imm,mem` 直比 + 第二条件 jne 落体（旧 N18a/b 判词作废）。
 void premium_helper_function::write_log(CUser* user, int type)
 {
-    // [N18a/b 封顶] ORIG 0x827d2e7 `mov 0xc(%ebp),%eax` 一次载入寄存器三次
-    // cmp 复用 + body 置后 je 同目标；4.4 恒 `cmpl $imm,mem` 直比 + 第二条件
-    // jne 直落 body（N18a 载入复用/N18b 直比不可翻）。语义逐分支相等。
-    if (type == 0x53 || type == 0x57)
+    switch (type)
     {
+    case 0x53:
+    case 0x57:
         user->ReCalcChattingEmoticon();
         user->SendChattingEmoticon();
-    }
-    else if (type == 8)
+        break;
+    case 8:
     {
         PacketGuard packet;
         packet.put_header(0, 2);
@@ -875,6 +881,8 @@ void premium_helper_function::write_log(CUser* user, int type)
         user->make_basic_info((char*)&packet, '\0');
         packet.finalize(true);
         G_GameWorld()->send_all(packet, user);
+        break;
+    }
     }
 }
 

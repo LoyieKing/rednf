@@ -43,29 +43,17 @@ public:
     // AcceptThread）均已覆盖（ThreadDispatchers 批次，T 符号见各 dispatch 报告）。
     virtual void dispatch(void* arg) = 0;
 
-    bool begin()                           // 0x08630b8a 逐指令转写
-    {
-        int rc = pthread_create(&m_tid, NULL,
-                                &ThreadInterface::dispatch_proxy, this);
-        if (rc != 0)
-        {
-            // ORIG 输出流 std::cerr；文案「推断」。
-            std::cerr << "thread create failed rc=" << rc << std::endl;
-        }
-        m_tidCopy = m_tid;                 // ORIG：*(this+8) = *(this+4)
-        return true;
-    }
+    // [b28c-L18] P119：ORIG nm 实证 begin T 0x08630b8a / dispatch_proxy T 0x08630c1a
+    // （外联强符号，与 C1 0x08630b38/join 0x08630c46 同段同 TU）⇒ 不能依赖头内联
+    // （W 形）发射。定义外联落 GlobalData.cpp（C28L23 代落，body 按 ORIG 逐指令：
+    // cerr 两段串 "[ThreadInterface::begin] Can't begin thread."（0x8ce6620）+
+    // " "（0x8ce664c）+ SolsEi(rc) + endl；rc 具名槽往返）。
+    bool begin();                          // 0x08630b8a
     // 定义落 OnlyOrigBatch11.cpp（ORIG 独立符号：join T 0x08630c46 /
     // getThreadID W 0x082a4218，非 const）。
     int join();                            // 0x08630c46
     unsigned long getThreadID();           // 0x082a4218（读 +8，非 const）
-    static void* dispatch_proxy(void* p)   // 0x08630c1a（读虚表+0xc，以 (p,p) 调用）
-    {
-        // ORIG 0x08630c20：p 先存 -0xc 槽（具名局部，P0），this 从槽读、arg 重读形参槽。
-        ThreadInterface* self = static_cast<ThreadInterface*>(p);
-        self->dispatch(p);
-        return 0;
-    }
+    static void* dispatch_proxy(void* p);  // 0x08630c1a（读 vptr+0xc，以 (this,arg) 调用）
 
     pthread_t m_tid;      // +0x04
     pthread_t m_tidCopy;  // +0x08

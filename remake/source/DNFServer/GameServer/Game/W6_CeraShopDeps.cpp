@@ -115,6 +115,10 @@ int CCeraShop::LogError(const stErrorLogInput_t& input) const
                        true);
 
     (**guard).operator<<(0x32e);          // operator*() → operator<<(int)
+    // [b28c-L7] 负例：P226 裸语句表达式形 `({ *(guard.operator*()); })` 实测
+    // **反劣**（4.4 额外物化 guard 临时 + 双 landing pad，ndiff 3→+20）。
+    // ORIG 0x080c8c46 段 `mov (%eax),%ebx` 单段直落 callee-saved，4.4 恒
+    // `mov (%eax),%eax; mov %eax,%ebx` 两段（N18a 反向），源形不可造 ⇒ 封顶。
     (**guard).operator<<(static_cast<unsigned int>(input.m_field0));  // uint 形参
 
     SIG_CERASHOP_ERROR_LOG sig;           // ctor 0x08328110 清零 +0..+0x18
@@ -386,7 +390,9 @@ void CCeraShop::_processCreatureGift(CUser* user, Inven_Item item, unsigned int 
 // 为 N82 帧/槽号与 4.1/4.4 条件物化（sete/setne、块排布）残余 ⇒ 语义完成、
 // byte 层 N 封顶，勿再耗轮次。
 // ---------------------------------------------------------------------------
-int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
+// [b28c-L7][SIGFIX:WongWork::CCeraShop::ProcessBuyRequest] int→bool（判词见
+// CCeraShop.h:153）；体内两处 return 值实测仅 1（无错误码语义）。
+bool CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 {
     char* idStr = NumberToString(user->get_acc_id(), 0);
 
@@ -586,7 +592,7 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
             int negOne = -1;
             ProcessError(user, 1, negOne, msg.m_entrySection.m_arr[0].m_productNo,
                          1, 1, static_cast<char>(msg.m_scalars.m_buyFlag));
-            return 1;
+            return true;
         }
 
         user->resetUsedCera();
@@ -882,7 +888,7 @@ int CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
         ProcessError(user, 0x15, 0, msg.m_entrySection.m_arr[0].m_productNo,
                      1, 1, static_cast<char>(msg.m_scalars.m_buyFlag));
     }
-    return 1;
+    return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1384,6 +1390,11 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
 // 【翻案 b25c】旧 N 标注（setcc-fold）过时：单 return 短路链（P45）探针
 // /tmp/probe_short.cpp q2 定论 4.4 与 ORIG 逐字同构（cmp;je 共享真岛 +
 // cmp;jne + mov$1/mov$0），if-return 链才折 setcc。26/26 全等。
+// 【b28c-36 复验】fresh ndiff=16 / NEAR（26=26 指令数）：残差 2 处全为
+// **N7 间接 call 目标寄存器**——ORIG `mov (%eax),%edx; mov this,%eax; call *%edx`
+// （目标 %edx/this %eax），4.4.7 恒 `mov (%eax),%eax; mov this,%edx; call *%eax`
+// （目标 %eax/this %edx）。P230 补：4.4.6 后端间接 call 目标用 %edx（与 ORIG 同形），
+// 本波禁自切路由，待 Main 三态后端 sweep 后按 N7 敏感族复测。源码形无解。
 // 经 vtable 槽 +0x0c 虚方法（子类型索引，与 CI_SubType 先例同型）连续两次
 // 调用，返回值 ==0xe 或 ==0xf 判定礼包类目 → true，否则 false。
 // ---------------------------------------------------------------------------

@@ -166,7 +166,7 @@ WideString remove(const WideString& str, int pos, int removeLength)
 // ---------------------------------------------------------------------------
 
 // _Z8trimLeftRK10CharString 0x08ad82a9
-CharString trimLeft(const CharString& str)
+CharString trimLeft(const CharString& str) throw()
 {
     if (str.length() == 0)
         return CharString();
@@ -189,7 +189,7 @@ CharString trimLeft(const CharString& str)
 }
 
 // _Z8trimLeftRK10WideString 0x08adb369
-WideString trimLeft(const WideString& str)
+WideString trimLeft(const WideString& str) throw()
 {
     if (str.length() == 0)
         return WideString();
@@ -213,7 +213,7 @@ WideString trimLeft(const WideString& str)
 }
 
 // _Z9trimRightRK10CharString 0x08ad83c0
-CharString trimRight(const CharString& str)
+CharString trimRight(const CharString& str) throw()
 {
     if (str.length() == 0)
         return CharString();
@@ -235,7 +235,7 @@ CharString trimRight(const CharString& str)
 }
 
 // _Z9trimRightRK10WideString 0x08adb491
-WideString trimRight(const WideString& str)
+WideString trimRight(const WideString& str) throw()
 {
     if (str.length() == 0)
         return WideString();

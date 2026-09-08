@@ -2815,6 +2815,14 @@ int cast5_setup(const unsigned char *key, int keylen, int num_rounds, symmetric_
 
 // ORIG：CAST5/KASUMI 的 static FI 均为同名 2 字符（_ZL2FI mmm/jj 实证），
 // 靠参数数量重载共存于本 TU，不能用宏改名（会生成 _ZL11cast5_FI* 错位符号）。
+// ORIG FI @0x80aa5f4 内 `call _ZL3ROLji`（out-of-line static ROL）——本段
+// #undef 宏并定义同名 static 函数复现（b28c-lane25 探针 /tmp/l25probe/fi.cpp fC）。
+#undef ROL
+static unsigned int ROL(unsigned int value, int count)
+{
+   return (value << count) | (value >> (32 - count));
+}
+
 static LTC_INLINE ulong32 FI(ulong32 R, ulong32 Km, ulong32 Kr)
 {
    ulong32 I;
@@ -2838,6 +2846,9 @@ static LTC_INLINE ulong32 FIII(ulong32 R, ulong32 Km, ulong32 Kr)
    I = ROL(I, Kr);
    return ((S1[LTC_BYTE(I, 3)] + S2[LTC_BYTE(I,2)]) ^ S3[LTC_BYTE(I,1)]) - S4[LTC_BYTE(I,0)];
 }
+
+// 恢复宏供本 TU 其余算法（multi2 等）使用（它们 ORIG 亦为宏内联形）。
+#define ROL(x, y)   ROLc(x, y)
 
 /**
   Encrypts a block of text with LTC_CAST5

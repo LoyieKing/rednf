@@ -66,18 +66,20 @@ AuctionNeedInfoSizeAssert g_auctionNeedInfoSizeAssert = 0;
 // 函数局部 static Inven_Item temp（guard 惰性构造）；GetRelatedItem 取 CItem*
 // 后经 vtable+0x08（ORIG vtable 槽 2 = make_item）拷入 temp，返回 temp.m_field1
 // （+0x01，ITEM_TYPE）。temp 每次调用先 reset（0x80cb7d8）。
-int ItemVendingMachine::_GetItemType(const CCeraShopGoods* goods)
+Inven_Item::ITEM_TYPE ItemVendingMachine::_GetItemType(const CCeraShopGoods* goods)
 {
     static Inven_Item temp;
     temp.reset();
     goods->GetRelatedItem()->make_item(temp);
-    return temp.m_field1;
+    return (Inven_Item::ITEM_TYPE)temp.m_field1;
 }
 
 // ---- _GetInvenSlotInfo —— ORIG 0x081763be ----
 // 稀疏 switch 决策树（P46：case 数值升序 0/2/3/7；叶块排放 = 书写序）。
 // groupIdx: 0→AVATAR；2→EQUIP+_GetItemType；3→CREATURE+_GetItemType；
 // 7→EQUIP+itemType=2；其余保持调用方初值，恒 return true。
+// [b28c-L19] AE：store 序 LHS-first 靠 _GetItemType 返回类型改 Inven_Item::ITEM_TYPE
+// （P211 同型化，ItemVendingMachine.h:125 同步；mangled 不含返回类型）。
 bool ItemVendingMachine::_GetInvenSlotInfo(const CCeraShopGoods* goods,
                                            INVEN_TYPE& invenType,
                                            Inven_Item::ITEM_TYPE& itemType)
@@ -90,11 +92,11 @@ bool ItemVendingMachine::_GetInvenSlotInfo(const CCeraShopGoods* goods,
         break;
     case 2:
         invenType = INVEN_TYPE_EQUIP;
-        itemType = (Inven_Item::ITEM_TYPE)_GetItemType(goods);
+        itemType = _GetItemType(goods);
         break;
     case 3:
         invenType = INVEN_TYPE_CREATURE;
-        itemType = (Inven_Item::ITEM_TYPE)_GetItemType(goods);
+        itemType = _GetItemType(goods);
         break;
     case 7:
         invenType = INVEN_TYPE_EQUIP;

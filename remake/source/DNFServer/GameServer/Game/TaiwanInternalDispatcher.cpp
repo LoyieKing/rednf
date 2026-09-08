@@ -94,7 +94,9 @@ void InterSelectMobileAuthReward::makeRequest(int param_1, unsigned int param_2,
             1, "localtaiwan/Dispatcher/Taiwan_InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x18b, "[Taiwan, MobileAuth] m_id:%d rewarded:%d", param_2,
-            (unsigned int)param_3);
+            // [b28c-32] ORIG 0x08161626 cmpb/je/mov$1/mov$0 三目物化（P47）；
+            // (unsigned int)param_3 直转会退化为 movzbl 单条。
+            param_3 ? 1 : 0);
     }
     else
     {
@@ -257,6 +259,7 @@ TaiwanInternalDispatcher::~TaiwanInternalDispatcher()
     std::for_each(m_dispatchers.begin(), m_dispatchers.end(), FnDelete());  // ORIG @0x08160212
 }
 
+// [b28c-31] N7 复核：虚调用 callee ORIG %edx vs 4.4 %eax（18=18，仅寄存器名差）。
 void TaiwanInternalDispatcher::FnDelete::operator()(
     std::pair<const TaiwanInternalPack::T, TaiwanInterfaceInterDispatcher*>& item)
 {

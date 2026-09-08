@@ -201,8 +201,15 @@ void StrikerScript::destory()
 {
     // ORIG 0x08a9dcbe：delete 文件列表（STScriptFileList::D1 + operator delete）；
     // 遍历技能 map delete 各 vector 并置空；尾部 m_skillMap.clear()。
+    // [b28c-lane17] 判词：残余 3 条 = 4.1 对 delete 操作数的**二次 this+0x90 装载**
+    // （`mov 0x90(%eax),%eax; test; mov this,%eax; mov 0x90(%eax),%ebx; test %ebx`），
+    // 4.4 恒折为 `mov %eax,%ebx` 单段直落 ⇒ N18a（反向亦不可造）。
     delete reinterpret_cast<STScriptFileList*>(m_fileList);
     m_fileList = 0;
+    // [b28c-lane17] ORIG 0x08a9dce8：循环谓词每次调用都**重新装载** m_fileList
+    // 的迭代器对（`mov this→%eax; mov 0x90(%eax),%eax; test; ...; mov 0x90(%eax),%ebx`
+    // 两条独立装载），且 delete 前无二次解引用。原写 `x = m_fileList; if (x)`
+    // 被 4.4 折成单段直落（少 1 条）。
     for (std::map<int, std::vector<StrikerSkill>*>::iterator it = m_skillMap.begin();
          it != m_skillMap.end(); ++it)
     {

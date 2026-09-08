@@ -89,6 +89,7 @@ int ExpertJobMaterial::SetData(CUser* user, unsigned short area,
 
 // ORIG _ZN10expert_job17ExpertJobMaterial8IsRecipeEv @0x0849c114：
 // 材料必须是 stackable 且 GetItemType()==3（配方类，vtable slot3 @+0x0c）。
+// b28c-1 N7: 虚调用 callee %eax↔%edx 互换。
 int ExpertJobMaterial::IsRecipe()
 {
     // b28：P0/P183 去缓存——ORIG 每次调用独立物化 m_item 载入（无具名局部槽），
@@ -148,6 +149,7 @@ int ExpertJobMaterial::IsRight()
 // ORIG _ZN10expert_job17ExpertJobMaterial15FindMonsterCardERKSt6vectorISt4p
 // airIiiESaIS5_EE @0x0849c612：清单内第一枚 sub_type==1 的 stackable 材料
 // （怪物卡片）。
+// b28c-1 N18a: pair 首字段装载 4.4 单段 vs ORIG 双段（mov 0x4;mov;mov）。
 CItem* ExpertJobMaterial::FindMonsterCard(
     const std::vector<std::pair<int, int> >& materials)
 {
@@ -186,6 +188,7 @@ CItem* ExpertJobMaterial::GetEnchantItem()
 
 // ORIG _ZN10expert_job17ExpertJobMaterial23IsExistMaterialOfRecipeEv
 // @0x0849c166：配方成立且背包满足整份材料需求才通过。
+// b28c-1 N: N-88 槽比零 setne 物化 + P168a X2 占槽（X1 实测 5→15 回退）。
 int ExpertJobMaterial::IsExistMaterialOfRecipe()
 {
     if (Empty())
@@ -213,6 +216,7 @@ int ExpertJobMaterial::IsExistMaterialOfRecipe()
 // changed），失败记 trace 返 false；成功 put_byte(delCount+1)、删除配方
 // 物品本体槽（count 固定 1）并按 byte/short/int 三连写本体条目，随后对
 // 每个事件删除槽位同样三连写入。
+// b28c-1 N: removedBody 取反 4.4 恒折 cmpb vs ORIG movzbl/xor/test（P168a④/N18b；!/^1/uchar 三形实测）。
 bool ExpertJobMaterial::DelMaterialOfRecipe(
     CUser* user, const std::vector<std::pair<int, int> >& materials,
     int slot, PacketGuard* packet, bool& changed)
@@ -244,7 +248,9 @@ bool ExpertJobMaterial::DelMaterialOfRecipe(
     char removedBody = user->getCurCharacInvenW()->delete_item(
         INVEN_TYPE_EQUIP, slot, materialCount,
         static_cast<eItemDelReason>(8), true);
-    if (removedBody == 0)
+    // b28c-1：ORIG `movzbl -0x9; xor $1; test; je` 取反物化；4.4 恒折
+    //  cmpb 直比（P168a④/N18b 族，^1/!/uchar 三形实测均不可翻）。
+    if (!removedBody)
     {
         cMyTrace(
             "bool expert_job::ExpertJobMaterial::DelMaterialOfRecipe("
@@ -377,6 +383,7 @@ int IsExistRecipeItem(CUser* user, CItem* recipe, bool onlyInputs)
 // aIS4_EEiP11PacketGuardRbi @0x0849b957：与成员版差别——清单先经
 // CalculateExpertJobMaterials 归一化；尾参 bodyCount 取 1 时附带删除并包
 // 上报配方本体条目，其它值只上报材料。
+// b28c-1 N: free 版 removedBody 取反 4.4 恒折 cmpb vs ORIG movzbl/xor/test。
 bool DelMaterialOfRecipe(CUser* user,
                          std::vector<std::pair<int, int> >& materials,
                          int slot, PacketGuard* packet, bool& changed,
@@ -413,7 +420,9 @@ bool DelMaterialOfRecipe(CUser* user,
         char removedBody = user->getCurCharacInvenW()->delete_item(
             INVEN_TYPE_EQUIP, slot, bodyCount,
             static_cast<eItemDelReason>(8), true);
-        if (removedBody == 0)
+        // b28c-1：ORIG `movzbl -0x9; xor $1; test; je` 取反物化；4.4 恒折
+    //  cmpb 直比（P168a④/N18b 族，^1/!/uchar 三形实测均不可翻）。
+    if (!removedBody)
         {
             cMyTrace(
                 "bool expert_job::DelMaterialOfRecipe(CUser*, "

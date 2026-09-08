@@ -155,9 +155,9 @@ void CRelayBattleMgr::OnRequestFight(int seat)
         return;
     if (seat > 7)
         return;
-    register unsigned char v asm("eax") = m_battles[seat].m_requestFight;
-    v ^= 1;
-    if (v)
+    // [b28c-L18-unbind] P0：register asm("eax") 绑定清除，改自然形
+    // （ORIG `movzbl;xor$1;test` 寄存器物化为 4.1 分配产物，N96+N18a+P168a④）。
+    if (!m_battles[seat].m_requestFight)
     {
         m_battles[seat].m_requestFight = 1;
         IncreaseChangeSequenceCount(m_battles[seat].m_team);
@@ -248,10 +248,13 @@ void CRelayBattleMgr::IncreaseChangeSequenceCount(int team)
     ++m_changeSeqCount[team];
     if (m_changeSeqCount[team] > 3)
     {
-        register int v asm("ebx") = m_changeSeqCount[team];
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x13de, 0);
-        trace("ERROR ChangeSequenceCount overflow (%d)", v);
+        // [b28c-L18] P0 清绑 + P227 全表达式临时链：ORIG 0x085de4dc 先以 4 条
+        // 地址链把 m_changeSeqCount[team] 单段直落 %ebx（`mov (%eax,%edx,4),%ebx`）
+        // 跨 cMyTrace ctor 保活，op() 处 `mov %ebx,0x8(%esp)`——具名 trace 对象+
+        // 绑定形违规；P227 实证该形 4.4 可在 ctor 前右起求 varargs 并以 %ebx 跨
+        // ctor 保活（0x0840215e 先例）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x13de, 0)(
+            "ERROR ChangeSequenceCount overflow (%d)", m_changeSeqCount[team]);
         m_changeSeqCount[team] = 4;
     }
 }
@@ -265,10 +268,9 @@ void CRelayBattleMgr::DecreaseChangeSequenceCount(int team)
     --m_changeSeqCount[team];
     if (m_changeSeqCount[team] < 0)
     {
-        register int v asm("ebx") = m_changeSeqCount[team];
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x13ea, 0);
-        trace("ERROR ChangeSequenceCount underflow (%d)", v);
+        // [b28c-L18] 同上 P227 全表达式临时链（清 register asm("ebx") 绑定）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x13ea, 0)(
+            "ERROR ChangeSequenceCount underflow (%d)", m_changeSeqCount[team]);
         m_changeSeqCount[team] = 0;
     }
 }
@@ -330,9 +332,8 @@ void CRelayBattleMgr::ArrangeNoChangeSequence(std::vector<int>& seq, int team,
     {
         if (m_battles[i].m_team == team && m_battles[i].m_state == 1)
         {
-            register unsigned char v asm("eax") = m_battles[i].m_requestFight;
-            v ^= 1;
-            if (v)
+            // [b28c-L18-unbind] P0：绑定清除改自然形（N96+N18a+P168a④）。
+            if (!m_battles[i].m_requestFight)
             {
                 m_battles[i].m_seq = (short)seq[outIdx++];
             }

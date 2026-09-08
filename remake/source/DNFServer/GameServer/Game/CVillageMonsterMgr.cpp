@@ -302,11 +302,11 @@ int CVillageMonster::OnFightVillageMonster(CUser* user, int& out1, int& out2)
 // ============================================================================
 bool CVillageMonster::MakeVillageMonsterPositionPacket(PacketGuard& packet)
 {
-    // [b28-L11 判 N96 负例] ORIG T 0x86b36e6 = `movzbl; xor $0x1,%eax; test; je`
-    // （寄存器 xor 无槽）。具名局部 X2 形 4.4 落槽（mov/xorb/cmpb 槽三段，实测
-    // ndiff 7）；register 绑定形已全域禁用（P0/N96）；裸 `!= 1` 产 cmp+jne 反演
-    // 异形——保持可读正确 C++，机器码层 N96/N 封顶。
-    if (m_field10 != 1)
+    // [b28-L14] ORIG T 0x86b36e6 = `movzbl 0x10(%eax),%eax; xor $0x1,%eax;
+    // test %al,%al; je body` ⇒ 字段为 bool 且源码写 `if (!m_field10) return false;`
+    // （P168a 裸形；旧 L11 判词「裸 != 1 反演」实为字段类型 char 所致，m_field10
+    // char→bool 后 4.4 直产 xor$1 物化形）。
+    if (!m_field10)
         return false;
     // 以下保持原序：三次 put_short 后清零 m_field10。
     packet.put_short(m_id);
@@ -466,14 +466,14 @@ CVillageMonsterMgr::~CVillageMonsterMgr()
 // ============================================================================
 void CVillageMonsterMgr::OnStartVillageAttacked()
 {
-    if (m_field04 != 1)
-    {
-        OnCreateVillageMonster();
-        m_field04 = 1;   // [b28-L11 判 N] ORIG 尾 `jmp leave; nop` 岛系 4.1 块出口
-                         //   布局产物；4.4 tail-merge 消除（goto+空标签形实测同样
-                         //   不产 jmp，P223 负例）——负例表「空 else nop;jmp 岛 vs
-                         //   jump-threading」在册，ndiff 1 封顶。
-    }
+    // [b28-L14] ORIG 0x86b4a20：`cmp $1; je <nop 岛>; body; jmp <leave>` ⇒
+    // P223 形 `if (c) goto DONE; body; DONE:;`（旧 L11 N 判词为负例，本轮翻案）。
+    if (m_field04 == 1)
+        goto DONE;
+    OnCreateVillageMonster();
+    m_field04 = 1;
+DONE:
+    ;
 }
 
 // ============================================================================

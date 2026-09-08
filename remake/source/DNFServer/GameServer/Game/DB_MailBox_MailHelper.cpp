@@ -63,11 +63,32 @@ bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx);
 // ============================================================================
 int GetOnlyMailCount(SIG_MAILBOX_LIST* list)
 {
+    // 视图（P82/P95，同 DB_MailBox_Req_List.cpp IsContainedLetter 先例）：
+    // ORIG count 单 disp（mov 0x794(%eax)）；条目 m_postals[i].m_letterId
+    // 出 imul/lea + add $0x50 + mov 0xc（ORIG 0x841cc86 拆段）。
+    #pragma pack(push, 1)
+    struct PostalEntry
+    {
+        unsigned char m_pad[0xc];
+        int m_letterId;                        // +0x5c
+        unsigned char m_tail[0x61 - 0x10];
+    };
+    struct ListView
+    {
+        unsigned char m_pad[0x50];
+        PostalEntry m_postals[0x12];
+    };
+    struct CountView
+    {
+        unsigned char m_pad[0x794];
+        int m_count;
+    };
+    #pragma pack(pop)
     int count = 0;
     int i;
-    for (i = 0; i < SIG_I32(list, SIG_OFF_POSTAL_COUNT); ++i)
+    for (i = 0; i < reinterpret_cast<CountView*>(list)->m_count; ++i)
     {
-        if (((MailPostalView*)(SIG_PTR(list, i * 0x61)))->m_occ.m_letterId == 0)
+        if (reinterpret_cast<ListView*>(list)->m_postals[i].m_letterId == 0)
             ++count;
     }
     return count;

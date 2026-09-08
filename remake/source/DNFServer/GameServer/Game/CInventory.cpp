@@ -100,7 +100,13 @@ void write_log_gain_money(eMoneyAddReason reason, int amount, CUser* user)
         case 0x1a:
             GetInstanceCirculationStatistic()->AddCirculationStatistic(
                 (CIRCULATION_STATISTIC_FIELD)0xe, user, (unsigned int)amount);
-            // ORIG switch 末尾带 default: break（产生 jmp+nop 尾部形态）
+            // [b28c-l23 N 判词·4.1 break 跳板 vs 4.4 jump threading]
+            // ORIG @0x84fed94 最后一个 case 的 call 之后仍发 `jmp <统一出口>`
+            // （4.1 即便出口即下一条指令也保留 break 跳板），4.4 恒做 jump threading
+            // 省掉该 jmp ⇒ our 111 vs orig 112，其后果连锁 8 处 jmp 目标偏移差。
+            // 实测复形失败：把 `default: break;` 改为显式 `goto L_SWITCH_EXIT;` +
+            // 块外空标签后 4.4 仍折叠（ndiff 9→9，零改善），已回退为自然 break 形。
+            // 语义完全等价（末 case 落函数尾）。
         default:
             break;
         }
@@ -1340,6 +1346,12 @@ int CInventory::GetSlotItemType(int slot) const
 
 void CInventory::getHashCode(unsigned char* out)
 {
+    // b28c-L2 [N95 封顶]：fresh 复验 orig 41 / our 41，残差 6 行 = 6 处
+    // `lea -0xe0(%ebp)` vs `lea -0xe8(%ebp)`。md5_context 大局部（0xdc 字节）
+    // 4.1 可顶到 ebp（outgoing 区含 8B gap），4.4-O0 局部槽基恒从 ebp-8 起
+    // ⇒ 全帧平移 8（范式库 N95 即以本函数 0x084fa91c 为实证；double framePad
+    // 反致下移、int pad/声明序调整均不可上移）。清零/更新/收尾调用序与实参
+    // 宽度与 ORIG 逐条一致，语义闭合。
     md5_context ctx;
     md5_starts(&ctx);
     md5_update(&ctx, (unsigned char*)&m_invenItem[0], 0x53e);
@@ -1531,7 +1543,8 @@ void CInventory::UpdateDailyCoin(int value)
 int CInventory::UseCoin(eCoinSubReason reason)
 {
     // ORIG 0x84faa98：!=0 递降取向（coin→event→pay），history 调用内联、
-    // trace 块跳转目标；三 cMyTrace 槽位按书写序 -0x3c/-0x2c/-0x1c。
+    // trace 块跳转目标。b28c-L2：ORIG 三 trace 块槽为 首块 -0x38 / 后两块 -0x18
+    // （互斥块同型临时槽方向差）⇒ 具名对象改全表达式临时链（P221，4.4 复现 ORIG 槽深）。
     if (m_coin != 0)
     {
         m_coin--;
@@ -1541,8 +1554,7 @@ int CInventory::UseCoin(eCoinSubReason reason)
         }
         else
         {
-            cMyTrace local_3c(__PRETTY_FUNCTION__, 0x28e, 5);
-            local_3c("History ERROR, m_pParent NULL, CoinSub");
+            cMyTrace(__PRETTY_FUNCTION__, 0x28e, 5)("History ERROR, m_pParent NULL, CoinSub");
         }
     }
     else
@@ -1556,8 +1568,7 @@ int CInventory::UseCoin(eCoinSubReason reason)
             }
             else
             {
-                cMyTrace local_2c(__PRETTY_FUNCTION__, 0x29d, 5);
-                local_2c("History ERROR, m_pParent NULL, EventCoinSub");
+                cMyTrace(__PRETTY_FUNCTION__, 0x29d, 5)("History ERROR, m_pParent NULL, EventCoinSub");
             }
         }
         else
@@ -1571,8 +1582,7 @@ int CInventory::UseCoin(eCoinSubReason reason)
                 }
                 else
                 {
-                    cMyTrace local_1c(__PRETTY_FUNCTION__, 0x2ad, 5);
-                    local_1c("History ERROR, m_pParent NULL, PayCoinSub");
+                    cMyTrace(__PRETTY_FUNCTION__, 0x2ad, 5)("History ERROR, m_pParent NULL, PayCoinSub");
                 }
             }
             else
@@ -1843,53 +1853,56 @@ unsigned char CInventory::getEquipWeaponUpgradeSeparate() const
 int CInventory::getExistEquipItem(int itemIdx, int count, int slot)
 {
     int nField = 0;  // ORIG 顶部有未使用局部（-0x8(%ebp) 初始化为 0）
+    // b28c-L2: ORIG 0x850348b..0x8503494 四个失败目标各落 nop 岛 + `jmp <addl>`
+    // （0x850348d/490/493 三条）⇒ 负条件 goto 尾标签形（探针 l2_probe7 P 命中）。
     for (int i = 3; i <= 0xc8; i++)
     {
-        if (i != slot && m_pEquipSlot[i].m_field1 == 1 &&
-            m_pEquipSlot[i].m_addInfo == itemIdx && m_pEquipSlot[i].m_addInfo2 == count)
-        {
-            return i;
-        }
+        if (i == slot) goto next_slot;
+        if (m_pEquipSlot[i].m_field1 != 1) goto next_slot;
+        if (m_pEquipSlot[i].m_addInfo != itemIdx) goto next_slot;
+        if (m_pEquipSlot[i].m_addInfo2 != count) goto next_slot;
+        return i;
+    next_slot:;
     }
     return -1;
 }
 
 int CInventory::doesExistEquipItem(int itemIdx, int slot)
 {
+    // b28c-L2: ORIG 0x85033f8/fb/fe 三失败目标 + 0x85033ff/402 两条 `jmp <addl>`
+    // nop 岛 ⇒ 负条件 goto 尾标签形（探针 l2_probe7 Q 命中）。
     for (int i = 3; i <= 0xc8; i++)
     {
-        // ORIG 0x85033d7..+0x6c：三级独立 jne 各跳 nop+jmp 岛（4.1 嵌套 if 形，
-        // && 链在 4.4 合并成同目标）。
-        if (m_pEquipSlot[i].m_addInfo == itemIdx)
-            if (m_pEquipSlot[i].m_addInfo2 == slot)
-                if (m_pEquipSlot[i].m_field1 == 1)
-                    return 1;
+        if (m_pEquipSlot[i].m_addInfo != itemIdx) goto next_slot;
+        if (m_pEquipSlot[i].m_addInfo2 != slot) goto next_slot;
+        if (m_pEquipSlot[i].m_field1 != 1) goto next_slot;
+        return 1;
+    next_slot:;
     }
     return 0;
 }
 
 int CInventory::MoveItemToEmptySlotOfInventory(int slot, int start, int end)
 {
-    Inven_Item item;
+    // b28c-L2: ORIG 0x85049c8 形——入口 `jmp cond` + 尾 `cmp/setle/test/jne`
+    // 即 while(i<=end)（P25/P51）；item 的 Inven_Item C1 call 落在循环之后
+    // （0x8504a22），故声明置于早退检查之后。
     int dst = -1;
     int i = start;
-    do
+    while (i <= end)
     {
-        if (end < i)
-        {
-            break;
-        }
         if (m_pEquipSlot[i].m_addInfo == 0)
         {
             dst = i;
             break;
         }
         i++;
-    } while (1);
+    }
     if (dst == -1)
     {
         return 0x16;
     }
+    Inven_Item item;
     item.setCopy(m_pEquipSlot[slot]);
     m_pEquipSlot[slot].reset();
     m_pEquipSlot[dst].setCopy(item);
@@ -1910,19 +1923,24 @@ bool CInventory::IsEquipAvatar() const
 
 bool CInventory::IsExistStackable(int itemIdx, Inven_Item::ITEM_TYPE type) const
 {
+    // b28c-L2 [跨版本块序封顶]：ORIG 0x0850a044 区间块序为 BODY/ADDL/HIT(mov$1)/
+    // JMP-COND/COND（4.1 把命中出口块插在循环增量与条件块之间，故 body 尾需
+    // `jmp COND`）；4.4-O0 恒把 COND 紧跟 body（fall-through）、HIT 落函数尾，
+    // `return true` 直形/`goto found` 形两式实测均产 jne+内联或 COND 前置
+    // （探针 /tmp/l2_probe8.cpp S/S2/S3），与范式库「跨版本·空 else jump
+    // threading」+N93附（尾部双 return 块发射序相反）同族 ⇒ 保持可读直返形，
+    // ndiff 4 封顶。
     int start;
     int end;
     StartEndPos(type, start, end);
     for (int i = start; i <= end; i++)
     {
-        // ORIG 0x850a05e +0x48: 命中 je -> +0x50 独立块(mov $0x1,%eax; jmp +0x69 leave)；
-        // ORIG 块序 BODY/ADDL/HIT/COND。goto 复现 je 方向（4.4 直写 return 产 jne+inline）。
+        // b28c-L2: 试直 return 形（原 goto 形 4.4 产 COND 紧跟 body，ORIG 块序为
+        // BODY/ADDL/JMP-COND/HIT(mov$1)/COND）。
         if (m_pEquipSlot[i].m_addInfo == itemIdx)
-            goto found;
+            return true;
     }
     return false;
-found:
-    return true;
 }
 
 // ORIG 0x850a088：entry 即 spill count(0xc,%ebp)->%al,-0x4（volatile 形参强制
@@ -2484,6 +2502,12 @@ int CInventory::insertItemIntoEquipment(Inven_Item item, eItemAddReason reason, 
 
 int CInventory::tryInsertItemIntoEquipment(Inven_Item item) const
 {
+    // b28c-L2 [N7 封顶]：ORIG 0x0850a(报告) 两处 CItem::GetItemType 虚调用为
+    // `mov (%eax),%edx; mov -0xc(%ebp),%eax; mov %eax,(%esp); call *%edx`
+    // （目标指针落 %edx、实参落 %eax）；4.4-O0 对间接 call 目标恒 %eax（范式库 N7，
+    // 附 4.1 按上下文用 ecx/edx），临时/引用/限定名/语句表达式均不可翻（N7 已 8 件
+    // 实证）。语义（虚槽 + 单实参 + 调用序）与 ORIG 全等，仅剩寄存器名差 ⇒ 保持
+    // 可读直调形，ndiff 8 封顶（fresh 复验：orig 44 / our 44）。
     CItem* pItem = G_CDataManager()->find_item(item.m_addInfo);
     if (pItem == 0)
     {
@@ -2612,7 +2636,10 @@ int CInventory::tryInsertItemIntoCreature(Inven_Item& item) const
     else
     {
         result = GetExistCreatureSlot(item);
-        if (result < 0)
+        // b28c-L2: ORIG 0x850aaef `shr $0x1f,%eax; test %al,%al; je`（4.1 负数判定
+        // 经无符号右移 31 物化到 al）；4.4 对 `result < 0` 恒折 `cmpl/jns`（探针 l2_probe2
+        // c2 形命中）⇒ 保留等价语义的显式无符号移位形。
+        if (static_cast<unsigned char>(static_cast<unsigned int>(result) >> 31))
         {
             result = GetEmptyCreatureSlot(item);
         }
@@ -2639,7 +2666,8 @@ void CInventory::WriteCreatureLog(INVEN_TYPE invenType, int a, int b, int c, int
     }
 }
 
-int CInventory::CheckExistItemInInventoryOrEquipment(int itemIdx, int& slot, bool& bFound) const
+// SIGFIX b28c-L2：返回类型 int→bool（ORIG rodata 串 "bool CInventory::CheckExist…"）。
+bool CInventory::CheckExistItemInInventoryOrEquipment(int itemIdx, int& slot, bool& bFound) const
 {
     bFound = false;
     for (int i = 3; i <= 8; i++)
@@ -2742,39 +2770,40 @@ bool CInventory::possible_to_insert(int itemIdx) const
     return 0;
 }
 
-int CInventory::removeDupliacteEquipItem()
+bool CInventory::removeDupliacteEquipItem()
 {
     // ORIG 0x85034b5：i=-0x14、found=-0x10（具名槽 cmpl $-1,-0x10 技巧9）、
     // characNo=-0xc（0x8503523 先 spill 后 je 直落 0 形，非三目）；
-    // itemIdx 跨 cMyTrace ctor 存活于 %ebx（0x8503562 mov 0x2(%eax),%ebx）→
-    // register asm("ebx") 复现 push/pop %ebx 与 epilogue add $0x44。
+    // itemIdx 跨 cMyTrace ctor 存活于 %ebx（0x8503562 mov 0x2(%eax),%ebx）。
+    // b28c-L2：清除历史 register asm("ebx") 绑定（P0 硬约束），改 P227 全表达式
+    // 临时链令 4.4 在 ctor 前求 varargs 并以 %ebx 跨 ctor 保活。
     int i;
     int found;
     for (i = 3; i <= 0xc8; i++)
     {
-        // ORIG 0x85034d9 +0x2b: field1!=1 → jne +0x120(4.1 continue 岛)；
-        // dup 体必须在循环体内（ORIG 块序 BODY→dup→INC→COND→mov$0）。
-        if (m_pEquipSlot[i].m_field1 == 1)
+        // ORIG 0x85034d9 +0x2b: field1!=1 → jne +0x120（4.1 continue 岛 jmp+nop）；
+        // b28c-L2：原码为「提前 continue」形（两个 continue 同层），4.4 才发射
+        // ORIG 的 `jmp <addl>; nop` 岛（探针 l2_probe5 H 形命中）。
+        if (m_pEquipSlot[i].m_field1 != 1)
         {
-            found = getExistEquipItem(m_pEquipSlot[i].m_addInfo,
-                                      m_pEquipSlot[i].m_addInfo2, i);
-            if (found == -1)
-            {
-                continue;   // ORIG 0x850352a +0x7c: je → +0x123 岛
-            }
-            // ORIG 0x8503530..+0x9f：两分支均产 %eax、merge 单点 spill -0xc。
-            int characNo;
-            if (m_pParent != 0)
-                characNo = ((CUserCharacInfo*)m_pParent)->getCurCharacNo();
-            else
-                characNo = 0;
-            register int itemIdx asm("ebx") = m_pEquipSlot[i].m_addInfo;
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x16d2, 5);
-            trace("DUPLICATE ITEM REMOVED %d at %d of %d", itemIdx, i,
-                  characNo);
-            m_pEquipSlot[i].reset();
-            return 1;
+            continue;
         }
+        found = getExistEquipItem(m_pEquipSlot[i].m_addInfo,
+                                  m_pEquipSlot[i].m_addInfo2, i);
+        if (found == -1)
+        {
+            continue;   // ORIG 0x850352a +0x7c: je → +0x123 岛
+        }
+        // ORIG 0x8503530..+0x9f：两分支均产 %eax、merge 单点 spill -0xc。
+        // b28c-L2：ORIG else 分支 `mov $0x0,%eax` 后与 call 结果共用 merge 点
+        // 0x850354d `mov %eax,-0xc(%ebp)` ⇒ 原码为单点赋值的三目（非 if/else 各自写槽）。
+        int characNo = (m_pParent != 0)
+                           ? ((CUserCharacInfo*)m_pParent)->getCurCharacNo()
+                           : 0;
+        cMyTrace(__PRETTY_FUNCTION__, 0x16d2, 5)("DUPLICATE ITEM REMOVED %d at %d of %d",
+                                                 m_pEquipSlot[i].m_addInfo, i, characNo);
+        m_pEquipSlot[i].reset();
+        return 1;
     }
     return 0;
 }
@@ -2927,7 +2956,9 @@ void CInventory::GetExpertJobAddtionalExp(
             {
                 STItemScript::SEXPERTJOB::stExpertJobAdditionalExp exp;
                 pItem->GetExpertJobAdditionalExp(exp);
-                out.m_field0 = exp.m_field0 + out.m_field0;
+                // b28c-L2: ORIG 0x850cd3e `flds (%eax)`(out) 先于 `flds -0x18`(exp)
+                // ⇒ 原码书写序为 out + exp（x87 左操作数先入栈）。
+                out.m_field0 = out.m_field0 + exp.m_field0;
                 out.m_field4 = out.m_field4 + exp.m_field4;
             }
         }
@@ -2993,8 +3024,10 @@ void CInventory::GetExpertJobCompoundResultVariation(
             {
                 STItemScript::SEXPERTJOB::stExpertCompoundResultVariation var;
                 pItem->GetExpertJobCompoundResultVariation(var);
-                out.m_field0 = var.m_field0 + out.m_field0;
-                out.m_field4 = var.m_field4 + out.m_field4;
+                // b28c-L2: ORIG 0x850cae2/0x850caee 均先 `flds` out 再 `flds` var
+                // ⇒ 原码书写序为 out + var（x87 左操作数先入栈）。
+                out.m_field0 = out.m_field0 + var.m_field0;
+                out.m_field4 = out.m_field4 + var.m_field4;
             }
         }
     }
@@ -3388,6 +3421,10 @@ int CInventory::RemoveFPItem(Inven_Item* inven, Inven_Item* equip)
     // continue 出口铺 nop+二次 jmp 落点 pad（je 直落+jbe/ja 双岛），4.4.7 对 ||链/
     // 正向嵌套/三层嵌套均直连 thread（实测 77/65 两形，无 nop 岛形可出）——源层
     // 不可翻，维持 `||`+continue 形（gap 4 = 2×nop+2×jmp pad 缺失，版本指令选择）。
+    // b28c-L2 fresh 复算：本形式 ndiff 2（orig 69/our 71）；另测「负条件 goto 尾
+    // 标签」形（探针 /tmp/l2_probe9.cpp R2/R3）与「正向 &&」/「空 else」（R1/R4）
+    // 四式：R2/R3 出 3 岛（多 1 对 jmp+nop，同现形）、R1/R4 出 0 岛（缺 2 对）
+    // ⇒ 4.4 无「1 直落 + 2 岛」组合形，维持现形 N 封顶 2。
     for (int i = 0; i <= 0x19; i++)
     {
         if (inven[i].m_addInfo == 0 || inven[i].m_addInfo <= 0x1963 ||
@@ -3654,6 +3691,9 @@ int CInventory::use_equip(int slot)
 
 int CInventory::try_use_item(int slot, int count, int invenType) const
 {
+    // b28c-L2 [N7 封顶]：唯一虚调用 pItem->GetItemType()（ORIG 0x0850… 区间）为
+    // `mov (%eax),%edx; mov -0xc(%ebp),%eax; mov %eax,(%esp); call *%edx`，4.4-O0
+    // 对间接 call 目标恒 %eax（N7，附 4.1 按上下文选 edx/ecx）⇒ 4 行寄存器名差封顶。
     if (count < 0)
     {
         return 1;
@@ -4493,23 +4533,26 @@ void CInventory::SendAvatarEvent(int a, int b, int c, int d, int e) const
 void CInventory::ExpiredAvatarItem(PacketGuard* packet)
 {
     int now = OS_API::GetDateTimeTick();
+    // b28c-L2: ORIG 0x8509501/0x8509524 两 je 目标差 1 字节（cond1 落 nop 岛、
+    // cond2/3 落 addl）⇒ 原码是「外层 m_addInfo!=0 + 内层短路」双层嵌套，
+    // 非单条 && 短路链（4.4 对合并链三 je 同目标）。
+    // 续（b28c-L2）：ORIG body 尾 `jmp <addl>` + nop 岛 ⇒ 负条件 goto 尾标签形
+    // （探针 l2_probe6 Z 命中，4.4 产 je/jge 尾标签 + body 尾 jmp）。
     for (int i = 0; i <= 9; i++)
     {
-        if (m_invenItem[i].m_addInfo != 0 && m_invenItem[i].m_addInfo2 != 0 &&
-            m_invenItem[i].m_addInfo2 < now)
-        {
-            SendAvatarEvent(0x33, m_pParent->get_charac_no(-1), i, 0, 0);
-            m_invenItem[i].reset();
-        }
+        if (m_invenItem[i].m_addInfo == 0) goto next_inven;
+        if (m_invenItem[i].m_addInfo2 == 0 || m_invenItem[i].m_addInfo2 >= now) goto next_inven;
+        SendAvatarEvent(0x33, m_pParent->get_charac_no(-1), i, 0, 0);
+        m_invenItem[i].reset();
+    next_inven:;
     }
     for (int i = 0; i < 0x69; i++)
     {
-        if (m_pAvatarSlot[i].m_addInfo != 0 && m_pAvatarSlot[i].m_addInfo2 != 0 &&
-            m_pAvatarSlot[i].m_addInfo2 < now)
-        {
-            SendAvatarEvent(0x33, m_pParent->get_charac_no(-1), i + 10, 0, 0);
-            m_pAvatarSlot[i].reset();
-        }
+        if (m_pAvatarSlot[i].m_addInfo == 0) goto next_avatar;
+        if (m_pAvatarSlot[i].m_addInfo2 == 0 || m_pAvatarSlot[i].m_addInfo2 >= now) goto next_avatar;
+        SendAvatarEvent(0x33, m_pParent->get_charac_no(-1), i + 10, 0, 0);
+        m_pAvatarSlot[i].reset();
+    next_avatar:;
     }
 }
 
@@ -4909,6 +4952,9 @@ int CInventory::CheckNeedItemList(const std::vector<std::pair<int, int> >& items
 
 int CInventory::use_item(int slot, int count, int invenType)
 {
+    // b28c-L2 [N7 封顶 · §6.2 口径]：本函数 458/458 指令，P167 调用点差集归零；
+    // 唯一残差 4 行 = 一处 CItem 虚调用的 `%edx`↔`%eax` 目标寄存器互换
+    // （4.4 间接 call 目标恒 %eax，范式库 N7）。语义完成、byte 层 N 封顶。
     if (count < 0)
     {
         LogManager::logFormat(1, "inventory.cpp", __PRETTY_FUNCTION__,
@@ -6657,7 +6703,7 @@ void CInventory::SendItemLockListCreature() const
 // ORIG `lea 0x3(%eax),%edx` vs 重建 `add $0x3,%eax`（N1 族）与 4.1 尾部
 // jmp 中继岛布局，判「语义完成、N 封顶」。
 // ============================================================================
-int CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
+bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
 {
     // [§6.2 闭合 · b20] P167 108/108 归零：3 处 put_binary 已对齐 ORIG 的
     // PKc（const char*）重载（去 (char*) 强转 + expansion 常量化，零扰动）。

@@ -188,6 +188,9 @@ CTitleBook::~CTitleBook()
 
 bool CTitleBook::loadData(CUser* pUser, char* pData)
 {
+    // [b28c-6] N7：ORIG 虚调用 `mov (%eax),%edx; mov this,%eax; mov %eax,(%esp);
+    // call *%edx` vs 4.4 恒目标 %eax + this 走 %edx（N7 寄存器互换，临时/引用/
+    // 限定名均无效）。ndiff 8 封顶。
     _reset();
     m_user = pUser;
     std::memcpy(&m_book, pData, 0x6b3a);
@@ -304,14 +307,19 @@ void CTitleBook::sendListOtherUser(CUser* user,
 {
     for (int category = 0; category < 4; ++category)
     {
-        unsigned short uniqueId = (unsigned short)m_user->get_unique_id();
-        _sendCategoryData(user, uniqueId, (ENUM_TITLE_BOOK_CATEGORY)category,
-                          type);
+        // P0/P200：ORIG `call get_unique_id; movzwl %ax,%eax; …` 返回值全程
+        // 寄存器直传（无 unsigned short 局部槽），category 先入 %ebx 跨 call
+        // 保活 ⇒ 表达式直传形。
+        _sendCategoryData(user, (unsigned short)m_user->get_unique_id(),
+                          (ENUM_TITLE_BOOK_CATEGORY)category, type);
     }
 }
 
 bool CTitleBook::isAbleItemLock(unsigned long itemIdx)
 {
+    // [b28c-6] N82/P75：std::find 三实参（begin/end/value）装载序与迭代器槽基
+    // 跨版本差（ORIG begin/end 槽 -0x14/-0x18、value 取 &0x8(%ebp)；4.4 槽基浅
+    // 4 且 find 调用位置后移），120=120 条数全等仅槽/序差。ndiff 24 封顶。
     for (std::map<int, std::vector<stTitleElement> >::iterator it =
              ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.begin();
          it != ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.end();
@@ -367,6 +375,8 @@ bool CTitleBook::_checkFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
 bool CTitleBook::_getFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY& category,
                              int& slot)
 {
+    // [b28c-6] N82/P75：同 isAbleItemLock——std::find 实参装载序 + 迭代器槽基
+    // 跨版本差，115=115 全等仅槽/序差。ndiff 24 封顶。
     for (std::map<int, std::vector<stTitleElement> >::iterator it =
              ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.begin();
          it != ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.end();
@@ -431,8 +441,11 @@ void CTitleBook::deleteTimeoutItem(
 int CTitleBook::_isMatchedItem(
     int itemIdx, const std::vector<std::pair<int, int> >& list)
 {
-    for (std::vector<std::pair<int, int> >::const_iterator it = list.begin();
-         it != list.end(); ++it)
+    // P13/P28：ORIG 先 call begin()（槽 -0xc）再 call end()（槽 -0x10），
+    // 且循环头只比较缓存槽 ⇒ 同一 for-init 声明 it、e。
+    for (std::vector<std::pair<int, int> >::const_iterator it = list.begin(),
+             e = list.end();
+         it != e; ++it)
     {
         if (it->first == itemIdx)
         {
@@ -689,6 +702,9 @@ int CTitleBook::putTitleOnly(CUser* user, int itemIdx)
 int CTitleBook::putTitleOnly(CUser* user, int itemIdx,
                              ENUM_TITLE_BOOK_CATEGORY& category, int& slot)
 {
+    // [b28c-6] N7 残差（ndiff 22→12）：唯一差异为 pItem->make_item 虚调用
+    // 目标寄存器 %edx↔%eax 与 this 中转寄存器互换（N7）。
+    // P92 已修：_getFitSlot 首参从局部 item.m_addInfo 读（ORIG -0x4b(%ebp)）。
     CTitleBook* book = (CTitleBook*)user->GetCharacExpandData(
         (ENUM_CHARAC_EXPAND_TYPE)0xe);
     if (!book)
@@ -708,7 +724,9 @@ int CTitleBook::putTitleOnly(CUser* user, int itemIdx,
     }
     pItem->make_item(item);
     item.set_add_info(1);
-    if (!_getFitSlot(itemIdx, category, slot))
+    // P92：ORIG 0x8641e88 段实参从局部 item 的 +0x02（-0x4b(%ebp)）读取，
+    // 非形参 itemIdx（0xc(%ebp)）——两值相等（item.m_addInfo = itemIdx）。
+    if (!_getFitSlot(item.m_addInfo, category, slot))
     {
         return 0;
     }

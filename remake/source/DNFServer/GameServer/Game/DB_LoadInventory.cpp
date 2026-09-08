@@ -1106,18 +1106,20 @@ bool DB_LoadInventory::_GetTagCharacInven(unsigned int characNo,
     // ORIG 08409xxx：exec/fetch 直 xor 判（无 -0x9 保存）
     if (!db->exec(true))
     {
-        cMyTrace tt1("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
-                   " TAG_CHARAC_INVEN_DATA*)", 0x23e2, 5);
-        tt1("DB_LoadInventory::_GetTagCharacInven, exec ERROR charac_no=%u",
-          characNo);
+        // P221：具名 cMyTrace 在兄弟 if 块的槽深方向跨版本相反；全表达式
+        // 临时链复现 ORIG（tt1 -0x44 / tt2 -0x34 / tt3 -0x24）。
+        cMyTrace("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
+                 " TAG_CHARAC_INVEN_DATA*)", 0x23e2, 5)
+            ("DB_LoadInventory::_GetTagCharacInven, exec ERROR charac_no=%u",
+             characNo);
         return 0;
     }
     if (!db->fetch())
     {
-        cMyTrace tt2("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
-                   " TAG_CHARAC_INVEN_DATA*)", 0x23e8, 5);
-        tt2("DB_LoadInventory::_GetTagCharacInven, fetch ERROR charac_no=%u",
-          characNo);
+        cMyTrace("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
+                 " TAG_CHARAC_INVEN_DATA*)", 0x23e8, 5)
+            ("DB_LoadInventory::_GetTagCharacInven, fetch ERROR charac_no=%u",
+             characNo);
         return 0;
     }
     // TAG_CHARAC_INVEN_DATA equipslot 区：ORIG `add $0x262` = 第 10 槽起。
@@ -1128,10 +1130,10 @@ bool DB_LoadInventory::_GetTagCharacInven(unsigned int characNo,
                                   0x2dc, 0x3d);
     if (!ok)
     {
-        cMyTrace tt3("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
-                   " TAG_CHARAC_INVEN_DATA*)", 0x23f1, 5);
-        tt3("DB_LoadInventory::GetUserInven, get_compressed_blob_data ERROR"
-          " charac_no=%u", characNo);
+        cMyTrace("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
+                 " TAG_CHARAC_INVEN_DATA*)", 0x23f1, 5)
+            ("DB_LoadInventory::GetUserInven, get_compressed_blob_data ERROR"
+             " charac_no=%u", characNo);
         return 0;
     }
     return 1;

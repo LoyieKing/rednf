@@ -98,6 +98,11 @@ void CSecu_ProtectionField::init()
     // ORIG T 0x0828824e（报告 init.md）：表为局部数组（GCC 生成 .rodata 模板 +
     // rep movsl 拷贝），长度走局部变量；第二轮前整表重置回 0x1ff（第一轮结果
     // 被覆盖，ORIG 原样保留）；插入使用 make_pair(enum, unsigned int& ) 实例。
+    // [b28c-30] N18b 封顶：内层比较 ORIG 为 `mov i,-0x28,%edx; mov j,%eax;
+    // mov tableA[j],%eax; cmp %eax,%edx`（左操作数先物化寄存器）；4.4 恒
+    // `mov tableA[j],%eax; cmp i_mem,%eax`（mem 直比）。探针 /tmp/l30_probe3.cpp
+    // 5 形（i==t[j]/t[j]==i/unsigned 双 cast/int cast/(t[j]==unsigned i)）全折
+    // mem 直比；余差 2 条 mov（150 vs 152）。
     int i = 0;
     int j = 0;
     int lenA;
@@ -117,7 +122,9 @@ void CSecu_ProtectionField::init()
     {
         for (j = 0; j < lenA; ++j)
         {
-            if (i == tableA[j])
+            // [b28c-30] ORIG 0x082882b9 段：mov -0x28(%ebp),%edx（i 先载寄存器）
+            // + cmp %eax,%edx ⇒ 原码左操作数是数组元素（tableA[j] == i）。
+            if (tableA[j] == i)
                 values[i] = ExceptionProtectionType(values[i], (SECURITY_PROTCTION_TYPE)0,
                     (SECURITY_PROTCTION_TYPE)0, (SECURITY_PROTCTION_TYPE)0,
                     (SECURITY_PROTCTION_TYPE)0, (SECURITY_PROTCTION_TYPE)0x10,
@@ -139,7 +146,7 @@ void CSecu_ProtectionField::init()
     {
         for (j = 0; j < lenB; ++j)
         {
-            if (i == tableB[j])
+            if (tableB[j] == i)   // [b28c-30] 同 tableA：ORIG 寄存器比较方向
                 values[i] = ExceptionProtectionType(values[i], (SECURITY_PROTCTION_TYPE)1,
                     (SECURITY_PROTCTION_TYPE)2, (SECURITY_PROTCTION_TYPE)4,
                     (SECURITY_PROTCTION_TYPE)8, (SECURITY_PROTCTION_TYPE)0x10,

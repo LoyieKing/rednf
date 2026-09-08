@@ -282,6 +282,15 @@ const wchar_t* RDARScriptStringManager::getTagByName(int table, const wchar_t* a
     //（ORIG 调用点里 _ZNSbIwSt11char_traitsIwESaIwEEC1* / _ZNSaIwEC1Ev 全为 0）。
     // 原来的宽串拼接实现属臆造，每轮循环都多出 basic_string/allocator 构造
     // 与其 EH 清理（eager-ctor 冗余），故按 ORIG 形态改回窄串缓冲。
+    // 【b28c-36 复验】fresh ndiff=4 / NEAR（169=169，助记符序列全同）：
+    // 唯一残差 = 末尾 ss_sprintf 第 3 参 `(const char*)a` 的装载时刻——
+    // ORIG `mov %eax,0xc(%esp); mov 0x10(%ebp),%eax; mov %eax,0x8(%esp)`
+    // （先存 callee 返回值再载 a）；4.4 先 `mov 0x10(%ebp),%edx` 缓存再双 store
+    // （P75 跨版本实参装载序）。探针 /tmp/b28c_l36_p5.cpp 五形实测：A(reinterpret_cast)
+    // 与 B(C cast) 同产 edx 提前缓存；C(文件名局部)/D(指针局部)/E(双局部) 均新增
+    // 栈槽且装载序更远 ⇒ 源形不可翻，判 NEAR 封顶。
+    // TLS `lea -0x3c248(%eax)` vs `lea 0x0(%eax)` 与 .rodata addend 差属链接产物
+    // （.o 未解析重定位；P155 TLS 豁免 + P196 .o 伪差），链接后随 <A> 归一化。
     static __thread char buf[256];      // ORIG TLS -0x3c248
     static __thread char errBuf[256];   // ORIG TLS -0x3c148
 

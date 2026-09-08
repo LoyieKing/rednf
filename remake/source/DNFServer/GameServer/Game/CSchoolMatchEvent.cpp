@@ -58,10 +58,15 @@ void CSchoolMatchEvent::StartEvent(Word_Param param)
 {
     // ORIG 0x08273fec。Word_Param 4 字节按字节视图读 4 个配置值：
     //   byte0 channel_no / byte1 player_count / byte2 school_rating / byte3 player_rating。
+    // [b28c-27] N82/N93：两处 cMyTrace 全表达式临时链槽 ORIG -0x54/-0x44，4.4 恒
+    // -0x50/-0x40（差 4；类内对齐选择跨版本差）；findValue 经 P212 提至函数头后
+    // 已落 ORIG -0x30 独立槽。其余为 .o 重定位伪差（AE 口径）。
     SetEventFlag(true);
 
     struct Bytes { unsigned char b0, b1, b2, b3; };   // 组件视图折叠 ORIG 单 disp（P1）
     Bytes* p = (Bytes*)&param;
+    int findValue;                                    // P212：ORIG -0x30 独立槽
+                                                      // （块内声明会被 4.4 复用 trace 槽）
     cMyTrace(__PRETTY_FUNCTION__, 0x1e, 0)
         ("CSchoolMatchEvent Start! channel_no(%d), player_count(%d), school_rating(%d), player_rating(%d)",
          (unsigned int)p->b0, (unsigned int)p->b1,
@@ -84,7 +89,7 @@ void CSchoolMatchEvent::StartEvent(Word_Param param)
     }
 
     // 当前频道号不在表内才登记。
-    int findValue = (int)p->b0;
+    findValue = (int)p->b0;
     std::vector<int>::const_iterator it =
         std::find(m_channels.begin(), m_channels.end(), findValue);
     if (it == m_channels.end()) {

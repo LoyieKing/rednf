@@ -276,6 +276,12 @@ void STMonsterEquipment::clear()
 }
 
 // ---- stEnamyDropAvatarInfo_t 成员（ORIG W 0x088cc10c / op= W 0x08366ea8）----
+// b28c-L20: N(跨版本 lowering) — clear 残差 ndiff=4 全在第二循环索引：ORIG 0x088cc10c
+// 为 `mov i,%edx; mov this,%eax; lea 0x4(%edx),%ecx`（先载 i、再载 this、后 lea 完成），
+// 4.4 恒 `mov i,%eax; lea 0x4(%eax),%ecx; mov this,%eax`。probe 11 形（i+4 / 4+i /
+// *(a+i+4) / int 视图 / 语句表达式 / 逗号 / volatile 索引 / long 索引 / 显式 this-> /
+// (*this). / -march=i486）全部产 lea 且 this 装载恒在 lea 之后 ⇒ 源码形不可择，N 封顶。
+// 4.4.6 后端实测（/tmp/tu_STMonsterScript_446.o）：仍 ndiff=4（该族 lowering 两后端同形）。
 void stEnamyDropAvatarInfo_t::clear()
 {
     m_field00 = 0;                 // movl $0,(%eax)
@@ -288,6 +294,11 @@ void stEnamyDropAvatarInfo_t::clear()
     m_elements.clear();            // vector<element>::clear(+0x30)
 }
 
+// b28c-L20: N(跨版本 lowering) — op= 残差 ndiff=8：ORIG 0x08366ea8 对两处 a[i+4]
+// 就地 `mov i,%reg; add $0x4,%reg`（4.1 复用 i 所在寄存器），4.4 恒
+// `mov i,%eax; lea 0x4(%eax),%reg`（ORIG-only=add ×2 / OURS-only=lea ×2，各多 1 条 mov）。
+// probe 同 clear（11 形全 lea）⇒ 不可翻，N 封顶。
+// 4.4.6 后端实测（/tmp/tu_STMonsterScript_446.o）：仍 ndiff=8（该族 lowering 两后端同形）。
 void stEnamyDropAvatarInfo_t::operator=(const stEnamyDropAvatarInfo_t& other)
 {
     m_field00 = other.m_field00;

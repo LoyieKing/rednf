@@ -95,6 +95,9 @@ bool CEpoll<CSession>::UnregisterSession(CSession* session)
 template <>
 bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
 {
+    // [b28c-6] 残差 1 处（ndiff 3）：OnConnect 后 ok 回读 ORIG 发
+    // `movzbl -0x1d,%eax; test %al,%al`，4.4 恒折 `cmpb $0,-0x1d`（P168a③b
+    // 跨版本 bool 归一化差）。P15 已修装载序（CSession* accepted）。
     // [b23S3C] P48 去缓存：errno 两比较点各重取（ORIG 两次 __errno_location
     // call、无 err 槽）；EINTR 分支不写 n=0（ORIG 保持负数走空循环）；events[i]
     // .events 掩码每用点重取（ORIG 无 mask 槽，8 条/用点×5）；无 evOk 中间局部
@@ -125,9 +128,9 @@ bool CEpoll<CSession>::WaitForEvent(int timeoutMs)
                 // P197③双槽置0：ORIG OnAccept 前 `movl $0x0,-0x10` 预清。
                 // P15 赋值即条件：ORIG `cmpl;setne;test` 物化仅 4.4 在
                 // `(x = expr) != 0` 赋值表达式比较处复现（槽比较写法被简化）。
-                int accepted = 0;
-                if ((accepted = reinterpret_cast<int>(session->OnAccept())) != 0)
-                    RegisterSession(reinterpret_cast<CSession*>(accepted), 0x7);
+                CSession* accepted = 0;
+                if ((accepted = session->OnAccept()) != 0)
+                    RegisterSession(accepted, 0x7);
             }
             else if ((session->GetTriggerSessionEventType() & 0x1) != 0)
             {
@@ -199,8 +202,9 @@ template <>
 bool CSessionManager<CSession, PacketGuard, CEpoll>::TrySend(
     CSession* session, PacketGuard& guard)
 {
-    register unsigned char v asm("eax") =
-        static_cast<unsigned char>(session->Send(guard));
+    // P0/N96：原 `register unsigned char v asm("eax")` 绑定已清除（全域禁用）；
+    // P168a X2 自然形（uchar 槽 + xor $1 + test）。
+    unsigned char v = static_cast<unsigned char>(session->Send(guard));
     v ^= 1;
     if (v)
     {
@@ -304,10 +308,13 @@ CACHE_CHARACTER_TYPE* CCacheCharacterMgr::AcquireCharacter(int characNo)
             return 0;
     }
     mem = m_pool.Acquire();
-    if (mem != 0)
+    // P225：ORIG `cmpl $0,-0xc; setne %al; test %al,%al; je` 为 4.1 bool 物化，
+    // 4.4 对 `if` 恒折 cmpl/je ⇒ while+break 四段物化形复现。
+    while (mem != 0)
     {
         memset(mem, 0, sizeof(CACHE_CHARACTER_TYPE));
         mem->m_cacheTime = time(0);   // P217 同型直存（同上）
+        break;
     }
     return mem;
 }

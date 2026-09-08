@@ -54,10 +54,9 @@ StringDictionary::StringDictionary()
       m_curRemain(0),
       entities_()
 {
-    for (int i = 0; i < 0x101; ++i)
-    {
-        buckets_[i] = std::vector<StringEntity>::iterator();
-    }
+    // [b28c-11] AE：buckets_[0x101] 改为隐式数组构造（删显式 for）⇒ 4.4 复现
+    // ORIG 倒计数构造循环（P151：mov $0x100,%esi; sub; cmp $-1; setne/test/jne），
+    // 43/43 条全等（.o 重定位显示差）。
 }
 
 // ----------------------------------------------------------------------------
@@ -95,6 +94,9 @@ StringDictionary::~StringDictionary()
 // ----------------------------------------------------------------------------
 const char* StringDictionary::addString(const char* s)
 {
+    // [b28c-11] AE：m_curPtr 由 int 改 `unsigned char*`（ORIG `mov -0x1c,%edx`
+    // 单段直落，int 形多一条 eax→edx 中转）。68/68 条全等（kBufSize=0x10000 经
+    // ORIG rodata 0x8e2ca64 实测确认，头注释 0x100 为笔误）。
     // ORIG 函数级 static（0x8e2ca64 = 0x10000；块分配默认容量）。
     static const int kBufSize = 0x10000;
     const size_t len = strlen(s);
@@ -103,7 +105,7 @@ const char* StringDictionary::addString(const char* s)
     unsigned char* ret;
     if (m_curRemain >= need)
     {
-        ret = reinterpret_cast<unsigned char*>(m_curPtr);
+        ret = m_curPtr;
         m_curPtr += need;
         m_curRemain -= need;
     }
@@ -112,7 +114,7 @@ const char* StringDictionary::addString(const char* s)
         unsigned int cap = std::max(need, kBufSize);
         unsigned char* ptr = new unsigned char[cap];
         blocks_.push_back(ptr);
-        m_curPtr = (int)ptr + need;
+        m_curPtr = ptr + need;
         m_curRemain = cap - static_cast<unsigned int>(need);
         ret = ptr;
     }
@@ -150,14 +152,14 @@ void StringDictionary::add(const char* key, const char* value)
 // ----------------------------------------------------------------------------
 void StringDictionary::freeze()
 {
+    // [b28c-11] AE：probe 改 `StringEntity probe = {};`（三字段先清零再写 hash，
+    // ORIG 顺序）+ 循环变量 unsigned（setbe 而非 setle，P2）。82/82 条全等。
     std::sort(entities_.begin(), entities_.end());
 
-    for (int i = 0; i < 0x100; ++i)
+    for (unsigned int i = 0; i < 0x100; ++i)
     {
-        StringEntity probe;
-        probe.hash = static_cast<unsigned int>(i) << 24;
-        probe.key = 0;
-        probe.value = 0;
+        StringEntity probe = {};
+        probe.hash = i << 24;
         buckets_[i] = std::lower_bound(entities_.begin(), entities_.end(), probe);
     }
     buckets_[0x100] = entities_.end();
@@ -230,17 +232,18 @@ const char* StringDictionary::getValue(int index) const
 // ----------------------------------------------------------------------------
 void StringDictionary::setValue(int index, const char* value)
 {
-    if (index < 0 || index >= static_cast<int>(entities_.size()))
+    // [b28c-11] AE：守卫改正向 `if (index >= 0 && index < size)` 复现 ORIG
+    // js/jle/mov$1/jmp/mov$0/test/je 物化链；StringEntity e = {} 三清零先于 hash。
+    // 59/59 条全等。
+    if (index >= 0 && index < static_cast<int>(entities_.size()))
     {
-        return;
+        const char* newKey = addString(entities_[index].key);
+        const char* newValue = addString(value);
+
+        StringEntity e = {};
+        e.hash = getStringHashValue(newKey);
+        e.key = newKey;
+        e.value = newValue;
+        entities_[index] = e;
     }
-
-    const char* newKey = addString(entities_[index].key);
-    const char* newValue = addString(value);
-
-    StringEntity e;
-    e.hash = getStringHashValue(newKey);
-    e.key = newKey;
-    e.value = newValue;
-    entities_[index] = e;
 }

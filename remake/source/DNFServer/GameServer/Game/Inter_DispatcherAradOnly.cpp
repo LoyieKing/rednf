@@ -17,6 +17,8 @@ Inter_DispatcherAradOnly::~Inter_DispatcherAradOnly()
 {
 }
 
+// [b28c-31] N7：末尾虚调用 callee ORIG %edx vs 4.4 %eax；另 ORIG 形参算术
+// `mov 0x14(%ebp),%eax; sub $0x4,%eax` 4.4 恒折 `lea -0x4(%edx)`（N1 族）。
 int Inter_DispatcherAradOnly::dispatch_sig(CUser* user, char* data, int len)
 {
     int code = *(int*)data;   // ORIG mov (%eax),%eax 直读 4 字节（local_14）

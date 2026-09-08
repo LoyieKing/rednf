@@ -57,10 +57,8 @@ void AvatarRoulette::getStikerList(bool& isOk, ENUM_CHARACTERJOB job,
 
 unsigned int AvatarCoin::Use()
 {
-    // register 绑定使 -O0 下分支条件直接用 test %al 取字节（ORIG 形态），
-    // 不产生 setne 提升。
-    register char r __asm__("al") = IsUsable();
-    if (r != 0)
+    // [b28c-lane17] P0：清除历史 register asm("al") 绑定，改自然条件形。
+    if (IsUsable())
     {
         m_coin = m_coin + -1;
         return 1;
@@ -69,10 +67,8 @@ unsigned int AvatarCoin::Use()
 }
 
 // ---- AvatarCoin 对象位于角色背包基址 +0x658（ORIG 全局约定） ----
-static inline AvatarCoin* coinOf(char* invenBase)
-{
-    return reinterpret_cast<AvatarCoin*>(invenBase + 0x658);
-}
+// [b28c-lane17] 删除 coinOf static inline 助手（P49：-O0 下仍产真实 call 符号；
+// ORIG 各调用点均为内联 `getCurCharacInvenW(); add $0x658` 直落 receiver）。
 
 // ---- CUser::_GetSaveInvenBase ORIG @ 0x0864fd80 ----
 // SIG_SAVE_INVENTORY 权威尺寸约 0xada0（写入 +0xad95 实证）；本仓库
@@ -103,7 +99,7 @@ void CUser::_GetSaveInvenBase(SIG_SAVE_INVENTORY* out)
 }
 
 // ---- AvatarCoin::SaveToDB ORIG @ 0x081800d6 ----
-int AvatarCoin::SaveToDB(CUser* user)
+bool AvatarCoin::SaveToDB(CUser* user)
 {
     // P0：ORIG Acquire 返回值 `mov %eax,0x4(%esp)` 直传 ctor 实参，无具名 stream 局部。
     CStreamGuard guard(GlobalData::s_big_stream_pool->Acquire(
@@ -122,7 +118,7 @@ int AvatarCoin::SaveToDB(CUser* user)
     sig->m_saveFlag = 1;  // ORIG local_10[8]=1（仅 AvatarCoin 保存标志）
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    return 1;
+    return true;
 }
 
 // ---- AvatarCoin::SendSyncPacket ORIG @ 0x0817ffe4 ----
@@ -162,11 +158,17 @@ void AvatarCoin::HistoryLog::AddLog(CUser* user, unsigned int amount)
 // ---- AvatarCoin::GetPackage ORIG @ 0x0818028a ----
 bool AvatarCoin::GetPackage(CUser* user, int avatarUid, bool bReset)
 {
-    if (!bReset)
+    // [b28c-lane17] ORIG 0x0818029b：`cmpb $0x0,-0xc; je body` ⇒ 源码是
+    // `if (bReset) return 1;`（真值提前返回，body 直落），非 `if(!bReset){body}`。
+    if (bReset)
+        return 1;
     {
-        coinOf(reinterpret_cast<char*>(user->getCurCharacInvenW()))
+        // ORIG 0x081802a4：avatarUid 先入 ebx，再 call getCurCharacInvenW
+        // + add $0x658 直落 Add receiver（无 coinOf call）。
+        reinterpret_cast<AvatarCoin*>(
+            reinterpret_cast<char*>(user->getCurCharacInvenW()) + 0x658)
             ->Add(static_cast<unsigned int>(avatarUid));
-        if (SaveToDB(user) != 1)
+        if (!SaveToDB(user))
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_AvatarRoulette.cpp",
@@ -187,17 +189,17 @@ bool AvatarCoin::GetPackage(CUser* user, int avatarUid, bool bReset)
 // HistoryLog::AddLog + SendSyncPacket，返 1。
 bool AvatarCoin::BuyProcess(CUser* user, Inven_Item& item)
 {
-    // register 绑定使 -O0 下分支条件直接 test %al（ORIG 形态，同 Use()）；
-    // 成功体直落、失败跳转，与 ORIG je 布局一致。
-    register char pottery __asm__("al") =
-        reinterpret_cast<AvatarRouletteServer*>(GlobalData::s_pAvatarRoulette)
-            ->isAvatarPottery(static_cast<unsigned long>(item.m_addInfo));
-    if (pottery != 0)
+    // [b28c-lane17] P0：清除历史 register asm("al") 绑定，改自然条件形。
+    // ORIG 0x081801ee `test %al,%al; je 失败`。
+    if (reinterpret_cast<AvatarRouletteServer*>(GlobalData::s_pAvatarRoulette)
+            ->isAvatarPottery(static_cast<unsigned long>(item.m_addInfo)))
     {
-        unsigned int amount = static_cast<unsigned int>(item.m_addInfo2);
-        coinOf(reinterpret_cast<char*>(user->getCurCharacInvenW()))
-            ->Add(amount);
-        if (SaveToDB(user) != 1)
+        // ORIG 0x081801f6：item.m_addInfo2 先入 ebx 跨 getCurCharacInvenW 保活，
+        // +0x658 直落 Add receiver（P226 内联实参形）。
+        reinterpret_cast<AvatarCoin*>(
+            reinterpret_cast<char*>(user->getCurCharacInvenW()) + 0x658)
+            ->Add(static_cast<unsigned int>(item.m_addInfo2));
+        if (!SaveToDB(user))
         {
             LogManager::logFormat(
                 1, "localjapan/Arad_AvatarRoulette.cpp",

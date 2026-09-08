@@ -355,10 +355,12 @@ CharString remove(const CharString& str, int pos, int removeLength);
 WideString remove(const WideString& str, int pos, int removeLength);
 CharString trim(const CharString& str);
 WideString trim(const WideString& str);
-CharString trimLeft(const CharString& str);
-WideString trimLeft(const WideString& str);
-CharString trimRight(const CharString& str);
-WideString trimRight(const WideString& str);
+// b28c-L15：ORIG trim（0x08ad84c0）调用点无 EH landing pad（临时 -0xc 析构只在
+// 正常路径），⇒ ORIG 的 trimLeft/trimRight 为 throw() 声明（P216）。
+CharString trimLeft(const CharString& str) throw();
+WideString trimLeft(const WideString& str) throw();
+CharString trimRight(const CharString& str) throw();
+WideString trimRight(const WideString& str) throw();
 
 // ---- 缓冲读取（2 字节长度前缀；实现 StringCaseTools.cpp）----
 void readStringFromBuffer(char* dst, int maxLen, char*& buf);

@@ -182,7 +182,11 @@ struct _ReqAdvanceAltarUpgradeGage : public STBaseRequest
 
 struct _ResAdvanceAltarUpgradeGage : public STBaseResponse
 {
-    int m_nErrorCode;             // +0x04
+    // b28c-L5：int→unsigned。ORIG process_packet @0x0814031e 该字段两处 store 均为
+    //   `call …; mov %eax,%edx; mov -0x10(%ebp),%eax; mov %edx,0x0(%eax)`
+    //   （RHS 先 + 中转）；int 字段 ← int 返回值同型时 4.4 恒 LHS 地址先（P211 双向
+    //   开关），换 unsigned 即复现。清除了原先的 register asm("edx"/"eax") 双绑定。
+    unsigned int m_nErrorCode;    // +0x04
     int m_nGageLevelBefore;       // +0x08
     int m_nGageLevelAfter;        // +0x0c
     int m_nGage;                  // +0x10
@@ -204,7 +208,9 @@ struct _ReqAdvanceAltarExchangeSlot : public STBaseRequest
 
 struct _ResAdvanceAltarExchangeSlot : public STBaseResponse
 {
-    int m_nErrorCode;             // +0x04
+    // b28c-L5：同上 —— ORIG @0x081408a4 `call check_error; mov %eax,%edx;
+    //   mov -0xc(%ebp),%eax; mov %edx,0x4(%eax)` RHS 先+中转（P211）。
+    unsigned int m_nErrorCode;    // +0x04
     int m_field08;                // +0x08（req+0x10 回显）
     unsigned char m_slot1[12];    // +0x0c（req+0x18 回显）
     unsigned char m_slot2[12];    // +0x18（req+0x24 回显）

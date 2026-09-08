@@ -29,6 +29,10 @@ bool CRedeemItem::_isFPItem(const Inven_Item& item) const
 
 // ORIG 0x085f76f0：空物品/FP 物品/固定 ID 表/物品不存在/低稀有度可升级
 // 装备/禁兑换物品 → 0；否则 1。
+// [b28c-13 N] 残余：ORIG 0x085f7803 `call IsBanRedeemItem; test %al,%al; je`
+// （uchar 返回直判）；4.4-O0 对 uchar 返回 callee 的条件恒插 `setne %al;
+// test %al,%al` 归一（P168a③b 边界：bool/uchar callee 直判的跨版本 ABI 差；
+// 裸 if 与 `!= 0` 两写法实测同形，setne 无法消除）。语义等价。
 bool CRedeemItem::isAddableFilter(const Inven_Item& item)
 {
     if (item.isEmpty())
@@ -58,8 +62,9 @@ bool CRedeemItem::isAddableFilter(const Inven_Item& item)
     if (item.isEquipableItemType() && ci->get_rarity() == 0 &&
         item.GetUpgrade() == 0)
         return 0;
-    // ORIG 0x085f77f4 调用 CItem::IsBanRedeemItem()（非内联，生成 call）
-    if (ci->IsBanRedeemItem())
+    // ORIG 0x085f77f4 调用 CItem::IsBanRedeemItem()（非内联，生成 call）；
+    // 后随 `test %al,%al; je` 直判（无 setne 归一）⇒ 显式 `!= 0` 比较。
+    if (ci->IsBanRedeemItem() != 0)
         return 0;
     return 1;
 }

@@ -496,7 +496,10 @@ bool setCompoundRareAvatarData(tagCompoundAvatar* avatar, ENUM_EQUIPMENTTYPE equ
         const int weight = ScanInt(&ok);
         if (!ok)
             return false;
-        avatar->m_cube.m_field0c[static_cast<int>(equip)] += weight;
+        // [b28c-lane24] ORIG 0x08902e78 段：先算读索引(ecx)再算写索引(edx)；
+        // 复合赋值 4.4 恒写索引先 ⇒ 拆成显式双下标表达式（P38 反向）。
+        avatar->m_cube.m_field0c[static_cast<int>(equip)] =
+            avatar->m_cube.m_field0c[static_cast<int>(equip)] + weight;
         // [b24ab] ORIG `_ZNSt4pairIiiEC1IRiRjEEOT_OT0_`（converting ctor,
         // int&/unsigned&）+ push_back(EOS1_) ⇒ 直构 pair 非 make_pair（P192）
         avatar->m_cube.m_vecs[static_cast<int>(equip)].push_back(
@@ -807,8 +810,16 @@ void addCreatureModuleRate(ENUM_MODULE_TYPE type, float rate)
 {
     std::map<ENUM_MODULE_TYPE, float>::iterator it =
         g_creatureModuleDamageRateMap.find(type);
+    // b28c-l23：ORIG @0x08a38a4x 命中块为 `mov 0x4(%eax),%eax; mov %eax,-0xc(%ebp);
+    // flds 0xc(%ebp); fmuls -0xc(%ebp); fstps 0xc(%ebp)` ⇒ old 经**槽往返**后再乘
+    // （N85 附「4.4 float 纯拷贝恒 mov 直搬」的突破口 = 具名 float 局部，
+    // 与 P211/P218 同族的"值先物化"开关）；直写 `rate * it->second` 时 4.4 出
+    // `flds 0x4(%eax); flds 0xc(%ebp); fmulp`（少 2 条且装载序反）。
     if (it != g_creatureModuleDamageRateMap.end())
-        rate = rate * it->second;
+    {
+        float old = it->second;
+        rate = rate * old;
+    }
     g_creatureModuleDamageRateMap[type] = rate;
 }
 
@@ -1037,13 +1048,19 @@ bool initObjectScriptBase()
 }
 
 // ORIG getObjectCategory T 0x08a3ca1b（报告全文转写）：按值收参；查不到 0x2c。
+// b28c-l23 根因（P96/P50 + P220 极性 + P132 operator*）：ORIG 只发射 `map::find` /
+// `map::end` / `_Rb_tree_iterator...neEERKS4_` / `...deEv`（**operator\*，非 operator->**）
+// 各一次（30 条），find 结果直接构造进 -0x10（无拷贝 ctor）⇒ ①原码用**非 const
+// iterator**；②判据是正极 `if (it != end()) return (*it).second;` 让查表走
+// fall-through（负极 `==` 形 4.4 恒产 eq + 块序反）；③取值写 `(*it).second`
+// 而非 `it->second`（后者发 ptEv）。
 int getObjectCategory(std::string name)
 {
-    std::map<std::string, ENUM_CATEGORY, IgnoreCaseCompare>::const_iterator it =
+    std::map<std::string, ENUM_CATEGORY, IgnoreCaseCompare>::iterator it =
         s_objCategoryString.find(name);
-    if (it == s_objCategoryString.end())
-        return 0x2c;
-    return it->second;
+    if (it != s_objCategoryString.end())
+        return (*it).second;
+    return 0x2c;
 }
 
 // ============================ 强化脚本域 ============================
@@ -1297,7 +1314,7 @@ void STRDCharacterStatus::Clear()
     m_jumpPower = 0;
     m_weight = 0;
     m_field52 = 0;
-    m_field53 = 0;
+    m_field53 = 0.0f;   // b28c-28：float 位模式零 ⇒ ORIG `mov $0,%edx; mov %edx,disp`
 }
 
 // ORIG C1 W 0x0836778c：vector C1 + clear()。
@@ -1390,6 +1407,9 @@ void _ComboInfo::clear()
 // 双技能表 + 双 etc 域。
 void STCharacterScript::STSecondGrowTypeData::clear()
 {
+    // [b28c-27] N4：ORIG 首元素地址 `imul $0x57; add 0x8(%ebp),%eax`（基址内存加），
+    // 4.4 恒 `mov 0x8(%ebp),%edx; imul; lea (%edx,%eax,1)`（先载 this 再 lea）；
+    // 下标形/引用形/指针算术三形实测同产 lea，属数组寻址组合固有差异。
     for (int i = 0; i < 2; ++i)
     {
         // ORIG imul $0x57 直接寻址 ⇒ 数组下标形（CCharacter.cpp 同款先例）

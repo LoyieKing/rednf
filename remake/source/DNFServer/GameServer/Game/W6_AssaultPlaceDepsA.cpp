@@ -480,7 +480,10 @@ void CAssaultPlace::CompleteLoad(CUser* user)
 // 超时尚未 P2P 连接的参战者逐一登记/通报，随后重试开战；若期间某空场转失败
 // （state 变 6）则提前返回 0。
 // ---------------------------------------------------------------------------
-char CAssaultPlace::TimeoutConnectP2P()
+// [b28c-L7][SIGFIX:pvp_assault::CAssaultPlace::TimeoutConnectP2P] char→bool
+//（ORIG __PRETTY_FUNCTION__ 串 "bool ...TimeoutConnectP2P()"，tsv 第 16 行；
+// mangled 不变；`started` 局部保持 char——它是 ORIG 的字节槽，非返回通道）。
+bool CAssaultPlace::TimeoutConnectP2P()
 {
     if (m_state != 3)
         throw (ENUM_ERROR)0x13;
@@ -544,7 +547,7 @@ char CAssaultPlace::TimeoutConnectP2P()
         {
             LeaveAssaultPlace(i, true, false);
             if (m_state == 6)
-                return '\0';
+                return false;
         }
     }
 
@@ -555,7 +558,7 @@ char CAssaultPlace::TimeoutConnectP2P()
         if (m_parties[1].m_field00 != 0)
             ((CParty*)m_parties[1].m_field00)->SetAssaultState('\x04');
     }
-    return started;
+    return started != 0;
 }
 
 // ---------------------------------------------------------------------------

@@ -12,8 +12,12 @@ Arad_Script::Arad_Script()
 
 Arad_Script::Arad_Script(const char* path)
 {
-    const char* full = make_file_path(path);
-    pathC_ = full;
+    // ORIG 0x0817b580：mov 0xc(%ebp),%eax; mov %eax,(%esp); call make_file_path
+    // → mov 0x8(%ebp),%edx; add $0x20,%edx; mov %eax,0x4(%esp); mov %edx,(%esp);
+    // call std::string::append(char const*)@0x08708000（nm 实证）。原实现写
+    // pathC_ = full 生成 operator=(char const*)@0x08708060 且多一个 full 槽（P0：
+    // ORIG 无槽往返 ⇒ 右值内联）。
+    pathC_.append(make_file_path(path));
 }
 
 int Arad_Script::GetRowNum()
@@ -33,6 +37,10 @@ bool Arad_Script::Create()
 {
     // ORIG 0x0817b72a 头部 test;jne+test;je 双检 = 源形 `if (cells_ == 0)
     // delete[] cells_;`（外层 ==0 守卫 + delete[] 编译器自带 null 守卫）。
+    // [b28c-13 N18a] 残余：ORIG 0x0817b768 `mov (%eax),%eax; mov %eax,%edx`
+    // （载入后经第二寄存器中转）；4.4-O0 恒折单步 `mov (%eax),%edx`（N18a
+    // 反向不可造，P211 异型化只作用于 store 方向）。其余 shl 段已由
+    // bufBytes_ unsigned 化对齐（0x0817b775 `shl $7,%eax; mov %eax,%edx`）。
     if (cells_ == 0)
         delete[] cells_;
     cols_ = 0x20;
@@ -51,6 +59,8 @@ bool Arad_Script::Create()
 
 bool Arad_Script::ExpandCol()
 {
+    // [b28c-13 N18a] 残余同 Create：ORIG 0x0817b816 `mov 0x4(%eax),%eax;
+    // mov %eax,%edx` 载入中转，4.4 恒折 `mov 0x4(%eax),%edx`。
     cols_ = cols_ + 0x20;
     bufBytes_ = rows_ * cols_ << 7;
     char* n = new char[bufBytes_];

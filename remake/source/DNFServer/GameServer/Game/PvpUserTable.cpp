@@ -169,7 +169,7 @@ int PvpUserTable::Calculate()
     return 1;
 }
 
-int PvpUserTable::GetTeamVsTeamPoint(int team1, int team2)
+bool PvpUserTable::GetTeamVsTeamPoint(int team1, int team2)
 {
     int count1 = GetTeamUserCount(team1);
     int count2 = GetTeamUserCount(team2);
@@ -218,14 +218,20 @@ int PvpUserTable::GetTeamVsTeamPoint(int team1, int team2)
 
 int PvpUserTable::GetGhostVsTeamPoint(int team, int)
 {
+    // ORIG 0x085d4fd1/0x085d4fd8 两条 `movl $0,-0x10/-0xc` 初始化 ⇒ 源码 u 先
+    // 声明（槽 -0x10，初始化为 0）再 for-init i（槽 -0xc）；把 u 放循环体内
+    // 会让 i 占 -0x10、u 占 -0xc（槽序反，P28/N93 标量可翻）。
+    CUser* u = 0;
     for (int i = 0; i < 8; ++i)
     {
-        CUser* u = m_users[team][i].user;
-        if (u != 0)
-        {
-            m_teamPoint[team] += GetExpectVal(((CUserCharacInfo*)u)->get_pvp_grade(),
-                                              0, 0);
-        }
+        u = m_users[team][i].user;
+        // ORIG 0x085d5047 体尾 `jmp +0x80; nop` 空 then 占位岛 ⇒ P223 goto 尾
+        // 空标签形（4.4 对 if(cond){body} 恒 jump-thread 掉 jmp+nop）。
+        if (u == 0)
+            goto next;
+        m_teamPoint[team] += GetExpectVal(((CUserCharacInfo*)u)->get_pvp_grade(),
+                                          0, 0);
+    next:;
     }
     return 1;
 }
@@ -352,10 +358,16 @@ void PvpUserTable::CheckDan()
         for (int idx = 0; idx < 8; ++idx)
         {
             CUser* u = m_users[team][idx].user;
-            if (u != 0 && ((CUserCharacInfo*)u)->get_pvp_grade() > 9)
+            // ORIG 0x085d5823：`cmp $0x9,%eax; setg %al; test %al,%al; je idx++`
+            // ⇒ 4.1 对 `&&` 的第二条件做 setcc 物化（4.4 合并为 jle 直跳 + 常量岛）。
+            // 拆成独立 if 保留 grade 比较的独立出口。
+            if (u != 0)
             {
-                m_dan[team] = 1;
-                break;
+                if (((CUserCharacInfo*)u)->get_pvp_grade() > 9)
+                {
+                    m_dan[team] = 1;
+                    break;
+                }
             }
         }
     }
@@ -389,12 +401,13 @@ int PvpUserTable::GetUserVsTeamPoint(int userIdx, int myTeam, int enemyTeam,
     for (int i = 0; i < 8; ++i)
     {
         CUser* other = m_users[enemyTeam][i].user;
-        if (other != 0)
-        {
-            m_teamPoint[myTeam] +=
-                GetExpectVal(((CUserCharacInfo*)me)->get_pvp_grade(),
-                             ((CUserCharacInfo*)other)->get_pvp_grade(), user);
-        }
+        // ORIG 0x085dfe80 体尾 `jmp +0xaa; nop` ⇒ P223 goto 尾空标签形。
+        if (other == 0)
+            goto next;
+        m_teamPoint[myTeam] +=
+            GetExpectVal(((CUserCharacInfo*)me)->get_pvp_grade(),
+                         ((CUserCharacInfo*)other)->get_pvp_grade(), user);
+    next:;
     }
     return 1;
 }

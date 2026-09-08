@@ -31,7 +31,9 @@ public:
     bool CheckMonsterKill(std::map<unsigned int, unsigned char, std::less<unsigned int>, std::allocator<std::pair<unsigned int const, unsigned char> > > const&, unsigned int, unsigned char);
     bool RegisterBossKill(unsigned int, unsigned char);
     bool RegisterNamedKill(unsigned int, unsigned char);
-    int ConvertStructToMap(stMonsterInfo_t*, unsigned int, std::map<unsigned int, unsigned char, std::less<unsigned int>, std::allocator<std::pair<unsigned int const, unsigned char> > >&, bool);
+    // SIGFIX:CKillMonsterInfo::ConvertStructToMap — ORIG __PRETTY_FUNCTION__ 串
+    // "bool CKillMonsterInfo::ConvertStructToMap(stMonsterInfo_t*, size_t, killMonsterMap&, bool)"
+    bool ConvertStructToMap(stMonsterInfo_t*, unsigned int, std::map<unsigned int, unsigned char, std::less<unsigned int>, std::allocator<std::pair<unsigned int const, unsigned char> > >&, bool);
     bool RegisterAPCBossKill(unsigned int, unsigned char);
     bool RegisterMonsterKill(std::map<unsigned int, unsigned char, std::less<unsigned int>, std::allocator<std::pair<unsigned int const, unsigned char> > >&, unsigned int, unsigned char, bool);
     int GetDungeonDifficultyFlag(unsigned char);

@@ -481,6 +481,11 @@ int _NS_ProcessScan(CUser* user, PacketBuf& packet)
 // user 为空返回 4；各步读取失败依次返回 1/2/3/4。
 // ===========================================================================
 int _NS_PacketIntegrity(CUser* user, PacketBuf& packet)
+// [b28c-L23 N(P75 实参装载时刻) 残余 4 行] PIAddServerHackCnt 的 0x8/0x4(%esp)
+// 两实参：ORIG @0x08274... 先载 value(-0x10)→%eax→0x8(%esp)，再载 hackType(-0xc)→
+// %eax→0x4(%esp)（严格 R2L、同一寄存器复用）；4.4 因 hackType 是刚 call 完的结果
+// 而先取 %eax、value 走 %edx（P75 跨版本装载时刻调度，压栈顺序/调用约定/语义全同）。
+// 117=117 条数与助记符序列一致。
 {
     unsigned char a, b, c, d;
     if (!packet.get_byte(a))

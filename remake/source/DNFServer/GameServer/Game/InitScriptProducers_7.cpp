@@ -74,13 +74,14 @@ bool importEventAvatarListScript(EventAvatarListScript* s, const char* path)
     {
         return false;
     }
-    s->clear();
-
+    // [b28c-lane24] ORIG 0x0895e1ed 序：p(-0x10)=s 的 store 先于 s->clear() 的 call；
+    // 死变量 unused0(-0xc) 的 movl 先于 seenEnd(-0x1d) 的 movb ⇒ 按 ORIG 声明序。
     EventAvatarListScript* p = s;              // ORIG -0x10 arg 缓存（insert 用）
+    s->clear();
     std::string token;
+    int unused0 = 0; (void)unused0;   // ORIG 栈槽 -0xc 同款死变量（-O0 保留存储）
     bool seenEnd = false;
     int value;                                 // ORIG -0x24（prologue 无初始化）
-    int unused0 = 0; (void)unused0;   // ORIG 栈槽 -0xc 同款死变量（-O0 保留存储）
 
     for (;;)                                   // ORIG 4.1 while 落点形（check 在头）
     {

@@ -155,6 +155,8 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
 int CEventActionMng::process_coin_send(CUser* user, Action_SendMail& mail,
                                        Inven_Item& item)
 {
+    // [b28c-L0 N7/N18a/P75] 语义完成；残差为虚调用寄存器分配（N7）、
+    // call 结果中转（N18a）与实参装载序（P75），169=170 仅 1 条中转。
     if (mail.m_field1c != 0)
     {
         user->getCurCharacInvenW()->SetEventCoin(
@@ -225,6 +227,8 @@ int CEventActionMng::process_avatar_send(CUser* user, Inven_Item& item,
 // ============================================================================
 int CEventActionMng::process_gold_mail_send(CUser* user, Action_SendMail& mail)
 {
+    // [b28c-L0 N18a/N22/P75] 语义完成；残差为 getCurCharacNo 结果中转
+    // （mov %eax,%edx）与 ReqDBSendNewSystemMail 实参寄存器对调，139=140。
     Inven_Item item;
     item.m_addInfo = -1;
 
@@ -257,6 +261,8 @@ int CEventActionMng::process_gold_mail_send(CUser* user, Action_SendMail& mail)
 int CEventActionMng::process_mail_send(CUser* user, Action_SendMail& mail,
                                        Inven_Item& item, CItem const* citem)
 {
+    // [b28c-L0 N7/N18a/P75] 语义完成；残差为虚调用寄存器（call *%edx↔*%eax）、
+    // call getCurCharacNo 结果中转与实参装载序，173=174。
     if (citem == 0)
         return 0x11;
 

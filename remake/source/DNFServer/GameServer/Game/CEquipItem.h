@@ -88,7 +88,13 @@ public:
     int GetRandomItemIndex(int index) const;
     int m_field0;                          // +0x00
     std::vector<std::pair<int, int> > m_vec4;   // +0x04
-    int m_field10;                         // +0x10
+    // [b28c-21] +0x10 位模式双视图：get_experience_amount 按 float 读（ORIG
+    // 0x833eea6 单条 `mov 0x158(%eax),%eax`；引用转换形 4.4 恒 add+mov）。
+    // sizeof/偏移不变（两成员同为 4 字节，union 尺寸 4）。
+    union {
+        int m_field10;                     // +0x10
+        float m_experienceAmount;          // +0x10（float 位视图）
+    };
     int m_field14;                         // +0x14
     int m_field18;                         // +0x18
     int m_field1c;                         // +0x1c

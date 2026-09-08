@@ -13,11 +13,23 @@
 #include "InterfacePacketBuf.h"
 #include "PacketGuard.h"
 
+// [b28c-4] ORIG 0x081224ac 载荷为 5 字节紧凑槽（flag@-0x19、itemIdx@-0x18）
+// ⇒ pack(1) 结构体（探针 /tmp/l4/reward.cpp g2 与 ORIG 逐条全等）。
+struct UserProcRewardPayload
+{
+    char flag;
+    int itemIdx;
+} __attribute__((packed));
+
 void APSystem::CUserProc::ClearActionAndSendtoUser(CUser* user,
                                                    _ActionGroupIndex group,
                                                    int value,
                                                    ENUM_PACKETCLASS packetClass)
 {
+    // [b28c-4] ORIG 0x08122390：空体保留 sub $0x10 帧 ⇒ 原码含未使用局部。
+    // 4.4 实测对未使用局部同样占槽（/tmp/l4/frame.cpp f1/f3），照抄帧。
+    char framePad[0x10];
+    (void)framePad;
 }
 
 void APSystem::CUserProc::SendActionClear(CUser& user, unsigned short actionNo,
@@ -25,9 +37,11 @@ void APSystem::CUserProc::SendActionClear(CUser& user, unsigned short actionNo,
                                           ENUM_PACKETCLASS packetClass)
 {
     _MSG_ACTION_POINT_ACTION_CLEAR msg;
-    msg.m_group = (int)group;
+    // [b28c-4] ORIG 0x081223b4 赋值序 = m_actionNo → m_group → m_flag（直接字节存，
+    // P136）；三元 `flag?1:0` 多出 cmp/je 常量岛（+4 条）。
     msg.m_actionNo = actionNo;
-    msg.m_flag = flag ? 1 : 0;
+    msg.m_group = (int)group;
+    msg.m_flag = flag;
 
     PacketGuard guard;
     if (packetClass == ENUM_PACKETCLASS_0)
@@ -45,14 +59,19 @@ void APSystem::CUserProc::SendActionClear(CUser& user, unsigned short actionNo,
 
 void APSystem::CUserProc::SendActionListState(CUser* user)
 {
-    if (user != 0)
-    {
-        SendActionListState(*user);
-    }
+    // [b28c-4 P223] ORIG 0x08122398：if-body 尾 `jmp leave;nop` 空块中继岛，
+    // 4.4 对 if{body} 恒 jump-thread（少 jmp+nop）⇒ goto 尾空标签复现。
+    if (user == 0)
+        goto L;
+    SendActionListState(*user);
+L:;
 }
 
 void APSystem::CUserProc::SendActionListState(CUser& user)
 {
+    // [b28c-4] ORIG 0x081224a0：空体 sub $0xd20 帧 ⇒ 未使用局部 char[0xd20]。
+    char framePad[0xd20];
+    (void)framePad;
 }
 
 void APSystem::CUserProc::SendGetRewardItem(CUser& user,
@@ -62,11 +81,10 @@ void APSystem::CUserProc::SendGetRewardItem(CUser& user,
     PacketGuard guard;
     ((InterfacePacketBuf*)&guard)->put_header(1, 0x229);
 
-    char localFlag;
-    int localItem;
-    localItem = reward.m_itemIdx;
-    localFlag = flag ? 1 : 0;
-    ((InterfacePacketBuf*)&guard)->put_binary(&localFlag, 5);
+    UserProcRewardPayload data;
+    data.itemIdx = reward.m_itemIdx;
+    data.flag = flag;
+    ((InterfacePacketBuf*)&guard)->put_binary((char*)&data, 5);
     ((InterfacePacketBuf*)&guard)->finalize(true);
     user.Send(guard);
 }
@@ -82,41 +100,59 @@ void APSystem::CUserProc::UpdateActionPoint(CUser* user)
 void APSystem::CUserProc::GetTodayRewardAndSendPostal(
     CUser* user, _SIG_LOAD_ACTION_POINT::_TodayRewardItem reward)
 {
+    // [b28c-4] ORIG 0x0812255c：空体保留 sub $0x10 帧（未使用局部）。
+    char framePad[0x10];
+    (void)framePad;
 }
 
 void APSystem::CUserProc::CheckAndSendToMessageAllUser(unsigned int a,
                                                        unsigned int b,
                                                        const char* msg)
 {
+    // [b28c-4] ORIG 0x08122564：空体保留 sub $0x20 帧（未使用局部）。
+    char framePad[0x20];
+    (void)framePad;
 }
 
 void APSystem::CUserProc::SendToMessageAllUser(const char* msg, const char* fmt)
 {
-    if (msg != 0 && fmt != 0)
+    // [b28c-4 P223/BM8] ORIG 0x08122572：两条件各带尾 nop 岛（L1 为 `nop;jmp leave`、
+    // L2 为 `nop` fall-through）⇒ 双 goto 尾标签串复现（探针 /tmp/l4/islands.cpp fB）。
+    if (msg == 0)
+        goto L1;
+    if (fmt == 0)
+        goto L2;
     {
         char buf[1024];
         sprintf(buf, fmt, msg);
-        const char* pMsgName = "chn_game_server_msg_82";
+        // [b28c-4] ORIG `movl $str,-0x18`：未使用指针须"声明后赋值"——初始化形被
+        // 4.4 折叠为 movl $0（探针 /tmp/l4/lit2.cpp h1）。
+        const char* pMsgName;
+        pMsgName = "chn_game_server_msg_82";
         int msgLen = strlen(buf);
         int a = 0;
         int b = 0;
     }
+L1:;
+L2:;
 }
 
 void APSystem::CUserProc::GM_Reset(CUser* user)
 {
-    if (user != 0)
-    {
-        SetTodayActionAndCheckMedalReward(user);
-    }
+    // [b28c-4 P223] ORIG 0x081225d2：尾 `jmp leave;nop` 岛（同 SendActionListState）。
+    if (user == 0)
+        goto L;
+    SetTodayActionAndCheckMedalReward(user);
+L:;
 }
 
 void APSystem::CUserProc::GM_Set(CUser* user, unsigned int value)
 {
-    if (user != 0)
-    {
-        // P0：ORIG `lea 0x8d264(%eax),%edx` 单步出参无槽——禁 mgr 具名局部
-        user->m_actionPoint.GM_Set(*user, value);
-        SendActionListState(*user);
-    }
+    // [b28c-4 P223] ORIG 0x081225ee：尾 `jmp leave;nop` 岛。
+    if (user == 0)
+        goto L;
+    // P0：ORIG `lea 0x8d264(%eax),%edx` 单步出参无槽——禁 mgr 具名局部
+    user->m_actionPoint.GM_Set(*user, value);
+    SendActionListState(*user);
+L:;
 }

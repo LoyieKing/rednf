@@ -25,25 +25,27 @@
 // ----------------------------------------------------------------------------
 bool Global::CBossTowerFunc::UseItem(CUser* user, const Inven_Item& item)
 {
-    const int state = user->get_state();
-    if (state == 5)
+    switch (user->get_state())
     {
-        // ORIG _ZN5CUser8GetPartyEv 返回 CParty*；现头声明为 void*，此处语义转换
-        CParty* party = static_cast<CParty*>(user->GetParty());
-        if (party != 0)
+    case 5:
         {
-            party->useItem(user, item);
+            // ORIG _ZN5CUser8GetPartyEv 返回 CParty*；现头声明为 void*，此处语义转换
+            CParty* party = static_cast<CParty*>(user->GetParty());
+            if (party != 0)
+            {
+                party->useItem(user, item);
+            }
         }
         return true;
-    }
-    if (state == 0xc)
-    {
-        WongWork::CBossTower* tower = user->getBossTower();
-        if (tower != 0)
+    case 0xc:
         {
-            tower->handleUseItem(user,
-                                 static_cast<unsigned long>(item.m_addInfo),  // +0x02 dword
-                                 item.m_field1);                              // +0x01 ITEM_TYPE byte
+            WongWork::CBossTower* tower = user->getBossTower();
+            if (tower != 0)
+            {
+                tower->handleUseItem(user,
+                                     static_cast<unsigned long>(item.m_addInfo),  // +0x02 dword
+                                     item.m_field1);                              // +0x01 ITEM_TYPE byte
+            }
         }
         return true;
     }
@@ -154,25 +156,33 @@ advancealtar::StageControl* CUser::getAdvanceAltar()
 // ORIG T 0x08146824 _ZN6Global14CBossTowerFunc18DieCharacInDungeonEP5CUser
 // state==10(死亡塔) → CDeathTower::handleDieUser；state==12(BossTower) → 虚槽[4]
 // handleDieUser；其它 state 返回 0。两分支均返回 1。
+// b28c-L8 判词 [N(N7)]：原 if 链 + 具名 `const int state` 已改
+// switch(user->get_state()) —— ORIG 0x08146824 无 state 栈槽、`cmp $0xa,%eax;je /
+// cmp $0xc,%eax;je / jmp` 决策链 = P0「值无槽往返⇒右值内联」+ P17 switch 形（if 链下
+// 4.4 必产 store+mem 比较）；翻形后 44=44 逐条等。残 7 行 N7：ORIG
+// `mov (%eax),%edx … call *%edx`（vptr+0x10 handleDieUser），4.4 对间接 call 目标恒
+// %eax、其余装载寄存器随之整体后移一格（助记符/长度全等，仅寄存器名差）。
 // ----------------------------------------------------------------------------
 char Global::CBossTowerFunc::DieCharacInDungeon(CUser* user)
 {
-    const int state = user->get_state();
-    if (state == 0xa)
+    switch (user->get_state())
     {
-        WongWork::CDeathTower* tower = user->getDeathTower();
-        if (tower != 0)
+    case 0xa:
         {
-            tower->handleDieUser(user);
+            WongWork::CDeathTower* tower = user->getDeathTower();
+            if (tower != 0)
+            {
+                tower->handleDieUser(user);
+            }
         }
         return 1;
-    }
-    if (state == 0xc)
-    {
-        WongWork::CBossTower* tower = user->getBossTower();
-        if (tower != 0)
+    case 0xc:
         {
-            tower->handleDieUser(user);  // ORIG vptr+0x10 = 槽[4] handleDieUser
+            WongWork::CBossTower* tower = user->getBossTower();
+            if (tower != 0)
+            {
+                tower->handleDieUser(user);  // ORIG vptr+0x10 = 槽[4] handleDieUser
+            }
         }
         return 1;
     }
@@ -186,22 +196,24 @@ char Global::CBossTowerFunc::DieCharacInDungeon(CUser* user)
 // ----------------------------------------------------------------------------
 bool Global::CBossTowerFunc::FinishLoad(CUser* user)  // ORIG T 0x08146916
 {
-    const int state = user->get_state();
-    if (state == 0xa)
+    switch (user->get_state())
     {
-        WongWork::CDeathTower* tower = user->getDeathTower();
-        if (tower != 0)
+    case 0xa:
         {
-            tower->handleFinishLoading(user);
+            WongWork::CDeathTower* tower = user->getDeathTower();
+            if (tower != 0)
+            {
+                tower->handleFinishLoading(user);
+            }
         }
         return 1;
-    }
-    if (state == 0xc)
-    {
-        WongWork::CBossTower* tower = user->getBossTower();
-        if (tower != 0)
+    case 0xc:
         {
-            tower->handleFinishLoading(user);  // ORIG 直调 0x08143f6a（非虚分派）
+            WongWork::CBossTower* tower = user->getBossTower();
+            if (tower != 0)
+            {
+                tower->handleFinishLoading(user);  // ORIG 直调 0x08143f6a（非虚分派）
+            }
         }
         return 1;
     }
@@ -247,24 +259,28 @@ void Global::CBossTowerFunc::GiveUpGame(CUser* user)
 // state==10 → CDeathTower::handleMoveMap()；state==12 → 虚槽[6] handleMoveMap(
 // mapIndex)（CBossStage 新增虚）；其它返回 0。前两分支返回 1。
 // ----------------------------------------------------------------------------
+// b28c-L8 判词 [N(N7)]：同 DieCharacInDungeon 的 switch 翻形（ORIG 0x08146ba2 42=42
+// 逐条等）；残 6 行 = 虚槽 +0x18 handleMoveMap 的间接 call 目标 %edx vs 4.4 恒 %eax。
 bool Global::CBossTowerFunc::MoveMap(CUser* user, unsigned short* mapIndex)  // ORIG T 0x08146ba2
 {
-    const int state = user->get_state();
-    if (state == 0xa)
+    switch (user->get_state())
     {
-        WongWork::CDeathTower* tower = user->getDeathTower();
-        if (tower != 0)
+    case 0xa:
         {
-            tower->handleMoveMap();
+            WongWork::CDeathTower* tower = user->getDeathTower();
+            if (tower != 0)
+            {
+                tower->handleMoveMap();
+            }
         }
         return 1;
-    }
-    if (state == 0xc)
-    {
-        WongWork::CBossTower* tower = user->getBossTower();
-        if (tower != 0)
+    case 0xc:
         {
-            tower->handleMoveMap(mapIndex);  // ORIG vptr+0x18 = 槽[6] handleMoveMap
+            WongWork::CBossTower* tower = user->getBossTower();
+            if (tower != 0)
+            {
+                tower->handleMoveMap(mapIndex);  // ORIG vptr+0x18 = 槽[6] handleMoveMap
+            }
         }
         return 1;
     }
@@ -281,16 +297,21 @@ bool Global::CBossTowerFunc::MoveMap(CUser* user, unsigned short* mapIndex)  // 
 // 0x81c2bd4、0x81c4b5b、0x81feef2、0x8232256、0x82324c0。
 bool Global::CGlobalFunc::Get_State_Check(ch_state state)
 {
-    if (static_cast<unsigned int>(state) > 0xd)
+    // b28c-L8 复测（N6 位折叠判据）：ORIG 0x081466f0 保 `mov $0x1,%edx;
+    // mov %edx,%ebx; mov %eax,%ecx; shl %cl,%ebx; mov %ebx,%eax; and $0x3420`
+    // 的**左移位图**形。4.4 前端会把 `(1 << state) & 0x3420` 折成
+    // `0x3420 >> state` 的 shr 形（N6），唯一阻断法是让被移位值成为占槽局部
+    // （实测具名 bit 形保 shl，但引入 store/load）⇒ 封顶 N6。
+    // 本形同时按 P222 取正向包裹，使越界路径直落尾部共享 `mov $0` 岛
+    // （ORIG 两处失败均 `ja/je` 跳同一 +0x29 岛）。
+    if (static_cast<unsigned int>(state) <= 0xd)
     {
-        return false;
-    }
-
-    unsigned int bit = 1;
-    bit <<= static_cast<unsigned int>(state);
-    if ((bit & 0x3420u) != 0)
-    {
-        return true;
+        unsigned int bit = 1;
+        bit <<= static_cast<unsigned int>(state);
+        if ((bit & 0x3420u) != 0)
+        {
+            return true;
+        }
     }
     return false;
 }

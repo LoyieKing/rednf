@@ -15,6 +15,8 @@
 // ctor 平凡 → 省略该 call 与对应帧（P0：函数体无额外局部）。三成员 mov 与 ORIG
 // 完全同址同序（+0x0/+0x4/+0x8）。空基类 ctor 无副作用，语义等价，不可复现
 // （需以非平凡基类才能强制发 call，会改类语义）。
+// [b28c-27] 复核同上：4.4 对 std::unary_function（空基类 trivial ctor）恒省 call
+// 与对应帧，ORIG 4.1 O0 发射；不可翻（同 P215 边界）。
 Statuepredicate::Statuepredicate(pieceQuestRewardStatus status)
     : std::unary_function<pieceQuestRewardStatus, bool>(),
       m_appendageType(status.m_appendageType),

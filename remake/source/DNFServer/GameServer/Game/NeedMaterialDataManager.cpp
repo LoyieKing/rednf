@@ -5,8 +5,12 @@
 #include "NeedMaterialDataManager.h"
 #include "CItem.h"
 
+// [b28c-31] N76：ORIG 0x081b5a4f 先 `lea 0x18(%eax),%edx` 再物化实参（LHS 地址
+// 先载），4.4 恒 RHS 先；显式列全成员初始化列表无效 ⇒ 封顶。
 NeedMaterialDataManager::NeedMaterialDataManager()
-    : m_default(-1, 0)
+    // [b28c-31] ORIG 0x081b5a4f：map 构造后先 `lea 0x18(%eax),%edx` 再物化实参
+    // （P211 LHS 地址先载形）⇒ 显式列全成员试翻装载序。
+    : m_map(), m_default(-1, 0)
 {
 }
 

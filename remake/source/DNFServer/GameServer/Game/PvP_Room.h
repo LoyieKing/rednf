@@ -97,7 +97,7 @@ public:
                           ENUM_WALKOUT_TYPE walkoutType);
     int set_ready_state(CUser* user, bool ready);
     bool check_start_state();
-    int start_pvp();
+    void start_pvp();          // [b28c-16 SIGFIX] ORIG 串 "void PvP_Room::start_pvp()"；尾 add/pop/ret 无 mov %eax
     int end_pvp();
     void end_pvp_result();
     int send_pvp_end();
@@ -118,8 +118,8 @@ public:
     int insert_timer_recv_pvp_rank();
     int insert_timer_recv_pvp_end_result();
     int check_acquire_guild_point();
-    int GiveOuterPenalty(CUser* user);
-    int VoteLackUser(CUser* user, int vote);
+    void GiveOuterPenalty(CUser* user);   // [b28c-16 SIGFIX] ORIG 串 void；尾 add $0x95c/ret 无 mov %eax
+    bool VoteLackUser(CUser* user, int vote);  // [b28c-16 SIGFIX] ORIG 串 bool；尾 0x085dd063 mov $0x1,%eax 直返
     int OnConnectP2PPvPTimeout();
     bool OnTimerWalkOutLackUser();   // ORIG 0x85dce28（调用点 0x08633eef xor $0x1,%eax 实证 bool）
     int HandleTimerUserRevive(int seat);
@@ -144,16 +144,16 @@ public:
     int reset();
     int calculate_pvp_point();
     int update_pvp_point();
-    int CalcuateVictoryPoint(int* teams, int teamCnt);
+    void CalcuateVictoryPoint(int* teams, int teamCnt);  // [b28c-16 SIGFIX] ORIG 串 void
     int CalculateVictoryPointOfSinglePlay(int seat, bool win, int score);
     int CalculateVictoryPointOfTeamPlay(int team, bool win, int score);
-    int pvp_reward();
+    void pvp_reward();         // [b28c-16 SIGFIX] ORIG 串 void
     int GetRanking(int* out) const;
     int GetAce() const;
     int CancelAllTimer();
     int make_room_info(char* buf);
     int make_ready_info(char* buf, int seat);
-    int make_seat_info(char* buf, int seat);
+    void make_seat_info(char* buf, int seat);  // [b28c-16 SIGFIX] ORIG 串 void
     int make_state_info(char* buf);
     void send_to_pvp(PacketGuard& guard);
     void send_to_pvp_team(PacketGuard& guard, CUser* user);

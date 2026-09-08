@@ -91,6 +91,7 @@ void CAlchemist::UseDelilah(CUser* user)
 }
 
 // ---- UseRevivalItem（报告 UseRevivalItem.md，ORIG T 0x085d1694 sz 0x7d）----
+// b28c-1 N82附: 多实参 call 首值 callee-saved %esi↔%ebx 对调。
 void CAlchemist::UseRevivalItem(CUser* user)
 {
     // ORIG：getCurSec 经全局符号直载；revivalTime/uid 以 esi/ebx 跨调用缓存
@@ -140,6 +141,7 @@ int CAlchemist::CheckUsableStackableItem(CUser* user, CItem const* item)
 }
 
 // ---- GetAssaultPrevent（报告，ORIG T 0x085d137c sz 0xa7）----
+// b28c-1 AE: P0/N96 清绑 + P223 双岛（0x085d140a/0x085d140d）后 0 差。
 int CAlchemist::GetAssaultPrevent(CUser* user, bool* peerFlag)
 {
     CParty* party = static_cast<CParty*>(user->GetParty());
@@ -152,24 +154,32 @@ int CAlchemist::GetAssaultPrevent(CUser* user, bool* peerFlag)
         for (int i = 0; i < 4; ++i)
         {
             CUser* member = party->get_user(i);
-            if (member != 0 && member != user)
+            // b28c-1：P223 多岛形（ORIG 0x085d140a member==0 岛 / 0x085d140d
+            //  member==user 岛），清绑后裸条件 + goto 到相邻尾标签。
+            if (member == 0)
+                goto NEXT1;
+            if (member == user)
+                goto NEXT2;
+            // b28：清 register asm（N96/P0），裸 if 直测。
+            if (IsExistContinuousEffectItem(member, 0x27ac4a))
             {
-                // b28：清 register asm（N96/P0），裸 if 直测。
-                if (IsExistContinuousEffectItem(member, 0x27ac4a))
+                if (peerFlag != 0)
                 {
-                    if (peerFlag != 0)
-                    {
-                        *peerFlag = true;
-                    }
-                    return 1;
+                    *peerFlag = true;
                 }
+                return 1;
             }
+        NEXT1:
+            ;
+        NEXT2:
+            ;
         }
     }
     return 0;
 }
 
 // ---- OnUseStackableItem（报告，ORIG T 0x085d1712 sz 0x19b）----
+// b28c-1 N7: 虚调用 callee %eax↔%edx 互换。
 int CAlchemist::OnUseStackableItem(CUser* user, unsigned long itemUniqueId,
                                    CItem const* item)
 {
@@ -420,6 +430,7 @@ namespace expert_job
 {
 
 // ---- OnLeaveUser（报告，ORIG T 0x0849e214 sz 0x41）----
+// b28c-1 N7: 虚调用 callee %ecx↔%edx 互换。
 void CExpertJobMgr::OnLeaveUser(CUser* user)
 {
     // ORIG 0x0849e214：getter 两次独立调用、返回值不出具名槽（P0 律）；
@@ -461,6 +472,7 @@ unsigned int CExpertJobMgr::IsAvailableRequestPeer(CUser* requester,
 }
 
 // ---- OnRequestPeer（报告，ORIG T 0x0849e256 sz 0x10b）----
+// b28c-1 N-88: 槽比零 setne 物化（具名 bool 实测 2→11 回退）。
 void CExpertJobMgr::OnRequestPeer(CUser* requester, CUser* target,
                                   ENUM_PEER_REQUEST_TYPE type,
                                   PacketGuard& packet)
@@ -468,6 +480,8 @@ void CExpertJobMgr::OnRequestPeer(CUser* requester, CUser* target,
     unsigned int err = 0;
     err = IsAvailableRequestPeer(requester, target, type, packet);
     // b28：清 register asm（N96/P0 全域禁）——直测短路条件。
+    // b28c-1：ORIG 0x0849e26b `cmpl $0,-0xc; setne %al; test %al; je` 为
+    //  4.1 槽比零物化（P197-④/N-88 族，4.4 槽比恒直跳，具名 bool 实测劣化 11）。
     if (err != 0)
     {
         requester->SendCmdPeerErrorPacket((ENUM_CMDPACKET)10, type,
@@ -752,6 +766,7 @@ namespace expert_job
 {
 
 // ---- SendExpertJobInfo（报告，ORIG T 0x0832b454 sz 0x201）----
+// b28c-1 N: N-88 槽比零 sete 物化 + P168a X2 占槽（X1 实测 7→78 回退）。
 int CCharacExpertJob::SendExpertJobInfo(CUser* user)
 {
     PacketGuard packet;
@@ -782,12 +797,15 @@ int CCharacExpertJob::SendExpertJobInfo(CUser* user)
             {
                 // b28：清 register asm（N96/P0 全域禁）。ORIG `xor $1/test %al`
                 // 为 4.1 !int 直测 lowering（4.4 恒折 test/je），值域 0/1 等价改写。
+                // b28c-1：P168a X2 实测占槽（帧 0x30→0x40，ndiff 7→78）⇒ 不可翻。
                 if (!get_recipe(i))
                     continue;
                 // [b23S3C] P197③/P198①：ORIG 0x0832b556 先 `movl $0x0,-0xc(%ebp)`
                 // 再 GetRecipeInfo ⇒ 两句式。
                 stRecipeInfo* info = 0;
                 info = script->GetRecipeInfo(i);
+                // b28c-1：ORIG 0x0832b56b `cmpl $0,-0xc; sete %al; test %al;
+                //  jne` 为 4.1 槽比零物化（P197-④/N-88 族，具名 bool 实测占槽劣化）。
                 if (info == 0)
                     continue;
                 if (*reinterpret_cast<const int*>(info->m_pad) == 0)

@@ -96,8 +96,11 @@ private:
     const char* m_name;   // +0x00
     int m_line;           // +0x04
     int m_flag;           // +0x08
-    char m_field_c;       // +0x0c
-    char m_field_d;       // +0x0d（对象 0xe 字节）
+    // [b28c-35] ORIG cMyTrace::C1 5 参 0x0854f746 尾 store 为 this 先
+    // （`mov 0x8(%ebp),%eax; movzbl -0x8(%ebp),%edx; mov %dl,0xc(%eax)`）⇒ 字段与
+    // bool 形参同型（P211 LHS-first）；char 字段产值先形。对象仍 0xe 字节。
+    bool m_field_c;       // +0x0c
+    bool m_field_d;       // +0x0d
 };
 
 #include "LogManager.h"

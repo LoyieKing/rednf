@@ -178,6 +178,8 @@ float getDamageInflictCollisionObject(STComputeDamageVariable* v, void* collisio
 
 // _Z29getDamageInflictPassiveObjectP23STComputeDamageVariablePv @0x08095220 (0x55)：
 // m_char1B5 && m_char1B6 → Creature(v)；否则 CollisionObject(v, passiveObject)。
+// [b28c-lane24] 四形实测（双 return/if-else/if-else+init/P210 前置定义）帧恒
+// 0x38 vs ORIG 0x28、尾物化槽 -0x1c vs -0xc ⇒ N（跨版本帧策略 + 尾物化槽）。
 float getDamageInflictPassiveObject(STComputeDamageVariable* v, void* passiveObject)
 {
     float r;

@@ -318,7 +318,7 @@ int PvP_Room::CalculateVictoryPointOfTeamPlay(int rank, bool win, int score)
     return score;
 }
 
-int PvP_Room::CalcuateVictoryPoint(int* rank, int rankCount)
+void PvP_Room::CalcuateVictoryPoint(int* rank, int rankCount)   // [b28c-16 SIGFIX] ORIG 串 void
 {
     if ((m_pvpBattleMode == 1) || (m_pvpBattleMode == 4))
     {
@@ -788,6 +788,10 @@ int PvP_Room::get_recv_pvp_end_result_count() const
     int local_c = 0;
     for (int local_8 = 0; local_8 <= 7; local_8 = local_8 + 1)
     {
+        // [b28c-16 定论 N95/N82] ORIG 三失败出口分落独立岛（je +0x5b:nop;jmp /
+        // +0x5e:nop / +0x5f）+ 帧 $0x18/槽 -0x4；4.4 因 callee 属外 TU 恒保守
+        // +0x10（帧 $0x28）且槽基 gap 差 ⇒ 全帧槽号平移，嵌套 if 恒合并单 inc
+        // 出口。goto 尾空标签形实测反产 xor$1+额外 jmp（39>35）⇒ 保持嵌套 if。
         if (P_SEATS(local_8) != 0)
         {
             if (P_TEAMS(local_8) != 0xff)
@@ -1818,7 +1822,7 @@ int PvP_Room::make_room_info(char* buf)
     local_ec->put_int(((IMatch*)m_matching)->GetIndentification());
 }
 
-int PvP_Room::make_seat_info(char* buf, int seat)
+void PvP_Room::make_seat_info(char* buf, int seat)   // [b28c-16 SIGFIX] ORIG 串 void
 {
     // ORIG 0x085db9e2（199；本侧 193，-6 全为 N 类形态差，multiset 核对无语义
     // 缺口）：ORIG 将 vptr 读值/getCurCharacName/get_acc_name 结果以 %edi/%esi/
@@ -2055,7 +2059,7 @@ int PvP_Room::change_manager_to_winner()
     return 0;
 }
 
-int PvP_Room::GiveOuterPenalty(CUser* user)
+void PvP_Room::GiveOuterPenalty(CUser* user)   // [b28c-16 SIGFIX] ORIG 串 void
 {
     PvpResultType local_b4;
     local_b4.Clear();
@@ -2106,27 +2110,27 @@ LAB_085dcd66:
     ;
 }
 
-int PvP_Room::VoteLackUser(CUser* user, int vote)
+bool PvP_Room::VoteLackUser(CUser* user, int vote)   // [b28c-16 SIGFIX] ORIG 串 bool
 {
     if ((vote < 0) || (7 < vote))
     {
         LogManager::logFormat(1, "pvp.cpp", __PRETTY_FUNCTION__,
                               0x116d, "VoteSlotNo(%d) < 0 || MAX_PVP_PLAYER < VoteSlotNo", vote);
-        return 0;
+        return false;
     }
     CUser* u = P_SEATS(vote);
     // ORIG 085dccbe: mov 0xc(%ebp),%eax（user 先载 reg）/ cmp -0x10(%ebp),%eax
     // —— 操作数序 user==u；u==user 反产 slot 先载。
     if ((user == u) || (u == 0))
     {
-        return 0;
+        return false;
     }
     int iVar2 = get_user_seat(user);
     if ((iVar2 < 0) || (8 < iVar2))
     {
         LogManager::logFormat(1, "pvp.cpp", __PRETTY_FUNCTION__,
                               0x117b, "UserSlotNo(%d) < 0 || MAX_PVP_PLAYER < UserSlotNo", iVar2);
-        return 0;
+        return false;
     }
     m_election.Vote(iVar2, vote);
     // P24/P52：ORIG 链式内联实参（0x085dd01a），key 先物化 ebx、m_index 缓存 esi，
@@ -2136,7 +2140,7 @@ int PvP_Room::VoteLackUser(CUser* user, int vote)
     G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1, m_index,
                                             (TIMER_MESSAGE)0x31, 0x9c4LL,
                                             (int)gen_timer_key((TIMER_MESSAGE)0x31), 0);
-    return 1;
+    return true;
 }
 
 int PvP_Room::OnConnectP2PPvPTimeout()
@@ -2805,7 +2809,7 @@ LAB_085dca42:
     ;
 }
 
-int PvP_Room::start_pvp()
+void PvP_Room::start_pvp()   // [b28c-16 SIGFIX] ORIG 串 void
 {
     if (get_waiter_count() < 2)
     {
@@ -3159,7 +3163,7 @@ int PvP_Room::time_out(int* seats)
 // 0xfc/36 槽 vs 4.4 帧 0x140/55 槽全帧平移，edi/esi/ebx 与 esi/ebx 寄存器分配
 // 差）+ N88 装载序 + 少量 4.4 布尔物化（jcc+5）；逐块人工比对语义与 Ghidra C
 // 一致（详见 docs/asm_translation_patterns.md 负例表）⇒ N 封顶。
-int PvP_Room::pvp_reward()
+void PvP_Room::pvp_reward()   // [b28c-16 SIGFIX] ORIG 串 void
 {
     int local_dc[8];
     int local_70 = GetRanking(local_dc);

@@ -477,12 +477,12 @@ int CSecretShop::LotteryNpc(int dungeonIdx, int level, int price)
     unsigned long randomSeed = 10000;
     int randVal = m_pRand->randInt(randomSeed);
     int npcIdx = 1000;
-    register unsigned char fv asm("eax") =
-        (unsigned char)G_CDataManager()->m_secretShop
-            .GetNpcByDungeonIdx(npcIdx, randVal, dungeonIdx);
-    fv ^= 1;
-    if (fv)
-        G_CDataManager()->m_secretShop.GetNpcByDungeonLev(npcIdx, randVal, level);
+    // [b28-L14] P0 清绑：原 `register unsigned char fv asm("eax") … fv ^= 1`
+    // 属禁用形，改内联否定直测（P168a① 裸形；char callee 的 sete 物化差记 N）。
+    if (!G_CDataManager()->m_secretShop.GetNpcByDungeonIdx(npcIdx, randVal,
+                                                           dungeonIdx))
+        G_CDataManager()->m_secretShop.GetNpcByDungeonLev(npcIdx, randVal,
+                                                          level);
     if (npcIdx != 0 && npcIdx != 1000)
         m_statistic.RecordShow(npcIdx, dungeonIdx, price);
     return npcIdx;
@@ -501,8 +501,13 @@ void CSecretShop::LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx,
     // 按 DB_Login.cpp 先例：GetRepeatEvent 用前置 CEventManager 的成员声明，
     // IsEventing 经 vtable+0x34 槽直调（ORIG 指令形态）。
     typedef bool (*IsEventingFn)(CEventBase*, int);
-    register CEventBase* ev asm("eax") =
-        GlobalData::s_event_manager->GetRepeatEvent(0x3a);
+    // [b28-L14] P0 清绑（原 `register CEventBase* ev asm("eax")`，全域禁用）。
+    // 残差封顶 N 类：ORIG 0x085facxx 为 `call GetRepeatEvent; mov (%eax),%edx;
+    // add $0x34,%edx; mov (%edx),%edx; movl $0,0x4(%esp); mov %eax,(%esp);
+    // call *%edx`——ev 留 %eax 直传 this、vtable 走 %edx。4.4 对间接 call 目标
+    // 恒用 %eax（N7，探针 /tmp/l14p/virt2.cpp 四形实测），ev 必被挤落栈槽
+    // （+3 条）；P226 裸语句表达式形实测同样槽化（含具名中间变量，P197② 边界）。
+    CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x3a);
     bool event = (*reinterpret_cast<IsEventingFn*>(
                       *reinterpret_cast<void**>(ev) + 0x34))(ev, 0);
     if (G_CDataManager()->m_secretShop.GetItemByDungeonIdx(m_pRand, out, dungeonIdx, level, event))
@@ -644,15 +649,14 @@ bool SecretShopScript::GetItemByDungeonIdx(CMTRand* rand,
         npcIt->second.m_dungeonSales.find(level);
     if (dunIt == npcIt->second.m_dungeonSales.end())
         return 0;
-    register unsigned char fv asm("eax") =
-        (unsigned char)GetItems(rand, out, dunIt->second);
-    fv ^= 1;
-    if (fv == 0) {
-        if (event)
-            GetItemByEvent(rand, out);
-        return 1;
-    }
-    return 0;
+    // [b28-L14] P0 清绑：原 `register unsigned char fv asm("eax")` 禁用。
+    // ORIG `call GetItems; xor $0x1,%eax; test %al,%al; je <主>` ⇒ bool callee
+    // 裸否定早返（P168a①）。
+    if (!GetItems(rand, out, dunIt->second))
+        return false;
+    if (event)
+        GetItemByEvent(rand, out);
+    return true;
 }
 
 bool SecretShopScript::GetItemByDungeonLev(CMTRand* rand,
@@ -667,35 +671,31 @@ bool SecretShopScript::GetItemByDungeonLev(CMTRand* rand,
         npcIt->second.m_eventSales.find(levelIdx);
     if (dunIt == npcIt->second.m_eventSales.end())
         return 0;
-    register unsigned char fv asm("eax") =
-        (unsigned char)GetItems(rand, out, dunIt->second);
-    fv ^= 1;
-    if (fv == 0) {
-        if (event)
-            GetItemByEvent(rand, out);
-        return 1;
-    }
-    return 0;
+    // [b28-L14] P0 清绑（同上）。
+    if (!GetItems(rand, out, dunIt->second))
+        return false;
+    if (event)
+        GetItemByEvent(rand, out);
+    return true;
 }
 
-char SecretShopScript::GetItemByEvent(CMTRand* rand,
+bool SecretShopScript::GetItemByEvent(CMTRand* rand,
                                       std::vector<secretshop::SALE_INFO>& out)
 {
     std::vector<secretshop::SALE_INFO> list;
-    register unsigned char fv asm("eax") =
-        (unsigned char)GetItems(rand, list, m_eventDungeonSales);
-    fv ^= 1;
-    if (fv == 0) {
-        for (int i = 0; i < static_cast<int>(list.size()); ++i) {
-            list[i].m_field18 = 1;
-            out.push_back(list[i]);
-        }
-        return 1;
+    // [b28-L14] P0 清绑（原 `register unsigned char fv asm("eax")` 全域禁用）。
+    // ORIG 0x8a82c70：`call GetItems; xor $0x1,%eax; test %al,%al;
+    // je <主路径>` + fall-through `mov $0,%ebx` ⇒ 裸否定早返形（P168a①）。
+    if (!GetItems(rand, list, m_eventDungeonSales))
+        return false;
+    for (int i = 0; i < static_cast<int>(list.size()); ++i) {
+        list[i].m_field18 = 1;
+        out.push_back(list[i]);
     }
-    return 0;
+    return true;
 }
 
-char SecretShopScript::GetItems(CMTRand* rand,
+bool SecretShopScript::GetItems(CMTRand* rand,
                                 std::vector<secretshop::SALE_INFO>& out,
                                 stDungeonSales& sales)
 {

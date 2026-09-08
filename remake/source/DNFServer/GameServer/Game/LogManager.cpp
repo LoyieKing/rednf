@@ -41,10 +41,6 @@ public:
 
 static _LogManagerData_creater _LogManagerData_creater_instance;   // ORIG _ZL32_LogManagerData_creater_instance 0x09501e68
 
-LogWriter::LogWriter()
-{
-}
-
 LogWriter::~LogWriter()
 {
 }

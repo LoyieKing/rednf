@@ -85,8 +85,11 @@ unsigned int CGlobalEffectManager::getEffectNum() const
 // ORIG 0x084b7d2c：遍历 m_activeEffects，任一 m_type==type 返回 true。
 bool CGlobalEffectManager::isAffectedEffect(unsigned int type) const
 {
-    for (std::vector<CGlobalEffect>::const_iterator it = m_activeEffects.begin();
-         it != m_activeEffects.end(); ++it)
+    // [b28c-16] P13：ORIG begin/end 头部各求值一次（it=-0xc、e=-0x10），
+    // 4.4 对 cond 内 end() 每次迭代重调 ⇒ 具名缓存 end。
+    std::vector<CGlobalEffect>::const_iterator it = m_activeEffects.begin();
+    std::vector<CGlobalEffect>::const_iterator e = m_activeEffects.end();
+    for (; it != e; ++it)
     {
         if (it->getType() == type)
             return true;
@@ -98,8 +101,10 @@ bool CGlobalEffectManager::isAffectedEffect(unsigned int type) const
 float CGlobalEffectManager::getEffectValue(unsigned int type) const
 {
     float sum = 0.0f;
-    for (std::vector<CGlobalEffect>::const_iterator it = m_activeEffects.begin();
-         it != m_activeEffects.end(); ++it)
+    // [b28c-16] P13：end 缓存具名局部（ORIG sum=-0xc、it=-0x10、e=-0x14）。
+    std::vector<CGlobalEffect>::const_iterator it = m_activeEffects.begin();
+    std::vector<CGlobalEffect>::const_iterator e = m_activeEffects.end();
+    for (; it != e; ++it)
     {
         if (it->getType() == type)
             sum += it->getValue();
@@ -113,8 +118,10 @@ void CGlobalEffectManager::makeGlobalEffectInfo(PacketGuard& packet) const
     packet.put_header( 0, 0xb5);
     packet.put_byte( 1);
     packet.put_int( static_cast<int>(m_activeEffects.size()));
-    for (std::vector<CGlobalEffect>::const_iterator it = m_activeEffects.begin();
-         it != m_activeEffects.end(); ++it)
+    // [b28c-16] P13：end 缓存具名局部（ORIG it=-0xc、e=-0x10）。
+    std::vector<CGlobalEffect>::const_iterator it = m_activeEffects.begin();
+    std::vector<CGlobalEffect>::const_iterator e = m_activeEffects.end();
+    for (; it != e; ++it)
     {
         it->makeNotifyInfo(packet);
     }

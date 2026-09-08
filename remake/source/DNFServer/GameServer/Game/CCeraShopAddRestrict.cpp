@@ -126,16 +126,21 @@ void ScriptLoader::ClearScript()
 InfoDaily* ScriptLoader::GetRestrictInfo(unsigned int ipgNo)
 {
     std::map<unsigned int, InfoDaily*>::iterator it = m_infoMap.find(ipgNo);
-    if (it == m_infoMap.end())
-        return 0;
-    return it->second;
+    // [b28c-4 P222] ORIG 0x08abf766：`je 零块(fall-through); body; jmp end` 布局
+    // ⇒ 正向包裹 `if (it != end) return it->second;`（否定早返会产反向 je 布局）。
+    if (it != m_infoMap.end())
+        return it->second;
+    return 0;
 }
 
 bool ScriptLoader::FindIpgNo(unsigned int ipgNo)
 {
     // ORIG 0x8abf70a（Ghidra C）：`return it == end() ? 0 : 1`，即 `find() != end()`
-    // （未找到=1）。GCC4.1 以 operator==+分支实现、4.4 内联，指令形态异（N 类）。
-    return m_infoMap.find(ipgNo) != m_infoMap.end();
+    // （未找到=1）。[b28c-4] ORIG 尾为 operator== + test/je + mov$0/$1 常量岛 ⇒
+    // 保留分支的 if 形（直接 `!=` 表达式被 4.4 折成 xor;ret，少 4 条）。
+    if (m_infoMap.find(ipgNo) == m_infoMap.end())
+        return false;
+    return true;
 }
 
 // ---- readTime / uint32Time ----
@@ -250,15 +255,20 @@ paramDaily* InputBuyInfoDetail(
     std::map<unsigned int, paramDaily*>::iterator it = m.find(key);
     if (it != m.end()) {
         result = it->second;
-        result->m_count += (int)count;
+        // [b28c-4 P41/P211] ORIG 0x080e11fb 段 = `mov 0x4(%eax),%eax; mov %eax,%edx;
+        // add 0x14(%ebp),%edx`（内存直加）；`(int)count` 反使 4.4 先载 eax。
+        result->m_count += count;
     } else {
         paramDaily* pd = new paramDaily;
         pd->m_ipgNo = 0;
         pd->m_count = 0;
         pd->m_nextDate = 0;
-        pd->m_count = (int)count;
+        pd->m_count = count;
         pd->m_ipgNo = key;
-        std::pair<unsigned int, paramDaily*> p(key, pd);
+        // [b28c-4 P192] 必须用 map 的 value_type（pair<const uint,paramDaily*>）直构：
+        // 写 std::pair<unsigned int,...> 使 insert(const value_type&) 需转换构造，
+        // 多一对 sret+拷贝（+3 insn、帧 0x38→0x48）。
+        std::map<unsigned int, paramDaily*>::value_type p(key, pd);
         m.insert(p);
         result = pd;
     }
@@ -266,13 +276,18 @@ paramDaily* InputBuyInfoDetail(
     return result;
 }
 
-// ORIG 0x080e09bc：基类 ARAD::ScriptInterface 仅置 vptr（4 字节），随后清
-// +0x08..+0x18 五个标量并构造 ScriptLoader(+0x04)。
+// [b28c-4] ORIG 0x080e09bc 实形 = ScriptInterface::C1（写基类 vptr）→
+// Singleton<Manager>::C1（空）→ 派生 vptr → 5 条 `mov 0x8(%ebp),%eax;
+// movl $0x0,0x8|0xc|0x10|0x14|0x18(%eax)` → ScriptLoader::C1(this+4)。
+// 该 5 条落在 map(+4) 的 _Rb_tree_impl 内部（color/parent/left/right/
+// node_count），是 4.1 对成员 value-init 的**前置 zero-init**（P90/N77 族），
+// 非 Manager 成员——原 5 个 int 成员系臆造，已由 Main 代落删除
+// （硬证据：单例 obj nm -S size=0x1c = vptr4 + m_loader 0x18）。
 Manager::Manager()
-    : m_field8(0), m_fieldc(0), m_field10(0), m_field14(0), m_field18(0)
+    // [b28c-4] 试 value-init 形复现 ORIG 4.1 对 m_loader 的前置 zero-init
+    //（P90/N77：4.4 按 CWG434 可能仍不 emit）。
+    : m_loader()
 {
-    // ORIG 0x080e09bc：ScriptInterface 基类 vptr 由基类构造写入；随后清
-    // +0x08..+0x18 五个标量并构造 ScriptLoader(+0x04)（成员自动构造）。
 }
 
 Manager::~Manager()
@@ -284,10 +299,9 @@ bool Manager::Load()
     // ORIG 0x080e0e08：printf("[!] Loading CeraShop Add Restrict Script ...") 后
     // 调 ScriptLoader::LoadScript()；非 0 返回 0，否则 1。
     printf("[!] Loading CeraShop Add Restrict Type script - ");  // ORIG 串无 \n，仅尾随空格（带 \n 会被 GCC 转 puts）
-    // ORIG 尾：test %eax; setne %al; test %al; je → mov$1 / mov$0 常量岛
-    //（P194 register-bool 物化形，条件落 %al 不落槽）。
-    register unsigned char nz asm("al") = (m_loader.LoadScript() != 0);
-    if (nz)
+    // [b28c-4 P0] 存量 `register unsigned char nz asm("al")` 已清除（全域禁绑，
+    // N96 登记），按 P168a① 复测自然形：ORIG 尾 test/setne/test/je 常量岛。
+    if (m_loader.LoadScript() != 0)
         return 0;
     return 1;
 }
@@ -320,13 +334,19 @@ int Manager::CheckBuyableProduct(CUser* user, unsigned int ipgNo,
         return 1;
     if (info->m_end < (int)time(0))
         return 0;
-    if (info->m_type == 0)
+    // [b28c-4 P46/P208] ORIG 0x080e0bee：m_type 单次装载 + `test;je / cmp $1;je /
+    // jmp 零块` 决策链，body 全部后置 ⇒ switch 形（if 链被 4.4 就地展开成反向
+    // `jne skip` 且二次装载 m_type）。
+    switch (info->m_type) {
+    case 0:
         return FindUserInfoDetail(ui.m_field30, ui.m_accountDaily,
                                   ipgNo, info, itemIdx);
-    if (info->m_type == 1)
+    case 1:
         return FindUserInfoDetail(ui.m_field48, ui.m_characDaily,
                                   ipgNo, info, itemIdx);
-    return 0;
+    default:
+        return 0;
+    }
 }
 
 // ORIG T 0x080e0d14（LinkE2.JpnExImpl 批次修正）：static 成员；定义体内经
@@ -334,16 +354,13 @@ int Manager::CheckBuyableProduct(CUser* user, unsigned int ipgNo,
 void Manager::UpdateBuyableRestrictItem(CUser* user, unsigned int ipgNo,
                                         unsigned int itemIdx)
 {
-    // [b26L17 判词 N82] data(DBInputData 0x10)槽基：ORIG -0x10 vs 4.4 -0x18
-    //   （4.4 恒 -(sizeof+8)；packed/普通对齐探针同形，4.1 例外不可翻），
-    //   38/38 助记符全等。
     if (!ARAD::Singleton<Manager>::Get()->FindIpgNo(ipgNo))
         return;
     DBInputData data;
-    // ORIG 调用点 test %al,%al（int callee 的 al 直测，P3/P194 调用点收窄）。
-    register unsigned char ok asm("eax") =
-        (unsigned char)ARAD::Singleton<Manager>::Get()->InputBuyInfo(user, ipgNo, itemIdx, data);
-    if (ok) {
+    // [b28c-4 P0] 存量 `register unsigned char ok asm("eax")` 已清除（全域禁绑，
+    // N96 登记）；ORIG 调用点是 int callee 返回值的 al 直测（P3），改表达式直读
+    // 复测。data 槽基：ORIG -0x10（sizeof 已实证 0x8，见 CUser.h b28c 代落注）。
+    if (ARAD::Singleton<Manager>::Get()->InputBuyInfo(user, ipgNo, itemIdx, data)) {
         // DB 请求经 DB_CerashopAddRestrict.cpp 的真实成员函数投递（ORIG 0x080e17ba）。
         DB_SaveCerashopAddRestrictType::makeRequest(user, data);
         // ORIG 直接调 static SendSyncPacket（无 this、无 Get()；注释 0x817915c 实证）
@@ -353,11 +370,12 @@ void Manager::UpdateBuyableRestrictItem(CUser* user, unsigned int ipgNo,
 
 void Manager::ClearBuyRestrictItem(CUser* user)
 {
-    UserInfo& info = user->m_ceraUserInfo;
-    info.m_accountDaily.clear();
-    info.m_characDaily.clear();
-    info.m_field30.clear();
-    info.m_field48.clear();
+    // [b28c-4 P183] ORIG 0x080e0da4 每处从 user 重算绝对偏移（add $0x8d1e4/...），
+    // 无引用缓存槽（引用形多 -0xc 槽 + 帧 0x28→0x18 差）。
+    user->m_ceraUserInfo.m_accountDaily.clear();
+    user->m_ceraUserInfo.m_characDaily.clear();
+    user->m_ceraUserInfo.m_field30.clear();
+    user->m_ceraUserInfo.m_field48.clear();
 }
 
 void Manager::LoadRequestBuyRestrictItem(CUser* user)
@@ -426,12 +444,16 @@ void Manager::makeSyncPacket(CUser* user)
 //   m_field30/m_field48 中 find(ipgNo) 命中则 erase，再
 //   InputBuyInfoDetail(...) 并把返回值写入 out.m_result；
 //   尾判 out.m_result==0 → 0，否则 1；其它 m_type → 0。
-int Manager::InputBuyInfo(CUser* user, unsigned int ipgNo, unsigned int itemIdx,
-                          DBInputData& out)
+// [b28c-4 档①] 返回类型 int→bool（Main 代落声明 CUser.h:1522）：ORIG 0x080e129a
+// 出口仅 `mov $0x0/$0x1,%eax`，且唯一调用点 UpdateBuyableRestrictItem 0x080e0d14 为
+// `call; test %al,%al; je` 单字节直判——int callee 在 4.4 恒多 setne 归一段
+//（探针 /tmp/l4/al.cpp m1-m4 四形全败），唯 bool callee 复现。
+bool Manager::InputBuyInfo(CUser* user, unsigned int ipgNo, unsigned int itemIdx,
+                           DBInputData& out)
 {
     InfoDaily* info = m_loader.GetRestrictInfo(ipgNo);
     if (info == 0)
-        return 0;
+        return false;
     out.m_pInfo = info;
     UserInfo& ui = user->m_ceraUserInfo;
     if (info->m_type == 0) {
@@ -447,11 +469,11 @@ int Manager::InputBuyInfo(CUser* user, unsigned int ipgNo, unsigned int itemIdx,
         out.m_result = (int)InputBuyInfoDetail(ui.m_characDaily, info,
                                                ipgNo, itemIdx);
     } else {
-        return 0;
+        return false;
     }
     if (out.m_result == 0)
-        return 0;
-    return 1;
+        return false;
+    return true;
 }
 
 // IsBuyableRestrictItem —— ORIG 0x080e0ce2 (T)
@@ -464,6 +486,16 @@ int Manager::IsBuyableRestrictItem(CUser* user, unsigned int ipgNo,
     return ARAD::Singleton<CerashopAddRestrict::Manager>::Get()
         ->CheckBuyableProduct(user, ipgNo, itemIdx, type);
 }
+
+// [b28c-4] ORIG 0x080e142a 载荷元素具名视图（0xc 步长：+0x00 ipgNo / +0x04 count /
+// +0x08 nextDate）。ORIG 对元素三字段是 disp 直读（mov (d)/0x4(d)/0x8(d)），
+// 指针下标形会被 4.4 展成 add+mov。
+struct ParamDailyElem
+{
+    unsigned int m_ipgNo;
+    unsigned int m_count;
+    unsigned int m_nextDate;
+};
 
 // ORIG 0x080e142a sz 0xcb（_ZN19CerashopAddRestrict7Manager11LoadProcessE
 // RSt3mapIjjSt4lessIjESaISt4pairIKjjEEERS1_IjPNS_10paramDailyES3_SaIS4_IS5_SB_EEEP35SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE；
@@ -484,13 +516,17 @@ void CerashopAddRestrict::Manager::LoadProcess(
         pd->m_ipgNo = 0;
         pd->m_count = 0;
         pd->m_nextDate = 0;
-        unsigned int* elem = reinterpret_cast<unsigned int*>(
-            reinterpret_cast<char*>(sig) + 8 + i * 0xc);
-        pd->m_ipgNo = elem[0];
-        pd->m_count = elem[1];
-        pd->m_nextDate = elem[2];
+        // [b28c-4] 求值序照 ORIG：i*0xc 先算、再 +sig、再 +8（写 `8 + i*0xc` 会被
+        // 4.4 折成 lea base+index，且元素访问改具名视图成员以产 disp 直读）。
+        ParamDailyElem* elem = reinterpret_cast<ParamDailyElem*>(
+            reinterpret_cast<char*>(sig) + i * 0xc + 8);
+        pd->m_ipgNo = elem->m_ipgNo;
+        pd->m_count = elem->m_count;
+        pd->m_nextDate = elem->m_nextDate;
+        // [b28c-4] ORIG pair 首参照 `mov -0x24(%ebp),%eax`（=&pd->m_ipgNo）⇒
+        // 实参是 pd->m_ipgNo 左值（值与 elem[0] 同、地址不同）。
         dailyMap.insert(
-            std::map<unsigned int, paramDaily*>::value_type(elem[0], pd));
+            std::map<unsigned int, paramDaily*>::value_type(pd->m_ipgNo, pd));
     }
 }
 
@@ -521,13 +557,16 @@ void CCeraShopBonusItemEvent::StartEvent(Word_Param param)
 {
     SetEventFlag(true);
     if (param.m_duration == 0 || 1000 < param.m_duration) {
-        cMyTrace tr(__FUNCTION__, 0x1a, 0);
-        tr("Can not start Cera shop bonus item event. Bonus rate is too big(%d)",
-           (unsigned int)param.m_duration);
+        // [b28c-30] P227 全表达式临时链：ORIG 0x0810a361 段 vararg
+        // `(unsigned int)param.m_duration` 在 ctor 前求值并入 %ebx 跨 ctor 保活
+        // （push %ebx/sub $0x34 三件套）；具名 tr 两语句使 4.4 ctor 后重取。
+        cMyTrace(__FUNCTION__, 0x1a, 0)
+            ("Can not start Cera shop bonus item event. Bonus rate is too big(%d)",
+             (unsigned int)param.m_duration);
     } else {
         m_rate = (unsigned int)param.m_duration;
-        cMyTrace tr(__FUNCTION__, 0x20, 0);
-        tr("Cera shop bonus item event Start");
+        cMyTrace(__FUNCTION__, 0x20, 0)
+            ("Cera shop bonus item event Start");
     }
 }
 

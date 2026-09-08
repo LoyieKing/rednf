@@ -233,8 +233,12 @@ public:
     unsigned short m_fieldb;           // +0x0b（endurance）
     union
     {
-        int m_fieldd;                  // +0x0d（整体读写口径：SendUpdateItem 包字段、
+        unsigned int m_fieldd;         // +0x0d（整体读写口径：SendUpdateItem 包字段、
                                        //      UseLimitCube 结果数、CCreatureMgr 拷贝）
+                                       //      ORIG 三处 put_int(m_fieldd) 恒两段中转
+                                       //      （0x08641b2d/0x0850bee2 段/0x084fd7b6 段）
+                                       //      ⇒ 与 int 形参异型 = unsigned（P211；
+                                       //      探针 /tmp/l6_p211d.cpp/e）
         struct
         {
             short m_fielddLo;          // +0x0d（低 16 位）
@@ -264,18 +268,21 @@ public:
                                 //   无 setne ⇒ bool→bool 赋值形，uchar 会生物化）
     unsigned char m_type;       // +0x01（ITEM_TYPE，← item+0x01）
     unsigned char m_field2[2];  // +0x02..0x03（填充：ORIG m_itemIdx 在 +0x04）
-    int m_itemIdx;              // +0x04（← item+0x02）
+    // [b28c-30] m_itemIdx/m_fieldd 与目标字段同型化（Inven_Item::m_addInfo
+    // +0x02 / m_fieldd +0x0d 均 unsigned int，Inven_Item.h:221/236）：ORIG
+    // makeInvenItem 0x0833f418 对应两段为单段直落 `mov 0x4(%eax),%edx;
+    // mov %edx,0x2(%eax)`；异型时 4.4 恒插 `mov %eax,%edx` 中转（P211 字段侧）。
+    unsigned int m_itemIdx;     // +0x04（← item+0x02）
     unsigned char m_attr;       // +0x08（← Inven_Item::GetItemAttr）
     int m_addInfo2;             // +0x0c（← item+0x07）
     unsigned short m_endurance; // +0x10（← item+0x0b）
-    int m_fieldd;               // +0x14（← item+0x0d）
+    unsigned int m_fieldd;      // +0x14（← item+0x0d，同型化同上）
     int m_amp0;                 // +0x18（← item+0x11）
-    int m_rand0;                // +0x1c（← item+0x15）
-    int m_rand4;                // +0x20（← item+0x19）
-    unsigned short m_rand8;     // +0x24（← item+0x1d）
+    // [b28c-30] 原三标量 m_rand0/m_rand4/m_rand8 合并为具名 guid 视图（同偏移
+    // +0x1c/0x20/0x24、同尺寸 0xa）：ORIG makeInvenItem 0x0833f418 尾段为单条
+    // 结构赋值形（双基址各载一次 + 三连续 store），三独立字段赋值 4.4 恒逐条重载。
+    stAmplifyGuidView m_guid;   // +0x1c（← item+0x15/0x19/0x1d）
 };                              // 总 0x26
-
-#pragma pack(pop)
 
 class CUser;   // 前向：CheckItemTradeLimitCountToMoveByUser
 
@@ -289,7 +296,9 @@ bool DecreaseTradeLimitCount(Inven_Item& item);
 bool CheckTradeLimitItemCountToMove(const Inven_Item& item, bool& ok);
 // ORIG T 0x0812032e _Z36CheckItemTradeLimitCountToMoveByUserR5CUseriiRb：
 // *ok=true；curCharac 缺失直接返回；GetInvenSlot(space,slot) 取实体后转上一函数。
-bool CheckItemTradeLimitCountToMoveByUser(CUser& user, int space, int slot, bool& ok);
+// [b28c-lane24] ORIG 尾 `leave; ret` 无 eax 设置（Ghidra C void）⇒ 返回类型 void
+//（P159；返回类型不入 mangled，全部调用点均语句调用）。
+void CheckItemTradeLimitCountToMoveByUser(CUser& user, int space, int slot, bool& ok);
 
 // ORIG T 0x081201dc _Z26IsTradeLimitAttachTypeItemRK10Inven_Item：
 // 交易限制/绑定类物品判定（exchange_interspace 0xc 域前置校验；定义由后续批次补）。

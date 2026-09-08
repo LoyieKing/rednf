@@ -316,11 +316,10 @@ bool CAssaultPlace::SendPacket(PacketGuard& packet)
         CUser* user = m_assaulters[i].GetUser();
         if (user != 0)
         {
-            // N96 清绑（P168a③b）：ORIG `call Send; xor $0x1,%eax; test %al;je`
-            // 为 4.1 bool 物化；4.4 -O0 对 int 返回 callee 恒产
-            // cmp/setne/test（探针 /tmp/x1.cpp a1/a3/c3 全败），按真实语义
-            // `Send()!=1` 写自然形（Ghidra C：cVar1 != '\x01'）。
-            if ((unsigned char)user->Send(packet) != 1)
+            // [b28c-L7] P168a①：Main 已按 ORIG 串代落 CUser.h `bool Send(
+            // PacketGuard&)`（同批 AntibotSend/SendCmdPacket/SendNotiPacket）⇒
+            // 裸形直产 ORIG 0x082e6c2b `call; xor $0x1,%eax; test %al,%al; je`。
+            if (!user->Send(packet))
                 ok = false;
         }
     }
@@ -335,10 +334,8 @@ bool CAssaultPlace::SendPacket(PacketGuard& packet, ENUM_ASSAULT_TEAM team)
         CUser* user = m_assaulters[i].GetUser();
         if (user != 0 && m_assaulters[i].GetTeam() == team)
         {
-            // N96 清绑（P168a③b）：ORIG +0xcb `call Send; xor $1,%eax;
-            // test %al,%al; je skip` 为 4.1 bool 物化；4.4 -O0 不可自然复现
-            // （探针 /tmp/x1.cpp a1/a3/c3），按语义 `Send()!=1` 写自然形。
-            if ((unsigned char)user->Send(packet) != 1)
+            // [b28c-L7] 同上（ORIG 0x082e6cc6 同形）。
+            if (!user->Send(packet))
                 ok = false;
         }
     }

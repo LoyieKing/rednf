@@ -374,6 +374,9 @@ STStackableScript& STStackableScript::operator=(const STStackableScript& other)
 // ORIG 0x0899087a：赋值序严格照 ORIG 反编译逐条转写。
 void STStackableScript::Clear()
 {
+    // [b28c-27] N18a：+0x1c4/+0x1cc 两处 ORIG `mov $0x0,%edx; mov %edx,disp`
+    // （4.1 常量经寄存器中转）；字段 unsigned int 化后 4.4 仍 `movl $0,disp` 直写，
+    // 不可翻。其余为 .o 重定位伪差（"\"\" 字面量 → <A>，AE 口径）。
     STItemScript::Clear();
     m_field4 = 0;
     m_arad178.AradStClear();
@@ -505,17 +508,23 @@ void RecipeInfo::additionalInfo(STStackableScript& script)
     m_field34 = script.m_4f0;
     m_field38 = script.m_4f4;
     m_field3c = script.m_4f8;
-    int i = 0;
-    while (script.m_vec4fc.size() > (unsigned)i)
+    // i 声明 unsigned（P209：4.4 对 unsigned 局部比较恒 mem 直比 `cmp -0xc,%eax`；
+    // int+cast 恒先载 edx，+2 条）。
+    unsigned int i = 0;
+    // ORIG 槽序：i(-0xc) 最浅、pair 临时(-0x14)、first(-0x18)、second(-0x1c)
+    // ⇒ first/second 提到函数头声明（P212 全头部声明；块内仅赋值）。
+    int first;
+    int second;
+    while (script.m_vec4fc.size() > i)
     {
-        int first = script.m_vec4fc[i++];
-        if (script.m_vec4fc.size() <= (unsigned)i)
+        first = script.m_vec4fc[i++];
+        if (script.m_vec4fc.size() <= i)
         {
             break;
         }
-        int second = script.m_vec4fc[i++];
-        std::pair<int, int> item(first, second);
-        m_vec40.push_back(item);
+        second = script.m_vec4fc[i++];
+        // ORIG 调 push_back(OS1_)（右值重载）⇒ 源形为临时 pair 直传。
+        m_vec40.push_back(std::pair<int, int>(first, second));
     }
 }
 

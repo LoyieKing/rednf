@@ -175,6 +175,13 @@ bool WongWork::CSecurityCardCenter::checkPhoneNumber(char const* phone) const
     // ORIG T 0x085fe444 (size 0x52)：i<=0xb 为循环条件；'\0' 提前 break 共享
     // return-1 出口（je→尾块+loop 尾 jmp 对）；数字判定单式
     // 9U < (unsigned)(schar)c - 0x30U（jbe 即无符号序，涵盖 c<'0'）。
+    // [b28c-L7] N4/N18b 封顶（语义已逐条对齐，两处 4.1 固有寻址/装载形不可造）：
+    // ①ORIG 0x085fe456 指针+下标折叠为 `mov -0x4,%eax; add 0xc(%ebp),%eax`
+    //   （mem 作 add 源），4.4 恒 `mov 0xc(%ebp),%edx; lea (%edx,%eax,1),%eax`
+    //   （N4：数组 add-形 与 lea-形固有差，穷举 [] / +i / &arr[i] 三形同产 lea）；
+    // ②ORIG 循环界 `mov -0x4(%ebp),%eax; cmp $0xb,%eax; setbe`（值先载寄存器），
+    //   4.4 对 unsigned 局部比较恒 `cmpl $0xb,-0x4(%ebp)` 直读内存（P209 反向，
+    //   改 signed 则 setbe→setle 助记符先失配）。其余 24 条逐条全等。
     for (unsigned int i = 0; i <= 0xb; ++i)
     {
         if (phone[i] != '\0')
@@ -257,18 +264,22 @@ WongWork::CGMAccounts::stGMInfo_t WongWork::CGMAccounts::getGMInfo(unsigned int 
 {
     // ORIG T 0x0810940a (size 0xdd)：std::find(m_gmList.begin(), end(), key)
     // key={mid,3}；命中取该元素，未命中返回 {0,3}（局部 -0x1c/-0x18 初值）。
-    stGMInfo_t key;
-    key.mid = mid;
+    // [b28c-L7] P212 全头部声明 + P0 槽序：ORIG 槽阶梯为 fallback(-0x1c/-0x18,
+    // 浅) → key(-0x24/-0x20) → find 结果(-0x28, 最深)；4.4 块内"先声明浅"，
+    // 故声明序必须 fallback → key → it（原形 key 先 ⇒ 整组阶梯反向）。
+    // ORIG key 段四写 `0,0 → type=3 → mid=mid` ⇒ key 具 value-init 预清。
+    stGMInfo_t fallback;
+    fallback.mid = 0;
+    fallback.type = 3;
+    stGMInfo_t key = stGMInfo_t();
     key.type = 3;
+    key.mid = mid;
     std::list<stGMInfo_t>::const_iterator it =
         std::find(m_gmList.begin(), m_gmList.end(), key);
     if (it != m_gmList.end())
     {
         return *it;
     }
-    stGMInfo_t fallback;
-    fallback.mid = 0;
-    fallback.type = 3;
     return fallback;
 }
 

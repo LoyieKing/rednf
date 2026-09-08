@@ -15,6 +15,7 @@
 #include "MsgQueueMgr.h"
 #include "StreamPool.h"
 
+// [b28c-32] verdict=DIFF：N18a（ORIG it->second 成员读发 8 字节两段载入，4.4 恒折单条）。
 void CLevelDungeonPlayStatistic::InsertDatabase()
 {
     if (m_levelPlayMap.size() == 0)

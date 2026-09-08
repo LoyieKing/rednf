@@ -68,6 +68,8 @@
 //   否则 0
 // slotA/slotB 仅参与签名（check_error 内部未使用，见汇编 0x081d3bbc..0x081d3c61）。
 // ============================================================================
+// [b28c-31] N7：虚调用 callee ORIG %edx vs 4.4 %eax（0x081d3c2x vptr+0xc 槽），
+// 其余 57=57 全等（仅 call 目标重定位显示差）。
 int Dispatcher_UseLimitCube::check_error(int slotA, unsigned int itemIdx, int slotB,
                                          Inven_Item& invA, Inven_Item& invB,
                                          const CItem* cube)

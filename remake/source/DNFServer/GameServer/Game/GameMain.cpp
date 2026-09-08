@@ -215,9 +215,10 @@ void TimerDeathTowerTopRankerReload::registNextTimer(long ms)
     }
     int delay = static_cast<int>(ms) - s_systemTime_.getCurSec();
     // ORIG 0x86378f5：std::max 结果直接入 ebx 实参（mov (%eax),%ebx），无回写 delay 槽
-    //（P24 内联实参形）。
+    //（P24 内联实参形）。b28c-33：ORIG 实参槽序为 (%esp)=-0xc(常量 1)、0x4(%esp)=-0x10
+    //（delay）⇒ 原码写 std::max(1, delay)（交换律等价，仅装载序差异）。
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)6, 0,
-                                (TIMER_MESSAGE)0x73, std::max(delay, 1), 0, 0);
+                                (TIMER_MESSAGE)0x73, std::max(1, delay), 0, 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -442,11 +443,15 @@ void ShowLogo()
     CommonTime time;                          // 栈上对象（ebp-0x18，布局同 ORIG：+0..+4 年/月/日/时/分）
     time.SetCurTime();
     // ORIG 依次读 ebp-0x18/-0x17/-0x16/-0x15/-0x14 五字节（movsbl）→ 年/月/日/时/分
-    const char* p = reinterpret_cast<const char*>(&time);
+    // [b28c-lane24] 不缓存 `const char* p`（P183 地址重物化铁律）：具名指针使
+    // 4.4 生 `lea -0x18; mov %eax,-0xc; mov -0xc,%eax; add $K` 链，ORIG 直接
+    // `movzbl -0x18(%ebp),%eax` 栈相对 disp ⇒ 每次读取内联全表达式。
     std::printf("[!] Service Date (%02d-%02d-%02d/%02d:%02d)\n",
-                (int)(signed char)p[0], (int)(signed char)p[1],
-                (int)(signed char)p[2], (int)(signed char)p[3],
-                (int)(signed char)p[4]);      // CommonTime 字段偏移 +0..+4（m_year..m_min）
+                (int)((const signed char*)&time)[0],
+                (int)((const signed char*)&time)[1],
+                (int)((const signed char*)&time)[2],
+                (int)((const signed char*)&time)[3],
+                (int)((const signed char*)&time)[4]);  // CommonTime +0..+4（m_year..m_min）
 }
 
 // ---------------------------------------------------------------------------
@@ -890,7 +895,9 @@ bool Init(int argc, char** argv)
 // （Acquire("App.cpp", 0x2728) + << 0x30a << -1）。退出条件
 // !GlobalData::s_server_stop（@0x940bd64），返回 1。
 // ---------------------------------------------------------------------------
-void MainLoop()
+// SIGFIX:MainLoop —— ORIG __PRETTY_FUNCTION__ 串 "bool MainLoop()"；ORIG 尾
+// 0x829fd24 `mov $0x1,%eax` 后 leave/ret（循环退出返回 1，P174）。
+bool MainLoop()
 {
     int cnt30 = 0;        // -0x34
     int cnt10 = 0;        // -0x40
@@ -965,6 +972,7 @@ void MainLoop()
         ++cnt30;
         ProcessAntiBotInputWrapper();
     }
+    return 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -1049,11 +1057,15 @@ void DESTROY_TimerDispatcher()  { GlobalInstance<TimerDispatcher>::destroy(); }
 int regist_signal(int sig, void (*handler)(int))
 {
     struct sigaction sa;
-    std::memset(&sa, 0, sizeof(sa));
+    struct sigaction oldact;
     sa.sa_handler = handler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = (sig == 14) ? 0x20000000 : 0x10000000;
-    if (sigaction(sig, &sa, NULL) < 0)
+    sa.sa_flags = 0;
+    if (sig == 14)
+        sa.sa_flags |= 0x20000000;
+    else
+        sa.sa_flags |= 0x10000000;
+    if (sigaction(sig, &sa, &oldact) < 0)
     {
         std::printf("%d\xb9\xf8 signal \xb5\xee\xb7\xcf \xbd\xc7\xc6\xd0\n", sig);  // ORIG 文案（CP949 韩文）
         return 0;
@@ -1201,14 +1213,11 @@ void rdar_terminate()
 //   << 0x3e << 0；s_msgq_mgr->put((QUEUE_IDX)1, guard)。
 void TerminateServers()
 {
-    Stream* s =
-        GlobalData::s_stream_pool->Acquire((const char*)"App.cpp", 0x2e2a);
-    {
-        CStreamGuard guard(s, true);
-        **guard << 0x3e;
-        **guard << 0;
-        GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
-    }
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire((const char*)"App.cpp", 0x2e2a), true);
+    **guard << 0x3e;
+    **guard << 0;
+    GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
 }
 
 // omll_dump_core_file() —— ORIG 0x829f6f4（逐指令一致）：abort();
@@ -1266,8 +1275,7 @@ bool check_cfg_file()
                  G_CEnvironment()->get_file_name());
     std::printf("\t- cfg path: %s\n", path);
     // ORIG 0x829ea35：test/sete 物化 + mov$1/mov$0 块选择（P56 勿直 return 表达式）。
-    bool exist = access(path, F_OK) == 0;
-    if (exist)
+    if (access(path, F_OK) == 0)
         return true;
     return false;
 }
@@ -1280,8 +1288,7 @@ bool check_pid_file()
     std::sprintf(path, "./pid/%s.pid",
                  G_CEnvironment()->get_file_name());
     std::printf("\t- pid path: %s\n", path);
-    bool exist = access(path, F_OK) == 0;
-    if (exist)
+    if (access(path, F_OK) == 0)
         return true;
     return false;
 }

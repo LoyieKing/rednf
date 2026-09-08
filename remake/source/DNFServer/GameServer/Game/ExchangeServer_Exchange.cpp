@@ -162,6 +162,7 @@ bool CExchangeServer::TrySend(int serverId, PacketGuard& guard)
 bool CExchangeServer::AttachSessionInExchangeServer(int serverId,
                                                     CSession* session)
 {
+    // [b28c-6] fresh 复验维持 N93附+P75（ndiff 22，55/53 条）：
     // [b28-L11 判 N·N93附+P75] 残差两类：①函数级 iterator 对(-0x20/-0x1c)与
     // if 尾块内 cMyTrace(-0x18) 的槽深方向跨版本相反（N93 附：兄弟/块内对象
     // 分配方向，P212 头部声明法对带参 ctor 类不可用）；②ORIG push %ebx 将
@@ -830,8 +831,8 @@ bool CExchangeServer::DispatchPacket(CSession* session, char* data,
 // OnRecvMessageServerInfo                  ORIG 0x84931de
 // stream buffer：+0x0a channel_no(int)、+0x0e port(short)、+0x10 ip(uint)
 // ---------------------------------------------------------------------------
-void CExchangeServer::OnRecvMessageServerInfo(Stream* stream, int a,
-                                              int b)
+int CExchangeServer::OnRecvMessageServerInfo(Stream* stream, int a,
+                                             int b)
 {
     (void)a;
     (void)b;
@@ -890,6 +891,7 @@ void CExchangeServer::OnRecvMessageServerInfo(Stream* stream, int a,
         }
         SetServerType(EXCHANGE_SERVER_SLAVE);
     }
+    return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -969,6 +971,8 @@ Stream* CExchangeServer::GetMessage()
 // ORIG 各越限分支打日志后仍归还原池。
 // 判词：返回类型 bool（ORIG 尾 `mov $0x1,%eax`、stream==0 路径 `mov $0x0,%eax`，
 // 4.1 不为 void 生成返回值链；ExchangeServer.h 已广播改型，调用点 Infra:572 忽略返回值）。
+// [b28c-6] fresh 复验维持 N82/N93（ndiff 8）；P221 全表达式临时链实测反劣
+// 8→19 已回滚（见下），本件勿再试临时链形。
 // [N82] 三块 cMyTrace 栈槽两难：ORIG(4.1) 首声明 case1→-0x3c（向低分配），4.4 首声明
 // →-0x1c（向高分配）。保持 case 线性序 1,0,2 与 ORIG 逐块对齐后残差仅 case1/case2
 // 共 4 条 lea 槽号；改 case 序可对槽号但整块线性错位反劣——"装载序 vs 槽号"两难，
@@ -991,6 +995,8 @@ bool CExchangeServer::FreeMessage(Stream* stream, int flag)
     case 1:                                           // SmallStreamPool
         if (len > 0xfff)
         {
+            // P221 临时链实测反劣（ndiff 8→19，槽深方向被翻但整块线性错位）：
+            // 维持具名对象形 + N82/N93 判词。
             cMyTrace trace("bool exchange_server::CExchangeServer::"
                            "FreeMessage(Stream*, int)", 0x3b5, 0x5);
             trace("Small Stream Size over code(%d), size(%u)", flag,

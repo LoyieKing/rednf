@@ -31,7 +31,7 @@ void CSecretShopEvent::StartEvent()
 // ORIG 0x0811737e：thunk —— 经 vptr slot2 虚调 StartEvent()，不读 param。
 void CSecretShopEvent::StartEvent(Word_Param param)
 {
-    // N7 封顶：唯一残差=虚调用 callee 寄存器互换（N7，探针 /tmp/l22p/vprobe*.cpp）。
+    // [b28c-27] N7 封顶：唯一残差=虚调用目标寄存器（ORIG 用 %edx，4.4 恒 %eax）。
     StartEvent();
 }
 

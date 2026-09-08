@@ -11,7 +11,10 @@ public:
     ROI_Category();
     void _sort();
 
-    unsigned short m_keys[3];    // +0..+5
+    // ORIG _sort 0x0822ac3c 首比较为 `movzwl (%eax),%edx` 一步直落 + jle（有符号）；
+    // short 字段 + 直接比较复现（探针 /tmp/l25probe/roi.cpp fB vs fA：
+    // unsigned short+static_cast<short> 恒两段 `movzwl %eax; mov %eax,%edx`）。
+    short m_keys[3];             // +0..+5
     unsigned char  m_pad6[2];    // +6..+7
     union {                      // +8..+b（sizeof 不变；ORIG ctor 第三 dword 清零视图）
         unsigned char  m_marks[3];   // +8..+a

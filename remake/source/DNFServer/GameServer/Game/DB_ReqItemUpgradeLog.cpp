@@ -15,8 +15,10 @@ void DB_ReqItemUpgradeLog::makeRequest(unsigned int a, unsigned int b,
                                        unsigned int c, const char* str,
                                        unsigned int d, bool e)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x63f7);
-    CStreamGuard guard(stream, true);
+    // [b28c-L29] ORIG 0x08425ece：Acquire 返回值直接作 CStreamGuard ctor 实参
+    // （无具名 stream 局部槽，P0）——guard 槽 -0x10 与 ORIG 一致。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x63f7),
+                       true);
     guard.operator*()->operator<<(0xc0);
     guard.operator*()->operator<<(-1);
     guard.operator*()->operator<<(a);

@@ -93,14 +93,16 @@ public:
     bool CreateAccount(SIG_LOGIN_DATA* sig, MySQL* db);     // T 0x08412eb8
     bool _DecryptUserInfo(char* hex, char* out, unsigned int mid); // T 0x0841300e
     bool GetAccountInfo(SIG_LOGIN_DATA* sig);               // T 0x0841325e
-    bool getCharacLinkSystemData(SIG_LOGIN_DATA* sig);      // T 0x0840ffca
+    // [b28c-L9] SIGFIX:DB_Login::getCharacLinkSystemData —— ORIG __PRETTY_FUNCTION__
+    // 串 `void DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA*)`（P174）。
+    void getCharacLinkSystemData(SIG_LOGIN_DATA* sig);      // T 0x0840ffca
     bool getBreakAwayMemberData(SIG_LOGIN_DATA* sig);       // T 0x084101ae
     int GetLoginCommonData(SIG_LOGIN_DATA* sig);            // T 0x0841090c
     int GetReturnUserInfo(SIG_LOGIN_DATA* sig);             // T 0x08410ad8
     int GetDailyCleanPadPoint(SIG_LOGIN_DATA* sig);         // T 0x08410c12
     bool GetWhiteAccount(SIG_LOGIN_DATA* sig);              // T 0x084143ac
     int GetSchoolName(int schoolId, char* name);            // T 0x08414446
-    int GetBadgeCount(SIG_LOGIN_DATA* sig);                 // T 0x08414512
+    bool GetBadgeCount(SIG_LOGIN_DATA* sig);                // T 0x08414512 [SIGFIX b28c-L9]
     int GetGameDBInfo(SIG_LOGIN_DATA* sig);                 // T 0x08414772
     void SaveLoginTime(unsigned int mid, int loginTime, char* ip); // T 0x084148a6
     int _getGameDBCharacView(SIG_LOGIN_DATA* sig);          // T 0x084149ce
@@ -110,13 +112,14 @@ public:
     int GetOntimeUserRecvIdx(SIG_LOGIN_DATA* sig);          // T 0x08414f5c
     int GetUserFatigueCount(SIG_LOGIN_DATA* sig);           // T 0x084150e8
     int GetUserInGameEventHistory(SIG_LOGIN_DATA* sig);     // T 0x084152b0
-    int CheckLoginIP(SIG_LOGIN_DATA* sig);                  // T 0x08415472
-    int GetMercenarySystemInfo(SIG_LOGIN_DATA* sig);        // T 0x08415618
-    int GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig);          // T 0x08447ea6
-    int GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig);        // T 0x08448102
-    int GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig); // T 0x0844834e
-    int GetBingoEvent(SIG_LOGIN_DATA* sig);                 // T 0x08448bee
-    int IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig); // T 0x0844b982
+    // [b28c-L9] SIGFIX（ORIG __PRETTY_FUNCTION__ 串均为 bool，P174）：
+    bool CheckLoginIP(SIG_LOGIN_DATA* sig);                 // T 0x08415472
+    bool GetMercenarySystemInfo(SIG_LOGIN_DATA* sig);       // T 0x08415618
+    bool GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig);         // T 0x08447ea6
+    bool GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig);       // T 0x08448102
+    bool GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig); // T 0x0844834e
+    bool GetBingoEvent(SIG_LOGIN_DATA* sig);                // T 0x08448bee
+    bool IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig); // T 0x0844b982
 };
 
 #endif  // DNF_GAME_DB_LOGIN_H_

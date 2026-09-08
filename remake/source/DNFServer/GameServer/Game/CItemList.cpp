@@ -1394,6 +1394,8 @@ CItem* CItemList::find_item(const char* name)
 
 CCeraShopGoods* CItemList::FindGoods(int goodsIdx)
 {
+    // [b28c-21] N93 封顶：ORIG it(默认构造,-0x18)/e(-0x10)/find 临时(-0x20)；
+    // 4.4 槽序与求值序绑定（交换声明/操作数均致槽或比较参反向），DIFF→NEAR。
     __gnu_cxx::hash_map<int, CCeraShopGoods*>::iterator it;
     __gnu_cxx::hash_map<int, CCeraShopGoods*>::iterator e = m_goodsMap.end();
     // [b26N7b] it/e 槽分配方向 4.1(深→浅) vs 4.4(浅→深) 相反；换声明序虽对齐
@@ -1421,6 +1423,8 @@ BonusItem* CItemList::GetProperBonusItem(unsigned int bonusIdx)
 void CItemList::getCeraShopBonusItem(int idx, unsigned long& outItem,
                                      unsigned int& outCount) const
 {
+    // [b28c-21] N93 封顶：ORIG 双 const_iterator 槽 -0x1c/-0x14（外层先/内层后），
+    // 4.4 恒反向（-0x14/-0x1c）；嵌套 for 声明序不可控。
     outItem = (unsigned long)-1;
     outCount = 0;
     int rand;
@@ -1933,12 +1937,14 @@ int Arad_GiftItem_Set::open(STStackableScript* script)
 // ============================================================================
 int Arad_GiftItem_Set::str_to_enum(const char* name)
 {
-    if (name == 0)
-        return 0;
+    // [b28c-L18] P140：ORIG 0x081a2e3e 入口直构 string(name)，无 null 防御（P171
+    // 照抄原则）。ORIG 尾段实证调用符号为 iterator::operator!=、this=end 临时
+    // ((esp)=-0xc)、实参 it(0x4(esp))，true→hit fall-through ⇒ 原码
+    // `if (end() != it) return it->second; return 0;`（P222 正向包裹）。
     std::map<std::string, int>::iterator it = m_kindMap.find(std::string(name));
-    if (it == m_kindMap.end())
-        return 0;
-    return it->second;
+    if (m_kindMap.end() != it)
+        return it->second;
+    return 0;
 }
 
 // ============================================================================
@@ -1954,9 +1960,11 @@ Arad_GiftItem_Set::Data* Arad_GiftItem_Set::find(int kind, int job, int usableLe
         (long long)((unsigned short)job << 16) +
         (long long)usableLevel;
     std::map<long long, Data>::iterator it = m_map.find(key);
-    if (it == m_map.end())
-        return 0;
-    return &it->second;
+    // [b28c-L18] P222 正向包裹（两形互试）：ORIG 块序 = hit 紧跟条件 fall-through、
+    // `mov $0` 尾岛直落 epilogue；负极性 `if(it==end)return 0;` 在 4.4 恒产反序岛。
+    if (it != m_map.end())
+        return &it->second;
+    return 0;
 }
 
 // ============================================================================
@@ -1970,7 +1978,7 @@ Arad_GiftItem_Set::Data* Arad_GiftItem_Set::find(int kind, int job, int usableLe
 //   user->get_charac_level() < ulv -> 报日志并返回 0；否则 1。
 // NOTE：汇编中 get_charac_level 比较对象是 CUserCharacInfo 基类，故对 user 强转访问。
 // ============================================================================
-int Arad_GiftItem_Set::level_check(CUser* user, const CStackableItem* item)
+bool Arad_GiftItem_Set::level_check(CUser* user, const CStackableItem* item)
 {
     // ORIG 0x081a31c4：无空指针防御（P140）；usableLevel 值需跨
     // get_charac_job call 存活 ⇒ 内联实参直落 %ebx（P52）；
@@ -2041,6 +2049,9 @@ BindCube_LvBonusScriptData::~BindCube_LvBonusScriptData() {}
 
 // ── 构造（ORIG 0x832c402）：成员初始化序 m_data → m_lvBonus[2]，
 //    随后 body 内 new CMTRand(time(0)) 存 +0x00。──
+// [b28c-lane17] fresh：101=101，残差 = new[] 返回值的异常槽 `lea -0x1c(%ebp)`
+// 物化时刻（ORIG 4.1 提前入 %esi 跨 call 保活；4.4 在使用点重算入 %edx）
+// + 清理块 %esi/%edx 互换 ⇒ N18a/N7（跨版本 callee-saved 分配），无源形。
 CCompound_ExtreamDun_Item::CCompound_ExtreamDun_Item()
 {
     const unsigned long seed = time(0);
@@ -2203,6 +2214,8 @@ int CCompound_ExtreamDun_Item::_convertInputItem(                   // ORIG 0x83
 // b21 NEAR：语义与 ORIG 全等（两真修已落，CItemList 编译绿）。残余仅 N-86b：
 //   冗余 setne/test、虚拟调用寄存器选择（call* %eax vs call* %edx）、shl 寄存器分配、
 //   IsTradeRestriction 后冗余 setne（结果本就是 0/1，行为全同）+ 全量 AE/分支偏移。
+// [b28c-lane17] fresh 复验：258=258 助记符全等 ⇒ NEAR（残差同上 N86b/N7 族），
+// 调用点差集无缺项，判「语义完成、byte 层 N 封顶」。
 int CCompound_ExtreamDun_Item::checkCompoundable(                   // ORIG T 0x832d7d6
     Inven_Item* items, const CEquipItem** refs, char kind) const
 {

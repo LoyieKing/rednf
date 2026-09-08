@@ -119,7 +119,7 @@ void CMonitorServerProxy::SendTcpPacket(char* p, int len)
     return;
 }
 
-int CMonitorServerProxy::OnTcpRecv()
+bool CMonitorServerProxy::OnTcpRecv()
 {
     int n = m_tcp.recv_packet();
     if (n > 0)

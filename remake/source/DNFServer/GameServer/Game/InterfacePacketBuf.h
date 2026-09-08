@@ -50,7 +50,10 @@ public:
     bool put_str(char* str, int len);
     void set_index(int index);
 
-private:
+protected:
+    // ORIG PacketGuard::~PacketGuard 0x0858de70 直接 `mov (%eax),%edx` 读本成员
+    // （无 call get()）⇒ ORIG 可见性为 protected（或 public）。改 protected
+    // 不影响布局/mangled/其他 TU。
     PacketBuf* m_packetBuf;   // +0x00
 };
 

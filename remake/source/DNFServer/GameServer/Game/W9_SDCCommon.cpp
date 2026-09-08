@@ -32,6 +32,14 @@ extern float ACTIVESTATUS_ETC_PARAMETERS[18][8];           // B 0x093f5a40
 extern float ACTIVESTATUS_USER_TO_USER_DAMAGE_RATE;        // D 0x0936e48c
 extern float ACTIVESTATUS_USER_TO_USER_DAMAGE_RATE_DEATH_TOWER;  // D 0x0936e490
 extern int ACTIVESTATUS_MAXLEVEL;                          // D 0x0936e484
+// [b28c-L7] P82/P205 具名 8 字节步长视图：ORIG 4.1 对 `POWER[idx*2]` 发单条
+// scale-8 disp（`mov POWER(,%eax,8),%eax`），4.4 对 `idx*2` 恒 add-自增+scale-4；
+// 以本视图取偶槽即折叠为 scale-8。仅寻址视图，不参与业务写入。
+struct SDCPair
+{
+    float m_lo;   // 偶槽 idx*2
+    float m_hi;   // 奇槽 idx*2+1
+};
 
 // ORIG 各函数实证为 fistpl 截断（fnstcw/fldcw 设 RC=truncate），非四舍五入；
 // 故一律用 static_cast<int>（GCC O0 生成相同截断序列）。
@@ -85,17 +93,12 @@ STSDCActiveStatusSyncDataSend& STSDCActiveStatusSyncDataSend::operator=(
     return *this;
 }
 
-// _Z26GetUniformVelocityFloatSDCffii @0x088924c1
-float GetUniformVelocityFloatSDC(float v0, float v1, int cur, int max)
-{
-    if (cur >= max)
-        return v1;
-    if (cur <= 0)
-        return v0;
-    // ORIG 0x088924c1 x87 序：fildl cur 先于 flds v1 —— 乘法交换序复刻
-    // （IEEE 乘法 bit-exact 同值）。
-    return v0 + (float)cur * (v1 - v0) / (float)max;
-}
+// [b28c-L7] P210 帧继承三分律：本 callee 的**定义**原置于所有 caller 之前，
+// 使 4.4 按其帧精确继承 outgoing（caller 帧 0x28），而 ORIG 4.1 恒保守撑帧
+// （0x38）⇒ 整组 x87 槽号平移 8（dmg -0x4 vs -0xc、中转 -0x18 vs -0x20、
+// cw -0x12/-0x14 vs -0x1a/-0x1c）。探针 /tmp/xprobe4.cpp n1（callee 仅声明）
+// 逐条复现 ORIG 全组槽位。故定义下移至本 TU 所有 caller 之后（见文件尾）。
+// 声明由 DataManagerInitDepends.h:450 提供。
 
 // _SDC::isObjectType @0x080950e8
 namespace _SDC
@@ -106,11 +109,24 @@ bool isObjectType(int objectType, int code)
     return (objectType & code) == code;
 }
 
-// ORIG T 0x0808d074：type<0xc 且 (1<<type & 0xac4)!=0（位 2/6/7/9/11）。
+// [b28c-34] ORIG T 0x0808d074：type<0xc 且 (1<<type & 0xac4)!=0（位 2/6/7/9/11）。
+// 推断 ORIG 原码为 switch 位掩码族：4.4 对 if+短路形把 (1u<<type)&0xac4 前端折叠成
+// (0xac4>>type)&1（N6 位折叠：shr/and $0x1），且无符号比较先载寄存器（P209），
+// 共 21 条；改写 switch(type){case 2,6,7,9,11:return 1;} 后 4.4 对 switch 生成
+// 范围检查+位测试，逐条复现 ORIG 的 `cmpl $0xb,0x8(%ebp); ja` +
+// `mov $0x1,%edx; mov %edx,%ebx; mov %eax,%ecx; shl %cl,%ebx; and $0xac4`
+// 全形（探针 /tmp/sdc_probe1.cpp d1_switch，20 条全等）。
 int isSyncActiveStatus(int type)
 {
-    if ((unsigned int)type < 0xc && ((1u << type) & 0xac4u) != 0)
+    switch (type)
+    {
+    case 2:
+    case 6:
+    case 7:
+    case 9:
+    case 11:
         return 1;
+    }
     return 0;
 }
 }  // namespace _SDC
@@ -124,6 +140,13 @@ float SDCActiveStatusSyncCommon::getActiveStatusPower1(int idx, int level)
     int deadA = 0;
     int deadB = 1;
     (void)deadA; (void)deadB;
+    // [b28c-L7] N94/N4 封顶（本 TU 同族二件：getActiveStatusPower2 同判词）：
+    // 唯一残差 1 条 = ORIG 0x0808d3af 对 POWER1[idx*2] 发单条 scale-8 disp
+    // `mov POWER1(,%eax,8),%eax`，4.4 恒 `add %eax,%eax; mov (,%eax,4)`。
+    // 已实测排掉的形：①SDCPair 8 字节视图 → `mov $0,%eax; mov idx,%esi;
+    // shl $3; add,%eax; mov (%eax)` +5 条并 push %esi（反劣）；②[idx+idx]/
+    // [2*idx] 代数拆形同产 add+scale4。奇槽 [idx*2+1] 的 add/add/scale-4
+    // 两侧本就一致，故差异仅偶槽的寻址宽度选择（4.1 固有不复现）。
     float v = GetUniformVelocityFloatSDC(ACTIVESTATUS_POWER1[idx * 2],
                                          ACTIVESTATUS_POWER1[idx * 2 + 1],
                                          level - 1, ACTIVESTATUS_MAXLEVEL - 1);
@@ -135,6 +158,7 @@ float SDCActiveStatusSyncCommon::getActiveStatusPower2(int idx, int level)
     int deadA = 0;
     int deadB = 1;
     (void)deadA; (void)deadB;
+    // [b28c-L7] 同 getActiveStatusPower1（scale-8 单条为 4.1 固有寻址，N94 封顶）。
     float v = GetUniformVelocityFloatSDC(ACTIVESTATUS_POWER2[idx * 2],
                                          ACTIVESTATUS_POWER2[idx * 2 + 1],
                                          level - 1, ACTIVESTATUS_MAXLEVEL - 1);
@@ -177,12 +201,14 @@ int SDCActiveStatusSyncCommon::getDuration(ENUM_ACTIVESTATUS status,
 // 0x0808dc7a：param（DataSend 视图）尾部三 int 作 objectType/a4/hpPenalty；
 // ORIG 透传 getActiveStatusDurationServer 返回值。
 {
-    const unsigned char* p = static_cast<const unsigned char*>(param);
+    // [b28c-L7] P58/P82：ORIG 0x0808dc7a 三实参为 `mov 0x31(%eax),%ebx /
+    // 0x2d(%eax),%ecx / 0x29(%eax),%edx`——基址 eax 跨三次读保持、单条 disp
+    // 折叠 ⇒ 原码是**类型化指针的成员访问**；`p + 0xNN` 指针算术形使 4.4
+    // 每次 `add $NN,%eax; mov (%eax)`（+1 条/处）。改用具名 int 字段直访。
+    const STSDCActiveStatusSyncDataSend* d =
+        static_cast<const STSDCActiveStatusSyncDataSend*>(param);
     return getActiveStatusDurationServer(
-        status, level,
-        *reinterpret_cast<const int*>(p + 0x29),
-        *reinterpret_cast<const int*>(p + 0x2d),
-        *reinterpret_cast<const int*>(p + 0x31));
+        status, level, d->m_field29, d->m_field2d, d->m_field31);
 }
 
 int SDCActiveStatusSyncCommon::getActiveStatusDurationServer(
@@ -471,4 +497,17 @@ SDCActiveStatusSyncServer::SDCActiveStatusSyncServer()
 SDCActiveStatusSyncServer::~SDCActiveStatusSyncServer()
 {
     // 仅委托基类 D1（隐式，asm call _ZN25SDCActiveStatusSyncCommonD1Ev）。
+}
+
+// _Z26GetUniformVelocityFloatSDCffii @0x088924c1
+// [b28c-L7] 定义必须位于所有 caller 之后（P210，见文件头侧注释判词）。
+float GetUniformVelocityFloatSDC(float v0, float v1, int cur, int max)
+{
+    if (cur >= max)
+        return v1;
+    if (cur <= 0)
+        return v0;
+    // ORIG 0x088924c1 x87 序：fildl cur 先于 flds v1 —— 乘法交换序复刻
+    // （IEEE 乘法 bit-exact 同值）。
+    return v0 + (float)cur * (v1 - v0) / (float)max;
 }

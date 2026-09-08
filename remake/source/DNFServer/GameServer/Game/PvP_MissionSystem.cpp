@@ -26,8 +26,8 @@ char g_PvpMissionScriptBaseDirectory[0x100];
 // ---- ORIG _ZN13MissionScript5clearEv @0x08a5bbb2 ----
 void MissionScript::clear()
 {
-    m_gradeMin = 0;              // +0x10/+0x14 pair(0,0)
-    m_gradeMax = 0;
+    // [b28c-lane17] ORIG 0x08a5bbc6：pair 临时构造（两 int 0 槽）+ operator=。
+    m_grade = std::pair<int, int>(0, 0);   // +0x10/+0x14
     m_field20 = 4;               // +0x20
     m_job = 0xb;                 // +0x24（无职业）
     m_field28.clear();
@@ -100,8 +100,8 @@ bool importPvpMissionScript(MissionScript* script, const char* path)
 
         if (token == "[rank range]")
         {
-            script->m_gradeMin = ScanInt((bool*)0);   // +0x10
-            script->m_gradeMax = ScanInt((bool*)0);   // +0x14
+            script->m_grade.first = ScanInt((bool*)0);    // +0x10
+            script->m_grade.second = ScanInt((bool*)0);   // +0x14
         }
         else if (token == "[kind]")
         {
@@ -109,8 +109,8 @@ bool importPvpMissionScript(MissionScript* script, const char* path)
         }
         else if (token == "[rate range]")
         {
-            script->m_rateMin = ScanInt((bool*)0);    // +0x18
-            script->m_rateMax = ScanInt((bool*)0);    // +0x1c
+            script->m_rate.first = ScanInt((bool*)0);     // +0x18
+            script->m_rate.second = ScanInt((bool*)0);    // +0x1c
         }
         else if (token == "[grade]")
         {
@@ -479,7 +479,12 @@ void PvP_MissionSystem::copy_missionParameter(const MissionParameterScript& para
 CMission* PvP_MissionSystem::find_mission(int idx)
 {
     std::map<int, CMission*>::iterator it = m_missionMap.find(idx);
-    return it == m_missionMap.end() ? 0 : it->second;
+    // [b28c-L18] ORIG 0x085e26xx 尾段实证：调用符号为 iterator::operator!=（this=it、
+    // 实参 end），true→hit fall-through、`mov $0` 尾岛 ⇒ 原码 if(it!=end) return
+    // it->second; return 0;（三目形在 4.4 产反序岛，P222 正向包裹）。
+    if (it != m_missionMap.end())
+        return it->second;
+    return 0;
 }
 
 // ORIG 0x85e2f00：遍历 m_kindMissionList[0x1b]，首个 GetRankRange().gradeMin == idx
@@ -502,7 +507,15 @@ int PvP_MissionSystem::get_WithinMissionIndex(int idx) const
 // ORIG 0x85e26a0：else 分支 operator[](0)（m_kindMissionList[0]，非静态空表）。
 std::list<CMission*>& PvP_MissionSystem::get_kind_mission_list(unsigned int idx)
 {
-    return idx < m_kindMissionList.size() ? m_kindMissionList[idx] : m_kindMissionList[0];
+    // [b28c-L18] ORIG 尾形 `call size; cmp idx,%eax; seta %al; test %al,%al; je`
+    // = 四段物化（P225 while+break 形：值无槽往返 ⇒ 禁具名 bool，P0）。三目直返
+    // 在 4.4 恒折 `jbe` 直跳少 3 条；具名 bool 形恒槽化（-0x9 byte 槽实证）。
+    while (m_kindMissionList.size() > idx)
+    {
+        return m_kindMissionList[idx];
+        break;
+    }
+    return m_kindMissionList[0];
 }
 
 std::bitset<32> PvP_MissionSystem::get_daily_mission_kind() const

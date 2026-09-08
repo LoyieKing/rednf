@@ -58,16 +58,15 @@ void CAccountCargo::Clear()
 
 void CAccountCargo::ResetSlot(int slot)
 {
-    // X1 形（XOR_FAMILY.tsv，probe 实证）：ORIG 为 `xor $1; test %al,%al;
-    // jne end; body: … ; jmp end`（body 后显式 jmp 尾岛）；裸形 4.4 产 je 直跳
-    // body 无尾 jmp（ResetSlot ndiff 回退实证）——保持 X1 register 形。
-    // N 封顶：ORIG 尾部 `call reset; jmp end; nop` 为 4.1 保留尾 jmp 岛（负例表
-    // 「空 else nop;jmp 岛 vs jump-threading」）；4.4 对紧邻出口恒折叠，探针
-    // /tmp/probeD.cpp 显式 goto 也被折叠，语义等价封顶。
-    register unsigned char v asm("eax") = (unsigned char)CheckValidSlot(slot);
-    v ^= 1;
-    if (!v)
-        m_slots[slot].reset();
+    // [b28c-11] AE（i486 旗标下）：P223 尾空标签 goto 形复现 ORIG `jne 尾 nop 岛`
+    // + body 尾 jmp；已清历史 `register unsigned char v asm("eax")` 绑定（N96/P0）。
+    // ORIG 0x082898c0：call CheckValidSlot; xor $1; test %al; jne <尾 nop 岛>;
+    // body(call Inven_Item::reset); jmp end; end-1: nop。P223 尾空标签形复现
+    // （禁 register asm 绑定，P0/N96）。
+    if (!CheckValidSlot(slot))
+        goto L_end;
+    m_slots[slot].reset();
+L_end:;
 }
 
 int CAccountCargo::GetCapacity()
@@ -249,6 +248,8 @@ bool CAccountCargo::MoveItem(int from, int to)
 // ---- 查询 ----
 int CAccountCargo::GetEmptySlot()
 {
+    // [b28c-11] AE（需 TU 级 -march=i486 -mtune=generic）：三目 cmova 残差在该旗标下消失
+    // （P230；未加旗标时 4.4 出 cmova 而 ORIG 4.1 无 CMOV）。
     // ORIG：capacity 寄存器内三目折叠后统一落槽；循环 i<limit 生成
     // setl（i 载入与 limit 槽比）。4.4 三目 cmova 为固有残差（2 条）。
     int limit = (int)(m_capacity > 0x38 ? 0x38 : m_capacity);
@@ -270,6 +271,7 @@ int CAccountCargo::CheckSlotEmpty(int slot)
 
 int CAccountCargo::GetSpecificItemSlot(int itemIdx)
 {
+    // [b28c-11] AE（需 TU 级 -march=i486 -mtune=generic，同 GetEmptySlot）。
     int limit = (int)(m_capacity > 0x38 ? 0x38 : m_capacity);
     for (int i = 0; i < limit; ++i) {
         if (itemIdx == m_slots[i].m_addInfo)
@@ -313,14 +315,16 @@ int CAccountCargo::GetItemCount()
 // ---- 金钱 ----
 int CAccountCargo::CheckMoneyLimit(unsigned int money)
 {
-    void* info = G_CDataManager()->m_accountCargo.GetCurrUpgradeInfo(m_capacity);
+    // [b28c-11] AE（i486 旗标下）：UpgradeInfo 具名视图消裸偏移 add$4 中转 +
+    // (unsigned int) 零扩展消符号扩展段（ORIG `mov $0x0,%edx`）。
+    UpgradeInfo* info =
+        (UpgradeInfo*)G_CDataManager()->m_accountCargo.GetCurrUpgradeInfo(m_capacity);
     if (info == 0)
         return 0;
     // ORIG：64 位槽比较（total 先双清零落槽，比较链 ja/jb/jae）。
-    long long total = 0;
-    total = (long long)(m_money + money);
-    if ((unsigned long long)*(unsigned int*)((char*)info + 4) <
-        (unsigned long long)total)
+    unsigned long long total = 0;
+    total = (unsigned long long)(m_money + money);
+    if ((unsigned long long)(unsigned int)info->m_field4 < total)
         return 0;
     return 1;
 }

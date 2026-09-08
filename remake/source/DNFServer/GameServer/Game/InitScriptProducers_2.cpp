@@ -67,18 +67,23 @@ std::map<int, STEquipmentPartSetData> g_equipmentPartSetMap_;
 // ============================================================================
 // STEquipmentPartSetData —— ORIG C1 0x0891b002 / D1 0x08907348
 // ============================================================================
+// b28c-L20: AE — ORIG C1 0x0891b002 orig=32 our=32 gap=0 ndiff=0。顺序 = 成员构造（+0x04 string、+0x0c vector）
+// 先于标量赋值（+0x00=-1、+0x08=0）⇒ 标量必须写在函数体，不能进初始化列表
+// （进列表会被 4.4 交错到成员构造之间，ndiff 19）。
 STEquipmentPartSetData::STEquipmentPartSetData()
-    : m_field0(-1), m_name4(), m_script(0), m_pieces()
+    : m_name4(), m_pieces()
 {
+    m_field0 = -1;
+    m_script = 0;
 }
 
+// b28c-L20: AE — ORIG D1 0x08907348 orig=52 our=52 gap=0 ndiff=0：`m_script = 0` 在 if 之外无条件执行（P141：
+// 保留无条件 delete，编译器自带判空守卫，ORIG 双 test/je 形）。
 STEquipmentPartSetData::~STEquipmentPartSetData()
 {
     if (m_script != 0)
-    {
         delete m_script;
-        m_script = 0;
-    }
+    m_script = 0;
 }
 
 // ============================================================================
@@ -143,7 +148,7 @@ int LoadRewardDataByGrowType(stLevelUpRewardItemScript& out, std::string endTag)
 
         while (true)
         {
-            key.m_lv = (unsigned short)ScanInt(&ok);     // +0x00
+            key.m_lv = (short)ScanInt(&ok);              // +0x00（b28c-L20: signed short）
             if (!ok)
                 break;                                   // 回到外层标签扫描
 

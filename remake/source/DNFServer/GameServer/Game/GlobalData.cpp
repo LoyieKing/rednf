@@ -2162,7 +2162,9 @@ void MonitorTcpThread::dispatch(void* arg)
             int s = mon->GetTcpHandler()->get_socket();
             if (s != -1 && FD_ISSET(s, &readfds))
             {
-                if (mon->OnTcpRecv() != 1)
+                // b28c-l23 SIGFIX 消费点：OnTcpRecv 已 bool 化（lane28/lane12），
+                // bool callee ⇒ 裸形（P168a①：ORIG `call; xor$1; testb; je`）。
+                if (!mon->OnTcpRecv())
                 {
                     LogManager::logFormat(
                         1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x449,
@@ -2203,7 +2205,8 @@ void MonitorTcpThread::dispatch(void* arg)
             s = guild->GetTcpHandler()->get_socket();
             if (s != -1 && FD_ISSET(s, &readfds))
             {
-                if (guild->OnTcpRecv() != 1)
+                // b28c-l23 SIGFIX 消费点：bool callee ⇒ 裸形（P168a①）
+                if (!guild->OnTcpRecv())
                 {
                     LogManager::logFormat(
                         1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x46f,
@@ -3921,14 +3924,19 @@ void ItemVendingMachine::_GetItemString(const CCeraShopGoods* goods, char* buf,
 
 // ============================================================================
 // ProcessBuyRequestEx —— ORIG 0x081769f6 (T)
+// SIGFIX:ItemVendingMachine::ProcessBuyRequestEx（头已 bool 化：ORIG
+//   __PRETTY_FUNCTION__ 串 "bool ItemVendingMachine::ProcessBuyRequestEx
+//   (CUser*, const MSG_BUY_CERASHOP_ITEM&)"，P174）⇒ 定义同步 bool。
 // ============================================================================
-int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
+// b28c-l23 SIGFIX：返回类型 int→bool（ORIG __PRETTY_FUNCTION__ 串 @0x08b87080，
+// P174；体内 return 仅 0/1 语义）。mangled 不含返回类型，符号与 ABI 零变。
+bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 {
     if (user == 0)
     {
         cMyTrace tr(kPrettyProcessBuy, 0x290, 0);
         tr("There is no User in ItemVendingMachine");
-        return 0;
+        return false;
     }
 
     // ORIG 0x08176a4e..0x08176abd 初始化序（Ghidra C 与反汇编双向核对）：
@@ -4087,7 +4095,7 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
     {
         m_ceraShop.ProcessError(user, 1, -1, msg.m_entrySection.m_arr[0].m_productNo, 1, 1,
                                 (char)msg.m_scalars.m_buyFlag);
-        return 1;
+        return true;
     }
 
     // ---- 总价资金校验 ----
@@ -4116,10 +4124,10 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
         m_ceraShop.ProcessError(user, (unsigned short)errCode, -1,
                                 msg.m_entrySection.m_arr[0].m_productNo, 1, 1,
                                 (char)msg.m_scalars.m_buyFlag);
-        return 1;
+        return true;
     }
 
-    // ---- 第二遍：逐条资金校验、扣减与 IPG 派发 ----
+    // ---- 总价资金校验 ----
     // ORIG 余额槽宽度实证（64 位比较序列 + max 模板实参 mangled）：
     //   0x0817765a call getCurCharacMoney → 0x08177661 `sar $0x1f,%edx`（**符号**
     //     扩展）→ mov %eax,-0x50 / mov %edx,-0x4c ⇒ curGold 是 signed long long。
@@ -4361,7 +4369,7 @@ int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_
         }
     }
 
-    return 1;
+    return true;
 }
 Secu_DataControl::Secu_DataControl() {}  // ORIG 0x82aa6ba：空体（纯 ret，无成员初始化）
 
@@ -4498,9 +4506,12 @@ CDBConnector::CDBConnector(DBMgr* dbMgr)
 CDBConnector::~CDBConnector() {}  // TODO(后续批次)
 bool CDBConnector::Init(STDBConnInfo& info)
 {
-    // ORIG 0x080ec620：拷贝 0x5a dword（0x168 字节）到 this+4；OpenMaster()。
-    memcpy(&m_connInfo, &info, sizeof(STDBConnInfo));
-    return !OpenMaster();   // ORIG xor $0x1 取反（OpenMaster 本身亦取反 → 双重取反）
+    // ORIG 0x080ec620：rep movsl 0x5a dword（结构整体赋值，P83）→ this+4；OpenMaster()。
+    // [b28c-lane17] 返回形态 `xor $1; test; je` = if(!OpenMaster()) return false; return true;
+    m_connInfo = info;
+    if (!OpenMaster())
+        return false;
+    return true;
 }
 bool CDBConnector::OpenMaster()
 {
@@ -4525,15 +4536,20 @@ void CDBConnector::Close()
 bool CDBConnector::Open(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
                         STDBConnInfo& info)
 {
-    // ORIG 0x080ec6da：info 首字节为 0（host 空）→ 直接成功；否则按 ORIG 字段
-    // 映射调 DBMgr::Open（host=+0x2d, port=+0x14, db=+0x18, user=+0x42,
-    // passwd=+0x00——按反汇编忠实传递）。
+    // ORIG 0x080ec6da：info 首字节为 0（m_host 空）→ 直接成功；否则调 DBMgr::Open。
+    // [b28c-lane17] 实参地址序按 ORIG 压栈槽逐条对齐：p2=+0x00(m_host)、
+    // p3=*(+0x14)(m_port)、p4=+0x42(m_db)、p5=+0x18(m_user)、p6=+0x2d(m_pass)
+    // （原实现把 m_pass 传成 p2、m_host 传成 p6 —— 真语义 bug，此处修正）。
     if (info.m_host[0] == 0)
     {
         return true;
     }
-    return GlobalData::s_db_mgr->Open(idx, info.m_pass, (unsigned int)info.m_port,
-                                      info.m_user, info.m_db, info.m_host, group);
+    if (!GlobalData::s_db_mgr->Open(idx, info.m_host, (unsigned int)info.m_port,
+                                    info.m_db, info.m_user, info.m_pass, group))
+    {
+        return false;
+    }
+    return true;
 }
 // ---- CDBConnector::QueryConnInfo ORIG @ 0x080eca6c（U3ShopDb 批次） ----
 // 用主 DB 句柄(0,0) 查 db_connect 表，逐列填 STDBConnInfo 后放入 outMap[idx]。
@@ -4593,21 +4609,24 @@ CGM_Manager::~CGM_Manager()
     // ORIG 0x08299159 附近：rwLock 析构 + map 自动析构。
 
 }
-char CGM_Manager::LoadGmListFromDb()
+// b28c-l23 SIGFIX：返回类型 char→bool（ORIG __PRETTY_FUNCTION__ 串 + 体尾
+// `movzbl -0x11(%ebp),%ebx` 直返 bool 局部；char 声明使 4.4 出 movsbl）。
+bool CGM_Manager::LoadGmListFromDb()
 {
     // [b23S3C] ORIG 0x08299530：ok 即返回变量（exec/get_int 逐次覆写），
     // mId/level/rows 函数级预清（P197③ 帧头 movl $0×N），writeGuard 保护填充。
-    char ok = 0;
+    // ORIG 帧头 `movb $0x0,-0x11(%ebp)` ⇒ bool 预清两句式（P198①）。
+    bool ok = false;
     int rows = 0;
     unsigned int mId = 0;
     int level = 0;
     m_db->set_query("seLect m_id, level from gm_manifest");
     ok = m_db->exec(true);
-    if (ok != 1)
+    if (!ok)
     {
         cMyTrace t(__PRETTY_FUNCTION__, 0x1579, 0);
         t("Failed to get GM list from DB.");
-        return 0;
+        return false;
     }
     writeGuard<rwLock> guard(&m_lock);
     rows = m_db->get_n_rows();
@@ -4615,19 +4634,19 @@ char CGM_Manager::LoadGmListFromDb()
     {
         m_db->fetch();
         ok = m_db->get_int(0, mId);
-        if (ok != 1)
+        if (!ok)
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x1588, 0);
             t("Failed to get GM's m_id from DB.");
-            ok = 0;
+            ok = false;
             break;
         }
         ok = m_db->get_int(1, level);
-        if (ok != 1)
+        if (!ok)
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x158e, 0);
             t("Failed to get GM's lv from DB.");
-            ok = 0;
+            ok = false;
             break;
         }
         m_gmMap[mId].m_level = level;
@@ -4755,14 +4774,16 @@ expert_job::CExpertJobFactory::~CExpertJobFactory()
 {
     // ORIG 0x0849f6d2：两个 StaticPool 成员析构。
 }
+// b28c-1 N77: 4.1 new T() value-init 前置 rep stos 0x18 dword，4.4 不 emit（去具名 p 后 15→13）。
 expert_job::CExpertJobMgr::CExpertJobMgr()
 {
     // ORIG 0x0849e102：首条 `movl $0x0,(%eax)` 预清槽 + new(nothrow) T()
     //（4.1 value-init 前置 rep stos 清零，4.4 按 CWG434 不 emit = N77/P90
     //  跨版本记录）+ 结果统一写回 + 成员回读判 0 后 printf。
     m_factory = 0;
-    CExpertJobFactory* p = new (std::nothrow) CExpertJobFactory();
-    m_factory = p;
+    // b28c-1：ORIG 0x0849e102 尾 `mov %ebx,%eax; mov 0x8(%ebp),%edx;
+    //  mov %eax,(%edx)` 直存 ⇒ 无具名中间指针（去 -0x1c 中转）。
+    m_factory = new (std::nothrow) CExpertJobFactory();
     if (m_factory == 0)
     {
         printf("memory error func(%s) line(%d)",
@@ -5586,13 +5607,16 @@ random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
     unsigned long t = (unsigned long)time(0);
     for (int i = 0; i < 13; ++i)
     {
-        // ORIG 0x085f0dbc：`mov -0x20(%ebp),%eax`（seed 实参 t）在循环体最前
-        // 装载、跨 `imul`/`lea` 地址计算保活 ⇒ register asm("eax") 钉住早装载
-        // 并把基址挤到 %ecx（技巧 28）。
-        // [b28 判词 N18a/N96] ORIG 早装载跨 imul/lea 保活 %eax 需绑定；
-        // 禁用后无源形，N 封顶。
-        unsigned long tv = t;  // b28 P0 清绑定
-        m_rand[i].seed(tv);
+        // [b28c-lane17] P0 清绑复测：ORIG 0x085f0d64 有 t 的**槽往返**
+        // （`call time; mov %eax,-0x20` → 循环内 `mov -0x20(%ebp),%eax`），
+        // 故具名局部 t 正确；但旧版在循环内另设 `unsigned long tv = t;`
+        // 是**无槽依据的额外局部**（ORIG 无第二个 seed 槽）⇒ 反产 +2 条
+        // store/load。直传 t 后指令数回到 ORIG 的 69。
+        // 残余 = seed 实参与地址计算的**装载时刻序**：ORIG 4.1 在地址
+        // imul/lea 之前把 t 载入 %eax（`mov -0x20,%eax` 先行），4.4 恒按
+        // 「this→下标→实参」序装载 ⇒ P75/N86（实参装载时刻跨版本调度），
+        // 语义等价（seed 实参同一槽值），保持可读源形。
+        m_rand[i].seed(t);
     }
     m_field08 = 0;
     m_disabled = 0;
@@ -5634,8 +5658,13 @@ void* CreateAntiServerObj(const char* path)
     // buf 基址实证：ORIG 0x082a654f `lea -0x118(%ebp),%ebx` 且帧 `add $0x120,%esp`
     // ⇒ buf 尺寸 0x104（实测：0x100 落 -0x114、0x104 才落 -0x118；0x118 落 -0x12c）。
     // 尾部 4 字节是 4.1 给 handle/err 之外多留的一槽，无读写语义。
-    char buf[0x104];
-    memset(buf, 0, 0x41);   // ORIG 0x082a654f：仅清前 0x41 字节
+    // [b28c-l23 真语义 bug 修正] 原写法 `memset(buf, 0, 0x41)` 只清 0x41 **字节**，
+    // 但 ORIG 0x082a654f 是 `mov $0x0,%eax; mov $0x41,%edx; mov %ebx,%edi;
+    // mov %edx,%ecx; rep stos %eax,%es:(%edi)` —— rep stos 的立即数是 **dword 计数**
+    // （P116），0x41×4 = 0x104 = 整个 buf ⇒ 原码清空的是全缓冲，strncat 依赖
+    // buf[0]=='\0' 才不从脏数据起接。改为显式零初始化（P214③：大数组 `={0}`
+    // 是 4.1 rep stos 的 4.4 复现突破口），语义与形态同源修正。
+    char buf[0x104] = {0};
     strncat(buf, path, strlen(path));
     strncat(buf, "libantisvrimport.so", 0x14);
     void* handle = dlopen(buf, RTLD_NOW);

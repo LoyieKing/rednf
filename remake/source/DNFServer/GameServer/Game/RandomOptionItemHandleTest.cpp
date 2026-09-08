@@ -44,6 +44,9 @@ void CRandomOptionItemHandleTest::test_reset() {}      // ORIG 纯 ret
 long long CRandomOptionItemHandleTest::_get_auction_id()
 {
     // ORIG 布局：or/test/je(DB) —— 非空缓存直落返回，DB 链后置（if-else 排布）。
+    // [b28c-lane17] 判词：本形已复现 ORIG 的 or/test 折叠；唯一残余是
+    // ORIG 0x085f3ccd 用**单次 this 装载**读两字段（`mov +4→%edx; mov +0→%eax`），
+    // 4.4 恒先 `mov +4→%eax` 再回读 this（+2 条）——N18a 单段 regmove 不可造。
     if ((reinterpret_cast<unsigned int>(m_slot4)
          | reinterpret_cast<unsigned int>(m_slot0)) != 0)
     {

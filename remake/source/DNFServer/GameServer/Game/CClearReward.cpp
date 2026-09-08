@@ -448,14 +448,18 @@ unsigned int CLuckPoint::_GetMaxLuckPointUserIndex()
 }
 
 // ORIG T 0x08550b14：最大幸运点用户执行扣点，成功记 m_points[seq]=序号。
+// [b28c-lane17] idx 由 unsigned int 改 int：①ORIG 0x08550b41 首判是 `cmpl $0x0,-0x10`
+// 有符号内存直比（cast 形在 4.4 反产 mov+test）；②0x08550b70 的 `m_users[idx]`
+// 点为「值先」装载序（P218：int 下标→size_t 实参转换中转即复现），
+// 尾段 m_points[seq]=idx 的 int 直存不变。
 bool CLuckPoint::UseLuckPoint(int itemType, int rarity, int grade, int seq)
 {
     if (m_users.empty())
     {
         return false;                                   // [0x8550925 guard]
     }
-    unsigned int idx = _GetMaxLuckPointUserIndex();
-    if ((int)idx < 0 || m_users.size() <= idx)          // [js / ja 两段]
+    int idx = (int)_GetMaxLuckPointUserIndex();
+    if (idx < 0 || m_users.size() <= (unsigned int)idx) // [js / ja 两段]
     {
         return false;
     }
@@ -468,7 +472,7 @@ bool CLuckPoint::UseLuckPoint(int itemType, int rarity, int grade, int seq)
     {
         return false;
     }
-    m_points[seq] = static_cast<int>(idx);              // [0x8550bc2 operator[](p4)]
+    m_points[seq] = idx;                                // [0x8550bc2 operator[](p4)]
     return true;
 }
 
@@ -507,8 +511,16 @@ int CLuckPoint::GetUserGainItem(int idx)
 
 int CLuckPoint::GetLuckPoint()
 {
-    if (m_users.empty())
-        return 0;
+    // [b28c-lane17] ORIG 0x085509e7：call empty 后**无** `xor $1`，直接
+    // `test %al; jne 成功块` ⇒ 源形是「empty 则跳过」（负极守卫 + 空 then），
+    // 非 `if (empty()) return 0;`（后者 4.4 产 xor+je 反极性）；
+    // 尾部分支失败路径直落 `mov $0`（return 0），故成功分支补显式 return。
+    // [b28c-lane17] ORIG 0x085509e7：`call empty; xor $1; test %al; jne 体`
+    // + 尾 `mov $0` 岛 ⇒ 取反守卫 `if (!empty()) { 体 } return 0;`
+    // （fresh 实测：本形 54=54 AE；裸 `if(empty()) return 0` 与
+    //  `if (empty()) {体}` 包裹两候选均缺 xor 段且 54/53 DIFF）。
+    if (!m_users.empty())
+    {
     int sum = 0;
     for (size_t i = 0; i < m_users.size(); ++i)
     {
@@ -517,6 +529,8 @@ int CLuckPoint::GetLuckPoint()
     }
     // ORIG 0x085509da：divl（无符号除法，int/size_t 提升）；强制 int 会生成 idivl。
     return sum / m_users.size();
+    }
+    return 0;   // 空集共用尾块（ORIG +0x9f mov $0,%eax）
 }
 
 int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)

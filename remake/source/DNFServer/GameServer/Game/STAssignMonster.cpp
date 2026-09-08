@@ -31,30 +31,31 @@ STAssignMonster::~STAssignMonster()
 // ORIG 0x83777f2：标量逐字段赋值 + 三个 vector operator=。
 STAssignMonster& STAssignMonster::operator=(const STAssignMonster& other)
 {
-    if (this != &other)
-    {
-        m_0 = other.m_0;
-        m_4 = other.m_4;
-        m_8 = other.m_8;
-        m_c = other.m_c;
-        m_10 = other.m_10;
-        m_14 = other.m_14;
-        m_18 = other.m_18;
-        m_1c = other.m_1c;
-        m_20 = other.m_20;
-        m_24 = other.m_24;
-        m_vec28 = other.m_vec28;
-        m_34 = other.m_34;
-        m_38[0] = other.m_38[0];
-        m_38[1] = other.m_38[1];
-        m_vec40 = other.m_vec40;
-        m_4c = other.m_4c;
-        m_50 = other.m_50;
-        m_54 = other.m_54;
-        m_55 = other.m_55;
-        m_58 = other.m_58;
-        m_vec5c = other.m_vec5c;
-    }
+    // ORIG 0x083777f2 无自赋值守卫，直接逐字段赋值。
+    m_0 = other.m_0;
+    m_4 = other.m_4;
+    m_8 = other.m_8;
+    m_c = other.m_c;
+    m_10 = other.m_10;
+    m_14 = other.m_14;
+    // N76/P29 封顶：ORIG 0x08377834 对 0x18/0x1c 对发一次 this 缓存(%ecx)+
+    // 值先载（+0x1c 先于 +0x18）；long long 视图赋值实测 99→101 反劣，
+    // 逐字段是 4.4 最优形（残差 4 条）。
+    m_18 = other.m_18;
+    m_1c = other.m_1c;
+    m_20 = other.m_20;
+    m_24 = other.m_24;
+    m_vec28 = other.m_vec28;
+    m_34 = other.m_34;
+    m_38[0] = other.m_38[0];
+    m_38[1] = other.m_38[1];
+    m_vec40 = other.m_vec40;
+    m_4c = other.m_4c;
+    m_50 = other.m_50;
+    m_54 = other.m_54;
+    m_55 = other.m_55;
+    m_58 = other.m_58;
+    m_vec5c = other.m_vec5c;
     return *this;
 }
 

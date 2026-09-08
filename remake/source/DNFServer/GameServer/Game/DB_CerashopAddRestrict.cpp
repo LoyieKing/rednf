@@ -64,6 +64,10 @@ void DB_LoadCerashopAddRestrictType::makeRequest(CUser* user)
 void DB_SaveCerashopAddRestrictType::makeRequest(
     CUser* user, CerashopAddRestrict::DBInputData& data)
 {
+    // [b28c-33 判词 NEAR-N18a] 两处 `operator<<(reinterpret_cast<paramDaily*>(
+    // data.m_result)->m_count/m_nextDate)`：ORIG 为 `mov 0x4(%eax),%ebx` 单段直落
+    // callee-saved；4.4 恒 `mov 0x4(%eax),%eax; mov %eax,%ebx`（+1×2）。其余全等
+    // （213 vs 215，实质差异仅此两处，余为重定位/注释）。
     switch (data.m_pInfo->m_type)
     {
     case 0:

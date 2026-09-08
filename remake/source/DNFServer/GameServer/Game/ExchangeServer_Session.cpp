@@ -115,7 +115,7 @@ int CSession::GetTriggerSessionEventType()            // ORIG 0x8490066
 // ---------------------------------------------------------------------------
 // Parsing — ORIG 0x8490074 size 0x29a
 // ---------------------------------------------------------------------------
-int CSession::Parsing(int recvLen)
+bool CSession::Parsing(int recvLen)
 {
     int parsingLength;                      // -0x24(%ebp)
     unsigned int packetSize;                // -0x14(%ebp)
@@ -325,7 +325,7 @@ CSession* CSession::OnAccept()
 bool CSession::OnConnect()
 {
     // vtable+0x10（slot5）GetServerType()；sete 比较返回值==1(EXCHANGE_SERVER_SLAVE)。
-    // [N7] ES() 虚调用槽寄存器 %eax↔%edx 互换（4.4 恒形），源码不可翻（ndiff 12）。
+    // [b28c-6][N7] ES() 虚调用槽寄存器 %eax↔%edx 互换（4.4 恒形），源码不可翻（ndiff 8）。
     if ((int)ES()->GetServerType() == 1)
     {
         PacketGuard guard;
@@ -376,7 +376,7 @@ bool CSession::Send(PacketGuard& guard)
 CSession* CSession::Listen(int port, const char* ip)
 {
     int sock;                                 // -0x20(%ebp)
-    // [N7] AllocSession 虚调用槽寄存器 %eax↔%edx 互换（4.4 恒形），源码不可翻（ndiff 14）。
+    // [b28c-6][N7] AllocSession 虚调用槽寄存器 %eax↔%edx 互换（4.4 恒形），源码不可翻（ndiff 8）。
     // ORIG：静态调用 CreateListenSocket(&sock, port, ip)（无对象/无 this）；
     // 直接 !返回值 判断（ORIG xor $0x1,%eax; test %al,%al 形态）。
     if (!CNetwork<95000, 450000>::CreateListenSocket(sock, port, ip))
@@ -402,7 +402,7 @@ CSession* CSession::Listen(int port, const char* ip)
 CSession* CSession::Connect(const char* ip, int port)
 {
     int sock;                                 // -0x24(%ebp)
-    // [N7] AllocSession 虚调用槽寄存器 %eax↔%edx 互换（4.4 恒形），源码不可翻（ndiff 14）。
+    // [b28c-6][N7] AllocSession 虚调用槽寄存器 %eax↔%edx 互换（4.4 恒形），源码不可翻（ndiff 8）。
     // CreateConnectionSocket 为静态成员（ORIG 同）；返回非 0=失败码。
     const int ok = CNetwork<95000, 450000>::CreateConnectionSocket(sock, ip, port);
 
@@ -433,6 +433,9 @@ CSession* CSession::Connect(const char* ip, int port)
 // ---------------------------------------------------------------------------
 bool CSession::Disconnect()
 {
+    // [b28c-6] N7：ES() 虚调用槽寄存器 %ecx↔%eax 互换 + this 中转寄存器互换
+    // （ORIG `mov (%eax),%ecx; mov <A>,%eax; mov this,%edx; mov %edx,0x4(%esp);
+    // mov %eax,(%esp); call *%ecx`），4.4 恒目标 %eax，源码不可翻（ndiff 12）。
     cMyTrace(__PRETTY_FUNCTION__, 0x25e, 0)("Disconnect Exchange Server");
 
     if (CSession::exchange_server_ != 0)

@@ -87,7 +87,7 @@ public:
 
     bool InsertSkillKey(int skillIndex);             // T 0x08484a86
     bool UpdateSkill(SIG_DUNGEON_DATA_STATISTIC* stat);  // T 0x08484bac
-    int InsertDB(const DungeonKey& key, int job);    // T 0x08485e00
+    bool InsertDB(const DungeonKey& key, int job);   // T 0x08485e00（SIGFIX: bool，ORIG 串）
 
     std::map<int, Skill> m_skillMap;                 // +0x00（0x18）
 };
@@ -105,7 +105,7 @@ public:
     }
     ~CDungeonSuccessNode() {}                                     // W 0x08486aa0
 
-    int InsertDB(const DungeonKey& key, bool flag);               // T 0x08485f8a
+    bool InsertDB(const DungeonKey& key, bool flag);              // T 0x08485f8a（SIGFIX: bool）
     int UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat);        // T 0x084851de
 
     std::map<int, Party> m_partyMap;                              // +0x00（0x18）
@@ -128,7 +128,7 @@ public:
     // 显式赋值会生成 C1Ev+aSERKS_，偏离 ORIG —— 保持隐式。
     ~CDungeonNode() {}                            // W 0x08486d3c
 
-    int InsertDB(const DungeonKey& key);          // T 0x08485ba4
+    bool InsertDB(const DungeonKey& key);         // T 0x08485ba4（SIGFIX: bool，ORIG 串）
     bool InsertMonsterKey(int monsterIndex);      // T 0x084852de
     bool InsertSkillKey(int skillIndex, int job, int type, int flag);  // T 0x08485404
     bool UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat);   // T 0x08485564

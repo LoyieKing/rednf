@@ -33,6 +33,12 @@ char* encryptAES_(CRijndael* method, char* src, char* dst);
 
 // ---------------------------------------------------------------------------
 // ORIG 0x081468aa（报告 Global__CBossTowerFunc/DieMob.md）：
+// b28c-L8 判词 [N(N7)]：fresh 复验 35=35、p167 调用点差集 0/0、sub $0x44 +
+// push/pop %ebx 全等。唯一残差 = ORIG 0x081468db `mov (%eax),%ebx`（虚槽 +0x24
+// handleKillMonster 目标留 callee-saved %ebx）、实参装载走 %edx/%eax/%ecx；4.4 对间接
+// call 目标恒留 %eax 且装载序整体前移一格（%ecx/%edx/%ebx）。P226 语句表达式升格只对
+// 「call 结果值」有效、对 call 目标寄存器无效；-march=i486 对 N7 亦无效（Main 口径）
+// ⇒ N7 封顶（与 lane12 Secu_MonsterCheck 族同判）。
 // getBossTower() 非空 → 虚槽 +0x24（handleKillMonster）(user,mobSeq,param,msg,0)；
 // 恒返回 1。
 int Global::CBossTowerFunc::DieMob(CUser* user, unsigned short mobSeq,
@@ -277,6 +283,17 @@ void Secu_MonsterCheck::init225(const MSG_MONSTER_DIE* msg)
 
 // ORIG T 0x0827ad98 sz 0x1e0（Check223.md）：击杀数快照一致 → 1；
 // 坐标/击杀差值阈值判定 → 计数超限上报 0xdf 并清状态返 0，否则重置快照返 1。
+// [b28c-lane12 判词·DIFF(N)，Main 分派件] 接手后三处修正 + 残差定性：
+//  ① P196 符号性鉴别：ORIG @0x0827ae60/0x0827aec6 的 `cmp $0xa,%ax; jbe` /
+//     `cmp $0x4,%ax; jbe` 为 **16 位无符号**域，4.4 把 ushort 提升 int 后有符号
+//     ⇒ 比较改写 unsigned 域后 jbe 族回归。值域 0..N 不越 0x7fff ⇒ 非真语义 bug。
+//  ② P222/P47 块序翻正：ORIG @0x0827ae09 `jg +0xa1`（dx>0 跳远处 setne 块）⇒
+//     外层改否定比较 `if (dx <= 0)`，内层 `-dx>0xc7`/`dy<=0` 同为 jg 跳走。
+//  ③ 三出口嵌套三目汇合（无具名 bool）：令 4.4 三出口 setle/setne 留 %al 并统一
+//     test/je，消除具名 `bool moveOk` 的 -0x9 槽物化与 4 字节帧漂（P226 应用例）。
+//  残差 2 行（136=136）：`if (m_field0e > 4) m_field10 = 1;` 的 ORIG `jbe 尾`
+//  vs 4.4 镜像 `ja body`；三形互试（>4 body / `<=4 goto 尾空标签` / BM8 外层
+//  标签）4.4 恒折 ja ⇒ P222 镜像边界 + P223 空块岛被 jump-thread 吞，封顶。
 char Secu_MonsterCheck::Check223()
 {
     if (m_field08 == m_curKillCount)
@@ -291,25 +308,27 @@ char Secu_MonsterCheck::Check223()
                  static_cast<int>(static_cast<unsigned short>(m_curX));
         int dy = static_cast<int>(static_cast<unsigned short>(m_field0c)) -
                  static_cast<int>(static_cast<unsigned short>(m_curY));
-        bool moveOk;
-        if (dx > 0)
-        {
-            moveOk = (dx != 0);
-        }
-        else if (-dx <= 0xc7 && dy > 0)
-        {
-            moveOk = (dy != 0);
-        }
-        else
-        {
-            moveOk = (-dy <= 0x95);
-        }
-        if (moveOk)
+        // P222/P47 块序翻正 + 三目汇合：ORIG @0x0827ae09..0x0827ae40 三出口
+        // 各自 `setle/setne %al` 到**寄存器**再统一 `test %al,%al; je`
+        // （dx>0 → 远处 setne 块，内层 `-dx>0xc7`/`dy<=0` 同为 jg 跳走）。
+        // 具名 bool moveOk 会被 4.4 落槽（-0x9 槽 + cmpb/ja + 帧漂 4），
+        // 故把三出口写成嵌套三目直接作 if 条件，令值留 %al。
+        if (dx <= 0 ? (-dx > 0xc7 || dy <= 0 ? (-dy <= 0x95) : (dy != 0))
+                    : (dx != 0))
         {
             m_field0e += 1;
-            if (m_field0e <= 0xa)
+            // P196 符号性鉴别：ORIG @0x0827ae60/0x0827aec6 为 `cmp $0xa,%ax;
+            // jbe` / `cmp $0x4,%ax; jbe`（**16 位无符号**域），4.4 把 ushort
+            // 提升 int 后恒产有符号 `jle`。值域 0..N 不越 0x7fff ⇒ 非真语义
+            // bug，但为对齐 ORIG 需把比较留在 unsigned 域。
+            if ((unsigned int)m_field0e <= 0xa)
             {
-                if (m_field0e > 4)
+                // [b28c-lane12 判词·N] ORIG @0x0827aec6 `cmp $0x4,%ax; jbe 尾;
+                // movw $0x1,0x10`（<=4 跳走 + then fall-through）；4.4 对
+                // `if (>4) body` 恒产镜像 `ja body`。三形互试（>4 body /
+                // `<=4 goto 尾空标签` / BM8 外层标签）4.4 恒折 ja ⇒ P222 镜像
+                // 边界 + P223 空块岛被 jump-thread 吞，封顶。
+                if ((unsigned int)m_field0e > 4)
                     m_field10 = 1;
             }
             else

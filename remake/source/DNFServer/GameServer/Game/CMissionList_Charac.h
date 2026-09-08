@@ -111,7 +111,13 @@ public:
         struct
         {
             char m_pad14f0;              // +0x14f（ORIG 未访问）
-            int  m_characNo;             // +0x150
+            // b28c-L5：int→unsigned。getData @0x085e4aee 该槽导出为
+            //   `mov 0x150(%eax),%edx; mov %edx,(%eax)` **单段直落**（源/目标同型），
+            //   而接收侧 SIG_REQUEST_PVP_MISSION_LIST::m_characNo 已按 _saveData
+            //   的 RHS 先+中转形定为 unsigned int ⇒ 两侧同型才能同时满足
+            //   「getData 直落」与「_saveData（int get_charac_no 返回值 → 中转）」
+            //   两条 ORIG 证据（P211 双向开关联立）。
+            unsigned int m_characNo;     // +0x150
         } m_tail14f;
     };
     CUser* m_user;                       // +0x154

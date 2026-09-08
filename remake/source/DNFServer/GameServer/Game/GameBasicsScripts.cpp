@@ -100,9 +100,12 @@ bool PvPSkillTreeParameterScript::getGiveSkill(
     std::vector<std::pair<int, int> >& out) const
 {
     // ORIG 0x08a5e178：m_map30[(job,firstGrow)] 命中时 out = value.m_giveSkills(+0x34)，返回 true
-    (void)secondGrow;
+    // ORIG 0x8a5e178 首条 `movl $0x0,0x14(%ebp)` + 回读 `movzbl` ⇒ 形参槽清零后
+    // 参与 key 构造（非常量内联）。
+    secondGrow = 0;
     PvPSkillTreeKey key(static_cast<unsigned char>(job),
-                        static_cast<unsigned char>(firstGrow), 0);
+                        static_cast<unsigned char>(firstGrow),
+                        static_cast<unsigned char>(secondGrow));
     std::map<PvPSkillTreeKey,
              FAIR_PVP_SKILL_TREE_SKILL_PER_POINT>::const_iterator it =
         m_map30.find(key);
@@ -135,19 +138,20 @@ bool PvPSkillTreeParameterScript::getPvPSkillTree(
     std::map<PvPSkillTreeKey,
              std::map<int, PvPSkillTreeValue> >::const_iterator treeIt =
         m_map0.find(key);
-    if (treeIt == m_map0.end())
-        return false;
-
-    std::map<int, PvPSkillTreeValue>::const_iterator gradeIt =
-        treeIt->second.find(grade);
-    if (gradeIt == treeIt->second.end())
-        return false;
-
-    if (flag)
-        *out = const_cast<std::vector<std::pair<int, int> >*>(
-            &gradeIt->second.m_vec0c);
-    else
-        *out = const_cast<std::vector<std::pair<int, int> >*>(
-            &gradeIt->second.m_vec00);
-    return true;
+    if (treeIt != m_map0.end())
+    {
+        std::map<int, PvPSkillTreeValue>::const_iterator gradeIt =
+            treeIt->second.find(grade);
+        if (gradeIt != treeIt->second.end())
+        {
+            if (flag)
+                *out = const_cast<std::vector<std::pair<int, int> >*>(
+                    &gradeIt->second.m_vec0c);
+            else
+                *out = const_cast<std::vector<std::pair<int, int> >*>(
+                    &gradeIt->second.m_vec00);
+            return true;
+        }
+    }
+    return false;
 }

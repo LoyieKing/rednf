@@ -26,6 +26,9 @@ void SlangFilter::LexerError(const char* msg)
 
 bool SlangFilter::is_clean(const char* param_1)
 {
+    // [b28c-lane25 判词·N18a+N7] ORIG 0x08094ef2：`mov %ebx,%eax; mov %eax,-0x24(%ebp)`
+    // 两段（4.4 恒折单步，N18a 反向不可造）；虚调用 `mov (%eax),%ecx; call *%ecx`
+    // vs 4.4 恒 %eax（N7 间接 call 目标寄存器）。语义等价，封顶。
     int iVar3;
     size_t sVar2;
     std::istrstream* this_00;

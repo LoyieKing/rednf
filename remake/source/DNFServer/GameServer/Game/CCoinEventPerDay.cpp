@@ -41,6 +41,8 @@ void CCoinEventPerDay::StartEvent()
 // ("Coin Event Per Day Start! coin(%d) coin(%d) coin(%d) coin(%d) ")。
 void CCoinEventPerDay::StartEvent(Word_Param param)
 {
+    // [b28c-27] N7/N82附：虚调用目标寄存器（%edx vs %eax）+ Word_Param 取址
+    // `lea 0xc(%ebp),%edx` vs 4.4 `lea ...,%eax; mov (%eax),%edx` 装载序差。
     SetEventFlag(true);
     m_coinPack = *(const unsigned int*)&param;
     cMyTrace(__FUNCTION__, 0x41, 0)(

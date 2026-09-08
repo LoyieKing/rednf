@@ -87,11 +87,18 @@ struct ClickMarkInfo
 // 拷贝 ctor 0x083d7fa4 逐偏移实证：+0/+4/+8 int、+0xc vector<int>、
 // +0x18 byte、+0x1c int、+0x20 byte、+0x24 string、+0x28 vector<int>；
 // 默认对齐恰好匹配，sizeof 0x34）。
+// b28c-L20: AE — C1ERKS 0x083d7fa4 / aSERKS 0x08a02b96 对 +4/+8 发成对搬移
+// （mov dst→ecx; mov src→eax; 读 +8→edx; 读 +4→eax; 写 +4; 写 +8）；三个独立 int
+// 在 4.4 恒逐字段（多 2 条 mov，ndiff=10 ×2），m_b/m_c 包为匿名 struct 后隐式拷贝
+// 构造/赋值逐字节复现 ORIG（ndiff 10→0 ×2；探针 /tmp/b28c_l20_probe3.cpp S5/S6）。
 struct InteractiveDialogScript
 {
     int m_a;                       // +0x00
-    int m_b;                       // +0x04
-    int m_c;                       // +0x08
+    struct                         // +0x04 匿名聚合：ORIG C1ERKS 0x083d7fa4/
+    {                              // aSERKS 0x08a02b96 对 +4/+8 成对搬移
+        int m_b;                   // +0x04
+        int m_c;                   // +0x08
+    };
     std::vector<int> m_conditions; // +0x0c
     char m_flag0;                  // +0x18（byte；clear 置 0）
     int m_d;                       // +0x1c
@@ -251,27 +258,42 @@ public:
     unsigned short m_dialogDayGap2;                   // +0x00c（abs 0x17c）
     // +0x00e pad 2
     // ORIG +0x010 为匿名嵌套类型实例（Ghidra 伪名 ._140/._199；ORIG 符号
-    // _ZN25stFavorableRelationShip_t5._140C1/D1 t 0x089fb8b6/0x089fb8fc 与
-    // ._199D1/D2 t 0x0858046c）。GCC 无法声明 `class ._140`；改名 `_140` 自然
-    // mangled `4_140` 缺点号不匹配。ctor/dtor 在 FavorableRelationDeps.cpp
-    // 显式定义 + `.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。
+    // _ZN25stFavorableRelationShip_t5._140C1/C2/D1/D2Ev t 0x089fb8b6/0x089fb8fc
+    // （各 sz 0x45）与 ._199D1/D2Ev t 0x0858046c（sz 0x45）。GCC 无法声明
+    // `class ._140`；b28c-L8 按 **P203 附注（b28 BL9 四探针定案）** 取名 `t_140`
+    // （同长 5 字符、't'(0x74) > '.'(0x2E) ⇒ 自然 mangled `5t_140…` strcmp **大于**
+    // 别名），配合 FavorableRelationDeps.cpp 的 `.globl`+`.type`+`.size`+`.set`
+    // 四件套，使 objdump 同址选名选中带点号别名（纯 local t 会被自然名压掉）。
     // 布局不变：成员经 m_fav. 前缀访问（现有调用方已用 m_fav.m_moodChanges/.m_keyItems）。
-    class _140
+    class t_140
     {
     public:
-        _140();     // ORIG _ZN25stFavorableRelationShip_t5._140C1Ev t 0x089fb8b6（构造两 vector<pair>）
-        ~_140();    // ORIG _ZN25stFavorableRelationShip_t5._140D1Ev t 0x089fb8fc（逆序析构）
+        t_140();    // ORIG _ZN25stFavorableRelationShip_t5._140C1Ev t 0x089fb8b6（构造两 vector<pair>）
+        ~t_140();   // ORIG _ZN25stFavorableRelationShip_t5._140D1Ev t 0x089fb8fc（逆序析构）
         std::vector<std::pair<ENUM_NPC_MOOD, unsigned int> > m_moodChanges;   // +0x010（abs 0x180）
         std::vector<std::pair<unsigned long, unsigned int> > m_keyItems; // +0x01c（abs 0x18c）
     } m_fav;                                              // +0x010（sizeof 0x18）
+
+    // b28c-L8：ORIG 另一 TU 的同形副本仅发射 D1/D2（t 0x0858046c，sz 0x45），
+    // 与 ._140 不同址 ⇒ 单一自然符号无法同时给两个别名（objdump 同址只挂一个名，
+    // 表现为 our_insns=0 伪差）。故另立同布局类 t_199，仅声明析构（不声明实例，
+    // 不影响 sizeof/偏移/构造序）；别名四件套见 FavorableRelationDeps.cpp。
+    class t_199
+    {
+    public:
+        ~t_199();   // ORIG _ZN25stFavorableRelationShip_t5._199D1Ev t 0x0858046c
+        std::vector<std::pair<ENUM_NPC_MOOD, unsigned int> > m_moodChanges;
+        std::vector<std::pair<unsigned long, unsigned int> > m_keyItems;
+    };
     GiftMapArray_t m_preferItems[5];                  // +0x028（abs 0x198）
     GiftMapArray_t m_preferItemGroups[5];             // +0x0a0（abs 0x210）
     GiftMapArray_t m_unpreferItems[5];                // +0x118（abs 0x288）
     GiftMapArray_t m_unpreferItemGroups[5];           // +0x190（abs 0x300）
     stRewardItem_t m_rewardItems;                     // +0x208（abs 0x378）[level][mood] 全表
-    float m_favorRate0;                               // +0x4d8（abs 0x648）
-    float m_favorRate1;                               // +0x4dc（abs 0x64c）
-    float m_favorRate2;                               // +0x4e0（abs 0x650）
+    // b28c-L8：ORIG clear @0x089fb649 为 `lea 0x134(%edx),%ecx; mov %edx,
+    // 0x8(%eax,%ecx,4)`（this+0x4d8+i*4 缩放寻环）⇒ 真实形态是 3 元素 float
+    // 数组，非三个独立标量。总尺寸 0xc 与 +0x4d8/+0x4dc/+0x4e0 偏移不变。
+    float m_favorRate[3];                             // +0x4d8/+0x4dc/+0x4e0
     std::vector<stLevelRewardInfo> m_levelRewards;    // +0x4e4（abs 0x654）
     std::vector<stBuffRewardInfo>  m_buffRewards;     // +0x4f0（abs 0x660）
     // ORIG +0x4fc 为一个 stPeriodRewardInfo 实例（C1 @0x08a00c70 清零标量并

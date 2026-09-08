@@ -118,6 +118,8 @@ int GameResultType::UpdateHighScore(const GameResultType& other)
         m_field48 = other.m_field48;
         flags |= 8;
     }
+    // N18a 反向：ORIG 0x084b75a0 `mov 0x44(%eax),%edx` 单段直落 edx；
+    // 4.4 恒先载 %eax 再 `mov %eax,%edx` 中转（探针不可翻），封顶。
     if ((unsigned)other.m_field44 < (unsigned)m_field44)
     {
         m_field44 = other.m_field44;

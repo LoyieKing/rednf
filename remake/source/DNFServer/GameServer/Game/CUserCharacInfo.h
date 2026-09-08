@@ -538,10 +538,17 @@ public:
     char m_saveCharacStat;         // +0x01
     char m_saveCharacEtc;          // +0x02
     char m_saveCharacManageInfo;   // +0x03
-    char m_saveInven;              // +0x04
-    char m_saveSkill;              // +0x05
-    char m_savePvP;                // +0x06
-    char m_saveQuest;              // +0x07
+    // [b28c-L26 档②·Main 批准] ORIG isSaveInven W @0x0863bdc4 sz 0xc 体为
+    // `mov 0x8(%ebp),%eax; movzbl 0x4(%eax),%eax; pop %ebp; ret` —— **movzbl** 只
+    // 对应 unsigned char/bool，原声明 char（有符号）本身即建模错（应出 movsbl）。
+    // 同族 isSaveSkill/PvP/Quest 为 0x0869627e..0x086962f6 的同一 0xc 形。
+    // bool（而非 uchar）的依据＝全部消费点均为裸测（档② 前提）：CUser.cpp
+    // 6836/6849/6887/6927 `if (isSave*())`、TimerCreature::dispatch_sig 0x08635f32
+    // `call; mov %al,-0x9; …; movzbl -0x9; xor $1; test; je`。偏移/宽度/mangled 不变。
+    bool m_saveInven;              // +0x04
+    bool m_saveSkill;              // +0x05
+    bool m_savePvP;                // +0x06
+    bool m_saveQuest;              // +0x07
     char m_field08;                // +0x08
     char m_saveDungeonClear;       // +0x09
     char m_saveBattleRecord;       // +0x0a
@@ -580,10 +587,10 @@ public:
     char IsSaveCharacStat();
     char isSaveCharacEtc();
     char IsSaveCharacManageInfo();
-    char isSaveInven();
-    char isSaveSkill();
-    char isSavePvP();
-    char isSaveQuest();
+    bool isSaveInven();            // W 0x0863bdc4（档①：返回类型不入 mangled，ABI 同宽）
+    bool isSaveSkill();
+    bool isSavePvP();
+    bool isSaveQuest();
     char isSaveDungeonClear();
     char isSaveBattleRecord();
     char isSaveCargo();
@@ -889,7 +896,10 @@ public:
     float GetWarAreaKillCountTotal();
     int GetFinishPoint();
     int GetFinishPointTotal();
-    int UseFinishPoint(int point);
+    unsigned int UseFinishPoint(int point);   // [b28c-L26 SIGFIX·档①·lane35 spec]
+                                             // ORIG __PRETTY_FUNCTION__ 串
+                                             // "unsigned int CUserCharacInfo::UseFinishPoint(int)"；
+                                             // 返回类型不入 mangled ⇒ 符号/ABI 不变。
     void ChangeFinishPoint(int point);
     void InitFinishPoint();
     void DecreaseWarPoint(int point);

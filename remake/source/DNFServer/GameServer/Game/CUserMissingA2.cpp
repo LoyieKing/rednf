@@ -422,17 +422,20 @@ bool CHARAC_LOAD_MERCENARY::CheckCompetitionAreaIndex(char areaIdx,
 {
     // ORIG：G_CDataManager() 在 empty()/size()/operator[] 三处各自重调（禁缓存，
     // P183/P48）；经非 const CDataManager* 直访 m_vec40 选非 const operator[]。
-    if (!G_CDataManager()->m_mercenarySystem.m_vec40.empty()
-        && static_cast<unsigned int>(static_cast<int>(areaIdx))
-               <= G_CDataManager()->m_mercenarySystem.m_vec40.size())
-    {
-        if (level < static_cast<int>(static_cast<short>(
-                G_CDataManager()->m_mercenarySystem
-                    .m_vec40[static_cast<int>(areaIdx)].m_areaLevel)))
-            return false;
-        return true;
-    }
-    return false;
+    // ORIG 0x081b2b53：`call empty; test %al,%al; jne L_true`（**无 xor**）+
+    // 0x081b2b69 `cmp %edx,%eax; jae L_false` ⇒ 原码是正极性短路
+    // `if (empty() || size < (unsigned)areaIdx) return 0;`（原实现写
+    // !empty && … 出 xor$1 物化 + ja，块序全反）。bool 具名局部会额外占槽
+    // （4.4 出 movb/cmpb 对，帧 0x34 vs ORIG 0x24）⇒ 必须无局部直写 if。
+    if (G_CDataManager()->m_mercenarySystem.m_vec40.empty() ||
+        G_CDataManager()->m_mercenarySystem.m_vec40.size() <
+            static_cast<unsigned int>(static_cast<int>(areaIdx)))
+        return false;
+    if (level < static_cast<int>(static_cast<short>(
+            G_CDataManager()->m_mercenarySystem
+                .m_vec40[static_cast<int>(areaIdx)].m_areaLevel)))
+        return false;
+    return true;
 }
 
 // ----------------------------------------------------------------------------
@@ -480,13 +483,22 @@ float CHARAC_LOAD_MERCENARY::GetPeriodBonus() const
 // ----------------------------------------------------------------------------
 int CHARAC_LOAD_MERCENARY::CalcItemDropRate(CUser* user) const
 {
+    // ORIG 0x081b2d70：`call G_CDataManager; add $0xa8e4,%eax; mov %eax,-0x20`
+    // —— m_vec8 先取地址落具名引用局部槽（P0：有槽往返 ⇒ 原码有具名局部），
+    // 再作 Find_max_value_lower_N 第二实参（原实现无该局部，实参位置直接
+    // 求值出 lea %ecx，帧少 4 且槽号全平移）。
+    const std::vector<std::pair<int, std::pair<int, int> > >& vec8 =
+        G_CDataManager()->m_mercenarySystem.m_vec8;
     std::pair<int, int> basePair = Find_max_value_lower_N<std::pair<int, int> >(
-        m_level, G_CDataManager()->m_mercenarySystem.m_vec8);
+        m_level, vec8);
     int base = basePair.second;
     float period = GetPeriodBonus();
     float avatar = GetAvatarBonus();
     int term = GetCompetitionPeriodTerm(0);
-    int rate = (int)((float)term * (float)base * period * avatar);
+    // ORIG 0x081b2dd8：`fildl base; fmuls period; fmuls avatar; fildl term;
+    // fmulp` ⇒ x87 求值序是 base*period*avatar*term（写 term*base*… 4.4 出
+    // fildl term 先 + fmulp 前置，指令序与 ORIG 相反）。
+    int rate = (int)((float)base * period * avatar * (float)term);
     if (user != 0 && user->isGMUser())
     {
         static char buffer[0x100];
@@ -495,8 +507,10 @@ int CHARAC_LOAD_MERCENARY::CalcItemDropRate(CUser* user) const
                 base, (double)period, (double)avatar, term, rate);
         SendMessageToCUser(user, buffer);
     }
+    // ORIG 0x081b2e7a：`mov $0xffffffff,%eax; jmp` ⇒ 源码是 `return -1;`
+    // 直接返回（写回 rate 局部再 return 会多一条 movl 到槽）。
     if (rate < 1)
-        rate = -1;
+        return -1;
     return rate;
 }
 
@@ -522,14 +536,13 @@ int CHARAC_LOAD_MERCENARY::GetCompetitionPeriodSecond(char periodIdx) const
 {
     if (!CheckCompetitionPeriodIndex(periodIdx))
         return 0;
-    // 跨 call 值 register esi 缓存 + idx 直传拓宽 → push %esi/帧 0x20/char 槽 -0xc 全对齐
-    // （探针 /tmp/probe_l8i2.o g2 实证）。残余 N：`mov 0xa8dc(%eax),%esi` 内存直落
-    // callee-saved 4.4 恒经 %eax 两步（N18a 反向）；`imul %esi,%eax` 4.4 恒
-    // mov(%eax),%edx;mov %esi,%eax;imul %edx,%eax 三步。
-    register int periodSec asm("esi") = G_CDataManager()->m_mercenarySystem.m_field0;
-    // 经非 const CDataManager* 直访 m_vec14，选 operator[](uint) 非 const 重载（const 甄别）。
+    // 【b28c-13 清绑】原 register asm("esi") 绑定按 P0 全域禁用，已删除。
+    // ORIG 0x081b2f06：`call G_CDataManager; mov 0xa8dc(%eax),%esi`（右操作数
+    // 先物化并升格 callee-saved，跨下一次 call 保活）⇒ P226 裸语句表达式形
+    // 复现值升格（P200 方向：值作普通表达式直传，不经具名中间局部）。
     return G_CDataManager()->m_mercenarySystem
-               .m_vec14[static_cast<int>(periodIdx)].first * periodSec;
+               .m_vec14[static_cast<int>(periodIdx)].first
+           * ({ (int)G_CDataManager()->m_mercenarySystem.m_field0; });
 }
 
 // ----------------------------------------------------------------------------
@@ -571,6 +584,10 @@ int CHARAC_LOAD_MERCENARY::GetCompetitionPeriodTerm(bool* isFinalPeriod) const
 // ----------------------------------------------------------------------------
 void CHARAC_LOAD_MERCENARY::SendMessageToCUser(CUser*, char*) const
 {
+    // ORIG 0x081b4193：`sub $0x10,%esp`（空体但帧 0x10）⇒ 原码有一个未使用的
+    // 0x10 字节局部（P31 dead local；b28c 未用局部占槽实证）。
+    char buf[0x10];
+    (void)buf;
 }
 
 // ----------------------------------------------------------------------------
@@ -766,8 +783,8 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
 // GetRewardItem}catch 复位+alter+cMyTrace 返回 1；gold<1 走 MercenaryReturn
 // 清理；否则发系统邮件（ReqDBSendNewSystemMail）+ 日志 + DB 记录。
 // ----------------------------------------------------------------------------
-int CHARAC_LOAD_MERCENARY::Reward(CUser* user,
-                                  competition_reward_result& result)
+bool CHARAC_LOAD_MERCENARY::Reward(CUser* user,
+                                   competition_reward_result& result)
 {
     if (user == 0)
         return 0;

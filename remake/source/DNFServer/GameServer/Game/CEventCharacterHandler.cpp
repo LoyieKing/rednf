@@ -225,7 +225,7 @@ bool CEventCharacterHandler::_MasterNewSkill(CUser* user, int skillIdx, int coun
     // ORIG 0x0848e7d6：skill 两段式（入口 movl $0,-0x18 预清）；job 内联
     // rvalue 经 %ebx 跨 G_CDataManager call（P197②）；getCurCharacSkillR
     // 两独立重调（+0x5a/+0x8e，P48）。
-    // [B24D判词 N] 语义正确：find_skill→get_group+get_skillslot_no+buf→
+    // [B24D判词 N][b28c-L19 复核：单下标 buf[slotNo*2+1] 形实测同 DIFF，封顶] 语义正确：find_skill→get_group+get_skillslot_no+buf→
     //   m_count=(char)(count-(buf[slot*2+1]))→<=0早返→master_new_skill。diff=
     //   ORIG movzbl 0x1(%eax) disp内联 vs 我方 add$1+movzbl（多1条），lowering。
     const CSkill* skill = 0;
@@ -251,8 +251,8 @@ bool CEventCharacterHandler::_MasterNewSkill(CUser* user, int skillIdx, int coun
     info.m_field0 = 0;
     info.m_skillIdx = (char)skillIdx;
     // ORIG +0xc5：`add -0xc(buf),%eax; movzbl 0x1(%eax)`——(buf+2*slotNo) 先行、
-    // +1 留 disp。buf[slotNo*2+1] 被 4.4 折成 add$1+add base 两步。
-    info.m_count = (char)((char)count - (char)((buf + slotNo * 2)[1]));
+    // +1 留 disp。b28c-L19 试单下标形（P30 折叠判据）；仍 add$1+base 则记 N。
+    info.m_count = (char)((char)count - (char)buf[slotNo * 2 + 1]);
     if ((signed char)info.m_count <= 0)
     {
         return false;
@@ -318,8 +318,10 @@ bool CEventCharacterHandler::_SetLevel(CUser* user, int level)
     {
         for (int i = 0; i < diff; ++i)
         {
-            int newLevel = user->get_charac_level() + 1;
+            // b28c-L19：ORIG 槽序 newLevel 深(-0x28)/maxLevel 浅(-0x24) ⇒ 4.4
+            // 「先声明占浅槽」(N93 标量例外) 需 maxLevel 先声明。
             int maxLevel = 0x46;
+            int newLevel = user->get_charac_level() + 1;
             user->SetCharacLevel(std::min(maxLevel, newLevel));
         }
     }
@@ -327,8 +329,8 @@ bool CEventCharacterHandler::_SetLevel(CUser* user, int level)
     {
         for (int i = 0; i > diff; --i)
         {
-            int newLevel = user->get_charac_level() - 1;
             int maxLevel = 0x46;
+            int newLevel = user->get_charac_level() - 1;
             user->SetCharacLevel(std::min(maxLevel, newLevel));
         }
     }

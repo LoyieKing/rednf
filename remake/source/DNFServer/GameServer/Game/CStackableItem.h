@@ -457,7 +457,10 @@ public:
     StatChangeInfo m_stat2dc;             // +0x2dc（int+2char）
     CountinuousItemOption m_option2e4;    // +0x2e4（3 字节）
     bool m_char2e7;                       // +0x2e7（exp 影响标记；ORIG IsExpAffect movzbl 按 bool 读取，非 char→bool 归一）
-    int m_int2e8;                         // +0x2e8
+    union {                               // +0x2e8（b28c-L8：ORIG GetExpAffectRatio
+        int m_int2e8;                     // W 0x08694746 体为 `add $0x2e8; flds (%eax)`
+        float m_flt2e8;                   // ⇒ 该字存在 float 视图；同尺寸同偏移，布局不变）
+    };
     char m_char2ec;                       // +0x2ec
     char m_pad2ed[1];                     // +0x2ed
     unsigned short m_short2ee;            // +0x2ee

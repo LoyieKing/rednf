@@ -406,16 +406,47 @@ bool IsTradeLimitAttachTypeItemByUser(CUser& user, int space, int slot)
         return false;
     return IsTradeLimitAttachTypeItem(item);
 }
-// ORIG 0x0855254c：遍历 SIG_MAILBOX_LIST 无限信列表（count @+0x794，条目
-// 步长 0x61；条目基 +i*0x61：+0x5c dword=信件 id，+0x5b byte=无限标志）。
-int isUnlimitMail(SIG_MAILBOX_LIST const* info, int letterId)
+// ORIG 0x0855254c：遍历 SIG_MAILBOX_LIST 无限信列表（count @+0x794 单 disp，
+// 条目步长 0x61；条目基 +i*0x61：+0x5c dword=信件 id，+0x5b byte=无限标志）。
+// 视图（P82/P95，同 DB_MailBox_Req_List.cpp IsContainedLetter 先例）：
+// count 单 disp；条目为 m_postals[i].field——4.4 出 imul/lea + add $0x50
+// 数组基址 + 元素内 disp（ORIG 0x8552561 `add $0x50; mov 0xc(%eax)` 拆段）。
+// 返回类型 unsigned char（ORIG 尾 `movzbl (%eax),%eax` 单段直返，P9）。
+unsigned char isUnlimitMail(SIG_MAILBOX_LIST const* info, int letterId)
 {
-    for (int i = 0; i < reinterpret_cast<MailBoxListV const*>(info)->m_mailCount; ++i)
+    #pragma pack(push, 1)
+    struct PostalEntry
     {
-        if (reinterpret_cast<MailBoxListV::Entry const*>(
-                reinterpret_cast<char const*>(info) + i * 0x61)->m_letterId == letterId)
-            return reinterpret_cast<MailBoxListV::Entry const*>(
-                reinterpret_cast<char const*>(info) + i * 0x61)->m_unlimit;
+        unsigned char m_pad[0xc];
+        int m_letterId;                        // +0x5c
+        unsigned char m_tail[0x61 - 0x10];
+    };
+    struct PostalEntryU
+    {
+        unsigned char m_pad[0xb];
+        unsigned char m_unlimit;               // +0x5b
+        unsigned char m_tail[0x61 - 0xc];
+    };
+    struct ListView
+    {
+        unsigned char m_pad[0x50];
+        PostalEntry m_postals[0x12];
+    };
+    struct ListViewU
+    {
+        unsigned char m_pad[0x50];
+        PostalEntryU m_postals[0x12];
+    };
+    struct CountView
+    {
+        unsigned char m_pad[0x794];
+        int m_count;
+    };
+    #pragma pack(pop)
+    for (int i = 0; i < reinterpret_cast<CountView const*>(info)->m_count; ++i)
+    {
+        if (reinterpret_cast<ListView const*>(info)->m_postals[i].m_letterId == letterId)
+            return reinterpret_cast<ListViewU const*>(info)->m_postals[i].m_unlimit;
     }
     return 0;
 }

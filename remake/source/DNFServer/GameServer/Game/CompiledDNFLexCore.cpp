@@ -293,6 +293,13 @@ bool CompiledDNFLex::LoadStream(const char* dir, const char* filename,
 // ---- getStr(std::string&)（ORIG 0x8ad00d0）：按字符串表索引取串。----
 bool CompiledDNFLex::getStr(std::string& stringBuffer)
 {
+    // [b28-L14] 残差封顶 N 类（P168 成员重复装载 + N89 反向跨版本内联）：
+    // ORIG 0x8ad00d0 把 this 缓存 %edx、tok 一次载入 %eax 后全程复用
+    // （`mov 0x8(%edx),%eax; lea -0x2(%eax),%ecx; cmp $0x1,%ecx; …; cmp
+    // $0x9,%eax`，零槽往返）；4.4 -O0 对成员每次使用点重发 `mov
+    // 0x8(%ebp),%eax; mov 0x8(%eax),%eax`（表达式内联形实测 40→45 条反劣，
+    // 具名局部形 40 条为最优可用形），且 readIntFromBuffer 在 4.1 内联为
+    // 4 条访存、4.4 恒 extern call。
     int tok = lastToken_;
     unsigned d = (unsigned)tok - 2;
     if (d <= 1)

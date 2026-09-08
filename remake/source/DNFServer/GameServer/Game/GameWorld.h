@@ -236,7 +236,10 @@ public:
     unsigned int GetIDUserInIDMap(const char* name);
     bool reach_game_world(CUser* user);
     bool leave_game_world(CUser* user);
-    unsigned short make_unique_id();
+    // b28c-lane3：ORIG 0x086c4b8f 段双零扩展（movzwl 0x24(%eax),%eax;
+    // movzwl %ax,%eax）⇒ 返回类型 unsigned int（mu3 探针同形）；返回类型不入
+    // mangled，符号不变。全仓无调用点（grep 实证）。
+    unsigned int make_unique_id();
     int find_session(unsigned int accId);   // ORIG caller 0x86c4d5f 全字直存 = int 返回视角
     CUser* find_from_world(unsigned short uniqueId);
     CUser* find_user_from_world_byaccid(unsigned int accId);

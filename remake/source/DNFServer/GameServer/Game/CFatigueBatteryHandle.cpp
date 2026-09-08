@@ -63,12 +63,24 @@ stFatigueBatteryConstantTable_t::stFatigueBatteryConstantTable_t()
 unsigned short stFatigueBatteryConstantTable_t::getLimitGrownupBuffCntFatigueBattery(
     int level) const
 {
-    int idx = level - 1;
-    if (idx > static_cast<int>(m_endLevel10))
-        return 0;
-    if (level <= 0)
-        return 0;
-    return *reinterpret_cast<const unsigned short*>(&m_field2 + idx + 8);
+    // b28c-36：ORIG 0x084a84b6 两守卫为**正向跳转**（`cmp %eax,%edx; jg fail` +
+    // `cmpl $0,level; jg ok`，fail 块居中、ok 块居尾），无栈帧（idx 为表达式右值）。
+    // 4.4 对 if-return 恒反跳（jle/jge 跳过 return 块）⇒ 复现唯一形 = 双 goto 标签
+    // （探针 /tmp/b28c_l36_p1.cpp f11：jg fail; jg ok; fail: mov$0; jmp end; ok: body
+    // 与 ORIG 逐条同序，仅多 1 条 goto 语义 jmp；f2/f3/f7 反跳残差 6-10）。
+    // 尾段 `lea 0x7(%eax),%edx` vs ORIG `lea -0x1`+`add $0x8` 为 4.4 常量折叠（N1）。
+    // 【实测读数】f1(槽形 idx)26→f2(三语句反跳)~6→f11/f14(双 goto/块内标签)4：
+    // 残差仅 2 项——①goto 语义 jmp（4.4 -O0 对 goto 恒发显式 jmp，4.1 if-return
+    // 正跳 fall-through 无此条，P222 家族不可造）；②N1 常量折叠 `(level-1)+8`→`+7`
+    // （f8 具名 idx 有槽反劣，f15 直 return 同 f2）。已试 15 形（p1.cpp f1-f15）。
+    if (level - 1 > static_cast<int>(m_endLevel10))
+        goto fail;
+    if (level > 0)
+        goto ok;
+fail:
+    return 0;
+ok:
+    return m_limitTable[level - 1 + 8];
 }
 
 // ORIG 0x84a8004：
@@ -208,14 +220,16 @@ short CFatigueBatteryHandle::ActiveFatigueBattery_EndLevel(CUser* user)
     (void)unusedScript;
 
     result = used;
+    // [b28c-L29] ORIG 0x084a81f4：左值经 cwtl 拓宽后与 result 做 32 位 cmp
+    // （`call; cwtl; cmp -0x14(%ebp),%eax`），右侧不做 short 截断。
     if (static_cast<int>(static_cast<short>(user->GetFatigueBatteryCharging())) !=
-        static_cast<short>(result))
+        result)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x77, 0);
-        trace("FATIGUE BATTERY ACTIVE ERR : char no(%d), usedFatigue(%d)",
-              user->getCurCharacNo(), result);
+        // [b28c-L29] P227：全表达式临时链令 op() 实参（getCurCharacNo）在 ctor
+        // 前求值并以 %ebx 跨 ctor 保活（ORIG `call getCurCharacNo; mov %eax,%ebx`）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x77, 0)(
+            "FATIGUE BATTERY ACTIVE ERR : char no(%d), usedFatigue(%d)",
+            user->getCurCharacNo(), result);
         result = static_cast<int>(
             static_cast<short>(user->GetFatigueBatteryCharging()));
     }

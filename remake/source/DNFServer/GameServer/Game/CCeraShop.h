@@ -150,7 +150,12 @@ public:
                           IPG::SIPGData* resData, unsigned char errCodeA,
                           int errCodeB, unsigned int productNo, int subCode,
                           int code2, char flag);                                   // 0x083237f6
-    int ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg);          // 0x832047a
+    // [b28c-L7][SIGFIX:WongWork::CCeraShop::ProcessBuyRequest] ORIG
+    // __PRETTY_FUNCTION__ 串 = "bool WongWork::CCeraShop::ProcessBuyRequest(
+    // CUser*, MSG_BUY_CERASHOP_ITEM const&)"（P174，
+    // docs/function_audit/sig_return_mismatch_b28c.tsv 第 18 行）⇒ int→bool；
+    // mangled 不含返回类型⇒符号不变，全仓无调用点（grep 实证）⇒ 零外部影响。
+    bool ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg);          // 0x832047a
     void ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                             IPG::SIPGData* resData, Stream* stream);               // 0x8321d2e
     void _processCoinGift(CUser* user, unsigned short currencyType,

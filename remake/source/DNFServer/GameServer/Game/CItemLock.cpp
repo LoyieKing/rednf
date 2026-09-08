@@ -159,18 +159,31 @@ std::vector<stItemLockRef>& CItemLock::GetItemLockRefVec()
 // ORIG 0x854261e：map 查找；命中返回 state 并写解锁时刻，未命中返回 0。
 unsigned char CItemLock::GetItemLockInfo(unsigned char lock, int& outSec) const
 {
+    // [b28c-6] P222 已修（5→1）：唯一残差 = ORIG 尾 `movzbl 0x8(%eax),%eax;
+    // movzbl %al,%eax` 二次零扩展（4.1 返回值截断物化），4.4 只发一条
+    // movzbl（int/uchar cast 均不可造）⇒ 跨版本返回归一化差，N 封顶。
     std::map<unsigned char, stItemLockInfo>::const_iterator it =
         m_lockMap.find(lock);
-    if (it == m_lockMap.end())
-        return 0;
-    outSec = it->second.m_unlockSec;
-    return it->second.m_state;
+    // P222 正向包裹：ORIG `test;je 尾部零块; <then>; …; jmp end; 零块:mov $0`
+    // ⇒ true 侧包块、false 归共享尾（否定早返 `if(it==end)return 0;` 产反向岛）。
+    if (it != m_lockMap.end())
+    {
+        outSec = it->second.m_unlockSec;
+        return it->second.m_state & 0xff;
+    }
+    return 0;
 }
 
 bool CItemLock::CheckItemLock(unsigned char b) const
 {
-    // ORIG 0x8541a96：map.find(b) != end()。
-    return m_lockMap.find(b) != m_lockMap.end();
+    // ORIG 0x8541a96：find 结果槽 -0x10 先于 end 临时槽 -0xc（P28 声明序即
+    // 栈槽序）⇒ 两条语句（单表达式形把 find 槽排到 -0xc）。
+    std::map<unsigned char, stItemLockInfo>::const_iterator it =
+        m_lockMap.find(b);
+    // P56：ORIG `test;je;mov$1;jmp;mov$0` ⇒ 分支返回，勿直 return 比较表达式。
+    if (it != m_lockMap.end())
+        return true;
+    return false;
 }
 
 // ORIG 0x85426a6：未锁定 → put_byte(0)；否则 put_byte(state)，state==2 时
@@ -179,19 +192,24 @@ void CItemLock::MakeItemLockPacket(PacketGuard& packet, unsigned char b) const
 {
     std::map<unsigned char, stItemLockInfo>::const_iterator it =
         m_lockMap.find(b);
-    if (it == m_lockMap.end())
+    // P222 正向包裹：ORIG `test;je <then>; …; jmp end; 尾块 put_byte(0)`
+    // ⇒ true 侧包块、失败块归共享尾（早返 `if(it==end){put_byte(0);return;}`
+    // 会把失败块前置于 then 之前）。
+    if (it != m_lockMap.end())
+    {
+        packet.put_byte(it->second.m_state);
+        if (it->second.m_state == 2)
+        {
+            int remain = it->second.m_unlockSec + ITEM_UNLOCK_WAITING_TIME -
+                         GlobalData::s_systemTime_.getCurSec();
+            if (remain < 0)
+                remain = 0;
+            packet.put_int(remain);
+        }
+    }
+    else
     {
         packet.put_byte(0);
-        return;
-    }
-    packet.put_byte(it->second.m_state);
-    if (it->second.m_state == 2)
-    {
-        int remain = it->second.m_unlockSec + ITEM_UNLOCK_WAITING_TIME -
-                     GlobalData::s_systemTime_.getCurSec();
-        if (remain < 0)
-            remain = 0;
-        packet.put_int(remain);
     }
 }
 
@@ -311,9 +329,15 @@ int CItemLock::IsAbleItemUnlock(unsigned char lock, int& outSec) const
 {
     std::map<unsigned char, stItemLockInfo>::const_iterator it =
         m_lockMap.find(lock);
-    if (it == m_lockMap.end() || it->second.m_state != 1)
+    // P133 独立守卫（同 IsAbleItemUnlockCancel）：ORIG `test;je <then>;
+    // mov$0x13;jmp end; then: cmp $1;setne;test;je <0x13>` ⇒ 两条独立 if。
+    if (it == m_lockMap.end())
         return 0x13;
-    outSec = it->second.m_unlockSec;
+    if (it->second.m_state != 1)
+        return 0x13;
+    // P171 照抄原码：ORIG 0x8541b2a 全 43 条内**没有** outSec 写入（唯一 ptEv
+    // 只读 +0x8 m_state，无 +0x4 装载）⇒ 原码不写 outSec，保留形参未用。
+    (void)outSec;
     return 0;
 }
 
@@ -322,7 +346,11 @@ int CItemLock::IsAbleItemUnlockCancel(unsigned char lock) const
 {
     std::map<unsigned char, stItemLockInfo>::const_iterator it =
         m_lockMap.find(lock);
-    if (it == m_lockMap.end() || it->second.m_state != 2)
+    // P133 独立守卫：ORIG `test;je <then>; mov$0x13;jmp end; then: cmp $2;setne;
+    // test;je <0x13 尾>` ⇒ 两条件各自独立 if（合并短路会产 bool 汇聚异形）。
+    if (it == m_lockMap.end())
+        return 0x13;
+    if (it->second.m_state != 2)
         return 0x13;
     return 0;
 }
@@ -450,6 +478,7 @@ int CItemLock::OnItemUnlockWaitTimeout(CUser* user)
 void CItemLock::PushItemLock(CUser* user, unsigned char lock,
                              stItemLockInfo* info)
 {
+    // [b28c-6] fresh 复验维持 N82（ndiff 10，75/75 条全等仅槽差）：
     // [b26N82] 尾部 make_pair/pair 移动构造/insert 返回临时三者槽布局：
     // ORIG tmp-0x14/value-0x20/ret-0x28 vs 4.4 tmp-0x28/value-0x14/ret-0x1c，
     // 声明序/两段式/pad 均不可翻（N82 族），其余全等，ndiff 12 封顶。
@@ -553,7 +582,10 @@ int CItemLock::_findItem(unsigned char lock)
     for (std::vector<stItemLockRef>::iterator it = m_lockList.begin();
          it != m_lockList.end(); ++it)
     {
-        if ((unsigned char)(*it).m_lock == lock)
+        // ORIG 0x8542e12 段 `mov %eax,-0xc; mov -0xc,%eax; movzbl (%eax)`：
+        // operator* 结果指针落槽回读（P0 有槽往返 ⇒ 原码具名引用）。
+        stItemLockRef& ref = *it;
+        if (ref.m_lock == lock)
             return 1;
     }
     return 0;
@@ -664,6 +696,10 @@ void CItemLock::SendRequestItemUnlockCancel(CUser* user, int space, int slot)
 // （lock 号 = i+1），使低号位最终落在栈顶（与空闲号池 LIFO 序一致）。恒真。
 bool CItemLock::loadData(CUser* user, char* pData)
 {
+    // [b28c-6] N76/N18a：ORIG 偏移计算 `mov i,%eax; shl $3,%eax; mov %eax,%edx;
+    // add -0x10(%ebp),%edx`（data 作 add 内存源）；4.4 恒 data 先载 %edx 再
+    // `add %eax,%edx`。data+i*8 / i*8+data / (int)data+i*8 / 指针算术四形均实测
+    // 不可翻（ndiff 4）。
     char* data = pData;   // ORIG 0x854171d mov %eax,-0x10 存槽复用
     for (int i = 99; i >= 0; --i)
     {

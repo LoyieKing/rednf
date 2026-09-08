@@ -225,8 +225,11 @@ void Area::delete_user(CUser* user)
 // ---------------------------------------------------------------------------
 void Area::erase_user(CUser* user)
 {
-    if (m_areaType != 1)
-        m_UsersInArea.erase(user->get_unique_id());
+    // [b28c-21] ORIG 尾部 jmp+nop 中继岛（P223）：goto 尾空标签复现。
+    if (m_areaType == 1)
+        goto END;
+    m_UsersInArea.erase(user->get_unique_id());
+END:;
 }
 
 // ---------------------------------------------------------------------------
@@ -352,15 +355,17 @@ void Area::send_area_users(CUser* user)
     count = 0;    // P197③ 双段式（ORIG movl $0x0,-0xc 预清独立行）
     packet.put_short((int)m_UsersInArea.size());
 
-    CUser* u = 0;    // ORIG begin 后 `movl $0x0,-0xc(%ebp)`＝循环外空预置
-    for (std::map<unsigned short, CUser*>::iterator it = m_UsersInArea.begin();
-         it != m_UsersInArea.end(); it++)
+    // [b28c-21] ORIG begin 调用之后才发 `movl $0x0,-0xc(%ebp)`（u 空预置）
+    // ⇒ 迭代器初始化拆到循环外、u 声明置于其后（P0：u 有槽往返＝具名局部）。
+    std::map<unsigned short, CUser*>::iterator it = m_UsersInArea.begin();
+    CUser* u = 0;
+    for (; it != m_UsersInArea.end(); it++)
     {
         u = it->second;
-        // ORIG 0x086c240x: xor$1;test;je 后 cmp+choose 岛＝bool callee 直判的
-        // 4.1 xor 形（P168a③b 跨版本 bool ABI，4.4 恒 test+jne，N 豁免）；
-        // 负形 continue 实测第二条件落直跳 cmp 反更差，维持正向 ||。
-        if (u->IsCurCharacVisible() || u == user)
+        // [b28c-21] ORIG 086c2411 段：可见性谓词两次独立调用（P48：O0 无 CSE），
+        // 第二臂为 `!vis2 && u == user` 短路形（xor$1;test;je 后 cmp）。
+        if (u->IsCurCharacVisible() ||
+            (!u->IsCurCharacVisible() && u == user))
         {
             packet.put_short(u->get_unique_id());
             packet.put_short(u->get_posX());

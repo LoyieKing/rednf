@@ -50,7 +50,9 @@ struct Action_SendMail
     int           m_gold;                           // +0x28 >0 走 process_gold_mail_send
     unsigned char m_coin;                           // +0x2c 三份 process_* 报告均 movzbl
                                                   //       字节读、reset 仅清此字节
-    unsigned char m_pad2d[3];                       // +0x2d..0x2f（无任何访问证据）
+    // [b28c-L18] P26：+0x2d..0x2f 为对齐空洞，ORIG 隐式拷贝构造/op=（W 0x08987b48/
+    // 0x0898a922）实证跳过该 3 字节（我们多 `movzwl 0x2d`+`movzbl 0x2f` 两条搬移）
+    // ⇒ 删除显式 pad 成员，靠自然填充维持 m_field30@+0x30。
     std::string   m_field30;                        // +0x30 邮件标题 key（set_reward_item 写）
     std::string   m_field34;                        // +0x34 邮件正文 key（set_reward_item 写）
     std::vector<int> m_vec38;                       // +0x38 发奖记录（reset 不清空，忠实）

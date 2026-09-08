@@ -231,6 +231,8 @@ void effect::STEffect::clear()  // ORIG 0x089c2c64
 
 STEquipmentScript::STEquipmentScript()
 {
+    // [b28c-27] AE（fresh 复验）：562/562 逐条同，.o 重定位归一后与 ORIG 全等
+    // （成员构造/清零/EH 链序一致）。
     Clear();
 }
 
@@ -4703,6 +4705,9 @@ static bool GetExpertJobTypeList(STItemScript* item)
 // ORIG t 0x089bfc2f：-100.0 哨兵（0x8e1a574）视为未设置。
 bool GetExpertJobValueMaterialVariation(STItemScript* item)
 {
+    // [b28c-lane25 判词·N85] ORIG 0x089bfc5a：x87 比较两向
+    // `flds -100.0f; fucompp; fnstsw %ax; test $0x5,%ah; sete`（4.1）；
+    // 4.4 恒 `flds; fxch; fucomip; fstp; jne; jp`（N85 已录）。语义等价，封顶。
     if (item == 0)
         return false;
     bool ok = true;

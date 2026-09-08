@@ -75,7 +75,8 @@ public:
     int OnSend();                        // ORIG 0x8490364（-1=失败）
     bool OnError();                      // ORIG 0x84903ee
     bool Send(PacketGuard& guard);       // ORIG 0x84906d0（PRETTY 串 "bool ...Send(PacketGuard&)" 实证）
-    int Parsing(int recvLen);            // ORIG 0x8490074（HEADER_SIZE 包解析）
+    bool Parsing(int recvLen);                   // ORIG 0x8490074（HEADER_SIZE 包解析；
+                                                 // SIGFIX: ORIG 串 "bool ...Parsing(int)"）
     // ORIG 两函数调用约定未传 this（TryListen/TryConnect 仅压 port/ip），
     // 实为静态成员；ORIG 返回寄存器承载新分配的 session 指针（0=失败）。
     static CSession* Listen(int port, const char* ip);   // ORIG 0x8490767
@@ -204,7 +205,8 @@ public:
     int OnRecvPacketServerInfoRet(CSession* session,
                                   PacketGuard& guard);     // ORIG 0x8492c5e
     bool DispatchPacket(CSession* session, char* data, int len);  // 0x8493002
-    void OnRecvMessageServerInfo(Stream* stream, int a, int b);   // 0x84931de
+    int OnRecvMessageServerInfo(Stream* stream, int a, int b);    // 0x84931de
+                                                 // SIGFIX: ORIG 串 "int ...OnRecvMessageServerInfo(Stream*, int, int)"
     int OnRecvMessageCharacInfo(Stream* stream, int a, int b);    // 0x849341c
     bool DispatchMessage(Stream* stream);                         // 0x8493530
     Stream* GetMessage();                          // ORIG 0x849362a

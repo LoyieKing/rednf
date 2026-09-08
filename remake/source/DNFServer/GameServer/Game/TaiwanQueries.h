@@ -347,10 +347,14 @@ class SigLoadGeolocation
 public:
     void init();                          // ORIG W 0x0815de9c
     void set(char* country);              // ORIG W 0x0815decc：strncpy(第 count 条, s, 15)
-    void setData(SigLoadGeolocation& other);            // ORIG W 0x0815df06
+    void setData(SigLoadGeolocation& other);            // ORIG W 0x0815de06
+
+    // b28c-L26：LoadGeolocation::dispatch 0x0815b17x 直读 +0x00 并 `cmp $0x2b;
+    // jbe`（无符号）⇒ 字段 unsigned；调用点无 accessor（ORIG 直 `mov -0x2f8(%ebp),%eax`）
+    // ⇒ §8.3 字段化，公开以消 reinterpret_cast 裸偏移。
+    unsigned int m_count;                             // +0x00 已写入条目数
 
 private:
-    int m_count;                                        // +0x00 已写入条目数
     char m_countries[(0x2d4 - 4) / 0x10][0x10];         // +0x04（720=45×16）
 };
 

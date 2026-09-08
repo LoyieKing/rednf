@@ -356,9 +356,12 @@ bool CCharacExpertJob::InitScript(STExpertJobScript* script)
 
 // get_recipe 0x0832b306：idx = index/8（带符号除），越界(<0 || >0x1d)返回 0；
 // 返回 bitmap 第 (index%8) 位。
+// b28c-1 N97: 手写除形后余 mov/sar/shr/lea vs 4.4 sar/shr/add 寄存器选择差。
 int CCharacExpertJob::get_recipe(int index) const
 {
-    int idx = index / 8;              // ORIG：带符号除（sar/shr/lea 惯用法），非算术右移
+    // b28c-1：ORIG 0x0832b306 `mov;sar $0x1f;shr $0x1d;lea;sar $3` 四步
+    //  ⇒ 手写 (index + ((unsigned)(index>>31) >> 29)) >> 3 复现（N97 翻形）。
+    int idx = (index + (int)(((unsigned int)(index >> 31)) >> 29)) >> 3;
     int bit = index % 8;
     if (idx < 0 || idx > 0x1d)
         return 0;
@@ -366,12 +369,13 @@ int CCharacExpertJob::get_recipe(int index) const
 }
 
 // set_recipe 0x0832b264：未置位则置位并返回 1；已置位返回 0。
+// b28c-1 N97: 同上（手写 (index+((uint)(index>>31)>>29))>>3 已消 cmovs）。
 int CCharacExpertJob::set_recipe(int index)
 {
     // b28：4.4 对 index/8 恒出 lea+cmovs（4.1 为 sar/shr/lea 三步、无 cmov）；
     // 改 (index + ((index>>31)&7)) >> 3 恒等复现 ORIG 三步形（负数经边界检查返 0，
     // 越界读不可达）。
-    int idx = (index + ((index >> 31) & 7)) >> 3;
+    int idx = (index + (int)(((unsigned int)(index >> 31)) >> 29)) >> 3;
     int bit = index % 8;   // ORIG 保留完整除余链（mov/sar/shr/add/and/sub）
     if (idx < 0 || idx > 0x1d)
         return 0;
@@ -385,13 +389,14 @@ int CCharacExpertJob::set_recipe(int index)
 
 // learnRecipe 0x0832b3c0：GetRecipeInfoIndex(recipeIndex)；index<0 → 0；
 // GetRecipeInfo(index) 为空 → 0；recipeInfo->m_field8 <= param+2 才 set_recipe + alter。
+// b28c-1 N: 符号位测试 4.4 恒折 cmpl/jns vs ORIG mov/shr/test（跨版本 lowering）。
 bool CCharacExpertJob::learnRecipe(unsigned long recipeIndex, STExpertJobScript* script,
                                   int param)
 {
     int idx = -1;                                   // ORIG：-1 初始化
     idx = script->GetRecipeInfoIndex(recipeIndex);
     // b28：ORIG 判负形为 `(unsigned)idx >> 31` 提取符号位 + test/je 岛（P222 互试）。
-    if (((unsigned int)idx >> 31) != 0)
+    if ((int)((unsigned int)idx >> 31) != 0)
         return 0;
     stRecipeInfo* info = script->GetRecipeInfo(idx);
     if (info == 0)

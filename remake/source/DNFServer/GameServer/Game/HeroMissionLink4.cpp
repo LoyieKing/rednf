@@ -65,10 +65,11 @@ void HeroMissionValue::reset()
 // ---------------------------------------------------------------------------
 void HeroMissionEvent::sendMissionData(CUser* user)
 {
-    if (m_isEventing == 0)      // ORIG: 虚 IsEventing(0)==1 才继续
-    {
+    // [b28c-L7] 判词：ORIG 0x0816770e 段为 `mov (%eax);add $0x34;mov (%eax);
+    // call *%edx`（vptr+0x34 虚调 IsEventing(0)）⇒ 必须虚调用形；直读
+    // m_isEventing 产 movzbl 0x8(%eax) 伪差。
+    if (!IsEventing(0))
         return;
-    }
 
 
     if (user == 0)
@@ -227,15 +228,13 @@ void HeroMissionValue::setStringToken(std::string token)
 
     TokenIterator tit = tokens.begin();
 
-    m_mission = atoi((*tit).c_str());                   // +0x00
-    ++tit;
-    m_field4 = (unsigned short)atoi((*tit).c_str());    // +0x04
-    ++tit;
-    m_field6 = (unsigned short)atoi((*tit).c_str());    // +0x06
-    ++tit;
-    m_fieldA = (unsigned short)atoi((*tit).c_str());    // +0x0a
-    ++tit;
-    m_field8 = (unsigned short)atoi((*tit).c_str());    // +0x08
+    // P23：ORIG 每步以 ++ 返回值直传下一调用（`mov %eax,(%esp); call ptEv`），
+    // 拆语句 `++tit; tit->...` 会重复 lea 迭代器地址（每处 +2 条）。
+    m_mission = atoi(tit->c_str());                     // +0x00
+    m_field4 = (unsigned short)atoi((++tit)->c_str());  // +0x04
+    m_field6 = (unsigned short)atoi((++tit)->c_str());  // +0x06
+    m_fieldA = (unsigned short)atoi((++tit)->c_str());  // +0x0a
+    m_field8 = (unsigned short)atoi((++tit)->c_str());  // +0x08
 }
 
 // ---------------------------------------------------------------------------

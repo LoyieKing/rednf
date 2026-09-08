@@ -312,7 +312,10 @@ public:
     CArtifact* GetArtifact(int slot);  // ORIG _ZN13user_creature12CCreatureMgr11GetArtifactEi T 0x833be56（槽 0x17..0x1a → m_artifacts[0..3]）
     bool GetCreatureItem(SIG_LOAD_INVENTORY* sig) const;      // ORIG 0x833b80c 尾 mov$1 直返；GetInventoryInfo 调用点 xor$1 直判= bool 形（mangled 无返回类型 ABI 零变）
     // ---- ORIG 布局（Reset.md 0x833a45a / InsertCreatureItem.md 0x833b204 反汇编）----
-    void RenameCreature(const char* name, int creatureIdx, int slot);  // ORIG _ZN13user_creature12CCreatureMgr14RenameCreatureEPKcii 0x08339b6e
+    // [b28c-30 SIGFIX] 返回类型 void→bool：ORIG __PRETTY_FUNCTION__ 串为
+    // "bool user_creature::CCreatureMgr::RenameCreature(const char*, int, int)"
+    //（P174/P159），Ghidra C 尾 `return bVar5`；mangled 不含返回类型。
+    bool RenameCreature(const char* name, int creatureIdx, int slot);  // ORIG _ZN13user_creature12CCreatureMgr14RenameCreatureEPKcii 0x08339b6e
     bool Hatch(int addInfo);                                           // ORIG _ZN13user_creature12CCreatureMgr5HatchEi 0x08339fa0
     bool Evolute(int a, int b, bool flag);                             // ORIG T 0x0833beb4 _ZN13user_creature12CCreatureMgr7EvoluteEiib
 
@@ -511,7 +514,11 @@ struct stEquipConditionForChronicle
     unsigned short m_amplifyValue;  // +0x04 ← amp.getAbilityValue()
     unsigned char m_hasField0Item;  // +0x06（Inven_Item 字节0 != 0）
     unsigned char m_reSealCount;    // +0x07 ← Inven_Item::GetReSealCount()
-    int m_fieldd;                   // +0x08 ← Inven_Item::m_fieldd(+0x0d)
+    // b28c-L2: int→unsigned int，与源侧 Inven_Item::m_fieldd（b28c-L6 已实证
+    // unsigned）同型 ⇒ 复现 ORIG 0x08508xxx 尾段单段直载
+    // `mov -0x48(%ebp),%edx; mov 0x14(%ebp),%eax; mov %edx,0x8(%eax)`
+    // （异型时 4.4 恒插 `mov %eax,%edx` 中转，P211 双向开关）。sizeof 0xc/偏移不变。
+    unsigned int m_fieldd;          // +0x08 ← Inven_Item::m_fieldd(+0x0d)
 };
 
 bool CheckEquipable(const Inven_Item& a, const Inven_Item& b);
@@ -603,10 +610,14 @@ public:
     // `xor $0x1,%eax; test %al` 直落仅 bool 产；mangled 无返回类型零 ABI）。
     bool possible_to_insert(int itemIdx) const;
     static bool isEquipmentPlaceableAtInventory(int slot);
-    int CheckExistItemInInventoryOrEquipment(int itemIdx, int& slot, bool& bFound) const;
+    // SIGFIX b28c-L2（Main 117 件清单）：ORIG rodata __PRETTY_FUNCTION__ 串实证
+    // "bool CInventory::CheckExistItemInInventoryOrEquipment(int, int&, bool&) const"
+    // （P174 串定返回类型；返回体只有 0/1）。
+    bool CheckExistItemInInventoryOrEquipment(int itemIdx, int& slot, bool& bFound) const;
     int doesExistEquipItem(int itemIdx, int slot);
     int getExistEquipItem(int itemIdx, int slot, int count);
-    int removeDupliacteEquipItem();
+    // SIGFIX b28c-L2：ORIG 串 "bool CInventory::removeDupliacteEquipItem()"。
+    bool removeDupliacteEquipItem();
     int CheckNeedItemList(
         const std::vector<std::pair<int, int> >& items) const;
     // ORIG _ZNK10CInventory27CheckEquipmentItemConditionE10INVEN_TYPEsR28stEquipConditionForChronicle
@@ -626,7 +637,8 @@ public:
     int CheckEquipmentItemCondition(   // ORIG 0x08507f1a：返回错误码 0/1/0x11/0x12/0x13/0xd5/0xd8（bool 会截断，LinkF1 修正）
         const std::vector<std::pair<int, int> >& items, stEquipCondition& cond,
         Inven_Item& outItem) const;
-    int MakeItemList(INVEN_TYPE invenType, void* out) const;
+    // SIGFIX b28c-L2：ORIG 串 "bool CInventory::MakeItemList(INVEN_TYPE, void *) const"。
+    bool MakeItemList(INVEN_TYPE invenType, void* out) const;
     bool MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;
     int MakeSecuRewarditemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;
     // ORIG _ZNK10CInventory13MakeEquipListEPvb13ENUM_USERINFO14ENUM_EQUIPSLOT：
@@ -777,7 +789,11 @@ public:
     Inven_Item* m_pEquipSlot;     // +0x650
     Inven_Item* m_pAvatarSlot;    // +0x654
     AvatarCoin m_avatarCoin;      // +0x658
-    int m_clearAvatar[10];        // +0x65c
+    // b28c-L2: int→unsigned long（与 SetClearAvatar(unsigned long*)/GetClearAvatar
+    // 的形参同型）。证据：ORIG 0x84e99b4 SetClearAvatar(Pm) store 段 `mov (%eax),%edx`
+    // 直载 + `add $0x194,%ecx`（探针 l2_probe g3 同型形逐条一致，异型形恒多中转）。
+    // sizeof/偏移不变（4 字节 ×10，@+0x65c）。
+    unsigned long m_clearAvatar[10];  // +0x65c
     AvatarVisibleData m_avatarVisible[12];  // +0x684
     Inven_Item* m_pCreatureSlot;  // +0x6e4
     user_creature::CCreatureMgr m_creatureMgr;  // +0x6e8

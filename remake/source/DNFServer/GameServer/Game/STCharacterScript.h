@@ -62,7 +62,10 @@ public:
     unsigned short m_jumpPower;          // +0x4c
     int m_weight;                        // +0x4e
     unsigned char m_field52;
-    int m_field53;
+    // b28c-28：真实类型 float（P79 判据——ORIG 脚本导入对该槽发 `fstps 0x5f`，
+    // 见 CharacterAIA2.cpp:1265 实证；ORIG Clear 尾 `mov $0x0,%edx;
+    // mov %edx,0x53(%eax)` 与探针 /tmp/l28_probe5.cpp gE 的 float=0.0f 形逐条一致）。
+    float m_field53;
 };  // sizeof == 0x57（packed）
 #pragma pack(pop)
 

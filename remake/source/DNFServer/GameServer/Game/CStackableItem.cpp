@@ -19,6 +19,17 @@
 
 
 // 最小构造/析构（ORIG 逐成员构造属后续精修批次；保证可链接）
+// b28c-L8 判词 [N(布局建模)]：fresh 复验 _ZN14CStackableItemC1Ev 292=292，唯一残差
+// 4 行 = 本类 vptr 写入时机。ORIG 0x08515763 构造序 = `call _ZN5CItemC1Ev`(0x85152d4)
+// → `add $0x148; call _ZN12AradItemInfoC1Ev`(0x8515618) → **然后**才
+// `movl $0x8c96ea8,(%eax)` 写本类 vptr → RecipeInfo(+0x174) / LotteryInfo(+0x1c0) / …
+// ⇒ AradItemInfo 必为**次基类**而非成员（CItem sizeof=0x148 权威 ⇒ 次基类恰落 +0x148，
+// 全部偏移/sizeof 不变；AradItemInfo 无虚函数 ⇒ 不引入第二 vptr）。成员模型下 4.4
+// 恒在首成员 ctor 之前写 vptr，源码不可翻。同法先例：C28L9 AvatarRechargeServer.h、
+// C28L16 AvatarFixedHiddenOptionServer.h。本波不改 CStackableItem.h（跨
+// C28L17/18/21 三方写权 CItemList.cpp + Arad_ItemBonus.cpp 消费面），spec 已广播交
+// Main 统一批次；改动清单=头继承表 + CStackableItem.cpp 12 处 + Arad_ItemBonus.cpp:431
+// + CItemList.cpp:1986 去 `m_arad148.` 前缀。
 CStackableItem::CStackableItem()
 {
 }
@@ -77,11 +88,13 @@ BoosterSelectInfo& BoosterSelectInfo::operator=(
 // （P10/P33：m_field18 必须 char）。
 BoosterSelectInfo::BoosterSelectInfo()
 {
+    // [b28c-27] AE：ORIG 0x8513bb8 先写 m_field18 再 vector::clear（源码语句序
+    // 必须同序；原序 clear→field18 使 landing pad 布局差 2 条）。
     m_field0 = 0;
     m_field4 = 0;
     m_field8 = 0;
-    m_nameVec.clear();
     m_field18 = '\0';
+    m_nameVec.clear();
 }
 
 int get_rand_int(int range);
@@ -440,7 +453,9 @@ void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
 //   createLotteryInfo（ORIG 0x89babc5）
 //   createStackableMultiBoxLotteryInfo（ORIG 0x89bafd1；已实现，见下）
 // ============================================================================
-LotteryInfo::LotteryInfo() : m_defaultIdx(0), m_items(), m_defaultCount(0), m_counts()
+// b28c-L8 代落 C28L25（lane25 件）：ORIG C1 0x083706d4 仅构造两 vector 成员后
+// call clear()，无 +0x00/+0x10 标量清零 ⇒ 标量不入初始化列表（清零由 clear 承担）。
+LotteryInfo::LotteryInfo() : m_items(), m_counts()
 {
     clear();
 }
@@ -788,6 +803,9 @@ int CStackableItem::check_able_To_use(int job, int level)
 // 【N90】差值主体=libstdc++4.1 iterator/find 非 inline sret 外联（ORIG 8 insns/步 vs 4.4 inline 4）；豁免不逐形追。
 // P182/N82 封顶（b26 Lane27）：29 条指令全等，仅帧 0x28 vs 0x10（4.4 outgoing/
 // slack 多 24B）连带 2 char 槽平移（-0xc/-0x10 vs -0x4/-0x8）；帧策略跨版本差。
+// b28c-L8 fresh 复验：44 行口径 29=29、NDIFF=4，判词维持 N82（callee
+// _ZNK5CItem14check_job_typeEc 定义在 CItem.cpp 0x0850d728 = 跨 TU ⇒ P210 定义前置不可用；
+// P190 double framePad 反向撑帧亦不可（本例是 4.4 多撑，需减帧））。
 bool CStackableItem::check_change_job_type(char changeJob,
                                            char checkJob) const
 {
@@ -996,6 +1014,10 @@ bool CStackableItem::verifyUsableServerType()
 // ORIG 0x0822ca58 (W)：return m_int39c == type
 bool CStackableItem::verifyStackableAction(StackableAction::Type type) const
 {
+    // b28c-L8 判词 [N(N18a)]：ORIG 0x0822ca58 = `mov 0x39c(%eax),%eax; mov %eax,%edx;
+    // mov 0xc(%ebp),%eax; cmp %eax,%edx`（字段读两段），4.4 恒折单段直落 %edx；
+    // (int)/(unsigned) cast 互换与 std::underlying_type 形均不改（N18a 反向判词：
+    // `mov mem,%eax; mov %eax,%reg` 单段 regmove 不可造）⇒ 残 1 行封顶。
     return m_int39c == type;
 }
 
@@ -1681,7 +1703,10 @@ bool CStackableItem::IsExpAffect()
 CStackableItem::CoolTimeOption CStackableItem::GetCoolTimeOption()
 {
     CoolTimeOption opt;
-    // ORIG 0x086946xx：`movzwl 0x2d8(%edx)` 16 位直读（非逐字节 shl/or 拼接）。
+    // b28c-L8：ORIG 0x086946d2 = `movzwl 0x2d8(%edx),%ecx; mov %cx,(%eax)` 16 位
+    // 直读（uchar 视图实测反劣 +1：4.4 对 uchar→ushort 追加 movzbl %dl 归一）。
+    // 残差 1 条 = 4.4 第二读复用 %edx 覆盖基址 ⇒ 需重载 0xc(%ebp)，而 4.1 用
+    // %ecx/%edx 分列（N7/N18a 型寄存器分配固有差，实测两形均不可翻）。
     opt.sec  = m_option2d8.m_sec16;
     opt.flag = m_option2d8.m_field2;
     return opt;
@@ -1693,7 +1718,7 @@ CStackableItem::CoolTimeOption CStackableItem::GetCoolTimeOption()
 CStackableItem::CoolTimeOption CStackableItem::GetEffectItemOption()
 {
     CoolTimeOption opt;
-    opt.sec  = m_option2e4.m_sec16;
+    opt.sec  = m_option2e4.m_sec16;    // b28c-L8：同 GetCoolTimeOption（ORIG 0x086946f4）
     opt.flag = m_option2e4.m_field2;
     return opt;
 }
@@ -1711,8 +1736,10 @@ StatChangeInfo CStackableItem::GetStatChangeInfo()
 // ORIG 0x08694746 (W 非 const)：flds +0x2e8 —— 返回经验加成比例(float)
 float CStackableItem::GetExpAffectRatio()
 {
-    // 残差 1 条：4.4 取址恒 add $0x2e8 前置（N18a 族），ORIG 为 disp 直读。
-    return *(float*)&m_int2e8;
+    // b28c-L8：ORIG 0x08694746 = `mov 0x8(%ebp),%eax; add $0x2e8,%eax; flds (%eax)`
+    // （指针经 add 推进后 flds 单元址）。旧形 `*(float*)&m_int2e8` 4.4 会折成
+    // `flds 0x2e8(%eax)`；改经匿名 union float 视图 + 返回类型与字段同型即复现。
+    return m_flt2e8;
 }
 
 // ORIG 0x822ca28：movzwl 0x2b4(%eax) —— 返回珍宝目标槽位（16 位，单次零扩展）

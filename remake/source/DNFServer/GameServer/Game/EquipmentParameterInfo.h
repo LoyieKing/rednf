@@ -343,22 +343,40 @@ public:
     // +0x418..0x434 = ORIG `._119` 匿名结构（importAllSkillItem/importItemOverpowerDesc
     // 写入）。ORIG 符号 _ZN22EquipmentParameterInfo5._119C1/C2/D1/D2/aSERKS0_ t
     // （0x088fd884/0x0898c680 两 TU 各一份）+ ._159aSERKS0_（另一 TU 同形副本）。
-    // GCC 无法声明 `class ._119`；改名 `_119` 自然 mangled `4_119` 缺点号不匹配。
-    // ctor/dtor/operator= 在 EquipmentParameterInfo.cpp 显式定义 + `.set` 汇编别名
-    // 强制 ORIG 带点号符号；._159 复用同一 op= 的 .set 别名（mangling 必要性，非 §4.5 违例）。
+    // GCC 无法声明 `class ._119`；命名类取 5 字符 `t_119` 使自然 mangled 段
+    // `5t_119` 与 ORIG 别名 `5._119` 同长（objdump 同址取较短/同长时字典序小者，
+    // 探针 /tmp/b28c_l6_alias_probe6.s 实证：同长时点号别名胜出）。ctor/dtor/
+    // operator= 在 EquipmentParameterInfo.cpp 显式定义 + `.set` 汇编别名强制
+    // ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。
     // 成员经 m_119. 前缀访问（原匿名提升语义由 .set 别名符号保持）。
-    class _119
+    class t_119
     {
     public:
-        _119();     // ORIG _ZN22EquipmentParameterInfo5._119C1Ev t 0x088fd884（构造 +0/+0x10 两 vector）
-        ~_119();    // ORIG _ZN22EquipmentParameterInfo5._119D1Ev t 0x088fd8ca（逆序析构）
-        _119& operator=(const _119& other);  // ORIG aSERKS0_ t 0x088fd910（vector+SASPROPERTY、char、char、vector<vector<float>> 拷贝）
+        t_119();     // ORIG _ZN22EquipmentParameterInfo5._119C1Ev t 0x088fd884（构造 +0/+0x10 两 vector）
+        ~t_119();    // ORIG _ZN22EquipmentParameterInfo5._119D1Ev t 0x088fd8ca（逆序析构）
+        t_119& operator=(const t_119& other);  // ORIG aSERKS0_ t 0x088fd910（vector+SASPROPERTY、char、char、vector<vector<float>> 拷贝）
         std::vector<SASPROPERTY> m_418;          // +0x418（importAllSkillItem push_back）
         char m_424;                              // +0x424（importItemOverpowerDesc 置 1）
         char m_425;                              // +0x425（importItemOverpowerDesc 置 1）
         char m_pad426[2];                        // +0x426..0x427
         std::vector<std::vector<float> > m_428;  // +0x428（importItemOverpowerDesc 写入）
     } m_119;                                     // +0x418（._119 类型实例）
+    // ORIG 另一 TU 的同形副本 `._159`（0x08348024/0x0861c9b8），仅 aSERKS0_，
+    // 函数体与本 TU `._119aSERKS0_` 逐条相同（norm 实测相等）。同址多别名时
+    // objdump 只标注一个 ⇒ 必须独立类+独立函数体才能同时闭合两个点号符号
+    // （P203 附注；无成员实例，不影响布局）。
+    // 类名 6 字符 `tt_159`（自然名段 `6tt_159` 7 字符 > 别名段 `5._159` 6 字符）
+    // ⇒ objdump 同址取更短名时点号别名胜出（探针 /tmp/b28c_l6_alias_probe1.s）。
+    class tt_159
+    {
+    public:
+        tt_159& operator=(const tt_159& other);
+        std::vector<SASPROPERTY> m_418;
+        char m_424;
+        char m_425;
+        char m_pad426[2];
+        std::vector<std::vector<float> > m_428;
+    };
     EquipmentParameterInfo* m_434;                     // +0x434（scanRandomOptionValue 传入的 EquipmentParameterInfo* 子指针）
     int m_438;                                         // +0x438（clear 置 -1）
     int m_43c;                                         // +0x43c（clear 置 -1）

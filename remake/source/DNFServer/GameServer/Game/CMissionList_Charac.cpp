@@ -45,6 +45,11 @@ void StrToBitset(unsigned char* data, std::bitset<256>& bitset)
             bitset[i * 8 + j] = (data[i] >> j) & 1;
 }
 // ORIG 0x8a5a90a：bitset → 32 字节（ORIG mangled 第二参为 std::string&）
+// [b28c-13 N] 残余：ORIG 0x08a5a8d2 段 `mov %eax,%edx; movzbl byte,%eax;
+// lea (%edx,%eax,1),%eax; mov %al,byte`（读-加-写三段 + 槽 -0x11）；4.4-O0 对
+// `byte += x`/`byte = byte + x`/`x + byte` 三形实测恒折 `add %al,byte` 内存直加
+// （P183 折叠铁律），且 i 槽 -0x14 vs ORIG -0x10（N93 块级槽方向）。语义等价
+// （unsigned char 回绕 + out[i] 截断同）。
 void BitsetToStr(const std::bitset<256>& bitset, std::string& out)
 {
     out.resize(0x20);
@@ -52,7 +57,11 @@ void BitsetToStr(const std::bitset<256>& bitset, std::string& out)
     {
         unsigned char byte = 0;
         for (int j = 0; j < 8; ++j)
-            byte += (unsigned char)(bitset[i * 8 + j] << j);
+            // ORIG 0x08a5a8d2 段：`mov %eax,%edx; movzbl byte,%eax;
+            // lea (%edx,%eax,1),%eax; mov %al,byte` ⇒ 源形是 `bit + byte`
+            // 顺序（x 在 edx、byte 在 eax）；`byte + x`/`+=` 均被 4.4 折成
+            // `add %al,mem` 内存直加。
+            byte = (unsigned char)((bitset[i * 8 + j] << j) + byte);
         out[i] = (char)byte;
     }
 }
@@ -315,8 +324,19 @@ void CMissionList_Charac::Update_Revenge_event(CUser& user,
 void CMissionList_Charac::Update_GameOver_event(
     CUser& user, const MissionClearCondition_Parameter& param)
 {
-    if ((G_GameWorld()->GetChannelType() == 0xf) &&
-        (getIndex_byKind(0x1b) == 0))
+    // b28c-L5：ORIG 0x085e5fe4 两守卫均为「call 结果寄存器直比 + bool 物化岛」：
+    //   `call GetChannelType; cmp $0xf,%eax; setne %al; test %al,%al; jne <尾岛>`、
+    //   `call getIndex_byKind; test %ax,%ax; setne %al; test %al,%al; jne <尾岛>`，
+    // 且两失败出口落**不同** nop 中继（+0x1b5 / +0x1b8），body 后另有 `jmp`。
+    // 4.4 对正极性 `if (a==K && b==0) {body}` 恒产 je/jne 直跳 + 结果汇聚岛
+    // （少 setne、多 mov$1/jmp/mov$0），探针 /tmp/l5_probe_a.cpp hA
+    // （`if (g1(x) != 0xf) return;`）实证否定早返直产 ORIG setne 三段物化；
+    // 双岛由 goto 尾标签串复现（P223/BM8）。std::vector 局部包内层块，
+    // 避开 4.4「goto 跨同层非平凡局部声明」拒编译约束。
+    if (G_GameWorld()->GetChannelType() != 0xf)
+        goto L_notchannel;
+    if (getIndex_byKind(0x1b) != 0)
+        goto L_hasmision;
     {
         alter();
         std::vector<int> out;
@@ -329,6 +349,8 @@ void CMissionList_Charac::Update_GameOver_event(
         check_mission_kind(0x17, user, param, out);
         Send_Cleared_Mission_List(user, out);
     }
+L_hasmision:;
+L_notchannel:;
 }
 
 void CMissionList_Charac::Update_RecvPacket_event(
@@ -582,17 +604,25 @@ void CMissionList_Charac::addNewMission(const MissionInfo& info)
 
 void CMissionList_Charac::Remove_Mission(int kind)
 {
-    if ((kind > 0) && (kind < 0x24))
+    // b28c-L5：ORIG 0x085e4bec 两条范围检查各落**独立** nop 中继岛
+    // （+0x79 `nop; jmp +0x7d` / +0x7c `nop;` fall 到 +0x7d leave），body 尾另有
+    // `jmp +0x7d`。4.4 对 `if ((kind>0)&&(kind<0x24)) {body}` 恒 jump-thread 合并两
+    // 失败出口（少 4 条）。探针 /tmp/l5_probe_a.cpp fD 实证：`goto` 双守卫 + 尾标签串
+    // 精确产 ORIG 三岛形（P223 多岛扩展 BM8 同法）。语义与原守卫完全一致。
+    if (kind <= 0)
+        goto L_nonrange;
+    if (kind >= 0x24)
+        goto L_overrange;
+    if (m_user)
     {
-        if (m_user)
-        {
-            m_user->m_historyLog.pvpMissionDel(
-                (int)m_missionList[kind].m_kind,
-                (int)m_missionList[kind].m_index);
-        }
-        m_missionList[kind].clear();
-        alter();
+        m_user->m_historyLog.pvpMissionDel(
+            (int)m_missionList[kind].m_kind,
+            (int)m_missionList[kind].m_index);
     }
+    m_missionList[kind].clear();
+    alter();
+L_overrange:;
+L_nonrange:;
 }
 
 void CMissionList_Charac::ClearMission(CUser& user, short index)
@@ -633,10 +663,15 @@ void CMissionList_Charac::ClearMission(CUser& user, short index)
 
 void CMissionList_Charac::ClearMissionKind(CUser& user, short kind)
 {
-    if ((kind > 0) && (kind < 0x24))
-    {
-        ClearMission(user, m_missionList[kind].m_index);
-    }
+    // b28c-L5：同 Remove_Mission —— ORIG 0x085e63d6 两失败出口各落独立 nop 中继岛
+    // （+0x40 nop;jmp / +0x43 nop fall），探针 l5_probe_a fD 形复现（P223）。
+    if (kind <= 0)
+        goto L_nonrange;
+    if (kind >= 0x24)
+        goto L_overrange;
+    ClearMission(user, m_missionList[kind].m_index);
+L_overrange:;
+L_nonrange:;
 }
 
 void CMissionList_Charac::ResetMissionList(CUser& user)
@@ -684,11 +719,16 @@ void CMissionList_Charac::Reset_DailyMission()
 
 void CMissionList_Charac::GM_SetMissionValue(int kind, int value)
 {
-    if ((kind > 0) && (kind < 0x24))
-    {
-        m_missionList[kind].m_count = (short)value;
-        alter();
-    }
+    // b28c-L5：同 Remove_Mission —— ORIG 0x085e56ee 三岛形（+0x2f nop;jmp /
+    // +0x32 nop fall），探针 l5_probe_a fD 复现（P223）。
+    if (kind <= 0)
+        goto L_nonrange;
+    if (kind >= 0x24)
+        goto L_overrange;
+    m_missionList[kind].m_count = (short)value;
+    alter();
+L_overrange:;
+L_nonrange:;
 }
 
 int CMissionList_Charac::getNewMission(CUser& user, int kind)
@@ -822,13 +862,14 @@ void CMissionList_Charac::setIssue(bool isNewbie, bool isDaily)
 
 bool CMissionList_Charac::isClearMission(int index) const
 {
-    // bitset::operator[] 已返回 bool，`!= 0` 触发隐式规范化岛（4.4 多 5 行）；
-    // ORIG test %al 直测（P32 bool 直写）。
-    if ((index >= 0) && (index < 0x100) && m_clearedFlags[(unsigned int)index])
-    {
-        return 1;
-    }
-    return 0;
+    // b28c-L5：ORIG 0x085e50fa 尾形 `mov $0x1,%eax / jmp / mov $0,%eax / leave`（20 条）。
+    // 4.4 对「if(cond) return 1; return 0;」恒额外物化一段 bool 归一岛（+5 条：
+    // `mov $0,%eax; test %al; je; mov $1; jmp; mov $0`），探针 /tmp/l5_probe_isclear.cpp
+    // fA(异形 25)/fB(三目 20 全等)/fD(嵌套 if 20 但条件树异形) 定案：三目返回形
+    // 与 ORIG 逐条全等（P47 三目 vs if-return 块排布镜像的本例应用）。
+    return ((index >= 0) && (index < 0x100) && m_clearedFlags[(unsigned int)index])
+               ? 1
+               : 0;
 }
 
 short CMissionList_Charac::getIndex_byKind(int kind) const

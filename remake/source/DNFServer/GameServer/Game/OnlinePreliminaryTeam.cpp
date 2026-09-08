@@ -36,11 +36,12 @@ namespace online_preliminary
 // 相等时再比较 uniqueId（int@+0x04）。
 bool CharacterInServer::operator<(const CharacterInServer& rhs) const
 {
-    unsigned short s1 = static_cast<unsigned short>(m_serverId);
-    unsigned short s2 = static_cast<unsigned short>(rhs.m_serverId);
-    if (s1 < s2)
+    // [b28c-16] P0/P35：ORIG 无 s1/s2 槽（4 次 movzwl 表达式直读）；
+    // 字段 unsigned short 化后 4.4 复现 `movzwl (%eax),%edx` 单段直落
+    // （short+cast 恒拆两段，见 OnlinePreliminary.h 注释）。
+    if (m_serverId < rhs.m_serverId)
         return true;
-    if (s1 == s2 && m_uniqueId < rhs.m_uniqueId)
+    if (m_serverId == rhs.m_serverId && m_uniqueId < rhs.m_uniqueId)
         return true;
     return false;
 }
@@ -181,9 +182,11 @@ int COnlinePreliminaryTeam::GetEachOtherTeamPlayCount(int teamId) const
 {
     std::map<int, PlayCountInfoEx>::const_iterator it =
         m_playCountMap.find(teamId);
-    if (it == m_playCountMap.end())
-        return 0;
-    return static_cast<int>(it->second.m_count);
+    // [b28c-16] P222 正向包裹：ORIG 命中路径 fall-through、`mov $0` 落叶尾共享块；
+    // 负极 `== end → return 0` 使 4.4 把零值块前置（jmp 落点互换）。
+    if (it != m_playCountMap.end())
+        return static_cast<int>(it->second.m_count);
+    return 0;
 }
 
 // ORIG W 0x08588d60 saveData【推断：objdump】＝顺序调用 _saveTeam + _saveTeamMatchList。
@@ -538,9 +541,10 @@ unsigned int COnlinePreliminaryMemberMatchList::GetPeerPlayCount(
     CharacterInServer key(serverId, uniqueId);
     std::map<CharacterInServer, PlayCountInfo>::const_iterator it =
         m_peerMap.find(key);
-    if (it == m_peerMap.end())
-        return 0;
-    return it->second.m_count;
+    // [b28c-16] P222 正向包裹（同上）。
+    if (it != m_peerMap.end())
+        return it->second.m_count;
+    return 0;
 }
 
 // ============================================================================

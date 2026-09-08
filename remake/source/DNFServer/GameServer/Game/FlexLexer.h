@@ -116,7 +116,7 @@ public:
 	int debug() const		{ return yy_flex_debug; }
 	void set_debug( int flag )	{ yy_flex_debug = flag; }
 
-protected:
+public:
 	char* yytext;
 	int yyleng;
 	int yylineno;		// only maintained if you use %option yylineno

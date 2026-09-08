@@ -72,17 +72,15 @@ int CUdpHandler::InitServerSocket(int port)
         case 99:
             puts("Cannot assign requested address");
             break;
+        // b28c-L10：ORIG 0x848362b 决策树尾 `test %eax,%eax; je 0x11f`（跳过 default 体）
+        // ⇒ 原码有 case 0（空体，err==0 不打印）。补上后 4.4 复用 %eax 生成同一
+        // test/je 尾，且 default 体不再需要 `if (err != 0)` 重载槽判断（消除
+        // `cmpl $0x0,-0xc(%ebp); je` 伪差）。case 书写序照 ORIG 树序 0x62→99→0。
+        case 0:
+            break;
         default:
-            // 残差（N，probe /tmp/p16probe.cpp 实证）：ORIG 4.1 把本判断合入
-            // switch 决策树尾（`cmp $0x63; je` 后 `test %eax,%eax; je 尾`，复用
-            // 树值 %eax，default 体后置 `jmp`）；4.4 恒把 default 体单排为独立
-            // BB 并重载槽 `cmpl $0x0,-0xc(%ebp); je`。嵌套 `!(err==0)` 与
-            // register asm(eax) 形均只移位不变 cmp 源，块放置不可由源形控制。
-            if (err != 0)
-            {
-                printf("Could not bind UDP receive port. Error= %d , strerror = %s\n",
-                       err, strerror(err));
-            }
+            printf("Could not bind UDP receive port. Error= %d , strerror = %s\n",
+                   err, strerror(err));
             break;
         }
         m_serverSocket = -1;
@@ -97,8 +95,11 @@ int CUdpHandler::InitServerSocket(int port)
 bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
                                 unsigned short* port) const
 {
-    // AE 闭合（83=83 文本逐条相等）：verdict DIFF 仅因 .o 未链接重定位
-    // （recvfrom/puts/ntohs plt 与字符串数据地址）；无真指令残差。
+    // b28c-L10 判词（DIFF 2，P75）：ORIG 4.1 在 len=0x10 后立即 `lea -0x20(%ebp),%ebx`
+    // 物化第 6 实参 &len（右起求值），4.4 恒在第 5 实参 (sockaddr*)&from 之后才 lea
+    // （实参装载时刻跨版本差异）。探针 /tmp/l10_probe8/9.cpp 六形（cast/语句表达式/
+    // 具名指针）均不可翻；具名 `socklen_t* plen=&len` 反而多槽往返（P0 反例）。
+    // 语义等价：槽位 -0x20/-0x1c 与 ORIG 相同，仅 1 条 lea 位置差。
     int err;
     sockaddr_in from;
     socklen_t len;
@@ -107,7 +108,10 @@ bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
         return 0;
     }
     len = 0x10;
-    *size = recvfrom(m_serverSocket, buf, *size, 0, (sockaddr*)&from, &len);
+    // b28c-L10：ORIG 在 len=0x10 后立即 `lea -0x20(%ebp),%ebx` 物化 &len 跨 recvfrom
+    // 调用（P226 裸语句表达式升格 callee-saved）；直传实参被 4.4 延后到压栈点。
+    *size = recvfrom(m_serverSocket, buf, *size, 0, (sockaddr*)&from,
+                     ({ &len; }));
     if (*size == -1)
     {
         err = getErrno();
@@ -139,8 +143,8 @@ bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
 bool CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
                                 unsigned short* port) const
 {
-    // AE 闭合（83=83 文本逐条相等）：verdict DIFF 仅因 .o 未链接重定位
-    // （recvfrom/puts/ntohl plt 与字符串数据地址）；无真指令残差。
+    // b28c-L10 判词（DIFF 2，P75）：同 RecvFromClient（ORIG &len 先物化到 %ebx，
+    // 4.4 延后到压栈点）；六形探针全败，语义等价。
     int err;
     sockaddr_in from;
     socklen_t len;
@@ -149,7 +153,8 @@ bool CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
         return 0;
     }
     len = 0x10;
-    *size = recvfrom(m_clientSocket, buf, *size, 0, (sockaddr*)&from, &len);
+    *size = recvfrom(m_clientSocket, buf, *size, 0, (sockaddr*)&from,
+                     ({ &len; }));   // b28c-L10：同上（ORIG 提前物化 &len 到 %ebx）
     if (*size == -1)
     {
         err = getErrno();
@@ -260,8 +265,9 @@ bool CUdpHandler::SendToServer(char* buf, int len, unsigned short port,
     int err;
     if (m_clientSocket == -1)
     {
-        cMyTrace trace(__FUNCTION__, 0x194, 5);
-        trace("[%s][%d]", __FUNCTION__, 0x194);
+        // b28c-L10：P221 全表达式临时链——ORIG 槽序 0x194→-0x70 最深，4.4 具名对象
+        // 反装为 -0x30 最浅；临时链复现 ORIG 槽深方向。
+        cMyTrace(__FUNCTION__, 0x194, 5)("[%s][%d]", __FUNCTION__, 0x194);
         return 0;
     }
     else if (m_clientSocket == -1)
@@ -277,7 +283,9 @@ bool CUdpHandler::SendToServer(char* buf, int len, unsigned short port,
     }
     else
     {
-        memset(&to, 0, 0x10);
+        // b28c-L10：P68 memset 首参 cast 触发 lea 先行（ORIG `lea -0x80(%ebp),%eax`
+        // 在 `movl $0x10,0x8(%esp)` 之前；无 cast 时 4.4 右到左先压常量）。
+        memset((char*)&to, 0, 0x10);
         to.sin_family = AF_INET;
         to.sin_port = htons(port);
         to.sin_addr.s_addr = inet_addr(ip);
@@ -292,20 +300,20 @@ bool CUdpHandler::SendToServer(char* buf, int len, unsigned short port,
         case 0x70:
         case 0x71:
         {
-            cMyTrace trace(__FUNCTION__, 0x1ca, 5);
-            trace("CUdpHandler::SendToServer Error: EHOSTUNREACH");
+            cMyTrace(__FUNCTION__, 0x1ca, 5)
+                ("CUdpHandler::SendToServer Error: EHOSTUNREACH");
             break;
         }
         case 0x61:
         {
-            cMyTrace trace(__FUNCTION__, 0x1d1, 5);
-            trace("CUdpHandler::SendToServer Error: EAFNOSUPPORT");
+            cMyTrace(__FUNCTION__, 0x1d1, 5)
+                ("CUdpHandler::SendToServer Error: EAFNOSUPPORT");
             break;
         }
         default:
         {
-            cMyTrace trace(__FUNCTION__, 0x1d8, 5);
-            trace("CUdpHandler::SendToServer Error : other err");
+            cMyTrace(__FUNCTION__, 0x1d8, 5)
+                ("CUdpHandler::SendToServer Error : other err");
             break;
         }
         }
@@ -313,14 +321,12 @@ bool CUdpHandler::SendToServer(char* buf, int len, unsigned short port,
     }
     if (sent == 0)
     {
-        cMyTrace trace(__FUNCTION__, 0x1e2, 5);
-        trace("CUdpHandler::SendToServer Error: 0 == s");
+        cMyTrace(__FUNCTION__, 0x1e2, 5)("CUdpHandler::SendToServer Error: 0 == s");
         return 0;
     }
     if (len != sent)
     {
-        cMyTrace trace(__FUNCTION__, 0x1ea, 5);
-        trace("CUdpHandler::SendToServer Error : len != s");
+        cMyTrace(__FUNCTION__, 0x1ea, 5)("CUdpHandler::SendToServer Error : len != s");
         return 0;
     }
     else

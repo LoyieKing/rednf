@@ -14,7 +14,10 @@ class Packet_Game_Monitor_GM_Village_Attacked : public PacketHeader
 {
 public:
     Packet_Game_Monitor_GM_Village_Attacked()   // ORIG W @0x0822c3c2
-        : PacketHeader(0x17, 0x234a)
+        // [b28c-34] 真语义 bug 修复：ORIG 0x0822c3c2 `movl $0x17,0x8(%esp);
+        // movl $0x234a,0x4(%esp)` ⇒ PacketHeader(0x234a, 0x17)（与 shared/packet
+        // 权威头一致）；原写 (0x17,0x234a) 使包 ID/长度互换。
+        : PacketHeader(0x234a, 0x17)
     {
     }
 

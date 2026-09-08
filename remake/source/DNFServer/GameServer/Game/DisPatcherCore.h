@@ -717,7 +717,13 @@ struct MSG_DEBUG_COMMAND
 {
     unsigned char m_head[0xd];       // +0x00..0x0c
     unsigned char m_command;         // +0x0d
-    int m_arg;                       // +0x0e
+    int m_arg;                       // +0x0e（b28c-lane12 曾试 int→unsigned int
+                                     //   以复现 setBlackCount 单段直落，TU 级
+                                     //   ae +1/diff −1 零回归，但 C28L19 指出
+                                     //   DisPatcherCore.cpp:13237/13252 有
+                                     //   `m_arg < 1`/`0 < m_arg` 有符号判定，
+                                     //   换型会 jl→jb 改他 lane 语义 ⇒ 回退，
+                                     //   改由消费点本 TU 私有视图承载）
     union                            // +0x12 起（按命令互斥）
     {
         struct {

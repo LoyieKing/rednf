@@ -94,23 +94,23 @@ void CPartyTelePort::set_teleport_state(char state)
     m_tp.m_state = state;
 }
 
-unsigned int CPartyTelePort::get_teleport_member_state(int idx)
+char CPartyTelePort::get_teleport_member_state(int idx)
 {
     if (m_party == 0)
     {
-        return (unsigned int)-1;
+        return -1;
     }
     if (idx < 0 || idx > 3)
     {
-        return (unsigned int)-1;
+        return -1;
     }
-    if (m_party == 0)
+    // [b28-L14] ORIG 0x85bc26x 第三 null 守卫为 `test; je <尾常量块>`（主路径
+    // fall-through）⇒ 正向包裹（P222 钥匙），非常规负极早返。
+    if (m_party != 0)
     {
-        return (unsigned int)-1;
+        return m_party->GetMember()[idx].m_field12;
     }
-    // ORIG 0x85bc26x：GetMember() 结果寄存器缓存 + `movzbl 0x12(%eax)` disp 折叠
-    // ⇒ 源形为 cMember 成员直访（无指针局部、无手算偏移），字段 uchar 零扩展。
-    return m_party->GetMember()[idx].m_field12;
+    return -1;
 }
 
 void CPartyTelePort::set_teleport_member_state(int idx, char state)
@@ -226,11 +226,13 @@ char CPartyTelePort::check_cur_teleport_state()
             {
                 continue;
             }
-            if (get_teleport_member_state(i) == 1)
+            // [b28-L14] ORIG 0x85bbb6x：`cmp $0x1,%al; setne %al; test; je
+            // <循环尾>` + fall-through `movb $0,result` ⇒ 正向 `!= 1` 物化包裹
+            // （P222），负极 `== 1 → continue` 产 sete/jne 反演。
+            if (get_teleport_member_state(i) != 1)
             {
-                continue;
+                result = 0;
             }
-            result = 0;
         }
         if (result != 0)
         {
@@ -240,7 +242,7 @@ char CPartyTelePort::check_cur_teleport_state()
     return result;
 }
 
-char CPartyTelePort::process_teleport()
+bool CPartyTelePort::process_teleport()
 {
     char result;
     if (m_party == 0)
@@ -368,40 +370,41 @@ void CPartyTelePort::process_leave_user_at_teleport(CUser* user)
     {
         return;
     }
-    if (get_teleport_state() == -1)
+    // [b28-L14] ORIG 0x85bc19x：`call get_teleport_state; cmp $0xff,%al;
+    // setne %al; test %al,%al; je <统一尾>` ⇒ 正向 bool 物化包裹整段主体
+    // （P222 钥匙 + P84 物化形）；负极 `== -1` 早返产 sete/jne 反演。
+    if (get_teleport_state() != -1)
     {
-        return;
-    }
+        int slot = m_party->GetMemberSlotNo(user);
+        if (slot < 0)
+        {
+            return;
+        }
+        if (slot > 3)
+        {
+            return;
+        }
+        if (m_party->checkValidUser(slot) != 1)
+        {
+            return;
+        }
 
-    int slot = m_party->GetMemberSlotNo(user);
-    if (slot < 0)
-    {
-        return;
-    }
-    if (slot > 3)
-    {
-        return;
-    }
-    if (m_party->checkValidUser(slot) != 1)
-    {
-        return;
-    }
-
-    if (m_party->getManager() == user)
-    {
-        set_teleport_member_state(slot, 0);
-        set_teleport_state(2);
-        send_teleport_status(8);
-        reset_teleport_data();
-    }
-    else
-    {
-        set_teleport_member_state(slot, 4);
-        check_cur_teleport_state();
-        set_teleport_member_state(slot, 0);
-        send_teleport_status(0);
-        set_teleport_member_state(slot, 4);
-        process_teleport();
+        if (m_party->getManager() == user)
+        {
+            set_teleport_member_state(slot, 0);
+            set_teleport_state(2);
+            send_teleport_status(8);
+            reset_teleport_data();
+        }
+        else
+        {
+            set_teleport_member_state(slot, 4);
+            check_cur_teleport_state();
+            set_teleport_member_state(slot, 0);
+            send_teleport_status(0);
+            set_teleport_member_state(slot, 4);
+            process_teleport();
+        }
     }
 }
 

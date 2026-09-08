@@ -388,12 +388,14 @@ void TrainingQuestScript::suffleTrainingQuests()
     MyRandom rnd(count);
     for (int i = 0; i <= 0x45; ++i)
     {
-        // ORIG 0x08aafd9c：call empty; test %al,%al; jne（bool 直取返回值，
-        // 谓词不具名——具名 bool 反多 xor 反相行，P198②）。
-        if (!m_questProb[i].empty())
-        {
-            std::random_shuffle(m_questProb[i].begin(), m_questProb[i].end(), rnd);
-        }
+        // b28c-28（P223 + P168a①）：ORIG 0x08aafd2f 段为
+        // `call empty; test %al,%al; jne <nop 岛>` + then 体尾 `jmp <岛后>`——
+        // 即「正向 empty 判定 + goto 尾空标签」形；`if(!empty()){}` 被 4.4 折成
+        // `xor$1; test; je`（极性反、少 jmp 岛）。
+        if (m_questProb[i].empty())
+            goto SHUFFLE_DONE;
+        std::random_shuffle(m_questProb[i].begin(), m_questProb[i].end(), rnd);
+SHUFFLE_DONE:;
     }
 }
 

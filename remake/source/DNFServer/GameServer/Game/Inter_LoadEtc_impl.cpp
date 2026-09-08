@@ -102,10 +102,10 @@ public:
 };
 
 CSkillTreeParam::CSkillTreeParam(CUser* user, SIG_LOAD_ETC* sig, PacketGuard& packet)
+    // P29/P55：ORIG 0x084eef50 先写 +0x00/0x04/0x08（列表），再构造 +0x1c/+0x28
+    // vector 成员，最后 body 清零 +0x0c..0x18 ⇒ 前三者走初始化列表。
+    : m_user(user), m_sig(sig), m_packet(&packet)
 {
-    m_user = user;
-    m_sig = sig;
-    m_packet = &packet;
     m_curSp = 0;
     m_field10 = 0;
     m_field14 = 0;
@@ -486,6 +486,9 @@ inline SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD* asLetheResult(void* p)
 
 int Inter_LoadEtc::_fnEnumQuestClear(unsigned int questIdx, char* ctx)
 {
+    // [b28c-lane25 判词·N] ORIG 0x084c2b0e 为 `lea 0x4(%eax),%edx; mov %edx,0xc(%ebp);
+    // mov (%eax),%eax`（先自增写回参数槽再读旧值）；4.4 恒「读值→addl 参数槽」，
+    // 且 bool callee 直判恒多 setne（P168a③b 跨版本 bool ABI）。语义等价，封顶。
     // ORIG 0x84c2b08：static（0x8=questIdx 无 this）；ctx 参数槽原地自增
     // （lea 0x4; mov →0xc(%ebp) 后读旧值），源码 = 读旧值 + ctx+=4 两条语句。
     InterfacePacketBuf* buf = *reinterpret_cast<InterfacePacketBuf**>(ctx);
@@ -1926,13 +1929,15 @@ Inter_LoadEtc::~Inter_LoadEtc() {}
 // → SendMail(user, param2, 1, param4)（param3 不透传，ORIG 汇编压栈序实证）。
 void CAradRyosikaEvent::DoEvent(CUser* user, int param2, int param3, int param4)
 {
-    if (user != 0)
+    // [b28c-L18 代落] ORIG 0x081a107c body 尾有 `jmp <统一exit>` 中继岛 ⇒ P223
+    // goto 尾空标签形（then 尾跳出）；虚调用 `call *%edx` 差记 N7。
+    if (user == 0)
+        goto done;
+    if (IsEventing(0) && ApplyDatePeriod(user))
     {
-        if (IsEventing(0) && ApplyDatePeriod(user))
-        {
-            SendMail(user, param2, 1, param4);
-        }
+        SendMail(user, param2, 1, param4);
     }
+done:;
 }
 
 // ORIG T 0x081a0fda sz 0xa（ApplyDatePeriod.md 全文已读）：恒返 true。
@@ -2128,13 +2133,20 @@ void Inter_NpcLimitBuyItemInfo::sendPacket(CUser* user)
 void Inter_RequestCharacSkillInfo::_PutSkillInfoToCharac(
     char slotFlag, const _Mastered_skill* skill, SkillSlot* skillSlot)
 {
+    // b28c-33：ORIG 0x084e7820 入口即 `movl $0x198,-0xc(%ebp)`（size 具名局部，
+    // memcpy 第 3 参经该槽），直接写立即数少 1 条且全帧槽号平移 ⇒ 补具名 size。
+    int size = 0x198;
     if (slotFlag == -1 || slotFlag == 0)
     {
-        memcpy(&skillSlot->m_skillSlot[0], skill, 0x198);
+        // b28c-33：ORIG 为 `mov 0x14(%ebp),%eax; lea 0x46(%eax),%edx`（数组名退化
+        // 单条 lea）；`&arr[0]` 形使 4.4 生 `mov+add` 两段。
+        // [b28c-33 判词 NEAR-N4/P30] 数组名与 &arr[0] 两形实测均产 `mov;add`（探针
+        // l33d f1/f2/f4/f5 同族），4.4 恒折 add 两段 ⇒ 31/31，仅 lea-vs-add+装载序差。
+        memcpy(skillSlot->m_skillSlot, skill, size);
     }
     else if (slotFlag == 1)
     {
-        memcpy(&skillSlot->m_skillSlot2[0], skill, 0x198);
+        memcpy(skillSlot->m_skillSlot2, skill, size);
     }
 }
 

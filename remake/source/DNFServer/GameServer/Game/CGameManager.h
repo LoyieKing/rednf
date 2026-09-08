@@ -581,7 +581,7 @@ public:
     // 故不设 userPool* 发明 wrapper（§4.1）；MainLoop/ProcessServerStatusLog/
     // AcceptThread::dispatch 以 friend 直访私有池。广播 2026-09-06 批准。
     friend void ProcessServerStatusLog();  // ORIG 0x80ede91 访问私有池（GameMain.cpp 定义）
-    friend void MainLoop();                 // ORIG 0x829fa2b 直访私有池（GameMain.cpp 定义）
+    friend bool MainLoop();                 // ORIG 0x829fa2b 直访私有池（GameMain.cpp 定义）
     friend class AcceptThread;              // GlobalData.cpp AcceptThread::dispatch 直访私有池
     friend class QuickParty::CQuickParty;   // ORIG destroy 0x082695ca 直访 +0x1cc pool
                                             //   /+0x2d4 hash_map（P48 直调形恢复，S23B 广播）

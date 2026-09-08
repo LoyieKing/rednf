@@ -1158,13 +1158,14 @@ unsigned char CUserCharacInfo::isSavedPremiumCubeInfo() const
 }
 
 
-char CUserCharacInfo::isSaveSkill() { return m_saveSkill; }
+// [b28c-L26 档①] 返回类型随头改 bool（Main 批准，ORIG 体 movzbl 直返实证）。
+bool CUserCharacInfo::isSaveSkill() { return m_saveSkill; }
 
-char CUserCharacInfo::isSaveQuest() { return m_saveQuest; }
+bool CUserCharacInfo::isSaveQuest() { return m_saveQuest; }
 
-char CUserCharacInfo::isSavePvP() { return m_savePvP; }
+bool CUserCharacInfo::isSavePvP() { return m_savePvP; }
 
-char CUserCharacInfo::isSaveInven() { return m_saveInven; }
+bool CUserCharacInfo::isSaveInven() { return m_saveInven; }
 
 char CUserCharacInfo::isSaveDungeonClear() { return m_saveDungeonClear; }
 
@@ -2323,7 +2324,9 @@ void CUserCharacInfo::VillageAttack_DBUpdate()
 }
 
 
-int CUserCharacInfo::UseFinishPoint(int point)
+// [b28c-L26 SIGFIX·档①] 定义返回类型随头改 unsigned int（P159：返回类型不入
+// mangled，ABI 同宽；lane35 转来的 spec，Main 终裁本 TU 归我收尾）。
+unsigned int CUserCharacInfo::UseFinishPoint(int point)
 {
     if (!m_selected)
     {

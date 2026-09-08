@@ -118,10 +118,13 @@ char const* TutorialData::getDialogStr(unsigned int idx, unsigned int key)
     if (it == m_dialogs.end()) {
         return 0;
     }
-    if (!(idx < it->second.size())) {
-        return 0;
+    // ORIG 0x08ab85a4：`cmp 0xc(%ebp),%eax; seta %al; test %al,%al; je 0-岛`
+    // —— 正极性 `if (idx < size)` 才让 4.4 出 seta + 成功路径 fall-through
+    // （写 !(idx<size) 早返出 setbe 且块序相反，P220）。
+    if (idx < it->second.size()) {
+        return it->second.at(idx)->m_str.c_str();
     }
-    return it->second.at(idx)->m_str.c_str();
+    return 0;
 }
 
 // ORIG _ZN12TutorialData12getFaceIndexEjj @0x08ab85de（参数语义同 getDialogStr）。
@@ -131,10 +134,11 @@ int TutorialData::getFaceIndex(unsigned int idx, unsigned int key)
     if (it == m_dialogs.end()) {
         return 0;
     }
-    if (!(idx < it->second.size())) {
-        return 0;
+    // 同 getDialogStr：ORIG 0x08ab8654 seta 物化 + 正极性布局。
+    if (idx < it->second.size()) {
+        return it->second.at(idx)->m_faceIndex;
     }
-    return it->second.at(idx)->m_faceIndex;
+    return 0;
 }
 
 // ORIG _ZN12TutorialData16isCurrentEpisodeEjj @0x08ab84fe
@@ -313,8 +317,15 @@ std::vector<TutorialData::TutorialNotice*> TutorialData::getNoticeAniPath(int ke
 {
     std::vector<TutorialNotice*> empty;
     NoticeMap::iterator it = m_notices.find(key);
-    if (it == m_notices.end()) {
-        return empty;
+    // ORIG 0x08ab8cb3：`call ne; test %al,%al; je 0x87` ⇒ 源码用 != 正极性
+    // （it!=end 走 fall 返回 it->second）；empty 分支 ORIG 0x08ab8cdf 调
+    // vector::C1EOS4_（move 构造，GCC4.4.7 不隐式 move 局部返回值 ⇒ 显式
+    // std::move，否则生成 C1ERKS4_ 拷贝 +5 条）。
+    if (it != m_notices.end()) {
+        return it->second;
     }
-    return it->second;
+    // ORIG 0x08ab8cdf 调 vector::C1EOS4_（move 构造）。用 static_cast 到右值
+    // 引用而非 std::move()——4.4.7 -O0 把 std::move 模板实例化为 out-of-line
+    // call（多 1 条 call + 传参），ORIG 无该 call（4.1 内联该转换）。
+    return static_cast<std::vector<TutorialNotice*>&&>(empty);
 }

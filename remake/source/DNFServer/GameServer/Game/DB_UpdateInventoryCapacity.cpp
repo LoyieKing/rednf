@@ -22,9 +22,10 @@ void DB_UpdateInventoryCapacity::makeRequest(ENUM_SERVER_GROUP serverGroup,
                                              int /*uid*/, unsigned int characNo,
                                              int capacity)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xabd0);
-    CStreamGuard guard(stream, true);
+    // [b28c-32] P0/P103：ORIG 0x08444d32 Acquire 结果 %eax 直传 guard C1 的
+    // 0x4(%esp)（无具名 stream 局部槽；guard 落 -0x10 而非 -0x14）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xabd0), true);
     guard.operator*()->operator<<(0x2ae);
     guard.operator*()->operator<<(-1);
     guard.operator*()->operator<<(static_cast<int>(serverGroup));

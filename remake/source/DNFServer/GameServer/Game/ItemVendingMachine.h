@@ -78,7 +78,10 @@ public:
     // bool callee 直判形；int 声明生 sete 物化。mangled 无返回类型，ABI 零变。
     bool BuyItem(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg);
     // ORIG ProcessBuyRequestEx 0x081769f6：BuyItem 的唯一真实依赖（115KB 报告）。
-    int ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg);
+    // b28c-l23 SIGFIX：int→bool（ORIG __PRETTY_FUNCTION__ 串 @0x08b87080 =
+    // "bool ItemVendingMachine::ProcessBuyRequestEx(CUser*, const
+    // MSG_BUY_CERASHOP_ITEM&)"，P174；体内 return 值仅 0/1）。mangled 不变。
+    bool ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg);
 
     // ORIG BuyAuctionItem 0x08175c5c（_ZN18ItemVendingMachine14BuyAuctionItemEP5CUserRNS_
     // 15AuctionNeedInfoEibi）：拍卖币购买拍卖行物品，Taiwan 计费两段 purchase
@@ -119,7 +122,10 @@ public:
     // ORIG 0x08176348：static Inven_Item temp; reset 后经 GetRelatedItem 的
     // vtable+0x08 拷贝；返回 temp.m_field1（ITEM_TYPE）。ORIG 返回 int
     //（调用点 4 字节直存；尾部 movzbl %al 扩展）。
-    int _GetItemType(const CCeraShopGoods* goods);
+    // b28c-L19：返回类型改 Inven_Item::ITEM_TYPE（ORIG _GetInvenSlotInfo 0x081763e5
+    // store 为 LHS-first `mov 0x14(%ebp),%edx; mov %eax,(%edx)` ⇒ 与赋值目标同型，
+    // P211；int 形使 4.4 异型化 RHS-first）。mangled 不含返回类型，符号不变。
+    Inven_Item::ITEM_TYPE _GetItemType(const CCeraShopGoods* goods);
     // ORIG 0x081763be：按 groupIdx 映射 (INVEN_TYPE, ITEM_TYPE) 输出对。
     bool _GetInvenSlotInfo(const CCeraShopGoods* goods, INVEN_TYPE& invenType,
                            Inven_Item::ITEM_TYPE& itemType);

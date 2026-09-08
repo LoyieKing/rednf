@@ -15,6 +15,7 @@ DB_AradDatabaseDispatcher::~DB_AradDatabaseDispatcher()
 {
 }
 
+// [b28c-32] verdict=NEAR：N7 虚调用 callee 寄存器互换（50=50）。
 bool DB_AradDatabaseDispatcher::dispatch(int userIdx, int slot, Stream* stream)
 {
     int code = 0;   // ORIG movl $0,-0x20(%ebp)

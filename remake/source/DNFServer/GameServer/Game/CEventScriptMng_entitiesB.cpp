@@ -224,13 +224,16 @@ void CPurchaseCashItemBonus::updateTargetGoodsCount(
 bool CPurchaseCashItemBonus::verifyGiveBonusReward(
     PurchaseCashItemBonusScript::PurchaseBonusRule& rule, int count)
 {
-    if (count < rule.m_purchaseStartCount)
-        return false;
-    if (rule.m_purchaseEndCount != 0 && rule.m_purchaseEndCount < count)
-        return false;
-    if ((count - rule.m_purchaseStartCount) % rule.m_purchaseMutipleNumber != 0)
-        return false;
-    return true;
+    if (count >= rule.m_purchaseStartCount)
+    {
+        if (rule.m_purchaseEndCount >= count || rule.m_purchaseEndCount == 0)
+        {
+            if ((count - rule.m_purchaseStartCount) %
+                    rule.m_purchaseMutipleNumber == 0)
+                return true;
+        }
+    }
+    return false;
 }
 
 // ORIG 0x0810fb34：按购买数遍历 m_ruleMails24 规则-邮件对发奖励邮件。
@@ -307,9 +310,8 @@ void CAccountFirstLoginDaily::do_action(int flags, CUser* user,
         EVENT_MAIL_REF(
             static_cast<AccountFirstLoginScript*>(m_script1c)->m_mail),
         true);
-    unsigned int characNo = user->getCurCharacNo();
     DB_InsertAccountFirstLoginDailyFlag::makeRequest(
-        user->GetUID(), user->get_acc_id(), characNo, flags);
+        user->GetUID(), user->get_acc_id(), user->getCurCharacNo(), flags);
 }
 
 }  // namespace EventClassify

@@ -7,9 +7,9 @@
 #include "PacketHeader.h"
 
 // ctor W 0x08110bdc：header(0x17a4,0x36) 后清零 dword@+0xa。ORIG 循环内写入
-// 地址为 -0x44+4i(value/条数位) 与 -0x40+4i(grade)：相邻槽交错共享
-// （value_{i+1} 与 grade_i 同槽）。以槽数组原样建模：slots[0] 尾写条数、
-// slots[j]=value_j、slots[j+1]=grade_j。
+// 地址为 -0x40+4i(grade) 与 -0x2c+4i(value)（SendCreateEmblemStatistic
+// 0x0810f742 实证；DispLinkA1.cpp 匿名镜像注释同）。以槽数组建模：
+// slots[0] 尾写条数、slots[i+1]=grade_i、slots[i+6]=value_i（b28c-L0 修正）。
 class Packet_Emblem_Create_Statistic : public PacketHeader
 {
 public:

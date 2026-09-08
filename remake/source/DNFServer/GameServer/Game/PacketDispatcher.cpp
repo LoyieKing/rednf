@@ -634,9 +634,11 @@ PacketDispatcher::PacketDispatcher()
     m_dispatchers[602] = new Dispatcher_HeroMissionEventState_Reward();  // slot +0x968
 }
 
-// ORIG 0x8594840：非空槽虚删除置 0；chinaError 由成员逆序析构自动完成。
 PacketDispatcher::~PacketDispatcher()
 {
+    // [b28c-L18] N7 判词（同 TimerDispatcher::~TimerDispatcher）：虚删除
+    // `call *%ecx`（ORIG vptr→%ecx/槽→%edx/基址→%eax）4.4 恒间接 call 目标=%eax，
+    // 56=56 助记符全等仅寄存器轮换差，封顶。
     for (int i = 0; i <= 0x25d; ++i)
     {
         if (m_dispatchers[i] != 0) delete m_dispatchers[i];
@@ -669,11 +671,12 @@ void PacketDispatcher::log_recv_packet(CUser* user, ENUM_PACKETCLASS cls,
                                        unsigned short cmd, char* data, int len)
 {
     (void)user; (void)data; (void)len;
-    // ORIG 0x0825f735：cmd spill 槽后 `movzwl -0xc,%esi` 单步直落 esi、cls→%ebx 跨
-    // call；4.4 恒 movzwl→%eax 中转+round-trip（N18a），register asm 实测 +6 行，
-    // 取直读最小形。
-    CPacketTracer* tracer = CPacketTracerInstance();
-    tracer->AddTcpLog((int)cls, (int)(unsigned short)cmd);
+    // [b28c-L18] P52 链式 receiver+实参先物化：ORIG 0x0825f72e 先 `(ushort)cmd→%esi`、
+    // `cls→%ebx`（callee-saved 跨 call 存活，push esi/ebx）再 `call
+    // CPacketTracerInstance`、结果 %eax 免槽直落 (%esp)。拆「命名 tracer 局部 +
+    // 成员调用」两语句使 4.4 把结果槽化（-0xc round-trip）；合并为单条链式表达式
+    // 即触发 callee-saved 独占形。
+    CPacketTracerInstance()->AddTcpLog((int)cls, (int)(unsigned short)cmd);
 }
 
 // ORIG 0x825f658：五队列余量 → CAppLoadChecker 检查/请求 DB。

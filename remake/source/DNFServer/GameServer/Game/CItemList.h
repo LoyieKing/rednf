@@ -290,7 +290,7 @@ public:
     // 命中返回 &it->second（Data*，send_mail 依此读取 item_id/两个 string），否则 0。
     Data* find(int kind, int job, int usableLevel);
     int str_to_enum(const char* name);                      // ORIG 0x081a2e3e
-    int level_check(CUser* user, const CStackableItem* item); // ORIG 0x081a31c4
+    bool level_check(CUser* user, const CStackableItem* item); // ORIG 0x081a31c4 [b28c-21 SIGFIX]
     // ORIG T _ZN17Arad_GiftItem_Set9send_mailEP5CUseriiii 0x081a329e（LinkClosureD 补）
     int send_mail(CUser* user, int p2, int p3, int p4, int giftIdx);
 

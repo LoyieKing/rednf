@@ -73,16 +73,21 @@ void TeamInfoSecond::reset()
 }
 
 /* ORIG add T 0x855fdfe */
-    // [b28 判词 N96+P168a④] X2 寄存器 xor/钉值物化形需 register 绑定；绑定 P0 全域禁用后无源形，N 封顶。
 int TeamInfoSecond::add(CUser* user)
 {
     for (int i = 0; i < 4; ++i)
     {
-        /* ORIG @0855fe18 xor $1,%eax / test / je：register asm("eax") 钉住
-         * 装载结果使 ^1 原地出 xor（技巧16），阻断 4.4 fold-const 折 cmp */
-        unsigned char fv = m_seats[i].m_flag;  // b28 P0：X2 裸形（N96）
-        fv ^= 1;
-        if (fv)
+        /* [b28c-L26 翻案·档②] ORIG @0855fe18 为 `movzbl 0xc(%eax,%edx,8),%eax;
+         * xor $0x1,%eax; test %al,%al; je` 寄存器 xor 物化。旧判词（b28 早期
+         * N96+P168a④）称"需 register 绑定、清绑后无源形"，实测四形（==1/!=1/
+         * ^1!=0/裸 !field）恒折 cmp 或缺 xor——前提不成立：按 lane20A 定稿判例
+         * （CSharedServerMessageManager::m_isSet uchar→bool ⇒ 裸 `!field` 自然
+         * 复现 movzbl;xor$1;test;je，ndiff 3→0），把 TeamSeatInfo::m_flag
+         * （OnlinePreliminary.h，非冻结）uchar→bool 后本件 **28=28、diff 仅剩
+         * call/jmp 重定位伪差（AE）**；同 TU fresh 联判（P211 陷阱法）：
+         * identical 42 不变 / ae 43→45 / near 8 不变 / diff 12→10 ⇒ 净 +2 AE、
+         * 零回退（_GetLastUser 的 `^1` 段一并受益）。*/
+        if (!m_seats[i].m_flag)
         {
             m_seats[i].m_flag = 1;
             m_seats[i].m_user = user;
@@ -161,12 +166,21 @@ void CEloRating::calc(float& ratingSelf, float& ratingOther,
     float score = 0.0f;
     float lose  = 0.0f;
 
-    if ((int)sys == 1)
-        score = 0.5f;
-    else if ((int)sys == 2)
-        score = 1.0f;
-    else if ((int)sys == 0)
+    // ORIG 0x0844dcf0：`mov 0x10(%ebp),%eax; cmp $1/je; cmp $2/je; test/jne`
+    // 决策树（P17/P46/P208）⇒ 源形为 switch（if-else 链恒内存直比）。
+    // case 按数值升序书写（P46：4.4 树根取 (lo+hi)/2=1，叶块按 case 序排放）
+    switch (sys)
+    {
+    case 0:
         score = 0.0f;
+        break;
+    case 1:
+        score = 0.5f;
+        break;
+    case 2:
+        score = 1.0f;
+        break;
+    }
 
     lose = 1.0f - score;
     ratingSelf  = ra + (float)k * (score - ea);

@@ -24,7 +24,11 @@
 class HeroMissionValue
 {
 public:
-    int m_mission;            // +0x00（clear 置 0；findMissionValue 比对目标）
+    // P211：setStringToken store 点 ORIG 0x08164ddf 为 RHS 先物化+中转
+    // （`mov %eax,%edx; mov 0x8(%ebp),%eax; mov %edx,(%eax)`）；int 字段 ← int
+    // atoi 同型时 4.4 恒 LHS 地址先载。字段改 unsigned int（与 int RHS 异型）
+    // 即复现；值域为非负 mission id，比较/写出语义不变。
+    unsigned int m_mission;   // +0x00（clear 置 0；findMissionValue 比对目标）
     unsigned short m_field4;  // +0x04
     unsigned short m_field6;  // +0x06
     unsigned short m_field8;  // +0x08

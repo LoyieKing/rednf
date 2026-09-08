@@ -71,7 +71,13 @@ bool CKillMonsterInfo::CheckMonsterKill(
         kills.find(mobIdx);
     if (it == kills.end())
         return false;
-    return (GetDungeonDifficultyFlag(diff) & it->second) != 0;
+    // [b28-L14] ORIG 0x0854d0ea：`operator->; movzbl 0x4(%eax),%ebx`（右值先物化
+    // 并跨 GetDungeonDifficultyFlag 调用以 %ebx 保活，P0 无槽 ⇒ 表达式直传）⇒
+    // 操作数序为 `it->second & flag`；尾 `test;setne;test;je` + mov$1/mov$0 双岛
+    // ⇒ if-return 显式分支（P56/P225）。
+    if ((it->second & GetDungeonDifficultyFlag(diff)) != 0)
+        return true;
+    return false;
 }
 
 // ---- RegisterMonsterKill(map&, mobIdx, diff, isAPC) —— ORIG T 0x0854d24c ---
@@ -233,7 +239,7 @@ void CKillMonsterInfo::_reset()
 // 后 continue（ORIG jmp +0x158 循环增量实证）；通过则共用插入块
 // insert(make_pair(mobIdx, diff))（make_pair 实参序 = 0x4(%esp) mobIdx /
 // 0x8(%esp) diff 实证）。
-int CKillMonsterInfo::ConvertStructToMap(
+bool CKillMonsterInfo::ConvertStructToMap(
     stMonsterInfo_t* pInfo, unsigned int count,
     std::map<unsigned int, unsigned char>& outMap, bool bAPC)
 {

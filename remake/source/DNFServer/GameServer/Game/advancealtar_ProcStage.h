@@ -131,7 +131,18 @@ public:
     void reset();                    // T 0x0812d078：4 标量清零 + 槽位 map clear
     void upGage();                   // T 0x0812d0b6：CDataManager 配置驱动 gage 推进
     void sendTestCheckGage();        // T 0x0812d372（ORIG 空函数）
-    void upgreadGage();                        // T 0x0812d176：等级商城配表扣 gage 升级
+    // b28c-L5 SIGFIX（P174 串定 + ORIG 体实证）：ORIG 0x0812d176 三个出口均写 %eax
+    //   （满级 `mov $0x2,%eax` / gage 不足 `mov $0x3,%eax` / 成功 `mov $0x0,%eax`），
+    //   且 ORIG 唯一消费点 Dispatcher_UpgradeGage::process_packet @0x081403xx
+    //   `call upgreadGage` 的结果直接写入 res+0x04（错误码）⇒ 返回类型必为 int。
+    //   返回类型不入 mangled ⇒ 符号/布局零变。
+    //   b28c-L5 追加：形/体改 **unsigned int** —— 唯一消费点 Dispatcher_UpgradeGage::
+    //   process_packet 对该字段（unsigned int m_nErrorCode，CMDPacketStruct.h）两处
+    //   store 装载形不同：check_error(int) 处 ORIG 为 `mov %eax,%edx`+中转（异型），
+    //   upgreadGage 处 ORIG 为 `mov %eax,0x4(%edx)` 直存（同型，@0x081403xx）⇒ 本
+    //   callee 必返回 unsigned int（P211 双向开关的调用点反证；ORIG rodata 无该函数
+    //   的 __PRETTY_FUNCTION__ 串可查，故以两条 store 形联立定案）。
+    unsigned int upgreadGage();                // T 0x0812d176：等级商城配表扣 gage 升级
     int summonSlotUnit(unsigned char slot, int needGage);  // T 0x0812d278
     int getGage() const;                       // W 0x08142088：return m_gage
     int getGageLevel() const;                  // W 0x08142094：return m_gageLevel
@@ -227,7 +238,12 @@ public:
     bool dieMob(unsigned short mobSeq, unsigned short param,
                const MSG_MONSTER_DIE& msg);                       // T 0x0812db00
     void debugLog() const;                                        // T 0x0812d804
-    int m_currentMs;                                   // +0x00（ctor/reset 清零）
+    // b28c-L5：int→unsigned。ORIG isEndSummon @0x0812d50a 该字段装载为
+    //   `mov (%eax),%ebx` **一步直落 callee-saved**，与 vector::size()(size_t) 做
+    //   `cmp %eax,%ebx / setae` 无符号比较；int 字段使 4.4 在拓宽处插
+    //   `mov %eax,%ebx` 中转（P211 同型化旋钮，sizeof/偏移/初值语义零变：
+    //   ctor/reset 写 0、++ 自增、与 size() 比较全部非负）。
+    unsigned int m_currentMs;                          // +0x00（ctor/reset 清零）
     std::vector<_SummonObjectMs*> m_summons;           // +0x04
     std::map<short, _SummonObjectMs*> m_summonMap;     // +0x10（key=_SummonObjectMs::m_seq）
     int m_deadCount;                                   // +0x28（dieMob 计数）
@@ -242,7 +258,11 @@ public:
     CharacData* m_characData;        // +0x00（ctor 存参）
     int m_state;                     // +0x04（State，ctor=7）
     int m_field8;                    // +0x08（reset 清零；ProcSummonObjectMs 引用）
-    int m_fieldc;                    // +0x0c（reset 清零）
+    // b28c-L5：int→unsigned，同 m_currentMs 判据 —— ORIG isEndAllPhase @0x0812eb5a
+    //   `mov 0xc(%eax),%ebx` 一步直落 + `cmp %eax,%ebx / setae`（size_t 比较）。
+    //   其余消费点（makeCurrentPhaseSummonObject 的 m_summons[m_fieldc] 下标、
+    //   incCurrentPhase 自增、debugLog 打印）值域为 phase 下标 ≥0，语义不变。
+    unsigned int m_fieldc;             // +0x0c（reset 清零）
     int m_field10;                   // +0x10（reset 清零）
     short m_field14;                 // +0x14（ctor/reset 置 0；addCreatedMapMonster 序号源）
     ProcSummonObjectMs m_summonObjectMs;  // +0x18（sizeof 0x38，ctor 注入 m_characData/&m_field8）

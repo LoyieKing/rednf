@@ -8,7 +8,7 @@ Packet_Monitor_Set_Sub_Guild_Master::Packet_Monitor_Set_Sub_Guild_Master()
 {
     // ORIG ctor 逐指令：movl $0,this+0xa；movl $0,this+0xe；
     // memset(this+0x12, 0, 0x1e) —— 覆盖 [this+0xa, this+0x30)，不含 +0x30(m_grade)。
-    *(unsigned int*)(m_data + 0) = 0;   // 清 this+0xa（m_charNo）
-    *(unsigned int*)(m_data + 4) = 0;   // 清 this+0xe（m_guildKey）
-    memset(m_data + 8, 0, 0x1e);        // 清 this+0x12 起 0x1e 字节（m_name）
+    m_charNo = 0;                       // this+0xa
+    m_guildKey = 0;                     // this+0xe
+    memset(m_name, 0, 0x1e);            // this+0x12 起 0x1e 字节
 }

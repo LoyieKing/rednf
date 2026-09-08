@@ -60,12 +60,11 @@ SkillLevelFeature::SkillLevelFeature()
 }
 
 SkillLevelFeature::SkillLevelFeature(const SkillLevelFeature& other)
-    : m_str8(other.m_str8),
+    : m_field0(other.m_field0),
+      m_str8(other.m_str8),
       m_vecC(other.m_vecC),
       m_vec18(other.m_vec18)
 {
-    m_field0[0] = other.m_field0[0];
-    m_field0[1] = other.m_field0[1];
 }
 
 SkillLevelFeature::~SkillLevelFeature()
@@ -74,21 +73,18 @@ SkillLevelFeature::~SkillLevelFeature()
 
 SkillLevelFeature& SkillLevelFeature::operator=(const SkillLevelFeature& other)
 {
-    if (this != &other)
-    {
-        m_field0[0] = other.m_field0[0];
-        m_field0[1] = other.m_field0[1];
-        m_str8 = other.m_str8;
-        m_vecC = other.m_vecC;
-        m_vec18 = other.m_vec18;
-    }
+    m_field0 = other.m_field0;
+    m_str8 = other.m_str8;
+    m_vecC = other.m_vecC;
+    m_vec18 = other.m_vec18;
     return *this;
 }
 
 void SkillLevelFeature::clear()
 {
-    m_field0[0] = 0;
-    m_field0[1] = 0;
+    int i = 0;
+    for (i = 0; i <= 1; ++i)
+        m_field0.m_arr[i] = 0;
     m_str8.clear();
     m_vecC.clear();
     m_vec18.clear();
@@ -450,8 +446,8 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             if (!okFlag)
                 break;
             SkillLevelFeature feat;
-            feat.m_field0[0] = value;
-            feat.m_field0[1] = ScanInt((bool*)0);
+            feat.m_field0.m_arr[0] = value;
+            feat.m_field0.m_arr[1] = ScanInt((bool*)0);
             ScanStr(&feat.m_str8);
             for (;;)
             {
@@ -470,8 +466,8 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             {
                 // ORIG 8a982d5..：&& 短路双条件直接物化 %eax（mov$1/mov$0/test%al），
                 // 无 bool 栈槽——写成单一 if(A && B)。
-                if (((*it).m_field0[1] >= feat.m_field0[0]) &&
-                    ((*it).m_field0[0] <= feat.m_field0[1]))
+                if (((*it).m_field0.m_arr[1] >= feat.m_field0.m_arr[0]) &&
+                    ((*it).m_field0.m_arr[0] <= feat.m_field0.m_arr[1]))
                     it = script->m_levelFeatures1b4.erase(it);
                 else
                     it++;
@@ -1032,8 +1028,8 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             if (!okFlag)
                 break;
             SkillLevelFeature feat;
-            feat.m_field0[0] = value;
-            feat.m_field0[1] = ScanInt((bool*)0);
+            feat.m_field0.m_arr[0] = value;
+            feat.m_field0.m_arr[1] = ScanInt((bool*)0);
             ScanStr(&feat.m_str8);
             for (;;)
             {
@@ -1051,8 +1047,8 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                  it != script->m_levelFeatures1b4.end();)
             {
                 // ORIG 8a99d0e..：同 [basic property] erase 形
-                if (((*it).m_field0[1] >= feat.m_field0[0]) &&
-                    ((*it).m_field0[0] <= feat.m_field0[1]))
+                if (((*it).m_field0.m_arr[1] >= feat.m_field0.m_arr[0]) &&
+                    ((*it).m_field0.m_arr[0] <= feat.m_field0.m_arr[1]))
                     it = script->m_levelFeatures1b4.erase(it);
                 else
                     it++;

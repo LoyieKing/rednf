@@ -462,10 +462,9 @@ bool initNpcScript(const char* dir, const char* listPath)
         }
     }
     // 岛形复现（同 isExistNPCScript 技巧）：je 落点 = mov $1 ⇒ r==1 返 true。
-    register bool hit __asm__("al");
-    hit = !loadRDARScriptListFile(&g_npcScriptFileList, g_npcScriptBaseDirectory,
-                                  listPath, 0);
-    if (hit)
+    // P0/N96 清绑：改 bool callee 裸形（P168a①）。
+    if (!loadRDARScriptListFile(&g_npcScriptFileList, g_npcScriptBaseDirectory,
+                                listPath, 0))
         return false;
     return true;
 }
@@ -476,11 +475,8 @@ bool isExistNPCScript(const char* name)
     // `xor $0x1,%eax; test %al,%al; je +7; mov $0x0,%eax; jmp end; +7: mov $1,%eax`
     // ——je 目标岛是 `mov $1`：load 返 1 ⇒ xor 后 0 ⇒ je ⇒ 返回 1。即 **ORIG 恒等
     // 透传 load 返回值**（早期转写判成 `return !call` 系极性问题，真 bug 修正）。
-    // 复现岛形用技巧 1/22：register bool asm("al") 绑 !call，再 `if (t) return
-    // false; return true;`（4.4 直返会被折掉 xor+岛 6 条）。
-    register bool t __asm__("al");
-    t = !loadRDARScriptFile(g_npcScriptBaseDirectory, name);
-    if (t)
+    // P0/N96 清绑：改 bool callee 裸形（P168a① `if (!call()) return false;`）。
+    if (!loadRDARScriptFile(g_npcScriptBaseDirectory, name))
         return false;
     return true;
 }
@@ -560,8 +556,12 @@ TowerOfDespairMgr::~TowerOfDespairMgr()
 void TowerOfDespairMgr::_Set_LayerByDungeonIndex(unsigned int layer, const CDungeon* dungeon)
 {
     // ORIG 0x08643c6c：if (dungeon!=0) m_pLayerDungeon[layer]=dungeon。
-    if (dungeon != 0)
-        m_layerDungeons[layer] = const_cast<CDungeon*>(dungeon);
+    // P223：ORIG 尾空块 nop 岛（je <nop>; body; jmp <pop ebp>; nop）复现形 =
+    // goto 尾标签（4.4 对 if/else 恒 jump-thread，不产该岛）。
+    if (dungeon == 0)
+        goto L_done;
+    m_layerDungeons[layer] = const_cast<CDungeon*>(dungeon);
+L_done:;
 }
 
 void TowerOfDespairMgr::_Set_LayerByDungeonIndex(unsigned int layer, unsigned int dungeonIdx)
@@ -973,15 +973,10 @@ bool importWorldMapScript(WorldMapScript* script, const char* path)
 // ============================================================================
 
 CWorldMap::CWorldMap()
-    : m_index(0),
-      m_isHellDungeon(0),
-      m_dungeonIndex(0),
-      m_hasDeathTower(0),
-      m_dungeonList(),
-      m_field1c(),
-      m_hellPassItemList(),
-      m_field34()
 {
+    // [b28c-35] ORIG 0x0837f6ea 只发 4 个 vector 成员的隐式 C1（+0x10/+0x1c/
+    // +0x28/+0x34），**不写** +0x00/+0x04/+0x08/+0x0c 标量；旧初始化列表多 8 条
+    // store（63 vs 55）。标量由 set_world_map 赋值，C1 保持空体即逐条对齐。
 }
 
 void CWorldMap::set_world_map(WorldMapScript* script)
@@ -1036,6 +1031,8 @@ void CWorldMap::set_world_map(WorldMapScript* script)
 
 bool CWorldMapList::insert_world_map(CWorldMap* worldMap)
 {
+    // b28c-lane25 判词 N86：ORIG 4.1 对 map::insert 的 pair/迭代器恒「临时槽+
+    // 拷贝」两段，4.4 直构进目标槽（copy-elision）⇒ 73/68，无源码解（patterns N86）。
     // ORIG 0x08364694 逐条（报告 call 标注被 report_resolve 误标，以地址与 C 段为准）：
     //  ① 0x083646a5 `call get_index` → 结果落 -0x2c 作 find 实参；
     //  ② 0x083646c7 `call map::find` 到临时 -0x3c，再 0x083646d2 拷进持久迭代器槽 -0x30；

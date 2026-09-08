@@ -201,6 +201,7 @@ int GenuineDamageUpgradeTable::getGenuineUpgradeMaterialCnt(unsigned char growth
 }
 
 // ORIG T 0x08912d10（sret 返回；静态局部 temp 经 __cxa_guard 初始化）。
+// [b28c-32] verdict=DIFF：N86/N82（sret 按值返回类对象 + 函数局部 static guard 临时槽跨版本差）。
 OutLineEFFECTInfoTemp GenuineDamageUpgradeTable::getEffectInfo(int key)
 {
     static OutLineEFFECTInfoTemp temp;
@@ -521,7 +522,10 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
 // ORIG W 0x0811ed32：低 5 位自增（模 32），保留高位（bit5=交易限制等）。
 void UpgradeSeparateInfo::IncUpgradeSeparate()
 {
-    m_field = static_cast<unsigned char>((((m_field & 0x1f) + 1) & 0x1f) |
+    // [b28c-L29] ORIG W 0x0811ed32：低 5 位自增模 32，保留高位。原码对
+    // ((m_field & 0x1f) + 1) 连施两次 &0x1f（三条 and 段），且 this 缓存 %edx
+    // 后单条 store——照抄双掩码表达式形。
+    m_field = static_cast<unsigned char>(((((m_field & 0x1f) + 1) % 32u) & 0x1f) |
                                          (m_field & 0xe0));
 }
 

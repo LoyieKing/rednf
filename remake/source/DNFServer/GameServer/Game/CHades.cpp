@@ -127,6 +127,9 @@ bool CHades::needLogin()
     // b26 N 封顶（N22）：残差仅 cmp %eax,%ebx / setne %al / test %al vs
     // cmp %ebx,%eax / setne %bl / test %bl——call 结果与缓存值比较方向 4.4
     // 恒反，交换源码操作数（cached != f()）实测不可翻。
+    // [b28c-16 实证保留] C28L28 口径「默认不留 register，删除即劣化才保留」：
+    // 删 register 后本件 NEAR→DIFF（帧 $0x14→$0x28 + cached/differ 双槽往返
+    // + push/pop %ebx 消失）⇒ 值确需跨 GetHadesSocketConnSec 保活，保留裸形。
     register int cached = m_connSec;
     register bool differ =
         (GlobalData::s_hades_proxy->GetHadesSocketConnSec() != cached);
@@ -181,14 +184,19 @@ void CHades::Send_Login()
 void CHades::GetIP(char* out)
 {
     m_user->m_network.GetPeerIP2(out, 4);
-    if (out[0] == '\0')
-    {
-        if (m_user->m_mcap.m_pcRoomIp[0] != '\0')
-        {
-            memset(out, 0, 0x10);
-            strncpy(out, m_user->m_mcap.m_pcRoomIp, 0x10);
-        }
-    }
+    // [b28c-16] P223/BM8 尾标签串：ORIG `jne +0x84(nop)/je +0x87(nop)/体尾
+    // jmp +0x88` 三岛 ⇒ 两否定 goto + L1/L2 空标签串（4.4 对嵌套 if 恒
+    // jump-thread 合并出口）。
+    if (out[0] != '\0')
+        goto L1;
+    if (m_user->m_mcap.m_pcRoomIp[0] == 0)
+        goto L2;
+    memset(out, 0, 0x10);
+    strncpy(out, m_user->m_mcap.m_pcRoomIp, 0x10);
+L1:
+    ;
+L2:
+    ;
 }
 
 // ORIG 0x084b97fe（Send_UserStatus.md）。Packet_Hades_UserStatus（ORIG C1

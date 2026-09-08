@@ -36,14 +36,18 @@ void InterSelectCreateDnfEventInfo::Reward::operator()(CUser* user)
     PacketGuard guard;
     guard.put_header(0, 0x22d);
     guard.put_short(m_rate);
-    // ORIG：条件 test 直判无 bool 物化槽（movzbl+test 直进分支）。
-    if (user->GetEventCreateDnfReward() != 0 && m_flag != 0)
+    // b28c-33 真语义修正：Ghidra C 权威为 `GetEventCreateDnfReward() == 1 ||
+    // m_flag == 0 → put_byte(0)`（ORIG 0x8160cb2 `xor $1; test; je 0 块` 即 ret==1
+    // 落 0 块）；原码写 `!=0 && m_flag!=0 → 1` 在 ret==1 时语义相反。
+    // [b28c-33 判词 NEAR-N168a] 4.4 对 `== 1` 产 `cmp $1,%al; je`、对 `m_flag==0`
+    // 产 `xor $1; test; je`；ORIG 恰相反（ret 用 xor、m_flag 直测）。71/71，语义已对。
+    if (user->GetEventCreateDnfReward() == 1 || m_flag == 0)
     {
-        guard.put_byte(1);
+        guard.put_byte(0);
     }
     else
     {
-        guard.put_byte(0);
+        guard.put_byte(1);
     }
     guard.finalize(true);
     user->Send(guard);

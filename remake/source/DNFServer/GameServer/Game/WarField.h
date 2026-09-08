@@ -99,8 +99,10 @@ struct map_monster
     char m_bloodDifficulty;         // +0x345
     short m_bloodRoundOrder2;       // +0x346
     char m_bloodSpawned;            // +0x348
-    char m_isBoss;                  // +0x349
-    char m_bloodRound;              // +0x34a
+    bool m_isBoss;                  // +0x349（[b28c-35] ORIG 0x0830e8b8 读 `movzbl; xor$1; test; je`
+                                    //   ⇒ 与 bool 形参/裸测同型；char 产 cmp$1/setne）
+    bool m_bloodRound;              // +0x34a（[b28c-35] ORIG 0x0830e97c 读 `movzbl; test %al,%al`
+                                    //   ⇒ 裸测 bool；char 多 setne 物化）
     char m_bloodRoundFlag;          // +0x34b
 
     map_monster();                          // ORIG 081511c8

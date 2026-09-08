@@ -390,7 +390,7 @@ public:
     // 接收条件 / 检测
     bool exposeQuest() const;   // b25c Lane21：ORIG 0x822b5e2 movzbl 直返无规范化；调用点 !exposeQuest() 需 bool 直判
     bool check_possible(const stSelectQuestParam& param) const;   // 同上，ORIG 尾 mov$0/1 常量岛
-    char check_power_side(char side);
+    bool check_power_side(char side);   // ORIG __PRETTY_FUNCTION__ 串定 bool（P174/SIGFIX）
     bool checkPossibleJob(ENUM_CHARACTERJOB job) const;
     bool _isNeededCheckGrowType(ENUM_CHARACTERJOB job) const;
     bool checkMatchedGrowType(ENUM_CHARACTERJOB job, int firstGrow,

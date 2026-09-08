@@ -655,7 +655,9 @@ bool DB_SecurityCardIssue::dispatch(int userIdx, int slot, Stream* stream)
         _sendResult(slot, &sig->m_serial[0], &sig->m_serverKey[0],
                     &sig->m_card[0], &sig->m_qPos[0], ENUM_ERROR_NONE);
     }
-    catch (ENUM_ERROR& e)
+    // [b28c-L29] ORIG 0x0842af94：begin_catch 后直接 mov (%eax),%eax（值先
+    // 入槽，无指针槽回读）⇒ 按值 catch（P229）。
+    catch (ENUM_ERROR e)
     {
         _sendResult(slot, 0, 0, 0, 0, e);
     }

@@ -63,6 +63,10 @@ public:
     //      包裹→额外多生 store/cmp 反而更偏离。故下面两行 strlen 仅作 ORIG
     //      死代码的源码级文档保留（对二进制零影响），不产出指令。
     //   语义等价性已实测闭合：memset→OS_API::snprintf(fmt,val)→AppendString
+    //   [b28c-11 复验] N 封顶维持：ORIG 4.1 的 memset 立即数经 %edx 物化 + 两条
+    //   `strlen(m_buf)/strlen(tmp)` 死调用（0x08627cbc 起）；4.4 -O0 探针
+    //   /tmp/l11p/dce.cpp 实证裸 `strlen(p);` 被 tree-DCE 删除、volatile 接收
+    //   反多 2 条 store/load/处（4 处共 +4），不可翻。
     //   (m_buf,0xa000,tmp) 三调用与 ORIG 一一对应；帧尺寸（IPKc/Ii/Ij = 0xa018、
     //   If = 0xa028）、参数槽位（fmt@0xc/val@0x10、tmp@-0xa008）、float 的
     //   `flds 0x10(%ebp)/fstpl 0xc(%esp)` 传参形、AppendString 调用目标全部一致；

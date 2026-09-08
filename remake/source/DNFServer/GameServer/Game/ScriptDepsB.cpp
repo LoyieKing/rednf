@@ -178,13 +178,15 @@ bool importEtcParameterScriptForServer(void)
 // ============================================================================
 std::vector<stTitleElement>* getTitleCollection(stTitleBookInfo* book, int tab)
 {
-    std::map<int, std::vector<stTitleElement> >& collection =
-        book->m_map18;
+    // b28c-l23 根因（P0/P183）：ORIG 无 map 引用局部槽——三处成员访问都是
+    // `mov 0x8(%ebp),%eax; lea 0x18(%eax),%eX` 就地折叠寻址（@0x08aa94f1/0x08aa9508/
+    // 0x08aa953b）；我方具名 `collection` 引用使 4.4 把基址落槽（-0xc）并在每次
+    // 实参装载时回读，槽号整体平移（-0x10→-0x14、-0xc→-0x10）。改为逐点直写表达式。
     std::map<int, std::vector<stTitleElement> >::iterator it =
-        collection.find(tab);
-    if (it == collection.end())
+        book->m_map18.find(tab);
+    if (it == book->m_map18.end())
         return 0;
-    return &collection[tab];
+    return &book->m_map18[tab];
 }
 
 // ============================================================================

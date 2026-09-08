@@ -68,7 +68,9 @@ public:
 class UserQuest
 {
 public:
-    bool isClearQuest(int questIdx) const;
+    // b28c-L10：与权威 CUser.h 统一（Main 代落 UserQuest::isClearQuest bool→unsigned char，
+    // P174 ORIG __PRETTY_FUNCTION__ 串；返回类型不入 mangled，符号不变）。
+    unsigned char isClearQuest(int questIdx) const;
 };
 
 class CInventory
@@ -142,8 +144,10 @@ stAchievement_DBData::stAchievement_DBData()
 {
     // ORIG 0x828d8e5：m_entries 数组由编译器自动逐个构造（esi 递减 512 次
     // call stAchievementC1），无需显式赋值循环
-    // [b26L17 判词 N] outgoing 帧：ORIG sub $0x10 vs 4.4 sub $0x4（跨版本
-    // outgoing 区差族），体 26/26 逐条全等。
+    // [b28c-L29] outgoing 帧：ORIG sub $0x10 vs 4.4 sub $0x4；加 0xc 字节
+    // dead 局部对齐 ORIG 帧（4.4 -O0 未使用局部仍占栈）。
+    double framePad;
+    (void)framePad;
     m_count = 0;
     m_saveTime = 0;
 }
@@ -816,16 +820,17 @@ bool CAchievement::_saveData(CUser* pUser)
     **guard << (int)pUser->GetUID();
     stAchievement_DBSaveData* pData =
         guard->GetInBuffer<stAchievement_DBSaveData>();
-    // ORIG 0x828c805：cmpl pData; jne 到 if 块，各路径直接赋返回常量
-    if (pData != 0)
-    {
-        std::memset(pData, 0, sizeof(stAchievement_DBSaveData));
-        getData((char*)&pData->m_data);
-        pData->m_characNo = pUser->get_charac_no(-1);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-        return 1;
-    }
-    return 0;
+    // b28c-L10：ORIG 0x828c805 `cmpl pData; jne <成功块>`——空值分支走 fall-through
+    // (`mov $0,%ebx; jmp end`)，成功块在后跳走。`if(pData!=0){…return 1;}return 0;`
+    // 被 4.4 反装为 `je <失败块>`；早期返回形 `if(pData==0)return 0; … return 1;`
+    // 复现 ORIG 极性（P59/P16）。
+    if (pData == 0)
+        return 0;
+    std::memset(pData, 0, sizeof(stAchievement_DBSaveData));
+    getData((char*)&pData->m_data);
+    pData->m_characNo = pUser->get_charac_no(-1);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    return 1;
 }
 
 bool CAchievement::loadData(CUser* pUser, char* pData)
@@ -839,7 +844,7 @@ bool CAchievement::loadData(CUser* pUser, char* pData)
     m_user = pUser;
     // [b24F] DONE：_verifyAchievement 参数 (unsigned int)this→in->m_saveTime
     //（ORIG 0x828c956 mov -0x10(%ebp);mov 0x1804(%eax),%eax 传 in->m_saveTime）。
-    _verifyAchievement((unsigned int)in->m_saveTime);
+    _verifyAchievement(in->m_saveTime);   // b28c-L10：m_saveTime 已 unsigned（cast 冗余）
     return 1;
 }
 
@@ -855,6 +860,9 @@ void CAchievement::getData(char* pData) const
         out->m_entries[i] = it->second;
     }
     out->m_count = (int)m_achievements.size();
+    // b28c-L10 判词（AE）：m_saveTime 声明 unsigned int（CAchievement.h）后，与
+    // getCurSec() int 返回值异型，4.4 store 翻为 ORIG 的 RHS-first 形
+    // `call; mov %eax,%edx; mov -0x10(%ebp),%eax; mov %edx,0x1804(%eax)`（P211②）。
     out->m_saveTime = GlobalData::s_systemTime_.getCurSec();
 }
 

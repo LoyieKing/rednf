@@ -56,7 +56,11 @@ public:
                          unsigned int);                         // 0x08471240
     void SendChangeCharName(unsigned int, unsigned int, unsigned int,
                             char*);                             // 0x08471288
-    int OnTcpRecv();                    // 0x084712e0
+    bool OnTcpRecv();                   // 0x084712e0（SIGFIX：ORIG rodata
+                                        //   _ZZN19CMonitorServerProxy9OnTcpRecvEvE19__PRETTY_FUNCTION__
+                                        //   @0x08c6b020 = "bool CMonitorServerProxy::OnTcpRecv()"；
+                                        //   ORIG 调用点 0x0857e13a 后 `xor $0x1,%eax; test %al,%al; je`
+                                        //   = bool callee 裸形（P168a①））
     int OnTcpSend();                    // 0x0847139c
     bool OnTcpError();                  // 0x08471444
     bool Parsing(int);                  // 0x084714ce

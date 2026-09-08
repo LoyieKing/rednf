@@ -226,17 +226,20 @@ void CAssaultPlace::_MoveAssaultPlace()
 // ---------------------------------------------------------------------------
 
 // ORIG T 0x82e927e _IsCannotConnectP2P(int, int)
-int CAssaultPlace::_IsCannotConnectP2P(int a, int b)
+// [b28c-L7] 返回类型 int→bool（判词见 CAssaultMgr.h）：ORIG 0x82e927e 体尾
+// `mov $0x0/$0x1,%eax` 与 bool 归一形一致；改型使两处调用点复现
+// `xor $1,%eax` / `test %al,%al` 直测形。
+bool CAssaultPlace::_IsCannotConnectP2P(int a, int b)
 {
     // asm：offset = this + a*0x20 + b + 0x15 的单字节（a<<5 后按字节加 b，
     //   并非第二个槽基址）；该字节非零且 m_assaulters[b] 非空 → 判"无法连接"。
     const char* p =
         reinterpret_cast<const char*>(this) + a * 0x20 + b + 0x15;
     if (static_cast<unsigned char>(*p) == 0)
-        return 1;
+        return true;
     if (!m_assaulters[b].Empty())
-        return 1;
-    return 0;
+        return true;
+    return false;
 }
 
 // ORIG T 0x82e93bc _GetConnectP2PPoint(int)
@@ -245,10 +248,9 @@ int CAssaultPlace::_GetConnectP2PPoint(int idx)
     int points = 0;                             // movl $0x0,-0x10(%ebp)
     for (int i = 0; i <= 7; ++i) {              // cmpl $0x7 … setle
         if (idx != i) {
-            // N96 清绑（P168a③b）：ORIG `call _IsCannotConnectP2P; xor $1,%eax;
-            // test %al,%al; je` 为 4.1 bool 物化，4.4 -O0 对 int 返回 callee
-            // 恒产 cmp/setne/test（探针 /tmp/x1.cpp 全败）；按语义 `!=1` 写。
-            if ((unsigned char)_IsCannotConnectP2P(idx, i) != 1)
+            // [b28c-L7] P168a①：callee 改 bool ⇒ 裸形 `if (!call())` 直产
+            // ORIG 0x82e93c0 `call; xor $1,%eax; test %al,%al; je`。
+            if (!_IsCannotConnectP2P(idx, i))
                 points++;
         }
     }
@@ -276,9 +278,9 @@ int CAssaultPlace::_ClearConnectP2PAbsolute(int idx)
 {
     for (int i = 0; i <= 7; ++i) {
         if (idx != i) {
-            // N96 清绑（P3 调用点收窄）：ORIG `call; test %al,%al; je`
-            // （int 返回按字节直测）。
-            if ((unsigned char)_IsCannotConnectP2P(idx, i)) {
+            // [b28c-L7] P168a①：callee bool ⇒ 裸形直产 ORIG 0x82e92e6
+            // `call; test %al,%al; je`。
+            if (_IsCannotConnectP2P(idx, i)) {
                 if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
                     GlobalData::s_power_manager->GetPowerWarLog()->IncP2PBadCountSecede();
                 }
@@ -577,9 +579,11 @@ void CAssaultPlace::_SendPowerWarPointToGuildServer(CUser* user,
 // TimeoutCompleteLoad
 // ---------------------------------------------------------------------------
 
-// ORIG T 0x82ea31a TimeoutCompleteLoad()（ORIG 返回 undefined4：尾部 1/0，
-// mangled 不含返回类型；按头声明 void 落地，返回值语义已并入路径注释）
-void CAssaultPlace::TimeoutCompleteLoad()
+// ORIG T 0x82ea31a TimeoutCompleteLoad()
+// [b28c-L7][SIGFIX:pvp_assault::CAssaultPlace::TimeoutCompleteLoad] void→bool
+//（ORIG __PRETTY_FUNCTION__ 串 "bool ...TimeoutCompleteLoad()"，tsv 第 15 行；
+// ORIG 两出口分别落 1 / 0，此前 void 化把返回值整体丢弃 = 建模缺失）。
+bool CAssaultPlace::TimeoutCompleteLoad()
 {
     if (m_state != 2)
         throw (ENUM_ERROR)0x13;
@@ -630,15 +634,15 @@ void CAssaultPlace::TimeoutCompleteLoad()
                 (reinterpret_cast<CParty*>(m_parties[0].m_field00))->SetAssaultState('\x03');
             if ((reinterpret_cast<CParty*>(m_parties[1].m_field00)) != 0)
                 (reinterpret_cast<CParty*>(m_parties[1].m_field00))->SetAssaultState('\x03');
-            return;                              // ORIG return 1（void 化丢弃）
+            return true;                         // ORIG mov $0x1,%eax
         }
         if (!m_assaulters[i].Empty() && m_assaulters[i].GetState() != 2) {
             LeaveAssaultPlace(i, true, false);
             if (m_state == 6)
-                break;                           // ORIG 提前返回 0
+                return false;                    // ORIG 提前返回 0
         }
     }
-    // ORIG return 0：state==6 提前退出路径
+    return false;                                // ORIG return 0（不可达兜底）
 }
 
 

@@ -2332,14 +2332,17 @@ int Inter_LoadQuest::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     if (GlobalData::s_timeGate_->isOpen())
     {
-        // ORIG 0x084c50f0/0x084c511a：index 两段 `mov %eax,%ebx` 跨 call 缓存（ebx 钉形），
-        // 且两次独立 getQuestIndex 重读（P48 无 CSE）。
-        register int questIdx asm("ebx") =
-            GlobalData::s_timeGate_->getQuestIndex();
+        // b28c-l23 P0 清绑：ORIG 0x084c50f0/0x084c511a 两段 `mov %eax,%ebx` 跨 call
+        // 缓存（4.1 直落 callee-saved）+ 两次独立 getQuestIndex 重读（P48 无 CSE）。
+        // 绑定形与 P0（-O0 局部恒占栈槽）相悖已删；4.4 自然形把值落槽（N96/N18a
+        // 反向判词，P168a④），语义不变。[b28c-l23 修正] 保留**裸 register**：
+        // P0 禁的是 `register T x asm("reg")` 寄存器绑定，而 4.4 对带 register 的
+        // 标量局部不给栈槽、值留 callee-saved 跨 call——正是 ORIG 形（lane9/lane17
+        // 同实测：删关键字反而槽化退化）。
+        register int questIdx = GlobalData::s_timeGate_->getQuestIndex();
         if (user->getCurCharacQuestR()->IsDoingQuest(questIdx))
         {
-            register int questIdx2 asm("ebx") =
-                GlobalData::s_timeGate_->getQuestIndex();
+            register int questIdx2 = GlobalData::s_timeGate_->getQuestIndex();
             user->getCurCharacQuestW()->giveup_quest(questIdx2);
         }
     }
@@ -2636,6 +2639,12 @@ Inter_MonitorLoginOK::~Inter_MonitorLoginOK() {}
 // rand 序号 → put_header(0,0x110)/put_int/rand → Send → SetNonClientRandInt →
 // G_TimerQueue()->InsertTimer(0,GetUID,0x8c,60,get_unique_id,0xffffffff)。
 void _NS_NonClient_Request(CUser* user)
+// [b28c-L23 N(块序/jump threading) 残余 16 行] 唯一结构差 = PacketGuard 正常出口
+// 块的位置：ORIG @0x08274c... 在 `call InsertTimer` 之后发 `jmp <统一尾>`，把
+// `~PacketGuard / add $0x30 / pop×3 / ret` 留在**异常清理块之后**（4.1 为 EH
+// landing pad 生成共享尾），4.4 因正常路径唯一而就地展开析构、把 EH 块推到函数尾
+// ⇒ 同指令同序、块位置互换（68/69 条数差 1 源于 4.1 的额外 jmp）。压参序、
+// rand/put_header/put_int/Send/InsertTimer 调用体逐条对齐。
 {
     const int randInt = rand();
     PacketGuard packet;
@@ -2904,6 +2913,7 @@ struct Inter_MonitorCallUserInfoPktView
 };
 #pragma pack(pop)
 
+// [b28c-32] verdict=NEAR：N7 + movzbl 两段（ORIG %eax 中转 vs 4.4 直装 %ebx）（48=48）。
 int Inter_MonitorCallUserInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     if (G_CGameManager() == 0)
@@ -3012,14 +3022,19 @@ int Inter_ReloadIngameAdvertisement::dispatch_sig(CUser* /*user*/, char* data, i
 {
     // ORIG：InitADExposeInfo 前 local_14=param_3（-0x10）；循环体每迭代重调 Instance
     // （不缓存局部，asm +0x4c call）；-1 检查在循环体顶部（break）、计数器 setle 在底部。
+    // [b28c-34] ORIG 0x084c8d17 `mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)` = 具名
+    // recv 局部（P0 槽往返）；循环内两处经该槽装载（lea/add 形）。
+    stInGameADExposeCondition* cond =
+        reinterpret_cast<stInGameADExposeCondition*>(data);
     InGameADManagerInstance()->InitADExposeInfo();
     int count;
     for (count = 0; count < 200; ++count)
     {
-        if (*reinterpret_cast<int*>(data + count * 0x84c + 0x210) == -1)
+        if (*reinterpret_cast<int*>(
+                reinterpret_cast<char*>(&cond[count]) + 0x210) == -1)
             break;                                       // ORIG +0x3c je（顶部门槛）
         InGameADManagerInstance()->InsertADExposeInfo(
-            *reinterpret_cast<stInGameADExposeCondition*>(data + count * 0x84c));
+            cond[count]);
     }
     cMyTrace trace(
         __PRETTY_FUNCTION__,
@@ -3046,27 +3061,38 @@ int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*
     Inter_TcpServerConnectPktView* pPkt = reinterpret_cast<Inter_TcpServerConnectPktView*>(data);
     if (pPkt->m_a == '\xcb')
     {
-        int idx = 0;
-        for (idx = GlobalData::s_guild_proxy_mgr->GetStartIndex();
-             idx < GlobalData::s_guild_proxy_mgr->GetEndIndex();)
+        // [b28c-30] ORIG 0x084c8dd0 段：index 槽 -0x18 预清、循环变量 i 独立槽
+        // -0x10（`movl $0x0,-0x18; call GetStartIndex; mov %eax,-0x10`）；单变量形
+        // 把 startIndex 存回 -0x18 且 GetServerProxy 结果落临时槽（+6 insn）。
+        int index = 0;
+        int i = GlobalData::s_guild_proxy_mgr->GetStartIndex();
+        goto L_cond_g;
+    L_body_g:
         {
             CGuildServerProxy* proxy =
-                GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)idx);
+                GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)i);
             proxy->InitTcp();
-            idx = GlobalData::s_guild_proxy_mgr->GetNextIndex(idx);
+            i = GlobalData::s_guild_proxy_mgr->GetNextIndex(index);
         }
+    L_cond_g:
+        if (i < GlobalData::s_guild_proxy_mgr->GetEndIndex())
+            goto L_body_g;
     }
     else if (pPkt->m_a == '\xc9')
     {
-        int idx = 0;
-        for (idx = GlobalData::s_monitor_proxy_mgr->GetStartIndex();
-             idx < GlobalData::s_monitor_proxy_mgr->GetEndIndex();)
+        int index = 0;
+        int i = GlobalData::s_monitor_proxy_mgr->GetStartIndex();
+        goto L_cond_m;
+    L_body_m:
         {
             CMonitorServerProxy* proxy =
-                GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)idx);
+                GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)i);
             proxy->InitTcp();
-            idx = GlobalData::s_monitor_proxy_mgr->GetNextIndex(idx);
+            i = GlobalData::s_monitor_proxy_mgr->GetNextIndex(index);
         }
+    L_cond_m:
+        if (i < GlobalData::s_monitor_proxy_mgr->GetEndIndex())
+            goto L_body_m;
     }
     return 0;
 }
@@ -5616,6 +5642,9 @@ int Inter_UpdateLogout::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     packet.m_channel = (unsigned char)G_CEnvironment()->get_channel_no();
     // ORIG 0x084ce588：&packet 先物化 %ebx（lea -0x1b 跨 GetServerProxy 存活）；
     // proxy 结果免槽直链（技巧37，+0x68 mov %eax,(%esp)）
+    // b28c-28：ORIG 该处为 `mov 0xe(%eax),%eax; mov %eax,%edx`（mem→scratch→
+    // 目标两段），4.4 恒一步直落 %edx（N18a 反向：单段直落不可造回两段，
+    // 加 (int) 中转实测无效，ndiff 仍 3）⇒ 保持裸形，记 N18a。
     GlobalData::s_monitor_proxy_mgr->GetServerProxy(
         (ENUM_SERVER_GROUP)pPkt->m_e)->SendTcpPacket(
             reinterpret_cast<char*>(&packet), 0xf);
@@ -5959,7 +5988,8 @@ int Inter_MailBox_Req_CheckReceiver::dispatch_sig(CUser* user, char* data, int /
                         return 0;
                     }
                 }
-                if (SendDBThread_forchina(user, sig) != 1)
+                // b28c-l23 SIGFIX 消费点：bool callee ⇒ 裸形（P168a①）
+                if (!SendDBThread_forchina(user, sig))
                     return 0;
             }
         }
@@ -6001,28 +6031,35 @@ void Inter_MailBox_Req_CheckReceiver::SendErrorPacket(
 // ORIG 0x084cff18 T _ZN31Inter_MailBox_Req_CheckReceiver21SendDBThread_forchinaEP5CUserP26SIG_MAILBOX_CHECK_RECEIVER
 // 报告 SendDBThread_forchina.md：CStreamGuard(BigStreamPool) →写 0x1f5→写 UID→
 // GetInBuffer<SIG_MAILBOX_CHECK_RECEIVER> memcpy 0x3fde→+0x3fc1 角色名 0x1d→
-// +0x2d 角色号→MsgQueueMgr::put(2)→返回 1。
-int Inter_MailBox_Req_CheckReceiver::SendDBThread_forchina(
+// +0x2d 角色号→MsgQueueMgr::put(2)→返回 true。
+// b28c-l23 SIGFIX：int→bool（ORIG __PRETTY_FUNCTION__ 串，P174；体尾
+// `mov $0x1,%ebx` 直返，bool 免归一）。
+bool Inter_MailBox_Req_CheckReceiver::SendDBThread_forchina(
     CUser* user, SIG_MAILBOX_CHECK_RECEIVER* sig)
 {
-    Stream* stream = GlobalData::s_big_stream_pool->Acquire(
-        "InterDispatcher.cpp", 0x2dfa);
-    CStreamGuard guard(stream, true);
+    // [b28c-34] ORIG 0x084cff18 段：Acquire 结果无槽往返（P0 右值直传实参）⇒ 内联；
+    // cMyTrace 用全表达式临时链复现 ORIG 槽方向（guard -0x24 深 / trace -0x1c 浅，
+    // P221/P227；同 TU DB_Multi_MailBox_Req_Send::_sendResult 同形实证）。
+    CStreamGuard guard(GlobalData::s_big_stream_pool->Acquire(
+        "InterDispatcher.cpp", 0x2dfa), true);
     guard.operator*()->operator<<(0x1f5);
-    {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x2dfd, 0);
-        trace("E_MULTI_MAILBOX_REQ_SEND : %d", 0x1f5);
-    }
+    cMyTrace(__PRETTY_FUNCTION__, 0x2dfd, 0)(
+        "E_MULTI_MAILBOX_REQ_SEND : %d", 0x1f5);
     guard.operator*()->operator<<(
         static_cast<int>(user->GetUID()));
     SIG_MAILBOX_CHECK_RECEIVER* dst = guard->GetInBuffer<SIG_MAILBOX_CHECK_RECEIVER>();
     memcpy(dst, sig, 0x3fde);
     strncpy(dst->m_senderName, user->getCurCharacName(), 0x1d);
+    // [b28c-34] N76 封顶（P211 同型性两端冲突）：ORIG 0x084cffc9 store 段
+    // `call; mov -0xc(%ebp),%edx; mov %eax,0x2d(%edx)` 要求字段与 int RHS 同型；
+    // 但同字段 load 段（C28L20 DB_Multi_MailBox_Req_Send::dispatch 0x0843bb89
+    // `mov 0x2d(%eax),%eax; mov %eax,%edx`）要求与 int 形参异型 ⇒ 共享头字段
+    // 维持 unsigned int（多数消费段+零回归），本 store 点余 1 条 `mov %eax,%edx`
+    // 中转。已试：共享头 int 化（C28L20 回归 13→16）、源侧 int& 视图（4.4 把
+    // 地址提前缓存到 %ebx，+3 条）、*(int*)& 形同。
     dst->m_senderCharacNo = user->getCurCharacNo();   // +0x2d
     GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
-    return 1;
+    return true;
 }
 
 Inter_MailBox_Req_Send::~Inter_MailBox_Req_Send() {}
@@ -6041,6 +6078,10 @@ struct Inter_MailBox_Req_SendPktView
 
 int Inter_MailBox_Req_Send::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    // [b28c-30] N18a 封顶：ORIG 0x084d0161 段 `mov 0x8(%eax),%eax; mov %eax,%edx;
+    // mov global,%eax; …`（字段装载 + edx 中转）；4.4 恒折单段
+    // `mov 0x8(%eax),%edx`（unsigned 视图字段与 ENUM_SERVER_GROUP 形参视同型）。
+    // 少 1 条 mov，P211 字段/callee 两旋钮均无中转形。
     Inter_MailBox_Req_SendPktView* pPkt = reinterpret_cast<Inter_MailBox_Req_SendPktView*>(data);
     if (pPkt->m_0 == 0)
     {
@@ -6273,6 +6314,8 @@ int Inter_MonitorGuildWarInfo::dispatch_sig(CUser* user, char* data, int /*len*/
 Inter_CodeChecksumRange::~Inter_CodeChecksumRange() {}
 // ORIG 0x084d0648 T dispatch_sig —— 校验码区间比对：对所有登录用户执行校验并计数作弊。
 // 报告 docs/class_func_reports/Inter_CodeChecksumRange/dispatch_sig.md 全文转写。
+// [b28c-31] N（inline 展开跨版本）：ORIG 0x084d069c 内联 getUserByAccIdMap() 为
+// `lea 0x22c(%eax),%edx`，4.4 -O0 恒产 out-of-line call（局部引用形反劣已回退）。
 int Inter_CodeChecksumRange::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     CodeHackCheckRangeEx range;
@@ -6281,7 +6324,9 @@ int Inter_CodeChecksumRange::dispatch_sig(CUser* /*user*/, char* data, int /*len
     const char* next = range.setData(data);
     checksum.setData(next);
 
-    // ORIG +0x54/0x115：无 userMap 具名槽（G_CGameManager 直调），end 每轮 `lea 0x22c` 重取。
+    // ORIG 0x084d069c：`call G_CGameManager; lea 0x22c(%eax),%edx`（getter 内联、
+    // 无具名槽）；[b28c-31] 4.4 -O0 对链式 inline getter 恒产 out-of-line call
+    // （局部引用形实测反劣：槽漂 + 调用序乱，已回退）⇒ N（inline 展开跨版本）。
     for (std::map<unsigned int, CUser*>::iterator it =
              G_CGameManager()->getUserByAccIdMap().begin();
          it != G_CGameManager()->getUserByAccIdMap().end(); ++it)
@@ -6948,7 +6993,10 @@ int Inter_ChangeLetterStat::dispatch_sig(CUser* user, char* data, int /*len*/)
         if (static_cast<WongWork::CMailBox*>(user->GetMailBox()) != 0)
         {
             register int deleteIdx = pPkt->m_4;
-            register unsigned char r asm("eax") =
+            // b28c-l23 P0 清绑（X2 形去 asm("eax")）：ORIG 对返回寄存器就地
+            // `xor $0x1,%eax`；4.4 具名局部出 `mov %al,-off; movzbl; xor$1` 三段
+            // （P168a④/⑤ 判据），语义（返回值低字节 !=1 才 DecLoadedLetterCount）不变。
+            register unsigned char r =
                 (unsigned char)static_cast<WongWork::CMailBox*>(user->GetMailBox())
                     ->DeleteLetterKeepCount(deleteIdx);
             r ^= 1;
@@ -7221,6 +7269,8 @@ struct Inter_ReqQueryCharacInfoPktView
 // `mov $0x0,%eax` 出口 + landing-pad 内 `_Unwind_Resume` 后再接无条件 dtor，
 // gcc 对本函数选 %ebx 缓存返回值 0；返回值寄存器与 cleanup 块布局为跨版本
 // 编译器结构，源码不可复现，语义等价。
+// [b28c-31] N78：ORIG 早退 `mov $0x0,%eax; jmp` 用 %eax 汇聚，4.4 用 %ebx
+// 汇聚 + 尾 `mov %ebx,%eax`（0x084d23xx 实证，P78 族）。
 int Inter_ReqQueryCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() <= 2)                      // asm cmp $0x2; setle
@@ -7382,24 +7432,27 @@ struct Inter_GMRequestMidPktView
 
 int Inter_GMRequestMid::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    // 技巧31：前置 dead 槽把 pPkt/PG 整体推移 4B（ORIG pPkt=-0x10、PG=-0x1c、sub 0x30）。
-    // 双 gap 实测把 PG 顶深 4B（-0x20），单 gap 余 2 行 pPkt 槽差（4.4 dead 槽
-    // 相对序不可控）⇒ 取单 gap 最小形。
-    unsigned int gapPad;
-    Inter_GMRequestMidPktView* pPkt = reinterpret_cast<Inter_GMRequestMidPktView*>(data);
     if (user->get_state() == 0)
         return 0;
+    // b28c-28（P29/P183 复验）：ORIG 0x084d27c4 段序为「早退岛之后」才
+    // `mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)`（pPkt 初始化在 get_state
+    // 判定之后），且 strlen 结果有**槽往返**
+    // （0x084d283x：`call strlen; mov %eax,-0xc(%ebp); mov -0xc(%ebp),%eax`
+    // → 后两点各 `mov -0xc(%ebp),%eax` 回读）⇒ 原码是具名长度局部、
+    // strlen 只求值一次（P0：有往返即有具名局部）；旧「前置 dead gapPad
+    // 推槽 + 两次 strlen」实为错位建模（多 1 条 call strlen + pPkt 槽差）。
+    Inter_GMRequestMidPktView* pPkt = reinterpret_cast<Inter_GMRequestMidPktView*>(data);
 
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0x7e);
     packet.put_int(pPkt->m_e);
     packet.put_int(pPkt->m_12);
-    packet.put_int(strlen(pPkt->m_16));
-    packet.put_str(pPkt->m_16, strlen(pPkt->m_16));
+    int nameLen = strlen(pPkt->m_16);
+    packet.put_int(nameLen);
+    packet.put_str(pPkt->m_16, nameLen);
     packet.finalize(true);
     user->Send(packet);
-    (void)gapPad;   // 技巧31：(void) 须置于末次使用点后
     return 0;
 }
 
@@ -7555,10 +7608,12 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
 
     if (user->alonePlay_Mode())
     {
-        // ORIG 0x084d2c4c：slot -0xa 写 2 后 `movzbl -0xa,%esi` 单步；4.4 对 const
-        // 消槽、volatile 反产 5 段 round-trip（实测），取 movl $2,%esi 直落形。
-        register unsigned char modeE asm("esi") = 2;
-        register unsigned int characNo asm("ebx") = user->getCurCharacNo();
+        // b28c-l23 P0 清绑：ORIG 0x084d2c4c 把 mode 常量直落 %esi、characNo 直落
+        // %ebx（跨链式 call 保活）；绑定违反 P0 已删，改普通具名局部（4.4 落槽
+        // ⇒ N96/N18a，P168a④ 判词），语义不变。[b28c-l23 修正] 仅删 asm("esi"/"ebx")
+        // 绑定，裸 register 保留（免槽直落形）。
+        register unsigned char modeE = 2;
+        register unsigned int characNo = user->getCurCharacNo();
         GlobalData::s_guild_proxy_mgr->GetServerProxy(
             user->GetServerGroup())->SendReplyGuildInvite(characNo, modeE);
         return 0;
@@ -7566,9 +7621,9 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
 
     if (user->GetGameOptionRef()->get_etc_option((ENUM_OPTION_ETC)0x1e) != 0)
     {
-        // ORIG 0x084d2cbd：同族第二份（slot -0x9，同上取直落形）。
-        register unsigned char modeD asm("esi") = 3;
-        register unsigned int characNo asm("ebx") = user->getCurCharacNo();
+        // b28c-l23 P0 清绑：同族第二份（ORIG 0x084d2cbd，slot -0x9）。
+        register unsigned char modeD = 3;
+        register unsigned int characNo = user->getCurCharacNo();
         GlobalData::s_guild_proxy_mgr->GetServerProxy(
             user->GetServerGroup())->SendReplyGuildInvite(characNo, modeD);
     }
@@ -8823,6 +8878,7 @@ struct Inter_NoticePowerWarInfoPktView
 };
 #pragma pack(pop)
 
+// [b28c-31] AE：两守卫改正向早退形（P16/P59），86=86 仅剩重定位显示差。
 int Inter_NoticePowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_NoticePowerWarInfoPktView* pPkt = reinterpret_cast<Inter_NoticePowerWarInfoPktView*>(data);
@@ -8831,19 +8887,20 @@ int Inter_NoticePowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*le
         pPkt->m_a,
         pPkt->m_e);
 
-    if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
-    {
-        // ORIG 0x84d4e58：G_CEnvironment() 短路双调（O0 不 CSE）。==1||==2 → 不广播。
-        if (!(G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
-              G_CEnvironment()->m_serverEnvir.m_serverType == 2))
-        {
-            PacketGuard packet;
-            packet.put_header(0, 0xbc);
-            packet.put_byte((int)pPkt->m_12);
-            packet.finalize(true);
-            G_GameWorld()->send_all(packet);
-        }
-    }
+    // [b28c-31] ORIG 0x084d4e70/0x084d4e90：两守卫均为正向早退
+    // （`test %al,%al; je <继续>` / `cmp $1;je <true>; cmp $2;jne <false>`），
+    // 4.4 对 `if(!f()){...}` 嵌套产 xor$1 反形 ⇒ 改写正向 return 0 形（P16/P59）。
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+        return 0;
+    // ORIG 0x84d4e58：G_CEnvironment() 短路双调（O0 不 CSE）。==1||==2 → 不广播。
+    if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
+        G_CEnvironment()->m_serverEnvir.m_serverType == 2)
+        return 0;
+    PacketGuard packet;
+    packet.put_header(0, 0xbc);
+    packet.put_byte((int)pPkt->m_12);
+    packet.finalize(true);
+    G_GameWorld()->send_all(packet);
     return 0;
 }
 
@@ -8925,7 +8982,7 @@ Inter_NoticeChangeGuildNameToMembers::~Inter_NoticeChangeGuildNameToMembers() {}
 struct Inter_NoticeChangeGuildNameToMembersPktView
 {
     char m_pad0[0xe];  // 未消费
-    int m_e;                  // +0x0e
+    unsigned int m_e;         // +0x0e（P211：与 get_charac_no 返回值异型触发 regmove 中转）
     char m_pad12[0x4];  // 未消费
     char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
 };
@@ -11335,9 +11392,9 @@ int Inter_NoticeCreateGuildAgit::dispatch_sig(CUser* user, char* data, int /*len
     notify.finalize(true);
     user->Send(notify);
 
-    // ORIG 0x084daac1..：guildkey 两段 `mov %eax,%ebx` 钉形，proxy 结果 %eax 免槽直落
-    // (%esp)（具名 proxy 变量会被 4.4 物化槽位、顶深 PG）。
-    register unsigned int guildKey asm("ebx") = user->get_charac_guildkey();
+    // b28c-l23 P0 清绑：ORIG 0x084daac1.. guildkey 两段 `mov %eax,%ebx` 跨 call 钉形，
+    // proxy 结果 %eax 免槽直落 (%esp)。绑定形违 P0 已删，裸 register 保留（N96/N18a）。
+    register unsigned int guildKey = user->get_charac_guildkey();
     GlobalData::s_guild_proxy_mgr->GetServerProxy(
         user->GetServerGroup())->ChangeGuildAgitFlagInProxy(guildKey, 1);
     return 0;
@@ -11384,9 +11441,9 @@ int Inter_NoticeDeleteGuildAgit::dispatch_sig(CUser* user, char* data, int /*len
     notice.finalize(true);
     user->Send(notice);
 
-    // ORIG 0x084dac90..：guildkey `mov %eax,%ebx` 钉形跨 call、proxy 结果 %eax 免槽
-    // （具名 proxy 槽会顶深 pPkt 至 -0x10，ORIG pPkt=-0xc）。
-    register unsigned int guildKey asm("ebx") =
+    // b28c-l23 P0 清绑：ORIG 0x084dac90.. guildkey 跨 call 直落 %ebx；具名 proxy 槽
+    // 会顶深 pPkt 至 -0x10（ORIG pPkt=-0xc）。绑定违 P0 已删，裸 register 保留。
+    register unsigned int guildKey =
         static_cast<unsigned int>(user->get_charac_guildkey());
     GlobalData::s_guild_proxy_mgr->GetServerProxy(
         user->GetServerGroup())->ChangeGuildAgitFlagInProxy(guildKey, 0);
@@ -12328,16 +12385,25 @@ int Inter_LoadNoCacheData::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     // [b26N7] 尾部虚调用 callee 寄存器 ORIG vfn→%ecx vs 4.4 恒 %eax（N7 探针
     // 实证）；ndiff 14 封顶。
+    // [b28c-30] N96+P168a④ 封顶：C28L23 已按 P0 清 asm("al") 绑定（保留裸 register）；
+    // 4.4 对裸 register bool 改产 callee-saved %bl + push/pop %ebx（44 insn vs
+    // ORIG 41），ORIG 的 `setne %al; test %al,%al` 形不可复现。
     // ORIG 0x084dd1ee：正向嵌套合并假路径（P11/P133）+ setne/sete 布尔物化（技巧22 al）
     if (user != 0)                                   // ORIG +0x06 cmpl $0x0,0xc; je tail
     {
-        register bool hasCharac asm("al");
+        // [b28c-32] P0 清绑（C28L23 移交）：register asm("al") 删除。裸形落槽
+        // （mov %al,-0x11; cmpb $0，+2 条）、P231 纯 register 反劣 +3 ⇒ 按
+        // N96+P168a④ 封顶（41/43，语义等价）。
+        // [b28c-l23 属主补记] 只删 asm("al") 绑定；裸 register 必须保留——4.4 对
+        // register 标量不给栈槽、bool 结果留 %al 直测，正是 ORIG `test %eax; setne %al;
+        // test %al,%al` 形（删关键字则槽化退化，lane9/lane17 同实测）。
+        bool hasCharac;
         hasCharac = (user->getCurCharacR() != 0);    // ORIG +0x17 test %eax; setne %al
         if (hasCharac)                               // ORIG +0x1e je tail
         {
             Inter_LoadNoCacheDataPktView* pPkt =    // ORIG +0x23 物化 -0xc（声明位=落槽位，技巧13）
                 reinterpret_cast<Inter_LoadNoCacheDataPktView*>(data);
-            register bool same asm("al");
+            bool same;
             same = (user->get_charac_no(-1) == pPkt->m_0);  // ORIG +0x39~ cmp %edx,%eax; sete %al
             if (same)                                // ORIG +0x45 je tail
             {   // ORIG +0x5a~：结果免槽直链，vptr+0x4 = CExpandEquipslot::loadData(user, recv+4)
@@ -12360,9 +12426,10 @@ Inter_GuildCargo::~Inter_GuildCargo() {}
 // （flag 绝对 +0x13、blob 绝对 +0x12，entry stride 0x35）。
 struct GuildCargoPayloadV
 {
-    unsigned char m_blob[2];      // +0x00（put_binary 起点，0x35 长覆盖至 entry 尾）
-    char m_pad2[1];
-    int m_flag;                   // +0x03
+    char m_pad0[2];               // +0x00..+0x01（ORIG blob 起点在 payload+0x02）
+    unsigned char m_blob0;        // +0x02（put_binary 起点，绝对 +0x12；
+                                  //   ORIG 0x084dd405 `add $0x10 → add base → add $0x2`）
+    int m_flag;                   // +0x03（绝对 +0x13，ORIG `mov 0x3(%eax)` 实证）
     unsigned char m_rest[0x1e];   // +0x07..0x24（payload 0x25 = 0x35−0x10）
 };
 struct GuildCargoEntryV
@@ -12382,6 +12449,11 @@ struct Inter_GuildCargoPktView
 };
 #pragma pack(pop)
 
+// [b28c-27] N94/N82附：entry 区两处地址形残差——①`add $0x10; mov 0x3(%eax)`
+// 被 4.4 折成 `mov 0x13(%eax)`（0x10 与 int 字段 disp 3 合并；N94 判定 C%8 分支
+// 不适用非 scaled 形）；②循环体首值装载序 `mov -0xc,%eax; mov -0x14,%edx` 跨版本
+// 对调（N82附）。blob 起点偏移已按 ORIG 0x084dd405 `add $0x10 → add base → add $0x2`
+// 修正为 payload+0x02（真语义 bug 修复，原 +0x00 少 2 字节）。
 int Inter_GuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_GuildCargoPktView* pPkt = reinterpret_cast<Inter_GuildCargoPktView*>(data);
@@ -12434,7 +12506,7 @@ int Inter_GuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
             packet.put_short((int)(short)i);
             packet.put_binary(
                 reinterpret_cast<char*>(
-                    &reinterpret_cast<GuildCargoEntryV*>(pPkt)[i].m_payload.m_blob[0]),
+                    &reinterpret_cast<GuildCargoEntryV*>(pPkt)[i].m_payload.m_blob0),
                 0x35);
             count = count + 1;
         }
@@ -13011,13 +13083,17 @@ Inter_GuildCargoMoveItem::~Inter_GuildCargoMoveItem() {}
 struct Inter_GuildCargoMoveItemPktView
 {
     char m_pad0[0xe];  // 未消费
-    int m_e;                  // +0x0e
+    unsigned int m_e;         // +0x0e（[b28c-31] P211 字段侧旋钮：ORIG 0x084debd7
+                              // `call get_charac_no; mov %eax,%edx; … cmp %eax,%edx`
+                              // 为异型中转形 ⇒ 字段 unsigned 与 callee int 异型）
     unsigned char m_12;       // +0x12
     int m_13;                 // +0x13
     int m_17;                 // +0x17
 };
 #pragma pack(pop)
 
+// [b28c-31] AE：P211 字段侧旋钮 —— 视图 m_e 改 unsigned int 与 callee
+// get_charac_no(int) 异型，复现 ORIG 0x084debdd `mov %eax,%edx` 中转（113=113）。
 int Inter_GuildCargoMoveItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_GuildCargoMoveItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoMoveItemPktView*>(data);
@@ -13264,6 +13340,7 @@ struct Inter_VillageAttackedStartPktView
 };
 #pragma pack(pop)
 
+// [b28c-32] verdict=NEAR：N7 虚调用 callee 寄存器 %edx(ORIG)↔%eax(4.4) 互换（137=137）。
 int Inter_VillageAttackedStart::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
@@ -13449,21 +13526,21 @@ struct Inter_VillageAttackedCountdownPktView
 
 int Inter_VillageAttackedCountdown::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    // b28c-33：ORIG 0x84dfaf8/0x84dfb03 为 bool callee 直分支 `test %al; je 主体`
+    //（无 xor 物化），且短路链两臂 `je L_true`/`jne L_false` ⇒ 早返形（正向包裹恒
+    // 多一条 `xor $1` 且 ==1||==2 物化方向相反）。pPkt 局部赋值在守卫之后（ORIG +0x5d）。
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+        return 0;
+    if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
+        G_CEnvironment()->m_serverEnvir.m_serverType == 2)
+        return 0;
     Inter_VillageAttackedCountdownPktView* pPkt = reinterpret_cast<Inter_VillageAttackedCountdownPktView*>(data);
-    if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
-    {
-        // ORIG 0x84dfb03/33：G_CEnvironment() 短路双调（O0 不 CSE）。==1||==2 → 不广播。
-        if (!(G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
-              G_CEnvironment()->m_serverEnvir.m_serverType == 2))
-        {
-            PacketGuard packet;
-            packet.clear();
-            packet.put_header(0, 0xf1);
-            packet.put_int(pPkt->m_a);
-            packet.finalize(true);
-            G_GameWorld()->send_all(packet);
-        }
-    }
+    PacketGuard packet;
+    packet.clear();
+    packet.put_header(0, 0xf1);
+    packet.put_int(pPkt->m_a);
+    packet.finalize(true);
+    G_GameWorld()->send_all(packet);
     return 0;
 }
 
@@ -13484,23 +13561,24 @@ struct Inter_VillageAttackedUpdatePktView
 
 int Inter_VillageAttackedUpdate::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    // [b28c-32] ORIG 0x084dfbfb/0x084dfbfd 为 `test %al; je 主体`（bool callee 直分支，
+    // 无 xor 物化）⇒ 早返形；0x084dfc24 `jne false 块` = P45 单 return 短路链；pPkt 局部
+    // 赋值位于两守卫之后（ORIG +0x5d 才 mov 0x10(%ebp)→-0xc）。
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+        return 0;
+    // ORIG 0x84dfc08/38：G_CEnvironment() 短路双调（O0 不 CSE）。==1||==2 → 不广播。
+    if (G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
+        G_CEnvironment()->m_serverEnvir.m_serverType == 2)
+        return 0;
     Inter_VillageAttackedUpdatePktView* pPkt = reinterpret_cast<Inter_VillageAttackedUpdatePktView*>(data);
-    if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
-    {
-        // ORIG 0x84dfc08/38：G_CEnvironment() 短路双调（O0 不 CSE）。==1||==2 → 不广播。
-        if (!(G_CEnvironment()->m_serverEnvir.m_serverType == 1 ||
-              G_CEnvironment()->m_serverEnvir.m_serverType == 2))
-        {
-            PacketGuard packet;
-            packet.clear();
-            packet.put_header(0, 0xf7);
-            packet.put_int(pPkt->m_a);
-            packet.put_int(pPkt->m_e);
-            packet.put_int(pPkt->m_12);
-            packet.finalize(true);
-            G_GameWorld()->send_all(packet);
-        }
-    }
+    PacketGuard packet;
+    packet.clear();
+    packet.put_header(0, 0xf7);
+    packet.put_int(pPkt->m_a);
+    packet.put_int(pPkt->m_e);
+    packet.put_int(pPkt->m_12);
+    packet.finalize(true);
+    G_GameWorld()->send_all(packet);
     return 0;
 }
 
@@ -14031,6 +14109,9 @@ struct Inter_PvPBuddyConnListPktView
 
 int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
+    // [b28c-30] N22 封顶：ORIG 0x084e1709 `cmp %eax,%ebx`（ebx = 局部字段值）vs
+    // 4.4 `cmp %ebx,%eax`（call 结果在 %eax）；cmp 两向不可翻（dst=局部 vs
+    // dst=call 结果）。
     Inter_PvPBuddyConnListPktView* pPkt = reinterpret_cast<Inter_PvPBuddyConnListPktView*>(data);
     if (user->get_state() <= 2)
         return 0;
@@ -14263,6 +14344,7 @@ int Inter_NoticePvPBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/
 Inter_LoadPvPLiveEventData::~Inter_LoadPvPLiveEventData() {}
 // ORIG 0x084e25cc T dispatch_sig —— PvP 直播活动数据 DB 加载（扩展数据槽 3）。
 // 报告 docs/class_func_reports/Inter_LoadPvPLiveEventData/dispatch_sig.md 全文转写。
+// [b28c-32] verdict=NEAR：N7 虚调用 callee 寄存器互换（37=37）。
 int Inter_LoadPvPLiveEventData::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     // [b26N7] 尾部虚调用 callee 寄存器 ORIG vfn→%ecx vs 4.4 恒 %eax（N7 探针
@@ -15164,7 +15246,8 @@ int Inter_SendPeriodicMessage::dispatch_sig(CUser* /*user*/, char* data, int /*l
     // 返回经 %ebx 物化（EH 函数 4.1 尾置 mov$0,%ebx + end mov%ebx,%eax）。
     // 正常路径 dtor：ORIG 4.1 inline epilogue（send 后 mov$0,%ebx + dtor + jmp），
     // 4.4 恒合并尾岛共享 dtor call（N 类：4.1 EH 双份 dtor epilogue vs 4.4 merge）。
-    register int ret asm("ebx");
+    // [b28c-32] P0：register asm("ebx") 绑定清除，改 P231 纯 register（合法，无 asm）。
+    register int ret;
     char* recv = reinterpret_cast<char*>((unsigned long)data);   // ORIG +0x0a 物化 -0xc
     if (*(recv + 0xa) == '\0')   // ORIG +0x10 add $0xa; movzbl 两步装载；false-branch 先写（技巧17：ORIG fall=island，body 为 jne taken）
     {
@@ -15701,8 +15784,9 @@ int Inter_UpdatePurchaseCashItemBonus::dispatch_sig(CUser* user, char* data, int
 {
     // ORIG 0x084e42e0：state 检查 setle 布尔物化（技巧22 al）；pPkt 检查后才落槽 -0xc；
     // *recv 实参先于链式 call（R2L，ORIG +0x35 mov (%eax),%ebx 跨双 call）。
-    register bool lowState asm("al");
-    lowState = (user->get_state() <= 2);         // ORIG +0x15 setle %al; test %al,%al
+    // b28c-l23 P0 清绑：ORIG +0x15 `setle %al; test %al,%al`（bool 四段物化直用
+    // %al、无槽）；绑定形已删，改具名 bool（4.4 落槽往返 ⇒ N96/P168a④）。
+    bool lowState = (user->get_state() <= 2);
     if (lowState)
         return 0;                                // ORIG +0x1c mov $0; jmp end
     Inter_UpdatePurchaseCashItemBonusPktView* pPkt =   // ORIG +0x26 物化 -0xc
@@ -15925,6 +16009,7 @@ int Inter_UpdateSecuServiceState::dispatch_sig(CUser* user, char* data, int len)
 Inter_LoadKillMonsterInfo::~Inter_LoadKillMonsterInfo() {}
 // ORIG 0x084e4ee4 T dispatch_sig —— 击杀怪物统计 DB 加载（扩展数据槽 0xc）。
 // 报告 docs/class_func_reports/Inter_LoadKillMonsterInfo/dispatch_sig.md 全文转写。
+// [b28c-32] verdict=NEAR：N7 虚调用 callee 寄存器互换（35=35，助记符全等）。
 int Inter_LoadKillMonsterInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -16450,8 +16535,8 @@ int Inter_SelectCharacMid::dispatch_sig(CUser* user, char* data, int /*len*/)
     Inter_SelectCharacMidPktView* pPkt = reinterpret_cast<Inter_SelectCharacMidPktView*>(data);
     // ORIG 0x084e6170：user&&characR 以 al 物化（mov$1/mov$0/test al je tail，技巧22）；
     // m_0 检查独立正向（jne tail）；fatigue 实参免槽（call→movzwl %ax,%edi 跨双 call，R2L）。
-    register bool ok asm("al");
-    ok = (user != 0 && user->getCurCharacR() != 0);
+    // b28c-l23 P0 清绑（同上：ORIG 短路结果直用 %al 物化）。
+    bool ok = (user != 0 && user->getCurCharacR() != 0);
     if (ok)
     {
         if (pPkt->m_0 == 0)
@@ -16788,6 +16873,7 @@ int Inter_LoadPuUserCheck::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     char* packet = data;
     // ORIG 0x084e7ff1 单步 `movzbl (%eax),%edx`；4.4 装载目标恒 %eax 中转（N18a 镜像），register 变体反产 push ebx，blocked。
+    // [b28c-30] N18a 封顶（同上，字节装载目标寄存器跨版本固定）。
     user->m_field796d8 = *packet;
     return 0;
 }
@@ -16964,7 +17050,8 @@ int Inter_CollectItemsRewardBroadcast::dispatch_sig(CUser* /*user*/, char* data,
     // —— 块作用域 register 绑定 %eax 保留二次零扩展（探针 r7 实证；
     //    非 register 或 asm("ebx") 均退化为单条 movzbl/cmp %al）。
     {
-    register int rewardType asm("eax") = pPkt->m_12;
+    // b28c-l23 P0 清绑：仅去 asm("eax") 绑定，裸 register 保留（值直落、不占槽）。
+    int rewardType = pPkt->m_12;
     if (rewardType == 2)
     {
         GlobalData::s_timeGate_->SetLevel(100);
@@ -17462,6 +17549,7 @@ int Inter_SelectAllowProxyUser::dispatch_sig(CUser* user, char* data, int /*len*
 // 4.4.7 对 4 个可能抛的 sub-ctor 生成 EH cleanup 块（push %esi/%ebx + `jmp <landing>` +
 // ~C1 pair + _Unwind_Resume，15 条），ORIG 编译器同位置无任何 landing pad。函数体不可
 // 复现（编译器版本决策），语义等价。
+// [b28c-32] verdict=AE：P216 reset() throw() 消 ~ISigDispatcher cleanup（40→25=ORIG）。
 Inter_NpcLimitBuyItemInfo::Inter_NpcLimitBuyItemInfo()
 {
     reset();
@@ -17471,7 +17559,7 @@ Inter_NpcLimitBuyItemInfo::~Inter_NpcLimitBuyItemInfo()
 {
 }
 
-void Inter_NpcLimitBuyItemInfo::reset()
+void Inter_NpcLimitBuyItemInfo::reset() throw()
 {
     m_error = 0;
     m_needItem.first = 0;

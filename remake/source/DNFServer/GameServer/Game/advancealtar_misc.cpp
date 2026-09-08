@@ -105,9 +105,14 @@ int BuyUpgradeData::getFieldType(int idx) const
 // ORIG T 0x088a3322：初值 0，取 m_listMap 最大 key。
 int BuyUpgradeData::getMaxLevel() const
 {
+    // b28c-L5：ORIG 0x088a3322 循环增量段调
+    //   `_ZNSt23_Rb_tree_const_iterator...ppEi`（**后置** ++，带独立 sret 临时槽
+    //   -0x10，it=-0x18 / end=-0x14 三槽并存）。4.4 对 `++it` 走 ppEv（返回引用、
+    //   免临时槽）⇒ 迭代器槽阶梯少一格、cond 段整体错位（原 ndiff 26）。
+    //   改后置形即复现 ORIG 三槽 + ppEi 调用（P28 声明序即栈槽序的增量侧推论）。
     int maxLevel = 0;
     for (LevelFieldDataMap::const_iterator it = m_listMap.begin();
-         it != m_listMap.end(); ++it)
+         it != m_listMap.end(); it++)
     {
         if (maxLevel < it->first)
         {
@@ -120,9 +125,10 @@ int BuyUpgradeData::getMaxLevel() const
 // ORIG T 0x088a33c0：初值 0，取 m_listMap 最小 key。
 int BuyUpgradeData::getMinLevel() const
 {
+    // b28c-L5：同 getMaxLevel —— ORIG ppEi 后置 ++ 三槽形（0x088a33c0）。
     int minLevel = 0;
     for (LevelFieldDataMap::const_iterator it = m_listMap.begin();
-         it != m_listMap.end(); ++it)
+         it != m_listMap.end(); it++)
     {
         if (it->first < minLevel)
         {
@@ -149,12 +155,27 @@ FieldData* BuyUpgradeData::getMinLevelFieldDataPoint(FieldType::T ft, int& outLe
 // ORIG T 0x088a2f7a：首个落在 [FT_HP(0xa), FT_ETC2(0x18)] 的字段下标，否则 -1。
 int BuyUpgradeData::getStatFirstPos() const
 {
+    // b28c-L5：ORIG 0x088a2f7a 两处形状约束——
+    //   判词（N197④ 反向·setcc 物化不可免）：ORIG 边界判定段为
+    //     `mov (%eax),%eax / sub $0xa,%eax / cmp $0xe,%eax / ja <continue>`（4 条直跳）；
+    //   4.4-O0 对「**寄存器内算术结果** vs 立即数」的比较且该 bool 有分支消费者时，
+    //   恒物化 `setbe %al; test %al,%al; je`（5 条）。`< 0xfU` 与 `<= 0xeU` 两写法
+    //   实测产物完全相同（同一 fold 路径）⇒ 非源形可控，属 P197④ 的镜像案例
+    //   （该条记的是「4.4 恒直跳、ORIG 恒 sete」，此处相反）。语义与边界值全等
+    //   （[FT_HP=0xa, FT_ETC2=0x18] 闭区间），判 setcc-fold 负例封顶。
+    //   ① 取值段 `call de; mov (%eax),%eax; sub $0xa,%eax; cmp $0xe,%eax; ja`
+    //      无槽往返 ⇒ *it 是表达式直用（P0），原实现具名 `const unsigned int ft`
+    //      多出 `mov %eax,-0xc / mov -0xc,%eax` 一对并把 pos 槽顶到 -0x10；
+    //   ② 增量段 `addl $1,-0xc(pos)` 后 `ppEi`（后置 ++，独立 sret -0x10）⇒
+    //      pos 先自增 + it 后置。两处同改后 pos 回落 -0xc、三槽阶梯复原。
     int pos = 0;
     for (std::vector<FieldType::T>::const_iterator it = m_fieldTypes.begin();
-         it != m_fieldTypes.end(); ++it)
+         it != m_fieldTypes.end(); it++)
     {
-        const unsigned int ft = (unsigned int)*it;
-        if (ft - 10U < 0xfU)
+        // b28c-L5：ORIG 判定段为 `sub $0xa,%eax / cmp $0xe,%eax / ja <continue>`
+        //   ——**直跳**（3 条）。4.4 对 `< 0xfU` 恒物化 bool（`setbe;test;je`，5 条）；
+        //   改等价 `<= 0xeU` 后 4.4 出直跳形（同一无符号边界，仅比较算符反转）。
+        if ((unsigned int)*it - 10U <= 0xeU)
         {
             return pos;
         }
@@ -257,8 +278,10 @@ void AchievementRewardData::reset()
 // ============================================================================
 std::vector<_RewardItem>* SurvivalRewardData::getRoundRewardData(int round) const
 {
+    // b28c-L5：ORIG 0x0889aebe 增量段 `ppEi`（后置 ++，sret 临时 -0xc；
+    //   it=-0x14 / end=-0x10）⇒ 改后置形复原三槽阶梯（同 getMaxLevel 判据）。
     for (std::vector<RoundRewardData>::const_iterator it = m_vec.begin();
-         it != m_vec.end(); ++it)
+         it != m_vec.end(); it++)
     {
         if (!((round < it->m_0) || (it->m_4 < round)))
         {
@@ -276,12 +299,16 @@ std::vector<_RewardItem>* SurvivalRewardData::getRoundRewardData(int round) cons
 advancealtar::AchievementRewardData*
 RewardParameter::getAchievementRewardData(int type) const
 {
+    // b28c-L5：ORIG 0x0889b544 块排布 = `operator== 命中(==end) → je 落「命中分支」`，
+    //   即原码为**否定早返** `if (it == end) return 0;`（return 0 岛在 ptEv 之前，
+    //   尾 `jmp` 汇合）。4.4 对 `if (it != end) {...} return 0;` 产镜像排布
+    //   （ptEv 在前、mov $0 在尾）→ 6 行块序差。P222 双向：本例负极性早返即正解。
     std::map<int, AchievementRewardData>::const_iterator it = m_rewardMap.find(type);
-    if (it != m_rewardMap.end())
+    if (it == m_rewardMap.end())
     {
-        return const_cast<AchievementRewardData*>(&it->second);
+        return 0;
     }
-    return 0;
+    return const_cast<AchievementRewardData*>(&it->second);
 }
 
 // ORIG T 0x0889b5a8：线性找 m_difficulty==diff 且 m_stageClearCount==count 的

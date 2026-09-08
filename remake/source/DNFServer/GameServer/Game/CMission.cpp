@@ -30,10 +30,12 @@ CMission::CMission(const MissionScript& script)
     m_missionIndex = script.m_field0c;
     m_field10 = script.m_field00;
     m_prevMissionIndex = script.m_prevMissionIndex;
-    m_gradeMin = script.m_gradeMin;
-    m_gradeMax = script.m_gradeMax;
-    m_rateMin = script.m_rateMin;
-    m_rateMax = script.m_rateMax;
+    // b28c-lane17 同步：MissionScript +0x10/+0x18 为 std::pair<int,int>
+    // （ORIG C1 0x08a5ba8c 对两偏移各发 pair C1Ev；偏移不变）。
+    m_gradeMin = script.m_grade.first;
+    m_gradeMax = script.m_grade.second;
+    m_rateMin = script.m_rate.first;
+    m_rateMax = script.m_rate.second;
     m_grade = script.m_field20;
     m_expRate = script.m_expRate;
     m_job = script.m_job;
@@ -148,12 +150,13 @@ int CMission::_Reward(CUser& user) const
 
 bool CMission::operator<(const CMission& other)
 {
-    if (m_kind == other.GetMissionKind())
-    {
-        if (m_missionIndex == other.GetMissionIndex()) return false;
+    // ORIG W 0x085e30ae：!= 早退形（cmp;setne;test;je 续判，落 setl 返回），
+    // 相等分支内联在 fall-through（P222 正向包裹；== 形产生镜像块序）。
+    if (m_kind != other.GetMissionKind())
+        return m_kind < other.GetMissionKind();
+    if (m_missionIndex != other.GetMissionIndex())
         return m_missionIndex < other.GetMissionIndex();
-    }
-    return m_kind < other.GetMissionKind();
+    return false;
 }
 
 bool CMission::_isAcceptCondition_Series(const CUser& user) const
@@ -197,8 +200,15 @@ int CMission_rank::getClearCondition() const
 // && 短路产生 jg/jge 直跳失败块 + 布尔返回归一。
 bool CMission_rank::isAcceptCondition(const CUser& user) const
 {
-    return user.get_pvp_grade() >= m_gradeMin &&
-           user.get_pvp_grade() < m_gradeMax;
+    // [b28c-35] ORIG 0x085e372c：第一比较先装载 m_gradeMin 到 %ebx（跨 call 保活）再
+    // call get_pvp_grade ⇒ 左操作数是成员（交换操作数序，P23/P66）；第二比较仍左 call
+    // 右成员。原 `grade >= m_gradeMin` 形 4.4 恒先 call 后读成员（22 vs 30 insn）。
+    // 尾段 ORIG 为两层物化（&& 结果 al → test %al,%al; je; mov $1/$0）⇒ P56
+    // `if(cond)return true; return false;` 形保留第二层。
+    if (m_gradeMin <= user.get_pvp_grade() &&
+        user.get_pvp_grade() < m_gradeMax)
+        return true;
+    return false;
 }
 
 // ============================================================================
@@ -217,6 +227,9 @@ CMission_winning_count::~CMission_winning_count() {}
 void CMission_winning_count::_makeTotalMissionInfo(MissionInfo& info,
                                                    const CUser& user) const
 {
+    // [b28c-35] NEAR/N7：ORIG 0x085e3548 虚调用段 `mov (%eax),%edx; …; call *%edx`
+    // （间接 call 目标 %edx），4.4.7 恒 %eax；其余 28 条逐条全等。P230 补：N7 属
+    // 4.4.6 后端敏感族，本波勿自切。
     if (m_prevMissionIndex != -1)
     {
         CMission* prev = (CMission*)G_CDataManager()->find_mission(
@@ -352,6 +365,9 @@ CMission_join::~CMission_join() {}
 void CMission_join::_makeTotalMissionInfo(MissionInfo& info,
                                           const CUser&) const
 {
+    // [b28c-35] NEAR/N7：ORIG 0x085e378a 虚调用 `mov (%eax),%edx; mov -0xc,%eax;
+    // call *%edx`（目标 %edx），4.4.7 恒 %eax；其余 28 条全等（含 P0 具名局部
+    // prev 的 -0xc 槽往返）。4.4.6 后端可翻，本波勿自切。
     if (m_prevMissionIndex != -1)
     {
         CMission* prev = (CMission*)G_CDataManager()->find_mission(
@@ -409,6 +425,7 @@ CMission_kill_count::~CMission_kill_count() {}
 void CMission_kill_count::_makeTotalMissionInfo(MissionInfo& info,
                                                 const CUser&) const
 {
+    // [b28c-35] NEAR/N7：同 join（ORIG 0x085e38xx 虚调用目标 %edx vs 4.4.7 %eax）。
     if (m_prevMissionIndex != -1)
     {
         CMission* prev = (CMission*)G_CDataManager()->find_mission(
@@ -636,17 +653,21 @@ int CMission_revenge::Update(MissionInfo& info,
             info.m_count += 1;
             return 1;
         }
-        return 0;
+        // [b28c-35] ORIG 0x085e3ac0 段：case2 的 else 与 default 共享函数尾
+        // `mov $0,%eax`（ORIG `je <nop>; nop; mov $0`），独立 `return 0` 会多
+        // `mov $0;jmp` 一对（61 vs 61 但块数 128→126）。
+        break;
     default:
     {
-        // ORIG 变参在 cMyTraceNoop ctor call 前求值并跨 call 保活 %ebx（P87）：
-        // movzwl;movswl %ax,%ebx → ctor → op()。
-        register int streakVal asm("ebx") = (int)info.m_streak;
-        cMyTraceNoop log;
-        log("[@missionSystem] : revenge ??? : %d", streakVal);
-        return 0;
+        // b28c-lane12 P0 清绑：删 asm("ebx") 绑定与 register 关键字（C28L20A
+        // 反例：裸 register 强制 push/pop + 帧破形）。ORIG 形为「变参在 ctor
+        // call 前求值并跨 call 保活」（P87）⇒ 改 P227 全表达式临时链承载。
+        cMyTraceNoop()("[@missionSystem] : revenge ??? : %d",
+                       (int)info.m_streak);
+        break;
     }
     }
+    return 0;
 }
 
 int CMission_revenge::getClearCondition() const
@@ -813,6 +834,10 @@ bool CMission_within::isSeriesMission() const
 int CMission_within::Update(MissionInfo& info,
                             const MissionClearCondition_Parameter& param) const
 {
+    // [b28c-35] N：ORIG 0x085e3d58 首段 `movzwl 0x4(%eax),%eax; cwtl; add %eax,%eax`
+    // （short 提升两段），4.4 恒折 `movzwl; add` 无 cwtl。探针 /tmp/l35_probe_short.cpp
+    // f1..f6 六形（(int)/(short)/(unsigned short)/复合/op= 等）全部无 cwtl ⇒ 跨版本
+    // zext/sext 折叠，源形不可造。语义等价（仅低 16 位存回，负值结果一致）。
     info.m_count = (short)((int)info.m_count * 2);
     info.m_count = (short)(info.m_count +
                            ((param.m_victory & 1) ? 1 : 0));
@@ -1006,27 +1031,32 @@ void CMission_combo_clear::_makeTotalMissionInfo(MissionInfo& info,
 
     std::map<combo_script_key, combo_script_data>::const_iterator it =
         m_comboMap.find(key);
-    if (it == m_comboMap.end()) return;
-
-    int total = (int)it->second.m_rewardList.size();
-    int i = 0;
-    while ((i < 4) && (i < total))
+    // [b28c-35] ORIG 0x085e441b 为 `test %al,%al; je <函数尾>`（正向包裹：it!=end
+    // 时落 body，假则直跳尾）；早返 `if (it==end) return;` 产反向 `jne` 布局（P59）。
+    // [b28c-35] ORIG 0x085e4414 的 operator!= 实参序为 `(&it, &end)`（0x4(%esp)=&it）；
+    // 写 `it != end` 时 4.4 先求右操作数 ⇒ `(&end, &it)` 反序。交换操作数即对齐。
+    if (m_comboMap.end() != it)
     {
-        info.m_count = (short)((int)info.m_count << 4);
-        info.m_count = (short)(info.m_count +
-                               (it->second.m_rewardList[i].second & 0xf));
-        i++;
-    }
-    if (total > 4)
-    {
-        for (i = 4; i < 8; i++)
+        int total = (int)it->second.m_rewardList.size();
+        int i = 0;
+        while ((i < 4) && (i < total))
         {
-            info.m_streak = (short)((int)info.m_streak << 4);
-            if (i < total)
+            info.m_count = (short)((int)info.m_count << 4);
+            info.m_count = (short)(info.m_count +
+                                   (it->second.m_rewardList[i].second & 0xf));
+            i++;
+        }
+        if (total > 4)
+        {
+            for (i = 4; i < 8; i++)
             {
-                info.m_streak = (short)(
-                    info.m_streak +
-                    (it->second.m_rewardList[i].second & 0xf));
+                info.m_streak = (short)((int)info.m_streak << 4);
+                if (i < total)
+                {
+                    info.m_streak = (short)(
+                        info.m_streak +
+                        (it->second.m_rewardList[i].second & 0xf));
+                }
             }
         }
     }
@@ -1097,6 +1127,10 @@ int CMission_combo_clear::_Reward(CUser& user) const
 }
 
 // ORIG W 0x085e692a：sret 返回 {m_gradeMin, m_gradeMax}（8 字节）。
+// [b28c-lane12 判词·N] 残余 3 条为跨版本固有：①ORIG 4.1 两 load 先于两 store
+// 且右到左（+0x1c 先）；4.4 四形探针（逐字段/= {}/临时/C 复合字面量，
+// /tmp/l12_probe3.cpp f1-f5）恒左到右或带 $0x0 预清；②ORIG 尾 `mov %ecx,%eax`
+// （4.1 sret 函数回传指针）4.4 不发射。助记符序列/指令数全等 ⇒ NEAR 封顶。
 MissionRankRange CMission::GetRankRange() const
 {
     MissionRankRange r;

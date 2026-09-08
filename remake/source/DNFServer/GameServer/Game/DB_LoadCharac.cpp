@@ -371,12 +371,13 @@ bool DB_LoadCharac::_UpdateSchoolCharac(SIG_LOAD_CHARAC* sig)
         (int)(char)sig->m_characData.m_field24,   // job（uchar→(char) 双扩展）
         (int)(char)sig->m_characData.m_field27,   // grow_type（uchar→(char)）
         (int)(short)sig->m_characData.m_field25,  // lev（ushort→(short) 双扩展）
-        (int)sig->m_characData.m_schoolNo,        // school_id
+        sig->m_characData.m_schoolNo,             // school_id（unsigned int 同型直载，
+                                                  // ORIG `mov 0x682(%edx),%esi` 无中转）
         NumberToString(sig->m_accId, 0),          // m_id
         sig->m_characNo);                         // charac_no
-    register bool fail __asm__("al");   // ORIG xor$1/test/je<mov$1 岛>（P194）
-    fail = !db->exec(true);
-    if (fail)
+    // P0/N96：清除存量 register asm("al") 绑定；exec 返回 bool ⇒ 裸形直产
+    // ORIG `call; xor $1; test %al; je <mov$1 岛>`（P168a①）。
+    if (!db->exec(true))
         return false;
     return true;
 }

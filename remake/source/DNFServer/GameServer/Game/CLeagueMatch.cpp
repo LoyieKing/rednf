@@ -51,6 +51,14 @@ unsigned char CLeagueMatch::nPlayerCountPerOneTeam_ = 2;     // D 0x093abb74 初
 // PlayerInfo / TeamInfo（报告 TeamInfo/*.md + ORIG objdump 转写）
 // ---------------------------------------------------------------------------
 
+// [b28c-21] P210 定义顺序：ORIG TeamInfo::reset `sub $0x28` 保守帧；4.4 对
+// 已见定义的 PlayerInfo::reset 精确继承 $0x14 ⇒ 本定义前置于 callee 之前。
+void TeamInfo::reset()      // ORIG T 0x0855cb16
+{
+    for (int i = 0; i <= 3; ++i)
+        m_players[i].reset();
+}
+
 void PlayerInfo::reset()    // ORIG W 0x085687d4
 {
     m_accId = 0;
@@ -67,12 +75,6 @@ bool CompareRating(PlayerInfo const& a, PlayerInfo const& b)  // ORIG T 0x0855c9
     if (a.m_flag > b.m_flag) return true;
     if (a.m_flag != b.m_flag) return false;
     return a.m_rating > b.m_rating;
-}
-
-void TeamInfo::reset()      // ORIG T 0x0855cb16
-{
-    for (int i = 0; i <= 3; ++i)
-        m_players[i].reset();
 }
 
 void TeamInfo::refresh()    // ORIG T 0x0855c9ae
@@ -632,9 +634,9 @@ int CLeagueMatch::CheckJoinable(PvP_Room* room, CUser* user)   // ORIG T 0x0855c
 
     switch (m_state) {
     case 0: {
-        // N96 清绑：ORIG `call _CheckSchool; xor $1,%eax; test %al; je` 单段 xor
-        // 直落 %al 属 N18a/N96（int callee 无绑定复现形，P168a①②两形探针劣化）。
-        if (_CheckSchool(room, user) == 0)
+        // [b28c-21 代落 C28L25 spec] ORIG `call _CheckSchool; xor $1,%eax;
+        // test %al,%al; je` = bool callee 裸形（P168a①）；int callee 恒 sete。
+        if (!_CheckSchool(room, user))
             return 4;
         return 0;
     }
@@ -963,7 +965,7 @@ int CLeagueMatch::_GetOppositeTeam(int team)  // ORIG T 0x0855e49e
     return team;
 }
 
-int CLeagueMatch::_CheckSchool(PvP_Room* room, CUser* user)   // ORIG T 0x0855cef8
+bool CLeagueMatch::_CheckSchool(PvP_Room* room, CUser* user)  // ORIG T 0x0855cef8
 {
     if (user->GetSchoolNo() == 0)
         return 0;

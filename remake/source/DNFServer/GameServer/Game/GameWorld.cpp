@@ -123,6 +123,23 @@ int MAX_VILLAGE_NUM;
 std::map<int, std::string> g_townScriptFileList;
 
 // ============================================================================
+// b28c-lane3：Village::get_gate_area 定义由 Village.cpp 迁入（P210 帧继承②）。
+// ORIG 中 Village 函数与 GameWorld 函数地址相邻（get_gate_area 0x086c3b58 →
+// GameWorld::C1 0x086c3d4a）⇒ 同 TU，4.1 对本 caller 精确继承小帧 sub $0x4；
+// 我方拆 TU 后 4.4 仅见声明恒保守 sub $0x18。Village.cpp 内无本函数调用
+//（grep 实证），符号全局唯一、mangled 不变。
+// ============================================================================
+int Village::get_gate_area()
+{
+    for (int i = 0; i < m_areaCount; ++i)
+    {
+        if (m_pAreas[i].m_areaType == 1)
+            return i;
+    }
+    return 1;
+}
+
+// ============================================================================
 // 单例
 // ============================================================================
 GameWorld* G_GameWorld()
@@ -325,6 +342,8 @@ void GameWorld::DeleteChannel(int gcNo, ENUM_SERVER_GROUP group)
     {
         int m_gcNo;     // +0x00
         int m_group;    // +0x04
+        int m_reserved; // +0x08  ORIG sizeof=0xc（memset 0xc / put_binary 0xc 证据），
+                        //        该字段仅由 memset 清零，ORIG 无独立写入
     };
     stChannelDeleteInfo buf;
     memset(&buf, 0, 0xc);
@@ -334,8 +353,10 @@ void GameWorld::DeleteChannel(int gcNo, ENUM_SERVER_GROUP group)
     guard->put_binary(&buf, 0xc);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x11c7, 0);
-    trace("put db message to db thread DeleteChannel()");
+    // b28c-lane3：P221 全表达式临时链——具名 trace 使 4.4 把 trace 放最深槽
+    // (-0x28)，临时链后 4.4 复现 ORIG 槽序 trace -0x18 / guard -0x20 / buf -0x2c。
+    cMyTrace(__PRETTY_FUNCTION__, 0x11c7, 0)(
+        "put db message to db thread DeleteChannel()");
 }
 
 void GameWorld::UpdateChannelUser()
@@ -491,11 +512,9 @@ int GameWorld::GetChannelUserCount(ENUM_SERVER_GROUP group, stOccStatisticByAge&
         CUser* user = it->second;
         if (user != NULL)
         {
-            // ORIG 0x86cb669-0x86cb671 `cmp 0xc(%ebp),%eax; sete %al; test %al,%al; je`
-            // ⇒ bool 物化经 %al（技巧22）
-            register bool sameGroup asm("al");
-            sameGroup = (user->GetServerGroup() == group);
-            if (sameGroup)
+            // b28c-lane3：历史 register bool asm("al") 绑定按 P0/N96 清除（自然形）。
+            // ORIG 0x86cb669-0x86cb671 `cmp 0xc(%ebp),%eax; sete %al; test %al,%al; je`。
+            if (user->GetServerGroup() == group)
             {
                 count++;                       // ORIG 0x86cb673
                 unsigned int userAge = user->GetAge();  // ORIG 0x86cb682 槽 -0xc；0x86cb689 `jbe`=unsigned ⇒ 技巧5
@@ -549,13 +568,14 @@ bool GameWorld::IsIntegratedPvPBaseChannel() const
 {
     // ORIG _ZNK9GameWorld26IsIntegratedPvPBaseChannelEv @0x080f131e：
     // 0x080f1322/0x080f1325 装载 m_channelType 一次，0x080f1328 cmp、
-    // 移位量复用同一 %eax；4.4 会在 `one << m_channelType` 处再装载 ⇒
-    // 同 IsPVPChannel 配方（ct 绑 %eax、one 绑 %edx 复现 `mov $0x1,%edx`）。
-    register unsigned int ct asm("eax") = (unsigned int)m_channelType;
+    // 移位量复用同一 %eax。b28c-lane3：历史 register asm("eax")/asm("edx")
+    // 绑定按 P0/N96 清除，改普通 register 局部——4.4 无栈槽且阻断
+    // `(1<<t)&C`→`(C>>t)&1` 位折叠（N6），单次装载形态保持。
+    register unsigned int ct = (unsigned int)m_channelType;
     if (ct <= 0x10)
     {
-        register unsigned int one asm("edx") = 1;
-        if (((one << ct) & 0x1e700) != 0)
+        register unsigned int one = 1u << ct;
+        if (one & 0x1e700)
             return true;
     }
     return false;
@@ -569,22 +589,15 @@ bool GameWorld::IsPVPChannel() const
     // （0x081424f5 ja / 0x081424f7 `mov $0x1,%edx` / 0x081424fc `mov %edx,%ebx`
     //  / 0x08142500 `shl %cl,%ebx` / 0x08142502 `mov %ebx,%eax`）；
     // 4.4 默认在 `one << m_channelType` 处再装载一遍 ⇒ 多 2 条。
-    // register asm("eax") 钉住该值（技巧 28）；one 绑 %edx 复现 0x081424f7
-    // `mov $0x1,%edx`（实测 ndiff：不绑=11、绑 eax 无 ct=10、双绑=3）。
-    // 代价是 0x081424f2 的 cmp 被折成 `mov %eax,%edx; cmp $0x10,%edx`（+2，
-    // 与 ORIG `mov %edx,%ebx` 双段物化（-1）相抵后余 3 行，属 N7 立即数物化族）。
-    register unsigned int ct asm("eax") = (unsigned int)m_channelType;
+    // b28c-lane3：历史 register asm("eax")/asm("edx") 绑定按 P0/N96 清除；
+    // 普通 register 局部（4.4 无栈槽）阻断 N6 位折叠并保持单次装载。
+    register unsigned int ct = (unsigned int)m_channelType;
     if (ct <= 0x10)
     {
-        // 实测封顶（N7 立即数双段物化）：ORIG 0x081424f7 `mov $0x1,%edx` +
-        // 0x081424fc `mov %edx,%ebx` 是 4.1 的 scratch→目标两段形态。
-        // 已试且全部否决的三种写法：① 不绑寄存器 → 4.4 在移位处重新装载
-        // m_channelType（ndiff 11）；② 只绑 ct 到 %eax、one 自由 → 同上；
-        // ③ 双绑定复现两段（t 绑 %edx + one 绑 %ebx）→ 确实产出那两条，
-        //    但 4.4 另插一条 `mov %ebx,%edx` 且 cmp 仍走 %edx，反而更差。
-        // 当前形态（ct 绑 %eax + one 绑 %edx）余 3 行，已是本族最优 ⇒ 记 N7。
-        register unsigned int one asm("edx") = 1;
-        if (((one << ct) & 0x1e7f0) != 0)
+        // ORIG 0x081424f7 `mov $0x1,%edx` + 0x081424fc `mov %edx,%ebx` 是
+        // 4.1 的 scratch→目标两段形态；one 走 register 局部即复现。
+        register unsigned int one = 1u << ct;
+        if (one & 0x1e7f0)
             return true;
     }
     return false;
@@ -593,11 +606,12 @@ bool GameWorld::IsPVPChannel() const
 bool GameWorld::IsFreePvPChannel() const
 {
     // ORIG _ZNK9GameWorld16IsFreePvPChannelEv @0x081a0ab2（同 0x081424e8 族布局）
-    register unsigned int ct asm("eax") = (unsigned int)m_channelType;
+    // b28c-lane3：清 register asm 绑定（P0/N96）。
+    register unsigned int ct = (unsigned int)m_channelType;
     if (ct <= 0x10)
     {
-        register unsigned int one asm("edx") = 1;
-        if (((one << ct) & 0x166a0) != 0)
+        register unsigned int one = 1u << ct;
+        if (one & 0x166a0)
             return true;
     }
     return false;
@@ -606,11 +620,12 @@ bool GameWorld::IsFreePvPChannel() const
 bool GameWorld::IsWinPointPvPChannel() const
 {
     // ORIG _ZNK9GameWorld20IsWinPointPvPChannelEv @0x085dfa92（同族，上界 0xf）
-    register unsigned int ct asm("eax") = (unsigned int)m_channelType;
+    // b28c-lane3：清 register asm 绑定（P0/N96）。
+    register unsigned int ct = (unsigned int)m_channelType;
     if (ct <= 0xf)
     {
-        register unsigned int one asm("edx") = 1;
-        if (((one << ct) & 0x8110) != 0)
+        register unsigned int one = 1u << ct;
+        if (one & 0x8110)
             return true;
     }
     return false;
@@ -619,11 +634,12 @@ bool GameWorld::IsWinPointPvPChannel() const
 bool GameWorld::IsSameTeamChannelJoin()
 {
     // ORIG _ZN9GameWorld21IsSameTeamChannelJoinEv @0x082343c8（同族，非 const）
-    register unsigned int ct asm("eax") = (unsigned int)m_channelType;
+    // b28c-lane3：清 register asm 绑定（P0/N96）。
+    register unsigned int ct = (unsigned int)m_channelType;
     if (ct <= 0xf)
     {
-        register unsigned int one asm("edx") = 1;
-        if (((one << ct) & 0xc200) != 0)
+        register unsigned int one = 1u << ct;
+        if (one & 0xc200)
             return true;
     }
     return false;
@@ -685,11 +701,9 @@ bool GameWorld::is_dungeon_tag_matching_channel(char* channel)
     {
         return false;
     }
-    // ORIG 0x86cbc6a-0x86cbc71 `test %eax; sete %al; test; je`：slot-free 物化
-    // ⇒ register bool asm("al") 独立赋值（K 探针）
-    register bool matched asm("al");
-    matched = (strcmp(channel, info->m_dungeonName.c_str()) == 0);
-    if (matched)
+    // b28c-lane3：历史 register bool asm("al") 绑定按 P0/N96 清除（自然形）。
+    // ORIG 0x86cbc6a-0x86cbc71 `test %eax; sete %al; test; je`。
+    if (strcmp(channel, info->m_dungeonName.c_str()) == 0)
     {
         return true;
     }
@@ -930,7 +944,7 @@ bool GameWorld::leave_game_world(CUser* user)
     return true;
 }
 
-unsigned short GameWorld::make_unique_id()
+unsigned int GameWorld::make_unique_id()
 {
     // ORIG 0x86c4b0a: 入口 `jmp 0x86c4b13`；回跳落点 = 空块 nop@0x86c4b12（技巧24 goto 落点岛）
     goto COND;
@@ -957,11 +971,10 @@ COND:
     {
         goto LOOP;
     }
+    // b28c-lane3：历史 register asm("eax") 绑定按 P0/N96 清除。
     // ORIG 0x086c4b8f-0x086c4b97：`mov 0x8(%ebp),%eax; movzwl 0x24(%eax),%eax;
-    // movzwl %ax,%eax` 双零扩展 ⇒ 绑 %eax 且目标类型写成 unsigned int
-    // （上一版绑 "ax" 的 ushort 形被 4.4 折成单段）。
-    register unsigned int uid asm("eax") = m_uniqueId;
-    return uid;
+    // movzwl %ax,%eax` 双零扩展；返回点直读字段的自然形保留该两段。
+    return m_uniqueId;
 }
 
 int GameWorld::find_session(unsigned int accId)
@@ -972,10 +985,9 @@ int GameWorld::find_session(unsigned int accId)
     {
         return 0;
     }
-    // ORIG 0x86c4ca0-0x86c4ca4 双 movzwl（movzwl 0x4(%eax),%eax; movzwl %ax,%eax）：
-    // 技巧16 半字版——register 绑 %eax 的 ushort 落栈值，返回点原地二次零扩展
-    register unsigned short sess asm("ax") = it->second;
-    return sess;
+    // b28c-lane3：历史 register asm("ax") 绑定按 P0/N96 清除。
+    // ORIG 0x86c4ca0-0x86c4ca4 双 movzwl（movzwl 0x4(%eax),%eax; movzwl %ax,%eax）。
+    return it->second;
 }
 
 CUser* GameWorld::find_from_world(unsigned short uniqueId)
@@ -1719,10 +1731,9 @@ PASS:
     {
         return false;
     }
-    // ORIG 0x86c4791-0x86c4798 #2：`test %eax,%eax; sete %al; test %al,%al; je` ⇒ bool 物化（技巧22）
-    register bool isNull asm("al");
-    isNull = (m_pVill[vill].getArea(area) == 0);
-    if (isNull)
+    // b28c-lane3：历史 register bool asm("al") 绑定按 P0/N96 清除（自然形）。
+    // ORIG 0x86c4791-0x86c4798 #2：`test %eax,%eax; sete %al; test %al,%al; je`。
+    if (m_pVill[vill].getArea(area) == 0)
     {
         return false;
     }
@@ -2792,8 +2803,9 @@ bool GameWorld::IsForbiddenChat(const char* name)
             EnableChat(name);
             return false;
         }
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x153d, 0);
-        trace("%s is forbidden to chat\n", name);
+        // b28c-lane3：P221 全表达式临时链（单次调用），复现 ORIG trace 浅槽。
+        cMyTrace(__PRETTY_FUNCTION__, 0x153d, 0)(
+            "%s is forbidden to chat\n", name);
         return true;
     }
     return false;
@@ -2824,8 +2836,9 @@ bool GameWorld::IsForbiddenMove(const char* name)
             EnableMove(name);
             return false;
         }
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1557, 0);
-        trace("%s is forbidden to move\n", name);
+        // b28c-lane3：P221 全表达式临时链（单次调用），复现 ORIG trace 浅槽。
+        cMyTrace(__PRETTY_FUNCTION__, 0x1557, 0)(
+            "%s is forbidden to move\n", name);
         return true;
     }
     return false;
@@ -3150,8 +3163,9 @@ void GameWorld::ResetAllCleadpadPoint()
             continue;
         user->m_mcap.reset();
     }
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x1385, 0);
-    trace("RESET ALL USER CLEANPAD POINT OK!!!!");
+    // b28c-lane3：P221 全表达式临时链（单次调用），复现 ORIG trace 浅槽 -0x1c。
+    cMyTrace(__PRETTY_FUNCTION__, 0x1385, 0)(
+        "RESET ALL USER CLEANPAD POINT OK!!!!");
 }
 
 void GameWorld::ResetAllPassPadFailCount()
@@ -3322,56 +3336,44 @@ void GameWorld::ResetEntireReliablePerson()
 
 void GameWorld::ResetOneADayItemShop()
 {
-    // ORIG 0x86cf827：xor $0x1 / test / jne ⇒ (^1) 空 then+else 形（技巧10）
+    // b28c-lane3：P223 空块岛复现。ORIG 0x86cf82c `jne 86cf901`（尾 nop 岛）、
+    // 0x86cf886 `jne 86cf8ac`（内层 nop 岛）、0x86cf8aa `jmp`、0x86cf8ff `jmp`
+    // 共 4 处；4.4 对 `if(c){}else{}` 恒 jump-thread 掉 jmp+nop（-2 条）。
     if (GlobalData::s_event_manager->GetRepeatEvent(0x6d)->IsEventing(0) ^ 1)
+        goto L_outer;
+    G_CDataManager()->m_itemShop->updateOneADayItemList();
+    // ORIG 0x86cf8c2 ppEi 后缀 ++（temp 槽 -0x10）；it=-0x18 / end=-0x14（技巧25）
+    for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
+         it != m_UserInWorld.end(); it++)
     {
+        CUser* user = it->second;
+        if (user->get_state() <= 2)
+            goto L_inner;
+        user->SendOneADayItemShopIndex(
+            G_CDataManager()->m_itemShop->GetOneADayItemList());
+    L_inner: ;
     }
-    else
-    {
-        G_CDataManager()->m_itemShop->updateOneADayItemList();
-        // ORIG 0x86cf8c2 ppEi 后缀 ++（temp 槽 -0x10）；it=-0x18 / end=-0x14（技巧25）
-        for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
-             it != m_UserInWorld.end(); it++)
-        {
-            CUser* user = it->second;
-            // ORIG 0x86cf881 setle %al; test; jne ⇒ `<=2` 空 then+else（技巧17）
-            if (user->get_state() <= 2)
-            {
-            }
-            else
-            {
-                user->SendOneADayItemShopIndex(
-                    G_CDataManager()->m_itemShop->GetOneADayItemList());
-            }
-        }
-    }
+L_outer: ;
 }
 
 void GameWorld::testResetOneADayItemShop()
 {
-    // ORIG 0x86cf827：xor $0x1 / test / jne ⇒ (^1) 空 then+else 形（技巧10）
+    // b28c-lane3：P223 空块岛复现（同 ResetOneADayItemShop，ORIG 0x086cf904）。
     if (GlobalData::s_event_manager->GetRepeatEvent(0x6d)->IsEventing(0) ^ 1)
+        goto L_outer;
+    G_CDataManager()->m_itemShop->testupdateOneADayItemList();
+    // ORIG 0x86cf8c2 ppEi 后缀 ++（temp 槽 -0x10）；it=-0x18 / end=-0x14（技巧25）
+    for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
+         it != m_UserInWorld.end(); it++)
     {
+        CUser* user = it->second;
+        if (user->get_state() <= 2)
+            goto L_inner;
+        user->SendOneADayItemShopIndex(
+            G_CDataManager()->m_itemShop->GetOneADayItemList());
+    L_inner: ;
     }
-    else
-    {
-        G_CDataManager()->m_itemShop->testupdateOneADayItemList();
-        // ORIG 0x86cf8c2 ppEi 后缀 ++（temp 槽 -0x10）；it=-0x18 / end=-0x14（技巧25）
-        for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
-             it != m_UserInWorld.end(); it++)
-        {
-            CUser* user = it->second;
-            // ORIG 0x86cf881 setle %al; test; jne ⇒ `<=2` 空 then+else（技巧17）
-            if (user->get_state() <= 2)
-            {
-            }
-            else
-            {
-                user->SendOneADayItemShopIndex(
-                    G_CDataManager()->m_itemShop->GetOneADayItemList());
-            }
-        }
-    }
+L_outer: ;
 }
 
 void GameWorld::SetWeekendBounsEvent()
@@ -3390,8 +3392,9 @@ void GameWorld::SetWeekendBounsEvent()
             param.m_field2 = 0;
             GlobalData::s_event_manager->TriggerEventStart(0x57, param);
         }
-
-
+        // b28c-lane3 判 N：ORIG 尾 0x086d13ae/0x086d13b1/0x086d13b4/0x086d13b7
+        // 四个 nop 岛 + 0x086d1358/0x086d13ac 尾 jmp（76 条）；4.4 对 if/else-if
+        // 恒 jump-thread 掉 3 条 jmp（73 条）。P223 多岛 goto 串形实测无效。
     }
     else if (local.tm_wday == 1 && local.tm_hour > 5)  // ORIG 86d135d/86d1362
     {
@@ -3601,7 +3604,9 @@ void GameWorld::CancelPowerUp()
          it != m_UserInWorld.end(); it++)
     {
         CUser* user = it->second;
-        if (user->IsPowerUp())
+        // b28c-lane3：P3——ORIG 0x86cf… 直测 `test %al,%al`（无 setne 归一化），
+        // 说明被调实际返回单字节非 bool；头声明 bool 时 4.4 会加 test+setne。
+        if ((unsigned char)user->IsPowerUp())
         {
             user->SetPowerUp(false);
             list.push_back(user);

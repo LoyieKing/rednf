@@ -38,7 +38,8 @@ struct STRDCharacterStatusClient
     int m_jumpPower;             // +0x88
     int m_weight;                // +0x8c
     unsigned int m_field52;      // +0x90（byte 展开）
-    int m_field53;               // +0x94
+    float m_field53;             // +0x94（b28c-28：float，与 STRDCharacterStatus 同型；
+                                 //   ORIG 双向 op= 0x08a0cab0/0x08a0cc31 均整数 mov 直传）
 };  // sizeof == 0x98
 
 typedef char assert_strd_client_size[

@@ -19,8 +19,10 @@ CPartyExpBonusEvent::~CPartyExpBonusEvent()
 void CPartyExpBonusEvent::StartEvent()
 {
     SetEventFlag(true);
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x10, 0);
-    trace("Party Exp Bonus Event Start! (%x%%)", m_field0c);
+    // [b28c-L15 P227] ORIG 在 cMyTrace ctor 前读 m_field0c 入 %ebx 跨 ctor 保活
+    //   ⇒ 全表达式临时链形（具名对象则 ctor 后才读）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x10, 0)(
+        "Party Exp Bonus Event Start! (%x%%)", m_field0c);
 }
 
 // ORIG T 0x08116cd0：m_field0c = param.m_duration 后转调无参 StartEvent()

@@ -74,7 +74,7 @@ extern std::vector<std::string> g_szScriptFilePriorityBaseDirectory;
 extern char g_szScriptFileBaseDirectory[0x104];
 // s_bUseScriptPack 为 ORIG RDARScript.cpp TU-local static（d 0x93f4d24，重建定义
 // 于 ScriptExtras.cpp）；跨 TU 经其真实访问器 UseScriptPack（ORIG T 0x088bb7cf）。
-extern char UseScriptPack();
+extern bool UseScriptPack();  // [b28c-lane24] bool 返回 ⇒ P168a① 裸形 xor 物化
 extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定义）
 
 // ===========================================================================
@@ -352,7 +352,10 @@ CServerProxyMgr<CGuildServerProxy>::GetServerProxy(ENUM_SERVER_GROUP);
 // competition_reward_result::competition_reward_result  ORIG W 0x081b47a8
 // （+0x00/+0x04 int 清零 + +0x08 字节清零）。
 // ===========================================================================
-competition_reward_result::competition_reward_result()
+// b28c-l23 修复：兄弟 lane 已给冻结头 PacketTypes.h:2011 该 ctor 声明加
+// `throw ()`（P216），本 TU 的定义必须同步异常规范，否则 4.4 报
+// "declaration ... throws different exceptions" 整 TU 编译失败。
+competition_reward_result::competition_reward_result() throw()
 {
     m_0 = 0;
     m_4 = 0;
@@ -382,6 +385,12 @@ bool user_creature::CCreatureMgr::CheckDiedCreature()
 // 双读引用 5 条 lea/store 形；钳位比较 RHS 先物化（`lea 0x1(nc);cmp;jge`），
 // 即源码写 `nCount + 1 < outIdx`；尾索引 outIdx+4 经 scratch 槽（-0x4）
 // store/load 往返。余 fucompp/fnstsw/sahf vs fucomip 为 N（x87 跨版本）。
+// [b28c-L23 N85 → 实测可路由翻正] 本件在默认旗标下的 8 行残差中，4 行是
+// `fucompp/fnstsw %ax/sahf` vs 4.4 的 `fucomip %st(1),%st/fstp %st(0)`（N85 x87
+// 比较两向）。**fresh 实测**：本 TU 加 `-march=i486 -mtune=generic` 后该段完全消失、
+// ndiff 8→0（orig=71 ours=71 指令全等，见探针记录）——4.4 默认 i686 目标才发
+// fcomi 系。按 Main 路由纪律本波不改 dnf_game_cxx.sh，故现路由下仍记 DIFF(N85)，
+// 已把该 TU 列入「4.4.6/i486 路由变更后优先复测」清单。
 // ===========================================================================
 void GetMarketConditionRate(double rate, double amount, double* arr,
                             int nCount, int& outIdx, double& outRate)

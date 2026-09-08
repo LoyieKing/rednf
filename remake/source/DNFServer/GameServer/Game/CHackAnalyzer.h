@@ -108,7 +108,8 @@ public:
 
     unsigned char m_flag[6];               // +0x00（六种检测标志，resetInfo 清 6 字节）
     unsigned int m_sendCnt;                // +0x08（sendAvatar 自增计数；ORIG 无符号比较 jbe）
-    int m_loginTime;                       // +0x0c（setLoginTime 写当前秒）
+    unsigned int m_loginTime;              // +0x0c（setLoginTime 写当前秒；P211 异型化：
+                                           //   ORIG store 有 mov %eax,%edx 中转=RHS 先）
     CUser* m_userP;                        // +0x10（init 写入）
 };
 

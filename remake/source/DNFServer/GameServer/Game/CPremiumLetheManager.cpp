@@ -199,8 +199,9 @@ void CPremiumLetheManager::_resetSkill(CUser* user)
     return;
 FAIL_TRACE:
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x93, 0);
-        trace("ONE_DAY_LETHE : CAN'T USE INIT STATE");
+        // [b28c-L29] P221：具名 trace 对象使 PacketGuard(-0x28)/trace(-0x1c)
+        // 的 sibling 块槽方向与 ORIG 相反；全表达式临时链复现 ORIG 槽深。
+        cMyTrace(__PRETTY_FUNCTION__, 0x93, 0)("ONE_DAY_LETHE : CAN'T USE INIT STATE");
     }
 }
 

@@ -44,6 +44,9 @@ public:
 // stream: opcode 0x18b | param_1(uint)
 // in-buffer(SIG_CHECK_MY_ACCOUNT_IN_DB): +0x00=param_3, +0x04=param_2,
 //   +0x08 memset 0x1d 后 strncpy(param_5, param_6), +0x25=param_4
+// [b28c-33 判词 N104] ORIG 正常路径尾块居末、unwind 块居中（81 条）；4.4 就地内联
+// epilogue、unwind 压最末且正常路径多 1 条 `mov $0x0,%ebx`（EH 状态初始化，82 条）。
+// 块内容逐条全等，仅两尾块互换 ⇒ N104（按 §6.2 三件套验收，p167 待核）。
 int DB_AccountHack_CheckMyAccount::makeRequest(unsigned int uid,
                                                unsigned int accId,
                                                unsigned int a,
@@ -70,6 +73,9 @@ int DB_AccountHack_CheckMyAccount::makeRequest(unsigned int uid,
 // ---- DB_InsertCeraItemHistory::makeRequest ORIG @ 0x0844511a ----
 // stream: opcode 0x2b1 | -1 | itemIdx(int) | sender(uint) | receiver(uint)
 //         | flag(char 符号扩展)
+// [b28c-31] N（EH 尾布局）：ORIG 0x0844523x 的 cleanup 块（CStreamGuard D1 +
+// _Unwind_Resume）在函数中段、正常路径 `jmp` 汇入 ret 块；4.4 恒置函数尾
+// 并 fall-through（跨版本 EH 布局，P63 族）。
 int DB_InsertCeraItemHistory::makeRequest(int itemIdx,
                                           unsigned int senderCharacNo,
                                           unsigned int receiverCharacNo,
@@ -290,14 +296,16 @@ void DB_Insert0712WinterEventCoupon::makeRequest(unsigned int accId,
                                                  unsigned int characNo,
                                                  unsigned int count)
 {
-    Stream* first = _makeRequest((ENUM_INTERNALPACKET)0x112, accId, characNo, count);
-    if (first != 0)
+    // b28c-33：ORIG 0x0842e648 两次 _makeRequest 复用同一 -0xc 槽（P160 复用律）
+    // ⇒ 单一具名 stream 局部，勿声明 first/second 两个槽。
+    Stream* stream = _makeRequest((ENUM_INTERNALPACKET)0x112, accId, characNo, count);
+    if (stream != 0)
     {
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, first);
-        Stream* second =
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, stream);
+        stream =
             _makeRequest((ENUM_INTERNALPACKET)0x113, accId, characNo, count);
-        if (second != 0)
-            GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, second);
+        if (stream != 0)
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, stream);
     }
 }
 

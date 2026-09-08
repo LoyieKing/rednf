@@ -437,8 +437,10 @@ void CDataManager::get_mob_reward(int level, unsigned int& out) const
         out = 0;
         return;
     }
-    // 残差 N18a/N7：4.4 对 base+index 寻址 load 目标恒 %eax 再中转 %edx，
-    // 4.1 复用 index 寄存器 %edx 直落；普通/register 局部两探针均不可翻。
+    // [b28c-lane12 判词·N18a] 唯一残差：ORIG `mov 0x4(%eax,%edx,4),%edx` 复用
+    // index 寄存器直落，4.4 恒 load 到 %eax 再 `mov %eax,%edx`（+1 条）。
+    // (unsigned int) cast 实测零效（前端不改 load 目标寄存器）；字段 int 受
+    // MySQL::get_short(int&) 与 memcpy 消费面约束不可同型化 ⇒ N81附/N18a 封顶。
     out = m_mobReward[level];
 }
 
@@ -947,30 +949,29 @@ void CDataManager::reset_dimensionInout()
 bool ChattingEmoticonBase::isCommonEmoticon(const CUser& user) const
 {
     // ORIG 0x80e5f46：vtable+0x08（isUsable）转发。
+    // [b28c-L12 代落·C28L19 判词·N7] 唯一残差 = 虚调用目标寄存器：ORIG
+    // `mov (%eax),%edx; …; call *%edx` vs 4.4 恒 `call *%eax`（14/14 助记符
+    // 全等，范式库 N7）；源形已最简，不可翻。
     return isUsable(user);
 }
 
-// P85：ORIG 判定链先 `mov 0xc(%ebp),%eax` 一次物化后 cmp $imm,%eax 三连
-// （0x080e5de4..0x080e5dfa）；4.4 对普通形参直发 `cmpl $imm,0xc(%ebp)` 折叠
-// （N18b），register 形参恢复物化形态。
-void ChattingEmoticonBase::AddPremiumIndex(register int index)
+// P85/P0：ORIG 判定链先 `mov 0xc(%ebp),%eax` 物化后 cmp $imm,%eax（形参无槽
+// 往返 ⇒ 表达式直用；历史 register 绑定形已按 P0 全域清除）。
+void ChattingEmoticonBase::AddPremiumIndex(int index)
 {
-    // ORIG 0x80e5dde：特定 index 映射到 premium 槽位集合。
-    // 残差 9 条定性（34→33）：①ORIG `cmp $0x2898bf; jl`，4.4 对
-    // `0x2898be < index` 恒折叠 `cmp $0x2898be; jle`（比较常量 canonicalize，
-    // `>=imm`/`imm<x`/`!(x<imm)`/`x-imm>=0` 四 probe 全败=N18b 族）；
-    // ②ORIG 判断链前置（cmp 0x2898c0 jle→53块；cmp 0x2898c2 jg→end；
-    // jmp→57块），4.4 恒 53 块内联于判断后（=N88 块序），源形不可翻。
-    // insert 调用本身两分支槽位/实参/调用全等。
-    {
-        if (0x2898be < index)
-        {
-            if (index < 0x2898c1)
-                m_set.insert(0x53);
-            else if (index < 0x2898c3)
-                m_set.insert(0x57);
-        }
-    }
+    // ORIG 0x080e5dde：特定 index 映射到 premium 槽位集合。
+    // [b28c-L12 代落·C28L19 spec] ORIG 判断链 = 双严格早退（`cmp $0x2898bf;
+    // jl` / `cmp $0x2898c2; jg`）+ `cmp $0x2898c0; jle` 选 53/57 块，
+    // 故写早返形（P196 比较方向反演鉴别：原 `0x2898be < index` 形被 4.4
+    // 折叠为 `cmp $0x2898be; jle`，边界常量差 1）。
+    if (index < 0x2898bf)
+        return;
+    if (index > 0x2898c2)
+        return;
+    if (index <= 0x2898c0)
+        m_set.insert(0x53);
+    else
+        m_set.insert(0x57);
 }
 
 // ---- CChattingEmoticonList（ORIG find_emoticon 0x80e581c / ReCalc 0x80e5880）----
@@ -1472,7 +1473,7 @@ char CDataManager::get_dimensionInout(int idx)
     return m_dimensionInout[idx];
 }
 
-int CDataManager::GetPvPChannelGrade()
+bool CDataManager::GetPvPChannelGrade()
 {
     // ORIG 0x08357e9e T：-0x1c(dst)/-0x38(serverGroup) 在 guard 前物化；
     // guard `xor$1;test;je` 为 if(IsPVPChannel()) 正向包裹（0x08357ecd）。
@@ -1563,7 +1564,7 @@ const char* CDataManager::SuddenShopFileName3()
 //  跨版本 this-cache 物化——4.1.2 对局部容器成员调用先 `lea obj; mov %eax,-slot`
 //  （-0x58=&monsterList、-0x54=aiList 等，0x08362125 实证），4.4.7 直发 lea 不
 //  物化，全帧槽号系统性平移（P112 族）；条目基址/负值检查行随之整块错位。
-int CDataManager::VerifyMap(const CMap& map, int idx) const
+bool CDataManager::VerifyMap(const CMap& map, int idx) const
 {
     // ORIG 0x083620ee：map type 与 monster list 只被读取，结果不参与返回。
     (void)map.get_map_type();

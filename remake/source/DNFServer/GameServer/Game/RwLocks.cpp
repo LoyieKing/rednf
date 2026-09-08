@@ -57,8 +57,9 @@ void RwSpinLock::enterWriteToValue(long volatile* value)
     while (true)
     {
         long ostate = *value;
-        // ORIG CAS 后用 cmp;jne/mov $1/jmp/mov $0/test 寄存器 select 物化；
-        // -O0 只能产 sete 物化（负例 N3 choose-without-store，非 O0 可复现），帧/跳转布局已对齐。
+        // [b28c-lane25 判词·N3] ORIG CAS 后用 cmp;jne/mov $1/jmp/mov $0/test 寄存器
+        // select 物化；-O0 只能产 sete 物化（负例 N3 choose-without-store，非 O0 可复现），
+        // 帧/跳转布局已对齐（探针 /tmp/l25probe/rw.cpp fA/fB/fC 三形全败）。
         if (ostate == 0 || ostate == 0x40000000)
         {
             if (__sync_val_compare_and_swap(value, ostate, 0x80000000) == ostate)

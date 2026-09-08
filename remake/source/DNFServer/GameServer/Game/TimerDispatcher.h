@@ -525,7 +525,8 @@ public:
     TimerStatisticsDetailChannelInfo();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
     virtual ~TimerStatisticsDetailChannelInfo();
-    void RegistNextTimer();   // ORIG 0x08635782（Ev 非 static；调用点传 this）
+    bool RegistNextTimer();   // ORIG 0x08635782（Ev 非 static；调用点传 this）；
+                              // SIGFIX：ORIG 串 "bool TimerStatisticsDetailChannelInfo::RegistNextTimer()"
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。

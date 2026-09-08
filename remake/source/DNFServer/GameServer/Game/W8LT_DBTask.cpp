@@ -1092,10 +1092,12 @@ class DB_GatheringParyStatus : public DBDispatcher
 {
 public:
     DB_GatheringParyStatus() {}
-    int save_dnf_pvp_ping_history(SIG_PARTY_STATUS* sig);    // ORIG 0x8421066
-    int save_dnf_party_ping_history(SIG_PARTY_STATUS* sig);  // ORIG 0x84217b6
-    int save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, int idx);   // ORIG 0x8420e1a
-    int save_dnf_party_result_history(SIG_PARTY_STATUS* sig, int idx); // ORIG 0x842156a
+    // b28c-L19 SIGFIX：ORIG __PRETTY_FUNCTION__ 串实证返回 bool。
+    bool save_dnf_pvp_ping_history(SIG_PARTY_STATUS* sig);    // ORIG 0x8421066
+    bool save_dnf_party_ping_history(SIG_PARTY_STATUS* sig);  // ORIG 0x84217b6
+    // b28c-L19 SIGFIX：ORIG __PRETTY_FUNCTION__ 串实证返回 bool（原写 int）。
+    bool save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, int idx);   // ORIG 0x8420e1a
+    bool save_dnf_party_result_history(SIG_PARTY_STATUS* sig, int idx); // ORIG 0x842156a
     bool dispatch(int userIdx, int slot, Stream* stream);    // ORIG 0x8421aea
 };
 
@@ -1104,7 +1106,8 @@ char const* get_skill_table_name(bool use2nd);
 
 // ORIG 0x8421066：8 名成员 ping 上报。每行 m_partyEntries[i][9..12] 拼
 // "a.b.c.d" 存入 buf[i]（0x10 字节行），SQL 25 个占位 + now()。
-int DB_GatheringParyStatus::save_dnf_pvp_ping_history(SIG_PARTY_STATUS* sig)
+// [b28c-L19 SIGFIX] 返回 int→bool（ORIG __PRETTY_FUNCTION__ 串实证）。
+bool DB_GatheringParyStatus::save_dnf_pvp_ping_history(SIG_PARTY_STATUS* sig)
 {
     char buf[8][0x10];
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4, E_SERVER_GROUP_NONE);
@@ -1164,7 +1167,8 @@ int DB_GatheringParyStatus::save_dnf_pvp_ping_history(SIG_PARTY_STATUS* sig)
 }
 
 // ORIG 0x84217b6：4 名成员 ping 上报（结构同 pvp 版，仅 4 组 + dnf_party_ping_history）。
-int DB_GatheringParyStatus::save_dnf_party_ping_history(SIG_PARTY_STATUS* sig)
+// [b28c-L19 SIGFIX] 返回 int→bool（同上）。
+bool DB_GatheringParyStatus::save_dnf_party_ping_history(SIG_PARTY_STATUS* sig)
 {
     char buf[4][0x10];
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4, E_SERVER_GROUP_NONE);
@@ -1211,7 +1215,8 @@ int DB_GatheringParyStatus::save_dnf_party_ping_history(SIG_PARTY_STATUS* sig)
 // ORIG 0x8420e1a：PVP 对战结果。idx 选择 m_tryEntries[idx]（10 字节行）：
 // [0]/[1] byte（party_result/dungeon_id）、[2..5] byte 拼 peer_ip、
 // [6..9] int（peer_nat_type）。relay_* 取 G_CEnvironment()->m_serverEnvir。
-int DB_GatheringParyStatus::save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, int idx)
+// [b28c-L19 SIGFIX] 返回 int→bool；残差 N76/N18a（装载序 ecx/edx + 常量 0x20 折叠位置）。
+bool DB_GatheringParyStatus::save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, int idx)
 {
     char buf[0x10];
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4, E_SERVER_GROUP_NONE);
@@ -1258,7 +1263,8 @@ int DB_GatheringParyStatus::save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, i
 }
 
 // ORIG 0x842156a：普通队伍对战结果（结构同 pvp 版，表 dnf_party_result_history）。
-int DB_GatheringParyStatus::save_dnf_party_result_history(SIG_PARTY_STATUS* sig, int idx)
+// [b28c-L19 SIGFIX] 返回 int→bool；残差同 pvp 版（N76/N18a）。
+bool DB_GatheringParyStatus::save_dnf_party_result_history(SIG_PARTY_STATUS* sig, int idx)
 {
     char buf[0x10];
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4, E_SERVER_GROUP_NONE);
@@ -2393,7 +2399,10 @@ class DB_TOD_Reset_UserAPC : public DBDispatcher
 public:
     DB_TOD_Reset_UserAPC() {}   // ORIG C1 0x844f786 (sz 0x4: base ctor+vptr only)
     // ORIG T 0x08440548 _ZN20DB_TOD_Reset_UserAPC14GetAPCUserInfoER8_APCInfo
-    int GetAPCUserInfo(_APCInfo& info);
+    // SIGFIX:b28c-28 ORIG rodata _ZZN20DB_TOD_Reset_UserAPC14GetAPCUserInfoER8_APCInfoE19__PRETTY_FUNCTION__
+    //   @0x08c5b960 = "bool DB_TOD_Reset_UserAPC::GetAPCUserInfo(_APCInfo&)"（P174）；
+    //   唯一调用点 DB_TOD_Reset_UserAPC::dispatch 0x08440331 为语句调用（不消费返回值）。
+    bool GetAPCUserInfo(_APCInfo& info);
     // ORIG T 0x084400c8（虚覆盖）
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
 };
@@ -2937,8 +2946,10 @@ void DBSelectCreateDnfUserInfo::makeRequest(int userIdx, unsigned int accId)
     // vcall 后 `xor $1,%eax; test`）。真虚调 IsEventing(vtable+0x34) 复现
     // `mov (%eax),%edx … call` 形（手写 SlotFn 三中转指针 = 多 4 槽 = 帧
     // 外推 16B；§4.3 裸偏移改具名虚函数，repo 先例 CConditionEventManager/
-    // CBossPlay）；register bool asm("eax") 复现无槽物化（技巧39 同族）。
-    register bool enabled asm("eax");
+    // CBossPlay）。
+    // [b28c-L19 清绑 P0/N96] 原 `register bool enabled asm("eax")` 已删，改裸 bool
+    // 局部（4.4 占槽；若 ORIG 无槽形不可复现则记 N96+N18a）。
+    bool enabled;
     // ORIG 0x0842a…：event==0 → 岛 false；非空 → vcall+双常数岛（V4 短路
     // 合判形反把岛移尾，probe 实证；正判双分支最接近）。残留 N7 vcall
     // callee 寄存器互换 + xor 物化位（setcc-fold 顶）。
@@ -3483,6 +3494,9 @@ bool DB_DeleteChannel::dispatch(int userIdx, int slot, Stream* stream)
 
 // ORIG 0x84029ae：game_channel / channel_occ_info 两条删除；exec 成功路径
 // cMyTrace(file,0x1262/0x126a,0) 记录，失败路径返 0。
+// [b28c-27] N18a：GetDBHandle 第二实参 `(ENUM_SERVER_GROUP)view->m_field4` 的
+// ORIG 单步 `mov 0x4(%eax),%edx` vs 4.4 恒 `mov 0x4(%eax),%eax; mov %eax,%edx`
+// 中转；字段/形参异型化与 register 形均实测不可翻（batch-19 已封顶）。
 bool DB_DeleteChannel::DeleteChannel(SIG_DELETE_CHANNEL* sig)
 {
     // 技巧21 翻声明序：4.4 先声明占远槽；ORIG 0x84029ae r(-0xd) 比
@@ -3896,15 +3910,14 @@ bool DB_UpdateLogout::UpdateAccountMemberBonusFatigue(unsigned int accId,
     // ORIG +0x97 `test %al,%al; je +0xe5`：v=!exec||rows==0 choose 汇聚于
     // eax（mov$1/mov$0 无槽），false 路径（更新成功）先落 mov$0 块，
     // body 尾 `xor$1;test` 直落 epilogue。
+    // [b28c-L18 spec，L19 代落并实测] P222 正向包裹形（if(exec==1&&rows!=0)return false）
+    // 反劣：缺 ORIG 的 `xor $1` 段且仍产 mov$0 岛 ⇒ 维持原形，记 N3/N93附。
     if (!(db->exec(true) == 1 && db->getAffectedRowCount() != 0))
     {
         db->set_query("inSert into login_common(m_id,member_bonus_fatigue,update_time) values(%s,%d,unix_timestamp(now()))",
                       NumberToString(accId, 0), memberBonusFatigue);
-        // ORIG +0xe0-0xe3 `xor $1,%eax; test %al,%al`（比较物化残留、无
-        // 消费者直落 epilogue，0x08418522-0x08418525）⇒ bool 取反直返；
-        // 4.4 对 `return !exec()`/`!= true`/register asm("al") 均反产
-        // select 双块（+jmp+mov$0）。ORIG 形 = xor$1 直落 + 死 test
-        // （4.1 bool^1 原地形），试 `exec() ^ 1`。
+        // ORIG +0xe0-0xe3 `xor $1,%eax; test %al,%al`（比较物化残留、无消费者直落
+        // epilogue，0x08418522-0x08418525）⇒ bool 取反直返。
         return db->exec(true) ^ true;
     }
     return false;
@@ -3928,6 +3941,7 @@ bool DB_UpdateLogout::SendResult(int userIdx, int slot,
 // ORIG 0x8418a96：accId==0 直返 1；serverId 取 IsIntegratedPvPBaseChannel ?
 // sig+0xe : Server_Envir::m_serverGroup；login_account_%d 表写
 // channel_no=+0x8、login_status=0、last_login_date=now()；exec 失败返 0。
+// [b28c-L18 判词 N7 寄存器轮换（0xc/0x8 esp 槽值集与 ORIG 全等），L19 代落注释]
 bool DB_UpdateLogout::UpdateLogout(SIG_UPDATE_LOGOUT* sig)
 {
     if (((DB_UpdateLogoutSigView*)sig)->m_accId == 0)
@@ -4046,7 +4060,7 @@ bool DB_UpdateLogout::dispatch(int userIdx, int slot, Stream* stream)
 // mov $0x1,%ebx 正常返回、catch 内 cMyTrace(__PRETTY_FUNCTION__,0x8b2,5)
 // ("[%s][%d]", __PRETTY_FUNCTION__, 0x8b2) 后返 0 → 返回值 int）。
 // ---------------------------------------------------------------------------
-int DBTask::RegistDispatcher()
+bool DBTask::RegistDispatcher()
 {
     for (int i = 0; i <= DISPATCHER_COUNT - 1; ++i)     // ORIG cmpl $0x353/setle
     {
@@ -7497,7 +7511,10 @@ bool DB_UpdatePvPResult::dispatch(int userIdx, int slot, Stream* stream)
 #pragma pack(push, 1)
 struct DB_LoadPowerWarStatueInfoView
 {
-    unsigned int m_characNo;   // +0x00
+    // [b28c-32] P211：ORIG 0x08434a1x 尾段 `mov -0x38(%ebp),%eax; mov %eax,%edx;
+    // mov -0xc(%ebp),%eax; mov %edx,(%eax)` = RHS 先 + eax→edx 中转 ⇒ 字段与
+    // unsigned int 局部 characNo 异型 ⇒ 声明 int（同型化则 4.4 产 LHS-first）。
+    int m_characNo;            // +0x00
     char m_name[0x1d];         // +0x04
     char m_pad21;              // +0x21（ORIG 空洞）
     char m_lev;                // +0x22
@@ -7535,6 +7552,7 @@ static_assert(sizeof(Inven_Item) == 0x3d,
 // *stream>>characNo → GetCharacInfo 失败则 memset+cMyTrace(0x7eaf) →
 // GetAvatarInfo 失败则 memset+cMyTrace(0x7eb7) → sig+0x00=characNo →
 // MsgQueueMgr::put(DISPATCH_Q=1, guard) 返 1。
+// [b28c-32] verdict=DIFF：P211 字段异型化（View::m_characNo→int 翻 RHS-first）；余 N18a 1 条 eax→edx 中转。
 bool DB_LoadPowerWarStatueInfo::dispatch(int userIdx, int slot, Stream* stream)
 {
     // ORIG 0x08434886 帧：guard=-0x34、characNo=-0x38（更远）、
@@ -10461,7 +10479,8 @@ bool DB_UpdateQueryCountTimerLogdb::dispatch(int userIdx, int slot,
                 "inSert into log_query_stat(occ_time,q_id,total,response_time,gc_no) values(from_unixtime(%d),%d,%d,%d,%d)",
                 curSec, qid, total, respTime,
                 G_CEnvironment()->get_channel_no());
-            // ORIG 0x841c56d-0x841c572 `xor $1;test %al;jmp <incr>` 死岛 =
+            // [b28c-33 复核 102/100：残 2 = jmp+nop 岛] ORIG 0x841c56d-0x841c572
+            // `xor $1;test %al;jmp <incr>` 死岛 =
             // 4.1 对 `if(!exec()) continue;` 保留物化 + 块尾 jmp（jle 落点
             // nop pad 在前）；4.4 threading 消 jmp ⇒ N75 残留一行。
             if (!db->exec(true))
@@ -10598,6 +10617,8 @@ static_assert(sizeof(DB_DnfHackLogView) == 0x3cf4,
 
 bool DB_LoadDnfHackLog::dispatch(int userIdx, int slot, Stream* stream)
 {
+    // [b28c-27] AE：循环体 if 块按 P223 goto 尾标签岛复现 ORIG `ja <nop>` +
+    // body 尾 `jmp <addl>; nop`（842245d/842245e 实证）；其余为 .o 重定位伪差。
     if (!DBDispatcher::dispatch(userIdx, slot, stream))
         return 0;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
@@ -10629,12 +10650,14 @@ bool DB_LoadDnfHackLog::dispatch(int userIdx, int slot, Stream* stream)
             return 0;
         if (!db->get_uint(0, hackType))
             return 0;
-        if (hackType <= 0xfa0)
-        {
-            if (!db->get_uint(1, cnt))
-                return 0;
-            inSig->m_cnt[hackType - 0x65] = cnt;
-        }
+        // P223：ORIG 842245d `ja <nop>` + body 尾 `jmp <addl>; nop`（4.1 空块
+        // 占位岛）；4.4 对 if 恒 jump-thread，复现形 = goto 尾标签。
+        if (hackType > 0xfa0)
+            goto L_next;
+        if (!db->get_uint(1, cnt))
+            return 0;
+        inSig->m_cnt[hackType - 0x65] = cnt;
+L_next:;
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
@@ -10685,11 +10708,14 @@ bool DB_WriteGeoReject::dispatch(int userIdx, int slot, Stream* stream)
 // ============================================================================
 // DB_AuctionSubMoney —— ORIG dispatch 0x08448530。
 // 报告：docs/class_func_reports/DB_AuctionSubMoney/dispatch.md。
-// DB_HANDLE_2；escape_string(m_name) 后按角色名查 m_id（exec/fetch/get_int
+// dispatch：DB_HANDLE_2；escape_string(m_name) 后按角色名查 m_id（exec/fetch/get_int
 // 任一失败返 0）→ 组包（0x309/slot，写 m_count=m_id、m_arg04=sig+4）→
-// put(DISPATCH_Q) 返 1。（gap=-1，ndiff=3：唯一残差是 m_count=mId 处
-// `mov -0x28,%edx`（ORIG）vs `mov -0x28,%eax;mov %eax,%edx`（OURS）——
-// N18a 寄存器调度单跳，源码不可强制，见 report dispatch.md）
+// put(DISPATCH_Q) 返 1。
+// b28c-28 判词（N18a）：fresh 唯一残差 = `out->m_count = mId` 处 ORIG
+// 0x08448704 `mov -0x28(%ebp),%edx`（一步直落目标寄存器）vs 4.4 恒
+// `mov -0x28,%eax; mov %eax,%edx`（两段，+1 insn）。探针 /tmp/l28_probe6.cpp
+// h1/h2/h3（unsigned 槽→int 字段 / 形参直传 / 双字段）实测：仅「值未经 call
+// 边界」时可一步，call 后装载恒两段 ⇒ N18a 封顶，余 147/147 全等。
 // ============================================================================
 bool DB_AuctionSubMoney::dispatch(int userIdx, int slot, Stream* stream)
 {
@@ -12391,20 +12417,18 @@ bool DB_UpdateComboSkill::dispatch(int userIdx, int slot, Stream* stream)
     if (!setComboSkill(db, (unsigned int)sig->m_characNo, sig->m_tree1Count,
                        sig->m_tree1Data, SKILL_TREE_1))
     {
-        // ORIG 块首 `mov (%eax),%ebx`+push %ebx：characNo 直落 callee-saved
-        // %ebx 跨 ctor call 保活（块内声明式绑定避免内存读场景的 spill 形）。
-        register unsigned int characNo asm("ebx") = (unsigned int)sig->m_characNo;
+        // b28c-L19 清绑（P0/N96）：改全表达式临时链内联实参（P227），
+        // 由 4.4 自然升格 callee-saved 保活 characNo 跨 ctor call。
         cMyTrace(__PRETTY_FUNCTION__, 0xbb2c, 5)(
             "DB_UpdateComboSkill::dispatch, setComboSkill ERROR charac_no=%u",
-            characNo);
+            (unsigned int)sig->m_characNo);
     }
     if (!setComboSkill(db, (unsigned int)sig->m_characNo, sig->m_tree2Count,
                        sig->m_tree2Data, SKILL_TREE_2))
     {
-        register unsigned int characNo asm("ebx") = (unsigned int)sig->m_characNo;
         cMyTrace(__PRETTY_FUNCTION__, 0xbb33, 5)(
             "DB_UpdateComboSkill::dispatch, setComboSkill ERROR charac_no=%u",
-            characNo);
+            (unsigned int)sig->m_characNo);
     }
     return 1;
 }
@@ -12762,6 +12786,7 @@ bool DB_UpdateQueryCountDbLogdb::dispatch(int /*userIdx*/, int /*slot*/,
 // NumberToString(mId,0)）；exec 失败返 0；affectedRowCount==0 → inSert into
 // %s(m_id, item_cnt) values(%s, %d)（table, mIdStr, itemCnt），insert exec 失败
 // 返 0；全绿返 1。
+// [b28c-32] verdict=NEAR：N7 虚调用 callee 寄存器互换（112=112）。
 bool DB_UpdateAddItemCountValue::dispatch(int /*userIdx*/, int /*slot*/,
                                           Stream* stream)
 {
@@ -13514,6 +13539,9 @@ bool DB_InsertDungeonEntrance::dispatch(int /*userIdx*/, int /*slot*/,
 // charac_blood_best_record(charac_no,dungeon_index,best_round,best_time)
 // values(%u,%d,%d,%u)，返回 insert exec==1；update 成功影响行 → 返 1。
 // ============================================================================
+// [b28c-31] P0 清绑（原 register bool needInsert asm("eax") 已删）；残差
+// N78+N18a：needInsert 汇聚 ORIG %eax vs 4.4 %ebx，且 `or %edx,%eax; test`
+// 直分支 ORIG vs 4.4 setne 物化（0x08431d0a/0x08431d1a 实证）。
 bool DB_UpdateBloodBestRecord::dispatch(int /*userIdx*/, int /*slot*/,
                                         Stream* stream)
 {
@@ -13527,9 +13555,10 @@ bool DB_UpdateBloodBestRecord::dispatch(int /*userIdx*/, int /*slot*/,
         sig->m_dungeonIndex);
     // ORIG 0x08431c74：needInsert 无槽——4.1 以 %eax 分支物化双常数岛
     // `mov $1; jmp T / mov $0 / T: test al; je`（首段 xor$1;test;jne =
-    // exec!=1 直落 true 路）。具名 bool = 4.4 必落槽(-0x9)外推帧 4B ⇒
-    // register bool asm("eax") 三分支显式赋值复现。
-    register bool needInsert asm("eax");
+    // exec!=1 直落 true 路）。[b28c-31] P0/N96 清绑：原 `register bool
+    // needInsert asm("eax")` 全域禁用 ⇒ P231 裸 register 载体；实测去 register 反落
+    // 栈槽 -0x9 且槽位漂移（C28L20A 负例场景不适用本件）。
+    register bool needInsert;
     if (!db->exec(true))
         needInsert = true;
     else if (db->getAffectedRowCount() != 0)
@@ -13820,7 +13849,7 @@ bool DB_UpdateRevengeData::dispatch(int /*userIdx*/, int /*slot*/,
 // 写 m_abilities[10]；creature_items(slot=238) 读 it_id/name 写
 // m_creatureId/m_creatureName（exec 失败 cMyTrace 0x9fbf）。成功返 1。
 // ============================================================================
-int DB_TOD_Reset_UserAPC::GetAPCUserInfo(_APCInfo& info)
+bool DB_TOD_Reset_UserAPC::GetAPCUserInfo(_APCInfo& info)
 {
     static const int handleIdx = 3;
     MySQL* db2 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
@@ -15158,13 +15187,13 @@ bool DB_SaveCharacterOption::dispatch(int userIdx, int slot, Stream* stream)
     // ORIG src/len 装载序 = len 先（%eax）：4.4 左→右评估恒 src 先 ⇒
     // register asm("eax") 在实参前物化 len（技巧28 变体）。
     int len = 0x200;
-    register int lreg asm("eax");
-    lreg = len;
+    // [b28c-L19 清绑 P0/N96] 原 `register int lreg asm("eax"); lreg = len;` 已删，
+    // 改实参直传 len（4.4 评估序差异记 N96）。
     // ORIG 0x08430144 src 实参 = `mov -0x14(%ebp),%edx; add $0x4,%edx`
     // 覆写形（技巧26 blob 指针），且评估晚于 len spill ⇒ 数组 decay
     // (`lea 0x4(%eax)`) 会把装载提前。
     char* options = db->blob_to_str(
-        0, (char*)((unsigned long)sig + 4UL), lreg);
+        0, (char*)((unsigned long)sig + 4UL), len);
     db->set_query("upDate charac_option set options = '%s' where charac_no= %u",
                   options, sig->m_characNo);
     if (!(db->exec(true) == 1 && db->getAffectedRowCount() != 0))
@@ -16491,15 +16520,31 @@ bool DB_UpdateUserGiftFatigueQuantity::dispatch(int userIdx, int slot, Stream* s
     // ORIG 0x08441d1c：event_script_mng 空返 0；实体 0x65 为空或
     //   !CUsedFatigueGiveItem::getIsCharacEvent(charac) 返 0；>>u1 >>u2 >>u3 后按
     //   charac 选 DB_HANDLE_9/DB_HANDLE_2 与 m_id/charac_no 双查询，exec 失败返 0。
+    // b28c-34 判词（N7 封顶，推断）：
+    //   ①charac inSert 分支实参序修正为 values(charac_no=u2, fatigue_quantity=u3)：
+    //     ORIG 0x0841f56 `mov -0x24(%ebp),%esi; mov -0x20(%ebp),%ebx` ⇒ 0xc(%esp)=u2、
+    //     0x10(%esp)=u3，与列序 (charac_no, fatigue_quantity) 一致（旧码 u3,u2 为真反）。
+    //   ②evt 声明为 CUsedFatigueGiveItem*（赋值处 static_cast）以复现 ORIG 0x0841d64
+    //     调用点 `lea -0x15(%ebp),%eax; mov %eax,0x4(%esp); mov -0x10(%ebp),%eax` 的
+    //     「&charac 先装载」实参序；表达式内 static_cast 形 4.4 会反转装载序（探针
+    //     /tmp/gf_probe2.cpp t5/t7 反形 vs t2/t3/t6 正形）。
+    //   ③残余 NEAR 仅 N7（结构性，不可复现）：ORIG 0x0841df1 虚目标 `mov (%eax),%edx`
+    //     + this 重载 `mov -0x10(%ebp),%eax; call *%edx`；4.4 -O0 对间接 call 目标恒
+    //     %eax、this 恒 %edx（探针 /tmp/gf_probe3.cpp t1 成员调用/t2 引用/t3 解引用/t4
+    //     丢弃全为 `call *%eax`）。已试形：成员调用、(*evt) 解引用、引用形、丢弃形；
+    //     槽位 +0x20 与 ORIG vtable slot 8 一致（非 P193 选错虚函数）。语义与 ORIG 等价。
+    //   实测：TU 级 compare 由 DIFF→NEAR（190/190 insn、gap=0），ndiff 16→8（残余
+    //   8 行全部为上述 N7 寄存器名差）；探针 TU /tmp/gf_before.cpp 复刻修改前体得
+    //   ndiff_before=16（口径 audit_tu_ledger：AE 归一+<T>/<A>+尾 nop 豁免）。
     EventClassify::CEventScriptMng* mng =
         static_cast<EventClassify::CEventScriptMng*>(
             G_CDataManager()->get_event_script_mng());
     if (mng == 0)
         return 0;
-    EventClassify::CEventEntity* evt = mng->get_event_entity(0x65);
+    EventClassify::CUsedFatigueGiveItem* evt =
+        static_cast<EventClassify::CUsedFatigueGiveItem*>(mng->get_event_entity(0x65));
     bool charac = false;
-    if (evt == 0 || !static_cast<EventClassify::CUsedFatigueGiveItem*>(evt)
-                        ->getIsCharacEvent(charac))
+    if (evt == 0 || !evt->getIsCharacEvent(charac))
         return 0;
     unsigned int u1 = 0;
     unsigned int u2 = 0;
@@ -16540,7 +16585,7 @@ bool DB_UpdateUserGiftFatigueQuantity::dispatch(int userIdx, int slot, Stream* s
         {
             db->set_query(
                 "inSert into %s(charac_no, fatigue_quantity) values(%u, %u)",
-                toTString(table), u3, u2);
+                toTString(table), u2, u3);
         }
         if (!db->exec(true))
             return 0;

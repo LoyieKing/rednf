@@ -49,6 +49,11 @@ void CalculateMemoryChecksum(CodeHackChecksum* ck, unsigned long size, void* dat
 // ---------------------------------------------------------------------------
 void CalculateFileChecksum(CodeHackChecksum* ck, FILE* fp, unsigned long totalSize,
                            unsigned long chunkSize, void* buffer)
+// [b28c-L23 N18a/N7 残余 2 行] 本件已修一处**真语义 bug**（fread 实参序：ORIG
+// @0x0808a53c 压参 `(%esp)=buffer / 0x4=chunk / 0x8=$1 / 0xc=fp` ⇒
+// fread(ptr,size=chunk,nmemb=1)，原码 `(buffer,1,chunk)` 在 chunk>1 短读时返回值
+// 语义分叉）。残 2 行 = `chunkSize + done` 的加法操作数寄存器来源
+// （4.1 左操作数入 %eax/右入 %edx，4.4 反向 ⇒ 同助记符异寄存器，NEAR 级）。
 {
     unsigned long done = 0;
     if (totalSize == 0)
@@ -67,7 +72,11 @@ void CalculateFileChecksum(CodeHackChecksum* ck, FILE* fp, unsigned long totalSi
         else
             chunk = totalSize - done;
 
-        if (fread(buffer, 1, chunk, fp) != 1)
+        // b28c-l23 语义修正（ORIG 0x0808a53c 实参槽逐位核对）：ORIG 压参为
+        // `(%esp)=buffer / 0x4=chunk / 0x8=$1 / 0xc=fp` ⇒ **fread(ptr, size=chunk,
+        // nmemb=1, stream)**（每轮 1 个元素、元素大小=chunk），非 `(buffer,1,chunk)`；
+        // 尾 `cmp $0x1,%eax` 判的是元素计数。原形在 chunk>1 短读时返回值语义分叉。
+        if (fread(buffer, chunk, 1, fp) != 1)
         {
             sha256_finish(&ctx, ck->m_data);
             return;
@@ -241,14 +250,15 @@ char* CodeHackCheckRangeEx::GetFileName() const           // T @0x0808a9c4
 
 char* CodeHackCheckRangeEx::setData(const char* serialized)   // T @0x0808a9cc
 {
-    const unsigned char* p = reinterpret_cast<const unsigned char*>(serialized);
-    int nameLen = static_cast<signed char>(*p);           // movzbl/movsbl
-    p += 4;                                               // addl $0x4
-    std::strncpy(m_fileName, toTString(reinterpret_cast<const char*>(p)), nameLen);
-    p += nameLen;                                         // add %eax,0xc(%ebp)
-    std::memcpy(&m_start104, p, 8);                       // memcpy(this+0x104,...,8)
-    p += 8;                                               // addl $0x8
-    return const_cast<char*>(reinterpret_cast<const char*>(p));
+    // [b28c-L29] ORIG 0x0808a9cc：形参 serialized 自身自增（addl $0x4,0xc(%ebp)/
+    // add %eax,0xc(%ebp)），每处重读形参槽——源码无命名局部 p（P0）。
+    int nameLen = static_cast<signed char>(*serialized);  // movzbl/movsbl
+    serialized += 4;                                      // addl $0x4
+    std::strncpy(m_fileName, toTString(serialized), nameLen);
+    serialized += nameLen;                                // add %eax,0xc(%ebp)
+    std::memcpy(&m_start104, serialized, 8);              // memcpy(this+0x104,...,8)
+    serialized += 8;                                      // addl $0x8
+    return const_cast<char*>(serialized);
 }
 
 // ===========================================================================

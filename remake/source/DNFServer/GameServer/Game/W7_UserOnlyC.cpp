@@ -643,9 +643,13 @@ bool LimitItemUsage::isAnotherDay()
         static_cast<long>(G_CEnvironment()->m_serverEnvir.m_fatigueTime);
     const long createTime = static_cast<long>(
         *reinterpret_cast<const CommonTime*>(this));   // operator long()
-    return CheckDailyScheduleTime(
-        serverSchedule, createTime,
-        static_cast<long>(GlobalData::s_systemTime_.getCurSec()));
+    // P56：ORIG 0x08688ffa `test %al,%al; je mov$0; mov$1; jmp` 分支形态，
+    // 直 return 表达式会折成单条。
+    if (CheckDailyScheduleTime(
+            serverSchedule, createTime,
+            static_cast<long>(GlobalData::s_systemTime_.getCurSec())))
+        return true;
+    return false;
 }
 
 // ORIG W 0x08695f68。
@@ -685,13 +689,17 @@ bool LimitItemUsage::useIt()
 void UserMercenaryInfoMgr::UpdateCharacName(unsigned int characNo,
                                             std::string const& name)
 {
-    const unsigned int idx = FindIndexByCharacNo(characNo);
+    // [b28c-L29] P218：ORIG 0x081b462e 的 operator[] 实参为「先 idx 后 this」
+    // （mov -0xc,%edx; mov 0x8(%ebp),%eax）——下标局部声明 int 触发 size_t
+    // 转换中转即复现。
+    const int idx = static_cast<int>(FindIndexByCharacNo(characNo));
     if (!CheckCharacIndex(static_cast<unsigned char>(idx)))
         return;
 
-    CHARAC_LOAD_MERCENARY& entry = m_characs[idx];
-    std::memset(entry.m_name, 0, 0x1e);
-    std::strncpy(entry.m_name, name.c_str(), 0x1d);
+    // [b28c-L29] ORIG 0x081b462e：两次 operator[] 独立调用（无 entry 引用缓存，
+    // P183/P157），c_str 结果经 %ebx 跨第二次 operator[] 保活。
+    std::memset(m_characs[idx].m_name, 0, 0x1e);
+    std::strncpy(m_characs[idx].m_name, name.c_str(), 0x1d);
 }
 
 // ============================================================================

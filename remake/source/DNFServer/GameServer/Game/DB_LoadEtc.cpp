@@ -751,6 +751,9 @@ bool DB_LoadEtc::SendResult(int userIdx, int slot, SIG_LOAD_ETC* sig)
 // unroll 转录：列号用 local_14(idx) 取后自增（非字面量常数），throw 就地展开
 // （__cxa_allocate_exception/__cxa_throw 逐列内联，非辅助函数），exec/fetch/
 // qp/init_count 结果经 local_19(ret) 中转 → 指令数 460→690，与 ORIG 690 一致。
+// [b28c-lane17] fresh 复验：690=690、助记符序列全等 ⇒ NEAR（残差全为槽号/
+// callee-saved 分配差，N82 族——4.1 不按 lifetime 复用栈槽使全帧槽号错位，
+// ndiff 与语义完成度反向）。按 §6.2 三件套口径判「语义完成、byte 层 N 封顶」。
 // ============================================================================
 bool DB_LoadEtc::_LoadQuestShop(unsigned int characNo, CHARAC_QUEST_SHOP_DATA* out)
 {
@@ -1015,6 +1018,10 @@ void DB_LoadEtc::LoadComboSkillInfo(SIG_LOAD_ETC* sig)
                               0xbab4, "DB_LoadETC ERROR : LoadComboSkill Fail");
         sig->m_field8 = 1;
     }
+    // [b28c-lane17] 判词：残余 1 条尾 `jmp+nop` 中继岛差（4.4 jump-threading，
+    // P223 反例向）。实测三形：`if(!call())` 43/44（最优）、
+    // `if(call()==0)` 45、`if(positive){}else{}` 45 —— 均无法消该岛，
+    // 保留最短残差形。
     if (!LoadComboSkill(sig, (ENUM_SKILL_TREE_KIND)1))
     {
         LogManager::logFormat(1, "DBThread.cpp",

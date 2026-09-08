@@ -77,6 +77,9 @@ public:
     CCollisionDetection(T const& target) : m_target(target) {}
     bool operator()(T const& other) const
     {
+        // [b28c-35] NEAR/N7：ORIG 0x086b8542 把 vtable 目标存 %ecx、实参存 %edx、
+        // 间接 `call *%ecx`；4.4.7 恒目标 %eax、实参 %ecx。16=16 助记符全等仅寄存器
+        // 角色互换（N7；4.4.6 后端可翻，本波勿自切）。
         return m_target->include(*other);
     }
 
@@ -93,7 +96,11 @@ bool detect_collision(std::list<T>& list, T& obj)
     typename std::list<T>::iterator b = list.begin();
     typename std::list<T>::iterator f = std::find_if(b, e, pred);
     typename std::list<T>::iterator e2 = list.end();
-    return f != e2;
+    // [b28c-L29] ORIG 0x86b75d7：比较结果走 test/je/mov$1/jmp/mov$0 分支物化
+    // （P56）——直写 return f!=e2 会被折叠为 call ne; leave; ret。
+    if (f != e2)
+        return true;
+    return false;
 }
 
 }  // namespace collision_detection

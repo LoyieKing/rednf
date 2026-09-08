@@ -152,9 +152,11 @@ int CQuestShop::findStatusQp(unsigned char status)
     // 经镜像顶层 stQuestShopStatus map 拷贝（与 ORIG 顶层模板同名）。
     std::map<int, stQuestShopStatus> table = reinterpret_cast<const std::map<int,
         stQuestShopStatus>&>(G_CDataManager()->m_questShop.m_map0); // +0x6398
-    const int key = static_cast<int>(status);     // -0x10
+    // b28c-L10：ORIG 0x85eeda8 槽序 table=-0x28 / key临时=-0x10。4.4 对「具名 key 局部」
+    // 把 key 排到 table 之前（-0x28/-0x24）→ 全帧 key/table 引用差 4。实内联 cast 作实参
+    // 时 4.4 复现 ORIG 槽序（探针 /tmp/l10_probe3.cpp fC/fD 实测 table=-0x28、临时=-0x10）。
     std::map<int, stQuestShopStatus>::iterator it =
-        table.find(key);
+        table.find(static_cast<int>(status));
     if (it != table.end())                        // ORIG ne 比较 + je 跳过命中块
         return static_cast<int>(it->second.m_questPoint); // movzbl 0x18(%eax)
     return -1;
@@ -168,9 +170,8 @@ int CQuestShop::findStatusType(unsigned char status)
     // 经镜像顶层 stQuestShopStatus map 拷贝（与 ORIG 顶层模板同名）。
     std::map<int, stQuestShopStatus> table = reinterpret_cast<const std::map<int,
         stQuestShopStatus>&>(G_CDataManager()->m_questShop.m_map0);
-    const int key = static_cast<int>(status);     // -0x10
     std::map<int, stQuestShopStatus>::iterator it =
-        table.find(key);
+        table.find(static_cast<int>(status));     // b28c-L10：同上（ORIG 0x85eee6a 槽序）
     if (it != table.end())                        // ORIG ne 比较
         return it->second.m_field18;              // mov 0x1c(%eax)（value+0x1c）
     return 0x4d;                                  // +0x85
@@ -244,6 +245,9 @@ int stQuestShopStatus::getNextLevel(int level)
 // +0x18=0x4d、+0x1c=2、+0x20=0、vector clear。
 void stQuestShopStatus::clear()
 {
+    // [b28c-27] AE：+0x20 ORIG `mov $0x0,%edx; mov %edx,0x20(%eax)`（常量经 edx
+    // 中转）⇒ 字段改 float + `= 0.0f`（P211 常量 store 方向开关的 float 变体，
+    // C1ERKS_ 4 字节 mov 拷贝不变）；int/unsigned int 两形实测均直写。
     m_name.clear();
     m_name2.clear();
     m_explain.clear();
@@ -252,7 +256,7 @@ void stQuestShopStatus::clear()
     m_questPoint = 0;
     m_field18 = 0x4d;
     m_statusType = 2;
-    m_field20 = 0;               // ORIG mov $0x0,%edx 中转（gcc4.1 特性，本工具链直写）
+    m_field20 = 0.0f;            // ORIG mov $0x0,%edx 中转（gcc4.1 特性，本工具链直写）
     m_levelInfos.clear();
 }
 
@@ -291,8 +295,8 @@ bool CQuestShop::checkBuyingStatus_LimitLevel(unsigned char status, short count,
     // value（+0x4 = second）直接按顶层镜像 stQuestShopStatus 调 getMaxCount。
     std::map<int, stQuestShopStatus> table = reinterpret_cast<const std::map<int,
         stQuestShopStatus>&>(G_CDataManager()->m_questShop.m_map0);
-    const int key = static_cast<int>(status);     // -0x14
-    std::map<int, stQuestShopStatus>::iterator it = table.find(key); // -0x30
+    std::map<int, stQuestShopStatus>::iterator it =
+        table.find(static_cast<int>(status));     // b28c-L10：同 findStatusQp（ORIG 0x85ef0ce table=-0x2c/临时=-0x14）
     if (it != table.end())                        // ORIG ne + je 尾部 false 块
     {
         const int maxCount = it->second.getMaxCount(characLevel); // +0x4 value + getMaxCount
@@ -402,16 +406,16 @@ void CQuestShop::_reset()
 // ---- ORIG T 0x85efdc0 size 0x94：装入 tag 状态计数 ------------------------
 bool CQuestShop::SetTagCharacQuestShopData(CHARAC_QUEST_SHOP_DATA* data)
 {
-    // ORIG 按序列化块偏移访问 tag 区（0x85efdc0 movzwl 0xc+i*2）；
-    // 形参为不完整类型，经 SIG 视图表达式内联访问（P86 逐次重读，不缓存）。
-    // SIG_QUEST_SHOP_DATA 为 0x155 双实例（m_main@+0 与 CHARAC_QUEST_SHOP_DATA 同构）。
     for (int i = 0; i <= 0x4c; ++i)                 // cmp $0x4c setle
     {
-        if (reinterpret_cast<const QuestShopStatusView*>(data)->m_statusCounts[i] == 0)
+        // b28c-L10：完整类型具名成员直访问（+0x0c 计数视角，见 CHARAC_QUEST_SHOP_DATA.h
+        // 匿名 union）。ORIG 0x85efdc0 装载序为「i 先、base 后」且 make_pair 实例
+        // `IRiRt`（非 const ushort 左值）；reinterpret_cast 视图形在 4.4 反装为
+        // 「base 先 + 多一条 add」（ndiff 17→0 见探针 /tmp/l10_probe6.cpp fH）。
+        if (data->m_statusCounts[i] == 0)
             continue;                               // movzwl + test ax / je
-        // ORIG make_pair<IRiRt>(i, m_statusCounts[i]) 左值 + pair 移动 + insert
         m_tagBuyingStatus.insert(std::make_pair(
-            i, reinterpret_cast<const QuestShopStatusView*>(data)->m_statusCounts[i]));
+            i, data->m_statusCounts[i]));
     }
     return 1;                                       // movl $0x1,%eax
 }

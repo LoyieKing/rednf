@@ -121,8 +121,11 @@ bool CEquipItem::checkItemUpgradePossible() const
     {
         return 0;
     }
-    if ((unsigned int)m_itemType < 0x16 &&
-        ((1 << m_itemType) & 0x3ff400U) != 0)
+    // [b28c-21] ORIG 085138b2 段：m_itemType 只装载一次（cmp 后复用 %eax 作
+    // shl 计数）；纯 register 声明复现，写两遍成员表达式会二次装载。
+    register unsigned int itemType = m_itemType;
+    if (itemType < 0x16 &&
+        ((1 << itemType) & 0x3ff400U) != 0)
     {
         return 1;
     }
@@ -729,7 +732,8 @@ int CEquipItem::get_sub_type() const
 // ORIG W 0x833eea6：flds [this+0x158]，即 m_randomTable.m_field10 的 float 位模式。
 float CEquipItem::get_experience_amount() const
 {
-    return *reinterpret_cast<const float*>(&m_randomTable.m_field10);
+    // [b28c-21] ORIG `mov 0x158(%eax),%eax` 单条；float 位视图成员直读。
+    return m_randomTable.m_experienceAmount;
 }
 
 // ORIG W 0x833eee8：返回 this+0x168（m_randomTable.m_field20）。
@@ -783,8 +787,9 @@ void RandomItemTable::Set(std::vector<int>* source)
 // 返回其 it->first；未命中返回 0。SetEggItem 依赖此把随机权重映射到物品 index。
 int RandomItemTable::GetRandomItemIndex(int index) const
 {
+    // [b28c-21 代落 C28L35 spec] ORIG 增量用后置 ++（operator++(int) 三参形）。
     for (std::vector<std::pair<int, int> >::const_iterator it = m_vec4.begin();
-         it != m_vec4.end(); ++it)
+         it != m_vec4.end(); it++)
     {
         if (index < it->second)
             return it->first;

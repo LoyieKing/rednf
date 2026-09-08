@@ -240,6 +240,11 @@ float DNFLexWrapper::getFloat()
 // lastIntValue_；其它 lexType 返回 0。
 int DNFLexWrapper::getPairInt()
 {
+    // [b28c-11] N 封顶（54/56）：残余 = ORIG 4.1 把 `strlen(buffer)` 内联为
+    // word-at-a-time 序列（0x8ace688 起），4.4 -O0 恒发 call strlen（探针
+    // /tmp/l11p/sl.cpp：strlen 与 __builtin_strlen 在 4.4 -O0 均为 call）⇒
+    // 帧 0x114/0x128 与 2 条 call 不可复现。语义等价（已改 dnfLex_.yytext 成员直读
+    // 消 YYText() call，见 FlexLexer.h yytext public 化）。
     if (lexType_ != LEX_TYPE_NORMAL)
     {
         int r = 0;
@@ -248,17 +253,19 @@ int DNFLexWrapper::getPairInt()
         return r;
     }
     char buffer[0x100];
-    std::strncpy(buffer, dnfLex_.YYText() + 1, 0x100);
+    std::strncpy(buffer, dnfLex_.yytext + 1, 0x100);
     buffer[std::strlen(buffer) - 1] = 0;
     return (int)__strtol_internal(buffer, 0, 10, 0);
 }
 
 char* DNFLexWrapper::getPairStr()
 {
+    // [b28c-11] N 封顶（41/41）：同 getPairInt 的 4.1 内联 strlen vs 4.4 call
+    // （0x8ace5d3 起 word-at-a-time 展开）；帧 0x18/0x28 差同源。
     static char buffer[0x100];
     if (lexType_ == LEX_TYPE_NORMAL)
     {
-        std::strncpy(buffer, dnfLex_.YYText() + 1, 0x100);
+        std::strncpy(buffer, dnfLex_.yytext + 1, 0x100);
         buffer[std::strlen(buffer) - 1] = 0;
         return buffer;
     }

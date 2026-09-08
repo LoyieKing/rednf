@@ -255,7 +255,7 @@ public:
                              ENUM_SKILL_TREE_KIND kind) const;
     int check_skill_mastered(_Mastered_skill* buf, int skillIdx, int level,
                              int group) const;
-    int check_skill_list(int job, std::vector<std::pair<int, int> > list,
+    bool check_skill_list(int job, std::vector<std::pair<int, int> > list,   // [b28c-21 SIGFIX]
                          int level) const;
     bool checkComboSkillInsertQuickSlot(int skillIdx) const;
     bool checkMoveComboSkillSlot(unsigned char slot1, unsigned char slot2);
@@ -282,9 +282,9 @@ public:
                        ENUM_SKILL_TREE_KIND kind);
     int clear_all_skills(ENUM_SKILL_TREE_KIND kind);
     int clear_all_skills_both();
-    int clear_sfp_skills(char job, ENUM_SKILL_TREE_KIND kind);
+    bool clear_sfp_skills(char job, ENUM_SKILL_TREE_KIND kind);   // [b28c-21 SIGFIX]
     bool backupSkill(ENUM_SKILL_TREE_KIND kind);  // ORIG 返回 _Bool（DisPatcher_BuySkill::process 调用点 xor $1 反证；int/bool 函数体代码生成相同）
-    int InitSkill(bool sendInfo, ENUM_SKILL_TREE_KIND kind);
+    bool InitSkill(bool sendInfo, ENUM_SKILL_TREE_KIND kind);   // [b28c-21 SIGFIX]
     void InitSkillHistoryLog(ENUM_SKILL_TREE_KIND kind, int reason);
     void SendSkillInfo(int characIdx, ENUM_SKILL_TREE_KIND kind);
     int master_new_skill(int skillIdx, int level, int job, int firstGrow,

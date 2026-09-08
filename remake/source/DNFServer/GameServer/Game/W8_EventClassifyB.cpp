@@ -75,11 +75,16 @@ bool CObjectBringUp::verifyGiveBringUpReward(
             return true;
         return false;
     }
-    if (rule.m_rewardStartCount > count ||
-        (rule.m_rewardEndCount < count && rule.m_rewardEndCount != 0) ||
-        (count - rule.m_rewardStartCount) % rule.m_rewardMutipleNumber != 0)
-        return false;
-    return true;
+    if (rule.m_rewardStartCount <= count)
+    {
+        if (rule.m_rewardEndCount >= count || rule.m_rewardEndCount == 0)
+        {
+            if ((count - rule.m_rewardStartCount) %
+                    rule.m_rewardMutipleNumber == 0)
+                return true;
+        }
+    }
+    return false;
 }
 
 // verifyMaterialItemByRule（ORIG 0x0810fcea）
@@ -229,6 +234,9 @@ char CUsedFatigueGiveItem::get_user_type() const
 // ============================================================================
 int CPcRoomPlayTime::processEventPcRoomPlayTime(CUser* user)
 {
+    // [b28c-L0 N22] 首比较 ORIG `cmp %edx,%eax`（call 结果留 %eax），4.4 恒
+    // `mov %eax,%edx` 中转；register int 局部复现 ORIG edi/esi/ebx callee-saved
+    // 分配（P0 仅禁 register asm 绑定）。116=116，语义全同。
     user->collectPcRoomPlayTime();               // UNLINKED_CALLEE（T 待落地）
     if ((unsigned int)user->getTotalPcRoomPlayTime() <
         (unsigned int)static_cast<PcBangPlayTimeScript*>(m_script1c)
@@ -236,8 +244,7 @@ int CPcRoomPlayTime::processEventPcRoomPlayTime(CUser* user)
         return 0x13;
 
     user->incPcRoomPlayTimeRewardCnt();
-    register unsigned char rewardCnt =
-        user->getPcRoomPlayTimeRewardCnt();
+    register int rewardCnt = user->getPcRoomPlayTimeRewardCnt();
     register int totalTime = user->getTotalPcRoomPlayTime();
     register int characNo = (int)user->getCurCharacNo();
     register int accId = (int)user->get_acc_id();
@@ -245,7 +252,7 @@ int CPcRoomPlayTime::processEventPcRoomPlayTime(CUser* user)
     trace(
         "<PCROOM_PLAY_TIME_EVENT> send_reward m_id(%d), charac_no(%d), "
         "total_time(%d), reward_cnt(%d)",
-        accId, characNo, totalTime, (int)rewardCnt);
+        accId, characNo, totalTime, rewardCnt);
     user->resetTotalPcRoomPlayTime();
 
     ::DB_SavePcRoomPlayTimeEvent::makeRequest(
@@ -348,6 +355,7 @@ void CEventScriptMng::process_update_ingame_history(CUser* user)
 int CExchangeRandomItemReward::getRewardItem(
     std::vector<std::pair<int, int> >& out)
 {
+    // [b28c-L0 NEAR·N82附] 槽深/寄存器差，语义全同。
     int result = 0;
     for (std::vector<int>::iterator it =
              static_cast<ExchangeRandomItemRewardScript*>(m_script1c)
@@ -504,6 +512,7 @@ int CExchangeRandomItemReward::sendRandomItemReward(
     CUser* user, std::vector<std::pair<int, int> >& rewards,
     std::vector<int>& recordVec, unsigned char& flag)
 {
+    // [b28c-L0 NEAR·N82附] 迭代器槽深差（it -0x18 vs -0x14），语义全同。
     int result = 0;
     for (std::vector<std::pair<int, int> >::iterator it = rewards.begin();
          it != rewards.end(); ++it)
@@ -537,6 +546,7 @@ int CExchangeRandomItemReward::sendRandomItemReward(
 int CAvatarDisjointRandomReward::checkAvatarDisjointError(
     CUser* user, unsigned short slot, Inven_Item& item, CItem const* citem)
 {
+    // [b28c-L0 NEAR·N82附] 槽深差，语义全同。
     const int enable = user->isEnableAvatarSocketAction();
     if (enable != 0)
         return enable;
@@ -590,9 +600,11 @@ int CAvatarDisjointRandomReward::deleteAvatarItem(
 void CAvatarDisjointRandomReward::SendDisjointAvatarStatistic(
     CItem const* citem)
 {
+    // [b28c-L0 NEAR·N7] 补 gradeIdx=0 预清后仅剩虚调用寄存器差
+    // （call *%edx vs *%eax），47=47。
     Packet_Avater_Disjoint_Statistic packet;
     packet.m_field0a = 1;
-    int gradeIdx;
+    int gradeIdx = 0;
     if (citem->get_rarity() == 2)
         gradeIdx = 2;
     else
@@ -610,6 +622,9 @@ void CAvatarDisjointRandomReward::SendDisjointAvatarStatistic(
 int CAvatarDisjointRandomReward::getRewardItem(
     CItem const* citem, std::vector<std::pair<int, int> >& out)
 {
+    // [b28c-L0 NEAR·P190附注②] 正文 53=53 全同，仅帧 sub 0x28 vs 0x38
+    // （4.4 outgoing 区量化差，无源码形可减）。
+    int result = 0;
     const char grade = (char)citem->get_grade();
     std::map<char, unsigned int>::iterator it =
         static_cast<AvatarDisjointRandomRewardScript*>(m_script1c)
@@ -617,8 +632,10 @@ int CAvatarDisjointRandomReward::getRewardItem(
     if (it == static_cast<AvatarDisjointRandomRewardScript*>(m_script1c)
                   ->m_map08.end())
         return 0x15;
-    CEventActionMng actionMng;
-    return actionMng.getResultItemFromLottery(it->second, out);
+    result = CEventActionMng().getResultItemFromLottery(it->second, out);
+    if (result != 0)
+        return result;
+    return 0;
 }
 
 // SendCreateEmblemStatistic（ORIG 0x0810f742）
@@ -627,6 +644,9 @@ int CAvatarDisjointRandomReward::getRewardItem(
 void CAvatarDisjointRandomReward::SendCreateEmblemStatistic(
     std::vector<std::pair<int, int> >& rewards)
 {
+    // [b28c-L0 N6/P30] ORIG 两个独立数组基址（grade @-0x40 直接索引 n；
+    // value @-0x4c+`lea 0x8(%ebx)`），我方单数组 m_slots 恒 `lea 1/lea 6`
+    // 折同一地址。值索引已按 ORIG 槽语义修为 m_slots[n+6]（越界尾随照抄 P171）。
     Packet_Emblem_Create_Statistic packet;
     if (rewards.size() > 5)
         return;
@@ -641,7 +661,7 @@ void CAvatarDisjointRandomReward::SendCreateEmblemStatistic(
         if (citem->GetItemType() == 0x14)
         {
             packet.m_slots[n + 1] = citem->get_grade();
-            packet.m_slots[n] = it->second;
+            packet.m_slots[n + 6] = it->second;
             ++n;
             if (n > 5)
                 break;
@@ -660,6 +680,7 @@ void CAvatarDisjointRandomReward::SendCreateEmblemStatistic(
 int CAvatarDisjointRandomReward::sendRandomItemReward(
     CUser* user, std::vector<std::pair<int, int> >& rewards)
 {
+    // [b28c-L0 NEAR·N82附] 槽深差，语义全同。
     int result = 0;
     for (std::vector<std::pair<int, int> >::iterator it = rewards.begin();
          it != rewards.end(); ++it)

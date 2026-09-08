@@ -37,6 +37,8 @@ void EventProcessManager::registerEventProcessor(EventProcessor* processor)
 }
 
 // ORIG 0x08281a9a (0x104)：双层迭代 delete；无 clear()（map 由 Impl D1 清空）。
+// [b28c-11] NEAR 封顶（79/79 条）：残余仅 call/jmp 目标（.o 重定位显示）+ 寄存器名差，
+// 助记符序列全等（N7/N18 族）。
 void EventProcessManager::destroy()
 {
     for (std::map<EVENT_TYPE, std::map<int, EventProcessor*> >::iterator group =
@@ -58,6 +60,7 @@ void EventProcessManager::destroy()
 
 // ORIG 0x082819c6 (0x63)：early-return 结构（P16）：item==0 → false、
 // !is_stackable → false、最后 GetItemType()==0x26（sete %al 直返）。
+// [b28c-11] NEAR 封顶（34/34 条）：残余仅 call/jmp 目标显示差（N7 族寄存器分配）。
 bool EventProcessManager::isStackablePackageItem(int itemId) const
 {
     CItem* item = G_CDataManager()->find_item(itemId);
@@ -72,6 +75,8 @@ bool EventProcessManager::isStackablePackageItem(int itemId) const
 // ORIG 0x0828186c (0x15a)：isStackablePackageItem 失败 → 0；外层 find/end 比较；
 // 内层 std::find_if(begin, end, FindControllableEventProcessor(itemId))；
 // == end → 0；否则 it->second->Process(user, itemId)（vtable+0xc 虚调用）。
+// [b28c-11] NEAR 封顶（104/104 条）：残余 = 实参装载寄存器 ecx↔edx 互换（N7 族），
+// 助记符序列全等。
 int EventProcessManager::Process(EVENT_TYPE type, CUser& user, int itemId)
 {
     if (!isStackablePackageItem(itemId))

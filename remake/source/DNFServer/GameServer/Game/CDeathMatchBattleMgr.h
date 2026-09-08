@@ -24,7 +24,8 @@ public:
     int getRanking(CUser** users, int* out) const;
     int checkGameOverForSinglePlay(int mode);
     void checkWinnerForSinglePlay(CUser** users, bool* win, PvpUserTable& table);
-    int checkGameOverForTeamPlay(CUser** users, int teamCnt, unsigned char* teamWin);
+    // SIGFIX b28c-L29：ORIG __PRETTY_FUNCTION__ 串为 bool（返回类型不入 mangled）。
+    bool checkGameOverForTeamPlay(CUser** users, int teamCnt, unsigned char* teamWin);
     void checkWinnerForTeamPlay(CUser** users, bool* win, unsigned char* teamWin,
                                 PvpUserTable& table);
     void InsertTimerKilledUserForRevive(int roomIdx, int a);

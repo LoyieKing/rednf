@@ -23,8 +23,8 @@ class TownAreaScript
 {
 public:
     TownAreaScript();
-    TownAreaScript(const TownAreaScript& other);
-    TownAreaScript& operator=(const TownAreaScript& other);
+    TownAreaScript(const TownAreaScript& other);      // ORIG W 0x86d296a（=default 外联发射）
+    TownAreaScript& operator=(const TownAreaScript& other);  // ORIG W 0x86d2a1a
     ~TownAreaScript();
     void clear();   // ORIG 0x86d1d46
 
@@ -34,9 +34,9 @@ public:
     std::vector<T_Rect> m_rects;   // +0x0c
     std::vector<int> m_field18;    // +0x18
     unsigned char m_field24;       // +0x24
-    // 2026-08-31：ORIG sizeof 40（map 节点 60 = 16+pair(4+40)；clear 0x86d1d46
-    // 只到 +0x18 vector）——原 pad 到 0x30 多余 8，改到 0x28。
-    char m_pad25[0x28 - 0x25];     // +0x25..+0x28
+    // [b28-L14] 删显式 pad + 用户拷贝构造/op=（P26/P74）：ORIG C1ERKS_ 0x86d296a
+    // /aSERKS_ 0x86d2a1a 均为 W 隐式合成，逐字节循环拷 m_pad 是伪差来源；
+    // 尾部 +0x25..+0x27 由编译器按 4 字节对齐自动填充（sizeof 仍 0x28）。
 };
 
 #endif  // GAME_TOWNAREASCRIPT_H

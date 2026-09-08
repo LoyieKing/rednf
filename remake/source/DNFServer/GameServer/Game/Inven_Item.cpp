@@ -101,6 +101,11 @@ void stAmplifyOption_t::getValues(unsigned char& type,
 void STEnchantedSkillOption::reset()
 {
     // ORIG 0x8500fe4：三次位清（&0xfffffffe, &0xfffffff9, &0x7）→ 全字节清零
+    // [b28c-30] N18a 封顶：ORIG 每段 `movzbl (%eax),%edx; and $imm,%edx;
+    // mov %dl,(%eax)`（装载目标=运算寄存器 %edx，单段直落）；4.4 恒
+    // `movzbl (%eax),%eax; mov %eax,%edx; and …` 两段且重载 this。
+    // 探针 /tmp/l30_probe2.cpp 10 形（直赋/复合赋值/static_cast/int 局部/
+    // 指针/引用/纯 register）全败。
     m_field = (unsigned char)(m_field & 0xfffffffe);
     m_field = (unsigned char)(m_field & 0xfffffff9);
     m_field = (unsigned char)(m_field & 0x7);

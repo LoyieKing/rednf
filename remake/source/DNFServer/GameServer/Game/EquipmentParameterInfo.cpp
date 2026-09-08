@@ -56,28 +56,41 @@ EquipmentParameterInfo::~EquipmentParameterInfo()
         g_EquipmentParameterInfoCount * sizeof(EquipmentParameterInfo);
 }
 
-// ---- EquipmentParameterInfo::._119（命名类 _119；成员 +0x00 SASPROPERTY vector /
+// ---- EquipmentParameterInfo::._119（命名类 t_119；成员 +0x00 SASPROPERTY vector /
 //      +0x0c/+0x0d char / +0x10 vector<vector<float>>）----
 // ORIG _ZN22EquipmentParameterInfo5._119C1Ev t 0x088fd884（仅默认构造两 vector，
 // char 不初始化）；~._119 t 0x088fd8ca（逆序析构）；aSERKS0_ t 0x088fd910（向
 // vector<SASPROPERTY> op=、char、char、vector<vector<float>> op= 拷贝，无 self-check）。
-// GCC 对 ctor/dtor 的 asm 别名无效（硬限制），故以命名类 `_119`(4_119) 重建，
+// GCC 对 ctor/dtor 的 asm 别名无效（硬限制），故以命名类 `t_119`(5t_119) 重建，
 // 末尾 `.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。
-EquipmentParameterInfo::_119::_119()
+EquipmentParameterInfo::t_119::t_119()
 {
     // ORIG 0x088fd884：仅默认构造 +0/+0x10 两 vector；char 保留未定义初值。
 }
 
-EquipmentParameterInfo::_119::~_119()
+EquipmentParameterInfo::t_119::~t_119()
 {
     // ORIG 0x088fd8ca：逆序析构各成员（vector 自动析构）。
 }
 
-EquipmentParameterInfo::_119&
-EquipmentParameterInfo::_119::operator=(const _119& other)
+EquipmentParameterInfo::t_119&
+EquipmentParameterInfo::t_119::operator=(const t_119& other)
 {
     // ORIG 0x088fd910：vector<SASPROPERTY> op= → +0xc char → +0xd char →
     // vector<vector<float>> op=；无 self-check，返回 *this。
+    m_418 = other.m_418;
+    m_424 = other.m_424;
+    m_425 = other.m_425;
+    m_428 = other.m_428;
+    return *this;
+}
+
+// ORIG 另一 TU 的 `._159aSERKS0_`（0x08348024/0x0861c9b8）与本 TU `._119aSERKS0_`
+// 函数体逐条相同（norm 实测相等）；独立类使函数体独立地址，objdump 方能同时
+// 标注 `5._119aSERKS0_` 与 `5._159aSERKS0_`（P203 附注：同址只标一个）。
+EquipmentParameterInfo::tt_159&
+EquipmentParameterInfo::tt_159::operator=(const tt_159& other)
+{
     m_418 = other.m_418;
     m_424 = other.m_424;
     m_425 = other.m_425;
@@ -277,6 +290,9 @@ void EquipmentParameterInfo::clear()
 // 4.4 恒将 b 守卫前置于比较块，源形不可翻（同 N 族块排布）。
 int EquipmentParameterInfo::addString(std::string str)
 {
+    // [b28c-6] N（跨版本 bool 物化）：内层 while(b) 条件 ORIG 4.1 直发
+    // `cmpb $0,-0xd; jne`，4.4 恒插 `setne %al; test %al,%al`（char/bool/
+    // uchar/显式比较四形均实测不可去，P168a③b 族）。ndiff 2 封顶。
     int key = -1;
     char b = 0;
     if (!b)
@@ -285,12 +301,16 @@ int EquipmentParameterInfo::addString(std::string str)
         std::map<int, std::string>::iterator e = m_descMap1c4.end();
         while (it != e && (b ^= 1))
         {
-            if (b)
+            // ORIG 0x89c2eeb-0x89c2f22：p=*it 在内层循环外取一次（89c2eeb），
+            // 随后 `jmp` 进入 while(b) 条件块（89c2f22 在 body 之后 = 回边形）；
+            // 命中 break 至 it++，未命中 b=0 退出。
+            std::pair<const int, std::string>& p = *it;
+            while (b != 0)
             {
-                std::pair<const int, std::string>& p = *it;
                 if (p.second == str)
                 {
                     key = p.first;
+                    break;
                 }
                 else
                 {
@@ -382,23 +402,35 @@ int GetEquipmentTypeStringToEnum(std::string& type);
 
 static int getTargetTag(int* out)
 {
+    // [b28c-lane24] ORIG 0x089a7413：多 return + 共享 ~s 尾块 ⇒ 4.4 用 %ebx 保存
+    // 返回值（探针 /tmp/b28c_l24_probe2.cpp::pA 逐条同形）；正极性 ScanStr（无 xor）
+    // + `if (v == 10) return 0;` 复现 jne 成功块 / je 失败岛布局。
     if (out == 0) return 0;
     std::string s;
-    if (!ScanStr(&s)) return 0;
-    int v = getTargetToEnumValue(s);
-    if (v == 10) return 0;
-    *out = v;
-    return 1;
+    if (ScanStr(&s))
+    {
+        int v = getTargetToEnumValue(s);
+        if (v == 10) return 0;
+        *out = v;
+        return 1;
+    }
+    return 0;
 }
 
 static int getStatusType(int* out)
 {
+    // [b28c-lane24] ORIG 0x089a74a2：`if (*out != 0x4d) return 1;` ⇒ je 失败块 +
+    // 成功块 fall-through（与 getTargetTag 同族）；*out 由调用表达式直存（无 v 槽，P0）。
     if (out == 0) return 0;
     std::string s;
-    if (!ScanStr(&s)) return 0;
-    int v = getChangeStatusType(s);
-    *out = v;
-    if (*out != 0x4d) return 1;
+    if (ScanStr(&s))
+    {
+        // [b28c-lane24] P211 异型化探针实测反劣（4.4 缓存 out 地址跨 call，+1 条），
+        // 回退直存形；残余 store 序（ORIG RHS 值先 vs 4.4 LHS 先）为 N76。
+        *out = getChangeStatusType(s);
+        if (*out != 0x4d)
+            return 1;
+    }
     return 0;
 }
 
@@ -2778,17 +2810,14 @@ bool scanRandomOptionValue(EquipmentParameterInfo* info, std::string& line)
 
 void scanIf(EquipmentParameterInfo* info, int idx)
 {
-    // ORIG 0x0899cd6c：循环 ScanType(token,true)；token=="[/if]" 终止；
-    // 否则 readCondtion(info, token, values)（values 复位后仅作容器）。
+    // [b28c-lane24] ORIG 0x0899cd6c：`jmp cond` + 体尾 `ScanType; test %al;
+    // jne body`（while 形，无 xor）；原 for(;;)+if(!ScanType)break 生
+    // xor$1 物化 + ScanType 位置漂移。
     (void)idx;
     std::vector<int> values;
     std::string token;
-    for (;;)
+    while (ScanType(token, true))
     {
-        if (!ScanType(token, true))
-        {
-            break;
-        }
         values.clear();
         if (token == "[/if]")
         {
@@ -4907,12 +4936,33 @@ void importSkillDataUp(std::vector<EquipmentSkillDataUp>& out)
 // 行号计数命名（如 4._85），与 ORIG `5._119`/`5._159` 不一致。故在类内命名 `_119`，
 // 用 `.set` 把自然 mangled `4_119*` 强制改名为 ORIG 带点号 `5._119*`；
 // `._159` 为另一 TU 的同形副本（仅 aSERKS0_），复用同一 op= 的 `.set` 别名。
-// ORIG 为局部 `t` 符号；命名类成员默认 W/全局 weak，binding 不敏感（compare 按符号名
-// 匹配），以 nm 存在为准。cf. docs/class_func_reports/EquipmentParameterInfo__._119
+// ORIG 为局部 `t` 符号；`.set` 只产 local t 别名，objdump 同址只标注 binding 强者
+// （自然名 T 压掉 local t），故按 P203 附注补 `.globl`+`.type @function`+`.size`
+// 四件套使别名成为同址标注名（objdump 同址取较短名：别名 6 字符段 < 自然名
+// `4_119` 的 5 字符段？实测 `.119`/`.159` 别名段更长 ⇒ 见下方 probe 结论）。
+// cf. docs/class_func_reports/EquipmentParameterInfo__._119
 // （0x088fd884/0x0898c680）与 ._159（0x08348024/0x0861c9b8）。
-asm(".set _ZN22EquipmentParameterInfo5._119C1Ev, _ZN22EquipmentParameterInfo4_119C1Ev");
-asm(".set _ZN22EquipmentParameterInfo5._119C2Ev, _ZN22EquipmentParameterInfo4_119C2Ev");
-asm(".set _ZN22EquipmentParameterInfo5._119D1Ev, _ZN22EquipmentParameterInfo4_119D1Ev");
-asm(".set _ZN22EquipmentParameterInfo5._119D2Ev, _ZN22EquipmentParameterInfo4_119D2Ev");
-asm(".set _ZN22EquipmentParameterInfo5._119aSERKS0_, _ZN22EquipmentParameterInfo4_119aSERKS0_");
-asm(".set _ZN22EquipmentParameterInfo5._159aSERKS0_, _ZN22EquipmentParameterInfo4_119aSERKS0_");
+asm(".set _ZN22EquipmentParameterInfo5._119C1Ev, _ZN22EquipmentParameterInfo5t_119C1Ev\n"
+    ".globl _ZN22EquipmentParameterInfo5._119C1Ev\n"
+    ".type _ZN22EquipmentParameterInfo5._119C1Ev,@function\n"
+    ".size _ZN22EquipmentParameterInfo5._119C1Ev,0x45");
+asm(".set _ZN22EquipmentParameterInfo5._119C2Ev, _ZN22EquipmentParameterInfo5t_119C2Ev\n"
+    ".globl _ZN22EquipmentParameterInfo5._119C2Ev\n"
+    ".type _ZN22EquipmentParameterInfo5._119C2Ev,@function\n"
+    ".size _ZN22EquipmentParameterInfo5._119C2Ev,0x45");
+asm(".set _ZN22EquipmentParameterInfo5._119D1Ev, _ZN22EquipmentParameterInfo5t_119D1Ev\n"
+    ".globl _ZN22EquipmentParameterInfo5._119D1Ev\n"
+    ".type _ZN22EquipmentParameterInfo5._119D1Ev,@function\n"
+    ".size _ZN22EquipmentParameterInfo5._119D1Ev,0x45");
+asm(".set _ZN22EquipmentParameterInfo5._119D2Ev, _ZN22EquipmentParameterInfo5t_119D2Ev\n"
+    ".globl _ZN22EquipmentParameterInfo5._119D2Ev\n"
+    ".type _ZN22EquipmentParameterInfo5._119D2Ev,@function\n"
+    ".size _ZN22EquipmentParameterInfo5._119D2Ev,0x45");
+asm(".set _ZN22EquipmentParameterInfo5._119aSERKS0_, _ZN22EquipmentParameterInfo5t_119aSERKS0_\n"
+    ".globl _ZN22EquipmentParameterInfo5._119aSERKS0_\n"
+    ".type _ZN22EquipmentParameterInfo5._119aSERKS0_,@function\n"
+    ".size _ZN22EquipmentParameterInfo5._119aSERKS0_,0x4f");
+asm(".set _ZN22EquipmentParameterInfo5._159aSERKS0_, _ZN22EquipmentParameterInfo6tt_159aSERKS0_\n"
+    ".globl _ZN22EquipmentParameterInfo5._159aSERKS0_\n"
+    ".type _ZN22EquipmentParameterInfo5._159aSERKS0_,@function\n"
+    ".size _ZN22EquipmentParameterInfo5._159aSERKS0_,0x4f");

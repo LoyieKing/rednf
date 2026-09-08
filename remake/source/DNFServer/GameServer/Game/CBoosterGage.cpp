@@ -161,19 +161,6 @@ struct SIG_BOOSTER_GAGE_DATA
 // CBoosterGage
 // ============================================================================
 
-// ORIG W 0x0832af06：CData ctor + vptr + _reset()（m_dwTotalGage=0）。
-// [b22判词·N族] ORIG C1 在 CData(基)C1 + 置 vptr + call CBoosterGage::_reset 之后，
-// 带异常 landing-pad：_reset 抛出则 call CData::~C1 + _Unwind_Resume（push esi/ebx +
-// jmp 尾）。我方 GCC 见同 TU 的 _reset（体 m_dwTotalGage=0，无抛出）经 IPA 判定
-// nothrow → 省略基子对象清理表（帧 sub $0x18/leave）。三 call（CDataC1/置 vptr/
-// _reset）助记符与 ORIG 逐条同，vptr 立即数为 AE（链接期重定位）。基 dtor 清理仅在
-// 真抛出路径可达，正常构造语义等价，不可 byte-复现（把 _reset 移出本 TU 可强发清理
-// 但违 §4 单点与拆他 TU）→ N 判词。
-CBoosterGage::CBoosterGage()
-{
-    _reset();
-}
-
 CBoosterGage::~CBoosterGage()
 {
 }
@@ -257,6 +244,8 @@ void CBoosterGage::log_booster_gage_bonus_reward(
                  strLog.c_str(), pUser->getCurCharacNo());
 }
 
+// [b28c-11] NEAR 封顶（118/118 条）：残余 = 帧差引发的全帧槽号平移
+// （ORIG -0x64 vs 4.4 -0x24，N82/P182 族），助记符序列全等。
 int CBoosterGage::AddAvatarItem(std::vector<std::pair<int, int> >& itemList,
                                 bool bIsFirst, CUser* pUser, const Inven_Item& item,
                                 int nCount, bool bFlag, char cType, char cParam,
@@ -397,6 +386,9 @@ void CBoosterGage::getData(char* pData) const
 
 bool CBoosterGage::loadData(CUser* pUser, char* pData)
 {
+    // [b28c-11] NEAR 封顶（52/52 条）：残余 = 虚调用 callee 寄存器 %eax↔%edx
+    // 互换（`mov (%eax),%edx; …call *%edx` vs `mov (%eax),%eax; …call *%eax`），
+    // N7 族（4.4 间接 call 目标恒 %eax）。
     _reset();
     SIG_BOOSTER_GAGE_DATA* p = (SIG_BOOSTER_GAGE_DATA*)pData;
     m_dwTotalGage = p->m_dwBoosterGage;
@@ -418,6 +410,10 @@ void CBoosterGage::ResetDaily()
 
 bool CBoosterGage::_saveData(CUser* pUser)
 {
+    // [b28c-11] N 封顶（81/80）：残余 = EH 段布局——ORIG 正常路径 `jmp` 尾岛
+    // （guard D1 析构置于 +0x113 共享尾）且异常段在中间；4.4 正常路径
+    // fall-through 到 guard D1、异常段置尾（负例表「EH 双份 dtor epilogue vs
+    // merge」）。语义等价，无源码解。
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("BoosterGage.cpp", 0x193), true);
     **guard << 0x2d8;

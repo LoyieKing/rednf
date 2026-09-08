@@ -502,13 +502,27 @@ bool DisPatcher_DebugCommand::_debugCommandPVPRankSet(CUser* user,
     if (!user->isGMUser())
         return false;
 
-    if ((unsigned char)msg.m_arg > 0x25)                        // +0x22 movzbl [0xe] 字节比较
+    // §4.3 具名视图（本 TU 私有，零新符号）：ORIG @0x0858faba 三处均
+    // `movzbl 0xe(%eax)` ⇒ +0x0e 按 **字节** 访问（int m_arg 形产 4 字节 mov，
+    // 实测异形）。共享头 MSG_DEBUG_COMMAND 的 int 口径由其它命令维持，
+    // 此处仅按 ORIG 访存宽度建 pack(1) 字节视图，不动共享布局。
+#pragma pack(push, 1)
+    struct DbgCmdArgView
+    {
+        unsigned char m_head[0xe];   // +0x00..0x0d
+        unsigned char m_argByte;     // +0x0e（ORIG movzbl 宽度实证）
+    };
+#pragma pack(pop)
+    static_assert(offsetof(DbgCmdArgView, m_argByte) == 0x0e, "view drift");
+
+    if (((DbgCmdArgView*)&msg)->m_argByte > 0x25)               // +0x22 字节比较
         return false;
 
     int nextPoint = GlobalData::s_ref_pvp_grade->GetPvpNextRankPoint(
-        (unsigned char)msg.m_arg);
+        ((DbgCmdArgView*)&msg)->m_argByte);
     user->getPVPResultW()->m_expPoint = nextPoint;              // +0x5a 写 +8（getPVPResultW 直用）
-    user->getPVPResultW()->m_pvpGrade = (unsigned char)msg.m_arg;  // +0x72 写 +0x14 二次独立读取
+    user->getPVPResultW()->m_pvpGrade =
+        ((DbgCmdArgView*)&msg)->m_argByte;                      // +0x72 写 +0x14 二次独立读取
     G_GameWorld()->send_AllBasicInfo(user);                     // +0x87
     return true;
 }
@@ -561,9 +575,11 @@ bool DisPatcher_DebugCommand::_debugCommandInvisible(CUser* user,
     G_GameWorld()->send_all_excepted_user(packet, user);        // +0x7f 广播排除自己
     user->SendNotiPacket(static_cast<CUser::eSendTarget>(1),    // +0xa2 SendNotiPacket(1,2,0)
                          static_cast<ENUM_NOTIPACKET>(2), 0);
-    register const char* name = user->getCurCharacName();       // 跨 cMyTrace ctor 缓存（P87/P37）
-    cMyTrace trace(g_dbgCmdPrettyInvisible, 0x5c, 0);
-    trace("GM(%s) is invisible \n", name);
+    // P227 全表达式临时链：ORIG @0x0859065x 在 cMyTrace ctor 前右起求 varargs
+    // 并以 %ebx 跨 ctor 保活；具名 name 局部（旧 register 缓存形）+ 具名 trace
+    // 对象反使 packet 槽平移（b28c-lane12）。
+    cMyTrace(g_dbgCmdPrettyInvisible, 0x5c, 0)(
+        "GM(%s) is invisible \n", user->getCurCharacName());
     return true;
 }
 
@@ -606,7 +622,14 @@ bool DisPatcher_DebugCommand::_debugCommandSetBlackCount(CUser* user,
     if (!user->isGMUser())
         return false;
 
-    user->setCurrCharacBlackCount((unsigned int)msg.m_arg);     // +0x34 setBlackCount(msg[0xe])
+    // §4.3 本 TU 私有 pack(1) 视图（零新符号、不动共享头）：ORIG @0x0859058a
+    // 段为 `mov 0xe(%eax),%edx` 单段直落传 setCurrCharacBlackCount(unsigned int)
+    // ⇒ 该处按 **unsigned int** 访问（P211 同型化；共享头 int 口径由
+    // DisPatcherCore.cpp:13237/13252 的 `m_arg < 1`/`0 < m_arg` 有符号判定锁定，
+    // 换头会把 jl/jle 翻成 jb/jbe，故在消费点侧建视图）。
+    struct DbgCmdArgWordView { unsigned char m_head[0xe]; unsigned int m_argU; };
+    user->setCurrCharacBlackCount(                              // +0x34 setBlackCount(msg[0xe])
+        ((DbgCmdArgWordView*)&msg)->m_argU);
     PacketGuard packet;                                         // -0x14
     packet.put_header(0, 2);                                    // +0x5a header(0,2)
     packet.put_byte(0);                                         // +0x6d put_byte(0)
@@ -809,8 +832,9 @@ bool DisPatcher_DebugCommand::_debugCommandUserRepel(CUser* user,
 bool DisPatcher_DebugCommand::_debugCommandPowerUpOn(CUser* user,
                                                      MSG_DEBUG_COMMAND& /*msg*/)
 {
-    bool isGm = user->isGMUser();
-    if (isGm != 1)
+    // P168a①：callee 返 bool ⇒ 一律裸形直产 `call; xor$1; testb; je`；
+    // 具名 bool 局部反产槽物化两段（mov %al,-9 + movzbl 回读，b28c-lane12 实证）。
+    if (!user->isGMUser())
         return false;
 
     user->SetPowerUp(true);                                     // +0x2f SetPowerUp(1)

@@ -84,6 +84,7 @@ void Dispatcher_UseBoosterItem::_onBoosterItemUseResult(CUser* user, std::vector
 }
 
 // _onBoosterItemUseResult_OnlyOne(CUser*, vector<Inven_Item>&, int) —— ORIG 0x08209a5e
+// [b28c-32] verdict=DIFF：N82 实参装载序（第4参 ORIG %eax 直压 vs 4.4 %edx 保活）。
 void Dispatcher_UseBoosterItem::_onBoosterItemUseResult_OnlyOne(CUser* user, std::vector<Inven_Item>& items, int itemId)
 {
     if (items.size() != 1)

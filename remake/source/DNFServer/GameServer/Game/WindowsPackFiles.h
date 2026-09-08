@@ -247,8 +247,10 @@ static_assert(sizeof(WindowsCodeProtectorServer) == 0x30,
 class CCompressedBlob
 {
 public:
-    CCompressedBlob();                           // W @0x0844de52
-    ~CCompressedBlob();                          // W @0x0844de6a
+    // [b28c-lane24] P216：ORIG put_compressed_blob_data @0x083fbd06 对函数级 static
+    // 局部 guard 构造无任何 EH landing/D1 cleanup 路径 ⇒ 原码 ctor/dtor 不抛。
+    CCompressedBlob() throw();                   // W @0x0844de52
+    ~CCompressedBlob() throw();                  // W @0x0844de6a
 
     bool compress(MySQL* db, int fieldIdx, char* src, int srcLen,
                   char** outStr);                // W @0x0844de9a

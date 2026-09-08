@@ -315,7 +315,17 @@ bool AvatarFixedHiddenOptionServer::Load()
 {
     cMyTrace trace(__PRETTY_FUNCTION__, 0x1a, 9, true, false);
     trace("\t- Loading Avatar Hidden Option - ");
-    return m_script.loadScript() == 0 && Init() != 0;
+    // [b28c-16] P84/P102：ORIG 短路结果先物化 bool 局部（loadScript!=0 与
+    // Init()==0 各置失败标志 1，再统一 test/je 二次物化返回），4.4 直返
+    // `a==0 && b!=0` 折叠丢二次 bool 物化与 xor 取反。
+    // [b28c-16 修正] 具名 bool 局部反多 -0x9 槽 + setne 物化（帧 0x38→0x48）。
+    // ORIG 实为「失败标志汇聚 eax → 尾部 !r 归一」：`jA L1(mov$1) / Init→xor$1
+    // →je L0(mov$0) / L2: test;je L3; mov$0 / L3: mov$1` ⇒ 源形 = `!(A || B)`。
+    // [b28c-16 定论 N] 4.1 把失败标志寄存器化（无槽往返，P0 无局部）并做
+    // xor$1 + 尾部二次 bool 归一；4.4 恒折 `test/je` 且不物化 ⇒ 跨版本
+    // bool 物化/寄存器化差（N2/P78 族）。三种源形（&&直返 / 具名 bool /
+    // !(A||B)）实测 our_insns 31/33/31 vs ORIG 37，语义全等。
+    return loadScript() == 0 && Init() != 0;
 }
 
 // ORIG 0x0817e1e2：恒返回 1（接口 void 化同 CerashopAddRestrict::Manager 先例）。
@@ -331,11 +341,11 @@ int AvatarFixedHiddenOptionServer::Init()
     for (int i = 0; i < 6; ++i)
     {
         int cumulative = 0;
-        int count = (int)m_script.m_abilities[i].size();
+        int count = (int)m_abilities[i].size();
         m_cumulativeRate[i].reserve((std::vector<int>::size_type)(count - 1));
         for (int k = 1; k < count; ++k)
         {
-            cumulative += m_script.m_abilities[i][k].m_nRate;
+            cumulative += m_abilities[i][k].m_nRate;
             m_cumulativeRate[i].push_back(cumulative);
         }
     }
@@ -378,10 +388,14 @@ bool AvatarFixedHiddenOptionServer::IsVaildSkillIndex(ENUM_RARITY rarity,
 {
     if (rarity >= 6)
         return false;
-    int size = (int)m_script.m_abilities[rarity].size();
-    if (size == 0 || idx >= size)
+    int size = (int)m_abilities[rarity].size();
+    // [b28c-16] P133：ORIG 两独立条件（cmpl $0;jne 续 / cmp;jge 落零），
+    // 合并 `||` 4.4 产 je 单出口反形。
+    if (size == 0)
         return false;
-    return true;
+    if (idx < size)
+        return true;
+    return false;
 }
 
 int AvatarFixedHiddenOptionServer::GetSkillIndex(ENUM_RARITY rarity, int randIdx)
@@ -425,7 +439,7 @@ bool AvatarFixedHiddenOptionServer::CheckCondition(
     // [b23S3C] ORIG +0x162 call Singleton::Get(); add $4 → m_script 再调成员
     // （P48 使用点重取单例），m_script 直成员调会少一发 call（p167 实证）。
     if (ARAD::Singleton<AvatarFixedHiddenOptionServer>::Get()
-            ->m_script.isMaterialItemIndex((int)material.m_addInfo))
+            ->isMaterialItemIndex((int)material.m_addInfo))
     {
         Inven_Item avatar;
         avatar = invW->GetInvenSlot(2, (int)sig->m_avatarSlot);

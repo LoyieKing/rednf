@@ -338,10 +338,14 @@ void WindowsDataFile::GenerateChecksum(CodeHackChecksum* ck,
 // ===========================================================================
 // WindowsExeFile —— 0x085736be..
 // ===========================================================================
+// [b28c-lane17] ORIG 0x085736be：先构造 m_sections(+8)/m_commonSections(+0x14)，
+// 再体赋值 m_size=0/m_image=0（标量不进初始化列表）。
 WindowsExeFile::WindowsExeFile()
-    : m_size(0), m_image(0), m_sections(), m_commonSections()
+    : m_sections(), m_commonSections()
 {
-}                                                            // 0x085736be
+    m_size = 0;
+    m_image = 0;
+}
 
 WindowsExeFile::~WindowsExeFile()
 {                                                            // 0x0857371a
@@ -527,12 +531,14 @@ bool WindowsExeFile::ReadPeHeader()
 
 void WindowsExeFile::Sort()                                  // 0x0857415c
 {
-    if (!m_commonSections.empty())
-    {
-        qsort(&m_commonSections[0], m_commonSections.size(),
-              sizeof(WindowsExeConstantSection*),
-              CompareWindowsExeConstantSectionsForSort);
-    }
+    // [b28c-lane17] ORIG 0x08574171：`test %eax; sete %al; test %al; jne <nop 岛>`
+    // + body 尾 fall-through 到该岛 ⇒ 负极判定 + goto 尾空标签（P223）。
+    if (m_commonSections.size() == 0)
+        goto L_empty;
+    qsort(&m_commonSections[0], m_commonSections.size(),
+          sizeof(WindowsExeConstantSection*),
+          CompareWindowsExeConstantSectionsForSort);
+L_empty:;
 }
 
 bool WindowsExeFile::MakeCommonWindowsExeConstantSections(
@@ -641,10 +647,12 @@ WindowsDataFileFamily::~WindowsDataFileFamily()
 
 bool WindowsDataFileFamily::IsDifferentFileData(WindowsDataFile* f)    // 0x08575068（非 const）
 {
-    // ORIG 0x08575068：迭代器循环（begin 临时槽 + 每轮 end/operator!=/
-    // operator* 直调）；memcmp 长度实参照抄取 f->m_size。
-    for (std::vector<WindowsDataFile*>::iterator it = m_files.begin();
-         it != m_files.end(); ++it)
+    // b28c-L19：ORIG 0x08575068 迭代器先默认构造（C1Ev @0x8576bb6）再经 begin()
+    // 临时槽（-0x1c）拷贝赋值到 it（-0x14）——"先声明后赋值"形（P28/P50 反例，
+    // ORIG 确有 C1Ev 且 begin()/de() 均为 const 版 `_ZNK`）；memcmp 长度照抄 f->m_size。
+    std::vector<WindowsDataFile*>::iterator it;
+    it = m_files.begin();
+    for (; it != m_files.end(); ++it)
     {
         WindowsDataFile* cur = *it;
         if (cur->m_size == f->m_size &&
@@ -676,18 +684,18 @@ bool WindowsDataFileFamily::LoadWindowsDataFile(const char* path,
         delete f;
         return false;
     }
-    if (IsDifferentFileData(f))
-    {
-        if (m_maxSize < f->m_size)
-        {
-            m_maxSize = f->m_size;
-        }
-        m_files.push_back(f);
-    }
-    else
+    // b28c-L19：ORIG 0x0857513c 重复内容分支为早返（delete 块落在 push 之前，
+    // 尾部 return 1 共享），if/else 形会被 4.4 把 delete 挪到末尾 → DIFF。
+    if (!IsDifferentFileData(f))
     {
         delete f;                                            // 内容重复仍返回 1
+        return true;
     }
+    if (m_maxSize < f->m_size)
+    {
+        m_maxSize = f->m_size;
+    }
+    m_files.push_back(f);
     return true;
 }
 
@@ -825,10 +833,12 @@ bool WindowsExeFileFamily::LoadWindowsExeFile(const char* path,
 
 bool WindowsExeFileFamily::IsDifferentFileData(WindowsExeFile* f) // 0x08574ace
 {
-    // ORIG 0x08574ace：迭代器循环形（begin 临时槽 + 每轮 end/operator!=/operator*
-    // 直调，无 size/[] 索引链）。
-    for (std::vector<WindowsExeFile*>::iterator it = m_exeFiles.begin();
-         it != m_exeFiles.end(); ++it)
+    // [b28c-L29] ORIG 0x08574ace：迭代器先默认构造（C1Ev 调用 @0x85766a6）再经
+    // begin() 临时槽（-0x1c）拷贝赋值到 it（-0x14）——"先声明后赋值"形（P50 反例，
+    // ORIG 确有 C1Ev 符号）；每轮 end/operator!=/operator* 直调。
+    std::vector<WindowsExeFile*>::iterator it;
+    it = m_exeFiles.begin();
+    for (; it != m_exeFiles.end(); ++it)
     {
         WindowsExeFile* cur = *it;
         if (cur->m_size == f->m_size &&
@@ -1011,15 +1021,18 @@ void WindowsCodeProtectorServer::Destroy()                   // 0x08575500
         delete m_exeFamily;
         m_exeFamily = 0;
     }
-    // ORIG 0x08575500：迭代器 for 循环（begin/end/++/de）
-    for (std::vector<WindowsDataFileFamily*>::iterator it =
-             m_dataFamilies.begin(); it != m_dataFamilies.end(); ++it)
+    // ORIG 0x08575500：独立 iterator::C1Ev（-0x10）+ begin() 临时（-0x1c）后
+    // 拷贝赋值 ⇒ P50 复活「先声明后赋值」形；while 条件（end/ne）在循环尾。
+    std::vector<WindowsDataFileFamily*>::iterator it;
+    it = m_dataFamilies.begin();
+    while (it != m_dataFamilies.end())
     {
         if (*it != 0)
         {
             delete *it;
             *it = 0;
         }
+        ++it;
     }
     m_dataFamilies.clear();
 }
@@ -1223,12 +1236,14 @@ bool WindowsCodeProtectorServer::GenerateChecksum(CodeHackChecksumEx* ckEx,
 
 // ===========================================================================
 // CCompressedBlob —— objdump 0x0844de52..0x0844e0aa 逐指令转写
+// [b28c-lane24] throw()（P216 static-local guard 边界）：ORIG put_compressed_blob_data
+// @0x083fbd06 无 landing pad；W 体尺寸不变（-fno-enforce-eh-specs 无 unexpected guard）。
 // ===========================================================================
-CCompressedBlob::CCompressedBlob() : m_buf(0), m_size(0)
+CCompressedBlob::CCompressedBlob() throw() : m_buf(0), m_size(0)
 {
 }                                                            // 0x0844de52
 
-CCompressedBlob::~CCompressedBlob()
+CCompressedBlob::~CCompressedBlob() throw()
 {                                                            // 0x0844de6a
     if (m_buf != 0)
     {

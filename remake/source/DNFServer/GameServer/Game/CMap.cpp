@@ -11,9 +11,13 @@
     do                                                                       \
     {                                                                        \
         int tally[C] = { 0 };                                                \
+        int total = 0;                                                       \
         for (int i = 0; i <= (V) - 1; ++i)                                   \
+        {                                                                    \
             for (int j = 0; j <= (C) - 1; ++j)                               \
                 tally[j] += m_voters[i].m_votes[j];                          \
+            total += tally[i];                                               \
+        }                                                                    \
         int best = -1;                                                       \
         int bestVal = 0;                                                     \
         for (int i = 0; i <= (C) - 1; ++i)                                   \
@@ -126,7 +130,9 @@ template <> int cElection<int, 4, 4>::GetElected() const   // ORIG 0x85c03a8
 // 默认为第 0/1 区 w=0x78 h=0x6a；第 2/3 区 w=0x8c h=0x28。
 // 实现地点：CMap.cpp（本域）；MapArea 权威定义见 CVillageMonsterMgr.h。
 
-int isInArea(int x, int y, MapArea* area)
+// ORIG 返回单字节：isInPathArea 调用点 0x08891f20 段为 `call; test %al,%al; je`
+// （4.4 对 int 返回 callee 恒先 `test %eax; setne %al` 物化）⇒ 返回 bool（P3/P9）。
+bool isInArea(int x, int y, MapArea* area)
 {
     if (x < area->m_x)
         return 0;
@@ -260,12 +266,11 @@ void CMap::destory()
 
 bool CMap::checkFitInPathObject(int x, int y) const
 {
-    // [A·可攻未闭合] ORIG 第一参 `lea 0x4c(%eax),%edx` 单段直落；4.4 裸形恒
-    // `add+mov` 两段（ndiff 3）。实测 register asm("edx") 钉形反劣化（3→9，
-    // 实参求值序被重排），已回滚。bool→int 修复（P159）已消尾部 setne 归一。
-    return isInPathArea(x, y,
-                        reinterpret_cast<const int (*)[2]>(m_pathArea1),
-                        reinterpret_cast<const int (*)[2]>(m_pathArea2));
+    // b28c-36 AE：ORIG 0x0834e9a6 `lea 0x4c(%eax),%edx`（m_pathArea2 退化为
+    // int(*)[2] 直传）+ `add $0x2c,%eax`（m_pathArea1）——成员声明必须是二维数组
+    // int[4][2]（CMap.h）；一维 [8]+cast 在 4.4 恒 add+mov 两段（探针
+    // /tmp/b28c_l36_p2.cpp f1-f7 七形全劣，f8 二维直传逐条同形）。
+    return isInPathArea(x, y, m_pathArea1, m_pathArea2);
 }
 
 int CMap::insert_item(int idx, int level, int prob, int cond)

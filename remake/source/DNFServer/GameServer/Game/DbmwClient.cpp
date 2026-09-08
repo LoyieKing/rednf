@@ -32,7 +32,10 @@ DbmwClient::~DbmwClient()
     close(m_sock);
     m_initialized = false;
     m_sock = -1;
-    delete[] m_recvBuf;
+    // ORIG 0x081204f3：`call _ZdlPv`（operator delete(void*)，非 delete[]）且
+    // 调用前**无 test/je 判空**（4.4 对 delete[] 自带判空，多 3 条）⇒ 显式
+    // operator delete 调用复现 4.1 直落形（P207）。
+    ::operator delete(m_recvBuf);
 }
 
 // ORIG T _ZN10DbmwClient9set_queryEPKcz @0x081204fa（0xec）：fmt 空返 false；
@@ -49,12 +52,23 @@ bool DbmwClient::set_query(const char* fmt, ...)
     vsprintf(m_query, fmt, args);
     va_end(args);
     m_queryLen = strlen(m_query);
+    // ORIG 0x08120572/0x08120582：`mov 0x1038(%eax),%eax; cmp $0xfff,%eax; jg`
+    // （有符号 jg）⇒ m_queryLen 声明 long（signed）后无需 cast 即出 jg。
     if (m_queryLen > 0xfff || m_queryLen <= 7)
     {
-        printf("QueryLength Size ERROR QUERY_SIZE-%d MAX", (int)m_queryLen);
+        // ORIG 0x0812059c：格式串含两个 %d 且第二实参为立即数 0x1000
+        // （objdump .rodata 实证）；原实现漏了 "MAX_QUERY_SIZE-%d\n" 段。
+        printf("QueryLength Size ERROR QUERY_SIZE-%d MAX_QUERY_SIZE-%d\n",
+               (int)m_queryLen, 0x1000);
         return false;
     }
-    m_isSelect = (strncasecmp(m_query, "select", 6) == 0);
+    // ORIG 0x081205c1：`movl $"select",(%esp); mov m_query,0x4(%esp)` ⇒ 参数序
+    // 是 strncasecmp("select", m_query, 6)；且结果用 jne/两臂 movb 直写
+    // （ORIG 0x081205d1/0x081205d9），非 sete 单条物化。
+    if (strncasecmp("select", m_query, 6) == 0)
+        m_isSelect = 1;
+    else
+        m_isSelect = 0;
     return true;
 }
 
@@ -296,11 +310,10 @@ bool DbmwClient::DoQuery()
     int qlen = (int)strlen(m_query);
     if (qlen > 0xfff || qlen <= 7)
         return false;
-    // 技巧 5/27：ORIG 是 `mov 0x1038(%eax),%eax; cmp -0x10(%ebp),%eax`
-    // （成员先载入 %eax、再与栈槽**内存操作数**直比）。`m_queryLen` 是
-    // `unsigned long`、`qlen` 是 `int`，signedness 失配迫使 4.4 把两侧都装进
-    // 寄存器再比（多一条 mov）。显式把 qlen 转成同型即恢复单内存操作数形。
-    if ((unsigned long)qlen != m_queryLen)
+    // ORIG 0x08120d0a：`mov 0x1038(%eax),%eax; cmp -0x10(%ebp),%eax`（成员在
+    // %eax、栈槽作内存操作数直比）⇒ 字段与 qlen 同型（都 signed 32 位）时
+    // 4.4 才出该形。
+    if (m_queryLen != qlen)
         return false;
 
     if (!SendHeader(UPDATE_QUERY_GO, (int)m_queryLen))

@@ -193,11 +193,12 @@ int CCeraShopGoods::GetExpiryDate() const
 float CCeraShopGoods::GetBonusWeight() const
 {
     // ORIG 0x0854c588：`mov 0x2c(%eax),%eax; mov %eax,-0x4(%ebp); flds
-    // -0x4(%ebp)`（9 insn）。4.4.7 对 int 成员按位转 float 的三种合法形
-    // （直接 cast 返回 / union 成员拷贝 / float 槽直写）分别多出 add+mov
-    // 拆分、int round-trip、P76 LHS-address-first 伪影，均无法 1:1 复现
-    // 4.1 的单槽 spill+flds —— 记跨版本 store 形态豁免，保留语义最短形。
-    return *(float*)&m_bonusWeight;
+    // -0x4(%ebp)`（9 insn）—— 单条 disp 装载 + 槽 spill + flds。
+    // [b28c-lane17] 判词：4.4 对 type-pun 读把地址计算拆成
+    // `add $0x2c,%eax; mov (%eax),%eax`（ORIG 4.1 = 单条 `mov 0x2c(%eax),%eax`），
+    // 实测具名尾视图（P82/P95 形）同样拆两条 ⇒ N18a 单段折叠不可造；
+    // 语义与值域完全一致，保留最短可读形。
+    return *reinterpret_cast<const float*>(&m_bonusWeight);
 }
 
 CItem* CCeraShopGoods::GetRelatedItem() const

@@ -822,12 +822,23 @@ struct SIG_REMOVE_FEATURED_GOODSIDX { char m_pad[0x14]; };
 #pragma pack(push, 1)
 struct SIG_REQUEST_PVP_MISSION_LIST
 {
-    int m_characNo;                      // +0x00
+    // b28c-L5 换型（证据见上方注释块 + 下方两函数 ORIG 装载形）：
+    //   _saveData @0x085e46xx：`call get_charac_no; mov %eax,%edx;
+    //     mov -0x10(%ebp),%eax; mov %edx,(%eax)` = RHS 先 + 中转
+    //     ⇒ 字段与 int 源异型（P211 双向开关：call 返回值异型则带中转）；
+    //   getData @0x085e4aee：`mov 0x150(%eax),%edx; mov -0x10(%ebp),%eax;
+    //     mov %edx,(%eax)` = 槽直读无中转 RHS 先 ⇒ 同型性由源侧决定，
+    //     本槽 unsigned / CML::m_tail14f.m_characNo int 即复现。
+    unsigned int m_characNo;             // +0x00
     MissionInfo m_missionList[36];       // +0x04（8*36 = 0x120）
     unsigned char m_cleared[32];         // +0x124
     short m_field144;                    // +0x144
     short m_field146;                    // +0x146
-    short m_field148;                    // +0x148（末字段，无尾部 pad）
+    // b28c-L5：ORIG getData/_saveData 三处尾字段装载形分两种——
+    //   `movzwl 0x148/0x14a(%eax),%eax; mov %eax,%edx`（异型中转，目标 short ←
+    //   CML::m_field148/14a unsigned short）与 `movzwl 0x14c(%eax),%edx`（单段
+    //   直落，目标须与 CML::m_field14c unsigned short 同型，P211）。
+    unsigned short m_field148;           // +0x148（末字段，无尾部 pad）
 
     // ORIG W 0x0848f8d4：MissionInfo[0x24] 隐式构造（0x24×8=0x120）后 3×movw 清零。
     SIG_REQUEST_PVP_MISSION_LIST()

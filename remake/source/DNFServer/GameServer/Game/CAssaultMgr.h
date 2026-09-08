@@ -373,7 +373,10 @@ public:
     void _DispositionUser(CUser** users);                   // ORIG T 0x82e7bbc
     void _SendHoldVictory(CUser* userA, CUser* userB, int winTeam); // ORIG T 0x82ecaee
     void EvadeAssaultPlace(CUser* user);                    // ORIG T 0x82eb49c
-    char TimeoutConnectP2P();                               // ORIG T 0x82ea716（改签名：ORIG 有 char 返回）
+    // [b28c-L7][SIGFIX:pvp_assault::CAssaultPlace::TimeoutConnectP2P]
+    // ORIG __PRETTY_FUNCTION__ 串 = "bool pvp_assault::CAssaultPlace::TimeoutConnectP2P()"
+    // （docs/function_audit/sig_return_mismatch_b28c.tsv 第 16 行）⇒ char→bool。
+    bool TimeoutConnectP2P();                               // ORIG T 0x82ea716
     void TimeoutEndAssault();                               // ORIG T 0x82ea004
     void _AvailableAssault(CUser* user, int& result);       // ORIG T 0x82e75ca
     bool _CheckAssaultable();                               // ORIG T 0x82e919a
@@ -397,7 +400,9 @@ public:
     int  _SendCloseAssault(CUser* user, int tick);        // ORIG T 0x82e7b2a
 
     void TimeoutCloseAssault();
-    void TimeoutCompleteLoad();
+    // [b28c-L7][SIGFIX:pvp_assault::CAssaultPlace::TimeoutCompleteLoad]
+    // ORIG 串 = bool（tsv 第 15 行）；原 void 化把两条 return 值丢弃 ⇒ 补 true/false。
+    bool TimeoutCompleteLoad();
     // ---- W6_AssaultPlaceB（Wave6 后半 30 符号；TimeoutCompleteLoad 已在上）----
     void _MakeCompleteLoad(PacketGuard* p, int idx);          // ORIG T 0x82e8810
     void _MakeStartAssault(PacketGuard* p);                   // ORIG T 0x82e886a
@@ -408,7 +413,10 @@ public:
     void _MakeUserUdpIpPort(PacketGuard* p);                  // ORIG T 0x82e8de2
     void _SendUserUdpIpPort();                                // ORIG T 0x82e7a5e
     int  _GetConnectP2PPoint(int idx);                        // ORIG T 0x82e93bc
-    int  _IsCannotConnectP2P(int a, int b);                   // ORIG T 0x82e927e
+    // [b28c-L7] 返回类型 int→bool：ORIG 0x82e927e 体 `call Empty; xor $1,%eax;
+    // test %al,%al` + 调用点 `xor $1,%eax`/`test %al` 单字节直测形（P3/P168a①）；
+    // 孪生 CParty::_IsCannotConnectP2P（CParty.h:429）同为 bool。mangled 不变。
+    bool _IsCannotConnectP2P(int a, int b);                   // ORIG T 0x82e927e
     void _MakeDieAssaultPlayer(PacketGuard* p, int idx);      // ORIG T 0x82e891e
     void _MakeMoveAssaultPlace(PacketGuard* p);               // ORIG T 0x82e852e
     bool _CheckPowerWarInPlayer(ENUM_POWER_SIDE_TYPE side,
@@ -477,7 +485,9 @@ public:
     void Reset();                                        // ORIG T 0x82ed966
     void FrocedCloseAssaults();                          // ORIG T 0x82ed5f4
     int GetRequestAssaultNeedMoney(CUser* attacker, CUser* target);   // ORIG T 0x82edc86
-    int OnRequestAssault(CUser* attacker, CUser* target, int* result); // ORIG T 0x82edfba
+    // [b28c-L7][SIGFIX:pvp_assault::CAssaultMgr::OnRequestAssault]
+    // ORIG 串 = bool（tsv 第 14 行）；体内 return 值仅 0/1 ⇒ int→bool。
+    bool OnRequestAssault(CUser* attacker, CUser* target, int* result); // ORIG T 0x82edfba
     static void AvailableAssault(CUser* user, CUser const* source);
                                                         // ORIG T 0x82f0022（校验失败以 ENUM_ERROR 异常上抛）
                                                         // static：ORIG 体仅 0x8/0xc 两实参槽、

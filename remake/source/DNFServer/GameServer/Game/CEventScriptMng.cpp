@@ -77,13 +77,18 @@ InGameEventScript* InGameEventScriptLoader::insertEventScript(
 
 // ORIG 0x08982f38（_ZN23InGameEventScriptLoader14getEventScriptEiRKSs）：
 // m_scripts.find(name)；命中返回脚本指针；未命中先 import 再入表并返回。
+// [b28c-31] N93：ORIG 0x08982f5x find 目标槽 -0x10 / end 槽 -0xc（4.1 先声明占
+// 深槽），4.4 恒反向（先声明 -0xc）；声明序翻转无效，且"先声明后赋值"会引入
+// ORIG 不存在的 _Rb_tree_iterator::C1Ev（nm 实证）⇒ 封顶。
 InGameEventScript* InGameEventScriptLoader::getEventScript(int id,
                                                            const std::string& name)
 {
-    std::map<std::string, InGameEventScript*>::iterator endIt =
-        m_scripts.end();
+    // [b28c-31] ORIG 0x08982f5x：find 目标槽 -0x10 / end 目标槽 -0xc（4.1 先声明
+    // 占深槽）⇒ 4.4 先声明占浅槽（N93），试 it 先声明 + endIt 后声明。
     std::map<std::string, InGameEventScript*>::iterator it =
         m_scripts.find(name);
+    std::map<std::string, InGameEventScript*>::iterator endIt =
+        m_scripts.end();
     if (it != endIt)
         return it->second;
 
@@ -229,14 +234,14 @@ void EventClassify::CEventScriptMng::process_add_item_count_db(CUser* user,
                                                                int itemId,
                                                                int count)
 {
-    if (user != 0)
+    if (user == 0)
+        return;
+    CAddItemCountDB* entity =
+        static_cast<CAddItemCountDB*>(get_event_entity(0x193));
+    if (entity != 0)
     {
-        CEventEntity* entity = get_event_entity(0x193);
-        if (entity != 0)
-        {
-            if (static_cast<CAddItemCountDB*>(entity)->is_event_item(itemId))
-                user->IncCurCharacEventAddItemCount((unsigned short)count);
-        }
+        if (entity->is_event_item(itemId))
+            user->IncCurCharacEventAddItemCount((unsigned short)count);
     }
 }
 
@@ -279,15 +284,14 @@ void CEventScriptMng::process_add_fatigue_count(CUser* user, int count)
 //   我方直接 leave;ret，27/25 纯 lowering/对齐表示差异，语义等价。
 void CEventScriptMng::process_add_quest_count_db(CUser* user, int questId)
 {
-    if (user != 0)
+    if (user == 0)
+        return;
+    CAddItemCountDB* entity =
+        static_cast<CAddItemCountDB*>(get_event_entity(0x193));
+    if (entity != 0)
     {
-        CAddItemCountDB* entity =
-            static_cast<CAddItemCountDB*>(get_event_entity(0x193));
-        if (entity != 0)
-        {
-            if (entity->is_event_quest(questId))
-                user->IncCurCharacEventAddItemCount(1);
-        }
+        if (entity->is_event_quest(questId))
+            user->IncCurCharacEventAddItemCount(1);
     }
 }
 
@@ -367,6 +371,7 @@ void CEventScriptMng::update_purchase_target_item_count(
         static_cast<CPurchaseCashItemBonus*>(get_event_entity(0x19a));
     if (entity != 0)
         entity->updateTargetGoodsCount(user, goodsId, request);
+    return;
 }
 
 // ORIG 0x810c2d4：透传商城消费奖励邮件结果。
@@ -508,14 +513,18 @@ unsigned char CEventScriptMng::get_today_time_day()
 
 bool CEventScriptMng::is_current_ingame_event_record_type(int key)
 {
-    return m_info.find(key) != m_info.end();
+    std::map<int, InGameEventInfo>::iterator it = m_info.find(key);
+    if (it != m_info.end())
+        return true;
+    return false;
 }
 
 void CEventScriptMng::get_ingame_event_record_type_list(std::vector<int>& out)
 {
     out.clear();
-    for (std::map<int, InGameEventInfo>::iterator it = m_info.begin();
-         it != m_info.end(); ++it)
+    for (std::map<int, InGameEventInfo>::iterator it = m_info.begin(),
+             endIt = m_info.end();
+         it != endIt; ++it)
         out.push_back(it->first);
 }
 

@@ -12,9 +12,15 @@
 // getData 仅序列化技能表段，characNo 不由本函数写。
 // 循环写法照 P2（cmpl $imm; setle ⇔ for(int i=0; i<=N; ++i)）。
 //
-// 注：ORIG 目标写为单指令 `mov %cx,0x4(%eax,%edx,2)`（i+2 折叠进 disp+scale）；
-// c6root gcc4.4.7 -O0 对 `out[i+2]` store 恒展开为 (i+2)*2+out 三步算术，
-// 语义等价但指令形态不同（跨版本寻址折叠差异，同 P75 类，标结构性 DIFF）。
+// [b28-L14] 残差封顶 N 类（P30/N6 单条 scaled 寻址不可折 + N18a 双段 regmove）：
+//   ORIG 0x08545b57 循环体 = `mov -0x4,%edx; mov -0x4,%ecx; mov 0x8(%ebp),%eax;
+//   movzwl 0x6(%eax,%ecx,2),%ecx; mov -0x8(%ebp),%eax; mov %cx,0x4(%eax,%edx,2)`
+//   —— 4.1 把「i 基址 + 常数 2」折进单条 disp+scale。4.4 -O0 对含常数下标的
+//   store/load 恒展开 add/shl 链：`out[i+2]`、`(out+2)[i]`（P205 形实测仍展开，
+//   因基数是寄存器而非段基址）、`*(unsigned short*)((char*)pData+4+i*2)`
+//   三形均产 6 条；读侧 `0x6(%eax,%ecx,2)` 可折但目标 `0x4(%eax,%edx,2)` 不可。
+//   两侧同证 = 跨版本寻址折叠固有差（同 N81/N94 族），语义等价（11 项 ushort
+//   搬移到 pData+4）。
 #include "CItemMakingSkill.h"
 
 #include "CDataManager.h"   // G_CDataManager() / GetItemMakingSkill() / stItemMakingSkill

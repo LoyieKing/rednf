@@ -33,7 +33,10 @@ bool RestrictInputtingNameData::isLoaded_ = false;
 bool RestrictInputtingNameData::importUnicodeRangeData(
     const char* path, std::vector<std::pair<int, int> >* out)
 {
-    if (!loadRDARScriptFile(path, ""))
+    // [b28c-L15 真语义 bug] 权威签名 loadRDARScriptFile(directory, path)；ORIG
+    //   0x08ac2ecf：`mov 0xc(%ebp),%eax; mov %eax,0x4(%esp)`（path→第 2 参）
+    //   `movl $0x8e2e1a0,(%esp)`（空目录→第 1 参）⇒ 原码为 ("", path)。
+    if (!loadRDARScriptFile("", path))
         return false;
     std::string token;                       // ORIG +0x53（外层循环前构造一次）
     for (;;)
@@ -97,10 +100,10 @@ bool RestrictInputtingNameData::isInRange(wchar_t ch) const
 {
     for (unsigned int i = 0; i < unicodeRangeDataList_.size(); ++i)
     {
-        bool inRange =
-            (unicodeRangeDataList_[i].first <= (int)ch &&
-             (int)ch <= unicodeRangeDataList_[i].second);
-        if (inRange)
+        // [b28c-L15 P198②] ORIG `test %al,%al; je` 直测汇聚寄存器无槽往返
+        //   ⇒ 谓词整体内联进 if（提具名 bool 反多 mov%al,槽 + cmpb 两步）。
+        if (unicodeRangeDataList_[i].first <= (int)ch &&
+            (int)ch <= unicodeRangeDataList_[i].second)
             return true;
     }
     return false;
@@ -156,12 +159,16 @@ bool isUtf8StrInUnicodeRange(const char* str)
 // G_CDataManager()->hasSpecialCharacter / hasPreventString / hasPreventStringName 三连。
 bool checkValidCharacName(const char* name)
 {
-    // ORIG 0x0820582b 实证：三检查任一命中 ⇒ 非法（返回 false）；全不命中 ⇒
-    // 名字有效（返回 true）。汇聚段 test/je 岸 = (A||B||C) 物化后 if 消费。
-    bool invalid = G_CDataManager()->hasSpecialCharacter(name) ||
-                   G_CDataManager()->hasPreventString(name) ||
-                   G_CDataManager()->hasPreventStringName(name);
-    if (invalid)
+    // b28c-l23 根因：ORIG 尾段 `mov $0x1,%eax / jmp / mov $0,%eax / test %al,%al /
+    // je →mov $1 / fall→mov $0`（@0x08205879..0x08205890）= **短路结果先物化、
+    // 再整体取反返回**，且无 bool 局部槽（帧 sub $0x18）。我方具名
+    // `bool invalid` 使 4.4 出 `mov %al,-0x9; cmpb $0,-0x9` 双段并撑帧 +0x10；
+    // 改写 `if(...) return true` 则 mov $1/mov $0 两岛顺序反转（ndiffX 5→4 后唯一残差）。
+    // 正形 = `return !(A || B || C);`：语义与调用点 `if (!checkValidCharacName(..))`
+    // （true=名字有效）一致。
+    if (G_CDataManager()->hasSpecialCharacter(name) ||
+        G_CDataManager()->hasPreventString(name) ||
+        G_CDataManager()->hasPreventStringName(name))
         return false;
     return true;
 }

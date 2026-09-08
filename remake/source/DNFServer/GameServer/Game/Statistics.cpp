@@ -37,13 +37,35 @@ public:
 
 GameWorld* G_GameWorld();
 
+// [b28c-4] ORIG 紧凑槽（Composition 0x0860b6a2：-0x15/-0x11/-0xd/-0xc，len 0xd）
+// ⇒ 原码是 pack(1) 载荷结构体：4.1 对 pack(1) 紧凑排布，4.4 对独立标量按 4 对齐
+// 分配槽（探针 /tmp/l4/pk.cpp C1 与 ORIG 逐条全等）。
+struct StatCompositionData
+{
+    unsigned int a;
+    unsigned int b;
+    char type;
+    int c;
+} __attribute__((packed));
+
+// DungeonClear/GiveUp 共用布局（ORIG 0x0860b81c/0x0860b868：-0x21/-0x1d/-0x19/
+// -0x15/-0x11/-0xd/-0x9，len 0x19）——成员序 a,b,c,d,e,f,type，char 在末。
+struct StatDungeonData
+{
+    unsigned int a;
+    unsigned int b;
+    int c;
+    int d;
+    int e;
+    int f;
+    char type;
+} __attribute__((packed));
+
 // ----------------------------------------------------------------------------
 // Statistics（声明见 Statistics.h）
 // ----------------------------------------------------------------------------
 Statistics::Statistics() {}
 Statistics::~Statistics() {}
-
-void Statistics::SendSignal(int signal, void* data, int len) {}
 
 void Statistics::BreakJar(unsigned int a, unsigned int b, int c)
 {
@@ -59,30 +81,24 @@ void Statistics::BreakJar(unsigned int a, unsigned int b, int c)
 
 void Statistics::Composition(unsigned int a, unsigned int b, int c)
 {
-    unsigned int localA;
-    unsigned int localB;
-    char localType;
-    int localC;
+    StatCompositionData data;
 
-    localA = a;
-    localB = b;
-    localType = 0x63;  // 'c'
-    localC = c;
-    SendSignal(0x38, &localA, 0xd);
+    data.a = a;
+    data.b = b;
+    data.type = 0x63;  // 'c'
+    data.c = c;
+    SendSignal(0x38, &data, 0xd);
 }
 
 void Statistics::Decomposition(unsigned int a, unsigned int b, int c)
 {
-    unsigned int localA;
-    unsigned int localB;
-    char localType;
-    int localC;
+    StatCompositionData data;
 
-    localA = a;
-    localB = b;
-    localType = 0x64;  // 'd'
-    localC = c;
-    SendSignal(0x38, &localA, 0xd);
+    data.a = a;
+    data.b = b;
+    data.type = 0x64;  // 'd'
+    data.c = c;
+    SendSignal(0x38, &data, 0xd);
 }
 
 void Statistics::UseCoin(unsigned int a, unsigned int b, int c)
@@ -130,43 +146,31 @@ void Statistics::RankResult(unsigned int a, unsigned int b, int c, int d, int e,
 void Statistics::DungeonClear(unsigned int a, unsigned int b, int c, int d, int e,
                               int f)
 {
-    unsigned int localA;
-    unsigned int localB;
-    int localC;
-    int localD;
-    int localE;
-    int localF;
-    char localType;
+    StatDungeonData data;
 
-    localA = a;
-    localB = b;
-    localC = c;
-    localD = d;
-    localType = 0x63;  // 'c'
-    localE = e;
-    localF = f;
-    SendSignal(0x3c, &localA, 0x19);
+    data.a = a;
+    data.b = b;
+    data.c = c;
+    data.d = d;
+    data.type = 0x63;  // 'c'
+    data.e = e;
+    data.f = f;
+    SendSignal(0x3c, &data, 0x19);
 }
 
 void Statistics::DungeonGiveUp(unsigned int a, unsigned int b, int c, int d, int e,
                                int f)
 {
-    unsigned int localA;
-    unsigned int localB;
-    int localC;
-    int localD;
-    int localE;
-    int localF;
-    char localType;
+    StatDungeonData data;
 
-    localA = a;
-    localB = b;
-    localC = c;
-    localD = d;
-    localType = 0x67;  // 'g'
-    localE = e;
-    localF = f;
-    SendSignal(0x3c, &localA, 0x19);
+    data.a = a;
+    data.b = b;
+    data.c = c;
+    data.d = d;
+    data.type = 0x67;  // 'g'
+    data.e = e;
+    data.f = f;
+    SendSignal(0x3c, &data, 0x19);
 }
 
 void Statistics::DungeonFail(int dungeonIdx)
@@ -183,3 +187,9 @@ void Statistics::PVPPlay2(int a, int b, int c)
 {
     G_GameWorld()->getStatisticsPvP()->incPvPRoomResult(a, b, c);
 }
+
+// [b28c-4 P210] SendSignal 定义必须晚于全部 caller：4.4 对"已见定义"的 callee 按
+// 其帧精确继承 outgoing（BreakJar 帧塌缩 0x1c、槽基 -0xc），ORIG 4.1 为保守帧
+// 0x28/槽基 -0x14。定义后置即复现（探针 /tmp/l4/order.cpp T1 与 ORIG 0x0860b66c
+// 逐条全等；同 TU 的 RankResult 等消费函数随之复查）。
+void Statistics::SendSignal(int signal, void* data, int len) {}

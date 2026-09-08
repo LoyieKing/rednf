@@ -65,8 +65,9 @@ StatisticsNatType::~StatisticsNatType()
         if (rc != 0)
         {
             delete rc;
+            rc = 0;
         }
-        ++it;
+        it++;
     }
 }
 
@@ -81,7 +82,7 @@ void StatisticsNatType::Reset()
             rc->m_countB = 0;
             rc->m_countA = 0;
         }
-        ++it;
+        it++;
     }
 }
 

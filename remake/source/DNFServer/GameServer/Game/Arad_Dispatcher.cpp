@@ -31,6 +31,17 @@
 typedef char AradDispatcherManagerSizeAssert[
     sizeof(ARAD::Arad_Dispatcher_Manager) == 0x354 * 4 * 2 ? 1 : -1];
 
+// b28c-L26 [判词 N·跨版本 new-expression landing-pad 抑制，模板实例变体]
+// 实测在 Manager ctor 定义**之前**放成员函数显式实例化
+// （`template void GlobalInstance<ARAD::Arad_Dispatcher_Manager>::create();`）
+// 仍产 24 条形（无 cleanup 岛）——4.4 对模板成员的代码生成延至 TU 末尾，
+// 届时 ctor 体恒可见 ⇒ 判 nothrow 抑 landing pad。P210/BM11「定义前置」翻案
+// 仅适用**非模板** caller（open()/NexonCash C1）；对 GlobalInstance<T>::create()
+// 这类头模板成员无源码解（禁改头/禁删 ctor）。ORIG 37 条 = 双检 + new(0x1aa0)
+// + ctor call + `mov %ebx,%eax; mov %eax,m_p` + 正常路径逐条等价，差额 13 条
+// 全落在 ctor 抛异常的 delete+_Unwind_Resume 清理岛及其 push %edi/%esi/帧 0x1c。
+// 已回退该无效实例化声明，保持纯自然形。
+
 // ---------------------------------------------------------------------------
 // 本 TU 实例化：GlobalInstance<ARAD::Arad_Dispatcher_Manager>::create()  @0x0818e956
 // （报告 docs/class_func_reports/StrikerScript/create.md 属撞名——其 `## 反编译 C` 段为
@@ -259,9 +270,16 @@ int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch(int code, int uid,
     //   闭合封 N。
     // ORIG 0x0818eb0c：读 BuyItemInfo ← stream；GetOutBuffer<MSG_BUY_CERASHOP_ITEM>；
     // arad_sp_buy_item_check 通过后组装 PURCHASE_COUNT_CHECK 内部包入 DB 队列。
-    // ORIG 0x0818ebxx：各出口 `mov $imm,%ebx`＝ register int 出口寄存
-    // （4.4 裸 register 不绑寄存器（实测），X 族 asm 绑定 %ebx）。
-    register int ret asm("ebx");
+    // b28c-L26 清绑（P0/N96 硬约束）：原 `register int ret asm("ebx")` 的
+    // **asm 绑定已删**（P0 全域禁绑）。保留裸 register 关键字的依据＝本件双形
+    // fresh 实测（orig_insns 158）：
+    //   · `register int ret;`  → our 157，行级 diff 85
+    //   · `int ret;`           → our 157，行级 diff 135（反劣 +50 行）
+    // 本点 ret 为出口码、跨 logFormat/Acquire/put 多次 call 存活，ORIG 各出口
+    // 恒 `mov $imm,%ebx` ⇒ 属「值确需跨 call 保活」类，裸 register 令 4.4 以
+    // %ebx 免槽承载、装载序回到 ORIG 形；与 lane20A/lane12 的「纯本地条件判定
+    // 点裸 register 反劣（帧破 push/pop）」判据不冲突（那两点无跨 call 寿命）。
+    register int ret;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)7,
                                                   (ENUM_SERVER_GROUP)0);
     ARAD_DATAS::BuyItemInfo info;

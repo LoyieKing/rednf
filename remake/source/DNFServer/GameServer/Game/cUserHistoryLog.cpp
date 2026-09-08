@@ -98,6 +98,7 @@ void cUserHistoryLog::SetTrader(const char* accName, const char* characName)
 
 void cUserHistoryLog::AvatarItemAdd(int itemIdx, int avatarUid, const char* agency, eAvatarItemAddReason reason)
 {
+    // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
     if (reason == static_cast<eAvatarItemAddReason>(1) || reason == static_cast<eAvatarItemAddReason>(3)
         || reason == static_cast<eAvatarItemAddReason>(4)) {
         if (m_traderCharac[0] != 0)
@@ -228,6 +229,7 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
 
 void cUserHistoryLog::AvatarItemDel(int itemIdx, int avatarUid, const char* agency, eAvatarItemDelReason reason)
 {
+    // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
     if (reason == static_cast<eAvatarItemDelReason>(0) || reason == static_cast<eAvatarItemDelReason>(1)) {
         if (m_traderCharac[0] != 0)
             m_user->LogHistory("Avatar-,%d,%d,%s,%d,\"%s\",\"%s\"", itemIdx, avatarUid, agency,
@@ -239,6 +241,7 @@ void cUserHistoryLog::AvatarItemDel(int itemIdx, int avatarUid, const char* agen
 
 void cUserHistoryLog::CreatureItemDel(INVEN_TYPE invenType, int itemIdx, int count, int addInfo, int type, eItemDelReason reason)
 {
+    // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
     if (type == 5) {
         if (reason == static_cast<eItemDelReason>(0x14) || reason == static_cast<eItemDelReason>(0x15)) {
             if (m_traderCharac[0] != 0)
@@ -257,6 +260,7 @@ void cUserHistoryLog::CreatureItemDel(INVEN_TYPE invenType, int itemIdx, int cou
 
 void cUserHistoryLog::MoneyAddTrade(int money, int add, eMoneyAddReason reason)
 {
+    // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
     if (m_traderCharac[0] != 0)
         m_user->LogHistory("Money+,%d,%d,%d,%s(%s)", money, add, static_cast<int>(reason),
                            m_traderCharac, m_traderAccount);
@@ -264,6 +268,7 @@ void cUserHistoryLog::MoneyAddTrade(int money, int add, eMoneyAddReason reason)
 
 void cUserHistoryLog::MoneySubTrade(int money, int sub, eMoneySubReason reason)
 {
+    // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
     if (m_traderCharac[0] != 0)
         m_user->LogHistory("Money-,%d,%d,%d,%s(%s)", money, sub, static_cast<int>(reason),
                            m_traderCharac, m_traderAccount);
@@ -383,6 +388,7 @@ void cUserHistoryLog::LeaveDungeon(int dungeonIdx, int unk, const char* memberNa
 
 void cUserHistoryLog::CreatureItemAdd(INVEN_TYPE invenType, int itemIdx, int count, int addInfo, int type, eItemAddReason reason)
 {
+    // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
     if (type == 5) {
         if (reason == static_cast<eItemAddReason>(0x1a) || reason == static_cast<eItemAddReason>(0x1c)
             || reason == static_cast<eItemAddReason>(0x1d)) {
@@ -674,12 +680,21 @@ void cUserHistoryLog::ChangeItemLimitCount(int a, int b, int itemIdx, int d, int
 
 void cUserHistoryLog::TradeBegin()
 {
+    // b28c-L2 [N4 封顶·本文件交易中判族]：ORIG（0x08685047 TradeBegin / 0x08682xxx
+    // MoneyAdd·MoneySub·Avatar±·TradeEnd·Creature± 同族）对 `m_traderCharac[0]`
+    // 读为 `mov 0x8(%ebp),%eax; add $0x22,%eax; movzbl (%eax),%eax`（4.1 数组退化
+    // 两步寻址、无槽往返 ⇒ P0 判为表达式直传）；4.4-O0 对 7 种合法源形
+    // （下标/解引用/指针局部/引用局部/volatile 字段/引用形参/嵌套 struct）恒折为
+    // 单条 `movzbl 0x22(%eax),%eax`（探针 /tmp/l2_probe10.cpp t1..t7 全数实证），
+    // 唯一能出 add 的是 `(char*)this+0x22` 裸偏移（§4.3 禁）。语义等价 ⇒ 保持
+    // `m_traderCharac[0] != 0` 可读形，每点 ndiff 2 封顶。
     if (m_traderCharac[0] != 0)
         m_user->LogHistory("Trade+,\"%s\",\"%s\"", m_traderCharac, m_traderAccount);
 }
 
 void cUserHistoryLog::TradeEnd(eTradeEndReason reason, int a, int b, int c, int d)
 {
+    // b28c-L2 [N4 封顶]：同 TradeBegin 的 m_traderCharac[0] add 寻址族。
     if (m_traderCharac[0] != 0) {
         static const int ILLEGAL_FACTOR = 10;   // ORIG _ZZN15cUserHistoryLog8TradeEndE15eTradeEndReasoniiiiE14ILLEGAL_FACTOR @0x8cf2690（=10）
         int sum1 = a + b;
@@ -863,7 +878,19 @@ void cUserHistoryLog::RemovePrivateStore(int zoneA, int zoneB, char const* name)
 // （W 0x84ebe58/0x84ebe7c，本文件真实建模）。
 // b21 NEAR：语义与 ORIG 全等。修：vararg 原缺失 item+0x00 字节（IVar1=*param_3），
 //   加在 b32 与 GetReSealCount 之间使 %02X×14+%d+%d 与 26 实参对齐（原 guid 入%02X 移位已消除）。
-//   残余：call/字符串/数据地址【AE】、lea$0x15 vs add、mov0x2 直传 vs mov+mov、栈槽偏移。
+// b28c-L2 fresh 复验 ndiff 13（orig 165/our 166），残差全部为两族结构性封顶：
+//   [N80] ORIG 0x0868434x 在 `call CItemGloballyUniqueIdentifierPrintC1Ev` **之前**
+//     就把 op() 实参 `&item+0x15` 物化到 callee-saved %ebx 并跨 ctor 保活
+//     （`mov 0x10(%ebp),%eax; lea 0x15(%eax),%ebx; lea -0x2d(%ebp),%eax; mov %eax,(%esp);
+//      call C1; mov %ebx,0x4(%esp)`）；4.4 恒 ctor 后求值。本件 print 为**具名对象**
+//     （ORIG D1 在 LogHistory 之后、leave 之前的正常路径 0x08684xxx，非语句末临时），
+//     故 P227 全表达式临时链翻案不可用（改临时会把 D1 提前、破坏 ORIG 尾段与
+//     landing pad 0x0868452x 的 `lea -0x2d; call D1; _Unwind_Resume` 形）⇒ 维持 N80。
+//   [N82附] 帧内槽向：ORIG print 聚合对象 @-0x2d、guid 标量 @-0x80（插在 vararg
+//     值槽 -0x7c..-0x30 之下），4.4 聚合优先占低槽 + 标量分区 ⇒ print @-0x31、
+//     guid @-0x1c（4 处 lea + 2 处 mov 共 6 行）。声明序/pad/临时链均不可翻（N82附）。
+//   其余 2 行 = `mov 0x2(%eax),%ebx` 单段直落 vs 4.4 两段中转（N18a）。
+//   帧尺寸 sub $0xec、26 个 vararg 装载序与全部 call 目标/宽度与 ORIG 逐条一致。
 void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const& item,
                                           int addNew, int addOld, eItemAddReason reason,
                                           char const* name1, char const* name2)
@@ -892,7 +919,8 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
 
 // ORIG T 0x868412a（报告全文）："Item-,..."——注意 %s 只有一个名字参数（param_8）。
 // b21 NEAR：语义与 ORIG 全等（%s 仅 name2=param_8 正确）。修：补齐 item+0x00 字节 vararg。
-//   残余：call/字符串【AE】、N-86b 双 codegen、栈槽偏移。
+// b28c-L2 fresh 复验 ndiff 13（orig 163/our 164）：封顶族与 PrivateStoreItemAdd 同
+//   （N80 具名 print ctor 前实参保活 + N82附 聚合/标量槽向 + N18a 单段直落），判词见上。
 void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const& item,
                                           int delNew, int delOld, eItemDelReason reason,
                                           char const* name1, char const* name2)
@@ -1282,14 +1310,13 @@ void cUserHistoryLog::GuildChangeGrade(unsigned int guildKey, const char* guildN
                        (unsigned)(oldGrade & 0xff), (unsigned)(newGrade & 0xff));
 }
 
-// ORIG _ZN15cUserHistoryLog9useEmblemEmmjPKcj @0x08685a08
-// [N 归因修正] 非 EH：差异 = 4.1 五段 outgoing 全走 edx 逐段即用即弃，
-// 4.4 分配器前三段选 callee-saved ebx（push/pop+add esp 替 leave）且把
-// 0x10/0xc 装载提前——纯跨版本寄存器轮转+调度，无源码可控形，语义等价。
 void cUserHistoryLog::useEmblem(unsigned long a, unsigned long b, unsigned int c,
                                 const char* d, unsigned int e)
 {
-    m_user->LogHistory("UseEmblem,%d,%d,%d,%s,%d", (int)a, (int)b, c, d, e);
+    // b28c-L2: 删 (int) 冗余 cast——-m32 下 unsigned long 即 32 位，cast 不改变
+    // 压栈宽度但诱发 4.4 callee-saved %ebx 缓存 + 帧 0x28→0x24（P41 变体/BM13
+    // charge 同族），删后 4.4 回到 ORIG 0x08685a08 的 edx 逐段即用即弃形。
+    m_user->LogHistory("UseEmblem,%d,%d,%d,%s,%d", a, b, c, d, e);
 }
 
 // ORIG _ZN15cUserHistoryLog12StartRidableENS_12eRidableTypeEi @0x08686928：参数换位同 EndRidable
@@ -1460,11 +1487,21 @@ void cUserHistoryLog::ItemLockUsingLog(unsigned char lockType, int a, int b, int
 //   尾参为当前余额 CUser::GetCeraPoint()。
 void cUserHistoryLog::CeraPoint(ENUM_CERAPOINT_LOG_TYPE type, unsigned int amount)
 {
-    // 技巧 28/36：ORIG 0x0868593c 对 GetCeraPoint 结果 `mov %eax,0x10(%esp)`
-    // 直落参（eax 跨后续装载存活）；4.4 默认先 spill mov 再装载（+1 条）。
-    register int balance __asm__("eax") = (int)m_user->GetCeraPoint();
+    // b28c-L2 [P0 清绑 · 落 N96+P168a④]：原存 `register int balance __asm__("eax")`
+    // 已按 P0 硬约束清除。ORIG 0x0868593c（CeraPoint）形为 call 结果**留在 %eax**
+    // 并跨三条装载直落 `mov %eax,0x10(%esp)`（0x08685948/0x08685951）；4.4-O0 因
+    // LogHistory 的 this 必须再载入 %eax，恒先发 `mov %eax,%ecx` 转存 ⇒ 全段
+    // 寄存器错位（+1 insn，ndiff 9）。三形 fresh 联判：
+    //   ① 绑定形 asm("eax")  = 19/19 AE（P0 禁用，不采纳）
+    //   ② 表达式直读/内联实参 = 19/20 ndiff 9  ← 采用（最优合法形）
+    //   ③ 裸 register（无绑定）= 19/23 ndiff 14（强制 callee-saved + 帧破，
+    //      与 C28L20A 的 SetServerMessage 3→13 反例同族，不采纳；lane28 终版判据
+    //      亦证：仅当 ORIG 目标为 callee-saved 且值跨 callee call 时裸 register
+    //      才可能非劣化，本件 ORIG 目标为 caller-saved %eax ⇒ 一律不留）
+    // 属范式库 N18a/N96 反向判词：「call 结果零扩展值单段直落目标寄存器不可造」，
+    // P0 优先于 identical ⇒ 语义（call 序/实参宽度/格式串）与 ORIG 全等。
     m_user->LogHistory("CeraPoint,%d,%d,%d", (int)type, amount,
-                       balance);
+                       (int)m_user->GetCeraPoint());
 }
 
 // ORIG _ZN15cUserHistoryLog5LoginEPKcS1_iihi @0x08683d86（Login.md 全量转写）：

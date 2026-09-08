@@ -27,7 +27,7 @@ public:
     CSuccessJobNode(const CSuccessJobNode& other);         // W 0x0848757e
     ~CSuccessJobNode();                                    // W 0x08486c5a（非虚）
     int UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC*);      // T 0x08484d4c
-    int InsertDB(const DungeonKey& key, bool flag, const JobKey& jobKey);  // T 0x08486234
+    bool InsertDB(const DungeonKey& key, bool flag, const JobKey& jobKey);  // T 0x08486234（SIGFIX: bool）
 
     std::map<int, JobParty> m_jobPartyMap;   // +0x00（0x18）
     Character m_charac;                      // +0x18（0x40）

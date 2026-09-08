@@ -80,8 +80,14 @@ public:
 
 // ----------------------------------------------------------------------------
 // CreateDnfEventSciprtServer —— Singleton + ScriptInterface 双基服务包装。
+// [b28c-32] m_script 由成员改**第一个基类**（C28L9 AvatarRechargeServer/C28L16
+// AvatarFixedHiddenOptionServer 同法）：ORIG C1 0x081648ac 构造序为
+// CreateDnfEventSciprt(this+4) → Singleton → ScriptInterface → 写 vptr，成员不可能
+// 先于基类构造；Itanium primary-base 规则下 ScriptInterface（有虚函数）占 +0x00，
+// CreateDnfEventSciprt 落 +0x04 ⇒ sizeof/偏移/mangled 不变。
 // ----------------------------------------------------------------------------
-class CreateDnfEventSciprtServer : public ARAD::Singleton<CreateDnfEventSciprtServer>,
+class CreateDnfEventSciprtServer : public CreateDnfEventSciprt,
+                                   public ARAD::Singleton<CreateDnfEventSciprtServer>,
                                    public ARAD::ScriptInterface
 {
 public:
@@ -91,8 +97,6 @@ public:
     virtual bool Load();             // vtable 槽0（ORIG 0x0816451e）
     virtual int Destroy();          // vtable 槽1（ORIG 0x08164590 返 1；接口 void 化同
                                      // AvatarFixedHiddenOptionServer 先例）
-
-    CreateDnfEventSciprt m_script;   // +0x04
 };
 
 #endif  // DNF_GAME_CREATEDNFEVENTSCIPRT_H_

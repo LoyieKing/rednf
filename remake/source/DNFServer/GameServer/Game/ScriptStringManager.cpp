@@ -117,15 +117,19 @@ void ScriptStringManager::clear()
 // outputString==NULL 亦为 ORIG UB，护栏返回 false。
 bool ScriptStringManager::getString(int index, std::string* outputString) const
 {
-    outputString->clear();  // ORIG: _M_mutate(0, length, 0)
+    // [b28c-21] ORIG 8acf160 段：outputString/index 缓存于 callee-saved
+    // （mov %ebx,-0xc(%ebp) 等保存槽）⇒ 纯 register 声明复现。
+    register std::string* out = outputString;
+    register int idx = index;
+    out->clear();  // ORIG: _M_mutate(0, length, 0)
     // [b23S3C] ORIG 0x8acf160：正索引无界检查直 assign(start[index])；
     // 负索引仅 (int)size()<index 死检查（js 分离形）。勿加 unsigned 界保护改行为。
-    if (index < 0)
+    if (idx < 0)
     {
-        if (static_cast<int>(strings_.size()) < index)
+        if (static_cast<int>(strings_.size()) < idx)
             return false;
     }
-    outputString->assign(strings_[index]);  // [b23S3C] begin() 形实测反劣化（+2 out-of-line），保 operator[]
+    out->assign(strings_[idx]);  // [b23S3C] begin() 形实测反劣化（+2 out-of-line），保 operator[]
     return true;
 }
 
@@ -136,10 +140,15 @@ bool ScriptStringManager::getString(int index, std::string* outputString) const
 // const 成员取成员地址为 const，此处按 const std::string* 返回。
 const std::string* ScriptStringManager::getString(int index) const
 {
-    static const std::string empty("");  // ORIG DEFAULT_STRING
-    if (index < 0 || static_cast<std::size_t>(index) >= strings_.size())
-        return &empty;
-    return &strings_[static_cast<std::size_t>(index)];
+    // [b28c-21] ORIG 8acf1f0：正极性嵌套 if（js 负索引 → 尾部 DEFAULT），
+    // `||` 合并形 4.4 生 setne 物化 + 3 callee-saved（81 vs 45 insn）。
+    static const std::string DEFAULT_STRING("");  // ORIG DEFAULT_STRING
+    if (index >= 0)
+    {
+        if (index < static_cast<int>(strings_.size()))
+            return &strings_[index];
+    }
+    return &DEFAULT_STRING;
 }
 
 // insertString @ 0x8acf720：字符串表 intern。已存在（map 树中找到，

@@ -2,13 +2,10 @@
 #include "MissionTypes.h"
 
 
-// ORIG 的 +0x10/+0x18 为 std::pair<int,int> 成员（ctor 默认构造为 0，
-// clear() 只重置 +0x10 的 pair）；重建布局拆成独立 int，ctor 必须显式
-// 清零 m_rateMin/m_rateMax（+0x18/+0x1c）以对齐 ORIG 的 pair 构造初值。
+// [b28c-lane17] ORIG ctor 0x08a5ba8c：两枚 pair 成员默认构造（+0x10/+0x18）
+// 由编译器在初始化列表自动发射，ctor 体仅调 clear()。
 MissionScript::MissionScript()
 {
-    m_rateMin = 0;
-    m_rateMax = 0;
     clear();
 }
 
@@ -19,6 +16,11 @@ MissionScript::MissionScript()
 // P112 封顶（b26 Lane27）：44 条指令/助记符全等；仅 3 个 bitset 局部槽位
 // 非单调分配差（4.1 maskA@-0x14/maskB@-0xc/res@-0x10 vs 4.4 声明序
 // -0xc/-0x10/-0x14），声明序换位会使 ctor 调用序反向，无合法源形，封顶。
+// [b28c-L23 N93附 复测维持] 三枚 bitset 局部分配方向跨版本相反：4.1 先声明占**更深**
+// 槽（maskA -0x14 / maskB -0xc / 结果 -0x10），4.4 先声明占**更浅**
+// （-0xc/-0x10/-0x14）。本件已是「全头部声明」形（P212 前置条件满足仍不翻正），且
+// 声明序绑死构造序（ORIG ctor 序 = maskA,maskB,operator&），翻转声明即翻转指令序
+// ⇒ 无合法源形。44=44、助记符序列全等，仅 3 处 lea 槽号差。
 bool is_Victory_in_a_row(std::bitset<32> bits, short victory)
 {
     std::bitset<32> maskA((1 << victory) - 1);

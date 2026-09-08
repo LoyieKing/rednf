@@ -109,7 +109,10 @@ int importGoldLimitByLevel(unsigned int* out)
 
     std::string token;
     int level = 0;            // ORIG -0x14（movl $0 直存）
-    int value = 0;            // ORIG -0x10（mov $0,%eax 二段；死初始化照抄 P171）
+    // [b28c-lane24] ORIG -0x10 死初始化为 `mov $0x0,%eax; mov %eax,-0x10(%ebp)`
+    // ——探针 /tmp/b28c_l24_probe3.cpp f_float0 实证这是 float 0.0f 的 4.4 形
+    //（int 0 生 `movl $0,slot` 单段）⇒ 该死局部原码为 float（P171 照抄死写入）。
+    float value = 0.0f;
     bool ok = false;          // ORIG -0x19
     (void)value;
     for (;;)
@@ -369,12 +372,13 @@ int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
                               __FUNCTION__, 0x3233,
-                              "ERROR : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.", path);
+                              "ERROR : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc\xf6 \xbe\xe8\xbd\xc0\xb4\xcf\xb4\xd9.", path);
         return 0;
     }
-    // ORIG 0x08913dbc：循环体内每轮重置 isType(-0xd)/ok(-0xe)+构造 token(-0x14)、
-    // 尾析构；ScanTypeOrInt 返回值落 -0xc 死槽（照抄 P171）。charge 段的
-    // ScanInt 复用仍为 true 的 ok 槽（ORIG 不重置）、结果直写 *out 后查 ok。
+    // [b28c-lane24] ORIG 0x08913dbc：循环体内每轮重置 isType(-0xd)/ok(-0xe)+
+    // 构造 token(-0x14)、尾析构；ScanTypeOrInt 返回值落 -0xc 死槽（照抄 P171）。
+    // do-while 状态机形（Ghidra iVar3=0/1/2）实测反劣（4.4 把 r 放栈槽 -0x10，
+    // ORIG 用 ebx），已回退；残余 = 三态汇聚 ebx+终值 esi 双寄存器物化（N3/N76）。
     for (;;)
     {
         bool isType = false;

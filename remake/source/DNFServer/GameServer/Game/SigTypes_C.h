@@ -266,7 +266,14 @@ struct TAG_CHARAC_INVEN_DATA
         {
             int  m_avatarCount;                    // +0x1e43（GetItem int* 出参）
             char m_avatarDetail[0x3ff8 - 0x1e47];  // +0x1e47（AvatarDetailInfo 0x21b1）
-            char m_clearAvatar[0x28];              // +0x3ff8（GetClearAvatar 出参）
+            // b28c-L5：char[0x28]→unsigned long[10]。ORIG getTagCharacInventory
+            //   @0x08690708 该出参装载为单条 `lea 0x3ff8(%eax),%ebx`，而调用点写
+            //   `reinterpret_cast<unsigned long*>(out->m_clearAvatar)`（char 数组 +
+            //   显式 cast）时 4.4 恒拆 `add $0x3ff8,%eax; mov %eax,%ebx`（+1 条）。
+            //   callee 权威形参即 `GetClearAvatar(unsigned long*)`（CInventory.h，
+            //   C28L2 已实证该参数侧同型化）⇒ 成员按真实类型建模即可免 cast、
+            //   复现 lea 单条。sizeof 0x28/偏移/外层 0x4024 断言均不变。
+            unsigned long m_clearAvatar[10];       // +0x3ff8（GetClearAvatar 出参）
             unsigned int m_cargoCapacity;          // +0x4020（movl）
         };
     };
@@ -309,7 +316,12 @@ struct SIG_LOAD_CHARAC
     unsigned int     m_characNo;        // +0x004
     int              m_result;          // +0x008
     CHARAC_DATA      m_characData;      // +0x00c（getCharacInfoDetail 写；尾部含 m_schoolNo）
-    unsigned int     m_tagCharacNo;     // +0x686
+    // b28c-L5：unsigned int→int。ORIG GetCharacInfo @0x0864bd1x 该槽 store 为
+    //   `mov 0xc(%ebp),%edx; mov %eax,0x686(%edx)`（值驻 %eax + base 占 %edx 的
+    //   **同型直存**），而 getCurCharacTagCharacNo() 权威返回 int（CUserCharacInfo.h:959）
+    //   ⇒ unsigned 目标使 4.4 多插一段 `mov %eax,%edx` 异型中转（P211 双向开关）。
+    //   另一消费点 CUser.cpp:11021 本就是无 cast 的 int 直赋值，换型后同型。
+    int              m_tagCharacNo;     // +0x686
     unsigned char    m_strikerSkillIndex; // +0x68a
     TAG_CHARAC_DATA   m_tagCharacData;  // +0x68b（0x78 字节；getTagCharacInfo 写 + CUser.h:7469 直接
                                         //   透传，clear() 为 ORIG W 0x822ed84；类型化保 .clear() 调用）
@@ -964,7 +976,9 @@ struct CHARAC_LOAD_MERCENARY
     bool Competition(CUser*, char, char);                // ORIG T 0x081b3814
     bool GetRewardItem(CUser*, competition_reward_result&, Inven_Item&,
                        std::string&);                    // ORIG T 0x081b3276
-    int Reward(CUser*, competition_reward_result&);      // ORIG T 0x081b3b68
+    bool Reward(CUser*, competition_reward_result&);     // ORIG T 0x081b3b68
+                                                         // SIGFIX b28c：ORIG 串
+                                                         // "bool CHARAC_LOAD_MERCENARY::Reward(CUser*, competition_reward_result&)"
     int GetRewardGold(CUser*, competition_reward_result&) const;  // ORIG T 0x081b3046
     float GetAvatarBonus() const;                        // ORIG T 0x081b2c94
     float GetPeriodBonus() const;                        // ORIG T 0x081b2c1e

@@ -153,18 +153,19 @@ exitLoop:
 // Channel（Etc/channel_info.etc 域）
 // ============================================================================
 
-// ORIG W 0x088dd2a8：三个 string 构造（+0x00/+0x08/+0x0c）+ type/pBonusRates 清零
-// + bonusRate 字节清零 + memset(m_gridPercent, 0, 0x28)。初始化列表等价转写。
+// ORIG W 0x088dd2a8：发射序=三个 string 构造（+0x00/+0x08/+0x0c）**先于**
+// 标量清零（+0x04/+0x10/+0x14）⇒ 4.1 类成员构造分组在前；4.4 初始化列表按
+// 声明序混合发射，故标量改 body 赋值复现分组序。
 // 注意：m_gridPercent() 值初始化会被 gcc 展开成 9 次循环（36B），与 ORIG
 // memset 0x28（40B）不一致，故显式 memset 全部 10 个 float。
 channel_info_t::channel_info_t()
     : m_name(),
-      m_channelType(0),
       m_dungeonName(),
-      m_dungeonKey(),
-      m_pBonusRates(0),
-      m_bonusRate(0)
+      m_dungeonKey()
 {
+    m_channelType = 0;
+    m_pBonusRates = 0;
+    m_bonusRate = 0;
     memset(m_gridPercent, 0, sizeof(m_gridPercent));
 }
 
@@ -848,12 +849,12 @@ void stStepRewardStackableItemScript::clear()
 }
 
 // ORIG W 0x0891bd0e：find 命中则向既有 vector push_back，否则新建单元素 vector 插入。
+// b28-34：比较写 `m_map0.end() == it`（临时为 this、it 为形参）——ORIG 先装载
+// 0x4(%esp)=&it 后装载 (%esp)=&end 临时；写 `it == m_map0.end()` 装载序反成 DIFF。
 void stStepRewardStackableItemScript::set_data(int step, StackableItemData& data)
 {
-    // b26 N 封顶（P112 族槽序镜像，同 CUserDepsB get_data）：残差仅 find
-    // 迭代器槽与 end() 临时槽互换（ORIG -0x38/-0x34 vs 我们 -0x34/-0x38）。
     std::map<int, std::vector<StackableItemData> >::iterator it = m_map0.find(step);
-    if (it == m_map0.end())
+    if (m_map0.end() == it)
     {
         std::vector<StackableItemData> items;
         items.push_back(data);

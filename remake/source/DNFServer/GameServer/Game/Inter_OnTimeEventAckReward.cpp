@@ -27,6 +27,7 @@ struct AckRewardView
 //   全程返回 0；日志走 cMyTrace 临时链式（P37：args 提前求值存 ebx/push 帧，
 //   栈槽从低地址按词法序分配——与 ORIG -0x6c..-0x1c 逐槽对应）。
 // ---------------------------------------------------------------------------
+// [b28c-32] verdict=DIFF：N82 变参预装（ORIG cMyTrace ctor 前 %edi/%esi 保活 vararg，4.4 直压）。
 int Inter_OnTimeEventAckReward::dispatch_sig(CUser* user, char* data, int len)
 {
     int local_20;

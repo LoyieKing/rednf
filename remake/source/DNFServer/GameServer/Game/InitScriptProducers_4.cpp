@@ -141,6 +141,10 @@ std::map<int, std::string> g_stDungeonScriptFileList;   // 布局同 STScriptFil
 std::map<int, std::string> g_questScriptFileList;       // ORIG 0x9500480（CListTables 引用）
 
 // ORIG 0x088e5e3c：签名 char*（调用点传字符串字面量，ORIG mangled PcS_）。
+// [b28c-L23 N(P209 附 e19 / P75)] 残 12 行 = memcpy(base+strlen(base),"\\",2) 段的
+// 跨版本实参装载时刻（4.1 先压 size/src、4.4 先算 dest）+ 由此连锁的 4 处 jmp
+// 目标偏移。strncpy/strlen×3/双条件 `!='\\' && !='/'` 与 loadRDARScriptListFile
+// 调用体均逐条对齐。语义与 ORIG 一致。
 bool InitDungeonScript(char* dir, char* list)
 {
     strncpy(g_szDungeonScriptBaseDirectory, dir, 0x100);
@@ -350,8 +354,30 @@ struct MonsterBaseParameter
 
     void clear()
     {
-        for (int i = 0; i < FIELD_COUNT; ++i)
-            m_value[i] = 0;
+        // [b28c-L29] ORIG W 0x08a3ce4a：前 13 字段逐条独立 store，随后
+        // i∈[0,3] 循环写 m_value[13+i]/m_value[17+i]（+0xc/+0x10 偏移寻址），
+        // 尾 3 字段独立 store——照抄原码展开形（非单一 24 次循环）。
+        m_value[0] = 0;
+        m_value[1] = 0;
+        m_value[2] = 0;
+        m_value[3] = 0;
+        m_value[4] = 0;
+        m_value[5] = 0;
+        m_value[6] = 0;
+        m_value[7] = 0;
+        m_value[8] = 0;
+        m_value[9] = 0;
+        m_value[10] = 0;
+        m_value[11] = 0;
+        m_value[12] = 0;
+        for (int i = 0; i <= 3; ++i)
+        {
+            m_value[(i + 12) + 1] = 0;
+            m_value[(i + 16) + 1] = 0;
+        }
+        m_value[21] = 0;
+        m_value[22] = 0;
+        m_value[23] = 0;
     }
     MonsterBaseParameter() { clear(); }
 };

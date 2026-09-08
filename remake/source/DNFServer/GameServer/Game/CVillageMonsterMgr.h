@@ -112,7 +112,7 @@ public:
     int m_field04;                       // +0x04
     int m_field08;                       // +0x08
     int m_field0c;                       // +0x0c
-    char m_field10;                      // +0x10
+    bool m_field10;                      // +0x10（ORIG 0x86b36e6 movzbl+xor$1 ⇒ bool）
     int m_state;                         // +0x14
     int m_partyIndex;                    // +0x18
     CVillageMonsterArea* m_area;         // +0x1c

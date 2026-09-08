@@ -152,11 +152,12 @@ int CDeathMatchBattleMgr::checkGameOverForSinglePlay(int mode)
 }
 
 // ==== ORIG 085df126 ====
-int CDeathMatchBattleMgr::checkGameOverForTeamPlay(
+// SIGFIX b28c-L29：ORIG 串 "bool CDeathMatchBattleMgr::checkGameOverForTeamPlay(...)"。
+bool CDeathMatchBattleMgr::checkGameOverForTeamPlay(
     CUser** users, int teamCnt, unsigned char* teamWin)
 {
     if (teamCnt == -1)
-        return 1;
+        return true;
     int killTeam1 = 0;
     int killTeam2 = 0;
     for (int i = 0; i <= 7; ++i)
@@ -188,7 +189,7 @@ int CDeathMatchBattleMgr::checkGameOverForTeamPlay(
     case 4:
         return maxKill > 9;
     default:
-        return 1;
+        return true;
     }
 }
 

@@ -1389,8 +1389,9 @@ private:
     int get_bind_result(CUser* user, short slot, ENUM_RARITY rarity,
                         std::vector<std::pair<int, int> >& results);
     // ORIG T 0x081d85fc：权重轮盘选条目填充 results（空表/计数非法报 cMyTrace）
-    int _bind_process(ENUM_MONSTER_CARD_BIND_TYPE type, ENUM_RARITY rarity,
-                      std::vector<std::pair<int, int> >& results);
+    // b28c-L20 SIGFIX：ORIG __PRETTY_FUNCTION__ 串为 `bool ..._bind_process(...)`（P174）⇒ 返回 bool。
+    bool _bind_process(ENUM_MONSTER_CARD_BIND_TYPE type, ENUM_RARITY rarity,
+                       std::vector<std::pair<int, int> >& results);
 
     CMTRand* m_rand;   // +0x04（ORIG ctor W 0x08595348：new CMTRand(time(0))）
 };

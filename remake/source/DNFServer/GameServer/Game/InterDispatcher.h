@@ -878,7 +878,9 @@ public:
     virtual int dispatch_sig(CUser* user, char* data, int len);
 
     // ORIG T 0x084cff18 / 0x084d008a（InterWave1 批；定义属主未落地，U 引用合规）
-    int SendDBThread_forchina(CUser* user, SIG_MAILBOX_CHECK_RECEIVER* sig);
+    // b28c-l23 SIGFIX：int→bool（ORIG __PRETTY_FUNCTION__ 串 @0x08c8ce00 =
+    // "bool Inter_MailBox_Req_CheckReceiver::SendDBThread_forchina(...)"，P174）。
+    bool SendDBThread_forchina(CUser* user, SIG_MAILBOX_CHECK_RECEIVER* sig);
     void SendErrorPacket(CUser* user, ENUM_CMDPACKET cmd, unsigned short err);
 
 private:
@@ -3229,7 +3231,10 @@ public:
     virtual ~Inter_NpcLimitBuyItemInfo();
     virtual int dispatch_sig(CUser* user, char* data, int len);
     int checkError(CUser* user, LimitNpcBuyItemInfo* info);   // ORIG 返回 int 被 dispatch 消费
-    void reset();
+    // [b28c-32] P216：ORIG C1 0x084e6502 无 EH landing（reset 体仅标量赋值 + 两个
+    // Inven_Item::reset）；4.4 对可见 reset() 判可能抛而布 ~ISigDispatcher cleanup。
+    // reset 声明+定义加 nothrow 后 4.4 判 nothrow ⇒ cleanup 链与 ORIG 同形。
+    void reset() throw();
     void sendPacket(CUser* user);
 
 private:

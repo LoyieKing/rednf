@@ -33,11 +33,6 @@
 // ctor/dtor/set_dungeon 及 GameStubs.cpp 已有桩的方法不在此重复定义）
 // ============================================================================
 
-int CDungeon::GetType_DungeonInHeritance() const
-{
-    return m_typeInheritance;
-}
-
 int CDungeon::getDungeonKind() const
 {
     return m_dungeonKind;
@@ -257,9 +252,15 @@ unsigned char CDungeon::get_dimension_possible() const
 bool CDungeon::isTowerOfDespairDungeon() const
 {
     // ORIG 0x0822b4fa：return GetType_DungeonInHeritance() == 1。
-    // ORIG `sub $0x18` 为 4.1 保守帧；4.4 精确帧 $0x4，dead pad≤0x10 被吸收、
-    // ≥0x11 跳 $0x24，$0x18 不可达（N 跨版本帧深族）。
+    // [b28c-21] ORIG `sub $0x18` 保守帧；4.4 对「TU 内已见定义的 callee」精确
+    // 继承 $0x4（P210 三态②）⇒ 把 GetType_DungeonInHeritance 定义移到本函数
+    // 之后（本 TU 仅此处调用它），4.4 只见声明 ⇒ 恢复 $0x18（P210 三态③）。
     return GetType_DungeonInHeritance() == 1;
+}
+
+int CDungeon::GetType_DungeonInHeritance() const
+{
+    return m_typeInheritance;
 }
 
 bool CDungeon::isTournamentDungeon() const
@@ -494,6 +495,8 @@ copy_rest:
 // mov %eax,%edx`，4.4 恒融合为 `lea 0x1(%eax),%edx`（三变体实测均 lea，见
 // 范式库跨版本豁免表 movzwl 段）；`movl $0x0,(%esp)` 系 .o R_386_32 数据地址
 // reloc 占位（§6.3），relink 后即 &GlobalData::s_systemTime_。语义等价。
+// [b28c-lane17] fresh 复验确认：字段已 unsigned short（movzwl 宽度/偏移全对），
+// 唯一残差即该 lea-vs-add+mov 折叠 ⇒ N18a（单段 regmove 不可造）封顶。
 void TOD_UserState::IncreaseEnterCount()
 {
     m_data.m_enterCount = m_data.m_enterCount + 1;
@@ -838,8 +841,11 @@ void MazeScript::clear()
 {
     // ORIG 0x88f2a76：宽高置 1；三组 vector clear；0x2c..0x54 置 -1；
     // 0x64..0x6c 置 0；0x70 字节清零；ridable clear。
-    m_width = 1;
-    m_height = 1;
+    // ORIG 0x088f2a85 段：宽高置 1 是 `for (i=0;i<=1;++i) arr[i]=1` 索引循环
+    // （`movl $0x1,(%eax,%edx,4)` + setle 回边），两条独立直写复现不了 ⇒
+    // 经匿名 union 的数组视图 m_dims 写。
+    for (int i = 0; i <= 1; ++i)
+        m_dims[i] = 1;
     m_grids.clear();
     m_vec14.clear();
     m_vec20.clear();

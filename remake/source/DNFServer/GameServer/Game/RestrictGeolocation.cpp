@@ -86,27 +86,40 @@ void RestrictGeolocation::clearAllowCountry()
 
 void RestrictGeolocation::addAllowCountry(std::string country)
 {
-    // ORIG 0x08170a9e：find!=end 则跳过，否则 insert。
-    if (m_allowCountry.find(country) == m_allowCountry.end())
-    {
-        m_allowCountry.insert(country);
-    }
+    // ORIG 0x08170a9e：op!= 实参 arg0=-0x14(end)/arg1=-0x18(find) ⇒ 源写
+    // `end() != it`（it 命名局部固定 find 先求值，4.4 对 != 右起算 it 再算
+    // end 临时，槽序与 ORIG 一致）；test/jne 空 then 岛 + insert 尾 jmp/nop
+    // （P223 goto 复现形）。
+    boost::unordered_set<std::string>::const_iterator it =
+        m_allowCountry.find(country);
+    if (m_allowCountry.end() != it)
+        goto DONE;
+    m_allowCountry.insert(country);
+DONE:
+    ;
 }
 
 bool RestrictGeolocation::isAllowCountryCode(std::string country)
 {
-    // ORIG 0x0817109a：find(this+0x04, country) != end()。
-    return m_allowCountry.find(country) != m_allowCountry.end();
+    // ORIG 0x0817109a：先 find（结果落 -0x10）后 end（临时 -0xc）——命名局部
+    // 固定左到右求值序（4.4 对 operator!= 双临时恒右起）；if-return 保 ORIG
+    // 尾部 bool 归一（mov$1/jmp/mov$0）岛（P56）。
+    boost::unordered_set<std::string>::const_iterator found =
+        m_allowCountry.find(country);
+    if (found != m_allowCountry.end())
+        return true;
+    return false;
 }
 
 void RestrictGeolocation::loadData()
 {
     // ORIG 0x08170fec：Acquire → Taiwan::internal_stream(guard,4,-1)（报告
     // loadData.md：localtaiwan/System/RestrictGeolocation.cpp 行 0x8b）→
-    // clearAllowCountry → DB_Q 投递。
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localtaiwan/System/RestrictGeolocation.cpp", 0x8b);
-    CStreamGuard guard(stream, true);
+    // clearAllowCountry → DB_Q 投递。Acquire 结果全程寄存器直传（P0：ORIG
+    // call 后无槽往返，`mov %eax,0x4(%esp)` 直用）⇒ 写成内联实参。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                           "localtaiwan/System/RestrictGeolocation.cpp", 0x8b),
+                       true);
     Taiwan::internal_stream(guard, static_cast<TaiwanInternalPack::T>(4), -1);
     clearAllowCountry();
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -114,8 +127,11 @@ void RestrictGeolocation::loadData()
 
 bool RestrictGeolocation::isAllow(std::string ip)
 {
-    // ORIG 0x08170ecc：拷贝入参后转查国家码白名单。
-    return isAllowCountryCode(ip);
+    // ORIG 0x08170ecc：拷贝入参后转查国家码白名单；结果落 %ebx 跨 string D1，
+    // 尾部 if-return bool 归一岛（P56）。
+    if (isAllowCountryCode(ip))
+        return true;
+    return false;
 }
 
 void RestrictGeolocation::getCountryCode(char* out, unsigned int outLen, std::string ip)

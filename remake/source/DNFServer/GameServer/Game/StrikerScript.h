@@ -95,10 +95,15 @@ struct StrikerSkillAddCommand
     int m_type;     // +0x08（setType: 0<=v<=8 写入）
     void setType(int type)
     {
-        if (type >= 0 && type <= 8)
-        {
-            m_type = type;
-        }
+        // [b28c-30] P223 多源尾标签形：ORIG 0x08a9d7cc 为
+        // `cmpl $0; js +0x1a` / `cmpl $8; jg +0x1d` / body / `jmp +0x1e`
+        // + 两个 nop 岛（+0x1a 的 nop;jmp、+0x1d 的 nop）；短路 `&&` 形产
+        // 单分支+bool 物化（11 insn），多源 goto 连续尾标签复现双岛（15 insn）。
+        if (type < 0) goto L_end;
+        if (type > 8) goto L_end;
+        m_type = type;
+    L_end:
+        ;
     }
 };  // 0xc
 
@@ -109,20 +114,22 @@ struct StrikerDirectionType
     StrikerDirectionType() : m_type(0) {}
     void setType(int type)
     {
-        // ORIG 0x08a9d7fa：双独立空块 js/jg+nop 岛保留（4.1 形），显式 else 链。
-        if (type < 0)
-        {
-        }
-        else if (type > 1)
-        {
-        }
-        else
-        {
-            m_type = type;
-        }
+        // b28c-L19：ORIG 0x08a9d7fa 双 nop 岛（js +0x19 / jg +0x1c / body 尾 jmp），
+        // P223 goto 尾空标签形精确复现（探针 /tmp/l19_probe6.cpp 逐条全等）。
+        if (type < 0) goto L_neg;
+        if (type > 1) goto L_pos;
+        m_type = type;
+        goto L_end;
+    L_neg:
+        ;
+        goto L_end;
+    L_pos:
+        ;
+    L_end:
+        ;
     }
     bool isType(T type);           // ORIG T 0x08a9d81a（定义 OnlyOrigBatch11.cpp）
-    int m_type;  // +0x00
+    unsigned int m_type;  // +0x00（b28c-L19：ORIG store 序 RHS 先 ⇒ 与 int 形参异型，探针实证）
 };  // 0x4
 
 class StrikerScript

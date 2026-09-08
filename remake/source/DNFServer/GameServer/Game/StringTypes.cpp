@@ -324,8 +324,11 @@ char CharString::front() const
 
 char CharString::back() const
 {
-    register unsigned int v asm("eax") = static_cast<unsigned int>(length());
-    if (v)
+    // [b28c-16 P0 清绑 + N96] 原 register asm("eax") 绑定违反 P0 全域禁则，
+    // 已按 P0 清除。自然形（`if(len())`/`!=0`/`>0`/cast，探针 p9 b1..b5）
+    // 4.4 恒多 `setcc %al; test %al,%al` 两条 bool 物化 vs ORIG 单条
+    // `test %eax,%eax; je` ⇒ 落 N96（绑定赋值中转）+P168a④。
+    if (length())
         return buffer_[length() - 1];
     return '\0';
 }
@@ -342,13 +345,12 @@ CharString::const_iterator CharString::end() const
 
 void CharString::assign(const CharString& src)
 {
+    // ORIG 0x08ad6fed：`cmp %eax,%ebx; sete %al; test %al,%al; jne +0x44(nop 岛)`
+    // ⇒ goto 尾空标签形（P223）。while+break 空体被 4.4 折掉 jne（实测 -3 条）。
     if (getData() == src.getData())
-    {
-    }
-    else
-    {
-        replaceData(src.getData());
-    }
+        goto done;
+    replaceData(src.getData());
+done:;
 }
 
 void CharString::assign(const char* src)
@@ -386,13 +388,12 @@ void CharString::assign(char src)
 
 void CharString::clear()
 {
+    // ORIG 0x08ad707f：`test %al,%al; jne +0x2b` + 体尾 `jmp +0x2c` + `nop`
+    // ⇒ P223 goto 尾空标签复现 4.1 空 then 占位岛。
     if (isEmpty())
-    {
-    }
-    else
-    {
-        replaceData(s_emptyCharStringData);
-    }
+        goto done;
+    replaceData(s_emptyCharStringData);
+done:;
 }
 
 char CharString::operator[](int idx) const
@@ -1066,8 +1067,8 @@ wchar_t WideString::front() const
 
 wchar_t WideString::back() const
 {
-    register unsigned int v asm("eax") = static_cast<unsigned int>(length());
-    if (v)
+    // [b28c-16 P0 清绑 + N96] 同上。
+    if (length())
         return buffer_[length() - 1];
     return 0;
 }
@@ -1084,13 +1085,12 @@ WideString::const_iterator WideString::end() const
 
 void WideString::assign(const WideString& src)
 {
+    // ORIG 0x08ad9feb：`cmp; sete %al; test %al,%al; jne +0x44(nop 岛)`
+    // ⇒ goto 尾空标签形（P223，同 CharString::assign）。
     if (getData() == src.getData())
-    {
-    }
-    else
-    {
-        replaceData(src.getData());
-    }
+        goto done;
+    replaceData(src.getData());
+done:;
 }
 
 void WideString::assign(const wchar_t* src)
@@ -1128,13 +1128,12 @@ void WideString::assign(wchar_t src)
 
 void WideString::clear()
 {
+    // ORIG 0x08ada0dd：`test %al,%al; jne +0x2b` + `jmp +0x2c` + `nop`
+    // ⇒ P223 goto 尾空标签（同 CharString::clear）。
     if (isEmpty())
-    {
-    }
-    else
-    {
-        replaceData(s_emptyWideStringData);
-    }
+        goto done;
+    replaceData(s_emptyWideStringData);
+done:;
 }
 
 wchar_t WideString::operator[](int idx) const
@@ -1739,6 +1738,10 @@ CharString mid(const CharString& str, int start, int length)
 
 CharString right(const CharString& str, int length)
 {
+    // [b28c-16 定论 N-86b] 残差仅 `str.length() - length` 的物化段数：ORIG 4.1
+    // 发 `mov %eax,%edx; mov 0x10(%ebp),%eax; mov %edx,%ecx; sub %eax,%ecx;
+    // mov %ecx,%eax` 五段（无槽往返 ⇒ P0 无具名局部），4.4 恒折 `sub MEM,%eax`
+    // 单条；同一算术多 codegen，源形不可择。
     if (str.length() <= length)
     {
         return CharString(str);
@@ -1795,6 +1798,7 @@ WideString mid(const WideString& str, int start, int length)
 
 WideString right(const WideString& str, int length)
 {
+    // [b28c-16 定论 N-86b] 同 right(CharString)：4.1 五段物化 vs 4.4 单条折叠。
     if (str.length() <= length)
     {
         return WideString(str);

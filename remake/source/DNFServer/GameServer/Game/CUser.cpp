@@ -214,7 +214,8 @@ void WongWork::CMCAPManager::resetExposedCount() { m_field10 = 0; }
 // 0x0864809c：antibot 校验/加密发送主链路（依据 AntibotSend.md 反编译；
 // s_antibotChecker_ vtable +0x34 校验 / +0x28 加密，ORIG 栈缓冲此处以 vector 等价）。
 extern void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user); // ORIG T 0x082751ee
-int CUser::AntibotSend(PacketBuf& packet)
+bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
+                                              // "bool CUser::AntibotSend(PacketBuf&)"（P174）
 {
     // ORIG T 0x0864809c 全文转写（报告 AntibotSend.md Ghidra C+asm 双段读完）：
     // ①verify（vtable+0x34）先行，成功后才进加密缓冲段；②加密缓冲=**VLA +
@@ -585,10 +586,13 @@ void charac_expand::CDataMgr::ResetDaily()
 // ORIG T 0x0832acd0：对 20 个 CData* 槽（m_pad）isSave→saveData 全链；任一失败返回 0。
 char charac_expand::CDataMgr::update(CUser* pUser)
 {
+    // [b28c-11] AE（32/32）：`isSave() != 0` + bool 字段/返回（CBoosterGage.h
+    // m_bIsSave/isSave bool 化）复现 ORIG `call isSave; je` 直判（char 形 4.4
+    // 恒物化 setne %al; test %al，P73）。
     char result = 1;
     for (int i = 0; i < 0x14; ++i)
     {
-        if (m_pad[i]->isSave())
+        if (m_pad[i]->isSave() != 0)
         {
             if (m_pad[i]->saveData(pUser) != 1)
                 result = 0;
@@ -599,8 +603,9 @@ char charac_expand::CDataMgr::update(CUser* pUser)
 
 char charac_expand::CDataMgr::update(CUser* pUser, ENUM_CHARAC_EXPAND_TYPE type)
 {
+    // [b28c-11] AE（25/25）：同上（bool isSave 直判，无 setne 物化）。
     char result = 1;
-    if (m_pad[(int)type]->isSave())
+    if (m_pad[(int)type]->isSave() != 0)
     {
         if (m_pad[(int)type]->saveData(pUser) != 1)
             result = 0;
@@ -1056,11 +1061,15 @@ void CUser::ResetDBLogItem()
 
 void CUser::DBUpdateDBLogItem() const
 {
-    // ORIG：it 槽 -0x24（比 4.4 默认远 4）——前置 dead int 占 -0x20（技巧 31）。
-    unsigned int slotPad;
-    (void)slotPad;
+    // b28c-L5：ORIG 0x0868950x 增量段调
+    //   `_ZN9__gnu_cxx17__normal_iteratorIPKN5CUser14_DBLogItemInfoESt6vectorIS2_SaIS2_EEEppEi`
+    //   （**后置** ++，带独立 sret 临时槽 -0x1c：`lea -0x1c; movl $0,0x8(%esp);
+    //   lea -0x24,%edx; mov %edx,0x4(%esp); mov %eax,(%esp); call ppEi; sub $4,%esp`）；
+    //   4.4 对 `++it` 走 ppEv（返回引用）⇒ 少 sret 槽 + 少 `sub $0x4,%esp`（ndiff 10）。
+    //   改后置形后该 sret 槽本身即把迭代器阶梯顶到 ORIG 位置 ⇒ 原「技巧 31 dead
+    //   slotPad」变为多余（会让 it 深一格到 -0x28、全帧平移），删除。
     for (std::vector<_DBLogItemInfo>::const_iterator it = m_dbLogItems.begin();
-         it != m_dbLogItems.end(); ++it)
+         it != m_dbLogItems.end(); it++)
     {
         DB_LogBuyItem::makeRequest(get_acc_id(), getCurCharacNo(), it->m_itemIdx,
                                    it->m_type, it->m_value);
@@ -1326,7 +1335,7 @@ struct SigForbidUserToPlayBody
 
 }  // namespace
 
-int CUser::make_basic_info(char* buf, char type)
+bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串 bool）
 {
     InterfacePacketBuf& pkt = *(InterfacePacketBuf*)buf;
     PacketGuard& pg = *(PacketGuard*)buf;
@@ -3135,7 +3144,8 @@ void CUser::ClearItemSellCount()
 }
 
 // ---- 发包族（PacketGuard 局部 + InterfacePacketBuf） ----
-int CUser::Send(PacketGuard& packet)
+bool CUser::Send(PacketGuard& packet)   // b28c-L5 SIGFIX：ORIG 串 bool；
+                                        // 调用点 0x082e6c2b `xor$1;test%al` bool callee 直判
 {
     PacketBuf* pBuf = ((InterfacePacketBuf*)&packet)->get();
     if (pBuf->is_finallized() == 0)
@@ -3191,7 +3201,7 @@ int CUser::SendPacket(eSendTarget target, PacketGuard& packet)
     return 1;
 }
 
-int CUser::SendCmdPacket(eSendTarget target, ENUM_CMDPACKET cmd, int param)
+bool CUser::SendCmdPacket(eSendTarget target, ENUM_CMDPACKET cmd, int param)  // b28c-L5 SIGFIX（P174）
 {
     // ORIG 0x867c1d4 块序（技巧 23 goto 钉）：true 路径 put_byte×2 后 **jmp 到位于
     // false(log) 块之后的共享 finalize+SendPacket 段（0x867c279）**；false 块
@@ -4104,7 +4114,7 @@ bool CUser::isHangameUser()
     return m_hangameUser;
 }
 
-unsigned char CUser::IsPowerUp()
+bool CUser::IsPowerUp()
 {
     return m_powerUp;
 }
@@ -5619,7 +5629,7 @@ void CUser::GetDailyBadge(short* out)
 // create_item(NONE,item,count)→有效性(m_addInfo||m_addInfo2)→插背包
 // （reason 0xd；失败系统邮件 msg_132/133 + item.reset，成功 SendUpdateItem）
 // → put_int/put_short → finalize 发送，返 1。
-int CUser::InsertOnTimeEventReward(unsigned int itemNo, unsigned int itemCount)
+bool CUser::InsertOnTimeEventReward(unsigned int itemNo, unsigned int itemCount)  // b28c-L5 SIGFIX（P174）
 {
     char logDir[256];
     memset(logDir, 0, sizeof(logDir));
@@ -7851,7 +7861,7 @@ bool CUser::send_itemspace(int space)   // 返回形随 CUser.h:2843 bool 化（
 }
 
 // 0x0868c170（返回 1 已通知 / 0 未满足条件）
-int CUser::send_ontime_reward_start_notify()
+bool CUser::send_ontime_reward_start_notify()   // b28c-L5 SIGFIX（P174）
 {
     // 0x0868c170 主分支（send_ontime_reward_start_notify.md）：事件 0x33 空 →
     // 日志+0；非活跃 / 奖励已开始（get_reward_state!=0）→ 0；日志块（文件名
@@ -8457,7 +8467,7 @@ void CUser::FatigueUp(int v)
 // 0x0867ba5c（SendNotiPacket.md）：header(0,cmd)；cmd==2 → byte+short(1)+
 // make_basic_info；cmd==0x25 → level/exp/组队/会员 exp/SP/SFP/胜点(+0x58)/
 // 疲劳/seria bonus/周末(事件 0x57 活跃才发并 reset)/premium bonus(reset)。
-void CUser::SendNotiPacket(eSendTarget target, ENUM_NOTIPACKET cmd, int param)
+bool CUser::SendNotiPacket(eSendTarget target, ENUM_NOTIPACKET cmd, int param)
 {
     PacketGuard packet;
     InterfacePacketBuf* pkt = (InterfacePacketBuf*)&packet;
@@ -8503,10 +8513,11 @@ void CUser::SendNotiPacket(eSendTarget target, ENUM_NOTIPACKET cmd, int param)
         LogManager::logFormat(1, "user.cpp",
             __PRETTY_FUNCTION__,
             0x76d1, "User %s - NotifyID = %d", getCurCharacName(), cmd);
-        return;
+        return false;   // b28c-L5 SIGFIX：ORIG 串 bool；失败臂 `mov $0x0,%ebx` 汇合尾
     }
     pkt->finalize(true);
     SendPacket(target, packet);
+    return true;        // ORIG 0x0867bd4e `call SendPacket; mov $0x1,%ebx; …mov %ebx,%eax`
 }
 
 // 0x0865c936
@@ -8931,7 +8942,14 @@ bool CUser::isCompetitionMercenary() const
     // 取 m_characNo 再一次。
     if (getCurCharacR() == 0)
         return false;
-    unsigned int idx = m_mercenaryMgr.FindIndexByCharacNo(
+    // b28c-L5（P218 应用）：下标局部 unsigned int → **int**。ORIG 末段
+    //   `mov -0xc(%ebp),%eax / mov 0x8(%ebp),%edx / add $0x6ef6c,%edx /
+    //    mov %eax,0x4(%esp) / mov %edx,(%esp) / call vector::operator[]`
+    //   是「实参值先物化、容器基址后算」；4.4 对 size_t 形参的下标恒先算基址并
+    //   折 `lea disp(%eax),%edx`（反例 ndiff 4 封顶判词已作废）。下标声明 int
+    //   ⇒ 实参走 size_t 转换中转，装载序翻为 ORIG 的值先形（P218 探针 w4 同族）。
+    //   与 -1 哨兵比较同时回归 ORIG 的 `cmpl $0xffffffff,-0xc(%ebp); jne` 槽比形。
+    int idx = (int)m_mercenaryMgr.FindIndexByCharacNo(
         static_cast<unsigned int>(getCurCharacR()->m_characNo));
     if (idx == 0xffffffff)
         return false;
@@ -8952,7 +8970,7 @@ bool CUser::isCompetitionMercenary() const
 // 槽号错位族（x87 ROUND 岛跨版本形态差），语义完整仅剩 codegen 差，N 封顶
 // （详见 docs/asm_translation_patterns.md 负例表）。
 // 重发任务信息包并重建 0x1e 任务列表。
-int CUser::update_pvp_point(int v)
+bool CUser::update_pvp_point(int v)   // b28c-L5 SIGFIX（P174）
 {
     if (v == 0)
         return 1;
@@ -9906,7 +9924,7 @@ void CUser::setCurrentCharacRentalInfo(
 
 // ORIG T 0x08677584：遍历当前角色租借列表，对仍存在的租借物品在序列化缓冲
 // （SIG_SAVE_INVENTORY）中清除对应背包槽；并回写租借条目的 inEquip 标志。
-int CUser::removeRentalItemInfoFromInvenBuf(SIG_SAVE_INVENTORY* sig, int param)
+bool CUser::removeRentalItemInfoFromInvenBuf(SIG_SAVE_INVENTORY* sig, int param)  // b28c-L5 SIGFIX
 {
     if (sig == 0)
         return 0;
@@ -9963,7 +9981,7 @@ int CUser::removeRentalItemInfoFromInvenBuf(SIG_SAVE_INVENTORY* sig, int param)
 //      宠物尾 → RemoveKCItem（state==10 时再 RemoveFPItem）→ cargo 容量+数据 →
 //      m_characExpand.update(this,9) → removeRentalItemInfoFromInvenBuf(1/2) →
 //      MsgQueueMgr::put(DB_Q,guard) → 返回 1。
-int CUser::SaveInventory()
+bool CUser::SaveInventory()   // b28c-L5 SIGFIX（P174）
 {
     if (isLocked4DataLoad())
     {
@@ -10175,7 +10193,7 @@ void CUser::_UpdateUserInfo4Guild()
 //   actionPoint(+0x1eb13)/expand vtable 槽+8(+0x34884)/altar(+0x1f804)/etc(+0x1fd20)；
 //   三个子对象内字段拷贝 + memcpy(+0x3f850, this+0x8d0fd, 0xc)；
 //   CacheCharacterMemory 失败 -> FreeCharacterMemory + trace + false；成功置 lastLogin + true。
-int CUser::CacheCharacterMemory()
+bool CUser::CacheCharacterMemory()   // b28c-L5 SIGFIX（P174）
 {
     if (getCurCharacR() == 0)
         return 0;
@@ -10370,15 +10388,15 @@ bool CUser::GetCharacInfo(SIG_LOAD_CHARAC* sig) const
     int characIdx = get_charac_idx(sig->m_characNo);
     sig->m_result = 0;
 
-    // ORIG 0x0864bcc8 系 `xor $0x1,%eax; test %al,%al; je`：register bool al 绑
-    // `!call()`（技巧 1 经物化赋值；直 `!call()`/`^1` 均产 sete/cmp 三段）。
-    // err trace 保具名（ORIG err@-0x30 远槽），主块 trace 临时链改注册序。
-    register bool ne asm("al");
-    ne = (getCharacInfoDetail(characIdx, sig->m_characNo,
-                              reinterpret_cast<CHARAC_DATA*>(&sig->m_characData))
-          != false);   // 技巧 22 直用：cmp $1/setne 两段=ORIG xor$1 段数；`!ident(` token 会被 eval 写路径破坏（__omp_shell），勿用
-
-    if (ne)
+    // b28c-L5：清 `register bool asm("al")` 存量绑定（P0/N96）。ORIG 0x0864bdf2
+    //   `call getCharacInfoDetail; xor $0x1,%eax; test %al,%al; je <正常路径>`
+    //   = P168a① 「callee 返回 bool ⇒ 调用点一律裸形」（该 callee 的 ORIG 体尾
+    //   仅 `mov $0x1/$0x0,%eax` 两出口 → P159 串/尾形双证 bool，声明已由 Main 代落
+    //   CUser.h:3121 int→bool）。X1 约束形/物化 bool 局部均产 sete|setne 三段，
+    //   唯有 bool callee + 裸 `!call()` 出单条 xor。
+    // err trace 保具名（ORIG err@-0x30 远槽），主块 trace 临时链改全表达式形。
+    if (!getCharacInfoDetail(characIdx, sig->m_characNo,
+                             reinterpret_cast<CHARAC_DATA*>(&sig->m_characData)))
     {
         cMyTrace tr(__PRETTY_FUNCTION__, 0x1052, 0);
         tr("getCharacInfoDetail() return = false");
@@ -10389,20 +10407,34 @@ bool CUser::GetCharacInfo(SIG_LOAD_CHARAC* sig) const
     int tagIdx = get_charac_idx((unsigned int)getCurCharacTagCharacNo());
     if (tagIdx >= 0 && tagIdx < (int)m_characList.size())
     {
-        sig->m_tagCharacNo = (unsigned int)getCurCharacTagCharacNo();
+        // b28c-L5：删 (unsigned int) cast。ORIG 0x0864bd1x `mov 0xc(%ebp),%edx;
+        //   mov %eax,0x686(%edx)` = 值留 %eax、base 占 %edx 的**同型直存**形；
+        //   原字段 unsigned int ← int 返回值异型使 4.4 多一段 edx 中转（P211）。
+        //   字段已随 SigTypes_C.h 改回 int（广播）。
+        sig->m_tagCharacNo = getCurCharacTagCharacNo();
         sig->m_strikerSkillIndex = getCurCharacStrikerSkillIndex();
     }
     getTagCharacInfo(tagIdx, sig->m_tagCharacNo,
                      reinterpret_cast<TAG_CHARAC_DATA*>(&sig->m_tagCharacData));
     {
         // ORIG 0x864bcf6/0x864bd01：两值先求值直落 callee-saved %esi/%ebx，
-        // 跨 ctor/operator() 存活（register 局部实证形态）；主 trace 临时链
-        // （技巧 3）翻转与 err-trace 的槽分配序（ORIG 主@-0x20/err@-0x30）。
-        register int tick = (int)reinterpret_cast<const CHARAC_DATA*>(
-                                &sig->m_characData)->m_field4d;
-        register int cno = (int)sig->m_characNo;
+        // 跨 ctor/operator() 存活；主 trace 临时链（P227 全表达式形）翻转与
+        // err-trace 的槽分配序（ORIG 主@-0x20/err@-0x30）。
+        // b28c-L5：原 `register int …` 无 asm 绑定（合规），但 4.4 对具名
+        // register 局部仍按 P0 落槽 ⇒ 保留具名局部写法（ORIG 两值确在 ctor 前
+        // 物化并经 %esi/%ebx 跨 call 保活，P227 实证该形态由「实参位内联 +
+        // 全表达式临时链」自然产生，无需绑定）。
+        // b28c-L5 两处装载形修正：
+        //   ① `mov 0x59(%eax),%esi`（ORIG 单 disp，%eax=sig）⇒ 必须走**真成员链**
+        //      `sig->m_characData.m_field4d`（4.4 折 base+0xc+0x4d 为一条 disp32）；
+        //      原 reinterpret_cast<CHARAC_DATA*>(&m_characData) 使 4.4 先 `add $0xc`
+        //      物化子对象地址再读 +0x4d（+1 条）。
+        //   ② `mov 0x4(%eax),%ebx`（ORIG 一步直落 callee-saved）⇒ 删多余 (int) cast：
+        //      字段 unsigned int 而目标寄存器承载 int 时 4.4 恒插 `mov %eax,%ebx`
+        //      中转（P211/N18a 族，varargs 实参位无需显式拓宽）。
         cMyTrace(__PRETTY_FUNCTION__, 0x1066, 0)(
-            "CharLastPlayTick char(%d) t(%d)", cno, tick);
+            "CharLastPlayTick char(%d) t(%d)", sig->m_characNo,
+            sig->m_characData.m_field4d);
     }
     return true;
 }
@@ -10485,6 +10517,16 @@ bool CUser::GetInventoryInfo(SIG_LOAD_INVENTORY* sig)
 // ORIG T 0x0869067c：TAG 角色背包 → TAG_CHARAC_INVEN_DATA。
 bool CUser::getTagCharacInventory(TAG_CHARAC_INVEN_DATA* out) const
 {
+    // b28c-L5 判词（N30 族·lea-vs-add 单点残留）：本波已翻正两处——
+    //   ① GetInvenData 的 `add $0x1c(%esp)` 出参组（原 cast 形，与 ORIG 同）；
+    //   ② `lea 0x3ff8(%eax),%ebx`（把 TAG_CHARAC_INVEN_DATA::m_clearAvatar 由
+    //      char[0x28] 改真实类型 unsigned long[10] 后免 cast，4.4 即折单条 lea，
+    //      与 CInventory::GetClearAvatar(unsigned long*) 权威形参同型）。
+    //   唯一残留：`lea 0x1e47(%eax),%ebx` vs 4.4 `add $0x1e47,%eax; mov %eax,%ebx`。
+    //   同一基址的前一个取址 `lea 0x1e43(%eax),%esi` 两侧一致 ⇒ 差异由 4.4 的
+    //   第二次 reload+目标寄存器选择决定（实测 `out->m_avatarDetail` 与
+    //   `&out->m_avatarDetail[0]` 两写法产物相同），属 P30 尾判的
+    //   「穷举后 add-vs-lea 不齐 ⇒ 结构性伪影不强求」。
     if (getTagCharacR() == 0)
         return false;
     // ORIG：getTagCharacInvenR() 返回 CInventory*（位于 _Charac_info.m_inven，本源码返回 Inven_Item* 同址）
@@ -10498,7 +10540,7 @@ bool CUser::getTagCharacInventory(TAG_CHARAC_INVEN_DATA* out) const
         ->GetClearAvatar(reinterpret_cast<unsigned long*>(out->m_clearAvatar));
     reinterpret_cast<const CInventory*>(getTagCharacInvenR())
         ->GetAvatarItemMgrR()->GetItem(
-        reinterpret_cast<AvatarDetailInfo*>(out->m_avatarDetail),
+        reinterpret_cast<AvatarDetailInfo*>(&out->m_avatarDetail[0]),
         &out->m_avatarCount);
     out->m_cargoCapacity =
         (unsigned int)getTagCharacCargoR()->GetCapacity();
@@ -10506,7 +10548,7 @@ bool CUser::getTagCharacInventory(TAG_CHARAC_INVEN_DATA* out) const
 }
 
 // ORIG T 0x0867776c：从 SIG_LOAD_INVENTORY 背包镜像清除已不存在的租借物品。
-int CUser::removeRentalItemInfoFromInvenLoadBuf(SIG_LOAD_INVENTORY* sig, int param)
+bool CUser::removeRentalItemInfoFromInvenLoadBuf(SIG_LOAD_INVENTORY* sig, int param)  // b28c-L5 SIGFIX
 {
     if (sig == 0)
         return 0;
@@ -10556,7 +10598,10 @@ void CUser::GetTicket(SIG_LOAD_TICKET* sig) const
     sig->m_count = index;
 }
 
-int CUser::getCharacInfoDetail(int param_1, unsigned int characNo, CHARAC_DATA* out) const
+bool CUser::getCharacInfoDetail(int param_1, unsigned int characNo, CHARAC_DATA* out) const
+    // b28c-L5 SIGFIX（Main 已代落 CUser.h:3121）：ORIG @0x0864bdba 全部出口只写
+    //   `mov $0x1/$0x0,%eax`（P159 尾形）+ 唯一外部消费点 GetCharacInfo @0x0864bdf2
+    //   `call; xor $0x1,%eax; test %al,%al; je`（P22/P168a① bool callee 直判形）。
 {
     // ORIG T 0x0864bdba：op[] 每字段重调 ~64 次（4.4 O0 不 CSE call ⇒ 逐处展开
     // 同形；具名引用缓存折成单取是 gap343 主因）。字段序 = ORIG 汇编写序
@@ -10720,12 +10765,27 @@ unsigned char CUser::getFlagPresentAvengerTitle() const  // 0x08697578：*(uchar
 // 冗余 regmove（probe 四形 21/23/26/28/30 均不达 24）——语义+调用点全对，残 +4。
 void CUser::GetAuraAvatarOption(stAuraAvatarOption& option) const
 {
+    // b28c-L5：清 `register const _Charac_info* asm("eax")` 存量绑定（P0/N96）。
+    //   判词（布局视图缺口，非源形问题）：ORIG 拷贝段是
+    //     `mov 0xc(%ebp),%edx`（**目标** option 基址驻 %edx）+
+    //     `mov 0x1281(%eax),%ecx …`（**源**以 this 相对 disp32 直读）的 12 字节
+    //   POD 结构整体赋值形。当前 `_Charac_info` 只有 `struct{int×3}`/`int[3]`
+    //   两视图、无 stAuraAvatarOption 成员 ⇒ 任何写法都只能先 `add $0x1281`
+    //   物化源地址（4.4 把源基址留给 callee-saved、目标挤到 %eax，装载方向反）。
+    //   已按 §5.3 申请在 CUser.h:692 union 内补具名结构视图（Main 已代落
+    //   `stAuraAvatarOption m_auraAvatarOption;`，+0x1281，0xc 字节，零布局影响）。
+    // ORIG 0x0868ddc2 拷贝段 =
+    //   `mov 0xc(%ebp),%edx / mov 0x1281(%eax),%ecx / mov %ecx,(%edx) /
+    //    mov 0x1285(%eax),%ecx / mov %ecx,0x4(%edx) / mov 0x1289(%eax),%eax /
+    //    mov %eax,0x8(%edx)`
+    // —— 目标基址**单装载驻 %edx** + 源基址驻 %eax 连续三 dword，正是 12 字节
+    // POD 结构整体赋值的 4.1 展开形（P83：结构整体赋值 vs 逐字段/ memcpy 三形互斥；
+    // 逐字段写 4.4 恒每字段重装载两侧基址 ⇒ 多 4 条，原绑定期靠钉 %eax 勉强凑）。
+    // 源子对象已由 CUserCharacInfo.h:499 union 具名建模（m_auraAvatarOption @+0x1281）
+    // ⇒ 用具名结构成员整体拷贝，无需指针缓存亦无裸偏移（§4.3）。
     if (getCurCharacR() == 0)
         return;
-    register const _Charac_info* cur asm("eax") = getCurCharacR();
-    option.m_value0 = cur->m_auraValue0;  // +0x1281
-    option.m_value1 = cur->m_auraValue1;  // +0x1285
-    option.m_value2 = cur->m_auraValue2;  // +0x1289
+    option = getCurCharacR()->m_auraAvatarOption;   // +0x1281 具名结构整体拷贝
 }
 
 // ORIG 0x0868f03c _ZNK5CUser18GetCurCharacOptionER15CharacterOption
@@ -10742,6 +10802,18 @@ void CUser::GetCurCharacOption(CharacterOption& option) const
 // ORIG 0x0864dcf2 _ZNK5CUser8GetSkillEP14SIG_LOAD_SKILLP15SIG_COMBO_SKILL
 bool CUser::GetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo) const
 {
+    // b28c-L5 判词（N30/N18a 族·lea-vs-add 跨版本折叠差，语义零差）：ORIG 对
+    //   `&skill->m_remainSpTree{1,2}/m_remainSfpTree{1,2}` 三个 callee-saved 实参
+    //   恒走「地址算术在 %eax 上做 → 再 mov 到 %edi/%esi/%ebx」两条
+    //   （`mov 0xc(%ebp),%eax; add $0x340,%eax; mov %eax,%edi`），而 4.4-O0 折叠为
+    //   单条 `lea 0x340(%eax),%edi`（我方 -3 insn）。同函数内**非 callee-saved**
+    //   的那处 `mov 0xc(%ebp),%eax; add $0x1a8,%eax`（memcpy 目标）两侧完全一致，
+    //   证明差异只在「目标寄存器是否 callee-saved」这一 lea 折叠决策上，与源形无关
+    //   （cast/具名局部/语句表达式三形实测均维持 lea 单条）⇒ P30 尾判：
+    //   「穷举后 add-vs-lea 与寄存器名仍不齐 → 结构性伪影不强求」。
+    //   本波已翻正项：get_skill_command_buf 的具名结果指针 + 判空（原缺，
+    //   ORIG `mov %eax,-0x1c(%ebp); cmpl $0x0,-0x1c(%ebp); je` 实证 P0 有槽往返）
+    //   ⇒ 同时把 cmds 数组顶到 ORIG 的 -0xe4（原 -0xe0 帧差 4 即此槽缺失所致）。
     skill->m_field04 = 0;
     // ORIG：getCurCharacSkillR 在 get_remain_sp/get_skill_slot/getComboSkillSaveData
     // 三处各自重调——访问器结果禁缓存（战术 P183/P48）。
@@ -10753,8 +10825,19 @@ bool CUser::GetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo) const
                          (char*)skill->m_skillSlotTree2, 0x198);
     STSkillCommandData::STCommand cmds[50];
     memset(cmds, 0, sizeof(cmds));
+    // b28c-L5：ORIG 0x0864ddxx 在 call 之后另有一次「cmds 基址落槽 + 判空」：
+    //   `call get_skill_command_buf / lea -0xe4(%ebp),%eax / mov %eax,-0x1c(%ebp) /
+    //    cmpl $0x0,-0x1c(%ebp) / je +0x127 / …mov -0x1c(%ebp),%eax → memcpy 源`
+    //   ⇒ 原码有具名指针局部（P0：该值有槽往返），且声明点在 call **之后**
+    //   （4.1 初始化前置族 N88 的反向：此处落槽动作确实发生在 call 之后）。
+    //   该具名槽同时把 cmds 数组顶到 -0xe4（我方原形 -0xe0 的 4 字节差即此槽缺失，
+    //   非 N95 帧基差）。memcpy 源改用该指针（ORIG 从 -0x1c 回读）。
     get_skill_command_buf(cmds);
-    memcpy(skill->m_commands, cmds, sizeof(cmds));
+    STSkillCommandData::STCommand* pCmdBuf = cmds;
+    if (pCmdBuf != 0)
+    {
+        memcpy(skill->m_commands, pCmdBuf, sizeof(cmds));
+    }
     // ORIG 0x0864de1e `movzbl 0xa850(%eax)`（unsigned char 宽实证）
     skill->m_field411 = G_CDataManager()->m_pvpSkillTree.m_field50;
     ((SkillSlot*)getCurCharacSkillR())->getComboSkillSaveData(combo);
@@ -11429,7 +11512,7 @@ bool CUser::DoGetCeraPointItem(unsigned int money, bool bReset,
 
 // ORIG T 0x0868c3bc sz0xa2（返回 1 已删 / 0 事件空或非活跃）：
 // OnTimeEvent(0x33) 活跃时删除奖励用户。
-int CUser::delete_ontime_reward_list()
+bool CUser::delete_ontime_reward_list()   // b28c-L5 SIGFIX（P174）
 {
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x33);
     if (ev == 0)

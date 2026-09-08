@@ -183,7 +183,18 @@ void ProcStage::ProcSummonObjectMs::reset()
 // ORIG T 0x0812d50a（isEndSummon.md 全文）：return vector.size() <= m_currentMs。
 bool ProcStage::ProcSummonObjectMs::isEndSummon() const
 {
-    return m_summons.size() <= static_cast<unsigned int>(m_currentMs);
+    // b28c-L5：ORIG 0x0812d50a 两处约束——
+    //   ① `mov (%eax),%ebx`（m_currentMs 一步 32 位直落 callee-saved、跨 size()
+    //      调用保活）⇒ 源侧**不得**写 static_cast（显式 cast 使 4.4 退化成
+    //      `mov → mov %eax,%ebx` 两段并丢 push %ebx；int 与 size_t 的隐式 usual
+    //      arithmetic conversion 即 ORIG 的 `cmp %eax,%ebx / setae` 无符号形）；
+    //   ② 尾形 `test %al,%al; je; mov $1; jmp; mov $0` 是 if-return 分支物化，
+    //      非 `return expr;` 的 setae 直返（P56）。
+    if (m_currentMs >= m_summons.size())
+    {
+        return true;
+    }
+    return false;
 }
 
 // ORIG W 0x08134820（objdump）：return m_field2c - m_field28。
@@ -394,11 +405,18 @@ void ProcStage::incCurrentMs()
 // ----------------------------------------------------------------------------
 bool ProcStage::isEndAllPhase() const
 {
+    // b28c-L5：同 isEndSummon —— ORIG 0x0812eb5a `mov 0xc(%eax),%ebx` 一步直落
+    //   （无 static_cast，隐式 usual conversion 保 `cmp %eax,%ebx / setae`）+
+    //   尾 if-return 物化岛（P56）；现形 cast 致两段中转、直返省整段岛（少 4 条）。
     if (m_timeLine == 0)
     {
         return false;
     }
-    return static_cast<unsigned int>(m_fieldc) >= m_timeLine->m_phases.size();
+    if (m_fieldc >= m_timeLine->m_phases.size())
+    {
+        return true;
+    }
+    return false;
 }
 
 // ----------------------------------------------------------------------------
@@ -870,12 +888,13 @@ int CharacData::getGageLevel() const
 // 与 upGage() 同模式）；m_gage<cost → ret3；否则扣费并按档位
 // 0→1 / 1→2 / 2→3 推进 m_gageLevel，ret0。
 // ----------------------------------------------------------------------------
-void CharacData::upgreadGage()
+unsigned int CharacData::upgreadGage()   // b28c-L5 SIGFIX：ORIG 三出口写 %eax 错误码；
+                                         // 消费点 store 直存形定案 unsigned（见 .h 判词）
 {
     ConfigParameter* cfg = &G_CDataManager()->m_altarConfig;  // CDataManager+0x6364（upgreadGage.md `add $0x6364`）
     if (m_gageLevel == 3)
     {
-        return;   // ORIG eax=2：满级错误码 2 [返回值未使用，函数体忠实转写]
+        return 2;   // ORIG 0x0812d194 `mov $0x2,%eax; jmp 尾`：满级错误码 2
     }
     // +0x18 = m_strPtr 双解引（mov 0x18(%eax);mov(%eax)）；+0x04 = m_4（float，flds 0x4）。
     const int base = *reinterpret_cast<int*>(cfg->m_strPtr);
@@ -887,7 +906,7 @@ void CharacData::upgreadGage()
                                       0.5f);
     if (m_gage < cost)
     {
-        return;   // ORIG eax=3：gage 不足
+        return 3;   // ORIG 0x0812d1f0 `mov $0x3,%eax; jmp 尾`：gage 不足
     }
     m_gage -= cost;
     if (m_gageLevel == 1)
@@ -902,6 +921,7 @@ void CharacData::upgreadGage()
     {
         m_gageLevel = 1;
     }
+    return 0;   // ORIG 0x0812d23e `mov $0x0,%eax`（成功统一出口，非各臂就地写）
 }
 
 // ----------------------------------------------------------------------------

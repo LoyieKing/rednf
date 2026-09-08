@@ -74,7 +74,7 @@ int get_rand_int(int max);
 
 
 
-TradeSlot::TradeSlot()
+TradeSlot::TradeSlot() throw()
 {
     Reset();
 }
@@ -751,7 +751,7 @@ bool CTradeSpace::cancel_trade_for_china(CUser* user)
 // 残差豁免（O=1096/N=1098，+2）：bool hack 汇聚岛与 4.4 折叠的 ±差异、
 // [jump-threading] case2 cancel 成功/失败块序。float/double 阈值块按
 // ORIG Ghidra 精度（第一块 float 0.7+0.01*r1，第二块 double 0.9）。
-int CTradeSpace::change_trade_state(CUser* user, int state)
+bool CTradeSpace::change_trade_state(CUser* user, int state)   // SIGFIX: bool（ORIG 串）
 {
     PacketGuard packet;  // ORIG 入口即构造（-0xc0），各分支复用
     int me, opp;

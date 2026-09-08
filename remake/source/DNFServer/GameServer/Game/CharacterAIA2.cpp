@@ -231,11 +231,12 @@ struct STRDCharacterStatusRate
         m_head[7] = 1.0f;
         m_head[8] = 1.0f;
         m_head[9] = 1.0f;
-        // P191：4.1 循环变量双初始化（`movl $0x0,-0x4`×2）⇒ `int i=0;`+`for(i=0;…)` 两段
+        // P191：4.1 循环变量双初始化（`movl $0x0,-0x4`×2）⇒ `int i=0;`+`for(i=0;…)` 两段。
+        // [b28c-31] AE：两循环共用单变量 i 复现 ORIG 0x088cc1e3/0x088cc24b 同槽
+        // -0x4 复用（两个独立变量让 4.4 各占一槽，实测 i=-0x8/k=-0x4 DIFF）；90=90。
         int i = 0;
         for (i = 0; i <= 3; ++i) m_mid28[i] = 1.0f;
-        int k = 0;
-        for (k = 0; k <= 16; ++k) m_mid38[k] = 1.0f;
+        for (i = 0; i <= 16; ++i) m_mid38[i] = 1.0f;
         m_tail[0] = 1.0f;
         m_tail[1] = 1.0f;
         m_tail[2] = 1.0f;

@@ -36,6 +36,9 @@ class FindControllableEventProcessor
 {
 public:
     explicit FindControllableEventProcessor(int eventId) : m_eventId(eventId) {}
+    // [b28c-11] NEAR 封顶（23/23 条）：残余 = 虚调用 callee 寄存器 %ecx↔%eax
+    // 互换（`mov (%eax),%ecx; …call *%ecx` vs `mov (%eax),%eax; …call *%eax`），
+    // N7 族（4.4 间接 call 目标恒 %eax）。
     bool operator()(std::pair<int const, EventProcessor*> const& p) const
     {
         if (p.second == 0)

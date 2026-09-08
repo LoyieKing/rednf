@@ -274,7 +274,7 @@ public:
     void SendPowerWarPoint(class Packet_Guild_Change_Power_War_Point&);// 0x0846e460
     void SendJoinPower(unsigned int, unsigned int, unsigned char);// 0x0846e4b6
     void SendSecedePower(unsigned int, unsigned int);           // 0x0846e500
-    int OnTcpRecv();                    // 0x0846e53c
+    bool OnTcpRecv();                   // 0x0846e53c（SIGFIX: ORIG 串 "bool CGuildServerProxy::OnTcpRecv()"）
     int OnTcpSend();                    // 0x0846e5cc
     bool OnTcpError();                  // 0x0846e66c
     bool Parsing(int);                  // 0x0846e6f6

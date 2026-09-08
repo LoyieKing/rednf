@@ -177,7 +177,6 @@ bool MySQL::open(char* host, unsigned int port, char* db, char* user, char* pass
 
 bool MySQL::set_query(const char* fmt, ...)
 {
-    va_list ap;
     if (m_bQueryCounterEnable)
     {
         if (m_pQueryCounter == 0)
@@ -188,6 +187,9 @@ bool MySQL::set_query(const char* fmt, ...)
         std::string query(fmt, alloc);
         m_pQueryCounter->IncreaseQueryCount(query);
     }
+    // [b28c-34] ORIG 槽序 ap(-0x28 最深)→query(-0x24)→alloc(-0x1d)：把 ap 声明
+    // 移到 if 块之后（4.4 块内槽重开方向与 4.1 相反，P212）；语义等价。
+    va_list ap;
     va_start(ap, fmt);
     vsprintf(m_query, fmt, ap);
     va_end(ap);

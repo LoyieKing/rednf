@@ -54,6 +54,7 @@ int CEnchanter::IsRightMaterial()
 // IsRecipeRight（报告 IsRecipeRight.md，ORIG T 0x849ca06 sz 0x63）：
 // m_field40 非空、非 stackable、虚槽 vtable+0xc（GetItemType）== 3 才为真。
 // ---------------------------------------------------------------------------
+// b28c-1 N7: 虚调用 callee %eax↔%edx 互换。
 bool CEnchanter::IsRecipeRight()
 {
     if (reinterpret_cast<CItem*>(m_field40) == 0)
@@ -160,6 +161,7 @@ int CEnchanter::_TryEnchantMine(CUser* user, stItemPos_t* pos)
 // ---------------------------------------------------------------------------
 // _TryEnchantOther（报告 _TryEnchantOther.md，ORIG T 0x849da3e sz 0x285）
 // ---------------------------------------------------------------------------
+// b28c-1 N7: _TryEnchantOther 虚调用 callee %eax↔%edx 互换。
 int CEnchanter::_TryEnchantOther(CUser* user, stItemPos_t* pos)
 {
     (void)pos;   // ORIG 形参 pos 未被函数体消费（Ghidra 同）
@@ -349,9 +351,12 @@ void CEnchanter::OnPutItemForEnchant(CUser* user, MSG_STATIC_COMMAND* msg)
 // ---------------------------------------------------------------------------
 // OnTryEnchant（报告 OnTryEnchant.md，ORIG T 0x849dfcc sz 0xb1）
 // ---------------------------------------------------------------------------
+// b28c-1 N18a: 字段装载 4.4 单段直落 %ebx vs ORIG mov mem,%eax; mov %eax,%ebx（P226 实测无效）。
 void CEnchanter::OnTryEnchant(CUser* user, MSG_STATIC_COMMAND* msg)
 {
     int err = 0;   // ORIG 首条 movl $0,-0xc：err 声明置函数头
+    // b28c-1：ORIG `mov 0xe(%eax),%eax; mov %eax,%ebx` 两段升格 vs 4.4 单段
+    //  直落 %ebx（N18a 族）；P226 语句表达式实测无效，维持自然形。
     m_field40 = G_CDataManager()->find_item(msg->m_value0e);
     if ((err = _TryEnchant(
              user, reinterpret_cast<stItemPos_t*>((char*)msg + 0x13),
@@ -371,6 +376,7 @@ void CEnchanter::OnTryEnchant(CUser* user, MSG_STATIC_COMMAND* msg)
 // ---------------------------------------------------------------------------
 // _AgreeEnchant（报告 _AgreeEnchant.md，ORIG T 0x849dd94 sz 0x1c9）
 // ---------------------------------------------------------------------------
+// b28c-1 N7: 两处虚调用 callee %eax↔%edx 互换。
 int CEnchanter::_AgreeEnchant(CUser* user, ENUM_AGREE_ENCHANT_TYPE type)
 {
     int ret = 0;   // -0xc：ORIG movl $0 开头

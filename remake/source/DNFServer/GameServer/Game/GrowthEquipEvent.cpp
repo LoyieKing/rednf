@@ -44,13 +44,14 @@ void GrowthEquipEvent::SelectGrowthWeapon(CUser& user, int itemId, int addInfo)
     // ORIG +0x1b sete：仅本活动道具（== itemId）进入主体。
     if (G_CDataManager()->m_growthWeapon.m_giftBox == itemId)
     {
-        // 用户活动数据块（CUser::getGrowthWeaponEventdata 返回 void*，未建模布局：
-        // +0x04 已选角色 charac_no / +0x08 已选道具 idx / +0x12 short serverGroup）。
-        // P48：ORIG 无 CSE，getGrowthWeaponEventdata() 调 3 次，每次结果寄存器直传
-        // （首处 ebx 跨 get_charac_no 存活 → 单表达式右值内联，不命名 data 局部）。
-        *(int*)(static_cast<char*>(user.getGrowthWeaponEventdata()) + 0x04) =
+        // [b28c-L18] P211 注（pad 解引用⇒LHS 地址跨 call 缓存反例）：原裸偏移
+        // `*(int*)(cast+0x04)=call()` 使 4.4 恒发 `lea 0x4(base),%ebx` 地址槽化；
+        // 改 GrowthWeaponEvent 具名同型字段直存后复现 ORIG `mov %eax,%ebx` +
+        // `mov %eax,0x4(%ebx)`（ORIG 0x080f70xx 段实证 base 指针入 ebx、disp 折叠 store）。
+        // P48：ORIG 无 CSE，getGrowthWeaponEventdata() 调 3 次，每次结果寄存器直传。
+        static_cast<GrowthWeaponEvent*>(user.getGrowthWeaponEventdata())->m_field4 =
             user.get_charac_no(-1);
-        *(int*)(static_cast<char*>(user.getGrowthWeaponEventdata()) + 0x08) = addInfo;
+        static_cast<GrowthWeaponEvent*>(user.getGrowthWeaponEventdata())->m_field8 = addInfo;
 
         // 渠道组：整合 PvP 基础渠道用用户 server group，否则直读环境
         // m_serverEnvir.m_serverGroup（ORIG [G_CEnvironment()+0x378]，无 get_server_group() call）。
@@ -60,7 +61,7 @@ void GrowthEquipEvent::SelectGrowthWeapon(CUser& user, int itemId, int addInfo)
             serverGroup = (int)user.GetServerGroup();
         else
             serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
-        *(short*)(static_cast<char*>(user.getGrowthWeaponEventdata()) + 0x12) =
+        static_cast<GrowthWeaponEvent*>(user.getGrowthWeaponEventdata())->m_field12 =
             (short)serverGroup;
 
         DB_EventUpdateGrowthWeaponCharac::makeRequest(
@@ -92,10 +93,13 @@ void GrowthEquipEvent::SendGrowthWeaponEventInfo(CUser& user)
     // fall-through = GetServerGroup 支，`test %al,%al; je <env>` 无 xor 归一，P191 极性）；
     // ②env 支 ORIG `call G_CEnvironment; mov 0x378(%eax),%eax` 直读字段 ⇒ 改
     //   m_serverEnvir.m_serverGroup（+0x198+0x1e0），不发 get_server_group() call
-    //   （同 CBossPlay.cpp:301 先例）；③selected 去 bool 具名槽（ORIG 结果只占 %eax、
+    // ③selected 去 bool 具名槽（ORIG 结果只占 %eax、
     //   `test %al,%al` 直测）⇒ 内联进 if/else 两 put_byte call。
-    // 残余 3：`movzwl+movswl %ax,%edx; cmp %eax,%edx` vs 4.4 `movzwl+cwtl; cmp MEM,%eax`
-    // = 负例 N18a/N22（单段 regmove/内存直比不可翻）。
+    // [b28c-L18] 残余 3 复核：`movzwl+movswl %ax,%edx; cmp %eax,%edx` vs 4.4
+    // `cwtl; cmp MEM,%eax` = N18a/N22（单段 regmove/内存直比不可翻）；操作数对调
+    // （short 字段置左）已试不翻；**Main P230 推论实测负例**：本 TU 追加
+    // `-march=i486 -mtune=generic` 重编，regmove/cmp 折叠形原样不动（cmov 族外，
+    // 旗标对 lifetime/折叠类差异无效）。
     int serverGroup = 0;
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
@@ -114,8 +118,10 @@ void GrowthEquipEvent::SendGrowthWeaponEventInfo(CUser& user)
     {
         if ((user.get_charac_no(-1) ==
              static_cast<GrowthWeaponEvent*>(user.getGrowthWeaponEventdata())->m_field4) &&
-            (serverGroup ==
-             static_cast<GrowthWeaponEvent*>(user.getGrowthWeaponEventdata())->m_field12))
+            // [b28c-L18] 操作数序对调：ORIG cmp 的 dst=短字段拓宽值（`movswl %ax,%edx`
+            // 后 `cmp %eax,%edx`），即 short 字段为左操作数。
+            (static_cast<GrowthWeaponEvent*>(user.getGrowthWeaponEventdata())->m_field12 ==
+             serverGroup))
         {
             packet.put_byte(1);
         }

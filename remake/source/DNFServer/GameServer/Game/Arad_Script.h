@@ -51,7 +51,8 @@ public:
     int rows_;   // +0x04, Create sets 0x100
     int usedCols_;
     int usedRows_;
-    int bufBytes_;
+    unsigned int bufBytes_;  // ORIG Create 0x0817b775 `shl $7,%eax; mov %eax,%edx`
+                             // 值先算完再中转 ⇒ 字段与 int RHS 异型（P211）
     char* cells_; // +0x14, cell size 0x80
     std::string pathA_;
     std::string pathB_;

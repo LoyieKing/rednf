@@ -42,11 +42,16 @@ public:
     void set_teleport_member_state(int idx, char state);
     void reset_teleport_data();
     char check_cur_teleport_state();
-    char process_teleport();
+    // SIGFIX:CPartyTelePort::process_teleport — ORIG __PRETTY_FUNCTION__ 串
+    // "bool CPartyTelePort::process_teleport()"（返回类型不入 mangled）。
+    bool process_teleport();
     void process_leave_user_at_teleport(CUser* user);
     void send_teleport_effect_at_different_place(int param);
     void send_teleport_effect_at_equal_place(int param);
-    unsigned int get_teleport_member_state(int idx);
+    // [b28-L14] ORIG 调用点 check_cur_teleport_state 0x85bbb4x 为 `call
+    // get_teleport_member_state; cmp $0x4,%al`（单字节直测）⇒ 返回类型 char
+    // （mangled 不含返回类型，P159/P27）。
+    char get_teleport_member_state(int idx);
     unsigned char get_teleport_village();
     unsigned char get_teleport_area_index();
     short get_teleport_posx();

@@ -278,6 +278,10 @@ void AttackInfo::clear()
 // ORIG 0x8890760：+0x14 != 0 或 damage>0 或 absoluteDamage>0 → true。
 bool AttackInfo::isIntendDamage()
 {
+    // [b28c-L7] N85 封顶：唯一残差 = x87 比较 lowering 两向差——ORIG 0x08890776
+    // `fucompp; fnstsw %ax; sahf; seta` vs 4.4 `fucomip %st(1),%st; fstp %st(0);
+    // seta`（条数 24 vs 25，语义逐条等价）。N85 判据明列此形无源码解（禁改
+    // callee 返回类型/禁内联绕过）。三条件短路布局与跳转落点已全等。
     if (m_weaponDamageApply != 0 || m_damage > 0.0f || m_absoluteDamage > 0)
     {
         return true;
@@ -312,9 +316,11 @@ bool AttackInfo::isValidElement(ENUM_ELEMENT element)
          it != m_elements.end(); it++)
     {
         ENUM_ELEMENT e = *it;
-        if (e == ENUM_ELEMENT_NONE)
-            continue;
-        v.m_elemEnable[e] = 1;
+        // [b28c-L7] P222 正向包裹：ORIG 0x08890846 `cmpl $4; je <inc块>` 且
+        // body 尾**无 jmp**（自然 fall-through 到 inc）。`==NONE → continue`
+        // 形在 4.4 的 inc 块落点不同 ⇒ body 尾多 `jmp + nop` 中继对。
+        if (e != ENUM_ELEMENT_NONE)
+            v.m_elemEnable[e] = 1;
     }
     return isValidAttackInfoElement(&v, element);
 }
@@ -327,15 +333,18 @@ void AttackInfo::setAttackType(ENUM_ATTACKTYPE type)
 }
 
 // ORIG 0x88908c6：按 "attack type physical/magical/absolute" 返回 0/1/2。
+// [b28c-L7] 判词：AE 修法=具名局部累加形（ORIG `movl $0x7,-0xc` 初值 +
+// 各分支 `movl $N,-0xc` + 单出口 `mov -0xc,%eax`）；早返 return 形多 jmp 岛。
 int AttackInfo::getAttackType(std::string& tag)
 {
+    int type = 7;
     if (tag == "attack type physical")
-        return 0;
-    if (tag == "attack type magical")
-        return 1;
-    if (tag == "attack type absolute")
-        return 2;
-    return 7;
+        type = 0;
+    else if (tag == "attack type magical")
+        type = 1;
+    else if (tag == "attack type absolute")
+        type = 2;
+    return type;
 }
 
 // ---- 辅助自由函数 ----
@@ -2096,9 +2105,13 @@ const char* getElementName(ENUM_ELEMENT element)
 }
 
 // ---- OnlyOrigBatch3：CreatureAdditionalAnimation 3参构造（ORIG W 0x08a3dcc2）----
-// ORIG：m_name 默认构造（_ZNSsC1Ev）后赋值（_ZNSsaSEPKc）
+// ORIG：m_name 默认构造（_ZNSsC1Ev）**先于**标量 store（+0x0/+0x4），再赋值
+// （_ZNSsaSEPKc）。4.1 发射序=meminit（按声明序）→ ctor 体；把 string 写进初始化
+// 列表、标量移入 body 即复现（P239 ctor 标量段拆入 body）。
 CreatureAdditionalAnimation::CreatureAdditionalAnimation(int a, int b, const char* name)
-    : m_field0(a), m_field4(b)
+    : m_name()
 {
+    m_field0 = a;
+    m_field4 = b;
     m_name = name;
 }

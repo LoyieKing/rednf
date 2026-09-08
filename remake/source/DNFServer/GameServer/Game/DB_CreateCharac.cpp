@@ -421,16 +421,13 @@ bool DB_CreateCharac::_checkCreateEventCharacter(SIG_CREATE_CHARAC* sig)
             sig->m_resultCode = 4;
             return false;
         }
-        else
-        {
-            return true;
-        }
     }
     else
     {
         sig->m_resultCode = 4;
         return false;
     }
+    return true;
 }
 
 // ===========================================================================

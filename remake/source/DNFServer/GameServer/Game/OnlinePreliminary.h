@@ -63,7 +63,12 @@ public:
     void reset() { m_user = 0; m_flag = 0; }
 
     /*+0x00*/ CUser*        m_user;
-    /*+0x04*/ unsigned char m_flag;
+    /*+0x04*/ bool          m_flag;   // b28c-L26 档②（Main 三档口径）：ORIG add 0x0855fe18
+                                      // 为 `movzbl 0xc(%eax,%edx,8),%eax; xor $0x1,%eax;
+                                      // test %al,%al; je` 寄存器 xor 物化，lane20A 实证
+                                      // 「字段 bool 化 + 裸 !field」为 4.4 自然复现路径
+                                      // （CSharedServerMessageManager m_isSet 3→0 判例）。
+                                      // 偏移/sizeof 8/mangled 不变；m_pad[3] 保 +0x05..07。
     char          m_pad[3];
 };  // sizeof 8
 
@@ -111,7 +116,10 @@ struct CharacterInServer
 
     bool operator<(const CharacterInServer& rhs) const;
 
-    short         m_serverId;  // +0x00（ORIG ctor 0x858691e 以 mov %dx 16 位写）
+    // [b28c-16] short→unsigned short：ORIG operator< 0x085868d4 读形为
+    // `mov 0x8(%ebp),%eax; movzwl (%eax),%edx` 一步零扩展直落 edx；short 字段
+    // + static_cast 在 4.4 恒拆两段（探针 p6 op1/op2）。16 位写宽（ctor mov %dx）不变。
+    unsigned short m_serverId;  // +0x00（ORIG ctor 0x858691e 以 mov %dx 16 位写）
     unsigned int  m_uniqueId;  // +0x04
 };
 

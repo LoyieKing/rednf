@@ -211,6 +211,8 @@ bool DB_SaveCharac::_SaveCharacInfo(SIG_SAVE_CHARAC* sig)
 // ===========================================================================
 bool DB_SaveCharac::_SaveCharacStat(SIG_SAVE_CHARAC* sig)
 {
+    // [b28c-lane25 判词·NEAR/N82] 302/302 指令数全等、调用点差集零；残差为 4.1 帧
+    // 0x2xx vs 4.4 槽号整体平移（N82 lifetime 槽复用差异），语义完成，byte 层封顶。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     db->set_query(
         "upDate charac_stat set village=%d,exp=%d,HP=%d,fatigue=%d,"

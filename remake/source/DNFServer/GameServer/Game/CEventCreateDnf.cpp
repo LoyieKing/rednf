@@ -197,10 +197,11 @@ void CEventCreateDnf::SendReward(CUser* user)
     std::vector<std::pair<int, int> > items;                     // ORIG local_30
 
     // ORIG 0x0816428d：ARAD::Singleton<CreateDnfEventSciprtServer>::Get()；
-    // lea 0x4(%eax) → Server @+0x04 内嵌 CreateDnfEventSciprt。
+    // lea 0x4(%eax) → Server @+0x04 的 CreateDnfEventSciprt 基类子对象
+    // （b28c-32 已把原成员 m_script 改为首个非主基类，故此处走基类引用）。
     CreateDnfEventSciprtServer* server =
         ARAD::Singleton<CreateDnfEventSciprtServer>::Get();
-    server->m_script.GetItemInfo(items, m_reserved);   // ORIG lea 0x4(%eax) → @+0x04 内嵌脚本对象                      // ORIG 第二参 = this+0x14 byte
+    static_cast<CreateDnfEventSciprt&>(*server).GetItemInfo(items, m_reserved);   // ORIG 第二参 = this+0x14 byte
 
     // ORIG 0x081642a8..0x0816431c：RDARScriptStringManager::findString(4, key, 0) + strncpy
     char szTitle[30];                                            // ORIG -0x4a（0x1d cap）

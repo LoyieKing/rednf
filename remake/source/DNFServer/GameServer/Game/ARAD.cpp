@@ -150,8 +150,12 @@ int ExceptionItem::parsing(char* data)
 
 bool ExceptionItem::find_index(int index)
 {
-    // ORIG 0x81a210c：map<int,int> 命中返回 true。
-    return m_exceptionItemIndex.find(index) != m_exceptionItemIndex.end();
+    // ORIG 0x81a210c：find 先于 end（求值序），且尾为 test/je/mov$1/jmp/mov$0
+    // 分支归一化（P56）——具名迭代器 + if(cond)return true 复现。
+    std::map<int, int>::iterator it = m_exceptionItemIndex.find(index);
+    if (it != m_exceptionItemIndex.end())
+        return true;
+    return false;
 }
 
 // ============================================================================
@@ -189,11 +193,17 @@ int PurchaseLimitItem::parsing(char* data)
 bool PurchaseLimitItem::find(unsigned int itemIndex, Info& out)
 {
     // ORIG 0x81a2310：map<uint,Info> 命中写 out 返回 true。
-    std::map<unsigned int, Info>::const_iterator it = m_purchaseLimitMap.find(itemIndex);
-    if (it == m_purchaseLimitMap.end())
-        return false;
-    out = it->second;
-    return true;
+    // P96：4.4 的 const_iterator 与 iterator 是不同类型，find 返回值赋 const_iterator
+    // 会多一次转换构造（ORIG 无该 call）；ORIG 侧 cv 限定为非 const iterator。
+    std::map<unsigned int, Info>::iterator it = m_purchaseLimitMap.find(itemIndex);
+    // P222：ORIG 0x81a235f 为正向包裹（`test; je <mov $0 失败岛>; 命中体; mov $1`），
+    // 否定早返 `if (it == end) return false;` 产反向块序。
+    if (it != m_purchaseLimitMap.end())
+    {
+        out = it->second;
+        return true;
+    }
+    return false;
 }
 
 // ============================================================================

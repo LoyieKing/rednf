@@ -109,44 +109,55 @@ bool RandomOptionField::empty() const
 
 bool RandomOption::change_option(ENUM_RANDOM_OPTION_NUMBER num)
 {
+    // [b28c-11] NEAR 封顶（22/22 条）：4.4 对 `(unsigned char)(x & 3)` 恒先窄化
+    // （movzbl %al,%eax; mov %eax,%edx; and $3,%edx）而 ORIG 4.1 先 and 后窄化
+    // （and $3,%eax; movzbl %al,%edx），且帧 sub $0x18(ORIG)/$0x4(4.4) 非 16k+4
+    // 量化（P190 附注②不可凑）。N18/N22 族，语义等价。
     // W 0x85f4002：!m_fielda.empty() && (m_seedd & 3) == num
-    if (m_fielda.empty())
+    if (!m_fielda.empty())
     {
-        return false;
+        if ((m_seedd.m_field & 3) == (unsigned int)num)
+            return true;
     }
-    return (unsigned char)(m_seedd.m_field & 3) == (unsigned char)num;
+    return false;
 }
 
 unsigned char RandomOption::get_option_index(ENUM_RANDOM_OPTION_NUMBER num)
 {
+    // [b28c-11] NEAR 封顶：ORIG `movzbl (%eax,%ecx,1),%eax`（双寄存器寻址）vs
+    // 4.4 `lea (%ecx,%eax,1),%eax; movzbl (%eax),%eax`（N4/N30 族，不可折叠）。
     // W 0x85f4040：change_option ? this[0xa] : this[num*3+0]
     if (change_option(num))
     {
         return m_fielda.m_field0;
     }
     // P0：去 self 局部（ORIG 保持 this 在寄存器 movzbl (%eax,%ecx,1)）。直接内联 cast。
-    return reinterpret_cast<const unsigned char*>(this)[(int)num * 3];
+    return *(reinterpret_cast<const unsigned char*>(this) + (int)num * 3);
 }
 
 void RandomOption::set_first_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v)
 {
+    // [b28c-11] NEAR 封顶（26/26 条）：残余 = 帧 0x28/0xc、v 槽 -0xc/-0x4、
+    // 地址两步 lea（ORIG `lea (%ecx,%eax,1),%eax; lea 0x1(%eax),%edx`）vs 4.4
+    // `add $0x1,%eax; lea (%ecx,%eax,1),%edx`（N1 两步常量算术折叠）。
     // W 0x85f4078：change_option ? this[0xb]=v；恒写 this[num*3+1]=v
     if (change_option(num))
     {
         m_fielda.m_field1 = v;
     }
     // P0：ORIG 无 self 局部槽，this 寄存器直读
-    reinterpret_cast<unsigned char*>(this)[(int)num * 3 + 1] = v;
+    *(reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(this) + 1) + (int)num * 3) = v;
 }
 
 void RandomOption::set_second_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v)
 {
+    // [b28c-11] NEAR 封顶（26/26 条）：同 set_first_value（N1 两步 lea + 帧/槽差）。
     // W 0x85f40be：change_option ? this[0xc]=v；恒写 this[num*3+2]=v
     if (change_option(num))
     {
         m_fielda.m_field2 = v;
     }
-    reinterpret_cast<unsigned char*>(this)[(int)num * 3 + 2] = v;
+    *(reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(this) + 2) + (int)num * 3) = v;
 }
 
 DifferentWeightValue::DifferentWeightValue()

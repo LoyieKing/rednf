@@ -512,21 +512,25 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
 // getCharacLinkSystemData（ORIG T 0x0840ffca）
 // ============================================================================
 
-bool DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
+void DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     // P48 no-CSE：ORIG 三处各自 fresh NumberToString()（两条 set_query + cMyTrace）
     // 与两处 fresh get_n_rows()。
     db->set_query("seLect message_flag from charac_link_message where m_id=%s",
                   NumberToString(sig->m_accId, 0));
+    // [b28c-L9] SIGFIX:DB_Login::getCharacLinkSystemData —— ORIG
+    // __PRETTY_FUNCTION__ 串为 `void DB_Login::getCharacLinkSystemData(...)`，
+    // 且尾 0x084101a0 `xor $1,%eax; test %al,%al; jmp exit`（值无分支消费者）
+    // ⇒ 原码非「返回错误码」而是 void + 嵌套 if/else（旧 bool 早返形系误建模；
+    // 0x084101a7 的 nop 是 4.1 为 n_rows!=1 空 else 发射的中继岛，P184/P223）。
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__,
                               0x2f54, "LINK_LOG : charac_link_message DB ERROR!!");
-        return false;
     }
-    if (db->get_n_rows() == 0)
+    else if (db->get_n_rows() == 0)
     {
         db->set_query("inSert into charac_link_message(m_id,message_flag) values(%s,0)",
                       NumberToString(sig->m_accId, 0));
@@ -536,21 +540,22 @@ bool DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
                                   __PRETTY_FUNCTION__,
                                   0x2f5d, "LINK_LOG : charac_link_message DB INSERT FAIL!!");
         }
-        return false;
     }
-    if (db->get_n_rows() == 1)
+    else if (db->get_n_rows() == 1)
     {
         if (db->fetch())
         {
-            bool got = db->get_byte(0, reinterpret_cast<char&>(sig->m_characLinkMessageFlag)); // +0x3f5c
-            return !got;   // ORIG bVar2 = get ^ 1
+            if (!db->get_byte(0, reinterpret_cast<char&>(sig->m_characLinkMessageFlag)))
+            {
+            }
         }
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x2f65, 5);
-        trace("LINK_LOG : charac_link_message DB ERROR!! M_ID(%s)",
-              NumberToString(sig->m_accId, 0));
-        return true;    // cMyTrace::operator() 返回值原样透传（ORIG byte）
+        else
+        {
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x2f65, 5);
+            trace("LINK_LOG : charac_link_message DB ERROR!! M_ID(%s)",
+                  NumberToString(sig->m_accId, 0));
+        }
     }
-    return false;
 }
 
 // ============================================================================
@@ -862,23 +867,20 @@ void DB_Login::_getSecurityCardInfo(SIG_LOGIN_DATA* sig)
     sig->m_secCardActivate = true;                  // +0x39e0
 
     // cert_flag != 0 且当日已过疲劳重置点 → 清零 cancel 计数
-    if (((VCertFlag*)sig)->m_certFlag != 0)
+    // [b28c-L9] ORIG 0x084113aa..0x084113f0：`bool hit = (certFlag!=0) && call(...)` 短路形——
+    // 首条件 je 与 call 失败 je 共享 L_false 岛（mov $0,%eax），成功后 mov $1,%eax 汇合
+    // 再 test %al（P0：值全程经 %eax 无槽往返 ⇒ 原码是表达式不是具名中间量）；
+    // 两 callee-saved 由实参右→左求值定：curSec→%ebx、occTime→%esi（P52/P87）。
+    if (({ ((VCertFlag*)sig)->m_certFlag != 0
+           && CheckDailyScheduleTime(
+                  ((VEnvSched*)G_CEnvironment())->m_dailyResetHour,
+                  ((VOccTime*)sig)->m_occTime,
+                  GlobalData::s_systemTime_.getCurSec()); }))
     {
-        // ORIG：curSec→%ebx、occTime→%esi 跨 G_CEnvironment 调用缓存（P52/P87）
-        // asm 钉形实测：esi 装载 round-trip ×4、bool hit 钉后 if/else 物化岛丢失，
-        // 形距更远 ⇒ 保持裸 register（N7 角色轮换 + N18a 单段装载不可翻）。
-        register long curSec = GlobalData::s_systemTime_.getCurSec();
-        register long occTime = ((VOccTime*)sig)->m_occTime;
-        // ORIG bVar2 仅在 CheckDailyScheduleTime 非零时为真（choose 物化后再分支）
-        register bool hit = CheckDailyScheduleTime(
-            ((VEnvSched*)G_CEnvironment())->m_dailyResetHour, occTime, curSec);
-        if (hit)
-        {
-            ((VCertFlag*)sig)->m_certFlag = 0;
-            db->set_query("upDate member_security_card set cancel_cnt=0 where m_id=%s",
-                          NumberToString(sig->m_accId, 0));
-            db->exec(true);
-        }
+        ((VCertFlag*)sig)->m_certFlag = 0;
+        db->set_query("upDate member_security_card set cancel_cnt=0 where m_id=%s",
+                      NumberToString(sig->m_accId, 0));
+        db->exec(true);
     }
 }
 
@@ -1404,6 +1406,9 @@ bool DB_Login::IsPCRoomIP(char* ip)
 
 bool DB_Login::CreateAccount(SIG_LOGIN_DATA* sig, MySQL* db)
 {
+    // [b28c-L9] 残差 3 = N18a：hangame_flag 实参 ORIG `movzbl %al,%edx; mov %edx,0xc(%esp)`
+    // 单段直落 %edx，4.4 恒 `movzbl %al,%eax` + 独立中转（探针 P200/P226 形不可造）；
+    // 助记符序列同 ⇒ NEAR 封顶。
     if (sig == 0 || db == 0)
     {
         return false;
@@ -1812,7 +1817,7 @@ int DB_Login::GetSchoolName(int schoolId, char* name)
 // GetBadgeCount（ORIG T 0x08414512）
 // ============================================================================
 
-int DB_Login::GetBadgeCount(SIG_LOGIN_DATA* sig)
+bool DB_Login::GetBadgeCount(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_10, E_SERVER_GROUP_NONE);
     for (int i = 0; i < 3; ++i)
@@ -1917,8 +1922,8 @@ int DB_Login::GetGameDBInfo(SIG_LOGIN_DATA* sig)
 
 void DB_Login::SaveLoginTime(unsigned int mid, int loginTime, char* ip)
 {
-    char table[20];                          // ORIG 槽序：table 深于 db/trace（声明先行、赋值在后）
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
+    char table[20];                          // ORIG 槽序：table 深于 db/trace（-0x30/-0x1c/-0xc）
     memset(table, 0, sizeof(table));
     memcpy(table, "member_login", 0xd);      // ORIG 原样拷贝（含终结符）
     db->set_query(
@@ -1927,11 +1932,9 @@ void DB_Login::SaveLoginTime(unsigned int mid, int loginTime, char* ip)
     if (!db->exec(true))
     {
         register char* errId = NumberToString(mid, 0);   // P87：ORIG ctor 前载 %ebx 跨调用
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x3bd1, 0);
-        trace("DB_Login::SaveLoginTime, inSert ERROR m_id=%s, logintime=%d, ip=%s",
-              errId, loginTime, ip);
+        cMyTrace(__PRETTY_FUNCTION__, 0x3bd1, 0)(
+            "DB_Login::SaveLoginTime, inSert ERROR m_id=%s, logintime=%d, ip=%s",
+            errId, loginTime, ip);
     }
 }
 
@@ -2146,6 +2149,10 @@ int DB_Login::GetOntimeUserRecvIdx(SIG_LOGIN_DATA* sig)
 
 int DB_Login::GetUserFatigueCount(SIG_LOGIN_DATA* sig)
 {
+    // [b28c-L9] 残差 6 = 全为跨版本寄存器/调度差（N7）：
+    // ① entity vtable+0x20 间接 call：ORIG funcptr→%edx/实参→%eax，4.4 恒互换；
+    // ② `movzbl -0x11(%ebp),%esi`（occDay）装载时刻相对 G_CDataManager 调用点差 1 位。
+    // 指令数 118=118、助记符序列全等 ⇒ NEAR 封顶。
     // ORIG：无 mng 具名局部，每处重新求值链式表达式（P48 无 CSE）
     if (!(static_cast<EventClassify::CEventScriptMng*>(
               G_CDataManager()->get_event_script_mng()))->is_eventing(0x56))
@@ -2228,17 +2235,23 @@ int DB_Login::GetUserInGameEventHistory(SIG_LOGIN_DATA* sig)
         {
             break;
         }
-        ok = db->get_int(0, *(reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + (0x3fa0 + i * 0xc)) + 3));
+        // [b28c-L9] N1：ORIG 0x08415391..0x084153a5 地址链三步
+        // `add $0x3fa0,%eax; add 0xc(%ebp),%eax; add $0xc,%eax`；
+        // 4.4 前端 fold 恒把 0x3fa0+0xc 折成 0x3fac（探针 l9p/l9p2 十形全败）。
+        ok = db->get_int(0, *reinterpret_cast<int*>(
+            reinterpret_cast<char*>(sig) + 0x3fa0 + i * 0xc + 0xc));
         if (!ok)
         {
             break;
         }
-        ok = db->get_int(1, *(reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + (0x3fa0 + i * 0xc)) + 4));
+        ok = db->get_int(1, *reinterpret_cast<int*>(
+            reinterpret_cast<char*>(sig) + 0x3fa0 + i * 0xc + 0x10));
         if (!ok)
         {
             break;
         }
-        ok = db->get_int(2, *(reinterpret_cast<int*>(reinterpret_cast<char*>(sig) + (0x3fa0 + i * 0xc)) + 5));
+        ok = db->get_int(2, *reinterpret_cast<int*>(
+            reinterpret_cast<char*>(sig) + 0x3fa0 + i * 0xc + 0x14));
         if (!ok)
         {
             break;
@@ -2251,7 +2264,7 @@ int DB_Login::GetUserInGameEventHistory(SIG_LOGIN_DATA* sig)
 // CheckLoginIP（ORIG T 0x08415472）
 // ============================================================================
 
-int DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
+bool DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
 {
     if (sig == 0)
     {
@@ -2306,7 +2319,7 @@ int DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
 // GetMercenarySystemInfo（ORIG T 0x08415618）
 // ============================================================================
 
-int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
+bool DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
 {
     if (sig == 0)
     {
@@ -2436,7 +2449,7 @@ int DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
 // GetGrowthWeaponEvent（ORIG T 0x08447ea6）
 // ============================================================================
 
-int DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
+bool DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
 {
     // P1 组件视图：ORIG 清块/写块单指令 disp（movb/movw/movl $imm,0x414x(%eax)）
     struct __attribute__((packed)) GWView {
@@ -2449,16 +2462,13 @@ int DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
         unsigned short m_timepiece;            // +0x4150
         unsigned short m_serverId;             // +0x4152
     };
-    // 4.4 槽序与 4.1 相反（P28/P112）：先声明者槽更深，按 ORIG 槽位（db -0xc、ok -0xd）
-    // 逆序声明 evt/ok/db。
     bool ok;
     MySQL* db;
-    // ORIG +0x1b：GetRepeatEvent 结果直调虚槽 +0x34（无判空）；
-    // evt 恒居 %eax（ORIG `mov (%eax),%edx;…; mov %eax,(%esp)` 无槽），asm 钉形防
-    // 4.4 spill 槽顶深后续（实测槽 -0x14 多占 → vfn/arg 序全漂移）。
-    register CEventBase* evt asm("eax") =
-        GlobalData::s_event_manager->GetRepeatEvent(100);
-    if (!evt->IsEventing(0))
+    // [b28c-L9] **P0 清绑**：原 `register CEventBase* evt asm("eax") = …` 系历史寄存器
+    // 绑定（N96 已登记全域禁用），删绑后按 P226/BM11 正向路径改**单语句内联形**——
+    // ORIG +0x1b 的 GetRepeatEvent 结果无槽往返（`mov (%eax),%edx; …; mov %eax,(%esp);
+    // call *%edx`）⇒ 按 P0 原码本无具名局部，直调虚槽 +0x34 写在条件表达式内。
+    if (!(GlobalData::s_event_manager->GetRepeatEvent(100))->IsEventing(0))
     {
         return 1;
     }
@@ -2505,7 +2515,7 @@ int DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
 // GetGrowthCreatureEvent（ORIG T 0x08448102）
 // ============================================================================
 
-int DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
+bool DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
 {
     CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x67);
     if (evt == 0 || !evt->IsEventing(0))  // §4.1：删发明 helper vtableCall34，原地展开（P5 真虚调用）
@@ -2556,7 +2566,7 @@ int DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
     return 1;
 }
 
-int DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
+bool DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
 {
     CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x68);
     if (evt == 0 || !evt->IsEventing(0))  // §4.1：删发明 helper vtableCall34，原地展开（P5 真虚调用）
@@ -2607,7 +2617,7 @@ int DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
 // GetBingoEvent（ORIG T 0x08448bee）
 // ============================================================================
 
-int DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
+bool DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
 {
     SIG_BINGO_EVENT& bingo = *reinterpret_cast<SIG_BINGO_EVENT*>(
         SGB(sig, OFF_BINGO_EVT));
@@ -2668,7 +2678,7 @@ int DB_Login::GetBingoEvent(SIG_LOGIN_DATA* sig)
 // IsThisIPLoginPermissionGranted（ORIG T 0x0844b982）
 // ============================================================================
 
-int DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
+bool DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
     unsigned int allowCnt = 0;

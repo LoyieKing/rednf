@@ -166,6 +166,9 @@ bool DB_MailBox_Req_CheckReceiver::dispatch(int userIdx, int slot, Stream* strea
 //    InsertLetter(db, +0x1d 收件人, +0x2d 发件人, +0x3fc1 name, +0xdb title,
 //    +0x3fbd letterId, t, 0)，失败 logFormat(0x8e53) → _sendResult(slot, sig)
 //    → 返 1。
+// b28c-L20: N1 — 唯一真残差 `sig->m_payload + 0xaa`（m_payload char[0x3f88] @+0x31 ⇒
+//   +0xdb）：ORIG 0x0843bb71 `add $0xdb,%eax; mov %eax,%ecx` 两步，4.4 恒折单条
+//   `lea 0xdb(%eax),%esi`（数组退化+常量折叠），其余为寄存器名对调（N82附）。ndiff 13。
 // ============================================================================
 bool DB_Multi_MailBox_Req_Send::dispatch(int userIdx, int slot, Stream* stream)
 {
@@ -203,6 +206,8 @@ bool DB_Multi_MailBox_Req_Send::dispatch(int userIdx, int slot, Stream* stream)
 //    <<0x1f5 → cMyTrace("bool ..._sendResult(int, SIG_MAILBOX_CHECK_RECEIVER*)",
 //    0x8e6a,0)("E_MULTI_MAILBOX_REQ_SEND : %d",0x1f5) → <<slot →
 //    GetInBuffer<SIG_MAILBOX_CHECK_RECEIVER> → memcpy 0x3fde → put(DISPATCH_Q) → 1。
+// b28c-L20: AE — 全表达式临时链 cMyTrace(...)(...) 复现 ORIG 槽方向（guard -0x24 深 /
+//   trace -0x1c 浅；具名 trace 时 4.4 反向，P221/P227）。
 // ============================================================================
 bool DB_Multi_MailBox_Req_Send::_sendResult(int slot, SIG_MAILBOX_CHECK_RECEIVER* sig)
 {
@@ -210,8 +215,9 @@ bool DB_Multi_MailBox_Req_Send::_sendResult(int slot, SIG_MAILBOX_CHECK_RECEIVER
 
     guard.operator*()->operator<<(0x1f5);
 
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x8e6a, 0);
-    trace("E_MULTI_MAILBOX_REQ_SEND : %d", 0x1f5);
+    // b28c-L20: 全表达式临时链（P221/P227）复现 ORIG 0x0843bc85 的 ctor/operator()
+    // 槽方向（ORIG trace -0x1c 浅 / guard -0x24 深；具名 trace 时 4.4 反向）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x8e6a, 0)("E_MULTI_MAILBOX_REQ_SEND : %d", 0x1f5);
     guard.operator*()->operator<<(slot);
     SIG_MAILBOX_CHECK_RECEIVER* out = guard->GetInBuffer<SIG_MAILBOX_CHECK_RECEIVER>();
     memcpy(out, sig, 0x3fde);

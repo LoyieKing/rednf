@@ -221,6 +221,10 @@ struct SIG_MAILBOX_CHECK_RECEIVER
     unsigned int m_receiverLevel;     // +0x21 DB 回填 lev
     unsigned int m_receiverDeleteFlag;// +0x25 DB 回填 delete_flag（==0 正常用户）
     unsigned int m_receiverAccId;     // +0x29 DB 回填 m_id（accId）
+    // [b28c-34] 换型 int 已回退（C28L20 反例：DB_Multi_MailBox_Req_Send::dispatch
+    // 0x0843bb89 load→int 形参段 ORIG 有 eax→edx 中转 ⇒ 字段须与 int 异型；
+    // 与 store 段（0x084cffc9 LHS-first）方向相反，共享头维持 unsigned int。
+    // store 点同型化改由 InterDispatcher.cpp 源侧 int 引用视图承载。
     unsigned int m_senderCharacNo;    // +0x2d game 写 get_charac_no(-1)
     char m_payload[0x3f88];           // +0x31 MSG_CHECK_MAIL_RECEIVER 载荷透传
     unsigned int m_resultFlag;        // +0x3fb9 DB 结果（0 ok / 0x4d 名称非法）
@@ -783,7 +787,11 @@ static_assert(sizeof(SIG_SAVE_CHARAC) == 0x10d, "SIG_SAVE_CHARAC");
 
 struct SIG_SAVE_CHARAC_INFORM_NOTICE
 {
-    int m_characNo;              // +0x00（CCharacInformNotice::_saveData ORIG 0x080e4b52）
+    unsigned int m_characNo;     // +0x00（CCharacInformNotice::_saveData ORIG 0x080e4c21：
+                                 //   `call get_charac_no; mov %eax,%edx; mov -0xc(%ebp),%eax;
+                                 //   mov %edx,(%eax)` = RHS 先+中转（P211 call 返回值异型）；
+                                 //   get_charac_no 权威返回 int（GlobalData.h/CUser.h:2917）
+                                 //   ⇒ 字段必非 int。b28c-L15）
     unsigned char m_flags[0x10]; // +0x04
 };
 static_assert(sizeof(SIG_SAVE_CHARAC_INFORM_NOTICE) == 0x14, "SIG_SAVE_CHARAC_INFORM_NOTICE");

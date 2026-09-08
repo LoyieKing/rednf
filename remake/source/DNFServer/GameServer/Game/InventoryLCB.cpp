@@ -39,7 +39,9 @@ int CInventory::CheckEquipmentItemCondition(INVEN_TYPE type, short slot,
         return 0x11;
 
     // ORIG 顺序：先取 abilityType 存栈(-0xd)，再 isIdentified 判定。
-    char abilityType = item.m_amp.getAbilityType();
+    // b28c-L2: 局部与目标字段同型化（uchar=uchar）翻转 store 装载序为 ORIG 的
+    // LHS 地址先形（0x850851a `mov 0x14(%ebp),%eax` 先于 `movzbl -0xd,%edx`，P211）。
+    unsigned char abilityType = item.m_amp.getAbilityType();
     if (!item.m_amp.isIdentified())
         return 0x13;
 
@@ -59,8 +61,7 @@ int CInventory::CheckEquipmentItemCondition(INVEN_TYPE type, short slot,
     else
     {
         cond.m_hasAmplify = 1;                              // cond[1]
-        cond.m_amplifyType =
-            static_cast<unsigned char>(abilityType);        // cond[2]（原字节）
+        cond.m_amplifyType = abilityType;                   // cond[2]（原字节）
         cond.m_amplifyValue = item.m_amp.getAbilityValue(); // *(ushort*)&cond[4]
     }
 

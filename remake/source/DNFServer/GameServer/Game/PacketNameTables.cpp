@@ -1223,21 +1223,24 @@ char* GetPacketName(ENUM_PACKETCLASS packetClass, unsigned short packetId)
 // ORIG 0x082a2150：越界 → NONAME。
 char* GetNotifyPacketName(ENUM_NOTIPACKET type)
 {
-    static const char* const NONAME = "???";
-    const int id = (int)type;
-    if (id < 0 || id >= getNotiPacketNameCount())
+    // b28c-l23：NONAME 按 ORIG 为**可读写的静态指针变量**（ORIG @0x082a217a
+    // `mov 0x9370f58,%eax` 是内存装载；若声明 `char* const` 则 4.4 折叠成
+    // `mov $imm,%eax`）；ORIG 无 id 局部槽（P0：`mov 0x8(%ebp),%eax` 三次直读
+    // 形参）⇒ 去具名 id，比较处一律用 (int)type 表达式。
+    static const char* NONAME = "???";
+    if ((int)type < 0 || (int)type >= getNotiPacketNameCount())
         return const_cast<char*>(NONAME);
-    return const_cast<char*>(kNotifyNames[id]);
+    return const_cast<char*>(kNotifyNames[(int)type]);
 }
 
 // ORIG 0x082a2191：越界 → NONAME。
 char* GetCommandPacketName(ENUM_CMDPACKET type)
 {
-    static const char* const NONAME = "???";
-    const int id = (int)type;
-    if (id < 0 || id >= getCmdPacketNameCount())
+    // b28c-l23：同 GetNotifyPacketName（NONAME 静态变量形 + 无 id 局部）。
+    static const char* NONAME = "???";
+    if ((int)type < 0 || (int)type >= getCmdPacketNameCount())
         return const_cast<char*>(NONAME);
-    return const_cast<char*>(kCommandNames[id]);
+    return const_cast<char*>(kCommandNames[(int)type]);
 }
 
 // ORIG 0x082a21d2：id<0 或 >0x353 → NONAME。
@@ -2097,9 +2100,13 @@ static const char* const NAMES[852] = {
     """",
     """",
 };
-    static const char* const NONAME = "???";
-    // ORIG 无 id 槽（P0 律 ⇒ 内联右值）：直接用 type（去具名局部）
-    if (type < 0 || type > 0x353)
-        return const_cast<char*>(NONAME);
-    return const_cast<char*>(NAMES[type]);
+    // b28c-l23：①NONAME 是静态**变量**（ORIG @0x082a21f2 `mov 0x9370f5c,%eax`
+    // 为内存装载，`char* const` 会被 4.4 折叠成 `mov $imm`）；②ORIG 的 fall-through
+    // 臂是**命中查表**、NONAME 是 js/jg 共用的尾岛（P191/P222：常量落点由条件极性定）
+    // ⇒ 用正极包裹 `0 <= type <= 0x353` 形，4.4 才产出 `test/js + cmp $0x353/jg`
+    // 双跳同岛而非负极的 `jle` 反演。
+    static const char* NONAME = "???";
+    if ((int)type >= 0 && (int)type <= 0x353)
+        return const_cast<char*>(NAMES[(int)type]);
+    return const_cast<char*>(NONAME);
 }

@@ -174,7 +174,7 @@ void CGuildServerProxy::SendTcpPacket(char* p, int len)
     return;
 }
 
-int CGuildServerProxy::OnTcpRecv()
+bool CGuildServerProxy::OnTcpRecv()
 {
     int n = m_tcp.recv_packet();
     if (n > 0)
@@ -628,6 +628,10 @@ bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int guildId, STGuildProxy&
 
 void CGuildServerProxy::ChangeGuildNameInProxy(unsigned int guildId, char* name)
 {
+    // [b28c-lane12 判词·N75/N7] 残差 4 行（53/53 指令数等）：ORIG @0x0846ead7
+    // 在压 memset 常量之**前** `mov -0xc(%ebp),%eax` 取 dst 并跨两压栈保活，
+    // memcpy 源走 `mov 0x10(%ebp),%edx`；4.4 恒右起求值（dst 装载落最后）且
+    // 该源用 %eax（P75 实参装载时刻 + N7 寄存器指派，源形不可择）。
     std::map<unsigned int, STGuildProxy>::iterator it = m_guildInfoMap.find(guildId);
     // N93 槽序：ORIG 0x846ea3e end() 结果占 -0x10（浅于 find 的 -0x14），
     // 具名 endIt 局部使 4.4 反排；内联临时形复现。
@@ -825,7 +829,10 @@ void CGuildServerProxy::SendGameServerInfo(char* name, unsigned short port,
     pkt.m_channel = channel;
     pkt.m_type = 1;
     pkt.m_port = port;
-    strncpy(pkt.m_name, name, 0x10);  // ORIG lea 0xd(eax),edx vs 我方 add——gcc 伪影，语义等价
+    // [b28c-lane12 判词·N75/N18a] 唯一残差：ORIG @0x0846ee4x 把 dst 地址在压
+    // 常量前算好并 `lea 0xd(%eax),%edx` 两步保活；4.4 恒右起求值（dst 最后）
+    // 且折 `lea+add`。P226 裸语句表达式实测零效（装载时刻由调度决定）⇒ 封顶。
+    strncpy(pkt.m_name, name, 0x10);
     SendTcpPacket((char*)&pkt, pkt.packetSize);
 }
 

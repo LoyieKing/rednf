@@ -39,7 +39,10 @@ char g_szScriptFileBaseDirectory[0x104];  // ORIG B 0x949b180
 static char s_bUseScriptPack = 0;         // ORIG d _ZL16s_bUseScriptPack 0x93f4d24
 
 // ORIG T 0x088bb7cf：movzbl 0x93f4d24（s_bUseScriptPack）直返。
-char UseScriptPack()
+// [b28c-lane24] 返回类型 char→bool（不入 mangled）：调用点 `if (!UseScriptPack())`
+// 需 P168a① 裸形 `call; xor$1; test %al; je`（ORIG findFileWithServerToken
+// 0x088bb982 直读 static 的 xor 形）；char 返回使 4.4 产 sete 物化。
+bool UseScriptPack()
 {
     return s_bUseScriptPack;
 }

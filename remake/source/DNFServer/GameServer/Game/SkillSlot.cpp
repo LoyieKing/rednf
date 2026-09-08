@@ -925,7 +925,7 @@ int SkillSlot::clear_all_skills_both()
     return 1;
 }
 
-int SkillSlot::clear_sfp_skills(char job, ENUM_SKILL_TREE_KIND kind)
+bool SkillSlot::clear_sfp_skills(char job, ENUM_SKILL_TREE_KIND kind)
 {
     CSkill* skill = NULL;
     for (int i = 0; i < 204; ++i)
@@ -1242,7 +1242,7 @@ int SkillSlot::skill_move(unsigned char slot1, unsigned char slot2, int job)
     return 0;
 }
 
-int SkillSlot::check_skill_list(
+bool SkillSlot::check_skill_list(
     int job, std::vector<std::pair<int, int> > list, int level) const
 {
     if (list.size() != 0)
@@ -2312,6 +2312,8 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
 
 void SkillSlot::InitSkillHistoryLog(ENUM_SKILL_TREE_KIND kind, int reason)
 {
+    // [b28c-21] 残差（P23 实参求值序）：ORIG 先物化 spKind(-0x20) 与 historyLog
+    // 地址（this+0x79700）再 call get_charac_level；4.4 反序（先 charac_level）。
     if (m_parent == 0)
     {
         return;
@@ -2974,7 +2976,7 @@ void SkillSlot::pullComboSkillExtensionQuickSlot(ENUM_SKILL_TREE_KIND kind)
 // PvP 树频道：givePvPSkillTree + 脚本点数 set_remain_sp_at_index(+日志)。
 // 普通树：建号技能补发 → get_give_skill 表 → growtype_skill 循环 →
 // ExpertJob 增益技循环 → CSkillChanger::SkillInitialize → 日志/发包。
-int SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
+bool SkillSlot::InitSkill(bool sendFlag, ENUM_SKILL_TREE_KIND kind)
 {
     if (m_parent == 0)
         return false;

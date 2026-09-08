@@ -73,8 +73,13 @@ bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx);
 // ============================================================================
 // IsContainedLetter —— ORIG 0x0841ccb6：postal 区（stride 0x61）扫 +0x5c
 //   letter_id 是否含目标。
-// ============================================================================
 bool IsContainedLetter(SIG_MAILBOX_LIST* list, int letterId)
+// [b28c-L23 N18b/N7] 已修装载序与操作数极性（letterId 置左）后残 8 行 =
+// ①@0x0841ccd4 ORIG 两段物化 `mov 0xc(%eax),%edx; mov 0xc(%ebp),%eax; cmp %eax,%edx`，
+// 4.4 对「成员 vs 形参」比较恒折单段 `cmp MEM,reg`（N18b，无源码写法产两段）；
+// ②循环体首 `mov -0x4(i),%eax; mov 0x8(list),%edx` 的基址/下标先后（P30 穷举后
+// add-vs-lea 与寄存器名不齐 ⇒ 结构性伪影）；③连锁 jmp 偏移。
+// 遍历区间与命中语义与 ORIG 全等。
 {
     // 视图（P82/P95）：ORIG count 读为单 disp（mov 0x794(%eax)）、条目为
     // m_postals[i].m_letterId（+0x50 基址 +0xc disp 拆段）。
@@ -99,7 +104,11 @@ bool IsContainedLetter(SIG_MAILBOX_LIST* list, int letterId)
     int i;
     for (i = 0; i < ((CountView*)list)->m_count; ++i)
     {
-        if (((ListView*)list)->m_postals[i].m_letterId == letterId)
+        // b28c-l23：ORIG @0x0841ccd4 为 `mov 0xc(%eax),%edx; mov 0xc(%ebp),%eax;
+        // cmp %eax,%edx` ⇒ **letterId 是左操作数**（条目值先物化 %edx，形参后载 %eax），
+        // 我方把条目写在左侧使 4.4 折成 `cmp MEM,reg` 单段（N18b 镜像，少 1 条）。
+        // 循环体首两条 ORIG 为 `mov -0x4(i),%eax; mov 0x8(list),%edx`（下标先于基址）。
+        if (letterId == ((ListView*)list)->m_postals[i].m_letterId)
             return 1;
     }
     return 0;

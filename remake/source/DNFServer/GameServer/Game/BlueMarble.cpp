@@ -39,6 +39,7 @@
 // BlueMarble 实现
 // ============================================================================
 
+// b28c-1 N: P75 实参装载序（ORIG 先载 seedValue 再算 m_pRands[i]，4.4 恒 receiver 先）。
 BlueMarble::BlueMarble()
     : m_memoryPoolIndex(-1), m_state(BlueMarbleState::T_0), m_diceNumber(0), m_blueMarbleMap(0),
       m_pScript(0), m_maxBoardSize(0)
@@ -47,6 +48,8 @@ BlueMarble::BlueMarble()
     unsigned long seedValue = (unsigned long)time((time_t*)0);
     for (int i = 0; i <= 3; ++i)
     {
+        // b28c-1：ORIG 0x080d8a5c 先载 seedValue 再算 m_pRands[i]（P75 实参
+        //  装载序跨版本差；静态调用形不可表达），保持自然成员调用形。
         m_pRands[i].seed(seedValue);
     }
     m_users.clear();
@@ -138,6 +141,8 @@ void BlueMarble::setUserState(int seat, BlueMarbleUserState::T state)
     m_users[seat].setUserState(state);
 }
 
+// b28c-1 N: 清绑（P0/N96）后余 5 条 = 4.4 未内联 std::move（ORIG 4.1 内联）；
+//  去 move 则指令序列与 ORIG 全等但块内 zone/pair 槽方向差 14 行（N93/N82附）。
 int BlueMarble::setUserGrade(int grade)
 {
     std::multimap<int, int, std::greater<int> > mm;
@@ -145,14 +150,11 @@ int BlueMarble::setUserGrade(int grade)
     for (int i = 0; i < m_pScript->m_info.m_playerMax; ++i)
     {
         // ORIG 0x080d7b5d/0x080d7b87：==0 物化 sete %al 后 test;jne 出口（body fall，
-        // 范式22 register bool 绑 al + 范式23 goto）。
-        register bool uNull asm("al");
-        uNull = (m_users[i].getUser() == 0);
-        if (uNull)
+        // 范式23 goto）。b28c-1：P0/N96 清绑，P168a② 具名 bool + 正向 goto；
+        // 声明前置（P198① 两句式）避免 goto 跨初始化。
+        if (m_users[i].getUser() == 0)
             goto NEXT0;
-        register bool gZero asm("al");
-        gZero = (m_users[i].getGrade() == 0);
-        if (gZero)
+        if (m_users[i].getGrade() == 0)
             goto NEXT0;
         {
             // ORIG 0x080d7bb0..：zone 槽 -0x1c；make_pair 经 move（4.1 内联）。
@@ -199,15 +201,17 @@ int BlueMarble::getMaxBoardSize() const
     return m_maxBoardSize;
 }
 
+// b28c-1 AE: P223 尾标签后 0 差。
 int BlueMarble::setMaxBoardSize()
 {
     BlueMarbleMapScript* map = m_pScript->getMap(getBlueMarbleMap());
-    if (map != 0)
-    {
-        // ORIG 0x080d6e88：以 getMap() 返回值为 this 直调 vector::size（m_tiles 在
-        // BlueMarbleMapScript +0x00，地址等价）⇒ 具名 map->m_tiles.size()。
-        m_maxBoardSize = (int)map->m_tiles.size();
-    }
+    // ORIG 0x080d6e88：以 getMap() 返回值为 this 直调 vector::size（m_tiles 在
+    // BlueMarbleMapScript +0x00，地址等价）⇒ 具名 map->m_tiles.size()。
+    // b28c-1：P223 空块 nop 中继岛（ORIG je 跳过 body 落 nop、body 尾 jmp 汇合）
+    //   ⇒ goto 尾空标签形，等价语义。
+    if (map == 0) goto done;
+    m_maxBoardSize = (int)map->m_tiles.size();
+done:;
 }
 
 int BlueMarble::getDiceNumber() const
@@ -313,6 +317,7 @@ int BlueMarble::setDropBuff(int seat, int drop)
     m_users[seat].setDrop(drop);
 }
 
+// b28c-1 N: P209 4.4 每次重载形参槽 vs ORIG 载入一次复用（switch/裸形均劣化）。
 int BlueMarble::getBuff(CUser* user, BlueMarbleBuffType::T type)
 {
     if (user == 0)
@@ -330,11 +335,13 @@ int BlueMarble::getBuff(CUser* user, BlueMarbleBuffType::T type)
     // 0x080d9984 `cmp$2; je→getDropBuff@99b2`、0x080d9988 `test; jne→mov$0@99c6`、
     // fall type==0→getExpBuff@9997（case 对应：0→exp、1→gold、2→drop；
     // 范式23 goto 钉 je-岛序，exp body 为 fall-through 首块）。
-    if (type == (BlueMarbleBuffType::T)1)
+    // b28c-1：ORIG 0x080d997c `mov 0x10(%ebp),%eax; cmp $1,%eax` 载入复用
+    //  ⇒ P209 unsigned 比较恒载寄存器形（switch 形实测劣化 5）。
+    if ((unsigned int)type == 1)
         goto L_GOLD;
-    if (type == (BlueMarbleBuffType::T)2)
+    if ((unsigned int)type == 2)
         goto L_DROP;
-    if (type != (BlueMarbleBuffType::T)0)
+    if ((unsigned int)type != 0)
         goto L_DEF;
     return getExpBuff(seat);
 L_GOLD:
@@ -345,6 +352,7 @@ L_DEF:
     return 0;
 }
 
+// b28c-1 AE: P218 下标 int 化（unsigned i→int i）后 0 差。
 int BlueMarble::getRandomItem() const
 {
     unsigned long range = (unsigned long)m_pScript->m_info.m_itemWeightTotal;
@@ -353,8 +361,10 @@ int BlueMarble::getRandomItem() const
     // mov 0x38,%edx; add $0x98,%edx`，循环内两处）。
     int count = (int)m_pScript->m_info.m_randomItemList.size();
     int acc = 0;
-    unsigned int i = 0;
-    while ((int)i < count)
+    // b28c-1：P218 下标 int 声明触发 RHS 值先（ORIG 0x080d7690 先载 i 再算
+    //  this 链；unsigned i 恒 this 先）。
+    int i = 0;
+    while (i < count)
     {
         acc += m_pScript->m_info.m_randomItemList[i].m_weight;
         if (acc >= r)
@@ -451,7 +461,7 @@ int BlueMarble::join(CUser* user)
     return 0;
 }
 
-int BlueMarble::leaveUser(CUser* user)
+void BlueMarble::leaveUser(CUser* user)
 {
     if (user == 0)
     {
@@ -527,8 +537,8 @@ int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
     }
     // ORIG +0x95 `cmp $3; setne %al; test; je <体>` / +0xcd `cmp $1; sete %al;
     // test; je <体>`：guard 物化形（P194 反形），真→fall 0x17 岛，假→je 入体。
-    register bool st3ne asm("al") = (user->get_state() != 3);
-    if (st3ne)
+    // b28c-1：P0/N96 清绑（P168a② 具名 bool）。
+    if (user->get_state() != 3)
     {
         return 0x17;
     }
@@ -537,18 +547,15 @@ int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
         return 0x17;
     }
     // ORIG +0xcd `cmp $1; sete %al; test; je <体>`：==1 物化，je 入体、
-    // fall 0x17 岛——goto 形唯一复现（P194）。
-    register bool mv1 asm("al") = (user->getMoveSpace() == (UserSpace::T)1);
-    if (mv1)
+    // fall 0x17 岛——goto 形唯一复现（P194）。b28c-1：P0/N96 清绑。
+    if (user->getMoveSpace() == (UserSpace::T)1)
         goto L_MOVE_OK;
     return 0x17;
 L_MOVE_OK:
     // P48 去缓存：ORIG +0x0e7/+0x0ff 对上下界各独立重调 get_charac_level
     //（两次调用，不缓存进 level 局部）；第二条件 call 在前（P134）。
-    register bool outOfRange asm("al") =
-        user->get_charac_level() < m_pScript->m_info.m_enterLevel ||
-        user->get_charac_level() > m_pScript->m_info.m_enterMaxLevel;
-    if (outOfRange)
+    if (user->get_charac_level() < m_pScript->m_info.m_enterLevel ||
+        user->get_charac_level() > m_pScript->m_info.m_enterMaxLevel)
     {
         return 0x17;
     }
@@ -689,24 +696,21 @@ int BlueMarble::startBlueMarble()
     }
 }
 
+// b28c-1 N: 第三条件 je/jne 极性（4.4 块序折叠；三目/表达式/具名 bool 三形实测均不可翻）。
 bool BlueMarble::checkThrowDice(int seat)
 {
     // ORIG 0x080d6ed8：bVar1 物化全程 %eax（0x080d6f3f/6f46 mov$1/$0,%eax），
     // return !bVar1 走 `test al; je; mov$0/$1` 双岛（0x80d6f4b..）。
-    register int bVar1 asm("eax");
+    // b28c-1：P0/N96 清绑；P56 if-return 分支形（ORIG `test al; je; mov$0/$1`）。
+    // b28c-1：P56 if-return 分支形（三目/表达式形实测劣化）；ORIG 尾
+    //  `test al; je; mov$0/$1` 双岛仅第三条件 je/jne 极性差（N：4.4 块序折叠）。
     if (m_users[seat].getBoardZone() < getMaxBoardSize() &&
         m_users[seat].getUserState() == (BlueMarbleUserState::T)1 &&
         getState() == 2)
     {
-        bVar1 = 0;
+        return false;
     }
-    else
-    {
-        bVar1 = 1;
-    }
-    // ORIG 0x080d6f4b `test al; je; mov$0/$1` 双岛 = `!bVar1` 4.1 物化；4.4 折
-    // sete 直返（残余 cmp$2 方向 + sete 2 行，N 类）。
-    return !bVar1;
+    return true;
 }
 
 int BlueMarble::throwDice(int seat)
@@ -715,7 +719,7 @@ int BlueMarble::throwDice(int seat)
     sendBlueMarbleDiceInfo(seat);
 }
 
-int BlueMarble::userThrowDice(CUser* user)
+void BlueMarble::userThrowDice(CUser* user)
 {
     if (user == 0) goto done;
     {
@@ -739,7 +743,8 @@ done:
     ;
 }
 
-int BlueMarble::movePosition(CUser* user, int pos)
+// b28c-1 N: ORIG 0x080d9c08 EH cleanup 尾 jmp 岛（4.4 析构内联无岛）。
+void BlueMarble::movePosition(CUser* user, int pos)
 {
     int seat = getUserSlot(user);
     if (seat == -1)
@@ -766,7 +771,11 @@ int BlueMarble::movePosition(CUser* user, int pos)
         intoBoardZone(seat);
         sendBoardZoneActionInfo(seat, getDungeonIndex(seat),
                                 (unsigned int)getItemIndex(seat));
+        // b28c-1：P223 尾岛（ORIG 0x080d9c08 jmp+nop 汇合形）。
+        goto DONE;
     }
+DONE:
+    ;
 }
 
 bool BlueMarble::checkMoveFirstZone(int seat, BlueMarbleTileScript::Type type)
@@ -790,23 +799,25 @@ bool BlueMarble::checkMoveFirstZone(int seat, BlueMarbleTileScript::Type type)
     return 1;
 }
 
+// b28c-1 AE: P0/N96 清绑 + P223 双岛（0x080d737c/0x080d737f）后 0 差。
 int BlueMarble::tileType(int seat)
 {
     int zone = m_users[seat].getBoardZone();
-    // P0+范式22：ORIG 0x080d70f2 无 map 槽——getMap 结果直 `test;sete %al` 物化，
-    // `test al; jne` 出口（body fall）。zone 槽 -0x10（0x080d70d2）。
-    register bool mapNull asm("al");
-    mapNull = (m_pScript->getMap(getBlueMarbleMap()) == 0);
+    // P0+范式22：ORIG 0x080d70f2 `test;sete %al` 物化 + `test al; jne` 出口
+    //（body fall）。zone 槽 -0x10（0x080d70d2）。
+    // b28c-1：P0/N96 清绑（P168a② 具名 bool + 正向 goto）。
     // ORIG 0x080d70f7：test al; jne 出口 —— 正向 goto（范式23）阻 4.4 xor 取反。
-    if (mapNull)
+    if (m_pScript->getMap(getBlueMarbleMap()) == 0)
         goto T_OUT;
     {
         BlueMarbleTileScript* tile = m_pScript->getMap(getBlueMarbleMap())->getTile(
             (unsigned int)zone);
-        if (tile != 0)
+        // b28c-1：ORIG 双岛（0x080d737c mapNull 岛 / 0x080d737f tile==0 岛）
+        //   ⇒ P223 多岛形：第二个条件也用 goto 到相邻标签。
+        if (tile == 0)
+            goto T_OUT2;
+        switch (tile->m_type)   // ORIG 0x080d713b `mov (%eax),%eax`（int 读）
         {
-            switch (tile->m_type)   // ORIG 0x080d713b `mov (%eax),%eax`（int 读）
-            {
             case 2:
             case 8:
                 setDungeonIndex(seat,
@@ -855,11 +866,12 @@ int BlueMarble::tileType(int seat)
             case 13:
                 setDungeonIndex(seat, tile->m_value);
                 break;
-            default:
-                break;
-            }
+        default:
+            break;
         }
     }
+T_OUT2:
+    ;
 T_OUT:
     ;
 }
@@ -883,7 +895,7 @@ bool BlueMarble::checkLastZoneDungeonClear(int seat)
     return 0;
 }
 
-int BlueMarble::enterDungeon(CUser* user)
+void BlueMarble::enterDungeon(CUser* user)
 {
     if (user == 0) goto done;
     {
@@ -902,7 +914,7 @@ done:
     ;
 }
 
-int BlueMarble::exitDungeon(CUser* user)
+void BlueMarble::exitDungeon(CUser* user)
 {
     if (user == 0) goto done;
     {
@@ -921,7 +933,7 @@ done:
     ;
 }
 
-int BlueMarble::clearDungeon(CUser* user)
+void BlueMarble::clearDungeon(CUser* user)
 {
     if (user == 0) goto done;
     {
@@ -941,9 +953,12 @@ done:
     ;
 }
 
-int BlueMarble::giveupDungeon(CUser* user)
+// b28c-1 AE: P0/N96 清绑 + P223 三岛（0x080d96e7/ea/ed）后 0 差。
+void BlueMarble::giveupDungeon(CUser* user)
 {
-    if (user != 0)
+    // b28c-1：P223 多岛形（ORIG 三岛 0x080d96e7/ea/ed：user==0、mapNull、tile==0
+    //  各 goto 到相邻尾标签），P0/N96 清绑后以裸条件 + goto 复现。
+    if (user == 0) goto DONE1;
     {
         int seat = getUserSlot(user);
         if (seat == -1)
@@ -953,16 +968,13 @@ int BlueMarble::giveupDungeon(CUser* user)
         }
         else
         {
-            // ORIG 0x080d95f3：map==0 物化 sete %al 后 `test al;jne 出口`（body fall，
-            // 范式22 register bool 绑 al + 范式23 正向 goto 阻 4.4 xor 取反）。
-            register bool mapNull asm("al");
-            mapNull = (m_pScript->getMap(getBlueMarbleMap()) == 0);
-            if (mapNull)
-                goto T_OUT;
+            if (m_pScript->getMap(getBlueMarbleMap()) == 0)
+                goto DONE2;
             {
                 BlueMarbleTileScript* tile = m_pScript->getMap(getBlueMarbleMap())->getTile(
                     (unsigned int)m_users[seat].getBoardZone());
-                if (tile != 0)
+                if (tile == 0)
+                    goto DONE3;
                 {
                     if (checkMoveFirstZone(seat,
                                            (BlueMarbleTileScript::Type)tile->m_type))
@@ -974,15 +986,22 @@ int BlueMarble::giveupDungeon(CUser* user)
                     setUserState(seat, (BlueMarbleUserState::T)1);
                 }
             }
-T_OUT:
-            ;
         }
     }
+DONE1:
+    ;
+DONE2:
+    ;
+DONE3:
+    ;
 }
 
-int BlueMarble::giveBonusItem(CUser* user)
+// b28c-1 AE: P223 三岛 + P194 反形裸短路后 0 差。
+void BlueMarble::giveBonusItem(CUser* user)
 {
-    if (user == 0) goto done;
+    // b28c-1：P223 多岛形（ORIG 三岛 0x080d9905/908/90b：user==0、state 条件假、
+    //  m_addInfo==0 各落相邻尾标签）。
+    if (user == 0) goto DONE1;
     {
         int seat = getUserSlot(user);
         if (seat == -1)
@@ -990,22 +1009,33 @@ int BlueMarble::giveBonusItem(CUser* user)
             LogManager::logFormat(1, "BlueMarble.cpp", __PRETTY_FUNCTION__, 0x4ac,
                                   "BlueMarble::giveBonusItem slot(%d)", seat);
         }
-        else if (getState() == 2 && getUserState(seat) == 1)
+        else
         {
+            // ORIG 0x080d9876..9900：bad=(state!=2||userstate!=1) 物化 mov$1/$0 后
+            // test al; jne 岛2（P194 X1 反形，裸短路形）。
+            if (getState() != 2 || getUserState(seat) != 1)
+                goto DONE2;
             Inven_Item item;
             item.m_addInfo = getItemIndex(seat);
             item.m_addInfo2 = 1;
-            if (item.m_addInfo != 0)
+            if (item.m_addInfo == 0)
+                goto DONE3;
             {
                 insertItem(seat, item, (eItemAddReason)0x41);
                 resetIndexInfo(seat);
             }
+            goto DONE3;
         }
     }
-done:
+DONE1:
+    ;
+DONE2:
+    ;
+DONE3:
     ;
 }
 
+// b28c-1 N: ORIG 0x080d7e6c 死岛（nop+jmp）被 4.4 jump-thread 合并（4.1 goto 岛产物）。
 int BlueMarble::resultReward()
 {
     Inven_Item item;
@@ -1013,7 +1043,8 @@ int BlueMarble::resultReward()
     {
         if (m_users[i].getUser() == 0)
         {
-            continue;
+            // b28c-1：ORIG continue 目标 = 岛1（0x080d7e6c nop+jmp），P223 多岛形。
+            goto NEXT0;
         }
         item.reset();
         setResultItem(i, item);
@@ -1022,9 +1053,18 @@ int BlueMarble::resultReward()
             insertItem(i, item, (eItemAddReason)0x42);
             // ORIG 0x80d7e6a：insertItem 后显式 jmp 循环尾块@80d7e70（4.1 岛形，
             // 范式24 goto 落点岛阻 4.4 fall-through 合并）。
-            goto NEXT;
+            goto NEXT1;
         }
-    NEXT:
+        // b28c-1：P223 多岛形（ORIG 0x80d7e6c nop+jmp 岛 + 0x80d7e6f nop 岛）
+        //  ⇒ 条件假分支同样 goto 到相邻标签。
+        goto NEXT2;
+    NEXT0:
+        ;
+    NEXT3:
+        ;
+    NEXT2:
+        ;
+    NEXT1:
         ;
     }
 }
@@ -1142,7 +1182,7 @@ int BlueMarble::setLeaveUserBlueMarbleState()
     }
 }
 
-int BlueMarble::setLeaveUserSlot(int seat)
+void BlueMarble::setLeaveUserSlot(int seat)
 {
     if (m_users[seat].getUser() == 0)
     {
@@ -1199,10 +1239,13 @@ int BlueMarble::sendBoardZoneActionInfo(int seat, int zone,
     m_users[seat].getUser()->Send(packet);
 }
 
+// b28c-1 AE: P223 尾空标签岛（0x080d87f7 jmp+nop）后 0 差。
 int BlueMarble::sendFinishBlueMarble() const
 {
     int winner = getWinner();
-    if (winner != -1)
+    // b28c-1：P223 尾空标签岛（ORIG 0x080d87f7 `jmp +0xa8; nop` 汇合形）
+    //   ⇒ 条件反极性 goto + 内层复合块（避免 goto 跨 packet 初始化声明）。
+    if (winner == -1) goto done;
     {
         PacketGuard packet;
         packet.put_header(0, 0x1b1);
@@ -1210,6 +1253,7 @@ int BlueMarble::sendFinishBlueMarble() const
         packet.finalize(true);
         sendToBlueMarble(packet);
     }
+done:;
 }
 
 int BlueMarble::sendStartBlueMarble() const

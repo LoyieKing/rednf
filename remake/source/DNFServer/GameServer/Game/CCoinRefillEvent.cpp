@@ -84,22 +84,29 @@ void CCoinRefillEvent::EndEvent()
 
 int CCoinRefillEvent::getLastEventTime() const
 {
-    // ORIG 0x0832c0b8。
+    // [b28c-35] 真语义 bug 已修（索引整体 -1，见上）；残余 N：ORIG 0x0832c0f5 把
+    // `m_times[count-1]` 折叠为单条 `mov 0xc(%eax,%edx,4)`（disp = 0x10-4），
+    // 4.4 产 `lea -0x1; add $0x4; mov (%eax,%edx,4)` 三段（不做 0x10-4 代数合并），
+    // 源形（下标/指针/局部）均不可择。
+    // ORIG 0x0832c0b8。头布局注释：m_times[i-1] 对应 ORIG `this+i*4+0xc`
+    // （m_times 基址 +0x10 = +0xc+4）⇒ 源码索引须整体比 ORIG 的 i 小 1。
+    // 旧形 `m_times[m_timeCount]` / `m_times[i]` / `m_times[i-1]` 是**真语义 bug**
+    // （越界读 m_times[4]，ORIG 0x0832c0f5 地址 = this+0xc+count*4 = m_times[count-1]）。
     int curSec = GlobalData::s_systemTime_.getCurSec();
     tm cur;
     localtime_r(reinterpret_cast<time_t*>(&curSec), &cur);
     if (cur.tm_hour < m_times[0])
     {
-        return m_times[m_timeCount];
+        return m_times[m_timeCount - 1];
     }
     for (int i = 2; i <= m_timeCount; i = i + 1)
     {
-        if (cur.tm_hour < m_times[i])
+        if (cur.tm_hour < m_times[i - 1])
         {
-            return m_times[i - 1];
+            return m_times[i - 2];
         }
     }
-    return m_times[m_timeCount];
+    return m_times[m_timeCount - 1];
 }
 
 int CCoinRefillEvent::getNextEventTime(tm const& cur) const

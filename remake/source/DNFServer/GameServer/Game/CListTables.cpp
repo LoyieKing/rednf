@@ -92,7 +92,7 @@ public:
     ~Quest();
     bool exposeQuest() const;
     bool check_possible(const stSelectQuestParam& param) const;
-    char check_power_side(char side);
+    bool check_power_side(char side);   // SIGFIX：ORIG 串定 bool（P174）
     void set_quest(QuestScript script);
     char m_pad0[0x8];
     int m_field8;                             // +0x08
@@ -383,7 +383,7 @@ bool CDungeonList::insert_dungeon(CDungeon* dungeon)
     return false;
 }
 
-int CDungeonList::load_list()
+bool CDungeonList::load_list()
 {
     char* path = 0;
     STDungeonScript script;
@@ -545,10 +545,14 @@ void CMapList::LoadPvPSinglePlayableMap(char* path)
 
 bool CMapList::GetPvpMapInfo(int idx, PvPMapInfo& info)
 {
-    std::map<int, PvPMapInfo>::iterator it;
-    it = mapPvpMapInfo_.find(idx);
+    // [b28c-21 代落 C28L35 spec] 初始化式直构：ORIG find 直接落 -0x10，无 C1Ev 默认构造。
+    std::map<int, PvPMapInfo>::iterator it = mapPvpMapInfo_.find(idx);
     if (it != mapPvpMapInfo_.end())
     {
+        // [b28c-21 代落 C28L35 spec] (b) 三形实测：原形（本形，两次 ptEv）/引用局部
+        // （-0xc 槽回读 41 条）/裸 register 指针（40 条但 %ebx 保存+恢复，ORIG 地址
+        // 在 caller-saved %eax ⇒ 违反 C28L28 判据）均不闭合；落 N：P183 地址重物化
+        // 跨版本差（4.1 复用 ptEv 地址，4.4 二次物化）。
         if (&info != &it->second)
         {
             memcpy(&info, &it->second, 5);
@@ -1215,21 +1219,25 @@ bool QuestList::check_anti_quest(int questIdx,
 
 bool QuestList::check_clear(int questIdx, const WongWork::CQuestClear& clear)
 {
-    if (questIdx < 30000)
+    // [b28c-21] ORIG `jle 0x5c`（≤0x752f 跳 body，trace 块 fall-through 在前）：
+    // goto 正向形复现（4.4 对 if-early-return 恒把 then 块放尾部产 jg）。
+    if (questIdx <= 0x752f)
+        goto BODY;
     {
-        if (clear.isClearedQuest(questIdx))
-        {
-            return 0;
-        }
-        return 1;
+        cMyTrace trace(
+            __PRETTY_FUNCTION__,
+            0x152f, 5);
+        trace("[%s][%d]",
+              __PRETTY_FUNCTION__,
+              0x152f);
     }
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x152f, 5);
-    trace("[%s][%d]",
-          __PRETTY_FUNCTION__,
-          0x152f);
     return 0;
+BODY:
+    if (clear.isClearedQuest(questIdx))
+    {
+        return 0;
+    }
+    return 1;
 }
 
 bool QuestList::select_mail_quest(std::list<int>& out,
@@ -1317,10 +1325,16 @@ void QuestList::GetDailyQuestList(std::list<int>& out)
 
 void QuestList::GetTrainingQuestList(std::vector<int>& out, short level)
 {
-    if (level < 0x47 && level > 0)
+    // [b28c-21] ORIG 两个 jmp+nop 中继岛（P223 多岛形：goto 尾标签串）。
+    if (level >= 0x47)
+        goto END1;
+    if (level <= 0)
+        goto END2;
     {
         out = *G_CDataManager()->getDailyTrainingQuest(level);
     }
+END2:;
+END1:;
 }
 
 static int getQuestItemType(CItem* item)
@@ -1329,7 +1343,7 @@ static int getQuestItemType(CItem* item)
     return vtbl[3](item);
 }
 
-int QuestList::load_list()
+bool QuestList::load_list()
 {
     QuestScript script;
     Quest* quest = 0;

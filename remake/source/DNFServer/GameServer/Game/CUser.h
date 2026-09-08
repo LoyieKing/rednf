@@ -696,6 +696,9 @@ struct _Charac_info
             int m_auraValue2;         // +0x1289
         };
         int m_auraValues[3];
+        // b28c-L5 申请（Main 代落）：具名结构视图，供 GetAuraAvatarOption 走 12 字节
+        // POD 整体赋值（ORIG 0x0868ddc2 目标基址驻 %edx + 源 disp32 三连直读）。
+        stAuraAvatarOption m_auraAvatarOption;  // +0x1281，sizeof 0xc，零布局影响
     };
     int m_field128D;                  // +0x128d ← Reset movl $0（R+0x6a5）
     int m_field1291;                  // +0x1291 ← Reset movl $0（R+0x698）

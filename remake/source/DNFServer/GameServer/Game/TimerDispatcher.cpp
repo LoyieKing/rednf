@@ -267,9 +267,11 @@ TimerDispatcher::TimerDispatcher()
     m_dispatchers[174] = new Timer_CreateDnfDbLoad();  // slot +0x2b8
 }
 
-// ORIG 0x863298e：非空槽经虚表[2]（D0）删除后置 0。
 TimerDispatcher::~TimerDispatcher()
 {
+    // [b28c-L18] N7 判词：虚删除 `call *%ecx`（ORIG vtable 载入 %ecx、槽读 %edx、
+    // 元素基址 %eax）在 4.4 恒把间接 call 目标放 %eax（元素/槽角色轮换）——
+    // 36=36 助记符全等仅寄存器名差，语义同，勿再耗轮次。
     for (int i = 0; i <= 0xae; ++i)
     {
         if (m_dispatchers[i] != 0)
@@ -291,9 +293,11 @@ TimerSig* TimerDispatcher::get_dispatcher(int msg)
     return 0;
 }
 
-// ORIG 0x8632a18 逐指令转写：entry.msg 选槽 → dispatch_sig(param1,param2,param3)。
 int TimerDispatcher::dispatch(TimerEntry& entry)
 {
+    // [b28c-L18] N7 判词：ORIG `mov (%eax),%ebx` vptr 跨三条 entry 成员装载保活、
+    // `call *%ebx`；4.4 恒间接 call 目标=%eax（成员装载改用 edx/ebx/ecx 轮换）。
+    // 34=34 助记符序列全等、esp 槽值集全等，仅寄存器分配差，封顶。
     TimerSig* d = get_dispatcher(entry.msg);
     if (d == 0)
     {
@@ -683,6 +687,8 @@ bool TimerFatigueReset::RegistNextTimer()
 // ORIG T 0x08632b32 (_ZN17TimerAvatarExpire11RegistTimerEP5CUser)
 // 求值序（右→左）：getCurCharacNo → get_unique_id → env+0x380*0x3c → GetSlotIDX →
 // G_TimerQueue；InsertTimer(0, slot, 0x51, env380*60, unique_id, characNo)；返回 1（void 化）。
+// [b28c-27] N82附：ORIG callee-saved 分配 ebx=getCurCharacNo / edi=get_unique_id /
+// esi=GetSlotIDX，4.4 循环移位为 edi/esi/ebx（多实参装载序跨版本对调，声明序不可控）。
 bool TimerAvatarExpire::RegistTimer(CUser* user)   // ORIG 单出口 mov $0x1,%eax（恒 true）
 {
 	// env+0x380（每日过期时长分钟数）即 m_serverEnvir.m_avatarTime；
@@ -1439,13 +1445,16 @@ int TimerStatisticsDetailChannelInfo::dispatch_sig(int p1, int p2, unsigned int 
 // ORIG T 0x08635782 (_ZN32TimerStatisticsDetailChannelInfo15RegistNextTimerEv)
 // cur=getCurSec()；localtime_r → next=(tm_min%0x1e)*(-0x3c)+(0x708-tm_sec)（对齐半小时）；
 // cMyTrace("content min:%d sec:%d next sec:%d  (channel no:%d)")；
-// InsertTimer(2, 0, 0x54, next, 0, 0)；返回 1（void 化）。
-void TimerStatisticsDetailChannelInfo::RegistNextTimer()
+// InsertTimer(2, 0, 0x54, next, 0, 0)；返回 1。
+// SIGFIX：ORIG __PRETTY_FUNCTION__ 串为 "bool TimerStatisticsDetailChannelInfo::RegistNextTimer()"。
+bool TimerStatisticsDetailChannelInfo::RegistNextTimer()
 {
     const int curSec = GlobalData::s_systemTime_.getCurSec();
-    const time_t now = static_cast<time_t>(curSec);
     tm timeInfo;
-    tm* pt = localtime_r(&now, &timeInfo);
+    // [b28c-27] ORIG 0x08635782：localtime_r 第一实参是 curSec 槽本身的地址
+    // （`lea -0x34(%ebp),%eax`），无 time_t now 中间槽；4.4 对具名 now 恒多一槽
+    // 与两条 mov。按 ORIG 直取 curSec 地址（int/time_t 同 4 字节）。
+    tm* pt = localtime_r(reinterpret_cast<const time_t*>(&curSec), &timeInfo);
     const int nextSec = (pt->tm_min % 0x1e) * -0x3c + (0x708 - pt->tm_sec);
     const int channelNo = G_CEnvironment()->get_channel_no();
     {
@@ -1455,6 +1464,7 @@ void TimerStatisticsDetailChannelInfo::RegistNextTimer()
     }
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                 (TIMER_MESSAGE)0x54, nextSec, 0, 0);
+    return true;
 }
 
 TimerStatisticLevel::TimerStatisticLevel() {}
@@ -1462,13 +1472,15 @@ TimerStatisticLevel::~TimerStatisticLevel() {}
 int TimerStatisticLevel::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     G_GameWorld()->UpdateStatistic4ChannelUserLev();
-    // ORIG 0x086358c0：CalcNextTime 结果 `mov %eax,%ebx` 驻寄存器，
-    // N96/P0：asm volatile 同禁。自然两段式（ORIG 寄存器原地 sub 直落残差
-    // 记 N18a 族，槽化 store/load 为 4.4 常态）。
-    int delay = CalcNextTime();
-    delay -= static_cast<int>(GlobalData::s_systemTime_.getCurSec());
-    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
-                                (TIMER_MESSAGE)0x55, delay, 0, 0);
+    // b28c-28（P0 清绑 + P52 内联实参）：ORIG 0x086358ac 为
+    // `push %ebx; sub $0x24` + `call CalcNextTime; mov %eax,%ebx; …;
+    // call getCurSec; sub %eax,%ebx; …; mov %ebx,0x10(%esp)`——
+    // delay 无栈槽、经 callee-saved 跨 getCurSec/G_TimerQueue 两 call 保活。
+    // 具名局部（含旧 register 绑定）一律落槽 ⇒ 改实参位内联求值。
+    G_TimerQueue()->InsertTimer(
+        TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x55,
+        CalcNextTime() - static_cast<int>(GlobalData::s_systemTime_.getCurSec()),
+        0, 0);
     return 1;
 }
 
@@ -1638,16 +1650,23 @@ int TimerCreature::dispatch_sig(int p1, int p2, unsigned int p3)
     // 技巧21：died 先声明占远槽 -0x11、saveInventory 后声明占近槽 -0x9（ORIG
     // 8635f11/8635f2f 槽号）；`x ^ 1` 具名 char 槽条件出 movzbl+xor$1+test+je
     // （ORIG 8635f32，cmpb 融合形被 ^ 表达式阻断）。
+    // [b28c-L26 判词·N82/P190 族] ORIG died 落 -0x11（与 saveInventory -0x9 间留
+    // 8B 隙），4.4 对 1 字节局部紧邻分配 -0xa ⇒ 本件唯一残差（2 行）。实测把 died
+    // 改 long long 借 8 字节对齐推深槽基 → 55→58 反劣（store/load 变 8B 两段），
+    // 已回退 bool；volatile/double framePad（P190）不适用（本函数无 double 实体）。
     bool died;
     // ORIG 0x08635eeb/0x08635f08：isSaveInven 先调（byte 槽 -0x9），
     // CheckDiedCreature 后调（-0x11，4.1 两 byte 槽间留隙）
-    const char saveInventory = user->isSaveInven();
+    const bool saveInventory = user->isSaveInven();   // b28c-L26 档①：callee bool 化
     died = user->getCurCharacInvenW()->GetCreatureMgrW()->CheckDiedCreature();
     (void)died;
     // ORIG 8635f32 `movzbl -0x9,%eax; xor $1,%eax; test %al; je`：
     // N96/P0：绑定形全域禁用后无合法源形可阻 fold-const（探针 /tmp/l7_m.cpp
     // m1/m3 恒折 `cmpb $1,-0x9; je`；register-hint n1 形溢入 %ebx 改帧）——
     // setcc-fold 负例在册，取最短 gap 折叠形，残差 3 行封顶。
+    // P168a 负例（setcc-fold）：ORIG 8635f32 `movzbl -0x9,%eax; xor $1,%eax;
+    // test %al; je` 寄存器形不可造——表达式形折 cmpb $1（53 条），
+    // X2 `v ^= 1` 两语句形生 xorb 栈槽物化（54 条，反劣），取折叠形封顶。
     if ((unsigned char)(saveInventory ^ 1))
     {
         user->disableSaveInven();
@@ -2421,14 +2440,19 @@ void TimerUpdatePvPGrade::registNextTimer(long sec)
     timeInfo.tm_min = 0;
     timeInfo.tm_sec = 0;
     sec = static_cast<long>(mktime(&timeInfo));   // ORIG mov %eax,0x8(%ebp) 回写参数槽
-    // ORIG 0x086373f2：getCurSec 两独立重调（P48）；delay 无槽经 %ebx 跨
-    // G_TimerQueue call（P179 register 形，禁栈槽——否则 tm 帧偏移+4 全错位）。
-    register int delay =
-        (sec - (long)GlobalData::s_systemTime_.getCurSec() > 0)
-            ? (int)(sec - (long)GlobalData::s_systemTime_.getCurSec())
-            : 1;
-    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
-                                (TIMER_MESSAGE)0x6c, delay, 0, 0);
+    // b28c-28（P0 清绑 + P52 内联实参）：ORIG 0x08637449 段 =
+    // `mov 0x8(%ebp),%ebx; call getCurSec; mov %ebx,%edx; sub %eax,%edx;
+    // mov %edx,%eax; test; jle` → then 臂 `mov 0x8(%ebp),%ebx; call getCurSec;
+    // sub %eax,%ebx` / else 臂 `mov $0x1,%ebx`，delay 无槽、经 %ebx 跨
+    // G_TimerQueue call ⇒ 三目整体内联到 InsertTimer 实参位（两臂各自重调
+    // getCurSec，P48 无 CSE）。
+    G_TimerQueue()->InsertTimer(
+        TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x6c,
+        sec - static_cast<long>(GlobalData::s_systemTime_.getCurSec()) > 0
+            ? static_cast<int>(sec -
+                               static_cast<long>(GlobalData::s_systemTime_.getCurSec()))
+            : 1,
+        0, 0);
 }
 
 TimerDetectDisconnect::TimerDetectDisconnect() {}
@@ -2672,6 +2696,9 @@ int TimerFinishItemEffect::dispatch_sig(int p1, int p2, unsigned int p3)
 // ORIG T 0x08637d64 (_ZN21TimerFinishItemEffect36_processSepecialEffectContinuousItemEP5CUserj)
 // ⚠ 私有方法，TimerDispatcher.h 该类内需补声明
 //   `void _processSepecialEffectContinuousItem(CUser*, unsigned int);`（NEEDS_LOCAL_STATIC）
+// [b28c-30] N 封顶（复核）：ORIG `mov 0x10(%ebp),%eax; cmp $0x1cd1,%eax; jne`
+// 形参载入+寄存器比较；4.4 恒折 `cmpl $0x1cd1,0x10(%ebp)` mem 直比（N18b/P85
+// 跨版本装载时刻），P231 纯 register 对形参不适用。
 void TimerFinishItemEffect::_processSepecialEffectContinuousItem(CUser* user,
                                                                  unsigned int itemIdx)
 {
@@ -3151,6 +3178,9 @@ TimerRequestExit::~TimerRequestExit() {}
 int TimerRequestExit::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
+    // [b28c-27] N18b/N22：ORIG `mov 0x10(%ebp),%edx; cmp %edx,%eax`（arg 先入 edx 再
+    // 与 call 结果比较），4.4 恒折 `cmp 0x10(%ebp),%eax`（call 结果 vs arg 比较恒
+    // 内存源，无源码写法可产两段物化）。
     // ORIG 0x08638f6a：三段独立早退；characR 判空 sete 物化（c1 探针形）；
     // characNo 比较对象 p2（0x10(%ebp)），混型走 mov edx;cmp 形态（c3 探针形）。
     if (user == 0)
@@ -3388,28 +3418,22 @@ int Timer_UpdateOnlinePreliminaryTeam::dispatch_sig(int p1, int p2, unsigned int
     (void)p3;
     online_preliminary::COnlinePreliminaryTeam* team =
         GlobalData::s_onlinePreliminaryTeamMgr->FindTeam(p2);
-    // ORIG 0x08639722：if/else 双分支各赋 result（三处 mov $N,%eax 汇聚单出口）。
-    // 修正：ORIG 实为三段早退（team 空块置于函数尾），char 中间量落槽 -0x9，
-    // `c == 1` 于 0/1 值取 xor $1/test/je 形态。
-    // ORIG 块序：registered-false 岛(8639769) → team-null 岛(8639770) →
-    // return-1 尾岛(8639777 fall-through leave)。
-    // 技巧23 三 goto 钉岛序：rFalse → null → return1 尾岛 fall-through。
+    // ORIG 0x08639722：team 判空 je +0x4e；registered 为 bool 局部（槽 -0x9）
+    // 经 `movzbl; xor $1; test; je +0x55` 判定；两块 `mov $0x0,%eax` 岛 +
+    // `mov $0x1,%eax` 尾岛。布局钥匙（P222 正向包裹）：正极性 if(team!=0) 包
+    // body、return 0 归共享尾（je 跳过 body）；`if (registered) return 1;` 后
+    // fall-through 到 return 0。goto 标签串形被 4.4 逐标签加 nop（+3 insn）。
     if (team != 0)
     {
         team->saveData();
         const bool registered = RegistNextTimer(p2);
         if (!registered)
-            goto RET0A;
-        goto RET1;
+            return 0;
     }
-    goto RET0B;
-    // [N 封顶] 三岛块序与 ORIG 逐岛对齐（rFalse→null→ret1）；4.4 对 je/jmp 目标
-    // 岛前发 1 字节 nop（跨版本 jump-threading/空岛填充），共享 RET0 形更劣化块序。
-RET0A:
-    return 0;
-RET0B:
-    return 0;
-RET1:
+    else
+    {
+        return 0;
+    }
     return 1;
 }
 
@@ -4358,15 +4382,16 @@ void DBSelectCreateDnfEventInfo::makeRequest()
         static_cast<CEventCreateDnf*>(GlobalData::s_event_manager->GetRepeatEvent(0xa0));
     // ORIG 0x084293xx：无 skip 槽 —— `event != 0`（cmpl;je merge/xor）+ `!IsEventing`
     // （虚表 +0x34 调用后 xor$1;test;je 直落 guard 块）。
-    if (event != 0 && !event->IsEventing(0))
-    {
-        CStreamGuard guard(
-            GlobalData::s_stream_pool->Acquire(
-                "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x1e4),
-            true);
-        Taiwan::internal_stream(guard, static_cast<TaiwanInternalPack::T>(9), -1);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    }
+    // [b28c-32] ORIG 0x0815bae9 `test %al,%al; jne <+0xf0 nop 岛>`（bVar1!=0 跳过
+    // body）+ body 尾 jmp = P223 变体早返形；正向包裹 4.4 恒产 `je body` 反向布局。
+    if (event == 0 || event->IsEventing(0))
+        return;
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire(
+            "localtaiwan/Dispatcher/Taiwan_DbThread.cpp", 0x1e4),
+        true);
+    Taiwan::internal_stream(guard, static_cast<TaiwanInternalPack::T>(9), -1);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 
@@ -4399,6 +4424,8 @@ bool TimerStatisticsLog::RegistNextTimer()
 // cMyTrace(__PRETTY_FUNCTION__,0x1626,0)
 //   ("RegistNextTimer Schedule_MidNight delta %d\n", delta)；
 // G_TimerQueue()->InsertTimer(OBJ_TYPE_2, 0, 0x9a, delta, 0, 0)。
+// [b28c-31] AE：cMyTrace 全表达式临时链（P221）复现 ORIG 0x0863aa1c 槽序
+// （sec=-0x28 / trace=-0x24），54=54。
 void Timer_Schedule_MidNight::RegistNextTimer()
 {
     // ORIG 0x0863a9b4：getCurSec 结果寄存器内 add 后单落槽 -0x28(%ebp)。
@@ -4410,9 +4437,10 @@ void Timer_Schedule_MidNight::RegistNextTimer()
     pt->tm_sec = 0;
     int next = (int)mktime(pt);
     int delta = next - GlobalData::s_systemTime_.getCurSec();
-    cMyTrace trace(__PRETTY_FUNCTION__,
-                   0x1626, 0);
-    trace("RegistNextTimer Schedule_MidNight delta %d\n", delta);
+    // [b28c-31] ORIG 0x0863aa1c：sec=-0x28 / cMyTrace=-0x24（标量深、聚合浅）；
+    // 具名 trace 4.4 反置（trace=-0x28/sec=-0x18，N82附）⇒ 试全表达式临时链（P221）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x1626, 0)(
+        "RegistNextTimer Schedule_MidNight delta %d\n", delta);
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x9a,
                                 delta, 0, 0);
 }

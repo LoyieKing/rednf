@@ -94,10 +94,11 @@ struct MissionScript
     int m_prevMissionIndex;                          // +0x04（[prev mission]）
     int m_field08;                                   // +0x08
     int m_field0c;                                   // +0x0c（脚本列表索引）
-    int m_gradeMin;                                  // +0x10
-    int m_gradeMax;                                  // +0x14
-    int m_rateMin;                                   // +0x18
-    int m_rateMax;                                   // +0x1c
+    // [b28c-lane17] ORIG ctor 0x08a5ba8c 对 +0x10/+0x18 各发一次
+    // `_ZNSt4pairIiiEC1Ev`（默认构造），clear() 0x08a5bbb2 仅对 +0x10 发
+    // pair 构造+operator= ⇒ 真实成员是两枚 std::pair<int,int>（非 4 个 int）。
+    std::pair<int, int> m_grade;                     // +0x10（clear 重置为 (0,0)）
+    std::pair<int, int> m_rate;                      // +0x18（仅 ctor 默认构造）
     int m_field20;                                   // +0x20
     int m_job;                                       // +0x24
     std::vector<int> m_field28;                      // +0x28

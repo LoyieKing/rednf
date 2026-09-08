@@ -100,7 +100,8 @@ void CFatigueBuffEvent::EndEvent()           // ORIG 0x0811bcc0
 }
 
 void CFatigueBuffEvent::StartEvent(Word_Param)  // ORIG 0x0811bca6：虚调用 slot2（StartEvent()）
-    // N7 封顶：唯一残差=虚调用 callee 寄存器互换（N7，探针 /tmp/l22p/vprobe*.cpp）。
+    // [b28c-27] AE（fresh 复验）：共享头改动后本件 .o 与 ORIG AE 全等
+    // （虚调用目标寄存器形在 W9_EventSmall 路由下与 ORIG 一致）。
 {
     StartEvent();
 }

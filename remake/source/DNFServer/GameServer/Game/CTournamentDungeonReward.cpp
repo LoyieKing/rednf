@@ -130,7 +130,14 @@ void CTournamentDungeonReward::MakeReward(
     if (rates == 0)
         return;
 
-    int curRound = victory ? round : round - 1;
+    // [b28c-16] P198①：ORIG 先发 `movl $0x0,-0x18`（预清）再按 victory 分支
+    // 各自 `mov 0x14(%ebp),%eax; [sub $1]; mov %eax,-0x18` 两段写；
+    // 三目合并形 4.4 丢预清行并改装载序。
+    int curRound = 0;
+    if (victory)
+        curRound = round;
+    else
+        curRound = round - 1;
     if (curRound < 0)
         curRound = 0;
     else if (4 < curRound)
@@ -145,7 +152,8 @@ void CTournamentDungeonReward::MakeReward(
     if (round == 4 && victory)
     {
         std::map<int, TournamentRewardRate>::const_iterator itFinal = rates->find(5);
-        if (itFinal != rates->end())
+        if (itFinal == rates->end())
+            return;
         {
             TournamentRewardRate rateFinal = itFinal->second;
             DecisionRewardType(ENUM_TOURNAMENT_REWARD_CARD_TYPE_1, rateFinal,
@@ -228,6 +236,9 @@ bool CTournamentDungeonReward::SelectCard(int slotNo, char cardA, char cardB)
 // ============================================================================
 // ORIG 0x08285284（报告 CTournamentDungeonReward/isMemberSelectCard.md）：
 // 遍历该卡型两槽，m_flag08（char 符号扩展）== cardNo 即 1。
+// [b28c-16 定论 N18a] 残差仅二维寻址中间结果寄存器：ORIG `lea 0x0(,%eax,4),%ecx`
+// 直落 ecx（type 在 edx/slot 在 ecx），4.4 恒 slot*12→eax 后 `mov %eax,%edx`
+// 多 1 条并改寄存器名（type→ecx/slot→eax）。探针 /tmp/l16p/p8.cpp 两形不可择。
 // ============================================================================
 bool CTournamentDungeonReward::isMemberSelectCard(
     ENUM_TOURNAMENT_REWARD_CARD_TYPE type, int cardNo)
@@ -315,6 +326,7 @@ bool CTournamentDungeonReward::isCardSelectComplete(
 // ============================================================================
 // ORIG 0x08284fa4（报告 MakeSelectPacket.md）：两轮 put_byte(2)；内轮对两槽
 // put_byte((char)m_flag08 符号扩展)。
+// [b28c-16 定论 N18a] 同上（二维寻址中间寄存器单段直落不可造）。
 // ============================================================================
 void CTournamentDungeonReward::MakeSelectPacket(PacketGuard* packet)
 {

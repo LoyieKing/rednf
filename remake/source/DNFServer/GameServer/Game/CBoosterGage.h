@@ -90,14 +90,15 @@ public:
     virtual void _reset() = 0;
 
     void alter();
-    char isSave();  // ORIG _ZN13charac_expand5CData6isSaveEv（非 const，movzbl 直返 m_bIsSave；
-                    //   调用点 CDataMgr::update 0x0832ace3 `test %al;je` 直判 → 字节 ABI，
-                    //   返回类型实为 char（ORIG 无 test;setne 布尔归一））
+    bool isSave();  // ORIG _ZN13charac_expand5CData6isSaveEv（非 const，movzbl 直返 m_bIsSave；
+                    //   调用点 CDataMgr::update 0x0832ace3 `test %al;je` 直判 ⇒ bool 返回 +
+                    //   bool 字段恒等（探针 issave.o：bool 字段直返 movzbl;ret、调用点无 setne；
+                    //   char 返回则 4.4 物化 setne——P73）
     bool saveData(CUser* pUser);
     void reset();
 
 protected:
-    char m_bIsSave;  // +0x04
+    bool m_bIsSave;  // +0x04
 };
 }
 
@@ -146,7 +147,10 @@ static_assert(offsetof(BoosterGageData, m_cMultiboxCount) == 0x0e, "BoosterGageD
 class CBoosterGage : public charac_expand::CData
 {
 public:
-    CBoosterGage();
+    // ORIG C1 为 W 弱符号（0x832af06，与 charac_expand::CDataMgr 同 TU 发射）
+    // ⇒ 头内定义、由 ODR 使用点（CUser.cpp m_pad[17]=new CBoosterGage）发射；
+    // 该 TU 看不到 _reset 定义 ⇒ 4.4 复现 ORIG 的 ctor EH landing pad。
+    CBoosterGage() { _reset(); }
     virtual ~CBoosterGage();
 
     virtual bool loadData(CUser* pUser, char* pData);

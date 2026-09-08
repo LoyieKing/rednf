@@ -48,12 +48,14 @@ int CSpecialItemRoutingManager::StartRouting(CUser* user, Inven_Item& item,
 // ORIG 0x0860b45c _ZN26CSpecialItemRoutingManager11insertTimerEP6CParty
 // key=gen_timer_key(0x2b)；InsertTimer(OBJ_TYPE 1, GetPartyIndex(),
 // msg 0x2b, sec 0x23, key, 0)。
+// b28c-L20: AE — P0 清绑（原 register asm("esi"/"ebx") 违反全域禁令）；P24 内联
+// 实参自然形复现 ORIG 的 key→%esi / index→%ebx / G_TimerQueue() 置后三件套
+// （ndiff 清绑前 >0 → 0，gap=0，N96 清绑正向例）。
 void CSpecialItemRoutingManager::insertTimer(CParty* party)
 {
-    register int timerKey asm("esi") = party->gen_timer_key((TIMER_MESSAGE)0x2b);
-    register int partyIndex asm("ebx") = party->GetPartyIndex();
-    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, partyIndex,
-                                (TIMER_MESSAGE)0x2b, 0x23, timerKey, 0);
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, party->GetPartyIndex(),
+                                (TIMER_MESSAGE)0x2b, 0x23,
+                                party->gen_timer_key((TIMER_MESSAGE)0x2b), 0);
 }
 
 // ORIG 0x0860b4c2 _ZN26CSpecialItemRoutingManager11cancelTimerEP6CParty
@@ -89,24 +91,34 @@ CSpecialItemRoutingManager::~CSpecialItemRoutingManager()
 // ORIG 0x0860abde（报告 CSpecialItemRoutingManager/ProcessTimeOut.md）：
 // IsRoutingState()→GetFirstValidMemberState()==5/0xc 时 SetRoutingTimerOver+
 // HasAllMemberSelection→processRouting；否则 SetEndRouting。恒返回 1。
+// b28c-L20: P0 清绑（原 register int state asm("eax") 违反全域禁令）——ORIG 对
+// GetFirstValidMemberState 只发一次 call 且结果无栈槽往返（movsbl %al,%eax;
+// cmp $5,%eax; je; cmp $0xc,%eax; je + 两处空 case nop 岛），即原码为
+// switch(expr) 双 case 共享块，非具名局部。
+// b28c-L20: N(P223族) — 清绑后 switch(default 前置)形复现决策树与单次 call；
+// 残余 1 条 jmp：ORIG 4.1 为 case5/case0xc 各发空标签岛（+0x54 nop; jmp +0x58、
+// +0x57 nop），4.4 jump-threading 把两 case 直接 je 到共享 body（ndiff=1/gap=1，
+// 语义等价，非本轮四件）。
 int CSpecialItemRoutingManager::ProcessTimeOut(CParty* party)
 {
     if (!party->IsRoutingState())
     {
         party->SetEndRouting();
+        return 1;
     }
-    else
+    switch (party->GetFirstValidMemberState())
     {
-        register int state asm("eax");
-        state = party->GetFirstValidMemberState();
-        if (state != 5 && state != 0xc)
-        {
-            party->SetEndRouting();
-            return 1;
-        }
+    default:
+        party->SetEndRouting();
+        return 1;
+    case 5:
+        goto DO_TIMEOUT;
+    case 0xc:
+DO_TIMEOUT:
         party->SetRoutingTimerOver();
         if (party->HasAllMemberSelection())
             processRouting(party);
+        break;
     }
     return 1;
 }
@@ -115,6 +127,9 @@ int CSpecialItemRoutingManager::ProcessTimeOut(CParty* party)
 // 否则 sel==0 → SetMemberRoutingState(user,1)、sel==1 → SetMemberRoutingState(user,2)
 // （其它值不写状态）；随后 HasAllMemberSelection() 则 cancelTimer+processRouting；
 // 返回 1。
+// b28c-L20: AE — 修「恒返回 0」真语义 bug（原 goto FAIL 让成功路径也落到 return 0）；
+// ORIG 块序（FAIL 块夹在 sel 链与 HasAll 之间，+0x6e）= `goto CHECK` 跳过中间
+// FAIL 块的自然形（探针实测 ndiff 6→0，gap 0）。
 int CSpecialItemRoutingManager::ArriveMemberSelection(CUser* user, CParty* party,
                                                       char sel)
 {
@@ -125,11 +140,14 @@ int CSpecialItemRoutingManager::ArriveMemberSelection(CUser* user, CParty* party
         party->SetMemberRoutingState(user, 1);                // ORIG 0x085ba0d8
     else if (sel == 1)
         party->SetMemberRoutingState(user, 2);
+    goto CHECK;
+FAIL:
+    return 0;
+CHECK:
     if (party->HasAllMemberSelection())                       // ORIG 0x085ba1c0
     {
         cancelTimer(party);
         processRouting(party);
     }
-FAIL:
-    return 0;
+    return 1;
 }

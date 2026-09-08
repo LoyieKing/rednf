@@ -110,13 +110,13 @@ unsigned long CMTRand::mixBits(const unsigned long& x,
 unsigned long CMTRand::twist(const unsigned long& a, const unsigned long& b,
                              const unsigned long& c) const
 {
-    // ORIG mov (%eax),%ebx 单步缓存 + 全程 %ebx 累计；4.4 register asm 形实测
-    // 反退化（27→35，edx/eax 双流重排），4.4 恒槽化（N2 族）。
-    unsigned long y = a;
+    // [b28c-21] ORIG mov (%eax),%ebx 单步缓存 + 全程 %ebx 累计；纯 register
+    // 关键字（非 register asm 绑定）令 4.4-O0 复现同形（probe1.cpp fA 逐条全等）。
+    register unsigned long y = a;
     y ^= mixBits(b, c) >> 1;
-    // ORIG neg+and+xor 无分支形：(0-t)&mask 复现。
-    y ^= (0UL - loBit(c)) & MT_MATRIX_A;
-    return y;
+    // ORIG neg+and+xor 无分支形：(0-t)&mask 复现；末步作为返回表达式直落 %eax
+    // （写回 y 会多 mov %ebx,%eax）。
+    return y ^ ((0UL - loBit(c)) & MT_MATRIX_A);
 }
 
 int CMTRand::randInt()
@@ -128,13 +128,14 @@ int CMTRand::randInt()
 
     --m_left;
 
-    // ORIG mov (%eax),%ebx 跨段缓存；4.4 register 形反退化（40→54），N 封顶。
-    unsigned long y = *m_next++;
+    // [b28c-21] ORIG mov (%eax),%ebx 跨段缓存；纯 register 关键字复现（P0 限定：
+    // 仅 register asm("reg") 绑定禁用；纯 register 为标准 C++ 存储建议）。
+    register unsigned long y = *m_next++;
     y ^= (y >> 11);
     y ^= (y << 7) & 0x9d2c5680UL;
     y ^= (y << 15) & 0xefc60000UL;
-    y ^= (y >> 18);
-    return (int)y;
+    // 末步不写回 y：ORIG xor %ebx,%eax 直落返回值。
+    return (int)(y ^ (y >> 18));
 }
 
 unsigned long CMTRand::randInt(const unsigned long& range)

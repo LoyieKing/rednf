@@ -216,6 +216,13 @@ int BingoEvent::reqBingoMark(StackableAction::input_param& param)
             static_cast<BingoData*>(param.m_user->getBingoData())->m_pad4);
         if (diff > 0)
         {
+            // b28c-L10 判词（N，P209 族）：ORIG 0x080ca37c clamp 段为
+            // `mov -0x10(%ebp),%eax; cmp $0x3,%eax; jle` + `mov $0x3,%eax;
+            // mov %eax,-0x10(%ebp)`（载寄存器）；4.4 恒 mem 直比
+            // `cmpl $0x3,-0x10(%ebp); jle` + `movl $0x3,-0x10(%ebp)`。
+            // 探针 /tmp/l10_probe10/11/12.cpp 十二形全败：仅「unsigned 变量 +
+            // (int) cast」可载寄存器，但外层条件码变 je/jbe（ORIG 为 jle）。
+            // 语义等价（diff>0 已保证非负）。
             if (diff > 3)
             {
                 diff = 3;

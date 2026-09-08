@@ -31,9 +31,9 @@ STPvPGuild::STPvPGuild()
 PvP_GuildWar_Log::PvP_GuildWar_Log()
     : m_startTime(0)
 {
-    // ORIG `sub $0x10`：int 局部撑帧（P0 槽律）。
-    int slot;
-    (void)slot;
+    // [b28c-L18] 帧差 N：ORIG sub $0x10（4.1 非量化 outgoing），4.4 带 call 帧恒
+    // 16k+4 量化（P190 附注 b28 BL11：0x4/0x14/…）——两种定义序均不可凑 0x10，
+    // 保持 callee 前置的自然小帧。
 }
 
 PvP_GuildWar_Log::~PvP_GuildWar_Log()
@@ -57,24 +57,34 @@ void PvP_GuildWar_Log::SetpvpStartTime(long t)
 //   for(i=0;i<=7;++i){ key==0→跳到插入；key==guildKey→累加返回 1 } 未命中返回 0。
 int PvP_GuildWar_Log::InsertPvPGuild(unsigned int guildKey, int point)
 {
-    int i;
-    for (i = 0; i <= 7; ++i)
+    // [b28c-L18] 真语义 bug 修复：ORIG 0x085dddcc `cmp 0xc(%ebp),%eax; jne <++i 块>`
+    // 实证 key 既非 0 亦非 guildKey 时**继续扫描下一槽**；旧源 mismatch 直落
+    // found 插入块（首个非命中槽即被覆盖，槽 1..7 永不可达）。
+    // 块布局照 ORIG（P164 岛标签法）：入口 jmp 尾条件块；body/insert 物理前置、
+    // `addl/cmpl/setle/test/jne` 回边块 + `mov $0` 直落 epilogue。
+    int i = 0;
+    goto cond;
+body:
+    if (m_guilds[i].m_guildKey == 0)
+        goto found;
+    if (m_guilds[i].m_guildKey == guildKey)
     {
-        if (m_guilds[i].m_guildKey == 0)
-            goto found;
-        if (m_guilds[i].m_guildKey == guildKey)
-        {
-            m_guilds[i].m_point += point;
-            ++m_guilds[i].m_count;
-            return 1;
-        }
-found:
-        m_guilds[i].m_guildKey = guildKey;
-        m_guilds[i].m_point = point;
-        m_guilds[i].m_count = 1;
-        ++m_guildCnt;
+        m_guilds[i].m_point += point;
+        ++m_guilds[i].m_count;
         return 1;
     }
+    ++i;
+    goto insertblk;
+found:
+    m_guilds[i].m_guildKey = guildKey;
+    m_guilds[i].m_point = point;
+    m_guilds[i].m_count = 1;
+    ++m_guildCnt;
+    return 1;
+insertblk:
+cond:
+    if (i <= 7)
+        goto body;
     return 0;
 }
 

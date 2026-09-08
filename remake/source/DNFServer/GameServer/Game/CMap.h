@@ -57,6 +57,9 @@ struct _mapMonster
     int m_spawnType;          // +0x0c  (0=单人 1=队伍 2=队伍x2)
     int m_levelAdd;           // +0x10
     int m_field14;            // +0x14
+    // b28c-lane25 代落判词：匿名聚合形实测无效（4.4 仍逐字段重载 this，
+    // 65 条 vs 原形 64/ORIG 62）——ORIG C1ERKS 的 `mov 0x8(%ebp),%ecx` 缓存
+    // this + 成对搬移属 4.1 成员拷贝 lowering，无源码解，判 N。
     int m_roleType;           // +0x18
     char m_champion;          // +0x1c
     int m_posX;               // +0x20
@@ -569,8 +572,11 @@ public:
     std::list<_mapMonster> m_conditionMonsterList; // +0x14
     std::list<_mapItem> m_itemList; // +0x1c
     std::list<int> m_pathObjectList; // +0x24
-    int m_pathArea1[8];             // +0x2c
-    int m_pathArea2[8];             // +0x4c
+    // b28c-36: 二维数组声明——ORIG checkFitInPathObject 0x0834e9a6 以数组名退化
+    // int(*)[2] 直传（`lea 0x4c(%eax),%edx` / `add $0x2c,%eax`）；[8] 一维 + cast
+    // 在 4.4 恒 add+mov 两段（探针 /tmp/b28c_l36_p2.cpp f8 vs f1-f7）。sizeof 0x20 不变。
+    int m_pathArea1[4][2];          // +0x2c
+    int m_pathArea2[4][2];          // +0x4c
     std::vector<STAICharacterMapArrangeData> m_aiCharacters; // +0x6c
     int m_78;                       // +0x78  (APC random point)
     int m_assignedNpcCount;         // +0x7c

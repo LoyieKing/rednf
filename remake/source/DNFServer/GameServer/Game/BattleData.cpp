@@ -151,6 +151,10 @@ int BattleData::ClearEventDungeonRoom(
 
 char BattleData::IsClearEventDungeonRoom(int param_1, unsigned short roomIdx) const
 {
+    // [b28c-35] N：ORIG 0x085be87e 索引链用 %ebx 缓存 roomIdx（触发 push %ebx、槽 -0x8）
+    // 且 `add %ebx,%eax; add $0xc4,%eax` 单累加器；4.4 用 %ecx + `lea (%ecx,%eax,1),%edx`
+    // 两累加器（交换下标序更劣，已实测回退）。add-vs-lea + callee-saved 选择属 N4/P30 族，
+    // 语义全等。
     if (roomIdx >= 3)
     {
         return 0;

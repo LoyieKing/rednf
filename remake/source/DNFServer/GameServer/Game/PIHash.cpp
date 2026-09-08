@@ -15,6 +15,7 @@
 #include <cstdlib>
 
 int DoSuperFastHash(unsigned char* data, unsigned int len, unsigned int& hash);
+int DoSuperFastHash(char* data, unsigned int len, unsigned int& hash);
 
 // ---- MakeHash 前置（P210 callee 定义顺序定律：调用者定义须在 DoSuperFastHash
 // 定义之前，否则 4.4 按 callee 帧精确继承 outgoing，0x38 保守大帧塌缩为 0x20）----
@@ -25,6 +26,28 @@ unsigned char MakeHash(unsigned char* data, unsigned int len, unsigned char seed
     unsigned char* digest = reinterpret_cast<unsigned char*>(&hash);
     return static_cast<unsigned char>(digest[0] ^ digest[1] ^ digest[2] ^
                                       digest[3] ^ seed);
+}
+
+// ORIG T 0x0808c9a0（P210：定义须前置于 DoSuperFastHash 定义，保 0x38 保守大帧）：
+// DoSuperFastHash(data,len,&h) → 4 字节异或 ^ seed ^ 0x53
+// → (v & 0xf) ^ ((v & 0xf0) >> 4)（返回低半字节折叠，ORIG 为 `shrb $4,%al`）。
+// [b28c-L23 N(N18a 反向)·已翻 3 中 2] P210 定义前置把帧/槽号整体翻正
+// （0x38 + -0x1c/-0x14/-0x10/-0x9 与 ORIG 全等）；`((v & 0xf0) >> 4)` 复现 ORIG 的
+// `shrb $4,%al`（4.1 字节移位，4.4 对 `v >> 4` 恒出 32 位 sar）。
+// 唯一残差 = 末次 `acc ^ seed`：4.1 发 `movzbl seed,%eax; xor %edx,%eax`（就地寄存器
+// 物化），4.4 恒折 `xor -0x14(%ebp),%al`（8 位内存 xor）——6 形探针
+// （(int)seed / (unsigned int) 双侧 cast / 分组括号 / seed 置左 / 先折 0x53）全产同
+// 一 xorb ⇒ N18a 反向封顶；语义（值域 0..0xff 单字节折叠）完全一致。
+unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
+                                  unsigned char seed)
+{
+    // ORIG h 槽无预清（DoSuperFastHash 覆写）。
+    unsigned int h;
+    DoSuperFastHash(data, len, h);
+    unsigned char* p = reinterpret_cast<unsigned char*>(&h);
+    unsigned char v = static_cast<unsigned char>(
+        p[0] ^ p[1] ^ p[2] ^ p[3] ^ seed ^ 0x53);
+    return static_cast<unsigned char>((v & 0xf) ^ ((v & 0xf0) >> 4));
 }
 
 // ---- DoSuperFastHash ORIG @ 0x0808ca7a ----
@@ -225,20 +248,6 @@ void SetUserManagerToolIP(CUser* user, SIG_UPDATE_LOGOUT* sig)
 // ReconstructCheckSum（报告 _lt_global_gt_ 三份，objdump 逐指令转写）
 // ============================================================================
 
-// ORIG T 0x0808c9a0：DoSuperFastHash(data,len,&h) → 4 字节异或 ^ seed ^ 0x53
-// → (v & 0xf) ^ (v >> 4)（返回低半字节折叠）。
-unsigned char _NS_PI_2ND_MakeHash(char* data, unsigned int len,
-                                  unsigned char seed)
-{
-    // ORIG h 槽无预清（DoSuperFastHash 覆写）。
-    unsigned int h;
-    DoSuperFastHash(data, len, h);
-    unsigned char* p = reinterpret_cast<unsigned char*>(&h);
-    unsigned char v = static_cast<unsigned char>(
-        p[0] ^ p[1] ^ p[2] ^ p[3] ^ seed ^ 0x53);
-    return static_cast<unsigned char>((v & 0xf) ^ (v >> 4));
-}
-
 // ORIG T 0x0808ca1c：return rand() & 0xf。
 unsigned char _NS_PI_2ND_GetRandomHashKey()
 {
@@ -250,9 +259,11 @@ unsigned char _NS_PI_2ND_GetRandomHashKey()
 void _NS_PI_2ND_ReconstructCheckSum(unsigned int& checksum, unsigned int k1,
                                     unsigned int k2, unsigned int k3)
 {
-    unsigned int v = checksum & 0xff;
-    v |= (k1 << 8) & 0xffff00;
-    v |= (k2 << 24) & 0xf000000;
-    v |= k3 << 28;
-    checksum = v;
+    // [b28c-lane24] ORIG 0x0808ca2c 无帧（sub 无）、累积在 %edx（`movzbl %al,%edx`
+    // 起，逐 `or %eax,%edx`），末 `mov %edx,(%eax)` ⇒ 源码是单一赋值表达式
+    //（P0：无具名局部槽）；`(unsigned char)` 取低字节复现 movzbl（非 and $0xff）。
+    checksum = (unsigned int)(unsigned char)checksum |
+               ((k1 << 8) & 0xffff00) |
+               ((k2 << 24) & 0xf000000) |
+               (k3 << 28);
 }

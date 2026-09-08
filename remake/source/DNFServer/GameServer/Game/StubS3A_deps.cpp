@@ -76,11 +76,18 @@ int CUser::IsAbleItemUnlock(int space, int slot, int& outSec) const
     // ORIG 0x08646c5f：result 声明点预清 0（movl $0x0,-0xc），随后独立赋值；
     // lock 于声明点直落 callee-saved %ebx 跨 GetCharacExpandDataR 存活；
     // expand 结果免槽直用（技巧22/37）。
+    // 【真语义 bug 修复·b28c-L5】原形把 CItemLock::IsAbleItemUnlock 的返回值
+    //   **丢弃**（`if (call() != 0) return result;` 而 result 恒为预清的 0）；
+    //   ORIG 0x08646c5f 是 `call / mov %eax,-0xc(%ebp) / cmpl $0,-0xc(%ebp) / …/
+    //   mov -0xc(%ebp),%eax / jmp 尾` —— 命中失败码时返回**该码**（0/0x13），
+    //   即调用结果被落进 result 槽并作为返回值透出。改为「声明预清 + 独立赋值 +
+    //   按值判返」（P102 同一 bool 局部逐次赋值再判断 的 int 版；同时复现
+    //   ORIG 的 `mov %eax,-0xc` 落槽与 `cmpl $0,-0xc` 槽比）。
     int result = 0;
-    if (((item_lock::CItemLock*)GetCharacExpandDataR(
-             (ENUM_CHARAC_EXPAND_TYPE)2))
-            ->IsAbleItemUnlock(lock, outSec)
-        != 0)
+    result = ((item_lock::CItemLock*)GetCharacExpandDataR(
+                  (ENUM_CHARAC_EXPAND_TYPE)2))
+                 ->IsAbleItemUnlock(lock, outSec);
+    if (result != 0)
         return result;
     return 0;
 }
@@ -99,11 +106,13 @@ int CUser::IsAbleItemUnlockCancel(int space, int slot) const
         return 0x13;
     // ORIG 0x08646d02：result 声明点预清 0 + 独立赋值；lock 直落 %ebx 跨调用；
     // expand 结果免槽直用（同 IsAbleItemUnlock 形）。
+    // 【真语义 bug 修复·b28c-L5】同上：ORIG 返回落槽后的调用结果（0/0x13），
+    //   原形恒返 0 ⇒ 上层 Dispatcher 的「可解锁」判定被永久放行（可观察行为差异）。
     int result = 0;
-    if (((item_lock::CItemLock*)GetCharacExpandDataR(
-             (ENUM_CHARAC_EXPAND_TYPE)2))
-            ->IsAbleItemUnlockCancel(lock)
-        != 0)
+    result = ((item_lock::CItemLock*)GetCharacExpandDataR(
+                  (ENUM_CHARAC_EXPAND_TYPE)2))
+                 ->IsAbleItemUnlockCancel(lock);
+    if (result != 0)
         return result;
     return 0;
 }
@@ -268,6 +277,14 @@ bool CRedeemItem::_saveData(CUser* pUser)
 CItemMakingSkill::CItemMakingSkill()
 {
     // ORIG 0x08545125：time(0) → operator new(0x9c8) → CMTRand(seed)
+    // b28c-L5 代落判词（lane14 件，DELEGATED→本 TU 属主；根因由 lane14 探针定）：
+    //   本件 48/48 指令数全等，唯一残差在 EH/预取段——ORIG 0x08545134 在
+    //   `call time@plt` 之后**立刻** `lea -0x1c(%ebp),%esi` 预取 &seed（4.1 初始化
+    //   前置，N88 族），4.4 则把该 lea 延到 `call CMTRand::C1ERKm` 前一条且落
+    //   %edx（惰性求值 + callee-saved 选择差）。new-expression 的 landing-pad
+    //   抑制已由 P210/BM11 覆盖（caller 前置于 callee ctor 定义）——本 TU 看不到
+    //   CMTRand ctor 体（定义在 CUserCharacInfo 链外 TU），R3 跨 TU 迁定义不可行
+    //   ⇒ 判 N88+N18a，语义零差，勿再开轮。
     unsigned long seed = time(0);
     // ORIG 0x08545134：lea -0x1c,%esi —— 4.4 对实参 &seed 表达式自然产 lea（P0）。
     m_rand = new CMTRand(seed);
@@ -298,6 +315,13 @@ bool CItemMakingSkill::loadData(CUser* pUser, char* pData)
 
 bool CItemMakingSkill::_saveData(CUser* pUser)
 {
+    // b28c-L5 代落判词（lane14 件，DELEGATED→本 TU 属主）：87→86，残差为
+    //   `mov disp(%eax),%eax; mov %eax,%edx` 两段死 regmove —— 目标 %edx 是
+    //   caller-saved 且值不跨 call 保活，按 lane14/lane28 终版口径**不适用**裸
+    //   register（裸 register 只在目标为 callee-saved 且跨 call 时可能非劣化）；
+    //   三档类型旋钮（callee 返回类型 / 字段同异型 / store 方向）已由 lane14 穷举
+    //   ⇒ 判 N18a 封顶。本文件内我波次真修的是 IsAbleItemUnlock/Cancel 两处
+    //   「返回值被预清局部吞掉」的语义硬伤（见其上函数头判词）。
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("CItemMakingSkill.cpp", 0x33),
                        true);
     guard.operator*()->operator<<((int)0x26e);       // op*(guard)→op<<(int)

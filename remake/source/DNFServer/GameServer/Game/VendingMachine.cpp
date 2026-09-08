@@ -55,6 +55,8 @@ void CVendingMachineStatistic::incUseCount()
 // ----------------------------------------------------------------------------
 // addOutputItem（ORIG 0x0860f5a4）
 // ----------------------------------------------------------------------------
+// [b28c-31] AE：`if (it == end) insert else +=` 正向形复现 ORIG 0x0860f6xx
+// `call eq; test; je <+= 块>` 布局（95=95）。
 void CVendingMachineStatistic::addOutputItem(unsigned long itemIdx,
                                              unsigned int count)
 {
@@ -66,10 +68,12 @@ void CVendingMachineStatistic::addOutputItem(unsigned long itemIdx,
         return;
 
     std::map<unsigned long, unsigned int>::iterator it = m_output.find(itemIdx);
-    if (it != m_output.end())
-        it->second += count;
-    else
+    // [b28c-31] ORIG 0x0860f6xx：`call eq; test %al,%al; je <+= 块>`（eq 真即
+    // it==end 时 fall-through 到 insert 块）⇒ 源码须写 `== end` 正向形。
+    if (it == m_output.end())
         m_output.insert(std::make_pair(itemIdx, count));
+    else
+        it->second += count;
 }
 
 // ----------------------------------------------------------------------------

@@ -75,6 +75,10 @@ bool HeroMissionEvent::findMissionValue(CUser* user,
     for (std::vector<HeroMissionValue>::iterator vit = it->second.begin();
          vit != it->second.end(); ++vit)
     {
+        // [b28c-L7] 负例：P209 提示的 signed 保形（`static_cast<int>` 双侧）实测
+        // 反劣（101 vs 103，movsbl+双载 +2）；ORIG `mov (%eax),%eax;
+        // cmp 0x10(%ebp),%eax` 的「值直落 eax + mem 作源」为 4.1 固有
+        // （N18b：成员==参数 4.4 恒折 `cmp MEM,reg` 反向不可造）⇒ 封 N。
         if (vit->m_mission == static_cast<int>(mission))
         {
             out = &*vit;
@@ -219,20 +223,19 @@ void HeroMissionEvent::setMissionValue(CUser* user,
 // ============================================================================
 void HeroMissionEvent::StartEvent()
 {
-    // N(新候选)封顶：if/else 两臂 cMyTrace 槽深分配方向跨版本相反
-    // （4.1 先声明者深：ORIG fail -0x28/succ -0x18；4.4 先声明者浅：我方反）。
-    // 探针 /tmp/l22p/scope_probe.cpp：兄弟块/嵌套两形均不可翻。
+    // [b28c-L7] P221：ORIG 两互斥臂 cMyTrace 槽 fail=-0x28(深)/succ=-0x18(浅)，
+    // 4.4 对**具名** tr 恒反（先声明浅，N93 推广族）。改「构造即调用」全表达式
+    // 临时链 ⇒ 4.4 复现 ORIG 槽深（MySQL init_db_handle 同法 AE 实证）。
     if (!loadScript())
     {
-        cMyTrace tr(__PRETTY_FUNCTION__, 0x1fe, 5);
-        tr("[HeroMission] Script load fail!!!");
+        cMyTrace(__PRETTY_FUNCTION__, 0x1fe, 5)
+            ("[HeroMission] Script load fail!!!");
     }
     else
     {
         // ORIG 0x81666a8：loadScript 成功后 SetEventFlag(true)（写 +0x08 标志）
         SetEventFlag(true);
-        cMyTrace tr(__PRETTY_FUNCTION__, 0x203, 0);
-        tr("[HeroMission] Start!");
+        cMyTrace(__PRETTY_FUNCTION__, 0x203, 0)("[HeroMission] Start!");
     }
 }
 
@@ -396,6 +399,11 @@ void UseFatigueMission::processMission(CUser* /*user*/, HeroMissionValue& value,
 // ============================================================================
 bool UseFatigueMission::rewardMission(CUser* user, HeroMissionValue& value)
 {
+    // [b28c-27] N（P168a X1 边界）：ORIG 首判 `call; xor $1,%eax; test %al; je` 与
+    // 尾段 `call; test %al; je` 均来自 char 返回 callee；bool 化 isRepeatMission 会
+    // 使 callee 自身 movzbl 直返劣化为 setne（ORIG 0x08164fc2 仅 movzbl+ret），
+    // 调用点 X1（uchar ^=1）又被 4.4 因"判断后存在依赖同一条件的 bool 物化岛"
+    // jump-thread 折叠（同文件 L462-466 已实证 11→13 回退）。保持 char + 短路原形。
     if (!isRepeatMission() && value.m_fieldA != 0)
     {
         LogManager::logFormat(
@@ -454,6 +462,16 @@ void UseCubeMission::processMission(CUser* /*user*/, HeroMissionValue& value,
 // ============================================================================
 // UseCubeMission::rewardMission —— ORIG T 0x08165a2e（rewardMission.md）。
 // 同 UseFatigueMission::rewardMission 骨架（行号 0x117/0x11e）。
+// [b28c-L26] 残余 4 行判词：
+//  ① 首判 `call isRepeatMission; xor $1,%eax; test %al; je`——callee 为 char 返回
+//     （ORIG 0x08164fc2 仅 movzbl+ret），bool 化会毁 callee 本体（P168a③b/N 跨版本
+//     bool ABI）；X1 `uchar ^=1` 形又会被 4.4 jump-thread 折叠掉紧随的
+//     `value.m_fieldA!=0` bool 物化岛（实测 11→13 回退）⇒ 保持短路裸形，缺 1 xor。
+//  ② 尾段 `call; test %al,%al; je`（char callee 直判、无 setne）——4.4 对 char 返回
+//     在 if() 里恒补 setne 归一，实测本形 0 条差改裸形反增；维持。
+//  ③ `mov (%eax),%eax; mov %eax,%ebx` 两段：ORIG 4.1 冗余 regmove（N18a 反向，
+//     we-smaller 1 条），4.4 无源形可造。
+//  ④ 其余 diff 全为 call/jmp 目标与字符串/行号地址的 .o 重定位占位（§6.3）。
 // ============================================================================
 bool UseCubeMission::rewardMission(CUser* user, HeroMissionValue& value)
 {
@@ -464,7 +482,11 @@ bool UseCubeMission::rewardMission(CUser* user, HeroMissionValue& value)
     //   `register uchar + ^=1 + goto`，4.4 的 jump threading 就会顺手把这段
     //   物化岛折叠掉（缺 5 条）。保持 `&&` 短路原写法反而更接近 ORIG。
     // ⇒ X1 适用前提：**判断之后没有依赖同一条件的 bool 物化岛**。
-    if (!isRepeatMission() && value.m_fieldA != 0)
+    // [b28c-L26 档①+② 后追加 P84] bool 化 isRepeatMission 使 xor 段归位；剩余
+    // 缺项是 ORIG 把整个 `!isRepeat() && fieldA!=0` 短路结果物化成 bool 局部
+    // （`mov $1,%eax; jmp; mov $0,%eax; test %al,%al; je BODY`）⇒ 按 P84 具名 bool。
+    const bool alreadyRewarded = !isRepeatMission() && value.m_fieldA != 0;
+    if (alreadyRewarded)
     {
         LogManager::logFormat(
             1, "localtaiwan/Event/EventHeroMission.cpp",
@@ -1086,12 +1108,15 @@ void HeroMissionEvent::setMissionForGm(CUser* user,
         std::map<HeroMissionCondition::MissionNo::T,
                  BaseHeroMissionCondition*>::iterator it =
             m_conditions.find(mission);
-        if (it != m_conditions.end())
-        {
-            // ORIG mov %dx,0x4(%eax)：HeroMissionValue +0x04 写 ushort GM 值
-            out->m_field4 = (unsigned short)value;
-        }
+        // [b28c-L7] P223：ORIG 0x08167a28 `test %al; jne <nop>` + body 尾
+        // `jmp <leave>` + `+0x8a: nop` 空块占位岛 ⇒ 复现形 `if(it==end) goto END;
+        // body; END:;`（4.4 对 `if(it!=end){body}` 恒 jump-thread 少 jmp/nop）。
+        if (it == m_conditions.end())
+            goto END;
+        // ORIG mov %dx,0x4(%eax)：HeroMissionValue +0x04 写 ushort GM 值
+        out->m_field4 = (unsigned short)value;
     }
+END:;
 }
 // ============================================================================
 // resetMissionForGm —— ORIG T 0x08167a3a（resetMissionForGm.md 全文转写）。
@@ -1107,11 +1132,12 @@ void HeroMissionEvent::resetMissionForGm(CUser* user,
         std::map<HeroMissionCondition::MissionNo::T,
                  BaseHeroMissionCondition*>::iterator it =
             m_conditions.find(mission);
-        if (it != m_conditions.end())
-        {
-            out->reset();
-        }
+        // [b28c-L7] P223：ORIG 0x08167aXX 同 setMissionForGm 空块 nop 岛形。
+        if (it == m_conditions.end())
+            goto END;
+        out->reset();
     }
+END:;
 }
 // ============================================================================
 // saveEventData —— ORIG T 0x08166d38（saveEventData.md 全文转写）。

@@ -58,7 +58,17 @@ struct CHARAC_QUEST_SHOP_DATA
     unsigned int   m_field0;                 // +0x000（未访问；前导）
     unsigned int   m_qp;                     // +0x004
     unsigned int   m_initCount;              // +0x008
-    CHARAC_QUEST_SHOP_DATA_FIELDS m_data;    // +0x00c..+0xa5
+    // b28c-L10：+0x0c..+0xa5 区双视角匿名 union。DB 侧（_LoadQuestShop）按属性具名字段
+    // 填充，CQuestShop 侧（SetTagCharacQuestShopData ORIG 0x085efdc0）按 0x4d 个 ushort
+    // 状态计数读取（`movzwl 0xc(%eax,%edx,2)`、make_pair 实例 `IRiRt` ⇒ 非 const 左值
+    // 直访问完整类型成员）。0x4d*2 = 0x9a = sizeof(FIELDS)，sizeof/偏移/全 mangled 不变。
+    // 探针 /tmp/l10_probe6.cpp fH：完整类型成员访问形逐条复现 ORIG，reinterpret_cast
+    // 视图形使 4.4 装载序反（base 先 + 多 1 条 add）。
+    union
+    {
+        CHARAC_QUEST_SHOP_DATA_FIELDS m_data;    // +0x00c..+0xa5
+        unsigned short m_statusCounts[0x4d];      // 同区计数视角
+    };
     unsigned int   m_questPiece;             // +0x0a6
 };
 #pragma pack(pop)

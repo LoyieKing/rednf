@@ -779,7 +779,10 @@ PackSet::index_vector_const_it PackSet::find_const(char const* name)   // sret @
 
 bool PackSet::is_exist(char const* name)     // @0x08ac498c
 {
-    return find(name) != m_indexes.end();
+    // b28c-L8：ORIG 0x08ac498c 先 find(sret -0x10) 后 end(临时 -0xc)，
+    // 即左操作数具名结果再比较；直接写二进制表达式 4.4 反序求值。
+    index_vector_it rval = find(name);
+    return rval != m_indexes.end();
 }
 
 bool PackSet::is_ready() const               // @0x08ac4954
@@ -864,6 +867,10 @@ pack_ret_t PackSet::get(char const* name, unsigned char** content,
 
 pack_ret_t PackSet::added(char const* name, IPackFileProcess* process)   // 0x08ac56a2
 {
+    // b28c-L8：ORIG 函数头唯一的前置 ctor call 是 index_pair_t entry（sret
+    // -0x30），迭代器 it 无默认 ctor（find 的 sret 直落其槽 -0x10）⇒ entry
+    // 声明提到函数头、it 保持直接初始化（P28/P212 声明序=槽深序）。
+    index_pair_t entry;
     if (m_type != PACK_LOAD_FULL)
     {
         fprintf(stdout, "%s\n", "PACK_LOAD_FULL needed");
@@ -879,8 +886,8 @@ pack_ret_t PackSet::added(char const* name, IPackFileProcess* process)   // 0x08
         return PACK_ERROR;
     }
 
-    index_pair_t entry;
-    entry.first = 0;
+    // b28c-L8：ORIG 0x08ac56a2 无该 store —— pair<int,int> 的默认 ctor（函数头
+    // 唯一前置 call，_ZNSt4pairIiiEC1Ev）已把 first 值初始化为 0，原源码不重复写。
     if (entry.second.update_content_from_file(name, this, process) == PACK_ERROR)
     {
         fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x396, __FUNCTION__);
@@ -893,6 +900,7 @@ pack_ret_t PackSet::added(char const* name, IPackFileProcess* process)   // 0x08
 
 pack_ret_t PackSet::modified(char const* name, IPackFileProcess* process)   // 0x08ac54ee
 {
+    index_vector_it it;   // b28c-L8：ORIG 默认 ctor 前置（P28 两段式）
     if (m_type != PACK_LOAD_FULL)
     {
         fprintf(stdout, "%s\n", "PACK_LOAD_FULL needed");
@@ -900,7 +908,7 @@ pack_ret_t PackSet::modified(char const* name, IPackFileProcess* process)   // 0
         return PACK_ERROR;
     }
 
-    index_vector_it it = find(name);
+    it = find(name);
     if (it == m_indexes.end())
     {
         fprintf(stdout, "find failed. %s", name);
@@ -912,7 +920,12 @@ pack_ret_t PackSet::modified(char const* name, IPackFileProcess* process)   // 0
     if (entry.content_ != 0)
     {
         delete[] entry.content_;
-        entry.offset_ = 0;
+        // b28c-L8 真语义 bug 修正：ORIG 0x08ac54ee 此处 store 目标为 +0x18，
+        // 而 IndexEntry::offset_ 经权威 getter _ZNK10IndexEntry6offsetEv
+        // @0x08ac3e94 = `mov 0x14(%eax),%eax` 实证在 +0x14，+0x18 是 content_
+        // （_ZNK10IndexEntry7contentEv @0x08ac3ea0 = `mov 0x18(%eax),%eax`）。
+        // 旧形清 offset_ 会留下已释放的 content_ 野指针 ⇒ 二次 delete[] 风险。
+        entry.content_ = 0;
     }
 
     if (entry.update_content_from_file(name, this, process) == PACK_ERROR)
@@ -925,6 +938,7 @@ pack_ret_t PackSet::modified(char const* name, IPackFileProcess* process)   // 0
 
 pack_ret_t PackSet::deleted(char const* name)   // 0x08ac5332
 {
+    index_vector_it it;   // b28c-L8：ORIG 默认 ctor 前置（P28 两段式）
     if (m_type != PACK_LOAD_FULL)
     {
         fprintf(stdout, "%s\n", "PACK_LOAD_FULL needed");
@@ -932,7 +946,7 @@ pack_ret_t PackSet::deleted(char const* name)   // 0x08ac5332
         return PACK_ERROR;
     }
 
-    index_vector_it it = find(name);
+    it = find(name);
     if (it != m_indexes.end())
     {
         if (it->second.content_ != 0)
@@ -946,16 +960,25 @@ pack_ret_t PackSet::deleted(char const* name)   // 0x08ac5332
 
 void PackSet::freeContent(char const* name)     // 0x08ac5448
 {
-    index_vector_it it = find(name);
-    if (it != m_indexes.end() && it->second.content_ != 0)
+    index_vector_it it;   // b28c-L8：ORIG 默认 ctor 前置（P28 两段式）
+    it = find(name);
+    // b28c-L8：ORIG 0x08ac5448 三处成员访问全经 `operator*`（call …deEv，
+    // @+0x61/+0x78/+0x92）而非 operator->；第二条件是独立嵌套 if（ORIG
+    // `test; setne %al; test %al,%al; je` bool 物化形）——短路 && 合并形
+    // 使 4.4 反产 `mov$1;jmp / mov$0` 岛（+3 条）。
+    if (it != m_indexes.end())
     {
-        delete[] it->second.content_;
-        it->second.content_ = 0;
+        if ((*it).second.content_ != 0)
+        {
+            delete[] (*it).second.content_;
+            (*it).second.content_ = 0;
+        }
     }
 }
 
 pack_ret_t PackSet::sort()      // 0x08ac58ee
 {
+    index_vector_it it;   // b28c-L8：ORIG 0x08ac58ee 函数头默认 ctor，循环内赋值
     if (m_type != PACK_LOAD_FULL)
     {
         fprintf(stdout, "%s\n", "PACK_LOAD_FULL needed");
@@ -964,7 +987,7 @@ pack_ret_t PackSet::sort()      // 0x08ac58ee
     }
 
     m_indexes.reserve(m_addeds.size());
-    for (index_vector_it it = m_addeds.begin(); it != m_addeds.end(); ++it)
+    for (it = m_addeds.begin(); it != m_addeds.end(); ++it)
     {
         m_indexes.push_back(*it);
     }

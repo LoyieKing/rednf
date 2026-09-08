@@ -312,14 +312,14 @@ void CAssaultMgr::AvailableAssault(CUser* user, CUser const* source)
 
     if (party != 0)
     {
-        // [b23S3C] N96 清绑（P168a③b）：is_limit_minimum_* 为 int callee，
-        // ORIG `xor $1,%eax; test %al; je` 为 4.1 bool 物化，4.4 -O0 恒产
-        // cmp/setne/test（探针 /tmp/x1.cpp 全败）；按语义 `!=1` 写自然形。
-        if ((unsigned char)party->is_limit_minimum_age(ageLimitFlag, errorOut) != 1)
+        // [b28c-L7] P168a①：is_limit_minimum_age/level 已按 Main 授权 bool 化
+        // （CParty.h:680 判词）⇒ 裸形直产 ORIG `call; xor $1,%eax; test %al,%al;
+        // je`（探针 /tmp/xprobe.cpp b/j 形 = bool callee 唯一可翻形）。
+        if (!party->is_limit_minimum_age(ageLimitFlag, errorOut))
         {
             throw static_cast<ENUM_ERROR>(0x5f);
         }
-        if ((unsigned char)party->is_limit_minimum_level(0x1e, errorOut) != 1)
+        if (!party->is_limit_minimum_level(0x1e, errorOut))
         {
             if (user == source)
             {
@@ -717,7 +717,10 @@ int CAssaultMgr::GetRequestAssaultNeedMoney(CUser* attacker, CUser* target)
 // ===========================================================================
 // OnRequestAssault —— ORIG T 0x082edfba (0x11bb)：袭击请求全量校验 + 创建场次。
 // ===========================================================================
-int CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
+// [b28c-L7][SIGFIX:pvp_assault::CAssaultMgr::OnRequestAssault] int→bool
+//（ORIG __PRETTY_FUNCTION__ 串 "bool ...(CUser*, CUser*, int*)"，tsv 第 14 行；
+// mangled 不含返回类型⇒符号不变；体内 return 值仅 0/1）。
+bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
 {
     CAssaultPlace* acquiredPlace = 0;                   // -0x94(%ebp)
     unsigned int nextPlaceId = 0;                       // -0x98(%ebp)
@@ -980,7 +983,7 @@ int CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
         // param_3 非空＝纯校验模式（DryRun）：通过全部校验后立即成功返回。
         if (result != 0)
         {
-            return 1;                                    // ORIG +0xbf3 jne +0x11a9
+            return true;                                 // ORIG +0xbf3 jne +0x11a9
         }
 
         CAssaultPlaceFactory* factory = GetInstanceAssaultPlaceFactory();
@@ -1055,7 +1058,7 @@ int CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
             packet.finalize(true);
             attacker->Send(packet);
         }
-        return 1;
+        return true;
     }
     catch (ENUM_ERROR err)
     {
@@ -1069,7 +1072,7 @@ int CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
         if (result != 0)
         {
             *result = static_cast<int>(err);
-            return 0;
+            return false;
         }
         FreeAssaultPlace(static_cast<int>(nextPlaceId), acquiredPlace);
         {
@@ -1081,7 +1084,7 @@ int CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
             packet.finalize(true);
             attacker->Send(packet);
         }
-        return 1;
+        return true;
     }
     catch (...)
     {

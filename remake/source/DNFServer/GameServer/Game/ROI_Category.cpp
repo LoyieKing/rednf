@@ -2,7 +2,7 @@
 // LinkHelper 核销批次 —— ROI_Category 实现（/tmp/undef_r21.txt：ROI_Category::_sort）。
 // ORIG 证据：
 //   _ZN12ROI_CategoryC1Ev   W @0x0822ac10 sz 0x1f：+0/+4/+8 三个 dword 清零。
-//   _ZN12ROI_Category5_sortEv W @0x0822ac30 sz 0x10a：3 记录 (ushort key, byte mark)
+//   _ZN12ROI_Category5_sortEv W @0x0822ac30 sz 0x10a：3 记录 (short key, byte mark)
 //   冒泡排序，objdump 逐指令转写。
 // ============================================================================
 
@@ -19,11 +19,15 @@ ROI_Category::ROI_Category()
 // 三次比较交换：if(k0>k1){swap k0,k1 & m0,m1}
 //               if(k1>k2){swap k1,k2 & m1,m2}
 //               if(k0>k1){swap k0,k1 & m0,m1}
+// short 字段直比（无 static_cast）复现 ORIG `movzwl (%eax),%edx` 一步直落 +
+// jle 有符号比较（b28c-lane25 探针 /tmp/l25probe/roi.cpp fA/fB 实证）。
 void ROI_Category::_sort()
 {
-    unsigned short tmpKey;
+    // tmpKey 与字段同型（short）：P211 同型 ⇒ 4.4 store LHS(this) 先，
+    // 复现 ORIG `mov this; movzwl -0x4; mov %dx,0x2` 序（异型恒 RHS 先）。
+    short tmpKey;
     unsigned char tmpMark;
-    if (static_cast<short>(m_keys[0]) > static_cast<short>(m_keys[1])) // ORIG jle 有符号比较
+    if (m_keys[0] > m_keys[1]) // ORIG jle 有符号比较
     {
         tmpKey = m_keys[0];                       // ORIG 共用 -0x4(%ebp)
         m_keys[0] = m_keys[1];
@@ -32,7 +36,7 @@ void ROI_Category::_sort()
         m_marks[0] = m_marks[1];
         m_marks[1] = tmpMark;
     }
-    if (static_cast<short>(m_keys[1]) > static_cast<short>(m_keys[2])) // ORIG jle 有符号比较
+    if (m_keys[1] > m_keys[2]) // ORIG jle 有符号比较
     {
         tmpKey = m_keys[1];
         m_keys[1] = m_keys[2];
@@ -41,7 +45,7 @@ void ROI_Category::_sort()
         m_marks[1] = m_marks[2];
         m_marks[2] = tmpMark;
     }
-    if (static_cast<short>(m_keys[0]) > static_cast<short>(m_keys[1])) // ORIG jle 有符号比较
+    if (m_keys[0] > m_keys[1]) // ORIG jle 有符号比较
     {
         tmpKey = m_keys[0];
         m_keys[0] = m_keys[1];

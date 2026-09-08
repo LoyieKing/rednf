@@ -129,7 +129,7 @@ int CDataManager::initRandomOptionItem()
 //    累计差值告警 9104；收尾总额复核告警 9135；点数写 m_pointCost(+0x40)。
 //    find_skill 经全局 G_CDataManager()（与 ORIG 调用形态一致），
 //    参数序 (job, skillId) 为汇编实证（ebx=+0x00 字节, esi=map key）。
-int CDataManager::initFairPVPSkillPoint()
+bool CDataManager::initFairPVPSkillPoint()
 {
     bool ok = true;
     PvPSkillTreeParameterScript& s = m_pvpSkillTree;
@@ -267,7 +267,7 @@ int CDataManager::initFairPVPSkillPoint()
 // 每个文件 new CMap + set_map(拷贝)。m_list4 为空时仅以 (15,15) 注册进
 // m_mapList；否则逐 dungeon 下标（find_dungeon 失败 trace 后返回 0）
 // 按 m_recoveryObjects 各坐标注册进 dungeon 与 m_mapList；m_dungeonStartArea.m_w>0 时额外 insertStart。
-int CDataManager::load_map_files(std::vector<PVPMAP_DATA>& pvpMaps)
+bool CDataManager::load_map_files(std::vector<PVPMAP_DATA>& pvpMaps)
 {
     STMapScript script;
     const char* filename = 0;

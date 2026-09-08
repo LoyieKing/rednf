@@ -113,15 +113,15 @@ void CQuickParty::destroy()
     // sub ⇒ esi=Size-Remain（占用数）。原经 GetActive*/GetOccupied* wrapper
     // 遮蔽直调形（LinkClosureB GetDBHandle 同案），已展开。
     G_CGameManager()->PutQuickParty(this);
-    unsigned int registeredCnt =
-        static_cast<unsigned int>(G_CGameManager()->m_quickPartyMap.size());
-    int occupiedCnt = G_CGameManager()->m_quickPartyPool.Size()
-                      - static_cast<int>(
-                            G_CGameManager()->m_quickPartyPool.Remain());
-    cMyTrace trace("void QuickParty::CQuickParty::destroy()", 0x32, 0);
+    // b28c-lane3：P227 全表达式临时链——ORIG 0x082695ca 把 size()→%ebx、
+    // Size()→%esi、Remain() 结果直接相减（无 registeredCnt/occupiedCnt 具名槽）；
+    // 具名局部使 4.4 落 -0x10/-0xc 两槽并多 4 条 mov，改临时链后复现。
     // ORIG fmt @0x8bf5380（GBK，objdump -s .rodata 实证逐字节一致）
-    trace("QUICK_PARTY_LOG : QUICK \xc6\xc4\xc6\xbc\xc7\xd8\xc1\xa6 \xb5\xcb\xb4\xcf\xb4\xd9. QUICK \xc6\xc4\xc6\xbc\xbc\xf6<%d>, \xb5\xee\xb7\xcf QUICK \xc6\xc4\xc6\xbc\xbc\xf6<%d>",
-          occupiedCnt, static_cast<int>(registeredCnt));
+    cMyTrace("void QuickParty::CQuickParty::destroy()", 0x32, 0)(
+        "QUICK_PARTY_LOG : QUICK \xc6\xc4\xc6\xbc\xc7\xd8\xc1\xa6 \xb5\xcb\xb4\xcf\xb4\xd9. QUICK \xc6\xc4\xc6\xbc\xbc\xf6<%d>, \xb5\xee\xb7\xcf QUICK \xc6\xc4\xc6\xbc\xbc\xf6<%d>",
+        G_CGameManager()->m_quickPartyPool.Size() -
+            static_cast<int>(G_CGameManager()->m_quickPartyPool.Remain()),
+        static_cast<int>(G_CGameManager()->m_quickPartyMap.size()));
 }
 
 // [moved] GetActiveQuickPartyCnt/GetOccupiedQuickPartyPoolCnt 定义移至 CGameManager.cpp（避免陷入 namespace QuickParty）。
@@ -381,7 +381,9 @@ void CQuickParty::send_matching_update_quick_party(char poolIdx,
 void CQuickPartySystemManager::insert_timer_waiting_party_matching(
     CQuickParty* qp)
 {
-    // ORIG：gen_timer_key→%ebx、get_quick_party_index→%esi callee-saved 缓存（P24 内联实参）
+    // ORIG：gen_timer_key→%ebx、get_quick_party_index→%esi callee-saved 缓存（P24 内联实参）。
+    // b28c-lane3 判 N82附：裸内联实参 4.4 恒 esi/ebx 对调，裸语句表达式形（P226）
+    // 实测无效（仍 esi/ebx）⇒ 多实参 call 首值 callee-saved 对调不可复现。
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
                                 qp->get_quick_party_index(),
                                 (TIMER_MESSAGE)0x9e, 0x14,
@@ -412,10 +414,9 @@ bool CQuickPartySystemManager::remove_quick_party_in_pool(
     }
 
     qp->destroy();
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x2ba, 5);
-    trace("QUICK_PARTY_LOG : NO EXIST KEY DATA!!");
+    // b28c-lane3：P221 全表达式临时链（单次调用）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x2ba, 5)(
+        "QUICK_PARTY_LOG : NO EXIST KEY DATA!!");
     return false;
 }
 
@@ -505,7 +506,11 @@ int CQuickParty::get_timer_key(TIMER_MESSAGE msg)
 // ---- check_timer_key @0x082696b0：槽值与给定 key 相等判断 ----
 bool CQuickParty::check_timer_key(TIMER_MESSAGE msg, int key)
 {
-    return key == m_timerKeyCnt[static_cast<int>(msg) - 0x9d];
+    // b28c-lane3：ORIG 0x082696c2 元素→%edx、0x082696c6 key→%eax、
+    // `cmp %eax,%edx`（12 条）；无 cast 时 4.4 折成 `cmp key_mem,%eax`（11 条，
+    // N18b）。两侧同 cast 到 unsigned int 后 4.4 走「两寄存器操作数」形。
+    return (unsigned int)key ==
+           (unsigned int)m_timerKeyCnt[static_cast<int>(msg) - 0x9d];
 }
 
 // ---- set_party_index @0x0826978c：写入首个空槽（-1），全满则丢弃 ----
@@ -524,8 +529,18 @@ void CQuickParty::set_party_index(int partyIdx)
 // ---- set_party_index @0x082697c8：定位写，idx∈[0,3] 才生效 ----
 void CQuickParty::set_party_index(int idx, int partyIdx)
 {
-    if (idx < 4 && idx >= 0)
-        m_partyIndex[idx] = partyIdx;
+    // b28c-lane3：P223 双空块岛复现。ORIG 0x082697cf `jg +0x16`→nop;jmp 岛、
+    // 0x082697d5 `js +0x11`→nop 岛、成功路径尾 `jmp +4`；4.4 对
+    // `if (idx < 4 && idx >= 0)` 恒 jump-thread 掉两岛（12 vs 14）。
+    if (idx > 3)
+        goto L1;
+    if (idx < 0)
+        goto L2;
+    m_partyIndex[idx] = partyIdx;
+    goto L3;
+L1: ;
+L2: ;
+L3: ;
 }
 
 // ---- get_party_object() @0x0826972c：返回首个登记且仍存在的成员 party ----
@@ -578,8 +593,11 @@ CQuickParty* CQuickPartySystemManager::find_quick_party_in_pool(
         qpIndex = pool.front();
         pool.pop_front();
         qp = G_CGameManager()->GetQuickParty(qpIndex);
+        // b28c-lane3：ORIG 0x0826aa43 `jne 0x96`（直跳函数尾 return 块）。
+        // 循环内 `return qp` 会被 4.4 物化成 `je <trace>; mov -0x10,%eax; jmp`，
+        // 改 break + 循环外 return 后 4.4 与 ORIG 同为 jne 直达尾块。
         if (qp != 0)
-            return qp;
+            break;
         cMyTrace trace(
             __PRETTY_FUNCTION__,
             0x29c, 5);
@@ -974,6 +992,9 @@ void CQuickPartySystemManager::start_game(CQuickParty* qp)
     merged->send_party_ipinfo();
     G_GameWorld()->send_party_info_to_all(merged, 2);
     merged->send_quick_party_matching_result(true, 0);
+    // b28c-lane3 判 N：ORIG 0x0826b6d1 `setle;test;je 826b6ef`（nop 岛）+
+    // 0x0826b6ed `jmp 826b6f0`；4.4 对 `if(c){body}` 恒折掉尾 jmp+nop（81 vs 80）。
+    // 已试 P223 goto 岛 / P225 while+break 两形均不产尾 jmp。
     if (merged->GetEPLPState() <= 1)
     {
         merged->game_start(merged->getManager());

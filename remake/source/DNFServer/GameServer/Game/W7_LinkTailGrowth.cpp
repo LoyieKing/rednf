@@ -105,6 +105,10 @@ void CUser::decide_growth_power_reward_system()
 // ============================================================================
 bool stSeriaBlessingScript::get_value(int lv, Value& out)
 {
+    // [b28c-30] N93 封顶：ORIG pred@-0x18/end@-0x14/begin@-0x10（4.1 先声明深），
+    // 4.4 恒先声明浅（pred@-0x10/begin@-0x18）。初始化式绑定声明序 ⇒ 槽序与
+    // 构造序（pred→end→begin）不可兼得；「先声明后赋值」形引入迭代器 C1Ev
+    // 默认构造 call + 临时槽拷贝（72 insn，P50/N86），已实测回退。
     FindOneByLv pred(lv);                     // ORIG：谓词在入口即构造
     std::map<int, Value>::iterator it = m_map0.begin();
     std::map<int, Value>::iterator itEnd = m_map0.end();

@@ -1019,8 +1019,11 @@ SUserPremiumInfo CUserPremium::CheckPremiumTimeout() const
     // 判定点独立全链重算（T-C9-1）；checkTerm 直读 g_SPremiumInfo 表
     // （ORIG +0x63 无 helper call，原 static GetPremiumDefinition 属发明符号）。
     SUserPremiumInfo result;
-    result.m_type = 0;
     int curTime = GlobalData::s_systemTime_.getCurSec();
+    // [b28c-L7] P23 实参求值序：ORIG 0x086add9c 序为 `movl $&s_systemTime_,(%esp);
+    // call getCurSec; movl $0x0,(%ebx)`——getCurSec 先于 result.m_type 清零落栈
+    // ⇒ 清零语句必须写在取时之后（result 声明仍在先，占 sret/NRVO 通道）。
+    result.m_type = 0;
     for (int i = 1; i <= 0x69; ++i)
     {
         if (m_entries[i].m_type == 0)
@@ -1056,22 +1059,39 @@ SUserPremiumInfo* CUserPremium::GetPremiumInfo(int type) const
     // 禁 entries 具名局部（4.4 恒落 -0x4 槽差帧）。
     // ORIG：仅 type<0x6a 且 type!=0x270f 时按下标偏移；其余（含
     // 9999 和正向越界值）均返回 entries[0]，负值仍按原始负偏移。
-    if (type < 0x6a && type != 0x270f)
-        return const_cast<SUserPremiumInfo*>(m_entries) + type;
-    return const_cast<SUserPremiumInfo*>(m_entries);
+    // [b28c-L7] P222 互试（第二形）：ORIG 0x086adf52 `cmpl $0x69; jg FAIL;
+    // cmpl $0x270f; jne SUCC; FAIL: mov 0x8(%ebp),%eax; jmp end; SUCC:<calc>`
+    // ⇒ 否定短路 || 早返（then=FAIL 落前、SUCC fall-through 落后）；三目形
+    // 实测产 `jg X; je X; jmp Y` 镜像布局（+1 jmp）。
+    if (type >= 0x6a || type == 0x270f)
+        return const_cast<SUserPremiumInfo*>(m_entries);
+    return const_cast<SUserPremiumInfo*>(&m_entries[type]);
 }
 
 int CUserPremium::GetReturnItemRate(int type) const
 {
     // ORIG 0x86ae7a8：先 empty() 预检；find/end 结果落 const_iterator 临时
     // 槽后 operator!= 比较（迭代器不直呼内联比较形）
-    if (!m_returnItemMap.empty())
-    {
-        std::map<int, int>::const_iterator it = m_returnItemMap.find(type);
-        std::map<int, int>::const_iterator e = m_returnItemMap.end();
-        if (it != e)
-            return it->second;
-    }
+    // [b28c-L7] P59 反向：ORIG 0x86ae7b9 `call empty; test %al,%al; je +0x21`
+    // （空→原地 fall 到 `mov $0,%eax; jmp end`、非空→je 跳 body）⇒ 原码是
+    // 正极性 guard `if (empty()) return 0;`；`if(!empty()){}` 形 4.4 恒产
+    // `xor $1` 反演 + body 前置。map::empty 为 bool callee（P168a①裸形）。
+    if (m_returnItemMap.empty())
+        return 0;
+    std::map<int, int>::const_iterator it = m_returnItemMap.find(type);
+    std::map<int, int>::const_iterator e = m_returnItemMap.end();
+    // [b28c-L7] 残差 2 处 = N93（控制流/装载形已全等）：find 结果槽 ORIG
+    // -0x10 vs 4.4 -0xc、end 结果槽 ORIG -0xc vs 4.4 -0x10——同块内两个直接
+    // 初始化迭代器，4.1 按声明序占低→高槽、4.4 相反（N93 原例即本仓
+    // DB_LoadInventory::_GetTagCharacInven 族）。排除形实测：交换声明序 ⇒
+    // end() call 前置于 find()（ORIG 调用序反，新增 2 处失配）；提头声明
+    // + 块内赋值 ⇒ 触发 _Rb_tree_const_iterator 默认 C1 + sret 临时拷贝
+    // （N86，+3 条）。源形不可翻，语义与条数等价 ⇒ 封 N93。
+    // [b28c-L7] P222：ORIG 0x86ae81a `call ne; test %al; je <mov$0 尾岛>` +
+    // SUCC(ptEv+mov 0x4) fall-through 在前 ⇒ 正极性 `if(it!=e) return …`，
+    // 否定早返形把 SUCC 推到岛后（+1 jmp）。
+    if (it != e)
+        return it->second;
     return 0;
 }
 

@@ -70,7 +70,11 @@ public:
 
     int m_missionType;         // +0x00
     int m_field04;             // +0x04（ORIG ctor 不初始化；仅按 clear/operator= 操作）
-    char m_isRepeatMission;    // +0x08
+    // [b28c-L26 档②试验] ORIG isRepeatMission 0x08164fc2 为 `movzbl 0x10(%eax);
+    // ret`（直返无归一，P9/P32），调用点 0x08165a4x/0x08165f2x 为
+    // `call; xor $0x1,%eax; test %al,%al; je` bool 直测形 ⇒ 按 lane20A 定稿
+    // 判例（字段 bool + 裸 !callee 自然复现 xor）uchar→bool。
+    bool m_isRepeatMission;    // +0x08
     char m_isResetState;       // +0x09
     std::string m_mailTitle;                    // +0x0c
     std::string m_mailContent;                  // +0x10
@@ -108,7 +112,10 @@ public:
     void setConditionData(HeroMissionCondition& data);   // T 0x08164f8c
     unsigned int getMissionCode();                       // T 0x08164faa（this+4）
     unsigned int getMissionType();                       // T 0x08164fb6（mov 0xc(%eax)：this+0xc = condition+0x04 = m_field04，objdump 实证）
-    char isRepeatMission();                              // T 0x08164fc2（this+0x10）
+    // [b28c-L26 档①试验] 旧判词称"bool 化使本体 movzbl 直返劣化为 setne"——该结论
+    // 仅对「字段 uchar + 返回 bool」成立；字段一并 bool 化（档②，见上）后 4.4
+    // 本体仍 `movzbl field; ret` 直返（P73/P32），调用点即自然产 xor 形（P168a①）。
+    bool isRepeatMission();                              // T 0x08164fc2（this+0x10）
     char isResetState();                                 // T 0x08164fce（this+0x11）
     std::string getMailTitle();                          // T 0x08164fda（condition+0xc sret）
     std::string getMailContent();                        // T 0x08165004（condition+0x10 sret）

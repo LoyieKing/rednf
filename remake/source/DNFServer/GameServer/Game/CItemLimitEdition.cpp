@@ -22,8 +22,10 @@
 // ============================================================================
 CItemLimitEdition::CItemLimitEdition(const stItemLimitEditionItemInfo_t& info)
 {
-    // ORIG 0x084e9732：复制前 0x48 字节 + info+0x18 写 this+0x48（初始销量）。
-    memcpy(this, &info, 0x48);
+    // [b28c-L18] P83：ORIG 0x084e9732 为 `rep movsl`×0x12（结构整体赋值展开形），
+    // 4.4 对 memcpy 恒 call memcpy（N78）；改同布局具名结构整体赋值（前 0x48 字节
+    // 布局一致，头文件注释实证）即复现块搬移 + info+0x18 写 this+0x48（初始销量）。
+    *reinterpret_cast<stItemLimitEditionItemInfo_t*>(this) = info;
     m_curSellNum = info.m_initSellNum;
 }
 
@@ -106,6 +108,19 @@ int CItemLimitEdition::getTotalSellNum() const
     return m_totalSellNum;
 }
 
+bool CItemLimitEdition::isSellComplete() const
+{
+    // [b28c-L18] P210 帧继承已翻正（ORIG sub $0x18 保守帧 ⇒ 定义前置于 getCurSellNum
+    // out-of-line 体之前，fresh 复验帧全等）。残余 1 条：ORIG `call; mov %eax,%edx;
+    // mov 0x8(ebp),%eax; mov 0x1c(eax),%eax; cmp %eax,%edx`（RHS 经 %edx 中转、
+    // cmp dst=call 值）vs 4.4 恒免中转 + `cmp MEM,reg` = N18a（单段 regmove 不可造）
+    // + N22（dst 必为 call 结果寄存器），语义等价（同值同 setge）。
+    // ORIG 0x0822cac8：若 totalSellNum == -1 返回 false；否则 curSellNum >= totalSellNum。
+    if (m_totalSellNum == -1)
+        return false;
+    return getCurSellNum() >= m_totalSellNum;   // ORIG call getCurSellNum
+}
+
 int CItemLimitEdition::getCurSellNum() const
 {
     return m_curSellNum;
@@ -119,14 +134,6 @@ int CItemLimitEdition::getSellEndTime() const
 int CItemLimitEdition::getFeaturedIdx() const
 {
     return m_featuredIdx;
-}
-
-bool CItemLimitEdition::isSellComplete() const
-{
-    // ORIG 0x0822cac8：若 totalSellNum == -1 返回 false；否则 curSellNum >= totalSellNum。
-    if (m_totalSellNum == -1)
-        return false;
-    return getCurSellNum() >= m_totalSellNum;   // ORIG call getCurSellNum
 }
 
 int CItemLimitEdition::getCondCharacJob() const
@@ -202,8 +209,9 @@ void CItemLimitEditionMgr::removeItem(unsigned int itemIdx)
                         std::allocator<CItemLimitEdition*> >::iterator it
         = m_items.find(itemIdx);
     if (it != m_items.end()) {
-        if (it->second)
-            delete it->second;
+        // [b28c-L29] ORIG 0x084e9876：仅一次 ptEv+test/je（编译器自带 delete
+        // 判空守卫，P141）——去掉显式 if(it->second) 双重检查。
+        delete it->second;
         m_items.erase(it);
     }
 }

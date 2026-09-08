@@ -165,11 +165,10 @@ int CCargo::GetCargoData(int itemIdx, Inven_Item& out) const
 int CCargo::insert_item(const Inven_Item& item)
 {
     int slot = 0;
-    // ORIG 调用点 `call; xor $0x1,%eax; test %al,%al; je`（int callee 的 bool 取反物化，
-    // X1 调用点自救形）。
-    register unsigned char eq asm("eax") = (unsigned char)item.isEquipableItemType();
-    eq ^= 1;
-    if (eq) {
+    // [b28c-16 P0 清绑] 原 register asm("eax") 绑定违反 P0 全域禁则；callee
+    // isEquipableItemType 返回 bool ⇒ P168a① 裸形 `if (!call())` 直产
+    // `call; xor $0x1,%eax; test %al,%al; je`，无需绑定。
+    if (!item.isEquipableItemType()) {
         for (; slot < 0x98; ++slot) {
             if (_AddStackItem(item, slot) >= 0)
                 return slot;
@@ -266,10 +265,8 @@ int CCargo::insert_item_special_slot(Inven_Item& item, int slot)
 {
     if (!IsOperatorable(slot))
         return -2;
-    // ORIG 调用点 xor $0x1 形（int callee 取反，X1 调用点自救）。
-    register unsigned char eq asm("eax") = (unsigned char)item.isEquipableItemType();
-    eq ^= 1;
-    if (eq) {
+    // [b28c-16 P0 清绑] 同 insert_item：bool callee 裸形（P168a①）。
+    if (!item.isEquipableItemType()) {
         // ORIG 块排布：cmp je 正跳到 then 体（物理在后）；声明序决定槽
         // ret1(-0xc) → ret2(-0x10) → i(-0x14)。
         // 4.4 同层变量按声明逆序分配槽（先声明 → 深地址），故逆序声明。
@@ -430,14 +427,16 @@ int CCargo::FindItemLock(unsigned char lock, ENUM_ITEMSPACE& space, int& slot) c
 // 升级（==拒绝）。ORIG 汇编 test/je→mov$0 + Ghidra C 双证，旧注释语义相反。
 int CCargo::UpgradeCargo(int capacity)
 {
+    // [b28c-16] P222 注（两形互试）/同族 isUpgradable 实证：ORIG 第二段
+    // `cmp; jl +0x31(升级块在后); fall mov $0; jmp end` ⇒ 源形必须是负极
+    // `>= → return 0` + 升级体落尾块；正向 `if (<) {…} return 0` 4.4 反产
+    // jge + 升级体 fall-through。
     if (m_capacity == 0 || m_capacity > capacity)
         return 0;
-    if (m_capacity < capacity)
-    {
-        m_capacity = capacity;
-        return 1;
-    }
-    return 0;
+    if (m_capacity >= capacity)
+        return 0;
+    m_capacity = capacity;
+    return 1;
 }
 
 // ORIG 0x850c698：同上判定，capacity<=0x98 才可升。
@@ -465,13 +464,18 @@ int CCargo::_CompareSlot(const void* a, const void* b)
     // 4.1 identical-return 合并 ⇒ 源码用嵌套 if 形态（探针 /tmp/p_cs2.cpp）。
     // 残差 N：4.1 尾块串联 jmp 跳板（mov$1→+0xa1→+0xa8→end 两级中继）4.4 直达，
     // 助记符序列 58/60，语义逐分支全等。
-    if (ta != 9999) {
-        if (ia->m_addInfo != ib->m_addInfo) {
-            if ((unsigned int)ia->m_addInfo < (unsigned int)ib->m_addInfo)
-                return -1;
-            return 1;
-        }
+    // [b28c-16] 两 return 0 出口独立（ORIG `je +0xa3:mov$0;jmp +0xa8` 与
+    // `+0xaa:mov$0` 两物理块）⇒ 相等判定改正向 `== → return 0` 早返，
+    // 不再 fall 到共享尾。
+    if (ta != 9999)
+    {
+        if (ia->m_addInfo == ib->m_addInfo)
+            goto ZERO;
+        if ((unsigned int)ia->m_addInfo < (unsigned int)ib->m_addInfo)
+            return -1;
+        return 1;
     }
+ZERO:
     return 0;
 }
 

@@ -261,10 +261,11 @@ void Secu_MonsterCheck::Reset()
 // （报告 CSpecialItemRoutingManager/ProcessFailEtc.md）：路由开启且首个有效
 // 成员状态 ∈ {5, 0xc} 时广播 0x11a 失败包（byte 0/失败码/路由 uniqueId）、
 // 取消计时器并结束路由。
-// [b22判词·N-EH布局] orig87/our86 唯一真差：ORIG 编译器在 SetEndRouting 之后为成功路径
-// 生成「call ~PacketGuard; jmp <epilogue>」，故 _Unwind_Resume 前多一条独立 nop（87 条）；
-// 4.4.7 让成功路径 jmp 到共享 epilogue、~PacketGuard 只落 epilogue 一次（86 条）。函数体
-// 主调用序列逐条同 ORIG：IsRoutingState → GetFirstValidMemberState×2（5/0xc 短路，布尔留
+// [b28c-L20·N-EH布局] fresh orig=86 our=86 gap=0 ndiff=6：唯一真差为成功路径析构落点——
+// ORIG 4.1 在 SetEndRouting 后内联「lea;mov;call ~PacketGuard」再 jmp epilogue；4.4.7 让
+// 成功路径 jmp 到 EH 岛之后的共享析构段（~PacketGuard 只发射一次于 epilogue 前）。早返形
+// （if(party==0)return;）实测劣化 our=87（多一条 jmp）已回退；包体/谓词形不变。函数体主
+// 调用序列逐条同 ORIG：IsRoutingState → GetFirstValidMemberState×2（5/0xc 短路，布尔留
 // %al 无槽）→ PacketGuard::C1 → put_header(0,0x11a) → put_byte(0) → put_byte(failCode)
 // → put_int(GetRoutingItemUniqueID) → finalize(true) → send_to_party → cancelTimer →
 // SetEndRouting → ~PacketGuard（+EH 岛 _Unwind_Resume）。P167 实测 16=16 call 集归零。语义等价。
@@ -496,9 +497,13 @@ int CEquipItem::GetUsableEquipmentType() const
 int WongWork::CHackAnalyzer::getServerHackAccumulatedCnt(
     WongWork::ENUM_HACKTYPE type) const
 {
-    int slot = (int)type - 0x65;
-    slot += 0xf44;
-    return *(const int*)((const char*)this + 8 + slot * 4);
+    // [b28c-L7] P0 表达式直传已生效（去 slot 具名局部：帧 0x10→0x0、pop %ebp
+    // 直落、scaled-index `mov 8(%eax,%edx,4)` 复现）；残 1 条 = **N1** 两步常量
+    // 算术折叠：ORIG `lea -0x65(%eax),%edx; add $0xf44,%edx` 4.4 恒折
+    // `add $0xee1,%edx`。P205 式代数拆形实测不可用（+8 处为 B 段累计计数表，
+    // 拆成 `arr[t-0x65] + arr[0xf44]` 会改变寻址语义 = 真 bug），故按 N1 封顶。
+    return *(const int*)((const char*)this + 8 +
+                         ((int)type - 0x65 + 0xf44) * 4);
 }
 
 // ---------------------------------------------------------------------------

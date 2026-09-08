@@ -4,7 +4,7 @@
 // CSharedServerMessageManager__CSharedServerMessageAdapter.md + ORIG 反汇编实现。
 // 布局（ORIG ctor 0x0860079c / dtor 0x08600892 推导）：
 //   +0x00 CSharedServerMessageAdapter m_adapter（4：stSharedServerMessageInfo*）
-//   +0x04 unsigned char m_isSet
+//   +0x04 bool m_isSet（ORIG 读取形 `movzbl; xor $0x1,%eax; test %al,%al` 证实按 bool 物化）
 //   +0x08 EVENT_SERVER_MESSAGE m_event（unsigned char + vector，0x10）
 //   sizeof = 0x18
 // stSharedServerMessageInfo（Adapter 解引用对象）：
@@ -75,9 +75,15 @@ public:
 template <class T>
 T* Stream::GetInBuffer()
 {
+    // [b28c-35] N18a：ORIG 0x0860219e 为两段装载 `mov 0x8(%eax),%eax; mov %eax,%edx`
+    // （m_buffer 先入 %eax 再中转 %edx），4.4 对 `m_buffer + m_inPtr` 与
+    // `&m_buffer[m_inPtr]` 两形均折 `mov 0x8(%eax),%edx` 单段 ⇒ 单段直落不可反向造。
     while (!enable_in((int)sizeof(T)))
         resize(size() * 2);
-    char* p = m_buffer + m_inPtr;
+    // [b28c-35] ORIG 0x0860219e 为两段装载 `mov 0x8(%eax),%eax; mov %eax,%edx`
+    // （m_buffer 先入 %eax 再中转 %edx）；`m_buffer + m_inPtr` 写法 4.4 恒折
+    // `mov 0x8(%eax),%edx` 单段。改数组下标形试复现。
+    char* p = &m_buffer[m_inPtr];
     in_ptr((int)sizeof(T));
     return (T*)p;
 }
@@ -124,8 +130,12 @@ public:
 
 namespace GlobalData
 {
-extern StreamPool s_stream_pool;
-extern MsgQueueMgr s_msgq_mgr;
+// b28c-L20: 权威头 GlobalData.h 声明为指针（StreamPool* @0940bd6c / MsgQueueMgr* @0940bd68）；
+// ORIG 汇编 LoadServerMessageFromDB +0x08 `mov _ZN11GlobalData13s_stream_poolE,%eax`、
+// +0xb1 `mov _ZN11GlobalData10s_msgq_mgrE,%eax` 均为 32 位**值装载**作 this（非取址立即数）
+// ⇒ 本 TU 原 object 形声明与 ORIG 矛盾，按权威头改为指针（§4.4 统一声明点）。
+extern StreamPool* s_stream_pool;
+extern MsgQueueMgr* s_msgq_mgr;
 }
 
 // ---- CUser 族最小声明（实现属其它 TU；基类偏移 0 保证 this 直通） ----
@@ -318,12 +328,18 @@ void CSharedServerMessageManager::SendServerMessageInfo(CUser* pUser,
 
 void CSharedServerMessageManager::SetServerMessage(SIG_EVENT_SERVER_MESSAGE* pMsg)
 {
-    // X2 形（X2_DISPATCH.tsv，probe /tmp/xg2.cpp 形 E 实证）：ORIG 对 byte 真值
-    // 判断走 `movzbl 0x4(%eax),%eax; xor $0x1,%eax; test %al,%al; je`，
-    // 而 `m_isSet != 1` 在 4.4 只产单条 `cmp $0x1,%al`（缺 xor+test）。
-    register unsigned char set asm("eax") = m_isSet;
-    set ^= 1;
-    if (set)
+    // b28c-L20: AE — ndiff 3→0（fresh orig=59 our=59）。P0 清绑（删 `register unsigned char
+    // set asm("eax")`）后的正解是**字段 bool 化**（CSharedServerMessageManager.h: m_isSet
+    // unsigned char→bool，+0x04/sizeof 0x18 不变），配 P168a① 裸形 `if (!m_isSet)` 即逐条复现
+    // ORIG 0x08600b83..0x08600b8c 的 `movzbl 0x4(%eax),%eax; xor $0x1,%eax; test %al,%al; je`，
+    // 无需任何寄存器绑定。清绑过程中的实测负例（供各 lane 避坑）：uchar 字段下
+    // `(m_isSet^1)!=0` 与 P226 `({m_isSet^1;})!=0` 均被前端折成 `cmp $0x1,%al`（ndiff 3）；
+    // 具名 uchar 局部 `v^=1`/`v=v^1` 恒槽化（ndiff 5）；裸 `register uchar set`（无 asm 绑定）
+    // 反劣最剧（ndiff 13：4.4 强占 %ebx ⇒ `push %ebx; sub $0x24` + pop 尾，帧/epilogue 全破）。
+    // 全消费段 fresh 联判（P211 陷阱法）：IsSetServerMessage 6/6、setLoadingComplete 6/6、
+    // C1Ev 42/42、C1EP25 47/47、D1Ev 27/27 均 ndiff=0（IsSetServerMessage 返回类型按 P9
+    // 保持 unsigned char，ORIG 0x084ed182 W sz 0xc 为 movzbl 直返无归一）。
+    if (!m_isSet)
     {
         if (pMsg->m_count == 0)
             return;
@@ -354,6 +370,9 @@ stSERVER_MESSAGE* CSharedServerMessageManager::getCurMessage(int nIndex)
 
 bool CSharedServerMessageManager::IsChangableMessage(int nIndex, int nTime)
 {
+    // b28c-L20: AE — fresh 复验 orig=23 our=23 ndiff=0（归一口径）。槽往返仅 pMsg 一处
+    // （ORIG -0xc(%ebp) `mov %eax,-0xc(%ebp); cmpl $0x0,-0xc(%ebp)`）；pMsg->m_endTime(+0x54)
+    // +0x78 与 nTime 的有符号 `jl` 走 RHS 值先物化（P0/P85），get_channel_no 类返回宽度无关。
     stSERVER_MESSAGE* pMsg = getCurMessage(nIndex);
     if (pMsg == 0)
         return true;
@@ -498,7 +517,7 @@ void CSharedServerMessageManager::UpdateServerMessage(CUser* pUser, int nIndex,
             return;
     }
 
-    Stream* pStream = GlobalData::s_stream_pool.Acquire("SharedServerMessageManager.cpp", 0x16c);
+    Stream* pStream = GlobalData::s_stream_pool->Acquire("SharedServerMessageManager.cpp", 0x16c);
     CStreamGuard guard(pStream, true);
     **guard << 0x16c;
     unsigned int nUID = pUser->GetUID();
@@ -518,7 +537,7 @@ void CSharedServerMessageManager::UpdateServerMessage(CUser* pUser, int nIndex,
     strncpy(pOut->m_msg2, pCur->m_msg2, pOut->m_lenMsg2 + 1);
     pOut->m_endTime = pCur->m_endTime;
 
-    GlobalData::s_msgq_mgr.put(MsgQueueMgr::DB_Q, guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 void CSharedServerMessageManager::UpdateServerMessageByBroadcast(int nIndex,
@@ -568,8 +587,20 @@ void CSharedServerMessageManager::UpdateServerMessageByBroadcast(int nIndex,
 
 void CSharedServerMessageManager::LoadServerMessageFromDB()
 {
-    Stream* pStream = GlobalData::s_stream_pool.Acquire("SharedServerMessageManager.cpp", 0x21b);
-    CStreamGuard guard(pStream, true);
+    // b28c-L20: AE — ndiff 30→0（fresh orig=68 our=68）。两处归因：
+    // ①本 TU 局部 GlobalData 声明原为 object 形（`s_stream_pool.Acquire` / `s_msgq_mgr.put`
+    //   生 `movl $&sym,(%esp)` 取址立即数），与权威头 GlobalData.h 的指针声明矛盾；ORIG
+    //   +0x08 `mov _ZN11GlobalData13s_stream_poolE,%eax`、+0xb1 `mov …s_msgq_mgrE,%eax` 是
+    //   32 位**值装载**作 this ⇒ 声明改指针 + 调用点 `->`（同 TU 的 UpdateServerMessage 一并
+    //   受益：ndiff 395→385）。
+    // ②P0：ORIG Acquire 返回值经 %eax 直落 CStreamGuard ctor 实参（+0x25 `movl $0x1` /
+    //   +0x2d `mov %eax,0x4(%esp)`，无 Stream* 槽往返）⇒ 原码无具名 pStream 局部，改内联
+    //   实参后 guard 槽回正 -0x14(%ebp)（原 -0x18）。
+    // 消费侧 P132/P103（`**guard <<` 两级 operator*、`guard->GetInBuffer<T>()`）与
+    // m_server=(short)m_field378（32 位读 + `movw` 写）、m_channel=(short)get_channel_no()
+    // （`mov %eax,%edx; mov %dx,0x2(%eax)`）改前已同形，未动。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("SharedServerMessageManager.cpp", 0x21b),
+                       true);
     **guard << 0x16d;
     **guard << -1;
 
@@ -577,5 +608,5 @@ void CSharedServerMessageManager::LoadServerMessageFromDB()
     pOut->m_server = (short)G_CEnvironment()->m_field378;
     pOut->m_channel = (short)G_CEnvironment()->get_channel_no();
 
-    GlobalData::s_msgq_mgr.put(MsgQueueMgr::DB_Q, guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }

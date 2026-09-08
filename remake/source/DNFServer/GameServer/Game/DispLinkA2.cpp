@@ -130,14 +130,6 @@ static void A2_SendGmMessage(CUser* user, const char* msg)
     user->Send(guard);
 }
 
-static inline unsigned int A2_dungeonIndexOf(CParty* party)
-{
-    // CBattle_Field 位于 CParty+0xb24（m_battleField 占位），dungeon index 取自
-    // CBattle_Field::get_dungeon_index（ORIG W 0x0822d0d8，定义 CBattle_Field.cpp）。
-    return static_cast<unsigned int>(
-        reinterpret_cast<CBattle_Field*>(&party->m_battleField)->get_dungeon_index());
-}
-
 // ============================================================================
 // 1. Dispatcher_DisJointAvatar::_selectJewelTypeIndex
 //    报告 docs/class_func_reports/Dispatcher_DisJointAvatar/_selectJewelTypeIndex.md
@@ -286,7 +278,12 @@ bool Dispatcher_EPLPCommand::isReTurnToVillage(CUser* user)
         return false;
     if (user->getMoveSpace() == (UserSpace::T)1)
         return true;
-    if (GlobalScriptTutorial::IsGlobalTutorialDungeon(A2_dungeonIndexOf(party)))
+    // [b28c-30] ORIG 0x0825f7f4 段：mov -0xc(%ebp),%eax; add $0xb24,%eax;
+    // mov %eax,(%esp); call CBattle_Field::get_dungeon_index ⇒ 直成员调用形
+    // （原 A2_dungeonIndexOf 局部 helper 生 call _ZL17A2_dungeonIndexOfP6CParty）。
+    if (GlobalScriptTutorial::IsGlobalTutorialDungeon(
+            reinterpret_cast<CBattle_Field*>(&party->m_battleField)
+                ->get_dungeon_index()))
         return true;
     return false;
 }

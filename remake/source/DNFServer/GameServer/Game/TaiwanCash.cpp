@@ -14,6 +14,38 @@
 #include "LogManager.h"    // Initialize 失败路径 logFormat（ORIG IPGMgr.cpp 0x98 行文案）
 #include "DNFFunctionLib.h"  // NumberToString(ull,int)（billing trace 直调）
 
+// ---- InitBillingCash —— ORIG T 0x0814657c：
+//   定义位置：置于 TaiwanCash::TaiwanCash 定义之前（P210 三态③：4.4 只见声明
+//   ⇒ new-expression 保守布 EH landing pad；ORIG 0x81465b7..0x81465cc 有
+//   `jmp` + operator delete landing 段实证）。
+//   type = *(uchar*)(G_CEnvironment()+0x378)（= Server_Envir.m_serverGroup 低字节，
+//   CEnvironment.h 布局 +0x198+0x1e0 实证）——ORIG 中保持 %esi 寄存器、无栈槽 ⇒
+//   P0 判为右值内联，禁具名局部；G_CEnvironment() 亦临时直用（各次仅寄存器）。
+//   new TaiwanCash(type, 1) 存入出参；以 m_dbConnInfo[DB_HANDLE_E] 的连接信息
+//   init(host, port, db, user, pass)。
+//   ORIG 反汇编尾部：出参判空走 0xd0 → 恒返回 1；init 结果按 0xd5/0xe0/0xe5
+//   三态全部走 eax 寄存器（无栈槽 ⇒ P0：ghidra 的 bVar2 非具名局部），
+//   即 `!(cash==0 || init==1)` 单表达式返回，勿拆 if 注入 bool 局部。----
+bool InitBillingCash(Taiwan::TaiwanCash*& cash)
+{
+    // ORIG 0x0814657c：G_CEnvironment() 调两次（type 一次、map 访问一次），
+    // 两次结果均为临时（寄存器直用，无栈槽）。
+    cash = new Taiwan::TaiwanCash(
+        static_cast<unsigned char>(
+            G_CEnvironment()->m_serverEnvir.m_serverGroup),
+        1);
+
+    // ORIG 第二次 G_CEnvironment() 后直访 m_dbConnInfo[DB_HANDLE_E]（+0x68；
+    // 禁 get_db_conn_info() accessor——ORIG 无该 call，P167 判据）。
+    STDBConnInfo& info =
+        G_CEnvironment()->m_dbConnInfo[DB_HANDLE_E];
+
+    // init 返回 bool（0/1），ORIG 汇编 `xor $1,%eax` 即 `!init`；==1 省去。
+    return !(cash == 0 ||
+             cash->init(info.m_host, static_cast<unsigned int>(info.m_port),
+                        info.m_db, info.m_user, info.m_pass));
+}
+
 namespace Taiwan
 {
 
@@ -226,35 +258,6 @@ DynamicPool<WongWork::IPG::SIPGData>::CNode::CNode()
 {
     m_type = 0x8f21;
     m_inUse = 0;
-}
-
-// ---- InitBillingCash —— ORIG T 0x0814657c：
-//   type = *(uchar*)(G_CEnvironment()+0x378)（= Server_Envir.m_serverGroup 低字节，
-//   CEnvironment.h 布局 +0x198+0x1e0 实证）——ORIG 中保持 %esi 寄存器、无栈槽 ⇒
-//   P0 判为右值内联，禁具名局部；G_CEnvironment() 亦临时直用（各次仅寄存器）。
-//   new TaiwanCash(type, 1) 存入出参；以 m_dbConnInfo[DB_HANDLE_E] 的连接信息
-//   init(host, port, db, user, pass)。
-//   ORIG 反汇编尾部：出参判空走 0xd0 → 恒返回 1；init 结果按 0xd5/0xe0/0xe5
-//   三态全部走 eax 寄存器（无栈槽 ⇒ P0：ghidra 的 bVar2 非具名局部），
-//   即 `!(cash==0 || init==1)` 单表达式返回，勿拆 if 注入 bool 局部。----
-bool InitBillingCash(Taiwan::TaiwanCash*& cash)
-{
-    // ORIG 0x0814657c：G_CEnvironment() 调两次（type 一次、map 访问一次），
-    // 两次结果均为临时（寄存器直用，无栈槽）。
-    cash = new Taiwan::TaiwanCash(
-        static_cast<unsigned char>(
-            G_CEnvironment()->m_serverEnvir.m_serverGroup),
-        1);
-
-    // ORIG 第二次 G_CEnvironment() 后直访 m_dbConnInfo[DB_HANDLE_E]（+0x68；
-    // 禁 get_db_conn_info() accessor——ORIG 无该 call，P167 判据）。
-    STDBConnInfo& info =
-        G_CEnvironment()->m_dbConnInfo[DB_HANDLE_E];
-
-    // init 返回 bool（0/1），ORIG 汇编 `xor $1,%eax` 即 `!init`；==1 省去。
-    return !(cash == 0 ||
-             cash->init(info.m_host, static_cast<unsigned int>(info.m_port),
-                        info.m_db, info.m_user, info.m_pass));
 }
 
 // ---- CheckBillingErrorCode —— ORIG 0x08146669：code==0 → true。----

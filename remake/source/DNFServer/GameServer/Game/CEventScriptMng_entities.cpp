@@ -106,27 +106,26 @@ int CLevelUpReward::send_reward_from_recv_level(CUser* user, int level,
 
     std::map<int, Condition_LevelUp>::iterator it =
         static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.find(job);
-    if (it == static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.end())
-        return 1;
-
-    if (it->second.m_filter1 != 0xff &&
-        static_cast<int>(static_cast<signed char>(it->second.m_filter1)) != curGrowType)
-        return 1;
-
-    for (int i = 0; i < (int)it->second.m_items.size(); ++i)
+    if (it != static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.end() &&
+        !(it->second.m_filter1 != 0xff &&
+          static_cast<int>(static_cast<signed char>(it->second.m_filter1)) !=
+              curGrowType))
     {
-        if (growType < it->second.m_items[i].m_level &&
-            it->second.m_items[i].m_level <= level)
+        for (int i = 0; i < (int)it->second.m_items.size(); ++i)
         {
-            static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.reset();
-            static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.set_item(
-                it->second.m_items[i].m_itemIndex,
-                it->second.m_items[i].m_itemCount);
-            static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.m_field30 =
-                it->second.m_items[i].m_title;
-            static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.m_field34 =
-                it->second.m_items[i].m_content;
-            do_action(user);
+            if (growType < it->second.m_items[i].m_level &&
+                it->second.m_items[i].m_level <= level)
+            {
+                static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.reset();
+                static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.set_item(
+                    it->second.m_items[i].m_itemIndex,
+                    it->second.m_items[i].m_itemCount);
+                static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.m_field30 =
+                    it->second.m_items[i].m_title;
+                static_cast<LevelUpRewardScript*>(m_script1c)->m_mail.m_field34 =
+                    it->second.m_items[i].m_content;
+                do_action(user);
+            }
         }
     }
     return 1;
@@ -137,8 +136,7 @@ bool CUsedFatigueGiveItem::is_eventing()
 {
     if (CEventEntity::is_eventing())
     {
-        CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x65);
-        if (evt->IsEventing(0))
+        if (GlobalData::s_event_manager->GetRepeatEvent(0x65)->IsEventing(0))
             return true;
     }
     return false;
@@ -153,12 +151,10 @@ bool CUsedFatigueGiveItem::verifyApplyUser(CUser* user)
     // 不匹配标志经 eax 两段式流转（mov $1/$0,%eax; test %al; je）不留栈槽，
     // C++ bool 必物化槽位，寄存器流转为编译器结构不可源码复现，语义等价。
     // 重写：去具名 bool（4.4 必槽），改直接 return 链消 setne/cmpb 物化。
-    if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_jobType >= 0)
-    {
-        if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_jobType
-                != user->get_charac_job())
-            return false;
-    }
+    if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_jobType >= 0 &&
+        static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_jobType
+            != user->get_charac_job())
+        return false;
 
     switch (static_cast<unsigned char>(get_user_type()))
     {
@@ -193,6 +189,10 @@ bool CUsedFatigueGiveItem::getIsCharacEvent(bool& out) const
 {
     // ORIG 0x81107ea：m_script == 0 直接返回 false；否则按 bool 读
     // m_charcEventFlag（+0x14 字节）后返回 true。
+    // [b28c-L0 N76] ORIG 尾 store 为 RHS 值先装载（`movzbl 0x14(%eax),%edx;
+    // mov 0xc(%ebp),%eax; mov %dl,(%eax)`），4.4 字节 store 恒 LHS 地址先。
+    // 探针 B1(uchar)/B2(char)/B3(&&!=0)/B4(局部)/B5(bool*) 五形全产 LHS-first
+    // ⇒ 指针/字节同型无异型化空间，N76 封顶。
     if (m_script1c == 0)
         return false;
     *(unsigned char*)&out =
@@ -212,6 +212,9 @@ void CUsedFatigueGiveItem::sendEventItemFromFatigue(CUser* user, unsigned int fa
     // 档位间隔 m_usedFatigue、上限 m_fatigueLimit（<0 不限）、邮件 m_mail；
     // 循环先判当前已用疲劳/上限，再 ++step 后按档位取模并发信（ORIG do-while），
     // 发信成功读 m_mail.m_itemIdx 记日志收尾。全程不缓存脚本指针（与 ORIG 同）。
+    // [b28c-L0 N80/N37] ORIG 两处句尾 `jmp;nop` 中继岛与 4.4 岛形不同；
+    // 日志段 ORIG 立即数为链接后绝对地址、我方 .o 为重定位显示差（AE 口径内）。
+    // 语义等价，落 N80（cMyTrace 变参跨 ctor）/P223 岛形封顶。
     if (static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_usedFatigue == 0)
         return;
     if (user->GetCurCharacUsedGiftFatigueQuantity() == 0)
@@ -236,14 +239,15 @@ void CUsedFatigueGiveItem::sendEventItemFromFatigue(CUser* user, unsigned int fa
             user,
             EVENT_MAIL_REF(static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_mail),
             true);
-        if (sent == 0)
-            continue;
-        LogManager::logFormat(1, "EventClassify.cpp",
-            __PRETTY_FUNCTION__,
-            0x83f,
-            "CUsedFatigueGiveItem::sendEventItemFromFatigue(m_id:%d, charac_no:%d, reward:%d)",
-            user->get_acc_id(), user->getCurCharacNo(),
-            static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_mail.m_itemIdx);
+        if (sent != 0)
+        {
+            LogManager::logFormat(1, "EventClassify.cpp",
+                __PRETTY_FUNCTION__,
+                0x83f,
+                "CUsedFatigueGiveItem::sendEventItemFromFatigue(m_id:%d, charac_no:%d, reward:%d)",
+                user->get_acc_id(), user->getCurCharacNo(),
+                static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_mail.m_itemIdx);
+        }
     }
 }
 
@@ -253,6 +257,8 @@ bool CAttendance::is_eventing()
 {
     // ORIG 0x810e75c：GetRepeatEvent(0x56) 判空后经 vptr+0x34 判 IsEventing(0)，
     // 结果与判空合成一个 bool 条件（双重归一化形态）。
+    // [b28c-L0 N7] ORIG vfn→%edx / this 从槽回读→%eax；4.4 恒 vfn→%eax /
+    // this→%edx（指令数同 35，仅虚调用寄存器分配差）。P0 禁 register 绑定。
     if (CEventEntity::is_eventing())
     {
         CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(0x56);
@@ -340,12 +346,9 @@ void CAttendance::send_attend_reward_item(CUser* user, int day)
 void CAttendance::send_attend_final_rward_item(CUser* user, int attendFlags,
                                                int record)
 {
-    char* mid = NumberToString(user->get_acc_id(), 0);
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x5ba, 0);
-    trace("send_attend_final_rward_item m_id:%s day:%d record:%u",
-          mid, record, static_cast<unsigned int>(attendFlags));
+    cMyTrace(__PRETTY_FUNCTION__, 0x5ba, 0)(
+        "send_attend_final_rward_item m_id:%s day:%d record:%u",
+        NumberToString(user->get_acc_id(), 0), record, attendFlags);
 
     int setBits = 0;
     for (int bit = 0; bit < 0x20; ++bit)
@@ -353,24 +356,22 @@ void CAttendance::send_attend_final_rward_item(CUser* user, int attendFlags,
         if (isSetBit_Uint(static_cast<unsigned int>(attendFlags), bit))
             ++setBits;
     }
-    if (record != setBits)
+    if (record == setBits)
     {
-        return;
+        // ORIG 发奖段每次内联解引用脚本（不缓存局部）。
+        static_cast<AttendanceScript*>(m_script1c)->m_mail.m_itemIdx =
+            static_cast<AttendanceScript*>(m_script1c)->m_pair1c.first;
+        static_cast<AttendanceScript*>(m_script1c)->m_mail.m_addInfo =
+            static_cast<AttendanceScript*>(m_script1c)->m_pair1c.second;
+        static_cast<AttendanceScript*>(m_script1c)->m_mail.m_field34 =
+            static_cast<AttendanceScript*>(m_script1c)->m_str74;
+
+        CEventActionMng mng;
+        mng.process_action_send_mail(
+            user,
+            EVENT_MAIL_REF(static_cast<AttendanceScript*>(m_script1c)->m_mail),
+            true);
     }
-
-    // ORIG 发奖段每次内联解引用脚本（不缓存局部）。
-    static_cast<AttendanceScript*>(m_script1c)->m_mail.m_itemIdx =
-        static_cast<AttendanceScript*>(m_script1c)->m_pair1c.first;
-    static_cast<AttendanceScript*>(m_script1c)->m_mail.m_addInfo =
-        static_cast<AttendanceScript*>(m_script1c)->m_pair1c.second;
-    static_cast<AttendanceScript*>(m_script1c)->m_mail.m_field34 =
-        static_cast<AttendanceScript*>(m_script1c)->m_str74;
-
-    CEventActionMng mng;
-    mng.process_action_send_mail(
-        user,
-        EVENT_MAIL_REF(static_cast<AttendanceScript*>(m_script1c)->m_mail),
-        true);
 }
 
 // ============ CPcRoomPlayTime（0x5c → PcBangPlayTimeScript）============
@@ -405,6 +406,9 @@ int CPcRoomPlayTime::verifyUserPcRoomPlayEvent(CUser* user)
 {
     // ORIG 0x8110a38：未开事件 → 0xb2；非 0xc 类 premium → 7；
     // 领奖次数达到 m_numberOfTime（先判 >=）→ 0x12，否则 0。
+    // [b28c-L0 N22] 末段 ORIG `cmp %edx,%eax`（call 结果留 %eax 作目的操作数）；
+    // 4.4 恒先 `mov %eax,%edx` 中转再 `cmp %eax,%edx`（+1 条）。P226 语句表达式
+    // /具名局部/短路形均不可翻（负例 N22）；另有 N7 虚调用 is_eventing 寄存器差。
     if (!is_eventing())
         return 0xb2;
     if (!user->isAffectedPremium((ENUM_PREMIUM_TYPE)0xc))

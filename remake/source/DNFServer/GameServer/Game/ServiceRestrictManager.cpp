@@ -159,25 +159,26 @@ bool AuthMobileRestrictPolicy::isApply(int param)                   // ORIG 0816
 
 void AuthMobileRestrictPolicy::printRestrict()                      // ORIG 0816d866
 {
-    // [b26N82] cMyTrace 槽分配方向跨版本相反（同 SecurityRestrictPolicy 判词），
-    // ndiff 12 封顶。
+    // b28c-L20: AE — 同 SecurityRestrictPolicy::printRestrict：三处 cMyTrace 改
+    // 全表达式临时链（P221/P37）后 4.4 槽落位翻正（ORIG trace1 -0x3c/trace2 -0x2c/
+    // trace3 -0x1c），b26「[N82] ndiff 12 封顶」判词作废；71=71 ndiff 0。
     unsigned int i;
-    cMyTrace trace1(__PRETTY_FUNCTION__, 0x8d, 9, true, true);
-    trace1("\tMobile Auth Begin");
+    cMyTrace(__PRETTY_FUNCTION__, 0x8d, 9, true, true)("\tMobile Auth Begin");
     for (i = 0; i < m_svc.size(); ++i)
     {
-        // P37 链式临时：实参右→左求值（m_svc[i]→esi、enumToString→ebx）后构造。
         cMyTrace(__PRETTY_FUNCTION__, 0x90, 9, true, true)(
             "\t- %s : %d",
             MobileRestrict::enumToString(static_cast<MobileRestrict::Enum>(i)),
             static_cast<int>(m_svc[i]));
     }
-    cMyTrace trace3(__PRETTY_FUNCTION__, 0x94, 9, true, true);
-    trace3("\tMobile Auth End");
+    cMyTrace(__PRETTY_FUNCTION__, 0x94, 9, true, true)("\tMobile Auth End");
 }
 
 void AuthMobileRestrictPolicy::getRestrictValue(Taiwan::SigLoadRestrictPolicy& policy)  // 0816d9a0
 {
+    // b28c-L20: AE — 首字段 store 翻正同 SecurityRestrictPolicy::getRestrictValue：
+    // getCode() 返回类型 int→RestrictCategory::Enum（P211 异型 ⇒ RHS 先+中转，
+    // 探针 /tmp/l20b/probe2.cpp）。orig=54 our=53 gap=1 → 54=54 ndiff 0。
     policy.m_restrictValue = getCode();   // ORIG call 816ee12
     policy.m_count = 0;
     for (unsigned int i = 1; i < m_svc.size(); ++i)
@@ -238,20 +239,18 @@ bool CreateCharacterRestrictPolicy::isApply(int param)              // ORIG 0816
 
 void CreateCharacterRestrictPolicy::printRestrict()                 // ORIG 0816df6c
 {
-    // [b26N82] cMyTrace 槽分配方向跨版本相反（同 SecurityRestrictPolicy 判词），
-    // ndiff 12 封顶。
-    cMyTrace trace1(__PRETTY_FUNCTION__, 0x125, 9, true, true);
-    trace1("\tCreate Character Begin");
+    // b28c-L20: AE — 同 SecurityRestrictPolicy::printRestrict 修法（P221/P37 全表达式
+    // 临时链翻正 4.4 的 cMyTrace 槽落位，ORIG trace1 -0x3c/trace2 -0x2c/trace3 -0x1c）；
+    // b26「[N82] ndiff 12 封顶」判词作废。
+    cMyTrace(__PRETTY_FUNCTION__, 0x125, 9, true, true)("\tCreate Character Begin");
     for (unsigned int i = 0; i < m_svc.size(); ++i)
     {
-        // P37 链式临时：实参右→左求值（m_svc[i]→esi、enumToString→ebx）后构造。
         cMyTrace(__PRETTY_FUNCTION__, 0x128, 9, true, true)(
             "\t- %s : %d",
             CharacterRestrict::enumToString(static_cast<CharacterRestrict::Enum>(i)),
             static_cast<int>(m_svc[i]));
     }
-    cMyTrace trace3(__PRETTY_FUNCTION__, 0x12c, 9, true, true);
-    trace3("\tCreate Character End");
+    cMyTrace(__PRETTY_FUNCTION__, 0x12c, 9, true, true)("\tCreate Character End");
 }
 
 void CreateCharacterRestrictPolicy::getRestrictValue(Taiwan::SigLoadRestrictPolicy&)  // 0816e0a6 空
@@ -400,10 +399,14 @@ bool ServiceRestrictManager::isRestricted(RestrictCategory::Enum category, int v
 {
     std::map<RestrictCategory::Enum, InterfaceServicePolicy*>::iterator it =
         m_policyMap.find(category);
-    if (it == m_policyMap.end())
-        return true;
-    // ORIG 0x0816e7ca：虚调用 vtable+0x14（槽5）= isApply(int)。
-    return it->second->isApply(v);
+    // [b28c-L15 P220] ORIG 0x0816e7a9：`test %al; je 尾 mov$1` + fall-through 虚调用
+    //   ⇒ 正极性迭代器比较（同 isApply 形），false 侧归共享尾。
+    if (it != m_policyMap.end())
+    {
+        // ORIG 0x0816e7ca：虚调用 vtable+0x14（槽5）= isApply(int)。
+        return it->second->isApply(v);
+    }
+    return true;
 }
 
 // ORIG 0x0816e54a：find 命中则策略 beginPolicy(str)；随后 printPolicy + updatePolicy。

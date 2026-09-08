@@ -162,6 +162,22 @@ StaticPool<T, N>::StaticPool()
 template <class T, int N>
 StaticPool<T, N>::~StaticPool()
 {
+    // b28c-L5 判词（N91 族·delete[] cleanup 侧）：ORIG 三池 D1（CTradeSpace<300>
+    //   0x082ae79c / pvp_assault::CAssaultPlace<128> 0x082f141c /
+    //   exchange_server::CSession<300> 0x0849584c，各 37 insns）**均无** EH landing
+    //   pad；4.4-O0 对本 TU 发射的弱 `CNodeD1Ev` 数组析构循环恒追加
+    //   「异常回滚 → m_Queue.~queue() → _Unwind_Resume」残段（+13 insns，
+    //   含 push %esi），与函数体正常路径逐条同构、仅尾段 EH 多寡不同。
+    //   已穷举两条无副作用翻法并实测否证（探针 /tmp/l5_probe_b.cpp 同 TU 三态）：
+    //     ① 元素类 T 的 dtor 加 throw()（SP<B>）→ landing **不消**（4.4 的 cleanup
+    //        判据取数组元素析构调用的可抛性，不受 T 声明影响）；
+    //     ② CNode ctor 加 throw()（SP2<C>，本波已落 StaticPool.h，用于消 C1 侧
+    //        new[] 的 operator delete[] 回滚）→ 对 D1 侧 landing **无效**。
+    //   第三条路（CNode 用户定义 `~CNode() throw() {}`）会连带让 POD 元素池
+    //   （StaticPool<_IO_FILE,50>，ORIG nm 实证无 CNodeD1Ev、其 D1 仅 0x2c 无循环）
+    //   凭空多出发明的 CNodeD1Ev 符号 + 逐元素析构循环 ⇒ 违 §4.1（禁发明符号）
+    //   且把 1 件 DIFF 换成 2 处结构性回归，否决。
+    //   语义侧 delete[] 的循环/cookie/释放三段与 ORIG 逐条一致，判 N91 封顶。
     delete[] m_pNode;
 }
 

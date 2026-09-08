@@ -756,7 +756,11 @@ STExpertJobScript* CExpertJobList::get(int job)
     // [B24D判词 N] 语义正确：m_jobMap.find(job) 未命中返回 0 否则 it->second；
     // diff=mov $0x0 初始化位置调度序（GCC4.1 vs 4.4），32/32 纯 lowering，语义等价。
     std::map<int, STExpertJobScript*>::iterator it = m_jobMap.find(job);
-    return it == m_jobMap.end() ? 0 : it->second;
+    // P191/P222：ORIG 0x0822b3d1 失败块（mov $0）落函数尾、命中路径 fall-through；
+    // 三元/正极性写法让失败块前置。
+    if (it == m_jobMap.end())
+        return 0;
+    return it->second;
 }
 
 // ============================================================================
@@ -766,8 +770,10 @@ STExpertJobScript* CExpertJobList::get(int job)
 // ============================================================================
 bool STExpertJobEtcScript::isExpertJobLimitLevel(int level)
 {
+    // [b28c-L29] ORIG W 0x0849f47c：循环尾用后置 it++（ppEi 带 dummy int 实参
+    // 0x0 + sret 旧值槽 -0xc），非前置 ++it。
     for (std::map<unsigned char, short>::iterator it = m_levelMap.begin();
-         it != m_levelMap.end(); ++it)
+         it != m_levelMap.end(); it++)
     {
         if ((int)it->second == level)
             return true;

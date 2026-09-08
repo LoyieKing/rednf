@@ -223,7 +223,10 @@ int CItemAmplifier::getPurifyMaterialType(int itemIdx) const
 {
     for (int i = 0; i <= 1; ++i)
     {
-        if (m_script.m_purifyMatItem[i] == itemIdx)  // +0x9c 表查找
+        // [b28c-16] N18b 反演试形：ORIG `mov 表项,%edx; mov 形参,%eax; cmp
+        // %eax,%edx`（两段物化），4.4 对 `表项==形参` 恒折 `cmp MEM,reg`；
+        // 交换操作数试产两段形。
+        if (itemIdx == m_script.m_purifyMatItem[i])  // +0x9c 表查找
             return i;
     }
     return -1;
@@ -341,17 +344,17 @@ void CItemAmplifier::investAmplifyOption(
         m_script.m_options.end();
     for (; it != end; ++it)
     {
-        if (it->m_type != option.m_amount)
+        // [b28c-16] P222 正向包裹：ORIG `cmp; sete; je <++it 岛>`（命中 fall-through），
+        // 写 `!= continue` 4.4 反产 setne/je 命中块；type 不设局部（ORIG 直接
+        // movzbl %al,%eax 内联进实参）。
+        if (it->m_type == option.m_amount)
         {
-            continue;
+            unsigned short value =
+                (unsigned short)((float)it->m_value *
+                                 m_script.m_rarityRate[item->get_rarity()]);
+            inven.m_amp._setAbility((unsigned char)option.m_amount, value, true);
+            return;
         }
-
-        unsigned short value =
-            (unsigned short)((float)it->m_value *
-                             m_script.m_rarityRate[item->get_rarity()]);
-        unsigned char type = (unsigned char)option.m_amount;
-        inven.m_amp._setAbility(type, value, true);
-        return;
     }
 }
 

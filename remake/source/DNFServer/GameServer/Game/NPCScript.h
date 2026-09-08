@@ -65,8 +65,7 @@ public:
     // mov 0xc(%eax,%edx,4)（edx=mood+0x190）→ 内嵌 +0x64c 处 float[3]。
     float getFavorRatePerMood(ENUM_NPC_MOOD mood) const
     {
-        return *reinterpret_cast<const float*>(
-            &m_npcScript.m_favorableRelationShip.m_favorRate0 + mood);
+        return m_npcScript.m_favorableRelationShip.m_favorRate[mood];
     }
 
 private:

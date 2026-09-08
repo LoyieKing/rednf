@@ -41,7 +41,8 @@ struct stAchievement_DBData
 {
     stAchievement m_entries[512];  // +0x00（12*512 = 0x1800）
     int m_count;                   // +0x1800
-    int m_saveTime;                // +0x1804
+    unsigned int m_saveTime;       // +0x1804（b28c-L10：ORIG getData 0x828c6e0 RHS-first
+                                   // store ⇒ 与 getCurSec() int 异型，P211②）
 
     stAchievement_DBData();
 };

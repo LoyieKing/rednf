@@ -50,6 +50,10 @@ static int getSocketCount(const stAvatarEmblemInfo_t* emblem)
 void AvatarRechargeServer::SendDurability(CUser* user, char param2, short param3,
                                           char param4, int param5)
 {
+    // [b28c-L9] 残差 2 = 4.1 为前两级各发射一枚空 else 中继岛
+    // （0x08190494 `nop; jmp exit`、0x08190497 `nop`）；4.4 三形实测均不闭合
+    // （否定早返 +2 jmp、正向嵌套 −2 jmp、P223 尾 goto 标签串 +2 jmp）
+    // ⇒ 空块条数跨版本不可择（P223/P184 负例），保持可读早返形。
     if (user == 0)
         return;
     if (user->get_state() != 5)
@@ -105,7 +109,7 @@ bool AvatarRechargeServer::CheckConditionUseRecharge(
                                    sig->stoneSlot);
         return false;
     }
-    if (!m_script.IsEmblemRechargeStone(stone->m_addInfo))
+    if (!IsEmblemRechargeStone(stone->m_addInfo))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24d, 0x11);
         LogManager::logFormat(
@@ -206,7 +210,7 @@ bool AvatarRechargeServer::Recharge(CUser* user,
         }
 
         int newEndur = (int)avatar->m_fieldSplit.m_avatarEndur +
-                       m_script.m_emblemRechargeStoneMap[stoneItemId];
+                       m_emblemRechargeStoneMap[stoneItemId];
         if (newEndur > sig->maxEndurance)
             newEndur = sig->maxEndurance;
         sig->addEndurance =
@@ -259,8 +263,8 @@ bool AvatarRechargeServer::UseEmblem(CUser* user, std::vector<int>& grades,
     for (std::vector<int>::size_type i = 0; i < grades.size(); ++i)
     {
         std::map<int, int>::const_iterator it =
-            m_script.m_useEmblemGradeRateMap.find(grades[i]);
-        if (it != m_script.m_useEmblemGradeRateMap.end())
+            m_useEmblemGradeRateMap.find(grades[i]);
+        if (it != m_useEmblemGradeRateMap.end())
             addSum += it->second;
     }
 
@@ -323,7 +327,7 @@ void AvatarRechargeServer::GmReduceEndurance(CUser* user, short slot,
     const int maxEndurance =
         getSocketCount(socketData) *
         ARAD::Singleton<AvatarRechargeServer>::Get()
-            ->m_script.getAvatarRecharageLimit();
+            ->getAvatarRecharageLimit();
 
     int newEndur = (int)item->m_fieldSplit.m_avatarEndur + (int)delta;
     if (newEndur < 0)
@@ -365,6 +369,9 @@ void AvatarRechargeServer::GmChangeEnduranceReduceRate(CUser* user, bool enable,
 void AvatarRechargeServer::GmSetEnduranceReduceRate(CUser* user, bool enable,
                                                     int rate)
 {
+    // [b28c-L9] ORIG 0x0819136a `mov 0x10(%ebp),%eax; mov %al,-0x1c(%ebp)` 是 bool
+    // 形参的单次截断 spill（非具名局部——再加 `bool bEn` 会多一对
+    // `movzbl -0x1c,%eax; mov %al,-0x11` 中转）。
     m_bUseEnduranceReduceRate = enable;
     if (enable)
     {
@@ -376,16 +383,18 @@ void AvatarRechargeServer::GmSetEnduranceReduceRate(CUser* user, bool enable,
             rate *= 10;
         m_enduranceReduceRate = rate;
 
-        // ORIG 0x08191364：const char* 字面量直传（movl $0x8b9a544，0x4(%esp) 直填）。
-        // ORIG 0x08191364：字面量槽直填（中转槽 -0x10 为 4.1 自身产物，
-        // 4.4 直填 0x4(%esp) 属布局差异，N 封顶）。
-        ARAD::notifySystemMessage(user, (char*)"succ avatar Endurance reduce rate mode on! change rate");
+        // [b28c-L9] 旧「字面量直填 N 封顶」判词作废：ORIG 0x081913b6
+        // `movl $str,-0x10(%ebp); mov -0x10(%ebp),%eax; mov %eax,0x4(%esp)`
+        // 与 0x081913db 的 -0xc 同形 ⇒ 原码是具名 char* 局部（P0），
+        // 两臂各一枚（-0x10 深 / -0xc 浅）。
+        char* msgOn = (char*)"succ avatar Endurance reduce rate mode on! change rate";
+        ARAD::notifySystemMessage(user, msgOn);
     }
     else
     {
         m_enduranceReduceRate = 0;
-
-        ARAD::notifySystemMessage(user, (char*)"avatar Endurance reduce rate mode off");
+        char* msgOff = (char*)"avatar Endurance reduce rate mode off";
+        ARAD::notifySystemMessage(user, msgOff);
     }
 }
 
@@ -425,6 +434,12 @@ AvatarRechargeServer::AvatarRechargeServer()
     : m_enduranceReduceRate(0),
       m_bUseEnduranceReduceRate(false)
 {
+    // [b28c-L9] 旧「构造序跨版本 N」判词作废：ORIG C1 0x08190200 的
+    // `mov this; add $0x4,%eax; call ARAD::SCRIPT::AvatarRecharge::C1` 先于 vptr、
+    // 且 vptr 在三个 call 之后才写 ⇒ 脚本子对象是**基类**而非成员。
+    // 按 Itanium primary-base 规则把 AvatarRecharge 提为第一基类（非动态 ⇒ 不占
+    // vptr；ScriptInterface 动态 ⇒ primary base，vptr@+0x00），
+    // sizeof 0x5c/全偏移不变（头内 static_assert 自证）⇒ 21=21 AE。
 }
 
 AvatarRechargeServer::~AvatarRechargeServer()
@@ -437,7 +452,7 @@ bool AvatarRechargeServer::Load()
 {
     cMyTrace trace(__PRETTY_FUNCTION__, 0x22, 9, true, false);
     trace("\t- Loading Avatar Recharge script - ");
-    if (m_script.loadScript())
+    if (loadScript())
         return false;
     return true;
 }
@@ -453,15 +468,17 @@ void AvatarRechargeServer::Test()
 {
 }
 
-// ORIG 0x0819114c：非静态成员，find 于 this+0x38（= m_script.m_useEmblemGradeRateMap）。
+// ORIG 0x0819114c：非静态成员，find 于 this+0x38（= m_useEmblemGradeRateMap）。
 int AvatarRechargeServer::GetRateFromEmblemGrade(int grade)
 {
-    std::map<int, int>::const_iterator it = m_script.m_useEmblemGradeRateMap.find(grade);
-    if (it == m_script.m_useEmblemGradeRateMap.end())
-        return 0;
-    return it->second;
-    // [N 判词] 4.4 对 map 迭代器比较产生两次 operator!= 外链 call（-0x14/-0x10
-    // 额外拷贝槽）；4.1 内联比较。libstdc++ 头差异，源形不可择（N89 族）。
+    // [b28c-L9] ORIG 0x0819114c：find→-0x10、end→-0xc 两匿名槽 + 外链
+    // `_Rb_tree_iterator::operator!=`（非 const 迭代器，P96）+ 正极性
+    // `it != end` → `it->second`（P220/P47）。旧「const 迭代器 + ==end」形
+    // 多生成转换构造与 operator== 外链（44 vs 34 insn）。
+    std::map<int, int>::iterator it = m_useEmblemGradeRateMap.find(grade);
+    if (it != m_useEmblemGradeRateMap.end())
+        return it->second;
+    return 0;
 }
 
 // ORIG 0x08190dea（静态）：Acquire 流 → make_internal_stream_jpn(0x31, -1) → put_binary 8 字节
@@ -472,6 +489,8 @@ void AvatarRechargeServer::SaveAvatarEnduranceUnit(arad::SigAradAvatarEnduranceS
     // 局部）；make_internal_stream_jpn 后经 operator->() 再 put_binary。
     // [b23S3C] 在途复验：fresh .o 52=52（norm），仅 put_binary 实参装载寄存器/时刻
     // 差（P75 跨版本形），方向正确保留。
+    // [b28c-L9] 复核定稿 ndiff=3：ORIG `mov 0x8(%ebp),%edx; mov %edx,0x4(%esp)`，
+    // 4.4 提前把同一值升格 %ebx 跨 call 保活（N7 角色轮换 + N18a 单段直落不可造）。
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("localjapan/Arad_EmblemReformServer.cpp", 0x10f),
         true);

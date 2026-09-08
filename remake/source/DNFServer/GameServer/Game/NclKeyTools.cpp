@@ -87,11 +87,12 @@ void ncl_make_date(char* out)
     std::time(&t);
     struct tm tmBuf;
     struct tm* p = localtime_r(&t, &tmBuf);
-    if (p != 0)
-    {
-        std::sprintf(out, "%04d%02d%02d",
-                     tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday);
-    }
+    // ORIG 0x85724f9：`je <nop 岛>` + sprintf + 尾 `jmp` + nop（P223 空块占位岛）。
+    if (p == 0)
+        goto L_done;
+    std::sprintf(out, "%04d%02d%02d",
+                 tmBuf.tm_year + 1900, tmBuf.tm_mon + 1, tmBuf.tm_mday);
+L_done:;
 }
 
 // ncl_encrypt_key(char* out, char* mac, char* date1, char* date2)

@@ -447,7 +447,10 @@ public:
         ExpertJobKey(ENUM_EXPERT_JOB_TYPE type, unsigned long itemIdx);
         bool operator<(const ExpertJobKey& other) const;
 
-        int m_field00;               // +0x00（job/type）
+        // [b28c-35] ORIG operator< 0x086106da 段1 保留 `mov (%eax),%eax; mov %eax,%edx`
+        // 两段装载（4.1 对 enum 字段的中转）⇒ 字段类型为 enum（C28L36 JobKey 同法）；
+        // int 字段 4.4 恒折 `mov (%eax),%edx` 单段。sizeof/mangled 不变。
+        ENUM_EXPERT_JOB_TYPE m_field00;  // +0x00（job/type）
         unsigned long m_itemIdx04;   // +0x04（物品 idx）
     };
 

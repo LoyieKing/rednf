@@ -39,14 +39,20 @@ bool CCharacInformNotice::checkInformNoticeFlag(unsigned int bit, unsigned int b
         return false;
     if (byteIdx >= InformNotice::kInformNoticeIndex)
         return false;
-    // ORIG: m_flags[byteIdx] 落槽 -0x5（P0 具名局部）→ sar/and 后 xor $0x1 取反
-    //（X2 register-uchar 形，不落槽）→ test/je + mov$1/mov$0 常量岛。
+    // [b28c-L15 P0/N96] 存量 register asm("eax") 绑定已清除（全域禁绑，N96）。
+    //   ORIG 0x080e4ab8 形：m_flags[byteIdx] 落槽 → sar/and → `xor $0x1,%eax;
+    //   test %al,%al` + mov$1/mov$0 常量岛。P168a④：int 表达式任何源形均仍拆两段
+    //   （N18a），且 4.4 对 sar/and 后的 eax 恒以 movzbl 加宽顶掉 xor 段
+    //   （P168a③ 总闸），无绑定即不可复现 ⇒ 落自然形，N96+N18a+P168a④ 封顶。
+    //   ①X2 无绑定形（uchar 局部 ^= 1 + if）实测恒三段栈槽物化（`mov %al,-0x5;
+    //     xorb $1,-0x5; cmpb $0,-0x5`），命中 P168a④ ⇒ 维持 N；
+    //   ②裸 register（无 asm 绑定，采纳 lane22/23 实测：可免槽、且能复现 4.1 的
+    //     bool 归一常量岛）本点位实测劣于③——4.4 把 t 钉到 %ebx 并多插一条
+    //     `mov %eax,%ebx`（ORIG 值已在 %eax，`and/xor $1,%eax; test %al` 零中转），
+    //     AE 归一后差 7 行 vs ③ 的 5 行 ⇒ 不采纳；
+    //   ③本行：裸自然形（P168a①）——sar/and 后取反直返，残 5 条 = 4.1 bool 归一岛。
     unsigned char v = m_flags[byteIdx];
-    register unsigned char t asm("eax") = (unsigned char)((v >> bit) & 1);
-    t ^= 1;
-    if (t)
-        return 1;
-    return 0;
+    return !(((int)v) >> bit & 1);
 }
 
 // ORIG T 0x080e4806：flag&7=bit，flag>>3=byte；check 真则置位并 alter。

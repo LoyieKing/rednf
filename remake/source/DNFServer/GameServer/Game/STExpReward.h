@@ -23,7 +23,11 @@ struct STExpReward
     // ORIG C1/C2 0x085bed52：级联清零 +0x0..+0x3（movb $0,0x3 → movzbl 传递
     // → movb 高位逐个下移）。`m_reward = 0` 生成单 movl；逐字节赋值复现
     // 4.1 的 movzbl 级联链。
-    STExpReward() { m_reward8 = 0; m_field4 = 0; m_field5 = 0; m_powerUp = 0; }
+    // ORIG C1/C2 0x085bed52：4.1 对同值字节字段发**传播链**（movb $0,+3 → movzbl
+    // +3 → movb +2 → movzbl +2 → movb +1 → movzbl +1 → movb +0）；4.4 对独立
+    // 逐字段赋值恒发 4 条 movb $0（b28c-lane25 探针 /tmp/l25probe/se.cpp fA/fB）。
+    // 手写传播链语义等价（全零）且逐条复现 ORIG。
+    STExpReward() { m_powerUp = 0; m_field5 = m_powerUp; m_field4 = m_field5; m_reward8 = m_field4; }
 
     union
     {

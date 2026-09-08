@@ -12,8 +12,12 @@ TOD_Layer::TOD_Layer(unsigned short layer)
     m_layer = layer;
     if (m_layer > 100)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x10, 5);
-        trace("@TOD: invalid layer setting : %d", (unsigned int)layer);
+        // [b28c-35] ORIG 0x085fe7d8：layer 在 cMyTrace::C1 调用**前**读入 %ebx
+        // （`movzwl -0x1c(%ebp),%ebx` 跨 ctor 保活，push %ebx; sub $0x34）；具名
+        // 对象形 4.4 改在 ctor 后重读槽（无 push ebx，帧 0x38）。P227 全表达式
+        // 临时链复现。
+        cMyTrace(__PRETTY_FUNCTION__, 0x10, 5)(
+            "@TOD: invalid layer setting : %d", (unsigned int)layer);
         m_layer = 1;
     }
 }
@@ -41,7 +45,9 @@ bool TowerOfDespairMgr::IsTowerOfDespairDungeon_ByIndex(int idx) const
 // rep movsl 0x2f 次（0xbc 字节）到 this+0x17338（m_apcInfo）。
 void SendingAPC_Info::set_data(_APCInfo const& info)
 {
-    memcpy(&m_apcInfo, &info, sizeof(_APCInfo));   // 0xbc
+    // P83：ORIG 0x085fe8fd `rep movsl`（0x2f 次）＝结构整体赋值内联；
+    // 显式 memcpy 生 call memcpy。
+    m_apcInfo = info;                              // 0xbc
 }
 
 // TowerOfDespair_APC_Mgr::Set_APC_Info —— ORIG T 0x085fed2e [0x085fed2e,0x085feecf]

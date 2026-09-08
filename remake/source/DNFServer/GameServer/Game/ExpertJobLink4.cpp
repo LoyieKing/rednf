@@ -453,6 +453,7 @@ CExpertJob* CExpertJobMgr::AcquireExpertJob(ENUM_EXPERT_JOB_TYPE type)
 // ---- CExpertJobFactory::AcquireExpertJob（ORIG W 0x0849f5d2）：
 //      type==1 → Enchanter 池（this+0x00）；type==3 → Disjointer 池（this+0x30）；
 //      取到后先虚调用 Reset()（vtable+0xc 槽）再非虚 SetType(type)。 ----
+// b28c-1 N7: 虚调用 callee %eax↔%edx 互换。
 CExpertJob* CExpertJobFactory::AcquireExpertJob(ENUM_EXPERT_JOB_TYPE type)
 {
     CExpertJob* acquired = 0;
@@ -892,18 +893,23 @@ std::vector<int>* DisJoint::GetPredictResult(int rarity)
 
 // ORIG W 0x0822b1f4（声明补入 STExpertJobScript.h；定义置本 TU 保持
 // expert_job 域内聚）。m_portableDisjointMap(+0x18) find(level)，未命中 -1。
-short STExpertJobScript::GetPortableDisjointPossibleLevel(int level)
+int STExpertJobScript::GetPortableDisjointPossibleLevel(int level)
 {
     std::map<int, unsigned short>::iterator it = m_portableDisjointMap.find(level);
     if (it == m_portableDisjointMap.end())
-        return (short)-1;
-    return (short)it->second;
+        return -1;
+    // [b28c-L18] ORIG 尾双段 `movzwl 0x4(%eax),%eax; movzwl %ax,%eax` = int 返回
+    // + (unsigned short) 提升（探针 dj.cpp f_d 全等）。
+    return (unsigned short)it->second;
 }
 
 // ---- DisPatcher_DisJointItem::_checkDisjointableItem
 // （报告 _checkDisjointableItem.md，ORIG T 0x081fa0f6）：
 // 未鉴定且无目标用户 → 0xae；物品缺失 → 0x11；
 // IsImpossibleDisjoint（ORIG vptr+0x38 = vtable 槽16）→ 0x13；GetAttachType==2 → 0x11。 ----
+// [b28c-31] N7+N18b：虚调用 callee ORIG %edx vs 4.4 %eax（vptr+0x38 槽）；
+// 另 GetAttachType 结果 ORIG 回读槽再 `cmp $0x2,%eax`，4.4 恒折 `cmpl $0x2,-0xc`
+// 内存直比（P209 附 / N18b）。
 int DisPatcher_DisJointItem::_checkDisjointableItem(const Inven_Item& item,
                                                     CUser* targetUser)
 {

@@ -20,6 +20,10 @@ Inter_DispatcherTaiwan::~Inter_DispatcherTaiwan()
 
 int Inter_DispatcherTaiwan::dispatch_sig(CUser* user, char* data, int len)
 {
+    // [b28c-30] N7 封顶：尾部虚调用 ORIG `mov (%eax),%edx; …; call *%edx`，
+    // 4.4 恒 `mov (%eax),%eax; …; call *%eax`（间接 call 目标寄存器固定 %eax）。
+    // 另 N1：ORIG `mov 0x14(%ebp),%eax; sub $0x4,%eax` 两步，4.4 折
+    // `lea -0x4(%edx),%ecx` 单条。余差均为 .o 重定位伪差。
     int code = *(int*)data;   // ORIG mov (%eax),%eax 直读 4 字节（local_14）
     TaiwanInterfaceInterDispatcher* disp =
         m_disp.getDispatcher((TaiwanInternalPack::T)code);   // ORIG call getDispatcher

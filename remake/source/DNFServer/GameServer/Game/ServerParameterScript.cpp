@@ -238,6 +238,8 @@ std::vector<std::pair<int, int> >* ServerParameterScript::GetEscaladeTutorialRew
 
 bool ServerParameterScript::checkAssaultServer(int serverGroup, int channelNo)
 {
+    // b28c-L8 [AE]：fresh 复验 49/50，唯一差 = 4.4 在 `mov $1,%eax; jmp` 之后多一条
+    // 尾对齐 nop（§6.1 剥离后逐条全等）；p167 调用点差集 0/0，源码未改。
     std::pair<int, int> p;
     std::vector<std::pair<int, int> >::iterator it = m_vec18.begin();
     std::vector<std::pair<int, int> >::iterator e = m_vec18.end();
@@ -410,6 +412,11 @@ bool ServerParameterScript::LoadScript(const char* path)
 
 int ServerParameterScript::GetLottePoint(int idx)
 {
+    // b28c-L8 [AE 6→0]：`it->first`/`it->second` → `(*it).first`/`(*it).second`。
+    // p167 差集一击：ORIG 0x085bec76 三处解引用均为 __normal_iterator::operator*()
+    // const（MISSING deEv ×3 / EXTRA ptEv ×3），非 operator->。同法连带
+    // GetPriceAverage(0x85beaf6)/GetAdmissionIncrease(0x85bebb6)/
+    // GetCleanChattingCount(0x86d17ec) 共 4 件归零。
     if (m_bloodReward794.m_vec18.empty())
     {
         return 0;
@@ -420,13 +427,13 @@ int ServerParameterScript::GetLottePoint(int idx)
         m_bloodReward794.m_vec18.end();
     for (; it != e; ++it)
     {
-        if (it->first > idx)
+        if ((*it).first > idx)
         {
-            return it->second;
+            return (*it).second;
         }
     }
     --it;
-    return it->second;
+    return (*it).second;
 }
 
 int ServerParameterScript::GetPriceAverage(int idx)
@@ -441,13 +448,13 @@ int ServerParameterScript::GetPriceAverage(int idx)
         m_bloodReward794.m_vec0.end();
     for (; it != e; ++it)
     {
-        if (it->first >= idx)
+        if ((*it).first >= idx)
         {
-            return it->second;
+            return (*it).second;
         }
     }
     --it;
-    return it->second;
+    return (*it).second;
 }
 
 // ORIG 0x082f03bc：idx∈[1,200]，取 m_vec588(+0x588)[idx-1]。
@@ -490,13 +497,13 @@ int ServerParameterScript::GetAdmissionIncrease(int idx)
         m_bloodReward794.m_vecc.end();
     for (; it != e; ++it)
     {
-        if (it->first > idx)
+        if ((*it).first > idx)
         {
-            return it->second;
+            return (*it).second;
         }
     }
     --it;
-    return it->second;
+    return (*it).second;
 }
 
 float ServerParameterScript::GetPvPPenaltyRevision(int grade)
@@ -548,34 +555,26 @@ bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_T
          it != m_unusableEC.end(); ++it)
     {
         stUnusableEquipmentInfo* p = &*it;
-        if (type == p->m_field0)
+        if (p->m_field0 == static_cast<int>(type))
         {
-            // ORIG 0x08693xxx CFG 实证收敛形：field4!=0 直接 jne 落公共尾检。
-            // [N-类] 剩 11：①`type==field0` 的 cmp 操作数朝向(N22a，4.4 恒双
-            // load)；②两处 `return false/true` 4.4 内联 if-body(mov$X;jmp 3 行)
-            // vs 4.1 跳共享返回岛(1 行 jcc+2 行共享尾，tail-merge 跨版本差)。
-            if (p->m_field4 == 0)
+            // b28c-L8 语义修正（ORIG 0x08568af6 逐条）：field4!=0 时 ORIG 经
+            // `jne +0x4f` 落入**同一段** field4/field8 判定（非跳过），旧源码把
+            // 该段误置于 field4==0 分支内 ⇒ field4>idx 且 field8>=idx 时分叉。
+            // CFG：b!=0→CHECK；b==0&&c==0→false；CHECK: b>idx→true；
+            //     c>=idx→false；否则 true。
+            if (p->m_field4 == 0 && p->m_field8 == 0)
             {
-                if (p->m_field8 != 0)
-                {
-                }
-                else
-                {
-                    return false;
-                }
-                if (p->m_field4 <= idx)
-                {
-                }
-                else
-                {
-                    return true;
-                }
+                return false;
             }
-            if (p->m_field8 < idx)
+            if (p->m_field4 > idx)
             {
                 return true;
             }
-            return false;
+            if (p->m_field8 >= idx)
+            {
+                return false;
+            }
+            return true;
         }
     }
     return true;
@@ -623,13 +622,13 @@ int ServerParameterScript::GetCleanChattingCount(int level)
     std::vector<std::pair<int, int> >::iterator e = m_vec4954.end();
     for (; it != e; ++it)
     {
-        if (it->first >= level)
+        if ((*it).first >= level)
         {
-            return it->second;
+            return (*it).second;
         }
     }
     --it;
-    return it->second;
+    return (*it).second;
 }
 
 int ServerParameterScript::GetTraningFirstGive(int a, int b, int c,

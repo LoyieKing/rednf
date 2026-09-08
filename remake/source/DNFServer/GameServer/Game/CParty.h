@@ -668,8 +668,17 @@ public:
     bool getDungeonDropTestFlag();   // ORIG T 0x085bdc76 返回 al（GM 成员且
                                      // getDungeonMapSaving 时 1；原 void 声明与
                                      // move_map 调用方 test al 不符）
-    int is_limit_minimum_age(int age, int& param);     // ORIG eax=0/1
-    int is_limit_minimum_level(int level, int& param); // ORIG eax=0/1，param=违规成员uid
+    // [b28c-L7][SIGFIX 候选] int→bool：①两函数 ORIG 体尾仅发 `mov $0x0/$0x1,%eax`
+    // 两值出口（docs/class_func_reports/CParty/is_limit_minimum_age.md @0x0859a269
+    // /0x0859a27f）；②调用点按**单字节**直测/取反：0x0859a25d 内层
+    // `call CheckLimitMiniumAge; xor $0x1,%eax; test %al,%al; je`（Ghidra C 亦
+    // `cVar1 != '\x01'`），本仓外部调用点 0x082f0xxx（AvailableAssault）同形；
+    // ③探针 /tmp/xprobe.cpp 实证 int callee 的调用点写法无解（恒 sete/栈化），
+    // 唯 bool callee + 裸 `if(!call())` 直产 ORIG `xor $1,%eax; test %al,%al`。
+    // mangled 不含返回类型⇒符号不变；全仓消费点 grep 实证均为条件/取反调用
+    // （无 `>=0`/`<0` 有符号判定，避 C28L12 m_arg 回退教训）。
+    bool is_limit_minimum_age(int age, int& param);     // ORIG 0x0859a210 出口 0/1
+    bool is_limit_minimum_level(int level, int& param); // ORIG 0x0859a286，param=违规成员uid
     bool isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& param);
     int getPartyMemberAvgLevel();   // ORIG T 0x0859f582 返回 eax（有效成员平均等级）
     int CheckMemberFatigue();

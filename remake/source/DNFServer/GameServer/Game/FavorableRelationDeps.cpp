@@ -167,14 +167,20 @@ stFavorableRelationShip_t::stPeriodRewardInfo::~stPeriodRewardInfo()
 // ._199 为另一 TU 的同形副本（仅 D1/D2 @0x0858046c），复用同布局的 .set 别名。
 // GCC 对 ctor/dtor 的 asm 别名无效（硬限制），故以命名类 `_140`(4_140) 重建，
 // 末尾 `.set` 汇编别名强制 ORIG 带点号符号（mangling 必要性，非 §4.5 违例）。
-stFavorableRelationShip_t::_140::_140()
+stFavorableRelationShip_t::t_140::t_140()
 {
     // ORIG 0x089fb8b6：仅默认构造 +0x0/+0xc 两 vector<pair>；成员含 vector 自动构造。
 }
 
-stFavorableRelationShip_t::_140::~_140()
+stFavorableRelationShip_t::t_140::~t_140()
 {
     // ORIG 0x089fb8fc：先 this+0xc 后 this 逆序析构（vector 自动析构，序列与隐式一致）。
+}
+
+// b28c-L8：ORIG 0x0858046c 是另一 TU 的同形副本（仅 D1/D2），与 ._140D1 不同址
+// ⇒ 必须独立发射一份体，否则两个别名同址、objdump 只挂一个名字（our_insns=0 伪差）。
+stFavorableRelationShip_t::t_199::~t_199()
+{
 }
 
 // ============================ stFavorableRelationShip_t::._140/._199 别名 ============================
@@ -185,10 +191,27 @@ stFavorableRelationShip_t::_140::~_140()
 // ORIG 为局部 `t` 符号；命名类成员默认 W/全局 weak，binding 不敏感（compare 按符号名
 // 匹配），以 nm 存在为准。cf. docs/class_func_reports/stFavorableRelationShip_t__._140
 // （0x089fb8b6/0x089fb8fc）与 ._199（0x0858046c）。
-asm(".set _ZN25stFavorableRelationShip_t5._140C1Ev, _ZN25stFavorableRelationShip_t4_140C1Ev");
-asm(".set _ZN25stFavorableRelationShip_t5._140C2Ev, _ZN25stFavorableRelationShip_t4_140C2Ev");
-asm(".set _ZN25stFavorableRelationShip_t5._140D1Ev, _ZN25stFavorableRelationShip_t4_140D1Ev");
-asm(".set _ZN25stFavorableRelationShip_t5._140D2Ev, _ZN25stFavorableRelationShip_t4_140D2Ev");
-asm(".set _ZN25stFavorableRelationShip_t5._199D1Ev, _ZN25stFavorableRelationShip_t4_140D1Ev");
-asm(".set _ZN25stFavorableRelationShip_t5._199D2Ev, _ZN25stFavorableRelationShip_t4_140D2Ev");
+// b28c-L8（P203 附注 b28 BL9 定案）：别名必须自带 `.globl`+`.type @function`+
+// `.size <ORIG 尺寸>` 三件套，objdump 同址选名才会用别名而非自然名（纯 local t 被
+// 自然 W/T 压掉 ⇒ 表现为 our_insns=0 伪差）；自然名同时改为同长度、strcmp 更大的
+// `5t_140…`（'t' > '.'）。ORIG 六个别名符号尺寸均为 0x45（nm -S 实证）。
+#define L8_ALIAS(dot, nat)                                        \
+    asm(".globl " dot "\n"                                        \
+        ".type " dot ", @function\n"                              \
+        ".size " dot ", 0x45\n"                                   \
+        ".set " dot ", " nat "\n")
+
+L8_ALIAS("_ZN25stFavorableRelationShip_t5._140C1Ev",
+         "_ZN25stFavorableRelationShip_t5t_140C1Ev");
+L8_ALIAS("_ZN25stFavorableRelationShip_t5._140C2Ev",
+         "_ZN25stFavorableRelationShip_t5t_140C2Ev");
+L8_ALIAS("_ZN25stFavorableRelationShip_t5._140D1Ev",
+         "_ZN25stFavorableRelationShip_t5t_140D1Ev");
+L8_ALIAS("_ZN25stFavorableRelationShip_t5._140D2Ev",
+         "_ZN25stFavorableRelationShip_t5t_140D2Ev");
+L8_ALIAS("_ZN25stFavorableRelationShip_t5._199D1Ev",
+         "_ZN25stFavorableRelationShip_t5t_199D1Ev");
+L8_ALIAS("_ZN25stFavorableRelationShip_t5._199D2Ev",
+         "_ZN25stFavorableRelationShip_t5t_199D2Ev");
+#undef L8_ALIAS
 

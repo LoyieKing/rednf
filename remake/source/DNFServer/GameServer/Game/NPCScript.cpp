@@ -133,8 +133,6 @@ void NpcScript::clear()
     m_unknown38 = -1;
     m_stringData.clear();
     m_intData.clear();
-    m_moveTownLimitStr = "";
-    m_moveTownConfirmStr = "";
     m_balloonMessages.clear();
     m_balloonTicks.clear();
     m_dialogs.clear();
@@ -146,6 +144,11 @@ void NpcScript::clear()
     m_visibleOnDungeonClear = false;
     m_webPages.clear();
     m_clickMarks.clear();
+    // b28c-L8 代落 C28L35（Main R1 裁决 NPCScript.cpp 归本 lane）：ORIG 0x089fbf22
+    // 的两个 +0xf8/+0xfc assign 实际排在 +0x698（m_clickMarks）之后、+0x6b8（m_hide）
+    // 之前（Ghidra C 段逐条同序）；旧形挂在 +0x110 之后 ⇒ 10 条指令整体错位（ndiff 20）。
+    m_moveTownLimitStr = "";
+    m_moveTownConfirmStr = "";
     m_hide = false;
     // ORIG clear 未显式清 +0x6a4..+0x6e4：randomMessageBalloonInfo / NpcMovieData
     // 由其自身 clear 保证空态，这里不重复清（与 ORIG 字节一致）。
@@ -171,6 +174,11 @@ NpcScript::~NpcScript()
 //   → m_rewardItems(+0x208).clear()。
 void stFavorableRelationShip_t::clear()
 {
+    // b28c-L8（P212 全头部声明复现块级槽序）：ORIG 有两个循环变量槽
+    // （map-clear 环 i @-0x10、favorRate 环 j @-0xc）；本工具头实测为
+    // 「后声明者更深」⇒ 按 j、i 序声明使 i 落 -0x10。
+    int j;
+    int i;
     m_enabled = false;
     m_defaultFavor = 0;
     m_maxGiftPerDay = 0;
@@ -178,21 +186,23 @@ void stFavorableRelationShip_t::clear()
     m_dialogDayGap2 = 0;
     m_fav.m_moodChanges.clear();
     m_fav.m_keyItems.clear();
-    for (int l = 0; l < 5; ++l)
+    // b28c-L8：ORIG 0x089fb5b9 只有**一个**循环变量槽（-0x10）、循环体单轮发
+    // 4 次 map clear（基址 +0x28/+0x118/+0xa0/+0x190，步长 i*0x18），共 5 轮。
+    // 旧双层形多做 20 倍 clear（幂等故行为不显，但多 4 条外层循环控制且 ndiff
+    // 无法收敛）⇒ 收敛为单层。
+    for (int i = 0; i < 5; ++i)
     {
-        for (int i = 0; i < 5; ++i)
-        {
-            m_preferItems[l].clear();
-            m_unpreferItems[l].clear();
-            m_preferItemGroups[l].clear();
-            m_unpreferItemGroups[l].clear();
-        }
+        m_preferItems[i].clear();
+        m_unpreferItems[i].clear();
+        m_preferItemGroups[i].clear();
+        m_unpreferItemGroups[i].clear();
     }
-    // ORIG：三档 favorRate 写入常量 1.0f（非清零）。
-    static const float one = 1.0f;
-    m_favorRate0 = one;
-    m_favorRate1 = one;
-    m_favorRate2 = one;
+    // ORIG 0x089fb649：三档 favorRate 以 `for (j=0;j<3;++j)` 循环写常量
+    // 1.0f（`mov $0x3f800000,%edx` 内联立即数、非内存读、非清零）。
+    for (j = 0; j < 3; ++j)
+    {
+        m_favorRate[j] = 1.0f;
+    }
     m_rewardItems.clear();
 }
 
@@ -615,13 +625,13 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                         if (token == "[favor rate per mood]")
                         {
                             bool ok = false;
-                            fav.m_favorRate2 =
+                            fav.m_favorRate[2] =
                                 static_cast<float>(ScanInt(&ok)) / NPC_FAVOR_RATE_DIVISOR;
                             if (!ok) { return IMPORT_FAIL; }
-                            fav.m_favorRate1 =
+                            fav.m_favorRate[1] =
                                 static_cast<float>(ScanInt(&ok)) / NPC_FAVOR_RATE_DIVISOR;
                             if (!ok) { return IMPORT_FAIL; }
-                            fav.m_favorRate0 =
+                            fav.m_favorRate[0] =
                                 static_cast<float>(ScanInt(&ok)) / NPC_FAVOR_RATE_DIVISOR;
                             if (!ok) { return IMPORT_FAIL; }
                             continue;
@@ -1032,6 +1042,8 @@ bool CNPCScript::isExistRole(ENUM_NPC_ROLE role) const
 // ORIG 0x8580fd0: 遍历奖励等级表（CNPCScript+0x658 = NpcScript+0x654）。
 bool CNPCScript::isRewardLevel(unsigned short level) const
 {
+    // [b28c-21] 残差：ORIG `de()` 结果落 -0xc 槽后 cmpl 判空再 jne 直判命中；
+    // 4.4 无指针槽且 sete 物化（迭代器槽序/条件极性跨版本），保持可读源码。
     for (std::vector<stFavorableRelationShip_t::stLevelRewardInfo>::const_iterator it =
              m_npcScript.m_favorableRelationShip.m_levelRewards.begin();
          it != m_npcScript.m_favorableRelationShip.m_levelRewards.end(); ++it)

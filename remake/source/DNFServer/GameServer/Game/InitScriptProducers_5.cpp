@@ -107,6 +107,12 @@ int CreatureScript::ExpTable_[0x63];
 //     list, NULL) → 结果非 0 返回 true。
 // 消费方：CExpertJobList::init（ORIG 0x896d8ec 直接遍历该对象 m_fileMap）。
 // ============================================================================
+// [b28c-L23 N(P209 附 e19 / P75)] 残余 8 行全部来自一处跨版本指令选择：ORIG
+// @0x0896d87x `movl $0x2,0x8(%esp); movl $<str>,0x4(%esp); movl $<base>,(%esp);
+// call strlen; add $<base>,%eax; mov %eax,(%esp); mov (%esp),%eax; mov %eax,(%esp);
+// call memcpy` —— 4.1 先压 size/src 再算 dest；4.4 恒先算 dest（strlen 先行）再压
+// 远端实参（P209 附注实测，探针 e19）。少 2 条 ⇒ 余 6 行为 jmp 目标偏移连锁。
+// 语义与 ORIG 完全一致（尾部补 "\\"）。
 bool initExpertJobScript(char* dir, char* list)
 {
     strncpy(g_expertJobScriptBaseDirectory, dir, 0x100);
@@ -127,6 +133,7 @@ bool initExpertJobScript(char* dir, char* list)
 // initAICharacterScript —— ORIG 0x088c98d4（init.md:1838 +0x2483；失败 TRACE
 // "- Load AI Character fail" 0x1dd4）。同模式，目录 0x94f6920/列表 0x94f6a20。
 // ============================================================================
+// [b28c-L23 N(P209 附 e19)] 同 initExpertJobScript 族残差（memcpy 实参装载时刻）。
 bool initAICharacterScript(const char* dir, const char* list)
 {
     strncpy(g_aiCharacterScriptBaseDirectory, dir, 0x100);
@@ -164,6 +171,7 @@ bool initEventCharacterScript(char* dir, char* list)
 // "- Load ItemShop.lst fail" 0x1e94）。目录 0x94fe160/列表 0x94fe260
 // （消费方 CItemShop.cpp Load_list / FindIndexByFullScan）。
 // ============================================================================
+// [b28c-L23 N(P209 附 e19)] 同族残差（memcpy 实参装载时刻，8 行）。
 bool initItemShopScript(char* dir, char* list)
 {
     strncpy(g_itemShopScriptBaseDirectory, dir, 0x100);
@@ -183,6 +191,7 @@ bool initItemShopScript(char* dir, char* list)
 // "- Load PVP_Mission.lst fail" 0x1eab）。strncpy 长度 0xff；
 // 目录 0x9500100/列表 0x9500200（消费方 PvP_MissionSystem.cpp）。
 // ============================================================================
+// [b28c-L23 N(P209 附 e19)] 同族残差（memcpy 实参装载时刻，8 行）。
 bool initPvpMissionSystem(char* dir, char* list)
 {
     strncpy(g_PvpMissionScriptBaseDirectory, dir, 0xff);
@@ -258,6 +267,7 @@ int initIndependentDropScript(char* dir, char* list)
 // initStageMapScript —— ORIG 0x088a9e6c（init.md:2565 +0x3345，紧随 worldMap
 // 之后、返回值被丢弃）。目录 0x93f4900/列表 0x9494e20。消费方 StageMapList 域。
 // ============================================================================
+// [b28c-L23 N(P209 附 e19)] 同族残差（memcpy 实参装载时刻，8 行）。
 bool initStageMapScript(char* dir, char* list)
 {
     strncpy(g_stageMapScriptBaseDirectory, dir, 0x100);
@@ -283,6 +293,11 @@ bool initStageMapScript(char* dir, char* list)
 // g_creatureScriptFileList 在权威头建模为 STScriptFileList 的 +0x00 map
 // （CreatureScript.h 注释），此处以同布局视图传入装载器。
 // ============================================================================
+// [b28c-L23 N(P209 附 e19 + N82)] 残 16 行：①memcpy(base+strlen(base),"\\",2) 的
+// 实参装载时刻（同 initExpertJobScript 族）；②loadRDARScriptListFile 调用前
+// ORIG 4.1 多发一条 `mov $0x0,%eax`（第 4 实参 NULL 的寄存器预热，4.4 无对应源形）
+// 且第 1 实参 4.1 用立即数、4.4 复用上一 call 的 %eax；③两处 jmp 目标偏移连锁。
+// ExpTable 循环体（ScanInt/倒计数/setle 物化）已逐条全等。
 bool initCreatureScript(const char* dir, const char* list, const char* expTable)
 {
     strncpy(g_creatureScriptBaseDirectory, dir, 0x100);

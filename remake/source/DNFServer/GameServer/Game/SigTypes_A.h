@@ -38,6 +38,10 @@ struct MSG_CERA_SHOP_BUY_SCALARS
     unsigned int m_accId;      // +0x2e（movl 实证）
     int m_characNo;            // +0x32（movl 实证）
     unsigned char m_itemCount; // +0x36（movzbl 实证，≤0x23 clamp）
+    // [b28c-32] 具名化：Dispatcher_BuyCeraShopItem::useCountDownCoinInFreeCoinDungeon
+    // ORIG 0x081fe4e7 `mov 0x39(%eax),%eax` 直传 FindGoods ⇒ +0x39 int 商品号。
+    char m_pad37[2];           // +0x37..0x38
+    int m_goodsIdx;            // +0x39（FindGoods 实参）
 };
 struct MSG_CERA_SHOP_BUY_ENTRY   // 条目（相对条目基址偏移；stride 0x1cf）
 {

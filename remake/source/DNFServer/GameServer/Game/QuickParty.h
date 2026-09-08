@@ -34,10 +34,16 @@ struct STQuickPartyPoolMap_Key
     bool operator<(const STQuickPartyPoolMap_Key& rhs) const
     {
         if (m_dungeonIndex < rhs.m_dungeonIndex) return true;
-        if (m_dungeonIndex != rhs.m_dungeonIndex) return false;
-        // 4.4 对 unsigned char 比较恒生 jb（ORIG jge）；movzbl 零扩展值域 0..255 语义等价，N18b 封顶
-        if ((unsigned char)m_dungeonDiff >= (unsigned char)rhs.m_dungeonDiff) return false;
-        return true;
+        // b28c-lane3：①P222 正向包裹——ORIG 0x0826b832 `jne <共享 false 尾>`
+        // 与 0x0826b843 `jge <共享 false 尾>`，否定早返 `!=` 需改写为 `==` 包裹；
+        // ②P196 真 bug 修复——ORIG 0x0826b843 是有符号 `jge`，m_dungeonDiff 值域
+        // 含 0xff（C1 初值），无符号比较在 ≥0x80 处分叉，按 ORIG 用 signed char 比较。
+        if (m_dungeonIndex == rhs.m_dungeonIndex)
+        {
+            if ((signed char)m_dungeonDiff < (signed char)rhs.m_dungeonDiff)
+                return true;
+        }
+        return false;
     }
 
     short m_dungeonIndex;        // +0x00

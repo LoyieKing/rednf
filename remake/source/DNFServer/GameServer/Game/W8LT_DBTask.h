@@ -44,7 +44,10 @@ public:
     DBTask();                                    // 0x083fbfc6
     ~DBTask();                                   // 0x083fbfda
 
-    int RegistDispatcher();                      // 0x083fbfee（尾部 mov $1,%ebx 返 1；catch 路径返 0）
+    // SIGFIX:b28c-28 ORIG rodata _ZZN6DBTask16RegistDispatcherEvE19__PRETTY_FUNCTION__
+    //   @0x08c5dae0 = "bool DBTask::RegistDispatcher()"（P174）；体尾 mov $1,%ebx
+    //   正常返 true、catch 路径返 false；唯一调用点本 TU 3031 行语句调用。
+    bool RegistDispatcher();                     // 0x083fbfee
     bool UnregistDispatcher();                   // 0x083ff156（恒返 true）
     bool HandleEvents(MsgQueueMgr::QUEUE_IDX queueIdx,
                       int& signal);              // 0x083ff1c8

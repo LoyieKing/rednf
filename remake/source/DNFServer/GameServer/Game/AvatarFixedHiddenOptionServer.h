@@ -126,7 +126,13 @@ public:
 // AvatarFixedHiddenOptionServer —— 服务包装（Singleton + ScriptInterface 双基，
 // SCRIPT 子对象@+0x04，前缀和桶@+0x50）。ORIG vtable 仅 [Load, Destroy] 两槽。
 // ----------------------------------------------------------------------------
-class AvatarFixedHiddenOptionServer : public ARAD::Singleton<AvatarFixedHiddenOptionServer>,
+// [b28c-16] C1 0x0817e02c 构造序实证：SCRIPT::AvatarFixedHiddenOption(this+0x4)
+// → Singleton(this+0) → ScriptInterface(this+0) → 主 vptr → 前缀和桶 ⇒
+// AvatarFixedHiddenOption 是**第一个基类**（Itanium primary base=ScriptInterface
+// 占 +0x0 vptr，非多态基类 AvatarFixedHiddenOption 落 +0x4；声明序即构造序）。
+// 布局/sizeof 0x98/全部成员偏移不变（原 m_script 成员→基类子对象）。
+class AvatarFixedHiddenOptionServer : public ARAD::SCRIPT::AvatarFixedHiddenOption,
+                                      public ARAD::Singleton<AvatarFixedHiddenOptionServer>,
                                       public ARAD::ScriptInterface
 {
 public:
@@ -161,8 +167,7 @@ public:
     // ORIG _ZN29AvatarFixedHiddenOptionServer17IsVaildSkillIndexE11ENUM_RARITYi @0x0817e392
     bool IsVaildSkillIndex(ENUM_RARITY rarity, int idx);
 
-    ARAD::SCRIPT::AvatarFixedHiddenOption m_script;  // +0x04
-    std::vector<int> m_cumulativeRate[6];            // +0x50..+0x97
+    std::vector<int> m_cumulativeRate[6];            // +0x50..0x97
 };
 
 #endif  // DNF_GAME_AVATARFIXEDHIDDENOPTIONSERVER_H_

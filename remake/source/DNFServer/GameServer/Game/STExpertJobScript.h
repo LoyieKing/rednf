@@ -197,7 +197,10 @@ public:
     stRecipeInfo* GetRecipeInfo(int index);
     void Clear();
     short GetShopDollSlot(int index);   // ORIG W 0x85cb306：m_shopDollMap 命中返值，否则 -1
-    short GetPortableDisjointPossibleLevel(int level);  // ORIG W 0x0822b1f4
+    int GetPortableDisjointPossibleLevel(int level);    // ORIG W 0x0822b1f4
+    // [b28c-L18] SIGFIX(返回类型按 ORIG 尾形定)：ORIG 尾 `movzwl 0x4(%eax),%eax;
+    // movzwl %ax,%eax` 双段零扩展 = int 返回 + (unsigned short) 提升（探针
+    // /tmp/l18p/dj.cpp f_d 逐条全等；short 返回恒折单段）。mangled 不含返回类型。
 
     // ---- worklist 查询方法（Wave5 only_orig；ORIG 地址标注）----
     int GetUpgradeCost(unsigned int index);                       // 0x085d3d3a

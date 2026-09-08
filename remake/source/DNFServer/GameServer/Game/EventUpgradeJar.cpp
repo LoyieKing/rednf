@@ -167,6 +167,9 @@ void Event_Upgrade_Jar::SettingRecipeNUpConunt(int materialIdx, upgrade_info_t& 
 // kind==2 → _getFailProb_NewNPC。kind==0 或其它不改 outProb。
 void Event_Upgrade_Jar::GetProbability(int materialIdx, unsigned int& outProb) const
 {
+    // [b28c-35] N：ORIG 0x080f4f2b/0x080f4f5c 两分支各自 `jmp <尾>` + 尾前 nop 岛
+    // （4.1 无 jump-threading）；4.4 对 else-if / return / 多源 goto 三形均把 case2 的
+    // jmp 折成 fall-through（P223 单源 goto 尾岛合并负例）。语义全等。
     // ORIG 0x080f4ee2：先显式 test kind;je 直跳到共同尾（m_materialKind!=0 外guard），
     // 再 ==1 / ==2 分支。原 if==1 else-if==2 缺外 guard 的 test/je 5 条。
     if (m_materialKind != 0)
@@ -174,26 +177,31 @@ void Event_Upgrade_Jar::GetProbability(int materialIdx, unsigned int& outProb) c
         if (m_materialKind == 1)
         {
             outProb = _getFailProb_Fortune(materialIdx, (unsigned int)m_materialIdx);
+            // [b28c-35] ORIG 0x080f4f2b/0x080f4f5c 两分支各自 `jmp <尾>` 且尾前有
+            // 空块 nop 岛（P223）；else-if 形 4.4 把 case2 的 jmp 折成 fall-through。
+            goto END;
         }
-        else if (m_materialKind == 2)
+        if (m_materialKind == 2)
         {
             outProb = _getFailProb_NewNPC((unsigned int)m_materialIdx);
+            goto END;
         }
     }
+END:;
 }
 
 // ORIG 0x080f4f62。条件：m_materialIndices.size()>1 且 [1]==upgrade 且 item.GetUpgrade()>=m_upgradeMax
 // → 返回 false；否则 true。
 bool Event_Upgrade_Jar::CheckMaxLuckyLevel(Inven_Item& item, unsigned long upgrade)
 {
-    register bool c1 asm("al") = (m_materialIndices.size() > 1);
-    if (c1)
+    // [b28c-35] P0 清绑：删 3 枚 `register bool asm("al")` 显式绑定（本波定稿：
+    // 任何情形不得保留显式绑定，宁 AE→DIFF 也要清）。改自然嵌套 if（P225 拆嵌套
+    // if 复现逐条件 setcc 物化）。
+    if (m_materialIndices.size() > 1)
     {
-        register bool c2 asm("al") = (m_materialIndices[1] == upgrade);
-        if (c2)
+        if (m_materialIndices[1] == upgrade)
         {
-            register bool c3 asm("al") = ((unsigned int)item.GetUpgrade() >= (unsigned int)m_upgradeMax);
-            if (c3)
+            if ((unsigned int)item.GetUpgrade() >= (unsigned int)m_upgradeMax)
             {
                 return false;
             }

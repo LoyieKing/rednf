@@ -120,7 +120,7 @@ public:
     int  _getSameSchool(unsigned int* schools, int selfIdx,
                         int count, unsigned int schoolNo);      // 0x0855e7a8
     int  _GetOppositeTeam(int team);                            // 0x0855e49e
-    int  _CheckSchool(PvP_Room* room, CUser* user);            // 0x0855cef8
+    bool _CheckSchool(PvP_Room* room, CUser* user);            // 0x0855cef8 [b28c-21 SIGFIX: bool callee]
     int  addBadge(PlayerInfo* info, ENUM_BADGE_TYPE badgeType,
                   unsigned char* msgFlag, bool extra);          // 0x0855e7ee
 

@@ -26,8 +26,15 @@ struct stFatigueBatteryConstantTable_t
     unsigned short getLimitGrownupBuffCntFatigueBattery(int level) const;  // ORIG 0x084a84b6 W
 
     unsigned short m_capLimit;        // +0x00 充电量上限（Compute 截断上限）
-    unsigned short m_field2;          // +0x02 limit 表基：元素 L 在本结构 +0x10+2L，
+    // b28c-36: 匿名 union 双视角（P235）——ORIG getLimitGrownupBuffCntFatigueBattery
+    // 0x084a84da 尾段 `add $0x8,%edx; movzwl 0x2(%eax,%edx,2),%eax` 为 scaled
+    // 数组下标形；`&m_field2 + idx + 8` 指针算术在 4.4 恒 add/add/lea 四段。
+    // union 大小 2 字节 ⇒ 后续偏移/sizeof 0x1ac 不变。越界索引照抄 ORIG（P171）。
+    union {
+        unsigned short m_field2;      // +0x02 limit 表基：元素 L 在本结构 +0x10+2L，
                                       //      相对 m_field2 的下标即 L+7
+        unsigned short m_limitTable[1];  // +0x02 数组视角（索引由调用方 level 决定）
+    };
     float m_chargeRate4;              // +0x04 充电倍率（ORIG init 为 dword 0 == 0.0f）
     unsigned char m_chargeDivisor8;   // +0x08 除数（ORIG init 0x28）
     unsigned char m_minChargeLevel9;  // +0x09 充电最低等级（低于则不充能）

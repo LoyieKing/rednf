@@ -35,7 +35,10 @@ struct TradeSlot
     char m_field08;  // +0x08
     Inven_Item m_item;  // +0x09（0x3d）
 
-    TradeSlot();
+    // P216：ORIG CTradeSpace::C1 0x082a416c 对 m_slots[2][27] 隐式构造循环
+    // **无 EH cleanup**（4.1 不生成；4.4 恒发 landing+_Unwind_Resume，N91）。
+    // 给元素 ctor 加 throw() 让 4.4 判 call nothrow（mangled/布局不变）。
+    TradeSlot() throw();
     void Reset();
 };
 static_assert(offsetof(TradeSlot, m_field00) == 0x00, "ts0");
@@ -64,7 +67,7 @@ public:
     bool cancel_trade_for_china(CUser* user);  // 头声明 bool：ORIG
         // __PRETTY_FUNCTION__ 串 "bool CTradeSpace::cancel_trade_for_china(CUser*)"
         // （@0x852e544 +0x181）；mangled 不含返回类型，ABI 不变。
-    int change_trade_state(CUser* user, int state);
+    bool change_trade_state(CUser* user, int state);  // SIGFIX: bool（ORIG __PRETTY_FUNCTION__ 串）
     bool checkCancelTrade();  // bool：ORIG PRETTY 串 'bool CTradeSpace::checkCancelTrade()' @0x8c98540
     bool checkTrade();  // bool：ORIG PRETTY 串 'bool CTradeSpace::checkTrade()' @0x8c98444
     int check_item_exist(int traderIdx, int itemId);

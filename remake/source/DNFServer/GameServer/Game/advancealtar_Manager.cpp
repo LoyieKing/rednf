@@ -628,7 +628,7 @@ int CharacAdvanceAltarManager::setSlot(bool isSet, const CMDPacketStruct::_SetSl
 }
 
 // ---- ORIG T 0x08131f0a（exchangeSlot.md 全文）----
-int CharacAdvanceAltarManager::exchangeSlot(CMDPacketStruct::_SetSlotData& slotA,
+unsigned int CharacAdvanceAltarManager::exchangeSlot(CMDPacketStruct::_SetSlotData& slotA,
                                             CMDPacketStruct::_SetSlotData& slotB)
 {
     if (slotA.m_type != slotB.m_type)
@@ -1268,7 +1268,9 @@ void CharacAdvanceAltarManager::setNextStage(int stageIdx)
 // ---- ORIG T 0x08364df6 _ZNK12StageMapList7isExistEi ----
 bool StageMapList::isExist(int stageIdx) const
 {
-    return m_map.find(stageIdx) != m_map.end();
+    // [b28c-21] ORIG 先 find（-0x10）后 end（-0xc）再 eq：单表达式 4.4 先求
+    // 右操作数（end→-0x10）；交换操作数使 find 落 -0x10、end 落 -0xc。
+    return m_map.end() != m_map.find(stageIdx);
 }
 
 // ---- ORIG W 0x081347c0 _ZNK12StageMapList18getFirstStageIndexEv（inline thunk）----
@@ -1289,6 +1291,10 @@ int StageMapList::getNextStage(int stageIdx, bool& outFlags) const
         m_map.find(it->second.m_nextId);
     if (next != m_map.end())
     {
+        // [b28c-21] ORIG `movzbl 0x10(%eax),%edx; mov %dl,(%eax)` 无归一化；
+        // 4.4 对 uchar→bool 赋值恒插 test/setne（跨版本 bool ABI，N 族）；
+        // 字节视图形（reinterpret_cast<unsigned char&>）实测反致 push %ebx
+        // + 帧 0x28→0x24，已回退。
         outFlags = next->second.m_flags;
     }
     return it->second.m_nextId;

@@ -58,10 +58,11 @@ unsigned int Encryption::crc32N(void* data, int len)
 
 void _NS_PI_2ND_MakeChecksumTo1Byte(char* p)
 {
-    unsigned char b = (unsigned char)p[0];
-    b = (unsigned char)(b ^ (unsigned char)p[3] ^ (unsigned char)p[1] ^
-                        (unsigned char)p[2] ^ 0x18U);
-    p[0] = (char)b;
+    // [b28c-lane24] ORIG 0x0808cc17 无帧（无 sub esp）、无具名槽：全寄存器
+    // 累积（edx=p[0], ecx=p[1]^p[2], eax=p[3]^ecx^0x18, edx^=eax）⇒ P0 下
+    // 源码是单一赋值表达式（原两句式引入 unsigned char b 栈槽 -0x1）。
+    p[0] = (char)((unsigned char)p[0] ^ (unsigned char)p[3] ^
+                  (unsigned char)p[1] ^ (unsigned char)p[2] ^ 0x18U);
 }
 
 // ============================================================================

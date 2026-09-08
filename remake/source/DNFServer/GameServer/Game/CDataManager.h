@@ -154,7 +154,7 @@ class CDungeonList
 public:
     CDungeonList();
     ~CDungeonList();
-    int load_list();
+    bool load_list();   // [b28c-21 SIGFIX] ORIG __PRETTY_FUNCTION__ 串为 bool
     void destroy();
     bool insert_dungeon(CDungeon* dungeon);
     CDungeon* find_dungeon(int idx) const;
@@ -379,6 +379,10 @@ struct stMonsterIndependentDrop_t
 {
     // ORIG sizeof 0x48（__copy_m 元素步长 $0x48 实证）；默认 ctor（0x897cbc4）
     // 仅构造 +0x30 的 vector<pair<int,int>>，其余 int 不初始化。
+    // b28c-L20: N90 — 隐式 C1ERKS_(W 0x08376bb2) / operator=(W 0x08376bc1) ndiff 20 封顶：
+    //   ORIG(4.1) 对大 dword 数组成员拷贝分块（+0x14/+0x24/+0x28/+0x2c 各块后重载
+    //   src/dst 基址，gap=6 条 mov）；4.4 恒单次连发 + %ecx 复用。数组元素跨块动态下标
+    //   （generateIndependentItem 0x834989a），拆成员即改语义 ⇒ 无源码解（batch-25c Lane6 定性）。
     int m_itemIdx;   // +0x00（掉落 itemId；PrintItemDropList find_item）
     // +0x04..+0x2c：ORIG 全部访问均为 base(+0x04)+idx*4 动态下标，故建为单一
     // int 表（generateIndependentItem 0x834989a / independentItemRateControl
@@ -426,7 +430,10 @@ struct SlotBound
     }
     int m_field0;            // +0x00
     int m_field4;            // +0x04
-    unsigned char m_field8;  // +0x08
+    // [b28c-35] ORIG C1 0x0837351c 尾 store this 先（`mov 0x8(%ebp),%eax;
+    //   movzbl -0x4(%ebp),%edx; mov %dl,0x8(%eax)`）⇒ 与 bool 形参同型（P211）；
+    //   uchar 产值先形。sizeof 0xc 不变。
+    bool m_field8;           // +0x08
 };                           // sizeof 0xc
 // ORIG C1 0x891b682：+0x00=-1、+0x04=0、+0x08/+0x09 字节=0（sizeof 0xc）。
 // importConditionEventScript [condition reward]/[condition quick party add reward]
@@ -498,6 +505,10 @@ struct LevelUpRewardItemData
 // importRegenerationRandomOptionScript 0x08a7e610 实证：second+0x4 为
 // std::string（operator[] 命中后 operator= 写入），second+0x8 push_back。
 // second+0x00..0x03 未观测，保留占位。
+// [b28c-30] N76 封顶（隐式 C1ERKS_ 39 insn）：ORIG 0x08a7f000 段首成员 char[4]
+// 拷贝为 RHS-first（`mov 0xc(%ebp),%eax; mov (%eax),%edx; mov 0x8(%ebp),%eax;
+// mov %edx,(%eax)`），4.4 恒 LHS-first（this 先载）；成员对自身同型 ⇒ P211
+// 异型化不适用。
 struct str_index_to_itemgroup
 {
     char m_pad0[4];                        // +0x00（未还原字段区）
@@ -684,9 +695,14 @@ struct SlotBoundKey
 // 0x081b8830 依次比较 +0x02、+0x03、+0x00(short)），sizeof 4。
 struct LevelUpRewardItemTableKey
 {
-    unsigned short m_lv;     // +0x00（clear 默认 200）
-    unsigned char m_job;     // +0x02（clear 默认 0xb）
-    unsigned char m_grow;    // +0x03
+    // b28c-L20: signed short — ORIG functor 0x081b892c `movzwl (%eax),%edx; ...
+    // cmp %ax,%dx; jg` 为 16 位有符号比较（unsigned 声明恒 jbe）；值域 1..200。
+    short m_lv;              // +0x00（clear 默认 200）
+    // b28c-36: signed char — ORIG operator< 0x081b8830 三段尾为 `cmp %al,%dl; setl`
+    // （有符号字节序）；unsigned char 声明恒生 setb。探针 /tmp/b28c_l36_p2.cpp
+    // g4(signed char)/g5(char) 实证 movzbl+setl 与 ORIG 全等。sizeof/偏移不变。
+    signed char m_job;       // +0x02（clear 默认 0xb）
+    signed char m_grow;      // +0x03
     LevelUpRewardItemTableKey() { clear(); }   // ORIG C1 调 out-of-line weak clear()（-O0 不内联）
     void clear()
     {
@@ -988,10 +1004,10 @@ public:
             : m_items(), m_title(), m_text()
         {
             m_items.clear();
-            m_startTime = 0;
-            m_endTime = 0;
             m_title.clear();
             m_text.clear();
+            m_startTime = 0;
+            m_endTime = 0;
         }
         std::vector<int> m_items;   // +0x00
         long m_startTime;           // +0x0c
@@ -1226,7 +1242,8 @@ struct stOneEmotionData
     char m_10;            // +0x10
     char m_11;            // +0x11
     char m_12;            // +0x12
-    char m_pad13;         // +0x13
+    // +0x13 为编译器隐式填充（ORIG C1ERKS_ 0x892ce7c 不复制该字节；
+    // 显式 pad 成员会让隐式拷贝构造多复制一条，故不声明）
     std::string m_14;     // +0x14
     std::vector<std::string> m_18;  // +0x18
 };
@@ -1900,7 +1917,8 @@ struct stQuestShopStatus
     unsigned char m_pad15[3];
     int m_field18;                         // +0x18（clear 置 0x4d；movl 4 字节实证）
     int m_statusType;                      // +0x1c（clear 置 2）
-    int m_field20;                         // +0x20（clear 置 0）
+    float m_field20;                       // +0x20（clear 置 0；ORIG `mov $0,%edx;
+                                           //   mov %edx,0x20` 探针中）
     std::vector<stStatusLevelInfo> m_levelInfos; // +0x24
 };
 static_assert(sizeof(stQuestShopStatus) == 0x30,
@@ -2340,9 +2358,16 @@ public:
     int m_int84;                                    // +0x84
 
     // 内部辅助（CSecretShop.cpp 实现，供 GetItemByDungeon* 调用）
-    char GetItems(CMTRand* rand, std::vector<secretshop::SALE_INFO>& out,
+    // [b28-L14] char→bool：ORIG 三个调用点（GetItemByEvent 0x8a82c70 /
+    // GetItemByDungeonIdx 0x8a82a0e / GetItemByDungeonLev 0x8a82b34）均产
+    // `call GetItems; xor $0x1,%eax; test %al,%al; je <主>`（P168a① bool callee
+    // 裸形）；char callee 在 4.4 恒产 `test; sete; test` 多一条。值域 0/1。
+    bool GetItems(CMTRand* rand, std::vector<secretshop::SALE_INFO>& out,
                   stDungeonSales& sales);
-    char GetItemByEvent(CMTRand* rand, std::vector<secretshop::SALE_INFO>& out);
+    // [b28-L14] char→bool：ORIG 调用点 CSecretShop::LotteryItems @0x085facxx
+    // 为 `call GetItemByEvent; test %al,%al; jmp <尾>`（bool 值直存后落尾块）；
+    // char callee 使 4.4 尾部丢弃该 test。值域 0/1。
+    bool GetItemByEvent(CMTRand* rand, std::vector<secretshop::SALE_INFO>& out);
     void CopyItem(secretshop::SALE_INFO& sale, stSaleInfo& info);
     bool IsExistItem(std::vector<secretshop::SALE_INFO>& out, int itemIdx);
     int GetDomainRate(stDungeonSales& sales);
@@ -2961,7 +2986,7 @@ public:
     QuestList();
     ~QuestList();
     void destroy();
-    int load_list();
+    bool load_list();   // [b28c-21 SIGFIX] ORIG __PRETTY_FUNCTION__ 串为 bool
     void insert_NPC(int npcIdx);
     bool check_ahead_quest(int questIdx, const WongWork::CQuestClear& clear);   // b25c Lane21：ORIG 尾 mov$0/1 无 setne（0x8354fc8），调用点 ! 直判
     bool check_anti_quest(int questIdx, const WongWork::CQuestClear& clear);   // 同上（0x835511e）
@@ -3484,17 +3509,17 @@ public:
     bool init();
     void destroy();
     int initRandomOptionItem();
-    int initFairPVPSkillPoint();
+    bool initFairPVPSkillPoint();   // SIGFIX: ORIG __PRETTY_FUNCTION__ 串
     int load_map_files(std::vector<void*>& maps);
-    int Verify() const;
-    int VerifyMap(const CMap& map, int idx) const;
+    bool Verify() const;            // SIGFIX: ORIG 串 "bool CDataManager::Verify() const"
+    bool VerifyMap(const CMap& map, int idx) const;  // SIGFIX: ORIG 串
     int VerifyDungeon(const CDungeon& dungeon) const;
     const char* GetScriptPacks() const;
     void SetScriptPacks(const char* path);
     const char* get_server_name(int idx) const;
     void* GetItemMakingSkill() const;
     void* GetImageCommnicationData();   // ORIG _ZN12CDataManager24GetImageCommnicationDataEv（非 const）
-    int load_map_files(std::vector<PVPMAP_DATA>& pvpMaps);  // ORIG _ZN12CDataManager14load_map_filesERSt6vectorI11PVPMAP_DATASaIS1_EE
+    bool load_map_files(std::vector<PVPMAP_DATA>& pvpMaps);  // ORIG _ZN12CDataManager14load_map_filesERSt6vectorI11PVPMAP_DATASaIS1_EE；SIGFIX: ORIG 串
     // ORIG premium_helper_function::cal_premium_term 读取 CDataManager+0x877e（字节）作
     // premium 期限倍率（flag 时 term *= 该字节，再 *extra）。+0x877e 位于 m_boosterGage
     // (+0x8770) 内偏移 0x0e；本区域为 m_pad 未具名，按 ORIG 偏移读取。
@@ -3522,7 +3547,7 @@ public:
     void* get_event_script_mng();
     char get_dimensionInout(int idx);   // ORIG 0x0822b612 返回 char：movzbl 单条读取（无 32 位扩展指令）
     char get_limit_inout_count(ENUM_BLOOD_TYPE type);   // ORIG caller 0x08431e71 `movsbl %al,%eax` ⇒ 返回 char（signed）
-    int GetPvPChannelGrade();                // ORIG _ZN12CDataManager18GetPvPChannelGradeEv
+    bool GetPvPChannelGrade();               // ORIG _ZN12CDataManager18GetPvPChannelGradeEv
                                              // 0x08357ed4/0x0835809a 双路 mov$0/$1,%eax ⇒ int（P159）
     std::vector<stResetItemInfo::ResetItem>* GetResetItemInfo() const;  // ORIG W 0x8693f24
     std::vector<stRefillItemInfo::RefillItem>* GetRefillItemInfo() const;  // ORIG W 0x8693f32

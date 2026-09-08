@@ -153,7 +153,10 @@ void UserQuest::resetClearQuest(int questIdx)
     m_cleared.resetClearedQuests(questIdx);
 }
 
-bool UserQuest::isClearQuest(int questIdx) const
+// [b28c-L9] SIGFIX:UserQuest::isClearQuest —— ORIG 0x086ab920 体为
+// `call _ZNK8WongWork11CQuestClear14isClearedQuestEj; leave; ret` 直返无归一化；
+// callee 权威型 unsigned char（QuestClear.h:41）⇒ caller 同型化（P9/P174）。
+unsigned char UserQuest::isClearQuest(int questIdx) const
 {
     return m_cleared.isClearedQuest(questIdx);
 }
@@ -162,7 +165,7 @@ bool UserQuest::isClearQuest(int questIdx) const
 // set_quest / get_quest
 // ============================================================================
 
-int UserQuest::set_quest(SIG_LOAD_QUEST const* sig)
+bool UserQuest::set_quest(SIG_LOAD_QUEST const* sig)   // [b28c-L9] SIGFIX:UserQuest::set_quest (ORIG 串 bool)
 {
     for (int i = 0; i <= 19; ++i)
     {
@@ -767,6 +770,9 @@ bool UserQuest::IsDoingQuest(int questIdx) const
 
 int UserQuest::CheckDungeonEventStoryPause(int dungeonNo, int fieldNo, int mapNo) const
 {
+    // [b28c-L9] fresh 复验 ndiff 18→2：残差 = 4.1 为 case0 的空 break 发射一枚
+    // nop 中继岛（0x086ad136 `nop` → fall 到 0x086ad137），case1 的 break 则 je 直达
+    // 0x086ad137；4.4 两 case 均 jump-thread 成 `jmp` ⇒ +2 jmp（P223 三形实测不闭合）。
     for (int i = 0; i <= 19; ++i)
     {
         if (m_quest[i] == 0)
@@ -822,6 +828,8 @@ bool UserQuest::isDoingJobChangeQuest() const
 
 void UserQuest::ResetUrgentQuestWaitingList()
 {
+    // [b28c-L9] fresh 复验 ndiff 11→1：唯一残差 = 4.4 把 quest2!=0 臂尾的
+    // 「写 -1 + jmp end」与 else 臂尾的 jmp 合并（共享尾块少一枚 jmp）。
     Quest* quest2;
     for (int i = 0; i <= 19; ++i)
     {
@@ -854,7 +862,11 @@ void UserQuest::ResetUrgentQuestWaitingList()
         {
             m_authenData.m_urgentQuest = -1;
         }
+        // [b28c-L9] ORIG 0x086ad241/0x086ad250 两臂各有一份「写 -1 + jmp end」
+        // （fall-through 共享尾块会合并成一份 ⇒ 少 1 jmp）。
+        return;
     }
+    else
     {
         m_authenData.m_urgentQuest = -1;
         return;

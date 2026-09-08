@@ -40,6 +40,9 @@ void COnTimeEvent::EndEvent()
 void COnTimeEvent::StartEvent(Word_Param param)
 {
     (void)param;
+    // [b28c-lane17] 判词：22=22 助记符全等，唯一残差 = 下方虚调用的目标寄存器
+    // （ORIG `mov (%eax),%edx; …; call *%edx` vs 4.4 恒 `call *%eax`）⇒ N7
+    // （4.4 间接 call 目标恒 %eax，范式库负例表），无源形可翻。
     this->StartEvent();   // ORIG @0x081bb8ca：虚调 slot+0x8（本类 StartEvent）
     cMyTrace trace(__PRETTY_FUNCTION__, 0x47, 0);
     trace("COnTimeEvent Event Start!");
@@ -94,6 +97,9 @@ void COnTimeEvent::process_set_reward_start(int ontimeId, int itemNo,
 // ③ insert 实参右→左内联求值 get_ontime_id→get_charac_no→get_acc_id；
 // ④ insert 后先 set_ontime_last_recv_idx(get_ontime_id()) 再 set_update；
 // ⑤ else 分支求值序 get_charac_no→get_acc_id→NumberToString→last_recv→ontime_id。
+// [b28c-lane17] fresh：158=158 助记符全等 ⇒ NEAR；残差为互斥块内同类 cMyTrace/
+// char[0x100] 临时槽深方向与 callee-saved 分配差（N82附/N86 族），
+// 调用点差集与槽位集无缺项 ⇒ 语义完成、byte 层 N 封顶。
 bool COnTimeEvent::insert_reward_user(CUser* user)
 {
     if (user == 0)

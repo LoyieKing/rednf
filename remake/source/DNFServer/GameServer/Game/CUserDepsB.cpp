@@ -397,8 +397,11 @@ int CUser::getCurCharacInvenCheckSum() const
 {
     if (getCurCharacR() == 0)                      // W 0x08120432
         return 0;
-    register int seed asm("esi") = m_checkSumSeed;               // mov 0x796e0(%eax); 跨 call 缓存 esi
-    register int winPoint asm("ebx") = getPVPResultR()->m_winPoint;  // getPVPResultR +0x58; 缓存 ebx
+    // b28c-lane12 P0 清绑：删 asm("esi")/asm("ebx") 绑定，并按 C28L20A 反例
+    // 一并删 register 关键字（裸 register 非免槽载体，反强制 push ebx/esi +
+    // 帧与 epilogue 破形）；清绑后按 P200/P226 重试自然形，残余记 N。
+    int seed = m_checkSumSeed;                                 // mov 0x796e0(%eax)
+    int winPoint = getPVPResultR()->m_winPoint;                // getPVPResultR +0x58
     return getCurCharacInvenR()->makeCheckSum(winPoint, seed);   // T 0x0850ae7a
 }
 
@@ -409,7 +412,8 @@ int CUser::getCurCharacSkillCheckSum() const
 {
     if (getCurCharacR() == 0)
         return 0;
-    register int seed asm("ebx") = m_checkSumSeed; // ORIG: seed 跨 call 缓存 ebx
+    // b28c-lane12 P0 清绑（同上：普通局部，无 register/无 asm 绑定）。
+    int seed = m_checkSumSeed;                       // ORIG: seed 跨 call 缓存
     return reinterpret_cast<const SkillSlot*>(getCurCharacSkillR())
         ->makeCheckSum(seed);                      // T 0x086066f2
 }
@@ -452,7 +456,7 @@ BuyItemDeliveryMsg::BuyItemDeliveryMsg() : DeliveryMsg()
 LevelUpRewardItemTableKey::LevelUpRewardItemTableKey(int level, int job,
                                                      int grow)
 {
-    m_lv = static_cast<unsigned short>(level);
+    m_lv = static_cast<short>(level);   // b28c-L20: m_lv signed short（ORIG 16 位有符号比较）
     m_job = static_cast<unsigned char>(job);
     m_grow = static_cast<unsigned char>(grow);
 }
@@ -461,14 +465,15 @@ LevelUpRewardItemTableKey::LevelUpRewardItemTableKey(int level, int job,
 bool stLevelUpRewardItemScript::get_data(const LevelUpRewardItemTableKey& key,
                                          LevelUpRewardItemData& out)
 {
-    // b26 N 封顶（P112 族槽序镜像）：残差仅 find 迭代器槽与 end() 临时槽互换
-    // （ORIG -0x10/-0xc vs 我们 -0xc/-0x10）——4.1 临时从 ebp 向下分配、4.4 从
-    // esp 向上，完全镜像；先声明 it/e 又触发默认 ctor 调用（P50 陷阱）不可用。
+    // b28c-L20: AE — 槽位与 ORIG 全等（it@-0x10 find sret / end 临时@-0xc）；
+    // ORIG 0x081b8a15 的 `operator==` 接收者是 end 临时（this=-0xc, other=-0x10）
+    // ⇒ 源码书写序为 `end() == it`；另 ORIG 0x081b8a38 调 `operator*`(deEv) 非
+    // `operator->`(ptEv) ⇒ 写 `(*it).second`（b26「槽序镜像不可翻」判词作废）。
     std::map<LevelUpRewardItemTableKey, LevelUpRewardItemData>::iterator it =
         m_map0.find(key);
-    if (it == m_map0.end())
+    if (m_map0.end() == it)
         return false;
-    out = it->second;                              // 两 int 顺序写（+0/+4）
+    out = (*it).second;                            // 两 int 顺序写（+0/+4）
     return true;
 }
 
@@ -500,6 +505,8 @@ bool stLevelUpRewardItemScript::get_data_when_growup(
 int CLevelRewardTable::GetRewardItemNo(int jobIdx, int levelIdx)
 {
     // 【N18a 标注】同 GetItemCount（ORIG 0x086976f6 双寄存器 lea 形不可翻）。
+    // b28c-L18 fresh 探针复证（/tmp/l18p/lea.cpp f_a..f_d）：两操作数序/成员
+    // 数组形均恒折 add MEM，封顶（C28L12 代落注记）。
     return m_rewardPrimary[jobIdx * 0x46 + levelIdx];
 }
 
@@ -509,6 +516,8 @@ int CLevelRewardTable::GetItemCount(int jobIdx, int levelIdx)
     // 【N18a 标注】ORIG 0x08697712：双实参先各入寄存器（ecx/edx）且乘积原地
     // 留 ecx 无槽 + lea 合流；f3 具名中间量实测 ndiff 13>8 反劣化（spill/reload
     // +sub/leave），匿名下标折 add mem 为 4.4 恒定选择，封顶（技巧 30 反例族）。
+    // b28c-L18 fresh 探针复证（/tmp/l18p/lea.cpp f_a..f_d）：两操作数序/成员
+    // 数组形均恒折 add MEM，封顶（C28L12 代落注记）。
     return m_rewardSecondary[jobIdx * 0x46 + levelIdx];
 }
 
@@ -547,10 +556,13 @@ bool CLevelRewardTableMgr::IsChallengingJob(char job)
         return false;
     int itemNo = table->GetRewardItemNo(job + 1, 0);
     int count = table->GetItemCount(job + 1, 0);
-    // 【N 标注】ORIG 尾部 `cmpl $0; jne 远端 mov$1`（false 走 fall-through），
-    // 4.4 对 `a!=0||b!=0` 与取反短路两种写法均规范化 `je+mov$1 fall`（实测
-    // 同 44==44/ndiff6），布尔落位块序跨版本产物（0x0868782a）。
-    return itemNo != 0 || count != 0;
+    // [b28c-L29] ORIG 0x08687792 尾部：两条 `cmpl $0; jne` 各自跳同一 mov$1
+    // 尾块（false 走 fall-through）——P222 两形互试定稿：正向包裹
+    // `if(itemNo==0 && count==0) return false; return true;` 复现（反形
+    // `if(!=0) return true` 被 4.4 折叠成 je+mov$1 fall，实测 44→46 反劣）。
+    if (itemNo == 0 && count == 0)
+        return false;
+    return true;
 }
 
 // ORIG T 0x08687e62 sz 0xc：return m_table。
@@ -602,7 +614,12 @@ bool CLevelRewardTableMgr::IsOnServer(int serverIdx)
 // ORIG T 0x08147164 sz 0x62：level ∈ m_script.m_stepItems 即新档位可达。
 bool LevelupSupportEventManger::CheckNewStep(int level)
 {
-    return m_script.m_stepItems.find(level) != m_script.m_stepItems.end();
+    // ORIG T 0x08147164：end() 先求值（-0x10）后 find()（-0xc）⇒ 4.4 对
+    // `==` 右起装载同序；比较用 operator== 后取反（test/je + mov$0/mov$1
+    // 岛），故写 `if (find == end) return false; return true;`（P56/P220）。
+    if (m_script.m_stepItems.find(level) == m_script.m_stepItems.end())
+        return false;
+    return true;
 }
 
 // ORIG T 0x081471c6 sz 0x19c。操作对象是 user->m_levelupEvents（CUser+0x8d0e4

@@ -29,8 +29,17 @@ class InterfaceServicePolicy
 public:
     InterfaceServicePolicy(RestrictCategory::Enum code) : m_code(code), m_svc() {}
     virtual ~InterfaceServicePolicy() {}
-    // ORIG W 0x0816ee12 _ZN22InterfaceServicePolicy7getCodeEv（非虚、非 const）。
-    int getCode() { return m_code; }
+    // ORIG W 0x0816ee12 _ZN22InterfaceServicePolicy7getCodeEv（非虚、非 const，体
+    // `mov 0x8(%ebp),%eax; mov 0x8(%eax),%eax; pop; ret` 与返回类型无关）。返回类型
+    // 取 RestrictCategory::Enum（与 m_code 同型）：mangled 不含返回类型、本函数体 asm
+    // 不变，但决定消费点 store 装载序。ORIG 两个消费点 0x0816dd22/0x0816d9a0 首字段
+    // store 均为 `call getCode; mov %eax,%edx; mov 0xc(%ebp),%eax; mov %edx,(%eax)`
+    // （RHS 值先 + 中转）= P211「call 返回值与 int 字段异型 ⇒ RHS-first 带中转」；
+    // 返回 int 与 int 字段同型时 4.4 恒 LHS 地址先载（探针 /tmp/l20b/probe2.cpp
+    // f_int vs f_enum、probe6.cpp g0/g1/g2/g3/g4/g5/g6 七形 + probe3.cpp 源侧 cast
+    // 两形全数实测不可翻）。反证字段本身仍是 int：Taiwan::SigLoadRestrictPolicy::set
+    // @0x0815de02 形参 int 写同字段为 LHS 先无中转。
+    RestrictCategory::Enum getCode() { return m_code; }
 
     virtual bool beginPolicy(std::string const&) = 0;                 // vtable +0x08
     virtual void endPolicy() = 0;                                     // +0x0c

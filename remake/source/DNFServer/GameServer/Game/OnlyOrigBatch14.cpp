@@ -81,6 +81,10 @@ struct STActiveStatus
 // ============================================================================
 
 // ORIG _ZL3ROLji @0x80c3dc0 / _ZL3RORji @0x809c42d：rol/ror %cl。
+// [b28c-lane25 判词·N] ORIG 为 4.1 rotate lowering：load value→%eax、count→%edx→%ecx、
+// `ror %cl,%eax`、写回参数槽、重读返回；4.4 对形参赋值+rotate 恒发内存形
+// （`roll %cl,0x8(%ebp)`）或 callee-saved 形（`rol %cl,%ebx`+push）。
+// 探针 /tmp/l25probe/rol.cpp rA/rB/rH/rI/rJ/rK 六形穷举不可得，跨版本 codegen 封顶。
 static unsigned int ROL(unsigned int value, int count)
 {
     return (value << count) | (value >> (32 - count));
@@ -389,6 +393,11 @@ int SetSockNonb(int fd, unsigned long arg)
 // movb $0,-0x5；两写点 089bd065/089bd06b）+ **无符号边界**（089bd046
 // cmpl $0xb,0x8(%ebp) 直比参数槽 + ja，P137/P2）+ 末尾 movzbl 读回。
 bool IsDamageActiveStatus(int status)
+// [b28c-L23 N(P209) + N6 权衡维持] ①边界比较 ORIG @0x089bd046 为
+// `cmpl $0xb,0x8(%ebp); ja`（无符号内存直比），4.4 对 unsigned 参与的形参比较
+// 恒先载寄存器（P209 判例，写 signed 会翻成 jle 助记符更劣）；②`int bit` 具名
+// 局部是为阻断 N6 位折叠（直写恒折 `(0xac4>>s)&1` 的 sar+and 反演形），其 store/
+// load 2 条是必要代价；③bool 汇聚槽号 -0x5 vs -0x9 差由 ② 的额外 int 槽顶出。
 {
     bool ret = false;
     if ((unsigned int)status <= 0xb)
@@ -450,16 +459,22 @@ unsigned int Rand_r(unsigned int* seed)
     static unsigned int staticSeed = 0;  // ORIG _ZZ6Rand_rPjE10staticSeed 0x0936e480
     if (seed == 0)
     {
-        staticSeed += timeGetTime();
+        // [b28c-lane24] ORIG 0x0808bc82：`call timeGetTime; mov %eax,%edx;
+        // mov staticSeed,%eax; lea (%edx,%eax,1),%eax` = RHS 值先（P211 符号性
+        // 异型 ⇒ RHS-first）；LHS/RHS 同为 unsigned 时 4.4 恒 LHS-first
+        //（`mov staticSeed,%edx; add %edx,%eax`）⇒ 交换书写序探测（P211 无效：
+        // staticSeed int 化反使取址多一条 eax 中转，已回退）。
+        staticSeed = timeGetTime() + staticSeed;
         return Rand_r(&staticSeed);
     }
     unsigned int next = *seed;
     // 拆句 *=/+= 复现 ORIG addl $K,-off 内存加与 shll mem 内存移
-    // （4.4 对 x=x*C+K 单表达式恒寄存器加；x=x^e 恒折内存 xor，
-    // ORIG 寄存器 xor 3 条不可复现，N 残差）。
+    // [b28c-lane24] result 由 unsigned 改 int：ORIG xor 段 `mov %eax,%edx;
+    // and $0x3ff,%edx; mov -0xc(%ebp),%eax; xor %edx,%eax; mov %eax,-0xc(%ebp)`
+    // = RHS 先物化（P211 异型）；同型时 4.4 恒折 `and %eax; xor %eax,mem`。
     next *= 0x41c64e6d;
     next += 0x3039;
-    unsigned int result = (next >> 16) & 0x7ff;
+    int result = (next >> 16) & 0x7ff;
     next *= 0x41c64e6d;
     next += 0x3039;
     result <<= 10;
@@ -553,7 +568,11 @@ bool ScanAnyData(int& type, std::string& str, int& value, bool ignoreUnknown)
 }
 
 // ORIG T 0x089e6dc4 _Z20ScanChampionFeaturesiR27STAICharacterMapArrangeData：
-// count 行 × 0x25 特征名表匹配 → 命中 push 表项原值。
+// count 行 × 0x25；匹配名取自**二级寻址** `NAME[ VALUE[i] & 0xff ]`
+// （ORIG 0x089e6df7 `mov 0x8e1c6e0(,%eax,4),%eax; and $0xff,%eax;
+// mov 0x93f55a0(,%eax,4),%eax`），命中后 push 的却是 VALUE[i] **未截断原值**
+// （ORIG 0x089e6e20 二次载 VALUE[i] → -0x14 → push_back(EOi)）。
+// VALUE 表自 ORIG .data 0x08e1c6e0 逐项提取（低字节=名表索引）。
 static const unsigned int g_championFeatureValue[0x25] = {
     0x1ff00, 0xff01, 0x2ff02, 0x2ff03, 0x30004, 0x30005, 0x30006, 0x30007,
     0x40008, 0x3fe09, 0x3fe0a, 0x3fe0b, 0x3fe0c, 0x2000d, 0x3000e, 0x3000f,
@@ -583,7 +602,7 @@ void ScanChampionFeatures(int count, STAICharacterMapArrangeData& data)
         ScanStr(&s);
         for (int i = 0; i <= 0x24; ++i)
         {
-            if (s == g_championFeatureName[i])
+            if (s == g_championFeatureName[g_championFeatureValue[i] & 0xff])
             {
                 data.m_championFeatures.push_back(
                     (int)g_championFeatureValue[i]);
@@ -4897,7 +4916,8 @@ long GetSlicedInterval(long* out1, long* out2, long* out3, long* out4,
     {
         *out1 = 0;
         *out2 = firstLen;
-        count = 1;
+        // b28c-l23：ORIG 此处为 `addl $0x1,-0x4(%ebp)`（自增，非赋值）。
+        ++count;
     }
     if (firstLen + step < total)
     {

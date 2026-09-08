@@ -1358,6 +1358,11 @@ static const int CREATECHARACTEREQUIP[22] =
 // Reset 后填 acc/charac/school/tag 区；双职业热键装载；队列 5(有效上次登录)/2(DB_Q)。
 int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT const& msg)
 {
+    // [b28c-L9] fresh 复验 ndiff 24→19；p167 调用点差集 32=32（0 missing/0 extra）。
+    // 全部残差 = CStreamGuard EH 尾块布局跨版本不可翻：ORIG 0x081c6dxx 正常路径
+    // `mov $1,%ebx; jmp Ltail` 跳到**函数最末**的共享 D1+epilogue，unwind 块居中；
+    // 4.4 把 D1+epilogue 就地内联在正常路径、unwind 块压到最末（少 1 jmp + 8:8 块序
+    // rotate，difflib 放大为 18）。语义/gap/槽位集全等 ⇒ 按 §6.2 判语义完成、byte N 封顶。
     // [b23S3C] ORIG 帧 0x20 仅 guard -0x14/sig -0xc 两槽：Acquire 右值直落 ctor
     // 实参（无 stream 槽）；guard 写流 4 处均 `(*guard)->operator<<`（deEv call
     // 080c8c46 + lsEi call 080c8c56，P48 每次重取 operator*）；GetInBuffer 走
@@ -1407,6 +1412,9 @@ int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT cons
 struct SigWord { unsigned int m_w; };
 int DisPatcher_SelectCharac::RequestDBTicket(CUser* user, MSG_CHARAC_SELECT& msg)
 {
+    // [b28c-L9] fresh 复验 ndiff 21→18；p167 25=25 全清。残差同 RequestDBCharac：
+    // guard D1 共享尾块与 unwind 块的相对发射序（4.1 `jmp tail` / 4.4 fall-through）
+    // ⇒ 跨版本 EH 块序 N，语义完成。
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
         "PacketDispatcher_Impl_1.cpp", 0x17db), true);
     **guard << 0xb;
@@ -1445,6 +1453,10 @@ L_end:
 // TIMER_MESSAGE_0x51, 0, unique_id, characNo) 后恒返 1。
 int DisPatcher_SelectCharac::RegistTimerSchedules(CUser* user)
 {
+    // [b28c-L9] fresh 复验 ndiff 8→4：唯一残差 = 两 callee-saved 角色对调
+    // （ORIG getCurCharacNo→%esi / get_unique_id→%edi，4.4 恒 %edi/%esi 反向；
+    // 实参装载 `%esi,0x18(%esp)`↔`%edi,0x14(%esp)` 随之互换）
+    // ⇒ N82附「多实参 call 首值 callee-saved 寄存器对调」，源形不可择。
     // ORIG 0x081c7bac：实参从右到左求值缓存（getCurCharacNo→esi /
     // get_unique_id→edi / GetUID→ebx），单行嵌套调用复现栈帧（sub $0x2c）。
     G_TimerQueue()->InsertTimer(
@@ -1497,6 +1509,9 @@ void DisPatcher_SelectCharac::RequestDBInventory(CUser* user, MSG_CHARAC_SELECT&
 int DisPatcher_SelectCharac::RequestDBInventory_forchina(CUser* user,
                                                           MSG_CHARAC_SELECT& msg)
 {
+    // [b28c-L9] fresh 复验 ndiff 14→6；p167 27=27 全清。残差 = EH 寄存器角色：
+    // ORIG unwind 路用 %esi 承载返回值、%ebx 承载异常指针（`mov $1,%esi` ×2 +
+    // `test %ebx,%ebx; je`），4.4 单寄存器 %ebx 复用 ⇒ N7/N18a 跨版本分配，语义完成。
     CStreamGuard guard(
         GlobalData::s_big_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x18af), true);
     **guard << 8;
@@ -1662,6 +1677,8 @@ int DisPatcher_SelectCharac::RequestDBETC(CUser* user, MSG_CHARAC_SELECT& msg)
 // memset 0x414 后仅写 characNo@0；队列 5(有效上次登录)/2(DB_Q)。
 int DisPatcher_SelectCharac::RequestDBSkill(CUser* user, MSG_CHARAC_SELECT& msg)
 {
+    // [b28c-L9] fresh 复验 ndiff 21→18；p167 25=25 全清。残差 = guard D1 共享尾
+    // 块序（同 RequestDBCharac），跨版本 EH 布局 N，语义完成。
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x17a1), true);
     **guard << 9;
@@ -5359,6 +5376,8 @@ int DisPatcher_BuyItem::read(PacketBuf& packet, MSG_BASE& msg)
 }
 // ORIG 0x081be20a T _ZN18DisPatcher_BuyItem4sendEP5CUserR9ParamBase
 // 报告：docs/class_func_reports/DisPatcher_BuyItem/send.md（汇编+反编译 C 全读）
+// [b28c-L19 N18a] 唯一正文差（165/164）：`UseFinishPoint(out.m_8c)` 处 ORIG
+// `mov 0x8c(%eax),%eax; mov %eax,%edx` 冗余 regmove vs 4.4 单步直载 edx（反向不可造）。
 void DisPatcher_BuyItem::send(CUser* user, ParamBase& param)
 {
     BuyItemParam& out = static_cast<BuyItemParam&>(param);
@@ -5982,6 +6001,10 @@ int DisPatcher_SellItem::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& 
 DisPatcher_RepairEquip::~DisPatcher_RepairEquip() {}
 int DisPatcher_RepairEquip::check_error(CUser* user, MSG_BASE& /*msg*/)
 {
+    // [b28c-30] N96 封顶：原 asm("eax")/asm("edx") 绑定已按 P0 清除。
+    // ORIG 0x081c61bb `call get_state; cmp $0xc,%eax; ja` 无槽直判 +
+    // `mov $0x1,%edx; mov %edx,%ebx` 物化；清绑后纯 register 用 %esi/%ebx（35 insn）、
+    // 普通局部落槽（34 insn）均不可复现（4.4 恒 callee-saved/槽化）。
     if (user == 0)
     {
         return 0xffffffff;
@@ -5993,13 +6016,14 @@ int DisPatcher_RepairEquip::check_error(CUser* user, MSG_BASE& /*msg*/)
     // ORIG 081c61bb `cmp $0xc,%eax; ja`→共享 0x13 块、+0xd4 `test; jne`→ret0 块。
     // 4.4 需 goto 形才能把「mov $0x13; jmp」排在 jne 之后（直落共享块），
     // OK 岛由 ja 落点承接（技23/17）。残留 mov %eax,%edx = N22 变体天花板。
-    register unsigned int state asm("eax") = (unsigned int)user->get_state();
+    // [b28c-30] P0 清绑：原 asm("eax") 已删，保留纯 register（P231 合法存储建议）。
+    unsigned int state = (unsigned int)user->get_state();
     if (state > 0xc)
     {
         goto L_bad;                   // ORIG ja → +0x3a 共享 0x13 块
     }
     {
-        register int one asm("edx") = 1;   // ORIG `mov $0x1,%edx; mov %edx,%ebx`
+        int one = 1;   // ORIG `mov $0x1,%edx; mov %edx,%ebx`（P0 清绑）
         if ((one << (int)state & 0x15e8) != 0)
         {
             goto L_ok;                     // ORIG `test; jne +0x41`
@@ -6611,6 +6635,10 @@ DisPatcher_ChangeSkill::~DisPatcher_ChangeSkill() {}
 // ∈{-1,0} 时 msg+0xd==1 → 0x13；其它索引时 msg+0xd!=1 → 0x13；否则 0。
 int DisPatcher_ChangeSkill::check_error(CUser* user, MSG_BASE& msg)
 {
+    // [b28c-30] N96+P168a④ 封顶：原 `register int av asm("eax")` 已按 P0 清除。
+    // ORIG 0x081c01b5/0x081c01c1 为 `mov -0xc(%ebp),%eax; cmp $0xffffffff,%eax` /
+    // `test %eax,%eax`（reload + 寄存器比较）；清绑后纯 register 用 %ebx（39 insn）、
+    // 普通局部折 mem 直比（38 insn）均不可复现，绑定形为唯一通路（P0 禁）。
     // ORIG 0x081c0196：pReq(先声明)→远槽 -0x10、treeIdx(后声明)→近槽 -0xc（技21）；
     // 比较两次独立 reload `mov -0xc(%ebp),%eax` + 寄存器 cmp（技28 asm(eax) 中转破
     // cmpl 融合）；`==−1||==0` 共享检查体用双 goto（技23），避免 4.4 bool 物化岛。
@@ -6621,7 +6649,7 @@ int DisPatcher_ChangeSkill::check_error(CUser* user, MSG_BASE& msg)
     // 比较两次独立 reload `mov -0xc(%ebp),%eax` + 寄存器 cmp（技28 asm(eax) 中转破
     // cmpl 融合）；`==−1||==0` 共享检查体用双 goto（技23），避免 4.4 bool 物化岛。
     // 残留 1 行 `jmp`+label-nop 岛 = 4.4 CFG label 分块差异（4.1 直落 body1）。
-    register int av asm("eax");
+    int av;   // [b28c-30] P0 清绑：原 asm("eax") 已删
     av = treeIdx;
     if (av == -1)
     {
@@ -9537,6 +9565,7 @@ int DisPatcher_UseStack::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& 
 
 
 DisPatcher_MoveMap::~DisPatcher_MoveMap() {}
+// [b28c-L19 属主修复] 参数名曾被注释但函数体用 &msg ⇒ TU 编译失败，恢复具名。
 int DisPatcher_MoveMap::check_error(CUser* user, MSG_BASE& msg)
 {
     if (user == 0)
@@ -9662,18 +9691,20 @@ void DisPatcher_MoveMap::CheckTrapBitsHackCnt(CUser* user, MSG_MOVE_MAP& info)
 {
     // ORIG 为 0x2493 魔数除法序列：q=v/7 后 r=v-q*7，r!=0 即非整除
     // PacketTypes.h MSG_MOVE_MAP::m_trapBits（ushort@+0x18，Main 已代落）真成员直读。
-    // ORIG 0x081c4b7a：`mov 0x10(%ebp),%eax; movzwl 0x18(%eax),%ecx` —— 具名 ushort
-    // 成员单级装载 + 值绑 %ecx 跨 imul/mov 存活（register asm，无栈槽）。
-    // 注：4.4 恒产 `movzwl mem,%eax; mov %eax,%ecx` 两步（N18a 变体，int 绑定会
-    // 连带把 % 序列换成 32 位版更差）；保留 ushort 绑定使 divseq 保持 16 位 HImode 形。
-    register unsigned short trapBits asm("ecx") =
-        info.m_trapBits;
-    // ORIG 81c4bb5：`je` 直落 epilogue + cond 尾无 jmp（4.1 线程化）；4.4 恒保留
-    // 空 return bb + 双 jmp（jump-threading 反向），无源码形可翻 → N 类天花板。
-    if (trapBits % 7 == 0)
+    // b28c-28（P0 清绑，P168a④ 裸形复测翻案）：原
+    // `register unsigned short trapBits asm("ecx") = info.m_trapBits;` 绑定与 P0
+    // 相悖，已删除并改为使用点直读成员表达式。旧判词称「4.4 恒产 movzwl+mov 两步、
+    // 保留绑定使 divseq 保持 16 位形」系误判：实测清绑后 `info.m_trapBits % 7 == 0`
+    // 直出 ORIG 的 `mov 0x10(%ebp),%eax; movzwl 0x18(%eax),%ecx; movzwl %cx,%eax;
+    // imul $0x2493` 16 位 HImode 魔数除法链，ndiff 20 → 1。
+    // 唯一残差 = `if (cond) {return;}` 尾 4.4 多保留的 `jmp <epilogue>`
+    // （ORIG 0x081c4bb5 `je` 直落 epilogue，4.1 线程化折掉；N-JMP 族，无源码解）。
+    if (info.m_trapBits % 7 == 0)
     {
         return;
     }
+    // ORIG 81c4bb5：`je` 直落 epilogue + cond 尾无 jmp（4.1 线程化）；4.4 恒保留
+    // 空 return bb + 双 jmp（jump-threading 反向），无源码形可翻 → N 类天花板。
     user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x1f9, 1, 0, 0);
     // ORIG 0x081c4...：`cmp $0x4,%eax; setg %al; test; je` —— 正向 >4 大块（技巧17）
     if (user->getHackAnalyzer()->getServerHackAccumulatedCnt((WongWork::ENUM_HACKTYPE)0x1f9) > 4)
@@ -13526,34 +13557,60 @@ int Dispatcher_FrameLagStatistics::dispatch_sig(CUser* user, PacketBuf& packet)
 //   strncpy m_msg 0x100 → m_msgLen(+166) → m_itemCount(+2d) →
 //   for(i<itemCount) memcpy(m_items+i*0x68, items+i*0x68, 0x68) →
 //   packetSize(+2) = msgLen + 0x167。
+//   [b28c-34] 判词（76/76 AE；TU compare 口径：符号不在 DIFF/NEAR 列表）：
+//   两处根因已实证——
+//   ①+0xb/+0x166 store 装载序：ORIG LHS-first（`mov 0x8(%ebp),%eax` 先载 this），
+//     真实字段 char 与 uchar 形参异型 ⇒ 4.4 恒 RHS-first（P211）；源侧 cast 无效
+//     （探针 s2/s4），经本 TU 局部 uchar 具名视图写入归位（P95/P235）。
+//   ②循环 memcpy 两侧算址：ORIG 两侧均为 char 数组下标形（src `imul; add 0x28(%ebp),%eax`、
+//     dst `imul; add $0x20; add 0x8(%ebp); add $0xe` 三段独立 add）；整型加法链/指针
+//     算术形在 4.4 下恒折 lea+常量合并（探针 a1..a6/b1..b8/c1..c6），改用下标形逐条复现
+//     （探针 w1）。语义：uchar/char 视角写同一字节，位模式不变；下标越界写与原码一致（P171）。
 // ============================================================================
+#pragma pack(push, 1)
+struct MegaPhoneHyperLinkSetView
+{
+    char m_pad00[0xb];            // +0x00..0x0a（PacketHeader + m_sg）
+    unsigned char m_channel;      // +0x0b（ORIG `mov %dl,0xb(%eax)`）
+    unsigned short m_uniqueId;    // +0x0c
+    unsigned char m_type;         // +0x0e
+    char m_name[0x1e];            // +0x0f..0x2c
+    unsigned char m_itemCount;    // +0x2d
+    char m_items[0x68];           // +0x2e..0x95
+    char m_pad96[0xd0];           // +0x96..0x165
+    unsigned char m_msgLen;       // +0x166（ORIG `mov %dl,0x166(%eax)`）
+    char m_msg[0x100];            // +0x167..0x266
+};
+#pragma pack(pop)
+static_assert(sizeof(MegaPhoneHyperLinkSetView) == 0x267,
+              "MegaPhoneHyperLinkSetView size");
+static_assert(offsetof(MegaPhoneHyperLinkSetView, m_channel) == 0xb,
+              "MegaPhoneHyperLinkSetView m_channel off");
+static_assert(offsetof(MegaPhoneHyperLinkSetView, m_msgLen) == 0x166,
+              "MegaPhoneHyperLinkSetView m_msgLen off");
 #include "Packet_Monitor_MegaPhone_Hyper_Link.h"
 void Packet_Monitor_MegaPhone_Hyper_Link::set(
     unsigned char channel, unsigned short uniqueId, char const* name,
     unsigned char msgLen, char const* msg, unsigned char type,
     unsigned char itemCount, hyperlink_item_info const* items)
 {
-    m_channel = channel;   // ORIG +0x3f：this 先载 `mov 0x8,%eax; movzbl -0x1c,%edx; mov %dl,0xb`
-    m_uniqueId = uniqueId;       // uchar arg→char field signedness 失配⇒arg 先载
+    // [b28c-34] ORIG：`mov 0x8(%ebp),%eax; movzbl -0x1c(%ebp),%edx; mov %dl,0xb(%eax)`
+    reinterpret_cast<MegaPhoneHyperLinkSetView*>(this)->m_channel = channel;
+    m_uniqueId = uniqueId;
     m_type = type;
     strncpy(m_name, name, 0x1e);
     strncpy(m_msg, msg, 0x100);
-    m_msgLen = msgLen;           // ORIG +0x97：this 先载
+    // [b28c-34] ORIG：`mov 0x8(%ebp),%eax; movzbl -0x24(%ebp),%edx; mov %dl,0x166(%eax)`
+    reinterpret_cast<MegaPhoneHyperLinkSetView*>(this)->m_msgLen = msgLen;
     m_itemCount = itemCount;
     // ORIG 0x086d1b9a：src `mov -0xc,%eax; imul $0x68; add 0x28(%ebp),%eax`、
-    // dst `mov -0xc,%edx; imul; add $0x20; add 0x8(%ebp); add $0xe`（技26 blob
-    // 整型加法链逐段破 lea 折叠；两侧各自重算 i*0x68 = 两遍 imul）。
+    // dst `mov -0xc,%edx; imul; add $0x20; add 0x8(%ebp); add $0xe`——两侧均为
+    // char 数组下标形（各重算一遍 i*0x68、常量不合并）。
     for (int i = 0; i < itemCount; ++i)
     {
-        //（技18 变体：dst 用 int 组 `i*0x68+0x20` 与 src 的 `i*0x68` 形态不同，
-        // 破 4.4 公共子表达式共享，保两遍独立 imul + src 先算右→左求值序）
-        memcpy(reinterpret_cast<char*>(
-                   static_cast<unsigned long>(i * 0x68 + 0x20) +
-                   reinterpret_cast<unsigned long>(this)) + 0xe,
-               reinterpret_cast<const char*>(
-                   static_cast<unsigned long>(i * 0x68) +
-                   reinterpret_cast<unsigned long>(items)),
-               0x68);
+        memcpy(&m_items[i * 0x68],
+               &reinterpret_cast<char*>(
+                   const_cast<hyperlink_item_info*>(items))[i * 0x68], 0x68);
     }
     packetSize = 0x167 + msgLen;
 }

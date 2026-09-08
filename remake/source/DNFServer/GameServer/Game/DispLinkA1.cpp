@@ -35,46 +35,14 @@
 #include "CStatisticServerProxy.h"  // SendPacket(char*, int)
 #include "CServerProxyMgr.h"        // CServerProxyMgr<T>::GetServerProxy
 #include "GlobalData.h"             // GlobalData::s_statistic_proxy_mgr
+// [b28c-32] P104 合并：匿名 namespace 内的 Packet_Emblem_Create_Statistic /
+// Packet_Avater_Disjoint_Statistic 镜像类删除，统一 include 权威头
+// （Avater 局部版仅 0x17 字节 ⇒ 帧 0x34 vs ORIG 0x44、对象落 -0x23 vs -0x34）。
+#include "Packet_Emblem_Create_Statistic.h"
+#include "Packet_Avater_Disjoint_Statistic.h"
 
 namespace
 {
-
-#pragma pack(push, 1)
-// ORIG Packet_Emblem_Create_Statistic C1 W 0x08110bdc：header(0x17a4,0x36)。
-// 字段区为 11×int 槽（+0x0a..+0x36）：slots[0]=条数、slots[i+1]=第 i 个
-// 素材 grade、slots[i+6]=第 i 个素材附加值（SendCreateEmblemInfo 写入实证）。
-// 唯一声明点在各消费 TU 内部（W8_EventClassifyB.cpp 持同源匿名镜像），此处
-// 匿名命名空间同布局，互不 ODR。
-class Packet_Emblem_Create_Statistic : public PacketHeader
-{
-public:
-    Packet_Emblem_Create_Statistic()
-        : PacketHeader(static_cast<unsigned short>(0x17a4),
-                       static_cast<unsigned short>(0x36))
-    {
-        std::memset(m_slots, 0, sizeof(m_slots));
-    }
-
-    int m_slots[11];  // +0x0a..（0x2c 字节）
-};                    // sizeof == 0x36
-
-// ORIG Packet_Avater_Disjoint_Statistic C1 W 0x08110bae：header(0x17a2,0x28)。
-// +0x0a 置 1、+0x0e grade 索引（rarity==2?2:grade-1）、+0x12 GetItemType、
-// +0x16 置 1（SendDisjointAvatarInfo 0x08218996 写入实证）。
-struct Packet_Avater_Disjoint_Statistic : public PacketHeader
-{
-    Packet_Avater_Disjoint_Statistic()
-        : PacketHeader(static_cast<unsigned short>(0x17a2),
-                       static_cast<unsigned short>(0x28))
-    {
-    }
-
-    unsigned int  m_field0a;   // +0x0a
-    int           m_gradeIdx;  // +0x0e
-    int           m_subType;   // +0x12
-    unsigned char m_flag;      // +0x16
-};                             // sizeof == 0x28
-#pragma pack(pop)
 
 inline CStatisticServerProxy* statisticProxyGroup0()
 {
@@ -208,6 +176,10 @@ int Dispatcher_Client_Spec_Statistic::check_error(CUser* user, MSG_BASE& msg)
 // 7. Dispatcher_Client_Spec_Statistic::read  ORIG 0x081ce5fe
 //    msg+0xd/+0xe/+0xf 三字节，+0xf 为条数；条目步长 0xc：
 //    +0x12 byte、+0x16 dword、+0x1a dword（ORIG 裸偏移直读 MSG 体）。
+//    b28c-34 判词（identical）：ORIG 寻址为 (p + i*0xc) + K（先 add 基址、后 add $K，
+//    0x081ce65e..0x081ce6a5）。4.4 前端会把纯指针形 `p + i*0xc + K` 折叠成
+//    `p + (i*0xc + K)`（先 add 常量、后 add 基址，后两条再多 mov %ecx/lea）；
+//    经 unsigned long 中转 `(unsigned long)(p + i*0xc) + K` 阻止该折叠，逐条复现 ORIG。
 // ============================================================================
 int Dispatcher_Client_Spec_Statistic::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -216,10 +188,12 @@ int Dispatcher_Client_Spec_Statistic::read(PacketBuf& packet, MSG_BASE& msg)
     packet.get_byte(*reinterpret_cast<unsigned char*>(p + 0xe));
     packet.get_byte(*reinterpret_cast<unsigned char*>(p + 0xf));
     for (int i = 0; i < (int)reinterpret_cast<unsigned char (&)[0x10]>(*p)[0xf]; ++i) {  // ORIG movzbl 0xf(%eax)
-        packet.get_byte(
-            *reinterpret_cast<unsigned char*>(p + 0x12 + i * 0xc));
-        packet.get_int(*reinterpret_cast<unsigned int*>(p + 0x16 + i * 0xc));
-        packet.get_int(*reinterpret_cast<unsigned int*>(p + 0x1a + i * 0xc));
+        packet.get_byte(*reinterpret_cast<unsigned char*>(
+            reinterpret_cast<unsigned long>(p + i * 0xc) + 0x12));
+        packet.get_int(*reinterpret_cast<unsigned int*>(
+            reinterpret_cast<unsigned long>(p + i * 0xc) + 0x16));
+        packet.get_int(*reinterpret_cast<unsigned int*>(
+            reinterpret_cast<unsigned long>(p + i * 0xc) + 0x1a));
     }
     return 0;
 }
@@ -339,6 +313,7 @@ void Dispatcher_DisJointAvatar::SendCreateEmblemInfo(
 // ============================================================================
 // 12. Dispatcher_DisJointAvatar::SendDisjointAvatarInfo  ORIG 0x08218996
 // ============================================================================
+// [b28c-32] verdict=NEAR：P104 合并镜像类为权威头（0x17→0x28）；余 N7（47=47）。
 void Dispatcher_DisJointAvatar::SendDisjointAvatarInfo(CItem const* pItem)
 {
     Packet_Avater_Disjoint_Statistic packet;
@@ -350,9 +325,9 @@ void Dispatcher_DisJointAvatar::SendDisjointAvatarInfo(CItem const* pItem)
         gradeIdx = 2;
     else
         gradeIdx = pItem->get_grade() - 1;
-    packet.m_gradeIdx = gradeIdx;
-    packet.m_subType = pItem->GetItemType();
-    packet.m_flag = 1;
+    packet.m_gradeIdxA = gradeIdx;
+    packet.m_subTypeA = pItem->GetItemType();
+    packet.m_flagA = 1;
     // 伪 helper 归一（战术四式）：ORIG 0x08218996 内联
     // GetServerProxy(s_statistic_proxy_mgr, 0) → SendPacket(buf, 0x28)，
     // 不引入统计代理伪 helper。

@@ -56,10 +56,12 @@ bool CSimpleLog::OpenFile(char const* path)
         return 0;
     }
     m_fp = fopen(path, "ab");
-    // ORIG 0x0854fabc：fopen 后 `test;sete;test;je` 寄存器内物化；4.4 直折 jne，
-    // 具名 bool 局部反 spill 槽+扩帧（-0x9/0x28）⇒ N73-N78 梳（跨版本 bool 物化）。
-    if (m_fp == 0) {
+    // [b28c-lane17] ORIG 0x0854fabc 尾段 `test %eax; sete %al; test %al; je 成功块`
+    // ⇒ P225 X3 while+break 物化形（裸 if 被 4.4 折成 jne；具名 bool 局部 spill 反劣）。
+    while (m_fp == 0)
+    {
         return 0;
+        break;
     }
     return 1;
 }
@@ -93,9 +95,14 @@ bool CSimpleLog::_WriteLog(char const* msg)
             return 0;
         }
     }
-    register DateTime* pDt asm("eax") = &m_dt;
-    if (pDt != &dt) {
-        memcpy(pDt, &dt, 7);
+    // [b28c-lane17] P0：清除历史 register asm("eax") 绑定。ORIG 0x0854fc64 形为
+    // `mov this; add $0x4; lea dt; cmp; je` + memcpy 段内二次 `lea dt`（P183 地址重物化），
+    // 直接写表达式即复现。
+    // 判词：清绑后残余 = ①4.1 把 `&m_dt` 留在 %eax 跨 je 存活（4.4 在 memcpy
+    // 参数位重取 this+add，+2 条）；②`add $0x4,%eax` vs `lea 0x4(%eax),%edx`
+    // 折叠差 ⇒ N18a + P75（跨版本地址物化时刻），语义（含自赋值防护）等价。
+    if (&m_dt != &dt) {
+        memcpy(&m_dt, &dt, 7);
     }
     fprintf(m_fp, "%s\r\n", msg);
     fflush(m_fp);

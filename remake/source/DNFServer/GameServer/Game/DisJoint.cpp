@@ -86,8 +86,9 @@ void DisJoint::_GetAdditionalItem(const CItem* item, int& outIdx, int& outCount)
     // 其余全等，ndiff 12 封顶。
     outIdx = _GetAdditionalItemInfo(item->get_rarity());
     // ORIG 0x084732de `test %eax;setne %al;test %al;je`：outIdx!=0 物化为
-    // register bool（P194 setne 形），非直接 if(outIdx!=0)（那会少 setne+test）。
-    register bool nonzero asm("al") = (outIdx != 0);
+    // bool 局部（P194 setne 形）。[b28c-21] 清 register asm 存量绑定（P0/N96），
+    // 改普通 bool 自然形。
+    bool nonzero = (outIdx != 0);
     if (nonzero)
     {
         // ORIG：m_item 先落 -0x18 再乘 100 落 -0x14，随后才 call get_rand_int。

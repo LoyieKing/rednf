@@ -7,6 +7,7 @@
 #include "Quest.h"
 #include "CUser.h"
 #include "CDataManager.h"
+#include "GlobalData.h"
 #include "LogManager.h"
 
 // ============================================================================
@@ -14,11 +15,8 @@
 // ============================================================================
 
 
-namespace GlobalData
-{
-extern CDailyScheduleManager s_DailyScheduleManager;  // ORIG 0x941f784
-extern CPowerManager* s_power_manager;                // ORIG 0x940be50（指针，见 GlobalData.h）
-}
+// 全局对象声明统一走权威头 GlobalData.h（s_DailyScheduleManager 为指针，
+// ORIG 0x8a5... 调用点 `mov <A>,%eax; mov %eax,(%esp)` 装载指针值实证）。
 
 // ORIG 0x8352203：src 按相邻元素配对填充 RewardItemInfo{field0,field4}；
 // 奇数元素时记录错误并返回
@@ -76,6 +74,10 @@ void makeRewardItemInfo(const std::vector<int>& src,
 int get_rand_int(int range);
 
 // stQuestTriggerState_t::setTrigger（ORIG W 0x836dce0：9 位触发值打包）
+// b28c-L19 判词 N（4.1 位宽截断 lowering 不可复现）：ORIG 每字段在
+// `and $0x1ff,%dx` 后额外发 `mov %edx,%ecx; and $0x1ff,%cx`（对 (a&0x1ff)
+// 的寄存器副本再截断一次），4.4 恒折单次 and（探针：原形与显式嵌套
+// `(short)((short)(a & 0x1ff) | …)` 两形均 38/41，无源码解）。
 void stQuestTriggerState_t::setTrigger(short a, short b, short c)
 {
     m_trigger0 = (short)((a & 0x1ff) | (m_trigger0 & ~0x1ff));
@@ -195,7 +197,9 @@ bool Quest::check_possible(const stSelectQuestParam& param) const
     return 1;
 }
 
-char Quest::check_power_side(char side)
+// SIGFIX:Quest::check_power_side —— ORIG __PRETTY_FUNCTION__ 串 "bool Quest::check_power_side(char)"
+// 定返回 bool（返回类型不入 mangled；P174）。
+bool Quest::check_power_side(char side)
 {
     if (m_powerSide == 0xff)
     {
@@ -567,7 +571,7 @@ std::vector<std::pair<int, int> > Quest::get_clear_itemlist(
 bool Quest::IsOpenScheduleQuest() const
 {
     int state = 0;
-    int result = GlobalData::s_DailyScheduleManager.GetScheduleState(
+    int result = GlobalData::s_DailyScheduleManager->GetScheduleState(
         (_DailyScheduleType)1, (unsigned int)m_index);
     return (result == 1) || (result == 2);
 }

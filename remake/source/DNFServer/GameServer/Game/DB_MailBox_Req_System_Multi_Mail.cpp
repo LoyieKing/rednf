@@ -90,7 +90,9 @@ struct SigSystemMultiMailView
     char m_pad399[4];              // +0x399..0x39c（无访问证据）
     int m_letterId;                // +0x39d DB 回填 letter_id（GetIdentity）
     int m_occTime;                 // +0x3a1 到期时间（dispatch 写入）
-    int m_stat;                    // +0x3a5 letter.stat
+    unsigned int m_stat;           // +0x3a5 letter.stat（与 (int) 实参异型 ⇒ 4.4 出
+                                   // ORIG 的 `mov 0x3a5(%eax),%eax; mov %eax,%ebx` 两段，
+                                   // b28c-34 探针 /tmp/c28l34_probe3.cpp q 实证）
 };
 #pragma pack(pop)
 static_assert(sizeof(SigPostalItem) == 0x3d, "postal item stride drift (ORIG imul $0x3d)");
@@ -109,6 +111,23 @@ struct SigMailboxSendReplyView
 // _InsertLetter —— ORIG 0x084435d4：escape(+0x1e 名)→0x1ff 缓冲、escape(+0x00
 // 正文)→0x3d 缓冲 → set_query(letter insert 6 列) → exec → GetIdentity 回填
 // +0x39d → 1。
+// b28c-34（已翻正）：+0x3a5 stat 实参的 ORIG 两段装载
+//   `mov 0x3a5(%eax),%eax; mov %eax,%ebx`（0x08443693/0x08443699）由 m_stat 视图
+//   字段 unsigned int 化 + 保留 (int) 实参异型化复现（P211 异型化；探针
+//   /tmp/c28l34_probe3.cpp q 实证同形）。语义结论（推断）：stat 原码类型不可由
+//   二进制区分，异型化仅触发 4.4 的转换中转，store 宽度/偏移/mangled 不变。
+// b28c-34 判词 N（N76 族：4.1 RHS 值先载 vs 4.4 LHS 地址先载）：尾部 +0x39d
+//   回填 ORIG 0x08443711..0x08443719 为
+//   `call GetIdentity; mov 0x10(%ebp),%edx; mov %eax,0x39d(%edx)`；
+//   4.4 对 cast 视图 LHS 恒先求地址并缓存 callee-saved：
+//   `mov 0x10(%ebp),%ebx; …; call GetIdentity; mov %eax,0x39d(%ebx)`。
+//   已试形 20+（探针 /tmp/c28l34_probe{1..10}.cpp）：-> / (*p). / p[0]. /
+//   (V&)*p / reinterpret_cast / *(int*)&视图 / 语句表达式（整体与 RHS）/
+//   条件式 / 逗号 / 返回赋值结果 / always_inline setter / throw()/nothrow 声明
+//   —— 全部 LHS-first；唯一复现 ORIG 形的写法是「形参具名成员」直访问
+//   （探针 s_uint：`call; mov 0x8(%ebp),%edx; mov %eax,0x4(%edx)`），而共享头
+//   SigTypes_D.h 的 SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL 仅有 m_data[0x3a9] pad，
+//   翻正需改共享头（本任务约束 5 禁止）⇒ 保持语义正确的 cast 视图访问。
 // ============================================================================
 bool DB_MailBox_Req_System_Multi_Mail::_InsertLetter(
     MySQL* db, SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL* sigRaw)

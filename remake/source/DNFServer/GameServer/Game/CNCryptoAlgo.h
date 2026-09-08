@@ -90,7 +90,10 @@ typedef unsigned long long ulong64;
 #define RORc(x, y)  ((((ulong32)(x) >> (y)) | ((ulong32)(x) << (32 - (y)))) & 0xFFFFFFFFUL)
 #define ROL(x, y)   ROLc(x, y)
 #define ROR(x, y)   RORc(x, y)
-#define LTC_BYTE(x, n) (((x) >> (8 * (n))) & 255)
+// ORIG（4.1）对 LTC_BYTE 发 `shr $8n,%eax; movzbl %al,%eax`；`& 255` 在 4.4
+// 恒折 and/movzbl 混合形。改 (unsigned char) 截断即复现 movzbl（b28c-lane25
+// 探针 /tmp/l25probe/fi.cpp fA vs fB）。
+#define LTC_BYTE(x, n) ((unsigned char)((x) >> (8 * (n))))
 #define LTC_ARRAY_SIZE(arr) (sizeof(arr) / sizeof(arr[0]))
 #ifndef LTC_FALLTHROUGH
 #define LTC_FALLTHROUGH ((void)0)

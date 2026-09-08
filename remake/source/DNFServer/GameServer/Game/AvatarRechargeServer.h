@@ -65,7 +65,15 @@ public:
 }  // namespace SCRIPT
 }  // namespace ARAD
 
-class AvatarRechargeServer : public ARAD::Singleton<AvatarRechargeServer>,
+// [b28c-L9] 布局/构造序定稿（与 C28L16 AvatarFixedHiddenOptionServer 同法）：
+// Itanium primary base 规则 —— vptr 归**第一个非虚动态基类**，不是第一个基类。
+// SCRIPT::AvatarRecharge 无虚函数 ⇒ 非 primary base；其后的 ARAD::ScriptInterface
+// （Load/Destroy 纯虚）才是 primary base，vptr 落 +0x00，AvatarRecharge 按声明序
+// 落 +0x04，Singleton<T> 空基 EBO ⇒ sizeof 与全部成员偏移不变。
+// 构造序 = 声明序（AvatarRecharge → Singleton → ScriptInterface）复现
+// ORIG C1 0x08190200 `mov this; add $0x4; call AvatarRecharge::C1` 先于 vptr 设置。
+class AvatarRechargeServer : public ARAD::SCRIPT::AvatarRecharge,
+                             public ARAD::Singleton<AvatarRechargeServer>,
                              public ARAD::ScriptInterface
 {
 public:
@@ -134,9 +142,12 @@ public:
     static void SaveAvatarEnduranceUnit(arad::SigAradAvatarEnduranceSave& save);
     static void SaveAvatarEnduranceUnit(int key, int value);
 
-    ARAD::SCRIPT::AvatarRecharge m_script;  // +0x04
     int m_enduranceReduceRate;              // +0x54
     bool m_bUseEnduranceReduceRate;         // +0x58
 };
+
+// [b28c-L9] ORIG 布局自证（C1 0x08190200 / D1 0x08190246 + 成员访问偏移）：
+// +0x00 ScriptInterface vptr、+0x04 AvatarRecharge(0x50)、+0x54 int、+0x58 bool。
+static_assert(sizeof(AvatarRechargeServer) == 0x5c, "b28c-L9 primary-base layout");
 
 #endif  // DNF_GAME_AVATARRECHARGESERVER_H_

@@ -227,10 +227,21 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
 // 消费点：CUser::SendDungeonClearList 经 enumDungeonClear 回调（CUser.h 已修正拼写）。
 // ---------------------------------------------------------------------------
 int fnEnumDungeonClear(short dungeonIdx, char diff, char* userData)
+// [b28c-L23 真语义 bug 修正 + N7/P75 残余] ①已修游标步长：ORIG @0x0867817c
+// `lea 0x4(%eax),%edx; mov %edx,0x10(%ebp)` 表明回调游标按**指针槽 4 字节**前移，
+// 原码 `userData++`（char* 步长 1）使第 2 条起读错偏移。②残余 9 行 = 4.4 对
+// `p += 4` 恒发单条 `addl $4,mem`（4.1 为 lea+mov 两条，探针 /tmp/l23/p2.cpp
+// gA/gB/gD 四形穷举不可造）+ 两处实参装载寄存器差（ORIG `movswl→%edx`、
+// 4.4 `movswl→%eax`，N7）。语义与 ORIG 一致。
 {
     // ORIG：lea 0x4→写回形参槽 + 旧值解引用（后缀 ++ 语义，4.1 发射写回）。
-    InterfacePacketBuf* buf =
-        *reinterpret_cast<InterfacePacketBuf**>(userData++);
+    // b28c-l23 真语义 bug 修正：ORIG @0x0867817c 为 `lea 0x4(%eax),%edx;
+    // mov %edx,0x10(%ebp)` ⇒ 游标按**指针槽 4 字节**前移（枚举多条目时每条占
+    // 一个 4 字节槽）；原写法 `userData++`（char* 步长 1）使第 2 条起读错偏移。
+    // 探针 /tmp/l23/p2.cpp gA/gB/gE：4.4 恒"解引用在前 + addl 在后"（无法产出
+    // 4.1 的 lea 前置 + 双写回），余 1 条为跨版本指令选择差（P75 族）。
+    InterfacePacketBuf* buf = *reinterpret_cast<InterfacePacketBuf**>(userData);
+    userData += 4;
     buf->put_short(static_cast<int>(dungeonIdx));
     buf->put_byte(static_cast<int>(diff));
     return 1;
@@ -344,15 +355,19 @@ void meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig, Inven_Item* item)
 // ---------------------------------------------------------------------------
 void cago_meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig, Inven_Item* item)
 {
-    if (sig != 0 && item != 0)
+    // [b28c-lane24] ORIG 0x084c3f2c：两个失败路径各有 nop;jmp 中继岛
+    //（+0x5c nop+jmp / +0x5f nop），赋值块尾另有 jmp 到统一 epilogue；
+    // P223 goto 尾空标签形复现（4.4 对 && 短路恒 jump-thread 无岛）。
+    if (sig == 0) goto L_sig;
+    if (item == 0) goto L_item;
+    if (ARAD::Singleton<ARAD::Arad_DataManager>::Get()->getExceptionItem()
+            ->find_index(item->m_addInfo)
+        && item->m_field1 == 3)
     {
-        if (ARAD::Singleton<ARAD::Arad_DataManager>::Get()->getExceptionItem()
-                ->find_index(item->m_addInfo)
-            && item->m_field1 == 3)
-        {
-            item->m_field1 = 0xa;
-        }
+        item->m_field1 = 0xa;
     }
+L_item:;
+L_sig:;
 }
 
 // ---------------------------------------------------------------------------

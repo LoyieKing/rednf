@@ -146,8 +146,10 @@ bool CUser::IsAddableGuildFund(int amount)
 // ===========================================================================
 // 3) CUser::Redeem_Item(int) —— ORIG T 0x08646df2
 //    报告 CUser/Redeem_Item.md 全文转写。
+// [SIGFIX:CUser::Redeem_Item] ORIG __PRETTY_FUNCTION__ 串为 bool（Main 117 件
+// 清单）；返回值仅 0/1，CUser.h:3537 已声明 bool ⇒ 定义同步（mangled 不含返回类型）。
 // ===========================================================================
-unsigned int CUser::Redeem_Item(int redeemId)
+bool CUser::Redeem_Item(int redeemId)
 {
     // GetCharacExpandData(6) 即 Redeem_Item::CRedeemItem（槽位 6，CUser.cpp 同型 cast）
     Redeem_Item::CRedeemItem* redeem =
@@ -442,12 +444,12 @@ bool TotalMission::rewardMission(CUser* user, HeroMissionValue& value,
 // ===========================================================================
 int LevelupSupportEventManger::GetStepIndex(int requestLevel)
 {
+    // ORIG T 0x08147362：find(-0x10) 先、end(-0xc) 后、operator!= + test/je
+    // 落 `mov $-1` 岛 ⇒ 正极性 `if (it != end) return it->second;`（P220）。
     std::map<int, int>::iterator it = m_stepIndexMap.find(requestLevel);
-    if (it == m_stepIndexMap.end())
-    {
-        return -1;
-    }
-    return it->second;
+    if (it != m_stepIndexMap.end())
+        return it->second;
+    return -1;
 }
 
 std::vector<LevelupSupportSciprt::ItemInfo>*
@@ -455,11 +457,10 @@ LevelupSupportEventManger::GetItemInfoVector(int level)
 {
     std::map<int, std::vector<LevelupSupportSciprt::ItemInfo>*>::iterator it =
         m_script.m_stepItems.find(level);
-    if (it == m_script.m_stepItems.end())
-    {
-        return 0;
-    }
-    return it->second;
+    // 同 GetStepIndex：ORIG T 0x08147724 为 op!= + je 落 mov $0 岛（P220）。
+    if (it != m_script.m_stepItems.end())
+        return it->second;
+    return 0;
 }
 
 void LevelupSupportEventManger::InsertItem(CUser* user, int eventIdx, ENUM_ERROR& err)
@@ -677,9 +678,10 @@ bool CRandomOptionItemHandle::change_option(unsigned long itemIdx, ENUM_RARITY r
 // ===========================================================================
 bool IsAuctionServerDisconnected(unsigned char payType)
 {
-    // ORIG 0x082138f2：第一检查 `xor;test;jne 后置 mov$1 岛`（真跳岛）、第二检查
-    // `xor;test;je mov$0`（假跳岛）不对称。【b25c】if-return 形 4.4 反极性内联；
-    // goto 落点岛形（探针 /tmp/probe_goto.cpp g1）复现 ORIG 两检查排布。
+    // [b28c-lane24] 五形实测：短路+goto(23)、短路单 return(12)、平铺双 return(11)、
+    // else-if+goto(22)、本形(9) 最优。ORIG 0x082138f2 真块(+0x40)居中、假块(+0x47)
+    // fall-through leave；4.4 恒把共享真出口排到尾部 ⇒ 残 2 行 = 真/假出口块序
+    // （P63 早退共享出口 + 跨版本块排布，N 封顶）。
     if (payType == 0)
     {
         if (!GlobalData::s_auction_proxy->IsRunning())
@@ -718,8 +720,12 @@ std::list<Inven_Item_Expand_RedeemInfo>::const_iterator
 CRedeemItem::_CheckVaildIndex_N_GetIter(int idx) const
 {
     // 越界（idx<0 / 空 / idx+1>size）→ end()；否则 begin()+idx。
+    // ORIG 0x085f7130：`call size` **先**、`mov idx,%edx; add $1,%edx` 后，
+    // `cmp %edx,%eax; jge`（有符号，eax=size）⇒ 条件写成 `(int)size < idx+1`
+    // 才能让 4.4 右操作数后置并出 jge（写 (size_t)(idx+1) > size 出无符号 jbe
+    // + 提前 esi 缓存，帧 0x20 vs ORIG 0x24）。
     if (idx < 0 || m_redeemList.empty() ||
-        (std::size_t)(idx + 1) > m_redeemList.size())
+        (int)m_redeemList.size() < idx + 1)
     {
         return m_redeemList.end();
     }
@@ -732,7 +738,11 @@ int CRedeemItem::GetItemPrice(int idx)
 {
     std::list<Inven_Item_Expand_RedeemInfo>::const_iterator it =
         _CheckVaildIndex_N_GetIter(idx);
-    if (it == m_redeemList.end())
+    // ORIG 0x085f73cd 调自由函数 _ZSteqI…RKSt14_List_iteratorIT_
+    // RKSt20_List_const_iteratorIS3_（iterator 在前、const_iterator 在后）⇒
+    // 源码必须写 `end() == it`；写 `it == end()` 走 const_iterator::eq 并多一次
+    // iterator→const_iterator 转换构造（+5 条）。
+    if (m_redeemList.end() == it)
     {
         return -1;
     }

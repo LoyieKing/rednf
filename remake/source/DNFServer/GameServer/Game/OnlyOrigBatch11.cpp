@@ -55,6 +55,36 @@ extern void save_pid();                                                 // ORIG 
 // 的 delete+Unwind cleanup（0x0829a4f3 等 pad，实测 probe 确认）。
 ThreadInterface::ThreadInterface() {}
 
+// ---- [b28c-l23 代落 C28L18 spec] begin / dispatch_proxy ------------------
+// ORIG T 0x08630b8a（nm 实证强符号 ⇒ 外联，头内联只产 W/P119）：
+// `lea 0x4(this),%edx` + (esp)=&m_tid / 0x4=NULL / 0x8=&dispatch_proxy /
+// 0xc=this → call pthread_create → `mov %eax,-0xc` 具名槽往返 →
+// `cmpl $0,-0xc; je OK`；失败块 cerr 四段（串 @0x08ce6620、" " @0x08ce664c、
+// operator<<(int)(rc)、endl）；OK 块 `m_tidCopy = m_tid`（+8 ← +4）后
+// `mov $1,%eax`（两路恒返 true）。
+bool ThreadInterface::begin()
+{
+    int rc = pthread_create(&m_tid, NULL,
+                            &ThreadInterface::dispatch_proxy, this);
+    if (rc != 0)
+    {
+        std::cerr << "[ThreadInterface::begin] Can't begin thread." << " "
+                  << rc << std::endl;
+    }
+    m_tidCopy = m_tid;
+    return true;
+}
+
+// ORIG T 0x08630c1a：`mov 0x8(%ebp),%eax; mov %eax,-0xc`（self 具名局部有槽
+// 往返，P0）→ `mov -0xc,%eax; mov (%eax),%eax; add $0xc,%eax; mov (%eax),%edx`
+// （虚表槽 3）→ (esp)=self（从槽）、0x4=形参槽 → `call *%edx` → `mov $0,%eax`。
+void* ThreadInterface::dispatch_proxy(void* p)
+{
+    ThreadInterface* self = static_cast<ThreadInterface*>(p);
+    self->dispatch(p);
+    return 0;
+}
+
 // ORIG T 0x08630c46：pthread_join(m_tid)，成功(rc==0)返回 1、失败返回 0。
 int ThreadInterface::join()
 {
@@ -82,6 +112,10 @@ bool TagSkillPenalty::isPenaltyLevel(int level)
 }
 
 // ORIG T 0x08a9d81a：m_type == type。
+// [b28c-L19 N(P209) 判词·由属主 C28L23 代落] ORIG 为 `mov 0x8(%ebp),%eax;
+// mov (%eax),%eax; cmp 0xc(%ebp),%eax`（成员载 %eax + 形参 mem 直比），4.4 对
+// unsigned 参数比较恒先把形参载入寄存器（P209）⇒ 11→12 封顶；lane19 探针 10 形
+// （m_type==type / (int) 双 cast / 参数在左 / signed enum / goto）全败。语义等价。
 bool StrikerDirectionType::isType(T type)
 {
     if (m_type == type)
@@ -147,18 +181,25 @@ long getNextScheduleTime(int hour, long time)
     return getPrevScheduleTime(hour, time + daySec);
 }
 
-// ORIG T 0x0889209d：a 与 b+c 奇偶相异返回 1（XOR；ORIG 偶偶路径
-// movzbl-xor-test 双测 fall→mov$0 实证，旧注释"任一偶数即 1"有误）。
+// ORIG T 0x0889209d —— 逐段反汇编定语义（b28c-l23 修正旧"奇偶相异"判词）：
+// ①`-0x8 = b + c`；`-0x2 = a & 1`；`-0x1 = sum & 1`（三条独立槽 store）；
+// ②@+0x24 `cmpb $0,-0x2; je L1` + @+0x2a `cmpb $0,-0x1; jne Lret0`
+//   ⇒ 第一段 = `(oddA == 0) || (oddSum == 0)`（与零比较 ⇒ 直分支 cmpb 形）；
+// ③L1 @+0x30 `movzbl -0x2; xor $1; test; je Lret1` + @+0x3b 同族测 -0x1
+//   ⇒ 第二段 = `(!oddA) || (!oddSum)`（bool 取反 ⇒ P168a X 族物化形）；
+// ④两段的真出口共享 Lret1（mov $1），假出口共享 Lret0（mov $0）。
+// 合并即"至少一个为偶 ⇒ 1；两者皆奇 ⇒ 0"（偶偶也返 1）。
 int checkGetItemPacket(int a, int b, int c)
 {
     const int sum = b + c;
-    const bool oddA = (a & 1) != 0;
-    const bool oddSum = (sum & 1) != 0;
-    if (oddA && oddSum)
-        return 0;
-    if (oddA)
-        return 1;
-    if (oddSum)
+    // b28c-l23：ORIG 两槽是 `and $0x1,%eax; mov %al,-0x2/-0x1`（**char 截断直存**，
+    // 非 bool 归一——bool 会另产 setne）。声明 unsigned char 后：
+    // 第一段 `oddA == 0 || oddSum == 0` 复现 ORIG @+0x24 `cmpb $0x0,-0x2; je` +
+    // @+0x2a `cmpb $0x0,-0x1; jne`（P168a② 直分支形）；第二段 `!oddA || !oddSum`
+    // 复现 @+0x30 `movzbl -0x2; xor $1; test; je`（P168a④ uchar 单段 xor 物化）。
+    const unsigned char oddA = (unsigned char)(a & 1);
+    const unsigned char oddSum = (unsigned char)(sum & 1);
+    if ((oddA == 0 || oddSum == 0) && (!oddA || !oddSum))
         return 1;
     return 0;
 }

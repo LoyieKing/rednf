@@ -21,7 +21,10 @@
 //   0x8ec32 = CUser::m_field8ec32（char）。
 void InterSelectPcroomDailyReward::SendPacket(CUser* user)
 {
-    if (user != 0)
+    // b28c-33：ORIG 尾部为 `je <nop 岛>`（+0xa3）+ `jmp +0xa4`，即 P223 空 then 占位岛；
+    // 正向 `if(user!=0){}` 被 4.4 折成直落 ⇒ 改负条件 goto 到共享尾空标签。
+    if (user == 0)
+        goto END;
     {
         PacketGuard guard;
         guard.put_header(0, 0x22e);
@@ -29,6 +32,7 @@ void InterSelectPcroomDailyReward::SendPacket(CUser* user)
         guard.finalize(true);
         user->Send(guard);
     }
+END: ;
 }
 
 // ---- makeRequest ----

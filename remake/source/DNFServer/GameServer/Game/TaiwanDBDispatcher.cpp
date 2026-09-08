@@ -192,6 +192,7 @@ DBUpdatePcroomDailyReward::~DBUpdatePcroomDailyReward()
 // [b22判词·N82槽号] 75/75 助记符序列逐条一致，残余仅局部栈槽编号差（guard
 // -0x24/-0x14、cMyTrace -0x1c/-0x24）：ORIG 声明序与 gcc4.4.7 现序的帧槽分配差，
 // 不可由源码复现；relink 后 call 占位消除即为 NEAR，语义等价。
+// [b28c-32] verdict=NEAR：N7 + P0 缓存/槽序残差（75=75）。
 void DBUpdatePcroomDailyReward::makeRequest(CUser* user)
 {
     // P0：Acquire 返回值右值内联进 ctor（ORIG %eax 直通，无 stream 栈槽）。
@@ -704,12 +705,16 @@ void DBSelectMobileAuthRewardTw::makeRequest(CUser* user)
         guard.operator->()->GetInBuffer<DBSelectMobileAuthRewardTw::MSG>();
     if (sig == 0)
     {
-        cMyTrace t(__PRETTY_FUNCTION__, 0x29a, 0);
-        t("[Taiwan, MobileAuth] msg is null");
+        // [b28c-32] P221 全表达式临时链：ORIG trace 槽 -0x1c（浅于 guard -0x24），
+        // 具名声明在 4.4 落 -0x24（更深）⇒ 改构造即调用临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0x29a, 0)(
+            "[Taiwan, MobileAuth] msg is null");
     }
     else
     {
-        *reinterpret_cast<unsigned int*>(sig) = user->get_acc_id();
+        // [b28c-32] 具名字段（P156）；ORIG 0x0815c64a call get_acc_id 后
+        // `mov -0xc(%ebp),%edx; mov %eax,(%edx)`（地址 call 后重物化）。
+        sig->m_id = user->get_acc_id();
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
 }
@@ -924,8 +929,12 @@ bool DBUpdatePcroomDailyReward::dispatch(int code, int uid, Stream* stream)
 //   ②MsgQueueMgr::put 旧用 DB_Q(=2)，ORIG 传 $0x1（同族 Taiwan dispatch 均 idx 1，改 DISPATCH_Q）；
 //   ③m_accId/m_characNo 拷贝序反（ORIG 先 0x4 后 0x0）。疲劳比较改读 tm2.tm_hour 内存对
 //   齐 `cmp/jge`；Acquire 内联进 CStreamGuard ctor（P134）消中间槽；nRows 具名局部。
-//   残余 N82：INSERT 的 m_characNo 装载 ORIG 直 `mov 0x4(%eax),%ebx`，4.4 多 `mov %eax,%ebx`
-//   中转；返回路径 %ebx 合并 epilogue 与 ORIG 各 return 点直发略有出入。语义逐一相等，封 N。
+// [b28c-L20] AE — 消上列两处残余（原「封 N82」判词作废）：
+//   ①m_characNo 装载：写 (unsigned int)sig->m_characNo 的异型化实参使 4.4 多
+//   `mov %eax,%ebx` 中转；保持字段 int 同型直传即复现 ORIG `mov 0x4(%eax),%ebx`（P211 反向）；
+//   ②返回路径：ORIG 成功值 `mov $1,%ebx` 落在函数尾共享块（0x0815d797，guard 析构之后、
+//   与 catch 的 mov $0,%ebx 汇合）⇒ return 1 必须写在 try 之外。
+//   0x0815d3ee orig=231 our=231 gap=0 ndiff=0。
 bool DBInsertGiveBoxEventReward::dispatch(int code, int uid, Stream* stream)
 {
     try
@@ -955,9 +964,13 @@ bool DBInsertGiveBoxEventReward::dispatch(int code, int uid, Stream* stream)
         int nRows = db->get_n_rows();
         if (nRows == 0)
         {
+            // b28c-L20: ORIG 0x0815d5c6 对 m_characNo(int) 直发
+            // `mov 0x4(%eax),%ebx`（跨 NumberToString 调用保活）；写
+            // `(unsigned int)sig->m_characNo` 的异型化实参会多一条
+            // `mov %eax,%ebx` 中转 ⇒ 保持字段同型（int）直传（P211 反向）。
             db->set_query(
                     "inSert into event_1306_account_reward_2nd (m_id , charac_no , occ_date ) values (%s , %u , now())",
-                    NumberToString(sig->m_accId, 0), (unsigned int)sig->m_characNo);
+                    NumberToString(sig->m_accId, 0), sig->m_characNo);
             if (!db->exec(1))
                 throw "insert_exec";
             CStreamGuard guard(
@@ -973,7 +986,6 @@ bool DBInsertGiveBoxEventReward::dispatch(int code, int uid, Stream* stream)
             outSig->m_accId = sig->m_accId;
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         }
-        return 1;
     }
     catch (const char* e)
     {
@@ -983,6 +995,10 @@ bool DBInsertGiveBoxEventReward::dispatch(int code, int uid, Stream* stream)
             "[Taiwan, GiveMeBox] GIVE_ME_BOX_EVENT. (error:%s)", e);
         return 0;
     }
+    // b28c-L20: ORIG 0x0815d3ee 成功返回值在函数尾共享块物化（mov $1,%ebx 位于
+    // CStreamGuard 析构之后、与 catch 的 mov $0,%ebx 汇合）⇒ return 1 落在
+    // try 之外，不能写在 try 块内（4.4 会在 put 后立刻物化，ndiff 5）。
+    return 1;
 }
 
 // ORIG 0x0815d7a8：GetOutBuffer<Taiwan::SigLoadHeroMissionData> null → throw
@@ -1122,17 +1138,24 @@ bool LoadGeolocation::dispatch(int code, int uid, Stream* stream)
             serverGroup);
         if (!db->exec(true))
             throw "exec";
-        char buf[0x10];
-        memset(buf, 0, sizeof(buf));
+        // P214③/P202①：ORIG 0x0815b0e5 区为 4 条独立 `movl $0,-N(%ebp)`
+        // （16B 逐 dword），memset 生 call；逐 dword 视图赋值复现。
+        union GeoCodeBuf { char c[0x10]; unsigned int d[4]; };
+        GeoCodeBuf buf;
+        buf.d[0] = 0;
+        buf.d[1] = 0;
+        buf.d[2] = 0;
+        buf.d[3] = 0;
         Taiwan::SigLoadGeolocation sig;
         sig.init();
         while (db->fetch())
         {
-            memset(buf, 0, 0x10);
-            if (db->get_str(0, buf, 0x10) != 1)
+            // ORIG 循环内是 call memset@plt（仅循环前的预清零为 4 movl）。
+            memset(buf.c, 0, 0x10);
+            if (db->get_str(0, buf.c, 0x10) != 1)
                 throw "get_str";
-            sig.set(buf);
-            if (reinterpret_cast<int*>(&sig)[0] > 0x2b)
+            sig.set(buf.c);
+            if (sig.m_count > 0x2b)
             {
                 sendCountryData(sig);
                 sig.init();

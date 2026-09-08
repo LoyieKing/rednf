@@ -165,7 +165,8 @@ public:
     int  GetTeamUserCount(int team);
     float GetExpectVal(int grade1, int grade2, CUser* user);
     int  Calculate();
-    int  GetTeamVsTeamPoint(int team1, int team2);
+    bool GetTeamVsTeamPoint(int team1, int team2);  // SIGFIX b28c：ORIG 串
+                                                    // "bool PvpUserTable::GetTeamVsTeamPoint(int, int)"
     int  GetGhostVsTeamPoint(int team, int unused);
     int  GetResult(int team, bool isWinTeam, int mode);
     int  GetLeavePenalty(int team);

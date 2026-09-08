@@ -421,7 +421,11 @@ public:
     // ORIG T 0x08131b58（Dispatcher_SetSlot process_packet 调用）
     int setSlot(bool isSet, const CMDPacketStruct::_SetSlotData& data);
     // ORIG T 0x08131f0a（Dispatcher_ExchangeSlot process_packet 调用）
-    int exchangeSlot(CMDPacketStruct::_SetSlotData& slotA, CMDPacketStruct::_SetSlotData& slotB);
+    // [b28c-21 代落 C28L5 spec] 返回 int→unsigned int：ORIG 消费点
+    // Dispatcher_ExchangeSlot::process_packet 写 m_nErrorCode(unsigned) 为同型直存
+    // 无 eax→edx 中转（P211 双向开关反证 callee 返回 unsigned）。
+    unsigned int exchangeSlot(CMDPacketStruct::_SetSlotData& slotA,
+                              CMDPacketStruct::_SetSlotData& slotB);
     // ORIG T 0x081333b2（Dispatcher_ResetStar process_packet 调用）
     int resetStar(CUser* user, CMDPacketStruct::ResetStarType::T type);
     // ---- OnlyOrig_Altar.AltarMgr 批（定义 advancealtar_Manager.cpp）----
