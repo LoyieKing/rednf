@@ -196,6 +196,8 @@ int TowerOfDespairMgr::GetBaseLayerIndex()
 
 // ============================================================================
 // IsExistCharacter —— ORIG T 0x085b624e（报告 CParty/IsExistCharacter.md）
+// [b28d-solo-CPartyDepsA2 判词·AE] 比较式交换操作数（call 在左）消除 4.4 跨
+// call 缓存形参入 %ebx 的 push/pop 与帧差（P52/P0）。
 // ============================================================================
 bool CParty::IsExistCharacter(int characNo)
 {
@@ -280,6 +282,8 @@ bool CParty::BloodHandleDieUser(CUser* user)
 //   out 清空后：对每个有效成员逐一核对 hell 任务清单（m_hellWorldMap+0x1c，
 //   即 CWorldMap::m_field1c；无空检查，ORIG 如此）；存在未清任务 →
 //   push_back 成员槽号并跳出该成员。
+// [b28d-solo-CPartyDepsA2 判词·AE] 删 UserQuest* quest 具名局部（P0：ORIG 结果
+// 直传 isClearQuest 的 this）+ 循环变量仅 for-init 初始化一次（ORIG 单条 movl）。
 // ============================================================================
 void CParty::CheckClearQuestHellParty(std::vector<int>& out)
 {
@@ -313,10 +317,26 @@ void CParty::CheckClearQuestHellParty(std::vector<int>& out)
 
 // ============================================================================
 // UseSealDoorItems —— ORIG T 0x085a8038（报告 CParty/UseSealDoorItems.md）
+//
+// [b28d-solo-CPartyDepsA2 判词·N 封顶] 185/185 条、助记符序列逐段同构；
+// 已修：result/minLevel/itemId 具名局部删除（P0/P171）、非 const 迭代器
+// （P96）、cMyTrace 全表达式临时链（P227）、slot 提到函数头、直接 return。
+// 残余三族（语义等价）：
+//  ① N95 槽基差 4：ORIG 槽基 local_14@-0x10/slot@-0x14/needCount@-0xc，
+//     4.4 恒 ebp-0x18 起（帧顶多留 4B gap；double framePad 反致下移，实测）。
+//  ② N88/P197④ 槽比 setne 物化：ORIG 0x085a8153 `cmpl $0xffffffff,-0x14;
+//     setne %al; test %al,%al; je`（4.1 槽比零产物）；4.4-O0 对槽比恒出
+//     `cmpl;je` 直跳——P197④ 探针实证源形不可复现（while+break 变体经
+//     P225 边界核验：本处含 else 早返，两比较不可避免）。
+//  ③ N7/N18b 寄存器角色差（slot 装载 eax↔edx）。
 // ============================================================================
 bool CParty::UseSealDoorItems(std::vector<int>& itemIds)
 {
-    bool result = true;
+    // [b28d-solo-CPartyDepsA2] ORIG 0x085a8042 函数头 `movl $0x0,-0x14`
+    // （slot 声明处初始化，4.1 函数级）→ 0x085a8049 tmpItem 构造 →
+    // 0x085a8054 local_14=0；ORIG 无 bool result 局部（尾 `mov $0x1,%eax`
+    // 直返常量，P171 照抄：不写 result）⇒ slot 提到函数头、直接 return。
+    int slot = 0;
     Inven_Item tmpItem;   // ORIG 栈上构造后未使用，保持一致
 
     for (int local_14 = 0; local_14 <= 3; ++local_14)
@@ -327,32 +347,40 @@ bool CParty::UseSealDoorItems(std::vector<int>& itemIds)
                                                    true))
             continue;
 
-        std::vector<int>::const_iterator it = itemIds.begin();
+        // [b28d-solo-CPartyDepsA2] ORIG 0x085a80b3/0x085a8275 段 begin/end/
+        // operator!= 均非 const 实例 ⇒ P96/P270 非 const iterator。
+        std::vector<int>::iterator it = itemIds.begin();
         while (it != itemIds.end())
         {
-            int itemId = *it;
-            int minLevel = m_battleField.m_pDungeon->get_min_level();
-            if (minLevel <= 0x2c)
+            // [b28d-solo-CPartyDepsA2] ORIG 0x085a80de `call; cmp $0x2c,%eax;
+            // setle`（无 minLevel 槽）⇒ 内联表达式直用（P0）；ORIG 0x085a8108
+            // 二次调用 get_min_level 作 needCount 实参，故两处各自内联。
+            if (m_battleField.m_pDungeon->get_min_level() <= 0x2c)
             {
                 m_battleField.m_sealDoorItemsOk = 0;
                 return false;
             }
 
-            int needCount = getHellPartyEntranceItemNeedCount(minLevel);
-            int slot = m_member[local_14].m_pUser->getCurCharacInvenR()
-                           ->check_item_exist(itemId);
+            int needCount = getHellPartyEntranceItemNeedCount(
+                m_battleField.m_pDungeon->get_min_level());
+            // [b28d-solo-CPartyDepsA2] ORIG 0x085a8123 `mov (%eax),%ebx`：
+            // *it 值经 ebx 直传 check_item_exist，无 itemId 具名局部。
+            slot = m_member[local_14].m_pUser->getCurCharacInvenR()
+                       ->check_item_exist(*it);
             if (slot != -1)
             {
                 CInventory* invW = m_member[local_14].m_pUser->getCurCharacInvenW();
                 if (!invW->delete_item((INVEN_TYPE)1, slot, needCount,
                                        (eItemDelReason)0x17, true))
                 {
-                    cMyTrace trace(__PRETTY_FUNCTION__,
-                                   0x1d22, 5);
-                    trace("CParty::UseSealDoorItems, delete_item failed , "
-                          "User ch =%d , %d %d",
-                          m_member[local_14].m_pUser->getCurCharacNo(), slot,
-                          needCount);
+                    // [b28d-solo-CPartyDepsA2] ORIG 0x085a81d5：getCurCharacNo
+                    // 在 cMyTrace ctor **之前**求值并入 %ebx 跨 ctor 保活 ⇒
+                    // P227 全表达式临时链（具名 trace 反产 ctor 后求值 N80）。
+                    cMyTrace(__PRETTY_FUNCTION__, 0x1d22, 5)(
+                        "CParty::UseSealDoorItems, delete_item failed , "
+                        "User ch =%d , %d %d",
+                        m_member[local_14].m_pUser->getCurCharacNo(), slot,
+                        needCount);
                 }
                 else
                 {
@@ -370,14 +398,18 @@ bool CParty::UseSealDoorItems(std::vector<int>& itemIds)
     }
 
     m_battleField.m_sealDoorItemsOk = 1;
-    return result;
+    return true;
 }
 
 // ============================================================================
 // CheckHaveHellPartyPassItem —— ORIG T 0x085a7b8a（报告 CParty/CheckHaveHellPartyPassItem.md）
+// [b28d-solo-CPartyDepsA2 判词·AE] 负极性短路单 return `!A || B`（P214①/P258）
+// + 成功分支正向 if（P59/P222）+ callee CheckDestroyConditionSealDoor 返回 bool
+// （P292 2 条形）+ m_sealDoorFlag unsigned char + 本函数返回 unsigned char
+// （P9 movzbl 直返；.h 三处已 R2 广播，CParty.cpp 定义已由 Main 代落同步）。
 // ============================================================================
-bool CParty::CheckHaveHellPartyPassItem(CDungeon const* dungeon,
-                                        ENUM_DUNGEON_TYPE type)
+int CParty::CheckHaveHellPartyPassItem(CDungeon const* dungeon,
+                                                ENUM_DUNGEON_TYPE type)
 {
     if (m_hellWorldMap == 0)
     {
@@ -397,10 +429,9 @@ bool CParty::CheckHaveHellPartyPassItem(CDungeon const* dungeon,
     // je <packet 块>` ⇒ 成功分支（m_sealDoorFlag=1）在 then、packet 块为
     // 直落 else（P59/P222 正向布局），勿写 `if (!call())`。
     // [b28d-solo-CPartyDepsA2] ORIG 0x085a7c15 `call; test %al,%al; je`
-    // （2 条，无 setne 物化）⇒ 被调实际返回单字节 bool；头声明 int 且定义
-    // 在 CParty.cpp（他人 TU，不可改头）⇒ 按 P3 调用点 (unsigned char) 收窄。
-    if ((unsigned char)CheckDestroyConditionSealDoor(
-            dungeon, sealCondItems, m_hellWorldMap->m_field34))
+    // （2 条，无 setne 物化）⇒ 被调返回 bool（P292），头已同步改 bool。
+    if (CheckDestroyConditionSealDoor(dungeon, sealCondItems,
+                                      m_hellWorldMap->m_field34))
     {
         m_sealDoorFlag = 1;
     }
@@ -411,7 +442,9 @@ bool CParty::CheckHaveHellPartyPassItem(CDungeon const* dungeon,
         packet.put_byte(0);
         packet.put_byte(0x1b);
         packet.put_byte(static_cast<int>(sealCondItems.size()));
-        std::vector<int>::const_iterator it = sealCondItems.begin();
+        // [b28d-solo-CPartyDepsA2] ORIG 0x085a7c8e 段 begin/end/operator!= 均
+        // 非 const 实例（无转换构造 call）⇒ P96/P270 用非 const iterator。
+        std::vector<int>::iterator it = sealCondItems.begin();
         while (it != sealCondItems.end())
         {
             packet.put_short(*it);
@@ -460,6 +493,10 @@ void CParty::SendPartyMemberTagChracInfo()
 
 // ============================================================================
 // GetDungeonIndex_isTOD —— ORIG T 0x085bacc0（报告 CParty/GetDungeonIndex_isTOD.md）
+// [b28d-solo-CPartyDepsA2 判词·AE] 照抄写后未读 bool 局部（P171/P184）+ 删
+// CDungeon* target 具名局部（P0）+ 删显式 cast（P211 LHS-first store）+
+// cMyTrace/cMyTraceNoop 全表达式临时链（P221）+ Get_DungeonIndexByLayer 返回
+// 类型 unsigned→int（.h 已 R2 广播）。
 // ============================================================================
 int CParty::GetDungeonIndex_isTOD(int& dungeonIdx, int& apcIdx)
 {
@@ -522,6 +559,9 @@ int CParty::GetDungeonIndex_isTOD(int& dungeonIdx, int& apcIdx)
 
 // ============================================================================
 // SetProperDungeonEvent —— ORIG T 0x085bb62a（报告 CParty/SetProperDungeonEvent.md）
+// [b28d-solo-CPartyDepsA2 判词·AE] max/min 结果就地写回 minLevel/upperBound
+// （P0：4.1 槽复用即源码复用）+ 先声明后赋值、声明序按 ORIG 槽序
+// standardLevel/cap/zero/minLevel/upperBound（P198/P244），lower/upper 具名局部删除。
 // ============================================================================
 void CParty::SetProperDungeonEvent(CUser* user, int param)
 {
@@ -571,6 +611,8 @@ END4:;
 
 // ============================================================================
 // SetProperLevelDungeon —— ORIG T 0x085bb746（报告 CParty/SetProperLevelDungeon.md）
+// [b28d-solo-CPartyDepsA2 判词·AE] 同 SetProperDungeonEvent：max/min 就地写回
+// + 先声明后赋值、声明序按 ORIG 槽序（P198/P244）。
 // ============================================================================
 void CParty::SetProperLevelDungeon(CUser* user)
 {

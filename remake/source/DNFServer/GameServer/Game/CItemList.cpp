@@ -2527,21 +2527,23 @@ CCompound_ExtreamDun_Item::_determine_level_bonus(
     unsigned int& idxOut, eBindSphereType bind) const
 {
     idxOut = _determine_level_bonus_index(baseLevel, inRarity, bind);
-    // ORIG +0xb8c+bind*0x30+0xc：**m_rates[0]**（不随 inRarity；rarity 只入
-    // _index）。返回 pair(下界=v[idx-1]+1, 上界=v[idx])（+0xca61-0xcbf1 装配实证，
-    // 0x4(%esp)=first 临时、0x8=second 引用）。
-    // [b28d-solo] P183/P157：ORIG 无 rates 引用局部（每次重算
-    // m_lvBonus[bind].m_rates[0] 地址；0x832c9ca 段 `add $0xb80; add 0xc(%ebp);
-    // add $0xc` 逐次出现）⇒ 去缓存引用。
-    if (idxOut == 0 || m_lvBonus[(int)bind].m_rates[0].size() <= idxOut)
+    // [b28d-solo] 真语义修正：ORIG 0x832c9ca 段三次 `add $0xb80; add 0xc(%ebp);
+    //   add $0xc` = m_lvBonus[bind]+0x0 ⇒ **m_levels**（等级表），非 m_rates[0]
+    //   （0xb80+0x18=0xb98=m_rates[0]）。m_rates 仅供 _determine_level_bonus_index
+    //   掷点用；本函数返回 pair(下界=levels[idx-1]+1, 上界=levels[idx])。
+    //   P183/P157：无 rates/levels 引用局部（ORIG 每次重算成员地址）。
+    // [b28d-solo] P231：ORIG 0x832ca06 `mov (%eax),%esi` 把 *idxOut 缓存到
+    // callee-saved 跨 size() call 保活（纯 register 存储类提示，非 asm 绑定）。
+    register const unsigned int idxv = idxOut;
+    if (idxv == 0 || m_lvBonus[(int)bind].m_levels.size() <= idxv)
     {
         int lo = 0;
         int hi = 0;
         return std::pair<unsigned int, unsigned int>(lo, hi);  // pair<int,int> 形
     }
     return std::pair<unsigned int, unsigned int>(
-        m_lvBonus[(int)bind].m_rates[0][idxOut - 1] + 1,
-        m_lvBonus[(int)bind].m_rates[0][idxOut]);
+        m_lvBonus[(int)bind].m_levels[idxOut - 1] + 1,
+        m_lvBonus[(int)bind].m_levels[idxOut]);
 }
 
 // [b28d-20] _determine_level_bonus（ORIG 0x832cadc，95/83，nd 71）：同 Eii 版
@@ -2557,16 +2559,17 @@ CCompound_ExtreamDun_Item::_determine_level_bonus(
     {
         --idx;
     }
-    // 同上：m_rates[0]，pair(下界, 上界)（ORIG 0x832cadc 段实证）
-    const std::vector<unsigned int>& rates =
-        m_lvBonus[(int)bind].m_rates[0];
-    if (idx == 0 || rates.size() <= idx)
+    // [b28d-solo] 同上：ORIG 0x832cadc 段 `add $0xc` = m_levels（非 m_rates[0]）；
+    //   P183/P157 去引用缓存（ORIG 逐次重算成员地址）。
+    if (idx == 0 || m_lvBonus[(int)bind].m_levels.size() <= idx)
     {
         int lo = 0;
         int hi = 0;
         return std::pair<unsigned int, unsigned int>(lo, hi);
     }
-    return std::pair<unsigned int, unsigned int>(rates[idx - 1] + 1, rates[idx]);
+    return std::pair<unsigned int, unsigned int>(
+        m_lvBonus[(int)bind].m_levels[idx - 1] + 1,
+        m_lvBonus[(int)bind].m_levels[idx]);
 }
 
 // [b28d-20] _determine_level_bonus_index（ORIG 0x832cc02，64/63，nd 68）：

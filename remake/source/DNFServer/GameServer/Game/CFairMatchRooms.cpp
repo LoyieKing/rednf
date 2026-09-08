@@ -957,23 +957,30 @@ void CFairMatch::OnEndFight(PvP_Room* room)
 {
     const int mgrTeam = room->get_manager_team();
     m_field04 = 0;
-    if (GetPlayCountPerOneTeam() == 1) {
+    // b28d-solo-CFairMatchRooms：ORIG（Ghidra C）为 if/else 双分支布局（timer
+    // 在 then、_ReturnTeam 在 else），且 gen_timer_key 结果直接进 %esi 跨
+    // get_index/G_TimerQueue 调用保活（无 key 具名槽）。
+    // ORIG `cmp $0x1,%al; setne %al; test; je <timer 块>` ⇒ 否定比较 +
+    // _ReturnTeam 为 then 直落、timer 为 else 尾块（P222 反向布局）。
+    if (static_cast<unsigned char>(GetPlayCountPerOneTeam()) != 1) {
+        _ReturnTeam(room, mgrTeam, 0);
+        if (mgrTeam != 1) {
+            // b28d-solo-CFairMatchRooms：P83/N84——ORIG 是结构整体赋值
+            // `rep movsl` 0x12 dwords（TeamInfoThird 0x48 字节）。
+            m_teams[0] = m_teams[1];
+        }
+        m_teams[0].refresh();
+        m_teams[1].reset();
+    } else {
         // 单人模式：0x3e 定时器 0ms 兜底唤醒战房清算链
-        const unsigned key = room->gen_timer_key(static_cast<TIMER_MESSAGE>(0x3e));
         G_TimerQueue()->InsertTimerInMilisecond(
             static_cast<TimerEntry::OBJ_TYPE>(1), room->get_index(),
             static_cast<TIMER_MESSAGE>(0x3e),
-            static_cast<long long>(0), static_cast<int>(key), 0);
-        return;
+            static_cast<long long>(0),
+            static_cast<int>(
+                room->gen_timer_key(static_cast<TIMER_MESSAGE>(0x3e))),
+            0);
     }
-    _ReturnTeam(room, mgrTeam, 0);
-    if (mgrTeam != 1) {
-        // b28d-solo-CFairMatchRooms：P83/N84——ORIG 是结构整体赋值 `rep movsl`
-        // 0x12 dwords（TeamInfoThird 0x48 字节）；手写指针循环生逐 dword 循环。
-        m_teams[0] = m_teams[1];
-    }
-    m_teams[0].refresh();
-    m_teams[1].reset();
 }
 
 // OnReward ORIG T 0x85665966?（README 0x08565966）报告 OnReward.md
@@ -1375,9 +1382,11 @@ void CFairMatch::OnEndPvPResult(PvP_Room* room, CUser* user)
 
     room->set_state(1);   // ORIG PvP_Room::set_state(room,1)
     for (int i = 0; i < 4; ++i) {
-        PlayerInfoThird& s = m_teams[myTeam].m_players[i];
-        if (s.m_flag != 0 && s.m_user != 0)
-            s.m_user->set_state(ch_state6);       // ORIG set_state(user,6)
+        // b28d-solo-CFairMatchRooms：P157/P183 去引用缓存（ORIG 每处字段访问
+        // 重算地址）。
+        if (m_teams[myTeam].m_players[i].m_flag != 0 &&
+            m_teams[myTeam].m_players[i].m_user != 0)
+            m_teams[myTeam].m_players[i].m_user->set_state(ch_state6);
     }
     if (m_teams[myTeam].m_field04 == 1) {
         // 已请求返回：把对方队伍整体搬回自建房并广播离场包

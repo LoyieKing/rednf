@@ -1579,7 +1579,7 @@ bool CParty::CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool del)
     return 0 < slotResult;
 }
 
-int CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,
+bool CParty::CheckDestroyConditionSealDoor(CDungeon const* dungeon,   // b28d-Main：与 CParty.h:509 同步（P292 bool）
                                           std::vector<int>& list1,
                                           std::vector<int>& list2)
 {

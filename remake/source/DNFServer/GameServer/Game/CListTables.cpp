@@ -792,8 +792,10 @@ void CSkillList::insert_skill(int jobType, CSkill* skill)
         return;
     }
     int idx = skill->get_index();
-    __gnu_cxx::hash_map<int, CSkill*>::iterator it =
-        m_skillList[jobType].find(idx);
+    // [b28d-solo-CListTables] ORIG 0x083519a6：it 先 C1Ev 默认构造（-0x60）再
+    // `it = find()`（sret -0x70 拷贝，P50 复活）；end 初始化式（-0x44）。
+    __gnu_cxx::hash_map<int, CSkill*>::iterator it;
+    it = m_skillList[jobType].find(idx);
     __gnu_cxx::hash_map<int, CSkill*>::iterator end =
         m_skillList[jobType].end();
     if (it != end)
@@ -816,37 +818,36 @@ void CSkillList::insert_skill(int jobType, CSkill* skill)
 // [b28d-32 N(P183/N82): 容器重复访问/槽位差（138/117） | ORIG 0x08351c1e]
 int CSkillList::get_ran_groupskill_index(int jobType, int group, int skillIdx)
 {
+    // [b28d-solo-CListTables N(N82): 138=138 + p167 调用点 CLEAR（17/17，== / mmEi /
+    // ppEi 全对齐），残差仅槽号整体深移 0x10（ORIG it/range -0x4c/-0x48 vs 我们
+    // -0x3c/-0x38）；char[0x10] 死局部撑帧实测 sub 0x58→0x78 且槽号不平移 ⇒ 封顶。]
     int count = m_groupSkillMap[jobType].count(group);
     if (count == 0)
     {
         return -1;
     }
     int rand = get_rand_int(count);
-    std::pair<std::multimap<int, CSkill*>::iterator,
-              std::multimap<int, CSkill*>::iterator> range =
+    // [b28d-solo-CListTables] ORIG 0x08351c1e：range 声明为 const_iterator 对
+    // ⇒ equal_range 结果走 pair 转换构造（ORIG call ...C1ISt17_Rb_tree_iterator…）；
+    // for 内后置 it++（ppEi 带临时槽）。
+    std::pair<std::multimap<int, CSkill*>::const_iterator,
+              std::multimap<int, CSkill*>::const_iterator> range =
         m_groupSkillMap[jobType].equal_range(group);
-    std::multimap<int, CSkill*>::iterator it = range.first;
+    std::multimap<int, CSkill*>::const_iterator it = range.first;
     for (int i = 0; i < rand; ++i)
     {
-        ++it;
+        it++;
     }
     CSkill* skill = it->second;
     if (skill->get_index() == skillIdx)
     {
-        ++it;
-        if (it != range.second)
+        // [b28d-solo-CListTables] ORIG 0x08351cea：== 正极性（ORIG 调
+        // operator==，非 !=）+ then 为 it-- 分支 + 两处后置 it--（mmEi）。
+        it++;
+        if (it == range.second)
         {
-            skill = it->second;
-        }
-        else
-        {
-            --it;
-            if (it != range.first)
-            {
-                --it;
-                skill = it->second;
-            }
-            else
+            it--;
+            if (it == range.first)
             {
                 cMyTrace trace(
                     __PRETTY_FUNCTION__,
@@ -855,6 +856,15 @@ int CSkillList::get_ran_groupskill_index(int jobType, int group, int skillIdx)
                       __PRETTY_FUNCTION__,
                       0xfde);
             }
+            else
+            {
+                it--;
+                skill = it->second;
+            }
+        }
+        else
+        {
+            skill = it->second;
         }
     }
     return skill->get_index();
@@ -1326,19 +1336,26 @@ bool QuestList::select_mail_quest(std::list<int>& out,
                                   const stSelectQuestParam& param)
 {
     out.clear();
-    for (std::vector<int>::iterator it = m_vecD4.begin();
+    // [b28d-solo-CListTables] ORIG 0x08355304：quest 函数头清零（-0xc）、迭代器为
+    // const_iterator（begin() 结果走 C1<Pi> 转换构造）、每条件独立 guard
+    // （`xor $1; test; jne fail`，P133/P168a 不可合并 && 短路）。
+    Quest* quest = 0;
+    for (std::vector<int>::const_iterator it = m_vecD4.begin();
          it != m_vecD4.end(); ++it)
     {
         int questIdx = *it;
-        Quest* quest = find_quest(questIdx);
-        if (quest != 0 &&
-            quest->check_possible(param) &&
-            check_clear(questIdx, clear) &&
-            check_ahead_quest(questIdx, clear) &&
-            check_anti_quest(questIdx, clear))
-        {
-            out.push_back(questIdx);
-        }
+        quest = find_quest(questIdx);
+        if (quest == 0)
+            continue;
+        if (!quest->check_possible(param))
+            continue;
+        if (!check_clear(questIdx, clear))
+            continue;
+        if (!check_ahead_quest(questIdx, clear))
+            continue;
+        if (!check_anti_quest(questIdx, clear))
+            continue;
+        out.push_back(questIdx);
     }
     return !out.empty();
 }
@@ -1390,6 +1407,10 @@ void QuestList::GetDailyQuestList(std::list<int>& out)
     // `it = begin()`（sret -0x3c 拷贝）、quest 函数头清零（-0xc，P171 死初始化）、
     // range 先 C1Ev（-0x34）再 `range = equal_range(...)`（临时 -0x1c + op=）、
     // cit 初始化式（-0x38）、it++/cit++ 均后置（ppEi，临时 -0x10/-0x14）。
+    // [b28d-solo-CListTables N(N82/N93): 106/102，结构逐条同构（C1Ev+begin 拷贝/
+    // op=/cit 拷贝/双 ppEi 全命中），残差为 4.4 把 range/cit/npcIdx/questIdx 四槽
+    // 整体深移 8（range -0x2c vs ORIG -0x34、cit -0x34 vs -0x38）⇒ 槽分配策略差，
+    // 声明序调整无效（X1 首次使用序），封顶。]
     std::list<int>::iterator it;
     Quest* quest = 0;
     std::pair<std::multimap<int, int>::const_iterator,

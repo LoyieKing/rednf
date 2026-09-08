@@ -483,7 +483,10 @@ public:
     int CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& flag,
                                    bool flag2);         // ORIG 返回错误码 0xab~0xad/1（0x0859f1ce）
     int CheckEnterVillageAttackRevenge(CDungeon const* dungeon);
-    bool CheckHaveHellPartyPassItem(CDungeon const* dungeon, ENUM_DUNGEON_TYPE type);
+    // [b28d-solo-CPartyDepsA2] ORIG 0x085a7d4b 尾 `movzbl 0x1865(%eax),%ebx;
+    // ...; mov %ebx,%eax; ret`（无 setne 归一化，P9）⇒ 返回类型 int 非 bool；
+    // mangled 不变，调用点 CParty.cpp:3197 `if (!call())` 语义不变。
+    unsigned char CheckHaveHellPartyPassItem(CDungeon const* dungeon, ENUM_DUNGEON_TYPE type);
     bool CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool flag);
     // b28d-solo-CPartyOnlyOrig：ORIG checkLimitUsedCoinCondition 0x085be6xx 调用点
     // `call; xor $0x1,%eax; test %al,%al; je`（P292/P168a）⇒ bool 返回。
@@ -500,9 +503,12 @@ public:
     bool setStandardDimensionLevel(CDungeon const* dungeon);   // ORIG 恒返回 al=1
     bool UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* item, int* param);
     bool UseSealDoorItems(std::vector<int>& itemList);   // ORIG 返回 al（0x85a8038）
-    int CheckDestroyConditionSealDoor(CDungeon const* dungeon,
-                                     std::vector<int>& list1,
-                                     std::vector<int>& list2);
+    // [b28d-solo-CPartyDepsA2] ORIG 0x085a7c15 调用点 `call; test %al,%al;
+    // je`（2 条，P292 bool 形）⇒ 返回类型 bool 非 int；mangled 不变。
+    // 定义在 CParty.cpp:1582（他人 TU）需同步改 bool。
+    bool CheckDestroyConditionSealDoor(CDungeon const* dungeon,
+                                       std::vector<int>& list1,
+                                       std::vector<int>& list2);
     void CheckClearQuestHellParty(std::vector<int>& list);
     int do_after_dungeon_start_checkndelete_item(RequiredItem const& item,
                                                  CUser* user);   // ORIG T 0x085a0756 返回 eax
@@ -784,7 +790,9 @@ public:
     int m_usedCoinCount;    // +0x1860
     char m_field1864;       // +0x1864（game_start 字节写：hell 无未清任务=1；
                             //   ORIG game_start.md +0x5c2/+0x7c3 为 movb）
-    char m_sealDoorFlag;    // +0x1865（CheckHaveHellPartyPassItem 置位；dungeon_start 读）
+    // [b28d-solo-CPartyDepsA2] ORIG 0x085a7d4b 返回段 `movzbl 0x1865(%eax),%ebx`
+    // （零扩展非 movsbl）⇒ 字段 unsigned char 非 char；1 字节/偏移不变。
+    unsigned char m_sealDoorFlag;    // +0x1865（CheckHaveHellPartyPassItem 置位；dungeon_start 读）
     unsigned short m_field1866;             // +0x1866（ORIG 未单独命名，保持占位）
     CWorldMap* m_hellWorldMap;  // +0x1868（CheckHellDungeonFreepassItemHaveAndDel 缓存的世界地图指针）
     int m_overlapRare;      // +0x186c
