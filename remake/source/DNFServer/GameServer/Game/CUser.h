@@ -2715,7 +2715,7 @@ public:
                                           //   TournamentDungeonClear 调用；定义待 CUser 域批次）
     bool isCharacLinkMessageFlag();   // ORIG callee 0x086973cc movzbl 直返+caller 0x08652a69 test %al 直判；
                                       //   成员 m_field14 已 bool⇒返回 bool 两侧全对（uchar 反产 caller setne 岛）
-    unsigned char isLinkCharacDisconnectFlag();   // ORIG movzbl 直返
+    bool isLinkCharacDisconnectFlag();   // b28d-Main 代落(P292)：ORIG 0x08652c9a 调用点 `call; test %al,%al; je` 无 setcc ⇒ bool
     void setLinkCharacDisconnectFlag(bool flag);   // ORIG 0x086973dc
     unsigned char getDisconnectLinkCharacSlotIdx();
     unsigned char is_update_ontime_last_recv_idx();   // ORIG movzbl 直返
@@ -3153,7 +3153,7 @@ public:
     void GetCurCharacOption(CharacterOption& option) const;         // 0x0868f03c
     void GetCharacCashAttendanceInfo(SIG_ATTENDANCE_EVENT& info) const; // 0x086910a6
     int getTotalPcRoomPlayTime() const;                             // 0x08110e10 W
-    int getPcRoomPlayTimeRewardCnt() const;                        // 0x08110dec W：ORIG 调用点 0x081e5077 无 movzbl 直传 ⇒ 返回 int
+    unsigned int getPcRoomPlayTimeRewardCnt() const;               // 0x08110dec W：b28d-Main 代落(P248档①)——ORIG 0x08110a38 `cmp %edx,%eax; setae`（无符号比较，call 结果留 %eax 无中转）⇒ unsigned int
     int GetCurCharacUsedGiftFatigueQuantity() const;                // 0x08110e6c W
     unsigned char getFlagPresentAvengerTitle() const;               // 0x08697578 W
     STSkillCommandData::STCommand* get_skill_command_buf();               // ORIG _ZN5CUser21get_skill_command_bufEv 0x0865459a（写 m_skillCommands 并返回）

@@ -1,3 +1,119 @@
+// ============================================================================
+// [b28d-solo-W8LT_DBTask] 本 TU 110 件逐件判词（verdict / 修法或 N 归因 + ORIG 地址）
+// 口径：game_func_report + compare_tu AE 归一 + p167 调用点差集（§6.2 三件套）。
+// 全量表：/tmp/b28d_solo_W8LT_DBTask_result.tsv（symbol/verdict/note）。
+// ----------------------------------------------------------------------------
+//   1. DB_LoadDnfHackLog::dispatch                          ORIG 0x8422242  AE    P103 operator->
+//   2. DB_AuctionSubMoney::dispatch                         ORIG 0x8448530  AE    P167 get_int 重载差（语义等价，记 N）
+//   3. DB_CheckCharacName::dispatch                         ORIG 0x844317e  AE    P103 operator->
+//   4. DB_ChangeLetterStat::makeRequest                     ORIG 0x84261fc  AE    P103 operator->
+//   5. DB_LoadDungeonClear::AradLoadDungeonClear            ORIG 0x8419a76  DIFF  N22（cmp 操作数序）封顶
+//   6. DB_DeathTowerLoadTopRanker::makeRequest              ORIG 0x842a910  AE    P167 (unsigned char) 实参
+//   7. DB_EventUpdateGrowthWeaponCharac::dispatch           ORIG 0x84494e2  AE    P167 growthweaponId int
+//   8. DB_LoadNoCacheData::dispatch                         ORIG 0x8437df4  DIFF  N76/N18a store 装载序封顶
+//   9. DB_GatheringParyStatus::save_dnf_pvp_result_history  ORIG 0x8420e1a  DIFF  N4/N18a lea-add 折叠+形参装载序封顶
+//  10. DB_GatheringParyStatus::save_dnf_party_result_history ORIG 0x842156a DIFF  N4/N18a 同上封顶
+//  11. DB_SaveEventItem::dispatch                           ORIG 0x841a7e4  DIFF  N7/P75 实参装载序封顶
+//  12. DB_SaveCharacterOption::dispatch                     ORIG 0x8430144  DIFF  N7/P75 实参求值序封顶
+//  13. DB_UpdateLogout::UpdateLogout                        ORIG 0x8418a96  DIFF  N7/P75 实参装载序封顶
+//  14. DB_UpdateLogout::UpdateAccountMemberBonusFatigue     ORIG 0x8418442  DIFF  setcc-fold bool 归一岛封顶
+//  15. DB_UpdateComboSkill::setComboSkill                   ORIG 0x844aa4c  AE    （b28d-solo 基线）
+//  16. DB_UpdateLogin::dispatch                             ORIG 0x841826a  DIFF  N7/P75 实参装载序封顶
+//  17. DB_SaveEventItem::_HardCodeEventItems                ORIG 0x841a662  AE    （b28d-solo 基线）
+//  18. DB_MercenaryLogInfo::dispatch                        ORIG 0x8446196  DIFF  N82 槽号整体平移封顶
+//  19. DB_SaveAccountCargo::makeRequest                     ORIG 0x843b946  DIFF  N104 EH 尾块相对序封顶
+//  20. DB_UpdateServerMessage::dispatch                     ORIG 0x8435a02  DIFF  N4/N18a lea-add 折叠封顶
+//  21. DB_LoadExpertJob::dispatch                           ORIG 0x8436464  DIFF  N82/P212 槽序封顶
+//  22. DB_InsertRandomOptionItemInform::dispatch            ORIG 0x8442c6a  DIFF  N82/P190 帧-槽差封顶
+//  23. DB_LoadPowerWarStatueInfo::dispatch                  ORIG 0x8434886  DIFF  N76 单条 store 序封顶
+//  24. DB_UpdateQueryCountTimerLogdb::dispatch              ORIG 0x841c458  DIFF  N75/N113 continue 岛 jmp 封顶
+//  25. DB_ForbidUserToPlay::dispatch                        ORIG 0x8421af4  DIFF  N-JMP label-stub fall-through jmp 封顶
+//  26. DB_SaveObjectBringUp::dispatch                       ORIG 0x8446a1e  DIFF  N4/N18a 折叠封顶
+//  27. DB_StatDungeonFail::dispatch                         ORIG 0x841b6e0  DIFF  P167 (*it) 已修；余 N82 槽差封顶
+//  28. DB_UpdateFatigueAttendance::makeRequest              ORIG 0x84447d6  DIFF  N82 帧-槽差封顶
+//  29. DB_SaveUserHandicap::makeRequest                     ORIG 0x842801a  DIFF  N7/P75 实参序封顶
+//  30. DB_UpdateBloodBestRecord::dispatch                   ORIG 0x8431c74  DIFF  P292/setcc-fold bool 物化封顶
+//  31. DB_UpdateNPCRelationship::dispatch                   ORIG 0x8435e1e  DIFF  N82/P210 帧-槽差封顶
+//  32. DB_StatisticCeraShopGiftLog::dispatch                ORIG 0x8444066  DIFF  N4/N18a 折叠封顶
+//  33. AddFieldString                                       ORIG 0x841fff8  AE    P244 局部","+P257 正向包裹
+//  34. DB_InsertQueryCounterLogdb::dispatch                 ORIG 0x8425cde  DIFF  N82 帧-槽差封顶
+//  35. DB_LoadPrivateStore::dispatch                        ORIG 0x841c08c  DIFF  N4/N18a 折叠封顶
+//  36. DB_InsertLevelDungeonPlay::dispatch                  ORIG 0x842cc98  DIFF  P292 bool 物化封顶
+//  37. DB_SaveRank::SaveRankAll                             ORIG 0x8417510  DIFF  N4/N18a 折叠封顶
+//  38. DB_CancelRestingUserRestrict::dispatch               ORIG 0x843712e  DIFF  P292 bool 物化封顶
+//  39. DB_LogBuyItem::dispatch                              ORIG 0x812859a  DIFF  N82/N7 形态残差封顶
+//  40. DB_SaveExpandEquipslot::_SaveExpandEquipslot         ORIG 0x843ff48  DIFF  N18a 单段直落不可造封顶
+//  41. DB_UpdateCreatureItemList::dispatch                  ORIG 0x841fd12  DIFF  N82 帧-槽差封顶
+//  42. DB_InsertPartyType::dispatch                         ORIG 0x842c906  DIFF  N82 帧-槽差封顶
+//  43. DB_InsertPVPPlayerRate::dispatch                     ORIG 0x842ca06  DIFF  N4/N18a 折叠封顶
+//  44. DB_InsertChannel::InsertChannel                      ORIG 0x8403734  DIFF  N18a/P209 unsigned 槽比较融合封顶
+//  45. DB_UpdateCharacView::dispatch                        ORIG 0x8408848  DIFF  N82/N7 形态残差封顶
+//  46. DB_ReportMannerlessUser::dispatch                    ORIG 0x842796a  DIFF  N82 帧-槽差封顶
+//  47. DB_UpdatePvPLastPlayTime::dispatch                   ORIG 0x84317b2  DIFF  N82 帧-槽差封顶
+//  48. DB_TOD_Reset_UserAPC::dispatch                       ORIG 0x84400c8  DIFF  N4/P205 寻址拆形封顶
+//  49. DBSelectCreateDnfUserInfo::makeRequest               ORIG 0x815bee0  DIFF  P292 bool 物化封顶
+//  50. DB_SavePrivateStore::dispatch                        ORIG 0x841bf02  DIFF  P292 bool 物化封顶
+//  51. DB_SaveCharacSlotExtend::dispatch                    ORIG 0x84420ea  DIFF  N82 帧-槽差封顶
+//  52. DB_UpdateVendingMachineStatistic::dispatch           ORIG 0x8434718  DIFF  N82 帧-槽差封顶
+//  53. DB_SaveAccountCargo::dispatch                        ORIG 0x843b7c2  DIFF  P292 bool 物化封顶
+//  54. DB_SavePvPMissionList::dispatch                      ORIG 0x843f8fa  DIFF  N4/N18a 折叠封顶
+//  55. DB_UpdateOntimeLastRecvIdx::dispatch                 ORIG 0x844280a  DIFF  N82 帧-槽差封顶
+//  56. DB_SaveItemDictionaryFlag::dispatch                  ORIG 0x844547e  DIFF  P292 bool 物化封顶
+//  57. DB_UpdateDetailChannel::dispatch                     ORIG 0x841bcee  DIFF  N82 帧-槽差封顶
+//  58. DB_LoadServerMessage::dispatch                       ORIG 0x8435ecc  DIFF  N4/N18a 折叠（含 enum 旋钮已试）封顶
+//  59. DB_InsertQueryCounterDb::dispatch                    ORIG 0x8425b0c  DIFF  P292 bool 物化封顶
+//  60. DB_SaveMercenaryData::dispatch                       ORIG 0x84458c6  DIFF  N4/N18a 折叠封顶
+//  61. DB_RequestTagCharacInfo::dispatch                    ORIG 0x844768c  DIFF  N82/N7 形态残差封顶
+//  62. DB_LoadEventLevelupSupport::dispatch                 ORIG 0x844cd38  DIFF  P292 bool 物化封顶
+//  63. DB_AvatarChangeStat::dispatch                        ORIG 0x840065e  DIFF  P103 operator-> 已修；余 N82 槽差封顶
+//  64. DB_CheckSecuReward::dispatch                         ORIG 0x84441e6  DIFF  P292/setcc-fold && 链物化封顶
+//  65. DB_InsertPoliceSaveChatting::dispatch                ORIG 0x843c514  DIFF  N78 memset 内联 vs call 封顶
+//  66. DB_Find_Factory_Hub_User::dispatch                   ORIG 0x8437a32  DIFF  P292 bool 物化封顶
+//  67. DBTask::HandleEvents                                 ORIG 0x83ff1c8  DIFF  N82 帧-槽差封顶
+//  68. DB_CheckAddFriend::dispatch                          ORIG 0x844c6e0  DIFF  P292 bool 物化封顶
+//  69. DB_StatPVPPlay2::dispatch                            ORIG 0x841ba96  DIFF  P157/P167 已修；余 N82 帧继承封顶
+//  70. DB_InsertDungeonEntrance_hour::dispatch              ORIG 0x84298a2  DIFF  N78 memset 封顶
+//  71. DB_InsertValueStatistic::dispatch                    ORIG 0x842945e  DIFF  P167 调用点差（模板内联）封顶
+//  72. DB_LoadAccountCargo::dispatch                        ORIG 0x843b3b6  DIFF  N82 帧-槽差封顶
+//  73. DB_UpdateDeathTowerBestRecord::dispatch              ORIG 0x842a11e  DIFF  N82 帧-槽差封顶
+//  74. DB_ReqQueryCharacInfo::dispatch                      ORIG 0x842688c  DIFF  P292 bool 物化封顶
+//  75. DB_SaveKillMonsterInfo::dispatch                     ORIG 0x8441200  DIFF  P167 调用点差（模板内联）封顶
+//  76. CLocalGlobal_DB_STATICS_BOSSTOWER::dispatch          ORIG 0x812825e  DIFF  P292 bool 物化封顶
+//  77. DB_InsertResponseTime::dispatch                      ORIG 0x843fc26  DIFF  N4/N18a 折叠封顶
+//  78. DB_SecurityCardRetransfer::dispatch                  ORIG 0x842c362  DIFF  P292 bool 物化封顶
+//  79. DB_UpdateItemMakingSkill::dispatch                   ORIG 0x8440f3e  DIFF  P292 bool 物化封顶
+//  80. DB_BlackIPMonitor::dispatch                          ORIG 0x8432ad2  DIFF  P292 bool 物化封顶
+//  81. DB_UpdateFatigueAttendance::dispatch                 ORIG 0x84444ec  DIFF  P167 toTString 逐处内联已修；余 N82 封顶
+//  82. DB_PassPadUpdateFailCnt::dispatch                    ORIG 0x8423bc4  DIFF  N82 帧-槽差封顶
+//  83. DB_ReportMannerlessUser_Upgrade::dispatch            ORIG 0x84276b0  DIFF  P171 死 time+sql[0x800] 已修；余 N78 memset 封顶
+//  84. DB_AutoPunishedSecondUserData::dispatch              ORIG 0x843a462  DIFF  P167 lsEi 重载已修；余 N82 封顶
+//  85. DB_MailBoxSendNewMailWithDBWork::dispatch            ORIG 0x84272de  DIFF  P292 bool 物化封顶
+//  86. DB_AvatarItemInsert::InsertAvatarItem                ORIG 0x83ffe0e  DIFF  N84 结构赋值 vs memcpy 封顶
+//  87. DB_UpdateItemDropStatistics::dispatch                ORIG 0x84285ae  DIFF  N4/N18a 折叠封顶
+//  88. DB_LoadKillMonsterInfo::LoadMonsterInfo              ORIG 0x844159a  DIFF  N82 帧-槽差封顶
+//  89. DB_LoadCharacHotKeyOption::dispatch                  ORIG 0x842f3a0  DIFF  P167 日志×2+operator-> 已修；余 N78 memset 封顶
+//  90. DB_BillingRecord::InsertSaleEntry                    ORIG 0x84247e0  DIFF  N4/N18a 折叠封顶
+//  91. DB_LoadBreakAwayRewardData::dispatch                 ORIG 0x84392dc  DIFF  N4/N18a 折叠封顶
+//  92. DB_RequestJoinGuild::dispatch                        ORIG 0x843ccf2  DIFF  P292 bool 物化封顶
+//  93. DB_LoadDimension::dispatch                           ORIG 0x8431ece  DIFF  P292 bool 物化封顶
+//  94. DB_UpdateLogout::dispatch                            ORIG 0x8418612  DIFF  P292 bool 物化封顶
+//  95. DB_DeathTowerLoadTopRanker::dispatch                 ORIG 0x842a484  DIFF  N82 帧-槽差封顶
+//  96. DB_BlackIPMonitorPartLoad::dispatch                  ORIG 0x84330d4  DIFF  P292 bool 物化封顶
+//  97. DB_LoadAutoMarketConditionsControl::dispatch         ORIG 0x84335dc  DIFF  P292 bool 物化封顶
+//  98. DB_ReloadAutoPunishRuleHackType::dispatch            ORIG 0x842d16c  DIFF  P292 bool 物化封顶
+//  99. DB_InsertAutoPunishSecondUser::dispatch              ORIG 0x842deb4  DIFF  N82 帧-槽差封顶
+// 100. DB_LoadGameOption::dispatch                          ORIG 0x842f7f4  DIFF  P103 operator->×2 已修；余 N78 memset 封顶
+// 101. DB_ReqBlackCount::dispatch                           ORIG 0x8424ce6  DIFF  N82 帧-槽差封顶
+// 102. DB_GetDeathTowerBestRecord::dispatch                 ORIG 0x8429ad0  DIFF  P292 bool 物化封顶
+// 103. DB_CrashDownReport::dispatch                         ORIG 0x841abc6  DIFF  P167 (*it)×6 已修；余 iterator C1Ev N 封顶
+// 104. DB_UpdatePvPGrade::dispatch                          ORIG 0x8428b26  DIFF  P270 push_back(int&&)+const vector& 已修；余 N82 封顶
+// 105. DB_InsertAutoPunishFirstUser::dispatch               ORIG 0x842d6ce  DIFF  N82 帧-槽差封顶
+// 106. DB_LoadBreakAwayPreventData::dispatch                ORIG 0x84389fe  DIFF  P292 bool 物化封顶
+// 107. DB_LoadPowerWarStatueInfo::GetAvatarInfo             ORIG 0x8434d36  DIFF  N82 帧-槽差封顶
+// 108. DB_UpdateCreatureItem::dispatch                      ORIG 0x84203e8  DIFF  N84+operator->+case3/5 拆分已修；余 N82 封顶
+// 109. DB_TOD_Reset_UserAPC::GetAPCUserInfo                 ORIG 0x8440548  DIFF  N82 帧-槽差封顶
+// 110. DB_UpdatePvPResult::dispatch                         ORIG 0x843097e  DIFF  §6.2 三件套（callsite CLEAR）；N82 帧-槽差封顶
+// ============================================================================
 #include "W8LT_DBTask.h"
 #include "GameBasicsScripts.h" // DB_UpdateAuraAvatarOption（权威声明点）
 #include "DBDispatcher.h"
@@ -72,12 +188,17 @@ struct DB_PartyEntriesView
     unsigned char m_nat6; int m_ping6; int m_mtu6; char m_pad6[4];
     unsigned char m_nat7; int m_ping7; int m_mtu7; char m_pad7[4];
 };
-// m_tryEntries[idx] 行内 +6 的 int（0x2e = 0x20 + 0xe）：组件视图折叠寻址
-// （ORIG lea→add $0x20→mov 0xe(%eax)）。
-struct DB_TryNatView
+// m_tryEntries[idx] 行内 +6 的 int（0x2e = 0x20 + 0xe）：P161 组件视图
+// 折叠为 ORIG 的 `lea (sig+idx*10)` → `add $0x20` → `mov 0xe(%eax)` 两步。
+struct DB_TryNatSection
 {
     char m_pad[0xe];
     int m_f;
+};
+struct DB_TryNatView
+{
+    char m_pad[0x20];
+    DB_TryNatSection m_sec;
 };
 #pragma pack(pop)
 // ---- DB_SaveExpandEquipslot 存档视图（ORIG 0x843febe/0x843ff48）----
@@ -1246,7 +1367,7 @@ bool DB_GatheringParyStatus::save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, 
         buf,
         reinterpret_cast<const DB_TryNatView*>(
             reinterpret_cast<const char*>(
-                sig) + idx * 10 + 0x20)->m_f,
+                sig) + idx * 10)->m_sec.m_f,
         (unsigned char)sig->m_field21,
         sig->m_field22,
         G_CEnvironment()->m_serverEnvir.m_relayIP,
@@ -1293,7 +1414,7 @@ bool DB_GatheringParyStatus::save_dnf_party_result_history(SIG_PARTY_STATUS* sig
         buf,
         reinterpret_cast<const DB_TryNatView*>(
             reinterpret_cast<const char*>(
-                sig) + idx * 10 + 0x20)->m_f,
+                sig) + idx * 10)->m_sec.m_f,
         (unsigned char)sig->m_field21,
         sig->m_field22,
         G_CEnvironment()->m_serverEnvir.m_relayIP,
@@ -4863,12 +4984,9 @@ void DB_DeathTowerLoadTopRanker::makeRequest(bool reload)
     // ORIG +0x78 `cmpb $0,-0x1c; je; mov $1/0,%ebx`：分支即时直写 callee-saved
     // %ebx 跨 operator* 调用存活（register 局部实证 g2 同形；`v=c?1:0` 经
     // %eax 聚合多一条 mov %eax,%ebx；probe 验证）。
-    register int vReload;
-    if (reload)
-        vReload = 1;
-    else
-        vReload = 0;
-    guard.operator*()->operator<<(vReload);
+    // [b28d-solo] P167：ORIG 调 `CStreamGuard::lsEh`（unsigned char），
+    // int 实参选中 lsEi（差集 -1/+1）⇒ 改 unsigned char。
+    guard.operator*()->operator<<((unsigned char)(reload ? 1 : 0));
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
@@ -8884,8 +9002,10 @@ bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x74c2), true);
         guard.operator*()->operator<<(0x12f);
         guard.operator*()->operator<<(slot);
+        // [b28d-solo] P103/P167：ORIG 调 CStreamGuard::operator->（ptEv）取
+        // 缓冲；`operator*()->` 会丢 ptEv（p167 差集 -2 ptEv/+2 deEv）。
         SIG_LOAD_GAME_OPTION* out =
-            guard.operator*()->GetInBuffer<SIG_LOAD_GAME_OPTION>();
+            guard.operator->()->GetInBuffer<SIG_LOAD_GAME_OPTION>();
         ((CETCOption*)out)->clear();
         ((DB_GameOptionSigView*)out)->m_quick[0].clear();
         ((DB_GameOptionSigView*)out)->m_quick[1].clear();
@@ -8904,8 +9024,9 @@ bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x74e1), true);
     guard.operator*()->operator<<(0x12f);
     guard.operator*()->operator<<(slot);
+    // [b28d-solo] P103/P167：ORIG 用 operator->（ptEv）。
     SIG_LOAD_GAME_OPTION* out =
-        guard.operator*()->GetInBuffer<SIG_LOAD_GAME_OPTION>();
+        guard.operator->()->GetInBuffer<SIG_LOAD_GAME_OPTION>();
     ((CETCOption*)out)->clear();
     ((DB_GameOptionSigView*)out)->m_quick[0].clear();
     ((DB_GameOptionSigView*)out)->m_quick[1].clear();
@@ -9504,21 +9625,26 @@ void AddFieldString(bool& isFirst, char* buf, int mask, int flag,
                     const char* fmt, ...)
 {
     char tmp[100] = { '\0' };
+    // ORIG 0x08420013 `movzwl <A>,%eax; mov %ax,-0xa(%ebp)` = 局部数组
+    // `char szComma[] = ","`（P244 两跳：字面量先落槽再入栈实参）；直接
+    // 传字面量会被 4.4 折成 memcpy（P167 EXTRA）。
+    char szComma[] = ",";
     va_list ap;
     va_start(ap, fmt);
-    if ((mask & flag) == 0)
-        return;
-    vsprintf(tmp, fmt, ap);
-    va_end(ap);
-    if (isFirst)
+    // P257 正向包裹：早退 return/goto 使 4.4 在函数尾产 `jmp <epilogue>` 岛
+    // （ORIG 0x0842009b 后直落 0x84200a0），正向 if 包裹后 je 直达 epilogue。
+    if (mask & flag)
     {
-        isFirst = false;
+        vsprintf(tmp, fmt, ap);
+        va_end(ap);
+        // ORIG 0x0842004f `xor $1,%eax; test %al,%al; je <else>`（P292：bool
+        // 取反物化）⇒ 源码为 `if (!isFirst) strncat(...); else isFirst=false;`。
+        if (!isFirst)
+            strncat(buf, szComma, strlen(szComma));
+        else
+            isFirst = false;
+        strncat(buf, tmp, strlen(tmp));
     }
-    else
-    {
-        strncat(buf, ",", strlen(","));
-    }
-    strncat(buf, tmp, strlen(tmp));
 }
 
 // ============================================================================
@@ -9618,7 +9744,6 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
         }
         break;
     case 3:
-    case 5:
         if (sig->m_mapSize == 1)
         {
             db->set_query(
@@ -9634,6 +9759,19 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             db->set_query(
                 "upDate inventory set creature_flag=%d where charac_no=%d",
                 1, sig->m_characNo);
+            if (db->exec(true) != 1)
+                return 0;
+        }
+        break;
+    // [b28d-solo] P167：ORIG case 3 与 case 5 各自独立一份 set_query+exec
+    // （差集 -1 set_query/-1 exec；ORIG 0x08420481 与 0x084205e4 两处），
+    // 合并 case 标签只发一份 ⇒ 拆开；case 序按 P46 升序（1,3,4,5）。
+    case 5:
+        if (sig->m_mapSize == 1)
+        {
+            db->set_query(
+                "upDate inventory set creature_flag=%d where charac_no=%d",
+                0, sig->m_field6c);
             if (db->exec(true) != 1)
                 return 0;
         }
@@ -9655,9 +9793,11 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5710), true);
         guard.operator*()->operator<<((int)0x8b);
         guard.operator*()->operator<<((int)slot);
+        // [b28d-solo] P103/P167：ORIG 调 operator->（ptEv）；N84：结构整体
+        // 赋值（ORIG 内联 rep movs 0x74），非 memcpy call（p167 EXTRA）。
         SIG_CREATURE_ITEM* out =
-            guard.operator*()->GetInBuffer<SIG_CREATURE_ITEM>();
-        memcpy(out, sig, 0x74);
+            guard.operator->()->GetInBuffer<SIG_CREATURE_ITEM>();
+        *out = *sig;
         db->set_query(
             "seLect slot,it_id,name,stomach,exp,endurance,creature_type,no_charge,unix_timestamp(expire_date) from creature_items where ui_id=%d",
             sig->m_addInfo2);
@@ -9931,9 +10071,11 @@ bool DB_UpdatePvPGrade::dispatch(int userIdx, int slot, Stream* stream)
         {
             if (GlobalData::s_ref_pvp_grade->getPvPExpLossExp() + refPoint <
                 pvpPoint)
-                lists[0].push_back((int)characNo);
+                // [b28d-solo] P270：ORIG 调 push_back(int&&)（EOi），
+                // 值传选中 const& 版本 ⇒ 显式右值 cast。
+                lists[0].push_back(static_cast<int&&>((int)characNo));
             else
-                lists[1].push_back((int)characNo);
+                lists[1].push_back(static_cast<int&&>((int)characNo));
             int tmp = pvpPoint -
                       GlobalData::s_ref_pvp_grade->getPvPExpLossExp();
             pvpPoint = std::max(refPoint, tmp);
@@ -9944,7 +10086,8 @@ bool DB_UpdatePvPGrade::dispatch(int userIdx, int slot, Stream* stream)
     }
 
     int rowCount = (int)rows.size();   // -0x48
-    std::vector<int>& rankRate =
+    // [b28d-solo] P167：ORIG 用 `operator[](unsigned) const` ⇒ 绑定 const 引用。
+    const std::vector<int>& rankRate =
         GlobalData::s_ref_pvp_grade->getPvPRankRate();   // -0x44
     int rankCount = 4;                 // -0x40
     int rate[5] = {0, 0, 0, 0, 0};     // -0xa8..-0x98
@@ -10000,7 +10143,9 @@ bool DB_UpdatePvPGrade::dispatch(int userIdx, int slot, Stream* stream)
             if (done != 0)
                 break;
         }
-        gradeList[gradeIdx].push_back(rows[k].m_characNo);
+        // [b28d-solo] P270：ORIG push_back(int&&)（p167 -1 EOi/+1 ERKi）。
+        gradeList[gradeIdx].push_back(
+            static_cast<int&&>(rows[k].m_characNo));
         --gradeLimit;
         ++k;
     }
@@ -10374,18 +10519,21 @@ void StatisticsToObserveCrash::unlock() { m_mutex.unlock(); }
 // [b28d-4] DIFF：P210/N82：帧继承差（ORIG push/pop callee-saved vs 4.4 leave/槽化）；ORIG 0841ba96
 bool DB_StatPVPPlay2::dispatch(int userIdx, int slot, Stream* stream)
 {
-    StatisticsPvP* pvp = G_GameWorld()->getStatisticsPvP();
-    pvp->lock();
+    // P157/P183：ORIG 三处独立 `G_GameWorld()->getStatisticsPvP()`（p167 差集
+    // -3/-3；0x0841ba96），禁指针缓存。
+    G_GameWorld()->getStatisticsPvP()->lock();
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                                   E_SERVER_GROUP_NONE);
     std::map<StatisticsPvP::PvP_Key, StatisticsPvP::PvP_Room>::iterator it =
-        pvp->m_roomResults.begin();
+        G_GameWorld()->getStatisticsPvP()->m_roomResults.begin();
     std::map<StatisticsPvP::PvP_Key, StatisticsPvP::PvP_Room>::iterator end =
-        pvp->m_roomResults.end();
+        G_GameWorld()->getStatisticsPvP()->m_roomResults.end();
     while (it != end)
     {
-        const StatisticsPvP::PvP_Key& key = it->first;
-        const StatisticsPvP::PvP_Room& room = it->second;
+        // P167：ORIG 用 `operator*`（deEv）×2，我方 `it->` 选中 ptEv ×2 ⇒
+        // 写 `(*it).first/second`。
+        const StatisticsPvP::PvP_Key& key = (*it).first;
+        const StatisticsPvP::PvP_Room& room = (*it).second;
         db->set_query(
             "inSert into pvp_status(occ_date,room_number,play_type,no_participants,occ_count) values(cast(now() as date),%d,%d,%d,%d)",
             key.m_a, key.m_b, room.m_resultSum, room.m_roomCount);
@@ -10398,8 +10546,7 @@ bool DB_StatPVPPlay2::dispatch(int userIdx, int slot, Stream* stream)
             {
                 cMyTrace trace(__PRETTY_FUNCTION__, 0x4ed8, 5);
                 trace("upDate pvp_status failed at %d", key.m_a);
-                ++it;
-                continue;
+                continue;  // P167：ORIG 单一 `operator++()` 调用点（循环尾共用）
             }
         }
         cMyTrace trace(__PRETTY_FUNCTION__, 0x4edc, 5);
@@ -10407,7 +10554,7 @@ bool DB_StatPVPPlay2::dispatch(int userIdx, int slot, Stream* stream)
               key.m_a, key.m_b, room.m_resultSum, room.m_roomCount);
         ++it;
     }
-    pvp->unlock();
+    G_GameWorld()->getStatisticsPvP()->unlock();
     return 1;
 }
 
@@ -10440,8 +10587,10 @@ bool DB_StatDungeonFail::dispatch(int userIdx, int slot, Stream* stream)
         G_GameWorld()->getStatisticsShusiaService()->m_dungeonFailure.end();
     while (it != end)
     {
-        int lev = it->first;
-        int count = it->second;
+        // [b28d-solo] P167：ORIG 调 `_Rb_tree_iterator::operator*`（deEv），
+        // 我方 `it->` 选中 ptEv（差集 -4/+4）⇒ 写 `(*it).`。
+        int lev = (*it).first;
+        int count = (*it).second;
         db->set_query(
             "inSert into dungeon_fail(occ_date,lev,occ_count) values(cast(now() as date),%d,%d)",
             lev, count);
@@ -10468,8 +10617,8 @@ bool DB_StatDungeonFail::dispatch(int userIdx, int slot, Stream* stream)
         G_GameWorld()->getStatisticsShusiaService()->m_serviceUsage.end();
     while (it2 != end2)
     {
-        int key = it2->first;
-        int value = it2->second;
+        int key = (*it2).first;
+        int value = (*it2).second;
         db2->set_query(
             "inSert into re_stamina_shusia(occ_date,lev,occ_count) values(cast(now() as date),%d,%d)",
             key, value);
@@ -10716,7 +10865,7 @@ bool DB_LoadDnfHackLog::dispatch(int userIdx, int slot, Stream* stream)
     guard.operator*()->operator<<(0x106);
     guard.operator*()->operator<<(slot);
     inSig = reinterpret_cast<DB_DnfHackLogView*>(
-        guard.operator*()->GetInBuffer<SIG_LOAD_DNF_HACK_LOG>());
+        guard.operator->()->GetInBuffer<SIG_LOAD_DNF_HACK_LOG>());
     memset(inSig, 0, 0x3cf4);
     inSig->m_mId = mId;
     db->set_query(
@@ -10809,6 +10958,10 @@ bool DB_AuctionSubMoney::dispatch(int userIdx, int slot, Stream* stream)
         stream->GetOutBuffer<SIG_AUCTION_MONEY_SUB>();
     // P248 档③：m_count 为 int ⇒ 局部同型化（unsigned→int）以消 4.4 的
     // `mov %eax,%edx` 符号转换中转（ORIG 0x08448530 该 store 为单段 RHS-first）。
+    // [b28d-solo] P167：ORIG 调 `MySQL::get_int(int, unsigned int&)`
+    // （差集 -1 get_int(Rj)/+1 get_int(Ri)）；但 unsigned 局部与 m_count(int)
+    // 异型会多 `mov %eax,%edx` 中转（diff 1→6，AE 回归）⇒ 维持 int 同型，
+    // 重载差（语义等价，位模式相同）记 N。
     int mId = 0;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
@@ -11126,7 +11279,7 @@ bool DB_CheckCharacName::dispatch(int userIdx, int slot, Stream* stream)
     // 则保 RHS 先（探针 /tmp/w8lt_ord4.o::f6）⇒ 单 view 指针直存。
     DB_ExceptionMidView* out =
         reinterpret_cast<DB_ExceptionMidView*>(
-            guard.operator*()->GetInBuffer<SIG_GOLD_CONTROL_EXCEPTION_MID>());
+            guard.operator->()->GetInBuffer<SIG_GOLD_CONTROL_EXCEPTION_MID>());
     out->m_flag = flag;
     out->m_char =
         reinterpret_cast<DB_CheckCharacNameView*>(sig)->m_byte22;
@@ -11304,7 +11457,8 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
     time_t cur = GlobalData::s_systemTime_.getCurSec();
     struct tm tmVal;
     // ORIG 六个 map 迭代器在函数顶部声明（帧 -0xb8..-0xa4，Ghidra
-    // local_bc..local_a8），循环内再赋值 begin/end。
+    // local_bc..local_a8），循环内再赋值 begin/end。P50 初始化式改法实测
+    // 劣化（383→488 行）⇒ 维持先声明后赋值（C1Ev 差集 +6 记 N）。
     std::map<int, int>::iterator it;
     std::map<int, int>::iterator end;
     std::map<int, int>::iterator it2;
@@ -11341,8 +11495,9 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
               ->m_userLastCrashDungeonId.end();
     while (it != end)
     {
-        dungeon = it->first;
-        down = it->second;
+        // [b28d-solo] P167：ORIG 用 operator*（deEv）×6，我方 it-> 为 ptEv。
+        dungeon = (*it).first;
+        down = (*it).second;
         db2->set_query(
             "inSert into crash_down_by_dungeon(occ_time,dungeon_index,down_count) values(from_unixtime(%d),%d,%d)",
             (int)dayStart, dungeon, down);
@@ -11375,8 +11530,8 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
                ->m_userLastCrashPacketId.end();
     while (it2 != end2)
     {
-        packet = it2->first;
-        down2 = it2->second;
+        packet = (*it2).first;
+        down2 = (*it2).second;
         db3->set_query(
             "inSert into crash_down_by_packet(occ_date,packet_index,down_count) values(cast(now() as date),%d,%d)",
             packet, down2);
@@ -11411,8 +11566,8 @@ bool DB_CrashDownReport::dispatch(int userIdx, int slot, Stream* stream)
     {
         if (it3 == end3)
             break;
-        play = it3->first;
-        down3 = it3->second;
+        play = (*it3).first;
+        down3 = (*it3).second;
         db4->set_query(
             "inSert into crash_down_by_playstatus(occ_date,play_status,down_count) values(cast(now() as date),%d,%d)",
             play, down3);
@@ -11742,9 +11897,10 @@ bool DB_AvatarChangeStat::dispatch(int userIdx, int slot, Stream* stream)
         {
             guard.operator*()->operator<<((int)0x36);
             guard.operator*()->operator<<((int)slot);
+            // [b28d-solo] P103/P167：ORIG 调 operator->（ptEv），非 operator*。
             DB_AvatarChangeStatView* out =
                 reinterpret_cast<DB_AvatarChangeStatView*>(
-                    guard.operator*()->GetInBuffer<SIG_AVATAR_CHANGE_STAT>());
+                    guard.operator->()->GetInBuffer<SIG_AVATAR_CHANGE_STAT>());
             int slotV = 0;            // col0 slot（回包 +0x08 byte）
             int uiIdV = 0;            // col1 ui_id（回包 +0x00）
             int itIdV = 0;            // col2 it_id（回包 +0x04）
@@ -11899,7 +12055,7 @@ void DB_ChangeLetterStat::makeRequest(int userIdx, int slot, int characNo,
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x6454), true);
     guard.operator*()->operator<<((int)userIdx);
     guard.operator*()->operator<<((int)slot);
-    SIG_LETTER_STAT* sig = guard.operator*()->GetInBuffer<SIG_LETTER_STAT>();
+    SIG_LETTER_STAT* sig = guard.operator->()->GetInBuffer<SIG_LETTER_STAT>();
     sig->m_characNo = characNo;
     sig->m_mailIdx = mailIdx;
     sig->m_state = (short)state;
@@ -11943,8 +12099,11 @@ bool DB_ForbidUserToPlay::dispatch(int userIdx, int slot, Stream* stream)
     // fall-through jmp，N-JMP 族）。
     if (!flag)
         goto SIMPLE_SQL;
-    if (days != 0)
-        goto FULL_SQL;
+    else
+    {
+        if (days != 0)
+            goto FULL_SQL;
+    }
 SIMPLE_SQL:
     db->set_query(
         "upDate charac_stat set forbidden_to_play=0, forbidden_due_to= 0 where charac_no = %d",
@@ -12991,7 +13150,8 @@ bool DB_UpdateFatigueAttendance::dispatch(int /*userIdx*/, int /*slot*/,
         static_cast<EventClassify::CEventScriptMng*>(dm->get_event_script_mng());
     // ORIG 0x08444616：get_db_table_name(int) 返回 std::string&（_ZNSsC1ERKSs 拷贝构造）。
     std::string tableStr(sm->get_db_table_name(0x56));
-    const char* tableName = toTString(tableStr);
+    // [b28d-solo] P167：ORIG 两处 set_query 各自 toTString(tableStr)（无 CSE，
+    // 差集 -1 toTString）⇒ 禁具名 tableName 缓存，逐处内联。
     for (std::map<unsigned char, short>::iterator it = fatigueMap.begin();
          it != fatigueMap.end(); ++it)
     {
@@ -12999,13 +13159,13 @@ bool DB_UpdateFatigueAttendance::dispatch(int /*userIdx*/, int /*slot*/,
         {
             db->set_query(
                 "upDate %s set fatigue = fatigue + %d where occ_day = %d and m_id = %s",
-                tableName, (int)it->second, (unsigned int)it->first,
+                toTString(tableStr), (int)it->second, (unsigned int)it->first,
                 NumberToString(mId, 0));
             if (db->exec(true) != 1 || db->getAffectedRowCount() == 0)
             {
                 db->set_query(
                     "inSert into %s(occ_day,m_id,fatigue) values(%d,%s,%d)",
-                    tableName, (unsigned int)it->first,
+                    toTString(tableStr), (unsigned int)it->first,
                     NumberToString(mId, 0), (int)it->second);
                 db->exec(true);   // ORIG insert exec 返回值丢弃
             }
@@ -16774,7 +16934,10 @@ struct DB_AutoPunishedSecondUserReqView
     unsigned int m_mId;        // +0x00
     unsigned int m_goldLo;     // +0x04
     unsigned int m_goldHi;     // +0x08
-    unsigned int m_tradeCnt;   // +0x0c
+    // [b28d-solo] P167：ORIG 两分支均调 `CStreamGuard::lsEi`（int），我方
+    // unsigned 字段选中 lsEj ⇒ 目标符号差集 +2/-2；改 int 同宽同偏移
+    // （ORIG 0x0843a4xx 两处 `mov 0xc(%eax),%eax` 无零扩展，宽度证据一致）。
+    int m_tradeCnt;            // +0x0c
     unsigned int m_punished;   // +0x10
 };
 struct DB_AutoPunishedSecondUserSetView
@@ -17055,7 +17218,13 @@ bool DB_ReportMannerlessUser_Upgrade::dispatch(int userIdx, int slot,
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                                   E_SERVER_GROUP_NONE);
-    char sql[0xa5e];
+    // [b28d-solo] P185/P171：ORIG 0x08427701 `lea -0x24(%ebp),%eax; call time`
+    // （结果未被 sprintf 使用，死调用照抄）；sql 缓冲 = 0x800 字节
+    // （0x0842770c `lea -0xa5e` + `mov $0x800,%ebx` 清零计数实证，非 lea 偏移）。
+    time_t occTime;
+    time(&occTime);
+    (void)occTime;
+    char sql[0x800];
     memset(sql, 0, sizeof(sql));
     char escapedTargetName[0x3b];
     memset(escapedTargetName, 0, sizeof(escapedTargetName));
@@ -18549,9 +18718,9 @@ bool DB_EventUpdateGrowthWeaponCharac::dispatch(int userIdx, int slot,
                                                   E_SERVER_GROUP_NONE);
     unsigned int m_id = 0;
     unsigned int characNo = 0;
-    // ORIG +0x6d 第三个读取是 operator>>(unsigned int&)（非 int&）；
-    // short 无清零（ORIG 仅 -0x10/-0x14/-0x18 三条 movl $0）。
-    unsigned int growthweaponId = 0;
+    // [b28d-solo] P167：ORIG +0x6d 第三个读取是 operator>>(int&)（差集
+    // -1 rsERi/+1 rsERj 实证）；short 无清零（ORIG 仅三条 movl $0）。
+    int growthweaponId = 0;
     short serverGroup;
     *stream >> m_id;
     *stream >> characNo;
@@ -19083,7 +19252,7 @@ bool DB_LoadCharacHotKeyOption::dispatch(int userIdx, int slot, Stream* stream)
     guard.operator*()->operator<<(0x320);
     guard.operator*()->operator<<(slot);
     DB_LoadHotKeyOptionView* out = reinterpret_cast<DB_LoadHotKeyOptionView*>(
-        guard.GetInBuffer<SIG_LOAD_CHARAC_HOTKEY_OPTION>());
+        guard.operator->()->GetInBuffer<SIG_LOAD_CHARAC_HOTKEY_OPTION>());
     out->m_accId = req->m_accId;
     out->m_hotkeyType = (unsigned char)req->m_hotkeyType;
     if (db->get_n_rows() == 0)
@@ -19093,12 +19262,24 @@ bool DB_LoadCharacHotKeyOption::dispatch(int userIdx, int slot, Stream* stream)
         return 1;
     }
     if (!db->fetch())
+    {
+        // ORIG 0x0842f513-0x0842f57b：cMyTrace(0x747f,5) + NumberToString。
+        cMyTrace(__PRETTY_FUNCTION__, 0x747f, 5)(
+            "DB_LoadCharacHotKeyOption::dispatch, fetch ERROR m_id=%s",
+            NumberToString(req->m_accId, 0));
         return 0;
+    }
     char buf[0xed];
     static const int compressedBufferSize = 0xed;  // ORIG _ZZ…DB_LoadCharacHotKeyOption…E20compressedBufferSize
     memset(buf, 0, sizeof(buf));
     if (!db->get_binary(0, buf, compressedBufferSize))
+    {
+        // ORIG 0x0842f60e-0x0842f664：cMyTrace(0x7489,5) + NumberToString。
+        cMyTrace(__PRETTY_FUNCTION__, 0x7489, 5)(
+            "DB_LoadCharacHotKeyOption, get_binary(0) ERROR m_id=%s",
+            NumberToString(req->m_accId, 0));
         return 0;
+    }
     int binLen = db->get_binary_length(0);
     unsigned int destLen = 0xbc;
     if (!uncompress_zip((char*)&out->m_hotkey, destLen, buf,

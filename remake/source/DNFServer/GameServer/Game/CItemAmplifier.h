@@ -54,6 +54,15 @@ struct stAmplifyGuidView
     unsigned short m_sequenceNo;     // +0x08
 };
 static_assert(sizeof(stAmplifyGuidView) == 0xa, "amp guid view size drift");
+// [b28d-solo-CCreatureMgr P247] +0x00 四字节头部视图：结构赋值形（4.4 对 4 字节
+// POD 结构赋值发 LHS-first 双基址 `mov dst; mov src; mov (src),%edx; mov %edx,(dst)`，
+// 与 ORIG setCopy 0x833f409/0x833f412、makeInvenItem 0x833f4a0 段逐条一致；
+// 标量形恒 RHS-first）。sizeof 4、布局/mangled 零影响。
+struct stAmplifyHeadView
+{
+    int m_value;
+};
+static_assert(sizeof(stAmplifyHeadView) == 4, "amp head view size drift");
 class stAmplifyOption_t
 {
 public:
@@ -80,6 +89,7 @@ public:
             unsigned char m_lock;            // +0x03
         };
         int m_amp0Int;                       // +0x00 四字节视角
+        stAmplifyHeadView m_amp0Head;        // +0x00（结构赋值形视角，P247）
     };
     union {
         char m_pad4[0xa];            // +0x04（尺寸 0xe，历史视图保留——AraC9

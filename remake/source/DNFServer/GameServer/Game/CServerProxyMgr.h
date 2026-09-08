@@ -59,10 +59,14 @@ CServerProxyMgr<T>::CServerProxyMgr()
 }
 
 template <class T>
-// [b28d-18 N18a] CServerProxyMgr<T>::~CServerProxyMgr 三实例
+// [b28d-solo-GlobalData] CServerProxyMgr<T>::~CServerProxyMgr 三实例
 // （CStatisticServerProxy 0x082b3b8e / CGuildServerProxy 0x082b3ac6 /
 //  CMonitorServerProxy 0x082b39fe）：删显式 m_proxy.~T()（ORIG 仅自动析构，
-// 原为双重析构真 bug）+ register p（P231）；余 N18a 单段 regstore（83→76 条）。
+// 原为双重析构真 bug）+ register p（P231）；T* 指针算术（P211 档③）+
+// goto 循环形（探针 /tmp/probe_loop.cpp f2 复现 4.1 条件头/尾 jmp 布局）+
+// 显式 ::operator delete[]（P207 消 4.4 判空守卫）：ndiff 19→1。
+// 余 1 条 = ORIG `cmp %eax,%ebx` vs 4.4 `cmp %ebx,%eax`（比较方向恒折，
+// 交换操作数实测无效）⇒ N18b 封顶。
 CServerProxyMgr<T>::~CServerProxyMgr()
 {
     if (m_allocated)
@@ -71,14 +75,26 @@ CServerProxyMgr<T>::~CServerProxyMgr()
         m_pIndexArray = 0;
         if (m_pProxyArray)
         {
-            register char* p =
-                (char*)m_pProxyArray + *((int*)m_pProxyArray - 1) * sizeof(T);
-            while (p != (char*)m_pProxyArray)
-            {
-                p -= sizeof(T);
-                ((T*)p)->~T();
-            }
-            delete[] ((char*)m_pProxyArray - 4);
+            // ORIG D1（0x082b3ac6 族）：`mov 0x4(%eax),%edx` 单段基址 + `imul
+            // $sizeof(T); lea (%edx,%eax,1),%ebx`（T* 缩放寻址）+ `cmp %eax,%ebx;
+            // je` 直接指针比较（无 setne 物化）+ `mov %ebx,(%esp); call ~T()`。
+            // 用 char* 手工 *sizeof(T) 会引入 `mov %eax,%edx` 中转与 `p != base`
+            // 的 setne 物化 ⇒ 改 T* 指针算术（P211 档③ 同型直落 + P292 直比较）。
+            register T* p = m_pProxyArray + *((int*)m_pProxyArray - 1);
+            // 4.4 对 `while (p != base)` 恒旋转 + setne 物化（探针
+            // /tmp/probe_loop.cpp f/g/h/k/m）；goto 形（f2）精确复现 ORIG
+            // 「条件头 fall-through body + 尾 jmp 回条件」布局且无 setne。
+        L_destroy:
+            if (p == m_pProxyArray)
+                goto L_destroy_end;
+            --p;
+            p->~T();
+            goto L_destroy;
+        L_destroy_end:;
+            // ORIG `sub $0x4,%eax; mov %eax,(%esp); call _ZdaPv` 无判空
+            // （4.1 delete[] 无守卫）；4.4 `delete[]` 自带 test/je ⇒ 改显式
+            // operator delete[] 调用复现（P207）。
+            ::operator delete[]((char*)m_pProxyArray - 4);
         }
         m_pProxyArray = 0;
     }

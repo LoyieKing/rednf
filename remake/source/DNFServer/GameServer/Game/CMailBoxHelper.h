@@ -160,7 +160,7 @@ public:
     CMail* AddNewMail(const stAddNewMailInput&);   // ORIG 0x8551xxx 返回新 CMail*
     void ClearLetterKeepCount();
     void DecLoadedLetterCount();
-    int DeleteLetterKeepCount(unsigned int);
+    bool DeleteLetterKeepCount(unsigned int);  // b28d-Main 代落(P292)：ORIG 0x084d19aa 调用点 `call; xor $0x1,%eax; test %al,%al; je` ⇒ bool
     bool FindPackageLoadLack(unsigned int);
     int GetLastLoadIdx();
     int GetLastLoadLetterIdx();

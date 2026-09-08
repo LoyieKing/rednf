@@ -267,7 +267,7 @@ void WongWork::CMailBox::DecLoadedLetterCount()
 }
 
 // ORIG W 0x084ed280 (size 0x7c)：letterKeepCount erase；命中返回 1 否则 0。
-int WongWork::CMailBox::DeleteLetterKeepCount(unsigned int key)
+bool WongWork::CMailBox::DeleteLetterKeepCount(unsigned int key)
 {
     // ORIG +0x006..+0x07a: find(key); it != end() → erase(it) 返回 1，否则 0。
     std::map<int, bool>::iterator it =

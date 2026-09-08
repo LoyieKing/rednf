@@ -761,7 +761,7 @@ public:
     void CheckNFix();
     int checkToFix() const;
     void ChecknFixWineAndMoru();
-    int FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot) const;
+    bool FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot) const;  // b28d-Main(P292)：ORIG 0x08680e92 调用点同形 ⇒ bool
     void SendItemLockList(const Inven_Item* items, int count,
                           ENUM_ITEMSPACE space) const;
     void SendItemLockListInven() const;

@@ -1149,9 +1149,9 @@ int DisPatcher_UseCoin::WarRoom_check_error(CUser* user, MSG_BASE& msg, ParamBas
     {
         return -2;
     }
-    bool coinOk;   // ORIG +0x3a `test %al,%al; je`（技22 免 xor 翻转）
-    coinOk = user->getCurCharacInvenR()->IsCoinUsable();
-    if (coinOk)
+    // [b28d-solo-DisPatcherCore] P0：ORIG +0x3a `test %al,%al; je`（无槽无保活）
+    // ⇒ 原码是内联表达式，无具名 bool 局部（register 形会引 push %ebx 反劣，实测）。
+    if (user->getCurCharacInvenR()->IsCoinUsable())
     {
         int ret = room->ReviveUserByCoin(user, req.m_0d);   // ORIG -0xc(%ebp)
         // ORIG +0x61：`cmpl $0x0,-0xc; jle 0-岛; mov -0xc,%eax`（技6/7 尾置 if 岛）。
@@ -2226,14 +2226,17 @@ DisPatcher_ReturnToSelectCharacter::~DisPatcher_ReturnToSelectCharacter() {}
 // [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
 int DisPatcher_ReturnToSelectCharacter::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
 {
-    unsigned char flag = 1;                     // ORIG -0x9(%ebp)
+    // [b28d-solo-DisPatcherCore] P292/P168a 档②：ORIG 尾
+    // `movzbl -0x9(%ebp),%eax; xor $0x1,%eax; test %al,%al; je` ⇒ flag 是
+    // **bool** 且原码为裸 `if (!flag)`（uchar 会产 test/sete/test 或 xorb 槽化）。
+    bool flag = true;                           // ORIG -0x9(%ebp)
     if (user->get_state() <= 2)
     {
-        flag = 0;
+        flag = false;
     }
     else if (user->getCurCharacVill() == 7)
     {
-        flag = 0;
+        flag = false;
     }
     else
     {
@@ -2243,11 +2246,8 @@ int DisPatcher_ReturnToSelectCharacter::dispatch_sig(CUser* user, PacketBuf& /*p
         PacketGuard guard;
         guard.put_header(1, 7);
         guard.put_byte(flag);
-        // P168a X2 精确形（ORIG +0x8d `movzbl -0x9,%eax; xor $0x1,%eax; test %al,%al;
-        // je`：test 有 je 消费者过③闸；栈槽 byte 读→X2 寄存器中转）。
-        unsigned char chk = flag;
-        chk ^= 1;
-        if (chk)
+        // [b28d-solo-DisPatcherCore] 裸 `if (!flag)`（bool 字段形，免 chk 局部槽化）。
+        if (!flag)
         {
             guard.put_byte(0x13);
         }
@@ -3475,7 +3475,9 @@ int DisPatcher_ResPeer::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 int DisPatcher_ResPeer::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }  // ORIG 0x08232eac W _ZN18DisPatcher_ResPeer7processEP5CUserR8MSG_BASER9ParamBase: push %ebp; mov %esp,%ebp; mov $0x0,%eax; pop %ebp; ret —— 原始二进制即为空实现，全部逻辑位于 dispatch_sig(0x081f088e)
 
 DisPatcher_SetPartyInfo::~DisPatcher_SetPartyInfo() {}
-int DisPatcher_SetPartyInfo::check_error(CUser* /*user*/, MSG_BASE& msg)
+// [b28d-solo-DisPatcherCore] P211 callee 侧旋钮：返回 unsigned（与 int 字段异型，
+// 复现 process 调用点 RHS-first+edx 中转）；返回类型不入 mangled/ABI。
+unsigned int DisPatcher_SetPartyInfo::check_error(CUser* /*user*/, MSG_BASE& msg)
 {
     MSG_PARTY_SET_INFO& req = *reinterpret_cast<MSG_PARTY_SET_INFO*>(&msg);
     std::string title(reinterpret_cast<char*>(&req.m_title), std::allocator<char>());
@@ -3540,10 +3542,10 @@ void DisPatcher_SetPartyInfo::send(CUser* user, ParamBase& param)
 int DisPatcher_SetPartyInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stSetPartyInfo& out = static_cast<stSetPartyInfo&>(param);
-    // ORIG value→%edx 先、槽地址→%eax 后（register asm 双钉，技45 同 SetArea 形）。
-    int ec = check_error(user, msg);
-    stSetPartyInfo* dst = &out;
-    dst->m_errNo = ec;
+    // [b28d-solo-DisPatcherCore] P211：ORIG `call; mov %eax,%edx; mov -0x18(%ebp),%eax;
+    // mov %edx,0x4(%eax)`（RHS-first+edx 中转）由「unsigned 返回 + 无具名 err 局部」
+    // 复现（探针 /tmp/p211probe.cpp b/c 形）；删 ec/dst 后 out 引用槽与 ORIG 一致。
+    out.m_errNo = check_error(user, msg);
     if (out.m_errNo > 0)
     {
         return 0;
@@ -3586,7 +3588,8 @@ int DisPatcher_SetPartyInfo::process(CUser* user, MSG_BASE& msg, ParamBase& para
 }
 
 DisPatcher_LeaveParty::~DisPatcher_LeaveParty() {}
-int DisPatcher_LeaveParty::check_error(CUser* user, MSG_BASE& msg)
+// [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（同 SetPartyInfo）。
+unsigned int DisPatcher_LeaveParty::check_error(CUser* user, MSG_BASE& msg)
 {
     // ORIG 0x081c436e：party 落局部槽 -0xc 后 `cmpl $0x0,-0xc`（非寄存器 test）。
     CParty* pParty = (CParty*)user->GetParty();
@@ -3631,9 +3634,9 @@ void DisPatcher_LeaveParty::send(CUser* user, ParamBase& param)
 int DisPatcher_LeaveParty::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stLeavePartyParam& out = static_cast<stLeavePartyParam&>(param);
-    int ec = check_error(user, msg);   // ORIG mov %eax,%edx
-    stLeavePartyParam* dst = &out;     // ORIG mov -0x14,%eax
-    dst->m_errNo = ec;
+    // [b28d-solo-DisPatcherCore] P211：ORIG `mov %eax,%edx; mov -0x14(%ebp),%eax;
+    // mov %edx,0x4(%eax)`（RHS-first+edx 中转）由「unsigned 返回 + 无具名 err/dst 局部」复现。
+    out.m_errNo = check_error(user, msg);
     if (out.m_errNo > 0)
     {
         return 0;
@@ -3743,7 +3746,8 @@ int DisPatcher_WalkoutParty::process(CUser* user, MSG_BASE& msg, ParamBase& para
 
 // [b28d-29] N82：帧 0x34 vs 0x58 + 条件极性折痕（je/jne），槽集合与调用点全等  (ORIG 0x081c9f6c insn 228->246)
 DisPatcher_StartGame::~DisPatcher_StartGame() {}
-int DisPatcher_StartGame::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
+// [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（同 SetPartyInfo）。
+unsigned int DisPatcher_StartGame::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     if (user->get_state() == 3 || user->get_state() == 0xb)
     {
@@ -3912,9 +3916,8 @@ int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         "virtual int DisPatcher_StartGame::process(CUser*, MSG_BASE&, ParamBase&)";
     stStartGameParam& out = static_cast<stStartGameParam&>(param);
     // ORIG +0x20：errNo store 双钉（技45）。
-    int ec = check_error(user, msg, param);
-    stStartGameParam* dst = &out;
-    dst->m_errNo = ec;
+    // [b28d-solo-DisPatcherCore] P211：ORIG RHS-first+edx 中转（unsigned 返回 + 无具名局部）。
+    out.m_errNo = check_error(user, msg, param);
     if (out.m_errNo > 0)
     {
         return 0;
@@ -4951,7 +4954,8 @@ DisPatcher_MoveItem::~DisPatcher_MoveItem() {}
 // GetInvenSlot(3,fromPos) 非空且 fromPos>0x8b → 需锁定检查；需检查者 CheckItemLock
 // [b28d-29] P251：ORIG 0x5/0xe/0x3 值域为稀疏 switch 决策树，源码为 if 链；槽往返随 P0 属 N82 族  (ORIG 0x081c57a0 insn 108->103)
 // 命中 → 0xd5；否则 0。
-int DisPatcher_MoveItem::check_error(CUser* user, MSG_BASE& msg)
+// [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（同 SetPartyInfo）。
+unsigned int DisPatcher_MoveItem::check_error(CUser* user, MSG_BASE& msg)
 {
     const MSG_MOVE_ITEMSPACE& req =
         *reinterpret_cast<const MSG_MOVE_ITEMSPACE*>(&msg);
@@ -5137,10 +5141,9 @@ int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     #pragma pack(pop)
     const MoveItemSpaceView* req = reinterpret_cast<const MoveItemSpaceView*>(&msg);
     stMoveItemParam& out = static_cast<stMoveItemParam&>(param);
-    // ORIG value→%edx 先、槽地址→%eax 后（双钉）。
-    int ec = check_error(user, msg);
-    stMoveItemParam* dst = &out;
-    dst->m_4 = ec;
+    // [b28d-solo-DisPatcherCore] P211：ORIG value→%edx 先、槽地址→%eax 后
+    // （RHS-first+edx 中转）=「unsigned 返回 + 无具名 err/dst 局部」形。
+    out.m_4 = check_error(user, msg);
     if (out.m_4 > 0)
     {
         if (out.m_4 == 0xd5)   // 仅锁定类错误回显源/目的 space
@@ -6063,12 +6066,18 @@ int DisPatcher_RepairEquip::check_error(CUser* user, MSG_BASE& /*msg*/)
     // [b28d-29] P0 清绑 + P231 纯 register（无 asm 绑定，合规）：ORIG 该值无槽
     // （`cmp $0xc,%eax` 直判后 `mov %eax,%ecx` 复用），字面量 1 无具名局部
     // （`mov $0x1,%edx` 直出）。
-    unsigned int state = (unsigned int)user->get_state();
+    // [b28d-solo-DisPatcherCore] P231 纯 register（无 asm 绑定，P0 合规）：
+    // ORIG state 无槽（`cmp $0xc,%eax` 直判）+ bit 免槽留 %ebx 且保 shl
+    // （N6/N99 的 `(mask>>state)&1` 折叠被 register 存储类解除）。
+    register unsigned int state = (unsigned int)user->get_state();
     if (state > 0xc)
     {
         goto L_bad;                   // ORIG ja → +0x3a 共享 0x13 块
     }
-    if ((1 << (int)state & 0x15e8) != 0)
+    register unsigned int bit;
+    bit = 1;
+    bit <<= state;
+    if ((bit & 0x15e8) != 0)
     {
         goto L_ok;                     // ORIG `test; jne +0x41`
     }
@@ -7554,7 +7563,8 @@ DisPatcher_SetArea::~DisPatcher_SetArea() {}
 // IsBusyPrivateStore → param.m_8=req.m_0d, 0x3c；IsCurCharacGhost → param.m_8=req.m_0d,
 // 0x13；IsForbiddenMove(name) 且剩余时间!=0 → param.m_9=req.m_0e, 0x44；时间==0 则
 // EnableMove(name)；否则 0。
-int DisPatcher_SetArea::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
+// [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（同 SetPartyInfo）。
+unsigned int DisPatcher_SetArea::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     // ORIG +0x07/+0x0d：param→-0x10（out 远槽）、msg→-0xc（req 近槽）——4.4 后声明
     // 占近槽（技21），out 先声明。三处 `out.m_8 = msg+0xd` 均 ORIG `movzbl mem,%edx`
@@ -7690,9 +7700,8 @@ int DisPatcher_SetArea::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     stSetAreaParam& out = static_cast<stSetAreaParam&>(param);
     // ORIG +0x35：`mov %eax,%edx`（value 先落 edx）→ `mov -0x1c,%eax`（地址后载）→
     // `mov %edx,0x4(%eax)`（register asm 双钉，同 Dispatchers 16628 形）。
-    int ec = check_error(user, msg, param);
-    stSetAreaParam* dst = &out;
-    dst->m_errNo = ec;
+    // [b28d-solo-DisPatcherCore] P211：ORIG RHS-first+edx 中转（unsigned 返回 + 无具名局部）。
+    out.m_errNo = check_error(user, msg, param);
     if (out.m_errNo >= 1)
     {
         return 0;
@@ -7752,7 +7761,8 @@ int DisPatcher_Fish::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
 // Ghidra 伪 C 的 "GetDebugCommand((CUser*)param_2)" 为其省略 this 的编号假象，
 // 实参就是 user。GetDebugCommand()==1 → 0x7fffffff，否则 0；
 // if/else 形态对应 ORIG sete/test/je 分支骨架。
-int DisPatcher_FinishLoad::check_error(CUser* user, MSG_BASE& /*msg*/)
+// [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（同 SetPartyInfo）。
+unsigned int DisPatcher_FinishLoad::check_error(CUser* user, MSG_BASE& /*msg*/)
 {
     if (user->GetDebugCommand() == 1)
     {
@@ -7885,9 +7895,8 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
 int DisPatcher_FinishLoad::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stFinishLoadParam& out = static_cast<stFinishLoadParam&>(param);
-    int ec = check_error(user, msg);   // ORIG mov %eax,%edx
-    stFinishLoadParam* dst = &out;     // ORIG 地址槽后载 %eax
-    dst->m_errNo = ec;
+    // [b28d-solo-DisPatcherCore] P211：ORIG `mov %eax,%edx; mov <out>,%eax; mov %edx,0x4(%eax)`。
+    out.m_errNo = check_error(user, msg);
     if (out.m_errNo >= 1)
     {
         return 0;
@@ -7974,7 +7983,8 @@ int DisPatcher_FinishLoad::read(PacketBuf& packet, MSG_BASE& msg)
 DisPatcher_UseSkill::~DisPatcher_UseSkill() {}
 // ORIG 0x081cad80 T _ZN19DisPatcher_UseSkill11check_errorEP5CUserR8MSG_BASER9ParamBase
 // get_state(user)==5 → 0；否则 0x7fffffff（报告 DisPatcher_UseSkill/check_error.md 全文）。
-int DisPatcher_UseSkill::check_error(CUser* user, MSG_BASE& /*msg*/, ParamBase& /*param*/)
+// [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（同 SetPartyInfo）。
+unsigned int DisPatcher_UseSkill::check_error(CUser* user, MSG_BASE& /*msg*/, ParamBase& /*param*/)
 {
     // ORIG setne+test+je 布局：4.4.7 对 `if (x != 5) return INF; return 0;` 物化 bool。
     if (user->get_state() != 5)
@@ -8121,11 +8131,10 @@ bool CHackLog_InvalidUsingSkill::IsValidUsingSkill(const SKILL_USING_VALIDATE_IN
 int DisPatcher_UseSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stUseSkillParam& out = static_cast<stUseSkillParam&>(param);
-    // ORIG 0x081cadaa+0x35：`mov %eax,%edx; mov -0x24(%ebp),%eax; mov %edx,0x4(%eax)`
-    // 三段 = register asm 双钉形（value 声明初始化绑 edx、地址绑 eax）。
-    int ec = check_error(user, msg, param);
-    stUseSkillParam* dst = &out;
-    dst->m_errNo = ec;
+    // [b28d-solo-DisPatcherCore] P211：ORIG 0x081cadaa+0x35
+    // `mov %eax,%edx; mov -0x24(%ebp),%eax; mov %edx,0x4(%eax)`（RHS-first+edx 中转）
+    // 由「unsigned 返回 + 无具名 err/dst 局部」复现。
+    out.m_errNo = check_error(user, msg, param);
     if (out.m_errNo >= 1)
     {
         return 0;
@@ -9632,7 +9641,8 @@ int DisPatcher_UseStack::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& 
 DisPatcher_MoveMap::~DisPatcher_MoveMap() {}
 // [b28c-L19 属主修复] 参数名曾被注释但函数体用 &msg ⇒ TU 编译失败，恢复具名。
 // [b28d-29] P0 清绑（原 register asm 绑定已删，N96）：清绑后 4.4 恒槽化/单段直落 callee-saved 不可造 ⇒ N18a/N96 封顶（绑定形为唯一通路，P0 禁）。
-int DisPatcher_MoveMap::check_error(CUser* user, MSG_BASE& msg)
+// [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（同 SetPartyInfo）。
+unsigned int DisPatcher_MoveMap::check_error(CUser* user, MSG_BASE& msg)
 {
     if (user == 0)
     {
@@ -9926,9 +9936,8 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
 int DisPatcher_MoveMap::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     stMoveMapParam& out = static_cast<stMoveMapParam&>(param);
-    int ec = check_error(user, msg);   // ORIG mov %eax,%edx
-    stMoveMapParam* dst = &out;
-    dst->m_errNo = ec;
+    // [b28d-solo-DisPatcherCore] P211：ORIG `mov %eax,%edx; mov <out>,%eax; mov %edx,0x4(%eax)`。
+    out.m_errNo = check_error(user, msg);
     if (out.m_errNo >= 1)
     {
         return 0;
@@ -10287,7 +10296,8 @@ DisPatcher_DropItem::~DisPatcher_DropItem() {}
 // CheckItemLock → 0xd5；isHackUser → 0x13；space 1 → 0x17；space 3 且 pos<10 → 0x17；
 // [b28d-29] N82/P211：形参副本槽 + store 装载序差，调用点与槽集合全等  (ORIG 0x081c2d9a insn 146->148)
 // space 0 且 pos==0 且 count>1000 → 0x46；否则 0。（ORIG +0x18b 存在未读死局部 6）
-int DisPatcher_DropItem::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
+// [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（同 SetPartyInfo）。
+unsigned int DisPatcher_DropItem::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     const MSG_DROP_ITEM& req = *reinterpret_cast<const MSG_DROP_ITEM*>(&msg);
     stDropItemParam& out = static_cast<stDropItemParam&>(param);
@@ -10423,9 +10433,8 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     // sete %al; test %al,%al; je`（技9 (bool)==K 物化形）。
     MSG_DROP_ITEM& req = *reinterpret_cast<MSG_DROP_ITEM*>(&msg);
     stDropItemParam& out = static_cast<stDropItemParam&>(param);
-    int ec = check_error(user, msg, param);
-    stDropItemParam* dst = &out;
-    dst->m_errNo = ec;
+    // [b28d-solo-DisPatcherCore] P211：ORIG `mov %eax,%edx; mov <out>,%eax; mov %edx,0x4(%eax)`。
+    out.m_errNo = check_error(user, msg, param);
     if (out.m_errNo >= 1)
     {
         out.m_8 = req.m_11;
@@ -10450,6 +10459,9 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                 out.m_8 = req.m_11;
             }
         }
+        // [b28d-solo-DisPatcherCore] P169 实测：ORIG +0x154 单 `jmp +0x2b3`（跳共享尾
+        // `mov $0,%eax`）无法用 goto 尾标签复现——4.4 对多源 goto 恒发 5 个独立 jmp
+        // 岛（ndiff 7→9 反劣），维持就地 `return 0`（4.4 多一条 mov $0，N88 封顶）。
         return 0;
     }
     if (user->get_state() == 0xc)
@@ -10462,7 +10474,7 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             tower->handleDropItem(user, req.m_0d, req.m_0f, (char)req.m_11,
                                   req.m_12, req.m_14);
         }
-        return 0;
+        return 0;   // ORIG +0x1df `jmp +0x2b3`
     }
     if (user->get_state() == 8)
     {
@@ -10477,7 +10489,7 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                 out.m_8 = req.m_11;
             }
         }
-        return 0;
+        return 0;   // ORIG +0x29a `jmp +0x2b3`
     }
     out.m_errNo = 0x13;
     out.m_8 = req.m_11;

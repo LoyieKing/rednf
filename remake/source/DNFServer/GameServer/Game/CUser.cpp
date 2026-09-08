@@ -970,10 +970,9 @@ short CUser::get_server_fatigue_count(unsigned char type)
 // ORIG 0x0818d4c4：若当前疲劳 DB 类型(+0x8eb4d) == type 返回 (+0x8eb4c) 否则 0。
 int CUser::get_fatigue_count_db(int type)
 {
-    // ORIG 0x868d4ca-0x868d4d4：技巧 16 register asm(eax) 双零扩展 + `cmp 0xc(%ebp),%eax`
-    // arg 槽直折。int register 形（unsigned register 反产 %edx 中转）。
-    int cur = (unsigned char)m_serverFatigueDbType;
-    if (cur == type)
+    // ORIG 0x868d4ca-0x868d4d4：双零扩展 + `cmp 0xc(%ebp),%eax` arg 槽直折、**无 cur 槽**
+    // （sub 无、pop ebp 直返）。b28d-solo-CUser AE：内联条件（具名 cur 落 -0x4 致帧 0x10）。
+    if ((unsigned char)m_serverFatigueDbType == type)
         return (unsigned char)m_serverFatigueValue;
     return 0;
 }
@@ -1035,8 +1034,8 @@ bool CUser::CheckMoney(int money)
     // 帧 0x20）；limit@-0x10、curMoney@-0xc；尾 `cmp -0x10,%eax; jg F; mov $1; jmp;
     // F: mov $0` 直分支岛。4.4 goto-RET0 形在 label 前恒插 1 字节 nop 填充（探针
     // nl11_probe1/2 实证），if/else return 形无 nop（仅 cmp 操作数序 4.4 恒折反向）。
-    const char* accName = get_acc_name();
-    int level = get_charac_level();
+    register const char* accName = get_acc_name();   // b28d-solo-CUser：裸 register（非绑定，P0 合规）跨 call 保活 %esi
+    register int level = get_charac_level();   // b28d-solo-CUser：裸 register 跨 call 保活 %ebx（P231/P248）
     int limit = G_CDataManager()->GetMoneyLimitPerLevel(level, accName);
     int curMoney = getCurCharacMoney();
     if (curMoney + money <= limit)
@@ -1169,9 +1168,9 @@ unsigned short CUser::getCurCharacTotalFatigue() const
     // (0x865777d)；rate 无槽：test %ax,%ax;setne;test;je 物化（技巧 22，0x8657791-99）。
     unsigned short total = 0;
     total = getCurCharacFatigue();
-    bool nz;
-    nz = (m_premium.GetAdvantageFatigueRate() != 0);
-    if (nz)
+    // b28d-solo-CUser AE: 条件内联免 bool 槽（ORIG 0x8657791-99 setne;test;je 无槽，
+    // 具名 nz 使 4.4 落 -0x9 并推 total 槽 -0xa→-0xc；probe_bool a3/a5）。
+    if (m_premium.GetAdvantageFatigueRate() != 0)
     {
         // ORIG 槽反推（声明序即分配序，技巧 21：先声明占近槽）：maxPremium@-0xe、
         // premiumFatigue@-0xc（min 双 lea 0x86577c8-0x86577d2 实参序 (premium,maxPremium)
@@ -1204,10 +1203,8 @@ unsigned short CUser::getCurCharacTotalMaxFatigue() const
     unsigned short total = 0;
     total = getCurCharacMaxFatigue();
     // ORIG 0x8??：`test %ax,%ax; setne %al; test %al,%al; je`（技巧 22：register bool
-    // asm("al") 对 short call 结果 !=0 物化）。
-    bool nz;
-    nz = (m_premium.GetAdvantageFatigueRate() != 0);
-    if (nz)
+    // 结果 !=0 物化）。b28d-solo-CUser AE：条件内联免 bool 槽（probe_bool a3/a5）。
+    if (m_premium.GetAdvantageFatigueRate() != 0)
         total = (unsigned short)(total + getCurCharacMaxPremiumFatigue());
     return total;
 }
@@ -2350,11 +2347,11 @@ void CUser::set_state(ch_state state)
     if (getCurCharacR() == 0)
         goto ST_END;
     {
-        bool bFight;
-        bFight = is_fighting();
+        // b28d-solo-CUser：ORIG `call is_fighting; movzbl %al,%ebx` 无 bool 槽（跨
+        // getCurCharacInvenR/GetCreatureMgrW 保活 %ebx）。具名 bFight 落 -0x9 ⇒ 内联实参。
         ((CInventory*)getCurCharacInvenR())
             ->GetCreatureMgrW()
-            ->TurnStomach(bFight);
+            ->TurnStomach(is_fighting());
     }
 ST_END:;
 }
@@ -2362,9 +2359,9 @@ ST_END:;
 unsigned int CUser::GetUID() const
 {
     // ORIG 0x80c8c9c movzwl 704a6,%eax；0x80c8ca3 cwtl；0x80c8ca4 movzwl %ax,%edx。
-    // register 钉 eax 阻断 fold-const 三段折叠，(unsigned short) 强制物化到 edx。
-    int rawHi = (short)m_field704a6;
-    return (unsigned short)rawHi | ((int)(short)m_slotIDX << 16);
+    // b28d-solo-CUser N封顶: 4.4 折叠 `(unsigned short)(short)` 中间 cwtl（探针 6 形：
+    //   具名 rawHi→落槽、cast 链/语句表达式均无 cwtl），4.1 保留三段 = N18a 折叠族。
+    return (unsigned short)(short)m_field704a6 | ((int)(short)m_slotIDX << 16);
 }
 
 unsigned short CUser::get_unique_id() const
@@ -2907,13 +2904,12 @@ bool CUser::IsHavePremiumAdvantage() const
     return m_premium.GetAdvPremiumCount() != 0;
 }
 
+// b28d-solo-CUser AE: ORIG 0x0867?? `call; test %eax,%eax; setne %al; test %al,%al; je`
+//   = 条件内联形（探针 /tmp/probe_bool.cpp a3/a5 逐条同形）；具名 bool 局部 4.4 恒
+//   落槽（a2/a4：mov %al,-0x9; cmpb $0,-0x9）⇒ 删局部内联即归位。| _ZN5CUser13IsEquipAvatarEv
 bool CUser::IsEquipAvatar()
 {
-    // ORIG 0x8??：cur 无槽——`test %eax,%eax; setne %al; test; je`（技巧 22 指针!=0
-    // register bool）；je → mov $0 尾岛；then 链式 `call;call;call; jmp merge`。
-    bool hasCur;
-    hasCur = (getCurCharacR() != 0);
-    if (hasCur)
+    if (getCurCharacR() != 0)
         return ((const CInventory*)getCurCharacInvenR())->IsEquipAvatar();
     return false;
 }
@@ -3039,13 +3035,11 @@ unsigned char CUser::isDungeonClearHackCheck()
 void CUser::setDungeonClearHackCheck(bool flag)
 {
     if (flag) {
-        // ORIG 0x8649bab-0x8649bb4：movzbl→%eax + mov %eax,%edx + or $0x1,%edx。
-        // register char asm("eax")（非 uchar！uchar 绑定反产 or-%eax，probe29 a/b/c 三探针定位）
-        char cur = m_mcap.m_field54c;
-        m_mcap.m_field54c = (cur | 1);
+        // b28d-solo-CUser AE: ORIG 0x8649bab-0x8649bb4 `movzbl 0x8e93c; mov %eax,%edx;
+        //   or $0x1,%edx`（无 cur 槽，sub $0x4）；具名 char cur 落 -0x2 多两段 ⇒ 内联。
+        m_mcap.m_field54c = (m_mcap.m_field54c | 1);
     } else {
-        char cur = m_mcap.m_field54c;   // ORIG 0x8649bc5-0x8649bce or $0x2,%edx 同形
-        m_mcap.m_field54c = (cur | 2);
+        m_mcap.m_field54c = (m_mcap.m_field54c | 2);   // ORIG 0x8649bc5-0x8649bce or $0x2,%edx 同形
     }
 }
 
@@ -3708,10 +3702,10 @@ int CUser::GetSeedFromDate()
 void CUser::SetGMUpgradeMode(ENUM_GM_ITEM_UPGRADE mode)
 {
     // ORIG 0x822fea7-0x822fead：mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov %edx,0x711dc(%eax)
-    // （this-先+一级 fold。直写 4.4 恒 arg-先；register self asm("eax")=this 复现，probe31 f1 实证；
-    //  &子对象绑定会 materialize add 两级 ✗）
-    CUser* self = this;
-    self->m_clientSpec.m_gmUpgradeMode = mode;
+    // （this-先 + 无帧 pop ebp）。b28d-solo-CUser N封顶: 4.4 恒 arg-先（this 后载）；
+    //   删 self 已消帧 0x10+leave，残 1 条装载序 = N76/P211 边界（字段 uint 冻结于 CUser.h:900，
+    //   形参 enum 不可同型化；cast/enum/uint 三形实测同）。
+    m_clientSpec.m_gmUpgradeMode = mode;
 }
 
 bool CUser::isGMUser()
@@ -5119,9 +5113,12 @@ bool CUser::isCharacLinkMessageFlag()
     return m_breakAway.m_field14;
 }
 
-unsigned char CUser::isLinkCharacDisconnectFlag()
+// b28d-solo-CUser：CUser.h:2718 经 Main 代落 unsigned char→bool（P292：ORIG 调用点
+//   0x08652c9a `call; test %al,%al; je` 无 setcc）。ORIG 定义体 0x086973f8 直返
+//   `movzbl 0x703d9; pop; ret`（P9 直返字节）⇒ 体写 (bool) 转换试直返形。
+bool CUser::isLinkCharacDisconnectFlag()
 {
-    return (unsigned char)m_breakAway.m_field15;
+    return (bool)m_breakAway.m_field15;
 }
 
 unsigned char CUser::getDisconnectLinkCharacSlotIdx()
@@ -5166,9 +5163,8 @@ void CUser::decre_check_count()
 
 void CUser::setLastLotteryTime(unsigned long t)
 {
-    // ORIG 0x82307cb-0x82307d1：this-先 uint 直写（同 probe30 f3 register 客户端绑定）
-    CUser* self = this;   // probe31 f1 形
-    self->m_mcap.m_lastLotteryTime = (int)t;
+    // ORIG 0x82307cb-0x82307d1：this-先 uint 直写、无帧。b28d-solo-CUser AE：删具名 self。
+    m_mcap.m_lastLotteryTime = t;
 }
 
 void CUser::SetNonClientRandInt(int v)
@@ -5349,30 +5345,28 @@ bool CUser::exceptedStateMoneyLog()
     // uchar `movzbl 0x89e;test %al` 免物化直判；get_state `cmp $0x8,%eax; sete`、
     // getCurCharacVill `cmp $0x7,%al` 8 位形（callee uchar 返回）。bf 读保留
     // CParty+0xb24 视图（§4.3 具名，0xc4c 单级系 4.1 复合折叠，4.4 两段为 N）。
-    bool gp;
-    gp = (GetParty() != 0);
-    if (gp)
+    // b28d-solo-CUser AE: ORIG 0x868f3ba 全段 `setne %al; test %al,%al; je` / `movzbl
+    // 0x89e; test %al,%al` 均无槽（sub $0x18）；具名 gp/bfNZ/m89e/st8/vil7 各落 -0x9..-0xd
+    // 使帧 +0x10 ⇒ 全部内联条件（probe_bool a3/a5）。GetParty() 每使用点重调（T-CU15）。
+    if (GetParty() != 0)
     {
-        bool bfNZ;
-        bfNZ = ((*(&((CParty*)GetParty())->m_battleField)).m_villageMonsterId != 0);
-        if (bfNZ)
+        if ((*(&((CParty*)GetParty())->m_battleField)).m_villageMonsterId != 0)
             return true;
-        gp = (((CParty*)GetParty())->m_battleField.m_pDungeon != 0);
-        if (gp)
+        if (((CParty*)GetParty())->m_battleField.m_pDungeon != 0)
         {
-            unsigned char m89e;
-            m89e = ((CParty*)GetParty())->m_battleField.m_pDungeon->m_89e;
-            if (m89e)
+            // b28d-solo-CUser N封顶: 唯一残差 = 本行 uchar 直接测试。ORIG 0x868f3ba
+            //   `movzbl 0x89e; test %al,%al; je`（无 setne），4.4 在本 CFG（多出口+
+            //   共享尾）恒插 `setne %al; test %al,%al`（探针 probe_uc2/uc3/uc4：
+            //   f2/f3 与 f1/f14/f18 同上下文均复现；return 1/!=0/扁平 goto 三形无效）。
+            //   字段 m_89e 为 CDungeon.h:793 unsigned char，bool 化会截断脚本赋值
+            //   CDungeon.cpp:421（script.m_28d 可 >1）且跨 TU 消费（CParty.cpp 等）⇒ 不改。
+            if (((CParty*)GetParty())->m_battleField.m_pDungeon->m_89e)
                 return true;
         }
     }
-    bool st8;
-    st8 = (get_state() == 8);
-    if (st8)
+    if (get_state() == 8)
         return true;
-    bool vil7;
-    vil7 = (getCurCharacVill() == 7);
-    if (vil7)
+    if (getCurCharacVill() == 7)
         return true;
     return false;
 }
@@ -5809,8 +5803,8 @@ bool CUser::acceptable_within_mission() const
     CMissionList_Charac* mission =
         (CMissionList_Charac*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
     // ORIG 0x8??：grade 走 %ebx（`mov %eax,%ebx` 技巧 2），`mov %ebx,0x4(%esp)` 直传；
-    // mission=-0x10 / idx=-0xc。
-    int grade = get_pvp_grade();
+    // mission=-0x10 / idx=-0xc。b28d-solo-CUser：裸 register 复现 ebx 保活（P231）。
+    register int grade = get_pvp_grade();
     int idx = G_CDataManager()->get_WithinMissionIndex(grade);
     if (idx == 0)
         return false;
@@ -5907,11 +5901,10 @@ bool CUser::update_pvp_rank(const PvpResultType& result)
 
 void CUser::saveTaxMoneyForUpperMember(int money)
 {
-    // ORIG 0x864f8fb-0x864f902：`sete %al; test; jne`（技巧 22 register bool 物化，
-    // && 链 4.4 融合形不符）；2/3 守卫直折 test %al/je + cmpl/jle。
-    bool mk0;
-    mk0 = (get_charac_memberkey() == 0);
-    if (mk0)
+    // b28d-solo-CUser AE: ORIG 0x864f8fb-0x864f902 `sete %al; test %al,%al; jne`
+    //   （P292 非 bool 返回的 ==0 物化）；具名 mk0 落槽（mov %al,-0x9; cmpb $0,-0x9）
+    //   ⇒ 删局部内联条件（probe_bool a3）。2/3 守卫直折 test %al/je + cmpl/jle。
+    if (get_charac_memberkey() == 0)
         return;
     // ORIG 0x864f90f-0x864f917 正向嵌套（技巧 19）：`test %al,%al; je` /
     // `cmpl $0x0,0xc; jle` 均直落 leave，无 xor/中转 jmp。
@@ -5982,9 +5975,9 @@ bool CUser::AddDungeonClear(int dungeonIdx, int clearCount)
     // jge 反形）；残差 movswl %ax,%ebx（4.1 arg 截断 sext 直落 ebx）N18a。
     // 二修：getter 结果直用免槽（技巧 37，ORIG call 后 %eax 即 this 实参）、
     // 正向 `if(less)`（`!less` 反产 xor$1 取反）。
-    bool less;
-    less = (getDungeonClearRefR()->getClearedDungeonDiff(dungeonIdx) < clearCount);
-    if (less)
+    // b28d-solo-CUser AE: ORIG `cmp; setl %al; test %al,%al; je` 无槽；具名 less 落 -0x9
+    // 使帧 +0x10 ⇒ 内联条件（probe_bool a6/a7）。
+    if (getDungeonClearRefR()->getClearedDungeonDiff(dungeonIdx) < clearCount)
     {
         getDungeonClearRefW()->addClearedDungeon(dungeonIdx, clearCount);
         return true;
@@ -6089,7 +6082,9 @@ void CUser::add_inventory_item(unsigned int itemId)
 	int slot = -1;
 	slot = getCurCharacInvenW()->insertItemIntoInventory(
 	    invenItem, (eItemAddReason)0x18, true, true);
-	if ((bool)(slot == -1))
+	// b28d-solo-CUser：ORIG 0x0865cae6 `cmpl; sete %al; test %al,%al; jne`（bool 物化，
+	//   P295 while 形复现；`(bool)(x==-1)` 直折 je 无 sete）。
+	while (slot == -1)
 		return;
 	// ORIG 0x0865cb19：MakeItemPacket 成功则 finalize+Send（0xe/byte 0/short 1）
 	PacketGuard packet;
@@ -7436,8 +7431,14 @@ void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
 // b28d-lane5 N封顶: P11 符号扩展; N82/P112 槽号分配 | ORIG 0x08652c8e | _ZN5CUser22doLinkCharacDisconnectEv
 void CUser::doLinkCharacDisconnect()
 {
-    if (isLinkCharacDisconnectFlag() == 0)
-        return;
+    // b28d-solo-CUser：callee 已 bool 化（CUser.h:2718 Main 代落）⇒ 正向包裹复现
+    //   ORIG 0x08652c8e `call; test %al,%al; je <跳过 body>`（P292 表 if(f()) bool；
+    //   负向 `==0) return;` 反产 `xor $1; test; jne`）。
+    if (isLinkCharacDisconnectFlag())
+    {
+    // b28d-solo-CUser N封顶(P84/P214): ORIG 0x08652c9a 段为 `mov $1,%eax / jmp /
+    //   mov $0,%eax / mov %al,-0xd / cmpb $0,-0xd`（4.1 对 || 汇聚物化+落槽），
+    //   4.4 恒短路直跳免物化（单句/预清两句式实测：预清多 movb $0,-0xd）。
     bool locked = isLocked4DataLoad() != 0 || isLockedCreateCharac() != 0 ||
                   isLockedDeleteCharac() != 0;
     if (locked)
@@ -7454,6 +7455,7 @@ void CUser::doLinkCharacDisconnect()
     ChangeCharacSlot((unsigned int)slotIdx, (unsigned int)((int)m_characList.size() - 1));
     setLinkCharacDisconnectFlag(false);
     UpdateCharacView();
+    }
 }
 
 // 0x08651b7a
@@ -10391,10 +10393,9 @@ int CUser::GetBlackListCount(SIG_REQ_BLACK_COUNT* sig) const
 {
     sig->m_count = 0;
     // ORIG 0x867f1ef-0x867f1f4：call;mov %eax,%edx; mov 0xc(%ebp),%eax; mov %edx,0x8(%eax)。
-    // 拆两 stmt：RHS 先 register edx 落值，再 register eax 重绑 sig 基址 → store 用 (%eax)。
-    unsigned bc = (unsigned)getCurrCharacBlackCount();
-    SIG_REQ_BLACK_COUNT* ps = sig;
-    ps->m_blackCount = bc;
+    // b28d-solo-CUser N封顶: 4.4 恒 LHS-first 直存（无 %edx 中转）；具名 bc/ps（原形）落双槽
+    //   -0x10/-0xc、语句表达式形反劣（push %ebx/sub $0x14）⇒ P211 异型中转在 call 返回侧不可造。
+    sig->m_blackCount = (unsigned)getCurrCharacBlackCount();
     return 1;
 }
 
@@ -10581,7 +10582,7 @@ bool CUser::GetInventory(SIG_LOAD_INVENTORY* sig)
     // ORIG 0x0864d646 忠实保留跨对齐写）。
     memcpy(((SIG_LI_CreatureTailView*)sig)->m_tail,
            &getCurCharacInvenR()->m_invenItem[22], 0xf4);
-    getCurCharacInvenR()->GetClearAvatar((unsigned long*)&sig->m_clearAvatar);
+    getCurCharacInvenR()->GetClearAvatar(sig->m_clearAvatar);   // b28d-solo-CUser：数组退化免 cast（P255/g17 形）
     sig->m_cargoCapacity = getCurCharacCargoR()->GetCapacity();   // 同型直存（GetCapacity 已 unsigned 化）
     getCurCharacCargoR()->get_cargo(&sig->m_cargo);
     sig->m_avatarCoin = getCurCharacInvenR()->m_avatarCoin.Get();   // CInventory::m_avatarCoin@+0x658
@@ -10614,7 +10615,7 @@ bool CUser::GetInventoryInfo(SIG_LOAD_INVENTORY* sig)
     if (!GetInventory(sig) ||
         !getCurCharacInvenR()->GetCreatureMgrR()->GetCreatureItem(sig) ||
         !(((CInventory*)getCurCharacInvenR())->GetAvatarItemMgrR()->GetItem(
-              reinterpret_cast<AvatarDetailInfo*>(&sig->m_avatarDetail),
+              sig->m_avatarDetail,          // b28d-solo-CUser：真实类型数组退化（免 cast 出 lea）
               &sig->m_avatarCount)))
     {
         sig->m_result = 1;
@@ -10653,10 +10654,10 @@ bool CUser::getTagCharacInventory(TAG_CHARAC_INVEN_DATA* out) const
     memcpy(out->m_items,
            reinterpret_cast<const CInventory*>(getTagCharacInvenR())->m_invenItem, 0x53e);
     reinterpret_cast<const CInventory*>(getTagCharacInvenR())
-        ->GetClearAvatar(reinterpret_cast<unsigned long*>(out->m_clearAvatar));
+        ->GetClearAvatar(out->m_clearAvatar);   // b28d-solo-CUser：数组退化
     reinterpret_cast<const CInventory*>(getTagCharacInvenR())
         ->GetAvatarItemMgrR()->GetItem(
-        reinterpret_cast<AvatarDetailInfo*>(&out->m_avatarDetail[0]),
+        out->m_avatarDetail,   // b28d-solo-CUser：真实类型数组退化（免 cast 出 lea）
         &out->m_avatarCount);
     out->m_cargoCapacity =
         (unsigned int)getTagCharacCargoR()->GetCapacity();
@@ -10866,7 +10867,7 @@ int CUser::getTotalPcRoomPlayTime() const            // 0x08110e10：*(int*)(thi
 {
     return m_totalPcRoomPlayTime;
 }
-int CUser::getPcRoomPlayTimeRewardCnt() const   // 0x08110dec：单 movzbl 0x8eba4(%eax) 返回 int
+unsigned int CUser::getPcRoomPlayTimeRewardCnt() const   // 0x08110dec：单 movzbl 0x8eba4(%eax)；b28d-Main 改 unsigned int（P248档①，见 CUser.h 注）
 {
     return m_pcRoomPlayTimeRewardCnt;
 }
@@ -11254,6 +11255,9 @@ bool CUser::IsRestrictedGoods(int itemIdx)
 {
     if (itemIdx == 0)
         return false;
+    // b28d-solo-CUser N封顶(N86/N89): ORIG 每轮重算 this+0x711ec 且 begin/end 各占独立
+    //   sret 临时槽 -0xc/-0x10；4.4 缓存基址复用 -0x14 槽（非 const iterator 形实测
+    //   ndiff 不变 20，回退）。
     for (std::list<int>::const_iterator it = m_list711ec.begin();
          it != m_list711ec.end(); ++it)
     {
@@ -11347,9 +11351,9 @@ bool CUser::IsSubGuildMaster()
     // base+shl 双步。技巧 22 register bool 物化 cmp;sete;test;je 命中。
     for (int i = 0; i < 5; ++i)
     {
-        bool hit;
-        hit = (m_guildDB.m_subMasterData[i] == getCurCharacNo());
-        if (hit)
+        // b28d-solo-CUser AE: ORIG `cmp; sete %al; test %al,%al; je` 无槽；具名 hit 落 -0x9
+        // 并把 i 槽推 -0xc→-0x10 ⇒ 内联条件。
+        if (m_guildDB.m_subMasterData[i] == getCurCharacNo())
             return true;
     }
     return false;
@@ -11718,10 +11722,10 @@ bool CUser::SaveMoneyCoin()
     // ORIG 0x86504d8 **ebx 聚合单出口**：假支 `mov $0,%ebx; jmp END`、真支 put 后
     // `mov $1,%ebx`，END epilogue `movzbl %bl,%eax`；uid 跨 operator* 存活同用 %ebx
     // （时序不重叠：uid 在 put 前消费完）。
-    bool ch7;
-    ch7 = (G_GameWorld()->GetChannelType() == 7);
-    bool rc;
-    if (ch7)
+    register bool rc;   // b28d-solo-CUser：ORIG rc 驻 %ebx（mov $0/%1,%ebx + 尾 movzbl %bl）
+    // b28d-solo-CUser：ORIG `sete %al; test %al,%al; je` 无 ch7 槽（P292 非 bool 物化）
+    //   ⇒ 内联条件（probe_bool a3）。
+    if (G_GameWorld()->GetChannelType() == 7)
     {
         rc = false;
         goto RCEND;
@@ -11730,7 +11734,7 @@ bool CUser::SaveMoneyCoin()
         CStreamGuard guard(GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x18cc),
                            true);
         guard.operator*()->operator<<(0x23);
-        int uid;
+        register int uid;   // b28d-solo-CUser：ORIG `mov %eax,%ebx` 跨 operator* 保活
         uid = (int)GetUID();
         guard.operator*()->operator<<(uid);
         // ORIG 0x8650574-582：取 buffer 前先经一次 operator->（pt）call——源形
@@ -12538,13 +12542,12 @@ void CUser::SetUserMaxLevel(int level)
 // ============================================================================
 // ORIG T 0x0868fe2c _ZN5CUser14SetManageLevelEi：超上限取脚本 m_manageLevelMax。
 // ============================================================================
+// b28d-solo-CUser AE: ORIG 0x0868fe32-0x0868fe61 `cmp slot,%eax; setl %al; test %al,%al; je`
+//   无 bool 槽（sub $0x8）；具名 less 落槽（-0x9）⇒ 删局部内联（probe_bool a6/a7 对照）。
+//   条件/体各完整重估 G_CDataManager() 链（P183）。| _ZN5CUser14SetManageLevelEi
 void CUser::SetManageLevel(int level)
 {
-    // ORIG 0x868fe32-0x868fe61：条件/体各完整重估 G_CDataManager() 链（无具名槽，
-    // sub $0x8）；技巧 22 register bool 物化 `cmp slot,%eax; setl;test;je`。
-    bool less;
-    less = (G_CDataManager()->m_altarConfig.m_characManageScript->m_manageLevelMax < level);
-    if (less)
+    if (G_CDataManager()->m_altarConfig.m_characManageScript->m_manageLevelMax < level)
         m_field8ebd0 = G_CDataManager()->m_altarConfig.m_characManageScript->m_manageLevelMax;
     else
         m_field8ebd0 = level;
@@ -12557,9 +12560,12 @@ void CUser::SetManagePoint(int point)
     // ORIG 0x868fe79-0x868fe9f：两次 G_CDataManager call（不折叠）；lvmax 先落
     // -0x10 槽再 `mov -0x10,%ebx`（跨 call callee-saved 持值，技巧 2/31），实参
     // `mov %ebx,0x4(%esp)` 先于 `mov %eax,(%esp)`。
-    unsigned int lv =
+    // b28d-solo-CUser N封顶: ORIG 0x868fe79 值落 -0x10 槽再 `mov -0x10,%ebx` 跨 call
+    //   持值（push ebx/sub $0x24）；4.4 三形实测：具名→双槽(-0x14/-0x10)多中转、
+    //   裸 register→直入 %ebx 免槽（无 push ebx）、语句表达式→值内联更差 ⇒ N7/N18a
+    //   寄存器分配族（register 形为最近形 our=26 vs orig=27）。
+    register unsigned int lvmax =
         G_CDataManager()->m_altarConfig.m_characManageScript->m_manageLevelMax;
-    unsigned int lvmax = lv;
     int require = G_CDataManager()->m_altarConfig.m_characManageScript
                       ->GetLevelUpRequirePoint(lvmax);
     if (point > require)

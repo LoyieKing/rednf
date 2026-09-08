@@ -277,7 +277,11 @@ public:
     int m_addInfo2;             // +0x0c（← item+0x07）
     unsigned short m_endurance; // +0x10（← item+0x0b）
     unsigned int m_fieldd;      // +0x14（← item+0x0d，同型化同上）
-    int m_amp0;                 // +0x18（← item+0x11）
+    // [b28d-solo-CCreatureMgr P247] +0x18 改 4 字节结构视图（与
+    // stAmplifyOption_t::m_amp0Head 同型 ⇒ 结构赋值形，复现 ORIG LHS-first
+    // `mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov 0x11(%edx),%edx;
+    //  mov %edx,0x18(%eax)`；标量 int 形恒 RHS-first）。sizeof 0x26 不变。
+    stAmplifyHeadView m_amp0;   // +0x18（← item+0x11）
     // [b28c-30] 原三标量 m_rand0/m_rand4/m_rand8 合并为具名 guid 视图（同偏移
     // +0x1c/0x20/0x24、同尺寸 0xa）：ORIG makeInvenItem 0x0833f418 尾段为单条
     // 结构赋值形（双基址各载一次 + 三连续 store），三独立字段赋值 4.4 恒逐条重载。

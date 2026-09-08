@@ -254,7 +254,7 @@ public:
     int _GetItemCount();
     void calcCargoItemCount();
     int _IsExistEquipItem(int itemIdx, int slot);
-    int FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot) const;
+    bool FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot) const;  // b28d-Main(P292)：ORIG 0x08680e5a 调用点 `call; test %al,%al; je` ⇒ bool
 
     // ---- 扩容 / 排序 ----
     int UpgradeCargo(int capacity);
@@ -407,7 +407,7 @@ struct CharacInfoFields
     int m_chaosStateTime;              // +0xe61
     unsigned char m_superState;        // +0xe65
     bool m_ghost;             // +0xe66
-    unsigned char m_leaveTimeout;      // +0xe67
+    bool m_leaveTimeout;               // +0xe67（P292：ORIG 调用点 test %al,%al;je 无 setcc）
     int m_chaosKillTime;               // +0xe68
     int m_assaultFatigueCount;         // +0xe6c
     unsigned char m_opencoin;          // +0xe70
@@ -875,7 +875,7 @@ public:
                                //   （bool 反产规范化岛、int 反产二段 promote）；
                                //   调用点 test %al 直判同形（mangled 无返回类型）。
     void SetCurCharacGhost(bool flag);
-    unsigned char IsCurCharacLeaveTimeout();
+    bool IsCurCharacLeaveTimeout();
     void SetCurCharacLeaveTimeout(bool flag);
     void DieCurCharac(int responTime, CUser* user);
     void LiveCurCharac();

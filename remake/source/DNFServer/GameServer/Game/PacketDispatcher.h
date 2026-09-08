@@ -148,39 +148,48 @@ template <class MSG, class Param, ch_state state>
 void IPacketDispatcher<MSG, Param, state>::send(CUser* user, ParamBase& param)
 {
 }
+
+// ---------------------------------------------------------------------------
+// b28d-solo-PacketDispatcher：MSG 栈对象承载器。
+// ORIG 4.1.2 对空体 ctor 的**独立对象**默认构造在调用点省略（MSG_BASE 实例
+// 0x824e371 段零构造 call，msg 地址 -0x19 直接进 read）；4.4.6 -O0 恒发
+// lea/mov/call 三条 `_ZN8MSG_BASEC1Ev`。MSG_BASE ctor 体为空（0x812c076）且
+// 不可删（ORIG 派生类 C1 构造链 0x822dc10 调用它，见 nm 实证），故仅对
+// MSG=MSG_BASE 用同尺寸 char 缓冲承载（地址/大小/对齐不变，零副作用），
+// 其余 MSG 仍走真实默认构造（含 map 等非平凡成员，ORIG 有对应 C1 call）。
+// ---------------------------------------------------------------------------
 template <class MSG, class Param, ch_state state>
 int IPacketDispatcher<MSG, Param, state>::dispatch_template(CUser* user, PacketBuf& packet)
 {
-    // b28d-lane10 判词（119 件 dispatch_template 实例族，详见 /tmp/b28d_lane_10_result.tsv）：
-    //   · 修法（待 Main 应用 /tmp/b28d_lane10_PacketTypes.patch）：50 个 MSG_* 改 standalone POD
-    //     （ORIG nm 无 _ZN<MSG>*C1Ev，如 MSG_SECU_RPY 0x8265362 域实例零 MSG 构造 call）、
-    //     删 103 处占位 pad + 16 类 pack(1) + 39 类 pad 精调（sizeof 按 ORIG dispatch 槽跨度反推，
-    //     P213）⇒ 本族 5 AE + 7 NEAR（原 0 AE + 9 NEAR）。
-    //   · N7（51 件）：4.4.6 在「虚目标 + param 地址装载」形态选 %ecx，ORIG 4.1 用 %edx
-    //     （P230 补限定：4.4.7 恒 %eax、4.4.6 本形态 %ecx）；实参装载序 ORIG 右起先 param。
-    //     证据 0x825aae2(BUY_ITEM)/0x8259b8c(GET_ITEM)/0x8257dc4(USE_COIN)；助记符序列等价。
-    //   · N-MSG_BASE（24 件）：4.1 对空体 MSG_BASE::C1(0x812c076) 的独立对象默认构造不发 call
-    //     （实例 0x8257feb 零构造 call），4.4.6 恒发 lea/mov/call 3 条；MSG_BASE 构造不可删
-    //     （ORIG MSG_ENCHANT::C1 0x822dc10 派生链调用它），部分特化实测反劣 3→8 行，封顶。
-    //     [b28d-lane25 复核] WarRoom.cpp 实例 _ZN17IPacketDispatcherI8MSG_BASE9ParamBaseL8ch_state0EE
-    //     @0x081258b6 仍余 EXTRA _ZN8MSG_BASEC1Ev（P167 0M/1E）⇒ 沿用本 N-MSG_BASE 封顶。
-    //   · N7+N-ALIGN（30 件）：4.1 上层对象起始不 4 对齐（SecuCardRpyParam ORIG param@-0x12
-    //     非 4 倍数），4.4.6 恒 align_down4 ⇒ 非 4 倍数 sizeof 需 pack(1) 才可复现。
-    // ORIG 代码形态（逐实例化核对，如 MSG_FINISH_LOADING@0x8265abc、
-    // MSG_DELETE_ITEM@0x825a0c2 域）：result 于 check_state 早退后置 0；
-    // 赋值内嵌于条件（(result = read(...)) != 0 / (result = process(...)) > 0
-    // ⇒ setne/setg 物化形态）；MSG 不调用构造（ORIG 实证：MSG_BASE 自带
-    // 空构造 _ZN8MSG_BASEC1Ev，但 dispatch_template 全部实例化对 MSG 栈对象
-    // 零构造调用——MSG_BASE/ParamBase 实例@0x81258f1 直接 lea 栈址传 read；
-    // 故以 char 缓冲承载，避免 `MSG msg;` 触发用户构造）。
+    // b28d-solo-PacketDispatcher 判词（本模板覆盖 PacketDispatcher.cpp 117 件实例族；
+    //   逐件 [ORIG 地址]/verdict/归因 见该 .cpp 顶部表与 /tmp/b28d_solo_PacketDispatcher_result.tsv）：
+    //   · 已收 N-MSG_BASE（24 件）：4.1 对空体 ctor 的**独立对象**默认构造在调用点省略
+    //     （MSG_BASE 实例 0x824e336 段零构造 call，msg 地址 -0x19 直进 read），4.4.6 恒发
+    //     lea/mov/call `_ZN8MSG_BASEC1Ev` 3 条。DispatchMsgHolder<MSG_BASE> 用同尺寸 char
+    //     缓冲承载（地址/大小/对齐不变、ctor 空体无副作用）⇒ 该 24 件 ndiff 97→20。
+    //     MSG_BASE 类型本身未动：其 C1 仍由派生类构造链发射（ORIG MSG_ENCHANT::C1
+    //     0x822dc10 调用实证，不可删）。
+    //   · N7（72 件，封顶）：4.4.6 在「虚目标 + 两个地址实参」形态预计算 &msg/&param 到
+    //     %eax/%edx 并选 %ecx 装虚函数目标；ORIG 4.1 逐个求值压栈、虚目标用 %edx
+    //     （P230 限定：4.4.7 恒 %eax）。已穷举 10 源形（C 风格 cast / 命名引用 /
+    //     语句表达式 / 逗号表达式 / 各侧内联实参 / static_cast 引用）均不可翻；命名引用形
+    //     虽得 %edx 但引入中间槽并改帧。lea/mov 顺序差致助记符序列不同 ⇒ DIFF。
+    //     证据 0x825aae2(BUY_ITEM)/0x8259b8c(GET_ITEM)/0x824e336(MSG_BASE 实例)。
+    //   · N-SIZE（40 件，待 Main 代落 /tmp/b28d_lane10_PacketTypes.patch）：MSG 占位 pad
+    //     虚胖 / 未 standalone POD / param sizeof 差 1..3 字节；patch 后残 10~24 行，
+    //     其中 5 件 ndiff=0（AE-PENDING）。
+    //   · ORIG 代码形态（逐实例化核对，如 MSG_FINISH_LOADING@0x8265abc、
+    //     MSG_DELETE_ITEM@0x825a0c2 域）：result 于 check_state 早退后置 0；赋值内嵌于
+    //     条件（(result = read(...)) != 0 / (result = process(...)) > 0 ⇒ setne/setg 物化）。
     if (check_state(user, packet) > 0)
     {
         return 0;
     }
 
-    // ORIG 各实例化对含构造的 MSG 生成 C1 调用（如 MSG_ENCHANT 0x82523e1、
-    // MSG_COMBO_SKILL 0x826042c 内 map 构造），POD MSG 无调用；故直接声明
-    // `MSG msg;`（char 缓冲会跳过非平凡构造，对 map 成员 MSG 是错误行为）。
+    // b28d-Main 回退 P298 承载器：DispatchMsgHolder<M> 会在每个 MSG 实例化出
+    // `_ZN17DispatchMsgHolderI<MSG>EC1/C2Ev` 共 242 个 ORIG 不存在的符号（违反
+    // 禁发明符号 + 仅NEW 不得上升），换取的仅是 DIFF 件 ndiff 改善 ⇒ 弃用，
+    // 恢复真实 `MSG msg;`（多一条 MSG_BASE::C1 call 属 N7 族，落判词）。
     MSG msg;
     int result = 0;
     if ((result = this->read(packet, *reinterpret_cast<MSG_BASE*>(&msg))) != 0)
@@ -264,9 +273,12 @@ public:
     IDispatcher* get_dispatcher(int code);    // ORIG T 0x85948e2：越界/空槽返回 0
     IDispatcher* getDispatcher(int code);     // ORIG W 0x8231f2e：转调 get_dispatcher
     int dispatch(int userId, char* data, int len);   // ORIG T 0x8594e52
-    int doDispatch(CUser* user, ENUM_PACKETCLASS packetClass, unsigned short cmd,
-                   char* data, int len, ENUM_PACKETCLASS packetClass2,
-                   unsigned short flag);             // ORIG T 0x8594922
+    // b28d-solo-PacketDispatcher：返回类型 bool —— ORIG dispatch 调用点 0x8594f7e
+    // `xor $0x1,%eax; test %al,%al; je` 证明 callee 返回单字节 bool（P292 判别法）；
+    // 返回类型不入 mangled，仅 Dispatchers.cpp:2174 忽略返回值调用，ABI 零影响。
+    bool doDispatch(CUser* user, ENUM_PACKETCLASS packetClass, unsigned short cmd,
+                    char* data, int len, ENUM_PACKETCLASS packetClass2,
+                    unsigned short flag);            // ORIG T 0x8594922
     void log_recv_packet(CUser* user, ENUM_PACKETCLASS cls, unsigned short cmd,
                          char* data, int len);       // ORIG T 0x825f72e
     void server_load_monitoring();                   // ORIG T 0x825f658

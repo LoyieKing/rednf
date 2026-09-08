@@ -142,7 +142,11 @@ public:
     unsigned char m_userType;      // +0x0c（[user type]；C1 写 0）
     unsigned char m_pad0d[3];      // +0x0d..0x0f
     int           m_usedFatigue;   // +0x10（[used fatigue]；C1 写 0）
-    unsigned char m_charcEventFlag;  // +0x14（[charc event] 置 1；C1 写 0）
+    bool          m_charcEventFlag;  // +0x14（[charc event] 置 1；C1 写 0）
+                                     //   [b28d S12] bool 化：ORIG getIsCharacEvent
+                                     //   0x081107ea 尾 store RHS-first 直存（g2 探针
+                                     //   bool 字段+bool 目标命中）；与 uchar 同宽同
+                                     //   对齐 ⇒ 偏移/sizeof 不变。
     unsigned char m_pad15[3];      // +0x15..0x17
     int           m_jobType;       // +0x18（[apply job type]；C1 写 -1）
     int           m_fatigueLimit;  // +0x1c（[used fatigue limit]；C1 写 -1）

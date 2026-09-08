@@ -115,7 +115,16 @@ struct SIG_CREATURE_ITEM
 {
     int m_hdr;                  // +0x00（RecvMail |0x130、SendMail |0x100、
                                 //        UseFeedCreature |0x2）
-    unsigned char m_item[0x28]; // +0x04（Inven_Item_Compatible 兼容物品副本区）
+    // [b28d-solo-CCreatureMgr P235] +0x04 兼容物品副本区改匿名 union 双视角：
+    // 原 byte 数组 + `reinterpret_cast<Inven_Item_Compatible*>(&buf->m_item)` cast
+    // 形使 4.4 对 +0x08 store 恒 base 先装载（LHS-first），ORIG 为值先
+    // `mov 0x14(%ebp),%edx; mov -0x10(%ebp),%eax; mov %edx,0x8(%eax)`；直取
+    // 具名视角类型（完整类型成员访问）复现 ORIG 序。sizeof/偏移不变（0x28 主导）。
+    union
+    {
+        unsigned char m_item[0x28];             // +0x04（Inven_Item_Compatible 兼容区）
+        Inven_Item_Compatible m_itemView;       // +0x04（P235 具名视角；sizeof 0x26）
+    };
     int m_slot;                 // +0x2c
     int m_addInfo2;             // +0x30（RecvMail/SendMail ← item+0x07；
                                 //        UseFeedCreature 承载宠物 uid）
@@ -138,7 +147,11 @@ struct SIG_CREATURE_ITEM
     int m_days;                 // +0x54（InsertCreatureItem ← 参数 days）
     int m_expireTick;           // +0x58（InsertCreatureItem ← 参数 expireTick）
     unsigned char m_pad5c[4];
-    int m_ceraOrderNo;          // +0x60（InsertCreatureItem ← get_cera_item_order_no）
+    // [b28d-solo-CCreatureMgr P211/P248 档③] +0x60 与 RHS
+    // `CUser::get_cera_item_order_no()`（unsigned int）同型化：ORIG
+    // 0x833fb65 `mov -0x14(%ebp),%edx; mov %eax,0x60(%edx)` LHS-first 直存；
+    // int 字段异型 ⇒ 4.4 恒 RHS-first+`mov %eax,%edx` 中转。sizeof/偏移不变。
+    unsigned int m_ceraOrderNo; // +0x60（InsertCreatureItem ← get_cera_item_order_no）
     int m_field64;              // +0x64（RecvMail=4/SendMail=3/InsertCreatureItem=6）
     int m_mapSize;              // +0x68
     int m_field6c;              // +0x6c（CDBMsgSender::ChangeOwner p6；DB 域报告待核对）

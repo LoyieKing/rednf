@@ -173,7 +173,10 @@ public:
     void  send_attend_reward_item(CUser*, int);      // 0x810e878
     void  send_attend_final_rward_item(CUser*, int, int);  // 0x810e9c0
 protected:
-    InGameEventScript* m_script1c;                   // +0x1c
+    AttendanceScript* m_script1c;                    // +0x1c（[b28d S12] 具型化：ORIG
+                                                     //   0x810e878 段 `mov 0x1c(%eax),%ebx`
+                                                     //   单段直落 callee-saved；同宽同偏移，
+                                                     //   sizeof 0x20 与 mangled 不变）
 };
 
 // CPcRoomPlayTime ← 事件记录类型 0x5c（脚本 PcBangPlayTimeScript）。虚表覆写
@@ -200,7 +203,6 @@ protected:
 class CAccountFirstLogin : public CEventEntity
 {
 public:
-    CAccountFirstLogin();                            // 0x08110f88
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810deda
     virtual std::string& get_db_table_name();               // slot 8 0x810debe：m_script+8
     virtual void do_action(int flags, CUser* user, std::bitset<32u> bs);  // slot 9 0x810df04
@@ -234,7 +236,6 @@ protected:
 class CFatigueQuantity : public CEventEntity
 {
 public:
-    CFatigueQuantity();                              // 0x08111030
     virtual ~CFatigueQuantity();                     // D1 0x08114aac / D0 0x08114adc
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810f95e
     virtual std::string& get_db_table_name();               // slot 8 0x810f988：m_script+8
@@ -247,7 +248,6 @@ protected:
 class CExchangeRandomItemReward : public CEventEntity
 {
 public:
-    CExchangeRandomItemReward();                     // 0x08110ff8
     virtual ~CExchangeRandomItemReward();            // D1 0x08114b48 / D0 0x08114b78
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810eb06
     int  getRewardItem(std::vector<std::pair<int, int> >& out);   // 0x0810ee40
@@ -269,7 +269,6 @@ protected:
 class CAvatarDisjointRandomReward : public CEventEntity
 {
 public:
-    CAvatarDisjointRandomReward();                   // 0x08111014
     virtual ~CAvatarDisjointRandomReward();          // D1 0x08114afa / D0 0x08114b2a
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810f37a
     int  getRewardItem(CItem const* item,
@@ -291,7 +290,6 @@ protected:
 class CObjectBringUp : public CEventEntity
 {
 public:
-    CObjectBringUp();                                // 0x08111068
     virtual ~CObjectBringUp();                       // D1 0x08114a10 / D0 0x08114a40
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810fcb2
     virtual std::string& get_db_table_name();               // slot 8 0x810fcdc：m_script+8
@@ -310,7 +308,6 @@ protected:
 class CPurchaseCashItemBonus : public CEventEntity
 {
 public:
-    CPurchaseCashItemBonus();                        // 0x0811104c
     virtual ~CPurchaseCashItemBonus();               // D1 0x08114a5e / D0 0x08114a8e
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810f996
     virtual std::string& get_db_table_name();               // slot 8 0x810f9c0：m_script+8
@@ -328,7 +325,6 @@ protected:
 class CAccountFirstLoginDaily : public CAccountFirstLogin
 {
 public:
-    CAccountFirstLoginDaily();                       // 0x0811110a
     virtual ~CAccountFirstLoginDaily();              // D1 0x08114c80 / D0 0x08114cb0
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810dfc6 委托
     virtual void do_action(int flags, CUser* user, std::bitset<32u> bs);

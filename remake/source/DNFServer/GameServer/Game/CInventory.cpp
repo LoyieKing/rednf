@@ -3580,7 +3580,7 @@ int CInventory::sort(INVEN_TYPE invenType)
     return 1;
 }
 
-int CInventory::FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot) const
+bool CInventory::FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot) const
 {
     space = (ENUM_ITEMSPACE)3;
     slot = 0;

@@ -2115,23 +2115,49 @@ void MonitorTcpThread::dispatch(void* arg)
                 GlobalData::s_monitor_proxy_mgr->GetServerProxyArraySize();
             for (int i = 0; i < proxyCount; ++i)
             {
-                CMonitorServerProxy* mon =
-                    GlobalData::s_monitor_proxy_mgr->GetServerProxyArrayAt(i);
-                int s = mon->GetTcpHandler()->get_socket();
-                if (s != -1)
+                // ORIG 0x0857daae..0x0857dc04（p167 实证：每 mgr 6 次三元链）：
+                // FD_SET/FD_ISSET 的 fd 实参逐处重调
+                // GetServerProxyArrayAt(i)->GetTcpHandler()->get_socket()
+                // （P157 逐字段重读，禁 mon/s 缓存；glibc FD_SET 宏对 fd 双求值）。
+                if (GlobalData::s_monitor_proxy_mgr->GetServerProxyArrayAt(i)
+                        ->GetTcpHandler()
+                        ->get_socket() != -1)
                 {
-                    FD_SET(s, &readfds);
-                    FD_SET(s, &writefds);
-                    maxfd = std::max(maxfd, s);
+                    FD_SET(GlobalData::s_monitor_proxy_mgr
+                               ->GetServerProxyArrayAt(i)
+                               ->GetTcpHandler()
+                               ->get_socket(),
+                           &readfds);
+                    FD_SET(GlobalData::s_monitor_proxy_mgr
+                               ->GetServerProxyArrayAt(i)
+                               ->GetTcpHandler()
+                               ->get_socket(),
+                           &writefds);
+                    maxfd = std::max(
+                        maxfd, GlobalData::s_monitor_proxy_mgr
+                                   ->GetServerProxyArrayAt(i)
+                                   ->GetTcpHandler()
+                                   ->get_socket());
                 }
-                CGuildServerProxy* guild =
-                    GlobalData::s_guild_proxy_mgr->GetServerProxyArrayAt(i);
-                s = guild->GetTcpHandler()->get_socket();
-                if (s != -1)
+                if (GlobalData::s_guild_proxy_mgr->GetServerProxyArrayAt(i)
+                        ->GetTcpHandler()
+                        ->get_socket() != -1)
                 {
-                    FD_SET(s, &readfds);
-                    FD_SET(s, &writefds);
-                    maxfd = std::max(maxfd, s);
+                    FD_SET(GlobalData::s_guild_proxy_mgr
+                               ->GetServerProxyArrayAt(i)
+                               ->GetTcpHandler()
+                               ->get_socket(),
+                           &readfds);
+                    FD_SET(GlobalData::s_guild_proxy_mgr
+                               ->GetServerProxyArrayAt(i)
+                               ->GetTcpHandler()
+                               ->get_socket(),
+                           &writefds);
+                    maxfd = std::max(
+                        maxfd, GlobalData::s_guild_proxy_mgr
+                                   ->GetServerProxyArrayAt(i)
+                                   ->GetTcpHandler()
+                                   ->get_socket());
                 }
             }
             if (pcroomSocket != -1)
@@ -4530,9 +4556,13 @@ bool CDBConnector::ConnectWithServerGroup(DBInfoMap infoMap)
         // ORIG 080ec946（ConnectWithServerGroup.md）：`mov 0x168(%eax)`（eax=pair 基址）
         // = second+0x164 = STDBConnInfo::m_tail（存 server group；Open 第 2 实参 %ebx）。
         // 原写 +0x160 系偏移误读（pair/second 基混淆），此处以具名字段修正为 +0x164。
-        register ENUM_SERVER_GROUP group =
-            static_cast<ENUM_SERVER_GROUP>(it->second.m_tail);
-        if (!Open(it->first, group, it->second))
+        // ORIG 0x080ec954 起装载序（R2L）：先 `lea 0x4(%eax),%esi`（第3实参
+        // &second），再 `mov 0x168(%eax),%eax; mov %eax,%ebx`（第2实参 m_tail），
+        // 最后 `mov (%eax),%eax`（第1实参 first）⇒ group 必须内联为实参表达式
+        // （具名/register 局部都会把 m_tail 装载提前）。
+        if (!Open(it->first,
+                  static_cast<ENUM_SERVER_GROUP>(it->second.m_tail),
+                  it->second))
         {
             return false;
         }
@@ -4715,12 +4745,12 @@ void CLevelDungeonPlayStatistic::IncreaseLevelDungeonPlay(int level, int playCou
         // 之前（level 跨 ctor call 保活 ⇒ 4.1 直落 callee-saved %ebx，
         // 并连带 push/pop %ebx 与帧 0x64）。4.4 默认在 operator() 处重新
         // reload ⇒ register asm("ebx") + 声明位置钉住早装载（技巧 2/13/28）。
-        // [b28 判词 N80/N96] ORIG 值跨 cMyTrace ctor 直落 %ebx（callee-saved
-        // 提前物化）；4.4 ctor 后求值，绑定禁用 ⇒ N 封顶。
-        int lv = level;  // b28 P0 清绑定（保留声明位点）
-        cMyTrace tr(__PRETTY_FUNCTION__,
-                    0x550, 0);
-        tr("LEVEL_DUNGEON_PLAY_STATISTIC wrong level(%d)", lv);
+        // ORIG 0x0860ecd2：`mov 0xc(%ebp),%ebx` 在 cMyTrace ctor 实参装填之前
+        // （level 跨 ctor call 落 callee-saved %ebx）。P227 全表达式临时链
+        // `cMyTrace(...)("fmt", expr)` 使 4.4 在 ctor 前求值 op() 实参并以
+        // %ebx 保活（具名局部/裸内联两形均劣）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x550, 0)(
+            "LEVEL_DUNGEON_PLAY_STATISTIC wrong level(%d)", level);
         return;
     }
     std::map<int, stDungeonPlayInfo>::iterator it = m_levelPlayMap.find(level);
@@ -7863,13 +7893,15 @@ int RentalMachineDimension::Rent(CUser& user,
                 (int)(signed char)elem.m_itemIdx);
             return 1;   // ENUM_ERROR 1
         }
-        if (elem.m_bEquip == 0)
+        // ORIG 0x0826ed9f `test %al,%al; je <ProcessInsertItem>`（equip 直落）
+        // ⇒ 条件取反 + 两臂交换复现 4.1 的 else-first 块布局（P47/P222 族）。
+        if (elem.m_bEquip != 0)
         {
-            pc_room::ProcessInsertItem(user, elem, info, output, 0x3e);
+            pc_room::ProcessEquipItem(user, elem, info, output, 0x3e);
         }
         else
         {
-            pc_room::ProcessEquipItem(user, elem, info, output, 0x3e);
+            pc_room::ProcessInsertItem(user, elem, info, output, 0x3e);
         }
         if (input.m_logFlag != 0)
         {

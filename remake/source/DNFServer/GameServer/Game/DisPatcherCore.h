@@ -164,7 +164,10 @@ class DisPatcher_SetPartyInfo : public IPacketDispatcher<MSG_PARTY_SET_INFO, stS
 public:
     DisPatcher_SetPartyInfo() {}
     virtual ~DisPatcher_SetPartyInfo();
-    int check_error(CUser* user, MSG_BASE& msg);
+    // [b28d-solo-DisPatcherCore] P211 callee 侧旋钮：ORIG process 调用点
+    // `call; mov %eax,%edx; mov <out槽>,%eax; mov %edx,0x4(%eax)`（RHS-first+edx 中转）
+    // ⇒ 返回类型与 int 字段 m_errNo 异型（unsigned）。返回类型不入 mangled/ABI。
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -175,7 +178,8 @@ class DisPatcher_LeaveParty : public IPacketDispatcher<MSG_BASE, stLeavePartyPar
 public:
     DisPatcher_LeaveParty() {}
     virtual ~DisPatcher_LeaveParty();
-    int check_error(CUser* user, MSG_BASE& msg);
+    // [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（unsigned 与 int 字段异型 ⇒ RHS-first）。
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -200,7 +204,8 @@ public:
     virtual ~DisPatcher_StartGame();
     // ORIG mangled _ZN20DisPatcher_StartGame11check_errorEP5CUserR8MSG_BASER9ParamBase
     // （nm 实证三参；stub 体保持 return 0，与 UseCoin/DropItem 同规约）
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
+    // [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（unsigned 与 int 字段异型 ⇒ RHS-first）。
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     int excludeAddHackCount(CUser* user);   // ORIG T 0x081ca2a8
@@ -250,7 +255,8 @@ class DisPatcher_MoveItem : public IPacketDispatcher<MSG_MOVE_ITEMSPACE, stMoveI
 public:
     DisPatcher_MoveItem() {}
     virtual ~DisPatcher_MoveItem();
-    int check_error(CUser* user, MSG_BASE& msg);
+    // [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（unsigned 与 int 字段异型 ⇒ RHS-first）。
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -437,7 +443,8 @@ public:
     DisPatcher_SetArea() {}
     virtual ~DisPatcher_SetArea();
     // ORIG mangled _ZN18DisPatcher_SetArea11check_errorEP5CUserR8MSG_BASER9ParamBase
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
+    // [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（unsigned 与 int 字段异型 ⇒ RHS-first）。
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -458,7 +465,8 @@ class DisPatcher_FinishLoad : public IPacketDispatcher<MSG_FINISH_LOADING, stFin
 public:
     DisPatcher_FinishLoad() {}
     virtual ~DisPatcher_FinishLoad();
-    int check_error(CUser* user, MSG_BASE& msg);
+    // [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（同 SetPartyInfo，RHS-first 需异型返回）。
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -472,7 +480,8 @@ public:
     DisPatcher_UseSkill() {}
     virtual ~DisPatcher_UseSkill();
     // ORIG _ZN19DisPatcher_UseSkill11check_errorEP5CUserR8MSG_BASER9ParamBase（三参实证）
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
+    // [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（同 SetPartyInfo，RHS-first 需异型返回）。
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -551,7 +560,8 @@ class DisPatcher_MoveMap : public IPacketDispatcher<MSG_MOVE_MAP, stMoveMapParam
 public:
     DisPatcher_MoveMap() {}
     virtual ~DisPatcher_MoveMap();
-    int check_error(CUser* user, MSG_BASE& msg);
+    // [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（同 SetPartyInfo，RHS-first 需异型返回）。
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int check_state(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -578,7 +588,8 @@ class DisPatcher_DropItem : public IPacketDispatcher<MSG_DROP_ITEM, stDropItemPa
 public:
     DisPatcher_DropItem() {}
     virtual ~DisPatcher_DropItem();
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG _ZN19DisPatcher_DropItem11check_errorEP5CUserR8MSG_BASER9ParamBase
+    // [b28d-solo-DisPatcherCore] P211 callee 侧旋钮（unsigned 与 int 字段异型 ⇒ RHS-first）。
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);  // ORIG _ZN19DisPatcher_DropItem11check_errorEP5CUserR8MSG_BASER9ParamBase
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);

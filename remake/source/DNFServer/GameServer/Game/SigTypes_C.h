@@ -19,6 +19,7 @@
 #include "QuestClear.h"   // WongWork::STClearedQuest（SIG_LOAD_QUEST 完成位图元素，1 字节）
 #include "GameResultType.h"  // GameResultType（SIG_LOAD_ETC +0x3c8 记录区，0x50 步长）
 #include "PvpResultType.h"   // PvpResultType（SIG_LOAD_ETC +0x340 区）
+#include "GamePODTypes.h"    // AvatarDetailInfo（m_avatarDetail 真实元素类型，0x4b）
 #include "CTitleBook.h"      // stItemLockInfo（SIG_LOAD_INVENTORY +0x14784 锁区，8 字节）
 #include "SIG_SAVE_EXPAND_EQUIPSLOT.h"  // SIG_SAVE_EXPAND_EQUIPSLOT（SIG_LOAD_INVENTORY +0x14aa4 子对象）
 #include "../../../shared/packet/include/STPvPBuddyDBInfo.h"
@@ -265,7 +266,13 @@ struct TAG_CHARAC_INVEN_DATA
         struct
         {
             int  m_avatarCount;                    // +0x1e43（GetItem int* 出参）
-            char m_avatarDetail[0x3ff8 - 0x1e47];  // +0x1e47（AvatarDetailInfo 0x21b1）
+            // b28d-solo-CUser：char[0x21b1]→AvatarDetailInfo[0x73]（0x73×0x4b=0x21b1）。
+            //   ORIG getTagCharacInventory @0x08690708 该出参为单条 `lea 0x1e47(%eax),%ebx`；
+            //   我方 `(AvatarDetailInfo*)&out->m_avatarDetail[0]`（char 数组+cast）4.4 恒拆
+            //   `add $0x1e47,%eax; mov %eax,%ebx`（探针 /tmp/probe_lea2.cpp g1/g11/g14/g18/g19
+            //   五形全败；g17 真实类型数组退化出双 lea）。真实类型 + 数组名退化即复现。
+            //   sizeof/偏移/外层 0x4024 断言不变。
+            AvatarDetailInfo m_avatarDetail[0x73]; // +0x1e47（0x73×0x4b = 0x21b1）
             // b28c-L5：char[0x28]→unsigned long[10]。ORIG getTagCharacInventory
             //   @0x08690708 该出参装载为单条 `lea 0x3ff8(%eax),%ebx`，而调用点写
             //   `reinterpret_cast<unsigned long*>(out->m_clearAvatar)`（char 数组 +
@@ -775,12 +782,12 @@ struct SIG_LOAD_INVENTORY
     unsigned int m_cargoCapacity;                 // +0xa8e0（CCargo::GetCapacity）
     Inven_Item m_cargo[0x98];                     // +0xa8e4（0x98×0x3d = 0x2438 → +0xcd1c）
     int      m_avatarCount;                       // +0xcd1c
-    char     m_avatarDetail[0xeed1 - 0xcd20];     // +0xcd20（AvatarDetailInfo）
+    AvatarDetailInfo m_avatarDetail[0x73];        // +0xcd20（0x73×0x4b = 0x21b1；同 TAG 视图，b28d-solo-CUser）
     Inven_Item m_invenType3[0xf2];                // +0xeed1（0xf2×0x3d = 0x39aa → +0x1287b）
     char     m_pad1287b[0x1287c - 0xeed1 - 0x39aa]; // +0x1287b（creatureCount 前 1 字节）
     int      m_creatureCount;                     // +0x1287c
     char     m_creature[0x1ed8];                  // +0x12880（CCreatureMgr::GetCreatureItem）
-    char     m_clearAvatar[0x14780 - 0x14758];    // +0x14758（GetClearAvatar）
+    unsigned long m_clearAvatar[10];              // +0x14758（0x28；GetClearAvatar(unsigned long*) 同型，b28d-solo-CUser）
     unsigned int m_avatarCoin;                    // +0x14780（AvatarCoin::Get）
     stItemLockInfo m_locks[0x64];                 // +0x14784（0x64×8 = 0x320 → +0x14aa4）
     SIG_SAVE_EXPAND_EQUIPSLOT m_expandEquip;      // +0x14aa4（0x898 → +0x1533c）

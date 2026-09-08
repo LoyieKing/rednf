@@ -87,7 +87,7 @@ public:
     int ChangePvPMode(int mode);
     int check_joinable(CUser* user);
     int CheckPvPMapMode(CUser* user, int mapNo, bool& flag);
-    int IsQuickJoinablePVPRoom(CUser* user);
+    bool IsQuickJoinablePVPRoom(CUser* user);
     int check_authority(CUser* user, int seat);
     int set_seat_state(CUser* user, int seat, ENUM_SEAT_STATE state,
                        CUser** out, bool& a, bool& b, bool& c);
@@ -177,7 +177,8 @@ private:
     int m_managerSeat;                  // +0x02c
     CUser* m_users[8];                  // +0x030
     int m_teams[8];                     // +0x050
-    unsigned char m_seatState[8];       // +0x070（ORIG make_ready_info 双 movzbl 零扩展实证 unsigned）
+    bool m_seatState[8];                // +0x070（[b28d-solo-PvP_Room] P248 档②：ORIG check_start_state
+                                        //   0x085d6641 `movzbl; xor $1; test %al; je` ⇒ bool；同宽同偏移）
     // +0x078 区（原 char m_pad78[0x40]，按 SetPVPResult ORIG 0x085dc060 /
     // GetAce 0x085dc654 / GetRanking 0x085dc58e / pvp_reward 汇编证据拆为两个
     // per-seat int 数组，sizeof 不变）：

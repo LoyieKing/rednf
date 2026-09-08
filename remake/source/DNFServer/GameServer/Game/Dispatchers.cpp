@@ -80,7 +80,7 @@ bool check_url(const char* url);
 // PacketDispatcher_Impl_1.cpp 静态；AuctionMyRegistedItemInfo 等 GM 迟延 trace 用。
 static int gmList[5] = { 0x004c2dc8, 0x005cf723, 0x00a9c742, 0x00a2ad85, 0x009ae1ae };
 
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08205791 orig/ours=54/53 ndiff-blocks=2
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08205791 orig/ours=54/53 ndiff-blocks=2
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: jne    08205808 <+0x77> | addl   $0x1,-0xc(%ebp) | jmp    0820580f <+0x7e>
 bool check_url(const char* url)
@@ -266,7 +266,7 @@ int _NS_PacketIntegrity(CUser* user, PacketBuf& packet);
 #include "STComputeDamageVariable.h"   // D1 依赖：SDC 伤害变量权威布局（computeHpDamageSDC）
 // ============================================================================
 // D1 依赖前向声明（定义在本 TU 文件尾的 D1 依赖定义区）：
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08095c32 orig/ours=832/811 ndiff-blocks=141
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08095c32 orig/ours=832/811 ndiff-blocks=141
 //   帧差 sub $84 vs $94 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x84,%esp | mov    %eax,-0x5c(%ebp) | movl   $0x0,-0x58(%ebp)
 int computeHpDamageSDC(STComputeDamageVariable* v, void* arg2, void* defender);  // ORIG T 0x08095c32
@@ -786,7 +786,7 @@ int Dispatcher_Pause::read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequ
     packet.get_binary(pBuf, 0xe);                           // 「先 load 回读、后存参」交错（实验实证）
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x08140b3c orig/ours=38/36 ndiff-blocks=2
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x08140b3c orig/ours=38/36 ndiff-blocks=2
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %eax,%edx | mov    -0xc(%ebp),%eax | mov    %edx,0x4(%eax)
@@ -868,7 +868,7 @@ int Dispatcher_BuyItem::read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRe
     packet.get_binary(pBuf, 0x20);
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0813fc06 orig/ours=188/190 ndiff-blocks=43
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0813fc06 orig/ours=188/190 ndiff-blocks=43
 //   帧差 sub $5c vs $6c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x5c,%esp | mov    %eax,-0x34(%ebp) | mov    %eax,-0x30(%ebp)
 int Dispatcher_BuyItem::process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
@@ -999,7 +999,7 @@ int Dispatcher_SetSlot::read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRe
     packet.get_binary(pBuf, 0x24);
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0814006e orig/ours=67/69 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0814006e orig/ours=67/69 ndiff-blocks=6
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,%edx | mov    -0xc(%ebp),%eax | mov    %edx,0x4(%eax)
 int Dispatcher_SetSlot::process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
@@ -1088,7 +1088,7 @@ int Dispatcher_ResetStar::read_packet(PacketBuf& packet, CMDPacketStruct::STBase
     packet.get_binary(pBuf, 0x14);
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081410aa orig/ours=97/96 ndiff-blocks=1
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081410aa orig/ours=97/96 ndiff-blocks=1
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %eax,%edx | mov    -0x10(%ebp),%eax | mov    %edx,0x4(%eax)
@@ -1180,7 +1180,7 @@ int Dispatcher_StartGame::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x0813f8ce orig/ours=31/33 ndiff-blocks=5
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x0813f8ce orig/ours=31/33 ndiff-blocks=5
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %eax,-0x10(%ebp) | mov    %eax,-0xc(%ebp) | mov    %eax,%edx
@@ -1219,7 +1219,7 @@ int Dispatcher_StartGame::read(PacketBuf& packet, MSG_BASE& msg)
     packet.get_binary((char*)&m, 0xd);
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P63] ORIG 0x0813f92a orig/ours=117/114 ndiff-blocks=2
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P63] ORIG 0x0813f92a orig/ours=117/114 ndiff-blocks=2
 //   ORIG 正常路径尾 jmp+nop 中继岛（4.1 EH 尾块布局），4.4 fall-through/jump-thread 恒消除（P223 尾空标签试形实测无效）
 //   首差: jmp    0813fa71 <+0x147> | jmp    0813fa6d <+0x143> | nop
 void Dispatcher_StartGame::send(CUser* user, ParamBase& param)
@@ -1248,6 +1248,10 @@ void Dispatcher_StartGame::send(CUser* user, ParamBase& param)
         user->m_advanceAltar.setCurrentAdvanceAltarData(RidableId::RIDEABLE);  // ORIG 常量 1
         user->set_state((ch_state)0xd);
         guard.put_int(1);
+        // b28d-solo-Dispatchers verdict=DIFF [N-P63] ORIG 0x0813f92a orig/ours=117/114
+        //   ORIG 循环 = 入口 `jmp <底部条件>`（P283）+ 条件 `setle/test/jne` 物化（P51）
+        //   两旋钮组合。实测：goto 尾标签形得入口 jmp 但条件被 4.4 折成 `jle`；
+        //   do-while 形得 setcc 物化但无入口 jmp ⇒ 两形不可兼得，按 N-P63/N112 封顶。
         int i = 0;
         do
         {
@@ -1325,7 +1329,7 @@ int Dispatcher_SummonUnit::read_packet(PacketBuf& packet, CMDPacketStruct::STBas
     packet.get_binary(pBuf, 0x18);
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081405b8 orig/ours=82/80 ndiff-blocks=2
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081405b8 orig/ours=82/80 ndiff-blocks=2
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %eax,%edx | mov    -0x10(%ebp),%eax | mov    %edx,0x4(%eax)
@@ -1505,7 +1509,7 @@ int Dispatcher_ExchangeSlot::read_packet(PacketBuf& packet, CMDPacketStruct::STB
     packet.get_binary(pBuf, 0x30);
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081408a4 orig/ours=59/59 ndiff-blocks=3
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081408a4 orig/ours=59/59 ndiff-blocks=3
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    0x24(%eax),%ecx | lea    0x18(%eax),%edx | mov    0xc(%ebp),%eax
 int Dispatcher_ExchangeSlot::process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
@@ -1680,7 +1684,7 @@ int Dispatcher_UseDye::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_Antibot::~Dispatcher_Antibot() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x0820b50c orig/ours=191/200 ndiff-blocks=33
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x0820b50c orig/ours=191/200 ndiff-blocks=33
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: push   %edi | push   %esi | push   %ebx
 int Dispatcher_Antibot::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -1876,7 +1880,7 @@ int Dispatcher_BingoQuiz::check_error(CUser* user, MSG_BASE& msg)
 // ORIG 0x0825e9b8 T _ZN20Dispatcher_BingoQuiz7processEP5CUserR8MSG_BASER9ParamBase
 // （docs/class_func_reports/Dispatcher_BingoQuiz/process.md 汇编+反编译 C 全文转写）
 // param 为模板实参（+0x04 错误码 / +0x08 bingo 数据槽）。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0825e9b8 orig/ours=71/73 ndiff-blocks=14
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0825e9b8 orig/ours=71/73 ndiff-blocks=14
 //   帧差 sub $38 vs $34 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x38,%esp | mov    0x10(%ebp),%eax | mov    %eax,-0x14(%ebp)
 int Dispatcher_BingoQuiz::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -1997,7 +2001,7 @@ int Dispatcher_DieMobAll::process(CUser* user, MSG_BASE& msg, ParamBase& param) 
 int Dispatcher_DieMobAll::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_SkillInit::~Dispatcher_SkillInit() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e5a2c orig/ours=62/61 ndiff-blocks=4
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e5a2c orig/ours=62/61 ndiff-blocks=4
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    -0xc(%ebp),%eax | cmp    $0xffffffff,%eax | mov    -0xc(%ebp),%eax
 int Dispatcher_SkillInit::check_error(CUser* user, MSG_BASE& msg)
@@ -2113,7 +2117,7 @@ void Dispatcher_SkillInit::send(CUser* user, ParamBase& param)
                                  (unsigned char)(p.m_4 & 0xff));
     }
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e5bdc orig/ours=49/56 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e5bdc orig/ours=49/56 ndiff-blocks=8
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x10(%ebp) | mov    -0x10(%ebp),%eax | mov    %eax,-0xc(%ebp)
 void Dispatcher_SkillInit::process_skill_init(CUser* user, ParamBase& param)
@@ -2137,7 +2141,7 @@ void Dispatcher_SkillInit::process_skill_init(CUser* user, ParamBase& param)
 }
 
 Dispatcher_Antibot_DP::~Dispatcher_Antibot_DP() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x0820b322 orig/ours=122/116 ndiff-blocks=23
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x0820b322 orig/ours=122/116 ndiff-blocks=23
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: push   %edi | push   %esi | sub    $0xb5c,%esp
 int Dispatcher_Antibot_DP::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -2184,7 +2188,7 @@ int Dispatcher_Antibot_DP::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 int Dispatcher_Antibot_DP::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_AskRematch::~Dispatcher_AskRematch() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x08227862 orig/ours=62/74 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x08227862 orig/ours=62/74 ndiff-blocks=11
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: jle    08227887 <+0x25> | jne    0822788e <+0x2c> | mov    $0x1,%eax
 int Dispatcher_AskRematch::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -2230,7 +2234,7 @@ int Dispatcher_AskRematch::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 int Dispatcher_AskRematch::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_BVHackInfo::~Dispatcher_BVHackInfo() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08207568 orig/ours=196/190 ndiff-blocks=31
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08207568 orig/ours=196/190 ndiff-blocks=31
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN21Dispatcher_BVHackInfo12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $0x0,-0xc(%ebp) | lea    -0xc(%ebp),%ea
 int Dispatcher_BVHackInfo::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -2285,7 +2289,7 @@ int Dispatcher_BVHackInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 int Dispatcher_BVHackInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_BlueMarble::~Dispatcher_BlueMarble() {}
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081e612c orig/ours=62/63 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081e612c orig/ours=62/63 ndiff-blocks=6
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %eax,-0x14(%ebp) | mov    -0x14(%ebp),%eax | mov    %eax,-0x10(%ebp)
@@ -2468,7 +2472,7 @@ int Dispatcher_ComboSkill::checkComboSkillIndex(short idx)
 }
 
 Dispatcher_ComboSkill::~Dispatcher_ComboSkill() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0825f3ce orig/ours=41/40 ndiff-blocks=3
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0825f3ce orig/ours=41/40 ndiff-blocks=3
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: je     0825f43c <+0x6e> | jmp    0825f441 <+0x73> | mov    $0x0,%eax
 int Dispatcher_ComboSkill::check_error(CUser* user, MSG_BASE& msg)
@@ -2490,15 +2494,17 @@ int Dispatcher_ComboSkill::check_error(CUser* user, MSG_BASE& msg)
     {
         return -1;
     }
-    if (req.m_pad0d == 0 || req.m_pad0d == 1)
+    // b28d-solo-Dispatchers: ORIG 0x0825f41f 两条件各自 `je <mov $0,%eax>` 共享岛
+    //   （负极性 && 链），正极性 || 被 4.4 折成 `jne <mov $0x13>` 反布局（P214①/P45）。
+    if (req.m_pad0d != 0 && req.m_pad0d != 1)
     {
-        return 0;
+        return 0x13;
     }
-    return 0x13;
+    return 0;
 }
 // err>0 → 0；err<0 → LineFunc(0x33f)；否则当前角色 SkillSlot 写入组合技映射
 // 并校验该树。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0825f2fc orig/ours=64/62 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0825f2fc orig/ours=64/62 ndiff-blocks=13
 //   帧差 sub $20 vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | push   %ebx | sub    $0x20,%esp
 int Dispatcher_ComboSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -2531,7 +2537,7 @@ int Dispatcher_ComboSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 // 【batch-17 X1 池收口（§6.2）】orig 213 / ours 210（gap 3）：调用点差集
 //   25↔25 **归零**（残差 8/8 全为 pair/vector 的 C2/D2 ↔ C1/D1 同体符号名
 //   对称差）；残 3 为迭代器/临时对象落槽步序（N82）⇒ 语义完成。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0825ef78 orig/ours=213/210 ndiff-blocks=31
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0825ef78 orig/ours=213/210 ndiff-blocks=31
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movw   $0x0,-0x42(%ebp) | movb   $0x0,-0x43(%ebp) | movb   $0x0,-0x44(%ebp)
 int Dispatcher_ComboSkill::read(PacketBuf& packet, MSG_BASE& msg)
@@ -2638,7 +2644,7 @@ struct SigForbidPlayBody
 // get_byte 成功；失败走 LineFunc 断言路径（返回 0）。响应包 header 0x6e：
 // local_1d0 = put_byte(1)+put_byte(cmd)+payload；local_1c4 = 固定拒绝包
 // (put_byte(99),put_byte(1))，目标用户不存在时发给 GM 本人。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081fa19e orig/ours=2058/1960 ndiff-blocks=355
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081fa19e orig/ours=2058/1960 ndiff-blocks=355
 //   帧差 sub $51c vs $42c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x51c,%esp | movl   $&_ZZN21Dispatcher_GM_Command12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN21Dispatcher
 int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -3160,7 +3166,7 @@ int Dispatcher_GM_Command::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_GuildCargo::~Dispatcher_GuildCargo() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d0ae2 orig/ours=80/81 ndiff-blocks=14
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d0ae2 orig/ours=80/81 ndiff-blocks=14
 //   帧差 sub $30 vs $34 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | sub    $0x30,%esp | mov    0x14(%ebp),%eax
 int Dispatcher_GuildCargo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -3288,7 +3294,7 @@ int Dispatcher_RedeemList::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 int Dispatcher_RedeemList::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_SelectItem::~Dispatcher_SelectItem() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x0822997a orig/ours=470/457 ndiff-blocks=42
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x0822997a orig/ours=470/457 ndiff-blocks=42
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: sub    $0x1cc,%esp | movb   $0x0,-0x4a(%ebp) | movl   $&_ZZN21Dispatcher_SelectItem12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_SelectItem::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -3420,7 +3426,7 @@ int Dispatcher_SelectItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 int Dispatcher_SelectItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_TraceError::~Dispatcher_TraceError() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08204b0c orig/ours=62/62 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08204b0c orig/ours=62/62 ndiff-blocks=10
 //   帧差 sub $34 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x34,%esp | lea    -0x19(%ebp),%eax
 int Dispatcher_TraceError::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -3626,7 +3632,7 @@ Dispatcher_CranePickUp::~Dispatcher_CranePickUp() {}
 //   33↔33 **归零**（残差全是 PacketGuard/cMyTrace 的 C2/D2 ↔ C1/D1 同体
 //   符号名对称差）；多出的 7 insn 为 4.4 的 EH cleanup 与守卫落槽
 //   （N83/N82 族）⇒ 语义完成、byte 层封顶。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0821d508 orig/ours=185/192 ndiff-blocks=29
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0821d508 orig/ours=185/192 ndiff-blocks=29
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    $0x0,%eax | xor    $0x1,%eax | mov    $0x0,%eax
 int Dispatcher_CranePickUp::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -3703,7 +3709,7 @@ int Dispatcher_CranePickUp::process(CUser* user, MSG_BASE& msg, ParamBase& param
 int Dispatcher_CranePickUp::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_EPLPCommand::~Dispatcher_EPLPCommand() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081feedc orig/ours=308/314 ndiff-blocks=50
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081feedc orig/ours=308/314 ndiff-blocks=50
 //   帧差 sub $50 vs $60 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x50,%esp | lea    -0x2f(%ebp),%eax | add    $0xd,%eax
 int Dispatcher_EPLPCommand::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -3840,7 +3846,7 @@ Dispatcher_ModItemAttr::~Dispatcher_ModItemAttr() {}
 
 
 Dispatcher_SecurityLog::~Dispatcher_SecurityLog() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0825fb38 orig/ours=76/77 ndiff-blocks=12
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0825fb38 orig/ours=76/77 ndiff-blocks=12
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x24(%ebp) | mov    0x10(%ebp),%eax
 int Dispatcher_SecurityLog::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -3881,7 +3887,7 @@ int Dispatcher_SecurityLog::process(CUser* user, MSG_BASE& msg, ParamBase& param
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0825fabc orig/ours=41/44 ndiff-blocks=4
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0825fabc orig/ours=41/44 ndiff-blocks=4
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x10(%ebp),%eax | mov    0x10(%ebp),%eax | mov    -0x10(%ebp),%edx
 int Dispatcher_SecurityLog::read(PacketBuf& packet, MSG_BASE& msg)
@@ -3902,7 +3908,7 @@ int Dispatcher_SecurityLog::read(PacketBuf& packet, MSG_BASE& msg)
 void Dispatcher_SecurityLog::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_Select_Card::~Dispatcher_Select_Card() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081ff7de orig/ours=165/160 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081ff7de orig/ours=165/160 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movswl %ax,%ebx | sete   %al | test   %al,%al
 int Dispatcher_Select_Card::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -3973,7 +3979,7 @@ int Dispatcher_Select_Card::process(CUser* user, MSG_BASE& msg, ParamBase& param
 int Dispatcher_Select_Card::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_UpgradeItem::~Dispatcher_UpgradeItem() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082006d0 orig/ours=258/226 ndiff-blocks=24
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082006d0 orig/ours=258/226 ndiff-blocks=24
 //   帧差 sub $150 vs $d8 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %ebx | sub    $0x150,%esp
 int Dispatcher_UpgradeItem::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -4114,7 +4120,7 @@ int Dispatcher_AgreeEnchant::process(CUser* user, MSG_BASE& msg, ParamBase& para
 int Dispatcher_AgreeEnchant::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_Back2Village::~Dispatcher_Back2Village() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0820559a orig/ours=137/139 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0820559a orig/ours=137/139 ndiff-blocks=9
 //   帧差 sub $30 vs $20 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x30,%esp | mov    %eax,-0x10(%ebp) | cmpl   $0x0,-0x10(%ebp)
 int Dispatcher_Back2Village::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -4182,7 +4188,7 @@ Dispatcher_BossDieCheck::~Dispatcher_BossDieCheck() {}
 // 技能校验和比对（不等记 hack 0x25c）；从战场 m_apcList(party+0xc3c) 删除
 // 上报 boss 序号(msg+0x10)，未命中 param=0x15；删空后记时刻、给队长挂 100ms
 // 定时器(param3=characNo) 并置 param.m_8=1；msg+0xe==-1 记 hack 0xcb。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081cd7a2 orig/ours=185/197 ndiff-blocks=25
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081cd7a2 orig/ours=185/197 ndiff-blocks=25
 //   帧差 sub $4c vs $6c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x4c,%esp | mov    %eax,-0x24(%ebp) | mov    %eax,%edx
 int Dispatcher_BossDieCheck::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -4248,7 +4254,7 @@ int Dispatcher_BossDieCheck::process(CUser* user, MSG_BASE& msg, ParamBase& para
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081cd642 orig/ours=53/61 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081cd642 orig/ours=53/61 ndiff-blocks=8
 //   帧差 sub $28 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x28,%esp | mov    -0xc(%ebp),%eax | add    $0xe,%eax
 int Dispatcher_BossDieCheck::read(PacketBuf& packet, MSG_BASE& msg)
@@ -4323,7 +4329,7 @@ Dispatcher_CodeCheckSum::~Dispatcher_CodeCheckSum() {}
 // [b28c-31] P0 清绑（原 register char* pp asm("eax") + register bool notBak
 // asm("al") 已删）；残差 N18a：ORIG 0x0820459a 逐参立即 `lea path→%eax` 后压栈，
 // 4.4 提前物化第二 lea 到 %edx（`lea -0x34,%edx`）⇒ 单段装载序不可造。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x082044b0 orig/ours=101/99 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082044b0 orig/ours=101/99 ndiff-blocks=6
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN23Dispatcher_CodeCheckSum12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN23Dispatcher_CodeCheckSum12disp
 int Dispatcher_CodeCheckSum::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -4384,7 +4390,7 @@ int Dispatcher_CodeCheckSum::read(PacketBuf& packet, MSG_BASE& msg) { return 0; 
 // GetInvenSlot(EQUIP,slot) 后 find_item 缺失→0x11、持有数不足→0x16；
 // 非 0x12ca 物品→0x17；0x12ca 时摆摊忙→0x3c、时光门开→0x16，否则 0。
 // （声明需入 Dispatchers.h，见 NEEDS_DECL）
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e329e orig/ours=78/84 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e329e orig/ours=78/84 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x10(%ebp),%eax | mov    %eax,-0x10(%ebp) | movzwl 0x10(%eax),%eax
 int Dispatcher_CollectItems::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -4459,7 +4465,7 @@ Dispatcher_CollectItems::~Dispatcher_CollectItems() {}
 // [b28c-31] P0 清绑（原 register int ec asm("edx") + register dst asm("eax") 已删）；
 // 残差 N96+N18a：ec 中转 ORIG %edx vs 4.4 %ebx、m_count 窄化 ORIG 单段 movzwl→%edx
 // vs 4.4 两段（0x081e34xx 实证）。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e343c orig/ours=122/122 ndiff-blocks=7
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e343c orig/ours=122/122 ndiff-blocks=7
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,%edx | mov    %edx,0x4(%eax) | movl   $&_ZZN23Dispatcher_CollectItems7processEP5CUserR8MSG_BASER9ParamBaseE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_CollectItems::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -4624,7 +4630,7 @@ int Dispatcher_EvadeAssault::process(CUser* user, MSG_BASE& msg, ParamBase& para
 int Dispatcher_EvadeAssault::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_FairPvPScore::~Dispatcher_FairPvPScore() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0822793c orig/ours=300/292 ndiff-blocks=51
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0822793c orig/ours=300/292 ndiff-blocks=51
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movw   $0x0,-0x16(%ebp) | lea    -0x16(%ebp),%eax | movl   $&_ZZN23Dispatcher_FairPvPScore12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(
 int Dispatcher_FairPvPScore::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -4713,7 +4719,7 @@ int Dispatcher_FairPvPScore::process(CUser* user, MSG_BASE& msg, ParamBase& para
 int Dispatcher_FairPvPScore::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_HumanCertify::~Dispatcher_HumanCertify() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082064d6 orig/ours=274/288 ndiff-blocks=35
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082064d6 orig/ours=274/288 ndiff-blocks=35
 //   帧差 sub $48 vs $68 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x48,%esp | movl   $&_ZZN23Dispatcher_HumanCertify12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | cmp    $0x251b,%eax
 int Dispatcher_HumanCertify::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -4936,7 +4942,7 @@ int Dispatcher_MailBox_Open::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081cc196 orig/ours=81/79 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081cc196 orig/ours=81/79 ndiff-blocks=13
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x10(%ebp) | mov    %eax,%edx
 int Dispatcher_MailBox_Open::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -4975,7 +4981,7 @@ int Dispatcher_MailBox_Open::process(CUser* user, MSG_BASE& msg, ParamBase& para
 int Dispatcher_MailBox_Open::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 // [b28c-31] N（EH 尾块中继）：ORIG 0x081cc3c4 正常路径析构块后为
 // `jmp +0xec; nop` 中继（P63 跨版本 EH 尾布局），4.4 恒 fall-through；余量仅此 2 条。
-// b28d-D0 verdict=DIFF(routed) [N-P63] ORIG 0x081cc2e6 orig/ours=72/69 ndiff-blocks=2
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P63] ORIG 0x081cc2e6 orig/ours=72/69 ndiff-blocks=2
 //   ORIG 正常路径尾 jmp+nop 中继岛（4.1 EH 尾块布局），4.4 fall-through/jump-thread 恒消除（P223 尾空标签试形实测无效）
 //   首差: jmp    081cc3d2 <+0xec> | nop | nop
 void Dispatcher_MailBox_Open::send(CUser* user, ParamBase& param)
@@ -4999,8 +5005,12 @@ void Dispatcher_MailBox_Open::send(CUser* user, ParamBase& param)
             user->Send(guard);
         }
     }
-    // b28d-D0: ORIG 0x081cc3d1 `jmp +0xec; nop` 中继岛（P63 EH 尾布局）；P223 尾空标签
-    //   试形实测被 4.4 jump-thread 消除 ⇒ 保持 fall-through，记 N（与 b28c-31 判词一致）。
+    else
+    {
+        // b28d-solo-Dispatchers: P285 —— ORIG 0x081cc3d1 `jmp +0xec; nop` 体尾中继岛；
+        //   4.4 对纯正向 if 恒 jump-thread，加空 else{return;} 即保留体尾 jmp+nop。
+        return;
+    }
 }
 
 
@@ -5024,7 +5034,7 @@ int Dispatcher_MemberSecede::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081cbc2e orig/ours=77/77 ndiff-blocks=12
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081cbc2e orig/ours=77/77 ndiff-blocks=12
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x10(%ebp) | mov    %eax,%edx
 int Dispatcher_MemberSecede::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -5073,7 +5083,7 @@ int Dispatcher_MemberSecede::read(PacketBuf& packet, MSG_BASE& msg)
 Dispatcher_RequestMatch::~Dispatcher_RequestMatch() {}
 // ORIG 0x08217ad0 T _ZN23Dispatcher_RequestMatch12dispatch_sigEP5CUserR9PacketBuf
 // （docs/class_func_reports/Dispatcher_RequestMatch/dispatch_sig.md 汇编+反编译 C 全文转写）
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x08217ad0 orig/ours=74/75 ndiff-blocks=2
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x08217ad0 orig/ours=74/75 ndiff-blocks=2
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: movl   $&_ZZN23Dispatcher_RequestMatch12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_RequestMatch::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -5114,7 +5124,7 @@ int Dispatcher_RequestMatch::process(CUser* user, MSG_BASE& msg, ParamBase& para
 int Dispatcher_RequestMatch::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_ScanBotByDll::~Dispatcher_ScanBotByDll() {}
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x08264538 orig/ours=20/23 ndiff-blocks=5
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x08264538 orig/ours=20/23 ndiff-blocks=5
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    0xd(%eax),%eax | add    $0x352,%eax | mov    -0x4(%ebp),%eax
@@ -5163,7 +5173,7 @@ int Dispatcher_ScanBotByDll::read(PacketBuf& packet, MSG_BASE& msg)
 
 // ORIG 0x08264488（报告 Dispatcher_ScanBotByDll/process.md）：
 // check_error==0 后 SetETC(type+0x352, (char)msg+0x11)，再 addServerHackCnt。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08264488 orig/ours=56/59 ndiff-blocks=12
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08264488 orig/ours=56/59 ndiff-blocks=12
 //   帧差 sub $30 vs $3c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x30,%esp | mov    %eax,-0x14(%ebp) | cmpl   $0x0,-0x14(%ebp)
 int Dispatcher_ScanBotByDll::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -5184,7 +5194,7 @@ int Dispatcher_ScanBotByDll::process(CUser* user, MSG_BASE& msg, ParamBase& para
 
 Dispatcher_ScanBotByDrv::~Dispatcher_ScanBotByDrv() {}
 int Dispatcher_ScanBotByDrv::check_error(CUser* user, MSG_BASE& msg) { return 0; }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08264740 orig/ours=57/59 ndiff-blocks=14
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08264740 orig/ours=57/59 ndiff-blocks=14
 //   帧差 sub $34 vs $48 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x34,%esp | mov    %eax,-0x14(%ebp)
 int Dispatcher_ScanBotByDrv::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -5235,7 +5245,7 @@ int Dispatcher_Secede_Power::read(PacketBuf& packet, MSG_BASE& msg) { return 0; 
 Dispatcher_SoloTeleport::~Dispatcher_SoloTeleport() {}
 
 Dispatcher_TitleBookGet::~Dispatcher_TitleBookGet() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d7ada orig/ours=154/164 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d7ada orig/ours=154/164 ndiff-blocks=13
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0xd(%eax),%eax | mov    0x15(%eax),%ecx | mov    0x1d(%eax),%edx
 int Dispatcher_TitleBookGet::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -5319,7 +5329,7 @@ int Dispatcher_TitleBookGet::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_TitleBookPut::~Dispatcher_TitleBookPut() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d774e orig/ours=154/154 ndiff-blocks=7
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d774e orig/ours=154/154 ndiff-blocks=7
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: je     081d788e <+0x140> | movl   $0x0,0x4(%esp) | lea    -0x1c(%ebp),%eax
 int Dispatcher_TitleBookPut::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -5403,7 +5413,7 @@ int Dispatcher_TitleBookPut::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_UpgradeCargo::~Dispatcher_UpgradeCargo() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0822a0a4 orig/ours=255/257 ndiff-blocks=35
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0822a0a4 orig/ours=255/257 ndiff-blocks=35
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN23Dispatcher_UpgradeCargo12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | mov    &_ZN10GlobalData22s_pSecuProtectionFi
 int Dispatcher_UpgradeCargo::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -5499,7 +5509,7 @@ Dispatcher_UseLimitCube::~Dispatcher_UseLimitCube() {}
 // process/read/send/check_error 实现于 Dispatcher_UseLimitCube_impl.cpp（ORIG 0x081d3d38 族）。
 
 Dispatcher_AssertManager::~Dispatcher_AssertManager() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0821e1f4 orig/ours=134/179 ndiff-blocks=31
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0821e1f4 orig/ours=134/179 ndiff-blocks=31
 //   帧差 sub $234 vs $25c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x234,%esp | lea    -0x21c(%ebp),%eax | lea    -0x21c(%ebp),%eax
 int Dispatcher_AssertManager::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -5560,7 +5570,7 @@ int Dispatcher_AssertManager::process(CUser* user, MSG_BASE& msg, ParamBase& par
 int Dispatcher_AssertManager::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_CallGuildInfo::~Dispatcher_CallGuildInfo() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08200448 orig/ours=161/168 ndiff-blocks=16
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08200448 orig/ours=161/168 ndiff-blocks=16
 //   帧差 sub $1bc vs $1c0 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x1bc,%esp | movl   $&_ZZN24Dispatcher_CallGuildInfo12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_CallGuildInfo::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -5646,7 +5656,7 @@ int Dispatcher_ChangeEmotion::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d1b5e orig/ours=108/108 ndiff-blocks=5
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d1b5e orig/ours=108/108 ndiff-blocks=5
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZTI10ENUM_ERROR,0x4(%esp) | movl   $&_ZTI10ENUM_ERROR,0x4(%esp) | mov    -0x10(%ebp),%eax
 int Dispatcher_ChangeEmotion::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -5703,7 +5713,7 @@ int Dispatcher_ChangeEmotion::read(PacketBuf& packet, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d1d60 orig/ours=93/90 ndiff-blocks=18
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d1d60 orig/ours=93/90 ndiff-blocks=18
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x10(%ebp),%eax | mov    %eax,-0xc(%ebp) | lea    -0x18(%ebp),%eax
 void Dispatcher_ChangeEmotion::send(CUser* user, ParamBase& param)
@@ -5811,7 +5821,7 @@ void Dispatcher_Clear_Used_QP::send(CUser* user, ParamBase& param)
 
 
 Dispatcher_ConnectP2PPvP::~Dispatcher_ConnectP2PPvP() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x08225394 orig/ours=134/141 ndiff-blocks=14
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x08225394 orig/ours=134/141 ndiff-blocks=14
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: movl   $&_ZZN24Dispatcher_ConnectP2PPvP12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN24Dispatcher_ConnectP2PPvP12di
 int Dispatcher_ConnectP2PPvP::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -5887,7 +5897,7 @@ int Dispatcher_DenyJoinGuild::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_EnchantByBead::~Dispatcher_EnchantByBead() {}
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x081d24b8 orig/ours=75/69 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x081d24b8 orig/ours=75/69 ndiff-blocks=9
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x14(%ebp) | mov    %eax,%edx
 int Dispatcher_EnchantByBead::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -6022,7 +6032,7 @@ unsigned short Dispatcher_GiveGiftToNPC::_getResultFavor(
 }
 
 Dispatcher_GuildJoinList::~Dispatcher_GuildJoinList() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d52a6 orig/ours=68/69 ndiff-blocks=7
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d52a6 orig/ours=68/69 ndiff-blocks=7
 //   帧差 sub $24 vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | movl   $0x0,-0xc(%ebp)
 int Dispatcher_GuildJoinList::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -6061,7 +6071,7 @@ int Dispatcher_GuildJoinList::process(CUser* user, MSG_BASE& msg, ParamBase& par
 int Dispatcher_GuildJoinList::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_HatchCreature::~Dispatcher_HatchCreature() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081cd5aa orig/ours=49/50 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081cd5aa orig/ours=49/50 ndiff-blocks=8
 //   帧差 sub $24 vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | mov    0x10(%ebp),%eax
 int Dispatcher_HatchCreature::check_error(CUser* user, MSG_BASE& msg)
@@ -6089,7 +6099,7 @@ int Dispatcher_HatchCreature::check_error(CUser* user, MSG_BASE& msg)
 
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081cd446 orig/ours=86/89 ndiff-blocks=17
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081cd446 orig/ours=86/89 ndiff-blocks=17
 //   帧差 sub $20 vs $44 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | sub    $0x20,%esp | mov    %eax,-0x14(%ebp)
 int Dispatcher_HatchCreature::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -6166,7 +6176,7 @@ Dispatcher_JoinGuildInfo::~Dispatcher_JoinGuildInfo() {}
 // ORIG 0x081d5398（报告 Dispatcher_JoinGuildInfo/process.md）：
 // state==3 且 guildkey==0；非综合 PvP 基础渠道时 serverGroup 取
 // G_CEnvironment()->m_serverEnvir.m_serverGroup（env+0x378），否则 GetServerGroup()。
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x081d5398 orig/ours=53/50 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x081d5398 orig/ours=53/50 ndiff-blocks=8
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: push   %ebx | sub    $0x24,%esp | setne  %al
 int Dispatcher_JoinGuildInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -6202,7 +6212,7 @@ int Dispatcher_MouseRegister::check_error(CUser* user, MSG_BASE& msg)
 }
 
 // ORIG T 0x082632ca：长度 <7 且仅含 'a'/'0'..'9' 时有效（返回 int，无 bool 规范化 P9）。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x082632ca orig/ours=39/35 ndiff-blocks=7
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082632ca orig/ours=39/35 ndiff-blocks=7
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x10(%ebp) | cmpl   $0x6,-0x10(%ebp) | movl   $0x0,-0xc(%ebp)
 int Dispatcher_MouseRegister::checkValiedPassword(char const* pwd)
@@ -6244,7 +6254,7 @@ bool Dispatcher_MouseRegister::decryptPassword(char const* in, char* out, unsign
 }
 
 // ORIG T 0x082633c6：密保卡 pad 答案复核链（shake 减扰 + checkAnswer + 计数/DB 上报）。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082633c6 orig/ours=279/286 ndiff-blocks=22
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082633c6 orig/ours=279/286 ndiff-blocks=22
 //   帧差 sub $50 vs $60 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x50,%esp | mov    %al,-0x2c(%ebp) | movl   $0x0,-0xc(%ebp)
 void Dispatcher_MouseRegister::doPassPadReplay(CUser* user, char* answer,
@@ -6341,7 +6351,7 @@ void Dispatcher_MouseRegister::doPassPadReplay(CUser* user, char* answer,
 // ⑥ checkValiedPassword ×2 还原 bool 汇聚物化（xor$1/test 首项 jne 尾项 je，P22）。
 // PacketDispatcher_Secu.cpp 密保卡注册链：包类型分发 → 解密双密码 → shake 减扰
 // → checkValiedPassword ×2 → 写 SIG_MOUSE_REGISTER 进 DB_Q。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082637fe orig/ours=636/660 ndiff-blocks=82
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082637fe orig/ours=636/660 ndiff-blocks=82
 //   帧差 sub $20bc vs $20cc + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: movl   $&_ZZN24Dispatcher_MouseRegister12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | lea    -0x89(%ebp),%eax | movl   $&_ZZN24Di
 int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -6563,7 +6573,7 @@ Dispatcher_ObjectBringUp::~Dispatcher_ObjectBringUp() {}
 Dispatcher_Overflow_Info::~Dispatcher_Overflow_Info() {}
 // ORIG 0x0821e4b6（报告 Dispatcher_Overflow_Info/dispatch_sig.md）：
 // Packet_Overflow_Statistic_Add(0xc43,0xd) = PacketHeader(10B)+0xa uchar+0xb ushort。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0821e4b6 orig/ours=55/59 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0821e4b6 orig/ours=55/59 ndiff-blocks=11
 //   帧差 sub $24 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | lea    -0x15(%ebp),%eax
 int Dispatcher_Overflow_Info::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -6594,7 +6604,7 @@ int Dispatcher_Overflow_Info::read(PacketBuf& packet, MSG_BASE& msg) { return 0;
 
 
 Dispatcher_QuickJoinRoom::~Dispatcher_QuickJoinRoom() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x0820350e orig/ours=182/191 ndiff-blocks=12
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x0820350e orig/ours=182/191 ndiff-blocks=12
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: sub    $0x90,%esp | movl   $&_ZZN24Dispatcher_QuickJoinRoom12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | lea    -0x79(%ebp),%eax
 int Dispatcher_QuickJoinRoom::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -6674,7 +6684,7 @@ int Dispatcher_QuickJoinRoom::process(CUser* user, MSG_BASE& msg, ParamBase& par
 int Dispatcher_QuickJoinRoom::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_SelectStriker::~Dispatcher_SelectStriker() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e4066 orig/ours=180/150 ndiff-blocks=24
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e4066 orig/ours=180/150 ndiff-blocks=24
 //   帧差 sub $3c vs $34 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %esi | sub    $0x3c,%esp
 int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
@@ -6735,7 +6745,7 @@ int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e3dca orig/ours=178/165 ndiff-blocks=22
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e3dca orig/ours=178/165 ndiff-blocks=22
 //   帧差 sub $30 vs $40 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x30,%esp | mov    0x14(%ebp),%eax | mov    %eax,-0x14(%ebp)
 int Dispatcher_SelectStriker::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -6807,7 +6817,7 @@ void Dispatcher_SelectStriker::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_UseCraneStart::~Dispatcher_UseCraneStart() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0821d2c4 orig/ours=152/150 ndiff-blocks=4
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0821d2c4 orig/ours=152/150 ndiff-blocks=4
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN24Dispatcher_UseCraneStart12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZTI10ENUM_ERROR,0x4(%esp) | mov  
 int Dispatcher_UseCraneStart::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -6892,7 +6902,7 @@ int Dispatcher_UseRenameCard::check_error(CUser* user, MSG_BASE& msg)
     (void)pReq;
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e731a orig/ours=149/151 ndiff-blocks=22
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e731a orig/ours=149/151 ndiff-blocks=22
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x1c(%ebp) | mov    0x14(%ebp),%eax | mov    %eax,-0x18(%ebp)
 int Dispatcher_UseRenameCard::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -6967,7 +6977,7 @@ int Dispatcher_UseRenameCard::read(PacketBuf& packet, MSG_BASE& msg)
     return 0;
 }
 
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e756c orig/ours=76/73 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e756c orig/ours=76/73 ndiff-blocks=8
 //   帧差 sub $60 vs $64 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | sub    $0x60,%esp | mov    %ax,-0xc(%ebp)
 int Dispatcher_UseRenameCard::getItem(const CUser& user, int invenType, short slot,
@@ -6993,7 +7003,7 @@ int Dispatcher_UseRenameCard::getItem(const CUser& user, int invenType, short sl
 Dispatcher_WithdrawMoney::~Dispatcher_WithdrawMoney() {}
 // [b28c-31] N82：ORIG 0x082251xx 复用 item 对象死亡后的栈槽（GetMoney 结果落
 // -0x46），4.4 不复用槽且 money/-0x10 形态不同 ⇒ 槽复用策略跨版本（N82）。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x082250ec orig/ours=73/71 ndiff-blocks=7
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082250ec orig/ours=73/71 ndiff-blocks=7
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN24Dispatcher_WithdrawMoney12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | mov    %eax,-0x46(%ebp) | mov    -0x10(%ebp
 int Dispatcher_WithdrawMoney::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -7031,7 +7041,7 @@ int Dispatcher_WithdrawMoney::process(CUser* user, MSG_BASE& msg, ParamBase& par
 int Dispatcher_WithdrawMoney::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_AuctionBidding::~Dispatcher_AuctionBidding() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0821522e orig/ours=462/484 ndiff-blocks=69
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0821522e orig/ours=462/484 ndiff-blocks=69
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x31(%ebp),%eax | movl   $&_ZZN25Dispatcher_AuctionBidding12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movzbl -0x31(%eb
 int Dispatcher_AuctionBidding::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -7188,7 +7198,7 @@ int Dispatcher_AuctionBidding::process(CUser* user, MSG_BASE& msg, ParamBase& pa
 int Dispatcher_AuctionBidding::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_BuyAutomatItem::~Dispatcher_BuyAutomatItem() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081fe578 orig/ours=333/340 ndiff-blocks=63
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081fe578 orig/ours=333/340 ndiff-blocks=63
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN25Dispatcher_BuyAutomatItem12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | lea    -0x28(%ebp),%eax | movl   $"pUser d
 int Dispatcher_BuyAutomatItem::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -7303,7 +7313,7 @@ int Dispatcher_CallMemberList::check_error(CUser* user, MSG_BASE& msg)
         return 0x7fffffff;
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081cbda2 orig/ours=66/69 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081cbda2 orig/ours=66/69 ndiff-blocks=13
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0xc(%ebp) | mov    %eax,%edx
 int Dispatcher_CallMemberList::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -7339,7 +7349,7 @@ int Dispatcher_CallMemberList::process(CUser* user, MSG_BASE& msg, ParamBase& pa
 int Dispatcher_CallMemberList::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_CheckJoinGuild::~Dispatcher_CheckJoinGuild() {}
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x081d4bf6 orig/ours=63/63 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x081d4bf6 orig/ours=63/63 ndiff-blocks=9
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: sub    $0x38,%esp | mov    0x10(%ebp),%eax | mov    %eax,-0xc(%ebp)
 int Dispatcher_CheckJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -7394,7 +7404,7 @@ Dispatcher_CompoundEmblem::~Dispatcher_CompoundEmblem() {}
 
 
 Dispatcher_DisJointAvatar::~Dispatcher_DisJointAvatar() {}
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x08217c06 orig/ours=579/538 ndiff-blocks=91
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x08217c06 orig/ours=579/538 ndiff-blocks=91
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 3 个，4.4 libstdc++ 全内联不可复现
 //   首差: mov    %eax,-0x24(%ebp) | cmpl   $0x0,-0x24(%ebp) | mov    -0x24(%ebp),%eax
 int Dispatcher_DisJointAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -7672,7 +7682,7 @@ void Dispatcher_ItemDictionary::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_Lag_Statistics::~Dispatcher_Lag_Statistics() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08223de0 orig/ours=416/398 ndiff-blocks=66
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08223de0 orig/ours=416/398 ndiff-blocks=66
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x15d(%ebp),%eax | movb   $0x0,-0x11(%ebp) | lea    -0x15d(%ebp),%eax
 int Dispatcher_Lag_Statistics::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -7843,7 +7853,7 @@ int Dispatcher_P2P_Statistics::check_error(CUser* user, MSG_BASE& msg)
 
 // ===== Dispatcher_GuildCargoPopItem::process ===== ORIG 0x081d15b2 (0x195)
 // 报告 Dispatcher_GuildCargoPopItem/process.md 全文转写。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e2bde orig/ours=185/179 ndiff-blocks=30
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e2bde orig/ours=185/179 ndiff-blocks=30
 //   帧差 sub $fc vs $dc + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0xfc,%esp | mov    %eax,-0x1c(%ebp) | lea    -0x9b(%ebp),%eax
 int Dispatcher_P2P_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -8007,7 +8017,7 @@ int Dispatcher_P2P_Statistics::read(PacketBuf& packet, MSG_BASE& msg)
 
 
 Dispatcher_PvPChannelInfo::~Dispatcher_PvPChannelInfo() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x082178c0 orig/ours=133/150 ndiff-blocks=20
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082178c0 orig/ours=133/150 ndiff-blocks=20
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: setle  %al | setne  %al | test   %al,%al
 int Dispatcher_PvPChannelInfo::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -8045,7 +8055,7 @@ int Dispatcher_PvPChannelInfo::process(CUser* user, MSG_BASE& msg, ParamBase& pa
 int Dispatcher_PvPChannelInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_RemovePvPBuddy::~Dispatcher_RemovePvPBuddy() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08224c5e orig/ours=117/92 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08224c5e orig/ours=117/92 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x36(%ebp),%eax | mov    $0x1e,%ebx | mov    $0x0,%edx
 int Dispatcher_RemovePvPBuddy::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -8105,7 +8115,7 @@ int Dispatcher_RenameCreature::check_error(CUser* user, MSG_BASE& msg)
 
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081cd110 orig/ours=79/78 ndiff-blocks=14
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081cd110 orig/ours=79/78 ndiff-blocks=14
 //   帧差 sub $2c vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %esi | push   %ebx
 int Dispatcher_RenameCreature::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -8218,7 +8228,7 @@ Dispatcher_BuyCeraShopItem::~Dispatcher_BuyCeraShopItem() {}
 
 
 Dispatcher_CallGuildInvite::~Dispatcher_CallGuildInvite() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0820791c orig/ours=148/146 ndiff-blocks=16
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0820791c orig/ours=148/146 ndiff-blocks=16
 //   帧差 sub $40 vs $58 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | push   %ebx | sub    $0x40,%esp
 int Dispatcher_CallGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -8263,7 +8273,7 @@ Dispatcher_CancelJoinGuild::~Dispatcher_CancelJoinGuild() {}
 // ORIG 0x081d4fcc（报告 Dispatcher_CancelJoinGuild/process.md）：
 // state==3 且 guildkey==0；param+0xd(unsigned)=申请索引；
 // 成功路径末尾 SendCmdOkPacket(0x15e)。
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x081d4fcc orig/ours=48/42 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x081d4fcc orig/ours=48/42 ndiff-blocks=6
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: push   %esi | push   %ebx | sub    $0x20,%esp
 int Dispatcher_CancelJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -8292,7 +8302,7 @@ int Dispatcher_CancelJoinGuild::read(PacketBuf& packet, MSG_BASE& msg)
 Dispatcher_CeraPackageOpen::~Dispatcher_CeraPackageOpen() {}
 
 Dispatcher_ChangeGuildName::~Dispatcher_ChangeGuildName() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082134a8 orig/ours=269/272 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082134a8 orig/ours=269/272 ndiff-blocks=13
 //   帧差 sub $8c vs $90 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x8c,%esp | movl   $&_ZZN26Dispatcher_ChangeGuildName12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_ChangeGuildName::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -8378,7 +8388,7 @@ int Dispatcher_ChangeGuildName::process(CUser* user, MSG_BASE& msg, ParamBase& p
 int Dispatcher_ChangeGuildName::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_CompleteDisplay::~Dispatcher_CompleteDisplay() {}
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x08202cda orig/ours=430/395 ndiff-blocks=64
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x08202cda orig/ours=430/395 ndiff-blocks=64
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 7 个，4.4 libstdc++ 全内联不可复现
 //   首差: push   %edi | sub    $0xbc,%esp | jne    08202d0c <+0x32>
 int Dispatcher_CompleteDisplay::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -8643,7 +8653,7 @@ int Dispatcher_Compound_Avatar::process(CUser* user, MSG_BASE& msg, ParamBase& p
 int Dispatcher_Compound_Avatar::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_DieBloodMonster::~Dispatcher_DieBloodMonster() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08220856 orig/ours=134/110 ndiff-blocks=16
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08220856 orig/ours=134/110 ndiff-blocks=16
 //   帧差 sub $220 vs $238 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %ebx | sub    $0x220,%esp
 int Dispatcher_DieBloodMonster::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -8687,7 +8697,7 @@ int Dispatcher_DieBloodMonster::process(CUser* user, MSG_BASE& msg, ParamBase& p
 int Dispatcher_DieBloodMonster::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_DisguiseRequest::~Dispatcher_DisguiseRequest() {}
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x0821b256 orig/ours=149/161 ndiff-blocks=24
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x0821b256 orig/ours=149/161 ndiff-blocks=24
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: sub    $0x20,%esp | jne    0821b26e <+0x18> | mov    $0x0,%ebx
 int Dispatcher_DisguiseRequest::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -8739,7 +8749,7 @@ int Dispatcher_DisguiseRequest::process(CUser* user, MSG_BASE& msg, ParamBase& p
 int Dispatcher_DisguiseRequest::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_DonateGuildFund::~Dispatcher_DonateGuildFund() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d4970 orig/ours=127/120 ndiff-blocks=20
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d4970 orig/ours=127/120 ndiff-blocks=20
 //   帧差 sub $3c vs $44 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %esi | sub    $0x3c,%esp
 int Dispatcher_DonateGuildFund::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -8856,7 +8866,7 @@ int Dispatcher_GoblinPadStatus::process(CUser* user, MSG_BASE& msg, ParamBase& p
 int Dispatcher_GoblinPadStatus::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_LimitNpcBuyItem::~Dispatcher_LimitNpcBuyItem() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e1172 orig/ours=207/210 ndiff-blocks=42
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e1172 orig/ours=207/210 ndiff-blocks=42
 //   帧差 sub $f0 vs $104 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | sub    $0xf0,%esp | mov    %eax,-0x10(%ebp)
 int Dispatcher_LimitNpcBuyItem::check_error(CUser* user, MSG_BASE& msg)
@@ -8922,7 +8932,7 @@ int Dispatcher_LimitNpcBuyItem::check_error(CUser* user, MSG_BASE& msg)
 // （docs/class_func_reports/Dispatcher_LimitNpcBuyItem/process.md 汇编+反编译 C 全文转写）
 // param 为模板实参 stLimitNpcBuyItemParam，ORIG 裸访问 +0x04 错误码槽（m_4）。
 // local_3a = LimitNpcBuyItemInfo（ORIG 0x26 字节，Monitor/LimitNpcBuyItem.h 权威布局）。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e0ff8 orig/ours=73/71 ndiff-blocks=15
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e0ff8 orig/ours=73/71 ndiff-blocks=15
 //   帧差 sub $44 vs $54 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x44,%esp | mov    %eax,-0x10(%ebp) | mov    -0x10(%ebp),%edx
 int Dispatcher_LimitNpcBuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -9010,7 +9020,7 @@ int Dispatcher_MailBox_Extract::check_error(CUser* user, MSG_BASE& msg)
 
 // ORIG 0x081cce50（报告 Dispatcher_MailBox_Extract/process.md）：
 // msg+0xd（unsigned）为邮箱取件索引。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081cce50 orig/ours=48/40 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081cce50 orig/ours=48/40 ndiff-blocks=6
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,%edx | mov    -0x10(%ebp),%eax
 int Dispatcher_MailBox_Extract::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -9084,7 +9094,7 @@ int Dispatcher_PVPRequestFight::process(CUser* user, MSG_BASE& msg, ParamBase& p
 int Dispatcher_PVPRequestFight::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_QueryCharacInfo::~Dispatcher_QueryCharacInfo() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08205f68 orig/ours=120/90 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08205f68 orig/ours=120/90 ndiff-blocks=10
 //   帧差 sub $40 vs $48 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | push   %ebx | sub    $0x40,%esp
 int Dispatcher_QueryCharacInfo::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -9147,7 +9157,7 @@ int Dispatcher_ReportAbuseUser::process(CUser* user, MSG_BASE& msg, ParamBase& p
 int Dispatcher_ReportAbuseUser::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_RequestItemLock::~Dispatcher_RequestItemLock() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08222e00 orig/ours=97/93 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08222e00 orig/ours=97/93 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movb   $0x0,-0x11(%ebp) | movw   $0x0,-0x14(%ebp) | lea    -0x11(%ebp),%eax
 int Dispatcher_RequestItemLock::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -9191,7 +9201,7 @@ int Dispatcher_RequestItemLock::read(PacketBuf& packet, MSG_BASE& msg) { return 
 // ORIG _ZN26Dispatcher_SaveQuestNotifyD1Ev W 0x08260a8e：vptr 复位后调基类模板
 // D1（0x08262482）+ 恒假 delete 守卫；D0Ev W 0x08260abe = D1 + operator delete。
 Dispatcher_SaveQuestNotify::~Dispatcher_SaveQuestNotify() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0825eec4 orig/ours=60/62 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0825eec4 orig/ours=60/62 ndiff-blocks=9
 //   帧差 sub $24 vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | mov    -0x10(%ebp),%edx
 int Dispatcher_SaveQuestNotify::check_error(CUser* user, MSG_BASE& msg)
@@ -9220,7 +9230,7 @@ int Dispatcher_SaveQuestNotify::check_error(CUser* user, MSG_BASE& msg)
 
 // ORIG 0x0825ed06：读 1 字节 count（须 0..5），再按 count 读 int 写入
 // msg+0xd 起任务 idx 区；任一步失败走 LineFunc（ORIG 返回其断言值）。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0825ed06 orig/ours=62/67 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0825ed06 orig/ours=62/67 ndiff-blocks=8
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x10(%ebp),%eax | mov    %eax,-0x10(%ebp) | movl   $&_ZZN26Dispatcher_SaveQuestNotify4readER9PacketBufR8MSG_BASEE19__PRETTY_FUNCTION__,0x4(%esp
 int Dispatcher_SaveQuestNotify::read(PacketBuf& packet, MSG_BASE& msg)
@@ -9258,7 +9268,7 @@ int Dispatcher_SaveQuestNotify::read(PacketBuf& packet, MSG_BASE& msg)
 // <PRETTY>,0x2cb,"Dispatcher Check_Error No(%d)",err) 后 return 0x2cc；
 // err==0 → memcpy(getCurCharacQuestW()->m_authenData.m_authen, msg+0xd, 0x28)
 // （UserQuest+0x75f4，10×int 任务通知区）后 return 0。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0825edfc orig/ours=55/50 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0825edfc orig/ours=55/50 ndiff-blocks=9
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    -0x14(%ebp),%edx | mov    %eax,0x4(%edx) | mov    0x4(%eax),%eax
 int Dispatcher_SaveQuestNotify::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -9337,7 +9347,7 @@ int Dispatcher_Security_IPScan::process(CUser* user, MSG_BASE& msg, ParamBase& p
 int Dispatcher_Security_IPScan::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_Shop_Coin_Event::~Dispatcher_Shop_Coin_Event() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081ea622 orig/ours=199/205 ndiff-blocks=14
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081ea622 orig/ours=199/205 ndiff-blocks=14
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: movl   $0x1,-0x14(%ebp) | mov    &_ZN10GlobalData15s_event_managerE,%eax | mov    %eax,-0x10(%ebp)
 int Dispatcher_Shop_Coin_Event::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -9397,7 +9407,7 @@ int Dispatcher_Shop_Coin_Event::process(CUser* user, MSG_BASE& msg, ParamBase& p
 int Dispatcher_Shop_Coin_Event::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_TutorialLevelUp::~Dispatcher_TutorialLevelUp() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e3724 orig/ours=119/124 ndiff-blocks=16
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e3724 orig/ours=119/124 ndiff-blocks=16
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: setne  %al | mov    %eax,-0xc(%ebp) | cmpl   $0x0,-0xc(%ebp)
 int Dispatcher_TutorialLevelUp::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -9450,7 +9460,7 @@ Dispatcher_ApproveJoinGuild::~Dispatcher_ApproveJoinGuild() {}
 // ORIG 0x081d50b4 T _ZN27Dispatcher_ApproveJoinGuild7processEP5CUserR8MSG_BASER9ParamBase
 // （docs/class_func_reports/Dispatcher_ApproveJoinGuild/process.md 汇编+反编译 C 全文转写）
 // local_26 = Packet_Approve_Join_Guild（ORIG 0x16 字节，shared/packet 权威布局）。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d50b4 orig/ours=70/73 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d50b4 orig/ours=70/73 ndiff-blocks=13
 //   帧差 sub $30 vs $34 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | sub    $0x30,%esp | mov    %eax,-0xc(%ebp)
 int Dispatcher_ApproveJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -9488,7 +9498,7 @@ int Dispatcher_ApproveJoinGuild::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_CallGuildLevelUp::~Dispatcher_CallGuildLevelUp() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082001f0 orig/ours=161/173 ndiff-blocks=29
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082001f0 orig/ours=161/173 ndiff-blocks=29
 //   帧差 sub $6c vs $88 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %esi | push   %ebx
 int Dispatcher_CallGuildLevelUp::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -9554,7 +9564,7 @@ int Dispatcher_CallGuildLevelUp::process(CUser* user, MSG_BASE& msg, ParamBase& 
 int Dispatcher_CallGuildLevelUp::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_CallGuildMembers::~Dispatcher_CallGuildMembers() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081ffa56 orig/ours=58/66 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081ffa56 orig/ours=58/66 ndiff-blocks=11
 //   帧差 sub $10 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | push   %ebx | sub    $0x10,%esp
 int Dispatcher_CallGuildMembers::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -9604,7 +9614,7 @@ int Dispatcher_ChangeCharacName::process(CUser* user, MSG_BASE& msg, ParamBase& 
 int Dispatcher_ChangeCharacName::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_ChangeLetterStat::~Dispatcher_ChangeLetterStat() {}
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081ce2ba orig/ours=26/26 ndiff-blocks=3
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081ce2ba orig/ours=26/26 ndiff-blocks=3
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %eax,-0xc(%ebp) | test   %al,%al | nop
@@ -9617,6 +9627,9 @@ int Dispatcher_ChangeLetterStat::check_error(CUser* user, MSG_BASE& msg)
     MSG_CHANGE_LETTER_STAT* const pm =
         reinterpret_cast<MSG_CHANGE_LETTER_STAT*>(&msg);
     (void)pm;
+    // b28d-solo-Dispatchers verdict=DIFF [N96] ORIG 0x081ce2ba orig/ours=26/26
+    //   ORIG 直测 %al vs 4.4 具名 bool 落槽；P231 纯 register 试形实测不闭合
+    //   （与 RequestMemberEnter 同形）⇒ N96+N18a 封顶。
     bool fail;
     // 同 RequestMemberEnter：取反短路式 + register bool %al 保 jle/jne 直分支
     // （ORIG 0x081ce2d4 `jle 岛1` / 0x081ce2e3 `jne 岛0`，probe pg r3 实证）。
@@ -9627,7 +9640,7 @@ int Dispatcher_ChangeLetterStat::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081ce1fc orig/ours=59/69 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081ce1fc orig/ours=59/69 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x10(%ebp) | mov    %eax,%edx
 int Dispatcher_ChangeLetterStat::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -9684,7 +9697,7 @@ void Dispatcher_ChangeLetterStat::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_DieAssaultPlayer::~Dispatcher_DieAssaultPlayer() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08207208 orig/ours=146/145 ndiff-blocks=23
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08207208 orig/ours=146/145 ndiff-blocks=23
 //   帧差 sub $34 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x34,%esp | movl   $&_ZZN27Dispatcher_DieAssaultPlayer12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_DieAssaultPlayer::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -9747,7 +9760,7 @@ int Dispatcher_Equipslot_Switch::check_error(CUser* user, MSG_BASE& msg)
 // err>0 → 错误包(0x18d,err) 返 -1；err<0 → 错误包(0x18d,0x15)+LineFunc(0x3e2c)；
 // 否则对扩展槽视图(#9)执行 EquipslotSwitch(msg+0xf,msg+0xd,msg+0xe)，结果字节
 // 回写 param.m_4。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d61be orig/ours=68/72 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d61be orig/ours=68/72 ndiff-blocks=11
 //   帧差 sub $38 vs $48 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x38,%esp | mov    %eax,-0x18(%ebp) | cmpl   $0x0,-0x18(%ebp)
 int Dispatcher_Equipslot_Switch::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -9775,7 +9788,7 @@ int Dispatcher_Equipslot_Switch::process(CUser* user, MSG_BASE& msg, ParamBase& 
         user, pReq[0xf], pReq[0xd], pReq[0xe]);
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d606e orig/ours=53/61 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d606e orig/ours=53/61 ndiff-blocks=8
 //   帧差 sub $28 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x28,%esp | mov    -0xc(%ebp),%eax | add    $0xd,%eax
 int Dispatcher_Equipslot_Switch::read(PacketBuf& packet, MSG_BASE& msg)
@@ -9896,7 +9909,7 @@ int Dispatcher_InformNotice_2nd::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e30fa orig/ours=50/51 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e30fa orig/ours=50/51 ndiff-blocks=9
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x14(%ebp) | mov    %eax,0x4(%edx)
 int Dispatcher_InformNotice_2nd::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -9960,7 +9973,7 @@ int Dispatcher_MemberEnterReply::check_error(CUser* user, MSG_BASE& msg)
 // （docs/class_func_reports/Dispatcher_MemberEnterReply/process.md 汇编+反编译 C 全文转写）
 // param 为模板实参，ORIG 裸访问 +0x04 错误码槽（m_4）。
 // local_27 = Packet_Monitor_Member_Enter_Reply（ORIG 0x13 字节，shared/packet 权威布局）。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081cba34 orig/ours=71/69 ndiff-blocks=14
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081cba34 orig/ours=71/69 ndiff-blocks=14
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x10(%ebp) | mov    %eax,%edx | mov    -0x10(%ebp),%eax
 int Dispatcher_MemberEnterReply::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -9999,7 +10012,7 @@ int Dispatcher_MemberEnterReply::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_Mercenary_Return::~Dispatcher_Mercenary_Return() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081dd99c orig/ours=42/52 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081dd99c orig/ours=42/52 ndiff-blocks=11
 //   帧差 sub $28 vs $24 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x28,%esp | mov    0x10(%ebp),%eax | mov    0x14(%ebp),%eax
 int Dispatcher_Mercenary_Return::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -10049,7 +10062,7 @@ int Dispatcher_Mercenary_Return::read(PacketBuf& packet, MSG_BASE& msg)   // ORI
         return LineFunc(0x4e8a, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081dda1c orig/ours=86/87 ndiff-blocks=19
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081dda1c orig/ours=86/87 ndiff-blocks=19
 //   帧差 sub $20 vs $30 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x20,%esp | lea    -0x18(%ebp),%eax | lea    -0x18(%ebp),%eax
 void Dispatcher_Mercenary_Return::send(CUser* user, ParamBase& param)     // ORIG 0x081dda1c (86 insn)
@@ -10081,7 +10094,7 @@ void Dispatcher_Mercenary_Return::send(CUser* user, ParamBase& param)     // ORI
 
 Dispatcher_MultiMailBoxSend::~Dispatcher_MultiMailBoxSend() {}
 // ORIG T 0x081202a9：交易限次物品移动资格。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081202a9 orig/ours=50/52 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081202a9 orig/ours=50/52 ndiff-blocks=6
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x10(%ebp) | cmpl   $0x0,-0x10(%ebp) | je     08120321 <+0x78>
 bool CheckTradeLimitItemCountToMove(const Inven_Item& item, bool& ok)
@@ -10127,7 +10140,7 @@ L_late:;
 }
 
 // ORIG 0x082262a2：多附件邮件发送（PacketDispatcher_Impl_1.cpp 0xe1ea 区）。
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x082262a2 orig/ours=593/543 ndiff-blocks=68
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x082262a2 orig/ours=593/543 ndiff-blocks=68
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 8 个，4.4 libstdc++ 全内联不可复现
 //   首差: mov    &_ZN10GlobalData22s_pSecuProtectionFieldE,%eax | mov    %eax,-0x20(%ebp) | cmpl   $0x0,-0x20(%ebp)
 int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -10347,7 +10360,7 @@ int Dispatcher_PvPBuddyConnList::read(PacketBuf& packet, MSG_BASE& msg) { return
 Dispatcher_RefreshGuildInfo::~Dispatcher_RefreshGuildInfo() {}
 // ORIG 0x081d4886（报告 Dispatcher_RefreshGuildInfo/process.md）：
 // state>2 且 guildkey!=0；characNo 经 get_charac_no(-1)。
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x081d4886 orig/ours=49/45 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x081d4886 orig/ours=49/45 ndiff-blocks=9
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: push   %esi | push   %ebx | sub    $0x10,%esp
 int Dispatcher_RefreshGuildInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -10367,7 +10380,7 @@ int Dispatcher_RefreshGuildInfo::process(CUser* user, MSG_BASE& msg, ParamBase& 
 int Dispatcher_RefreshGuildInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_ReplyGuildInvite::~Dispatcher_ReplyGuildInvite() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08207b52 orig/ours=126/131 ndiff-blocks=20
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08207b52 orig/ours=126/131 ndiff-blocks=20
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $0x0,0xc(%esp) | movl   $0x0,0x8(%esp) | movl   $&_ZZN27Dispatcher_ReplyGuildInvite12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(
 int Dispatcher_ReplyGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -10414,7 +10427,7 @@ int Dispatcher_ReplyGuildInvite::process(CUser* user, MSG_BASE& msg, ParamBase& 
 int Dispatcher_ReplyGuildInvite::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_ReportBadP2PUser::~Dispatcher_ReportBadP2PUser() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081fd0a8 orig/ours=106/104 ndiff-blocks=16
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081fd0a8 orig/ours=106/104 ndiff-blocks=16
 //   帧差 sub $40 vs $44 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | sub    $0x40,%esp | lea    -0x32(%ebp),%eax
 int Dispatcher_ReportBadP2PUser::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -10469,7 +10482,7 @@ Dispatcher_Req_Urgent_Quest::~Dispatcher_Req_Urgent_Quest() {}
 // getQuestNPCList(8)+allowable_questlist_as_npc(…,true) 取候选：
 // 空 → err=4；非空 → 静态 CMTRand randInt(size-1) 抽一个写回
 // m_urgentQuest 与 param+8，param+4=1。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081df42c orig/ours=214/206 ndiff-blocks=38
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081df42c orig/ours=214/206 ndiff-blocks=38
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x28(%ebp) | mov    -0x28(%ebp),%eax
 int Dispatcher_Req_Urgent_Quest::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -10569,7 +10582,7 @@ int Dispatcher_RequestBlackList::check_error(CUser* user, MSG_BASE& msg)
         return -1;
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081ce070 orig/ours=66/69 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081ce070 orig/ours=66/69 ndiff-blocks=13
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0xc(%ebp) | mov    %eax,%edx
 int Dispatcher_RequestBlackList::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -10605,7 +10618,7 @@ int Dispatcher_RequestBlackList::process(CUser* user, MSG_BASE& msg, ParamBase& 
 int Dispatcher_RequestBlackList::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_RequestJoinGuild::~Dispatcher_RequestJoinGuild() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d4e28 orig/ours=89/98 ndiff-blocks=7
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d4e28 orig/ours=89/98 ndiff-blocks=7
 //   帧差 sub $68 vs $64 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x68,%esp | mov    0x10(%ebp),%eax | mov    %eax,-0xc(%ebp)
 int Dispatcher_RequestJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -10696,7 +10709,7 @@ int Dispatcher_ResponseCreature::process(CUser* user, MSG_BASE& msg, ParamBase& 
 int Dispatcher_ResponseCreature::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_SDC_Damage_Check::~Dispatcher_SDC_Damage_Check() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e9e84 orig/ours=170/167 ndiff-blocks=33
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e9e84 orig/ours=170/167 ndiff-blocks=33
 //   帧差 sub $440 vs $454 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x440,%esp | movl   $0x0,-0x2c(%ebp)
 int Dispatcher_SDC_Damage_Check::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -10789,7 +10802,7 @@ int Dispatcher_SaveGameOption_1::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081ceb38 orig/ours=149/143 ndiff-blocks=30
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081ceb38 orig/ours=149/143 ndiff-blocks=30
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x18(%ebp) | cmpl   $0x0,-0x18(%ebp) | mov    -0x18(%ebp),%ebx
 int Dispatcher_SaveGameOption_1::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -10830,7 +10843,7 @@ int Dispatcher_SaveGameOption_1::process(CUser* user, MSG_BASE& msg, ParamBase& 
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081cea7a orig/ours=51/54 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081cea7a orig/ours=51/54 ndiff-blocks=6
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %eax,-0xc(%ebp) | mov    -0xc(%ebp),%eax | mov    -0xc(%ebp),%eax
@@ -10873,7 +10886,7 @@ int Dispatcher_SaveGameOption_2::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081cee64 orig/ours=138/138 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081cee64 orig/ours=138/138 ndiff-blocks=8
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %al,-0xd(%ebp) | movzbl -0xd(%ebp),%eax | xor    $0x1,%eax
@@ -10920,7 +10933,7 @@ int Dispatcher_SaveGameOption_2::process(CUser* user, MSG_BASE& msg, ParamBase& 
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081ceda4 orig/ours=51/54 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081ceda4 orig/ours=51/54 ndiff-blocks=6
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %eax,-0xc(%ebp) | mov    -0xc(%ebp),%eax | mov    -0xc(%ebp),%eax
@@ -10943,7 +10956,7 @@ int Dispatcher_SaveGameOption_2::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_UpgradeChronicle::~Dispatcher_UpgradeChronicle() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08223330 orig/ours=538/524 ndiff-blocks=91
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08223330 orig/ours=538/524 ndiff-blocks=91
 //   帧差 sub $17c vs $16c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x17c,%esp | movw   $0x0,-0x4e(%ebp) | movl   $0x0,-0x54(%ebp)
 int Dispatcher_UpgradeChronicle::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -11092,7 +11105,7 @@ int Dispatcher_UpgradeChronicle::process(CUser* user, MSG_BASE& msg, ParamBase& 
 int Dispatcher_UpgradeChronicle::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_UpgradeInventory::~Dispatcher_UpgradeInventory() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0822a4bc orig/ours=275/264 ndiff-blocks=39
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0822a4bc orig/ours=275/264 ndiff-blocks=39
 //   帧差 sub $8c vs $4 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x8c,%esp | movl   $&_ZZN27Dispatcher_UpgradeInventory12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_UpgradeInventory::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -11190,7 +11203,7 @@ Dispatcher_AuctionRegistItem::~Dispatcher_AuctionRegistItem() {}
 
 
 Dispatcher_ChangeHostWarRoom::~Dispatcher_ChangeHostWarRoom() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d74d4 orig/ours=56/56 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d74d4 orig/ours=56/56 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN28Dispatcher_ChangeHostWarRoom11check_errorEP5CUserR8MSG_BASEE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN28Dispatcher_ChangeHostWarRo
 int Dispatcher_ChangeHostWarRoom::check_error(CUser* user, MSG_BASE& msg)
@@ -11214,7 +11227,7 @@ int Dispatcher_ChangeHostWarRoom::check_error(CUser* user, MSG_BASE& msg)
     }
     return user->get_state() == 8 ? 0 : -1;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d73f6 orig/ours=64/64 ndiff-blocks=14
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d73f6 orig/ours=64/64 ndiff-blocks=14
 //   帧差 sub $24 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | mov    %eax,-0x18(%ebp)
 int Dispatcher_ChangeHostWarRoom::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -11275,7 +11288,7 @@ void Dispatcher_ChangeHostWarRoom::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_ConnectP2PAssault::~Dispatcher_ConnectP2PAssault() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08206fea orig/ours=124/128 ndiff-blocks=22
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08206fea orig/ours=124/128 ndiff-blocks=22
 //   帧差 sub $24 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | movl   $&_ZZN28Dispatcher_ConnectP2PAssault12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_ConnectP2PAssault::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -11351,7 +11364,7 @@ Dispatcher_Debug_Clear_Quest::~Dispatcher_Debug_Clear_Quest() {}
 // m_field138>0 → incQuestPoint(值,idx,true)、m_field13a>0 →
 // incQuestPiece(值,idx,true)，计数；循环后 res.m_index.m_count=实际清空数，
 // sendCharacQp() + sendCharacQuestPiece()，return 0。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081df91c orig/ours=151/127 ndiff-blocks=24
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081df91c orig/ours=151/127 ndiff-blocks=24
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN28Dispatcher_Debug_Clear_Quest7processEP5CUserR8MSG_BASER9ParamBaseE19__PRETTY_FUNCTION__,0x4(%esp) | mov    0x14(%ebp),%eax | mov    %ea
 int Dispatcher_Debug_Clear_Quest::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -11459,7 +11472,7 @@ int Dispatcher_DeleteToBlackList::check_error(CUser* user, MSG_BASE& msg)
         return -1;
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081cdf0a orig/ours=85/84 ndiff-blocks=4
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081cdf0a orig/ours=85/84 ndiff-blocks=4
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %eax,%edx | mov    -0x10(%ebp),%eax | mov    %edx,0x4(%eax)
@@ -11502,7 +11515,7 @@ int Dispatcher_DeleteToBlackList::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_EnterPrivateStore::~Dispatcher_EnterPrivateStore() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x082025ae orig/ours=63/72 ndiff-blocks=15
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x082025ae orig/ours=63/72 ndiff-blocks=15
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: push   %ebx | sub    $0x24,%esp | jne    082025d4 <+0x26>
 int Dispatcher_EnterPrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -11552,7 +11565,7 @@ int Dispatcher_EnterPrivateStore::read(PacketBuf& packet, MSG_BASE& msg) { retur
 Dispatcher_FatigueAttendance::~Dispatcher_FatigueAttendance() {}
 
 Dispatcher_GuildCargoHistory::~Dispatcher_GuildCargoHistory() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d0cb4 orig/ours=78/78 ndiff-blocks=16
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d0cb4 orig/ours=78/78 ndiff-blocks=16
 //   帧差 sub $30 vs $34 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | sub    $0x30,%esp | mov    0x14(%ebp),%eax
 int Dispatcher_GuildCargoHistory::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -11596,7 +11609,7 @@ void Dispatcher_GuildCargoHistory::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_GuildCargoPopItem::~Dispatcher_GuildCargoPopItem() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d15b2 orig/ours=119/126 ndiff-blocks=22
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d15b2 orig/ours=119/126 ndiff-blocks=22
 //   帧差 sub $5c vs $6c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x5c,%esp | mov    %eax,-0x24(%ebp) | mov    %eax,%edx
 int Dispatcher_GuildCargoPopItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -11670,7 +11683,7 @@ void Dispatcher_GuildCargoPopItem::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_LoadingTimeReport::~Dispatcher_LoadingTimeReport() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0821efec orig/ours=361/351 ndiff-blocks=58
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0821efec orig/ours=361/351 ndiff-blocks=58
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x820(%ebp),%eax | movw   $0x0,-0x16(%ebp) | movl   $0x0,-0x14(%ebp)
 int Dispatcher_LoadingTimeReport::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -11811,7 +11824,7 @@ int Dispatcher_LoadingTimeReport::process(CUser* user, MSG_BASE& msg, ParamBase&
 int Dispatcher_LoadingTimeReport::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_PeerConnectResult::~Dispatcher_PeerConnectResult() {}
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x082033e6 orig/ours=77/76 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x082033e6 orig/ours=77/76 ndiff-blocks=11
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: sub    $0x24,%esp | movb   $0x0,-0x15(%ebp) | movw   $0x0,-0x18(%ebp)
 int Dispatcher_PeerConnectResult::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -11881,7 +11894,7 @@ int Dispatcher_PutItemForEnchant::process(CUser* user, MSG_BASE& msg, ParamBase&
 int Dispatcher_PutItemForEnchant::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_RequestItemUnlock::~Dispatcher_RequestItemUnlock() {}
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x08222f82 orig/ours=144/144 ndiff-blocks=26
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x08222f82 orig/ours=144/144 ndiff-blocks=26
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: movb   $0x0,-0x11(%ebp) | movw   $0x0,-0x14(%ebp) | lea    -0x11(%ebp),%eax
@@ -11932,7 +11945,7 @@ Dispatcher_SecretShopBuyItem::~Dispatcher_SecretShopBuyItem() {}
 // （docs/class_func_reports/Dispatcher_SecretShopBuyItem/process.md 汇编+反编译 C 全文转写）
 // param 为模板实参 stSecretShopBuyItemParam，ORIG 裸访问 +0x04 错误码槽（m_4）。
 // 调用同 TU 模板 check_error(CUser*, MSG_BASE&, ParamBase&)（ORIG check_error(CUser*,MSG_BASE&,ParamBase&)）。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d26ea orig/ours=75/77 ndiff-blocks=15
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d26ea orig/ours=75/77 ndiff-blocks=15
 //   帧差 sub $38 vs $34 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x38,%esp | mov    %eax,-0x18(%ebp) | mov    %eax,%edx
 int Dispatcher_SecretShopBuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -11992,7 +12005,7 @@ void Dispatcher_SecretShopBuyItem::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_SecurityCardIssue::~Dispatcher_SecurityCardIssue() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08209c8c orig/ours=291/251 ndiff-blocks=29
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08209c8c orig/ours=291/251 ndiff-blocks=29
 //   帧差 sub $18c vs $180 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x18c,%esp | movl   $&_ZZN28Dispatcher_SecurityCardIssue12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_SecurityCardIssue::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -12085,7 +12098,7 @@ int Dispatcher_SecurityCardIssue::process(CUser* user, MSG_BASE& msg, ParamBase&
 int Dispatcher_SecurityCardIssue::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_SetSubGuildMaster::~Dispatcher_SetSubGuildMaster() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082053e6 orig/ours=106/149 ndiff-blocks=20
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082053e6 orig/ours=106/149 ndiff-blocks=20
 //   帧差 sub $54 vs $6c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x54,%esp | movl   $&_ZZN28Dispatcher_SetSubGuildMaster12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | lea    -0x3d(%ebp),
 int Dispatcher_SetSubGuildMaster::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -12132,7 +12145,7 @@ int Dispatcher_SetSubGuildMaster::process(CUser* user, MSG_BASE& msg, ParamBase&
 int Dispatcher_SetSubGuildMaster::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_UpgradeGuildCargo::~Dispatcher_UpgradeGuildCargo() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08222958 orig/ours=303/331 ndiff-blocks=47
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08222958 orig/ours=303/331 ndiff-blocks=47
 //   帧差 sub $ac vs $d0 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0xac,%esp | cmp    $0x3,%eax
 int Dispatcher_UpgradeGuildCargo::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -12267,7 +12280,7 @@ Dispatcher_UseVendingMachine::~Dispatcher_UseVendingMachine() {}
 Dispatcher_AchievementTrigger::~Dispatcher_AchievementTrigger() {}
 // ORIG 0x081d7f1e（报告 Dispatcher_AchievementTrigger/process.md）：
 // msg 为 MSG_ACHIEVEMENT_TRIGGER（m_field0d/11/13/15）；state<=2 → 0。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d7f1e orig/ours=48/45 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d7f1e orig/ours=48/45 ndiff-blocks=9
 //   帧差 sub $4c vs $48 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %esi | push   %ebx
 int Dispatcher_AchievementTrigger::process(CUser* user, MSG_BASE& msg,
@@ -12304,7 +12317,7 @@ int Dispatcher_AchievementTrigger::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_Antibot_DPCallBack::~Dispatcher_Antibot_DPCallBack() {}
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x0820b17a orig/ours=108/116 ndiff-blocks=24
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x0820b17a orig/ours=108/116 ndiff-blocks=24
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: push   %esi | sub    $0xb20,%esp | ja     0820b1a9 <+0x2f>
 int Dispatcher_Antibot_DPCallBack::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -12359,7 +12372,7 @@ int Dispatcher_Antibot_DPCallBack::read(PacketBuf& packet, MSG_BASE& msg) { retu
 
 
 Dispatcher_BiddingRoutingItem::~Dispatcher_BiddingRoutingItem() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x082255ca orig/ours=116/114 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082255ca orig/ours=116/114 ndiff-blocks=9
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: cmp    $0x5,%eax | mov    $0x0,%eax | nop
 int Dispatcher_BiddingRoutingItem::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -12367,6 +12380,9 @@ int Dispatcher_BiddingRoutingItem::dispatch_sig(CUser* user, PacketBuf& packet)
     // ORIG 0x0820xxxx：`call; cmp $0x5,%eax; je; cmp $0xc,%eax; je` —— 一次调用、
     // 连续两次用 %eax 直接比较（免槽）。我方具名 int 局部使 4.4 spill 成
     // `mov %eax,-0x14(%ebp); cmpl $5,-0x14(%ebp)` 两处（技巧28：register 钉 %eax 破 spill）。
+    // b28d-solo-Dispatchers verdict=DIFF [N-P112] ORIG 0x082255ca orig/ours=116/114
+    //   ORIG 无槽 cmp 链（`call; cmp $5,%eax; je; cmp $0xc,%eax; je`）；switch(call())
+    //   与具名 int 局部两形实测均被 4.4 spill（mov %eax,-0x14; cmpl $5,-0x14）⇒ 封顶。
     int state = user->get_state();
     if (state != 5 && state != 0xc)
     {
@@ -12423,7 +12439,7 @@ int Dispatcher_Cancel_Quick_Party::check_error(CUser* user, MSG_BASE& msg, Param
 
 // ORIG 0x081de1f8（报告 Dispatcher_Cancel_Quick_Party/process.md）：
 // check_error 同型；cancel_quick_party(party, true, user) != 1 → param+4 = 1。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081de1f8 orig/ours=50/49 ndiff-blocks=12
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081de1f8 orig/ours=50/49 ndiff-blocks=12
 //   帧差 sub $24 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | mov    %eax,-0x14(%ebp)
 int Dispatcher_Cancel_Quick_Party::process(CUser* user, MSG_BASE& msg,
@@ -12467,7 +12483,7 @@ void Dispatcher_Cancel_Quick_Party::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_ChangeRandomOption::~Dispatcher_ChangeRandomOption() {}
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x081dc9ba orig/ours=512/537 ndiff-blocks=97
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x081dc9ba orig/ours=512/537 ndiff-blocks=97
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 5 个，4.4 libstdc++ 全内联不可复现
 //   首差: sub    $0xac,%esp | mov    %eax,-0x34(%ebp) | cmp    $0x2,%eax
 int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -12681,7 +12697,7 @@ int Dispatcher_ChangeRandomOption::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_ChangeTutorialFlag::~Dispatcher_ChangeTutorialFlag() {}
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x0820697c orig/ours=118/118 ndiff-blocks=15
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x0820697c orig/ours=118/118 ndiff-blocks=15
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: sub    $0x38,%esp | movl   $&_ZZN29Dispatcher_ChangeTutorialFlag12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $0x0,-0x14(
@@ -12750,7 +12766,7 @@ int Dispatcher_ChangeTutorialFlag::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_ChangeTutorialFlag::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_Change_Charac_Slot::~Dispatcher_Change_Charac_Slot() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x082251f4 orig/ours=79/92 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082251f4 orig/ours=79/92 ndiff-blocks=11
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: xor    $0x1,%eax | jne    0822524b <+0x57>
 int Dispatcher_Change_Charac_Slot::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -12806,7 +12822,7 @@ int Dispatcher_Change_Charac_Slot::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_Change_Charac_Slot::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_CharacterStatistic::~Dispatcher_CharacterStatistic() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x082051d0 orig/ours=124/128 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082051d0 orig/ours=124/128 ndiff-blocks=6
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN29Dispatcher_CharacterStatistic12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | lea    -0x20(%ebp),%eax | add    $0x8,
 int Dispatcher_CharacterStatistic::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -12872,7 +12888,7 @@ int Dispatcher_CloseDisjointStore::check_error(CUser* user, MSG_BASE& msg, Param
 
 // ORIG 0x081d0366（报告 Dispatcher_CloseDisjointStore/process.md）：
 // 通过后调当前专家职业 OnCloseMission(user, 0)。
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081d0366 orig/ours=53/54 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081d0366 orig/ours=53/54 ndiff-blocks=10
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: mov    %eax,-0xc(%ebp) | mov    %eax,%edx | mov    -0xc(%ebp),%eax
 int Dispatcher_CloseDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -12903,7 +12919,7 @@ void Dispatcher_CloseDisjointStore::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_CompatibilityIndex::~Dispatcher_CompatibilityIndex() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e2664 orig/ours=78/110 ndiff-blocks=20
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e2664 orig/ours=78/110 ndiff-blocks=20
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x10(%ebp),%eax | mov    %eax,-0x10(%ebp) | mov    %eax,-0xc(%ebp)
 int Dispatcher_CompatibilityIndex::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -13023,7 +13039,7 @@ int Dispatcher_CreateAccountCargo::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_CreateAccountCargo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_CreatePrivateStore::~Dispatcher_CreatePrivateStore() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0820271c orig/ours=287/296 ndiff-blocks=24
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0820271c orig/ours=287/296 ndiff-blocks=24
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: jne    0820274b <+0x2f> | je     0820277d <+0x61> | movl   $&_ZZN29Dispatcher_CreatePrivateStore12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION_
 int Dispatcher_CreatePrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -13145,7 +13161,7 @@ int Dispatcher_DungeonNPCBuffInfo::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_DungeonNPCBuffInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_EnterDisjointStore::~Dispatcher_EnterDisjointStore() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d01ae orig/ours=64/61 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d01ae orig/ours=64/61 ndiff-blocks=10
 //   帧差 sub $24 vs $34 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x24,%esp | mov    0x14(%ebp),%eax | mov    %eax,-0x18(%ebp)
 int Dispatcher_EnterDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -13200,7 +13216,7 @@ int Dispatcher_FrameLagStatistics::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_FrameLagStatistics::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_GuildCargoMoveItem::~Dispatcher_GuildCargoMoveItem() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d1954 orig/ours=93/94 ndiff-blocks=18
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d1954 orig/ours=93/94 ndiff-blocks=18
 //   帧差 sub $40 vs $48 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | push   %ebx | sub    $0x40,%esp
 int Dispatcher_GuildCargoMoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -13272,7 +13288,7 @@ Dispatcher_GuildCargoPushItem::~Dispatcher_GuildCargoPushItem() {}
 // ORIG 0x081d0f64（OnlyOrigBatch13 组 E 转写；3 参数符号，字段自 ParamBase 读）：
 // state==3 且 curCharac 有效；guildkey==0→100；无公会驻地→0xb5；Secu Check 非 0
 // 透传；物品锁→0xd5；param+0x10 与槽内 m_addInfo 不符或 find_item 失败→0xc5。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d0f64 orig/ours=112/113 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d0f64 orig/ours=112/113 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x10(%ebp),%eax | mov    %eax,-0x1c(%ebp) | mov    %eax,-0x18(%ebp)
 int Dispatcher_GuildCargoPushItem::check_error(CUser* user, MSG_BASE& msg,
@@ -13319,7 +13335,7 @@ int Dispatcher_GuildCargoPushItem::check_error(CUser* user, MSG_BASE& msg,
     return 0;
 }
 
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d10d4 orig/ours=163/175 ndiff-blocks=25
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d10d4 orig/ours=163/175 ndiff-blocks=25
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x2c(%ebp) | mov    %eax,%edx | mov    -0x2c(%ebp),%eax
 int Dispatcher_GuildCargoPushItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -13411,7 +13427,7 @@ void Dispatcher_GuildCargoPushItem::send(CUser* user, ParamBase& param)     // O
 }
 
 Dispatcher_RemovePrivateStore::~Dispatcher_RemovePrivateStore() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x08202bb6 orig/ours=83/84 ndiff-blocks=16
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x08202bb6 orig/ours=83/84 ndiff-blocks=16
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: sub    $0x20,%esp | jne    08202be4 <+0x2e> | lea    -0x18(%ebp),%eax
 int Dispatcher_RemovePrivateStore::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -13438,7 +13454,7 @@ int Dispatcher_RemovePrivateStore::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_RemovePrivateStore::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_RequestAddPvPBuddy::~Dispatcher_RequestAddPvPBuddy() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0822490a orig/ours=117/92 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0822490a orig/ours=117/92 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x36(%ebp),%eax | mov    $0x1e,%ebx | mov    $0x0,%edx
 int Dispatcher_RequestAddPvPBuddy::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -13468,7 +13484,7 @@ int Dispatcher_RequestAddPvPBuddy::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_RequestAddPvPBuddy::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_RequestGuildSecede::~Dispatcher_RequestGuildSecede() {}
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x08207d3a orig/ours=177/181 ndiff-blocks=23
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x08207d3a orig/ours=177/181 ndiff-blocks=23
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: push   %esi | push   %ebx | sub    $0x50,%esp
 int Dispatcher_RequestGuildSecede::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -13555,7 +13571,7 @@ int Dispatcher_RequestGuildSecede::process(CUser* user, MSG_BASE& msg, ParamBase
 int Dispatcher_RequestGuildSecede::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_RequestMemberEnter::~Dispatcher_RequestMemberEnter() {}
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081cb82a orig/ours=26/26 ndiff-blocks=2
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081cb82a orig/ours=26/26 ndiff-blocks=2
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: test   %al,%al | nop
@@ -13565,6 +13581,9 @@ int Dispatcher_RequestMemberEnter::check_error(CUser* user, MSG_BASE& msg)
     // 普通 if/else 在 4.4 折成 setle/sete+test，双 goto 保 jle/jne 直分支）：
     // state<=2 || characR==0 → fail → -1；成功路径 0x081cb866 才物化 msg
     // dead 槽 -0xc（技巧13 声明位=落槽时机）再返 0。
+    // b28d-solo-Dispatchers verdict=DIFF [N96] ORIG 0x081cb82a orig/ours=26/26
+    //   ORIG 直测 %al（bool 无栈槽）vs 4.4 具名 bool 落槽；P231 纯 register 试形
+    //   （非 asm 绑定）实测不闭合 ⇒ 按 N96+N18a 封顶。
     bool fail;
     // 4.4 下须「取反短路式 + register bool %al」（probe pg r3 实证）才同时得到
     // `cmp $2; jle 岛1` 与 `test %eax,%eax; jne 岛0` 两条直分支。
@@ -13577,7 +13596,7 @@ int Dispatcher_RequestMemberEnter::check_error(CUser* user, MSG_BASE& msg)
     (void)pm;
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081cb874 orig/ours=77/77 ndiff-blocks=12
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081cb874 orig/ours=77/77 ndiff-blocks=12
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x10(%ebp) | mov    %eax,%edx
 int Dispatcher_RequestMemberEnter::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -13671,7 +13690,7 @@ void Dispatcher_Request_Seria_Buff::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_Score_Scroll_State::~Dispatcher_Score_Scroll_State() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081ff344 orig/ours=117/120 ndiff-blocks=22
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081ff344 orig/ours=117/120 ndiff-blocks=22
 //   帧差 sub $30 vs $40 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x30,%esp | movswl %ax,%ebx | mov    %ebx,0x4(%esp)
 int Dispatcher_Score_Scroll_State::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -13816,7 +13835,7 @@ int Dispatcher_ValidateScriptHash::get_hack_type(char type)
 
 // ORIG 0x082642b8（报告 Dispatcher_ValidateScriptHash/process.md）：
 // check_error 恒 0；get_hack_type(msg+0xd) → addServerHackCnt(type,1,0xe,0xf)。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082642b8 orig/ours=51/54 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082642b8 orig/ours=51/54 ndiff-blocks=11
 //   帧差 sub $30 vs $3c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x30,%esp | mov    %eax,-0x14(%ebp) | cmpl   $0x0,-0x14(%ebp)
 int Dispatcher_ValidateScriptHash::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -13858,7 +13877,7 @@ int Dispatcher_ValidateScriptHash::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_AuctionRegistCancel::~Dispatcher_AuctionRegistCancel() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08214b96 orig/ours=165/176 ndiff-blocks=27
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08214b96 orig/ours=165/176 ndiff-blocks=27
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x29(%ebp),%eax | movl   $&_ZZN30Dispatcher_AuctionRegistCancel12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movzbl -0x2
 int Dispatcher_AuctionRegistCancel::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -13928,7 +13947,7 @@ int Dispatcher_AuctionRegistCancel::process(CUser* user, MSG_BASE& msg, ParamBas
 int Dispatcher_AuctionRegistCancel::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_BuyPrivateStoreItem::~Dispatcher_BuyPrivateStoreItem() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x08202322 orig/ours=160/162 ndiff-blocks=23
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x08202322 orig/ours=160/162 ndiff-blocks=23
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: sub    $0x24,%esp | jne    0820234f <+0x2d> | movl   $0x0,0xc(%esp)
 int Dispatcher_BuyPrivateStoreItem::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -14024,7 +14043,7 @@ Dispatcher_CompleteLoadAssault::~Dispatcher_CompleteLoadAssault() {}
 // state<=1 → LineFunc(0xa199)；room+0x6e4 matching 非空 → IMatch 虚表 +0x54
 // （OnCompleteLoad）vcall；否则 GetInstanceAssaultMgr()->OnCompleteLoad(user)
 // 返回值 != 1 → LineFunc(0xa1a8)；恒 return 0。
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x08206f10 orig/ours=57/59 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x08206f10 orig/ours=57/59 ndiff-blocks=13
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: movl   $&_ZZN30Dispatcher_CompleteLoadAssault12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | mov    %eax,-0xc(%ebp) | cmpl   $0x0,
 int Dispatcher_CompleteLoadAssault::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -14057,7 +14076,7 @@ int Dispatcher_CompleteLoadAssault::process(CUser* user, MSG_BASE& msg, ParamBas
 int Dispatcher_CompleteLoadAssault::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_CreateDisjointStore::~Dispatcher_CreateDisjointStore() {}
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x081cf986 orig/ours=99/93 ndiff-blocks=18
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x081cf986 orig/ours=99/93 ndiff-blocks=18
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: sub    $0x34,%esp | mov    0x14(%ebp),%eax | mov    %eax,-0x18(%ebp)
 int Dispatcher_CreateDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -14163,7 +14182,7 @@ void Dispatcher_CreateDisjointStore::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_CreatureSendMessage::~Dispatcher_CreatureSendMessage() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08204710 orig/ours=225/248 ndiff-blocks=38
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08204710 orig/ours=225/248 ndiff-blocks=38
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x157(%ebp),%eax | movl   $&_ZZN30Dispatcher_CreatureSendMessage12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | lea    -0x
 int Dispatcher_CreatureSendMessage::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -14272,7 +14291,7 @@ int Dispatcher_CreatureSendMessage::process(CUser* user, MSG_BASE& msg, ParamBas
 int Dispatcher_CreatureSendMessage::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_FightVillageMonster::~Dispatcher_FightVillageMonster() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x082226c0 orig/ours=101/99 ndiff-blocks=7
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082226c0 orig/ours=101/99 ndiff-blocks=7
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN30Dispatcher_FightVillageMonster12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movw   $0x0,-0x12(%ebp) | lea    -0x1
 int Dispatcher_FightVillageMonster::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -14317,7 +14336,7 @@ int Dispatcher_FightVillageMonster::process(CUser* user, MSG_BASE& msg, ParamBas
 int Dispatcher_FightVillageMonster::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_GuildAttendanceInfo::~Dispatcher_GuildAttendanceInfo() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d5492 orig/ours=59/59 ndiff-blocks=3
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d5492 orig/ours=59/59 ndiff-blocks=3
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movzwl -0x1d(%ebp),%eax | movzwl %ax,%esi | mov    &_ZN10GlobalData17s_guild_proxy_mgrE,%edx
 int Dispatcher_GuildAttendanceInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -14345,16 +14364,12 @@ int Dispatcher_GuildAttendanceInfo::process(CUser* user, MSG_BASE& msg, ParamBas
     // 为单条 disp 读（`movzbl 0xd(%eax),%eax`）⇒ 具名成员 + 具名视图，去掉 add 链。
     struct MsgView { char m_pad[0xd]; unsigned char m_field0d; };
     local_23.m_fieldC = reinterpret_cast<MsgView*>(local_10)->m_field0d;
-    // [b24ab] P197②：ORIG 将 len(→%esi) 与 &local_23(→%ebx) register 缓存跨
-    // GetServerProxy 存活；proxy 结果直用 %eax（GetServerProxy 内联为
-    // SendTcpPacket receiver，无 proxy 槽）。
-    register unsigned short local_21 = local_23.packetSize;   // b28c-33：ORIG disp 直读
-    // b28d-D0: 去 register 试形实测仍 DIFF（movzwl mem,%eax; movzwl %ax,%esi 两段序
-    //   未复现）⇒ 保留裸 register（P231/P248 合法），残余两段扩展序按 N7 寄存器调度封顶。
-    register char* const packet = reinterpret_cast<char*>(&local_23);
+    // b28d-solo-Dispatchers: P200/P52 —— ORIG 0x081d550b `movzwl -0x1d(%ebp),%eax;
+    //   movzwl %ax,%esi` 后跨 GetServerGroup/GetServerProxy 保活，源码为**短整表达式
+    //   直传**（无具名局部、无 register 绑定）：len 与 &local_23 由链式表达式实参物化。
     GlobalData::s_guild_proxy_mgr
         ->GetServerProxy((ENUM_SERVER_GROUP)user->GetServerGroup())
-        ->SendTcpPacket(packet, local_21);
+        ->SendTcpPacket(reinterpret_cast<char*>(&local_23), local_23.packetSize);
     return 0;
 }
 int Dispatcher_GuildAttendanceInfo::read(PacketBuf& packet, MSG_BASE& msg)
@@ -14369,7 +14384,7 @@ int Dispatcher_GuildAttendanceInfo::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_GuildMasterDelegate::~Dispatcher_GuildMasterDelegate() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082082d6 orig/ours=129/128 ndiff-blocks=18
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082082d6 orig/ours=129/128 ndiff-blocks=18
 //   帧差 sub $50 vs $68 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | push   %ebx | sub    $0x50,%esp
 int Dispatcher_GuildMasterDelegate::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -14427,7 +14442,7 @@ int Dispatcher_GuildMasterDelegate::process(CUser* user, MSG_BASE& msg, ParamBas
 int Dispatcher_GuildMasterDelegate::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_New_Gmdebug_Command::~Dispatcher_New_Gmdebug_Command() {}
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x0820bbde orig/ours=234/228 ndiff-blocks=39
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x0820bbde orig/ours=234/228 ndiff-blocks=39
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 9 个，4.4 libstdc++ 全内联不可复现
 //   首差: sub    $0x190,%esp | movb   $0x1,-0x1a(%ebp) | movb   $0x1,-0x19(%ebp)
 int Dispatcher_New_Gmdebug_Command::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -14489,7 +14504,7 @@ int Dispatcher_New_Gmdebug_Command::process(CUser* user, MSG_BASE& msg, ParamBas
 int Dispatcher_New_Gmdebug_Command::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_PowerWarProcessInfo::~Dispatcher_PowerWarProcessInfo() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0821ea32 orig/ours=83/88 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0821ea32 orig/ours=83/88 ndiff-blocks=13
 //   帧差 sub $20 vs $30 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x20,%esp | movl   $&_ZZN30Dispatcher_PowerWarProcessInfo12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | mov    %eax,%ebx
 int Dispatcher_PowerWarProcessInfo::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -14588,7 +14603,7 @@ int Dispatcher_RegisterToBlackList::check_error(CUser* user, MSG_BASE& msg)
     return 0;
 }
 // ORIG T 0x08229644：解封卷轴资格链（0xffff=金币通道直接通过）。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08229644 orig/ours=81/89 ndiff-blocks=14
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08229644 orig/ours=81/89 ndiff-blocks=14
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movzwl -0x6c(%ebp),%ebx | lea    -0x5d(%ebp),%edx | mov    %ebx,0xc(%esp)
 int Dispatcher_UnsealRandomOption::_check_unseal_scroll_item(
@@ -14631,7 +14646,7 @@ int Dispatcher_UnsealRandomOption::_check_unseal_scroll_item(
     return 0;
 }
 
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x08228e5e orig/ours=499/500 ndiff-blocks=47
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x08228e5e orig/ours=499/500 ndiff-blocks=47
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 6 个，4.4 libstdc++ 全内联不可复现
 //   首差: sub    $0xcc,%esp | movw   $0x0,-0x36(%ebp) | lea    -0x36(%ebp),%eax
 int Dispatcher_UnsealRandomOption::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -14736,7 +14751,7 @@ int Dispatcher_UnsealRandomOption::dispatch_sig(CUser* user, PacketBuf& packet)
     const bool gave = GlobalData::g_randomOptionHandle->give_option(
         (unsigned long)item->m_addInfo, (ENUM_RARITY)rarity,
         (int)usableLevel, proto->getItemGroupName(),
-        (int)optionGrade, opts);
+        (int)proto->GetRandomOptionGrade(), opts);
     if (!gave)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x191, 0x13);
@@ -14797,7 +14812,7 @@ int Dispatcher_RegisterToBlackList::read(PacketBuf& packet, MSG_BASE& msg)
 Dispatcher_RequestAssaultPrice::~Dispatcher_RequestAssaultPrice() {}
 
 Dispatcher_RequestDisjointItem::~Dispatcher_RequestDisjointItem() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081cfcac orig/ours=70/68 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081cfcac orig/ours=70/68 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x14(%ebp) | mov    %eax,%edx
 int Dispatcher_RequestDisjointItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -14857,7 +14872,7 @@ void Dispatcher_RequestDisjointItem::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_ResponseAddPvPBuddy::~Dispatcher_ResponseAddPvPBuddy() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08224ab4 orig/ours=117/92 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08224ab4 orig/ours=117/92 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x36(%ebp),%eax | mov    $0x1e,%ebx | mov    $0x0,%edx
 int Dispatcher_ResponseAddPvPBuddy::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -14904,7 +14919,7 @@ int Dispatcher_SaveCharacterOption::check_error(CUser* user, MSG_BASE& msg)
 // ORIG 0x081ce97c（报告 Dispatcher_SaveCharacterOption/process.md）：
 // param+4=check_error；>0 → 0；<0 LineFunc(0x283d)；==0 setSaveCharacOption(true)
 // + SetCurCharacOption(msg+0x11)。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081ce97c orig/ours=51/47 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081ce97c orig/ours=51/47 ndiff-blocks=9
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x10(%ebp) | mov    %eax,%edx
 int Dispatcher_SaveCharacterOption::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -14927,7 +14942,7 @@ int Dispatcher_SaveCharacterOption::process(CUser* user, MSG_BASE& msg, ParamBas
     user->SetCurCharacOption(req.m_option);            // +0x11 CharacterOption
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081ce8bc orig/ours=51/54 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081ce8bc orig/ours=51/54 ndiff-blocks=6
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %eax,-0xc(%ebp) | mov    -0xc(%ebp),%eax | mov    -0xc(%ebp),%eax
@@ -14955,7 +14970,7 @@ int Dispatcher_SaveCharacterOption::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_SecretShopOpenClose::~Dispatcher_SecretShopOpenClose() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d28b4 orig/ours=66/62 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d28b4 orig/ours=66/62 ndiff-blocks=11
 //   帧差 sub $24 vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | mov    0x14(%ebp),%eax
 int Dispatcher_SecretShopOpenClose::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -15011,7 +15026,7 @@ void Dispatcher_SecretShopOpenClose::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_SecurityCardAuthReq::~Dispatcher_SecurityCardAuthReq() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0820a2c4 orig/ours=90/96 ndiff-blocks=7
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0820a2c4 orig/ours=90/96 ndiff-blocks=7
 //   帧差 sub $18 vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x18,%esp | movl   $&_ZZN30Dispatcher_SecurityCardAuthReq12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | seta   %al
 int Dispatcher_SecurityCardAuthReq::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -15068,7 +15083,7 @@ int Dispatcher_SecurityCardAuthReq::read(PacketBuf& packet, MSG_BASE& msg) { ret
 
 
 Dispatcher_SecurityCardCertKey::~Dispatcher_SecurityCardCertKey() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0820a6bc orig/ours=173/182 ndiff-blocks=21
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0820a6bc orig/ours=173/182 ndiff-blocks=21
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN30Dispatcher_SecurityCardCertKey12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $0x0,-0x10(%ebp) | movl   $0x0
 int Dispatcher_SecurityCardCertKey::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -15142,7 +15157,7 @@ int Dispatcher_SecurityCardCertKey::process(CUser* user, MSG_BASE& msg, ParamBas
 int Dispatcher_SecurityCardCertKey::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_UpdateServerMessage::~Dispatcher_UpdateServerMessage() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0821d9ee orig/ours=345/329 ndiff-blocks=61
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0821d9ee orig/ours=345/329 ndiff-blocks=61
 //   帧差 sub $b0 vs $d0 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0xb0,%esp | mov    %eax,%ebx
 int Dispatcher_UpdateServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -15322,7 +15337,7 @@ int Dispatcher_UpgradeItemSeparate::process(CUser* user, MSG_BASE& msg, ParamBas
         ->item_upgrade_system(user, pm, 0x1b7);
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081cbf24 orig/ours=124/86 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081cbf24 orig/ours=124/86 ndiff-blocks=13
 //   帧差 sub $a0 vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %ebx | sub    $0xa0,%esp
 int Dispatcher_UpgradeItemSeparate::read(PacketBuf& packet, MSG_BASE& msg)
@@ -15364,7 +15379,7 @@ int Dispatcher_UpgradeItemSeparate::read(PacketBuf& packet, MSG_BASE& msg)
 
 
 Dispatcher_UseSharedEffectItem::~Dispatcher_UseSharedEffectItem() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08220484 orig/ours=238/238 ndiff-blocks=40
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08220484 orig/ours=238/238 ndiff-blocks=40
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $0x0,-0x18(%ebp) | movw   $0x0,-0x1a(%ebp) | lea    -0x18(%ebp),%eax
 int Dispatcher_UseSharedEffectItem::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -15480,7 +15495,7 @@ int Dispatcher_WarRoomWpPerMonster::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d5ca8 orig/ours=89/88 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d5ca8 orig/ours=89/88 ndiff-blocks=13
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x1c(%ebp) | cmpl   $0x0,-0x1c(%ebp) | mov    -0x1c(%ebp),%eax
 int Dispatcher_WarRoomWpPerMonster::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -15551,7 +15566,7 @@ Dispatcher_AbnormalUseStackable::~Dispatcher_AbnormalUseStackable() {}
 int Dispatcher_AbnormalUseStackable::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 // ORIG 0x082649ae（报告 Dispatcher_AbnormalUseStackable/process.md）：
 // check_error==0 → addServerHackCnt(user, 0xfa0, 1, msg+0x10, msg+0x14)。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082649ae orig/ours=41/35 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082649ae orig/ours=41/35 ndiff-blocks=6
 //   帧差 sub $30 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | push   %ebx | sub    $0x30,%esp
 int Dispatcher_AbnormalUseStackable::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -15583,7 +15598,7 @@ int Dispatcher_AbnormalUseStackable::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_AuctionBuyItemApiece::~Dispatcher_AuctionBuyItemApiece() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08214e44 orig/ours=210/224 ndiff-blocks=35
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08214e44 orig/ours=210/224 ndiff-blocks=35
 //   帧差 sub $60 vs $70 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x60,%esp | lea    -0x56(%ebp),%eax | mov    %eax,-0x44(%ebp)
 int Dispatcher_AuctionBuyItemApiece::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -15666,7 +15681,7 @@ int Dispatcher_AuctionBuyItemApiece::process(CUser* user, MSG_BASE& msg, ParamBa
 int Dispatcher_AuctionBuyItemApiece::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_AuctionMyBiddingInfo::~Dispatcher_AuctionMyBiddingInfo() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08216b9a orig/ours=94/98 ndiff-blocks=14
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08216b9a orig/ours=94/98 ndiff-blocks=14
 //   帧差 sub $44 vs $54 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x44,%esp | mov    &_ZN10GlobalData15s_auction_proxyE,%eax | movl   $&_ZZN31Dispatcher_AuctionMyBiddingInfo12dispatch_sigEP5CUserR9PacketBufE1
 int Dispatcher_AuctionMyBiddingInfo::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -15721,7 +15736,7 @@ Dispatcher_BuyCeraShopLimitItem::~Dispatcher_BuyCeraShopLimitItem() {}
 
 
 Dispatcher_CallGuildCreateRight::~Dispatcher_CallGuildCreateRight() {}
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x081ffcc2 orig/ours=287/293 ndiff-blocks=30
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x081ffcc2 orig/ours=287/293 ndiff-blocks=30
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 9 个，4.4 libstdc++ 全内联不可复现
 //   首差: push   %edi | sub    $0x3c,%esp | movl   $&_ZZN31Dispatcher_CallGuildCreateRight12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_CallGuildCreateRight::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -15841,7 +15856,7 @@ int Dispatcher_Check3rdPartyConcent::process(CUser* user, MSG_BASE& msg, ParamBa
 int Dispatcher_Check3rdPartyConcent::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_CheckGuildNameDouble::~Dispatcher_CheckGuildNameDouble() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x082084e8 orig/ours=172/170 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082084e8 orig/ours=172/170 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN31Dispatcher_CheckGuildNameDouble12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN31Dispatcher_CheckGuild
 int Dispatcher_CheckGuildNameDouble::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -15901,7 +15916,7 @@ int Dispatcher_CheckGuildNameDouble::process(CUser* user, MSG_BASE& msg, ParamBa
 int Dispatcher_CheckGuildNameDouble::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_Compound_ExtreamItem::~Dispatcher_Compound_ExtreamItem() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08225b54 orig/ours=58/59 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08225b54 orig/ours=58/59 ndiff-blocks=6
 //   帧差 sub $58 vs $68 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x58,%esp | mov    %eax,%edx | mov    0x90(%eax),%ecx
 int Dispatcher_Compound_ExtreamItem::_push_newitem()
@@ -15935,7 +15950,7 @@ int Dispatcher_Compound_ExtreamItem::_remove_victim()
     }
     return 1;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0822577e orig/ours=37/47 ndiff-blocks=7
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0822577e orig/ours=37/47 ndiff-blocks=7
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    -0xc(%ebp),%edx | mov    0x8(%ebp),%eax | movw   $0x0,0x8(%eax,%edx,2)
 int Dispatcher_Compound_ExtreamItem::_reset()
@@ -15957,7 +15972,7 @@ int Dispatcher_Compound_ExtreamItem::_reset()
     p[0xd4] = 2;
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08225c54 orig/ours=166/169 ndiff-blocks=27
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08225c54 orig/ours=166/169 ndiff-blocks=27
 //   帧差 sub $20 vs $30 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x20,%esp | lea    -0x18(%ebp),%eax | lea    -0x18(%ebp),%eax
 int Dispatcher_Compound_ExtreamItem::_send_result()
@@ -15997,7 +16012,7 @@ int Dispatcher_Compound_ExtreamItem::_send_result()
     return 0;                                                    // ORIG 尾部未设 eax，按调用方口径返 0
 }
 
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08225ec4 orig/ours=217/222 ndiff-blocks=30
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08225ec4 orig/ours=217/222 ndiff-blocks=30
 //   帧差 sub $40 vs $50 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x40,%esp | movb   $0x0,-0xd(%ebp) | xor    $0x1,%eax
 int Dispatcher_Compound_ExtreamItem::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -16096,7 +16111,7 @@ int Dispatcher_Compound_ExtreamItem::process(CUser* user, MSG_BASE& msg, ParamBa
 int Dispatcher_Compound_ExtreamItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_GatheringPartyStatus::~Dispatcher_GatheringPartyStatus() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08203878 orig/ours=532/490 ndiff-blocks=83
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08203878 orig/ours=532/490 ndiff-blocks=83
 //   帧差 sub $1f0 vs $200 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x1f0,%esp | lea    -0x1d0(%ebp),%eax | lea    -0x1d0(%ebp),%eax
 int Dispatcher_GatheringPartyStatus::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -16292,7 +16307,7 @@ int Dispatcher_GatheringPartyStatus::process(CUser* user, MSG_BASE& msg, ParamBa
 int Dispatcher_GatheringPartyStatus::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_ItemHyperLinkMessage::~Dispatcher_ItemHyperLinkMessage() {}
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x081da514 orig/ours=40/35 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x081da514 orig/ours=40/35 ndiff-blocks=8
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: jne    081da527 <+0x13> | mov    $0xffffffff,%eax | jmp    081da581 <+0x6d>
 int Dispatcher_ItemHyperLinkMessage::check_error(CUser* user, MSG_BASE& msg)
@@ -16308,7 +16323,7 @@ int Dispatcher_ItemHyperLinkMessage::check_error(CUser* user, MSG_BASE& msg)
 }
 
 // ORIG T 0x081d98c4：超链接聊天消息读取（MSG_ITEM_HYPER_LINK_MESSAGE）。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d98c4 orig/ours=203/206 ndiff-blocks=18
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d98c4 orig/ours=203/206 ndiff-blocks=18
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN31Dispatcher_ItemHyperLinkMessage4readER9PacketBufR8MSG_BASEE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN31Dispatcher_ItemHyperLinkMes
 int Dispatcher_ItemHyperLinkMessage::read(PacketBuf& packet, MSG_BASE& msg)
@@ -16384,7 +16399,7 @@ void Dispatcher_ItemHyperLinkMessage::send(CUser* user, ParamBase& param)
 }
 
 // ORIG T 0x081d9c4a：超链接聊天处理（PacketDispatcher_Impl_1.cpp 0x47aa 区）。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d9c4a orig/ours=583/583 ndiff-blocks=105
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d9c4a orig/ours=583/583 ndiff-blocks=105
 //   帧差 sub $2e0 vs $2f0 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x2e0,%esp | mov    -0x54(%ebp),%edx | mov    %eax,0x4(%edx)
 int Dispatcher_ItemHyperLinkMessage::process(CUser* user, MSG_BASE& msg,
@@ -16588,7 +16603,7 @@ void DB_InsertPoliceSaveChatting::makeRequest(unsigned int a, char b, char* c)
 }
 
 Dispatcher_NotifyMessageToGuild::~Dispatcher_NotifyMessageToGuild() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08207ffe orig/ours=181/183 ndiff-blocks=25
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08207ffe orig/ours=181/183 ndiff-blocks=25
 //   帧差 sub $90 vs $a0 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x90,%esp | movl   $&_ZZN31Dispatcher_NotifyMessageToGuild12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | mov    %eax,-0xc
 int Dispatcher_NotifyMessageToGuild::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -16884,7 +16899,7 @@ void Dispatcher_PcRoomPlayTimeReward::send(CUser* user, ParamBase& param)
 
 
 Dispatcher_PrecheckSoloTeleport::~Dispatcher_PrecheckSoloTeleport() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e19ca orig/ours=64/68 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e19ca orig/ours=64/68 ndiff-blocks=11
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x14(%ebp) | mov    0x10(%ebp),%eax
 int Dispatcher_PrecheckSoloTeleport::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -16948,7 +16963,7 @@ void Dispatcher_PrecheckSoloTeleport::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_PvpMissionComboClear::~Dispatcher_PvpMissionComboClear() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d5a5e orig/ours=90/80 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d5a5e orig/ours=90/80 ndiff-blocks=9
 //   帧差 sub $130 vs $138 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %ebx | sub    $0x130,%esp
 int Dispatcher_PvpMissionComboClear::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -17018,7 +17033,7 @@ int Dispatcher_Register_Quick_Party::check_error(CUser* user, MSG_BASE& msg, Par
 // ORIG 0x081de012（报告 Dispatcher_Register_Quick_Party/process.md）：
 // 以 MSG+0xe(short)/+0x10(byte) 构造 STQuickPartyPoolMap_Key（默认 0/0xff 后覆盖，
 // 与 ORIG 0x082344ca 一致），match_proper_party(key, party, user) 写 param+0x4。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081de012 orig/ours=57/58 ndiff-blocks=14
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081de012 orig/ours=57/58 ndiff-blocks=14
 //   帧差 sub $24 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | mov    %eax,-0x14(%ebp)
 int Dispatcher_Register_Quick_Party::process(CUser* user, MSG_BASE& msg,
@@ -17054,7 +17069,7 @@ int Dispatcher_Register_Quick_Party::read(PacketBuf& packet, MSG_BASE& msg)
         return LineFunc(0x4f20, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P63] ORIG 0x081de0c6 orig/ours=67/65 ndiff-blocks=1
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P63] ORIG 0x081de0c6 orig/ours=67/65 ndiff-blocks=1
 //   ORIG 正常路径尾 jmp+nop 中继岛（4.1 EH 尾块布局），4.4 fall-through/jump-thread 恒消除（P223 尾空标签试形实测无效）
 //   首差: jmp    081de1a3 <+0xdd> | nop
 void Dispatcher_Register_Quick_Party::send(CUser* user, ParamBase& param)
@@ -17074,8 +17089,12 @@ void Dispatcher_Register_Quick_Party::send(CUser* user, ParamBase& param)
         pkt.finalize(true);
         user->Send(pkt);
     }
-    // b28d-D0: ORIG 0x081de1a2 `jmp; nop` 中继岛（P63 EH 尾布局）；P223 尾空标签试形
-    //   实测被 4.4 jump-thread 消除 ⇒ 保持 fall-through，记 N。
+    else
+    {
+        // b28d-solo-Dispatchers: P285 —— ORIG 0x081de1a2 `jmp; nop` 体尾中继岛；
+        //   空 else{return;} 使 4.4 保留体尾 jmp+nop（纯正向 if 恒被 jump-thread）。
+        return;
+    }
 }
 
 Dispatcher_ReportMannerlessUser::~Dispatcher_ReportMannerlessUser() {}
@@ -17224,7 +17243,7 @@ int Dispatcher_SeriaRoom_Deco_Event::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e5cde orig/ours=98/100 ndiff-blocks=16
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e5cde orig/ours=98/100 ndiff-blocks=16
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x18(%ebp) | mov    %eax,-0x14(%ebp) | mov    -0x14(%ebp),%edx
 int Dispatcher_SeriaRoom_Deco_Event::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -17354,7 +17373,7 @@ Dispatcher_Client_Spec_Statistic::~Dispatcher_Client_Spec_Statistic() {}
 // ORIG 0x081ce794（报告 Dispatcher_Client_Spec_Statistic/send.md）[随行依赖]：
 // 构造 Packet_Client_Spec_Statistic（ORIG W 0x0822bc18），写 flag/count/len，
 // memcpy hwSpec 条目后经统计代理 SendPacket。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081ce794 orig/ours=86/117 ndiff-blocks=15
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081ce794 orig/ours=86/117 ndiff-blocks=15
 //   帧差 sub $c20 vs $c3c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0xc20,%esp | mov    0x10(%ebp),%eax | mov    %eax,-0x10(%ebp)
 void Dispatcher_Client_Spec_Statistic::send(CUser* user, ParamBase& param)
@@ -17390,7 +17409,7 @@ void Dispatcher_Client_Spec_Statistic::send(CUser* user, ParamBase& param)
 
 // ORIG 0x081ce6d4（报告 Dispatcher_Client_Spec_Statistic/process.md）：
 // check_error（仅判 user 空）；param+4=msg+0xd byte；memcpy(getClientHWSpec(),msg+0xe,0xbf8)。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081ce6d4 orig/ours=42/42 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081ce6d4 orig/ours=42/42 ndiff-blocks=10
 //   帧差 sub $28 vs $24 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x28,%esp | mov    %eax,-0x18(%ebp) | cmpl   $0x0,-0x18(%ebp)
 int Dispatcher_Client_Spec_Statistic::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -17412,7 +17431,7 @@ int Dispatcher_Client_Spec_Statistic::process(CUser* user, MSG_BASE& msg, ParamB
 }
 
 Dispatcher_CreatureScriptMessage::~Dispatcher_CreatureScriptMessage() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08204d8e orig/ours=246/240 ndiff-blocks=22
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08204d8e orig/ours=246/240 ndiff-blocks=22
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x157(%ebp),%eax | add    $0xd,%eax | movl   $&_ZZN32Dispatcher_CreatureScriptMessage12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0
 int Dispatcher_CreatureScriptMessage::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -17511,7 +17530,7 @@ int Dispatcher_CreatureScriptMessage::process(CUser* user, MSG_BASE& msg, ParamB
 int Dispatcher_CreatureScriptMessage::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_Mercenary_Competition::~Dispatcher_Mercenary_Competition() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081ddd00 orig/ours=89/93 ndiff-blocks=15
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081ddd00 orig/ours=89/93 ndiff-blocks=15
 //   帧差 sub $24 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | mov    0x10(%ebp),%eax
 int Dispatcher_Mercenary_Competition::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -17564,7 +17583,7 @@ int Dispatcher_Mercenary_Competition::read(PacketBuf& packet, MSG_BASE& msg)  //
     return 0;
 }
 
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081dde20 orig/ours=83/87 ndiff-blocks=21
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081dde20 orig/ours=83/87 ndiff-blocks=21
 //   帧差 sub $20 vs $30 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x20,%esp | lea    -0x18(%ebp),%eax | lea    -0x18(%ebp),%eax
 void Dispatcher_Mercenary_Competition::send(CUser* user, ParamBase& param)    // ORIG 0x081dde20 (83 insn)
@@ -17625,7 +17644,7 @@ int Dispatcher_RepairDisjointMachine::check_error(CUser* user, MSG_BASE& msg, Pa
 }
 
 // ORIG 0x081cfe3c（报告 Dispatcher_RepairDisjointMachine/process.md）。
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081cfe3c orig/ours=56/59 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081cfe3c orig/ours=56/59 ndiff-blocks=10
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: sub    $0x28,%esp | mov    %eax,-0x10(%ebp) | mov    %eax,%edx
@@ -17669,7 +17688,7 @@ void Dispatcher_RepairDisjointMachine::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_AuctionAskAveragePrice::~Dispatcher_AuctionAskAveragePrice() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x08213940 orig/ours=295/333 ndiff-blocks=35
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x08213940 orig/ours=295/333 ndiff-blocks=35
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: sub    $0x94,%esp | lea    -0x2d(%ebp),%eax | movl   $&_ZZN33Dispatcher_AuctionAskAveragePrice12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,
 int Dispatcher_AuctionAskAveragePrice::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -17788,7 +17807,7 @@ int Dispatcher_AuctionAskAveragePrice::read(PacketBuf& packet, MSG_BASE& msg) { 
 Dispatcher_AuctionSearchByItemKey::~Dispatcher_AuctionSearchByItemKey() {}
 // ============================================================================
 // ORIG 0x082159fc（docs/class_func_reports/Dispatcher_AuctionSearchByItemKey/dispatch_sig.md）
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082159fc orig/ours=441/444 ndiff-blocks=65
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082159fc orig/ours=441/444 ndiff-blocks=65
 //   帧差 sub $144 vs $154 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x144,%esp | lea    -0x29(%ebp),%eax | movl   $&_ZZN33Dispatcher_AuctionSearchByItemKey12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__
 int Dispatcher_AuctionSearchByItemKey::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -18070,7 +18089,7 @@ int Dispatcher_ChangeAnotherSkillTree::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d1fca orig/ours=58/58 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d1fca orig/ours=58/58 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x10(%ebp) | mov    -0x10(%ebp),%edx | mov    -0x10(%ebp),%eax
 int Dispatcher_ChangeAnotherSkillTree::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -18136,7 +18155,7 @@ void Dispatcher_ChangeAnotherSkillTree::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_CharacSlotExtendEffect::~Dispatcher_CharacSlotExtendEffect() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d7fb6 orig/ours=150/151 ndiff-blocks=21
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d7fb6 orig/ours=150/151 ndiff-blocks=21
 //   帧差 sub $4c vs $50 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x4c,%esp | mov    $0x0,%ebx
 int Dispatcher_CharacSlotExtendEffect::process(CUser* user, MSG_BASE& msg, ParamBase& paramBase)
@@ -18204,7 +18223,7 @@ void Dispatcher_CharacSlotExtendEffect::send(CUser* user, ParamBase& param)
 
 
 Dispatcher_CheckAssaultMotionHack::~Dispatcher_CheckAssaultMotionHack() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08221f3c orig/ours=213/212 ndiff-blocks=18
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08221f3c orig/ours=213/212 ndiff-blocks=18
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN33Dispatcher_CheckAssaultMotionHack12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN33Dispatcher_CheckAss
 int Dispatcher_CheckAssaultMotionHack::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -18270,7 +18289,7 @@ int Dispatcher_CheckAssaultMotionHack::process(CUser* user, MSG_BASE& msg, Param
 int Dispatcher_CheckAssaultMotionHack::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_ConnectP2PAfterAssault::~Dispatcher_ConnectP2PAfterAssault() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08206cfa orig/ours=122/124 ndiff-blocks=21
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08206cfa orig/ours=122/124 ndiff-blocks=21
 //   帧差 sub $24 vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | movl   $&_ZZN33Dispatcher_ConnectP2PAfterAssault12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_ConnectP2PAfterAssault::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -18347,7 +18366,7 @@ struct DTChkView {
     WongWork::CDeathTower::stMapMonsterKillChecker_t m_killChecker;   // +0xb58
 };
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08208a9e orig/ours=173/186 ndiff-blocks=35
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08208a9e orig/ours=173/186 ndiff-blocks=35
 //   帧差 sub $50 vs $88 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | push   %ebx | sub    $0x50,%esp
 int Dispatcher_DeathTowerStageCommand::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -18431,7 +18450,7 @@ int Dispatcher_DeathTowerStageCommand::read(PacketBuf& packet, MSG_BASE& msg) { 
 Dispatcher_Delete_GuildBoard_Text::~Dispatcher_Delete_GuildBoard_Text() {}
 // ORIG 0x081d33a0（报告 Dispatcher_Delete_GuildBoard_Text/process.md）：
 // param+0x89(unsigned)=待删公告文本索引；无状态门槛。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d33a0 orig/ours=39/35 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d33a0 orig/ours=39/35 ndiff-blocks=6
 //   帧差 sub $2c vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %esi | push   %ebx
 int Dispatcher_Delete_GuildBoard_Text::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -18458,7 +18477,7 @@ int Dispatcher_Delete_GuildBoard_Text::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 Dispatcher_DungeonEventStoryPause::~Dispatcher_DungeonEventStoryPause() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08216dcc orig/ours=163/167 ndiff-blocks=29
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08216dcc orig/ours=163/167 ndiff-blocks=29
 //   帧差 sub $30 vs $40 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x30,%esp | lea    -0x19(%ebp),%eax | movl   $&_ZZN33Dispatcher_DungeonEventStoryPause12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,
 int Dispatcher_DungeonEventStoryPause::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -18540,7 +18559,7 @@ int Dispatcher_Float_RDATA_Modulation::check_error(CUser* user, MSG_BASE& msg)
 
 // ORIG 0x08264acc（报告 Dispatcher_Float_RDATA_Modulation/process.md）：
 // 解码两 dword 异或常量后记 hack 计数（0x349）。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08264acc orig/ours=41/44 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08264acc orig/ours=41/44 ndiff-blocks=6
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x18(%ebp) | cmpl   $0x0,-0x18(%ebp) | mov    %eax,-0x14(%ebp)
 int Dispatcher_Float_RDATA_Modulation::process(CUser* user, MSG_BASE& msg,
@@ -18588,7 +18607,7 @@ LBODY:
     (void)pm;
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e4df2 orig/ours=67/66 ndiff-blocks=16
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e4df2 orig/ours=67/66 ndiff-blocks=16
 //   帧差 sub $4c vs $44 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %esi | sub    $0x4c,%esp
 int Dispatcher_LogIngameAdvertisement::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -18652,7 +18671,7 @@ void Dispatcher_LogIngameAdvertisement::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_QueryCharacInfoMailbox::~Dispatcher_QueryCharacInfoMailbox() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08226bda orig/ours=123/93 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08226bda orig/ours=123/93 ndiff-blocks=10
 //   帧差 sub $40 vs $48 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | push   %ebx | sub    $0x40,%esp
 int Dispatcher_QueryCharacInfoMailbox::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -18685,7 +18704,7 @@ Dispatcher_RequestCharacSkillInfo::~Dispatcher_RequestCharacSkillInfo() {}
 // （docs/class_func_reports/Dispatcher_RequestCharacSkillInfo/check_error.md 汇编+反编译 C 全文转写）
 // user+0x796e8 = m_characList（vector<_Charac_info>）；槽 char 截断按 movsbl；
 // _Charac_info+0x27 = m_level（short）；G_CDataManager()+0x629c = m_characLink.m_field0。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e3c08 orig/ours=75/68 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e3c08 orig/ours=75/68 ndiff-blocks=9
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x10(%ebp),%eax | mov    %eax,-0x10(%ebp) | mov    %eax,-0xc(%ebp)
 int Dispatcher_RequestCharacSkillInfo::check_error(CUser* user, MSG_BASE& msg)
@@ -18715,7 +18734,7 @@ int Dispatcher_RequestCharacSkillInfo::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0x39;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e39e0 orig/ours=150/119 ndiff-blocks=26
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e39e0 orig/ours=150/119 ndiff-blocks=26
 //   帧差 sub $30 vs $40 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x30,%esp | mov    0x14(%ebp),%eax | mov    %eax,-0x18(%ebp)
 int Dispatcher_RequestCharacSkillInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -18788,7 +18807,7 @@ void Dispatcher_RequestCharacSkillInfo::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_SecurityCardAuthCancel::~Dispatcher_SecurityCardAuthCancel() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0820a42c orig/ours=88/88 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0820a42c orig/ours=88/88 ndiff-blocks=6
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN33Dispatcher_SecurityCardAuthCancel12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_SecurityCardAuthCancel::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -18841,7 +18860,7 @@ int Dispatcher_SecurityCardAuthCancel::process(CUser* user, MSG_BASE& msg, Param
 int Dispatcher_SecurityCardAuthCancel::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_SecurityCardRetransfer::~Dispatcher_SecurityCardRetransfer() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0820a9a0 orig/ours=277/228 ndiff-blocks=30
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0820a9a0 orig/ours=277/228 ndiff-blocks=30
 //   帧差 sub $18c vs $180 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x18c,%esp | movl   $&_ZZN33Dispatcher_SecurityCardRetransfer12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_SecurityCardRetransfer::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -18942,7 +18961,7 @@ int Dispatcher_UpgradeDisjointMachine::check_error(CUser* user, MSG_BASE& msg, P
 }
 
 // ORIG 0x081cff94（报告 Dispatcher_UpgradeDisjointMachine/process.md）。
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081cff94 orig/ours=56/63 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081cff94 orig/ours=56/63 ndiff-blocks=11
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: sub    $0x28,%esp | mov    %eax,-0x10(%ebp) | mov    %eax,%edx
@@ -18991,7 +19010,7 @@ void Dispatcher_UpgradeDisjointMachine::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_VerifyPrivateStoreItem::~Dispatcher_VerifyPrivateStoreItem() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x08229768 orig/ours=130/132 ndiff-blocks=18
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x08229768 orig/ours=130/132 ndiff-blocks=18
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: sub    $0x24,%esp | movl   $&_ZZN33Dispatcher_VerifyPrivateStoreItem12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | mov    &_ZN10G
 int Dispatcher_VerifyPrivateStoreItem::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -19046,7 +19065,7 @@ Dispatcher_AuctionMyAuctionHistory::~Dispatcher_AuctionMyAuctionHistory() {}
 // ORIG 0x08216d02（报告 Dispatcher_AuctionMyAuctionHistory/dispatch_sig.md）：
 // IsRunning!=1 → 0；state<3 || curCharacR==0 → LineFunc(0xc864)；否则
 // PCK 包 +0x0e/+0x12/+0x16 三 dword（GetUID/getCurCharacNo/get_acc_id）→ SendPacket。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08216d02 orig/ours=56/64 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08216d02 orig/ours=56/64 ndiff-blocks=8
 //   帧差 sub $38 vs $34 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x38,%esp | mov    &_ZN10GlobalData15s_auction_proxyE,%eax | movl   $&_ZZN34Dispatcher_AuctionMyAuctionHistory12dispatch_sigEP5CUserR9PacketBu
 int Dispatcher_AuctionMyAuctionHistory::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -19075,7 +19094,7 @@ int Dispatcher_AuctionMyAuctionHistory::process(CUser* user, MSG_BASE& msg, Para
 int Dispatcher_AuctionMyAuctionHistory::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_Card_Select_Right_State::~Dispatcher_Card_Select_Right_State() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081ff504 orig/ours=193/190 ndiff-blocks=3
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081ff504 orig/ours=193/190 ndiff-blocks=3
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: sete   %al | test   %al,%al | je     081ff5a2 <+0x9e>
 int Dispatcher_Card_Select_Right_State::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -19132,7 +19151,7 @@ int Dispatcher_Card_Select_Right_State::process(CUser* user, MSG_BASE& msg, Para
 int Dispatcher_Card_Select_Right_State::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_CheckGuildAddressDouble::~Dispatcher_CheckGuildAddressDouble() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x082087a4 orig/ours=159/159 ndiff-blocks=23
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082087a4 orig/ours=159/159 ndiff-blocks=23
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN34Dispatcher_CheckGuildAddressDouble12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $0x0,-0x14(%ebp) | lea    
 int Dispatcher_CheckGuildAddressDouble::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -19184,7 +19203,7 @@ int Dispatcher_CheckGuildAddressDouble::process(CUser* user, MSG_BASE& msg, Para
 int Dispatcher_CheckGuildAddressDouble::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_CompoundItemByExpertJob::~Dispatcher_CompoundItemByExpertJob() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0821eb66 orig/ours=210/211 ndiff-blocks=20
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0821eb66 orig/ours=210/211 ndiff-blocks=20
 //   帧差 sub $50 vs $40 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x50,%esp | movl   $&_ZZN34Dispatcher_CompoundItemByExpertJob12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN
 int Dispatcher_CompoundItemByExpertJob::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -19278,7 +19297,7 @@ Dispatcher_InvestItemAmplifyOption::~Dispatcher_InvestItemAmplifyOption() {}
 
 
 Dispatcher_RequestItemUnlockCancel::~Dispatcher_RequestItemUnlockCancel() {}
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x082231ae orig/ours=97/97 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x082231ae orig/ours=97/97 ndiff-blocks=10
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: movb   $0x0,-0x11(%ebp) | movw   $0x0,-0x14(%ebp) | lea    -0x11(%ebp),%eax
@@ -19316,7 +19335,7 @@ int Dispatcher_RequestItemUnlockCancel::process(CUser* user, MSG_BASE& msg, Para
 int Dispatcher_RequestItemUnlockCancel::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_RequestPCRoomPlayerList::~Dispatcher_RequestPCRoomPlayerList() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0821d7fa orig/ours=56/64 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0821d7fa orig/ours=56/64 ndiff-blocks=13
 //   帧差 sub $20 vs $34 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | sub    $0x20,%esp | jne    0821d828 <+0x2e>
 int Dispatcher_RequestPCRoomPlayerList::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -19339,7 +19358,7 @@ int Dispatcher_RequestPCRoomPlayerList::process(CUser* user, MSG_BASE& msg, Para
 int Dispatcher_RequestPCRoomPlayerList::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_Write_On_The_GuildBoard::~Dispatcher_Write_On_The_GuildBoard() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d31ee orig/ours=93/98 ndiff-blocks=18
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d31ee orig/ours=93/98 ndiff-blocks=18
 //   帧差 sub $4c vs $44 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %esi | sub    $0x4c,%esp
 int Dispatcher_Write_On_The_GuildBoard::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -19399,7 +19418,7 @@ void Dispatcher_Write_On_The_GuildBoard::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_AuctionSearchByNoItmeKey::~Dispatcher_AuctionSearchByNoItmeKey() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082161e4 orig/ours=425/431 ndiff-blocks=57
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082161e4 orig/ours=425/431 ndiff-blocks=57
 //   帧差 sub $94 vs $a4 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x94,%esp | lea    -0x21(%ebp),%eax | movl   $&_ZZN35Dispatcher_AuctionSearchByNoItmeKey12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION_
 int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -19518,7 +19537,7 @@ int Dispatcher_AuctionSearchByNoItmeKey::process(CUser* user, MSG_BASE& msg, Par
 int Dispatcher_AuctionSearchByNoItmeKey::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_CheckEnableServerMessage::~Dispatcher_CheckEnableServerMessage() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0821df6a orig/ours=164/168 ndiff-blocks=29
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0821df6a orig/ours=164/168 ndiff-blocks=29
 //   帧差 sub $40 vs $50 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x40,%esp | mov    %eax,%ebx | mov    %eax,%esi
 int Dispatcher_CheckEnableServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -19582,7 +19601,7 @@ int Dispatcher_CheckEnableServerMessage::process(CUser* user, MSG_BASE& msg, Par
 int Dispatcher_CheckEnableServerMessage::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_CompleteLoadAfterAssault::~Dispatcher_CompleteLoadAfterAssault() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08206b5c orig/ours=110/119 ndiff-blocks=19
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08206b5c orig/ours=110/119 ndiff-blocks=19
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN35Dispatcher_CompleteLoadAfterAssault12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | mov    %eax,%esi | call   080cc1
 int Dispatcher_CompleteLoadAfterAssault::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -19625,7 +19644,7 @@ Dispatcher_Enchant_3rdChronicleItem::~Dispatcher_Enchant_3rdChronicleItem() {}
 // CItemUpgrade.cpp:410；ORIG 0x081d3808 调用即 devirt 直调 call 同 mangled，
 // 真调用同形。
 
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d343a orig/ours=127/125 ndiff-blocks=3
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d343a orig/ours=127/125 ndiff-blocks=3
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    &_ZN10GlobalData22s_pSecuProtectionFieldE,%eax | mov    0x15(%eax),%eax | mov    %eax,%ebx
 int Dispatcher_Enchant_3rdChronicleItem::check_error(CUser* user, MSG_BASE& msg)
@@ -19678,7 +19697,7 @@ int Dispatcher_Enchant_3rdChronicleItem::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x081d375e orig/ours=85/81 ndiff-blocks=15
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x081d375e orig/ours=85/81 ndiff-blocks=15
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: mov    %eax,-0x18(%ebp) | cmpl   $0x0,-0x18(%ebp) | mov    -0x18(%ebp),%eax
 int Dispatcher_Enchant_3rdChronicleItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -19799,7 +19818,7 @@ int Dispatcher_GoldTakeIncreasingAmount::check_error(CUser* user, MSG_BASE& msg)
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d55a4 orig/ours=58/59 ndiff-blocks=12
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d55a4 orig/ours=58/59 ndiff-blocks=12
 //   帧差 sub $24 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | mov    %eax,-0x18(%ebp)
 int Dispatcher_GoldTakeIncreasingAmount::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -19856,7 +19875,7 @@ void Dispatcher_GoldTakeIncreasingAmount::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_LevelupSupportReqestItem::~Dispatcher_LevelupSupportReqestItem() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x0825fc3a orig/ours=169/178 ndiff-blocks=36
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x0825fc3a orig/ours=169/178 ndiff-blocks=36
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: sub    $0x40,%esp | mov    $0xa49,%eax | mov    $0x0,%eax
 int Dispatcher_LevelupSupportReqestItem::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -19941,7 +19960,7 @@ int Dispatcher_LevelupSupportReqestItem::read(PacketBuf& packet, MSG_BASE& msg) 
 void Dispatcher_LevelupSupportReqestItem::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_RequestOnTimeEventReward::~Dispatcher_RequestOnTimeEventReward() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x0822458c orig/ours=212/207 ndiff-blocks=29
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x0822458c orig/ours=212/207 ndiff-blocks=29
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: push   %edi | push   %esi | push   %ebx
 int Dispatcher_RequestOnTimeEventReward::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -20014,7 +20033,7 @@ int Dispatcher_RequestOnTimeEventReward::process(CUser* user, MSG_BASE& msg, Par
 int Dispatcher_RequestOnTimeEventReward::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_RequestPCRoomPlayerCount::~Dispatcher_RequestPCRoomPlayerCount() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0821d8d0 orig/ours=56/64 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0821d8d0 orig/ours=56/64 ndiff-blocks=13
 //   帧差 sub $20 vs $34 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | sub    $0x20,%esp | jne    0821d8fe <+0x2e>
 int Dispatcher_RequestPCRoomPlayerCount::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -20097,7 +20116,7 @@ int Dispatcher_Security_PacketIntegrity::process(CUser* user, MSG_BASE& msg, Par
 int Dispatcher_Security_PacketIntegrity::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_SelectUltimateDifficulty::~Dispatcher_SelectUltimateDifficulty() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08226f30 orig/ours=166/160 ndiff-blocks=37
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08226f30 orig/ours=166/160 ndiff-blocks=37
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    $0x0,%ebx | mov    %eax,-0xc(%ebp) | cmpl   $0x0,-0xc(%ebp)
 int Dispatcher_SelectUltimateDifficulty::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -20156,7 +20175,7 @@ int Dispatcher_SelectUltimateDifficulty::dispatch_sig(CUser* user, PacketBuf& pa
 int Dispatcher_SelectUltimateDifficulty::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_Select_Item_Grwoth_Power::~Dispatcher_Select_Item_Grwoth_Power() {}
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x081db580 orig/ours=48/43 ndiff-blocks=5
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x081db580 orig/ours=48/43 ndiff-blocks=5
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: push   %esi | push   %ebx | sub    $0x10,%esp
 int Dispatcher_Select_Item_Grwoth_Power::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -20177,7 +20196,7 @@ int Dispatcher_Select_Item_Grwoth_Power::check_error(CUser* user, MSG_BASE& msg,
     return -1;
 }
 
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081db60c orig/ours=410/389 ndiff-blocks=55
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081db60c orig/ours=410/389 ndiff-blocks=55
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: mov    %eax,-0x30(%ebp) | cmpl   $0x0,-0x30(%ebp) | mov    -0x30(%ebp),%ebx
 int Dispatcher_Select_Item_Grwoth_Power::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -20437,7 +20456,7 @@ int Dispatcher_UseCreatureEvolutionItem::dispatch_sig(CUser* user, PacketBuf& pa
 // 流程：物品空间→inven 槽位取物 → find_item → 非 stackable/非本生物(0x360) 报错；
 // 通过则 CCreatureMgr::ItemEvolute。日志 cMyTrace(0xe621/0xe627/0xe62f)、
 // cHistoryTrace("ItemEvolute ...") 与 ORIG rodata 逐字节一致。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x08228bcc orig/ours=172/165 ndiff-blocks=23
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08228bcc orig/ours=172/165 ndiff-blocks=23
 //   帧差 sub $7c vs $ffffff80 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x7c,%esp | movswl -0x60(%ebp),%esi
 int Dispatcher_UseCreatureEvolutionItem::process(CUser* user,
@@ -20497,7 +20516,7 @@ int Dispatcher_UseCreatureEvolutionItem::process(CUser* user, MSG_BASE& msg, Par
 int Dispatcher_UseCreatureEvolutionItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_UseRightOfChangeGrowType::~Dispatcher_UseRightOfChangeGrowType() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0825dd84 orig/ours=124/130 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0825dd84 orig/ours=124/130 ndiff-blocks=11
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: jne    0825dda7 <+0x23> | setne  %al | mov    0x10(%ebp),%eax
 int Dispatcher_UseRightOfChangeGrowType::check_error(CUser* user, MSG_BASE& msg)
@@ -20557,7 +20576,7 @@ int Dispatcher_UseRightOfChangeGrowType::check_error(CUser* user, MSG_BASE& msg)
 // ORIG 0x0825dc64 T _ZN35Dispatcher_UseRightOfChangeGrowType7processEP5CUserR8MSG_BASER9ParamBase
 // （docs/class_func_reports/Dispatcher_UseRightOfChangeGrowType/process.md 汇编+反编译 C 全文转写）
 // param 为模板实参 stUseRightOfChangeGrowTypeParam，ORIG 裸访问 +0x04 错误码槽（m_4）。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0825dc64 orig/ours=75/77 ndiff-blocks=16
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0825dc64 orig/ours=75/77 ndiff-blocks=16
 //   帧差 sub $38 vs $34 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x38,%esp | mov    %eax,-0x14(%ebp) | mov    -0x14(%ebp),%edx
 int Dispatcher_UseRightOfChangeGrowType::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -20615,7 +20634,7 @@ void Dispatcher_UseRightOfChangeGrowType::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_AuctionMyRegistedItemInfo::~Dispatcher_AuctionMyRegistedItemInfo() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08216966 orig/ours=141/147 ndiff-blocks=20
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08216966 orig/ours=141/147 ndiff-blocks=20
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x21(%ebp),%eax | movl   $&_ZZN36Dispatcher_AuctionMyRegistedItemInfo12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movzb
 int Dispatcher_AuctionMyRegistedItemInfo::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -20675,7 +20694,7 @@ int Dispatcher_AuctionMyRegistedItemInfo::process(CUser* user, MSG_BASE& msg, Pa
 int Dispatcher_AuctionMyRegistedItemInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_BloodRoundUiPrepareFinish::~Dispatcher_BloodRoundUiPrepareFinish() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08222270 orig/ours=74/83 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08222270 orig/ours=74/83 ndiff-blocks=9
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN36Dispatcher_BloodRoundUiPrepareFinish12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN36Dispatcher_Blood
 int Dispatcher_BloodRoundUiPrepareFinish::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -20780,7 +20799,7 @@ int Dispatcher_Buy_Charac_Status_Using_QP::check_error(CUser* user, MSG_BASE& ms
 // ORIG 0x081d64b4 T _ZN37Dispatcher_Buy_Charac_Status_Using_QP7processEP5CUserR8MSG_BASER9ParamBase
 // （docs/class_func_reports/Dispatcher_Buy_Charac_Status_Using_QP/process.md 汇编+反编译 C 全文转写）
 // param 为模板实参 STQuestShopBuyParam（+0x04 byte/+0x06 short/+0x08 int）。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d64b4 orig/ours=73/74 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d64b4 orig/ours=73/74 ndiff-blocks=13
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x1c(%ebp) | cmpl   $0x0,-0x1c(%ebp) | cmpl   $0x0,-0x1c(%ebp)
 int Dispatcher_Buy_Charac_Status_Using_QP::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -20865,7 +20884,7 @@ void Dispatcher_Buy_Charac_Status_Using_QP::send(CUser* user, ParamBase& param)
 
 
 Dispatcher_Change_PartyMemberPosition::~Dispatcher_Change_PartyMemberPosition() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0822759c orig/ours=189/189 ndiff-blocks=6
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0822759c orig/ours=189/189 ndiff-blocks=6
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN37Dispatcher_Change_PartyMemberPosition12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN37Dispatcher_Chan
 int Dispatcher_Change_PartyMemberPosition::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -20964,7 +20983,7 @@ int Dispatcher_CallPartyMemberRealtimeInfo::process(CUser* user, MSG_BASE& msg, 
     return 0;
 }
 int Dispatcher_CallPartyMemberRealtimeInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081ce3ee orig/ours=75/73 ndiff-blocks=4
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081ce3ee orig/ours=75/73 ndiff-blocks=4
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    $0x0,%ebx | mov    $0x1,%ebx | test   %ebx,%ebx
 void Dispatcher_CallPartyMemberRealtimeInfo::send(CUser* user, ParamBase& param)
@@ -21006,7 +21025,7 @@ int Dispatcher_Direct_Entrance_Quick_Party::check_error(CUser* user, MSG_BASE& m
 
 // ORIG 0x081de334（报告 Dispatcher_Direct_Entrance_Quick_Party/process.md）：
 // direct_entrance_quick_party(user) 返回值写 param+0x4；两侧分支均 return 0。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081de334 orig/ours=43/39 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081de334 orig/ours=43/39 ndiff-blocks=9
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x10(%ebp) | cmpl   $0x0,-0x10(%ebp) | mov    -0x10(%ebp),%eax
 int Dispatcher_Direct_Entrance_Quick_Party::process(CUser* user, MSG_BASE& msg,
@@ -21040,7 +21059,7 @@ void Dispatcher_Direct_Entrance_Quick_Party::send(CUser* user, ParamBase& param)
 }
 
 Dispatcher_Exchange_Random_Item_Reward::~Dispatcher_Exchange_Random_Item_Reward() {}
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x081de52c orig/ours=159/160 ndiff-blocks=31
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x081de52c orig/ours=159/160 ndiff-blocks=31
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 4 个，4.4 libstdc++ 全内联不可复现
 //   首差: mov    0x10(%ebp),%eax | mov    %eax,-0x14(%ebp) | mov    %eax,-0x10(%ebp)
 int Dispatcher_Exchange_Random_Item_Reward::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -21133,7 +21152,7 @@ int Dispatcher_Exchange_Random_Item_Reward::read(PacketBuf& packet, MSG_BASE& ms
     return 0;
 }
 
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081de72c orig/ours=197/173 ndiff-blocks=17
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081de72c orig/ours=197/173 ndiff-blocks=17
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0xc(%ebp) | mov    -0xc(%ebp),%eax | mov    -0xc(%ebp),%eax
 void Dispatcher_Exchange_Random_Item_Reward::send(CUser* user, ParamBase& param)
@@ -21176,7 +21195,7 @@ void Dispatcher_Exchange_Random_Item_Reward::send(CUser* user, ParamBase& param)
 
 
 Dispatcher_RequestConditionEventReward::~Dispatcher_RequestConditionEventReward() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x082223a6 orig/ours=211/221 ndiff-blocks=32
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082223a6 orig/ours=211/221 ndiff-blocks=32
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN38Dispatcher_RequestConditionEventReward12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movw   $0x0,-0x16(%ebp) | mov
 int Dispatcher_RequestConditionEventReward::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -21235,7 +21254,7 @@ Dispatcher_TournamentRewardSelectState::~Dispatcher_TournamentRewardSelectState(
 // ORIG 0x081dff32（报告 Dispatcher_TournamentRewardSelectState/check_error.md）：
 // state!=5 → 0x7fffffff；GetParty(GetPartyIndex)==0 → -1；
 // TournamentDungeonClearState!=1 → 0x7fffffff；!CheckRecvFromAllMember → 0x7fffffff。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081dff32 orig/ours=54/49 ndiff-blocks=4
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081dff32 orig/ours=54/49 ndiff-blocks=4
 //   帧差 sub $24 vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | cmpl   $0x0,0xc(%ebp)
 int Dispatcher_TournamentRewardSelectState::check_error(CUser* user, MSG_BASE& msg)
@@ -21261,7 +21280,7 @@ int Dispatcher_TournamentRewardSelectState::check_error(CUser* user, MSG_BASE& m
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081dfca2 orig/ours=58/64 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081dfca2 orig/ours=58/64 ndiff-blocks=8
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x10(%ebp) | mov    -0x10(%ebp),%edx | mov    %eax,0x4(%edx)
 int Dispatcher_TournamentRewardSelectState::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -21438,7 +21457,7 @@ int Dispatcher_FinishVillageMonsterFighting::process(CUser* user, MSG_BASE& msg,
 int Dispatcher_FinishVillageMonsterFighting::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_GrowthWeaponEventUseMaterial::~Dispatcher_GrowthWeaponEventUseMaterial() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081e82fa orig/ours=119/128 ndiff-blocks=16
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081e82fa orig/ours=119/128 ndiff-blocks=16
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: mov    %eax,-0x14(%ebp) | mov    -0x14(%ebp),%eax | mov    0x11(%eax),%ebx
 int Dispatcher_GrowthWeaponEventUseMaterial::check_error(CUser* user, MSG_BASE& msg)
@@ -21497,7 +21516,7 @@ int Dispatcher_GrowthWeaponEventUseMaterial::check_error(CUser* user, MSG_BASE& 
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e81a4 orig/ours=98/99 ndiff-blocks=21
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e81a4 orig/ours=98/99 ndiff-blocks=21
 //   帧差 sub $30 vs $44 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | sub    $0x30,%esp | mov    %eax,-0x14(%ebp)
 int Dispatcher_GrowthWeaponEventUseMaterial::process(CUser* user, MSG_BASE& msgBase, ParamBase& paramBase)
@@ -21568,7 +21587,7 @@ void Dispatcher_GrowthWeaponEventUseMaterial::send(CUser* user, ParamBase& param
 
 
 Dispatcher_HeroMissionEventState_Reward::~Dispatcher_HeroMissionEventState_Reward() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08260094 orig/ours=128/132 ndiff-blocks=24
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08260094 orig/ours=128/132 ndiff-blocks=24
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $0x0,-0x10(%ebp) | lea    -0x10(%ebp),%eax | movl   $&_ZZN39Dispatcher_HeroMissionEventState_Reward12dispatch_sigEP5CUserR9PacketBufE19__PRETTY
 int Dispatcher_HeroMissionEventState_Reward::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -21626,7 +21645,7 @@ int Dispatcher_HeroMissionEventState_Reward::read(PacketBuf& packet, MSG_BASE& m
 void Dispatcher_HeroMissionEventState_Reward::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_SaveGameOption_QuickChatting::~Dispatcher_SaveGameOption_QuickChatting() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081cf1ac orig/ours=118/121 ndiff-blocks=23
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081cf1ac orig/ours=118/121 ndiff-blocks=23
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x18(%ebp) | mov    0x14(%ebp),%eax | mov    %eax,-0x14(%ebp)
 int Dispatcher_SaveGameOption_QuickChatting::process(CUser* user, MSG_BASE& msgBase, ParamBase& param)
@@ -21666,7 +21685,7 @@ int Dispatcher_SaveGameOption_QuickChatting::process(CUser* user, MSG_BASE& msgB
     }
     return 0;
 }
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081cf0a6 orig/ours=67/69 ndiff-blocks=9
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081cf0a6 orig/ours=67/69 ndiff-blocks=9
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %eax,-0xc(%ebp) | mov    -0xc(%ebp),%eax | movl   $&_ZZN39Dispatcher_SaveGameOption_QuickChatting4readER9PacketBufR8MSG_BASEE19__PRETTY_FUNCTIO
@@ -21696,7 +21715,7 @@ int Dispatcher_SaveGameOption_QuickChatting::read(PacketBuf& packet, MSG_BASE& m
 }
 
 Dispatcher_Avatar_Disjoint_Random_Reward::~Dispatcher_Avatar_Disjoint_Random_Reward() {}
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x081dea06 orig/ours=171/220 ndiff-blocks=43
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x081dea06 orig/ours=171/220 ndiff-blocks=43
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 3 个，4.4 libstdc++ 全内联不可复现
 //   首差: push   %ebx | sub    $0x74,%esp | mov    %eax,-0x18(%ebp)
 int Dispatcher_Avatar_Disjoint_Random_Reward::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -21773,7 +21792,7 @@ int Dispatcher_Avatar_Disjoint_Random_Reward::process(CUser* user, MSG_BASE& msg
     return 0;
 }
 Dispatcher_SDC_ActiveStatus_Damage_Check::~Dispatcher_SDC_ActiveStatus_Damage_Check() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081ea16e orig/ours=309/262 ndiff-blocks=42
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081ea16e orig/ours=309/262 ndiff-blocks=42
 //   帧差 sub $47c vs $470 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x47c,%esp | movb   $0x0,-0x55(%ebp)
 int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -21885,7 +21904,7 @@ int Dispatcher_SDC_ActiveStatus_Damage_Check::process(CUser* user, MSG_BASE& msg
 int Dispatcher_SDC_ActiveStatus_Damage_Check::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_police_queryCharacName_useMid::~Dispatcher_police_queryCharacName_useMid() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x082273ae orig/ours=140/145 ndiff-blocks=7
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082273ae orig/ours=140/145 ndiff-blocks=7
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x4c(%ebp),%eax | mov    %eax,-0x42(%ebp) | lea    -0x4c(%ebp),%eax
 int Dispatcher_police_queryCharacName_useMid::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -21993,7 +22012,7 @@ int Dispatcher_ImageCommunicationEquipmentUse::check_error(CUser* user, MSG_BASE
 // ORIG 0x081e21d6（报告 Dispatcher_ImageCommunicationEquipmentUse/process.md）：
 // param+4=check_error；==0 时 use_money(price,0x30,true)、param+8=price、
 // param+0xc=getCurCharacMoney。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e21d6 orig/ours=51/46 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e21d6 orig/ours=51/46 ndiff-blocks=8
 //   帧差 sub $24 vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | mov    0x10(%ebp),%eax
 int Dispatcher_ImageCommunicationEquipmentUse::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -22087,7 +22106,7 @@ Dispatcher_Compound_Equipment_Upgrade_Card::~Dispatcher_Compound_Equipment_Upgra
 
 
 Dispatcher_GrowthWeaponEventChangeInfinity::~Dispatcher_GrowthWeaponEventChangeInfinity() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081e7f2e orig/ours=117/122 ndiff-blocks=17
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081e7f2e orig/ours=117/122 ndiff-blocks=17
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: mov    0x10(%ebp),%eax | mov    %eax,-0x10(%ebp) | mov    -0x10(%ebp),%eax
 int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BASE& msg)
@@ -22145,7 +22164,7 @@ int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BAS
     }
     return 1;
 }
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081e7db4 orig/ours=108/112 ndiff-blocks=23
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081e7db4 orig/ours=108/112 ndiff-blocks=23
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: sub    $0x30,%esp | mov    -0x18(%ebp),%edx | mov    -0x18(%ebp),%eax
 int Dispatcher_GrowthWeaponEventChangeInfinity::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -22218,7 +22237,7 @@ void Dispatcher_GrowthWeaponEventChangeInfinity::send(CUser* user, ParamBase& pa
 }
 
 Dispatcher_SaveGameOption_ChattingEmoticon::~Dispatcher_SaveGameOption_ChattingEmoticon() {}
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081cf52a orig/ours=140/135 ndiff-blocks=31
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081cf52a orig/ours=140/135 ndiff-blocks=31
 //   帧差 sub $24c vs $250 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x24c,%esp | mov    %eax,-0x28(%ebp)
 int Dispatcher_SaveGameOption_ChattingEmoticon::process(CUser* user, MSG_BASE& msgBase, ParamBase& param)
@@ -22304,7 +22323,7 @@ void Dispatcher_SaveGameOption_ChattingEmoticon::send(CUser* user, ParamBase& pa
 }
 
 Dispatcher_ComboSkillExtensionQuickSlotReset::~Dispatcher_ComboSkillExtensionQuickSlotReset() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0825f594 orig/ours=41/40 ndiff-blocks=3
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0825f594 orig/ours=41/40 ndiff-blocks=3
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: je     0825f602 <+0x6e> | jmp    0825f607 <+0x73> | mov    $0x0,%eax
 int Dispatcher_ComboSkillExtensionQuickSlotReset::check_error(CUser* user, MSG_BASE& msg)
@@ -22324,16 +22343,18 @@ int Dispatcher_ComboSkillExtensionQuickSlotReset::check_error(CUser* user, MSG_B
     {
         return -1;
     }
-    if (req.m_0d == 0 || req.m_0d == 1)
+    // b28d-solo-Dispatchers: 同 ComboSkill::check_error —— ORIG 0x0825f5e5 两条件
+    //   各自 `je <mov $0,%eax>` 共享岛（负极性 && 链，P214①/P45）。
+    if (req.m_0d != 0 && req.m_0d != 1)
     {
-        return 0;
+        return 0x13;
     }
-    return 0x13;
+    return 0;
 }
 // ORIG 0x0825f4e8（报告 Dispatcher_ComboSkillExtensionQuickSlotReset/process.md）：
 // err=check_error → param.m_4；>0 返 0；<0 LineFunc(0x384)；
 // ==0 pullComboSkillExtensionQuickSlot(msg+0xd) → send_skill_info。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0825f4e8 orig/ours=52/51 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0825f4e8 orig/ours=52/51 ndiff-blocks=10
 //   帧差 sub $24 vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x24,%esp | mov    -0x10(%ebp),%edx
 int Dispatcher_ComboSkillExtensionQuickSlotReset::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -22451,7 +22472,7 @@ int Dispatcher_GrowthCreatureChangeInfinityCreature::check_error(CUser* user,
 
 // ORIG 0x081e85ac（报告 Dispatcher_GrowthCreatureChangeInfinityCreature/process.md）：
 // ParamBase 实际为 stGrowthCreature（m_4）。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e85ac orig/ours=43/40 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e85ac orig/ours=43/40 ndiff-blocks=10
 //   帧差 sub $28 vs $24 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x28,%esp | mov    0x14(%ebp),%eax | mov    %eax,-0xc(%ebp)
 int Dispatcher_GrowthCreatureChangeInfinityCreature::process(CUser* user,
@@ -22474,7 +22495,7 @@ int Dispatcher_GrowthCreatureChangeInfinityCreature::process(CUser* user,
     return 0;
 }
 int Dispatcher_GrowthCreatureChangeInfinityCreature::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081e8768 orig/ours=49/58 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081e8768 orig/ours=49/58 ndiff-blocks=8
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: mov    %eax,-0x10(%ebp) | mov    -0x10(%ebp),%eax | mov    &_ZN10GlobalData15s_event_managerE,%eax
 void Dispatcher_GrowthCreatureChangeInfinityCreature::send(CUser* user, ParamBase& param)
@@ -22791,7 +22812,7 @@ int Dispatcher_AradEmblemCompound::read(PacketBuf& packet, MSG_BASE& msg)
 //   通过后发内部流 0x2d（0x11 字节，含 acc_id/charac_no）。
 Dispatcher_AradJumpingCharacter::Dispatcher_AradJumpingCharacter() throw() {}
 Dispatcher_AradJumpingCharacter::~Dispatcher_AradJumpingCharacter() {}
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x0819f1ec orig/ours=172/177 ndiff-blocks=24
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0819f1ec orig/ours=172/177 ndiff-blocks=24
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x19(%ebp),%eax | lea    -0x19(%ebp),%eax | movzbl -0x10(%ebp),%eax
 int Dispatcher_AradJumpingCharacter::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -22935,7 +22956,7 @@ Dispatcher_EventCreateDnfRequest::~Dispatcher_EventCreateDnfRequest() {}
 // （GetEventCreateDnfReward==1 或 !IsRewardCondition）→SendCmdErrorPacket(0x258,1)+log(0x7d6)；
 // 否则 SetEventCreateDnfReward(true)+DBInsertCreateDnfUserInfo::makeRequest+SendReward。
 // 末尾统一发 0x22d 响应（put_header(0,0x22d)+put_short(GetRate)+put_byte(0)）并返 0。
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081a0362 orig/ours=183/188 ndiff-blocks=23
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081a0362 orig/ours=183/188 ndiff-blocks=23
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: sub    $0x30,%esp | mov    &_ZN10GlobalData15s_event_managerE,%eax | mov    %eax,-0xc(%ebp)
 int Dispatcher_EventCreateDnfRequest::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -23066,7 +23087,7 @@ int Dispatcher_AvartarHiddenOptionChange::read(PacketBuf& packet, MSG_BASE& msg)
 //   make_item 注入背包（invenType=0xe），成功扣减次数并发
 //   InterSelectPcroomDailyReward::SendPacket / DBUpdatePcroomDailyReward::makeRequest。
 Dispatcher_RequestPrcoomDayilyReward::~Dispatcher_RequestPrcoomDayilyReward() {}
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081a0612 orig/ours=188/187 ndiff-blocks=19
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081a0612 orig/ours=188/187 ndiff-blocks=19
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: movl   $0x0,-0x14(%ebp) | lea    -0x14(%ebp),%eax | mov    -0x14(%ebp),%eax
 int Dispatcher_RequestPrcoomDayilyReward::dispatch_sig(CUser* user, PacketBuf& packet)
@@ -23143,7 +23164,7 @@ namespace ARAD {
 
 namespace APSystem {
 Dispatcher_ClearAction::~Dispatcher_ClearAction() {}
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x0812513c orig/ours=48/48 ndiff-blocks=5
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x0812513c orig/ours=48/48 ndiff-blocks=5
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: test   %al,%al | lea    -0x13(%ebp),%eax | lea    -0x13(%ebp),%eax
@@ -23171,7 +23192,7 @@ int Dispatcher_ClearAction::process(CUser* user, MSG_BASE& msg, ParamBase& param
 int Dispatcher_ClearAction::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_GetTodayReward::~Dispatcher_GetTodayReward() {}
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081251da orig/ours=41/42 ndiff-blocks=3
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081251da orig/ours=41/42 ndiff-blocks=3
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: test   %al,%al | lea    -0xd(%ebp),%eax | mov    -0xc(%ebp),%eax
@@ -23307,7 +23328,7 @@ int Dispatcher_AvatarOptionChange::read(PacketBuf& packet, MSG_BASE& msg)
 // 校验链：user/状态门 → Secu 保护域(0x2a) → 消耗品槽一致性/数量 → 消耗品为可堆叠的
 // avatar option change 道具 → 目标槽物品一致性 → 目标为非堆叠 avatar 装备 → 锁定检查
 // → job/type/grade 条件或限定集合 → option 值合法性。
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081e0a40 orig/ours=289/298 ndiff-blocks=29
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081e0a40 orig/ours=289/298 ndiff-blocks=29
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: sub    $0xc4,%esp | mov    &_ZN10GlobalData22s_pSecuProtectionFieldE,%eax | mov    %eax,-0x24(%ebp)
 int Dispatcher_AvatarOptionChange::check_error(CUser* user, MSG_BASE& msg)
@@ -23396,7 +23417,7 @@ int Dispatcher_AvatarOptionChange::check_error(CUser* user, MSG_BASE& msg)
 
 // ==== Dispatcher_AvatarOptionChange::process (ORIG 0x081e0774) ====
 // 影子背包预演删除消耗品成功后，才落到真实背包；改写目标 avatar 装备的 option 字节并回包。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e0774 orig/ours=183/184 ndiff-blocks=27
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e0774 orig/ours=183/184 ndiff-blocks=27
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x20(%ebp) | mov    -0x20(%ebp),%edx | mov    %eax,0x4(%edx)
 int Dispatcher_AvatarOptionChange::process(CUser* user, MSG_BASE& msg, ParamBase& paramBase)
@@ -23532,7 +23553,7 @@ int Dispatcher_BlueMarbleConfirmInfo::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_BlueMarbleConfirmInfo::process (ORIG 0x081e62da) ====
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e62da orig/ours=372/364 ndiff-blocks=37
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e62da orig/ours=372/364 ndiff-blocks=37
 //   帧差 sub $4bc vs $4ac + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x4bc,%esp | movl   $&_ZZN32Dispatcher_BlueMarbleConfirmInfo7processEP5CUserR8MSG_BASER9ParamBaseE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $".
 int Dispatcher_BlueMarbleConfirmInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -23772,7 +23793,7 @@ int Dispatcher_MailBox_Send::GuildMailCheck(CUser* user, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_MailBox_Send::check_error (ORIG 0x081cc636) ====
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x081cc636 orig/ours=196/226 ndiff-blocks=25
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x081cc636 orig/ours=196/226 ndiff-blocks=25
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 7 个，4.4 libstdc++ 全内联不可复现
 //   首差: mov    &_ZN10GlobalData22s_pSecuProtectionFieldE,%eax | mov    %eax,-0x14(%ebp) | cmpl   $0x0,-0x14(%ebp)
 int Dispatcher_MailBox_Send::check_error(CUser* user, MSG_BASE& msg)
@@ -23829,7 +23850,7 @@ int Dispatcher_MailBox_Send::check_error(CUser* user, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_MailBox_Send::process (ORIG 0x081cc958) ====
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081cc958 orig/ours=300/363 ndiff-blocks=49
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081cc958 orig/ours=300/363 ndiff-blocks=49
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: mov    %eax,-0x40(%ebp) | mov    %eax,%edx | mov    -0x40(%ebp),%eax
 int Dispatcher_MailBox_Send::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -24040,7 +24061,7 @@ int Dispatcher_MonstercardBind::calcurate_rarity(ENUM_RARITY rarity,
 }
 
 // ==== Dispatcher_MonstercardBind::get_bind_result (ORIG 0x081d84a0 T) ====
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x081d84a0 orig/ours=96/95 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x081d84a0 orig/ours=96/95 ndiff-blocks=13
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: movswl -0x6c(%ebp),%ebx | lea    -0x61(%ebp),%edx | mov    %ebx,0xc(%esp)
 int Dispatcher_MonstercardBind::get_bind_result(
@@ -24074,7 +24095,7 @@ int Dispatcher_MonstercardBind::get_bind_result(
 
 // ==== Dispatcher_MonstercardBind::_bind_process (ORIG 0x081d85fc T) ====
 // b28c-L20 SIGFIX: bool Dispatcher_MonstercardBind::_bind_process(...)（P174 串定）
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d85fc orig/ours=187/180 ndiff-blocks=17
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d85fc orig/ours=187/180 ndiff-blocks=17
 //   帧差 sub $74 vs $78 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %ebx | sub    $0x74,%esp | movl   $0x0,-0x20(%ebp)
 bool Dispatcher_MonstercardBind::_bind_process(
@@ -24182,7 +24203,7 @@ int Dispatcher_MonstercardBind::read(PacketBuf& packet, MSG_BASE& msg)
 // 【batch-17 X1 池收口（§6.2）】orig 235 / ours 229（gap 6）：调用点差集
 //   27↔27、indirect 0↔0 **归零**；残 6 为 4.1 的寄存器重载/岛步序（N76/N82）
 //   ⇒ 语义完成、byte 层封顶，勿再改写。
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x081d8de2 orig/ours=236/228 ndiff-blocks=20
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x081d8de2 orig/ours=236/228 ndiff-blocks=20
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 5 个，4.4 libstdc++ 全内联不可复现
 //   首差: movswl %ax,%ebx | xor    $0x1,%eax | cmp    $0xffffffff,%eax
 int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg)
@@ -24293,7 +24314,7 @@ int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_MonstercardBind::process (ORIG 0x081d88b0 T) ====
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x081d88b0 orig/ours=332/347 ndiff-blocks=66
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x081d88b0 orig/ours=332/347 ndiff-blocks=66
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 4 个，4.4 libstdc++ 全内联不可复现
 //   首差: mov    %eax,-0x20(%ebp) | mov    -0x20(%ebp),%edx | mov    -0x20(%ebp),%eax
 int Dispatcher_MonstercardBind::process(CUser* user, MSG_BASE& msg,
@@ -24395,7 +24416,7 @@ int Dispatcher_MonstercardBind::process(CUser* user, MSG_BASE& msg,
 }
 
 // ==== Dispatcher_MonstercardBind::send (ORIG 0x081d9148 T) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d9148 orig/ours=143/146 ndiff-blocks=12
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d9148 orig/ours=143/146 ndiff-blocks=12
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,(%esp) | call   0808e1c0 <_GLOBAL__I_ACTIVESTATUS_MAXLEVEL+0x30>  ; global constructors keyed to ACTIVESTATUS_MAXLEVEL+0x30 | addl   $0x1,
 void Dispatcher_MonstercardBind::send(CUser* user, ParamBase& param)
@@ -24458,7 +24479,7 @@ void Dispatcher_MonstercardBind::send(CUser* user, ParamBase& param)
 // ============================================================================
 
 // ==== Dispatcher_PartyTeleport::check_error (ORIG 0x081dc19a) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081dc19a orig/ours=185/189 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081dc19a orig/ours=185/189 ndiff-blocks=8
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $0x0,-0x3c(%ebp) | movl   $&_ZN10GlobalData13s_systemTime_E,(%esp)
 int Dispatcher_PartyTeleport::check_error(CUser* user, MSG_BASE& msg)
@@ -24575,7 +24596,7 @@ int Dispatcher_PartyTeleport::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_PartyTeleport::process (ORIG 0x081dbfd6) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081dbfd6 orig/ours=129/138 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081dbfd6 orig/ours=129/138 ndiff-blocks=13
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    -0x2c(%ebp),%edx | mov    %eax,0x4(%edx) | mov    0x10(%ebp),%eax
 int Dispatcher_PartyTeleport::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -24696,7 +24717,7 @@ bool GetSelectionIndex(CUser& user, int& outIndex, int type);
 }
 
 // ==== Dispatcher_PcRoomRentItem::check_error (ORIG 0x081e5762) ====
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081e5762 orig/ours=70/70 ndiff-blocks=4
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081e5762 orig/ours=70/70 ndiff-blocks=4
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: jne    081e578e <+0x2c> | mov    $0x3,%eax | jmp    081e583c <+0xda>
 int Dispatcher_PcRoomRentItem::check_error(CUser* user, MSG_BASE& msg)
@@ -24744,7 +24765,7 @@ int Dispatcher_PcRoomRentItem::check_error(CUser* user, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_PcRoomRentItem::read (ORIG 0x081e512e) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e512e orig/ours=96/94 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e512e orig/ours=96/94 ndiff-blocks=13
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x10(%ebp) | mov    -0x10(%ebp),%eax | movl   $&_ZZN25Dispatcher_PcRoomRentItem4readER9PacketBufR8MSG_BASEE19__PRETTY_FUNCTION__,0x4(%esp
 int Dispatcher_PcRoomRentItem::read(PacketBuf& packet, MSG_BASE& msg)
@@ -24789,7 +24810,7 @@ int Dispatcher_PcRoomRentItem::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_PcRoomRentItem::process (ORIG 0x081e52c0) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e52c0 orig/ours=113/115 ndiff-blocks=8
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e52c0 orig/ours=113/115 ndiff-blocks=8
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,%edx | mov    -0x14(%ebp),%eax | mov    %edx,0x4(%eax)
 int Dispatcher_PcRoomRentItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -24829,7 +24850,7 @@ int Dispatcher_PcRoomRentItem::process(CUser* user, MSG_BASE& msg, ParamBase& pa
 
 // ==== Dispatcher_PcRoomRentItem::giveDimensionItems (ORIG 0x081e583e) ====
 // 注：ORIG 为类成员（见文件头宿主声明补充说明）。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e583e orig/ours=78/74 ndiff-blocks=14
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e583e orig/ours=78/74 ndiff-blocks=14
 //   帧差 sub $3c vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %esi | push   %ebx
 void Dispatcher_PcRoomRentItem::giveDimensionItems(CUser* user,
@@ -24868,7 +24889,7 @@ void Dispatcher_PcRoomRentItem::giveDimensionItems(CUser* user,
 }
 
 // ==== Dispatcher_PcRoomRentItem::send (ORIG 0x081e542e) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e542e orig/ours=229/221 ndiff-blocks=51
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e542e orig/ours=229/221 ndiff-blocks=51
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x1c(%ebp) | mov    -0x1c(%ebp),%eax | add    $0x8,%eax
 void Dispatcher_PcRoomRentItem::send(CUser* user, ParamBase& param)
@@ -24967,7 +24988,7 @@ Dispatcher_PurifyItem::~Dispatcher_PurifyItem()
 }
 
 // ==== Dispatcher_PurifyItem::read (ORIG 0x08218b94 T) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08218b94 orig/ours=69/80 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08218b94 orig/ours=69/80 ndiff-blocks=13
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    -0xc(%ebp),%eax | add    $0xd,%eax | movl   $&_ZZN21Dispatcher_PurifyItem4readER9PacketBufR8MSG_BASEE19__PRETTY_FUNCTION__,0x4(%esp)
 int Dispatcher_PurifyItem::read(PacketBuf& packet, MSG_BASE& msg)
@@ -25016,7 +25037,7 @@ int Dispatcher_PurifyItem::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_PurifyItem::process (ORIG 0x08218cb6 T) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08218cb6 orig/ours=488/492 ndiff-blocks=61
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08218cb6 orig/ours=488/492 ndiff-blocks=61
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: movl   $&_ZZN21Dispatcher_PurifyItem7processEP5CUserR8MSG_BASER9ParamBaseE19__PRETTY_FUNCTION__,0x4(%esp) | mov    0x10(%ebp),%eax | mov    %eax,-0x14
 int Dispatcher_PurifyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -25222,7 +25243,7 @@ int Dispatcher_RefundSkill::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_RefundSkill::check_error (ORIG 0x081dad1c) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081dad1c orig/ours=77/75 ndiff-blocks=4
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081dad1c orig/ours=77/75 ndiff-blocks=4
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    -0xc(%ebp),%eax | cmp    $0xffffffff,%eax | mov    -0xc(%ebp),%eax
 int Dispatcher_RefundSkill::check_error(CUser* user, MSG_BASE& msg)
@@ -25285,7 +25306,7 @@ LOUT:
 }
 
 // ==== Dispatcher_RefundSkill::process (ORIG 0x081da820) ====
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081da820 orig/ours=347/370 ndiff-blocks=51
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081da820 orig/ours=347/370 ndiff-blocks=51
 //   帧差 sub $c9ac vs $c9bc + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: mov    %eax,-0x2c(%ebp) | mov    -0x2c(%ebp),%edx | mov    %eax,0x18(%edx)
 int Dispatcher_RefundSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -25528,7 +25549,7 @@ int Dispatcher_SecurityCardAuthRpy::check_error(CUser* user, MSG_BASE& msg)
 // ==== Dispatcher_SecurityCardAuthRpy::process (ORIG 0x082627ca) ====
 // 安全卡/密保卡认证应答：按 secuType 选密钥管理器解密 0x1000 内缓冲，
 // 安卡走 checkAnswer/失败计数/DB 上报链，pad 走 doPassPadReplay 链。
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x082627ca orig/ours=486/400 ndiff-blocks=47
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082627ca orig/ours=486/400 ndiff-blocks=47
 //   帧差 sub $108c vs $470 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x108c,%esp | mov    %eax,-0x2c(%ebp)
 int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBase& paramBase)
@@ -25691,7 +25712,7 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
 }
 
 // ==== Dispatcher_SecurityCardAuthRpy::send (ORIG 0x08262f4e) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x08262f4e orig/ours=143/146 ndiff-blocks=10
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08262f4e orig/ours=143/146 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x20(%ebp),%eax | lea    -0x20(%ebp),%eax | lea    -0x20(%ebp),%eax
 void Dispatcher_SecurityCardAuthRpy::send(CUser* user, ParamBase& paramBase)
@@ -25752,7 +25773,7 @@ void Dispatcher_SecurityCardAuthRpy::send(CUser* user, ParamBase& paramBase)
 // ============================================================================
 
 // ==== Dispatcher_StackableActionUse::check_error (ORIG 0x0825e332) ====
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0825e332 orig/ours=127/128 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0825e332 orig/ours=127/128 ndiff-blocks=13
 //   帧差 sub $70 vs $4 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x70,%esp | mov    %eax,-0x14(%ebp) | mov    -0x14(%ebp),%edx
 int Dispatcher_StackableActionUse::check_error(CUser* user, MSG_BASE& msg)
@@ -25857,7 +25878,7 @@ int Dispatcher_StackableActionUse::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_StackableActionUse::process (ORIG 0x0825e11e) ====
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0825e11e orig/ours=145/158 ndiff-blocks=25
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0825e11e orig/ours=145/158 ndiff-blocks=25
 //   帧差 sub $4 vs $90 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: add    $0xffffff80,%esp | mov    %eax,-0x14(%ebp) | mov    0x14(%ebp),%eax
 int Dispatcher_StackableActionUse::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -25921,7 +25942,7 @@ int Dispatcher_StackableActionUse::process(CUser* user, MSG_BASE& msg, ParamBase
 }
 
 // ==== Dispatcher_StackableActionUse::send (ORIG 0x0825e4ec) ====
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x0825e4ec orig/ours=114/116 ndiff-blocks=26
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0825e4ec orig/ours=114/116 ndiff-blocks=26
 //   帧差 sub $30 vs $40 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x30,%esp | mov    %eax,-0xc(%ebp) | mov    -0xc(%ebp),%eax
 void Dispatcher_StackableActionUse::send(CUser* user, ParamBase& param)
@@ -25992,7 +26013,7 @@ struct UseDyeDyeInfoView
 };
 } // anonymous namespace
 
-// b28d-D0 verdict=DIFF(routed) [N89] ORIG 0x081e69ea orig/ours=462/475 ndiff-blocks=78
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x081e69ea orig/ours=462/475 ndiff-blocks=78
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 8 个，4.4 libstdc++ 全内联不可复现
 //   首差: push   %edi | sub    $0xfc,%esp | mov    %eax,-0x48(%ebp)
 int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -26135,7 +26156,7 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 }
 
 // ==== Dispatcher_Teleport::check_error (ORIG 0x081d056c，三参形态) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d056c orig/ours=169/167 ndiff-blocks=3
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d056c orig/ours=169/167 ndiff-blocks=3
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: je     081d063c <+0xd0> | mov    -0x14(%ebp),%eax | mov    0x2(%eax),%eax
 int Dispatcher_Teleport::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -26205,7 +26226,7 @@ int Dispatcher_Teleport::check_error(CUser* user, MSG_BASE& msg, ParamBase& para
 }
 
 // ==== Dispatcher_Teleport::process (ORIG 0x081d07bc) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d07bc orig/ours=60/62 ndiff-blocks=7
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d07bc orig/ours=60/62 ndiff-blocks=7
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,%edx | mov    -0x10(%ebp),%eax | mov    %edx,0x4(%eax)
 int Dispatcher_Teleport::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -26329,7 +26350,7 @@ int Dispatcher_CeraPackageOpen::check_error(CUser* user, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_CeraPackageOpen::read (ORIG 0x081e76fa) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e76fa orig/ours=95/98 ndiff-blocks=12
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e76fa orig/ours=95/98 ndiff-blocks=12
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    -0x10(%ebp),%eax | movl   $&_ZZN26Dispatcher_CeraPackageOpen4readER9PacketBufR8MSG_BASEE19__PRETTY_FUNCTION__,0x4(%esp) | mov    -0x10(%ebp),%e
 int Dispatcher_CeraPackageOpen::read(PacketBuf& packet, MSG_BASE& msg)
@@ -26388,7 +26409,7 @@ int Dispatcher_CeraPackageOpen::read(PacketBuf& packet, MSG_BASE& msg)
 #undef MPK
 
 // ==== Dispatcher_CeraPackageOpen::process (ORIG 0x081e788a) ====
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081e788a orig/ours=289/287 ndiff-blocks=45
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081e788a orig/ours=289/287 ndiff-blocks=45
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x28(%ebp) | mov    -0x28(%ebp),%edx
 int Dispatcher_CeraPackageOpen::process(CUser* user, MSG_BASE& msg,
@@ -26570,7 +26591,7 @@ namespace expert_extraction
 int GetExtracterType(ENUM_EXPERT_JOB_TYPE job);  // ORIG T 0x084a2904（ExpertExtraction.cpp）
 }
 
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081d9412 orig/ours=162/159 ndiff-blocks=32
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081d9412 orig/ours=162/159 ndiff-blocks=32
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: mov    %eax,-0x18(%ebp) | mov    -0x18(%ebp),%edx | mov    -0x18(%ebp),%eax
 int Dispatcher_ExpertExtraction::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -26618,7 +26639,7 @@ int Dispatcher_ExpertExtraction::process(CUser* user, MSG_BASE& msg, ParamBase& 
 }
 
 // ==== Dispatcher_ExpertExtraction::check_error (ORIG 0x081d962e) ====
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081d962e orig/ours=67/64 ndiff-blocks=11
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081d962e orig/ours=67/64 ndiff-blocks=11
 //   虚调用目标寄存器 N7：ORIG `mov (%eax),%ebx; call *%ebx`（push ebx ⇒ 全槽深 4）；
 //   4.4 恒目标 %eax 无 ebx ⇒ 帧差 4。已修段：uchar 读 + (char) 显式转换复现 ORIG
 //   0x081d966d `movzbl; movsbl` 两段（原缺 movsbl）。N7 属后端族，路由表由 Main 管。
@@ -26652,7 +26673,7 @@ int Dispatcher_ExpertExtraction::check_error(CUser* user, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_ExpertExtraction::send (ORIG 0x081d9700) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d9700 orig/ours=130/137 ndiff-blocks=25
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d9700 orig/ours=130/137 ndiff-blocks=25
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x1c(%ebp) | mov    -0x1c(%ebp),%eax | jne    081d989d <+0x19d>
 void Dispatcher_ExpertExtraction::send(CUser* user, ParamBase& param)
@@ -26752,7 +26773,7 @@ int Dispatcher_FatigueAttendance::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_FatigueAttendance::process (ORIG 0x081daffa) ====
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081daffa orig/ours=215/217 ndiff-blocks=29
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081daffa orig/ours=215/217 ndiff-blocks=29
 //   帧差 sub $40 vs $54 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | sub    $0x40,%esp | mov    %eax,-0x2c(%ebp)
 int Dispatcher_FatigueAttendance::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -26957,7 +26978,7 @@ int Dispatcher_ObjectBringUp::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_ObjectBringUp::process (ORIG 0x081e14d4) ====
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081e14d4 orig/ours=137/144 ndiff-blocks=26
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081e14d4 orig/ours=137/144 ndiff-blocks=26
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: sub    $0x74,%esp | mov    0x10(%ebp),%eax | mov    %eax,-0x18(%ebp)
 int Dispatcher_ObjectBringUp::process(CUser* user, MSG_BASE& msg,
@@ -27033,7 +27054,7 @@ int Dispatcher_ObjectBringUp::process(CUser* user, MSG_BASE& msg,
 }
 
 // ==== Dispatcher_ObjectBringUp::send (ORIG 0x081e1704) ====
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e1704 orig/ours=154/163 ndiff-blocks=34
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e1704 orig/ours=154/163 ndiff-blocks=34
 //   帧差 sub $30 vs $40 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x30,%esp | mov    %eax,-0xc(%ebp) | lea    -0x1c(%ebp),%eax
 void Dispatcher_ObjectBringUp::send(CUser* user, ParamBase& param)
@@ -27122,7 +27143,7 @@ int Dispatcher_RequestAssaultPrice::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_RequestAssaultPrice::process (ORIG 0x081dee80) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081dee80 orig/ours=146/141 ndiff-blocks=25
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081dee80 orig/ours=146/141 ndiff-blocks=25
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x1c(%ebp) | mov    %eax,-0x18(%ebp) | mov    -0x18(%ebp),%eax
 int Dispatcher_RequestAssaultPrice::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -27325,7 +27346,7 @@ void Dispatcher_RequestAssaultPrice::send(CUser* user, ParamBase& param)
 // ============================================================================
 
 // ==== Dispatcher_RequestIngameAdvertisement::check_error (ORIG 0x081e4662) ====
-// b28d-D0 verdict=DIFF(routed) [N96] ORIG 0x081e4662 orig/ours=35/35 ndiff-blocks=3
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081e4662 orig/ours=35/35 ndiff-blocks=3
 //   P0 清绑：原 `register asm("reg")` 存量绑定已删（N96 全域禁绑，不得恢复）；
 //   清绑后残余寄存器/槽序差按 N96+N18a 封顶（实测内联/unsigned 化等自然形不闭合）。
 //   首差: mov    %eax,-0xc(%ebp) | mov    -0xc(%ebp),%eax | test   %al,%al
@@ -27385,7 +27406,7 @@ int Dispatcher_RequestIngameAdvertisement::read(PacketBuf& packet, MSG_BASE& msg
 //     +0x139 char[] / +0x238 int / +0x23c char[] / +0x33b byte 广告形态 /
 //     +0x33c byte 日志开关 / +0x33d byte 奖品形态 / +0x33e char[] /
 //     +0x43d char[] / +0x53c ulong 奖品 idx A / +0x540 char[] / +0x23c 同理 B 区
-// b28d-D0 verdict=DIFF(routed) [N-P197④] ORIG 0x081e43a2 orig/ours=182/186 ndiff-blocks=12
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P197④] ORIG 0x081e43a2 orig/ours=182/186 ndiff-blocks=12
 //   ORIG setcc 物化（bool 归一岛）而 4.4 折直跳/槽化，源形不可择
 //   首差: movl   $&_ZZN37Dispatcher_RequestIngameAdvertisement7processEP5CUserR8MSG_BASER9ParamBaseE19__PRETTY_FUNCTION__,0x4(%esp) | mov    0x10(%ebp),%eax | m
 int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg,
@@ -27460,7 +27481,7 @@ int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg,
 }
 
 // ==== Dispatcher_RequestIngameAdvertisement::send (ORIG 0x081e46c8) ====
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e46c8 orig/ours=319/292 ndiff-blocks=26
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e46c8 orig/ours=319/292 ndiff-blocks=26
 //   帧差 sub $40 vs $50 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x40,%esp | mov    %eax,-0x14(%ebp) | mov    -0x14(%ebp),%eax
 void Dispatcher_RequestIngameAdvertisement::send(CUser* user, ParamBase& param)
@@ -27631,7 +27652,7 @@ void Dispatcher_RequestIngameAdvertisement::sendRewardItemSystemMail(
 // ============================================================================
 
 // ==== Dispatcher_SeriaRoom_Ani_Deco_Event::process (ORIG 0x081e886a) ====
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081e886a orig/ours=187/199 ndiff-blocks=48
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081e886a orig/ours=187/199 ndiff-blocks=48
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: sub    $0x9c,%esp | mov    %eax,-0x2c(%ebp) | mov    %eax,-0x28(%ebp)
 int Dispatcher_SeriaRoom_Ani_Deco_Event::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -27779,7 +27800,7 @@ void Dispatcher_SeriaRoom_Ani_Deco_Event::send(CUser* user, ParamBase& param)
 // ============================================================================
 
 // ==== Dispatcher_Skill_Command_Customizing::read (ORIG 0x081d29ac) ====
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d29ac orig/ours=103/101 ndiff-blocks=16
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d29ac orig/ours=103/101 ndiff-blocks=16
 //   帧差 sub $28 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x28,%esp | movl   $&_ZZN36Dispatcher_Skill_Command_Customizing4readER9PacketBufR8MSG_BASEE19__PRETTY_FUNCTION__,0x4(%esp) | mov    0x10(%ebp)
 int Dispatcher_Skill_Command_Customizing::read(PacketBuf& packet, MSG_BASE& msg)
@@ -27821,7 +27842,7 @@ int Dispatcher_Skill_Command_Customizing::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_Skill_Command_Customizing::process (ORIG 0x081d2b42) ====
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081d2b42 orig/ours=174/161 ndiff-blocks=42
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d2b42 orig/ours=174/161 ndiff-blocks=42
 //   帧差 sub $50 vs $68 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | push   %ebx | sub    $0x50,%esp
 int Dispatcher_Skill_Command_Customizing::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -28020,7 +28041,7 @@ int Dispatcher_SoloTeleport::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_SoloTeleport::process (ORIG 0x081e1d9c) ====
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081e1d9c orig/ours=81/83 ndiff-blocks=18
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081e1d9c orig/ours=81/83 ndiff-blocks=18
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: mov    %eax,-0x14(%ebp) | mov    0x10(%ebp),%eax | mov    -0x10(%ebp),%eax
 int Dispatcher_SoloTeleport::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -28063,7 +28084,7 @@ int Dispatcher_SoloTeleport::process(CUser* user, MSG_BASE& msg, ParamBase& para
 }
 // ==== Dispatcher_SoloTeleport::check_error (ORIG 0x081e1e98) ====
 // 注意:Dispatchers.h 现缺本声明,接入时须在类内补(见文件头)。
-// b28d-D0 verdict=DIFF(routed) [N7] ORIG 0x081e1e98 orig/ours=107/111 ndiff-blocks=23
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N7] ORIG 0x081e1e98 orig/ours=107/111 ndiff-blocks=23
 //   虚/间接调用 callee 与目标寄存器角色互换（4.4 恒目标 %eax；N7 限于 4.4.7 后端）
 //   首差: mov    %eax,-0x20(%ebp) | mov    -0x20(%ebp),%eax | mov    -0x20(%ebp),%eax
 int Dispatcher_SoloTeleport::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -28114,7 +28135,7 @@ int Dispatcher_SoloTeleport::check_error(CUser* user, MSG_BASE& msg, ParamBase& 
 }
 
 // ==== Dispatcher_SoloTeleport::send (ORIG 0x081e1ff6) ====
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e1ff6 orig/ours=123/126 ndiff-blocks=26
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e1ff6 orig/ours=123/126 ndiff-blocks=26
 //   帧差 sub $40 vs $50 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x40,%esp | mov    %eax,-0xc(%ebp) | lea    -0x38(%ebp),%eax
 void Dispatcher_SoloTeleport::send(CUser* user, ParamBase& param)
@@ -28239,7 +28260,7 @@ int Dispatcher_TournamentRewardSelect::read(PacketBuf& packet, MSG_BASE& msg)
 }
 
 // ==== Dispatcher_TournamentRewardSelect::process (ORIG 0x081e00f0) ====
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG 0x081e00f0 orig/ours=126/122 ndiff-blocks=17
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e00f0 orig/ours=126/122 ndiff-blocks=17
 //   帧差 sub $30 vs $40 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x30,%esp | mov    0x14(%ebp),%eax | mov    %eax,-0x1c(%ebp)
 int Dispatcher_TournamentRewardSelect::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -28294,7 +28315,7 @@ int Dispatcher_TournamentRewardSelect::process(CUser* user, MSG_BASE& msg, Param
 }
 
 // ==== Dispatcher_TournamentRewardSelect::send (ORIG 0x081e02b0) ====
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081e02b0 orig/ours=126/120 ndiff-blocks=19
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081e02b0 orig/ours=126/120 ndiff-blocks=19
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x10(%ebp),%eax | mov    %eax,-0x18(%ebp) | lea    -0x24(%ebp),%eax
 void Dispatcher_TournamentRewardSelect::send(CUser* user, ParamBase& param)
@@ -28573,7 +28594,7 @@ bool Packet_Mannerless_User_Accusation::isNeedTypeForChattingMsg(int type)   // 
     }
 }
 
-// b28d-D0 verdict=DIFF(routed) [N82] ORIG  orig/ours=38/63 ndiff-blocks=3
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG  orig/ours=38/63 ndiff-blocks=3
 //   帧差 sub $18 vs $2c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x18,%esp | mov    0x8(%ebp),%eax | leave
 Packet_Mannerless_User_Accusation::Packet_Mannerless_User_Accusation()
@@ -28646,7 +28667,7 @@ void DB_RequestJoinGuild::makeRequest(int userIdx, SIG_REQUEST_JOIN_GUILD* sig)
 
 // ==== StubS3A.S3A_DEPS：check_error×2 + isVaildEmotionValue（ORIG T 0x081d14aa/0x081d18dc/0x081d1ebe）====
 
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d14aa orig/ours=81/80 ndiff-blocks=13
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d14aa orig/ours=81/80 ndiff-blocks=13
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: jne    081d14d7 <+0x2d> | mov    $0xffffffff,%eax | jmp    081d15ab <+0x101>
 int Dispatcher_GuildCargoPopItem::check_error(CUser* user, MSG_BASE& msg,
@@ -28710,7 +28731,7 @@ int Dispatcher_GuildCargoMoveItem::check_error(CUser* user, MSG_BASE& msg,
     return 0;
 }
 
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081d1ebe orig/ours=54/45 ndiff-blocks=3
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d1ebe orig/ours=54/45 ndiff-blocks=3
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    0x4d44(%eax),%edx | lea    -0x10(%ebp),%eax | lea    -0x10(%ebp),%eax
 int Dispatcher_ChangeEmotion::isVaildEmotionValue(short value)
@@ -28773,7 +28794,7 @@ extern int LineFunc(int, const char*, int, unsigned int);
 // ORIG：user!=0；msg+0x36(byte)==1；FindGoods(msg+0x39 int) 非空且 GetItemIdx()==1；
 // GetParty() 非空；party+0xcac(CDungeon*) 非空；checkFreeRevivalCondition(dungeon) 非 0 → true。
 // [b28c-32] verdict=DIFF：+0x39 具名化+P222 正向包裹；余 N18a 单条 eax→ebx 中转（59=60）。
-// b28d-D0 verdict=DIFF(routed) [N-P112] ORIG 0x081fe4b8 orig/ours=61/59 ndiff-blocks=2
+// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081fe4b8 orig/ours=61/59 ndiff-blocks=2
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    0x39(%eax),%eax | mov    %eax,%ebx | nop
 bool Dispatcher_BuyCeraShopItem::useCountDownCoinInFreeCoinDungeon(

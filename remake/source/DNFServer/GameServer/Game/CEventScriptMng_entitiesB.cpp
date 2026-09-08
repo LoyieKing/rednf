@@ -27,11 +27,6 @@ namespace EventClassify
 
 // ============ CFatigueQuantity ============
 // ORIG ctor 0x08111030 W / D1 0x08114aac / D0 0x08114adc / sizeof 0x20。
-CFatigueQuantity::CFatigueQuantity()
-    : CEventEntity()
-{
-}
-
 CFatigueQuantity::~CFatigueQuantity()
 {
 }
@@ -62,11 +57,6 @@ char CFatigueQuantity::get_user_type() const
 
 // ============ CExchangeRandomItemReward ============
 // ORIG ctor 0x08110ff8 W / D1 0x08114b48 / D0 0x08114b78 / sizeof 0x20。
-CExchangeRandomItemReward::CExchangeRandomItemReward()
-    : CEventEntity()
-{
-}
-
 CExchangeRandomItemReward::~CExchangeRandomItemReward()
 {
 }
@@ -81,11 +71,6 @@ void CExchangeRandomItemReward::set_event_data(int key, InGameEventScript* scrip
 
 // ============ CAvatarDisjointRandomReward ============
 // ORIG ctor 0x08111014 W / D1 0x08114afa / D0 0x08114b2a / sizeof 0x20。
-CAvatarDisjointRandomReward::CAvatarDisjointRandomReward()
-    : CEventEntity()
-{
-}
-
 CAvatarDisjointRandomReward::~CAvatarDisjointRandomReward()
 {
 }
@@ -100,11 +85,6 @@ void CAvatarDisjointRandomReward::set_event_data(int key, InGameEventScript* scr
 
 // ============ CObjectBringUp ============
 // ORIG ctor 0x08111068 W / D1 0x08114a10 / D0 0x08114a40 / sizeof 0x20。
-CObjectBringUp::CObjectBringUp()
-    : CEventEntity()
-{
-}
-
 CObjectBringUp::~CObjectBringUp()
 {
 }
@@ -169,11 +149,6 @@ void CObjectBringUp::sendEventItemFromFatigue(CUser* user, unsigned int fatigue)
 
 // ============ CPurchaseCashItemBonus ============
 // ORIG ctor 0x0811104c W / D1 0x08114a5e / D0 0x08114a8e / sizeof 0x20。
-CPurchaseCashItemBonus::CPurchaseCashItemBonus()
-    : CEventEntity()
-{
-}
-
 CPurchaseCashItemBonus::~CPurchaseCashItemBonus()
 {
 }
@@ -289,11 +264,6 @@ bool CPurchaseCashItemBonus::sendPurchaseBonusReward(CUser* user, int count)
 void CAccountFirstLoginDaily::set_event_data(int key, InGameEventScript* script)
 {
     CAccountFirstLogin::set_event_data(key, script);
-}
-
-CAccountFirstLoginDaily::CAccountFirstLoginDaily()
-    : CAccountFirstLogin()
-{
 }
 
 CAccountFirstLoginDaily::~CAccountFirstLoginDaily()

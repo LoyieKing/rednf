@@ -431,7 +431,7 @@ int CCargo::_IsExistEquipItem(int itemIdx, int slot)
     return 0;
 }
 
-int CCargo::FindItemLock(unsigned char lock, ENUM_ITEMSPACE& space, int& slot) const
+bool CCargo::FindItemLock(unsigned char lock, ENUM_ITEMSPACE& space, int& slot) const
 {
     space = (ENUM_ITEMSPACE)2;
     slot = 0;

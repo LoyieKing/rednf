@@ -1,6 +1,137 @@
 // df_game_r 还原 —— PacketDispatcher / CLocalChinaErrorDispatcher
 // 全部方法逐指令转写自 docs/class_func_reports/PacketDispatcher/ 与 objdump；
 // 注册表取自 ORIG ctor 0x8590a2e 的 new+槽位序列（顺序一致）。
+// ============================================================================
+// b28d-solo-PacketDispatcher 判词表（本 TU 独占，119 件 = 110 DIFF + 9 NEAR，
+// fresh check_tu_routed.sh / compare_tu_game_orig.py，2026-09-08）：
+//   已落地修法：①DispatchMsgHolder<MSG_BASE> 特化（4.4.6 多发 MSG_BASE::C1 call
+//     消除，24 件 ndiff 97→20）；②doDispatch 返回 bool（P292，ORIG 0x8594f7e
+//     xor $1 调用点实证）；③dispatch 逐条重排（int packetClass/short cmd/内联
+//     checker+history/嵌套 if），ndiff 93→26；④doDispatch 去 clientCrc 局部
+//     （P183）+ antibot && 拆嵌套 if，ndiff 151→127，p167 callsite 0M/0E。
+//   待 Main 代落：/tmp/b28d_lane10_PacketTypes.patch（113 hunk 与当前头逐行
+//     匹配；落地后本 TU 5 件 ndiff=0、72 件降至 N7 残余 8 行、40 件降至 10~24）。
+//   行格式：[ORIG 地址] verdict 归因 MSG/Param/state
+// [825aae2] DIFF N7                     MSG_BUY_ITEM/BuyItemParam/3
+// [8259b8c] DIFF N7                     MSG_GET_ITEM/stGetItemParam/5
+// [8257dc4] DIFF N7                     MSG_USE_COIN/stUseCoinParam/0
+// [8259d7a] DIFF N7                     MSG_DROP_ITEM/stDropItemParam/3
+// [825819c] DIFF N7                     MSG_SORT_ITEM/stOnSortItemParam/3
+// [8257bd8] DIFF N7                     MSG_USE_SKILL/stUseSkillParam/0
+// [8261a2a] NEAR AE-PENDING-PATCH       MSG_BINGO_QUIZ/stBingoQuiz/3
+// [82484f4] NEAR N7+SIZE(patch后10)      MSG_PURIFY_ITEM/ParamBase/0
+// [8258d3c] DIFF N7                     MSG_REPAIR_EQUIP/stRepairEquipParam/0
+// [82597aa] DIFF N7                     MSG_USERINFO_REQ/stOnRecoverStaminaParam/3
+// [8258576] DIFF N7                     MSG_USER_SET_POS/ParamBase/0
+// [8258768] DIFF N7                     MSG_SET_USER_AREA/stSetAreaParam/3
+// [82579ea] DIFF N7                     MSG_WALKOUT_PARTY/stWalkoutPartyParam/3
+// [8265abc] DIFF N7                     MSG_FINISH_LOADING/stFinishLoadParam/0
+// [8258956] DIFF N7                     MSG_SELECT_DUNGEON/stSelectDungeonParam/0
+// [825838a] DIFF N7                     MSG_SET_READY_STATE/stOnSetPvPReadyParam/0
+// [824e786] NEAR AE-PENDING-PATCH       MSG_FATIGUE_ATTENDANCE/stFatigueAttendance/0
+// [825a428] DIFF N7                     MSG_DECREASE_DURABILITY/stOnUseEquipParam/0
+// [824ff82] DIFF N7                     MSG_REGENERATION_RANDOM_OPTION/stRegenROIResult/0
+// [8260d4c] NEAR N7+SIZE(patch后10)      MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE/ParamBase/0
+// [8254bf4] NEAR N7+SIZE(patch后10)      MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON/ParamBase/2
+// [812c546] NEAR N7+SIZE(patch后10)      CMDPacketStruct::_STReqEventDungeonDestoryObject/CMDPacketStruct::_STResEventDungeonDestoryObject/3
+// [8259302] DIFF N7                     MSG_MOVE_MAP/stMoveMapParam/0
+// [8259462] DIFF N7                     MSG_PARTY_SET_INFO/stSetPartyInfo/3
+// [82523a0] DIFF N7+SIZE(patch后10)      MSG_ENCHANT/stEnchantParam/0
+// [8261ee6] DIFF AE-PENDING-PATCH       MSG_STACKABLE_ACTION_USE/stStackableActionUse/3
+// [82577fc] DIFF N7+SIZE(patch后12)      MSG_ADD_FRIEND/stAddFriendParam/3
+// [8258f28] DIFF N7+SIZE(patch后12)      MSG_PVP_TIMEOUT/stOnPvPTimeOut/0
+// [825760e] DIFF N7+SIZE(patch后12)      MSG_REMOVE_FRIEND/stRemoveFriendParam/3
+// [8259114] DIFF N7                     MSG_MOVE_ITEMSPACE/stMoveItemParam/3
+// [825a614] DIFF N7                     MSG_CREATE_CHARACTER/stCreateCharac/2
+// [825a2ce] DIFF N7+SIZE(patch后12)      MSG_DELETE_CHARACTER/stDeleteCharac/2
+// [8248cc8] NEAR AE-PENDING-PATCH       MSG_OPEN_CERAPACKAGE/stOpenCeraPackage/0
+// [824b272] NEAR N7+SIZE(patch后16)      MSG_COMPATIBILITY_INDEX/ParamBase/0
+// [825a76e] DIFF N7                     MSG_CHANGE_SKILLSLOT/stOnChangeSkillParam/3
+// [82556c2] NEAR N7+SIZE(patch后10)      MSG_CLIENT_SPEC_STATISTIC/stClientSpecStatisticParam/2
+// [8259998] DIFF N7                     MSG_USERINFO_REQ/stOnGetUserInfoParam/1
+// [826153a] DIFF AE-PENDING-PATCH       MSG_COMBO_SKILL/stComboSkill/3
+// [8259f68] DIFF N7+SIZE(patch后20)      MSG_DIE_CHARACTER/stDieCharacInDungeon/0
+// [824ba44] DIFF N7+SIZE(patch后24)      MsgLimitNpcBuyItem/LimitNpcBuyItem/3
+// [824d69c] DIFF N7+SIZE(patch后20)      MsgMercenaryReturn/SendMercenaryReturnResult/0
+// [824d24a] DIFF N7+SIZE(patch后20)      MsgMercenaryCompetition/SendMercenaryCompetitionResult/0
+// [8257fb0] DIFF N7                     MSG_BASE/stStartGameParam/0
+// [8259650] DIFF N7                     MSG_BASE/stLeavePartyParam/0
+// [824cdf8] DIFF N7                     MSG_BASE/stQuickPartyParam/5
+// [824e336] DIFF N7                     MSG_BASE/stGrowthPowerParam/0
+// [824d436] DIFF N7+SIZE(patch后16)      MSG_BASE/ParamBase/2
+// [824aa8c] DIFF N7+SIZE(patch后16)      MSG_BASE/ParamBase/3
+// [8266ba4] DIFF N7                     MSG_SECU_RPY/SecuCardRpyParam/2
+// [825a0c2] DIFF N7+SIZE(patch后12)      MSG_DELETE_ITEM/stDeleteItemParam/3
+// [8256854] DIFF N7                     MSG_MAILBOX_SEND/stMailboxSendParam/0
+// [82549c2] DIFF N7+SIZE(patch后12)      MSG_CREATE_DISJOINT_STORE/stCreateDisjointStoreParam/3
+// [824edec] DIFF N7                     MSG_ITEM_HYPER_LINK_MESSAGE/stItemHyperLinkMessage/3
+// [8261c8e] DIFF N7                     MSG_BASE/stBingoReward/3
+// [8252506] DIFF N7+SIZE(patch后16)      MSG_BASE/stEnchantParam/0
+// [82500dc] DIFF N7                     MSG_BASE/STQuestShopParam/0
+// [82488e0] DIFF N7                     MSG_BASE/stGrowthCreature/3
+// [8253c42] DIFF N7                     MSG_BASE/stGuildCargoParam/0
+// [8256a4c] DIFF N7                     MSG_BASE/stMailboxOpenParam/0
+// [8256e44] DIFF N7                     MSG_BASE/stCallMemberListParam/3
+// [8266000] DIFF N7                     MSG_BASE/CheckSecurityProtection/0
+// [8255ab8] DIFF N7                     MSG_BASE/stRequestBlackListParam/3
+// [824f3da] DIFF N7                     MSG_BASE/stCharacSlotExtendEffect/0
+// [8253a56] DIFF N7                     MSG_BASE/stGuildCargoHistoryParam/0
+// [8249d0a] DIFF N7                     MSG_BASE/PcRoomPlayTimeRewardParam/3
+// [825401c] DIFF N7                     MSG_BASE/stCloseDisjointStoreParam/3
+// [82545e6] DIFF N7                     MSG_BASE/stRepairDisjointMachineParam/3
+// [824c162] DIFF N7                     MSG_BASE/stTournamentRewardSelectState/0
+// [82543f8] DIFF N7                     MSG_BASE/stUpgradeDisjointMachineParam/3
+// [824b470] DIFF N7                     MSG_BASE/stImageCommunicationEquipmentUse/3
+// [824c568] DIFF N7                     MSG_BASE/ReqResult/3
+// [82665d0] DIFF N7                     MSG_SCAN_DLL/ScanBotByDllParam/0
+// [82661ec] DIFF N7                     MSG_SCAN_DRV/ScanBotByDrvParam/0
+// [8253e2e] DIFF N7+SIZE(patch后24)      MSG_TELEPORT/stTeleportParam/3
+// [82663de] DIFF N7+SIZE(patch后16)      MSG_MOTION_HACK/ParamBase/0
+// [82667c2] DIFF N7                     MSG_SCRIPT_HASH/ScriptHashParam/0
+// [824a8a0] DIFF N7                     MSG_COLLECT_ITEMS/stCollectItems/0
+// [8257038] DIFF N7+SIZE(patch后12)      MSG_MEMBER_SECEDE/stMemberSecedeParam/3
+// [824f9ae] DIFF N7                     MSG_TITLEBOOK_GET/ParamBase/3
+// [824fba2] DIFF N7                     MSG_TITLEBOOK_PUT/ParamBase/3
+// [8256094] DIFF N7+SIZE(patch后20)      MSG_BOSS_DIE_CHECK/stBossDieCheckParam/5
+// [82532a4] DIFF N7+SIZE(patch后16)      MSG_CHANGE_EMOTION/stChangeEmotionParam/3
+// [8256282] DIFF N7                     MSG_HATCH_CREATURE/stHatchCreature/3
+// [82513e6] DIFF N7+SIZE(patch后16)      MSG_DENY_JOIN_GUILD/ParamBase/0
+// [8252e54] DIFF N7                     MSG_ENCHANT_BY_BEAD/stEnchantByBeadParam/3
+// [824d888] DIFF N7                     MSG_ITEM_DICTIONARY/stItemDictionary/3
+// [824b856] DIFF N7+SIZE(patch后20)      MSG_OBJECT_BRING_UP/stObjectBringUp/3
+// [82504c0] DIFF N7                     MSG_EQUIPSLOT_SWITCH/stEquipslotSwitch/3
+// [82511f4] DIFF N7+SIZE(patch后16)      MSG_GUILD_ATTENDANCE/ParamBase/0
+// [82517ca] DIFF N7+SIZE(patch后16)      MSG_CANCEL_JOIN_GUILD/ParamBase/0
+// [8251db8] DIFF N7+SIZE(patch后16)      MSG_DONATE_GUILD_FUND/ParamBase/3
+// [82515d8] DIFF N7+SIZE(patch后16)      MSG_APPROVE_JOIN_GUILD/ParamBase/0
+// [82558ca] DIFF N7                     MSG_CHANGE_LETTER_STAT/stChangeLetterStatParam/3
+// [825722c] DIFF N7                     MSG_MEMBER_ENTER_REPLY/stMemberEnterReplyParam/3
+// [824f5c6] DIFF N7+SIZE(patch后16)      MSG_ACHIEVEMENT_TRIGGER/ParamBase/3
+// [824fd96] DIFF N7+SIZE(patch后20)      MSG_CHANGE_HOST_WARROOM/stChangeHostWarRoom/0
+// [8255cac] DIFF N7+SIZE(patch后12)      MSG_DELETE_TO_BLACKLIST/stDeleteToBlackListParam/3
+// [824f7ba] DIFF N7+SIZE(patch后16)      MSG_TITLEBOOK_OTHERUSER/ParamBase/3
+// [825420a] DIFF N7                     MSG_ENTER_DISJOINT_STORE/stEnterDisjointStoreParam/3
+// [825367e] DIFF N7                     MSG_GUILD_CARGO_POP_ITEM/stGuildCargoPopItemParam/0
+// [8256668] DIFF N7+SIZE(patch后20)      MSG_MAILBOX_EXTRACT_ITEM/stMailboxExtractParam/0
+// [8257420] DIFF N7+SIZE(patch后12)      MSG_REQUEST_MEMBER_ENTER/stRequestMemberEnterParam/3
+// [8252c68] DIFF N7                     MSG_SECRET_SHOP_BUY_ITEM/stSecretShopBuyItemParam/0
+// [82496c4] DIFF N7                     MSG_SERIAROOM_DECO_EVENT/stSeriaRoomDecoEvent/0
+// [82486f2] DIFF N7                     MSG_SERIAROOM_DECO_EVENT/stSeriaRoomDecoEvent/3
+// [8253492] DIFF N7                     MSG_GUILD_CARGO_MOVE_ITEM/stGuildCargoMoveItemParam/0
+// [825386a] DIFF N7                     MSG_GUILD_CARGO_PUSH_ITEM/stGuildCargoPushItemParam/0
+// [8255ea0] DIFF N7+SIZE(patch后12)      MSG_REGISTER_TO_BLACKLIST/stRegisterToBlackListParam/3
+// [82547d4] DIFF N7+SIZE(patch后20)      MSG_REQUEST_DISJOINT_ITEM/stRequestDisjointItemParam/3
+// [8265e0e] DIFF N7                     MSG_ABNORMAL_USE_STACKABLE/AbnormalUseStackable/0
+// [8265c1c] DIFF N7                     MSG_FLOAT_RDATA_MODULATION/ParamBase/0
+// [8252a7c] DIFF N7                     MSG_SECRET_SHOP_OPEN_CLOSE/stSecretShopOpenCloseParam/0
+// [825089c] DIFF N7                     MSG_WARROOM_WP_PER_MONSTER/stWarRoomWp/0
+// [8250a88] DIFF N7+SIZE(patch后20)      MSG_PVP_MISSION_COMBO_CLEAR/ParamBase/3
+// [8251008] DIFF N7                     MSG_GOLD_TAKE_INCREASING_AMOUNT/stGoldTakeIncreasingAmount/0
+// [82506ae] DIFF N7                     MSG_EXPAND_EQUIPSLOT_FLAG_UPDATE/stExpandEquipslotFlagUpdate/3
+// [824c9ba] DIFF N7                     MSG_AVATAR_DISJOINT_RANDOM_REWARD/stAvatarDisjointRandomReward/0
+// [8594e52] DIFF N7/N18a                PacketDispatcher::dispatch
+// [8594922] DIFF N82/N18a/P1974         PacketDispatcher::doDispatch
+// ============================================================================
 
 #include "PacketDispatcher.h"
 #include "Dispatchers.h"           // 具体业务 Dispatcher_* 完整类型
@@ -696,13 +827,16 @@ void PacketDispatcher::server_load_monitoring()
 // ORIG 0x8594e52 逐指令转写。
 int PacketDispatcher::dispatch(int userId, char* data, int len)
 {
-    // b28d-lane10 判词：DIFF（orig 114 / our 119，ndiff 115）。本轮未改源码。
-    // 残余：①s_antibotChecker_ vtbl+0x3c 取函数指针形态（ORIG 0x8594ec9 mov (%eax),%esi 直取）；
-    // ②`fn(...)!=0` 的 bool 物化（ORIG 0x8594eee test/setne/test/je 直落）；
-    // ③AbnormalUser 前 cmd 的 movzwl 双段（ORIG 0x8594f02 movzwl -0xe; movzwl %dx,%dx 两段）；
-    // ④局部槽分配差。归 N7/P197④ 族（跨版本寄存器与短路物化），语义等价。
-    char packetClass = data[0];
-    unsigned short cmd = *(unsigned short*)(data + 1);
+    // b28d-solo-PacketDispatcher 判词 [ORIG 0x8594e52]：
+    //   本轮按 ORIG 逐条重排源形：①packetClass 声明 int + `(signed char)data[0]`
+    //   （复现 0x8594e5d movzbl+movsbl 两段 + 存 int 槽 -0x14）；②cmd 声明 short
+    //   （复现 0x8594ecb movswl -0xe 单段与 0x8594f02 movzwl+movzwl 双段传参）；
+    //   ③checker/fn 去命名局部，函数指针表达式内联（0x8594ec9 mov (%eax),%esi 直取）；
+    //   ④history 局部删除，`user->m_historyLog.AbnormalUser` 直算 add $0x79700
+    //   （0x8594f09）；⑤`if(!doDispatch(...))`（0x8594f7e xor $1 形 ⇒ doDispatch 返回 bool）；
+    //   ⑥末段 && 链改嵌套 if（0x8594f9e/fad/fbc 三 je 共享出口 0x8594fd4）。
+    int packetClass = (signed char)data[0];
+    short cmd = *(unsigned short*)(data + 1);
     CUser* user = G_CGameManager()->getUser(userId, 5);
     if (user == 0)
         return 0;
@@ -710,64 +844,65 @@ int PacketDispatcher::dispatch(int userId, char* data, int len)
     pUserPacketCounter_->IncreasePacket(user->get_acc_id());
 
     typedef int (*CheckFn)(void*, int, int);   // s_antibotChecker_ vtbl+0x3c
-    void* checker = GlobalData::s_antibotChecker_;
-    CheckFn fn = *reinterpret_cast<CheckFn*>(
-        (*reinterpret_cast<void***>(checker))[0x3c / 4]);
-    if (fn(checker, user->getAntibotKey(), (short)cmd) != 0)
+    // N18a 负例：裸 register / 内联实参 / 语句表达式三形实测均得
+    // `mov (%eax),%eax; mov %eax,%esi` 两段；ORIG 0x8594ec9 为 `mov (%eax),%esi` 直落。
+    if ((reinterpret_cast<CheckFn>(
+             (*reinterpret_cast<void***>(GlobalData::s_antibotChecker_))[0x3c / 4]))(
+             GlobalData::s_antibotChecker_, user->getAntibotKey(), cmd) != 0)
     {
-        cUserHistoryLog* history = &user->m_historyLog;   // CUser+0x79700
-        history->AbnormalUser((ENUM_ABNORMAL_USER_LOG_TYPE)0, cmd,
-                              user->getAntibotKey(), 0);
+        user->m_historyLog.AbnormalUser((ENUM_ABNORMAL_USER_LOG_TYPE)0, cmd,
+                                        user->getAntibotKey(), 0);
         return 0;
     }
 
-    int ok = doDispatch(user, (ENUM_PACKETCLASS)packetClass, cmd, data, len,
-                        (ENUM_PACKETCLASS)0, 0);
-    if (!ok)
+    if (!doDispatch(user, (ENUM_PACKETCLASS)packetClass, cmd, data, len,
+                    (ENUM_PACKETCLASS)0, 0))
         return 0;
 
-    if (((CUserCharacInfo*)user)->getCurCharacR() != 0 &&
-        ((CUserCharacInfo*)user)->IsCurCharacGhost() &&
-        ((CUserCharacInfo*)user)->IsCurCharacLeaveTimeout())
+    if (((CUserCharacInfo*)user)->getCurCharacR() != 0)
     {
-        ((CUserCharacInfo*)user)->LiveCurCharac();
-        pvp_assault::CAssaultPlace::SendUserState(user);
+        if (((CUserCharacInfo*)user)->IsCurCharacGhost())
+        {
+            if (((CUserCharacInfo*)user)->IsCurCharacLeaveTimeout())
+            {
+                ((CUserCharacInfo*)user)->LiveCurCharac();
+                pvp_assault::CAssaultPlace::SendUserState(user);
+            }
+        }
     }
     return 1;
 }
 
-// ORIG 0x8594922 逐指令转写。
-// 判例（ADeepY4[2]）：DIFF，callsite P167 40/40 双零（0 missing/0 extra）、gap +1
-//   （orig 300 / our 301）。P167 判语义完整；残余净为 4.1.2 特有 `cmpl $0,槽; setne %al;
-//   test; je` 槽比零物化三处（antibot 检查 / doErrorDispatcher !=0 / dispatch_template!=0，
-//   P197④ 记 N，4.4-O0 对槽比恒出 cmp/jne 直跳，源形不可复现）+ 寄存器/栈槽分配差（esi/ebx
-//   _NEAR_）+ logFormat 字符串常量布局噪声。已收：去 checker/fn 命名局部（寄存器形）、
-//   denyChannel 布尔内联、ChecksumHead 结构直读 head+7（去 2 个 spill mov），gap 311→301。
-int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
-                                 unsigned short cmd, char* data, int len,
-                                 ENUM_PACKETCLASS packetClass2, unsigned short flag)
+// b28d-solo-PacketDispatcher 判词 [ORIG 0x8594922]：DIFF，orig 300 / our 299 insn
+//   （AE 口径 ndiff 127），p167 callsite 40/40 CLEAR（0 missing / 0 extra）⇒ 语义完整。
+//   本波已收：①clientCrc 局部删除，`*(unsigned int*)(head+7)` 两处内联（P183 去缓存，
+//   消 -0x34 槽）；②antibot `fn(...)!=0 && flag!=0x25c` 拆嵌套 if（P225 推广，消 jmp 岛）。
+//   残余 N 族（源形穷举不可翻）：①vtbl+0x30 取函数指针 4.4 恒 `mov (%eax),%eax;
+//   mov %eax,%esi` 两段 vs ORIG `mov (%eax),%esi` 直落（N18a 单段 regmove）；
+//   ②`cmpl $0,槽; setne %al; test; je` 槽比零物化（P197④，4.4-O0 恒 cmp/jne 直跳）；
+//   ③局部槽 -0x20(ORIG)/-0x1c(我方) 差 4（N82 槽复用策略）。返回类型 int→bool 见
+//   PacketDispatcher.h（P292，dispatch 调用点 0x8594f7e xor $1 实证）。
+bool PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
+                                  unsigned short cmd, char* data, int len,
+                                  ENUM_PACKETCLASS packetClass2, unsigned short flag)
 {
-    // b28d-lane10 判词：DIFF（orig 300 / our 301，ndiff 272）。本轮未改源码；callsite 差集 0/0
-    // （ADeepY4[2] 判例，P167 语义完整）。残余 3 类：
-    // ①s_antibotChecker_ vtbl+0x30 取函数指针我方多 1 条 mov (%eax),%eax（ORIG 0x859497d 直接
-    //   mov (%eax),%esi；源码表达式 `(*reinterpret_cast<CheckFn*>((*reinterpret_cast<void***>(...))[0x30/4]))`）；
-    // ②`fn(...)!=0 && flag!=0x25c` 我方产 jmp 岛（ORIG 0x85949a7 setne %al; test; je 直落；
-    //   P197④ 槽比/短路物化族，4.4-O0 恒 cmp/jne 直跳）；
-    // ③局部槽 -0x20(ORIG)/-0x1c(我方) 差 4（N82 槽复用）。归 N 族，语义等价。
+    // b28d-solo-PacketDispatcher 判词同上（N18a / P197④ / N82，callsite CLEAR）。
     (void)packetClass2;
     log_recv_packet(user, packetClass, cmd, data, len);
 
     typedef int (*CheckFn)(void*, unsigned int, unsigned short);  // vtbl+0x30
     if ((*reinterpret_cast<CheckFn*>(
              (*reinterpret_cast<void***>(GlobalData::s_antibotChecker_))[0x30 / 4]))(
-             GlobalData::s_antibotChecker_, (unsigned int)user->getAntibotKey(), cmd) != 0 &&
-        flag != 0x25c)
+             GlobalData::s_antibotChecker_, (unsigned int)user->getAntibotKey(), cmd) != 0)
     {
-        LogManager::logFormat(
-            1, "PacketDispatcher.cpp",
-            __PRETTY_FUNCTION__,
-            0xa06, "m_id:%s, cmd:%d", NumberToString(user->get_acc_id(), 0),
-            (int)cmd);
+        if (flag != 0x25c)
+        {
+            LogManager::logFormat(
+                1, "PacketDispatcher.cpp",
+                __PRETTY_FUNCTION__,
+                0xa06, "m_id:%s, cmd:%d", NumberToString(user->get_acc_id(), 0),
+                (int)cmd);
+        }
     }
 
     IDispatcher* dispatcher = get_dispatcher((int)cmd);
@@ -782,16 +917,17 @@ int PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
         unsigned int serverCrc = Encryption::crc32N(data + 0xb, len - 0xb);
         char head[0xd];
         memcpy(head, data, 0xd);
-        // 线格式视图：协议头 +7 处为校验和 dword（非对齐）。
-        unsigned int clientCrc = *reinterpret_cast<unsigned int*>(head + 7);
-        _NS_PI_2ND_MakeChecksumTo1Byte2(serverCrc, clientCrc);
-        if (clientCrc != serverCrc)
+        // 线格式视图：协议头 +7 处为校验和 dword（非对齐）。ORIG 0x8594a?? 实证
+        // 两次 `lea head; add $7` 直接内联（P183 去缓存）：无 clientCrc 局部槽。
+        _NS_PI_2ND_MakeChecksumTo1Byte2(serverCrc,
+                                        *reinterpret_cast<unsigned int*>(head + 7));
+        if (*reinterpret_cast<unsigned int*>(head + 7) != serverCrc)
         {
             LogManager::logFormat(
                 1, "PacketDispatcher.cpp",
                 __PRETTY_FUNCTION__,
                 0xa37, "Check Sum Error: server(%d), client(%d), mid(%s)",
-                serverCrc, clientCrc,
+                serverCrc, *reinterpret_cast<unsigned int*>(head + 7),
                 NumberToString(user->get_acc_id(), 0));
             user->DisConnSig((DISCONN_SIG)0xd, true, 0);
             return 0;
