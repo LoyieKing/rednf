@@ -256,4 +256,24 @@ public:
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
 };
 
+// DB_UpdateItemDropStatistics —— 权威声明点（ODR 修复，§4.4 + P104）：
+// ORIG nm 证据（同址唯一类，既有 vtable 又有静态 makeRequest）：
+//   makeRequest T _ZN27DB_UpdateItemDropStatistics11makeRequestEiiPjS0_S0_S0_ 0x0842894c
+//   dispatch    T _ZN27DB_UpdateItemDropStatistics8dispatchEiiP6Stream        0x084285ae
+//   vtable      V _ZTV27DB_UpdateItemDropStatistics                            0x08c5f2b0
+//   typeinfo    V _ZTI27DB_UpdateItemDropStatistics                            0x08c62170
+//   C1/C2       W _ZN27DB_UpdateItemDropStatisticsC1Ev / C2Ev                 0x0844e78e
+//   D0          W 0x0845e7e8；D1/D2 W 0x0845e7b8
+// 无自有成员（仅 DBDispatcher 基类 vptr），sizeof == 4、无偏移变化、mangled 不变；
+// W6_ItemGenDeps.cpp 提供 makeRequest 定义，W8LT_DBTask.cpp 提供 dispatch 定义并发射 vtable。
+class DB_UpdateItemDropStatistics : public DBDispatcher
+{
+public:
+    DB_UpdateItemDropStatistics() {}   // ORIG C1 0x844e78e (sz 0x4: base ctor+vptr only)
+    static void makeRequest(int serverId, int typeId,
+                            unsigned int* counts0, unsigned int* counts1,
+                            unsigned int* counts2, unsigned int* counts3);  // ORIG 0x0842894c
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);   // ORIG 0x084285ae
+};
+
 #endif  // DNF_GAME_W8LT_DBTASK_H_

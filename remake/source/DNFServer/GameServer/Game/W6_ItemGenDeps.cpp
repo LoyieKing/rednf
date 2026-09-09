@@ -4,9 +4,10 @@
 // 本 TU 独占实现：
 //   WongWork::CItemGeneratorMgr::onTimerEvent(int)      T 0x08534322 (0x133)
 //   DB_UpdateItemDropStatistics::makeRequest(...)       T 0x0842894c (0x1d9)
-//       —— onTimerEvent 唯一被调依赖（原源码无声明/定义，按同类
-//          DB_U3.cpp 范式补真实转写，报告
-//          docs/class_func_reports/DB_UpdateItemDropStatistics/makeRequest.md）。
+//       —— onTimerEvent 唯一被调依赖；类定义唯一声明点在 W8LT_DBTask.h
+//          （§4.4/P104 ODR 修复，本 TU 旧局部无基类声明已删），本 TU 仅提供
+//          makeRequest 定义。报告
+//          docs/class_func_reports/DB_UpdateItemDropStatistics/makeRequest.md。
 //   WongWork::CItemUpgradeTable::{
 //         CItemUpgradeTable C1/C2                       W 0x0854b496
 //         ~CItemUpgradeTable D1/D2                      W 0x0854b4aa
@@ -25,6 +26,7 @@
 #include "StreamPool.h"
 #include "MsgQueueMgr.h"
 #include "CStreamGuard.h"
+#include "W8LT_DBTask.h"       // 权威声明点 DB_UpdateItemDropStatistics（§4.4/P104 ODR 修复）
 
 #include <cstring>
 
@@ -32,14 +34,9 @@
 // DB_UpdateItemDropStatistics —— 投递统计落库请求（opcode 0xd2）
 //   stream: 0xd2 | -1 | serverId(int) | typeId(int) | p3[0..5] | p4[0..5]
 //           | p5[0..5] | p6[0..5] → MsgQueueMgr::put(DB_Q)
+//   类定义唯一声明点在 W8LT_DBTask.h（含 DBDispatcher 基类 + virtual dispatch，
+//   与本 TU 旧局部最小声明曾构成 ODR 冲突）；本 TU 仅提供 makeRequest 定义。
 // ============================================================================
-class DB_UpdateItemDropStatistics
-{
-public:
-    static void makeRequest(int serverId, int typeId,
-                            unsigned int* counts0, unsigned int* counts1,
-                            unsigned int* counts2, unsigned int* counts3);
-};
 
 // ORIG T 0x0842894c _ZN27DB_UpdateItemDropStatistics11makeRequestEiiPjS0_S0_S0_
 void DB_UpdateItemDropStatistics::makeRequest(int serverId, int typeId,

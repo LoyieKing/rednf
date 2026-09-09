@@ -121,7 +121,7 @@
 //  43. DB_InsertPVPPlayerRate::dispatch                     ORIG 0x842ca06  DIFF  N4/N18a 折叠封顶
 //  44. DB_InsertChannel::InsertChannel                      ORIG 0x8403734  DIFF  N18a/P209 unsigned 槽比较融合封顶
 //  45. DB_UpdateCharacView::dispatch                        ORIG 0x8408848  DIFF  N82/N7 形态残差封顶
-//  46. DB_ReportMannerlessUser::dispatch                    ORIG 0x842796a  DIFF  N82 帧-槽差封顶
+//  46. DB_ReportMannerlessUser::dispatch                    ORIG 0x842796a  DIFF  gap 30→0：timeStr[0xff] 慢路(P312)+getCurSec 具名槽(P0)
 //  47. DB_UpdatePvPLastPlayTime::dispatch                   ORIG 0x84317b2  DIFF  N82 帧-槽差封顶
 //  48. DB_TOD_Reset_UserAPC::dispatch                       ORIG 0x84400c8  DIFF  N4/P205 寻址拆形封顶
 //  49. DBSelectCreateDnfUserInfo::makeRequest               ORIG 0x815bee0  AE    P226/P316 语句表达式（event==0||!IsEventing）
@@ -143,7 +143,7 @@
 //  65. DB_InsertPoliceSaveChatting::dispatch                ORIG 0x843c514  AE    P312/P202① `={'\\0'}` + 缓冲声明序（message/escapeBuf 连排）
 //  66. DB_Find_Factory_Hub_User::dispatch                   ORIG 0x8437a32  DIFF  P292 bool 物化封顶
 //  67. DBTask::HandleEvents                                 ORIG 0x83ff1c8  DIFF  N82 帧-槽差封顶
-//  68. DB_CheckAddFriend::dispatch                          ORIG 0x844c6e0  DIFF  P292 bool 物化封顶
+//  68. DB_CheckAddFriend::dispatch                          ORIG 0x844c6e0  DIFF  gap 18→2：P223 多源 goto 尾标签复现 5 岛
 //  69. DB_StatPVPPlay2::dispatch                            ORIG 0x841ba96  DIFF  P157/P167 已修；余 N82 帧继承封顶
 //  70. DB_InsertDungeonEntrance_hour::dispatch              ORIG 0x84298a2  AE    真bug修：buf[0x100]→[0x400]（ORIG rep stos 0x100 dwords，P116/P253）
 //  71. DB_InsertValueStatistic::dispatch                    ORIG 0x842945e  DIFF  P167 调用点差（模板内联）封顶
@@ -170,20 +170,20 @@
 //  92. DB_RequestJoinGuild::dispatch                        ORIG 0x843ccf2  DIFF  P292 bool 物化封顶
 //  93. DB_LoadDimension::dispatch                           ORIG 0x8431ece  DIFF  P292 bool 物化封顶
 //  94. DB_UpdateLogout::dispatch                            ORIG 0x8418612  DIFF  P292 bool 物化封顶
-//  95. DB_DeathTowerLoadTopRanker::dispatch                 ORIG 0x842a484  DIFF  N82 帧-槽差封顶
+//  95. DB_DeathTowerLoadTopRanker::dispatch                 ORIG 0x842a484  DIFF  真bug: interval /100→/0x5f + P183 去指针缓存 + P2 unsigned 循环（gap 7→-1）
 //  96. DB_BlackIPMonitorPartLoad::dispatch                  ORIG 0x84330d4  DIFF  P292 bool 物化封顶
 //  97. DB_LoadAutoMarketConditionsControl::dispatch         ORIG 0x84335dc  DIFF  P292 bool 物化封顶
 //  98. DB_ReloadAutoPunishRuleHackType::dispatch            ORIG 0x842d16c  DIFF  P292 bool 物化封顶
-//  99. DB_InsertAutoPunishSecondUser::dispatch              ORIG 0x842deb4  DIFF  N82 帧-槽差封顶
+//  99. DB_InsertAutoPunishSecondUser::dispatch              ORIG 0x842deb4  DIFF  gap 22→-6：reason[0xff] 慢路(P312)；余 4.4 地址 CSE 缺（N82附）
 // 100. DB_LoadGameOption::dispatch                          ORIG 0x842f7f4  DIFF  P103 operator->×2 已修；余 N78 memset 封顶
 // 101. DB_ReqBlackCount::dispatch                           ORIG 0x8424ce6  DIFF  N82 帧-槽差封顶
 // 102. DB_GetDeathTowerBestRecord::dispatch                 ORIG 0x8429ad0  DIFF  P292 bool 物化封顶
 // 103. DB_CrashDownReport::dispatch                         ORIG 0x841abc6  DIFF  P167 ==→while 已修；余 N89 iterator C1Ev×6
 // 104. DB_UpdatePvPGrade::dispatch                          ORIG 0x8428b26  DIFF  P270 push_back(int&&)+const vector& 已修；余 N82 封顶
-// 105. DB_InsertAutoPunishFirstUser::dispatch               ORIG 0x842d6ce  DIFF  N82 帧-槽差封顶
+// 105. DB_InsertAutoPunishFirstUser::dispatch               ORIG 0x842d6ce  DIFF  gap 32→0：P198②内联谓词+三独立if+P312 reason[0xff]+P198①预清
 // 106. DB_LoadBreakAwayPreventData::dispatch                ORIG 0x84389fe  DIFF  P292 bool 物化封顶
 // 107. DB_LoadPowerWarStatueInfo::GetAvatarInfo             ORIG 0x8434d36  DIFF  N82 帧-槽差封顶
-// 108. DB_UpdateCreatureItem::dispatch                      ORIG 0x84203e8  DIFF  N84+operator->+case3/5 拆分已修；余 N82 封顶
+// 108. DB_UpdateCreatureItem::dispatch                      ORIG 0x84203e8  DIFF  gap 14→2：P102 具名 int ok 局部×11（movzbl+mov+cmpl+jne）
 // 109. DB_TOD_Reset_UserAPC::GetAPCUserInfo                 ORIG 0x8440548  DIFF  N82 帧-槽差封顶
 // 110. DB_UpdatePvPResult::dispatch                         ORIG 0x843097e  DIFF  §6.2 三件套（callsite CLEAR）；N82 帧-槽差封顶
 // ============================================================================
@@ -1791,12 +1791,7 @@ public:
     DB_UpdateMemberDoubtTrade() {}   // ORIG C1 (sz 0x4: base ctor+vptr only)
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0842bd00
 };   // ORIG C1 0x844e772 (sz 0x4: base ctor+vptr only)
-class DB_UpdateItemDropStatistics : public DBDispatcher
-{
-public:
-    DB_UpdateItemDropStatistics() {}   // ORIG C1 (sz 0x4: base ctor+vptr only)
-    virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x08436600
-};   // ORIG C1 0x844e78e (sz 0x4: base ctor+vptr only)
+// DB_UpdateItemDropStatistics —— 权威定义已迁至 W8LT_DBTask.h（ODR 修复，P104）。
 class DB_UpdatePvPGrade : public DBDispatcher
 {
 public:
@@ -7050,6 +7045,9 @@ bool DB_AvatarItemInsert::InsertAvatarItem(SIG_AVATAR_INSERT* sig)
     // [b28d-4 N84③ 已试] ORIG 0x083ffe0e 段 `mov $<A>,%esi; mov $0x33,%ecx;
     // rep movsl` + 尾 2 字节 = 4.1 对常量长度 memcpy 的内联（N78），非结构体
     // 赋值；改结构体整体赋值实测 220→256 条劣化，回退。
+    // N84③ 复测（2026-09-09）：`*(SqlConst*)sql = *reinterpret_cast<const
+    // SqlConst*>("字面量")` 实测 220→292 条（+72）劣化 ⇒ 回退 memcpy 形，
+    // 本件按 N78（4.1 内联 memcpy / 4.4 恒 call）封顶。
     memcpy(sql,
            "inSert into user_items (charac_no,slot,it_id,expire_date,obtain_from,reg_date,ability_no,ipg_agency_no,stat,jewel_socket,hidden_option,emblem_endurance) values(%u,%d,%u,'%s',%d,now(),%d,'%s',%d,'%s',%d,%d)",
            0xce);
@@ -10007,10 +10005,15 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
         SIG_CREATURE_ITEM* out =
             guard.operator->()->GetInBuffer<SIG_CREATURE_ITEM>();
         *out = *sig;
+        // ORIG 0x08420759 movl $0x0,-0x1c(%ebp)：具名 int 结果局部，各检查
+        // 逐次赋值后 `movzbl %al,%eax; mov %eax,-0x1c; cmpl $0,-0x1c; jne`
+        // （P102 同一局部保持失败出口；旧内联 `!call()` 少 1 条/处）
+        int ok = 0;
         db->set_query(
             "seLect slot,it_id,name,stomach,exp,endurance,creature_type,no_charge,unix_timestamp(expire_date) from creature_items where ui_id=%d",
             sig->m_addInfo2);
-        if (db->exec(true) != 1)
+        ok = db->exec(true);
+        if (!ok)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x5729, 5);
             trace("DB_UpdateCreatureItem::dispatch, exec() ERROR charac_no=%u",
@@ -10018,7 +10021,8 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Free(guard);
             return 0;
         }
-        if (db->fetch() != 1)
+        ok = db->fetch();
+        if (!ok)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x5731, 5);
             trace("DB_UpdateCreatureItem::dispatch, fetch() ERROR charac_no=%u",
@@ -10026,7 +10030,8 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Free(guard);
             return 0;
         }
-        if (!db->get_int(0, out->m_slot))
+        ok = db->get_int(0, out->m_slot);
+        if (!ok)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x5739, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_int(0) ERROR charac_no=%u",
@@ -10038,8 +10043,9 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
         // unsigned long==unsigned int 同宽，ORIG 传槽地址）。
         DB_CreatureItemInserView* iv =
             reinterpret_cast<DB_CreatureItemInserView*>(out);
-        if (!db->get_ulong(
-                1, *reinterpret_cast<unsigned long*>((void*)&iv->m_itId)))
+        ok = db->get_ulong(
+            1, *reinterpret_cast<unsigned long*>((void*)&iv->m_itId));
+        if (!ok)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x5741, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_ushort(1) ERROR charac_no=%u",
@@ -10047,7 +10053,8 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Free(guard);
             return 0;
         }
-        if (!db->get_str(2, out->m_name, 0xd))
+        ok = db->get_str(2, out->m_name, 0xd);
+        if (!ok)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x5756, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_int(2) ERROR charac_no=%u",
@@ -10055,7 +10062,8 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Free(guard);
             return 0;
         }
-        if (!db->get_int(3, out->m_stomachValue))
+        ok = db->get_int(3, out->m_stomachValue);
+        if (!ok)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x575e, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_int(3) ERROR charac_no=%u",
@@ -10063,7 +10071,8 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Free(guard);
             return 0;
         }
-        if (!db->get_int(4, out->m_exp))
+        ok = db->get_int(4, out->m_exp);
+        if (!ok)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x5766, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_int(4) ERROR charac_no=%u",
@@ -10071,7 +10080,8 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Free(guard);
             return 0;
         }
-        if (!db->get_ushort(5, iv->m_endurance))
+        ok = db->get_ushort(5, iv->m_endurance);
+        if (!ok)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x576d, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_ushort(5) ERROR charac_no=%u",
@@ -10080,7 +10090,8 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             return 0;
         }
         int creatureType = 0;
-        if (!db->get_int(6, creatureType))
+        ok = db->get_int(6, creatureType);
+        if (!ok)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x5775, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_int(6) ERROR charac_no=%u",
@@ -10090,7 +10101,8 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
         }
         out->m_flag50 = (unsigned char)creatureType;
         int noCharge = 0;
-        if (!db->get_int(7, noCharge))
+        ok = db->get_int(7, noCharge);
+        if (!ok)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x577e, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_int(7) ERROR charac_no=%u",
@@ -10099,7 +10111,8 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             return 0;
         }
         out->m_keepRight = (unsigned char)noCharge;
-        if (!db->get_int(8, out->m_days))
+        ok = db->get_int(8, out->m_days);
+        if (!ok)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x5794, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_int(9) ERROR charac_no=%u",
@@ -11374,23 +11387,31 @@ bool DB_CheckAddFriend::dispatch(int userIdx, int slot, Stream* stream)
     {
         db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                E_SERVER_GROUP_NONE);
-        if (db != 0 && db->escape_string(name, req->m_name) &&
-            db->set_query(
+        // P223：ORIG 0x0844c7c5/0x0844c7ee/0x0844c813/0x0844c863/0x0844c884
+        // 五个失败出口各带独立 `nop; jmp` 中继岛（0x1d2/0x1d5/0x1d8/0x1db/0x1de），
+        // 合并 && 短路链被 4.4 jump-thread 成单出口 ⇒ 改多源裸 goto 到同一尾标签。
+        if (db == 0)
+            goto send_packet;
+        if (!db->escape_string(name, req->m_name))
+            goto send_packet;
+        if (!db->set_query(
                 "seLect m_id from charac_info where charac_name='%s' and delete_flag=0",
-                name) &&
-            db->exec(true) && db->fetch() && db->get_n_rows() == 1 &&
-            db->get_int(0, result))
-        {
-            if (GlobalData::s_pGMAccounts_->isGM((unsigned int)result))
-                outCode = 0x5a;
-            else
-                outCode = 0;
-        }
+                name))
+            goto send_packet;
+        if (!(db->exec(true) && db->fetch() && db->get_n_rows() == 1))
+            goto send_packet;
+        if (!db->get_int(0, result))
+            goto send_packet;
+        if (GlobalData::s_pGMAccounts_->isGM((unsigned int)result))
+            outCode = 0x5a;
+        else
+            outCode = 0;
     }
     else
     {
         outCode = 0;
     }
+send_packet:
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xc05e), true);
     guard.operator*()->operator<<(0x33e);
@@ -16446,6 +16467,8 @@ static_assert(sizeof(DB_InsertAutoPunishFirstUserView) == 0x2c,
 bool DB_InsertAutoPunishFirstUser::dispatch(int /*userIdx*/, int /*slot*/,
                                             Stream* stream)
 {
+    // ORIG 0x0842d6da 函数首句 movl $0x0,-0x30（P198① 预清：声明=0 + 独立赋值）
+    int punishType = 0;                 // ORIG local_34 @ -0x30
     DB_InsertAutoPunishFirstUserView* sig =
         reinterpret_cast<DB_InsertAutoPunishFirstUserView*>(
             stream->GetOutBuffer<SIG_INSERT_AUTO_PUNISH_FIRST_USER>());
@@ -16473,10 +16496,15 @@ bool DB_InsertAutoPunishFirstUser::dispatch(int /*userIdx*/, int /*slot*/,
     // 多发一次 GetDBHandle 并整体错帧。
     MySQL* db1 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
                                                    E_SERVER_GROUP_NONE);
-    if (sig->m_punishFlag == 2 || sig->m_punishFlag == 7 ||
-        sig->m_punishFlag == 8)
+    // ORIG 0x0842d8ba..0x0842d8f3 三个独立 if-return（各 mov $1; jmp 独立岛），
+    // 非短路合并链（P45 反向：合并形会产 je 共落点）
+    if (sig->m_punishFlag == 2)
         return 1;
-    int punishType = 3;                 // ORIG local_34
+    if (sig->m_punishFlag == 7)
+        return 1;
+    if (sig->m_punishFlag == 8)
+        return 1;
+    punishType = 3;                     // ORIG 0x0842d8f8 movl $0x3,-0x30
     if (sig->m_punishFlag == 10)
         punishType = 0xc;
     unsigned int dwPunishDay = sig->m_etcValue / 10;  // ORIG local_24
@@ -16487,38 +16515,40 @@ bool DB_InsertAutoPunishFirstUser::dispatch(int /*userIdx*/, int /*slot*/,
     {
         db1->set_query(
             "upDate member_punish_info set occ_time=now(), start_time=now(), end_time='9999-12-31 23:59:59', apply_flag=%d where m_id=%s and punish_type=%d",
-            dwApplyFlag == 0 ? 2 : 1, NumberToString(sig->m_memberId, 0),
+            dwApplyFlag != 0 ? 1 : 2, NumberToString(sig->m_memberId, 0),
             punishType);
     }
     else
     {
         db1->set_query(
             "upDate member_punish_info set occ_time=now(), start_time=now(), end_time= adddate(now(),interval %d day), apply_flag=%d where m_id=%s and punish_type=%d",
-            dwPunishDay, dwApplyFlag == 0 ? 2 : 1,
+            dwPunishDay, dwApplyFlag != 0 ? 1 : 2,
             NumberToString(sig->m_memberId, 0), punishType);
     }
-    bool needInsert =
-        !(db1->exec(true) == 1 && db1->getAffectedRowCount() != 0);
-    if (needInsert)
+    // ORIG 0x0842da37..0x0842da62 无槽往返（xor $1;test;jne; call;or;test;jne;
+    // mov$1/jmp/mov$0; test %al,%al; je）⇒ 谓词整体内联，禁具名 bool（P198②）
+    if (!(db1->exec(true) == 1 && db1->getAffectedRowCount() != 0))
     {
         if (dwPunishDay == 0)
         {
             db1->set_query(
                 "inSert into member_punish_info(m_id, punish_type, occ_time, start_time, end_time, punish_value, apply_flag) values(%s, %d, now(), now(), '9999-12-31 23:59:59', 0, %d)",
                 NumberToString(sig->m_memberId, 0), punishType,
-                dwApplyFlag == 0 ? 2 : 1);
+                dwApplyFlag != 0 ? 1 : 2);
         }
         else
         {
             db1->set_query(
                 "inSert into member_punish_info(m_id, punish_type, occ_time, start_time, end_time, punish_value, apply_flag) values(%s, %d, now(), now(), adddate(now(),interval %d day), 0, %d)",
                 NumberToString(sig->m_memberId, 0), punishType, dwPunishDay,
-                dwApplyFlag == 0 ? 2 : 1);
+                dwApplyFlag != 0 ? 1 : 2);
         }
         if (db1->exec(true) != 1)
             return 0;
     }
-    char reason[0x100] = { '\0' };
+    // ORIG 0x0842db2d mov $0xff,%ebx（待清字节数 255）+ 起始槽 -0x17b 非 4 对齐
+    // ⇒ 0xff 字节数组（P312/P253；旧 0x100 使 4.4 折 0x40 dwords 简单 rep stos）
+    char reason[0xff] = { '\0' };
     sprintf(reason, "{Auto 1st Information-Mail}|*|ARS 1st Punish / %d / %d",
             sig->m_hackType, sig->m_hackSubType);
     char year[10] = { '\0' };
@@ -16531,14 +16561,14 @@ bool DB_InsertAutoPunishFirstUser::dispatch(int /*userIdx*/, int /*slot*/,
         db1->set_query(
             "inSert into member_punish_info_history_%s(m_id, punish_type, occ_time, punish_value, start_time, end_time, admin_id, apply_flag, reason) values(%s, %d, now(), 6, now(), '9999-12-31 23:59:59', 'ARS', %d, '%s')",
             year, NumberToString(sig->m_memberId, 0), punishType,
-            dwApplyFlag == 0 ? 2 : 1, reason);
+            dwApplyFlag != 0 ? 1 : 2, reason);
     }
     else
     {
         db1->set_query(
             "inSert into member_punish_info_history_%s(m_id, punish_type, occ_time, punish_value, start_time, end_time, admin_id, apply_flag, reason) values(%s, %d, now(), 6, now(), adddate(now(),interval %d day), 'ARS', %d, '%s')",
             year, NumberToString(sig->m_memberId, 0), punishType, dwPunishDay,
-            dwApplyFlag == 0 ? 2 : 1, reason);
+            dwApplyFlag != 0 ? 1 : 2, reason);
     }
     if (db1->exec(true) != 1)
         return 0;
@@ -16547,7 +16577,7 @@ bool DB_InsertAutoPunishFirstUser::dispatch(int /*userIdx*/, int /*slot*/,
         db1->set_query(
             "inSert into member_punish_info_ars_mail (m_id, punish_type, apply_flag, occ_time) values(%s, %d, %d, now())",
             NumberToString(sig->m_memberId, 0), punishType,
-            dwApplyFlag == 0 ? 2 : 1);
+            dwApplyFlag != 0 ? 1 : 2);
         if (db1->exec(true) != 1)
             return 0;
     }
@@ -16644,7 +16674,9 @@ bool DB_InsertAutoPunishSecondUser::dispatch(int /*userIdx*/, int /*slot*/,
             if (db1->exec(true) != 1)
                 return 0;
         }
-        char reason[0x100] = { '\0' };
+        // ORIG 0x0842e250 mov $0xff,%ebx + 起始槽 -0x123 非 4 对齐 ⇒ 0xff 字节
+        // 数组（P312/P253；旧 0x100 使 4.4 折简单 rep stos，缺 21 条慢路）
+        char reason[0xff] = { '\0' };
         sprintf(reason, "{Auto 2nd Information-Mail}|*|ARS 2nd Punish (Trade) / %s / %d",
                 NumberToString(sig->m_hackMemberId, 0),
                 sig->m_totalTradeGold, sig->m_tradeGold);
@@ -16695,9 +16727,12 @@ bool DB_ReportMannerlessUser::dispatch(int /*userIdx*/, int /*slot*/,
     cache_query += ",";
     cache_query += sig->m_reason;
     cache_query += ",";
-    char timeStr[0x100] = { '\0' };
-    sprintf(timeStr, "from_unixtime(%d)",
-            GlobalData::s_systemTime_.getCurSec());
+    // ORIG 0x08427add mov $0xff,%ebx（待清字节数 255）+ 起始槽 -0x123 非 4 对齐
+    // ⇒ 0xff 字节数组（P312/P253；旧 0x100 使 4.4 折 0x40 dwords 简单 rep stos）
+    char timeStr[0xff] = { '\0' };
+    // ORIG 0x08427b39..0x08427b48：getCurSec 结果先落具名槽 -0x1c 再回读传参（P0）
+    time_t now = GlobalData::s_systemTime_.getCurSec();
+    sprintf(timeStr, "from_unixtime(%d)", now);
     cache_query += timeStr;
     cache_query += ")";
     // [b28d-TakeW8LT 块序复原] ORIG 0x08427b9f..08427bc3 是
@@ -18805,7 +18840,7 @@ bool CLocalGlobal_DB_STATICS_BOSSTOWER::dispatch(int userIdx, int slot,
 // >>reload(byte) → GetDBHandle(DB_HANDLE_2,0) → 回包流 0xe4/-1 +
 // SIG_DEATH_TOWER_LOAD_TOP_RANKER{+0 count=0, +4 reload}。双层循环
 // partType 0..4 × rank 1..4：reload==0 时先 count(*) 得 total（>5 时
-// interval=max(total/100,1)）再查 rank>5 且 rank%interval==0 的行（limit 95）；
+// interval=max(total/0x5f,1)）再查 rank>5 且 rank%interval==0 的行（limit 95）；
 // reload!=0 时查 top5 表（limit 5）。每段 m_count += get_n_rows()，逐行
 // fetch 后写 rank(+0x06+i*2)、tower_index(+0xfa0+..+0xc)、member_info
 // (+0xfa0+..+0x10,0x17)、stage/play_time(+0x1000+..+0xc/+0x10)、
@@ -18830,9 +18865,10 @@ bool DB_DeathTowerLoadTopRanker::dispatch(int userIdx, int slot, Stream* stream)
         guard->GetInBuffer<SIG_DEATH_TOWER_LOAD_TOP_RANKER>());
     out->m_count = 0;
     out->m_flag = reload;
-    for (int partType = 0; partType <= 4; ++partType)
+    // ORIG 0x0842a8e6 `cmp $0x4,%eax; setbe`（无符号上界，P2/P310）
+    for (unsigned int partType = 0; partType <= 4; ++partType)
     {
-        for (int rank = 1; rank <= 4; ++rank)
+        for (unsigned int rank = 1; rank <= 4; ++rank)
         {
             if (reload == 0)
             {
@@ -18851,7 +18887,10 @@ bool DB_DeathTowerLoadTopRanker::dispatch(int userIdx, int slot, Stream* stream)
                     return 0;
                 if (total > 5)
                 {
-                    interval = total / 100;
+                    // 真 bug 修正：ORIG 0x0842a6a2 段魔数 0x58ed2309+shr$6
+                    // = total / 0x5f（Ghidra C `local_40 / 0x5f`）；旧码写 /100
+                    // 使采样间隔差 5%，rank%interval 命中行完全不同。
+                    interval = total / 0x5f;
                     interval = std::max(interval, (unsigned int)1);
                 }
                 db->set_query(
@@ -18872,25 +18911,32 @@ bool DB_DeathTowerLoadTopRanker::dispatch(int userIdx, int slot, Stream* stream)
             {
                 if (!db->fetch())
                     return 0;
-                DB_TowerRankerRankView* ranks =
-                    reinterpret_cast<DB_TowerRankerRankView*>((char*)out + 6);
-                if (!db->get_ushort(0, ranks->m_ranks[k]))
+                // P183：ORIG 每次字段访问重发完整 `lea+add` 地址链（无具名指针
+                // 缓存；缓存 3 个指针多占 0x10 帧并省物化次数）
+                if (!db->get_ushort(
+                        0, reinterpret_cast<DB_TowerRankerRankView*>(
+                               (char*)out + 6)->m_ranks[k]))
                     return 0;
-                DB_TowerRankerRowView* row =
-                    reinterpret_cast<DB_TowerRankerRowView*>(
-                        (char*)out + 0xfa0 + k * 0x6c);
-                if (!db->get_ushort(1, row->m_towerIndex))
+                if (!db->get_ushort(
+                        1, reinterpret_cast<DB_TowerRankerRowView*>(
+                               (char*)out + 0xfa0 + k * 0x6c)->m_towerIndex))
                     return 0;
-                if (!db->get_binary(2, row->m_memberInfo, 0x17))
+                if (!db->get_binary(
+                        2, reinterpret_cast<DB_TowerRankerRowView*>(
+                               (char*)out + 0xfa0 + k * 0x6c)->m_memberInfo,
+                        0x17))
                     return 0;
-                DB_TowerRankerPlayView* play =
-                    reinterpret_cast<DB_TowerRankerPlayView*>(
-                        (char*)out + 0x1000 + k * 0x6c);
-                if (!db->get_uint(3, play->m_stage))
+                if (!db->get_uint(
+                        3, reinterpret_cast<DB_TowerRankerPlayView*>(
+                               (char*)out + 0x1000 + k * 0x6c)->m_stage))
                     return 0;
-                if (!db->get_uint(4, play->m_playTime))
+                if (!db->get_uint(
+                        4, reinterpret_cast<DB_TowerRankerPlayView*>(
+                               (char*)out + 0x1000 + k * 0x6c)->m_playTime))
                     return 0;
-                row->m_type = (unsigned short)rank;
+                reinterpret_cast<DB_TowerRankerRowView*>(
+                    (char*)out + 0xfa0 + k * 0x6c)->m_type =
+                    (unsigned short)rank;
             }
         }
     }
