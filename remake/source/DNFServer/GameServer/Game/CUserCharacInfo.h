@@ -566,7 +566,10 @@ struct CharacInfoFields
     bool m_bringUpRewardFlag;              // +0x1278（[b28d-Main 代落·S350 P235/P292] uchar→bool：ORIG getter 体 0x08110d76 无 setne + 调用点 0x0810ff7b `call; test %al,%al; jne` ⇒ 字段/返回同型 bool；1 字节/偏移不变）
     unsigned char m_curUseBringUpMaterialCount; // +0x1279
     unsigned char m_curUseBringUpMaterialTotal; // +0x127a
-    unsigned char m_growthPowerExpRewardRight;  // +0x127b
+    // [b28d-Main·检查点14 P321-T3] uchar→bool（1 字节/偏移不变）：
+    //   ORIG getter 0x08696ca4 尾 `movzbl 0x127b(%eax),%eax; jmp`（无 setne）
+    //   + 调用点 0x0868dbfb `call; xor $1; test %al; je` ⇒ 字段/返回同型 bool。
+    bool m_growthPowerExpRewardRight;           // +0x127b
     int m_seriaBufBonusExp;                // +0x127c
     unsigned char m_growthPowerReward;     // +0x1280
     union

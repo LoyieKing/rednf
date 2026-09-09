@@ -7,6 +7,11 @@
 // 字段化（guildName/guildAddr/wpBonus/expBonus/warAreaKill/name/createTime/
 // backupSkill/coolTime/effectItem 列表/cargo/inven）；IncFatigueBatteryCharging
 // 改经 ServerParameterScript::m_fatigueTable5c0.m_capLimit 具名成员。
+// [b28d-solo-CUserCharacInfo 本波] 清单 7 件收口：get_charac_10_level_section /
+// getCurCharacEscaladeTutorialFlag / setCurCharacTutorialFlag 入波即 AE/identical；
+// is_growth_power_exp_reward_right 修复（+0x127b 同址 bool 视图，ORIG 0x08696ca4
+// 13=13 IDENTICAL）；WarAreaKill / GetContinuousItemInfo / calc_disp_help_abuse_ratio
+// 复核后维持 N76/N82附/N4 封顶（助记符/槽位证据见各函数头，p167 全 CLEAR）。
 // ============================================================================
 
 #include "CUserCharacInfo.h"
@@ -1157,6 +1162,9 @@ unsigned char CUserCharacInfo::needCurCharacCheckOverEquip()
 }
 
 
+// [b28d-Main·检查点14] ORIG 0x08696ca4：13 条，`movzbl 0x127b(%eax),%eax; jmp`
+// 直返无 setne ⇒ 字段/返回同型 bool；调用点 0x0868dbfb `xor $1` 联判。
+// 字段已由 Main 在 CUserCharacInfo.h 正式改 bool，TU 局部视图已删除（直读）。
 bool CUserCharacInfo::is_growth_power_exp_reward_right() const
 {
     return m_selected ? CUR->m_growthPowerExpRewardRight : 0;
@@ -2235,6 +2243,10 @@ unsigned int CUserCharacInfo::getCurCharacDungeonHelpAbuseExp() const
 // cw/除数槽与帧差 ⇒ 维持 N82附/N95 封顶。
 // [b28d-solo-CUserCharacInfo P210 实验] 前移 get_charac_level 定义（唯一不可见
 // callee）后本件帧仍 0x68（无变化，已回退）⇒ 帧差非 callee 帧继承所致。
+// [b28d-solo-CUserCharacInfo 复核] 68=68 助记符逐条全等；残差=ull 转换匿名 8B 临时
+// 与 cw/除数槽相对 ebp 整体下移 8（-0x30/-0x32/-0x3c → -0x38/-0x3a/-0x4c）及帧
+// 0x58↔0x68：4.4 对 (double)uint 的匿名 8B 临时优先占深槽（N95/N82附）；本件无死
+// 局部可删（P232）、撑帧只会加深（P190 反向）⇒ 维持 NEAR 封顶（p167 CLEAR）。
 int CUserCharacInfo::calc_disp_help_abuse_ratio(int param)
 {
     int levelUpExp = get_level_up_exp(get_charac_level());
@@ -2381,6 +2393,11 @@ void CUserCharacInfo::WarAreaKill(int index, int point, float kill)
     // 双数组视角、pack(1) 下标等）全部产 4.4 前置 `lea 0x380(%edx),%ecx`（ORIG 为
     // fadds 后 `lea 0x380(%ecx),%edx`）；4.4 对「读写共享的 PLUS_EXPR 下标」恒先
     // 求值 LHS 地址（SAVE_EXPR），无源形可翻。59/59 条数全等，语义等价。
+// [b28d-solo-CUserCharacInfo 复核] 再补 9 形（/tmp/b28d_solo/wak.cpp、wak2.cpp、
+// wak3.cpp、star.cpp：`+=`/展开式/下标加法序交换/指针算术/具名 float 槽/裸语句
+// 表达式 `({...})`/volatile 视图/`*&` 双算/两处独立下标）全部产 LHS 地址前置
+// `lea 0x380(%edx),%ecx`；P211 档③ cast 异型化（int↔unsigned）亦无 RHS-first
+// ⇒ N76/N18a 封顶定论（ORIG 4.1 为 fadds 后 `lea 0x380(%ecx),%edx`）。
     ((WarAreaKillWindow*)CUR)->m_warAreaKillFlat[index + 0x380] += kill;
     ((CUser*)this)->m_historyLog.FPAdd(
         point, CUR->m_finishPoint, CUR->m_finishPointTotal,
@@ -3498,6 +3515,11 @@ int CUserCharacInfo::GetCurCharacAssaultFatigueCount()
 // `index + 0x460` CSE 到 %esi 跨 call 保活，ORIG 每处独立 `lea 0x460(%ebx),%ecx`
 // 重算；语句表达式下标/下标交换两形实测不可阻）+ N4/P30（4.4 把 disp 0x10 折成
 // 索引 +2：`lea 0x2(%esi),%edx`）⇒ 封顶，语义等价（104 vs 100 条）。
+// [b28d-solo-CUserCharacInfo 复核] 再补 5 形（/tmp/b28d_solo/gcii.cpp、gcii2.cpp、
+// gcii3.cpp、star.cpp：`*&` 双算、裸语句表达式 RHS、具名 const 引用、int↔unsigned
+// cast 异型化、unsigned 下标）均产同一「LHS 地址（index+0x460）前置跨 call 保活」形；
+// disp 折叠经探针确认为 4.4 定则（disp/scale≥2 折、==1 不折：gcii.cpp k1 vs k3）
+// ⇒ N76/N82附/N4 封顶定论。
 void CUserCharacInfo::GetContinuousItemInfo(SIG_LOAD_ETC* p) const
 {
     p->m_cooltimeCharacNo = p->m_characNo;

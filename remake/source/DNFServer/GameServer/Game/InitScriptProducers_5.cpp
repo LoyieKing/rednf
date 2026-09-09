@@ -278,7 +278,7 @@ bool initChattingEmoticonScriptList(char* dir, char* list)
 // 目录 0x94f7840/列表 0x94f7940。（头文件声明返回 int；asm 仅 eax=0/1。）
 // [b28d-solo AE 43/43] __builtin_strcat 内建展开（旧 N(P209/P75) 判词作废）。
 // ============================================================================
-int initIndependentDropScript(char* dir, char* list)
+bool initIndependentDropScript(char* dir, char* list)
 {
     strncpy(g_independentDropScriptBaseDirectory, dir, 0xff);
     if (g_independentDropScriptBaseDirectory[strlen(g_independentDropScriptBaseDirectory) - 1] != '\\' &&

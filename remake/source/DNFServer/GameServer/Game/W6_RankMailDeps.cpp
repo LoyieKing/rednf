@@ -69,7 +69,7 @@ void WongWork::CDeathTowerRanking::registRanker(
         //    add this` 链（无 slot 具名指针槽）；旧形缓存 slot 使帧 0xdc→0xec
         //   且整段寻址退化为 add+lea 两步。真二维下标（头 m_slots[6]，
         //   Main 代落后）直接产 ORIG 形（探针 /tmp/b28d_w6_probe3.cpp f_2d）。
-#define W6_RANKER_SLOT(idx) (m_towers[towerIdx].m_slots[idx])
+#define W6_RANKER_SLOT(idx) (m_towers[towerIdx][idx])   // [b28d-Main·检查点14] 二维化
         // asm +0x064..+0x0a3: 槽已占位 → 先按旧 stage 行、旧时间值 erase 排名
         // 记录（读取发生在改写之前；ORIG 直传 &slot->m_playTime 引用，
         // 无 oldStage/oldTime 局部槽）。

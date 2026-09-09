@@ -85,11 +85,12 @@ namespace WongWork
         class CStage
         {
         public:
-            CStage() throw();                   // ORIG W 0x82a74ca：MapInfo ctor + resetCurrentStage
-                                              //  P216：throw() 消 CDeathTower::C1 对该
-                                              //  ctor 的 4.4 landing/cleanup（N91 突破）
-            ~CStage() throw();                  // ORIG W 0x82a74ec：MapInfo dtor（P216：
-                                              //  消 C1/D1 cleanup 对它的 landing）
+            // [b28d-Main·检查点14 A/B] 去 throw()：S411 实测两处 throw() 全带时
+            //   C1 30/D1 17（ORIG 45/33，EH 段被整体消掉）⇒ CStage ctor 在 ORIG
+            //   语义为**可能抛**（ORIG C1 landing 0x82a763f 只调 ~CDungeonMgr）；
+            //   正确组合 = CPlayData 带 throw()（nothrow）+ CStage 不带。
+            CStage();                           // ORIG W 0x82a74ca：MapInfo ctor + resetCurrentStage
+            ~CStage();                          // ORIG W 0x82a74ec：MapInfo dtor
             void reset();                       // ORIG 0x84614ec
             void resetCurrentStage();           // ORIG W 0x82a74bc（m_currentStage = 1）
             bool setState(ENUM_STAGE_STATE state);  // ORIG 0x8461c5a
@@ -265,7 +266,7 @@ namespace WongWork
     int handleSelectEPLPCommand(CUser*, int);
     int handleStageCommand(CUser*, unsigned char);
     int handleStartGame(int, char, ENUM_DUNGEON_TYPE);
-    int handleUseStackable(CUser*, ENUM_ITEMSPACE, unsigned short);
+    bool handleUseStackable(CUser*, ENUM_ITEMSPACE, unsigned short);  // [b28d-Main·检查点14 P292] 定义 0x084662cc 返 1；调用点 xor $1
     bool onLeaveUser(CUser*);  /* ORIG 0x084636f2 尾恒 mov $1,ret；caller xor$1/test%al bool 归一形（P9/P159） */
     int onTimer(TIMER_MESSAGE, unsigned int);
     void reset();

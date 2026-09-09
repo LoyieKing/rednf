@@ -109,7 +109,7 @@ int CDataManager::set_reward_sp()
 // ORIG 0x083580aa：遍历 +0x4e70 的 map<int,map<int,BaseItemValue>>，
 // 对每个内层元素以 make_pair(值, 递增序号) 插入 +0x4e88 反查表；
 // 任一插入冲突立即返回 0，全部成功返回 1。（计数器每个外层键重置。）
-int CDataManager::initRandomOptionItem()
+bool CDataManager::initRandomOptionItem()
 {
     // b28 BM4 判词（N18a/N4 在册）：fresh 实残 = make_pair 首 ref 实参 ORIG
     // `lea 0x4(%eax),%ecx` 单条折叠 vs 4.4 `add $0x4,%eax; mov %eax,%edx`

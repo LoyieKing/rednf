@@ -189,7 +189,7 @@ long getNextScheduleTime(int hour, long time)
 //   ⇒ 第二段 = `(!oddA) || (!oddSum)`（bool 取反 ⇒ P168a X 族物化形）；
 // ④两段的真出口共享 Lret1（mov $1），假出口共享 Lret0（mov $0）。
 // 合并即"至少一个为偶 ⇒ 1；两者皆奇 ⇒ 0"（偶偶也返 1）。
-int checkGetItemPacket(int a, int b, int c)
+bool checkGetItemPacket(int a, int b, int c)
 {
     const int sum = b + c;
     // [b28d-solo-OnlyOrigBatch11] 语义订正 + 形复现：

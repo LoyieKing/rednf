@@ -350,7 +350,7 @@ int CDataManager::find_lottery_use_cost(unsigned int money) const   // ORIG 0x83
 
 // ===================== 等级/经验 =====================
 
-int CDataManager::set_level_exp()
+bool CDataManager::set_level_exp()
 {
     for (int i = 0; i <= 199; ++i)
     {
@@ -475,7 +475,7 @@ void CDataManager::get_mob_reward(int level, unsigned int& out) const
     out = m_mobRewardU[level];
 }
 
-int CDataManager::set_mob_reward()
+bool CDataManager::set_mob_reward()
 {
     short level;
     bool ok;

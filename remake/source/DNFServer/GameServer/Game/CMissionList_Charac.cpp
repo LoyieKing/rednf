@@ -8,17 +8,17 @@
 //   MakeMissionList_JustKind 96/104 N82；MakeMissionList_forNewbies 93/105 N82；
 //   check_mission_kind 109/114 N7/N82；MakeMissionList_forOldUser 109/121 N82；
 //   loadData 156/180 N82；Update_ComboMission_Event 150/135 N82。
-// [b28d-solo-CMissionList_Charac 判词汇总 · 单文件泳道] 清单 10 件结果
+// [b28d-solo-CMissionList_Charac 判词汇总 · 单文件泳道] 清单 7 件最终结果
 // （明细 /tmp/b28d_solo_CMissionList_Charac_result.tsv）：
-//   loadData 156/156 AE（P171 删 (*it) 判空 + P74② it!=end + P309 全头部声明）；
-//   Update_RecvPacket_event 116/116 AE（P214① 短路直判 + P227 临时链 + P223 三岛）；
-//   ClearMission 123/123 AE（P59/P222 块序翻转 + P223 goto 尾标签）；
-//   check_mission_kind 109/111 N121（尾部 epilogue-threading jmp+nop 岛）；
-//   Update_Revenge_event 97/97 NEAR·N82/N98（槽号）；Update_EnterWorld_event 85/85
-//   NEAR·N115/N82（帧差 0x10 量化 + 槽号）；Reset_DailyMission 132/133 N104（EH 尾块序）；
-//   BitsetToStr(Ss) 51/48、BitsetToStr(Ph) 44/42 N98+P183（折叠+槽序）；
-//   Update_ComboMission_Event 150/149 N104（EH 尾块序 + 少 1 岛）。
-//   P0：本文件无 register asm 绑定；p167 十件全 CLEAR；TU COMPILE OK 0 错误。
+//   Update_Revenge_event 97/97 AE（param.m_victory 成员写入，修死局部误读）；
+//   Update_EnterWorld_event 85/85 AE（param.m_channelTo/m_channelFrom 成员写入，
+//   修死局部误读——两条 store 目标为 pack(1) 成员 @+0x0b/+0x07）；
+//   BitsetToStr(Ss) 51/51 AE、BitsetToStr(Ph) 44/44 AE（累加器 volatile 化复现
+//   4.1 读-加-写三段 + 槽位；Ph 另删 `int j=0` 前置多出的 j 初始化）；
+//   check_mission_kind 109/111 N121（尾部 4.4 epilogue-threading jmp+nop 岛，
+//   七形实测均不消）；Reset_DailyMission 132/133 N104、Update_ComboMission_Event
+//   150/149 N104（EH 正常尾块/unwind 块物理序互换 + 少 1 岛，指令集全等）。
+//   P0：本文件无 register asm 绑定；p167 七件全 CLEAR；TU COMPILE OK 0 错误。
 #include <bitset>
 #include <cstring>
 #include <map>
@@ -63,30 +63,19 @@ void StrToBitset(unsigned char* data, std::bitset<256>& bitset)
             bitset[i * 8 + j] = (data[i] >> j) & 1;
 }
 // ORIG 0x8a5a86c：bitset → 32 字节（第二参 std::string&，resize(0x20) 后逐字节写）
-// [b28d-58] DIFF N（P183 折叠 + N98 槽序）：ORIG 0x08a5a8d2 段为读-加-写三段
+// [b28d-solo-CMissionList_Charac 定稿] ORIG 0x08a5a8d2 加法段为读-加-写三段
 //   `mov %eax,%edx; movzbl byte,%eax; lea (%edx,%eax,1),%eax; mov %al,byte`；
-//   4.4-O0 对 `x+byte` / `byte+x` / `+=` / `+(int)byte` 四形恒折 `add %al,byte`
-//   内存直加（P183 折叠铁律）；i 槽 ORIG -0x10 vs 4.4 -0x14（N98 首次使用序，
-//   声明序不可翻）。语义等价（uchar 回绕 + out[i] 截断同）。
-// [b28d-solo-CMissionList_Charac] 判词 N98+P183（51/48）：残差=槽号(-0x10/-0x14)
-//   与读-加-写三段被 4.4 折成 `add %al,byte`，两族均跨版本不可造，封顶。
+//   4.4-O0 对非 volatile uchar 累加器恒折 `add %al,mem`（P183 折叠；十三形探针
+//   /tmp/probe_bs.cpp + /tmp/probe_bs2.cpp 实测）；**累加器加 volatile** 后 4.4
+//   逐条复现 ORIG 四段，槽位 i(-0x10)/byte(-0x11)/j(-0xc) 亦全等（f6 探针）。
+//   局部 volatile 无并发/信号观察者，语义等价（读-改-写顺序本就如此）。
 void BitsetToStr(const std::bitset<256>& bitset, std::string& out)
 {
     out.resize(0x20);
     for (int i = 0; i < 32; ++i)
     {
-        unsigned char byte = 0;
+        volatile unsigned char byte = 0;
         for (int j = 0; j < 8; ++j)
-            // ORIG 0x08a5a8d2 段：`mov %eax,%edx; movzbl byte,%eax;
-            // lea (%edx,%eax,1),%eax; mov %al,byte` ⇒ 源形是 `bit + byte`
-            // 顺序（x 在 edx、byte 在 eax）；`byte + x`/`+=` 均被 4.4 折成
-            // `add %al,mem` 内存直加。
-            // [b28d-solo-CMissionList_Charac] 本轮旋钮穷举实测（P248）：①`(int)byte`
-            // ②`(unsigned int)byte` ③`(byte&0xff)` ④裸 `byte` 四形 4.4 恒折
-            // `add %al,mem`（48 条）；⑤具名 `unsigned int bv` 形加法段逐条对齐
-            // 但多 store+load 两条（53 条）且引入 ORIG 无之局部（P0 违）⇒ 弃。
-            // 结论：P183 折叠铁律 + N98 槽序（i -0x14/-0x10、byte -0xd/-0x11），
-            // 跨版本不可造，封顶。
             byte = (unsigned char)((bitset[i * 8 + j] << j) + byte);
         out[i] = (char)byte;
     }
@@ -97,15 +86,12 @@ void BitsetToStr(const std::bitset<256>& bitset, unsigned char* out)
 {
     for (int i = 0; i < 32; ++i)
     {
-        // [b28d-58] DIFF N（同 Ss 重载）：ORIG 槽 i(-0x10)/byte(-0x11)/j(-0xc)，
-        // 4.4 为 i(-0x14)/j(-0x10)/byte(-0x9)（N98 首次使用序不可翻）；加法段
-        // ORIG 读-加-写三段 vs 4.4 `add %al,byte`（P183 折叠）——语义等价。
-        // [b28d-solo-CMissionList_Charac] 判词 N98+P183（44/42，同 Ss 重载）。
-        //   本轮实测：`+=` 与 `= (x<<j)+byte` 两形同产 `add %al,byte`（P183 折叠
-        //   铁律，与 Ss 重载一致）⇒ 保持 P0 合规形封顶。
-        int j = 0;
-        unsigned char byte = 0;
-        for (j = 0; j < 8; ++j)
+        // [b28d-solo-CMissionList_Charac 定稿] 同 Ss 重载：累加器 volatile 化后
+        // 加法段四段与槽位（i -0x10 / byte -0x11 / j -0xc）逐条对齐 ORIG
+        // 0x08a5a91a 段；`int j = 0;` 前置会多一条 `movl $0x0,-0x10(%ebp)`
+        // ⇒ 循环变量按 ORIG 写在 for 初始化式内。
+        volatile unsigned char byte = 0;
+        for (int j = 0; j < 8; ++j)
             byte = (unsigned char)((bitset[i * 8 + j] << j) + byte);
         out[i] = byte;
     }
@@ -286,19 +272,23 @@ void CMissionList_Charac::Update_EnterWorld_event(CUser& user)
     // [b28d-solo-CMissionList_Charac] P214①：ORIG 0x085e602c/0x085e6037 两守卫
     // 均 `je <mov $0>` 共享落点 + 尾 `mov $1;jmp;test;jne <return>` ⇒ 原码是
     // **正极性早返** `if (A != 0xf && A != 0x10) return;`（负极性包裹被 4.4 反演）。
-    // [b28d-solo-CMissionList_Charac] 判词 N115+N82（85/85，条件形已逐条对齐）：残差=帧 0x40 vs 0x50（差 0x10 =
-    // 4.4 -O0 恒预留 16B 对齐 outgoing 区，N115）+ 槽号 param(-0x23/-0x2b)/
-    // out(-0x14/-0x1c)/pvpType(-0x18/-0x10)/chanType(-0x1c/-0xc)（聚合优先低槽，
-    // N82/P112）。P210 定义前置会反向影响同 TU 其它 caller（recv/clear 已 AE），
-    // 不可全局移动 ⇒ 封顶；语义等价。
+    // [b28d-solo-CMissionList_Charac 定稿] 原「pvpType/chanType 死局部」判词系
+    // **误读**：ORIG 0x085e6080/0x085e6090 两条 store 目标是 param 的成员——
+    // param 槽基 -0x23、pack(1) 布局 m_channelFrom@+0x07 → -0x1c、
+    // m_channelTo@+0x0b → -0x18（MissionTypes.h 权威偏移），即原码是
+    // `param.m_channelFrom = G_CDataManager()->GetPvPChannelType();` +
+    // `param.m_channelTo = G_GameWorld()->GetChannelType();`（结果供
+    // check_mission_kind 消费，非死代码）。改成员赋值后帧 0x40、out(-0x14)/
+    // param(-0x23) 槽位与 ORIG 全等（原 volatile 局部为定位槽序的临时探针，
+    // 已删）。
     if (G_GameWorld()->GetChannelType() != 0xf &&
         G_GameWorld()->GetChannelType() != 0x10)
         return;
     alter();
     std::vector<int> out;
     MissionClearCondition_Parameter param(PVP_BATTLE_MODE_2);
-    int pvpType = G_CDataManager()->GetPvPChannelType();  // ORIG 死代码调用（结果未使用）
-    int chanType = G_GameWorld()->GetChannelType();       // ORIG 死代码调用（结果未使用）
+    param.m_channelTo = G_CDataManager()->GetPvPChannelType();
+    param.m_channelFrom = G_GameWorld()->GetChannelType();
     check_mission_kind(7, user, param, out);
     check_mission_kind(0x1e, user, param, out);
     Send_Cleared_Mission_List(user, out);
@@ -353,11 +343,12 @@ void CMissionList_Charac::Update_Revenge_event(CUser& user,
     // `setne %al; test %al,%al; jne` 物化 + 独立 nop 岛（+0x143/+0x146），
     // 合并 && 被 4.4 折成直跳（少 setne 与两岛）。拆两条否定 goto + 尾标签串。
     // win 分支 ORIG 0x085e6244 `cmpb $0,-0x2c; je <清零块>` ⇒ 正向 if(win){alter}。
-    // [b28d-solo-CMissionList_Charac] 判词 NEAR（97/97，指令序列全同）：残差=三处
-    // 栈槽号 out(-0x14 vs -0x18)/param(-0x23 vs -0x27)/issueMode(-0x22 vs -0xa)，
-    // 系 4.4 按首次使用序分配且聚合对象优先低槽（N82/N98，声明序不可翻；
-    // issueMode 为死值被 4.4 复用到浅槽）。语义等价。
-    //   本轮实测：issueMode 声明提前/两语句形均不改槽（仍 -0xa）⇒ N98 首次使用序封顶。
+    // [b28d-solo-CMissionList_Charac 定稿] 原「issueMode 死局部」判词系**误读**：
+    // ORIG 0x085e61c3 `mov %ax,-0x22(%ebp)` 的槽 = param 基址 -0x23 + 1 =
+    // pack(1) 成员 m_victory@+0x01（MissionTypes.h 权威偏移），即原码是
+    // `param.m_victory = getIssue_mode(mode == PVP_BATTLE_MODE_2);`（结果供
+    // check_mission_kind 消费）。改成员赋值后帧/槽 out(-0x14)/param(-0x23) 与
+    // ORIG 全等（同 Update_EnterWorld_event 的 m_channelTo/m_channelFrom 族）。
     if (G_GameWorld()->GetChannelType() != 0xf)
         goto L_notchannel;
     if (getIndex_byKind(0x1b) != 0)
@@ -368,7 +359,7 @@ void CMissionList_Charac::Update_Revenge_event(CUser& user,
             alter();
             std::vector<int> out;
             MissionClearCondition_Parameter param(mode);
-            short issueMode = getIssue_mode(mode == PVP_BATTLE_MODE_2);  // ORIG 死代码调用（结果未使用）
+            param.m_victory = getIssue_mode(mode == PVP_BATTLE_MODE_2);
             check_mission_kind(0xc, user, param, out);
             check_mission_kind(0x16, user, param, out);
             Send_Cleared_Mission_List(user, out);
@@ -497,7 +488,9 @@ void CMissionList_Charac::Update_ComboMission_Event(CUser& user,
         // 全部对齐（c -0xe / value -0xc / nib -0xa；js/jg/jne 三岛 0x1d4/0x1d7/0x1d8）；
         // 判词 N104（150/149）：唯一残差=EH 正常路径尾块与 unwind 块相对序
         //（ORIG 正常 ~vector 在 jmp 前、unwind 居中、三岛收尾；4.4 相反）并少 1 岛；
-        // 槽位集/调用点差集全等（p167 CLEAR），语义等价。
+        // 槽位集/调用点差集全等（p167 9/9 CLEAR），语义等价。本轮复验：尾标签序
+        // L_kind/L_over/L_neg 与 L_neg/L_kind/L_over 两序实测均不改块布局，
+        // 4.4 恒 2 岛（jg 岛缺 jmp、jne 直落 epilogue）⇒ 与 ORIG 3 岛不可合。
         short nib = (short)(((int)value >> ((3 - (int)c) * 4)) & 0xf);
         value = (short)(value -
                         (short)((int)(short)nib << ((3 - (int)c) * 4)));
@@ -562,9 +555,12 @@ void CMissionList_Charac::check_mission_kind(
     // canUpdate==0 共享 `je <mov $0>` 落点 + `mov $1;jmp;test %al;je <return>` 物化
     // ⇒ P214① 正极性包裹：`if (a!=0 && b!=0) {主流程}` 复现 je P;je P;mov$1;jmp;
     // P:mov$0;Q:test;je 形（负极性早返被 4.4 反演为 xor $1 直跳）。
-    // [b28d-solo-CMissionList_Charac] 判词 N121（109/111）：守卫/物化段逐条对齐；残差仅尾部 4.4 epilogue-threading
-    // 多 `jmp+nop` 岛 2 条。本轮实测三形均不消：①`cleared=false` 移出 if（111 不变）；
-    // ②空 `else{return;}`（113 反劣）；③ORIG 无岛故 P223 尾标签不适用 ⇒ 封顶。
+    // [b28d-solo-CMissionList_Charac] 判词 N121（109/111）：守卫/物化段逐条对齐；残差仅尾部
+    // 4.4 epilogue-threading 多 `jmp+nop` 岛 2 条（ORIG 0x085e63cc movb 后 fall through
+    // 到 0x085e63d0 add esp）。本轮七形实测均不消：①`cleared=false` 移出 if（111 不变）；
+    // ②空 `else{return;}`（113 反劣）；③空 `else{}`（111 不变）；④块移出外层 if（111 不变）；
+    // ⑤否定 goto 尾标签（115 反劣，多 jmp+nop）；⑥显式尾 `return;`（114 反劣）；
+    // ⑦P223 尾标签串（ORIG 无岛，不适用）⇒ 封顶，语义等价。
     if (mission != 0 && mission->canUpdate(param))
     {
         mission->Update(m_missionList[kind], param);
@@ -579,11 +575,11 @@ void CMissionList_Charac::check_mission_kind(
             }
             ClearMission(user, (short)index);
         }
-        if (cleared)
-        {
-            Send_Fail_Mission(user, m_missionList[kind].m_index);
-            cleared = false;
-        }
+    }
+    if (cleared)
+    {
+        Send_Fail_Mission(user, m_missionList[kind].m_index);
+        cleared = false;
     }
 }
 
@@ -820,7 +816,10 @@ void CMissionList_Charac::Reset_DailyMission()
     //   残差仅 ORIG 正常 epilogue 在前 / unwind 块在函数最末，4.4 相反（difflib
     //   rotate 放大 ~30 行），gap=1，语义等价。
     // [b28d-solo-CMissionList_Charac] 判词 N104（132/133）：调用点差集归零、槽位集
-    //   全等，唯 EH 正常尾块/unwind 尾块相对序互换 ⇒ 封顶。
+    //   全等，唯 EH 正常尾块/unwind 尾块相对序互换 ⇒ 封顶。本轮复验：ORIG
+    //   0x085e56b9 alter → 0x085e56be ~vector 就地 → 0x085e56c9 epilogue →
+    //   0x085e56d3 unwind 最末；4.4 为 alter → jmp → unwind → ~vector → epilogue
+    //   （指令集逐条全等，仅块序 rotate，p167 22/22 CLEAR）。
     std::bitset<32> daily = G_CDataManager()->get_daily_mission_kind();
     for (int i = 0; i < 0x20; ++i)
     {

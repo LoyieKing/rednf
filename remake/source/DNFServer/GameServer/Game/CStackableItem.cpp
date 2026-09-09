@@ -1575,6 +1575,13 @@ void CStackableItem::get_multibox_default_item(
         return;
     }
     int rand = 0;
+    // [b28d-solo-CStackableItem] ORIG 0x0850f1bd 累加段 = 读-加-写四段
+    // `mov 0x8(%eax),%edx; mov -0x1c(%ebp),%eax; lea (%edx,%eax,1),%eax;
+    // mov %eax,-0x1c(%ebp)`；4.4 对「int 字段 + int 累加器」恒折
+    // `mov mem,%eax; add %eax,sum`（N18b）。volatile 化实测槽漂移(-0x1c→-0x28)+
+    // 比较物化(setg/test/je)，已回退。唯一复现形 = 字段侧 unsigned 化（异型 ⇒ 4.4
+    // 不折叠；探针 /tmp/probe_sum2.cpp a1 逐条同形）⇒ 走 R2 报 Main 代落
+    // MultiBoxLotteryInfo.h:33 stDefaultItem::m_prob int→unsigned int。
     int sum = 0;
     int itemIdx = 0;
     int count = 0;

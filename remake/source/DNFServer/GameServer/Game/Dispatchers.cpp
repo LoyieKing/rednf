@@ -6257,7 +6257,7 @@ int Dispatcher_MouseRegister::check_error(CUser* user, MSG_BASE& msg)
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x082632ca orig/ours=39/35 ndiff-blocks=7
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0x10(%ebp) | cmpl   $0x6,-0x10(%ebp) | movl   $0x0,-0xc(%ebp)
-int Dispatcher_MouseRegister::checkValiedPassword(char const* pwd)
+bool Dispatcher_MouseRegister::checkValiedPassword(char const* pwd)
 {
     int len = strlen(pwd);
     if (len > 6)

@@ -5,6 +5,18 @@
 // 布局见 CUser.h；本文件按 ORIG 反汇编（docs/class_func_reports/CUser.md）
 // 逐函数转录，identical 口径验证：source/toolchain/check_tu_game_orig.sh。
 // ============================================================================
+// b28d-S402_CUser 单文件泳道（2026-09-09）：清单 125 件；TU 读数
+//   identical=704 / ae=1503（合计 2207，起点 2195 = +12）/ near=4（起点 6）/
+//   diff=119（起点 123）/ missing_in_game=530；结果 TSV /tmp/b28d_solo_CUser_result.tsv。
+//   本轮 AE 转正 8 件：AddMoneyPlus、AddMoneyMinus、AddDBLogItem、RemoveCharac、
+//   AuctionPreCheck、IsRestrictedGoods、update_old_pvp_point、is_equip_aura_avatar。
+//   转 NEAR：SetGameMasterMode（P52 链式 receiver，待 CUser.h 返回 void→bool）。
+//   p167 批量扫描 19 件差集，已清 6 件（is_equip_aura_avatar/update_old_pvp_point/
+//   ResetTrainingQuest/GetLimitItemUsage/CheckCoolTimeItem/HasCurCharacRentalItem）
+//   + 2 件 make_pair 左值引用 cast（_deleteSpecificItemInven/_Cargo，IRmRiE）。
+//   P0：本文件 0 处 register-asm 绑定（历史注释提及不计）。
+//   待 Main：① CUser.h:3143 SetGameMasterMode 返回 void→bool（ORIG 尾恒 mov $1,%eax）；
+//   ② CUser.cpp 加 -march=i486 路由（x87 fucompp/fnstsw/sahf 族，P230，需双后端读数）。
 // b28d-solo-CUser 泳道判词总表（2026-09-09 S178_CUser3 收口；逐件明细
 // /tmp/b28d_solo_CUser_result.tsv，清单 /tmp/b28d_tu/CUser.tsv **136 件**；
 // 口径 check_tu_routed.sh + /tmp/s178_nd.py 逐件 ndiff）：
@@ -2032,6 +2044,9 @@ int CUser::addAvatarItem(unsigned long itemIdx, char param2, char param3,
     CEquipItem* pItem = (CEquipItem*)pMgr->find_item(itemIdx);
     if (pItem == 0)
         return -1;
+    // b28d-solo-CUser 试形回退（P96 容器 cv 旋钮）：ORIG 0x08681224 走 const 版
+    //   `_ZNKSt6vectorI20stAvatarTypeSelect_tSaIS0_EEixEj`，但 const 指针形实测
+    //   TU 合计 2207→2204（净负）⇒ 回退，维持非 const 形 + p167 差集记录。
     std::vector<stAvatarTypeSelect_t>* pSelect =
         (std::vector<stAvatarTypeSelect_t>*)pItem->getAvatarTypeSelect();
     int usablePeriod = pItem->getUsablePeriod();
@@ -11831,6 +11846,9 @@ void CUser::_deleteSpecificItemAccountCargo(
             else if (G_CDataManager()->m_deleteInvalidItem.IsInvalidItem2Delete(
                          item.m_addInfo))
             {
+                // b28d-solo-CUser 试形回退：ORIG 为 make_pair<unsigned long&, int&>
+                //   （IRmRiE），但引用 cast 实测 TU 合计净负（2207→2203）⇒ 回退，
+                //   维持 IRjRiE + p167 差集记录（本件仍 DIFF，归 N82 槽号族）。
                 mailDel.push_back(std::make_pair(item.m_addInfo, item.m_addInfo2));
                 del = true;
             }

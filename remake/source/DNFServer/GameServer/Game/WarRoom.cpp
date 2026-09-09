@@ -3,6 +3,21 @@
 // 逐函数对照 docs/class_func_reports/WarRoom.md 与 ORIG 反汇编实现；
 // 目标：编译产物与 ORIG 逐操作数一致（AE 口径）。
 // 跨类调用一律 include 权威头 + 真实类型调用（无 extern "C" asm 桥）。
+// ---------------------------------------------------------------------------
+// [b28d-solo-WarRoom 单文件泳道判词 · 2026-09-09]（证据均含 ORIG 地址/指令形）
+//   identical_ae：SendWarRoomFailMsg 0x086c078e（GenTimerKey→%ebx/m_index→%esi，
+//     旋钮=WarRoom.h GenTimerKey 返回类型同型化 int）、HostChangeWarRoom
+//     0x086c08a6（lea 0x4(%edx),%ecx，旋钮=m_hostVotes 元素同型化 unsigned long）、
+//     MakeStateInfo 0x086be07a / MakeSlotInfo 0x086bdea0 / MakeRoomInfo 0x086bdd58
+//     （局部 char*+调用点 cast 复现值先物化 %edx；P222 极性翻正）、
+//     ReviveUserByCoin 0x086bf324（地址归一后全等）。
+//   near/diff 封顶：EnterWarRoom（N82附 聚合优先低槽）、ImportWarRoomWPTable
+//     （4.1 do-while 底部布局/空岛）、SendGuildFP·CalcGuildFP·HandleDieCharacer·
+//     OnEnterState·HandleMonsterKill·ClearReward·HandleGetItem（N82/N95 帧槽平移）、
+//     HandleItemDrop（4.4 跳表前多一条范围检查）。逐件归因见
+//     /tmp/b28d_solo_WarRoom_result.tsv。
+//   P0：全域无 register asm 绑定（唯一 register 为 P231 纯存储类提示）。
+// ---------------------------------------------------------------------------
 #include "CGameManager.h"        // G_CGameManager/GetWarRoom/PutWarRoom/CheckOutParty
 #include "CItem.h"
 #include "CEquipItem.h"
@@ -607,13 +622,14 @@ int WarRoom::SendWalkOut(CUser* user, ENUM_WALKOUT_TYPE type)
 }
 void WarRoom::SendWarRoomFailMsg()
 {
-    // [b28d-solo-WarRoom] NEAR(4) | ORIG 0x086c078e | N7：ORIG 0x086c0b09 求值序
-    //   GenTimerKey→%ebx、m_index→%esi，再 call G_TimerQueue；4.4.7 恒反向
-    //   （key→%esi、idx→%ebx），助记符序列/压栈值全等仅 callee-saved 角色互换。
-    // b28d-lane25 判词 N7：ORIG 0x086c0b09 求值序 GenTimerKey→%ebx、m_index→%esi，
-    // 再 call G_TimerQueue；4.4.7 恒反向（key→%esi、idx→%ebx），助记符序列/压栈值
-    // 全等仅 callee-saved 角色互换。实测：裸 register 存储类提示（P231）与 P226
-    // 裸语句表达式（槽化 +1 条、帧 0x20→0x30）均不可翻 ⇒ 按 N7 封顶，保持直写。
+    // [b28d-solo-WarRoom · identical] ORIG 0x086c078e | 判词：ORIG 0x086c07a9
+    //   `call GenTimerKey; mov %eax,%ebx`（key→%ebx）、0x086c07ae
+    //   `mov 0x4(%eax),%esi`（m_index→%esi）、G_TimerQueue 置后 0x086c07b1。
+    //   旋钮 = callee 返回类型与实参形参同型：WarRoom.h GenTimerKey 由
+    //   unsigned int 改 int（T2 直证：ORIG 调用点无 setcc/无中转，第 5 实参形参
+    //   为 int）⇒ 4.4.6 复现同一 callee-saved 分配（探针 /tmp/wr_probe3.cpp
+    //   r1=int→key→%ebx/idx→%esi；r2/r5=unsigned→反向）。旧 N7 判词作废。
+    //   fresh .o NDIFF=0。
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
                                 (TIMER_MESSAGE)0x46, 10,
                                 GenTimerKey((TIMER_MESSAGE)0x46), 0);
@@ -637,16 +653,15 @@ void WarRoom::WarRoomFail()
 
 int WarRoom::HostChangeWarRoom(CUser* user, char a, unsigned long b)
 {
-    // [b28d-solo-WarRoom] DIFF(8) | ORIG 0x086c08a6 | 两组 N 叠加：
-    //   ① m_hostVotes[(int)a]=(int)b 段：ORIG `lea 0x4(%edx),%ecx` vs 4.4
-    //      `add $0x4,%ecx` = N4/P30（add-vs-lea 不可择，N107 六形探针族）；
-    //   ② GenTimerKey/m_index 的 %ebx↔%esi 互换 = N7（同 SendWarRoomFailMsg）。
-    //   语义与 ORIG 一致（P167 CLEAR）。
+    // [b28d-solo-WarRoom · identical] ORIG 0x086c08a6 | 判词：①ORIG 0x086c08e4
+    //   `lea 0x4(%edx),%ecx` + 0x086c08e7 `mov 0x14(%ebp),%edx` ⇒ m_hostVotes
+    //   元素与 b(unsigned long) 同型（WarRoom.h int[6]→unsigned long[6]，Main
+    //   代落；探针 wr_probe7 v7/v8 出 lea 形，v1–v3 与 wr_probe8 v14–v19 六形
+    //   恒 add）；②GenTimerKey→%ebx / m_index→%esi 同 SendWarRoomFailMsg。
+    //   fresh .o NDIFF=0。
     if ((m_slots[(int)a] != 0) && (m_slotsUser[(int)a] == user))
     {
-        // [b28BM13 N96/N7/N18a] ORIG 086c08dd: 4.1 装载序 a→this→lea→b；4.4
-        // sched 恒 a→b→this→add（寄存器劫持按 P0 禁用，旧 asm("edx") 注记作废）
-        // + 后段 GenTimerKey/m_index %ebx↔%esi 互换 = N7 ⇒ 整函数记 N。
+        // [b28BM13 已翻正] ORIG 086c08dd 装载序 a→this→lea→b 由同型化复现。
         m_hostVotes[(int)a] = (int)b;
         if (m_userCount == 0)
         {
@@ -781,25 +796,29 @@ void WarRoom::MakeRoomInfo(char* buf)
     //   N82附 receiver-first vs arg-first（probe_rcv.cpp 十形全败）⇒ 封顶。
     //   本轮 fresh .o 复测：ndiff=45（orig 94/our 93），P267 双 cast
     //   `(unsigned char)(unsigned int)` 旋钮零变化 ⇒ 判 N7/P75。
-    InterfacePacketBuf* p = (InterfacePacketBuf*)buf;
-    p->put_short(m_index);
-    p->put_byte((unsigned char)m_field8);
-    p->put_byte((unsigned char)m_levelBand);
-    p->put_byte((unsigned char)m_roomSeq);
-    p->put_byte(m_state);
+    // [b28d-solo-WarRoom] 翻正：同 MakeStateInfo —— 局部 char* + 调用点 cast
+    //   （探针 /tmp/wr_probe5.cpp t9）复现 ORIG「值先物化 %edx」形。
+    char* p = buf;
+    ((InterfacePacketBuf*)p)->put_short(m_index);
+    ((InterfacePacketBuf*)p)->put_byte((unsigned char)m_field8);
+    ((InterfacePacketBuf*)p)->put_byte((unsigned char)m_levelBand);
+    ((InterfacePacketBuf*)p)->put_byte((unsigned char)m_roomSeq);
+    ((InterfacePacketBuf*)p)->put_byte(m_state);
     // b28d-solo-WarRoom [P222/P191]：ORIG 086be2xx `test;je <if体>` = 非 0 直落
     // （正极性）⇒ 反写 if/else 以复现块序。
     if (m_pDungeon != 0)
-        p->put_short(m_pDungeon->m_warRoomData.m_10);
+        ((InterfacePacketBuf*)p)->put_short(m_pDungeon->m_warRoomData.m_10);
     else
-        p->put_short(0);
+        ((InterfacePacketBuf*)p)->put_short(0);
     for (int i = 0; i <= 5; ++i)
     {
-        p->put_byte(m_slotState[i]);
-        if (m_slots[i] == 0)
-            p->put_short(0xffff);
+        ((InterfacePacketBuf*)p)->put_byte(m_slotState[i]);
+        // [b28d-solo-WarRoom P222] ORIG 086be2xx `test;je <0xffff 块>`：非 0 直落
+        //   ⇒ 写 != 0 的正向 if 才复现（旧 == 0 形产 jne + 反序两臂）。
+        if (m_slots[i] != 0)
+            ((InterfacePacketBuf*)p)->put_short((m_slotsUser[i])->get_unique_id());
         else
-            p->put_short((m_slotsUser[i])->get_unique_id());
+            ((InterfacePacketBuf*)p)->put_short(0xffff);
     }
 }
 void WarRoom::MakeSlotInfo(char* buf, int seat)
@@ -808,15 +827,18 @@ void WarRoom::MakeSlotInfo(char* buf, int seat)
     //   receiver-first vs arg-first（ORIG 每调用点先 `mov -0x14(%ebp),%eax`）；
     //   probe_rcv.cpp 十形全败 ⇒ 封顶。语义/调用序与 ORIG 一致。
     // ORIG 0x86be1xx：buf 物化 -0x14 局部槽，后续全部从槽读（p 指针局部）。
-    InterfacePacketBuf* p = (InterfacePacketBuf*)buf;
+    // [b28d-solo-WarRoom] 翻正：同 MakeStateInfo —— 局部声明 char*（与形参同型，
+    //   保留 ORIG -0x14 槽 store），调用点 cast 到 InterfacePacketBuf* 复现
+    //   ORIG「值先物化 %edx / receiver 后装」形（探针 /tmp/wr_probe5.cpp t9）。
+    char* p = buf;
     // ORIG 0x086bde0x 首调用 receiver-first（`mov -0x14(%ebp),%eax` 先于常量压栈）；
     // 内联 cast 形（P277 反向）实测 ndiff 50 不变 ⇒ 保持 p-> 形。
-    p->put_header(0, 0x59);
-    p->put_short(m_index);
+    ((InterfacePacketBuf*)p)->put_header(0, 0x59);
+    ((InterfacePacketBuf*)p)->put_short(m_index);
     if (seat == 0xffff)
     {
         int count = GetWaiterCount();
-        p->put_byte(count);
+        ((InterfacePacketBuf*)p)->put_byte(count);
         if (count == 0)
         {
             LogManager::logFormat(1, "WarRoom.cpp", __PRETTY_FUNCTION__,
@@ -827,23 +849,25 @@ void WarRoom::MakeSlotInfo(char* buf, int seat)
         {
             if (m_slots[i] != 0)
             {
-                p->put_byte(i);
-                p->put_byte(m_slotState[i]);
-                p->put_short((m_slotsUser[i])->get_unique_id());
+                ((InterfacePacketBuf*)p)->put_byte(i);
+                ((InterfacePacketBuf*)p)->put_byte(m_slotState[i]);
+                ((InterfacePacketBuf*)p)->put_short((m_slotsUser[i])->get_unique_id());
             }
         }
     }
     else
     {
-        p->put_byte(1);
-        p->put_byte(seat);
-        p->put_byte(m_slotState[seat]);
-        if (m_slots[seat] == 0)
-            p->put_short(0xffff);
+        ((InterfacePacketBuf*)p)->put_byte(1);
+        ((InterfacePacketBuf*)p)->put_byte(seat);
+        ((InterfacePacketBuf*)p)->put_byte(m_slotState[seat]);
+        // [b28d-solo-WarRoom P222/P191] ORIG 086be0xx `test;je <0xffff 块>`：
+        //   非 0 直落（正极性）⇒ 写成 != 0 的正向 if 才复现块序。
+        if (m_slots[seat] != 0)
+            ((InterfacePacketBuf*)p)->put_short((m_slotsUser[seat])->get_unique_id());
         else
-            p->put_short((m_slotsUser[seat])->get_unique_id());
+            ((InterfacePacketBuf*)p)->put_short(0xffff);
     }
-    p->finalize(true);
+    ((InterfacePacketBuf*)p)->finalize(true);
 }
 
 void WarRoom::SendToRoom(PacketGuard& guard)
@@ -2128,22 +2152,28 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
                 "[WarRoom::HandleDropItem] Null Item %d", item.m_addInfo);
             return 0xffffffff;
         }
-        int attach = pItem->GetAttachType();
-        // ORIG 086bfac4 用跳表（cmp $0x5/ja + mov 0x8cf98b0(,%eax,4)/jmp *%eax，
-        // 表项 0/4→默认、1/2/5→ret 0x17、3→下方判定）。本处补了显式 case 0/4
-        // 以逼近 minval=0 的表范围，但 GCC 4.4 仍按 case 节点数走判定树；
-        // 语义与 ORIG 一致，残留 4 条指令差异（仅分派形态，非语义）。
+        // [b28d-solo-WarRoom P321-T2] ORIG 0x086bfac4 范围检查用 `ja`（无符号）
+        //   ⇒ attach 的消费语义是 unsigned；声明同型以复现 4.1 跳表分派。
+        unsigned int attach = (unsigned int)pItem->GetAttachType();
+        // [b28d-solo-WarRoom] ORIG 086bfac4 用跳表（cmp $0x5/ja +
+        //   mov 0x8cf98b0(,%eax,4)/jmp *%eax；表项 0/4→默认、1/2/5→ret 0x17、
+        //   3→下方判定）。翻正旋钮：switch 表达式按 T2 无符号化 + 6 个 case 全
+        //   独立书写 ⇒ 4.4 由判定树改发跳表（shl+mov 形态）。残余 = 4.4 跳表前
+        //   多一条范围检查（跨版本固有），语义与 ORIG 一致。
         switch (attach)
         {
+        case 0:
+            break;
         case 1:
+            return 0x17;
         case 2:
+            return 0x17;
         case 5:
             return 0x17;
         case 3:
             if (item.m_field0 != 1)
                 return 0x17;
             break;
-        case 0:
         case 4:
             break;
         }
@@ -2481,8 +2511,19 @@ int ImportWarRoomWPTable(stBloodWarGrowTable* table)
     {
         if (!ScanType(token, true))
             break;
+        // [b28d-solo-WarRoom P223] ORIG 0x089025e4 `je 0x089025ad`（nop; jmp 循环头）
+        //   = else 占位岛；4.4 对纯正向 if 恒 jump-thread ⇒ 空 else + goto 尾空
+        //   标签复现（保留 operator== 调用点，P167）。
         if (token == "[WP TABLE]")
         {
+            // [b28d-solo-WarRoom P231] ORIG 0x08902669/0x08902688 两臂 `mov $0/$1,%ebx`
+            //   + 0x089026af `test %ebx,%ebx; je` ⇒ 具名循环条件变量落在 %ebx
+            //   （纯 register 存储类提示，无 asm 绑定，P0 合规）。
+            // [b28d-solo-WarRoom N] ORIG do-while 尾为「test %ebx,%ebx; je 退出岛;
+            //   jmp 回 body」（4.1 底部条件布局）；4.4 对 do-while/goto 两形恒
+            //   `jne body`（goto 双跳被 jump-thread）⇒ 布局不可翻，取指令数更少
+            //   的 register bool 形（`test %bl,%bl; jne`，比 int 形少 setne+test）。
+            register bool again;
             do
             {
                 std::vector<std::pair<int, int> > row;
@@ -2497,16 +2538,22 @@ int ImportWarRoomWPTable(stBloodWarGrowTable* table)
                         break;
                     row.push_back(p);
                 }
-                if (ok)
+                if (!ok)
+                    again = false;
+                else
                 {
                     if (table != 0)
                         table->push_back(row);
+                    again = true;
                 }
-                // [b28d-solo-WarRoom P0] ORIG 0x089025xx 循环尾用寄存器物化
-                //   （`mov $0x1,%ebx` / `mov $0x0,%ebx`，无栈槽往返）⇒ 原码无
-                //   具名 again 局部，do-while 条件直接复用 ok（实测 ndiff 64→10）。
-            } while (ok);
+            } while (again);
         }
+        else
+        {
+            goto LOOP_TAIL;
+        }
+LOOP_TAIL:
+        ;
     }
     return 1;
 }

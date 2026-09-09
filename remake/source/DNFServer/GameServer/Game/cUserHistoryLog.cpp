@@ -1,6 +1,11 @@
 // 声明以 CUser.h 为准。全部方法按 ORIG 反编译（docs/class_func_reports/cUserHistoryLog/）
 // 通过 CUser::LogHistory 输出 uHistory 日志；成员布局见 CUser.h：+0x00 m_user、
 // +0x04 m_traderAccount[0x1e]、+0x22 m_traderCharac[0x1e]（首字节当"交易中"标志）、+0x40 m_pad。
+// [b28d-solo-cUserHistoryLog] 本轮：CeraPoint 去冗余 (int) cast → identical_ae 19/19；
+// ExpAdd 按 P223 补尾空标签岛 → 归一化残差仅 1 条（N18a 反向 reason 重载）。
+// 其余 14 件残差全部为已封顶跨版本 codegen 族：N102（m_traderCharac[0] 数组退化
+// add-vs-disp，8 件，volatile/整数加法/裸偏移 12 形探针穷举）/ N107（取址 add-vs-lea）/
+// N108（双守卫 landing 合并）/ N78（memset 内联）/ N82附（聚合槽向+帧差）。
 #include "CUser.h"
 #include "SkillSlot.h"        // CSkillChanger / SkillSlot / _Mastered_skill（SkillSPInfoSave/SkillSave 依赖）
 #include "DNFFunctionLib.h"   // NumberToString / DNFFLib::Binary2Hex
@@ -1227,20 +1232,23 @@ void cUserHistoryLog::EndRidable(eRidableType type, int a)
 // ORIG _ZN15cUserHistoryLog6ExpAddEii13eExpAddReasoni @0x08684bd0：
 //   仅当 reason>0xc 或 (1<<reason)&0x1892==0 时记录（排除常规来源）；
 //   日志第三参数与判断均用 reason（reasonIdx 未参与）。
-// [b28d-solo-cUserHistoryLog] DIFF 32/31：N6 已翻案（见函数体内注——`(int)` cast 阻断
-// 4.4 的 bool 位测试折叠）；残差 N18a（reason 二次加载）+ N121（尾 jmp+nop 岛）。
+// [b28d-solo-cUserHistoryLog] DIFF（orig 32 / our 33）：尾岛已按 P223 负条件 goto 尾空标签复现
+// （ORIG 0x08684c1f `jmp +0x52; nop` 空 else 占位岛）；残差仅 N18a 反向
+// （ORIG 复用 cmp 的 %eax 作 shl 源，4.4 对参数表达式二次使用恒重载
+// `mov 0x14(%ebp),%eax`；e7/e9/e10/语句表达式/一元加四形探针实测均重载）。
 void cUserHistoryLog::ExpAdd(int exp, int sp, eExpAddReason reason, int reasonIdx)
 {
     // [b28d-solo-cUserHistoryLog] N6 翻案：`(int)` cast 阻断 4.4 前端的 bool 位测试折叠
-    // （探针 /tmp/b28d_hl/probe_n6c.cpp k1：`(int)((1u<<r)&0x1892u)==0` 产 ORIG 的
-    // shl;and $0x1892;test，无 cast 的 k2..k8 恒折 shr;and $1）。31/32 残差：
-    //   N18a：ORIG 复用 cmp 的 %eax 作 shl 源，4.4 恒重载 `mov 0x14(%ebp),%eax`（+1 条）；
-    //   N121：ORIG if 体尾 `jmp+nop` 岛，4.4 jump-thread 不产（-2 条）。
-    if ((0xc < (unsigned)reason) ||
-        (((int)((1u << reason) & 0x1892U)) == 0))
-    {
-        m_user->LogHistory("Exp+,%d,%d,%d", exp, sp, reason);
-    }
+    // （探针 /tmp/hlprobe/Game/probe4.cpp k1：`(int)((1u<<r)&0x1892u)==0` 产 ORIG 的
+    // shl;and $0x1892;test，无 cast 恒折 shr;and $1）。
+    // 证据（ORIG 0x08684bd7..0x08684c27）：`mov 0x14(%ebp),%eax; cmp $0xc,%eax; ja body;
+    // shl/and/test; jne <nop 岛>; body: ... call; jmp +0x52; nop`。P223 尾空标签复现
+    // （探针 probe4.cpp e3 与 ORIG 同形，仅 reason 重载一条差）。
+    if (!((0xc < (unsigned)reason) ||
+          (((int)((1u << reason) & 0x1892U)) == 0)))
+        goto end;
+    m_user->LogHistory("Exp+,%d,%d,%d", exp, sp, reason);
+end:;
 }
 
 // ORIG _ZN15cUserHistoryLog16FullIPCounterLogEiiiiiPc @0x08685d54

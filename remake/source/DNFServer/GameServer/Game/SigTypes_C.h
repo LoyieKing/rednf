@@ -632,7 +632,16 @@ struct SIG_LOAD_ETC
                                                      //   int,int,ushort,short,int,int）
             int            m_todDate;                // +0xd728
             int            m_todLastClearDate;       // +0xd72c
-            char           m_auraAvatarOption[0xc];  // +0xd730（stAuraAvatarOption 视图）
+            // [b28d-Main·检查点14 P235/P322] +0xd730 12B 同址 union 视角：
+            //   ORIG LoadAuraAvatarOption 0x084084af `mov -0x1c(%ebp),%ecx; add $0x35cc,%ecx;
+            //   mov -0x20(%ebp),%edx; mov %edx,(%eax,%ecx,4)`（4B store + 无符号索引序）
+            //   探针 /tmp/dble_probe/p8.cpp k1（union 视角 unsigned 元素）逐条全等。
+            //   sizeof(SIG_LOAD_ETC)/全部偏移/mangled 零变化；原字段名保留。
+            union
+            {
+                char         m_auraAvatarOption[0xc];  // +0xd730（stAuraAvatarOption 视图）
+                unsigned int m_auraOptionWords[3];     // 同址 3×4B 视角
+            };
             char           m_padD73C[4];             // +0xd73c
             char           m_itemDictionary[5000];   // +0xd740（check_flag blob cap 5000）
             char           m_characOptions[0x200];   // +0xeac8（options get_binary）

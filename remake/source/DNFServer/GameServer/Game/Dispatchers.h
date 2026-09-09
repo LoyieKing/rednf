@@ -915,7 +915,7 @@ public:
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
     // ORIG 真实符号（README Dispatcher_MouseRegister/ 8 函数全集）
-    static int checkValiedPassword(char const* pwd);                       // T 0x082632ca（ORIG 无 this，静态形态；返回 eax=0/1 整型，P9——ORIG 调用点 xor $0x1 证 int 非 bool）
+    static bool checkValiedPassword(char const* pwd);                      // T 0x082632ca（ORIG 无 this，静态形态；[b28d-Main·检查点14 P292] ORIG 调用点 3 处 `call; xor $0x1,%eax; test %al,%al` ⇒ bool，旧「证 int 非 bool」判词方向反了）
     static bool decryptPassword(char const* in, char* out, unsigned int len); // T 0x0826333a（同上）
     static void doPassPadReplay(CUser* user, char* answer, char answerType, // T 0x082633c6（ORIG 静态：5 参全栈传无 this，调用点实证 0x08262ebb）
                          bool& ok, unsigned char& errCode);

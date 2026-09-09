@@ -59,6 +59,7 @@ public:
     //   （ORIG SendWarRoomFailMsg 0x086c078e `call; mov %eax,%ebx` + `mov 0x4(%eax),%esi`
     //   ⇒ int 返回时 key→%ebx/idx→%esi；探针 /tmp/wr_probe3.cpp r1 vs r2/r5 实证）。
     //   返回类型不入 mangled；sizeof/偏移/体零变化；消费点全在本 TU。
+    //   （S415 三态复测：代落态 ae=240/near=1/diff=13 vs 回退态 238/2/14 ⇒ 确为必要。）
     int GenTimerKey(TIMER_MESSAGE msg) { return ++m_timerKey[msg - 0x3f]; }
     bool CheckTimerKey(TIMER_MESSAGE msg, int key);
 

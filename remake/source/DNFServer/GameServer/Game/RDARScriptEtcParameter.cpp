@@ -273,9 +273,9 @@ int importInvalidName(char* path, InvalidCharData* out)
 // 全部归位（134=134 助记符全等）。残余 4 条 = ok 槽 -0x3c vs ORIG -0x39：4.4 标量
 // 槽基 4 对齐而 4.1 从 -0x39 起；实测 4B 数组/结构体尾字节取址恒 `lea -0x3c;add $0x3`
 // 不折叠（P235 反例）⇒ N95 族封顶。p167 CLEAR（17/17），语义闭合。
-int importExperienceItemMapInfo(std::map<int, int, std::less<int>,
-                                std::allocator<std::pair<int const, int> > >& m,
-                                bool second)
+bool importExperienceItemMapInfo(std::map<int, int, std::less<int>,
+                                 std::allocator<std::pair<int const, int> > >& m,
+                                 bool second)
 {
     m.clear();
 

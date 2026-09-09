@@ -650,6 +650,7 @@ bool CCreatureMgr::SetCreatureItemAddInfo(int slot, int value)
 bool CCreatureMgr::InsertCreatureItemResult(SIG_CREATURE_ITEM* sig)
 {
     Inven_Item localItem;
+    eItemAddReason reason[1];
     // b28d-solo-CreatureOnlyMgrRest [ORIG 0x0833b395/N107]：ORIG 仅
     // `lea -0x55; call Inven_Item::C1`（清零由 ctor reset 完成，无独立
     // memset）；`lea 0x4(%eax),%edx` = 显式指针算术 `(char*)sig + 4`。
@@ -671,15 +672,14 @@ bool CCreatureMgr::InsertCreatureItemResult(SIG_CREATURE_ITEM* sig)
     // b28d-solo-CreatureOnlyMgrRest [P235/P211]：ORIG 0x0833b417 全部为
     // disp 折叠成员访问（`movzbl 0x51(%eax)` / `mov 0x30(%eax),%esi` /
     // `mov 0x8(%eax),%eax` / `movzbl 0x5(%eax)`）⇒ 用具名字段而非指针算术。
-    eItemAddReason reason;
-    reason = (eItemAddReason)(signed char)sig->m_reason;
+    reason[0] = (eItemAddReason)(signed char)sig->m_reason;
     m_user->getCurCharacInvenR()->WriteCreatureLog(
         (INVEN_TYPE)3,
         sig->m_itemView.m_itemIdx,                            // +0x08
         sig->m_addInfo2,                                      // +0x30
         1,
         (int)sig->m_item[1],                                  // +0x05
-        reason);
+        reason[0]);
     m_user->set_cera_item_order_no(0);
     return true;
 }
@@ -731,17 +731,16 @@ bool CCreatureMgr::Evolute(int creatureId, int minLevel, bool force)
             if (({ m_equippedCreature->IsEvolutionCreatureMulty(creatureId) || force; }))
                 return m_equippedCreature->EvoluteMulty(m_user, creatureId);
 
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0xdd6, 0);
-            trace("evolute error : different creature kind.");
+            // b28d-solo-CreatureOnlyMgrRest [P221]：ORIG 兄弟块槽向
+            // then=-0x28 / else=-0x18（后声明占浅槽）；4.4 具名对象恒反向
+            // ⇒ 改全表达式临时链复现。
+            cMyTrace(__PRETTY_FUNCTION__, 0xdd6, 0)(
+                "evolute error : different creature kind.");
         }
         else
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0xddb, 0);
-            trace("evolute error : low creature level.");
+            cMyTrace(__PRETTY_FUNCTION__, 0xddb, 0)(
+                "evolute error : low creature level.");
         }
     }
     return false;

@@ -533,7 +533,7 @@ public:
     void party_dungeon_fail();
     int set_play_result(CUser* user, GameResultSet& result);   // ORIG 返回 eax=0（0x85b2068）
     void forced_set_play_result();
-    int SetPlayResult(CUser* user);   // ORIG 0x85b2412 返回 0/1
+    bool SetPlayResult(CUser* user);   // ORIG 0x85b2412 返回 0/1；[b28d-Main·检查点14 P292] 调用点 xor $1 ⇒ bool
     void set_clear_reward_exp_parameter(CUser* user, unsigned int a,
                                        stClearRewardExpParameter_t& param);
     unsigned int getClearRewardBonusExp(CUser* user, unsigned int& a,

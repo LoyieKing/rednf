@@ -88,6 +88,32 @@ public:
 #include "CDisconnectDetecter.h"
 #include "CompoundEmblemDeps.h"
 #include "CGlobalEffectManager.h"
+// ===========================================================================
+// [b28d-solo-TimerDispatcher 收口 2026-09-09] 本 TU 30 件清单最终判词
+// （verdict 口径 = check_tu_routed.sh + p167；ndiff = show_func_diff.py）：
+// AE(ndiff=0) ×9：TimerLightServerNotice::dispatch_sig / TimerDungeonDataStatistic::
+//   dispatch_sig / TimerUltimateNextRoundStart::dispatch_sig（真 bug×2：守卫极性 +
+//   实参序反）/ TimerCheckMailTimeOut::dispatch_sig / TimerFatigueReset::dispatch_sig /
+//   TimerFatigueReset::RegistNextTimer / TimerGeneratePowerUp::generatePowerUp /
+//   Timer_Midnight::RegistNextTimer / Timer_NoticeEmergencyPatchMessage::dispatch_sig。
+// 真语义 bug 另 1：Timer_DungeonInoutCloseTime::dispatch_sig `ptm->tm_min` 应为
+//   pair+0xc（second+8 = m_startMin，ORIG 0863a29c + Ghidra 双证），旧码 m_endMin(+0x10)。
+// N 封顶 ×21：N98 TimerCreature(2)；N7/P75 DBSelectCreateDnfEventInfo(2)；
+//   N93附/P223 Timer_Send_Ontime_Reward(4)；N22 CheckHumanCertifyTimeout(5)；
+//   N107 NotResponseUserTimeout(6)；N1 DDS::RegistNextTimer(11)/UCE::registNextTimer(11)/
+//   SDCI::RegistNextTimer(20)；N7 TimerDBUpdate(12,NEAR)/TimerStamina(14,NEAR)/
+//   GeneratePowerUpNotiTime(17)；N82 StatisticsLog(28)/DungeonInoutCloseTime(60)/
+//   UpdateCompoundEmblemStatics::dispatch_sig(81)/DungeonInoutOpenTime(200)/
+//   CheckConn(219)/ScheduleGuildWarEnd(271)；N82/N86 ScheduleTenSecond(65, p167 CLEAR)；
+//   N85 GeneratePowerUp::dispatch_sig(71, x87)；N82/N93 FinishItemEffect(135)；
+//   N83/N82 TimerDispatcher::C1(1016)。逐件明细见 /tmp/b28d_solo_TimerDispatcher_result.tsv。
+// 新范式（已实测）：guard+register 汇聚变量改「if/else 包裹 + 作用域止于 return 前」
+//   ⇒ dtor/EH 尾块落共享尾（LightServerNotice 6→0、DDS 20→0）；
+//   P225 while+return 复现 setne 物化；P231 纯 register 复现 edi/esi/ebx；
+//   P221 全表达式临时链翻聚合/标量槽序；P0 内联消 slot round-trip。
+// .h 改动（已 R2 广播）：CGameManager.h +`friend class TimerScheduleTenSecond;`（零布局/
+//   sizeof/mangled 影响，消费点仅本 TU）。P0：全文件无 `register asm` 绑定（清绑数 0）。
+// ===========================================================================
 // ======== 基类 ========
 
 

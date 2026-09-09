@@ -903,7 +903,7 @@ int PvP_Room::recv_pvp_end_result_team(CUser* user) const
     return 1;
 }
 
-int PvP_Room::set_recv_pvp_rank_flag(CUser* user)
+bool PvP_Room::set_recv_pvp_rank_flag(CUser* user)
 {
     int iVar2 = get_user_seat(user);
     if (iVar2 < 0)
@@ -2461,7 +2461,7 @@ int PvP_Room::ChangePvPMode(int mapNo)
 
 // [b28d-solo-PvP_Room] AE: P248 档①/P292 已落 —— IsDeathMatchMap bool 化后调用点
 // `call; mov %al,-0x9` 直存与 ORIG 0x085dd936 全等（旧「test;setne 归一封顶」判词作废）。
-int PvP_Room::CheckPvPMapMode(CUser* user, int mapNo, bool& flag)
+bool PvP_Room::CheckPvPMapMode(CUser* user, int mapNo, bool& flag)
 {
     if (m_pvpBattleMode == 6)
     {

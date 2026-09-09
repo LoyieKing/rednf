@@ -1334,7 +1334,7 @@ const char* CParty::GetNoSendSetPlayResultUser(int slot)
 // 残余：varargs 求值序 4.1 左起（GetNoSend 3→2→1→0）vs 4.4 右起（0→1→2→3）
 // ——具名/临时链/语句表达式三形实测不可翻；另 ORIG 0x085b2457 `mov 0x330` 死读
 // 与 SendResult 返回宽度 movzbl 缺 2 条。193 vs 191，语义/调用集齐，byte 层封顶。
-int CParty::SetPlayResult(CUser* user)
+bool CParty::SetPlayResult(CUser* user)
 {
     // [b28d-solo-CPartyDepsD2] ORIG 0x085b2412 单次 get_dungeon_clear_state +
     // `cmp$1;sete;test;je<共享尾>`（P222 正向包裹 + 尾 return 1）；resultSet

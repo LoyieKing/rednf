@@ -183,35 +183,21 @@ public:
     RankTable* _getRankingTable(unsigned int idx);
     BestMap*   _getBestRecordTable(unsigned int idx);
 
-    // 每塔纪录块（ORIG 线性寻址见 W6_RankMailDeps.cpp；槽 0 为塔当前榜首，
-    // 见 checkRenewTopRecord）。
-    struct stTowerBlock
-    {
-        // 注意（SecuLink 批次 2026-09-05 取证）：registRanker ORIG 0x08468614
-        // asm +0x021..+0x032 `imul $0x98,%ecx(slotIdx); imul $0x390,%edx
-        // (towerIdx); lea; add; add $0x90`（docs/class_func_reports/
-        // WongWork__CDeathTowerRanking/registRanker.md）实证塔块为 6×0x98 连续
-        // 纪录槽（slotIdx 0..5）。
-        // [b28d-Main 代落·S108 提案] 原建模 `char m_pad0[0x98] + m_slots[5]` 与 ORIG
-        // 两处直接反汇编矛盾：①C1 0x082a787c 内层倒计数初值 5 ⇒ 每塔 6 次
-        // stBestRecord_t::C1（前缀槽 0 同样被构造，char pad 不构造）；②init
-        // 0x084680a4 实证槽 1..5 的 m_flag90/memcpy(A..E)/m_field94/m_playTime/
-        // m_stage 全部按 `slot*0x98 + 塔基` 直算（memcpy 目的 +0x98/+0x130/+0x1c8/
-        // +0x260/+0x2f8，各 +0x04），即槽 0..5 起于塔基 +0x00，槽 1 为榜首
-        // （+0x128 = 0x98+0x90，checkRenewTopRecord 0x08468290 实证）。
-        // 旧模型下 CDeathTower.cpp::init 的 m_slots[1..5] 实为槽 2..6 且越界写。
-        // sizeof(stTowerBlock) 仍 0x390（6×0x98），m_towers 之后全部成员偏移不变。
-        stBestRecord_t m_slots[6];   // +0x000..+0x390（ORIG 槽 0..5；槽 1 = 榜首）
-    };
-    // C++98 兼容尺寸校验（不用 static_assert：本头未注入 SA_COMPAT）
-    typedef char _stTowerBlock_size_check[(sizeof(stTowerBlock) == 0x390) ? 1 : -1];
+    // 每塔纪录块：**真二维数组** `stBestRecord_t m_towers[5][6]`（槽 0..5，槽 1 = 榜首）。
+    // [b28d-Main·检查点14 P321-结构] 删除自造包装类 stTowerBlock（ORIG 无此类型）：
+    //   ①registRanker ORIG 0x08468614 `imul $0x98,%ecx(slotIdx); imul $0x390,%edx(towerIdx);
+    //     lea; add; add $0x90` 实证塔块 = 6×0x98 连续纪录槽；
+    //   ②C1 0x082a787c 内层倒计数初值 5 ⇒ 每塔 6 次 stBestRecord_t::C1；
+    //   ③4.4 对包装类会发射 `stTowerBlock::C1Ev` 并只调一次 stBestRecord_t::C1
+    //     （p167 EXTRA stTowerBlock::C1 / MISSING stBestRecord_t::C1），二维化后与 ORIG 同形。
+    //   sizeof 不变（6×0x98×5 = 0x11d0），m_towers 之后全部成员偏移/mangled 零变化。
     // ORIG T 0x08468cb6（_ZN8WongWork18CDeathTowerRanking17_makeRecordPacketERKNS0_14stBestRecord_tER11PacketGuard，
     // 定义 CompoundDeathLCB.cpp）：单条纪录序列化——4 成员名 strlen+put_str、
     // 各 put_byte(+0x80/+0x84 槽内 flag 对)，末尾 stage(short)/playTime(int)/名次(int)。
     void _makeRecordPacket(const stBestRecord_t& record, PacketGuard& packet);
 
 private:
-    stTowerBlock m_towers[kRankTowerCount];               // +0x0000（0x11d0）
+    stBestRecord_t m_towers[kRankTowerCount][6];          // +0x0000（0x11d0；[塔][槽]）
     RankTable m_rankingTables[5];                         // +0x11d0
     BestMap   m_bestTables[5];                            // +0x1234
     RankMap m_rankMap[kRankTowerCount][kRankStageCount];  // +0x1298（0x5dc0）

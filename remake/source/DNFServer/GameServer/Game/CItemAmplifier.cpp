@@ -431,11 +431,11 @@ void CItemAmplifier::investAmplifyOption(
 //   (int)(long long) 复现 fistpll、dead `int maxUpgradeLevel=0x12` 复现 ORIG
 //   0x089007f9 死槽并使帧 0x6c/全部槽位对齐、out[] 走 upgrade_info_t 新增
 //   float 视角（消 lea/add 取址）。
-int upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
-                                      unsigned char rarity,
-                                      unsigned char growthGrade,
-                                      unsigned char upgrade,
-                                      ENUM_EQUIPMENTTYPE equipType) const
+bool upgrade_table_t::get_upgrade_info(upgrade_info_t* out,
+                                       unsigned char rarity,
+                                       unsigned char growthGrade,
+                                       unsigned char upgrade,
+                                       ENUM_EQUIPMENTTYPE equipType) const
 {
     // [b28d-solo-CItemAmplifier] ORIG 0x08900486/0x08900498 是两条**独立**守卫
     // （各自 `mov 0x1c(%ebp),%eax; cmp; jle/jg` 直落续判）；合并 `||` 会被 4.4

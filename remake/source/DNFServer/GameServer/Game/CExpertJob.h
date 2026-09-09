@@ -280,8 +280,9 @@ public:
     CAlchemist();
     ~CAlchemist();
     // ORIG T 0x085d1424：反汇编参数自 0x8 起（无 this 槽），静态成员语义。
-    static int OnTeleportCharacter(CUser* user, int vill, int area, int x, int y,
-                                   bool flag);   // ORIG T 0x085d1424
+    // [b28d-Main·检查点14 P292] int→bool：ORIG 调用点 `call;xor $1;test %al`；mangled 不变。
+    static bool OnTeleportCharacter(CUser* user, int vill, int area, int x, int y,
+                                    bool flag);   // ORIG T 0x085d1424
 
     // ---- OnlyOrig_CreatureJob 批追加（定义 ExpertJobOnlyMgr.cpp）----
     static void UseDelilah(CUser* user);                     // ORIG T 0x085d18ae（体内无 this）

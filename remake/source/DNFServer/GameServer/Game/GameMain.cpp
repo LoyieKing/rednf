@@ -104,10 +104,10 @@ void CREATE_TimerDispatcher();    void DESTROY_TimerDispatcher();
 // ---------------------------------------------------------------------------
 // 外部自由函数 / 类（均为 ORIG 真实符号；声明集中于此，定义在各自 TU）
 // ---------------------------------------------------------------------------
-int regist_signals();                        // _Z14regist_signalsv          0x0829f4c5
-int check_argv(int argc, char** argv);       // _Z10check_argviPPc           0x0829ea5a
+bool regist_signals();                       // _Z14regist_signalsv          0x0829f4c5（[b28d-Main·P321-T3] 调用点 xor $1 ⇒ bool）
+bool check_argv(int argc, char** argv);      // _Z10check_argviPPc           0x0829ea5a（同上）
 bool IsLightServer();                        // _Z13IsLightServerv           0x0822ad44 W
-int create_thread();                         // _Z13create_threadv           0x0829fd30（返回 bool）
+bool create_thread();                        // _Z13create_threadv           0x0829fd30（同上）
 void InitCipherKeyString();                  // _Z19InitCipherKeyStringv     0x082a025a
 void RegistServerSchedule();                 // _Z20RegistServerSchedulev    0x082a0459
 void sleep_ext(int sec, int usec);           // _Z9sleep_extii
@@ -1371,7 +1371,7 @@ void omll_dump_core_file() { std::abort(); }
 // [b28d-solo-GameMain] AE | 131=131 | p167 13/13 CLEAR | 修法：bool ok 槽形（前 3 次
 // 直测 + 后 10 次 `mov %al,-0x9` 槽，P198① 预清）+ regist_signal 返回类型 int→bool
 // （P248 档①：调用点 `xor $1,%eax` 复现；返回类型不入 mangled）。
-int regist_signals()
+bool regist_signals()
 {
     // ORIG 0x0829f4cb `movb $0x0,-0x9(%ebp)`：bool 局部预清（P198①）。
     // 前三次注册 ORIG 直接 `call; xor $1; test; je`（无槽往返）；自第 4 次
@@ -1565,7 +1565,7 @@ void CShutdowManager::SendShutdownSignal()
 // ORIG 全等**）+ P244 op 声明/赋值分离提前（槽 -0x14→-0x18）；残差仅 op 槽
 // -0x18 vs ORIG -0x1c（4.4 紧凑分配 vs 4.1 在 -0x18/-0x14 预留两槽，未使用标量
 // 4.4 不占槽 ⇒ N98 不可翻；再补 int dead 反使帧 0x444 劣化，已回退）。
-int check_argv(int argc, char** argv)
+bool check_argv(int argc, char** argv)
 {
     // P232：ORIG 帧 0x434（旧 0x424）撑帧；P244：op 提前声明（赋值仍在使用点）。
     char framePad[0x10];
@@ -1691,7 +1691,7 @@ int check_argv(int argc, char** argv)
 // [b28d-solo-GameMain] AE | 202/202 | p167 28/28 CLEAR | 修法：宏展开为 bool ok
 // 槽形（14 处 `ok = begin()/setCurrentPacketPool(); if (!ok) return 0;`）+
 // exchange 分支 2 处（BeginExchangeServerThread 返回类型 bool 由 Main 代落）。
-int create_thread()
+bool create_thread()
 {
     // ORIG 0x0829fd43 每步均为 `mov %al,-0x9(%ebp); movzbl -0x9; xor $1; test;
     // je`（P73/P248 档②）——bool 具名局部 ok 的槽往返，16 次复用同一槽 -0x9；

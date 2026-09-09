@@ -2457,18 +2457,17 @@ int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& r
         return 1;
 
     std::vector<stStackableBoosterItemInfo_t> boosterList;
-    CStackableItem* stackable = static_cast<CStackableItem*>(item);
     // ORIG const 视图（find/end/==/-> 与 vector operator[] 全部 const 形；
     // P167：非 const 形会多发 2 个 const_iterator 转换构造并选错 find/end 重载）。
     // ORIG 0x08327894：命中（it != end）走主流程并置 ok=true，else 置 ok=false，
     // 尾部统一 `if(!ok) return 0; return 1;`（局部 vector 析构在 return 之前）。
-    const std::map<std::pair<char, char>,
-                   std::vector<stStackableBoosterItemInfo_t> >& bmap =
-        stackable->m_booster.m_map;
+    // P183/P157：ORIG 0x08327894 无 stackable/bmap 具名槽——map 基址每处
+    // 现场重算 `mov item,%eax; lea 0x24c(%eax),%ecx`（禁指针/引用缓存）。
     std::map<std::pair<char, char>,
              std::vector<stStackableBoosterItemInfo_t> >::const_iterator it =
-        bmap.find(std::make_pair(c1, c2));
-    if (it == bmap.end())
+        static_cast<CStackableItem*>(item)->m_booster.m_map.find(
+            std::make_pair(c1, c2));
+    if (it == static_cast<CStackableItem*>(item)->m_booster.m_map.end())
         return 0;
     {
         const std::vector<stStackableBoosterItemInfo_t>& src = it->second;

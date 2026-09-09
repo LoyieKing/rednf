@@ -1536,8 +1536,9 @@ public:
                                           unsigned int itemIdx);
     // ORIG 0x080e0ce2 (T)：static（无 this；内部经 Singleton<Manager>::Get() ->
     // CheckBuyableProduct）。返回 CheckBuyableProduct 结果（1=可购买；调用方取反判断）。
-    static int IsBuyableRestrictItem(CUser* user, unsigned int ipgNo,
-                                     unsigned int itemIdx, int type);
+    // [b28d-Main·检查点14 P292] int→bool：ORIG 调用点 `call;xor $1;test %al`；mangled 不变。
+    static bool IsBuyableRestrictItem(CUser* user, unsigned int ipgNo,
+                                      unsigned int itemIdx, int type);
     static void ClearBuyRestrictItem(CUser* user);
     static void LoadRequestBuyRestrictItem(CUser* user);
     static void SendSyncPacket(CUser* user);
@@ -3587,7 +3588,7 @@ public:
         void GetDailyBadge(short* out /*实为 ENUM_BADGE_TYPE 变体共用*/); // 0x8568e0c EPs（无返回值语义）；另有 0x8568e48 E15ENUM_BADGE_TYPE
         int GetETC(short key);                                      // 0x08697474 W
         // ---- Black list / trade punish ----
-        int deleteToBlackList(unsigned int id);                     // 0x0867f040 T
+        bool deleteToBlackList(unsigned int id);                    // 0x0867f040 T（[b28d-Main·P321-T3] 调用点 xor $1）
         void DelTradePunishType(int mask);                          // 0x086898c2 T
         // ---- Mouse register pad ----
         void discard_mouse_register();                              // 0x08680bd2 T
@@ -3683,7 +3684,7 @@ public:
                                                            // ORIG T 0x08691bae
     void SetGuildInfoProxy(STGuildProxy& proxy); void setHackUser(unsigned int a, unsigned int b, unsigned int c, unsigned int d, unsigned short type, unsigned int param6);
                                                            // ORIG T 0x0867f748
-        int  SetInventory(SIG_LOAD_INVENTORY* sig);        // ORIG T 0x0864d160（返回 int；非 void）
+        bool SetInventory(SIG_LOAD_INVENTORY* sig);        // ORIG T 0x0864d160（[b28d-Main·P321-T3] 调用点 xor $1 ⇒ bool）
         // SendDungeonClearList/SendEffectItemInfo/sendInformNoticeFlag/
         // sendReturnUserFirstLogin/SendRevengeDungeon/sendSecuRewardItem/
         // SendTagCharacInfo/set_acc_info/GetParty 已存在于头。

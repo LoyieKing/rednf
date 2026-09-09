@@ -636,12 +636,13 @@ int CAssaultPlace::_SendCloseAssault(CUser* user, int tick)
 // merge」族）。其余残余：帧 0x80 vs 0x70 + 全槽平移（N82/P112）、尾多 1 条
 // `jmp <epilogue>` 岛边（跨版本 nop;jmp 岛/jump-threading 族）、`add $0x70` vs
 // `sub $0xffffff80` 文本形差。语义完成、byte 层 N 封顶。
-// b28d-solo-CAssaultMgr: N 封顶（§6.2 三件套；清单 DIFF 347 复验）— ①clean
-// 口径 450/453（我方 +3：1×_Unwind_Resume + 尾 `jmp+nop` 岛 ×2）；②p167 calls
-// 63 vs 64，MISSING=0、EXTRA 仅 1×_Unwind_Resume（N104 EH 块序/merge 族）；
-// ③帧 `sub $0x70` 双方一致（旧「帧 0x80 vs 0x70/N115」判词本轮实测已不成立，
-// 帧已对齐），残差为 PacketGuard 槽 -0x30/-0x24 互换（N93 互斥块槽方向）+
-// N104 EH 尾块序 + N121 尾岛。无语义缺口。
+// b28d-solo-CAssaultMgr（2026-09-09）: **DIFF → IDENTICAL_AE**（TU diff 6→5、
+// ae 225→226）。两处结构修正使 ORIG 的 PacketGuard/EH 布局与 p167 同时归位：
+// ①leave 包（-0x24）作用域由独立块延到 082eb06f——ORIG 的 D1 在收尾链 +0x310
+//   之前、ghost 块 +0x2e8 之后 ⇒ 消掉我方独立 EH cleanup（EXTRA _Unwind_Resume）；
+// ②收尾链去掉冗余外层 `if(user!=0)`（裸作用域仅维持缩进）——ORIG +0x310 短路链
+//   自含 user 项，user==0 时仍落到 +0x3d0 的 m_field100 检查（旧形真语义差异）。
+// 修正后 clean 口径 orig 453 = ours 453、p167 calls 63=63 CLEAR。
 // 本轮两处**语义/结构修正**（原形为真语义反向 + 缺条件）：
 // ①82eb07a 收尾链 = `user != 0 && (!IsPowerWarEventOn() || vill != 7)` 嵌套
 //   `m_state <= 3 && index∈{0,1}`（旧德摩根形缺 user 项且把 m_state 并入外层链）；
@@ -652,8 +653,7 @@ int CAssaultPlace::_SendCloseAssault(CUser* user, int tick)
 // ============================================================================
 void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
 {
-    // b28d-L3: DIFF/N82 — ORIG 0x082ead6a 450/451 条；超大函数 N82 槽复用
-    // （帧/槽号全帧错位），p167 MISSING=0（无语义缺口）。
+    // b28d-solo-CAssaultMgr: IDENTICAL_AE（fresh .o 复验；ORIG 0x082ead6a 453 条）。
     if (index < 0 || index > 7)
         return;
 
@@ -681,11 +681,12 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
             _BroadcastRunaway(user, index);
 
         // ---- 82eaeb8：leave 包 + PowerWar 计数 ----
-        {
-            PacketGuard packet;
-            _MakeLeaveUser(&packet, index);
-            SendPacket(packet);
-        }
+        // b28d-solo-CAssaultMgr: ORIG -0x24 的 D1 在 082eb06f（收尾链 +0x310
+        // 之前、ghost 块 +0x2e8 之后）⇒ 原码作用域覆盖后续全部语句，非独立块
+        //（旧形析构紧跟 SendPacket，多 1 个独立 EH cleanup/_Unwind_Resume）。
+        PacketGuard packet;
+        _MakeLeaveUser(&packet, index);
+        SendPacket(packet);
         if (GlobalData::s_power_manager->IsPowerWarEventOn() &&
             user->getCurCharacVill() == 7)
         {
@@ -710,15 +711,17 @@ void CAssaultPlace::LeaveAssaultPlace(int index, bool delFlag, bool penaltyFlag)
             _DelUser(index, delFlag);
             if (!user->IsCurCharacGhost())
             {
-                PacketGuard packet;
-                _MakeUserState(&packet, user);
-                G_GameWorld()->send_all(packet);   // ORIG 82eb052 同形
+                PacketGuard statePacket;
+                _MakeUserState(&statePacket, user);
+                G_GameWorld()->send_all(statePacket);   // ORIG 82eb052 同形
             }
         }
     }
 
-    // ---- 82eb07a：user!=0 的收尾链 ----
-    if (user != 0)
+    // ---- 82eb07a：收尾链 ----
+    // b28d-solo-CAssaultMgr: ORIG +0x310 段无外层 `if(user!=0)` 包裹（user==0
+    // 时 %al=0 仍落到 +0x3d0 的 m_field100 检查；旧形多一层包裹 = 真语义差异，
+    // 与 Ghidra C 的 if/else-if/else 链一致）。裸作用域仅维持缩进，零代码生成。
     {
         // 非 PowerWar（或非村庄7）且状态<=3 且索引 0/1：双方队伍置 7 后关闭。
         // b28d-solo: ORIG 82eb1xx 段为短路链直接 test（无 bool 槽）⇒ P0 内联。
@@ -868,10 +871,12 @@ bool CExtraMatrix::CheckPoint(std::vector<MapArea>* areas,
 {
     // b28d-solo-CAssaultMgr: IDENTICAL_AE（清单 NEAR 2 → AE；路由口径复验）
     // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x82e5b4e
+    // b28d-solo-CAssaultMgr: P167 新判据（b28c C28L8）——ORIG 2×`deEv`(operator*)
+    // 而旧写 `it->m_x/m_y` 产 2×`ptEv`(operator->)；改 `(*it).m_*` 归位。
     for (std::vector<Point2d>::iterator it = m_points.begin();
          it != m_points.end(); ++it)
     {
-        if (IsIncludeVirtualMoveAreas(areas, it->m_x, it->m_y,
+        if (IsIncludeVirtualMoveAreas(areas, (*it).m_x, (*it).m_y,
                                       out.m_x, out.m_y, 0))
         {
             return true;
@@ -1696,9 +1701,14 @@ void CAssaultPlace::CloseAssault()
     }
     _SendUserState();
 
-    PacketGuard packet;
-    _MakeViewAssaultIconPlayer(&packet, false);
-    _SendPacketToArea(packet);
+    // b28d-solo-CAssaultMgr: ORIG 082e9ec0 在 _SendPacketToArea 后**立即**析构
+    // -0x34（jmp 跳过 landing pad 直落 D1）⇒ 原码是独立块，非函数级作用域
+    //（旧形析构落函数尾，多 `jmp+nop` 岛 ×2 + landing 位置偏移）。
+    {
+        PacketGuard packet;
+        _MakeViewAssaultIconPlayer(&packet, false);
+        _SendPacketToArea(packet);
+    }
 
     if (GlobalData::s_power_manager->IsPowerWarEventOn() && lastVill == 7)
     {

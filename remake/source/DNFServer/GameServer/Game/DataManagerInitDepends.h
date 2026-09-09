@@ -44,7 +44,7 @@ void SetCollectDungeonStatistic(bool flag);                   // _Z26SetCollectD
 bool prepareServerDelayCheckDamage(void);                     // _Z29prepareServerDelayCheckDamagev
 
 // ---- Etc 参数装载 ----
-int  importExperienceItemMapInfo(std::map<int, int>& m, bool second);              // _Z27..RSt3mapIii..b 0x089136a4
+bool importExperienceItemMapInfo(std::map<int, int>& m, bool second);              // _Z27..RSt3mapIii..b 0x089136a4；[b28d-Main·检查点14 P292] 调用点 xor $1 ⇒ bool
 bool importImageCommunicationInfo(const char* path,
                                   class ImageCommunicationData* out);              // _Z28..PKcP22ImageCommunicationData 0x08913dbc
 bool importBoosterGage(char* path, class BoosterGageData* out);                    // _Z17importBoosterGagePcP15BoosterGageData 0x08913a7e
@@ -144,7 +144,7 @@ struct stHellParty_t
 // 0x1b08 组下标重复 / 0x1aed 未知组名；"[hellparty script end]" → 0。
 int importHellPartyScript(const char* path, stHellParty_t& out);           // _Z21importHellPartyScriptPKcR13stHellParty_t
 int  importQuestShopScript(const char* path, class stQuestShop& out);      // 返回 0=成功
-int  initIndependentDropScript(char* dir, char* list);                     // _Z25initIndependentDropScriptPcS_
+bool initIndependentDropScript(char* dir, char* list);                     // _Z25initIndependentDropScriptPcS_（[b28d-Main·P321-T3] 调用点 xor $1 ⇒ bool）
 int  importVendingMachineInfo(const char* dir, const char* list,
                               std::vector<struct stVendingMachine_t>& out);// _Z24..（ORIG 返回错误码 0x1e73 空列表/0x1e7c Core 失败/0x1e83 列表加载失败，0=成功）
 bool initWorldMapScript(char* dir, char* list);                            // _Z18initWorldMapScriptPcS_

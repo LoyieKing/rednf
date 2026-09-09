@@ -589,7 +589,7 @@ bool Manager::InputBuyInfo(CUser* user, unsigned int ipgNo, unsigned int itemIdx
 // 静态转发：ARAD::Singleton<Manager>::Get()->CheckBuyableProduct(user, ipgNo, itemIdx, type)。
 // 返回 CheckBuyableProduct 的结果（1=可购买）；调用方（ItemVendingMachine::
 // ProcessBuyRequestEx）取反判定「不可购买」。
-int Manager::IsBuyableRestrictItem(CUser* user, unsigned int ipgNo,
+bool Manager::IsBuyableRestrictItem(CUser* user, unsigned int ipgNo,
                                    unsigned int itemIdx, int type)
 {
     return ARAD::Singleton<CerashopAddRestrict::Manager>::Get()

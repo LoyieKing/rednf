@@ -30,7 +30,11 @@ public:
 
         int m_itemIdx;   // +0x00
         int m_count;     // +0x04
-        int m_prob;      // +0x08
+        // [b28d-Main·检查点14 P321-S1] int→unsigned int（同宽 4B，偏移/sizeof 不变）：
+        //   T1 仅定 32 位（ORIG 0x0850f1ba `mov 0x8(%eax),%edx` 无扩展），符号性不可由 T1 区分；
+        //   T2 消费者形（0x0850f1bd 读-加-写四段）在 4.4 下仅 unsigned 字段+int 累加器可复现
+        //   （探针 /tmp/probe_sum2.cpp a1 vs a5/a6）⇒ S1 一次替代形命中。
+        unsigned int m_prob;   // +0x08
         char m_flag;     // +0x0c
     };
 

@@ -2604,7 +2604,7 @@ void CUser::DeleteCurrentCharacRentalItemInfo(int key)
 
 // ---------------------------------------------------------------------------
 // 19. CUser::deleteToBlackList(unsigned int) T 0x0867f040
-int CUser::deleteToBlackList(unsigned int id)
+bool CUser::deleteToBlackList(unsigned int id)
 {
     // ORIG 0x0867f056：`test %al,%al; je +0x12` ⇒ 正向 empty() 早退岛：
     //   867f05a: mov $0x0,%eax; 867f05f: jmp 867f102（技巧6 早退尾岛）
@@ -10588,7 +10588,7 @@ int CUser::setTagCharacInven(TAG_CHARAC_INVEN_DATA* data)
 // ---------------------------------------------------------------------------
 // [b28d-22 N82] ORIG 0x0864d160：p167=CLEAR，gap=11；语义完成、byte 层帧槽/物化族封顶。
 // [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x0864d160：N82 封顶——帧/槽差（p167 CLEAR，gap 11）。
-int CUser::SetInventory(SIG_LOAD_INVENTORY* sig)
+bool CUser::SetInventory(SIG_LOAD_INVENTORY* sig)
 {
     unsigned int money = sig->m_money;
     unsigned int coin = sig->m_coin;

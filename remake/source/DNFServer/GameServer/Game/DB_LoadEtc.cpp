@@ -698,25 +698,26 @@ bool DB_LoadEtc::LoadAuraAvatarOption(SIG_LOAD_ETC* sig)
             break;
         }
         int optionType;                 // ORIG 无预清（get_int 直写）
-        int value;
+        unsigned int value;             // [b28d-solo] 与 union 视角元素同型，消 4.4 的
+                                        // int→unsigned 装载中转（探针 /tmp/dble_probe/p9.cpp m2）
         if (!db->get_int(0, optionType))
         {
             return false;
         }
-        if (!db->get_int(1, value))
+        if (!db->get_int(1, *reinterpret_cast<int*>(&value)))
         {
             return false;
         }
         if (-1 < optionType && optionType < 3)
         {
-            // ORIG 0x084084af：mov -0x1c,%ecx; add $0x35cc,%ecx; mov %edx,(%eax,%ecx,4)
-            // ⇒ sig 的 int 数组视图（下标含常量 0x35cc），P30 两步寻址。
-            struct SigIntWordsView
-            {
-                char m_pad[0x35cc * 4];
-                long m_words[3];
-            };
-            ((SigIntWordsView*)sig)->m_words[optionType] = value;
+            // ORIG 0x084084af：mov -0x1c,%ecx; mov -0x20,%edx; mov 0xc(%ebp),%eax;
+            //   add $0x35cc,%ecx; mov %edx,(%eax,%ecx,4)
+            // ⇒ sig 的 uint 数组成员（下标含常量 0x35cc），P30 两步寻址。
+            // [b28d-solo-DB_LoadEtc] P235：必须是 SIG_LOAD_ETC 的**完整类型成员**直访问
+            //   （SigTypes_C.h +0xd730 匿名 union 视角 m_auraOptionWords，Main 代落）；
+            //   跨类型 cast 视图恒产 base-first（探针 /tmp/dble_probe/p8.cpp k4），
+            //   成员直访问逐条复现 ORIG 的 index→value→base（同探针 k1）。
+            sig->m_auraOptionWords[optionType] = value;
         }
         ++i;
     }
@@ -1204,11 +1205,15 @@ bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC* sig, ENUM_SKILL_TREE_KIND kind)
     };
     if (kind == 0)
     {
-        ((ComboSkillView*)sig)->m_tree1Count = (unsigned char)nRows;
+        // [b28d-solo-DB_LoadEtc] 去 `(unsigned char)` cast：ORIG 0x0844a5c7 为
+        //   `mov -0xc(%ebp),%eax; mov %eax,%edx; mov 0xc(%ebp),%eax; mov %dl,0x14aae(%eax)`
+        //   （int→uchar 异型 ⇒ RHS-first + eax→edx 中转，P211 档③）；
+        //   写 cast 使两侧同型 ⇒ 4.4 折成 LHS-first 直存。
+        ((ComboSkillView*)sig)->m_tree1Count = nRows;
     }
     else if (kind == 1)
     {
-        ((ComboSkillView*)sig)->m_tree2Count = (unsigned char)nRows;
+        ((ComboSkillView*)sig)->m_tree2Count = nRows;      // 同上（ORIG 0x0844a5e0）
     }
     if (kind == 0)
     {
@@ -1584,13 +1589,15 @@ bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC* sig)
     for (int col = 0; col <= 0xa; ++col)                     // cmpl $0xa setle → ≤10
     {
         // ORIG 地址式：sig + 0x10 + (col + 0x6b78)*2 = +0xd700 + col×2。
-        // 视图把 +0x10 作为数组成员基址偏移（而非折进索引常量）⇒ 4.4 保留
-        // 独立的 `add $0x10,%eax`（P30 两步寻址；直接下标恒折 `add $0x6b80`）。
+        // [b28d-solo-DB_LoadEtc] 成员数组**基址在 +0x10**、索引含常量 0x6b78
+        // （而非基址 0 + 索引 0x6b80）——4.4 保留独立的 `add $0x10,%eax`
+        // （P30/P311 两步寻址；基址 0 形恒被折进索引常量 0x6b80）。
         struct ItemMakingSkillView
         {
-            short m_rows[0x6b80 + 11];
+            char m_pad[0x10];
+            short m_rows[0x6b78 + 11];
         };
-        ok = db->get_short(col, ((ItemMakingSkillView*)sig)->m_rows[0x6b80 + col]);
+        ok = db->get_short(col, ((ItemMakingSkillView*)sig)->m_rows[0x6b78 + col]);
         if (!ok)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x15f2, 5)(
@@ -1666,7 +1673,16 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
         return false;
     }
     TOD_Layer layer(layerVal);                               // ORIG TOD_Layer C1(T)@0x085fe7b4
-    sig->m_todLastClearLayer = layer.m_layer;                // +0xd724（movw）
+    // [b28d-solo-DB_LoadEtc] P211 同型化：ORIG 0x08407114 为 base-first
+    // （`mov 0xc(%ebp),%eax` 先于 `movzwl -0x78(%ebp),%edx`）；直写具名字段
+    // 4.4 恒 RHS-first（探针 /tmp/dble_probe/p1.cpp f1）。具名视图 cast（同探针
+    // f7）复现 ORIG 的 base-first + 单 disp `mov %dx,0xd724(%eax)`。
+    struct TODLayerSlotView
+    {
+        char m_pad[0xd724];
+        unsigned short m_layer;
+    };
+    reinterpret_cast<TODLayerSlotView*>(sig)->m_layer = layer.m_layer;  // +0xd724（movw）
     ok = db->get_short(col++,
                        *reinterpret_cast<short*>(&sig->m_todEnterCountByWeek));
     if (!ok)

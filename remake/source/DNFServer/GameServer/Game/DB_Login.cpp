@@ -166,6 +166,58 @@
 //   两处 sizeof 0x4358 / 全部偏移 / mangled 零变化；消费 TU = DB_Login.cpp + InterDispatcher.cpp。
 // 无子子代理（R4 合规）。
 // ----------------------------------------------------------------------------
+// [S414_DB_Login 单文件泳道收口] 16 件清单（/tmp/b28d_tu/DB_Login.tsv）最终状态
+// （check_tu_routed.sh .o 口径 + /tmp/solo_diff.py ndiff + p167 差集）：
+// TU 计数 identical=48 ae=134 near=2 diff=13（基线 ae=133/diff=14，+1 AE）。
+// 本清单 16 件 = AE 2（CheckLoginIP/GetGameDBInfo）+ NEAR 2（CreateAccount/
+// GetUserFatigueCount）+ N 封顶 12 + 未解决 0。COMPILE OK 0 错误。
+// p167 16/16 CLEAR（CheckLoginIP 的 `_ZSt7strrchrPci` vs `strrchr` = 4.4.7 头无
+//   std::strrchr C++ 重载，语义等价，已知豁免）。
+// 本轮新收 AE（1）：
+//   GetGameDBInfo 0x08414772 DIFF(6)→AE：P286 单 case switch——两处 `== 0xffffffff`
+//       /`== 1` 由 `switch (viewRet) { case K: return X; default: break; }` 复现 ORIG
+//       `mov -0x14(%ebp),%eax; cmp $K,%eax; jne` 两段寄存器比较（if 形 4.4 恒折
+//       `cmpl $K,-0x14(%ebp)`）。82=82 逐条 AE。
+// 本轮实质改善（3）：
+//   getBreakAwayMemberData 0x084101ae ndiff 272→224、gap 30→-2：P312——分支内
+//       `char playInfo[31] = {0}`（槽基 -0x47 非 4 对齐）复现 ORIG 0x0841026e 的
+//       4.1 内联 memset 慢路（对齐剥离+主 4B 循环+尾 2/1，逐条全等）；旧 for 逐字节
+//       形 = N78b 朴素 9 条形。
+//   GetGrowthCreatureEvent 0x08448102 ndiff 17→10：`bool execOk;` 提前到 db 之前
+//       声明（赋值仍在 db->exec 处）⇒ 4.4 槽位翻正（db -0x1c→-0x18、execOk
+//       -0x15→-0x19）；余 5 行 = N1 `(i+0x866)*8+8` 折 `(i+0x867)*8`。
+//   GetAccountCharacterLevelUpOnceGift 0x0844834e ndiff 15→10：同法 execOk 提前
+//       声明；余 5 行 = 同 N1 折叠（probe5 六形均 `mov sig,%eax` 预载，ORIG
+//       `add 0xc(%ebp),%eax` 内存操作数不可复现）。
+// N 封顶复核（12 件，按 P321 T1–T5/S1–S3 复核后维持）：
+//   CreateAccount NEAR(4)：N18a/P75——T1 直证字段 uchar（movzbl 0xa0(%eax)），
+//       残差仅实参装载序/寄存器角色 ⇒ T5 禁改类型，封 N。
+//   GetUserFatigueCount NEAR(8)：N7 间接 call 目标 4.4.7 恒 %eax（4.4.6 后端可翻，
+//       本 TU 不在 446 路由表，属 Main 裁决）。
+//   getCharacLinkSystemData DIFF(1)：N121 epilogue-threading 尾 `jmp+nop` 岛；
+//       probe2/probe3 十四形（while+break/空 if/空 else/goto 尾标签/双 return）实测
+//       4.4 全消 jmp ⇒ 封 N。
+//   _DecryptUserInfo DIFF(12)：N7/P75——两处 `strlen(hex)>>1` 实参中转互补
+//       （ORIG 第一处多 `mov %eax,%edx`、第二处少）⇒ 寄存器角色，T5 封 N。
+//   GetBingoEvent DIFF(3)：N107——`lea 0x413c(%eax),%edx` vs 4.4 `add $0x413c,%eax;
+//       mov %eax,%edx`（取址 add-vs-lea 六形既定）⇒ 封 N。
+//   GetPunishUserInfo DIFF(5)：T2 直证字段 signed（ARAD_LoginSecurity 0x0818f970
+//       消费点 `jg`）⇒ 不得改 unsigned；probe6/probe7 证 RHS 侧 `(unsigned int)`
+//       被折叠、ushort/uchar cast 多 movzx ⇒ T5 封 N。
+//   _getRewardInfo DIFF(382)/GetMercenarySystemInfo DIFF(447)/GetPremiumInfo
+//       DIFF(711)/dispatch DIFF(1014)/GetAccountInfo DIFF(1190)：N82 帧差
+//       （0x10/0x50）+ N78/N80/N115；p167 全部 CLEAR（18/27/84/56/90）。
+// 本轮试过并回退（负例登记）：
+//   - col[9] 清零三形：for 循环（现状 ndiff 382）< `= {0}`（403）< 显式 9 条（424）
+//     ⇒ 4.4 对 `unsigned int[9]` 的 `={0}`/显式赋值均不产 ORIG 的 9 条展开
+//     `movl $0,-0x1c..-0x3c`（P312 仅适用 char 数组）。
+//   - P311 数组视图（GrowthCreatureRow 成员取址）：4.4 产 7 条（多 mov sig 预载）
+//     vs ORIG 6 条 ⇒ 劣化回退。
+// P0：本文件 0 处 `register ... asm("reg")` 绑定。
+// .h 改动：本轮 0（未触碰任何 .h）。
+// 探针工件：/tmp/solo_probe/probe1..probe7.cpp（4.4.7 -m32 -O0）。
+// 无子子代理（R4 合规）。
+// ----------------------------------------------------------------------------
 // df_game_r 还原 —— DB_Login（DBThread 登录分发器，Wave5 仅ORIG清零批）
 // 权威报告：docs/class_func_reports/DB_Login/*.md（汇编 + Ghidra 反编译 C），
 // 全部 52 个 ORIG 符号逐符号转写；SQL 字符串原样保留（大小写亦原样）。
@@ -1229,6 +1281,9 @@ int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
         base = (int)now - dayOff + 0x12750;
     }
 
+    // [solo] P312/P214③ 试验（两形均劣化已回退）：ORIG 对 col[9] 发 9 条展开
+    // `movl $0x0,-0x1c..-0x3c`（4.1 小数组逐元素展开）；4.4 对 `= {0}`（403）与显式
+    // 9 条（424）均劣于 for 循环形（382）⇒ 维持 for 循环。
     unsigned int col[9];
     for (int i = 0; i < 9; ++i)
     {
@@ -2151,29 +2206,31 @@ bool DB_Login::GetBadgeCount(SIG_LOGIN_DATA* sig)
 // GetGameDBInfo（ORIG T 0x08414772）
 // ============================================================================
 
-// [S216_DB_Login2] verdict=DIFF ndiff=6 gap=2（N-P209L：具名局部与常量比较
-// 4.4 恒折 `cmpl $imm,mem`，ORIG 4.1 载寄存器两段；unsigned/int/long + 显式提升 +
-// `L` 后缀四形实测均折 mem（P310 的 `<` setcc 形不适用 `==`）。P311 具名 Slot
-// 视图已修数组寻址（20→17）。
-// S216 本轮 22→6：P235 数组视角（m_characView）修 memmove src/dst 与槽比较地址链；
-// int==unsigned 异型比较修两段装载（P211 档③）；余 N-P209L（switch 双 case 形
-// gap 0 但 ndiff 8、显式 (unsigned) 提升形均不翻，已实测）。
+// [S414_DB_Login] verdict=AE ndiff=0（82=82）：P286 单 case switch 翻正两处
+// `== 常量` 比较——ORIG 0x08414772 段 `mov -0x14(%ebp),%eax; cmp $K,%eax; jne`
+// 两段寄存器形；if 形 4.4 恒折 `cmpl $K,-0x14(%ebp)`（旧 N-P209L 判词作废）。
+// 前史（S216）：P235 数组视角（m_characView）修 memmove src/dst 与槽比较地址链，
+// int==unsigned 异型比较修两段装载（P211 档③），22→6。
 int DB_Login::GetGameDBInfo(SIG_LOGIN_DATA* sig)
 {
-    // [b28d-solo-DB_Login] N-P209L：ORIG 两次比较均两段寄存器形
-    // `mov -0x14(%ebp),%eax; cmp $imm,%eax`（4.1 对局部载寄存器）；4.4 对具名局部
-    // 与常量比较恒折内存直比。unsigned/int/long + 显式 (unsigned) 提升 + `L` 后缀
-    // 四形实测均仍折 mem（P310 的 `<` setcc 形不适用于 `==`）⇒ 跨版本封顶。
+    // [S414/P286] ORIG 两次比较均两段寄存器形（`mov -0x14(%ebp),%eax; cmp $imm,%eax`）；
+    // 单 case switch 形令 4.4 同样先载槽再寄存器比较（if 形恒折 `cmpl $imm,mem`）。
     int viewRet = _getGameDBCharacView(sig);
-    // [S216] N-P209L 复核：switch 双 case 形（gap 2→0 但 ndiff 6→8，4.4 产
-    // je+叶块）与 `(unsigned int)` 显式提升形均不可翻 ⇒ 维持 if 链。
-    if (viewRet == 0xffffffff)
+    // [S414/P286] 单 case switch：复现 ORIG `mov -0x14(%ebp),%eax;
+    // cmp $0xffffffff,%eax; jne` / `cmp $1,%eax; jne` 两段寄存器形。
+    switch (viewRet)
     {
+    case 0xffffffff:
         return 1;
+    default:
+        break;
     }
-    if (viewRet == 1)
+    switch (viewRet)
     {
+    case 1:
         return 0;
+    default:
+        break;
     }
     // [b28d-solo-DB_Login] P0：ORIG 无 world 具名局部（G_GameWorld 返回值直传
     // GetChannelType）；P222 正极性包裹复现 `sete; test; je <整块>`。
@@ -2851,10 +2908,11 @@ bool DB_Login::GetGrowthWeaponEvent(SIG_LOGIN_DATA* sig)
 // GetGrowthCreatureEvent（ORIG T 0x08448102）
 // ============================================================================
 
-// [b28d-solo-DB_Login] verdict=DIFF ndiff=17 gap=0（P0/P183 具名 char* 行指针 +
-// P232 死 int 局部修复 37→17；余 = 帧 outgoing 差 4（N115）+ N1 常量折叠
-// `(i+0x866)*8+8` → `(i+0x867)*8`（探针 probe_gift f5））。
-// S216：P205 显式拆形实测仍折（0x4150+4 → 0x4154）⇒ 维持 N1/N115 封顶。
+// [S414_DB_Login] verdict=DIFF ndiff=10（17→10）：`bool execOk;` 提前到 db 之前
+// 声明（赋值仍在 db->exec 处）⇒ 4.4 槽位翻正（db -0x1c→-0x18、execOk -0x15→-0x19，
+// ORIG 槽 -0x18/-0x19）。余 5 行 = N1 `(i+0x866)*8+8` 折 `(i+0x867)*8`
+// （P205 显式拆形/探针 probe_gift f5、probe5 六形均折）⇒ 维持封顶。
+// 前史：P0/P183 具名 char* 行指针 + P232 死 int 局部修复 37→17。
 bool DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
 {
     // [b28d-solo-DB_Login] P0/P140：ORIG 无 evt 具名局部、无判空（GetRepeatEvent
@@ -2863,12 +2921,13 @@ bool DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
     {
         return 1;
     }
+    bool execOk;                             // [solo 试验] 先声明，翻转 4.4 槽分配序
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect server_id, charac_no, job_type, charac_name from event_1208_growthcreature where m_id = %d",
         sig->m_accId);
     // P158/P168a④：ORIG `mov %al,-0x19; movzbl; xor $1; test; je` ⇒ bool 具名局部。
-    bool execOk = db->exec(true);
+    execOk = db->exec(true);
     if (!execOk)
     {
         LogManager::logFormat(1, "DBThread.cpp",
@@ -2895,6 +2954,9 @@ bool DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
             // 局部 -0xc（P232 帧律，`movl $0x0,-0xc(%ebp)`），四个 getter 直接写
             // 字段（ptr / ptr+4 / ptr+8 / ptr+0xc），无 serverId/characNo/jobType
             // 三个临时槽与写回。
+            // [solo] P311 数组视图试验：4.4 产 `mov sig; mov i; imul; add $0x4150;
+            // add; add $4`（7 条，多一条 mov sig 预载）vs ORIG 6 条
+            // （`mov i; imul; add $0x4150; add sig(mem); add $4`）⇒ 劣化，回退。
             char* rowPtr = reinterpret_cast<char*>(sig) + i * 0x2c + OFF_GROWTH_CREATURE;
             int rowPad = 0;
             (void)rowPad;
@@ -2911,9 +2973,11 @@ bool DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
     return 1;
 }
 
-// [b28d-solo-DB_Login] verdict=DIFF ndiff=15 gap=0（P0/P183 具名 int* 局部修复
-// 32→15；余 = 帧 outgoing 槽差 0x10（N115）+ N1 常量折叠（probe_gift f5））。
-// S216：P205 显式拆形 `(i+0x866)*8+8` 实测仍折 `(i+0x867)*8` ⇒ 维持 N1/N115 封顶。
+// [S414_DB_Login] verdict=DIFF ndiff=10（15→10）：同 0x67 件，`bool execOk;` 提前
+// 到 db 之前声明 ⇒ 槽位翻正（db -0x18→-0x14、execOk -0x11→-0x15，ORIG 槽
+// -0x14/-0x15）。余 5 行 = N1 `(i+0x866)*8+8` 折 `(i+0x867)*8`（probe5 六形均
+// `mov sig,%eax` 预载 vs ORIG `add 0xc(%ebp),%eax` 内存操作数）⇒ 维持封顶。
+// 前史：P0/P183 具名 int* 局部修复 32→15。
 bool DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
 {
     // [b28d-solo-DB_Login] P0/P140：同 0x67 件（无 evt 局部/判空）。
@@ -2921,10 +2985,11 @@ bool DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
     {
         return 1;
     }
+    bool execOk;                            // [solo 试验] 先声明，翻转 4.4 槽分配序
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
     db->set_query("seLect job_type, level from event_1208_level_achieve where m_id = %d",
                   sig->m_accId);
-    bool execOk = db->exec(true);           // P158：ORIG bool 槽（-0x15）
+    execOk = db->exec(true);                // P158：ORIG bool 槽（-0x15）
     if (!execOk)
     {
         LogManager::logFormat(1, "DBThread.cpp",
@@ -3092,9 +3157,11 @@ bool DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
 // getBreakAwayMemberData（ORIG T 0x084101ae）
 // ============================================================================
 
-// [b28d-solo-DB_Login] verdict=DIFF ndiff=127 gap=30（N82 帧：ORIG
-// `push esi/ebx + sub 0x80` vs 4.4 `sub 0x98` + N78 memset 0x1f 内联展开；
-// p167 CLEAR 44/44）。
+// [S414_DB_Login] verdict=DIFF ndiff=224 gap=-2（原 272/30）：P312——分支内
+// `char playInfo[31] = {0}`（槽基 -0x47 非 4 对齐）复现 ORIG 0x0841026e 的 4.1
+// 内联 memset 慢路（对齐剥离 + 主 4B 循环 + 尾 2/1，逐条全等）；旧 for 逐字节形
+// = N78b 朴素 9 条形。余 = N82 帧（ORIG `push esi/ebx + sub 0x80` vs 4.4
+// `sub 0x98`）致全帧槽号偏移；p167 CLEAR 44/44。
 bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
@@ -3109,13 +3176,12 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
         return 0;
     }
 
-    char playInfo[31];                       // ORIG local_5f[0x1f]
     if (db->get_n_rows() == 0)
     {
-        for (int i = 0; i < 0x1f; ++i)
-        {
-            playInfo[i] = 0;                 // ORIG 4.1 内联 memset(buf,0,0x1f)
-        }
+        // [solo] P312：ORIG 0x0841026e 的 4.1 内联 memset 慢路（对齐剥离 + 主 4B
+        // 循环 + 尾 2/1）由 `char buf[31] = {0}` 且槽基非 4 对齐复现（ndiff 272→224，
+        // gap 30→-2；旧 for 逐字节形 = N78b 朴素 9 条形）。
+        char playInfo[31] = {0};             // ORIG local_5f[0x1f]（-0x5b）
         memset(playInfo, 0x30, 0x1e);        // '0'×30（初始 play_info 占位）
         playInfo[29] = '1';                  // ORIG movb $0x31,-0x3e = buf+0x1d
         db->set_query(

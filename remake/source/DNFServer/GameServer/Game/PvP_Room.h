@@ -86,7 +86,7 @@ public:
     int set_pvp_mode(CUser* user, int mode);
     int ChangePvPMode(int mode);
     int check_joinable(CUser* user);
-    int CheckPvPMapMode(CUser* user, int mapNo, bool& flag);
+    bool CheckPvPMapMode(CUser* user, int mapNo, bool& flag);   // [b28d-Main·检查点14 P292] 调用点 0x… `call;xor $1;test %al`；定义 0x085dd936 返 0/1
     bool IsQuickJoinablePVPRoom(CUser* user);
     // [b28d-solo-PvP_Room] P292/P248 档①：ORIG 0x085dd070 调用点 `xor $0x1; test; je`
     // ⇒ 返回 bool（mangled 不含返回类型，零 ABI 风险；body 仅返 0/1）。
@@ -114,7 +114,7 @@ public:
     bool check_winner();   // ORIG 体尾 movw $0,%ax（bool 规范化）；[b23S3C] P9/P159
     int check_recv_pvp_rank();
     bool check_team_pvp();   // [b28d-solo-PvP_Room] P248 档①/P292：ORIG set_ready_state 调用点 `call; xor $1,%eax; test %al; je` ⇒ bool（mangled 不变）
-    int set_recv_pvp_rank_flag(CUser* user);
+    bool set_recv_pvp_rank_flag(CUser* user);                   // [b28d-Main·检查点14 P292] 定义 0x085dbf82 返 0/1；消费点仅 DisPatcherCore.cpp:11328 `!f()`
     int set_recv_pvp_end_result_flag(CUser* user);
     bool IsThereSameGuildMember();
     int insert_timer_recv_pvp_rank();

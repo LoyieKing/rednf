@@ -2,6 +2,29 @@
 // df_game_r GlobalData（D1 组）还原。
 // 函数形态/字符串/池尺寸均取自 ORIG 反汇编与 Ghidra C。
 // 外部类（后续批次）仅在本 TU 以最小 stub 声明，符号留给 ORIG/后续 TU。
+//
+// ============================================================================
+// [b28d-solo-GlobalData 泳道判词] 清单 /tmp/b28d_tu/GlobalData.tsv（44 件）。
+// 开工基线 check_tu_routed：identical=832 ae=1637 near=9 diff=54；
+// 收口：identical=832 ae=1639 near=8 diff=53（AE +2，无劣化）。
+// 修复转 AE 两件（证据）：
+//   ① CGM_Manager::LoadGmListFromDb 0x08299530 —— ORIG 三处 cMyTrace 各占独立
+//      槽（-0x44/-0x34/-0x24，4.1 不复用），具名对象在 4.4 下复用同槽致全帧浅
+//      0x30 ⇒ 改 P221 全表达式临时链 `cMyTrace(a,b,c)(fmt)` 后 AE。
+//   ② ItemVendingMachine::_CheckEnableAvatarCondition 0x08176794 —— 首调
+//      GetRelatedItem 无槽往返（P0 内联）、去 vec 具名指针（P183）、
+//      `cmp -0x1c(%ebp),%al; jg` 8 位有符号比较（T1 直证 char）后 87=87 AE。
+// 改善未闭合两件：
+//   PunishClient 0x080de3ee 74→68（P259 Acquire 内联 + info 前 8 字节结构整体
+//     赋值 + field04 `mov %al` 1 字节；残差=ORIG 尾部 `mov $0,%ebx; mov %ebx,%eax`
+//     返回 int，本 TU 头声明 void ⇒ 需 R2 改 CBusinessImpl.h 返回类型，已报 Main）。
+//   CheckInventoryEmptyCount 0x0827108c 103→96（P63 共享出口改嵌套正向 if；
+//     残差=ORIG `xor $1;test;jne RET1` vs 4.4 恒 `je NEXT`，极性恒折 ⇒ N）。
+// 其余件按 N 类封顶（逐函数头有证据判词）：N18b 比较方向（CServerProxyMgr D1 ×3，
+// 模板体在 CServerProxyMgr.h，R1 禁改 .h）、N7 寄存器角色轮换、N82/N95 槽位分配、
+// N80 cMyTrace varargs 求值序、N4/P30 add-vs-mem、N-EH 占位定义可见性、
+// N-数据缺失（CHumanCertifier 人证表内容不可还原）。
+// ============================================================================
 
 #include "GlobalData.h"
 #include "PCRoomServerProxy.h"   // CPCRoomServerProxy 权威（原 TU 局部定义收敛，Fix14_I）
@@ -2019,23 +2042,25 @@ void DispatchThread::dispatch(void* arg)
 // EPOLLIN(1)/EPOLLOUT(4)/错误掩码(0x18)；sendSize>0x6ddd0(450000) 判定
 // 发送缓冲过大 → DisConnSig(6)。
 // ---------------------------------------------------------------------------
-// [b28d-18 N82] p167 CLEAR（29/29）；残差=帧槽/寄存器（N82） | ORIG 0x0857d5be
-// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（29/29）；gap 5=N82 槽位/寄存器。
+// [b28d-solo-GlobalData] 修结构差（p167 29/29 CLEAR）：①s_server_stop 检查搬到
+// 循环尾（ORIG 0x0857d89d `movzbl s_server_stop; xor $1; test; jne body` 为回边
+// 目标，trace 落循环外函数尾 0x0857d8af）⇒ `while(!stop){body} trace;`；
+// ②去 epoll 具名局部（P183，ORIG 0x0857d5c6 直 `call G_EpollHandler; mov %eax,(%esp)`）。
+// 余 gap=6/N82 槽位（帧 0x60 vs 0x?）⇒ N82 封顶。
 void NetworkThread::dispatch(void* arg)
 {
     (void)arg;
-    EpollHandler* epoll = G_EpollHandler();
-    epoll_event* events = epoll->GetEpollEvents();
+    // [b28d-solo-GlobalData] P183：ORIG 0x0857d5c6 无 epoll 具名局部
+    // （`call G_EpollHandler; mov %eax,(%esp); call GetEpollEvents`）。
+    epoll_event* events = G_EpollHandler()->GetEpollEvents();
     int epollfd = G_EpollHandler()->GetEpollFD();
 
-    while (true)
+    // [b28d-solo-GlobalData] ORIG 0x0857d89d：s_server_stop 检查在**循环尾**
+    // （`movzbl s_server_stop; xor $1,%eax; test %al,%al; jne body`，+0x2df 即
+    // 回边目标），trace 落循环外函数尾 ⇒ 原码 `while (!stop) { body } trace;`。
+    // 循环头 `if(stop){trace;return;}` 会把检查搬到头部并多出 movzbl/test 段。
+    while (!GlobalData::s_server_stop)
     {
-        if (GlobalData::s_server_stop)
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x2fe, 0);
-            trace("RecvThread Terminate");
-            return;
-        }
         *__errno_location() = 0;
         OS_API::Sleep(10);
 
@@ -2097,6 +2122,9 @@ void NetworkThread::dispatch(void* arg)
             }
         }
     }
+    // ORIG 0x0857d8af：循环退出后统一 trace + 落函数尾（P223 尾岛 nop）。
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x2fe, 0);
+    trace("RecvThread Terminate");
 }
 MonitorTcpThread::MonitorTcpThread() {}  // ORIG 0x857d8f0
 AcceptThread::AcceptThread()
@@ -3354,12 +3382,8 @@ void WongWork::CSimpleSSO::init(MySQL* mysql)
             // [b28d-solo-GlobalData] 索引加法序两形（row*24+col / col+row*24）实测 4.4
             // 恒折 `add -0xc(%ebp),%eax` 内存版，ORIG 4.1 先 `mov col,%ecx` 寄存器版
             // ⇒ P30/N4 add-vs-mem 封顶（余 1 条 + 槽深差 4）。
-            // [b28d-solo-GlobalData] 二维视图实测：ORIG 0x08602823 先
-            // `mov -0xc(%ebp),%ecx` 再 `add %ecx,%eax`（col 寄存器化），
-            // 一维展开式 4.4 恒折 `add -0xc(%ebp),%eax`。
-            m_keys[row][col].Initialize(
-                reinterpret_cast<const char* const (*)[24]>(strKeyTable_)[row][col],
-                0x20, CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
+            m_keys[row][col].Initialize(strKeyTable_[row * 24 + col], 0x20,
+                                        CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
         }
     }
 }
@@ -4046,32 +4070,40 @@ bool ItemVendingMachine::_CheckEnableStateCondition(const CCeraShopGoods*, CUser
 // _CheckEnableAvatarCondition —— ORIG 0x08176794 (T)
 // ORIG 代码形态（Fix18_E 实证）：GetRelatedItem 两次调用、IsAvatarItem 前
 // 无判空、out 经 stAvatarTypeSelect_t::init() 清零、四字段各自下标访问。
-// [b28d-18 N82] 残差=槽位/寄存器分配（N82） | ORIG 0x08176794
-// [b28d-solo-GlobalData] DIFF 封顶：p167 逐调用同形；残差=N82 槽位/寄存器分配。
+// [b28d-solo-GlobalData] 已修 AE 87=87（p167 10/10 CLEAR）：①首调 GetRelatedItem
+// 结果 ORIG 0x081767a6 无槽往返（`call; mov (%eax),%edx; add $0x10,%edx;
+// mov (%edx),%edx; mov %eax,(%esp); call *%edx`）⇒ 内联 IsAvatarItem（P0）；
+// ②去 vec 具名指针（P183，ORIG 仅 equip -0x10/select -0xc 两槽）；③范围比较
+// ORIG 0x0817680f `cmp -0x1c(%ebp),%al; jg` = 8 位有符号（T1 直证 char）。
 bool ItemVendingMachine::_CheckEnableAvatarCondition(const CCeraShopGoods* goods,
                                                      char c, unsigned char uc,
                                                      stAvatarTypeSelect_t& out)
 {
-    CItem* related = goods->GetRelatedItem();
-    if (!related->IsAvatarItem())
+    // [b28d-solo-GlobalData] ORIG 0x081767a6：首次 GetRelatedItem 结果**无槽往返**
+    // （`call; mov (%eax),%edx; add $0x10,%edx; mov (%edx),%edx; mov %eax,(%esp);
+    // call *%edx`）⇒ 原码内联 `goods->GetRelatedItem()->IsAvatarItem()`（P0）；
+    // 具名 related 局部会多 store/load 并把后续槽整体顶深。
+    if (!goods->GetRelatedItem()->IsAvatarItem())
         return false;
     out.init();
-    related = goods->GetRelatedItem();
-    CEquipItem* equip = static_cast<CEquipItem*>(related);
+    CEquipItem* equip = static_cast<CEquipItem*>(goods->GetRelatedItem());
     // ORIG 0x08176794 段（p167 MISSING `operator[](unsigned int) const`×4）：
     // 原码是 const 引用视图 ⇒ 声明 const 指针转型（P270 旋钮）。
-    void* vec = equip->getAvatarTypeSelect();
+    // ORIG 0x081767e4..0x081767f2 只有 equip(-0x10)/select(-0xc) 两个槽，
+    // 中间无 vec 具名指针 ⇒ 内联 cast（P183 去缓存）。
     const std::vector<stAvatarTypeSelect_t>& select =
-        *static_cast<const std::vector<stAvatarTypeSelect_t>*>(vec);
-    int idx = (signed char)c;
-    if (select.empty() || idx >= (int)select.size())
+        *static_cast<const std::vector<stAvatarTypeSelect_t>*>(
+            equip->getAvatarTypeSelect());
+    // ORIG 0x0817680f `cmp -0x1c(%ebp),%al; jg` ⇒ 8 位有符号比较
+    // （`(signed char)size() > c`；P287 同族），无具名 idx 局部。
+    if (select.empty() || (signed char)select.size() <= c)
         return false;
     if (uc >= 100)
         return false;
-    out.m_fieldc = select[idx].m_fieldc;
-    out.m_field4 = select[idx].m_field4;
-    out.m_field8 = select[idx].m_field8;
-    out.m_field0 = select[idx].m_field0;
+    out.m_fieldc = select[(signed char)c].m_fieldc;
+    out.m_field4 = select[(signed char)c].m_field4;
+    out.m_field8 = select[(signed char)c].m_field8;
+    out.m_field0 = select[(signed char)c].m_field0;
     return true;
 }
 
@@ -4815,10 +4847,11 @@ CGM_Manager::~CGM_Manager()
 }
 // b28c-l23 SIGFIX：返回类型 char→bool（ORIG __PRETTY_FUNCTION__ 串 + 体尾
 // `movzbl -0x11(%ebp),%ebx` 直返 bool 局部；char 声明使 4.4 出 movsbl）。
-// [b28d-18 N82] p167 CLEAR（17/17）；残差=槽位分配（ORIG -0x48/-0x4c vs 4.4 -0x18/-0x1c） | ORIG 0x08299530
-// [b28d-solo-GlobalData] NEAR 封顶 N82：p167 CLEAR（17/17）；残差=栈槽分配
-// （ORIG 深槽 -0x48/-0x4c vs 4.4 -0x18/-0x1c，4.4 按首次使用序 vs 4.1 声明序）
-// + 全局符号地址重定位显示伪差（`movl $<L>` vs `movl <L>`）。
+// [b28d-solo-GlobalData] 已修 AE（p167 17/17 CLEAR）：ORIG 0x08299530 三处
+// cMyTrace 各占独立槽（`lea -0x44/-0x34/-0x24` 三组互异，4.1 不复用），具名
+// 对象在 4.4 下复用同槽致全帧浅 0x30（-0x48/-0x4c vs -0x18/-0x1c）⇒ 按 P221
+// 改「构造即调用」全表达式临时链 `cMyTrace(__PRETTY_FUNCTION__,line,0)(fmt)`，
+// 三处独立槽与 ORIG 逐条对齐（余重定位显示伪差，relink 后 AE）。
 bool CGM_Manager::LoadGmListFromDb()
 {
     // [b23S3C] ORIG 0x08299530：ok 即返回变量（exec/get_int 逐次覆写），
@@ -5314,8 +5347,12 @@ int CBusinessImpl::SendBuffertoClient(int a, int b, int c, unsigned int d,
     return 0;
 }
 
-// [b28d-18 N82] p167 CLEAR（12/12）；残差=槽位/寄存器分配 | ORIG 0x080de3ee
-// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR；残差=N82/N7 槽位与寄存器角色。
+// [b28d-solo-GlobalData] 改善 74→68（p167 12/12 CLEAR）：P259 去 stream 具名
+// 局部（ORIG 0x080de3f6 `call Acquire; movl $1,0x8(%esp); mov %eax,0x4(%esp)`）+
+// info 前 8 字节结构整体赋值（ORIG 0x080de46c `mov 0x4(%eax),%edx; mov (%eax),%eax`
+// 先高字后低字）+ body.field04 1 字节（ORIG 0x080de469 `mov %al,-0x1c`，T1 直证）。
+// 残差：ORIG 尾部 `mov $0x0,%ebx … mov %ebx,%eax` ⇒ 原函数返回 int 0，本 TU 头
+// 声明 void（CBusinessImpl.h:34/48）⇒ 需 R2 改头，已报 Main。
 void CBusinessImpl::PunishClient(int a, int b, unsigned int c, EPUNISHMODE mode,
                                  tagAntibotPunishInfo* info, char* reason)
 {
@@ -5324,25 +5361,34 @@ void CBusinessImpl::PunishClient(int a, int b, unsigned int c, EPUNISHMODE mode,
     (void)reason;
     // ORIG 0x080de3ee：StreamPool 取流；CStreamGuard(stream,true)；<<0x253 <<-1；
     // put_binary({uint c; EPUNISHMODE mode(byte); info 前 8 字节}, 0x10)。
-    Stream* s = GlobalData::s_stream_pool->Acquire("BusinessImpl.cpp", 0x59);
-    CStreamGuard guard(s, true);
+    // [b28d-solo-GlobalData] P259：ORIG 0x080de3f6 无 stream 具名局部
+    // （Acquire 结果经 %eax 直传 guard ctor 的 0x4(%esp)）⇒ 内联实参。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("BusinessImpl.cpp", 0x59),
+                       true);
     **guard << 0x253;
     **guard << -1;
+    // [b28d-solo-GlobalData] ORIG 0x080de46c：`mov 0x4(%eax),%edx; mov (%eax),%eax;
+    // mov %eax,-0x18; mov %edx,-0x14` = info 前 8 字节**结构整体赋值**
+    // （4.1 先读高字后读低字）；逐字赋值会反序且多具名指针局部。
+    struct PunishTail
+    {
+        int field08;
+        int field0c;
+    };
     struct
     {
         unsigned int field00;
-        EPUNISHMODE field04;
-        int field08;
-        int field0c;
+        // ORIG 0x080de469 `mov %al,-0x1c` ⇒ field04 为 1 字节（枚举形参按
+        // 4 字节栈槽读入后截断存储）；声明 EPUNISHMODE（4 字节）会生 4 字节 store。
+        unsigned char field04;
+        PunishTail tail;
     } body;
     body.field00 = c;
-    body.field04 = mode;
+    body.field04 = (unsigned char)mode;
     // tagAntibotPunishInfo 完整布局未建模（CBusinessImpl.h 仅前向声明，
-    // 「antibot 域完整布局待专门批次」）；ORIG 080de3ee 取 info 前两 dword。
-    // 布局未建模，P156 豁免保留指针读。
-    const int* infoWords = reinterpret_cast<const int*>(info);
-    body.field08 = infoWords[0];
-    body.field0c = infoWords[1];
+    // 「antibot 域完整布局待专门批次」）；ORIG 080de3ee 取 info 前两 dword
+    // 作 8 字节块赋值，此处以等价视图类型表达。
+    body.tail = *reinterpret_cast<const PunishTail*>(info);
     guard->put_binary(&body, 0x10);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
 }
@@ -7372,9 +7418,10 @@ bool CheckInventoryEquipmentEmptyCount(CUser& user, int need)
 }
 
 // ---- CheckInventoryEmptyCount —— T 0x0827108c（同名报告全文转写）-----------
-// [b28d-18 N82] p167 CLEAR（16/16）；残差=槽位/寄存器分配 | ORIG 0x0827108c
-// [b28d-solo-GlobalData] DIFF 封顶 N（P63）：ORIG 7 处 `xor $1;test;jne +0x15d`
-// 全部直达同一 `mov $1` 尾块（4.1 共享 return 块），4.4 对每个 if-return 独立发
+// [b28d-solo-GlobalData] 改善 103→96（p167 16/16 CLEAR）：P63 共享出口改写为
+// 嵌套正向 if 包裹（消 4.4 每处独立 `mov $1;jmp` 中继）。残差 N：ORIG 7 处
+// `xor $1;test;jne +0x15d` 全部直达同一 `mov $1` 尾块，4.4 恒产 `je NEXT`
+// 极性（P222 正向包裹/短路链/goto 三形均实测不翻）⇒ 极性恒折封顶。
 // `je next; mov $1; jmp`（+14 条）；goto 尾标签形（探针 /tmp/b28d_probe_pol.cpp t2）
 // 得 jne 但每源多 1 个 nop 岛（+7），嵌套正向 if/`||` 链（t3/t6）丢 xor 或末项
 // 物化 ⇒ 无源码解。**真语义 bug 修正**：ORIG jne 落点 +0x15d 即 return 1 ⇒
@@ -7388,39 +7435,37 @@ bool CheckInventoryEmptyCount(CUser& user, int need)
     // `if (cVar1 == 1) { … } return 1;`）；旧重建写 `return false` 与 ORIG 相反。
     // 末检查 0x082711e7 `jl +0x164(=mov $0,%eax)` ⇒ GetRemainCapacity < need 才
     // return 0，否则 return 1。照抄 ORIG 可观察行为（P171）。
-    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)1, need))
+    // [b28d-solo-GlobalData] P63/P296 共享出口改写：ORIG 7 处 `xor $1;test;jne +0x15d`
+    // 全部直达同一 `mov $1` 尾块（4.1 共享 return 块）；平铺 if-return 令 4.4
+    // 每处独立发 mov$1+jmp，短路链 `&&` 则反产 `je NEXT`。改嵌套正向 if 包裹
+    // （P296 消同层多中继岛 + P222 否定早返改正向包裹）。
+    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)1, need))
     {
-        return true;
-    }
-    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)2, need))
-    {
-        return true;
-    }
-    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)3, need))
-    {
-        return true;
-    }
-    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)10, need))
-    {
-        return true;
-    }
-    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)9, need))
-    {
-        return true;
-    }
-    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)5, need))
-    {
-        return true;
-    }
-    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)6, need))
-    {
-        return true;
-    }
-    // ORIG 0x082711e4 `cmp 0xc(%ebp),%eax; jl +0x164` —— remain < need 直返 0。
-    if (user.getCurCharacInvenR()->GetRemainCapacity((INVEN_TYPE)2,
-                                                     (Inven_Item::ITEM_TYPE)8) < need)
-    {
-        return false;
+        if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)2, need))
+        {
+            if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)3, need))
+            {
+                if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)10, need))
+                {
+                    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)9, need))
+                    {
+                        if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)5, need))
+                        {
+                            if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)6, need))
+                            {
+                                // ORIG 0x082711e4 `cmp 0xc(%ebp),%eax; jl +0x164`
+                                // —— remain < need 直返 0。
+                                if (user.getCurCharacInvenR()->GetRemainCapacity(
+                                        (INVEN_TYPE)2, (Inven_Item::ITEM_TYPE)8) < need)
+                                {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     return true;
 }

@@ -184,8 +184,8 @@ CAlchemist::~CAlchemist()
 
 // ---- CAlchemist::OnTeleportCharacter（报告 OnTeleportCharacter.md，
 //      ORIG T 0x085d1424 sz 0x26f）----
-int CAlchemist::OnTeleportCharacter(CUser* user, int vill, int area, int x,
-                                    int y, bool useGate)
+bool CAlchemist::OnTeleportCharacter(CUser* user, int vill, int area, int x,
+                                     int y, bool useGate)
 {
     if (useGate)
     {

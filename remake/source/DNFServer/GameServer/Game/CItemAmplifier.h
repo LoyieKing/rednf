@@ -322,9 +322,13 @@ public:
 
     // ORIG 0x08900436：按 rarity/growthGrade/upgrade/equipType 计算 upgrade_info 到 out。
     // 返回 0 表示越界/失败，1 表示成功。
-    int get_upgrade_info(upgrade_info_t* out, unsigned char rarity,
-                         unsigned char growthGrade, unsigned char upgrade,
-                         ENUM_EQUIPMENTTYPE equipType) const;
+    // [b28d-Main·检查点14 P292] int→bool：_GetUpgradeInfo 尾直返本函数结果
+    //   （ORIG 0x08546816 `call; add; pop; ret` 无归一化）⇒ 本函数亦须 bool，
+    //   否则 bool 化后的 _GetUpgradeInfo 会多出 setne 归一化。消费点仅
+    //   CItemUpgrade.cpp:324（return 直传）。
+    bool get_upgrade_info(upgrade_info_t* out, unsigned char rarity,
+                          unsigned char growthGrade, unsigned char upgrade,
+                          ENUM_EQUIPMENTTYPE equipType) const;
     // ORIG 0x089003ee：判断惩罚类型；返回 3 或 upgrade_info.m_discountBase 编码值。
     int GetPenaltyType(unsigned char upgrade, ENUM_RARITY rarity,
                        const upgrade_info_t* info) const;

@@ -316,7 +316,12 @@ case "$src" in
             *Game/OnlinePreliminaryTeam.cpp | \
             *Game/Inter_DispatcherAradOnly.cpp | \
             *Game/AvatarConvertServer.cpp | \
+            *Game/DB_LoadEtc.cpp | \
             *Game/W9_EventSmall.cpp)
+                # b28d-S419：DB_LoadEtc 的间接 call 目标寄存器同族（ORIG 0x08405c9e
+                # `mov (%eax),%edx; mov -0x14(%ebp),%eax; call *%edx` vs 4.4.7 %eax）。
+                # 实测 4.4.7 identical=4/ae=46/near=2/diff=14 → 4.4.6 identical=4/
+                # ae=48/near=0/diff=14 ⇒ 零回归。
                 # b28d-S314：Inter_DispatcherAradOnly::dispatch_sig 的 N7（间接 call
                 # 目标 %eax↔%edx）属后端敏感族；4.4.7 下 NEAR（助记符全等），
                 # 换 446 后端（-B cc1plus446bin）即 AE 归零。

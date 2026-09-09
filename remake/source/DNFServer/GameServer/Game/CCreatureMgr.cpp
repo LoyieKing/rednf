@@ -199,6 +199,9 @@ void CCreature::SetState(CUser* user, CREATURE_STATE state)
     // 0x83371ac/0x1ae 三条判定全部「假则前跳」到 0x0d4 复活测试块，定时器分支走
     // fall-through ⇒ 原码先判 timer 条件（&& 短路正向形），else 内再判复活条件；
     // 旧 || 负形使 4.4 产出 xor $0x1（bool==0 折叠）+ 块序倒置。语义等价。
+    // [P321-S1 已试] 交换左右操作数后 4.4 仍产 `mov 0x3c,%edx; mov state,%eax;
+    // cmp %eax,%edx`（两寄存器比较）⇒ 恢复直证形；残余 = P209/N18b 形参 mem 直比
+    // 不可造（4.4 恒载入寄存器）。ORIG 0x8337192 `cmp 0x10(%ebp),%eax`。
     if ((int)state != m_state && (int)state == 1 && m_isGrow != 0)
     {
         // 切入战斗态（state 1）：按 60 秒 × 饱食度系数插入复活定时器
@@ -1809,6 +1812,8 @@ bool CCreatureMgr::SetKeepRightItem(CUser* user, Inven_Item* item)
         {
         if (reinterpret_cast<CCreature*>(creatureItem)->IsNoCharge())
         {
+            // [P277 试形失败] 具名派生指针 156→158 条 + 槽基 -0x28→-0x2c（多 4B 局部）
+            // ⇒ 回滚；残余 = P75/N-G 跨版本实参装载序（ORIG `movl $0,0x4(%esp)` 先）。
             reinterpret_cast<CCreature*>(creatureItem)->SetNoCharge(false);
             CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, user);
             // P0/P183：ORIG 0x833c0xx `movzbl %al,%ebx` + `call GetUid` 均无槽往返
@@ -1995,6 +2000,8 @@ bool CCreatureMgr::SwapCreature(Inven_Item* item1, int slot1, int type1,
     if (type1 == 0)
         slot1 += 0xd8;
 
+    // [P277 试形失败] static_cast 同类型形不改变装载序（仍实参先压，189 条不变）⇒
+    // 回滚；残余 = ORIG 0x8339613/0x833962b this-first 装载序（P75/N-G 跨版本）。
     if (left != 0)
         left->SetSlotNo(slot2);
     if (right != 0)
@@ -2201,7 +2208,9 @@ bool CCreatureMgr::RenameCreature(const char* name, int creatureIdx, int slot)
     }
     // ORIG 0x8339bc4 段 getCurCharacInvenW 结果直用（无具名 inven 槽）⇒ 内联链。
     useRet = m_user->getCurCharacInvenW()->use_item(creatureIdx, 1, slot);
-    if (useRet != 0)
+    // [P225 试形] ORIG 0x8339bf4 `cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je`：
+    // 4.1 槽比零 bool 物化，4.4 对 if 恒折 cmp/jne 直跳 ⇒ while+return 形。
+    while (useRet != 0)
     {
         respondent.SetError(useRet);
         return false;
@@ -2488,14 +2497,16 @@ bool user_creature::CCreatureMgr::Hatch(int addInfo)
     slotItem->m_addInfo = newItem->GetItemId();
 
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, m_user);
-    // ORIG 0x833a2e0 `xor $1;test;je` + 尾 `mov %ebx,%eax`：ok 无栈槽、跨成功块
+    // [P194 试形失败] 内联判定+分支写 ok 使帧 -0x60→-0x64 全帧漂移（560 diff 行）⇒
+    // 回滚。ORIG 0x833a2e0 `xor $1;test;je` + 尾 `mov %ebx,%eax`：ok 无栈槽、跨成功块
     // 多个 call 保活于 callee-saved %ebx ⇒ 纯 register 存储类提示（P231/P248，
-    // 非 asm 绑定，P0 合规）。
+    // 非 asm 绑定，P0 合规）；残余 eax→ebx→eax 双中转 = 4.4 具名 bool 物化（N18a）。
     register bool ok = sender.HatchCreature(newItem->GetUid(), 1, newItem->GetItemId());
     if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xb1a, 5);
-        trace("cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
+        // P227/P221：ORIG ctor 前求值 vararg 并跨 ctor 保活 %ebx ⇒ 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0xb1a, 5)(
+            "cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
         respondent.SetError(2);
     }
     else

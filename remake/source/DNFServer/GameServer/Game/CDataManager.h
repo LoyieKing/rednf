@@ -3178,9 +3178,11 @@ public:
     // ---- 强化内部辅助（ORIG） ----
     // 0x854678a：按 upgrade_table_t 取 upgrade_info 到 out。
     // 返回 get_upgrade_info 结果（0 失败=越界，1 成功）。
-    int _GetUpgradeInfo(const Inven_Item* item, const CItem* itemScript,
-                        const upgrade_table_t& table, upgrade_info_t* out,
-                        int level);
+    // [b28d-Main·检查点14 P292] int→bool：ORIG 调用点 0x08547cfa/0x0854afc0
+    //   `call; xor $0x1,%eax; test %al,%al` ⇒ bool（mangled 不变）。
+    bool _GetUpgradeInfo(const Inven_Item* item, const CItem* itemScript,
+                         const upgrade_table_t& table, upgrade_info_t* out,
+                         int level);
     // 0x8546342：校验强化条件，返回错误码（0 表示通过）。
     int _CheckCondition(const CUser* user, const Inven_Item& item,
                         const CItem* itemScript, const Inven_Item& ticket,
@@ -3504,7 +3506,7 @@ public:
     int* find_hellparty_group(int idx);
 
     // ---- 等级/经验 ----
-    int set_level_exp();
+    bool set_level_exp();   // [b28d-Main·P321-T3] 调用点 xor $1；ORIG 尾 mov $1
     int get_level_exp(int level) const;
     int get_level_section_exp(int level) const;
     int get_level_exp_percent(int level, int percent) const;
@@ -3514,7 +3516,7 @@ public:
     unsigned int GetSpAtLevelUp(int level) const;
     unsigned int GetMoneyLimitPerLevel(int level, const char* serverGroup) const;
     void get_mob_reward(int level, unsigned int& out) const;
-    int set_mob_reward();
+    bool set_mob_reward();  // [b28d-Main·P321-T3] 同上
     float BaseExpPenalty(int levelA, int levelB);
     void SetExpRate(float rate);
     void SetItemDropRate(float rate);
@@ -3594,7 +3596,7 @@ public:
     // bool 直判形实证 0x0817deb9；script_load 差异修复，DL7 2026-09-08）。
     bool init();
     void destroy();
-    int initRandomOptionItem();
+    bool initRandomOptionItem();   // [b28d-Main·P321-T3] 同上
     bool initFairPVPSkillPoint();   // SIGFIX: ORIG __PRETTY_FUNCTION__ 串
     int load_map_files(std::vector<void*>& maps);
     bool Verify() const;            // SIGFIX: ORIG 串 "bool CDataManager::Verify() const"

@@ -1,3 +1,19 @@
+// ============================================================================
+// [b28d-solo-CPrivateStoreMgr] 泳道判词（唯一写者：S413_CPrivateStoreMgr）
+// 基线 identical=146 ae=289 near=1 diff=19 → 收口 identical=146 ae=294
+// near=1 diff=14（diff 列表含 N123 噪音 _Z41__static_initialization...）。
+// 本轮 20 件清单：完全修复 5 件（MoveToGate / RemovePrivateStore /
+// SavePrivateStore / put_object_info / MoveItems，均为 ae——残差仅
+// __PRETTY_FUNCTION__/memset@plt 重定位显示形，AE 等价）；部分修复 6 件
+// （CreatePrivateStore / DeleteItem / RecallPrivateStoreItem /
+// RecallPrivateStoreItemToMail / IsAreaNearEntranceDungeon / AddItem）；
+// 余 8 件为 N 族封顶（N82 帧槽 / N93 块内对象槽向 / N98 首次使用序 /
+// N99 死比较 DCE / P75 实参装载序），逐件证据见各函数头注释与
+// /tmp/b28d_solo_CPrivateStoreMgr_result.tsv。
+// P167：清单内全部函数调用点差集 CLEAR（0 missing / 0 extra）。
+// 无子子代理；本轮无 .h 改动落盘（CheckTotalItemPrice int→bool 已按 R2/S2
+// 申报 Main 代落，依据 ORIG 0x085c73e2 `xor eax,0x1`，T3 直证）。
+// ============================================================================
 #include "CPrivateStoreMgr.h"
 #include "CErrorGeneratorPrivate.h"   // private_store::CErrorGeneratorPrivate / g_ErrorGenerator
 #include "MoreTypes.h"
@@ -114,8 +130,9 @@ bool CPrivateStorePos::put_object_info(PacketGuard& p)
 {
     if (m_pStore == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xd0b, 0);
-        trace("NOTEXIST_ERROR : private_store(null)");
+        // [b28d-solo] P221 全表达式临时链：ORIG 0x85cadf6 段 trace 对象槽
+        // -0x58/-0x48/-0x38/-0x28（先写块占深槽），具名对象令 4.4 反向。
+        cMyTrace(__PRETTY_FUNCTION__, 0xd0b, 0)("NOTEXIST_ERROR : private_store(null)");
         return false;
     }
 
@@ -125,16 +142,16 @@ bool CPrivateStorePos::put_object_info(PacketGuard& p)
     // 表达式（P92）；缓存 pos/seller/state/subject 局部丢 20 个调用点。
     if (m_pStore->GetState() != 1 && m_pStore->GetState() != 2)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xd11, 0);
-        trace("STATE_ERROR : private_store_state(%d)", m_pStore->GetState());
+        cMyTrace(__PRETTY_FUNCTION__, 0xd11, 0)(
+            "STATE_ERROR : private_store_state(%d)", m_pStore->GetState());
         return false;
     }
 
     if (m_pStore->GetSeller() == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xd17, 0);
-        trace("NOTEXIST_ERROR : private_store(%d, %d) user(null)",
-              (int)m_pStore->GetPos()->m_a, (int)m_pStore->GetPos()->m_b);
+        cMyTrace(__PRETTY_FUNCTION__, 0xd17, 0)(
+            "NOTEXIST_ERROR : private_store(%d, %d) user(null)",
+            (int)m_pStore->GetPos()->m_a, (int)m_pStore->GetPos()->m_b);
         return false;
     }
 
@@ -146,12 +163,12 @@ bool CPrivateStorePos::put_object_info(PacketGuard& p)
             (int)m_pStore->GetPos()->m_b !=
                 m_pStore->GetSeller()->get_area(false))
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0xd23, 0);
-            trace("DIFFERENT_ERROR : private_store(%d,%d), user(%d,%d), uid(%d)",
-                  (int)m_pStore->GetPos()->m_a, (int)m_pStore->GetPos()->m_b,
-                  (int)(signed char)m_pStore->GetSeller()->getCurCharacVill(),
-                  m_pStore->GetSeller()->get_area(false),
-                  m_pStore->GetSeller()->get_unique_id() & 0xffff);
+            cMyTrace(__PRETTY_FUNCTION__, 0xd23, 0)(
+                "DIFFERENT_ERROR : private_store(%d,%d), user(%d,%d), uid(%d)",
+                (int)m_pStore->GetPos()->m_a, (int)m_pStore->GetPos()->m_b,
+                (int)(signed char)m_pStore->GetSeller()->getCurCharacVill(),
+                m_pStore->GetSeller()->get_area(false),
+                m_pStore->GetSeller()->get_unique_id() & 0xffff);
             return false;
         }
     }
@@ -163,7 +180,9 @@ bool CPrivateStorePos::put_object_info(PacketGuard& p)
     p.put_str(m_pStore->GetSubject()->c_str(),
               (int)m_pStore->GetSubject()->length());
 
-    p.put_byte(m_pStore->GetState() != 1 ? 1 : 0);
+    // [b28d-solo] ORIG 0x85cb1xx `setne al; movzx edx,al` ⇒ 直接传 bool 值
+    // （三目形 4.4 生 mov$1/jmp/mov$0 岛）。
+    p.put_byte(m_pStore->GetState() != 1);
 
     p.put_byte((int)m_pStore->GetPos()->m_a);
     p.put_byte((int)m_pStore->GetPos()->m_b);
@@ -300,13 +319,19 @@ bool CPrivateStore::RecallPrivateStoreItemToMail()
         if (storeItem.GetState() == 3 && storeItem.m_item.m_addInfo != 0)
             items[count++].setCopy(storeItem.m_item);
     }
-    if (0 < count)
+    // [b28d-solo] ORIG 0x085c5d9x `cmp $0,-0x10; sete al; test al,al; je`
+    // （count<=0 跳过）⇒ 4.4 的 `0 < count` 产三目岛，改正写 `count > 0`。
+    if (count != 0)
     {
         // [b28d-solo-CPrivateStoreMgr] P214③/P253：ORIG 0x085c5da3/0x085c5e04 为
         // 局部数组初始化内联清零（对齐剥离+rep stos），显式 memset 生 call
         // ⇒ P167 EXTRA memset×2。改初始化式。
         char sender[0x15] = {0};
+        // [b28d-solo] P312：ORIG title@-0x14d 非 4 对齐 ⇒ 4.1 内联清零走
+        // 「对齐剥离+rep stos+尾字节」慢路；4.4 的 -0x150 对齐槽只发简单 rep stos。
+        char pad[1];
         char title[0x100] = {0};
+        (void)pad;
         std::strcpy(sender, g_scriptStringManager_.findString(4, "game_server_msg_183", 0));
         std::strcpy(title, g_scriptStringManager_.findString(4, "game_server_msg_186", 0));
         int ret = WongWork::CMailBoxHelper::ReqDBSendNewSystemMultiMail(
@@ -315,10 +340,12 @@ bool CPrivateStore::RecallPrivateStoreItemToMail()
             (int)std::strlen(title), 0u, m_pSeller->GetServerGroup(), false);
         if (ret != 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x3c1, 5);
-            trace("CPrivateStore::RecallPrivateStoreItemToMail Error - Mail Send Fail "
-                  "User(%d), Charac_no(%d), item_count(%d)",
-                  m_pSeller->get_acc_id(), m_pSeller->getCurCharacNo(), count);
+            // [b28d-solo] P221：ORIG trace 槽 -0x38（深于 items/sender 区），
+            // 具名对象令 4.4 排到 -0x50 ⇒ 全表达式临时链。
+            cMyTrace(__PRETTY_FUNCTION__, 0x3c1, 5)(
+                "CPrivateStore::RecallPrivateStoreItemToMail Error - Mail Send Fail "
+                "User(%d), Charac_no(%d), item_count(%d)",
+                m_pSeller->get_acc_id(), m_pSeller->getCurCharacNo(), count);
             return 1;
         }
     }
@@ -346,8 +373,16 @@ void CPrivateStore::SavePrivateStore()
     SIG_PRIVATE_STORE* sig = guard.operator->()->GetInBuffer<SIG_PRIVATE_STORE>();
     std::memset(static_cast<void*>(sig), 0, 0x434);
     sig->m_characNo = m_pSeller->get_charac_no(-1);
+    // [b28d-solo] P311 成员数组视图：ORIG 0x85ca1e3 `lea 0x8(%eax),%ebx`（成员
+    // 数组名退化取址单条 lea）；字节数组 + cast 形 4.4 恒 `add $0x8,%eax;
+    // mov %eax,%ebx`（N107 六形探针之一）。
+    struct SigItemsView
+    {
+        char m_pad[8];
+        PrivateStoreItem m_items[14];
+    };
     std::copy(m_items.begin(), m_items.begin() + 0xe,
-              reinterpret_cast<PrivateStoreItem*>(sig->m_items));
+              reinterpret_cast<SigItemsView*>(sig)->m_items);
     // ORIG 双守卫各重读一次 getter（P48/P184；三目形只出 1 次调用）。
     if (isDollCreated())
         sig->m_dollCreated = 1;
@@ -425,15 +460,17 @@ bool CPrivateStore::CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
     }
 
     // 权限与 doll 槽互斥：有私商权限必须传 0xffff；无权限禁止传 0xffff。
-    if (m_pSeller->IsPermissionPrivateStore())
+    // [b28d-solo] ORIG 0x085c5512 `xor eax,0x1; test al,al; je 0x159`（取反 +
+    // 两臂互换的块序）⇒ 写否定式 + 交换两臂（P222/P59）。
+    if (!m_pSeller->IsPermissionPrivateStore())
     {
-        if (dollSlot != 0xffff)
+        if (dollSlot == 0xffff)
         {
             m_errorHandler.Do(0x3f);
             return false;
         }
     }
-    else if (dollSlot == 0xffff)
+    else if (dollSlot != 0xffff)
     {
         m_errorHandler.Do(0x3f);
         return false;
@@ -494,8 +531,11 @@ bool CPrivateStore::CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
     CPrivateStorePos newPos(this, (int)posX, (int)posY);
     m_storePos = newPos;
 
-    village_object::Zone zone(zoneA, zoneB);
-    if (!GlobalData::s_villageObjectMgr->register_object(zone, &m_storePos))
+    // [b28d-solo] 同 MoveToGate/RemovePrivateStore：ORIG 0x085c58xx 在 Zone ctor
+    // 前 `lea ebx,[eax+0x4c]` 预取 &m_storePos（匿名 sret 临时；具名 zone 令
+    // 4.4 排到 packet 之下并丢失 ebx 保活）。
+    if (!GlobalData::s_villageObjectMgr->register_object(
+            village_object::Zone(zoneA, zoneB), &m_storePos))
     {
         m_errorHandler.Do(0x38);
         return false;
@@ -528,9 +568,10 @@ bool CPrivateStore::CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
     }
 
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x335, 0);
-        trace("CreatePrivateStore() uid:%d\n",
-              (unsigned int)m_pSeller->get_unique_id() & 0xffff);
+        // [b28d-solo] P227：ORIG 在 ctor 前求 get_unique_id 并跨 ctor 保活。
+        cMyTrace(__PRETTY_FUNCTION__, 0x335, 0)(
+            "CreatePrivateStore() uid:%d\n",
+            (unsigned int)m_pSeller->get_unique_id() & 0xffff);
     }
     // [b28d-solo-CPrivateStoreMgr] P167 EXTRA getCurCharacName×1：删孤立调用，
     // 仅保留 historyLog 实参位的一次（ORIG 调用点唯一）。
@@ -940,13 +981,9 @@ bool CPrivateStore::AddItem(PrivateStoreItem& item, int prevCountSlot)
                               (int)srcItem.m_addInfo, (int)itemInfo->GetCashPrice());
         return false;
     }
-    // [b28d-solo-CPrivateStoreMgr] P59 负向守卫形：ORIG `call IsTradeRestriction;
-    // test %al,%al; setne %al; test %al,%al; je <主流程>`（restriction 为真直返）
-    // ⇒ 旧 `if(!f()){主流程}` 形产 sete 且块序反。
-    if (srcItem.m_upgradeSep.IsTradeRestriction())   // ORIG lea 副本+0x33（UpgradeSeparateInfo 子对象）
-        return false;
-
     // ORIG 经 CItem vtable 槽 +0x10 判定化身类道具，禁止私商上架。
+    // [b28d-solo] ORIG 块序：IsAvatarItem（0x85c70dd 虚调段）在 IsTradeRestriction
+    // （0x85c71xx lea 副本+0x33 段）之前 ⇒ 两块顺序照 ORIG 排列。
     if (itemInfo->IsAvatarItem())
     {
         LogManager::logFormat(1, "PrivateStore.cpp", __PRETTY_FUNCTION__, 0x5be,
@@ -954,6 +991,12 @@ bool CPrivateStore::AddItem(PrivateStoreItem& item, int prevCountSlot)
                               (int)srcItem.m_addInfo, (int)itemInfo->GetCashPrice());
         return false;
     }
+
+    // [b28d-solo-CPrivateStoreMgr] P59 负向守卫形：ORIG `call IsTradeRestriction;
+    // test %al,%al; setne %al; test %al,%al; je <主流程>`（restriction 为真直返）
+    // ⇒ 旧 `if(!f()){主流程}` 形产 sete 且块序反。
+    if (srcItem.m_upgradeSep.IsTradeRestriction())   // ORIG lea 副本+0x33（UpgradeSeparateInfo 子对象）
+        return false;
 
     if (item.m_field44 < 0xe && item.m_field44 >= 0 &&
         prevCountSlot < 0xe && prevCountSlot >= 0)
@@ -1360,24 +1403,29 @@ int CPrivateStore::CheckPrivateStoreDoll(unsigned short dollSlot)
 // 帧 0x90 vs 我们 0x70）。
 bool CPrivateStore::IsAreaNearEntranceDungeon(CUser* user)
 {
-    GameWorld* gameWorld = 0;
-    Village* village = 0;
-    Area* area = 0;
-    int areaNo = 0;
+    // [b28d-solo] ORIG 0x85c508d..0x85c50a9 五条 movl $0 的槽序：-0x1c 死局部
+    // （P171 只初始化从不读取）、area@-0x18、gameWorld@-0x14、village@-0x10、
+    // areaNo@-0xc；声明序按 ORIG 槽深→浅排列复现 4.4 分配。
+    int deadLocal = 0;         // -0x1c（ORIG 只写不读）
+    Area* area = 0;            // -0x18
+    GameWorld* gameWorld = 0;  // -0x14
+    Village* village = 0;      // -0x10
+    int areaNo = 0;            // -0xc
+    (void)deadLocal;
 
     try
     {
         if (user == 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x233, 5);
-            trace("pUser == NULL");
+            cMyTrace(__PRETTY_FUNCTION__, 0x233, 5)("pUser == NULL");
             return false;
         }
         gameWorld = G_GameWorld();
-        if (gameWorld == 0)
+        // [b28d-solo] P225：ORIG 0x85c50fe `cmp -0x14,0; sete al; test al,al;
+        // je` 为 4.1 bool 物化形，4.4 的 if 恒直跳 ⇒ while 形复现。
+        while (gameWorld == 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x239, 5);
-            trace("G_GameWorld call failed");
+            cMyTrace(__PRETTY_FUNCTION__, 0x239, 5)("G_GameWorld call failed");
             return false;
         }
         // [b23S3C] P48 去缓存：ORIG get_area 结果 eax→%ebx 跨 getCurCharacVill
@@ -1386,20 +1434,20 @@ bool CPrivateStore::IsAreaNearEntranceDungeon(CUser* user)
                                          user->get_area(false)))
         {
             // ORIG 复用 "G_GameWorld call failed" 文案（报告行 84 字面实证）。
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x23f, 5);
-            trace("G_GameWorld call failed");
+            cMyTrace(__PRETTY_FUNCTION__, 0x23f, 5)("G_GameWorld call failed");
             return false;
         }
         village = gameWorld->getUserVillage(user);
-        if (village == 0)
+        // [b28d-solo] P225：ORIG 0x85c51db `cmp -0x10,0; sete al; test; je`。
+        while (village == 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x246, 5);
-            trace("getUserVillage call failed");
+            cMyTrace(__PRETTY_FUNCTION__, 0x246, 5)("getUserVillage call failed");
             return false;
         }
         areaNo = user->get_area(false);
         area = village->getArea(areaNo);
-        if (area == 0)
+        // [b28d-solo] ORIG 0x85c5251 `cmp -0x18,0; sete al; test; jne 继续`。
+        while (area == 0)
             // [b28d-24] ORIG 0x085c5270 段含 `getArea call failed (area no:%d)` 的
             // cMyTrace::operator()（P167 MISSING ×1），但其 C1 构造在 ORIG 侧无 call
             // （疑内联/复用）；补构造后变 EXTRA C1 ×1（净差不变）⇒ N 封顶记录。
@@ -1434,36 +1482,47 @@ bool CPrivateStore::MoveItems()
     // [b28d-solo-CPrivateStoreMgr] P191 双初始化 + P292 档① 正向包裹：
     // ORIG 0x085c724d/0x085c7254 两条 `movl $0x0,-0x10`（i 声明+for 初始化）；
     // 0x085c727d `cmp $1,%al; sete %al; test; je <循环尾>` ⇒ `==1` 正向包裹。
-    unsigned int i = 0;
+    // [b28d-solo] ORIG 0x085c727d `cmp $0xd,-0x10; setle` 有符号 + 每处
+    // `mov i,%eax; mov this,%edx; add $0x3c,%edx`（值先）⇒ i 须为 int（P2/P218）。
+    int i = 0;
     for (i = 0; i < 0xe; ++i)
     {
         if (m_items[i].GetState() == 1)
         {
 
         int prevAddInfo2 = (int)m_items[i].m_item.m_addInfo2;
-        if (!GetItemInfo(m_pSeller, m_items[i]))
+        // [b28d-solo] 正极性包裹复现 ORIG 0x85c72d3 `call; test al,al;
+        // je 0x85c7399`（4.1 对 !bool 直判不物化；4.4 的 if(!f()) 恒 xor $1
+        // 并把失败块落到 fall-through，块序全反）。
+        if (GetItemInfo(m_pSeller, m_items[i]))
         {
-            ResetItems();
-            m_errorHandler.Do(0x11);
-            return false;
-        }
-        m_items[i].m_flag3d = 2;
+            m_items[i].m_flag3d = 2;
 
-        if ((int)m_items[i].m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
-        {
-            int expire =
-                m_pSeller->getCurCharacInvenR()->GetAvatarItemMgrR()->GetExpireDate(
-                    (int)m_items[i].m_item.m_addInfo2);
-            if (expire != 0)
+            // [b28d-solo] ORIG 0x85c730d `cmp al,8; setne al; test al,al;
+            // je 0x85c7336` ⇒ 源码是否定式 if (field1 != AVATAR) 回写、else
+            // 走 avatar 分支（P133 补充：否定式才产 setne 物化）。
+            if ((int)m_items[i].m_item.m_field1 != Inven_Item::ITEM_TYPE_AVATAR)
             {
-                // 此失败路径不 ResetItems（ORIG 如此）。
-                m_errorHandler.Do(0x11);
-                return false;
+                m_items[i].m_item.m_addInfo2 = prevAddInfo2;
+            }
+            else
+            {
+                // P0：ORIG 0x85c7370 `test eax,eax` 直判（expire 无槽往返）
+                // ⇒ 不声明具名 expire 局部，表达式内联。
+                if (m_pSeller->getCurCharacInvenR()->GetAvatarItemMgrR()
+                        ->GetExpireDate((int)m_items[i].m_item.m_addInfo2) != 0)
+                {
+                    // 此失败路径不 ResetItems（ORIG 如此）。
+                    m_errorHandler.Do(0x11);
+                    return false;
+                }
             }
         }
         else
         {
-            m_items[i].m_item.m_addInfo2 = prevAddInfo2;
+            ResetItems();
+            m_errorHandler.Do(0x11);
+            return false;
         }
         }
     }
@@ -1489,8 +1548,9 @@ bool CPrivateStore::MoveItems()
             }
             else
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x637, 5);
-                trace("CPrivateStore [%s][%d]", __PRETTY_FUNCTION__, 0x637);
+                // [b28d-solo] P221：ORIG trace 槽 -0x20，具名对象排到 -0x24。
+                cMyTrace(__PRETTY_FUNCTION__, 0x637, 5)(
+                    "CPrivateStore [%s][%d]", __PRETTY_FUNCTION__, 0x637);
                 ResetItems();
                 m_errorHandler.Do(0x11);
                 return false;
@@ -1521,7 +1581,11 @@ bool CPrivateStore::RecallPrivateStoreItem()
         if ((int)item.m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
         {
             CInventory* invenW = m_pSeller->getCurCharacInvenW();
-            slot = invenW->insertAvatarIntoInventory(item.m_item,
+            // [b28d-solo] ORIG 0x85c642e 先把 item.m_item 逐字段拷到栈副本 -0xaa，
+            // 再按值拷入 outgoing 槽（两次拷贝，4.1 对按值实参的 lowering）⇒
+            // 显式具名副本复现。
+            Inven_Item itemCopy = item.m_item;
+            slot = invenW->insertAvatarIntoInventory(itemCopy,
                                                      (eAvatarItemAddReason)0xa, false);
             if (slot < 0)
                 break;
@@ -1531,7 +1595,9 @@ bool CPrivateStore::RecallPrivateStoreItem()
         else
         {
             CInventory* invenW = m_pSeller->getCurCharacInvenW();
-            slot = invenW->insertItemIntoInventory(item.m_item,
+            // [b28d-solo] 同上：ORIG 0x85c6xxx 两次逐字段拷贝（-0x6d 副本）。
+            Inven_Item itemCopy = item.m_item;
+            slot = invenW->insertItemIntoInventory(itemCopy,
                                                    (eItemAddReason)0x12, false, true);
         }
         if (slot < 0)
@@ -1572,8 +1638,9 @@ bool CPrivateStore::RecallPrivateStoreItem()
                 continue;
             if (DeleteItem(item))
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x4c9, 5);
-                trace("[%s][%d]", __PRETTY_FUNCTION__, 0x4c9);
+                // [b28d-solo] P221：ORIG trace 槽 -0x28，具名对象排到 -0x48。
+                cMyTrace(__PRETTY_FUNCTION__, 0x4c9, 5)(
+                    "[%s][%d]", __PRETTY_FUNCTION__, 0x4c9);
             }
             item.m_flag3d = 3;   // DeleteItem 成败皆置
         }
@@ -1599,11 +1666,14 @@ bool CPrivateStore::DeleteItem(PrivateStoreItem& item)
     int addInfo2 = (int)item.m_item.m_addInfo2;
     int itemIdx = (int)item.m_item.m_addInfo;
 
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x4d7, 0);
-    trace("PrivateStore del charac_name(%s)(%d), item_id(%d), add_info(%d), "
-          "upgrade(%d), reseal_count(%d), sell_price(%d)",
-          m_pSeller->getCurCharacName(), m_pSeller->getCurCharacNo(),
-          itemIdx, addInfo2, upgrade & 0xff, resealCount & 0xff, sellPrice);
+    // [b28d-solo] P227 全表达式临时链：ORIG 0x085c68f2 段先把 getCurCharacName/
+    // getCurCharacNo/… 求值入 edi/esi/ebx，再 call cMyTrace C1；具名对象令 4.4
+    // 先构造再求值（C1 在 -0x40，ORIG 在 -0x68）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x4d7, 0)(
+        "PrivateStore del charac_name(%s)(%d), item_id(%d), add_info(%d), "
+        "upgrade(%d), reseal_count(%d), sell_price(%d)",
+        m_pSeller->getCurCharacName(), m_pSeller->getCurCharacNo(),
+        itemIdx, addInfo2, upgrade & 0xff, resealCount & 0xff, sellPrice);
 
     int slot = (short)item.m_field48;
     switch (item.m_field46)
@@ -1613,10 +1683,9 @@ bool CPrivateStore::DeleteItem(PrivateStoreItem& item)
                 (INVEN_TYPE)1, slot, (int)item.m_item.m_addInfo2,
                 (eItemDelReason)0xb, true) != 1)
         {
-            cMyTrace traceFail(__PRETTY_FUNCTION__, 0x4e0, 5);
-            traceFail("Store::user_sell_item, delete_item failed , User ch=%d , %d %d",
-                      m_pSeller->getCurCharacNo(), slot,
-                      (int)item.m_item.m_addInfo2);
+            cMyTrace(__PRETTY_FUNCTION__, 0x4e0, 5)(
+                "Store::user_sell_item, delete_item failed , User ch=%d , %d %d",
+                m_pSeller->getCurCharacNo(), slot, (int)item.m_item.m_addInfo2);
             m_errorHandler.Do(0x11);
             return false;
         }
@@ -1625,9 +1694,9 @@ bool CPrivateStore::DeleteItem(PrivateStoreItem& item)
         if (m_pSeller->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)2, slot, 1, (eItemDelReason)4, true) != 1)
         {
-            cMyTrace traceFail(__PRETTY_FUNCTION__, 0x515, 5);
-            traceFail("Store::user_sell_item, delete_item failed 3, User ch=%d , %d",
-                      m_pSeller->getCurCharacNo(), slot);
+            cMyTrace(__PRETTY_FUNCTION__, 0x515, 5)(
+                "Store::user_sell_item, delete_item failed 3, User ch=%d , %d",
+                m_pSeller->getCurCharacNo(), slot);
             m_errorHandler.Do(0x11);
             return false;
         }
@@ -1638,10 +1707,9 @@ bool CPrivateStore::DeleteItem(PrivateStoreItem& item)
         if (m_pSeller->getCurCharacCargoW()->delete_item(
                 slot, (int)item.m_item.m_addInfo2, (eItemDelReason)0xb) != 1)
         {
-            cMyTrace traceFail(__PRETTY_FUNCTION__, 0x4ec, 5);
-            traceFail("Store::user_sell_item, delete_item failed 2, User ch=%d , %d %d",
-                      m_pSeller->getCurCharacNo(), slot,
-                      (int)item.m_item.m_addInfo2);
+            cMyTrace(__PRETTY_FUNCTION__, 0x4ec, 5)(
+                "Store::user_sell_item, delete_item failed 2, User ch=%d , %d %d",
+                m_pSeller->getCurCharacNo(), slot, (int)item.m_item.m_addInfo2);
             m_errorHandler.Do(0x11);
             return false;
         }
@@ -1650,9 +1718,9 @@ bool CPrivateStore::DeleteItem(PrivateStoreItem& item)
         if (m_pSeller->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)0, slot, 1, (eItemDelReason)0xb, true) != 1)
         {
-            cMyTrace traceFail(__PRETTY_FUNCTION__, 0x4f9, 5);
-            traceFail("Store::user_sell_item, delete_item failed 3, User ch=%d , %d",
-                      m_pSeller->getCurCharacNo(), slot);
+            cMyTrace(__PRETTY_FUNCTION__, 0x4f9, 5)(
+                "Store::user_sell_item, delete_item failed 3, User ch=%d , %d",
+                m_pSeller->getCurCharacNo(), slot);
             m_errorHandler.Do(0x11);
             return false;
         }
@@ -1925,7 +1993,7 @@ bool CErrorHandler::Do(int errorCode)
 // `register int addInfo asm("ebx")` / `register bool nullp __asm__("al")`，N96）；
 // 槽比零物化改 **P225 while(pItem==0){return 0;}** 复现 ORIG `cmpl $0,-0xc;
 // sete %al; test %al,%al; je`（新范式：4.4 对 if 槽比恒直跳，while 形才出四段）。
-int CPrivateStore::CheckTotalItemPrice()
+bool CPrivateStore::CheckTotalItemPrice()
 {
     int total = 0;
     for (int i = 0; i <= 0xd; ++i)

@@ -310,10 +310,10 @@ int CItemUpgrade::ProcAmplifyRandomUpgrade(CUser* user, Inven_Item& item,
 //   按 upgrade_table_t 取 upgrade_info 到 out。
 //   返回 get_upgrade_info 结果（0=越界/失败, 1=成功）。
 // ============================================================================
-int CItemUpgrade::_GetUpgradeInfo(const Inven_Item* item,
-                                  const CItem* itemScript,
-                                  const upgrade_table_t& table,
-                                  upgrade_info_t* out, int level)
+bool CItemUpgrade::_GetUpgradeInfo(const Inven_Item* item,
+                                   const CItem* itemScript,
+                                   const upgrade_table_t& table,
+                                   upgrade_info_t* out, int level)
 {
     if (item->GetUpgrade() >= 0x1f)
         return 0;

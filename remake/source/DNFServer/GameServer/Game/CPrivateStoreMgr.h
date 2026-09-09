@@ -263,7 +263,9 @@ public:
     bool RecallPrivateStoreItem();                      // ORIG T 0x85c63ca：非 doll 路径条目退还
     bool IsExistBuyerList(CUser* user);                 // ORIG T 0x85c91b6：m_users 是否含 user
     int GetCommissionPercent();                         // ORIG T 0x85c9b8c：手续费百分比
-    int CheckTotalItemPrice();                          // ORIG T 0x85c76f0：在售条目总价校验
+    // [b28d-Main·检查点14 P321-T3] int→bool：ORIG 调用点 0x085c73e2
+    //   `call; xor $0x1,%eax; test %al,%al; je` ⇒ callee bool；mangled 不变。
+    bool CheckTotalItemPrice();                         // ORIG T 0x85c76f0：在售条目总价校验
     int CheckPrivateStoreDoll(unsigned short dollSlot); // ORIG T 0x85c532c：返回错误码（0=可用）
     bool IsAreaNearEntranceDungeon(CUser* user);        // ORIG T 0x85c5082
     bool DeleteItem(PrivateStoreItem& item);            // ORIG T 0x85c68b4（PRETTY 串 bool 实证）
