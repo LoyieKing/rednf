@@ -26,6 +26,14 @@ namespace advancealtar
 //   为双向 include 环（NOTIPacketStruct.h 需 advancealtar::_Stage），成员化须拆环
 //   （波及全仓 include CGameManager.h/advancealtar.h 的 TU）。语义等价（m_index=-1 +
 //   ProcStage(*characData)@+0x04 + CharacData@+0x98，槽宽恰 0x94/0x28）。N 封顶（N83/P67）。
+// [b28d-sweep 2026-09-09 复核] 解环路径已定位（供 Main 决策，本泳道未落）：①把
+//   advancealtar::_Stage（advancealtar.h:71-73 + 断言 491）抽到叶子头
+//   advancealtar_Stage.h；②NOTIPacketStruct.h 改 include 该叶子头（去 advancealtar.h
+//   依赖）；③advancealtar.h 便可 include advancealtar_ProcStage.h，StageControl 成员改
+//   真实类型 ProcStage m_procStage / CharacData m_characData。波及面：include
+//   advancealtar.h 的 17 个 .cpp（含经 CGameManager.h/CUser.h 的传递消费）须复编；
+//   4.4 生成的 EH landing 布局是否与 ORIG 4.1 逐条一致亦需实测（N91 族）。风险与
+//   波及超出单 TU 泳道 ⇒ 维持 N83/P67 封顶，路径交 Main 定夺。
 StageControl::StageControl()
 {
     m_index = -1;
@@ -320,6 +328,9 @@ void StageControl::onClearReward(StageEndType::T endType)
         goto island1;
     if (endType <= 2)
         goto island2;
+    // [b28d-sweep] P286 单 case switch 实测：得 `mov 0xc(%ebp),%eax; cmp $0x3,%eax`
+    //   但整函数 27→28 条（第二次比较前仍重载形参，ORIG 26 条为单次装载三连比较）
+    //   ⇒ 反向回退，维持 P85「4.1 跨语句 %eax 保活不可复现」封顶。
     if (endType != 3)
         goto island3;
     // ORIG 0x0813060e：this+4 直访问 m_procStage 槽（无 getProcStage call）、
@@ -431,6 +442,10 @@ void StageControl::gotoStage(CUser* user)
 //   <skip>; ++count; jmp; nop`（8 条）vs 4.4 `cmpb $1,-0x9; jne; ++count`（P168a④：
 //   寄存器 xor 物化无绑定不可达，X2 两语句落栈槽；`hit^1` 被折 mem 直比 N18b）。
 //   语义等价（hit!=0 ⇒ ++count）。N 封顶（P168a④/N18b 族）。
+// [b28d-sweep 2026-09-09] 复验：归一化后唯一差异仍是上述 4↔1 条；另试 const 容器 +
+//   const_iterator（ORIG 0x08135d88/0x08135dae 段确用 `_ZNKSt4list...` const 版）⇒
+//   verdict 无改善（仍 DIFF）且本 TU 少发射 iterator→const_iterator 转换构造
+//   ⇒ check_tu identical 80→79 回退，已回退维持非 const iterator。
 int StageControl::getCenterCount() const
 {
     // [b28d-solo-StageControl] P183：ORIG 直接 `this+4` 调 getMap、`this+0x98` 调
@@ -448,11 +463,15 @@ int StageControl::getCenterCount() const
     }
 
     int count = 0;                                      // -0x14
+    // [回滚记录 b28d-sweep] 曾试 const 容器 + const_iterator（ORIG 0x08135d88 段确用
+    //   `_ZNKSt4list...5beginEv`/`_ZNKSt20_List_const_iterator...`）；verdict 无改善
+    //   （残差仍是下方 hit 物化，仍 DIFF），且本 TU 不再发射 ORIG 别处实存的非 const
+    //   `_ZNSt14_List_iteratorI11_mapMonsterEppEi/EptEv`（0x08311764/0x08311756）⇒
+    //   check_tu_routed identical 80→78 回退，故维持非 const iterator 形。
     std::list<_mapMonster> monsters = map->get_monster_list();
     // ORIG 0x0813080e：`lea -0x2c,%eax; mov %eax,-0x10(%ebp)` —— 具名 list 指针槽
     // -0x10，begin/end 均从该槽取 this（Ghidra local_14 = local_30）。
     std::list<_mapMonster>* monsterList = &monsters;
-    // P96：ORIG 用非 const iterator（避免 const_iterator 转换构造的额外临时槽）。
     for (std::list<_mapMonster>::iterator it = monsterList->begin();
          it != monsterList->end(); it++)
     {
@@ -486,20 +505,29 @@ int StageControl::getCenterCount() const
 //   getCharacData/getProcStage out-of-line call 与具名 procStage 槽（每点重算
 //   this+0x98/this+0x4）；body ctor 移到 map 判空后/getTimeLine 前（ORIG 0x0813026e）；
 //   P214① sendMonsters 改直接 `if (a||b)`（无具名 bool 槽）；else 分支具名 zero 局部；
-//   Send 前重新 `this+0x98` 调 getUser；P190 两个取址 double 撑帧 0x80→0x90（帧已对齐）。
-//   残差 = 槽基浅 0x10（N95/N82：4.4 按首次使用序分配，framePad 只改帧不移动既有槽；
-//   ORIG 额外 -0x20 死计数器/-0x18 list 指针槽实测引入即反劣 290→302）；
-//   循环增量 N113：ORIG ppEi 后置在 4.4 恒折 ppEv（实测 it++ 反劣 290→298）。
-//   语义逐条等价。N 封顶（N95/N82/N113 族）。
+//   Send 前重新 `this+0x98` 调 getUser。
+// [b28d-sweep 2026-09-09 重判] 旧判词「-0x20 死计数器/-0x18 list 指针槽/it++ 引入即
+//   反劣」**全部作废**——旧读数是在 3 处真 bug + put_binary 重载 + hit 槽未补的前提下
+//   测的。本轮修后（clean 口径 ORIG 289 / ours 292）：
+//   ①真 bug：`!isSurvivalModeFirstRound()` 极性反（ORIG je/jne 同落 L_true，P224）；
+//   ②真 bug：phase 循环 put_binary 误选 PKc 重载（ORIG 三处均 Pc @0x0811df08，P167）；
+//   ③真 bug：getTowerInfo 首实参误传 m_orderIdx，ORIG 取 it->+0x00=m_mobId（0x08130454）；
+//   ④补 hit 具名 uchar 槽（ORIG 0x0813047c `mov %al,-0xd`，P0）；
+//   ⑤phase/monsters 两循环改后置 `it++`（ORIG 调 ppEi，P28 增量侧）；
+//   ⑥补 phase 死计数器（ORIG 0x08130308 `movl $0,-0x20` + 每轮 `addl $1,-0x20`，P171）；
+//   ⑦补 monsters 具名 list 指针槽（ORIG 0x081303d9 `mov %eax,-0x18`）；
+//   ⑧删 cam 具名引用槽（ORIG 每轮重算 lea 0x8df60，P183）；
+//   ⑨删原两个撑帧 double（补 ④⑥⑦ 后 4.4 帧自涨到 0xa0，删后回 0x90 与 ORIG 逐字对齐）。
+//   残余 = hit 取反物化（ORIG movzbl/xor/test/jne 4 条 vs 4.4 `cmpb $0` 2 条，P168a④
+//   /N18b 封顶）+ 槽号分配差（N95/N126 版本常数）。p167：put_binary 差集清零，仅剩
+//   D1/D2、C1/C2 同址别名与 list const/非 const 迭代器符号选择差（非语义缺口）。
 void StageControl::sendMapInfo()
 {
     // [b28d-solo-StageControl] P183：ORIG 每访问点重算 this+0x98 / this+0x4
     // （无 getCharacData/getProcStage out-of-line call、无具名 procStage 指针槽）。
-    // P190 附注：ORIG 帧 0x90 vs 4.4 紧凑帧 0x80 ⇒ 2 个取址 double 撑帧 +0x10。
-    double framePad0;
-    double framePad1;
-    (void)&framePad0;
-    (void)&framePad1;
+    // [b28d-sweep] 原 P190 两个取址 double 撑帧（0x80→0x90）；补 hit/phaseIndex/
+    //   monsterList 具名局部后 4.4 帧已自涨到 0xa0（ORIG 0x90）⇒ 撑帧局部转为冗余，
+    //   删除后帧回落 0x90（实测 sub 立即数逐字对齐）。
     CUser* user = reinterpret_cast<CharacData*>(m_characData)->getUser();
     if (user == 0)
     {
@@ -533,30 +561,58 @@ void StageControl::sendMapInfo()
     guard.put_header(0, 0x20a);
     guard.put_binary(reinterpret_cast<char*>(&body), 0x14);
     guard.put_int(static_cast<int>(timeLine->m_summary.m_phaseSummarys.size()));
-    for (std::vector<_PhaseSummary>::const_iterator it =
-             timeLine->m_summary.m_phaseSummarys.begin();
-         it != timeLine->m_summary.m_phaseSummarys.end(); ++it)
+    // [b28d-sweep] P167：ORIG 三处 put_binary 目标均为 `_ZN18InterfacePacketBuf10put_binaryEPci`
+    //   （char* 重载 @0x0811df08），此前 phase 循环误用 `put_binary(const char*,int)`
+    //   （@0x0815096a）⇒ 调用点差集 MISSING/EXTRA 各 1。改传 char*（const_cast 去 const）。
+    // [b28d-sweep] P28 增量侧：ORIG 0x08130393 增量段调
+    //   `_ZN9__gnu_cxx17__normal_iteratorIPKN...EEEppEi`（后置，带独立 sret 临时槽
+    //   -0x40）⇒ 源形写 `it++`。
+    // P328⑥/P171：ORIG 在 `call begin`（sret -0x68）之后发 `movl $0x0,-0x20(%ebp)`，
+    //   每轮增量段 `addl $0x1,-0x20(%ebp)`（死计数器，全函数无读者）⇒ 照抄死写入。
+    std::vector<_PhaseSummary>::const_iterator it =
+        timeLine->m_summary.m_phaseSummarys.begin();
+    int phaseIndex = 0;
+    for (; it != timeLine->m_summary.m_phaseSummarys.end(); it++, ++phaseIndex)
     {
-        guard.put_binary(reinterpret_cast<const char*>(&*it), 0xc);
+        guard.put_binary(reinterpret_cast<char*>(
+                             const_cast<_PhaseSummary*>(&*it)), 0xc);
     }
 
     // ORIG 0x08130391：`cmp $1,%eax; jne L_true; call; test; je L_false; L_true: mov $1;
     // jmp; L_false: mov $0; test %al,%al; je L_else` —— 无具名 bool 槽（P214①）。
+    // 极性：jne/je 均落 L_true ⇒ monsters 分支 = `stageType != 1 || isSurvivalModeFirstRound()`
+    // （P224：je 落点定极性；此前误写 `!isSurvivalModeFirstRound()` = 真语义 bug）。
     if (reinterpret_cast<ProcStage*>(m_procStage)->getStageType() != 1 ||
-        !reinterpret_cast<ProcStage*>(m_procStage)->isSurvivalModeFirstRound())
+        reinterpret_cast<ProcStage*>(m_procStage)->isSurvivalModeFirstRound())
     {
+        // [b28d-sweep] 试过 const 化 monsters（ORIG 0x081303ce 段确调 `_ZNKSt4list...5beginEv`
+        //   const 版）：p167 调用差集 48→46=ORIG，但本 TU 少发射
+        //   `_ZNSt20_List_const_iteratorI11_mapMonsterEC1ERKSt14_List_iteratorIS0_E`
+        //   ⇒ check_tu identical 80→79 回退，故维持非 const 形（语义等价，仅符号选择差）。
         std::list<_mapMonster> monsters = map->get_monster_list();
+        // ORIG 0x081303d6：`lea -0x3c(%ebp),%eax; mov %eax,-0x18(%ebp)` ⇒ 具名 list
+        //   指针槽（begin/end 均从该槽取 this）。
+        std::list<_mapMonster>* monsterList = &monsters;
         guard.put_int(getCenterCount());
-        CharacAdvanceAltarManager& cam = user->m_advanceAltar;
-        for (std::list<_mapMonster>::const_iterator it = monsters.begin();
-             it != monsters.end(); ++it)
+        // [b28d-sweep] P183：ORIG 0x08130456 每轮重算 `mov -0x2c(%ebp),%edx;
+        //   lea 0x8df60(%edx),%ecx`（无具名引用槽）⇒ 去掉 CharacAdvanceAltarManager& 局部。
+        // [b28d-sweep] P28 增量侧：ORIG 增量段调 `_ZNSt20_List_const_iteratorI11_mapMonsterEppEi`
+        //   （后置，带 sret 临时槽）⇒ 源形写 `it++`。
+        for (std::list<_mapMonster>::const_iterator it = monsterList->begin();
+             it != monsterList->end(); it++)
         {
             advancealtar::_MapMonsterSummary summary;
             summary.m_orderIdx = it->m_orderIdx;          // _mapMonster+0x2c
             summary.m_seq = 0;                            // addCreatedMapMonster 覆写
             int towerValue = 0;                           // getTowerInfo 出参 1
             int towerCount = 0;                           // getTowerInfo 出参 2
-            if (cam.getTowerInfo(it->m_orderIdx, towerValue, towerCount))
+            // [b28d-sweep] 真 bug：ORIG 0x08130454 `mov (%eax),%eax` 取 it->+0x00
+            //   （_mapMonster::m_mobId）作 getTowerInfo 首实参；此前误传 m_orderIdx
+            //   （+0x2c，仅用于下方 summary.m_orderIdx 赋值，ORIG 0x0813042c 实证）。
+            //   ORIG 0x0813047c `mov %al,-0xd(%ebp)` + 回读 ⇒ 具名字节局部（P0 槽往返）。
+            unsigned char hit = user->m_advanceAltar.getTowerInfo(
+                it->m_mobId, towerValue, towerCount);
+            if (hit)
             {
                 summary.m_towerRefA =
                     static_cast<short>(towerValue);       // u16 截断 [+0x06]
