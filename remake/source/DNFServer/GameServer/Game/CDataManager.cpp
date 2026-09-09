@@ -1642,6 +1642,10 @@ const char* CDataManager::SuddenShopFileName3()
 //     h1/h3 加 __builtin_expect 反多 sete/movzbl/test 三条）。
 //  b) 0x0836282c 处 `jmp` 短程 + 1 条 nop 填充（跳转距离布局）。
 //  c) 0x08362a61 `cmp $0x64,%eax` 死比较 vs 我方 `mov %eax,-0xc`（同 N）。
+//  d) [SweepCDataManager-2 复核补] 0x083629d9 `call empty; test %al,%al`
+//     （m_rivalData2.empty() 返回值归一化）我方缺 test 1 条；探针
+//     /tmp/probe_dce2.o f1/f2/f4 复证 4.4 -O0 恒删无消费者比较/test
+//     （f7 具名 bool / f8 volatile 反多 store 与 movzbl）。
 // ⇒ 语义完成、byte 层 N 封顶。
 bool CDataManager::VerifyMap(const CMap& map, int idx) const
 {
@@ -2185,6 +2189,14 @@ pvp_done:
 // `test %eax,%eax; sete %al`。mangled 不含返回类型，符号不变。
 // （-0x14 先），循环体序改为 ++lastGrade → data.curr=prevExp → data.next →
 // prevExp → SetPvpGrade（三次独立 op[]，P48）。
+// [SweepCDataManager-2] 本函数局部 `stPvpRefTable_t table;` 发射 W 符号
+// _ZNSt12_Vector_baseIN15stPvpRefTable_t15stPvPGradeExp_tESaIS1_EED1Ev
+// （ORIG 0x083b1e6a，40 条 vs 我方 25 条，gap 15）：ORIG 4.1 布 EH landing
+// pad（`_Unwind_Resume` + `_Vector_implD1Ev` 双份，0x083b1ea4..0x083b1ebf），
+// 我方 4.4.7 无——根因是 4.4 对类内可见定义的 `_M_deallocate`
+// （→`new_allocator::deallocate`→`::operator delete` throw()）推断 nothrow
+// ⇒ 不布 cleanup，4.1 不推断。`bits/stl_vector.h` 禁改、allocator 换型会改
+// mangled（`SaIS1_E` 编码）⇒ 无源码解，N 封顶；正文 19 条逐条一致。
 bool CDataManager::set_pvp_grade()
 {
     // ORIG 0x08360aa2：Clear 走 `mov &s_ref_pvp_grade,%eax; call` 两段直发

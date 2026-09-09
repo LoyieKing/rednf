@@ -27,6 +27,13 @@ bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
 bool IS_PVP_CHANNEL(int channelType);
 #include <algorithm>     // std::find（CWorldMap::hasDungeon）
 
+// [b28d-solo-CDataManagerScripts-3] dual_rank gap 榜首位（gap 15）复核结论：
+// `_ZNSt12_Vector_baseIN12advancealtar9FieldType1TESaIS2_EED1Ev` 为 libstdc++ 头
+// 内模板弱符号，本 TU 副本尺寸 0x67 与 ORIG 0x67 **逐条全等**（含 4.1 的
+// `_M_deallocate` 后 EH landing pad）；链接后二进制取到的是
+// advancealtar_misc.cpp.o 的 0x43 副本（该 TU 走 446 路由头集，dtor 无 landing），
+// 属弱符号多副本链接选择差异（P93/N89 类），非本 TU 源码可修。
+
 // ============================================================================
 // 脚本 POD 生命周期（ORIG 语义，见 docs/class_func_reports 与 ORIG 反汇编）。
 // 各 ctor 构造 STL 容器成员（必要时调 clear()），dtor 逆序析构。
@@ -184,45 +191,56 @@ void PvPSkillTreeParameterScript::clear()
 // m_map18 无 grade 时直接 `mov $0,%eax; jmp end` **返回 0**（Ghidra：`if (==) local_10=0
 // else { 全部计算 }`）；旧实现仍算 prevPoints/cost 并返回 `0-prevPoints-cost`（负值）。
 // 带参 `PvPSkillTreeKey key(job,firstGrow,secondGrow)` + `secondGrow=0` 写回形参槽保留
-// （ORIG C1Ehhh 0x08a5e768）；残余全帧槽序平移 4 + key 槽 -0x3f vs ORIG -0x1b（N93/P112）；ORIG 0x08a5df0e。
+// （ORIG C1Ehhh 0x08a5e768）。
+// [b28d-solo-CDataManagerScripts-3] P220/P47 块序修正：ORIG 0x08a5df5f 调
+// `_Rb_tree_const_iterator::ne`（operator!=）后 `test %al; je 0x08a5dfec`——return-0
+// 块（`mov $0,%eax; jmp leave`）位于函数**中部**、主体直落尾；旧 `if (it == end) return 0;`
+// 早退形在 4.4 下把 return-0 块排到主体之前（块序相反）。改正极包裹
+// `if (gradeIt != m_map18.end()) { …; return …; } return 0;` 后布局与 ORIG 同向。
+// 残余 gap 1 + 槽号整体平移 4（gradeIt -0x38 vs ORIG -0x34；P112/N93 块级槽向）；ORIG 0x08a5df0e。
 int PvPSkillTreeParameterScript::getPvPSkillPointNext(
     int job, int firstGrow, int secondGrow, int grade) const
 {
     int points = 0;
     std::map<int, std::map<int, int> >::const_iterator gradeIt =
         m_map18.find(grade);
-    if (gradeIt == m_map18.end())
-        return 0;                       // ORIG 0x08a5dfec：grade 不存在 ⇒ 恒返 0
+    // [b28d-solo-CDataManagerScripts-3] P220/P47 正极包裹：ORIG 0x08a5df5f 调
+    // operator!=（ne）后 `test %al; je <函数中部 mov$0; jmp leave>`，主体直落尾；
+    // 旧 `== end` 早退形在 4.4 下把 return-0 块排到主体**之前**（块序相反）。
+    if (gradeIt != m_map18.end())
     {
-        std::map<int, int>::const_iterator slotIt =
-            gradeIt->second.find(job * 5 + firstGrow);
-        if (slotIt != gradeIt->second.end())
-            points = slotIt->second;
+        {
+            std::map<int, int>::const_iterator slotIt =
+                gradeIt->second.find(job * 5 + firstGrow);
+            if (slotIt != gradeIt->second.end())
+                points = slotIt->second;
+        }
+
+        int prevPoints = 0;
+        std::map<int, std::map<int, int> >::const_iterator prevIt =
+            m_map18.find(grade - 1);
+        if (prevIt != m_map18.end())
+        {
+            std::map<int, int>::const_iterator slotIt =
+                prevIt->second.find(job * 5 + firstGrow);
+            if (slotIt != prevIt->second.end())
+                prevPoints = slotIt->second;
+        }
+
+        // ORIG 0x08a5e166：`movl $0x0,0x14(%ebp)`（secondGrow 写回形参槽）后
+        // 三字节实参调 PvPSkillTreeKey::C1Ehhh（0x08a5e768）⇒ 带参构造形。
+        secondGrow = 0;
+        int cost = 0;
+        PvPSkillTreeKey key(job, firstGrow, secondGrow);
+        std::map<PvPSkillTreeKey,
+                 FAIR_PVP_SKILL_TREE_SKILL_PER_POINT>::const_iterator costIt =
+            m_map30.find(key);
+        if (costIt != m_map30.end())
+            cost = costIt->second.m_pointCost;
+
+        return (points - prevPoints) - cost;
     }
-
-    int prevPoints = 0;
-    std::map<int, std::map<int, int> >::const_iterator prevIt =
-        m_map18.find(grade - 1);
-    if (prevIt != m_map18.end())
-    {
-        std::map<int, int>::const_iterator slotIt =
-            prevIt->second.find(job * 5 + firstGrow);
-        if (slotIt != prevIt->second.end())
-            prevPoints = slotIt->second;
-    }
-
-    // ORIG 0x08a5e166：`movl $0x0,0x14(%ebp)`（secondGrow 写回形参槽）后
-    // 三字节实参调 PvPSkillTreeKey::C1Ehhh（0x08a5e768）⇒ 带参构造形。
-    secondGrow = 0;
-    int cost = 0;
-    PvPSkillTreeKey key(job, firstGrow, secondGrow);
-    std::map<PvPSkillTreeKey,
-             FAIR_PVP_SKILL_TREE_SKILL_PER_POINT>::const_iterator costIt =
-        m_map30.find(key);
-    if (costIt != m_map30.end())
-        cost = costIt->second.m_pointCost;
-
-    return (points - prevPoints) - cost;
+    return 0;                       // ORIG 0x08a5dfec：grade 不存在 ⇒ 恒返 0
 }
 
 // ---- IndependentDropParameterScript（ORIG C1 0x8372d46 / clear 0x8372dfa / D1 0x837daac）----
@@ -1399,7 +1417,12 @@ void CNPCRelationEventManager::AddFavorItemInfo(
 
 // ---- CNPCRelationEventManager::AddRewardItemInfo（ORIG 0x890cfda：
 //      find(idx)，非 end 时写 node+kind*0x14+0xc / +0x10 两奖励值）----
-// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（4/4）。N107/N7 —— ORIG 两步 lea（`lea (%ecx,%eax,1); lea 0xc(%eax),%edx`）vs 4.4 `lea+add $0xc`（数组名算术 P214① 本轮实测不翻），另加实参装载序 + %ebx 分配；ORIG 0x0890cfda。
+// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（4/4），gap=2、P=1（gap'=4）。
+// 本轮复核：`(node->m_favor + kind)->m_rewardA/B` 数组名算术形（P214①）在 4.4 下
+// 产出 `lea (%ecx,%eax,1),%edx; mov val,0xc(%edx)`（折 disp），ORIG 为两步
+// `lea (%ecx,%eax,1),%eax; lea 0xc(%eax),%edx; mov val,(%edx)`（0x0890d052/0x0890d06d）；
+// 另实参装载序（ORIG kind 先于 node）与 %ebx 角色差。属 N107（add-vs-lea 折 disp）
+// + N7/N76（装载序）封顶；ORIG 0x0890cfda。
 void CNPCRelationEventManager::AddRewardItemInfo(
     unsigned short idx, ENUM_NPC_RELATION_EVENT_FAVOR_KIND kind,
     unsigned int rewardA, unsigned int rewardB)
@@ -1833,8 +1856,10 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
 // 符号差：①`item.m_fieldTypes.push_back(具名 FieldType::T 左值)` ×3（ORIG 调
 // `push_back(const FieldType::T&)` RKS2_，右值临时会选 `push_back(FieldType::T&&)` OS2_）；
 // ②`!(token == "[id]")` ×3（ORIG 调 operator==，写 != 会发 operator!=）。
-// 残余 = N82 超大件帧槽（帧 sub $0x320 vs ORIG $0x350、token -0x214 vs ORIG -0x230，
-// 4.1/4.4 聚合/标量槽分区策略差）；ORIG 0x088a10cc。
+// 残余 = N82 超大件帧槽（本轮复核：帧 sub $0x320 vs ORIG $0x350（Δ0x30=12 槽）、
+// token -0x208 vs ORIG -0x230（Δ0x28），而 unkC -0x64 与 ORIG 同位 ⇒ 差集中在
+// 深区局部区，属 4.1/4.4 聚合/标量槽分区策略差；gap 7、p167 201/201 CLEAR，
+// 按 §6.2 三件套封顶）；ORIG 0x088a10cc。
 int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
     const char* path)
 {
@@ -2270,10 +2295,18 @@ advancealtar::AdvanceAltarShopParameter::getBuyUpgradeDataVec(
 // 邮政标题 0x39e / 正文 0x3a3。[reward item] 三元组仅 {type,_,itemId}
 // 进入向量（第三值写入越界临时不入拷贝，见报告注记）。
 // ============================================================================
-// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（48/48）—— 本轮两处：
-// ①`if (token == "[reward data]") { … }` 正向包裹（ORIG 调 operator==，
-//   `if (!=) continue` 会发 operator!=）；②P232 `char framePad[4]` ⇒ token -0x70 /
-//   ok -0x71 与 ORIG 对齐（帧 0xc0=ORIG）。残余 = N82 大件槽序（4.1/4.4 槽复用策略差）；ORIG 0x0889afb0。
+// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（48/48）。历轮修正：
+// ①`if (token == "[reward data]") { … }` 正向包裹（ORIG 调 operator==）；
+// ②P232 `int unkC` ⇒ -0xc 与 ORIG 对齐（帧 0xc0=ORIG）。
+// ③[本轮] [stage difficulty] 去具名 `StageDifficulty::T diff`，出参直传
+//   `(StageDifficulty::T&)data.m_difficulty`（ORIG 0x0889b1d5 `lea -0xb4; add $0x4`
+//   实证）⇒ 消除 2 条 store/load 并使后续局部槽整体回浅 4。
+// ④[本轮] [reward item] 段用独立 bool `itemOk`（ORIG 0x0889b339 `mov %al,-0x89`、
+//   0x0889b368/0x0889b38e `movzbl -0x89`）⇒ item -0x84 / typeName -0x88 /
+//   itemOk -0x89 / value1 -0x80 / value2 -0x7c 与 ORIG 逐槽对齐。
+// 残余 gap 12 = ORIG 8 个 continue 中继岛（0x0889b046..b05e 共 8×(nop;jmp)，落点
+// 均为内层循环头 0x0889b05f）+ 少量装载序；4.4 对 continue 恒 jump-thread 直跳
+// （我方仅 5 岛），属 P164/P223/N82 控制流布局族，源形不可择；ORIG 0x0889afb0。
 int advancealtar::RewardParameter::importAchievementRewardParameter(
     const char* path)
 {
@@ -2312,10 +2345,13 @@ int advancealtar::RewardParameter::importAchievementRewardParameter(
                     std::string diffName;
                     if (!ScanStr(&diffName))
                         return 0x36a;
-                    StageDifficulty::T diff;
-                    if (!StageDifficulty::getDifficulty(diffName, diff))
+                    // ORIG 0x0889b1d5：`lea -0xb4(%ebp),%eax; add $0x4,%eax`
+                    // ⇒ 出参直接是 &data.m_difficulty（data+4），无具名 T 局部。
+                    if (!StageDifficulty::getDifficulty(
+                            diffName,
+                            reinterpret_cast<StageDifficulty::T&>(
+                                data.m_difficulty)))
                         return 0x36d;
-                    data.m_difficulty = static_cast<int>(diff);
                     continue;
                 }
                 if (token == "[stage clear count]")
@@ -2342,19 +2378,23 @@ int advancealtar::RewardParameter::importAchievementRewardParameter(
                             break;                       // 静默退出本段
                         // ORIG 0x0889b327：`lea -0x84(%ebp),%eax` 直接传 &item（+0）⇒
                         // 出参直写 m_type，无具名 itemType 中转。
-                        if (!RewardItemType::getRewardItemType(
-                                typeName,
-                                reinterpret_cast<RewardItemType::T&>(item.m_type)))
+                        // ORIG 0x0889b339 `mov %al,-0x89(%ebp)` + 0x0889b368/0x0889b38e
+                        // `movzbl -0x89(%ebp)`：本段用**独立 bool**（-0x89）接收返回并
+                        // 复用为两次 ScanInt 的 ok 出参，非外层 ok(-0x71)。
+                        bool itemOk = RewardItemType::getRewardItemType(
+                            typeName,
+                            reinterpret_cast<RewardItemType::T&>(item.m_type));
+                        if (!itemOk)
                             break;
                         // [b28d-solo-CDataManagerScripts-2] 真 bug 修正：ORIG 0x0889b360
                         // 第一次 ScanInt 写 item+4（m_value1），0x0889b386 第二次写
                         // item+8（m_value2）——旧实现把第一次写进 m_value2、第二次丢弃，
                         // 导致 m_value1 恒 0 且 m_value2 取错值。
-                        item.m_value1 = ScanInt(&ok);    // +4
-                        if (!ok)
+                        item.m_value1 = ScanInt(&itemOk);    // +4
+                        if (!itemOk)
                             break;
-                        item.m_value2 = ScanInt(&ok);    // +8
-                        if (!ok)
+                        item.m_value2 = ScanInt(&itemOk);    // +8
+                        if (!itemOk)
                             return 0x391;
                         data.m_rewardItems.push_back(item);
                     }

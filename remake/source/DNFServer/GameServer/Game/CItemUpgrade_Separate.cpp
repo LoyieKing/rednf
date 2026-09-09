@@ -487,6 +487,11 @@ void CItemUpgrade_Separate::_NoticeUpgrade(const CUser* user, const Inven_Item& 
 // + 虚调目标 %eax vs %edx、rarity/itemType 的 %ebx/%esi 角色互换（N7，P230 判 4.4.6
 // 后端敏感族）；帧 push edi/esi/ebx 与 ORIG 全等（sub 立即数差 0x10 = N115）。
 // 按 §6.2 判语义完成、byte 层封顶。
+// 虚槽核对（Main 2026-09-09 判据）：本 TU 共 5 处 `call *`，槽号逐处与 ORIG 一致——
+// ① item_upgrade_system 槽 0（ORIG 0x080fc889 `mov (%eax),%edx`）；② _GetUpgradeInfo
+// 0x892 `add $0xc`（ORIG 0x0811e354，CItem::GetItemType）；③④ _CheckCondition
+// 0xa65/0xab9 `add $0xc`（ORIG 0x0811e1fc/0x0811e250）；⑤ 本函数 0x1238 `add $0x4c`
+// = CItem::IsRandomOption（ORIG 0x0811ebdd）。无槽取错。
 int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
                                        PacketGuard* packet)
 {

@@ -106,6 +106,11 @@ int CUser::IsAbleItemLock(int space, int slot) const
 // [b28d-63 判词] DIFF→**NEAR 37=37**（p167 CLEAR）：拆嵌套 if + result 预清/判返后
 //   逐段同形；唯一残差 = 两处 `call *%eax` vs ORIG `call *%edx`（N7 间接 call 目标
 //   寄存器，4.4.7 恒 %eax；4.4.6 后端可翻，路由归 Main）。
+// [b28d-63 虚槽核对·Main 全库排查] 本函数两处间接调用槽 = vptr+0xc：
+//   _ZTV14CStackableItem@0x08c96ea0 +0x14 = 0x08514a84 = CStackableItem::GetItemType
+//   （非 vptr+0x10 IsAvatarItem@0x08514a92 / vptr+0x14 IsCreatureItem@0x08514a9c）
+//   ⇒ 槽号与语义一致，无取错。全 TU 另两处 = vptr+0x1c（_reset），
+//   _ZTV16CItemMakingSkill@0x08c9c340 +0x24 = 0x085453ba = CItemMakingSkill::_reset ✓。
 
 // ---------------------------------------------------------------------------
 // 2. CUser::IsAbleItemUnlock(int,int,int&) const —— ORIG T 0x08646bfe

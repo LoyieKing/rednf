@@ -1029,6 +1029,8 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
 // 逐字段 `todays[i].xxx` **每次重调** const operator[]（P157 禁引用缓存；旧版
 // `const _TodayRewardItem& entry=todays[i]` 只 1 次调用 ⇒ p167 MISSING 3）；
 // `entry` 是**循环外声明的具名指针**（-0x18 初值 0，命中即 break），循环后
+// 虚调用槽核对（Main 2026-09-09 要求）：ORIG 0x08122263 `call *%edx` 槽 = vptr+0x8
+// （`add $0x8,%eax`）；我方 0x203b 同槽 ⇒ make_item 目标一致（仅 %eax vs %edx = N7）。
 // [b28d-solo-APSystemOnlyOrig] 判词：**N82 + 档②封顶**（残差 = 槽基浅 4 + N93附 两处 `je` vs 4.4 `jne+mov$0+jmp` + N7 虚调目标寄存器 + P75 实参装载序 + P254 字段中转；m_isRewardItem uchar `cmp $1` vs ORIG bool `xor $1`（档②候选：探针 /tmp/ap_probe6.cpp gS3 显示需 bool 字段 + `if(!f)` 才出 xor，共享头改动未落）；p167 CLEAR 18/18）。
 // `if(entry==0)return false`（死检查照抄 P171），`m_flag00=1` 在该检查**之后**。
 bool CActionPointManager::GetTodayRewardAndSendMail(
@@ -1095,6 +1097,8 @@ bool CActionPointManager::GetTodayRewardAndSendMail(
 // ============================================================================
 // [b28d-solo-APSystemOnlyOrig] ORIG 0x08124ea0：size() 缓存 -0x1c、hit -0x18
 // （初值 0）、i -0x14；两个条件各逐字段重调 const operator[]（P157；旧版
+// 虚调用槽核对（Main 2026-09-09 要求）：ORIG 0x08125015 `call *%edx` 槽 = vptr+0x8
+// （`add $0x8,%eax`）；我方 0x22df 同槽 ⇒ make_item 目标一致（仅 %eax vs %edx = N7）。
 // [b28d-solo-APSystemOnlyOrig] 判词：**N82 封顶**（残差 = 槽基浅 4 + N93附 两处 return 块序 + N7 虚调目标寄存器 + P254 字段 eax→ebx 中转 + P75 实参装载序（`movl $0x8,S` 提前）；171 vs 175）。p167 CLEAR 20/20。
 // `const _MedalRewardItem& m = medals[i]` 只 1 次 ⇒ p167 MISSING 5）。
 bool Inter_LoadRewardMedal::SendMail(CUser& user, unsigned int medalCount)

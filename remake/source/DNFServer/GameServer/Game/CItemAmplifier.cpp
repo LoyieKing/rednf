@@ -121,9 +121,13 @@ bool CItemAmplifier::checkInvestableItem(const CItem* item,
         return false;
     }
 
-    // [b28d-34] P282：vptr+0xc 槽 = _ZTV5CItem+0x14 word[3] = CItem::GetItemType()
-    // （CItem.h:45 纯虚 @3，ORIG 三处 `mov (%eax),%eax; add $0xc; mov (%eax),%edx;
-    // call *%edx`）；旧函数指针形把目标缓存进栈槽并多 2 insn。
+    // [b28d-34] P282：vptr+0xc 槽 = _ZTV5CItem+0x14 = word[5] = CItem::GetItemType()
+    // （CItem.h:45 纯虚；基类 _ZTV5CItem word[5] 是 __cxa_pure_virtual 占位，真身在
+    // 派生类槽：_ZTV14CStackableItem word[5]=0x08514a84=CStackableItem::GetItemType）。
+    // ORIG 三处 `mov (%eax),%eax; add $0xc; mov (%eax),%edx; call *%edx`
+    // （0x082349a5/0x082349bc/0x082349ed）；旧函数指针形把目标缓存进栈槽并多 2 insn。
+    // [b28d-solo-CItemAmplifier2] 收口 P282 复核：我方 .o 三处立即数同为 0xc，
+    // generateAmplifyItem 一处同为 0x58（=isAmplifyPollutionItem）⇒ 槽号全对齐。
     // [b28d-34] 修后 138/139，残差 N7（间接 call 目标 %eax vs %edx）+ 帧 0x24/0x34。
     if (item->GetItemType() <= 9 || item->GetItemType() > 0x15)
     {

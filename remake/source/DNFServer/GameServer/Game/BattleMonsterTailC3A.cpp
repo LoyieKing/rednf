@@ -29,10 +29,11 @@
 //   add_hell_party_monster      0x083071ba —— gap −1，DIFF：calls 41=41、差集全为
 //     C1/C2·D1/D2 同址别名；残余 1 条 = script_values 段 4.4 把返回值 `mov %eax,%edx`
 //     中转（ORIG 4.1 用 %edx 装 this）⇒ N7 寄存器角色封顶。
-//   checkClearedNamedMonsterMap 0x08300c76 —— gap −2，DIFF：calls 7/9，差集仅
-//     `_Unwind_Resume`+1（4.4 为局部 map_monster 布 EH landing，ORIG 无 ⇒ N91 族）
-//     与 C1/C2 别名；另 char m_visited 判零 4.4 多 sete（P73 已知，字段 bool 化会
-//     破坏 set_visited_map 的 AE 写入形，见 BattleMonsterDepsC2.cpp:1083 判词）。
+//   checkClearedNamedMonsterMap 0x08300c76 —— gap +6，DIFF：calls 7=7（Main 代落
+//     isNamedMonster() throw() 后 _Unwind_Resume 消失），差集仅 C1/C2 别名；残余
+//     全为 4.1 代码生成风格（esi 路径标志 + 实参求值槽）+ char m_visited 判零 4.4
+//     sete（P73 已知，字段 bool 化会破坏 set_visited_map 的 AE 写入形，见
+//     BattleMonsterDepsC2.cpp:1083 判词）⇒ N 封顶。
 // ============================================================================
 #include <map>
 #include <vector>
@@ -115,8 +116,11 @@ bool CBattle_Field::ConsistTournament(const CMap* pMap, std::list<_mapMonster>& 
 // `_ZNKSt6vectorI20STNamedMonsterMapPosSaIS0_EEixEj` @0x0830fec0（全库无**非** const
 // 版定义；直接写 `[idx]` 会误选非 const 版 ⇒ 我方缺失该 ORIG 符号）⇒ 源码用 const
 // 引用视图 cast（P323），
-// p167 MISSING `…ixEj`×2 / EXTRA 非 const×2 已归零。残差 gap −2：`_Unwind_Resume`+1
-// （N91 族，4.4 为局部 map_monster 布 landing，ORIG 无）+ char m_visited 判零 sete（P73）。
+// p167 MISSING `…ixEj`×2 / EXTRA 非 const×2 已归零。Main 代落 `isNamedMonster()`
+// throw()（WarField.h/MapInfo.cpp）后 `_Unwind_Resume` 消失、calls 9→7=ORIG，
+// gap 81/75=+6：残差全为 4.1 代码生成风格（esi 路径标志 `mov $0/$1,%esi`+push/pop
+// esi、GetMapInfoFromPos 实参求值槽 -0x10/-0xc）+ char m_visited 判零 4.4 sete（P73）
+// ⇒ N 封顶（语义等价：p167 calls 7=7、差集仅 C1/C2 别名）。
 // ==================================================================
 bool CBattle_Field::checkClearedNamedMonsterMap(unsigned char idx, int uid)
 {

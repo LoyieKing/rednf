@@ -1465,8 +1465,8 @@ bool CTradeSpace::proceed_trade()
 //   ndiff 794→318、gap 6→1；p167 227/227 CLEAR。残余 318 归因：短路物化极性
 //   （ORIG `call;test %al,%al;je` vs 我方 `xor $1;…`，P214①/P222）、全局 receiver
 //   装载序（P87/P329）、slotIdx 槽差（-0x58 vs -0x50）、块序重排（P272/N82）。
-// [b28f-SweepCTSpace verdict=DIFF ndiff=1279（O2021/N2018, gap 3）]
-//   真修三处：
+// [b28f-SweepCTSpace verdict=DIFF ndiff=1280（O2021/N2019, gap 2）]
+//   真修四处：
 //   ① P214① use_money 正向包裹：ORIG +0x1e9 `call; test %al,%al; je <远处 -5
 //      块>`（正极性无 xor）⇒ 原码 `if (use_money(...)) { 成功路径 } return -5;`；
 //   ② P325 共享尾块：ORIG 四处 `add_item` 后 `cmpl $-1; je <+0x2109 共享尾块
@@ -1475,13 +1475,17 @@ bool CTradeSpace::proceed_trade()
 //      尾部 `L_slotN: return slotIdx;`（我方实测生成 `je <共享块>` + 槽 -0x58
 //      与 ORIG 同址）；
 //   ③ 旧「虚调用非真 bug」判词作废（同 change_trade_state ①）。
+//   ④ P198③ 双槽置 0：ORIG case7 tick 段 +0x1f16 `movl $0x0,-0x24` 后
+//      `call GetDateTimeTick` 回写 ⇒ 原码「声明=0 + 独立赋值」两句式。
+//      实测 `int tick = 0; tick = OS_API::GetDateTimeTick();` +1 条归位。
+//      （反例：case1/case3 的 tick 改实参内联实测劣化 1280→2226，已回退。）
 //   残余：type0 回滚 ==/> 双 reset 落块序（ORIG ==b 跳 +0xb95 尾块、我方内联；
 //   嵌套 if 实测零效）+ 短路链 receiver 装载序（P87/P329）+ cMyTrace 实参
 //   get_add_info 跨 call 保活落槽（ORIG %ebx）+ N82 全帧槽号平移。
 //   p167 227/227 CLEAR（C1/C2、D1/D2 同址别名差按 P93 豁免）。
 int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
 {
-    // b28f-SweepCTSpace: DIFF ndiff=1279（O2021/N2018）。ORIG @0x08529e7e。
+    // b28f-SweepCTSpace: DIFF ndiff=1280（O2021/N2019）。ORIG @0x08529e7e。
     if (IsLocked())
         return -0x63;
     if (b <= 0)
@@ -1863,7 +1867,10 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
             packet.put_short(0);
             if (slot.m_item.m_field1 == 5) {
                 // ORIG：tick 先行局部、add_info 走槽链 call
-                int tick = OS_API::GetDateTimeTick();
+                // P198③：ORIG +0x1f16 `movl $0x0,-0x24` 后 `call tick` 回写
+                // ⇒ 原码是「声明=0 + 独立赋值」两句式。
+                int tick = 0;
+                tick = OS_API::GetDateTimeTick();
                 int ai = TradeSlotAt(m_slotsData, trader, slotIdx)
                              ->m_item.get_add_info();
                 packet.put_int(
