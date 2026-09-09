@@ -112,6 +112,15 @@ int DB_LoadEtc::GetUserPvpBase(SIG_LOAD_ETC* sig)
 // [b28d-SweepDBLoadEtc 本波] 具名 nowSec 槽（ORIG `call getCurSec; mov %eax,-0xc` +
 // `cmp -0xc(%ebp),%eax; jge` 直跳）：旧内联 getCurSec() 致 4.4 setcc 物化；改后 385/386
 //（gap 5→1）、p167 CLEAR。
+// [b28d-SweepDBLoadEtc2 本波] **DIFF→AE（385/385）**，三处源形按报告逐条复现：
+//   ①具名 `PvpResultType* pvp = &sig->m_pvpResult;`（ORIG 0x08407e45 `mov 0xc(%ebp),%eax;
+//     add $0x340,%eax; mov %eax,-0x14`，P0 槽-局部对应律；旧直写 sig->m_pvpResult 使
+//     sig 形参使用 28 次 vs ORIG 2 次）；
+//   ②get_uint(23/24) 直接传字段地址 `(unsigned int&)pvp->m_todayPlayCount/m_todayLoseCount`
+//     （ORIG 0x08408273/0x084082a1 `pvp+0x64/0x60`，无中间 u 局部，P0）；
+//   ③localtime_r 改 P43 指针形 `struct tm* t = localtime_r(&now,&tmv);`，写序照 ORIG
+//     +0x8→+0x4→+0x0（tm_hour/tm_min/tm_sec）；mktime 结果直存 +0x68 后重读比较（无
+//     nextReset 局部）；gradeExtUpdateSec 裸声明（ORIG 0x08408338 无前置清零）。
 int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
@@ -132,63 +141,67 @@ int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
         return 1;
 
     // sig+0x340 = m_pvpResult（PvpResultType，权威字段布局见 PvpResultType.h；
-    // +0x0c/+0x10 两列 DB 不读）。ORIG 逐列 get_int（unrolled），非循环：
+    // +0x0c/+0x10 两列 DB 不读）。ORIG 0x08407e45 `mov 0xc(%ebp),%eax;
+    // add $0x340,%eax; mov %eax,-0x14(%ebp)` ⇒ 具名 PvpResultType* 局部
+    // （P0 槽-局部对应律：有槽往返 ⇒ 原码有该局部），后续逐列 get_int（unrolled）：
     // win/lose/pvp_point→m_totalWinCount/m_totalLoseCount/m_expPoint，
     // pvp_grade→m_pvpGrade、avg[15]→m_avg[0..14]、pvp_count→m_count、
     // win_point→m_winPoint、pvp_grade_ext→m_todayWinCount。
-    if (!db->get_int(0, sig->m_pvpResult.m_totalWinCount)) return -1;   // win
-    if (!db->get_int(1, sig->m_pvpResult.m_totalLoseCount)) return -1;  // lose
-    if (!db->get_int(2, sig->m_pvpResult.m_expPoint)) return -1;        // pvp_point
-    if (!db->get_int(3, sig->m_pvpResult.m_pvpGrade)) return -1;        // pvp_grade
-    if (!db->get_int(4, sig->m_pvpResult.m_avg[0])) return -1;
-    if (!db->get_int(5, sig->m_pvpResult.m_avg[1])) return -1;
-    if (!db->get_int(6, sig->m_pvpResult.m_avg[2])) return -1;
-    if (!db->get_int(7, sig->m_pvpResult.m_avg[3])) return -1;
-    if (!db->get_int(8, sig->m_pvpResult.m_avg[4])) return -1;
-    if (!db->get_int(9, sig->m_pvpResult.m_avg[5])) return -1;
-    if (!db->get_int(10, sig->m_pvpResult.m_avg[6])) return -1;
-    if (!db->get_int(11, sig->m_pvpResult.m_avg[7])) return -1;
-    if (!db->get_int(12, sig->m_pvpResult.m_avg[8])) return -1;
-    if (!db->get_int(13, sig->m_pvpResult.m_avg[9])) return -1;
-    if (!db->get_int(14, sig->m_pvpResult.m_avg[10])) return -1;
-    if (!db->get_int(15, sig->m_pvpResult.m_avg[11])) return -1;
-    if (!db->get_int(16, sig->m_pvpResult.m_avg[12])) return -1;
-    if (!db->get_int(17, sig->m_pvpResult.m_avg[13])) return -1;
-    if (!db->get_int(18, sig->m_pvpResult.m_avg[14])) return -1;
-    if (!db->get_int(19, sig->m_pvpResult.m_count)) return -1;          // pvp_count
-    if (!db->get_int(20, sig->m_pvpResult.m_winPoint)) return -1;       // win_point
-    if (!db->get_int(21, sig->m_pvpResult.m_todayWinCount)) return -1;  // pvp_grade_ext
+    PvpResultType* pvp = &sig->m_pvpResult;
+    if (!db->get_int(0, pvp->m_totalWinCount)) return -1;   // win
+    if (!db->get_int(1, pvp->m_totalLoseCount)) return -1;  // lose
+    if (!db->get_int(2, pvp->m_expPoint)) return -1;        // pvp_point
+    if (!db->get_int(3, pvp->m_pvpGrade)) return -1;        // pvp_grade
+    if (!db->get_int(4, pvp->m_avg[0])) return -1;
+    if (!db->get_int(5, pvp->m_avg[1])) return -1;
+    if (!db->get_int(6, pvp->m_avg[2])) return -1;
+    if (!db->get_int(7, pvp->m_avg[3])) return -1;
+    if (!db->get_int(8, pvp->m_avg[4])) return -1;
+    if (!db->get_int(9, pvp->m_avg[5])) return -1;
+    if (!db->get_int(10, pvp->m_avg[6])) return -1;
+    if (!db->get_int(11, pvp->m_avg[7])) return -1;
+    if (!db->get_int(12, pvp->m_avg[8])) return -1;
+    if (!db->get_int(13, pvp->m_avg[9])) return -1;
+    if (!db->get_int(14, pvp->m_avg[10])) return -1;
+    if (!db->get_int(15, pvp->m_avg[11])) return -1;
+    if (!db->get_int(16, pvp->m_avg[12])) return -1;
+    if (!db->get_int(17, pvp->m_avg[13])) return -1;
+    if (!db->get_int(18, pvp->m_avg[14])) return -1;
+    if (!db->get_int(19, pvp->m_count)) return -1;          // pvp_count
+    if (!db->get_int(20, pvp->m_winPoint)) return -1;       // win_point
+    if (!db->get_int(21, pvp->m_todayWinCount)) return -1;  // pvp_grade_ext
 
     int lastPlaySec = 0;
     if (!db->get_int(22, lastPlaySec))              // unix(last_play_time)→局部
         return -1;
-    unsigned int u;
-    if (!db->get_uint(23, u))                       // play_count→+0x64
+    // ORIG 0x08408273/0x084082a1：get_uint 直接传 pvp+0x64 / pvp+0x60（无中间局部）。
+    if (!db->get_uint(23, (unsigned int&)pvp->m_todayPlayCount))
         return -1;
-    sig->m_pvpResult.m_todayPlayCount = u;          // pvpBase+0x64
-    if (!db->get_uint(24, u))                       // play_time→+0x60
+    if (!db->get_uint(24, (unsigned int&)pvp->m_todayLoseCount))
         return -1;
-    sig->m_pvpResult.m_todayLoseCount = u;          // pvpBase+0x60
 
     time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm tmv;
-    localtime_r(&now, &tmv);
-    tmv.tm_sec = 0;
-    tmv.tm_min = 0;
-    tmv.tm_hour = 0;
-    int nextReset = (int)mktime(&tmv);
-    sig->m_pvpResult.m_nextResetTime = nextReset;   // pvpBase+0x68
-    if (nextReset > lastPlaySec)
-        sig->m_pvpResult.m_todayLoseCount = 0;      // play_time 清零
+    // ORIG 0x084082f0：localtime_r 返回值落具名 tm* 局部，成员经指针写（P43）。
+    struct tm* t = localtime_r(&now, &tmv);
+    // ORIG 0x084082f6..0x0840830a 写序 +0x8 → +0x4 → +0x0（tm_hour/tm_min/tm_sec）。
+    t->tm_hour = 0;
+    t->tm_min = 0;
+    t->tm_sec = 0;
+    // ORIG 0x0840831b：mktime 结果直存 +0x68（无 nextReset 局部），随后重读字段比较。
+    pvp->m_nextResetTime = (int)mktime(t);
+    if (pvp->m_nextResetTime > lastPlaySec)
+        pvp->m_todayLoseCount = 0;                  // play_time 清零
 
-    int gradeExtUpdateSec = 0;
+    // ORIG 0x08408338 直接 lea -0x24（无前置清零）⇒ 裸声明。
+    int gradeExtUpdateSec;
     if (!db->get_int(25, gradeExtUpdateSec))        // unix(pvp_grade_ext_update_time)
         return -1;
-    // ORIG 0x0840xxxx：getCurSec 返回值先落具名槽（mov %eax,-0xc）再与
+    // ORIG 0x08408360：getCurSec 返回值先落具名槽（mov %eax,-0xc）再与
     // gradeExtUpdateSec+0x15180 直跳比较（无 setcc 物化）。
     int nowSec = (int)GlobalData::s_systemTime_.getCurSec();
     if (gradeExtUpdateSec + 0x15180 < nowSec)
-        sig->m_pvpResult.m_todayWinCount = 0;       // pvp_grade_ext 清零
+        pvp->m_todayWinCount = 0;                   // pvp_grade_ext 清零
 
     return 0;
 }
@@ -211,6 +224,16 @@ bool DB_LoadEtc::LoadLitmitItem(SIG_LOAD_ETC* sig)
 // p167 待核，语义按 dispatch 协议等价。
 // [b28d-solo-DB_LoadEtc] N封顶 ndiff=353 (orig=323/ours=326)：N82 帧/槽 + 本 TU callee
 // 定义可见导致的帧继承差；p167 CLEAR 0/0 ⇒ 语义完成、byte 层封顶（§6.2）。
+// [b28d-SweepDBLoadEtc2 本波] **DIFF→NEAR（327 vs 323，助记符序列全等，残差仅槽号
+//   sig -0x10 vs ORIG -0xc / 装载序）**，并修真 bug：
+//   ①`GetUserPvp` 判定改 **switch**（ORIG 0x08403c69 无槽 `test/cmp $1/cmp $-1/jmp` 链，
+//     P251/P261；内层 GetUserPvpBase 同形），case 叶块物理序按 ORIG（case1→case-1→case0，
+//     P324）；
+//   ②LoadLitmitItem 错误路径 cMyTrace 改 P227 全表达式临时链（ORIG 0x08403d80 ctor 前
+//     `mov 0x4(%eax),%ebx`）；
+//   ③SendResult 改具名 bool 局部（ORIG 0x08404073 `mov %al,-0xd; movzbl; xor $1`，P102）；
+//   ④**真 bug**：删 `if (!LoadQuestShop(sig)) return false;` 多余门禁——ORIG 0x08403f5e
+//     调用后直接 LoadTitleBook（返回值丢弃），旧形在 LoadQuestShop 失败时提前返回 false。
 bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
 {
     if (!DBDispatcher::dispatch(userIdx, slot, stream))
@@ -228,29 +251,37 @@ bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
 
     GetUserRecord(sig);     // 返回值未被消费（ORIG call 后直接 continue）
 
-    int pvp = GetUserPvp(sig);
-    if (pvp == 0)
+    // ORIG 0x08403c69..0x08403c77 无栈槽多路比较链
+    //   `test %eax,%eax; je; cmp $0x1; je; cmp $0xffffffff; je; jmp`
+    // ⇒ 原码是 switch(GetUserPvp(sig))（P251/P261），if-else 链恒带状态槽。
+    // case 叶块物理序 = 书写序（P324）：ORIG 块序为 case1(+0x8e) → case-1(+0xd8)
+    // → case0(+0xea)，决策链由编译器生成（P46）。
+    switch (GetUserPvp(sig))
     {
-        int base = GetUserPvpBase(sig);
-        if (base == -1)
-        {
-            sig->m_pvpResult.Clear();
-        }
-        else if (base == 1)
-        {
-            sig->m_pvpResult.m_field10 = -1;    // ORIG sig+0x350（PvpResultType+0x10）
-        }
+    case 1:
+    {
+        DB_CreateCharac createCharac;                 // C1 0x08400cc2
+        createCharac.CreatePvP(sig->m_characNo);      // T 0x084026ec
+        break;                                        // D1 0x08400cde + try 帧
     }
-    else if (pvp == 1)
-    {
-        {
-            DB_CreateCharac createCharac;                 // C1 0x08400cc2
-            createCharac.CreatePvP(sig->m_characNo);      // T 0x084026ec
-        }                                                 // D1 0x08400cde + try 帧
-    }
-    else if (pvp == -1)
-    {
+    case -1:
         sig->m_pvpResult.Clear();
+        break;
+    case 0:
+    {
+        // 内层同形：ORIG 0x08403cea `cmp $0xffffffff; je; cmp $0x1; je; jmp`（P251），
+        // 块序 -1(+0x108) → 1(+0x11a)。
+        switch (GetUserPvpBase(sig))
+        {
+        case -1:
+            sig->m_pvpResult.Clear();
+            break;
+        case 1:
+            sig->m_pvpResult.m_field10 = -1;    // ORIG sig+0x350（PvpResultType+0x10）
+            break;
+        }
+        break;
+    }
     }
 
     if (!LoadCharacItemStat(sig))
@@ -263,9 +294,10 @@ bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
 
     if (!LoadLitmitItem(sig))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x14db, 0);
-        trace("LoadLimitItem middle fetch <charac:%d>", sig->m_characNo);
+        // ORIG 0x08403d7d..0x08403db8：ctor 前 `mov 0x4(%eax),%ebx` 缓存
+        // sig->m_characNo，ctor 后才 mov %ebx,0x8(%esp) ⇒ 全表达式临时链（P227）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x14db, 0)(
+            "LoadLimitItem middle fetch <charac:%d>", sig->m_characNo);
         return false;
     }
 
@@ -300,10 +332,10 @@ bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
                               0x1566, "DB_LoadETC ERROR : LoadItemMakingSkill Fail");
         return false;
     }
-    if (!LoadQuestShop(sig))
-    {
-        return false;
-    }
+    // ORIG 0x08403f5e..0x08403f6a：LoadQuestShop 返回值**丢弃**（call 后直接 LoadTitleBook，
+    // 无 test/je）⇒ 原码为语句调用；旧 `if (!LoadQuestShop(sig)) return false;` 是多余门禁
+    // （真 bug：失败时 ORIG 继续后续 Load，我方提前返回 false）。
+    LoadQuestShop(sig);
 
     LoadTitleBook(sig);
     LoadAchievement(sig);
@@ -319,7 +351,10 @@ bool DB_LoadEtc::dispatch(int userIdx, int slot, Stream* stream)
     LoadComboSkillInfo(sig);
     LoadSeriaRoomAniDeco(sig);
 
-    if (!SendResult(userIdx, slot, sig))
+    // ORIG 0x0840404c 段：`mov %al,-0xd(%ebp); movzbl -0xd(%ebp),%eax; xor $1`
+    // ⇒ 具名 bool 局部物化返回值（P102/P158），随后失败路径 `mov $0,%eax`。
+    bool sendOk = SendResult(userIdx, slot, sig);
+    if (!sendOk)
     {
         return false;
     }
@@ -759,6 +794,12 @@ bool DB_LoadEtc::LoadAuraAvatarOption(SIG_LOAD_ETC* sig)
 // ORIG 0x08408734 `test %eax,%eax; je 0x0840874e` 首条 0 即 break（Ghidra C
 // `while (i<1000 && *(int*)(sig+i*0x18+0xecd8)!=0){++count;++i;}`）⇒ 改 while+break，
 // 计数=从头连续非零条数。读数 168/171→168/172（残差 N1 折叠）。
+// [b28d-SweepDBLoadEtc2 本波] 真 bug（读错偏移）：计数循环原读
+//   `m_bestClearTime + idx*0x18 + 8`（=sig+0xece0+24*idx，元素内第 3 个 int），ORIG
+//   0x08408718..0x0840873c 为 `lea (%ecx,%eax,1); add $0xecd0; mov 0x8(%eax)` = 
+//   sig+0xecd8+24*idx（**元素首 int**）⇒ 删 +8。另 trace 改 P227 临时链
+//   （ORIG 0x0840859f ctor 前 `mov 0x4(%eax),%ebx` 缓存 characNo）。
+//   残差：N107/N30 地址形 + N82 槽基差 4（不可翻）。
 bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
 {
     (void)userIdx;   // ORIG 仅透传第 3 参起作用（in_stack_00000010）
@@ -791,9 +832,10 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
     }
     if (!get_compressed_blob_data(db, col++, sig->m_bestClearTime, 24000, 0))
     {                                                        // col1 best_clear_time
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1f5d, 5);
-        trace("DB_LoadEtc::LoadCharacOption best_clear_time, get(%d) ERROR"
-              " charac_no=%u", col /*local_18 已自增*/, sig->m_characNo);
+        // ORIG 0x0840859f：ctor 前 `mov 0x4(%eax),%ebx` 缓存 characNo（P227 临时链）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f5d, 5)(
+            "DB_LoadEtc::LoadCharacOption best_clear_time, get(%d) ERROR"
+            " charac_no=%u", col /*local_18 已自增*/, sig->m_characNo);
         return false;
     }
 
@@ -821,12 +863,13 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
 
     int count = 0;
     int idx = 0;
-    // ORIG 0x08408734 `test %eax,%eax; je 0x0840874e`：首条 0 即 break（Ghidra C
-    // `while (i<1000 && *(int*)(sig+i*0x18+0xecd8)!=0){++count;++i;}`）；
-    // 旧 for+if 遍历全表统计非零数 = 真 bug（计数偏大）。
+    // ORIG 0x08408718..0x0840873c：地址 = sig + idx*0x18 + 0xecd0 + 8 = +0xecd8 + idx*24
+    // （`lea (%ecx,%eax,1); add $0xecd0; mov 0x8(%eax)`，P185 直读）——读**元素首 int**；
+    // 旧式 `m_bestClearTime + idx*0x18 + 8` 多 8 字节（真 bug：读元素内第 3 个 int）。
+    // 语义：首条 0 即 break（`test %eax,%eax; je`），非零则 count++/idx++。
     while (idx <= 0x3e7)
     {
-        if (*reinterpret_cast<int*>(sig->m_bestClearTime + idx * 0x18 + 8) == 0)
+        if (*reinterpret_cast<int*>(sig->m_bestClearTime + idx * 0x18) == 0)
             break;
         ++count;
         ++idx;
@@ -2279,6 +2322,10 @@ bool DB_LoadEtc::LoadPcRoomPlayTimeInfo(SIG_LOAD_ETC* sig)
 //   `test %al,%al; je`）；②`mov $1,%ebx; jmp` 尾岛与 get_n_rows()==0 的 sete 物化属
 //   4.1 共享出口/短路物化，4.4 恒折；③quantity store 的 eax→edx 中转（N18a）。
 // 已修（前波）：具名 std::string tableName（p167 归零）、分支极性翻转（!isCharacEvent 直落 idx9/m_id）。
+// [b28d-SweepDBLoadEtc2 本波] **真 bug（返回值门禁反向）**：原 `if (get_n_rows()==0 ||
+//   !db->fetch()) return true;` 把 fetch 失败当成功返回；ORIG 0x084069c4..0x084069f6
+//   为 n_rows==0 → 返回 1（`sete %al` 物化，P225）、fetch 失败 → 返回 0 ⇒ 拆两条独立
+//   if。读数：gap 3→3、sete 段两侧一致（助记符直方图差仅返回值归一 esi/ebx 形）。
 bool DB_LoadEtc::LoadUsedGiftFatigueInfo(SIG_LOAD_ETC* sig)
 {
     sig->m_curCharacUsedGiftFatigueQuantity = 0;             // +0xc9b8 清零先
@@ -2327,9 +2374,16 @@ bool DB_LoadEtc::LoadUsedGiftFatigueInfo(SIG_LOAD_ETC* sig)
             {
                 return false;
             }
-            if (db->get_n_rows() == 0 || !db->fetch())
+            // ORIG 0x084069c4..0x084069f6 真值门禁：get_n_rows()==0 → 返回 1
+            // （`sete %al` 物化，P225）；fetch() 失败 → 返回 0。旧合并短路写法
+            // `|| !db->fetch()` 返回 true 属真语义 bug（fetch 失败被当成功）。
+            if (db->get_n_rows() == 0)
             {
                 return true;
+            }
+            if (!db->fetch())
+            {
+                return false;
             }
             unsigned int quantity = 0;
             if (!db->get_uint(0, quantity))
