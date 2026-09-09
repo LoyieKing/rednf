@@ -1819,10 +1819,12 @@ int CInventory::getValidMoney(int add)
 
 int CInventory::GetInvenData(int itemIdx, Inven_Item& out) const
 {
-    // b28d-solo-CInventory：214/213，StartEndPos 实参装载寄存器 %eax↔%edx + 死写缺 ⇒ P0/P211/N7 封顶。
-    // b28d-37 [P0/P211 封顶，ORIG 0x84f?]：lea vs mov 中转、缺 `mov $I,%eax`
-    // 死写（214/213）。
-    int type = GetItemType(itemIdx);
+    // b28d-Inventory2 本轮：214/213 DIFF → 214/214 AE。两处真因：①type 局部声明为
+    // Inven_Item::ITEM_TYPE（enum）⇒ 复现 ORIG `lea -0x20,%eax … lea -0x1c,%eax …
+    // mov -0x18,%eax` 的 %eax 串行装载（int 局部时 4.4 提前载 type 并使 lea 走 %edx）；
+    // ②creature 分支循环后显式 return -1 ⇒ 复现 ORIG 0x84fc041 内联
+    // `mov $0xffffffff,%eax; jmp <尾>`（共享尾形丢该 store，P63）。
+    Inven_Item::ITEM_TYPE type = (Inven_Item::ITEM_TYPE)GetItemType(itemIdx);
     int start;
     int end;
     if (type == 0)
@@ -1840,6 +1842,9 @@ int CInventory::GetInvenData(int itemIdx, Inven_Item& out) const
                 return i;
             }
         }
+        // b28d-Inventory2：ORIG 0x84fc041 内联 `mov $0xffffffff,%eax; jmp <尾>`，
+        // 共享尾形会丢该 store（P63/P223 族）⇒ 分支内显式 return。
+        return -1;
     }
     else
     {
@@ -2377,6 +2382,11 @@ int CInventory::tryStackInvenItemIntoCorrespondingSpace(Inven_Item item) const
 // cmp $0xffffffff,%eax` vs 4.4 `cmpl $-1,-0x1c(%ebp)`（P75 mem-cmp 折叠）；
 // ② 0x08502e67/0x08502ea? 的 `mov -0x1c(%ebp),%ecx/%ebx` 在 receiver 载入
 // **之后**取槽（4.4 提前到实参链首，P211 档③装载时刻）⇒ 跨版本 codegen 封顶。
+// [b28d-Inventory2 本轮] ② 已修：dbLogType 声明 unsigned int（比较处同步 unsigned）
+// ⇒ 三处 `mov -0x1c,%ecx/%ebx` 落回 receiver 之后，gap 1→0 条数 428/427。
+// ① 维持封顶：unsigned 局部 + P286 单 case switch + P310 int+cast 三形实测仍产
+// `cmpl $-1,-0x1c`（4.4 对局部与常量比较恒 mem 直比，P209/N18b）⇒ 语义完成、
+// byte 层余 1 条（p167 CALLSITE CLEAR 21/21）。
 int CInventory::insertItemIntoInventory(Inven_Item item, eItemAddReason reason, bool bLog, bool b)
 {
     if (item.m_addInfo == 0)
@@ -2394,8 +2404,13 @@ int CInventory::insertItemIntoInventory(Inven_Item item, eItemAddReason reason, 
     }
     if (reason != 7 && reason != 2)
     {
-        int dbLogType = G_CDataManager()->IsDBLogItem(item.m_addInfo);
-        if (dbLogType != -1)
+        // b28d-Inventory2：ORIG 0x08502e44 `mov -0x1c,%eax; cmp $0xffffffff,%eax`
+        // （两段寄存器形）。unsigned 局部可复现三处 `mov -0x1c,%ecx/%ebx` 的
+        // receiver 后装载位置；比较处保持 unsigned（改 signed 比较会使装载位置回退）。
+        // 残余 1 条 `cmpl $0xffffffff,-0x1c`：4.4 对局部与常量比较恒折 mem 直比
+        // （P209/N18b；P286 单 case switch、P310 int+cast 两形实测均不可翻）⇒ 封顶。
+        unsigned int dbLogType = (unsigned int)G_CDataManager()->IsDBLogItem(item.m_addInfo);
+        if (dbLogType != (unsigned int)-1)
         {
             // [b28d-PoolMisc2 P251/P286 试验] ORIG 0x84f?（本段）为 4.1 的
             // `movzbl;movzbl %al,%eax; cmp $1,%eax; je; cmp $2,%eax; je; jmp`
@@ -3859,13 +3874,17 @@ int CInventory::try_use_item(int slot, int count, int invenType) const
 void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& f, int& g,
                                      int& h)
 {
-    // b28d-solo-CInventory [169/173；P223 双岛 + P59/P222 布局已复现，余 N 封顶]
+    // b28d-solo-CInventory [173/171；P223 岛已复现，余 2 条跨版本 codegen 封顶]
     // ORIG 0x850ce40：①两守卫 `cmpl $8; jg <nop 岛>`/`cmpl $4; jg <nop 岛>`
     // （+0x20c/+0x20f 两独立 landing）由双否定 goto 尾标签串复现；②for 内
     // `if (i <= 0x13)` 翻正条件 `i > 0x13` 复现 ORIG「else 直落 + then 后置跳转」。
-    // 残余 4 条跨版本 codegen 无源形旋钮：①`mov 0x10(%ebp),%ecx` 先载形参（P75，
-    // 4.4 恒 `add mem,%eax`）②`shl $2`+`mov TBL(%eax)` 强度归约（N86b，4.4 恒
-    // scaled `mov TBL(,%eax,4)`）③尾 goto 岛合并（N121）。
+    // [b28d-Inventory2 本轮] 循环内两岛（0x850d033 nop;jmp / 0x850d036 nop）由
+    // `if (addInfo==0) goto l_ces_island1; … if (i>0x10) goto l_ces_island2;`
+    // + 尾标签串 `l_ces_island1:; continue; l_ces_island2:;` 复现（P223），gap 6→2。
+    // 残余 2 条跨版本 codegen 无源形旋钮（探针 f1/f2/f5/f6 实测）：①`mov 0x10(%ebp),%ecx`
+    // 先载形参（P75，4.4 恒 `add mem,%eax`；unsigned cast 反产 3 条中转）②`shl $2`+
+    // `mov TBL(%eax)` 强度归约（N4/N86b，4.4 恒 scaled `mov TBL(,%eax,4)`；指针算术
+    // 反产 `add $TBL,%eax; mov (%eax)` 3 条）⇒ 判语义完成、byte 层余 2 条。
     if (a > 8) goto l_ces_skip1;
     if (b > 4) goto l_ces_skip2;
     {
@@ -3884,10 +3903,10 @@ void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& 
             // 4.4 即产 `jle <else>` 与 ORIG 同布局。
             if (i > 0x13)
             {
-                if (m_invenItem[i].m_addInfo != 0)
-                {
-                    g++;
-                }
+                // b28d-Inventory2 [P223]：ORIG 0x850ceb9 `je 0850d033`（岛1 nop;jmp
+                // 到循环尾）⇒ 裸条件 goto + 尾空标签串；标签序 = 守卫序。
+                if (m_invenItem[i].m_addInfo == 0) goto l_ces_island1;
+                g++;
             }
             else
             {
@@ -3895,7 +3914,7 @@ void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& 
                 {
                     c++;
                 }
-                if (i < 0x11)
+                if (i > 0x10) goto l_ces_island2;
                 {
                     CEquipItem* pItem = (CEquipItem*)G_CDataManager()->find_item(
                         m_invenItem[i].m_addInfo);
@@ -3943,6 +3962,9 @@ void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& 
                     }
                 }
             }
+        l_ces_island1:;
+            continue;
+        l_ces_island2:;
         }
     }
 l_ces_skip1:;
@@ -6387,11 +6409,17 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
 // 正向 if(m_pParent!=0){log}else{trace} 翻转后 je/jne 计数逼近（22/8 vs 18/12）。
 // 残余 gap=8：ORIG cur-count<0 物化用 add/sub+jle 三 insn 形、cmp/cmpl 与 movl 立即数
 // 落槽别名，源层不可控（范式回滚实验见 git 历史），判 N82。
+// [b28d-Inventory2 本轮推翻 N82] 625/617 DIFF → 623/623 AE（p167 余 cMyTrace
+// C1/C2 同址别名伪差，P93）。三处真因：①外层 if/else 链误译 ⇒ ORIG 0x0850405a
+// 是 switch(INVEN_TYPE) 二分决策树（探针实测 4.4.7 同形、叶块序=case 书写序 0,1,2,3，
+// P324）；②8 处 cMyTrace 具名局部 ⇒ 全表达式临时链（P221）复现 ORIG 槽阶梯
+// -0x88..-0x18；③两处 `cur-count<=0` 早返回 ⇒ 正向 if/else（ORIG `sub;test;jle
+// <log 块>`）；另 (INVEN_TYPE)1/0/3 硬编码改回 invenType 形参、删 cur 具名局部
+// （P183/P329）。
 bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                              eItemDelReason reason, bool bLog)
 {
-    // b28d-solo-CInventory：625/617，P167 CLEAR；帧/槽残差 ⇒ N82 封顶。
-    // b28d-37 [N82 封顶，ORIG 0x850?]：帧/槽残差；P167 调用点 CLEAR（39/39）；625/617。
+    // b28d-Inventory2：623/623 AE（原 625/617），p167 余 cMyTrace C1/C2 同址伪差。
     if (CheckValidSlot(invenType, slot) != 1)
     {
         return 0;
@@ -6400,8 +6428,37 @@ bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
     {
         return 0;
     }
-    if (invenType == 1)
+    // b28d-Inventory2：ORIG 0x0850405a 起为 switch(INVEN_TYPE) 二分决策树
+    // （cmp $1/je、cmp $1/jg、test/je、cmp $2、cmp $3），探针实测 4.4.7 同形；
+    // 叶块物理序 = case 书写序 0,1,2,3（P324）。历史 if-else 链为误译。
+    switch (invenType)
     {
+    case INVEN_TYPE_INVEN:
+        if (m_invenItem[slot].m_addInfo == 0)
+        {
+            return 0;
+        }
+        if (bLog)
+        {
+            if (m_pParent != 0)
+            {
+                    m_pParent->m_historyLog.ItemDel(invenType, 0, 1, m_invenItem[slot], reason);
+            }
+            else
+            {
+                cMyTrace(
+                    __PRETTY_FUNCTION__,
+                    0x1811, 5)("History ERROR, m_pParent NULL, ItemDel ");
+            }
+        }
+        m_invenItem[slot].reset();
+        if (slot < 10)
+        {
+            SendAvatarEvent(0x33, slot, 0, 0, 0);
+        }
+        break;
+
+    case INVEN_TYPE_EQUIP:
         if (slot == 0)
         {
             return use_money(count, (eMoneySubReason)9, bLog);
@@ -6416,14 +6473,13 @@ bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
             {
                 if (m_pParent != 0)
                 {
-                        m_pParent->m_historyLog.ItemDel((INVEN_TYPE)1, 0, 1, m_pEquipSlot[slot], reason);
+                        m_pParent->m_historyLog.ItemDel(invenType, 0, 1, m_pEquipSlot[slot], reason);
                 }
                 else
                 {
-                    cMyTrace local_7c(
+                    cMyTrace(
                         __PRETTY_FUNCTION__,
-                        0x1831, 5);
-                    local_7c("History ERROR, m_pParent NULL, ItemDel ");
+                        0x1831, 5)("History ERROR, m_pParent NULL, ItemDel ");
                 }
             }
             m_pEquipSlot[slot].reset();
@@ -6434,79 +6490,54 @@ bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
             {
                 if (m_pParent != 0)
                 {
-                        m_pParent->m_historyLog.ItemDel((INVEN_TYPE)1, 0, m_pEquipSlot[slot].m_addInfo2,
+                        m_pParent->m_historyLog.ItemDel(invenType, 0, m_pEquipSlot[slot].m_addInfo2,
                                                         m_pEquipSlot[slot], reason);
                 }
                 else
                 {
-                    cMyTrace local_6c(
+                    cMyTrace(
                         __PRETTY_FUNCTION__,
-                        0x184d, 5);
-                    local_6c("History ERROR, m_pParent NULL, ItemDel ");
+                        0x184d, 5)("History ERROR, m_pParent NULL, ItemDel ");
                 }
             }
             m_pEquipSlot[slot].reset();
         }
         else
         {
-            int cur = m_pEquipSlot[slot].m_addInfo2;
-            if (cur == count || cur - count < 0)
+            // b28d-Inventory2：ORIG 0x85043b8 `sub; test; jle <log 块>`（log 为跳转
+            // 目标、正常流程直落）⇒ 必须写正向 if/else，早返回形会产 `jg <after>`。
+            if (m_pEquipSlot[slot].m_addInfo2 - count > 0)
+            {
+                m_pEquipSlot[slot].m_addInfo2 = m_pEquipSlot[slot].m_addInfo2 - count;
+                if (bLog)
+                {
+                    if (m_pParent != 0)
+                    {
+                            m_pParent->m_historyLog.ItemDel(invenType, m_pEquipSlot[slot].m_addInfo2, count,
+                                                            m_pEquipSlot[slot], reason);
+                    }
+                    else
+                    {
+                        cMyTrace(
+                            __PRETTY_FUNCTION__,
+                            0x1868, 5)("History ERROR, m_pParent NULL, ItemDel ");
+                    }
+                }
+            }
+            else
             {
                 LogManager::logFormat(
                     1, "inventory.cpp",
                     __PRETTY_FUNCTION__,
                     0x186f, "%s - m_InvenSlot[slot_no].add_info(%d) < count(%d)",
-                    ((CUserCharacInfo*)m_pParent)->getCurCharacName(), cur, count);
+                    ((CUserCharacInfo*)m_pParent)->getCurCharacName(),
+                    m_pEquipSlot[slot].m_addInfo2, count);
                 return 0;
             }
-            m_pEquipSlot[slot].m_addInfo2 = cur - count;
-            if (bLog)
-            {
-                if (m_pParent != 0)
-                {
-                        m_pParent->m_historyLog.ItemDel((INVEN_TYPE)1, m_pEquipSlot[slot].m_addInfo2, count,
-                                                        m_pEquipSlot[slot], reason);
-                }
-                else
-                {
-                    cMyTrace local_5c(
-                        __PRETTY_FUNCTION__,
-                        0x1868, 5);
-                    local_5c("History ERROR, m_pParent NULL, ItemDel ");
-                }
-            }
         }
-    }
-    else if (invenType < 2)
-    {
-        if (invenType == 0)
-        {
-            if (m_invenItem[slot].m_addInfo == 0)
-            {
-                return 0;
-            }
-            if (bLog)
-            {
-                if (m_pParent != 0)
-                {
-                        m_pParent->m_historyLog.ItemDel((INVEN_TYPE)0, 0, 1, m_invenItem[slot], reason);
-                }
-                else
-                {
-                    cMyTrace local_8c(
-                        __PRETTY_FUNCTION__,
-                        0x1811, 5);
-                    local_8c("History ERROR, m_pParent NULL, ItemDel ");
-                }
-            }
-            m_invenItem[slot].reset();
-            if (slot < 10)
-            {
-                SendAvatarEvent(0x33, slot, 0, 0, 0);
-            }
-        }
-    }
-    else if (invenType == 2)
+        break;
+
+    case INVEN_TYPE_AVATAR:
     {
         if (m_pAvatarSlot[slot].m_addInfo == 0)
         {
@@ -6516,29 +6547,49 @@ bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
         {
             if (m_pParent != 0)
             {
-                    const char* agency = m_avatarItemMgr.GetIPGAgencyNo(
-                        m_pAvatarSlot[slot].m_addInfo2);
                     m_pParent->m_historyLog.AvatarItemDel(m_pAvatarSlot[slot].m_addInfo,
-                                                          m_pAvatarSlot[slot].m_addInfo2, agency,
+                                                          m_pAvatarSlot[slot].m_addInfo2,
+                                                          m_avatarItemMgr.GetIPGAgencyNo(
+                                                              m_pAvatarSlot[slot].m_addInfo2),
                                                           (eAvatarItemDelReason)reason);
             }
             else
             {
-                cMyTrace local_4c(
+                cMyTrace(
                     __PRETTY_FUNCTION__,
-                    0x187e, 5);
-                local_4c("History ERROR, m_pParent NULL, ItemDel ");
+                    0x187e, 5)("History ERROR, m_pParent NULL, ItemDel ");
             }
         }
         m_pAvatarSlot[slot].reset();
+        break;
     }
-    else if (invenType == 3)
+
+    case INVEN_TYPE_CREATURE:
     {
         if (m_pCreatureSlot[slot].m_addInfo == 0)
         {
             return 0;
         }
-        if (!m_pCreatureSlot[slot].isEquipableItemType())
+        if (m_pCreatureSlot[slot].isEquipableItemType())
+        {
+            if (bLog)
+            {
+                if (m_pParent != 0)
+                {
+                        m_pParent->m_historyLog.CreatureItemDel(
+                            invenType, m_pCreatureSlot[slot].m_addInfo, m_pCreatureSlot[slot].m_addInfo2, 1,
+                            m_pCreatureSlot[slot].m_field1, reason);
+                }
+                else
+                {
+                    cMyTrace(
+                        __PRETTY_FUNCTION__,
+                        0x18a3, 5)("History ERROR, m_pParent NULL, ItemDel ");
+                }
+            }
+            m_pCreatureSlot[slot].reset();
+        }
+        else
         {
             if (m_pCreatureSlot[slot].m_addInfo2 == count)
             {
@@ -6547,71 +6598,55 @@ bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                     if (m_pParent != 0)
                     {
                             m_pParent->m_historyLog.CreatureItemDel(
-                                (INVEN_TYPE)3, m_pCreatureSlot[slot].m_addInfo, 0,
+                                invenType, m_pCreatureSlot[slot].m_addInfo, 0,
                                 m_pCreatureSlot[slot].m_addInfo2, m_pCreatureSlot[slot].m_field1,
                                 reason);
                     }
                     else
                     {
-                        cMyTrace local_2c(
+                        cMyTrace(
                             __PRETTY_FUNCTION__,
-                            0x18bb, 5);
-                        local_2c("History ERROR, m_pParent NULL, ItemDel ");
+                            0x18bb, 5)("History ERROR, m_pParent NULL, ItemDel ");
                     }
                 }
                 m_pCreatureSlot[slot].reset();
             }
             else
             {
-                int cur = m_pCreatureSlot[slot].m_addInfo2;
-                if (cur == count || cur - count < 0)
+                // ORIG 0x850484f `sub; test; jle <log 块>`（同上，正向 if/else）。
+                if (m_pCreatureSlot[slot].m_addInfo2 - count > 0)
+                {
+                    m_pCreatureSlot[slot].m_addInfo2 = m_pCreatureSlot[slot].m_addInfo2 - count;
+                    if (bLog)
+                    {
+                        if (m_pParent != 0)
+                        {
+                                m_pParent->m_historyLog.CreatureItemDel(
+                                    invenType, m_pCreatureSlot[slot].m_addInfo, m_pCreatureSlot[slot].m_addInfo2,
+                                    count, m_pCreatureSlot[slot].m_field1, reason);
+                        }
+                        else
+                        {
+                            cMyTrace(
+                                __PRETTY_FUNCTION__,
+                                0x18d2, 5)("History ERROR, m_pParent NULL, ItemDel ");
+                        }
+                    }
+                }
+                else
                 {
                     LogManager::logFormat(
                         1, "inventory.cpp",
                         __PRETTY_FUNCTION__,
                         0x18da, "%s - m_CreatureSlot[slot_no].add_info(%d) < count(%d)",
-                        ((CUserCharacInfo*)m_pParent)->getCurCharacName(), cur, count);
+                        ((CUserCharacInfo*)m_pParent)->getCurCharacName(),
+                        m_pCreatureSlot[slot].m_addInfo2, count);
                     return 0;
                 }
-                m_pCreatureSlot[slot].m_addInfo2 = cur - count;
-                if (bLog)
-                {
-                    if (m_pParent != 0)
-                    {
-                            m_pParent->m_historyLog.CreatureItemDel(
-                                (INVEN_TYPE)3, m_pCreatureSlot[slot].m_addInfo, m_pCreatureSlot[slot].m_addInfo2,
-                                count, m_pCreatureSlot[slot].m_field1, reason);
-                    }
-                    else
-                    {
-                        cMyTrace local_1c(
-                            __PRETTY_FUNCTION__,
-                            0x18d2, 5);
-                        local_1c("History ERROR, m_pParent NULL, ItemDel ");
-                    }
-                }
             }
         }
-        else
-        {
-            if (bLog)
-            {
-                if (m_pParent != 0)
-                {
-                        m_pParent->m_historyLog.CreatureItemDel(
-                            (INVEN_TYPE)3, m_pCreatureSlot[slot].m_addInfo, m_pCreatureSlot[slot].m_addInfo2, 1,
-                            m_pCreatureSlot[slot].m_field1, reason);
-                }
-                else
-                {
-                    cMyTrace local_3c(
-                        __PRETTY_FUNCTION__,
-                        0x18a3, 5);
-                    local_3c("History ERROR, m_pParent NULL, ItemDel ");
-                }
-            }
-            m_pCreatureSlot[slot].reset();
-        }
+        break;
+    }
     }
     return 1;
 }
