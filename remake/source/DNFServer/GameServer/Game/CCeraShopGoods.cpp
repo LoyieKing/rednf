@@ -238,25 +238,6 @@ bool ScanType(std::string& token, bool consume);
 int ScanInt(bool* ok);
 bool ScanStr(std::string* value);
 
-// [BigRndOpt] 本 TU 内 stCeraShopBonusItemInfo_t 的 trivial 视图（见
-// importCashShopItemList 内 [bonus item info] 段判词）：ORIG 0x088ff2c4..
-// 0x088ff36f 该段全程无 ctor/dtor 调用，三字段（u32@0 / u16@4 / u32@8，
-// sizeof 0x10）直落栈槽后以地址作 push_back 实参。共享头因补发弱符号
-// _ZN25stCeraShopBonusItemInfo_tD1Ev（ORIG W 0x089363da）声明了用户析构，
-// 故此处以同布局 POD 视图承担局部量；纯类型别名，零导出符号。
-namespace
-{
-struct BonusItemView
-{
-    unsigned int m_field0;        // +0x00（ORIG `mov %eax,-0xc0(%ebp)`）
-    unsigned short m_field4;      // +0x04（ORIG `mov %ax,-0xbc(%ebp)`）
-    unsigned int m_field8;        // +0x08（ORIG `mov %eax,-0xb8(%ebp)`）
-};
-static_assert(sizeof(BonusItemView) == 0x10, "ORIG stCeraShopBonusItemInfo_t 0x10");
-static_assert(sizeof(BonusItemView) == sizeof(stCeraShopBonusItemInfo_t),
-              "镜像视图必须与共享头同尺寸（偏移 0/4/8 已逐条按 ORIG 反汇编核对）");
-}   // namespace
-
 // [b28d-solo-CCeraShopGoods] N 封顶（§6.2 三件套口径，ORIG @0x088fdcb5
 // size 0x1df4 = 1768 insn）：
 //  ① gap = 1768 vs 1778（我方多 10 条，0.6%）；
@@ -587,16 +568,11 @@ bool importCashShopItemList(
                 item.m_field10 = ScanInt(static_cast<bool*>(0));
                 item.m_field22 = ScanInt(static_cast<bool*>(0));
                 item.m_field3c = ScanInt(static_cast<bool*>(0));
+                item.m_name = "";
                 flag0 = 7;                             // ORIG 尾组经 -0x54 int 槽
                 item.m_fieldc = 7;
                 item.m_field1c = 1;
                 item.m_field0 = flag0;
-                // [BigRndOpt] ORIG 0x088fe…：`item.m_name = ""`（`movl $<A>,0x4(%esp)`
-                // / `lea -0x180; add $0x40; call _ZNSsaSEPKc`）物理位在 flag0/m_fieldc/
-                // m_field1c/m_field0 四组赋值**之后**（语句书写序 = ORIG 叶块物理序，
-                // 同 BigAuction 三翻法第①条）；两字段族无数据依赖，纯书写序调整，
-                // 可观察行为不变（push_back 仍在末尾）。
-                item.m_name = "";
                 itemList[7].push_back(item);
             }
         }
@@ -689,42 +665,26 @@ bool importCashShopItemList(
                 int total = 0;
                 for (int i = 0; i < count; ++i)
                 {
-                    // [BigRndOpt] ORIG 0x088ff2c4..0x088ff36f：本 TU 看到的
-                    // stCeraShopBonusItemInfo_t 是 **trivial**（三字段直落栈槽
-                    // -0xc0/-0xbc/-0xb8，push_back 传其地址，全程 0 ctor/0 dtor 调用）。
-                    // 我方共享头 CItemList.h:152 声明了用户析构（ORIG W 0x089363da，
-                    // 宿主 W9_StructMisc.cpp）⇒ 直接具名 bi 会多发 2 处
-                    // _ZN25stCeraShopBonusItemInfo_tD1Ev（p167 EXTRA +2 的唯一来源）。
-                    // 删共享头声明属跨 TU 改动（R1 禁区），故此处用同布局的 trivial
-                    // 镜像视图（standard-layout 公共初始序列，reinterpret_cast 合法；
-                    // 断言锁死尺寸/偏移），使 bi 无析构 ⇒ 与该段 ORIG 指令流一致。
-                    BonusItemView bi;
+                    stCeraShopBonusItemInfo_t bi;
                     bi.m_field0 = ScanInt(&ok);
                     if (ok != true)
-                        return 0;   // ORIG 0x088ff2c4：失败 → return 0
+                        return 0;   // ORIG 0x88ff2c4：失败 → return 0
                     bi.m_field4 = (unsigned short)ScanInt(&ok);
                     if (ok != true)
-                        return 0;   // ORIG 0x088ff2f5
+                        return 0;   // ORIG 0x88ff2f5
                     bi.m_field8 = ScanInt(&ok);
                     if (ok != true)
-                        return 0;   // ORIG 0x088ff327
+                        return 0;   // ORIG 0x88ff327
                     total += bi.m_field8;
-                    info.m_items.push_back(
-                        *reinterpret_cast<const stCeraShopBonusItemInfo_t*>(&bi));
+                    info.m_items.push_back(bi);
                 }
-                // [BigRndOpt] ORIG 0x088ff389..0x088ff3c1 为**单判**结构：
-                //   cmpl $0x3e8,-0x2c(%ebp) / je 0x088ff3b1 → else 侧 printf 后
-                //   `mov $0x0,%esi; mov $0x1,%ebx`（return false 清理链），
-                //   then 侧 0x088ff3b1 才 push_back(info)。
-                // 原双判写法（push_back/printf 各一 + 再判 return）在 -O0 会
-                // 复现两次 `cmpl $0x3e8` 且第二个 `je` 分支恒不成立（死分支）。
-                // 两字段无依赖 ⇒ 改回单判书写序，可观察行为不变。
-                if (total != 1000)
-                {
+                if (total == 1000)
+                    bonusList.push_back(info);
+                else
                     printf("bonus rate error %d", total);
+                // ORIG 0x88ff3a5：总概率≠1000 → 打印后 return 0
+                if (total != 1000)
                     return 0;
-                }
-                bonusList.push_back(info);
             }
         }
         else if (section == "[not stackable buy]")

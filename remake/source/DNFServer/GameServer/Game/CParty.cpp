@@ -4780,8 +4780,10 @@ bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
         return true;                                    // ORIG 跳共用尾部
 
     CUserCharacInfo* ci = reinterpret_cast<CUserCharacInfo*>(user);
-    BattleData& bd = m_battleData;
-    Inven_Item& reward = bd.m_itemGroups2[slot][1];     // +0x7ad + slot*0x7a
+// §P331 第二形（实测 227→140）：ORIG 每次 reward 字段访问都重物化 `imul 3;shl 3`
+// (=slot*0x7a) + `add $0x79d`（imul$0x7a 7 处 / add$0x79d 7 处，本方原 1/0 —— 被 bd +
+// reward 两个引用吸收）。slot 此后不再改变 ⇒ 逐次寻址同物，无可观察行为变化。
+#define reward (m_battleData.m_itemGroups2[slot][1])   // +0x7ad + slot*0x7a
     int putSlot = ci->getCurCharacInvenW()->tryInsertItemIntoInventory(reward);
     if (putSlot == -1)
     {
@@ -4830,6 +4832,7 @@ bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
     }
     return true;
 }
+#undef reward
 
 void CParty::CompleteCardSelect()
 {
