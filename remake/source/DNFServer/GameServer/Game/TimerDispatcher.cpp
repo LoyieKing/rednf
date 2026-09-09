@@ -2487,6 +2487,8 @@ int TimerCheckHumanCertifyTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         return 1;
     }
 
+    // [b28e-TimerDispatcher] 比较反形实测 116 insns（原 106）⇒ 回退；ORIG `cmp %edx,%eax`
+    // 的 call 结果留 %eax 属 N22/N7 寄存器角色差（P248 一次性旋钮，赌输即回滚）。
     if ((unsigned int)user->getHumanCertifyTimerKey() > (unsigned int)p2)
     {
         return 1;
@@ -2747,10 +2749,16 @@ TimerScheduleTenSecond::~TimerScheduleTenSecond() {}
 // [b28d-solo-TimerDispatcher] 判词 N82/N86 封顶：迭代器槽 + 帧差（86/79）。
 // 附：p167 显示 ORIG 用 const_iterator 族（P96/P270），但改 const 形后本 TU 不再
 // 发射该族条件 ⇒ identical/ae -5、missing +5（符号发射恶化）⇒ 已回退，按非 const 封顶。
-// [b28d-PoolTimer 复测] 现况 87/86（判词 86/79 为 solo2 轮前旧数）。P326 显式
-// const_iterator(end()) 右值临时形重试：槽布 84 行残差与隐式形**逐条全同**（-0x20/
-// -0x24 不变，无三级改善）⇒ 回退。真根因 = ORIG `mov (%eax),%esi; call *%esi` 虚调用
-// 驻 %esi（push esi，帧 0x30+8）vs 4.4 `call *%eax`（单 push，帧 0x34）⇒ N7+N82。
+// [b28e-TimerDispatcher] AE（86/86，逐条同构，仅 .o 重定位符号名差）：本轮三处真修
+// ①真 bug：antibot 调用旧码 `*(CheckFn*)((*(void***)checker)[5])` **多一次解引用**
+//   （调用目标错，我方多 1 条 `mov (%eax),%eax`）⇒ 改单层
+//   `*reinterpret_cast<CheckFn*>(reinterpret_cast<char*>(*reinterpret_cast<void**>(
+//   s_antibotChecker_)) + 0x14)` 内联进调用实参（ORIG `mov (%eax),%esi; call *%esi`
+//   驻 %esi 形逐条复现，push esi/sub 0x30 全对齐）；
+// ②P13：end 迭代器具名缓存到循环外（ORIG 08637982/08637997 一次求值，旧码每轮重发
+//   endEv+C1ERKS_ 多 6 insn/轮）；③P211/P248 档③：CheckFn 第二形参 unsigned→int
+//   （getProcessSequence 返回 int，异型多 1 条 `mov %eax,%edx` 中转）。
+// 历史判词（N7+N82 封顶、P326 回退）作废。
 int TimerScheduleTenSecond::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p3*/)
 {
     // ORIG 0x8637936：遍历 +0x22c 用户 map；get_state()>=2 且 getAntibotKey()>=0
@@ -2763,17 +2771,32 @@ int TimerScheduleTenSecond::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*
     // 发射，故旧「改 const 引用」形计数恶化）。ORIG 0x08637936。
     // P0/P183：ORIG 无 users 引用局部（08637936 `call G_CGameManager; lea 0x22c(%eax),%edx`
     // 每站点重发）⇒ 全表达式内联（旧具名引用多 -0x18 槽 + 2 insn）。
-    for (std::map<unsigned int, CUser*>::const_iterator it =
-             G_CGameManager()->m_userByAccId.begin();
-         it != G_CGameManager()->m_userByAccId.end(); ++it)
+    // [b28e-TimerDispatcher] P13：ORIG 在循环初始化区**一次**求值 end（08637982 endEv +
+    // 08637997 C1ERKS_，槽 -0x10/-0x1c），cond 只用缓存值（08637a3a ne 直比）⇒ 源码
+    // 必须把 end 迭代器具名缓存；旧码 cond 内每轮重发 endEv+C1ERKS_（多 6 insn/轮）。
+    std::map<unsigned int, CUser*>::const_iterator it =
+        G_CGameManager()->m_userByAccId.begin();
+    std::map<unsigned int, CUser*>::const_iterator itEnd =
+        G_CGameManager()->m_userByAccId.end();
+    for (; it != itEnd; ++it)
     {
         CUser* user = it->second;
         if (user->get_state() >= 2 && user->getAntibotKey() >= 0)
         {
-            typedef void (*CheckFn)(void*, unsigned int, int, unsigned int);
-            void* checker = GlobalData::s_antibotChecker_;
-            CheckFn fn = *(CheckFn*)((*(void***)checker)[0x14 / 4]);
-            fn(checker, G_CEnvironment()->getProcessSequence(), 0, user->get_acc_id());
+            // 第二形参 int：与 CEnvironment::getProcessSequence() 返回类型同型
+            // （ORIG 08637a11 `mov %eax,0x4(%esp)` 无转换中转；unsigned 形多 1 条
+            // `mov %eax,%edx`，P211/P248 档③）。
+            typedef void (*CheckFn)(void*, int, int, unsigned int);
+            // [b28e-TimerDispatcher] 真 bug 修正：ORIG 086379e8 `add $0x14,%eax;
+            // mov (%eax),%esi` = vtable[5] 本体即函数指针（单层解引用）；旧码
+            // `*(CheckFn*)((*(void***)checker)[0x14/4])` 多一次解引用（我方多 1 条
+            // `mov (%eax),%eax`，调用目标错）。按 PacketDispatcher.cpp 同族单层形 +
+            // 去 checker 具名槽（ORIG 调用点重发 `mov 0x941f7e4,%edx`）。
+            (*reinterpret_cast<CheckFn*>(
+                reinterpret_cast<char*>(
+                    *reinterpret_cast<void**>(GlobalData::s_antibotChecker_)) + 0x14))(
+                GlobalData::s_antibotChecker_,
+                G_CEnvironment()->getProcessSequence(), 0, user->get_acc_id());
         }
     }
     registNextTimer(10);
