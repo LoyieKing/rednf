@@ -464,6 +464,12 @@ void SpecialItemHandler::respond_special_item_booster(int,
 // b28d-D42 verdict=DIFF [N82/N89] ORIG 0x0827c204 orig/ours=557/547 ndiff=497。
 // 巨件帧/槽平移 + tagPackageItemSelection STL 内联差（N89）；P167 调用点已核。
 // b28d-solo-CCeraShop_Special verdict=DIFF [N82/N89] 557/547；P167 CLEAR 90/90，余 STL 内联/帧槽（§6.2 语义完成封顶）
+// b28d-sweepCCeraShop（本轮）557/557 gap=0：①switch 三 case 按 ORIG 块址序重排（P324，
+// 见下）；②两处 error 日志的 `accStr` 具名局部删去、内联回实参位（P329，复现 ORIG
+// characNo→ebx 跨调用保活）；③守卫改德摩根正极性 `outer>=size || inner>=size`（P258，
+// 复现 ORIG `jae→mov $1 / jb→mov $0` 失败位物化）。剩余残差 = 槽号分配（ORIG deadSlot
+// 独立 -0x34 vs 4.4 复用 count 槽 -0x40，N82 不复用）+ 尾部 1 条对齐 nop（§6.1 豁免），
+// opcode 多重集差异仅此 nop；p167 CLEAR、虚槽 vtable+0x60 两侧一致。
 void SpecialItemHandler::respond_special_item_package(
     int, const STSpecailItem_Param& param, STSpecailItem_Result&)
 {
@@ -527,13 +533,14 @@ void SpecialItemHandler::respond_special_item_package(
             for (std::vector<tagPackageItemSelection>::iterator it = cera->m_sel.begin();
                  it != cera->m_sel.end(); ++it)
             {
-                char* accStr = NumberToString(user->get_acc_id(), 0);
+                // P329：ORIG 0x0827c5da..0x0827c605 右到左求值（characNo 先于
+                // NumberToString），accStr 无具名槽 ⇒ 表达式内联回实参位。
                 LogManager::logFormat(
                     1, "SpecialItemHandler.cpp",
                     __PRETTY_FUNCTION__,
                     0xdb, "kdd372418Log::Package Selection item error (%s,%d,%d,%d,%d)",
-                    accStr, user->get_charac_no(-1), it->m_itemIdx,
-                    (int)it->m_outer, (int)it->m_inner);
+                    NumberToString(user->get_acc_id(), 0), user->get_charac_no(-1),
+                    it->m_itemIdx, (int)it->m_outer, (int)it->m_inner);
             }
         }
         // 主选择循环：找 itemIdx 匹配项，校验 pkgTable 索引，push 到 pkgList 并 erase。
@@ -542,25 +549,23 @@ void SpecialItemHandler::respond_special_item_package(
         {
             if (it->m_itemIdx == itemIdx)
             {
-                // ORIG 0x0827c53a..0x0827c59d：短路 && 直出 %al（无具名 bool 槽），
-                // 条件序 outer<size && inner<size（jb 形）；失败臂落 error 日志 break。
-                if (it->m_outer < pkgTable->size() &&
-                    it->m_inner < (*pkgTable)[it->m_outer].size())
+                // ORIG 0x0827c53a..0x0827c59d：`jae→mov $1 / jb→mov $0 / test;je 成功`
+                // = 失败位 1 的德摩根物化（P258：`A||B` 形而非 `!(a&&b)`）⇒ 写
+                // 正极性 `outer>=size || inner>=size` 失败臂，成功臂直落。
+                if (it->m_outer >= pkgTable->size() ||
+                    it->m_inner >= (*pkgTable)[it->m_outer].size())
                 {
-                    pkgList.push_back((*pkgTable)[it->m_outer].at(it->m_inner));
-                    it = cera->m_sel.erase(it);
-                }
-                else
-                {
-                    char* accStr = NumberToString(user->get_acc_id(), 0);
+                    // P329：右到左内联求值（ORIG 0x0827c5e8/0x0827c5ef）。
                     LogManager::logFormat(
                         1, "SpecialItemHandler.cpp",
                         __PRETTY_FUNCTION__,
                         0xe7, "Package Selection error (%s,%d,%d,%d,%d)",
-                        accStr, user->get_charac_no(-1), it->m_itemIdx,
-                        (int)it->m_outer, (int)it->m_inner);
+                        NumberToString(user->get_acc_id(), 0), user->get_charac_no(-1),
+                        it->m_itemIdx, (int)it->m_outer, (int)it->m_inner);
                     break;
                 }
+                pkgList.push_back((*pkgTable)[it->m_outer].at(it->m_inner));
+                it = cera->m_sel.erase(it);
             }
             else
             {
@@ -612,19 +617,21 @@ void SpecialItemHandler::respond_special_item_package(
         // 随机箱统计调用链（ORIG 0x0827c8fc..0x0827c976）：`movl $0x0,-0x1c(%ebp)`
         // + 单次 operator-> 取值 + 顺序 cmp 链（switch 形）；每个 case 把常量赋回
         // 具名 statKind 槽后传参（`movl $N,-0x1c; mov -0x1c,%eax; mov %eax,(%esp)`）。
+        // P324：case 叶块物理序 = 书写序；ORIG 块序 0x380(+0x720)→0x28982d(+0x73d)
+        // →0x289749(+0x759)，末块 fall through 到循环增量（无 jmp）⇒ 按块址序书写。
         int statKind = 0;
         switch (itBeg->m_field0)
         {
-        case 0x289749:
-            statKind = 2;
+        case 0x380:
+            statKind = 0;
             user->SendRandomBoxStatistic(statKind, (ENUM_RANDOMBOX_ACTION_KIND)0);
             break;
         case 0x28982d:
             statKind = 1;
             user->SendRandomBoxStatistic(statKind, (ENUM_RANDOMBOX_ACTION_KIND)0);
             break;
-        case 0x380:
-            statKind = 0;
+        case 0x289749:
+            statKind = 2;
             user->SendRandomBoxStatistic(statKind, (ENUM_RANDOMBOX_ACTION_KIND)0);
             break;
         }
@@ -1049,12 +1056,13 @@ bool CCeraShop::checkBuyingCondition(CUser* user, unsigned int a, unsigned long 
 // 遍历角色装备槽（INVEN 0，slot 0..9）与头像槽（INVEN 2，slot 0..0x68），
 // 任一槽位 Inven_Item 的 m_addInfo(+0x02) 非 0 即返回 1（已有装备/头像），否则 0。
 // ============================================================================
-// b28d-solo-CCeraShop_Special verdict=IDENTICAL_AE [原 NEAR] P223 双 nop 岛（工具 clean 口径剥 nop）；原修法 P48 保留
+// b28d-solo-CCeraShop_Special verdict=DIFF [P223 边界封顶] ORIG 0x08324966 56/54。
+// ORIG 两守卫 je 分落 +0x4b(单独 nop 岛)/+0x4c(直接落 addl join)；4.4 岛数恒 =
+// 条件数或 0（探针 fA/fB/hA/hB/hD/kA 六形全败：goto 形恒多发 `nop;jmp;nop`，
+// 共享/空 else/continue 形恒折同目标）⇒ 保持 `&&` 原形（P48 双静态调用点）。
 int CCeraShop::_CheckConditionPutonAvatar(CUser* user)
 {
-    // b28d-D42 verdict=AE(IDENTICAL) ORIG 0x08324966 orig/ours=54/54 ndiff=0。
-    // 修法：P48 两循环各自入口一次 getCurCharacInvenR 静态调用点（禁缓存）。
-    // ORIG 两循环各自入口一次 getCurCharacInvenR 静态调用点（P48）。
+    // P48：两循环各自入口一次 getCurCharacInvenR 静态调用点（禁缓存）。
     for (int i = 0; i <= 9; ++i)
     {
         const Inven_Item* it = user->getCurCharacInvenR()->GetInvenRef(0, i);
@@ -1839,10 +1847,12 @@ int CCeraShop::getOriginalItem()
 }
 
 // ============================================================================
-// Is2010ChuseokPacket —— ORIG 0x083280dc (T)
+// Is2010ChuseokPacket —— ORIG 0x083280dc (W, size 0x23)
 // 2010 秋夕（Chuseok）包商品判定：itemIdx ∈ (0x2896d3, 0x2896ef]。
+// 判据㉓ 符号绑定：ORIG nm 为 W（弱定义，ORIG 头内 inline 族），我方 T ⇒
+// 本 TU 定义加 weak（不改头；mangled/体尺寸 0x23 不变）。
 // ============================================================================
-bool CCeraShop::Is2010ChuseokPacket(unsigned int itemIdx)
+__attribute__((weak)) bool CCeraShop::Is2010ChuseokPacket(unsigned int itemIdx)
 {
     return itemIdx > 0x2896d3 && itemIdx <= 0x2896ef;
 }
@@ -2174,6 +2184,10 @@ void CCeraShop::_onBuySpecialItem(CUser* user, ENUM_CERA_SPECIALITEM,
 // stackable/bmap 具名缓存（ORIG 0x08327894 每处 `mov item,%eax; lea 0x24c` 重算）+
 // P323 `static_cast<const M&>` 视图 cast 消 iterator→const_iterator 转换构造；
 // P167 CLEAR 34/34；余帧/槽平移封 N82。
+// b28d-sweepCCeraShop（本轮逐位复核）233/229：jcc 目标下标逐条对齐（je/je/seta/jne×3/je/je
+// 语义全同）、p167 CLEAR、无 `call *`；gap 4 = ORIG 的 esi/ebx 双寄存器共享尾
+// （`je +0x310` 直达 `mov $1,%esi` + 尾部 `test %ebx,%ebx` 物化）vs 4.4 单 ebx 直返
+// （`jne; mov $1,%ebx; jmp` + `mov %ebx,%eax`）共 ±4，加 +0xd/+0xe 寄存器 vs 槽分配差。
 int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& result,
                                      long curSec, bool flag,
                                      std::vector<Inven_Item>& items,
