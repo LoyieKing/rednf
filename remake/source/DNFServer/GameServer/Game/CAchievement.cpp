@@ -143,29 +143,9 @@ CAchievement::CAchievement() : m_user(0)
     m_field25 = 0;
 }
 
-bool stAchievement::isComplete()
-{
-    return (m_trigger0 == 0) && (m_trigger1 == 0) && (m_trigger2 == 0);
-}
-
-stAchievement_DBData::stAchievement_DBData()
-{
-    // ORIG 0x828d8e5：m_entries 数组由编译器自动逐个构造（esi 递减 512 次
-    // call stAchievementC1），无需显式赋值循环
-    m_count = 0;
-    m_saveTime = 0;
-}
-
-// [b28d-D33] P210：stAchievement::C1 定义后置于 caller 之后 ⇒ 4.4 保守帧
-// sub $0x10 与 ORIG 0x828d8d8 一致（定义在前时精确继承小帧 0x4，加任何 pad 反成 0x14）。
-stAchievement::stAchievement()
-{
-    m_id = 0;
-    m_trigger0 = 0;
-    m_trigger1 = 0;
-    m_trigger2 = 0;
-    m_state = 0;
-}
+// stAchievement::stAchievement()/isComplete()、stAchievement_DBData::
+// stAchievement_DBData() 已按 ORIG W 绑定改为 CAchievement.h 类内 inline 定义
+//（P233；外联定义会发射 T 强符号）。
 
 // ============================================================================
 // CAchievement
