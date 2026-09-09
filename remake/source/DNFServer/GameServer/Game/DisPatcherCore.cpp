@@ -5090,46 +5090,45 @@ unsigned int DisPatcher_MoveItem::check_error(CUser* user, MSG_BASE& msg)
         return -1;
     }
     char needLock = 0;
-    int space = (int)(char)req.m_toSpace;
-    if (space > 5)
+    // ORIG 0x081c57cf 决策树：cmp $0x5/jg、cmp $0x4/jge、cmp $0x3/je、cmp $0xe/jne
+    // ⇒ 原码是 switch(寄存器直比，无槽，P251/P261)，叶块物理序 4/5/0xe 先、3 后。
+    switch ((int)(char)req.m_toSpace)
     {
-        if (space != 0xe)
-        {
-            space = -1;          // 仅作跳转标记（ORIG jmp 0x109 路径）
-        }
-    }
-    if (space == 0xe || (space >= 4 && space <= 5))
-    {
+    case 4:
+    case 5:
+    case 0xe:
         needLock = 1;
-        bool movable = true;
-        CheckItemTradeLimitCountToMoveByUser(
-            *user, GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(char)req.m_fromSpace),
-            (int)req.m_fromPos, movable);
-        if (!movable)
         {
-            return 0x72;
+            bool movable = true;
+            CheckItemTradeLimitCountToMoveByUser(
+                *user, GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(char)req.m_fromSpace),
+                (int)req.m_fromPos, movable);
+            if (!movable)
+            {
+                return 0x72;
+            }
         }
-    }
-    else if (space == 3)
-    {
+        break;
+    case 3:
         if ((unsigned char)req.m_fromSpace == 7)
         {
             Inven_Item item = ((CInventory*)user->getCurCharacInvenR())
                                   ->GetInvenSlot(3, (int)req.m_fromPos);
-            if (item.m_field0 != 0 && req.m_fromPos > 0x8b)
+            if (({ item.m_field0 != 0 && req.m_fromPos > 0x8b; }))
             {
                 needLock = 1;
             }
         }
+        break;
+    default:
+        break;
     }
-    if (needLock != 0)
-    {
-        if (user->CheckItemLock(
+    // ORIG 0x081c58a9：&& 物化岛（mov $1/jmp/mov $0/test/je）后再判，非直跳。
+    if (({ needLock != 0 && user->CheckItemLock(
                 GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(char)req.m_fromSpace),
-                (int)req.m_fromPos))
-        {
-            return 0xd5;
-        }
+                (int)req.m_fromPos); }))
+    {
+        return 0xd5;
     }
     return 0;
 }
@@ -11471,8 +11470,11 @@ bool DisPatcher_ResPvpRank::SavePvpRank(CUser* user, MSG_RES_PVP_RANK& msg)
     // ORIG 0x081f05ea T（报告 DisPatcher_ResPvpRank/SavePvpRank.md 全文转写）：
     // 分数(0x89=视图+0x7c)/时间(0x8d=视图+0x80) 反作弊 → job 3/4-grow2 折算 → update_pvp_rank
     // → PVPRoom SetPVPResult/recv 链。
-    unsigned int score = (unsigned int)msg.m_result.m_field7c;   // msg+0x89（视图 +0x7c）
-    int playSec = (int)msg.m_result.m_field80 / 1000;            // msg+0x8d（视图 +0x80），有符号除
+    // ORIG 0x081f05f2/0x081f05f8 双 `movl $0x0` 预清（P198③ 两句式声明）
+    unsigned int score = 0;
+    int playSec = 0;
+    score = (unsigned int)msg.m_result.m_field7c;   // msg+0x89（视图 +0x7c）
+    playSec = (int)msg.m_result.m_field80 / 1000;   // msg+0x8d（视图 +0x80），有符号除
     if (10000 < score)
     {
         unsigned int over = score / 10000;
@@ -11490,10 +11492,10 @@ bool DisPatcher_ResPvpRank::SavePvpRank(CUser* user, MSG_RES_PVP_RANK& msg)
     {
         score = (unsigned int)(0.8 * (double)score);
     }
-    unsigned int adjusted = score;
-    if (playSec < adjusted)
+    // ORIG 折算后直接写回 score（-0x1c），无 adjusted 具名局部（P0）
+    if (playSec < score)
     {
-        user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x73, 1, (int)adjusted, (int)playSec);
+        user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x73, 1, (int)score, (int)playSec);
     }
     if (!user->update_pvp_rank(msg.m_result))
     {
@@ -11827,9 +11829,10 @@ int DisPatcher_RemoveFriend::process(CUser* user, MSG_BASE& msg, ParamBase& para
     Packet_Monitor_Del_Buddy pkt;
     pkt.m_charNo = static_cast<unsigned int>(user->getCurCharacNo());   // +0x0a
     pkt.m_idByChannel = user->GetUID();                                 // +0x0e
-    const char* reqName =
-        reinterpret_cast<STFriendReqView*>(&msg)->m_name;               // msg+0x11
-    memcpy(pkt.m_name, reqName, strlen(reqName));
+    // ORIG 0x081cb6xx：msg 指针具名局部（-0x10）后每处重算 `mov -0x10,%eax; add $0x11`
+    // （strlen 与 memcpy 各一次）⇒ 禁 reqName 缓存（P183），内联表达式两次。
+    memcpy(pkt.m_name, reinterpret_cast<STFriendReqView*>(&msg)->m_name,
+           strlen(reinterpret_cast<STFriendReqView*>(&msg)->m_name));   // msg+0x11
     CMonitorServerProxy* proxy =
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
     proxy->SendPacket(reinterpret_cast<char*>(&pkt), pkt.packetSize);   // +0x02 长度字段(0x30)
