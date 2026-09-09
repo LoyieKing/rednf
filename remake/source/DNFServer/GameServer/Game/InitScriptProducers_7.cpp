@@ -1051,9 +1051,14 @@ int importQuestShopScript(const char* path, stQuestShop& out)
 // short、"逗号串"→tokenize/getGrowTypeIndex 逐项 push_back），[/group] 时
 // insert 进 m_mapC。
 // ============================================================================
-// [b28d-solo-InitScriptProducers_7] verdict=DIFF [N82/N18a] ORIG 0x08915606
-//  已修：m_items.push_back 右值形（p167 MISSING push_back(EOh) → 内联 cast 实参）。
-//  残余：p167 95/95 CLEAR；全帧槽号平移 8 + 寄存器角色差（跨版本，N82/N18a）。
+// [SweepInitProd7 复核] verdict=DIFF [N78/N7/N104] ORIG 0x08915606
+//  逐 jcc/调用点核对：无语义缺口。jcc 27:27 一一对应，唯一极性差 = [section]
+//  do-while 的 more 标志（ORIG 0x089159e7 `test %ebx,%ebx; je` 寄存器化 vs
+//  我方 `cmpb $0,-0x29(%ebp); jne` 槽化，do-while 语义等价）；内层 items 循环
+//  4.4 旋转（条件落尾 0x2b46 vs ORIG 落头 0x08915b02）；growText/delim 临时
+//  析构的 EH 双份 epilogue vs 4.1 merge（N104）。
+//  p167 别名口径 CLEAR（MISSING C2/D2 ↔ EXTRA C1/D1 一一配对，P93）；
+//  无 call *（无虚调用）；orig/ours=582/581。
 bool importPcBangEquipmentRendar(const char* path, PcBangItemRentarData* out)
 {
     // ORIG 双相派发（T 0x08915606）：out 判空先于 loadRDAR（+0x0c）；__lookup
@@ -1227,15 +1232,32 @@ bool importPcBangEquipmentRendar(const char* path, PcBangItemRentarData* out)
 // 0x1a37..0x1aa3 基础值各 Scan / 0x1aba 组下标 / 0x1acd..0x1aed 组名 /
 // 0x1aed 未知组名 / 0x1b08 组下标重复 / 0x1b1a..0x1b30 difficulty 段。
 // ============================================================================
-// [b28d-solo-InitScriptProducers_7] verdict=DIFF [N82/N112] ORIG 0x08909857
-//  已修：m_groupMap 插入改 make_pair（p167 MISSING make_pair/pair C1 OS_ 变体）。
-//  残余：p167 79/79 CLEAR；循环回边岛 ×11（4.4 多发 jmp+nop）+ 循环变量槽
-//  差异（N82/N112）。
+// [SweepInitProd7 复核] verdict=DIFF [N112/N121/N82] ORIG 0x08909857
+//  本波逐 jcc/字段偏移核对，修真语义 bug（判据⑮ 多余门禁 / 写入位置 / P0 / P171 /
+//  P293）：
+//   ①[group] 怪物循环原写 `for (i < slotCount)`，slotCount=out.m_field72[tag] ——
+//     ORIG 0x08909f9e..0x08909fee 是**无上界** for(;;)，仅 ScanInt 后 ok 失败
+//     break（越界照抄）；我方多读 out.m_field72[tag] 并提前退出 ⇒ 删门禁；
+//   ②[group index] 原先判 ok 再写 out.m_groupIndex —— ORIG 0x08909dc2 先
+//     `mov %dx,0x50(%eax)` 写字段、0x08909dc6 才判 ok；
+//   ③groupName/rowName 的 ScanStr 改 `ok = ScanStr(...); if (!ok)`，复现 ORIG
+//     0x08909e2d/0x0890a197 的 `mov %al,-0xd9; movzbl -0xd9` ok 槽往返（P0）；
+//   ④补 tag 分支死写入 out.m_field6c[tag]/out.m_field72[tag] → 两个死局部
+//     （ORIG 0x08909e6a..0x08909f86，P171 死写入照抄）+ tag 改 uchar（movb）；
+//   ⑤m_groupMap.find 改具名 iterator ⇒ 复现 ORIG 先 find(0x0890a011) 后
+//     end(0x0890a02c) 的求值序（P293）；
+//   ⑥[hellparty script end] 与 [/hellparty basic values]/[/hellparty monster
+//     group] 收尾比较移至链末（ORIG 0x0890a2ae / 0x08909d21 / 0x0890a0f5）；
+//     difficulty 循环改 `i < rows+1` 复现 ORIG `add $1; cmp; setg`。
+//  残余（N 封顶）：4.4 把 11 个 else-if 回边 jmp 集中并各带 1 字节 nop 对齐
+//  （N112/N121 块重排，源码不可控）+ 全帧槽号平移（N82/N126）。
+//  p167 别名口径 CLEAR（MISSING 全 C2/D2 与 EXTRA C1/D1 一一配对，P93）；
+//  无 call *（无虚调用）；ratio 0.9357、gap=-10（全部为上述 nop/块序）。
 int importHellPartyScript(const char* path, stHellParty_t& out)
 {
+    bool ok = false;                  // ORIG -0xd9：prologue 后即 movb $0
     std::string token;
     std::string sub;
-    bool ok = false;
 
     if (!loadRDARScriptFile("", path))
     {
@@ -1250,11 +1272,6 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
             return 0x1a2e;
         }
 
-        if (token == "[hellparty script end]")
-        {
-            return 0;
-        }
-
         // ================= [hellparty basic values] =================
         if (token == "[hellparty basic values]")
         {
@@ -1263,10 +1280,6 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
                 if (!ScanType(sub, true))
                 {
                     return 0x1a37;
-                }
-                if (sub == "[/hellparty basic values]")
-                {
-                    break;                          // 回顶层
                 }
 
                 if (sub == "[max base value]")
@@ -1336,6 +1349,11 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
                     out.m_guideLineValue = ScanInt(&ok);
                     if (!ok) { return 0x1aa3; }
                 }
+                else if (sub == "[/hellparty basic values]")
+                {
+                    break;                          // 回顶层（ORIG 0x08909d21：
+                                                     // 收尾比较位于链末）
+                }
                 // 其余子 token 忽略
             }
             continue;
@@ -1350,53 +1368,72 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
                 {
                     return 0x1ab2;
                 }
-                if (sub == "[/hellparty monster group]")
-                {
-                    break;                          // 回顶层
-                }
 
                 if (sub == "[group index]")
                 {
-                    const int idx = ScanInt(&ok);
+                    // ORIG 0x08909db8：ScanInt 结果先存字段（mov %dx,0x50(%eax)），
+                    // 之后才检查 ok（无具名 idx 局部，P0）。
+                    out.m_groupIndex = static_cast<unsigned short>(ScanInt(&ok));
                     if (!ok)
                     {
                         return 0x1aba;
                     }
-                    out.m_groupIndex = static_cast<unsigned short>(idx);
                 }
                 else if (sub == "[group]")
                 {
+                    // ORIG 0x08909dfc：i=0 的 store 先于 list C1（for 初始化
+                    // 前置为块头声明）。
+                    int i = 0;
                     stHellPartyMonsterGroupList list;
                     std::string groupName;
-                    if (!ScanStr(&groupName))
+                    // ORIG 0x08909e28：返回值先写 ok 槽再回读（P0：原码有具名
+                    // ok 局部往返），不是直判调用结果。
+                    ok = ScanStr(&groupName);
+                    if (!ok)
                     {
                         return 0x1ac9;
                     }
 
-                    // 'A'..'E' 选择难度槽 tag 1..5；容量/计数取自 difficulty 表。
-                    int tag = 0;
-                    if (groupName == "A")      { tag = 1; }
-                    else if (groupName == "B") { tag = 2; }
-                    else if (groupName == "C") { tag = 3; }
-                    else if (groupName == "D") { tag = 4; }
-                    else if (groupName == "E") { tag = 5; }
+                    // 'A'..'E' 选择难度槽 tag 1..5。ORIG 每分支先读
+                    // out.m_field6c[tag] / out.m_field72[tag] 存入紧随 list 之后的
+                    // 两个死局部（P171 死写入照抄；读字段无副作用、值不再被读），
+                    // 最后写 tag 字节（ORIG movb ⇒ uchar）。
+                    unsigned char deadField6c;
+                    unsigned short deadField72;
+                    unsigned char tag;
+                    if (groupName == "A")
+                    { deadField6c = out.m_field6c[1]; deadField72 = out.m_field72[1]; tag = 1; }
+                    else if (groupName == "B")
+                    { deadField6c = out.m_field6c[2]; deadField72 = out.m_field72[2]; tag = 2; }
+                    else if (groupName == "C")
+                    { deadField6c = out.m_field6c[3]; deadField72 = out.m_field72[3]; tag = 3; }
+                    else if (groupName == "D")
+                    { deadField6c = out.m_field6c[4]; deadField72 = out.m_field72[4]; tag = 4; }
+                    else if (groupName == "E")
+                    { deadField6c = out.m_field6c[5]; deadField72 = out.m_field72[5]; tag = 5; }
                     else
                     {
                         return 0x1aed;
                     }
-                    const int slotCount = out.m_field72[tag];
-
-                    for (int i = 0; i < slotCount; ++i)
+                    (void)deadField6c;
+                    (void)deadField72;
+                    (void)tag;
+                    // ORIG 0x08909f9e..0x08909fee：无上界门禁的 for(;;)，仅以 ok
+                    // 失败 break 退出（越界行为照抄，P171）；ScanInt 结果直存数组
+                    // （P0：ORIG 无 monsterIdx/rate 中转局部，store 紧跟 call）。
+                    for (; ; ++i)
                     {
-                        const int monsterIdx = ScanInt(&ok);
+                        list.m_monsterIdx[i] = ScanInt(&ok);
                         if (!ok) { break; }
-                        const int rate = ScanInt(&ok);
+                        list.m_rate[i] = static_cast<unsigned char>(ScanInt(&ok));
                         if (!ok) { break; }
-                        list.m_monsterIdx[i] = monsterIdx;
-                        list.m_rate[i] = static_cast<unsigned char>(rate);
                     }
 
-                    if (out.m_groupMap.find(out.m_groupIndex) != out.m_groupMap.end())
+                    // ORIG 0x0890a011 先 call find、0x0890a02c 后 call end
+                    //（P293：具名 it 形复现 find 先/end 后）。
+                    std::map<unsigned short, stHellPartyMonsterGroupList>::iterator it =
+                        out.m_groupMap.find(out.m_groupIndex);
+                    if (it != out.m_groupMap.end())
                     {
                         return 0x1b08;              // 组下标重复
                     }
@@ -1406,6 +1443,11 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
                 }
                 else
                 {
+                    // ORIG 0x0890a0f5：收尾比较位于 [group] 之后。
+                    if (sub == "[/hellparty monster group]")
+                    {
+                        break;                      // 回顶层
+                    }
                     return 0x1aed;                  // 未知子 token
                 }
             }
@@ -1424,10 +1466,12 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
             {
                 return 0x1b1d;
             }
-            for (int i = 1; i <= rows; ++i)
+            // ORIG 0x0890a295：`mov rows; add $1; cmp i; setg` ⇒ 原码 `i < rows+1`。
+            for (int i = 1; i < rows + 1; ++i)
             {
                 std::string rowName;
-                if (!ScanStr(&rowName))
+                ok = ScanStr(&rowName);
+                if (!ok)
                 {
                     return 0x1b25;
                 }
@@ -1443,6 +1487,13 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
                 }
             }
             continue;
+        }
+
+        // ORIG 0x0890a2ae：[hellparty script end] 比较位于全部分派之后
+        // （basic → monster group → difficulty → script end）。
+        if (token == "[hellparty script end]")
+        {
+            return 0;
         }
 
         // 其他顶层 token：忽略并继续外层扫描
@@ -1480,8 +1531,11 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
 //     临时恒优先占最浅槽 ⇒ key -0xbc / temp -0xb8（N82/N86 槽分配族；穷举
 //     具名 iterator/声明序互换/内联实参三形均不闭合）。
 // ============================================================================
-// [b28d-solo-InitScriptProducers_7] verdict=DIFF [N112/N82] orig/ours=364/363
-//   p167 50/50 CLEAR（语义完成）；残差=循环入口对齐 jmp+nop + find sret 槽互换。
+// [SweepInitProd7 复核] verdict=DIFF [N112/N82] orig/ours=364/363
+//   jcc 20:20 逐位同构（含 0x37 跳表前置 `cmpl $0x37; ja`），仅 3 处 jmp/nop
+//   岛位置差（我方循环入口多 `jmp +2; nop`、ORIG 尾多 `jmp; nop`；N112/N121）；
+//   p167 别名口径 CLEAR（MISSING C2/D2 ↔ EXTRA C1/D1 配对，P93）；
+//   无 call *（无虚调用）；无语义缺口。
 bool importInGameEventInfoList(InGameEventInfoList* list, const char* path)
 {
     if (!loadRDARScriptFile("", path))
