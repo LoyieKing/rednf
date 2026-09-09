@@ -1,7 +1,8 @@
 // GmCmds_D.cpp — game_master GM 命令批次 D（10 类）。
 // 还原自 docs/class_func_reports/game_master__*/ 与 df_game_r objdump。
 //
-// 头文件 GameMasterCmd.h 为多批次共享占位声明，本批次禁止改动：
+// 头文件 GameMasterCmd.h 为多批次共享头；b29 P5 批已按 §8.3 把 CIndependentDrop
+// 的 4 个辅助声明由无参占位改为真实带参签名（零布局影响）：
 //   - m_str0(+0x08) 占位 std::string；对 ORIG 实际为 POD(int/short/bool) 的类，
 //     本 TU 一律以 reinterpret_cast 按偏移访问（见各类注释）。占位 string 由
 //     隐式默认构造占用该槽（空串无堆分配），与 ORIG"不构造"仅差一次空串
@@ -12,9 +13,21 @@
 //       +0x0c std::set<int> m_monsterSet(0x18) +0x24 std::set<int> m_aiSet(0x18)
 //     （ctor 0x082a87de objdump：两次 _ZNSt3setIiSt4lessIiESaIiEEC1Ev）
 //     头内占位 m_str0/m_f1..m_f11 恰好同尺寸覆盖，本 TU 以 placement new 构造。
-//   - CIndependentDrop 的 4 个带参辅助与 CLevelUp::getLevel/setLevel 在头里被
-//     占位成无参成员声明；真实带参实现以"文件局部函数 + __asm__(ORIG mangled
-//     名)"落符号（CParty.cpp asm-label 先例同法），类内无参占位保持未定义。
+//   - CIndependentDrop 的 4 个带参辅助（ResultToStr/PrintItemDropList/printClient/
+//     SendChatMsg）已由 GameMasterCmd.h 落真实签名，本 TU 以真实成员定义实现
+//     （原 asm-label 自由函数桥已按 §8 清零）。
+//
+// 【b29 P3/P5 清桥符号账】AI 段原 `std::vector<stMonsterIndependentDrop_t> drops;`
+// 默认构造 + extern "C" sret 桥，已改为 ORIG 源形
+// `std::vector<stMonsterIndependentDrop_t> drops = ai->getIndepentDropItem();`
+// （ORIG 0x084b1283 `lea -0x108(%ebp),%eax` 直传 sret，execute 区间 [0x084b0b4e,
+// 0x084b14b8) 无任何 vector C1Ev 调用；ORIG 该族弱符号在 0x0838/0839 段属他 TU）
+// ⇒ 本 TU 不再发射 new_allocator/allocator/Vector_base/Vector_impl/vector<...> 的
+// C1Ev/C2Ev 共 10 个 ORIG 存在的 STL 弱符号（另 5 个 C5Ev ORIG 本无，属仅NEW 减少）。
+// 本 TU compare 账面：identical 96→95、ae 162→158、near 0、diff 5（零新增 DIFF）、
+// missing_in_game 69→64；-5 全为该弱符号「借用匹配」消失，非函数语义回归。
+// 全量零 only_orig：这 10 个符号仍由 CharacterAIA2.cpp / STMonsterScript.cpp /
+// CAICharacterList.cpp 三个 .o 发射（nm 全 .o 扫描实证）。
 #include "GameMasterCmd.h"
 #include "CUser.h"
 #include "CUserCharacInfo.h"
@@ -66,47 +79,13 @@ struct CPartyBattleFieldView
 };
 
 // ---------------------------------------------------------------------------
-// 外部函数桥（头文件未声明的 ORIG 符号；不改共享头，按 mangled 名链接）
+// asm 桥已清零（§4.5/§8）：
+//   - CAICharacter::getIndepentDropItem()/GetName()（ORIG W 0x084b410e/0x084b4138）
+//     改用 MonsterIndependentDrop.h 权威镜像类的真实成员声明（定义在
+//     LinkMisc4_Data.cpp）；
+//   - CIndependentDrop::{ResultToStr,PrintItemDropList,printClient,SendChatMsg}
+//     改用 GameMasterCmd.h 的真实签名 + 本 TU 成员定义。
 // ---------------------------------------------------------------------------
-
-// ORIG W 0x084b410e CAICharacter::getIndepentDropItem() const（sret 返回 vector）
-// §4.5 例外：CAICharacter 权威镜像头 MonsterIndependentDrop.h 未建模这两个 W 访问器
-// （getIndepentDropItem/GetName），CAICharacter 建模属 Wide21A2 邻域（CCreature/
-// CDeathTower），故按原生 extern "C" 保留（目标确无权威头声明）。
-extern "C" void _ZNK12CAICharacter19getIndepentDropItemEv(
-    std::vector<stMonsterIndependentDrop_t>* ret, const CAICharacter* self);
-// ORIG W 0x084b4138 CAICharacter::GetName() const
-extern "C" const char* _ZNK12CAICharacter7GetNameEv(const CAICharacter* self);
-
-// ---------------------------------------------------------------------------
-// 头文件占位限制：GameMasterCmd.h 将下列带参辅助声明成了无参成员
-// （PrintItemDropList()/ResultToStr()/SendChatMsg()/printClient()/
-//   CLevelUp::getLevel()/setLevel()）。本 TU 不能改共享头，故真实带参实现
-// 以文件局部函数 + __asm__("ORIG mangled 名") 落符号；类内的无参占位声明
-// 保持未定义（无调用点）。
-// ---------------------------------------------------------------------------
-
-// ORIG W 0x084b165c game_master::CIndependentDrop::ResultToStr(
-//   std::vector<stMonsterIndependentDrop_t> const&, char*)
-void GmD_CIndependentDrop_ResultToStr(
-    CIndependentDrop* self,
-    const std::vector<stMonsterIndependentDrop_t>& drops, char* out)
-    __asm__("_ZN11game_master16CIndependentDrop11ResultToStrERKSt6vectorI26stMonsterIndependentDrop_tSaIS2_EEPc");
-// ORIG W 0x084b1756 game_master::CIndependentDrop::PrintItemDropList(
-//   stMonsterIndependentDrop_t const&, char*, bool)
-void GmD_CIndependentDrop_PrintItemDropList(
-    CIndependentDrop* self, const stMonsterIndependentDrop_t& drop,
-    char* out, bool detail)
-    __asm__("_ZN11game_master16CIndependentDrop17PrintItemDropListERK26stMonsterIndependentDrop_tPcb");
-// ORIG W 0x084b14b8 game_master::CIndependentDrop::printClient(CUser*, char const*, char const*)
-void GmD_CIndependentDrop_printClient(CIndependentDrop* self, CUser* user,
-                                      const char* fileName,
-                                      const char* contents)
-    __asm__("_ZN11game_master16CIndependentDrop11printClientEP5CUserPKcS4_");
-// ORIG W 0x084b15c4 game_master::CIndependentDrop::SendChatMsg(CUser*, char*)
-void GmD_CIndependentDrop_SendChatMsg(CIndependentDrop* self, CUser* user,
-                                      char* msg)
-    __asm__("_ZN11game_master16CIndependentDrop11SendChatMsgEP5CUserPc");
 
 // ---------------------------------------------------------------------------
 // 本地 POD 镜像：头内占位槽位按 ORIG 真实类型的具名访问（生成 disp 寻址，
@@ -551,7 +530,7 @@ void CIndependentDrop::execute()
                     static_cast<STMonsterScript*>(monster->getMonsterScript())
                         ->m_name.c_str());
             strcat(content, lineBuf);
-            GmD_CIndependentDrop_ResultToStr(this, drops, content);
+            ResultToStr(drops, content);
             ++count;
         }
     }
@@ -566,14 +545,13 @@ void CIndependentDrop::execute()
         {
             continue;
         }
-        std::vector<stMonsterIndependentDrop_t> drops;
-        _ZNK12CAICharacter19getIndepentDropItemEv(&drops, ai);
+        // ORIG W 0x084b410e：sret 直构进 drops 槽（源形=拷贝初始化）。
+        std::vector<stMonsterIndependentDrop_t> drops = ai->getIndepentDropItem();
         if (!drops.empty())
         {
-            sprintf(lineBuf, "%d\t%d\t%s\n", *sit, 1,
-                    _ZNK12CAICharacter7GetNameEv(ai));
+            sprintf(lineBuf, "%d\t%d\t%s\n", *sit, 1, ai->GetName());
             strcat(content, lineBuf);
-            GmD_CIndependentDrop_ResultToStr(this, drops, content);
+            ResultToStr(drops, content);
             ++count;
         }
     }
@@ -594,10 +572,10 @@ void CIndependentDrop::execute()
     }
     else
     {
-        GmD_CIndependentDrop_printClient(this, GetUser(), fileName, content);
+        printClient(GetUser(), fileName, content);
         sprintf(chatMsg, kFileCreatedFmt, fileName);
     }
-    GmD_CIndependentDrop_SendChatMsg(this, GetUser(), chatMsg);
+    SendChatMsg(GetUser(), chatMsg);
 }
 
 // ===========================================================================
@@ -736,18 +714,17 @@ void CHeroMissionCommand::execute()
     ARAD::Singleton<HeroMissionEvent>::Get()->sendMissionData(user);
 }
 
-// （namespace game_master 于文件尾闭合——asm-label 实现体同属该命名空间）
+// （namespace game_master 于文件尾闭合——成员定义体同属该命名空间）
 
 // ---------------------------------------------------------------------------
-// 本 TU 提供的 ORIG mangled 符号实体（asm-label 实现体；供 compare_tu 对比）。
+// 本 TU 提供的 ORIG mangled 符号实体（真实成员定义；供 compare_tu 对比）。
 // ---------------------------------------------------------------------------
 
 // ORIG ResultToStr 0x084b165c：逐条拷贝 stMonsterIndependentDrop_t，
 // 按 copy+0x2c（m_rate[10] 主掉率）非 0 决定 PrintItemDropList 详细模式。
 // 【b28d-solo-GmCmds_D 判词 AE】p167 CLEAR（11=11）：循环前缓存 begin/end（P13）、
 // `else if (copy.m_rate[10] != 0)` 二次 test/je（P184 死块照抄）均按 ORIG 复现。
-void GmD_CIndependentDrop_ResultToStr(
-    CIndependentDrop* self,
+void CIndependentDrop::ResultToStr(
     const std::vector<stMonsterIndependentDrop_t>& drops, char* out)
 {
     // b28d-solo-GmCmds_D：ORIG 在循环前一次性求值 begin(-0xc)/end(-0x10)（P13
@@ -759,11 +736,11 @@ void GmD_CIndependentDrop_ResultToStr(
         stMonsterIndependentDrop_t copy(*it);                // ORIG copy ctor 0x8376bb2
         if (copy.m_rate[10] == 0)
         {
-            GmD_CIndependentDrop_PrintItemDropList(self, copy, out, false);
+            PrintItemDropList(copy, out, false);
         }
         else if (copy.m_rate[10] != 0)                      // ORIG 二次 test/je（P184）
         {
-            GmD_CIndependentDrop_PrintItemDropList(self, copy, out, true);
+            PrintItemDropList(copy, out, true);
         }
     }
 }
@@ -775,11 +752,9 @@ void GmD_CIndependentDrop_ResultToStr(
 // p167：EXTRA operator-> ×2 / MISSING operator* ×1（ORIG 单次 `*pit` + 内联 pair
 // 拷贝；改用 pair 局部虽 p167 CLEAR 但会丢 ORIG 存在的 operator-> 弱符号
 // 0x08193912 使 TU identical −1，故取当前形）。残差另含全帧槽号错位（N82）。
-void GmD_CIndependentDrop_PrintItemDropList(
-    CIndependentDrop* self, const stMonsterIndependentDrop_t& drop,
-    char* out, bool detail)
+void CIndependentDrop::PrintItemDropList(
+    const stMonsterIndependentDrop_t& drop, char* out, bool detail)
 {
-    (void)self;
     // b28d-solo-GmCmds_D：ORIG 用内联 rep stos 清零（P214③/P253）⇒ `={0}` 形。
     char lineBuf[0x400] = {0};                               // -0x42c
 
@@ -865,11 +840,9 @@ void GmD_CIndependentDrop_PrintItemDropList(
 }
 
 // ORIG printClient 0x084b14b8：put_header(0,0x13e)+byte(1)+两段 int/str 包发送。
-void GmD_CIndependentDrop_printClient(CIndependentDrop* self, CUser* user,
-                                      const char* fileName,
-                                      const char* contents)
+void CIndependentDrop::printClient(CUser* user, const char* fileName,
+                                   const char* contents)
 {
-    (void)self;
     PacketGuard packet;
     packet.put_header(0, 0x13e);
     packet.put_byte(1);
@@ -882,10 +855,8 @@ void GmD_CIndependentDrop_printClient(CIndependentDrop* self, CUser* user,
 }
 
 // ORIG SendChatMsg 0x084b15c4：聊天包(type=2, notify=0xc) 发起者私聊回显。
-void GmD_CIndependentDrop_SendChatMsg(CIndependentDrop* self, CUser* user,
-                                      char* msg)
+void CIndependentDrop::SendChatMsg(CUser* user, char* msg)
 {
-    (void)self;
     PacketGuard packet;
     G_GameWorld()->make_packet_chat_msg(packet, user, msg,
                                         static_cast<int>(strlen(msg)), 2,

@@ -8,8 +8,13 @@
 //   剩余 DIFF：
 //   GetConditionRewardInfo 0x083353a0 —— N86（4.1 iterator 临时槽+拷贝两段；
 //     4.4 copy-elision 直构 ⇒ 槽序 -0x28/-0x24 不可复现）
-//   RequestConditionEventReward 0x08334850 —— N82/N86（帧 0x24c vs 0x120 大件槽组
-//     + 迭代器/容器 copy-elision）
+//   RequestConditionEventReward 0x08334850 —— 已修：删发明 helper insertFailSendMail
+//     （ORIG nm 0 命中）改两处内联 + inv.m_addInfo(+0x02) 缓存 itemIdx + guard 内联短路
+//     + GetItemType 双调/否定守卫块序 + slot 两段式(-1 初始化) + bool ok 内联 ⇒
+//     gap 76→4、帧 0x25c→0x24c 全对齐、p167 双向差集仅剩 C1/C2·D1/D2 同址别名（P93）。
+//     残余 4 条 = ORIG `mov slot,%eax; shr $0x1f,%eax; test %al,%al; je` vs 4.4
+//     `cmpl $0x0,slot; jns`（2 处 ×2 条；`slot<0` 与 `(unsigned)slot>>31` 两形实测
+//     4.4 均折 cmpl/jns ⇒ 跨版本 lowering，记 N）。
 // ============================================================================
 
 
@@ -30,27 +35,6 @@
 #include "CMailBoxHelper.h"
 #include "PacketGuard.h"
 
-
-namespace
-{
-
-// ORIG 0x08334d05/0x08334f9e 两处相同的"入库失败→系统邮件"序列（msg_80/msg_81）。
-void insertFailSendMail(CUser* user, Inven_Item& item)
-{
-    char sender[30];
-    strncpy(sender,
-            g_scriptStringManager_.findString(4, "game_server_msg_80", 0), 0x1d);
-    char title[256];
-    strncpy(title,
-            g_scriptStringManager_.findString(4, "game_server_msg_81", 0), 0xff);
-    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        sender, item, 0,
-        static_cast<unsigned int>(user->getCurCharacNo()),
-        title, static_cast<int>(strlen(title)),
-        0, user->GetServerGroup(), false, false);
-}
-
-}  // namespace
 
 // ORIG T 0x08334844：空体 C1（push/mov/pop/ret；C1/C2 同址 T，类无虚函数）。
 // 调用点：CGameManager::GetConditionEventManager 的 placement new。
@@ -114,8 +98,10 @@ int CConditionEventManager::RequestConditionEventReward(
             return 0x13;
         }
 
-        unsigned short curStep = user->GetCurConditionEventStep();
-        if (curStep < static_cast<unsigned short>(step))
+        // ORIG 0x083348e6..0x083348fb：`movsbw step,%ax; cmp curStep,%ax; jle`
+        // ⇒ 局部与比较均为 short 有符号（jbe 是无符号版，失配）。
+        short curStep = static_cast<short>(user->GetCurConditionEventStep());
+        if (curStep < static_cast<short>(step))
         {
             return 0x13;
         }
@@ -138,11 +124,12 @@ int CConditionEventManager::RequestConditionEventReward(
             if (it->first == 1 && it->second >= 0)
             {
                 // ORIG 0x083349ee 区：key==1 → 事件币发放。
-                unsigned int coin = user->getCurCharacInvenR()->GetEventCoin();
-                user->getCurCharacInvenW()->SetEventCoin(coin + it->second);
-                unsigned int newCoin = user->getCurCharacInvenR()->GetEventCoin();
+                // ORIG 用 %esi 跨调用保活、无栈槽往返 ⇒ 原码是内联表达式（P0）。
+                user->getCurCharacInvenW()->SetEventCoin(
+                    user->getCurCharacInvenR()->GetEventCoin() + it->second);
                 user->m_historyLog.EventCoinAdd(
-                    newCoin, it->second, static_cast<eCoinAddReason>(2));
+                    user->getCurCharacInvenR()->GetEventCoin(), it->second,
+                    static_cast<eCoinAddReason>(2));
                 user->SaveMoneyCoin();
                 user->SendCoin();
                 continue;
@@ -152,71 +139,94 @@ int CConditionEventManager::RequestConditionEventReward(
             if (item != 0)
             {
                 Inven_Item inv;
+                // ORIG 0x08334acd：create_item 之前把 itemIdx 写进 inv+0x02（m_addInfo），
+                // 其后 guard/IsSpecialItem/GetRestrictCode/ProcessSpecialItem 全部复读该
+                // 成员（不再重取 it->first ⇒ p167 ptEv 多余 4 次的来源）。
+                inv.m_addInfo = it->first;
                 G_CDataManager()->m_itemList->create_item(
                     static_cast<ENUM_ITEM_CREATE_TYPE>(0), inv, it->second);
 
                 // ORIG guard（0x08334b07..+0x2df）：itemIdx==0 或 get_add_info()==0 → 不处理。
-                bool guardOk = !(it->first == 0 || inv.get_add_info() == 0);
-                if (guardOk)
+                // ORIG 为内联短路（mov$1/mov$0 岛 + test %al，无槽）；具名 bool 会多 store+cmpb。
+                if (inv.m_addInfo != 0 && inv.get_add_info() != 0)
                 {
                     int outType = 0;
                     int outValue = 0;
                     bool isSpecial = false;
-                    if (GlobalData::s_pCeraShop->IsSpecialItem(it->first, outType, outValue, isSpecial))
+                    if (GlobalData::s_pCeraShop->IsSpecialItem(inv.m_addInfo, outType, outValue, isSpecial))
                     {
                         // ORIG 0x08334b7f 区：特殊物品 → GetItemType() 检查。
-                        int itemType = item->GetItemType();
-                        if (itemType == 0x10 || it->first == 1)
+                        // ORIG 为否定守卫（`je <else>` 直落 ProcessSpecialItem），且 itemType
+                        // 不落局部（两次独立 call GetItemType）⇒ 内联调用 + 翻转块序。
+                        if (!(item->GetItemType() == 0x10 || inv.m_addInfo == 1))
                         {
-                            // type==0x10 或 itemIdx==1：不做 ProcessSpecialItem；
-                            // 仅 type==0x10 直接入库（0x08334d8e 区）。
-                            if (itemType == 0x10)
+                            // ORIG 0x08334bb5 区：ProcessSpecialItem 发放特殊物品。
+                            int outRestrict = 0;
+                            int restrictCode =
+                                G_CDataManager()->m_itemList->GetRestrictCode(inv.m_addInfo);
+                            long curSec = GlobalData::s_systemTime_.getCurSec();
+                            std::vector<Inven_Item> items;
+                            WongWork::CCeraShop::stCeraShopItemParam_t param;
+                            // ORIG 0x08334c66..+0x6d 为内联短路（call;test %al,%al;je），
+                            // 具名 bool 会多 store+cmpb 两条（P0）。
+                            if (GlobalData::s_pCeraShop->ProcessSpecialItem(
+                                    user, inv.m_addInfo, restrictCode, outRestrict, curSec, true,
+                                    items, param, 0, 0, false, 1))
                             {
-                                int slot = user->getCurCharacInvenW()->insertItemIntoInventory(
-                                    inv, static_cast<eItemAddReason>(0x25), true, true);
-                                if (slot < 0)
+                                // ORIG 0x08334c73..+0x89 为 guard 形（outRestrict!=0 直落
+                                // 0x11 出口），非 if/else 反向布局。
+                                if (outRestrict != 0)
                                 {
-                                    insertFailSendMail(user, inv);
+                                    return 0x11;
                                 }
-                                else if (inv.IsCreatureItemType())
+                                if (restrictCode != 0 && !user->IsRestrictedGoods(restrictCode))
                                 {
-                                    user->SendUpdateItem(CUser::eSendTarget_1,
-                                                         static_cast<ENUM_ITEMSPACE>(7), slot);
-                                }
-                                else
-                                {
-                                    user->SendUpdateItem(CUser::eSendTarget_1,
-                                                         static_cast<ENUM_ITEMSPACE>(0), slot);
+                                    user->SetRestrictedGoods(restrictCode);
+                                    GlobalData::s_pCeraShop->SaveFeaturedIdx(
+                                        user, restrictCode, curSec, 0);
+                                    user->SendRestrictedGoods(true, restrictCode);
                                 }
                             }
                         }
                         else
                         {
-                            // ORIG 0x08334bb5 区：ProcessSpecialItem 发放特殊物品。
-                            int restrictCode =
-                                G_CDataManager()->m_itemList->GetRestrictCode(it->first);
-                            long curSec = GlobalData::s_systemTime_.getCurSec();
-                            int outRestrict = 0;
-                            std::vector<Inven_Item> items;
-                            WongWork::CCeraShop::stCeraShopItemParam_t param;
-                            bool ok = GlobalData::s_pCeraShop->ProcessSpecialItem(
-                                user, it->first, restrictCode, outRestrict, curSec, true,
-                                items, param, 0, 0, false, 1);
-                            if (ok)
+                            // type==0x10 或 itemIdx==1：不做 ProcessSpecialItem；
+                            // 仅 type==0x10 直接入库（0x08334d8e 区）。
+                            if (item->GetItemType() == 0x10)
                             {
-                                if (outRestrict == 0)
+                                // ORIG 0x08335069..+0x71 两段式：先 `movl $-1,slot`
+                                // 再独立赋值（P197③），合并初始化式会少一条 store。
+                                int slot = -1;
+                                slot = user->getCurCharacInvenW()->insertItemIntoInventory(
+                                    inv, static_cast<eItemAddReason>(0x25), true, true);
+                                // ORIG 0x08335071..+0x82c 用 `shr $0x1f;test %al`，4.4 对
+                                // `slot<0` / `(unsigned)slot>>31` 恒折 `cmpl $0;jns`（跨版本
+                                // lowering，2 条差不可造，记 N）。
+                                if (slot < 0)
                                 {
-                                    if (restrictCode != 0 && !user->IsRestrictedGoods(restrictCode))
-                                    {
-                                        user->SetRestrictedGoods(restrictCode);
-                                        GlobalData::s_pCeraShop->SaveFeaturedIdx(
-                                            user, restrictCode, curSec, 0);
-                                        user->SendRestrictedGoods(true, restrictCode);
-                                    }
+                                    // ORIG 0x08335082 区（与 0x08334e72 同构，sender 槽不同）：
+                                    // 入库失败 → msg_80/msg_81 系统邮件 + inv.reset()。
+                                    char sender[30];
+                                    strncpy(sender,
+                                            g_scriptStringManager_.findString(
+                                                4, "game_server_msg_80", 0), 0x1d);
+                                    char title[256];
+                                    strncpy(title,
+                                            g_scriptStringManager_.findString(
+                                                4, "game_server_msg_81", 0), 0xff);
+                                    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                                        sender, inv, 0,
+                                        static_cast<unsigned int>(user->getCurCharacNo()),
+                                        title, static_cast<int>(strlen(title)), 0,
+                                        user->GetServerGroup(), false, false);
+                                    inv.reset();
                                 }
                                 else
                                 {
-                                    return 0x11;
+                                    // ORIG 0x08335184 区：此分支无 IsCreatureItemType 判定，
+                                    // 恒按 itemspace 0 发送（Ghidra C local_24<0 的 else 臂）。
+                                    user->SendUpdateItem(CUser::eSendTarget_1,
+                                                         static_cast<ENUM_ITEMSPACE>(0), slot);
                                 }
                             }
                         }
@@ -224,11 +234,28 @@ int CConditionEventManager::RequestConditionEventReward(
                     else
                     {
                         // ORIG 0x08334f9e 区：非特殊物品 → 直接入库。
-                        int slot = user->getCurCharacInvenW()->insertItemIntoInventory(
+                        // ORIG 0x08334f99..+0x61 两段式（同 0x08335069，P197③）。
+                        int slot = -1;
+                        slot = user->getCurCharacInvenW()->insertItemIntoInventory(
                             inv, static_cast<eItemAddReason>(0x25), true, true);
+                        // ORIG 0x08334e61..+0x61c：同 0x08335071 的 shr 形（记 N）。
                         if (slot < 0)
                         {
-                            insertFailSendMail(user, inv);
+                            // ORIG 0x08334e72 区：入库失败 → msg_80/msg_81 系统邮件 + reset。
+                            char sender[30];
+                            strncpy(sender,
+                                    g_scriptStringManager_.findString(
+                                        4, "game_server_msg_80", 0), 0x1d);
+                            char title[256];
+                            strncpy(title,
+                                    g_scriptStringManager_.findString(
+                                        4, "game_server_msg_81", 0), 0xff);
+                            WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                                sender, inv, 0,
+                                static_cast<unsigned int>(user->getCurCharacNo()),
+                                title, static_cast<int>(strlen(title)), 0,
+                                user->GetServerGroup(), false, false);
+                            inv.reset();
                         }
                         else if (inv.IsCreatureItemType())
                         {

@@ -420,34 +420,39 @@ WindowsExeFile::~WindowsExeFile()
 //    （local_38）——前批两处误读已修正。
 bool WindowsExeFile::ReadPeHeader()
 {
-    // [b28d-solo-WindowsPackFiles] verdict=DIFF，N 封顶（P165 双份物理展开未还原 +
-    // N82 具名局部/槽号 + N89 模板实例）：orig_insns=551（>500，按 §6.2 三件套）。
-    // p167：MISSING = Interval 迭代器族 ×2 + {IntervalSet::C1, Interval::C1(long,long),
-    // AddInterval, operator new, push_back, _Unwind_Resume} ×1；EXTRA =
-    // vector<Interval>::operator[] ×2。差集性质 = **等价改写形态**（见下），非语义缺口：
-    // ① ORIG 在「非可执行解剖」与「可执行」两分支各物理展开一份
-    //    `IntervalSet workSet; Interval base; AddInterval; 遍历 new/push_back`（P165
-    //    的循环抽象 vs ORIG 物理内联展开，两分支互斥故语义等价）；
-    // ② ORIG 两处遍历走迭代器（begin/end/operator*/ppEv），我方为索引形；
-    // ③ ORIG 头部另有 img@-0x68 / pe@-0x60 / p@-0x5c / sig@-0x64 / fileHdr@-0x58 /
-    //    optHdr@-0x54 具名局部中转（P0 槽往返 ⇒ 原码有具名局部），我方为表达式直读。
-    // 语义已逐段核（PE 签名/节数/可选头/节表遍历/目录减法/导入表 hint-name-dll-table/
-    // 入口头 10B/区间遍历建节），未发现真语义 bug；残余全为上述形态差。
+    // [SweepC 2026-09-09 修复判词] 0x085738f6：P165 双份物理展开 + 头部具名局部已还原。
+    // ① 可执行（减入口头 10B）与非可执行（dir/import 解剖）两分支各持独立
+    //    `IntervalSet workSet; Interval base; AddInterval; Interval range;
+    //    iterator 遍历 new/push_back`（分支顺序照 ORIG：!=0 在前，==0 在后）；
+    // ② 遍历走迭代器且每迭代仅 1 次 operator*（`const Interval& iv = *it;`
+    //    P183 引用绑定；ORIG 08573aaa/08573fbb 各 1 次）——补回 ORIG-only
+    //    callee `_ZN8IntervalC1Ev` + `__normal_iterator::operator*`；
+    // ③ 头部 img@-0x68 / p@-0x60 / pe@-0x5c / sig@-0x64 / fileHdr@-0x58 /
+    //    opt@-0x54 具名局部中转；节数循环条件每次重读 fileHdr+2（ORIG 085740b7）。
+    // 结果：p167 calls 44/44，MISSING/EXTRA 仅 C1↔C2、D1↔D2 别名对（豁免）；
+    // gap 91 → -29（我方多 29 条 = 4.4 槽基/寻址形态差 N82/N95，非语义缺口）；
+    // TU identical 106→111 / ae 239→242 / near 1 / diff 3（无回退）。
     if (m_image == 0)
     {
         return false;
     }
-    unsigned char* img = m_image;
-    unsigned char* pe = img + *reinterpret_cast<unsigned int*>(img + 0x3c);
-    (void)*reinterpret_cast<unsigned int*>(pe);            // PE 签名读（local_68）
-    unsigned short numberOfSections =
-        *reinterpret_cast<unsigned short*>(pe + 6);        // COFF+2
-    unsigned long* opt = reinterpret_cast<unsigned long*>(pe + 0x18);
-    unsigned char* sechdr = pe + 0xf8;
+    unsigned char* img = m_image;                            // -0x68
+    unsigned char* p = img;                                  // -0x60 节表游标
+    unsigned char* pe = p;                                   // -0x5c
+    p = img + *reinterpret_cast<unsigned int*>(pe + 0x3c);   // e_lfanew
+    unsigned int sig = *reinterpret_cast<unsigned int*>(p);  // -0x64 PE 签名
+    (void)sig;
+    p += 4;
+    unsigned char* fileHdr = p;                              // -0x58 COFF 头
+    p += 0x14;
+    unsigned long* opt = reinterpret_cast<unsigned long*>(p);// -0x54 可选头
+    p += 0xe0;
 
-    for (int s = 0; s < static_cast<int>(numberOfSections); ++s, sechdr += 0x28)
+    for (int s = 0;
+         s < static_cast<int>(*reinterpret_cast<unsigned short*>(fileHdr + 2));
+         ++s, p += 0x28)
     {
-        unsigned long* sh = reinterpret_cast<unsigned long*>(sechdr);
+        unsigned long* sh = reinterpret_cast<unsigned long*>(p);
         unsigned long vaDelta = sh[5] - sh[3];
         if (static_cast<long>(sh[9]) < 0 || (sh[9] & 0x40000000UL) == 0)
         {
@@ -462,11 +467,34 @@ bool WindowsExeFile::ReadPeHeader()
         {
             rawLen = sh[4];
         }
-        IntervalSet workSet;
-        Interval base(sh[3], rawLen);
-        workSet.AddInterval(base);
-        if ((sh[9] & 0x20000000UL) == 0)               // 非可执行 → 解剖大分支
+        if ((sh[9] & 0x20000000UL) != 0)               // 可执行：仅减入口头 10B
         {
+            IntervalSet workSet;
+            Interval base(sh[3], rawLen);
+            workSet.AddInterval(base);
+            Interval entryHead(opt[4], 10);             // AddressOfEntryPoint
+            workSet.MinusInterval(entryHead);
+            std::vector<Interval>::iterator it;
+            Interval range;
+            for (it = workSet.m_intervals.begin();
+                 it != workSet.m_intervals.end(); ++it)
+            {
+                const Interval& iv = *it;
+                range.m_start = iv.m_start;
+                range.m_size  = iv.m_size;
+                WindowsExeConstantSection* item = new WindowsExeConstantSection;
+                item->start      = range.m_start;
+                item->fileOffset = range.m_start + vaDelta;
+                item->size       = range.m_size;
+                item->flag       = sh[9];
+                m_sections.push_back(item);
+            }
+        }
+        else                                            // 非可执行 → 解剖大分支
+        {
+            IntervalSet workSet;
+            Interval base(sh[3], rawLen);
+            workSet.AddInterval(base);
                 for (long d = 0; d < static_cast<long>(opt[0x17]); ++d)
                 {
                     if (IsOverlappedInterval(
@@ -552,22 +580,21 @@ bool WindowsExeFile::ReadPeHeader()
                         workSet.MinusInterval(table);
                     }
                 }
-            }
-            else                                            // 可执行：仅减入口头 10B
+            std::vector<Interval>::iterator it;
+            Interval range;
+            for (it = workSet.m_intervals.begin();
+                 it != workSet.m_intervals.end(); ++it)
             {
-                Interval entryHead(opt[4], 10);             // AddressOfEntryPoint
-                workSet.MinusInterval(entryHead);
+                const Interval& iv = *it;
+                range.m_start = iv.m_start;
+                range.m_size  = iv.m_size;
+                WindowsExeConstantSection* item = new WindowsExeConstantSection;
+                item->start      = range.m_start;
+                item->fileOffset = range.m_start + vaDelta;
+                item->size       = range.m_size;
+                item->flag       = sh[9];
+                m_sections.push_back(item);
             }
-        for (std::size_t iv = 0; iv < workSet.m_intervals.size(); ++iv)
-        {
-            long rangeStart = workSet.m_intervals[iv].m_start;
-            long rangeSize = workSet.m_intervals[iv].m_size;
-            WindowsExeConstantSection* item = new WindowsExeConstantSection;
-            item->start      = rangeStart;
-            item->fileOffset = rangeStart + vaDelta;
-            item->size       = rangeSize;
-            item->flag       = sh[9];
-            m_sections.push_back(item);
         }
     }
     return true;

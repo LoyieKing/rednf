@@ -25,6 +25,18 @@
 #include "StreamPool.h"    // GlobalData::s_stream_pool->Acquire（LoadRewardEventItem/LoadServerState）
 #include "MsgQueueMgr.h"   // MsgQueueMgr::DISPATCH_Q / put（LoadRewardEventItem/LoadServerState）
 
+// ---------------------------------------------------------------------------
+// 【A 档 GI 顺序对齐 2026-09-09】本定义置于 TU 最前，使 `_GLOBAL__I_` 名等于
+// ORIG 的 `_ZN4ARAD10DISPATCHER23Arad_DatabaseDispatcherC2Ev`
+// （P327：GI 名 = TU 内第一个「强符号·外部链接·本 TU 定义」实体；全限定定义
+//  可写在命名空间块之外，发射序因此提前）。**语义与机器码零变化，仅发射序。**
+// ---------------------------------------------------------------------------
+// ORIG ctor 0x08184c7c：map C1 后跟一次显式 map::clear。
+ARAD::DISPATCHER::Arad_DatabaseDispatcher::Arad_DatabaseDispatcher()
+{
+    m_dispatchers.clear();
+}
+
 // ============================================================================
 // arad::SigSaveRewardEventItem 生命周期（置于全局作用域；MoreTypes.h namespace arad 声明）（声明于 MoreTypes.h；ORIG 见其注释）
 // ============================================================================
@@ -113,12 +125,6 @@ Arad_IDatabaseDispatcher::~Arad_IDatabaseDispatcher()
 // ============================================================================
 // Arad_DatabaseDispatcher —— 容器（ARAD__DISPATCHER__Arad_DatabaseDispatcher 各报告）
 // ============================================================================
-
-// ORIG ctor 0x08184c7c：map C1 后跟一次显式 map::clear。
-Arad_DatabaseDispatcher::Arad_DatabaseDispatcher()
-{
-    m_dispatchers.clear();
-}
 
 // ORIG ~D1 0x08184cbe：for_each(begin,end,DeleteDispatcher 删除各派发器) 后析构 map。
 Arad_DatabaseDispatcher::~Arad_DatabaseDispatcher()

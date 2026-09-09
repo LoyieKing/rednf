@@ -77,6 +77,18 @@ int getItemSellPrice(int price, int curEndurance, int maxEndurance,
 #include "Inven_Item.h"        // Inven_Item::m_amp
 #include "PacketGuard.h"
 
+// ---------------------------------------------------------------------------
+// 【A 档 GI 顺序对齐 2026-09-09】本定义置于 TU 最前，使 `_GLOBAL__I_` 名等于
+// ORIG 的 `_ZN10expert_job10CAlchemistC2Ev`（P327）。全限定定义可写在命名空间块
+// 之外 ⇒ 发射序提前。语义与机器码零变化，仅发射序。
+// ---------------------------------------------------------------------------
+// ---- CAlchemist 生命周期（ctor 报告 expert_job__CAlchemist/CAlchemist.md；
+//      dtor D1/D0 0x085d11d0/0x085d1200）----
+expert_job::CAlchemist::CAlchemist()
+{
+    // ORIG：基类构造后仅置 vptr（由编译器生成），无额外成员。
+}
+
 
 // ---- stItemSelectRate::stItemSelectRate（ORIG W 0x085d3bd6：5×int 清零）----
 stItemSelectRate::stItemSelectRate()
@@ -169,13 +181,6 @@ void CCharacExpertJob::set_disjoint_machine_endurance(int value)
 {
     alter();
     m_endurance = value;
-}
-
-// ---- CAlchemist 生命周期（ctor 报告 expert_job__CAlchemist/CAlchemist.md；
-//      dtor D1/D0 0x085d11d0/0x085d1200）----
-CAlchemist::CAlchemist()
-{
-    // ORIG：基类构造后仅置 vptr（由编译器生成），无额外成员。
 }
 
 CAlchemist::~CAlchemist()

@@ -62,6 +62,25 @@ private:
 // ============================================================================
 extern int PVP_NORMAL_BATTLE_TIME[2];
 extern int PVP_DM_BATTLE_TIME[2];
+// ---------------------------------------------------------------------------
+// 【A 档 GI 顺序对齐 2026-09-09】本定义置于 TU 首个数据定义之前，使 `_GLOBAL__I_`
+// 名等于 ORIG 的 `_Z15IsDeathMatchMapiRb`（P327）。数组改用 extern 前置声明，
+// 定义仍在下方 ⇒ 符号与初始化语义零变化。语义与机器码零变化，仅发射序。
+// ---------------------------------------------------------------------------
+extern bool PVPMAP_DEATHMATCH_MODE[0x14];
+bool IsDeathMatchMap(int mapNo, bool& onlyDeathMatch)
+{
+    PvPMapInfo info;
+    if (CMapList::GetPvpMapInfo(mapNo, info))
+    {
+        onlyDeathMatch = info.m_playable;
+        if (mapNo > 0x13 || mapNo < 0)
+            return 0;
+        return PVPMAP_DEATHMATCH_MODE[mapNo];
+    }
+    return 0;
+}
+
 bool PVPMAP_DEATHMATCH_MODE[0x14] = {0};
 // [b28d-solo-PvP_Room] P248 档②：ORIG GetCandidateMapIndexList 0x085d88xx 对
 // `!arr[i]` 发 `movzbl <A>(%eax),%eax; xor $1,%eax; test %al; je/jne`（取反
@@ -81,18 +100,6 @@ bool PVPMAP_ONLY_TOURNAMENT_RANDOM[0x14] = {0};
 // CheckPvPMapMode 0x085dd98e / DrawRandomMapIndex）均 `call; test %al,%al; je`
 // 无 setne ⇒ callee 返回 bool；配合 PVPMAP_DEATHMATCH_MODE 改 bool 数组后本函数
 // 体尾仍 `movzbl`（bool→bool 无需归一化），自身保持 identical。
-bool IsDeathMatchMap(int mapNo, bool& onlyDeathMatch)
-{
-    PvPMapInfo info;
-    if (CMapList::GetPvpMapInfo(mapNo, info))
-    {
-        onlyDeathMatch = info.m_playable;
-        if (mapNo > 0x13 || mapNo < 0)
-            return 0;
-        return PVPMAP_DEATHMATCH_MODE[mapNo];
-    }
-    return 0;
-}
 // ORIG 0x855c8f4：按频道类型返回匹配类型（9→2, 10→3, 14→4, 15→5, 其余→0）
 int GetMatchingType()
 {

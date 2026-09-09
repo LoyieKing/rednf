@@ -195,16 +195,13 @@ int CCeraShopGoods::GetExpiryDate() const
 
 float CCeraShopGoods::GetBonusWeight() const
 {
-    // [b28d-solo-CCeraShopGoods] N85 封顶（10 vs 9，助记符序列差 2 条 mov）：
-    // ORIG 0x0854c588 `mov 0x2c(%eax),%eax; mov %eax,-0x4(%ebp); flds
-    // -0x4(%ebp)`（sub $0x4，具名 float 局部被直接 flds）。4.4-O0 对
-    // 「具名 float 局部 + return」恒多发 `mov -0x4,%eax; mov %eax,-0x14;
-    // flds -0x14`（返回临时槽，sub $0x14）。五形实测同形不可翻：①具名
-    // float 局部（本形）②声明后赋值两句 ③register float ④float[1] 元素
-    // ⑤P226 语句表达式；直写 `return m_bonusWeight;` 折 `flds disp`（5 条，
-    // 更远）。语义/值域一致，取最短可读形。
-    float v = m_bonusWeight;
-    return v;
+    // [TakeCera] 修正原 N85 判词（原判「直写 return m_bonusWeight; 折
+    // flds disp 5 条」经同路由形探针实测证伪）：直写成员在 4.4.6 -O0 下与
+    // ORIG 0x0854c582 逐条同形（9 条）——
+    //   sub $0x4,%esp / mov 0x8(%ebp),%eax / mov 0x2c(%eax),%eax /
+    //   mov %eax,-0x4(%ebp) / flds -0x4(%ebp)
+    // 原形（具名局部 v + return v）多发返回临时槽往返（11 条，sub $0x14）。
+    return m_bonusWeight;
 }
 
 CItem* CCeraShopGoods::GetRelatedItem() const

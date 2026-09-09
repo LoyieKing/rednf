@@ -551,6 +551,15 @@ public:
     ~CMonsterDrop_Hell();                        // W 0x0853a60e
     int loadScript(char const* path);            // T 0x08535344（虚槽 +0x04）
 
+    // ---- P6（WongWorkDrop_A 跨类调用）----
+    // A 文件 CMonsterDrop::setDropRatio/generateSpecificItem 需在 m_hell 上调用
+    // 本组方法 ⇒ protected→public。仅访问控制变化，sizeof/偏移/mangled/vtable 零变化。
+    void setDropRatio(float ratio);               // ORIG T 0x08535948（虚槽 +0x00）
+    void generateSpecificItem(stGenerateRefData_t const& ref,
+                              stGenerateResult_t& result);  // ORIG T 0x08535726（虚槽 +0x0c）
+    void hellPartySpecificItem(stGenerateRefData_t const& ref,
+                               stGenerateResult_t& result);  // ORIG T 0x08535b08
+
 protected:
     // v[2..6] 的数组视角 w[0..4]（+0x08 起）：ORIG 0x08535948 以 disp=8 折叠索引
     // （`mov 0x8(%eax,%edx,4)` / `mov %eax,0x8(%edx,%ebx,4)`），4.4 对 `v[2+j]`
@@ -570,12 +579,6 @@ protected:
     char m_padA8[0x18];                          // +0xa8..0xbf（未建模区）
     stGenItemRange_t m_range;               // +0xc0..0x253
     CItemGenRateTable m_table;                   // +0x254..0x237BF
-    // ---- WongWorkDrop_B 批次补充（ORIG T 实证；定义 WongWorkDrop_B.cpp）----
-    void setDropRatio(float ratio);               // ORIG T 0x08535948（虚槽 +0x00）
-    void generateSpecificItem(stGenerateRefData_t const& ref,
-                              stGenerateResult_t& result);  // ORIG T 0x08535726（虚槽 +0x0c）
-    void hellPartySpecificItem(stGenerateRefData_t const& ref,
-                               stGenerateResult_t& result);  // ORIG T 0x08535b08
     int _getGenItemProbIdx(int value);           // ORIG T 0x08535a88
 };  // sizeof 0x237C0
 
@@ -586,6 +589,16 @@ public:
     CSpecialMonsterDrop(int count);              // W 0x0853a426
     ~CSpecialMonsterDrop();                      // W 0x0853a4ca
     int loadScript(char const* path);            // T 0x085373ee（虚槽 +0x04）
+
+    // ---- P6（WongWorkDrop_A 跨类调用）----
+    // A 文件 CMonsterDrop::setDropRatio/generateRandomItem 需在 m_special 上调用
+    // 本组方法 ⇒ protected→public。仅访问控制变化，sizeof/偏移/mangled/vtable 零变化。
+    void _generateRandomItem(unsigned char type, char role, unsigned char dungeonLv,
+                             unsigned char difficulty, unsigned char partyPos,
+                             int aiIdx, unsigned char hellFlag, int dropRate,
+                             stGenerateResult_t& result, bool& done);
+                                                  // ORIG T 0x08536882
+    void setDropRatio(float ratio);               // ORIG T 0x085359e8（虚槽 +0x00）
 
 protected:
     struct stGenItemProb_t
@@ -606,13 +619,6 @@ protected:
     stGenItemRange_t m_range;               // +0x1ac..0x33f
     CSecialIMonsterDropItemGenRateTable m_table; // +0x340..0x21230B
 
-    // ---- G1 Drop 批次补充 ----
-    void _generateRandomItem(unsigned char type, char role, unsigned char dungeonLv,
-                             unsigned char difficulty, unsigned char partyPos,
-                             int aiIdx, unsigned char hellFlag, int dropRate,
-                             stGenerateResult_t& result, bool& done);
-                                                  // ORIG T 0x08536882
-    void setDropRatio(float ratio);               // ORIG T 0x085359e8（虚槽 +0x00）
     int _getGenItemProbIdx(int value);            // ORIG T 0x0853736e
 };  // sizeof 0x21230C
 

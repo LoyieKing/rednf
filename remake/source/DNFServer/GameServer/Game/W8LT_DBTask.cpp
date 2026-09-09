@@ -236,6 +236,41 @@ long GetCurrentResetBaseTime(long t, int hour);
 // ORIG T _Z22getComboSkillTableName20ENUM_SKILL_TREE_KIND @0x0844a38b
 // （定义 DB_LoadEtc.cpp:2029；DB_UpdateComboSkill::setComboSkill 消费）。
 char const* getComboSkillTableName(ENUM_SKILL_TREE_KIND kind);
+// ---------------------------------------------------------------------------
+// 【A 档 GI 顺序对齐 2026-09-09】类与本类 dispatch 定义置于 TU 最前，使
+// `_GLOBAL__I_` 名等于 ORIG 的 `_ZN29CLocalChina_DB_BreakAwayReset8dispatchEiiP6Stream`（P327）。
+// 语义与机器码零变化，仅发射序。
+// ---------------------------------------------------------------------------
+class CLocalChina_DB_BreakAwayReset : public DBDispatcher
+{
+public:
+    CLocalChina_DB_BreakAwayReset() {}   // ORIG C1 0x844fb92 (sz 0x4: base ctor+vptr only)
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x08127e84
+};
+
+// CLocalChina_DB_BreakAwayReset::dispatch —— ORIG 0x08127e84
+// 读 accId；UPDATE churn_member_info 复位 break-away 数据。失败 log 返 0。
+bool CLocalChina_DB_BreakAwayReset::dispatch(int userIdx, int slot,
+                                             Stream* stream)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
+                                                  E_SERVER_GROUP_NONE);
+    unsigned int m_id = 0;
+    *stream >> m_id;
+    db->set_query(
+        "UPDATE churn_member_info \t\t\t\t   SET accrue_cera = 0, first_reward_time = 0, last_reward_time = 0, \t\t\t\t\t   add_info = 0, luck_point = 0, last_update_time = 0, second_reward_time = 0, quest_time = 0 \t\t\t\t   WHERE m_id=%s",
+        NumberToString(m_id, 0));
+    if (!db->exec(true))
+    {
+        LogManager::logFormat(
+            1, "localchina/localchina_DBThread.cpp",
+            __PRETTY_FUNCTION__,
+            0x3ff, "[GM]CLocalChina_DB_BreakAwayReset Fail!!");
+        return 0;
+    }
+    return 1;
+}
+
 // WongWork::DBCommon::GetIdentity —— ORIG T 0x083f9ad4，定义归
 // LinkClosureB_Misc.cpp（TU 局部声明同款，DB_MailBox_Req_Send.cpp 同法）。
 namespace WongWork {
@@ -1564,7 +1599,13 @@ public:
 class DB_SaveGoldZeroTradeLog : public DBDispatcher { public: DB_SaveGoldZeroTradeLog() {} 
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x084227f6
 };   // ORIG C1 0x844e49a (sz 0x4: base ctor+vptr only)
-class DB_MouseRegister : public DBDispatcher { public: DB_MouseRegister() {} };   // ORIG C1 0x844e4b6 (sz 0x4: base ctor+vptr only)
+class DB_MouseRegister : public DBDispatcher { public: DB_MouseRegister() {}
+    // 虚表槽：本类在本 TU 是"注册用镜像"，真实实现在 MouseRegisterEJ.cpp（强定义）。
+    // 内联定义在此仅用于满足 GCC 的 key-function 规则（否则本 TU 不发 `_ZTV`），
+    // 链接期该弱定义被真实强定义覆盖 ⇒ vtable 槽指向真实 dispatch。
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844e4b6 (sz 0x4: base ctor+vptr only)
 class DB_UpdateDungeonDataStatisticLogdb : public DBDispatcher
 {
 public:
@@ -1631,6 +1672,8 @@ class DB_ReqSaveHackUserPunish : public DBDispatcher
 {
 public:
     DB_ReqSaveHackUserPunish() {}   // ORIG C1 0x844e57a (sz 0x4: base ctor+vptr only)
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
     // ORIG T 0x08425494（定义归 DB_U3.cpp）
     static void makeRequest(unsigned int uid, unsigned int type, const char* ip);
 };
@@ -1640,7 +1683,10 @@ public:
     DB_InsertUserPlayTime() {}   // ORIG C1 0x844e596 (sz 0x4: base ctor+vptr only)
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x084256b4
 };
-class DB_UpdateHappyBeanInfo : public DBDispatcher { public: DB_UpdateHappyBeanInfo() {} };   // ORIG C1 0x844e5b2 (sz 0x4: base ctor+vptr only)
+class DB_UpdateHappyBeanInfo : public DBDispatcher { public: DB_UpdateHappyBeanInfo() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844e5b2 (sz 0x4: base ctor+vptr only)
 class DB_InsertQueryCounterDb : public DBDispatcher
 {
 public:
@@ -1669,7 +1715,10 @@ public:
     static void makeRequest(int userIdx, int slot, int characNo, int mailIdx,
                             int state);
 };
-class DB_ReqChangeCharacName : public DBDispatcher { public: DB_ReqChangeCharacName() {} };   // ORIG C1 0x844e63e (sz 0x4: base ctor+vptr only)
+class DB_ReqChangeCharacName : public DBDispatcher { public: DB_ReqChangeCharacName() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_LinkMisc4.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844e63e (sz 0x4: base ctor+vptr only)
 class DB_ReqQueryCharacInfo : public DBDispatcher
 {
 public:
@@ -1732,7 +1781,10 @@ public:
 class DB_CountOfHumanCertify : public DBDispatcher { public: DB_CountOfHumanCertify() {}   // ORIG C1 0x844e73a (sz 0x4: base ctor+vptr only)
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x084282a0
 };
-class DB_UpdateGiftCount : public DBDispatcher { public: DB_UpdateGiftCount() {} };   // ORIG C1 0x844e756 (sz 0x4: base ctor+vptr only)
+class DB_UpdateGiftCount : public DBDispatcher { public: DB_UpdateGiftCount() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_UpdateGiftCount.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844e756 (sz 0x4: base ctor+vptr only)
 class DB_UpdateMemberDoubtTrade : public DBDispatcher
 {
 public:
@@ -1912,8 +1964,14 @@ public:
     // ORIG T 0x084330d4（虚覆盖；定义本文件）
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
 };
-class DB_Insert0712WinterEventCoupon : public DBDispatcher { public: DB_Insert0712WinterEventCoupon() {} };   // ORIG C1 0x844ead6 (sz 0x4: base ctor+vptr only)
-class DB_InsertArchieveEventLog : public DBDispatcher { public: DB_InsertArchieveEventLog() {} };   // ORIG C1 0x844eaf2 (sz 0x4: base ctor+vptr only)
+class DB_Insert0712WinterEventCoupon : public DBDispatcher { public: DB_Insert0712WinterEventCoupon() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844ead6 (sz 0x4: base ctor+vptr only)
+class DB_InsertArchieveEventLog : public DBDispatcher { public: DB_InsertArchieveEventLog() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844eaf2 (sz 0x4: base ctor+vptr only)
 class DB_InsertDungeonExp : public DBDispatcher
 {
 public:
@@ -1926,7 +1984,10 @@ public:
     DB_WriteGeoReject() {}   // ORIG C1 0x844eb2a (sz 0x4: base ctor+vptr only)
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0844bb70
 };
-class DB_InsertUnlimitSupportLog : public DBDispatcher { public: DB_InsertUnlimitSupportLog() {} };   // ORIG C1 0x844eb46 (sz 0x4: base ctor+vptr only)
+class DB_InsertUnlimitSupportLog : public DBDispatcher { public: DB_InsertUnlimitSupportLog() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844eb46 (sz 0x4: base ctor+vptr only)
 class DB_LoadCleanPadPoint : public DBDispatcher
 {
 public:
@@ -2278,7 +2339,10 @@ public:
     // ORIG T 0x08439c6c（虚覆盖；定义本文件）
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
 };
-class DB_AccountHack_CheckMyAccount : public DBDispatcher { public: DB_AccountHack_CheckMyAccount() {} };   // ORIG C1 0x844f1ba (sz 0x4: base ctor+vptr only)
+class DB_AccountHack_CheckMyAccount : public DBDispatcher { public: DB_AccountHack_CheckMyAccount() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844f1ba (sz 0x4: base ctor+vptr only)
 class DB_SecuServiceUpdateValidityTime : public DBDispatcher
 {
 public:
@@ -2448,7 +2512,10 @@ public:
     // Dispatchers.cpp:16783 调用。
     static void makeRequest(int userIdx, const char* name);
 };   // ORIG C1 0x844f4ae (sz 0x4: base ctor+vptr only)
-class DB_UpdateChuseokPackagePurchase : public DBDispatcher { public: DB_UpdateChuseokPackagePurchase() {} };   // ORIG C1 0x844f502 (sz 0x4: base ctor+vptr only)
+class DB_UpdateChuseokPackagePurchase : public DBDispatcher { public: DB_UpdateChuseokPackagePurchase() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_UpdateChuseokPackagePurchase.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844f502 (sz 0x4: base ctor+vptr only)
 class DB_CheckJoinGuild : public DBDispatcher { public: DB_CheckJoinGuild() {} };   // ORIG C1 0x844f51e (sz 0x4: base ctor+vptr only)
 class DB_RequestJoinGuild : public DBDispatcher
 {
@@ -2701,7 +2768,10 @@ public:
 // DB_UpdateInventoryCapacity 权威声明已迁入 DB_UpdateInventoryCapacity.h（ORIG C1 0x844fa0a，
 // sz 0x4；makeRequest 0x08444d12 + dispatch 0x08444bea）。本地占位类删除避免 ODR 重复。
 // DB_UpdateAuraAvatarOption 权威声明在 GameBasicsScripts.h（含 makeRequest/dispatch）。
-class DB_InsertCeraItemHistory : public DBDispatcher { public: DB_InsertCeraItemHistory() {} };   // ORIG C1 0x844fa42 (sz 0x4: base ctor+vptr only)
+class DB_InsertCeraItemHistory : public DBDispatcher { public: DB_InsertCeraItemHistory() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_U3.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844fa42 (sz 0x4: base ctor+vptr only)
 class DB_UpdateAvatarHistory : public DBDispatcher
 {
 public:
@@ -2762,12 +2832,6 @@ public:
 class DB_UpdateBoosterGageData : public DBDispatcher { public: DB_UpdateBoosterGageData() {}
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG 0x08446eec
 };   // ORIG C1 0x844fb76 (sz 0x4: base ctor+vptr only)
-class CLocalChina_DB_BreakAwayReset : public DBDispatcher
-{
-public:
-    CLocalChina_DB_BreakAwayReset() {}   // ORIG C1 (sz 0x4: base ctor+vptr only)
-    virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x08127e84
-};   // ORIG C1 0x844fb92 (sz 0x4: base ctor+vptr only)
 class CLocalChina_DB_LastDay_BreakAway : public DBDispatcher
 {
 public:
@@ -2780,7 +2844,10 @@ public:
     CLocalGlobal_DB_STATICS_BOSSTOWER() {}   // ORIG C1 (sz 0x4: base ctor+vptr only)
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0812825e
 };   // ORIG C1 0x844fbca (sz 0x4: base ctor+vptr only)
-class DB_UpdateCeraShopPurchaseCount : public DBDispatcher { public: DB_UpdateCeraShopPurchaseCount() {} };   // ORIG C1 0x844fbe6 (sz 0x4: base ctor+vptr only)
+class DB_UpdateCeraShopPurchaseCount : public DBDispatcher { public: DB_UpdateCeraShopPurchaseCount() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_UpdateCeraShopPurchaseCount.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844fbe6 (sz 0x4: base ctor+vptr only)
 class DB_LoadPuUserCheck : public DBDispatcher
 {
 public:
@@ -2894,8 +2961,14 @@ public:
     DB_EventUpdateGrowthWeaponCharac() {}   // ORIG C1 (sz 0x4: base ctor+vptr only)
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0844c3f0
 };   // ORIG C1 0x844fda6 (sz 0x4: base ctor+vptr only)
-class DB_EventUpdateGrowthWeaponTimepiece : public DBDispatcher { public: DB_EventUpdateGrowthWeaponTimepiece() {} };   // ORIG C1 0x844fdc2 (sz 0x4: base ctor+vptr only)
-class DB_EventGrowthWeaponReset : public DBDispatcher { public: DB_EventGrowthWeaponReset() {} };   // ORIG C1 0x844fdde (sz 0x4: base ctor+vptr only)
+class DB_EventUpdateGrowthWeaponTimepiece : public DBDispatcher { public: DB_EventUpdateGrowthWeaponTimepiece() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_LinkMisc4.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844fdc2 (sz 0x4: base ctor+vptr only)
+class DB_EventGrowthWeaponReset : public DBDispatcher { public: DB_EventGrowthWeaponReset() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_LinkMisc4.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844fdde (sz 0x4: base ctor+vptr only)
 class DB_EventAccountCharacterLevelUpOnceGift : public DBDispatcher
 {
 public:
@@ -2908,7 +2981,10 @@ public:
     DB_AvatarColorChange() {}   // ORIG C1 0x844fe4e (sz 0x4: base ctor+vptr only)
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG 0x08446944
 };
-class DB_TestTradeRestrict : public DBDispatcher { public: DB_TestTradeRestrict() {} };   // ORIG C1 0x844fe6a (sz 0x4: base ctor+vptr only)
+class DB_TestTradeRestrict : public DBDispatcher { public: DB_TestTradeRestrict() {}
+    virtual bool dispatch(int userIdx, int slot, Stream* stream)   // 弱定义发 vtable；真实强定义在 DB_LinkMisc4.cpp
+    { (void)userIdx; (void)slot; (void)stream; return false; }
+};   // ORIG C1 0x844fe6a (sz 0x4: base ctor+vptr only)
 // DB_UpdateComboSkill —— 权威声明见 W8LT_DBTask.h（GoalAuditDB7 迁移；
 // dispatch 0x0844a8ea / setComboSkill 0x0844aa4c，定义见本 TU）。
 class DB_SaveCharacInformNotice : public DBDispatcher
@@ -9709,6 +9785,10 @@ bool DB_UpdateCreatureItemList::dispatch(int userIdx, int slot, Stream* stream)
     int count = raw->m_count;
     for (int i = 0; i < count; ++i)
     {
+        // [b28d-TakeW8LT 实测回滚] 曾按 ORIG 0x0841fd12「无 e 行指针局部、三实参
+        // 各自重算 raw+0x21a4+i*0x38」内联：同 .o 复测 ndiff 66→78、our 62→80
+        // **反劣** ⇒ 保留具名 e（P331 第二形失效样本，与 Inter_LoadDeathTower
+        // BestRecord 同因：ORIG 多出的 lea/shl 来自 4.1 代数重写而非逐点物化）。
         DB_CreatureItemListEntry* e = reinterpret_cast<DB_CreatureItemListEntry*>(
             reinterpret_cast<char*>(raw) + kCreatureItemRowsOffset + i * 0x38);
         db->set_query(
@@ -11181,7 +11261,9 @@ bool DB_BlackIPMonitor::dispatch(int userIdx, int slot, Stream* stream)
     cMyTrace(__PRETTY_FUNCTION__, 0x7a03, 0)(
         "BLACKIP GET DB ROWS COUNT : %d", db->get_n_rows());
     unsigned int row = 0;        // -0x18 行索引（循环条件无符号比较 seta）
-    int buffered = 0;            // -0x14 当前包已缓冲行数
+    // [b28d-TakeW8LT] ORIG 0x08432ad2 的 `cmpl $0x62,-0x14; ja` 是无符号比较
+    // （旧形 int ⇒ 4.4 发 jg）⇒ 源码类型为 unsigned int。
+    unsigned int buffered = 0;   // -0x14 当前包已缓冲行数
     char flag = 0;               // -0x0d 首包标志
     char buf[0xc80];             // -0xcb4 行缓冲（100 × 0x20）
     while (db->get_n_rows() > row)
@@ -11190,17 +11272,17 @@ bool DB_BlackIPMonitor::dispatch(int userIdx, int slot, Stream* stream)
             return 0;
         if (buffered == 0)
             memset(buf, 0, 0xc80);
-        DB_IpMonitorPunishItem* item =
-            &((DB_IpMonitorPunishItem*)buf)[buffered];
-        if (!db->get_str(0, item->m_ip, 0x10))
+        // [b28d-TakeW8LT 形复原] ORIG 0x08432ad2 无 item 指针局部：5 个站点
+        // 各自重算 `buf + buffered*0x20`（ORIG add 18/shl 5 vs 旧形 6/1）。
+        if (!db->get_str(0, ((DB_IpMonitorPunishItem*)buf)[buffered].m_ip, 0x10))
             return 0;
-        if (!db->get_int(1, item->m_type))
+        if (!db->get_int(1, ((DB_IpMonitorPunishItem*)buf)[buffered].m_type))
             return 0;
-        if (!db->get_uint(2, item->m_idCnt))
+        if (!db->get_uint(2, ((DB_IpMonitorPunishItem*)buf)[buffered].m_idCnt))
             return 0;
-        if (!db->get_uint(3, item->m_startTime))
+        if (!db->get_uint(3, ((DB_IpMonitorPunishItem*)buf)[buffered].m_startTime))
             return 0;
-        if (!db->get_uint(4, item->m_endTime))
+        if (!db->get_uint(4, ((DB_IpMonitorPunishItem*)buf)[buffered].m_endTime))
             return 0;
         if (buffered <= 98 && db->get_n_rows() - 1 > row)
         {
@@ -16328,8 +16410,6 @@ bool DB_InsertAutoPunishFirstUser::dispatch(int /*userIdx*/, int /*slot*/,
             stream->GetOutBuffer<SIG_INSERT_AUTO_PUNISH_FIRST_USER>());
     MySQL* db6 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                    E_SERVER_GROUP_NONE);
-    MySQL* db1 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
-                                                   E_SERVER_GROUP_NONE);
     db6->set_query(
         "inSert into auto_punish_first_user(m_id,occ_time,ip,hack_type,cnt,hack_sub_type,hack_sub_cnt,punish_flag) values(%s,now(),'%s',%d,%d,%d,%d,%d)",
         NumberToString(sig->m_memberId, 0), sig->m_ip, sig->m_hackType,
@@ -16347,6 +16427,11 @@ bool DB_InsertAutoPunishFirstUser::dispatch(int /*userIdx*/, int /*slot*/,
             trace("upDate auto_punish_first_user Fail");
         }
     }
+    // [b28d-TakeW8LT 声明位复原] ORIG 0x0842d8ab 才调 GetDBHandle(1,0)
+    // （段1 之后、punishFlag 判断之前，结果落 -0x24）；旧形在函数开头提前调用，
+    // 多发一次 GetDBHandle 并整体错帧。
+    MySQL* db1 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
+                                                   E_SERVER_GROUP_NONE);
     if (sig->m_punishFlag == 2 || sig->m_punishFlag == 7 ||
         sig->m_punishFlag == 8)
         return 1;
@@ -16569,8 +16654,14 @@ bool DB_ReportMannerlessUser::dispatch(int /*userIdx*/, int /*slot*/,
             GlobalData::s_systemTime_.getCurSec());
     cache_query += timeStr;
     cache_query += ")";
-    if (0x6000U - cache_query.size() < 0x274)
-        cache_query.clear();
+    // [b28d-TakeW8LT 块序复原] ORIG 0x08427b9f..08427bc3 是
+    // `cmp $0x273,%eax; seta %al; test; je <clear 块>` + 真分支
+    // `mov $0x1,%eax; jmp <ret>` ⇒ 源码形 = 正极性提前 return 1（跳过 clear）；
+    // 旧形 `< 0x274` 生成 setbe 且 clear 落成直落块（P222/P258 块序反）。
+    // 语义等价：!(0x6000-size > 0x273) ⇔ (0x6000-size <= 0x273) ⇔ 旧形 clear 条件。
+    if (0x6000U - cache_query.size() > 0x273U)
+        return 1;
+    cache_query.clear();
     return 1;
 }
 
@@ -17197,31 +17288,6 @@ bool DB_SaveProperDungeonClearCount::dispatch(int userIdx, int slot,
             sig->m_dungeonIdx, sig->m_subNo);
         if (!db->exec(true))
             return 0;
-    }
-    return 1;
-}
-
-// ============================================================================
-// CLocalChina_DB_BreakAwayReset::dispatch —— ORIG 0x08127e84
-// 读 accId；UPDATE churn_member_info 复位 break-away 数据。失败 log 返 0。
-// ============================================================================
-bool CLocalChina_DB_BreakAwayReset::dispatch(int userIdx, int slot,
-                                             Stream* stream)
-{
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
-                                                  E_SERVER_GROUP_NONE);
-    unsigned int m_id = 0;
-    *stream >> m_id;
-    db->set_query(
-        "UPDATE churn_member_info \t\t\t\t   SET accrue_cera = 0, first_reward_time = 0, last_reward_time = 0, \t\t\t\t\t   add_info = 0, luck_point = 0, last_update_time = 0, second_reward_time = 0, quest_time = 0 \t\t\t\t   WHERE m_id=%s",
-        NumberToString(m_id, 0));
-    if (!db->exec(true))
-    {
-        LogManager::logFormat(
-            1, "localchina/localchina_DBThread.cpp",
-            __PRETTY_FUNCTION__,
-            0x3ff, "[GM]CLocalChina_DB_BreakAwayReset Fail!!");
-        return 0;
     }
     return 1;
 }
@@ -19894,10 +19960,12 @@ bool DB_ReloadAutoPunishRuleHackType::dispatch(int userIdx, int slot,
         reinterpret_cast<DB_AutoPunishHackTypeView*>(
             guard.operator->()->GetInBuffer<SIG_AUTO_PUNISH_RULE_HACK_TYPE>());
     memset(out, 0, 0x2720);
-    int rowCount = db->get_n_rows();
-    unsigned int limit = std::min((unsigned int)0x1f4,
-                                  (unsigned int)rowCount);
-    for (unsigned int i = 0; i < limit; ++i)
+    // [b28d-TakeW8LT 形复原] ORIG 0x0842d586 每轮循环**重算**循环上界：
+    // `movl $0x1f4,-0x1c; call get_n_rows; mov %eax,-0x18; lea -0x1c,0x4(%esp);
+    //  lea -0x18,(%esp); call std::min<unsigned int>`（0x0842d5a8 的
+    // _ZSt3minIjERKT_S2_S2_）⇒ 源码形 = min 内联在 for 条件里、get_n_rows 在
+    // 第一实参位（旧形提升到循环外，少发每轮 9 条）。
+    for (unsigned int i = 0; i < std::min<unsigned int>(db->get_n_rows(), 0x1f4); ++i)
     {
         if (!db->fetch())
             return 0;
@@ -19936,15 +20004,22 @@ bool DB_ReloadAutoPunishRuleHackType::dispatch(int userIdx, int slot,
             continue;
         if (hackSubType == 0)
             hackSubCnt = 0;
-        unsigned int idx = (unsigned int)out->m_count;
-        DB_AutoPunishHackTypeView::Entry* row = &out->m_entries[idx];
-        row->m_hackType = (unsigned short)hackType;
-        row->m_cnt = (unsigned short)cnt;
-        row->m_hackSubType = (unsigned short)hackSubType;
-        row->m_hackSubCnt = (unsigned short)hackSubCnt;
-        row->m_applyFlag = (unsigned short)applyFlag;
-        row->m_ipCnt = ipCnt;
-        row->m_etcLo = (unsigned int)(etc & 0xffffffffULL);
+        // [b28d-TakeW8LT 形复原] ORIG 0x0842d45f..d563 七个写入站点**各自**
+        // 重读 out+0xc 的 m_count 重算索引（ORIG movzwl 15/shl 14 vs 旧形 3/2），
+        // 且写入顺序 = +0x10,+0x12,+0x14,+0x16,+0x1c,+0x18,+0x20（ipCnt 在
+        // applyFlag 之前，Ghidra 反编译同序）。
+        out->m_entries[(unsigned int)out->m_count].m_hackType =
+            (unsigned short)hackType;
+        out->m_entries[(unsigned int)out->m_count].m_cnt = (unsigned short)cnt;
+        out->m_entries[(unsigned int)out->m_count].m_hackSubType =
+            (unsigned short)hackSubType;
+        out->m_entries[(unsigned int)out->m_count].m_hackSubCnt =
+            (unsigned short)hackSubCnt;
+        out->m_entries[(unsigned int)out->m_count].m_ipCnt = ipCnt;
+        out->m_entries[(unsigned int)out->m_count].m_applyFlag =
+            (unsigned short)applyFlag;
+        out->m_entries[(unsigned int)out->m_count].m_etcLo =
+            (unsigned int)(etc & 0xffffffffULL);
         out->m_count = (unsigned short)(out->m_count + 1);
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);

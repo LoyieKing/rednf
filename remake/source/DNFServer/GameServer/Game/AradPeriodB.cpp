@@ -45,6 +45,82 @@
 #include "CStreamGuard.h"
 #include "Arad_InternalDispatcher.h"     // DISPATCHER::make_internal_stream_jpn
 
+// ---------------------------------------------------------------------------
+// 【A 档 GI 顺序对齐 2026-09-09】FnRewardInterface 类与本类 operator() 定义前置，
+// 使 `_GLOBAL__I_` 名等于 ORIG 的 `_ZN4ARAD17FnRewardInterfaceclEimsj`（P327）。
+// make_data 仍留在下方命名空间块（类已在此声明）。语义与机器码零变化，仅发射序。
+// ---------------------------------------------------------------------------
+namespace ARAD { namespace ARAD_ITEM {
+bool arad_make_item(unsigned long itemIndex, int count, Inven_Item& out);
+} }
+
+namespace ARAD {
+
+// ---- FnRewardInterface -----------------------------------------------------
+class FnRewardInterface
+{
+public:
+    inline FnRewardInterface(CUser* user, bool recordCharacNo)   // ORIG W 0x0819a8c8
+        : m_user(user), m_recordCharacNo(recordCharacNo)
+    {
+    }
+
+    virtual void GetMailString(char* mailBuf, char* titleBuf) = 0;
+
+    EventRewardItemArad make_data(int eventCode);              // T 0x08194e58
+    bool operator()(int eventCode, unsigned long itemIndex,
+                    short count, unsigned int param);          // T 0x08194ac8
+
+protected:
+    CUser* m_user;
+    bool   m_recordCharacNo;
+};
+
+bool FnRewardInterface::operator()(int eventCode, unsigned long itemIndex,
+                                   short count, unsigned int param)
+{
+    if (m_user == 0 || m_user->get_charac_no(-1) == 0)
+        return false;
+
+    Inven_Item item;
+    if (!ARAD_ITEM::arad_make_item(itemIndex, (int)count, item))
+        return false;
+
+    char mailBuf[0x100] = {0};
+    char titleBuf[0x15] = {0};
+    GetMailString(mailBuf, titleBuf);
+
+    int mailRet = WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+        titleBuf, item, 0, m_user->get_charac_no(-1), mailBuf,
+        (int)std::strlen(mailBuf), 0xc, m_user->GetServerGroup(), false,
+        false);
+    if (mailRet != 0)
+    {
+        LogManager::logFormat(
+            1, "localjapan/Arad_EventPeriodDataManager.cpp",
+            __PRETTY_FUNCTION__,
+            0x2f,
+            "[FnReward] send mail fail. (code:%u, charac:%u, item:%u, cnt:%d)",
+            eventCode, m_user->get_charac_no(-1), itemIndex, (int)count);
+        return false;
+    }
+
+    EventRewardItemArad data = make_data(eventCode);
+    arad::SigSaveRewardEventItem sig;
+    sig.set(eventCode, data.m_accId, data.m_characNo, itemIndex, count, param);
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire(
+            "localjapan/Arad_EventPeriodDataManager.cpp", 0x36),
+        true);
+    DISPATCHER::make_internal_stream_jpn(guard,
+                                         (ENUM_INTERNALPACKET_JPN)0x27,
+                                         (int)m_user->GetUID());
+    guard->put_binary(&sig, 0x16);
+    return GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(2), guard);
+}
+
+}  // namespace ARAD
+
 // ============================================================================
 // 【报告缺失,objdump】ARAD::ARAD_ITEM::arad_make_item —— ORIG T 0x08197375
 // (133B)：idx 为 0/-1 或 count==0 返 false；find_item(idx) 取物品；out.reset()
@@ -112,26 +188,6 @@ namespace ARAD {
 //   FnRewardLethe 非多态独立类 { +0 CUser* }（C1 0x0819a8f2 仅存指针）
 // ============================================================================
 
-// ---- FnRewardInterface -----------------------------------------------------
-class FnRewardInterface
-{
-public:
-    inline FnRewardInterface(CUser* user, bool recordCharacNo)   // ORIG W 0x0819a8c8
-        : m_user(user), m_recordCharacNo(recordCharacNo)
-    {
-    }
-
-    virtual void GetMailString(char* mailBuf, char* titleBuf) = 0;
-
-    EventRewardItemArad make_data(int eventCode);              // T 0x08194e58
-    bool operator()(int eventCode, unsigned long itemIndex,
-                    short count, unsigned int param);          // T 0x08194ac8
-
-protected:
-    CUser* m_user;
-    bool   m_recordCharacNo;
-};
-
 EventRewardItemArad FnRewardInterface::make_data(int eventCode)
 {
     if (m_recordCharacNo != 0)
@@ -142,56 +198,6 @@ EventRewardItemArad FnRewardInterface::make_data(int eventCode)
     return EventRewardItemArad(eventCode, m_user->get_acc_id(), 0);
 }
 
-// [b28d-solo-AradPeriodB] 判词：**AE**（check_tu routed；253=253；p167 22=22 CLEAR）。
-// 修法：memset→`char[]={0}`（P312/P214③，4.4 内联 rep stos 对齐剥离慢路）；
-// group/characNo/strlen 内联实参（P44/P23，免槽往返）；Acquire 与 QUEUE_IDX 内联
-// （P259）；`guard->put_binary` 保留 operator-> 链（P103）；mailRet!=0 早返布局
-// （P222，失败块直落/je 跳成功）；日志删冗余 cast 并重调 get_charac_no（P41 变体/P167）；
-// 基类删用户空析构（P12/P317：ORIG 无 D1 符号，trivial）。
-bool FnRewardInterface::operator()(int eventCode, unsigned long itemIndex,
-                                   short count, unsigned int param)
-{
-    if (m_user == 0 || m_user->get_charac_no(-1) == 0)
-        return false;
-
-    Inven_Item item;
-    if (!ARAD_ITEM::arad_make_item(itemIndex, (int)count, item))
-        return false;
-
-    char mailBuf[0x100] = {0};
-    char titleBuf[0x15] = {0};
-    GetMailString(mailBuf, titleBuf);
-
-    int mailRet = WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        titleBuf, item, 0, m_user->get_charac_no(-1), mailBuf,
-        (int)std::strlen(mailBuf), 0xc, m_user->GetServerGroup(), false,
-        false);
-    if (mailRet != 0)
-    {
-        LogManager::logFormat(
-            1, "localjapan/Arad_EventPeriodDataManager.cpp",
-            __PRETTY_FUNCTION__,
-            0x2f,
-            "[FnReward] send mail fail. (code:%u, charac:%u, item:%u, cnt:%d)",
-            eventCode, m_user->get_charac_no(-1), itemIndex, (int)count);
-        return false;
-    }
-
-    EventRewardItemArad data = make_data(eventCode);
-    arad::SigSaveRewardEventItem sig;
-    sig.set(eventCode, data.m_accId, data.m_characNo, itemIndex, count, param);
-    CStreamGuard guard(
-        GlobalData::s_stream_pool->Acquire(
-            "localjapan/Arad_EventPeriodDataManager.cpp", 0x36),
-        true);
-    DISPATCHER::make_internal_stream_jpn(guard,
-                                         (ENUM_INTERNALPACKET_JPN)0x27,
-                                         (int)m_user->GetUID());
-    guard->put_binary(&sig, 0x16);
-    return GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(2), guard);
-}
-
-// ---- FnRewardMomoji --------------------------------------------------------
 class FnRewardMomoji : public FnRewardInterface
 {
 public:

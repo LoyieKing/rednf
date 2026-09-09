@@ -43,6 +43,25 @@
 #include <cstring>
 #include <string>
 
+// ---------------------------------------------------------------------------
+// 【A 档 GI 顺序对齐 2026-09-09】本定义置于 TU 最前，使 `_GLOBAL__I_` 名等于
+// ORIG 的 `_ZN8WongWork21CItemUpgrade_SeparateC2Ev`（P327）。全限定定义可写在
+// 命名空间块之外 ⇒ 发射序提前。语义与机器码零变化，仅发射序。
+// ---------------------------------------------------------------------------
+// ORIG T 0x0811dfc0：基类 vptr → 本类 vptr → 表构造 → +0x190=100000 →
+// new CMTRand(time) 存 +0x18c → 100 次 randInt(m_randRange) 热身。
+WongWork::CItemUpgrade_Separate::CItemUpgrade_Separate()
+{
+    m_randRange = 100000;
+    unsigned long range;
+    m_rand = new CMTRand(static_cast<unsigned long>(time(0)));
+    for (int i = 0; i < 100; ++i)
+    {
+        range = m_randRange;
+        m_rand->randInt(range);
+    }
+}
+
 namespace
 {
 
@@ -253,27 +272,6 @@ OutLineEFFECTInfoTemp GenuineDamageUpgradeTable::getEffectInfo(int key)
 
 namespace WongWork
 {
-
-// ORIG T 0x0811dfc0：基类 vptr → 本类 vptr → 表构造 → +0x190=100000 →
-// new CMTRand(time) 存 +0x18c → 100 次 randInt(m_randRange) 热身。
-CItemUpgrade_Separate::CItemUpgrade_Separate()
-{
-    // [b28d-solo-CItemUpgrade_Separate] 判词 N（0x0811dfc0，N98/N82附 族）：两形互斥，
-    // 4.4 下不可兼得——①匿名临时实参形：lea -0x24,%esi 提前于 _Znwj 且 %esi 跨 call
-    // 保活（与 ORIG 同），但槽序反（临时 -0x20/range -0x24）；②具名 seed 形（含
-    // register/const/引用 cast/语句表达式/range 声明后置/全头部声明共 11 形，探针
-    // /tmp/b28d_51/p1..p5）：槽序正（seed -0x24/range -0x20/i -0x1c）但 lea 恒延后到
-    // _Znwj 之后落 %edx。ORIG = 提前 lea + 深槽。取①（NEAR：助记符序列全等，仅 2 处
-    // 槽号差）不取②（DIFF）。语义/调用集齐，byte 层封顶。
-    m_randRange = 100000;
-    unsigned long range;
-    m_rand = new CMTRand(static_cast<unsigned long>(time(0)));
-    for (int i = 0; i < 100; ++i)
-    {
-        range = m_randRange;
-        m_rand->randInt(range);
-    }
-}
 
 // ORIG T 0x0811e0be：delete m_rand 置空 → 表析构 → 基类析构（成员逆序自动）。
 CItemUpgrade_Separate::~CItemUpgrade_Separate()

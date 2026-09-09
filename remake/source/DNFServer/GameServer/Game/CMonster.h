@@ -26,9 +26,15 @@ public:
     // 转发 ::generateCatchMonsterItem(getMonsterScript()->m_catchItems(+0x70), out)。
     void generateCatchMonsterItem(std::vector<Inven_Item>& out) const;
     void set_monster(STMonsterScript& script);
-    unsigned char IsHellMonster() const;   // ORIG W 0x08539df4（m_deathTowerFlag@+0x54）
+    // ORIG W 0x08539df4（m_deathTowerFlag@+0x54）：体为单条 `movzx eax,byte`（无
+    // 0/1 规范化）⇒ 成员本身 bool；调用点 0x08535b08 `call;test %al,%al;je` 无
+    // setne ⇒ 返回类型 bool（P292）。mangled 不含返回类型，零符号影响。
+    bool IsHellMonster() const;
     void drop_item_index(unsigned int index) const;
-    void drop_item_index(unsigned int index, int randomValue) const;
+    // ORIG 0x0834f7e4：两分支均 tail-jmp 保留 eax = _drop_item_index 返回值
+    // （调用点 WongWorkDrop_A.cpp 取回判 != -2）⇒ 返回类型 int；返回类型不入
+    // mangled，零符号影响。
+    int drop_item_index(unsigned int index, int randomValue) const;
     unsigned int get_specialItem_list_size(unsigned int index) const;
     // ORIG +0x00：set_monster 未写、语义未建模的 4 字节占位（m_index 依 ORIG
     // set_monster this+0x4=script+0x0 固定于 +0x4，故类首必须有此槽）。

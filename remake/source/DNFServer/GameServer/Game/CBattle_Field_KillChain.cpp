@@ -586,7 +586,9 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
         mapInfo.m_dropItemCnt = mi.m_itemIndex + 1;
         mi.m_dropIndex = uid;
         mi.m_createTick = curSec;
-        memcpy(&mi.m_item, &*gi, 0x3d);
+        // P83/N84：ORIG 为 Inven_Item(0x3d) 结构整体拷贝（15×mov dword+1×movb，
+        // 非 rep movsl）；memcpy 在 4.4 恒退化为 call。
+        mi.m_item = *gi;
 
         // 蓝矿金币缩放：单人且 manager 在移动空间且 itemIdx==0 时按脚本系数
         // ROUND((buff*f2+f1)*gold) 缩放 item.m_addInfo2(+0x07)。

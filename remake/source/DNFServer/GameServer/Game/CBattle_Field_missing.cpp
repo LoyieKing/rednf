@@ -22,6 +22,7 @@
 #include "CBattle_Field.h"
 #include "CParty.h"          // batch-15 dep-downgrade: was via CBattle_Field.h
 #include "CVillageMonsterMgr.h"   // 完整类型（reset_field 调用 OnKillVillageMonster 4 参重载）
+#include "GlobalData.h"          // GlobalData::s_villageMonsterMgr（ORIG B 0x0941f77c）
 #include "LogManager.h"          // logFormat（血轮日志）
 #include "TimerQueue.h"          // G_TimerQueue / InsertTimerInMilisecond
 #include "GameRand.h"           // get_rand_int
@@ -187,7 +188,7 @@ void CBattle_Field::reset_field()
     // —— 村庄怪物 ——
     if (m_villageMonsterId != 0)
     {
-        GlobalData_s_villageMonsterMgr->OnKillVillageMonster(
+        GlobalData::s_villageMonsterMgr->OnKillVillageMonster(
             m_villageMonsterCount,          // +0x12c  arg1
             m_field130,                     // +0x130  arg2
             m_villageMonsterId,             // +0x128  arg3 (ushort)

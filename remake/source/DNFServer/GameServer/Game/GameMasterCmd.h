@@ -33,6 +33,7 @@ struct MapInfo;                   // WarField.h（地图信息，含 m_monsterMa
 struct stVendingMachineInfo_t;    // CDataManager.h（售货机栏）
 class  CMTRand;                   // PvPTypes.h（MT19937）
 struct Inven_Item;                // Inven_Item.h（背包项）
+struct stMonsterIndependentDrop_t; // CDataManager.h（独立掉落项；CIndependentDrop 辅助签名）
 #include "CItemAmplifier.h"       // ENUM_RARITY（getRarityStr 签名；幂等 guard）
 
 // ---- GM 测试角色状态注入（ORIG 全局命名空间类，CItemDropRateCmd 用） ----
@@ -785,10 +786,10 @@ public:
     CIndependentDrop() {}              // ORIG W 0x082a87de（sizeof=0x3c）
     virtual void parse();                            // ORIG T 0x084b0b08
     virtual void execute();                          // ORIG T 0x084b0b4e
-    void PrintItemDropList();                                       // 辅助（ORIG T 0x084b1756，签名见报告）
-    void ResultToStr();                                       // 辅助（ORIG T 0x084b165c，签名见报告）
-    void SendChatMsg();                                       // 辅助（ORIG T 0x084b15c4，签名见报告）
-    void printClient();                                       // 辅助（ORIG T 0x084b14b8，签名见报告）
+    void PrintItemDropList(const stMonsterIndependentDrop_t& drop, char* out, bool detail);  // ORIG T 0x084b1756
+    void ResultToStr(const std::vector<stMonsterIndependentDrop_t>& drops, char* out);       // ORIG T 0x084b165c
+    void SendChatMsg(CUser* user, char* msg);                                               // ORIG T 0x084b15c4
+    void printClient(CUser* user, const char* fileName, const char* contents);              // ORIG T 0x084b14b8
 
     bool m_all;                                   // +0x08（ORIG POD：all 标志）
     char m_pad09[3];                              // +0x09..0x0b 对齐

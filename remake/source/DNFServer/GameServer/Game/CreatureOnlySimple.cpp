@@ -250,9 +250,14 @@ void CDBMsgSender::Cancel()
 // ============================================================================
 
 // 【objdump】ORIG _ZN13user_creature12CDBMsgSender11ChangeOwnerEP10Inven_Itemiiiiii
-// W 0x081fae8a：差异体——
+// W 0x0833ffe8（nm -S --defined-only 实测；旧注释 0x081fae8a 系历史误记）：差异体——
 //   +0x51(byte)=p3(reason)；+0x48=p1(characNo)；hdr|=0x30；+0x2c=p2(slot)；
 //   +0x64=1；+0x68=p4(mapSize)；+0x6c=p5；+0x70=p6；返 1。
+// [N96 清绑 2026-09-09] 原 `register char* compatEax asm("eax")` 全域禁用（P0②/N96/
+// P248 尾条），还原表达式直传 `reinterpret_cast<Inven_Item_Compatible*>((char*)buf + 4)`。
+// 我方 .o 逐条复现 ORIG：`mov -0xc(%ebp),%eax; lea 0x4(%eax),%edx; mov 0xc(%ebp),%eax;
+// mov %eax,0x4(%esp); mov %edx,(%esp); call setCopy`。TU 三数零变化
+//（identical=9 ae=19 near=0 diff=1），本函数 TU 口径 AE 不变（orig=58 our=59）。
 bool CDBMsgSender::ChangeOwner(Inven_Item* item, int characNo, int slot,
                                int reason, int mapSize, int field6c, int field70)
 {
@@ -274,9 +279,13 @@ bool CDBMsgSender::ChangeOwner(Inven_Item* item, int characNo, int slot,
 }
 
 // 【objdump】ORIG _ZN13user_creature12CDBMsgSender12ChangeSlotNoEP10Inven_Itemiii
-// W 0x081faf4c：差异体——
+// W 0x083400a4（nm -S --defined-only 实测；旧注释 0x081faf4c 系历史误记）：差异体——
 //   +0x51(byte)=p3(reason)；+0x48=p1(characNo)；hdr|=0x20；+0x2c=p2(slot)；
 //   +0x64=2；返 1（无 +0x68 区写入）。
+// [N96 清绑 2026-09-09] 原 `register char* compatEax asm("eax")` 全域禁用（P0②/N96/
+// P248 尾条），还原表达式直传 `reinterpret_cast<Inven_Item_Compatible*>((char*)buf + 4)`。
+// 我方 .o 逐条复现 ORIG `lea 0x4(%eax),%edx` setCopy 段。TU 三数零变化
+//（identical=9 ae=19 near=0 diff=1），本函数 TU 口径 AE 不变（orig=49 our=49）。
 bool CDBMsgSender::ChangeSlotNo(Inven_Item* item, int characNo, int slot,
                                 int reason)
 {
@@ -295,9 +304,13 @@ bool CDBMsgSender::ChangeSlotNo(Inven_Item* item, int characNo, int slot,
 }
 
 // ORIG _ZN13user_creature12CDBMsgSender13AuctionRegistEP10Inven_Itemiiii
-// W 0x081faff2：差异体——
+// W 0x08340144（nm -S --defined-only 实测；旧注释 0x081faff2 系历史误记）：差异体——
 //   +0x48=p1(characNo)；hdr|=0x100（or $0x1,%dh）；+0x53=1；+0x64=5；
 //   +0x51(byte)=p3(@0x18)；+0x68=p4(mapSize)；返 1。p2(@0x14) 未被使用。
+// [N96 清绑 2026-09-09] 原 `register char* compatEax asm("eax")` 全域禁用（P0②/N96/
+// P248 尾条），还原表达式直传 `reinterpret_cast<Inven_Item_Compatible*>((char*)buf + 4)`。
+// 我方 .o 逐条复现 ORIG `lea 0x4(%eax),%edx` setCopy 段。TU 三数零变化
+//（identical=9 ae=19 near=0 diff=1），本函数 TU 口径 AE 不变（orig=51 our=51）。
 bool CDBMsgSender::AuctionRegist(Inven_Item* item, int characNo, int unused14,
                                  int reason18, int mapSize)
 {

@@ -455,6 +455,14 @@ bool importCreatureScript(CreatureScript* script, const char* path)
     //    dead 局部（P232，ORIG -0x22c int/-0x22d char）、EH cleanup 的 esi 值。
     //    已修：NODE_END case 改否定式 `if (!__inited)`（0x08a37a13 xor 形）+
     //    m_directionCorrect 直接布尔赋值（0x8a360xx setne 形）⇒ 块数 68→64 零回归。
+    // [b290-TakeExpert P168a① 攻法] 注册链 11 段（CSTAG_SKILL_TYPE..CSTAG_ATTACK_INFO）
+    //    由 `if (__inited) { parse; break; } insert;` 改写为 `if (!__inited) { insert; }
+    //    else { parse; break; }`（语义等价：true→parse+break；false→insert 后自然
+    //    fall-through 下一 case）。4.4 对内存 bool 取反即产 ORIG 同形
+    //    `movzbl __inited; xor $1; test %al,%al; je <parse>`（P168a① 裸形；NODE_END
+    //    前已用此形）。同一 .o 实测：origN 2188 不变，ourN 2157→2178 ⇒ gap 31→10；
+    //    structdiff 672→185；ndiff 612→516。p167 修正版 calls=330/330，0 游戏域
+    //    callee 差（仅 C1/C2 镜像，附二 §2 豁免）。
     // 语义完成（p167 归零 + 偏移集一致），byte 层 N82/N89/P182 封顶。
     if (!loadRDARScriptFile(g_creatureScriptBaseDirectory, path))
     {
@@ -1057,93 +1065,126 @@ bool importCreatureScript(CreatureScript* script, const char* path)
                         }
                         /* fall through（0x8a37a6b jmp 0x8a37d16） */
                     case CSTAG_SKILL_TYPE:
-                        if (__inited)
+                        if (!__inited)
+                        {
+                        __lookup.insert(LookupMap::value_type("[skill type]", static_cast<int>(CSTAG_SKILL_TYPE)));
+                        }
+                        else
                         {
                             ScanStr(&token);     // 0x8a37d73（无括号 "over skill"）
                             typeFlag = (token == "over skill") ? 1 : 0;
                             break;
                         }
-                        __lookup.insert(LookupMap::value_type("[skill type]", static_cast<int>(CSTAG_SKILL_TYPE)));
                         /* fall through */
                     case CSTAG_SKILL_NAME:
-                        if (__inited)
+                        if (!__inited)
+                        {
+                        __lookup.insert(LookupMap::value_type("[skill name]", static_cast<int>(CSTAG_SKILL_NAME)));
+                        }
+                        else
                         {
                             ScanStr(&info.m_str0);
                             break;
                         }
-                        __lookup.insert(LookupMap::value_type("[skill name]", static_cast<int>(CSTAG_SKILL_NAME)));
                         /* fall through */
                     case CSTAG_SKILL_EXPLAIN:
-                        if (__inited)
+                        if (!__inited)
+                        {
+                        __lookup.insert(LookupMap::value_type("[skill explain]", static_cast<int>(CSTAG_SKILL_EXPLAIN)));
+                        }
+                        else
                         {
                             ScanStr(&info.m_str4);
                             break;
                         }
-                        __lookup.insert(LookupMap::value_type("[skill explain]", static_cast<int>(CSTAG_SKILL_EXPLAIN)));
                         /* fall through */
                     case CSTAG_SKILL_RECOVERY:
-                        if (__inited)
+                        if (!__inited)
+                        {
+                        __lookup.insert(LookupMap::value_type("[skill recovery time]", static_cast<int>(CSTAG_SKILL_RECOVERY)));
+                        }
+                        else
                         {
                             info.m_field8 = ScanInt(&ok);   // 0x8a37eef（&-0x22d）
                             break;
                         }
-                        __lookup.insert(LookupMap::value_type("[skill recovery time]", static_cast<int>(CSTAG_SKILL_RECOVERY)));
                         /* fall through */
                     case CSTAG_LEARN_SKILL_LEVEL:
-                        if (__inited)
+                        if (!__inited)
+                        {
+                        __lookup.insert(LookupMap::value_type("[learn skill level]", static_cast<int>(CSTAG_LEARN_SKILL_LEVEL)));
+                        }
+                        else
                         {
                             info.m_fieldc = ScanInt(&ok);   // 0x8a37f6e
                             break;
                         }
-                        __lookup.insert(LookupMap::value_type("[learn skill level]", static_cast<int>(CSTAG_LEARN_SKILL_LEVEL)));
                         /* fall through */
                     case CSTAG_SKILL_MP:
-                        if (__inited)
+                        if (!__inited)
+                        {
+                        __lookup.insert(LookupMap::value_type("[skill mp]", static_cast<int>(CSTAG_SKILL_MP)));
+                        }
+                        else
                         {
                             info.m_field10 = ScanInt(&ok);  // 0x8a37fed（+0x10 int）
                             break;
                         }
-                        __lookup.insert(LookupMap::value_type("[skill mp]", static_cast<int>(CSTAG_SKILL_MP)));
                         /* fall through */
                     case CSTAG_SKILL_MOTION:
-                        if (__inited)
+                        if (!__inited)
+                        {
+                        __lookup.insert(LookupMap::value_type("[skill motion]", static_cast<int>(CSTAG_SKILL_MOTION)));
+                        }
+                        else
                         {
                             ScanStr(&info.m_str14);
                             break;
                         }
-                        __lookup.insert(LookupMap::value_type("[skill motion]", static_cast<int>(CSTAG_SKILL_MOTION)));
                         /* fall through */
                     case CSTAG_SKILL_UNDER_EFFECT:
-                        if (__inited)
+                        if (!__inited)
+                        {
+                        __lookup.insert(LookupMap::value_type("[skill under effect]", static_cast<int>(CSTAG_SKILL_UNDER_EFFECT)));
+                        }
+                        else
                         {
                             ScanStr(&info.m_str18);
                             break;
                         }
-                        __lookup.insert(LookupMap::value_type("[skill under effect]", static_cast<int>(CSTAG_SKILL_UNDER_EFFECT)));
                         /* fall through */
                     case CSTAG_SKILL_OVER_EFFECT:
-                        if (__inited)
+                        if (!__inited)
+                        {
+                        __lookup.insert(LookupMap::value_type("[skill over effect]", static_cast<int>(CSTAG_SKILL_OVER_EFFECT)));
+                        }
+                        else
                         {
                             ScanStr(&info.m_str1c);
                             break;
                         }
-                        __lookup.insert(LookupMap::value_type("[skill over effect]", static_cast<int>(CSTAG_SKILL_OVER_EFFECT)));
                         /* fall through */
                     case CSTAG_SKILL_INFO:
-                        if (__inited)
+                        if (!__inited)
+                        {
+                        __lookup.insert(LookupMap::value_type("[skill info]", static_cast<int>(CSTAG_SKILL_INFO)));
+                        }
+                        else
                         {
                             ScanStr(&info.m_str20);
                             break;
                         }
-                        __lookup.insert(LookupMap::value_type("[skill info]", static_cast<int>(CSTAG_SKILL_INFO)));
                         /* fall through */
                     case CSTAG_ATTACK_INFO:
-                        if (__inited)
+                        if (!__inited)
+                        {
+                        __lookup.insert(LookupMap::value_type("[attack info]", static_cast<int>(CSTAG_ATTACK_INFO)));
+                        }
+                        else
                         {
                             ScanStr(&info.m_str24);         // 0x8a38202（漏项补全）
                             break;
                         }
-                        __lookup.insert(LookupMap::value_type("[attack info]", static_cast<int>(CSTAG_ATTACK_INFO)));
                         break;                               // 注册链终点 → 公共尾
                     default:
                         // -1 未命中/未处理 → ORIG 无操作直落公共尾。
@@ -1283,6 +1324,11 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
     //    0x124` 等错位均为 difflib 对齐假象，无字段错位）；残差块 133 个，主类 =
     //    X 族取反物化（P168a④，42 块，`movzbl __inited; xor $1; test; je` 注册链）、
     //    帧/槽平移（N82）、4.1 注册链 fall-through 岛（P223）、EH cleanup esi 值。
+    // [b290-TakeExpert P168a① 攻法] 注册链 39 段改写为否定式包裹
+    //    `if (!__inited) { insert; } else { parse; break; }`（语义等价，同
+    //    importCreatureScript 判词）⇒ 同一 .o 实测：origN 2148 不变，ourN 2066→2146
+    //    ⇒ gap 82→2；structdiff 436→21；ndiff 1032→540。p167 修正版 calls=254/254，
+    //    0 游戏域 callee 差（仅 D1/D2 镜像，附二 §2 豁免）。
     // 语义完成（p167 归零 + 偏移集一致），byte 层 N82/N89/P182 封顶。
     if (!loadRDARScriptFile("", path))        // 0x1a:失败 ebx=0 → return false
     {
@@ -1354,31 +1400,45 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                     }
                     /* fall through（ORIG 0x5c8 jmp 0x5e3） */
                 case AITAG_DAMAGE_INCREASE_RATE:  // +0x04 float
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[damage increase rate]",
+                                                          static_cast<int>(AITAG_DAMAGE_INCREASE_RATE)));
+                    }
+                    else
                     {
                         info->m_damageIncreaseRate = ScanFloat((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[damage increase rate]",
-                                                          static_cast<int>(AITAG_DAMAGE_INCREASE_RATE)));
                 case AITAG_ABSOLUTE_DAMAGE:   // +0x08 int
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[absolute damage]",
+                                                          static_cast<int>(AITAG_ABSOLUTE_DAMAGE)));
+                    }
+                    else
                     {
                         info->m_absoluteDamage = ScanInt((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[absolute damage]",
-                                                          static_cast<int>(AITAG_ABSOLUTE_DAMAGE)));
                 case AITAG_DAMAGE_BONUS:      // +0x0c int
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[damage bonus]",
+                                                          static_cast<int>(AITAG_DAMAGE_BONUS)));
+                    }
+                    else
                     {
                         info->m_damageBonus = ScanInt((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[damage bonus]",
-                                                          static_cast<int>(AITAG_DAMAGE_BONUS)));
                 case AITAG_ATTACK_TYPE:       // +0x10 枚举
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[attack type]",
+                                                          static_cast<int>(AITAG_ATTACK_TYPE)));
+                    }
+                    else
                     {
                         bool isType;          // -0x3cd
                         ScanTypeOrStr(isType, token, true);
@@ -1390,42 +1450,57 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                             info->m_attackType = (AttackInfo::ENUM_ATTACKTYPE)2;
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[attack type]",
-                                                          static_cast<int>(AITAG_ATTACK_TYPE)));
                 case AITAG_WEAPON_DAMAGE_APPLY:  // +0x14 bool(int)
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[weapon damage apply]",
+                                                          static_cast<int>(AITAG_WEAPON_DAMAGE_APPLY)));
+                    }
+                    else
                     {
                         info->m_weaponDamageApply = (ScanInt((bool*)0) != 0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[weapon damage apply]",
-                                                          static_cast<int>(AITAG_WEAPON_DAMAGE_APPLY)));
                 case AITAG_ATTACK_MYSELF:     // +0x98 bool(int)
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[attack myself]",
+                                                          static_cast<int>(AITAG_ATTACK_MYSELF)));
+                    }
+                    else
                     {
                         info->m_attackFlags[0] = (ScanInt((bool*)0) != 0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[attack myself]",
-                                                          static_cast<int>(AITAG_ATTACK_MYSELF)));
                 case AITAG_ATTACK_FRIEND:     // +0x9c bool(int)
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[attack friend]",
+                                                          static_cast<int>(AITAG_ATTACK_FRIEND)));
+                    }
+                    else
                     {
                         info->m_attackFlags[1] = (ScanInt((bool*)0) != 0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[attack friend]",
-                                                          static_cast<int>(AITAG_ATTACK_FRIEND)));
                 case AITAG_ATTACK_ENEMY:      // +0xa0 bool(int)
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[attack enemy]",
+                                                          static_cast<int>(AITAG_ATTACK_ENEMY)));
+                    }
+                    else
                     {
                         info->m_attackFlags[2] = (ScanInt((bool*)0) != 0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[attack enemy]",
-                                                          static_cast<int>(AITAG_ATTACK_ENEMY)));
                 case AITAG_ELEMENTAL_PROPERTY:  // +0xa4 set<ENUM_ELEMENT>
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[elemental property]",
+                                                          static_cast<int>(AITAG_ELEMENTAL_PROPERTY)));
+                    }
+                    else
                     {
                         // module 变化时清空元素集(0x0aa0..0x0ac9)
                         const std::string& curMod = g_moduleNameTag[info->m_moduleTag][0];
@@ -1437,10 +1512,13 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                         info->setElement((ENUM_ELEMENT)getElement(token.c_str()));
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[elemental property]",
-                                                          static_cast<int>(AITAG_ELEMENTAL_PROPERTY)));
                 case AITAG_ACTIVE_STATUS:     // 0xbc..0xf4 + vectors
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[active status]",
+                                                          static_cast<int>(AITAG_ACTIVE_STATUS)));
+                    }
+                    else
                     {
                         const std::string& curMod = g_moduleNameTag[info->m_moduleTag][0];
                         if (statusModule != curMod)   // 0x0bb9 module 变化:重置槽
@@ -1538,10 +1616,13 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                         ++statusIdx;                      // 0x130a
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[active status]",
-                                                          static_cast<int>(AITAG_ACTIVE_STATUS)));
                 case AITAG_DAMAGE_REACTION:   // +0x1c 枚举
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[damage reaction]",
+                                                          static_cast<int>(AITAG_DAMAGE_REACTION)));
+                    }
+                    else
                     {
                         bool isType;          // -0x3d0
                         ScanTypeOrStr(isType, token, true);
@@ -1555,48 +1636,66 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                             info->m_damageReaction = 3;
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[damage reaction]",
-                                                          static_cast<int>(AITAG_DAMAGE_REACTION)));
                 case AITAG_PUSH_ASIDE:        // +0x20 int
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[push aside]",
+                                                          static_cast<int>(AITAG_PUSH_ASIDE)));
+                    }
+                    else
                     {
                         info->m_pushAside = ScanInt((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[push aside]",
-                                                          static_cast<int>(AITAG_PUSH_ASIDE)));
                 case AITAG_LIFT_UP:           // +0x24 int
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[lift up]", static_cast<int>(AITAG_LIFT_UP)));
+                    }
+                    else
                     {
                         info->m_liftUp = ScanInt((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[lift up]", static_cast<int>(AITAG_LIFT_UP)));
                 case AITAG_CRITICAL_HIT:      // +0x28 float
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[critical hit]",
+                                                          static_cast<int>(AITAG_CRITICAL_HIT)));
+                    }
+                    else
                     {
                         info->m_criticalHit = ScanFloat((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[critical hit]",
-                                                          static_cast<int>(AITAG_CRITICAL_HIT)));
                 case AITAG_STUCK:             // +0x2c float
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[stuck]", static_cast<int>(AITAG_STUCK)));
+                    }
+                    else
                     {
                         info->m_stuck = ScanFloat((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[stuck]", static_cast<int>(AITAG_STUCK)));
                 case AITAG_STUCK_PROB_INCREASE:  // +0x30 bool(int)
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[stuck prob increase]",
+                                                          static_cast<int>(AITAG_STUCK_PROB_INCREASE)));
+                    }
+                    else
                     {
                         info->m_stuckProbIncrease = (ScanInt((bool*)0) != 0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[stuck prob increase]",
-                                                          static_cast<int>(AITAG_STUCK_PROB_INCREASE)));
                 case AITAG_KNUCK_BACK:        // +0x34 int;==3 时 +0x38 角度
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[knuck back]",
+                                                          static_cast<int>(AITAG_KNUCK_BACK)));
+                    }
+                    else
                     {
                         info->m_knuckBack = ScanInt((bool*)0);
                         if (info->m_knuckBack == 3)   // 0x2b56;fistpl 舍入转 int
@@ -1606,78 +1705,108 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                         }
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[knuck back]",
-                                                          static_cast<int>(AITAG_KNUCK_BACK)));
                 case AITAG_WEAKNESS:          // +0x3c/+0x40 float
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[weakness]", static_cast<int>(AITAG_WEAKNESS)));
+                    }
+                    else
                     {
                         info->m_weakness = ScanFloat((bool*)0);
                         info->m_weakness2 = ScanFloat((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[weakness]", static_cast<int>(AITAG_WEAKNESS)));
                 case AITAG_BOUNCE:            // +0x44 int
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[bounce]", static_cast<int>(AITAG_BOUNCE)));
+                    }
+                    else
                     {
                         info->m_bounce = ScanInt((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[bounce]", static_cast<int>(AITAG_BOUNCE)));
                 case AITAG_IGNORE_DEFENSE:    // +0x48 bool(int)
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[ignore defense]",
+                                                          static_cast<int>(AITAG_IGNORE_DEFENSE)));
+                    }
+                    else
                     {
                         info->m_ignoreDefense = (ScanInt((bool*)0) != 0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[ignore defense]",
-                                                          static_cast<int>(AITAG_IGNORE_DEFENSE)));
                 case AITAG_HUMAN_DAMAGE_RATE: // +0x11c float
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[human damage rate]",
+                                                          static_cast<int>(AITAG_HUMAN_DAMAGE_RATE)));
+                    }
+                    else
                     {
                         info->m_damageRate[0] = ScanFloat((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[human damage rate]",
-                                                          static_cast<int>(AITAG_HUMAN_DAMAGE_RATE)));
                 case AITAG_FORT_DAMAGE_RATE:  // +0x120 float
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[fort damage rate]",
+                                                          static_cast<int>(AITAG_FORT_DAMAGE_RATE)));
+                    }
+                    else
                     {
                         info->m_damageRate[1] = ScanFloat((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[fort damage rate]",
-                                                          static_cast<int>(AITAG_FORT_DAMAGE_RATE)));
                 case AITAG_MONSTER_DAMAGE_RATE:  // +0x124 float
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[monster damage rate]",
+                                                          static_cast<int>(AITAG_MONSTER_DAMAGE_RATE)));
+                    }
+                    else
                     {
                         info->m_damageRate[2] = ScanFloat((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[monster damage rate]",
-                                                          static_cast<int>(AITAG_MONSTER_DAMAGE_RATE)));
                 case AITAG_HP_DRAIN:          // +0x78 bool(int)
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[HP drain]", static_cast<int>(AITAG_HP_DRAIN)));
+                    }
+                    else
                     {
                         info->m_hpDrain = (ScanInt((bool*)0) != 0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[HP drain]", static_cast<int>(AITAG_HP_DRAIN)));
                 case AITAG_MP_DRAIN:          // +0x7c bool(int)
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[MP drain]", static_cast<int>(AITAG_MP_DRAIN)));
+                    }
+                    else
                     {
                         info->m_mpDrain = (ScanInt((bool*)0) != 0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[MP drain]", static_cast<int>(AITAG_MP_DRAIN)));
                 case AITAG_HIT_WAV:           // +0x4c string
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[hit wav]", static_cast<int>(AITAG_HIT_WAV)));
+                    }
+                    else
                     {
                         ScanStr(&info->m_hitWav);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[hit wav]", static_cast<int>(AITAG_HIT_WAV)));
                 case AITAG_ATTACK_DIRECTION:  // +0x50 枚举(lift up/horizon/down)
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[attack direction]",
+                                                          static_cast<int>(AITAG_ATTACK_DIRECTION)));
+                    }
+                    else
                     {
                         bool isType;          // -0x3d2
                         ScanTypeOrStr(isType, token, true);
@@ -1689,10 +1818,12 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                             info->m_attackDirection = 2;
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[attack direction]",
-                                                          static_cast<int>(AITAG_ATTACK_DIRECTION)));
                 case AITAG_HIT_INFO:          // +0x54/+0x58/+0x5c/+0x60
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[hit info]", static_cast<int>(AITAG_HIT_INFO)));
+                    }
+                    else
                     {
                         bool isType;          // -0x3d3(两段复用同槽)
                         ScanTypeOrStr(isType, token, true);
@@ -1715,26 +1846,36 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                         info->m_field60 = ScanFloat((bool*)0); // +0x60
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[hit info]", static_cast<int>(AITAG_HIT_INFO)));
                 case AITAG_IS_USE_WEAPON_HIT_DELAY_RATE:  // +0x64 byte bool
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type(
+                        "[is use weapon hit delay rate]",
+                        static_cast<int>(AITAG_IS_USE_WEAPON_HIT_DELAY_RATE)));
+                    }
+                    else
                     {
                         info->m_isUseWeaponHitDelayRate = (ScanInt((bool*)0) != 0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type(
-                        "[is use weapon hit delay rate]",
-                        static_cast<int>(AITAG_IS_USE_WEAPON_HIT_DELAY_RATE)));
                 case AITAG_FORCE_HIT_STUN_TIME:  // +0x74 int
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[force hit stun time]",
+                                                          static_cast<int>(AITAG_FORCE_HIT_STUN_TIME)));
+                    }
+                    else
                     {
                         info->m_forceHitStunTime = ScanInt((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[force hit stun time]",
-                                                          static_cast<int>(AITAG_FORCE_HIT_STUN_TIME)));
                 case AITAG_HIT_DIRECTION:     // +0x68 枚举(auto/front/back/...)
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[hit direction]",
+                                                          static_cast<int>(AITAG_HIT_DIRECTION)));
+                    }
+                    else
                     {
                         bool isType;          // -0x3d4
                         ScanTypeOrStr(isType, token, true);
@@ -1750,43 +1891,58 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                             info->m_hitDirection = 4;
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[hit direction]",
-                                                          static_cast<int>(AITAG_HIT_DIRECTION)));
                 case AITAG_IGNORE_SUPER_ARMOR:  // +0x6c int
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[ignore super armor]",
+                                                          static_cast<int>(AITAG_IGNORE_SUPER_ARMOR)));
+                    }
+                    else
                     {
                         info->m_ignoreSuperArmor = ScanInt((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[ignore super armor]",
-                                                          static_cast<int>(AITAG_IGNORE_SUPER_ARMOR)));
                 case AITAG_IGNORE_WEIGHT:     // +0x70 int
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[ignore weight]",
+                                                          static_cast<int>(AITAG_IGNORE_WEIGHT)));
+                    }
+                    else
                     {
                         info->m_ignoreWeight = ScanInt((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[ignore weight]",
-                                                          static_cast<int>(AITAG_IGNORE_WEIGHT)));
                 case AITAG_HUMAN_ACTIVE_STATUS_RATE:  // +0x18 = 值/100.0f
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type(
+                        "[human active status rate]", static_cast<int>(AITAG_HUMAN_ACTIVE_STATUS_RATE)));
+                    }
+                    else
                     {
                         float f = ScanFloat((bool*)0);   // -0x1c 中转
                         info->m_humanActiveStatusRate = f / 100.0f;
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type(
-                        "[human active status rate]", static_cast<int>(AITAG_HUMAN_ACTIVE_STATUS_RATE)));
                 case AITAG_IS_HIT_NUMBER_INCREASING:  // +0x88 byte bool
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type(
+                        "[is hit number increasing]", static_cast<int>(AITAG_IS_HIT_NUMBER_INCREASING)));
+                    }
+                    else
                     {
                         info->m_isHitNumberIncreasing = (ScanInt((bool*)0) != 0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type(
-                        "[is hit number increasing]", static_cast<int>(AITAG_IS_HIT_NUMBER_INCREASING)));
                 case AITAG_CATCH_OBJECT:      // +0x128 vector<CatchObjectInfo>
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[catch object]",
+                                                          static_cast<int>(AITAG_CATCH_OBJECT)));
+                    }
+                    else
                     {
                         info->m_catchObjects.clear();    // 0x22d6
                         CatchObjectInfo obj;             // -0x3e0{int,int,float}
@@ -1802,26 +1958,35 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                         }
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[catch object]",
-                                                          static_cast<int>(AITAG_CATCH_OBJECT)));
                 case AITAG_MAX_TARGET_HIT_NUMBER:  // +0x94 int
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[max target hit number]",
+                                                          static_cast<int>(AITAG_MAX_TARGET_HIT_NUMBER)));
+                    }
+                    else
                     {
                         info->m_maxTargetHitNumber = ScanInt((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[max target hit number]",
-                                                          static_cast<int>(AITAG_MAX_TARGET_HIT_NUMBER)));
                 case AITAG_IGNORE_DIEHARD:    // +0x90 byte bool
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[ignore diehard]",
+                                                          static_cast<int>(AITAG_IGNORE_DIEHARD)));
+                    }
+                    else
                     {
                         info->m_ignoreDiehard = (ScanInt((bool*)0) != 0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[ignore diehard]",
-                                                          static_cast<int>(AITAG_IGNORE_DIEHARD)));
                 case AITAG_HIT_CHECK_BY_SCREEN_POS:  // +0x91;ScanInt 失败 → ret false
-                    if (__inited)
+                    if (!__inited)
+                    {
+                    __lookup.insert(LookupMap::value_type("[hit check by screen pos]",
+                                                          static_cast<int>(AITAG_HIT_CHECK_BY_SCREEN_POS)));
+                    }
+                    else
                     {
                         int v = 0;                       // -0x3e8
                         if (!ScanInt(&v))                // _Z7ScanIntPi 0x2485
@@ -1829,8 +1994,6 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                         info->m_hitCheckByScreenPos = (v != 0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[hit check by screen pos]",
-                                                          static_cast<int>(AITAG_HIT_CHECK_BY_SCREEN_POS)));
                     break;                    // 注册链终点(0x2470 → 公共尾)
                 default:                      // 未知标签:静默忽略(ORIG find=-1)
                     break;

@@ -8,8 +8,6 @@
 //   WongWork::stGenerateRefData_t / stGenerateResult_t（掉落生成引用；ctor/dtor 见
 //     CBattle_Field_helpers.cpp / stGenerateRefData_t.cpp）
 //   addUserHackCount149/150（enumPartyMember hack 计数回调）
-//   GlobalData_s_villageMonsterMgr（GlobalData 静态成员，asm label 直引，
-//     避免整头 include GlobalData.h 与 CUser.h/CUserCharacInfo.h 冲突）
 // 其余类型（map_*/MapInfo/CDungeon/CMap/CParty/CGameManager/CWorldMap/CMonster/
 // STMonsterScript/QuickParty/HellPartyGroup/CVillageMonsterMgr 等）均分发至各自权威头。
 
@@ -20,7 +18,7 @@
 
 // village_attacked::CVillageMonsterMgr 完整类型只在 CBattle_Field_missing.cpp 等
 // 直接消费者处 include CVillageMonsterMgr.h（避免与 GameWorld_deps.h 的 MapArea
-// ODR 冲突；此处仅前向声明供 extern 引用）。
+// ODR 冲突）。
 namespace village_attacked
 {
 class CVillageMonsterMgr;
@@ -83,9 +81,5 @@ class CMap;
 // ---- hack 计数回调（enumPartyMember 使用；实现见 CBattle_Field_helpers.cpp） ----
 bool addUserHackCount149(CUser* user);  // ORIG 0x830dc9d
 bool addUserHackCount150(CUser* user);  // ORIG 0x830dce4
-
-// ---- GlobalData 静态成员（asm label 直引） ----
-extern village_attacked::CVillageMonsterMgr* GlobalData_s_villageMonsterMgr
-    asm("_ZN10GlobalData19s_villageMonsterMgrE");
 
 #endif  // DNF_GAME_CBATTLE_FIELD_SHARED_H_

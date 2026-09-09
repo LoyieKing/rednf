@@ -26,18 +26,19 @@
 //       _Z13PI_GetType_CScs               T 0x808c5d8（报告 _lt_global_gt_/PI_GetType_CS.md）
 //   void PIAddServerHackCnt(CUser*, WongWork::ENUM_HACKTYPE, int)
 //       _Z18PIAddServerHackCntP5CUserN8WongWork13ENUM_HACKTYPEEi  W 0x82772b7
-//   int PI_GetHackTypes(short)
+//   int PI_GetHackType(short)
 //       _Z14PI_GetHackTypes               W 0x82758e3
-//       注意：ORIG 符号不带参数编码（非 _Z15..v），但函数体读取调用方压栈的
-//       short（0x8(%ebp)，0x82758e9 处 mov 0x8(%ebp),%eax → jump table）。
-//       用 asm 标签把带 short 形参的声明指到 ORIG 原始符号，保持压参行为。
+//       注：ORIG 符号看着"缺参数编码"，实为 `_Z14` + 名长 14 = "PI_GetHackType"
+//       + `s`(short) ⇒ 本名（**单数 HackType**）自然 mangling 即 `_Z14PI_GetHackTypes`。
+//       原先我方误写复数 PI_GetHackTypes（会 mangling 成 _Z15PI_GetHackTypess），
+//       才不得不用 `__asm__` 标签纠正——按 guide §4.5 已删桥、改名正形（零码变）。
 // 返回类型 char（非 bool/int）：ORIG 调用点 _NS_PI_MakeHash_NOTI(0x82746f3) 为
 // `xor $0x1,%eax; test %al,%al; jne` —— 只测低字节，char 值域的 ==1 判据；
 // ORIG 本体(0x0808c8b5) 两条返回 `mov $0x0,%eax`/`mov $0x1,%eax` 严格 0/1。
 // mangled 不含返回类型 ⇒ ABI 无影响（Main 授权，batch-23 S 线）。
 bool _NS_MakeHash_(char* data, short len, int& out);
 char PI_GetType_CS(char type, short cmd);
-int PI_GetHackTypes(short hackType) __asm__("_Z14PI_GetHackTypes");
+int PI_GetHackType(short hackType);
 void PIAddServerHackCnt(CUser* user, WongWork::ENUM_HACKTYPE type, int count);
 int _NS_PI_2ND_GetHackType(unsigned int type, unsigned char b, unsigned short c);
 
@@ -199,7 +200,7 @@ void _NS_PI_Check_CMD(ENUM_PACKETCLASS packetClass, unsigned short cmd,
     // ORIG 0x82748fb：movzbl t → imul $0x67 魔数除 5 取余 → r*10 + 0xc9。
     int penalty = static_cast<int>(type % 10) * 10 + 0xc9;  // -0x10
     WongWork::ENUM_HACKTYPE hackType = static_cast<WongWork::ENUM_HACKTYPE>(
-        PI_GetHackTypes(static_cast<short>(cmdType)));  // -0xc
+        PI_GetHackType(static_cast<short>(cmdType)));  // -0xc
     PIAddServerHackCnt(user, hackType, penalty);
 }
 
@@ -250,12 +251,12 @@ void _NS_MakeHash_(char* data, unsigned short len, unsigned int& out)
 }
 
 // ===========================================================================
-// PI_GetHackTypes  ORIG W 0x82758e3
+// PI_GetHackType  ORIG W 0x82758e3（符号 _Z14PI_GetHackTypes = 本名自然 mangling）
 // jump table（.rodata 0x8bff0b4，55 项）逐项转写：idx 0→0x514；
 // 1..9→0x515..0x51d；10→0x54a；11..52→0x51e..0x547；53→0x548；54→0x549；
 // 越界/负值（movswl 符号扩展后 ja）→ 0x514。
 // ===========================================================================
-int PI_GetHackTypes(short hackType)
+int PI_GetHackType(short hackType)
 {
     // ORIG @0x082758e3 入口仅 `mov %ax,-0x4(%ebp); movswl; cmp $0x36; ja`——
     // 无显式边界检查（P140），range 由 switch 自身产生。补 `case 0`（与
@@ -484,7 +485,7 @@ int _NS_ProcessScan(CUser* user, PacketBuf& packet)
 
 // ===========================================================================
 // _NS_PacketIntegrity  ORIG T 0x8274975：读 4 字节，编码值
-// d%5 + b%5*10 + a%5*100 → PI_GetHackTypes(c) → PIAddServerHackCnt。
+// d%5 + b%5*10 + a%5*100 → PI_GetHackType(c) → PIAddServerHackCnt。
 // user 为空返回 4；各步读取失败依次返回 1/2/3/4。
 // ===========================================================================
 int _NS_PacketIntegrity(CUser* user, PacketBuf& packet)
@@ -512,7 +513,7 @@ int _NS_PacketIntegrity(CUser* user, PacketBuf& packet)
     // mov %eax,0x4(%esp)`（探针 /tmp/pi_probe.cpp probe4）；int 局部 + 实参处
     // static_cast 会令 4.4 先载第二实参到 %eax 并借 %edx 中转（P75 假象）。
     WongWork::ENUM_HACKTYPE hackType = static_cast<WongWork::ENUM_HACKTYPE>(
-        PI_GetHackTypes(static_cast<short>(c)));
+        PI_GetHackType(static_cast<short>(c)));
     PIAddServerHackCnt(user, hackType, value);
     return 0;
 }

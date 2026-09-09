@@ -99,7 +99,8 @@ bool CBreakAwayPreventSystem::calBreakAwayUserPoint()
 // 循环耗尽：仍按最后一轮暂存值调用 set 并返回 1（ORIG asm fallthrough 行为）。
 bool CBreakAwayPreventSystem::selectReward(int keyIndex, int point, CUser* user)
 {
-    std::map<STRewardDataKey, STRewardDataList>::const_iterator it =
+    // ORIG 0x0831c872：map/_List 迭代器均为非 const（_Rb_tree_iterator/_List_iterator）。
+    std::map<STRewardDataKey, STRewardDataList>::iterator it =
         m_rewardMap.find(m_keys[keyIndex]);
     if (it == m_rewardMap.end())
         return false;
@@ -107,18 +108,25 @@ bool CBreakAwayPreventSystem::selectReward(int keyIndex, int point, CUser* user)
         return false;
 
     STBreakAwayRewards rewards;   // ORIG STBreakAwayRewards ctor 清零
-    std::list<STRewardData>::const_iterator li;
+    std::list<STRewardData>::iterator li;
     for (li = it->second.m_list.begin(); li != it->second.m_list.end(); ++li)
     {
-        const STRewardData& entry = *li;
-        rewards.m_rewardItemId = entry.m_field8;
-        rewards.m_rewardAItemCnt = entry.m_fieldc;
-        rewards.m_luckPoint = entry.m_field10;
-        rewards.m_fieldc = point;
-        if (point < entry.m_field0)
+        // ORIG 0x0831c938：每轮 operator-> 逐字段读 5 次（P157，无 entry 引用缓存）；
+        // 读序 field0→field4→field8→fieldc→field10→point。
+        const int minVal = li->m_field0;
+        const int maxVal = li->m_field4;
+        rewards.m_rewardItemId   = li->m_field8;
+        rewards.m_rewardAItemCnt = li->m_fieldc;
+        rewards.m_luckPoint      = li->m_field10;
+        rewards.m_fieldc         = point;
+        if (point < minVal)
             return false;
-        if (entry.m_field0 <= point && point <= entry.m_field4)
+        if (minVal <= point && point <= maxVal)
         {
+            rewards.m_rewardItemId   = li->m_field8;
+            rewards.m_rewardAItemCnt = li->m_fieldc;
+            rewards.m_luckPoint      = li->m_field10;
+            rewards.m_fieldc         = point;
             user->setBreakAwayRewards(rewards);
             return true;
         }
@@ -147,39 +155,45 @@ bool CBreakAwayPreventSystem::updateUvList(SIG_LOGIN_DATA const* login)
             memcpy(m_tail, login->m_breakAwayPlayInfo, 0x1f);
             return true;
         }
-        days = lastPlayDays != 0 ? lastPlayDays : 1;
+        // ORIG 0x0831cbb4：if/else 两分支（非三目）。
+        if (lastPlayDays == 0)
+            days = 1;
+        else
+            days = lastPlayDays;
     }
 
-    if (days >= 0x1e)
+    // ORIG 0x0831cc1a：days>0x1d 走 else 短分支；string 组装为 then；
+    // makeRequest 统一在尾部（0831ce32），失败路径 esi=0 经析构后返回 0。
+    if (days <= 0x1d)
     {
-        // 断线 ≥30 天：名单全 '0'（0x30），尾位标记 '1'，清写后请求落库。
+        std::string uvInfo(reinterpret_cast<const char*>(login->m_breakAwayPlayInfo));
+        std::string uvMarked(uvInfo, days, 0x1e);
+        for (int i = 0; i < days - 1; ++i)
+            uvMarked.push_back('0');
+        uvMarked.push_back('1');
+
+        if (uvMarked.size() != 0x1e)
+        {
+            LogManager::logFormat(
+                1, "BreakAwayPreventSystem.cpp",
+                __PRETTY_FUNCTION__,
+                0x11c, "BREAK_AWAY : UV_INFO SIZE ERROR!! M_ID(%s)",
+                NumberToString(login->m_accId, 0));
+            return false;
+        }
+        memset(m_tail, 0, sizeof(m_tail));
+        strncpy(m_tail, uvMarked.c_str(), uvMarked.size());
+    }
+    else
+    {
+        // 断线 ≥30 天：名单全 '0'（0x30），尾位标记 '1'。
         memset(m_tail, 0x30, sizeof(m_tail));
         m_tail[0x1d] = 0x31;   // this+0x328：名单第 29 位（高位区间标记）
         m_tail[0x1e] = '\0';   // this+0x329
-        DB_UpdateBreakAwayUvList::makeRequest(login->m_accId, m_tail);
-        return true;
     }
 
-    std::string uvInfo(reinterpret_cast<const char*>(login->m_breakAwayPlayInfo));
-    std::string uvMarked(uvInfo, days, 0x1e);
-    for (int i = 0; i < days - 1; ++i)
-        uvMarked.push_back('0');
-    uvMarked.push_back('1');
-
-    if (uvMarked.size() == 0x1e)
-    {
-        memset(m_tail, 0, sizeof(m_tail));
-        strncpy(m_tail, uvMarked.c_str(), uvMarked.size());
-        DB_UpdateBreakAwayUvList::makeRequest(login->m_accId, m_tail);
-        return true;
-    }
-
-    LogManager::logFormat(
-        1, "BreakAwayPreventSystem.cpp",
-        __PRETTY_FUNCTION__,
-        0x11c, "BREAK_AWAY : UV_INFO SIZE ERROR!! M_ID(%s)",
-        NumberToString(login->m_accId, 0));
-    return false;
+    DB_UpdateBreakAwayUvList::makeRequest(login->m_accId, m_tail);
+    return true;
 }
 
 // ---- startBreakAwayPreventSystem（ORIG 0x0831ce78）-------------------------
@@ -207,11 +221,6 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
     // 发明）；`(signed char)(unsigned char)` 双步保 movzx→movsx 有符号日界
     // 语义（非 P196 反演）。实测 ndiff 263→186、verdict 桶不变。
 
-    unsigned int firstReward = login->m_breakAwayRewardBoundA;   // +0x3f40
-    unsigned int secondReward = login->m_breakAwayRewardBoundB;  // +0x3f44
-    bool questFieldsIdle = login->m_breakAwayDungeonClearCnt == 0 &&
-                           login->m_breakAwayQuestTime != 0;
-
     // A 窗口：无归还记录或回归天数越过上限 → luck_point 主通道。
     if (login->m_breakAwayLastRewardTime == 0 || dayLimit <= dayDiff)
     {
@@ -222,18 +231,27 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
                 if (login->m_breakAwayLuckPoint == 0)
                     user->setBreakAwayRewardData(false);
             }
-            else if (selectReward(0, login->m_breakAwayAccureCera, user))
+            else
             {
-                user->setBreakAwayRewardData(true);
-                user->setBreakAwayRewardOrder(
-                    static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(1));
+                // ORIG 0x0831cee2：bool 预清 + 赋值两句式（P198①）。
+                bool ok = false;
+                ok = selectReward(0, login->m_breakAwayAccureCera, user);
+                if (ok)
+                {
+                    user->setBreakAwayRewardData(true);
+                    user->setBreakAwayRewardOrder(
+                        static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(1));
+                }
             }
         }
         return;
     }
 
     // 区间 1：second < first（u32 比较）且 dayDiff ∈ [winA_low, win_a_high] → order 3。
-    if (questFieldsIdle && secondReward < firstReward &&
+    // ORIG 0x0831cf6e：三条件独立短路（无 questFieldsIdle/firstReward 具名局部）。
+    if (login->m_breakAwayDungeonClearCnt == 0 &&
+        login->m_breakAwayQuestTime != 0 &&
+        login->m_breakAwayRewardBoundB < login->m_breakAwayRewardBoundA &&
         (signed char)(unsigned char)m_keys[2].m_data[0] <= dayDiff &&
         dayDiff <= (signed char)(unsigned char)m_keys[2].m_data[1])
     {
@@ -242,17 +260,24 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
             if (login->m_breakAwayLuckPoint == 0)
                 user->setBreakAwayRewardData(false);
         }
-        else if (selectReward(2, login->m_breakAwayAccureCera, user))
+        else
         {
-            user->setBreakAwayRewardData(true);
-            user->setBreakAwayRewardOrder(
-                static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(3));
+            bool ok = false;
+            ok = selectReward(2, login->m_breakAwayAccureCera, user);
+            if (ok)
+            {
+                user->setBreakAwayRewardData(true);
+                user->setBreakAwayRewardOrder(
+                    static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(3));
+            }
         }
         return;
     }
 
     // 区间 2：first < second 且 dayDiff ∈ [winB_low, win_b_high] → 只置 reward 标志。
-    if (questFieldsIdle && firstReward < secondReward &&
+    if (login->m_breakAwayDungeonClearCnt == 0 &&
+        login->m_breakAwayQuestTime != 0 &&
+        login->m_breakAwayRewardBoundA < login->m_breakAwayRewardBoundB &&
         (signed char)(unsigned char)m_keys[4].m_data[0] <= dayDiff &&
         dayDiff <= (signed char)(unsigned char)m_keys[4].m_data[1])
     {
@@ -261,9 +286,14 @@ void CBreakAwayPreventSystem::startBreakAwayPreventSystem(
             if (login->m_breakAwayLuckPoint == 0)
                 user->setBreakAwayRewardData(false);
         }
-        else if (selectReward(4, login->m_breakAwayAccureCera, user))
+        else
         {
-            user->setBreakAwayRewardData(true);
+            bool ok = false;
+            ok = selectReward(4, login->m_breakAwayAccureCera, user);
+            if (ok)
+            {
+                user->setBreakAwayRewardData(true);
+            }
         }
     }
 }

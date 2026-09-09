@@ -66,6 +66,27 @@ void sSendResult(CUser* user, unsigned short resultType,
 // 同形。三件套：①p167 调用点差集 102=102 CLEAR；②帧尺寸同 0x1ac；③gap 17
 // 全为 4.4 槽复用/声明序（N82）导致的槽号平移（358 行 %ebp 槽差），无 MISSING/
 // EXTRA 调用。语义完成，byte 层 N82 封顶。
+// [N96 清绑 2026-09-09，本函数 4 处绑定一次清完]
+// 删除：`register int ret asm("ebx")` / `register bool bad asm("al")` /
+//       `register char* idStr asm("ebx")` / `register int st asm("esi")`
+//       （P0 限定② + N96 全域禁绑；P248 尾条：任何情形不得恢复）。
+// 还原（按 P0 双推律：ORIG 侧 ret 走 %ebx、bad 走 %al、idStr 走 %ebx、st 走
+// %esi，四者均无栈槽）：
+//   · ret  → 具名栈槽局部 `int ret;`（ORIG 有统一出口 `mov %ebx,%eax`，原码确有
+//            统一返回局部，故取具名槽形而非逐点 return 常量）；
+//   · bad  → 具名栈槽局部 `bool bad = (A || B); if (bad)`，4.4 产同构双岛物化
+//            （`mov $1,%eax / mov $0,%eax / mov %al,-0x45(%ebp) / cmpb` 对比 ORIG
+//            的 `mov $1,%eax / mov $0,%eax / test %al,%al`）；
+//   · idStr/st → 右值直传 `tr(fmt, user->get_state(), NumberToString(...))`，4.4
+//            产 `call NumberToString; mov %eax,%ebx; call get_state;
+//            mov %ebx,0xc(%esp); mov %eax,0x8(%esp)`，与 ORIG 同序同槽位
+//            （ORIG 多一条 `mov %eax,%esi` 中转）。
+// 残差 = N96+N18a 封顶：bad 的物化结果 4.4 必落栈槽（ORIG 停在 %al），ret 每次
+// 返回多 1 条槽读（`movl $0,-0x4c(%ebp); mov -0x4c(%ebp),%ebx` 对比 ORIG
+// `mov $0,%ebx`），绑定外不可达。
+// 读数（并列）：清绑前 verdict=DIFF orig829/our812 gap17，四数
+//   [identical=2 ae=2 合计4 near=0 diff=2]；清绑后 verdict=DIFF orig829/our816
+//   gap13，四数 [identical=2 ae=2 合计4 near=0 diff=2]（不变）。
 int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ========================================================================
@@ -102,8 +123,10 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
     // 存活（技巧2）。三者均无栈槽 ⇒ 按 P0 双推律原码无 bad/idStr/st 具名局部。
     // [N96 清绑 2026-09-09] 已删 `register bool bad asm("al")` /
     // `register char* idStr asm("ebx")` / `register int st asm("esi")`（P0/N96 全域
-    // 禁绑，P248 不得恢复）；还原为表达式直判 + 右值直传。
-    if (user->get_state() != 3 || user->getCurCharacR() == 0)
+    // 禁绑，P248 不得恢复）；bad 还原为具名栈槽局部（保 ORIG 双岛物化结构），
+    // idStr/st 还原为右值直传。
+    bool bad = (user->get_state() != 3 || user->getCurCharacR() == 0);
+    if (bad)
     {
         cMyTrace tr(__PRETTY_FUNCTION__,
                     0x95db, 5);

@@ -218,8 +218,8 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
 
     // ---- 主路径（两种类型汇合于此）----
     {
-        Arad_GiftItem_Set* gift = GlobalInstance<Arad_GiftItem_Set>::inst();
-        if (gift->level_check(user, stackable))   // 物品等级校验
+        // ORIG 0x08209276：inst() 结果无具名局部（P0/P183）。
+        if (GlobalInstance<Arad_GiftItem_Set>::inst()->level_check(user, stackable))
         {
             unsigned int prot =
                 GlobalData::s_pSecuProtectionField->CheckItem(user, (SECURITY_PROTCTION)0x2a, stackable);
@@ -229,15 +229,16 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
                 return 0;
             }
 
-            if (user->get_charac_level() < stackable->getUsableLevel())
+            // ORIG 0x08209369：先求 getUsableLevel（左操作数）后 get_charac_level。
+            if (stackable->getUsableLevel() > user->get_charac_level())
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa3, 0x13);
                 return 0;
             }
 
-            CInventory* invW = user->getCurCharacInvenW();
-
-            if (!invW->check_empty_count(Inven_Item::ITEM_TYPE_CREATURE_EQUIP, 1))
+            // ORIG 0x082093af / 0x08209452：getCurCharacInvenW 两处独立调用。
+            if (!user->getCurCharacInvenW()->check_empty_count(
+                    Inven_Item::ITEM_TYPE_CREATURE_EQUIP, 1))
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa3, 0xcb);
                 return 0;
@@ -251,10 +252,9 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
 
             if (stackable->IsDeletableItem())
             {
-                // 删除物品（INVEN_TYPE_INVEN=1? ORIG 压栈 inven=&invW, 1, slot, 1, reason3, 1）
-                // ORIG CInventory::delete_item(inv, 1, slot, 1, eItemDelReason_3, 1)
-                if (!invW->delete_item(INVEN_TYPE_INVEN, (int)slot, 1,
-                                       eItemDelReason_3, true))
+                // ORIG CInventory::delete_item(invW, 1, slot, 1, eItemDelReason_3, 1)
+                if (!user->getCurCharacInvenW()->delete_item(
+                        INVEN_TYPE_INVEN, (int)slot, 1, eItemDelReason_3, true))
                     return LineFunc(0xa4d3, __PRETTY_FUNCTION__, 0, 0);
             }
             user->_processContinuousItem(invItem.m_addInfo, stackable);

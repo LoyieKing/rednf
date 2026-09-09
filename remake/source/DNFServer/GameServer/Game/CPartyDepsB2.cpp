@@ -85,6 +85,12 @@ int CParty::getMemberMaxLevelBeforeDungeon()
 
 // ============================================================================
 // CParty::die_user —— ORIG 0x085a7828
+// [N96 清绑 2026-09-09] 原 `register unsigned char live asm("eax")` 全域禁用
+// （P0②/N96/P248 尾条），还原 P168a④ 具名 uchar 局部自然形（X2：`v ^= 1`）。
+// 4.4 发 `movzbl; mov %al,-N; xorb $1,-N; cmpb $0,-N; je`（栈槽物化），ORIG 为
+// `movzbl 0x380(%edx,%eax,1); xor $1,%eax; test %al,%al; je`（寄存器物化）⇒
+// 自然形不可达，残差 = N96+N18a 封顶（P168a④ 补充）。
+// 读数：清绑前 our_insns=163（TU 口径 AE）；清绑后 our_insns=164 / orig=163（TU 口径 DIFF）。
 // ============================================================================
 void CParty::die_user(CUser* user)
 {
@@ -150,10 +156,16 @@ void CParty::die_user(CUser* user)
     }
 }
 
- // ============================================================================
+// ============================================================================
 // CParty::finish_loading —— ORIG 0x085b15e0
 // ============================================================================
 // [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x085b15e0。
+// [N96 清绑 2026-09-09] 原 `register unsigned char fv asm("eax")` 全域禁用
+// （P0②/N96/P248 尾条），还原 P168a④ 具名 uchar 局部自然形（X2：`v ^= 1`）。
+// 4.4 发 `movzbl; mov %al,-N; xorb $1,-N; cmpb $0,-N; je`（栈槽物化），ORIG 为
+// `movzbl 0xb10(%edx,%eax,1); xor $1,%eax; test %al,%al; je`（寄存器物化）⇒
+// 自然形不可达，残差 = N96+N18a 封顶（P168a④ 补充）。
+// 读数：清绑前 our_insns=96；清绑后 our_insns=97 / orig=86（TU 口径前后均 DIFF）。
 void CParty::finish_loading(CUser* user)
 {
     for (int i = 0; i <= 3; ++i)                        // -0xc
@@ -167,7 +179,7 @@ void CParty::finish_loading(CUser* user)
         m_battleData.m_arr50[i] = 1;
         // ORIG 0x085b15e0 域：`movzbl 0xb10(%edx,%eax,1); xor $0x1,%eax; test; je`
         // 具名 m_arr7e4 消裸偏移后 scale 单段 ✓；裸 `!field` 4.4 产 test;jne 缺
-        // xor ⇒ X2 判据③有消费者，register uchar 绑 %eax + `^=1` 形。
+        // xor ⇒ X2 判据③有消费者，N96 清绑后为具名 uchar 局部 + `^=1` 自然形。
         unsigned char fv = m_battleData.m_arr7e4[i];
         fv ^= 1;
         // 【三次改写】ORIG 0x85b170a 域为平铺 continue 链：xor;test;je 循环尾 →

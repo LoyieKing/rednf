@@ -35,12 +35,14 @@ void generateCatchMonsterItem(const std::vector<CatchItemInfo>& items,
 // ORIG W 0x08539de8 _ZNK12CAICharacter13IsHellMonsterEv（0xc）：
 //   movzbl 0x70(this) 直返。mirror 类 +0x30..+0x6b 为 m_dropAvatarInfo，
 //   +0x70 rarity 标志未具名建模，按字节视图读取。
-unsigned char CAICharacter::IsHellMonster() const
+// 返回类型 bool：ORIG 体单条 `movzx eax,byte`（无 0/1 规范化 ⇒ 视图成员本身
+// bool），调用点 0x08535b08 `call;test %al,%al;je` 无 setne（P292）。
+bool CAICharacter::IsHellMonster() const
 {
     // [b28c-35] ORIG 0x08539de8 为单条 `movzbl 0x70(%eax),%eax`；裸偏移算术链
     // （reinterpret_cast + 0x70）4.4 发 `add $0x70,%eax; movzbl (%eax)`（+1 条）。
     // 改具名尾部视图成员访问（P82）即折叠单条 disp；视图只读该字节，不改类布局。
-    struct Tail { char m_pad[0x70]; unsigned char m_flag; };
+    struct Tail { char m_pad[0x70]; bool m_flag; };
     return reinterpret_cast<const Tail*>(this)->m_flag;
 }
 

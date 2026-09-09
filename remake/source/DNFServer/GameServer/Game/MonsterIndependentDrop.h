@@ -71,9 +71,17 @@ public:
 
     void generateIndependentItem(const WongWork::stGenerateRefData_t& ref,
                                  std::vector<Inven_Item>& out) const;  // ORIG 0x0834a13a
+    // ORIG W 0x084b410e _ZNK12CAICharacter19getIndepentDropItemEv：sret 拷贝 +0x24 的
+    // m_independentDrops 后返回 this（定义在 LinkMisc4_Data.cpp）。
+    std::vector<stMonsterIndependentDrop_t> getIndepentDropItem() const;
+    // ORIG W 0x084b4138 _ZNK12CAICharacter7GetNameEv：this+0x6c 的 std::string::c_str()
+    // （定义在 LinkMisc4_Data.cpp）。
+    const char* GetName() const;
     // ORIG W 0x08539de8 _ZNK12CAICharacter13IsHellMonsterEv：
-    // return *(unsigned char*)(this+0x70)（12 字节读字节直返）。
-    unsigned char IsHellMonster() const;
+    // return *(unsigned char*)(this+0x70)（12 字节读字节直返）；返回类型按调用点
+    // 0x08535b08 `call; test %al,%al; je`（无 setne）判 bool（P292；mangled 不含
+    // 返回类型 ⇒ 零符号/布局影响）。定义见 MonsterWrapLCB.cpp。
+    bool IsHellMonster() const;
     void generateDropAvatarItem(unsigned char rarity, unsigned char grade,
                                 std::vector<Inven_Item>& out) const;  // 定义 MonsterWrapLCB.cpp
     // ORIG 0x0834a240 _ZNK12CAICharacter14getPvPWinPointEv：

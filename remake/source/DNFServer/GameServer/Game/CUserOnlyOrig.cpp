@@ -7094,6 +7094,9 @@ bool CUser::SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo)
     }
 
     // asm 实参序:(sp1, sp2, tail1, tail2=[0x344])——ORIG 第 4 参为 0x344 字段
+    // [DualCUOO 2026-09-09] 实测链式调用（ORIG 形态）反而把 gap 从 6 拉到 10
+    // （槽序/寄存器分配连带），故保留具名槽形；余 6 条为 ORIG 把 sp1/sp2/tail1
+    // 常驻 ebx/esi/edi（0x0864dc19-0x0864dc1f 加载、0x0864dcec-0x0864dcee 弹出）。
     SkillSlot* slot = (SkillSlot*)getCurCharacSkillW();
     slot->set_remain_sp(sp1, sp2, tail1, tail2);
 

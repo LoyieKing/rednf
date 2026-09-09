@@ -31,8 +31,12 @@ CAICharacter* CAICharacterList::getByAP(unsigned int ap)
     // [b28d-L14 实证] ORIG 0x0834a38e 全用 _Rb_tree_const_iterator（含 4 次
     // 转换构造 + const 版 operator--/at，P96/P270 反向：此处须 const_iterator）。
     APGroupMap::const_iterator it = m_groupMap.lower_bound((int)ap);
+    // ORIG 0x0834ab66/0x0834aba9：end() 求值两次（比较 + 赋值后再自减）。
     if (it == m_groupMap.end())
+    {
+        it = m_groupMap.end();
         --it;
+    }
 
     if (((unsigned int)it->first > ap) && it != m_groupMap.begin())
         --it;
@@ -240,9 +244,9 @@ bool CAICharacterList::_add(CAICharacter* aiChar)
     if (!ins.second)
         return false;
 
-    const unsigned int level =
-        static_cast<unsigned int>(aiChar->getLevel());
-    for (unsigned int lv = level - 5; level + 5 > lv; ++lv)
+    // ORIG 0x0834a697/0x0834a70e：getLevel 两次独立求值（P48，无 level 缓存）。
+    for (unsigned int lv = (unsigned int)aiChar->getLevel() - 5;
+         (unsigned int)aiChar->getLevel() + 5 > lv; ++lv)
     {
         if (lv > 0x62)   // ORIG cmp $0x62,jbe：仅告警不拦截
         {
@@ -252,29 +256,33 @@ bool CAICharacterList::_add(CAICharacter* aiChar)
         m_byLevelList[lv].push_back(aiChar);   // this+lv*12+0x18 盲写
     }
 
-    // [b28d-L14 实证] ap 去 const：ORIG make_pair 实例为 <int&,vector&>（左值性
-    // 入 mangled，P61/P81）；apStatMap 处用 (int)ap 右值复现 make_pair<int,int>。
-    int ap = aiChar->getAppearancePoint();
-    if (ap != 0)
+    // ORIG 0x0834a726：外层判定、m_maxAP 段、apStatMap 段均逐次调用
+    // getAppearancePoint（P48）；仅 find 用块内具名 ap（-0x58）。
+    if (aiChar->getAppearancePoint() != 0)
     {
+        int ap = aiChar->getAppearancePoint();
         std::map<int, std::vector<CAICharacter*> >::iterator group =
             m_groupMap.find(ap);
-        if (group == m_groupMap.end())
-        {
-            std::vector<CAICharacter*> fresh;
-            fresh.push_back(aiChar);
-            m_groupMap.insert(std::make_pair(ap, fresh));
-        }
-        else
+        // ORIG 0x0834a79c 用 operator!=（then=push_back / else=fresh，P220）。
+        if (group != m_groupMap.end())
         {
             group->second.push_back(aiChar);
         }
+        else
+        {
+            std::vector<CAICharacter*> fresh;
+            fresh.push_back(aiChar);
+            m_groupMap.insert(std::make_pair(aiChar->getAppearancePoint(), fresh));
+        }
 
-        if ((unsigned int)m_maxAP >= (unsigned int)ap)
-            m_maxAP = ap;                  // ORIG：无符号比较取 min
+        // ORIG 0x0834a8be：无符号 min，两分支各赋值（else 支重调 getAppearancePoint）。
+        if ((unsigned int)m_maxAP < (unsigned int)aiChar->getAppearancePoint())
+            m_maxAP = m_maxAP;
+        else
+            m_maxAP = aiChar->getAppearancePoint();
 
         std::pair<std::map<int, int>::iterator, bool> stat =
-            m_apStatMap.insert(std::make_pair(1, (int)ap));   // ORIG 键恒为 1
+            m_apStatMap.insert(std::make_pair(1, aiChar->getAppearancePoint()));   // ORIG 键恒为 1
         if (!stat.second)
             stat.first->second = stat.first->second + 1;
     }

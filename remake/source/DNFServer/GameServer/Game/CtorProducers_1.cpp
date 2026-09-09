@@ -48,6 +48,22 @@
 #include "CChattingEmoticonList.h"
 #include "CGuildServerProxy.h"   // DeliveryMsg 权威声明（迁入定义 NL6）
 
+// 【A 档 GI 顺序对齐】下列两头原本在文件中途 include（87 行起）；AvatarRouletteServer
+// ctor 前置到 TU 最前后需在此可见。含 include guard ⇒ 中途处重复 include 无副作用；
+// 相对顺序保持 sync_script.h 先于 deps 头（原注释要求）。
+#include "sync_script.h"             // STAICharacterCommonScript 占位/STEquipmentPartSetPiece（须先于 deps 头）
+#include "DataManagerInitDepends.h"  // TowerOfDespair/CLevelRewardTable 权威类（Ctor_Group1）
+
+// ---------------------------------------------------------------------------
+// 【A 档 GI 顺序对齐 2026-09-09】本定义置于 TU 最前，使 `_GLOBAL__I_` 名等于
+// ORIG 的 `_ZN20AvatarRouletteServerC2Ev`（P327）。语义与机器码零变化，仅发射序。
+// ---------------------------------------------------------------------------
+// ORIG T 0x0817f354：map ctor 后仅写 +0x18=0（m_pRoulette；+0x1c 总数由 Init 写）。
+AvatarRouletteServer::AvatarRouletteServer() : m_addCharacSkillMap()
+{
+    m_pRoulette = 0;
+}
+
 // ---- 迁入定义（NL6，outgoing 帧塌缩规避；NL4 unit-at-a-time 机制实证）----
 
 // ORIG W 0x0891bce0：两 int 字段清零。原 InitScriptProducers_1.cpp。
@@ -174,12 +190,6 @@ struct STAICharScriptView
 // ============================================================================
 // AvatarRouletteServer（报告 AvatarRouletteServer/*.md）
 // ============================================================================
-
-// ORIG T 0x0817f354：map ctor 后仅写 +0x18=0（m_pRoulette；+0x1c 总数由 Init 写）。
-AvatarRouletteServer::AvatarRouletteServer() : m_addCharacSkillMap()
-{
-    m_pRoulette = 0;
-}
 
 // ORIG T 0x0817f372：仅析构 +0x00 的 map<unsigned long, map<int, vector<LevelUpSkill>>>。
 AvatarRouletteServer::~AvatarRouletteServer()

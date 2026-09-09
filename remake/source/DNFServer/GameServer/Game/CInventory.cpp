@@ -6942,8 +6942,11 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
     // PKc（const char*）重载（去 (char*) 强转 + expansion 常量化，零扰动）。
     // 新鲜 .o 726 vs ORIG 728（gap 2）；帧 108 vs ORIG 96（+12B/3 槽）属
     // N82 槽分配残差，判「语义完成、N 封顶」。
-    // [b28d-tu-CInventory] P329：删具名 buf 内联调用点 ⇒ ndiff 1219→906、
+    // b28d-tu-CInventory] P329：删具名 buf 内联调用点 ⇒ ndiff 1219→906、
     //   指令 723→**728（gap 0）**、struct 202→122，P167 108/108 CLEAR 保持。
+    //   [修正版 p167 复判] 108=108，1 对 cMyTrace C2↔C1 镜像别名，豁免后零差。
+    //   [§3] CInventory/MakeItemList.md 存在；本轮改动仅删具名 buf（装载序），
+    //   取证以 objdump 0x084fd7b6 每调用点装载形直证（§3.2 兜底）。
     //   残 = ORIG buf 槽 store/load 4 行 + push edi/frame 0x6c vs 0x60（N82/
     //   N95）+ `lea 0x3(%eax)` N1 形 + jmp 中继岛 ⇒ 维持封顶。
     if (m_pParent == 0)

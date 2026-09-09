@@ -4174,88 +4174,193 @@ bool EquipmentScriptSpecialMonsterDrop(STEquipmentScript* script,
 bool importArtifactInfo(STEquipmentScript::artifact_info& info,
                         std::string str)
 {
-    // [b28d-solo-STEquipmentScript 判词·N] 0x089bd079：ORIG 450 条 vs 我们 354 条
-    // （帧 0x11c vs 0x10c、static map 注册块槽序、STL 模板内联差）。p167 已清零
-    // （ORIG calls=55 / 我们 55，0 missing / 0 extra；修复=补 ORIG 0x089bd262+
-    // 0x089bd822 双 leave 调用点与 leave→__inited 序）。语义完成，byte 层 N82/N89 封顶。
-    // ORIG T 0x089bd079（0x7cb，报告全文转写）：函数级静态 lookup 表
-    // （map<const char*,int,less_TCHAR> @0x94fdf28 + SpinLock @0x94fdf40 +
-    // 就绪字节 @0x94fdf44）双检锁惰性建表；11 个 [creature *] 关键字 → id
-    // （0x2ee9..0x2f07），未命中返回 0，命中按 id 分派 ScanInt/ScanFloat 写回。
+    // [SweepC 2026-09-09 P333 首次建表状态机还原] 0x089bd079：ORIG 450 / 我方 354
+    // （gap 96；p167 双向 0/0 ⇒ 纯控制流形态差）。ORIG 真形 = 静态表在**循环体内**
+    // 声明（guard 检查随 continue 回跳重放，0x089bd085）+ 11 个 case 链式 fallthrough
+    // 注册：`if (__inited) { 读值; break; } insert(...); // fallthrough`；
+    // 尾块 0x089bd80d：`if (!__inited) { leave(0x089bd822); __inited=true; continue; }`。
+    // 表：map<const char*,int,less_TCHAR> @0x94fdf28 + SpinLock @0x94fdf40 +
+    // 就绪字节 @0x94fdf44；11 个 [creature *] 关键字 → id（0x2ee9..0x2f07），
+    // 未命中返回 0，命中按 id 分派 ScanInt/ScanFloat 写回。
     // 扫描参数：3 个 int 字段 ScanInt(0)；7 个 rate 字段 ScanFloat(scale,0)
     // ——mp/charge/overcharge/exp 用 scale=2，crit×2/stuck 用 scale=1。
-    static std::map<const char*, int, less_TCHAR> __lookup;
-    static SpinLock __init_lock;
-    static bool __inited = false;
-
-    if (!__inited)
+    do
     {
-        __init_lock.enter();
-        if (!__inited)
+        static std::map<const char*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        int id;
+        if (__inited)
         {
-            __lookup.insert(std::pair<char const* const, int>("[creature minimum level]", 0x2ee9));
-            __lookup.insert(std::pair<char const* const, int>("[creature physical attack]", 0x2eec));
-            __lookup.insert(std::pair<char const* const, int>("[creature magical attack]", 0x2eef));
-            __lookup.insert(std::pair<char const* const, int>("[creature skill consume mp rate]", 0x2ef2));
-            __lookup.insert(std::pair<char const* const, int>("[creature skill charge time rate]", 0x2ef5));
-            __lookup.insert(std::pair<char const* const, int>("[creature skill over charge time rate]", 0x2ef8));
-            __lookup.insert(std::pair<char const* const, int>("[creature experience amount rate]", 0x2efb));
-            __lookup.insert(std::pair<char const* const, int>("[creature physical critical hit]", 0x2efe));
-            __lookup.insert(std::pair<char const* const, int>("[creature magical critical hit]", 0x2f01));
-            __lookup.insert(std::pair<char const* const, int>("[creature stuck]", 0x2f04));
-            __lookup.insert(std::pair<char const* const, int>("[creature piercing]", 0x2f07));
-            // [b28d-solo-STEquipmentScript] ORIG 0x089bd262/0x089bd822 两个 leave 调用点
-            // 且顺序为 leave → __inited=true（P171 照抄原序；p167 差集 MISSING leave 1 处）。
-            __init_lock.leave();
-            __inited = true;
+            const char* key = str.c_str();
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                __lookup.find(key);
+            id = (it != __lookup.end()) ? it->second : -1;
         }
         else
         {
-            __init_lock.leave();
+            __init_lock.enter();
+            if (__inited)
+            {
+                __init_lock.leave();
+                continue;                              // 回循环头（重放 guard）
+            }
+            id = 0;
         }
-    }
 
-    std::map<const char*, int, less_TCHAR>::const_iterator it =
-        __lookup.find(str.c_str());
-    switch (it != __lookup.end() ? it->second : -1)
-    {
-    case 0x2ee9:                                       // [creature minimum level]
-        info.m_minLevel = ScanInt((bool*)0);
-        break;
-    case 0x2eec:                                       // [creature physical attack]
-        info.m_physAttack = ScanInt((bool*)0);
-        break;
-    case 0x2eef:                                       // [creature magical attack]
-        info.m_magAttack = ScanInt((bool*)0);
-        break;
-    case 0x2ef2:                                       // [creature skill consume mp rate]
-        info.m_mpRate = ScanFloat(2, (bool*)0);
-        break;
-    case 0x2ef5:                                       // [creature skill charge time rate]
-        info.m_chargeRate = ScanFloat(2, (bool*)0);
-        break;
-    case 0x2ef8:                                       // [creature skill over charge time rate]
-        info.m_overChargeRate = ScanFloat(2, (bool*)0);
-        break;
-    case 0x2efb:                                       // [creature experience amount rate]
-        info.m_expRate = ScanFloat(2, (bool*)0);
-        break;
-    case 0x2efe:                                       // [creature physical critical hit]
-        info.m_physCrit = ScanFloat(1, (bool*)0);
-        break;
-    case 0x2f01:                                       // [creature magical critical hit]
-        info.m_magCrit = ScanFloat(1, (bool*)0);
-        break;
-    case 0x2f04:                                       // [creature stuck]
-        info.m_stuck = ScanFloat(1, (bool*)0);
-        break;
-    case 0x2f07:                                       // [creature piercing]
-        info.m_piercing = ScanInt((bool*)0);
-        break;
-    default:
-        return false;                                  // ORIG 未命中 → 0
-    }
-    return true;
+        switch (id)
+        {
+        case 0:
+        case 0x2ee9:                                   // [creature minimum level]
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>(
+                    "[creature minimum level]", 0x2ee9));
+            }
+            else
+            {
+                info.m_minLevel = ScanInt((bool*)0);
+                break;
+            }
+            // fallthrough
+        case 0x2eec:                                   // [creature physical attack]
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>(
+                    "[creature physical attack]", 0x2eec));
+            }
+            else
+            {
+                info.m_physAttack = ScanInt((bool*)0);
+                break;
+            }
+            // fallthrough
+        case 0x2eef:                                   // [creature magical attack]
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>(
+                    "[creature magical attack]", 0x2eef));
+            }
+            else
+            {
+                info.m_magAttack = ScanInt((bool*)0);
+                break;
+            }
+            // fallthrough
+        case 0x2ef2:                                   // [creature skill consume mp rate]
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>(
+                    "[creature skill consume mp rate]", 0x2ef2));
+            }
+            else
+            {
+                info.m_mpRate = ScanFloat(2, (bool*)0);
+                break;
+            }
+            // fallthrough
+        case 0x2ef5:                                   // [creature skill charge time rate]
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>(
+                    "[creature skill charge time rate]", 0x2ef5));
+            }
+            else
+            {
+                info.m_chargeRate = ScanFloat(2, (bool*)0);
+                break;
+            }
+            // fallthrough
+        case 0x2ef8:                                   // [creature skill over charge time rate]
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>(
+                    "[creature skill over charge time rate]", 0x2ef8));
+            }
+            else
+            {
+                info.m_overChargeRate = ScanFloat(2, (bool*)0);
+                break;
+            }
+            // fallthrough
+        case 0x2efb:                                   // [creature experience amount rate]
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>(
+                    "[creature experience amount rate]", 0x2efb));
+            }
+            else
+            {
+                info.m_expRate = ScanFloat(2, (bool*)0);
+                break;
+            }
+            // fallthrough
+        case 0x2efe:                                   // [creature physical critical hit]
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>(
+                    "[creature physical critical hit]", 0x2efe));
+            }
+            else
+            {
+                info.m_physCrit = ScanFloat(1, (bool*)0);
+                break;
+            }
+            // fallthrough
+        case 0x2f01:                                   // [creature magical critical hit]
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>(
+                    "[creature magical critical hit]", 0x2f01));
+            }
+            else
+            {
+                info.m_magCrit = ScanFloat(1, (bool*)0);
+                break;
+            }
+            // fallthrough
+        case 0x2f04:                                   // [creature stuck]
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>(
+                    "[creature stuck]", 0x2f04));
+            }
+            else
+            {
+                info.m_stuck = ScanFloat(1, (bool*)0);
+                break;
+            }
+            // fallthrough
+        case 0x2f07:                                   // [creature piercing]
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>(
+                    "[creature piercing]", 0x2f07));
+            }
+            else
+            {
+                info.m_piercing = ScanInt((bool*)0);
+                break;
+            }
+            // fallthrough
+        default:
+            if (__inited)
+            {
+                return false;                          // ORIG 未命中 → 0
+            }
+            // fallthrough 到尾块（ORIG 0x089bd7fb）
+        }
+
+        if (!__inited)
+        {
+            // ORIG 0x089bd822/0x089bd827：leave → __inited=true → 回循环头
+            __init_lock.leave();
+            __inited = true;
+            continue;
+        }
+        return true;
+    } while (true);
 }
 
 // ===================== Wave3Deps：脚本解析依赖组 =====================

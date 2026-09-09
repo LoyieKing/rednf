@@ -55,46 +55,14 @@ namespace WongWork
 {
 
 // ---------------------------------------------------------------------------
-// 文件局部 asm 桥（只引用不定义；__asm__ 标签直链 ORIG mangled 名，参照
-// WongWorkDrop_A.cpp 同型桥。本体归属：
-//   CMonster/Special::_getGenItemProbIdx 有独立报告 → 归属批次未定；
-//   CLuckPoint::{UseLuckPoint4int,sendItemDropRate} → 已由 CClearReward.cpp 提供；
-//   CMonster/CAICharacter 头像掉落与捕获包装 → LinkClosureA；
-//   CAutoMarket 两方法定义在 LinkClosureB_Misc.cpp（声明已在 CDataManager.h，
-//   直接正常调用，不走本桥）。
+// P6 清桥后本 TU 无 __asm__ 桥：下述符号全部为真实成员/函数调用。
+//   CMonsterDrop_Hell/CSpecialMonsterDrop::_getGenItemProbIdx → 自身成员内直呼；
+//   CLuckPoint::{UseLuckPoint4int,sendItemDropRate} → 定义 CClearReward.cpp；
+//   CMonster/CAICharacter 头像掉落、捕获包装与 IsHellMonster → CMonster.h /
+//   MonsterIndependentDrop.h 权威声明（IsHellMonster 返回 bool，P292 判据）。
 // ---------------------------------------------------------------------------
 
 namespace {
-
-int WM_Hell_getGenItemProbIdx(CMonsterDrop_Hell* self, int value)
-    __asm__("_ZN8WongWork17CMonsterDrop_Hell18_getGenItemProbIdxEi");
-int WM_Special_getGenItemProbIdx(CSpecialMonsterDrop* self, int value)
-    __asm__("_ZN8WongWork19CSpecialMonsterDrop18_getGenItemProbIdxEi");
-
-void Luck_UseLuckPointM(::CLuckPoint* lp, int itemType, int rarity, int grade,
-                        int seq)
-    __asm__("_ZN10CLuckPoint12UseLuckPointEiiii");
-void Luck_sendItemDropRate(::CLuckPoint* lp, char const* text)
-    __asm__("_ZN10CLuckPoint16sendItemDropRateEPKc");
-
-void Mon_generateDropAvatarItem(CMonster const* self, unsigned char a,
-                                unsigned char b,
-                                std::vector<Inven_Item>& out)
-    __asm__("_ZNK8CMonster22generateDropAvatarItemEhhRSt6vectorI10Inven_ItemSaIS1_EE");
-void Mon_generateCatchMonsterItem(CMonster const* self,
-                                  std::vector<Inven_Item>& out)
-    __asm__("_ZNK8CMonster24generateCatchMonsterItemERSt6vectorI10Inven_ItemSaIS1_EE");
-
-// ORIG 调用点 `call; test %al,%al; je`（无 setne）⇒ 返回类型 bool（P292）。
-// 桥的返回类型不入 mangled，改 bool 不破坏 ABI；ORIG 体为 bool 字段 movzbl 直返。
-bool AI_IsHellMonster(CAICharacter const* self)
-    __asm__("_ZNK12CAICharacter13IsHellMonsterEv");
-bool Mon_IsHellMonster(CMonster const* self)
-    __asm__("_ZNK8CMonster13IsHellMonsterEv");
-void AI_generateDropAvatarItem(CAICharacter const* self, unsigned char a,
-                               unsigned char b,
-                               std::vector<Inven_Item>& out)
-    __asm__("_ZNK12CAICharacter22generateDropAvatarItemEhhRSt6vectorI10Inven_ItemSaIS1_EE");
 
 // stGenerateRefData_t +0x34 起调用方上下文区的组件视图：ORIG 0x08535726/0x08535b08
 // 均有具名指针局部（`mov 0xc(%ebp),%eax; add $0x34,%eax; mov %eax,-0x2c(%ebp)`）并
@@ -169,8 +137,8 @@ void CMonsterDrop_Hell::generateSpecificItem(stGenerateRefData_t const& ref,
     stGenerateRefCtx_t const& ctx =
         *reinterpret_cast<stGenerateRefCtx_t const*>(&ref.m_field34);
 
-    int idx = WM_Hell_getGenItemProbIdx(
-        this, static_cast<int>(static_cast<unsigned char>(ctx.m_field35)));
+    int idx =
+        _getGenItemProbIdx(static_cast<int>(static_cast<unsigned char>(ctx.m_field35)));
     if (idx < 0)
         return;
 
@@ -205,9 +173,8 @@ void CMonsterDrop_Hell::generateSpecificItem(stGenerateRefData_t const& ref,
     G_CDataManager()->m_itemList->create_item(
         static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
     // 实参内联（右→左求值：size→get_grade→get_rarity→m_field1，ORIG esi/ebx 缓存）
-    Luck_UseLuckPointM(reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint),
-                       inv.m_field1, item->get_rarity(),
-                       item->get_grade(),
+    reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)
+        ->UseLuckPoint(inv.m_field1, item->get_rarity(), item->get_grade(),
                        static_cast<int>(result.m_dropItems.size()));
     result.m_dropItems.push_back(inv);
 }
@@ -231,16 +198,14 @@ void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
     if (ai != 0)
     {
         // ORIG je/jmp 分支形（三目会改块布局）
-        if (AI_IsHellMonster(ai))
+        if (ai->IsHellMonster() != 0)
             extraCount = 0;
         else
             extraCount =
                 static_cast<int>(static_cast<signed char>(ref.m_field3d));
         ai->generateIndependentItem(ref, result.m_dropItems);
-        AI_generateDropAvatarItem(ai,
-                                  static_cast<unsigned char>(ref.m_rateSlot),
-                                  ref.m_field3e_byte,
-                                  result.m_dropItems);
+        ai->generateDropAvatarItem(static_cast<unsigned char>(ref.m_rateSlot),
+                                   ref.m_field3e_byte, result.m_dropItems);
     }
 
     // ORIG 此处才绑定 ctx 指针局部（-0x14），并以其 +4 作 find_monster 实参。
@@ -250,7 +215,7 @@ void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
         G_CDataManager()->find_monster(ctx.m_rankBonusIndex));
     if (mon != 0)
     {
-        if (Mon_IsHellMonster(mon))
+        if (mon->IsHellMonster() != 0)
             extraCount = 0;
         else
             extraCount =
@@ -261,16 +226,14 @@ void CMonsterDrop_Hell::hellPartySpecificItem(stGenerateRefData_t const& ref,
                  ->m_independentDrops.empty())     // +0x3ac
             mon->generateIndependentItem(ref, result.m_dropItems);
 
-        Mon_generateDropAvatarItem(mon,
-                                   static_cast<unsigned char>(ref.m_rateSlot),
-                                   ref.m_field3e_byte,
-                                   result.m_dropItems);
+        mon->generateDropAvatarItem(static_cast<unsigned char>(ref.m_rateSlot),
+                                    ref.m_field3e_byte, result.m_dropItems);
 
         // ORIG 短路物化无槽（mov $1/$0 岛 + 尾 test），具名 bool 会多槽+回读。
         if (!static_cast<STMonsterScript*>(mon->getMonsterScript())
                  ->m_catchItems.empty() &&
             ref.m_field45 != 0)                 // +0x70
-            Mon_generateCatchMonsterItem(mon, result.m_dropItems);
+            mon->generateCatchMonsterItem(result.m_dropItems);
     }
 
     // ORIG 0x08535b08 以 movzbl 读 +0x40 仅测低字节（非 dword 非空判据）。
@@ -301,7 +264,7 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
     // 残差 N 封顶：①帧/全槽号平移 0x10（0x21c vs 0x22c，N82/N93 类）；
     // ②x87 比较 lowering——ORIG fucompp/fnstsw/sahf vs 4.4 fucomip/fstp
     //   （N85；P230 提示 -march=i486 可消，属路由变更，已上报 Main）。
-    int probIdx = WM_Special_getGenItemProbIdx(this, static_cast<int>(dungeonLv));
+    int probIdx = _getGenItemProbIdx(static_cast<int>(dungeonLv));
     if (probIdx < 0)
         return;
 
@@ -383,8 +346,8 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
                     static_cast<int>(dungeonLv), static_cast<int>(difficulty),
                     static_cast<int>(partyPos),
                     bourgeoisRate, dropRate, randValue, dropValue);
-            Luck_sendItemDropRate(
-                reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint), buf);
+            reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)
+                ->sendItemDropRate(buf);
         }
 
         // ORIG 同型四连 + UseLuckPoint：Inven_Item ctor / 写 item idx /
@@ -395,10 +358,9 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
             static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
         int grade = item->get_grade();
         int itemRarity = item->get_rarity();
-        Luck_UseLuckPointM(
-            reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint),
-            static_cast<int>(inv.m_field1), itemRarity, grade,
-            static_cast<int>(result.m_dropItems.size()));
+        reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)
+            ->UseLuckPoint(static_cast<int>(inv.m_field1), itemRarity, grade,
+                           static_cast<int>(result.m_dropItems.size()));
         result.m_dropItems.push_back(inv);
         done = true;                                  // movb $1,(p10)
     }

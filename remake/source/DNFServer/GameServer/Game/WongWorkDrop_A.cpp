@@ -15,8 +15,7 @@
 //   CMonsterDrop::generateSpecificItem          T 0x08537070
 //   stFirstMobHuntingWeight_t::stFirstMobHuntingWeight_t W 0x0853a6ae
 //
-// 引用但非本批符号（本体待所属批次产出；__asm__ 标签直链 ORIG mangled 名，
-// 参照 GmCmds_D.cpp 同型桥。this 作首参入栈 = GNU i386 成员 ABI）：
+// 跨 TU 依赖（P6 清桥后全部为真实成员/函数调用，本 TU 无 __asm__ 桥）：
 //   CMonsterDrop_Hell::{setDropRatio,generateSpecificItem,hellPartySpecificItem}
 //   CSpecialMonsterDrop::{setDropRatio,_generateRandomItem}
 //   CAutoMarketConditionsControl::{GetItemDropRate,ChangeItemRarity}
@@ -61,69 +60,6 @@ namespace WongWork
 // 文件局部 asm 桥（只引用不定义）
 // ---------------------------------------------------------------------------
 namespace {
-
-void WM_Hell_setDropRatio(CMonsterDrop_Hell* self, float ratio)
-    __asm__("_ZN8WongWork17CMonsterDrop_Hell12setDropRatioEf");
-void WM_Special_setDropRatio(CSpecialMonsterDrop* self, float ratio)
-    __asm__("_ZN8WongWork19CSpecialMonsterDrop12setDropRatioEf");
-void WM_Hell_generateSpecificItem(CMonsterDrop_Hell* self,
-                                  stGenerateRefData_t const& ref,
-                                  stGenerateResult_t& result)
-    __asm__("_ZN8WongWork17CMonsterDrop_Hell20generateSpecificItemERKNS_19stGenerateRefData_tE"
-            "RNS_18stGenerateResult_tE");
-void WM_Hell_hellPartySpecificItem(CMonsterDrop_Hell* self,
-                                   stGenerateRefData_t const& ref,
-                                   stGenerateResult_t& result)
-    __asm__("_ZN8WongWork17CMonsterDrop_Hell21hellPartySpecificItemERKNS_19stGenerateRefData_tE"
-            "RNS_18stGenerateResult_tE");
-void WM_Special_generateRandomItem(
-    CSpecialMonsterDrop* self, unsigned char type, char role,
-    unsigned char dungeonLv, unsigned char difficulty, unsigned char partyPos,
-    int context3c, unsigned char hellFlag, int dropRate,
-    stGenerateResult_t& result, bool& done)
-    __asm__("_ZN8WongWork19CSpecialMonsterDrop19_generateRandomItemEhchhhihiRNS_18stGenerateResult_tERb");
-
-float AM_GetItemDropRate(void* amc, int probIdx)
-    __asm__("_ZN28CAutoMarketConditionsControl15GetItemDropRateEi");
-bool AM_ChangeItemRarity(void* amc, int* tableInOut, int* outTable,
-                         int rarityIdx, double factor)
-    __asm__("_ZN28CAutoMarketConditionsControl16ChangeItemRarityEPiS0_id");
-
-bool Luck_UseLuckPointM(::CLuckPoint* lp, int itemType, int rarity, int grade,
-                        int seq)
-    __asm__("_ZN10CLuckPoint12UseLuckPointEiiii");
-void Luck_sendItemDropRate(::CLuckPoint* lp, char const* text)
-    __asm__("_ZN10CLuckPoint16sendItemDropRateEPKc");
-
-int Upg_generateEquipGrade(GenerateRandomUpgrade* self, int levelDelta)
-    __asm__("_ZN8WongWork21GenerateRandomUpgrade18generateEquipGradeEi");
-int Upg_generateUpgrade(GenerateRandomUpgrade* self, ENUM_RARITY rarity,
-                        int levelDelta)
-    __asm__("_ZN8WongWork21GenerateRandomUpgrade15generateUpgradeE11ENUM_RARITYi");
-
-int Mon_drop_item_index2(CMonster const* self, unsigned int idxType, int roll)
-    __asm__("_ZNK8CMonster15drop_item_indexEji");
-void Mon_generateDropAvatarItem(CMonster const* self, unsigned char a,
-                                unsigned char b,
-                                std::vector<Inven_Item>& out)
-    __asm__("_ZNK8CMonster22generateDropAvatarItemEhhRSt6vectorI10Inven_ItemSaIS1_EE");
-void Mon_generateCatchMonsterItem(CMonster const* self,
-                                  std::vector<Inven_Item>& out)
-    __asm__("_ZNK8CMonster24generateCatchMonsterItemERSt6vectorI10Inven_ItemSaIS1_EE");
-void AI_generateDropAvatarItem(CAICharacter const* self, unsigned char a,
-                               unsigned char b,
-                               std::vector<Inven_Item>& out)
-    __asm__("_ZNK12CAICharacter22generateDropAvatarItemEhhRSt6vectorI10Inven_ItemSaIS1_EE");
-
-// 命中即建道具入结果（ORIG 各处同型四连）
-inline void pushCreatedItem(int itemIdx, stGenerateResult_t& result)
-{
-    Inven_Item inv;                                    // C2（ORIG 内联）
-    inv.m_addInfo = itemIdx;
-    G_CDataManager()->m_itemList->create_item(
-        static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
-    result.m_dropItems.push_back(inv);
-}
 
 // b28d-solo-WongWorkDrop_A：CWorldDrop ORIG 具名指针局部 ctx = &ref+0x34
 // 的字节视图（ctx[0]=type/ctx[1]=level）。结构体指针视图使 4.4 出
@@ -370,8 +306,8 @@ void CMonsterDrop::setDropRatio(float ratio)
                 static_cast<int>(roundFloat(static_cast<float>(e.w[r]) * ratio));
         }
     }
-    WM_Special_setDropRatio(&m_special, ratio);        // Special (+0x4706c) 先
-    WM_Hell_setDropRatio(&m_hell, ratio);              // Hell (+0x238ac) 后
+    m_special.setDropRatio(ratio);                     // Special (+0x4706c) 先
+    m_hell.setDropRatio(ratio);                        // Hell (+0x238ac) 后
 }
 
 // ---- _generateRandomItem — ORIG T 0x08535ed2 ----
@@ -470,14 +406,16 @@ void CMonsterDrop::_generateRandomItem(unsigned char type, char role,
         {
             // ORIG 两次独立 G_CDataManager()->GetAutoMarketContitionsControl()；
             // ChangeItemRarity 第 4 实参是立即数 6（非 tier，P97）
-            marketFactor = AM_GetItemDropRate(
-                G_CDataManager()->GetAutoMarketContitionsControl(), idx);
+            marketFactor =
+                G_CDataManager()->GetAutoMarketContitionsControl()->GetItemDropRate(
+                    idx);
             double extra = 0.0;
             if (marketFactor != 0.0f)
                 extra = 1.0 / marketFactor - 1.0;
-            if (AM_ChangeItemRarity(
-                    G_CDataManager()->GetAutoMarketContitionsControl(),
-                    &m_rarityBasis[tier][0], altTable, 6, extra))
+            if (G_CDataManager()
+                    ->GetAutoMarketContitionsControl()
+                    ->ChangeItemRarity(&m_rarityBasis[tier][0], altTable, 6,
+                                       extra))
                 rarityTable = altTable;
         }
 
@@ -523,8 +461,8 @@ void CMonsterDrop::_generateRandomItem(unsigned char type, char role,
                     static_cast<int>(difficulty),
                     static_cast<int>(partyCol), context3c, dropRate, randValue,
                     rollChance);
-            Luck_sendItemDropRate(
-                reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint), buf);
+            reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)
+                ->sendItemDropRate(buf);
         }
 
         CItem* item = G_CDataManager()->m_itemList->find_item(itemIdx);
@@ -543,7 +481,7 @@ void CMonsterDrop::_generateRandomItem(unsigned char type, char role,
             {
                 int grade = item->get_grade();
                 equip.set_add_info(
-                    Upg_generateEquipGrade(&m_upgrade, type - grade));
+                    m_upgrade.generateEquipGrade(type - grade));
             }
             // [b28d-solo-WongWorkDrop_A] 真语义 bug 修正：ORIG 0x0853676f
             // `test %al,%al; je <false>` + `hasAbility xor $1; je <false>` ⇒
@@ -552,20 +490,18 @@ void CMonsterDrop::_generateRandomItem(unsigned char type, char role,
             if (item->checkItemUpgradePossible() && !equip.m_amp.hasAbility())
             {
                 int grade = item->get_grade();
-                int upLv = Upg_generateUpgrade(
-                    &m_upgrade, static_cast<ENUM_RARITY>(item->get_rarity()),
-                    type - grade);
+                int upLv = m_upgrade.generateUpgrade(
+                    static_cast<ENUM_RARITY>(item->get_rarity()), type - grade);
                 if (upLv > 0)
                     equip.SetUpgrade(static_cast<unsigned char>(upLv));
             }
         }
 
         // ORIG 无 seq 局部：size() 结果留 %esi 跨 get_grade/get_rarity 保活
-        Luck_UseLuckPointM(
-            reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint),
-            static_cast<int>(equip.m_field1), item->get_rarity(),
-            item->get_grade(),
-            static_cast<int>(result.m_dropItems.size()));
+        reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)
+            ->UseLuckPoint(static_cast<int>(equip.m_field1),
+                           item->get_rarity(), item->get_grade(),
+                           static_cast<int>(result.m_dropItems.size()));
         result.m_dropItems.push_back(equip);
     }
 }
@@ -581,9 +517,8 @@ void CMonsterDrop::_generateMonseterSpecificItem(CMonster const* monster,
     // 同案），本点展开：Inven_Item C1 → m_addInfo 槽回读 → itemList
     // create_item(1, inv, 1) → vector push_back(inv)。
     int itemIdx = -2;
-    itemIdx = Mon_drop_item_index2(monster,
-                                   static_cast<unsigned int>(idxType),
-                                   m_random.generateNumber(2, 10000));
+    itemIdx = monster->drop_item_index(
+        static_cast<unsigned int>(idxType), m_random.generateNumber(2, 10000));
     // ORIG cmpl -0xc;setne %al;test %al,%al;je 统一出口（无 bool 栈槽）——
     // P225 while+break 物化形（P0/N96：原 register asm("eax") 绑定已清除）。
     while (itemIdx != -2)
@@ -617,8 +552,7 @@ void CMonsterDrop::generateRandomItem(stGenerateRefData_t const& ref,
     {
         for (int n = 0; n < static_cast<char>(ref.m_field39); ++n)
         {
-            WM_Special_generateRandomItem(
-                &m_special,
+            m_special._generateRandomItem(
                 static_cast<unsigned char>(ref.m_field34),
                 static_cast<char>(ref.m_field35),
                 static_cast<unsigned char>(ref.m_rateSlot),
@@ -665,7 +599,7 @@ void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
     if (ref.m_field41 != 0)
     {
         // hell 旗标非零：地狱派对专用掉落
-        WM_Hell_hellPartySpecificItem(&m_hell, ref, result);
+        m_hell.hellPartySpecificItem(ref, result);
         return;
     }
 
@@ -676,7 +610,7 @@ void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
     {
         // 高难度：地狱派对普通 specific 循环 + AI Character 掉落
         for (int n = 0; n < static_cast<signed char>(ref.m_field3d); ++n)
-            WM_Hell_generateSpecificItem(&m_hell, ref, result);
+            m_hell.generateSpecificItem(ref, result);
 
         // §4.3 具名化：dword@+0x38 上/index = m_rankBonusIndex（P0 内联实参，
         // ORIG 值留 %ebx 跨 G_CDataManager 调用，无 aiIdx 具名槽）
@@ -686,9 +620,8 @@ void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
             return;
 
         ai->generateIndependentItem(ref, result.m_dropItems);
-        AI_generateDropAvatarItem(ai, static_cast<unsigned char>(ref.m_rateSlot),
-                                  ref.m_field3e_byte,
-                                  result.m_dropItems);
+        ai->generateDropAvatarItem(static_cast<unsigned char>(ref.m_rateSlot),
+                                   ref.m_field3e_byte, result.m_dropItems);
         return;
     }
 
@@ -709,14 +642,13 @@ void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
              ->m_independentDrops.empty())
         monster->generateIndependentItem(ref, result.m_dropItems);
 
-    Mon_generateDropAvatarItem(monster,
-                               static_cast<unsigned char>(ref.m_rateSlot),
-                               ref.m_field3e_byte, result.m_dropItems);
+    monster->generateDropAvatarItem(static_cast<unsigned char>(ref.m_rateSlot),
+                                    ref.m_field3e_byte, result.m_dropItems);
 
     if (!static_cast<STMonsterScript*>(monster->getMonsterScript())
              ->m_catchItems.empty() &&
         ref.m_field45 != 0)
-        Mon_generateCatchMonsterItem(monster, result.m_dropItems);
+        monster->generateCatchMonsterItem(result.m_dropItems);
 
     // ORIG 0x08537254 movzbl 0x43; xor $0x1; je → 两 bool 字段取反（P248 档②）
     if (!ref.m_field43 && !ref.m_field44_byte)

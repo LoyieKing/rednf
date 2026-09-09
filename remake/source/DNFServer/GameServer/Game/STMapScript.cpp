@@ -128,10 +128,22 @@ static const int CHAMPION_FEATURE_LIST[37] = {
 // ORIG 函数局部静态（b 段）：convertBinaryToText 缓冲 0x0949b4e0（0x5b400）、
 // getDrawLayerName 缓冲 0x0949b4d0（0x10）——声明位于各自函数内。
 
-// ORIG rodata 层名表 @0x08e086b2..0x08e086fa（getDrawLayer/getDrawLayerName 共用）
-static const char* const DRAW_LAYER_NAMES[7] = {
-    "[close]", "[normal]", "[bottom]", "[closeback]",
-    "[middleback]", "[distantback]", "[cover]",
+// ORIG 全局作业名表 0x093f4d40（D，size 0x30 = 12 项；getCharacterJob/
+// checkValiedJobName 共用）。逐项字符串地址 0x08e0879f..0x08e0881a 自 ORIG
+// rodata 实测；第 12 项 "[all]" 为本 TU 局部表原缺项。
+const char* CHARACTER_JOB_TAG_NAMES[12] = {
+    "[swordman]",         // 0  0x08e0879f
+    "[fighter]",          // 1  0x08e087aa
+    "[gunner]",           // 2  0x08e087b4
+    "[mage]",             // 3  0x08e087bd
+    "[priest]",           // 4  0x08e087c4
+    "[at gunner]",        // 5  0x08e087cd
+    "[thief]",            // 6  0x08e087d9
+    "[at fighter]",       // 7  0x08e087e1
+    "[at mage]",          // 8  0x08e087ee
+    "[demonic swordman]", // 9  0x08e087f8
+    "[creator mage]",     // 10 0x08e0880b
+    "[all]"               // 11 0x08e0881a
 };
 
 // ===========================================================================
@@ -3575,25 +3587,12 @@ const char* getPassageTypeName(ENUM_PASSAGETYPE passageType)
 }
 
 // ORIG 0x088be60e：职业枚举 → 职业标签名。strncpy 0x10 到函数局部静态缓冲
-// （_ZZ..E6buffer 0x10）。ORIG 表即 0x93f4d40 作业名表（getCharacterJob/
-// checkValiedJobName 共用）；此处以等价局部静态表建模，无边界检查照 ORIG。
+// （_ZZ..E6buffer 0x10）。表为 ORIG 全局 CHARACTER_JOB_TAG_NAMES(0x93f4d40)；
+// 无边界检查照 ORIG。
 const char* getCharacterJobName(ENUM_CHARACTERJOB job)
 {
     static char buffer[0x10];
-    static const char* const kJobTagNames[11] = {
-        "[swordman]",         // 0
-        "[fighter]",          // 1
-        "[gunner]",           // 2
-        "[mage]",             // 3
-        "[priest]",           // 4
-        "[at gunner]",        // 5
-        "[thief]",            // 6
-        "[at fighter]",       // 7
-        "[at mage]",          // 8
-        "[demonic swordman]", // 9
-        "[creator mage]"      // 10
-    };
-    strncpy(buffer, kJobTagNames[job], 0x10);
+    strncpy(buffer, CHARACTER_JOB_TAG_NAMES[job], 0x10);
     return buffer;
 }
 

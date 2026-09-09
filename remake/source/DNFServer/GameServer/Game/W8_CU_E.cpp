@@ -181,7 +181,10 @@ bool CUser::defaultSkillCommand()
     std::map<int, STSkillCommandData>* cmds =
         reinterpret_cast<std::map<int, STSkillCommandData>*>(
             const_cast<char*>(getSkillCommand()));
-    // R 无槽：register bool 绑 %eax（P194②/P78），4.4 常量岛直落 eax+test %al。
+    // N96 清绑：原 `register bool emptyOrNone asm("eax")` 已删。ORIG 该 bool 无槽
+    // （cmpl $0,cmds;je L1;call empty;test %al;je L2;L1:mov$1;L2:mov$0;test %al;je）
+    // ⇒ 按 P226扩展/P316① 用语句表达式包住短路条件。清绑前后 30=30、与 ORIG 逐条
+    // 全等（仅 .o 重定位地址差）⇒ 残差 0；具名 bool 局部形为 31（+1 槽物化）。
     if (({ (cmds == 0) || cmds->empty(); }))
         return false;
     cmds->clear();

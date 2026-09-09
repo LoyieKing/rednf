@@ -44,6 +44,25 @@ public:
     CEventBase* GetRepeatEvent(int type);
 };
 
+// ---- CSecretShop::CSecretShop（GI 键名对齐：ORIG 该 ctor 所在 TU（SecretShop.cpp）
+//      的首个强外部实体即本 ctor（_ZN10secretshop11CSecretShopC2Ev），故将定义
+//      前置于本 TU 首位；定义体逐字未改，仅移动。）----
+
+secretshop::CSecretShop::CSecretShop()
+{
+    // [b28d-solo-CSecretShop 判词·N] ORIG 124 条 vs 我们 126 条（gap -2）：
+    // 残差全部为两处 `pair<eBuyRule,CBuyItembyGold*>` 等 sret 调用后的
+    // `sub $0x4,%esp`（4.4 outgoing 预留，ORIG 4.1 无）+ lea 目标寄存器
+    // %eax↔%edx 分配差（N7/N115 族）；调用点集合与槽位集逐项一致，语义完成。
+    // ORIG：map.insert(pair)（非 operator[]）；m_pRand = new CMTRand(time(0))
+    // （PvPTypes.h 权威 CMTRand 的 const unsigned long& 种子 ctor，
+    //  符号 _ZN7CMTRandC1ERKm @0x080cba2a；ORIG 无 CMTRand(time_t) 重载，
+    //  time(0) 经临时 unsigned long 绑定 const 引用）。
+    m_rules.insert(std::make_pair((eBuyRule)0, new CBuyItembyGold(m_statistic)));
+    m_rules.insert(std::make_pair((eBuyRule)1, new CBuyItembyRecipe(m_statistic)));
+    m_pRand = new CMTRand(time(0));
+}
+
 // ---- importSecretShopScript（ORIG 0x8a81cf0，_Z22importSecretShopScriptP16SecretShopScriptPKc）----
 
 // 按 docs/class_func_reports/_lt_global_gt_/importSecretShopScript.md 忠实转写：
@@ -654,21 +673,6 @@ bool CBuyItembyRecipe::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
 
 // ---- SecretShopScript 跨类方法（CDataManager +0xa700，ORIG 真实符号；
 //      声明见 CDataManager.h，本 TU 直接真实调用） ----
-
-CSecretShop::CSecretShop()
-{
-    // [b28d-solo-CSecretShop 判词·N] ORIG 124 条 vs 我们 126 条（gap -2）：
-    // 残差全部为两处 `pair<eBuyRule,CBuyItembyGold*>` 等 sret 调用后的
-    // `sub $0x4,%esp`（4.4 outgoing 预留，ORIG 4.1 无）+ lea 目标寄存器
-    // %eax↔%edx 分配差（N7/N115 族）；调用点集合与槽位集逐项一致，语义完成。
-    // ORIG：map.insert(pair)（非 operator[]）；m_pRand = new CMTRand(time(0))
-    // （PvPTypes.h 权威 CMTRand 的 const unsigned long& 种子 ctor，
-    //  符号 _ZN7CMTRandC1ERKm @0x080cba2a；ORIG 无 CMTRand(time_t) 重载，
-    //  time(0) 经临时 unsigned long 绑定 const 引用）。
-    m_rules.insert(std::make_pair((eBuyRule)0, new CBuyItembyGold(m_statistic)));
-    m_rules.insert(std::make_pair((eBuyRule)1, new CBuyItembyRecipe(m_statistic)));
-    m_pRand = new CMTRand(time(0));
-}
 
 CSecretShop::~CSecretShop()
 {

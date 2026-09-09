@@ -39,28 +39,6 @@
 #include "GameTypes.h"          // cMyTrace
 #include "PacketGuard.h"
 
-// ---------------------------------------------------------------------------
-// 本 TU 内直连的 ORIG 外部符号（等价自由函数声明，i386 成员/静态 ABI 一致）。
-// 注意：以下符号当前在重建源码中尚无定义方（见批次报告 blocked 清单），
-// 链接期需相应 producer 批次落地。
-// ---------------------------------------------------------------------------
-
-// ORIG T 0x081f8a7c _Z30_check_disjointable_user_stateP5CUser14ENUM_CMDPACKETcs
-// 定义 ExpertJobLink4.cpp（C++ mangled）；asm 标签对齐调用点字面名。
-bool _Z30_check_disjointable_user_state(CUser* user, ENUM_CMDPACKET cmd,
-                                        char spaceChar, short slotShort)
-    asm("_Z30_check_disjointable_user_stateP5CUser14ENUM_CMDPACKETcs");
-
-void _Z30_check_disjointable_item_state(CUser* user, int slot, int invenType,
-                                        Inven_Item& item, CItem** pItem,
-                                        CUser* targetUser, unsigned short region)
-    asm("_Z30_check_disjointable_item_stateP5CUseriiR10Inven_ItemPP5CItemS0_t");
-
-void _Z25_check_disjoint_need_slot(CUser* user, CItem* item,
-                                   Inven_Item& invenItem,
-                                   expert_job::CDisjointer* disjointer)
-    asm("_Z25_check_disjoint_need_slotP5CUserP5CItemR10Inven_ItemPN10expert_job11CDisjointerE");
-
 // b22 桥清零（§8 协议，Model22）：原 extern"C" 五桥全清——
 //   CDisjointer::{OnStartMission,get_disjoint_result,complete_disjoint} 三桥
 //   声明在本 TU 无调用点（真实 _disjoint 逻辑在 DisPatcherCore.cpp:6320/6358/

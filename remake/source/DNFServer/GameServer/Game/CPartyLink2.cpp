@@ -26,6 +26,7 @@
 #include "QuickParty.h"       // 必须先于 CDungeon.h/CParty.h（守卫惯例，与 CParty.cpp 同）
 #include "CParty.h"
 #include "CDataManager.h"     // m_rankSystem / m_aiCharacterList / CAICharacterList
+#include "MonsterIndependentDrop.h"  // CAICharacter 完整镜像（getPvPWinPoint 真实调用）
 #include "CUser.h"            // CUser/CUserCharacInfo/CHackAnalyzer/cUserHistoryLog
 #include "CDungeon.h"         // CDungeon::IsEnterEachMap / get_exp_weight / get_index
 #include "CMap.h"             // CMap 完整类型（GetCurrentMap->m_f0）
@@ -66,16 +67,6 @@ namespace
 // fistpll（round-to-nearest）等价转写（同 PartyDepsD2.cpp 惯例）
 #define LINK2_ROUND(x) ((int)((x) + 0.5f))
 
-// [b28d-D13] CAICharacter PvP 胜点视图（ORIG 0x0834a240 逐条实证：
-// +0x1c=最小胜点、+0x20=最大胜点，均 `mov this,%eax; mov disp(%eax)` 重物化
-// ⇒ 源形为 cast 表达式直用，无具名指针/局部）。视图仅用于本 TU 转写。
-struct CAICharacterPvPView
-{
-    char m_pad00[0x1c];
-    int m_pvpWinLow;    // +0x1c
-    int m_pvpWinHigh;   // +0x20
-};
-
 // [b28d-D13] 秘密商店槽视图（ORIG 0x085b9ecc 地址链 `pos*0x1c → lea 0x2a0 →
 // add this → lea 0x8` 实证：this+0x2a0 起 4 槽、步长 0x1c，槽内 +0x8 为
 // vector<secretshop::SALE_INFO>）。替代原 `(char*)this + 0x2b0 + pos*0x1c` 裸偏移。
@@ -94,35 +85,12 @@ struct PartySecretShopView
 }  // namespace
 
 // ============================================================================
-// CAICharacter::getPvPWinPoint() const —— ORIG T 0x0834a240（getPvPWinPoint.md）。
-// CAICharacter 完整类为 CharacterAIA2.cpp TU 局部，无法从外部补成员定义；此处以
-// ORIG mangled 符号提供定义：+0x1c=最小胜点，+0x20=最大胜点；等则返回该值，
-// 否则 min + get_rand_int(max - min + 1)。
-// ============================================================================
-int CAICharacterGetPvPWinPointShim(void const* self)
-    asm("_ZNK12CAICharacter14getPvPWinPointEv");
-int CAICharacterGetPvPWinPointShim(void const* self)
-{
-    // [b28d-D13] P0/P183：ORIG 无 low/high 槽往返，每次访问重发 `mov 0x8(%ebp),%eax`
-    // + `mov 0x1c/0x20(%eax)` ⇒ 表达式内联（禁具名局部缓存）。
-    if (((CAICharacterPvPView const*)self)->m_pvpWinLow ==
-        ((CAICharacterPvPView const*)self)->m_pvpWinHigh)
-        return ((CAICharacterPvPView const*)self)->m_pvpWinLow;
-    return ((CAICharacterPvPView const*)self)->m_pvpWinLow +
-           get_rand_int(((CAICharacterPvPView const*)self)->m_pvpWinHigh -
-                        ((CAICharacterPvPView const*)self)->m_pvpWinLow + 1);
-}
-
-// ============================================================================
 // CBattle_Field::convertAPCRoleType2MonsterRoleType(char) const —— ORIG T 0x0830a812。
 // 5→0（普通） 6→1（Boss） 7→2（精英） 8→3（特殊），其余原样返回。
-// 声明在 CBattle_Field.h:385（成员）；CParty 以 bf 子对象视图调用，符号按 ORIG
-// mangled 提供（this 为 CBattle_Field*）。
+// 声明在 CBattle_Field.h:400；本 TU 为该符号唯一定义点。§4.5：删 asm 别名桥，
+// 改真实成员定义，调用点自然发射同名 T 符号。
 // ============================================================================
-char CBattleFieldConvertAPCRoleType2MonsterRoleTypeShim(
-    void const* /*self*/, char role) asm("_ZNK13CBattle_Field34convertAPCRoleType2MonsterRoleTypeEc");
-char CBattleFieldConvertAPCRoleType2MonsterRoleTypeShim(
-    void const* /*self*/, char role)
+char CBattle_Field::convertAPCRoleType2MonsterRoleType(char role) const
 {
     switch (role)
     {
@@ -185,12 +153,11 @@ void CParty::SendSecretShopItemList(CUser* user)
 int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
                          MSG_MONSTER_DIE const& dieInfo, int* param)
 {
-    CBattle_Field& field = LINK2_BF(this);
     int memberCount = get_member_count();
 
     // ORIG：地图怪物分区进入时记录当前击杀者席位到 BF。
     if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->IsEnterEachMap())
-        field.SetCurSeatNo(get_party_seatno(user));
+        m_battleField.SetCurSeatNo(get_party_seatno(user));
 
     int avgMoneyPercent = 0;
     int sumMoneyPercent = 0;
@@ -201,11 +168,11 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     {
         if (!_checkValidUser(i))
             continue;
-        CUser* member = m_member[i].m_pUser;
 
         int moneyPercent = 0;
         int limit = G_CDataManager()->GetMoneyLimitPerLevel(
-            member->get_charac_level(), member->get_acc_name());
+            m_member[i].m_pUser->get_charac_level(),
+            m_member[i].m_pUser->get_acc_name());
         if (limit < 1)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x1414, 5);
@@ -213,14 +180,16 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         }
         else
         {
-            moneyPercent = (member->getCurCharacMoney() * 100) / limit;
+            moneyPercent =
+                (m_member[i].m_pUser->getCurCharacMoney() * 100) / limit;
             sumMoneyPercent += moneyPercent;
             ++validCount;
         }
 
         if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
                 RestrictCategory::Enum_3, 1))
-            minStdDropRate = std::min(minStdDropRate, member->getStdDropRate());
+            minStdDropRate = std::min(
+                minStdDropRate, m_member[i].m_pUser->getStdDropRate());
     }
     if (validCount != 0)
         avgMoneyPercent = sumMoneyPercent / validCount;
@@ -243,7 +212,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     PacketGuard packet;
     map_monster mob;
     unsigned int reward = 0;
-    if (!field.kill_monster(packet, mob, reward, data))
+    if (!m_battleField.kill_monster(packet, mob, reward, data))
     {
         // ORIG 失败分支：非 Boss 房且（自动创建或单人）时上报 hack 0xcf。
         if (!checkBossRoom())
@@ -264,18 +233,18 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         *param = (int)reward;
 
     // ---- 击杀合法化 hack 检测（0x25e：地图存活计数异常；0x25f：HP 上限异常） ----
-    if (mob.m_field20 == 0 && !field.IsClearDungeon())
+    if (mob.m_field20 == 0 && !m_battleField.IsClearDungeon())
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)0x25e, 1, 0, 0);
-    if (mob.m_field24 < mob.m_active.getHpMax() && !field.IsClearDungeon())
+    if (mob.m_field24 < mob.m_active.getHpMax() && !m_battleField.IsClearDungeon())
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)0x25f, 1, 0, 0);
 
     // ---- 成员击杀回调 + 击杀角色统计 ----
     OnKilledMonster(user, (int)reward, mob, dieInfo);
 
-    char roleType = CBattleFieldConvertAPCRoleType2MonsterRoleTypeShim(
-        &field, mob.m_roleType);
+    char roleType = m_battleField.convertAPCRoleType2MonsterRoleType(
+        mob.m_roleType);
     if (roleType == 1)
     {
         ++LINK2_BD(this).m_killedMonster1;
@@ -289,15 +258,12 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         ++LINK2_BD(this).m_killedMonster0;
         ++LINK2_BD(this).m_field4c;
         int expLimit = G_CDataManager()->m_serverParameter.m_4968;
-        // ORIG 未缓存 GetCurrentMap，null/字段检查各重新取（P0 右值内联）。
-        CMap* curMap = field.GetCurrentMap();
-        if (curMap != 0)
+        // P183：ORIG 逐处重取 GetCurrentMap（无 curMap 具名槽），删除缓存。
+        if (m_battleField.GetCurrentMap() != 0)
         {
-            curMap = field.GetCurrentMap();
-            if (curMap->m_f0 != 0)
+            if (m_battleField.GetCurrentMap()->m_f0 != 0)
             {
-                curMap = field.GetCurrentMap();
-                expLimit = curMap->m_f0;
+                expLimit = m_battleField.GetCurrentMap()->m_f0;
             }
         }
         if (expLimit == 0 || LINK2_BD(this).m_field4c <= expLimit)
@@ -308,7 +274,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     if (m_manager != 0)
     {
         LINK2_TRACEHACK(this).setMobKiller((int)mapIdx);
-        if (field.check_grid_clear())
+        if (m_battleField.check_grid_clear())
         {
             CUser* users[4];
             users[0] = 0; users[1] = 0; users[2] = 0; users[3] = 0;
@@ -338,7 +304,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         if (mob.m_roleType > 4 && mob.m_roleType <= 8)
             questEnemyType = 2;
         m_member[i].m_pUser->CheckQuestMonster(
-            field.get_dungeon_index(), (int)reward,
+            m_battleField.get_dungeon_index(), (int)reward,
             (ENUM_QUEST_ENEMY_TYPE)questEnemyType);
     }
 
@@ -365,7 +331,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             ->getBonusRate(memberCount, isHelpAbuseParty());
 
     unsigned int totalExp = getMonsterTotalExp(
-        reward, roleType, field.get_dungeon_diff(),
+        reward, roleType, m_battleField.get_dungeon_diff(),
         m_battleField.m_pDungeon->get_exp_weight(), expRate,
         mob.isNamedMonster());
 
@@ -390,7 +356,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         if (aiChar != 0 &&
             (mob.m_dropCnt == 100 || mob.m_dropCnt == 200))
         {
-            winPoint = CAICharacterGetPvPWinPointShim(aiChar);
+            winPoint = aiChar->getPvPWinPoint();
         }
     }
 
@@ -399,19 +365,18 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     {
         if (!_checkValidUser(i) || m_battleField.m_bloodState == 1)
             continue;
-        CUser* member = m_member[i].m_pUser;
 
         // 未进入地图且非维度绕行 → 0 经验包
         // P140：ORIG 直接解引用 this+0xcac（无判空），照抄。
         if (m_battleData.m_arr58[i] != 1 &&
             m_battleField.m_pDungeon->m_bloodDungeonType == 0)   // +0x89f
         {
-            member->SendZeroExpPacket();
+            m_member[i].m_pUser->SendZeroExpPacket();
             continue;
         }
 
         unsigned int exp = 0;
-        int characLevel = member->get_charac_level();  // ORIG 每成员仅取一次（P0 标量局部）
+        int characLevel = m_member[i].m_pUser->get_charac_level();
         // 维度未启用进入限制的完整单人份额计算
         if (m_battleField.m_pDungeon->m_89e == 0 &&                     // +0x89e
             *(unsigned short*)((char*)this + 0xc4c) == 0)
@@ -441,7 +406,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             unsigned int mobReward = 0;
             G_CDataManager()->get_mob_reward(characLevel, mobReward);
             unsigned int total = getMonsterTotalExp(
-                mobReward, roleType, field.get_dungeon_diff(),
+                mobReward, roleType, m_battleField.get_dungeon_diff(),
                 m_battleField.m_pDungeon->get_exp_weight(), expRate, false);
             exp = total / (unsigned int)memberCount;
         }
@@ -453,18 +418,19 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         exp = (unsigned int)expResult.m_value00;
 
         if (winPoint != 0)
-            member->gainWinPoint(winPoint, (eWPAddReason)2);
+            m_member[i].m_pUser->gainWinPoint(winPoint, (eWPAddReason)2);
 
         STGainedEachExpData expData;
         expData.m_exp = (int)exp;
         expData.m_expPartyDivisor = expRate;
-        exp = sumGainedEachExp(member, expData);
+        exp = sumGainedEachExp(m_member[i].m_pUser, expData);
 
         // 帮助滥用比例（维度均未启用）
         if (m_battleField.m_pDungeon->m_89e != 1 &&                    // +0x89e
             *(unsigned short*)((char*)this + 0xc4c) == 0)
         {
-            member->calcHelpAbuseRatio(exp, isHelpAbuseParty(member));
+            m_member[i].m_pUser->calcHelpAbuseRatio(
+                exp, isHelpAbuseParty(m_member[i].m_pUser));
         }
 
         // 维度绕行：跳过蓝宝石倍率与经验发放
@@ -472,12 +438,14 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             continue;                                    // +0x89f
 
         // ---- 蓝宝石/迷宫倍率 ----
-        if (member->getMoveSpace() == (UserSpace::T)1)
+        if (m_member[i].m_pUser->getMoveSpace() == (UserSpace::T)1)
         {
-            BlueMarble* marble = (BlueMarble*)member->getBlueMarble();
+            BlueMarble* marble =
+                (BlueMarble*)m_member[i].m_pUser->getBlueMarble();
             if (marble != 0)
             {
-                int buff = marble->getBuff(member, (BlueMarbleBuffType::T)0);
+                int buff = marble->getBuff(
+                    m_member[i].m_pUser, (BlueMarbleBuffType::T)0);
                 if (buff > 1)
                     exp = (unsigned int)(buff * (int)exp);
             }
@@ -485,12 +453,12 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
 
         int gainedSp = 0;
         int gainedSfp = 0;
-        if (member->gain_exp_sp(
+        if (m_member[i].m_pUser->gain_exp_sp(
                 (int)exp, gainedSp, gainedSfp,
                 (CUser::eExpAddReason)1, (int)reward, false))
         {
-            member->SendNotiPacket((CUser::eSendTarget)2,
-                                   (ENUM_NOTIPACKET)2, 1);
+            m_member[i].m_pUser->SendNotiPacket((CUser::eSendTarget)2,
+                                                (ENUM_NOTIPACKET)2, 1);
         }
     }
 
@@ -537,8 +505,9 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     else
         clearConditionType = 3;
 
-    if (field.ClearCondition((ENUM_DUNGEON_CLEAR_CONDITION_TYPE)clearConditionType,
-                             (int)reward))
+    if (m_battleField.ClearCondition(
+            (ENUM_DUNGEON_CLEAR_CONDITION_TYPE)clearConditionType,
+            (int)reward))
     {
         ClearDungeon();
     }

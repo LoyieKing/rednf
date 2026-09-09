@@ -137,9 +137,10 @@ public:
     int m_featuredIdx;                // +0x20
     int m_sticker;                    // +0x24
     int m_expiryDate;                 // +0x28
-    float m_bonusWeight;              // +0x2c（bonusWeight；[b28d-solo-
-                                      //   CCeraShopGoods] P252 具名 float 局部
-                                      //   复现 GetBonusWeight 的槽往返形）
+    float m_bonusWeight;              // +0x2c（bonusWeight；GetBonusWeight 直写
+                                      //   本成员即复现 ORIG 0x0854c582 的
+                                      //   sub $0x4 / flds 返回槽形，见
+                                      //   CCeraShopGoods.cpp 判词）
     int m_field30;                    // +0x30
     char m_giftDisallow;              // +0x34
     char m_ceraPointDisallow;         // +0x35

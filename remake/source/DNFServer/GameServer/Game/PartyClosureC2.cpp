@@ -26,13 +26,16 @@
 //   CDungeonExpStatistic::IncreaseDungeonExp(int,int,int)        T 0x0860efca
 //   CItem::IsPriorityJob(int,int)                                W 0x085beec8
 //
-// 死代码块注记（均经 ORIG ELF objdump 复核，按 Ghidra 活动路径转写）：
+// 死代码块注记（均经 ORIG ELF objdump 复核，按 Ghidra 活动路径转写；
+// **两处死块已按 P337 用恒 0 volatile 守卫复现**，见各函数判词）：
 //   - do_after_dungeon_start +0x654..+0x7c2（vilmark 检查/delete_item/cMyTrace
 //     "UseAncientDungeonItems" 块）：唯一入口 0x85a034b 为 e9 无条件 jmp 直达
 //     +0x7c7 包构造块，无任何跳转落入该区间。
-//   - do_after_dungeon_start_checkndelete_item +0x2b..+0x126（check_item_exist/
-//     GetInvenSlot/delete_item/"isEventDungeon" 块）：入口 0x85a077c 同为 e9 jmp
+//   - do_after_dungeon_start_checkndelete_item +0x2b..+0x126（GetInvenSlot/
+//     delete_item/"isEventDungeon" 块）：入口 0x85a077c 同为 e9 jmp
 //     直达 +0x12b 包构造块。两处均为编译器残留死代码。
+//   P337 依据：`if(0)`/goto 恒被 4.4 -O0 DCE，而 volatile 守卫的读取不可省略
+//   ⇒ 块体与全部 ORIG 调用点强制发射；运行期不可达（与 ORIG 的 e9 jmp 等价）。
 //
 // 统计包布局注记：ORIG PacketHeader(id,size) ctor（W 0x08110b70）写 [0..1]=id、
 // [2..3]=size、[4..9]=0；各统计包负载字段偏移逐条对应报告汇编 mov 目标。
@@ -678,27 +681,44 @@ bool CParty::SendDungeonCharacInfo(CUser* user, bool flag)
 int CParty::do_after_dungeon_start_checkndelete_item(const RequiredItem& item,
                                                      CUser* user)
 {
-    // [b28d-solo-PartyClosureC2 判词·N111+N82] ORIG 0x085a0756：133 vs 64。
-    // 根因：ORIG 入口 `jmp 085a0881` 跳过 +0x2b..+0x126 无入口死块
-    // （check_item_exist/GetInvenSlot/delete_item/getCurCharacNo/cMyTrace×2，
-    // 共 69 条 + 动态栈 `add $0xffffff80,%esp`），4.4.7 探针实证对
-    // `if(0){...}` 与 `goto skip; <dead>` 两形均完全 DCE（/tmp/pcc2_dead.cc
-    // f/g 函数体零残留）⇒ 死块及其 7 个调用点不可造，帧 0x80 随之不可达。
-    // 活动路径（PacketGuard -0x28、put_header(0,0xe)/put_byte(0)/put_short(1)/
-    // MakeItemPacket(INVEN 1,slot)/finalize(true)/Send）逐条等价，
-    // p167 活动路径调用点全命中（缺 7 = 死块）。⇒ N111 封顶。
-    const int slot = 0;                                   // movl $0x0,-0xc(%ebp)
-    user->getCurCharacInvenR();                           // ORIG 死调用（结果弃用），保留保真
+    // [b28d-solo-PartyClosureC2 判词·P337] ORIG 0x085a0756。
+    // 旧判词 N111「死块不可造」被 P337 推翻：恒 0 **volatile** 守卫的
+    // 读取不可省略，块体与 ORIG 7 个调用点强制发射（`if(0)`/goto 才会 DCE）。
+    // 死块运行期不可达（与 ORIG 入口 jmp 等价），活动路径语义零变化。
+    // 现读数：133 vs 134（gap −1）、p167 19 vs 19（余差仅 PacketGuard/cMyTrace
+    // C1↔C2/D1↔D2 别名对）、帧 0x90 vs ORIG 0x80（N82 槽阶梯残余）。
+    int slot = 0;                                         // ORIG -0xc（+0x008 movl）
+    const CInventory* inv = user->getCurCharacInvenR();   // ORIG +0x1a（返回值仅死块用）
+
+    volatile bool neverEnter = false;                     // P337 恒 0 守卫
+    if (neverEnter)
+    {
+        // ORIG +0x2b：+0x1a 返回值直存 slot 槽再与 -1 比较（按指令转写）
+        slot = (int)reinterpret_cast<size_t>(inv);
+        const bool deadMissing = (slot == -1);                    // ORIG +0x2e
+        if (deadMissing)
+            return 0x11;
+        const Inven_Item deadItem =
+            user->getCurCharacInvenR()->GetInvenSlot(1, slot);    // ORIG +0x43..+0x6c
+        if (deadItem.m_addInfo2 < item.m_itemCount)               // ORIG +0x6f..+0x7a
+            return 0x11;
+        if (!user->getCurCharacInvenW()->delete_item(             // ORIG +0x86..+0xc2
+                (INVEN_TYPE)1, slot, item.m_itemCount, (eItemDelReason)0xe, true))
+        {
+            cMyTrace trace(__PRETTY_FUNCTION__, 0xdfa, 5);        // ORIG +0xdc..+0xfa
+            trace("CParty::isEventDungeon, delete_item failed , User ch=%d , %d %d",
+                  user->getCurCharacNo(), slot, item.m_itemCount); // ORIG +0xff..+0x11c
+            return 0x11;
+        }
+    }
 
     PacketGuard packet;
     packet.put_header(0, 0xe);
     packet.put_byte(0);
     packet.put_short(1);
-    const CInventory* inv = user->getCurCharacInvenR();
-    inv->MakeItemPacket((INVEN_TYPE)1, slot, packet);
+    user->getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, slot, packet);
     packet.finalize(true);
     user->Send(packet);
-    (void)item;                                           // 活动路径不读取（死代码块才引用）
     return 0;
 }
 
@@ -717,14 +737,11 @@ int CParty::do_after_dungeon_start(const CDungeon* dungeon, CUser* user)
     //   P167 血腥段补真实调用族 GetCharacExpandData×3 + GetEnterCount/IncEnterCount/
     //   IncPoint/IncUseGold（原 BloodDungeonCountsView 裸字段视图缺 7 个调用点）；
     //   P133/P196 维度券三条件独立物化 + 必需道具段顺序 if + 提前 return（Ghidra C 实证）。
-    //   死块 +0x654..+0x7c2（vilmark/check_item/delete_item/trace）：N111 无入口死块
-    //   4.4 恒 DCE ⇒ 该段调用点（check_vilmark_dungeon_item_exist/check_item_exist/
-    //   GetInvenSlot/delete_item/cMyTrace×2）不可复现，N 封顶。
-    //   最终读数：686 vs 539（gap 147 = 死块 94 + N78 memset 慢路 ~30 + 4.4 形差）；
-    //   p167 91 vs 80（余 9 缺口 = 死块 6 + 死块内 getCurCharacInvenR×2 +
-    //   getCurCharacInvenW 计数偏差），血腥段 7 调用点已补齐；
-    //   P312 慢路需 msg 落 -0x1a9 非 4 对齐槽，本件帧 0x26c vs ORIG 0x2cc
-    //   （N82 全帧平移）⇒ 不可达；_do_after_dungeon_start 返回 int→bool 需
+    //   P337 死块 +0x654..+0x7c2（vilmark/check_item/GetInvenSlot/delete_item/
+    //   cMyTrace）已用恒 0 volatile 守卫复现：9 个调用点全部发射、运行期不可达。
+    //   现读数：686 vs 687（gap −1）、p167 91 vs 91（余差仅 PacketGuard/cMyTrace
+    //   C1↔C2/D1↔D2 别名对）、帧 0x2cc 与 ORIG 一致（msg 槽 -0x1b5 vs ORIG
+    //   -0x1a9 属 N82 槽阶梯残余）；_do_after_dungeon_start 返回 int→bool 需
     //   CDungeon.h:665/849 + CDungeon.cpp:584/664 跨 TU 同步（已上报 Main）。
     // 虚表槽0：CDungeon::_do_after_dungeon_start(user)
     if (!dungeon->_do_after_dungeon_start(user))
@@ -828,13 +845,51 @@ int CParty::do_after_dungeon_start(const CDungeon* dungeon, CUser* user)
         if (dungeon->m_entryRequiredItem.m_enableFlag != 1)
             return 0;
 
-        const int slotIdx = 0;                       // movl $0x0,-0x24(%ebp)
+        int slot = 0;                                // ORIG -0x24（+0x642 movl $0x0）
+        // [P337 改写] 旧判词「死块不可复现」被 P337 推翻：恒 0 **volatile** 守卫的
+        // 读取不可省略 ⇒ 块体与 ORIG 9 个调用点强制发射（`if(0)`/goto 才会 DCE）。
+        // ORIG +0x64f 为 e9 无条件 jmp 直达 +0x7c7，死块 +0x654..+0x7c2 无入口；
+        // 运行期不可达（与本守卫等价），活动路径语义零变化。
+        volatile bool neverEnter = false;
+        if (neverEnter)
+        {
+            // ORIG +0x654 直接比较进入死块时的 eax（= dungeon 指针；32 位恒 ≠ 0x5dc）
+            if ((int)reinterpret_cast<size_t>(dungeon) == 0x5dc)
+            {
+                slot = user->getCurCharacInvenR()->check_vilmark_dungeon_item_exist(
+                    dungeon->m_entryRequiredItem.m_itemIdx);      // ORIG +0x660..+0x67b
+                const bool deadMissing = (slot == -1);            // ORIG +0x683
+                if (deadMissing)
+                    return 0x11;
+            }
+            else
+            {
+                slot = user->getCurCharacInvenR()->check_item_exist(
+                    dungeon->m_entryRequiredItem.m_itemIdx);      // ORIG +0x698..+0x6b3
+                const bool deadMissing = (slot == -1);            // ORIG +0x6bb
+                if (deadMissing)
+                    return 0x11;
+            }
+            const Inven_Item deadItem =                           // ORIG +0x6d0..+0x6fc
+                user->getCurCharacInvenR()->GetInvenSlot(1, slot);
+            if (deadItem.m_addInfo2 < dungeon->m_entryRequiredItem.m_itemCount)
+                return 0x11;                                      // ORIG +0x6ff..+0x717
+            if (!user->getCurCharacInvenW()->delete_item(          // ORIG +0x71c..+0x760
+                    (INVEN_TYPE)1, slot, dungeon->m_entryRequiredItem.m_itemCount,
+                    (eItemDelReason)0xe, true))
+            {
+                cMyTrace trace(__PRETTY_FUNCTION__, 0xd66, 5);     // ORIG +0x762..+0x796
+                trace("CParty::UseAncientDungeonItems, delete_item failed , User ch=%d , %d %d",
+                      user->getCurCharacNo(), slot,
+                      dungeon->m_entryRequiredItem.m_itemCount);   // ORIG +0x79b..+0x7b8
+                return 0x11;
+            }
+        }
         PacketGuard packet;
         packet.put_header(0, 0xe);
         packet.put_byte(0);
         packet.put_short(1);
-        const CInventory* inv = user->getCurCharacInvenR();
-        inv->MakeItemPacket((INVEN_TYPE)1, slotIdx, packet);
+        user->getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, slot, packet);
         packet.finalize(true);
         user->Send(packet);
     }

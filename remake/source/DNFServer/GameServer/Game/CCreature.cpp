@@ -127,6 +127,13 @@ bool CCreature::SaveCreatureItem(Inven_Item* item,
 // +0x27 非 0 → Inven_Item::reset(item) 并返回 0（条目已删除）；成功路径把
 // 成长宠/满级标志写回条目 +0x30/+0x31；slotNo==0xee 视作装备中并调 Equip；
 // 注册后回填 CREATURE 区槽物 add_info 并按 IsSaveStomach 重算 m_saveFlag。
+// [N96 清绑 2026-09-09] 原 `register unsigned char isNotGrow asm("eax")` 全域禁用
+// （P0②/N96/P248 尾条），还原 P168a④ 具名 uchar 局部自然形（`v = 字段; v ^= 1; if (v)`）。
+// 4.4 对该两语句形发 `movzbl; mov %al,-N; xorb $1,-N; cmpb $0,-N; je`（栈槽物化），
+// ORIG 为 `movzbl 0x4c(%eax),%eax; xor $1,%eax; test %al,%al; je`（寄存器物化）⇒
+// 自然形不可达，残差 = N96+N18a 封顶（P168a④ 补充，四形实测同）。
+// 读数：清绑前 our_insns=178（TU 口径 DIFF）；清绑后 our_insns=179 / orig=177
+//（TU 口径 DIFF）。
 bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
                                  SIG_CREATURE_ITEM_DETAIL_INFO* info,
                                  CUser* user)
@@ -146,7 +153,7 @@ bool CCreature::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     reinterpret_cast<int&>(m_creatureItemType) = (int)(char)info->m_creatureItemType;  // movsbl
     m_stomach.SetStomachValue((float)info->m_stomachValue);
     strncpy(m_name, info->m_name, 0xc);            // → +0x1c，12B（ORIG call strncpy PLT）
-    // ORIG 8338657：xor $0x1 取反形（X1：bool 字段 register 取反，movzbl+test+je
+    // ORIG 8338657：xor $0x1 取反形（X2 具名 uchar 局部，movzbl+xor+test+je
     // 共享 else 块在后）；高 16 位提取走 union 拆半（P197①：整字落槽 -0x10 →
     // movzwl -0xe + cwtl 符号扩展直传 GetExpLevel）。
     unsigned char isNotGrow = m_isGrow;
@@ -207,10 +214,15 @@ bool CCreature::RenameCreature(const char* name)
 }
 
 // ORIG _ZN13user_creature9CCreature19IsEvolutionCreatureEi T 0x83388ec。
+// [N96 清绑 2026-09-09] 原 `register bool eq asm("al")` 全域禁用（P0②/N96/P248 尾条），
+// 还原 P168a② 具名 bool 局部自然形（`bool eq = (call()==arg); if (eq) return 1;`）。
+// 4.4 发 `sete %al; mov %al,-N; cmpb $0,-N; je`（栈槽物化），ORIG 为
+// `sete %al; test %al,%al; je`（寄存器物化）⇒ 自然形不可达，残差 = N96+N18a 封顶。
+// 读数：清绑前 our_insns=20（TU 口径 AE）；清绑后 our_insns=22 / orig=20（TU 口径 DIFF）。
 bool CCreature::IsEvolutionCreature(int creatureId)
 {
     // ORIG: test m_script; je 返 0 岛；body 内 sete %al → test %al → je 共享
-    // 返 0 块（X 族 bool 物化，register-bool 落 al 不落槽）。
+    // 返 0 块（X 族 bool 物化；N96 清绑后具名 bool 局部自然形）。
     if (m_script != 0)
     {
         bool eq = (m_script->GetEvolutionCreatureId() == creatureId);

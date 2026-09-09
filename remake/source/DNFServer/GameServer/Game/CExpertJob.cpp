@@ -20,6 +20,21 @@
 #include "SigTypes.h"
 #include "SkillSlot.h"
 
+// ---------------------------------------------------------------------------
+// 【A 档 GI 顺序对齐 2026-09-09】本定义置于 TU 最前，使 `_GLOBAL__I_` 名等于
+// ORIG 的 `_ZN10expert_job16CCharacExpertJob6_resetEv`（P327）。全限定定义可写在
+// 命名空间块之外 ⇒ 发射序提前。语义与机器码零变化，仅发射序。
+// ---------------------------------------------------------------------------
+// _reset 0x0832b064：清 +0x06(giveup)/+0x08(endurance)/+0x0c(enchant) 与 30 字节 recipe flag。
+void expert_job::CCharacExpertJob::_reset()
+{
+    m_giveupCount = 0;
+    m_endurance = 0;
+    m_enchantCount = 0;
+    for (int i = 0; i < 0x1e; ++i)
+        m_recipeFlag[i] = 0;
+}
+
 namespace collision_detection
 {
 
@@ -534,16 +549,6 @@ bool CCharacExpertJob::_saveData(CUser* pUser)
     memcpy(buf->m_recipeFlag, m_recipeFlag, 0x1e);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return 1;
-}
-
-// _reset 0x0832b064：清 +0x06(giveup)/+0x08(endurance)/+0x0c(enchant) 与 30 字节 recipe flag。
-void CCharacExpertJob::_reset()
-{
-    m_giveupCount = 0;
-    m_endurance = 0;
-    m_enchantCount = 0;
-    for (int i = 0; i < 0x1e; ++i)
-        m_recipeFlag[i] = 0;
 }
 
 // ORIG 0x849f5ac：先 CData::alter() 再写 +0x06。

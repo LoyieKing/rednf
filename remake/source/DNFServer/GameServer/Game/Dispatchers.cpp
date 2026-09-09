@@ -3387,23 +3387,20 @@ int Dispatcher_SelectItem::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
     }
 
-    CDataManager* dm = G_CDataManager();
     int key = makeFairPVPEquipmentPackageKey(
         user->get_charac_job(), user->get_pvp_grade());
 
-    const int grade = user->get_pvp_grade();
-
-    // 按段位降序搜索一次命中（i: 0..grade，P2 有符号循环）。
-    std::map<int, std::vector<std::vector<STStackablePackageData> > >::iterator it =
-        dm->m_stackableMap.end();
-    for (int attempt = 0; grade >= attempt; ++attempt)
+    // ORIG 0x0822997a 段：const_iterator 默认构造，循环条件每轮重取 get_pvp_grade()，
+    // find/end 各自重取 G_CDataManager()（p167 ORIG-only G_CDataManager ×3）。
+    std::map<int, std::vector<std::vector<STStackablePackageData> > >::const_iterator it;
+    for (int attempt = 0; attempt <= user->get_pvp_grade(); ++attempt)
     {
-        it = dm->m_stackableMap.find(key);
-        if (it != dm->m_stackableMap.end())
+        it = G_CDataManager()->m_stackableMap.find(key);
+        if (it != G_CDataManager()->m_stackableMap.end())
             break;
         key = decreaseRankOfFairPVPEquipmentPackageKey(key);
     }
-    if (it == dm->m_stackableMap.end())
+    if (it == G_CDataManager()->m_stackableMap.end())
         return 0;
 
     if ((unsigned int)it->second.size() != (unsigned int)groupCnt)
@@ -3428,10 +3425,11 @@ int Dispatcher_SelectItem::dispatch_sig(CUser* user, PacketBuf& packet)
                             0, 0);
         }
 
-        const STStackablePackageData& data = (*grp)[selIdx];   // ORIG vector::at（先 size 校验）
+        // ORIG 用 vector::at（先 size 校验；p167 ORIG-only at ×2）。
+        const STStackablePackageData& data = grp->at(selIdx);
         Inven_Item newItem;
         newItem.m_addInfo = data.m_field0;
-        CItem* item = dm->find_item(data.m_field0);   // 推断：dispatch 域以基类指针持有
+        CItem* item = G_CDataManager()->find_item(data.m_field0);   // 推断：dispatch 域以基类指针持有
         if (item == 0)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x196, 0x11);
@@ -3445,7 +3443,7 @@ int Dispatcher_SelectItem::dispatch_sig(CUser* user, PacketBuf& packet)
         items.push_back(newItem);
     }
 
-    for (std::vector<Inven_Item>::iterator itemIt = items.begin();
+    for (std::vector<Inven_Item>::const_iterator itemIt = items.begin();
          itemIt != items.end(); ++itemIt)
     {
         int slot = user->getCurCharacInvenW()->insertItemIntoInventory(
@@ -3474,7 +3472,9 @@ int Dispatcher_SelectItem::dispatch_sig(CUser* user, PacketBuf& packet)
         }
     }
 
-    score->SetGiveItem(user->get_pvp_grade() + 1);
+    // ORIG 结尾再次 GetCharacExpandData（p167 ORIG-only ×1）。
+    ((fair_pvp::CFairPvPScore*)(void*)user->GetCharacExpandData(
+        (ENUM_CHARAC_EXPAND_TYPE)7))->SetGiveItem(user->get_pvp_grade() + 1);
     user->SendCmdOkPacket((ENUM_CMDPACKET)0x196);
     return 0;
 }
@@ -7610,9 +7610,10 @@ int Dispatcher_DisJointAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     // +0x45f: getJewelSocketData(item.m_addInfo2) → _selectJewelTypeIndex
+    // ORIG 0x0821806b：getJewelSocketData 经 getCurCharacInvenW()（p167 净差归零）。
     stAvatarEmblemInfo_t* jewelSocketData =
         reinterpret_cast<stAvatarEmblemInfo_t*>(
-            const_cast<char*>(user->getCurCharacInvenR()->GetAvatarItemMgrR()->getJewelSocketData(item.m_addInfo2)));
+            const_cast<char*>(user->getCurCharacInvenW()->GetAvatarItemMgrR()->getJewelSocketData(item.m_addInfo2)));
     int jewelTypeIndex = _selectJewelTypeIndex(jewelSocketData);
 
     // +0x49c: pItem+0x234(itemType) == 9 → jewelTypeIndex = -1
@@ -25472,16 +25473,17 @@ struct RefundSkillView         // 自然对齐+显式 pad 即达各字段偏移
 // 视图访问宏（P49：helper 用宏不用额外函数，免多出发射符号）
 #define RF(p) (*reinterpret_cast<RefundSkillView*>(&p))
 
-inline unsigned char& rfTreeIndex(ParamBase& p) { return RF(p).m_treeIndex; }   // +0x04 树序号
-inline bool& rfSpecial(ParamBase& p) { return RF(p).m_special; }                // +0x05 特殊技能
-inline unsigned short& rfRemain(ParamBase& p) { return RF(p).m_remain; }        // +0x06 剩余SP/SFP
-inline int& rfResult(ParamBase& p) { return RF(p).m_result; }                   // +0x08 refund 结果
-inline unsigned char& rfKind(ParamBase& p) { return RF(p).m_kind; }             // +0x0c 树种类
-inline unsigned char& rfLevel(ParamBase& p) { return RF(p).m_level; }           // +0x0d 等级
-inline int& rfItemIdx(ParamBase& p) { return RF(p).m_itemIdx; }                 // +0x10 物品idx
-inline unsigned char& rfCount(ParamBase& p) { return RF(p).m_count; }           // +0x14 数量
-inline int& rfErr(ParamBase& p) { return RF(p).m_err; }                         // +0x18 错误码
-#undef RF
+// [DualDispatchers 2026-09-09 p167] 匿名 namespace inline 在 4.4 -O0 仍发
+// GLOBAL__N_1 call（RefundSkill 实测 23 处 EXTRA）⇒ 一律宏化（附一已实证）。
+#define rfTreeIndex(p) (RF(p).m_treeIndex)   // +0x04 树序号
+#define rfSpecial(p)   (RF(p).m_special)     // +0x05 特殊技能
+#define rfRemain(p)    (RF(p).m_remain)      // +0x06 剩余SP/SFP
+#define rfResult(p)    (RF(p).m_result)      // +0x08 refund 结果
+#define rfKind(p)      (RF(p).m_kind)        // +0x0c 树种类
+#define rfLevel(p)     (RF(p).m_level)       // +0x0d 等级
+#define rfItemIdx(p)   (RF(p).m_itemIdx)     // +0x10 物品idx
+#define rfCount(p)     (RF(p).m_count)       // +0x14 数量
+#define rfErr(p)       (RF(p).m_err)         // +0x18 错误码
 
 }  // namespace
 
@@ -25654,12 +25656,21 @@ int Dispatcher_RefundSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param
                             static_cast<char>(rfTreeIndex(param)))));  // +0x06
         }
         else {
-            const int ti = user->GetCurCharacSkillTreeIndex();
-            const ENUM_SKILL_TREE_KIND sfp =
-                (ti == -1 || ti == 0) ? SKILL_TREE_SFP_1 : SKILL_TREE_SFP_2;
-            rfRemain(param) = static_cast<unsigned short>(
-                reinterpret_cast<SkillSlot*>(const_cast<char*>(user->getCurCharacSkillR()))
-                    ->get_remain_sfp_at_index(sfp));
+            // ORIG 0x081dac27..0x081dac9c：条件两处各自重取 GetCurCharacSkillTreeIndex，
+            // 两分支各自 getCurCharacSkillR()->get_remain_sfp_at_index(2|3)。
+            if (user->GetCurCharacSkillTreeIndex() == -1 ||
+                user->GetCurCharacSkillTreeIndex() == 0)
+            {
+                rfRemain(param) = static_cast<unsigned short>(
+                    reinterpret_cast<SkillSlot*>(const_cast<char*>(user->getCurCharacSkillR()))
+                        ->get_remain_sfp_at_index(SKILL_TREE_SFP_1));
+            }
+            else
+            {
+                rfRemain(param) = static_cast<unsigned short>(
+                    reinterpret_cast<SkillSlot*>(const_cast<char*>(user->getCurCharacSkillR()))
+                        ->get_remain_sfp_at_index(SKILL_TREE_SFP_2));
+            }
         }
 
         rfItemIdx(param) = req.m_0d;                            // +0x10

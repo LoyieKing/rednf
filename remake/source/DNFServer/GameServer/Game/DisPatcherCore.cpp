@@ -1769,7 +1769,15 @@ L_end2:
     return res;   // guard dtor 后 `mov %ebx,%eax`（技39 EH-ebx）
 }
 
-// ORIG 0x081c041e T _ZN23DisPatcher_CreateCharac7processEP5CUserR8MSG_BASER9ParamBase
+// [b28d-TakeDispatchCore] 真缺口修复（P183 地址重物化 + 调用链）：① CStreamGuard 链
+// `guard.operator*()->operator<<(x)`×2 + `guard.operator->()->GetInBuffer<T>()`
+// （ORIG 0x081c0511/0x081c0539 de、0x081c054a pt；原直写 `guard <<`/`guard.GetInBuffer`
+// 少 2 de + 1 pt）；② m_field78 处**重新** call G_CDataManager() 并重算 imul 0x7dc
+// （ORIG 0x081c064c；原两处共用 jobRec ⇒ MISSING _Z14G_CDataManagerv ×1）。
+// p167 5缺→0缺（CALLSITE CLEAR 38/38；余 C1↔C2/D1↔D2 同址别名对=Main 2026-09-09 裁定豁免、
+// memcpy=N78）；ndiff 204→112（ORIG 267 / ours 273，gap −6 形态代价）；
+// TU 三数 211/639/2/75/190 → 212/639/2/74/190。
+// ORIG T 0x081c041e _ZN23DisPatcher_CreateCharac7processEP5CUserR8MSG_BASER9ParamBase
 // param.m_errNo=check_error；>0 返 0；<0 LineFunc(0x79c,pretty,err,acc_id)。
 // GM 透传 setCharacNameFilterPass → BigStreamPool 取流构造 SIG_CREATE_CHARAC
 // （memset 0x5354）→ 填 accid/slot/name/+0x23 → 活动角色占用则 m_errNo=0x14 →
@@ -1825,6 +1833,8 @@ int DisPatcher_CreateCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
         reinterpret_cast<const unsigned char*>(G_CDataManager()->m_characList) +
         static_cast<int>(sig->m_slot) * 0x7dc;
     sig->m_field26 = *reinterpret_cast<const unsigned short*>(jobRec);
+    // N84 实测反例：结构体整体赋值在 4.4.7 下退化为逐字节序列（ours 273→310、ndiff 112→118）
+    // ⇒ 保留 memcpy 调用（ORIG 0x081c0641 的 rep movsl 属 N78，不可翻）。
     memcpy(sig->m_jobData, jobRec + 2, sizeof(sig->m_jobData));
     sig->m_field78 =
         (reinterpret_cast<const unsigned char*>(G_CDataManager()->m_characList) +
@@ -5395,6 +5405,11 @@ DisPatcher_BuyItem::~DisPatcher_BuyItem() {}
 // [b28d-29] setcc-fold + N82：ORIG 直分支常量岛（mov $0x11; jmp），4.4 折 sete/setne；槽号平移，语义集合全等  (ORIG 0x081be46a insn 136->149)
 // OneADayShop 时 GetRepeatEvent(0x6d)->IsEventing(0) 为假 → 0x11；否则 0。
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 39（ORIG 136 / ours 149），残差=setcc-fold bool 物化岛；沿用上方 b28d-29 归因，封顶。
+// [b28d-TakeDispatchCore] 真缺口修复（双调用）：原「get_state()==8 || Check(0x22)==0 进主体 +
+// 末尾重调 Check 返回」= Check 调 2 次（p167 EXTRA +1）；ORIG 0x081be5a8..0x081be5d0 是
+// `if (get_state() != 8) { int r = Check(user,0x22); if (r != 0) return r; }` 单次调用
+// （结果存 -0xc(%ebp)，cmpl $0 后回读 jmp 尾）。改写后 CALLSITE CLEAR 18/18、
+// ndiff 39→10（ORIG 136 / ours 140）、our 149→140（gap −13→−4）。
 int DisPatcher_BuyItem::check_error(CUser* user, MSG_BASE& msg)
 {
     const MSG_BUY_ITEM& req = *reinterpret_cast<const MSG_BUY_ITEM*>(&msg);
@@ -5426,27 +5441,31 @@ int DisPatcher_BuyItem::check_error(CUser* user, MSG_BASE& msg)
     {
         return 0xd1;
     }
-    if (user->get_state() == 8 ||
-        GlobalData::s_pSecuProtectionField->Check(
-            user, static_cast<SECURITY_PROTCTION>(0x22)) == 0)
+    if (user->get_state() != 8)
     {
-        if (private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(user))
+        // ORIG 0x081be5a8..0x081be5d0：Check 单次调用、结果存 -0xc(%ebp)，
+        // 非 0 直接返回该码（我方原「==0 进主体 + 末尾重调」为双调用，p167 EXTRA +1）。
+        int secuResult = GlobalData::s_pSecuProtectionField->Check(
+            user, static_cast<SECURITY_PROTCTION>(0x22));
+        if (secuResult != 0)
         {
-            return 0x3c;
+            return secuResult;
         }
-        if (G_CDataManager()->m_itemShop->IsOneADayShop(req.m_deliveryType) != 0)
-        {
-            // ORIG vtable+0x34 槽直调 = IsEventing(CUser*)；对指针无空检。
-            if (!GlobalData::s_event_manager->GetRepeatEvent(0x6d)->IsEventing(
-                    (CUser*)0))
-            {
-                return 0x11;
-            }
-        }
-        return 0;
     }
-    return GlobalData::s_pSecuProtectionField->Check(
-        user, static_cast<SECURITY_PROTCTION>(0x22));
+    if (private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(user))
+    {
+        return 0x3c;
+    }
+    if (G_CDataManager()->m_itemShop->IsOneADayShop(req.m_deliveryType) != 0)
+    {
+        // ORIG vtable+0x34 槽直调 = IsEventing(CUser*)；对指针无空检。
+        if (!GlobalData::s_event_manager->GetRepeatEvent(0x6d)->IsEventing(
+                (CUser*)0))
+        {
+            return 0x11;
+        }
+    }
+    return 0;
 }
 int DisPatcher_BuyItem::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -12379,11 +12398,14 @@ namespace statistc_proxy
 {
 // [b28d-29] N78：ORIG 手写 0x400 字节对齐清零展开（and/test/字节+字+双字三段），4.4 恒 call memset；语义等价  (ORIG 0x0860fdd2 insn 106->74)
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 74（ORIG 106 / ours 74），残差=N7/N82 帧与 callee-saved 角色/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [b28d-TakeDispatchCore] **P312 翻案（N78 突破口，原「4.4 恒 call memset 不可翻」作废）**：
+// `char key[0x400] = {0};`（原 `memset(key,0,sizeof(key))`）复现 ORIG 0x0860fddd 的
+// 对齐剥离+rep stos 慢路 ⇒ ours 77→111、ndiff 58→19、gap 31→−2；
+// p167 11/11 CLEAR（余 StatisticsPacket C1↔C2 同址别名对=豁免）。
 void add(CUser* user, const char* tableName, const char* fieldName,
          unsigned int value, const char* fmt, ...)
 {
-    char key[0x400];
-    memset(key, 0, sizeof(key));
+    char key[0x400] = {0};          // P312：ORIG 0x0860fddd 内联对齐剥离+rep stos 慢路
     va_list args;
     va_start(args, fmt);
     vsprintf(key, fmt, args);   // ORIG 无上限包装，忠实转写
@@ -13635,6 +13657,9 @@ public:
 // [b28d-29] N82/N7：帧 0x12c vs 0x13c + 尾值寄存器角色（ORIG %eax，4.4 %ebx），调用点全等  (ORIG 0x081f468c insn 381->357)
 
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 303（ORIG 381 / ours 356），残差=P211/N18a 中转/store 序/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [b28d-TakeDispatchCore] **P312**：`char digestHex[0x41] = {0};`（原 memset 调用）复现
+// ORIG 0x081f490c 对齐剥离+rep stos 慢路 ⇒ ours 359→387、ndiff 214→180（fresh 复测；
+// 上方 303 为更早读数）、gap 22→−6。残差仍为 P211/N18a/P30/N82 帧差族。
 int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user->get_state() >= 4)
@@ -13676,8 +13701,7 @@ int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
     if (!packet.get_str(msg.m_macBuf, 0x41, msg.m_macLen))
         return LineFunc(0x8102, __PRETTY_FUNCTION__, 0, 0);
 
-    char digestHex[0x41];                // ORIG -0x95 零初始化
-    memset(digestHex, 0, sizeof(digestHex));
+    char digestHex[0x41] = {0};          // P312：ORIG 0x081f490c 内联对齐剥离+rep stos 慢路
     getSha256UsingSalt(reinterpret_cast<const unsigned char*>(msg.m_macBuf),
                        0x41, digestHex);
 
@@ -13691,8 +13715,7 @@ int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
     user->m_network.set_nat(msg.m_natType, msg.m_innerIp, msg.m_natIp,
                             msg.m_natPort, digestHex);
 
-    char peerIp[0x14];                   // ORIG local_44 零初始化
-    memset(peerIp, 0, sizeof(peerIp));
+    char peerIp[0x14] = {0};             // ORIG 0x081f4a94..0x081f4ab0 5×movl $0 清零
     char* ip2 = user->m_network.GetPeerIP2(peerIp, 0x14);
     if (!(bool)(unsigned char)checkDenyIP(user->m_network.get_str_ip(), ip2))
     {

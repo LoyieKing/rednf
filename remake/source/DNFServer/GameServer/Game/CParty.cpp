@@ -5129,10 +5129,18 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
         skip = true;
     if (!skip && user != 0)
     {
+        // 实参序按 ORIG 0x85b5a91..0x85b5ac4 取证：
+        //   arg2 = (unsigned short)dieInfo->m_fieldF  [movzwl 0xf(%eax),%eax]
+        //   arg3 = (unsigned short)monsterIdx         [mov 0x10(%ebp),%eax; movzwl %ax,%edx]
+        //   arg4 = dieInfo->m_killValue2              [mov 0xa1a(%eax),%eax]
+        // 被调方 addMonsterDamage(nMonsterIndex, monsterId, damage) 以 **monsterId 为
+        // map key**（CTraceMobDieHack.cpp:135 m_map1.insert(make_pair(monsterId, log))）
+        // ⇒ ORIG 语义 = 按"怪物序号"键控、把 killer uid 记入 m_monsterIndex；
+        // 旧码把两实参互换（按 killer uid 键控）为转写错误，已正。
         int addCnt =
             reinterpret_cast<CTraceMobDieHack*>(&m_pad210)
-                ->addMonsterDamage(monsterIdx,
-                                   (unsigned short)dieInfo.m_fieldF,
+                ->addMonsterDamage((unsigned short)dieInfo.m_fieldF,
+                                   (unsigned short)monsterIdx,
                                    (int)dieInfo.m_killValue2);
         if (2 < addCnt)
         {
@@ -5215,12 +5223,16 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
     if (instantCheck)
     {
         int level = 0;                                  // -0x10
-        unsigned int hpMax = (unsigned int)monster.m_active.getHpMax();  // +0x38 子对象
-        if (hpMax * 4 < (unsigned int)dieInfo.m_killValue2)
+        // P167（修正版）实证：ORIG 0x85b5e94/e4a/e58 三级判定各调一次 getHpMax
+        //（共 3 次），无 hpMax 缓存 —— 原缓存少 2 次 call。
+        if ((unsigned int)monster.m_active.getHpMax() * 4 <
+            (unsigned int)dieInfo.m_killValue2)
             level = 3;
-        else if (hpMax * 3 < (unsigned int)dieInfo.m_killValue2)
+        else if ((unsigned int)monster.m_active.getHpMax() * 3 <
+                 (unsigned int)dieInfo.m_killValue2)
             level = 2;
-        else if (hpMax * 2 < (unsigned int)dieInfo.m_killValue2)
+        else if ((unsigned int)monster.m_active.getHpMax() * 2 <
+                 (unsigned int)dieInfo.m_killValue2)
             level = 1;
         if (level != 0)
         {

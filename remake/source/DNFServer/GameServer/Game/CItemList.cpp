@@ -1083,6 +1083,12 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
 //   `lea+add` ⇒ N86b）+ `mov 0x10(%eax),%eax; mov %eax,%ebx` 两段中转 ×2
 //   （N18a）+ 尾 fc 析构/EH landing 块序与 `return` bool xor 岛（`== true`
 //   形实测被 4.4 折叠，N104）。p167 复验 309/309 CLEAR。
+//   [§3 取证补记] docs/class_func_reports/sync_script__CSyncScript/
+//   insert_stackable_item_to_db.md 已复核：『## 汇编』段（L80 `mov $0x400,%edx`
+//   rep stos@-0x1870、L195 `lea 0x400(%eax)` dst2 段）与本轮 4KB escBuf 重构
+//   一致；『## 反编译 C』段（L1484-1487 四独立 1KB 数组）系 Ghidra 聚合假象 =
+//   原误转写来源，按汇编段否定。[修正版 p167 复判] 309=309，严格 mangled 差 =
+//   8 对 1:1 镜像 C2↔C1/D2↔D1 clone 别名，豁免后零差（Main 裁定口径）。
 bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
 {
     // 依据 docs/class_func_reports/sync_script__CSyncScript/
@@ -1683,7 +1689,10 @@ bool CItemList::insert_item(int group, int idx, CItem* item)
     //   ③ `if (it!=end()){main}fail`：改调 iterator::ne ⇒ 发明 ORIG 无的
     //     `_Ne` 符号，触铁律1，弃。
     //   ORIG（4.1）fail@+0x154 后置 = 4.1 块布局启发（热路径前置），4.4 不可
-    //   从源码复现 ⇒ N104 封顶。
+    //   从源码复现 ⇒ N104 封顶。[修正版 p167 复判] 45=45，10 对
+    //   C2↔C1/D2↔D1 镜像别名，豁免后零差；取证以 CItemList/insert_item.md
+    //   汇编段 + objdump 0x0851129e 直证（§3.2 兜底：本件改动仅回滚实验形，
+    //   维持前轮封项）。
     if (it == m_gradeItemList[group].end())
     {
         LogManager::logFormat(1, "item.cpp",
@@ -1942,6 +1951,9 @@ bool CItemList::load_item_files()
 //   残 242 = 全函数 0xc 槽基平移：ORIG 把 icon/name（callee-saved ebx/esi
 //   跨 call）与三个实参暂存免槽，4.4 恒槽化 ⇒ 局部集 +4 槽、shopList 基
 //   随对齐平移（N7/N95/N82 族）⇒ 维持封顶。
+//   [§3 取证补记 + 修正版 p167 复判] CItemList/Load_Goods_File.md 已核：L160
+//   `movl $0x0,-0x28` 与 value=0 修正一致、L543 make_pair 首实参 `+0x14` 与
+//   key/value 对调修正一致；37=37，6 对 C2↔C1/D2↔D1 镜像别名，豁免后零差。
 bool CItemList::Load_Goods_File(const char* path)
 {
     // ORIG 形态：16 个 vector<STCeraShopItem> 桶；内层循环先缓存 count 与
@@ -2588,6 +2600,10 @@ int CCompound_ExtreamDun_Item::checkCompoundable(                   // ORIG T 0x
 //   残差 = 帧基 4B 漂移（N95 级联）+ 条件短路 bool 临时槽物化岛（ORIG
 //   `movl $0x0,-0x10` ×2，4.4 折叠，N7）+ `mov mem,%eax; test` 形 vs 4.4
 //   `cmpl $0x0,mem` 折形（N18a）。
+//   [§3 取证补记 + 修正版 p167 复判] ExtreamDungeon__CCompound_ExtreamDun_Item/
+//   makeCompoundItem.md 汇编段 L165-171（+5→-0x40→0x8、+1→-0x3c→0x4）与
+//   L194-197（+0xa→0x8、+6→0x4）逐行支撑本件 pair 修正；18=18，3 对
+//   pairIjjEC2↔C1 镜像别名，豁免后零差。
 bool CCompound_ExtreamDun_Item::makeCompoundItem(                   // ORIG T 0x832ccc0
     const CEquipItem** refs, char select, Inven_Item& out, eBindSphereType bind)
 {

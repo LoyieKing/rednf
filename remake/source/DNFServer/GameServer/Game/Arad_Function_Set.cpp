@@ -15,6 +15,10 @@
 //   后 CUser::Send(guard) 发给本人（异常路径 PacketGuardD1+Unwind_Resume 由
 //   编译器生成）。
 // 报告：docs/class_func_reports/ARAD__PRINT_ERROR/{isEmpty,CheckItemLock,delete_item}.md
+// N96 清绑（2026-09-09）：三处 `register unsigned int characNo __asm__("eax")` 已删。
+// P0 依据：ORIG 无 characNo 槽（call 返 eax 直入 logFormat 出参槽 0x1c(%esp)）⇒ 还原为
+// 实参内联右值形。清绑前后 our_insns 21/21/21 不变，与 ORIG 逐条全等（仅 .o 重定位地址差）
+// ⇒ 残差 0，无需 N96+N18a 封顶。
 
 #include "Arad_DataManager.h"
 
@@ -30,6 +34,7 @@ namespace ARAD
 {
 
 // ---- PRINT_ERROR::isEmpty @ 0x08197ba4 ------------------------------------
+// N96 清绑：characNo 无槽 ⇒ 实参内联右值（21=21，与 ORIG 全等）。
 void PRINT_ERROR::isEmpty(char* tag, CUser* user, unsigned short slot)
 {
     LogManager::logFormat(
@@ -41,6 +46,7 @@ void PRINT_ERROR::isEmpty(char* tag, CUser* user, unsigned short slot)
 }
 
 // ---- PRINT_ERROR::CheckItemLock @ 0x08197bfd -------------------------------
+// N96 清绑：同 isEmpty（21=21，与 ORIG 全等）。
 void PRINT_ERROR::CheckItemLock(char* tag, CUser* user, unsigned short slot)
 {
     LogManager::logFormat(
@@ -52,6 +58,7 @@ void PRINT_ERROR::CheckItemLock(char* tag, CUser* user, unsigned short slot)
 }
 
 // ---- PRINT_ERROR::delete_item @ 0x08197c56 ---------------------------------
+// N96 清绑：同 isEmpty（21=21，与 ORIG 全等）。
 void PRINT_ERROR::delete_item(char* tag, CUser* user, unsigned short slot)
 {
     LogManager::logFormat(

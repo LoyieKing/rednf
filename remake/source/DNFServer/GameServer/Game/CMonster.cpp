@@ -68,7 +68,7 @@ void CMonster::set_monster(STMonsterScript& script)
     m_script = script;   // 隐式 op=（ORIG W 0x08377994 编译器合成版）
 }
 
-unsigned char CMonster::IsHellMonster() const
+bool CMonster::IsHellMonster() const
 {
     return m_deathTowerFlag;
 }
@@ -97,11 +97,12 @@ void CMonster::drop_item_index(unsigned int index) const
         _drop_item_index(get_rand_int(10000), m_specialItemLists[index]);
 }
 
-void CMonster::drop_item_index(unsigned int index, int randomValue) const
+int CMonster::drop_item_index(unsigned int index, int randomValue) const
 {
-    // ORIG 0x0834f7e4：同单参版，空分支直接用传入 randomValue。
+    // ORIG 0x0834f7e4：同单参版，空分支直接用传入 randomValue；两分支均
+    // tail-jmp 保留 eax = _drop_item_index 返回值（调用点取回判 != -2）。
     if (!m_dropItems.empty())
-        _drop_item_index(get_rand_int(m_specialItemWeight), m_dropItems);
+        return _drop_item_index(get_rand_int(m_specialItemWeight), m_dropItems);
     else
-        _drop_item_index(randomValue, m_specialItemLists[index]);
+        return _drop_item_index(randomValue, m_specialItemLists[index]);
 }

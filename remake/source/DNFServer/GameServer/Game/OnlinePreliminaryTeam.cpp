@@ -22,6 +22,20 @@
 #include "CUser.h"
 #include "GameTypes.h"      // cMyTrace
 
+// ============================================================================
+// [GI 对齐 / P108·P186] ORIG TU=OnlinePreliminaryData.cpp 的 _GLOBAL__I_ 键名
+// 取自本 TU 首个「强符号·外部链接·本 TU 定义」实体：
+//   _ZN18online_preliminary24COnlinePreliminaryMemberC2Ev @0x08585f34
+// （ORIG 侧 _GLOBAL__I__ZN18online_preliminary24COnlinePreliminaryMemberC2Ev
+//   @0x085868b8，紧邻 Member 函数族 0x08585f34..0x0858685e。）
+// 该定义本就在本 TU 内，仅需把定义块前移到当前首个强符号
+// （COnlinePreliminaryTeam::C2）之前；类声明在权威头 OnlinePreliminary.h，
+// 故以全限定名在 includes 之后直接定义，不必回到命名空间块内。
+// ============================================================================
+online_preliminary::COnlinePreliminaryMember::COnlinePreliminaryMember()
+{
+}
+
 namespace online_preliminary
 {
 
@@ -332,9 +346,7 @@ int COnlinePreliminaryTeam::loadDataPreliminaryTeamMatchList(char* data)
 
 // ORIG T 0x08585f34 C1：charac_expand::CData ctor + 置本类虚表（编译器生成）。
 // ORIG 不初始化 m_rating/m_winCount/m_loseCount（构造后为垃圾值）。
-COnlinePreliminaryMember::COnlinePreliminaryMember()
-{
-}
+// 定义已前置到 includes 之后（GI 键名对齐），此处不再重复定义。
 
 // ORIG T 0x08585f50 D1 / 0x08585f80 D0：恢复基类虚表 + 基类析构（编译器生成）。
 COnlinePreliminaryMember::~COnlinePreliminaryMember()
