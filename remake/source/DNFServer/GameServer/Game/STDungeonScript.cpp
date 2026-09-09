@@ -1459,7 +1459,13 @@ case 0x3a5:  // "[randomized object creation]"
                                 break;
                             }
                         default:
-                            return false;   // ORIG LAB_088ea62c：未知子 tag → 失败
+                            // ORIG LAB_088ea62c（0x088ea62c）：`movzbl __inited_1;
+                            // test %al,%al; je <尾>` + 仅已初始化时 return false ⇒
+                            // 建表轮（__inited_1==false）未知子 tag 静默跳过，
+                            // 非首轮才判失败。我方原无条件 return false = 真语义 bug。
+                            if (__inited_1)
+                                return false;
+                            break;
                         }
                         if (!__inited_1)
                         {
@@ -1471,7 +1477,11 @@ case 0x3a5:  // "[randomized object creation]"
                     break;
                 }
             default:
-                return false;   // ORIG LAB_088ea6e0：未知子 tag → 失败
+                // ORIG LAB_088ea6e0（0x088ea6e0）：同 __inited_1 形——`movzbl
+                // __inited_0; test %al; je <尾>` ⇒ 建表轮静默跳过，非首轮才失败。
+                if (__inited_0)
+                    return false;
+                break;
             }
             if (!__inited_0)
             {
@@ -2145,10 +2155,13 @@ case 0x580:  // "[advance altar type]"
         std::string typeName;
         if (!ScanStr(&typeName))
             return true;  // ORIG 0x088ec4ea 失败时直接以 true 结束，不写字段
-        advancealtar::StageType::T st;
-        if (!advancealtar::StageType::getStageType(typeName, st))
+        // ORIG 0x088ec52d-0x088ec533：`mov -0x128(%ebp),%eax; add $0x2ac,%eax;
+        // mov %eax,0x4(%esp)` ⇒ 第二实参直传 &script->m_2ac，无局部枚举中转
+        // （P167 调用点形；局部版多 lea/mov/mov 三条 + 深槽）。与
+        // ImportAdvanceAltarDungeonTag 的 0x088f2140 同形。
+        if (!advancealtar::StageType::getStageType(
+                typeName, reinterpret_cast<advancealtar::StageType::T&>(script->m_2ac)))
             return true;
-        script->m_2ac = st;
     }
         break;
     }
@@ -2368,7 +2381,9 @@ case 0x630:  // "[road necessary party]"
             {
                 // 重复值不是幂等去重，而是错误并
                 // 立即失败（日志参数为 dungeon/type/difficulty/count）。
-                printf("road necessary party invalid value (dungeon:%d,type:%d,difficulty:%d,count:%d)\n",
+                // ORIG 0x088ed0e9 的 rodata 实证：该格式串**无**结尾 \n
+                // （ORIG 二进制 0xdc60c4 后紧跟 0x00 0x00）⇒ 删除多余换行。
+                printf("road necessary party invalid value (dungeon:%d,type:%d,difficulty:%d,count:%d)",
                        script->m_18, (int)dpc.m_0, (int)dpc.m_1, (int)dpc.m_2);
                 return false;
             }
@@ -2888,9 +2903,14 @@ case 0x7ce:  // "[tower dialog]"
         STTowerDialog dlg;
         dlg.m_index = ScanInt(&ok);
         if (!ok) return false;
-        if (!ScanStr(&dlg.m_name)) return false;
+        // ORIG 0x088eef2f/0x088eef35：ScanStr 返回值先存 ok 槽（-0x109d）再
+        // `movzbl ok` 回读判定 ⇒ 原码是两句式 `ok = ScanStr(...); if(!ok)…`
+        // （P0 槽往返律），非内联 `if(!ScanStr(...))`（后者 4.4 寄存器直用少 2 条）。
+        ok = ScanStr(&dlg.m_name);
+        if (!ok) return false;
         std::string eventStr;
-        if (!ScanStr(&eventStr)) return false;
+        ok = ScanStr(&eventStr);   // ORIG 0x088eef6e/0x088eef74 同形
+        if (!ok) return false;
         if (eventStr == "on start")
         {
             dlg.m_flag8 = 1;
@@ -3593,19 +3613,26 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
         fwrite("\n[maze info]\n", 1, 13, file);
         fprintf(file, "[size] %d %d\n", maze.m_width, maze.m_height);
         std::string greed;
-        for (int y = 0; y < maze.m_height; ++y)
+        // ORIG 0x088f0fa4/0x088f0fab：`movl $0x0,-0x58` 连发两条 ⇒ 原码是
+        // 「函数级/块级声明并初始化 + for 初始化」两段式（P191 配套），且 y 槽
+        // 在后续 [map specification] 循环复用（ORIG 0x088f1065 同 -0x58）。
+        int y = 0;
+        for (y = 0; y < maze.m_height; ++y)
         {
             for (int x = 0; x < maze.m_width; ++x)
             {
-                GridScript* grid = maze.getGrid(x, y);
-                greed += g_gridSymbols[grid->m_gridValue];
+                // ORIG 0x088f0fd6-0x088f0fd8：call getGrid 后直接
+                // `mov (%eax),%eax; mov g_gridSymbols(,%eax,4),%eax`，无具名
+                // GridScript* 缓存（P183/P329 去缓存）。第二段循环 ORIG
+                // 0x088f1096 有 `mov %eax,-0x4c` ⇒ 那里保留具名缓存。
+                greed += g_gridSymbols[maze.getGrid(x, y)->m_gridValue];
             }
             if (maze.m_height - 1 != y)
                 greed += "\n ";
         }
         fprintf(file, "[greed]\n`%s`\n", greed.c_str());
 
-        for (int y = 0; y < maze.m_height; ++y)
+        for (y = 0; y < maze.m_height; ++y)
         {
             for (int x = 0; x < maze.m_width; ++x)
             {
@@ -3646,6 +3673,9 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
             fprintf(file, "%d %d\n", (*it).first, (*it).second);
         fwrite("[/start map]\n", 1, 13, file);
         fwrite("[boss map]\n", 1, 11, file);
+        // ORIG 0x088f14ff/0x088f1505：begin() 经独立 sret 临时 -0x5cc 再
+        // `mov -0x5cc,%eax; mov %eax,-0xa0` 拷入具名 it（4.1 不做 copy-elision，
+        // N86）。`*&f()`（P316）与显式转换临时两形实测均被 4.4 折叠 ⇒ 封 N86。
         for (std::vector<std::pair<int, int> >::iterator it = maze.m_vec20.begin();
              it != maze.m_vec20.end(); it++)
             fprintf(file, "%d %d\n", (*it).first, (*it).second);
