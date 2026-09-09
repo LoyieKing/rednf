@@ -135,7 +135,10 @@ public:
     int m_processSequence;             // +0x14
     int m_channelNo;                   // +0x18
     char m_serverIP[0x10];             // +0x1c
-    unsigned int m_serverAddr;         // +0x2c
+    // ORIG parse case 0x435 @0x082910f3..f8 为 RHS-first+edx 中转（P211 符号性异型）
+    // ⇒ 字段与 inet_addr() 的 unsigned 返回值异型；探针 /tmp/ceprobe/p.o 三形实测：
+    // unsigned int/unsigned long ⇒ LHS-first，int ⇒ RHS-first+中转。4 字节，布局不变。
+    int m_serverAddr;                  // +0x2c
     int m_tcpPort;                     // +0x30
     int m_udpPort;                     // +0x34
     char m_udpIPMonitor[0x10];         // +0x38
