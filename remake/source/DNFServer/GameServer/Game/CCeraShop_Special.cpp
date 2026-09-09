@@ -470,6 +470,10 @@ void SpecialItemHandler::respond_special_item_booster(int,
 // 复现 ORIG `jae→mov $1 / jb→mov $0` 失败位物化）。剩余残差 = 槽号分配（ORIG deadSlot
 // 独立 -0x34 vs 4.4 复用 count 槽 -0x40，N82 不复用）+ 尾部 1 条对齐 nop（§6.1 豁免），
 // opcode 多重集差异仅此 nop；p167 CLEAR、虚槽 vtable+0x60 两侧一致。
+// + ④pkgTable 声明移入 `if(!m_sel.empty())` 块内（ORIG 0x0827c3c9 在 empty() 检查后
+// 赋值，P0 槽序）；⑤pairs 循环缓存 `pitEnd`（P13：ORIG 0x0827c7bd 循环外 begin/end
+// 各一次，我方原在条件里重发 end()）⇒ 修后 **jcc 目标下标与 ORIG 逐位全等（32/32）**、
+// 同长函数 jcc 目标比对全库 0 不匹配（Main 高优先级排查）。
 void SpecialItemHandler::respond_special_item_package(
     int, const STSpecailItem_Param& param, STSpecailItem_Result&)
 {
@@ -519,14 +523,16 @@ void SpecialItemHandler::respond_special_item_package(
         static_cast<CStackableItem*>(G_CDataManager()->find_item(itemIdx));
     std::vector<STStackablePackageData> pkgList(
         *reinterpret_cast<std::vector<STStackablePackageData>*>(&stackItem->m_pkg21c));
-    // ORIG operator[] 为 const 版（local_2c const 视图）+ inner.at() const。
-    const std::vector<std::vector<STStackablePackageData> >* pkgTable =
-        reinterpret_cast<const std::vector<std::vector<STStackablePackageData> >*>(
-            &stackItem->m_pkg234);
     // ORIG 无 selections/pairs 具名引用槽：每处按 `mov -0x40(%ebp),%eax;
     // lea 0xc(%eax),%edx`（4 次）重算 cera->m_sel / cera->m_pairs（P48 无 CSE）。
     if (!cera->m_sel.empty())
     {
+        // ORIG 0x0827c3c9..0x0827c3d1：pkgTable 赋值在 `m_sel.empty()` 检查
+        // **之后**（index 128-130）⇒ 原码声明在 if 块内，非函数级（P0 槽序）。
+        // ORIG operator[] 为 const 版（local_2c const 视图）+ inner.at() const。
+        const std::vector<std::vector<STStackablePackageData> >* pkgTable =
+            reinterpret_cast<const std::vector<std::vector<STStackablePackageData> >*>(
+                &stackItem->m_pkg234);
         if (cera->m_sel.size() > 1)
         {
             // 多选择：逐项记录 error 日志（kdd372418Log 前缀，ORIG 原样）。
@@ -585,8 +591,12 @@ void SpecialItemHandler::respond_special_item_package(
         unsigned char local25 = 0;
         if (!cera->m_pairs.empty())
         {
-            for (std::vector<std::pair<int, int> >::iterator pit = cera->m_pairs.begin();
-                 pit != cera->m_pairs.end(); )
+            // P13：ORIG 0x0827c7bd..0x0827c7d5 在循环**外**各求一次 begin()/end()
+            // （sret -0x88/-0x8c），循环条件只做 operator!=；我方原形在条件里
+            // 每次重发 end() ⇒ 循环入口块错位。缓存 pitEnd。
+            std::vector<std::pair<int, int> >::iterator pit = cera->m_pairs.begin();
+            std::vector<std::pair<int, int> >::iterator pitEnd = cera->m_pairs.end();
+            for (; pit != pitEnd; )
             {
                 if (pit->first == itBeg->m_field0)
                 {
