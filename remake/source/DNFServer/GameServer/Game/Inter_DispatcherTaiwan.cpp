@@ -14,10 +14,6 @@ Inter_DispatcherTaiwan::Inter_DispatcherTaiwan()
     m_disp.init();   // ORIG @0x084e8bed call TaiwanInternalDispatcher::init()
 }
 
-Inter_DispatcherTaiwan::~Inter_DispatcherTaiwan()
-{
-}
-
 int Inter_DispatcherTaiwan::dispatch_sig(CUser* user, char* data, int len)
 {
     // b28d-lane12: AE（4.4.6 后端路由后 ndiff=0）。修法：末实参 len-4 →

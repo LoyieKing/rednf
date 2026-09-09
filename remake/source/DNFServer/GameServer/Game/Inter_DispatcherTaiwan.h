@@ -19,7 +19,9 @@ class Inter_DispatcherTaiwan : public ISigDispatcher
 {
 public:
     Inter_DispatcherTaiwan();           // ORIG T 0x084e8bba
-    virtual ~Inter_DispatcherTaiwan();  // ORIG W D1 0x084f577a / D0 0x084f57dc
+    // ORIG D0/D1/D2 全为 W 弱符号（COMDAT 区 0x084f577a/0x084f57dc）⇒ 原码为
+    // 类内 inline 空析构；仅声明+外联定义会发射 T 强符号，故此处保留空体。
+    virtual ~Inter_DispatcherTaiwan() {}  // ORIG W D1 0x084f577a / D0 0x084f57dc
     virtual int dispatch_sig(CUser* user, char* data, int len);  // ORIG T 0x084e8c2e
 
 private:
