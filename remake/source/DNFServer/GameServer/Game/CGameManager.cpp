@@ -676,6 +676,10 @@ void CGameManager::returnUserPool(CUser* user)
     // Guard/cMyTrace/map 迭代器槽组 4.4 分区 vs 4.1 生命周期穿插）。ORIG 0x08294b2c。
     // b28d-solo-CGameManager 判词：N82 维持（P167 CLEAR，gap 0；残差全为槽号：
     // find sret -0x28 vs -0x34、accId -0x24 vs -0x30）。
+    // [SweepCGameManager2 本轮] lastId 具名删 → P227 全表达式临时链，复现 ORIG
+    //   0x08294cd8 NumberToString 结果入 %ebx 跨 cMyTrace ctor 保活；残余 =
+    //   err 跨 ctor 的 %esi 缓存（ORIG `mov -0xc,%esi`）4.4 恒槽重读（裸 register
+    //   实测反偏离 ORIG，已回滚）+ 尾部 `jmp epilogue` 岛（P285）⇒ N82/P52。
     if (user != 0)
     {
         unsigned int accId = user->get_acc_id();
@@ -696,13 +700,17 @@ void CGameManager::returnUserPool(CUser* user)
         user->log_out();
         Guard<Mutex> guard(&m_mutex);
         m_userPool.Free(user);
+        // ORIG 0x08294cc1..0x08294cd2：err 入槽后 `mov -0xc(%ebp),%esi` 跨
+        // cMyTrace ctor 保活；4.4 恒从槽重读（裸 register 实测 146→145 反偏离
+        // ORIG，已回滚）⇒ N82/P52 封顶。
         int err = m_userPool.GetLastErrorCode();
         if (err != 0)
         {
-            const char* lastId = NumberToString(accId3, 0);
-            cMyTrace tr(__PRETTY_FUNCTION__, 0xa0e, 0);
-            tr("STATIC MEMORY_POOL returnUserPool error(%d), user(%x), last user m_acc_id(%s), idx(%d)",
-               err, user, lastId, uid);
+            // ORIG 0x08294cd8..0x08294d00：NumberToString 结果入 %ebx 跨 cMyTrace
+            // ctor 保活（无具名槽）⇒ P227 全表达式临时链。
+            cMyTrace(__PRETTY_FUNCTION__, 0xa0e, 0)(
+                "STATIC MEMORY_POOL returnUserPool error(%d), user(%x), last user m_acc_id(%s), idx(%d)",
+                err, user, NumberToString(accId3, 0), uid);
         }
     }
 }
@@ -1061,15 +1069,14 @@ PvP_Room* CGameManager::FindQuickJoinablePvPRoom(bool quick, CUser* user)
             // ⇒ 正向守卫 `== 6` 跳过（原 `!= 6` 包裹产生反向 je 布局）。
             if (room->get_pvp_battle_mode() == 6)
                 goto it_inc;
-            // ORIG 0x082a3257..0x082a3293 短路物化：(quick==0 || 无密码) &&
-            // joinable 才 return；`mov $1/$0; test %al; je` 即 && 链 bool 物化。
-            // b28d-solo：`(int)quick == 0` 与 `(IsExistPassword() ^ 1)` 为等价改写
-            // （uchar 返回 0/1 语义；ORIG 亦 `xor $1`），4.4 仍折 xor/cmp$1 →
-            // 判 N122/N82附（详见函数头）。
-            // PvP_Room.h:110 已由 Main 落 bool（T3 直证）⇒ 用裸 `!` 形复现 ORIG
-            // 0x082a3268 `call; xor $0x1,%eax; test %al,%al; je`（P292 表）。
-            if ((quick == 0 || !room->IsExistPassword()) &&
-                room->IsQuickJoinablePVPRoom(user))
+            // ORIG 0x082a3257..0x082a3293（Ghidra C 逐字）：
+            //   false = (quick && IsExistPassword()) || !IsQuickJoinablePVPRoom(user)
+            // 本形与原德摩根形 `(quick==0||!pw)&&joinable` 在 4.4 产物**逐条相同**
+            // （`movzbl -0x2c; xor $1; test; jne`，quick 进 && 首项即被物化）；
+            // ORIG 的 `cmpb $0,-0x2c; je` 内存直比属 4.1 bool 形参消费形
+            // ⇒ N122 封顶（两形实测同，保留与 ORIG Ghidra 一致的写法）。
+            if (!((quick && room->IsExistPassword()) ||
+                  !room->IsQuickJoinablePVPRoom(user)))
                 return room;
         }
     it_inc:
@@ -1914,9 +1921,11 @@ void CGameManager::WarRoomAlloc()
             room->Prepare();
             // ORIG 0x08298a9d..0x08298aba：G_CDataManager 结果**无具名槽**（`mov %eax,%ecx`
             // 直用），表寻址 (hourTable*10+area+0x223c)*4+8 —— P0/P183 内联表达式。
-            if (i < reinterpret_cast<int*>(
-                         ((CDataManager*)G_CDataManager())
-                             ->m_warAreaCounter.m_warRoomCount)[hourTable * 10 + area])
+            // ORIG 0x08298aa4..0x08298aba：成员数组二维索引 ⇒ 4.4 与 4.1 同发
+            // `add $0x223c,%eax; mov 0x8(%ecx,%eax,4),%eax`（探针 f1；
+            // reinterpret_cast<int*>(arr)[...] 指针索引恒折 add+shl+lea，f2/f3）。
+            if (i < ((CDataManager*)G_CDataManager())
+                         ->m_warAreaCounter.m_warRoomCount[hourTable][area])
                 room->SetState((WARROOM_STATE)0);
             else
                 room->SetState((WARROOM_STATE)-1);
@@ -1950,8 +1959,10 @@ void CGameManager::WarRoomCountAdjustByChannelInfo()
             // ——P0/P183 表达式直传）。
             CDataManager* dmW = (CDataManager*)G_CDataManager();
             float f = info->m_gridPercent[a];  // ORIG *(float*)(info+8+(a+4)*4)
-            // 写表：dmW+8+(b*10+a+0x223c)*4 = m_warRoomCount 扁平 [b*10+a]。
-            reinterpret_cast<int*>(dmW->m_warAreaCounter.m_warRoomCount)[b * 10 + a] =
+            // 写表：dmW+8+(b*10+a+0x223c)*4 = m_warRoomCount[b][a]（ORIG 0x082989f2..
+            // 0x08298a02 单条 scaled store；reinterpret_cast<int*>(arr)[...] 指针索引
+            // 恒折 add+shl+lea —— 探针 f1 vs f2/f3）。
+            dmW->m_warAreaCounter.m_warRoomCount[b][a] =
                 (int)(((CDataManager*)G_CDataManager())
                           ->m_warAreaCounter.m_counterTable[b] * f);
         }
@@ -2032,11 +2043,11 @@ void CGameManager::WarRoomCountManage(int hourIndex)
             }
             return;
         }
-        // ORIG *(dm+8+(hourTable*10+area+0x223c)*4)：m_warAreaCounter.m_warRoomCount
-        // 扁平视图（WarAreaCounter+0x144，[hour][area]）；G_CDataManager 结果无具名槽。
-        int diff = reinterpret_cast<int*>(
-                       ((CDataManager*)G_CDataManager())
-                           ->m_warAreaCounter.m_warRoomCount)[hourTable * 10 + area] -
+        // ORIG 0x082a292f..0x082a293f `add $0x223c; mov 0x8(%ecx,%eax,4),%edx`：
+        // m_warRoomCount[hour][area] 成员数组二维索引（WarAreaCounter+0x144）；
+        // G_CDataManager 结果无具名槽。
+        int diff = ((CDataManager*)G_CDataManager())
+                       ->m_warAreaCounter.m_warRoomCount[hourTable][area] -
                    current[area];
         cMyTrace tr2(__PRETTY_FUNCTION__, 0x3097, 0);
         tr2("WarRoomCountManage diff(%d) currentWarRoomCount(lev%d)", diff, current[area]);
@@ -2050,9 +2061,9 @@ void CGameManager::WarRoomCountManage(int hourIndex)
                 WarRoom* room = G_CGameManager()->GetWarRoom(lastIdx--);
                 if (room == 0)
                     break;
-                if (room == 0 || room->GetState() == -1)
-                ;
-                else
+                // ORIG 0x082a2a00..0x082a2a24：`room!=0 && state!=-1` 两 && 项各 je
+                // 同一 mov$0 岛（探针 boolp.cpp h 形）；德摩根 or 形在 4.4 反产 jne。
+                if (room != 0 && room->GetState() != -1)
                 {
                     char shut = room->ShutDown();
                     if (shut != 0)
@@ -2071,9 +2082,8 @@ void CGameManager::WarRoomCountManage(int hourIndex)
                 WarRoom* room = G_CGameManager()->GetWarRoom(firstIdx++);
                 if (room == 0)
                     break;
-                if (room == 0 || room->GetState() != -1)
-                ;
-                else
+                // ORIG 0x082a2ab7..0x082a2ad9：`room!=0 && state==-1`（je + jne 同岛）。
+                if (room != 0 && room->GetState() == -1)
                 {
                     room->Open();
                     room->MakeStateInfo((char*)&guard);
@@ -2126,21 +2136,21 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
     int totalDiff = 0;
     for (int area = 0; area < 10; ++area)
     {
-        CDataManager* dm = (CDataManager*)G_CDataManager();
-        int diff = reinterpret_cast<int*>(
-                       dm->m_warAreaCounter.m_warRoomCount)[hourTable * 10 + area] -
+        // ORIG 0x082a2d65..0x082a2d82：G_CDataManager 结果无具名槽（`mov %eax,%ecx`
+        // 直用），成员数组二维索引 ⇒ 单条 scaled 读。
+        int diff = ((CDataManager*)G_CDataManager())
+                       ->m_warAreaCounter.m_warRoomCount[hourTable][area] -
                    current[area];
         if (diff < 0)
         {
             int need = diff < 0 ? -diff : diff;
-            void* dm2 = G_CDataManager();
-            int lastIdx = ((CDataManager*)dm2)->m_warAreaCounter.GetWarRoomCountLastIndex(area);
+            int lastIdx =
+                ((CDataManager*)G_CDataManager())->m_warAreaCounter.GetWarRoomCountLastIndex(area);
             while (need != 0)
             {
                 WarRoom* room = G_CGameManager()->GetWarRoom(lastIdx--);
-                if (room == 0 || room->GetState() == -1)
-                ;
-                else
+                // ORIG 0x082a2dee..0x082a2e12：`room!=0 && state!=-1`（两 && 项 je 同岛）。
+                if (room != 0 && room->GetState() != -1)
                 {
                     char shut = room->ShutDown();
                     if (shut != 0)
@@ -2152,14 +2162,13 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
         else if (diff > 0)
         {
             unsigned int need = (unsigned int)diff;
-            void* dm2 = G_CDataManager();
-            int firstIdx = ((CDataManager*)dm2)->m_warAreaCounter.GetWarRoomCountFirstIndex(area);
+            int firstIdx =
+                ((CDataManager*)G_CDataManager())->m_warAreaCounter.GetWarRoomCountFirstIndex(area);
             while (need != 0)
             {
                 WarRoom* room = G_CGameManager()->GetWarRoom(firstIdx++);
-                if (room == 0 || room->GetState() != -1)
-                ;
-                else
+                // ORIG 0x082a2e98..0x082a2eba：`room!=0 && state==-1`（je + jne 同岛）。
+                if (room != 0 && room->GetState() == -1)
                 {
                     room->Open();
                     room->MakeStateInfo((char*)&guard);
@@ -2406,6 +2415,10 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
 
 void CGameManager::send_userinfos_to_cutoff_server()
 {
+    // [SweepCGameManager2 本轮] 槽序翻正：bucketIdx 提至函数头声明（P212），
+    //   user(-0x14 浅)/bucketIdx(-0x18 深) 与 ORIG 逐槽一致；残余仅 `% 10`
+    //   无符号取模展开——ORIG `shr $0x3,%edx` 商留寄存器 vs 4.4 商落槽
+    //   （`mov %edx,%eax; shr; mov %eax,-0x18; mov -0x18,%edx`，+4 条）⇒ N。
     // b28d-solo-CGameManager 判词：DIFF·N82（ours 180 / orig 177，gap 3）。
     //   语义缺口已清零（p167 CLEAR 16/16）：删发明 placement-new 循环、accId 去具名、
     //   去 bucket 指针缓存（P183）、empty() 早返（P16）、字段写序照 ORIG。
@@ -2430,6 +2443,8 @@ void CGameManager::send_userinfos_to_cutoff_server()
         STTempUsers() { m_count = 0; }
     };
     STTempUsers buckets[10];
+    // P212：ORIG user(-0x14 浅) / bucketIdx(-0x18 深) ⇒ 全头部先声明 bucketIdx。
+    unsigned int bucketIdx;
     Packet_CutOff_UDP_Reply_UserInfo pkt;
     pkt.m_channel = (unsigned char)((CEnvironment*)G_CEnvironment())->get_channel_no();
     pkt.m_group = (unsigned char)((CEnvironment*)G_CEnvironment())->m_serverEnvir.m_serverGroup;
@@ -2441,7 +2456,7 @@ void CGameManager::send_userinfos_to_cutoff_server()
         CUser* user = it->second;
         if (user->get_state() > 1)
         {
-            unsigned int bucketIdx = user->get_acc_id() % 10;
+            bucketIdx = user->get_acc_id() % 10;
             STTempUsers* bucket = &buckets[bucketIdx];
             // ORIG 0x08295f87..0x08295f93 写目标用重算基址
             // （`imul $0x259,%esi,%edx; add %ebx,%edx; mov %eax,-0x6904(%ebp,%edx,4)`），
