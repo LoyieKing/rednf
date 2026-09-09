@@ -1,11 +1,19 @@
 // 声明以 CUser.h 为准。全部方法按 ORIG 反编译（docs/class_func_reports/cUserHistoryLog/）
 // 通过 CUser::LogHistory 输出 uHistory 日志；成员布局见 CUser.h：+0x00 m_user、
 // +0x04 m_traderAccount[0x1e]、+0x22 m_traderCharac[0x1e]（首字节当"交易中"标志）、+0x40 m_pad。
-// [b28d-solo-cUserHistoryLog] 本轮：CeraPoint 去冗余 (int) cast → identical_ae 19/19；
-// ExpAdd 按 P223 补尾空标签岛 → 归一化残差仅 1 条（N18a 反向 reason 重载）。
-// 其余 14 件残差全部为已封顶跨版本 codegen 族：N102（m_traderCharac[0] 数组退化
-// add-vs-disp，8 件，volatile/整数加法/裸偏移 12 形探针穷举）/ N107（取址 add-vs-lea）/
-// N108（双守卫 landing 合并）/ N78（memset 内联）/ N82附（聚合槽向+帧差）。
+// [b28d-solo-cUserHistoryLog 2026-09-09] 本轮 9 件 DIFF→AE：
+//  ①8 件 N102（m_traderCharac[0] 数组退化 add-vs-disp）用逗号表达式旋钮
+//    `*(0, m_traderCharac)` 翻案（P288 族；探针 /tmp/hlprobe/tb3.cpp h3 逐条同形）；
+//  ②SkillSave 拆 num[24] + union pre 复现单条 lea / 4 条 disp movl 清零（探针 y8/y10）；
+//  ③ItemDel Compound 段位域 m_lo 复现「and 后截断」形（探针 mask2 w1）。
+// 剩余真缺口 6 件（均 1~2 条结构性封顶，已逐件探针穷举）：
+//  N107 成员取址 4.4 恒 add+mov vs ORIG lea —— ItemAdd×2 / ItemDel×2 /
+//       PrivateStoreItemAdd / PrivateStoreItemDel（tb4/tb5/tb6 共 16 形探针全 add）；
+//  N108/P223 Login 两循环 continue 岛 jmp 位置差 1 条（拆 continue/goto 共享尾标签/
+//       循环2 改 || continue 三形实测均不闭合）；
+//  N18a 反向 ExpAdd 形参二次使用 4.4 恒重载 1 条（register 形参/局部 4 形寄存器角色全变）。
+// 另有 N123（_Z41__static_initialization_and_destruction_0ii）为结构性噪音。
+// 四数（本 TU）：identical=37 ae=170 near=0 diff=7 missing_in_game=20。
 #include "CUser.h"
 #include "SkillSlot.h"        // CSkillChanger / SkillSlot / _Mastered_skill（SkillSPInfoSave/SkillSave 依赖）
 #include "DNFFunctionLib.h"   // NumberToString / DNFFLib::Binary2Hex
@@ -101,14 +109,14 @@ void cUserHistoryLog::SetTrader(const char* accName, const char* characName)
     strncpy(m_traderAccount, characName, 0x1e);
 }
 
-// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] 数组退化 add-vs-disp 单条
-// （4.1 `add $0x22; movzbl (%eax)` vs 4.4 单 disp；七形探针穷举 /tmp/l2_probe10.cpp t1..t7）。
+// [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] m_traderCharac[0] 读改逗号表达式旋钮
+// `*(0, m_traderCharac)`（判词见 TradeBegin）⇒ 本函数 AE。
 void cUserHistoryLog::AvatarItemAdd(int itemIdx, int avatarUid, const char* agency, eAvatarItemAddReason reason)
 {
-    // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
+    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
     if (reason == static_cast<eAvatarItemAddReason>(1) || reason == static_cast<eAvatarItemAddReason>(3)
         || reason == static_cast<eAvatarItemAddReason>(4)) {
-        if (m_traderCharac[0] != 0)
+        if (*(0, m_traderCharac) != 0)
             m_user->LogHistory("Avatar+,%d,%d,%s,%d,\"%s\",\"%s\"", itemIdx, avatarUid, agency,
                                static_cast<int>(reason), m_traderCharac, m_traderAccount);
     } else {
@@ -149,16 +157,14 @@ void cUserHistoryLog::AvatarItemAdd(int itemIdx, int avatarUid, const char* agen
 //    b32..b25→fieldb→upgrade→acct→YPos→XPos），随后紧跟一段纯 mov 装载块；提前具名化
 //    把这 4 个 getter 顶到语句边界，装载块与求值块整体错位 ⇒ 单块重排即数百行 diff。
 //
-// 残差 9 行 = 已登记 N 族，不再试旋钮：
-//   N102  m_traderCharac[0] add-vs-disp（ORIG `add $0x22; movzbl (%eax)` vs 4.4 `movzbl 0x22(%eax)`）
-//   N107  4.4 `add $0x15; mov %eax,%ebx` vs ORIG 单条 `lea 0x15(%eax),%ebx`（×2 处）
-// 三数（本 TU）：改前后 identical=37 ae=161 near=0 diff=16 missing_in_game=20，无变差。
+// [2026-09-09 N102 翻案后] 残差仅 N107 ×2：ORIG 单条 `lea 0x15(%eax),%ebx` vs 4.4
+// `add $0x15,%eax; mov %eax,%ebx`（成员常量偏移取址；tb4/tb5/tb6 共 16 形探针全 add）⇒ 封顶。
 void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
                               const Inven_Item& item, eItemAddReason reason)
 {
     if ((int)reason == 1 || (int)reason == 2)
     {
-        if (m_traderCharac[0] != 0)
+        if (*(0, m_traderCharac) != 0)
         {
             m_user->LogHistory(
                 "Item+,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
@@ -208,15 +214,14 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
 //         LogHistory(fmt, ..., upgrade, ..., reseal, Print()(guid));   // Compound 同理 7 个具名
 //   改后：上述 getter 全部内联回各自实参位（Compound 块 8 个实参全内联）。
 // 机理同 ItemAdd：ORIG 自末实参起求值，具名化使求值块/装载块错位。
-// 残差 14 行 = N102（m_traderCharac add-vs-disp，2）+ N107（`lea 0x15` 单条 vs add+mov，×2=4）
-// + Compound 段 `%0x1f` 掩码的寄存器角色差（ORIG `and $0x1f,%eax; mov %eax,-0x4c` vs 4.4
-// 借 %edx 中转，8）。三数无变差。
+// [2026-09-09] N102 已翻案（`*(0, m_traderCharac)`）；Compound 段 `%0x1f` 掩码改位域
+// m_bits.m_lo 复现 ORIG 的「and 后截断」形（探针 mask2 w1）⇒ 残差仅 N107 ×2（同 ItemAdd）。
 void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
                               const Inven_Item& item, eItemDelReason reason)
 {
     if ((int)reason == 1 || (int)reason == 2)
     {
-        if (m_traderCharac[0] != 0)
+        if (*(0, m_traderCharac) != 0)
         {
             m_user->LogHistory(
                 "Item-,%d,%d,%d,%d,%d,\"%s\",\"%s\",%d,%d,"
@@ -258,18 +263,22 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
         m_user->LogHistory(
             "Compound-,%u,%d,%d,%d,%d,%d,%d,%d,",
             (unsigned)item.m_addInfo, item.GetUpgrade(), item.get_add_info(),
-            item.m_upgradeSep.m_field & 0x1f, item.m_fieldd,
+            // [b28d-solo-cUserHistoryLog 2026-09-09] ORIG 0x086839xx 读形为
+            // `movzbl 0x33(%eax),%eax; and $0x1f,%eax; movzbl %al,%eax`（and 后截断）；
+            // 写 `m_field & 0x1f` 时 4.4 把截断提到 and 之前并经 %edx 中转（多 1 条）。
+            // 位域 m_lo 读取即 ORIG 形（探针 /tmp/hlprobe/mask2.cpp w1 逐条同形）。
+            item.m_upgradeSep.m_bits.m_lo, item.m_fieldd,
             item.m_amp.getAbilityType(), item.m_amp.getAbilityValue(),
             item.m_amp.GetLock());
     }
 }
 
-// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] add-vs-disp（同 AvatarItemAdd）。
+// [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] 同 AvatarItemAdd ⇒ 本函数 AE。
 void cUserHistoryLog::AvatarItemDel(int itemIdx, int avatarUid, const char* agency, eAvatarItemDelReason reason)
 {
-    // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
+    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
     if (reason == static_cast<eAvatarItemDelReason>(0) || reason == static_cast<eAvatarItemDelReason>(1)) {
-        if (m_traderCharac[0] != 0)
+        if (*(0, m_traderCharac) != 0)
             m_user->LogHistory("Avatar-,%d,%d,%s,%d,\"%s\",\"%s\"", itemIdx, avatarUid, agency,
                                static_cast<int>(reason), m_traderCharac, m_traderAccount);
     } else {
@@ -278,13 +287,13 @@ void cUserHistoryLog::AvatarItemDel(int itemIdx, int avatarUid, const char* agen
 }
 
 // b28d-65 [N4/N102]：同 CreatureItemAdd；ORIG 0x08684f38。
-// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] add-vs-disp（同 TradeBegin）。
+// [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] 同 TradeBegin ⇒ 本函数 AE。
 void cUserHistoryLog::CreatureItemDel(INVEN_TYPE invenType, int itemIdx, int count, int addInfo, int type, eItemDelReason reason)
 {
-    // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
+    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
     if (type == 5) {
         if (reason == static_cast<eItemDelReason>(0x14) || reason == static_cast<eItemDelReason>(0x15)) {
-            if (m_traderCharac[0] != 0)
+            if (*(0, m_traderCharac) != 0)
                 m_user->LogHistory("CTItem-,%d,%d,%d,%d,\"%s\",\"%s\"", itemIdx, count, addInfo,
                                    static_cast<int>(reason), m_traderCharac, m_traderAccount);
         } else {
@@ -298,20 +307,20 @@ void cUserHistoryLog::CreatureItemDel(INVEN_TYPE invenType, int itemIdx, int cou
     }
 }
 
-// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] add-vs-disp（同 TradeBegin）。
+// [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] 同 TradeBegin ⇒ 本函数 AE。
 void cUserHistoryLog::MoneyAddTrade(int money, int add, eMoneyAddReason reason)
 {
-    // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
-    if (m_traderCharac[0] != 0)
+    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
+    if (*(0, m_traderCharac) != 0)
         m_user->LogHistory("Money+,%d,%d,%d,%s(%s)", money, add, static_cast<int>(reason),
                            m_traderCharac, m_traderAccount);
 }
 
-// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] add-vs-disp（同 TradeBegin）。
+// [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] 同 TradeBegin ⇒ 本函数 AE。
 void cUserHistoryLog::MoneySubTrade(int money, int sub, eMoneySubReason reason)
 {
-    // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
-    if (m_traderCharac[0] != 0)
+    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
+    if (*(0, m_traderCharac) != 0)
         m_user->LogHistory("Money-,%d,%d,%d,%s(%s)", money, sub, static_cast<int>(reason),
                            m_traderCharac, m_traderAccount);
 }
@@ -436,14 +445,14 @@ void cUserHistoryLog::LeaveDungeon(int dungeonIdx, int unk, const char* memberNa
 
 // b28d-65 [N4/N102]：残余仅 m_traderCharac[0] add-vs-disp 1 条（同 TradeBegin 判词）；
 //   ORIG 0x08684e3c，78=77+1 封顶。
-// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] add-vs-disp（同 TradeBegin）。
+// [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] 同 TradeBegin ⇒ 本函数 AE。
 void cUserHistoryLog::CreatureItemAdd(INVEN_TYPE invenType, int itemIdx, int count, int addInfo, int type, eItemAddReason reason)
 {
-    // b28c-L2 [N4 封顶]：m_traderCharac[0] add 寻址族（判词见 TradeBegin）。
+    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
     if (type == 5) {
         if (reason == static_cast<eItemAddReason>(0x1a) || reason == static_cast<eItemAddReason>(0x1c)
             || reason == static_cast<eItemAddReason>(0x1d)) {
-            if (m_traderCharac[0] != 0)
+            if (*(0, m_traderCharac) != 0)
                 m_user->LogHistory("CTItem+,%d,%d,%d,%d,\"%s\",\"%s\")", itemIdx, count, addInfo,
                                    static_cast<int>(reason), m_traderCharac, m_traderAccount);
         } else {
@@ -603,14 +612,21 @@ void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, i
         if (n == 0)
             break;
 
-        // [b28d-solo] N107 维持：`&tmp[0x10]` 4.4 恒发 `lea -0x94; add $0x10` 两条
-        // （ORIG 单条 `lea -0x84(%ebp)`）；具名结构体视图（m_pre@+0/m_num@+0x10）
-        // 同形、拆两数组（tmp_pre/tmp_num）虽消 add 但槽位错为 -0x94/-0x7c
-        // （4.4 把两数组分置帧两端）⇒ 回退 char tmp[40]。
-        char tmp[40];
+        // [b28d-solo-cUserHistoryLog 2026-09-09 翻案] 原 `char tmp[40]` 两处残差：
+        // ①`&tmp[0x10]` 4.4 恒发 lea -0x94 + add $0x10（ORIG 单条 lea -0x84）；
+        // ②循环内 memset 恒发 call（ORIG 内联 4 条 movl disp）。
+        // 拆成「先声明 char num[24]（浅槽 -0x84，ORIG tmp+0x10 区）+ 后声明 16 字节
+        // 结构体 pre（深槽 -0x94，4.4 后声明占深槽且与 num 紧邻——探针
+        // /tmp/hlprobe/y8.cpp y8 逐条同形）」：num 数组名退化 = 单条 lea -0x84；
+        // pre.m_zero[i]=0 = 4 条 movl disp；sprintf((char*)&pre,…) = 单条 lea -0x94。
+        // union 双视角：m_chars 供 sprintf/strcat 数组名退化（单条 lea，探针 y10），
+        // m_zero 供 4 条 disp movl 清零（探针 y8）。
+        union SkillSavePre { char m_chars[16]; unsigned int m_zero[4]; };
+        char num[24];          // ORIG tmp+0x10（-0x84）区
+        SkillSavePre pre;      // ORIG tmp+0x00（-0x94）区
         // ORIG 循环外无 tmp 清零（sprintf 自写终止符）；清零只在 k 循环内（4.1 内联 4 条 movl）。
-        sprintf(&tmp[0x10], "%d/%d/%d", a, n, b);
-        strcat(buf, &tmp[0x10]);
+        sprintf(num, "%d/%d/%d", a, n, b);
+        strcat(buf, num);
 
         // ORIG 0x08685ff3 段：rep stos ecx=0x80 dwords = 0x200 字节（整块 chunk 清零）。
         char chunk[512] = {0};
@@ -618,14 +634,17 @@ void cUserHistoryLog::SkillSave(const _Mastered_skill* skills, unsigned int a, i
         {
             int idx = vec[start + k].first;
             int lvl = vec[start + k].second;
-            // ORIG 0x08686009 段把 tmp 清零内联为 4 条 movl（0x10 字节）；4.4 对 memset 恒发
-            // call（N78）且 int 视图写退化为 lea+movl（实测 266 条）⇒ 保持 call 形，N78 封顶。
-            memset(tmp, 0, 0x10);
+            // ORIG 0x08686009 段：4 条 `movl $0,-0x94/-0x90/-0x8c/-0x88(%ebp)`（disp 形）——
+            // 结构体成员赋值复现（探针 y8；memset 恒 call，指针 cast 写恒 lea+add）。
+            pre.m_zero[0] = 0;
+            pre.m_zero[1] = 0;
+            pre.m_zero[2] = 0;
+            pre.m_zero[3] = 0;
             if (k % 3 == 0)
-                sprintf(tmp, ",%d/%d", idx, lvl);
+                sprintf(pre.m_chars, ",%d/%d", idx, lvl);
             else
-                sprintf(tmp, "/%d/%d", idx, lvl);
-            strcat(chunk, tmp);
+                sprintf(pre.m_chars, "/%d/%d", idx, lvl);
+            strcat(chunk, pre.m_chars);
         }
         strcat(buf, chunk);
 
@@ -749,29 +768,28 @@ void cUserHistoryLog::ChangeItemLimitCount(int a, int b, int itemIdx, int d, int
     return;
 }
 
-// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] 数组退化 add-vs-disp 单条
-// （ORIG 0x0868503e 两步；4.4 折单条 disp，七形探针穷举）。本文件交易中判族共同判词。
+// [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] m_traderCharac[0] 数组退化 add-vs-disp
+// 单条已复现 ⇒ 本函数 AE。本文件交易中判族共同判词见下。
 void cUserHistoryLog::TradeBegin()
 {
-    // b28c-L2 [N4 封顶·本文件交易中判族]：ORIG（0x08685047 TradeBegin / 0x08682xxx
-    // MoneyAdd·MoneySub·Avatar±·TradeEnd·Creature± 同族）对 `m_traderCharac[0]`
-    // 读为 `mov 0x8(%ebp),%eax; add $0x22,%eax; movzbl (%eax),%eax`（4.1 数组退化
-    // 两步寻址、无槽往返 ⇒ P0 判为表达式直传）；4.4-O0 对 7 种合法源形
-    // （下标/解引用/指针局部/引用局部/volatile 字段/引用形参/嵌套 struct）恒折为
-    // 单条 `movzbl 0x22(%eax),%eax`（探针 /tmp/l2_probe10.cpp t1..t7 全数实证），
-    // 唯一能出 add 的是 `(char*)this+0x22` 裸偏移（§4.3 禁）。语义等价 ⇒ 保持
-    // `m_traderCharac[0] != 0` 可读形，每点 ndiff 2 封顶。
-    if (m_traderCharac[0] != 0)
+    // [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] ORIG（0x08685047 TradeBegin /
+    // 0x08682xxx MoneyAdd·MoneySub·Avatar±·TradeEnd·Creature± 同族）对数组退化读发
+    // `mov 0x8(%ebp),%eax; add $0x22,%eax; movzbl (%eax),%eax`（4.1 两步寻址）；
+    // 4.4 对直接下标 `m_traderCharac[0]` 恒折单条 disp。把退化指针经逗号表达式变成
+    // 右值再解引用（`*(0, m_traderCharac)`，语义同 `m_traderCharac[0]`）即复现两步
+    // 寻址——探针 /tmp/hlprobe/tb3.cpp h3 与 ORIG 逐条同形（sub $0x18 / add $0x22 /
+    // movzbl (%eax)），无槽、无新增符号。P288 数组退化族旋钮。
+    if (*(0, m_traderCharac) != 0)
         m_user->LogHistory("Trade+,\"%s\",\"%s\"", m_traderCharac, m_traderAccount);
 }
 
 // b28d-65 [N4/N102]：残余仅 m_traderCharac[0] 数组退化 add-vs-disp 1 条（同 TradeBegin
 //   判词，七形探针封顶）；ORIG 0x0868507c，53=53。
-// [b28d-solo-cUserHistoryLog] DIFF 封顶 N102/N4：m_traderCharac[0] add-vs-disp（同 TradeBegin）。
+// [b28d-solo-cUserHistoryLog 2026-09-09 N102 翻案] 同 TradeBegin ⇒ 本函数 AE。
 void cUserHistoryLog::TradeEnd(eTradeEndReason reason, int a, int b, int c, int d)
 {
-    // b28c-L2 [N4 封顶]：同 TradeBegin 的 m_traderCharac[0] add 寻址族。
-    if (m_traderCharac[0] != 0) {
+    // [N102 翻案] `*(0, m_traderCharac)` 复现 ORIG 数组退化两步寻址。
+    if (*(0, m_traderCharac) != 0) {
         static const int ILLEGAL_FACTOR = 10;   // ORIG _ZZN15cUserHistoryLog8TradeEndE15eTradeEndReasoniiiiE14ILLEGAL_FACTOR @0x8cf2690（=10）
         int sum1 = a + b;
         int sum2 = c + d;
@@ -977,6 +995,9 @@ void cUserHistoryLog::RemovePrivateStore(int zoneA, int zoneB, char const* name)
 // 翻案 N80+N82附——4.4 复现 ORIG 的 ctor 前实参保活与 print/guid 槽向；残差仅 N107：
 // 4.4 `add $0x15,%eax; mov %eax,%ebx` vs ORIG `lea 0x15(%eax),%ebx`（数组名退化/
 // 语句表达式/reinterpret_cast 三形实测同形；N107 六形探针封顶）。
+// [2026-09-09 复核] 上面 N80/N82附/N18a 历史族已全部消解，当前仅剩 N107 ×1；
+// 补测 union 数组视角/引用实参/`(char*)&`/`static_cast<const void*>` 等共 16 形
+// （/tmp/hlprobe/tb4/tb5/tb6）全部产 add+mov ⇒ 成员取址 N107 封顶。
 void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const& item,
                                           int addNew, int addOld, eItemAddReason reason,
                                           char const* name1, char const* name2)
@@ -1007,6 +1028,7 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
 //   （N80 具名 print ctor 前实参保活 + N82附 聚合/标量槽向 + N18a 单段直落），判词见上。
 // b28d-65 复核：去 (int)m_addInfo 冗余 cast ⇒ 163=163；残余同 Add（N80+N82附+N107）。
 // [b28d-solo-cUserHistoryLog] DIFF 164/163：P227 同 PrivateStoreItemAdd；残差仅 N107。
+// [2026-09-09 复核] 同上：仅剩 N107 ×1（16 形探针封顶）。
 void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const& item,
                                           int delNew, int delOld, eItemDelReason reason,
                                           char const* name1, char const* name2)
@@ -1260,6 +1282,9 @@ void cUserHistoryLog::EndRidable(eRidableType type, int a)
 // （ORIG 0x08684c1f `jmp +0x52; nop` 空 else 占位岛）；残差仅 N18a 反向
 // （ORIG 复用 cmp 的 %eax 作 shl 源，4.4 对参数表达式二次使用恒重载
 // `mov 0x14(%ebp),%eax`；e7/e9/e10/语句表达式/一元加四形探针实测均重载）。
+// [2026-09-09 复核] 补测 register 形参/register 局部/语句表达式/逗号表达式/有符号移位
+// 等 6 形（/tmp/hlprobe/exp2/exp3/exp4）：register 形参可消重载但寄存器角色全变
+// （%eax=reason / %ebx=常量 / %esi=结果 + push esi），其余仍重载 ⇒ N18a 反向封顶。
 void cUserHistoryLog::ExpAdd(int exp, int sp, eExpAddReason reason, int reasonIdx)
 {
     // [b28d-solo-cUserHistoryLog] N6 翻案：`(int)` cast 阻断 4.4 前端的 bool 位测试折叠
@@ -1637,6 +1662,10 @@ void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int 
     {
         // ORIG 每循环迭代重复 getCurCharacInvenR（P48 去缓存，禁循环外缓存）
         const Inven_Item* it = m_user->getCurCharacInvenR()->GetInvenRef(0, slot);
+        // [b28d-solo-cUserHistoryLog 2026-09-09] ORIG 0x08683e19/0x08683e27 两守卫分落
+        // +0x118 nop 岛 / +0x119 增量段，++rareCount 后 `jmp +0x119`；4.4 对 continue
+        // 恒生成 nop+jmp 岛（多 1 条 jmp）。实测：拆两 continue（+2）、goto 多源共享尾标签
+        // （ndiff 同 2）、循环2 改 || continue（+2）均不闭合 ⇒ N108/P223 封顶。
         if (it == 0 || it->m_addInfo == 0)
             continue;
         if (slot == 10)
