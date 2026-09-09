@@ -183,7 +183,12 @@ int getCharacterJobToEnumValue(std::string& s);
 typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
 
 // b28d-solo-InitScriptProducers_6: DIFF/N 封顶 — p167 调用点差集 CLEAR（71=71，
-// 语义完整）；残差 N82（帧/槽号 676 vs 687）+ N89（libstdc++ 模板全内联）。
+// 语义完整）；残差 N82（帧/槽号 673 vs 687）+ N89（libstdc++ 模板全内联）。
+// [SweepInitProd9 本轮] 负极性反例实测（勿再试）：把 25 个 case 体统一改为
+// `if (!__inited) { insert } else { return N; }`（P333 负极性形，与同 TU
+// importDimensionActivationData 的 break 版不同——此处 else 是 return）后
+// ourN 687→**737**（gap −14→−64）、jcc 目标块差异段 13→13 且 jcc 数 91/109→
+// 91/127，明显反劣 ⇒ 已回滚。P333 的负极性守卫形仅在 else 为 `break` 时成立。
 // ORIG 0x088be63d。
 int getGrowTypeIndex(const char* name)
 {
@@ -419,8 +424,14 @@ bool importAvatarRouletteListDetail(AvatarRoulette& out,
 // `xor $1; test; jne body`）⇒ gap 21→2（raw 328 vs 326，norm 307 vs 305）。
 // 残差 2 条：① m_avatarCoinInfo 首节 store ORIG `mov %eax,%edx; mov this,%eax;
 // mov %edx,(%eax)` RHS-first+中转 vs 我方 LHS-first（T1–T4 无字段类型直证，
-// P321 T5 禁以装载序改类型）⇒ N76；② ORIG 08911b57 节尾显式 `jmp 主循环头`
-// 被 4.4 jump-thread（空 else/continue 两形实测不闭合）⇒ N。p167 CLEAR（47=47）。
+// P321 T5 禁以装载序改类型）⇒ N76。
+// [SweepInitProd9 本轮] ② 已翻正：旧判「空 else/continue 两形不闭合」被 P223
+// **尾空标签**形推翻——五个标量节尾各 `goto after_sections;`（ORIG 0891179f/
+// 089117cd/089117fb/08911829/08911857 的 `jmp 08911b5c`），循环体尾置
+// `after_sections:;`（=ORIG 08911b5c 共享中继岛 `jmp 主循环头`）。实测：
+// jcc 48=48、目标块签名差异段 6→**0**（逐位全等）；ourN 305→306、ORIG 307
+// ⇒ gap 2→1。剩余唯一条 = N76 store 序（`mov %eax,%edx` 中转）。
+// p167 CLEAR（47=47）。
 bool importAvatarRouletteList(char* path, AvatarRoulette& out)
 {
     if (!loadRDARScriptFile("", path))
@@ -446,22 +457,27 @@ bool importAvatarRouletteList(char* path, AvatarRoulette& out)
         if (token == "[avatar coin info]")
         {
             out.m_avatarCoinInfo = ScanInt((bool*)0);
+            goto after_sections;        // ORIG 0891179f jmp 08911b5c（共享岛）
         }
         else if (token == "[rare clone avatar rate]")
         {
             out.m_rareCloneAvatarRate = ScanInt((bool*)0);
+            goto after_sections;
         }
         else if (token == "[rare avatar rate]")
         {
             out.m_rareAvatarRate = ScanInt((bool*)0);
+            goto after_sections;
         }
         else if (token == "[upper avatar rate]")
         {
             out.m_upperAvatarRate = ScanInt((bool*)0);
+            goto after_sections;
         }
         else if (token == "[normal avatar rate]")
         {
             out.m_normalAvatarRate = ScanInt((bool*)0);
+            goto after_sections;
         }
         else
         {
@@ -551,6 +567,10 @@ bool importAvatarRouletteList(char* path, AvatarRoulette& out)
             // 注：ORIG 08911b57 节尾另有 1 条显式 `jmp 主循环头`；4.4 对链尾裸
             // if 恒 jump-thread（空 else / 显式 continue 两形实测均不闭合）⇒ N。
         }
+        // b28d-solo-InitScriptProducers_6: P223 尾空标签 — ORIG 08911b5c 是
+        // 五个标量节共享的 `jmp 主循环头` 中继岛；标量节尾显式 goto 至此，
+        // 4.4 若线程化则本形不成立（判词记实测读数）。
+    after_sections:;
     }
     return true;
 }
@@ -573,6 +593,9 @@ bool importAvatarRouletteList(char* path, AvatarRoulette& out)
 // 无 T1–T4 直证，且改型需动 CDataManager.h + 4 个消费 TU（P321 T5 禁）⇒ N76；
 // ② [reward item prob] 两个 += 段我方 `lea (%edx,%eax,1); mov %eax,%edx` vs ORIG
 // `add %eax,%edx`（N4/P30）⇒ N 封顶。
+// [SweepInitProd9 本轮] fresh 读数：origN 234 / ourN 233（gap +1）；jcc 40=40 且
+// **目标块签名差异段 = 0**（逐位交叉验证全等，含全部条件方向/落点）——控制流
+// 与 ORIG 完全同构，残差纯为上述 N76 store 序 + N4/P30 与 1 条 nop。
 int importDeathTowerScript(const char* path, stDeathTower_t& out)
 {
     bool ok = false;
@@ -673,6 +696,9 @@ int importDeathTowerScript(const char* path, stDeathTower_t& out)
 // pair<const int,T> converting ctor（P61/P178），p167 由 3 MISSING/2 EXTRA 转
 // CLEAR（33=33）；[reward exp weight] 改 `++i` 先于 ok 检查。残差 N112（nop ×）
 // + P211 store 序 + 槽（271 vs 264）⇒ N 封顶。
+// [SweepInitProd9 本轮] fresh 读数：origN 263 / ourN 265（gap −2），jcc 36=36、
+// 目标块差异 7 段（全部为 ORIG nop 中继岛/块首落点差，jcc 方向与数量逐位一致）
+// ⇒ N112/P211 封顶，无控制流真反。
 int importBloodDungeonScript(const char* path, stBloodDungeon_t& out)
 {
     bool ok = false;
@@ -1394,8 +1420,22 @@ loop_exit:
 // ============================================================================
 // b28d-solo-InitScriptProducers_6: DIFF/N 封顶 — ORIG 0x0890dbba。已修：删两处
 // `std::string tmp(str)` 中转，直接 `ConvertStringToTime(str, ...)`（by-value 形参
-// 自身拷贝即可），p167 由 6 EXTRA 转 CLEAR（28=28），指令数 239→207（ORIG 204）。
-// 残差 N86/N89（string 临时/模板）+ N112 nop ⇒ N 封顶。
+// 自身拷贝即可），p167 由 6 EXTRA 转 CLEAR（28=28）。
+// [SweepInitProd9 本轮] ORIG 0x0890dbba 逐位复验 + 三处 P0/P171 修复：
+// ① `int id = ScanInt(&ok); item.m_itemIdx = (unsigned)id;` → 内联
+//    `item.m_itemIdx = (unsigned)ScanInt(&ok);`（ORIG 0890dc70/0890dd82
+//    `mov %eax,-0x34/-0x40` 直存，无 id 槽往返）——删 2×2 条；
+// ② `bool convOk = (ConvertStringToTime(...) == 1); if (!convOk)` → 裸
+//    `if (!ConvertStringToTime(...))`（ORIG 0890dcc5 `mov %eax,%ebx; xor $1,%ebx`
+//    无 bool 槽）——删 2×1 条；
+// ③ 补 ORIG 三处死写入（P171）：0890dc03 `movl $0x0,-0x14`（prologue）、
+//    0890dc43 `movl $0x0,-0x10`（buyitem 入口）、0890dd55 `movl $0x0,-0xc`
+//    （getitem 入口）——补 3 条；声明序按 ORIG 槽浅→深排 deadA/token/str/ok，
+//    result（4.4 共享尾替代 ORIG 的 ebx 承载）声明最后。
+// 读数：ourN 202→199 = ORIG 199（gap 0）；jcc 28/27（ORIG 尾部 EOF 岛
+// 0890de2a `jmp 0890de2d` 被 4.4 jump-thread，P223 尾标签法在此跨非平凡
+// 局部声明不可用）+ 8 段目标块序差（块首 string-ctor 块 vs memset 块）+ 槽整体
+// 深 4（result 槽，ORIG 用 ebx）⇒ N82/N95/P223 封顶。
 bool importDBLogItem(char* path, std::vector<stDBLogItem>* out)
 {
     // ORIG T 0x0890dbba（204 条；单出口 ebx 形——4.1 把所有失败/EOF 路径 merge
@@ -1410,10 +1450,17 @@ bool importDBLogItem(char* path, std::vector<stDBLogItem>* out)
         return false;
     }
 
-    bool result = true;
+    // b28d-solo-InitScriptProducers_6: P171 死写入照抄 — ORIG 0890dc03
+    // `movl $0x0,-0x14(%ebp)`（prologue 后零写、全函数无读取）。声明序按
+    // ORIG 槽浅→深（4.4 先声明占浅槽，P212/P331）：deadA(-0x14)→token(-0x20)
+    // →str(-0x24)→ok(-0x25)；result 为 4.4 共享尾的替代物（ORIG 用 ebx 承载），
+    // 声明在最后使其落最深槽、不挤占上述 ORIG 槽位。
+    int deadA = 0;
+    (void)deadA;
     std::string token;                 // ORIG -0x20
     std::string str;                   // ORIG -0x24
     bool ok = false;                   // ORIG -0x25
+    bool result = true;
 
     for (;;)
     {
@@ -1424,20 +1471,28 @@ bool importDBLogItem(char* path, std::vector<stDBLogItem>* out)
 
         if (token == "[dblog buyitem]")
         {
+            // b28d-solo-InitScriptProducers_6: P171 — ORIG 0890dc43
+            // `movl $0x0,-0x10(%ebp)`（分支入口零写、循环回边不经过、无读取）。
+            int deadB = 0;
+            (void)deadB;
             for (;;)
             {
                 stDBLogItem item;                  // ORIG memset(&item,0,0xc)
                 memset(&item, 0, sizeof(item));
-                int id = ScanInt(&ok);             // 结果先落槽再判（ORIG +0xb6）
-                item.m_itemIdx = static_cast<unsigned int>(id);
+                // b28d-solo-InitScriptProducers_6: P0/P183 — ORIG 0890dc70
+                // `mov %eax,-0x34(%ebp)` 直存字段（无具名 id 槽往返），ScanInt
+                // 结果内联进字段赋值。
+                item.m_itemIdx = static_cast<unsigned int>(ScanInt(&ok));
                 if (ok != true) { break; }
                 if (!ScanStr(&str))
                 {
                     result = false;
                     goto done;
                 }
-                bool convOk = (ConvertStringToTime(str, item.m_time) == 1);
-                if (!convOk)
+                // b28d-solo-InitScriptProducers_6: P168a — ORIG 0890dcc5
+                // `mov %eax,%ebx; xor $0x1,%ebx`（bool 取反入 ebx 跨 dtor 保活，
+                // 无 bool 槽）⇒ 裸 `!ConvertStringToTime(...)` 形。
+                if (!ConvertStringToTime(str, item.m_time))
                 {
                     result = false;
                     goto done;
@@ -1454,20 +1509,23 @@ bool importDBLogItem(char* path, std::vector<stDBLogItem>* out)
 
         if (token == "[dblog getitem]")
         {
+            // b28d-solo-InitScriptProducers_6: P171 — ORIG 0890dd55
+            // `movl $0x0,-0xc(%ebp)`（分支入口零写、无读取）。
+            int deadC = 0;
+            (void)deadC;
             for (;;)
             {
                 stDBLogItem item;
                 memset(&item, 0, sizeof(item));
-                int id = ScanInt(&ok);
-                item.m_itemIdx = static_cast<unsigned int>(id);
+                // b28d-solo-InitScriptProducers_6: 同 buyitem（ORIG 0890dd82 直存）。
+                item.m_itemIdx = static_cast<unsigned int>(ScanInt(&ok));
                 if (ok != true) { break; }
                 if (!ScanStr(&str))
                 {
                     result = false;
                     goto done;
                 }
-                bool convOk = (ConvertStringToTime(str, item.m_time) == 1);
-                if (!convOk)
+                if (!ConvertStringToTime(str, item.m_time))
                 {
                     result = false;
                     goto done;
@@ -1636,6 +1694,9 @@ int importDailyScheduleEtcScript(const char* path,
 //    give-group 死存补具名 `dead20`（ORIG 0891710f `mov %eax,-0x1c`）。
 // 残差 1 条（我方多）：块序差异（items 构造/tokenizeStr 段位置）+ 槽号整体深 4
 //（N95/N126 版本首槽基址常数）+ 1 条尾 jmp ⇒ N82/N95 封顶。
+// [SweepInitProd9 本轮] fresh 读数：origN 1143 / ourN 1141（gap +2）；jcc 155/156、
+// 目标块差异 9 段（delete/insert 成对，均为静态表守卫块与 [section]/[give group]
+// 内层循环的 nop 中继岛落点差，jcc 方向无互换）⇒ 维持 N82/N95，无真反。
 bool importDimensionActivationData(const char* path,
                                    DimensionActivationData* out)
 {
@@ -2038,7 +2099,12 @@ bool importDimensionActivationData(const char* path,
 // b28d-solo-InitScriptProducers_6: DIFF/N 封顶 — ORIG 0x0890de85。已修：load 检查
 // 最前；函数级 token(-0x10)/unused(-0x14)/ok(-0x15)，out 判空在声明之后；`str`
 // 改为 [EMOTION INFO] 块内局部（ORIG -0x1c）。p167 由 3 MISSING 转 CLEAR（29=29）。
-// 残差 N86/N89（string 构造/析构族）+ N82 槽（239 vs 244）⇒ N 封顶。
+// 残差 N86/N89（string 构造/析构族）+ N82 槽 ⇒ N 封顶。
+// [SweepInitProd9 本轮] fresh 读数：origN 234 / ourN 245（gap −11），jcc 38/43
+// （多 5 个）。逐位核对：3 处 `data.m_10/11/12 = (v==1)?1:0` 的 ORIG 形是
+// `mov slot,%eax; cmp $1; sete %al`（无分支），4.4 恒折 `cmpl $1,slot; jne;
+// mov $1; jmp; …`（每处 +1 jne +1 jmp）⇒ 属 P197④/setcc-fold 负例（4.1 槽比
+// sete 不可复现，探针族已证），非语义差；其余 2 段为块首落点差。语义等价。
 bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
 {
     if (!loadRDARScriptFile("", path))
