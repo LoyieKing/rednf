@@ -89,23 +89,32 @@ bool CAutoPunishRuleBlackIPMgr::addBlackIP(unsigned long addr, unsigned char min
 // ----------------------------------------------------------------------------
 bool CAutoPunishRuleBlackIPMgr::isBlackIP(char const* ip)
 {
-    // b28d-solo-isBlackIP: NEAR 封顶（N98 槽序）。已修：ipBuf 0x12（4×movl+movw
-    // 内联清零，原 0x10 且 i+2 可越界到 0x11）、seg[4]、lastSeg 无符号化（复现
-    // mem 直比 + ja/jb）、命中判定改 `A && B` 语句表达式（P226 零槽短路物化）。
-    // 残差仅槽号：ORIG seg -0x34/cit1 -0x38/cit2 -0x3c，4.4 seg -0x3c/cit1 -0x34/
-    // cit2 -0x38（4.4 按首次使用序分配，声明序不可翻）。ORIG 0x084eb63e。
+    // b28d-solo-isBlackIP: **AE 111/111**（check_tu_routed fresh）。历次修复：
+    // ipBuf 0x12（4×movl+movw 内联清零，原 0x10 且 i+2 可越界到 0x11）、lastSeg
+    // 无符号化（复现 mem 直比 + ja/jb）、命中判定改 `A && B` 语句表达式
+    // （P226 零槽短路物化）。本轮 N98 槽序翻正：把 seg 从循环体内提为**函数头
+    // union 视图**（`union { char m_c[4]; unsigned int m_w; }`）并在循环内经
+    // `seg.m_w = 0` 写整字 —— 同时满足 ORIG 的三条直证：seg 槽 -0x34（浅于
+    // cit1 -0x38/cit2 -0x3c）、`movl $0,-0x34(%ebp)` 单条、且该清零仍在循环体内
+    // （命中才清）。对照：块内 `char seg[4]={0}` 被 4.4 排到最深槽 -0x3c；函数头
+    // `char seg[4]={0}` 槽号虽对但清零被提到序言（DIFF）。ORIG 0x084eb63e。
     char ipBuf[0x12] = {0};                    // 4×movl + movw 内联清零
     strncpy(ipBuf, ip, 0x10);                  // strncpy(ipBuf, param, 0x10)
 
     unsigned long netAddr = 0;                 // -0x30
     unsigned char lastSeg = 0;                 // -0xd（ORIG cmp 为 8 位无符号比较）
+    // P212/P309 + P246：ORIG 槽序 seg(-0x34) 浅于 it(-0x38)/endIt(-0x3c)，且
+    // `movl $0,-0x34` 在循环体内（命中才清零）⇒ 函数头声明 union 视图占槽、
+    // 循环内经 `m_w` 写整字（4.4 对块内 `char seg[4]={0}` 给最深槽 -0x3c 且
+    // 函数头初始化会把清零提到序言）。ORIG 0x084eb63e。
+    union { char m_c[4]; unsigned int m_w; } seg;
     for (int i = 0xf; i >= 0; --i)             // i=-0xc 起始 0xf，not+shr 判 ≥0
     {
         if (ipBuf[i] == '.')                   // cmp $0x2e,%al
         {
-            char seg[4] = {0};                 // strcpy 目标 -0x34（movl $0 单条）
-            strcpy(seg, &ipBuf[i + 1]);
-            lastSeg = (unsigned char)atoi(seg); // mov %al,-0xd(%ebp)
+            seg.m_w = 0;                       // movl $0,-0x34(%ebp) 单条
+            strcpy(seg.m_c, &ipBuf[i + 1]);
+            lastSeg = (unsigned char)atoi(seg.m_c); // mov %al,-0xd(%ebp)
             ipBuf[i + 1] = '0';                // movb $0x30
             ipBuf[i + 2] = '\0';               // movb $0x0
             netAddr = inet_addr(ipBuf);        // inet_addr(ipBuf) -> netlong
@@ -218,10 +227,12 @@ int CAutoPunishRuleHackTypeMgr::_findIPCount(unsigned int a, unsigned int b,
 {
     // b28d-solo-_findIPCount: ORIG 循环体对 it->second 做 0x18 字节按值拷贝到
     // -0x38（6 条 mov 对），prefix 用 4 条 movl 内联清零，且 m_b 与 strncmp 为
-    // 两个独立守卫落同一 continue 出口。残差 1 条：ORIG `lea -0x48(%ebp),%eax;
-    // movzbl (%eax),%eax`（4.1 数组元素读恒发地址），4.4 折 `movzbl -0x48(%ebp),
-    // %eax`（探针 A/C/D 三形均折 disp，B/E 具名指针/引用形能出 lea 但多占 4B 槽
-    // 破坏帧 0x58）⇒ N102/N4 封顶。ORIG 0x080f9322。
+    // 两个独立守卫落同一 continue 出口。残差 1 条（gap=+1，dual_rank 唯一候选）：
+    // ORIG `lea -0x48(%ebp),%eax; movzbl (%eax),%eax`（4.1 数组元素读恒发地址），
+    // 4.4 恒折 `movzbl -0x48(%ebp),%eax`。本轮再探针三形（/tmp/probe_lea.cpp：
+    // `prefix[0]`、`*prefix`、`*(char*)((unsigned int)prefix)`）**全部折 disp**；
+    // 具名指针/引用形能出 lea 但多占 4B 槽破坏帧 0x58 ⇒ N117/N102 封顶。
+    // ORIG 0x080f9322。
     typedef std::multimap<unsigned short, HackIPCounter_t> IpCounterMap;
     IpCounterMap::const_iterator it = m_ipCounterMap.lower_bound((unsigned short)a);
     IpCounterMap::const_iterator endIt = m_ipCounterMap.upper_bound((unsigned short)a);
@@ -357,7 +368,9 @@ bool CAutoPunishRuleHackTypeMgr::_checkApplyFlag(
     // 预清（P198①）；②补回 ORIG 0x8695825 的冗余 `szC = ipCounters.size()` 求值
     // ⇒ 324=324、p167 CLEAR 18/18。残差：ORIG 用 %esi 缓存 ip、%ebx 缓存 cnt，
     // 4.4 两值共用 %ebx（帧 0x44 vs 0x40、缺 push %esi）+ `m_value4 > (unsigned
-    // int)cnt` 4.4 恒载 cnt 入寄存器而 ORIG mem 直比（P209）。ORIG 0x0869550c。
+    // int)cnt` 4.4 恒载 cnt 入寄存器而 ORIG mem 直比（P209）。**jcc 逐位交叉
+    // 验证：37/37 MATCH**（控制流与 ORIG 等价，残差纯为寄存器分配/装载序，
+    // 属 P75/N7 跨版本结构性差异）。ORIG 0x0869550c。
     if (info.m_value3 == 1 || info.m_value3 == 5)
     {
         outInfo.CopyStruct(info);
@@ -455,18 +468,21 @@ bool CAutoPunishRuleHackTypeMgr::checkMaxHackCntOver(
     std::vector<tyIPCounters>& ipCounters, std::vector<stLookOuts>& lookOutsB,
     char* ip)
 {
-    // b28d-solo-checkMaxHackCntOver: N 封顶（N98 槽序）。已修：去掉
-    // (unsigned short)type cast（复现 32 位 cmp）、m_value2 左置复现 call 前
-    // %ebx 缓存、A/B 条件改 else-if 链（136→133，条件段逐条同形）。残差：
-    // lower_bound/upper_bound 的 sret 与 const_iterator 槽序 4.1 为 lower 深
-    // (-0x14/-0x18)/upper 浅(-0x10/-0x1c)，4.4 相反且按首次使用序分配不可翻；
-    // 帧 0x58 vs 0x54。ORIG 0x08695360。
-    std::multimap<ENUM_HACKTYPE, HackTypeInfo_t>::iterator lower =
+    // b28d-solo-checkMaxHackCntOver: **AE 131/131**（check_tu_routed fresh）。
+    // 历次修复：去掉 (unsigned short)type cast（复现 32 位 cmp）、m_value2 左置
+    // 复现 call 前 %ebx 缓存、A/B 条件改 else-if 链。本轮两处翻正：
+    //  ① P225 推广：`if (flag && _checkApplyFlag(...))` 改**嵌套 if** —— 合并形
+    //     在 4.4 物化 bool（mov $0/mov $1+test），多 1 个 je+1 个 jmp，jcc 序列
+    //     与 ORIG 失配（jcc 逐位核对：修前 MISMATCH、修后 MATCH）。
+    //  ② P326 变体：去掉具名 `iterator lower/upper` 中间量、直接以 const_iterator
+    //     接收 lower_bound/upper_bound 的返回值 —— 复现 ORIG 的 sret 临时槽阶梯
+    //     lower(-0x14)/cit(-0x18)、upper(-0x10)/citEnd(-0x1c)（旧形 lower 组反而
+    //     落在浅槽，帧 0x54 两侧一致但槽号互换）。
+    // ORIG 0x08695360。
+    std::multimap<ENUM_HACKTYPE, HackTypeInfo_t>::const_iterator cit =
         m_hackTypeMap.lower_bound(type);
-    std::multimap<ENUM_HACKTYPE, HackTypeInfo_t>::const_iterator cit = lower;
-    std::multimap<ENUM_HACKTYPE, HackTypeInfo_t>::iterator upper =
+    std::multimap<ENUM_HACKTYPE, HackTypeInfo_t>::const_iterator citEnd =
         m_hackTypeMap.upper_bound(type);
-    std::multimap<ENUM_HACKTYPE, HackTypeInfo_t>::const_iterator citEnd = upper;
 
     for (; cit != citEnd; ++cit)
     {
@@ -487,10 +503,16 @@ bool CAutoPunishRuleHackTypeMgr::checkMaxHackCntOver(
         {
             flag = true;
         }
-        if (flag && _checkApplyFlag(info, analyzer, outInfo, lookOutsA,
-                                    ipCounters, lookOutsB, ip))
+        // P225 推广：ORIG 为 `cmpb flag; je 尾; call; test %al; je 尾; mov $1`
+        // 的**嵌套 if 直跳**形；合并 `flag && f()` 在 4.4 会物化 bool
+        // （mov $0/mov $1 + test）多出 1 个 je + 1 个 jmp（jcc 序列失配）。
+        if (flag)
         {
-            return true;
+            if (_checkApplyFlag(info, analyzer, outInfo, lookOutsA,
+                                ipCounters, lookOutsB, ip))
+            {
+                return true;
+            }
         }
     }
     return false;
@@ -507,32 +529,19 @@ bool CAutoPunishRuleHackTypeMgr::checkMaxHackCntOver(
 bool CAutoPunishRuleHackTypeMgr::checkTotalTradeRuleOver(unsigned int tradeType,
                                                          unsigned long long total) const
 {
-    // b28d-solo-checkTotalTradeRuleOver: N 封顶（跨版本 64 位形参 + O0 无 CSE）。
-    // 已试形：①totalLo/totalHi 具名（帧 0x18/49 条，本形最优）；②ull t=total 副本
-    // （54）；③goto 共享出口（54）；④表达式直读（60）。ORIG 4.1 对 `mov 0x10(%ebp),
-    // %eax; mov %eax,-0x8` 直接落槽，4.4 恒先 8 字节中转 -0x18/-0x14（探针 A/B/C/E/G
-    // 五形全 spill）；且 ORIG 成员 hi/lo 一次读取复用（edx×2），4.4 -O0 无 CSE 重读 3 次。
-    // 语义等价（全 64 位无符号比较，先高位后低位）。ORIG 0x08531fd2。
-    unsigned int totalLo = (unsigned int)total;
-    unsigned int totalHi = (unsigned int)(total >> 32);
-
+    // b28d-solo-checkTotalTradeRuleOver v3: ORIG 0x08531fd2 = **64 位成员整体比较**
+    // `m_totalTradeValue <= total` 的正向包裹形（探针 fF 逐条命中）：`ja ret0`（type>）、
+    // `cmp hi; ja ret0; cmp hi; jb ret1; cmp lo; ja ret0` 是 4.1 对 `<=` 的展开；
+    // 旧 lo/hi 具名手写比较（成员 hi 重读 3 次）与 ORIG 的 hi 单读复用不符。
     if (m_totalTradeType == 0 && m_totalTradeValue == 0)
     {
         return false;
     }
-    // P222 正向包裹：ORIG 为 `ja 共享尾 false 块` + 续判 fall-through 布局。
     if (m_totalTradeType <= tradeType)
     {
-        if (m_totalTradeHi <= totalHi)
+        if (m_totalTradeValue <= total)
         {
-            if (m_totalTradeHi < totalHi)
-            {
-                return true;
-            }
-            if (m_totalTradeLo <= totalLo)
-            {
-                return true;
-            }
+            return true;
         }
     }
     return false;
