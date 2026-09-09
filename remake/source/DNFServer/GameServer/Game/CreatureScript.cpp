@@ -1343,12 +1343,15 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
                 {
                 case 0:                       // 注册链入口(与 [damage] 共体)
                 case AITAG_DAMAGE:            // +0x00 float
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(LookupMap::value_type("[damage]", static_cast<int>(AITAG_DAMAGE)));
+                    }
+                    else
                     {
                         info->m_damage = ScanFloat((bool*)0);
                         break;
                     }
-                    __lookup.insert(LookupMap::value_type("[damage]", static_cast<int>(AITAG_DAMAGE)));
                     /* fall through（ORIG 0x5c8 jmp 0x5e3） */
                 case AITAG_DAMAGE_INCREASE_RATE:  // +0x04 float
                     if (__inited)

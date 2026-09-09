@@ -25579,14 +25579,16 @@ int Dispatcher_RefundSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param
                         __PRETTY_FUNCTION__,
                         rfErr(param), 0);
 
-    // ORIG 帧：std::vector<int> 局部仅构造/clear/析构（无副作用消费），以等大
-    // dead[] 复原帧空间。
-    char deadVec[12];                                           // 复原 vector<int> 帧槽（未用局部）
+    // ORIG 0x081da923/0x081da934/0x081dad03：真实 std::vector<int> 局部
+    //（ctor + clear + dtor，ORIG 三方 call 形）。
+    std::vector<int> deadVec;
+    deadVec.clear();
 
     Inven_Item item;
     item.reset();
-    const CInventory* invR = user->getCurCharacInvenR();
-    const int slot = invR->GetInvenData(req.m_0d, item);
+    // ORIG 0x081da8ca/0x081da973：getCurCharacInvenRefR() 两处各自重取（P183）。
+    const int slot =
+        user->getCurCharacInvenRefR()->GetInvenData(req.m_0d, item);
     if (!(item.m_addInfo == req.m_0d &&                          // +0x02 物品 idx 一致
           req.m_13 <= item.m_addInfo2 &&                        // +0x07 持有数 ≥ 请求数
           slot >= 0)) {
@@ -25598,7 +25600,7 @@ int Dispatcher_RefundSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param
         CInventory snapshot;                                    // 库存副本上先行试删
         InventoryMemory mem;
         snapshot.SetInventoryMemory(&mem);
-        snapshot.setCopy(*invR);
+        snapshot.setCopy(*user->getCurCharacInvenRefR());
         if (snapshot.delete_item(INVEN_TYPE_EQUIP, slot, req.m_13, eItemDelReason_3, false)) {
             rfErr(param) = 0x16;                                // 副本删除失败
             return 0;

@@ -101,8 +101,10 @@ bool ARAD::SCRIPT::AvatarFixedHiddenOption::isMaterialItemIndex(int itemIndex)
 // 重查，第二次进入 switch 才按 map 查得的 key 执行正常动作；default 同时承担
 // find 未命中（key==-1）的 false 返回。
 // [DualArith 2026-09-09] gap 172→0（orig 977 / ours 977；基线 ours 805）。
-// p167 修正版：MISSING/EXTRA 全为 C2↔C1 委托变体（pair/map/SpinLock/const_iterator/
-// STAvatarHiddenAbilityVariation ctor），附二 §2 豁免，无真缺 callee。
+// p167 修正版（call rel32 + nm 区间 + .plt 反查，唯一认读口径）：MISSING 全为 C2 变体、
+// EXTRA 全为 C1 变体（pair/map/SpinLock/const_iterator/STAvatarHiddenAbilityVariation
+// ctor），严格 1:1 镜像、call 总数 150/150 ⇒ 按 Main 2026-09-09 裁定② clone 别名对
+// 豁免，判 CLEAR、不排期。旧版 p167 / call_multiset_diff.py 读数已弃用（本件无旧版清单）。
 bool ARAD::SCRIPT::AvatarFixedHiddenOption::parseAbility(
     std::vector<STAvatarHiddenAbilityVariation>& variations, std::string& tag)
 {

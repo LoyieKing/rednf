@@ -865,7 +865,10 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
     // 0x8a8723f…0x8a8c145 与我方 0x2e2a…0x7e61 地址间隔同构，无合并/改形）、
     // GetEquipmentTypeStringToEnum 1/1、logFormat 2/2、stServerIndex 10/10、
     // sItemGenRef 6/6。分支标签集：ORIG .rodata 137 项 vs 本源码 137 项全覆盖
-    // （0 缺段）。gap = 4615 − 4742 = −127（我方多）：+16 call 全为局部空析构 D1
+    // （0 缺段）。[三口径并列] 修正版 p167 MISSING=0；旧版 p167_callsite_legacy
+    // 复跑 MISSING 亦为空、EXTRA 仅 8×D1；call_multiset_diff TOT 558/574、
+    // diffkeys 8 全为 D1 ⇒ 派单「ORIG-only callee」清单出自更粗聚合口径，逐项皆假。
+    // gap = 4615 − 4742 = −127（我方多）：+16 call 全为局部空析构 D1
     // （N91），帧 0x54c vs 0x55c（N82）；fstps 23/23。⇒ guide §6.2 判「语义完成、
     // byte 层 N 封顶」，勿再重复派工本件。
     if (!loadRDARScriptFile("", path))

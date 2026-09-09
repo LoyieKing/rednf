@@ -132,25 +132,22 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user->getCurCharacR() == 0)
         return 0xa43e;
 
-    int itemId = 0;
-    if (const CInventory* inv = user->getCurCharacInvenR())
-    {
-        Inven_Item item = inv->GetInvenSlot(INVEN_TYPE_INVEN, (int)slot);
-        itemId = item.m_addInfo;
-    }
+    // ORIG 0x08208e10：无判空，GetInvenSlot 的 sret 直接落 invItem（-0xe1）；
+    // 其后所有 itemId 使用点都是成员直读（-0xdf），无具名 itemId 局部（P0）。
+    Inven_Item invItem =
+        user->getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_INVEN, (int)slot);
 
     CDataManager* dm = G_CDataManager();
-    CStackableItem* stackable = static_cast<CStackableItem*>(dm->find_item(itemId));
+    CStackableItem* stackable =
+        static_cast<CStackableItem*>(dm->find_item((int)invItem.m_addInfo));
 
-    // 物品种类必须为可叠放(stackable 0x10)或选择强化罐(0x22)
-    int itemType = 0;
-    if (stackable != 0)
-        itemType = stackable->GetItemType();
-    if (stackable == 0 || (itemType != 0x10 && itemType != 0x22))
+    // 物品种类必须为可叠放(0x10)或选择强化罐(0x22)；ORIG 逐次虚调 GetItemType（P48）。
+    if (stackable == 0 ||
+        (stackable->GetItemType() != 0x10 && stackable->GetItemType() != 0x22))
         return LineFunc(0xa450, __PRETTY_FUNCTION__, 0, 0);
 
     // 限制条件：罐子类型或 state==3 才允许
-    if (itemId != 0x28d3c1 && user->get_state() != 3)
+    if (invItem.m_addInfo != 0x28d3c1 && user->get_state() != 3)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa3, 0x13);
         return 0;
@@ -169,7 +166,7 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
     char c1 = 0;
     char c2 = 0;
 
-    if (itemType == 0x22)
+    if (stackable->GetItemType() == 0x22)
     {
         // ---- 选择强化罐：先读两个字节（类别/类型），再在 Booster 表中定位 ----
         if (!packet.get_byte(c1))
@@ -192,15 +189,18 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
             std::map<std::pair<char, char>,
                      std::vector<stStackableBoosterItemInfo_t> >::const_iterator it =
                 bmap.find(std::make_pair(c1, c2));
-            if (it != bmap.end() && it->second.empty())
-            {
-                cMyTrace(__PRETTY_FUNCTION__, 0xa480, 5)
-                    ("selectionBooster empty : %d, category:%d,%d\n",
-                     stackable->get_index(), (int)c1, (int)c2);
-                return LineFunc(0xa481, __PRETTY_FUNCTION__, 0, 0);
-            }
+            // ORIG 0x082090ae：end() 只求值一次，empty/size 走嵌套 if。
             if (it != bmap.end())
+            {
+                if (it->second.empty())
+                {
+                    cMyTrace(__PRETTY_FUNCTION__, 0xa480, 5)
+                        ("selectionBooster empty : %d, category:%d,%d\n",
+                         stackable->get_index(), (int)c1, (int)c2);
+                    return LineFunc(0xa481, __PRETTY_FUNCTION__, 0, 0);
+                }
                 count = (int)it->second.size();
+            }
         }
 
         int i = 0;
@@ -216,7 +216,7 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
             ++i;
         }
 
-        user->m_historyLog.UseSelectBooster((unsigned int)itemId, (int)c1, (int)c2, resultItems);
+        user->m_historyLog.UseSelectBooster(invItem.m_addInfo, (int)c1, (int)c2, resultItems);
     }
 
     // ---- 主路径（两种类型汇合于此）----
@@ -246,7 +246,7 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
                 return 0;
             }
 
-            if (user->CheckCoolTimeItem((unsigned long)itemId))
+            if (user->CheckCoolTimeItem((unsigned long)invItem.m_addInfo))
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa3, 0x13);
                 return 0;
@@ -260,7 +260,7 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
                                        eItemDelReason_3, true))
                     return LineFunc(0xa4d3, __PRETTY_FUNCTION__, 0, 0);
             }
-            user->_processContinuousItem((unsigned int)itemId, stackable);
+            user->_processContinuousItem(invItem.m_addInfo, stackable);
             user->SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_0, (int)slot);
 
             int nItemIdx  = 0;      // local_2c（作 count 传入，调用后 = 限制道具 index）
@@ -270,7 +270,7 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
             WongWork::CCeraShop::stCeraShopItemParam_t ceraParam;
             WongWork::CCeraShop* cera = GlobalData::s_pCeraShop;
             bool rt = cera->ProcessSpecialItem(
-                user, itemId, nItemIdx, nProcess, curSec, true,
+                user, (int)invItem.m_addInfo, nItemIdx, nProcess, curSec, true,
                 resultItems, ceraParam, c1, c2, false, 1);
 
             if (!rt)
@@ -291,25 +291,22 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
                 }
 
 
-                _onBoosterItemUseResult(user, resultItems, itemId);
-                _onBoosterItemUseResult_OnlyOne(user, resultItems, itemId);
+                _onBoosterItemUseResult(user, resultItems, (int)invItem.m_addInfo);
+                _onBoosterItemUseResult_OnlyOne(user, resultItems, (int)invItem.m_addInfo);
 
-                if (itemId == 0x28d1b3)
+                if (invItem.m_addInfo == 0x28d1b3)
                     user->SendEventJarOutputItemStatistics(resultItems);
 
                 // ---- 结果包（header 0xa3）----
-                CInventory* invR = const_cast<CInventory*>(user->getCurCharacInvenR());
-                Inven_Item slotItem;
-                if (invR != 0)
-                    slotItem = invR->GetInvenSlot(INVEN_TYPE_INVEN, (int)slot);
-                else
-                    slotItem.reset();
+                // ORIG 0x082096d3：同一 invItem 重新赋值（sret 临时 -0x168 → 复制回 -0xe1）。
+                invItem = const_cast<CInventory*>(user->getCurCharacInvenR())
+                              ->GetInvenSlot(INVEN_TYPE_INVEN, (int)slot);
 
                 PacketGuard pg;
                 pg.put_header(1, 0xa3);
                 pg.put_byte(1);
                 pg.put_short((int)slot);
-                pg.put_int(slotItem.m_addInfo);
+                pg.put_int(invItem.m_addInfo2);
                 pg.put_short((int)resultItems.size());
                 // ORIG 0x08209850..0x08209892：两个具名 const_iterator（begin/end
                 // 各自独立语句，转换构造 ×2），比较走 const 版 operator!=。
@@ -330,7 +327,7 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
             // 物品等级校验失败（ORIG 0x082092b3：cMyTrace 临时链，实参右→左求值）
             cMyTrace(__PRETTY_FUNCTION__, 0xa49b, 0)
                 ("stackable item level check charac_no[%d], item_id(%d)",
-                 user->get_charac_no(-1), itemId);
+                 user->get_charac_no(-1), (int)invItem.m_addInfo);
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa3, 0x13);
             return 0;
         }

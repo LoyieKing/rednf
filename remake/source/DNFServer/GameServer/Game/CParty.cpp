@@ -6208,10 +6208,13 @@ void CParty::beginBloodClearProcess(bool flag)
                 itemMax = 1;
             int itemLimit = 10;                         // -0x40[1]
             int itemCount = std::min(itemLimit, round);
-            generateBloodRewardItem(slot, itemCount,
+            // 报告 generateBloodRewardItem.md + ORIG 0x85b78ef/78e7 实证：第 2 参为
+            // itemMax（setRewardItem/循环次数），第 4 参为 itemCount（field324 乘数）；
+            // 原序把两者写反（round=0 时行为可见差异）。
+            generateBloodRewardItem(slot, itemMax,
                                     (unsigned int)reinterpret_cast<CUserCharacInfo*>(
                                         m_member[slot].m_pUser)->get_charac_level(),
-                                    (unsigned int)itemMax, flag);
+                                    (unsigned int)itemCount, flag);
 
             unsigned int mobReward = 0;                 // -0x44
             G_CDataManager()->get_mob_reward(

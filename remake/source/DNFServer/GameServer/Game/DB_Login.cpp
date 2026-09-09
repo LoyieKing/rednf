@@ -544,8 +544,10 @@ MySQL* DB_Login::_GetDNFAccountDB()
 // ——与 ORIG 0840f865 起六条**逐条同形**，gap 124→+5。
 // 残余 +5 = 4.4 对 `return SendResult(...)`（bool 返回）发 `test %eax,%eax; setne %bl`
 // vs ORIG 4.1 直接 `mov %eax,%ebx`（0840f637 起 5 处 ×1 条）⇒ N 封顶（4.4 返回值规范化）。
-// p167 修正版：MISSING 仅 vector C2Ev×1/D2Ev×2、EXTRA 仅 C1Ev×1/D1Ev×2（附二 §2
-// C1↔C2 委托变体豁免，非缺 callee）。
+// p167 修正版（call rel32 + nm 区间 + .plt 反查，唯一认读口径）：MISSING 仅
+// vector C2Ev×1/D2Ev×2、EXTRA 仅 C1Ev×1/D1Ev×2 —— 严格 1:1 镜像、call 总数 56/56
+// ⇒ 按 Main 2026-09-09 裁定② C1↔C2/D1↔D2 clone 别名对豁免，判 CLEAR、不排期；
+// 旧版 p167 / call_multiset_diff.py 读数已弃用（本件无旧版清单）。
 // ============================================================================
 
 // [DualArith] verdict=DIFF gap=+5（orig 794 / ours 799；p167 差集仅 C1/C2 豁免项）

@@ -450,7 +450,7 @@ CInventory::~CInventory()
 //   隐式拷贝构造的语义本就是成员拷贝构造；改后 `_ZN13user_creature12CCreatureMgrC1ERKS0_`
 //   由本 TU 发射（ORIG 该 W 符号的天然发射点），S425 可删其 TU 级 force 使用点。
 CInventory::CInventory(const CInventory& other)
-    : m_creatureMgr(other.m_creatureMgr)
+    : m_creatureMgr(other.m_creatureMgr), m_avatarItemMgr(other.m_avatarItemMgr)
 {
     // b28d-solo-CInventory：157/196，N84 封顶（ORIG 隐式 rep movsl 块拷贝；全仓无 U 引用不可删显式定义）。
     // b28d-37 [N84 封顶，ORIG 0x869??]：同 aSERKS_——C1ERKS_ 为 W 隐式拷贝但全仓无 U 引用（无发射点），回退显式定义封顶。157/196。
@@ -477,7 +477,6 @@ CInventory::CInventory(const CInventory& other)
         m_avatarVisible[i] = other.m_avatarVisible[i];
     }
     m_pCreatureSlot = other.m_pCreatureSlot;
-    m_avatarItemMgr = other.m_avatarItemMgr;
 }
 
 CInventory& CInventory::operator=(const CInventory& other)

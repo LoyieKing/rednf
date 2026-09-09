@@ -55,19 +55,13 @@
 namespace
 {
 
-// 子对象视图（与 CParty.cpp / CPartyDepsD2.cpp 同惯例）
-inline CBattle_Field& bf(CParty* p)
-{
-    return p->m_battleField;
-}
-inline BattleData& bd(CParty* p)
-{
-    return p->m_battleData;
-}
-inline CTraceMobDieHack& traceHack(CParty* p)
-{
-    return *reinterpret_cast<CTraceMobDieHack*>(&p->m_pad210);
-}
+// 子对象视图（与 CParty.cpp / CPartyDepsD2.cpp 同惯例）。
+// P49：-O0 下 inline 助手仍发射真实 call 符号（p167 EXTRA
+// _ZN12_GLOBAL__N_1{bf,bd,traceHack}EP6CParty），而 ORIG 均为内联子对象访问
+// ⇒ 改宏：零符号、逐点展开，语义不变。
+#define LINK2_BF(p)        ((p)->m_battleField)
+#define LINK2_BD(p)        ((p)->m_battleData)
+#define LINK2_TRACEHACK(p) (*reinterpret_cast<CTraceMobDieHack*>(&(p)->m_pad210))
 
 // fistpll（round-to-nearest）等价转写（同 PartyDepsD2.cpp 惯例）
 #define LINK2_ROUND(x) ((int)((x) + 0.5f))
@@ -191,7 +185,7 @@ void CParty::SendSecretShopItemList(CUser* user)
 int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
                          MSG_MONSTER_DIE const& dieInfo, int* param)
 {
-    CBattle_Field& field = bf(this);
+    CBattle_Field& field = LINK2_BF(this);
     int memberCount = get_member_count();
 
     // ORIG：地图怪物分区进入时记录当前击杀者席位到 BF。
@@ -284,16 +278,16 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         &field, mob.m_roleType);
     if (roleType == 1)
     {
-        ++bd(this).m_killedMonster1;
+        ++LINK2_BD(this).m_killedMonster1;
     }
     else if (roleType == 3)
     {
-        ++bd(this).m_killedMonster2;
+        ++LINK2_BD(this).m_killedMonster2;
     }
     else
     {
-        ++bd(this).m_killedMonster0;
-        ++bd(this).m_field4c;
+        ++LINK2_BD(this).m_killedMonster0;
+        ++LINK2_BD(this).m_field4c;
         int expLimit = G_CDataManager()->m_serverParameter.m_4968;
         // ORIG 未缓存 GetCurrentMap，null/字段检查各重新取（P0 右值内联）。
         CMap* curMap = field.GetCurrentMap();
@@ -306,20 +300,20 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
                 expLimit = curMap->m_f0;
             }
         }
-        if (expLimit == 0 || bd(this).m_field4c <= expLimit)
-            ++bd(this).m_field48;
+        if (expLimit == 0 || LINK2_BD(this).m_field4c <= expLimit)
+            ++LINK2_BD(this).m_field48;
     }
 
     // ---- 击杀追踪器（m_manager 存在且全网格清时 traceEnd + 全员人证） ----
     if (m_manager != 0)
     {
-        traceHack(this).setMobKiller((int)mapIdx);
+        LINK2_TRACEHACK(this).setMobKiller((int)mapIdx);
         if (field.check_grid_clear())
         {
             CUser* users[4];
             users[0] = 0; users[1] = 0; users[2] = 0; users[3] = 0;
             users[0] = m_manager;
-            traceHack(this).traceEnd(m_manager, users);
+            LINK2_TRACEHACK(this).traceEnd(m_manager, users);
             for (int i = 0; i < 4; ++i)
             {
                 if (_checkValidUser(i))
@@ -370,10 +364,9 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             GlobalData::s_event_manager->GetRepeatEvent(0x18))
             ->getBonusRate(memberCount, isHelpAbuseParty());
 
-    float expWeight = m_battleField.m_pDungeon->get_exp_weight();
-
     unsigned int totalExp = getMonsterTotalExp(
-        reward, roleType, field.get_dungeon_diff(), expWeight, expRate,
+        reward, roleType, field.get_dungeon_diff(),
+        m_battleField.m_pDungeon->get_exp_weight(), expRate,
         mob.isNamedMonster());
 
     // ---- 击杀历史日志（KillMonster） ----
@@ -385,14 +378,15 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         user->getCurCharacExp(), (int)totalExp,
         (eExpAddReason)1);
 
-    _getMemberLevelGap();
+    const int memberLevelGap = _getMemberLevelGap();   // ORIG -0x68（写后未读）
+    (void)memberLevelGap;
 
     // ---- PvP 胜点（角色类型 4+，怪物掉率 100/200） ----
     int winPoint = 0;
-    CDataManager* dm = G_CDataManager();
-    if (mob.m_roleType > 4 && dm->m_aiCharacterList != 0)
+    if (mob.m_roleType > 4)
     {
-        CAICharacter* aiChar = dm->m_aiCharacterList->get(reward);
+        // P140：ORIG 直接解引用 dm+0x869c（无判空），照抄。
+        CAICharacter* aiChar = G_CDataManager()->m_aiCharacterList->get(reward);
         if (aiChar != 0 &&
             (mob.m_dropCnt == 100 || mob.m_dropCnt == 200))
         {
@@ -408,7 +402,8 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         CUser* member = m_member[i].m_pUser;
 
         // 未进入地图且非维度绕行 → 0 经验包
-        if (m_battleData.m_arr58[i] != 1 && m_battleField.m_pDungeon != 0 &&
+        // P140：ORIG 直接解引用 this+0xcac（无判空），照抄。
+        if (m_battleData.m_arr58[i] != 1 &&
             m_battleField.m_pDungeon->m_bloodDungeonType == 0)   // +0x89f
         {
             member->SendZeroExpPacket();
@@ -418,9 +413,8 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         unsigned int exp = 0;
         int characLevel = member->get_charac_level();  // ORIG 每成员仅取一次（P0 标量局部）
         // 维度未启用进入限制的完整单人份额计算
-        if (m_battleField.m_pDungeon != 0 &&
-            (m_battleField.m_pDungeon->m_89e == 0 &&                     // +0x89e
-             *(unsigned short*)((char*)this + 0xc4c) == 0))
+        if (m_battleField.m_pDungeon->m_89e == 0 &&                     // +0x89e
+            *(unsigned short*)((char*)this + 0xc4c) == 0)
         {
             if (m_battleField.m_pDungeon->get_index() == 100)
             {
@@ -467,15 +461,14 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         exp = sumGainedEachExp(member, expData);
 
         // 帮助滥用比例（维度均未启用）
-        if (m_battleField.m_pDungeon != 0 &&
-            m_battleField.m_pDungeon->m_89e != 1 &&                    // +0x89e
+        if (m_battleField.m_pDungeon->m_89e != 1 &&                    // +0x89e
             *(unsigned short*)((char*)this + 0xc4c) == 0)
         {
             member->calcHelpAbuseRatio(exp, isHelpAbuseParty(member));
         }
 
         // 维度绕行：跳过蓝宝石倍率与经验发放
-        if (m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->m_bloodDungeonType != 0)
+        if (m_battleField.m_pDungeon->m_bloodDungeonType != 0)
             continue;                                    // +0x89f
 
         // ---- 蓝宝石/迷宫倍率 ----

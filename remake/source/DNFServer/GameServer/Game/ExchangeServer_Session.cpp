@@ -386,6 +386,16 @@ CSession* CSession::Listen(int port, const char* ip)
 
 // ---------------------------------------------------------------------------
 // Connect — ORIG 0x8490829 size 0xc9
+// [N96 清绑 2026-09-09] 删除历史 `register bool failed asm("eax")`（P0 限定② /
+// N96 全域禁用；P248 不得恢复）。报告缺失（docs/class_func_reports 无
+// exchange_server 目录；同名 CDBConnector/Connect.md 经签名核对为撞名错配，
+// 仅用 ORIG 二进制切片，§3.2 兜底并标注）。ORIG 0x849084c
+// `cmpl $0x0,-0x10(%ebp); setne %al; test %al,%al; je`——failed 值全程在 %al、
+// 无栈槽 ⇒ 按 P0 双推律原码无该具名局部，还原为 `if (ok != 0)` 表达式直判。
+// 残差 = N96+N18a 封顶（4.4 对槽比零恒折直跳，不物化 setCC）。
+// 读数：清绑前 [identical=3 ae=14 合计17 near=0 diff=3]，本函数 verdict=DIFF
+//       orig57/our57；清绑后 [identical=3 ae=13 合计16 near=0 diff=4]，
+//       verdict=DIFF orig57/our55（缺 setne+test 两条）。
 // ---------------------------------------------------------------------------
 CSession* CSession::Connect(const char* ip, int port)
 {
@@ -394,10 +404,11 @@ CSession* CSession::Connect(const char* ip, int port)
     // CreateConnectionSocket 为静态成员（ORIG 同）；返回非 0=失败码。
     const int ok = CNetwork<95000, 450000>::CreateConnectionSocket(sock, ip, port);
 
-    // ORIG 0x849084c：cmpl 槽后 setne %al + test %al,%al + je（P194 sete 物化形，
-    // 4.4 对槽比零恒折直跳，须 register bool(al) 强制物化）。
-    register bool failed asm("eax") = (ok != 0);
-    if (failed)
+    // [N96 清绑] 原 `register bool failed asm("eax")` 已删（P0/N96 全域禁绑）。
+    // ORIG 0x849084c `cmpl $0x0,-0x10(%ebp); setne %al; test %al,%al; je` ——
+    // failed 值全程在 %al、无栈槽 ⇒ 按 P0 双推律原码无该具名局部，还原为
+    // `if (ok != 0)` 表达式直判（残差见函数头判词）。
+    if (ok != 0)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x24b, 0)(
             "CreateConnectionSocket failed - %s", strerror(errno));
