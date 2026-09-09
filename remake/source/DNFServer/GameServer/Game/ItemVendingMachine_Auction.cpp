@@ -10,7 +10,9 @@
 //
 // ORIG 流程概要：
 //   1) 手续费基数：refValue==0 → premium?2:5；否则 rate=price/refValue：
-//      <0.5 拒绝（return false）；<1.5 → premium?2:5；<1.8 → 50；≥1.8 → 80。
+//      <0.5 拒绝（return false）；<1.5 → premium?2:5；
+//      1.5..1.8 分三档（[1.5,1.6) / [1.6,1.7) / [1.7,1.8)）→ 50；≥1.8 → 80。
+//      ORIG 0x08175cd0..0x08175dc4 共 8 次 fucompp，常量序 0.5/1.5/1.5/1.6/1.6/1.7/1.7/1.8。
 //   2) fee = (int)(基数 * price/100.0)，fldcw RC=0b11 向零截断后 fistpl；
 //      写回 info.m_fee(+0xc)。
 //   3) StreamPool::Acquire("localjapan/AppendVendingMachine.cpp",0x7b) +
@@ -20,6 +22,22 @@
 //   5) 第二次 purchase(uid, 99999, fee, acc, charac, trans2, 0x3e)：
 //      失败 → 同上行号 0xe8 → false；成功 → true。
 //   每段成功均 cUserHistoryLog::BillingSuccess(type=1, trans.m_tranNo, 金额)。
+//
+// [b28d-SweepVending 2026-09-09] 本轮判词（gap 49→8，四数不回退 identical1/ae5/near1/
+//   diff2，p167 CLEAR 仅 C1/C2·D1/D2 同址别名伪差 P93）：
+//   真 bug 修复：①分档链漏第 4 层 —— 旧码 6 次比较，rate∈[1.7,1.8) 误发 0x50（应 0x32，
+//     ORIG 0x08175d8d..0x08175dc4 第 8 次比较 1.8 实证）；②uidBuf 缺 `= {0}` 21 字节
+//     预清零（ORIG 0x08175e5f..0x08175ebd 对齐感知展开）；③snprintf("%ld") 传完整
+//     long long m_itemUid（ORIG 0x08175f13..0x08175f3a 压低+高双 dword，旧码 cast 成
+//     long 少压一条）；④恢复具名局部集合（P0）：nRef(-0x44)/bPremium(-0x3d)/
+//     nFeeNormal(-0x3c)/nFeePremium(-0x38)/feeBase(-0x34)/price(-0x30)/rate(-0x20)/
+//     nPrice(-0x2c)/mgr(-0x28，含 ORIG 0x08175f3f 的 `movl $0` 前置清零两段形）；
+//     ⑤fee 结果写回 feeBase 槽（ORIG `fistpl -0x34` 无独立 fee 局部）。
+//   残余 gap=8 = N85 x87 比较 lowering（4.1 fucompp/fnstsw/test/sete vs 4.4 fucomip/
+//     fstp/seta，8 次比较各 -1）。`-march=i486 -mtune=generic` 探针实测 461/462 且
+//     x87 形与 ORIG 同（20 处 fucompp/fnstsw/sahf），但该旗标是 TU 级路由项，需 Main 裁决。
+//   另残余（均跨版本、非语义）：m_itemUid 装载 4.4 多 2 条 mov（edx/eax 中转→ebx/esi）、
+//     虚调用目标寄存器 4.4.7 用 %eax vs ORIG %edx（N7）、0x32/0x50 叶块物理序相反（N93附）。
 // ============================================================================
 
 #include "ItemVendingMachine.h"
@@ -55,30 +73,51 @@ bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
                                         int /*a3*/, bool bPremiumFee, int refValue)
 {
     // ---- 手续费基数（ORIG 0x8175c96..0x8175dc4）----
-    int feeBase = 0;
-    if (refValue == 0)
+    // 具名局部集合照 ORIG 槽位（P0：有槽往返 ⇒ 原码有具名局部）：
+    //   -0x44 nRef / -0x3d bPremium / -0x3c nFeeNormal(5) / -0x38 nFeePremium(2)
+    //   / -0x34 feeBase / -0x30 price / -0x20 rate（double）。
+    int  nRef        = refValue;
+    bool bPremium    = bPremiumFee;
+    int  nFeeNormal  = 5;
+    int  nFeePremium = 2;
+    int  feeBase     = 0;
+    int  price       = info.m_price;
+    if (nRef == 0)
     {
-        feeBase = bPremiumFee ? 2 : 5;
+        // ORIG 0x08175ca4..0x08175cbb：两臂各自 `mov 常量槽,%eax; mov %eax,feeBase槽`
+        // （三目在 4.4 会合并成共享 store ⇒ 少 1 条，故写 if/else）。
+        if (bPremium)
+            feeBase = nFeePremium;
+        else
+            feeBase = nFeeNormal;
     }
     else
     {
-        // **语义修正 + P-H**：.rodata 实读（objdump -s -j .rodata 0x8b871a0 段）
-        // 0x08b871a8=0.5 / b0=1.5 / b8=1.6 / c0=1.7 / c8=1.8 ⇒ 原码分档边界是
-        // **1.7**（不是 1.8），且判定链是嵌套短路对（0x08175cd0..0x08175d80 共
-        // 8 次 fucompp），每层写成 `(rate < Lo) || (Hi <= rate)` 两次比较。
-        // 表达式必须逐处重算（不得有 rate 中间局部，否则 4.4 复用 ⇒ 少 5 组
-        // fldl/fucompp/fnstsw/sahf 链，正是本函数 gap 主体之一）。
-        if (static_cast<double>(info.m_price) / static_cast<double>(refValue) < kRateDeny)
+        // .rodata 实读（objdump -s -j .rodata 0x8b871a0 段）：
+        // 0x08b871a8=0.5 / b0=1.5 / b8=1.6 / c0=1.7 / c8=1.8 ⇒ 分档边界是 **1.7**，
+        // 判定链是嵌套短路对（0x08175cd0..0x08175d80 共 8 次 fucompp），每层写成
+        // `(rate < Lo) || (Hi <= rate)`。ORIG 把商缓存进具名 double rate(-0x20) 后
+        // 每次比较只 `fldl -0x20` 复用（0x08175cc8 fstpl -0x20 / 0x08175ccb fldl -0x20）。
+        double rate = static_cast<double>(price) / static_cast<double>(nRef);
+        if (rate < kRateDeny)
             return false;
-        if (kRate150 <= static_cast<double>(info.m_price) / static_cast<double>(refValue))
+        if (kRate150 <= rate)
         {
-            if (static_cast<double>(info.m_price) / static_cast<double>(refValue) < kRate150 ||
-                kRate160 <= static_cast<double>(info.m_price) / static_cast<double>(refValue))
+            if (rate < kRate150 || kRate160 <= rate)
             {
-                if (static_cast<double>(info.m_price) / static_cast<double>(refValue) < kRate160 ||
-                    kRate170 <= static_cast<double>(info.m_price) / static_cast<double>(refValue))
+                if (rate < kRate160 || kRate170 <= rate)
                 {
-                    feeBase = 0x50;
+                    // ORIG 0x08175d8d..0x08175dc4 第 4 层（0x08175da4 比较 1.8）：
+                    // rate∈[1.7,1.8) → 0x32，rate>=1.8 → 0x50。旧重建漏此层，
+                    // 使 [1.7,1.8) 误发 0x50（真语义 bug，8 次 fucompp 只写 6 次）。
+                    if (rate < kRate170 || kRate180 <= rate)
+                    {
+                        feeBase = 0x50;
+                    }
+                    else
+                    {
+                        feeBase = 0x32;
+                    }
                 }
                 else
                 {
@@ -90,20 +129,23 @@ bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
                 feeBase = 0x32;
             }
         }
-        else if (bPremiumFee)
+        else if (bPremium)
         {
-            feeBase = 2;
+            feeBase = nFeePremium;
         }
         else
         {
-            feeBase = 5;
+            feeBase = nFeeNormal;
         }
     }
 
-    // ---- fee = trunc(feeBase * price/100.0)（ORIG fldcw RC=0b11 后 fistpl）----
-    const int fee = static_cast<int>(feeBase *
-                       (static_cast<double>(info.m_price) / kFeeDivisor));
-    info.m_fee = fee;
+    // ---- fee = trunc(price/100.0 * feeBase)（ORIG fldcw RC=0b11 后 fistpl）----
+    // ORIG 0x08175dcb..0x08175dfa：先 `fildl price; fldl 100.0; fdivrp` 再 `fildl feeBase;
+    // fmulp`（price/100.0 是左操作数），`fistpl -0x34` **写回 feeBase 槽**（无独立 fee
+    // 局部），随后 `mov -0x34,%edx; mov %edx,0xc(%eax)` 直写 info.m_fee。
+    feeBase = static_cast<int>(static_cast<double>(price) / kFeeDivisor *
+                              static_cast<double>(feeBase));
+    info.m_fee = feeBase;
 
     // ---- 审计流：put_binary(&info, 0x28)（ORIG 0x8175e09..0x8175e5a）----
     CStreamGuard guard(
@@ -115,15 +157,20 @@ bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
 
     // ---- 计费入参字符串（ORIG buf8/buf36/buf21 三缓冲 + atoi 回读）----
     // priceBuf ← "%ld" 99999（购买单价槽恒为 99999）；payBuf ← "%d"(price-fee 或 fee)；
-    // uidBuf ← "%ld" itemUid 低 32 位（ORIG "%ld" 压两个 dword，仅低 32 位生效）。
-    char priceBuf[8];
+    // uidBuf ← "%ld" itemUid（ORIG 压两个 dword：低 32 位 0xc(%esp)+高 32 位 0x10(%esp)）。
+    // 槽位/声明序照 ORIG：payBuf(-0x8d,0x24) → uidBuf(-0x69,0x15) → priceBuf(-0x54,8)；
+    // uidBuf 带 `= {0}`：ORIG 0x08175e5f..0x08175ebd 对其发 21 字节对齐感知清零展开
+    // （P214③/P312），且清零发生在 put_binary 之后 ⇒ 声明点即此处。
     char payBuf[0x24];
-    char uidBuf[0x15];
+    char uidBuf[0x15] = {0};
+    char priceBuf[8];
+    // ORIG 0x08175ec0 `movl $0x1869f,-0x2c(%ebp)` + 0x08175ec7 回读 ⇒ 具名 int 局部，
+    // 两段 snprintf 共用（第二段 0x081760f1 直接读 -0x2c，无重赋值，P244）。
+    int  nPrice = 99999;
 
-    OS_API::snprintf(priceBuf, sizeof(priceBuf), "%ld", 99999L);
-    OS_API::snprintf(payBuf, sizeof(payBuf), "%d", info.m_price - fee);
-    OS_API::snprintf(uidBuf, sizeof(uidBuf), "%ld",
-                     static_cast<long>(info.m_itemUid));
+    OS_API::snprintf(priceBuf, sizeof(priceBuf), "%ld", nPrice);
+    OS_API::snprintf(payBuf, sizeof(payBuf), "%d", info.m_price - feeBase);
+    OS_API::snprintf(uidBuf, sizeof(uidBuf), "%ld", info.m_itemUid);
 
     // 名字不缓存：ORIG 每笔计费前各自 call get_acc_name / getCurCharacName
     // （0x08175f6a、0x08175f7f 与第二笔同址各一次 ⇒ 共 4 次 call），
@@ -132,17 +179,22 @@ bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
     // 经 s_pIPGHelper 虚表 +0x3c 取 CIPGMgr*（ORIG 0x8175f46..0x8175f5a），再取计费句柄
     //（getBillingCash → *(mgr+0xec)，ORIG 0x0817a2ee）。虚表槽未建模，沿用工程内
     // CCeraShop_Special.cpp 的裸函数指针调用模式。【推断：等价 ABI】
+    // ORIG 无函数指针具名槽（0x8175f46..0x8175f5a 直接 `mov (%eax),%edx; call *%edx`）
+    // ⇒ 按 P0 把取槽表达式内联进调用点，勿缓存成局部。
     typedef void* (*GetIPGMgrFn)(void*);
-    GetIPGMgrFn getMgr =
-        *reinterpret_cast<GetIPGMgrFn*>(*reinterpret_cast<char**>(GlobalData::s_pIPGHelper) + 0x3c);
-    WongWork::IPG::CIPGMgr* mgr =
-        reinterpret_cast<WongWork::IPG::CIPGMgr*>(getMgr(GlobalData::s_pIPGHelper));
+    // ORIG 0x08175f3f `movl $0x0,-0x28(%ebp)` 先清零具名 mgr，0x08175f5c 再写回
+    // （Ghidra `local_2c = 0; local_2c = (…)()` 两段）⇒ 保留两段赋值形。
+    WongWork::IPG::CIPGMgr* mgr = 0;
+    mgr = reinterpret_cast<WongWork::IPG::CIPGMgr*>(
+            (*reinterpret_cast<GetIPGMgrFn*>(
+                *reinterpret_cast<char**>(GlobalData::s_pIPGHelper) + 0x3c))(
+                    GlobalData::s_pIPGHelper));
     // getBillingCash 不缓存：ORIG 两段计费各 call 一次
     // （0x08175f94 与第二笔 0x081760xx 同址），缓存会少 1 次 call。
 
     // ---- 第一段：主扣费（kind=0x3c，金额 price-fee）----
     int rc = mgr->getBillingCash()->purchase(
-                        static_cast<unsigned long long>(info.m_itemUid),
+                        info.m_itemUid,
                         atoi(priceBuf), atoi(payBuf),
                         user->get_acc_name(), user->getCurCharacName(),
                         info.m_trans1, 0x3c);
@@ -163,13 +215,12 @@ bool ItemVendingMachine::BuyAuctionItem(CUser* user, AuctionNeedInfo& info,
                                       info.m_trans1.m_tranNo, info.m_price);
 
     // ---- 第二段：手续费（kind=0x3e，金额 fee）----
-    OS_API::snprintf(priceBuf, sizeof(priceBuf), "%ld", 99999L);   // 0x08176015
-    OS_API::snprintf(payBuf, sizeof(payBuf), "%d", fee);
-    OS_API::snprintf(uidBuf, sizeof(uidBuf), "%ld",
-                     static_cast<long>(info.m_itemUid));
+    OS_API::snprintf(priceBuf, sizeof(priceBuf), "%ld", nPrice);   // 0x081760f1 读 -0x2c
+    OS_API::snprintf(payBuf, sizeof(payBuf), "%d", feeBase);
+    OS_API::snprintf(uidBuf, sizeof(uidBuf), "%ld", info.m_itemUid);
 
     rc = mgr->getBillingCash()->purchase(
-                        static_cast<unsigned long long>(info.m_itemUid),
+                        info.m_itemUid,
                         atoi(priceBuf), atoi(payBuf),
                         user->get_acc_name(), user->getCurCharacName(),
                         info.m_trans2, 0x3e);

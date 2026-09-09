@@ -181,6 +181,13 @@ struct EquipParamInfo
 
 
  
+// ORIG static_init @0x0862690c（GI 键名 `_GLOBAL__I__Z22GetSocketTypeCharactert` 与本
+// TU 一致）依次构造 ioinit@0x94734d6、CFieldLengthChecker::fieldNames_@0x94734a0、
+// fieldLength_@0x94734ac（各 1 ctor + 1 atexit，30 条与我方逐条同形）⇒ 二者权威定义
+// 属本 TU（P108 键名归属）；定义不得留在 CFieldLengthChecker.cpp。
+std::vector<std::string> CFieldLengthChecker::fieldNames_;
+std::vector<unsigned int> CFieldLengthChecker::fieldLength_;
+
 // ===================== 外部依赖（其它 TU 提供，仅声明） =====================
 
 namespace sync_script
@@ -332,14 +339,6 @@ struct SARMORTYPE
 extern "C" std::map<int, std::string> g_stEquipmentScriptFileList;  // ORIG 0x94fac00
 extern "C" std::map<int, std::string> g_stStackableScriptFileList;  // ORIG 0x94fdc00
 
-namespace
-{
-// ORIG 里是 CFieldLengthChecker::fieldNames_ / fieldLength_（0x94734a0 /
-// 0x94734ac）。引用地址在 AE 口径下归一，本地全局即可。
-std::vector<std::string> g_fieldNames;
-std::vector<unsigned int> g_fieldLengths;
-}
-
 CSyncScript* GetInstanceSyncScript()                  // ORIG 0x861cbb4
 {
     static CSyncScript instance;
@@ -350,14 +349,14 @@ void DisplayMaxLength()                               // ORIG 0x861ca94
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
-    for (unsigned int i = 0; i < g_fieldNames.size(); ++i)
+    for (unsigned int i = 0; i < CFieldLengthChecker::fieldNames_.size(); ++i)
     {
-        if (g_fieldLengths[i] == 0)
+        if (CFieldLengthChecker::fieldLength_[i] == 0)
         {
             continue;
         }
         db->set_query("seLect max(length(%s)) from dnf_item_info",
-                      g_fieldNames[i].c_str());
+                      CFieldLengthChecker::fieldNames_[i].c_str());
         if (!db->exec(true))
         {
             continue;
@@ -371,7 +370,7 @@ void DisplayMaxLength()                               // ORIG 0x861ca94
         {
             continue;
         }
-        if (g_fieldLengths[i] != len) { }
+        if (CFieldLengthChecker::fieldLength_[i] != len) { }
     }
 }
 
@@ -1796,6 +1795,12 @@ bool CItemList::init()
 //   if ⇒ 复现 ORIG 每条件各发 `cmp; sete/setne %al; test %al,%al; je`
 //   （合并 && 被 4.4 折成直跳，无 setcc）。残 = 局部槽序/帧偏移（ORIG
 //   it=-0x58 紧贴 stackScript；我方 -0x3c）⇒ N82/N93/N95，语义已核。
+// [b28d-tu-CItemList 2026-09-09] NEAR（450/450，gap 0）| 本轮两处真修：
+//   ① receiver 内联 `GetInstanceSyncScript()->insert_equiptment_item_to_db(...)`，
+//      删具名 sync 局部（ORIG 0x8511843 `call; mov %eax,(%esp)` 无槽往返，P0/P183）；
+//   ② `!insert() && field!=0x16..0x19` 拆嵌套 if ⇒ 消 4.4 的 && 链 bool 物化
+//      （mov$1/jmp/mov$0/test/je 共 5 条），复现 ORIG 纯短路链。p167 CLEAR；
+//      残 = 槽基差（it -0x38 vs ORIG -0x58，N93/N95）+ .o 重定位伪差。
 bool CItemList::load_item_files()
 {
     // ORIG 控制流：装备表循环内失败立即 return false；path 为空或表尾则
@@ -1824,12 +1829,16 @@ bool CItemList::load_item_files()
                 "ImportEquipmentScript() fail file - %s", path);
             return false;
         }
-        sync_script::CSyncScript* sync = sync_script::GetInstanceSyncScript();
-        if (!sync->insert_equiptment_item_to_db(&eqScript, 0, 0, 0) &&
-            eqScript.m_field1b4 != 0x16 && eqScript.m_field1b4 != 0x17 &&
-            eqScript.m_field1b4 != 0x18 && eqScript.m_field1b4 != 0x19)
+        // ORIG 0x8511843 `call GetInstanceSyncScript; mov %eax,(%esp)` 无槽往返
+        // ⇒ 原码为 receiver 内联实参（P0/P183 禁具名指针缓存）。
+        if (!sync_script::GetInstanceSyncScript()
+                 ->insert_equiptment_item_to_db(&eqScript, 0, 0, 0))
         {
-            printf("insert_equiptment_item_to_db() fail file - %s", path);
+            if (eqScript.m_field1b4 != 0x16 && eqScript.m_field1b4 != 0x17 &&
+                eqScript.m_field1b4 != 0x18 && eqScript.m_field1b4 != 0x19)
+            {
+                printf("insert_equiptment_item_to_db() fail file - %s", path);
+            }
         }
         pEquip = new CEquipItem;
         if (pEquip == 0)
@@ -2298,6 +2307,9 @@ CCompound_ExtreamDun_Item::~CCompound_ExtreamDun_Item()
 //   被 4.4 折成 `cmpl $0x3a,-0x14` 单段）。T1/T2 直证：mov+cmp 两段 + setbe
 //   无符号序。残 = m_bindItems[i][j] 乘法链寄存器角色（ORIG 0x0832de??
 //   `lea 0x0(,%eax,4),%ecx`）⇒ N86b。
+// [b28d-tu-CItemList 2026-09-09] 复核：101/103（gap +2）——两处 m_bindItems[i][j]
+//   索引乘法链的寄存器角色（ORIG `lea 0x0(,%eax,4),%ecx` vs 4.4
+//   `lea 0x0(,%edx,4),%eax; mov %eax,%edx`）；P309 全头部声明形实测零变化 ⇒ N86b。
 void CCompound_ExtreamDun_Item::after_addItem()                     // ORIG 0x832de18
 {
     for (int i = 1; (unsigned int)i < (unsigned int)GROUP_NUM_MAX; ++i)
@@ -2324,6 +2336,8 @@ void CCompound_ExtreamDun_Item::after_addItem()                     // ORIG 0x83
 //   寄存器角色（ORIG 0x0832dde2 `lea 0x0(,%eax,4),%ecx` 用 ecx；4.4 用
 //   eax→edx 多 1 mov）⇒ N86b「同一算术多 codegen」；T5：类型已定（cat/索引
 //   均 32 位），禁再改类型（S1 已用一次，unsigned cat 实测零变化）。
+// [b28d-tu-CItemList 2026-09-09] 复核：78/79（gap +1）——同 after_addItem 的
+//   m_bindItems[group][cat] 索引链 N86b 残差；p167 与 ORIG 调用多重集一致。
 bool CCompound_ExtreamDun_Item::_AddItem(CEquipItem& item)          // ORIG 0x832dd1c
 {
     // cat=_convertOutputItem(GetUsableEquipmentType)；cat==4 → 不可入表；
@@ -2804,6 +2818,9 @@ CCompound_ExtreamDun_Item::_determine_level_bonus(
 //   与 ORIG 的 -0xc 槽往返不符；② 语句表达式实参 `[({ idx; })]` 零变化。
 //   ORIG 0x0832cc2b `mov -0xc(%ebp),%ebx` 是 4.1 的提前装载（P75 跨版本调度），
 //   4.4 恒在使用点 `mov -0xc,%eax` ⇒ 判 N（语义等价，p167 2/2 CLEAR）。
+// [b28d-tu-CItemList 2026-09-09] 复核：65/64（gap −1）——残 = idx 的 %ebx 跨
+//   call 保活（ORIG `push %ebx` + `mov -0xc(%ebp),%ebx`）与 4.4 使用点重载；
+//   register 形实测 idx 免槽（帧 0x28→0x14）反劣，P231/P307 不适用 ⇒ N7/N82。
 unsigned int CCompound_ExtreamDun_Item::_determine_level_bonus_index(  // ORIG T 0x832cc02
     unsigned int baseLevel, ENUM_INPUTITEMS_RARITY inRarity,
     eBindSphereType bind) const
@@ -2913,6 +2930,9 @@ bool BindTable_Predicate(                                           // ORIG T 0x
 //   残 = m_bindItems[group][outRarity] 二维索引乘法链寄存器角色（ORIG 0x0832d19f
 //   `lea 0x0(,%eax,4),%ecx` vs 4.4 eax→edx，多 1 mov×2 处）⇒ N86b；T5 禁改类型
 //   （S1 已试 (int)outRarity cast，零变化）。比较用 `lo == tend` 保持。
+// [b28d-tu-CItemList 2026-09-09] 复核：109/111（gap +2）——两处
+//   m_bindItems[group][outRarity] 索引链寄存器角色（N86b）；lower_bound/
+//   upper_bound/BindTable_Predicate 调用点与 ORIG 一致，余为 .o 重定位伪差。
 int CCompound_ExtreamDun_Item::_FindSelectItem(                     // ORIG T 0x832d15e
     unsigned int group, ENUM_OUTPUTITEMS_RARITY outRarity,
     const std::pair<unsigned int, unsigned int>& range) const
@@ -3008,7 +3028,16 @@ int CCompound_ExtreamDun_Item::_FindItemAll_BindSphere(             // ORIG T 0x
     return result;
 }
 
-int CCompound_ExtreamDun_Item::_FindItemRelateCreationRate(         // ORIG T 0x832d4b4
+// [b28d-tu-CItemList 2026-09-09] NEAR（212/212，gap 0，p167 33/33 CLEAR）| 本轮四修真：
+//   ① pair 显式构造 `std::pair<int,unsigned int>(a,b)` 替 make_pair+cast（ORIG
+//      `C1IRKiS3_`/`C1IiRKiE` 引用对构造，消 2 处 cast 临时物化，P61/P81）；
+//   ② `if (entries.size() != 0)` 正极性替 `==0` 早返（ORIG 0x832d67c setne 岛，P220）；
+//   ③ `(unsigned)m_rand->randInt() % totalGen` 无符号除法（ORIG 0x832d6e1
+//      `mov $0x0,%edx; divl -0x1c`；原形生 `sar $0x1f; idivl` 负数语义不同）；
+//   ④ totalGen 与返回类型 unsigned 化（ORIG `divl mem` 直用内存操作数 + 两处
+//      `mov 0x4(%eax),%ebx` 单段直落，P211/P254 同型化旋钮）。
+//   残 = 槽基差（entries/it -0x3c/-0x40 vs ORIG -0x40/-0x44）+ .o 重定位伪差。
+unsigned int CCompound_ExtreamDun_Item::_FindItemRelateCreationRate(  // ORIG T 0x832d4b4
     std::vector<OUTPUT_ITEM_STR>::const_iterator begin,
     std::vector<OUTPUT_ITEM_STR>::const_iterator end) const
 {
@@ -3017,7 +3046,9 @@ int CCompound_ExtreamDun_Item::_FindItemRelateCreationRate(         // ORIG T 0x
         return 0;
     }
     std::vector<std::pair<int, unsigned int> > entries;   // (权重, itemIdx)
-    int totalGen = 0;
+    // ORIG 0x832d6e1 `mov $0x0,%edx; divl -0x1c(%ebp)` 直接内存操作数 ⇒
+    // totalGen 声明为 unsigned int（int 时 4.4 先 `mov -0x1c,%ecx` 再 div）。
+    unsigned int totalGen = 0;
     for (std::vector<OUTPUT_ITEM_STR>::const_iterator it = begin; it != end; ++it)
     {
         CItem* info = G_CDataManager()->find_item(it->m_index);
@@ -3025,31 +3056,50 @@ int CCompound_ExtreamDun_Item::_FindItemRelateCreationRate(         // ORIG T 0x
         {
             continue;
         }
-        std::map<int, forceRule_ResultItem>::const_iterator rule =
-            m_data.m_forceRules.find(it->m_index);
-        if (rule != m_data.m_forceRules.end())
+        // ORIG 0x832d52b 独立 `_Rb_tree_const_iterator::C1Ev`（rule 默认构造）
+        // + 0x832d543 `end()`（具名 endIt 直接构造）+ 0x832d570 `find` 临时槽
+        // -0x4c 再拷贝回 rule(-0x48) ⇒ 原码为「先声明后赋值」+ 具名 endIt
+        // （P50/P28；初始化式会折叠 C1Ev 与临时槽）。
+        std::map<int, forceRule_ResultItem>::const_iterator rule;
+        std::map<int, forceRule_ResultItem>::const_iterator endIt =
+            m_data.m_forceRules.end();
+        rule = m_data.m_forceRules.find(it->m_index);
+        if (rule != endIt)
         {
-            entries.push_back(std::make_pair((int)rule->second.m_value,
-                                             (unsigned int)it->m_index));
+            // ORIG 0x832d5be 调 `pair<int,unsigned>::C1<int const&,int const&>`
+            // （`_ZNSt4pairIijEC1IRKiS3_EEOT_OT0_`）——实参直接取
+            // `&rule->second.m_value` / `&it->m_index` 引用，无 cast 临时物化；
+            // make_pair + (unsigned)cast 会多 2 条 mov + 2 个局部槽（P61/P81）。
+            entries.push_back(std::pair<int, unsigned int>(
+                rule->second.m_value, it->m_index));
             totalGen += rule->second.m_value;
         }
         else
         {
-            entries.push_back(std::make_pair(info->get_gen_rate(),
-                                             (unsigned int)it->m_index));
+            // ORIG 0x832d615 调 `pair<int,unsigned>::C1<int,int const&>`
+            // （`_ZNSt4pairIijEC1IiRKiEEOT_OT0_`）：第一参按值（get_gen_rate
+            // 右值）、第二参取 `&it->m_index` 引用。
+            entries.push_back(std::pair<int, unsigned int>(
+                info->get_gen_rate(), it->m_index));
             totalGen += info->get_gen_rate();
         }
     }
     unsigned int pick = 0;
     if (totalGen == 0)
     {
-        if (entries.size() == 0)
+        // ORIG 0x832d67a `test %eax,%eax; setne %al; test; je <mov $0,%ebx>`
+        // ⇒ 正极性（size()!=0 fall-through 到 randInt 路径），非 `==0` 早返
+        //   （4.4 对 `==0` 生 sete 反向岛，P220/P47）。
+        if (entries.size() != 0)
         {
-            return 0;
+            return entries[m_rand->randInt() % entries.size()].second;
         }
-        return entries[m_rand->randInt() % entries.size()].second;
+        return 0;
     }
-    pick = (unsigned int)(m_rand->randInt() % totalGen) + 1;
+    // ORIG 0x832d6dc `mov $0x0,%edx; divl -0x1c(%ebp)` 为**无符号**除法 ⇒
+    // 两操作数均按 unsigned 取模（原 `(unsigned)(randInt() % totalGen)` 生
+    // `sar $0x1f; idivl` 有符号除法，负数语义不同）。
+    pick = (unsigned int)m_rand->randInt() % totalGen + 1;
     unsigned int acc = 0;
     for (unsigned int i = 0; i < entries.size(); ++i)
     {

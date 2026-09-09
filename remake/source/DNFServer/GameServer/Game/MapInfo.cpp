@@ -58,22 +58,22 @@ map_monster::map_monster()
     m_bloodRoundFlag = 0;
 }
 
-// [b28d-solo-MapInfo] N 封顶（N76 族：packed 短整成员 store 装载序；162=162，
-// p167 CLEAR 3/3，语义等价）：
+// [b28d-solo-MapInfo] AE（ORIG 0x08151aea，162=162；.o 侧未解析重定位，body 逐条
+// 同形；p167 3/3 仅 C1/C2-D1/D2 同址别名差 P93）：
 // ① m_active(+0x38,0x2f0) 的 ORIG `rep movsl` 已由 WarField.h 的「map_monster
 //    自然对齐 + 仅 m_field11 packed」方案复现（此前 pack(1) 使 4.4 恒走对齐剥离
 //    慢路 +30 条）。
-// ② 残差=packed short m_field11 的 store 装载序：ORIG 4.1 LHS-first
-//    `mov this,%eax; mov other,%edx; movzwl 0x11(%edx),%edx; mov %dx,0x11(%eax)`；
-//    4.4 恒 RHS-first `mov other,%eax; movzwl 0x11(%eax),%edx; mov this,%eax;
-//    mov %dx,0x11(%eax)`。P248 三档试尽：字段 short/unsigned short、cast、
-//    指针视图、memcpy、临时槽共 11 形探针（/tmp/b28d_map_probe/packed.cpp
-//    f1..f11）全部 RHS-first ⇒ 不可翻。
+// ② 旧判「packed short m_field11 store 装载序 N76 不可翻」已被推翻：标量成员
+//    `m_field11(o.m_field11)` 4.4 恒 RHS-first，但改用同 union 的 2 字节 POD
+//    字节视图**整体赋值** `m_field11b(o.m_field11b)`（P308 族：POD 子对象整体
+//    拷贝 ⇒ LHS-first 双基址装载）后，4.4.7 逐条复现 ORIG
+//    `mov this,%eax; mov other,%edx; movzwl 0x11(%edx),%edx; mov %dx,0x11(%eax)`
+//    （探针 /tmp/mapinfo_probe/p3.cpp C2ERKS_）。union 成员/布局/偏移/sizeof 零变化。
 // ③ P171 照抄：ORIG 不拷 m_field15/16/17 与 m_pad339，本实现同步不拷。
 map_monster::map_monster(const map_monster& other)
     : m_mobId(other.m_mobId), m_instId(other.m_instId),
       m_roleType(other.m_roleType), m_mobIndex(other.m_mobIndex),
-      m_level(other.m_level), m_field11(other.m_field11),
+      m_level(other.m_level), m_field11b(other.m_field11b),
       m_field13(other.m_field13), m_field14(other.m_field14),
       m_field18(other.m_field18), m_field1c(other.m_field1c),
       m_field20(other.m_field20),
@@ -97,10 +97,10 @@ map_monster::map_monster(const map_monster& other)
 
 map_monster::~map_monster() {}
 
-// [b28d-solo-MapInfo] N 封顶（N76 同族，153=153，p167 CLEAR 1/1）：删除
-// `if (this != &other)` 守卫（ORIG 0x08151d3a 无守卫、无条件逐字段赋值）+
-// P171 删 m_field15/16/17、m_pad339；残差同 C1ERKS_ 的 packed short 装载序
-// 2 条 mov（探针 11 形全败）。
+// [b28d-solo-MapInfo] AE（ORIG 0x08151d3a，153=153，p167 CLEAR 1/1）：删除
+// `if (this != &other)` 守卫（ORIG 无守卫、无条件逐字段赋值）+ P171 删
+// m_field15/16/17、m_pad339；m_field11 改字节视图整体赋值（同 C1ERKS_ 修法，
+// 2 字节 POD 拷贝 ⇒ ORIG LHS-first）。
 map_monster& map_monster::operator=(const map_monster& other)
 {
     m_mobId = other.m_mobId;
@@ -108,7 +108,7 @@ map_monster& map_monster::operator=(const map_monster& other)
     m_roleType = other.m_roleType;
     m_mobIndex = other.m_mobIndex;
     m_level = other.m_level;
-    m_field11 = other.m_field11;
+    m_field11b = other.m_field11b;
     m_field13 = other.m_field13;
     m_field14 = other.m_field14;
     m_field18 = other.m_field18;
@@ -242,8 +242,12 @@ void MapInfo::Add_Mob(map_monster mob)
     it = m_monsterMap.find(mob.m_instId);
     if (it != m_monsterMap.end())
     {
-        LogManager::logFormat(1, "MapInfo.cpp", "MapInfo::Add_Mob", 0x1f2,
-                              "duplicated mob instance", mob.m_instId);
+        // ORIG 08151693..081516c4 实证：vararg=mob.m_instId(+0x4)；三串取自
+        // .rodata 0x8b750eb / 0x8b75ee2 / 0x8b750d5，即
+        // __FILE__="localglobal/../battle_field.h"、__FUNCTION__="Add_Mob"、
+        // 格式串 "monster.find(%u) fail"、行号 0x1f2。
+        LogManager::logFormat(1, "localglobal/../battle_field.h", "Add_Mob", 0x1f2,
+                              "monster.find(%u) fail", mob.m_instId);
         return;
     }
 
@@ -269,8 +273,12 @@ void MapInfo::Add_Item(map_item item)
     it = m_itemMap.find(item.m_itemIndex);
     if (it != m_itemMap.end())
     {
-        LogManager::logFormat(1, "MapInfo.cpp", "MapInfo::Add_Item", 0x206,
-                              "duplicated item index", item.m_itemIndex);
+        // ORIG 0815184a..08151878 实证：vararg=item.m_itemIndex(+0x4)；三串取自
+        // .rodata 0x8b750eb / 0x8b75e10 / 0x8b75109，即
+        // "localglobal/../battle_field.h" / "Add_Item" / "item.find(%u) fail"，
+        // 行号 0x206。
+        LogManager::logFormat(1, "localglobal/../battle_field.h", "Add_Item", 0x206,
+                              "item.find(%u) fail", item.m_itemIndex);
         return;
     }
 

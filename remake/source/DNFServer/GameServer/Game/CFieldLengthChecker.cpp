@@ -6,8 +6,8 @@
 #include "CFieldLengthChecker.h"
 #include "CEnvironment.h"
 
-std::vector<std::string> CFieldLengthChecker::fieldNames_;
-std::vector<unsigned int> CFieldLengthChecker::fieldLength_;
+// fieldNames_/fieldLength_ 的权威定义在 CItemList.cpp（ORIG static_init
+// @0x0862690c 归属 CItemList TU，GI 键名 `_GLOBAL__I__Z22GetSocketTypeCharactert`）。
 
 CFieldLengthChecker::CFieldLengthChecker()
 {

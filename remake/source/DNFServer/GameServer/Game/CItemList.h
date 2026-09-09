@@ -468,7 +468,9 @@ private:
     int _FindItemAll_BindSphere(const CEquipItem** refs, char select,
                                 ENUM_OUTPUTITEMS_RARITY outRarity,
                                 std::pair<unsigned int, unsigned int> range) const;       // T 0x832d438
-    int _FindItemRelateCreationRate(
+    // ORIG 0x832d72d/0x832d7a0 两处返回均 `mov 0x4(%eax),%ebx` 单段直落
+    // （second 为 unsigned int）⇒ 返回类型同型化为 unsigned int（不入 mangled）。
+    unsigned int _FindItemRelateCreationRate(
         std::vector<OUTPUT_ITEM_STR>::const_iterator begin,
         std::vector<OUTPUT_ITEM_STR>::const_iterator end) const;                          // T 0x832d4b4
 
