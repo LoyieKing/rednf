@@ -6953,28 +6953,31 @@ int Dispatcher_SelectStriker::process(CUser* user, MSG_BASE& msg, ParamBase& par
                         err, 0);
     }
     char sel = (char)m.m_0d;
-    _Charac_info& entry = user->m_characList[sel];
-    if (entry.m_field14BC == 0)                                 // +0x14bc（ORIG movzbl 判 0）
+    // [b28d-solo-Dispatchers] P183：ORIG 0x081e3e60/0x081e3e8e/0x081e3ee7/0x081e3ffd
+    //   4 处各自完整重发 `user->m_characList[sel]`（p167 MISSING
+    //   `_ZNSt6vectorI12_Charac_infoSaIS0_EEixEj` ×3 即此项）；旧码 entry 引用缓存 ⇒ 删。
+    if (user->m_characList[sel].m_field14BC == 0)               // +0x14bc（ORIG movzbl 判 0）
     {
         Stream* stream = GlobalData::s_stream_pool->Acquire(
             "PacketDispatcher_Impl_1.cpp", 0x5ba6);
         CStreamGuard guard(stream, true);
         **guard << 0x2fe;
-        **guard << user->GetUID();
+        **guard << (int)user->GetUID();   // ORIG 0x081e3f89 调 lsEi（非 lsEj）
         SIG_REQUEST_TAG_CHARAC_INFO* sig = guard->GetInBuffer<SIG_REQUEST_TAG_CHARAC_INFO>();
         memset(sig, 0, 0x414c);
-        *reinterpret_cast<int*>(sig->m_pad) = entry.m_characNo;   // sig+0x00 = entry 首字段
+        *reinterpret_cast<int*>(sig->m_pad) =
+            user->m_characList[sel].m_characNo;   // sig+0x00 = entry 首字段
         *reinterpret_cast<char*>(sig->m_pad + 0x4) =
             m.m_0e;
         // ORIG 0x081e402d: s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard)
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
         return 0;
     }
-    user->setCurCharacTagCharacNo(entry.m_characNo);
+    user->setCurCharacTagCharacNo(user->m_characList[sel].m_characNo);
     user->setCurCharacStrikerSkillIndex(
         m.m_0e);
     user->m_characterView.enableSaveCharacView();               // +0x796f4
-    user->setTagCharac(&entry);
+    user->setTagCharac(&user->m_characList[sel]);
     CInventory* inven = user->getTagCharacInvenR();
     inven->set_parent(user);
     SkillSlot* skill = user->getTagCharacSkillR();
@@ -10399,7 +10402,9 @@ L_late:;
 int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     MSG_MULTI_MAILBOX_SEND msg;   // sizeof 0x1a6（set_MultimailMsgData memcpy 定案）
-    memset(&msg, 0, sizeof(msg));
+    // [b28d-solo-Dispatchers] P171：ORIG 0x082262a7 `sub $0x4160` 后直接 get_state，
+    //   全函数无 memset/rep stos 清零 ⇒ 原码无整体清零，删除我方多余 memset
+    //   （p167 EXTRA `memset` +1 即此项；我方帧 0x4170 vs ORIG 0x4160）。
 
     if (user == 0 || user->get_state() != 3 || user->getCurCharacR() == 0)
         return 0;
@@ -10446,32 +10451,36 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
 
     // 条目区 stride 0xb：space@+0、slot@+1、seq u64@+3、price int 与 seq 低 32 位同址
-    for (unsigned char i = 0; i < msg.m_count33; ++i)
+    // ORIG 0x08226512/0x082267f7：`movl $0,-0x18` + 尾测
+    //   `movzbl count; movzbl %al; cmp -0x18; setg; test; jne` ⇒ 下标为 int
+    //   （P218/P51；uchar 下标产 seta/cmpb 且帧槽错位）。
+    for (int i = 0; i < (int)msg.m_count33; ++i)
     {
-        char* e = msg.m_body34 + i * 0xb;
-        unsigned char spaceV = 0;
-        if (!packet.get_byte(spaceV))
+        // [b28d-solo-Dispatchers] P183 地址重物化：ORIG 每处字段访问都重发完整
+        //   `mov i,%edx; shl $2; add; add; add; add $0x30; lea (%ecx,%eax,1); add $K`
+        //   全链（0822651e/0822657c/082265da/08226638/0822667d/082266db），无 e 指针槽。
+        // ORIG 0x08226538：get_byte 目标即 e+0 本体（无临时槽，P0 槽-局部律）。
+        if (!packet.get_byte(*(unsigned char*)(msg.m_body34 + i * 0xb)))
             return LineFunc(0xe1ff,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        *e = spaceV;
-        if (!packet.get_short(*(unsigned short*)(e + 1)))
+        if (!packet.get_short(*(unsigned short*)(msg.m_body34 + i * 0xb + 1)))
             return LineFunc(0xe202,
                             __PRETTY_FUNCTION__,
                             0, 0);
         // ORIG 0x082265da：get_int 直接落 e+3（u64 槽，无临时变量/memcpy）。
-        if (!packet.get_int(*(unsigned long*)(e + 3)))
+        if (!packet.get_int(*(unsigned long*)(msg.m_body34 + i * 0xb + 3)))
             return LineFunc(0xe205,
                             __PRETTY_FUNCTION__,
                             0, 0);
         // ORIG 0x08226638..0x08226678：seq 低 32 位为 0 → 错误包 0x11 并返回
         //（非 break）。
-        if (*(const int*)(e + 3) == 0)
+        if (*(const int*)(msg.m_body34 + i * 0xb + 3) == 0)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0x11);
             return 0;
         }
-        if (!packet.get_int(*(int*)(e + 7)))
+        if (!packet.get_int(*(int*)(msg.m_body34 + i * 0xb + 7)))
             return LineFunc(0xe20e,
                             __PRETTY_FUNCTION__,
                             0, 0);
@@ -10479,8 +10488,8 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
         // ORIG 0x0822671d/0x082267a4：invenType 与 slot 两处各自重取（P183）。
         if (user->CheckItemLock(
                 GetInvenTypeFromItemSpace(
-                    (ENUM_ITEMSPACE)(unsigned char)*e),
-                (int)*(const unsigned short*)(e + 1)) != 0)
+                    (ENUM_ITEMSPACE)(unsigned char)msg.m_body34[i * 0xb]),
+                (int)*(const unsigned short*)(msg.m_body34 + i * 0xb + 1)) != 0)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0xd5);
             return 0;
@@ -10488,8 +10497,9 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
         bool movable = true;
         CheckItemTradeLimitCountToMoveByUser(
             *user,
-            GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(unsigned char)*e),
-            (int)*(const unsigned short*)(e + 1), movable);
+            GetInvenTypeFromItemSpace(
+                (ENUM_ITEMSPACE)(unsigned char)msg.m_body34[i * 0xb]),
+            (int)*(const unsigned short*)(msg.m_body34 + i * 0xb + 1), movable);
         if (!movable)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0x72);
@@ -10527,10 +10537,9 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
 
-    bool needCertify = false;
+    // ORIG 0x08226a12..0x08226a39：短路链直接在 %eax 物化（无 needCertify 槽，
+    //   P0）⇒ 原码为表达式直用。reqSendMailCertify 定义属 W7-CUser 域（Main 已排期）。
     if (msg.m_gold2f != 0 && user->reqSendMailCertify() != 0)
-        needCertify = true;   // reqSendMailCertify 定义属 W7-CUser 域（Main 已排期）
-    if (needCertify)
     {
         user->set_MultimailMsgData(&msg);
         return 0;
@@ -10548,17 +10557,22 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     unsigned char hackFlag = 0;
-    for (unsigned char i = 0; i < msg.m_count33; ++i)
+    // ORIG 0x08226ac3/0x08226b89：下标 `movl $0,-0x10` + 尾测 setg ⇒ int（P218/P51）。
+    for (int i = 0; i < (int)msg.m_count33; ++i)
     {
-        char* e = msg.m_body34 + i * 0xb;
-        const int protoIdx = *(const int*)(e + 3);   // seq 槽低 32 位
-        CItem* proto = G_CDataManager()->find_item(protoIdx);
-        if (proto != 0 && !(proto->IsAvatarItem() == 1 ||
-                            proto->get_rarity() > 1))
+        // ORIG 0x08226acf..0x08226af9：seq 低 32 位从 e+3 读出后直接入 %ebx 作
+        //   find_item 实参（无 protoIdx 具名槽，P0）⇒ 表达式内联。
+        CItem* proto = G_CDataManager()->find_item(
+            *(const int*)(msg.m_body34 + i * 0xb + 3));
+        // ORIG 0x08226b07..0x08226b40：`call *vptr+0x10; xor $1; test; je`（bool 直判，
+        //   P32/P292）⇒ 写 `!IsAvatarItem()`，勿写 `== 1`。
+        if (proto != 0 && !proto->IsAvatarItem() &&
+            proto->get_rarity() <= 1)
         {
             hackFlag = 1;
         }
-        if (protoIdx == 0)
+        // ORIG 0x08226b44：重新完整计算 e+3 地址再读（P183）。
+        if (*(const int*)(msg.m_body34 + i * 0xb + 3) == 0)
             hackFlag = 1;
         user->IncrementTradeGold(msg.m_gold2f, (int)hackFlag);
     }
@@ -11364,9 +11378,9 @@ int Dispatcher_UpgradeChronicle::dispatch_sig(CUser* user, PacketBuf& packet)
              vIt != updated.end(); vIt++)   // ORIG 增量段 ppEi（P28 后置形）
         {
             packetOut.put_byte((int)(char)*vIt);
-            ++vIt;
+            vIt++;   // ORIG ppEi（P28 后置形）
             packetOut.put_short((int)(short)*vIt);
-            ++vIt;
+            vIt++;
             packetOut.put_int(*vIt);
         }
         packetOut.finalize(true);
@@ -11664,8 +11678,11 @@ int Dispatcher_Debug_Clear_Quest::process(CUser* user, MSG_BASE& msg, ParamBase&
     int clearedCount = 0;
     for (int i = 0; i < req.m_count; ++i)
     {
-        int questIdx = req.m_questIdxs[i];
-        Quest* quest = G_CDataManager()->find_quest(questIdx);
+        // [b28d-solo-Dispatchers] P183/P48：ORIG 0x081df9a2/0x081dfa36/0x081dfa78/
+        //   0x081dfac4 共 4 处各自完整重发 `vector<int>::operator[]`（p167 MISSING
+        //   `_ZNSt6vectorIiSaIiEEixEj` ×3 即此项）；旧码用 questIdx 具名局部缓存
+        //   只发 1 次 ⇒ 删除缓存，各使用点写完整下标表达式。
+        Quest* quest = G_CDataManager()->find_quest(req.m_questIdxs[i]);
         if (quest == 0)
         {
             return 1;
@@ -11674,14 +11691,14 @@ int Dispatcher_Debug_Clear_Quest::process(CUser* user, MSG_BASE& msg, ParamBase&
         if (quest->exposeQuest() && quest->check_possible(selectParam))
         {
             user->getCurCharacQuestW()->m_cleared.setClearedQuest(
-                (unsigned int)questIdx);
+                (unsigned int)req.m_questIdxs[i]);
             if (quest->m_field138 > 0)
             {
-                user->incQuestPoint((int)quest->m_field138, questIdx, true);
+                user->incQuestPoint((int)quest->m_field138, req.m_questIdxs[i], true);
             }
             if (quest->m_field13a > 0)
             {
-                user->incQuestPiece((int)quest->m_field13a, questIdx, true);
+                user->incQuestPiece((int)quest->m_field13a, req.m_questIdxs[i], true);
             }
             ++clearedCount;
         }
@@ -15531,8 +15548,9 @@ int Dispatcher_UpdateServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
         return r;
     }
 
-    char content[30];   // -0x56，0x1e，读取前清零
-    memset(content, 0, sizeof(content));
+    char content[30];   // -0x56，0x1e
+    // [b28d-solo-Dispatchers] P171：ORIG 0x0821d9ee 区间对 -0x56 只有 lea（无
+    //   memset/rep stos/逐字节清零写），且 p167 报我方 EXTRA `memset` +1 ⇒ 删。
     if (packet.get_str(content, 0x1e, contentLen) != 1)
     {
         const int r = LineFunc(0xd1f9, kPretty, 0, 0);
@@ -17330,7 +17348,9 @@ int Dispatcher_PvpMissionComboClear::process(CUser* user, MSG_BASE& msg, ParamBa
         return 0;
     }
 
-    // ORIG rep stos 0x40×4 字节清零 char[256]
+    // [b28d-solo-Dispatchers] ORIG 0x081d5a5e 段为内联 `rep stos`（0x40 dword =
+    //   0x100 字节）而 4.4 对 `= {0}` 形会发射 .rodata 复制模板符号（P60，missing +1
+    //   回退）⇒ 维持 memset 形，本项按 N78 封顶（p167 EXTRA `memset` +1 记 N）。
     char logBuf[256];
     memset(logBuf, 0, 0x100);
     OS_API::snprintf(logBuf, 0x100,
@@ -20634,16 +20654,21 @@ int Dispatcher_Select_Item_Grwoth_Power::process(CUser* user, MSG_BASE& msg, Par
 
     MSG_GROWTH_POWER& req = reinterpret_cast<MSG_GROWTH_POWER&>(msg);
     stGrowthPowerParam& out = static_cast<stGrowthPowerParam&>(param);
-    CDataManager* dm = G_CDataManager();
-
+    // [b28d-solo-Dispatchers] P183：ORIG 4 处各自完整调 G_CDataManager()
+    //   （p167 MISSING `_Z14G_CDataManagerv` ×3 = 我方 dm 具名缓存省掉的 3 次），
+    //   旧码 `CDataManager* dm = G_CDataManager();` 缓存 ⇒ 删除。
     STBreakAwaySection section =
-        dm->m_growthPower.get_break_away_section_data(user->get_charac_level());
+        G_CDataManager()->m_growthPower.get_break_away_section_data(
+            user->get_charac_level());
     int key = makeFairPVPEquipmentPackageKey(
         user->get_charac_job(),
         static_cast<int>(static_cast<unsigned char>(section.m_field0)));
+    // [b28d-solo-Dispatchers] P96/P270：ORIG 用 const_iterator（p167 MISSING
+    //   `_ZNKSt23_Rb_tree_const_iterator…ptEv`×2 + `C2ERKSt17_Rb_tree_iterator`×2 +
+    //   `_ZNKSt6vector…5beginEv/3endEv`，我方旧 iterator 全走非 const 版）。
     std::map<int, std::vector<std::vector<STStackablePackageData> > >::iterator it =
-        dm->m_growthPower.m_map18.find(key);
-    if (it == dm->m_growthPower.m_map18.end())
+        G_CDataManager()->m_growthPower.m_map18.find(key);
+    if (it == G_CDataManager()->m_growthPower.m_map18.end())
     {
         return 0;
     }
@@ -20676,7 +20701,7 @@ int Dispatcher_Select_Item_Grwoth_Power::process(CUser* user, MSG_BASE& msg, Par
         Inven_Item item;
         // ORIG 用 vector::at(sel)（_ZNKSt6vectorI22STStackablePackageDataSaIS0_EE2atEj）。
         item.m_addInfo = oit->at(sel).m_field0;
-        CItem* info = dm->find_item(item.m_addInfo);
+        CItem* info = G_CDataManager()->find_item(item.m_addInfo);
         if (info == 0)
         {
             out.m_4 = 0x11;
@@ -27983,10 +28008,14 @@ void Dispatcher_RequestIngameAdvertisement::send(CUser* user, ParamBase& param)
         return;                                             // check_error 未跑（state 门早退）
     }
 
-    PacketGuard pg;
     if (err != 0)
     {
+        // [b28d-solo-Dispatchers] ORIG 两个独立 PacketGuard：错误路径 -0x20
+        //   （C1Ev 0x081e4701 / D1Ev 0x081e4a7d+0x081e4a94 EH），成功路径 -0x2c
+        //   （C1Ev 0x081e4aa4）。p167 旧态 MISSING C2×2/D2×4/_Unwind_Resume×1、
+        //   EXTRA C1×1/D1×2 ⇒ 原码是**两个分支各自作用域的 guard**，非函数级复用。
         // ---- 错误回包：byte 0 + err + type ----
+        PacketGuard pg;
         pg.clear();                                         // InterfacePacketBuf::clear
         pg.put_header(1, 0x1e9);
         pg.put_byte(0);
@@ -27998,6 +28027,7 @@ void Dispatcher_RequestIngameAdvertisement::send(CUser* user, ParamBase& param)
     }
 
     // ---- 成功回包 ----
+    PacketGuard pg;                                         // ORIG -0x2c
     pg.clear();
     pg.put_header(1, 0x1e9);
     pg.put_byte(1);
@@ -29229,8 +29259,16 @@ int Dispatcher_ChangeEmotion::isVaildEmotionValue(short value)
     //   C 声明即初始化 + 双臂重发 G_CDataManager                   → 居中但差集仍缺
     // ⇒ 该函数残 9 insn 属 4.1 out-of-line STL 实例发射差（N89 族，
     //   docs/function_audit/N89_EXCLUSION*.tsv 判据），非源码可闭合；保留 A 形。
-    const std::vector<int>& tags = G_CDataManager()->m_emotionTags.m_tags;
-    for (std::vector<int>::const_iterator it = tags.begin(); it != tags.end(); ++it)
+    // [b28d-solo-Dispatchers] P96：ORIG 0x081d1ebe 用**非 const** 容器 begin/end
+    //   （p167 MISSING `_ZNSt6vectorIiSaIiEE5beginEv/3endEv` + `const_iterator(int*)`
+    //   转换构造 C2IPiE），const 引用会走 K 版 ⇒ 改非 const 引用、迭代器仍 const_iterator。
+    // [b28d-solo-Dispatchers] P183：ORIG 0x081d1ebe 两处各自完整调 G_CDataManager()
+    //   （p167 MISSING `_Z14G_CDataManagerv` ×1 = tags 引用缓存省掉的那次）；
+    //   P326：显式 const_iterator 转换临时复现 ORIG 的 C2IPiE 转换 ×2 + 同型 ne。
+    for (std::vector<int>::const_iterator it =
+             G_CDataManager()->m_emotionTags.m_tags.begin();
+         it != std::vector<int>::const_iterator(
+                   G_CDataManager()->m_emotionTags.m_tags.end()); ++it)
     {
         if (*it == (int)value)
             return 1;
