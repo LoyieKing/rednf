@@ -16,8 +16,9 @@
 //   别名 P93；残差 = P164 循环旋转 + P223 岛数（ORIG 循环头 2 个 nop 岛 / 尾部
 //   5 nop+4 jmp vs 我方 4 nop+3 jmp）+ N82 槽复用（allocator -0xd vs -0x25，
 //   字符串槽整体浅 4）⇒ 语义完成、byte 层 N 封顶）
-//  _Z41__static_initialization_and_destruction_0ii N123 豁免（含共享头
-//   DNFLex.h→DNFLex.h→<iostream> 引入的 _ZStL8__ioinit，ORIG 本 TU 无）
+//  _Z41__static_initialization_and_destruction_0ii N123 撞名豁免（体已 16/16 逐条
+//   identical、尺寸 0x40 与 ORIG 全等；已去 DNFLexWrapper.h 依赖消除多余
+//   _ZStL8__ioinit——其链上 DNFLex.h 含 <iostream>，改用局部权威签名声明 Scan*）
 //  __uninitialized_copy ×3 N89/N130（STL 模板实例；move_iterator 版 67/54）
 // df_game_r 还原 —— CItemShop（NPC 物品商店，G4 商城/交易域批次）
 // 参照 docs/class_func_reports/CItemShop.md + ORIG 反汇编逐函数核对。
@@ -32,10 +33,16 @@
 #include <memory>
 
 #include "CDataManager.h"
-#include "DNFLexWrapper.h"
 #include "LogManager.h"
 #include "CSystemTime.h"
 #include "NpcScript.h"
+
+// [b28d-38b] 不 include DNFLexWrapper.h：其链上 DNFLex.h 含 <iostream>，会使本 TU
+// 发射 ORIG 本 TU 无有的 _ZStL8__ioinit（SIAD 0x69 vs ORIG 0x40，P338 反例）。
+// 改用局部权威签名声明（mangled 与 ORIG 一致，定义在 DNFLex TU）。
+bool ScanType(std::string& token, bool consume);   // 0x088bc85f _Z8ScanTypeRSsb
+int ScanInt(bool* ok);                             // 0x088bc37b _Z7ScanIntPb
+bool ScanStr(std::string* value);                  // 0x088bc7a2 _Z7ScanStrPSs
 
 namespace GlobalData
 {
