@@ -432,7 +432,7 @@ case "$(basename "$src" .cpp)" in
                 # 在 4.4.6 下翻 AE。实测 4.4.7 identical=6/ae=37/near=2/diff=6
                 # vs 4.4.6 identical=6/ae=38/near=1/diff=6 ⇒ 零回归。
                 exec "$C6446R" "$@" ;;
-            *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp | *Game/STEquipmentScript.cpp | *Game/CCreatureMgr.cpp | *Game/OnlyOrigBatch12_rand_r.cpp | *Game/OnlyOrigBatch12_security_server.cpp | *Game/OnlyOrigBatch12_server_utility.cpp | *Game/STMonsterScript.cpp | *Game/PvP_Room.cpp | \
+            *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp | *Game/STEquipmentScript.cpp | *Game/CCreatureMgr.cpp | *Game/OnlyOrigBatch12_rand_r.cpp | *Game/OnlyOrigBatch12_security_server.cpp | *Game/OnlyOrigBatch12_server_utility.cpp | *Game/STMonsterScript.cpp | *Game/PvP_Room.cpp | *Game/ItemVendingMachine_Auction.cpp | *Game/GameWorld.cpp | \
             *Game/CFairMatch.cpp | *Game/CEquipItem.cpp | *Game/CAccountCargo.cpp | \
             *Game/CUserCharacInfo.cpp | *Game/ScriptDepsA.cpp)
                 # b28d-6：ORIG CompareRating 的 x87 比较为 fucompp/fnstsw/sahf；4.4 需
@@ -465,6 +465,10 @@ case "$(basename "$src" .cpp)" in
                 # 有符号 /2^k 的 cmovs 需 i486 才关掉（P230/S156 同族）；
                 # 实测 TU identical=32/ae=128/near=5/diff=22 → 32/129/5/21（+1 AE，零回归），
                 # 该函数 99→105=ORIG、多重集相等、ndiff=0。
+                # b28d-SweepVending：ItemVendingMachine_Auction 的 BuyAuctionItem 有 8 次
+                # x87 比较（ORIG fucompp/fnstsw/sahf）；该旗标下 BuyAuctionItem 413→461
+                # （ORIG 462，gap 49→1）、20 处 fucompp 同形，TU 四数 1/5/1/2 不变（零回归）。
+                # b28d-Main 旗标实验：GameWorld 在该旗标下 ae 451→452 / diff 14→13（零回归）。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
             *Game/CExpandEquipslot.cpp)
                 # CExpandEquipslot：loadData 虚调用寄存器形态需 4.4.6

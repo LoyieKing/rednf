@@ -43,7 +43,10 @@ void independentItemRateControl(
 //   +0x1c/+0x20 PvP 胜点上下界；+0x24 vector<stMonsterIndependentDrop_t>。
 // 与 CDeathTower.cpp 的本地定义保持同布局；方法实现见 MonsterIndependentDrop.cpp
 // 与 MonsterWrapLCB.cpp。+0x30 起头像掉落子结构 m_dropAvatarInfo 已具名建模；
-// +0x6c 名字、+0x70 rarity 仍不建模（IsHellMonster 按字节视图读 +0x70）。
+// [b28d-solo-CDeathTower2] +0x6c std::string m_name / +0x70 unsigned char m_rarity
+// 补全（ORIG C1 0x08373a9a 在 +0x6c 调 _ZNSsC1Ev、D1 0x08373b32 在 +0x6c 调
+// _ZNSsD1Ev；sizeof 0x74 由 CAICharacterList.cpp 的 operator new $0x74 实证）。
+// 前缀 +0x00..+0x6b 偏移不变。
 #ifndef DNF_GAME_CAI_CHARACTER_MIRROR_DEFINED
 #define DNF_GAME_CAI_CHARACTER_MIRROR_DEFINED
 class CAICharacter
@@ -104,7 +107,11 @@ private:
     std::vector<stMonsterIndependentDrop_t> m_independentDrops;  // +0x24
     stEnamyDropAvatarInfo_t m_dropAvatarInfo;        // +0x30..+0x6b（ORIG 布局；头注释
                                                      //   原“+0x30 不建模”字样已废止）
+    std::string m_name;                              // +0x6c（ORIG D1 0x08373b3d 析构）
+    unsigned char m_rarity;                          // +0x70（IsHellMonster / set 写入）
+    char m_pad71[3];                                 // → sizeof 0x74
 };
+typedef char assert_cai_character_size_authoritative[sizeof(CAICharacter) == 0x74 ? 1 : -1];
 #endif  // DNF_GAME_CAI_CHARACTER_MIRROR_DEFINED
 
 #endif  // GAME_MONSTER_INDEPENDENT_DROP_H_

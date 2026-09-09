@@ -74,61 +74,10 @@ public:
 };
 
 // ---- CAICharacter / CAICharacterList ----
-// 布局依据 ORIG set 0x0834a066 / ctor 0x08373a9a / 各访问器：
-//   +0x00 int  idx             （getIdx 0x08150850：mov 0(%eax),eax）
-//   +0x04 int  level           （getLevel 0x0815085a：mov 4(%eax),eax）
-//   +0x08 int  m_field8        （set 写 script+0xd80）
-//   +0x0c int  appearancePoint （getAppearancePoint 0x08150866：mov c(%eax),eax）
-//   +0x10 vector<pair<int,int> > m_dropItems （deathTowerSpecifyItemDrop 遍历 +0x10）
-//   +0x1c int  m_pvpWinLow     （getPvPWinPoint 0x0834a240 读取 +0x1c）
-//   +0x20 int  m_pvpWinHigh    （getPvPWinPoint 读取 +0x20）
-//   +0x24 vector<stMonsterIndependentDrop_t>
-//   +0x30 stEnamyDropAvatarInfo_t
-//   +0x6c std::string m_name
-//   +0x70 unsigned char m_rarity
-#ifndef DNF_GAME_CAI_CHARACTER_MIRROR_DEFINED
-#define DNF_GAME_CAI_CHARACTER_MIRROR_DEFINED
-class CAICharacter
-{
-public:
-    int getIdx() const { return m_idx; }
-    int getLevel() const { return m_level; }
-    int getAppearancePoint() const { return m_appearancePoint; }
-    // ORIG 0x0834a19c _ZNK12CAICharacter25deathTowerSpecifyItemDropERSt6vectorImSaImEE：
-    // 遍历 m_dropItems（vector<pair<int,int>>），对每项 r=get_rand_int(10000)；
-    // 若 pair.second > r 则把 pair.first（itemId）push_back 到 dropIds。
-    void deathTowerSpecifyItemDrop(std::vector<unsigned long>& dropIds) const
-    {
-        for (std::vector<std::pair<int, int> >::const_iterator it =
-                 m_dropItems.begin();
-             it != m_dropItems.end(); ++it)
-        {
-            int r = get_rand_int(10000);
-            if (it->second > r)
-                dropIds.push_back((unsigned long)it->first);
-        }
-    }
-    // ORIG 0x0834a240 _ZNK12CAICharacter14getPvPWinPointEv：
-    // 返回 PvP 胜点。+0x1c=最小胜点，+0x20=最大胜点；等则返回该值，
-    // 否则返回 min + get_rand_int(max - min + 1)。
-    int getPvPWinPoint() const
-    {
-        if (m_pvpWinLow == m_pvpWinHigh)
-            return m_pvpWinLow;
-        return m_pvpWinLow + get_rand_int(m_pvpWinHigh - m_pvpWinLow + 1);
-    }
-
-private:
-    int m_idx;                                      // +0x00
-    int m_level;                                    // +0x04
-    int m_field8;                                   // +0x08
-    int m_appearancePoint;                          // +0x0c
-    std::vector<std::pair<int, int> > m_dropItems;  // +0x10
-    int m_pvpWinLow;                                // +0x1c
-    int m_pvpWinHigh;                               // +0x20
-    char m_pad24[0x70 - 0x24];                      // +0x24..+0x6f（独立掉/头像/名字区，本 TU 未用）
-};
-#endif  // DNF_GAME_CAI_CHARACTER_MIRROR_DEFINED
+// CAICharacter 权威定义见 MonsterIndependentDrop.h（+0x6c m_name / +0x70 m_rarity /
+// sizeof 0x74 + static_assert）。本 TU 原 #ifndef 兜底镜像已删（§4.4 单声明点：
+// 该头先于本处 include 且已定义 DNF_GAME_CAI_CHARACTER_MIRROR_DEFINED，
+// 原镜像长期为失效死代码，删除零 codegen 影响）。
 
 namespace WongWork {
 
@@ -343,6 +292,11 @@ int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
     // valDiff 槽往返（ORIG 寄存器直传，4.4 恒 spill = N18a 形，P248 三档旋钮
     // 不适用——非类型可翻）+ 全帧槽号平移（帧 0x164+1 push vs ORIG 0x144+3 push，
     // 4.4 outgoing 16B 对齐预留 N115 族）⇒ 平移部分维持 N95/N115/N82 封顶。
+    // [b28d-solo-CDeathTower2 复核] fresh 读数 orig 610 / our 618；试形：absDiff
+    // 改 unsigned + branchless `(v ^ (v>>31)) - (v>>31)`（P248③，欲复现 ORIG
+    // 0x084691a5 的 mov/sar/xor/sub 与零扩展 fildll）实测 630 劣化 ⇒ 已回退。
+    // 残余 = 2×3 条 valDiff 槽往返（N18a）+ x87 fildl↔fildll/fmuls↔flds+fmulp
+    // （N85 邻族）+ 帧平移 ⇒ N 封顶。
     // 候选新纪录（stage, playTime）。ORIG 0x08468de0：本类无 towerIdx 越界检查。
     // 调用方（rankTable 槽位）保证 towerIdx 在 [0,4]，与 ORIG 保持一致不加防御。
 
@@ -1688,9 +1642,19 @@ void CDeathTower::deathTowerCardStatistic(int count, CUser* user, const Inven_It
 }
 bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map_item& item)
 {
-    // [b28d-solo-CDeathTower] verdict=DIFF（orig 489 / our 510，NDIFF=318）：P167 CLEAR（41/41）；残差 = 帧槽号
-    // 平移（type 槽 -0x5c vs -0x8c）+ Inven_Item 临时槽（N82/N93）。switch 4 路 + 校验 +
-    // 删除/统计语义全等（ORIG 0x0846638c）。
+    // [b28d-solo-CDeathTower2 本轮读数] orig 489 / our 494（gap −3，前值 510）：
+    // ①【真 bug 修正】字段填充段首行原写 `item.m_item.m_field0 = 0`（+0x10），
+    //   ORIG 0x0846676x `movb $0x0,(%eax)` 实为 map_item+0x00 = m_count
+    //   ⇒ m_count 此前从未清零（掉落堆叠计数未初始化）；已改 `item.m_count=false`。
+    // ②【P0/P48 槽往返 ×9】case 0/2/3/7 的 getCurCharacInvenR/CargoR/W 结果与
+    //   getCurCharacInvenW（use_money/delete_item）全部改链式内联（ORIG %eax 直传
+    //   this，0x0846642d/44e0/4695c/469d0 实证）⇒ 消 18 条 store/load 往返。
+    // ③【残留 −3，判 N】switch(GetAttachType) ORIG 0x0846676c 为 6 项跳表
+    //   `cmp $5,%eax; ja; jmp *table`（3 条），4.4 对同形恒发决策树（5 条 cmp/jcc，
+    //   补 case 0/4 实测 505 更劣）⇒ 4.1↔4.4 switch lowering 代际差（P320 族）；
+    //   另 m_amp 结构赋值写序（ORIG +0x15/+0x19/+0x1d 后写 +0x11）+ isEquipableItemType
+    //   调用点 ORIG `xor $1`（负极性 if，P222）均为形态残差。
+    // P167：41/41 CLEAR（Inven_Item C1/C2 同址别名 P93 伪差）。
     // ORIG T 0x0846638c（Ghidra 反编译语义逐条转写；参数槽：0x8=this,0xc=user,
     // 0x10=type,0x14=slot,0x18=count,0x1c=item&）
     Inven_Item invenItem;   // ORIG 调 _ZN10Inven_ItemC1Ev（0x80cb854）
@@ -1711,26 +1675,25 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
         }
         else
         {
-            const CInventory* inven = user->getCurCharacInvenR();
-            invenItem = inven->GetInvenSlot(1, slot);
+            // [b28d-solo-CDeathTower2 P0] ORIG 0x0846642d..44b：getCurCharacInvenR
+            // 返回值在 %eax 直传 GetInvenSlot this（无具名槽往返）⇒ 链式。
+            invenItem = user->getCurCharacInvenR()->GetInvenSlot(1, slot);
         }
         break;
     case 2: // cargo
     {
-        const CCargo* cargo = user->getCurCharacCargoR();
-        invenItem = cargo->get_cargo_slot(slot);
+        // [b28d-solo-CDeathTower2 P0] ORIG 0x084664e0..4f2：%eax 直传。
+        invenItem = user->getCurCharacCargoR()->get_cargo_slot(slot);
         break;
     }
     case 3: // avatar（ORIG GetInvenSlot space=0）
     {
-        const CInventory* inven = user->getCurCharacInvenR();
-        invenItem = inven->GetInvenSlot(0, slot);
+        invenItem = user->getCurCharacInvenR()->GetInvenSlot(0, slot);
         break;
     }
     case 7: // creature（ORIG GetInvenSlot space=3）
     {
-        const CInventory* inven = user->getCurCharacInvenR();
-        invenItem = inven->GetInvenSlot(3, slot);
+        invenItem = user->getCurCharacInvenR()->GetInvenSlot(3, slot);
         if (invenItem.m_field1 == 5)          // ITEM_TYPE_CREATURE_EQUIP → 拒绝
         {
             return false;
@@ -1778,7 +1741,11 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
             }
         }
         // 字段填充（ORIG +0x44c）
-        item.m_item.m_field0 = 0;
+        // [b28d-solo-CDeathTower2 真 bug 修正] ORIG 0x0846676x `mov 0x1c(%ebp),%eax;
+        // movb $0x0,(%eax)` 写 map_item+0x00 = m_count（非 m_item+0x00）；
+        // 旧实现误写 item.m_item.m_field0（+0x10）致 m_count 未清零，且 +0x10
+        // 随后被 invenItem.m_field0 覆盖 ⇒ 净多 1 条指令。
+        item.m_count = false;
         item.m_item.m_field1 = invenItem.m_field1;
         item.m_item.m_addInfo = invenItem.m_addInfo;
         item.m_item.m_fieldd = invenItem.m_fieldd;
@@ -1803,8 +1770,9 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
     case 0:
         if (slot == 0)
         {
-            CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
-            if (invenW->use_money(count, (eMoneySubReason)6, true) != 1)
+            // [b28d-solo-CDeathTower2 P0/P48] ORIG 0x084668f2..91e：getCurCharacInvenW
+            // 返回值 %eax 直落实参槽（无 invenW 具名槽）。
+            if (user->getCurCharacInvenW()->use_money(count, (eMoneySubReason)6, true) != 1)
             {
                 return false;
             }
@@ -1813,8 +1781,8 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
         }
         else
         {
-            CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
-            if (invenW->delete_item((INVEN_TYPE)1, slot, count,
+            // [b28d-solo-CDeathTower2 P0/P48] ORIG 0x0846695c..990：%eax 直传 this。
+            if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)1, slot, count,
                                     (eItemDelReason)6, true) != 1)
             {
                 return false;
@@ -1825,8 +1793,8 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
         break;
     case 2:
     {
-        CCargo* cargoW = user->getCurCharacCargoW();
-        if (cargoW->delete_item(slot, count, (eItemDelReason)0x10) != 1)
+        // [b28d-solo-CDeathTower2 P0/P48] ORIG 0x084669d0..9f1：%eax 直传 this。
+        if (user->getCurCharacCargoW()->delete_item(slot, count, (eItemDelReason)0x10) != 1)
         {
             return false;
         }
@@ -1834,8 +1802,7 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
     }
     case 3:
     {
-        CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
-        if (invenW->delete_item((INVEN_TYPE)0, slot, 1,
+        if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)0, slot, 1,
                                 (eItemDelReason)6, true) != 1)
         {
             return false;
@@ -1846,8 +1813,7 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
     }
     case 7:
     {
-        CInventory* invenW = (CInventory*)user->getCurCharacInvenW();
-        if (invenW->delete_item((INVEN_TYPE)3, slot, 1,
+        if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)3, slot, 1,
                                 (eItemDelReason)6, true) != 1)
         {
             return false;
@@ -1909,6 +1875,12 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
     // 复现 ORIG 0x08463a48 `cmpl $0; setne %al; test %al,%al; je` 四段物化（4.4 对 if
     // 恒折直跳）。残余 1 处 = EnterDungeon 前置调用实参装载序（ORIG 值先中转 edx/this 后载
     // vs 4.4 this 先，P75/N7 跨版本）⇒ N 封顶。
+    // [b28d-solo-CDeathTower2 复核] fresh 读数 orig 440 / our 441；该唯一残差为
+    // `m_party->choose_random_buff(bf.getRandomBuffDungeonType(0))` 调用点：ORIG
+    // 0x08463cfe 先读 this->m_party 到 %edx、结果留 %eax；4.4 先 `mov %eax,%edx`
+    // 保存结果再读 receiver（+1 条）⇒ 纯 callee/caller 寄存器角色互换（N7，
+    // P230 后端敏感族；4.4.6 可翻，改路由归 Main）。p167 81/81 CLEAR（差集全
+    // 为 PacketGuard/CPacketHandler 的 C1/C2、D1/D2 同址别名，P93 伪差）。
     // [B24D判词 N] 语义正确：try/catch(int)+throw 8/0x16/cond/0x15/1+
     //   reset+initDungeonMgr+_checkStartGameCondition+stage/map 链全对；
     //   P167 调用点差集 81/81 CLEAR；diff=地址占位+EH typeinfo+个别 lowering。
@@ -2623,6 +2595,11 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
     // 语义（AI 布点/AP 随机怪/脚本怪/特殊被动物品四段）与调用点全等；残差 =
     // 4.4 帧 0x… vs ORIG 的槽号整体平移 + 实参跨 call 落槽（N82/N95/N7 族）
     // ⇒ byte 层 N 封顶。
+    // [b28d-solo-CDeathTower2 复核] fresh 读数 orig 920 / our 920；p167 134/134
+    // CLEAR（MISSING/EXTRA 全部为 C1↔C2、D1↔D2 同址别名）。试形：m_field11
+    // 改 WarField.h 的 m_field11b 字节视图逐字节写（复现 ORIG 两条 movb）实测
+    // 922 劣化 ⇒ 已回退（P248 S1 一次性旋钮）。残差 = 帧平移 0xc + 三元/临时
+    // 构造块序 + m_amp 结构赋值写序 ⇒ N82/N93/N7 封顶。
     // ORIG 0x8460634：mobIdVec + apMap（拷贝自 aiList->getAPCount()）+
     // map_monster mob 局部，随后按三段填充：AI 布点 → AP 随机怪 → 脚本怪列表
     // → 特殊被动物品生成。tower 参数供第四段判 partyType（ORIG 0x8461371）。
@@ -2764,6 +2741,8 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
             mob.m_mobIndex = src.m_mobId;
 
         // ORIG 分别写 +0x11/+0x12 两字节 = m_field11 半字（小端拼装）
+        // [b28d-solo-CDeathTower2 试形] 字节视图 m_field11b 两 movb 形实测 922
+        // （劣于本形 920）⇒ 保留 short 拼装（P248 S1 一次性旋钮，回退记 N）。
         mob.m_field11 = static_cast<short>(
             (static_cast<unsigned short>(
                 static_cast<unsigned char>(src.m_levelAdd)) |

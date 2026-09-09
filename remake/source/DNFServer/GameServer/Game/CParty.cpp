@@ -117,16 +117,22 @@ void CParty::cMember::Init()
 // ============================================================================
 // CParty 构造 / 析构
 // ============================================================================
-// b28d-solo-CParty: N 封顶 —— N82 帧 0x20/0x4c：成员构造序与 pad 类型化（CBattle_Field/BattleData 内嵌）待 Main 裁决；308 vs 220
+// b28d-solo-CParty: N 封顶 —— N82 帧 0x20/0x4c：成员构造序与 pad 类型化（CBattle_Field/BattleData 内嵌）待 Main 裁决。
+// [SweepCParty2 2026-09-09] 真 bug 修复：删 m_battleField 二次构造 ⇒ 308→287（ORIG 220，
+// 剩余 gap 67 = N83 placement-new 前端内联 vs 4.4 extern _ZnwjPv（7 处 pad 区）+ 构造序差）。
 CParty::CParty()
 {
-    // b28d-49 判词：N 封顶 + 缺口。P167 MISS 6 项成员构造/析构（MapInfoVec/CPartyTelePort/
-    // Secu_HackLogCheckByParty/GameResultSet/SECRET_SHOP_DATA/CTraceMobDieHack）⇒ m_pad* 数组
-    // 未类型化（placement-new 形已按 ORIG 复刻）；EXTRA new/delete 为 P90 landing 差。@0x82a5516
+    // b28d-49 判词 + [SweepCParty2]：P167 的 C2/D2 "MISS" 为 C1/C2 同址别名（P93），非缺口；
+    // EXTRA _ZnwjPv/_ZdlPvS_ = N83（4.1 placement-new 前端内联、4.4 恒 extern call）。
+    // pad 区真实成员化需改 CParty.h 成员并同步 CPartyDeps*/OnlyOrig/Link2/DisPatcherCore 等
+    // 消费 TU 的字段名 ⇒ 超本泳道写权，按 N83 封顶。@0x82a5516
     new (&m_pad1dc) CPartyResultRecvFlag;
     new (&m_pad210) CTraceMobDieHack;
     new (&m_padShop) secretshop::SECRET_SHOP_DATA();
-    new (&m_battleField) CBattle_Field();
+    // [SweepCParty2] 真 bug 修复：m_battleField 是真实成员（CParty.h:792），
+    // 编译器已在成员构造阶段调用 CBattle_Field::C1Ev；此处的 placement-new 是
+    // 二次构造（我方 .o 0xe9/0x1fc 两次 C1Ev 调用实证）。删除后 ORIG 的
+    // 单次构造形（+0xb24 一次）恢复，指令数 -26。
     new (&m_padResult) GameResultSet();
     new (&m_padSecu) Secu_HackLogCheckByParty();
     new (&m_pad1ad0) CPartyTelePort();
@@ -2729,8 +2735,11 @@ float CParty::getCreatureBonus(CUser* user)
 // ORIG 乘加成公式：fildll(经验) × flds(比率) 后 fistpll——x87 默认就近舍入。
 // 源码直接写 (long long)((double)(long long)exp * rate) 即产生相同指令序列
 //（-march=i386 下为 fucompp/fnstsw/fistpll 形态，与 ORIG 一致）。
-// [SweepCParty] p167 CLEAR（7=7）；gap 6（607 vs 613）全为 N85（x87 比较 ×7，
-// -march=i486 可修族）+ N126/N82（帧槽整体 8 偏移）+ difflib 块序对齐。语义已对齐，封顶。
+// [SweepCParty] p167 CLEAR（7=7）；gap 7（615 vs 608）。构成：N85（x87 比较 ×7，
+// 每处 ORIG fucompp/fnstsw/sahf 4 条 vs 4.4 fucomip/fstp 2 条 ⇒ 我方 -14，属
+// -march=i486 路由族，禁改路由）+ 我方代码生成 +7（type 槽/N76 直存/累加寄存器化）。
+// [SweepCParty2] 尾部 premiumAdvExp/serverEventExp 求值序已按 ORIG 0x085ad6d6/0x085ad708
+// 与 total 累加序 0x085ad7c2/0x085ad7ca 修正（纯求值序，指令数不变）。语义已对齐，封顶。
 unsigned int CParty::getClearRewardBonusExp(CUser* user, unsigned int& exp,
                                             stClearRewardExpParameter_t const& param,
                                             stClearRewardBonusExp_t& bonus)
@@ -2810,10 +2819,12 @@ unsigned int CParty::getClearRewardBonusExp(CUser* user, unsigned int& exp,
 
     bonus.m_serverChannelExp =
         (unsigned int)(long long)((double)(long long)exp * param.m_serverChannelRate);
-    bonus.m_premiumAdvExp =
-        (unsigned int)(long long)((double)(long long)exp * param.m_premiumAdvantageRate);
+    // [SweepCParty2] 顺序照 ORIG 0x085ad6d6(0x28→+0x1c)/0x085ad708(0x24→+0x18)：
+    // serverEventExp 先、premiumAdvExp 后（原写反，仅求值序，语义等价）。
     bonus.m_serverEventExp =
         (unsigned int)(long long)((double)(long long)exp * param.m_serverEventExpRate);
+    bonus.m_premiumAdvExp =
+        (unsigned int)(long long)((double)(long long)exp * param.m_premiumAdvantageRate);
     bonus.m_manageExp =
         (unsigned int)(long long)((double)(long long)exp * param.m_manageBonus);
     bonus.m_growthPowerExp =
@@ -2823,8 +2834,8 @@ unsigned int CParty::getClearRewardBonusExp(CUser* user, unsigned int& exp,
 
     unsigned int total =
         exp + bonus.m_rankWeightExp + bonus.m_avatarBonusExp +
-        bonus.m_selectedBonusExp + bonus.m_channelBonusExp + bonus.m_serverEventExp +
-        bonus.m_premiumAdvExp + bonus.m_burningFatigueExp + bonus.m_serverChannelExp +
+        bonus.m_selectedBonusExp + bonus.m_channelBonusExp + bonus.m_premiumAdvExp +
+        bonus.m_serverEventExp + bonus.m_burningFatigueExp + bonus.m_serverChannelExp +
         bonus.m_creatureBonusExp;
 
     bonus.m_upperMemberExp = user->gainExpAsUpperMember((int)exp);
@@ -2891,6 +2902,9 @@ int CParty::GetPartyType()
                 guildKey = m_member[i].m_pUser->get_charac_guildkey();
                 sameGuild = true;
             }
+            // [SweepCParty2] 试形记录：交换比较操作数（callee 结果居左）实测仍产
+            // `cmp -0x1c(%ebp),%eax` 折叠（.o 0x6743 实证）⇒ 与 int 化同为无效旋钮，
+            // N18b 封顶（ORIG 0x85b637d 两段 `mov -0x1c(%ebp),%edx; cmp %edx,%eax`）。
             else if (guildKey != m_member[i].m_pUser->get_charac_guildkey())
             {
                 sameGuild = false;
