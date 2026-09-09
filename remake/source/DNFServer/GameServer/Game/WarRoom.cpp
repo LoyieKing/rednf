@@ -1711,7 +1711,7 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
 }
 
 __attribute__((target("arch=i486")))
-int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
+bool WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)   // [b28d-Main·P292] int→bool
 {
     // [b28d-solo-WarRoom] DIFF(421) | ORIG 0x086be1fe | N82 帧/槽平移
     //   （map_monster 临时 ORIG -0x3a8 vs 4.4 -0x3ac，全帧 -4 连动）。

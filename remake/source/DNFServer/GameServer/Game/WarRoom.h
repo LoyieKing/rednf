@@ -80,7 +80,7 @@ public:
     int SetSlotState(CUser* user, int seat, ENUM_SEAT_STATE state,
                      CUser** out, bool& a, bool& b, bool& c);
     int HandleDieCharacer(CUser* user, int seat);
-    int HandleMonsterKill(CUser* user, int seat, CUser* killer);
+    bool HandleMonsterKill(CUser* user, int seat, CUser* killer);   // [b28d-Main·P292] int→bool（ORIG 调用点 0x081ecbfe `call; xor $0x1,%eax`）
     int HandleGetItem(CUser* user, int idx);
     int HandleItemDrop(CUser* user, int a, int b, char c, int d, int e);
     int HandleWpPerMonster(CUser* user, int a, int b, CUser* c);

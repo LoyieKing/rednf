@@ -2961,7 +2961,7 @@ public:
     void GiveItemsReturnUser();         // ORIG T 0x08692000
     void GiveEquipItemsReturnUser();    // ORIG T 0x08692140
     int ChangeCharacSlot(unsigned int a, unsigned int b);
-    int checkSelectCharac(int slot);
+    bool checkSelectCharac(int slot);   // [b28d-Main·P292] int→bool（ORIG 调用点 0x081c6b50 `call; xor $0x1,%eax`）
     int getCharacSlotCountDefaultInfo();  // ORIG _ZN5CUser29getCharacSlotCountDefaultInfoEv W 0x0868b4fc
     void ReturnToSelectCharacList(bool param);
     void LogoutCachedCharacter(unsigned char param);

@@ -1792,7 +1792,7 @@ bool CUser::CheckPossibleRequestRenameState(int slot) const
 // （P200/P225）复现 `movzwl 0x27(%eax),%eax; movswl %ax,%ebx` + 两次完整下标链 operator[]。
 // 残余：首守卫 `jle` vs 4.4 `jg`（P258 德摩根 or 形）+ setcc 物化 + 帧差
 // （ORIG push ebx/sub $0x24 vs 4.4 sub $0x38，N115 outgoing 预留）⇒ N82/N115 封顶。
-int CUser::checkSelectCharac(int slot)
+bool CUser::checkSelectCharac(int slot)   // [b28d-Main·P292] int→bool
 {
     if (getCurCharacR() != 0)
     {
