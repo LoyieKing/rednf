@@ -193,28 +193,30 @@ void CUser::gainMoneyFromHackUser(unsigned int who, unsigned long long gold,
 // ORIG 0x0867f748：黑名单/惩罚注册入口。
 // type==2 lookOuts1；type==3 IP 监视登记（一次性）；type==10 ARS 延迟惩罚定时器；
 // 其它走即时 OnPunishUser + 0x81 定时器；尾部对非惩罚状态账号补发首犯入库包。
-// b28d-solo-W8_CU_G: DIFF/N 封顶（277/270）— 本波修 3 处：
-// ①真语义 bug：type==10 分支原 printf 实参再调一次 get_rand_int(0x122)（消耗额外
-//   随机数），ORIG 0x0867f988 只调一次并存 -0x14 槽供 printf+InsertTimer 复用 ⇒ 合并；
-// ②p167 EXTRA +2 memset：ORIG 0x0867f832/0x0867f86e 对 startIp/rawIp 各发 4×movl
-//   内联清零 ⇒ 改 `char x[17] = {0}` 数组初始化；
-// ③DB 类局部声明非静态→static void（P88，见文件头声明区）。
-// 修后 p167 CLEAR(31/31)。余 N82/N95 槽族：ORIG 单个 ushort 截断槽 -0x6c + 单段
-// movzwl→%esi，4.4 恒拆 -0x7c/-0x16 双截断槽（cMyTrace 实参改用 notifyType 后不变）
-// + P75 实参装载序。语义等价。
+// b28d-W8(2026-09-09): **AE 276/276**（TU 四数 diff−1）— 本波 6 修：
+// ①P227 全表达式临时链 + 删 notifyType 复制槽（直接用形参 type，尾部 `type=10`）；
+// ②startIp/rawIp 16 字节（ORIG 各 4×movl，原 17 字节多 2 条 movb）；
+// ③声明序 rawIp 先（0x867f832 组）→ GetPeerIP2 → startIp（0x867f86e 组）；
+// ④P133 四条独立 `if(type==7/9/12/5)`（合并短路形产 4×je 同落点）；
+// ⑤P59 守卫 `if(!m_hackIpLogged){body;return}else return`（正写少 1 条 xor）；
+// ⑥ip[16]={0} + GetPeerIP2 返回值直传 makeRequest arg1（P0）。
+// ⑦**真语义 bug**：IPCounterLog_InsertIp 第三实参原传 startIp，ORIG 0x867f8ee
+//   `lea -0x58(%ebp),%ecx` 传的是 rawIp（GetPeerIP2 目标缓冲）⇒ 记录的是原始 IP。
+// p167 CLEAR(31/31)，gap 0，语义完成。ORIG 0x0867f748。
 void CUser::setHackUser(unsigned int p1, unsigned int p2, unsigned int p3,
                         unsigned int p4, unsigned short type, unsigned int p6)
 {
-    unsigned short notifyType = type;
-
-    {
-        cMyTrace trace("void CUser::setHackUser(unsigned int, unsigned int, "
-                       "unsigned int, unsigned int, short unsigned int, unsigned int)",
-                       0x7e55, 0);
-        char* idStr = NumberToString(get_acc_id(), 0);
-        trace("m_id : %s, SetHackUser : %d(%d)\t  %d(%d)   ApplyFlag = %d\n",
-              idStr, p1, p2, p3, p4, static_cast<unsigned int>(notifyType));
-    }
+    // b28d-W8: P227 全表达式临时链 + 直接用形参 type —— ORIG 0x867f753/75a
+    // `mov 0x1c(%ebp),%eax; mov %ax,-0x6c(%ebp); movzwl -0x6c(%ebp),%esi`
+    //（仅形参一次性截断 spill 槽，无 notifyType 复制槽）；0x867f7be 前右起求值
+    // type(%esi)→NumberToString(%ebx)→ctor，idStr 无槽（P0）。尾部改形参本身
+    // 0x867fb20 `movw $0xa,-0x6c(%ebp)`（ORIG 直接改 spill 槽）。
+    cMyTrace("void CUser::setHackUser(unsigned int, unsigned int, "
+             "unsigned int, unsigned int, short unsigned int, unsigned int)",
+             0x7e55, 0)(
+        "m_id : %s, SetHackUser : %d(%d)\t  %d(%d)   ApplyFlag = %d\n",
+        NumberToString(get_acc_id(), 0), p1, p2, p3, p4,
+        static_cast<unsigned int>(type));
 
     if (type == 2)
     {
@@ -222,23 +224,34 @@ void CUser::setHackUser(unsigned int p1, unsigned int p2, unsigned int p3,
     }
     else if (type == 3)
     {
-        if (m_mcap.m_hackIpLogged)
+        // b28d-W8: P59/P248档② —— ORIG 0x867f820 `movzbl 0x8e950; xor $1; test;
+        // je <return 岛>`（`!flag` 正极性包裹 + else return），正写
+        // `if(flag) return; body` 产 `test; jne` 少 1 条 xor。
+        if (!m_mcap.m_hackIpLogged)
+        {
+            // b28d-W8: 声明序照 ORIG —— rawIp 先清零(0x867f832 组 -0x58)+GetPeerIP2，
+            // startIp 后清零(0x867f86e 组 -0x68)+Divide 输出（P28 声明序即发射序）。
+            // 16 字节各 4×movl（无第 5 条 movb）；GetPeerIP2(rawIp,0x10) 写满 16B
+            // 无 NUL（P171 原码遗留照抄）。
+            char rawIp[16] = {0};
+            m_network.GetPeerIP2(rawIp, 0x10);
+            char startIp[16] = {0};
+            Divide_C_ClassIP_EndIP(startIp, static_cast<char*>(0), rawIp);
+
+            m_ipCounters.push_back(tyIPCounters(p1, p3));
+            m_mcap.m_hackIpLogged = true;
+            // b28d-W8 真语义修正：ORIG 0x867f8ee `lea -0x58(%ebp),%ecx` 传的是
+            // rawIp（GetPeerIP2 目标缓冲 = local_6c+0x10），非 startIp（Divide 输出
+            // = -0x68）；旧码传错缓冲 ⇒ 记的是点分起始段而非原始 IP。
+            m_historyLog.IPCounterLog_InsertIp(static_cast<int>(p1),
+                                               static_cast<int>(p3), rawIp);
+            DB_HackIPSave::makeRequest(startIp, rawIp, p1, p3);
+            return;
+        }
+        else
         {
             return;
         }
-        // b28d-solo-W8_CU_G：ORIG 0x0867f832/0x0867f86e 对两数组各发 4×movl
-        //（16B 内联清零，无 memset call；p167 EXTRA +2 memset）⇒ 用数组初始化。
-        char startIp[17] = {0};
-        char rawIp[17] = {0};
-        m_network.GetPeerIP2(rawIp, 0x10);
-        Divide_C_ClassIP_EndIP(startIp, static_cast<char*>(0), rawIp);
-
-        m_ipCounters.push_back(tyIPCounters(p1, p3));
-        m_mcap.m_hackIpLogged = true;
-        m_historyLog.IPCounterLog_InsertIp(static_cast<int>(p1),
-                                           static_cast<int>(p3), startIp);
-        DB_HackIPSave::makeRequest(startIp, rawIp, p1, p3);
-        return;
     }
     else if (type == 10)
     {
@@ -266,7 +279,21 @@ void CUser::setHackUser(unsigned int p1, unsigned int p2, unsigned int p3,
             m_mcap.m_field561 = true;
             delaySec = 1;
         }
-        if (type == 7 || type == 9 || type == 12 || type == 5)
+        // b28d-W8: P133 —— ORIG 0x867fa2e..0x867fa72 四条独立 `cmpw $X; jne;
+        // movb $1,0x8e951` 守卫（非合并短路，合并形产 4×je 同落点）。
+        if (type == 7)
+        {
+            m_mcap.m_field561 = true;
+        }
+        if (type == 9)
+        {
+            m_mcap.m_field561 = true;
+        }
+        if (type == 12)
+        {
+            m_mcap.m_field561 = true;
+        }
+        if (type == 5)
         {
             m_mcap.m_field561 = true;
         }
@@ -281,14 +308,16 @@ void CUser::setHackUser(unsigned int p1, unsigned int p2, unsigned int p3,
         }
         if (m_field796d8 != 0 && (type == 1 || type == 4 || type == 9))
         {
-            notifyType = 10;
+            type = 10;
         }
     }
 
-    char ip[17];
-    m_network.GetPeerIP2(ip, 0x10);
+    // b28d-W8: ORIG 0x867fb26..0x867fb3b 4×movl 内联清零 16B（无第 5 条 movb）
+    // ⇒ `= {0}` 的 16 字节数组，非未初始化 17 字节。ORIG 0x867fb66 `mov %eax,%ebx`
+    // = GetPeerIP2 返回值直传 makeRequest arg1（无 ipPtr 具名槽，P0 内联实参）。
+    char ip[16] = {0};
     DB_InsertAutoPunishFirstUser::makeRequest(
-        get_acc_id(), ip, p1, p2, p3, p4, notifyType, p6);
+        get_acc_id(), m_network.GetPeerIP2(ip, 0x10), p1, p2, p3, p4, type, p6);
 }
 
 // ORIG 0x084fa298：对角色列表首元素起 size()*0x14d1 字节做 MD5 摘要。
@@ -393,12 +422,12 @@ bool CUser::VerifyCleanPadVeriData(unsigned int value)
 // 控制流/栈槽/EH landing pad 全对齐；call 目标占位、数据地址 `movl $0x0,(%esp)`
 // （&s_capchaDataManager）、字符串立即数为 --no-compile .o 重定位假阳性（§6.3），
 // relink 后转 AE。语义等价。
-// b28d-solo-W8_CU_G: DIFF/N 封顶 — 三处 N 族：①memcpy 首参 dst(this+0x8e0ec)
-// ORIG `mov 0x8(%ebp),%edx; add $0x8e0ec,%edx` 两步 vs 4.4 恒 `lea 0x8e0ec(%eax),%edx`
-// 单条（probe /tmp/solo_g/probe_memcpy.cpp 六形：数组名/&dst[0]/reinterpret_cast/
-// static_cast/(char*) 全产 lea，且 4.4 恒 dst 先求值 vs ORIG src 先）⇒ N107 负例
-// （memcpy 首参专用）；②put_binary 实参装载 eax/edx 互换（N7）；③+0x8e0f8 成员读
-// ORIG `mov mem,%eax; mov %eax,%esi` 两段 vs 4.4 单段（N18a）。155/154 语义等价。
+// b28d-W8(2026-09-09): DIFF 155/154（gap 1）— 本波修**真 bug**（p167 重载选错）：
+// `put_binary(reinterpret_cast<char*>(m_image), size)` 选中 `EPci` 非 const 重载；
+// ORIG 调 `_ZN18InterfacePacketBuf10put_binaryEPKci`（const char*）⇒ 改
+// `reinterpret_cast<const char*>`，p167 转 CLEAR。余 1 条 N 族：
+// ①memcpy 首参 dst(this+0x8e0ec) ORIG `mov;add` 两步 vs 4.4 `lea` 单条（N107 负例）；
+// ②+0x8e0f8 成员读 ORIG `mov mem,%eax; mov %eax,%esi` 两段 vs 4.4 单段（N18a）。
 bool CUser::reqSendMailCertify()   // [b28d-Main·P292] unsigned int→bool
 {
     if (GlobalData::s_capchaDataManager.isEmpty())
@@ -413,7 +442,10 @@ bool CUser::reqSendMailCertify()   // [b28d-Main·P292] unsigned int→bool
     packet.put_header(0, 0x7d);
     packet.put_byte(5);
     packet.put_int(data->m_size);
-    packet.put_binary(reinterpret_cast<char*>(data->m_image), data->m_size);
+    // b28d-W8 真 bug（p167 重载选错）：ORIG 调 `put_binary(char const*, int)`
+    //（_ZN18InterfacePacketBuf10put_binaryEPKci）；我方 `reinterpret_cast<char*>`
+    // 选中非 const 重载 `put_binary(char*, int)`（EPci）⇒ 显式 const 版本。
+    packet.put_binary(reinterpret_cast<const char*>(data->m_image), data->m_size);
     packet.put_byte(0);
 
     unsigned short veriA = 0;
@@ -452,66 +484,79 @@ bool CUser::reqSendMailCertify()   // [b28d-Main·P292] unsigned int→bool
 // 安全奖励物品发放（sendSecuRewardItem）
 // ORIG 0x0868833c：交易中或背包满 → 系统邮件退还；否则入背包并回填落位。
 // ===========================================================================
-// b28d-solo-W8_CU_G: DIFF/N 封顶（149/147）— 承 b28d-21：ORIG 栈缓冲形（body@-0x15f
-// 0xff + title@-0x22 0x14 + 两次 strncpy 长度 0x14/0xff + ReqDBSendNewSystemMail 传
-// title/body，0x086884a6/0x086884c4/0x086884df）；p167 CLEAR(9=9)。本波复验残差：
-// ①序言 ORIG `push %esi; push %ebx` vs 4.4 无 callee-saved（Inven_Item 局部拷贝形差）；
-// ②全部局部槽整体平移 7B（ORIG -0x5f/-0x23 vs 4.4 -0x66/-0x2a）⇒ N84（Inven_Item
-// 建模尺寸 vs ORIG 0x1b0 帧）+ N82 槽族，跨 TU 结构建模差异非本 TU 可控。语义等价。
-void CUser::sendSecuRewardItem(Inven_Item* item, ENUM_SECURITY_REWARD_TYPE type,
+// b28d-W8(2026-09-09): **NEAR 149/149**（DIFF→NEAR）— 本波 5 修：
+// ①返回类型 void→bool（CUser.h:2976 同步，P159 尾 `mov $0/%1,%eax`）；
+// ②语句序照 ORIG：先拷贝 Inven_Item 局部（0x8688347）再判空（0x86883aa，P171 照抄）；
+// ③body 0x100（非 0xff）⇒ 帧/槽位与 ORIG 只差 1B；failed 改 char（`cmpb $0` 直比）；
+// ④CheckInTrade 正向 `if(...)` + else 成功路径（`test %al,%al; je` 无 xor）；
+// ⑤P47 块序：`if(failed){失败; return false}` + 成功 fall-through；ReqDBSend 内联实参。
+// p167 CLEAR(9=9)，gap 0；余 1B 槽平移（N95/N82 族）。ORIG 0x0868833c。
+bool CUser::sendSecuRewardItem(Inven_Item* item, ENUM_SECURITY_REWARD_TYPE type,
                                int* outSlotVec)
 {
-    if (item == 0)
-    {
-        return;
-    }
-
     // b28d-21：p167 MISSING strncpy×2/strlen（ORIG 0x086884a6/0x086884c4 两次
     // strncpy 长度立即数 0x14/0xff）⇒ 还原栈缓冲形：body@-0x15f(0xff)、
     // local@-0x5f、title@-0x22(0x14)，ReqDBSendNewSystemMail 传 title/body。
-    char body[0xff];              // ORIG -0x15f
+    // b28d-W8: 声明序/语句序照 ORIG —— 0x08688347 先拷贝 Inven_Item 局部、
+    // 0x086883aa 才判空（P171 原码遗留照抄）；failed/slot 的初始化在判空之后
+    //（0x086883ba/be）。返回类型 void→bool（P159 尾 `mov $0/%1,%eax`）。
+    char body[0x100];             // ORIG -0x15f..-0x60（256B，Ghidra local_163[256]）
     Inven_Item local(*item);      // ORIG 将 Inven_Item 原样拷贝入栈局部 -0x5f
     char title[0x14];             // ORIG -0x22
-    bool failed = false;
+
+    if (item == 0)
+    {
+        return false;
+    }
+
+    // b28d-W8: char 而非 bool —— ORIG 0x08688486 `cmpb $0x0,-0xd(%ebp); je`
+    // 内存直比（bool 局部 4.4 恒 movzbl;xor $1;test 三段，P158/N122）。
+    char failed = 0;
     int slot = -1;
 
-    if (!CheckInTrade())
+    // b28d-W8: ORIG 0x086883d0 `call; test %al,%al; je <成功路径>`（无 xor）⇒ 正向
+    // `if (CheckInTrade())` + else 成功路径（P292 表：bool callee 正向直判 2 条）。
+    if (CheckInTrade())
+    {
+        failed = 1;
+    }
+    else
     {
         slot = getCurCharacInvenW()->insertItemIntoInventory(
             local, static_cast<eItemAddReason>(0xd), true, true);
         if (slot == -1)
         {
-            failed = true;
+            failed = 1;
         }
     }
-    else
+
+    // b28d-W8: P47/P214① —— ORIG 0x08688486 `cmpb $0; je <成功岛>` ⇒ 失败路径
+    // fall-through、成功路径在 je 目标（块序与 `if(!failed) 成功` 相反）。
+    if (failed != 0)
     {
-        failed = true;
+        // ORIG rodata：DAT_08cf10ec（"아이템 지급" 类标题）/ DAT_08cf10fc（正文），
+        // GBK/EUC 多字节原样字节保真转写（objdump -s .rodata 实证）。
+        static const char kSenderTitle[] =
+            "\260\355\272\355\270\260\300\307\040\274\261\271\260";
+        static const char kFailMessage[] =
+            "\260\355\270\260\300\307\040\274\261\271\260\300\304\314\040\277\354\306"
+            "\355\300\270\267\316\040\265\265\302\360\307\317\277\264\275\300\264\317"
+            "\264\231.";
+
+        strncpy(title, kSenderTitle, 0x14);   // ORIG 0x08688490（长度 0x14）
+        strncpy(body, kFailMessage, 0xff);    // ORIG 0x086884ab（长度 0xff）
+        // b28d-W8: P52/P134 —— ORIG 0x086884cf/4df/4ec 三值入 %ebx/%esi/%eax 跨
+        // 调用保活、装载段直读寄存器；具名局部引入 3 对 store/reload（P0 直传）。
+        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+            title, local, 0, getCurCharacNo(), body,
+            static_cast<int>(strlen(body)), 0,
+            static_cast<ENUM_SERVER_GROUP>(GetServerGroup()), false, false);
+        outSlotVec[static_cast<int>(type)] = -1;
+        return false;
     }
 
-    if (!failed)
-    {
-        outSlotVec[static_cast<int>(type)] = slot;
-        return;
-    }
-
-    // ORIG rodata：DAT_08cf10ec（"아이템 지급" 类标题）/ DAT_08cf10fc（正文），
-    // GBK/EUC 多字节原样字节保真转写（objdump -s .rodata 实证）。
-    static const char kSenderTitle[] =
-        "\260\355\272\355\270\260\300\307\040\274\261\271\260";
-    static const char kFailMessage[] =
-        "\260\355\270\260\300\307\040\274\261\271\260\300\304\314\040\277\354\306"
-        "\355\300\270\267\316\040\265\265\302\360\307\317\277\264\275\300\264\317"
-        "\264\231.";
-
-    strncpy(title, kSenderTitle, 0x14);       // ORIG 0x08688490（长度 0x14）
-    strncpy(body, kFailMessage, 0xff);        // ORIG 0x086884ab（长度 0xff）
-    ENUM_SERVER_GROUP group = static_cast<ENUM_SERVER_GROUP>(GetServerGroup());
-    unsigned int characNo = getCurCharacNo();
-    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        title, local, 0, characNo, body,
-        static_cast<int>(strlen(body)), 0, group, false, false);
-    outSlotVec[static_cast<int>(type)] = -1;
+    outSlotVec[static_cast<int>(type)] = slot;
+    return true;
 }
 
 // ORIG 0x0867d86e：账务仓库 DB 同步转发给内嵌 CAccountCargo。
@@ -526,13 +571,18 @@ void CUser::SetAccountCargoDBData(Inven_Item* items, unsigned int money,
 // ORIG 0x0868b552：事件码 0x8e + 创建时间窗判定，job==4 且未成长一级角色首次
 // 登录 → 发放 0x28d3af 物品邮件并置 flag/DB 记录。
 // ===========================================================================
-// b28d-solo-W8_CU_G: DIFF/N 封顶（341/338）— P0 清绑完成（原 `register asm("ebx"/"esi")`
-// 改纯 register 存储类提示，非绑定形，P231/P248 合规）；清绑后指令数近全等，残差：
-// ①ORIG accId→%ebx / createTime→%esi 与 4.4 的 %esi/%ebx 角色互换（N7）；
-// ②槽号整体平移 0x24（-0x35/-0x3c vs -0x59/-0x60，N82 聚合优先占低槽）；
-// ③std::string 临时（"Arad_EventPeriodDataManager"）构造多一槽中转（N86 直构族）。
-// 48/48 调用点全等（p167 CLEAR），语义完成。ORIG 0x0868b552。
-char CUser::VerifyPresentAvengerTitle()
+// b28d-W8(2026-09-09): **gap 2→0（340/340）** — 本波 5 修：
+// ①P0/P183 删 period/period2 具名局部（findGameScript 结果 %eax 直传 receiver，
+//   省 2 对 store/reload）；
+// ②P28 声明序 body(0x100)先于 subject(0x15)（清零块序照 ORIG 0x867b7e2/82c）；
+// ③P52/P134 ReqDBSendNewSystemMail 与 makeRequest 三值内联实参（%ebx/%esi/%eax
+//   跨调用保活，删 6 对槽往返）；
+// ④P227 trace 全表达式临时链 + itemIdx 去 const（复现 0x868b9ae 槽读 %edi）；
+// ⑤getFlagPresentAvengerTitle 返回 uchar→bool（CUser.h:3240/CUser.cpp:11353，
+//   SweepCUser2 代落）+ `!f()` ⇒ 0x868b68b `xor $1` 复现。
+// p167 CLEAR（仅 C1/C2 别名）；余 isApplied 段 1 条 xor（P168a③b 跨版本 bool ABI）
+// + 槽号整体平移。ORIG 0x0868b552。
+bool CUser::VerifyPresentAvengerTitle()
 {
     // ORIG T 0x868b552 全录（报告 docs/class_func_reports/CUser/VerifyPresentAvengerTitle.md
     // 汇编+Ghidra C 双段读完；调用序 Counter 48 项对齐重建 2026-09-05 CUserC8）：
@@ -551,12 +601,13 @@ char CUser::VerifyPresentAvengerTitle()
     register unsigned int accId = (unsigned int)get_acc_id();
     register unsigned int createTime =
         static_cast<unsigned int>(getCurCharacCreateTime());
-    ARAD::Arad_EventPeriodDataManager* period =
-        static_cast<ARAD::Arad_EventPeriodDataManager*>(
+    // b28d-W8: P0/P183 —— ORIG 0x868b5ac findGameScript 结果 %eax 直传 checkCreateTime
+    // receiver（无 period 槽往返）⇒ 内联表达式，不设具名局部。
+    if (static_cast<ARAD::Arad_EventPeriodDataManager*>(
             ARAD::Singleton<ARAD::Arad_DataManager>::Get()->findGameScript(
-                std::string("Arad_EventPeriodDataManager")));
-    if (period->checkCreateTime(static_cast<ENUM_REPEAT_EVENT_CODE>(0x8e),
-                                createTime, accId) != 1)
+                std::string("Arad_EventPeriodDataManager")))
+            ->checkCreateTime(static_cast<ENUM_REPEAT_EVENT_CODE>(0x8e),
+                              createTime, accId) != 1)
     {
         return 0;
     }
@@ -569,25 +620,25 @@ char CUser::VerifyPresentAvengerTitle()
 
     unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
 
-    bool eventOn = false;
-    if (getFlagPresentAvengerTitle() != 1)
-    {
-        ARAD::Arad_EventPeriodDataManager* period2 =
-            static_cast<ARAD::Arad_EventPeriodDataManager*>(
-                ARAD::Singleton<ARAD::Arad_DataManager>::Get()->findGameScript(
-                    std::string("Arad_EventPeriodDataManager")));
-        eventOn = period2->isApplied(static_cast<ENUM_REPEAT_EVENT_CODE>(0x8e),
-                                     curSec);
-    }
-    if (!eventOn)
+    // b28d-W8: ORIG 0x868b676..0x868b768 —— A 假/B 假同落 L_false（mov $0,%eax），
+    // 条件值经 %edi 跨 string+allocator 析构存活后才 test ⇒ 原码是
+    // `if (!(A && B)) return 0;`（条件临时无具名槽，P0；eventOn 具名局部是误建模）。
+    if (!(!getFlagPresentAvengerTitle() &&
+          static_cast<ARAD::Arad_EventPeriodDataManager*>(
+              ARAD::Singleton<ARAD::Arad_DataManager>::Get()->findGameScript(
+                  std::string("Arad_EventPeriodDataManager")))
+              ->isApplied(static_cast<ENUM_REPEAT_EVENT_CODE>(0x8e), curSec)))
     {
         return 0;
     }
 
     Inven_Item item;
-    const int itemIdx = 0x28d3af;   // ORIG 0x868b77c 独立栈槽 -0x8c（非 Inven_Item
+    int itemIdx = 0x28d3af;         // ORIG 0x868b77c 独立栈槽 -0x8c（非 Inven_Item
                                     // 成员——0x868b77c 与 item@-0x8e 尺寸不重叠实证；
                                     // ChronicleRandomOptionInfo 亦无 +1 偏移 int 成员）
+                                    // b28d-W8: 去 const —— ORIG 0x868b9ae 从槽
+                                    // `mov -0x8c(%ebp),%edi` 读回，4.4 对 const 常量
+                                    // 传播成 `movl $0x28d3af,0x10(%esp)`（少 1 条 + 无槽）。
     // ORIG 0x868b78b `mov 0xc(%eax),%eax` 直读 m_itemList 成员（getItemList
     // 转发 call orig=0，具名字段直访）。
     G_CDataManager()->m_itemList->create_item(
@@ -598,8 +649,10 @@ char CUser::VerifyPresentAvengerTitle()
 
         // ORIG 0x868b7e2/82c 两段 peel+rep stos 清零块 = `= {0}` 聚合初始化
         //（makeGuildItemUpgradMessage board 同形，4.4 产 memset 调用 orig=0）。
-        char subject[0x15] = {0};
+        // b28d-W8: 声明序照 ORIG —— body(0x100)@0x868b7e2 先清零、subject(0x15)
+        // @0x868b82c 后清零（P28 声明序即发射序；原序反了）。
         char body[0x100] = {0};
+        char subject[0x15] = {0};
         strncpy(subject,
                 g_scriptStringManager_.findString(4, "ready_to_avenger_title", 0),
                 0x14);
@@ -607,23 +660,25 @@ char CUser::VerifyPresentAvengerTitle()
                 g_scriptStringManager_.findString(4, "ready_to_avenger_mail", 0),
                 0xff);
 
-        ENUM_SERVER_GROUP group = static_cast<ENUM_SERVER_GROUP>(GetServerGroup());
-        unsigned int blen = (unsigned int)strlen(body);
-        unsigned int characNo = getCurCharacNo();
+        // b28d-W8: P52/P134 —— ORIG 0x868b906/91c/923 三值入 callee-saved
+        //（group→%ebx、strlen→%esi、characNo→%eax）跨调用保活、装载段直读寄存器；
+        // 具名局部引入 3 对 store/reload（P0 表达式直传）。
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            subject, item, 0, characNo, body, blen, 0, group, false, false);
+            subject, item, 0, getCurCharacNo(), body,
+            static_cast<unsigned int>(strlen(body)), 0,
+            static_cast<ENUM_SERVER_GROUP>(GetServerGroup()), false, false);
 
-        unsigned int characNo2 = getCurCharacNo();
-        unsigned int accId2 = get_acc_id();
-        int uid = (int)GetUID();
-        DB_SaveGiveAvengerTitleFlag::makeRequest(uid, accId2, characNo2);
+        // b28d-W8: P52/P134 —— ORIG 0x868b979/986/993 三值 %esi/%ebx/%eax 直传，
+        // 无 characNo2/accId2/uid 具名槽。
+        DB_SaveGiveAvengerTitleFlag::makeRequest(
+            (int)GetUID(), get_acc_id(), getCurCharacNo());
 
-        int idxVal = itemIdx;
-        unsigned int characNo3 = getCurCharacNo();
-        char* idStr = NumberToString(get_acc_id(), 0);
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xa6eb, 0);
-        trace("avenger plan event item post m_id(%s),charac_no(%u), itemidx(%u)",
-              idStr, characNo3, static_cast<unsigned int>(idxVal));
+        // b28d-W8: P227 全表达式临时链 —— ORIG 0x868b9ae..0x868ba1b 在 cMyTrace
+        // ctor 前右起求值 itemIdx(%edi)→characNo(%esi)→NumberToString(%ebx)，
+        // 三值全程寄存器无槽 ⇒ 原码无具名局部（P0）。
+        cMyTrace(__PRETTY_FUNCTION__, 0xa6eb, 0)(
+            "avenger plan event item post m_id(%s),charac_no(%u), itemidx(%u)",
+            NumberToString(get_acc_id(), 0), getCurCharacNo(), itemIdx);
         return 1;
     }
     return 0;
@@ -694,13 +749,16 @@ void CUser::rewardExp(int expBase, int& bonusA, int& bonusB,
 // 入经验）、累计字段、升级判定（_check_level_up，producer=CUserCheckLevel.cpp）、
 // SP/SFP 返还与日志、升级后任务/公会/监控器通知、疲劳奖励 channel 组收尾、
 // 专家职业经验结算与 55 级清动作点。
-// b28d-solo-W8_CU_G: DIFF/N 封顶（388/392，ndiff 102→60）— 本波按 P0 去 3 组
-// 无槽往返的具名局部（ORIG 全表达式直读）：
-// ①`reasonVal`（ORIG `cmpl $1/$2,0x18(%ebp)` 形参直读两次）；
-// ②`skillR`（ORIG getCurCharacSkillR() 结果直接作 receiver 调 get_remain_*_at_index）；
-// ③`serverGroup`/`guildProxy`/`monitorProxy`（ORIG 全链式单语句，无槽）。
-// 修后帧 0x9c→0x8c（余差 0x10 = N82/P112 槽族），槽位平移 0x10；66/66 调用点全等
-//（p167 CLEAR）。语义等价。
+// b28d-W8(2026-09-09): DIFF 388/389（gap 4→1）— 本波 4 修：
+// ①P0/P183 去 questR 具名局部（ORIG 0x0866a5xx getCurCharacQuestR 结果 %eax 直传
+//   get_quest_info receiver，省 store+load 2 条）；
+// ②guild/monitor 两段 getCurCharacGrowType 加 uchar→char 转换复现 ORIG
+//   0x0866a67d/0x0866a6fb `movsbl %al,%eax`（具名局部形 396 反劣已弃）；
+// ③P227 全表达式临时链复现 VerifyPresentAvengerTitle 失败分支 trace
+//   （0x0866a77b..0x0866a7e0 ctor 前右起求值 characNo→NumberToString）；
+// ④VerifyPresentAvengerTitle 返回 char→bool（CUser.h:3065 同步）⇒ 调用点
+//   `call; xor $1; test; je` 与 ORIG 0x0866a774 全等。
+// 余 1 条 + 帧差 0x10（N82/P112 槽族）；66/66 调用点全等（p167 CLEAR）。ORIG 0x0866a3fe。
 bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
                         eExpAddReason reason, int param, bool flag)
 {
@@ -758,8 +816,9 @@ bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
         }
 
         getCurCharacQuestW()->ResetUrgentQuestWaitingList();
-        UserQuest* questR = getCurCharacQuestR();
-        questR->get_quest_info(reinterpret_cast<char*>(&questPacket));
+        // b28d-W8: P0/P183 —— ORIG 0x0866a5xx getCurCharacQuestR 结果 %eax 直传
+        // get_quest_info receiver（ORIG 无 questR 具名槽，我方原码多 store+load 2 条）。
+        getCurCharacQuestR()->get_quest_info(reinterpret_cast<char*>(&questPacket));
         m_characterView.enableSaveCharacView();
         Send(questPacket);
 
@@ -771,12 +830,16 @@ bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
         _UpdateUserInfo4Guild();
 
         {
+            // b28d-W8: ORIG 0x0866a67d `call; movsbl %al,%eax` ⇒ uchar→char 有符号
+            // 转换（直接 static_cast<short>(uchar) 产 movzbl）；具名局部形实测
+            // 396 条（+6）反劣，维持内联。
             GlobalData::s_guild_proxy_mgr->GetServerProxy(
                 static_cast<ENUM_SERVER_GROUP>(GetServerGroup()))->
                 SendCharLevelGrowType(get_acc_id(),
                                       static_cast<unsigned int>(get_charac_no(-1)),
                                       static_cast<short>(get_charac_level()),
-                                      static_cast<short>(getCurCharacGrowType()));
+                                      static_cast<short>(static_cast<char>(
+                                          getCurCharacGrowType())));
         }
         {
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(
@@ -784,16 +847,17 @@ bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
                 SendCharLevelGrowType(get_acc_id(),
                                       static_cast<unsigned int>(get_charac_no(-1)),
                                       static_cast<short>(get_charac_level()),
-                                      static_cast<short>(getCurCharacGrowType()));
+                                      static_cast<short>(static_cast<char>(
+                                          getCurCharacGrowType())));
         }
 
         if (!VerifyPresentAvengerTitle())
         {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           0x5046, 0);
-            char* idStr = NumberToString(get_acc_id(), 0);
-            trace("CUser::VerifyPresentAvengerTitle() m_id(%s), charac_no(%u)",
-                  idStr, static_cast<unsigned int>(getCurCharacNo()));
+            // b28d-W8: P227 全表达式临时链 —— ORIG 0x0866a77b..0x0866a7e0 在 ctor
+            // 前右起求值 characNo(%esi)→NumberToString(%ebx)，无具名槽（P0）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x5046, 0)(
+                "CUser::VerifyPresentAvengerTitle() m_id(%s), charac_no(%u)",
+                NumberToString(get_acc_id(), 0), getCurCharacNo());
         }
 
         AddCurCharacMercenaryInfo();
@@ -870,11 +934,12 @@ void CUser::handleInformNoticeFlag(unsigned int bitIndex)
         unsigned int byte = bitIndex >> 3;
         if (byte > 0xf)
             goto L2;
-        if (!checkInformNoticeFlag(bit, byte))
+        // b28d-W8: ORIG 0x0868f996 `call; test %al,%al; je <岛>`（bool callee 直判、
+        // 无 xor）；4.4 对 `!call()`/`call()==0` 恒产 `xor $1; test; jne`（+1 条）⇒
+        // P168a③b 跨版本 bool ABI 封 N；正极性 if 包裹实测 51（少 4 条）已回退。
+        if (checkInformNoticeFlag(bit, byte) == 0)
             goto L3;
         // ORIG lea (%ebx,%edx,1) 加法形 ⇒ 源码 +（位不重叠与 | 等价）。
-        // b28d-21 试验：ORIG 0x0868f956 读值/和值各多一条 mov 中转
-        //（movzbl→%edx; mov %edx,%ebx），去显式截断 cast 试翻。
         m_informNoticeFlags[byte] = m_informNoticeFlags[byte] + (1 << bit);
         enableSaveInformNoticeFlag();
         goto END;
@@ -886,10 +951,10 @@ END:;
 }
 
 // b28d-solo-W8_CU_G: NEAR/N — P285 空 else{return;} 复现 ORIG 0x0868f900 尾
-// `jmp;nop` 岛（ndiff 13→3，29/29 指令）。残 1 条：循环体 ORIG 单段
-// `movzbl (%edx),%ecx`，4.4 恒 `movzbl (%edx),%edx; mov %edx,%ecx` 两段
-//（N18a 反向）；probe 12 形全败（m[i]=src[i]/(uchar)cast/&0xff/uchar* 下标/
-// reinterpret_cast/局部指针）。语义等价。
+// `jmp;nop` 岛（ndiff 13→3）。b28d-W8 复验：28/29（ORIG 28），残 1 条 = 循环体
+// ORIG 单段 `movzbl (%edx),%ecx`，4.4 恒 `movzbl (%edx),%edx; mov %edx,%ecx` 两段
+//（N18a 反向）；P266 uchar 左值读旋钮（*reinterpret_cast<unsigned char*>）与
+// 隐式转换两形实测同为 29 ⇒ 封 N，不再试形。
 void CUser::loadInformNoticeFlag(char* src)
 {
     resetInformNoticeFlag();
@@ -897,8 +962,9 @@ void CUser::loadInformNoticeFlag(char* src)
     {
         for (int i = 0; i < 0x10; ++i)
         {
-            // b28d-21 试验：ORIG 0x0868f900 单段 `movzbl (%edx),%ecx`
-            //（无 edx 中转）⇒ 隐式转换赋值。
+            // b28d-W8: ORIG 0x0868f929 单段 `movzbl (%edx),%ecx`；4.4 恒
+            // `movzbl (%edx),%edx; mov %edx,%ecx` 两段（+1 条，N18a 反向）；
+            // P266 uchar 左值读旋钮 / 隐式转换两形实测同为 29 ⇒ 封 N。
             m_informNoticeFlags[i] = src[i];
         }
         sendInformNoticeFlag();

@@ -3062,7 +3062,9 @@ public:
     void gain_sfp(int v);                                             // ORIG T 0x866aad2
     void history_log_sp(int before, int delta, eSPAddReason reason);  // ORIG T 0x866ac0e
     void history_log_sfp(int before, int delta, eSPAddReason reason); // ORIG T 0x866acd0
-    char VerifyPresentAvengerTitle();                                 // ORIG T 0x868b552
+    bool VerifyPresentAvengerTitle();                                 // ORIG T 0x868b552
+    // [b28d-W8] char→bool：ORIG 调用点 0x0866a774 `call; xor $0x1,%eax; test %al,%al;
+    // je`（P292/P248档① 直证 callee bool）；本体尾 `mov $0/%1,%eax`。
     void decide_growth_power_reward_system();                         // ORIG T 0x868d780
     void AddCurCharacMercenaryInfo();                                 // ORIG T 0x868e596
     void _update_charac_stat(bool add);                               // ORIG T 0x86646c8
