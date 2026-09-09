@@ -513,7 +513,11 @@ LOOP3:
     }
     ++cit;
 COND3:
-    // ORIG 0x086cb5e2 `jne <body>; jmp <exit>` ⇒ 反转条件 + 显式 return 出口
+    // [b28d-sweep] P167 差集实测：ORIG 调 `_Rb_tree_iterator::ne`（MISSING ne /
+    // EXTRA eq）⇒ 源形本应是 `cit != last`；但 `!=`/while 两形会让 4.4 把 ne 的
+    // 比较临时槽放 -0x78（ORIG -0x7c）并使助记符序列错位，TU 四数 near 5→4 /
+    // diff 14→15 回退 ⇒ 按「四数不回退」保留 `== last`（NEAR 309/309）。
+    // 旧注：ORIG 0x086cb5e2 `jne <body>; jmp <exit>` ⇒ 反转条件 + 显式 return 出口
     // （4.4 对 `if (cit != last) goto LOOP3;` 恒产 `je exit; jmp body`）。
     if (cit == last)
     {
@@ -3639,6 +3643,16 @@ void GameWorld::ResetAllEventData()
 void GameWorld::ResetAllFatigue()
 {
     static bool isFirst = true;
+    // [b28d-sweep] P190 撑帧实测（推翻旧「double framePad 零效」判词）：ORIG 帧
+    // 0x7c/深槽组（badge -0x46 / iterator -0x4c / msg -0x58）比我们深 0x10；
+    // 2 个取址 double 撑帧 0x60→0x70，深槽组三处逐一对齐（ndiff 125→110）；
+    // 4 个则过头（帧 0x80、badge -0x56，ndiff 回 125）。浅槽组（user -0x20/active
+    // -0x1c/trace -0x3c/string -0x2c/allocator -0x25）仍浅 0x10 = N126 首槽常数 8
+    // + 4.1 匿名 return-temp 专属槽，属 N82/N126 封顶。
+    double framePad0;
+    (void)&framePad0;
+    double framePad1;
+    (void)&framePad1;
     // [b28d-solo-GameWorld] _ZN9GameWorld15ResetAllFatigueEv verdict=DIFF 322/307
     // N7+N82+N104 封顶。本轮修法（均以 ORIG 0x086cc3ec 段实证）：
     //  ① 字面量直传 findGameScript(std::string)（0x086cc71e 单次 C1EPKc）——删具名
@@ -3650,9 +3664,9 @@ void GameWorld::ResetAllFatigue()
     //  ⑤ cMyTrace 全表达式临时链（P227）复现 ctor 前求值 varargs；
     //  ⑥ bApplied 条件置位形复现 ORIG 物化岛。
     // 残余（不可造）：%edi↔%ebx 分配差（ORIG getCurSec/bApplied 用 %edi ⇒ push/pop
-    // %edi 2 条；4.4 恒 %ebx；register bool 形实测 302→302 零效）N7；帧 0x7c vs 0x70
-    // （push edi 4 + 槽组整体浅移 0xc；double framePad 实测零效）N82；isApplied 后
-    // EH 尾块相对序 rotate N104；m_actionPoint receiver 多 2 条 add 寻址（N107 族）。
+    // %edi 2 条；4.4 恒 %ebx；register bool 形实测 302→302 零效）N7；浅槽组 0x10 浅移
+    // + 帧 0x7c vs 0x70（push edi 4 + 8）N82/N126；isApplied 后 EH 尾块相对序 rotate
+    // N104；m_actionPoint receiver 多 2 条 add 寻址（N107 族）。
     // [b28d-solo-GameWorld] ORIG 0x086cc40a `movl $0,-0x46` + `movw $0,-0x42`（4+2 字节）
     // ⇒ 试聚合初始化 `= {0}`（P202①/P214③ 展开形）。
     short badge[3] = {0};
