@@ -485,9 +485,18 @@ STScriptFileList g_stMonsterScriptFileList;             // 权威型（NpcScript
 //   否则登记 Monster.lst → resize(5) 基础参数向量 → 五张 *BaseParameter.tbl
 //   逐行 MonsterBaseParameter 回填 → MonsterApcDifficultyBonus.tbl 三张
 //   13 行浮点加成表 → 标签化难度/平衡/减速/血量调整段。
-// [b28d-solo-InitScriptProducers_4 语义完成/N82封顶] 三件套：①p167 调用点差集 168/168 CLEAR；
-// ②gap 82（1239 vs 1157；帧 0x2ec vs 0x2dc + 全帧槽号平移）；③逐块仅余 N82/N4-P30/N18b 形差。
-// 修法：P303、临时空向量 resize(5,临时)、ORIG 列序 ScanInt(0,3,4,5,6,1,2,7..12,两循环,21..23)、
+// [b28d-solo-InitScriptProducers_4 语义完成] 三件套：①p167 调用点差集 168/168 CLEAR；
+// ②gap 2（1220 vs 1218 归一化；raw 1239 vs 1231）；帧 0x2ec 与 ORIG 全等，残余为
+//    N82 槽号 + !bool 早退检查的 xor/test/jne 共享尾块 vs 内联形态（P63/N121 族）；
+// ③本 TU 剩余真缺口 = 0。本轮修的真缺口：
+//  ①[limit slowdown] 段 P333 状态机还原（ORIG 0x8a120e6..0x8a12678：switch fallthrough
+//    逐条 insert + 尾部 leave/置位/goto retry 回跳，原直线 if 链漏 4 处 __inited 检查与回跳）；
+//  ②[/limit slowdown] 终止标记应 break（原 continue 会吞掉后续主标签，真语义 bug）；
+//  ③ok 形参：limit slowdown 三段 9 处 ScanInt + mesmerization 三段 6 处 ScanInt +
+//    gauge 三处 ScanFloat 均须传 &ok（ORIG lea -0x151），原 (bool*)0 不更新 ok；
+//  ④解析具名中转 a/b（ORIG -0x38/-0x34、-0x4c/-0x48）与 [adjust hp gauge] 段首
+//    float v=1.0f（ORIG -0x1c，三支复用）补回。
+// 其余：P303、临时空向量 resize(5,临时)、ORIG 列序 ScanInt(0,3,4,5,6,1,2,7..12,两循环,21..23)、
 // 5 连短路难度链、段首单次构造 DungeonHoldBalance/stLimitSlowDown、P177 static 入循环体。
 bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
 {
@@ -551,7 +560,9 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                 // 赋值共 5 次），勿建 vec 引用缓存。
                 if (row == static_cast<int>(g_monsterBaseParameters[tableIdx].size()))
                     g_monsterBaseParameters[tableIdx].push_back(param);   // ORIG 0x8a11670
-                else if (row > static_cast<int>(g_monsterBaseParameters[tableIdx].size()))
+                // ORIG 0x8a1169a seta（size_t 无符号比较），勿 cast 成 int（会生 setl）。
+                else if (static_cast<unsigned int>(row) >
+                         g_monsterBaseParameters[tableIdx].size())
                 {
                     // ORIG 0x8a116a1: 默认元素 resize(row+1) 后再赋值。
                     MonsterBaseParameter def;
@@ -708,7 +719,9 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
         {
             // ORIG 顺序：sub C1(661) → h C1(665) → clear×3(667-671) → reserve×3(674-680)。
             std::string sub;
-            DungeonHoldBalance h;           // ORIG 0x8a3deee @0x8a11f19：段首一次，三支复用
+            int a;                          // ORIG -0x4c（具名中转，P0 槽往返）
+            int b = 0;                      // ORIG -0x48（P198① 预清必写）
+            DungeonHoldBalance h;           // ORIG 0x8a3deee @0x8a11e31：段首一次，三支复用
             NORMAL_MONSTER_HOLD_BALANCE_TABLE.clear();       // ORIG 0x8a11e46
             NAMED_MONSTER_HOLD_BALANCE_TABLE.clear();
             BOSS_MONSTER_HOLD_BALANCE_TABLE.clear();
@@ -724,8 +737,10 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                 {
                     for (int i = 0; i <= 199; ++i)          // cmpl $0xc7,setle
                     {
-                        h.m_a = ScanInt((bool*)0);
-                        h.m_b = ScanInt((bool*)0);
+                        a = ScanInt(&ok);
+                        b = ScanInt(&ok);
+                        h.m_a = a;
+                        h.m_b = b;
                         NORMAL_MONSTER_HOLD_BALANCE_TABLE.push_back(h);
                     }
                 }
@@ -733,8 +748,10 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                 {
                     for (int i = 0; i <= 199; ++i)
                     {
-                        h.m_a = ScanInt((bool*)0);
-                        h.m_b = ScanInt((bool*)0);
+                        a = ScanInt(&ok);
+                        b = ScanInt(&ok);
+                        h.m_a = a;
+                        h.m_b = b;
                         BOSS_MONSTER_HOLD_BALANCE_TABLE.push_back(h);
                     }
                 }
@@ -742,8 +759,10 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                 {
                     for (int i = 0; i <= 199; ++i)
                     {
-                        h.m_a = ScanInt((bool*)0);
-                        h.m_b = ScanInt((bool*)0);
+                        a = ScanInt(&ok);
+                        b = ScanInt(&ok);
+                        h.m_a = a;
+                        h.m_b = b;
                         NAMED_MONSTER_HOLD_BALANCE_TABLE.push_back(h);
                     }
                 }
@@ -755,90 +774,129 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
             // ORIG 函数级静态：__lookup map<const char*,int,less_TCHAR>
             // （0x94fff80，guard 0x94ff648）+ __init_lock SpinLock
             // （0x94fff98，guard 0x94ff650）+ __inited（0x94fff9c）。
-            // 首次进入锁内插入四条 tag→id（id 为 ORIG 源内常量 0x932/0x935/
-            // 0x949/0x95d），置 inited 后重派发同一 token 进入真实解析分支。
+            // ORIG 0x8a120b3..0x8a12678：P333「首次建表、之后查表」状态机形。
+            // 段首 sub C1 → a=0(-0x38) → b=0(-0x34) → bStop=false(-0x2d) → e C1；
+            // 每轮按 id switch 派发：未建表时各 case 体先查 __inited 再逐条 insert
+            // 并 fallthrough（首轮一次插满 4 条），尾部 leave+置位+goto retry 重查；
+            // 已建表时执行真实解析。id==0/0x932（[/limit slowdown]）置 bStop 后 break。
             std::string sub;
-            stLimitSlowDown e;          // ORIG 0x8a3df1a @0x8a1221b：段首一次，三支复用
+            int a = 0;                  // ORIG -0x38（三支复用，P198① 预清必写）
+            int b = 0;                  // ORIG -0x34
+            bool bStop = false;         // ORIG -0x2d
+            stLimitSlowDown e;          // ORIG 0x8a3df1a @0x8a120d3：段首一次，三支复用
+            int id;
             for (;;)
             {
                 if (!ScanType(sub, true))   // ORIG 0x8a12649
                     break;                  // 段结束 → 下一主标签
 
-                // P177：ORIG 的 static 三件套声明在循环体内（guard 每轮执行，813-872 段）。
+                // P177：ORIG 的 static 三件套声明在循环体内（guard 每轮执行）。
                 static std::map<const char*, int, less_TCHAR> lookup;
                 static SpinLock lock;
                 static bool inited = false;
 
-                if (!inited)
+            retry:
+                if (inited)
+                {
+                    std::map<const char*, int, less_TCHAR>::const_iterator it =
+                        lookup.find(sub.c_str());           // ORIG 0x8a12218
+                    id = (it != lookup.end()) ? it->second : -1;
+                }
+                else
                 {
                     lock.enter();                       // ORIG 0x8a122a2
-                    if (!inited)
+                    if (inited)
                     {
-                        // ORIG 插入链 0x8a12320/0x8a12386/0x8a1246a/0x8a1254e
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x932));
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x935));
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x949));
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x95d));
-                        lock.leave();                   // ORIG 0x8a1262a
-                        inited = true;
+                        lock.leave();                   // ORIG 0x8a122c0
+                        goto retry;                     // 回跳重查（ORIG 0x8a122c6）
                     }
-                    else
-                    {
-                        lock.leave();
-                    }
+                    id = 0;                             // 建表哨兵
                 }
 
-                std::map<const char*, int, less_TCHAR>::const_iterator it =
-                    lookup.find(sub.c_str());           // ORIG 0x8a12218
-                const int id = (it != lookup.end()) ? it->second : -1;
+                switch (id)
+                {
+                case 0:
+                case 0x932:                             // [/limit slowdown] 终止标记
+                    if (inited)
+                    {
+                        bStop = true;                   // ORIG 0x8a1236f
+                        break;
+                    }
+                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x932));
+                    // fall through
+                case 0x935:                             // [normal]
+                    if (inited)
+                    {
+                        NORMAL_MONSER_LIMIT_SLOWDOWN_TABLE.clear();   // 0x9494f8c
+                        for (int i = 0; i <= 199; ++i)
+                        {
+                            ScanInt(&ok);               // 首列索引（弃）
+                            a = ScanInt(&ok);
+                            b = ScanInt(&ok);
+                            e.m_a = a;
+                            e.m_b = b;
+                            NORMAL_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
+                        }
+                        break;
+                    }
+                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x935));
+                    // fall through
+                case 0x949:                             // [boss]
+                    if (inited)
+                    {
+                        BOSS_MONSER_LIMIT_SLOWDOWN_TABLE.clear();     // 0x9494fa4
+                        for (int i = 0; i <= 199; ++i)
+                        {
+                            ScanInt(&ok);
+                            a = ScanInt(&ok);
+                            b = ScanInt(&ok);
+                            e.m_a = a;
+                            e.m_b = b;
+                            BOSS_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
+                        }
+                        break;
+                    }
+                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x949));
+                    // fall through
+                case 0x95d:                             // [named]
+                    if (inited)
+                    {
+                        NAMED_MONSER_LIMIT_SLOWDOWN_TABLE.clear();    // 0x9494f98
+                        for (int i = 0; i <= 199; ++i)
+                        {
+                            ScanInt(&ok);
+                            a = ScanInt(&ok);
+                            b = ScanInt(&ok);
+                            e.m_a = a;
+                            e.m_b = b;
+                            NAMED_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
+                        }
+                        break;
+                    }
+                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x95d));
+                    break;
+                default:                                // id==-1（未知子标签）
+                    break;
+                }
 
-                if (id == 0 || id == 0x932)             // [/limit slowdown] 终止标记
-                    continue;
-                if (id == 0x935)                        // [normal]
+                if (!inited)
                 {
-                    NORMAL_MONSER_LIMIT_SLOWDOWN_TABLE.clear();   // 0x9494f8c
-                    for (int i = 0; i <= 199; ++i)
-                    {
-                        ScanInt((bool*)0);                     // 首列索引（弃）
-                        e.m_a = ScanInt((bool*)0);
-                        e.m_b = ScanInt((bool*)0);
-                        NORMAL_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
-                    }
-                    continue;
+                    lock.leave();                       // ORIG 0x8a12631
+                    inited = true;                      // ORIG 0x8a12636
+                    goto retry;                         // ORIG 0x8a1263d 回跳重查
                 }
-                if (id == 0x949)                        // [boss]
-                {
-                    BOSS_MONSER_LIMIT_SLOWDOWN_TABLE.clear();     // 0x9494fa4
-                    for (int i = 0; i <= 199; ++i)
-                    {
-                        ScanInt((bool*)0);
-                        e.m_a = ScanInt((bool*)0);
-                        e.m_b = ScanInt((bool*)0);
-                        BOSS_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
-                    }
-                    continue;
-                }
-                if (id == 0x95d)                        // [named]
-                {
-                    NAMED_MONSER_LIMIT_SLOWDOWN_TABLE.clear();    // 0x9494f98
-                    for (int i = 0; i <= 199; ++i)
-                    {
-                        ScanInt((bool*)0);
-                        e.m_a = ScanInt((bool*)0);
-                        e.m_b = ScanInt((bool*)0);
-                        NAMED_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
-                    }
-                    continue;
-                }
-                // id==-1（未知子标签）：ORIG 直落 0x8a1261c 继续。
+                if (bStop)                              // ORIG 0x8a12643 cmpb
+                    break;
             }
             continue;
         }
         else if (token == "[adjust hp gauge]")              // 0x8e1eda7
         {
-            // ORIG 0x8a126cc 段首构造一个 DungeonHoldBalance 局部对象且从未使用
+            // ORIG 0x8a126c4 段首 float v = 1.0f（-0x1c，三支复用）；
+            // ORIG 0x8a126cc 段首构造 DungeonHoldBalance 局部对象且从未使用
             // （纯编译产物）——P204 照抄：ORIG 无条件发射该 C1 调用。
             std::string sub;
+            float v = 1.0f;                 // ORIG -0x1c
             DungeonHoldBalance h;
             (void)h;
             while (ScanType(sub, true))     // ORIG 0x8a1279a
@@ -847,17 +905,17 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
                     break;
                 if (sub == "[normal]")
                 {
-                    float v = ScanFloat((bool*)0);
+                    v = ScanFloat(&ok);
                     NORMAL_MONSTER_GAUGE_ADJUST = v;            // 0x93f4d10
                 }
                 else if (sub == "[boss]")
                 {
-                    float v = ScanFloat((bool*)0);
+                    v = ScanFloat(&ok);
                     BOSS_MONSTER_GAUGE_ADJUST = v;              // 0x93f4d18
                 }
                 else if (sub == "[named]")
                 {
-                    float v = ScanFloat((bool*)0);
+                    v = ScanFloat(&ok);
                     NAMED_MONSTER_GAUGE_ADJUST = v;             // 0x93f4d14
                 }
             }
@@ -875,8 +933,9 @@ bool InitMonsterScript(const char* dir, const char* list, const char* apcBonus)
 // 第 4 参装载 0x10(%ebp)（map）而非 movl $0；其余指令序列、跳转结构、
 // 全局地址逐条相同（两版函数级 static __lookup/__init_lock/__inited 各自独立：
 // ORIG 0x94fff80/0x94fff98/0x94fff9c vs 0x94ff8a8/0x94ff8b8/0x94ff8d4）。
-// [b28d-solo-InitScriptProducers_4 语义完成/N82封顶] 同 3 参版（第 4 参 map 透传）；
-// p167 168/168 CLEAR；gap 83（1240 vs 1157）。
+// [b28d-solo-InitScriptProducers_4 语义完成] 同 3 参版（第 4 参 map 透传）；
+// p167 168/168 CLEAR（余 C1/C2、D1/D2 同址别名，P93 豁免）；
+// gap 2（1221 vs 1219 归一化；raw 1240 vs 1232）；剩余真缺口 = 0。
 bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* map,
                        const char* apcBonus)
 {
@@ -940,7 +999,9 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                 // 赋值共 5 次），勿建 vec 引用缓存。
                 if (row == static_cast<int>(g_monsterBaseParameters[tableIdx].size()))
                     g_monsterBaseParameters[tableIdx].push_back(param);   // ORIG 0x8a11670
-                else if (row > static_cast<int>(g_monsterBaseParameters[tableIdx].size()))
+                // ORIG 0x8a1169a seta（size_t 无符号比较），勿 cast 成 int（会生 setl）。
+                else if (static_cast<unsigned int>(row) >
+                         g_monsterBaseParameters[tableIdx].size())
                 {
                     // ORIG 0x8a116a1: 默认元素 resize(row+1) 后再赋值。
                     MonsterBaseParameter def;
@@ -1097,7 +1158,9 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
         {
             // ORIG 顺序：sub C1(661) → h C1(665) → clear×3(667-671) → reserve×3(674-680)。
             std::string sub;
-            DungeonHoldBalance h;           // ORIG 0x8a3deee @0x8a11f19：段首一次，三支复用
+            int a;                          // ORIG -0x4c（具名中转，P0 槽往返）
+            int b = 0;                      // ORIG -0x48（P198① 预清必写）
+            DungeonHoldBalance h;           // ORIG 0x8a3deee @0x8a3bbd5：段首一次，三支复用
             NORMAL_MONSTER_HOLD_BALANCE_TABLE.clear();       // ORIG 0x8a11e46
             NAMED_MONSTER_HOLD_BALANCE_TABLE.clear();
             BOSS_MONSTER_HOLD_BALANCE_TABLE.clear();
@@ -1113,8 +1176,10 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                 {
                     for (int i = 0; i <= 199; ++i)          // cmpl $0xc7,setle
                     {
-                        h.m_a = ScanInt((bool*)0);
-                        h.m_b = ScanInt((bool*)0);
+                        a = ScanInt(&ok);
+                        b = ScanInt(&ok);
+                        h.m_a = a;
+                        h.m_b = b;
                         NORMAL_MONSTER_HOLD_BALANCE_TABLE.push_back(h);
                     }
                 }
@@ -1122,8 +1187,10 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                 {
                     for (int i = 0; i <= 199; ++i)
                     {
-                        h.m_a = ScanInt((bool*)0);
-                        h.m_b = ScanInt((bool*)0);
+                        a = ScanInt(&ok);
+                        b = ScanInt(&ok);
+                        h.m_a = a;
+                        h.m_b = b;
                         BOSS_MONSTER_HOLD_BALANCE_TABLE.push_back(h);
                     }
                 }
@@ -1131,8 +1198,10 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                 {
                     for (int i = 0; i <= 199; ++i)
                     {
-                        h.m_a = ScanInt((bool*)0);
-                        h.m_b = ScanInt((bool*)0);
+                        a = ScanInt(&ok);
+                        b = ScanInt(&ok);
+                        h.m_a = a;
+                        h.m_b = b;
                         NAMED_MONSTER_HOLD_BALANCE_TABLE.push_back(h);
                     }
                 }
@@ -1144,90 +1213,129 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
             // ORIG 函数级静态：__lookup map<const char*,int,less_TCHAR>
             // （0x94ff8a8，guard 0x94ff8b0）+ __init_lock SpinLock
             // （0x94ff8b8，guard 0x94ff8b0 复用）+ __inited（0x94ff8d4）。
-            // 首次进入锁内插入四条 tag→id（id 为 ORIG 源内常量 0x932/0x935/
-            // 0x949/0x95d），置 inited 后重派发同一 token 进入真实解析分支。
+            // ORIG 0x8a3be4e..0x8a3c413：P333「首次建表、之后查表」状态机形。
+            // 段首 sub C1 → a=0(-0x38) → b=0(-0x34) → bStop=false(-0x2d) → e C1；
+            // 每轮按 id switch 派发：未建表时各 case 体先查 __inited 再逐条 insert
+            // 并 fallthrough（首轮一次插满 4 条），尾部 leave+置位+goto retry 重查；
+            // 已建表时执行真实解析。id==0/0x932（[/limit slowdown]）置 bStop 后 break。
             std::string sub;
-            stLimitSlowDown e;          // ORIG 0x8a3df1a @0x8a1221b：段首一次，三支复用
+            int a = 0;                  // ORIG -0x38（三支复用，P198① 预清必写）
+            int b = 0;                  // ORIG -0x34
+            bool bStop = false;         // ORIG -0x2d
+            stLimitSlowDown e;          // ORIG 0x8a3df1a：段首一次，三支复用
+            int id;
             for (;;)
             {
-                if (!ScanType(sub, true))   // ORIG 0x8a12649
+                if (!ScanType(sub, true))   // ORIG 0x8a3c3f5
                     break;                  // 段结束 → 下一主标签
 
-                // P177：ORIG 的 static 三件套声明在循环体内（guard 每轮执行，813-872 段）。
+                // P177：ORIG 的 static 三件套声明在循环体内（guard 每轮执行）。
                 static std::map<const char*, int, less_TCHAR> lookup;
                 static SpinLock lock;
                 static bool inited = false;
 
-                if (!inited)
+            retry:
+                if (inited)
                 {
-                    lock.enter();                       // ORIG 0x8a122a2
-                    if (!inited)
-                    {
-                        // ORIG 插入链 0x8a12320/0x8a12386/0x8a1246a/0x8a1254e
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x932));
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x935));
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x949));
-                        lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x95d));
-                        lock.leave();                   // ORIG 0x8a1262a
-                        inited = true;
-                    }
-                    else
+                    std::map<const char*, int, less_TCHAR>::const_iterator it =
+                        lookup.find(sub.c_str());
+                    id = (it != lookup.end()) ? it->second : -1;
+                }
+                else
+                {
+                    lock.enter();
+                    if (inited)
                     {
                         lock.leave();
+                        goto retry;                     // 回跳重查
                     }
+                    id = 0;                             // 建表哨兵
                 }
 
-                std::map<const char*, int, less_TCHAR>::const_iterator it =
-                    lookup.find(sub.c_str());           // ORIG 0x8a12218
-                const int id = (it != lookup.end()) ? it->second : -1;
+                switch (id)
+                {
+                case 0:
+                case 0x932:                             // [/limit slowdown] 终止标记
+                    if (inited)
+                    {
+                        bStop = true;
+                        break;
+                    }
+                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/limit slowdown]", 0x932));
+                    // fall through
+                case 0x935:                             // [normal]
+                    if (inited)
+                    {
+                        NORMAL_MONSER_LIMIT_SLOWDOWN_TABLE.clear();
+                        for (int i = 0; i <= 199; ++i)
+                        {
+                            ScanInt(&ok);               // 首列索引（弃）
+                            a = ScanInt(&ok);
+                            b = ScanInt(&ok);
+                            e.m_a = a;
+                            e.m_b = b;
+                            NORMAL_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
+                        }
+                        break;
+                    }
+                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[normal]", 0x935));
+                    // fall through
+                case 0x949:                             // [boss]
+                    if (inited)
+                    {
+                        BOSS_MONSER_LIMIT_SLOWDOWN_TABLE.clear();
+                        for (int i = 0; i <= 199; ++i)
+                        {
+                            ScanInt(&ok);
+                            a = ScanInt(&ok);
+                            b = ScanInt(&ok);
+                            e.m_a = a;
+                            e.m_b = b;
+                            BOSS_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
+                        }
+                        break;
+                    }
+                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[boss]", 0x949));
+                    // fall through
+                case 0x95d:                             // [named]
+                    if (inited)
+                    {
+                        NAMED_MONSER_LIMIT_SLOWDOWN_TABLE.clear();
+                        for (int i = 0; i <= 199; ++i)
+                        {
+                            ScanInt(&ok);
+                            a = ScanInt(&ok);
+                            b = ScanInt(&ok);
+                            e.m_a = a;
+                            e.m_b = b;
+                            NAMED_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
+                        }
+                        break;
+                    }
+                    lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[named]", 0x95d));
+                    break;
+                default:                                // id==-1（未知子标签）
+                    break;
+                }
 
-                if (id == 0 || id == 0x932)             // [/limit slowdown] 终止标记
-                    continue;
-                if (id == 0x935)                        // [normal]
+                if (!inited)
                 {
-                    NORMAL_MONSER_LIMIT_SLOWDOWN_TABLE.clear();   // 0x9494f8c
-                    for (int i = 0; i <= 199; ++i)
-                    {
-                        ScanInt((bool*)0);                     // 首列索引（弃）
-                        e.m_a = ScanInt((bool*)0);
-                        e.m_b = ScanInt((bool*)0);
-                        NORMAL_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
-                    }
-                    continue;
+                    lock.leave();
+                    inited = true;
+                    goto retry;                         // 回跳重查
                 }
-                if (id == 0x949)                        // [boss]
-                {
-                    BOSS_MONSER_LIMIT_SLOWDOWN_TABLE.clear();     // 0x9494fa4
-                    for (int i = 0; i <= 199; ++i)
-                    {
-                        ScanInt((bool*)0);
-                        e.m_a = ScanInt((bool*)0);
-                        e.m_b = ScanInt((bool*)0);
-                        BOSS_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
-                    }
-                    continue;
-                }
-                if (id == 0x95d)                        // [named]
-                {
-                    NAMED_MONSER_LIMIT_SLOWDOWN_TABLE.clear();    // 0x9494f98
-                    for (int i = 0; i <= 199; ++i)
-                    {
-                        ScanInt((bool*)0);
-                        e.m_a = ScanInt((bool*)0);
-                        e.m_b = ScanInt((bool*)0);
-                        NAMED_MONSER_LIMIT_SLOWDOWN_TABLE.push_back(e);
-                    }
-                    continue;
-                }
-                // id==-1（未知子标签）：ORIG 直落 0x8a1261c 继续。
+                if (bStop)
+                    break;
             }
             continue;
         }
         else if (token == "[adjust hp gauge]")              // 0x8e1eda7
         {
-            // ORIG 0x8a126cc 段首构造一个 DungeonHoldBalance 局部对象且从未使用
+            // ORIG 段首 float v = 1.0f（-0x1c，三支复用）；
+            // ORIG 段首构造 DungeonHoldBalance 局部对象且从未使用
             // （纯编译产物）——P204 照抄：ORIG 无条件发射该 C1 调用。
             std::string sub;
+            float v = 1.0f;                 // ORIG -0x1c
             DungeonHoldBalance h;
             (void)h;
             while (ScanType(sub, true))     // ORIG 0x8a1279a
@@ -1236,17 +1344,17 @@ bool InitMonsterScript(const char* dir, const char* list, std::map<int, int>* ma
                     break;
                 if (sub == "[normal]")
                 {
-                    float v = ScanFloat((bool*)0);
+                    v = ScanFloat(&ok);
                     NORMAL_MONSTER_GAUGE_ADJUST = v;            // 0x93f4d10
                 }
                 else if (sub == "[boss]")
                 {
-                    float v = ScanFloat((bool*)0);
+                    v = ScanFloat(&ok);
                     BOSS_MONSTER_GAUGE_ADJUST = v;              // 0x93f4d18
                 }
                 else if (sub == "[named]")
                 {
-                    float v = ScanFloat((bool*)0);
+                    v = ScanFloat(&ok);
                     NAMED_MONSTER_GAUGE_ADJUST = v;             // 0x93f4d14
                 }
             }
