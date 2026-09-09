@@ -38,7 +38,10 @@ struct SigMailboxSendNewMailView
     unsigned int m_field04;         // +0x04（b28 P211：异型化 int 形参→值先载=ORIG）
     unsigned int m_field08;         // +0x08（同上；enum 形参异型）
     char m_pad0c[0x1e - 0x0c];      // +0x0c..+0x1d（senderName 余部）
-    int m_senderCharacNo;           // +0x1e
+    // +0x1e（S1 一次试验，P321 T1 直证=32 位读；ORIG InsertLetter 实参
+    // `mov 0x1e(%eax),%eax; mov %eax,%edx` 两段中转、set_query vararg 单段
+    // `mov 0x1e(%eax),%edx` ⇒ unsigned long 同时满足两处；int 恒单段）
+    unsigned long m_senderCharacNo; // +0x1e
     unsigned int m_amount;          // +0x22
     unsigned int m_destCharacNo;    // +0x26
     unsigned char m_itemField0;     // +0x2a
@@ -139,12 +142,18 @@ bool DB_MailBox_Req_Send::InsertLetter(MySQL* db, int characNo, int sendCharacNo
 //   → 拷贝 senderName → blob_to_str(0,+0x3a,10)/(1,+0x47,0xe) →
 //     set_query(postal insert 20 列) → exec。
 // ============================================================================
-// b28d-21: DIFF/N 封顶 — ORIG 0x0841f2fa 291 条 vs 重建 285 条，残差全为已知 N 族：
-// ①`mov -0x1c,%edx; mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax; mov %eax,-0x1c`
-// vs 4.4 `sub %eax,-0x1c`（N18a 反向，单段不可造）；
-// ②`imul $0x15180,%eax,%edx; mov -0x1c,%eax; lea (%edx,%eax,1),%eax` vs
-// `imul %eax; add -0x1c`（N1/P205 两乘积拆形不可择）；
-// ③`mov 0x1e(%eax),%eax; mov %eax,%edx` vs 单段（N18a）。语义/调用序全等。
+// b28d-24: 291/291 全等（AE）——旧 b28d-21「N 封顶」三处残差经 P211 档③ + P321 S1
+// 类型旋钮翻正（各形实测于 /tmp/p_imd.cpp、/tmp/p2.cpp、/tmp/p7.cpp 探针）：
+// ① 减法段 LHS 异型化（(unsigned int)t）⇒ ORIG 0x0841f389..0x841f3a1
+//    `mov -0x1c,%edx; imul; mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax; mov %eax,-0x1c`
+//    （同型 (int) 形 4.4 恒折 `sub %eax,-0x1c(%ebp)`）；
+// ② 加法段 `(unsigned int)t` ⇒ ORIG 0x0841f3bd..0x841f3ce
+//    `imul $0x15180,%eax,%edx; mov -0x1c(%ebp),%eax; lea (%edx,%eax,1),%eax`
+//    （同型形恒折 `add -0x1c(%ebp),%eax`）；
+// ③ 视图 m_senderCharacNo int→unsigned long（P321 T1 直证 32 位读）⇒ 同字段同时
+//    复现 InsertLetter 实参两段 `mov 0x1e(%eax),%eax; mov %eax,%edx`（0x0841f46c）
+//    与 set_query vararg 单段 `mov 0x1e(%eax),%edx`（0x0841f67f）。
+// p167 CLEAR、jcc 17/17 逐位同、指令数 291=291。
 bool DB_MailBox_Req_Send::insertMailData(MySQL* db, const SIG_MAILBOX_SEND_NEW_MAIL* sigRaw)
 {
     static int last_letter_id = 0;   // ORIG _ZZN19DB_MailBox_Req_Send14insertMailDataEP5MySQLPK25SIG_MAILBOX_SEND_NEW_MAILE14last_letter_id 0x0943c230
@@ -167,11 +176,16 @@ bool DB_MailBox_Req_Send::insertMailData(MySQL* db, const SIG_MAILBOX_SEND_NEW_M
     }
     else if (((const SigMailboxSendNewMailView*)sigRaw)->m_nB <= 0xe)
     {
-        t = (time_t)((int)t - (int)(((const SigMailboxSendNewMailView*)sigRaw)->m_nB * 0x15180u));
+        // b28d: P211 档③——LHS 与 RHS 异型（unsigned int）⇒ 4.4 出 ORIG 的
+        // `mov t,%edx; imul; mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax; mov %eax,t`
+        // （原 (int) 同型形恒折 `sub %eax,-0x1c(%ebp)`，ORIG 0x0841f389..0x841f3a1）。
+        t = (time_t)((unsigned int)t - ((const SigMailboxSendNewMailView*)sigRaw)->m_nB * 0x15180u);
     }
     else if (((const SigMailboxSendNewMailView*)sigRaw)->m_nB > 0xf)
     {
-        t = (time_t)((int)(((const SigMailboxSendNewMailView*)sigRaw)->m_nB * 0x15180u) + (int)t - 0x13c680);
+        // b28d: 同上——`(unsigned int)t` 触发 lea 合并形
+        // （ORIG 0x0841f3bd..0x841f3ce `imul→%edx; mov t,%eax; lea (%edx,%eax,1),%eax`）。
+        t = (time_t)((int)(((const SigMailboxSendNewMailView*)sigRaw)->m_nB * 0x15180u) + (unsigned int)t - 0x13c680);
     }
 
     if (((const SigMailboxSendNewMailView*)sigRaw)->m_nType != 0 &&
