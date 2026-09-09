@@ -826,7 +826,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         if (!ScanInt(&iv)) return false;
         values.push_back((float)iv);
         if (!ScanStr(&token)) return false;
-        values.push_back((float)getSkillDataExpansionToEnumValue(token));
+        values.push_back((float)(unsigned int)getSkillDataExpansionToEnumValue(token));
         if (!ScanInt(&iv)) return false;
         values.push_back((float)iv);
         goto L_chain_end;
@@ -1746,8 +1746,11 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
             goto L_15e9;
         }
     {
-        if (!ScanFloat(&fv)) return false;
-        values.push_back(fv);   // ORIG 0x89a4a?? leaf 0x15dc：SF+Rkf push
+        // ORIG 0x89a5a68/0x89a5a3a（0x15dc 体）：ScanFloat 到专属零初始化临时槽
+        // （0x89a5a55 `mov $0x0,%eax; mov %eax,-0xa24` + lea），**不向 values push**，
+        // 成功即经共享尾 return true；失败 ebx=0 返回 false。旧实现误 push。
+        float fs = 0.0f;
+        if (!ScanFloat(&fs)) return false;
         goto L_chain_end;
     }
     // 0x15e9 [skill data up] —— 在 info->m_skill1e8 追加一项并 importSkillDataUp
@@ -1759,9 +1762,16 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
             goto L_15f5;
         }
     {
+        // ORIG 0x89a5b03..0x89a5b49：size() 结果存 -0x30；循环外构造
+        // `std::vector<EquipmentSkillDataUp> tmp`（C1 0x89a5b16）→ **两参
+        // resize(sz+1, tmp)**（0x89a5b44）→ tmp D1（0x89a5b66）→ operator[]
+        // 读 -0x30 → importSkillDataUp。旧实现用单参 resize（缺 tmp C1/D1）。
         values.push_back(36.0f);
         unsigned sz = info->m_skill1e8.size();
-        info->m_skill1e8.resize(sz + 1);
+        {
+            std::vector<EquipmentSkillDataUp> tmp;
+            info->m_skill1e8.resize(sz + 1, tmp);
+        }
         importSkillDataUp(info->m_skill1e8[sz]);
         fv = (float)(int)sz;
         values.push_back(fv);

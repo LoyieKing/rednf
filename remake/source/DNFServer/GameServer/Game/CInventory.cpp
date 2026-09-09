@@ -5702,6 +5702,13 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
 {
     // b28d-solo-CInventory：1282/1290，P167 CLEAR（80/80）；N82/N80/N6 封顶。
     // b28d-37 [N82 封顶，ORIG 0x08500688]：P167 调用点差集 CLEAR（80/80）；帧/槽复用残差（1282/1290），语义闭合。
+    // [b28d-tu-CInventory] 本轮复核（struct 1463 为 difflib 巨型件 autojunk
+    //   口径放大，N126 已录）：主体 = ① cMyTrace 变参 4 实参 ORIG 于 ctor 前
+    //   一次物化 edi/esi/ebx、4.4 于装载点逐条读 ⇒ N80；② `if (dstType==1)
+    //   {EQUIP↔EQUIP 大块}` ORIG 4.1 大块后置（je <远块>）热路前置，4.4 恒
+    //   then-inline ⇒ N104（insert_item 三形实测同族，源码级不可翻）；
+    //   ③ sete/setne 物化方向 ×2（N6/P248 三档已试）。无具名中间局部可删
+    //   （P329 不适用）、平移非恒定常数（4.1 专属槽族）⇒ 维持封顶。
     if (!(CheckValidSlot((int)invenType, slot) == 1 &&
           CheckValidSlot((int)dstType, dstSlot) == 1))
     {
@@ -6083,11 +6090,12 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
     // ORIG 走 PKc（const char*）重载（含 pExpansion 常量化，同宽同槽零扰动）。
     // 新鲜 .o 660 vs ORIG 658（gap -2）；帧 124 vs ORIG 112（+12B/3 槽）属
     // N82 槽分配残差，判「语义完成、N 封顶」。
+    // [b28d-tu-CInventory] P329：删具名 `InterfacePacketBuf* buf`（原
+    //   `= (InterfacePacketBuf*)out`）、60+ 调用点内联 cast ⇒ MakeEquipList
+    //   ndiff 989→945（657/660，P167 CLEAR 保持）。ORIG 虽有 buf 槽 -0x34
+    //   （store+load 2 行），但内联形的**装载行序**与 ORIG 逐点对齐，
+    //   净收益为正；具名形装载序反置 ⇒ 不恢复。
     if (out == 0)
-    // [b28d-tu-CInventory] P329：删具名 `InterfacePacketBuf* buf`、调用点内联
-    //   cast ⇒ MakeEquipList ndiff 989→945（657/660，P167 CLEAR 保持）。
-    //   ORIG 有 buf 槽 -0x34（store+load 各 1 行差 ⇒ ORIG-only mov:4），
-    //   但内联形的**装载行序**与 ORIG 全部对齐，净收益为正；具名形反劣。
     {
         return 0;
     }
@@ -6583,6 +6591,10 @@ bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
 // [N82 封顶] batch-10 续派：调用点差集 95=95 归零（it++ 后置×5/共用尾、cur=pair 临时
 // && 赋值、Iterator 默认构造+赋值、push_back(int&&) 物化 5 处、GetRemainDate 返回值
 // 直推、money 段 cnt 覆写单槽形）；残余 |gap|=4 与 jmp/nop/xor 布局为 N82 残差。
+// [b28d-tu-CInventory] 本轮复核（P329/方法3 均不适用）：本件无具名中间局部可删
+//   （buf 族不存在）；残差主体 = 浅槽全体 4-8B 平移 + 帧 0x2fc vs 0x2dc（我方多
+//   8 槽 = 4.4 循环体内 pair/push_back 临时不塌槽，P331 探针1）+ 深槽 bLog/
+//   临时组 0x20 平移（4.1 lifetime 复用）⇒ N82 封顶维持。struct 573/ndiff 917。
 // ============================================================================
 int CInventory::insert_event_items(const std::vector<std::pair<int, int> >& items,
                                    std::vector<int>& outSlots, eMoneyAddReason moneyReason,
@@ -6916,6 +6928,10 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
     // PKc（const char*）重载（去 (char*) 强转 + expansion 常量化，零扰动）。
     // 新鲜 .o 726 vs ORIG 728（gap 2）；帧 108 vs ORIG 96（+12B/3 槽）属
     // N82 槽分配残差，判「语义完成、N 封顶」。
+    // [b28d-tu-CInventory] P329：删具名 buf 内联调用点 ⇒ ndiff 1219→906、
+    //   指令 723→**728（gap 0）**、struct 202→122，P167 108/108 CLEAR 保持。
+    //   残 = ORIG buf 槽 store/load 4 行 + push edi/frame 0x6c vs 0x60（N82/
+    //   N95）+ `lea 0x3(%eax)` N1 形 + jmp 中继岛 ⇒ 维持封顶。
     if (m_pParent == 0)
     {
         cMyTrace trace(

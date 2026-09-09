@@ -3033,11 +3033,10 @@ bool ExportMapScript(STMapScript* script, const char* path)
     static char szSaveFileName[0x100];                 // 函数级静态 szSaveFileName
     getScriptFileFullPath(szSaveFileName, 0x100,
                           g_szMapScriptBaseDirectory, path);
-    // ORIG 槽序：chL..chB(-0x85..-0x88) 介于 file(-0x94) 与后续循环变量(-0x8c)
-    // 之间 ⇒ 声明位置在 file 初始化之前（仅声明、不初始化，不发指令）。
-    bool chL, chR, chT, chB;                           // -0x88..-0x85（screen edge）
-    unsigned int tileIdx;                              // ORIG -0x8c：tile/exttile 两段
     FILE* file = fopen(szSaveFileName, "wb");
+    unsigned int tileIdx;                              // ORIG -0x8c（file -0x94 之后、
+                                                       //   比 practice any -0x8d 更浅）：
+                                                       //   tile/exttile 两段共用循环变量
     if (!file)
         return false;
 
@@ -3502,10 +3501,12 @@ bool ExportMapScript(STMapScript* script, const char* path)
         fwrite("[/static player start pos]\n", 1, 27, file);
     }
     {                                           // screen edge（对照 defaults）
-        chL = script->m_screenEdgeLeft != defaults.m_screenEdgeLeft;
-        chR = script->m_screenEdgeRight != defaults.m_screenEdgeRight;
-        chT = script->m_screenEdgeTop != defaults.m_screenEdgeTop;
-        chB = script->m_screenEdgeBottom != defaults.m_screenEdgeBottom;
+        // ORIG 槽序：chL..chB(-0x88..-0x85) 比 tileIdx(-0x8c) 更浅 ⇒ 本组声明
+        // 晚于一切前序块变量（源位置即此处，声明+赋值合一）。
+        bool chL = script->m_screenEdgeLeft != defaults.m_screenEdgeLeft;
+        bool chR = script->m_screenEdgeRight != defaults.m_screenEdgeRight;
+        bool chT = script->m_screenEdgeTop != defaults.m_screenEdgeTop;
+        bool chB = script->m_screenEdgeBottom != defaults.m_screenEdgeBottom;
         if (chL || chR || chT || chB)
         {
             fwrite("[customized screen edge]\n", 1, 25, file);

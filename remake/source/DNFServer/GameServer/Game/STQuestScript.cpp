@@ -513,6 +513,20 @@ int importQuestScript(QuestScript* script, const char* path)
     // 收尾时（IsLightServer）合并；[type]/[exception quest] 用 SpinLock+flag
     // 双检锁保护的静态 map 惰性填充（ORIG BSS 0x95004d8/0x95004f0/0x95004f4
     // 与 0x95004f8/0x9500510/0x9500514）。 ----
+    //
+    // 【槽布局判词（BigQuest 2026-09-09 实测，勿随手删）】
+    // ORIG 槽锚：line=-0x320 sub=-0x324 value=-0x328 ok=-0x329 schedule五串
+    // -0x330..-0x344 qd0=-0x3d8 qd1=-0x408 entry=-0x45c；frame 0x46c 两侧一致。
+    // 我方现：line=-0x308（浅 24B）、qd0=-0x3e0/qd1=-0x410（深 8B）。
+    // 负形实验：在 qd 前/qd 后插无引用 `char pad[24]` 均可令 line 命中 -0x320
+    // （~260 条 lea/mov -0x320 行全对平），但同一实验把 qd/entry/收尾 temps
+    // 整体再压深 28B（qd0→-0x3f8），净收益 -80 行，**故未采用**。⇒ GCC 4.4.6
+    // 对本帧的槽分配与「源声明位置」无关（探针放 qd 前/后结果逐位相同），
+    // 与 ORIG 的 24B 缺口在 line 之下的隐式临时链（pair 链 20B×27 +
+    // value-pass 串槽 4B×5 + title7 remove temps 2×16B 的整体错位），
+    // 属帧分配律问题（FrameDeltaProbe 在测），不是本函数指令语义缺口：
+    // 分段指令数已齐平（type 216/215、schedule 358/348、exception 145/136），
+    // AE 残差 51/62 块为纯槽漂移（schedule 实测）、唯一“真差”是 reloc 显示。
     if (!loadRDARScriptFile(g_questScriptBaseDirectory, path))
     {
         return 0;
@@ -1898,16 +1912,12 @@ int importQuestScript(QuestScript* script, const char* path)
                 }
                 if (!__inited)
                 {
+                    // ORIG +0x3dd9→+0x3dfa：leave + 置位 + **必须 goto 重查**
+                    // （本条元素在填表轮后立即生效，不可漏）。
                     __init_lock.leave();
-                }
-                if (!__inited)
-                {
                     __inited = true;
+                    goto retry_exception_lookup;
                 }
-                if (!__inited)
-                {
-                    goto retry_exception_lookup;     // 理论不可达（上面已置位）
-                }            }
             continue;
         }
         if (line == "[hide npc on clear]")

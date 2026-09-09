@@ -8006,10 +8006,14 @@ int Inter_DeathTowerLoadTopRanker::dispatch_sig(CUser* /*user*/, char* data, int
         }
     }
 
+// §P183/P331：ORIG 每次字段访问都从 data 重物化 `imul $0x6c,%eax` + `add $0xfa0`
+// （imul$0x6c 5 处 / add$0xfa0 3 处，我方原 1/0 —— 被 rec + pWin_rec 两个具名指针
+// 吸收掉 5×(3~6) 条地址计算，our_insns 80 vs ORIG 88）。改宏每次直取后 our=89；
+// i 为循环变量、循环体不改 i/data ⇒ 寻址结果逐次相同，无可观察行为变化。
+#define pWin_rec \
+    (reinterpret_cast<Inter_DeathTowerLoadTopRankerRecWinView*>(data + i * 0x6c))
     for (unsigned int i = 0; i < pPkt->m_0; ++i)
     {
-        char* rec = data + i * 0x6c;                   // 记录 stride 0x6c
-    Inter_DeathTowerLoadTopRankerRecWinView* pWin_rec = reinterpret_cast<Inter_DeathTowerLoadTopRankerRecWinView*>(rec);
         const unsigned int stage = pWin_rec->m_1010;
         const unsigned int playTime = pWin_rec->m_100c;
         const unsigned int key =
@@ -8023,6 +8027,7 @@ int Inter_DeathTowerLoadTopRanker::dispatch_sig(CUser* /*user*/, char* data, int
             reinterpret_cast<const stDeathTowerRecordMemberInfo_t*>(&pWin_rec->m_padfb0),   // §4.3 具名槽替代裸偏移 rec+0xfb0
             playTime, stage);
     }
+#undef pWin_rec
     return 0;
 }
 
