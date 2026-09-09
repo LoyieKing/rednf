@@ -555,7 +555,13 @@ struct STDungeonScript
     std::string m_str17c;                   // +0x17c
     STDeadTowerData m_deadTower180;         // +0x180
     STWarRoomData m_warRoom18c;             // +0x18c
-    unsigned char m_28c;                             // +0x28c（ORIG Clear 清零）
+    // [b28d-SweepCPartyDepsD2-2] uchar→bool（P248 档②/T3 消费端直证）：ORIG
+    //   cal_hellparty_value 0x085b591e / increase_ancient_dungeon_ticket 0x0859bcc6
+    //   读 CDungeon::m_89c（本字段的拷贝目标）为 `movzbl;xor$1;test;je`（=`!field`）；
+    //   探针 /tmp/probe_d2.cpp 实测 bool 字段产该形、uchar 字段恒产 `cmp$1`。写入仅
+    //   STDungeonScript.cpp:1963 `ScanInt((bool*)0) != 0` 与 :107 `=0` ⇒ 值域严格
+    //   {0,1}；1 字节/偏移/mangled 零变化（与同头 m_140/m_89d 同法）。
+    bool m_28c;                                      // +0x28c（ORIG Clear 清零）
     unsigned char m_28d;                             // +0x28d
     unsigned char m_28e;                             // +0x28e
     unsigned char m_28f;                             // +0x28f（ORIG Clear 清零）
@@ -818,7 +824,13 @@ public:
     int m_880[5];                   // +0x880（std::copy 自 script+0x128）
     int m_894;                      // +0x894（script+0x13c）
     int m_898;                      // +0x898（script+0x168）
-    unsigned char m_89c;            // +0x89c（script+0x28c，入场限制组合位，语义未证）
+    // [b28d-SweepCPartyDepsD2-2] uchar→bool：ORIG cal_hellparty_value 0x085b591e
+    //   `movzbl 0x89c(%eax),%eax; xor $0x1,%eax; test %al,%al; je` ⇒ `!m_89c`
+    //   （P248 档② bool 字段直证；uchar 的 `!=1` 在 4.4 恒产 `cmp $1`，探针
+    //   /tmp/probe_d2.cpp fH..fJ 四形实证）。写入仅 CDungeon.cpp:457
+    //   `= script.m_28c`（已同改 bool ⇒ 单段直存，与 ORIG 0x0834b4xx
+    //   `mov %dl,0x89c(%eax)` 一致）。1 字节/偏移/mangled 零变化。
+    bool m_89c;                     // +0x89c（script+0x28c）
     // [b28d-solo-BattleDungeonMapA2] ORIG SelectDungeon 0x082ff6b9 为
     // `movzbl 0x89d(%eax),%eax; xor $0x1,%eax; test %al,%al; je`（P248 档②）
     // ⇒ 字段 bool（源码 `!dungeon->m_89d`）；1 字节/偏移不变。

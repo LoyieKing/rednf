@@ -602,14 +602,17 @@ void CParty::changePartyMemberInfoOnMoveMap(MSG_MOVE_MAP& info, bool firstVisit)
 //   （IsVisitedCurrentMap xor$1 vs setne）、P196 折向（info.m_39 movsbl vs
 //   movzbl：槽位值域 0..3 无 ≥0x80 分叉，非真反）——语义与调用序列零缺口。
 // ---------------------------------------------------------------------------
-// [b28d-solo-CPartyDepsD2] gap 13→0（645=645），p167 33/33 CLEAR。本轮真修：
+// [b28d-solo-CPartyDepsD2] gap 13→-1（645 vs 646），p167 33/33 CLEAR。本轮真修：
 // ①[真 bug] 技能节奏阈值 q/rem 的基准错 1000 倍——旧码用原始 tick（playTime/5），
 //   ORIG 0x085a88e0 读 -0x20 = m_playedTime/1000（0x085a8897 段写入）⇒ 改
 //   `secQ = bd(this).m_field8/1000; q = secQ/5; rem = secQ - q*5`；边界比较
 //   （rem==0 → c>q 记疑 / rem!=0 → c>=q）经汇编复核与原码一致，保留。
 // ②P0/P329 去 lastMap/playTime 具名局部（MapClear 实参内联，ORIG 0x085a8591
-//   `mov 0x4(%eax),%esi` 直解引用 + 每次重算 /1000）。残余：帧 0x6c vs 0x8c
-//   （N82 槽复用差）+ 4.4 continue 中继岛（N-P223）。语义/调用集齐，byte 层封顶。
+//   `mov 0x4(%eax),%esi` 直解引用 + 每次重算 /1000）。③CDungeon::m_89c
+//   uchar→bool（SweepCPartyDepsD2-2）后，本函数 0x085a876d 处 `m_89c != 1`
+//   由 cmp 形转为 ORIG 的 `movzbl; xor$1; test; je`（指令 645→646）。残余：
+//   帧 0x6c vs 0x8c（N82 槽复用差）+ 4.4 continue 中继岛（N-P223）。
+//   语义/调用集齐，byte 层封顶。
 bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
 {
     // [b28d-solo-CPartyDepsD2] P171 死读照抄：ORIG 0x085a83ab 先 `mov 0x378` 到
@@ -1363,10 +1366,23 @@ const char* CParty::GetNoSendSetPlayResultUser(int slot)
 // [b28d-solo-CPartyDepsD2] 判词 N（ORIG 0x085b2412，N80/N82 族）：
 // 已修：①重复 get_dungeon_clear_state 删（ORIG 单次）；②m_field42→m_field48
 // 真 bug（ORIG 0x085b251b 写 +0x48=0x183c，旧码写 +0x42 错位）；③resultSet
-// 指针局部改 P235 具名视角（消 add $0x17f4）；④trace 改 P227 临时链。
-// 残余：varargs 求值序 4.1 左起（GetNoSend 3→2→1→0）vs 4.4 右起（0→1→2→3）
-// ——具名/临时链/语句表达式三形实测不可翻；另 ORIG 0x085b2457 `mov 0x330` 死读
-// 与 SendResult 返回宽度 movzbl 缺 2 条。193 vs 191，语义/调用集齐，byte 层封顶。
+// 指针局部改 P235 具名视角（消 add $0x17f4）；④trace 改 P227 临时链；
+// ⑤SendResult 返回 (unsigned char) 收窄复现 ORIG 0x085b2595 `movzbl %al,%eax`。
+// 残余（193 vs 192，gap 1）：
+//  ① ORIG 0x085b2457 `mov 0x330(%eax),%edx` 为**死读**（m_battleData.m_field4，
+//     值随即被 0x085b245d 的 m_field0 装载覆盖、全函数无消费者）⇒ 4.1 对
+//     dead local 保留 load 但不落槽；4.4 三形实测均不可造（探针
+//     /tmp/probe_d2.cpp fA/fD 裸表达式+`(void)` 被 DCE；fB/fC 具名/volatile
+//     局部多 store；/tmp/probe_d2b.cpp fK/fL volatile 取址多 `add $0x4`）⇒ 封 N。
+//  ② SendResult 段 ORIG `lea 0x17f4(%eax),%edx` vs 4.4 `add $0x17f4,%eax`
+//     （同址同指令数，union 内无 GameResultSet 完整类型视角可直访；P235 需改
+//     CParty.h union 加非平凡成员，风险 > 收益）⇒ N。
+// [b28d-SweepCPartyDepsD2-2] 真 bug 修复：trace 的 GetNoSend 实参序原写
+// (3,2,1,0) ⇒ (%s,%s,%s,%s) 打印整体颠倒；ORIG 0x085b26a6 段证明 arg3..arg6
+// = (0,1,2,3)（-0x64=(3)→arg6 / edi=(0)→arg3）。改源码为 (0,1,2,3) 后
+// 4.4 右起求值产 call 3→2→1→0、槽 -0x64/-0x60/-0x5c/edi 与 ORIG 逐条一致
+// （原判「varargs 求值序不可翻」作废——两侧同为 cdecl 右起，差异实为实参序）。
+// 语义/调用集齐，byte 层封顶（仅余上述残余 ①②）。
 bool CParty::SetPlayResult(CUser* user)
 {
     // [b28d-solo-CPartyDepsD2] ORIG 0x085b2412 单次 get_dungeon_clear_state +
@@ -1407,14 +1423,17 @@ bool CParty::SetPlayResult(CUser* user)
         insert_time_clear_dungeon_reward_msg(0x1e);
         if (get_member_count() != GetSetPlayResultCount())
         {
-            // P227 全表达式临时链：ORIG 0x085b2612 先求 GetNoSend(3/2/1/0) 落槽
-            // -0x64/-0x60/-0x5c/edi，再 GetSetPlayResultCount(esi)/
-            // get_member_count(ebx)，最后 ctor + 压参。
+            // P227 全表达式临时链：ORIG 0x085b2612 求值序 GetNoSend(3/2/1/0)
+            // 落槽 -0x64/-0x60/-0x5c/edi，压参 +0x1c/-0x18/+0x14/+0x10
+            // = arg6/arg5/arg4/arg3 ⇒ 原码实参序为 (0),(1),(2),(3)
+            // （4.1/4.4 同按 cdecl 右起求值）。旧码写 (3),(2),(1),(0) 是
+            // **真 bug：(%s,%s,%s,%s) 打印顺序整体颠倒**（ORIG 0x085b26a6
+            // 段：-0x64=(3)→arg6、edi=(0)→arg3）。
             cMyTrace(__PRETTY_FUNCTION__, 0x3261, 0)(
                 "DUNGEON_CLEAR_BUG_CHECK total(%d),recv(%d), (%s,%s,%s,%s)",
                 get_member_count(), GetSetPlayResultCount(),
-                GetNoSendSetPlayResultUser(3), GetNoSendSetPlayResultUser(2),
-                GetNoSendSetPlayResultUser(1), GetNoSendSetPlayResultUser(0));
+                GetNoSendSetPlayResultUser(0), GetNoSendSetPlayResultUser(1),
+                GetNoSendSetPlayResultUser(2), GetNoSendSetPlayResultUser(3));
         }
     }
     return 1;
@@ -1659,15 +1678,15 @@ void CParty::historyBloodRoundClear(int round, unsigned int clearTime,
 //   地狱值累计（上限钳制 + send_hellParty_value）。
 //   +0xd0c..+0xd5b（m_padcee 未建模 hell 值表区）按报告偏移访问。
 // ---------------------------------------------------------------------------
-// [b28d-solo-CPartyDepsD2] 判词 N（83 vs 82，gap 1；p167 26/26 CLEAR）：已修
-// P183 去 bf 引用缓存、P252 三数组具名 float 局部（-0x1c/-0x18/-0x14）、P243
-// 乘序、成员直存（fstps 0xb0c 无 value 槽）、比较反向。gap 1 唯一来源 =
-// m_89c!=1 的 4.1 `movzbl; xor$1; test%al; je`（4 条）vs 4.4 `movzbl;
-// cmp$1,%al; je`（3 条）——探针 /tmp/p_xor1.cpp 四形（!=1 / (x^1)!=0 / !(x==1)
-// / 具名 uchar）实测 4.4 恒出 cmp[+setne]，xor 形不可造（N/P209）；本仓 m_89c 为
-// 组合位 uchar（10+ 消费点用 !=0），不可 bool 化（否则 x>=2 语义反转）。
-// 另三处数组寻址常量拆分（ORIG `add $0x348; mov 0x14(%eax,%edx,4)` vs 4.4
-// `add $0x34c; mov 0x4(...)`）指令数相同，仅常量折叠形差（N94/N4）。
+// [b28d-solo-CPartyDepsD2] 判词 NEAR（83=83，gap 1→0；p167 26/26 CLEAR）：
+// 已修 P183 去 bf 引用缓存、P252 三数组具名 float 局部、P243 乘序、成员直存
+// （fstps 0xb0c 无 value 槽）、比较反向。原「m_89c!=1 的 xor 形不可造」N 判词
+// 已作废：CDungeon::m_89c uchar→bool（SweepCPartyDepsD2-2，值域 {0,1} 直证：
+// STDungeonScript.cpp:1963 ScanInt((bool*)0)!=0 → CDungeon.cpp:457 拷贝）后，
+// 源形 `!m_89c` 与 ORIG 0x085b5915 `movzbl; xor$1; test%al; je` 同形 ⇒
+// DIFF→NEAR。残余：三处数组寻址常量拆分（ORIG `add $0x348; mov
+// 0x14(%eax,%edx,4)` vs 4.4 `add $0x34c; mov 0x4(...)`），指令数相同，仅常量
+// 折叠形差（N94/N4）。
 void CParty::cal_hellparty_value(int dungeonDiff, int rateLevelDiff, int memberCount)
 {
     if (rateLevelDiff == 0 || memberCount < 0 || dungeonDiff >= 5)
@@ -1689,10 +1708,11 @@ void CParty::cal_hellparty_value(int dungeonDiff, int rateLevelDiff, int memberC
     float dungeonRate = bf(this).m_hellPartyDungeonRate[rateLevelDiff];
     float itemRate = bf(this).m_hellPartyItemRate[memberCount];
     float baseValue = bf(this).m_hellPartyScriptRate;
-    // ORIG 0x085b5915 为 `movzbl; xor$1; test; je`（ORIG 侧该字段疑为 bool 型，
-    // 4.1 把 !=1 折成取反）；我方 CDungeon::m_89c 为组合位 uchar（全仓 10+ 消费点
-    // 用 !=0），不可 bool 化 ⇒ 保持 `!= 1` 语义（x>=2 亦清零），余 1 条 N。
-    if (m_battleField.m_pDungeon->m_89c != 1)
+    // [b28d-SweepCPartyDepsD2-2] ORIG 0x085b591e 为 `movzbl; xor$1; test%al; je`
+    // ⇒ P248 档② bool 字段直证：CDungeon::m_89c 已改 bool（CDungeon.h），
+    // 源形写 `!m_89c` 即复现（探针 /tmp/probe_d2.cpp fE/fF/fG；uchar 的 `!=1`
+    // 与显式 `(x^1)!=0` 四形恒产 `cmp $1`）。
+    if (!m_battleField.m_pDungeon->m_89c)
         baseValue = 0.0f;
     float old = bd(this).m_hellPartyValueTotal;
     // ORIG 0x085b5964 fstps 0xb0c(%eax) 直存（无 value 槽）；ROUND 段重读成员。
