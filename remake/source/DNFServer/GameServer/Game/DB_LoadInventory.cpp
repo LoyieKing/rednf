@@ -151,7 +151,10 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
             throw 7;
         }
     }
-    catch (int)
+    // ORIG landing pad @0x0840aa6a 直接 `call __cxa_begin_catch`（无
+    // `cmp $0x1,%edx` 类型过滤、无 `_Unwind_Resume`、无异常值读取）
+    // ⇒ 原码是 catch(...)；写 catch(int) 会多出类型过滤 + unwind 续传路径。
+    catch (...)
     {
         sig->m_result = 1;      // ORIG catch handler @0x84aa6a：+0x4030 置 1
     }
@@ -302,7 +305,8 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
         return 0;
     }
     // 注：ORIG 此处用 col 变量（-0x20）+ col++ 形；4.4 引入该变量会把整个
-    // 标量区推深 4（len -0x14c/-0x150/-0x154），净劣 ⇒ 保持字面量（N82 封顶）。
+    // 标量区推深 4（len -0x14c/-0x150/-0x154）且指令数 721→730 反劣
+    // （S1 一次性旋钮实测：gap +4 → -5）⇒ 保持字面量（N82 封顶）。
     creatureBinLen = db->get_binary_length(6);
     ok = db->get_binary(6, creatureBuf, creatureLen);
     if (!ok)
@@ -379,63 +383,68 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
         return 0;
     }
 
-    if ((equipLen % 0x3d) == 0 || equipLen == 0)
+    // ORIG 0840b5xx/b6xx/b7xx 三处均为「`test; je <主流程>` + trace 块直落」
+    // ⇒ 原码是三个独立早返守卫（非嵌套 if）。嵌套 if 形 4.4 把三块 trace 集中
+    // 到函数尾并产 je/jne 反向（ndiff 362）；改早返后 ndiff 210、je/jne 消失
+    // （残差 = col 变量 N + N107 lea/add，见下）。
+    if ((equipLen % 0x3d) != 0 && equipLen != 0)
     {
-        if ((invenLen % 0x3d) == 0 || invenLen == 0)
-        {
-            if ((creatureLen % 0x3d) == 0 || creatureLen == 0)
-            {
-                char* m = NumberToString(sig->m_accId, 0);
-                db->set_query("seLect ifnull(min(avatar_coin),0) as avatar_coin"
-                              " from member_avatar_coin where m_id = %s", m);
-                // ORIG 尾部为 guard 形（fail 块直落、je 跳主流程）⇒ 逐个早返。
-                ok = db->exec(true);
-                if (!ok)
-                {
-                    cMyTrace(__PRETTY_FUNCTION__, 0x25a6, 5)
-                        ("DB_LoadInventory::GetUserInven, avatar_coin exec"
-                         " ERROR m_id=%s", NumberToString(sig->m_accId, 0));
-                    return 0;
-                }
-                ok = db->fetch();
-                if (!ok)
-                {
-                    cMyTrace(__PRETTY_FUNCTION__, 0x25ac, 5)
-                        ("DB_LoadInventory::GetUserInven, avatar_coin fetch"
-                         " ERROR m_id=%s", NumberToString(sig->m_accId, 0));
-                    return 0;
-                }
-                ok = db->get_uint(0, sig->m_avatarCoin);   // +0x14780
-                if (!ok)
-                {
-                    cMyTrace(__PRETTY_FUNCTION__, 0x25b2, 5)
-                        ("DB_LoadInventory::GetUserInven, get_uint(%u,"
-                         " pContext->avatar_coin) ERROR m_id=%s",
-                         NumberToString(sig->m_accId, 0));
-                    return 0;
-                }
-                if (sig->m_field8 != 0)
-                {
-                    _GetTagCharacInven(sig->m_field8, &sig->m_tagInven);
-                }
-                return 1;
-            }
-            cMyTrace(__PRETTY_FUNCTION__, 0x2588, 5)
-                ("incorrect inventory size charac_no(%d), creature,"
-                 " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x4a58,
-                 creatureLen);
-            return 0;
-        }
+        cMyTrace(__PRETTY_FUNCTION__, 0x2573, 5)
+            ("incorrect inventory size charac_no(%d), equip,"
+             " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x53e, equipLen);
+        return 0;
+    }
+    if ((invenLen % 0x3d) != 0 && invenLen != 0)
+    {
         cMyTrace(__PRETTY_FUNCTION__, 0x2579, 5)
             ("incorrect inventory size charac_no(%d), inven,"
              " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x4a58,
              invenLen);
         return 0;
     }
-    cMyTrace(__PRETTY_FUNCTION__, 0x2573, 5)
-        ("incorrect inventory size charac_no(%d), equip,"
-         " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x53e, equipLen);
-    return 0;
+    if ((creatureLen % 0x3d) != 0 && creatureLen != 0)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x2588, 5)
+            ("incorrect inventory size charac_no(%d), creature,"
+             " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x4a58,
+             creatureLen);
+        return 0;
+    }
+    char* m = NumberToString(sig->m_accId, 0);
+    db->set_query("seLect ifnull(min(avatar_coin),0) as avatar_coin"
+                  " from member_avatar_coin where m_id = %s", m);
+    // ORIG 尾部为 guard 形（fail 块直落、je 跳主流程）⇒ 逐个早返。
+    ok = db->exec(true);
+    if (!ok)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x25a6, 5)
+            ("DB_LoadInventory::GetUserInven, avatar_coin exec"
+             " ERROR m_id=%s", NumberToString(sig->m_accId, 0));
+        return 0;
+    }
+    ok = db->fetch();
+    if (!ok)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x25ac, 5)
+            ("DB_LoadInventory::GetUserInven, avatar_coin fetch"
+             " ERROR m_id=%s", NumberToString(sig->m_accId, 0));
+        return 0;
+    }
+    ok = db->get_uint(0, sig->m_avatarCoin);   // +0x14780
+    if (!ok)
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x25b2, 5)
+            ("DB_LoadInventory::GetUserInven, get_uint(%u,"
+             " pContext->avatar_coin) ERROR m_id=%s",
+             NumberToString(sig->m_accId, 0));
+        return 0;
+    }
+    if (sig->m_field8 != 0)
+    {
+        _GetTagCharacInven(sig->m_field8, &sig->m_tagInven);
+    }
+    return 1;
+    return 1;
 }
 
 // ============================================================================
@@ -864,8 +873,15 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
 
         ok = db->get_int(0, slot);
         // dup 检测在 get_int 失败检查之前（ORIG 0x282c 出口顺序）。
-        int checkSlot = (slot == 0xee) ? 0x8c : slot;
-        if (checkSlot < 0x8d)
+        // ORIG 0840cc9f 段：`mov slot,%eax; mov %eax,-0xc; cmpl $0xee; jne;
+        // movl $0x8c,-0xc; cmpl $0x8c,-0xc; jle` ⇒ 原码是「先赋值再条件
+        // 覆盖」的 if 形（非三目），且判定为 `<= 0x8c`（jle 正向）。
+        int checkSlot = slot;
+        if (checkSlot == 0xee)
+        {
+            checkSlot = 0x8c;
+        }
+        if (checkSlot <= 0x8c)
         {
             if (used[checkSlot] == 1)
             {
@@ -1086,16 +1102,22 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
 // jewel(2)→+0x949e，expand_equipslot(3)→+0x14aa4。容量 0x2b82/0x120f/0xa5c；
 // 解压后 cargo/jewel 按 0x3d 对齐校验，expand_equipslot 按 (size-4)%0x3d。
 // 返回 LineFunc 风格错误行号 0x243b..0x2463，成功 0。
-// b28d-solo-DB_LoadInventory：len/binLen 副本（P171）+ col 变量 + 清零三形
-// （memset call / 对齐剥离慢路 / 简单 rep stos）已归位（277 vs 278，残差 9 行）
+// b28d-solo-DB_LoadInventory：len/binLen 副本（P171）+ 清零三形（memset call /
+// 对齐剥离慢路 / 简单 rep stos）已归位（277 vs 278，残差 9 行）
 // ＝N107（`&sig->m_cargoCapacity` 4.4 恒 add $0xa8e0 两步 vs ORIG lea；字段须
 // unsigned 不可改）+ P75（3 处 uncompress_zip arg0/arg4 装载序跨版本）；
 // p167 差集 MISSING=0。
+// SweepCInventoryTail（2026-09-09）：补回 ORIG 实有静态符号
+// `_ZZNK16DB_LoadInventory21_getCharacInvenExpand...E9handleIdx`（.rodata size 4，
+// nm 实证；旧注释误判「本函数无 handleIdx」系漏读 K 前缀）⇒ 恢复
+// `static const int handleIdx = 3;`，4.4 使用点仍折叠为立即数 3（指令数不变）。
 // ============================================================================
 int DB_LoadInventory::_getCharacInvenExpand(SIG_LOAD_INVENTORY* sig) const
 {
-    // ORIG 本函数无 handleIdx 静态符号（其余 4 函数有 `_ZZ...E9handleIdx`）
-    // ⇒ 直接字面量 3，避免仅NEW 符号。
+    // ORIG 有 `_ZZNK16DB_LoadInventory21_getCharacInvenExpand...E9handleIdx`
+    // （.rodata size 4，nm 实证；const 版 K 前缀易漏读）⇒ 保留 static const
+    // 声明，4.1 使用点折叠为立即数 3（0840adf9 `movl $0x3,0x4(%esp)`）。
+    static const int handleIdx = 3;
     // ORIG 清零三形（memset call / 对齐剥离慢路 / 简单 rep stos）由数组尺寸与
     // 槽对齐自然产生；长度变量与其 binLen 副本成对（ORIG `mov -0x20,%eax;
     // mov %eax,-0x1c`），照抄 P171。
@@ -1109,7 +1131,7 @@ int DB_LoadInventory::_getCharacInvenExpand(SIG_LOAD_INVENTORY* sig) const
     unsigned int equipLen = 0xa5c;      // ORIG -0x28
     int equipBinLen = equipLen;         // ORIG -0x14
 
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3,
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect cargo_capacity,cargo,jewel,expand_equipslot from"
                   " charac_inven_expand where charac_no=%u", sig->m_characNo);
