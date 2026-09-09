@@ -2692,6 +2692,34 @@ struct SigForbidPlayBody
 // [SweepDispatchers 2026-09-09] 独立复核：p167 344/344 仅剩 C1/C2/D1/D2 同址别名（P93）；
 //   多重集差 133/63 全为上述 4.1 码风族（add 链 53 / setle 14 / xor 14 / mov$imm 30）；
 //   无缺失 callee/分支 ⇒ 维持 N82+N78（wave9 三处真修仍在；当前 1975 vs ORIG 2058）。
+// [SweepDispatchers3 2026-09-09] 本轮四处修复：①14 处守卫改负向早退 break（复现 ORIG
+//   xor$1/test/jne 14 处 + setle/test/jne 14 处；探针 /tmp/probe_gm2.cpp f10 逐条同形）；
+//   ②cmd/len/extra/name/text 改 GmCmdArgs pack(1) 视图（成员取址 = ORIG lea 基址+add 偏移
+//   53 处；探针 /tmp/probe_view.cpp）；③case4 查找键改回 ORIG 的 name(+0x12)——lookupName
+//   的 memset/strncpy 是原码死写入（P171）；④删 len/wLen/extra/target 零初始化。
+//   gap 83→20（2005 vs ORIG 2025），残差 = cMyTrace varargs 寄存器缓存（N80/N7 族）。
+namespace
+{
+// ORIG dispatch_sig 的参数缓冲视图（偏移照 ORIG 反汇编 @0x81fa277..）：
+// cmd@+0x0d / len@+0x0e，其余成员按 case 复用 +0x12 起区域（union 视角）。
+// 取址经「lea 基址; add 偏移」正是 ORIG 4.1 形态（探针 /tmp/probe_view.cpp 实证
+// 4.4.7 对局部结构体成员取址同形）。
+#pragma pack(push,1)
+struct GmCmdArgs
+{
+    char m_pad0[0xd];
+    unsigned char cmd;      // +0x0d
+    int len;                // +0x0e
+    union
+    {
+        char text[0x100];                                          // +0x12（case1/2/3 公告）
+        struct { char name[0x1e]; } kick;                          // +0x12（case4/0xb/0xc）
+        struct { int extra; char name[0x1e]; } chat;               // +0x12/+0x16（case5/6/9/0xd）
+        struct { unsigned short wLen; int extra; char name[0x1e]; } item;  // +0x12/+0x14/+0x18（case10）
+    } u;
+};
+#pragma pack(pop)
+}
 int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user == 0)
@@ -2715,9 +2743,10 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     // ORIG 0x81fa277：cmd 无初始化直发 get_byte（失败路径 LineFunc 返回，不经读
-    // cmd；成功路径必写），删多余的 movb $0 零化。
-    unsigned char cmd;
-    if (!packet.get_byte(cmd))
+    // cmd；成功路径必写），删多余的 movb $0 零化。cmd/len/extra/name/text 全部
+    // 走 GmCmdArgs 视图，取址形态 = ORIG 的 lea 基址+add 偏移。
+    GmCmdArgs args;
+    if (!packet.get_byte(args.cmd))
     {
         // ORIG 0x81fa2cb：LineFunc(0x890e, pretty, 0, 0) 断言后返回其值。
         return LineFunc(0x890e, __PRETTY_FUNCTION__, 0, 0);
@@ -2733,112 +2762,117 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
     PacketGuard resp;     // ORIG local_1d0
     resp.put_header(1, 0x6e);
     resp.put_byte(1);
-    resp.put_byte(cmd);
+    resp.put_byte(args.cmd);
 
-    // ORIG 读包文本布局：cmd@-0x4dc；case1/2/3 公告区 0x100（get_str max=0x100）；
-    // 其余 case 目标名 0x1e。公告与目标名各自独立栈缓冲（原实现 30B 溢出风险）。
-    char announce[0x100];
-    char name[0x1e];
+    // ORIG 读包文本布局见 GmCmdArgs 注释；查表副本仍是独立栈缓冲。
     char targetName[0x1e];   // case9 ORIG local_248：调级目标的零填充副本
     char lookupName[0x1e];   // ORIG case4/5/6/0xb/0xc/0xd 各自的 30B 零填充查表副本
     //（P0 槽律：ORIG 每分支 memset(+strncpy) 槽往返实证，非内联右值）
-    int len = 0;
-    unsigned short wLen = 0;   // ORIG get_short(unsigned short&)（_ZN9PacketBuf9get_shortERt）
-    int extra = 0;
-    CUser* target = 0;
-    switch (cmd)
+    CUser* target;
+    switch (args.cmd)
     {
     case 0:  // 切换 GM 模式（无参数）
-        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
             // ORIG 0x81fa420：if/else 两次字面 SetGameMasterMode（mode==1→false，否则 true）
-            if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1)
-                user->SetGameMasterMode(false);
-            else
+            if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
                 user->SetGameMasterMode(true);
+            else
+                user->SetGameMasterMode(false);
             GlobalData::s_GM_Manager->TurnGmMode(user->get_acc_id());
         }
         break;
     case 1:  // 全服公告 GMC <str>
         // ORIG 守卫链：GmMode==1 与 GetGmLevel>0 各自 test/jne；get_int/get_str 返回值
         // 不测试（0x81fa4eb 只读 len 槽判 0）。
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
-            packet.get_int(len);
-            packet.get_str(announce, 0x100, len);
-            if (len != 0)
+            packet.get_int(args.len);
+            packet.get_str(args.u.text, 0x100, args.len);
+            if (args.len != 0)
             {
-            resp.put_int(len);
-            resp.put_str(announce, len);
+            resp.put_int(args.len);
+            resp.put_str(args.u.text, args.len);
             resp.finalize(true);
             G_GameWorld()->send_all(resp);
             // ORIG 0x8939：全服广播后记日志
             cMyTrace trace(__PRETTY_FUNCTION__, 0x8939, 0);
-            trace("GMC %s \n", announce);
+            trace("GMC %s \n", args.u.text);
             }
         }
         break;
     case 2:  // 本区域公告 GMZ <str>
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
-            packet.get_int(len);
-            packet.get_str(announce, 0x100, len);
-            if (len != 0)
+            packet.get_int(args.len);
+            packet.get_str(args.u.text, 0x100, args.len);
+            if (args.len != 0)
             {
-            resp.put_int(len);
-            resp.put_str(announce, len);
+            resp.put_int(args.len);
+            resp.put_str(args.u.text, args.len);
             resp.finalize(true);
             G_GameWorld()->send_to_area(
                 user->getCurCharacVill(), user->get_area(false), resp);
             // ORIG 0x894a：区域广播后记日志
             cMyTrace trace(__PRETTY_FUNCTION__, 0x894a, 0);
-            trace("GMZ %s \n", announce);
+            trace("GMZ %s \n", args.u.text);
             }
         }
         break;
     case 3:  // 监控服公告 GMS <str>（resp 仅 finalize 不发送，ORIG 同）
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
-            packet.get_int(len);
-            packet.get_str(announce, 0x100, len);
-            if (len != 0)
+            packet.get_int(args.len);
+            packet.get_str(args.u.text, 0x100, args.len);
+            if (args.len != 0)
             {
-            resp.put_int(len);
-            resp.put_str(announce, len);
+            resp.put_int(args.len);
+            resp.put_str(args.u.text, args.len);
             resp.finalize(true);
             Packet_Monitor_Notice_Message noti;   // ORIG ctor 0x0822bbd6：PacketHeader(0x9dc,0x10b)+memset(m_text)
-            noti.m_len = (unsigned char)len;
-            strncpy(noti.m_text, announce, len);   // ORIG strncpy 到 +0xb（m_text）
+            noti.m_len = (unsigned char)args.len;
+            strncpy(noti.m_text, args.u.text, args.len);   // ORIG strncpy 到 +0xb（m_text）
             CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy(
                 user->GetServerGroup());
             proxy->SendTcpPacket((char*)&noti, 0x10b);
             // ORIG 0x8966：监控公告发送后记日志
             cMyTrace trace(__PRETTY_FUNCTION__, 0x8966, 0);
-            trace("GMS %s \n", announce);
+            trace("GMS %s \n", args.u.text);
             }
         }
         break;
     case 4:  // 踢人 expel <name>
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
-            packet.get_int(len);
-            packet.get_str(name, 0x1e, len);
+            packet.get_int(args.len);
+            packet.get_str(args.u.kick.name, 0x1e, args.len);
             memset(lookupName, 0, sizeof(lookupName));
-            strncpy(lookupName, name, (size_t)len);
+            strncpy(lookupName, args.u.kick.name, (size_t)args.len);
+            // ORIG 0x81fa9c9：查找键是 get_str 目标本身（+0x12），lookupName 的
+            // memset/strncpy 是原码死写入（P171 照抄）。
             target = G_GameWorld()->find_user_from_world_byaccid(
-                G_GameWorld()->GetIDUserInIDMap(lookupName));
+                G_GameWorld()->GetIDUserInIDMap(args.u.kick.name));
             if (target == 0)
             {
                 user->Send(reject);
             }
             else
             {
-                resp.put_int(len);
-                resp.put_str(name, len);
+                resp.put_int(args.len);
+                resp.put_str(args.u.kick.name, args.len);
                 resp.finalize(true);
                 user->Send(resp);
                 target->Send(resp);
@@ -2846,20 +2880,22 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             }
             // ORIG 0x8993：踢人日志（目标在/不在都记）
             cMyTrace trace(__PRETTY_FUNCTION__, 0x8993, 0);
-            trace("GM(%s) expel %s \n", user->getCurCharacName(), name);
+            trace("GM(%s) expel %s \n", user->getCurCharacName(), args.u.kick.name);
         }
         break;
     case 5:  // 禁言 forbid chat <mins> <nameLen> <name>
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
-            packet.get_int(len);
-            packet.get_int(extra);
-            packet.get_str(name, 0x1e, extra);
+            packet.get_int(args.len);
+            packet.get_int(args.u.chat.extra);
+            packet.get_str(args.u.chat.name, 0x1e, args.u.chat.extra);
             // ORIG local_7c：分钟→秒钳制（<1→60s；>=0x5a0→0x15180=1 天）
-            int sec = (len < 0x5a0) ? ((len < 1) ? 0x3c : len * 0x3c) : 0x15180;
+            int sec = (args.len < 0x5a0) ? ((args.len < 1) ? 0x3c : args.len * 0x3c) : 0x15180;
             memset(lookupName, 0, sizeof(lookupName));
-            strncpy(lookupName, name, (size_t)extra);
+            strncpy(lookupName, args.u.chat.name, (size_t)args.u.chat.extra);
             target = G_GameWorld()->find_user_from_world_byaccid(
                 G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
@@ -2868,21 +2904,21 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             }
             else
             {
-                G_GameWorld()->DisableChat(name, sec);
+                G_GameWorld()->DisableChat(args.u.chat.name, sec);
                 // ORIG 0x89b8：定时器入队日志（%d=目标 characNo）
                 {
                     cMyTrace trace(__PRETTY_FUNCTION__, 0x89b8, 0);
                     trace("Insert timer queue @ forbidchat: %s %d\n",
-                          name, target->getCurCharacNo());
+                          args.u.chat.name, target->getCurCharacNo());
                 }
                 G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0,
                                             (int)target->GetUID(),
                                             (TIMER_MESSAGE)0x5d, sec,
                                             (int)target->GetLoginTick(),
                                             (unsigned int)target->getCurCharacNo());
-                resp.put_int(len);
-                resp.put_int(extra);
-                resp.put_str(name, extra);
+                resp.put_int(args.len);
+                resp.put_int(args.u.chat.extra);
+                resp.put_str(args.u.chat.name, args.u.chat.extra);
                 resp.finalize(true);
                 user->Send(resp);
                 target->Send(resp);
@@ -2890,7 +2926,7 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
                 // + memset(m_name)），m_secs=秒、m_name=名（m_padE 无写入，头注释同证）
                 Packet_Forbid_Chat_By_Monitor moni;
                 moni.m_secs = sec;
-                strncpy(moni.m_name, name, (size_t)extra);
+                strncpy(moni.m_name, args.u.chat.name, (size_t)args.u.chat.extra);
                 CMonitorServerProxy* proxy =
                     GlobalData::s_monitor_proxy_mgr->GetServerProxy(
                         target->GetServerGroup());
@@ -2898,20 +2934,22 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
                 // ORIG 0x89ce：操作日志（%d=分钟数）
                 cMyTrace trace(__PRETTY_FUNCTION__, 0x89ce, 0);
                 trace("GM(%s) forbid chat %s for %d mins \n",
-                      user->getCurCharacName(), name, len);
+                      user->getCurCharacName(), args.u.chat.name, args.len);
             }
         }
         break;
     case 6:  // 禁移动 forbid move <mins> <nameLen> <name>（仅 state==3 生效）
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
-            packet.get_int(len);
-            packet.get_int(extra);
-            packet.get_str(name, 0x1e, extra);
-            int sec = (len < 0x5a0) ? ((len < 1) ? 0x3c : len * 0x3c) : 0x15180;
+            packet.get_int(args.len);
+            packet.get_int(args.u.chat.extra);
+            packet.get_str(args.u.chat.name, 0x1e, args.u.chat.extra);
+            int sec = (args.len < 0x5a0) ? ((args.len < 1) ? 0x3c : args.len * 0x3c) : 0x15180;
             memset(lookupName, 0, sizeof(lookupName));
-            strncpy(lookupName, name, (size_t)extra);
+            strncpy(lookupName, args.u.chat.name, (size_t)args.u.chat.extra);
             target = G_GameWorld()->find_user_from_world_byaccid(
                 G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
@@ -2920,35 +2958,37 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             }
             else if (target->get_state() == 3)
             {
-                G_GameWorld()->DisableMove(name, sec);
+                G_GameWorld()->DisableMove(args.u.chat.name, sec);
                 // ORIG 0x89fe：定时器入队日志
                 {
                     cMyTrace trace(__PRETTY_FUNCTION__, 0x89fe, 0);
                     trace("Insert timer queue @ forbidmove: %s %d\n",
-                          name, target->getCurCharacNo());
+                          args.u.chat.name, target->getCurCharacNo());
                 }
                 G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0,
                                             (int)target->GetUID(),
                                             (TIMER_MESSAGE)0x5e, sec,
                                             (int)target->GetLoginTick(),
                                             (unsigned int)target->getCurCharacNo());
-                resp.put_int(len);
-                resp.put_int(extra);
-                resp.put_str(name, extra);
+                resp.put_int(args.len);
+                resp.put_int(args.u.chat.extra);
+                resp.put_str(args.u.chat.name, args.u.chat.extra);
                 resp.finalize(true);
                 user->Send(resp);
                 target->Send(resp);
                 // ORIG 0x8a09：操作日志
                 cMyTrace trace(__PRETTY_FUNCTION__, 0x8a09, 0);
                 trace("GM(%s) forbid move %s for %d mins \n",
-                      user->getCurCharacName(), name, len);
+                      user->getCurCharacName(), args.u.chat.name, args.len);
             }
             // state!=3：ORIG 无任何回包/动作
         }
         break;
     case 7:  // 隐身
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
             user->SetInvisible();
             if (user->get_state() == 3)
@@ -2961,8 +3001,10 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         break;
     case 8:  // 现身
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
             user->SetVisible();
             if (user->get_state() == 3)
@@ -2975,16 +3017,18 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         break;
     case 9:  // 调级 setlevel <level> <nameLen> <name>
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
-            packet.get_int(len);
-            packet.get_int(extra);
-            packet.get_str(name, 0x1e, extra);
+            packet.get_int(args.len);
+            packet.get_int(args.u.chat.extra);
+            packet.get_str(args.u.chat.name, 0x1e, args.u.chat.extra);
             // ORIG local_248：调级目标用零填充副本查表；回包/日志仍用读入文本 name。
             // （原实现误 memset(name) 致目标永远查不到。）
             memset(targetName, 0, sizeof(targetName));
-            strncpy(targetName, name, (size_t)extra);
+            strncpy(targetName, args.u.chat.name, (size_t)args.u.chat.extra);
             target = G_GameWorld()->find_user_from_world_byaccid(
                 G_GameWorld()->GetIDUserInIDMap(targetName));
             if (target == 0)
@@ -2993,7 +3037,7 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             }
             else
             {
-                int diff = len - target->get_charac_level();
+                int diff = args.len - target->get_charac_level();
                 // ORIG -0x4d 为 **unsigned char** 槽（mov %al,-0x4d 低 8 位截断 +
                 // cmpb $0x0 判 0）：最后一次 SetCharacLevel 的返回（!=0 才回包；
                 // diff==0 静默）。叶块序 = ORIG 物理序：diff==0 → 升（>0）→ 降（<0）。
@@ -3036,30 +3080,32 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
                         target->SendNotiPacket((CUser::eSendTarget)1, (ENUM_NOTIPACKET)0x25, 0);
                         target->SendNotiPacket((CUser::eSendTarget)2, (ENUM_NOTIPACKET)2, 1);
                     }
-                    resp.put_int(len);
-                    resp.put_int(extra);
-                    resp.put_str(name, extra);
+                    resp.put_int(args.len);
+                    resp.put_int(args.u.chat.extra);
+                    resp.put_str(args.u.chat.name, args.u.chat.extra);
                     resp.finalize(true);
                     user->Send(resp);
                     target->Send(resp);
                     // ORIG 0x8a89
                     cMyTrace trace(__PRETTY_FUNCTION__, 0x8a89, 0);
                     trace("GM(%s) modify %s level to %d \n",
-                          user->getCurCharacName(), name, len);
+                          user->getCurCharacName(), args.u.chat.name, args.len);
                 }
             }
         }
         break;
     case 10:  // 发物品 grant item <itemIdx> <count> <nameLen> <name>
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
-            packet.get_int(len);
-            packet.get_short(wLen);
-            packet.get_int(extra);
-            packet.get_str(name, 0x1e, extra);
+            packet.get_int(args.len);
+            packet.get_short(args.u.item.wLen);
+            packet.get_int(args.u.item.extra);
+            packet.get_str(args.u.item.name, 0x1e, args.u.item.extra);
             memset(lookupName, 0, sizeof(lookupName));
-            strncpy(lookupName, name, (size_t)extra);
+            strncpy(lookupName, args.u.item.name, (size_t)args.u.item.extra);
             target = G_GameWorld()->find_user_from_world_byaccid(
                 G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
@@ -3069,7 +3115,7 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             else
             {
                 ENUM_ITEMSPACE space = (ENUM_ITEMSPACE)0;
-                int slot = target->AddItem(len, (int)(unsigned short)wLen,
+                int slot = target->AddItem(args.len, (int)(unsigned short)args.u.item.wLen,
                                            (eItemAddReason)6, space, 0);
                 if (slot >= 0)
                 {
@@ -3081,28 +3127,30 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
                               target->getCurCharacName());
                     }
                     target->SendUpdateItemList((CUser::eSendTarget)1, space, slot);
-                    resp.put_int(len);
-                    resp.put_short(wLen);
-                    resp.put_int(extra);
-                    resp.put_str(name, extra);
+                    resp.put_int(args.len);
+                    resp.put_short(args.u.item.wLen);
+                    resp.put_int(args.u.item.extra);
+                    resp.put_str(args.u.item.name, args.u.item.extra);
                     resp.finalize(true);
                     user->Send(resp);
                     // ORIG 0x8aba
                     cMyTrace trace(__PRETTY_FUNCTION__, 0x8aba, 0);
                     trace("GM(%s) grant item(%d) to %s \n",
-                          user->getCurCharacName(), len, name);
+                          user->getCurCharacName(), args.len, args.u.item.name);
                 }
             }
         }
         break;
     case 0xb:  // 复活 revive <name>
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
-            packet.get_int(len);
-            packet.get_str(name, 0x1e, len);
+            packet.get_int(args.len);
+            packet.get_str(args.u.kick.name, 0x1e, args.len);
             memset(lookupName, 0, sizeof(lookupName));
-            strncpy(lookupName, name, (size_t)len);
+            strncpy(lookupName, args.u.kick.name, (size_t)args.len);
             target = G_GameWorld()->find_user_from_world_byaccid(
                 G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
@@ -3120,26 +3168,28 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
                 else
                 {
                     party->set_charac_live(target, (ENUM_USER_DUNGEON_STATE)1);
-                    resp.put_int(len);
-                    resp.put_str(name, len);
+                    resp.put_int(args.len);
+                    resp.put_str(args.u.kick.name, args.len);
                     resp.finalize(true);
                     user->Send(resp);
                     target->Send(resp);
                     // ORIG 0x8ae2
                     cMyTrace trace(__PRETTY_FUNCTION__, 0x8ae2, 0);
-                    trace("GM(%s) revive %s \n", user->getCurCharacName(), name);
+                    trace("GM(%s) revive %s \n", user->getCurCharacName(), args.u.kick.name);
                 }
             }
         }
         break;
     case 0xc:  // 重置疲劳 reset fatigue <name>
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
-            packet.get_int(len);
-            packet.get_str(name, 0x1e, len);
+            packet.get_int(args.len);
+            packet.get_str(args.u.kick.name, 0x1e, args.len);
             memset(lookupName, 0, sizeof(lookupName));
-            strncpy(lookupName, name, (size_t)len);
+            strncpy(lookupName, args.u.kick.name, (size_t)args.len);
             target = G_GameWorld()->find_user_from_world_byaccid(
                 G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
@@ -3150,26 +3200,28 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             {
                 target->RecoverFatigue(0);
                 target->SendFatigue();
-                resp.put_int(len);
-                resp.put_str(name, len);
+                resp.put_int(args.len);
+                resp.put_str(args.u.kick.name, args.len);
                 resp.finalize(true);
                 user->Send(resp);
                 target->Send(resp);
                 // ORIG 0x8b09
                 cMyTrace trace(__PRETTY_FUNCTION__, 0x8b09, 0);
-                trace("GM(%s) reset fatigue %s \n", user->getCurCharacName(), name);
+                trace("GM(%s) reset fatigue %s \n", user->getCurCharacName(), args.u.kick.name);
             }
         }
         break;
     case 0xd:  // 封号 forbid play <days> <nameLen> <name>（发 SIG_FORBID_USER_TO_PLAY 到 DB 队列）
-        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1)
+            break;
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0)
+            break;
         {
-            packet.get_int(len);
-            packet.get_int(extra);
-            packet.get_str(name, 0x1e, extra);
+            packet.get_int(args.len);
+            packet.get_int(args.u.chat.extra);
+            packet.get_str(args.u.chat.name, 0x1e, args.u.chat.extra);
             memset(lookupName, 0, sizeof(lookupName));
-            strncpy(lookupName, name, (size_t)extra);
+            strncpy(lookupName, args.u.chat.name, (size_t)args.u.chat.extra);
             target = G_GameWorld()->find_user_from_world_byaccid(
                 G_GameWorld()->GetIDUserInIDMap(lookupName));
             if (target == 0)
@@ -3193,30 +3245,30 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
                 body->m_flag = 1;
                 // ORIG 0x81fc20d：三分支落码 test/jg → cmp $0x63,jle（[1,100] 钳制），
                 // 叶块序 = (<=0)→1 → (>99)→100 → 原值。
-                if (len <= 0)
+                if (args.len <= 0)
                     body->m_days = 1;
-                else if (len > 99)
+                else if (args.len > 99)
                     body->m_days = 100;
                 else
-                    body->m_days = len;
+                    body->m_days = args.len;
                 GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
-                resp.put_int(len);
-                resp.put_int(extra);
-                resp.put_str(name, extra);
+                resp.put_int(args.len);
+                resp.put_int(args.u.chat.extra);
+                resp.put_str(args.u.chat.name, args.u.chat.extra);
                 resp.finalize(true);
                 user->Send(resp);
                 target->Send(resp);
                 // ORIG 0x8b44
                 cMyTrace trace(__PRETTY_FUNCTION__, 0x8b44, 0);
                 trace("GM(%s) forbid play %s for %d days \n",
-                      user->getCurCharacName(), name, len);
+                      user->getCurCharacName(), args.u.chat.name, args.len);
             }
         }
         break;
     default:
         // ORIG 0x8b52：未知 GM 命令日志（%d=cmd，%s=accId）
         cMyTrace trace(__PRETTY_FUNCTION__, 0x8b52, 0);
-        trace("Undifined GM Command : %d by %s", (int)cmd,
+        trace("Undifined GM Command : %d by %s", (int)args.cmd,
               NumberToString(user->get_acc_id(), 0));
         break;
     }
@@ -11177,6 +11229,9 @@ Dispatcher_UpgradeChronicle::~Dispatcher_UpgradeChronicle() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08223330 orig/ours=538/524 ndiff-blocks=91
 //   帧差 sub $17c vs $16c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x17c,%esp | movw   $0x0,-0x4e(%ebp) | movl   $0x0,-0x54(%ebp)
+// [SweepDispatchers3 2026-09-09] 修真缺口：vector<int> 遍历增量改后置 vIt++（P28：
+//   ORIG 增量段 ppEi×3，p167 MISSING ppEi×3 / EXTRA ppEv×3 归零）。gap 13→9
+//   （528 vs 537），残差 = 4.1 码风（je/movl/lea/xor 各 2-3）。
 int Dispatcher_UpgradeChronicle::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x08223330：三代编年史强化（WongWork::CItemUpgrade::ProcUpgradeChronicle）。
@@ -11306,7 +11361,7 @@ int Dispatcher_UpgradeChronicle::dispatch_sig(CUser* user, PacketBuf& packet)
         packetOut.put_short((int)slotA);
         packetOut.put_int(1);
         for (std::vector<int>::const_iterator vIt = updated.begin();
-             vIt != updated.end(); ++vIt)
+             vIt != updated.end(); vIt++)   // ORIG 增量段 ppEi（P28 后置形）
         {
             packetOut.put_byte((int)(char)*vIt);
             ++vIt;
@@ -11326,6 +11381,9 @@ Dispatcher_UpgradeInventory::~Dispatcher_UpgradeInventory() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x0822a4bc orig/ours=275/264 ndiff-blocks=39
 //   帧差 sub $8c vs $4 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x8c,%esp | movl   $&_ZZN27Dispatcher_UpgradeInventory12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
+// [SweepDispatchers3 2026-09-09] 修真缺口：删 invenR/capOld/capNew 缓存，每个使用点
+//   重新 getCurCharacInvenR()/get_inventory_capacity()（P160）⇒ ORIG 的 9 次/6 次调用
+//   归位。gap 11→0（275=275），DIFF→AE（报告 dispatch_sig.md Ghidra C 已读）。
 int Dispatcher_UpgradeInventory::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (!(user->get_state() == 3 && user->getCurCharacR() != 0))
@@ -11391,21 +11449,23 @@ int Dispatcher_UpgradeInventory::dispatch_sig(CUser* user, PacketBuf& packet)
     pg.finalize(true);
     user->Send(pg);
 
-    // 扩容日志（旧容量 → +8），再落实际容量与 DB 请求
-    CInventory* invenR = const_cast<CInventory*>(user->getCurCharacInvenR());
-    const int capOld = invenR->get_inventory_capacity();
-    user->m_historyLog.ExpandInventory(capOld, capOld + 8, 1);
-    invenR->set_inventory_capacity(capOld + 8);
-    const int capNew = user->getCurCharacInvenR()->get_inventory_capacity();
+    // 扩容日志（旧容量 → +8），再落实际容量与 DB 请求。ORIG（0x0822a7xx 段）每个
+    // 使用点都重新 getCurCharacInvenR()/get_inventory_capacity()（P160 禁缓存 getter）。
+    user->m_historyLog.ExpandInventory(
+        user->getCurCharacInvenR()->get_inventory_capacity(),
+        user->getCurCharacInvenR()->get_inventory_capacity() + 8, 1);
+    const_cast<CInventory*>(user->getCurCharacInvenR())->set_inventory_capacity(
+        user->getCurCharacInvenR()->get_inventory_capacity() + 8);
     DB_UpdateInventoryCapacity::makeRequest(
         user->GetServerGroup(), (int)user->GetUID(),
-        (unsigned int)user->getCurCharacNo(), capNew);
+        (unsigned int)user->getCurCharacNo(),
+        user->getCurCharacInvenR()->get_inventory_capacity());
 
     // 包 2（0x42）：subtype 0xb + 新容量
     pg.clear();
     pg.put_header(0, 0x42);
     pg.put_short(0xb);
-    pg.put_short(capNew);
+    pg.put_short(user->getCurCharacInvenR()->get_inventory_capacity());
     pg.finalize(true);
     user->Send(pg);
     return 0;
@@ -21505,6 +21565,9 @@ int Dispatcher_Exchange_Random_Item_Reward::read(PacketBuf& packet, MSG_BASE& ms
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081de72c orig/ours=197/173 ndiff-blocks=17
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: mov    %eax,-0xc(%ebp) | mov    -0xc(%ebp),%eax | mov    -0xc(%ebp),%eax
+// [SweepDispatchers3 2026-09-09] 修真缺口：两循环改 ORIG 迭代器形（begin 一次 + 每轮
+//   end() + it->first/second；m_items 体 4 组「*it 后 ++it」）+ size()!=0 前置物化
+//   （setne/test/je）。gap 23→0（196=196），DIFF→AE（P175/P167 族，报告 send.md 已读）。
 void Dispatcher_Exchange_Random_Item_Reward::send(CUser* user, ParamBase& param)
 {
     stExchangeRandomItemReward& out = static_cast<stExchangeRandomItemReward&>(param);
@@ -21514,23 +21577,32 @@ void Dispatcher_Exchange_Random_Item_Reward::send(CUser* user, ParamBase& param)
     {
         packet.put_byte(1);
         packet.put_byte((unsigned int)out.m_rewards.size());
-        for (size_t i = 0; i < out.m_rewards.size(); ++i)
+        // ORIG 0x81de7a7：先 size()!=0 物化（setne/test/je），再迭代器遍历
+        // （begin 一次、每轮 end() 重取、it->first/second）。
+        if (out.m_rewards.size() != 0)
         {
-            packet.put_int(out.m_rewards[i].first);
-            packet.put_int(out.m_rewards[i].second);
+            for (std::vector<std::pair<int, int> >::iterator it = out.m_rewards.begin();
+                 it != out.m_rewards.end(); ++it)
+            {
+                packet.put_int(it->first);
+                packet.put_int(it->second);
+            }
         }
         packet.put_byte((unsigned int)(unsigned char)out.m_9);
         if (out.m_9 != 0)
         {
-            // ORIG 迭代器循环推进 4 次、循环头判断 !=end，每组写 short/int/int/short。
-            // 数据应为 4 的倍数；此处加 i+3< size 边界防越界（ORIG 无保护，语义仅在
-            // 异常尺寸时不同）【推断】。
-            for (size_t i = 0; i + 3 < out.m_items.size(); i += 4)
+            // ORIG：迭代器循环体 4 组「*it 后 ++it」（short/int/int/short），无边界保护。
+            for (std::vector<int>::iterator it = out.m_items.begin();
+                 it != out.m_items.end(); )
             {
-                packet.put_short(out.m_items[i]);
-                packet.put_int(out.m_items[i + 1]);
-                packet.put_int(out.m_items[i + 2]);
-                packet.put_short(out.m_items[i + 3]);
+                packet.put_short(*it);
+                ++it;
+                packet.put_int(*it);
+                ++it;
+                packet.put_int(*it);
+                ++it;
+                packet.put_short(*it);
+                ++it;
             }
         }
     }
@@ -22619,6 +22691,10 @@ Dispatcher_SaveGameOption_ChattingEmoticon::~Dispatcher_SaveGameOption_ChattingE
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081cf52a orig/ours=140/135 ndiff-blocks=31
 //   帧差 sub $24c vs $250 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x24c,%esp | mov    %eax,-0x28(%ebp)
+// [SweepDispatchers3 2026-09-09] 修真缺口：两次 << 前补 operator* 链（P132，
+//   (*guard)->operator<<），p167 MISSING operator*×2 归零；config 拷贝保留 memcpy
+//   （ORIG 是 rep movsl 0x84 dword；结构体赋值在 4.4 退化为逐成员 +42 条，已试并回退）。
+//   gap 4→1（140 vs 139），残差 = rep movsl vs call memcpy（N78 族）。
 int Dispatcher_SaveGameOption_ChattingEmoticon::process(CUser* user, MSG_BASE& msgBase, ParamBase& param)
 {
     (void)param;
@@ -22640,11 +22716,14 @@ int Dispatcher_SaveGameOption_ChattingEmoticon::process(CUser* user, MSG_BASE& m
         gameOption->SetEmoticonInfo(config);
         Stream* stream = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x2959);
         CStreamGuard guard(stream, true);
-        guard << 0x2d7;
-        guard << static_cast<int>(user->GetUID());
+        // ORIG 0x81cf661：每次 << 前先 operator*（返回 this）——P132 保留 operator* 链。
+        (*guard)->operator<<(0x2d7);
+        (*guard)->operator<<(static_cast<int>(user->GetUID()));
         SIG_SAVE_CHATTING_EMOTICON* sig = guard->GetInBuffer<SIG_SAVE_CHATTING_EMOTICON>();
         char* buf = reinterpret_cast<char*>(sig);
         *reinterpret_cast<int*>(buf + 0) = static_cast<int>(user->get_acc_id());
+        // ORIG 0x81cf6a2：rep movsl 0x84 dword；4.4 对该类型结构体赋值退化为逐成员
+        // 拷贝（+42 条），故保留 memcpy（N78 族，形态不可复现）。
         memcpy(buf + 4, reinterpret_cast<const char*>(&config), 0x210);
         GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
     }
