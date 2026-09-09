@@ -73,6 +73,21 @@ public:
                             unsigned int stage, unsigned int playTime);
 };
 
+// ---- P327 GI 键名键控：本 TU 第一个函数定义 ----
+// ORIG `_GLOBAL__I__ZN8WongWork11CDeathTower14CPacketHandler20makePickupItemHeaderEtt`
+// @0x0846991d 的静态初始化体 0x084698dd 仅 `std::ios_base::Init __ioinit`（无用户
+// 全局动态初始化对象）⇒ 键名回退到 TU 内第一个函数定义。ORIG 该函数即
+// CPacketHandler::makePickupItemHeader（T 0x0845fc6c），故其定义必须位于本文件
+// 所有函数定义之前（原定义在 WongWorkDeathTower_A.cpp，P327「定义放错 TU」迁回）。
+// ORIG T 0x0845fc6c：header(0,0x27)；short(b)；short(a)；不 finalize。
+void WongWork::CDeathTower::CPacketHandler::makePickupItemHeader(unsigned short a,
+                                                                unsigned short b)
+{
+    put_header(0, 0x27);
+    put_short((int)b);
+    put_short((int)a);
+}
+
 // ---- CAICharacter / CAICharacterList ----
 // CAICharacter 权威定义见 MonsterIndependentDrop.h（+0x6c m_name / +0x70 m_rarity /
 // sizeof 0x74 + static_assert）。本 TU 原 #ifndef 兜底镜像已删（§4.4 单声明点：
@@ -769,7 +784,13 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
             user->getCurCharacNo(), curStage, playTime);
         if (isLast)
         {
-            isNewRecord = (result == 1);
+            // [b28d-SCT] P47/P73：ORIG 0x0846754f `cmpl $0x1,-0x28; jne L; mov $1;
+            // jmp; L: mov $0` 分支物化；`isNewRecord = (result == 1)` 在 4.4 生
+            // sete/movzbl（少 1 jne，jcc 47→46）。改写 if/else 赋值对齐 ORIG 形态。
+            if (result == 1)
+                isNewRecord = 1;
+            else
+                isNewRecord = 0;
             if (_checkRenewTopRecord(m_dungeonMgr.getDungeon()->get_index(), memberCnt,
                                      curStage, playTime) && isLast)
                 isNewRecord += 2;
@@ -904,25 +925,24 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
         }
         else if (user && user->get_charac_level() >= 0x19)
         {
-            CUserPremium* premium = user->GetPremiumInfo();
-            if (premium)
+            // [b28d-SCT] P140/P171：ORIG 0x08464954 无 GetPremiumInfo 判空，返回值
+            // 直接作 receiver 传 GetPremiumInfoList（链式，ORIG 无 -0x70 槽）；
+            // 旧 `if (premium)` 多 1 je + 1 槽。
+            // [b28d-solo-CDeathTower] ORIG 0x0846496e 调按值返回版
+            // _ZNK8WongWork12CUserPremium18GetPremiumInfoListEi（sret -0xdc，type=0x270f）。
+            std::vector<SUserPremiumInfo> premiumList =
+                user->GetPremiumInfo()->GetPremiumInfoList(0x270f);
+            // ORIG 0x084649xx：`cmp i,size; seta`（无符号）⇒ 索引 unsigned（P196/P175）
+            for (unsigned int i = 0; i < premiumList.size(); i++)
             {
-                // [b28d-solo-CDeathTower] ORIG 0x0846496e 调按值返回版
-                // _ZNK8WongWork12CUserPremium18GetPremiumInfoListEi（sret -0xdc，type=0x270f）。
-                std::vector<SUserPremiumInfo> premiumList =
-                    premium->GetPremiumInfoList(0x270f);
-                // ORIG 0x084649xx：`cmp i,size; seta`（无符号）⇒ 索引 unsigned（P196/P175）
-                for (unsigned int i = 0; i < premiumList.size(); i++)
+                // [b28d-solo-CDeathTower] P157/P183：ORIG 0x0846498f/ab/c7 三次
+                // 独立 operator[]（每字段重读，无 type 缓存）。
+                if (premiumList[i].m_type >= 0x17 &&
+                    premiumList[i].m_type <= 0x1b &&
+                    premiumList[i].m_state == 1)
                 {
-                    // [b28d-solo-CDeathTower] P157/P183：ORIG 0x0846498f/ab/c7 三次
-                    // 独立 operator[]（每字段重读，无 type 缓存）。
-                    if (premiumList[i].m_type >= 0x17 &&
-                        premiumList[i].m_type <= 0x1b &&
-                        premiumList[i].m_state == 1)
-                    {
-                        isPremium = true;
-                        break;
-                    }
+                    isPremium = true;
+                    break;
                 }
             }
         }
@@ -930,11 +950,10 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
         if (isPremium)
         {
             ((stMapMonsterKillChecker_t*)&m_timerKeys[7])->initMonsterInfo();
-            CHackAnalyzer* hackAnalyzer = user->getHackAnalyzer();
-            if (hackAnalyzer)
-            {
-                hackAnalyzer->addServerHackCnt(user, (WongWork::ENUM_HACK_TYPE)0xd6, 1, 0, 0);
-            }
+            // [b28d-SCT] P140/P171：ORIG 0x08464aXX 无 getHackAnalyzer 判空，
+            // 返回值直作 receiver（ORIG 无 -0x68 槽）；旧 `if (hackAnalyzer)` 多 1 je。
+            user->getHackAnalyzer()->addServerHackCnt(
+                user, (WongWork::ENUM_HACK_TYPE)0xd6, 1, 0, 0);
         }
     }
 
@@ -960,7 +979,31 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
         *a5 = monster.m_mobIndex;
     }
 
-    if (monster.m_roleType < 5)
+    // [b28d-SCT] P59/jcc 判据（ORIG 0x08464afe..0x08464b97）：`movzbl -0x528;
+    // cmp $0x4,%al; jle 0x08464b97` ⇒ fall-through（roleType > 4）= Normal(AI char)
+    // 分支物理在前，Boss(find_monster) 分支在 0x08464b97。旧写法 `if (roleType < 5)
+    // {Boss} else {Normal}` 令 4.4 把两分支体互换、call 序错位（find_monster 段
+    // @24 vs ORIG@29）。改正向条件 + 交换分支体，语义不变。
+    if (monster.m_roleType > 4)
+    {
+        // Normal monster drop
+        // [b28d-SCT] P140/P171：ORIG 0x08464b15 `call G_CDataManager; mov 0x869c
+        // (%eax),%eax; ... call get` —— m_aiCharacterList 直作 receiver，无
+        // aiCharList 判空/槽；旧 `if (aiCharList)` 多 1 je。
+        CAICharacter* aiChar =
+            G_CDataManager()->m_aiCharacterList->get(monster.m_mobIndex);
+        if (aiChar)
+        {
+            // [b28d-solo-CDeathTower] ORIG 0x08464b15 段：无 dungeon 判空。
+            if (m_dungeonMgr.getDungeon()->hasTowerItemDrop())
+                aiChar->deathTowerSpecifyItemDrop(dropItemIds);
+            if (monster.m_dropCnt == 100 || monster.m_dropCnt == 200)
+            {
+                winPoint = aiChar->getPvPWinPoint();
+            }
+        }
+    }
+    else
     {
         // Boss monster drop
         CMonster* monsterPtr = (CMonster*)G_CDataManager()->find_monster(monster.m_mobIndex);
@@ -975,26 +1018,6 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
         if (dropId != 0xfffffffe)
         {
             dropItemIds.push_back(dropId);
-        }
-    }
-    else
-    {
-        // Normal monster drop
-        CAICharacterList* aiCharList = G_CDataManager()->m_aiCharacterList;
-        CAICharacter* aiChar = 0;
-        if (aiCharList)
-        {
-            aiChar = aiCharList->get(monster.m_mobIndex);
-        }
-        if (aiChar)
-        {
-            // [b28d-solo-CDeathTower] ORIG 0x08464b15 段：无 dungeon 判空。
-            if (m_dungeonMgr.getDungeon()->hasTowerItemDrop())
-                aiChar->deathTowerSpecifyItemDrop(dropItemIds);
-            if (monster.m_dropCnt == 100 || monster.m_dropCnt == 200)
-            {
-                winPoint = aiChar->getPvPWinPoint();
-            }
         }
     }
 
@@ -1149,19 +1172,23 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
     emblemInfo.init();
 
     int itemCount = 0;
-    for (std::list<map_item>::const_iterator it = dropList.begin(); it != dropList.end(); ++it)
+    // [b28d-SCT] P13：ORIG 0x084655XX 段 begin(-0x10)/end(-0x14) 各一次，end 在
+    // 循环外缓存（call 序 begin,end 相邻）；旧写法条件位每次求值 end（我方 call 序
+    // end 落到 ++it 之后）。
+    std::list<map_item>::const_iterator dropIt = dropList.begin();
+    std::list<map_item>::const_iterator dropItEnd = dropList.end();
+    for (; dropIt != dropItEnd; ++dropIt)
     {
-        const map_item& item = *it;
+        const map_item& item = *dropIt;
         packet.put_short(item.m_itemIndex);
         packet.put_int(item.m_item.m_addInfo);
         unsigned char itemAttr = item.m_item.GetItemAttr();
         packet.put_byte(itemAttr);
 
-        if (!item.m_item.isAvatarItemType())
-        {
-            packet.put_int(item.m_item.get_add_info());
-        }
-        else
+        // [b28d-SCT] P59：ORIG call 序 find_item→B(!equipItem 的 put_int)→C(avatar
+        // 字段)→A(非 avatar 的 put_int 在段尾 111-112) ⇒ 外层条件正向
+        // `isAvatarItemType()`（then 体物理在前），旧反向写法令 A 落到段首。
+        if (item.m_item.isAvatarItemType())
         {
             CEquipItem* equipItem = (CEquipItem*)G_CDataManager()->find_item(item.m_item.m_addInfo);
             if (!equipItem)
@@ -1178,6 +1205,10 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
                 equipItem->getAvatarSocket(item.m_item.m_fieldb, emblemInfo);
             }
         }
+        else
+        {
+            packet.put_int(item.m_item.get_add_info());
+        }
 
         packet.put_short(item.m_item.m_fieldb);
         unsigned char amplifyType = item.m_item.m_amp.getAbilityType();
@@ -1186,16 +1217,18 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
         packet.put_short(amplifyValue);
         packet.put_packet(item.m_item);
 
-        if (!item.m_item.isAvatarItemType())
-        {
-            packet.put_byte(0);
-        }
-        else
+        // [b28d-SCT] P59：ORIG 0x084658XX `isAvatarItemType; je L_else; put_byte(1);
+        // put_int(0x1e); put_binary; jmp; L_else: put_byte(0)` ⇒ 正向条件。
+        if (item.m_item.isAvatarItemType())
         {
             packet.put_byte(1);
             packet.put_int(0x1e);
             // [b28d-solo-CDeathTower] p167：ORIG 调 put_binary(char const*, int)。
             packet.put_binary((const char*)&emblemInfo, 0x1e);
+        }
+        else
+        {
+            packet.put_byte(0);
         }
 
         packet.put_short(item.m_dropIndex);
@@ -1213,9 +1246,10 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
     if (m_stage.checkClearStage())
     {
         _onFinishStage();
-        int curStage = m_stage.getCurrentStage();
-        int endStage = m_dungeonMgr.getEndStage();
-        if (curStage == endStage)
+        // [b28d-SCT] P0/P52：ORIG 0x0846585x `call getCurrentStage` 结果留
+        // callee-saved %ebx 跨 getEndStage 调用，`cmp %eax,%ebx; sete/test; je`
+        // 直接比较；旧 curStage/endStage 两局部多 2 槽（我方 -0x1c/-0x20）。
+        if (m_stage.getCurrentStage() == m_dungeonMgr.getEndStage())
         {
             _onPrepareFinishTower();
         }
@@ -2578,8 +2612,11 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
     // ---- 第一段：图上 AI 布点 ----
     if (!aiChars->empty())
     {
-        for (std::vector<STAICharacterMapArrangeData>::const_iterator it =
-                 aiChars->begin(); it != aiChars->end(); ++it)
+        // [b28d-SCT] P13：ORIG call 序 begin(8)→end(9) 相邻 ⇒ end 循环外缓存；
+        // 旧写法条件位每次求值 end（我方 end 落到 operator++ 之后）。
+        std::vector<STAICharacterMapArrangeData>::const_iterator it = aiChars->begin();
+        std::vector<STAICharacterMapArrangeData>::const_iterator itEnd = aiChars->end();
+        for (; it != itEnd; ++it)
         {
             const STAICharacterMapArrangeData& data = *it;
             CAICharacter* aiChar =
@@ -2618,11 +2655,12 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
     if (apRandomPoint != 0)
     {
         mobIdx = 0x40;
-        for (;;)
+        // [b28d-SCT] P25/循环布局：ORIG 0x08460966 入口 `jmp 0x08460d02`（条件块
+        // 物理在尾部，0x08460d02 处才 call getMinAP），循环体 0x0846096b 在前 ⇒
+        // 原码为 while(cond){BODY}；旧 for(;;){if(cond)break;BODY} 令 4.4 把条件
+        // 排到体前（我方 getMinAP 在 call 序 32-33，ORIG 在 65-66）。
+        while (G_CDataManager()->m_aiCharacterList->getMinAP() <= apRandomPoint)
         {
-            if (G_CDataManager()->m_aiCharacterList->getMinAP() > apRandomPoint)
-                break;                      // [a]
-
             CAICharacter* aiChar =
                 G_CDataManager()->m_aiCharacterList->getByAP(
                     static_cast<unsigned int>(get_rand_int(apRandomPoint) + 1));
@@ -2776,8 +2814,10 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
             ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_4)
             ->generateSpecificItem(refData2, result);
 
-        for (std::vector<Inven_Item>::iterator d = result.m_dropItems.begin();
-             d != result.m_dropItems.end(); ++d)
+        // [b28d-SCT] P13：ORIG call 序 begin(105)→end(106) 相邻 ⇒ end 缓存。
+        std::vector<Inven_Item>::iterator d = result.m_dropItems.begin();
+        std::vector<Inven_Item>::iterator dEnd = result.m_dropItems.end();
+        for (; d != dEnd; ++d)
         {
             map_item drop;
             drop.m_count = 1;
@@ -2883,14 +2923,13 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
         }
 
         memberCnt = m_party->get_member_count();
-        if (!someoneLeft || memberCnt < 1)
-        {
-            if (memberCnt == 0)
-            {
-                _destroy();
-            }
-        }
-        else
+        // [b28d-SCT] P59 块布局判据（ORIG 0x08462c43..0x08462d01）：
+        // `cmpb $0x0,-0x59; je 0x08462ce7` + `cmpl $0x0,-0x58; jle 0x08462ce7`
+        // 两条独立短路跳向同一 else 块（0x08462ce7 才是 _destroy），fall-through
+        // 即 ready+发包体 ⇒ 原码为**正向**条件 `someoneLeft && memberCnt > 0`；
+        // 旧反向写法 `!someoneLeft || memberCnt < 1` 令 4.4 把 _destroy 块排前，
+        // call 序错位（_destroy@15 vs ORIG@22）。语义等价（De Morgan）。
+        if (someoneLeft && memberCnt > 0)
         {
             for (int i = 0; i < 4; ++i)
             {
@@ -2900,6 +2939,13 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
             CPacketHandler packet;
             packet.makeFinishLoading();
             m_party->send_to_party(packet);
+        }
+        else
+        {
+            if (memberCnt == 0)
+            {
+                _destroy();
+            }
         }
     }
     else if (msg == (TIMER_MESSAGE)0x4b)
@@ -2978,8 +3024,10 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
                     if (rewardBase[j].m_addInfo == 0)
                     {
                         // 金钱奖励：金额 = rewardBase[j].get_add_info()（ORIG 三次调用）
-                        CInventory* inven = (CInventory*)user->getCurCharacInvenW();
-                        int gained = inven->gain_money(
+                        // [b28d-SCT] P52/P0：ORIG call 序 get_add_info(60) →
+                        // getCurCharacInvenW(61) → gain_money(62) ⇒ 链式单表达式，
+                        // 实参先物化、receiver 后取；旧具名 inven 局部令顺序反转。
+                        int gained = ((CInventory*)user->getCurCharacInvenW())->gain_money(
                             rewardBase[j].get_add_info(), (eMoneyAddReason)5, true, 0);
                         if (gained < rewardBase[j].get_add_info())
                         {
@@ -2988,9 +3036,10 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
                                 rewardBase[j].get_add_info(), gained);
                         }
                         slot = 0;
-                        CDungeon* dungeon = m_dungeonMgr.getDungeon();
-                        int dungeonIdx = dungeon->get_index();
-                        if (dungeonIdx == 11000)
+                        // [b28d-SCT] P0：ORIG 0x0846329f 段 `call getDungeon; call
+                        // get_index; cmp $0x2af8,%eax; sete/test; je` —— 无 dungeon/
+                        // dungeonIdx 具名槽（结果 %eax 直传比较）；旧两局部多 2 槽。
+                        if (m_dungeonMgr.getDungeon()->get_index() == 11000)
                         {
                             GetInstanceCirculationStatistic()->AddCirculationStatistic((CIRCULATION_STATISTIC_FIELD)4, user, (unsigned int)gained);
                         }
@@ -3008,9 +3057,12 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
                     if (slot >= 0)
                     {
                         // ORIG 0x08463394：GetItemSpace + makeUpdateItemList 单发
-                        ENUM_ITEMSPACE space = (ENUM_ITEMSPACE)rewardBase[j].GetItemSpace();
+                        // [b28d-SCT] P0/P23：ORIG call 序 C2(74) → GetItemSpace(75) →
+                        // makeUpdateItemList(76) ⇒ 先构造 packet，GetItemSpace 在实参位
+                        // 求值；旧具名 space 局部令 GetItemSpace 提前到构造之前。
                         CPacketHandler updatePacket;
-                        updatePacket.makeUpdateItemList(user, space, slot);
+                        updatePacket.makeUpdateItemList(
+                            user, (ENUM_ITEMSPACE)rewardBase[j].GetItemSpace(), slot);
                         user->Send(updatePacket);
                     }
                 }
@@ -3068,9 +3120,10 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
         }
         else
         {
-            int curStage = m_stage.getCurrentStage();
-            int endStage = m_dungeonMgr.getEndStage();
-            if (curStage == endStage)
+            // [b28d-SCT] P0/P52：ORIG 0x084636e2 段 `call getCurrentStage` 结果存
+            // callee-saved %ebx 跨 getEndStage 调用，`cmp %eax,%ebx` 直接比较，
+            // 无 curStage/endStage 槽；旧两局部多 2 槽（我方 -0x1c/-0x20）。
+            if (m_stage.getCurrentStage() == m_dungeonMgr.getEndStage())
             {
                 _beginTowerClearProcess(true);
             }

@@ -51,14 +51,6 @@ static const char kFunc_generateRewardExp[] =
 
 namespace WongWork {
 
-// ORIG T 0x0845fc6c：header(0,0x27)；short(b)；short(a)；不 finalize。
-void CDeathTower::CPacketHandler::makePickupItemHeader(unsigned short a, unsigned short b)
-{
-    put_header(0, 0x27);
-    put_short((int)b);
-    put_short((int)a);
-}
-
 // ---- CDeathTower::stMapMonsterKillChecker_t（ORIG 嵌套版，布局 0x0c）----
 void CDeathTower::stMapMonsterKillChecker_t::init()
 {
