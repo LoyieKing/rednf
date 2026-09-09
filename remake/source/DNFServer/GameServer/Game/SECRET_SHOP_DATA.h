@@ -32,8 +32,9 @@ struct SALE_INFO
     int m_limit;      // +0x0c
     int m_material;   // +0x10（配方材料 itemIdx）
     int m_materialCount;  // +0x14
-    char m_field18;   // +0x18
-    char m_pad19[3];  // +0x19
+    // +0x18（尾部 0x19..0x1b 为编译器填充；ORIG 拷贝段 memcpy 长度 0x19 跳过该 3B，
+    //  construct(SALE_INFO*,const&) 0x08a8471e 实证 `movzbl 0x18(%edx); mov %dl`）
+    char m_field18;
 };
 
 // ---- BUY_INFO（0x8）----
