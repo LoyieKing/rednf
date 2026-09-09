@@ -480,8 +480,13 @@ struct DB_CreatureItemListEntry
     int m_uiId;             // +0x00
     char m_pad[0x10];       // +0x04
     int m_stomach;          // +0x14
+    // [SweepIntervalSet 真 bug] ORIG 0x0841fda1 `add $0x21c0,%eax`（= 行基 +0x1c）
+    // 读 exp，而旧声明把 m_exp 排到 +0x18（stomach 紧邻）⇒ 读的是行内 +0x18
+    // 的未用字节。补 4 字节 pad 使 m_exp 落 +0x1c（SQL 实参 exp/stomach/ui_id
+    // 与 ORIG 的 +0x21c0/+0x21b8/+0x21a4 三偏移一一对应）。
+    char m_pad1[4];         // +0x18
     int m_exp;              // +0x1c
-    char m_pad2[0x1c];      // +0x20（行尾，步长 0x38）
+    char m_pad2[0x18];      // +0x20（行尾，步长 0x38）
 };
 #pragma pack(pop)
 static_assert(sizeof(DB_CreatureItemListEntry) == 0x38,
@@ -4759,46 +4764,46 @@ bool DBTask::HandleEvents(MsgQueueMgr::QUEUE_IDX queueIdx, int& signal)
 
     if (signal == 0x3f)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x8e6, 0);
-        trace("Terminate Server db queue: %s(%d)\n",
-              MsgQueueMgr::get_queue_name(queueIdx), static_cast<int>(queueIdx));
+        // P227：ORIG 0x083ff24e 在 ctor 前 call get_queue_name 存 %ebx 保活。
+        cMyTrace(__PRETTY_FUNCTION__, 0x8e6, 0)(
+            "Terminate Server db queue: %s(%d)\n",
+            MsgQueueMgr::get_queue_name(queueIdx), static_cast<int>(queueIdx));
         return false;
     }
 
-    if (poolType == 1)                            // SmallStreamPool
+    // [SweepIntervalSet] P251：ORIG 0x083ff29d `mov -0xc(%ebp),%eax; cmp $0x1,%eax;
+    // je; cmp $0x2,%eax; je; test %eax,%eax; je; jmp`（值留寄存器、无槽直比）⇒
+    // 源形为 switch(poolType)（if-else 链在 4.4 恒产 `cmpl $K,mem; jne`）。
+    // 三处 trace 同时改 P227 全表达式临时链（ORIG 各在 ctor 前读 *signal/length）。
+    switch (poolType)
     {
+    case 1:                                       // SmallStreamPool
         if (length > 0xfff)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           0x8f2, 5);
-            // ORIG：第一变参为 *signal（消息 code），第二变参为 length。
-            trace("Small Stream Size over code(%d), size(%u)", signal,
-                  static_cast<unsigned int>(length));
+            cMyTrace(__PRETTY_FUNCTION__, 0x8f2, 5)(
+                "Small Stream Size over code(%d), size(%u)", signal,
+                static_cast<unsigned int>(length));
         }
         GlobalData::s_small_stream_pool->Free(stream);        // ORIG 0x08290004
-    }
-    else if (poolType == 2)                       // BigStreamPool
-    {
+        break;
+    case 2:                                       // BigStreamPool
         if (length > 0x3ffff)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           0x908, 5);
-            trace("Big Stream Size over code(%d), size(%u)", signal,
-                  static_cast<unsigned int>(length));
+            cMyTrace(__PRETTY_FUNCTION__, 0x908, 5)(
+                "Big Stream Size over code(%d), size(%u)", signal,
+                static_cast<unsigned int>(length));
         }
         GlobalData::s_big_stream_pool->Free(stream);          // ORIG 0x08290304
-    }
-    else                                          // poolType == 0：StreamPool
-    {
+        break;
+    case 0:                                       // StreamPool
         if (length > 0x3fff)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           0x8fd, 5);
-            trace("Default Stream Size over code(%d), size(%u)", signal,
-                  static_cast<unsigned int>(length));
+            cMyTrace(__PRETTY_FUNCTION__, 0x8fd, 5)(
+                "Default Stream Size over code(%d), size(%u)", signal,
+                static_cast<unsigned int>(length));
         }
         GlobalData::s_stream_pool->Free(stream);              // ORIG 0x0828fb28
+        break;
     }
     return true;
 }
@@ -7040,28 +7045,26 @@ bool DB_AvatarItemInsert::InsertAvatarItem(SIG_AVATAR_INSERT* sig)
     static const int handleIdx = 3;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
-    char sql[0xc000];
-    memset(sql, 0, 0xc000);
-    // [b28d-4 N84③ 已试] ORIG 0x083ffe0e 段 `mov $<A>,%esi; mov $0x33,%ecx;
-    // rep movsl` + 尾 2 字节 = 4.1 对常量长度 memcpy 的内联（N78），非结构体
-    // 赋值；改结构体整体赋值实测 220→256 条劣化，回退。
-    // N84③ 复测（2026-09-09）：`*(SqlConst*)sql = *reinterpret_cast<const
-    // SqlConst*>("字面量")` 实测 220→292 条（+72）劣化 ⇒ 回退 memcpy 形，
-    // 本件按 N78（4.1 内联 memcpy / 4.4 恒 call）封顶。
-    memcpy(sql,
-           "inSert into user_items (charac_no,slot,it_id,expire_date,obtain_from,reg_date,ability_no,ipg_agency_no,stat,jewel_socket,hidden_option,emblem_endurance) values(%u,%d,%u,'%s',%d,now(),%d,'%s',%d,'%s',%d,%d)",
-           0xce);
-    memset(sql + 0xce, 0, 0x5f32);
-    memcpy(sql + 0x6000,
-           "inSert into user_items (charac_no,slot,it_id,expire_date,obtain_from,reg_date,ability_no,ipg_agency_no,stat,jewel_socket,hidden_option,emblem_endurance) values(%u,%d,%u,from_unixtime('%s'),%d,now(),%d,'%s',%d,'%s',%d,%d)",
-           0xdd);
-    memset(sql + 0x60dd, 0, 0x5f23);
+    // [SweepIntervalSet] 旧判词「N78：4.1 内联 memcpy / 4.4 恒 call ⇒ 封顶」被推翻。
+    // ORIG 0x083ffe54..083ffec0 五段 = memset(0xc000) → rep movsl 0x33 dwords+尾 word
+    // → memset(0x5f32) → rep movsl 0x37 dwords+尾 byte → memset(0x5f23)，
+    // 正是 4.4 对「双数组成员结构体聚合初始化」的展开（探针 /tmp/pbig2.o::t23 逐条同形）；
+    // 成员声明序 = 槽址升序（m_expireDate 深槽、m_fromUnixtime +0x6000）。
+    struct SqlTemplateBuf
+    {
+        char m_expireDate[0x6000];
+        char m_fromUnixtime[0x6000];
+    };
+    SqlTemplateBuf sql = {
+        "inSert into user_items (charac_no,slot,it_id,expire_date,obtain_from,reg_date,ability_no,ipg_agency_no,stat,jewel_socket,hidden_option,emblem_endurance) values(%u,%d,%u,'%s',%d,now(),%d,'%s',%d,'%s',%d,%d)",
+        "inSert into user_items (charac_no,slot,it_id,expire_date,obtain_from,reg_date,ability_no,ipg_agency_no,stat,jewel_socket,hidden_option,emblem_endurance) values(%u,%d,%u,from_unixtime('%s'),%d,now(),%d,'%s',%d,'%s',%d,%d)"
+    };
     char* q = 0;
     char date[0x40] = "9999-12-31 23:59:59";
     if (((DB_AvatarInsertView*)sig)->m_period == 0) {
-        q = sql;
+        q = sql.m_expireDate;
     } else {
-        q = sql + 0x6000;
+        q = sql.m_fromUnixtime;
         memset(date, 0, 0x40);
         cMyTrace(__PRETTY_FUNCTION__,
                  0xae1, 0)("[InsertAvatarItem] pContext->nExpireTime : %d",
@@ -7464,11 +7467,18 @@ bool get_compressed_blob_data(MySQL* db, int col, char* out, int outCap,
 bool DB_LoadKillMonsterInfo::LoadMonsterInfo(SIG_LOAD_KILL_MONSTER_INFO* sig)
 {
     static const int handleIdx = 2;
+    // [SweepIntervalSet] ORIG 0x084415a4 `movb $0x0,-0x19(%ebp)`：ok 声明先于 db
+    // 并初始化 false（原声明在 db 之后且未初始化 ⇒ 少一条 movb）。
+    bool ok = false;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx, E_SERVER_GROUP_NONE);
-    bool ok;
+    // [SweepIntervalSet 实测回滚] ORIG 0x084415c8 `movl $0x5,-0x14(%ebp)` 疑为
+    // dead 具名局部；补 `int unknown5=5;` 后 gap 7→6 但 ndiff 275→350 反劣
+    // （4.4 槽序整体漂移）⇒ 该 5 非源级 dead 局部，回滚，残差归 N82/P210。
     db->set_query(
         "seLect boss_info, named_info, apc_boss_info from charac_kill_monster_info where charac_no=%u",
         sig->m_characNo);
+    // [SweepIntervalSet] ORIG 0x084415a4 `movb $0x0,-0x19(%ebp)` = ok 在函数头
+    // 初始化为 false（原声明未初始化）。
     ok = db->exec(true);
     if (!ok)
     {
@@ -7508,13 +7518,11 @@ bool DB_LoadKillMonsterInfo::LoadMonsterInfo(SIG_LOAD_KILL_MONSTER_INFO* sig)
     int col;
     // 列 0：boss_info → sig+0x000，容量 0x1d4c
     len = db->get_binary_length(idx);
-    col = idx;
-    if (len == 0)
+    // [SweepIntervalSet] P222 极性翻转：ORIG 0x08441793 `je <++idx 尾块>`（len==0
+    // 落 0x0844182a），4.4 对 `if(len==0){++idx;}else{…}` 恒产 `jne else` 反向布局。
+    if (len != 0)
     {
-        ++idx;
-    }
-    else
-    {
+        col = idx;
         ++idx;
         if (!get_compressed_blob_data(db, col, reinterpret_cast<char*>(sig->m_boss), 0x1d4c, 0))
         {
@@ -7524,15 +7532,17 @@ bool DB_LoadKillMonsterInfo::LoadMonsterInfo(SIG_LOAD_KILL_MONSTER_INFO* sig)
             return 0;
         }
     }
-    // 列 1：named_info → sig+0x1d4c，容量 0x7530
-    len = db->get_binary_length(idx);
-    col = idx;
-    if (len == 0)
+    else
     {
         ++idx;
     }
-    else
+    // 列 1：named_info → sig+0x1d4c，容量 0x7530
+    len = db->get_binary_length(idx);
+    // [SweepIntervalSet] P222 极性翻转：ORIG 0x08441793 `je <++idx 尾块>`（len==0
+    // 落 0x0844182a），4.4 对 `if(len==0){++idx;}else{…}` 恒产 `jne else` 反向布局。
+    if (len != 0)
     {
+        col = idx;
         ++idx;
         if (!get_compressed_blob_data(db, col, reinterpret_cast<char*>(sig->m_named), 0x7530, 0))
         {
@@ -7542,15 +7552,17 @@ bool DB_LoadKillMonsterInfo::LoadMonsterInfo(SIG_LOAD_KILL_MONSTER_INFO* sig)
             return 0;
         }
     }
-    // 列 2：apc_boss_info → sig+0x927c，容量 0x1d4c
-    len = db->get_binary_length(idx);
-    col = idx;
-    if (len == 0)
+    else
     {
         ++idx;
     }
-    else
+    // 列 2：apc_boss_info → sig+0x927c，容量 0x1d4c
+    len = db->get_binary_length(idx);
+    // [SweepIntervalSet] P222 极性翻转：ORIG 0x08441793 `je <++idx 尾块>`（len==0
+    // 落 0x0844182a），4.4 对 `if(len==0){++idx;}else{…}` 恒产 `jne else` 反向布局。
+    if (len != 0)
     {
+        col = idx;
         ++idx;
         if (!get_compressed_blob_data(db, col, reinterpret_cast<char*>(sig->m_apc), 0x1d4c, 0))
         {
@@ -7559,6 +7571,10 @@ bool DB_LoadKillMonsterInfo::LoadMonsterInfo(SIG_LOAD_KILL_MONSTER_INFO* sig)
                   idx, sig->m_characNo);
             return 0;
         }
+    }
+    else
+    {
+        ++idx;
     }
     return 1;
 }
@@ -9210,11 +9226,18 @@ bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
     }
-    if (!db->fetch())
+    // [SweepIntervalSet] ORIG 0x0842f9b0 对 fetch/get_binary(0)/get_binary(1) 三处
+    // 均发 `mov %al,-0x29(%ebp); movzbl -0x29(%ebp),%eax; xor $0x1; test; je`
+    // ⇒ 原码复用同一具名 bool 局部（P0 槽往返 / P102）；直接 `if(!call())` 少两段。
+    bool bRet = db->fetch();
+    if (!bRet)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x74dd, 5);
-        trace("DB_LoadGameOption::dispatch, fetch ERROR m_id=%s",
-              NumberToString(req->m_accId, 0));
+        // [SweepIntervalSet] P227 全表达式临时链：ORIG 0x0842f9d3 在 cMyTrace ctor
+        // 之前求值 NumberToString 并以 %ebx 跨 ctor 保活（`mov %eax,%ebx` → ctor →
+        // `mov %ebx,0x8(%esp)`）；具名 trace 会把求值推迟到 ctor 之后（少 2 条）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x74dd, 5)(
+            "DB_LoadGameOption::dispatch, fetch ERROR m_id=%s",
+            NumberToString(req->m_accId, 0));
         return 0;
     }
     CStreamGuard guard(
@@ -9228,15 +9251,21 @@ bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
     ((DB_GameOptionSigView*)out)->m_quick[0].clear();
     ((DB_GameOptionSigView*)out)->m_quick[1].clear();
     ((DB_GameOptionSigView*)out)->m_emoticon.clear();
-    char buf[0x2dc];
     {
         static const int compressedBufferSize = 0x62;  // ORIG _ZZ…DB_LoadGameOption…E20compressedBufferSize
-        memset(buf, 0, compressedBufferSize);
-        if (!db->get_binary(0, buf, compressedBufferSize))
+        // [SweepIntervalSet] ORIG 0x0842fad1 把 0x62 清零内联为
+        // `lea; mov $0; mov $0x18,%ecx; mov %edx,%edi; rep stos; mov %edi,%edx;
+        //  mov %ax,(%edx); add $0x2,%edx`（4 对齐已知 ⇒ 无对齐剥离检查）；
+        // 4.4 探针实测 aligned(4) 数组零初始化逐条同形（普通数组会多 7 条对齐检查，
+        // memset 恒 call）。语义等价：清零 0x62 字节。
+        char buf[0x62] __attribute__((aligned(4))) = { '\0' };
+        bRet = db->get_binary(0, buf, compressedBufferSize);
+        if (!bRet)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x74f9, 5);
-            trace("DB_LoadGameOption, get_binary(0) ERROR m_id=%s",
-                  NumberToString(req->m_accId, 0));
+            // P227：ORIG 0x0842fb35 同样先求值 NumberToString 存 %ebx 再 ctor。
+            cMyTrace(__PRETTY_FUNCTION__, 0x74f9, 5)(
+                "DB_LoadGameOption, get_binary(0) ERROR m_id=%s",
+                NumberToString(req->m_accId, 0));
             return 0;
         }
         unsigned int len0 = db->get_binary_length(0);
@@ -9246,11 +9275,15 @@ bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
     }
     {
         static const int compressedBufferSize = 0x2dc;  // ORIG …E20compressedBufferSize_0
-        memset(buf, 0, compressedBufferSize);
-        if (!db->get_binary(1, buf, compressedBufferSize))
+        // [SweepIntervalSet] ORIG 0x0842fbcc 内联 `mov $0xb7,%edx; …; rep stos`
+        // （0x2dc = 0xb7 dwords，无尾字节）；aligned(4) 数组零初始化 4.4 逐条同形。
+        char buf[0x2dc] __attribute__((aligned(4))) = { '\0' };
+        bRet = db->get_binary(1, buf, compressedBufferSize);
+        if (!bRet)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x7515, 5);
-            trace("DB_LoadGameOption, get_binary(1) ERROR m_id=%u", req->m_accId);
+            // P227：ORIG 0x0842fc18 把 req->m_accId 读入 %ebx 跨 ctor 保活。
+            cMyTrace(__PRETTY_FUNCTION__, 0x7515, 5)(
+                "DB_LoadGameOption, get_binary(1) ERROR m_id=%u", req->m_accId);
             return 0;
         }
         unsigned int len1 = db->get_binary_length(1);
@@ -9797,13 +9830,15 @@ bool DB_UpdateCreatureItemList::dispatch(int userIdx, int slot, Stream* stream)
     SIG_CREATURE_ITEM_LIST* raw = stream->GetOutBuffer<SIG_CREATURE_ITEM_LIST>();
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   E_SERVER_GROUP_NONE);
-    int count = raw->m_count;
-    for (int i = 0; i < count; ++i)
+    // [SweepIntervalSet] P0：ORIG 0x0841fdec 循环条件每次重读 `raw->m_count`
+    // （`mov -0x14(%ebp),%eax; mov (%eax),%eax; cmp -0xc(%ebp),%eax; setg`），
+    // 无 count 具名槽 ⇒ 删缓存局部。
+    for (int i = 0; i < raw->m_count; ++i)
     {
-        // [b28d-TakeW8LT 实测回滚] 曾按 ORIG 0x0841fd12「无 e 行指针局部、三实参
-        // 各自重算 raw+0x21a4+i*0x38」内联：同 .o 复测 ndiff 66→78、our 62→80
-        // **反劣** ⇒ 保留具名 e（P331 第二形失效样本，与 Inter_LoadDeathTower
-        // BestRecord 同因：ORIG 多出的 lea/shl 来自 4.1 代数重写而非逐点物化）。
+        // [SweepIntervalSet 复测] P183 三次内联重算（实参位各写一遍完整
+        // raw+i*0x38+0x21a4）实测 our 78 / ndiff 72，劣于具名 e 的 our 60 /
+        // ndiff 60（4.4 对 i*0x38 恒发 `lea (,%eax,8)→mov→sub→mov` 四条，
+        // 每处多 2 条 regmove，属 N18a 后端寄存器角色差，非源形可控）⇒ 保留 e。
         DB_CreatureItemListEntry* e = reinterpret_cast<DB_CreatureItemListEntry*>(
             reinterpret_cast<char*>(raw) + kCreatureItemRowsOffset + i * 0x38);
         db->set_query(
@@ -10194,7 +10229,13 @@ bool DB_UpdateDetailChannel::dispatch(int userIdx, int slot, Stream* stream)
             stream->GetOutBuffer<SIG_UPDATE_DETAIL_CHANNEL>());
     int t = GlobalData::s_systemTime_.getCurSec();
     int mod = t % 0x708;
-    t += (mod < 900) ? -mod : (0x708 - mod);
+    // [SweepIntervalSet] ORIG 0x0841bd?? 是两条独立分支：`sub %eax,-0x24`（t -= mod）
+    // 与 `mov $0x708,%eax; sub -0x20,%eax; add %eax,-0x24`（t += 0x708-mod）；
+    // 三目 `t += (mod<900)?-mod:(0x708-mod)` 被 4.4 折成 `neg %eax` 单链。
+    if (mod < 900)
+        t -= mod;
+    else
+        t += 0x708 - mod;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                                   E_SERVER_GROUP_NONE);
     db->set_query(
@@ -10754,7 +10795,14 @@ bool DB_StatPVPPlay2::dispatch(int userIdx, int slot, Stream* stream)
         G_GameWorld()->getStatisticsPvP()->m_roomResults.begin();
     std::map<StatisticsPvP::PvP_Key, StatisticsPvP::PvP_Room>::iterator end =
         G_GameWorld()->getStatisticsPvP()->m_roomResults.end();
-    while (it != end)
+    // [SweepIntervalSet 真 bug] 原 `while (it != end) { … continue; … ++it; }` 的
+    // continue 跳到条件处、跳过 ++it ⇒ update 也失败时 it 不变 = 死循环。
+    // ORIG 0x0841bca0 单一 operator++ 调用点在循环尾（continue 必须经过它）⇒
+    // 源形为 `for (; it != end; ++it)`（4.1 布局：入口 jmp 条件 / body / ++it /
+    // 条件 jne body，实证 0x0841bb18/0x0841bc9a/0x0841bcb9）。
+    // 另：ORIG 0x0841bb89 / 0x0841bbe8 两处 exec 结果各占具名槽（-0x1a/-0x19，
+    // `mov %al,槽; movzbl 槽,%eax; xor $1`）⇒ 两个具名 bool 局部（P0/P102）。
+    for (; it != end; ++it)
     {
         // P167：ORIG 用 `operator*`（deEv）×2，我方 `it->` 选中 ptEv ×2 ⇒
         // 写 `(*it).first/second`。
@@ -10763,22 +10811,23 @@ bool DB_StatPVPPlay2::dispatch(int userIdx, int slot, Stream* stream)
         db->set_query(
             "inSert into pvp_status(occ_date,room_number,play_type,no_participants,occ_count) values(cast(now() as date),%d,%d,%d,%d)",
             key.m_a, key.m_b, room.m_resultSum, room.m_roomCount);
-        if (!db->exec(true))
+        bool inserted = db->exec(true);
+        if (!inserted)
         {
             db->set_query(
                 "upDate pvp_status set occ_count = occ_count + %d , no_participants = no_participants + %d where occ_date = cast(now() as date) and room_number = %d and play_type = %d",
                 room.m_roomCount, room.m_resultSum, key.m_a, key.m_b);
-            if (!db->exec(true))
+            bool updated = db->exec(true);
+            if (!updated)
             {
                 cMyTrace trace(__PRETTY_FUNCTION__, 0x4ed8, 5);
                 trace("upDate pvp_status failed at %d", key.m_a);
-                continue;  // P167：ORIG 单一 `operator++()` 调用点（循环尾共用）
+                continue;  // for 的 increment 处 = ORIG 单一 operator++ 调用点
             }
         }
         cMyTrace trace(__PRETTY_FUNCTION__, 0x4edc, 5);
         trace("pvp_status : %d ROOM %d TYPE %d Players %d Count ",
               key.m_a, key.m_b, room.m_resultSum, room.m_roomCount);
-        ++it;
     }
     G_GameWorld()->getStatisticsPvP()->unlock();
     return 1;
@@ -11300,7 +11349,10 @@ bool DB_BlackIPMonitor::dispatch(int userIdx, int slot, Stream* stream)
     // [b28d-TakeW8LT] ORIG 0x08432ad2 的 `cmpl $0x62,-0x14; ja` 是无符号比较
     // （旧形 int ⇒ 4.4 发 jg）⇒ 源码类型为 unsigned int。
     unsigned int buffered = 0;   // -0x14 当前包已缓冲行数
-    char flag = 0;               // -0x0d 首包标志
+    // [SweepIntervalSet] P248 档②/P292：ORIG 0x0843xx `movzbl -0xd(%ebp),%eax;
+    // xor $0x1,%eax; test %al,%al; je`（无 setcc）⇒ flag 为 bool（char 形被 4.4
+    // 折成 `cmpb $0x0,-0xd; jne`，少 2 条）。
+    bool flag = false;           // -0x0d 首包标志
     char buf[0xc80];             // -0xcb4 行缓冲（100 × 0x20）
     while (db->get_n_rows() > row)
     {
@@ -11338,7 +11390,7 @@ bool DB_BlackIPMonitor::dispatch(int userIdx, int slot, Stream* stream)
             memcpy(&sig->m_items[0], buf, 0xc80);
             if (!flag)
             {
-                flag = 1;
+                flag = true;
                 sig->m_flag = 1;
             }
             else
@@ -15496,9 +15548,10 @@ bool DB_InsertPVPPlayerRate::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                                   E_SERVER_GROUP_NONE);
-    int vals[6];
-    for (int i = 0; i < 6; ++i)
-        vals[i] = 0;
+    // [SweepIntervalSet] ORIG 0x0842ca1x 的 24 字节清零是 4.1 对**数组零初始化**
+    // 的展开（`lea; mov $0x18,%eax; and; mov $0,%eax; mov %ecx,(%edx,%eax,1);
+    // add $4; cmp; jb` 循环形），而非 for 逐元素赋值（4.4 后者产 setle/test/jne）。
+    int vals[6] = {0};
     for (int i = 0; i < 6; ++i)
         *stream >> vals[i];
     int channelNo = G_CEnvironment()->get_channel_no();
@@ -18076,16 +18129,16 @@ bool DB_StatisticCeraShopGiftLog::dispatch(int userIdx, int slot,
         sig->m_itemIdx, sig->m_itemCnt);
     if (!db->exec(true))
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xa9c1, 5);
-        trace("DB_StatisticAmazingBoxProtectLucky_USE inSert exec fail");
-        cMyTrace trace2(
-            __PRETTY_FUNCTION__,
-            0xa9c3, 5);
-        trace2("inSert into log_cerashop_gift(occ_time, from_mid, from_charac_no, to_m_id, to_charac_no, item_idx, count) values(unix_timestamp(), %u, %u, %u, %u, %u, %u)",
-               sig->m_fromMid, sig->m_fromCharacNo, sig->m_toMid,
-               sig->m_toCharacNo, sig->m_itemIdx, sig->m_itemCnt);
+        // [SweepIntervalSet] P227 全表达式临时链：ORIG 0x08444137/0x0844414f 两处
+        // 都用 ctor 返回的 this 调 operator()（`mov %eax,(%esp)`，非 lea 槽地址）；
+        // 且第二处在 ctor **之前**把 6 个字段读入 %edi/%esi/%ebx + 3 个临时槽
+        // （0x08444152..0x08444179），正是 6 个实参跨 ctor 保活的形。
+        cMyTrace(__PRETTY_FUNCTION__, 0xa9c1, 5)(
+            "DB_StatisticAmazingBoxProtectLucky_USE inSert exec fail");
+        cMyTrace(__PRETTY_FUNCTION__, 0xa9c3, 5)(
+            "inSert into log_cerashop_gift(occ_time, from_mid, from_charac_no, to_m_id, to_charac_no, item_idx, count) values(unix_timestamp(), %u, %u, %u, %u, %u, %u)",
+            sig->m_fromMid, sig->m_fromCharacNo, sig->m_toMid,
+            sig->m_toCharacNo, sig->m_itemIdx, sig->m_itemCnt);
         return 0;
     }
     return 1;
