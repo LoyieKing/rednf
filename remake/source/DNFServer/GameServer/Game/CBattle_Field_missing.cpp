@@ -766,8 +766,16 @@ void CBattle_Field::BloodSpawnTimerManager(bool onStart, bool isMinimal)
     }
     if ((onStart && !isMinimal) || isFirst)
     {
-        if (onStart)
-            m_party->m_battleField.m_bloodReward.onStartBloodRound();
+        // [判据·多余门禁] ORIG 0x08304f04 的 `cmpb $0x0,-0x1c(%ebp)`（onStart spill
+        // 槽）无任何分支消费者（其后 mov/mov/add 覆盖 flags），且 0x08304f08 起
+        // 无条件构造 receiver 并 call onStartBloodRound ⇒ 原码此处**无 if(onStart)
+        // 门禁**（旧版 `if (onStart)` 为多余门禁真 bug：isFirst 为真而 onStart 为假
+        // 时 ORIG 仍调用 onStartBloodRound，我方旧码跳过）。
+        // 该死比较用 P225 dead-test 复现形 `while (expr) break;` 保留（4.4 对空 if
+        // 体整块 DCE，探针 /tmp/probe2.cpp h2 实证 while-break 留 cmpb 无跳转）。
+        while (onStart)
+            break;
+        m_party->m_battleField.m_bloodReward.onStartBloodRound();
         BloodRoundIntervalPacket(roundOrder, interval);
     }
     if (BloodPhaseSpawnTimerResgister(smallRoundOrder) == -1)
@@ -778,6 +786,7 @@ void CBattle_Field::BloodSpawnTimerManager(bool onStart, bool isMinimal)
             "BLOOD_LOG : small_round_order_ (%d) : ABNOMAL ORDER!!\n",
             (int)smallRoundOrder);
     }
+    return;
 }
 
 // ---------------------------------------------------------------------------
@@ -827,14 +836,24 @@ bool CBattle_Field::forceValuesToChangeRound(short round, short smallRound, int 
             GetCurrentMapInfo()->m_monsterMap.begin();
         for (;;)
         {
-            if (it == GetCurrentMapInfo()->m_monsterMap.end())
-                break;
-            if ((int)(unsigned short)it->second.m_bloodRoundOrder2 > (int)round)
+            // [判据·多余门禁] ORIG 0x0830605f 循环体首条即 `operator->()` 解引用
+            // （无 end() 比较/调用：ORIG 全函数循环内 call 序列仅 operator->/erase/
+            // begin/GetCurrentMapInfo），退出仅靠下方两个 break；旧码的
+            // `if (it == ...end()) break;` 是多余门禁（P171 过度防御）。
+            // [判据·P196 符号性] ORIG 0x0830606a-0x0830607a 为 16 位有符号比较
+            // （`movzwl 0x34a; cmp -0x2c(%ebp),%ax; setle`）；旧码 `(int)(unsigned
+            // short)` 无符号扩展 + 32 位比较（movzwl+movswl+setg），负值语义分叉。
+            if (it->second.m_bloodRoundOrder2 > round)
                 break;
             if (it->second.m_bloodRoundOrder2 == round &&
                 (int)(signed char)it->second.m_bloodSpawned == diff)
                 break;
-            mapInfo->m_monsterMap.erase(it);
+            // [判据·查找键/调用序] ORIG 0x083060c2-0x083060fc 为
+            // `operator->()` → `lea 0x8(%eax)`（=&it->second.m_instId，+0x04）→
+            // `map::find(const int&)`（sret -0x28）→ `map::erase(iterator)`
+            // ⇒ 原码是 erase(find(it->second.m_instId))，非直接 erase(it)。
+            mapInfo->m_monsterMap.erase(
+                mapInfo->m_monsterMap.find(it->second.m_instId));
             it = GetCurrentMapInfo()->m_monsterMap.begin();
             result = 0;
         }
