@@ -1,3 +1,10 @@
+// [BigDispatchCore 2026-09-09·大件专项] 本 TU 曾在 13 个函数里以
+// `static const char* const kPretty = "virtual int X::m(...)";` 手抄函数名，
+// 由此**发射 ORIG 不存在的导出符号** `_ZZN…E7kPretty`（nm 实测 13 个）并缺发
+// ORIG 有的 `_ZZN…E19__PRETTY_FUNCTION__`。已逐字核对 ORIG .rodata（orig_str.py 读
+// _ZZ…__PRETTY_FUNCTION__ 对象，12/12 文本一致）后全部改回 __PRETTY_FUNCTION__：
+// 发明符号 13→0，本 TU 现发射 109 个 __PRETTY_FUNCTION__ 对象、全部命中 ORIG nm。
+// 行为不变（同一字符串常量）。
 #include <string.h>               // memset/strncpy/strlen
 #include "DisPatcherCore.h"
 #include "CUser.h"
@@ -5769,6 +5776,9 @@ int DisPatcher_BuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 // [b28d-29] N78/N82：ORIG rep stos 结构体清零 vs 4.4 call memset（0x28 字节）+ 帧 0x19c vs 0x190；语义等价  (ORIG 0x081ee59c insn 480->487)
 DisPatcher_RentAvatar::~DisPatcher_RentAvatar() {}
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 491（ORIG 480 / ours 487），残差=N7/N82 帧与 callee-saved 角色/P211/N18a 中转/store 序/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [BigDispatchCore] callee 重载修正：m_itemId 本即 unsigned long，多余的 (int) 强转错绑
+// _ZN12CStreamGuardlsEi；ORIG 0x081eeb65 实为 lsEm。实测 ndiff 345→342，差集一缺一多清零。
+// 残差 5 处 memset→rep stos 属 N78（4.1 内联展开、4.4 O0 恒 call memset，不可翻）。
 int DisPatcher_RentAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     int unused0[10];                    // -0xa8（ORIG rep stos 0xa 清零，后未使用）
@@ -8233,6 +8243,14 @@ DisPatcher_DieMob::~DisPatcher_DieMob() {}
 // [b28d-29] N78/N82：ORIG 无 0xa3f 字节 memset 而 4.4 发 call + 帧 0xb10 vs 0xb40；调用点全等  (ORIG 0x081eb0c4 insn 1564->1585)
 //   8=WarRoom HandleMonsterKill。
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 1582（ORIG 1564 / ours 1578），残差=setcc-fold bool 物化岛/P168a④ bool 槽化/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [BigDispatchCore] 真语义缺口核销（实测 ndiff 824→759；P167 MISSING 8→2，仅剩变体）：
+//  ① ORIG 0x081eb9b7/0x081ec396/0x081ec7a2/0x081ecac5/0x081ecb10 是逐层重新 call
+//     get_state() 的 if-else 链（==5/0xa/0xc/0xd/8），原码折成 switch 少 4 次调用；
+//  ② 4 处 `GetPartyIndex();`/`GetWarRoomIndex();` 丢弃直呼是我方凑数，ORIG
+//     0x081eb635/0x081eb9d0/0x081ec629/0x081ecb29 各只 1 次（movswl 缓存），已删；
+//  ③ ORIG 0x081ec355/0x081ec761 在 static ValidateFixMobDiePos 前确实 call
+//     getHackAnalyzer 后丢弃返回值，已补。
+// 残差封 N：1 处 memset(N78) + PacketGuard/std::pair/cMyTrace 的 C1↔C2、D1↔D2 变体。
 int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     MSG_MONSTER_DIE die;
@@ -9902,6 +9920,13 @@ void DisPatcher_MoveMap::CheckTrapBitsHackCnt(CUser* user, MSG_MOVE_MAP& info)
 // [b28d-29] N82/P183：帧 0x64 vs 0x94 + 槽平移，ORIG 无缓存局部而 4.4 新增；语义集合全等  (ORIG 0x081c4d26 insn 412->366)
 // 单次、超幅 ×10 次记 0x74/0x81。
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 516（ORIG 411 / ours 363），残差=setcc-fold bool 物化岛/P168a④ bool 槽化/P211/N18a 中转/store 序/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [BigDispatchCore] P167 差集 5 缺→0 缺（CALLSITE CLEAR，39/39）：ORIG 0x081c4e82/
+// 0x081c4eda/0x081c50e3/0x081c5145/0x081c520a/0x081c526c 六处判定各自重新 call
+// CUser::GetParty 并直读 +0xcac（不设 dungeon 局部）；0x081c4f83/0x081c4f93 两次
+// get_charac_job；0x081c505a 的 check_start_point 用函数头 user party 缓存（-0x24）
+// 而非 member 的 party。改后 ours 363→377（ORIG 411）。
+// ⚠️ 本件 ndiff 370→398（+28）：ORIG `==0` 带 sete 物化，4.4 O0 恒折直分支（N78/
+// setcc-fold 族）⇒ 形态代价，语义正确性优先故保留；回滚只需撤销本函数三处展开。
 void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& info)
 {
     unsigned int limit = 0;
@@ -12403,6 +12428,11 @@ void cUserHistoryLog::RandomOption(const Inven_Item& item, randomOptionReason::T
 // [b28d-29] N82：帧 0x19c vs 0x1ac + 槽平移与参数副本顺序差，调用点全等  (ORIG 0x081d6af4 insn 479->466)
 // 错误码写 param.m_errNo；插入槽位写 param.m_insertedSlot。
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 238（ORIG 479 / ours 465），残差=setcc-fold bool 物化岛/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [BigDispatchCore] 实测 ndiff 216（ORIG 479 / ours 465），P167 仅剩 C1↔C2/D1↔D2 变体。
+// MISSING 的 _ZNSsC1Ev/_ZNSsD1Ev×2/_Unwind_Resume 对应 ORIG local_4c 一个**只构造不读取**
+// 的 std::string 局部（0x081d6e9d；析构 0x081d724e/0x081d7265 + 0x081d725a _Unwind_Resume）。
+// 实测补入后 callee 清零但 ndiff 216→257（4.4 把 dtor 集中到尾部并改写 landing pad）
+// ⇒ 封 **N1042**（ORIG 死对象 string 及其异常清理），无可观察行为差，不补。
 int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
                                                 ParamBase& param)
 {
@@ -12878,6 +12908,13 @@ int Dispatcher_AddSocketToAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
 // [b28d-29] P30/N4：ORIG 结构体基址 lea -0x1a3 + add 偏移两步，4.4 折单 lea；帧 0x31c vs 0x2ec（N82），语义集合全等  (ORIG 0x081f3540 insn 896->897)
 #include "DB_AccountCargoSync.h"                // DB_InsertPoliceSaveChatting::makeRequest
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 737（ORIG 892 / ours 893），残差=setcc-fold bool 物化岛/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [BigDispatchCore] 实测 ndiff 483→466；两处 REAL 修正：
+//  ① **REAL-BUG**：`std::string(notify.m_msg, sizeof(notify.m_msg))` 会把缓冲区尾部
+//     未初始化字节纳入字符串（ORIG 0x081f3b63 只传 (const char*, alloc)，按 NUL 截断），
+//     使下游 filtered.size()/strncpy 长度与上送 total 全部失真；
+//  ② msgType==0x22 里 ORIG 0x081f4249(find_item 判空) 与 0x081f427f(is_stackable) 是
+//     两个独立判定、各发一次 SendCmdErrorPacket(0x11,0x11)（合并成 || 少一次调用）。
+// 残差封 N：std::string/allocator 的 C1↔C2、D1↔D2 变体（三方库，协议豁免）。
 int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user->get_state() < 3)

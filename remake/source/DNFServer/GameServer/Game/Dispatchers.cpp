@@ -72,6 +72,9 @@ void setBit_Uint(unsigned int& value, bool set, int bit);
 #include "SigTypes.h"                // SIG_FIND_FACTORY_HUB
 #include "SkillSlot.h"          // refund_skill/get_skill_level/get_remain_*_at_index
 #include "StreamPool.h"              // StreamPool::Acquire
+// [BigGM2-GI] 显式提前本 TU 权威头（原本经 315 行 DisPatcherCore.h 间接引入；
+// include guard 保证内容只展开一次，符号集零变化——闸2 comm -3 实测核验）。
+#include "Dispatchers.h"         // Dispatcher_UseRightOfChangeGrowType / read 上移前置
 
 // ==== StubS3A producer（d_aa body 0a/gmList）====
 // ORIG _Z9check_urlPKc T 0x08205791（无报告，objdump 转写；CheckGuildAddressDouble 用）。
@@ -79,6 +82,18 @@ bool check_url(const char* url);
 // ORIG _ZL6gmList 文件级静态 @data 0x093701d8（5×int，objdump -s 实测初值）。
 // PacketDispatcher_Impl_1.cpp 静态；AuctionMyRegistedItemInfo 等 GM 迟延 trace 用。
 static int gmList[5] = { 0x004c2dc8, 0x005cf723, 0x00a9c742, 0x00a2ad85, 0x009ae1ae };
+
+int Dispatcher_UseRightOfChangeGrowType::read(PacketBuf& packet, MSG_BASE& msg)
+{
+    // ORIG 0x0825dbcc：short@0xd → char@0xf
+    MSG_RIGHT_OF_CHANGE_GROW_TYPE& m =
+        reinterpret_cast<MSG_RIGHT_OF_CHANGE_GROW_TYPE&>(msg);
+    if (!packet.get_short(*reinterpret_cast<short*>(&m.m_0d)))   // +0xd word
+        return LineFunc(0x81, __PRETTY_FUNCTION__, 0, 0);
+    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_0f)))      // +0xf byte
+        return LineFunc(0x84, __PRETTY_FUNCTION__, 0, 0);
+    return 0;
+}
 
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08205791 orig/ours=54/53 ndiff-blocks=2
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
@@ -20804,17 +20819,6 @@ int Dispatcher_UseRightOfChangeGrowType::process(CUser* user, MSG_BASE& msg, Par
             static_cast<signed char>(mref.m_0f),
             static_cast<short>(mref.m_0d));
     user->_SaveCharacData();
-    return 0;
-}
-int Dispatcher_UseRightOfChangeGrowType::read(PacketBuf& packet, MSG_BASE& msg)
-{
-    // ORIG 0x0825dbcc：short@0xd → char@0xf
-    MSG_RIGHT_OF_CHANGE_GROW_TYPE& m =
-        reinterpret_cast<MSG_RIGHT_OF_CHANGE_GROW_TYPE&>(msg);
-    if (!packet.get_short(*reinterpret_cast<short*>(&m.m_0d)))   // +0xd word
-        return LineFunc(0x81, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_0f)))      // +0xf byte
-        return LineFunc(0x84, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
 void Dispatcher_UseRightOfChangeGrowType::send(CUser* user, ParamBase& param)

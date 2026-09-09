@@ -3034,11 +3034,10 @@ bool ExportMapScript(STMapScript* script, const char* path)
     getScriptFileFullPath(szSaveFileName, 0x100,
                           g_szMapScriptBaseDirectory, path);
     FILE* file = fopen(szSaveFileName, "wb");
-    unsigned int tileIdx;                              // ORIG -0x8c（file -0x94 之后、
-                                                       //   比 practice any -0x8d 更浅）：
-                                                       //   tile/exttile 两段共用循环变量
     if (!file)
         return false;
+    bool chL, chR, chT, chB;                           // ORIG -0x88..-0x85（screen edge）
+    unsigned int tileIdx;                              // ORIG -0x8c：tile/exttile 共用
 
     STMapScript defaults;                       // auStack_48c：缺省值对照
 
@@ -3501,12 +3500,10 @@ bool ExportMapScript(STMapScript* script, const char* path)
         fwrite("[/static player start pos]\n", 1, 27, file);
     }
     {                                           // screen edge（对照 defaults）
-        // ORIG 槽序：chL..chB(-0x88..-0x85) 比 tileIdx(-0x8c) 更浅 ⇒ 本组声明
-        // 晚于一切前序块变量（源位置即此处，声明+赋值合一）。
-        bool chL = script->m_screenEdgeLeft != defaults.m_screenEdgeLeft;
-        bool chR = script->m_screenEdgeRight != defaults.m_screenEdgeRight;
-        bool chT = script->m_screenEdgeTop != defaults.m_screenEdgeTop;
-        bool chB = script->m_screenEdgeBottom != defaults.m_screenEdgeBottom;
+        chL = script->m_screenEdgeLeft != defaults.m_screenEdgeLeft;
+        chR = script->m_screenEdgeRight != defaults.m_screenEdgeRight;
+        chT = script->m_screenEdgeTop != defaults.m_screenEdgeTop;
+        chB = script->m_screenEdgeBottom != defaults.m_screenEdgeBottom;
         if (chL || chR || chT || chB)
         {
             fwrite("[customized screen edge]\n", 1, 25, file);

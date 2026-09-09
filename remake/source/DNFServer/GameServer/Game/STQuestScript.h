@@ -83,7 +83,10 @@ extern char g_questScriptBaseDirectory[0x100];
 // 返回类型 bool：ORIG 定义尾 @0x8a616e9 xor $1,%eax;test %al（P22 bool 形，
 // mangled 不含返回类型；消费点仅 CDataManager.cpp:2856 判零、GameWorld.cpp:184 语句调用）。
 bool initQuestScript(const char* dir, const char* list);
-int importTrainingQuestScript(TrainingQuestScript* script, const char* path);
+// [P330 int→bool] init 调用点 ORIG `call 8aaf554; xor $0x1,%eax; test %al`
+// （idx 1643，报告 init.md）——probe1 实证 caller 只对 bool 值域类型发 xor。
+// Main 放行注：仅返回类型成对改动，不动 [schedule]/exception-quest 块与定义顺序。
+bool importTrainingQuestScript(TrainingQuestScript* script, const char* path);
 bool initTownScript(char* dir, char* list);   // 同上，ORIG @0x8aad9ec 族尾形
 bool importTownScript(TownScript* script, const char* path);
 int importQuestScript(QuestScript* script, const char* path);

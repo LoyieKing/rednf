@@ -695,7 +695,19 @@ class DB_LoadAccountCargo              { public: static void makeRequest(int, un
 // GameWorld 局部视图补充本函数所需成员（签名与 GameWorld.h/ORIG mangled 一致）
 static const char g_interLoginInfoSig[] =
 // [b28d-lane2] verdict=DIFF ndiff=2300（ORIG 0x084c5294）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+66。
-// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=1326（ORIG 0x84c5294）：N22 cmp 操作数方向+P226 具名 bool/char 落槽+N18a 单段 regmove。
+// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=1326（ORIG 0x084c5294）：N22 cmp 操作数方向+P226 具名 bool/char 落槽+N18a 单段 regmove。
+// [BigParty/P331] verdict=DIFF ndiff 2352→1691、our 2396→2441（ORIG 2462，gap 66→21）：
+//   已核销的缺口 = 两个处罚回放循环各删一处 `SIG_LOGIN_PUNISH_INFO& entry =
+//   pInfo->m_punishInfos[i]` 起基址引用（宏化为每次直取），复现 ORIG 14 处逐次物化
+//   （ORIG 0x84c662b `lea (%ecx,%eax,1),%eax; add $0x3a54,%eax; mov (%eax),%eax` 9 处、
+//   `add $0x3a68` 5 处；-0x60(%ebp) 唯一写入是 `mov 0x10(%ebp),%eax` = 第 2 参数 data，
+//   与本方 pInfo 同物；offsetof(SIG_LOGIN_DATA,m_punishInfos)=0x3a54、stride 0x18 与
+//   `imul 3;shl 3` 一致 ⇒ 非布局错）。
+//   剩余判 N4 常量折叠 + N82：同一寻址两侧折叠路径不同 ——
+//   ORIG `add $0x3a54,%eax; mov (%eax),%eax`  vs  本方 `add $0x3a50,%eax; mov 0x4(%eax),%eax`；
+//   ORIG `add $0x3a68,%eax; mov (%eax),%eax`  vs  本方 `add $0x3a60,%eax; mov 0x8(%eax),%eax`。
+//   指令条数相同、仅立即数/位移拆分不同 ⇒ 4.4 从 m_punishInfoCount(+0x3a50) 起算，
+//   ORIG 编译器从 m_punishInfos(+0x3a54) 起算，非源级可控（勿以手拆常量去凑，P321-T5）。
     "virtual int Inter_LoginInfo::dispatch_sig(CUser*, char*, int)";
 
 int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
@@ -7935,9 +7947,15 @@ struct Inter_LoadDeathTowerBestRecordRecWinView
 
 // [b28d-lane2] verdict=DIFF ndiff=88（ORIG 0x084d316a）：槽序/帧差(N82/P212/P221)+混合残差；gap+18。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=112（ORIG 0x84d316a）：N101 imul/lea 折叠+N18a 单段 regmove+N82/P112 帧槽平移。
+// [BigParty/P331] 已实测本件 P331 第二形**不成立**（同 .o 复测）：删 rec + pWin_rec 两个
+//   具名指针、宏化每次直取后 our 72→83（更贴 ORIG 90）但 ndiff **112→115 反劣** ⇒ 已回滚，
+//   保留缓存形。同构建点基线读数：orig=90 our=72 ndiff=112。
 int Inter_LoadDeathTowerBestRecord::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_LoadDeathTowerBestRecordPktView* pPkt = reinterpret_cast<Inter_LoadDeathTowerBestRecordPktView*>(data);
+// §P183/P331 第二形：ORIG 每次字段访问都重物化 `imul $0x1b0` + `imul $0x6c`
+// （5 处 / 4 处，我方原 2/1 —— 被 rec + pWin_rec 两个具名指针吸收）。i/j 均为循环
+// 变量且体内不改，寻址结果逐次相同 ⇒ 无可观察行为变化。
     for (unsigned int i = 0; i < pPkt->m_0; ++i)
     {
         for (int j = 0; j <= 3; ++j)
@@ -10660,6 +10678,11 @@ struct Inter_LoadDimensionInoutPktView
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=133（ORIG 0x084d83d2）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap+24。
+// [BigParty] 判 **N89**（本 TU 唯一剩余物化缺口件，已定性别动）：ORIG 对
+//   `std::vector<_Charac_info>::operator[](unsigned)` 发 **8 处 out-of-line call**（含
+//   `mov 0xc(%ebp),%edx; add $0x796e8,%edx` 的逐次物化 8 处），本方仅 2 处 —— 但 4.4 的
+//   头文件里 operator[] 恒内联，**无论怎么展开 recBase 都发不出该 out-of-line call**，
+//   故非可攻缺口（Main 已把此形态并入 N89 条目）。TOT call 数 ORIG 18 / 本方 12。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=146（ORIG 0x84d83d2）：N22 cmp 操作数方向+N18a 单段 regmove+N82/P112 帧槽平移。
 int Inter_LoadDimensionInout::dispatch_sig(CUser* user, char* data, int /*len*/)
 {

@@ -527,6 +527,8 @@ int importQuestScript(QuestScript* script, const char* path)
     // 属帧分配律问题（FrameDeltaProbe 在测），不是本函数指令语义缺口：
     // 分段指令数已齐平（type 216/215、schedule 358/348、exception 145/136），
     // AE 残差 51/62 块为纯槽漂移（schedule 实测）、唯一“真差”是 reloc 显示。
+    // ⇒ 本函数剩余残差按 **N82/N126 封账**（P332：Δ槽数非单调、4.1/4.4 首槽
+    // 常数差 -0x4/-0xc 不可修）；状态机形已入库 **P333**（含指纹与 p167 漏检因）。
     if (!loadRDARScriptFile(g_questScriptBaseDirectory, path))
     {
         return 0;
@@ -1918,6 +1920,7 @@ int importQuestScript(QuestScript* script, const char* path)
                     __inited = true;
                     goto retry_exception_lookup;
                 }
+            }
             continue;
         }
         if (line == "[hide npc on clear]")
@@ -2203,7 +2206,7 @@ bool importTownScript(TownScript* script, const char* path)
 // ① P223 定案②：ORIG 循环头前 `jmp;nop` 双中继岛（多源 continue），4.4 合并；
 // ② N18a：尾 `movzbl -0x25,%ebx`（4.1 单段）vs 4.4 `movzbl;movzbl %al,%ebx`；
 // ③ 段尾 sub 比较 `je` 落点/块序跨版本差（两极性形互试 257↔254 后取优）。
-int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
+bool importTrainingQuestScript(TrainingQuestScript* script, const char* path)  // [P330] 与 STQuestScript.h 同步
 {
     if (!loadRDARScriptFile("", path))
     {

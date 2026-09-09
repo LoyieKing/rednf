@@ -3570,7 +3570,13 @@ bool CDataManager::init()
         cMyTrace("bool CDataManager::init()", 0x204a, 9, false, true)("Success");
         cMyTrace("bool CDataManager::init()", 0x204e, 9, true, false)(
             "\t- Init Channel Script ");
-        if (!importChannelScript(&m_channelScript))
+        // [P330 bit0] ORIG 调用点（报告 idx 3963-3966）：`call 88dc008
+        // <importChannelScript>; xor $0x1,%eax; test %al,%al; je` —— xor 直接
+        // 作用在**返回值 eax** 上 ⇒ 判定只看 bit0。callee 是尾调透传
+        // `_Z18applyChannelScriptP16channel_script_t`（ORIG 体内 ebx ∈ {0,1,2}，
+        // 报告 0x088dc069 族），错误码 2 在 ORIG 被 bit0 判成「成功」（bug-compatible
+        // 保留）。Main 裁定：.h 维持 int 原型（禁双声明），调用点显式 &1 等价改写。
+        if ((importChannelScript(&m_channelScript) & 1) == 0)
         {
             cMyTrace("bool CDataManager::init()", 0x2058, 9, true, true)(
                 "\t- Init Channel Script Fail");
@@ -3584,7 +3590,14 @@ bool CDataManager::init()
         m_itemUpgrade = new WongWork::CItemUpgrade;
         cMyTrace("bool CDataManager::init()", 0x205e, 9, true, false)(
             "\t- Init Item Upgrade Info ");
-        if (!m_itemUpgrade->LoadUpgradeScript("Etc/Upgrade.etc"))
+        // [P330 bit0·③] ORIG idx 4023-4035：`mov 0x20(this),%eax; (%eax)+0x04
+        // 取虚槽1; call *%edx; xor $0x1,%eax; test %al` —— 判定只看返回 bit0。
+        // 虚槽目标 ORIG T 0x0854919a（CItemUpgrade）/0x0811eca8（Separate），
+        // 两者均 `call loadUpgradeScript/import 尾透传; leave; ret`（callee 侧
+        // CItemUpgrade_Separate.h:136 注「透传亦无 movzbl」= int 原型保持）。
+        // check_vtables --filter ItemUpgrade：matched=4 clean=4（逐槽两侧一致）。
+        // Main 裁定路线：不改虚表原型，调用点 &1 等价改写。
+        if ((m_itemUpgrade->LoadUpgradeScript("Etc/Upgrade.etc") & 1) == 0)
         {
             cMyTrace("bool CDataManager::init()", 0x2061, 9, true, true)(
                 "\t- Init Item Upgrade Info Fail\n");
@@ -3592,7 +3605,7 @@ bool CDataManager::init()
         }
         cMyTrace("bool CDataManager::init()", 0x2064, 9, false, true)("Success");
         m_itemUpgradeSeparate = new WongWork::CItemUpgrade_Separate;
-        if (!m_itemUpgradeSeparate->LoadUpgradeScript("Etc/Upgrade_Separate.etc"))
+        if ((m_itemUpgradeSeparate->LoadUpgradeScript("Etc/Upgrade_Separate.etc") & 1) == 0)
         {
             cMyTrace("bool CDataManager::init()", 0x206a, 9, true, true)(
                 "\t- Item Upgrade Separate Fail");
