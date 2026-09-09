@@ -376,17 +376,23 @@ struct MonsterBaseParameter
     //  偏移、mangled 零变化（POD 拷贝仍 rep movsl 0x18 dwords）。
     union {
         int m_value[FIELD_COUNT];   // +0x00..+0x5c，按解析顺序填充（既有消费点）
-        struct { int m_value0; int m_values[FIELD_COUNT - 1]; };  // 列组视角（+0x04 起）
+        // [b29-SweepSTMonsterScript2] 二维列组视角（P311/S85）：m_grid[3][i]=value[13+i]
+        // （this+4+(12+i)*4）、m_grid[4][i]=value[17+i]（this+4+(16+i)*4）⇒ 复现 ORIG
+        // `mov i,%edx; add $0xc/$0x10,%edx; movl $0,0x4(%eax,%edx,4)` 两步寻址。
+        // sizeof 仍 0x60（4 + 5*4*4 + 3*4 = 96），全部偏移/mangled 零变化。
+        struct { int m_value0; int m_grid[5][4]; int m_value21, m_value22, m_value23; };
     };
 
     // ORIG clear W 0x08a3ce4a：v[0..12] 直写 + 双写循环 v[13+i]/v[17+i]
     // + v[21..23] 直写（分段与解析列组一致，实证 08a3ce4a）
-    // [b28d-solo-STMonsterScript N·P30] 权威 ORIG 0x08a3ce4a（nm -S 0xe1；旧注释 0x0834852e
-    // 系撞名报告 CCharacter::clear 地址，已更正）：两处 `mov i,%edx; mov this,%eax;
-    // add $0xc/$0x10,%edx; movl $0,0x4(%eax,%edx,4)`（base=param+4、idx=i+0xc/i+0x10）
-    // vs 4.4 `mov i,%eax; lea 0xd/0x11(%eax),%edx; movl $0,(%eax,%edx,4)`（base=param+0）。
-    // 二维具名视图可产 add（S85 实证）但行宽 12 的 [2][12] 从 +4 起会撑大 sizeof 4 字节
-    // （96→100）破坏 vector 步长/rep movsl 0x18 ⇒ 不可用；指针形/语句表达式更劣 ⇒ N 封顶。
+    // [b28d-solo-STMonsterScript N·P30 旧判词，b29-SweepSTMonsterScript2 已推翻]
+    // 权威 ORIG 0x08a3ce4a（nm -S 0xe1；旧注释 0x0834852e 系撞名报告 CCharacter::clear
+    // 地址，已更正）：两处 `mov i,%edx; mov this,%eax; add $0xc/$0x10,%edx;
+    // movl $0,0x4(%eax,%edx,4)`（base=param+4、idx=i+0xc/i+0x10）。
+    // 旧判词称「二维具名视图必撑大 sizeof（[2][12] 96→100）⇒ N 封顶」——**不成立**：
+    // 用 `m_grid[5][4]`（4 + 5*4*4 + 3*4 = 96 = 0x60，与 m_value[24] 等宽）即 P311/S85
+    // 两步寻址形，4.4 fresh 编译产出与 ORIG 逐条相同的 `add $0xc/$0x10,%edx`；
+    // clear 与 ImportMonsterBaseTable 两件同时 DIFF→AE（TU 四数 ae 1909→1911、diff 11→9）。
     void clear()
     {
         m_value[0] = 0;   m_value[1] = 0;   m_value[2] = 0;   m_value[3] = 0;
@@ -395,8 +401,8 @@ struct MonsterBaseParameter
         m_value[12] = 0;
         for (int i = 0; i <= 3; ++i)
         {
-            m_values[12 + i] = 0;   // ORIG disp=+0x04、idx=i+0xc
-            m_values[16 + i] = 0;   // ORIG disp=+0x04、idx=i+0x10
+            m_grid[3][i] = 0;   // ORIG disp=+0x04、idx=i+0xc（value[13+i]）
+            m_grid[4][i] = 0;   // ORIG disp=+0x04、idx=i+0x10（value[17+i]）
         }
         m_value[21] = 0;
         m_value[22] = 0;

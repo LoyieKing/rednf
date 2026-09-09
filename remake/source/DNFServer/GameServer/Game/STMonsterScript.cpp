@@ -8,6 +8,12 @@
 //   ImportMonsterScript T 0x08a12827 / exportMonsterScript T 0x08a22520
 // [b28d-23 N·N90] STMonsterScript::operator= W 0x08377994 为编译器隐式拷贝
 // （1200/1272，ORIG 大 dword 成员分块启发式跨版本差）⇒ N。
+// [b29-SweepSTMonsterScript2] ①ImportMonsterScript 五处 sound 字段补
+//   `if (!ScanStr(&token)) return 0;` + `script->m_xxx = token`（ORIG 0x8a13b44..
+//   0x8a13dee 五处 `_ZNSsaSERKSs` 目标 +0x6ac/+0x6a8/+0x6a4/+0x69c/+0x6a0）⇒
+//   p167 该符号差集 -5→0、OUR calls 1700→1705；②MonsterBaseParameter::clear 与
+//   ImportMonsterBaseTable 改二维 m_grid 视图 ⇒ 双件 DIFF→AE（旧 N·P30 判词作废）。
+// 四数（check_tu_routed fresh）：803/1909/2/11/508 → 803/1911/2/9/508（零回退）。
 //   （两者 >30KB 汇编：骨架+标签分派级复原，覆盖面见各函数注记）
 // ============================================================================
 
@@ -371,6 +377,9 @@ int getRandomChampionElement(const STMonsterScript* script, int seed)
 // （P164 尾部共享块落点，消 OURS 多出的 `mov $1; jmp`）；②`row > size()` 保持无符号比较
 // （ORIG `seta`，原 static_cast<int> 产有符号 `setl`）；③else 分支内 resize 后共享
 // `vec[row] = param`（P276 共享调用点，消重复 rep movsl 段）。ORIG 0x08a3c736
+// [b29-SweepSTMonsterScript2] 两处列组循环由一维 `m_values[i+12]/[i+16]` 改二维
+// `m_grid[3][i]/m_grid[4][i]`（P311/S85）⇒ 复现 ORIG 0x8a3c8a8/0x8a3c8d9 的
+// `mov i,%edx; mov this,%eax; add $0xc/$0x10,%edx; mov %eax,-0xe8(%ebp,%edx,4)`，本件 DIFF→AE。
 bool ImportMonsterBaseTable(STMonsterScript* script, const char* path)
 {
     if (!loadRDARScriptFile(g_szMonsterScriptBaseDirectory, path))
@@ -400,9 +409,9 @@ bool ImportMonsterBaseTable(STMonsterScript* script, const char* path)
         param.m_value[11] = ScanInt(static_cast<bool*>(0));        // -0xc0
         param.m_value[12] = ScanInt(static_cast<bool*>(0));        // -0xbc
         for (int i = 0; i <= 3; ++i)           // +0x160 disp=+4、idx=i+0xc（m_value[13+i]）
-            param.m_values[i + 12] = ScanInt(static_cast<bool*>(0));
+            param.m_grid[3][i] = ScanInt(static_cast<bool*>(0));
         for (int i = 0; i <= 3; ++i)           // +0x191 disp=+4、idx=i+0x10（m_value[17+i]）
-            param.m_values[i + 16] = ScanInt(static_cast<bool*>(0));
+            param.m_grid[4][i] = ScanInt(static_cast<bool*>(0));
         param.m_value[21] = ScanInt(static_cast<bool*>(0));        // -0x98（param+0x54）
         param.m_value[22] = ScanInt(static_cast<bool*>(0));        // -0x94
         param.m_value[23] = ScanInt(static_cast<bool*>(0));        // -0x90
@@ -751,7 +760,12 @@ case 0xa3c:  // "[ambient sound]"
         }
         else
         {
-            ScanStr(&script->m_ambientSound);  // +0x6ac（C operator= @LAB_08a13ae7）
+            // [b29-SweepSTMonsterScript2] ORIG 0x8a13b44..0x8a13b7e：`ScanStr(&token)`
+            // 失败即 `mov $0,%ebx; jmp 0xfabf`（return false），成功才
+            // `script->m_ambientSound = token`（`_ZNSsaSERKSs` @0x8a13b79，目标 +0x6ac）。
+            if (!ScanStr(&token))
+                return 0;
+            script->m_ambientSound = token;  // +0x6ac
             break;
         }
 
@@ -763,7 +777,10 @@ case 0xa41:  // "[attack sound]"
         }
         else
         {
-            ScanStr(&script->m_attackSound);  // +0x6a8（C @LAB_08a13b83）
+            // ORIG 0x8a13be0..0x8a13c1a：同上（目标 +0x6a8，operator= @0x8a13c15）。
+            if (!ScanStr(&token))
+                return 0;
+            script->m_attackSound = token;  // +0x6a8
             break;
         }
 
@@ -775,7 +792,10 @@ case 0xa46:  // "[appear sound]"
         }
         else
         {
-            ScanStr(&script->m_appearSound);  // +0x6a4（C @LAB_08a13c1f）
+            // ORIG 0x8a13c7c..0x8a13cb6：同上（目标 +0x6a4，operator= @0x8a13cb1）。
+            if (!ScanStr(&token))
+                return 0;
+            script->m_appearSound = token;  // +0x6a4
             break;
         }
 
@@ -787,7 +807,10 @@ case 0xa4b:  // "[damage sound]"
         }
         else
         {
-            ScanStr(&script->m_damageSound);  // +0x69c
+            // ORIG 0x8a13d18..0x8a13d52：同上（目标 +0x69c，operator= @0x8a13d4d）。
+            if (!ScanStr(&token))
+                return 0;
+            script->m_damageSound = token;  // +0x69c
             break;
         }
 
@@ -799,7 +822,10 @@ case 0xa50:  // "[die sound]"
         }
         else
         {
-            ScanStr(&script->m_dieSound);  // +0x6a0
+            // ORIG 0x8a13db4..0x8a13dee：同上（目标 +0x6a0，operator= @0x8a13de9）。
+            if (!ScanStr(&token))
+                return 0;
+            script->m_dieSound = token;  // +0x6a0
             break;
         }
 
