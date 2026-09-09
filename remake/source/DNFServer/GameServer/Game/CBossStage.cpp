@@ -304,11 +304,10 @@ bool CBossStage::handleDropItem(CUser* user, int a, int b, char c, int d, int e)
         return 0;
     }
 
-    // [b28d-solo] ORIG 0x0814ff5f..ff6e 复用刚载入 %eax 算 +1（不重载槽）；
-    //   4.4 恒重载槽（register 提示实测全帧位移 68 条劣化，P248 四条件不满足）⇒
-    //   残差 1 条按 N18a（单段 regmove/复用不可造）封顶。
-    int seq = m_stageData.m_dropItemCnt;   // ORIG +0xa34（物品序号）
-    m_stageData.m_dropItemCnt = seq + 1;
+    // [b28d-62 翻案] ORIG 0x0814ff5f..ff6e `mov 0xa34(%eax),%eax; mov %eax,[S];
+    //   lea 0x1(%eax),%edx; mov %edx,0xa34(%eax)` = 后置 ++ 惯用形（拆两句
+    //   多 1 条槽回读）⇒ 旧 N18a 封顶判词作废。
+    int seq = m_stageData.m_dropItemCnt++;   // ORIG +0xa34（物品序号）
     if (seq == -1)
     {
         packet.put_header(1, 0x32);
@@ -1003,23 +1002,27 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
         if (script == 0)
             return false;
 
+        // ORIG 0x0814e212 跳表前为 `mov [S],%eax; cmp $0x5,%eax`；4.4 对
+        //   signed/unsigned 局部恒折 cmpl 内存直比 + shl 索引（P209/N94 实测
+        //   unsigned 化无效）⇒ 保留 int。
         int attachType = script->GetAttachType();
         // [b28d-solo] ORIG 0x0814e212 跳表（0x8b7511c：case1/2/5→814e21b 返 false；
         //   case3→814e225 查 tmp+0 字节；case0/4/default→814e23a 主流程）⇒ switch。
         switch (attachType)
         {
+        case 0:
+            break;
         case 1:
         case 2:
-        case 5:
             return false;
         case 3:
             if (!tmp.m_field0)
                 return false;
             break;
-        case 0:
-            break;
         case 4:
             break;
+        case 5:
+            return false;
         default:
             break;
         }
@@ -1120,6 +1123,11 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
 //   rateSlot→field34、hasTowerItemDrop 调用点 2 条形（CDungeon.h bool，已 R2 广播）
 //   后 327→224；残差=槽/帧分区（ORIG 帧 0x21c vs 0x20c）+ map_monster 构造次数
 //   （ORIG 复用 -0xf50 单对象）+N7。p167 CLEAR。
+// [b28d-62 本轮] 修 5 处真缺口：m_item 赋值先于 m_itemIndex、m_dropItemCnt 后置++
+//   （0x0814d95b 复用 eax）、Add_Item 先于 push_back、countIdx/itemCount 预清 0
+//   （P198①）、put_byte(itemCount) 非立即数、isAvatarItemType 两处正极性、
+//   period/pEquip 具名局部（0x0814db51/db58）⇒ 527/527 slotnorm 0 块，DIFF→NEAR；
+//   残差仅槽号分区（N82/N126）。
 bool CBossStage::killMonsterDropItem(const map_monster& mob, int eraseCnt,
                                      unsigned short a, unsigned short b)
 {
@@ -1180,33 +1188,40 @@ bool CBossStage::killMonsterDropItem(const map_monster& mob, int eraseCnt,
         mi.m_dropIndex = b;
         mi.m_createTick =
             (int)GlobalData::s_systemTime_.getCurSec();
-        mi.m_itemIndex = m_stageData.m_dropItemCnt;
-        m_stageData.m_dropItemCnt += 1;
         mi.m_item = *it;                   // ORIG 结构赋值（无 memcpy call）
-        newItems.push_back(mi);
+        // ORIG 0x0814d94c：m_item 赋值后才取 m_itemIndex/自增；
+        // 0x0814d995 Add_Item 先于 0x0814d9aa list::push_back。
+        // ORIG 0x0814d94c..d961：`mov 0xa34(%eax),%eax; mov %eax,[S];
+        // lea 0x1(%eax),%edx; mov %edx,0xa34(%eax)` = 后置 ++ 惯用形
+        // （拆两句会多 1 条槽回读 / 复合 += 多 2 条重读）。
+        mi.m_itemIndex = m_stageData.m_dropItemCnt++;
         m_stageData.Add_Item(mi);
+        newItems.push_back(mi);
     }
 
+    // ORIG 0x0814d9d4/d9db：countIdx/itemCount 在 PacketGuard 构造前预清 0
+    // （P198① 两句式），0x0814da29 再回填 get_index()。
+    int countIdx = 0;
+    int itemCount = 0;
     PacketGuard packet;
     packet.put_header(0, 0x26);
     packet.put_short((int)a);
-    int countIdx = packet.get_index();     // 物品计数回填位置
-    int itemCount = 0;
-    packet.put_byte(0);
+    countIdx = packet.get_index();         // 物品计数回填位置
+    packet.put_byte(itemCount);            // ORIG 从 -0x34 读，非立即数 0
+    // ORIG 0x0814da3e..da87：begin→it→end→endIt 构造，之后才 emblem.init()
+    // （0x0814da95）；end() 仅循环外求值一次（P13）。
+    std::list<map_item>::const_iterator it = newItems.begin();
+    std::list<map_item>::const_iterator endIt = newItems.end();
     stAvatarEmblemInfo_t emblem;
     emblem.init();
-    for (std::list<map_item>::const_iterator it = newItems.begin();
-         it != newItems.end(); ++it)
+    for (; it != endIt; ++it)
     {
         const map_item& item = *it;
         packet.put_short(item.m_itemIndex);              // +0x04
         packet.put_int(item.m_item.m_addInfo);           // +0x12 dword
         packet.put_byte((int)item.m_item.GetItemAttr() & 0xff);
-        if (!item.m_item.isAvatarItemType())
-        {
-            packet.put_int(item.m_item.get_add_info());
-        }
-        else
+        // ORIG 0x0814db05 `test %al; je <get_add_info 块>`：正极性分支序
+        if (item.m_item.isAvatarItemType())
         {
             CEquipItem* equip = (CEquipItem*)G_CDataManager()->find_item(
                 item.m_item.m_addInfo);
@@ -1216,26 +1231,35 @@ bool CBossStage::killMonsterDropItem(const map_monster& mob, int eraseCnt,
             }
             else
             {
-                int period = equip->getAvatarPeriod(
+                // ORIG 0x0814db51/db58：period 预清 0 + 具名指针局部
+                // （-0x20/-0x1c 双槽），getAvatarSocket 用该局部。
+                int period = 0;
+                CEquipItem* pEquip = equip;
+                period = pEquip->getAvatarPeriod(
                     (unsigned char)item.m_item.m_fieldb);
                 packet.put_int(period * 0x15180);
                 emblem.init();
-                equip->getAvatarSocket((int)item.m_item.m_fieldb, emblem);
+                pEquip->getAvatarSocket((int)item.m_item.m_fieldb, emblem);
             }
+        }
+        else
+        {
+            packet.put_int(item.m_item.get_add_info());
         }
         packet.put_short((int)item.m_item.m_fieldb);     // word @+0x1b
         packet.put_byte((int)item.m_item.m_amp.getAbilityType() & 0xff);
         packet.put_short((int)item.m_item.m_amp.getAbilityValue() & 0xffff);
         packet.put_packet(item.m_item);
-        if (!item.m_item.isAvatarItemType())
-        {
-            packet.put_byte(0);
-        }
-        else
+        // ORIG 0x0814dc5e `test %al; je <put_byte(0)>`：正极性
+        if (item.m_item.isAvatarItemType())
         {
             packet.put_byte(1);
             packet.put_int(0x1e);
             packet.put_binary(reinterpret_cast<const char*>(&emblem), 0x1e);
+        }
+        else
+        {
+            packet.put_byte(0);
         }
         packet.put_short((int)item.m_dropIndex);         // word @+0x08
         ++itemCount;
@@ -1266,6 +1290,12 @@ bool CBossStage::killMonsterDropItem(const map_monster& mob, int eraseCnt,
 //   + memcpy→结构赋值（N84）；残差=_mapItem C1Ev 发射点（4.4 list move 赋值 vs
 //   ORIG 元素默认构造，N86 族）+map_monster C1/D1 计数+槽/帧分区（0xfbc vs 0xf9c）。
 //   927 条超大函数，语义完成（调用点差集仅剩 1 项结构性）。
+// [b28d-62 本轮] 修 3 处真缺口：map_monster 提升到三循环外（ORIG 仅一枚
+//   -0xf50 对象，P0 槽证据；帧 0x161c→0xfbc 对齐、-29 条）、第二段 AP 循环
+//   改底部条件 while（ORIG 0x0814c240 `jmp cond`，P283）、等级夹取拆嵌套
+//   if（ORIG 0x0814c704 双判）、refGen1/refGen4 构造提前到 objectDropItems/
+//   item_list 之前 ⇒ 929/920（gap +9，其中 6 条为 list 拷贝构造的 4.4 move
+//   折叠，N 类）⇒ 本件无我方缺失的语义段；p167 CLEAR。
 bool CBossStage::consistMap(const CMap* map)
 {
     m_stageData.m_mapIndex = map->get_index();
@@ -1277,6 +1307,9 @@ bool CBossStage::consistMap(const CMap* map)
     std::map<int, int> apStat;
     apStat = G_CDataManager()->m_aiCharacterList->getAPCount();
     int counter = 0;
+    // ORIG 0x0814bf55 后构造 map_monster（-0xf50）一次，三个布怪循环
+    // 各自 memset 后复用（P0 槽证据：ORIG 仅一枚 0x34c 对象）。
+    map_monster mob;
 
     // ---- 第一段：图上 AI 布点（STAICharacterMapArrangeData 向量）----
     const std::vector<STAICharacterMapArrangeData>* arranges =
@@ -1306,7 +1339,6 @@ bool CBossStage::consistMap(const CMap* map)
                     st->second = std::max(st->second - 1, 0);
             }
 
-            map_monster mob;
             memset(&mob, 0, sizeof(mob));
             mob.m_mobId = counter;                            // +0x00 序号
             mob.m_mobIndex = (int)aiType;                     // +0x0c
@@ -1326,10 +1358,10 @@ bool CBossStage::consistMap(const CMap* map)
     if (remainAP != 0)
     {
         counter = 0x40;
-        while (true)
+        // ORIG 0x0814c240 `jmp 0814c5e5`：条件在循环尾（4.1 while 布局）；
+        //   while(true)+头部 break 会被 4.4 条件置顶（P283）。
+        while (remainAP >= G_CDataManager()->m_aiCharacterList->getMinAP())
         {
-            if (remainAP < G_CDataManager()->m_aiCharacterList->getMinAP())
-                break;
             CAICharacter* ai = G_CDataManager()->m_aiCharacterList->getByAP(
                 (unsigned int)(get_rand_int(remainAP) + 1));
             if (ai == 0)
@@ -1362,7 +1394,6 @@ bool CBossStage::consistMap(const CMap* map)
                     st->second = std::max(st->second - 1, 0);
                 remainAP -= ai->getAppearancePoint();
 
-                map_monster mob;
                 memset(&mob, 0, sizeof(mob));
                 mob.m_mobId = counter;
                 mob.m_mobIndex = ai->getIdx();
@@ -1392,7 +1423,6 @@ bool CBossStage::consistMap(const CMap* map)
          it != mobs.end(); ++it)
     {
         const _mapMonster& em = *it;
-        map_monster mob;
         memset(&mob, 0, sizeof(mob));
         mob.m_mobId = counter;
 
@@ -1405,7 +1435,10 @@ bool CBossStage::consistMap(const CMap* map)
         {
             lv = (unsigned char)(m_dungeon->get_standard_level() +
                  (int)(signed char)em.m_field08);
-            if (lv == 0)
+            // ORIG 0x0814c704..c72d 双判 `cmp $0x62; ja` + `test; jle`（Ghidra
+            //   `(lv < 99) && (lv == 0)`）；4.4 前端逻辑折叠成单判 `lv == 0`
+            //   （&&/嵌套 if 两形实测同码）⇒ 6 条按跨版本 N 封顶。
+            if (lv < 99 && lv == 0)
                 lv = 1;
             else if (lv > 99)
                 lv = 99;
@@ -1442,14 +1475,17 @@ bool CBossStage::consistMap(const CMap* map)
     // [b28d-solo] p167：ORIG 用 const 版 vector::at ⇒ specialItems 为 const 指针。
     const std::vector<stDungeonAssignItem_t>* specialItems =
         m_dungeon->getSpecialPassiveObjectItems();
+    // ORIG 0x0814c925/c933：refGen1/refGen4 构造先于 getObjectDropItems()
+    //   与 get_item_list()（Ghidra C 序：specialItems→refGen1→refGen4→
+    //   objectDropItems→items）。
+    stGenerateRefData_t refGen1;
+    stGenerateRefData_t refGen4;
     // ORIG 同时取出 getObjectDropItems() 但未使用（忠实保留调用）
     m_dungeon->getObjectDropItems();
     // [b28d-solo] 两句式（C1Ev+move 赋值）实测引入 list aSEOS2_ NEW 符号且
     //   _mapItem C1Ev 仍未发射 ⇒ 回退拷贝构造形。
     std::list<_mapItem> items = map->get_item_list();
 
-    stGenerateRefData_t refGen1;
-    stGenerateRefData_t refGen4;
     std::list<_mapItem>::iterator it = items.begin();
     while (it != items.end())
     {
