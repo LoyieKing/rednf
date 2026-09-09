@@ -4,6 +4,11 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+// [P338/P327] ORIG 本 TU 有 _GLOBAL__I__ZN12CAchievementC2Ev（体为
+// ios_base::Init __ioinit 构造 + __cxa_atexit，帧 sub $0x18；ORIG 0x0828d813
+// __static_initialization_and_destruction_0ii 仅含 __ioinit）⇒ 原码含
+// <iostream>。补该 include 以发射 ORIG 实有的 __ioinit 与 GI 符号。
+#include <iostream>
 #include <map>
 #include <string>
 #include <utility>
@@ -126,6 +131,18 @@ struct PostalRewardView
 // stAchievement / stAchievement_DBData
 // ============================================================================
 
+// [P327] ORIG 的 _GLOBAL__I_ 键名为 _ZN12CAchievementC2Ev（ORIG 0x0828d853），
+// 且 ORIG C1/C2 地址 0x0828b614 早于 stAchievementC1 0x0828d870 ⇒ 原码把
+// CAchievement ctor 定义在本 TU 最前。GI 键名 = TU 内第一个强符号外部链接
+// 实体名；把本定义前置即对齐键名（只移函数，不改构造序）。
+CAchievement::CAchievement() : m_user(0)
+{
+    // ORIG 0x828b633：m_user 置零在 map 构造之前（初始化列表，
+    // 按声明顺序先于 m_achievements）；m_field24/25 在函数体
+    m_field24 = 0;
+    m_field25 = 0;
+}
+
 bool stAchievement::isComplete()
 {
     return (m_trigger0 == 0) && (m_trigger1 == 0) && (m_trigger2 == 0);
@@ -153,14 +170,6 @@ stAchievement::stAchievement()
 // ============================================================================
 // CAchievement
 // ============================================================================
-
-CAchievement::CAchievement() : m_user(0)
-{
-    // ORIG 0x828b633：m_user 置零在 map 构造之前（初始化列表，
-    // 按声明顺序先于 m_achievements）；m_field24/25 在函数体
-    m_field24 = 0;
-    m_field25 = 0;
-}
 
 CAchievement::~CAchievement()
 {
@@ -411,11 +420,16 @@ void CAchievement::_forceClear(unsigned int id)
     alter();
 }
 
-// [b28d-solo-CAchievement N104/P223 封顶] 修法同 _forceClear：ORIG 0x0828ce40
-// 无 book/inven 具名槽（GetCharacExpandData/getCurCharacInvenW 结果寄存器直传），
-// 改匿名全表达式链后帧 0x40/槽号/push esi+ebx 全部对齐（P0/P278）。残差 = 尾部
-// 尾岛数 ORIG 5 个 `nop; jmp +0x248` vs 4.4 4 个（P223 负例：4.4 合并部分尾岛）
-// + call 重定位标签伪差（P264）。语义等价。
+// [b28d-solo-CAchievement N104/P223 封顶，2026-09-09 复测] 修法同 _forceClear：
+// ORIG 0x0828ce40 无 book/inven 具名槽（GetCharacExpandData/getCurCharacInvenW
+// 结果寄存器直传），改匿名全表达式链后帧 0x40/槽号/push esi+ebx 全部对齐
+//（P0/P278）。残差 = 尾部岛数 ORIG 5 个 `nop; jmp +0x248` + 尾裸 nop vs 4.4
+// 4 个（invenItem==0 与 addInfo!=titleIdx 共落点，our 168）或 6 个（our 172，
+// 见下）；本函数只此一处形态差 + call 重定位标签伪差（P264）。语义等价。
+// 复测四形（fresh check_tu_routed，orig=170）：①&& 短路（当前）168/4 岛；
+// ②嵌套 if 168/4 岛；③否定 goto+尾标签串 172/6 岛；④早返 172/6 岛。
+// P223 负例成立：ORIG 末条件直落 epilogue（+0x248）属 4.1 布局，4.4 恒给
+// 中继岛 ⇒ 无法同时给出「5 岛 + 尾裸 nop」，取指令数差最小的 && 形。
 void CAchievement::_forceReset(unsigned int id)
 {
     Quest* quest = G_CDataManager()->find_quest((int)id);
@@ -469,6 +483,13 @@ void CAchievement::_forceReset(unsigned int id)
     {
         Inven_Item* invenItem =
             ((CInventory*)m_user->getCurCharacInvenW())->GetInvenRef(0, 0xb);
+        // ORIG 0x0828d032 `je +0x247`（invenItem==0 落独立 nop 岛）与
+        // 0x0828d043 `jne +0x248`（addInfo 不等直落 epilogue）落点不同；
+        // 嵌套 if / goto 尾标签 / 早返三形实测：4.4 恒给 6 个 nop;jmp 岛
+        // （our 172 vs ORIG 170）或共落点 4 岛（our 168）——无法同时给出
+        // ORIG 的「5 个 nop;jmp 岛 + 尾裸 nop」（P223 负例：4.4 岛数恒=
+        // 条件数或 0，ORIG 的末条件直落 epilogue 属 4.1 布局产物）。
+        // 取原 && 短路形：指令数差最小且语义等价。
         if ((invenItem != 0) && (invenItem->m_addInfo == titleIdx))
         {
             invenItem->reset();
@@ -504,9 +525,12 @@ stAchievement CAchievement::_getTrigger(unsigned int id)
 // ④special bool 改内联复合条件（ORIG mov $1/$0 物化岛）；
 // ⑤删 level 缓存：ORIG 两臂各自 get_charac_level()（P48）；
 // ⑥isClearMission 实参 0x83/0x87/0x19c0 用具名局部（ORIG -0x48/-0x44/-0x1c）。
-// [残差] ORIG 实参先于 this 装载（`mov -0x2c(%ebp),%ebx; call getCurCharacQuestR;
-//  add $0x4,%eax`）+ 槽基比我方浅 8（it -0x38 vs -0x40）；P277 具名 receiver 形
-//  实测更劣（槽再深 4、内层 i -0x14→-0x18）⇒ N95/N82 封顶。
+// [残差，2026-09-09 复测] 首 continue 改正向包裹后 185=185、岛数与 ORIG 逐点
+// 对齐（P223：平铺三 continue 时 4.4 把 achievementIdx==-1 也岛化，多 2 条）。
+// 余下残差 = ①槽位前段整体深 8（it -0x40 vs -0x38，4.4 恒预留 outgoing 对齐区
+// 的版本常数 N115/N126）②实参先于 this 装载（ORIG `mov -0x2c(%ebp),%ebx;
+// call getCurCharacQuestR; add $0x4,%eax` vs 4.4 后读）③N107 成员偏移取址
+// add-vs-lea。P277 具名 receiver 形实测更劣（槽再深 4）⇒ 保持当前形。
 void CAchievement::_verifyAchievement(unsigned int self)
 {
     // ORIG 0x828d09e：不缓存 elements 引用，begin 一次、end 每次循环重新取
@@ -524,33 +548,36 @@ void CAchievement::_verifyAchievement(unsigned int self)
         for (unsigned int i = 0; i < it->second.size(); ++i)
         {
             achievementIdx = (unsigned int)it->second[i].m_achievementIdx;
-            if (achievementIdx == 0xffffffff)
+            // ORIG 0x0828d111 `je +0x139` 直接落循环尾 addl（无岛）；另两个
+            // continue 才各带独立 nop 岛（+0x135/+0x138）。平铺三 continue 在
+            // 4.4 恒岛化三个 ⇒ 首条件改正向包裹，让 4.4 直落循环尾（P223）。
+            if (achievementIdx != 0xffffffff)
             {
-                continue;
-            }
-            const Quest* quest = G_CDataManager()->find_quest((int)achievementIdx);
-            if (quest == 0)
-            {
-                continue;
-            }
-            if (!((quest->m_type == 7) && (quest->m_triggerType == 0xc) &&
-                  (quest->m_triggerData.size() != 0)))
-            {
-                continue;
-            }
-            clearQuestIdx = (unsigned int)quest->m_triggerData[0];
-            // ORIG 0x0828d1ca：getCurCharacQuestR() + 4 为 WongWork::CQuestClear
-            // 子对象（UserQuest 容器 +0 m_user / +4 CQuestClear），调 isClearedQuest。
-            // [b28d-solo N95/N82 封顶] ORIG 实参先于 this 装载（`mov -0x2c(%ebp),%ebx;
-            // call getCurCharacQuestR; add $0x4,%eax; mov %ebx,0x4(%esp)`）+ 槽基比
-            // 我方浅 8（it -0x38 vs -0x40）；P277 具名 receiver 形实测更劣
-            //（槽再深 4、内层 i 由 -0x14 漂到 -0x18），已回退。
-            if (((WongWork::CQuestClear*)((char*)m_user
-                                              ->getCurCharacQuestR() +
-                                          4))
-                    ->isClearedQuest(clearQuestIdx))
-            {
-                _forceClear(achievementIdx);
+                const Quest* quest =
+                    G_CDataManager()->find_quest((int)achievementIdx);
+                if (quest == 0)
+                {
+                    continue;
+                }
+                if (!((quest->m_type == 7) && (quest->m_triggerType == 0xc) &&
+                      (quest->m_triggerData.size() != 0)))
+                {
+                    continue;
+                }
+                clearQuestIdx = (unsigned int)quest->m_triggerData[0];
+                // ORIG 0x0828d1ca：getCurCharacQuestR() + 4 为 WongWork::CQuestClear
+                // 子对象（UserQuest 容器 +0 m_user / +4 CQuestClear），调 isClearedQuest。
+                // [b28d-solo N95/N82 封顶] ORIG 实参先于 this 装载（`mov -0x2c(%ebp),%ebx;
+                // call getCurCharacQuestR; add $0x4,%eax; mov %ebx,0x4(%esp)`）+ 槽基比
+                // 我方浅 8（it -0x38 vs -0x40）；P277 具名 receiver 形实测更劣
+                //（槽再深 4、内层 i 由 -0x14 漂到 -0x18），已回退。
+                if (((WongWork::CQuestClear*)((char*)m_user
+                                                  ->getCurCharacQuestR() +
+                                              4))
+                        ->isClearedQuest(clearQuestIdx))
+                {
+                    _forceClear(achievementIdx);
+                }
             }
         }
     }
@@ -580,17 +607,25 @@ void CAchievement::_verifyAchievement(unsigned int self)
     }
 }
 
-// [b28d-solo-CAchievement N95/N98 封顶] ORIG 0x0828c976 槽：questIdx@-0x20、死局部@-0x1c
-//（P171）、achievementIdx@-0x18、category@-0x24、slot@-0x28、i@-0x14；4.4 槽基/
-// 分配序（按首次使用）使本件整体深 4~0xc。实测三形：①原声明序 ②槽深序+死局部
-// ③初始化发射序+死局部 —— 均不可翻（4.4 槽基 gap 与 N98 首次使用序共同作用）。
+// [2026-09-09 复测] 真 bug 已修（find_quest 实参 questIdx→achievementIdx，
+// ORIG 0x0828ca18 压 -0x18=m_achievementIdx）；titleIdx 内联进 putTitleOnly
+// 实参位（P0，ORIG 结果留 %eax 直压）；补 -0x1c 死局部（P171）；声明序改
+// questIdx/unused/achievementIdx/slot/category 后 168=168 且 6 条初始化与
+// ORIG 槽值/发射序全等（questIdx@-0x20、死@-0x1c、achievementIdx@-0x18、
+// slot@-0x24、category@-0x28、i@-0x14；&category/&slot 实参槽序经 0x0828cbb6
+// 段核对）。余下残差仅 N7 寄存器角色（isClearedQuest/find_quest 的 ebx↔edx
+// 缓存互换、movzwl 目标寄存器）+ N107 取址形。
 void CAchievement::adjust()
 {
-    ENUM_TITLE_BOOK_CATEGORY category = (ENUM_TITLE_BOOK_CATEGORY)0;
-    int slot = 0;
     // ORIG 0x828c97d：questIdx/achievementIdx 循环外预初始化（movl $0 序列）
     unsigned int questIdx = 0;
+    // ORIG 0x828c984：-0x1c 死局部（P171 死写入照抄，仅复现初始化序列）。
+    unsigned int unusedAdjust = 0;
     unsigned int achievementIdx = 0;
+    // ORIG 0x0828cbb6..0x0828cbc0 实参槽序：&category 落 0x8(%esp)=槽 -0x28、
+    // &slot 落 0xc(%esp)=槽 -0x24 ⇒ 声明序 slot 先于 category。
+    int slot = 0;
+    ENUM_TITLE_BOOK_CATEGORY category = (ENUM_TITLE_BOOK_CATEGORY)0;
     // ORIG 0x828c97d：不缓存 adjustList 局部引用（每次循环重新取），
     // isClearQuest 通过才进入（嵌套 if，非 continue 前置）
     for (unsigned int i = 0; i < GetAdjustList(G_CDataManager()).size(); ++i)
@@ -604,7 +639,11 @@ void CAchievement::adjust()
         if (((WongWork::CQuestClear*)((char*)m_user->getCurCharacQuestR() + 4))
                 ->isClearedQuest(questIdx))
         {
-            Quest* quest = G_CDataManager()->find_quest((int)questIdx);
+            // [真 bug 修复] ORIG 0x0828ca18 压栈的是 -0x18(%ebp)=m_achievementIdx
+            // （stAdjust +0x08），不是 isClearedQuest 用的 -0x20(%ebp)=m_questIdx
+            // （+0x00）。旧译文用 questIdx 查找成就 quest = 查找键用错。
+            Quest* quest =
+                G_CDataManager()->find_quest((int)achievementIdx);
             if ((quest == 0) || (quest->m_type != 7))
             {
                 continue;
@@ -615,8 +654,10 @@ void CAchievement::adjust()
                                                 ach.m_trigger2);
             _setTrigger(achievementIdx, ach.m_trigger0, ach.m_trigger1,
                         ach.m_trigger2);
-            int titleIdx = quest->get_title_reward();
-            CTitleBook::putTitleOnly(m_user, titleIdx, category, slot);
+            // ORIG 0x0828cab5..0x0828cacd：get_title_reward 结果留 %eax 直压
+            // 0x4(%esp)（无具名 titleIdx 槽往返，P0 右值直传）。
+            CTitleBook::putTitleOnly(m_user, quest->get_title_reward(), category,
+                                     slot);
         }
     }
 
@@ -632,8 +673,9 @@ void CAchievement::adjust()
         quest->get_init_achievement_trigger(ach.m_trigger0, ach.m_trigger1,
                                             ach.m_trigger2);
         _setTrigger(0x1983, ach.m_trigger0, ach.m_trigger1, ach.m_trigger2);
-        int titleIdx = quest->get_title_reward();
-        CTitleBook::putTitleOnly(m_user, titleIdx, category, slot);
+        // ORIG 0x0828cbab..0x0828cbc4：同上，结果直压实参槽。
+        CTitleBook::putTitleOnly(m_user, quest->get_title_reward(), category,
+                                 slot);
     }
     alter();
 }
@@ -800,16 +842,20 @@ void CAchievement::_gm_init()
     alter();
 }
 
-// [b28d-solo-CAchievement N78/N82 封顶] ORIG 0x0828d450：①两处 memset(0x400)
-// 被 4.1 内联为 `rep stos`（N78：4.4 恒 call；`={0}` 形会把清零点移到 ach 构造
-// 之前，与 ORIG 顺序冲突，5 探针族已证不可翻）②残差为槽序与 varargs 装载寄存器
-//（ORIG %edi vs 4.4 %ecx，P75/N82）。语义等价。
+// [2026-09-09 复测 AE] 旧 N78 判词作废：ORIG 0x0828d450 的两处 memset(0x400)
+// 只有**循环前**那次被 4.1 内联为 rep stos（0x0828d467..0x47b），循环内那次
+// 仍是 call memset（0x0828d70c）。修法（P328⑨）：把 `char buf[0x400];` +
+// 显式 memset 改为声明即初始化 `char buf[0x400] = {0};`，并把声明放到
+// `stAchievement ach;` **之后**以保持 ORIG 的「ach C1 → buf 清零」发射序；
+// 循环内 memset 不动。改后 194=194，本件由 DIFF 转 AE（槽/寄存器全对齐）。
 void CAchievement::_gm_report(std::string& out)
 {
-    char buf[0x400];
     // ORIG 0x828d45c：stAchievement 临时对象循环外构造（get_init 直接写其 trigger 字段）
     stAchievement ach;
-    memset(buf, 0, 0x400);
+    // ORIG 0x828d467..0x828d47b：ach 构造之后 rep stos 清零 buf（P328⑨：
+    // 初始化列表形才内联 rep stos；显式 memset 在 4.4 恒退化为 call）。
+    // 循环内的 memset 在 ORIG 仍是 call（0x0828d70c），故只改首清。
+    char buf[0x400] = { 0 };
     for (int idx = 0x1965; (int)idx <= 0x1bbb; ++idx)
     {
         // ORIG 0x828d489：QuestList::find_quest 死调用（结果丢弃）
