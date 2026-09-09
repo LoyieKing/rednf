@@ -811,15 +811,24 @@ public:
                                     //  `movzbl 0x88,%edx; mov %dl,0x85c` 单段直存（同型）
     RequiredItem m_entryRequiredItem2;  // +0x860（第二入场物品槽，script+0x8c）
     std::vector<std::pair<int, int> > m_vec86c; // +0x86c（script+0x98）
-    char m_minAttackPartyMember;    // +0x878（CheckEnterVillageAttackRevenge 下界，
-                                    //      signed char 比较，085ba85d）
-    char m_maxAttackPartyMember;    // +0x879（同上上界，085ba84b）
+    // [b28d-SweepCDungeon T1 直证] char→unsigned char（三字段，sizeof/偏移/mangled
+    //   零变化）：ORIG CParty::CheckEnterVillageAttackRevenge 0x085ba84b/0x085ba85d
+    //   读本字段为 `movzbl 0x879/0x878(%eax),%eax; movsbl %al,%eax`（= uchar 字段 +
+    //   源码 (signed char) cast；char 字段应出单条 movsbl），0x085ba8bb 读
+    //   m_maxRevengeCount 为 `movzbl 0x87b(%eax),%eax; cmpb/jae`（uchar + 无符号比较）；
+    //   set_dungeon 赋值 ORIG `movzbl 0x314/0x315/0x317(%eax),%edx` 单段（uchar=uchar
+    //   同型；char 目标恒产 movzbl→%eax; mov %eax,%edx 两段，探针 /tmp/probe_char.cpp
+    //   f1(char) vs f2(uchar) 实证）。消费点：CParty.cpp:1550-1551 需 (signed char)
+    //   cast 保持有符号比较（已同步）；DisPatcherCore.cpp:4542/4556、
+    //   PartyClosureC2.cpp:904 已带 cast ⇒ 自动转 ORIG 形。
+    unsigned char m_minAttackPartyMember;    // +0x878（CheckEnterVillageAttackRevenge 下界）
+    unsigned char m_maxAttackPartyMember;    // +0x879（同上上界）
     bool m_villageAttackEventFlag;  // +0x87a（script+0x316；非 0 启用村庄攻击事件
                                     //      成员数/复仇数校验与疲劳豁免【推断】）
                                     // [b28d-51] P248 档②：ORIG 0x085a8cda
                                     //  `movzbl 0x87a; xor $1; test; je` = bool 字段
                                     //  + `==0/!` 形；char 恒无 xor。sizeof/偏移不变。
-    char m_maxRevengeCount;         // +0x87b（复仇次数上限，byte 比较 085ba8bb）
+    unsigned char m_maxRevengeCount;        // +0x87b（复仇次数上限，uchar 比较 085ba8bb）
     int m_87c;                      // +0x87c（script+0xa4；-1 哨兵，语义未证）
     int m_880[5];                   // +0x880（std::copy 自 script+0x128）
     int m_894;                      // +0x894（script+0x13c）

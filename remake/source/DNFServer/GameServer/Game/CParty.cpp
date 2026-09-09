@@ -1547,8 +1547,11 @@ int CParty::CheckEnterVillageAttackRevenge(CDungeon const* dungeon)
         int memberCount = get_member_count();
         if (!GlobalData::s_revengeDungeonMgr->IsOpenRevengeDungeon())
             return 0x15;
-        if (dungeon->m_maxAttackPartyMember < memberCount ||
-            memberCount < dungeon->m_minAttackPartyMember)
+        // [b28d-SweepCDungeon T1 直证] 字段真型为 unsigned char（ORIG 0x085ba84b/
+        //   0x085ba85d `movzbl; movsbl %al` = uchar 字段 + 源码 (signed char) cast），
+        //   故此处保留显式 cast 以维持 ORIG 的有符号比较（uchar 字段无 cast 会转无符号）。
+        if ((signed char)dungeon->m_maxAttackPartyMember < memberCount ||
+            memberCount < (signed char)dungeon->m_minAttackPartyMember)
             return 0xab;
         for (int i = 0; i <= 3; ++i)
         {

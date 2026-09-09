@@ -330,14 +330,20 @@ void CDungeon::set_dungeon(STDungeonScript& script)
     // 本轮修法：加 `char pad0[4]; (void)&pad0;`（P232 dead local 占帧）⇒ 帧
     //   0x2ac→0x2bc、nameBuf 槽 -0x298→-0x29c，二者与 ORIG 全等，且深区
     //   （≥-0x8c：totalRate/nameBuf/...）槽位全部对齐（真实残差 43 组→12 组）。
-    // 残余（N 封顶）：①m_minAttackPartyMember/m_maxAttackPartyMember/m_maxRevengeCount
-    //   为 signed char（DisPatcherCore 085ba8xx `(signed char)` 比较实证），与源
-    //   unsigned char 异型 ⇒ 每处多 1 条 `movzbl→eax; mov %eax,%edx`（N18a）；改 uchar
-    //   需改 CDungeon.h（R2 由 Main 裁决；消费点 CParty.cpp:1535 无 cast 会转无符号
-    //   比较，DisPatcherCore.cpp:4490 已有 (signed char) cast 不受影响）。
-    //   ②ORIG log 分支后 `jmp;nop` 循环顶对齐岛（N112，-falign-loops 无效）。
+    // 残余（N 封顶）：②ORIG log 分支后 `jmp;nop` 循环顶对齐岛（N112，
+    //   -falign-loops 无效；P223 形 `if(p.first==0) goto L; body; L:;` 探针可造，
+    //   但会改写整个循环块布局、收益仅 2 条，不做）。
     //   ③中间区 4 槽差 4：trace -0x84 vs -0x88、rit -0x74 vs -0x78、p -0x70/-0x6c vs
     //   -0x74/-0x70（块内/临时区基址差，N82/N93 族；pad1 实验只推动深区不推动本区）。
+    // [b28d-SweepCDungeon 已修 · ①] m_minAttackPartyMember/m_maxAttackPartyMember/
+    //   m_maxRevengeCount 由 char 改 unsigned char（CDungeon.h；T1 直证：ORIG
+    //   0x085ba84b/85d `movzbl; movsbl %al` = uchar 字段 + (signed char) cast、
+    //   0x085ba8bb `movzbl; cmpb/jae` = uchar + 无符号比较；探针 /tmp/probe_char.cpp
+    //   f1(char 目标)=movzbl→%eax; mov %eax,%edx 两段 vs f2(uchar 目标)=movzbl→%edx
+    //   单段）⇒ 本函数 3 处 `movzbl→eax; mov %eax,%edx` 中转消除，ndiff 18→12、
+    //   our 805→802、gap −2→+1；CParty.cpp:1550-1551 同步补 (signed char) cast
+    //   保持 ORIG 有符号比较（CParty/DisPatcherCore/PartyClosureC2 三消费 TU
+    //   改前/改后四数逐值相同，零回退）。
     // .h 改动已 R2 广播（S273 同步）；CDungeon/STDungeonScript/CParty/DisPatcherCore/
     // CGameManager/BattleMonsterDepsC2/CPartyDepsB2/CPartyOnlyOrig/PartyClosureC2 全复验零回归。
     // ORIG 0x0834acc4：从脚本复制全部字段（顺序按 ORIG 汇编）
