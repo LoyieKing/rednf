@@ -157,6 +157,43 @@
 //     OnMatchRoom 守卫用形参 room、CheckMatchable 段位窗口 <=10、OnReward 徽章
 //     回填固定 teamB 槽 + 删 UpdateRating 多余 m_user 守卫）。
 //   · P0：无 `register asm` 绑定（清绑数 0）。
+//
+// [SweepCLeagueMatch-2·本轮 判据㉓ + 19 件三件套复核] 口径 = check_tu_routed.sh
+// 新鲜 .o（4.4.6 路由）+ 逐条 normalized objdump 双侧对照 + p167 调用点差集。
+//   · 19 件（gap' 降序：OnReward 7 / OnCompleteLoad 2 / _PutInRoom 2 /
+//     _SendMatchStatePacket 2 / 其余 gap 0）逐件通读 ORIG 反汇编与源码：
+//     ①jcc 逐位交叉验证：全 TU 条件跳转序列（助记符 + 落点体）与 ORIG 一致；
+//       唯一文本差 = OnMatchRoom badSize 段 4.4 把 `size > pc` 折成
+//       `cmp %eax,%ebx; jl`（ORIG `cmp %edx,%eax; jg`），落点体相同
+//       （+0x2c2 mov $1 / +0x2c9 mov $0）⇒ 等价折叠，非条件写反。
+//     ②虚槽核对（P193 五步）：_ZTV12CLeagueMatch 38 槽逐槽 reloc 对照 ORIG
+//       0x08ca3d20 全等（D1/D0/GetIndentification/…/GetSchoolNo +0x98）；
+//       间接调用点槽偏移逐点一致（IRoomList AddRoom +0x00 / DelRoom +0x04 /
+//       Match +0x08；IMatch GetUser +0x10；OnWalkOut 的 %ecx↔%edx 为 N7）。
+//     ③字段偏移/宽度/写目标多重集双侧全等（TeamInfo m_flag@+0xc / m_user@+0x8 /
+//       m_rating@+0x4 / m_schoolNo@+0x10 / m_badges@+0x14；OnReward m_dailyBadge
+//       @+0x10+3j / m_newFlag @+0x80+3j 单字节写）；立即数差全为 .rodata/.bss
+//       重定位（AE）；调用目标差仅 C1↔C2/D1↔D2 同址别名（P93）。
+//     ④gap 归因（非语义）：OnReward 7 / OnCompleteLoad 2 / _SendMatchStatePacket 2
+//       = 4.1 expand_mult 冗余 `mov %ecx,%eax; mov %eax,%ecx` + N-STRIDE；
+//       _PutInRoom 2 = N104（4.1 分支内 `mov -0x1c(%ebp),%ebx` 不尾合并）。
+//   · 判据㉓（符号绑定 W vs T）修 6 处（全部 ORIG W、我方原 T）：
+//     ① CLeagueMatch::GetIndentification（ORIG W 0x08568834，PvP_Room 段）、
+//        GetBattleMode（W 0x084ed387）、SetBattleMode（W 0x082743a0）、
+//        GetPlayCountPerOneTeam（W 0x084ed37b）→ CLeagueMatch.h 类内 inline；
+//        消费 TU 发射 W 副本：CSchoolMatchEvent.cpp → SetBattleMode、
+//        CUser.cpp → GetPlayCountPerOneTeam、InterDispatcher.cpp →
+//        GetPlayCountPerOneTeam/GetBattleMode（属主复编四数零回退
+//        122/1333/5/133/700）。
+//     ② PlayerInfo::reset（ORIG W 0x085687d4，OnlyOrig_OnlinePvp 段）→ 类内
+//        inline；本 TU 仍发射 W 副本（TeamInfo 族 ODR 使用），TeamInfo::reset
+//        帧保持 sub $0x28（无 P210 帧回退）。
+//     六函数体逐条不变（objdump 双侧 normalized identical / 仅数据地址差）。
+//   · 四数：identical=43 ae=61 near=1 diff=18 missing_in_game=17
+//     （TU 级 ae −3 = GetBattleMode/SetBattleMode/GetPlayCountPerOneTeam 三个
+//      符号按 ORIG 归属迁到消费 TU，非语义回退；diff/near/missing 全不变；
+//      Main 已裁决保留）。
+//   · 真语义 bug：本轮 0 新增；本 TU 剩余真缺口 = 0。
 // ============================================================================
 
 #include "CLeagueMatch.h"
@@ -213,16 +250,9 @@ void TeamInfo::reset()      // ORIG T 0x0855cb16
         m_players[i].reset();
 }
 
-void PlayerInfo::reset()    // ORIG W 0x085687d4
-{
-    m_accId = 0;
-    m_rating = 0.0f;
-    m_user = 0;
-    m_flag = 0;
-    m_schoolNo = 0;
-    for (int i = 0; i < 3; ++i)
-        m_badges[i] = 0;
-}
+// [SweepCLeagueMatch-2·判据㉓] PlayerInfo::reset（ORIG W 0x085687d4）已改类内
+// inline 定义（CLeagueMatch.h），由使用点发射 W；本 TU 因 TeamInfo 族调用仍发射
+// 该 W 副本。函数体逐条不变。
 
 // [b28d-lane6] AE（已修）：m_flag bool 化（P248 档②）+ `==` 正向包裹（P222）后
 // 第一/二段与 ORIG 0x0855c95a 全等；x87 比较段经 fresh 重编译后亦归一（34=34）。
@@ -1051,28 +1081,11 @@ int CLeagueMatch::GetSchoolNo()              // ORIG T 0x0855f9aa
     return 0;
 }
 
-// ORIG W 0x08568834：call *(vptr+0x90) 并返回其值 ≡ GetSchoolNo()。
-// 【N7 封顶】b26 lane19：虚调用 callee 寄存器 %edx↔%eax 互换（12 条逐条全等
-// 仅寄存器名差），N7 判据命中。
-int CLeagueMatch::GetIndentification()
-{
-    return GetSchoolNo();
-}
-
-unsigned char CLeagueMatch::GetBattleMode()  // ORIG W 0x084ed387：movzbl 直返全局字节 nBattleMode_
-{
-    return nBattleMode_;
-}
-
-void CLeagueMatch::SetBattleMode(int mode)   // ORIG W 0x082743a0：写全局字节 nBattleMode_
-{
-    nBattleMode_ = static_cast<unsigned char>(mode);
-}
-
-unsigned char CLeagueMatch::GetPlayCountPerOneTeam()  // ORIG W 0x084ed37b：movzbl 直返全局字节
-{
-    return nPlayerCountPerOneTeam_;
-}
+// [SweepCLeagueMatch-2·判据㉓] GetIndentification(0x08568834 W) / GetBattleMode
+// (0x084ed387 W) / SetBattleMode(0x082743a0 W) / GetPlayCountPerOneTeam
+// (0x084ed37b W) 四个 ORIG 弱符号已改类内 inline 定义（CLeagueMatch.h），由
+// 使用点 TU 发射 W 副本（P233/P204③）；本 TU 不再外联定义（原 T 绑定与 ORIG
+// 的 W 不符）。函数体逐条不变，见头内注释。
 
 // [b28d-solo-CLeagueMatch] AE（TU 口径）：196=196 全等。修法=删 passwd/title
 // 引用缓存局部（P183/P0，消 2 个指针槽 -0x24/-0x20）+ S27 PvPTypes.h

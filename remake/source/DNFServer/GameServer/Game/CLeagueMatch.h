@@ -42,7 +42,20 @@ class PvP_Room;
 // ---- PlayerInfo（单队员快照，stride 0x1c；布局依 TeamInfo::add/refresh 报告） ----
 struct PlayerInfo
 {
-    void reset();                       // ORIG W 0x085687d4
+    // [SweepCLeagueMatch-2·判据㉓] ORIG `_ZN10PlayerInfo5resetEv` = **W** 0x085687d4
+    // （落在 OnlyOrig_OnlinePvp 类 TU 段，与 IMatch 默认虚函数 / CWaitingRoomList /
+    //  fair_pvp::CFairMatch 同段，非本 TU 段）⇒ 头内定义、使用点发射 W（P233）。
+    // 函数体逐条与 ORIG 全等；sizeof(0x1c)/成员偏移/mangled 零影响。
+    void reset()                        // ORIG W 0x085687d4
+    {
+        m_accId = 0;
+        m_rating = 0.0f;
+        m_user = 0;
+        m_flag = 0;
+        m_schoolNo = 0;
+        for (int i = 0; i < 3; ++i)
+            m_badges[i] = 0;
+    }
 
     /*+0x00*/ unsigned int  m_accId;    // get_acc_id 快照
     /*+0x04*/ float         m_rating;   // Elo 个人分快照
@@ -105,10 +118,20 @@ public:
     // ORIG vtable +0x90（第 37 槽，派生新增唯一虚函数）＝ CLeagueMatch::GetSchoolNo；
     // GetIndentification 覆盖体即虚调本槽。
     virtual int GetSchoolNo();                                  // 0x0855f9aa (T)
-    virtual int GetIndentification();                           // 0x08568834 (W)
-    static unsigned char GetBattleMode();                       // 0x084ed387 (W，读全局 0x93abb75，静态实证；ORIG movzbl 直返单字节)
-    static void SetBattleMode(int mode);                        // 0x082743a0 (W，ORIG 调用无 this)
-    static unsigned char GetPlayCountPerOneTeam();              // 0x084ed37b (W，读全局 0x93abb74，静态实证；ORIG movzbl 直返单字节)
+    // [SweepCLeagueMatch-2·判据㉓] 以下 4 个 ORIG 符号全为 **W 弱**且地址分散在
+    // 消费 TU 段 ⇒ 原码为类内 inline 定义、由使用点发射 W（P233/P204③）：
+    //   GetIndentification   W 0x08568834（PvP_Room 段；N7：虚调 callee %edx↔%eax）
+    //   GetBattleMode        W 0x084ed387（InterDispatcher 段，读 0x93abb75）
+    //   SetBattleMode        W 0x082743a0（CSchoolMatchEvent 段，写 0x93abb75）
+    //   GetPlayCountPerOneTeam W 0x084ed37b（InterDispatcher 段，读 0x93abb74）
+    // 函数体逐条与 ORIG 全等（objdump 双侧 normalized 比对：identical / 仅数据
+    // 地址重定位差）；sizeof/成员偏移/全部 mangled 零影响，仅绑定 T→W。
+    virtual int GetIndentification() { return GetSchoolNo(); }              // W 0x08568834
+    static unsigned char GetBattleMode() { return nBattleMode_; }           // W 0x084ed387
+    static void SetBattleMode(int mode)                                     // W 0x082743a0
+    { nBattleMode_ = static_cast<unsigned char>(mode); }
+    static unsigned char GetPlayCountPerOneTeam()                           // W 0x084ed37b
+    { return nPlayerCountPerOneTeam_; }
 
     PvP_Room* _MakeRoom(CUser* user);                           // 0x0855d572
     void _RegisterWaitingRoom(PvP_Room* room);                 // 0x0855d884
