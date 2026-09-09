@@ -1616,12 +1616,33 @@ const char* CDataManager::SuddenShopFileName3()
 //  跨版本 this-cache 物化——4.1.2 对局部容器成员调用先 `lea obj; mov %eax,-slot`
 //  （-0x58=&monsterList、-0x54=aiList 等，0x08362125 实证），4.4.7 直发 lea 不
 //  物化，全帧槽号系统性平移（P112 族）；条目基址/负值检查行随之整块错位。
-// [b28d-solo-CDataManager DIFF-N] 本轮复核（o 704 / n 689→692）：p167 94/94
-// CLEAR（调用点零差）。翻正项：① monsterList 加具名指针 `pMonsterList`
-// （ORIG 0x08362125 `lea -0xd0; mov %eax,-0x58` 物化槽，P0 槽往返判据，+2）；
-// ② 空体短路链改否定 goto + 尾标签（ORIG 0x08362153 两处条件跳转被 4.4 空
-// then DCE 折叠，P223/P225，+1）。残差 12 条仍为 4.1 this-cache 物化致帧
-// 0x130 vs 0x120 与后续槽号系统性平移（P112/N82 族）⇒ 语义完成、byte 层 N 封顶。
+// [b28d-solo-CDataManager DIFF-N] 历轮翻正：① monsterList 具名指针
+// `pMonsterList`（ORIG 0x08362125 `lea -0xd0; mov %eax,-0x58`，P0 槽往返）；
+// ② 空体短路链（ORIG 0x08362153 两处条件跳转）。
+// [SweepCDataManager 2026-09-09 本轮] gap 12→5（o 704 / n 699，.o 口径），
+// 帧尺寸 0x130 与 ORIG 一致，p167 94/94 CLEAR。翻正项：
+//  ① **真 bug**：hash 扫描条件极性反——ORIG 0x0836251c `call empty;
+//     test %al,%al; je 0836292a`（非空跳第二段、**空**落扫描体，Ghidra
+//     `if (cVar1=='\0') { LAB_0836292a: }` 同证）；旧 `empty()==false` 语义反。
+//  ② ai 循环删具名 apcType、实参内联（ORIG 0x08362227 `mov (%eax),%eax;
+//     mov %eax,%ebx` 跨 G_CDataManager 保活，P52）+ get() 结果具名判空
+//     （ORIG -0x40 槽 + `cmpl $0x0,槽; jne`，P197④）。
+//  ③ usable 判定改正极性短路 `m_objectIdx != -1 && !empty()`（ORIG
+//     0x0836240b/0x0836241d 两 je 同落 FALSE 块 + `mov $1/$0` 物化，P214①）。
+//  ④ maze 两条 find 改 `||` 短路（ORIG 0x08362787 `jne 真块`/0x0836281a
+//     `je 假块`/0x0836281c `mov $1/jmp`+`mov $0`，P214①）。
+//  ⑤ mazeList 尾测 unsigned（ORIG 0x083628a1 `cmp -0x24,%eax; jbe`，P196/P218）。
+//  ⑥ itemList 具名指针 `pItemList`（ORIG 0x0836231f `mov %eax,-0x50`）。
+//  ⑦ aiList/内层 dungeonList/第二段 dungeonList 三处 end() 提到循环初始化处
+//     缓存（ORIG 0x08362206 / 0x08362384 / 0x0836297f，P13）。
+// 残余 5 条为跨版本 -O0 DCE/布局差，不可翻：
+//  a) 0x08362401 `cmp %edx,%eax`（size()==m_objectIdx 死比较）与
+//     0x0836248c `cmp $0xffffffff,%eax`（at().m_assignItemIdx==-1 死比较）：
+//     4.1 -O0 保留纯表达式语句的比较，4.4 DCE（探针 /tmp/probe_deadcmp.cpp
+//     h1/h3 加 __builtin_expect 反多 sete/movzbl/test 三条）。
+//  b) 0x0836282c 处 `jmp` 短程 + 1 条 nop 填充（跳转距离布局）。
+//  c) 0x08362a61 `cmp $0x64,%eax` 死比较 vs 我方 `mov %eax,-0xc`（同 N）。
+// ⇒ 语义完成、byte 层 N 封顶。
 bool CDataManager::VerifyMap(const CMap& map, int idx) const
 {
     // ORIG 0x083620ee：map type 与 monster list 只被读取，结果不参与返回。
@@ -1636,32 +1657,42 @@ bool CDataManager::VerifyMap(const CMap& map, int idx) const
         // ORIG 0x08362153..：`test %al; jne ++; mov 0x8; test %eax` 尾 test 无
         // 消费者 = `flag==0 && field` 空体短路链（结果丢弃，不物化槽）。
         const _mapMonster& mon = *it;
-        // ORIG 0x08362153..：空体短路链仍发射两处条件跳转（4.4 对空 then
-        // 做 DCE 后条件求值被折叠）⇒ 否定 goto + 尾标签（P223/P225）保留。
-        if (mon.m_flag04 != 0)
-            goto mon_skip;
-        if (mon.m_field08 == 0)
-            goto mon_skip;
+        // ORIG 0x08362153..：`movzbl 0x4; test; jne INCR; mov 0x8; test`
+        // ——内层空体 if 的 je 被 4.1 jump-to-next 删除、外层保留。4.4 对裸空
+        // if 会连条件求值一起 DCE；`__builtin_expect(cond,0)` 使其保留求值并
+        // 同样删除内层 jcc（探针 /tmp/probe_mon5.cpp g8 逐条同构）。
+        if (mon.m_flag04 == 0)
         {
+            if (__builtin_expect(mon.m_field08 == 0, 0))
+            {
+            }
         }
-    mon_skip:;
     }
 
     const std::vector<STAICharacterMapArrangeData>* aiList =
         map.getAICharacters();
     if (aiList->empty() == false)
     {
+        // ORIG 0x083621f6..0x0836220b：end() 在循环**初始化**处求值一次并缓存
+        // 到具名 itEnd(-0xe4)，条件块 0x0836229d 只调 ne（P13）——旧形
+        // `it != aiList->end()` 把 end() 留在条件块（每次迭代重调）。
         for (std::vector<STAICharacterMapArrangeData>::const_iterator it =
-                 aiList->begin(); it != aiList->end(); ++it)
+                 aiList->begin(),
+                 itEnd = aiList->end(); it != itEnd; ++it)
         {
             const STAICharacterMapArrangeData& ai = *it;
-            unsigned int apcType = (unsigned int)ai.m_type;
             // ORIG 0x08362..：经 G_CDataManager() 全局取 m_aiCharacterList（+0x869c）。
-            if (G_CDataManager()->m_aiCharacterList->get(apcType) == 0)
+            // 实参 ai.m_type 在 G_CDataManager() 之前求值并跨调用保活
+            // （ORIG 0x08362227 `mov (%eax),%eax; mov %eax,%ebx`，P52/P0：
+            // 无具名 apcType 槽）；结果具名指针后判空（ORIG -0x40 槽 +
+            // `cmpl $0x0,槽; jne`，P197④ 槽比零直跳）。
+            CAICharacter* pAICharacter =
+                G_CDataManager()->m_aiCharacterList->get(ai.m_type);
+            if (pAICharacter == 0)
             {
                 LogManager::logFormat(
                     1, "data_manager.cpp", __PRETTY_FUNCTION__, 0x2847,
-                    "Unknown APC Type(%d). Map(%d)", apcType,
+                    "Unknown APC Type(%d). Map(%d)", ai.m_type,
                     map.get_index());
             }
         }
@@ -1676,26 +1707,30 @@ bool CDataManager::VerifyMap(const CMap& map, int idx) const
         dungeonList = *map.getDungeonLists();
 
     const std::list<_mapItem> itemList = map.get_item_list();
-    for (std::list<_mapItem>::const_iterator itemIt = itemList.begin();
-         itemIt != itemList.end(); itemIt++)
+    // ORIG 0x0836231f..：`lea -0xc0; mov %eax,-0x50` —— itemList 经具名指针
+    // 局部访问（-0x50 槽，P0 槽往返判据），begin/end 实参从该槽重载。
+    const std::list<_mapItem>* pItemList = &itemList;
+    for (std::list<_mapItem>::const_iterator itemIt = pItemList->begin();
+         itemIt != pItemList->end(); itemIt++)
     {
         const _mapItem& item = *itemIt;
-        for (std::list<int>::const_iterator dungeonIt = dungeonList.begin();
-             dungeonIt != dungeonList.end(); ++dungeonIt)
+        // ORIG 0x08362369/0x08362384：内层 dungeonList 的 begin/end 同在
+        // 循环初始化处求值（end 缓存 -0xf0），条件块只调 ne（P13）。
+        for (std::list<int>::const_iterator dungeonIt = dungeonList.begin(),
+                 dungeonEnd = dungeonList.end();
+             dungeonIt != dungeonEnd; ++dungeonIt)
         {
             CDungeon* dungeon = find_dungeon(*dungeonIt);
             const std::vector<stDungeonAssignItem_t>* passive =
                 dungeon->getSpecialPassiveObjectItems();
-            passive->size();
-            // ORIG 0x083623ff..：bool 汇聚岛（P73/P84）：
-            // bVar2 = objectIdx != -1 && !passive->empty()
-            bool usable = false;
-            if (item.m_objectIdx != -1)
-            {
-                if (!passive->empty())
-                    usable = true;
-            }
-            if (usable)
+            // ORIG 0x08362401 `call size; mov (%edx),%edx; cmp %edx,%eax`：
+            // size() 结果与 m_objectIdx 的死比较（无消费者；4.4 把 cmp DCE、
+            // 仅保留 call —— 跨版本 -O0 DCE 差，N 封顶）。
+            passive->size() == (unsigned int)item.m_objectIdx;
+            // ORIG 0x0836240b/0x0836241d：`m_objectIdx != -1` 与 `!empty()` 两
+            // 守卫共落 FALSE 块、`mov $1/jmp/mov $0` 寄存器物化 ⇒ 正极性短路
+            // 形（P214①；旧 usable 具名 bool 产生槽物化 movb/cmpb 三连）。
+            if (item.m_objectIdx != -1 && !passive->empty())
             {
                 // ORIG 0x0836243e/0x0836245d：两分支各自重取 at()（P48），
                 // 命中再第三次 at() 读弃（0x08362476）。
@@ -1709,11 +1744,13 @@ bool CDataManager::VerifyMap(const CMap& map, int idx) const
     }
 
     // ORIG 0x0836242a 起：missingDungeon(-0x49) 先置 0；hash 全表扫描仅在
-    // dungeonList 非空侧执行（0x0836243c je 0x83c 跳过），且 found(-0x2d) 检查
-    // 位于循环体首（for+break 形，0x08362481）；扫描后无条件再过一遍
+    // dungeonList **为空**侧执行——0x0836251c `call empty; test %al,%al;
+    // je 0836292a`：empty()!=0（空）落扫描体，非空直接跳到第二段
+    // （Ghidra `if (cVar1=='\0') { LAB_0836292a: 第二段 }` 同证）；found(-0x2d)
+    // 检查位于循环体首（for+break 形，0x08362481）；扫描后无条件再过一遍
     // dungeonList（0x0836283c，空表 0 轮），missing 判定在两段扫描之后。
         bool missingDungeon = false;
-    if (dungeonList.empty() == false)
+    if (dungeonList.empty())
     {
     bool found = false;
     for (__gnu_cxx::hash_map<int, CDungeon*>::const_iterator it =
@@ -1749,7 +1786,9 @@ bool CDataManager::VerifyMap(const CMap& map, int idx) const
             }
 
             // ORIG 0x08362657..：m_mazeList(+0x62c).size() + operator[] 索引。
-        for (int mi = 0; mi < (int)dungeon->m_mazeList.size() && !found; ++mi)
+            // ORIG 0x083628a1 `cmp -0x24(%ebp),%eax; jbe` 为**无符号**尾测
+            // （P196/P218）⇒ mi 声明 unsigned（旧 `(int)size()` 强转产 jle）。
+        for (unsigned int mi = 0; mi < dungeon->m_mazeList.size() && !found; ++mi)
             {
             const MazeScript& maze = dungeon->m_mazeList[mi];
             if (maze.m_2c == map.get_index())
@@ -1764,24 +1803,28 @@ bool CDataManager::VerifyMap(const CMap& map, int idx) const
                     const GridScript& grid = maze.getGridR(x, y);
                     if (grid.m_gridValue == 0)
                 continue;
-                        // ORIG 0x0836276a/0x08362803：std::find(candidates,
-                        // map.get_index()) != end()，命中即 found；find 各 1 次。
+                        // ORIG 0x0836276a/0x08362803：两条 find 走 `||` 短路
+                        // 物化（0x08362787 `jne 真块`、0x0836281a `je 假块`、
+                        // 0x0836281c `mov $1/jmp` + `mov $0`），命中即 found；
+                        // 旧 if/else-if 两独立块多一组 movb/jmp（P214①）。
                     if (std::find(grid.m_mapCandidates.begin(),
                                   grid.m_mapCandidates.end(),
-                                  map.get_index()) != grid.m_mapCandidates.end())
-            found = true;
-                    else if (std::find(grid.m_secondCandidates.begin(),
-                                       grid.m_secondCandidates.end(),
-                                       map.get_index()) != grid.m_secondCandidates.end())
-                    found = true;
+                                  map.get_index()) != grid.m_mapCandidates.end() ||
+                        std::find(grid.m_secondCandidates.begin(),
+                                  grid.m_secondCandidates.end(),
+                                  map.get_index()) != grid.m_secondCandidates.end())
+                        found = true;
             }
                 }
             }
         }
     }
 
-        for (std::list<int>::const_iterator dungeonIt = dungeonList.begin();
-             dungeonIt != dungeonList.end(); ++dungeonIt)
+        // ORIG 0x08362952/0x0836297f：第二段 dungeonList 的 begin/end 同在
+        // 循环初始化处求值（end 缓存 -0x108），条件块只调 ne（P13）。
+        for (std::list<int>::const_iterator dungeonIt = dungeonList.begin(),
+                 dungeonEnd = dungeonList.end();
+             dungeonIt != dungeonEnd; ++dungeonIt)
     {
             CDungeon* dungeon = find_dungeon(*dungeonIt);
             if (dungeon == 0)
