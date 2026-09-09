@@ -175,8 +175,14 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
         std::multimap<int, stItemSelectRate> additional;  // [additional result]
         std::multimap<int, stItemSelectRate> bigwin;      // [big win result]
 
-        while (ScanType(section, true))
+        // b290-BigExpert [P164：ORIG 循环头在 body 之前（0x0896b189 = `movl $1,0x4(%esp)`
+        // + ScanType + `xor $1; test; jne <body>`，且 body 尾 `jmp 896b189`），4.4 对
+        // `while` 恒旋转到尾部并在末尾复制一份 cond（+6 行）⇒ 改 for(;;) + 头部早返，
+        // 同 TU 的 ImportExpertJobEtcScript 已用此形拿到 189=189]。
+        for (;;)
         {
+            if (!ScanType(section, true))
+                break;
             if (section == "[expertness exp]")
             {
                 while (true)

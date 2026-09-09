@@ -10118,6 +10118,22 @@ DisPatcher_SetPlayResult::~DisPatcher_SetPlayResult() {}
 // + 帧 0x1d0c vs 0xf54（N82 4.1 不复用大缓冲槽）+ setcc-fold。  (ORIG 0x081f4ce6)
 // （语义修复保留）。
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 943（ORIG 1083 / ours 816），残差=N7/N82 帧与 callee-saved 角色/setcc-fold bool 物化岛/P168a④ bool 槽化/P211/N18a；沿用上方 b28d-29 归因，封顶。
+// [BigDispatchCore] **N129 登记（Main 2026-09-09 裁定）：本件残留的 2 个 MISSING ctor 属
+// 「ORIG 死复制/死构造区：缺 callee 但净效果为零 ⇒ 不补」，后来泳道请勿再试图补。**
+// 逐地址证据（ORIG T 0x081f4ce6 内 0x081f5489..0x081f5650，0xe2 检查块；
+// 0x081f56e8.. 的 0xe3 块同构）：
+//   0x081f5489 lea -0xe9e(%ebp),%eax ; 0x081f5492 call _ZN11CHARAC_DATAC1Ev  (W 0x0822ec4c)
+//   0x081f5497 lea -0x828(%ebp),%eax ; 0x081f54a0 call _ZN15TAG_CHARAC_DATAC1Ev (W 0x0822edae)
+//   0x081f54ab..  rep stos  memset(-0x15bb, 0, 0x703)
+//   0x081f5500..  rep movs  memcpy(dst=-0x15af  ← src=-0xe9e, 0x676)   ← CHARAC_DATA 全量
+//   0x081f55fc    call _ZNK5CUser13GetCharacInfoEP15SIG_LOAD_CHARAC (0x0864bc04) ← 整体覆写 dst
+//   0x081f5635    movl $0xe2 … addServerHackCnt
+// ⇒ 被复制的 CHARAC_DATA 在块内**没有任何填充调用**（上述区间总共只有 4 个 call），
+//   拷进去的是刚 Reset 的零对象，且目标缓冲随后立刻被 GetCharacInfo 全量覆写 ⇒ 净效果为零。
+// ⇒ 若为消 MISSING 而补这两个对象，必须连带补 2 次 rep movs（4.4 O0 只会发 call memcpy，
+//   ORIG 侧无 memcpy 符号）⇒ 净增 2 项 EXTRA，形态与语义双亏 ⇒ **判不修**。
+// 本件其余部分已按 P183（ORIG 逐处重调、我方局部缓存）展开 5 个无副作用 getter：
+//   实测 ndiff 772→726，P167 计数 87→92 与 ORIG 相等，行为等价。
 int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user->get_state() != 5)

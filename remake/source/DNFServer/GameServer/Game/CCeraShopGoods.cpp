@@ -298,27 +298,32 @@ static_assert(sizeof(BonusItemView) == sizeof(stCeraShopBonusItemInfo_t),
 //      state 2 → 0x088ff1f2 回 while 体首。原码「if(==1000) push_back else
 //      printf; if(!=1000) return 0」在 -O0 复现两次 `cmpl $0x3e8`，第二次
 //      `je` 恒不成立 = 死分支。合并后两判定同值，可观察行为不变。
-//  (3) **[package] 尾组 `item.m_name = ""` 后移** + **[cart/gift/cerapoint
-//      disallowance] probe 声明上提**：语句书写序 = ORIG 叶块物理序。
+//  (3) **[package] 尾组 `item.m_name = ""` 后移**：语句书写序 = ORIG 叶块物理序。
 //      · m_name=""（`movl $<A>,0x4(%esp)` / `lea item; add $0x40,%eax; call
 //        _ZNSsaSEPKc`）在 ORIG 位于 flag0/m_fieldc/m_field1c/m_field0 四组
 //        赋值**之后**；两组写无数据依赖。
-//      · probe 的 ctor 在 ORIG **先于**本分区首个 ScanInt：0x088fed48 `lea
-//        -0x180(%ebp)` / 0x088fed51 `call _ZN14STCeraShopItemC1Ev` → 0x088fed5c
-//        `call _Z7ScanIntPb` → 0x088fed64 `mov %eax,-0x8c(%ebp)`。原码把声明
-//        写在 `if(!ok) break` 之后 ⇒ 少发一次 break 路径析构（ORIG 0x088fed17
-//        `lea -0x180; call _ZN14STCeraShopItemD1Ev`）。上提后 break 出口自动
-//        带上 D1Ev，与该形一致（STCeraShopItem ctor/dtor 仅作用自身栈对象，
-//        无外部副作用 ⇒ 行为不变）。
-//  现读数：p167 **274/274 双向零差**；struct 131→**80**；ndiff 1664→**1644**；
-//  clean 1739 vs **1748**（+9，见下）、TU 四数 139/279/near3/diff5/missing95
-//  **逐位不变**（两路径均 COMPILE OK：check_tu_routed + build/game 单对象）。
-//  ⇒ (3) 使 struct 86→80（结构更贴）而 ndiff +8（多出的 9 条是 4.4 为 break
-//     出口生成的 `mov $state,%ebx; jmp 共享清理块` 跳板）；两指标反向时按
-//     §6.2「巨件看 struct + 逐段 canon」取值，保留 (3)。
-//  残余 80 归因（封 N）：① 三组同模式 = cart(0x088fee..)/gift/cerapoint 各
-//     `insert 6 + replace 4↔1 + replace 3↔1`，即 break 出口的 eh state 跳板
-//     与共享 D1Ev 块的排布（ORIG 单点内联 vs 4.4 汇合共享）= N121 jump-
+//      · **[cart]/[gift]/[cerapoint disallowance] probe 声明上提已试并撤回**
+//      （双判据 A/B 实测，Main 口径「①指令缺口为主 / ②call 多重集为辅」）：
+//        ORIG 的 ctor 物理位确在首个 ScanInt **之前**（0x088fed48 `lea -0x180`
+//        / 0x088fed51 `call _ZN14STCeraShopItemC1Ev` → 0x088fed5c `call
+//        _Z7ScanIntPb` → 0x088fed64 `mov %eax,-0x8c`），且 break 出口 ORIG 带
+//        析构（0x088fed17 `lea -0x180; call _ZN14STCeraShopItemD1Ev`）。
+//        上提形读数：struct **80** / ndiff **1644** / clean **1748**（gap +9）
+//        / p167 **274/274**；
+//        原写法读数：struct **86** / ndiff **1636** / clean **1733**（gap −6）
+//        / p167 **274/274**。
+//        ⇒ ②两形同为零差（4.4 把 break 出口的 D1Ev 折进共享清理块，站点数
+//        不变），①上提反而把缺口从 −6 拉到 +9（多出的 9 条 = 3×`mov $state,
+//        %ebx; jmp 共享块` 跳板）⇒ **按双判据撤回**，只留 m_name 后移。
+//  现读数：p167 **274/274 双向零差**；struct 131→**86**；ndiff 1664→**1636**；
+//  raw 1768 vs **1775**（基线 1780）、clean 1739 vs **1733**（gap +14 → −6）、
+//  strict(autojunk=False) 双向 ndiff 1897→**1883**；TU 四数 139/279/near3/
+//  diff5/missing95 **逐位不变**（两路径均 COMPILE OK：check_tu_routed
+//  + build/game 单对象）。
+//  残余 86 归因（封 N，性质 = ①缺口 −6 / ②call 零差 双小 ⇒ 直接归 N）：
+//     ① 三组同模式 = cart(0x088fed17/0x088fed48)/gift/cerapoint 各
+//     `delete 3 + replace 1↔5 + insert 4`，即 probe 的 ctor/D1Ev 叶块与
+//     break 出口 eh state 跳板的排布（ORIG 单点内联 vs 4.4 汇合共享）= N121 jump-
 //     threading + N82 帧槽；② `je/jne` 反转与 `xor $0x1,%eax; test` 对
 //     `test; je` 的系统差（4.1 的 `!bool` 恒经 xor）= N18b/N209；③ 主链
 //     `nop; jmp` 岛、section 比较链叶块排列 = N82/N89。**未发现可观察行为
@@ -656,15 +661,16 @@ bool importCashShopItemList(
             // `it == end()`（__gnu_cxx::eq）而非 !=（0x088fee36 实证）。
             while (true)
             {
-                // [BigRndOpt] probe 的 ctor 在 ORIG 物理位**先于**本行 ScanInt
-                // （0x088fed48 `lea -0x180(%ebp)` / 0x088fed51 `call _ZN14STCeraShopItemC1Ev`
-                // ，其后 0x088fed5c 才 `call _Z7ScanIntPb`、0x088fed64 `mov %eax,-0x8c`）
-                // ⇒ 声明必须上提（原判定为「声明不可上提」是反的：ORIG 就是先构造）。
-                // break 路径上 item 仅自 clear，无外部副作用 ⇒ 可观察行为不变。
-                STCeraShopItem probe;
                 itemIdx = ScanInt(&ok);
                 if (ok != true)
                     break;
+                // [BigRndOpt·双判据 A/B] 曾把本声明上提至 ScanInt 之前（ORIG 的
+                // ctor 物理位确在前：0x088fed48 `lea -0x180` / 0x088fed51 `call
+                // _ZN14STCeraShopItemC1Ev` → 0x088fed5c `call _Z7ScanIntPb`），
+                // 实测劣于现状 ⇒ 撤回：上提后 clean 1748（gap +9）、ndiff 1644、
+                // 且 break 出口改为 4.4 的 `mov $state,%ebx; jmp 共享清理块` 跳板
+                // （3×5 条），call 多重集两种写法都是 274/274 ⇒ ①变差 ②无改善。
+                STCeraShopItem probe;
                 probe.m_field8 = itemIdx;
                 for (int i = 0; i < 0x10; ++i)
                 {
@@ -680,10 +686,10 @@ bool importCashShopItemList(
         {
             while (true)
             {
-                STCeraShopItem probe;   // [BigRndOpt] 同上提口径（ORIG 0x088fe… ctor 先于 ScanInt）
                 itemIdx = ScanInt(&ok);
                 if (ok != true)
                     break;
+                STCeraShopItem probe;   // [BigRndOpt] 上提已按双判据撤回，见 [cart disallowance]
                 probe.m_field8 = itemIdx;
                 for (int i = 0; i < 0x10; ++i)
                 {
@@ -699,10 +705,10 @@ bool importCashShopItemList(
         {
             while (true)
             {
-                STCeraShopItem probe;   // [BigRndOpt] 同上提口径（ORIG 0x088fe… ctor 先于 ScanInt）
                 itemIdx = ScanInt(&ok);
                 if (ok != true)
                     break;
+                STCeraShopItem probe;   // [BigRndOpt] 上提已按双判据撤回，见 [cart disallowance]
                 probe.m_field8 = itemIdx;
                 for (int i = 0; i < 0x10; ++i)
                 {

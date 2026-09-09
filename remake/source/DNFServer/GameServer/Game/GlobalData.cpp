@@ -5055,18 +5055,23 @@ void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
         // 具名成员 data->m_rewards[i].m_field1 等（SIG_BREAK_AWAY_PREVENT_REWARD_MANAGER，
         // 基址 +0x10/stride 0x18 一致）在 gcc4.4 O0 会把 +0x10 折进单 disp，破坏
         // identical，故按 P30/P160 口径保留原转写形态（表寻址两步精确复现）。
-        const char* entry = (const char*)(data) + i * 0x18;
         STRewardDataKey key;
-        key.m_data[0] = entry[0x11];
-        key.m_data[1] = entry[0x12];
-        key.m_data[2] = entry[0x10];
+        // [b28d-tu-GlobalData] 双判据真缺口修正（40 条指令 gap 的主体）：ORIG
+        //   **每个字段访问都从形参 0x8(%ebp)+槽 -0xc(i) 完整重物化**
+        //   （`mov -0xc,%edx; mov 0x8(%ebp),%ecx; 3x; shl $3; lea; add $0x10..;`
+        //   10 行/字段，0831c4e3/50b/549/563/57d/597/5b1 七段 missing），我方
+        //   原 `entry` 缓存 ⇒ 每字段只 4 行 ⇒ 少 40 条。删缓存、逐字段重算
+        //   （P48 无引用缓存族），0x11/0x12/0x10 序 = ORIG 字节装载序。
+        key.m_data[0] = *((const char*)data + i * 0x18 + 0x11);
+        key.m_data[1] = *((const char*)data + i * 0x18 + 0x12);
+        key.m_data[2] = *((const char*)data + i * 0x18 + 0x10);
 
         STRewardData reward;
-        reward.m_field0 = *(int*)(entry + 0x14);
-        reward.m_field4 = *(int*)(entry + 0x18);
-        reward.m_field8 = *(int*)(entry + 0x1c);
-        reward.m_fieldc = *(int*)(entry + 0x20);
-        reward.m_field10 = *(int*)(entry + 0x24);
+        reward.m_field0  = *(int*)((const char*)data + i * 0x18 + 0x14);
+        reward.m_field4  = *(int*)((const char*)data + i * 0x18 + 0x18);
+        reward.m_field8  = *(int*)((const char*)data + i * 0x18 + 0x1c);
+        reward.m_fieldc  = *(int*)((const char*)data + i * 0x18 + 0x20);
+        reward.m_field10 = *(int*)((const char*)data + i * 0x18 + 0x24);
 
         std::map<STRewardDataKey, STRewardDataList>::iterator it =
             m_rewardMap.find(key);
