@@ -36,13 +36,18 @@
 #include "LogManager.h"               // LogManager::logFormat
 
 // PVP_NORMAL_BATTLE_TIME / PVP_DM_BATTLE_TIME —— ORIG D 0x093f4ee0 / 0x093f4ee8
-// （各 [2] int，{0,0} 静态初始化）。ORIG 中与本 TU 的 g_equipmentPartSetMap_ /
-// characterEquipmentTypeTags 同源文件且为文件内首个具名对象，决定
-// `_GLOBAL__I_PVP_NORMAL_BATTLE_TIME` 静态初始化键名（c6root gcc4.4 探针验证）；
-// 因此定义必须置于本文件首个具名对象位置，PvP_Room.cpp 仅 extern 引用。
+// （各 [2] int）。初值取自 ORIG .data 逐字节实读：
+//   0x093f4ee0: 20 bf 02 00 20 bf 02 00  c0 27 09 00 c0 27 09 00
+//   ⇒ PVP_NORMAL_BATTLE_TIME = {180000, 180000}（0x2bf20，3 分钟毫秒）
+//      PVP_DM_BATTLE_TIME     = {600000, 600000}（0x927c0，10 分钟毫秒）
+// 非零静态初值同时决定段归属为 .data（D，与 ORIG 一致；零初始化会落 .bss）。
+// ORIG 中与本 TU 的 g_equipmentPartSetMap_ / characterEquipmentTypeTags 同源文件且为
+// 文件内首个具名对象，决定 `_GLOBAL__I_PVP_NORMAL_BATTLE_TIME` 静态初始化键名
+// （c6root gcc4.4 探针验证）；因此定义必须置于本文件首个具名对象位置，
+// PvP_Room.cpp / CDataManager.cpp 仅 extern 引用（脚本加载时覆盖 [0]/[1]）。
 // ============================================================================
-int PVP_NORMAL_BATTLE_TIME[2] = {0, 0};
-int PVP_DM_BATTLE_TIME[2] = {0, 0};
+int PVP_NORMAL_BATTLE_TIME[2] = {180000, 180000};
+int PVP_DM_BATTLE_TIME[2] = {600000, 600000};
 
 // ============================================================================
 // characterEquipmentTypeTags —— ORIG D 0x093f4fc0（26 项 const char*）
