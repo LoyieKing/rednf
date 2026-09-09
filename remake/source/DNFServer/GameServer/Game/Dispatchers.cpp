@@ -2675,6 +2675,19 @@ struct SigForbidPlayBody
 // (put_byte(99),put_byte(1))，目标用户不存在时发给 GM 本人。
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081fa19e orig/ours=2058/1960 ndiff-blocks=355
 //   帧差 sub $51c vs $42c + 槽号漂移（4.1 不按 lifetime 复用栈槽）
+// [BigGM2-wave9 re-audit] 语义复核后 3 处真修（canon ndiff 1265→1221，gap 84→49，
+//   calls 344/344 全平、cmp imm 0x63/0x64 差异消解）：
+//   ①头部求值序：ORIG 0x81fa220-272 = get_acc_id→NumberToString→(mov %eax,%ebx)→
+//     trace ctor(0x8908)——P329 ⑤ 的内联把 ctor 提前了 2 个 call，改回具名局部；
+//   ②case9 result：ORIG -0x4d 为 **unsigned char** 槽（0x81fb607 `mov %al,-0x4d` 低
+//     8 位截断 + 0x81fb681 `cmpb $0x0`），int→unsigned char 忠实复现截断语义；循环改
+//     回 ORIG 叶块序（diff==0→升→降）+ 独立计数器形（0x81fb5b7 -0x4c/-0x48 setl/setg）；
+//   ③case0xd clamp：ORIG 0x81fc20d 三分支 test/jg→cmp $0x63,jle（>99→100），三目链
+//     改 if/else-if 形；④cmd 零化删（ORIG 0x81fa277 无 `movb $0` 直发 get_byte）。
+//   残差 49 指令全为 4.1 码风族（源码级不可诱发，case1 已实验 `!(<=)` 反转无效）：
+//   xor$1/testal（14 处，@0x81fa406）· setle+jne（14 处，@0x81fa49e）· lea 基址+add
+//   拆分寻址（53 处，@0x81fa277）· ebx/esi 跨 call 寄存器缓存（@0x81fa235/0x81faaca）
+//   · false-island 聚尾排布（@0x81fc41a..）。struct=549 与上述族一一对应。判 N82+N78 维持。
 //   首差: sub    $0x51c,%esp | movl   $&_ZZN21Dispatcher_GM_Command12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN21Dispatcher
 int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
 {
@@ -2698,7 +2711,9 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         trace("GM Command : %s", accIdStr);
     }
 
-    unsigned char cmd = 0;
+    // ORIG 0x81fa277：cmd 无初始化直发 get_byte（失败路径 LineFunc 返回，不经读
+    // cmd；成功路径必写），删多余的 movb $0 零化。
+    unsigned char cmd;
     if (!packet.get_byte(cmd))
     {
         // ORIG 0x81fa2cb：LineFunc(0x890e, pretty, 0, 0) 断言后返回其值。
@@ -2745,7 +2760,7 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         // ORIG 守卫链：GmMode==1 与 GetGmLevel>0 各自 test/jne；get_int/get_str 返回值
         // 不测试（0x81fa4eb 只读 len 槽判 0）。
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            !(GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0))
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
         {
             packet.get_int(len);
             packet.get_str(announce, 0x100, len);

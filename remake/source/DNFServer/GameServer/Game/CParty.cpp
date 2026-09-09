@@ -97,6 +97,11 @@ typedef std::vector<MapInfo> MapInfoVec;
 // ============================================================================
 // CParty::cMember
 // ============================================================================
+CParty::cMember::cMember()
+{
+    Init();
+}
+
 void CParty::cMember::Init()
 {
     m_pUser = 0;
@@ -107,11 +112,6 @@ void CParty::cMember::Init()
     memset(m_fielde, 0, 4);
     m_field12 = 0xff;
     m_field14 = 0;
-}
-
-CParty::cMember::cMember()
-{
-    Init();
 }
 
 // ============================================================================
@@ -6432,7 +6432,12 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                 for (int i = 0; i < m_battleField.m_bloodReward.getRewardItemCount(slot);
                      ++i)                               // -0x30
                 {
-                    Inven_Item* item = m_battleField.m_bloodReward.getRewardItem(slot) + i;
+// §P331 第二形：ORIG 把 getRewardItem 返回基址存 -0x28(%ebp) 后，每次字段访问都重算
+// `mov -0x2c(%ebp),%eax; imul $0x3d,%eax,%eax; add -0x28(%ebp),%eax`（共 12 处；本方原
+// 1 —— 被 `item` 一步起基址吸收）。拆成基址存槽 + 宏，即逐次重物化；i 为循环变量、
+// 体内不改 i ⇒ 寻址同物，无可观察行为变化。实测 599→543。
+                    Inven_Item* rewardBase = m_battleField.m_bloodReward.getRewardItem(slot);
+#define item (rewardBase + i)
                     int putSlot = -1;                   // -0x28
                     // ORIG onBloodRewardTimer.md 085b6d92/98 `imul $0x3d +
                     // mov 0x2(%eax)`：Inven_Item(sizeof 0x3d)+0x02 → m_addInfo
@@ -6582,6 +6587,7 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
     }
     return 1;
 }
+#undef item
 
 // ============================================================================
 // CParty::finishBloodDungeon —— ORIG 0x85b8f92：单行转发 ReturnToVillage。

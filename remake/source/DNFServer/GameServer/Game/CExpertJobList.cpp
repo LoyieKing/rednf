@@ -404,24 +404,33 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             {
                 // 读取 (itemIndex, value) 对，按 itemIndex 写入两个全局炼金术值；
                 // 非法 itemIndex 返回 false。
+                // b290-BigExpert [REAL-BUG 修正 + P329/switch 形态]：ORIG
+                // 0x0896c35d..0x0896c398 的 switch 判定树实证 0x27ac52 落
+                // `mov %eax,0x94f777c`（= g_alchemistInfo[1]），只有 0x27ac59 落
+                // `mov %eax,0x94f7778`（=[0]，0x0896c3a4 独此一路）——原码把
+                // 0x27ac52 误并入 [0] 组 ⇒ 该药水索引写错全局。改为 switch 形，
+                // 同时复现 ORIG「条件一次取入 %eax + 二分判定树」（4.1 对 || 链
+                // 发数值二分树、4.4 对 if/else-if 发线性 cmpl 链 ⇒ 24 行 struct 差）。
                 for (;;)
                 {
                     int idx = ScanInt(&ok);
                     if (!ok) break;
                     int val = ScanInt(&ok);
                     if (!ok) return false;
-                    if (idx == 0x27ac52 || idx == 0x27ac59)
+                    switch (idx)
                     {
+                    case 0x27ac59:
                         g_alchemistInfo[0] = val;
-                    }
-                    else if (idx == 0x98981a || idx == 0x1f8e ||
-                             idx == 0x98988d || idx == 0x2920913e ||
-                             idx == 0x989885)
-                    {
+                        break;
+                    case 0x27ac52:
+                    case 0x1f8e:
+                    case 0x98981a:
+                    case 0x98988d:
+                    case 0x989885:
+                    case 0x2920913e:
                         g_alchemistInfo[1] = val;
-                    }
-                    else
-                    {
+                        break;
+                    default:
                         return false;
                     }
                 }

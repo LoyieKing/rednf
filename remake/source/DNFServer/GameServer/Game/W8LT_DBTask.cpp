@@ -18929,7 +18929,11 @@ bool DB_GetDeathTowerBestRecord::dispatch(int userIdx, int slot, Stream* stream)
 {
     if (!DBDispatcher::dispatch(userIdx, slot, stream))
         return 0;
-    unsigned int characNo = 0;
+    // ORIG 0x08429b09 直接 `lea -0x18(%ebp),%eax; call Stream::operator>>`，
+    // **无零初始化**（值完全由 >> 写入）。旧形多发 1 条 `movl $0x0,-0x18(%ebp)`
+    // ⇒ 其后每条指令整体错位一行 ⇒ 356 行函数按位 diff 全线翻红（这就是本 TU
+    // 大件 ndiff 被推到 300~900 的主因：1 条多余指令 × 全帧位移）。
+    unsigned int characNo;
     *stream >> characNo;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
@@ -18950,43 +18954,105 @@ bool DB_GetDeathTowerBestRecord::dispatch(int userIdx, int slot, Stream* stream)
     {
         if (!db->fetch())
             return 0;
-        // [REAL-BUG 修复] 行基址不得再加 0xc：ORIG 0x08429c60 起每站点地址 =
-        // out + i*0x1b0 + 行内偏移（行内视图自带 m_pad0[0xc] 计入包头）。
-        // 旧形多算 0xc ⇒ 17 个字段整体后移 12B，末行 +0x1b4 写到 0x880
-        // 越出包体 0x878（8B 溢出）。
-        DB_TowerBestRecordRowView* row =
-            reinterpret_cast<DB_TowerBestRecordRowView*>(
-                (char*)out + i * 0x1b0);
-        if (!db->get_ushort(0, row->m_towerIndex))
+        // [REAL-BUG 修复 + 寻址复原] 旧形 ① 行基址多算 0xc（包头已在行视图
+        // m_pad0 内计入）⇒ 17 个字段整体后移 12B，末行 play_time4 写到 +0x1c0
+        // 越出包体；② 提升出 `row` 行指针局部，ORIG 无此局部——ORIG 每站点
+        // 都重算 `i*0x1b0 + 组偏移 + out`（0x08429c60/…c97/…cd6/…d10/…e32/
+        // …e73/…eeb/…f49/…f85/…fbe），我方提升后少发 16 条 imul + 36 条
+        // add/lea（实测助记符 census imul 17/1、add 41/16），并整体挪帧。
+        // 故改为逐站点内联两级视图（entry 族 @行+0x00、play 族 @行+0x60，
+        // 组步长各 0x6c；两族字段互叠，与 ORIG 位移逐条一致）。
+        if (!db->get_ushort(
+                0,
+                reinterpret_cast<DB_TowerBestRecordEntryView*>(
+                    i * 0x1b0 + (char*)out)->m_towerIndex))
             return 0;
-        if (!db->get_binary(1, row->m_memberInfo1, 0x17))
+        if (!db->get_binary(
+                1,
+                reinterpret_cast<DB_TowerBestRecordEntryView*>(
+                    i * 0x1b0 + (char*)out)->m_member,
+                0x17))
             return 0;
-        if (!db->get_uint(2, row->m_stage1))
+        if (!db->get_uint(
+                2,
+                reinterpret_cast<DB_TowerBestRecordPlayView*>(i * 0x1b0 + 0x60 +
+                                                              (char*)out)
+                    ->m_stage))
             return 0;
-        if (!db->get_uint(3, row->m_playTime1))
+        if (!db->get_uint(
+                3,
+                reinterpret_cast<DB_TowerBestRecordPlayView*>(i * 0x1b0 + 0x60 +
+                                                              (char*)out)
+                    ->m_playTime))
             return 0;
-        row->m_type = 1;
-        if (!db->get_binary(4, row->m_memberInfo2, 0x2e))
+        reinterpret_cast<DB_TowerBestRecordEntryView*>(i * 0x1b0 + (char*)out)
+            ->m_type = 1;
+        if (!db->get_binary(
+                4,
+                reinterpret_cast<DB_TowerBestRecordEntryView*>(i * 0x1b0 + 0x6c +
+                                                              (char*)out)
+                    ->m_member,
+                0x2e))
             return 0;
-        if (!db->get_uint(5, row->m_stage2))
+        if (!db->get_uint(
+                5,
+                reinterpret_cast<DB_TowerBestRecordPlayView*>(i * 0x1b0 + 0xcc +
+                                                              (char*)out)
+                    ->m_stage))
             return 0;
-        if (!db->get_uint(6, row->m_playTime2))
+        if (!db->get_uint(
+                6,
+                reinterpret_cast<DB_TowerBestRecordPlayView*>(i * 0x1b0 + 0xcc +
+                                                              (char*)out)
+                    ->m_playTime))
             return 0;
-        row->m_type2 = 2;
-        if (!db->get_binary(7, row->m_memberInfo3, 0x45))
+        reinterpret_cast<DB_TowerBestRecordEntryView*>(i * 0x1b0 + 0x6c +
+                                                       (char*)out)
+            ->m_type = 2;
+        if (!db->get_binary(
+                7,
+                reinterpret_cast<DB_TowerBestRecordEntryView*>(i * 0x1b0 + 0xd8 +
+                                                              (char*)out)
+                    ->m_member,
+                0x45))
             return 0;
-        if (!db->get_uint(8, row->m_stage3))
+        if (!db->get_uint(
+                8,
+                reinterpret_cast<DB_TowerBestRecordPlayView*>(i * 0x1b0 + 0x138 +
+                                                              (char*)out)
+                    ->m_stage))
             return 0;
-        if (!db->get_uint(9, row->m_playTime3))
+        if (!db->get_uint(
+                9,
+                reinterpret_cast<DB_TowerBestRecordPlayView*>(i * 0x1b0 + 0x138 +
+                                                              (char*)out)
+                    ->m_playTime))
             return 0;
-        row->m_type3 = 3;
-        if (!db->get_binary(10, row->m_memberInfo4, 0x5c))
+        reinterpret_cast<DB_TowerBestRecordEntryView*>(i * 0x1b0 + 0xd8 +
+                                                       (char*)out)
+            ->m_type = 3;
+        if (!db->get_binary(
+                10,
+                reinterpret_cast<DB_TowerBestRecordEntryView*>(i * 0x1b0 + 0x144 +
+                                                              (char*)out)
+                    ->m_member,
+                0x5c))
             return 0;
-        if (!db->get_uint(11, row->m_stage4))
+        if (!db->get_uint(
+                11,
+                reinterpret_cast<DB_TowerBestRecordPlayView*>(i * 0x1b0 + 0x1a4 +
+                                                              (char*)out)
+                    ->m_stage))
             return 0;
-        if (!db->get_uint(12, row->m_playTime4))
+        if (!db->get_uint(
+                12,
+                reinterpret_cast<DB_TowerBestRecordPlayView*>(i * 0x1b0 + 0x1a4 +
+                                                              (char*)out)
+                    ->m_playTime))
             return 0;
-        row->m_type4 = 4;
+        reinterpret_cast<DB_TowerBestRecordEntryView*>(i * 0x1b0 + 0x144 +
+                                                       (char*)out)
+            ->m_type = 4;
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
