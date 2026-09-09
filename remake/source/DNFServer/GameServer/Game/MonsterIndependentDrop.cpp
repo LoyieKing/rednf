@@ -16,7 +16,7 @@
 //     （ppEv / ne<iterator,iterator>），同时发射 ORIG 实有的 const 转换构造
 //     （C2 共同 + C5 为 4.4 独有别名）；P167 差集由 7 项（4 MISSING + 6 EXTRA）
 //     降到 5 项且全为 P93 同址别名（C1/C2、D1/D2、C1IPS2/C2IPS2）。
-//   generateIndependentItem 0x0834989a：gap 20→4（our 343→347 / ORIG 351）。
+//   generateIndependentItem 0x0834989a：gap 20→4→2（our 343→347→349 / ORIG 351）。
 //     真 bug①：genCount 下标 groupIdx+3 → groupIdx+4（ORIG 0x8349aaf 绝对地址
 //       drop+0x14+4g；旧读 drop+0x10+4g，少 1 个 int 元素）。
 //     修②：groupIdx / premium goldBase 改走 +0x3e / +0x3c 独立字节视图（P196；
@@ -24,10 +24,13 @@
 //     修③：premium 补 (int)(float) 恒等往返（ORIG 0x83499f8 fildl / 0x8349a1a fistpl）。
 //     修④：删 product 局部（P0 无槽 ⇒ 原码两次独立 imul）＋ 删 else 分支多余
 //       hitCount 清零 ＋ 缓存 end 迭代器（P13）。
-//     残余 = 2×`sub $1`（ORIG `sub $1; add $4`，4.1.2/4.4.7 探针均折 `lea 3/4`，
-//       判 N/P75 跨版本折叠）+ 2×`mov 0x28(%eax),%eax; mov %eax,%edx`
-//       （m_field28 应为 ENUM_CHARACTERJOB 枚举，P254；共享头 CItemGenerator.h
-//       属 S2，已报 Main）。
+//     修⑥：m_field28 已 enum 化（CItemGenerator.h，Main 批准；探针
+//       /tmp/enum_probe3.cpp int 单段 vs enum 两段，4.1.2/4.4.7 双证；
+//       sizeof 0x48 / +0x28 偏移 / 对齐 / mangled 零变化），补回 2 条
+//       `mov 0x28(%eax),%eax; mov %eax,%edx`。
+//     残余 = 2×`sub $1`（ORIG `sub $1; add $4` 两步，4.1.2/4.4.7 探针 6 形
+//       （(g-1)+4 / 指针算术 / int·uint 局部 / 中间变量 / 显式 cast）均折
+//       `lea 3/4` 一步 ⇒ 判 N/P75 跨版本折叠；最终跳转落点差 6 字节与此吻合）。
 //   independentItemRateControl 0x0834972f：真 bug⑤ —— 守卫条件反向。ORIG 0x83497c7
 //     `cmp diff; setle %al; test; je <循环尾>`（Ghidra C 同判 `if (field04 <= diff)
 //     {衰减}`）⇒ 仅 field04 <= diff 执行衰减；旧源码写成 `<= diff` 时 continue，

@@ -48,7 +48,7 @@ stGenerateRefData_t::stGenerateRefData_t()
     m_premiumDropRate = 0;
     m_field24 = 0;
     m_field25 = 0;
-    m_field28 = 11;
+    m_field28 = (ENUM_CHARACTERJOB)11;   // P254 enum 字段（ctor 常数写入，同宽零码）
     m_field2c = 0;
     m_field30 = 0;
 }

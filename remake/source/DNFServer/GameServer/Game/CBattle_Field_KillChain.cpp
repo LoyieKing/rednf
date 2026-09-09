@@ -452,7 +452,11 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
                 // +0x30=blueBuff2（原 (void) 丢弃 = 真语义缺口）。
                 // ORIG 逐处重调 getManager（P183 禁缓存 ⇒ 原样内联重取）。
                 ref.m_field25 = 1;
-                ref.m_field28 = m_party->getManager()->get_charac_job();
+                // [SweepMonsterDrop 2026-09-09] m_field28 int→ENUM_CHARACTERJOB
+                // （P254）：get_charac_job() 返回 int ⇒ 必须显式 cast；探针实测
+                // cast 形仍为单条直存（与 ORIG 0x0830b03d `mov %eax,-0x98` 同形）。
+                ref.m_field28 = static_cast<ENUM_CHARACTERJOB>(
+                    m_party->getManager()->get_charac_job());
                 ref.m_field2c = m_party->getManager()->get_charac_level();
                 ref.m_field30 = blueBuff2;
             }

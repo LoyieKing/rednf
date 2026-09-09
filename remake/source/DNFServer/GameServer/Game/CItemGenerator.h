@@ -60,6 +60,21 @@
 #include "PvPTypes.h"   // CMTRand（0x9c8 字节随机源）
 #include "CItemAmplifier.h"   // upgrade_table_t（CItemUpgradeTable 基类完整类型）
 
+// [b28d-56] P254：stGenerateRefData_t::m_field28 必须是枚举类型，才能复现 ORIG
+// 0x8349b7d `mov 0x28(%eax),%eax; mov %eax,%edx; mov levelFilter,%eax; cmp` 的
+// eax→edx 中转（int 字段时 4.4 折成 `mov 0x28(%eax),%edx` 单段）。探针
+// /tmp/enum_probe3.cpp a(int) vs b(enum) 在 4.1.2 与 4.4.7 上双证。
+// 以既有 guard 内联（与 JobKey.h / STCharacterScript.h / Quest.h /
+// CCompoundAvatar.h / GlobalScriptTutorial.h / STEquipmentScript.h 幂等，
+// 成员表一致）；本仓编译旗标无 -fstrict-enums（窄枚举存非 0 值安全）。
+#ifndef DNF_ENUM_CHARACTERJOB_DEFINED
+#define DNF_ENUM_CHARACTERJOB_DEFINED
+enum ENUM_CHARACTERJOB
+{
+    ENUM_CHARACTERJOB_0 = 0
+};
+#endif
+
 class CUser;  // 全局命名空间（ORIG vector<CUser*>）
 class RegenerationROI;  // RandomRentalA2.cpp 的 RegenVer_* 签名引用
 class CRandomOptionGive;  // set_random_option_give 参数（UserMiscLink 批）
@@ -194,7 +209,9 @@ struct stGenerateRefData_t
     int m_premiumDropRate;          // +0x20（setPremiumDropRate 写 0/-1/rate）
     char m_field24;                 // +0x24（ctor=0）
     char m_field25;                 // +0x25
-    int m_field28;                  // +0x28（ctor=11）
+    // [b28d-56] P254：enum 字段（ORIG 0x8349b7d `mov 0x28(%eax),%eax; mov %eax,%edx`
+    // 两段装载）；sizeof/偏移/mangled 零变化。
+    ENUM_CHARACTERJOB m_field28;    // +0x28（ctor=11）
     int m_field2c;                  // +0x2c
     int m_field30;                  // +0x30
     // ---- +0x34..+0x47：调用方上下文区（全部具名，2026-09-05 BossMission 批次）----
