@@ -1578,7 +1578,9 @@ bool ImportMapScript(STMapScript* script, const char* path)
             {
                 monObj.Clear();                             // 函数头复用对象
                 monObj.m_0 = okInt;
-                static int named_count = 0;                 // 函数级静态校验计数
+                // [STMapScript sweep] ORIG 0x089defc1 段 `cmp $0x1770,%eax; jbe` ⇒ 计数为
+                // 无符号（P196/T2 直证）；int 生 jle 语义分叉（负数计数值域）。
+                static unsigned int named_count = 0;        // 函数级静态校验计数
                 if ((okInt > 49999 && okInt < 0xc739) ||
                     (okInt > 55999 && okInt < 0xea61))
                 {
@@ -1612,23 +1614,26 @@ bool ImportMapScript(STMapScript* script, const char* path)
                 {
                     monObj.m_24 = 1;
                     int cnt = ScanInt(static_cast<bool*>(0));   // -0xe8
-                    if (cnt <= 0)
-                        monObj.m_vec28.clear();
-                    else
+                    // [STMapScript sweep] ORIG 0x089dfxxx 段为 `test; jle <clear 块>`（Scan 直落）
+                    // ⇒ 源码按 if(>0){Scan} else {clear} 书写才复现块序（P47/P222）。
+                    if (cnt > 0)
                         ScanChampionFeatures(cnt, monObj);
+                    else
+                        monObj.m_vec28.clear();
                 }
                 else if (sub == "[super champion]")
                 {
                     monObj.m_24 = 2;
                     int cnt = ScanInt(static_cast<bool*>(0));   // -0xe4
-                    if (cnt <= 0)
-                        monObj.m_vec28.clear();
-                    else
+                    if (cnt > 0)
                         ScanChampionFeatures(cnt, monObj);
+                    else
+                        monObj.m_vec28.clear();
                 }
                 else if (sub == "[boss]")
                 {
-                    static int boss_count = 0;
+                    // [STMapScript sweep] ORIG 0x089df24e `cmp $0x5dc,%eax; jbe` ⇒ unsigned。
+                    static unsigned int boss_count = 0;
                     boss_count = boss_count + 1;
                     if (boss_count > 0x5dc)
                         return false;
@@ -1751,15 +1756,17 @@ bool ImportMapScript(STMapScript* script, const char* path)
                         return false;
                 }
                 }
+                // [STMapScript sweep] ORIG 0x089df8c1 段为 `jl ERR; sub c4-X; test; jle OK`
+                // （无 js/je）；`(c4!=X && -1<c4-X)` 与 `c4-X>0` 整数等价（P214/P222 块序）。
                 if (bloodPt.m_smallRoundOrder < c4 ||
-                    (c4 != bloodPt.m_smallRoundOrder && -1 < c4 - bloodPt.m_smallRoundOrder))
+                    c4 - bloodPt.m_smallRoundOrder > 0)
                 {
                     printf("\n(%s) [blood phase time](%d) SMALLROUND : ROUND ERROR!!\n",
                            path, e0);
                         return false;
                 }
                 if (tok == "[blood phase time]" && bloodPt.m_smallRoundOrder == c4 &&
-                    (bloodPt.m_field10 < c0 || (c0 != bloodPt.m_field10 && -1 < c0 - bloodPt.m_field10)))
+                    (bloodPt.m_field10 < c0 || c0 - bloodPt.m_field10 > 0))
                 {
                     printf("\n(%s) [blood phase time](%d) SMALLROUND : ROUND ORDER ERROR!!\n",
                            path, e0);
@@ -1782,7 +1789,15 @@ bool ImportMapScript(STMapScript* script, const char* path)
                     dc = 0;
                     d8 = 0;
                 }
-                if (bloodPt.m_spawnCnt < 1)
+                // [STMapScript sweep] ORIG 0x089df9xx 段为 `test; jle <spawnCnt<1 块>`（else 直落，
+                // P272 德摩根块序交换）；`< 1` 形在 4.4 反产 `jg <else>`。
+                if (bloodPt.m_spawnCnt >= 1)
+                {
+                    if (bloodPt.m_spawnCnt != 1)
+                        d8 = bloodPt.m_spawnCnt;
+                    dc = dc + 1;
+                }
+                else
                 {
                     if (dc != 0)
                     {
@@ -1795,12 +1810,6 @@ bool ImportMapScript(STMapScript* script, const char* path)
                         dc = 0;
                         d8 = 0;
                 }
-                }
-                else
-                {
-                    if (bloodPt.m_spawnCnt != 1)
-                        d8 = bloodPt.m_spawnCnt;
-                    dc = dc + 1;
                 }
                 if (bloodPt.m_smallRoundOrder == c4)
                 {
@@ -1821,11 +1830,16 @@ bool ImportMapScript(STMapScript* script, const char* path)
                 script->m_vecBloodPhaseTime.push_back(bloodPt);
                 }
             {   // ORIG 收尾校验：最后两条 round 相同且最后一条 spawnCnt!=0 → 失败
-                std::vector<STAssignBloodPhaseTime>& v = script->m_vecBloodPhaseTime;
-                int last = v[static_cast<unsigned int>(e0 - 1)].m_smallRoundOrder;
-                int prev = v[static_cast<unsigned int>(e0 - 2)].m_smallRoundOrder;
+                // [STMapScript sweep] P183：ORIG 0x089df541/0x089df55x 每处重发
+                // `mov 0x8(%ebp),%edx; add $0x294,%edx`（三次独立 operator[]）；
+                // 引用局部会缓存 &vec 到 -0xc8(%ebp) 并省掉两次 add。
+                int last = script->m_vecBloodPhaseTime[
+                    static_cast<unsigned int>(e0 - 1)].m_smallRoundOrder;
+                int prev = script->m_vecBloodPhaseTime[
+                    static_cast<unsigned int>(e0 - 2)].m_smallRoundOrder;
                 if (last == prev &&
-                    v[static_cast<unsigned int>(e0 - 1)].m_spawnCnt != 0)
+                    script->m_vecBloodPhaseTime[
+                        static_cast<unsigned int>(e0 - 1)].m_spawnCnt != 0)
                 {
                     printf("\n(%s) [blood phase time](%d) SMALLROUND : LAST SMALL ROUND ERROR!!\n",
                            path, e0);
@@ -1930,15 +1944,16 @@ bool ImportMapScript(STMapScript* script, const char* path)
                         return false;
                     }
                 }
+                // [STMapScript sweep] 同 blood 段：ORIG 0x089e005d 为 `jl; sub; test; jle`。
                 if (defPt.m_smallRoundOrder < c94 ||
-                    (c94 != defPt.m_smallRoundOrder && -1 < c94 - defPt.m_smallRoundOrder))
+                    c94 - defPt.m_smallRoundOrder > 0)
                 {
                     printf("\n(%s) [Defense phase time](%d) SMALLROUND : ROUND ERROR!!\n",
                            path, b0);
                     return false;
                 }
                 if (tok == "[Defense phase time]" && defPt.m_smallRoundOrder == c94 &&
-                    (defPt.m_field10 < c90 || (c90 != defPt.m_field10 && -1 < c90 - defPt.m_field10)))
+                    (defPt.m_field10 < c90 || c90 - defPt.m_field10 > 0))
                 {
                     printf("\n(%s) [Defense phase time](%d) SMALLROUND : ROUND ORDER ERROR!!\n",
                            path, b0);
@@ -2216,24 +2231,29 @@ bool ImportMapScript(STMapScript* script, const char* path)
                 {
                     ai.m_roleType = 6;
                     int cnt = ScanInt(static_cast<bool*>(0));   // -0x3c
-                    if (cnt <= 0)
-                        ai.m_championFeatures.clear();
-                    else
+                    // [STMapScript sweep] 同 monster 段：ORIG 为 `test; jle <clear>`（Scan 直落）。
+                    if (cnt > 0)
                         ScanChampionFeatures(cnt, ai);
+                    else
+                        ai.m_championFeatures.clear();
                 }
                 else if (sub == "[super champion]")
                 {
                     ai.m_roleType = 7;
                     int cnt = ScanInt(static_cast<bool*>(0));   // -0x38
-                    if (cnt <= 0)
-                        ai.m_championFeatures.clear();
-                    else
+                    if (cnt > 0)
                         ScanChampionFeatures(cnt, ai);
+                    else
+                        ai.m_championFeatures.clear();
                 }
                 else if (sub == "[boss]")
                 {
-                    static int apc_boss_count = 0;
-                    if (++apc_boss_count >= 0x5dd)
+                    // [STMapScript sweep] ORIG 0x089e10d3 `cmp $0x5dc,%eax; jbe` ⇒ unsigned。
+                    static unsigned int apc_boss_count = 0;
+                    // 两句式：ORIG 是 `count = count + 1;` 后重新读槽比较（0x089e10c0 段）；
+                    // `++count >= K` 前缀形在 4.4 生 seta 物化（P225 族），偏离 jbe 直跳。
+                    apc_boss_count = apc_boss_count + 1;
+                    if (apc_boss_count > 0x5dc)
                         return false;
                     ai.m_roleType = 8;
                 }
