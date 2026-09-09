@@ -2,17 +2,30 @@
 // 声明以 CUser.h 为准；ORIG 字段已全部具名化（m_entries / m_additionalBase /
 // m_additionalInfo 等，见 CUser.h 的 WongWork::CUserPremium），本 TU 不再使用
 // 裸偏移访问（参照 docs/class_func_reports/WongWork__CUserPremium）。
-// [b28d-solo-CUserPremium] 本波（单文件泳道）终判汇总（check_tu_routed 现编现测）：
-//   TU 三数 521(184+337)/near1/diff7 → 524(185+339)/near1/diff6（零回归，+3 AE）；
-//   IDENTICAL：SetPremiumItemData 52（P315 定义处 key top-level const 令
-//     make_pair 推 IRKm，p167 6/6 CLEAR）、RemovePremium 59（两臂裸早返复现
-//     第二 jmp + je 落 nop 岛）；
-//   DIFF/N 封顶（p167 全 CLEAR）：LoadPremiumInfo（size!=0 极性/end 缓存/i 提头，
-//     ndiff 316→56，残 N82/N95/N1）、importPremiumList（分支局部 bool/int rate/
-//     分支头置零等，ndiff 923→712，残 N93/N98/N82）、_Additioal_info::add 116→52、
-//     subtract 121→62（N-86b：13 形探针不可择）、setPremiumState 8→7（N107/N7）、
-//     GetReturnItemRate（N93/N98，两迭代器槽互换）。
-//   全 8 件 p167 CLEAR；无 .h 改动（CUser.h int→bool 由 Main 代落）。
+// [SweepCUserPremium 2026-09-09] 本波终判汇总（check_tu_routed 现编现测）：
+//   TU 四数 478(169+309)/near1/diff6 → 479(169+310)/near0/diff6（near→ae，
+//   零回退）；dual_rank --tu CUserPremium.cpp 候选 4 件全部逐件核对。
+//   真缺口修正（ORIG 直证）：
+//   ① importPremiumList `[term]`/`[restrict]` 分支**内循环**：ORIG 0x08906e77/
+//      0x08906ebc 成功写字段后 `jmp` 回分支头继续 ScanInt，失败才 `jmp 08906e3c`
+//      回 ScanType（Ghidra C 段 `while(1){v=0;v=ScanInt(&ok);if(!ok)break;
+//      写字段}` 同证）；旧单次形把「[term] v1 v2」拆成两次 ScanType，丢后续值。
+//   ② importPremiumList 死局部/前置置零照抄（P171/P232/P198①/P212）：-0x58
+//      （0x08906221）、-0x3c 与 cnt/itemId（0x089067f7..805）、slot/cnt/itemId
+//      （0x089068cb..d9）；cur/i 声明提头、apply-date 的 v 提前声明 ⇒ 全帧槽
+//      集合与 ORIG 逐槽相等（40/40，含 -0x6c/-0x68/-0x64/-0x60/-0x5c…-0x18）；
+//      gap 14→2、fn_diff ndiff 827→592。
+//   ③ GetReturnItemRate：P326 右值临时形 `it != const_iterator(map.end())`
+//      ⇒ NEAR→AE（42/42、ndiff 0；旧 N93「两迭代器槽互换无源码解」作废）。
+//   ④ 其余 DIFF 件复测维持 N 封顶（p167 全 CLEAR；jcc 逐位一致）：
+//      _Additioal_info::add gap12 / subtract gap22（N-86b/N18a 寄存器舞；
+//      subtract 0x4c/0x4e 加法特例已忠实保留）、LoadPremiumInfo gap-2
+//      （N82/N95；补 key 具名局部实测帧 0x7e3c→0x7e4c、ndiff 312→407，已回退）、
+//      setPremiumState gap1（N107/N7）、static_init（N123 噪音）。
+//   全 TU 硬证据：ORIG 本 TU 581 函数 **0 处 `call *`**（虚槽判据 N/A）；
+//   调用多重集差仅 static_init（N123）；EH/异常规格（_Unwind_Resume/__cxa_*）
+//   零差异；jcc 批量比对 582 函数仅 importPremiumList 1 处 X 族布局差
+//   （jne↔je，P168a/P292 封顶）。无 .h 改动。
 #include "CUser.h"
 #include "GlobalData.h"
 #include "DNFLexWrapper.h"   // loadRDARScriptFile/ScanType/ScanInt/ScanStr（ORIG 真实符号）
@@ -216,16 +229,20 @@ int importPremiumList(const char* path,
     // 全函数唯一一次写、无读（死局部占帧）⇒ 照抄。
     int deadLocal = 0;
     bool ok = false;
+    // [b28d-solo-CUserPremium] 槽序对齐试形：ORIG cur=-0x68 深于
+    // equipCase=-0x60（4.1 先声明更深）⇒ 把 cur 的**声明**提到 equipCase
+    // 之前（无初始化），赋值仍留在 clean 循环之后（ORIG +0x7c 才写 cur）。
+    stPremiumTable_t* cur;
+    // ORIG i=-0x64 介于 cur(-0x68) 与 equipCase(-0x60) 之间 ⇒ 同法提头。
+    int i;
     // ORIG -0x60 槽：跨组保留的标签分类值（未知标签时写入残留值）；ORIG 头段
     // 无 `movl $0,-0x60` ⇒ 原码声明处不带初始化。
     int equipCase;
 
-    for (int i = 0; i <= 0x69; ++i)
+    for (i = 0; i <= 0x69; ++i)
         table[i].clean();
 
-    // [b28d-solo-CUserPremium] P0：ORIG +0x7c 才写 cur（clean 循环之后）⇒
-    // 原码在 clean 之后声明。
-    stPremiumTable_t* cur = table;
+    cur = table;
 
     while (true)
     {
@@ -277,6 +294,11 @@ int importPremiumList(const char* path,
 
         if (token == "[returnitem list]")
         {
+            // [b28d-solo-CUserPremium] P171/P232 死局部照抄：ORIG 0x08906221
+            // `movl $0x0,-0x58(%ebp)`（memset 之前）是全函数对该槽唯一一次
+            // 访问，之后无读（grep -0x58(%ebp) 仅此一条）⇒ 原码分支头遗留
+            // 的未使用 int 局部；缺它少 1 条指令。
+            int deadSlot = 0;
             SPremiumReturnItemInfo elem;
             memset(&elem, 0, sizeof(elem));
             returnVec.push_back(elem);
@@ -470,15 +492,23 @@ int importPremiumList(const char* path,
 
         if (token == "[over equipinfo]")
         {
+            // [b28d-solo-CUserPremium] P212/P198①：ORIG 0x089067f7..0x08906805
+            // 分支头三连置零 `movl $0x0,-0x3c/-0x38/-0x34`，且 -0x3c 全函数
+            // 仅此一次写、无读（P171/P232 死局部）；-0x38/-0x34 为 cnt/itemId
+            // （声明即置零、循环内仅赋值）。旧形把 itemId/cnt 写在循环内直接
+            // 初始化，缺三条置零指令。
+            int deadSlot2 = 0;
+            int cnt = 0;
+            int itemId = 0;
             cur->m_overEquipCount = ScanInt((bool*)0);
             if (cur->m_overEquipCount > 5)
                 return 0x1591;
             for (int m = 0; cur->m_overEquipCount > m; ++m)
             {
-                int itemId = ScanInt(&ok);
+                itemId = ScanInt(&ok);
                 if (!ok)
                     break;
-                int cnt = ScanInt(&ok);
+                cnt = ScanInt(&ok);
                 if (!ok)
                     break;
                 cur->m_overEquipPairs[m].first = itemId;
@@ -489,18 +519,24 @@ int importPremiumList(const char* path,
 
         if (token == "[return iteminfo]")
         {
+            // [b28d-solo-CUserPremium] P212/P198①：ORIG 0x089068cb..0x089068d9
+            // 分支头三连置零 `movl $0x0,-0x2c/-0x28/-0x24`（slot/cnt/itemId）
+            // **先于** 0x089068e0 的 ScanInt(m_returnItemCount)；旧形在循环内
+            // 直接初始化 itemId/cnt，缺三条置零。
+            int slot = 0;
+            int cnt = 0;
+            int itemId = 0;
             cur->m_returnItemCount = ScanInt((bool*)0);
             if (cur->m_returnItemCount > 3)
                 return 0x15a6;
-            int slot = 0;
             for (int n = 0; cur->m_returnItemCount > n; ++n)
             {
                 if (slot > 2)
                     return 0x15aa;
-                int itemId = ScanInt(&ok);
+                itemId = ScanInt(&ok);
                 if (!ok)
                     break;
-                int cnt = ScanInt(&ok);
+                cnt = ScanInt(&ok);
                 if (!ok)
                     break;
                 cur->m_returnItemPairs[slot].first = itemId;
@@ -512,9 +548,13 @@ int importPremiumList(const char* path,
 
         if (token == "[apply date]")
         {
+            // ORIG 0x089069bc d=-0x18、0x089069ce v=-0x1c（4.1 先声明更深）；
+            // 4.4 按 for-init 先声明给 d 更深槽 ⇒ 把 v 提到循环外先声明
+            // （无初始化，ORIG 循环头无 v 置零），d 留在 for init。
+            int v;
             for (int d = 0;; ++d)
             {
-                int v = ScanInt(&ok);
+                v = ScanInt(&ok);
                 if (!ok)
                     break;
                 cur->m_applyDayMask[d] = v;
@@ -661,23 +701,36 @@ int importPremiumList(const char* path,
                     return 0x1600;
                 if (token == "[term]")
                 {
-                    // [b28d-solo-CUserPremium] P198①：ORIG 0x08906f9a
-                    // `movl $0x0,-0x10` 先于 ScanInt ⇒ 两句式（声明置零 + 赋值）。
-                    int v = 0;
-                    v = ScanInt(&itemOk);
-                    if (!itemOk)
-                        continue;
-                    item.m_termFlag = (unsigned char)v;
+                    // [b28d-solo-CUserPremium] 真缺口修正：ORIG 0x08906e77..
+                    // 0x08906ea3 是**分支内循环**——成功写字段后 `jmp 08906e77`
+                    // 回分支头继续 ScanInt，失败才 `jmp 08906e3c` 回 ScanType。
+                    // 旧单次形（处理一个值就 continue 回 ScanType）在
+                    // 「[term] v1 v2」或连续多个 [term] 的脚本上语义不同
+                    // （多消费一次 ScanType / 丢后续值）。Ghidra C 段同证：
+                    // `while(1){ local_14=0; local_14=ScanInt(&ok); if(!ok) break;
+                    //  item.m_termFlag=(uchar)local_14; }`。
+                    while (true)
+                    {
+                        int v = 0;
+                        v = ScanInt(&itemOk);
+                        if (!itemOk)
+                            break;
+                        item.m_termFlag = (unsigned char)v;
+                    }
                     continue;
                 }
                 if (token == "[restrict]")
                 {
-                    // ORIG 0x08906fc2 `movl $0x0,-0xc` 同形。
-                    int v = 0;
-                    v = ScanInt(&itemOk);
-                    if (!itemOk)
-                        continue;
-                    item.m_restrictFlag = (unsigned char)v;
+                    // ORIG 0x08906ebc..0x08906ee2：与 [term] 同构的内循环
+                    // （成功 `jmp 08906ebc` 回分支头，失败 `jmp 08906e3c`）。
+                    while (true)
+                    {
+                        int v = 0;
+                        v = ScanInt(&itemOk);
+                        if (!itemOk)
+                            break;
+                        item.m_restrictFlag = (unsigned char)v;
+                    }
                     continue;
                 }
                 if (token == "[/item]")
@@ -1205,7 +1258,6 @@ int CUserPremium::GetReturnItemRate(int type) const
     if (m_returnItemMap.empty())
         return 0;
     std::map<int, int>::const_iterator it = m_returnItemMap.find(type);
-    std::map<int, int>::const_iterator e = m_returnItemMap.end();
     // [b28c-L7] 残差 2 处 = N93（控制流/装载形已全等）：find 结果槽 ORIG
     // -0x10 vs 4.4 -0xc、end 结果槽 ORIG -0xc vs 4.4 -0x10——同块内两个直接
     // 初始化迭代器，4.1 按声明序占低→高槽、4.4 相反（N93 原例即本仓
@@ -1216,7 +1268,11 @@ int CUserPremium::GetReturnItemRate(int type) const
     // [b28c-L7] P222：ORIG 0x86ae81a `call ne; test %al; je <mov$0 尾岛>` +
     // SUCC(ptEv+mov 0x4) fall-through 在前 ⇒ 正极性 `if(it!=e) return …`，
     // 否定早返形把 SUCC 推到岛后（+1 jmp）。
-    if (it != e)
+    // [b28d-solo-CUserPremium] P326 试形：ORIG 0x086ae7e3 find→-0x10、
+    // 0x086ae7fe end→-0xc（4.1 先声明更深），4.4 具名双迭代器恒相反
+    // （find→-0xc/end→-0x10）。把 end() 包成右值临时内联进比较，看是否
+    // 复现 ORIG 槽阶梯。
+    if (it != std::map<int, int>::const_iterator(m_returnItemMap.end()))
         return it->second;
     return 0;
 }
