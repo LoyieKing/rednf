@@ -2807,9 +2807,13 @@ bool CDeathTower::CStage::consistMap(const CDungeonMgr& dungeonMgr, const CMap* 
             static_cast<char>(src.m_field04);
 
         stGenerateResult_t result;
+        // [SweepSTEventScript 2026-09-09 真 bug 修正] ORIG 0x0846114x 虚槽 `add $0xc`
+        // = CItemGenerator::generateSpecificItem（vtable word[5]；word[4]=+0x08 才是
+        // generateRandomItem，见 CItemGenerator.h:46-50 与 CBossPlay.cpp:452-457 同款判据）
+        // ⇒ 第一次调用原写 generateRandomItem 为虚槽取错。
         G_CDataManager()->getItemGenerator()
             ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_1)
-            ->generateRandomItem(refData1, result);
+            ->generateSpecificItem(refData1, result);
         G_CDataManager()->getItemGenerator()
             ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_4)
             ->generateSpecificItem(refData2, result);
