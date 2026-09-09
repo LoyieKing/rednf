@@ -2271,23 +2271,21 @@ int Dispatcher_BVHackInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x08207568..0x08207851 (0x2e9 字节)。
     // 阈值常量 _DAT_08bd6360 = 50.0（已 objdump 核实）。
-    static const char* const kPretty =
-        "virtual int Dispatcher_BVHackInfo::dispatch_sig(CUser*, PacketBuf&)";
 
     if (user->get_state() <= 1)   // cmp $0x1 / setle
-        return LineFunc(0xa216, kPretty, 0, 0);
+        return LineFunc(0xa216, __PRETTY_FUNCTION__, 0, 0);
 
     int code = 0;
     if (packet.get_int(code) != 1 || code != 0x40)
-        return LineFunc(0xa21a, kPretty, 0, 0);
+        return LineFunc(0xa21a, __PRETTY_FUNCTION__, 0, 0);
 
     char payload[0x40];   // -0x80
     if (packet.get_binary(payload, 0x40) != 1)
-        return LineFunc(0xa21c, kPretty, 0, 0);
+        return LineFunc(0xa21c, __PRETTY_FUNCTION__, 0, 0);
 
     stBVHackInfo_t info;   // -0x40（ORIG 至少 0x30 字节，6 个 double）
     if (decryptBVHackPacket(payload, info) != 1)
-        return LineFunc(0xa224, kPretty, 0, 0);
+        return LineFunc(0xa224, __PRETTY_FUNCTION__, 0, 0);
 
     const double v0 = info.m_values[0];
     const double v1 = info.m_values[1];
@@ -2301,7 +2299,7 @@ int Dispatcher_BVHackInfo::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         char* idStr = NumberToString(user->get_acc_id(), 0);
         LogManager::logFormat(
-            1, "PacketDispatcher_Impl_1.cpp", kPretty, 0xa228,
+            1, "PacketDispatcher_Impl_1.cpp", __PRETTY_FUNCTION__, 0xa228,
             "(m_id: %s)(%5f)(%5f)(%5f)(%5f)(%5f)(%5f)",
             idStr, v5, v4, v3, v2, v1, v0);
     }
@@ -7242,14 +7240,12 @@ int Dispatcher_AuctionBidding::dispatch_sig(CUser* user, PacketBuf& packet)
     // 包布局（ServerLab/Auction auction_header）：
     //   PCK_AUCTION_BIDDING_GA: uid@0x12, characNo@0x16, name[13]@0x1a, price(int)@0x27, auctionId[8]@0x2b
     //   PCK_AUCTION_ASK_OWNER_IS_VIP_GP: uid@0x12, auctionId[8]@0x16, characNo@0x1e, name[13]@0x22, price(uint)@0x2f, extra(int)@0x33
-    static const char* const kPretty =
-        "virtual int Dispatcher_AuctionBidding::dispatch_sig(CUser*, PacketBuf&)";
 
     unsigned char payType = 0;
     if (packet.get_byte(payType) != 1)
-        return LineFunc(0xc554, kPretty, 0, 0);
+        return LineFunc(0xc554, __PRETTY_FUNCTION__, 0, 0);
     if (payType > 1)   // cmp $0x1 / jbe
-        return LineFunc(0xc557, kPretty, 0, 0);
+        return LineFunc(0xc557, __PRETTY_FUNCTION__, 0, 0);
 
     const int pay = payType;   // movzbl
     if (pay == 1 && user->get_charac_level() < 0x14)
@@ -7282,7 +7278,7 @@ int Dispatcher_AuctionBidding::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         unsigned int price = 0;   // -0x44
         if (packet.get_int(price) != 1)
-            return LineFunc(0xc5a9, kPretty, 0, 0);
+            return LineFunc(0xc5a9, __PRETTY_FUNCTION__, 0, 0);
 
         if ((unsigned int)user->GetCera() < price)   // asm setb（无符号比较）
         {
@@ -7299,12 +7295,12 @@ int Dispatcher_AuctionBidding::dispatch_sig(CUser* user, PacketBuf& packet)
 
         char auctionId[8];   // -0x74..-0x6d（get_binary 目标 = -0x78+4）
         if (packet.get_binary(auctionId, 8) != 1)
-            return LineFunc(0xc5bb, kPretty, 0, 0);
+            return LineFunc(0xc5bb, __PRETTY_FUNCTION__, 0, 0);
         const unsigned int priceCopy = price;   // ORIG mov -0x44 → -0x78
 
         int extra = 0;   // -0x48
         if (packet.get_int(extra) != 1)
-            return LineFunc(0xc5c1, kPretty, 0, 0);
+            return LineFunc(0xc5c1, __PRETTY_FUNCTION__, 0, 0);
 
         // PCK_AUCTION_ASK_OWNER_IS_VIP_GP ctor ORIG W 0x0822ebd8
         PCK_AUCTION_ASK_OWNER_IS_VIP_GP pck;
@@ -7334,17 +7330,17 @@ int Dispatcher_AuctionBidding::dispatch_sig(CUser* user, PacketBuf& packet)
 
     int price = 0;   // 读入包 +0x27
     if (packet.get_int(price) != 1)
-        return LineFunc(0xc642, kPretty, 0, 0);
+        return LineFunc(0xc642, __PRETTY_FUNCTION__, 0, 0);
     *reinterpret_cast<int*>(body + 0x27) = price;
 
     char auctionId[8];   // 包 +0x2b（get_binary 直接写包内）
     if (packet.get_binary(body + 0x2b, 8) != 1)
-        return LineFunc(0xc643, kPretty, 0, 0);
+        return LineFunc(0xc643, __PRETTY_FUNCTION__, 0, 0);
 
     char buyerName[14];   // -0x42，13B 有效 + pad，读取前清零
     memset(buyerName, 0, sizeof(buyerName));
     if (packet.get_binary(buyerName, 0xd) != 1)
-        return LineFunc(0xc648, kPretty, 0, 0);
+        return LineFunc(0xc648, __PRETTY_FUNCTION__, 0, 0);
 
     if (user->getCurCharacMoney() < price)
     {
@@ -7379,7 +7375,7 @@ int Dispatcher_AuctionBidding::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         if (gmList[i] == user->getCurCharacNo())
         {
-            cMyTrace trace(kPretty, 0xc686, 0);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0xc686, 0);
             trace("Trace Auction Delay, %s(%d)", "REQ AuctionBidding", user->getCurCharacNo());
             break;
         }
@@ -10793,7 +10789,14 @@ int Dispatcher_Req_Urgent_Quest::process(CUser* user, MSG_BASE& msg, ParamBase& 
     static std::list<int> selected_quest;
     selected_quest.clear();
 
-    char cleared[0x7531];  // ORIG local_7589：m_cleared(0x7530)+save-flag 逐字节快照
+    // [b28d-solo-Dispatchers] ORIG local_7589 = 0x7531 字节快照（memcpy 直填，
+    //   0x081df57c mov $0x7531 / 0x081df58c call memcpy；全函数**无** CQuestClear
+    //   构造调用）。ORIG 有 D1Ev ×2（0x081df71f 正常 + 0x081df739 EH），但
+    //   `_ZN8WongWork11CQuestClearD1Ev` 0x0822e4cc 为**空体**（push/mov/pop/ret）
+    //   ⇒ 缺该调用无观察行为差。实测真实对象形（`WongWork::CQuestClear cleared;`）
+    //   会额外发射 C1Ev call（ORIG 无）并使 missing 822→825（四数闸门）⇒ 保留
+    //   char 占位形，本项按 N/P64 建模豁免封顶。
+    char cleared[0x7531];
     memcpy(cleared, &user->getCurCharacQuestR()->m_cleared, 0x7531);
 
     stSelectQuestParam selectParam(user);
@@ -14191,15 +14194,13 @@ int Dispatcher_AuctionRegistCancel::dispatch_sig(CUser* user, PacketBuf& packet)
     // ORIG 0x08214b96..0x08214e43 (0x2ae 字节)。GM 表 _ZL6gmList @0x093abb4c。
     // 包：PCK_AUCTION_REGIST_CANCEL_GP（ctor W 0x0822ea1c）/ _GA（ctor W 0x0822e5c4）
     //   uid@0x12, characNo@0x16, auctionId[8]@0x1a。
-    static const char* const kPretty =
-        "virtual int Dispatcher_AuctionRegistCancel::dispatch_sig(CUser*, PacketBuf&)";
     static const int gmList[5] = { 0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae };
 
     unsigned char payType = 0;
     if (packet.get_byte(payType) != 1)
-        return LineFunc(0xc47f, kPretty, 0, 0);
+        return LineFunc(0xc47f, __PRETTY_FUNCTION__, 0, 0);
     if (payType > 1)
-        return LineFunc(0xc482, kPretty, 0, 0);
+        return LineFunc(0xc482, __PRETTY_FUNCTION__, 0, 0);
 
     const int pay = payType;
     const int preCheck = user->AuctionPreCheck((ENUM_CMDPACKET)0xbb, (PAY_TYPE)pay);
@@ -14221,7 +14222,7 @@ int Dispatcher_AuctionRegistCancel::dispatch_sig(CUser* user, PacketBuf& packet)
         *reinterpret_cast<unsigned int*>(body + 0x12) = user->GetUID();
         *reinterpret_cast<int*>(body + 0x16) = user->getCurCharacNo();
         if (packet.get_binary(body + 0x1a, 8) != 1)
-            return LineFunc(0xc4b1, kPretty, 0, 0);
+            return LineFunc(0xc4b1, __PRETTY_FUNCTION__, 0, 0);
         GlobalData::s_cera_auction_proxy->SendPacket(
             reinterpret_cast<nsl::PACKET_HEADER*>(&pck));
     }
@@ -14232,7 +14233,7 @@ int Dispatcher_AuctionRegistCancel::dispatch_sig(CUser* user, PacketBuf& packet)
         *reinterpret_cast<unsigned int*>(body + 0x12) = user->GetUID();
         *reinterpret_cast<int*>(body + 0x16) = user->getCurCharacNo();
         if (packet.get_binary(body + 0x1a, 8) != 1)
-            return LineFunc(0xc4c4, kPretty, 0, 0);
+            return LineFunc(0xc4c4, __PRETTY_FUNCTION__, 0, 0);
         GlobalData::s_auction_proxy->SendPacket(
             reinterpret_cast<nsl::PACKET_HEADER*>(&pck));
     }
@@ -14241,7 +14242,7 @@ int Dispatcher_AuctionRegistCancel::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         if (gmList[i] == user->getCurCharacNo())
         {
-            cMyTrace trace(kPretty, 0xc4d4, 0);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0xc4d4, 0);
             trace("Trace Auction Delay, %s(%d)", "REQ AuctionRegistCancel",
                   user->getCurCharacNo());
             break;
@@ -15488,17 +15489,18 @@ Dispatcher_UpdateServerMessage::~Dispatcher_UpdateServerMessage() {}
 int Dispatcher_UpdateServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x0821d9ee..0x0821df69 (0x57c 字节)。
-    static const char* const kPretty =
-        "virtual int Dispatcher_UpdateServerMessage::dispatch_sig(CUser*, PacketBuf&)";
 
     if (user->get_state() != 3)
     {
-        const unsigned int accId = user->get_acc_id();
-        char* idStr = NumberToString(accId, 0);
-        cMyTrace trace(kPretty, 0xd1c6, 0);
-        trace("ServerMessage : Dispatcher_UpdateServerMessage => User State : %d, m_id : %s",
-              user->get_state(), idStr);
-        return LineFunc(0xd1c7, kPretty, 0, 0);
+        // [b28d-solo-Dispatchers] P227/P0：ORIG 0x0821d9ee 段在 cMyTrace ctor 前
+        //   求值 varargs 并跨 ctor 以 %ebx/%esi 保活（`call get_acc_id;
+        //   movl $0,0x4(%esp); mov %eax,(%esp); call NumberToString; mov %eax,%ebx;
+        //   call get_state; mov %eax,%esi; call cMyTraceC1; …`），**无** accId/idStr
+        //   具名槽 ⇒ 全表达式临时链（旧码两局部使帧 +8）。
+        cMyTrace(__PRETTY_FUNCTION__, 0xd1c6, 0)(
+            "ServerMessage : Dispatcher_UpdateServerMessage => User State : %d, m_id : %s",
+            user->get_state(), NumberToString(user->get_acc_id(), 0));
+        return LineFunc(0xd1c7, __PRETTY_FUNCTION__, 0, 0);
     }
 
     PacketGuard guard;
@@ -15507,14 +15509,12 @@ int Dispatcher_UpdateServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
     unsigned char msgIdx = 0;
     if (packet.get_byte(msgIdx) != 1)
     {
-        const int r = LineFunc(0xd1d0, kPretty, 0, 0);
-        return r;
+        return LineFunc(0xd1d0, __PRETTY_FUNCTION__, 0, 0);
     }
     int titleLen = 0;
     if (packet.get_int(titleLen) != 1)
     {
-        const int r = LineFunc(0xd1d5, kPretty, 0, 0);
-        return r;
+        return LineFunc(0xd1d5, __PRETTY_FUNCTION__, 0, 0);
     }
 
     if (titleLen < 0 || 0x31 < titleLen)
@@ -15529,8 +15529,7 @@ int Dispatcher_UpdateServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
     char title[50];   // -0x8e，0x32
     if (packet.get_str(title, 0x32, titleLen) != 1)
     {
-        const int r = LineFunc(0xd1e4, kPretty, 0, 0);
-        return r;
+        return LineFunc(0xd1e4, __PRETTY_FUNCTION__, 0, 0);
     }
     if (G_CDataManager()->hasPreventString(title))
     {
@@ -15544,8 +15543,7 @@ int Dispatcher_UpdateServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
     int contentLen = 0;
     if (packet.get_int(contentLen) != 1)
     {
-        const int r = LineFunc(0xd1f4, kPretty, 0, 0);
-        return r;
+        return LineFunc(0xd1f4, __PRETTY_FUNCTION__, 0, 0);
     }
 
     char content[30];   // -0x56，0x1e
@@ -15553,12 +15551,11 @@ int Dispatcher_UpdateServerMessage::dispatch_sig(CUser* user, PacketBuf& packet)
     //   memset/rep stos/逐字节清零写），且 p167 报我方 EXTRA `memset` +1 ⇒ 删。
     if (packet.get_str(content, 0x1e, contentLen) != 1)
     {
-        const int r = LineFunc(0xd1f9, kPretty, 0, 0);
-        return r;
+        return LineFunc(0xd1f9, __PRETTY_FUNCTION__, 0, 0);
     }
 
     if (strcmp(content, user->getCurCharacName()) != 0)
-        return LineFunc(0xd1fd, kPretty, 0, 0);
+        return LineFunc(0xd1fd, __PRETTY_FUNCTION__, 0, 0);
 
     const int curSec = GlobalData::s_systemTime_.getCurSec();
     CSharedServerMessageManager* mgr = G_CGameManager()->GetSharedServerMessageManager();
@@ -16085,11 +16082,9 @@ Dispatcher_CallGuildCreateRight::~Dispatcher_CallGuildCreateRight() {}
 int Dispatcher_CallGuildCreateRight::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x081ffcc2..0x08200125 (0x464 字节)。packet 未读取（ORIG 不消费包）。
-    static const char* const kPretty =
-        "virtual int Dispatcher_CallGuildCreateRight::dispatch_sig(CUser*, PacketBuf&)";
 
     if (user->get_state() <= 2 || user->getCurCharacR() == 0)
-        return LineFunc(0x93f4, kPretty, 0, 0);
+        return LineFunc(0x93f4, __PRETTY_FUNCTION__, 0, 0);
 
     if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
             user, (RestrictCategory::Enum)1, 0x1c))
@@ -18068,15 +18063,13 @@ int Dispatcher_AuctionAskAveragePrice::dispatch_sig(CUser* user, PacketBuf& pack
     //   循环 i=0..2: byte@0x1f+i, short@0x22+2i, char@0x2a+i, 尾 byte@0x2e；ROI sort@0x22。
     // GP/PCK_AUCTION_ASK_AVERAGE_PRICE_GP（ctor W 0x0822e94c）
     //   uid@0x12, characNo@0x16, itemIdx@0x1a, flag@0x1e。
-    static const char* const kPretty =
-        "virtual int Dispatcher_AuctionAskAveragePrice::dispatch_sig(CUser*, PacketBuf&)";
     static const int gmList[5] = { 0x4c2dc8, 0x5cf723, 0xa9c742, 0xa2ad85, 0x9ae1ae };
 
     unsigned char payType = 0;
     if (packet.get_byte(payType) != 1)
-        return LineFunc(0xc1e5, kPretty, 0, 0);
+        return LineFunc(0xc1e5, __PRETTY_FUNCTION__, 0, 0);
     if (payType > 1)
-        return LineFunc(0xc1e8, kPretty, 0, 0);
+        return LineFunc(0xc1e8, __PRETTY_FUNCTION__, 0, 0);
 
     if (IsAuctionServerDisconnected(payType))
     {
@@ -18085,7 +18078,7 @@ int Dispatcher_AuctionAskAveragePrice::dispatch_sig(CUser* user, PacketBuf& pack
     }
 
     if (user->get_state() <= 2 || user->getCurCharacR() == 0)
-        return LineFunc(0xc207, kPretty, 0, 0);
+        return LineFunc(0xc207, __PRETTY_FUNCTION__, 0, 0);
 
     // GA 包 ctor + 头两字段
     PCK_AUCTION_ASK_AVERAGE_PRICE_GA pck;
@@ -18095,12 +18088,12 @@ int Dispatcher_AuctionAskAveragePrice::dispatch_sig(CUser* user, PacketBuf& pack
 
     unsigned int itemIdx = 0;
     if (packet.get_int(itemIdx) != 1)
-        return LineFunc(0xc217, kPretty, 0, 0);
+        return LineFunc(0xc217, __PRETTY_FUNCTION__, 0, 0);
     *reinterpret_cast<unsigned int*>(body + 0x1a) = itemIdx;
 
     unsigned char flag = 0;
     if (packet.get_byte(flag) != 1)
-        return LineFunc(0xc21a, kPretty, 0, 0);
+        return LineFunc(0xc21a, __PRETTY_FUNCTION__, 0, 0);
     body[0x1e] = static_cast<char>(flag);
 
     if (payType == 1)
@@ -18120,23 +18113,23 @@ int Dispatcher_AuctionAskAveragePrice::dispatch_sig(CUser* user, PacketBuf& pack
         {
             unsigned char upgrade = 0;
             if (packet.get_byte(upgrade) != 1)
-                return LineFunc(0xc22f, kPretty, 0, 0);
+                return LineFunc(0xc22f, __PRETTY_FUNCTION__, 0, 0);
             body[0x1f + i] = static_cast<char>(upgrade);
 
             short category = 0;
             if (packet.get_short(category) != 1)
-                return LineFunc(0xc232, kPretty, 0, 0);
+                return LineFunc(0xc232, __PRETTY_FUNCTION__, 0, 0);
             *reinterpret_cast<short*>(body + 0x22 + i * 2) = category;
 
             char refine = 0;
             if (packet.get_byte(refine) != 1)
-                return LineFunc(0xc235, kPretty, 0, 0);
+                return LineFunc(0xc235, __PRETTY_FUNCTION__, 0, 0);
             body[0x2a + i] = refine;
         }
 
         CItem* item = G_CDataManager()->find_item((int)itemIdx);
         if (item == 0)
-            return LineFunc(0xc23a, kPretty, 0, 0);
+            return LineFunc(0xc23a, __PRETTY_FUNCTION__, 0, 0);
 
         if (item->IsRandomOption())   // ORIG 虚调用 vptr+0x4c
         {
@@ -18152,7 +18145,7 @@ int Dispatcher_AuctionAskAveragePrice::dispatch_sig(CUser* user, PacketBuf& pack
 
         unsigned char tail = 0;
         if (packet.get_byte(tail) != 1)
-            return LineFunc(0xc247, kPretty, 0, 0);
+            return LineFunc(0xc247, __PRETTY_FUNCTION__, 0, 0);
         body[0x2e] = static_cast<char>(tail);
 
         GlobalData::s_auction_proxy->SendPacket(reinterpret_cast<nsl::PACKET_HEADER*>(&pck));
@@ -18162,7 +18155,7 @@ int Dispatcher_AuctionAskAveragePrice::dispatch_sig(CUser* user, PacketBuf& pack
     {
         if (gmList[i] == user->getCurCharacNo())
         {
-            cMyTrace trace(kPretty, 0xc258, 0);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0xc258, 0);
             trace("Trace Auction Delay, %s(%d)", "REQ AuctionAskAveragePrice",
                   user->getCurCharacNo());
             break;
@@ -18604,11 +18597,9 @@ int Dispatcher_CheckAssaultMotionHack::dispatch_sig(CUser* user, PacketBuf& pack
 {
     // ORIG 0x08221f3c..0x0822226f (0x334 字节)。
     // 双精度常量：_DAT_08bd6320=0.5、_DAT_08bd6328=0.8（已 objdump 核实）。
-    static const char* const kPretty =
-        "virtual int Dispatcher_CheckAssaultMotionHack::dispatch_sig(CUser*, PacketBuf&)";
 
     if (user == 0)
-        return LineFunc(0xdb73, kPretty, 0, 0);
+        return LineFunc(0xdb73, __PRETTY_FUNCTION__, 0, 0);
 
     if (user->getCurCharacR() == 0)
         return 0;
@@ -18616,9 +18607,9 @@ int Dispatcher_CheckAssaultMotionHack::dispatch_sig(CUser* user, PacketBuf& pack
     unsigned int moveCnt = 0;    // -0x18
     unsigned int limitCnt = 0;   // -0x1c
     if (packet.get_int(moveCnt) != 1)
-        return LineFunc(0xdb7e, kPretty, 0, 0);
+        return LineFunc(0xdb7e, __PRETTY_FUNCTION__, 0, 0);
     if (packet.get_int(limitCnt) != 1)
-        return LineFunc(0xdb7f, kPretty, 0, 0);
+        return LineFunc(0xdb7f, __PRETTY_FUNCTION__, 0, 0);
 
     // Power War 事件开启且当前村庄 == 7 → power war 场景
     // [b28d-solo-S162] ORIG 0x0822204e：条件物化于 %al 后**分支写常量**
@@ -19526,7 +19517,7 @@ Dispatcher_Card_Select_Right_State::~Dispatcher_Card_Select_Right_State() {}
 //   首差: sete   %al | test   %al,%al | je     081ff5a2 <+0x9e>
 int Dispatcher_Card_Select_Right_State::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    // [b23S3C] ORIG 0x081ff504：PF 直写（kPretty static 局多 guard 记账开销）；
+    // [b23S3C] ORIG 0x081ff504：PF 直写（__PRETTY_FUNCTION__ static 局多 guard 记账开销）；
     // GetPartyIndex 实参直传 movswl 升格 %ebx（去 partyIdx 槽，P200）；member 无槽、
     // get_user 每用点重取（ORIG 3 call）、fatigue 对 ebx 缓存 + `cmp %ax,%bx`
     // （TournamentRewardSelectState::send 同 TU 已闭合孪生形）。
@@ -19856,14 +19847,12 @@ Dispatcher_AuctionSearchByNoItmeKey::~Dispatcher_AuctionSearchByNoItmeKey() {}
 int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x082161e4..0x08216965 (0x782 字节)。GM 表 _ZL6gmList @0x093abb4c。
-    static const char* const kPretty =
-        "virtual int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser*, PacketBuf&)";
 
     unsigned char payType;   // ORIG 不预先初始化（get_byte 成功才写，失败即 return）
     if (packet.get_byte(payType) != 1)
-        return LineFunc(0xc719, kPretty, 0, 0);
+        return LineFunc(0xc719, __PRETTY_FUNCTION__, 0, 0);
     if (payType > 1)   // cmp $0x1 / jbe
-        return LineFunc(0xc71c, kPretty, 0, 0);
+        return LineFunc(0xc71c, __PRETTY_FUNCTION__, 0, 0);
 
     const int pay = payType;   // movzbl 零扩展到 int
     if (IsAuctionServerDisconnected(payType))
@@ -19873,7 +19862,7 @@ int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& pa
     }
 
     if (user->get_state() <= 2 || user->getCurCharacR() == 0)
-        return LineFunc(0xc73f, kPretty, 0, 0);
+        return LineFunc(0xc73f, __PRETTY_FUNCTION__, 0, 0);
 
     // 包布局（ServerLab/Auction/AuctionServer/auction_header/AuctionPacket.h）：
     //   char_idx@0x12, character_id@0x16,
@@ -19892,19 +19881,19 @@ int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& pa
         *reinterpret_cast<int*>(&pck.m_pad12[4]) = user->getCurCharacNo();
 
         if (packet.get_int(*reinterpret_cast<unsigned int*>(&pck.m_cat.m_pad0[0])) != 1)
-            return LineFunc(0xc748, kPretty, 0, 0);
+            return LineFunc(0xc748, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_short(*reinterpret_cast<unsigned short*>(&pck.m_cat.m_pad0[4])) != 1)
-            return LineFunc(0xc749, kPretty, 0, 0);
+            return LineFunc(0xc749, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[6])) != 1)
-            return LineFunc(0xc74a, kPretty, 0, 0);
+            return LineFunc(0xc74a, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[7])) != 1)
-            return LineFunc(0xc74b, kPretty, 0, 0);
+            return LineFunc(0xc74b, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[8])) != 1)
-            return LineFunc(0xc74c, kPretty, 0, 0);
+            return LineFunc(0xc74c, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[9])) != 1)
-            return LineFunc(0xc74d, kPretty, 0, 0);
+            return LineFunc(0xc74d, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[0xa])) != 1)
-            return LineFunc(0xc74e, kPretty, 0, 0);
+            return LineFunc(0xc74e, __PRETTY_FUNCTION__, 0, 0);
 
         GlobalData::s_cera_auction_proxy->SendPacket(reinterpret_cast<nsl::PACKET_HEADER*>(&pck));
     }
@@ -19920,33 +19909,33 @@ int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& pa
         *reinterpret_cast<int*>(&pck.m_data[4]) = user->getCurCharacNo();
 
         if (packet.get_int(*reinterpret_cast<unsigned int*>(&pck.m_search.m_pad0[0])) != 1)
-            return LineFunc(0xc760, kPretty, 0, 0);
+            return LineFunc(0xc760, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_short(*reinterpret_cast<unsigned short*>(&pck.m_search.m_pad0[4])) != 1)
-            return LineFunc(0xc761, kPretty, 0, 0);
+            return LineFunc(0xc761, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[6])) != 1)
-            return LineFunc(0xc762, kPretty, 0, 0);
+            return LineFunc(0xc762, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[7])) != 1)
-            return LineFunc(0xc763, kPretty, 0, 0);
+            return LineFunc(0xc763, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[8])) != 1)
-            return LineFunc(0xc764, kPretty, 0, 0);
+            return LineFunc(0xc764, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[9])) != 1)
-            return LineFunc(0xc765, kPretty, 0, 0);
+            return LineFunc(0xc765, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[0xa])) != 1)
-            return LineFunc(0xc766, kPretty, 0, 0);
+            return LineFunc(0xc766, __PRETTY_FUNCTION__, 0, 0);
 
         // ROI 键：m_search.m_roi.m_keys[0..2] @ +0x25/+0x27/+0x29（ORIG get_short(short&)，
         // 以引用转型选中与 ORIG 相同重载，地址计算不变）。
         if (packet.get_short(*reinterpret_cast<short*>(&pck.m_search.m_roi.m_keys[0])) != 1)
-            return LineFunc(0xc76a, kPretty, 0, 0);
+            return LineFunc(0xc76a, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_short(*reinterpret_cast<short*>(&pck.m_search.m_roi.m_keys[1])) != 1)
-            return LineFunc(0xc76c, kPretty, 0, 0);
+            return LineFunc(0xc76c, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_short(*reinterpret_cast<short*>(&pck.m_search.m_roi.m_keys[2])) != 1)
-            return LineFunc(0xc76e, kPretty, 0, 0);
+            return LineFunc(0xc76e, __PRETTY_FUNCTION__, 0, 0);
 
         if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_tail[0])) != 1)
-            return LineFunc(0xc772, kPretty, 0, 0);
+            return LineFunc(0xc772, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_tail[1])) != 1)
-            return LineFunc(0xc773, kPretty, 0, 0);
+            return LineFunc(0xc773, __PRETTY_FUNCTION__, 0, 0);
 
         GlobalData::s_auction_proxy->SendPacket(reinterpret_cast<nsl::PACKET_HEADER*>(&pck));
     }
@@ -19957,7 +19946,7 @@ int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& pa
     {
         if (gmList[i] == user->getCurCharacNo())
         {
-            cMyTrace trace(kPretty, 0xc784, 0);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0xc784, 0);
             trace("Trace Auction Delay, %s(%d)", "REQ AuctionSearchByNoItmeKey",
                   user->getCurCharacNo());
             break;
@@ -21648,20 +21637,18 @@ Dispatcher_RequestConditionEventReward::~Dispatcher_RequestConditionEventReward(
 int Dispatcher_RequestConditionEventReward::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x082223a6..0x082226bf (0x31a 字节)。
-    static const char* const kPretty =
-        "virtual int Dispatcher_RequestConditionEventReward::dispatch_sig(CUser*, PacketBuf&)";
 
     if (user == 0)
-        return LineFunc(0xdbda, kPretty, 0, 0);
+        return LineFunc(0xdbda, __PRETTY_FUNCTION__, 0, 0);
     if (user->get_state() != 3)
         return 0;
 
     short step = 0;       // -0x16（get_short(short&)）
     char useQuickPartyAdd = 0;   // -0x17（get_byte(char&)）
     if (packet.get_short(step) != 1)
-        return LineFunc(0xdbe1, kPretty, 0, 0);
+        return LineFunc(0xdbe1, __PRETTY_FUNCTION__, 0, 0);
     if (packet.get_byte(useQuickPartyAdd) != 1)
-        return LineFunc(0xdbe2, kPretty, 0, 0);
+        return LineFunc(0xdbe2, __PRETTY_FUNCTION__, 0, 0);
 
     int result = 0;   // -0x10
     CConditionEventManager* mgr = G_CGameManager()->GetConditionEventManager();
@@ -25412,20 +25399,25 @@ void Dispatcher_PcRoomRentItem::send(CUser* user, ParamBase& param)
                  out.m_output.m_deleted.begin();
              it != out.m_output.m_deleted.end(); ++it)
         {
-            short slot = static_cast<short>(it->m_slot);              // +0x02
-            if (it->m_bEquip == 0)                                    // +0x00
+            // [b28d-solo-Dispatchers] P167/P183：ORIG 0x081e54d3 只调 1 次
+            //   `normal_iterator<DeletedRentItem>::deEv`（operator*），结果落 -0x10
+            //   槽后各字段点重读（0x081e54f8/0x081e5505/0x081e552b 均
+            //   `mov -0x10(%ebp),%eax; movzwl 0x2(%eax)`）；旧码 `it->` 调 ptEv ×2
+            //   且 slot 具名局部缓存。⇒ 改 `r = *it` 引用 + 各点 r.m_slot 重读。
+            InstanceRentalSystem::DeletedRentItem& r = *it;
+            if (r.m_bEquip == 0)                                      // +0x00
             {
                 packet.put_byte(0);
             }
             else
             {
                 packet.put_byte(3);
-                if (slot > 9 && slot < 0x16)
+                if (r.m_slot > 9 && r.m_slot < 0x16)
                 {
                     sendEquipSlot10 = true;                           // 装备位 9..0x15 变动
                 }
             }
-            packet.put_short(static_cast<int>(slot));
+            packet.put_short(static_cast<int>(r.m_slot));
         }
     }
     else
@@ -25442,13 +25434,16 @@ void Dispatcher_PcRoomRentItem::send(CUser* user, ParamBase& param)
         infoPacket.put_header(0, 0xe);                   // class=0 cmd=0xe 租借列表刷新
         infoPacket.put_byte(0);
         infoPacket.put_short(static_cast<int>(out.m_output.m_infos.size()));
-        for (std::vector<InstanceRentalSystem::RentalInfo>::iterator it =
+        // [b28d-solo-Dispatchers] P167：ORIG 0x081e5662 调 const_iterator 的 deEv
+        //   （`IPKN…`）+ 0x081e56c7 混合 ne + 0x081e563x 转换构造 ⇒ 原码是
+        //   const_iterator + `(*it).m_slot`（旧码 iterator + `it->` 调 ptEv）。
+        for (std::vector<InstanceRentalSystem::RentalInfo>::const_iterator it =
                  out.m_output.m_infos.begin();
              it != out.m_output.m_infos.end(); ++it)
         {
             const CInventory* inven = const_cast<CInventory*>(user->getCurCharacInvenR());
             inven->MakeItemPacket(INVEN_TYPE_EQUIP,
-                                  static_cast<int>(static_cast<short>(it->m_slot)),
+                                  static_cast<int>(static_cast<short>((*it).m_slot)),
                                   infoPacket);
         }
         infoPacket.finalize(true);
