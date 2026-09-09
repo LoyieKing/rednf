@@ -12,7 +12,7 @@
 
 // ===================== STDBConnInfo =====================
 
-STDBConnInfo::STDBConnInfo()
+__attribute__((weak)) STDBConnInfo::STDBConnInfo()
 {
     memset(m_host, 0, 0x11);
     memset(m_user, 0, 0x15);
@@ -25,7 +25,7 @@ STDBConnInfo::STDBConnInfo()
 
 // ===================== Server_Envir =====================
 
-Server_Envir::Server_Envir()
+__attribute__((weak)) Server_Envir::Server_Envir()
 {
     memset(m_ipgIP, 0, 0x10);
     m_acceptLockDBQueueCount = 0;
@@ -48,13 +48,13 @@ Server_Envir::Server_Envir()
     m_garenaPublickey = "publickey.pem";
 }
 
-Server_Envir::~Server_Envir()
+__attribute__((weak)) Server_Envir::~Server_Envir()
 {
 }
 
 // ===================== CEnvironment 构造/析构 =====================
 
-CEnvironment::CEnvironment()
+__attribute__((weak)) CEnvironment::CEnvironment()
 {
     m_suspendState = false;
     m_cipher.Initialize("qortmddkqortmdcksqordudwlswjdguswn", 0x21, CTEA::sm_chain0, 0, 0);
@@ -62,7 +62,7 @@ CEnvironment::CEnvironment()
     m_serverEnvir.m_exchangeServerPort = 0;
 }
 
-CEnvironment::~CEnvironment()
+__attribute__((weak)) CEnvironment::~CEnvironment()
 {
 }
 
@@ -793,242 +793,255 @@ loop_top:
 }
 
 // ===================== 简单 getter/setter =====================
+// [判据㉓ 符号绑定 · 2026-09-10] 本区 55 个符号 ORIG 全为 **W** 弱绑定（CEnvironment 的
+// 50 个 getter/setter + lock/unlock、Server_Envir C1/C2/D1/D2、STDBConnInfo C1/C2、
+// CEnvironment C1/C2/D1/D2），尺寸逐位相同；ORIG 地址分散于多个 TU 段
+// （get_tcp_port 0x0857f428 / get_gc_no 0x0844dc6e / lock 0x082a6ccc / C1 0x080cc00c /
+// Server_Envir C1 0x080cbca8 / STDBConnInfo C1 0x080ecd38 …）⇒ 原码头内定义。
+// **为何不用头内 inline**（Main 裁决 2026-09-10）：CEnvironment.h 被 161 个 TU include，
+// 改头触发全量重编 + codegen/GI/EH 连锁风险 >> 收益；.cpp 内 out-of-line 定义加
+// __attribute__((weak)) 同样产出 nm 绑定 W、尺寸逐位不变、符号身份一致
+// （与 G_* 单例、Cipher.cpp 同口径）。ORIG 保持 **T** 的 8 个函数
+// （parse/load/fgetline/check_comment/DecryptValue/IsEnableValue/
+//  adjust_base_script_directory/parse_se_event_db）不动。
 
-char* CEnvironment::get_file_name()
+__attribute__((weak)) char* CEnvironment::get_file_name()
 {
     return m_serverEnvir.m_fileName;
 }
 
-void CEnvironment::set_file_name(const char* name)
+__attribute__((weak)) void CEnvironment::set_file_name(const char* name)
 {
     strcpy(m_serverEnvir.m_fileName, name);
 }
 
-char* CEnvironment::get_server_ip()
+__attribute__((weak)) char* CEnvironment::get_server_ip()
 {
     return m_serverEnvir.m_serverIP;
 }
 
-int CEnvironment::get_tcp_port()
+__attribute__((weak)) int CEnvironment::get_tcp_port()
 {
     return m_serverEnvir.m_tcpPort;
 }
 
-int CEnvironment::get_udp_port()
+__attribute__((weak)) int CEnvironment::get_udp_port()
 {
     return m_serverEnvir.m_udpPort;
 }
 
-int CEnvironment::get_channel_no()
+__attribute__((weak)) int CEnvironment::get_channel_no()
 {
     return m_serverEnvir.m_channelNo;
 }
 
-int CEnvironment::get_gc_no()
+__attribute__((weak)) int CEnvironment::get_gc_no()
 {
     return m_serverEnvir.m_gcNo;
 }
 
-int CEnvironment::get_gc_no_hardcode(ENUM_SERVER_GROUP group)
+__attribute__((weak)) int CEnvironment::get_gc_no_hardcode(ENUM_SERVER_GROUP group)
 {
     return (int)group * 1000 + m_serverEnvir.m_channelNo;
 }
 
-char* CEnvironment::get_channel_name()
+__attribute__((weak)) char* CEnvironment::get_channel_name()
 {
     return m_serverEnvir.m_channelName;
 }
 
-void CEnvironment::set_channel_name(char* name)
+__attribute__((weak)) void CEnvironment::set_channel_name(char* name)
 {
     strcpy(m_serverEnvir.m_channelName, name);
 }
 
-int CEnvironment::get_server_group()
+__attribute__((weak)) int CEnvironment::get_server_group()
 {
     return m_serverEnvir.m_serverGroup;
 }
 
-bool CEnvironment::get_suspend_state()
+__attribute__((weak)) bool CEnvironment::get_suspend_state()
 {
     return m_suspendState;
 }
 
-void CEnvironment::set_suspend_state(bool state)
+__attribute__((weak)) void CEnvironment::set_suspend_state(bool state)
 {
     lock();
     m_suspendState = state;
     unlock();
 }
 
-eStartArgumentType_t CEnvironment::get_operation_type()
+__attribute__((weak)) eStartArgumentType_t CEnvironment::get_operation_type()
 {
     return m_operationType;
 }
 
-void CEnvironment::set_operation_type(eStartArgumentType_t type)
+__attribute__((weak)) void CEnvironment::set_operation_type(eStartArgumentType_t type)
 {
     m_operationType = type;
 }
 
-char* CEnvironment::get_udp_ip_monitor()
+__attribute__((weak)) char* CEnvironment::get_udp_ip_monitor()
 {
     return m_serverEnvir.m_udpIPMonitor;
 }
 
-int CEnvironment::get_udp_port_monitor()
+__attribute__((weak)) int CEnvironment::get_udp_port_monitor()
 {
     return m_serverEnvir.m_udpPortMonitor;
 }
 
-char* CEnvironment::get_udp_ip_guild()
+__attribute__((weak)) char* CEnvironment::get_udp_ip_guild()
 {
     return m_serverEnvir.m_udpIPGuild;
 }
 
-int CEnvironment::get_udp_port_guild()
+__attribute__((weak)) int CEnvironment::get_udp_port_guild()
 {
     return m_serverEnvir.m_udpPortGuild;
 }
 
-int CEnvironment::get_tcp_port_guild()
+__attribute__((weak)) int CEnvironment::get_tcp_port_guild()
 {
     return m_serverEnvir.m_tcpPortGuild;
 }
 
-int CEnvironment::get_tcp_port_monitor()
+__attribute__((weak)) int CEnvironment::get_tcp_port_monitor()
 {
     return m_serverEnvir.m_tcpPortMonitor;
 }
 
-char* CEnvironment::get_udp_ip_hades()
+__attribute__((weak)) char* CEnvironment::get_udp_ip_hades()
 {
     return m_serverEnvir.m_udpIPHades;
 }
 
-int CEnvironment::get_udp_port_hades()
+__attribute__((weak)) int CEnvironment::get_udp_port_hades()
 {
     return m_serverEnvir.m_udpPortHades;
 }
 
-int CEnvironment::get_tcp_port_hades()
+__attribute__((weak)) int CEnvironment::get_tcp_port_hades()
 {
     return m_serverEnvir.m_tcpPortHades;
 }
 
-char* CEnvironment::get_udp_ip_statistic()
+__attribute__((weak)) char* CEnvironment::get_udp_ip_statistic()
 {
     return m_serverEnvir.m_udpIPStatistic;
 }
 
-int CEnvironment::get_udp_port_statistic()
+__attribute__((weak)) int CEnvironment::get_udp_port_statistic()
 {
     return m_serverEnvir.m_udpPortStatistic;
 }
 
-char* CEnvironment::get_udp_ip_doublecheck()
+__attribute__((weak)) char* CEnvironment::get_udp_ip_doublecheck()
 {
     return m_serverEnvir.m_udpIPDoubleCheck;
 }
 
-int CEnvironment::get_udp_port_doublecheck()
+__attribute__((weak)) int CEnvironment::get_udp_port_doublecheck()
 {
     return m_serverEnvir.m_udpPortDoubleCheck;
 }
 
-char* CEnvironment::get_udp_ip_channel()
+__attribute__((weak)) char* CEnvironment::get_udp_ip_channel()
 {
     return m_serverEnvir.m_udpIPChannel;
 }
 
-int CEnvironment::get_udp_port_channel()
+__attribute__((weak)) int CEnvironment::get_udp_port_channel()
 {
     return m_serverEnvir.m_udpPortChannel;
 }
 
-int CEnvironment::get_tcp_port_channel()
+__attribute__((weak)) int CEnvironment::get_tcp_port_channel()
 {
     return m_serverEnvir.m_udpPortChannel;
 }
 
-char* CEnvironment::get_exchange_server_ip()
+__attribute__((weak)) char* CEnvironment::get_exchange_server_ip()
 {
     return m_serverEnvir.m_exchangeServerIP;
 }
 
-int CEnvironment::get_exchange_server_port()
+__attribute__((weak)) int CEnvironment::get_exchange_server_port()
 {
     return m_serverEnvir.m_exchangeServerPort;
 }
 
-char* CEnvironment::get_school_server_ip()
+__attribute__((weak)) char* CEnvironment::get_school_server_ip()
 {
     return m_serverEnvir.m_schoolServerIP;
 }
 
-int CEnvironment::get_school_server_port()
+__attribute__((weak)) int CEnvironment::get_school_server_port()
 {
     return m_serverEnvir.m_schoolServerPort;
 }
 
-char* CEnvironment::get_pcroom_server_ip()
+__attribute__((weak)) char* CEnvironment::get_pcroom_server_ip()
 {
     return m_serverEnvir.m_pcroomServerIP;
 }
 
-int CEnvironment::get_pcroom_server_port()
+__attribute__((weak)) int CEnvironment::get_pcroom_server_port()
 {
     return m_serverEnvir.m_pcroomServerPort;
 }
 
-char* CEnvironment::get_community_server_ip()
+__attribute__((weak)) char* CEnvironment::get_community_server_ip()
 {
     return m_serverEnvir.m_communityServerIP;
 }
 
-int CEnvironment::get_community_server_port()
+__attribute__((weak)) int CEnvironment::get_community_server_port()
 {
     return m_serverEnvir.m_communityServerPort;
 }
 
-char* CEnvironment::get_auction_server_ip()
+__attribute__((weak)) char* CEnvironment::get_auction_server_ip()
 {
     return m_serverEnvir.m_auctionServerIP;
 }
 
-int CEnvironment::get_auction_server_port()
+__attribute__((weak)) int CEnvironment::get_auction_server_port()
 {
     return m_serverEnvir.m_auctionServerPort;
 }
 
-char* CEnvironment::get_cera_auction_server_ip()
+__attribute__((weak)) char* CEnvironment::get_cera_auction_server_ip()
 {
     return m_serverEnvir.m_ceraAuctionServerIP;
 }
 
-int CEnvironment::get_cera_auction_server_port()
+__attribute__((weak)) int CEnvironment::get_cera_auction_server_port()
 {
     return m_serverEnvir.m_ceraAuctionServerPort;
 }
 
-char* CEnvironment::get_system_monitoring_ip()
+__attribute__((weak)) char* CEnvironment::get_system_monitoring_ip()
 {
     return m_serverEnvir.m_systemMonitoringIP;
 }
 
-void CEnvironment::lock()
+__attribute__((weak)) void CEnvironment::lock()
 {
     m_lock.lock();
 }
 
-void CEnvironment::unlock()
+__attribute__((weak)) void CEnvironment::unlock()
 {
     m_lock.unlock();
 }
 
 // ===================== 单例 =====================
 
-CEnvironment* G_CEnvironment()
+// 判据㉓ 符号绑定：ORIG `_Z14G_CEnvironmentv` @0x080cc181 为 **W** 弱绑定（size 0xd，
+// 与本节 T 版尺寸一致）⇒ 定义处加 weak（Main 已批准单点修法，只改 .cpp）。
+__attribute__((weak)) CEnvironment* G_CEnvironment()
 {
     return GlobalInstance<CEnvironment>::inst_ptr();
 }
