@@ -369,7 +369,15 @@ struct STCoolTime
 struct MonsterBaseParameter
 {
     enum { FIELD_COUNT = 24 };
-    int m_value[FIELD_COUNT];   // +0x00..+0x5c，按解析顺序填充
+    // [b28c] ORIG 两处循环列组用 base=param+4、idx=i+0xc/i+0x10 寻址
+    // （clear `movl $0,0x4(%eax,%edx,4)` @0x08a3ce4a；ImportMonsterBaseTable
+    //  `mov %eax,-0xe8(%ebp,%edx,4)` @0x08a3c8a8/0x08a3c8d9）⇒ 原码数组成员自
+    //  +0x04 起（首 int 独立）。匿名 union 双视角复现该寻址；sizeof 0x60、全部
+    //  偏移、mangled 零变化（POD 拷贝仍 rep movsl 0x18 dwords）。
+    union {
+        int m_value[FIELD_COUNT];   // +0x00..+0x5c，按解析顺序填充（既有消费点）
+        struct { int m_value0; int m_values[FIELD_COUNT - 1]; };  // 列组视角（+0x04 起）
+    };
 
     // ORIG clear W 0x08a3ce4a：v[0..12] 直写 + 双写循环 v[13+i]/v[17+i]
     // + v[21..23] 直写（分段与解析列组一致，实证 08a3ce4a）
@@ -387,8 +395,8 @@ struct MonsterBaseParameter
         m_value[12] = 0;
         for (int i = 0; i <= 3; ++i)
         {
-            m_value[13 + i] = 0;
-            m_value[17 + i] = 0;
+            m_values[12 + i] = 0;   // ORIG disp=+0x04、idx=i+0xc
+            m_values[16 + i] = 0;   // ORIG disp=+0x04、idx=i+0x10
         }
         m_value[21] = 0;
         m_value[22] = 0;
@@ -398,13 +406,14 @@ struct MonsterBaseParameter
     MonsterBaseParameter() { clear(); }
 };  // sizeof == 0x60
 
-// STGuard：ORIG 无独立 ctor/clear 符号；元素大小 28 字节由
-// vector<STGuard>::size W 0x083aa36e 尾部 sar2+imul 0x38e38e39（÷28）实证；
-// 内部字段无解析证据，按 7×int 占位。
+// STGuard：ORIG 无独立 ctor/clear 符号；元素大小 36 字节（0x24）双证据实证：
+// ① vector<STGuard>::size W 0x083aa36e 尾部 sar2+imul 0x38e38e39（÷9 ⇒ ÷36）；
+// ② new_allocator<STGuard>::allocate W 0x083d5358 的 `shl3; add; shl2`（36n）。
+// 内部字段无解析证据，按 9×int 占位。
 struct STGuard
 {
-    int m_field[7];
-};  // sizeof == 0x1c
+    int m_field[9];
+};  // sizeof == 0x24
 
 // STAttackMethod：clear W 0x08a3d5fe / C1 W 0x08a3d690 / D1 W 0x08a4bed8（全 W → 头内联）。
 // clear（ORIG 0x08a3d5fe 逐指令）：+0x00=0；+0x18=0 → +0x14=+0x18；+0x20=0 → +0x1c=+0x20；
@@ -570,16 +579,56 @@ class STAIInfoScript
 {
 public:
     STAIInfoScript() { clear(); }           // ORIG C1 W 0x08366f48：vptr+成员构造+clear
-    virtual ~STAIInfoScript() {}            // 发 D1/D0/vtable，匹配 ORIG 符号集
+    // ORIG C1ERKS T 0x08a38bc6：vptr+成员默认构造+clear()+operator=()（非编译器合成版）。
+    STAIInfoScript(const STAIInfoScript& other) { clear(); *this = other; }
+    virtual ~STAIInfoScript() { destroy(); }  // ORIG D1 W 0x083671a4：vptr+destroy+成员逆序析构
+    // ORIG T 0x08a38e34（objdump 逐条转写）：destroy → 标量/string → patterns[5] 深拷贝
+    // （new string）→ targetingBonus[22] 与 targetingBonusStr[22] → keepDistance →
+    // keepRange0..4 → vision/backVision/intelligence/1f0/1f4 → noChangeTarget；
+    // +0x204 起不触碰（ORIG 固有）。
+    STAIInfoScript& operator=(const STAIInfoScript& other)
+    {
+        destroy();
+        m_thinkTerm = other.m_thinkTerm;
+        m_destinationChangeTerm = other.m_destinationChangeTerm;
+        m_dir = other.m_dir;
+        for (int p = 0; p < 5; ++p)
+        {
+            for (std::size_t i = 0; i < other.m_patterns[p].size(); ++i)
+            {
+                std::string* elem = other.m_patterns[p][i];
+                std::string* created = new std::string(*elem);
+                m_patterns[p].push_back(created);
+            }
+        }
+        for (int i = 0; i <= 21; ++i)
+        {
+            m_targetingBonus[i] = other.m_targetingBonus[i];
+            m_targetingBonusStr[i] = other.m_targetingBonusStr[i];
+        }
+        m_keepDistance = other.m_keepDistance;
+        m_keepRange0 = other.m_keepRange0;
+        m_keepRange1 = other.m_keepRange1;
+        m_keepRange2 = other.m_keepRange2;
+        m_keepRange3 = other.m_keepRange3;
+        m_keepRange4 = other.m_keepRange4;
+        m_vision = other.m_vision;
+        m_backVision = other.m_backVision;
+        m_intelligence = other.m_intelligence;
+        m_field1f0 = other.m_field1f0;
+        m_field1f4 = other.m_field1f4;
+        m_noChangeTarget = other.m_noChangeTarget;
+        return *this;
+    }
     void clear()                            // ORIG W 0x083673d4
     {
         m_thinkTerm = 0x3e8;
         m_destinationChangeTerm = 0x3e8;
-        m_keepRange[0].clear();   // ORIG：5 次展开 call（+0x1b0/1bc/1c8/1d4/1e0）
-        m_keepRange[1].clear();
-        m_keepRange[2].clear();
-        m_keepRange[3].clear();
-        m_keepRange[4].clear();
+        m_keepRange0.clear();     // ORIG：5 次展开 call（+0x1b0/1bc/1c8/1d4/1e0）
+        m_keepRange1.clear();
+        m_keepRange2.clear();
+        m_keepRange3.clear();
+        m_keepRange4.clear();
         m_dir.clear();
         for (int i = 0; i < 5; ++i)
             m_patterns[i].clear();
@@ -601,20 +650,20 @@ public:
     }
     void destroy()                          // ORIG W 0x0836753a
     {
-        for (int i = 0; i < 5; ++i)
+        // ORIG 逐块转写：外层 p<=4（setle）；内层每轮重取 size()（setg 有符号）；
+        // body 内 ix() 三次独立装载（P48 无 CSE）：判空死块 → 取值 → 置 0。
+        for (int p = 0; p <= 4; ++p)
         {
-            for (unsigned int j = 0; j < m_patterns[i].size(); ++j)
+            for (int i = 0; i < (int)m_patterns[p].size(); ++i)
             {
-                delete m_patterns[i][j];
-                m_patterns[i][j] = 0;
+                if (m_patterns[p][i] != 0)
+                {
+                    delete m_patterns[p][i];
+                }
+                m_patterns[p][i] = 0;
             }
-            m_patterns[i].clear();
+            m_patterns[p].clear();
         }
-        for (int i = 0; i <= 21; ++i)
-            m_targetingBonusStr[i].clear();
-        for (int i = 0; i < 5; ++i)
-            m_keepRange[i].clear();
-        m_dir.clear();
     }
 
     int m_thinkTerm;                    // +0x04
@@ -624,17 +673,22 @@ public:
     int m_targetingBonus[22];           // +0x4c
     std::vector<int> m_targetingBonusStr[22];      // +0xa4
     int m_keepDistance;                 // +0x1ac
-    std::vector<int> m_keepRange[5];    // +0x1b0..+0x1eb
+    // 5 个独立成员（ORIG C1/D1/op= 对 +0x1b0..+0x1e0 逐个发射 call，非数组循环）。
+    std::vector<int> m_keepRange0;      // +0x1b0
+    std::vector<int> m_keepRange1;      // +0x1bc
+    std::vector<int> m_keepRange2;      // +0x1c8
+    std::vector<int> m_keepRange3;      // +0x1d4
+    std::vector<int> m_keepRange4;      // +0x1e0
     int m_intelligence;                 // +0x1ec
     int m_field1f0;                     // +0x1f0
     int m_field1f4;                     // +0x1f4
     int m_vision;                       // +0x1f8
     int m_backVision;                   // +0x1fc
     bool m_noChangeTarget;              // +0x200
-    char m_pad201[3];
-    unsigned char m_flag204;            // +0x204（外层 Clear 置 1）
-    char m_pad205[3];                   // +0x205..0x207
-};  // sizeof == 0x208
+};  // sizeof == 0x204（+0x201..0x203 为自然对齐填充；+0x204 起不属本类——
+    //    ORIG STMonsterScript::operator= W 0x08377994 把 0x33c 作为**外层直接成员**
+    //    单独拷贝 `movzbl 0x33c(%eax),%edx; mov %dl,0x33c(%eax)`，而 STAIInfoScript
+    //    的 op= T 0x08a38e34 不触碰 +0x204 ⇒ 该字节属 STMonsterScript::m_flag33c）
 
 // STMonsterParameterCategory：vector 元素（+0x7c），大小 0xc；
 // getValueInt/getValueFloat 为 ORIG W 0x88ba480 / W 0x88ba4a2 同名方法
@@ -668,12 +722,12 @@ public:
     ~STMonsterScript();
     // ORIG op= W 0x08377994 为编译器合成版（无自赋值检查、rep movsl、尾部
     // eax=this）。不显式声明，由编译器按成员序隐式合成。
-    // [b28d-solo-STMonsterScript] 复验：1200/1272，gap=72，p167 89/89 CLEAR。
-    // 残差全为 4.4 隐式拷贝的分块启发式差异（N90/P26）：ORIG(4.1) 对相邻标量段
-    // 缓存 src/dst 基址后连发 store（如 +0x64/+0x68/+0x6c 三 int 共 7 条），
-    // 4.4 恒逐字段重载双基址（11 条）；16 处 short+char 段（+0x369/+0x36b 等）
-    // ORIG 走 rep movsl 整块，4.4 逐字段拷贝跳过尾部 padding。源码侧不可控
-    // （隐式函数 + 改成员声明会动全仓消费点）⇒ N 封顶。
+    // [SweepSTMonster] 1200/1200 gap=0：删除 13 处显式 `char m_padNNN` 数组
+    // （P26：显式 pad 会被隐式拷贝逐字节搬移，ORIG 跳过对齐空洞；改由编译器
+    // 自然填充，sizeof/全部偏移不变）+ +0x33c 改归外层 `m_flag33c`（见 m_aiInfo
+    // 注释）⇒ ndiff 100→20。残差 20 行全为 N90：ORIG(4.1) 对相邻标量段缓存
+    // src/dst 基址后连发 store（+0x64/+0x68/+0x6c、+0x6fc/+0x700/+0x704），
+    // 4.4 恒逐字段重载双基址（源码侧不可控，隐式函数）。
     void Clear();
 
     int m_index;                         // +0x000（Clear=0；[name] 首列/isNamedMonster）
@@ -707,14 +761,14 @@ public:
     std::vector<STCoolTime> m_coolTimes;               // +0x114
     std::vector<int> m_field120;                       // +0x120
     std::vector<MonsterBaseParameter> m_baseParameters;  // +0x12c
-    STAIInfoScript m_aiInfo;                           // +0x138（0x208，止于 0x340）
+    STAIInfoScript m_aiInfo;                           // +0x138（0x204，止于 0x33c）
+    bool m_flag33c;                      // +0x33c（Clear=1；Import [ai info] 首列 bool。
+                                         //   ORIG op= W 0x08377994 在此单独拷贝本字节）
     std::deque<STInitialTarget> m_initialTargets;      // +0x340
     bool m_flag368;                      // +0x368（Clear=1）
-    char m_pad369[3];                    // +0x369..0x36b
     int m_field36c;                      // +0x36c
     int m_field370;                      // +0x370
     bool m_flag374;                      // +0x374（Clear=false）
-    char m_pad375[3];                    // +0x375..0x377
     int m_field378;                      // +0x378
     int m_field37c;                      // +0x37c
     int m_field380;                      // +0x380
@@ -722,7 +776,6 @@ public:
     STMonsterEquipment m_equipment;                    // +0x390
     std::vector<STMosterAttackReady> m_attackReadies;  // +0x39c
     bool m_flag3a8;                      // +0x3a8（Clear=false）
-    char m_pad3a9[3];                    // +0x3a9..0x3ab
     std::vector<stMonsterIndependentDrop_t> m_independentDrops;  // +0x3ac
     bool m_flag3b8;                      // +0x3b8（Clear=1；setBasic → info.m_flag14）
     int m_abilityTable;                  // +0x3bc（getMonsterTableIndex：==1 → idx3）
@@ -760,28 +813,24 @@ public:
     std::vector<int> m_field554;         // +0x554
     std::vector<int> m_field560;         // +0x560
     bool m_field56c;                     // +0x56c
-    char m_pad56d[3];                    // +0x56d..0x56f
     std::string m_field570;              // +0x570
     int m_targetingTimeTerm;             // +0x574 =1000 [targeting time term]
     int m_warlike;                       // +0x578 =50 [warlike]
     int m_attackDelay;                   // +0x57c =1000 [attack delay]
     bool m_targetingOnAttack;            // +0x580
     bool m_targetingOnDamage;            // +0x581
-    char m_pad582[2];                    // +0x582..0x583
     int m_targetingLevel;                // +0x584 [targeting high/low level]（==2 高等级 / ==1 低等级）
     int m_targetingHp;                   // +0x588 [targeting high/low HP]（==2 高 HP / ==1 低 HP）
     int m_field58c;                      // +0x58c（未导出）
     bool m_targetingNearest;             // +0x590 [targeting nearest]
     bool m_targetingAttacker;            // +0x591 [targeting attacker]
     bool m_targetingFromDirection;       // +0x592 [targeting from direction]
-    char m_pad593[1];                    // +0x593
     int m_targetingLowPhysAttack;        // +0x594 [targeting low physical attack]
     int m_targetingLowPhysDefense;       // +0x598 [targeting low physical defense]
     int m_targetingLowMagAttack;         // +0x59c [targeting low magical attack]
     int m_targetingLowMagDefense;        // +0x5a0 [targeting low magical defense]
     bool m_targetingDowned;              // +0x5a4 [targeting downed]
     bool m_superarmorOnAttack;           // +0x5a5
-    char m_pad5a6[2];                    // +0x5a6..0x5a7
     int m_field5a8;                      // +0x5a8
     std::string m_faceImage;             // +0x5ac [face image]
     int m_field5b0;                      // +0x5b0（face image 第二列 %d）
@@ -828,11 +877,9 @@ public:
     float m_field66c;                    // +0x66c（Clear=0 经寄存器中转→float 实证）
     float m_field670;                    // +0x670
     bool m_field674;                     // +0x674
-    char m_pad675[3];                    // +0x675..0x677
     int m_field678;                      // +0x678 =255
     int m_field67c;                      // +0x67c =255
     bool m_field680;                     // +0x680
-    char m_pad681[3];                    // +0x681..0x683
     int m_field684;                      // +0x684 =4
     std::vector<std::vector<int> > m_patterns;    // +0x688 [pattern]
     std::string m_monsterTitle;          // +0x694 [monster title]
@@ -850,7 +897,6 @@ public:
     std::vector<int> m_intData;          // +0x6d4 [int data]
     int m_keepDistance;                  // +0x6e0 =-1 [keep distance]
     bool m_isOnTheObject;                // +0x6e4 [is on the object]
-    char m_pad6e5[3];                    // +0x6e5..0x6e7
     std::vector<STAttackMethod> m_attackMethods;       // +0x6e8
     int m_field6f4;                      // +0x6f4（Clear=0）
     int m_field6f8;                      // +0x6f8（Clear=0）
@@ -860,13 +906,11 @@ public:
     std::vector<int> m_championElements; // +0xc40（getRandomChampionElement 实证）
     int m_fieldc4c;                      // +0xc4c（Clear=0）
     bool m_flagc50;                      // +0xc50（Clear=false）
-    char m_padc51[3];                    // +0xc51..0xc53
     float m_fieldc54;                    // +0xc54（Clear=0 经寄存器中转→float 实证）
     float m_fieldc58;                    // +0xc58
     int m_fieldc5c[5];                   // +0xc5c..0xc6f（Clear 循环 i≤4 清零）
     bool m_flagc70;                      // +0xc70（Clear=false）
     bool m_flagc71;                      // +0xc71（Clear=false）
-    char m_padc72[2];                    // +0xc72..0xc73
     int m_fieldc74;                      // +0xc74（Clear=0）
     int m_fieldc78;                      // +0xc78（Clear=0）
     int m_fieldc7c;                      // +0xc7c（Clear=0）
@@ -874,7 +918,6 @@ public:
     std::vector<int> m_fieldc8c;         // +0xc8c
     stEnamyDropAvatarInfo_t m_dropAvatarInfo;          // +0xc98（0x3c）
     bool m_flagcd4;                      // +0xcd4（Clear=false）
-    char m_padcd5[3];                    // +0xcd5..0xcd7
     int m_fieldcd8;                      // +0xcd8（Clear=4）
     std::vector<STRidableSkill> m_ridableSkills;       // +0xcdc
     std::vector<STRidableSkillExplain> m_ridableSkillExplains;  // +0xce8
@@ -885,7 +928,6 @@ public:
     int m_field1ca0;                     // +0x1ca0
     float m_field1ca4;                   // +0x1ca4（Clear=0 经寄存器中转→float 实证）
     bool m_field1ca8;                    // +0x1ca8
-    char m_pad1ca9[3];                   // +0x1ca9..0x1cab
     int m_field1cac;                     // +0x1cac（Clear=-1）
     int m_field1cb0;                     // +0x1cb0（Clear=-1）
     std::vector<int> m_field1cb4;        // +0x1cb4

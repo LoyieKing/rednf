@@ -63,7 +63,7 @@ void STMonsterScript::Clear()
     m_flagc50 = false;                       // movb $0,0xc50
     m_flag3a8 = false;                       // movb $0,0x3a8
     m_aiInfo.clear();                        // call STAIInfoScript::clear(this+0x138)
-    m_aiInfo.m_flag204 = 1;                  // movb $1,0x33c
+    m_flag33c = true;                        // movb $1,0x33c
     m_flag368 = true;                        // movb $1,0x368
     m_field36c = 0;
     m_field370 = 0;
@@ -399,15 +399,15 @@ bool ImportMonsterBaseTable(STMonsterScript* script, const char* path)
         param.m_value[10] = ScanInt(static_cast<bool*>(0));        // -0xc4
         param.m_value[11] = ScanInt(static_cast<bool*>(0));        // -0xc0
         param.m_value[12] = ScanInt(static_cast<bool*>(0));        // -0xbc
-        for (int i = 0; i <= 3; ++i)           // +0x160 m_value[13+i]
-            param.m_value[i + 13] = ScanInt(static_cast<bool*>(0));
-        for (int i = 0; i <= 3; ++i)           // +0x191 m_value[17+i]
-            param.m_value[i + 17] = ScanInt(static_cast<bool*>(0));
+        for (int i = 0; i <= 3; ++i)           // +0x160 disp=+4、idx=i+0xc（m_value[13+i]）
+            param.m_values[i + 12] = ScanInt(static_cast<bool*>(0));
+        for (int i = 0; i <= 3; ++i)           // +0x191 disp=+4、idx=i+0x10（m_value[17+i]）
+            param.m_values[i + 16] = ScanInt(static_cast<bool*>(0));
         param.m_value[21] = ScanInt(static_cast<bool*>(0));        // -0x98（param+0x54）
         param.m_value[22] = ScanInt(static_cast<bool*>(0));        // -0x94
         param.m_value[23] = ScanInt(static_cast<bool*>(0));        // -0x90
 
-        if (row == static_cast<int>(script->m_baseParameters.size()))
+        if (row == script->m_baseParameters.size())            // ORIG seta 无符号族（P209 载寄存器）
             script->m_baseParameters.push_back(param);            // +0x1f4 追加
         else
         {
@@ -3777,7 +3777,7 @@ case 0xf5c:  // "[change direction by target]"
         }
         else
         {
-            script->m_aiInfo.m_flag204 = ScanInt(&ok) != 0;  // m_aiInfo+0x204 @+0x33c（asm movb %dl 实证）
+            script->m_flag33c = ScanInt(&ok) != 0;  // +0x33c（asm movb %dl 实证）
             break;
         }
 
@@ -6417,23 +6417,23 @@ bool exportMonsterScript(
         fprintf(file, "[keep distance with target] %d\n",
                 aiInfo->m_keepDistance);
     // ---- [keep range distance with target]（4 组 vector，i==0 带序号）----
-    for (unsigned int i = 0; i < aiInfo->m_keepRange[0].size(); ++i)
+    for (unsigned int i = 0; i < aiInfo->m_keepRange0.size(); ++i)
     {
         // ORIG 08a27953：主路径 i!=0（带 %d] 序号）；i==0 走 je 无序号块。
         // 两分支各 4 次 operator[]（共 8 静态调用点，P38）；求值序 0x1d4→0x1b0。
         if (i != 0)
             fprintf(file, "[keep range distance with target %d] %d %d %d %d\n",
                     i,
-                    aiInfo->m_keepRange[0][i],
-                    aiInfo->m_keepRange[1][i],
-                    aiInfo->m_keepRange[2][i],
-                    aiInfo->m_keepRange[3][i]);
+                    aiInfo->m_keepRange0[i],
+                    aiInfo->m_keepRange1[i],
+                    aiInfo->m_keepRange2[i],
+                    aiInfo->m_keepRange3[i]);
         else
             fprintf(file, "[keep range distance with target] %d %d %d %d\n",
-                    aiInfo->m_keepRange[0][i],
-                    aiInfo->m_keepRange[1][i],
-                    aiInfo->m_keepRange[2][i],
-                    aiInfo->m_keepRange[3][i]);
+                    aiInfo->m_keepRange0[i],
+                    aiInfo->m_keepRange1[i],
+                    aiInfo->m_keepRange2[i],
+                    aiInfo->m_keepRange3[i]);
     }
     // ---- [warlike]（ORIG 用 m_aiInfo.m_intelligence 二次导出）----
     if (aiInfo->m_intelligence !=
