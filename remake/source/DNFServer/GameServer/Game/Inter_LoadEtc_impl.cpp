@@ -1214,9 +1214,21 @@ void Inter_LoadEtc::processAttendAnceEvent(SIG_ATTENDANCE_EVENT* sig, CUser& use
 
 int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    // [b28d-solo-Inter_LoadEtc_impl] verdict=N 2482/2296（gap -186）：P167 CLEAR
-    // （436/436 调用点多重集全等）⇒ 语义完成；残差全为 N82 帧/槽复用策略
-    // （4.1 不复用栈槽、4.4 复用 ⇒ 全帧槽号错位），按 §6.2 三件套判语义完成。
+    // [BigInterLoadEtc 2026-09-09] ORIG 2296 / 我方 2325（gap +29，起点 +74）；
+    // p167 CLEAR（436/436，差集仅 C1↔C2/D1↔D2 镜像）；TU 四数 65/99/0/12 全程未退。
+    // 本轮三件**真缺口修复**（非形态）：
+    //  ① getDungeonMinimumRequiredLevel/isDungeonOpen 实参 -1 → 0x2aff
+    //     （ORIG 0x084c1279/0x084c1297 `movl $0x2aff,0x4(%esp)`）；
+    //  ② peerIp 缓冲 16B→0x20（ORIG local_b4 跨 -0xb0..-0x90，if 分支用 +0x10 段，
+    //     原声明越界写 16B）+ else 分支补 16B 清零（ORIG 4×`movl $0x0,disp`）；
+    //  ③ getInitSkillTreeGrade 实参 myGrade → initBase
+    //     （ORIG 0x084c09e6 `movzbl %al,%esi; mov %esi,0x4(%esp)`）。
+    // 形态收敛（P259/P52/P0/P328）：Acquire 内联 ×6、set_skill_slot/skillW 链式、
+    // 具名 bool ×5 去槽、premium/CAchievement/autoMarket/crane/hero/ev/itemLock/
+    // titleBook 链式、nowSec/nowTick/lastPlay 内联、4 处错误码检查补函数级
+    // `bool ok`（ORIG 共用 -0x61 槽）、insert_game_world 具名 uchar（P3 收窄）。
+    // 残差 = N82 帧/槽复用（4.1 不复用、4.4 复用 ⇒ 槽号错位）+ N86 迭代器临时槽
+    // + P292/N122 类 bool 归一化跨版本差。
     SIG_LOAD_ETC* sig = reinterpret_cast<SIG_LOAD_ETC*>(data);
 
     if (user->get_state() == 0)
@@ -1245,8 +1257,14 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
     // 析构尾）。改回 return 形，消除 4 个物化 bool 及其清零/读回指令。
     bool pvpTreeSkip = false;
     {
-        if (!SetPvpRecord(user, sig)) return 0xaa2;
-        if (!SetRankRecord(user, sig)) return 0xaa5;
+        // [BigInterLoadEtc] ORIG 0x084c0352..0x084c0472 四处检查共用同一具名
+        // bool 槽 -0x61（`mov %al,-0x61; movzbl -0x61,%eax; xor $1; test; je`）
+        // ⇒ 原码是函数级 `bool ok;` 各分支赋值复用（P328⑪/P320），非内联 !call()。
+        bool ok;
+        ok = SetPvpRecord(user, sig);
+        if (!ok) return 0xaa2;
+        ok = SetRankRecord(user, sig);
+        if (!ok) return 0xaa5;
 
         // [BigUserLogic] ORIG 0x084c03xx：先物化 getCurCharacR()->+0x7b 与 sig+4
         // 两实参，**再**构造 cMyTrace，后调 operator()。原写法把实参求值放到
@@ -1257,13 +1275,15 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         trace("CharLastPlayTick char(%d) t(%d)", charNo, (unsigned)playTick);
 
         user->ProcPremiumFatigue();
-        WongWork::CUserPremium* premium = user->GetPremiumInfo();
         // [BigUserLogic] ORIG 0x084c040e 无判空直调。
-        premium->RecalcAdditionalInfo(user);
+        // [BigInterLoadEtc] ORIG O106-O110 无 premium 具名槽（eax 直传 this）。
+        user->GetPremiumInfo()->RecalcAdditionalInfo(user);
 
-        if (!SetFatigue(user)) return 0xacf;
+        ok = SetFatigue(user);
+        if (!ok) return 0xacf;
         verifyCharacVillage(user);
-        if (!SendResult(user)) return 0xae6;
+        ok = SendResult(user);
+        if (!ok) return 0xae6;
 
         user->SendRestrictedGoods(false, 0);
         // §4.3 具名化：+0x2308 区在 SigTypes_C.h:464 已有 union 具名叠加
@@ -1292,16 +1312,23 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         }
 
         int tagIdx = user->get_charac_idx(sig->m_fieldC);
-        if (sig->m_fieldC != 0 && tagIdx != -1 &&
-            user->getTagCharacR() != 0)
+        // [BigInterLoadEtc] ORIG 0x084c05ae..0x084c05b4：末条件独立
+        // `test %eax,%eax; setne %al; test %al,%al; je`（P292 非 bool 返回直测），
+        // 合入 && 链会被 4.4 折成 mov $1/jmp/mov $0 物化 ⇒ 拆嵌套 if。
+        if (sig->m_fieldC != 0 && tagIdx != -1)
         {
+            if (user->getTagCharacR() != 0)
+            {
             // [BigUserLogic] ORIG 0x084c09??：先物化 sig+0x1a8/sig+0x10 两实参，
             // 再调 getTagCharacSkillW，最后一并传 set_skill_slot。原写法在 call 后
             // 又经 tagSkillBuf/skillW 两跳槽写入（多 2 条 store + 求值序颠倒）。
-            char* argCombo = (char*)&sig->m_tagEtc.m_skillCombo;  // sig+0x1a8
-            char* argSlot = (char*)&sig->m_tagEtc.m_skillSlot;    // sig+0x10
-            SkillSlot* skillW = reinterpret_cast<SkillSlot*>(user->getTagCharacSkillW());
-            skillW->set_skill_slot(argSlot, argCombo, 0x198);
+            // [BigInterLoadEtc/P52] 三具名局部各多 2 条槽往返（ORIG 用 %esi/%ebx/%eax
+            // 保活，无槽）⇒ 合并为单条链式表达式，让 4.4 复用 callee-saved 寄存器。
+            reinterpret_cast<SkillSlot*>(user->getTagCharacSkillW())->set_skill_slot(
+                (char*)&sig->m_tagEtc.m_skillSlot,    // sig+0x10
+                (char*)&sig->m_tagEtc.m_skillCombo,   // sig+0x1a8
+                0x198);
+            }
         }
         if (tagIdx == -1)
             sig->m_mixedRegion[0xd3b] = 0;
@@ -1336,10 +1363,10 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         // +0xc9a8 last_update get_uint → +0xc9ac 衔接具名字段）。
         if (sig->m_achievementLastUpdate == 0)
         {
-            CAchievement* achievement =
-                reinterpret_cast<CAchievement*>(user->GetCharacExpandData(
-                    ENUM_CHARAC_EXPAND_TYPE(0xf)));
-            achievement->adjust();
+            // [BigInterLoadEtc] ORIG 0x084c0530..0x084c0538：结果留 %eax 直发
+            // this（无具名槽）⇒ 链式单语句。
+            reinterpret_cast<CAchievement*>(user->GetCharacExpandData(
+                ENUM_CHARAC_EXPAND_TYPE(0xf)))->adjust();
         }
 
         // ---- 登录历史（CNetwork 视图位于 CUser+0xe0）----
@@ -1348,35 +1375,50 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         // GetPeerIP2/getWebAddress + Login（无缓存局部）。
         {
             CNetwork<4096, 450000>* net = &user->m_network;
-            char peerIp[16];   // [b28d-63] ORIG 0x84c0a23 memset 仅 m_mixedRegion（0x414）
+            // [BigInterLoadEtc 修复] ORIG local_b4 跨 -0xb0..-0x90（0x20 字节）：
+            // if 分支用 +0x10 段（lea -0xa0），else 分支用基址段（lea -0xb0）；
+            // 原声明 char[16] 令 if 分支 GetPeerIP2(peerIp+0x10,0x10) 越界写 16B。
+            // 声明为 uint[8] 使 else 清零复现 ORIG 的 4×`movl $0x0,disp(%ebp)` 单条形。
+            unsigned int peerIp[8];   // [b28d-63] ORIG 0x84c0a23 memset 仅 m_mixedRegion（0x414）
             if (net->get_ip() == 0)
             {
                 int serverGroup = (int)user->GetServerGroup();
+                // [BigInterLoadEtc] int 版实测反劣 +2/分支（4.4 传 uchar 形参前多
+                // 一次 movzbl 截断到临时槽）；保持 uchar 与 ORIG 传参值域一致。
                 unsigned char logState = user->GetLogInOutState();
-                int channelNo = G_CEnvironment()->m_serverEnvir.m_channelNo;
-                unsigned short port = net->get_port();
-                net->GetPeerIP2(peerIp + 0x10, 0x10);
-                user->m_historyLog.Login(user->getWebAddress(), peerIp,
-                                         (int)(port & 0xffff), channelNo, logState,
+                // [BigInterLoadEtc] ORIG 0x084c07f9..0x084c0862 实参右→左：
+                // serverGroup/logState 走具名槽，channelNo/port/peerIp 均为内联
+                // 实参（GetPeerIP2 返回值即第二实参；channelNo/port 无具名槽）。
+                user->m_historyLog.Login(user->getWebAddress(),
+                    net->GetPeerIP2(reinterpret_cast<char*>(peerIp) + 0x10, 0x10),
+                                         (int)(net->get_port() & 0xffff),
+                                         G_CEnvironment()->m_serverEnvir.m_channelNo,
+                                         logState,
                                          serverGroup);
             }
             else
             {
+                // [BigInterLoadEtc 修复] ORIG 0x084c086c..0x084c088a：else 分支先
+                // 清零前 16 字节（4×`movl $0x0,-0xb0/-0xac/-0xa8/-0xa4(%ebp)`）。
+                peerIp[0] = 0;
+                peerIp[1] = 0;
+                peerIp[2] = 0;
+                peerIp[3] = 0;
                 int serverGroup = (int)user->GetServerGroup();
                 unsigned char logState = user->GetLogInOutState();
-                int channelNo = G_CEnvironment()->m_serverEnvir.m_channelNo;
-                unsigned short port = net->get_port();
-                net->GetPeerIP2(peerIp, 0x10);
-                user->m_historyLog.Login(user->getWebAddress(), peerIp,
-                                         (int)(port & 0xffff), channelNo, logState,
+                user->m_historyLog.Login(user->getWebAddress(),
+                    net->GetPeerIP2(reinterpret_cast<char*>(peerIp), 0x10),
+                                         (int)(net->get_port() & 0xffff),
+                                         G_CEnvironment()->m_serverEnvir.m_channelNo,
+                                         logState,
                                          serverGroup);
             }
         }
 
-        long nowSec = GlobalData::s_systemTime_.getCurSec();
-        user->SetLoginTick(nowSec);
-        nowSec = GlobalData::s_systemTime_.getCurSec();
-        user->SetCharacStartPlayTick(nowSec);
+        // [BigInterLoadEtc] ORIG 0x084c093d..0x084c096e：getCurSec 结果 eax 直传
+        // 实参（无具名槽），两次调用各自重取 ⇒ 内联。
+        user->SetLoginTick(GlobalData::s_systemTime_.getCurSec());
+        user->SetCharacStartPlayTick(GlobalData::s_systemTime_.getCurSec());
 
         CSkillTreeParam skillTreeParam(user, sig, packet);
 
@@ -1396,10 +1438,12 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                     // ORIG:基线读取与 getInitSkillTreeGrade 调用各自重取 G_CDataManager()。
                     unsigned char initBase =
                         (unsigned char)G_CDataManager()->m_pvpSkillTree.m_field50;
-                    // [BigUserLogic] ORIG 0x084c09xx 无 initGrade 槽（call 结果直 cmp）。
-                    (void)initBase;
+                    // [BigInterLoadEtc 修复] ORIG 0x084c09e6..0x084c09ff 实证：
+                    // `movzbl %al,%esi`（initBase）→ `mov %esi,0x4(%esp)` 为
+                    // getInitSkillTreeGrade 的实参；`cmp %eax,%ebx` 用 myGrade(%ebx)。
+                    // 旧写 `(void)initBase` + 传 myGrade 是参数用错（真语义 bug）。
                     if (myGrade < G_CDataManager()->m_pvpSkillTree
-                                           .getInitSkillTreeGrade(myGrade))
+                                           .getInitSkillTreeGrade(initBase))
                     {
                         memset(sig->m_mixedRegion, 0, 0x414);
                         pvpTreeSkip = true;
@@ -1429,13 +1473,12 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                     int job = user->get_charac_job();
                     int spPoint = G_CDataManager()->m_pvpSkillTree.getPvPSkillPoint(
                         job, (int)firstGrow, (int)secondGrow, grade, true);
-                    SkillSlot* skillW = reinterpret_cast<SkillSlot*>(
-                        user->getCurCharacSkillW());
-                    skillW->set_remain_sp_at_index(spPoint,
-                                                   ENUM_SKILL_TREE_KIND(0));
-                    skillW = reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW());
-                    skillW->set_remain_sp_at_index(spPoint,
-                                                   ENUM_SKILL_TREE_KIND(1));
+                    // [BigInterLoadEtc] ORIG 0x084c0e5d..0x084c0e9?：getCurCharacSkillW
+                    // 结果 eax 直传 this（无具名槽，两处各自重调）⇒ 链式内联。
+                    reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW())
+                        ->set_remain_sp_at_index(spPoint, ENUM_SKILL_TREE_KIND(0));
+                    reinterpret_cast<SkillSlot*>(user->getCurCharacSkillW())
+                        ->set_remain_sp_at_index(spPoint, ENUM_SKILL_TREE_KIND(1));
                 }
                 else
                 {
@@ -1456,18 +1499,22 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
 
             {
-                item_lock::CItemLock* itemLock = reinterpret_cast<item_lock::CItemLock*>(
-                    user->GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE(2)));
-                std::vector<item_lock::stItemLockRef>& lockVec = itemLock->GetItemLockRefVec();
-                CTitleBook* titleBook = reinterpret_cast<CTitleBook*>(
-                    user->GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE(0xe)));
-                titleBook->getItemLockList(lockVec);
-                item_lock::CItemLock* itemLock2 = reinterpret_cast<item_lock::CItemLock*>(
-                    user->GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE(2)));
-                itemLock2->VerifyItemLock(user);
+                // [BigInterLoadEtc] ORIG 0x084c0c??：GetItemLockRefVec 结果在 %ebx、
+                // titleBook/两个 itemLock 均 eax 直传（无具名槽）⇒ 全内联。
+                reinterpret_cast<CTitleBook*>(user->GetCharacExpandData(
+                    ENUM_CHARAC_EXPAND_TYPE(0xe)))->getItemLockList(
+                    reinterpret_cast<item_lock::CItemLock*>(user->GetCharacExpandData(
+                        ENUM_CHARAC_EXPAND_TYPE(2)))->GetItemLockRefVec());
+                reinterpret_cast<item_lock::CItemLock*>(user->GetCharacExpandData(
+                    ENUM_CHARAC_EXPAND_TYPE(2)))->VerifyItemLock(user);
             }
 
-            if (G_CGameManager()->insert_game_world(user) != 1)
+            // [BigInterLoadEtc] ORIG 0x084c0c51..0x084c0c56：`mov %al,-0x56;
+            // movzbl -0x56,%eax; xor $1; test; je` ⇒ 具名字节局部（头签名 int 需
+            // 调用点 P3 收窄，否则 4.4 插 test/setne 归一化多 1 条）。
+            unsigned char inserted =
+                (unsigned char)G_CGameManager()->insert_game_world(user);
+            if (inserted == 0)
             {
                 return 0xc14;
             }
@@ -1519,9 +1566,11 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                     fatigueBase = coinEvent->getLastEventTime();
                 user->setBlueMarbleEnterCount(sig->m_blueMarbleEnterCount);
 
-                long nowTick = GlobalData::s_systemTime_.getCurSec();
-                long lastPlay = user->getCurCharacR()->m_field7b;
-                if (CheckDailyScheduleTime(fatigueBase, lastPlay, nowTick))
+                // [BigInterLoadEtc] ORIG 0x084c0f50 段：nowTick 在 %ebx、lastPlay 由
+                // getCurCharacR()->+0x7b 直读（均无具名槽）⇒ 内联实参（右→左求值）。
+                if (CheckDailyScheduleTime(fatigueBase,
+                        user->getCurCharacR()->m_field7b,
+                        GlobalData::s_systemTime_.getCurSec()))
                 {
                     user->SetFirstTimeLogin(true);
                     user->RecoverCoin(1);
@@ -1531,10 +1580,10 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                     user->ClearProperDungeonClearCount();
                     user->SetFirstLogin();
 
-                    bool newUserLevelGate =
-                        user->IsFirstTimeLogin() &&
-                        user->getCurCharacGrowType() == 0;
-                    if (newUserLevelGate)
+                    // [BigInterLoadEtc] 具名 bool 局部会落槽（+movb/cmpb 各一），
+                    // ORIG 0x084c0f6e 区该汇聚值仅在 %al 物化无槽 ⇒ 改匿名条件。
+                    if (user->IsFirstTimeLogin() &&
+                        user->getCurCharacGrowType() == 0)
                     {
                         // [BigUserLogic] ORIG 0x084c12??：getHackAnalyzer 结果留
                         // %eax 直传（无槽 spill），单行嵌套形复现。
@@ -1544,10 +1593,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                     user->ResetCurCharacUsedGiftFatigueQuantity();
 
                     int level = user->get_charac_level();
-                    bool secondGrowNew =
-                        user->IsFirstTimeLogin() &&
-                        user->getCurCharSecondGrowType() == 0;
-                    if (secondGrowNew)
+                    if (user->IsFirstTimeLogin() &&
+                        user->getCurCharSecondGrowType() == 0)
                     {
                         // [BigUserLogic] ORIG 0x084c13??(secondGrow) 为降序 jle 链 +
                         // unsigned 比较(setb)：>0x3c→(3,0xc)；>0x32→(1,0xb)。
@@ -1561,10 +1608,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                                 user, (WongWork::ENUM_HACKTYPE)0x1a3, 1u, subCode, 0);
                         }
                     }
-                    bool firstGrowNew =
-                        user->IsFirstTimeLogin() &&
-                        user->getCurCharFirstGrowType() == 0;
-                    if (firstGrowNew)
+                    if (user->IsFirstTimeLogin() &&
+                        user->getCurCharFirstGrowType() == 0)
                     {
                         // [BigUserLogic] ORIG 降序 jle 链：>0x32→(5,4)；>0x28→(3,3)；
                         // >0x1e→(2,2)；>0x14→(1,1)（与旧嵌套形逐区间等价）。
@@ -1683,33 +1728,34 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             {
                 // ORIG:判定与双 send 分支各自调用 G_GameWorld()。
                 int lvlNow = user->get_charac_level();
-                int minLvl = G_GameWorld()->getDungeonMinimumRequiredLevel(-1);
-                bool dungeonNotice = false;
+                // [BigInterLoadEtc 修复] ORIG 0x084c1279 压栈立即数 0x2aff（非 -1）：
+                // `movl $0x2aff,0x4(%esp)` 后 call getDungeonMinimumRequiredLevel。
+                int minLvl = G_GameWorld()->getDungeonMinimumRequiredLevel(0x2aff);
                 if (lvlNow >= minLvl)
                 {
                     if (!G_GameWorld()->IsPVPChannel())
-                        dungeonNotice = true;
-                }
-                if (dungeonNotice)
-                {
-                    if (!G_CDataManager()->m_serverParameter.isDungeonOpen(-1))
                     {
-                        G_GameWorld()->send_user_dungeon_inout_message(
-                            user, 0x2aff, false);
-                    }
-                    else
-                    {
-                        G_GameWorld()->send_user_dungeon_inout_message(
-                            user, 0x2aff, true);
+                        // [BigInterLoadEtc] ORIG 0x084c1297/0x084c1301：正条件
+                        // `test %al; je <false 体>` ⇒ open 真值体在前（fall-through）。
+                        if (G_CDataManager()->m_serverParameter.isDungeonOpen(0x2aff))
+                        {
+                            G_GameWorld()->send_user_dungeon_inout_message(
+                                user, 0x2aff, true);
+                        }
+                        else
+                        {
+                            G_GameWorld()->send_user_dungeon_inout_message(
+                                user, 0x2aff, false);
+                        }
                     }
                 }
             }
 
             {
-                CAutoMarketConditionsControl* autoMarket =
-                    G_CDataManager()->GetAutoMarketContitionsControl();
-                // [BigUserLogic] ORIG 无判空。
-                autoMarket->SendNotiSetDurability(user);
+                // [BigUserLogic] ORIG 无判空；ORIG 0x084c1317-0x084c1322 无具名槽
+                // （eax 直传 this）⇒ 链式单语句。
+                G_CDataManager()->GetAutoMarketContitionsControl()
+                    ->SendNotiSetDurability(user);
             }
 
             // [BigUserLogic] ORIG 无判空：getEffectNum 直调。
@@ -1793,14 +1839,13 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
 
             {
-                bool needExpertSync =
-                    user->GetCurCharacExpertJobType() != 0 ||
-                    user->GetCurCharacExpertJobExp() == -1;
-                if (needExpertSync)
+                if (user->GetCurCharacExpertJobType() != 0 ||
+                    user->GetCurCharacExpertJobExp() == -1)
                 {
-                    Stream* stream = GlobalData::s_stream_pool->Acquire(
-                        "InterDispatcher.cpp", 0xed7);
-                    CStreamGuard guard(stream, true);
+                    // [BigInterLoadEtc/P259] ORIG 无 stream 具名局部：Acquire 结果
+                    // 直接作 CStreamGuard 实参（eax 直传 0x4(%esp)）。
+                    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                        "InterDispatcher.cpp", 0xed7), true);
                     guard.operator*()->operator<<(0x180);
                     guard.operator*()->operator<<((int)user->GetUID());
                     guard.operator*()->operator<<((unsigned int)user->getCurCharacNo());
@@ -1823,9 +1868,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
 
             {
-                Stream* stream = GlobalData::s_stream_pool->Acquire(
-                    "InterDispatcher.cpp", 0xf20);
-                CStreamGuard guard(stream, true);
+                CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                    "InterDispatcher.cpp", 0xf20), true);
                 guard.operator*()->operator<<(0x1a7);
                 guard.operator*()->operator<<((int)user->GetUID());
                 guard.operator*()->operator<<((unsigned int)user->getCurCharacNo());
@@ -1835,9 +1879,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             // ORIG:两个独立 if,各自重调 G_GameWorld()->IsIntegratedPvPBaseChannel()。
             if (G_GameWorld()->IsIntegratedPvPBaseChannel())
             {
-                Stream* stream = GlobalData::s_stream_pool->Acquire(
-                    "InterDispatcher.cpp", 0xf2a);
-                CStreamGuard guard(stream, true);
+                CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                    "InterDispatcher.cpp", 0xf2a), true);
                 guard.operator*()->operator<<(0x1d5);
                 guard.operator*()->operator<<((int)user->GetUID());
                 guard.operator*()->operator<<((char)user->GetServerGroup());
@@ -1846,9 +1889,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
             if (G_GameWorld()->IsIntegratedPvPBaseChannel())
             {
-                Stream* stream2 = GlobalData::s_stream_pool->Acquire(
-                    "InterDispatcher.cpp", 0xf36);
-                CStreamGuard guard2(stream2, true);
+                CStreamGuard guard2(GlobalData::s_stream_pool->Acquire(
+                    "InterDispatcher.cpp", 0xf36), true);
                 guard2.operator*()->operator<<(0x1e0);
                 guard2.operator*()->operator<<((int)user->GetUID());
                 guard2.operator*()->operator<<((char)user->GetServerGroup());
@@ -1862,9 +1904,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                     online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam();
                 if (playCount == 1)
                 {
-                    Stream* stream = GlobalData::s_stream_pool->Acquire(
-                        "InterDispatcher.cpp", 0xf44);
-                    CStreamGuard guard(stream, true);
+                    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                        "InterDispatcher.cpp", 0xf44), true);
                     guard.operator*()->operator<<(0x1e6);
                     guard.operator*()->operator<<((int)user->GetUID());
                     guard.operator*()->operator<<((char)user->GetServerGroup());
@@ -1873,9 +1914,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 }
                 else
                 {
-                    Stream* stream = GlobalData::s_stream_pool->Acquire(
-                        "InterDispatcher.cpp", 0xf4d);
-                    CStreamGuard guard(stream, true);
+                    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                        "InterDispatcher.cpp", 0xf4d), true);
                     guard.operator*()->operator<<(0x1e8);
                     guard.operator*()->operator<<((int)user->GetUID());
                     guard.operator*()->operator<<((char)user->GetServerGroup());
@@ -1964,9 +2004,9 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             const_cast<_Charac_info*>(user->getCurCharacR())->m_field14BC = 0;   // _Charac_info pad 拆分后 +0x14bc 具名字段
 
             {
-                CraneMinigameManager* crane = G_CGameManager()->GetCraneMinigameManager();
-                // [BigUserLogic] ORIG 无判空。
-                crane->SendCraneItemNeedMaterial(user);
+                // [BigUserLogic] ORIG 无判空；ORIG 0x084c2169-0x084c2173 无具名槽。
+                G_CGameManager()->GetCraneMinigameManager()
+                    ->SendCraneItemNeedMaterial(user);
             }
             processAttendAnceEvent(&sig->m_attendanceEvent, *user);
             user->SendMaxEquipLevel();
@@ -1977,16 +2017,15 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             CerashopAddRestrict::Manager::LoadRequestBuyRestrictItem(user);
 
             {
-                CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x9e);
-                // [BigUserLogic] ORIG 无判空。
-                if (ev->IsEventing(0))
+                // [BigUserLogic] ORIG 无判空；ORIG 0x084c2207-0x084c2213 无 ev 槽
+                // （GetRepeatEvent 结果 eax 直传虚调用）。
+                if (GlobalData::s_event_manager->GetRepeatEvent(0x9e)->IsEventing(0))
                     DB_LoadEventLevelupSupport::makeRequest((int)user->GetUID(),
                                                             user->getCurCharacNo());
             }
             {
-                HeroMissionEvent* hero = ARAD::Singleton<HeroMissionEvent>::Get();
-                // [BigUserLogic] ORIG 无判空。
-                hero->loadEventData(user);
+                // [BigUserLogic] ORIG 无判空；ORIG 0x084c2226-0x084c2229 无具名槽。
+                ARAD::Singleton<HeroMissionEvent>::Get()->loadEventData(user);
             }
 
             // ORIG:Garena 段(双 getGarenaAuthData + Taiwan::GarenaAuthData 访问器)。

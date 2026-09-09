@@ -708,6 +708,30 @@ static const char g_interLoginInfoSig[] =
 //   ORIG `add $0x3a68,%eax; mov (%eax),%eax`  vs  本方 `add $0x3a60,%eax; mov 0x8(%eax),%eax`。
 //   指令条数相同、仅立即数/位移拆分不同 ⇒ 4.4 从 m_punishInfoCount(+0x3a50) 起算，
 //   ORIG 编译器从 m_punishInfos(+0x3a54) 起算，非源级可控（勿以手拆常量去凑，P321-T5）。
+// [BigInterLogin/2026-09-09] 逐段语义核对（Ghidra C + ORIG 汇编 2462 条逐区段）发现并修复 4 类真缺口：
+//   ① `if (m_breakAwayRewardBoundA < m_breakAwayRewardBoundB)` **方向反**（真 bug）：
+//      ORIG 0x84c771d `mov 0x3f40(A),%edx; mov 0x3f44(B),%eax; cmp %eax,%edx; jbe 0x84c7736`
+//      ⇒ A<=B 走 order3、A>B 走 order1（Ghidra C 同结论：0x3f44<0x3f40→order1）；
+//      旧码 A<B 走 order1 ⇒ A<B 时结果与 ORIG 相反。已改 `A > B`。
+//   ② SetServerGroup×2 / setOnlinePreliminaryServerGroup 三处 `(char)` 截断：
+//      ORIG 0x84c52c0/0x84c52ef/0x84c6fd5 均 `mov 0x39d0|0x39a8(%eax),%eax` 直传 32 位
+//      （无 movsbl；字段 unsigned int）⇒ 旧码把值截成低字节（≥0x100 时传错）。已删 cast。
+//   ③ setTotalHackUserTradeGold 只传低 32 位：ORIG 0x84c68de `mov 0x3a2c(%eax),%edx;
+//      mov 0x3a28(%eax),%eax; mov %eax,0x4(%esp); mov %edx,0x8(%esp)` ⇒ 传完整 64 位
+//      （低@+0x3a28、高@+0x3a2c）；旧码高位恒 0（真值差）。已改 ull 视图读。
+//   ④ restrictedGoods 循环变量 unsigned short ⇒ 16 位 `cmp %ax; seta`（count>0x7fff 边界异）；
+//      ORIG 0x84c6419 `movzwl 0x293a; movzwl %ax,%eax; cmp i; setg`（32 位有符号）。已改 int。
+//   ⑤ m_lastPlayTime 比较：ORIG 0x84c754f `cmp %eax,%ebx; setl`（T2 有符号直证）；
+//      字段是 unsigned int ⇒ 直比生 setb（方向同、符号性异）。写
+//      `static_cast<long>(m_lastPlayTime) + 0x3b53800` 复现 ORIG `lea`+`setl`（0 额外指令）。
+//   复核：p167 385/385（差集仅 C1↔C2/D1↔D2 镜像）、gap +21→+23（删 3 movsbl +1 movzwl
+//   +1 add，均为纠错副作用）、ndiff 1277→1270、TU 四数 121/1329/5/135 与改动前一致。
+//   试形回退记录：stream/monStream/expire/repeatEvent 内联（P0 方向）实测帧 0x28c→0x26c、
+//   ndiff 1270→1319（ORIG 0x84c616b 有 gameOption -0x54 具名槽 ⇒ 原码该处有局部；
+//   槽基由聚合对象排布决定，N82/P212）⇒ 已回退。
+//   剩余 N：N4（0x3a54/0x3a68 vs 0x3a50+4/0x3a60+8 折叠路径）、N82/P112（帧 0x28c vs 0x27c 槽平移）、
+//   N7/N18a（寄存器中转）、P227/P328⑩（trace 两语句 vs 全表达式临时链）、
+//   P168a/P194（具名 bool punishNow/lockNow/inWindow/startBreakAway 落槽）、P196 无（⑤ 已修）。
     "virtual int Inter_LoginInfo::dispatch_sig(CUser*, char*, int)";
 
 int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
@@ -718,12 +742,12 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (G_GameWorld()->GetChannelType() == 0xe)
     {
         user->SetServerGroup(static_cast<ENUM_SERVER_GROUP>(
-            static_cast<char>(pInfo->m_onlinePrelimServerGroup)));
+            pInfo->m_onlinePrelimServerGroup));
     }
     if (G_GameWorld()->GetChannelType() == 7)
     {
         user->SetServerGroup(static_cast<ENUM_SERVER_GROUP>(
-            static_cast<char>(pInfo->m_tournamentServerGroup)));
+            pInfo->m_tournamentServerGroup));
     }
     user->setWebAddress(pInfo->m_webAddress);
 
@@ -886,6 +910,9 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         G_GameWorld()->InsertLoginUser(user);
 
         // 向 DB 线程请求游戏选项加载
+        // ORIG 0x84c60f1 Acquire 结果直进 guard 实参（无 stream 槽），但
+        // 0x84c616b `mov %eax,-0x54(%ebp)` 保留 GetInBuffer 结果的具名槽
+        // ⇒ 实测内联 stream 后全帧槽基右移、ndiff 1277→1319（回退，P321-T5）。
         Stream* stream = GlobalData::s_stream_pool->Acquire(
             "InterDispatcher.cpp", 0x1c7e);
         CStreamGuard streamGuard(stream, true);
@@ -941,7 +968,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
         }
 
-        for (unsigned short i = 0; i < pInfo->m_restrictedGoodsCount; ++i)
+        for (int i = 0; i < pInfo->m_restrictedGoodsCount; ++i)
         {
             user->SetRestrictedGoods(pInfo->m_restrictedGoods[i]);
         }
@@ -1013,7 +1040,12 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 #undef entry
 
         user->setTotalHackUserTradeCnt(pInfo->m_totalHackUserTradeCnt);
-        user->setTotalHackUserTradeGold(pInfo->m_totalHackUserTradeGold);
+        // ORIG 0x84c68de：`mov 0x3a2c(%eax),%edx; mov 0x3a28(%eax),%eax; mov
+        // %eax,0x4(%esp); mov %edx,0x8(%esp)` ⇒ 传完整 64 位（低@+0x3a28、
+        // 高@+0x3a2c）。只传低 32 位会丢失高位（真值差）。
+        user->setTotalHackUserTradeGold(
+            *reinterpret_cast<unsigned long long*>(
+                &pInfo->m_totalHackUserTradeGold));
         if (GlobalData::g_autoPunishRuleBlackIPMgr->isBlackIP(
                 pInfo->m_blackIpCheckBuf))
         {
@@ -1131,7 +1163,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
         user->setOnlinePreliminaryCharacNo(pInfo->m_onlinePrelimCharacNo);
         user->setOnlinePreliminaryServerGroup(static_cast<ENUM_SERVER_GROUP>(
-            static_cast<char>(pInfo->m_onlinePrelimServerGroup)));
+            pInfo->m_onlinePrelimServerGroup));
         user->setOnlinePreliminaryPlayType(pInfo->m_onlinePrelimPlayType);
         {
             cMyTrace opTrace(g_interLoginInfoSig, 0x1e33, 0);
@@ -1231,7 +1263,9 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             {
                 user->ResetReturnUser();
             }
-            else if (pInfo->m_lastPlayTime + 0x3b53800 <
+            // ORIG 0x84c754f 为 `cmp %eax,%ebx; setl`（有符号）⇒ 原码按 int
+            // 语义比较（我方字段 unsigned int 直比会生 setb，P196/T2 直证）。
+            else if (static_cast<long>(pInfo->m_lastPlayTime) + 0x3b53800 <
                      GlobalData::s_systemTime_.getCurSec())
             {
                 user->SetReturnUser();
@@ -1288,7 +1322,9 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         if (0 < pInfo->m_breakAwayDungeonClearCnt)
         {
             // ORIG:if/else 两分支各一次调用（静态双站点）。
-            if (pInfo->m_breakAwayRewardBoundA < pInfo->m_breakAwayRewardBoundB)
+            // ORIG 0x84c771d：`cmp %eax,%edx`(edx=A,eax=B)+`jbe` → A<=B 走
+            // order3、A>B 走 order1（Ghidra 同结论：0x3f44<0x3f40→order1）。
+            if (pInfo->m_breakAwayRewardBoundA > pInfo->m_breakAwayRewardBoundB)
             {
                 user->setBreakAwayRewardOrder(static_cast<ENUM_BREAK_AWAY_REWARD_ORDER>(1));
             }

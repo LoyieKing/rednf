@@ -143,6 +143,36 @@ STExpertJobEtcScript::STExpertJobEtcScript()
 // ImportExpertJobScript（ORIG 0x896b0e4）。
 // 加载指定专家职业脚本，逐节填充 STExpertJobScript 各容器/标量。
 //
+// b29-CallAnchor 复核（2026-09-09；方法=call 锚点间隔 + 段级归一化多重集 + 与 ORIG
+// 逐段语义核对，专治「p167 CLEAR ≠ 无真缺口」）。本段为最新判词：
+//   基线：p167 239 = 239（MISSING/EXTRA 全为 C1↔C2 / D1↔D2 同址别名，P93 豁免）；
+//   gap（clean 口径）2235 − 2231 = 4（复核前 12）。
+//   **真语义缺口 1 处（已修）**：[disjoint result] 的 `m_disjointResultMap.insert(...)`
+//     丢弃返回值。ORIG 0x0896ba28 insert 之后 0x0896ba7e..0x0896ba9d 有
+//     `movzbl -0x2ac(%ebp),%eax; xor $1; test %al,%al; je +0x9b4`（读 insert 返回
+//     pair<iterator,bool>::second）⇒ 重复键走 `mov $0,%ebx; mov $1,%esi; jmp <循环尾>`
+//     = return false。旧判词把这段 7 条误判为「N128 EH 状态机寄存器化差异」——
+//     实为**缺 duplicate 检查**（重复项原被静默接受，map 覆盖语义与 ORIG 不同）。
+//     修法：具名 `std::pair<...::iterator, bool> inserted = ...insert(...)` 再判
+//     `if (!inserted.second) return false;`（ORIG 的 sret 目标即具名局部 -0x2b0，
+//     两个临时 pair 析构后才读 -0x2ac）⇒ 该段逐条全等（含槽位）。
+//   形态修 3 处（每处 +1 条，语义等价）：
+//     k62  ORIG 0x0896b99f `mov %eax,-0x388(%ebp)`（第三次 ScanInt 结果写具名局部、
+//          写后未读，P171）⇒ 源改 `int readOnly = ScanInt(&ok);` 保留 store。
+//     k209 ORIG 0x0896d16e `movl $0x3,-0x1c(%ebp)`（[alchemist extraction result item]
+//          的 idx 初值 3，三分支全覆盖 ⇒ 死初始化，P171）⇒ 源补 `int idx = 3;`。
+//     k131 [potion info] 判定树：ORIG 用 `ja`（无符号序）⇒ switch 表达式 unsigned
+//          （P321-T2）；叶块物理序 ORIG 为 [1] 组在前、[0] 在后 ⇒ 按 P324 调整 case
+//          书写序（case 0x27ac59 移到 [1] 组之后）。两项合计该段归零。
+//   剩余 4 处形态残差（均非语义缺口，封 N）：
+//     k125 [upgrade cost] ORIG `mov -0x48,%eax; sub $1,%eax; mov %eax,%esi` vs 4.4
+//          `lea -0x1(%eax),%esi`。试过具名 expect 局部（段长对齐但新增槽、违 P0）后
+//          回退内联表达式 ⇒ 后端指令选择差（P321-T5）。
+//     k145/146/147 [disjoint self service] 三次落值：ORIG 为 RHS-first + edx 中转
+//          （`mov %eax,%edx; mov -0x3c(%ebp),%eax; mov %edx,N(%eax)`），4.4 对 int
+//          字段恒 LHS-first。按 P211/P248 档③试 (unsigned int)/(unsigned long) 两种
+//          RHS 异型化均被前端折叠 ⇒ N76（禁为装载序改共享头字段类型）。
+//
 // b290-BigExpert 复核（双判据 + 4 条已验证修法；本段为最终判词，覆盖下方 b28d 旧判词的
 // ②③④ 三项「可攻」判断）：
 //   双判据：① 指令数缺口 origN 2194 / ourN 2182 ⇒ gap 12（原 38）；② p167 调用点差集
@@ -338,9 +368,26 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                         !expert_job::get_disjoint_additional_items(
                             bigwin, key, res.m_bigwinItems))
                         return false;
-                    ScanInt(&ok);   // 读取但未建模持久化（local_38c）
+                    // ORIG 0x0896b99f `mov %eax,-0x388(%ebp)`：第三次 ScanInt 结果写入
+                    // 具名局部（写后未读，P171 照抄）⇒ 必须保留该 store。
+                    int readOnly = ScanInt(&ok);
+                    (void)readOnly;
                     if (!ok) return false;
-                    script[scriptIdx].m_disjointResultMap.insert(std::make_pair(grade, res));
+                    // b290-BigExpert [REAL-BUG 补：ORIG 0x0896ba7e..0x0896ba9d 在 insert
+                    // 之后 `movzbl -0x2ac(%ebp); xor $1; test; je`（= 检查
+                    // pair<iterator,bool>::second）⇒ 重复键走 `mov $0,%ebx; mov $1,%esi;
+                    // jmp <循环尾>` = return false。原码丢弃 insert 返回值 ⇒ 重复项被静默
+                    // 接受、后续 map 覆盖语义与 ORIG 不同。]
+                    // ORIG 0x0896ba28 insert 的 sret 目标即具名局部 -0x2b0，
+                    // 两个临时 pair 析构后（0x0896ba7e）才读 -0x2ac（= 该局部 +4 的
+                    // second）⇒ 原码是「具名 pair 接收 insert 返回值，下一语句判 second」，
+                    // 直接写 `if (!insert(...).second)` 会在 insert 后立即读临时。
+                    std::pair<std::map<DisjointMachineGrade, stDisjointResult>::iterator,
+                              bool> inserted =
+                        script[scriptIdx].m_disjointResultMap.insert(
+                            std::make_pair(grade, res));
+                    if (!inserted.second)
+                        return false;
                 }
             }
             else if (section == "[clear quests]")
@@ -453,6 +500,11 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                 {
                     idx = ScanInt(&ok);
                     if (!ok) break;
+                    // N（P321-T5）：ORIG 0x0896c268..0x0896c26e 为
+                    // `mov -0x48(%ebp),%eax; sub $0x1,%eax; mov %eax,%esi`（idx 槽 +
+                    // 寄存器中转、无 expect 槽，P0 判据禁止引入具名 expect）；4.4 恒折
+                    // `lea -0x1(%eax),%esi`。试过具名局部形（段长对齐但新增槽、违反 P0）
+                    // 后回退内联表达式，记后端指令选择差。
                     if (idx - 1 != (int)script[scriptIdx].m_upgradeCost.size())
                         return false;
                     int v = ScanInt(&ok);
@@ -477,11 +529,12 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) break;
                     int val = ScanInt(&ok);
                     if (!ok) return false;
-                    switch (idx)
+                    // ORIG 0x0896c36c 判定树用 `ja`（无符号序）⇒ switch 表达式为
+                    // unsigned（P321-T2：消费者指令定符号性）。
+                    // P324：叶块物理序 = 书写序。ORIG 叶块序为 [1] 组（0x0896c39a）
+                    // 在前、[0]（0x0896c3a4）在后 ⇒ [1] 组必须写在前面。
+                    switch ((unsigned int)idx)
                     {
-                    case 0x27ac59:
-                        g_alchemistInfo[0] = val;
-                        break;
                     case 0x27ac52:
                     case 0x1f8e:
                     case 0x98981a:
@@ -489,6 +542,9 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     case 0x989885:
                     case 0x2920913e:
                         g_alchemistInfo[1] = val;
+                        break;
+                    case 0x27ac59:
+                        g_alchemistInfo[0] = val;
                         break;
                     default:
                         return false;
@@ -535,6 +591,11 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                 // （0x0896c610/0x0896c63d/0x0896c66b）。原逐点重算 imul/add 每点多 2 条。]
                 STExpertJobScript::stSelfDisjoinMaterialInfo* selfDisjoin =
                     &script[scriptIdx].m_selfDisjoin;
+                // N76 封顶：ORIG 0x0896c60e..0x0896c613 为 RHS-first + edx 中转
+                // （`mov %eax,%edx; mov -0x3c(%ebp),%eax; mov %edx,(%eax)`），4.4 对
+                // int 字段恒 LHS-first；按 P211/P248 档③试 (unsigned int)/
+                // (unsigned long) 两种 RHS 异型化均被前端折叠（实测仍 LHS-first）
+                // ⇒ 装载序旋钮不可用，记 N76（P321-T5：禁为装载序改类型）。
                 selfDisjoin->m_field0 = ScanInt(&ok);
                 if (!ok) return false;
                 selfDisjoin->m_field4 = ScanInt(&ok);
@@ -732,7 +793,9 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                         return false;
                     res.m_field4 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    int idx;
+                    // ORIG 0x0896d16e `movl $0x3,-0x1c(%ebp)`：idx 具名局部初值 3
+                    // （三分类各自覆盖、else 直接 return ⇒ 值 3 从不被读，P171 照抄）。
+                    int idx = 3;
                     if (type == "food")
                         idx = 0;
                     else if (type == "life")
