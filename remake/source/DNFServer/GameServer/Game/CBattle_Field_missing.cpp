@@ -483,55 +483,66 @@ bool CBattle_Field::checkBloodSpawnOrder(short smallRound)
 void CBattle_Field::BloodMonsterSpawnPacket(int cnt, int time, short smallRound,
                                             short nextRound)
 {
-    // [b28d-solo-CBattle_Field_missing 判词 · N82/P157] ORIG 0x08305992：ORIG 帧
-    // 0x3a0 含 map_monster 栈对象（-0x370，调 map_monster::C1Ev）与逐字段
-    // operator->() 重调；本仓实现无该局部、走 mapInfo 缓存 + it->second 引用，
-    // 帧/结构差未闭合（需按 ORIG 完整重写，本波未做）；组包内容与发送次数
-    // 语义等价。
+    // [b28d-solo-CBattle_Field_missing] ORIG 0x08305992 逐条转写：
+    // ①putCount(-0xc) 声明在 PacketGuard 之前；
+    // ②ORIG 在 put_short(cnt) 之后构造一个全程未被读写的局部 map_monster
+    //   （-0x370，仅 C1Ev/D1Ev + 撑帧 0x3a0）⇒ 照抄该原码遗留（P171/P232）；
+    // ③无 mapInfo 具名局部、无判空：begin/end 处各自重调 GetCurrentMapInfo
+    //   （P0/P140/P157）；④it->second 逐字段重读 operator->()，禁引用缓存；
+    // ⑤m_pDungeon 无判空（ORIG 直解引用 +0x188）；⑥增量段 ORIG 调后置
+    //   operator++（ppEi，sret 临时 -0x10）⇒ 写 it++。
+    int putCount = 0;
     PacketGuard packet;
     packet.put_header(0, 0xd2);
     packet.put_short(cnt);
-    MapInfo* mapInfo = GetCurrentMapInfo();
-    if (mapInfo == 0)
-        return;
-    int putCount = 0;
-    std::map<int, map_monster>::iterator it = mapInfo->m_monsterMap.begin();
-    for (; it != mapInfo->m_monsterMap.end(); ++it)
+    map_monster unusedMonster;   // ORIG 0x083059f0 C1Ev / 0x08305cd4 D1Ev
+    (void)unusedMonster;
+    // ORIG 的 begin() sret 直构进 it 槽（-0x24），无 iterator 默认构造
+    // ⇒ 初始化式（本处非 P50「先声明后赋值」形）。
+    std::map<int, map_monster>::iterator it =
+        GetCurrentMapInfo()->m_monsterMap.begin();
+    for (; it != GetCurrentMapInfo()->m_monsterMap.end(); it++)
     {
         if (putCount == cnt)
             break;
-        const map_monster& mob = it->second;
-        if (mob.m_bloodSmallRoundOrder != smallRound || mob.m_bloodKillFlag == 1)
-            continue;
-        packet.put_byte((int)mob.m_bloodDifficulty);
-        packet.put_short((int)(short)mob.m_instId);
-        packet.put_int(mob.m_mobIndex);
-        if (time == -1)
-            packet.put_byte(3);
-        else
-            packet.put_byte(0);
-        if (m_pDungeon != 0 && m_pDungeon->m_bloodDungeonType == 2)
-            packet.put_byte(0x46);
-        else
-            packet.put_byte(0x3c);
-        packet.put_short((int)mob.m_bloodPhaseTime);
-        packet.put_short((int)mob.m_bloodRoundOrder);
-        packet.put_short((int)mob.m_bloodSpawnIdx);
-        packet.put_short((int)mob.m_bloodPhaseIdx);
-        const_cast<map_monster&>(mob).m_bloodKillFlag = 1;
-        ++putCount;
+        // ORIG 0x08305a48/0x08305a61：两条件各自失败落同一 L_false 并物化
+        // `mov $1/%eax … mov $0/%eax; test; je <loop_tail>`（P214① 汇聚块）
+        // ⇒ 用 P226 语句表达式条件（零槽短路物化 + 假路径直落 loop_tail）。
+        if (({ it->second.m_bloodSmallRoundOrder == smallRound &&
+                !it->second.m_bloodKillFlag; }))
+        {
+            packet.put_byte((int)it->second.m_bloodDifficulty);
+            packet.put_short((int)(short)it->second.m_instId);
+            packet.put_int(it->second.m_mobIndex);
+            if (time == -1)
+                packet.put_byte(3);
+            else
+                packet.put_byte(0);
+            if (m_pDungeon->m_bloodDungeonType == 2)
+                packet.put_byte(0x46);
+            else
+                packet.put_byte(0x3c);
+            packet.put_short((int)it->second.m_bloodPhaseTime);
+            packet.put_short((int)it->second.m_bloodRoundOrder);
+            packet.put_short((int)it->second.m_bloodSpawnIdx);
+            packet.put_short((int)it->second.m_bloodPhaseIdx);
+            it->second.m_bloodKillFlag = 1;
+            ++putCount;
+        }
     }
-    if (putCount == cnt)
+    // ORIG 布局：`cmp; je <send 块>`，logFormat 块在前直落、send 块在后
+    // （4.1 else-first 布局，P59/P191）⇒ 条件写不等形翻正块序。
+    if (putCount != cnt)
+    {
+        LogManager::logFormat(1, "battle_field.cpp",
+                              __PRETTY_FUNCTION__,
+                              0xe43, "BLOOD_LOG : EROOR BLOOD SPAWN MONSTER COUNT!!\n");
+    }
+    else
     {
         packet.put_short(time);
         packet.finalize(true);
         m_party->send_to_party(packet);
-    }
-    else
-    {
-        LogManager::logFormat(1, "battle_field.cpp",
-                              "void CBattle_Field::BloodMonsterSpawnPacket(int, int, short, short)",
-                              0xe43, "BLOOD_LOG : EROOR BLOOD SPAWN MONSTER COUNT!!\n");
     }
 }
 
@@ -1004,12 +1015,11 @@ short CBattle_Field::getNextSamllRoundOrder(short round, int diff)
     //   end() 每轮重求（P13 反向）；
     // ③P157/P183 it->second 逐字段重读（两次 operator->()），禁引用缓存；
     // ④short result 预清 `movw $0x0,-0xa(%ebp)`，尾 movzwl 直返。
-    // ⑤残余：ORIG 增量段 `ppEi` 后置迭代器（sret 临时 -0x10）构成三槽阶梯，
-    //   4.4 对结果未使用的后置 ++ 恒折 ppEv 免临时槽 ⇒ 迭代器槽整体浅 4
-    //   （N113 封顶）。
+    // ⑤增量段 ORIG 调后置 operator++（ppEi，sret 临时 -0x10）⇒ 源写 `it++`
+    //   （P28 增量侧；本件 4.4 未折叠，逐条复现 66=66 gap=0）。
     short result = 0;
     std::map<int, map_monster>::iterator it = GetCurrentMapInfo()->m_monsterMap.begin();
-    for (; it != GetCurrentMapInfo()->m_monsterMap.end(); ++it)
+    for (; it != GetCurrentMapInfo()->m_monsterMap.end(); it++)
     {
         if (it->second.m_bloodRoundOrder2 == round &&
             (int)(signed char)it->second.m_bloodSpawned == diff)
