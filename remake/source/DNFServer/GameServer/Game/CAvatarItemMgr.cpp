@@ -29,10 +29,18 @@ namespace WongWork
 // +2 折 disp）实证；裸偏移 `*(int*)(jd + i*6 + 2)` 使 4.4 把 +2 并入索引（多 2 条）。
 namespace
 {
+// [sweep-CAvatarItemMgr] P254 档③：ORIG 第二读为两段 `mov 0x2(...),%eax; mov %eax,%ebx`
+// （4.1 对 enum 字段保留转换中转），int 字段下 4.4 恒折单段 `mov ...,%ebx` ⇒ 字段 enum 化。
+// enum 底层 4 字节、packed 布局不变（sizeof(JewelSocketSlot) 仍 6）。
+enum JewelSocketItemId
+{
+    JEWEL_SOCKET_ITEM_ID_NONE = 0
+};
+
 struct JewelSocketSlot
 {
     short m_pad;
-    int m_itemId;
+    JewelSocketItemId m_itemId;
 } __attribute__((packed));
 
 // [b28d-solo-CAvatarItemMgr] P291：具名数组成员视图使 4.4 把 base+i*6+2 折叠为
@@ -151,13 +159,20 @@ void CAvatarItemMgr::AddAvatarItem(int key, Avatar_Item* item)
     AddEmblemEndurance(key, item);
 }
 
-// [b28d-solo-CAvatarItemMgr] 判词：DIFF→N18a 封顶（105 vs 104）。本轮 P291 具名数组成员
-// 视图（JewelSocketData::m_slots[i].m_itemId）消 lea+mov、P223 取反 goto 尾空标签复现
-// 空 then 占位岛（jmp+nop）；残余 1 条 ORIG 实参两段中转 `mov mem,%eax; mov %eax,%ebx`
-// = N18a（4.4 恒折单步入 %ebx，P226 语句表达式实测无效）。p167 12/12 CLEAR。
+// [sweep-CAvatarItemMgr] 判词：DIFF(105/104) → IDENTICAL_AE(105/105)。
+// 修法①P254 档③：字段 int→enum（JewelSocketItemId）复现 ORIG 实参两段中转
+//   `mov 0x2(...),%eax; mov %eax,%ebx`（int 字段下 4.4 恒折单段，旧判 N18a 作废）；
+// 修法②P235：cast 移出表达式、局部改完整类型 JewelSocketData* ⇒ 复现 ORIG
+//   「i 先、base 后」装载序（cast 在表达式内时 4.4 恒 base 先载）。
+// p167 12/12 CLEAR（ORIG C2 与我方 C1 同址 0x082faa8e，P93 豁免）。报告
+// docs/class_func_reports/WongWork__CAvatarItemMgr/AddEmblemEndurance.md 两段已读。
 void CAvatarItemMgr::AddEmblemEndurance(int key, const Avatar_Item* item)
 {
-    const char* jewelData = item->getJewelSocketData();
+    // [sweep-CAvatarItemMgr] P235：cast 留在表达式内时 4.4 恒 base 先载
+    // （`mov -0x14(%ebp),%ecx` 在 `mov -0x10(%ebp),%edx` 之前），ORIG 是
+    // 完整类型成员直访问 ⇒ i 先、base 后。把 cast 移到赋值点，局部即完整类型。
+    const JewelSocketData* jewelData =
+        (const JewelSocketData*)item->getJewelSocketData();
     short totalEndurance = 0;
     for (int i = 0; i <= 4; i++)
     {
@@ -165,15 +180,13 @@ void CAvatarItemMgr::AddEmblemEndurance(int key, const Avatar_Item* item)
         // 无 itemId 具名槽；grade 无具名槽（P52 链式实参跨 receiver call 保活 ebx）。
         // [b28d-solo-CAvatarItemMgr] P223：ORIG 空 then 占位岛
         // （`je <nop>; body; jmp <incr>; nop; incr:`）⇒ 取反 goto 尾空标签。
-        if (((const JewelSocketData*)jewelData)->m_slots[i].m_itemId == 0)
+        if (jewelData->m_slots[i].m_itemId == 0)
             goto next_slot;
         {
-            // [b28d-solo-CAvatarItemMgr] 判词：N18a 封顶——ORIG 实参两段中转
-            // `mov 0x2(%eax,%ecx,1),%eax; mov %eax,%ebx`，4.4 恒折单步入 %ebx
-            // （P226 语句表达式实测无效）；残余装载序 ecx/edx 互换属 P30 伪影。
-            // p167 CLEAR 12/12。
+            // [sweep-CAvatarItemMgr] P254：enum 字段使 4.4 保留 `mov mem,%eax;
+            // mov %eax,%ebx` 两段中转（int 字段恒折单段）。p167 12/12 CLEAR。
             CItem* citem = G_CDataManager()->find_item(
-                ((const JewelSocketData*)jewelData)->m_slots[i].m_itemId);
+                jewelData->m_slots[i].m_itemId);
             if (citem == 0)
                 return;
             totalEndurance += (short)ARAD::Singleton<AvatarRechargeServer>::Get()
