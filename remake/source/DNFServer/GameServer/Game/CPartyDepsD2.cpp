@@ -1845,7 +1845,14 @@ struct Packet_TowerOfDespair_Statistic_GTS
 // CParty::ClearDungeon —— ORIG T 0x085a9330（报告 ClearDungeon.md 逐段转写）：
 //   清图流程：普通/绝望塔/巡回分支 → 动作点/统计/奖励 → 时间与地狱值结算。
 // ---------------------------------------------------------------------------
-// [b28d-solo-CPartyDepsD2] 判词 N82（1059 vs 1058，§6.2 三件套闭合）：已修
+// [b28d-SweepCPartyDepsD2-2] 真 bug 修复（虚调用槽取错，Main 全库排查判据命中）：
+//   ORIG 0x085a9b6e `add $0x8,%edx` = vptr+0x08 = _ZTVN8WongWork14CItemGeneratorE
+//   word[4] @0x08c9a798 = 0x0853a400 = CItemGenerator::generateRandomItem
+//   （Ghidra C `(**(code **)(*piVar14 + 8))(piVar14, ref, result)`；同 vtable
+//   word[5]=vptr+0x0c=0x0853a406=generateSpecificItem）。旧码调
+//   generateSpecificItem ⇒ 运行时选错虚函数。改后本 TU 唯一 `call *` 槽号
+//   与 ORIG 逐条一致（本 TU 全量 grep 仅此 1 处间接调用）。
+// [b28d-solo-CPartyDepsD2] 判词 N82（1058 vs 1060，§6.2 三件套闭合）：已修
 // P167 缺口 ①getManager() 由具名缓存改 4 处逐点重调（P183）②m_partyIndex 改
 // GetPartyIndex() 3 处（0x2c/0x22/0x15 timer）③itemList[i].second 改
 // item.m_addInfo2 字段直读（消 get_add_info call）④push_back 改传 m_todPos
@@ -1978,8 +1985,14 @@ void CParty::ClearDungeon()
                 {
                     WongWork::CItemGeneratorMgr* genMgr =
                         G_CDataManager()->getItemGenerator();
+                    // [b28d-SweepCPartyDepsD2-2] 真 bug 修复：ORIG 0x085a9b6e
+                    // `add $0x8,%edx` = vptr+0x08 = _ZTVN8WongWork14CItemGeneratorE
+                    // word[4] @0x08c9a798 = 0x0853a400 =
+                    // CItemGenerator::generateRandomItem（Ghidra C
+                    // `(**(code **)(*piVar14 + 8))(piVar14, ref, result)`）；
+                    // 旧码调 generateSpecificItem（vptr+0x0c，word[5]）⇒ 运行时选错虚函数。
                     genMgr->getGenerator((WongWork::CItemGeneratorMgr::eGenerateType_t)2)
-                        ->generateSpecificItem(ref, result);
+                        ->generateRandomItem(ref, result);
                 }
                 itemList.resize(result.m_dropItems.size());
                 for (size_t i = 0; i < result.m_dropItems.size(); ++i)
