@@ -64,24 +64,6 @@ namespace
 #define LINK2_BD(p)        ((p)->m_battleData)
 #define LINK2_TRACEHACK(p) (*reinterpret_cast<CTraceMobDieHack*>(&(p)->m_pad210))
 
-// fistpll（round-to-nearest）等价转写（同 PartyDepsD2.cpp 惯例）
-#define LINK2_ROUND(x) ((int)((x) + 0.5f))
-
-// [b28d-D13] 秘密商店槽视图（ORIG 0x085b9ecc 地址链 `pos*0x1c → lea 0x2a0 →
-// add this → lea 0x8` 实证：this+0x2a0 起 4 槽、步长 0x1c，槽内 +0x8 为
-// vector<secretshop::SALE_INFO>）。替代原 `(char*)this + 0x2b0 + pos*0x1c` 裸偏移。
-struct SecretShopSlotView
-{
-    char m_pad00[0x8];
-    std::vector<secretshop::SALE_INFO> m_items;   // +0x08
-    char m_pad14[0x1c - 0x8 - 0xc];               // +0x14..+0x1b
-};
-struct PartySecretShopView
-{
-    char m_pad00[0x2a0];
-    SecretShopSlotView m_slots[4];                // +0x2a0（步长 0x1c）
-};
-
 }  // namespace
 
 // ============================================================================
@@ -124,17 +106,19 @@ void CParty::setBestClearTime(int dungeonIdx, int difficulty, int time)
 // ============================================================================
 // CParty::SendSecretShopItemList —— ORIG T 0x085b9ecc（SendSecretShopItemList.md）。
 // pos = GetUserPosition(user)；0<=pos<4 时经 GlobalData::s_secret_shop 把
-// this+0x2b0+pos*0x1c 处的 secretshop::SALE_INFO vector 发送给 user。
+// this+0x2a8+pos*0x1c（= m_secretShopInfo[pos]）处的 SALE_INFO vector 发给 user。
 // ============================================================================
 void CParty::SendSecretShopItemList(CUser* user)
 {
     int pos = GetUserPosition(user);
-    // [b28d-D13] 具名视图替代裸偏移（§4.3）；ORIG 0x085b9ecc 地址链逐条对齐。
-    // 正向包裹消尾 jmp 中继（P257）。
+    // ORIG 0x085b9ef3 地址链 `pos*0x1c → lea 0x2a0 → add this → lea 0x8` 实证
+    // vector 落在 m_secretShopInfo[pos] 起始；取具名数组元素地址可复现
+    // `add 0x8(%ebp),%eax`（cast 取址形恒产 mov this,%ecx 中转，CParty.h:761 注释同证）。
     if (pos >= 0 && pos < 4)
     {
         GlobalData::s_secret_shop->SendSecretShopItemList(
-            user, ((PartySecretShopView*)this)->m_slots[pos].m_items);
+            user, *reinterpret_cast<std::vector<secretshop::SALE_INFO>*>(
+                      this->m_secretShopInfo[pos]));
     }
 }
 
@@ -153,6 +137,11 @@ void CParty::SendSecretShopItemList(CUser* user)
 int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
                          MSG_MONSTER_DIE const& dieInfo, int* param)
 {
+    // ORIG 0x085a27fe/0x085a280c：map_monster 与 PacketGuard 于函数入口构造
+    // （先于 get_member_count，且 mob 先于 packet）——声明序即构造序（P29/P0）。
+    map_monster mob;
+    PacketGuard packet;
+
     int memberCount = get_member_count();
 
     // ORIG：地图怪物分区进入时记录当前击杀者席位到 BF。
@@ -209,22 +198,17 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     set_random_reward(QuickParty::RANDOM_BUFF_INCREASE_DROPPROB, randParam, randResult);
     data.m_field14 = randResult.m_rate14;
 
-    PacketGuard packet;
-    map_monster mob;
-    unsigned int reward = 0;
+    // ORIG 0x085a2d07 无 reward 清零（-0x3f4 仅被 lea/mov 读取）⇒ 不写 =0。
+    unsigned int reward;
     if (!m_battleField.kill_monster(packet, mob, reward, data))
     {
         // ORIG 失败分支：非 Boss 房且（自动创建或单人）时上报 hack 0xcf。
         if (!checkBossRoom())
         {
-            if (IsAutoCreated() == false && get_member_count() != 1)
-            {
-            }
-            else
-            {
+            // ORIG 0x085a2b6d-0x085a2b91：短路 guard（无具名 bool 槽）。
+            if (IsAutoCreated() != 0 || get_member_count() == 1)
                 user->getHackAnalyzer()->addServerHackCnt(
                     user, (WongWork::ENUM_HACKTYPE)0xcf, 1, 0, 0);
-            }
         }
         return 0;
     }
@@ -266,7 +250,11 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
                 expLimit = m_battleField.GetCurrentMap()->m_f0;
             }
         }
-        if (expLimit == 0 || LINK2_BD(this).m_field4c <= expLimit)
+        // ORIG 0x085a39a6 `jne` 到第二条件 + 两份独立 ++m_field48（0x085a39a8/0x085a39b7）
+        // ⇒ 源码是 if / else-if 链而非 || 合并（P133）。
+        if (expLimit == 0)
+            ++LINK2_BD(this).m_field48;
+        else if (LINK2_BD(this).m_field4c <= expLimit)
             ++LINK2_BD(this).m_field48;
     }
 
@@ -311,19 +299,21 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     // ---- 击杀者金币历史（m_field796f8 为 _IO_FILE* 位模式） ----
     for (int i = 0; i < 4; ++i)
     {
-        if (_checkValidUser(i) && m_member[i].m_pUser == user)
-        {
+        // ORIG 0x085a31d9/0x085a31e5 两条件各自 jne 跳统一失败出口（P133）：
+        // 拆独立 if 以避免 4.4 的 bool 物化（mov $1/$0/test）。
+        if (!_checkValidUser(i))
+            continue;
+        if (m_member[i].m_pUser == user)
             HistoryLog::WriteKillMob(
                 reinterpret_cast<FILE*>(user->m_field796f8), (int)reward);
-        }
     }
 
     // ---- 总经验计算（成员数倍率 + 队伍经验加成事件） ----
-    float expRate;
-    if (memberCount < 1)
-        expRate = 1.0f;
-    else
-        expRate = G_CDataManager()->m_serverParameter.m_expGroup368[memberCount - 1];
+    // ORIG 0x085a30dd-0x085a30eb：`jle` 到 1.0f 块、两臂共用同一 store
+    // ⇒ 三目形（P47），非 if/else 赋值。
+    float expRate = (memberCount < 1)
+        ? 1.0f
+        : G_CDataManager()->m_serverParameter.m_expGroup368[memberCount - 1];
 
     expRate +=
         static_cast<CPartyExpBonusEvent*>(
@@ -342,9 +332,11 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         dieInfo.m_killPairA24, dieInfo.m_killPairA26, dieInfo,
         mob.m_roleType, mob.m_roleType == 5,
         user->getCurCharacExp(), (int)totalExp,
+        // ORIG 0x085a3ab1 为具名局部（-0x68），但 4.4 不复用该槽，声明局部净增
+        // 4 条指令（N82）；值恒 1，行为等价，故保留常量形。
         (eExpAddReason)1);
 
-    const int memberLevelGap = _getMemberLevelGap();   // ORIG -0x68（写后未读）
+    const int memberLevelGap = _getMemberLevelGap();   // ORIG -0x64（写后未读）
     (void)memberLevelGap;
 
     // ---- PvP 胜点（角色类型 4+，怪物掉率 100/200） ----
@@ -363,7 +355,11 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     // ---- 逐成员经验分配（die[0xa22]==0 时执行） ----
     for (int i = 0; i < 4 && dieInfo.m_fieldA22 == 0; ++i)
     {
-        if (!_checkValidUser(i) || m_battleField.m_bloodState == 1)
+        // ORIG 0x085a355f/0x085a3565 两守卫各自跳统一出口（P133）：拆独立 continue
+        // 以避免 4.4 的 bool 物化（mov $1/$0/test）。
+        if (!_checkValidUser(i))
+            continue;
+        if (m_battleField.m_bloodState == 1)
             continue;
 
         // 未进入地图且非维度绕行 → 0 经验包
@@ -375,15 +371,29 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             continue;
         }
 
-        unsigned int exp = 0;
+        // ORIG 0x085a3369-0x085a3370：characLevel 先赋值、exp 后清零（声明序即初始化序）。
         int characLevel = m_member[i].m_pUser->get_charac_level();
-        // 维度未启用进入限制的完整单人份额计算
-        if (m_battleField.m_pDungeon->m_89e == 0 &&                     // +0x89e
-            *(unsigned short*)((char*)this + 0xc4c) == 0)
+        unsigned int exp = 0;
+        // 维度未启用进入限制的完整单人份额计算。
+        // ORIG 0x085a33b2 `jne A` / 0x085a33c1 `je B`：普通份额块（A）落在前、
+        // get_index()==100 / 惩罚块（B）落在后 ⇒ 按 P59 写取反 guard 形。
+        if (m_battleField.m_pDungeon->m_89e != 0 ||                     // +0x89e
+            *(unsigned short*)((char*)this + 0xc4c) != 0)
+        {
+            // ORIG 复用 reward 槽（-0x3f4）作 get_mob_reward 出参且无清零。
+            unsigned int mobReward;
+            G_CDataManager()->get_mob_reward(characLevel, mobReward);
+            unsigned int total = getMonsterTotalExp(
+                mobReward, roleType, m_battleField.get_dungeon_diff(),
+                m_battleField.m_pDungeon->get_exp_weight(), expRate, false);
+            exp = total / (unsigned int)memberCount;
+        }
+        else
         {
             if (m_battleField.m_pDungeon->get_index() == 100)
             {
-                unsigned int mobReward = 0;
+                // ORIG 复用 reward 槽（-0x3f4）作 get_mob_reward 出参且无清零。
+                unsigned int mobReward;
                 G_CDataManager()->get_mob_reward(characLevel, mobReward);
                 unsigned int total = getMonsterTotalExp(
                     mobReward, roleType,
@@ -396,19 +406,12 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
                 float penalty = G_CDataManager()->BaseExpPenalty(
                     characLevel, (int)(unsigned char)mob.m_level);
                 int memberPenalty = MemberPenaltyRate();
-                exp = (unsigned int)LINK2_ROUND(
-                    (float)totalExp * penalty * (float)memberPenalty /
+                // ORIG 0x085a3391-0x085a33a9：无 +0.5f（fistpl 前仅置截断控制字 0xc），
+                // 且 x87 乘序为 (memberPenalty * penalty) * totalExp（浮点结合序不可换）。
+                exp = (unsigned int)(
+                    (float)memberPenalty * penalty * (float)totalExp /
                     (float)memberCount);
             }
-        }
-        else
-        {
-            unsigned int mobReward = 0;
-            G_CDataManager()->get_mob_reward(characLevel, mobReward);
-            unsigned int total = getMonsterTotalExp(
-                mobReward, roleType, m_battleField.get_dungeon_diff(),
-                m_battleField.m_pDungeon->get_exp_weight(), expRate, false);
-            exp = total / (unsigned int)memberCount;
         }
 
         // ---- 随机 buff（经验类） ----
@@ -433,6 +436,10 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
                 exp, isHelpAbuseParty(m_member[i].m_pUser));
         }
 
+        // ORIG 0x085a3811 `movl $0x0,-0x474`：gainedSp 在滥用比例之后即清零
+        // （早于 m_89f 绕行检查），与 gainedSfp 的 0x085a3855 分开两处。
+        int gainedSp = 0;
+
         // 维度绕行：跳过蓝宝石倍率与经验发放
         if (m_battleField.m_pDungeon->m_bloodDungeonType != 0)
             continue;                                    // +0x89f
@@ -451,7 +458,7 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             }
         }
 
-        int gainedSp = 0;
+        // ORIG 0x085a3855 `movl $0x0,-0x478`：gainedSfp 在 gain_exp_sp 前清零。
         int gainedSfp = 0;
         if (m_member[i].m_pUser->gain_exp_sp(
                 (int)exp, gainedSp, gainedSfp,
@@ -468,8 +475,12 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     if (!mob.isNamedMonster() && roleType != 1 && roleType != 3)
     {
         ++m_field1ab8;
-        m_mapHitList3[m_mapHitCount] += (int)dieInfo.m_killValue1;
-        m_mapHitList2[m_mapHitCount] += (int)dieInfo.m_killValue2;
+        // ORIG 0x085a3a17-0x085a3a29 下标 m_mapHitCount 被读取两次且用 lea 合成
+        // ⇒ 源码为显式 a[i] = a[i] + v（非 +=，P38 同族）。
+        m_mapHitList3[m_mapHitCount] =
+            m_mapHitList3[m_mapHitCount] + (int)dieInfo.m_killValue1;
+        m_mapHitList2[m_mapHitCount] =
+            m_mapHitList2[m_mapHitCount] + (int)dieInfo.m_killValue2;
     }
     if (dieInfo.m_killValue1 > 9 && dieInfo.m_killValue1 % 10 == 0)
         m_field1aa0 = 1;
@@ -485,12 +496,13 @@ int CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     if (roleType == 1)
     {
         PacketGuard bossPacket;
-        InterfacePacketBuf* buf = (InterfacePacketBuf*)&bossPacket;
-        buf->clear();
-        buf->put_header(0, 0x32);
+        // ORIG 0x085a3b0e..0x085a3b45 每次调用均 `lea SLOT,%eax; mov %eax,(%esp)`
+        // （无具名 buf 指针槽、无匿名临时槽）⇒ 引用 cast 逐点写表达式。
+        reinterpret_cast<InterfacePacketBuf&>(bossPacket).clear();
+        reinterpret_cast<InterfacePacketBuf&>(bossPacket).put_header(0, 0x32);
         // +0xccc = m_battleField(+0xb24) + 0x1a8 = m_apcKillCount（CBattle_Field.h:459）
-        buf->put_byte(m_battleField.m_apcKillCount);
-        buf->finalize(true);
+        reinterpret_cast<InterfacePacketBuf&>(bossPacket).put_byte(m_battleField.m_apcKillCount);
+        reinterpret_cast<InterfacePacketBuf&>(bossPacket).finalize(true);
         send_to_party(bossPacket);
     }
 
