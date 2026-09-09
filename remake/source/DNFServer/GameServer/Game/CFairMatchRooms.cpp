@@ -22,6 +22,48 @@
 //   +0x0c0 m_fieldC0        IMatch* next match（GetNextMatch/SetNextMatch 槽）
 //
 // 等待表交互均经 pWaitingRoomList_（IRoomList）虚槽：AddRoom/DelRoom/Match。
+//
+// ============================================================================
+// b28d-solo-CFairMatchRooms（本波）判词汇总（逐件 fresh 复测，p167 全 CLEAR）
+//   UpdateScore        DIFF→NEAR ndiff 133→32：P296 嵌套正向 if 消 m_flag 的
+//                      xor $1 物化（ORIG `movzbl; test %al,%al; je` 直测）；
+//                      P171 补 killCnt 死写入（ORIG `mov %eax,-0x44`）；
+//                      P0 补 missionList 具名局部（ORIG `mov %eax,-0x1c`）；
+//                      P3 cond 实参 `(unsigned char)` 收窄复现 `cmp $0x1,%al`。
+//                      残差 = 深区临时槽深 0x10 + 帧 0x7c vs 0x6c（N115/N82）。
+//   GiveTrainingSeal   DIFF ndiff 226→3：删 bool ok 改双短路（ORIG jle/jbe +
+//                      mov$1/mov$0 汇聚）；bonusRemain bool→char（S1/P321-T3，
+//                      复现 4.1 `cmpb $0x0,-0x11`）；P222 正向包裹翻块序（ORIG
+//                      bonusRemain==0 块在尾）；P0 内联 getCurCharacInvenW（去
+//                      inven 槽）；vector 声明序 updatedSlots 前置（ORIG 构造序
+//                      -0x30→-0x3c）。残 3 = N121 epilogue 尾岛。
+//   OnAskRematch       DIFF ndiff 244→36：删具名 bool reject 改 P226 语句表达式
+//                      （复现 ORIG 无槽 `mov $1/mov $0` 岛 + test/je，槽整体回正
+//                      -0x24/-0x20/-0x1c）；if 链→switch（P251/P286，复现形参
+//                      载入 + `test;js;cmp$1;jle;cmp$2;je` 决策链）。残 = 伪差 +
+//                      1 处 `add $0x20` vs `lea 0x20`（N107 族）。
+//   OnRematchTimeout   DIFF ndiff 248→~90：P0 内联 CheckRematch 为最右 vararg
+//                      （去 rematchable 槽）+ P3 `(unsigned char)` 收窄复现
+//                      `movzbl %al,%edi`；P0 内联 room->m_relayMgr（去 relay 引用
+//                      槽，帧 0x7c→0x6c 对齐）；team0Decision 具名槽→switch
+//                      （P251/P261，复现 `test;je;test;js;cmp$2;jg`）。残 = 槽号
+//                      分区 + `CheckRematch==1` 的 xor/sete（跨版本）+ N104 EH 段。
+//   _ReturnTeam        NEAR 4（N）：CSwitchLog varargs 的 %esi/%edi 分配互换
+//                      （ORIG 第1值→esi、4.4→edi），P75/N82附 跨版本不可择。
+//   CheckJoinable      NEAR 4（N）：两处 `pc>=X`/`total>X` 被 4.4 折成反向比较
+//                      （cmp %ebx,%eax;setle vs ORIG cmp %eax,%ebx;setge），
+//                      两向源形实测同形（N196）。
+//   OnWalkOut          NEAR 5（N）：五实参装载时刻 + 间接 call 目标 %ecx vs %eax
+//                      （N7/N82附）；绑定形实测净负。
+//   _PullOutRoomTeam   DIFF 2（N）：ORIG body 尾 `jmp <紧邻>` 空岛被 4.4
+//                      jump-thread（N121）。
+//   _CheckMovableRoom  DIFF 5（N18a）：`*out = (PvP_Room*)GetPVPRoom()` 的
+//                      LHS-first 不可造；void** 视图形引 push %ebx（+3 条）实测
+//                      净负回退。
+//   OnMatchRoom        DIFF 187（N78/N82/N93）：ORIG nameBuf 落非 4 对齐槽
+//                      -0x193 + 4.1 memset 对齐剥离慢路（N78）；matched/常量槽
+//                      分区与帧 0x1ac vs 0x1bc（N82）；语义闭合（p167 50=50）。
+// ============================================================================
 // ============================================================================
 #include "CFairMatch.h"
 
@@ -1088,13 +1130,16 @@ void CFairMatch::OnReward(PvP_Room* room, int winTeam, bool draw)
 // UpdateScore ORIG T 0x8565700 报告 UpdateScore.md
 // 遍历 teamIdx 队 4 槽在座玩家逐个结算；win/lose/result 即报告 param5/6/7。
 // info 仅取 m_job(+5)/m_growType 低 nibble(+6)（ORIG asm 读 info+5/+6）。
-// b28d-solo-CFairMatchRooms 判词：N122/N82——(a) m_flag（bool）取反 4.4 恒
-// `xor $1;test`（ORIG `movzbl; test %al,%al; je`，N122）；(b) 槽基差 4（ORIG
-// i/user@-0x28/-0x24 vs 我方 -0x24/-0x20，帧 0x6c vs 0x7c）⇒ N82/N95。已收：
-// P227 链式、P191 双初始化（i 声明+for-init 两条 movl $0）、P133 两独立守卫、
-// P157/P183 去引用缓存、score/missions/killCnt 内联。真语义已修（job/grow 取第 2
-// 参 info，原实现取 m_players[0] 与 ORIG 契约不符）。fresh ndiff=41（172=172）；
-// call 差集 17=17 CLEAR。
+// b28d-solo-CFairMatchRooms 判词：DIFF→NEAR（ndiff 133→32，172→174 指令）。
+// 已收：P296 嵌套正向 if（`if (m_flag) { if (user) { body } }`）复现 ORIG
+// `movzbl; test %al,%al; je` 直测（取反 continue 形 4.4 恒 xor $1 物化）；
+// P171 补 killCnt 死写入数组（ORIG 0x8565904 `mov %eax,-0x44`，P232 未用数组
+// 仍占槽）；P0 补 missionList 具名局部（ORIG 0x85658ca `mov %eax,-0x1c`，内联形
+// 把 GetCharacExpandData(8) 排到 killCnt 之后）；P3 cond 实参
+// `(unsigned char)` 收窄复现 `cmp $0x1,%al`；P227 链式、P191 双初始化、P133 两
+// 独立守卫、P157/P183 去引用缓存、score/missions 内联。真语义已修（job/grow 取
+// 第 2 参 info）。残差 = 深区临时槽（score7/grow）深 0x10 + 帧 0x7c vs 0x6c
+// （N115 4.4 outgoing 预留 + N82 槽分区）；call 差集 17=17 CLEAR。
 void CFairMatch::UpdateScore(PvP_Room* room, PlayerInfoThird& info,
                              ENUM_SCHOOL_MATCH_TEAM teamIdx,
                              int win, int lose, int result)
@@ -1166,12 +1211,16 @@ void CFairMatch::UpdateScore(PvP_Room* room, PlayerInfoThird& info,
 }
 
 // GiveTrainingSeal ORIG T 0x85652c8 报告 GiveTrainingSeal.md
-// b28d-solo-CFairMatchRooms 判词：N82/N122——(a) 全帧槽号平移 8（ORIG
-// remain@-0x10/bonusRemain@-0x11/sealTotal@-0x24 vs 我方 -0x18/-0x19/-0x2c）；
-// (b) `if (!bonusRemain)` 4.4 恒 xor 物化 vs ORIG `cmpb $0x0,-0x11`（N122）。
-// 已收：P183 去 sps/score 缓存（p167 49=49 CLEAR，原缺 12×G_CDataManager、
-// 9×GetCharacExpandData、2×SetLastTrainingSealBonusCount）、P3 收窄 cmp $1,%al、
-// dailyLimit 表达式内联（P0）、P135 push_back(O&&)。fresh ndiff=102（273/284）。
+// b28d-solo-CFairMatchRooms 判词：DIFF（ndiff 226→3，274→276 指令；全部槽位
+// 与 ORIG 对齐）。已收：删具名 bool ok 改双短路（ORIG 0x0856564e..0x08565675
+// `jle`/`jbe` + mov$1/mov$0 汇聚）；bonusRemain bool→char（S1 一次性旋钮，
+// P321-T3 消费端 `cmpb $0x0,-0x11; je` 无 setcc ⇒ bool/char 直证不足，char 复现
+// 4.1 内存直比；bool 恒 xor 物化 N122）；P222 正向包裹翻块序（ORIG bonusRemain==0
+// 块在尾部、win 链 fall-through）；P0 内联 `getCurCharacInvenW()`（ORIG 无 inven
+// 槽，结果直留 %eax 跨实参装载）；vector 声明序 updatedSlots 前置（ORIG 构造序
+// -0x30→-0x3c、push_back this=-0x3c）；P183 去 sps/score 缓存、P3 `cmp $1,%al`、
+// dailyLimit 表达式内联、P135 push_back(O&&)。残 3 = N121 epilogue 尾岛
+// （我方多 `jmp+nop`）。p167 49=49 CLEAR。
 void CFairMatch::GiveTrainingSeal(CUser* user, bool win)
 {
     if (user->getCurCharacR() == 0)
@@ -1283,8 +1332,14 @@ void CFairMatch::GiveTrainingSeal(CUser* user, bool win)
 }
 
 // OnRematchTimeout ORIG T 0x85665f92 报告 OnRematchTimeout.md
-// b28d-solo-CFairMatchRooms 判词：N82——P227 链式 + P83 结构赋值后残余全帧槽平移/
-// 变参寄存器分配。fresh ndiff=171（292/294）；call 差集 46=46 CLEAR。
+// b28d-solo-CFairMatchRooms 判词：DIFF（ndiff 248→~90，295→292 指令；帧
+// 0x7c→0x6c 与 ORIG 对齐）。已收：P0 内联 CheckRematch 为最右 vararg（ORIG 无
+// rematchable 槽，`call; movzbl %al,%edi` 直留 callee-saved）+ P3 `(unsigned char)`
+// 收窄复现 movzbl；P0 内联 `room->m_relayMgr.OnReady`（去 relay 引用槽，帧回正）；
+// team0Decision 具名槽→`switch (m_teams[0].m_field04)`（P251/P261，复现 ORIG
+// `test %eax,%eax; je; test; js; cmp $2; jg` 无槽决策链）。残 = 槽号分区（pkt/kept/
+// mgrTeam 深 4~0xc，N82）+ `CheckRematch(room)==1` 的 xor vs cmp/sete（跨版本）+
+// N104 EH 尾块相对序；call 差集 46=46 CLEAR。
 void CFairMatch::OnRematchTimeout(PvP_Room* room)
 {
     // b28d-solo-CFairMatchRooms：P227 全表达式临时链。
@@ -1294,7 +1349,7 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
         "virtual void fair_pvp::CFairMatch::OnRematchTimeout(PvP_Room*)",
         0xfd7, 0, 0)("pvp@log room(%d),%d,%d",
                      room->get_index(), room->get_pvp_battle_mode(),
-                     CheckRematch(room));
+                     static_cast<unsigned char>(CheckRematch(room)));
 
     if (CheckRematch(room) == 1) {
         m_teams[0].refresh();
@@ -1303,9 +1358,9 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
         room->battle_reset();
         for (int seat = 0; seat <= 7; ++seat) {
             if (room->get_user_seat(seat) != 0) {
-                CRelayBattleMgr& relay =
-                    room->m_relayMgr;
-                relay.OnReady(seat, true);
+                // P0：ORIG 无 relay 引用槽（`lea 0x620(%eax),%edx` 直传 this）
+                // ⇒ 表达式内联。
+                room->m_relayMgr.OnReady(seat, true);
             }
         }
         room->start_pvp();
@@ -1367,9 +1422,14 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
 
 // OnAskRematch ORIG T 0x856664a0 报告 OnAskRematch.md
 // param：0=拒绝 1=接受 2=全队同意提交；队决定写入 m_field04(team)
-// b28d-solo-CFairMatchRooms 判词：N82——P227 链式后残余槽平移 4（ORIG room@-0x24/
-// myTeam@-0x20 vs 我方 -0x28/-0x24）+ _FindTeam 段块序（4.4 提前）。fresh ndiff=160
-// （321/322）；call 差集 41=41 CLEAR。
+// b28d-solo-CFairMatchRooms 判词：DIFF（ndiff 244→36，322→321 指令；room/myTeam/
+// other/trace/pkt 槽全部回正 -0x24/-0x20/-0x1c/-0x34/-0x40）。已收：删具名 bool
+// reject 改 P226 语句表达式 `if (({ !(A && B && C); }))`（ORIG 0x08566795/0x0856679c
+// 无槽 `mov $1/mov $0` 岛 + test/je；具名 bool 曾多占 -0x19 槽把全帧推深 4）；if
+// 链→`switch (decision)`（P251/P286，复现 ORIG `mov 0x10(%ebp),%eax; test; js;
+// cmp $1; jle; cmp $2; je; jmp` 形参载入 + 寄存器比较链）；P227 链式。残 = 伪差 +
+// 1 处 `m_teams[myTeam].m_field04=decision` 的 `add $0x20` vs `lea 0x20`（N107 族）；
+// call 差集 41=41 CLEAR。
 void CFairMatch::OnAskRematch(CUser* user, int decision)
 {
     PvP_Room* room = static_cast<PvP_Room*>(user->GetPVPRoom());

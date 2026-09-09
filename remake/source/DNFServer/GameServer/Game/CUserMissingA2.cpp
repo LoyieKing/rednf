@@ -1412,6 +1412,9 @@ struct MercenaryDbHeadView
 
 unsigned int CUser::SaveMercenaryData()
 {
+    // [b28d-solo-CUserMissingA2②] P212 全头部声明：ORIG 0x0868e3a2 row 落最深槽
+    // -0x2c（4.1 先声明深），4.4 对块内局部按首次使用序给浅槽 ⇒ row 提至函数头。
+    unsigned int row;
     if (m_mercenaryMgr.m_characs.empty())
         return 1;
     CStreamGuard guard(
@@ -1426,8 +1429,7 @@ unsigned int CUser::SaveMercenaryData()
     {
         if (m_mercenaryMgr.m_characs[i].m_field24 != 0)
         {
-            unsigned int row =
-                reinterpret_cast<MercenaryDbHeadView*>(db)->m_count;
+            row = reinterpret_cast<MercenaryDbHeadView*>(db)->m_count;
             ((CHARAC_LOAD_MERCENARY*)((char*)db + 4))[row] =
                 m_mercenaryMgr.m_characs[i];
             reinterpret_cast<MercenaryDbHeadView*>(db)->m_count = row + 1;

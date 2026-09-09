@@ -1569,8 +1569,8 @@ bool ImportMapScript(STMapScript* script, const char* path)
                 monObj.m_c = ScanInt(static_cast<bool*>(0));
                 monObj.m_10 = ScanInt(static_cast<bool*>(0));
                 monObj.m_14 = ScanInt(static_cast<bool*>(0));
-                monObj.m_18 = ScanInt(static_cast<bool*>(0));
-                monObj.m_1c = ScanInt(static_cast<bool*>(0));
+                monObj.m_pair18.m_pair.m_lo = ScanInt(static_cast<bool*>(0));   // +0x18
+                monObj.m_pair18.m_pair.m_hi = ScanInt(static_cast<bool*>(0));   // +0x1c
                 ScanStr(&sub);
                 if (sub == "[fixed]")                       // uStack_750
                     monObj.m_20 = 0;
@@ -2019,8 +2019,8 @@ bool ImportMapScript(STMapScript* script, const char* path)
                 else if (sub == "[zone defence]")
                 {
                     script->m_vecMonster[i].m_34 = 1;
-                    script->m_vecMonster[i].m_38[0] = ScanInt(static_cast<bool*>(0));
-                    script->m_vecMonster[i].m_38[1] = ScanInt(static_cast<bool*>(0));
+                    script->m_vecMonster[i].m_pair38.m_arr[0] = ScanInt(static_cast<bool*>(0));
+                    script->m_vecMonster[i].m_pair38.m_arr[1] = ScanInt(static_cast<bool*>(0));
                 }
                 else if (sub == "[roaming]")
                 {
@@ -3257,8 +3257,9 @@ bool ExportMapScript(STMapScript* script, const char* path)
             fprintf(file,
                     "%d %d %d %d %d %d %d %d %s %s%c",
                     (*it).m_0, static_cast<int>((*it).m_4 != 0),
-                    (*it).m_8, (*it).m_c, (*it).m_10, (*it).m_14, (*it).m_18,
-                    (*it).m_1c,
+                    (*it).m_8, (*it).m_c, (*it).m_10, (*it).m_14,
+                    (*it).m_pair18.m_pair.m_lo,
+                    (*it).m_pair18.m_pair.m_hi,
                     typeTok.c_str(), roleTok.c_str(),
                     isChampion ? ' ' : '\n');
             if (isChampion)
@@ -3275,8 +3276,8 @@ bool ExportMapScript(STMapScript* script, const char* path)
                 fwrite("`[normal]`\n", 1, 0xb, file);
             else if (script->m_vecMonster[i].m_34 == 1)
                 fprintf(file, "%s %d %d\n", "`[zone defence]`",
-                        script->m_vecMonster[i].m_38[0],
-                        script->m_vecMonster[i].m_38[1]);
+                        script->m_vecMonster[i].m_pair38.m_arr[0],
+                        script->m_vecMonster[i].m_pair38.m_arr[1]);
             else if (script->m_vecMonster[i].m_34 == 2)
             {
                 int wayCount = static_cast<int>(

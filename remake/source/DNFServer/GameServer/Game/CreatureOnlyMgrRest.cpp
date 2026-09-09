@@ -25,14 +25,18 @@
 // 均按 ORIG 逐指令转写【objdump】；归口收编时请宿主迁移后删除此处定义。
 //
 // ---- b28d-solo-CreatureOnlyMgrRest 泳道结果（清单 9 件，2026-09-09）----
-// TU 三数：identical 62 / ae 104（合计 166）/ near 5 / diff 3（含 _Z41 豁免）
-//   —— 基线 62/102/6/4 ⇒ ae +2、near −1、diff −1，零回归。
+// TU 三数：identical 40 / ae 75（合计 115）/ near 5 / diff 3（含 _Z41 豁免）
+//   —— 基线 62/102/6/4；near −1、diff −1。ident+ae 下降 51 属**弱符号发射面
+//   迁移**（原 P147 force 的 `CCreatureMgr copy(src)` 连带发射的 map/_Rb_tree
+//   拷贝模板 W 实例，现由 CInventory.o 发射，链接期 COMDAT 合并、全局符号集
+//   不变；Main 2026-09-09 裁决本泳道验收按 near/diff 不升 + 全局口径）。
 // 转 AE（2）：
 //   Evolute 0x0833beb4（P221：兄弟块 cMyTrace 改全表达式临时链，翻 then/else
 //     槽向 -0x28/-0x18 与 ORIG 一致）。
 //   C1ERKS0_ 0x86992cc（N84 正向修复：CInventory.h 删用户拷贝构造声明 ⇒ 编译器
-//     隐式合成 W；P147 TU 级 force 使用点保发射；Main 删 m_pad49 后与 ORIG
-//     62 条逐条 AE，含 map/数组/尾部 bool 全序）。
+//     隐式合成 W；Main 续改 CInventory.cpp 拷贝构造成员初始化列表 ⇒ 发射点迁
+//     CInventory.o，本 TU force 已删；Main 删 m_pad49 后与 ORIG 62 条逐条 AE，
+//     含 map/数组/尾部 bool 全序）。
 // 仍 NEAR（5）：
 //   IsSaveCreatureItem 0x0833ba30 / LoadCreatureItem 0x0833b68c：N7（4.4.7 间接
 //     call 目标恒 %eax vs ORIG %edx）；本波已把 §4.5 槽指针直调改为真虚调用
@@ -104,8 +108,12 @@ int user_creature::CCreatureMgr::SetStomach(int stomachValue)
 // 失败 → cMyTrace(...,0xc26,5) "cannot write db uid(%d)\n"。过滤分支均返 true。
 // [b28d-solo-CreatureOnlyMgrRest] verdict=NEAR：**真语义 bug 修正**
 // （WriteCreatureLog 末实参 ORIG 0x0833ae4e 读 0x14(%ebp)=mapSizeHint，
-// 旧码误传 param_5）+ P212/P309 reason 全头部声明占最深槽 + P0 内联 characNo
-// + P227 临时链 trace + P52 链式 receiver。残差：槽号分配（N82）。
+// 旧码误传 param_5）+ P212/P309 reason 全头部声明 + P0 内联 characNo
+// + P227 临时链 trace + P52 链式 receiver + P139（trace 串改
+// __PRETTY_FUNCTION__ 复现 `_ZZ...E19__PRETTY_FUNCTION__` 局部静态符号）。
+// 残差 = N82附（4.4 聚合 sender/trace 占低槽、标量 reason 落 -0x1c，ORIG
+// reason 最深 -0x3c）+ N115 帧 0x4c vs 0x5c；reason 声明位置/顺序、结构体/
+// 数组聚合化、volatile、double framePad 四形实测不可翻（聚合化劣化已回退）。
 bool CCreatureMgr::ChangeOwner(Inven_Item* item, int slotFrom, int mapSizeHint,
                                int param_4, int param_5)
 {
@@ -163,7 +171,9 @@ int CCreatureMgr::ItemEvolute(int itemIdx)
 // 成功 Send + WriteCreatureLog(3,item idx,addInfo2,1,type,param_3)；失败 trace 0xc44。
 // [b28d-solo-CreatureOnlyMgrRest] verdict=NEAR：P212/P309 reason 全头部声明
 // + P0 内联 characNo + P227 临时链 trace + P52 链式 receiver（reason 实参
-// 经复核 = param_3 = ORIG 0x14(%ebp)，无 bug）。残差：槽号分配（N82）。
+// 经复核 = param_3 = ORIG 0x14(%ebp)，无 bug）+ P139（trace 串改
+// __PRETTY_FUNCTION__）。残差 = N82附 聚合/标量槽分区（ORIG reason -0x3c、
+// 我方 -0x1c）+ N115 帧 0x4c vs 0x5c（creatureItem/sender/trace 三槽统一浅 4）。
 bool CCreatureMgr::ChangeSlotNo(Inven_Item* item, int newSlot, int param_3)
 {
     if (!IsCreatureEquipmentScope(newSlot))
@@ -313,8 +323,10 @@ int CCreatureMgr::GetCreatureIndex()
 // 清临时租期记录后虚槽+8 分派（蛋→CEgg::LoadCreatureItem / 宠→CCreature::...）；
 // 失败回收对象回池；成长宠刷 isMaxLevel 标记。
 // [b28d-solo-CreatureOnlyMgrRest] verdict=NEAR：P248 档② m_growExpFlag
-// uchar→bool + 裸 `if(!field)`（GamePODTypes.h）+ 删 m_addInfo 冗余 cast。
-// 残差 N7：4.4.7 间接 call 目标恒 %eax，ORIG 用 %edx（P230 换后端可治）。
+// uchar→bool + 裸 `if(!field)`（GamePODTypes.h）+ 删 m_addInfo 冗余 cast；
+// CCreatureItem 多态化后改真虚调用 `newItem->LoadCreatureItem(this,item,
+// detail,m_user)`。残差 N7：4.4.7 间接 call 目标恒 %eax，ORIG 用 %edx
+// （P230 换后端可治；本 TU 未路由 4.4.6）。
 bool CCreatureMgr::LoadCreatureItem(Inven_Item* item,
                                     SIG_CREATURE_ITEM_DETAIL_INFO* detail)
 {
@@ -383,11 +395,12 @@ bool CCreatureMgr::LoadCreatureItem(Inven_Item* item,
 // 遍历宠物：IsSave() 为真 → SaveCreatureItem(item 区 @cnt*0x3d+4（Inven_Item 数组）、
 // detail 区 @cnt*0x38+0x21a0、m_user)，detail.m_uid(+4) 非 0 则 count++；
 // count==0 → Cancel 否则 Send。
-// [b28d-solo-CreatureOnlyMgrRest] verdict=N 封顶（DIFF，语义完整）：§4.5
-// 虚槽直调（IsSave vptr+4 / SaveCreatureItem vptr+0xc，ORIG 0x0833bc9b/bcb1）
-// + P183 count 每处重读（删 cnt/base 具名局部）+ P28 `it++`（ppEi）+ P225
-// 拆嵌套 if。残差：帧 0x4c vs 0x40 与多 push %edi、槽整体深移 0x10
-// （临时链 cMyTrace 在 4.4 的聚合槽分配差异；具名形实测同样深移，N82/P112）。
+// [b28d-solo-CreatureOnlyMgrRest] verdict=N 封顶（DIFF，语义完整，p167 16/16
+// CLEAR）：真虚调用（entry->IsSave / entry->SaveCreatureItem，ORIG
+// 0x0833bc9b/bcb1）+ P171（删 entry 判空，ORIG 直接解引用）+ P183 count 每处
+// 重读 + P28 `it++`（ppEi）。残差 = N115 帧 0x4c vs 0x40、全槽深 0x10 与
+// push %edi（4.4 把函数指针/m_user/count 计算分配到 edi/esi，ORIG 用
+// ebx/ecx/eax/edx；detail 地址 `lea (,%eax,8); mov; sub` 链寄存器角色互换）。
 bool CCreatureMgr::SaveCreatureItem()
 {
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x89, m_user);
@@ -447,11 +460,14 @@ bool CCreatureMgr::SaveCreatureItem()
 // （SetOverSkillTime.md）：死亡宠免检返 1；匹配装备宠 item 时校验脚本/等级/
 // 冷却窗（cur+2 < last+st/1000+ovst/1000 → trace 0xe6c 返 0x13），通过则
 // COverSkillTime::SetTime() 刷新；其余路径 0。
-// [b28d-solo-CreatureOnlyMgrRest] verdict=N 封顶（DIFF，语义完整）：P196
-// 比较方向翻正（ORIG `cmp %eax,%ebx; setg` = 累加值在左）+ P0 去 learnLevel/
-// expLevel/lastUsed/stMs/ovstMs/curSec 具名局部 + P23/P24 求值序（itemIdx
-// 写左侧）+ P227 临时链 trace1。残差：帧 0x8c vs 0x6c 与 trace 段局部槽
-// 数量（4.1 用 %edi/%esi/%ebx 缓存，4.4 落槽；N82/N7）。
+// [b28d-solo-CreatureOnlyMgrRest] verdict=N 封顶（DIFF，语义完整，p167 28/28
+// CLEAR）：P196 比较方向翻正（ORIG `cmp %eax,%ebx; setg` = 累加值在左）+
+// P0 去 learnLevel/expLevel/lastUsed/stMs/ovstMs/curSec 具名局部 + P23/P24
+// 求值序（itemIdx 写左侧）+ P227 临时链 trace1 + trace 段按 ORIG 槽集重写
+// （ovstR/stR 存 **除 1000 后**的值 @-0x48/-0x44、interval@-0x40、last@-0x3c，
+// trace 第 2 实参用 last 槽 —— 修掉 EXTRA GetOverSkillTime/GetTime 各 1 次）。
+// 残差 = N115 帧 0x7c vs 0x6c（全槽深 0x10）+ N97 有符号 /1000 lowering
+// （`mov %ecx,%eax` 中转数差 2）。
 int CCreatureMgr::SetOverSkillTime(const int& itemIdx)
 {
     if (m_equippedCreature != 0)
@@ -523,8 +539,9 @@ int CCreatureMgr::SetOverSkillTime(const int& itemIdx)
 // （IsSaveCreatureItem.md）：map 非空时任一条目 IsSave()（vt+4==+0x40 flag）
 // 为真即 1；否则 0。
 // [b28d-solo-CreatureOnlyMgrRest] verdict=NEAR：P292/P16 `!size()` 早返形
-// （ORIG `test; sete; test; je`）+ P225 拆嵌套 if + P28 `it++` + §4.5 IsSave
-// 虚槽（vptr+4）直调。残差 N7：虚槽 call 目标 %eax vs ORIG %edx。
+// （ORIG `test; sete; test; je`）+ P225 拆嵌套 if + P28 `it++` + CCreatureItem
+// 多态化后真虚调用 `entry->IsSave()`。残差 N7：间接 call 目标 4.4.7 恒 %eax
+// vs ORIG %edx（P230 换 4.4.6 可治；本 TU 未路由）。
 bool CCreatureMgr::IsSaveCreatureItem()
 {
     // b28d-solo-CreatureOnlyMgrRest [P292/P16/P225/P28]：ORIG 0x0833ba41
@@ -658,8 +675,10 @@ bool CCreatureMgr::SetCreatureItemAddInfo(int slot, int value)
 // （idx +0x8 / addInfo2 +0x30 / 类型 byte +0x5 / reason +0x51）。
 // [b28d-solo-CreatureOnlyMgrRest] verdict=NEAR：删多余 memset（ORIG 仅
 // Inven_Item::C1）+ P235 具名成员访问（m_reason/m_addInfo2/m_itemView.m_itemIdx/
-// m_item[1] 复现 disp 折叠）+ P52 单语句链式 receiver。残差 N18a（ORIG
-// `mov 0x8(%eax),%eax; mov %eax,%ebx` 两段 vs 4.4 单段）与帧 +0x10。
+// m_item[1] 复现 disp 折叠）+ P52 单语句链式 receiver。残差 = N82附（4.4 把
+// Inven_Item 聚合放低槽 -0x59、enum reason 放浅槽 -0x1c；ORIG reason 最深
+// -0x5c、localItem -0x55）+ N115 帧差；reason 提前/后置、ReasonBox 聚合化、
+// reason[1] 数组化、char[3] 撑位四形实测不可翻（聚合/数组形多 2 条拷贝劣化）。
 bool CCreatureMgr::InsertCreatureItemResult(SIG_CREATURE_ITEM* sig)
 {
     Inven_Item localItem;
@@ -775,11 +794,14 @@ CCreatureMgr::CCreatureMgr()
 // ORIG _ZN13user_creature12CCreatureMgrC1ERKS0_ W 0x86992cc【objdump】：
 // map 拷贝 → +0x18/+0x1c → m_artifacts[3] 内联 3×mov → +0x2c → map30 →
 // +0x48 bool；无 CArtifact::C1 调用 ⇒ 原码是**编译器隐式合成拷贝构造**。
-// [b28d-solo-CreatureOnlyMgrRest] verdict=N84 封顶（DIFF，语义已修正）：
-// 删用户定义后 GCC 4.4.7 不发射隐式版本（nm 恒 U）；类外 `= default` 报
-// 「数组被用作初始值设定」；含用户默认构造元素数组的隐式拷贝构造不可合成。
-// 保留用户定义形（T 符号 + 3×CArtifact::C1 默认构造，ORIG 为 W 无默认构造）；
-// 真 bug 修正：旧码 `i<2` 漏拷 m_artifacts[2]，ORIG 循环 3 次（初值 2→-1）。
+// [b28d-solo-CreatureOnlyMgrRest] verdict=AE（原 DIFF 57）：CInventory.h 删用户
+// 拷贝构造声明（Main 代落）⇒ 编译器隐式合成 W C1ERKS0_/C2ERKS0_；Main 续删
+// m_pad49 后与 ORIG 62 条逐条一致（map 拷贝 → +0x18/+0x1c → 数组 3×mov 循环
+// → +0x2c → map30 → +0x48 bool，尾部无 pad 拷贝、无 CArtifact::C1）。
+// 发射点：CInventory.cpp 的 CInventory 拷贝构造成员初始化列表（Main 代落）。
+// 本 TU 原 P147 force 使用点已按 Main 裁决删除（其连带发射的 map 拷贝模板
+// W 实例随发射面迁至 CInventory.o，链接期 COMDAT 合并，全局符号集不变）。
+// 真 bug 修正：旧用户定义形 `i<2` 漏拷 m_artifacts[2]（ORIG 循环 3 次）。
 
 // ============================================================================
 // const 侧查询
@@ -885,16 +907,4 @@ bool CCreature::IsCreatureScript()
 
 }  // namespace user_creature
 
-// b28d-solo-CreatureOnlyMgrRest [P147/N84 正向修复]：CInventory.h 已删用户
-// 拷贝构造声明 ⇒ 编译器隐式合成 C1ERKS0_/C2ERKS0_（W，与 ORIG 0x86992cc
-// 同址同形：map 拷贝 → +0x18/+0x1c → m_artifacts[3] 3×mov 循环 → +0x2c →
-// map30 → +0x48 bool，无 CArtifact::C1 调用；探针 /tmp/ccm_probe.cpp 逐条
-// 同构）。本 TU 加 ODR 使用点强制发射 W 符号（P147 force 手法）。
-namespace
-{
-void forceCreatureMgrCopyEmit(const user_creature::CCreatureMgr& src)
-{
-    user_creature::CCreatureMgr copy(src);
-    (void)copy;
-}
-}  // namespace
+

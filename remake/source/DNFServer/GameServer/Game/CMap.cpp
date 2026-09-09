@@ -298,8 +298,8 @@ int CMap::insert_monster(STAssignMonster monster, int area)
     item.m_flag04 = monster.m_4;
     item.m_field08 = monster.m_8;
     item.m_spawnType = monster.m_20;
-    item.m_levelAdd = monster.m_1c;
-    item.m_field14 = monster.m_18;
+    item.m_levelAdd = monster.m_pair18.m_pair.m_hi;   // +0x1c（原 m_1c）
+    item.m_field14 = monster.m_pair18.m_pair.m_lo;    // +0x18（原 m_18）
     item.m_roleType = monster.m_24;
     item.m_level = monster.m_14 / 10;
     item.m_orderIdx = monster.m_50;
@@ -325,8 +325,8 @@ void CMap::insert_condition_monster(STAssignMonster monster)
     item.m_flag04 = monster.m_4;
     item.m_field08 = monster.m_8;
     item.m_spawnType = monster.m_20;
-    item.m_levelAdd = monster.m_1c;
-    item.m_field14 = monster.m_18;
+    item.m_levelAdd = monster.m_pair18.m_pair.m_hi;   // +0x1c（原 m_1c）
+    item.m_field14 = monster.m_pair18.m_pair.m_lo;    // +0x18（原 m_18）
     item.m_roleType = monster.m_24;
     item.m_level = monster.m_14 / 10;
     item.m_orderIdx = monster.m_50;

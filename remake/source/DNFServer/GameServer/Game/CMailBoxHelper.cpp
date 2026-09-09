@@ -1113,7 +1113,11 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
                                    bool bReset, ENUM_ERROR& err)
 {
     // ORIG 0x08554650
-    if (user->GetMailBox() == 0)
+    // [b28d-solo-CMailBoxHelper] P0/P115：ORIG 0x0855466f `mov %eax,-0x18(%ebp)`
+    // 存槽 + 0x08554672 `cmpl $0x0,-0x18(%ebp); jne` 判空 ⇒ 原码具名 box 局部
+    // （直判形 4.4 折 `test %eax,%eax; sete %al; test %al,%al; je`，P197④）。
+    CMailBox* box = (CMailBox*)user->GetMailBox();
+    if (box == 0)
         return false;
 
     // P157/P183：ORIG 三次独立 GetPackageItem()（bReset 分支 / !bReset 分支 /

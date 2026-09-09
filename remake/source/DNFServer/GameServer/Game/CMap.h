@@ -14,6 +14,9 @@
 #include "advancealtar.h"   // advancealtar::TimeLine（STMapScript 成员）
 #include "CVillageMonsterMgr.h"   // MapArea / STAttackedMonster（全局作用域权威头）
 #include "SPOBJ_ACTION_DATAS.h" // SPOBJ_ACTION_DATAS（ctor/getActionType 见其 .cpp）
+#include "STAssignMonster.h"    // [b28d-Main·检查点16] 权威定义（原本头重复定义已删，
+                                //   消 ODR 双定义；union 视角 m_pair18/m_pair38 供
+                                //   拷贝构造整块拷贝，见 STAssignMonster.cpp 判词）
 
 class CDataManager;
 class CMap;
@@ -74,37 +77,6 @@ struct _mapMonster
     _mapMonster(const _mapMonster& other); // ORIG 0813d708
     ~_mapMonster();                       // ORIG 081398c6（仅析构 +0x34 vector）
 };                                     // 唯一定义均见 CMap.cpp
-
-class STAssignMonster
-{
-public:
-    STAssignMonster();
-    STAssignMonster(const STAssignMonster& other);
-    ~STAssignMonster();
-    STAssignMonster& operator=(const STAssignMonster& other);
-    void Clear();
-
-    int m_0;                        // +0x00  (ctor=-1)
-    char m_4;                       // +0x04  (ctor=1)
-    int m_8;                        // +0x08
-    int m_c;                        // +0x0c
-    int m_10;                       // +0x10
-    int m_14;                       // +0x14  (level)
-    int m_18;                       // +0x18  (ctor=1)
-    int m_1c;                       // +0x1c  (ctor=1)
-    int m_20;                       // +0x20
-    int m_24;                       // +0x24
-    std::vector<int> m_vec28;       // +0x28
-    int m_34;                       // +0x34
-    int m_38[2];                    // +0x38..+0x3f（与权威头 STAssignMonster.h 同步：ORIG Clear scaled 循环实证为数组）
-    std::vector<std::pair<int, int> > m_vec40; // +0x40
-    int m_4c;                       // +0x4c  (ctor=100)
-    int m_50;                       // +0x50
-    char m_54;                      // +0x54
-    char m_55;                      // +0x55
-    int m_58;                       // +0x58  (ctor=-1)
-    std::vector<unsigned char> m_vec5c; // +0x5c
-};
 
 // ORIG STRivalMapData ctor 0x089e89fa（清 3 个 int；sizeof 0xc）。
 struct STRivalMapData

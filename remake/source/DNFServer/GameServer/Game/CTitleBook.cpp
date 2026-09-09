@@ -380,9 +380,11 @@ bool CTitleBook::_checkFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY category,
         return 0;
     }
     // b28d-solo-CTitleBook（P157 反向：ORIG 缓存）：ORIG 0x08642daf 把
-    // `(*it).second` 的地址缓存到具名局部 -0xc（ptEv + `add $0x4`），后续
+    // `it->second` 的地址缓存到具名局部 -0xc（ptEv + `add $0x4`），后续
     // size()/三次 operator[] 全部复用该局部；逐次展开会多发 ptEv。
-    const std::vector<stTitleElement>* pVec = &(*it).second;
+    // b28d-solo-CTitleBook 本波：P167 差集实证 ORIG 调 ptEv、旧写 `(*it).second`
+    // 调 deEv（MISSING ptEv / EXTRA deEv）⇒ 改 `it->second`。
+    const std::vector<stTitleElement>* pVec = &it->second;
     if ((int)slot >= (int)pVec->size())
     {
         return 0;
@@ -435,11 +437,12 @@ bool CTitleBook::_getFitSlot(int itemIdx, ENUM_TITLE_BOOK_CATEGORY& category,
 void CTitleBook::deleteTimeoutItem(
     const std::vector<std::pair<int, int> >& list)
 {
-    // b28d-solo-CTitleBook 终判（N121 封顶）：p167 差集 CLEAR（33=33 调用）、
-    // 175 vs 177 仅 else 体尾多 `jmp .+2; nop`——4.4 在 continue/join 目标（addl）
-    // 前插对齐 nop，致跳转目标 ≠ 下一条 ⇒ jump-threading 失效。本波再试 4 形
-    //（goto 尾标签、取反 continue、反转 then/else、函数属性 -fno-align-jumps/-loops）
-    // 均恒 177~180 条 ⇒ 4.4 自身尾岛，判 N121 封顶（语义/调用点全等）。
+    // b28d-solo-CTitleBook 终判（本波归零，175=175 AE，p167 差集 CLEAR 33=33）：
+    // 旧「N121 封顶」判词作废——残差根因 = `continue`。
+    // 4.4 为 continue/goto 到循环 latch 的跳转在目标（`addl`）前插 1 字节对齐 nop
+    // ⇒ 体尾 `jmp .+2; nop` 恒在（N121 假象）。ORIG 4.1 是第二分支体尾 fall-through
+    // ⇒ 改正向包裹（P257）`if (item->m_addInfo != 0) { 体 }`（语义等价，消 continue）
+    // 后逐条全等；探针 /tmp/ctb_probe.cpp p1(有 continue, 177) vs p3(正向包裹, 175)。
     std::vector<std::pair<int, int> > toDelete;
     for (int category = 0; category < 4; ++category)
     {
@@ -450,34 +453,33 @@ void CTitleBook::deleteTimeoutItem(
             // `<unsigned long const&, int const&>`）；reset 则重新完整展开
             // `m_category[category][i]`（P183，故 item 必须为 const 指针）。
             const Inven_Item* item = m_category[category] + i;
-            if (item->m_addInfo == 0)
+            if (item->m_addInfo != 0)
             {
-                continue;
-            }
-            if (_checkTimeoutItem(*item) ||
-                (_isMatchedItem(item->m_addInfo, list) != -1))
-            {
-                m_category[category][i].reset();
-                alter();
-            }
-            // §4.3 跨TU隔离例外：本 TU CDataManager 为最小镜像类（仅 find_item）；
-            // 真定义 CDataManager.h:3665 `DeleteInvalidItemScript m_deleteInvalidItem; // +0xb658`。
-            // 镜像内补该字段会把其落 +0x00 而非 +0xb658 → 真实地址漂移 bug，故保留
-            // 具名视图 + 文档化基址访问（同 CItemLock/CMailBoxHelper 判例）。
-            else if (reinterpret_cast<DeleteInvalidItemScript*>(
-                         (char*)G_CDataManager() + 0xb658)
-                         ->IsInvalidItem2Delete(item->m_addInfo))
-            {
-                // ORIG make_pair<unsigned long const&, int const&>：实参直接取
-                // m_addInfo 地址（+0x02）⇒ 用同尺寸 unsigned long 左值视图
-                //（P266 先例；布局/取值不变）。
-                toDelete.push_back(
-                    std::make_pair(
-                        *reinterpret_cast<const unsigned long*>(
-                            &item->m_addInfo),
-                        item->m_addInfo2));
-                m_category[category][i].reset();
-                alter();
+                if (_checkTimeoutItem(*item) ||
+                    (_isMatchedItem(item->m_addInfo, list) != -1))
+                {
+                    m_category[category][i].reset();
+                    alter();
+                }
+                // §4.3 跨TU隔离例外：本 TU CDataManager 为最小镜像类（仅 find_item）；
+                // 真定义 CDataManager.h:3665 `DeleteInvalidItemScript m_deleteInvalidItem; // +0xb658`。
+                // 镜像内补该字段会把其落 +0x00 而非 +0xb658 → 真实地址漂移 bug，故保留
+                // 具名视图 + 文档化基址访问（同 CItemLock/CMailBoxHelper 判例）。
+                else if (reinterpret_cast<DeleteInvalidItemScript*>(
+                             (char*)G_CDataManager() + 0xb658)
+                             ->IsInvalidItem2Delete(item->m_addInfo))
+                {
+                    // ORIG make_pair<unsigned long const&, int const&>：实参直接取
+                    // m_addInfo 地址（+0x02）⇒ 用同尺寸 unsigned long 左值视图
+                    //（P266 先例；布局/取值不变）。
+                    toDelete.push_back(
+                        std::make_pair(
+                            *reinterpret_cast<const unsigned long*>(
+                                &item->m_addInfo),
+                            item->m_addInfo2));
+                    m_category[category][i].reset();
+                    alter();
+                }
             }
         }
     }
@@ -855,9 +857,10 @@ bool CTitleBook::_checkMovetoInven(ENUM_TITLE_BOOK_CATEGORY category,
                                    int slot)
 {
     // b28d-solo-CTitleBook（P96/P270 + P157 反向）：ORIG 0x08641c52 用非 const
-    // map::find（`findERS7_` 无 K）⇒ it 为 iterator；且 `(*it).second` 缓存到具名
+    // map::find（`findERS7_` 无 K）⇒ it 为 iterator；且 `it->second` 缓存到具名
     // 局部 -0xc（ptEv + `add $0x4`）后复用，operator[] 为 const 版（ixEj 的 K 版）。
-    // b28d-solo-CTitleBook 本波复核：TU clean 口径 AE/IDENTICAL（near/diff 无本件）。
+    // b28d-solo-CTitleBook 本波：P167 差集实证 ORIG 调 ptEv、旧写 `(*it).second`
+    // 调 deEv ⇒ 改 `it->second`（verdict 保持 AE）。
     std::map<int, std::vector<stTitleElement> >::iterator it =
         ((CTitleBookMgrRaw*)G_CDataManager())->m_titleBook.m_elements.find(
             (int)category);
@@ -866,7 +869,7 @@ bool CTitleBook::_checkMovetoInven(ENUM_TITLE_BOOK_CATEGORY category,
     {
         return 0;
     }
-    const std::vector<stTitleElement>* pVec = &(*it).second;
+    const std::vector<stTitleElement>* pVec = &it->second;
     if ((int)slot >= (int)pVec->size())
     {
         return 0;

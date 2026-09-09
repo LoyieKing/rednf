@@ -1,4 +1,17 @@
 // df_game_r WongWork::CCeraShop 特殊商品三方法 + 依赖（U2 批次）。
+// [b28d-solo-CCeraShop_Special 2026-09-09 泳道判词] 清单 14 件逐件核：
+//   identical ndiff=0：_processItem / _CheckConditionPutonAvatar / IsSpecialItem
+//   （末件 860=860 由 P46/P324 case 块序重排 + P63/P325 共享尾出口 goto 归零）；
+//   残差已缩小：_processBoosterSelect 85→68（P183/P157/P323）、
+//   _CheckBuyingCondition 357→351（P251/P286）、premium 890→863（lethe 前置）；
+//   封 N 族（P321-T5，仅剩装载序/寄存器角色/槽号/lea-vs-add/setcc）：
+//   autoUnsealItem N7、inventory_upgrade N7、cargo_abs N4、_onBuySpecialItem N6、
+//   ProcessSpecialItem N93、_CheckValidCount / package / _processAdditionalItem /
+//   _CheckBuyingCondition / premium N82/N89（§6.2 三件套：p167 全 CLEAR）。
+//   新范式上报 Main：P323（`static_cast<const M&>` 视图 cast 才出 `_ZNK` 重载，
+//   内联 `static_cast<const C*>(p)->m.method()` 在 4.4 仍选非 const，探针
+//   /tmp/b28d_probe/p2.cpp i vs j）、P324（case 叶块序=书写序，按 ORIG 块地址序重写）、
+//   P325（多 return 共享尾出口用 `goto L_true` 尾标签复现）。
 // 依据 docs/class_func_reports/WongWork__CCeraShop/{IsSpecialItem,ProcessSpecialItem,
 // SaveFeaturedIdx}.md 与 DB_SaveFeaturedGoodsIdx/makeRequest.md、
 // STSpecailItem_Param/Result ctor（ORIG W 0x08234ec2/0x08234f36）逐函数转写。
@@ -605,11 +618,18 @@ void SpecialItemHandler::respond_special_item_package(
 // 实际地址 0x0817a10c 为 CItemList::GetRestrictCode（nm 核实），本函数不使用 BuyAuctionItem。
 // b28d-D42 verdict=DIFF [N82/N89] ORIG 0x0827d3dc orig/ours=672/703 ndiff=680。
 // 巨件帧/槽平移 + STL/字符串内联差（N89）；语义按报告逐条对齐。
-// b28d-solo-CCeraShop_Special verdict=DIFF [N82/N89] 672/703；P167 CLEAR 101/101，余 STL 内联/帧槽（§6.2 语义完成封顶）
+// b28d-solo-CCeraShop_Special verdict=DIFF [N82/N89] 672/703 ndiff 890→863；lethe
+// 获取前置到 param 字段读取之前（ORIG 0x0827d3dc 序）；P167 CLEAR 101/101；余帧
+// 0xc0/0xf4 + 槽平移封 N82。
 void SpecialItemHandler::respond_special_item_premium(int type,
                                                       const STSpecailItem_Param& param,
                                                       STSpecailItem_Result&)
 {
+    // ORIG 0x0827d3dc+：lethe 管理器函数头单次获取入槽（local_48），先于
+    // param 字段读取。
+    CPremiumLetheManager* lethe =
+        G_CGameManager()->GetPremiumLetheManager();
+
     CUser* user = static_cast<CUser*>(param.m_user);
     int itemIdx = param.m_itemIdx;
     int count = param.m_count;
@@ -617,10 +637,6 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     long timeVal = param.m_time;                // local_a4
     long timeA = timeVal;                       // local_34
     long timeB = timeVal;                       // local_34（ORIG 双写同值）
-
-    // ORIG 0x827d3dc+：lethe 管理器函数头单次获取入槽（local_48）。
-    CPremiumLetheManager* lethe =
-        G_CGameManager()->GetPremiumLetheManager();
 
     std::map<unsigned long, STPremiumItemData>::iterator it =
         g_map_premium_item_data.find((unsigned long)itemIdx);
@@ -1023,7 +1039,9 @@ int CCeraShop::_CheckConditionPutonAvatar(CUser* user)
 // ============================================================================
 // b28d-D42 verdict=DIFF [N82] ORIG 0x08323f86 orig/ours=566/563 ndiff=530。
 // 巨件帧/槽平移（P112/N82）；语义按报告逐条对齐。
-// b28d-solo-CCeraShop_Special verdict=DIFF [N82/N89] 566/561；P167 CLEAR 52/52，余 STL 内联/帧槽（§6.2 语义完成封顶）
+// b28d-solo-CCeraShop_Special verdict=DIFF [N82/N89] 566/561 ndiff 357→351；
+// P251/P286 switch(a) 复现无槽多路比较链（ORIG 0x0832482a `mov a,%eax; cmp; je`）；
+// P167 CLEAR 52/52；余帧 0xc4/0xd4 + 槽平移封 N82。
 bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long itemIdx,
                                      unsigned int b, unsigned short c, unsigned char d,
                                      unsigned short e)
@@ -1337,10 +1355,12 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
 // ============================================================================
 // b28d-D42 verdict=DIFF [N82/N89] ORIG 0x08324a1e orig/ours=860/923 ndiff=801。
 // 巨件 switch 决策树 + 帧/槽号平移（N82）；语义按报告逐条对齐。
-// b28d-solo-CCeraShop_Special verdict=DIFF [P163/N82] 860/936；**真语义 bug 修复**：
-// 补 case 2660545（0x2898C1 → outType=2/outValue=0x54，ORIG 0x083255cf 块，入口
-// `cmp $0x2898c2; jl` ⇒ 唯一未列值）后双方 case 表立即数多重集全等（159=159，
-// 0 MISSING/0 EXTRA）；P167 CLEAR 3/3；余 4.4 决策树节点数差 + STL 内联/帧槽。
+// b28d-solo-CCeraShop_Special verdict=IDENTICAL 860/860 ndiff=0 [原 DIFF 936]：
+// ①真语义 bug 修复 case 2660545（0x2898C1 → 2/0x54，ORIG 0x083255cf 块）；②P46/P324
+// case 叶块物理顺序=书写顺序 ⇒ 按 ORIG 块地址序 0x08324eaf..0x0832570e 重写 case 表
+// （决策树与 case 序无关，树形逐条不变）；③P63/P325 ORIG 全 case 共用尾出口
+// +0xe2f `mov $0x1,%eax` ⇒ 统一 `goto L_true`（default 路径包块以合法跨越）。
+// P167 CLEAR 3/3。
 #define CERA_SPECIAL_CASE(idx, t, v) \
     case idx: outType = t; outValue = v; goto L_true
 #define CERA_SPECIAL_CASE_F(idx, t, v, f) \
@@ -2097,9 +2117,10 @@ void CCeraShop::_onBuySpecialItem(CUser* user, ENUM_CERA_SPECIALITEM,
 // ============================================================================
 // b28d-D42 verdict=DIFF [N82] ORIG 0x08327894 orig/ours=233/238 ndiff=215。
 // 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
-// b28d-solo-CCeraShop_Special verdict=DIFF [N82/N86] 233/233 等长；P225 拆嵌套 if 消
-// `&&` bool 物化岛（-5 条），P167 CLEAR 34/34；余 restrictCode 形参槽覆盖（4.1 特性）
-// 与尾部 `ok?1:0` 三目形 + 迭代器槽方向。
+// b28d-solo-CCeraShop_Special verdict=DIFF [N82] 233/229 ndiff 85→68；P183/P157 删
+// stackable/bmap 具名缓存（ORIG 0x08327894 每处 `mov item,%eax; lea 0x24c` 重算）+
+// P323 `static_cast<const M&>` 视图 cast 消 iterator→const_iterator 转换构造；
+// P167 CLEAR 34/34；余帧/槽平移封 N82。
 int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& result,
                                      long curSec, bool flag,
                                      std::vector<Inven_Item>& items,
