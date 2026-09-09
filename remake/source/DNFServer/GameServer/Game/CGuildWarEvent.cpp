@@ -11,6 +11,12 @@
 #include "GameWorld.h"
 #include "TimerQueue.h"
 
+// ORIG 本 TU 首个函数是 comp_by_time @0x0811cf94（size 0x14），紧跟前一 TU 的
+// _GLOBAL__I_ 之后、CGuildWarEvent::C1 @0x0811cfa8 之前 ⇒ 原码在函数定义前
+// include 了定义该 static 函数的头；未调用也发射（CEnvironment.cpp 同形实证：
+// 其 .o 首符号即 _ZL12comp_by_timeRK15STGuildCargoLogS1_ @0x0 size 0x14）。
+#include "DNFFunctionLib.h"
+
 // ORIG W 0x80f647c（TimerQueue.h 权威声明；此处单独声明避免整头依赖）
 TimerQueue* G_TimerQueue();
 
