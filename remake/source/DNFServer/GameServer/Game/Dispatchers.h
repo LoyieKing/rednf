@@ -579,7 +579,12 @@ public:
     virtual ~Dispatcher_CollectItems();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
-    int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG 0x081e329e
+    // [b28d-solo-Dispatchers R2] int→unsigned int（mangled 不含返回类型，零
+    //   ABI/sizeof/偏移影响）：P211 callee 侧旋钮——ORIG 0x081e345x 调用点
+    //   `call; mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,0x4(%eax)`（RHS-first）
+    //   要求 RHS 与 int 目标字段异型（探针 /tmp/probe_store.cpp u/v 实证）。
+    //   消费点仅本 TU process；-1 值回存 int m_4 后语义不变。
+    unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);   // ORIG 0x081e329e
     void send(CUser* user, ParamBase& param);
 };
 
@@ -1814,7 +1819,13 @@ class Dispatcher_DeleteToBlackList : public IPacketDispatcher<MSG_DELETE_TO_BLAC
 public:
     Dispatcher_DeleteToBlackList() {}
     virtual ~Dispatcher_DeleteToBlackList();
-    int check_error(CUser* user, MSG_BASE& msg);
+    // [b28d-solo-Dispatchers R2] 返回类型 int→unsigned int（mangled 不含返回类型，
+    //   零 ABI/sizeof/偏移影响）：P211 callee 侧旋钮——ORIG 0x081cdf0e 调用点
+    //   `call; mov %eax,%edx; mov -0x10(%ebp),%eax; mov %edx,0x4(%eax)`（RHS-first+
+    //   中转）要求 RHS 与目标字段 int 异型（探针 /tmp/probe_store.cpp u/v 实证）。
+    //   消费点仅本 TU process（dispatch_template 不调用 check_error），语义等价
+    //   （-1→0xffffffff 回存 int m_4 后仍为 -1）。
+    unsigned int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };

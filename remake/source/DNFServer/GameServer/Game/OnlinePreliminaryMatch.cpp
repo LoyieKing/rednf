@@ -541,7 +541,7 @@ int COnlinePreliminary::CheckJoinable(PvP_Room* room, CUser* user)
 
 /* ORIG T 0x085608bc：cmpl $2 / jne else(@+0x10)；then 体 mov $0 fall-through
  * (@085608c5)，else 体 mov $1 (@085608cc) → !=2 判定块在前【技巧17】 */
-int COnlinePreliminary::CheckSeat(int a)
+bool COnlinePreliminary::CheckSeat(int a)
 {
     /* ORIG @085608c3 cmpl $2 / jne +0x10(mov $1)、fall-through mov $0、jmp +0x15(leave)
      * ——守卫早返 `if(a==2)return 0;`+尾 `return 1;` 精确复现（三目被折叠成 setne，goto 形

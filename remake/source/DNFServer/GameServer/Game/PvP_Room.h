@@ -88,7 +88,9 @@ public:
     int check_joinable(CUser* user);
     int CheckPvPMapMode(CUser* user, int mapNo, bool& flag);
     bool IsQuickJoinablePVPRoom(CUser* user);
-    int check_authority(CUser* user, int seat);
+    // [b28d-solo-PvP_Room] P292/P248 档①：ORIG 0x085dd070 调用点 `xor $0x1; test; je`
+    // ⇒ 返回 bool（mangled 不含返回类型，零 ABI 风险；body 仅返 0/1）。
+    bool check_authority(CUser* user, int seat);
     int set_seat_state(CUser* user, int seat, ENUM_SEAT_STATE state,
                        CUser** out, bool& a, bool& b, bool& c);
     // ORIG caller 0x081f5eba call 后 `xor $0x1,%eax; test %al,%al; je`（技1 bool 专属）

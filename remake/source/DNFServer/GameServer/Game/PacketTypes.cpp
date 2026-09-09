@@ -56,8 +56,8 @@ MSG_CHECK_GUILD_JOIN::MSG_CHECK_GUILD_JOIN()
     m_0d = 0;
     memset(m_11, 0, sizeof(m_11));
 }
-// MSG_CLIENT_SPEC_STATISTIC ORIG 0x082556a0：调 Client_Spec ctor 于 +0xe。
-// 本仓库 Client_Spec 为 pad 占位（HWSpec[0xff] 子对象未建模），构造为空（推断）。
+// MSG_CLIENT_SPEC_STATISTIC ORIG 0x082556a0：MSG_BASE::C1(this) + Client_Spec::C1(this+0xe)。
+// [b28d-Main·检查点14] Client_Spec 现为 0xbf8（HWSpec[0xff] 已建模，见 CUser.h）。
 MSG_CLIENT_SPEC_STATISTIC::MSG_CLIENT_SPEC_STATISTIC() {}
 MSG_COMBO_SKILL::MSG_COMBO_SKILL() : m_pad0d(0)
 {

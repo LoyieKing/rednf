@@ -39,17 +39,19 @@
 // 析构，否则每个 MSG_* 派生类型产生伪 D1/D2 与模板内多余清理块）；
 // 所有 MSG 派生类字段自 +0xd 起（如 MSG_ENCHANT +0xd、MSG_BREAK_AWAY +0xd），
 // 故为 0xd 字节包头。MSG 家族一律 POD（各派生类亦无 C1/D1，见 nm 扫描）。
+// [b28d-Main 代落·检查点14·N7 突破口 / S400 修正] MSG_BASE 保留 0xd 字节包头成员：
+//   · 开关是「基类**非空**」而非仅「有继承」：S400 探针 /tmp/pd_p5.cpp
+//     x1（空基类 + 派生类自带 m_head[0xd]）仍产 msg-first + %ecx；
+//     x2（基类含 char m_head[0xd] + 派生类**不含** m_head）才产 ORIG 的
+//     param-first + 虚目标 %edx（= ORIG 0x825ab73..0x825ab93 逐条同构）。
+//   · MSG_* 一律继承 MSG_BASE 并**删除自身的 `char m_head[0xd]`**（PacketTypes.h），
+//     pack(1) 下首成员偏移仍 +0xd、sizeof/布局全不变；
+//     模板实参已由 `*reinterpret_cast<MSG_BASE*>(&msg)` 改为隐式 `msg`（覆盖 82 件）。
+//   · 空基类还会破坏 CMDPacketStruct.h `STBaseRequest : MSG_BASE` 派生链的 sizeof
+//     （289-307 一批 static_assert 全失败）⇒ 本条同时修复该连带。
 class MSG_BASE
 {
 public:
-    // [b28d-Main 代落·检查点13] 删用户空 ctor：ORIG 的 MSG_BASE 为**隐式 trivial**
-    // （4.1 对独立 MSG_BASE 对象不发 call；我方 4.4.7 用户空 ctor 恒发 lea+mov+call）。
-    // A/B 实测（5 消费 TU）：PacketDispatcher identical/ae 1931→1955（diff 109→84）、
-    // DispLinkA2 diff 3→2，其余 3 TU 零变化；符号 _ZN8MSG_BASEC1Ev 仍由
-    // Dispatchers.o（CMDPacketStruct.h 版本）发射，链接符号集不减。
-    // MSG_BASE() {}                // ORIG _ZN8MSG_BASEC1Ev 0x812c076 空体；
-                                 // 头文件内联 → 弱符号 W（同 ORIG），GCC O0 对空构造
-                                 // 调用点省略（ORIG 全二进制仅 65 调用，均派生构造链）。
     char m_head[0xd];
 };
 
@@ -249,13 +251,13 @@ int IPacketDispatcher<MSG, Param, state>::dispatch_template(CUser* user, PacketB
     // b28d-Main 回退 P298 承载器（见上方 N-MSG_BASE 判词）：恢复真实 `MSG msg;`。
     MSG msg;
     int result = 0;
-    if ((result = this->read(packet, *reinterpret_cast<MSG_BASE*>(&msg))) != 0)
+    if ((result = this->read(packet, msg)) != 0)   // [b28d-Main·检查点14] 隐式派生→基（N7 开关）
     {
         return result;
     }
 
     Param param;
-    if ((result = this->process(user, *reinterpret_cast<MSG_BASE*>(&msg), param)) > 0)
+    if ((result = this->process(user, msg, param)) > 0)   // [b28d-Main·检查点14] 隐式派生→基（N7 开关）
     {
         return result;
     }

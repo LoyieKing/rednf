@@ -54,6 +54,27 @@
 //     UpdateServerMessage::dispatch(24/24,0,N4/N107)、LoadEventLevelupSupport::dispatch(36/36,+1,N104)、
 //     ForbidUserToPlay::dispatch(5/5,−1,N-JMP)。
 //   P0：无 register asm 绑定（全文件 grep 复核）；.h 改动：无。
+// [b28d-solo-W8LT_DBTask 收口] check_tu_routed: identical=116 ae=1682 near=8 diff=76
+//   （合计 1798；COMPILE OK 0 错误）。清单 82 件 + 清单外 3 件复核；新增 3 件 DIFF→AE
+//   + 1 件残差改善 + 6 件旋钮穷举封顶：
+//    ① DB_LoadServerMessage::dispatch：**P266 反向**——kind/msgIdx uchar→char ⇒ 复现
+//       ORIG store 前两段 `movzbl -0x3d(%ebp),%eax; mov %eax,%ecx`（uchar 源 4.4 恒折单段）
+//       ⇒ AE（292/292）。
+//    ② DB_ReportMannerlessUser_Upgrade::dispatch：**P265 扩展**——+0x1a(unsigned) 加 `(int)`、
+//       +0x16(int) 加 `(unsigned int)` cast ⇒ 复现变参两段装载 `mov mem,%eax; mov %eax,%esi/ebx`
+//       ⇒ AE（211/211）。
+//    ③ DB_CheckSecuReward::dispatch：**负极性短路早返** `if(!A||B==0||!C) return 1;` 复现
+//       ORIG `call;xor$1;test;jne` 物化链 + FAIL/PASS 双常数岛 ⇒ AE（152/152）。
+//    ④ DB_InsertQueryCounterDb::dispatch：P101 早返 + 裸 bool SaveQuery + P0/P52 链式
+//       GetQueryCounter（去 counter 槽）⇒ 残差 35→23（槽位回正，余 N82 槽号/块序 + memset edx 中转）。
+//    ⑤ DB_ForbidUserToPlay：去 else 花括号（裸 if 链）仍余 1 条 4.4 label-stub jmp ⇒ N-JMP。
+//    ⑥ 旋钮穷举封顶：Find_Factory_Hub_User（(int)/(short) cast 无效，N76/N18a）、
+//       Gathering×2（数组名算术劣化，N4/N18a）、LoadPowerWarStatueInfo::dispatch（P211 档③
+//       双向无效，N76/N18a）、AutoPunishedSecondUserData（双 cast 无效，N18a）、
+//       UpdateAccountMemberBonusFatigue（P168a③/N122）、StatisticCeraShopGiftLog（P0 具名局部
+//       致帧漂移，N82/N93）。
+//   P0：本文件无 `register asm("reg")` 绑定（grep 复核仅注释）；.h 改动：无（未改任何头）。
+//   全量表：/tmp/b28d_solo_W8LT_DBTask_result.tsv。
 // ----------------------------------------------------------------------------
 //   1. DB_LoadDnfHackLog::dispatch                          ORIG 0x8422242  AE    P103 operator->
 //   2. DB_AuctionSubMoney::dispatch                         ORIG 0x8448530  AE    P167 `(unsigned int&)mId` 修 get_int(Rj) 重载差
@@ -1417,6 +1438,9 @@ bool DB_GatheringParyStatus::save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, 
         sig->m_field1c,
         (unsigned char)sig->m_tryEntries[idx][1],
         buf,
+        // [b28d-solo-W8LT_DBTask] P214① 探针复核：数组名算术产 sig+0x28 三段
+        // （多 3 条）且仍折 0x6 进 disp，ORIG 的 add $0x20/$0xe 拆分不可复现
+        // ⇒ 维持视图表达式，N4/N18a 封顶。
         reinterpret_cast<const DB_TryNatView*>(
             reinterpret_cast<const char*>(
                 sig) + idx * 10)->m_sec.m_f,
@@ -6873,20 +6897,21 @@ bool DB_InsertQueryCounterDb::dispatch(int userIdx, int slot, Stream* stream)
     stream->get_binary(buf, len);
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
-    CQueryCounter* counter = db->GetQueryCounter();
-    if (counter->SaveQuery(buf, qid) == 1)
-    {
-        CStreamGuard guard(
-            GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x63c1), true);
-        guard.operator*()->operator<<(0xbf);
-        guard.operator*()->operator<<(-1);
-        guard.operator*()->operator<<(qid);
-        guard.operator*()->operator<<(len);
-        guard.operator->()->put_binary(buf, len);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
-        return 1;
-    }
-    return 0;
+    // [b28d-solo-W8LT_DBTask] ORIG 0x08425b9x：`call SaveQuery; xor $1,%eax;
+    // test %al,%al; jne <mov $0; jmp>` ⇒ 原码 P101 早返 + 裸 bool 判定
+    // （`==1` 比较形 4.4 反产无 xor 直判）；P0/P52 链式 GetQueryCounter
+    // （ORIG 无 counter 槽往返，receiver 为表达式右值）。
+    if (!db->GetQueryCounter()->SaveQuery(buf, qid))
+        return 0;
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x63c1), true);
+    guard.operator*()->operator<<(0xbf);
+    guard.operator*()->operator<<(-1);
+    guard.operator*()->operator<<(qid);
+    guard.operator*()->operator<<(len);
+    guard.operator->()->put_binary(buf, len);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
+    return 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -11423,7 +11448,12 @@ bool DB_CheckSecuReward::dispatch(int userIdx, int slot, Stream* stream)
     // ——首段 sete 岛+3 jmp；4.1 `xor$1;test` 物化段与尾 v 双常数岛为
     // 跨版本 bool 物化顶③b 族）⇒ 保留 && 直判原形，标 N。S 类
     // missing-calls:ptEv 已修（guard-> 形）。
-    if (db->exec(true) && db->get_n_rows() != 0 && db->fetch())
+    // [b28d-solo-W8LT_DBTask] ORIG 0x08444262-0x08444296：负极性短路物化
+    // （`call exec; xor $1; test %al; jne FAIL` / `n_rows==0 je FAIL` /
+    // `call fetch; xor $1; test; je PASS` + FAIL/PASS 双常数岛）⇒ 原码是
+    // `if (!A || B==0 || !C) return 1;` 早返形（正极性 && 包裹反产无 xor 直判）。
+    if (!db->exec(true) || db->get_n_rows() == 0 || !db->fetch())
+        return 1;
     {
         db->get_uint(0, lastCheck);
         time_t nowT;
@@ -12194,13 +12224,12 @@ bool DB_ForbidUserToPlay::dispatch(int userIdx, int slot, Stream* stream)
     // cond2 方向（je↔jne）+ 双 body 填参各 +2 行装载序翻转 ⇒ 净差 4 行
     // >1。维持 V1（双 goto 钉块序，残留 1 行 = 4.4 label-stub bb 的
     // fall-through jmp，N-JMP 族）。
+    // [b28d-solo-W8LT_DBTask] 去 else 花括号（裸 if 链）：4.4 不再为 else 块出口
+    // 发 fall-through jmp，SIMPLE_SQL 直接跟随条件跳转（ORIG 形）。
     if (!flag)
         goto SIMPLE_SQL;
-    else
-    {
-        if (days != 0)
-            goto FULL_SQL;
-    }
+    if (days != 0)
+        goto FULL_SQL;
 SIMPLE_SQL:
     db->set_query(
         "upDate charac_stat set forbidden_to_play=0, forbidden_due_to= 0 where charac_no = %d",
@@ -12973,8 +13002,10 @@ bool DB_LoadServerMessage::dispatch(int userIdx, int slot, Stream* stream)
     // 清零序对齐 ORIG：ok → kind → msgIdx → message(rep stos) →
     // characName(movl×5) → timestamp。
     bool ok = false;
-    unsigned char kind = 0;
-    unsigned char msgIdx = 0;
+    // [b28d-solo-W8LT_DBTask] P266 反向：ORIG store 前 `movzbl -0x3d,%eax; mov %eax,%ecx`
+    // 两段装载 ⇒ 源是 char（uchar 源 4.4 恒折单段 `movzbl -0x3d,%ecx`）。
+    char kind = 0;
+    char msgIdx = 0;
     char message[0x32] = { '\0' };
     char characName[0x14] = { '\0' };
     int timestamp = 0;
@@ -16057,6 +16088,8 @@ bool DB_Find_Factory_Hub_User::dispatch(int /*userIdx*/, int slot,
     DB_FindFactoryHubUserNoConnView* out =
         reinterpret_cast<DB_FindFactoryHubUserNoConnView*>(
             guard.operator->()->GetInBuffer<SIG_FIND_FACTORY_HUB_USER_NO_CONN>());
+    // [b28d-solo-W8LT_DBTask] 复核：显式 (int)/(short) cast 探针无效（仍 RHS
+    // 两段中转）⇒ 字段/RHS 异型化旋钮（P211 档③）对本件不可翻，N76/N18a 封顶。
     out->m_mId = mId;
     out->m_characNo = characNo;
     out->m_flag = reinterpret_cast<DB_FindFactoryHubUserView*>(sig)->m_flag;
@@ -17347,7 +17380,7 @@ bool DB_ReportMannerlessUser_Upgrade::dispatch(int userIdx, int slot,
         sprintf(sql,
                 "values(%d, %s, %d, '%s', %d, '%s', now(), '%s')",
                 sig->m_serverGroup, NumberToString(sig->m_accIdHi, 0),
-                sig->m_reporterGroup, sig->m_name, sig->m_accIdLo,
+                (unsigned int)sig->m_reporterGroup, sig->m_name, (int)sig->m_accIdLo,
                 escapedTargetName, escapedChatMsg);
     }
     else
@@ -17355,7 +17388,7 @@ bool DB_ReportMannerlessUser_Upgrade::dispatch(int userIdx, int slot,
         sprintf(sql,
                 "values(%d, %s, %d, '%s', %d, '%s', now(), 'NULL')",
                 sig->m_serverGroup, NumberToString(sig->m_accIdHi, 0),
-                sig->m_reporterGroup, sig->m_name, sig->m_accIdLo,
+                (unsigned int)sig->m_reporterGroup, sig->m_name, (int)sig->m_accIdLo,
                 escapedTargetName);
     }
 

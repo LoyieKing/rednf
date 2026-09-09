@@ -2616,10 +2616,10 @@ struct Inter_MonitorBuddyInOutPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=102（ORIG 0x84c8ec0）：N82/P112 帧槽平移+P30/N4 add-vs-lea。
 int Inter_MonitorBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorBuddyInOutPktView* pPkt = reinterpret_cast<Inter_MonitorBuddyInOutPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
+    Inter_MonitorBuddyInOutPktView* pPkt = reinterpret_cast<Inter_MonitorBuddyInOutPktView*>(data);
     PacketGuard packet;
     if (pPkt->m_14 == '\x01')
         packet.put_header(0, 0x36);
@@ -2628,7 +2628,7 @@ int Inter_MonitorBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_byte(
         (unsigned int)pPkt->m_12);
     packet.put_int(pPkt->m_a);
-    const size_t local_20 = strlen(pPkt->m_15);
+    const int local_20 = (int)strlen(pPkt->m_15);
     packet.put_int(local_20);
     packet.put_str(pPkt->m_15, local_20);
     packet.put_byte(
@@ -3537,10 +3537,10 @@ struct Inter_MonitorNoticeGuildEnterPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=117（ORIG 0x84c9194）：N22 cmp 操作数方向+N82/P112 帧槽平移+P30/N4 add-vs-lea。
 int Inter_MonitorNoticeGuildEnter::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorNoticeGuildEnterPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildEnterPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
+    Inter_MonitorNoticeGuildEnterPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildEnterPktView*>(data);
     if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
@@ -3567,10 +3567,10 @@ int Inter_MonitorNoticeGuildEnter::dispatch_sig(CUser* user, char* data, int /*l
     packet.put_header(0, 0x3a);
     packet.put_int(pPkt->m_14);
     packet.put_int(pPkt->m_1c);
-    const size_t local_24 = strlen(pPkt->m_20);
+    const int local_24 = (int)strlen(pPkt->m_20);
     packet.put_int(local_24);
     packet.put_str(pPkt->m_20, local_24);
-    const size_t local_20 = strlen(pPkt->m_37);
+    const int local_20 = (int)strlen(pPkt->m_37);
     packet.put_int(local_20);
     packet.put_str(pPkt->m_37, local_20);
     packet.finalize(true);
@@ -4212,10 +4212,10 @@ struct Inter_MonitorNoticeOtherChannelChatPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=293（ORIG 0x84cb1ac）：N22 cmp 操作数方向+N18a 单段 regmove+P30/N4 add-vs-lea。
 int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorNoticeOtherChannelChatPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeOtherChannelChatPktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
+    Inter_MonitorNoticeOtherChannelChatPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeOtherChannelChatPktView*>(data);
     char* msg = data;                                 // -0x1c
 
     if (pPkt->m_35 == 1)
@@ -4224,9 +4224,9 @@ int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, i
         packet.put_header(0, 0x41);
         packet.put_byte(pPkt->m_a);
         packet.put_byte(0x15);
-        const size_t len = strlen(pPkt->m_17);         // -0x14
-        packet.put_int((int)len);
-        packet.put_str(pPkt->m_17, (int)len);
+        const int len = (int)strlen(pPkt->m_17);         // -0x14
+        packet.put_int(len);
+        packet.put_str(pPkt->m_17, len);
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
@@ -4240,9 +4240,9 @@ int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, i
         packet.put_header(0, 0x41);
         packet.put_byte(pPkt->m_a);
         packet.put_byte(0x4d);
-        const size_t len = strlen(pPkt->m_17);         // -0x10
-        packet.put_int((int)len);
-        packet.put_str(pPkt->m_17, (int)len);
+        const int len = (int)strlen(pPkt->m_17);         // -0x10
+        packet.put_int(len);
+        packet.put_str(pPkt->m_17, len);
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
@@ -4256,9 +4256,9 @@ int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, i
         packet.put_header(0, 0x41);
         packet.put_byte(pPkt->m_a);
         packet.put_byte(0x5a);
-        const size_t len = strlen(pPkt->m_17);         // -0xc
-        packet.put_int((int)len);
-        packet.put_str(pPkt->m_17, (int)len);
+        const int len = (int)strlen(pPkt->m_17);         // -0xc
+        packet.put_int(len);
+        packet.put_str(pPkt->m_17, len);
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
@@ -4285,9 +4285,9 @@ int Inter_MonitorNoticeOtherChannelChat::dispatch_sig(CUser* user, char* data, i
         packet.put_header(0, 0x41);
         packet.put_byte(pPkt->m_a);
         packet.put_byte(0);
-        const size_t len = strlen(pPkt->m_17);         // -0x18
-        packet.put_int((int)len);
-        packet.put_str(pPkt->m_17, (int)len);
+        const int len = (int)strlen(pPkt->m_17);         // -0x18
+        packet.put_int(len);
+        packet.put_str(pPkt->m_17, len);
         packet.put_byte((int)pPkt->m_e);
         packet.put_int((int)(unsigned int)pPkt->m_36);
         packet.put_str(pPkt->m_37,
@@ -4347,9 +4347,9 @@ int Inter_MonitorCallGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*
             (int)*reinterpret_cast<unsigned char*>(data + i * 0x1d + 0x17));
         packet.put_byte(
             (int)*reinterpret_cast<unsigned char*>(data + i * 0x1d + 0x18));
-        const size_t nameLen = strlen(data + i * 0x1d + 0x19);
-        packet.put_int((int)nameLen);
-        packet.put_str(data + i * 0x1d + 0x19, (int)nameLen);
+        const int nameLen = (int)strlen(data + i * 0x1d + 0x19);
+        packet.put_int(nameLen);
+        packet.put_str(data + i * 0x1d + 0x19, nameLen);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -4420,9 +4420,9 @@ int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*le
     PacketGuard packet;                                // -0x28
     packet.put_header(0, 0x46);
 
-    const size_t guildNameLen = strlen(pPkt->m_16);   // -0x18
-    packet.put_int((int)guildNameLen);
-    packet.put_str(pPkt->m_16, (int)guildNameLen);
+    const int guildNameLen = (int)strlen(pPkt->m_16);   // -0x18
+    packet.put_int(guildNameLen);
+    packet.put_str(pPkt->m_16, guildNameLen);
 
     if (user->get_charac_no(-1) ==
         pPkt->m_2d)          // 会长标记
@@ -4461,15 +4461,15 @@ int Inter_MonitorNoticeGuildInfo::dispatch_sig(CUser* user, char* data, int /*le
     }
     packet.put_byte(memberCountPos, memberCount);      // ORIG put_byte(int&,int) 回填
 
-    const size_t noticeLen = strlen(pPkt->m_d4);      // 公告
-    packet.put_int((int)noticeLen);
-    packet.put_str(pPkt->m_d4, (int)noticeLen);
+    const int noticeLen = (int)strlen(pPkt->m_d4);      // 公告
+    packet.put_int(noticeLen);
+    packet.put_str(pPkt->m_d4, noticeLen);
     packet.put_byte((int)pPkt->m_ab);
     packet.put_byte((int)pPkt->m_b5);
     packet.put_int(pPkt->m_b6);
-    const size_t introLen = strlen(pPkt->m_ba);       // 说明
-    packet.put_int((int)introLen);
-    packet.put_str(pPkt->m_ba, (int)introLen);
+    const int introLen = (int)strlen(pPkt->m_ba);       // 说明
+    packet.put_int(introLen);
+    packet.put_str(pPkt->m_ba, introLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -4672,10 +4672,10 @@ struct Inter_MonitorSetSubGuildMasterReplyPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=95（ORIG 0x84cc35c）：N18a 单段 regmove+P30/N4 add-vs-lea。
 int Inter_MonitorSetSubGuildMasterReply::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorSetSubGuildMasterReplyPktView* pPkt = reinterpret_cast<Inter_MonitorSetSubGuildMasterReplyPktView*>(data);
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
 
+    Inter_MonitorSetSubGuildMasterReplyPktView* pPkt = reinterpret_cast<Inter_MonitorSetSubGuildMasterReplyPktView*>(data);
     if (pPkt->m_12 !=        // msg+0x12 characNo
         user->get_charac_no(-1))
         return 0;
@@ -4686,9 +4686,9 @@ int Inter_MonitorSetSubGuildMasterReply::dispatch_sig(CUser* user, char* data, i
     {
         packet.put_byte(1);
         packet.put_byte(pPkt->m_a);
-        const size_t msgLen = strlen(pPkt->m_17);
-        packet.put_int((int)msgLen);
-        packet.put_str(pPkt->m_17, (int)msgLen);
+        const int msgLen = (int)strlen(pPkt->m_17);
+        packet.put_int(msgLen);
+        packet.put_str(pPkt->m_17, msgLen);
         packet.put_byte(
             (int)pPkt->m_16);
 
@@ -4994,10 +4994,10 @@ struct Inter_MonitorNoticeRequestMemberEnterToResponserPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=77（ORIG 0x84ccd54）：N22 cmp 操作数方向+N82/P112 帧槽平移+P30/N4 add-vs-lea。
 int Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorNoticeRequestMemberEnterToResponserPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeRequestMemberEnterToResponserPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
+    Inter_MonitorNoticeRequestMemberEnterToResponserPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeRequestMemberEnterToResponserPktView*>(data);
     if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
@@ -5039,7 +5039,7 @@ int Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig(CUser* user, 
     PacketGuard packet;
     packet.put_header(0, 0x49);
     packet.put_short((int)pPkt->m_12);
-    const size_t local_10 = strlen(pPkt->m_14);
+    const int local_10 = (int)strlen(pPkt->m_14);
     packet.put_int(local_10);
     packet.put_str(pPkt->m_14, local_10);
     packet.finalize(true);
@@ -5171,10 +5171,10 @@ struct Inter_MonitorNoticeMemberEnterReplyPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=83（ORIG 0x84cd5ca）：N22 cmp 操作数方向+P226 具名 bool/char 落槽+N18a 单段 regmove。
 int Inter_MonitorNoticeMemberEnterReply::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorNoticeMemberEnterReplyPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberEnterReplyPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
+    Inter_MonitorNoticeMemberEnterReplyPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberEnterReplyPktView*>(data);
     if (user->get_charac_no(-1) != pPkt->m_11)
     {
         LogManager::logFormat(
@@ -5217,7 +5217,7 @@ int Inter_MonitorNoticeMemberEnterReply::dispatch_sig(CUser* user, char* data, i
         (unsigned int)pPkt->m_b);
     packet.put_byte(
         (unsigned int)pPkt->m_15);
-    const size_t local_14 = strlen(pPkt->m_16);
+    const int local_14 = (int)strlen(pPkt->m_16);
     packet.put_int(local_14);
     packet.put_str(pPkt->m_16, local_14);
     packet.finalize(true);
@@ -5241,8 +5241,8 @@ struct Inter_MonitorNoticeMemberSecedePktView
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=136（ORIG 0x084cd83a）：寄存器中转(N18a/N7)+混合残差；gap+1。
-// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=4（ORIG 0x84cd83a）：cmp 方向经字段 unsigned
-// 异型化已翻正；余 N107/N18a（成员常量偏移取址 4.4 恒 add、4.1 恒 lea）+ 装载序。
+// [b28d-solo-InterDispatcher] verdict=AE ndiff=0（本轮修：`const int msgLen=(int)strlen(...)`
+// + 无 cast 实参 ⇒ 4.4 对 `put_str(&pPkt->m_13[0], msgLen)` 发 ORIG 的 lea 形，探针 q7 实证）。
 int Inter_MonitorNoticeMemberSecede::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)                        // test eax; sete
@@ -5278,9 +5278,9 @@ int Inter_MonitorNoticeMemberSecede::dispatch_sig(CUser* user, char* data, int /
         packet.put_byte(1);
     else
         packet.put_byte(0);
-    const size_t msgLen = strlen(pPkt->m_13);
-    packet.put_int((int)msgLen);
-    packet.put_str(&pPkt->m_13[0], (int)msgLen);   // N107 封顶：数组退化形同产 add（实测）
+    const int msgLen = (int)strlen(pPkt->m_13);
+    packet.put_int(msgLen);
+    packet.put_str(&pPkt->m_13[0], msgLen);   // 探针 q7 实证：int 局部 + 无 cast 实参 ⇒ 4.4 发 lea
     if (pPkt->m_12 == 1 || pPkt->m_12 == 2)
         packet.put_byte(1);
     else
@@ -5415,10 +5415,10 @@ struct Inter_MonitorNoticeMemberChatMsgPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=83（ORIG 0x84ccfda）：N22 cmp 操作数方向+N18a 单段 regmove+P30/N4 add-vs-lea。
 int Inter_MonitorNoticeMemberChatMsg::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorNoticeMemberChatMsgPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberChatMsgPktView*>(data);
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
 
+    Inter_MonitorNoticeMemberChatMsgPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberChatMsgPktView*>(data);
     if (user->get_charac_memberkey() == 0)
     {
         LogManager::logFormat(
@@ -5430,7 +5430,7 @@ int Inter_MonitorNoticeMemberChatMsg::dispatch_sig(CUser* user, char* data, int 
         return 0;
     }
 
-    const int characNo =                               // msg+0xe
+    register int characNo =                            // msg+0xe（P231：ORIG 落 %ebx 无槽）
         pPkt->m_e;
     if (user->get_charac_no(-1) != characNo)
     {
@@ -5447,9 +5447,9 @@ int Inter_MonitorNoticeMemberChatMsg::dispatch_sig(CUser* user, char* data, int 
     packet.put_header(0, 0x41);
     packet.put_byte(8);
     packet.put_byte(0);
-    const size_t msgLen = strlen(pPkt->m_12);
-    packet.put_int((int)msgLen);
-    packet.put_str(pPkt->m_12, (int)msgLen);
+    const int msgLen = (int)strlen(pPkt->m_12);
+    packet.put_int(msgLen);
+    packet.put_str(pPkt->m_12, msgLen);
     packet.put_byte(0);
     const unsigned int nameLen =
         (unsigned int)pPkt->m_30;
@@ -6371,10 +6371,10 @@ struct Inter_MonitorGuildWarInfoPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=125（ORIG 0x84ce7f6）：N22 cmp 操作数方向+N18a 单段 regmove+N82/P112 帧槽平移。
 int Inter_MonitorGuildWarInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorGuildWarInfoPktView* pPkt = reinterpret_cast<Inter_MonitorGuildWarInfoPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
+    Inter_MonitorGuildWarInfoPktView* pPkt = reinterpret_cast<Inter_MonitorGuildWarInfoPktView*>(data);
     if (G_GameWorld()->GetChannelType() != 6)
         return 0;
 
@@ -6410,7 +6410,7 @@ int Inter_MonitorGuildWarInfo::dispatch_sig(CUser* user, char* data, int /*len*/
         packet.put_int(*reinterpret_cast<int*>(data + local_14 * 0x21 + 0x16));
         packet.put_short(
             (unsigned int)*reinterpret_cast<unsigned short*>(data + local_14 * 0x21 + 0x1a));
-        const size_t local_10 = strlen(data + local_14 * 0x21 + 0x1c);
+        const int local_10 = (int)strlen(data + local_14 * 0x21 + 0x1c);
         packet.put_int(local_10);
         packet.put_str(data + local_14 * 0x21 + 0x1c, local_10);
     }
@@ -6633,16 +6633,14 @@ struct Inter_Monitor_RegisterBlackListResultPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=74（ORIG 0x84d0de0）：P226 具名 bool/char 落槽+N18a 单段 regmove+P30/N4 add-vs-lea。
 int Inter_Monitor_RegisterBlackListResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_Monitor_RegisterBlackListResultPktView* pPkt = reinterpret_cast<Inter_Monitor_RegisterBlackListResultPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
+    Inter_Monitor_RegisterBlackListResultPktView* pPkt = reinterpret_cast<Inter_Monitor_RegisterBlackListResultPktView*>(data);
     PacketGuard packet;
     packet.put_header(1, 0x79);
 
-    const unsigned char result =
-        pPkt->m_30;
-    if (result == '\x01')
+    if (pPkt->m_30 == '\x01')
     {
         if (!user->registerToBlackList(
                 pPkt->m_2c))
@@ -6660,28 +6658,28 @@ int Inter_Monitor_RegisterBlackListResult::dispatch_sig(CUser* user, char* data,
             packet.put_byte(1);
         }
     }
-    else if (result == '\x02')
+    else if (pPkt->m_30 == '\x02')
     {
         packet.put_byte(0);
         packet.put_int(0x4a);
     }
-    else if (result == '\x03')
+    else if (pPkt->m_30 == '\x03')
     {
         packet.put_byte(0);
         packet.put_int(0x4c);
     }
-    else if (result == '\x04')
+    else if (pPkt->m_30 == '\x04')
     {
         packet.put_byte(0);
         packet.put_int(0x4e);
     }
-    else if (result == '\x05')
+    else if (pPkt->m_30 == '\x05')
     {
         packet.put_byte(0);
         packet.put_int(0x5a);
     }
 
-    const size_t local_10 = strlen(pPkt->m_e);
+    const int local_10 = (int)strlen(pPkt->m_e);
     packet.put_int(local_10);
     packet.put_str(pPkt->m_e, local_10);
     packet.finalize(true);
@@ -6773,10 +6771,10 @@ struct Inter_Monitor_RequestBlackListResultPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=56（ORIG 0x84d0ba6）：P30/N4 add-vs-lea。
 int Inter_Monitor_RequestBlackListResult::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_Monitor_RequestBlackListResultPktView* pPkt = reinterpret_cast<Inter_Monitor_RequestBlackListResultPktView*>(data);
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
 
+    Inter_Monitor_RequestBlackListResultPktView* pPkt = reinterpret_cast<Inter_Monitor_RequestBlackListResultPktView*>(data);
     PacketGuard packet;
     packet.put_header(1, 0x7b);
     packet.put_byte(1);
@@ -6788,7 +6786,7 @@ int Inter_Monitor_RequestBlackListResult::dispatch_sig(CUser* user, char* data, 
              i < (int)(unsigned int)pPkt->m_e;
              ++i)
         {
-            const size_t nameLen = strlen(data + i * 0x28 + 0x13);
+            const int nameLen = (int)strlen(data + i * 0x28 + 0x13);
             if (nameLen == 0)
             {
                 LogManager::logFormat(
@@ -6868,7 +6866,9 @@ struct Inter_MonitorNoticeBlackListPktView
     char m_pad0[3];               // +0x0
     union
     {
-        unsigned int m_ids[260];  // +0x3（ORIG `mov 0x3(%eax,%edx,4),%eax`；容量上界 len/4）
+        // P311 二维视图：`m_ids[1][i]` 地址等价旧 `m_ids[i+4]`，但 4.4 对常量首维发
+        // `add $0x4,%edx`（ORIG 形）而非 `lea 0x4(%eax),%edx`；sizeof 1040 不变。
+        unsigned int m_ids[65][4];  // +0x3（ORIG `mov 0x3(%eax,%edx,4),%eax`；容量上界 len/4）
         struct
         {
             char m_pad3[0xf];     // +0x3..+0x11
@@ -6879,8 +6879,8 @@ struct Inter_MonitorNoticeBlackListPktView
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=NEAR ndiff=2（ORIG 0x084d0b3a）：块序重排(N104/P223)+槽序/帧差(N82/P212/P221)；gap0。
-// [b28d-solo-InterDispatcher] verdict=NEAR ndiff=2（ORIG 0x84d0b3a）：4.4 恒 base-first、
-// 4.1 恒 index-first（两条 mov 顺序互换，语义/条数全等）⇒ N4/P30 封顶。
+// [b28d-solo-InterDispatcher] verdict=AE ndiff=0（本轮修：P311 二维数组视图 m_ids[1][i]
+// 复现 ORIG `add $0x4,%edx`+`mov 0x3(%eax,%edx,4)`；类型化 recv 出 index-first 装载序）。
 int Inter_MonitorNoticeBlackList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -6889,11 +6889,11 @@ int Inter_MonitorNoticeBlackList::dispatch_sig(CUser* user, char* data, int /*le
     // [b28d-lane2] 实测三形：①两独立视图 cast=NEAR 2（装载序反）；②union 视图+char* recv=NEAR 2；
     //   ③union 视图+类型化 recv=DIFF 3（装载序正但 `lea 0x4(%eax),%edx` vs ORIG `add $0x4,%edx`
     //   + i 落 %eax vs %edx）。取②（残差最小）。add-vs-lea 与寄存器名属 P30/N4 结构性伪影。
-    char* recv = data;
-    for (int i = 0; i < (int)(unsigned char)reinterpret_cast<Inter_MonitorNoticeBlackListPktView*>(recv)->m_hdr.m_12; ++i)
+    Inter_MonitorNoticeBlackListPktView* recv =
+        reinterpret_cast<Inter_MonitorNoticeBlackListPktView*>(data);
+    for (int i = 0; i < (int)(unsigned char)recv->m_hdr.m_12; ++i)
     {   // ORIG 0x084d0b73 mov 0x3(%eax,%edx,4),%eax：具名数组视图 [i+4] 保 add $4+disp3 折叠形
-        user->registerToBlackList(
-            reinterpret_cast<Inter_MonitorNoticeBlackListPktView*>(recv)->m_ids[i + 4]);
+        user->registerToBlackList(recv->m_ids[1][i]);
     }
     return 0;
 }
@@ -7770,10 +7770,10 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
 
     PacketGuard packet;
     packet.put_header(0, 0x93);
-    const size_t local_14 = strlen(pPkt->m_30);
+    const int local_14 = (int)strlen(pPkt->m_30);
     packet.put_int(local_14);
     packet.put_str(pPkt->m_30, local_14);
-    const size_t local_10 = strlen(pPkt->m_12);
+    const int local_10 = (int)strlen(pPkt->m_12);
     packet.put_int(local_10);
     packet.put_str(pPkt->m_12, local_10);
     packet.finalize(true);
@@ -7852,10 +7852,10 @@ struct Inter_ReplyGuildInviteToCallerPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=19（ORIG 0x84d2f6e）：N22 cmp 操作数方向+P30/N4 add-vs-lea。
 int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_ReplyGuildInviteToCallerPktView* pPkt = reinterpret_cast<Inter_ReplyGuildInviteToCallerPktView*>(data);
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
 
+    Inter_ReplyGuildInviteToCallerPktView* pPkt = reinterpret_cast<Inter_ReplyGuildInviteToCallerPktView*>(data);
     // ORIG 0x084d2f**：m_a/m_12 各处独立 reload（P48 无 CSE，无具名槽）。
     if (user->get_charac_no(-1) != pPkt->m_a)
     {
@@ -7891,9 +7891,9 @@ int Inter_ReplyGuildInviteToCaller::dispatch_sig(CUser* user, char* data, int /*
     // ORIG ja：unsigned 比较（signed jg 形不符）。
     if ((unsigned int)pPkt->m_12 < 2u)
     {
-        const size_t msgLen = strlen(pPkt->m_16);
-        packet.put_int((int)msgLen);
-        packet.put_str(pPkt->m_16, (int)msgLen);
+        const int msgLen = (int)strlen(pPkt->m_16);
+        packet.put_int(msgLen);
+        packet.put_str(pPkt->m_16, msgLen);
     }
     packet.finalize(true);
     user->Send(packet);
@@ -8079,10 +8079,10 @@ struct Inter_ReplyGuildSecedePktView
 int Inter_ReplyGuildSecede::dispatch_sig(CUser* user, char* data, int len)
 {
     // ORIG 无 len 槽（Ghidra local_28 系 PG 内部视图误标）；pPkt 入口即物化 -0x24。
-    Inter_ReplyGuildSecedePktView* pPkt = reinterpret_cast<Inter_ReplyGuildSecedePktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
+    Inter_ReplyGuildSecedePktView* pPkt = reinterpret_cast<Inter_ReplyGuildSecedePktView*>(data);
     if (user->get_charac_no(-1) != pPkt->m_10)
     {
         LogManager::logFormat(
@@ -8108,10 +8108,10 @@ int Inter_ReplyGuildSecede::dispatch_sig(CUser* user, char* data, int len)
     {   // 退会成功
         packet.put_byte(1);
         packet.put_byte(pPkt->m_1c);
-        const size_t local_24 = strlen(pPkt->m_3b);
+        const int local_24 = (int)strlen(pPkt->m_3b);
         packet.put_int(local_24);
         packet.put_str(pPkt->m_3b, local_24);
-        const size_t local_20 = strlen(pPkt->m_1d);
+        const int local_20 = (int)strlen(pPkt->m_1d);
         packet.put_int(local_20);
         packet.put_str(pPkt->m_1d, local_20);
         packet.finalize(true);
@@ -11055,10 +11055,10 @@ struct Inter_ResposncePCRoomPlyerListEntryWinView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=163（ORIG 0x84d9cbe）：N22 cmp 操作数方向+N18a 单段 regmove+P30/N4 add-vs-lea。
 int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_ResposncePCRoomPlyerListPktView* pPkt = reinterpret_cast<Inter_ResposncePCRoomPlyerListPktView*>(data);
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
+    Inter_ResposncePCRoomPlyerListPktView* pPkt = reinterpret_cast<Inter_ResposncePCRoomPlyerListPktView*>(data);
     PacketGuard packet;
     if (user->GetPCRoomNo() == 0)                      // 非网吧用户回执拒绝
     {
@@ -11224,19 +11224,19 @@ struct Inter_NoticePowerWarRankPktView
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=38（ORIG 0x084d4f46）：混合残差；gap+5。
-// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=39（ORIG 0x84d4f46）：N82/P112 帧槽平移+P30/N4 add-vs-lea。
+// [b28d-solo-InterDispatcher] verdict=AE ndiff=0（本轮修：P227 全表达式临时链 + 删 (int)
+// 冗余 cast + SetPowerWarUserRankingInfo 实参改 `&pPkt->m_a`（走槽读））。
 int Inter_NoticePowerWarRank::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_NoticePowerWarRankPktView* pPkt = reinterpret_cast<Inter_NoticePowerWarRankPktView*>(data);
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x368e, 0);
-    trace("RECV Packet_Notice_Power_War_Rank ranker 1:%d, 2:%d, 3:%d",
-          (int)pPkt->m_a,
-          (int)pPkt->m_e,
-          (int)pPkt->m_12);
+    // P227：ORIG 在 ctor 前把三字段载入 %edi/%esi/%ebx 跨 ctor 保活 ⇒ 全表达式临时链。
+    cMyTrace(__PRETTY_FUNCTION__, 0x368e, 0)(
+        "RECV Packet_Notice_Power_War_Rank ranker 1:%d, 2:%d, 3:%d",
+        pPkt->m_a,
+        pPkt->m_e,
+        pPkt->m_12);
     GlobalData::s_power_manager->SetPowerWarUserRankingInfo(
-        reinterpret_cast<unsigned int*>(data + 0xa));
+        reinterpret_cast<unsigned int*>(&pPkt->m_a));
     return 0;
 }
 
@@ -11458,10 +11458,10 @@ struct Inter_NoticeGuildMemoPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=60（ORIG 0x84dad96）：N22 cmp 操作数方向+P30/N4 add-vs-lea。
 int Inter_NoticeGuildMemo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_NoticeGuildMemoPktView* pPkt = reinterpret_cast<Inter_NoticeGuildMemoPktView*>(data);
     if (user->get_state() == 0)
         return 0;
 
+    Inter_NoticeGuildMemoPktView* pPkt = reinterpret_cast<Inter_NoticeGuildMemoPktView*>(data);
     // ORIG：register 形态（`mov 0xe(%eax),%ebx`+`cmp %eax,%ebx`）。
     register unsigned int charIdMsg = pPkt->m_e;
     if (charIdMsg != user->get_charac_no(-1))
@@ -11469,10 +11469,10 @@ int Inter_NoticeGuildMemo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     PacketGuard packet;
     packet.put_header(0, 0xc5);
-    const size_t memo1Len = strlen(pPkt->m_12);       // memo 串 1
+    const int memo1Len = (int)strlen(pPkt->m_12);       // memo 串 1
     packet.put_int(memo1Len);
     packet.put_str(pPkt->m_12, memo1Len);
-    const size_t memo2Len = strlen(pPkt->m_30);       // memo 串 2
+    const int memo2Len = (int)strlen(pPkt->m_30);       // memo 串 2
     packet.put_int(memo2Len);
     packet.put_str(pPkt->m_30, memo2Len);
     packet.finalize(true);
@@ -12486,24 +12486,24 @@ Inter_LoadPowerWarInfo::~Inter_LoadPowerWarInfo() {}
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
 struct Inter_LoadPowerWarInfoPktView
 {
-    unsigned int m_0;         // +0x00
-    unsigned int m_4;         // +0x04
+    int m_0;                  // +0x00（P211：与 SetPowerInfo 形参同型 ⇒ 4.4 单段直落 callee-saved）
+    int m_4;                  // +0x04
     unsigned char m_8;        // +0x08
 };
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=41（ORIG 0x084dcf4a）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap0。
-// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=48（ORIG 0x84dcf4a）：N18a 单段 regmove+N82/P112 帧槽平移+P30/N4 add-vs-lea。
+// [b28d-solo-InterDispatcher] verdict=AE ndiff=0（本轮修：P227 全表达式临时链 + 字段 int
+// 同型化（m_0/m_4 与 SetPowerInfo 形参同型 ⇒ 单段直落 callee-saved））。
 int Inter_LoadPowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_LoadPowerWarInfoPktView* pPkt = reinterpret_cast<Inter_LoadPowerWarInfoPktView*>(data);
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x483a, 0);
-    trace("Receive SIG_LOAD_POWER_WAR_INFO(Winner:%d, A:%d, B:%d)",
-          (int)(signed char)pPkt->m_8,
-          (int)pPkt->m_0,
-          (int)pPkt->m_4);
+    // P227：ORIG 在 ctor 前把三字段载入 %edi/%esi/%ebx 跨 ctor 保活 ⇒ 全表达式临时链。
+    cMyTrace(__PRETTY_FUNCTION__, 0x483a, 0)(
+        "Receive SIG_LOAD_POWER_WAR_INFO(Winner:%d, A:%d, B:%d)",
+        (signed char)pPkt->m_8,
+        pPkt->m_0,
+        pPkt->m_4);
     GlobalData::s_power_manager->SetPowerInfo(
         (char)pPkt->m_8,
         pPkt->m_0,
@@ -13392,7 +13392,8 @@ struct Inter_GuildCargoUpgradePktView
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=31（ORIG 0x084ded42）：槽序/帧差(N82/P212/P221)+混合残差；gap0。
-// [b28d-solo-InterDispatcher] verdict=DIFF（ORIG 0x84ded42）：本轮修 P272 分支极性+P196 字段 uchar 化+P0 删具名槽（p167 CLEAR）；余 N7 call 结果寄存器 %eax vs ORIG %edx（4.4.6 后端复测同读数）。
+// [b28d-solo-InterDispatcher] verdict=AE ndiff=0（本轮修：P272 分支极性+P196 字段 uchar 化+
+// P0 删具名槽；末处删 `(int)` cast ⇒ 字段 unsigned 与 callee int 异型触发 edx 中转，与 ORIG 全等）。
 int Inter_GuildCargoUpgrade::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_GuildCargoUpgradePktView* pPkt = reinterpret_cast<Inter_GuildCargoUpgradePktView*>(data);
@@ -13401,7 +13402,7 @@ int Inter_GuildCargoUpgrade::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     // P0：ORIG 无该局部槽（`mov %eax,%edx` 表达式直比）⇒ 内联，禁具名缓存。
     // ORIG `cmp %eax,%edx`（dst=call 结果）⇒ 书写序以 callee 调用为左操作数。
-    if (user->get_charac_no(-1) != (int)pPkt->m_e)
+    if (user->get_charac_no(-1) != pPkt->m_e)
         return 0;
 
     PacketGuard packet;
@@ -14396,7 +14397,7 @@ int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_header(0, 0x10f);
     packet.put_int((int)pPkt->m_12);
     for (int i = 0; i < (int)pPkt->m_12; ++i)
-        packet.put_binary(reinterpret_cast<char*>(pPkt) + i * 0x29 + 0x16, 0x29);
+        packet.put_binary(reinterpret_cast<char*>(pPkt) + 0x10 + i * 0x29 + 0x6, 0x29);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -14485,7 +14486,7 @@ int Inter_AddPvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
             packet.put_header(1, 0x121);
             packet.put_byte(1);
             packet.put_byte(pPkt->m_13);
-            const size_t local_14 = strlen(pPkt->m_14);
+            const int local_14 = (int)strlen(pPkt->m_14);
             packet.put_int(local_14);
             packet.put_str(pPkt->m_14, local_14);
             packet.finalize(true);
@@ -15543,7 +15544,8 @@ struct Inter_SendPeriodicMessagePktView
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=12（ORIG 0x084e3232）：块序重排(N104/P223)+寄存器中转(N18a/N7)+混合残差；gap0。
-// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=8（ORIG 0x84e3232）：混合残差（寄存器分配/槽序：N7/N18a/N82/P112）。
+// [b28d-solo-InterDispatcher] verdict=AE ndiff=0（本轮修：`ret = 0;` 移入 PacketGuard
+// 作用域内，复现 ORIG「ret 物化 → dtor → jmp 汇合」顺序）。
 int Inter_SendPeriodicMessage::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     // ORIG 0x084e3232：recv 槽 -0xc 处处 reload（(unsigned long) 往返破 4.4 SSA 传播，技巧26）；
@@ -15566,8 +15568,8 @@ int Inter_SendPeriodicMessage::dispatch_sig(CUser* /*user*/, char* data, int /*l
             packet.put_str(recv + 0xa, strlen(recv + 0xa));
             packet.finalize(true);
             G_GameWorld()->send_all_with_state(packet, 3);
+            ret = 0;
         }
-        ret = 0;
     }
     return ret;
 }
@@ -15908,8 +15910,8 @@ struct Inter_ApproveJoinGuildPktView
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=82（ORIG 0x084e3f0e）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-1。
-// [b28d-solo-InterDispatcher] verdict=DIFF ndiff=57（ORIG 0x84e3f0e）：cmp 方向经 int 同型化
-// 已翻正；余 N82/P112 帧槽平移 + P30/N4 add-vs-lea + errCode 分支布局。
+// [b28d-solo-InterDispatcher] verdict=AE ndiff=0（本轮修：删具名 errCode 局部，条件与
+// put_byte 实参内联 pPkt->m_a ⇒ ORIG 的逐次重读形 + 帧归位）。
 int Inter_ApproveJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_ApproveJoinGuildPktView* pPkt = reinterpret_cast<Inter_ApproveJoinGuildPktView*>(data);
@@ -15921,14 +15923,12 @@ int Inter_ApproveJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (charIdMsg != user->getCurCharacNo())
         return 0;
 
-    const unsigned int errCode = pPkt->m_a;
-
     PacketGuard packet;
     packet.put_header(1, 0x15f);
-    if (errCode != 0)
+    if (pPkt->m_a != 0)
     {
         packet.put_byte(0);
-        packet.put_byte((int)errCode);
+        packet.put_byte((int)pPkt->m_a);
         packet.put_int(pPkt->m_16);
     }
     else
@@ -15981,14 +15981,14 @@ int Inter_GuildJoinList::dispatch_sig(CUser* user, char* data, int /*len*/)
         char* const entry = local_1c + local_18 * 0x44;
     Inter_GuildJoinListEntryWinView* pWin_entry = reinterpret_cast<Inter_GuildJoinListEntryWinView*>(entry);
         packet.put_int(pWin_entry->m_4);
-        const size_t local_14 = strlen(entry + 0x08);
+        const int local_14 = (int)strlen(entry + 0x08);
         packet.put_int(local_14);
         packet.put_str(entry + 0x08, local_14);
         packet.put_byte(pWin_entry->m_26);
         packet.put_byte(pWin_entry->m_27);
         packet.put_byte(pWin_entry->m_29);
         packet.put_byte(pWin_entry->m_28);
-        const size_t local_10 = strlen(entry + 0x2a);
+        const int local_10 = (int)strlen(entry + 0x2a);
         packet.put_int(local_10);
         packet.put_str(entry + 0x2a, local_10);
         packet.put_int(pWin_entry->m_44);
@@ -16431,11 +16431,11 @@ struct Inter_MonitorNoticeGuildChatMsgHyperLinkPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=96（ORIG 0x84e503c）：N22 cmp 操作数方向+N18a 单段 regmove+P30/N4 add-vs-lea。
 int Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_MonitorNoticeGuildChatMsgHyperLinkPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildChatMsgHyperLinkPktView*>(data);
     if (user->get_state() == 0)                        // test eax; sete
         return 0;
 
-    const int characNo =                               // msg+0xe
+    Inter_MonitorNoticeGuildChatMsgHyperLinkPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildChatMsgHyperLinkPktView*>(data);
+    register int characNo =                            // msg+0xe（P231：ORIG 落 %ebx 无槽）
         pPkt->m_e;
     if (user->get_charac_no(-1) != characNo)
     {
@@ -16452,9 +16452,9 @@ int Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig(CUser* user, char* da
     packet.put_header(0, 0x173);
     packet.put_byte(6);
     packet.put_byte(0);
-    const size_t msgLen = strlen(pPkt->m_12);
-    packet.put_int((int)msgLen);
-    packet.put_str(pPkt->m_12, (int)msgLen);
+    const int msgLen = (int)strlen(pPkt->m_12);
+    packet.put_int(msgLen);
+    packet.put_str(pPkt->m_12, msgLen);
     packet.put_byte(0);
     const unsigned int linkLen =
         (unsigned int)pPkt->m_169;

@@ -495,10 +495,10 @@ bool CUser::Parsing(int received)
 bool CUser::SetSkillLevel(int skillIdx, int level)
 {
     // b28d-52：ORIG 0x0867b528 `movzbl 0x711d8(%eax); xor $1; test; jne` =
-    // `!m_gmUserFlag`（P248② bool 字段 + 裸 !field；该偏移 = Client_Spec+0xbfc，
+    // `!m_gmUserFlag`（P248② bool 字段 + 裸 !field；该偏移 = CUser+0x711d8，
     // CUser+0x705dc 的 m_clientSpec）。原裸偏移 `!= 1` 违反 §4.3 且产 cmp $1/jne。
     // 短路汇聚形（P214①）：`if (!flag || getCurCharacR() == 0) return 0;`
-    if (!m_clientSpec.m_gmUserFlag || getCurCharacR() == 0)
+    if (!m_gmUserFlag || getCurCharacR() == 0)
         return 0;
 
     // P0/P36：ORIG job 无槽（%ebx 跨 G_CDataManager 保活）⇒ 内联实参。

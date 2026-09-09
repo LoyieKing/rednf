@@ -488,7 +488,7 @@ void CDeathTowerRanking::init(unsigned int type)
     // 变量槽序 -0x14/-0x10 vs -0x18/-0x14 + ORIG push %ebx（N82/N93）⇒ 封顶。
     // [b28d-solo-CDeathTower] P2：ORIG 0x084680c0 尾测 `setle`（有符号）⇒ 循环
     // 变量 int（unsigned 生 setbe）。
-    for (register int tower = 0; tower <= 4; ++tower)
+    for (int tower = 0; tower <= 4; ++tower)
     {
         for (int slot = 1; slot <= 5; ++slot)
             m_towers[tower].m_slots[slot].m_flag90 = 0;
@@ -502,10 +502,11 @@ void CDeathTowerRanking::init(unsigned int type)
         std::memcpy(m_towers[tower].m_slots[5].m_memberData[0], "EEEEEE", 7);
         for (int slot = 1; slot <= 5; ++slot)
         {
-            stBestRecord_t& rec = m_towers[tower].m_slots[slot];
-            rec.m_field94 = static_cast<int>(slot);
-            rec.m_playTime = 0;
-            rec.m_stage = 200 - slot;
+            // [b28d-solo-CDeathTower] P183 地址重物化：ORIG 0x084681d6/084681fb/
+            // 08468220 三次独立 imul 链，无 rec 引用缓存槽。
+            m_towers[tower].m_slots[slot].m_field94 = static_cast<int>(slot);
+            m_towers[tower].m_slots[slot].m_playTime = 0;
+            m_towers[tower].m_slots[slot].m_stage = 200 - (unsigned int)slot;
         }
     }
     m_tableType = type;
@@ -703,17 +704,21 @@ bool CDeathTower::onLeaveUser(CUser* user)
     {
         // ORIG 0x0846378d：state = (char)m_party->m_battleField.m_bloodState（+0xcd8 低字节）
         char state = (char)m_party->m_battleField.m_bloodState;
-        m_party->getMemberNames(memberNames);   // char* 返回（ORIG W 转发 _getMemberNames）
+        // [b28d-solo-CDeathTower] ORIG 0x084637b1 `mov %eax,%ebx` + 0x084637d6
+        // `mov %ebx,0xc(%esp)`：getMemberNames 返回值（char*）直接作 LeaveDungeon
+        // 第 3 参（非传 memberNames 数组地址）。
         user->m_historyLog.LeaveDungeon(
-            m_dungeonMgr.getDungeon()->GetDungeonName(), 0, memberNames, state);
+            m_dungeonMgr.getDungeon()->GetDungeonName(), 0,
+            m_party->getMemberNames(memberNames), state);
     }
 
     // [b28d-solo-CDeathTower] ORIG 0x084637f7..0x08463845：m_party && getDungeon()!=0，
     // 再重调 getDungeon()->get_index()（P183 重物化，getDungeon 共 2 次）。
     if (m_party && m_dungeonMgr.getDungeon() != 0)
     {
-        CDungeonEntranceLog* entranceLog = GetInstanceDungeonEntranceLog();
-        entranceLog->DecrementDungeonEntrance(
+        // [b28d-solo-CDeathTower] ORIG 0x0846382f/0x08463831：get_index 结果先落
+        // %ebx 跨 GetInstanceDungeonEntranceLog 保活（P52 链式单表达式，无具名槽）。
+        GetInstanceDungeonEntranceLog()->DecrementDungeonEntrance(
             m_dungeonMgr.getDungeon()->get_index(), false);
     }
 
@@ -1373,7 +1378,7 @@ void CDeathTower::_onStartDeathTower()
         // int，enum→int 折叠；且改形参类型会改 mangled）⇒ N18a/P248 档③封顶。
         user->m_historyLog.EnterDungeon(
             m_dungeonMgr.getDungeon()->GetDungeonName(), 0, memberNames,
-            m_party->m_battleField.m_bloodState);
+            m_party->m_battleField.m_bloodStateE);
         // [b28d-solo-CDeathTower] P183：ORIG 每使用点重调 getCurCharacQuestW（×2）
         // 与 getDungeon（×2）；UserQuest +0x75d8 = m_authenData。
         user->getCurCharacQuestW()->m_authenData.reset();
@@ -2055,41 +2060,40 @@ int CDeathTower::handleFinishLoading(CUser* user)
 
 int CDeathTower::handleDieUser(CUser* user)
 {
-    // [b28d-solo-CDeathTower] verdict=DIFF（orig 102 / our 106，ndiff 45）：P167 CLEAR 15/15。
-    // 已修 P191 双初始化（两条 movl $0）+ P0 内联 `user->get_unique_id()`（去 uid 具名槽：
-    // ORIG 0x08465a.. `movzwl %ax,%eax` 直传）。残差 = ①`get_user(i)==user` ORIG sete 物化
-    // vs 4.4 jne+mov$1/$0 岛（P197④/N122：4.4 对槽比恒直跳，语句表达式/P226 实测不产 sete）；
-    // ②帧 0x20 vs 0x30（N115 outgoing 预留 +0x10）⇒ N 封顶。
-    // [b28d-solo-CDeathTower] P191：ORIG 0x0846595a/0x08465961 两条 `movl $0,-0xc`
-    // = 声明=0 + for-init=0 双写。
+    // [b28d-solo-CDeathTower] 修法：ORIG 0x08465a53 循环体内 body 后 `jmp` 跳出
+    //（0x08465a7b 再 jmp 到 0x08465a90）⇒ 源码是循环内 break、`_checkMemberDie()`
+    // 在循环**外**统一判定（此前写成循环内 return 1，CFG 不同）。P191 双初始化保留。
     int i = 0;
     for (i = 0; i <= 3; ++i)
     {
-        // [b28d-solo-CDeathTower] P226：ORIG 0x0846597d 为 `sete %al` 短路物化
-        //（checkValidUser 直跳 + get_user 结果寄存器直比 sete），4.4 裸 && 恒折
-        // jne 直跳 + mov$1/$0 岛 ⇒ 语句表达式包条件。
-        if (({ m_party->checkValidUser(i) && m_party->get_user(i) == user; }))
+        // [b28d-solo-CDeathTower] P225 推广：ORIG 两守卫各自 `test/sete + je`
+        // 同落 LOOP_END（0x08465989/0x084659ad 均 je 08465a7d）⇒ 源码为嵌套正向 if
+        //（continue 守卫形 4.4 恒产 xor/setne 反极性 + 中继岛）。
+        if (m_party->checkValidUser(i))
         {
-            if (!m_playData.isMemberAlive(i))
+            // ORIG 0x084659a8 `cmp 0xc(%ebp),%eax; sete %al; test %al,%al; je`。
+            if (m_party->get_user(i) == user)
             {
-                user->SendCmdErrorPacket((ENUM_CMDPACKET)0x2b, 0x12);
-                return 0;
-            }
-            m_playData.setMemberAlive(i, false);
+                if (!m_playData.isMemberAlive(i))
+                {
+                    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x2b, 0x12);
+                    return 0;
+                }
+                m_playData.setMemberAlive(i, false);
 
-            CPacketHandler packet;
-            // [b28d-solo-CDeathTower] P0：ORIG 0x08465a.. `movzwl %ax,%eax` 直传
-            // （无 uid 具名槽）⇒ 内联实参。
-            packet.makeDieState(user->get_unique_id());    // ORIG：死亡状态包
-            m_party->send_to_party(packet);
-
-            if (_checkMemberDie())
-            {
-                _onFinishStage();
-                _onPrepareFinishTower();
+                CPacketHandler packet;
+                // [b28d-solo-CDeathTower] P0：ORIG 0x08465a.. `movzwl %ax,%eax` 直传
+                // （无 uid 具名槽）⇒ 内联实参。
+                packet.makeDieState(user->get_unique_id());    // ORIG：死亡状态包
+                m_party->send_to_party(packet);
+                break;
             }
-            return 1;
         }
+    }
+    if (_checkMemberDie())
+    {
+        _onFinishStage();
+        _onPrepareFinishTower();
     }
     return 1;
 }

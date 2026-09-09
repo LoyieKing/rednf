@@ -96,7 +96,7 @@ public:
     virtual void OnReward(PvP_Room*, int winTeam, bool draw);  // 0x0855eb22
     virtual void OnCompleteLoad(CUser* user);                   // 0x0855e22c
     virtual int CheckJoinable(PvP_Room* room, CUser* user);    // 0x0855cf8c
-    virtual int CheckSeat(int seat);                            // 0x0855d058
+    virtual bool CheckSeat(int seat);                           // 0x0855d058（P292 bool）
     virtual bool CheckMatchable(IMatch* other);                 // 0x0855fa14
 
     // -- 非 IMatch 方法 --

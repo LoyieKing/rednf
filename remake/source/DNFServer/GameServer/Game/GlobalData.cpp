@@ -3354,8 +3354,12 @@ void WongWork::CSimpleSSO::init(MySQL* mysql)
             // [b28d-solo-GlobalData] 索引加法序两形（row*24+col / col+row*24）实测 4.4
             // 恒折 `add -0xc(%ebp),%eax` 内存版，ORIG 4.1 先 `mov col,%ecx` 寄存器版
             // ⇒ P30/N4 add-vs-mem 封顶（余 1 条 + 槽深差 4）。
-            m_keys[row][col].Initialize(strKeyTable_[row * 24 + col], 0x20,
-                                        CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
+            // [b28d-solo-GlobalData] 二维视图实测：ORIG 0x08602823 先
+            // `mov -0xc(%ebp),%ecx` 再 `add %ecx,%eax`（col 寄存器化），
+            // 一维展开式 4.4 恒折 `add -0xc(%ebp),%eax`。
+            m_keys[row][col].Initialize(
+                reinterpret_cast<const char* const (*)[24]>(strKeyTable_)[row][col],
+                0x20, CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
         }
     }
 }
@@ -4828,8 +4832,10 @@ bool CGM_Manager::LoadGmListFromDb()
     ok = m_db->exec(true);
     if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__, 0x1579, 0);
-        t("Failed to get GM list from DB.");
+        // [b28d-solo-GlobalData] P221 全表达式临时链：ORIG 三处 trace 各占
+        // 独立槽（-0x44/-0x34/-0x24），具名对象在 4.4 下复用同槽致帧浅 0x30。
+        cMyTrace(__PRETTY_FUNCTION__, 0x1579, 0)(
+            "Failed to get GM list from DB.");
         return false;
     }
     writeGuard<rwLock> guard(&m_lock);
@@ -4840,8 +4846,8 @@ bool CGM_Manager::LoadGmListFromDb()
         ok = m_db->get_int(0, mId);
         if (!ok)
         {
-            cMyTrace t(__PRETTY_FUNCTION__, 0x1588, 0);
-            t("Failed to get GM's m_id from DB.");
+            cMyTrace(__PRETTY_FUNCTION__, 0x1588, 0)(
+                "Failed to get GM's m_id from DB.");
             // [b28d-solo-GlobalData] ORIG 0x0829962x 该分支为 `mov $0x0,%ebx;
             // jmp <尾>`（直接物化返回寄存器）⇒ 原码是 `return false;` 而非
             // ok=false;break（后者多写 -0x11 槽且尾部经 movzbl 重载）。
@@ -4850,8 +4856,8 @@ bool CGM_Manager::LoadGmListFromDb()
         ok = m_db->get_int(1, level);
         if (!ok)
         {
-            cMyTrace t(__PRETTY_FUNCTION__, 0x158e, 0);
-            t("Failed to get GM's lv from DB.");
+            cMyTrace(__PRETTY_FUNCTION__, 0x158e, 0)(
+                "Failed to get GM's lv from DB.");
             return false;
         }
         m_gmMap[mId].m_level = level;

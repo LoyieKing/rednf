@@ -70,7 +70,7 @@ struct STGuildProxy;   // 仅指针引用（LoadCoolTimeItemInfo）；完整定�
 #include "CEnvironment.h"
 #include "GameTypes.h"
 #include "STEquipmentScript.h"
-#include "HWSpec.h"         // Client_Spec::m_specs[254]（ORIG C1 0x0822b8b0 构造区）
+#include "HWSpec.h"         // Client_Spec::m_specs[255]（ORIG C1 0x0822b8b0 循环 0xff 次）
 #include "GameEnums.h"      // ENUM_SKILL_TREE_KIND（master_new_skills 声明所需）
 #include "advancealtar.h"   // advancealtar::_CharacAdvanceAltarDbData / AdvanceAltarData
                             // （叶子头，仅 vector/map + CUser 前置声明；无重入环）
@@ -904,22 +904,12 @@ public:
 
     char m_pad0[4];         // +0x00..0x03（ctor 不触碰区）
     HWSpec m_specs[255];    // +0x04..0xbf7（ORIG ctor 0x0822b8b0 循环构造，0xff × 0xc = 0xbf4）
-    // ORIG IsOverBirthDay 0x0867ec66：三处 movzbl（无符号展宽）；值域来自客户端串
-    // atoi 可 ≥0x80，char 有符号读与 ORIG 分叉（P196 真 bug 型，CU19B probe 实证 uchar 全等）。
-    unsigned char m_birthDay;    // +0xbf8（0x711d4 IsOverBirthDay）
-    unsigned char m_birthMonth;  // +0xbf9（0x711d5 IsOverBirthDay）
-    char m_padbfa[2];       // +0xbfa..0xbfb
-    bool m_gmUserFlag;      // +0xbfc（0x711d8 isGMUser；ORIG movzbl 直返，bool 实证）
-    char m_padbfd[0xc00 - 0xbfd];  // +0xbfd..0xbff
-    // [b28d-solo-CUser 代落 P211 同型律] unsigned int→ENUM_GM_ITEM_UPGRADE：
-    // ORIG SetGMUpgradeMode 0x0822fea4 `mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx;
-    // mov %edx,0x711dc(%eax)` = LHS-first；探针实证 enum 字段+enum 形参 ⇒ LHS-first，
-    // uint 字段 ⇒ RHS-first。sizeof/偏移(0x711dc)/mangled 不变；消费点仅 CUser.cpp:3708 写。
-    ENUM_GM_ITEM_UPGRADE m_gmUpgradeMode;   // +0xc00（0x711dc）
-    unsigned int m_age;     // +0xc04（0x711e0；SetAge 0x08231c?? this-先载 ⇒ uint）
-    bool m_progLogout;      // +0xc08（0x711e4；IsProgLogout 0x082a6796 movzbl 直返⇒bool，char 会 movsbl/uchar 会 setne）
-    char m_padc09[3];       // +0xc09..0xc0b
-    int m_seedFromDate;     // +0xc0c（0x711e8）
+    // [b28d-Main·检查点14] 尾部 0x18 字节（原 m_birthDay..m_seedFromDate）**不属于**
+    // Client_Spec：ORIG ctor 0x0822b8b0 循环计数 esi=0xfe→0（cmp $-1;setne）共
+    // 0xff 次 HWSpec ⇒ sizeof = 4 + 0xff×0xc = 0xbf8；MSG_CLIENT_SPEC_STATISTIC
+    // 内嵌对象尺寸独立实证 0xbf8（ORIG dispatch_template 0x082556c2 `sub esp,0xc20`
+    // + `lea -0xc17(%ebp)` ⇒ 消息 0xc06 = 0xe + 0xbf8）。该 7 字段已迁至 CUser 本体
+    // （+0x711d4..+0x711eb，绝对偏移不变，见 CUser 类 m_clientSpec 之后）。
 };
 
 // ORIG _header —— 网络包头（13 字节，0x8647a54 memcpy 实证）：
@@ -2329,7 +2319,22 @@ public:
     unsigned int m_accId;                              // +0x704ac（set_acc_info 0x08649c02 this-先=成员×uint 形参全等直落；int 反产 arg-先，CUOC7 技巧5）
     char m_accName[0x128];                                  // +0x704b0..0x705d7
     int m_field705d8;                                       // +0x705d8
-    Client_Spec m_clientSpec;                               // +0x705dc
+    Client_Spec m_clientSpec;                               // +0x705dc（sizeof 0xbf8）
+    // [b28d-Main·检查点14] 原误置于 Client_Spec 尾部的 7 字段——ORIG 属 CUser 本体：
+    //   绝对偏移不变（+0x711d4..+0x711eb），故所有 `m_clientSpec.X` 消费点改为 `m_X`，
+    //   codegen（this+绝对偏移）逐条不变。证据：Client_Spec ctor 0x0822b8b0 只构造
+    //   0xff 个 HWSpec（4+0xbf4=0xbf8），且 CUser 布局注释「+0x705dc Client_Spec /
+    //   +0x711ec list<int>」在 0xbf8 下自洽（0x705dc+0xbf8=0x711d4）。
+    unsigned char m_birthDay;                               // +0x711d4（IsOverBirthDay movzbl；uchar 实证）
+    unsigned char m_birthMonth;                             // +0x711d5（IsOverBirthDay movzbl）
+    char m_pad711d6[2];                                     // +0x711d6..0x711d7
+    bool m_gmUserFlag;                                      // +0x711d8（isGMUser movzbl 直返⇒bool）
+    char m_pad711d9[3];                                     // +0x711d9..0x711db
+    ENUM_GM_ITEM_UPGRADE m_gmUpgradeMode;                   // +0x711dc（SetGMUpgradeMode enum×enum LHS-first）
+    unsigned int m_age;                                     // +0x711e0（SetAge this-先载 ⇒ uint）
+    bool m_progLogout;                                      // +0x711e4（IsProgLogout movzbl 直返⇒bool）
+    char m_pad711e5[3];                                     // +0x711e5..0x711e7
+    int m_seedFromDate;                                     // +0x711e8
     std::list<int> m_list711ec;                             // +0x711ec
     CPacketVerifier m_packetVerifier;                       // +0x711f4
     WongWork::CUserPremium m_premium;                       // +0x7121c
@@ -3140,7 +3145,9 @@ public:
     void SetGMUpgradeMode(ENUM_GM_ITEM_UPGRADE mode);
     bool isGMUser();
     bool IsGameMasterMode() const;
-    void SetGameMasterMode(bool flag);
+    // [b28d-Main·检查点14] S402 P159/P174：ORIG 0x086796dc 两路径尾均 `mov $0x1,%eax`
+    //   （+0x6d 恒返 1）⇒ 真实返回 bool；mangled 不含返回类型，符号名不变。
+    bool SetGameMasterMode(bool flag);
     bool GetEventCreateDnfReward();  // b28d-Main 代落(P292)：ORIG 0x08160cba 调用点 `call; xor $0x1,%eax; test %al,%al; je` ⇒ bool；字段 +0x8ec30 已 bool，体保持 movzbl 直返
     void SetPowerUp(bool flag);
     int SetETC(short key, int value);
@@ -3615,7 +3622,10 @@ public:
 
     int quest_reward(int questId, int selectIdx, int repeatN);
     bool Redeem_Item(int redeemId);  // b28c C28L13 SIGFIX 代落：ORIG 串 "bool CUser::Redeem_Item(int)"
-    unsigned int registerToBlackList(unsigned int accId);
+    // [b28d-Main·检查点14] S403 P292 档①：ORIG 调用点 0x084d0e51
+    //   `call; xor $0x1,%eax; test %al,%al; je` ⇒ callee bool（int 会产 test/sete）。
+    //   另两调用点 0x084d0b81/0x084d0d64 不用返回值。定义 0x0867efae 尾 mov $1/$0。
+    bool registerToBlackList(unsigned int accId);
     bool reqSendMailCertify();   // [b28d-Main·P292] unsigned int→bool（ORIG 调用点 `call; xor $0x1,%eax`）
     void requestCubePremiumInfoIfContracted();
     void reset_tag_info_to_me(unsigned int tagAccId);

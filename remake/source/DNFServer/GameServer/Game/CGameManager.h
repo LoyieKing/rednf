@@ -590,6 +590,10 @@ public:
     // ORIG _Z7getUserj @0x084bb9cf 直访 m_userByAccId2（反汇编 `call G_CGameManager;
     // lea 0x244(%eax),%edx` 无 getter call，证明成员直读）——广播 2026-09-05 无异议。
     friend CUser* getUser(unsigned int uid);
+    // ORIG TimerScheduleTenSecond 0x08637936 直访 +0x22c m_userByAccId
+    // （`call G_CGameManager; lea 0x22c(%eax),%edx`，-O0 无 inline getter 内联）；
+    // 广播 2026-09-09（S409）：friend 不改布局/sizeof/mangled。
+    friend class TimerScheduleTenSecond;
 
 private:
     Mutex m_mutex;                       // +0x000（0x18）

@@ -108,7 +108,7 @@ public:
     virtual void OnAskRematch(CUser* user, int a);           // 0x856664a0
     virtual void OnWaitRematch(CUser* user, PvP_Room* room); // 0x8566649a
     virtual int  CheckJoinable(PvP_Room* room, CUser* user);// 0x8562a6e
-    virtual int  CheckSeat(int a);                            // 0x8562b78（return a != 2）
+    virtual bool CheckSeat(int a);                            // 0x8562b78（return a != 2；P292 bool）
     virtual bool CheckMatchable(IMatch* other);               // 0x8565c54
     virtual int  GetEndPvPResultTimeout();                    // 0x8566（报告为准）
     virtual void OnEndPvPResult(PvP_Room* room, CUser* user);// 0x8566694c

@@ -1563,26 +1563,20 @@ void cUserHistoryLog::ItemLockUsingLog(unsigned char lockType, int a, int b, int
 
 // ORIG _ZN15cUserHistoryLog9CeraPointE23ENUM_CERAPOINT_LOG_TYPEj @0x0868593c：
 //   尾参为当前余额 CUser::GetCeraPoint()。
-// [b28d-solo-cUserHistoryLog] DIFF 19/20：N96+N18a 封顶——ORIG 把 GetCeraPoint 返回值留 %eax
-// 跨三条实参装载直落 0x10(%esp)；4.4 因 this 必须占 %eax 恒先 mov %eax,%ecx 转存（P0 清绑后
-// 绑定形 19/19 禁用，表达式直读为最优合法形）。
+// [b28d-solo-cUserHistoryLog] IDENTICAL 19/19：第三实参**去 (int) cast** 直传 unsigned
+// （GetCeraPoint 返回 unsigned int，vararg %d 位模式不变、语义等价）⇒ 4.4 复现 ORIG
+// 「balance 留 %eax / type 先入 %ecx 跨 receiver 保活 / receiver 用 %edx」装载序
+// （探针 /tmp/hlprobe/Game/probe3.cpp fB 与 ORIG 逐条同形；旧 fA 带 cast 多 mov %eax,%ecx）。
 void cUserHistoryLog::CeraPoint(ENUM_CERAPOINT_LOG_TYPE type, unsigned int amount)
 {
-    // b28c-L2 [P0 清绑 · 落 N96+P168a④]：原存 `register int balance __asm__("eax")`
-    // 已按 P0 硬约束清除。ORIG 0x0868593c（CeraPoint）形为 call 结果**留在 %eax**
-    // 并跨三条装载直落 `mov %eax,0x10(%esp)`（0x08685948/0x08685951）；4.4-O0 因
-    // LogHistory 的 this 必须再载入 %eax，恒先发 `mov %eax,%ecx` 转存 ⇒ 全段
-    // 寄存器错位（+1 insn，ndiff 9）。三形 fresh 联判：
-    //   ① 绑定形 asm("eax")  = 19/19 AE（P0 禁用，不采纳）
-    //   ② 表达式直读/内联实参 = 19/20 ndiff 9  ← 采用（最优合法形）
-    //   ③ 裸 register（无绑定）= 19/23 ndiff 14（强制 callee-saved + 帧破，
-    //      与 C28L20A 的 SetServerMessage 3→13 反例同族，不采纳；lane28 终版判据
-    //      亦证：仅当 ORIG 目标为 callee-saved 且值跨 callee call 时裸 register
-    //      才可能非劣化，本件 ORIG 目标为 caller-saved %eax ⇒ 一律不留）
-    // 属范式库 N18a/N96 反向判词：「call 结果零扩展值单段直落目标寄存器不可造」，
-    // P0 优先于 identical ⇒ 语义（call 序/实参宽度/格式串）与 ORIG 全等。
+    // 证据（ORIG 0x0868594f..0x08685971）：call GetCeraPoint 后
+    //   mov 0xc(%ebp),%ecx（type 先入 ecx）→ mov 0x8(%ebp),%edx; mov (%edx),%edx
+    //   → mov %eax,0x10(%esp)（balance 留 eax）→ mov 0x10(%ebp),%eax（amount）
+    //   → mov %eax,0xc(%esp) → mov %ecx,0x8(%esp) → call。
+    // 带 (int) 的第三实参（unsigned→int 转换节点）会使 4.4 把 balance 提前转存 %ecx
+    // （fA 20 条）；去掉转换节点即得 ORIG 19 条全等（P41 变体：冗余 cast 诱发寄存器改派）。
     m_user->LogHistory("CeraPoint,%d,%d,%d", (int)type, amount,
-                       (int)m_user->GetCeraPoint());
+                       m_user->GetCeraPoint());
 }
 
 // ORIG _ZN15cUserHistoryLog5LoginEPKcS1_iihi @0x08683d86（Login.md 全量转写）：

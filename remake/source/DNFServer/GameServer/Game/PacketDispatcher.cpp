@@ -2,14 +2,46 @@
 // 全部方法逐指令转写自 docs/class_func_reports/PacketDispatcher/ 与 objdump；
 // 注册表取自 ORIG ctor 0x8590a2e 的 new+槽位序列（顺序一致）。
 // ============================================================================
+// b28d-solo-S400 终态（fresh /tmp/tu_PacketDispatcher.o，check_tu_routed COMPILE OK，
+//   compare_tu clean 口径，2026-09-09）：
+//   本泳道清单 83 件 = **83/83 达标**（TU 计数 identical=393 ae=1645 near=0 diff=2；
+//   基线 393/1562/1/84。余 2 DIFF 均为清单外：`__static_initialization_and_destruction_0ii`
+//   =N123 噪音、`_ZNSt12_Vector_baseIN38MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON...D1Ev`
+//   =Main 另派）。TU 内全部 171 个 dispatch_template 实例 + doDispatch 亦全 AE/IDENTICAL。
+//   · **N7 族（82 件 dispatch_template）全歼**：S153/S161/S177/S316/S339 的「N7 结构性
+//     封顶」判词作废。根因不是「POD msg 物化序不可翻」，而是 **MSG_* 的继承建模**：
+//     ORIG 的 MSG_* 派生自**非空** MSG_BASE（基类含 char m_head[0xd]），调用点写隐式
+//     派生转换 `process(user, msg, param)`；我方原为 standalone POD（自带 m_head[0xd]）
+//     + `*reinterpret_cast<MSG_BASE*>(&msg)`。446 后端对后者恒 msg-first + 虚目标 %ecx，
+//     对前者恒 param-first + %edx（= ORIG 0x825ab73..0x825ab93 逐条同构）。
+//     探针 /tmp/pd_p5.cpp 三形定案：x1 空基类+派生自带 m_head ⇒ 仍 msg-first；
+//     x2 非空基类+派生不含 m_head ⇒ ORIG 形；x3 空基类+static_cast ⇒ 仍 msg-first。
+//     /tmp/pd_p2.cpp v1/v7..v14（C-cast / 双 cast / 语句表达式 / 逗号 / void* 两层 /
+//     先用 param）全部仍 msg-first ⇒ 唯一开关是「基类非空」。
+//     MSG=MSG_BASE 实例在隐式 `msg` 形下与 cast 形产物全等（/tmp/pd_p3.cpp w1≡w2）
+//     ⇒ N-MSG_BASE 族零回归。落地（Main 代落 + S400 复核）：PacketDispatcher.h
+//     MSG_BASE 保留 char m_head[0xd]；PacketTypes.h 79 类 `: public MSG_BASE` 且删除
+//     自带 m_head（MSG_CHANGE_SKILLSLOT 的 0xe 包头 → 基类 0xd + unsigned char m_head0d
+//     保 +0xe 负载）；模板实参改隐式 `msg`。
+//   · **doDispatch AE**：S339「DenyPacket 物化点不可翻」判词作废——P225 推广「拆嵌套 if」
+//     是钥匙：`if (A||B) { if (DenyPacket(cmd)) return 1; }` 逐条复现 ORIG
+//     0x8594b9a..0x8594bd5 的 mov$1/mov$0/test/je 物化岛（探针 /tmp/pd_p4.cpp n1；
+//     n2..n9 的三目/`!!`/语句表达式/while/`==true`/`!=0` 六形确实全败）。p167 40/40 CLEAR。
+//   · 两件曾 NEAR 的头级件均已经跨泳道修复（已上报 Main，S400 复核 AE）：
+//     ① MSG_DELETE_ITEM（116:116）：Main 落「本体 +0x4bf int m_checkSum，sizeof 0x4c3
+//        + 删 DisPatcherCore DeleteItemMsgTailView」⇒ AE（相关 check_state/C1/D0/D1 全 AE）。
+//     ② MSG_CLIENT_SPEC_STATISTIC（119:119）：缩 CUser.h Client_Spec −0x18 ⇒ AE。
+//   · P0：本文件 0 处 `register T x asm("reg")` 绑定（S400 grep 复核）；dispatch/
+//     doDispatch 的裸 `register` 为 P231/P307 合规存储类提示（非绑定形）。
+//   · 无子子代理（R4）。
 // b28d-solo-S153 终态（fresh /tmp/tu_PacketDispatcher.o，compare_tu clean 口径，2026-09-09）：
 //   清单 115 件 = 7 IDENTICAL_AE + 1 NEAR + 107 DIFF。
 //   · N-SIZE 族已落地：Main 落 PacketDispatcher.h `ParamBase` pack(1)；本泳道落 PacketTypes.h
 //     20 类尾部 pad/对齐（21 类实测槽差归零，逐类证据见各类注释与
 //     /tmp/b28d_solo_PacketDispatcher_sizepatch.md）⇒ MSG_RENAME_CREATURE/MSG_ENCHANT/
 //     MSG_COMPATIBILITY_INDEX 等 3 件 DIFF/NEAR→AE。
-//   · 余 2 类 Main 否决并封 N：MSG_DELETE_ITEM（+4 与 DisPatcherCore TailView assert@0x4bf
-//     冲突）、MSG_CLIENT_SPEC_STATISTIC（需缩 CUser.h Client_Spec，冻结头）。
+//   · 余 2 类曾封 N：MSG_CLIENT_SPEC_STATISTIC（需缩 CUser.h Client_Spec，冻结头）；
+//     MSG_DELETE_ITEM 已于检查点14 并入本体（m_checkSum@+0x4bf，sizeof 0x4c3）⇒ AE。
 //   · 剩余 107 DIFF = N7（4.4.6 虚目标 %ecx vs ORIG %edx + &msg/&param 物化序；三后端 +
 //     13 源形穷举封顶）与 N-MSG_BASE（空体 ctor 独立对象多发 3 条 call；P298 承载器因发明
 //     242 符号回退）。
@@ -151,9 +183,9 @@
 //     MSG_OBJECT_BRING_UP +1、MSG_MAILBOX_EXTRACT_ITEM +2、MSG_REQUEST_DISJOINT_ITEM +1、
 //     MSG_PVP_MISSION_COMBO_CLEAR +1、MsgLimitNpcBuyItem +1、MsgMercenaryCompetition +1、
 //     MsgMercenaryReturn +1 ⇒ 3 件 NEAR→AE（MSG_SELECT_STRIKER / MSG_STACKABLE_ACTION_USE /
-//     MsgTournamentRewardSelect）+ 11 件 DIFF 槽差归零。余 2 类封 N（Main 否决）：
-//     MSG_CLIENT_SPEC_STATISTIC（需缩 CUser.h Client_Spec）、MSG_DELETE_ITEM（与
-//     DisPatcherCore TailView assert@0x4bf 冲突）。
+//     MsgTournamentRewardSelect）+ 11 件 DIFF 槽差归零。余类封 N：MSG_CLIENT_SPEC_STATISTIC
+//     （需缩 CUser.h Client_Spec）；MSG_DELETE_ITEM 已于检查点14 并入本体
+//     （m_checkSum@+0x4bf，sizeof 0x4c3）⇒ AE。
 //   · **dispatch DIFF→AE**（本波最大收口，三处新范式，见函数头判词与 /tmp/pd_probe6.cpp）：
 //     ① N18a 翻转：`void***` 下标形恒两段 ⇒「单层解引用 `*reinterpret_cast<CheckFn*>((char*)*(void**)p + 0x3c)`
 //        + 纯 `register` 存储类提示」得 `mov (%eax),%esi` 单段直落（P231/P307 扩展）；
@@ -191,8 +223,8 @@
 //       符号（其他 TU STBaseRequest 消费）；`throw()` 实测 TU 计数零变化（无效）；
 //       char 缓冲载体（存储缓冲实验）对 82 件 MSG_* 实例大幅回退（ae −87）⇒ 回退，封顶。
 //     · N-SIZE（2 件）：MSG_CLIENT_SPEC_STATISTIC（NEAR，msg 槽差 0x18，需缩冻结头
-//       CUser.h Client_Spec）与 MSG_DELETE_ITEM（DIFF 8，msg +4 与 DisPatcherCore
-//       TailView assert@0x4bf 冲突）——Main 已否决，封顶。
+//       CUser.h Client_Spec）——Main 已否决，封顶；MSG_DELETE_ITEM 已并入本体
+//       （m_checkSum@+0x4bf，sizeof 0x4c3）⇒ AE。
 //   doDispatch（本波增量，DIFF 保留）：把 S161 的 `char framePad[4]` 改为末尾
 //     `const int limit = 0x7d0;`——同时复现 ORIG 0x08594dd0 的 `movl $0x7d0,-0xc(%ebp)`
 //     死写入（P171）与浅槽整体深 4（ORIG dispatcher@-0x20 vs 我方 -0x1c），且两者共用
@@ -222,9 +254,9 @@
 //       本 TU 丢 `_ZN8MSG_BASEC1Ev`，identical 394→393（Main 条件「identical+ae
 //       不得下降」⇒ 已完整回退，.h 与基线逐字节一致）。残余 N7 差异仍在，故即便
 //       保留也换不到 AE ⇒ 结构性封顶（消 call 与保符号不可兼得）。
-//     · 1 件 MSG_DELETE_ITEM（ndiff=8）+ 1 件 MSG_CLIENT_SPEC_STATISTIC（NEAR）：
-//       N-SIZE，Main 已否决（PacketTypes.h +4 与 DisPatcherCore TailView assert@0x4bf
-//       冲突 / 需缩冻结头 CUser.h Client_Spec）⇒ 封顶。
+//     · 1 件 MSG_CLIENT_SPEC_STATISTIC（NEAR）：N-SIZE，Main 已否决（需缩冻结头
+//       CUser.h Client_Spec）⇒ 封顶；MSG_DELETE_ITEM 已并入本体（m_checkSum@+0x4bf，
+//       sizeof 0x4c3）⇒ AE。
 //     · doDispatch：head+7 三处地址折叠用具名 pack(1) 视图收口（our 301→297，
 //       详见函数头判词），verdict 仍 DIFF（残余 setne 物化/短路岛/switch jmp）。
 //   P0：无 `register T x asm("reg")` 绑定（本波 grep 复核 0 处）。
@@ -252,8 +284,8 @@
 //     · 24 件 N-MSG_BASE（DIFF ndiff=94，116:119）——MSG_BASE 独立对象多 3 条
 //       lea+mov+call `_ZN8MSG_BASEC1Ev`（ORIG 4.1 前端展开空 ctor 为 0 条，P215）。
 //       抽样 MSG_BASE/stEnchantParam(state3) 确认 116:119。封顶不变。
-//     · 1 件 MSG_DELETE_ITEM（DIFF ndiff=8，116:116）与 1 件 MSG_CLIENT_SPEC_STATISTIC
-//       （NEAR，119:119）——N-SIZE，Main 已否决（PacketTypes.h 断言冲突 / CUser.h 冻结）。
+//     · 1 件 MSG_CLIENT_SPEC_STATISTIC（NEAR，119:119）——N-SIZE，Main 已否决
+//       （需缩 CUser.h Client_Spec）；MSG_DELETE_ITEM 已并入本体（m_checkSum@+0x4bf）⇒ AE。
 //     · doDispatch（DIFF ndiff 205→6，**300:300 gap 归零**，p167 40/40 CLEAR）：
 //       三项新钥匙落地（详见函数头 [b28d-solo-PacketDispatcher S339 终态]）：
 //       ① P225 `while (v != 0) { …; return 0; }` 复现两处槽比零 setne/test 物化（+4）；
@@ -1150,17 +1182,18 @@ bool PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
     packet.bind_packet(data, len);
     user->setLastPacketID((int)cmd);
 
-    // [b28d-solo-PacketDispatcher S339] DenyPacket 段（残余，封顶）：ORIG 0x08594b92..0x08594bb6 先把
+    // [b28d-solo-S400] DenyPacket 段（S339 判词推翻）：ORIG 0x08594b92..0x08594bb6 先把
     //   `(A||B)` 物化为寄存器 bool（`mov $1,%eax; jmp; mov $0,%eax; test %al,%al; je`，
-    //   无槽往返）再 `call DenyPacket`；4.4 恒把 DenyPacket 求值内联进 `&&` 短路链
-    //   （调用提前到物化之前，块内 6 行互换）。S339 穷举五形（P226 语句表达式只包左项
-    //   305 / 整条件语句表达式 300 同形 / 三目 `cond?DenyPacket:0` 297 / `!!` 双重取反
-    //   300 同形 / while 条件 303）——均不能把物化点移到 DenyPacket 之前，属 4.1 对
-    //   `&&` 左操作数的 bool 物化 lowering 差（P197④ 镜像族）⇒ 保留指令数全等的裸短路形。
-    if ((G_GameWorld()->GetChannelType() == 7 ||
-         G_GameWorld()->IsIntegratedPvPBaseChannel()) &&
-        DenyPacket((int)cmd))
-        return 1;
+    //   无槽往返）再 `call DenyPacket`。S339 穷举五形（P226 只包左项 / 整条件语句表达式 /
+    //   三目 / `!!` / while）均不可；**P225 推广的「拆嵌套 if」形是钥匙**：把 `(A||B) && X`
+    //   改写成 `if (A||B) { if (X) return 1; }` ⇒ 4.4 复现 ORIG 的物化岛
+    //   （探针 /tmp/pd_p4.cpp n1 与 ORIG 0x8594b9a..0x8594bd5 逐条同构；n2..n9 仍直落）。
+    if (G_GameWorld()->GetChannelType() == 7 ||
+        G_GameWorld()->IsIntegratedPvPBaseChannel())
+    {
+        if (DenyPacket((int)cmd))
+            return 1;
+    }
 
     // [b28d-solo-PacketDispatcher S339] P171 照抄：ORIG 0x08594bd5 段在 `cmpw $0x25b` 前**无**
     //   `movl $0x0,-0x1c(%ebp)`（tick0 只在 cmd==0x25b 分支内赋值，非 0x25b 路径不读）

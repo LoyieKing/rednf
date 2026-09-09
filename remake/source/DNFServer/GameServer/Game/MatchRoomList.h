@@ -80,7 +80,10 @@ public:
     { (void)user; (void)room; }                                 // +0x6c
     virtual int CheckJoinable(PvP_Room* room, CUser* user)
     { (void)room; (void)user; return 0; }                       // +0x70
-    virtual int CheckSeat(int a) { (void)a; return 1; }         // +0x74
+    // [b28d-Main·检查点14] S406 P292：ORIG 调用点 0x085dd0e9 `call %ecx; xor $0x1,%eax;
+    //   test %al,%al; je`（PvP_Room::OnSetPVPSeatState）⇒ 虚函数返回 bool。
+    //   mangled 不含返回类型 ⇒ 4 个实现符号名不变、vtable 布局不变。
+    virtual bool CheckSeat(int a) { (void)a; return true; }     // +0x74
     virtual bool CheckMatchable(IMatch* other)
     { (void)other; return true; }                               // +0x78
     virtual int GetEndPvPResultTimeout() { return 10000; }      // +0x7c

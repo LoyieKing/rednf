@@ -4563,25 +4563,16 @@ int DisPatcher_SendMess::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 int DisPatcher_SendMess::process(CUser* /*user*/, MSG_BASE& /*msg*/, ParamBase& /*param*/) { return 0; }
 
 DisPatcher_DeleteItem::~DisPatcher_DeleteItem() {}
-// TU 局部线格式视图：ORIG check_error(0x081c1a6c) 以单指令 disp `mov 0x4bf(%edx),%edx`
-// 读 MSG_DELETE_ITEM 尾后 4B（包尾校验和，+0x4bf）。MSG_DELETE_ITEM sizeof=0x4bf
-// （PacketTypes.h 冻结，包体止于 m_countArr[99]），补派生视图表达该字段；
-// 待 Main 解冻后可并入权威头。
-#pragma pack(push, 1)
-struct DeleteItemMsgTailView : MSG_DELETE_ITEM
-{
-    int m_checkSum;   // +0x4bf（线格式尾校验和，证据 0x081c1a66 mov 0x4bf(%edx)）
-};
-#pragma pack(pop)
-static_assert(offsetof(DeleteItemMsgTailView, m_checkSum) == 0x4bf, "checkSum off");
+// [b28d-Main·检查点14] 原 TU 局部视图 DeleteItemMsgTailView 已删除：
+//   m_checkSum 现为 MSG_DELETE_ITEM 本体字段（+0x4bf，PacketTypes.h）。
 // ORIG 0x081c1a6c T _ZN21DisPatcher_DeleteItem11check_errorEP5CUserR8MSG_BASE
 // （报告 DisPatcher_DeleteItem/check_error.md 逐块映射）：背包校验和
 // getCurCharacInvenCheckSum 与 msg+0x4bf 不一致 → addServerHackCnt(0x25b,1,0,0)；恒返 0。
 unsigned int DisPatcher_DeleteItem::check_error(CUser* user, MSG_BASE& msg)
 {
     // ORIG：msg 指针先落 -0xc，call 后 reload + `mov 0x4bf(%edx),%edx`。
-    const DeleteItemMsgTailView* pMsg =
-        reinterpret_cast<const DeleteItemMsgTailView*>(&msg);   // ORIG -0xc(%ebp)
+    const MSG_DELETE_ITEM* pMsg =
+        reinterpret_cast<const MSG_DELETE_ITEM*>(&msg);   // ORIG -0xc(%ebp)
     if (user->getCurCharacInvenCheckSum() != (*(&pMsg))->m_checkSum)
     {
         user->getHackAnalyzer()->addServerHackCnt(

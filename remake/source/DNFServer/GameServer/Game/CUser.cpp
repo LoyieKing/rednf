@@ -554,14 +554,12 @@ void UserMercenaryInfoMgr::RemoveCharac(unsigned int characNo)
     //   idx = FindIndexByCharacNo(characNo)；found=(idx!=-1 && idx<size())；
     //   if(found){ try{ erase(begin()+idx); }catch(...){} }
     //   （我方原线性循环缺 FindIndexByCharacNo + __cxa_begin/end_catch）。
-    unsigned int idx = FindIndexByCharacNo(characNo);
-    bool found = false;
-    if (idx != 0xffffffffU)
-    {
-        if (idx < m_characs.size())
-            found = true;
-    }
-    if (found)
+    // b28d-solo-CUser 重写（2026-09-09，P226 条件向）：ORIG 无 found 具名局部——条件
+    //   全程寄存器物化（`mov $1,%eax; jmp; mov $0,%eax; test %al,%al; je`），旧
+    //   `bool found` 被 4.4 落槽（movb $1,-0x9 / cmpb $0,-0x9）；且 ORIG 第二比较为
+    //   **有符号** `jle`（size-idx）⇒ idx/size 两侧取 int。
+    int idx = (int)FindIndexByCharacNo(characNo);
+    if (({ idx != -1 && idx < (int)m_characs.size(); }))
     {
         try
         {
@@ -2008,8 +2006,10 @@ void CUser::AddDBLogItem(unsigned int itemIdx, unsigned int type,
     // b28d-solo-CUser 复测：info 声明前置到 for 之前（P212/P309 头部声明族）实测
     // 槽位逐字不变（it -0x20 / info -0x1c）⇒ 4.4.6 按**首次使用序**分配（N98），
     // 声明序非开关；维持 N82/P112 封顶。
-    for (std::vector<_DBLogItemInfo>::iterator it = m_dbLogItems.begin();
-         it != m_dbLogItems.end(); it++)
+    // b28d-solo-CUser 二试（P309 全头部声明 + 声明序按 ORIG 槽浅→深）：
+    std::vector<_DBLogItemInfo>::iterator it = m_dbLogItems.begin();
+    _DBLogItemInfo info;
+    for (; it != m_dbLogItems.end(); it++)
     {
         if (it->m_itemIdx == itemIdx)
         {
@@ -2017,7 +2017,6 @@ void CUser::AddDBLogItem(unsigned int itemIdx, unsigned int type,
             return;
         }
     }
-    _DBLogItemInfo info;
     memset(&info, 0, 0xc);
     info.m_itemIdx = itemIdx;
     info.m_type = type;
@@ -2129,17 +2128,18 @@ void CUser::makeGuildSkillMessage(const char* skillName, int count)
 {
     if (skillName == 0)
         return;
-    // b28d-solo-CUser p167：ORIG 0x08679a36 用内联 rep stos（无 memset call，我方
-    // EXTRA ×2）⇒ 大数组显式零初始化形（P214③/P312）。
-    char countStr[256] = {0};
+    // b28d-solo-CUser 试形（P28/P212 声明序）：ORIG 0x08679a36 的 board[120] 清零
+    //   在 +0x16（GetServerString 之前），countStr[256] 清零在 +0x52（之后，且为非 4
+    //   对齐慢路 -0x19f）⇒ 声明序 board → body → countStr。
+    char board[120] = {0};
     std::string body = g_ServerString_.GetServerString(0x3ea, 0);
+    char countStr[256] = {0};
     sprintf(countStr, "%d ", count);
     body += countStr;
     body += std::string(skillName);
     body += g_ServerString_.GetServerString(0x3eb, 0);
     if (body.length() >= 0x78)
         return;
-    char board[120] = {0};
     memcpy(board, body.c_str(), body.length());
     CGuildServerProxy* proxy =
         GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup());
@@ -2849,7 +2849,9 @@ void CUser::update_old_pvp_point()
 {
     // ORIG 0x8??：writable `%mov eax,%ebx` 单条跨 call 存活；P0/N96 去绑定改
     // 链式单语句（LHS receiver 跨 RHS call 保活，P52），残差记 N18a。
-    getPVPResultW()->m_oldExpPoint = getPVPResultR()->m_expPoint;
+    // b28d-solo-CUser p167 修正（调用目标）：ORIG 0x0865cfac 调
+    //   getPVPResultRefW/getPVPResultRefR（非 W/R 变体）；两者实现等价但符号不同。
+    getPVPResultRefW()->m_oldExpPoint = getPVPResultRefR()->m_expPoint;
 }
 
 void CUser::SetSaveRentalInfoToExchange(bool flag)
@@ -3471,58 +3473,28 @@ bool CUser::SendCmdErrorPacketJpn(ENUM_CMDPACKET cmd, unsigned short error)  // 
 // | ORIG 0x08680a96 | _ZN5CUser15AuctionPreCheckE14ENUM_CMDPACKET8PAY_TYPE
 int CUser::AuctionPreCheck(ENUM_CMDPACKET cmd, PAY_TYPE pay)
 {
-    // ORIG 0x86??：fail 不落槽（值留存 %al：`xor$1;[物化];test;je`）。
-    // b28d-solo-CUser N封顶: 4.4 对 `bool fail` 恒落栈槽（movb $1,-0xd / cmpb $0,-0xd）；
-    //   纯 register 提示实测**反劣**（ndiff 12→19：push %ebx + 值改 %ebx + 帧 0x28→0x24，
-    //   P231 三条件不成立——fail 无跨 call 保活需求）⇒ 回退，N96+N18a 封顶。
-    bool fail;
-
-    if (pay == (PAY_TYPE)1)
-    {
-        // ORIG 0x8680aa8-0xac2：inner je 与外层 else **共享** mov $0 岛（技巧 23 goto
-        // 钉块序：goto SET0 使 4.4 折叠双 else）。
-        if (!GlobalData::s_cera_auction_proxy->IsRunning())
-            fail = true;
-        else
-            goto SET01;
-    }
-    else
-    {
-    SET01:
-        fail = false;
-    }
-
-    if (fail)
+    // b28d-solo-CUser 重写（2026-09-09，P226/P214①）：ORIG 无 fail 具名局部——两段门
+    //   均为「pay 值比较 && !IsRunning()」**直接 if 短路**（4.1 物化 `mov $1,%eax;
+    //   jmp; mov $0,%eax; test %al,%al; je` 到寄存器，0 槽往返）；旧 `bool fail`+goto
+    //   SET01/SET02 结构被 4.4 落槽（movb $1,-0xd / cmpb $0,-0xd）。裸 if 形即复现。
+    if (pay == (PAY_TYPE)1 && !GlobalData::s_cera_auction_proxy->IsRunning())
     {
         SendCmdErrorPacket(cmd, 0x8c, pay);
         return 0;
     }
 
-    if (pay == (PAY_TYPE)0)
-    {
-        if (!GlobalData::s_auction_proxy->IsRunning())
-            fail = true;
-        else
-            goto SET02;
-    }
-    else
-    {
-    SET02:
-        fail = false;
-    }
-
-    if (fail)
+    if (pay == (PAY_TYPE)0 && !GlobalData::s_auction_proxy->IsRunning())
     {
         SendCmdErrorPacket(cmd, 0x8c, pay);
         return 0;
     }
 
-    if (get_state() < 3 || getCurCharacR() == 0)
+    if (get_state() <= 2 || getCurCharacR() == 0)
     {
         return 0x8151;
     }
 
-    unsigned int err =
+    int err =
         GlobalData::s_pSecuProtectionField->Check(this, (SECURITY_PROTCTION)0x35);
     if (err != 0)
     {
@@ -3824,7 +3796,7 @@ int CUser::GetUserState()
 
 int CUser::GetAge()
 {
-    return m_clientSpec.m_age;
+    return m_age;
 }
 
 bool CUser::IsOverBirthDay()
@@ -3838,22 +3810,22 @@ bool CUser::IsOverBirthDay()
     tm* pLocal = localtime_r(&cur, &local);
     int curMonth = pLocal->tm_mon + 1;
     int curDay = pLocal->tm_mday;
-    if (m_clientSpec.m_birthMonth < curMonth)
+    if (m_birthMonth < curMonth)
         return true;
-    if (m_clientSpec.m_birthMonth == curMonth &&
-        m_clientSpec.m_birthDay < curDay)
+    if (m_birthMonth == curMonth &&
+        m_birthDay < curDay)
         return true;
     return false;
 }
 
 bool CUser::IsProgLogout()
 {
-    return m_clientSpec.m_progLogout;
+    return m_progLogout;
 }
 
 int CUser::GetSeedFromDate()
 {
-    return m_clientSpec.m_seedFromDate;
+    return m_seedFromDate;
 }
 
 void CUser::SetGMUpgradeMode(ENUM_GM_ITEM_UPGRADE mode)
@@ -3863,31 +3835,36 @@ void CUser::SetGMUpgradeMode(ENUM_GM_ITEM_UPGRADE mode)
     //   形参 enum 同型；CUser.h:908 已由 Main 代落 `unsigned int`→`ENUM_GM_ITEM_UPGRADE`
     //   （探针 /tmp/probe_store.cpp：uint 字段+enum 形参 ⇒ RHS-first；enum 字段 ⇒ LHS-first）。
     //   sizeof/偏移(0x711dc)/mangled 不变。
-    m_clientSpec.m_gmUpgradeMode = mode;
+    m_gmUpgradeMode = mode;
 }
 
 bool CUser::isGMUser()
 {
-    return m_clientSpec.m_gmUserFlag;
+    return m_gmUserFlag;
 }
 
 bool CUser::IsGameMasterMode() const
 {
-    return m_clientSpec.m_gmUserFlag;
+    return m_gmUserFlag;
 }
 
 // b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x086796dc | _ZN5CUser17SetGameMasterModeEb
-void CUser::SetGameMasterMode(bool flag)
+bool CUser::SetGameMasterMode(bool flag)
 {
-    m_clientSpec.m_gmUserFlag = flag;
+    m_gmUserFlag = flag;
     Packet_Register_GM_MID pkt;
     if (flag)
     {
+        // b28d-solo-CUser 重写（2026-09-09，P52 链式 receiver+R2L 实参）：ORIG
+        //   0x086796dc 把 `lea -0x16(%ebp),%ebx`（pkt 地址）跨 GetServerProxy 调用
+        //   保活，group/proxy 均不落槽（链式直传）；characNo 为**死槽**（P171 照抄）。
+        //   另：ORIG 尾恒 `mov $0x1,%eax` ⇒ 真实返回 bool（CUser.h 冻结，待 Main 代落）。
         unsigned int characNo = getCurCharacNo();
-        ENUM_SERVER_GROUP group = GetServerGroup();
-        CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy(group);
-        proxy->SendTcpPacket((char*)&pkt, 0xe);
+        (void)characNo;
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(GetServerGroup())
+            ->SendTcpPacket((char*)&pkt, 0xe);
     }
+    return true;   // ORIG 尾恒 mov $0x1,%eax（两路径同返 1）
 }
 bool CUser::GetEventCreateDnfReward()
 {
@@ -5213,7 +5190,7 @@ unsigned char CUser::GetFirstLogin()
 
 void CUser::SetProgLogout()
 {
-    m_clientSpec.m_progLogout = 1;   // 字段已 bool 化（ORIG IsProgLogout@0x82a6796 movzbl 直返）；&-cast 反而多余
+    m_progLogout = 1;   // 字段已 bool 化（ORIG IsProgLogout@0x82a6796 movzbl 直返）；&-cast 反而多余
 }
 
 bool CUser::isRestingUser()
@@ -5456,7 +5433,7 @@ void CUser::AddMoneyPlus(int value)
     const int now = GlobalData::s_systemTime_.getCurSec();
     NextCharacMoneyLog(now);
     m_moneyLogs[m_moneyLogIdx].m_money[2] = now;
-    m_moneyLogs[m_moneyLogIdx].m_money[0] += value;
+    m_moneyLogs[m_moneyLogIdx].m_moneyU[0] += value;
 }
 
 // ORIG _ZN5CUser13AddMoneyMinusEi T 0x0868f310：当日滚窗 m_money[1]+=value，m_money[2]=now。
@@ -5471,7 +5448,7 @@ void CUser::AddMoneyMinus(int value)
     const int now = GlobalData::s_systemTime_.getCurSec();
     NextCharacMoneyLog(now);
     m_moneyLogs[m_moneyLogIdx].m_money[2] = now;
-    m_moneyLogs[m_moneyLogIdx].m_money[1] += value;
+    m_moneyLogs[m_moneyLogIdx].m_moneyU[1] += value;
 }
 
 // ORIG _ZN5CUser18NextCharacMoneyLogEi T 0x0868f1c0：当前槽含时间且与
@@ -5487,6 +5464,9 @@ void CUser::NextCharacMoneyLog(int now)
         //   `lea 0xc(%ebp)`（**形参 now 的地址**）与 `lea 0xc(%eax)`（**成员 m_money[2]
         //   的地址**）⇒ 原码无 current/old 具名 time_t 局部（我方原形各多一槽 + 装载序差）。
         localtime_r((const time_t*)&now, &currentTm);
+        // b28d-solo-CUser 复测：`m_money + 2` 指针算术形与 `&m_money[2]` 取址形
+        // 产物逐字相同（4.4 恒 add $0x79678 + lea 0x4；ORIG add $0x79670 + lea 0xc）
+        // ⇒ 常量分解差维持 N30/N4 封顶。
         localtime_r(
             (const time_t*)&m_moneyLogs[m_moneyLogIdx].m_money[2], &oldTm);
         if (currentTm.tm_yday != oldTm.tm_yday)
@@ -6227,7 +6207,8 @@ void CUser::ResetTrainingQuest()
     for (std::vector<int>::iterator it = questList.begin(); it != questList.end(); ++it)
     {
         int questId = *it;
-        UserQuest* pQuest = getCurCharacQuestR();
+        // b28d-solo-CUser p167 修正：ORIG 0x08657662 调 getCurCharacQuestRefR。
+        UserQuest* pQuest = getCurCharacQuestRefR();
         if (pQuest && pQuest->isClearQuest(questId))
         {
             getCurCharacQuestW()->resetClearQuest(questId);
@@ -6986,6 +6967,9 @@ void CUser::ResetItemByScript(std::vector<std::pair<int, int> >& list)
     // 调用全同，仅中转寄存器名差，源形不可复现。
     // p167 差集（b28）：ORIG 走 `operator[](uint) const`×2 + make_pair<int const&,int>
     // ⇒ 原码以 const 指针访问（容器 cv 限定决定实例化，P96）。
+    // b28d-solo-CUser 三形复测（2026-09-09）：显式 `items->operator[](i)` /
+    // `unsigned int i` / const 引用 `items[i]` 三形均不翻 ORIG 的「this 先装
+    // -0x14→%eax、i 后装 -0xc→%edx」实参序（4.4 恒值先）⇒ 维持 P75/N80 封顶。
     const std::vector<stResetItemInfo::ResetItem>* items =
         G_CDataManager()->GetResetItemInfo();
     int now = GlobalData::s_systemTime_.getCurSec();
@@ -7764,6 +7748,8 @@ bool CUser::checkRentedItem(unsigned int characNo, int itemIndex, int param)
         return false;
 
     std::vector<InstanceRentalSystem::RentalInfo>& infos = (*it).second;
+    // b28d-solo-CUser 试形回退（P75 求值序）：具名 pred 局部实测把 map 槽整体平移
+    //   （-0x3c→-0x38，ndiff 不减）⇒ 恢复内联实参形，槽/求值序差维持 N82/N86 封顶。
     return std::find_if(infos.begin(), infos.end(),
                         FindRentalInfoByItemIndex(itemIndex)) != infos.end();
 }
@@ -7991,8 +7977,8 @@ void CUser::giveup_panalty()
     // ORIG 0x86786cb `test %al,%al; jne` 无 setne 物化 ⇒ IsLightServer bool 返回（声明 DataManagerInitDepends.h:42/62 待 bool 化；(bool)cast 在 char 声明下反产 setne，故不加）
     if (IsLightServer())
         return;
-    // ORIG 0x086786d6 `movzbl 0x711d8; test; jne`（bool 直读；= clientSpec.m_gmUserFlag）
-    if (m_clientSpec.m_gmUserFlag)
+    // ORIG 0x086786d6 `movzbl 0x711d8; test; jne`（bool 直读；= CUser::m_gmUserFlag）
+    if (m_gmUserFlag)
         return;
     if (isAffectedPremium((ENUM_PREMIUM_TYPE)0xc) != 0)
         return;
@@ -9654,8 +9640,9 @@ void CUser::RewardItem2DeleteInvalidItem(
 // b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08656caa | _ZN5CUser12AddDailyItemEv
 void CUser::AddDailyItem()
 {
-    int level = get_charac_level();
-    if (level > 0x13)
+    // b28d-solo-CUser 试形（P0 槽往返）：ORIG 0x08656caa 无 level 槽——call 结果直比
+    //   `cmp $0x13,%eax; setg %al; test; je`；我方具名 level 落 -0x20 并被 mem 直比。
+    if (get_charac_level() > 0x13)
     {
         CItem* def = G_CDataManager()->find_item(0x1057);
         if (def != 0)
@@ -9860,7 +9847,8 @@ int CUser::is_equip_aura_avatar(char slot, int& out)
 {
     if (getCurCharacR() == 0)
         return 1;
-    Inven_Item* item = getCurCharacInvenW()->GetInvenRef(0, 9);
+    // b28d-solo-CUser p167 修正：ORIG 0x0868dff8 调 getCurCharacInvenRefW（非 InvenW）。
+    Inven_Item* item = getCurCharacInvenRefW()->GetInvenRef(0, 9);
     if (item == 0)
         return 0x11;
     if (item->isEmpty() != 0)
@@ -11090,8 +11078,9 @@ void CUser::GetLimitItemUsage(SIG_LOAD_ETC* sig) const
     if (sig == 0) return;
     sig->m_limitItemCount = 0;   // ORIG movl $0,0x2638
     int index = 0;
+    // b28d-solo-CUser p167 修正（P28）：ORIG 0x08688dc4 增量段调 ppEi（后置）⇒ 写 it++。
     for (std::vector<LimitItemUsage>::const_iterator it = m_limitItemUsage.begin();
-         it != m_limitItemUsage.end(); ++it, ++index)
+         it != m_limitItemUsage.end(); it++, ++index)
     {
         SIG_ETC_LIMIT_ITEM* dst = &sig->m_limitItems[index];
         dst->m_field8 = it->m_field15;    // ORIG mov 0x14(dst)
@@ -11508,10 +11497,11 @@ bool CUser::IsRestrictedGoods(int itemIdx)
     //   ndiff 不变 20，回退）。
     // b28d-solo-CUser p167：ORIG 0x0864d878 用非 const `_List_iterator<int>`（我方
     // const_iterator 多转换构造 + 混合 operator!=）⇒ 改非 const iterator（P96/P50）。
-    // b28d-solo-CUser 试形回退：缓存 begin/end 双局部（P314/P309）实测反劣
-    //   （46→55 insn：begin/end 各多一次槽往返）⇒ 恢复 for-init 形，槽序差记 N93/N98。
-    for (std::list<int>::iterator it = m_list711ec.begin();
-         it != m_list711ec.end(); ++it)
+    // b28d-solo-CUser 重写（2026-09-09，P13）：ORIG 0x0864d878 在循环头**缓存 end**
+    //   （begin sret -0xc / end sret -0x10，条件只调 ne）；旧形每轮重调 end 且槽反。
+    for (std::list<int>::iterator it = m_list711ec.begin(),
+                                  e = m_list711ec.end();
+         it != e; ++it)
     {
         if (*it == itemIdx)
             return true;
@@ -11585,7 +11575,7 @@ bool CUser::HasCurCharacRentalItem(int type) const
         return false;
     std::map<unsigned int,
         std::vector<InstanceRentalSystem::RentalInfo> >::const_iterator inner =
-        (*outer).second.find(*(const unsigned int*)cur);
+        outer->second.find(*(const unsigned int*)cur);
     if (inner == (*outer).second.end())
         return false;
     return !(*inner).second.empty();
@@ -11677,7 +11667,10 @@ void CUser::_deleteSpecificItemInven(INVEN_TYPE type,
             else if (G_CDataManager()->m_deleteInvalidItem.IsInvalidItem2Delete(
                          item.m_addInfo))
             {
-                mailDel.push_back(std::make_pair(item.m_addInfo, item.m_addInfo2));
+                // b28d-solo-CUser p167 修正：ORIG 实例化 make_pair<unsigned long&, int&>
+                //   （左值引用版 IRmRiE）；值 cast 产右值版 ImRiE ⇒ 用引用 cast 保左值。
+                mailDel.push_back(std::make_pair((unsigned long&)item.m_addInfo,
+                                                 item.m_addInfo2));
                 del = true;
             }
         }
@@ -11736,7 +11729,10 @@ void CUser::_deleteSpecificItemCargo(
             else if (G_CDataManager()->m_deleteInvalidItem.IsInvalidItem2Delete(
                          item.m_addInfo))
             {
-                mailDel.push_back(std::make_pair(item.m_addInfo, item.m_addInfo2));
+                // b28d-solo-CUser p167 修正：同 _deleteSpecificItemInven
+                //   （ORIG make_pair<unsigned long&, int&>）。
+                mailDel.push_back(std::make_pair((unsigned long&)item.m_addInfo,
+                                                 item.m_addInfo2));
                 del = true;
             }
         }
@@ -11925,27 +11921,21 @@ bool CUser::DoGetCeraPointItem(unsigned int money, bool bReset,
 bool CUser::delete_ontime_reward_list()   // b28c-L5 SIGFIX（P174）
 {
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x33);
-    // b28d-lane5：ORIG 0x0865a3xx 两失败路径**共享** trace 块（`cmpl $0,-0xc; je T` +
-    // `call IsEventing; xor $1; test %al; je T`，T=trace 构造）⇒ 独立守卫 + goto
-    // 共享块（P133；`||` 合并形反产 mov$1/mov$0 bool 物化岛）。
-    // b28d-solo-CUser 试形（P59/P222 块序）：ORIG 0x0868c3bc 第二守卫为
-    //   `xor $1; test %al,%al; je <成功块>`（trace 块 fall-through 直落、成功块在跳转
-    //   目标+函数尾）；我方 goto 尾标签产 `jne <trace>` 反形。改「goto SUCCESS 跨过
-    //   trace 块」使 4.4 出 je SUCCESS。
+    // b28d-solo-CUser 重写（2026-09-09）：ORIG 0x0868c3bc 两条独立失败路径——ev==0 走
+    //   trace 块（`je +0x4c`，物理居中），ev!=0 && !IsEventing() 直接 `mov $0,%eax`（无
+    //   trace）；用 goto 尾标签把 trace 块后置以复现 ORIG 的 je 方向（P223/P59）。
     if (ev == 0)
         goto TRACE;
     if (!ev->IsEventing(0))
-        goto TRACE;
-    goto SUCCESS;
+        return 0;
+    ((COnTimeEvent*)ev)->delete_reward_user(this);
+    return 1;
 TRACE:
     {
-        cMyTrace trace("bool CUser::delete_ontime_reward_list()", 0xa828, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xa828, 5);
         trace("[ON_TIME_EVENT]delete_ontime_reward_list() error");
         return 0;
     }
-SUCCESS:
-    ((COnTimeEvent*)ev)->delete_reward_user(this);
-    return 1;
 }
 
 // ORIG T 0x086924aa sz0x119：job==9 才发包；去重 combo 技能 → 包 0x1bd。
@@ -12436,9 +12426,10 @@ bool CUser::CheckCoolTimeItem(unsigned long itemIdx) const
     for (std::vector<ContinuousItemInfo>::const_iterator it = cool->begin();
          it != cool->end(); ++it)
     {
-        if ((unsigned long)it->m_itemIdx == itemIdx)
+        // b28d-solo-CUser p167 修正：ORIG 0x0865e994 发 deEv（`(*it).`）非 ptEv。
+        if ((unsigned long)(*it).m_itemIdx == itemIdx)
         {
-            if (curSec < it->m_expireTime)
+            if (curSec < (*it).m_expireTime)
                 return true;
             return false;
         }

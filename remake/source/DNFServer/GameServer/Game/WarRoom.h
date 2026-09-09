@@ -55,7 +55,11 @@ public:
     void CheckHostChange();
     void InvalidUserCheck();
     // ORIG W weak（0x086c0b24）：in-class 定义→调用方保守 outgoing 帧
-    unsigned int GenTimerKey(TIMER_MESSAGE msg) { return ++m_timerKey[msg - 0x3f]; }
+    // [b28d-Main·检查点14] S415 P211 同型律：返回类型 unsigned int→int
+    //   （ORIG SendWarRoomFailMsg 0x086c078e `call; mov %eax,%ebx` + `mov 0x4(%eax),%esi`
+    //   ⇒ int 返回时 key→%ebx/idx→%esi；探针 /tmp/wr_probe3.cpp r1 vs r2/r5 实证）。
+    //   返回类型不入 mangled；sizeof/偏移/体零变化；消费点全在本 TU。
+    int GenTimerKey(TIMER_MESSAGE msg) { return ++m_timerKey[msg - 0x3f]; }
     bool CheckTimerKey(TIMER_MESSAGE msg, int key);
 
     // ---- 房间流程 ----
@@ -126,7 +130,11 @@ private:
     char m_flag11;                      // +0x011
     char m_flag12;                      // +0x012
     char m_pad13;                       // +0x013
-    int m_hostVotes[6];                 // +0x14（HostChangeWarRoom 直写低 32 位投票值，
+    // [b28d-Main·检查点14] S415 P211 同型律：int→unsigned long（i386 同 4 字节，
+    //   偏移 +0x14/sizeof/mangled 零变化）。ORIG HostChangeWarRoom 0x086c08dd
+    //   `lea 0x4(%edx),%ecx` + `mov 0x14(%ebp),%edx`；探针 /tmp/wr_probe7.cpp
+    //   v7(unsigned long) 出 ORIG lea 形，v1/v2/v3(int) 与视图 cast 六形恒 add $0x4。
+    unsigned long m_hostVotes[6];       // +0x14（HostChangeWarRoom 直写低 32 位投票值，
                                         //      -1=未投；CheckHostChange 取最小非 -1 槽广播）
     int m_userCount;                    // +0x02c
     char m_field30;                     // +0x030

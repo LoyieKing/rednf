@@ -632,8 +632,11 @@ bool CPrivateStore::RemovePrivateStore(bool sendFail)
     packet.MakeNotipacketRemovePrivateStore((unsigned short)GetSellerIndex());
     CBroadcastPrivate::Send((int)m_pos.m_a, (int)m_pos.m_b, packet);
 
-    village_object::Zone zone(m_pos.m_a, m_pos.m_b);
-    if (!GlobalData::s_villageObjectMgr->unregister_object(zone, &m_storePos))
+    // [b28d-solo] 同 MoveToGate：匿名 Zone 临时 + &m_storePos 实参（ORIG
+    // 0x85c62xx `lea ebx,[eax+0x4c]` 先物化跨 Zone ctor 保活；具名 zone 令
+    // 4.4 把块内对象排到 packet 之下 -0x26，ORIG 为 -0x1a）。
+    if (!GlobalData::s_villageObjectMgr->unregister_object(
+            village_object::Zone(m_pos.m_a, m_pos.m_b), &m_storePos))
     {
         LogManager::logFormat(1, "PrivateStore.cpp", __PRETTY_FUNCTION__, 0x473,
                               "unregister_object error");
@@ -737,8 +740,11 @@ bool CPrivateStore::MoveToGate()
         packet.MakeNotipacketRemovePrivateStore((unsigned short)GetSellerIndex());
         CBroadcastPrivate::Send((int)m_pos.m_a, (int)m_pos.m_b, packet);
 
-        village_object::Zone zone(m_pos.m_a, m_pos.m_b);
-        if (!GlobalData::s_villageObjectMgr->unregister_object(zone, &m_storePos))
+        // [b28d-solo] ORIG 0x85c7609：&m_storePos 先入 %ebx（跨 Zone ctor 保活），
+        // Zone 以匿名 sret 临时落 -0xa；具名 zone 令 4.4 把块内对象排到 packet
+        // 之下（-0x16）⇒ 改匿名临时实参（P52/P134）。
+        if (!GlobalData::s_villageObjectMgr->unregister_object(
+                village_object::Zone(m_pos.m_a, m_pos.m_b), &m_storePos))
         {
             LogManager::logFormat(1, "PrivateStore.cpp", __PRETTY_FUNCTION__, 0x658,
                                   "unregister_object error");

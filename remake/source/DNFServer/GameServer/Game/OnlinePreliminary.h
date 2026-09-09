@@ -273,7 +273,7 @@ public:
     virtual void OnConnectP2P(CUser* user, PvP_Room* room, char* addr, int port);
     virtual int OnGiveup(CUser* user);
     virtual int  CheckJoinable(PvP_Room* room, CUser* user);
-    virtual int  CheckSeat(int a);
+    virtual bool CheckSeat(int a);                              // P292 bool（调用点 xor $1）
     virtual bool CheckMatchable(IMatch* other);
     virtual CUser* GetUser(unsigned int idx);
     virtual void GetUserList(void* out);

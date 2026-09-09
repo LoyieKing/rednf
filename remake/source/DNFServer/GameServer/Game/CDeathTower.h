@@ -134,10 +134,10 @@ namespace WongWork
 
             // b28d-D13：P216 throw() 实测过度折叠（CPlayData C1/D1 空体，4.4 连 call
             // 一起消除：C1 53→29、D1 41→17 insn）⇒ 回退，C1/D1 残差按 N91 封顶。
-            // [b28d-solo-CDeathTower] P216 throw() 复测：净负（C1 53→29 vs ORIG 45，
-            // 4.4 连 call 一起折叠；D1 41 不变）⇒ 已回退，C1/D1 按 N91 封顶。
-            CPlayData();                        // ORIG W 0x82a7538：m_rewards[4] 逐个 stRewardItem_t()
-            ~CPlayData();                       // ORIG W 0x82a7572（空函数）
+            // [b28d-Main·检查点14 A/B] S411：加 throw() 使 4.4 判定 CPlayData::C1 nothrow，
+            // 消调用点多余 ~CStage cleanup（ORIG 0x82a75da 的 landing 段只调 ~CDungeonMgr）。
+            CPlayData() throw();                // ORIG W 0x82a7538：m_rewards[4] 逐个 stRewardItem_t()
+            ~CPlayData() throw();               // ORIG W 0x82a7572（空函数）
 
             void generateRewardExp(int memberIdx, int stage, unsigned int baseExp,
                                    CParty* party, CDungeonMgr& dungeonMgr);

@@ -34,10 +34,9 @@ struct buySkillInfo
 // MSG 类型（占位大小 0x100，后续按 ORIG 构造函数修正）
 // ---------------------------------------------------------------------------
 #pragma pack(push, 1)
-class MSG_ABNORMAL_USE_STACKABLE
+class MSG_ABNORMAL_USE_STACKABLE : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gap0d[3];          // +0x0d（ORIG 未出线，read 首读 +0x10）
     unsigned int m_field10;   // +0x10 异常使用 stackable 参数1【推断】
                               //（Dispatcher_AbnormalUseStackable/read.md get_int@msg+0x10）
@@ -47,10 +46,9 @@ static_assert(sizeof(MSG_ABNORMAL_USE_STACKABLE) == 0x18, "MSG_ABNORMAL_USE_STAC
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_ACHIEVEMENT_TRIGGER
+class MSG_ACHIEVEMENT_TRIGGER : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned int m_field0d;   // +0x0d 成就触发主参数【推断】
                               //（Dispatcher_AchievementTrigger/read.md get_int@msg+0xd）
     unsigned short m_field11; // +0x11 参数2【推断】（get_short@msg+0x11）
@@ -60,19 +58,17 @@ public:
 static_assert(sizeof(MSG_ACHIEVEMENT_TRIGGER) == 0x17, "MSG_ACHIEVEMENT_TRIGGER size");
 #pragma pack(pop)
 
-class MSG_ADD_FRIEND
+class MSG_ADD_FRIEND : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     char m_pad[0x22];         // +0xd..（b28d-solo-S153：ORIG 0x82577fc dispatch 帧距实测
                               //   sizeof=0x2f [m=-0x43/p=-0x14]，原 0x21 少 1 字节）
 };
 
 #pragma pack(push, 1)
-class MSG_APPROVE_JOIN_GUILD
+class MSG_APPROVE_JOIN_GUILD : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned int m_characNo;  // +0x0d 被批准入会申请的角色编号【推断】
                               //（Dispatcher_ApproveJoinGuild/read.md get_int(uint&)@msg+0xd）
 };
@@ -80,10 +76,9 @@ static_assert(sizeof(MSG_APPROVE_JOIN_GUILD) == 0x11, "MSG_APPROVE_JOIN_GUILD si
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_AVATAR_DISJOINT_RANDOM_REWARD
+class MSG_AVATAR_DISJOINT_RANDOM_REWARD : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gapD;                   // +0x0d 包格式 1 字节间隙（ORIG process 读 slot@+0xe）
     unsigned short m_slotE;        // +0x0e 槽位（ORIG 实证；NEW 此前 +0xd 错位 1 字节）
     int m_itemIdx10;               // +0x10 物品 idx（同上）
@@ -120,10 +115,9 @@ public:
 };
 
 #pragma pack(push, 1)
-class MSG_BOSS_DIE_CHECK
+class MSG_BOSS_DIE_CHECK : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
     unsigned short m_field0e; // +0x0e 队伍/角色类标识【推断】
                               //（Dispatcher_BossDieCheck/read.md get_short@msg+0xe；==-1 时 addServerHackCnt 0xcb）
@@ -145,10 +139,9 @@ public:
 };
 
 #pragma pack(push, 1)
-class MSG_BUY_ITEM
+class MSG_BUY_ITEM : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     // ORIG DisPatcher_BuyItem（process/get_data/check_error 逐字节）：
     unsigned long m_itemIdx;      // +0x0d（ORIG read 调 get_int(unsigned long&)ERm；
                                   //  get_data find_item 输入）
@@ -179,10 +172,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_CANCEL_JOIN_GUILD
+class MSG_CANCEL_JOIN_GUILD : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned int m_characNo;  // +0x0d 撤销入会申请的角色编号【推断】
                               //（Dispatcher_CancelJoinGuild/read.md get_int(uint&)@msg+0xd）
 };
@@ -214,29 +206,26 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_CHANGE_EMOTION
+class MSG_CHANGE_EMOTION : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     short m_emotionIdx;       // +0x0d 表情索引（Dispatcher_ChangeEmotion/read.md get_short@msg+0xd；
                               //  经 isVaildEmotionValue 校验后 SetCurCharacEmotion）
 };
 static_assert(sizeof(MSG_CHANGE_EMOTION) == 0xf, "MSG_CHANGE_EMOTION size");
 #pragma pack(pop)
 
-class MSG_CHANGE_HOST_WARROOM
+class MSG_CHANGE_HOST_WARROOM : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     // b28d-solo-S161：ORIG 0x824fd96 域 msg 槽 -0x1e ⇒ 帧距 0x12，原 0x11 差 1。
     char m_pad[0x5];
 };
 
 #pragma pack(push, 1)
-class MSG_CHANGE_LETTER_STAT
+class MSG_CHANGE_LETTER_STAT : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     int m_mailIdx;            // +0x0d 邮件编号（Dispatcher_ChangeLetterStat/read.md get_int@msg+0xd）
     short m_letterStat;       // +0x11 新邮件状态【推断】（get_short(s16&)@msg+0x11）
 };
@@ -255,10 +244,10 @@ public:
 };
 
 #pragma pack(push, 1)
-class MSG_CHANGE_SKILLSLOT
+class MSG_CHANGE_SKILLSLOT : public MSG_BASE
 {
 public:
-    char m_head[0xe];         // +0x0..+0xd 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
+    unsigned char m_head0d;   // +0xd（包头由基类 MSG_BASE::m_head[0xd] 提供）
     // ORIG read/check_error 读 msg+0xd；process：param+4/5 ← msg[0xe]/msg[0xf]
     unsigned char m_curSlot;   // +0x0e（原技能槽）
     unsigned char m_newSlot;   // +0x0f（目标技能槽）
@@ -293,18 +282,18 @@ class MSG_CLIENT_SPEC_STATISTIC : public MSG_BASE
 {
 public:
     MSG_CLIENT_SPEC_STATISTIC();
-    // ORIG C1：Client_Spec 出线构造于 +0xe。本仓库 Client_Spec（CUser.h）为 pad
-    // 占位模型且 ctor 空体 —— 调用形态与 ORIG Client_SpecC1 等价。
+    // ORIG C1 0x082556a0：MSG_BASE::C1(this) + Client_Spec::C1(this+0xe)。
+    // [b28d-Main·检查点14] Client_Spec 已修正为 0xbf8（见 CUser.h）⇒ 本类
+    // sizeof = 0xe + 0xbf8 = 0xc06，与 ORIG dispatch_template 帧实证一致。
     char m_padD;               // +0x0d
-    Client_Spec m_spec;        // +0xe（sizeof 0xc10；类总长随真实布局扩大）
+    Client_Spec m_spec;        // +0xe（sizeof 0xbf8）
 };
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_COLLECT_ITEMS
+class MSG_COLLECT_ITEMS : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
     short m_itemIdx;          // +0x0e 回收物品索引（Dispatcher_CollectItems/read.md get_short@msg+0xe；
                               //  process 传 CInventory::delete_item）
@@ -356,37 +345,33 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_CREATE_CHARACTER
+class MSG_CREATE_CHARACTER : public MSG_BASE
 {
 public:
-    char m_head[0xd];     // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     unsigned char m_slot;    // +0xd
     char m_padE[4];          // +0xe..+0x11（ORIG name 前间隙）
     char m_name[0x1e];       // +0x12..0x2f（ORIG strncpy 长 0x1e；末字节即 +0x2f 标志位）
 };
 #pragma pack(pop)
 
-class MSG_CREATE_DISJOINT_STORE
+class MSG_CREATE_DISJOINT_STORE : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_pad[0x10f];  // b28d-solo-S153：ORIG 0x82549c2 帧距 sizeof=0x11c [m=-0x130/p=-0x14]
 };
 
 #pragma pack(push, 1)
-class MSG_DECREASE_DURABILITY
+class MSG_DECREASE_DURABILITY : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     unsigned char m_0d;     // +0x0d（UseEquip process：use_equip 槽位，回显至 param+0x8）
 };
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_DELETE_CHARACTER
+class MSG_DELETE_CHARACTER : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     signed char m_slot;      // +0xd
     char m_padE[0x22];        // +0xe..（b28d-solo-S153：ORIG 0x825a2ce 帧距 sizeof=0x30
                               //   [m=-0x44/p=-0x14]，原 0x21 少 1 字节）
@@ -394,32 +379,31 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_DELETE_ITEM
+class MSG_DELETE_ITEM : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     // 布局证据：DisPatcher_DeleteItem::process(0x081c1dda)/exercise_mode/
     // restricted_check/condition_check 对 msg 的全部读取（i<count<=100）：
     //   +0x0d byte itemSpace、+0x0e sbyte count、+0x0f short opType[i]、
     //   +0xd7 short position[i]、+0x19f int itemIdx[i]、+0x32f int countArr[i]。
-    // 尾部无保留区：ORIG 线上格式即止于 countArr[99]（sizeof=0x4bf）。
+    // [b28d-Main·检查点14] +0x4bf int m_checkSum：ORIG check_error 0x081c1a66
+    //   `mov 0x4bf(%edx),%edx` 单指令直读包尾校验和，且 dispatch_template 帧
+    //   实证 sizeof=0x4c3（msg 槽 -0x7fb vs 0x4bf 版的 -0x7f7）⇒ 该 4B 属本体
+    //   （此前 DisPatcherCore 的 DeleteItemMsgTailView 派生视图已删除并入本体）。
     char m_itemSpace;                 // +0x0d（ORIG get_byte(char&)；char 非 unsigned char）
     signed char m_count;              // +0x0e
     short m_opType[100];              // +0x0f（==1 用途删除；2/3/4 方块统计）
     short m_position[100];            // +0xd7（槽位）
     unsigned long m_itemIdx[100];     // +0x19f（ORIG get_int(unsigned long&)；x86 32 位 unsigned long==int 宽度）
     int m_countArr[100];              // +0x32f
-    // b28d-Main：D10 patch 的 m_lane10pad[0x2] 与 DisPatcherCore.cpp:4524
-    //   static_assert(offsetof(DeleteItemMsgTailView,m_checkSum)==0x4bf) 及
-    //   本类上方注释「ORIG 线上格式止于 countArr[99]」冲突 ⇒ 不采纳，保持 sizeof=0x4bf。
+    int m_checkSum;                   // +0x4bf（包尾校验和；sizeof=0x4c3）
 };
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_DELETE_TO_BLACKLIST
+class MSG_DELETE_TO_BLACKLIST : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gap0d[3];          // +0x0d（ORIG 未出线）
     int m_nameLen;            // +0x10 角色名长度【推断】（Dispatcher_DeleteToBlackList/read.md get_int@msg+0x10）
     char m_characName[0x1e];  // +0x14 移出黑名单的角色名（get_str(buf,0x1e)@msg+0x14）
@@ -430,29 +414,26 @@ static_assert(sizeof(MSG_DELETE_TO_BLACKLIST) == 0x34, "MSG_DELETE_TO_BLACKLIST 
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_DENY_JOIN_GUILD
+class MSG_DENY_JOIN_GUILD : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned int m_characNo;  // +0x0d 被拒绝入会申请的角色编号【推断】
                               //（Dispatcher_DenyJoinGuild/read.md get_int(uint&)@msg+0xd）
 };
 static_assert(sizeof(MSG_DENY_JOIN_GUILD) == 0x11, "MSG_DENY_JOIN_GUILD size");
 #pragma pack(pop)
 
-class MSG_DIE_CHARACTER
+class MSG_DIE_CHARACTER : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     // b28d-solo-S161：ORIG 0x8259f68 域 msg 槽 -0x1d ⇒ 帧距 0x11，原 0x10 差 1。
     char m_pad[0x4];         // +0xd..+0x10（帧推导总长 0x11）
 };
 
 #pragma pack(push, 1)
-class MSG_DONATE_GUILD_FUND
+class MSG_DONATE_GUILD_FUND : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     int m_donateMoney;        // +0x0d 公会基金捐赠金额【推断】
                               //（Dispatcher_DonateGuildFund/read.md get_int@msg+0xd）
 };
@@ -460,10 +441,9 @@ static_assert(sizeof(MSG_DONATE_GUILD_FUND) == 0x11, "MSG_DONATE_GUILD_FUND size
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_DROP_ITEM
+class MSG_DROP_ITEM : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     short m_0d;             // +0x0d（drop_item itemIdx，s16）
     short m_0f;             // +0x0f（drop count，s16）
     unsigned char m_11;     // +0x11（inven space，回显至 param+0x8）
@@ -487,10 +467,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_ENCHANT_BY_BEAD
+class MSG_ENCHANT_BY_BEAD : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     signed char m_field0d;    // +0x0d OnEnchantByBead 第2参【推断】（Dispatcher_EnchantByBead/read.md get_byte@msg+0xd）
     short m_field0e;          // +0x0e 第3参【推断】（get_short@msg+0xe）
     signed char m_field10;    // +0x10 第4参【推断】（get_byte@msg+0x10）
@@ -501,10 +480,9 @@ static_assert(sizeof(MSG_ENCHANT_BY_BEAD) == 0x14, "MSG_ENCHANT_BY_BEAD size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_ENTER_DISJOINT_STORE
+class MSG_ENTER_DISJOINT_STORE : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
     short m_field0e;          // +0x0e 进入目标标识 slot/idx【推断】
                               //（Dispatcher_EnterDisjointStore/read.md get_short@msg+0xe）
@@ -513,10 +491,9 @@ static_assert(sizeof(MSG_ENTER_DISJOINT_STORE) == 0x10, "MSG_ENTER_DISJOINT_STOR
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_EQUIPSLOT_SWITCH
+class MSG_EQUIPSLOT_SWITCH : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     signed char m_field0d;    // +0x0d EquipslotSwitch 第3参【推断】（Dispatcher_Equipslot_Switch/read.md get_byte@msg+0xd）
     signed char m_field0e;    // +0x0e 第4参【推断】（get_byte@msg+0xe）
     signed char m_field0f;    // +0x0f 第2参【推断】（get_byte@msg+0xf）
@@ -534,10 +511,9 @@ public:
 };
 
 #pragma pack(push, 1)
-class MSG_EXPAND_EQUIPSLOT_FLAG_UPDATE
+class MSG_EXPAND_EQUIPSLOT_FLAG_UPDATE : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     signed char m_flag;       // +0x0d 装备栏扩展标志（Dispatcher_Expand_Equipslot_Flag_Update/read.md
                               //  get_byte@msg+0xd；process 传 CUser::UpdateEquipslotFlag）
 };
@@ -569,10 +545,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_FINISH_LOADING
+class MSG_FINISH_LOADING : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     int m_0d;             // +0x0d（客户端 inven checksum，ORIG process 与
                           //  CUser::getCurCharacInvenCheckSum 比对，不等记 0x25b）
     int m_11;             // +0x11（skill checksum，与 getCurCharacSkillCheckSum 比对）
@@ -580,10 +555,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_FLOAT_RDATA_MODULATION
+class MSG_FLOAT_RDATA_MODULATION : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gap0d[3];          // +0x0d（ORIG 未出线，read 首读 +0x10）
     unsigned int m_encoded1;  // +0x10 加密值1，process 解码 xor 0x59ab991f【推断】
                               //（Dispatcher_Float_RDATA_Modulation/read.md get_int@msg+0x10）
@@ -593,10 +567,9 @@ static_assert(sizeof(MSG_FLOAT_RDATA_MODULATION) == 0x18, "MSG_FLOAT_RDATA_MODUL
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_GET_ITEM
+class MSG_GET_ITEM : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     unsigned short m_0d;    // +0x0d（item serial；GetItemSerialChecker 第三参）
     unsigned char m_0f;     // +0x0f（==1 布尔标志，传 CParty::get_item/handlePickupItem）
     unsigned char m_10;     // +0x10（槽位/pos，sbyte 传 get_item 与 0x56 广播分支判定 2/3/4）
@@ -611,10 +584,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_GOLD_TAKE_INCREASING_AMOUNT
+class MSG_GOLD_TAKE_INCREASING_AMOUNT : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     int m_overSkillTime;      // +0x0d 宠物/精灵过技能时间值（Dispatcher_GoldTakeIncreasingAmount/read.md
                               //  get_int@msg+0xd；process 传 CCreatureMgr::SetOverSkillTime）
 };
@@ -644,10 +616,9 @@ public:
 };
 
 #pragma pack(push, 1)
-class MSG_GUILD_ATTENDANCE
+class MSG_GUILD_ATTENDANCE : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     signed char m_field0d;    // +0x0d 公会出勤信息类型【推断】
                               //（Dispatcher_GuildAttendanceInfo/read.md get_byte@msg+0xd）
 };
@@ -689,10 +660,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_GUILD_CARGO_MOVE_ITEM
+class MSG_GUILD_CARGO_MOVE_ITEM : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned short m_field0d;  // +0x0d 货运参数1【推断】
                                //（Dispatcher_GuildCargoMoveItem/read.md get_short@msg+0xd；process.md:153）
     unsigned short m_field0f;  // +0x0f 货运参数2【推断】（get_short@msg+0xf；process.md:154）
@@ -703,10 +673,9 @@ static_assert(sizeof(MSG_GUILD_CARGO_MOVE_ITEM) == 0x19, "MSG_GUILD_CARGO_MOVE_I
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_GUILD_CARGO_POP_ITEM
+class MSG_GUILD_CARGO_POP_ITEM : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned short m_field0d;  // +0x0d 槽位【推断】
                                //（Dispatcher_GuildCargoPopItem/read.md get_short@msg+0xd；process.md:187）
     int m_itemIdx;             // +0x0f 物品索引（get_int@msg+0xf；process.md find_item）
@@ -717,10 +686,9 @@ static_assert(sizeof(MSG_GUILD_CARGO_POP_ITEM) == 0x18, "MSG_GUILD_CARGO_POP_ITE
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_GUILD_CARGO_PUSH_ITEM
+class MSG_GUILD_CARGO_PUSH_ITEM : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned char m_field0d;   // +0x0d byte 参数【推断】
                                //（Dispatcher_GuildCargoPushItem/read.md get_byte@msg+0xd；process.md:245）
     unsigned short m_field0e;  // +0x0e ushort 参数【推断】（get_short@msg+0xe；process.md:246）
@@ -732,10 +700,9 @@ static_assert(sizeof(MSG_GUILD_CARGO_PUSH_ITEM) == 0x1a, "MSG_GUILD_CARGO_PUSH_I
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_HATCH_CREATURE
+class MSG_HATCH_CREATURE : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned char m_itemSpace;  // +0x0d 物品空间类型（Dispatcher_HatchCreature/read.md get_byte@msg+0xd；
                                 //  check_error GetInvenTypeFromItemSpace + CheckItemLock）
     short m_slotIdx;            // +0x0e 待孵化生物槽索引（get_short@msg+0xe；CheckItemLock 第2参）
@@ -767,16 +734,14 @@ public:
 };
 #pragma pack(pop)
 
-class MSG_ITEM_DICTIONARY
+class MSG_ITEM_DICTIONARY : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
 };
 
-class MSG_ITEM_HYPER_LINK_MESSAGE
+class MSG_ITEM_HYPER_LINK_MESSAGE : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
 
     // ORIG 布局（Dispatcher_ItemHyperLinkMessage/read 0x081d98c4、process 报告）
     unsigned char m_typeD;             // +0x0d 消息频道类型
@@ -844,10 +809,9 @@ public:
 };
 #pragma pack(pop)
 #pragma pack(push, 1)
-class MSG_MAILBOX_EXTRACT_ITEM
+class MSG_MAILBOX_EXTRACT_ITEM : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned int m_mailIdx;   // +0x0d 提取的邮件编号【推断】
                               //（Dispatcher_MailBox_Extract/read.md get_int(uint&)@msg+0xd）
     // b28d-solo-S161：ORIG 0x8256668 域 msg 槽 -0x22 ⇒ 帧距 0x16，原 0x14 差 2。
@@ -857,10 +821,9 @@ static_assert(sizeof(MSG_MAILBOX_EXTRACT_ITEM) == 0x16, "MSG_MAILBOX_EXTRACT_ITE
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_MAILBOX_SEND
+class MSG_MAILBOX_SEND : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
 
     // ORIG 布局依据：Dispatcher_MailBox_Send/read @0x081cc3da 全部读写偏移：
     int m_nameLenD;            // +0x0d 收件人名长度（read get_int #1）
@@ -878,10 +841,9 @@ static_assert(sizeof(MSG_MAILBOX_SEND) == 0x145, "MSG_MAILBOX_SEND size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_MEMBER_ENTER_REPLY
+class MSG_MEMBER_ENTER_REPLY : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned char m_reply;    // +0x0d 进入请求答复【推断:0=拒绝 1=同意】
                               //（Dispatcher_MemberEnterReply/read.md get_byte@msg+0xd）
 };
@@ -889,10 +851,9 @@ static_assert(sizeof(MSG_MEMBER_ENTER_REPLY) == 0xe, "MSG_MEMBER_ENTER_REPLY siz
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_MEMBER_SECEDE
+class MSG_MEMBER_SECEDE : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gap0d[3];          // +0x0d（ORIG 未出线）
     int m_nameLen;            // +0x10 角色名长度【推断】（Dispatcher_MemberSecede/read.md get_int@msg+0x10）
     char m_characName[0x1e];  // +0x14 脱离公会的成员角色名（get_str(buf,0x1e)@msg+0x14）
@@ -916,10 +877,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_MOTION_HACK
+class MSG_MOTION_HACK : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned char m_field0d;  // +0x0d 移动外挂检测类型【推断】
                               //（Dispatcher_MotionHack/read.md get_byte@msg+0xd）
     unsigned int m_field0e;   // +0x0e 检测数据1【推断】（get_int@msg+0xe）
@@ -929,10 +889,9 @@ static_assert(sizeof(MSG_MOTION_HACK) == 0x16, "MSG_MOTION_HACK size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_MOVE_ITEMSPACE
+class MSG_MOVE_ITEMSPACE : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     // 布局证据：DisPatcher_MoveItem::process(0x081c5904) 对 msg 的全部读取：
     //   +0x0d byte 源 space、+0x0e short 源槽位、+0x10/+0x14 双 u32 组成
     //   exchange_interspace 的 ulong 数量实参（低/高）、+0x18 byte 目的 space、
@@ -951,10 +910,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_MOVE_MAP
+class MSG_MOVE_MAP : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     signed char m_x;              // +0x0d（move_map 目标格 x，movsbl 有符号扩展）
     signed char m_y;              // +0x0e（move_map 目标格 y）
     unsigned int m_fieldF;        // +0x0f（Secu_HackLogCheckByParty::
@@ -978,10 +936,9 @@ public:
 };
 #pragma pack(pop)
 
-class MSG_OBJECT_BRING_UP
+class MSG_OBJECT_BRING_UP : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     // b28d-solo-S161：ORIG 0x824b856 域 msg 槽 -0x1c ⇒ 帧距 0x10，原 0xf 差 1。
     char m_pad[0x3];
 };
@@ -1037,10 +994,9 @@ public:
 
 // ORIG 布局（SetPartyInfoUI 0x0859b234 读取实证）：+0x0d titleIndex、
 #pragma pack(push, 1)
-class MSG_PARTY_SET_INFO
+class MSG_PARTY_SET_INFO : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     unsigned char m_titleIndex;   // +0x0d
     int m_titleLen;               // +0x0e..0x11（SetPartyInfo::read 单级 int 字段装载 0xe(%eax)，DCoreB 证据；4B 同宽 sizeof 0x3e 不变）
     char m_title[0x20];           // +0x12（setTitle 拷贝源，0x20 同 CParty::m_title）
@@ -1091,10 +1047,9 @@ public:
 };
 #pragma pack(pop)
 
-class MSG_PVP_MISSION_COMBO_CLEAR
+class MSG_PVP_MISSION_COMBO_CLEAR : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     // b28d-solo-S161：ORIG 0x8250a88 域 msg 槽 -0x1b ⇒ 帧距 0xf，原 0xe 差 1。
     char m_pad[0x2];
 };
@@ -1111,10 +1066,9 @@ public:
 };
 #pragma pack(pop)
 
-class MSG_PVP_TIMEOUT
+class MSG_PVP_TIMEOUT : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     char m_pad[0x2a];         // +0xd..（b28d-solo-S153：ORIG 0x8258f28 帧距 sizeof=0x37
                               //   [m=-0x4b/p=-0x14]，原 0x29 少 1 字节）
 };
@@ -1168,10 +1122,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_REGENERATION_RANDOM_OPTION
+class MSG_REGENERATION_RANDOM_OPTION : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     // ORIG Dispather_RegenerationRandomOption::process：
     //   两装备槽 u16@0xd/0xf；两源选项序号 s16@0x11/0x13（Regenerate 第 3/4 参）
     unsigned short m_equipSlot0;  // +0x0d
@@ -1182,10 +1135,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_REGISTER_TO_BLACKLIST
+class MSG_REGISTER_TO_BLACKLIST : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gap0d[3];          // +0x0d（ORIG 未出线）
     int m_nameLen;            // +0x10 角色名长度【推断】（Dispatcher_RegisterToBlackList/read.md get_int@msg+0x10）
     char m_characName[0x1e];  // +0x14 加入黑名单的目标角色名（get_str(buf,0x1e)@msg+0x14）
@@ -1195,10 +1147,9 @@ public:
 static_assert(sizeof(MSG_REGISTER_TO_BLACKLIST) == 0x34, "MSG_REGISTER_TO_BLACKLIST size");
 #pragma pack(pop)
 
-class MSG_REMOVE_FRIEND
+class MSG_REMOVE_FRIEND : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     char m_pad[0x22];         // +0xd..（b28d-solo-S153：ORIG 0x825760e 帧距 sizeof=0x2f
                               //   [m=-0x43/p=-0x14]，原 0x21 少 1 字节）
 };
@@ -1230,10 +1181,9 @@ public:
 };
 
 #pragma pack(push, 1)
-class MSG_REPAIR_EQUIP
+class MSG_REPAIR_EQUIP : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     unsigned char m_0d;     // +0x0d（invenType，传 Store::repair_equip char 参）
     short m_0e;             // +0x0e（slot，s16；成功后回显 param+0xa）
     unsigned short m_10;    // +0x10（count/耐久参，u16）
@@ -1250,10 +1200,9 @@ public:
 };
 
 #pragma pack(push, 1)
-class MSG_REQUEST_DISJOINT_ITEM
+class MSG_REQUEST_DISJOINT_ITEM : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
     short m_field0e;          // +0x0e slot【推断】（Dispatcher_RequestDisjointItem/read.md get_short@msg+0xe）
     short m_field10;          // +0x10 第二 slot/idx【推断】（get_short@msg+0x10）
@@ -1290,10 +1239,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_REQUEST_MEMBER_ENTER
+class MSG_REQUEST_MEMBER_ENTER : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gap0d[3];          // +0x0d（ORIG 未出线）
     int m_nameLen;            // +0x10 角色名长度【推断】（Dispatcher_RequestMemberEnter/read.md get_int@msg+0x10）
     char m_characName[0x1e];  // +0x14 请求进入成员的角色名（get_str(buf,0x1e)@msg+0x14）
@@ -1400,10 +1348,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_SCAN_DLL
+class MSG_SCAN_DLL : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     int m_field0d;            // +0x0d DLL 扫描结果码【推断】
                               //（Dispatcher_ScanBotByDll/read.md get_int@msg+0xd）
     signed char m_field11;    // +0x11 扫描标志【推断】（get_byte@msg+0x11）
@@ -1413,10 +1360,9 @@ static_assert(sizeof(MSG_SCAN_DLL) == 0x14, "MSG_SCAN_DLL size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_SCAN_DRV
+class MSG_SCAN_DRV : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     int m_field0d;            // +0x0d 驱动扫描结果码【推断】
                               //（Dispatcher_ScanBotByDrv/read.md get_int@msg+0xd）
     signed char m_field11;    // +0x11 扫描标志【推断】（get_byte@msg+0x11）
@@ -1425,10 +1371,9 @@ static_assert(sizeof(MSG_SCAN_DRV) == 0x12, "MSG_SCAN_DRV size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_SCRIPT_HASH
+class MSG_SCRIPT_HASH : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     signed char m_field0d;    // +0x0d 脚本哈希校验类型1【推断】
                               //（Dispatcher_ValidateScriptHash/read.md get_byte@msg+0xd）
     signed char m_field0e;    // +0x0e 校验类型2【推断】（get_byte@msg+0xe）
@@ -1438,10 +1383,9 @@ static_assert(sizeof(MSG_SCRIPT_HASH) == 0x13, "MSG_SCRIPT_HASH size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_SECRET_SHOP_BUY_ITEM
+class MSG_SECRET_SHOP_BUY_ITEM : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     int m_itemIdx;            // +0x0d 购买物品索引（Dispatcher_SecretShopBuyItem/read.md get_int@msg+0xd；
                               //  process 传 secretshop::CSecretShop::BuyItem）
     int m_count;              // +0x11 购买数量，read 校验 >0；非堆叠物品 BuyItem 强制为 1
@@ -1451,10 +1395,9 @@ static_assert(sizeof(MSG_SECRET_SHOP_BUY_ITEM) == 0x15, "MSG_SECRET_SHOP_BUY_ITE
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_SECRET_SHOP_OPEN_CLOSE
+class MSG_SECRET_SHOP_OPEN_CLOSE : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned char m_openFlag;  // +0x0d 购买开关（Dispatcher_SecretShopOpenClose/read.md get_byte@msg+0xd；
                                //  process 传 SECRET_SHOP_DATA::SetBuying(pos,bool)）
 };
@@ -1474,19 +1417,17 @@ public:
 };
 #pragma pack(pop)
 
-class MSG_SECU_RPY
+class MSG_SECU_RPY : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_pad[0x1007];       // +0x0d..（ORIG 权威尺寸 0x1014：数据区 +0x0f..+0x100e、
                               //  长度 +0x100f、应答类型 +0x1013；dispatch_template 帧实证）
 };
 
 #pragma pack(push, 1)
-class MSG_SELECT_DUNGEON
+class MSG_SELECT_DUNGEON : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     // 布局证据：DisPatcher_SelectDungeon::process(0x081c8102)：
     //   +0x0d short 副本 idx、+0x15?? 无 —— 实际读取 +0xd word、
     //   +0xf/+0x10/+0x11 byte（dungeon_start/handleStartGame 参数与 party 标记）。
@@ -1508,10 +1449,9 @@ public:
 };
 
 #pragma pack(push, 1)
-class MSG_SERIAROOM_DECO_EVENT
+class MSG_SERIAROOM_DECO_EVENT : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
     unsigned short m_decoEventId;  // +0x0e 赛丽亚房装饰事件编号
                                    //（Dispatcher_SeriaRoom_Deco_Event/read.md get_short@msg+0xe）
@@ -1520,20 +1460,18 @@ static_assert(sizeof(MSG_SERIAROOM_DECO_EVENT) == 0x10, "MSG_SERIAROOM_DECO_EVEN
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_SET_READY_STATE
+class MSG_SET_READY_STATE : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     unsigned char m_0d;   // +0x0d（ready 标志，ORIG process 以 (m_0d!=0) 传入
                           //  PvP_Room::set_ready_state）
 };
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_SET_USER_AREA
+class MSG_SET_USER_AREA : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     signed char m_0d;     // +0x0d（vill）
     signed char m_0e;     // +0x0e（area）
     unsigned short m_0f;  // +0x0f（x）
@@ -1579,10 +1517,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_SORT_ITEM
+class MSG_SORT_ITEM : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     // 布局证据：DisPatcher_SortItem::process(0x081c9c54)：仅读 +0x0d byte。
     char m_invenType;                 // +0x0d（ORIG get_byte(char&)）
 };
@@ -1603,10 +1540,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_TELEPORT
+class MSG_TELEPORT : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     char m_gap0d;             // +0x0d（ORIG 未出线，read 首读 +0xe）
     short m_field0e;          // +0x0e【推断】（Dispatcher_Teleport/read.md get_short@msg+0xe）
     unsigned int m_field10;   // +0x10【推断】（get_int@msg+0x10）
@@ -1626,10 +1562,9 @@ public:
 };
 
 #pragma pack(push, 1)
-class MSG_TITLEBOOK_GET
+class MSG_TITLEBOOK_GET : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     int m_itemSpace;          // +0x0d ENUM_ITEMSPACE（Dispatcher_TitleBookGet/read.md get_int@msg+0xd；
                               //  process getTitle 第5参）
     int m_field11;            // +0x11 getTitle 第6参 int& 回填【推断】（get_int@msg+0x11）
@@ -1641,10 +1576,9 @@ static_assert(sizeof(MSG_TITLEBOOK_GET) == 0x21, "MSG_TITLEBOOK_GET size");
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_TITLEBOOK_OTHERUSER
+class MSG_TITLEBOOK_OTHERUSER : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     unsigned short m_targetIdx;  // +0x0d 目标用户/称号索引【推断】
                                  //（Dispatcher_TitleBookOtherUser/read.md get_short@msg+0xd）
 };
@@ -1652,10 +1586,9 @@ static_assert(sizeof(MSG_TITLEBOOK_OTHERUSER) == 0xf, "MSG_TITLEBOOK_OTHERUSER s
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_TITLEBOOK_PUT
+class MSG_TITLEBOOK_PUT : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     int m_itemSpace;          // +0x0d【推断】与 TITLEBOOK_GET 同构 5 int（Dispatcher_TitleBookPut/read.md）
     int m_field11;            // +0x11【推断】（get_int@msg+0x11）
     int m_field15;            // +0x15【推断】（get_int@msg+0x15）
@@ -1691,10 +1624,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_USERINFO_REQ
+class MSG_USERINFO_REQ : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     unsigned short m_targetId;  // +0xd（GameWorld::get_user_info 目标 id）
     char m_slot;                // +0xf（ORIG read 用 get_byte(char&) 重载）
 };
@@ -1714,10 +1646,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_USER_SET_POS
+class MSG_USER_SET_POS : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     unsigned short m_0d;  // +0x0d（x）
     unsigned short m_0f;  // +0x0f（y）
     signed char m_11;     // +0x11（z，sbyte）
@@ -1726,10 +1657,9 @@ public:
 #pragma pack(pop)
 
 #pragma pack(push, 1)
-class MSG_USE_COIN
+class MSG_USE_COIN : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     unsigned short m_0d;    // +0x0d（UseCoin process 回显至 param+0x8；u16 @ msg+0x0d）
 };
 #pragma pack(pop)
@@ -1769,10 +1699,9 @@ public:
 };
 
 #pragma pack(push, 1)
-class MSG_USE_SKILL
+class MSG_USE_SKILL : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     char m_gapD;              // +0x0d（ORIG read 首读 get_byte@+0xd，未消费）
     // ORIG DisPatcher_UseSkill::process：技能槽 u8@0xe；目标 u16@0xf（use_skill 第 3 参）
     unsigned char m_slot;        // +0x0e
@@ -1781,18 +1710,16 @@ public:
 };
 #pragma pack(pop)
 
-class MSG_WALKOUT_PARTY
+class MSG_WALKOUT_PARTY : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     char m_walkoutSlot;       // +0xd（包头后首字节：被踢成员槽位，walkout_member 第二参）
 };
 
 #pragma pack(push, 1)
-class MSG_WARROOM_WP_PER_MONSTER
+class MSG_WARROOM_WP_PER_MONSTER : public MSG_BASE
 {
 public:
-    char m_head[0xd];   // standalone POD（ORIG 无 C1/D1，不派生 MSG_BASE）
     int m_field0d;            // +0x0d HandleWpPerMonster 第2参【推断】
                               //（Dispatcher_WarRoomWpPerMonster/read.md get_int@msg+0xd）
     int m_field11;            // +0x11 第3参【推断】（get_int@msg+0x11）
@@ -1812,26 +1739,23 @@ public:
     std::vector<int> m_questIdxs;  // +0x14
 };
 
-class MsgLimitNpcBuyItem
+class MsgLimitNpcBuyItem : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     // b28d-solo-S161：ORIG 0x824ba44 域 msg 槽 -0x21 ⇒ 帧距 0x15，原 0x14 差 1。
     char m_pad[0x8];
 };
 
-class MsgMercenaryCompetition
+class MsgMercenaryCompetition : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     // b28d-solo-S161：ORIG 0x824d24a 域 msg 槽 -0x24 ⇒ 帧距 0x18，原 0x17 差 1。
     char m_pad[0xb];
 };
 
-class MsgMercenaryReturn
+class MsgMercenaryReturn : public MSG_BASE
 {
 public:
-    char m_head[0xd];         // +0x0 包头（standalone POD：ORIG 该类型无 C1/D1，不派生 MSG_BASE）
     // b28d-solo-S161：ORIG 0x824d69c 域 msg 槽 -0x20 ⇒ 帧距 0x14，原 0x13 差 1。
     char m_pad[0x7];
 };

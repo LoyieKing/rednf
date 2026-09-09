@@ -390,20 +390,28 @@ int TimerDBUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
         return 0;
     }
     // UpdateData/GetUID 为 CUser 成员（CUser 继承 CUserCharacInfo），保持 CUser*。
-    const int elapsedHours =
-        (GlobalData::s_systemTime_.getCurSec() - user->GetLoginTick()) / 0xe10;
-    if (elapsedHours == 1)
+    // P0：ORIG 三个具名槽 -0x24(loginTick)/-0x20(curSec)/-0x1c(elapsedHours)。
+    const int loginTick = user->GetLoginTick();
+    const int curSec = static_cast<int>(GlobalData::s_systemTime_.getCurSec());
+    const int elapsedHours = (curSec - loginTick) / 0xe10;
+    // ORIG 08632fd8-0x8633013：范围判定 `> 0 && <= 1` / `> 0xb && <= 0xc`
+    // （cmpl $0;jle / cmpl $1;jg），非 `== 1` 单比较形。
+    if (elapsedHours > 0 && elapsedHours <= 1)
     {
         APSystem::CUserProc::ClearActionAndSendtoUser(
             user, (APSystem::_ActionGroupIndex)0x23, 0, ENUM_PACKETCLASS_0);
     }
-    else if (elapsedHours > 0xb && elapsedHours < 0xd)
+    else if (elapsedHours > 0xb && elapsedHours <= 0xc)
     {
         APSystem::CUserProc::ClearActionAndSendtoUser(
             user, (APSystem::_ActionGroupIndex)0x24, 0, ENUM_PACKETCLASS_0);
     }
-    if (user->GetLoginTick() != p2 ||
-        (p3 != 0 && static_cast<unsigned int>(user->getCurCharacNo()) != p3))
+    // ORIG 08633043：`cmp; setne %al; test %al,%al; je` ⇒ P225 while+body 形。
+    while (user->GetLoginTick() != p2)
+    {
+        return 0;
+    }
+    if (p3 != 0 && static_cast<unsigned int>(user->getCurCharacNo()) != p3)
     {
         return 0;
     }
@@ -600,13 +608,11 @@ int TimerFatigueReset::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG：G_CEnvironment()+0x37c（每日重置小时）即 m_serverEnvir.m_fatigueTime；
     // ORIG 每处均重新取 env。
-    // ORIG 0x0863375d `mov 0x37c(%eax),%ebx` 单段直落 callee-saved 跨 update 调用；
-    // 绑定版消 int 槽（guard1/guard2 槽归位 -0x14/-0x1c），装载恒两段
-    // N96/P0：绑定形已废，自然局部（ORIG 寄存器直落残差记 N18a/N76）。
-    int dailyResetHour = G_CEnvironment()->m_serverEnvir.m_fatigueTime;
+    // ORIG 0x0863375d `mov 0x37c(%eax),%ebx` 单段直落 callee-saved 跨 update 调用，
+    // 无栈槽 ⇒ P0 表达式内联（旧具名局部多 -0x10 槽并使 guard 槽 -0x14→-0x18 全帧平移）。
     static_cast<EventClassify::CEventScriptMng*>(
             G_CDataManager()->get_event_script_mng())
-        ->update_time_values(dailyResetHour);
+        ->update_time_values(G_CEnvironment()->m_serverEnvir.m_fatigueTime);
 
     // ORIG 每个 GameWorld 成员调用前都重新取 G_GameWorld()，逐条保留。
     G_GameWorld()->ResetAllFatigue();
@@ -676,17 +682,15 @@ bool TimerFatigueReset::RegistNextTimer()
     tm* pt = localtime_r(&curSec, &timeInfo);                // ORIG sret 形 pt 槽 -0x28
 
     const int hour = pt->tm_hour;                            // -0x24（08633a33 直读）
-    // ORIG 0x08633a40/0x45/0x47：三字段各 `mov -0x28,%eax` 重读 + 单段直落
-    // N96/P0：绑定形已废（跨 call 保活残差记 N76/N82附）。
-    int sec = pt->tm_sec;
-    int min = pt->tm_min;
-    int hr = pt->tm_hour;
+    // ORIG 0x08633a40/0x45/0x47：三字段各 `mov -0x28,%eax` 重读 + 单段直落 callee-saved
+    // （无栈槽）⇒ P231/P307 纯 register（非 asm 绑定）。
+    register int sec = pt->tm_sec;
+    register int min = pt->tm_min;
+    register int hr = pt->tm_hour;
 
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x572, 0);
-        // ORIG 0x08633a71-0x08633a79：参数装载 edi→0x10/min→0xc/hr→0x8（右→左）
-        trace("Reset all user's fatigue!(%02d:%02d:%02d)", hr, min, sec);
-    }
+    // ORIG 0x08633a71-0x08633a79：参数装载 edi→0x10/min→0xc/hr→0x8（右→左）
+    cMyTrace(__PRETTY_FUNCTION__, 0x572, 0)(
+        "Reset all user's fatigue!(%02d:%02d:%02d)", hr, min, sec);
 
     // env+0x37c 写回 tm_hour；min/sec 清零（ORIG 0x8(%eax)/0x4(%eax)/(%eax) 槽序）。
     pt->tm_hour = G_CEnvironment()->m_serverEnvir.m_fatigueTime;   // env+0x37c
@@ -699,10 +703,8 @@ bool TimerFatigueReset::RegistNextTimer()
 
     const int delta = nextMidnight - static_cast<int>(curSec);  // -0x1c
 
-    {
-        cMyTrace trace2(__PRETTY_FUNCTION__, 0x587, 0);
-        trace2("DELTA %d , CHECK_T %d , CUR_T %d\n", delta, nextMidnight, static_cast<int>(curSec));
-    }
+    cMyTrace(__PRETTY_FUNCTION__, 0x587, 0)(
+        "DELTA %d , CHECK_T %d , CUR_T %d\n", delta, nextMidnight, static_cast<int>(curSec));
 
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2,
                                 0,
@@ -1445,13 +1447,17 @@ TimerUltimateNextRoundStart::~TimerUltimateNextRoundStart() {}
 int TimerUltimateNextRoundStart::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
-    if (party == 0 || !party->check_timer_key((TIMER_MESSAGE)p3, p2))
+    if (party == 0)
     {
         return 0;
     }
-    // P133 反例实测：拆两条独立 if 使 4.4 多产 `mov $1; test; je` 物化（94→99），
-    // 保持合并短路 `||`（ORIG 08638daf 同一失败落点，4.4 直跳形）。
-    if (party->m_battleField.m_pDungeon == 0 ||
+    if (!party->check_timer_key((TIMER_MESSAGE)p3, p2))
+    {
+        return 0;
+    }
+    // 真语义 bug 修正（Ghidra C：body 条件 = m_pDungeon==0 || type==2）⇒ 早退条件
+    // 必须写成 De Morgan 正形 `m_pDungeon != 0 && type != 2`（旧码 `==0 || !=2` 极性错）。
+    if (party->m_battleField.m_pDungeon != 0 &&
         party->m_battleField.m_pDungeon->m_bloodDungeonType != 2)
     {
         return 0;
@@ -1469,7 +1475,7 @@ int TimerUltimateNextRoundStart::dispatch_sig(int p1, int p2, unsigned int p3)
         party->m_battleField.getBloodMaxRound() - 1)
     {
         party->m_battleField.sendUltimateRandomDifficulty(
-            static_cast<short>(party->m_battleField.m_bloodRound.getBloodRoundOrder()), diff);
+            diff, static_cast<short>(party->m_battleField.m_bloodRound.getBloodRoundOrder()));
     }
     party->m_battleField.startUltimateRound();
     return 1;
@@ -1515,12 +1521,11 @@ bool TimerStatisticsDetailChannelInfo::RegistNextTimer()
     // 与两条 mov。按 ORIG 直取 curSec 地址（int/time_t 同 4 字节）。
     tm* pt = localtime_r(reinterpret_cast<const time_t*>(&curSec), &timeInfo);
     const int nextSec = (pt->tm_min % 0x1e) * -0x3c + (0x708 - pt->tm_sec);
-    const int channelNo = G_CEnvironment()->get_channel_no();
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x92c, 0);
-        trace("content min:%d sec:%d next sec:%d  (channel no:%d)\n",
-              pt->tm_min, pt->tm_sec, nextSec, channelNo);
-    }
+    // P0：ORIG channelNo 无槽（086358xx `mov %eax,%ebx` 直入 callee-saved）⇒ 实参内联；
+    // P221/P227 全表达式临时链令 tm_min/tm_sec/channelNo 在 ctor 前求值驻 edi/esi/ebx。
+    cMyTrace(__PRETTY_FUNCTION__, 0x92c, 0)(
+        "content min:%d sec:%d next sec:%d  (channel no:%d)\n",
+        pt->tm_min, pt->tm_sec, nextSec, G_CEnvironment()->get_channel_no());
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                 (TIMER_MESSAGE)0x54, nextSec, 0, 0);
     return true;
@@ -1653,41 +1658,32 @@ int TimerCheckMailTimeOut::dispatch_sig(int p1, int p2, unsigned int p3)
     // ORIG 0x08635d0f：单出口 result(%ebx) + 四段判错，各 setXX %al 物化
     // （0x08635d9x `cmp $0x1,%eax; setle` / `cmp 0x10,%eax; setne` / `cmp 0x14,%eax; setne`）
     // → `test %al,%al; je` 前跳；result=1 在 PacketGuard dtor(0x08635e64) 之前。
-    // N96/P0：绑定形已废，自然具名局部（setXX 物化链残差记 N85/setcc-fold）。
-    int result;
-    bool bad;
+    // [b28d-solo-TimerDispatcher] P231 纯 register：ORIG result 驻 %ebx 跨全部 call
+    // 无栈槽；P0：ORIG 无 bad 槽 ⇒ 条件内联（旧具名 bool 生 mov %al,-0x11; cmpb）。
+    register int result;
     CUser* user = G_CGameManager()->getUser(p1, 7);   // ORIG 第二实参为常量 7
     if (user == 0) {
         result = 0;
+    } else if (user->get_state() <= 1) {
+        result = 0;
+    } else if (user->GetLoginTick() != p2) {
+        result = 0;
+    } else if (static_cast<unsigned int>(user->getCurCharacNo()) != p3) {
+        result = 0;
     } else {
-        bad = user->get_state() <= 1;
-        if (bad) {
-            result = 0;
-        } else {
-            bad = user->GetLoginTick() != p2;
-            if (bad) {
-                result = 0;
-            } else {
-                bad = static_cast<unsigned int>(user->getCurCharacNo()) != p3;
-                if (bad) {
-                    result = 0;
-                } else {
-                    PacketGuard packet;
-                    packet.put_header(0, 0x62);
-                    int countIndex = packet.get_index();
-                    packet.put_int(0);
-                    int expired = static_cast<int>(WongWork::CMailBoxHelper::CheckMailTimeout(user, &packet));
-                    if (expired != 0)
-                    {
-                        packet.put_int(countIndex, expired);
-                        packet.finalize(true);
-                        user->Send(packet);
-                    }
-                    WongWork::CMailBoxHelper::SetPeriodCheckTimer(user);
-                    result = 1;
-                }
-            }
+        PacketGuard packet;
+        packet.put_header(0, 0x62);
+        int countIndex = packet.get_index();
+        packet.put_int(0);
+        int expired = static_cast<int>(WongWork::CMailBoxHelper::CheckMailTimeout(user, &packet));
+        if (expired != 0)
+        {
+            packet.put_int(countIndex, expired);
+            packet.finalize(true);
+            user->Send(packet);
         }
+        WongWork::CMailBoxHelper::SetPeriodCheckTimer(user);
+        result = 1;
     }
     return result;
 }
@@ -2098,6 +2094,8 @@ int TimerDungeonDataStatistic::dispatch_sig(int p1, int p2, unsigned int p3)
     // ORIG 0x0863674a-0x08636757：Acquire 免槽直落 ctor；guard 全程作用域
     // （dtor 在 updateDataIntoDB/Regist 之后，catch @0fc）；写流走显式
     // operator*() 代理链；GetInBuffer 经 operator->()（ORIG 0x086367a2 ptEv call）
+    register int ret;   // [b28d-solo] 共享尾 %ebx（ORIG 单出口）
+    {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("TimerDispatcher.cpp", 0xb1a), true);
     guard.operator*()->operator<<((int)0xaf);
     guard.operator*()->operator<<((int)-1);
@@ -2110,11 +2108,11 @@ int TimerDungeonDataStatistic::dispatch_sig(int p1, int p2, unsigned int p3)
     // ORIG 0x0863680a-0x08636824：Regist byte 槽 -0x9 物化 + `xor $0x1; test; je`
     // 双岛直存 %ebx 跨 dtor（绑定消 bool byte 槽），单出口 return %ebx
     bool ok = RegistNextTimer();
-    register int ret;   // [b28d-30] 纯 register（P231：ORIG 单出口 %ebx 驻留，非 asm 绑定）
     if (ok != 1)
         ret = false;
     else
         ret = true;
+    }
     return ret;
 }
 
@@ -2138,11 +2136,9 @@ bool TimerDungeonDataStatistic::RegistNextTimer()
     // ORIG 0x086368a7-0x086368e1：chn 全程 %ecx、x=chn/30（0x88888889+sar4 魔数）
     // 存 %ebx（sign 修正后）、2x=%edx；`shl $4; sub %edx` =30x；
     // tm_min = chn-30x = chn%30（P196：旧 /15*45 形在 chn≥15 分叉系误判）。
-    // N96/P0：绑定形已废（槽序归位残差记 N82/P112）。
-    int chn = G_CEnvironment()->m_serverEnvir.m_channelNo; // +0x1b0
-    int x = chn / 30;
-    int x2 = x * 2;
-    pt->tm_min = chn - (x2 * 16 - x2);
+    // P0：ORIG chn/x/x2 全程寄存器无槽（086368a7 `mov 0x1b0(%eax),%ecx` 直入
+    // 魔数除法）⇒ 表达式内联为 `% 0x1e`（旧三个具名局部多 3 槽 + 全帧平移）。
+    pt->tm_min = G_CEnvironment()->m_serverEnvir.m_channelNo % 0x1e;  // +0x1b0
     int target = static_cast<int>(mktime(pt));
     if (pt->tm_hour <= curHour)
         target += 0x15180;
@@ -2184,10 +2180,8 @@ int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         // ctor，无栈槽）⇒ P231/P307 纯 register 存储类提示（非 asm 绑定，P0 合规）。
         register const char* ipStr =
             user->m_network.GetPeerIP2((char*)ipBuf, 0x14);  // +0xe0
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xb73, 0);
-        trace("Not response user timeout: idx(%d), IP(%s)", p1, ipStr);
+        cMyTrace(__PRETTY_FUNCTION__,
+                 0xb73, 0)("Not response user timeout: idx(%d), IP(%s)", p1, ipStr);
     }
     return 1;
 }
@@ -2207,12 +2201,15 @@ int TimerLightServerNotice::dispatch_sig(int /*p1*/, int p2, unsigned int /*p3*/
     // {byte 0, short 0, byte 0, int len, str} 广播 → RegistNextTimer(idx)。
     // P183 地址重物化铁律：ORIG 每个站点重发 `call G_CDataManager; add $0xa4,%eax`
     // （08636a8d/08636b1f/08636b58），禁 `std::vector<...>& notices = ...` 引用缓存。
+    register int ret;
     if (p2 < 0 ||
         static_cast<unsigned int>(p2) >=
             G_CDataManager()->m_serverParameter.m_light3c.size())
     {
-        return 0;
+        ret = 0;
     }
+    else
+    {
     PacketGuard guard;
     // P89/P183：ORIG 每站点 `lea -0x1c(%ebp),%eax; mov %eax,(%esp)`（guard 地址直传），
     // 禁具名 `InterfacePacketBuf& packet`（多占 -0x18 槽）。
@@ -2230,11 +2227,11 @@ int TimerLightServerNotice::dispatch_sig(int /*p1*/, int p2, unsigned int /*p3*/
     const bool done = RegistNextTimer(p2);
     // P231/P307：ORIG 汇聚变量驻 %ebx（08636bd6 `mov $0x0,%ebx` / 08636bdd
     // `mov $0x1,%ebx`）且无栈槽 ⇒ 纯 register 存储类提示（非 asm 绑定，P0 合规）。
-    register int ret;
     if (!done)
         ret = 0;
     else
         ret = 1;
+    }
     return ret;
 }
 
@@ -2421,7 +2418,6 @@ TimerCheckHumanCertifyTimeout::~TimerCheckHumanCertifyTimeout() {}
 // isSendMailCertified 需 bool（CUser.h 冻结，已上报 Main）（105/113）。
 int TimerCheckHumanCertifyTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    unsigned short local_24[10];
     CUser* user = G_CGameManager()->getUser(p1, 2);
 
     if (user == 0 || user->get_state() < 2)
@@ -2439,27 +2435,28 @@ int TimerCheckHumanCertifyTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         return 1;
     }
 
-    unsigned int point = user->m_mcap.getPoint();
-    user->m_historyLog.RequestCleanPad(point, '\x03');
+    // P0：ORIG point 无槽（getPoint 结果 %eax 直入 0x4(%esp)）⇒ 实参内联。
+    user->m_historyLog.RequestCleanPad(user->m_mcap.getPoint(), '\x03');
 
-    for (int i = 0; i < 10; ++i)
-    {
-        local_24[i] = 0;
-    }
+    // ORIG 08636xxx：5×`movl $0x0` 展开（20B 数组 = {0} 初始化，落在 RequestCleanPad
+    // 之后）；旧循环形生 movw/addl/setle 循环体。
+    unsigned short local_24[10] = {0};
 
     // P168a①：bool callee 一律裸形（技巧1：`!boolcall()` 直产 xor$1;test;je）
     if (!user->checkHumanCertify(1, local_24))
     {
-        if ((int)user->isSendMailCertified() == 1)
-        {
-            user->DisConnSig((DISCONN_SIG)0x34, true, 0);
-        }
-        else
+        // ORIG 08636xxx：`call isSendMailCertified; xor $1; test; je <else>` ⇒
+        // 原码为否定式 `if (!isSendMailCertified())`，正分支（reset 组）直落、else 后置。
+        if (!user->isSendMailCertified())
         {
             user->setHumanCertified(true);
             user->SendMail(false);
             user->resetCleanpadFailCnt();
             user->resetHumanCertifyData();
+        }
+        else
+        {
+            user->DisConnSig((DISCONN_SIG)0x34, true, 0);
         }
     }
 
@@ -2703,9 +2700,11 @@ int TimerScheduleTenSecond::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*
     // ptEv/ppEv/ne）、EXTRA = 非 const 版 ⇒ 原码是**非 const map 引用 + const_iterator
     // 循环变量**（若 map 引用本身 const 则 begin/end 直返 const_iterator、C1ERKS_ 不再
     // 发射，故旧「改 const 引用」形计数恶化）。ORIG 0x08637936。
-    std::map<unsigned int, CUser*>& users = G_CGameManager()->getUserByAccIdMap();
-    for (std::map<unsigned int, CUser*>::const_iterator it = users.begin();
-         it != users.end(); ++it)
+    // P0/P183：ORIG 无 users 引用局部（08637936 `call G_CGameManager; lea 0x22c(%eax),%edx`
+    // 每站点重发）⇒ 全表达式内联（旧具名引用多 -0x18 槽 + 2 insn）。
+    for (std::map<unsigned int, CUser*>::const_iterator it =
+             G_CGameManager()->m_userByAccId.begin();
+         it != G_CGameManager()->m_userByAccId.end(); ++it)
     {
         CUser* user = it->second;
         if (user->get_state() >= 2 && user->getAntibotKey() >= 0)
@@ -3098,11 +3097,18 @@ void TimerGeneratePowerUp::generatePowerUp(std::vector<CUser*>& users, int count
 {
     const int total = static_cast<int>(users.size());
     int selected = 0;
+    int idx = 0;                 // ORIG -0x14：rand()%total 具名槽（P0 槽往返）
+    CUser* picked = 0;           // ORIG -0x30：预清零（P198①）
+    int maxLoop = 10000;         // ORIG -0x10：死写入照抄（P171；条件仍用立即数）
     int loopCnt = 0;
     std::vector<CUser*> buf;
-    while (count > selected && loopCnt <= 10000)
+    // ORIG 0x08638a0b-0x08638a4e：循环体尾 `++loopCnt; cmp $0x2710; jle <cond>`，
+    // 超限落 trace 块 + break ⇒ 源码形为 while(count>selected){…;++loopCnt;
+    // if(loopCnt>10000){trace;break;}}（旧 && 合并形产 mov$1/$0/test 物化 + jle/jg）。
+    while (count > selected)
     {
-        CUser* picked = users[rand() % total];
+        idx = rand() % total;
+        picked = users[idx];
         // N96/P0：uchar callee 无槽折叠形（xor 寄存器物化属 setcc-fold 负例）。
         if ((unsigned char)(picked->IsPowerUp() ^ 1))
         {
@@ -3111,12 +3117,12 @@ void TimerGeneratePowerUp::generatePowerUp(std::vector<CUser*>& users, int count
             ++selected;
         }
         ++loopCnt;
-    }
-    if (loopCnt > 10000)
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x104e, 5);
-        trace("Generate Power Up Party Failure");
+        if (loopCnt > 10000)
+        {
+            cMyTrace(__PRETTY_FUNCTION__,
+                     0x104e, 5)("Generate Power Up Party Failure");
+            break;
+        }
     }
     G_GameWorld()->SendPowerUpList(ENUM_POWER_UP_ACTIVATE_TYPE_ACTIVATE, buf);
 }
@@ -3507,17 +3513,20 @@ bool Timer_Midnight::RegistNextTimer()
     std::tm timePoint;
     std::tm* pt = localtime_r(&nowSec, &timePoint);
     const int hourNow = pt->tm_hour;
-    // N96/P0：绑定形已废（跨 call 保活残差记 N76/N82附）。
-    int secNow = pt->tm_sec;
-    int minNow = pt->tm_min;
-    int hrNow = pt->tm_hour;
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x1293, 0);
-    trace("Reset all user's fatigue!(%02d:%02d:%02d)", hrNow, minNow, secNow);
+    // [b28d-solo] P231/P307 纯 register（非 asm 绑定）：ORIG 三值直落 edi/esi/ebx
+    // 跨 cMyTrace ctor 保活无栈槽（086395xx mov (%eax),%edi / 0x4,%esi / 0x8,%ebx）。
+    register int secNow = pt->tm_sec;
+    register int minNow = pt->tm_min;
+    register int hrNow = pt->tm_hour;
+    cMyTrace(__PRETTY_FUNCTION__, 0x1293, 0)(
+        "Reset all user's fatigue!(%02d:%02d:%02d)", hrNow, minNow, secNow);
     pt->tm_hour = 0;
     pt->tm_min = 0;
     pt->tm_sec = 0;
-    const long midnight = mktime(pt);
-    const int nextAt = static_cast<int>(midnight + 0x15180);
+    // ORIG 0863964x：`call mktime; mov %eax,-0x20; addl $0x15180,-0x20`（单槽原地自增，
+    // 无独立 midnight 局部）⇒ 具名 nextAt + 复合赋值（旧双局部多 1 槽 + 2 insn）。
+    int nextAt = static_cast<int>(mktime(pt));
+    nextAt += 0x15180;
     const int delay = nextAt - static_cast<int>(nowSec);
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                 (TIMER_MESSAGE)0x8d, delay, 0, 0);
@@ -3824,12 +3833,13 @@ Timer_DungeonInoutCloseTime::~Timer_DungeonInoutCloseTime() {}
 int Timer_DungeonInoutCloseTime::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     (void)p1; (void)p2;
+    unsigned int dungeonIdx;   // ORIG -0x58：声明序最先（ORIG 0863a213 赋值点在后）
     time_t now = static_cast<time_t>(GlobalData::s_systemTime_.getCurSec());
     struct tm tmBuf;
     struct tm* ptm = localtime_r(&now, &tmBuf);
     const int curHour = ptm->tm_hour;
     const int curMin = ptm->tm_min;
-    const unsigned int dungeonIdx = p3;   // ORIG -0x58 具名副本（P0 槽往返）
+    dungeonIdx = p3;   // ORIG -0x58 具名副本（P0 槽往返）
     if (dungeonIdx == 0)
         return 0;
 
@@ -3838,7 +3848,9 @@ int Timer_DungeonInoutCloseTime::dispatch_sig(int p1, int p2, unsigned int p3)
     if (it != G_CDataManager()->m_serverParameter.m_dungeonInoutc8.end())
     {
         ptm->tm_hour = curHour + 1;
-        ptm->tm_min = it->second.m_endMin;   // 迭代器 value +0xc
+        // ORIG 0863a29c `mov 0xc(%eax),%edx`（Ghidra C：*(int*)(it->+0xc)）⇒
+        // pair+0xc = second+8 = m_startMin（旧码 m_endMin 产 +0x10，与 ORIG 不符）。
+        ptm->tm_min = it->second.m_startMin;
         ptm->tm_sec = 0;
         const time_t closeSec = mktime(ptm);
         const int delay = static_cast<int>(closeSec - now);
@@ -4054,7 +4066,6 @@ int Timer_Send_Ontime_Reward::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int 
         {
             RegistNextTimer();
         }
-        return 1;
     }
     else
     {
@@ -4063,6 +4074,7 @@ int Timer_Send_Ontime_Reward::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int 
         trace("[ON_TIME_EVENT] Timer_Send_Ontime_Reward() error");
         return 0;
     }
+    return 1;
 }
 
 // ORIG T 0x0863ab4c：static，全部常量实参
@@ -4381,15 +4393,17 @@ Timer_NoticeEmergencyPatchMessage::~Timer_NoticeEmergencyPatchMessage() {}
 int Timer_NoticeEmergencyPatchMessage::dispatch_sig(int /*p1*/, int /*p2*/,
                                                     unsigned int /*p3*/)
 {
-    char local_43c[0x400] = {0};        // ORIG rep stos ecx=0x100（dword）→ 清 0x400 字节
     PacketGuard packet;
     packet.put_header(0, 0xc);
     packet.put_byte(0);
     packet.put_short(0);
     packet.put_byte(0);
-    char const* notice = GameserverDemonManagerInstance()->GetNoticeMessage();
+    // ORIG 0863bxxx：guard ctor + 4 次 put 之后才 rep stos 清 0x400 字节 ⇒
+    // 数组声明落在 put 段之后（旧形前置致缓冲/guard 槽序互换 + 帧差）。
+    char local_43c[0x400] = {0};        // ORIG rep stos ecx=0x100（dword）→ 清 0x400 字节
+    // P0：ORIG 无 notice 槽（`call GetNoticeMessage; mov %eax,0xc(%esp)` 直传）⇒ 内联。
     sprintf(local_43c, "%d분뒤 서버점검이 있습니다. %s", m_remainingNotiCount,
-            notice);
+            GameserverDemonManagerInstance()->GetNoticeMessage());
     unsigned int len = strlen(local_43c);
     packet.put_int((int)len);
     packet.put_str(local_43c, (int)len);
@@ -4399,15 +4413,12 @@ int Timer_NoticeEmergencyPatchMessage::dispatch_sig(int /*p1*/, int /*p2*/,
     if (m_remainingNotiCount == 0)
     {
         GetInstanceShutdowManager()->SendShutdownSignal();
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x1849, 0);
-        trace("Emergency Patch Message Received");
+        cMyTrace(__PRETTY_FUNCTION__,
+                 0x1849, 0)("Emergency Patch Message Received");
+        // ORIG 0863bxxx：两分支各发 `mov $1,%ebx; jmp <共享尾>`（独立 return 1）。
+        return 1;
     }
-    else
-    {
-        RegistNextTimer();
-    }
+    RegistNextTimer();
     return 1;
 }
 // ORIG T 0x0863b87e sz 0x45（_ZN33Timer_NoticeEmergencyPatchMessage15RegistNextTimerEv）：

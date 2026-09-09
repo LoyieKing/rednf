@@ -2143,7 +2143,8 @@ BindCube_LvBonusScriptData::~BindCube_LvBonusScriptData() {}
 CCompound_ExtreamDun_Item::CCompound_ExtreamDun_Item()
 {
     const unsigned long seed = time(0);
-    m_rand = new CMTRand(seed);
+    register const unsigned long* pseed = &seed;
+    m_rand = new CMTRand(*pseed);
 }
 
 CCompound_ExtreamDun_Item::~CCompound_ExtreamDun_Item()
@@ -2198,11 +2199,10 @@ bool CCompound_ExtreamDun_Item::_AddItem(CEquipItem& item)          // ORIG 0x83
         return false;
     }
     // ORIG 槽：entry@-0x1c、entry2@-0x14（连排声明复现槽序）。
-    OUTPUT_ITEM_STR entry(item.getUsableLevel(), item.get_index());
-    m_data.m_resultItems[cat].push_back(static_cast<OUTPUT_ITEM_STR&&>(entry));
-    OUTPUT_ITEM_STR entry2(item.getUsableLevel(), item.get_index());
+    m_data.m_resultItems[cat].push_back(
+        OUTPUT_ITEM_STR(item.getUsableLevel(), item.get_index()));
     m_data.m_bindItems[item.getItemGroupName()][cat].push_back(
-        static_cast<OUTPUT_ITEM_STR&&>(entry2));
+        OUTPUT_ITEM_STR(item.getUsableLevel(), item.get_index()));
     return true;
 }
 
@@ -2794,16 +2794,16 @@ int CCompound_ExtreamDun_Item::_FindRandomItem(                     // ORIG T 0x
     // [b28d-solo] §4.3 具名化：直接成员访问 m_data.m_resultItems[outRarity]
     //   （等价 this+0xb40+4+12*outRarity），去掉裸偏移 reinterpret_cast。
     const ItemVec& table = m_data.m_resultItems[(int)outRarity];
-    OUTPUT_ITEM_STR lowKey((int)range.first, 0);
     ItemVec::const_iterator lo = std::lower_bound(
-        table.begin(), table.end(), lowKey, &BindTable_Predicate);
-    OUTPUT_ITEM_STR highKey((int)range.second, 0x7fffffff);
+        table.begin(), table.end(), OUTPUT_ITEM_STR((int)range.first, 0),
+        &BindTable_Predicate);
     ItemVec::const_iterator hi = std::upper_bound(
-        table.begin(), table.end(), highKey, &BindTable_Predicate);
+        table.begin(), table.end(),
+        OUTPUT_ITEM_STR((int)range.second, 0x7fffffff), &BindTable_Predicate);
     // [b28d-solo] P167/P220/P171：ORIG 0x832d3ea 在比较前**再调一次
     //   table.end()**（sret -0x10）后 `operator!=(lo, end)`（0x832d40c）⇒
     //   源码为 `lo != table.end()`（非 lo != hi；gap 6 = 该次 end 调用）。
-    if (lo != table.end())
+    if (table.end() != lo)
     {
         return _FindItemRelateCreationRate(lo, hi);
     }
