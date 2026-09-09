@@ -22,7 +22,13 @@
 #include "CItem.h"
 #include "CItemList.h"
 #include "CSystemTime.h"
-#include "CUser.h"
+class CUser;                 // 前向声明（本头仅 CUser* 形参：kill_blood_monster/onUseItem）。
+                             // [SweepBattleMonsterDeps 2026-09-10，Main 批准] 原
+                             // #include "CUser.h" 会带出 CUser.h→TaiwanQueries.h→
+                             // TaiwanCash.h→ThreadInterface.h:29→<iostream> 链，使每个
+                             // 消费 TU 发射 _ZStL8__ioinit + _GLOBAL__I_<首强符号>；ORIG 中
+                             // BattleMonsterDepsC2 对应 TU 无 GI（509 个 GI 键符号地址无一
+                             // 落在 0x08300c76..0x0830e41b）⇒ 断链消多余 GI/ioinit（P327/P338）。
 #include "CUserCharacInfo.h"
 #include "GameTypes.h"
 #include "Inven_Item.h"
