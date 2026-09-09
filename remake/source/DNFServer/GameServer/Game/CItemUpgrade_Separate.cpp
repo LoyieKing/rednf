@@ -196,6 +196,8 @@ int GenuineDamageUpgradeTable::getGenuineUpgradeDamage(ENUM_RARITY rarity, int a
 // ①4.4 浅槽基恒比 ORIG 深 8（eps/count/factor -0x1c/-0x18/-0x14 vs -0x14/-0x10/-0xc；
 // 帧 0x58 vs 0x68，加 char[0x10]/double pad 只会整体平移 0x10，N95 不可上移）；
 // ②ORIG `mov -0x50,%eax; mov -0x4c,%edx` 的 64 位宽读 vs 4.4 只读低 dword（N92）。
+// [2026-09-09 SweepCItemUpgrade] 复核（未改）：gap=1（orig 217 / our 216）即 ② 那 1 条
+// 高 32 位读（0x08912cf8，fistpll 结果丢弃的高半字）；槽基常数差 8 为 N95。判词维持 N。
 int GenuineDamageUpgradeTable::getGenuineUpgradeMaterialCnt(unsigned char growth, int sepLv,
                                                             ENUM_EQUIPMENTTYPE type,
                                                             ENUM_RARITY rarity) const
@@ -298,12 +300,13 @@ int CItemUpgrade_Separate::_GetPenaltyType(unsigned char /*a*/, ENUM_RARITY /*ra
 }
 
 // ORIG T 0x0811e2e2。
-// [b28d-solo-CItemUpgrade_Separate] 判词 N（ORIG 0x0811e2e2，setcc-fold + N7 族）：
-// 修法——条件内联 GetUpgradeSeparate（含 0x0811e30e 死调用，p167 11=11 CLEAR）、
-// rarity/itemType 内联实参、gold 走 long long+fistpll。残余：①ORIG `!(a()>b)` 的
-// `jg;mov $1/%0;test` 物化 vs 4.4 `setle;test` 直跳（setcc-fold，跨版本后端差）；
-// ②虚调目标 ORIG %edx vs 4.4 %eax + rarity/itemType 的 %ebx/%esi 角色互换（N7，
-// P230 判 4.4.6 后端敏感族）。帧 push esi/ebx+sub $0x50 与 ORIG 全等；语义/调用集齐。
+// [2026-09-09 SweepCItemUpgrade] 判词 N（ORIG 0x0811e2e2，setcc-fold + N7 族）：
+// 本轮复核（未改）：gap=5（orig 121 / our 116）全部为跨版本形态差——
+// ①ORIG 条件物化 `jg <主体>; mov $0,%eax; jmp; mov $1,%eax; test %al,%al; je`
+//   （0x0811e303..0x0811e321，6 条）vs 4.4 `setle %al; test; je`（3 条）⇒ setcc-fold；
+// ②get_rarity→%ebx / 虚调 GetItemType→%esi 与 4.4 的 %esi/%ebx 相反（N7，P230 判
+//   4.4.6 后端敏感族）。p167 11=11 CLEAR（0 missing/0 extra），帧 push esi/ebx +
+// sub $0x50 与 ORIG 全等；语义/调用集齐，无源码可翻。
 bool CItemUpgrade_Separate::_GetUpgradeInfo(const Inven_Item* item, const CItem* citem,
                                             const GenuineDamageUpgradeTable& table,
                                             STUpgradeInfo* out, int level)
@@ -420,6 +423,9 @@ int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_It
 // ORIG 的 failed 为 4.1 寄存器化分支赋值（`jae;mov $1,%eax;jmp;mov $0,%eax;test %al,%al;je`），
 // 4.4 对 `<` 恒 setcc（setb+test+je）且具名 bool 恒槽化（register/无初始化/两分支赋值
 // p/q/m 三形实测：setb+分支写槽或 setb %bl），跨版本后端差不可造。语义/调用集齐。
+// [2026-09-09 SweepCItemUpgrade] 复核（未改）：gap=3（orig 69 / our 66）即该 setcc-fold
+// 段（ORIG 0x0811e508 `cmp; jae <false岛>; mov $1,%eax; jmp; mov $0,%eax; test; je`
+// 6 条 vs 4.4 `cmp; setb %al; test; je` 3 条）。判词维持 N。
 bool CItemUpgrade_Separate::_DoProcUpgrade(CUser* user, Inven_Item* item,
                                            const STUpgradeInfo* info)
 {
@@ -470,13 +476,17 @@ void CItemUpgrade_Separate::_NoticeUpgrade(const CUser* user, const Inven_Item& 
 }
 
 // ORIG T 0x0811e66e：vtable 槽 0 主流程。
-// [b28d-solo-CItemUpgrade_Separate] 判词 N（ORIG 0x0811e66e，N7 + setcc-fold 族）：
-// 修法——matItem 默认构造+赋值（补 Inven_Item::C1Ev）、第三次 getCurCharacInvenW、
-// get_charac_level 两处内联、success 三目展开为 if/else（补第 5 个 put_byte call）、
-// IsRandomOption 正极性两臂各自内联 makeGuild/GetUpgrade/GetUpgradeSeparate、
-// msg 槽位改 movzwl 零扩展、find_item 链式 receiver。p167 43=43 CLEAR（0 missing/
-// 0 extra）。残余：虚调目标 %eax vs %edx（N7）+ `cond!=0` setne 物化（setcc-fold）；
-// 帧 push edi/esi/ebx 与 ORIG 全等。按 §6.2 判语义完成、byte 层封顶。
+// [2026-09-09 SweepCItemUpgrade] 判词 N（ORIG 0x0811e66e，N7 + setcc-fold 族）：
+// 本轮修法——① sepOld/sepNow 由 unsigned char 改 unsigned int（T1 直证：ORIG
+// 0x0811e905 / 0x0811ea93 `movzbl %al,%eax; mov %eax,-0x24/-0x1c` 32 位存；uchar 恒
+// 8 位存 + 回读 movzbl，实测多 3 条）；② 删 matSlot/slot 具名局部（P0：ORIG
+// 0x0811e93d/0x0811e99e/0x0811eaae/0x0811ead5 每处重读 msg->m_materialSlot /
+// m_targetSlot）；③ delete_item receiver 改链式右值（ORIG 0x0811e947 无槽往返）。
+// gap 7→3（orig 393 / our 386→390），p167 43=43 CLEAR（0 missing/0 extra）。
+// 残余：`cond != 0` 的 setne 物化 1 处（ORIG 0x0811e8e1 cmpl/setne/test/je，4.4 直跳）
+// + 虚调目标 %eax vs %edx、rarity/itemType 的 %ebx/%esi 角色互换（N7，P230 判 4.4.6
+// 后端敏感族）；帧 push edi/esi/ebx 与 ORIG 全等（sub 立即数差 0x10 = N115）。
+// 按 §6.2 判语义完成、byte 层封顶。
 int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
                                        PacketGuard* packet)
 {
@@ -527,25 +537,29 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         return cond;
     }
 
-    const unsigned char sepOld =
+    // T1 直证：ORIG 0x0811e905 `movzbl %al,%eax; mov %eax,-0x24` ⇒ 32 位无符号局部
+    // （uchar 局部会生 `mov %al,-N` + 回读 movzbl，实测多 3 条）。
+    const unsigned int sepOld =
         static_cast<unsigned char>(item.m_upgradeSep.GetUpgradeSeparate());
 
     const bool success = _DoProcUpgrade(user, &item, &info);
 
-    const unsigned short matSlot = msg->m_materialSlot;   // MSG_ITEM_UPGRADE +0x23
-    CInventory* invenW2 = user->getCurCharacInvenW();
-    if (invenW2->delete_item(INVEN_TYPE_EQUIP, matSlot, info.m_materialCnt,
-                             static_cast<eItemDelReason>(0xc), true) == 0)
+    // P0：ORIG 0x0811e93d/0x0811e99e 每处重读 `msg->m_materialSlot`（movzwl 0x23），
+    // 无 matSlot 具名局部；receiver 亦为链式右值（0x0811e947 无槽往返）。
+    if (user->getCurCharacInvenW()->delete_item(INVEN_TYPE_EQUIP, msg->m_materialSlot,
+                                                info.m_materialCnt,
+                                                static_cast<eItemDelReason>(0xc),
+                                                true) == 0)
     {
         return 0x11;
     }
 
     packet->put_byte(1);
-    packet->put_short(matSlot);
+    packet->put_short(msg->m_materialSlot);
 
     // ORIG 0x0811e94a：第三次 getCurCharacInvenW（receiver 右值直落）。
     Inven_Item refreshed =
-        user->getCurCharacInvenW()->GetInvenSlot(INVEN_TYPE_EQUIP, matSlot);
+        user->getCurCharacInvenW()->GetInvenSlot(INVEN_TYPE_EQUIP, msg->m_materialSlot);
     packet->put_int(refreshed.get_add_info());
     packet->put_byte(static_cast<char>(sepOld));
 
@@ -564,16 +578,17 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         packet->put_byte(1);
     }
 
-    const unsigned char sepNow =
+    // 同 sepOld：ORIG 0x0811ea93 `movzbl %al,%eax; mov %eax,-0x1c`。
+    const unsigned int sepNow =
         static_cast<unsigned char>(item.m_upgradeSep.GetUpgradeSeparate());
     packet->put_byte(sepNow);
 
-    const unsigned short slot = msg->m_targetSlot;   // MSG_ITEM_UPGRADE +0x1b
-    packet->put_short(slot);
+    // P0：ORIG 0x0811eaae/0x0811ead5 每处重读 `msg->m_targetSlot`（movzwl 0x1b）。
+    packet->put_short(msg->m_targetSlot);
 
     if (item.m_addInfo != 0)   // Inven_Item +0x02
     {
-        invenW->update_item(INVEN_TYPE_EQUIP, slot, item);
+        invenW->update_item(INVEN_TYPE_EQUIP, msg->m_targetSlot, item);
     }
 
     // ORIG 0x0811eb91：sepNow 实参内联 GetUpgradeSeparate（不用 -0x1c 变量）。
@@ -617,12 +632,15 @@ void UpgradeSeparateInfo::IncUpgradeSeparate()
 
 // ORIG T 0x0867a242：成功且新等级>5 用 game_server_msg_248；失败且旧等级>5 用
 // game_server_msg_249；前缀 game_server_msg_247 取 10 字节；长度<120 才发公会板。
-// [b28d-solo-CItemUpgrade_Separate] 判词 N（ORIG 0x0867a242，N78/N82/N89 族）：
-// 修法——4 处 `char X[N]` 改 `= {0}` 初始化、board 声明序前置、消除 4 个 EXTRA
-// memset call（p167 71=71 CLEAR，0 missing/0 extra）。残余：①ORIG board[120] 为
-// 4.1 内联 rep stos / tail[255] 对齐剥离展开，4.4 恒 call memset（N78）；②std::string
-// 构造/析构临时槽阶梯与模板实例跨版本差（N82/N89）；gap=10（516 vs 506）。按 §6.2
-// 判语义完成、byte 层封顶。
+// [2026-09-09 SweepCItemUpgrade] 判词 N（ORIG 0x0867a242，4.1 EH bool 归一化族）：
+// 本轮修法——① 删 prefixStr 具名局部（P0：ORIG 0x0867a299→0x0867a2b7 findString 结果
+// 经 %eax 直传 strncpy 第 2 参，无槽往返）；② boardReady 改裸 `register bool`（P231：
+// ORIG 全程 %ebx 承载无栈槽，4.4 由 movb×3+cmpb 槽往返改寄存器保活）。p167 71=71
+// CLEAR（0 missing/0 extra）。残余（gap=29，orig 512 / our 483）：ORIG 在 4 个 string
+// 析构点各发 6 条 bool 归一化块（`test %ebx,%ebx; jne; mov $0,%ebx; jmp; mov $1,%ebx`，
+// 0x0867a556 / 0x0867a588 / 0x0867a872 / 0x0867a8a4，共 24 条）——4.1 对 bool 局部在
+// EH cleanup 点的规范化，4.4 不生成，跨版本不可复现；余下为槽基常数差
+// （board -0xb8 ↔ -0xc4、帧 0x2dc ↔ 0x2fc = N115 outgoing 预留）。按 §6.2 判语义完成。
 void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
                                                int newLevel, bool success, int upgrade)
 {
@@ -631,12 +649,14 @@ void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
     char board[120] = {0};
     char prefix[10] = {0};
 
-    const char* prefixStr =
-        g_scriptStringManager_.findString(4, "game_server_msg_247",
-                                          static_cast<bool*>(0));
-    std::strncpy(prefix, prefixStr, sizeof(prefix));
+    // P0：ORIG 0x0867a299→0x0867a2b7 findString 结果经 %eax 直传 strncpy 第 2 参，
+    // 无槽往返 ⇒ 原码无具名局部，实参位内联。
+    std::strncpy(prefix,
+                 g_scriptStringManager_.findString(4, "game_server_msg_247",
+                                                   static_cast<bool*>(0)),
+                 sizeof(prefix));
 
-    bool boardReady = false;
+    register bool boardReady = false;   // P231：ORIG 全程 %ebx 承载，无栈槽
     if (success && newLevel > 5)
     {
         char msgBuf[255];
