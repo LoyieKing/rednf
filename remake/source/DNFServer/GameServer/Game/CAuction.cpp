@@ -522,6 +522,28 @@ struct BlackListNoticeView {          // = Packet_Monitor_Notice_Black_List（0x
 //    payloadLen <= 0x3fff`（ORIG jbe 死分支 = `>=` 假路，语义不变），4.4 产出
 //    同款 cmpw $0xfff; jbe 冗余对；
 // ③ 残余仅链接伪差：printf@plt 后缀、.o 尾部对齐 nop（relink 即消）。
+// [BigDispatchPacket 2026-09-09 N132] AE 封顶定案：残余 = 纯数据符号地址差，非形态差。
+// 取证（fresh /tmp/tu_CAuction.o，check_tu_routed 2026-09-09）：
+//   ① 指令数/帧全等：归一化 ours=6343 / orig=6343、0 差异行（fn_diff_tu）；两侧
+//      prologue 同为 push edi/esi/ebx + sub $0x32c，槽号/助记符逐条一致；
+//   ② p167 调用点多重集 1245/1245 [0缺0多]：MISSING 仅 cMyTraceC2/CStreamGuardD2，
+//      EXTRA 为同址 C1/D1 别名（P93 同址别名伪差，豁免）；
+//   ③ 链接后 strict（不归一 >=0x40000000 大地址）残差 196 行，100% 为数据符号地址：
+//      · GlobalData::s_msgq_mgr 0x940bd68→0x910b54c ×175
+//      · s_stream_pool 0x940bd6c→0x910b550 / s_big_stream_pool 0x940bda4→0x910b584 /
+//        s_small_stream_pool 0x940bda8→0x910b588 各 ×1
+//      · s_villageMonsterMgr 0x941f77c→0x9160ff8、s_revengeDungeonMgr 0x941f780→0x9160ffc ×3、
+//        s_hades_proxy 0x940be34→0x910b5b8（.bss 内偏移 ORIG 0x166a8 vs 我方 0x24c8c）
+//      · .rodata 本 TU 串 8 处："DispatchServerPacket.cpp" 0x8c6ff60→0x8b37ba0 ×4、
+//        __PRETTY_FUNCTION__ 0x8c70f00→0x8b37fa0 ×4、"[GUILD MARK CHANGE]…" 0x8c6ff7c→0x8b37bbc、
+//        "[Packet_Request_Revenge]…" 0x8c6ffd0→0x8b37c10、"TOD: bug random select" 0x8c70023→0x8b37c63、
+//        "TOD: bug reload" 0x8c7003a→0x8b37c7a、"GEO IP TABLE RELOAD FAIL" 0x8c7004a→0x8b37c8a 各 ×1
+// 根因（本 TU 无解）：ORIG 该函数所属 TU = DispatchServerPacket.cpp，其 .rodata 块在链接序中的
+// 位置与我方 CAuction.cpp 不同（.rodata 基址 0x8ae5840 vs 0x8a3e000；块内
+// "DispatchServerPacket.cpp"→__PRETTY_FUNCTION__ 间距 ORIG 0xba0 vs 我方 0x400）；7 个 GlobalData
+// 静态成员定义在 GlobalData.cpp（非本 TU）。⇒ 属全库段布局族（N132/N-LAYOUT），AE→IDENTICAL
+// 需 Main 级链接布局对齐；禁搬数据定义位置（会改构造序）。已试形：无（地址差不可由源形翻转，
+// P321-T5 类型/形状旋钮不适用）。
 bool CDispatchServerPacket::dispatchPacket(char* data)
 {
     // ORIG 0x8473660：上游服务器包按首 short(sig) 重写头并转投 DISPATCH_Q。

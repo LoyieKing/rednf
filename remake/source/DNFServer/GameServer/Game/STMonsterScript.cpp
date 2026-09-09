@@ -584,13 +584,17 @@ int scanValue()
 }  // namespace
 
 
-// [b28d-solo-STMonsterScript N·N82] 13759/13725，gap=34；p167（1742/1687）：
-// MISSING 61 = string dtor×28/ctor×14/op=×5（ORIG 的标签比较用临时 string，本实现
-// 走 c_str/线性比较）+ ScanInt×13 + vector<int>::push_back(int&&)×1；
-// EXTRA 6 = vector<int>::clear×2 + vector<string>::clear/push_back + ScanStr + importAIInfoScript。
-// 本轮已消 EXTRA 6（memcpy×5 → 同型 float 直赋；scanTag wrapper → 直调 ScanType）。
-// 余量属「骨架+标签分派级复原 vs ORIG 全量 13.8k 指令」的覆盖差，逐标签重写超出
-// 单文件单波成本 ⇒ N 封顶（缺口清单已列，供后续批次按标签逐项补齐）。ORIG 0x08a12827
+// [BigMonsterScript 2026-09-09] 13759/13778，gap=−19；p167（1742/1700）：
+// 游戏域差集已清零 ——
+// ① 补 8 处缺失 ScanInt：ORIG 08a1e041/084/0c7/107/147 是五个 difficulty tag 的
+//    **独立分支**（每分支 2×ScanInt(0) 写 -0x1b5c/-0x1b58），原合并条件只发 2 次；
+// ② 删 1 处多余 importAIInfoScript（ORIG 仅 0x8a1d30a 一处；case 0xf2e 叶为空）。
+// 残余（N 封顶，逐条已取证）：
+// ③ +1 ScanStr（我们 46 stack/35 field vs ORIG 50/30：4~5 处 ORIG 先读临时 string，
+//    本实现直传字段地址，属翻译形态差）；
+// ④ 帧差 0x20 + 全帧槽号平移（N82/N126）；
+// ⑤ STL 模板形态差（N130：ORIG C++11 右值 pair `C2*_OT_OT0_` / string `D2` 族，
+//    本仓 C++98 头集无对应重载，语言级不可复现）。ORIG 0x08a12827
 bool ImportMonsterScript(STMonsterScript* script, int type, const char* path,
                         bool flag)
 {
@@ -3558,7 +3562,7 @@ case 0xf2b:  // "[is grabable]"
             break;
         }
 
-case 0xf2e:  // "[ai pattern]" → importAIInfoScript
+case 0xf2e:  // "[ai pattern]"（ORIG 叶为空；importAIInfoScript 仅在 0xf3e 调 1 次）
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ai pattern]", 3886));
@@ -3566,7 +3570,6 @@ case 0xf2e:  // "[ai pattern]" → importAIInfoScript
         }
         else
         {
-            importAIInfoScript(&script->m_aiInfo, &tag, true);
             break;
         }
 
@@ -4051,9 +4054,30 @@ case 0xfde:  // "[level of difficulty]"
                     continue;
                 if (token == "[/level of difficulty]")
                     break;
-                if (token == "[easy]" || token == "[medium]" ||
-                    token == "[hard]" || token == "[ultimate]" ||
-                    token == "[hero]")
+                // ORIG 08a1e041/084/0c7/107/147：五个 tag 各为**独立分支**
+                // （每分支 2×ScanInt(0) 写 -0x1b5c/-0x1b58），汇合于 08a1e185 的
+                // push_back；合并条件只发 2 次 ScanInt（p167 差集 −8 的根因）
+                if (token == "[easy]")
+                {
+                    difficulty.m_field00 = ScanInt(static_cast<bool*>(0));
+                    difficulty.m_field04 = ScanInt(static_cast<bool*>(0));
+                }
+                else if (token == "[medium]")
+                {
+                    difficulty.m_field00 = ScanInt(static_cast<bool*>(0));
+                    difficulty.m_field04 = ScanInt(static_cast<bool*>(0));
+                }
+                else if (token == "[hard]")
+                {
+                    difficulty.m_field00 = ScanInt(static_cast<bool*>(0));
+                    difficulty.m_field04 = ScanInt(static_cast<bool*>(0));
+                }
+                else if (token == "[ultimate]")
+                {
+                    difficulty.m_field00 = ScanInt(static_cast<bool*>(0));
+                    difficulty.m_field04 = ScanInt(static_cast<bool*>(0));
+                }
+                else if (token == "[hero]")
                 {
                     difficulty.m_field00 = ScanInt(static_cast<bool*>(0));
                     difficulty.m_field04 = ScanInt(static_cast<bool*>(0));
@@ -5415,11 +5439,15 @@ case 0x12fb:  // "[start immune time]"
     return 1;
 }
 
-// [b28d-solo-STMonsterScript N·N85] 6790/6782，gap=8；p167 877/877 CLEAR。
-// 残差全为 x87 比较 lowering：ORIG(4.1) `fucompp/fnstsw/sahf` ×10 vs 4.4
-// `fucomip/fstp(+fxch)` ×10（N85），另 2 处分支极性/1 处 sete-setae。
-// P230 补载明该族可由 `-march=i486 -mtune=generic` 消解，但属路由/旗标变更
-// （本波禁改路由，由 Main 统一处理）⇒ N 封顶。ORIG 0x08a22520
+// [BigMonsterScript 2026-09-09] 6790/6791，gap=−1；p167 CLEAR。
+// i486 路由已由 Main 落地（dnf_game_cxx.sh i486 组）：9 处 x87 比较由
+// `fucomip/fstp(+fxch)` 翻回 ORIG 的 `fucompp/fnstsw/sahf`；本轮另修 3 处：
+// ① 08a27756 目标循环缺 break（原码置位后 `jmp` 循环出口）；
+// ② 08a2976b 位测试 else-if 段保留 register 提示（删提示反落槽 +2，P248 边界）；
+// ③ 08a29d34 while 判据实读 m_difficultyScales[i][1]（`add $0xcf8`）且比较式
+//    写 `x < 0`（探针 g2 复现 `fucompp/test $0x45,%ah/sete`）。
+// 残余 −1 = ORIG `mov %ebx,%eax; mov %eax,%edx`（4.1 保留 eax→edx 中转）vs
+// 4.4 折单段（N18a）⇒ N 封顶。ORIG 0x08a22520
 bool exportMonsterScript(
     STMonsterScript* script, const char* path,
     std::map<std::string, std::vector<std::string> >& extra)
@@ -6346,9 +6374,12 @@ bool exportMonsterScript(
         bool anyBonus = false;
         for (int i = 0; i <= 0x15; ++i)
         {
-            // ORIG 08a27756：无 break——置位后仍跑完 22 轮（je 跳过置位直落增量）
+            // ORIG 08a27756：置位后 `jmp 08a2776e`（循环出口）= 原码有 break
             if (!script->m_aiInfo.m_targetingBonusStr[i].empty())
+            {
                 anyBonus = true;
+                break;
+            }
         }
         if (anyBonus)
         {
@@ -6837,12 +6868,15 @@ bool exportMonsterScript(
     if (script->m_difficultyScales[0][0] != -1.0f)
     {
         fwrite("[physical attack besed on diff]\n", 1, 0x20, file);
-        // ORIG 08a29d21/08a29df2：while (i < 200 && 0.0 <= scales[i][0])，
+        // ORIG 08a29d21/08a29df2：while (i < 200 && 0.0 <= scales[i][1])，
         // cond1 在 ++i 后（loop 尾 setle 物化），cond2 在 body 头（fucompp+sete）
         int diffRow = 0;
         while (diffRow < 200)
         {
-            if (!(0.0f <= script->m_difficultyScales[diffRow][0]))
+            // ORIG 08a29d34 `add $0xcf8`（= &m_difficultyScales[diffRow][1]）：
+            // 原码终止判据读第 2 列，打印循环仍从 col=0 起（P171 照抄）；
+            // 比较式写 `x < 0`（探针 g2）才出 ORIG 的 fucompp/test $0x45,%ah/sete
+            if (script->m_difficultyScales[diffRow][1] < 0.0f)
                 break;
             fprintf(file, "%d", diffRow + 1);
             for (int col = 0; col <= 4; ++col)

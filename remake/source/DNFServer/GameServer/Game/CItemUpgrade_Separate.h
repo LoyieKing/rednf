@@ -130,10 +130,11 @@ public:
 static_assert(sizeof(GenuineDamageUpgradeTable) == 0x188,
               "GenuineDamageUpgradeTable size drift");
 
-int importGenuineUpgradeTable(const char* path,
+bool importGenuineUpgradeTable(const char* path,
                               GenuineDamageUpgradeTable* table);
-    // ORIG T 0x08912336（尾部 mov %ebx,%eax 直透，无 movzbl ⇒ int 非 bool；
-    //   调用方 LoadUpgradeScript 透传亦无 movzbl。定义 ScriptDepsB.cpp）
+    // [P248 档①] bool：ORIG 0x0891230f 调用点（getGenuineUpgradeTable）
+    //   `call; xor $1,%eax; test %al,%al; je` 实证；体内 return false/true
+    //   常量 ⇒ 机器码不变。定义 ScriptDepsB.cpp
 
 namespace WongWork
 {
@@ -144,7 +145,7 @@ class IItemUpgrade
 public:
     virtual int ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
                             PacketGuard* packet) = 0;          // 槽 +0x00
-    virtual int LoadUpgradeScript(const char* path) = 0;       // 槽 +0x04
+    virtual bool LoadUpgradeScript(const char* path) = 0;      // 槽 +0x04（[P248 档①] bool）
 
     // ORIG T 0x080fc850：put_header(pg,1,cmd) → 虚调 ProcUpgrade → 成功 finalize+
     // Send，失败 SendCmdErrorPacket2Byte(cmd, ret&0xffff)。
@@ -165,7 +166,7 @@ public:
 
     virtual int ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
                             PacketGuard* packet);              // ORIG T 0x0811e66e
-    virtual int LoadUpgradeScript(const char* path);           // ORIG T 0x0811eca8
+    virtual bool LoadUpgradeScript(const char* path);          // ORIG T 0x0811eca8（[P248 档①] bool）
 
     // ORIG W 0x0811ee16：return &m_table（this+4）。
     const GenuineDamageUpgradeTable* getUpgradeInfoTable() const { return &m_table; }

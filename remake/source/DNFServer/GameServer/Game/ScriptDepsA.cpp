@@ -60,6 +60,10 @@
 // ---- 本 TU 内提供或外部提供的叶子声明 ----
 float ScanTypeOrFloat(bool& isType, std::string& s, bool& isFloat, bool consume);
     // _Z15ScanTypeOrFloatRbRSsS_b T 0x088c2e01（定义 DNFLexWrapperHelpers.cpp）
+// [bigfix-enum 待同步] ORIG [job] 0x08a0cfcd store 为 LHS-first ⇒ callee 返回
+// 与 m_job 同型（enum）。本 TU 已按权威声明 NpcScript.h:74 保持 int；全链
+// enum 化（SyncScriptDeps.cpp 定义 + 各 TU 镜像声明）已上报 Main，届时本处
+// 的 static_cast 可删、[job] store 翻正。
 int getCharacterJob(const char* name);
     // _Z15getCharacterJobPKc T 0x088be57e（定义 SyncScriptDeps.cpp）
 void createLotteryInfo(LotteryInfo* info, std::vector<int>* counts);
@@ -1505,7 +1509,7 @@ void STCharacterScript::Clear()
     // （i<=5 清名字 + 内层 j<=1 的 m_awakeningName；i<=6 清子对象）+
     // 字符串数组化（m_motionDamage[2]/m_throwMotion1[4]/m_throwMotion2[4]，
     // STCharacterScript.h；消 8 个多余 aSsaSEPKc 调用点）。残差=帧/槽平移。
-    m_job = 0xb;
+    m_job = static_cast<ENUM_CHARACTERJOB>(0xb);   // ORIG 0x08367ab2 movl $0xb
     m_width = 0;
     m_height = 0;
     for (int i = 0; i <= 5; ++i)
@@ -1562,21 +1566,44 @@ void STCharacterScript::Clear()
 // _ZNSt3mapI17ENUM_CHARACTERJOBSs...4find/ix @08a4101c/08a3ebec）。
 // [body image path] 块 ORIG `mov 0x8(%ebp),%eax; mov %eax,0x4(%esp)` =
 // &m_job（字段偏移 0，地址即 script 值）直绑 const ENUM& 形参，**无临时槽**；
-// 我方 m_job 建模 int，static_cast 右值会物化 -0x4c 临时并把全 deep 区 +4
-// 平移（N82 主源），故经 reinterpret 的左值引用直绑同一对象（同 4 字节，
-// 行为等价）。
+// m_job 已按 ORIG 证据具型化为 ENUM_CHARACTERJOB（见下 [bigfix-enum]），
+// 键直接取 script->m_job，无 reinterpret 视图。
 static std::map<ENUM_CHARACTERJOB, std::string> s_bodyImagePath;
 
 // ORIG ImportCharacterScript T 0x08a0ce06（报告 ## 汇编 + ## 反编译 C 全文转写）。
 // 返回：1=解析至 EOF；0=任一段失败。
-// 残余 DIFF 归因（N 类豁免，语义/槽位集/帧 0x1a0 全对齐后 2827/2875，
-// gap 48 = 布局类）：
-//  ① ORIG 主链每个 else-if 失败出口为 4.1 “nop;jmp loop_head” 岛
-//     （0x08a0cee7..08a0cf5c 共 39 对 nop/jmp，约 78 insn）= 负例“空 else
-//     nop;jmp 岛 vs jump-threading”，4.4 jump-threading 直接消除；
-//  ② 各 vec/串块共用退出 flag %esi 统一 dtor epilogue（0x08a0d54e/187c/
-//     1981..）= 负例“EH 双份 dtor epilogue vs merge”；
-//  ③ 其余为 .o 重定位地址显示差（链接 AE 口径消除）。
+// [bigfix 大件语义修复波] 归一化 2818/2771（gap +47）→ **2818/2820（gap −2）**：
+//  ① 循环头 `while (ScanType(...))` → `for (;;) { if (!ScanType(...)) break; }`：
+//     复现 ORIG 0x08a0cf6e..0x08a0cf78 `call ScanType; xor $0x1,%eax; test %al,%al;
+//     jne` 的取反物化（P164；while 形 4.4 恒 `test;je` 少 1 条），并令 4.4 为
+//     39 个 else-if 成功出口各发一条回跳 jmp —— 一次消掉 ORIG 函数头
+//     0x08a0cee8..0x08a0cf5c 的 39 个 N121 delete 岛（−39）。
+//  ② [upgrade weapon attack power rate] 的 col 由 unsigned 改 int + 显式
+//     `(unsigned int)col <= 5`：复现 ORIG 0x08a0f946 `mov -0x18(%ebp),%eax;
+//     cmp $0x5,%eax; ja` 两段寄存器比较（P310；unsigned 局部 4.4 恒折
+//     `cmpl $5,-0x18(%ebp)` 单条）。
+//  ③ 符号性方向修正（T2 直证）：STRDCharacterStatus::m_hpMax/m_mpMax/m_moveSpeed
+//     int→unsigned int，STRDCharacterStatusClient 侧同名三字段 unsigned→int。
+//     ORIG exportCharacterStatusScript 0x08a0fb41/0x08a0fb89/0x08a0feaa 对
+//     Status 侧 +0x0/+0x4/+0x42 发 `mov $0x0,%edx; … fildll`（零扩展 ⇒ unsigned），
+//     而 +0x3a/+0x4e 发 `fildl`（int）；双向 op= 0x08a0c942/0x08a0cab8 两侧均
+//     `mov %eax,%edx` 中转 ⇒ 两侧异型。修后 [HP MAX]/[MP MAX]/[move speed]
+//     0x08a0d5b8/0x08a0d613/0x08a0da6b 的 RHS-first + edx 中转 store 翻正
+//     （P211/P248 档③），inventory limit/weight 维持 LHS-first。同宽 4B，
+//     sizeof(STRDCharacterStatus)=0x57 / Client 0x98 / 全偏移 / mangled 不变。
+//  ④ m_job int→ENUM_CHARACTERJOB（enum 内联走既有 guard DNF_ENUM_CHARACTERJOB_
+//     DEFINED，与 JobKey.h 幂等）：复现 ORIG 0x08a0f951/0x08a0f970/0x08a0fa1f 读
+//     m_job 的 `mov (%eax),%eax; mov %eax,%edx`（P254 enum 中转；int 字段 4.4
+//     恒折单段）。
+// 残余（gap −2，我方多 2 条）：
+//  ① [job] 0x08a0cfcd store：ORIG LHS-first（`mov 0x8(%ebp),%edx; mov %eax,(%edx)`）
+//     ⇒ getCharacterJob 返回类型须为 ENUM_CHARACTERJOB 才能同型直存；现权威声明
+//     NpcScript.h:74 为 int，本处 static_cast 触发 4.4 转换中转（多 1 条）。
+//     全链 enum 化（定义 SyncScriptDeps.cpp + 各 TU 镜像声明）已上报 Main。
+//  ② [weapon wav] 0x08a0f169 块序差（ORIG `jne` 落 push_back 块；负向早返形
+//     实测 INSERT +7 反劣，回退）⇒ 1 条，N 封顶。
+//  ③ difflib 错位伪影 6 条（我方等价指令在别处）；p167 332/332 仅 C1↔C2/D1↔D2
+//     同址别名差（P93 豁免）⇒ 语义缺口 0。
 bool ImportCharacterScript(STCharacterScript* script, const char* path)
 {
     // [b28d-solo-ScriptDepsA·大件波 BigSkillChar] AE 口径 ndiff 2728→**101**：
@@ -1623,13 +1650,21 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
     STCharacterScript::STSecondGrowTypeData* curSecond = 0;                // -0x3c
     std::string* curAwaken = 0;                                            // -0x38
 
-    while (ScanType(token, true))
+    for (;;)
     {
+        // [bigfix] ORIG 0x08a0cf6e..0x08a0cf78：`call ScanType; xor $0x1,%eax;
+        // test %al,%al; jne <exit>`（P164：外层 for(;;)+否定 break 复现 4.1
+        // 头部条件块的 xor 物化；while(ScanType) 4.4 恒产 `test;je` 无 xor）。
+        if (!ScanType(token, true))
+            break;
+
         if (token == "[job]")
         {
             if (!ScanStr(&str))
                 return false;
-            script->m_job = getCharacterJob(str.c_str());
+            // [bigfix-enum] ORIG 0x08a0cfcd `mov 0x8(%ebp),%edx; mov %eax,(%edx)`
+            // LHS-first ⇒ 目标字段与 callee 返回同型（enum，P211/P254）。
+            script->m_job = static_cast<ENUM_CHARACTERJOB>(getCharacterJob(str.c_str()));
         }
         else if (token == "[growtype name]")
         {
@@ -2107,6 +2142,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
                     return false;
                 if (isType)
                 {
+                    // ORIG 0x08a0f169 `jne 08a0f194`：push_back(info) 块在
+                    // !isType 块之后；负向早返形（P222）实测我方 INSERT +7
+                    //（break 重排），回退维持正向形（块序差 N 封顶）。
                     if (t == "[/weapon wav]")
                     {
                         script->m_weaponWav.push_back(info);
@@ -2192,15 +2230,17 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         {
             std::string t;                // ORIG -0x150
             // ORIG `xor $0x1,%eax; test; je` = 否定守卫（!ScanStr→失败）。
-            // key 引用直绑 &m_job（偏移 0），无临时槽。
+            // m_job 为 ENUM_CHARACTERJOB（P254 实证 0x08a0f951 中转），直接作
+            // map 键，无需 reinterpret 视图。
             if (!ScanStr(&t))
                 return false;
-            s_bodyImagePath[*reinterpret_cast<const ENUM_CHARACTERJOB*>(
-                                &script->m_job)] = t;
+            s_bodyImagePath[script->m_job] = t;
         }
         else if (token == "[upgrade weapon attack power rate]")
         {
-            unsigned int col = 0;         // ORIG -0x18
+            // [bigfix] ORIG 0x08a0f946 `mov -0x18(%ebp),%eax; cmp $0x5,%eax; ja`
+            // 两段寄存器形 ⇒ 局部声明 int + 显式无符号比较（P310）。
+            int col = 0;                  // ORIG -0x18
             float rate = 0.0f;            // ORIG -0x14（ScanTypeOrFloat 返回）
             float val = 0.0f;             // ORIG -0x154
             std::string t;                // ORIG -0x158
@@ -2215,7 +2255,7 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
                     return false;
                 }
                 if (!ScanFloat(&val)) return false;
-                if (col <= 5)             // ORIG 0x08a0f949 `cmp $5; ja`（无符号）
+                if ((unsigned int)col <= 5)  // ORIG 0x08a0f949 `cmp $5; ja`（无符号）
                 {
                     upgradeWeaponAttackPowerRate_[script->m_job][col][0] = rate;
                     upgradeWeaponAttackPowerRate_[script->m_job][col][1] = val;

@@ -487,6 +487,20 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
     //   ⚠ 实测三→一 MonsterDrop 共享块合并（-71 insn、gap +23→-23、calls 1=ORIG）
     //   反使 ndiff 13134→13593（difflib 对齐窗口恶化，§6.2 失真实证）⇒ 已回滚；
     //   若要结构保真优先请 Main 裁定改台账口径后重做。
+    // [BigEquipScript pass-2 2026-09-09] 按 §6.2 三件套重做 MonsterDrop 合并
+    //   （指令数收敛优先，N127 台账 ndiff 不作成败判据）：
+    //   ①三 case [special monster drop]/[difficulty for extra drop]/[dungeon type
+    //     for extra drop] 的 else 分支 `goto special_monster_drop;` 汇入 0xcd7
+    //     else 内共享块（ORIG 0899a83f 共享块、0899a86e 唯一调用点实证）⇒
+    //     calls 1300→1292=ORIG（p167 修正版；余差集仅 C1↔C2/D1↔D2 同址别名镜像
+    //     对，P93 豁免）；our_insns 9865→9799、gap −44→+22。
+    //   ②[emblem socket default] 0x08999a3e / [avatar type select] 0x08999c00 两处
+    //     `5 < size()` 删冗余 (int) cast ⇒ seta（无符号，与 ORIG 同；原 setg）。
+    //   ③[spectrum] 08992ba9 位组合 `&0xff`→(unsigned char) cast ⇒ 复现 ORIG 逐项
+    //     movzbl（消 3 and、movzbl 差 6→2）。
+    //   残余 +22 = N82 帧槽族（+0x24/+0x1c/+0x54 非恒定）+ 分散 movb(+6)/add(+10)
+    //   形态差；difflib 对本件失真（N127），逐 case 段对齐不可用（字符串段界
+    //   ORIG 225 vs 我方重定位段 520）⇒ 封 N。
     // 声明顺序 = ORIG prologue 构造/初始化执行顺序（帧槽位由声明序决定，
     // 注释内为 ORIG %ebp 槽位，报告 0x08991b00-0x08991d8b）：
     std::string tmp;                       // ORIG -0x106c（各 case 第一读取暂存）
@@ -759,8 +773,12 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             unsigned int v2 = (unsigned int)ScanInt((bool*)0);
             unsigned int v3 = (unsigned int)ScanInt((bool*)0);
             unsigned int v4 = (unsigned int)ScanInt((bool*)0);
-            script->m_790 = (int)((v3 & 0xff) << 0x10 | v1 & 0xff |
-                                  (v2 & 0xff) << 8 | (v4 & 0xff) << 0x18);
+            // ORIG 08999c... 逐项 movzbl %al,%eax（零扩展）⇒ 用 (unsigned char)
+            // cast 而非 &0xff（后者生 and，助记符不符）。
+            script->m_790 = (int)((unsigned char)v1 |
+                                  ((unsigned char)v2 << 8) |
+                                  ((unsigned char)v3 << 0x10) |
+                                  ((unsigned char)v4 << 0x18));
             script->m_794 = ScanInt((bool*)0);
             goto stage1_switch_end;
         }
@@ -2917,7 +2935,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     }
                     script->m_vec6cc.push_back((unsigned short)emblemType);
                 }
-                if (5 < (int)script->m_vec6cc.size())
+                if (5 < script->m_vec6cc.size())
                 {
                     return false;
                 }
@@ -2966,8 +2984,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     }
                     if (0 < sel.m_field10)
                     {
-                        if (5 <
-                            (int)(script->m_vec6cc.size() + sel.m_field10))
+                        if (5 < script->m_vec6cc.size() + sel.m_field10)
                         {
                             return false;
                         }
@@ -3248,13 +3265,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                if (!EquipmentScriptSpecialMonsterDrop(script,
-                                                       std::string(token), path))
-                {
-                    return false;
+                    goto special_monster_drop;
                 }
-                    goto stage2_switch_end;
-                }
+                    /*FALLTHRU*/
                 case 0xcd6:                          // [difficulty for extra drop]
                 if (!__inited_0)
                 {
@@ -3262,13 +3275,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                if (!EquipmentScriptSpecialMonsterDrop(script,
-                                                       std::string(token), path))
-                {
-                    return false;
+                    goto special_monster_drop;
                 }
-                    goto stage2_switch_end;
-                }
+                    /*FALLTHRU*/
                 case 0xcd7:                          // [dungeon type for extra drop]
                 if (!__inited_0)
                 {
@@ -3276,6 +3285,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
+                special_monster_drop:;
                 if (!EquipmentScriptSpecialMonsterDrop(script,
                                                        std::string(token), path))
                 {

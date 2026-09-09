@@ -54,7 +54,10 @@ extern char g_petScriptBaseDirectory[0x100];   // OnlyOrigBatch12.cpp（ORIG B 0
 extern STScriptFileList g_petScriptFileList;   // OnlyOrigBatch12.cpp（ORIG B 0x094ff4c0）
 extern std::map<std::string, int> g_mapKeyNameIndexTable;  // STEquipmentScript.cpp（ORIG B 0x0949b348）
 extern char g_szPassiveObjectScriptBaseDirectory[0x100];   // InitScriptProducers_4.cpp（ORIG B 0x94ff2a0）
-extern std::map<int, std::string> g_stPassiveObjectScriptFileList;  // InitScriptProducers_4.cpp（ORIG B 0x94ff3a0）
+// P304：权威型 STScriptFileList（NpcScript.h:61，+0x00 即 map<int,string>）——
+// 旧 map 视图 + reinterpret_cast 令 4.4 物化 `mov $imm,%eax; mov %eax,(%esp)`
+// 并挤占 %eax（ORIG 0x8a357a0 为直压 `movl $imm,(%esp)`）。
+extern STScriptFileList g_stPassiveObjectScriptFileList;  // InitScriptProducers_4.cpp（ORIG B 0x94ff3a0）
 extern int getObjectCategory(std::string name);            // ScriptDepsA.cpp（ORIG T 0x08a3ca1b）
 extern bool isValidExtension(const std::string& str, const std::string& ext);  // OnlyOrigBatch12.cpp（ORIG T 0x08a3c67d）
 
@@ -1779,6 +1782,43 @@ typedef std::map<const char*, int, less_TCHAR> LookupMap;
 bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                                bool bRepair)
 {
+    // [BigPassiveObj-wave10 2026-09-09 判词] §6.2 大件专项：本波按「call 锚点间隔
+    // 逐段」法定位真缺口（p167 对 995/995 全等仍漏检「缺返回值检查」类缺口）。
+    // 本波 4 项修复（均 ORIG 逐地址实证，fresh check_tu_routed 四数不回退）：
+    //   ① **12 处 ScanStr 返回值检查缺失**（真语义缺口，ORIG 每处为
+    //      `call; xor $0x1,%eax; test %al,%al; je; mov $0x0,%ebx; jmp`）：
+    //      0x8a2cba3(m_name) / 0x8a2cd88(str→m_i18) / 0x8a2ceb7(m_s17c) /
+    //      0x8a2d065(str→[pass type]) / 0x8a2dd57(m_s44) / 0x8a2ddd7(m_s54) /
+    //      0x8a2e276(m_s64) / 0x8a2e2f6(m_s68) / 0x8a2e75f(str→m_i94) /
+    //      0x8a314bc(m_s154) / 0x8a320dc(vs) / 0x8a3350b(ns)
+    //      ⇒ 全改 `if (!ScanStr(&x)) return false;`。修后 ORIG 25 处 ScanStr
+    //      调用与重建一一对应（23 带检查 + 2 裸调用），本波前为 12/13。
+    //   ② **1 处多余检查删除**：0x8a34e8b（[passive object type] 的 ScanStr）
+    //      ORIG call 后直落 `movl $0x2,-0x28` + guard 检查（无 xor/test/je）
+    //      ⇒ 原码为裸调用，旧译文多写 5 条。
+    //   ③ **m_i270 落盘缓冲形态**：ORIG 用局部 -0x28（初值 2 于 0x8a34e90；
+    //      两个子 token 的 else 分支改写 0/1 于 0x8a350fd/0x8a35163；公共尾
+    //      0x8a35190 `movl -0x28 → this+0x270`）。旧译文直接 3 次成员写（含
+    //      3 次 script 指针重载 + 重复 if-else 比较）⇒ 改具名 `t270` 后 −7 insn。
+    //   ④ **P304**：`reinterpret_cast<STScriptFileList*>(&g_stPassiveObjectScriptFileList)`
+    //      （0x8a3579b）令 4.4 物化 `mov $imm,%eax; mov %eax,(%esp)` 并挤占 %eax；
+    //      extern 声明改权威型 STScriptFileList（NpcScript.h:61，+0 即 map）后
+    //      复现 ORIG `movl $imm,(%esp)`，−1 insn。
+    // 【本波读数】clean（normdiff/compare_tu 口径）orig 8417 / ours 8370→**8426**
+    //   （gap +47→**−9**）；raw objdump 8490 / 8452→**8512**（+38→−22）；
+    //   p167 calls **995=995**（MISSING/EXTRA 仅 C1↔C2 / D1↔D2 同址镜像，P93 豁免）；
+    //   check_tu_routed 四数 identical=391 ae=782 near=0 diff=20 / missing=189
+    //   **与基线逐项相同（不回退）**。
+    // 【残余 −9 归因（逐块 classify 后）】均非语义缺口：
+    //   a) 我方多 5：`info.m_ints44[i]` 的 4.4 寻址展开 `add $0x10; 槽往返; shl $2;
+    //      add base`（ORIG 3 条 scaled `mov v,-0xdc0(%ebp,%edx,4)`）——N125/N117 族；
+    //   b) 我方多 24（ORIG 同形 12 条在 5167 处）：内层子表 case 叶块物理序 +
+    //      4.4 `cmpl $imm,<S>` 内存比较 vs ORIG `mov <S>,%eax; cmp $imm,%eax`
+    //      （P324 叶块序 / P209 无符号比较恒载寄存器）；
+    //   c) ORIG 多 4（序言 `movl $0,<S>; mov $0,%eax; mov %eax,<S>; movb $0,<S>`）
+    //      = ORIG 源码 3 个死局部（P171 死写入），补回会使 |gap| 反向增大 ⇒ 不补；
+    //   d) 其余 ±1~3 为 call 间隔边界的错位对（同一段代码在两侧落于相邻 call 之间）。
+    //   ⇒ 剩余全部属 N82/N125/N117/P324 跨版本布局族；语义已逐段核对闭合。
     // [b28d-solo-OnlyOrigBatch14] §6.2 超大件（orig 8490 insn）：本波以
     // game_func_report gap（8490-8452=38）+ 调用点差集 + 逐块比对为验收口径
     // （ndiff 对超大件失真，N82）。18 处 static map 惰性注册链、token 分派树与
@@ -1850,7 +1890,11 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                 }
                 else
                 {
-                    ScanStr(&script->m_name);
+                    // ORIG 0x8a2cba3：ScanStr 后 `xor $1; test %al; je` ⇒ 原码检查返回值。
+                    if (!ScanStr(&script->m_name))
+                    {
+                        return false;
+                    }
                     script->m_layer = script->m_name;
                     nameSet = true;
                         break;
@@ -1907,7 +1951,11 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                 }
                 else
                 {
-                    ScanStr(&str);
+                    // ORIG 0x8a2cd88：ScanStr 返回值检查（xor $1/test/je 实证）。
+                    if (!ScanStr(&str))
+                    {
+                        return false;
+                    }
                     script->m_i18 = getDrawLayer(str.c_str());
                         break;
                 }
@@ -1937,7 +1985,11 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                 }
                 else
                 {
-                    ScanStr(&script->m_s17c);
+                    // ORIG 0x8a2ceb7：ScanStr 返回值检查（xor $1/test/je 实证）。
+                    if (!ScanStr(&script->m_s17c))
+                    {
+                        return false;
+                    }
                         break;
                 }
                 /* FALL THROUGH */
@@ -1985,7 +2037,11 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                 else
                 {
                 {
-                    ScanStr(&str);
+                    // ORIG 0x8a2d065：ScanStr 返回值检查（xor $1/test/je 实证）。
+                    if (!ScanStr(&str))
+                    {
+                        return false;
+                    }
                     int pt;
                     static LookupMap __lookup;
                     static SpinLock __init_lock;
@@ -2268,7 +2324,11 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                 }
                 else
                 {
-                    ScanStr(&script->m_s44);
+                    // ORIG 0x8a2dd57：ScanStr 返回值检查（xor $1/test/je 实证）。
+                    if (!ScanStr(&script->m_s44))
+                    {
+                        return false;
+                    }
                         break;
                 }
                 /* FALL THROUGH */
@@ -2279,7 +2339,11 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                 }
                 else
                 {
-                    ScanStr(&script->m_s54);
+                    // ORIG 0x8a2ddd7：ScanStr 返回值检查（xor $1/test/je 实证）。
+                    if (!ScanStr(&script->m_s54))
+                    {
+                        return false;
+                    }
                         break;
                 }
                 /* FALL THROUGH */
@@ -2412,7 +2476,11 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                 }
                 else
                 {
-                    ScanStr(&script->m_s64);
+                    // ORIG 0x8a2e276：ScanStr 返回值检查（xor $1/test/je 实证）。
+                    if (!ScanStr(&script->m_s64))
+                    {
+                        return false;
+                    }
                         break;
                 }
                 /* FALL THROUGH */
@@ -2423,7 +2491,11 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                 }
                 else
                 {
-                    ScanStr(&script->m_s68);
+                    // ORIG 0x8a2e2f6：ScanStr 返回值检查（xor $1/test/je 实证）。
+                    if (!ScanStr(&script->m_s68))
+                    {
+                        return false;
+                    }
                         break;
                 }
                 /* FALL THROUGH */
@@ -2530,7 +2602,11 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                 else
                 {
                 {
-                    ScanStr(&str);
+                    // ORIG 0x8a2e75f：ScanStr 返回值检查（xor $1/test/je 实证）。
+                    if (!ScanStr(&str))
+                    {
+                        return false;
+                    }
                     if (str == "[none]")
                     {
                         script->m_i94 = 0;
@@ -3638,7 +3714,11 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                 }
                 else
                 {
-                    ScanStr(&script->m_s154);
+                    // ORIG 0x8a314bc：ScanStr 返回值检查（xor $1/test/je 实证）。
+                    if (!ScanStr(&script->m_s154))
+                    {
+                        return false;
+                    }
                         break;
                 }
                 /* FALL THROUGH */
@@ -3940,7 +4020,11 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                             else if (iv == 0x217c)   // [speed] → m_b4（[up]/[down]）
                             {
                                 std::string vs;   // ORIG -0xca4 局部槽
-                                ScanStr(&vs);
+                                // ORIG 0x8a320dc：ScanStr 返回值检查（xor $1/test/je 实证）。
+                                if (!ScanStr(&vs))
+                                {
+                                    return false;
+                                }
                                 if (vs == "[up]")
                                 {
                                     info.m_b4 = 1;
@@ -4321,7 +4405,11 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                                 }
                                 {
                                     std::string ns;   // ORIG -0xcf8 局部槽
-                                    ScanStr(&ns);
+                                    // ORIG 0x8a3350b：ScanStr 返回值检查（xor $1/test/je 实证）。
+                                    if (!ScanStr(&ns))
+                                    {
+                                        return false;
+                                    }
                                     pat.m_s04 = ns;
                                 }
                                 break;
@@ -4917,10 +5005,13 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                 else
                 {
                 {
-                    if (!ScanStr(&str))
-                    {
-                        return false;
-                    }
+                    // ORIG 0x8a34e8b：此 ScanStr 返回值**不检查**（call 后直落
+                    // `movl $0x2,-0x28` 与 guard 检查，无 xor/test/je）⇒ 原码为裸调用。
+                    ScanStr(&str);
+                    // ORIG -0x28 落盘缓冲：初值 2（0x8a34e90），两个子 token 的
+                    // else 分支分别改写为 0/1（0x8a350fd / 0x8a35163），未知 token
+                    // 不改写；公共尾 0x8a35190 统一 `movl -0x28 → this+0x270`。
+                    int t270 = 2;
                     int tv;
                     static LookupMap __lookup;
                     static SpinLock __init_lock;
@@ -4953,6 +5044,7 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                                     LookupMap::value_type("[missile fairy]", 0x22fd));
                                 goto __t15_2301;   // ORIG 0x8a350d3 贯穿
                             }
+                            t270 = 0;   // ORIG 0x8a350fd
                             break;
                         __t15_2301:
                         case 0x2301:   // [random item fairy]
@@ -4960,6 +5052,10 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                             {
                                 __lookup.insert(
                                     LookupMap::value_type("[random item fairy]", 0x2301));
+                            }
+                            else
+                            {
+                                t270 = 1;   // ORIG 0x8a35163
                             }
                             break;
                         default:   // ORIG 0x8a3516a 公共尾
@@ -4973,19 +5069,8 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                         }
                         break;
                     }
-                    // ORIG 0x8a34e90：ScanStr 之后把落盘缓冲（-0x28）先置 2，两个子
-                    // token 分别改写为 0/1（0x8a350fd / 0x8a35163），未知 token 不改写；
-                    // 公共尾 0x8a35190 统一 `movl -0x28 → this+0x270`。即未知子 token
-                    // 不报错，m_i270 留 2。
-                    script->m_i270 = 2;
-                    if (tv == 0x22fd)   // [missile fairy]
-                    {
-                        script->m_i270 = 0;
-                    }
-                    else if (tv == 0x2301)   // [random item fairy]
-                    {
-                        script->m_i270 = 1;
-                    }
+                    // ORIG 0x8a35190 公共尾：`movl -0x28 → this+0x270`。
+                    script->m_i270 = t270;
                         break;
                 }
                 /* FALL THROUGH */
@@ -5137,9 +5222,10 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
         }
     }
 
-    script->m_idx =
-        reinterpret_cast<STScriptFileList*>(&g_stPassiveObjectScriptFileList)
-            ->FindIndexByFullScan(path);
+    // ORIG 0x8a3579b：`movl $&g_stPassiveObjectScriptFileList,(%esp);
+    // mov 0xc(%ebp),%eax; mov %eax,0x4(%esp); call FindIndexByFullScan`
+    // ⇒ 权威型成员直调（P304），勿再 cast。
+    script->m_idx = g_stPassiveObjectScriptFileList.FindIndexByFullScan(path);
     return true;
 }
 

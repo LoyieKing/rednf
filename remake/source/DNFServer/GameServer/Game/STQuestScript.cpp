@@ -458,15 +458,22 @@ bool initQuestScript(const char* dir, const char* list)
     return 1;
 }
 
-// [b28d-solo-STQuestScript · §6.2 三件套] ORIG 0x08a61813（3883 条）vs 我方 3708
-// （gap 175 = 4.5%）；p167 调用点差集 517/517 CLEAR（0 missing / 0 extra，含
-// P303/P304/右值 push_back/字面量在左 operator==/remove 无 erase/循环内局部
-// string/P198① 预清 bool 全部落位）。残余 byte 层 N 封顶：
-// ① P223 定案：ORIG 函数头有 19 组 `jmp;nop` 中继岛（多源 continue 到物理连续
-//    尾标签，4.1 逐源发射），4.4 恒 jump-thread 合并 ⇒ 38 条不可造；
-// ② N96/N18a：`if (!__inited)` 静态守卫 ORIG `movzbl;test;je`（4.1 直判）vs
-//    4.4 `movzbl;xor $1;test;je`，26 处各 +1 条（P168a③b 判据，禁绑定）；
-// ③ 其余为逐块寻址/装载序形态差（`mov %eax,A(%esp)` 类）与 EH 段块序。
+// [b28d-solo-STQuestScript · §6.2 三件套] ORIG 0x08a61813（raw 3883 / norm 3836）
+// vs 我方（raw 3841 / norm 3811，gap 25）；p167 调用点差集 517/517 CLEAR
+// （唯一差异为 C1↔C2 / D1↔D2 镜像对，豁免）。残余 byte 层 N 封顶：
+// ① P223 实测复验（BigQuestScript 2026-09-09）：ORIG +0x86..+0xbf 为 19 组
+//    `nop;jmp +0xc0` 中继岛（仅 +0x86/+0x8c/+0x92 有 jne 前驱 +0x247/+0xbba/
+//    +0xcf1，其余 16 组无前驱）；我方 4.4 只发 15 组且全部落在函数尾
+//    （+0x3f6a 附近 8 连 + 7 处分散）⇒ 岛数/落点不可控，19 条封顶。
+// ② [type]/[exception quest] 守卫块序镜像（P272/P194）：ORIG 为
+//    `if(!__inited){insert}else{dst;break}`（movzbl;xor $1;test;je dst，
+//    insert 后 jmp 下一 case），我方为 `if(__inited){dst;break}insert`
+//    （movzbl;test;je insert，insert fall-through）。27+1 处全量翻转实测：
+//    ORIG-only 指令 181→36、xor 61→88（ORIG 87）、jmp 283→311（ORIG 315）
+//    ⇒ 补回 54 条真实指令，但净 gap +25→-31、fn_diff 不等行 3635→3676
+//    （本区固有 mov+22/jne+11/movb+8 冗余未消）⇒ 保持现形，判镜像块序差。
+// ③ 其余 6 条为 je/add/lea/sete 级分散形态差（我方 3 处 setcc 分支形、
+//    我方多 mov/movb/movzbl 与 ORIG 多 je/add/lea 互为抵消），非语义缺口。
 int importQuestScript(QuestScript* script, const char* path)
 {
     // ORIG importQuestScript 的函数局部辅助类 QuestData（报告

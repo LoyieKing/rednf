@@ -65,7 +65,10 @@ struct LayoutAsserts
 
 // ORIG T 0x088dc008：loadRDARScriptFile("","Etc/channel_info.etc") 门禁 +
 // LogManager 报错 + 转发 applyChannelScript 返回值。
-int importChannelScript(channel_script_t* script)
+// [P248 档①] 返回 bool：CDataManager::init 调用点 ORIG 形
+// `call; xor $1,%eax; test %al,%al; je`（报告 idx 3963-3966）；bool 化后尾调
+// 透传形态与 ORIG 0x088dc062 `call applyChannelScript; leave; ret` 逐条一致。
+bool importChannelScript(channel_script_t* script)
 {
     if (!loadRDARScriptFile("", "Etc/channel_info.etc"))
     {
@@ -234,7 +237,8 @@ channel_dungeon_info_t& channel_dungeon_info_t::operator=(const channel_dungeon_
 // 标量分区排布）+ 条件取反 xor 物化；逐块控制流/字段偏移/日志行号常量已核。
 // ORIG T 0x088dc069。主循环分 [dungeon]/[server] 两段：
 //  返回 1＝正常结束/EOF/未知类型（均 esi=1 出口）；0＝[server] 行解析错误（esi=0）。
-int applyChannelScript(channel_script_t* script)
+// [P248 档①] 返回 bool（全部 return 为常量 0/1 ⇒ 机器码与 int 版逐条相同）。
+bool applyChannelScript(channel_script_t* script)
 {
     std::string token;
 

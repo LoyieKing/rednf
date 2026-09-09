@@ -6231,9 +6231,15 @@ static int yy_flex_strlen (yyconst char * );
 // 残余不可复现（N 类，详见 docs/asm_translation_patterns.md）：
 //  · N7：4.4.7 仅 ebx/esi/edi 三个 callee-saved 且不做跨变量复用，4 个 register
 //    变量（yy_current_state/yy_cp/yy_bp/yy_act）必有一个落槽；ORIG 4.1 复用 %esi
-//    给 yy_act（其生命周期与 yy_current_state 不重叠）。两形实测：yy_act 落槽残 5
-//    处（cwtl+槽存 vs movswl %ax,%esi ×2、cmpl 槽比 ×2、跳表 shl+mov 两步），yy_bp 落槽
-//    残 34 处（连锁 esi/edi 角色互换）⇒ 取前者。
+//    给 yy_act（其生命周期与 yy_current_state 不重叠）。gap +5 全部由 yy_act 落槽
+//    连锁构成（difflib 逐条对齐实测，ORIG 地址为证）：0x0808eea8/0x0808eec5
+//    `movswl %ax,%esi` vs `cwtl;mov %eax,-0x2c(%ebp)`（+2）、0x0808ef4c 跳表
+//    `mov T(,%esi,4),%eax` vs `mov -0x2c(%ebp),%eax;shl $0x2,%eax;mov T(%eax),%eax`（+2）、
+//    0x08093760 `lea 0x709(%eax),%esi` vs `add $0x709,%eax;mov %eax,-0x2c(%ebp)`（+1）。
+//    三形实测（check_tu_routed fresh）：①`int yy_act`(现) our 4003 / 对齐差异行 35；
+//    ②`register int yy_act` our 4002 / 差异行 46，但 yy_bp 落槽（ORIG yy_bp 在 %edi，
+//    0x0808eece/0x080936c9/0x080937b7 三处 reload）；③②的声明序提前=同②。
+//    ⇒ 取①（差异行最小、yy_bp 寄存器角色与 ORIG 一致），gap 不归零，N7 封顶。
 //  · N82：yy_c 槽位 -0x29(ORIG) vs -0x25(ours)，帧槽分配差（sub $0x3c 两侧同）。
 //  · 表地址/跳转目标/&std::cin/&std::cout 立即数为 .o 重定位显示差（N124/AE 口径）。
 // 禁手改 DFA：算法/表驱动逻辑零缺口，如需再收敛改 slang_filter.l 重生成。

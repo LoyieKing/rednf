@@ -479,8 +479,8 @@ public:
     // ORIG W 0x0854b382：仅返回 this（表视图自引用；消费方按 upgrade_table_t* 使用）。
     const upgrade_table_t* getUpgradeInfoTable() const;
 
-    // ORIG W 0x0854b38a：importUpgradeTable(path, this)，透传错误行号（0=成功）。
-    int loadUpgradeScript(const char* path);
+    // ORIG W 0x0854b38a：importUpgradeTable(path, this) 尾透传（[P248 档①] bool）。
+    bool loadUpgradeScript(const char* path);
 };
 
 // ---- 掉落类型（槽址 type*0x7110 下标；chooseItem/onTryGenerateRandomItem 共用） ----

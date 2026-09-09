@@ -1321,7 +1321,8 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
 // 映射按 upgrade_info_t 已建分段具名成员（m_prob00[8]/m_prob20[3]/+0x2c..34 三项/
 // m_w38[5]/m_w4c[4]/m_w5c[4]，合计恰 0x6c）。
 
-int importUpgradeTable(const char* path, upgrade_table_t* table)
+// [P248 档①] 返回 bool（全部 return 为常量 0/1 ⇒ 机器码与 int 版逐条相同）。
+bool importUpgradeTable(const char* path, upgrade_table_t* table)
 {
     // [b28d-solo-ScriptLeafA2] 判词 = N（§6.2 超大函数口径：p167 仅 3 项残差）。
     //   残余 = string ctor ×1 / dtor ×2 计数差（ORIG 多一个 string 局部及其 EH

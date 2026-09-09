@@ -8759,12 +8759,17 @@ int CUser::InitOnAccept(int socketFd)
 // ----------------------------------------------------------------------------
 // [b28d-22 N82] ORIG 0x086657fc：p167=M0/E5:_ZN15CUserCharacInfo23getCurCharacAddInfoRefWEv，gap=69；语义完成、byte 层帧槽/物化族封顶。
 // [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x086657fc：N82 封顶——帧/槽差（p167 M0/E5，gap 69）。
-// [b28d-PoolCUOO2 复测 2026-09-09] 旧判词数字已过时，现况并列：p167 **CLEAR**（418/418
-// calls 多重集全等，E5 族已由后续修法消除）；2703 vs 2757，gap=-54。残差全为比较树
-// lowering 跨版本族：ORIG 4.1 itemIdx 无槽（P0 右值）单 load `mov -0x14b,%eax` 后 %eax
-// 跨数十 BB 驻留 `cmp $K,%eax`+`je` 正极性前跳；4.4 具名槽 `cmpl $K,mem`+`jne` 负极性
-// 内联体（直方图 cmp76/je40 ↔ cmpl71/jne33 为同边成对互换）+帧 0x20c vs 0x39c。
-// §6.2 三件套②命中、①③=N82 族 ⇒ P321 T5 铁律维持 N 封顶（P326 不适用：非迭代器槽形）。
+// [b28d-BigCUserStat 2026-09-09] 判定表 if-else 链 → switch（P251/P261/P286/P324）：
+// 4.4.7 对 switch(unsigned 局部) 复现 ORIG 4.1 的 `mov itemIdx; cmp $K,%eax; je/ja`
+// 二分决策树（探针 /tmp/sw_probe.cpp 逐条同形；if-else 链恒退化 cmpl $K,mem+jne，
+// 旧判词的「跨版本 lowering 不可翻」据此作废）。同时按 ORIG 汇编补 4 处体尾
+// goto L08666990（0x08665d83 / 0x08665fce / 0x08666420 / 0x0866698c 实证；原链式
+// else 会误落 L08666751 默认体 = 语义偏差）。itemIdx 用纯 register 存储类提示
+// （P231 合法，非 asm 绑定）省 3 条 store/load。
+// 读数：2757 vs ORIG 2703（gap -54，与改前持平未劣化）；structdiff 2068→1911、
+// ndiff 2388→2287；TU 四数 427/862/0/59 不变；p167 CLEAR（418/418，C1↔C2/D1↔D2 镜像豁免）。
+// 残余：mov +46 / jmp +15（尾部 switch(type) 段具名局部与跳转岛）、帧 0x20c vs 0x39c
+// （N82/N126 族，P321 T5 不再动类型）。
 void CUser::increase_status(short slotNo)
 {
     PacketGuard packet;
@@ -8778,243 +8783,146 @@ void CUser::increase_status(short slotNo)
     // ORIG 0x086657fc 区内无 _ZN10Inven_ItemC1Ev 调用点，仅 1×GetInvenSlot：
     // 按值返回 sret 直写拷贝初始化，无默认构造。
     Inven_Item slotItem = getCurCharacInvenR()->GetInvenSlot(1, slotNo);
-    const unsigned int itemIdx = (unsigned int)slotItem.m_addInfo;
-
     char type = -1;                                          // -0xd1
     unsigned int value = 0;                                  // -0xd8
+    register unsigned int itemIdx = (unsigned int)slotItem.m_addInfo;
 
-    // ---- itemIdx → (type,value) 判定表（ORIG 0866589d..086668f0 比较树序）----
-    if (itemIdx == 0x4b5)
+    // ---- itemIdx → (type,value) 判定表 ----
+    // ORIG 0x0866589d 起是 4.1 的 switch 二分决策树（单次载入 itemIdx 后
+    // `cmp $K,%eax` + je/ja）；4.4 同源形（/tmp/sw_probe.cpp 4.4.7 探针实证），
+    // if-else 链恒退化为 `cmpl $K,mem`+jne（P251/P261/P286）。
+    // case 书写序 = ORIG 叶块地址序（P324）；体尾 goto L08666990 按 ORIG 汇编补齐。
+    switch (itemIdx)
     {
-        type = 0x11; value = 5;
-    }
-    else if (itemIdx < 0x4b6)
-    {
-        if (itemIdx == 0x40c)
-        {
-            type = 1; value = 10000;
-        }
-        else if (itemIdx < 0x40d)
-        {
-            if (itemIdx == 0xc9) goto L08665e38;
-            if (itemIdx > 0xc9)
-            {
-                if (itemIdx != 0x3c3)
-                {
-                    if (itemIdx > 0x3c3)
-                    {
-                        if (itemIdx == 0x40a) { type = 1; value = 100; }
-                        else if (itemIdx < 0x40b)
-                        {
-                            if (itemIdx != 0x407) goto L08666751;
-                            type = 0; value = 5;
-                        }
-                        else { type = 1; value = 1000; }     // 0x40b..0x40c
-                    }
-                    else
-                    {
-                        if ((itemIdx != 0x394) && (itemIdx != 0x3c0)) goto L08666751;
-                        goto L0866607b;
-                    }
-                    goto L08666990;
-                }
-                goto L0866607b;                              // 0x3c3
-            }
-            if (itemIdx == 0x2a) { type = 0x15; value = 1; goto L08666990; }  // L086665ed
-            if (itemIdx < 0x2b)
-            {
-                if ((itemIdx == 3) || (itemIdx == 0x1c))
-                {
-L0866607b:
-                    unsigned char errSecu =
-                        (unsigned char)GlobalData::s_pSecuProtectionField->Check(
-                            this, (SECURITY_PROTCTION)0x2c);
-                    if (errSecu != 0)
-                    {
-                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
-                        return;  // L086686d4
-                    }
-                    if (G_GameWorld()->IsPvPSkilTreeChannel() != 0)
-                    {
-                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x17, packet);
-                        return;
-                    }
-                    if (CheckItemLock(1, (int)slotNo) != 0)
-                    {
-                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd5, packet);
-                        return;
-                    }
-                    if (!WongWork::CSkillChanger::CheckCondition(this))
-                    {
-                        setCurCharacExp(G_CDataManager()->get_level_exp(get_charac_level()));
-                    }
-                    if ((itemIdx == 0x4b6) || (itemIdx == 0x4e5))
-                    {
-                        if (get_charac_level() < 0x32) return;    // asm 直跳 L086686d4
-                        if (isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
-                        {
-                            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd8, packet);
-                            return;
-                        }
-                        value = 1; type = 0x12;
-                    }
-                    else if (itemIdx == 0x394) { value = 1; type = 0xa; }
-                    else if (itemIdx == 0x3c0)
-                    {
-                        value = 1; type = 0x18;
-                        CQuestShop* questShop = (CQuestShop*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xb);
-                        if (questShop != 0)
-                        {
-                            questShop->clearQP(this);
-                            questShop->sendCharacQp(this, '\0');
-                        }
-                    }
-                    else if (itemIdx == 0x3c3) { value = 1; type = 0xa; }
-                    else if (itemIdx == 0x28982c) { value = 1; type = 0xa; }
-                    else { value = 0; type = 0xa; }
-                    goto L08666990;
-                }
-            }
-            else if ((itemIdx == 0x6d) ||
-                     ((itemIdx > 0x6c) && ((itemIdx - 0xa1) < 2)))
-            {
-                goto L0866607b;
-            }
-            goto L08666751;
-        }
-        if (itemIdx == 0x413) { type = 2; value = 0xfa; }
-        else if (itemIdx < 0x414)
-        {
-            if (itemIdx == 0x40f) { type = 4; value = 0x32; }
-            else if (itemIdx < 0x410)
-            {
-                if (itemIdx == 0x40d) { type = 1; value = 100000; }
-                else
-                {
-                    if (itemIdx != 0x40e) goto L08666751;
-                    type = 0; value = 0x14;
-                }
-            }
-            else if (itemIdx == 0x411) { type = 5; value = 0x32; }
-            else if (itemIdx < 0x412) { type = 6; value = 0x32; }
-            else { type = 7; value = 0x32; }
-        }
-        else if (itemIdx == 0x416) { type = 9; value = 10; }
-        else
-        {
-            if (itemIdx > 0x416)
-            {
-                if (itemIdx > 0x4af)
-                {
-                    if (itemIdx < 0x4b3) goto L0866662f;     // 0x4b0..0x4b2
-                    if (itemIdx == 0x4b4) { type = 0x11; value = 1; goto L08666990; }
-                }
-                goto L08666751;
-            }
-            if (itemIdx == 0x414) { type = 3; value = 0xfa; }
-            else
-            {
-                if (itemIdx != 0x415) goto L08666751;
-                type = 8; value = 10;
-            }
-        }
-    }
-    else if (itemIdx < 0x204d)
-    {
-        if (itemIdx < 0x204b)
-        {
-            if (itemIdx == 0x1bbd)
-            {
-                if (get_state() != 3)
-                {
-                    SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
-                    return;
-                }
-                type = 0xd; value = 8;
-            }
-            else if (itemIdx < 0x1bbe)
-            {
-                if (itemIdx == 0x4d0) { type = 1; value = 10000000; }
-                else if (itemIdx < 0x4d1)
-                {
-                    if (itemIdx == 0x4b6) goto L0866607b;
-                    if (itemIdx != 0x4cf) goto L08666751;
-                    type = 1; value = 1000000;
-                }
-                else
-                {
-                    if (itemIdx == 0x4e5) goto L0866607b;
-                    if (itemIdx == 0xc84)
-                    {
+    case 0x292091ad: type = 0x19; value = 1; goto L08666990;      // 0x08665ba5
+    case 0x407:  type = 0; value = 5; goto L08666990;             // 0x08665bbb
+    case 0x40e:  type = 0; value = 0x14; goto L08666990;          // 0x08665bd1
+    case 0x4b4:  type = 0x11; value = 1; goto L08666990;          // 0x08665be7
+    case 0x4b5:  type = 0x11; value = 5; goto L08666990;          // 0x08665bfd
+    case 0x40a:  type = 1; value = 100; goto L08666990;           // 0x08665c13
+    case 0x40b:  type = 1; value = 1000; goto L08666990;          // 0x08665c29
+    case 0x40c:  type = 1; value = 10000; goto L08666990;         // 0x08665c3f
+    case 0x40d:  type = 1; value = 100000; goto L08666990;        // 0x08665c55
+    case 0x4cf:  type = 1; value = 1000000; goto L08666990;       // 0x08665c6b
+    case 0x4d0:  type = 1; value = 10000000; goto L08666990;      // 0x08665c81
+    case 0x1f71: case 0x204b: case 0x204c: case 0x204e: case 0x204f:
+    case 0x28d2bc: goto L08665c97;                                // 0x08665c97
+    case 0x989a13: case 0x292090e1: goto L08665d24;               // 0x08665d24
+    case 0x40f:  type = 4; value = 0x32; goto L08666990;          // 0x08665d88
+    case 0x410:  type = 6; value = 0x32; goto L08666990;          // 0x08665d9e
+    case 0x411:  type = 5; value = 0x32; goto L08666990;          // 0x08665db4
+    case 0x412:  type = 7; value = 0x32; goto L08666990;          // 0x08665dca
+    case 0x413:  type = 2; value = 0xfa; goto L08666990;          // 0x08665de0
+    case 0x414:  type = 3; value = 0xfa; goto L08666990;          // 0x08665df6
+    case 0x415:  type = 8; value = 10; goto L08666990;            // 0x08665e0c
+    case 0x416:  type = 9; value = 10; goto L08666990;            // 0x08665e22
+    case 0xc9: case 0x28bdb8: goto L08665e38;                     // 0x08665e38
+    case 0xc84:                                                   // 0x08665fd3
                         if (get_charac_guildkey() == 0)
-                        {
-                            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x40, packet);
-                            return;
-                        }
-                        type = 0xb; value = 10;
-                    }
-                    else
-                    {
-                        if (itemIdx != 0x4df) goto L08666751;
-                        type = 0x13; value = 10;
-                    }
-                }
-            }
-            else if (itemIdx == 0x1c0d) { type = 0xd; value = 5; }
-            else if (itemIdx < 0x1c0e)
-            {
-                if (itemIdx == 0x1bc1)
-                {
-                    if (get_charac_guildkey() == 0)
-                    {
-                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x40, packet);
-                        return;
-                    }
-                    type = 0xb; value = 0x32;
-                }
-                else
-                {
-                    if (itemIdx != 0x1c0c) goto L08666751;
-                    type = 0xd; value = 1;
-                }
-            }
-            else if (itemIdx == 0x1f16) { type = 0x14; value = 0; }
-            else
-            {
-                if (itemIdx == 0x1f71) goto L08665c97;
-                if (itemIdx != 0x1c82) goto L08666751;
-                if (get_state() != 3)
-                {
-                    SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
-                    return;
-                }
-                type = 0xd; value = 2;
-            }
-        }
-        else
         {
-L08665c97:
-            bool reject = false;
-            if (!CalLevelUpItemCheck(itemIdx))
+                            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x40, packet);
+            return;
+        }
+                        type = 0xb; value = 10;
+        goto L08666990;
+    case 0x1bc1:                                                  // 0x08666027
+                    if (get_charac_guildkey() == 0)
+        {
+                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x40, packet);
+            return;
+        }
+                    type = 0xb; value = 0x32;
+        goto L08666990;
+    case 3: case 0x1c: case 0x6d: case 0xa1: case 0xa2:
+    case 0x394: case 0x3c0: case 0x3c3: case 0x4b6: case 0x4e5: case 0x28982c:
+        goto L0866607b;                                           // 0x0866607b
+    case 0x28974b: case 0x289788: goto L08666320;                 // 0x08666320
+    case 0x28974c:                                                // 0x08666425
+            if (G_GameWorld()->IsPvPSkilTreeChannel() != 1)
+        {
+                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x17, packet);
+            return;
+        }
+        {
+            unsigned char errSecu =
+                (unsigned char)GlobalData::s_pSecuProtectionField->Check(
+                    this, (SECURITY_PROTCTION)0x2c);
+            if (errSecu != 0)
             {
-                reject = false;                              // asm: 不报错，走公共段
-            }
-            else
-            {
-                int valueTmp = (int)value;
-                reject = (CalLevelUpItemState(type, valueTmp, 0x13, 0x3b) != 1);
-                value = (unsigned int)valueTmp;
-            }
-            if (reject)
-            {
-                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
                 return;
             }
         }
+                if (!isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
+        {
+                            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd8, packet);
+            return;
+        }
+                value = 0; type = 0x17;
+        goto L08666990;
+    case 0x1bbd:                                                  // 0x08666517
+                if (get_state() != 3)
+        {
+            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
+            return;
+        }
+                type = 0xd; value = 8;
+        goto L08666990;
+    case 0x1c82:                                                  // 0x0866656c
+                if (get_state() != 3)
+        {
+            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
+            return;
+        }
+                type = 0xd; value = 2;
+        goto L08666990;
+    case 0x1c0c: type = 0xd; value = 1; goto L08666990;           // 0x086665c1
+    case 0x1c0d: type = 0xd; value = 5; goto L08666990;           // 0x086665d7
+    case 0x2a: case 0x28d14d: type = 0x15; value = 1; goto L08666990;  // 0x086665ed
+    case 0x4df:  type = 0x13; value = 10; goto L08666990;         // 0x08666603
+    case 0x1f16: type = 0x14; value = 0; goto L08666990;          // 0x08666619
+    case 0x4b0: case 0x4b1: case 0x4b2: case 0x2920915c:
+        goto L0866662f;                                           // 0x0866662f
+    default:
+            goto L08666751;
     }
-    else if (itemIdx == 0x28bdb8)
+
+L08665c97:                                                        // 0x08665c97
     {
-L08665e38:
+            bool reject = false;
+            if (!CalLevelUpItemCheck(itemIdx))
+        {
+                reject = false;                              // asm: 不报错，走公共段
+        }
+        else
+        {
+                int valueTmp = (int)value;
+                reject = (CalLevelUpItemState(type, valueTmp, 0x13, 0x3b) != 1);
+                value = (unsigned int)valueTmp;
+        }
+            if (reject)
+        {
+            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
+            return;
+        }
+    }
+                    goto L08666990;
+
+L08665d24:                                                        // 0x08665d24
+    {
+        int valueTmp = (int)value;
+        bool ok54 = (CalLevelUpItemState(type, valueTmp, 1, 0x54) == 1);
+        value = (unsigned int)valueTmp;
+        if (!ok54)
+        {
+            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
+            return;
+        }
+    }
+                    goto L08666990;
+
+L08665e38:                                                        // 0x08665e38
+    {
         CEventBase* repeatEvent = GlobalData::s_event_manager->GetRepeatEvent(0xf);
         if ((repeatEvent == 0) || (!repeatEvent->IsEventing(0)))
         {
@@ -9039,120 +8947,106 @@ L08665e38:
         }
         type = 0x0e; value = 0;
     }
-    else if (itemIdx < 0x28bdb9)
+                goto L08666990;
+
+L0866607b:                                                        // 0x0866607b
     {
-        if (itemIdx == 0x28974b)
+                    unsigned char errSecu =
+                        (unsigned char)GlobalData::s_pSecuProtectionField->Check(
+                            this, (SECURITY_PROTCTION)0x2c);
+                    if (errSecu != 0)
         {
-L08666320:
-            if (G_GameWorld()->IsPvPSkilTreeChannel() != 1)
-            {
+                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
+                        return;  // L086686d4
+        }
+                    if (G_GameWorld()->IsPvPSkilTreeChannel() != 0)
+        {
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x17, packet);
+            return;
+        }
+                    if (CheckItemLock(1, (int)slotNo) != 0)
+        {
+                        SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd5, packet);
+            return;
+        }
+                    if (!WongWork::CSkillChanger::CheckCondition(this))
+        {
+                        setCurCharacExp(G_CDataManager()->get_level_exp(get_charac_level()));
+        }
+                    if ((itemIdx == 0x4b6) || (itemIdx == 0x4e5))
+        {
+                        if (get_charac_level() < 0x32) return;    // asm 直跳 L086686d4
+                        if (isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
+            {
+                    SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd8, packet);
                 return;
             }
+                        value = 1; type = 0x12;
+        }
+                    else if (itemIdx == 0x394) { value = 1; type = 0xa; }
+                    else if (itemIdx == 0x3c0)
+        {
+                        value = 1; type = 0x18;
+                        CQuestShop* questShop = (CQuestShop*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xb);
+                        if (questShop != 0)
+            {
+                            questShop->clearQP(this);
+                            questShop->sendCharacQp(this, '\0');
+            }
+        }
+                    else if (itemIdx == 0x3c3) { value = 1; type = 0xa; }
+                    else if (itemIdx == 0x28982c) { value = 1; type = 0xa; }
+                    else { value = 0; type = 0xa; }
+        goto L08666990;
+    }
+
+L08666320:                                                        // 0x08666320
+    {
+                if (G_GameWorld()->IsPvPSkilTreeChannel() != 1)
+        {
+                    SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x17, packet);
+            return;
+        }
             unsigned char errSecu =
                 (unsigned char)GlobalData::s_pSecuProtectionField->Check(
                     this, (SECURITY_PROTCTION)0x2c);
             if (errSecu != 0)
-            {
+        {
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
-                return;
-            }
-            if (!WongWork::CSkillChanger::CheckCondition(this))
-            {
-                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 1, packet);
-                return;
-            }
-            value = 0; type = 0x16;
-            if (itemIdx == 0x289788) value = 1;
-        }
-        else
-        {
-            if (itemIdx < 0x28974c)
-            {
-                if ((itemIdx - 0x204e) < 2) goto L08665c97;
-                goto L08666751;
-            }
-            else
-            {
-                if (itemIdx == 0x289788) goto L08666320;
-                if (itemIdx == 0x28982c) goto L0866607b;
-                if (itemIdx != 0x28974c) goto L08666751;
-                if (G_GameWorld()->IsPvPSkilTreeChannel() != 1)
-                {
-                    SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x17, packet);
-                    return;
-                }
-                unsigned char errSecu =
-                    (unsigned char)GlobalData::s_pSecuProtectionField->Check(
-                        this, (SECURITY_PROTCTION)0x2c);
-                if (errSecu != 0)
-                {
-                    SendCmdErrorPacket((ENUM_CMDPACKET)0x20, errSecu, packet);
-                    return;
-                }
-                if (!isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
-                {
-                    SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd8, packet);
-                    return;
-                }
-                value = 0; type = 0x17;
-                goto L08666990;
-            }
-        }
-        
-    }
-    else if (itemIdx == 0x989a13)
-    {
-L08665d24:
-        int valueTmp = (int)value;
-        bool ok54 = (CalLevelUpItemState(type, valueTmp, 1, 0x54) == 1);
-        value = (unsigned int)valueTmp;
-        if (!ok54)
-        {
-            SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
             return;
         }
-        goto L08666990;
-    }
-    else
-    {
-        if (itemIdx < 0x989a14)
+            if (!WongWork::CSkillChanger::CheckCondition(this))
         {
-            if (itemIdx == 0x28d14d) { type = 0x15; value = 1; goto L08666990; }
-            if (itemIdx == 0x28d2bc) goto L08665c97;
-            goto L08666751;
+                SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 1, packet);
+            return;
         }
-        if (itemIdx == 0x2920915c)
-        {
-L0866662f:
+            value = 0; type = 0x16;
+            if (itemIdx == 0x289788) value = 1;
+    }
+        goto L08666990;
+
+L0866662f:                                                        // 0x0866662f
+    {
             if (!IsGuildMaster())
-            {
+        {
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xdb, packet);
-                return;
-            }
+            return;
+        }
             STGuildDBInfoOnly* guildDB = (STGuildDBInfoOnly*)GetGuildDBInfo();
             int needFund =
                 G_CDataManager()->m_guildParameter.getGuildLevelUpParam(guildDB->m_fundLevel + 1);
             if (needFund == 0)
-            {
+        {
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd2, packet);
-                return;
-            }
+            return;
+        }
             if ((unsigned int)needFund <= guildDB->m_fundExp)      // +0x29 无符号比较
-            {
+        {
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd2, packet);
-                return;
-            }
+            return;
+        }
             type = 0x10;
             value = G_CDataManager()->m_guildParameter.getGuildExpBook(guildDB->m_fundLevel + 1);
-            goto L08666990;
-        }
-        if (itemIdx != 0x292091ad)
-        {
-            if (itemIdx == 0x292090e1) goto L08665d24;
-            goto L08666751;
-        }
-        type = 0x19; value = 1;
         goto L08666990;
     }
 

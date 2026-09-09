@@ -469,7 +469,7 @@ int importSpPerLevelReferenceTable(const char* path, stSpPerLevelTable& table)
 //  p167 调用点差集 55/55 CLEAR；gap=3 全为 ORIG 循环头前 3 个 `jmp;nop` 中继岛
 //  （[separate upgrade max]/[level]/[separate upgrade effect] 条件成功路径），
 //  continue/goto 两形探针（/tmp/b28d_b/p6.o f1/f2）实测 4.4 恒无岛 ⇒ P223 单源封顶。
-int importGenuineUpgradeTable(const char* path,
+bool importGenuineUpgradeTable(const char* path,
                               GenuineDamageUpgradeTable* table)
 {
     if (!loadRDARScriptFile("", path))

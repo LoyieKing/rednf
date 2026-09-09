@@ -68,7 +68,7 @@ CItemUpgrade::CItemUpgrade()
     }
 }
 
-int CItemUpgrade::LoadUpgradeScript(const char* path)
+bool CItemUpgrade::LoadUpgradeScript(const char* path)
 {
     // ORIG 0x0854919a：尾调 WongWork::CItemUpgradeTable::loadUpgradeScript(this+0x04,
     // path)（W 0x0854b38a，内部即 importUpgradeTable(path, table) 并透传 eax）。
@@ -89,7 +89,7 @@ bool CItemUpgrade::Load3rdChronicleUpgradeScript(const char* path)  // [P330] �
 // CItemAmplifier::loadScript —— 强化物品脚本 + 升级表双装载
 // ============================================================================
 
-int CItemAmplifier::loadScript(const char* itemScript, const char* upgradeScript)
+bool CItemAmplifier::loadScript(const char* itemScript, const char* upgradeScript)
 {
     // ORIG 0x08376060 逐段转写：
     //   line = importAmplifyItem(itemScript, m_script)；line!=0 →

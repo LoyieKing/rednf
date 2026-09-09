@@ -2244,20 +2244,32 @@ bool CDataManager::InitLoginState(ENUM_SERVER_GROUP serverGroup, int channelNo)
 // ③ 非空判定改 size()!=0（ORIG 0x08359ec9 调 size，旧 empty() 为 EXTRA）。另消除
 // ptEv ×5（EquipmentPartSet 段 data/pieces 具名引用，ORIG 0x0835e4f0/0x0835e4fe）。
 // Main 已代落 CItemGeneratorMgr::C1 throw()（CItemGeneratorMgr.h + CtorProducers_2C.cpp）
-// ⇒ new-expression landing pad 消除，p167 843/843 CLEAR（0 missing/0 extra，
-// 本轮 fresh .o 复算）。读数 o 5430 / n 5446（+16，含 ~160 步装载链的
-// 跨版本帧/槽与 cMyTrace 槽位差，P112/N82 族）⇒ 语义完成、byte 层 N 封顶。
+// ⇒ new-expression landing pad 消除，p167 843/843 CLEAR（0 missing/0 extra）。
+// [b28d-BigDataMgrInit 大件收敛] 读数 **orig 5430 / ours 5429**（fn_diff_tu
+// norm 5429=5429，gap 0；TU 四数 600/1193/3/10/436 与基线全等）。本轮修：
+// ① P248 档① bool 化 ×3 调用点（importChannelScript / CItemUpgrade::LoadUpgradeScript
+//    / CItemUpgrade_Separate::LoadUpgradeScript）：ORIG `call; xor $1,%eax;
+//    test %al,%al; je` = bool 取反形，旧 `&1` 等价改写每处多 2 条（探针
+//    /tmp/probe_xor.cpp 六形实证 int callee 无解）；声明+定义同步 bool，callee
+//    机器码零变化（返回语句全常量；W6/Sep/CtorProducers_2C 三件 10/10、11/11）。
+// ② P310 循环尾测：`for (int i=0;(unsigned int)i<=6;++i)` 复现两段寄存器形。
+// ③ 帧对齐：char _pad[16] 撑帧后 sub $0x192c 与 ORIG 全等、ver 槽
+//    -0xf1c..-0xf0c 对齐（P232）。
+// 残差（封顶）：a) cMyTrace 临时 arena 槽号差 0x10（90 行，N95/P182：4.1 基址
+// -0xf08 vs 4.4 -0xef8，帧已等仍不随帧移）；b) 0x0835cecb/0x0835cfcb 出厂单字节
+// 改写 `eb 56`(jmp) 应为 `74 56`(je)，失败块不可达——合法 C++ 不可造（N111 类）；
+// c) EquipmentPartSet 段 data/pieces 引用槽序互换 1 对（N93，交换声明序实测
+// 反劣 5431/5432 + 658 行非槽差，已回滚）。
 bool CDataManager::init()
 {
     // ORIG 版本五元组落在具名区最浅端（槽 -0xf1c/-0xf18/-0xf14/-0xf10/
     // -0xf0c，紧邻临时 arena 基址 -0xf08）；标量局部在本 GCC 下会进顶部
     // 表达式临时槽（实测 -0x5c..-0x6c），只有聚合体（数组）才拿到具名帧槽
     // ⇒ 原函数以 int[5] 形式声明，常数下标折叠后访存形态与标量完全一致。
-    // [frame-align] ORIG 在 -0xf28 站点对象与版本 5 元组之间存在 8 字节未引用
-    // 空洞（ORIG ver@-0xf1c..-0xf0c，本侧 ver@-0xf14..-0xf00），致本侧 ver 及其
-    // 后全部具名标量槽整体错位 8 字节（全函数 566 个纯槽号 diff 块之源）。以
-    // 先行声明的 int[2] 哑元占住空洞，恢复 ORIG 槽布局。
-    int _fa[2];
+    // [frame-align] 本侧帧比 ORIG 浅 0x10（0x191c vs 0x192c）；未引用的
+    // int[4]（16B）撑帧后帧 0x192c 与 ORIG 全等、ver 五元组槽 -0xf1c..-0xf0c
+    // 对齐（P232：-O0 未读写局部照样占 sub；char[16] 实测同形）。
+    int _pad[4];
     int ver[5];
     // ORIG 的 5 个函数体作用域 int（按声明序取深→浅槽 -0x3c/-0x38/-0x34/-0x30/
     // -0x2c；两个循环计数器在子块里，故槽号更浅 -0x28/-0x24）。err 为多站点复用
@@ -3391,9 +3403,10 @@ bool CDataManager::init()
     randomOptionFiles[6] = "Etc/RandomOption/RandomizedOptionOverall2.etc";
     cMyTrace("bool CDataManager::init()", 0x1fb6, 9, true, false)(
         "\t- Loading RandomOption ");
-    // [b28d-orig-form] ORIG 循环尾检 = `mov -S,%eax; cmp $0x6,%eax; setbe;
-    // test; jne`（idx 3308-3313）——`i <= 6` 形；旧 `i < 7` 发 cmpl 直比。
-    for (unsigned int i = 0; i <= 6; ++i)
+    // [P310] ORIG 循环尾检 = `mov -S,%eax; cmp $0x6,%eax; setbe; test; jne`
+    //（idx 3308-3313）——局部须 int + 显式 (unsigned int) 比较才发两段寄存器形
+    //（4.4 对 unsigned 局部恒折 cmpl 直比；探针 /tmp/probe_loop.cpp loop2）。
+    for (int i = 0; (unsigned int)i <= 6; ++i)
     {
         if ((errRO = importRandomOptionScript(m_randomOption, randomOptionFiles[i])) != 0)
         {
@@ -3570,13 +3583,13 @@ bool CDataManager::init()
         cMyTrace("bool CDataManager::init()", 0x204a, 9, false, true)("Success");
         cMyTrace("bool CDataManager::init()", 0x204e, 9, true, false)(
             "\t- Init Channel Script ");
-        // [P330 bit0] ORIG 调用点（报告 idx 3963-3966）：`call 88dc008
-        // <importChannelScript>; xor $0x1,%eax; test %al,%al; je` —— xor 直接
-        // 作用在**返回值 eax** 上 ⇒ 判定只看 bit0。callee 是尾调透传
-        // `_Z18applyChannelScriptP16channel_script_t`（ORIG 体内 ebx ∈ {0,1,2}，
-        // 报告 0x088dc069 族），错误码 2 在 ORIG 被 bit0 判成「成功」（bug-compatible
-        // 保留）。Main 裁定：.h 维持 int 原型（禁双声明），调用点显式 &1 等价改写。
-        if ((importChannelScript(&m_channelScript) & 1) == 0)
+        // [P248 档①/P292] ORIG 调用点（报告 idx 3963-3966）：`call 88dc008
+        // <importChannelScript>; xor $0x1,%eax; test %al,%al; je` = bool 取反形。
+        // 探针 /tmp/probe_xor.cpp：int callee 的六种写法恒产 setcc 五条，唯
+        // callee 返回 bool 时裸 `!f()` 逐条复现（旧 &1 等价改写多 2 条/处）。
+        // callee 声明+定义已 bool 化，返回语句全为常量 0/1（0x088dc062 尾调
+        // 透传形态不变）。
+        if (!importChannelScript(&m_channelScript))
         {
             cMyTrace("bool CDataManager::init()", 0x2058, 9, true, true)(
                 "\t- Init Channel Script Fail");
@@ -3590,14 +3603,11 @@ bool CDataManager::init()
         m_itemUpgrade = new WongWork::CItemUpgrade;
         cMyTrace("bool CDataManager::init()", 0x205e, 9, true, false)(
             "\t- Init Item Upgrade Info ");
-        // [P330 bit0·③] ORIG idx 4023-4035：`mov 0x20(this),%eax; (%eax)+0x04
-        // 取虚槽1; call *%edx; xor $0x1,%eax; test %al` —— 判定只看返回 bit0。
-        // 虚槽目标 ORIG T 0x0854919a（CItemUpgrade）/0x0811eca8（Separate），
-        // 两者均 `call loadUpgradeScript/import 尾透传; leave; ret`（callee 侧
-        // CItemUpgrade_Separate.h:136 注「透传亦无 movzbl」= int 原型保持）。
-        // check_vtables --filter ItemUpgrade：matched=4 clean=4（逐槽两侧一致）。
-        // Main 裁定路线：不改虚表原型，调用点 &1 等价改写。
-        if ((m_itemUpgrade->LoadUpgradeScript("Etc/Upgrade.etc") & 1) == 0)
+        // [P248 档①/P292] ORIG idx 4023-4035：`mov 0x20(this),%eax; (%eax)+0x04
+        // 取虚槽1; call *%edx; xor $0x1,%eax; test %al` = bool 取反形。虚槽目标
+        // ORIG T 0x0854919a（CItemUpgrade）/0x0811eca8（Separate）均尾调透传
+        // （无 movzbl ⇒ 整链同型 bool）；声明+定义已同步 bool 化。
+        if (!m_itemUpgrade->LoadUpgradeScript("Etc/Upgrade.etc"))
         {
             cMyTrace("bool CDataManager::init()", 0x2061, 9, true, true)(
                 "\t- Init Item Upgrade Info Fail\n");
@@ -3605,7 +3615,7 @@ bool CDataManager::init()
         }
         cMyTrace("bool CDataManager::init()", 0x2064, 9, false, true)("Success");
         m_itemUpgradeSeparate = new WongWork::CItemUpgrade_Separate;
-        if ((m_itemUpgradeSeparate->LoadUpgradeScript("Etc/Upgrade_Separate.etc") & 1) == 0)
+        if (!m_itemUpgradeSeparate->LoadUpgradeScript("Etc/Upgrade_Separate.etc"))
         {
             cMyTrace("bool CDataManager::init()", 0x206a, 9, true, true)(
                 "\t- Item Upgrade Separate Fail");
@@ -3793,6 +3803,9 @@ bool CDataManager::init()
             // mov %eax,-0x20`（具名引用 data）+ 0x0835e4fe `add $0xc;
             // mov %eax,-0x1c`（具名 pieces 引用）——旧形每处字段访问重发
             // ptEv（p167 EXTRA operator-> ×5）。
+            // [N93 封顶] ORIG 槽序 data(-0xf60 深)/pieces(-0xf58 浅) 与本侧相反；
+            // 交换声明序实测反劣（5431/5432 且 658 行非槽差，物化顺序被破坏）
+            // ⇒ 按 N93（块级对象槽向跨版本相反、具名引用不可翻）封顶。
             STEquipmentPartSetData& data = it->second;
             std::vector<STEquipmentPartSetPiece>& pieces = data.m_pieces;
             for (std::vector<STEquipmentPartSetPiece>::iterator pit =

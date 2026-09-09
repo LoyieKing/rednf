@@ -20,8 +20,12 @@ struct STRDCharacterStatusClient
 {
     STRDCharacterStatusClient& operator=(STRDCharacterStatus const&);  // ORIG T @0x08a0cab8
 
-    unsigned int m_hpMax;        // +0x00（与 Status 侧 int 类型不一致，op= 中转实证）
-    unsigned int m_mpMax;        // +0x04
+    // [bigfix-unsigned] 符号性方向修正：ORIG exportCharacterStatusScript 0x08a0fb41/
+    // 0x08a0fb89/0x08a0feaa 对 Status 侧 +0x0/+0x4/+0x42 发 `mov $0,%edx; fildll`
+    // （零扩展 ⇒ Status 侧 unsigned），而双向 op= 0x08a0c942/0x08a0cab8 两侧均为
+    // `mov %eax,%edx` 中转 ⇒ 异型 ⇒ **Client 侧为 int**（原注释方向反了）。
+    int m_hpMax;                 // +0x00（Client int ↔ Status unsigned）
+    int m_mpMax;                 // +0x04
     unsigned int m_physAttack;   // +0x08
     unsigned int m_physDefense;  // +0x0c
     unsigned int m_magAttack;    // +0x10
@@ -31,7 +35,7 @@ struct STRDCharacterStatusClient
     int m_inventoryLimit;        // +0x6c
     int m_hpRegen;               // +0x70
     int m_mpRegen;               // +0x74
-    unsigned int m_moveSpeed;    // +0x78（同上，双向 op= 中转实证）
+    int m_moveSpeed;             // +0x78（同上，Client int ↔ Status unsigned）
     unsigned int m_attackSpeed;  // +0x7c
     unsigned int m_castSpeed;    // +0x80
     int m_hitRecovery;           // +0x84

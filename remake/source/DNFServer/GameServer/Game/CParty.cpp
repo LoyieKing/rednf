@@ -6911,7 +6911,8 @@ void CParty::clear_reward(int param)
     {
         for (int gx = 0; gx < bfView.getMaze()->m_height; ++gx)
         {
-            if (bfView.getMaze()->getGridR(gy, gx).m_gridValue != 0)
+            const GridScript& grid = bfView.getMaze()->getGridR(gy, gx);
+            if (grid.m_gridValue != 0)
                 gridCount += 1;
         }
     }
@@ -6981,7 +6982,7 @@ void CParty::clear_reward(int param)
         {
             ServiceRestrictManager* restrictMgr =
                 ARAD::Singleton<ServiceRestrictManager>::Get();
-            if (restrictMgr->isRestricted(RestrictCategory::Enum_1, 1))
+            if (restrictMgr->isRestricted(RestrictCategory::Enum_3, 1))
             {
                 minStdDropRate =
                     std::min(m_member[i].m_pUser->getStdDropRate(), minStdDropRate);
@@ -7024,8 +7025,7 @@ void CParty::clear_reward(int param)
         {
             user->EventDungeonClearReward(dungeon->m_vec86c);
         }
-        unsigned int newRankIdx = G_CDataManager()->getNewRankIndex(param);
-        if (newRankIdx < 3)
+        if (G_CDataManager()->getNewRankIndex(param) < 3)
         {
             APSystem::CUserProc::ClearActionAndSendtoUser(
                 user, (APSystem::_ActionGroupIndex)0x10, 0,
@@ -7041,11 +7041,12 @@ void CParty::clear_reward(int param)
             double basePenalty = G_CDataManager()->BaseExpPenalty(lvl, stdLevel);
             if (basePenalty >= 1.0 || dungeon->isRiskDungeon())
             {
-                unsigned short guildLvl = static_cast<unsigned short>(
-                    static_cast<const STGuildDBInfoOnly*>(
-                        user->GetGuildDBInfo())->m_memberCount);  // +0x22
-                unsigned long long tempExp =
-                    static_cast<unsigned long long>(user->get_guild_temp_exp());
+                unsigned int guildLvl = static_cast<unsigned int>(
+                    static_cast<unsigned short>(
+                        static_cast<const STGuildDBInfoOnly*>(
+                            user->GetGuildDBInfo())->m_memberCount));  // +0x22
+                unsigned int tempExp =
+                    static_cast<unsigned int>(user->get_guild_temp_exp());
                 float weight = G_CDataManager()->m_guildParameter.getExpWeight(guildLvl);
                 int addExp = static_cast<int>(
                     static_cast<double>(weight) *
@@ -7068,11 +7069,12 @@ void CParty::clear_reward(int param)
         {
             int lvl = user->get_charac_level();
             ref.m_field34 = static_cast<char>(lvl);
-            unsigned short guildLvl = static_cast<unsigned short>(
-                static_cast<const STGuildDBInfoOnly*>(
-                    user->GetGuildDBInfo())->m_memberCount);  // +0x22
-            unsigned long long tempExp =
-                static_cast<unsigned long long>(user->get_guild_temp_exp());
+            unsigned int guildLvl = static_cast<unsigned int>(
+                static_cast<unsigned short>(
+                    static_cast<const STGuildDBInfoOnly*>(
+                        user->GetGuildDBInfo())->m_memberCount));  // +0x22
+            unsigned int tempExp =
+                static_cast<unsigned int>(user->get_guild_temp_exp());
             float weight = G_CDataManager()->m_guildParameter.getExpWeight(guildLvl);
             int addExp = static_cast<int>(
                 static_cast<double>(weight) * static_cast<double>(tempExp));
@@ -7094,7 +7096,7 @@ void CParty::clear_reward(int param)
         {
             ServiceRestrictManager* restrictMgr =
                 ARAD::Singleton<ServiceRestrictManager>::Get();
-            if (restrictMgr->isRestricted(RestrictCategory::Enum_1, 1))
+            if (restrictMgr->isRestricted(RestrictCategory::Enum_3, 1))
             {
                 ref.m_dropRate = user->getStdDropRate();
             }
@@ -7471,9 +7473,9 @@ void CParty::clear_reward(int param)
             {
                 continue;
             }
-            short characClass = questRef->m_authenData.m_characClass;
             if (!quest->check_clear_item(bfView.get_dungeon_index(),
-                                         static_cast<int>(characClass)))
+                                         static_cast<int>(
+                                             questRef->m_authenData.m_characClass)))
             {
                 continue;
             }

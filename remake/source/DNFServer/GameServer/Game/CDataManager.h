@@ -1366,15 +1366,19 @@ struct CharacterKind
 // （尾段 int@0x3c … int@0x50）错位 —— make_charac_stat TU 验证实测修正。
 struct CharacterStatus
 {
-    int m_field00;          // +0x00
-    int m_field04;          // +0x04
+    // [BigEquipScript] unsigned：ORIG importPairPvPStatScript 0x08977d9c 的
+    // [HP MAX]@0x08977fe9 / [MP MAX]@0x08978044 / [move speed]@0x089782cb 三段
+    // store 为 RHS-first 中转（mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,disp），
+    // 同函数 +0x3c/+0x50 段为 LHS-first ⇒ 按 P211 这三字段与 ScanInt 返回 int 异型。
+    unsigned int m_field00; // +0x00
+    unsigned int m_field04; // +0x04
     short m_field08[25];    // +0x08..0x39（make_charac_stat 循环1/2 按
                             // (i+8)*2 与 (i+8)*2+8 寻址，最大下标 24）
     char m_pad3a[2];        // +0x3a（与 _Additioal_info 的 2 字节错位间隙）
     int m_field3c;          // +0x3c
     short m_field40;        // +0x40
     short m_field42;        // +0x42
-    int m_field44;          // +0x44
+    unsigned int m_field44; // +0x44
     short m_field48;        // +0x48
     short m_field4a;        // +0x4a
     short m_field4c;        // +0x4c
@@ -2625,7 +2629,7 @@ private:
     std::map<int, std::map<int, channel_info_t> > m_channelMap;         // +0x18
 
     // ORIG 自由函数（定义 InitScriptProducers_1.cpp），需写两个 map 成员。
-    friend int applyChannelScript(channel_script_t* script);
+    friend bool applyChannelScript(channel_script_t* script);   // [P248 档①] bool：importChannelScript 尾调透传（返回语句全常量，机器码不变）
     friend void traversalChannelScript(channel_script_t* script);   // 定义 InitScriptProducers_1.cpp（读两 map）
 };
 
@@ -3156,9 +3160,10 @@ public:
     int ProcUpgrade_3rdChronicle(CUser* user, ENUM_EQUIPMENTTYPE equipType,
                                  unsigned char param, Inven_Item& item,
                                  const CItem* itemScript);
-    // LoadUpgradeScript 为 IItemUpgrade 纯虚槽1 覆盖；基类返回 int（ORIG eax
-    // 透传 import 错误行号，0=成功），派生覆盖随基类返回 int。
-    int LoadUpgradeScript(const char* path);                // ORIG T 0x0854919a（槽 +0x04）
+    // LoadUpgradeScript 为 IItemUpgrade 纯虚槽1 覆盖；[P248 档①] bool：init
+    // 调用点 ORIG `call *%edx; xor $1,%eax; test %al,%al; je`（idx 4023-4035），
+    // 尾调 loadUpgradeScript 无 movzbl ⇒ 整链同型。
+    bool LoadUpgradeScript(const char* path);               // ORIG T 0x0854919a（槽 +0x04）
     // ORIG _ZN8WongWork12CItemUpgrade29Load3rdChronicleUpgradeScriptEPKc（init 调用）
     bool Load3rdChronicleUpgradeScript(const char* path);  // [P330 int→bool] init 调用点 ORIG xor $1 形（idx 4111）
     float getUpgradeItemRepairCostRate(int idx, bool flag) const;

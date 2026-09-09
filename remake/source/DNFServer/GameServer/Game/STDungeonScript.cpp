@@ -349,8 +349,14 @@ case 0x7d:  // "[entering title]"（ORIG LAB_088e6d1f/88e6dcd：ByDifficulty→m
                 break;
             if (title == "ByDifficulty") {  // 0x8e0d55a
                 script->m_34 = 1;  // +0x34
-                while (ScanStr(&title))  // @88e6dcd 循环 push 到 +0x38
+                // ORIG 0x88e6dcd 循环头为 `call; xor $1; test; je <body>`（否定形，
+                // P292 bool callee + `if(!f())`）⇒ 写成 while(true)+否定 break。
+                while (true)             // @88e6dcd 循环 push 到 +0x38
+                {
+                    if (!ScanStr(&title))
+                        break;
                     script->m_vec38.push_back(title);  // @88e6dfb push_back(+0x38)
+                }
             }
             else
             {
@@ -374,8 +380,13 @@ case 0x98:  // "[entering title next]"（ORIG LAB_088e6ead/88e6efb：同构 [ent
                 break;
             if (title == "ByDifficulty") {  // 0x8e0d55a
                 script->m_44 = 1;  // +0x44
-                while (ScanStr(&title))  // @88e6efb 循环 push 到 +0x48
+                // 同 [entering title]：ORIG 0x88e6efb 为否定形循环头。
+                while (true)             // @88e6efb 循环 push 到 +0x48
+                {
+                    if (!ScanStr(&title))
+                        break;
                     script->m_vec48.push_back(title);  // @88e6f29 push_back(+0x48)
+                }
             }
             else
             {
@@ -699,6 +710,10 @@ case 0x1b3:  // "[realdungeon checkup]"
                 for (int i = 0; i < n; ++i)
                 {
                     int v = ScanInt(&ok);
+                    // ORIG 0x088e7e3e 起三个子循环失败各出独立 nop 中继岛
+                    // （088e7fb8/7fbb/7fbe → 088e7fbf）；4.4 实测 goto 尾标签形与
+                    // while 形产物同 break 形（`je body; nop; jmp exit`，无岛）
+                    // ⇒ P223 负例，保留 for+break 自然形（gap 差 2/处，N 封顶）。
                     if (!ok) break;
                     script->m_vec458.push_back(v);
                 }
@@ -842,7 +857,9 @@ case 0x27d:  // "[quest connection]"
         // 越界 → logFormat("error! maze quest type(%d)") 后 import 失败。
         int questType = ScanInt((bool*)0);
         ScanInt((bool*)0);   // 第 2 值（未用）
-        if (questType >= -1 && questType <= 1)
+        // ORIG 0x088e86cd/088e86d8：先 `cmp $0x1,%eax; jg <err>` 再
+        // `cmp $0xffffffff,%eax; jge <ok>` ⇒ 源码条件序为上界在前。
+        if (questType <= 1 && questType >= -1)
         {
             if (questType == 0)
             {
@@ -1473,11 +1490,13 @@ case 0x421:  // "[point by type]"
     else
     {
         // ORIG LAB_088ea761（Ghidra：local_12c+(i+0x60)*4+0xc）：i=0..2 循环，
-        // ScanInt((bool*)0) 结果按 stride 0x180 写 script+0x18c/0x30c/0x48c 三处
-        // int——原码跨成员指针算术（非 warRoom 内连续 m_0/4/8），P171 照抄。
-        // §4.3 例外：ORIG 遗留线形算术，无对应成员数组可具名。
+        // ScanInt((bool*)0) 结果写 script+0xc+(0x60+i)*4 ⇒ stride 4 命中
+        // m_warRoom18c 起始 3 个 int（0x18c/0x190/0x194）。ORIG 0x088ea7e2
+        // `lea 0x60(%esi),%ecx` + `mov %eax,0xc(%edx,%ecx,4)` 为直接实证；
+        // 旧写法 `0x18c + i*0x180` 系误读 Ghidra 表达式（真语义 bug，已修）。
+        // §4.3 例外：ORIG 遗留线形算术（跨成员指针加法），无对应具名数组成员。
         for (int i = 0; i <= 2; ++i)
-            *(int*)((char*)script + 0x18c + i * 0x180) = ScanInt((bool*)0);
+            *(int*)((char*)script + 0xc + (0x60 + i) * 4) = ScanInt((bool*)0);
         break;
     }
 
@@ -2183,23 +2202,31 @@ case 0x5a2:  // "[advance altar clear reward]"
             else if (dsub == "[hard]") idx = 2;
             else if (dsub == "[/advance altar clear reward]") break;
             else break;
-            std::vector<advancealtar::_RewardItem>& vec =
-                script->m_clearReward2d4.m_vec[idx];
+            // ORIG 0x088ec838：取址落具名指针槽 -0x84 后 `cmpl $0x0` + jne 判空，
+            // 空则 `mov $0x0,%esi; jmp 088ec984`（跳出内层循环）⇒ 指针形 + 判空。
+            std::vector<advancealtar::_RewardItem>* vec =
+                &script->m_clearReward2d4.m_vec[idx];
+            if (vec == 0)
+                break;
             while (true)
             {
                 advancealtar::_RewardItem item;
                 std::string rewardType;
                 if (!ScanStr(&rewardType)) break;
                 advancealtar::RewardItemType::T rewardItemType;
-                if (!advancealtar::RewardItemType::getRewardItemType(
-                        rewardType, rewardItemType))
+                // ORIG 0x088ec8a5：getRewardItemType 返回值落具名 bool -0x1161，
+                // 同一变量复用于后续两次 ScanInt 的 bool* 实参（088ec8c3/088ec8ec
+                // 均 `lea -0x1161`）⇒ 非全局 ok。
+                bool parsed = advancealtar::RewardItemType::getRewardItemType(
+                    rewardType, rewardItemType);
+                if (!parsed)
                     break;
                 item.m_type = static_cast<int>(rewardItemType);
-                item.m_value1 = ScanInt(&ok);
-                if (!ok) break;
-                item.m_value2 = ScanInt(&ok);
-                if (!ok) break;
-                vec.push_back(item);
+                item.m_value1 = ScanInt(&parsed);
+                if (!parsed) break;
+                item.m_value2 = ScanInt(&parsed);
+                if (!parsed) break;
+                vec->push_back(item);
             }
         }
         break;
@@ -2268,11 +2295,12 @@ case 0x5e5:  // "[advance altar survival clear reward]"
                         std::string rewardType;
                         if (!ScanStr(&rewardType)) break;
                         advancealtar::RewardItemType::T rewardItemType;
-                        if (!advancealtar::RewardItemType::getRewardItemType(
-                                rewardType, rewardItemType))
+                        // ORIG 0x088ecc82：返回值落具名 bool -0x1195 并复用（同上）。
+                        bool itemOk = advancealtar::RewardItemType::getRewardItemType(
+                            rewardType, rewardItemType);
+                        if (!itemOk)
                             break;
                         item.m_type = static_cast<int>(rewardItemType);
-                        bool itemOk = false;
                         item.m_value1 = ScanInt(&itemOk);
                         if (!itemOk) break;
                         item.m_value2 = ScanInt(&itemOk);
@@ -2548,7 +2576,9 @@ case 0x6cd:  // "[dungeon type]"
     {
     {
         // ORIG LAB_088edd44（Ghidra C 实证）：ScanStr 读 dungeon 类型名 → m_358(+0x358)；
-        // "tower of death"/"tower of boss" 额外把 maze 置 2x2 并 resize grids(4)；
+        // "tower of death"/"tower of boss" 额外把 maze 置 2x2 并
+        // resize grids(m_width*m_height)（ORIG 0x88ede26/0x88eded4 为 mov+mov+imul
+        // 两成员相乘，非常量 4）；
         // "advance altar" 额外置 m_2ab=1；未知名 → m_358=0。ScanStr 失败 → import false。
         if (!ScanStr(&token))
         {
@@ -2559,14 +2589,14 @@ case 0x6cd:  // "[dungeon type]"
             script->m_358 = 1;
             mazeLocal.m_width = 2;
             mazeLocal.m_height = 2;
-            mazeLocal.m_grids.resize(4, GridScript());
+            mazeLocal.m_grids.resize(mazeLocal.m_width * mazeLocal.m_height, GridScript());
         }
         else if (token == "tower of boss")
         {
             script->m_358 = 3;
             mazeLocal.m_width = 2;
             mazeLocal.m_height = 2;
-            mazeLocal.m_grids.resize(4, GridScript());
+            mazeLocal.m_grids.resize(mazeLocal.m_width * mazeLocal.m_height, GridScript());
         }
         else if (token == "advance altar")
         {
@@ -2618,10 +2648,14 @@ case 0x6f8:  // "[tower stage]"
             const int mapIdx = ScanInt(&ok);
             if (!ok)
                 break;
-            rl.m_mapIndex = mapIdx;
-            rl.m_weight = ScanInt(&ok);
-            if (rl.m_weight == 0)
+            // ORIG 0x088ee15f 把第二个 ScanInt 存入具名槽 -0x58（非直接落 rl 成员），
+            // 088ee177 才 `mov -0x5c; mov %eax,-0x11d0` / `mov -0x58; mov %eax,-0x11cc`
+            // 逐成员拷进 RandomList（P0：有槽往返 ⇒ 原码有具名局部）。
+            const int weight = ScanInt(&ok);
+            if (weight == 0)
                 return false;
+            rl.m_mapIndex = mapIdx;
+            rl.m_weight = weight;
             vec.push_back(rl);
         }
         printf("\n[max stage] : %d, [stage] : %d\n",
@@ -2769,9 +2803,10 @@ case 0x7a9:  // "[tower high skill initial cool time]"
     }
     else
     {
-        // ORIG LAB_088ee9e2：2×ScanFloat 经 ROUND → m_36c/m_370（int）
-        script->m_36c = (int)(ScanFloat(&ok) + 0.5f);
-        script->m_370 = (int)(ScanFloat(&ok) + 0.5f);
+        // ORIG LAB_088ee9e2/088eea93：2×ScanFloat 后直接 fnstcw/fldcw(RC=truncate)
+        // +fistpl → m_36c/m_370（int）；ORIG 无任何 flds/faddp（无 +0.5 语义）。
+        script->m_36c = (int)ScanFloat(&ok);
+        script->m_370 = (int)ScanFloat(&ok);
         break;
     }
 case 0x7ad:  // "[tower high skill initial cool time rate]"
@@ -2793,8 +2828,9 @@ case 0x7b1:  // "[tower fp cubepiece]"
     }
     else
     {
-        // ORIG LAB_088eeb6d：ScanFloat 经 ROUND(fldcw+fistpl) → +0x37c（int）
-        script->m_37c = (int)(ScanFloat(&ok) + 0.5f);
+        // ORIG LAB_088eeb6d（0x88eebd3）：ScanFloat → fldcw(RC=truncate)+fistpl
+        // → +0x37c（int）；ORIG 无 faddp。
+        script->m_37c = (int)ScanFloat(&ok);
         break;
     }
 case 0x7b4:  // "[tower limit of stackable item]"
@@ -2804,8 +2840,9 @@ case 0x7b4:  // "[tower limit of stackable item]"
     }
     else
     {
-        // ORIG LAB_088eec17：ScanFloat 经 ROUND → +0x380（int）
-        script->m_380 = (int)(ScanFloat(&ok) + 0.5f);
+        // ORIG LAB_088eec17（0x88eec7d）：ScanFloat → fldcw(RC=truncate)+fistpl
+        // → +0x380（int）；ORIG 无 faddp。
+        script->m_380 = (int)ScanFloat(&ok);
         break;
     }
 case 0x7b7:  // "[tower recovery]"
@@ -2818,10 +2855,10 @@ case 0x7b7:  // "[tower recovery]"
         // [tower limit of stackable item]：RecoveryStairInfo（=现有 [tower recovery] 逻辑）
         {
             RecoveryStairInfo rsi;
-            // ORIG 0x88eed3d/0x88eed7f：fistpl 使用 ROUND，脚本值为正时
-            // 等价于加 0.5 后转 int；不能直接采用 C++ 截断。
-            rsi.m_0 = static_cast<int>(ScanFloat(&ok) + 0.5f);
-            rsi.m_4 = static_cast<int>(ScanFloat(&ok) + 0.5f);
+            // ORIG 0x88eed38/0x88eed7a：ScanFloat 后直接 fldcw(RC=truncate)+fistpl，
+            // 即 C 截断语义；ORIG 无 flds/faddp（旧注释"+0.5 四舍五入"系误判，已删）。
+            rsi.m_0 = static_cast<int>(ScanFloat(&ok));
+            rsi.m_4 = static_cast<int>(ScanFloat(&ok));
             rsi.m_8 = ScanFloat(&ok);
             while (true) {
                 RecoveryInfo ri;
@@ -3023,8 +3060,14 @@ case 0x862:  // "[gold card use]"
     }
     else
     {
-        ok = false;
-        script->m_44c = static_cast<unsigned char>(ScanInt(&ok) != 0);
+        // ORIG 0x088ef7a7：无 case 级 ok 重置（全函数仅 088e6052 一处 `movb $0x0,-0x109d`）；
+        // ScanInt 结果落具名槽 -0x34 后 `cmpl $0x0` + jne 两臂，
+        // 分别发 `movb $0x0/$0x1,0x44c`（if/else 形）；setne 表达式形不匹配。
+        int goldCardUse = ScanInt(&ok);
+        if (goldCardUse == 0)
+            script->m_44c = 0;
+        else
+            script->m_44c = 1;
         if (!ok)
             return false;
         break;

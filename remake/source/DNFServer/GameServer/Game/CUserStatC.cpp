@@ -133,9 +133,14 @@ int CUser::delete_item(char itemSpace, int position, unsigned long itemIdx,
 //      局部取反恒加 `movzbl; xor $1`；ORIG 为 `mov %al,槽; cmpb $0x0,槽; je <失败>`）。
 //   ⑧ CCargo::move_item / CAccountCargo::DeleteItem int→bool（P292 档①；定义端
 //      CCargo.cpp:376 / CAccountCargo.cpp:247 由 Main 同步）。
-//   残余 N：4.1 `mov 槽,%eax; shr $0x1f; test %al,%al; je`（12 处 toSlot<0 符号位
-//   lowering；4.4 恒 test/jns，探针 /tmp/b28d_cstatc_probe3.cpp 六形全败）+ N82 帧/槽
-//   + 跳表数据地址（AE 伪影）。
+//   [b28d-BigCUserStat 2026-09-09] 旧判词「4.1 shr $0x1f 符号位 lowering 六形全败」
+//   作废：4.4.7 探针 /tmp/sign_probe2.cpp f13 实证 `(unsigned char)(((unsigned int)x) >> 31)`
+//   精确复现 ORIG `mov; shr $0x1f,%eax; test %al,%al; je`（语义与 `x < 0` 等价，
+//   P310 扩展）——10 处 toSlot<0 判定全部改写 ⇒ ours 2618→**2638**，gap +20→**0**；
+//   struct 452→412、ndiff 1698→1658；TU 四数 0/3/0/2/1 不变。
+//   残余：exist 两处 `if (exist >= 0)` 仍 js/jns（ORIG 0x0865fb10/0x0866228a 为 shr 形，
+//   但按 shr 形改写后 then/else 布局多 1 jmp/处，实测 2640 ⇒ 指令数优先保留 2638）+
+//   N82 帧/槽（0x45c vs 0x490）+ 跳表数据地址（AE 伪影）。
 // ORIG 0x0865f7b0 sz 0x2d47。参数（报告语义）：fromSpace/fromSlot/fromItemIdx/
 //   addInfo(数量或强化附加)/toSpace/toSlot/toItemIdx/outSlot。
 // 返回：0 成功 / 1 参数域不支持 / 4 目标槽不可用 / 0x11 通用失败 /
@@ -197,7 +202,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 if (!getCurCharacCargoR()->check_slot_empty(toSlot))
                 {
                     toSlot = getCurCharacCargoR()->get_empty_slot();
-                    if (toSlot < 0)
+                    if ((unsigned char)(((unsigned int)toSlot) >> 31))
                         return 4;
                 }
             }
@@ -216,14 +221,14 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                     if (!getCurCharacCargoR()->check_slot_empty(toSlot))
                     {
                         toSlot = getCurCharacCargoR()->get_empty_slot();
-                        if (toSlot < 0)
+                        if ((unsigned char)(((unsigned int)toSlot) >> 31))
                             return 4;
                     }
                 }
             }
 
             toSlot = getCurCharacCargoR()->tryInsertItemSpecialSlot(item, toSlot);
-            if (toSlot < 0)
+            if ((unsigned char)(((unsigned int)toSlot) >> 31))
                 return 4;
 
             bool delOk = getCurCharacInvenW()->delete_item(
@@ -343,7 +348,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 if (!cargo->CheckSlotEmpty(toSlot))
                 {
                     toSlot = cargo->GetEmptySlot();
-                    if (toSlot < 0)
+                    if ((unsigned char)(((unsigned int)toSlot) >> 31))
                         return 4;
                 }
             }
@@ -364,7 +369,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                     if (!cargo->CheckSlotEmpty(toSlot))
                     {
                         toSlot = cargo->GetEmptySlot();
-                        if (toSlot < 0)
+                        if ((unsigned char)(((unsigned int)toSlot) >> 31))
                             return 4;
                     }
                 }
@@ -474,7 +479,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 if (!cargo->CheckSlotEmpty(toSlot))
                 {
                     toSlot = cargo->GetEmptySlot();
-                    if (toSlot < 0)
+                    if ((unsigned char)(((unsigned int)toSlot) >> 31))
                         return 4;
                 }
             }
@@ -495,7 +500,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                     if (!cargo->CheckSlotEmpty(toSlot))
                     {
                         toSlot = cargo->GetEmptySlot();
-                        if (toSlot < 0)
+                        if ((unsigned char)(((unsigned int)toSlot) >> 31))
                             return 4;
                     }
                 }
@@ -902,7 +907,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 if (!getCurCharacCargoR()->check_slot_empty(toSlot))
                 {
                     toSlot = getCurCharacCargoR()->get_empty_slot();
-                    if (toSlot < 0)
+                    if ((unsigned char)(((unsigned int)toSlot) >> 31))
                         return 4;
                 }
             }
@@ -919,14 +924,14 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                     if (!getCurCharacCargoR()->check_slot_empty(toSlot))
                     {
                         toSlot = getCurCharacCargoR()->get_empty_slot();
-                        if (toSlot < 0)
+                        if ((unsigned char)(((unsigned int)toSlot) >> 31))
                             return 4;
                     }
                 }
             }
 
             toSlot = getCurCharacCargoR()->tryInsertItemSpecialSlot(item, toSlot);
-            if (toSlot < 0)
+            if ((unsigned char)(((unsigned int)toSlot) >> 31))
                 return 4;
 
             bool delOk = cargo->DeleteItem(fromSlot, addInfo);

@@ -5,6 +5,17 @@
 #include <utility>
 #include <vector>
 class STRDCharacterStatusClient;  // 完整定义 STRDCharacterStatusClient.h
+// [bigfix-enum] ENUM_CHARACTERJOB 以既有 guard 块内联（与 JobKey.h /
+// STEquipmentScript.h 同 guard 同成员表，幂等）。证据：ORIG ImportCharacterScript
+// 0x08a0f951/0x08a0f970/0x08a0fa1f 读 m_job 发 `mov (%eax),%eax; mov %eax,%edx`
+// （P254：4.1 对 enum 字段保留 eax→edx 中转，int 字段 4.4 恒折单段）。
+#ifndef DNF_ENUM_CHARACTERJOB_DEFINED
+#define DNF_ENUM_CHARACTERJOB_DEFINED
+enum ENUM_CHARACTERJOB
+{
+    ENUM_CHARACTERJOB_0 = 0
+};
+#endif
 // ============================================================================
 // df_game_r 还原 —— STCharacterScript 静态脚本表宿主类。
 // ORIG nm（df_game_r）证据：
@@ -45,8 +56,12 @@ public:
     // ORIG T 0x08a0c942：Client（0x98 展开块）→ 本 packed 块截断回填
     STRDCharacterStatus& operator=(const STRDCharacterStatusClient&);
 
-    int m_hpMax;                         // +0x00
-    int m_mpMax;                         // +0x04
+    // [bigfix-unsigned] T2 直证（ORIG exportCharacterStatusScript 0x08a0fb41/
+    // 0x08a0fb89/0x08a0feaa）：+0x0/+0x4/+0x42 的 `(double)field` 转换发
+    // `mov $0x0,%edx; … fildll`（零扩展 ⇒ unsigned int），而 +0x3a/+0x4e 发
+    // `fildl`（int）。同宽 4B，sizeof/偏移/mangled 不变。
+    unsigned int m_hpMax;                // +0x00
+    unsigned int m_mpMax;                // +0x04
     unsigned short m_physAttack;         // +0x08
     unsigned short m_physDefense;        // +0x0a
     unsigned short m_magAttack;          // +0x0c
@@ -56,7 +71,7 @@ public:
     int m_inventoryLimit;                // +0x3a
     unsigned short m_hpRegen;            // +0x3e
     unsigned short m_mpRegen;            // +0x40
-    int m_moveSpeed;                     // +0x42
+    unsigned int m_moveSpeed;            // +0x42（同上，fildll 零扩展直证）
     unsigned short m_attackSpeed;        // +0x46
     unsigned short m_castSpeed;          // +0x48
     unsigned short m_hitRecovery;        // +0x4a
@@ -143,7 +158,7 @@ public:
     void Clear();                        // ORIG _ZN17STCharacterScript5ClearEv W 0x08367a98
 
     // ---- 实例布局（ImportCharacterScript 0x08a0ce06 / C1 / Clear 汇编实证）----
-    int m_job;                                        // +0x000（[job]）
+    ENUM_CHARACTERJOB m_job;                          // +0x000（[job]；enum 见上）
     std::string m_growtypeName[6];                    // +0x004（[growtype name]）
     int m_width;                                      // +0x01c
     int m_height;                                     // +0x020
