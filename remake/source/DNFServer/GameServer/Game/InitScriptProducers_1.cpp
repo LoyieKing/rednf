@@ -92,9 +92,11 @@ void AccountCargoScript::clear()
 }
 
 // b28d-solo-InitScriptProducers_1: DIFF→N 封顶（p167 20/20 CLEAR，语义闭合）。
-// 残余 2 条 = ORIG do-while 条件 `call operator==; test %al,%al; je <循环头>`（4.1
-// 循环条件取反不物化）vs 4.4 恒插 `xor $0x1`（P292 表未覆盖循环条件场景；四形实测
-// `!()`/`==false`/`==0`/体内 break = 137/137/137/139 vs ORIG 135）。
+// 本波复核（clean 归一后 132=132 指令，仅 3 处）：①我方多 1 条入口 jmp（ORIG
+// `jmp+nop` 自跳转被归一剥离，P164 do-while 入口布局）；②ORIG do-while 条件
+// `call operator==; test %al,%al; je <循环头>` 无 xor，4.4 恒插 `xor $0x1`
+// （P320/S138：4.1 循环条件取反直接反转跳转）；③极性 je↔jne（由②派生）。
+// 四形实测 `!()`/`==false`/`==0`/体内 break = 137/137/137/139 vs ORIG 135 均不可翻。
 // ORIG T 0x088c7e80。段结构：[required level] / [required item] /
 // [upgrade info](grade 与 UpgradeInfo 首字段同一栈位重叠，随后再扫三 int) /
 // [account cargo end]。未识别 token 直接跳过；ScanInt 断流按 ORIG 精确分支处理。
@@ -212,29 +214,18 @@ channel_info_t& channel_info_t::operator=(const channel_info_t& o)
     return *this;
 }
 
-// ORIG W 0x088dd34a：string(+0x00) + vector<int>(+0x04) 默认构造。
-channel_dungeon_info_t::channel_dungeon_info_t()
-    : m_keyName(),
-      m_intList()
-{
-}
-
-// ORIG W 0x083d8b2c：逆序析构 vector/string（成员析构由编译器生成，等价空体）。
-channel_dungeon_info_t::~channel_dungeon_info_t()
-{
-}
-
-// ORIG W 0x088dd390：键名 string 赋值 + vector 整体赋值。
-channel_dungeon_info_t& channel_dungeon_info_t::operator=(const channel_dungeon_info_t& o)
-{
-    m_keyName = o.m_keyName;
-    m_intList = o.m_intList;
-    return *this;
-}
+// channel_dungeon_info_t 的 C1/D1/op= 为 ORIG W 隐式合成（P299/CWG434：ORIG
+// map::operator[] 0x088dd490 在构造临时对象前发 4×movl $0 前置零初始化）⇒
+// 本 TU 不得写用户定义体（SweepInitProd6-2 已删 CDataManager.h 内声明）；
+// 由 applyChannelScript 的 `channel_dungeon_info_t info;` 与 `map::operator[]`
+// 使用点发射同名 W 符号（ORIG 0x45/0x45/0x35）。
 
 // b28d-solo-InitScriptProducers_1: DIFF→N 封顶（p167 66/66 CLEAR，语义闭合）。
 // 残余 = 帧 0x120 vs 0x110 + 槽组整体平移 0xc（N82/N95：4.4 聚合对象优先占低槽 +
 // 标量分区排布）+ 条件取反 xor 物化；逐块控制流/字段偏移/日志行号常量已核。
+// 本波复核：jcc 目标下标逐位全等（666 件审计含本件）；p167 差集仅 C1↔C2/D1↔D2
+// 同址别名（ORIG 调用点用 C2/D2，4.1 同址发射；P93 伪差集）；无 call*（无虚槽）；
+// 残余帧差 = 我方多 1 个具名 state 槽（RowState，ORIG 以 ebx 表达式承载）。
 // ORIG T 0x088dc069。主循环分 [dungeon]/[server] 两段：
 //  返回 1＝正常结束/EOF/未知类型（均 esi=1 出口）；0＝[server] 行解析错误（esi=0）。
 // [P248 档①] 返回 bool（全部 return 为常量 0/1 ⇒ 机器码与 int 版逐条相同）。
@@ -475,10 +466,11 @@ int getChannelType(const char* name)
     return -1;
 }
 
-// b28d-solo-InitScriptProducers_1: NEAR→N 封顶（258=258 助记符序列全等；唯一残差
-// = 两个内层循环变量 j 的槽 -0x20/-0x1c 互换，N98：4.4 槽按首次使用序分配、声明序
-// 不可翻）。修：三迭代器 C1Ev 全部提到函数头，声明序 it→inner→outer，复现 ORIG
-// 0x088dc846..0x088dc86c 三条连续 C1Ev 与槽 -0x40/-0x44/-0x48。
+// b28d-solo-InitScriptProducers_1: NEAR→AE（258=258 全对齐）。修：两个内层循环
+// 下标提至函数头（P212/P331：块内 for-init 声明在 4.4 槽方向与 4.1 相反；全头部
+// 声明按 ORIG 槽深序 jDungeon(-0x20)→jChannel(-0x1c) 即逐条复现）。三迭代器 C1Ev
+// 已在函数头，声明序 it→inner→outer 复现 ORIG 0x088dc846..0x088dc86c 与槽
+// -0x40/-0x44/-0x48。
 // ORIG T 0x088dc81b。遍历打印：dungeon 段（+0x00 map）逐项
 // "[DUNGEON] <键名> as <键> : " + 区间 int 列表；server 段（+0x18 外层 map）
 // "[CHANNEL] Server %d" + 每频道 "\t%d : %s type(%d) name(%s) tag(%s) " +
@@ -494,14 +486,19 @@ void traversalChannelScript(channel_script_t* script)
     std::map<std::string, channel_dungeon_info_t>::iterator it;
     std::map<int, channel_info_t>::iterator inner;
     std::map<int, std::map<int, channel_info_t> >::iterator outer;
+    // b28d-lane25 复测：ORIG 两个内层循环下标槽 -0x20（dungeon 段）/ -0x1c（channel
+    // 段）——块内 for-init 声明在 4.4 下槽方向相反（P212），提至函数头按 ORIG 槽深序
+    // 声明即可复现。
+    unsigned int jDungeon;
+    unsigned int jChannel;
 
     for (it = script->m_channelDungeonMap.begin();
          it != script->m_channelDungeonMap.end(); it++)
     {
         snprintf(buf, sizeof(buf), "[DUNGEON] %s as %s : ",
                  it->second.m_keyName.c_str(), it->first.c_str());
-        for (unsigned int j = 0; j < it->second.m_intList.size(); ++j)
-            snprintf(buf, sizeof(buf), "%s%d ", buf, it->second.m_intList[j]);
+        for (jDungeon = 0; jDungeon < it->second.m_intList.size(); ++jDungeon)
+            snprintf(buf, sizeof(buf), "%s%d ", buf, it->second.m_intList[jDungeon]);
         LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__, 0x107, buf);
     }
 
@@ -519,8 +516,8 @@ void traversalChannelScript(channel_script_t* script)
                      ci.m_dungeonKey.c_str(), ci.m_dungeonName.c_str());
             if (ci.m_pBonusRates != 0)
             {
-                for (unsigned int j = 0; j < ci.m_pBonusRates->size(); ++j)
-                    snprintf(buf, sizeof(buf), "%s%d ", buf, ci.m_pBonusRates->at(j));
+                for (jChannel = 0; jChannel < ci.m_pBonusRates->size(); ++jChannel)
+                    snprintf(buf, sizeof(buf), "%s%d ", buf, ci.m_pBonusRates->at(jChannel));
             }
             LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__, 0x11a,
                                   buf);
@@ -536,23 +533,24 @@ void traversalChannelScript(channel_script_t* script)
 // WorldDrop（Etc/WorldDrop.etc、Etc/WorldDropWarArea.etc）
 // ============================================================================
 
-// b28d-solo-InitScriptProducers_1: DIFF→N 封顶（p167 13/13 CLEAR，语义闭合）。
-// 残余 = 含副作用条件（ScanInt）布局：ORIG 条件块置顶 + `cmpl $0xff; setle %al;
-// test; jne`（0x08902449），4.4 恒置底 + `jg` 直跳（P51/N82 族；while/do-while/
-// 嵌套 while 三形实测 158/156/157 vs ORIG 159）。
+// b28d-solo-InitScriptProducers_1: DIFF→AE（0x206=0x206，指令数全等）。修：外层
+// slot 循环由逗号条件 `while ((slot=ScanInt(&ok), ok==true))`（4.4 旋转成底部条件）
+// 改为 `while (true) { slot = ScanInt(&ok); if (ok != true) break; ... }`，复现
+// ORIG 条件块置顶 + 体尾无条件回跳（P25/P283；ORIG 0x08902364 读 slot →
+// 0x08902372 `movzbl ok; xor $1; test; je 体`）。
 // ORIG T 0x089022be。[world drop] 段：slot 步长 0x14 寻址；槽内首值写 +0x00，
 // 总量清零后成对读 (itemIdx, rate)：rate 累加 +0x10、chunck 入 +0x04 vector；
 // 段内所有出口统一执行 +0x00 = +0x10。itemIdx==-1 即终止本槽。slot 无越界检查（忠实）。
 bool ImportWorldDrop(WorldDropInfo* out, const char* path)
 {
-    static const char kFailMsg[] =
-        "CRITICAL ERROR : \xbf\xf9\xb5\xe5\xb5\xe5\xb7\xd3 "
-        "\xbd\xba\xc5\xa9\xb8\xb3\xc6\xae \xb7\xce\xb5\xe5 \xbd\xc7\xc6\xd0!";
-
     if (!loadRDARScriptFile("", path))
     {
-        LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
-                              0xd36, kFailMsg);
+        // 字面量直传（不建具名 static 数组）：ORIG nm 无
+        // `_ZZ15ImportWorldDropP13WorldDropInfoPKcE8kFailMsg`，字符串为匿名 .rodata
+        // （ORIG 0x08e0fafc），仅 `__FUNCTION__` 局部静态符号存在（§4.1 仅NEW 清理）。
+        LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp", __FUNCTION__, 0xd36,
+                              "CRITICAL ERROR : \xbf\xf9\xb5\xe5\xb5\xe5\xb7\xd3 "
+                              "\xbd\xba\xc5\xa9\xb8\xb3\xc6\xae \xb7\xce\xb5\xe5 \xbd\xc7\xc6\xd0!");
         return false;
     }
 
@@ -568,8 +566,14 @@ bool ImportWorldDrop(WorldDropInfo* out, const char* path)
         if (token == "[world drop]")
         {
             int slot;
-            while ((slot = ScanInt(&ok), ok == true))   // ORIG 逗号条件
+            // b28d-lane25 复测：ORIG 条件块在循环体**顶部**（+0xa6 读 slot → +0xb4
+            // `movzbl ok; xor $1; test; je 体`），体尾 +0x1ca 无条件回跳条件；4.4 对
+            // 逗号 while 恒旋转成底部条件。改 while(true)+`if (ok != true) break;` 复现。
+            while (true)
             {
+                slot = ScanInt(&ok);
+                if (ok != true)
+                    break;
                 out[slot].m_first = ScanInt(&ok);       // +0x00（无 ok 检查，忠实）
                 out[slot].m_total = 0;                  // +0x10
                 int n = 0;                              // ORIG local_10
@@ -830,10 +834,11 @@ int ImportLevelUpRewardItemScript(const char* path, stLevelUpRewardItemScript& s
 // GrowthCapsule（Event/GrowthCapsule.evt）
 // ============================================================================
 
-// b28d-solo-InitScriptProducers_1: DIFF→N 封顶（p167 16/16 CLEAR，语义闭合）。
-// 残余 = 5 个 continue 岛：ORIG 每 case `je <独立 nop;jmp 循环头>`（0x08911249/4c/
-// 4f/52/55），4.4 恒 jump-thread 成单共享回边（P223：4.4 岛数=条件数或0；5 标签串/
-// 单标签/goto 三形实测 135/140/140 vs ORIG 143 均不可造）。
+// b28d-solo-InitScriptProducers_1: DIFF→AE（0x1e0=0x1e0）。修：5 个独立 if 改为
+// if/else-if 链并删显式 continue —— ORIG 每 case 尾 `je <独立 nop;jmp 循环头>`
+// （0x08911249/4c/4f/52/55）是 4.1 对「else-if 链出口」的独立中继；4.4 对显式
+// continue/goto 恒 jump-thread（5 标签串 135/单标签 140），而 else-if 链直落
+// 逐岛复现（144 条 vs ORIG 143，AE 归一后全等）。
 // ORIG T 0x0891120c。五命名段任意顺序；[capsule limit lv] 读入成功后继续主循环，
 // EOF 返回 0；各字段断流按 ORIG 行号常量返回。
 int ImportGrowthCapsuleScript(const char* path, stGrowthCapsuleScript& script)
@@ -853,35 +858,29 @@ int ImportGrowthCapsuleScript(const char* path, stGrowthCapsuleScript& script)
         {
             script.m_gagePercent = ScanInt(&ok);
             if (!ok) return 0x2bb0;
-            goto cont;                           // ORIG 各自独立 continue 岛（P223 多岛）
         }
-        if (token == "[max gage exp]")
+        else if (token == "[max gage exp]")
         {
             script.m_maxGageExp = ScanInt(&ok);
             if (!ok) return 0x2bb6;
-            goto cont;
         }
-        if (token == "[capsule id]")
+        else if (token == "[capsule id]")
         {
             script.m_capsuleId = ScanInt(&ok);
             if (!ok) return 0x2bbc;
-            goto cont;
         }
-        if (token == "[capsule exp]")
+        else if (token == "[capsule exp]")
         {
             script.m_capsuleExp = ScanInt(&ok);
             if (!ok) return 0x2bc2;
-            goto cont;
         }
         // b28d-lane25：P167 差集实证 ORIG 调 operator==（非 !=）；正向包裹。
-        if (token == "[capsule limit lv]")
+        else if (token == "[capsule limit lv]")
         {
             script.m_capsuleLimitLv = ScanInt(&ok);
             if (!ok)
                 return 0x2bc8;
-            goto cont;
         }
-        cont:;
     }
 failEof:
     return 0;
@@ -960,10 +959,11 @@ failZero:
     return 0;
 }
 
-// b28d-solo-InitScriptProducers_1: DIFF→N 封顶（p167 31/31 CLEAR，语义闭合）。
-// 残余 = 3 个 continue 岛（ORIG 0x08917a36/39/3c 各 `nop; jmp 循环头`）4.4 恒
-// jump-thread + 退出块位置（同 ImportGrowthCapsuleScript 族）；err 具名 int
-// （ORIG -0xc）与 token→err→clear 声明序已复原。
+// b28d-solo-InitScriptProducers_1: DIFF→AE（0x2ae=0x2ae）。修：共享的链外
+// `if (err != 0) return err;` 移入三个分支体各一份 —— ORIG 每分支独立
+// `cmpl $0,-0xc; je <岛>` + fall-through return（0x08917af8/0x08917ba7/0x08917c53，
+// 岛 0x08917a36/39/3f 各 `nop; jmp 循环头`）；共享检查在 4.4 下 tail-merge 成单回边。
+// err 具名 int（ORIG -0xc）与 token→err→clear 声明序已复原。
 // ORIG T 0x089179eb。首成员 clear 后按三段分发至共享 loader；loader 非 0 即透传。
 int ImportNewAccountLeventUpToJobScript(const char* path,
                                         stNewAccountLevelUpToJobScript& script)
@@ -984,22 +984,25 @@ int ImportNewAccountLeventUpToJobScript(const char* path,
         {
             // b28d-lane25：P167 差集实证 ORIG 直接传字面量（C1EPKc 临时，无 C1ERKSs 拷贝）。
             err = LoadRewardDataByNoType(script.m_stepReward, "[/reward stackable item]");
+            if (err != 0)
+                return err;
         }
         else if (token == "[reward equip item]")
         {
             err = LoadRewardDataByGrowType(script.m_levelUp18, "[/reward equip item]");
+            if (err != 0)
+                return err;
         }
         else if (token == "[reward avatar item]")
         {
             err = LoadRewardDataByGrowType(script.m_levelUp30, "[/reward avatar item]");
+            if (err != 0)
+                return err;
         }
         else
         {
             continue;
         }
-
-        if (err != 0)
-            return err;
     }
     return 0;
 }
