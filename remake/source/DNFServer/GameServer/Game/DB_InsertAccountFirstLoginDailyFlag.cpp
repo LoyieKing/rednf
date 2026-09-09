@@ -65,11 +65,16 @@ bool DB_InsertAccountFirstLoginDailyFlag::dispatch(int /*userIdx*/, int /*slot*/
     EventClassify::CEventScriptMng* sm =
         static_cast<EventClassify::CEventScriptMng*>(
             G_CDataManager()->get_event_script_mng());
-    if (local_28 != 0x19c)
-        return 0;
-
-    EventClassify::CEventEntity* ent = sm->get_event_entity(local_28);
-    if (ent == 0)
+    // ORIG 0x0843e950 `jne <后置 return-0 块>`（else 直落失败块、body 前置）⇒
+    // 正向 if/else 形（与早返形互为镜像，探针 /tmp/flagprobe/p.o g1/g3 实证）。
+    EventClassify::CEventEntity* ent = 0;
+    if (local_28 == 0x19c)
+    {
+        ent = sm->get_event_entity(local_28);
+        if (ent == 0)
+            return 0;
+    }
+    else
         return 0;
 
     // ORIG 0x0843e99c/0x0843ea12：两处均为 fresh 虚调用
