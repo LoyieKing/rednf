@@ -8,8 +8,8 @@
 //   - _InsertPostal 的元素域（stride 0x3d）：ORIG 以多套基址寻址同一元素——
 //     seal `add $0x126` 单段、item 域 `add $0x120`+成员 disp、amp/blob 域
 //     `add $0x130`+成员 disp、seperate `add $0x150; add $0x9`。元素基址
-//     = sig+0x126，本 TU 以 SigPostalItem 元素视图（union 叠加 m_items）
-//     统一具名访问；ORIG 各基址与元素视图字段换算见逐字段注释。
+//     = sig+0x126，本 TU 以 SigPostalItem m_item[10] 元素视图统一具名访问；
+//     ORIG 各基址与元素视图字段换算见逐字段注释。
 //   - WongWork::DBCommon::GetIdentity 定义归 WongWorkEvents_A.cpp（TU 局部声明同款）。
 // ============================================================================
 
@@ -75,13 +75,9 @@ struct SigSystemMultiMailView
 {
     char m_letterText[0x1e];       // +0x00 邮件正文（_InsertLetter escape 源）
     char m_sendCharacName[0x100];  // +0x1e 发送者名（_InsertLetter escape 源）
-    int m_sendCharacNo;            // +0x11e
-    int m_recvCharacNo;            // +0x122
-    union
-    {
-        char m_items[0x262];                          // +0x126
-        SigPostalItem m_item[0x262 / sizeof(SigPostalItem)];  // m_count 个元素
-    };
+    int m_recvCharacNo;            // +0x11e（letter.charac_no / postal.receive_charac_no）
+    int m_sendCharacNo;            // +0x122（letter.send_charac_no / postal.send_charac_no）
+    SigPostalItem m_item[10];      // +0x126（10 × 0x3d = 0x262）
     unsigned int m_count;          // +0x388 附件数量（_InsertPostal 循环上界）
     int m_gold;                    // +0x38c 附带金币
     unsigned int m_duration;       // +0x390 时段数（dispatch 折算到期）
@@ -97,7 +93,7 @@ struct SigSystemMultiMailView
 #pragma pack(pop)
 static_assert(sizeof(SigPostalItem) == 0x3d, "postal item stride drift (ORIG imul $0x3d)");
 static_assert(sizeof(SigSystemMultiMailView) == 0x3a9, "SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL mirror drift");
-static_assert(offsetof(SigSystemMultiMailView, m_items) == 0x126, "items zone base drift");
+static_assert(offsetof(SigSystemMultiMailView, m_item) == 0x126, "items zone base drift");
 
 // sendResult 回复包（SIG_MAILBOX_SEND_NEW_MAIL 前 3 个 int）
 struct SigMailboxSendReplyView
@@ -130,6 +126,10 @@ struct SigMailboxSendReplyView
 //   翻正需改共享头（本任务约束 5 禁止）⇒ 保持语义正确的 cast 视图访问。
 // [b28d-N76] fresh 复验 105=105：残差 = 上述 LHS-first 装载序（唯一差异行），
 // 已试形 20+ 均不可择（P211 边界：已异型件直接封顶）⇒ 维持 N76。
+// [b28d-34R] 字段命名修正：letter 列 charac_no/send_charac_no 的 ORIG 实参序
+//   （`mov 0x11e(%eax),%eax; … mov 0x122(%eax),%edx`，0x084436b0/0x084436a7）
+//   确证 0x11e=收件人、0x122=发件人（与 _InsertPostal 的 postal 列互证）；
+//   视图字段已按此改名，值序不变 ⇒ 本件汇编零变化。
 // ============================================================================
 bool DB_MailBox_Req_System_Multi_Mail::_InsertLetter(
     MySQL* db, SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL* sigRaw)
@@ -143,8 +143,8 @@ bool DB_MailBox_Req_System_Multi_Mail::_InsertLetter(
 
     db->set_query(
         "inSert into letter(charac_no,send_charac_no,send_charac_name,letter_text,reg_date,stat) values(%d,%d,'%s','%s',from_unixtime(%d),%d)",
-        ((SigSystemMultiMailView*)sigRaw)->m_sendCharacNo,
-        ((SigSystemMultiMailView*)sigRaw)->m_recvCharacNo, nameBuf, titleBuf,
+        ((SigSystemMultiMailView*)sigRaw)->m_recvCharacNo,
+        ((SigSystemMultiMailView*)sigRaw)->m_sendCharacNo, nameBuf, titleBuf,
         ((SigSystemMultiMailView*)sigRaw)->m_occTime,
         (int)((SigSystemMultiMailView*)sigRaw)->m_stat);
 
@@ -161,15 +161,22 @@ bool DB_MailBox_Req_System_Multi_Mail::_InsertLetter(
 // _InsertPostal —— ORIG 0x0844372e：std::string 拼 "(...)" 20 列（循环 count
 // 个附件，i!=0 时 gold 清 0；每项 getValues/GetUpgradeSeparate/blob_to_str 等）
 // → set_query(postal insert ... values %s) → exec 失败 cMyTrace → 1。
-// [b28d-N86] fresh 复验 269/276：残差 = std::string 局部（-0x30 vs -0x34）与
-// 20 列 sprintf 变参的 4.1/4.4 装载序 + libstdc++ append/clear 外联差（P75/N86），
-// 调用点差集与列序全等 ⇒ 语义等价、byte 层封顶。
+// [b28d-34R 真 bug 修复] ORIG sprintf 变参 2/3 位序 = sig+0x122→0xc(%esp)、
+//   sig+0x11e→0x10(%esp)（0x08443a32/0x08443a2e），即 postal.send_charac_no=
+//   发件人 0x122、receive_charac_no=收件人 0x11e。旧视图字段名 send/recv 互换，
+//   旧代码把 0x11e 填进 send 列、0x122 填进 receive 列（列值互换的真语义 bug）；
+//   已按 0x11e=recv / 0x122=send 改名（三处消费点同步）⇒ 该装载段与 ORIG 逐条对齐。
+//   另两处形态修复：`char buf[0x400]` 声明下移至 getValues 之后（ORIG rep stos
+//   在 getValues 之后）、ampType/ampValue 改循环体内声明（4.4 槽 -0x31/-0x34 对齐）。
+// [残余 N] fresh 复验 269/276（clean 口径）：元素域寻址 4.4 恒 base-first
+//   （`mov 0x10(%ebp),%eax; … lea (%edx,%eax,1)`）vs ORIG index-first
+//   （`mov -0x1c(%ebp),%eax; … add 0x10(%ebp),%eax`），6 处同形；已试 union→
+//   纯数组视图、`(m_item+i)->` 指针算术两形均不可翻（后者反多 1 条 lea）
+//   ⇒ P30/N102/N4 族封顶。调用点差集仅 P93 别名（string/cMyTrace C1↔C2、D1↔D2 同址）。
 // ============================================================================
 bool DB_MailBox_Req_System_Multi_Mail::_InsertPostal(
     MySQL* db, SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL* sigRaw)
 {
-    unsigned short ampValue;
-    unsigned char ampType;
     std::string str;
     unsigned int i;
 
@@ -177,17 +184,17 @@ bool DB_MailBox_Req_System_Multi_Mail::_InsertPostal(
 
     for (i = 0; i < ((SigSystemMultiMailView*)sigRaw)->m_count; ++i)
     {
-        char buf[0x400] = { 0 };
-
         if (i != 0)
         {
             ((SigSystemMultiMailView*)sigRaw)->m_gold = 0;
         }
 
-        ampType = 0;
-        ampValue = 0;
+        unsigned char ampType = 0;
+        unsigned short ampValue = 0;
         ((SigSystemMultiMailView*)sigRaw)->m_item[i].m_ag.m_amp.getValues(
             ampType, ampValue);
+
+        char buf[0x400] = { 0 };
 
         sprintf(buf,
             "(from_unixtime(%d),%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d,%d,%d,%d,'%s','%s',%d,%d)",
@@ -236,7 +243,7 @@ bool DB_MailBox_Req_System_Multi_Mail::_InsertPostal(
 // dispatch —— ORIG 0x0844346a（虚覆盖）：GetOutBuffer<SIG_MAILBOX_SEND_SYSTEM_
 // MULTI_MAIL> → GetDBHandle(DB_HANDLE_3, +0x395) → getCurSec → localtime_r
 // (+1h/min/sec=0) → mktime → 按 +0x390 时段折算 → 写 +0x3a1 → _InsertLetter →
-// _InsertPostal（失败返 0）→ sendResult(+0x11e, +0x395) → 1。
+// _InsertPostal（失败返 0）→ sendResult(+0x11e = m_recvCharacNo, +0x395) → 1。
 // ============================================================================
 bool DB_MailBox_Req_System_Multi_Mail::dispatch(int userIdx, int slot, Stream* stream)
 {
@@ -275,7 +282,7 @@ bool DB_MailBox_Req_System_Multi_Mail::dispatch(int userIdx, int slot, Stream* s
     {
         return 0;
     }
-    sendResult(sig->m_sendCharacNo, (ENUM_SERVER_GROUP)sig->m_serverGroup);
+    sendResult(sig->m_recvCharacNo, (ENUM_SERVER_GROUP)sig->m_serverGroup);
     return 1;
 }
 
