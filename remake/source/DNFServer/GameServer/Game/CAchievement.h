@@ -31,9 +31,25 @@ struct stAchievement
     unsigned short m_trigger2;  // +0x08
     unsigned short m_state;     // +0x0a
 
-    stAchievement();
-    // ORIG mangled 名为 _ZN13stAchievement10isCompleteEv（非 const 成员）
-    bool isComplete();
+    // ORIG W 弱符号 _ZN13stAchievementC1Ev/C2Ev @0x0828d870（各 0x32）
+    // ⇒ 原码头内定义（外联定义会发射 T 强符号，绑定不符）。
+    // 绑定探针（nm -S /tmp/tu_CAchievement.o，改前→改后，尺寸不变）：
+    //   stAchievementC1Ev/C2Ev  T 0x32 → W 0x32；isComplete T 0x35 → W 0x35；
+    //   stAchievement_DBDataC1Ev/C2Ev T 0x4d → W 0x4d。
+    stAchievement()
+    {
+        m_id = 0;
+        m_trigger0 = 0;
+        m_trigger1 = 0;
+        m_trigger2 = 0;
+        m_state = 0;
+    }
+    // ORIG mangled 名为 _ZN13stAchievement10isCompleteEv（非 const 成员），
+    // ORIG W 0x0828d8a2（0x35）⇒ 头内定义。
+    bool isComplete()
+    {
+        return (m_trigger0 == 0) && (m_trigger1 == 0) && (m_trigger2 == 0);
+    }
 };
 
 // ---- 成就存档数据（0x1808 字节；ORIG 有 C1/C2 弱构造符号） ----
@@ -44,7 +60,14 @@ struct stAchievement_DBData
     unsigned int m_saveTime;       // +0x1804（b28c-L10：ORIG getData 0x828c6e0 RHS-first
                                    // store ⇒ 与 getCurSec() int 异型，P211②）
 
-    stAchievement_DBData();
+    // ORIG W 弱符号 _ZN20stAchievement_DBDataC1Ev/C2Ev @0x0828d8d8（各 0x4d）
+    // ⇒ 头内定义（m_entries 数组由编译器自动逐个构造，ORIG esi 倒计数 512 次）。
+    // 改后 CAchievement.o 帧 sub $0x10 与 ORIG 0x0828d8d8 一致（P210 未恶化）。
+    stAchievement_DBData()
+    {
+        m_count = 0;
+        m_saveTime = 0;
+    }
 };
 
 // ---- 成就存档（DB，0x180c 字节） ----
