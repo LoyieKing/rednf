@@ -3315,19 +3315,21 @@ int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
         void* helper = GlobalData::s_pIPGHelper;
         QueryFn query = *(QueryFn*)((*(void***)helper)[0x2c / 4]);
         query(helper, user, 10);
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0x2b65, 0);
-        trace("[Taiwan, Billing] ChargePointQuery Result:%s, %s, %d, %s",
-              msg + 0x3c, msg + 0x64, (int)(char)pPkt->m_b2, msg + 0xb3);
+        // P328⑩/P227：ORIG 0x84ceba4..0x84cebea 先求 msg+0xb3→槽、m_b2→%edi、
+        // msg+0x64→%esi、msg+0x3c→%ebx 再 ctor ⇒ 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0x2b65, 0)(
+            "[Taiwan, Billing] ChargePointQuery Result:%s, %s, %d, %s",
+            msg + 0x3c, msg + 0x64, (int)(char)pPkt->m_b2, msg + 0xb3);
         return 0;
     }
     else if (pPkt->m_1d == 0)
     {   // CERA 查询结果日志
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0x2b6e, 0);
-        trace("[Taiwan, Billing] ChargeCeraQuery Result:%s, %s, %s, %d",
-              msg + 0x28, msg + 0x50, msg + 0x26e,
-              (int)pPkt->m_26e);
+        // ORIG 0x84cec29..0x84cec6f 先求 msg+0x28→%ebx、msg+0x50→%esi、msg+0x26e→槽、
+        // m_26e→%edi 再 ctor ⇒ 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0x2b6e, 0)(
+            "[Taiwan, Billing] ChargeCeraQuery Result:%s, %s, %s, %d",
+            msg + 0x28, msg + 0x50, msg + 0x26e,
+            (int)pPkt->m_26e);
         return 0;
     }
     else
@@ -4396,19 +4398,22 @@ int Inter_MonitorCallGuildInfo::dispatch_sig(CUser* user, char* data, int /*len*
     packet.put_byte(1);
     packet.put_byte(
         (int)pPkt->m_12);
+    // ORIG 0x84cc10e/0x84cc12f 等 `lea (%edx,%eax,1)` 的 edx = -0x14 具名槽（pPkt）。
+#define pData (reinterpret_cast<char*>(pPkt))
     for (int i = 0;
          i < (int)(unsigned int)pPkt->m_12;
          ++i)
     {
-        packet.put_int(*reinterpret_cast<int*>(data + i * 0x1d + 0x13));
+        packet.put_int(*reinterpret_cast<int*>(pData + i * 0x1d + 0x13));
         packet.put_byte(
-            (int)*reinterpret_cast<unsigned char*>(data + i * 0x1d + 0x17));
+            (int)*reinterpret_cast<unsigned char*>(pData + i * 0x1d + 0x17));
         packet.put_byte(
-            (int)*reinterpret_cast<unsigned char*>(data + i * 0x1d + 0x18));
-        const int nameLen = (int)strlen(data + i * 0x1d + 0x19);
+            (int)*reinterpret_cast<unsigned char*>(pData + i * 0x1d + 0x18));
+        const int nameLen = (int)strlen(pData + i * 0x1d + 0x19);
         packet.put_int(nameLen);
-        packet.put_str(data + i * 0x1d + 0x19, nameLen);
+        packet.put_str(pData + i * 0x1d + 0x19, nameLen);
     }
+#undef pData
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -8001,35 +8006,33 @@ struct Inter_LoadDeathTowerBestRecordRecWinView
 // [BigParty/P331] 已实测本件 P331 第二形**不成立**（同 .o 复测）：删 rec + pWin_rec 两个
 //   具名指针、宏化每次直取后 our 72→83（更贴 ORIG 90）但 ndiff **112→115 反劣** ⇒ 已回滚，
 //   保留缓存形。同构建点基线读数：orig=90 our=72 ndiff=112。
+// [b28d-solo2] P0 重判：ORIG 中 best(-0x30)/members(-0x2c) 落 spill 槽、count→%edi/accId→%esi/
+//   stage→%ebx 走 callee-saved，getRankTable 返回值 eax 直压 (%esp) 无槽 ⇒ 原码是「单语句链式
+//   调用 + 全内联实参」，无 rec/pWin_rec/best/count/accId/members/table 具名局部（5 对 store-reload
+//   即 gap' 的 +5P 来源）。data 以 pPkt 具名槽（ORIG -0x24）作全部地址基址。
 int Inter_LoadDeathTowerBestRecord::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_LoadDeathTowerBestRecordPktView* pPkt = reinterpret_cast<Inter_LoadDeathTowerBestRecordPktView*>(data);
-// §P183/P331 第二形：ORIG 每次字段访问都重物化 `imul $0x1b0` + `imul $0x6c`
-// （5 处 / 4 处，我方原 2/1 —— 被 rec + pWin_rec 两个具名指针吸收）。i/j 均为循环
-// 变量且体内不改，寻址结果逐次相同 ⇒ 无可观察行为变化。
+#define pRec (reinterpret_cast<Inter_LoadDeathTowerBestRecordRecWinView*>( \
+    reinterpret_cast<char*>(pPkt) + i * 0x1b0 + j * 0x6c))
     for (unsigned int i = 0; i < pPkt->m_0; ++i)
     {
         for (int j = 0; j <= 3; ++j)
         {
-            char* rec = data + i * 0x1b0 + j * 0x6c;   // 记录块 stride 0x1b0/成员 0x6c
-    Inter_LoadDeathTowerBestRecordRecWinView* pWin_rec = reinterpret_cast<Inter_LoadDeathTowerBestRecordRecWinView*>(rec);
-            if (pWin_rec->m_6c != 0)
+            if (pRec->m_6c != 0)
             {
-                const unsigned int best = pWin_rec->m_70;
-                const unsigned int count = pWin_rec->m_6c;
-                const unsigned int accId = pPkt->m_4;
-                const stDeathTowerRecordMemberInfo_t* members =
-                    reinterpret_cast<const stDeathTowerRecordMemberInfo_t*>(&pWin_rec->m_10);   // §4.3 具名槽替代 rec+0x10
-                WongWork::CDeathTowerRanking* table =
-                    (WongWork::CDeathTowerRanking*)
-                        WongWork::CDeathTowerRanking::getRankTable(j + 1);
-                table->registBestRecord(
+                ((WongWork::CDeathTowerRanking*)
+                     WongWork::CDeathTowerRanking::getRankTable(j + 1))->registBestRecord(
                     (unsigned int)*reinterpret_cast<unsigned short*>(
-                        data + i * 0x1b0 + 0xc),
-                    accId, members, count, best);
+                        reinterpret_cast<char*>(pPkt) + i * 0x1b0 + 0xc),
+                    pPkt->m_4,
+                    reinterpret_cast<const stDeathTowerRecordMemberInfo_t*>(&pRec->m_10),
+                    pRec->m_6c,
+                    pRec->m_70);
             }
         }
     }
+#undef pRec
     return 0;
 }
 
@@ -8836,12 +8839,12 @@ int Inter_AutoPunishRuleHackType::dispatch_sig(CUser* /*user*/, char* data, int 
     GlobalData::g_autoPunishRuleHackTypeMgr->setTotalTrade(pPkt->m_0,
                        pPkt->m_4);
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x3585, 0);
-    trace("HackType Load Start. (TotalGold: %llu)(TotalCount: %d)",
-          pPkt->m_4,
-          pPkt->m_0);
+    // P328⑩/P227：ORIG 0x84d4484..0x84d44b0 先求 m_0→%edi、m_4 低→%ebx/高→%esi，
+    // 其后才 cMyTrace ctor ⇒ 全表达式临时链。
+    cMyTrace(__PRETTY_FUNCTION__, 0x3585, 0)(
+        "HackType Load Start. (TotalGold: %llu)(TotalCount: %d)",
+        pPkt->m_4,
+        pPkt->m_0);
 
     for (int local_20 = 0;
          local_20 < (int)(unsigned int)(unsigned short)pPkt->m_c;
@@ -8855,14 +8858,13 @@ int Inter_AutoPunishRuleHackType::dispatch_sig(CUser* /*user*/, char* data, int 
             ((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_18,
             ((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_1c,
             ((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_20);
-        cMyTrace load(
-            __PRETTY_FUNCTION__,
-            0x3596, 0);
-        load("HackType Load (Type: %d -> %d)(SubType: %d -> %d)",
-             (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_10,
-             (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_12,
-             (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_14,
-             (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_16);
+        // ORIG 0x84d45db..0x84d466f 先求 +0x16→-0x5c、+0x14→%edi、+0x12→%esi、+0x10→%ebx 再 ctor。
+        cMyTrace(__PRETTY_FUNCTION__, 0x3596, 0)(
+            "HackType Load (Type: %d -> %d)(SubType: %d -> %d)",
+            (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_10,
+            (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_12,
+            (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_14,
+            (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_16);
     }
 
     cMyTrace end(
@@ -10809,41 +10811,53 @@ struct Inter_BlackIPMonitorPktView
 
 #pragma pack(push, 1)
 // Inter_BlackIPMonitorRecWinView —— Inter_BlackIPMonitor::dispatch_sig 窗口 rec 元素视图
-//   （rec 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
+//   rec 基址 = data + (i*2+1)*0x10（ORIG 0x84d8693 寻址链 `add %edx,%edx; add $0x1,%edx;
+//   shl $0x4,%edx; add %edx,%eax; add $0xK,%eax` 直证；记录 stride 0x20，本视图取后半单元，
+//   故字段偏移 = 记录偏移 - 0x10）。字段宽度=ORIG 访问指令。
 struct Inter_BlackIPMonitorRecWinView
 {
-    char m_pad0[0x14];  // 未消费
-    unsigned int m_14;        // +0x14
-    unsigned int m_18;        // +0x18
-    long m_1c;                // +0x1c
-    long m_20;                // +0x20
+    char m_pad0[0x4];  // 未消费（记录 +0x10..+0x13）
+    unsigned int m_4;         // +0x04 ← 记录 +0x14
+    unsigned int m_8;         // +0x08 ← 记录 +0x18
+    long m_c;                 // +0x0c ← 记录 +0x1c
+    long m_10;                // +0x10 ← 记录 +0x20
 };
 #pragma pack(pop)
 
 // [b28d-lane2] verdict=DIFF ndiff=100（ORIG 0x084d8650）：槽序/帧差(N82/P212/P221)+混合残差；gap+22。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=126（ORIG 0x84d8650）：N82/P112 帧槽平移+P30/N4 add-vs-lea。
+// [b28d-solo2] P0 重判：ORIG 4 个字段值仅 endTime 落 spill 槽(-0x3c)、startTime/idCnt/punishType
+//   走 %edi/%esi/%ebx callee-saved ⇒ 原码无 4 个具名局部（全内联实参，右到左求值序
+//   m_20→m_1c→m_18→m_14 与 ORIG 逐槽一致）；循环后取值用循环变量 `i-1`（ORIG 0x84d8739
+//   `lea -0x1(%eax),%edx` 直证，非重读 m_0-1）；trace 用全表达式临时链使全局值跨 ctor 保活
+//   （ORIG 0x84d8753 `mov &g_...,%ebx` 在 ctor 之前，P328⑩/P227）。
 int Inter_BlackIPMonitor::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_BlackIPMonitorPktView* pPkt = reinterpret_cast<Inter_BlackIPMonitorPktView*>(data);
+    // ORIG 0x84d865f/0x84d8681 两次 `movl $0x0,-0x1c` ⇒ 原码 `int i = 0;` + `for (i = 0; …)`
+    // 双初始化形（P191 配套）。
+    int i = 0;
     if (pPkt->m_c84 != '\0')
         GlobalData::g_blackIPMonitor->reset();
 
-    for (int i = 0; i < pPkt->m_0; ++i)
+    for (i = 0; i < pPkt->m_0; ++i)
     {
-        const long endTime = ((Inter_BlackIPMonitorRecWinView*)(data + (i << 5)))->m_20;
-        const long startTime = ((Inter_BlackIPMonitorRecWinView*)(data + (i << 5)))->m_1c;
-        const unsigned int idCnt = ((Inter_BlackIPMonitorRecWinView*)(data + (i << 5)))->m_18;
-        const unsigned int punishType = ((Inter_BlackIPMonitorRecWinView*)(data + (i << 5)))->m_14;
+#define pData (reinterpret_cast<char*>(pPkt))
+#define pRec ((Inter_BlackIPMonitorRecWinView*)(pData + (i * 2 + 1) * 0x10))
         GlobalData::g_blackIPMonitor->insertNewIP(
-            inet_addr(data + (i << 5) + 4), (WongWork::ENUM_BLACKIPMONITOR_PUNISH_TYPE)punishType, idCnt,
-            startTime, endTime);
+            inet_addr(pData + (i << 5) + 4),
+            (WongWork::ENUM_BLACKIPMONITOR_PUNISH_TYPE)pRec->m_4,
+            pRec->m_8, pRec->m_c, pRec->m_10);
+#undef pRec
+#undef pData
     }
 
     GlobalData::g_IPMonitorLastDBAccessTime =
-        *reinterpret_cast<unsigned int*>(data + ((pPkt->m_0 - 1) << 5) + 0x1c);
-    cMyTrace trace(
-        __PRETTY_FUNCTION__, 0x3f5b, 0);
-    trace("IPMonitorPunish LAST LOAD TIME : %d", GlobalData::g_IPMonitorLastDBAccessTime);
+        ((Inter_BlackIPMonitorRecWinView*)(reinterpret_cast<char*>(pPkt) +
+                                           ((i - 1) * 2 + 1) * 0x10))->m_c;
+    cMyTrace(__PRETTY_FUNCTION__, 0x3f5b, 0)(
+        "IPMonitorPunish LAST LOAD TIME : %d",
+        GlobalData::g_IPMonitorLastDBAccessTime);
     return 0;
 }
 
@@ -11175,18 +11189,21 @@ int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*
     packet.put_byte(1);
     packet.put_byte((int)pPkt->m_12);
 
+    // ORIG 0x84d9ed4/0x84d9f09 等 7 处 `add -0x14(%ebp),%eax`：循环体基址走 pPkt 具名槽。
+#define pData (reinterpret_cast<char*>(pPkt))
     for (int i = 0; i < (int)pPkt->m_12; ++i)
     {
-        const int nameLen = strlen(data + i * 0x25 + 0x10 + 0x7);
+        const int nameLen = strlen(pData + i * 0x25 + 0x10 + 0x7);
         packet.put_int(nameLen);
-        packet.put_str(data + i * 0x25 + 0x10 + 0x7, nameLen);
-        packet.put_short((int)*(short*)(data + i * 0x25 + 0x10 + 0x5));
-        packet.put_byte((int)*(signed char*)(data + i * 0x25 + 0x10 + 0x3));
-        packet.put_byte((int)*(signed char*)(data + i * 0x25 + 0x10 + 0x4));
-        packet.put_byte((int)((Inter_ResposncePCRoomPlyerListEntryWinView*)(data + i * 0x25 + 0x10))->m_25);
-        packet.put_byte((int)*(signed char*)(data + i * 0x25 + 0x10 + 0x26));
-        packet.put_byte((int)*(signed char*)(data + i * 0x25 + 0x10 + 0x27));
+        packet.put_str(pData + i * 0x25 + 0x10 + 0x7, nameLen);
+        packet.put_short((int)*(short*)(pData + i * 0x25 + 0x10 + 0x5));
+        packet.put_byte((int)*(signed char*)(pData + i * 0x25 + 0x10 + 0x3));
+        packet.put_byte((int)*(signed char*)(pData + i * 0x25 + 0x10 + 0x4));
+        packet.put_byte((int)((Inter_ResposncePCRoomPlyerListEntryWinView*)(pData + i * 0x25 + 0x10))->m_25);
+        packet.put_byte((int)*(signed char*)(pData + i * 0x25 + 0x10 + 0x26));
+        packet.put_byte((int)*(signed char*)(pData + i * 0x25 + 0x10 + 0x27));
     }
+#undef pData
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -11409,16 +11426,17 @@ int Inter_UpdateServerMessage::dispatch_sig(CUser* user, char* data, int /*len*/
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
         proxy->SendTcpPacket((char*)&info, 0x5f);
 
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x42a0, 0);
-        trace("SERVER_MESSAGE : Send ServerMessage to monitor server(source_channel:%d, kind:%d, index:%d, msg_len:%d, msg:%s, name_len:%d, name:%s, time:%d",
-              pPkt->m_4,
-              (int)pPkt->m_8,
-              (int)pPkt->m_9,
-              pPkt->m_msgLen, data + 0x10,
-              pPkt->m_nameLen, data + 0x48,
-              pPkt->m_time);
+        // P328⑩/P227：ORIG 0x84da5eb..0x84da65f 先求 8 个实参（time→%edi、name→-0xbc、
+        // nameLen→-0xb8、msg→-0xb4、msgLen→-0xb0、index→-0xac、kind→%esi、ch→%ebx）
+        // 再 ctor ⇒ 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0x42a0, 0)(
+            "SERVER_MESSAGE : Send ServerMessage to monitor server(source_channel:%d, kind:%d, index:%d, msg_len:%d, msg:%s, name_len:%d, name:%s, time:%d",
+            pPkt->m_4,
+            (int)pPkt->m_8,
+            (int)pPkt->m_9,
+            pPkt->m_msgLen, data + 0x10,
+            pPkt->m_nameLen, data + 0x48,
+            pPkt->m_time);
     }
     else
     {
@@ -11877,10 +11895,12 @@ struct Inter_PcroomResponsePktView
     unsigned int m_12;        // +0x12
     long m_16;                // +0x16（ORIG 084db82c `mov 0x16(%eax),%eax` 4 字节读；
                               //   原 char 槽为转写宽度误，已按 handleSetUserPCRoom 形参 long 修正）
-    signed char m_1a;         // +0x1a
-    signed char m_1b;         // +0x1b
-    signed char m_1c;         // +0x1c
-    signed char m_1d;         // +0x1d
+    // ORIG 0x84db571/0x84db597/0x84db5ac/0x84db5d2 全 `movzbl` 直证 ⇒ 四字段均为 unsigned char
+    // （旧 signed char 生 movsbl，P11/T1 宽度扩展判据）。
+    unsigned char m_1a;       // +0x1a
+    unsigned char m_1b;       // +0x1b
+    unsigned char m_1c;       // +0x1c
+    unsigned char m_1d;       // +0x1d
 };
 #pragma pack(pop)
 
@@ -11896,15 +11916,20 @@ int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->setPcRoomAuth(true);
     user->SetPCRoomNo(pPkt->m_12);
 
+    // ORIG 0x84db4be `movb $0x0,-0x2b(%ebp)`：写后全函数未读的死局部（P171 照抄原则）。
+    char deadFlag = 0;
+    (void)deadFlag;
+
     if (pPkt->m_1c == 7 &&
         pPkt->m_1a != 3 &&
         pPkt->m_1d == 1)
     {   // 封禁登录
         user->DisConnSig((DISCONN_SIG)0x3c, true, 0);
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0x4479, 0);
-        trace("SecuritySystem user ban ip login(%s,%u)",
-              user->get_acc_name(), user->get_acc_id());
+        // P328⑩/P227：ORIG 0x84db50e..0x84db546 先求 acc_id→%esi、acc_name→%ebx，
+        // 其后才 cMyTrace ctor ⇒ 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0x4479, 0)(
+            "SecuritySystem user ban ip login(%s,%u)",
+            user->get_acc_name(), user->get_acc_id());
     }
 
     bool forbidden = false;                            // -0x2a
@@ -11913,11 +11938,14 @@ int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
     // ★真语义修正：case 3 无条件 forbidden=true（084db5a5 movb $1,-0x2a），
     //   仅 showMsg=false 受 m_1b==1 约束（084db5b3..084db5b8）；
     //   旧写法把 forbidden 也绑在 m_1b==1 上 ⇒ kind==3 且 m_1b!=1 时漏封禁。
-    switch ((unsigned char)pPkt->m_1a)
+    switch (pPkt->m_1a)
     {
     case 0:
         if (pPkt->m_1b == 2)
             forbidden = true;
+        break;
+    case 1:                                            // ORIG 084db5be/084db5c1 空叶（nop;jmp）
+    case 2:
         break;
     case 3:
         forbidden = true;
@@ -11928,11 +11956,11 @@ int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     if (forbidden)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__, 0x44ec, 0);
-        trace("Inter_PcroomResponse::dispatch_sig() forbidden ip (%d), %d)",
-              (int)pPkt->m_1a,
-              (int)pPkt->m_1b);
+        // P328⑩/P227：ORIG 0x84db5cf..0x84db601 先求 m_1b→%esi、m_1a→%ebx 再 ctor。
+        cMyTrace(__PRETTY_FUNCTION__, 0x44ec, 0)(
+            "Inter_PcroomResponse::dispatch_sig() forbidden ip (%d), %d)",
+            (int)pPkt->m_1a,
+            (int)pPkt->m_1b);
 
         PacketGuard packet;
         packet.put_header(0, 0xe9);
@@ -11956,14 +11984,15 @@ int Inter_PcroomResponse::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     if (pPkt->m_12 != 0)
     {
-        WongWork::CHandlePremium::handleSetUserPCRoom(
-            user, GlobalData::s_systemTime_.getCurSec(),
-            pPkt->m_16);
+        // ORIG 0x84db826/0x84db82f 两值各落槽（-0x20/-0x1c）后压参 ⇒ 具名局部（P0）。
+        long curSec = GlobalData::s_systemTime_.getCurSec();
+        long expireTime = pPkt->m_16;
+        WongWork::CHandlePremium::handleSetUserPCRoom(user, curSec, expireTime);
     }
-    EventClassify::CEventScriptMng* eventMng =
-        reinterpret_cast<EventClassify::CEventScriptMng*>(
-            G_CDataManager()->get_event_script_mng());
-    eventMng->send_pc_room_play_init_time(user);
+    // ORIG 0x84db84b..0x84db862 get_event_script_mng 返回值 eax 直压 (%esp)，无具名槽 ⇒ 单语句链。
+    reinterpret_cast<EventClassify::CEventScriptMng*>(
+        G_CDataManager()->get_event_script_mng())
+        ->send_pc_room_play_init_time(user);
     return 0;
 }
 
@@ -13532,6 +13561,8 @@ struct Inter_GuildBoardDataPktView
 int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_GuildBoardDataPktView* pPkt = reinterpret_cast<Inter_GuildBoardDataPktView*>(data);
+    // ORIG 0x84dee8e/0x84deebc/0x84df274 三处 `mov $0x0,%ebx; jmp <epilogue>`（统一出口
+    // `mov %ebx,%eax`）⇒ 原码为三个独立 `return 0`（P16 early-return 形，非单一出口）。
     if (user->get_state() <= 2)                        // cmp $0x2,setle
         return 0;
     if (user->get_charac_no(-1) !=
@@ -13541,6 +13572,8 @@ int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
     PacketGuard packet;                                // -0x44
 
     // §P0/P251：ORIG 对 msg+0xc 无槽往返（比较与 cMyTrace 实参各自重读 movzwl 双段）⇒ 不缓存 code。
+    // ORIG 0x84deed4 为 `movzwl; movzwl %ax,%eax; cmp $0x232a,%eax`，4.4 恒折 `cmp $0x232a,%ax`
+    // （显式 (unsigned int) 提升实测无效，已回退，P162/N7 封顶）。
     if (pPkt->m_c == 0x232a)
         packet.put_header(1, 0x155);
     else if (pPkt->m_c == 0x232e)
@@ -13551,44 +13584,48 @@ int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.put_byte(1);
         packet.put_byte((int)pPkt->m_e);
         packet.put_byte((int)pPkt->m_17);
+        // ORIG 全程以 -0x28 具名槽（pInfo）作基址（084df088 `add -0x28(%ebp),%edx` 等 9 处）
+        // ⇒ 循环体基址走 pPkt 槽，不用形参 data。
+#define pData (reinterpret_cast<char*>(pPkt))
         for (int i = 0;                                // -0x24
              i < (int)pPkt->m_17; ++i)
         {
             char flag = 0;                             // -0x1d
-            if (*reinterpret_cast<unsigned char*>(data + i * 0xa5 + 0x9e) == 1)
+            if (*reinterpret_cast<unsigned char*>(pData + i * 0xa5 + 0x9e) == 1)
                 flag = 1;
             packet.put_byte((int)(unsigned char)flag);
-            packet.put_byte((int)*reinterpret_cast<signed char*>(data + i * 0xa5 + 0x9c));
+            packet.put_byte((int)*reinterpret_cast<signed char*>(pData + i * 0xa5 + 0x9c));
             if (user->get_charac_no(-1) ==
-                *reinterpret_cast<int*>(data + i * 0xa5 + 0x98))
+                *reinterpret_cast<int*>(pData + i * 0xa5 + 0x98))
                 packet.put_byte(1);
             else
                 packet.put_byte(0);
 
-            packet.put_int((int)strlen(data + i * 0xa5 + 0x9f));  // +0x9f 留言文本
-            packet.put_str(data + i * 0xa5 + 0x9f,
-                           (int)strlen(data + i * 0xa5 + 0x9f));
-            packet.put_int(*reinterpret_cast<int*>(data + i * 0xa5 + 0x94));
+            packet.put_int((int)strlen(pData + i * 0xa5 + 0x9f));  // +0x9f 留言文本
+            packet.put_str(pData + i * 0xa5 + 0x9f,
+                           (int)strlen(pData + i * 0xa5 + 0x9f));
+            packet.put_int(*reinterpret_cast<int*>(pData + i * 0xa5 + 0x94));
 
             int remainSec =                            // -0x1c
                 GlobalData::s_systemTime_.getCurSec() -
-                *reinterpret_cast<int*>(data + i * 0xa5 + 0x90);
+                *reinterpret_cast<int*>(pData + i * 0xa5 + 0x90);
             if (remainSec < 0)
                 remainSec = 0;
             packet.put_int(remainSec);
 
-            packet.put_int((int)strlen(data + i * 0xa5 + 0x18));  // +0x18 标题
-            packet.put_str(data + i * 0xa5 + 0x18,
-                           (int)strlen(data + i * 0xa5 + 0x18));
+            packet.put_int((int)strlen(pData + i * 0xa5 + 0x18));  // +0x18 标题
+            packet.put_str(pData + i * 0xa5 + 0x18,
+                           (int)strlen(pData + i * 0xa5 + 0x18));
         }
+#undef pData
 
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x4b51, 0);
-        trace("GUILD_BOARD : CHARAC NO : %u, CODE : %u, TOTAL CNT : %u, CNT : %u : BOARD DATA SEND!!",
-              user->get_charac_no(-1), (unsigned int)pPkt->m_c,
-              (unsigned int)pPkt->m_e,
-              (int)pPkt->m_17);
+        // P328⑩/P227：ORIG 0x84df1a2..0x84df20a 先求 4 个实参（m_17→-0x4c、m_e→%edi、
+        // m_c→%esi、get_charac_no→%ebx），其后才 cMyTrace ctor ⇒ 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0x4b51, 0)(
+            "GUILD_BOARD : CHARAC NO : %u, CODE : %u, TOTAL CNT : %u, CNT : %u : BOARD DATA SEND!!",
+            user->get_charac_no(-1), (unsigned int)pPkt->m_c,
+            (unsigned int)pPkt->m_e,
+            (int)pPkt->m_17);
     }
     else
     {   // 错误码分支
@@ -14866,25 +14903,28 @@ int Inter_Antibot_PunishClient::dispatch_sig(CUser* /*user*/, char* data, int /*
     //   084e4792/084e47f8 两次独立重读 msg+0x4（punishMode 留 %esi / 重载）⇒ 不设具名缓存。
     CUser* target = getUser(pPkt->m_0);
 
-    // ORIG：NumberToString 先求值（存寄存器）再构造 cMyTrace
-    char* uidStr = NumberToString(pPkt->m_0, 0);
-    cMyTrace trace(
-        __PRETTY_FUNCTION__, 0x5eb3, 0);
-    trace("requested uid(%s), punish_mode(%d), user(%x)", uidStr,
-          (int)pPkt->m_4, target);
+    // ORIG 0x84e4792..0x84e47b1：punish_mode→%esi、NumberToString→%ebx（均无槽往返）
+    // ⇒ 全表达式临时链，无 uidStr 具名局部（P0/P328⑩/P227）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x5eb3, 0)(
+        "requested uid(%s), punish_mode(%d), user(%x)",
+        NumberToString(pPkt->m_0, 0), (int)pPkt->m_4, target);
 
-    if (pPkt->m_4 == 2)
+    // ORIG 0x84e4802..0x84e480f 决策链 cmp $2/cmp $3/cmp $1 ⇒ 原码 switch（P17/P251）。
+    switch (pPkt->m_4)
     {
+    case 1:
+        break;
+    case 2:
         if (target != 0 && target->get_state() != 0)
             target->DisConnSig((DISCONN_SIG)0x23, true, 0);
-    }
-    else if (pPkt->m_4 == 3)
-    {
+        break;
+    case 3:
         if (target != 0 && target->get_state() != 0 &&
             0 < pPkt->m_c)
         {
             target->DisConnSig((DISCONN_SIG)0x23, true, 0);
         }
+        break;
     }
     return 0;
 }
@@ -14917,8 +14957,10 @@ int Inter_Antibot_ProcessProtectMsg::dispatch_sig(CUser* /*user*/, char* data, i
         return 0;
 
     short eventType = pPkt->m_0;           // msg+0x0
-    char protstatLevel;
-    short extra;
+    // ORIG 0x84e4911/0x84e4915 `movb $0x0,-0x1b; movw $0x0,-0x1a` 前置清零 ⇒ 声明=0
+    // + 分支内独立赋值（P197③）。
+    char protstatLevel = 0;
+    short extra = 0;
     if (eventType == 0x13)
     {
         protstatLevel = 0;
@@ -14940,12 +14982,12 @@ int Inter_Antibot_ProcessProtectMsg::dispatch_sig(CUser* /*user*/, char* data, i
         extra = 0;
     }
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x5f3b, 0);
-    trace("[SAFEMODE]uid : %d    protstatLevel : %d    eventType : %d\n",
-          (int)pPkt->m_2,
-          (int)protstatLevel, (int)(unsigned short)extra);
+    // P328⑩/P227：ORIG 0x84e497e..0x84e49aa 先求 extra→%edi、protstatLevel→%esi、uid→%ebx
+    // 再 ctor ⇒ 全表达式临时链。
+    cMyTrace(__PRETTY_FUNCTION__, 0x5f3b, 0)(
+        "[SAFEMODE]uid : %d    protstatLevel : %d    eventType : %d\n",
+        (int)pPkt->m_2,
+        (int)protstatLevel, (int)(unsigned short)extra);
 
     if (protstatLevel == 1 || protstatLevel == 8)
     {   // 开启保护通知
@@ -15038,10 +15080,11 @@ struct Inter_LoadCharacLinkBonusPktView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=113（ORIG 0x84e1f02）：P30/N4 add-vs-lea。
 int Inter_LoadCharacLinkBonus::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_LoadCharacLinkBonusPktView* pPkt = reinterpret_cast<Inter_LoadCharacLinkBonusPktView*>(data);
-    const unsigned int bonusExp =                      // -0x28（msg+0x0）
-        pPkt->m_0;
-    const int bonusGold = pPkt->m_4;   // -0x24（msg+0x4）
+    // ORIG 0x84e1f0e/0x84e1f15 两 int 前置清零（`movl $0x0,-0x28/-0x24`）后再由
+    // msg 字段赋值（084e2068 起）⇒ 声明=0 + 独立赋值语句（P197③），pPkt 槽在 Inven_Item
+    // 构造之后才物化（084e205f）。
+    unsigned int bonusExp = 0;                         // -0x28（msg+0x0）
+    int bonusGold = 0;                                 // -0x24（msg+0x4）
 
     char title[0x15] = { '\0' };                       // -0x3d（gcc 内联清零展开）
     char body[0x100] = { '\0' };                       // -0x1a5
@@ -15052,6 +15095,10 @@ int Inter_LoadCharacLinkBonus::dispatch_sig(CUser* user, char* data, int /*len*/
             0xff);
 
     Inven_Item item;                                   // -0xa5（默认构造）
+
+    Inter_LoadCharacLinkBonusPktView* pPkt = reinterpret_cast<Inter_LoadCharacLinkBonusPktView*>(data);
+    bonusExp = pPkt->m_0;
+    bonusGold = pPkt->m_4;
 
     if (bonusExp != 0 || bonusGold != 0)
     {
@@ -17000,27 +17047,31 @@ int Inter_NpcLimitBuyItemInfoAll::dispatch_sig(CUser* user, char* data, int /*le
     PacketGuard packet;
     packet.put_header(0, 0x193);
     packet.put_int(pPkt->m_16);   // msg+0x16 count
+    // ORIG 0x84e62de..0x84e63a9 每处 `lea (%ecx,%eax,1)` 的 ecx = -0x10 具名槽（pPkt），
+    // 非形参 0x10(%ebp)（P30/N4 族可消）。
+#define pData (reinterpret_cast<char*>(pPkt))
     for (int i = 0;
          i < pPkt->m_16 && i < 0x1e; ++i)
     {
         packet.put_int(
-            *reinterpret_cast<int*>(data + i * 0xc + 0x1a));
-        if (*reinterpret_cast<int*>(data + i * 0xc + 0x1e) == 0)
+            *reinterpret_cast<int*>(pData + i * 0xc + 0x1a));
+        if (*reinterpret_cast<int*>(pData + i * 0xc + 0x1e) == 0)
         {
             packet.put_int(0);
         }
-        else if ((unsigned int)*reinterpret_cast<unsigned int*>(data + i * 0xc + 0x22) <
-                 (unsigned int)*reinterpret_cast<unsigned int*>(data + i * 0xc + 0x1e))
+        else if ((unsigned int)*reinterpret_cast<unsigned int*>(pData + i * 0xc + 0x22) <
+                 (unsigned int)*reinterpret_cast<unsigned int*>(pData + i * 0xc + 0x1e))
         {
             packet.put_int(
-                *reinterpret_cast<int*>(data + i * 0xc + 0x1e) -
-                *reinterpret_cast<int*>(data + i * 0xc + 0x22));
+                *reinterpret_cast<int*>(pData + i * 0xc + 0x1e) -
+                *reinterpret_cast<int*>(pData + i * 0xc + 0x22));
         }
         else
         {
             packet.put_int(0);
         }
     }
+#undef pData
     packet.finalize(true);
     user->Send(packet);
     return 0;
