@@ -221,7 +221,7 @@ void CItemLimitEditionMgr::removeItem(unsigned int itemIdx)
     }
 }
 
-int CItemLimitEditionMgr::updateItem(unsigned int itemIdx, unsigned int count)
+bool CItemLimitEditionMgr::updateItem(unsigned int itemIdx, unsigned int count)   // [b28d-Main·P292] int→bool
 {
     // ORIG 0x084e9904：find 未命中返回 0；命中 updateCurSellNum 返回 1。
     __gnu_cxx::hash_map<unsigned int, CItemLimitEdition*,
@@ -229,9 +229,9 @@ int CItemLimitEditionMgr::updateItem(unsigned int itemIdx, unsigned int count)
                         std::allocator<CItemLimitEdition*> >::iterator it
         = m_items.find(itemIdx);
     if (it == m_items.end())
-        return 0;
+        return false;
     it->second->updateCurSellNum(count);
-    return 1;
+    return true;
 }
 
 // [b28d-51] 判词 N（ORIG 0x0834852e，N86/N89 族）：hash_map 迭代器转换构造 +

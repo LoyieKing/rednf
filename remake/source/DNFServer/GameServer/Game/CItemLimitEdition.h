@@ -122,7 +122,7 @@ public:
 
     void registItem(const stItemLimitEditionItemInfo_t& info);    // ORIG 0x084e975e
     void removeItem(unsigned int itemIdx);                        // ORIG 0x084e9876
-    int updateItem(unsigned int itemIdx, unsigned int count);    // ORIG 0x084e9904
+    bool updateItem(unsigned int itemIdx, unsigned int count);   // [b28d-Main·P292] int→bool（ORIG 调用点 0x084dbe31/0x084dbf58 均 `call; xor $0x1,%eax; test %al,%al`）
     void clear();                                                 // ORIG 0x08374d4e
     CItemLimitEdition* getItemInfo(unsigned int itemIdx) const;   // ORIG 0x0817a0a8
     bool empty() const;                                           // ORIG 0x084e997c

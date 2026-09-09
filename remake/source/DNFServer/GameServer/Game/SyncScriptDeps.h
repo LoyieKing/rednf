@@ -43,7 +43,7 @@ void toTString(const std::wstring& sSrc, std::string& sDst);
 // ORIG 0x088be57e：按作业名表查找返回下标 0..10，未命中 11。
 int getCharacterJob(const char* name);
 // ORIG 0x088be5c5：作业名表命中检查（与 getCharacterJob 同表），命中 1 否则 0。
-int checkValiedJobName(const char* name);
+bool checkValiedJobName(const char* name);   // [b28d-Main·P292] int→bool（ORIG 调用点 0x08a5ae51 等 `call; xor $0x1,%eax; test %al,%al`）
 
 namespace APSystem
 {

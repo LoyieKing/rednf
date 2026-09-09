@@ -399,7 +399,7 @@ bool CUser::VerifyCleanPadVeriData(unsigned int value)
 // static_cast/(char*) 全产 lea，且 4.4 恒 dst 先求值 vs ORIG src 先）⇒ N107 负例
 // （memcpy 首参专用）；②put_binary 实参装载 eax/edx 互换（N7）；③+0x8e0f8 成员读
 // ORIG `mov mem,%eax; mov %eax,%esi` 两段 vs 4.4 单段（N18a）。155/154 语义等价。
-unsigned int CUser::reqSendMailCertify()
+bool CUser::reqSendMailCertify()   // [b28d-Main·P292] unsigned int→bool
 {
     if (GlobalData::s_capchaDataManager.isEmpty())
     {

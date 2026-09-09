@@ -3331,10 +3331,10 @@ public:
     // ORIG 0x08676826 (T)：组 Packet_Randombox_statistic（header 0x17b6/0xc）发统计服务器
     static void SendRandomBoxStatistic(int boxKind, ENUM_RANDOMBOX_ACTION_KIND actionKind);   // ORIG 0x8676826 静态 ABI（报告证实无 this 实参）
     // ORIG 0x0868f6bc (T)：find_item(itemIdx)→verifyStackableItemProcess
-    int verifyStackableItemActionPlace(StackableAction::Type type, unsigned int itemIdx);
-    int verifyStackableItemActionPlace(StackableAction::Type type, const CItem* item);  // ORIG W 0x0868f69a
+    bool verifyStackableItemActionPlace(StackableAction::Type type, unsigned int itemIdx);   // [b28d-Main·P292] int→bool
+    bool verifyStackableItemActionPlace(StackableAction::Type type, const CItem* item);  // ORIG W 0x0868f69a（[b28d-Main·P292] int→bool）
     // ORIG 0x0868f60e (T)：is_stackable→verifyStackableAction→verifyUsablePlace→verifyUsableServerType
-    int verifyStackableItemProcess(StackableAction::Type type, const CItem* item);
+    bool verifyStackableItemProcess(StackableAction::Type type, const CItem* item);   // [b28d-Main·P292] int→bool（ORIG 0x0868f60e 调用点 `call; xor $0x1,%eax`）
     void set_ontime_last_recv_idx(int idx);
     int get_ontime_last_recv_idx() const;
     void set_update_ontime_last_recv_idx();
@@ -3616,7 +3616,7 @@ public:
     int quest_reward(int questId, int selectIdx, int repeatN);
     bool Redeem_Item(int redeemId);  // b28c C28L13 SIGFIX 代落：ORIG 串 "bool CUser::Redeem_Item(int)"
     unsigned int registerToBlackList(unsigned int accId);
-    unsigned int reqSendMailCertify();
+    bool reqSendMailCertify();   // [b28d-Main·P292] unsigned int→bool（ORIG 调用点 `call; xor $0x1,%eax`）
     void requestCubePremiumInfoIfContracted();
     void reset_tag_info_to_me(unsigned int tagAccId);
     void ResetMissionList();

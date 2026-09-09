@@ -286,7 +286,7 @@ int getCharacterJob(const char* name)
 
 // ORIG 0x088be5c5 checkValiedJobName(const char*)：遍历 0x93f4d40 作业名表
 // strcmp，命中返回 1；与 getCharacterJob 共用同一张表。
-int checkValiedJobName(const char* name)
+bool checkValiedJobName(const char* name)   // [b28d-Main·P292] int→bool
 {
     static const char* const kJobTable[12] = {
         "[swordman]",        // 0
@@ -306,10 +306,10 @@ int checkValiedJobName(const char* name)
     {
         if (strcmp(name, kJobTable[i]) == 0)
         {
-            return 1;
+            return true;
         }
     }
-    return 0;
+    return false;
 }
 
 // ==================== APSystem::CSyncScript desc ====================

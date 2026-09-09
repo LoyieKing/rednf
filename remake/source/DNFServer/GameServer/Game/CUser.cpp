@@ -4473,14 +4473,14 @@ void CUser::SendRandomBoxStatistic(int boxKind, ENUM_RANDOMBOX_ACTION_KIND actio
 }
 
 // ORIG 0x0868f6bc (T)：find_item(itemIdx)→verifyStackableItemProcess
-int CUser::verifyStackableItemActionPlace(StackableAction::Type type, unsigned int itemIdx)
+bool CUser::verifyStackableItemActionPlace(StackableAction::Type type, unsigned int itemIdx)   // [b28d-Main·P292] int→bool
 {
     CItem* item = G_CDataManager()->find_item(itemIdx);
     return verifyStackableItemProcess(type, item);
 }
 
 // ORIG 0x0868f60e (T)：is_stackable→verifyStackableAction→verifyUsablePlace→verifyUsableServerType
-int CUser::verifyStackableItemProcess(StackableAction::Type type, const CItem* item)
+bool CUser::verifyStackableItemProcess(StackableAction::Type type, const CItem* item)   // [b28d-Main·P292] int→bool
 {
     if (item == 0)
         return 0;
