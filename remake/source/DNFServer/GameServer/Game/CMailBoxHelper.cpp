@@ -27,6 +27,32 @@
 //  ④SetMailBoxInfo/ReqDBSendNewMail/_DoSendNewMail/ReqDBRemoveMail 逐段核对
 //    无参数/字段语义差，残余为 N82/N76/P75 跨版本形态族。
 //  四数 141/300/2/14 不回退（三处真修 verdict 仍 DIFF：残余形态差未消）。
+// [2026-09-09 三轮复扫波 SweepCMailBoxHelper-2] dual_rank 候选 4 件全查 + 全 TU
+//  逐 call*/jcc/元素偏移核对：
+//  ①isUnlimitMail 翻案（旧判词 N102/N4 add-vs-disp + N18b cmp 折单段全部作废）：
+//    改用权威头 SIG_MAILBOX_LIST::m_box.m_postals[i].m_tail.m_occ 具名嵌套视图
+//    （参数类型自身成员 ⇒ 4.4 出 i-first + imul/lea + add $0x50/$0x5b）+「字段在
+//    左」比较（unsigned m_letterId vs int 形参异型 ⇒ P274 两段装载）⇒ ORIG
+//    0x0855254c 31 条逐条同形（DIFF→AE）。SigTypes_D.h OccSub 新增
+//    bool m_unlimit@+0x5b（m_pad2[3]→m_pad2[2]+bool；sizeof 0x11/0x61/0x338a
+//    与全部偏移/mangled 零变化，Main 批准、消费 TU 全数零回退）。
+//  ②_DoGetPackageAvatar gap 2→0、_DoGetPackageCreature gap 1→0：槽值判负改
+//    while 形（P225，body 必 return ⇒ 等价）复现 ORIG `mov 槽,%eax;
+//    shr $0x1f,%eax; test %al,%al; je`（4.4 对 if 形恒折 cmpl/jns）。
+//  ③SetMailBoxInfo 真语义 bug：lackSet.find(...) 条件极性反写（ORIG 0x0852775
+//    `jne 85527ae` 跳过 MakePacket ⇒ 缺包表列出的信件才重发）；改
+//    `!(find(...) == end())` 以保持 operator== 调用形（写 `!=` 会被 4.4 改调
+//    operator!=，符号与 ORIG 不符且 identical 掉 1）。
+//  ④SIG_AVATAR_INSERT::set 维持 N76/N18a（store 装载序 + 窄化中转，P321-T5
+//    禁类型旋钮；元素偏移 +0x28←a8/+0x2c←a7 已核）。
+//  ⑤虚槽核对：本 TU 8 处 call* 全查 —— make_item(slot2, SetMailBoxInfo
+//    0x08552ab0)/GetItemType(slot3 ×2)/IsAvatarItem(slot4 ×4)/IsCreatureItem
+//    (slot5)，经 _ZTV5CItem 0x08c96da0 + _ZTV14CStackableItem 0x08c96ea0 +
+//    _ZTV10CEquipItem 0x08c96e20 逐槽反查符号一致；p167 全 CLEAR（残余仅
+//    C1/C2、D1/D2 同址别名 P93 伪差）；branch_invert_scan 全 DIFF 件无真反演
+//    （除③）；元素偏移 0x61/0x50/0x5b/0x5c、0x47/0x7a4/+0x25/+0x43、
+//    0x25/0xd30/+4/+8/+0xc、0x12b/0x101c+0x25 逐项与 ORIG 一致。
+//  四数 141/300/2/14 → 141/303/2/11（CMailBox.cpp 98/149/0/4 不回退）。
 
 #include "CMailBoxHelper.h"   // 本类权威叶子头（不再经 CGameManager.h）
 #include "SigTypes.h"
@@ -466,43 +492,25 @@ bool IsTradeLimitAttachTypeItemByUser(CUser& user, int space, int slot)
 //   （成员访问/取子对象地址/指针算术三形实测，N102/N4）；
 // ③ORIG 比较两段 `mov mem,%edx; mov arg,%eax; cmp %eax,%edx` 被 4.4 折
 //   `cmp mem,%eax` 单段（N18b，交换操作数无效）。31→28 insn。
-// [本波 2026-09-09 复验] 两个新试形仍不可翻（维持 N）：①P30 数组成员视图
-//   （`PostalSub m_sub[1]` + `m_sub[0].m_letterId`）⇒ 4.4 仍折 `mov 0x5c(%eax)`；
-//   ②比较/基址操作数交换（`field == letterId`、`info + 0x61*i`）⇒ 装载序与 cmp
-//   形态逐条不变（28 insn）。另：P292 全链 bool 化后本件返回类型为 bool
-//   （ORIG 返回段 `movzbl (%eax),%eax` 与 bool 直返同形）。
+// [2026-09-09 SweepCMailBoxHelper-2 翻案，本件 identical] 旧判词「N102/N4 add-vs-disp
+//   不可翻 + N18b cmp 折单段」全部作废，两处根因均为**访问形式**而非编译器：
+//   ①cast 视图形（无论算术基址还是 reinterpret_cast 本地 struct）恒 info-first 且
+//     折 disp；②比较写成 `letterId == 字段` 会因同型折 `cmp mem,%eax`。
+//   正解 = 权威头 SIG_MAILBOX_LIST 具名嵌套视图（参数类型自身成员，P235）+
+//   **字段在左**的比较（m_letterId 为 unsigned int、形参 int 异型 ⇒ P274 两段装载）：
+//   `info->m_box.m_postals[i].m_tail.m_occ.m_letterId == letterId`。
+//   探针 /tmp/p_mail/Game/CMailBoxHelper.cpp fN（4.4.6 路由）与 ORIG 0x0855254c
+//   31 条逐条同形：i-first → imul $0x61 → lea → add $0x50 → mov 0xc(%eax),%edx
+//   → mov 0xc(%ebp),%eax → cmp %eax,%edx；命中段 add $0x5b → movzbl (%eax)；
+//   循环条件 setg 物化。OccSub.m_unlimit@+0x5b 为同波 SigTypes_D.h 字段化新增。
 bool isUnlimitMail(SIG_MAILBOX_LIST const* info, int letterId)
 {
-    #pragma pack(push, 1)
-    struct PostalSub
+    for (int i = 0; i < info->m_box.m_count; ++i)
     {
-        unsigned char m_pad[0xb];
-        bool m_unlimit;                        // 子对象 +0x0b（全局 +0x5b；bool）
-        int m_letterId;                        // 子对象 +0x0c（全局 +0x5c）
-    };
-    struct PostalEntry
-    {
-        unsigned char m_head[0x50];
-        PostalSub m_sub;                       // +0x50
-        unsigned char m_tail[0x61 - 0x60];
-    };
-    struct CountView
-    {
-        unsigned char m_pad[0x794];
-        int m_count;
-    };
-    #pragma pack(pop)
-    // P0/P183：条目基址写 `i*0x61 + info`（i 先求值，ORIG
-    // 0x08552561 `mov -0x4(%ebp),%eax; mov 0x8(%ebp),%edx; imul; lea`）；
-    // 成员数组形 `((ListView*)info)->m_postals[i]` 会被 4.4 折成 info 先载。
-    for (int i = 0; i < reinterpret_cast<CountView const*>(info)->m_count; ++i)
-    {
-        if (letterId == reinterpret_cast<PostalEntry const*>(
-                0x61 * i + reinterpret_cast<char const*>(info))->m_sub.m_letterId)
-            return reinterpret_cast<PostalEntry const*>(
-                0x61 * i + reinterpret_cast<char const*>(info))->m_sub.m_unlimit;
+        if (info->m_box.m_postals[i].m_tail.m_occ.m_letterId == letterId)
+            return info->m_box.m_postals[i].m_tail.m_occ.m_unlimit;
     }
-    return 0;
+    return false;
 }
 class DB_InsertCeraItemHistory
 {
@@ -936,7 +944,15 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
         for (MailMap::const_iterator it = mail_map(box).begin();
              it != mail_map(box).end(); ++it)   // ORIG 0x085526c4..0x085527bd
         {
-            if (lackSet.find(it->second->GetLetterId()) == lackSet.end())
+            // [2026-09-09 SweepCMailBoxHelper-2 真 bug] 原写 `== end()` ⇒ 4.4 出
+            // `je` 跳过 MakePacket（相等=不在 lackSet 才打包），ORIG 0x0852775 是
+            // `jne 85527ae` 跳过（不相等=在 lackSet 中才打包）⇒ 极性相反。
+            // ORIG 序列：0x0852753 `call set::find` → 0x085276e `call operator==`
+            // → 0x0852773 `test %al,%al` → 0x0852775 `jne`（跳过 0x0852777..
+            // 0x08527ac 的 MakePacket+count++）。语义 = 缺包表列出的信件才重发。
+            // 必须保持 `operator==` 调用形（写 `!=` 会被 4.4 改调 `operator!=`，
+            // 符号与 ORIG 不符）；否定式 `!(a == b)` 才产 ORIG 的 `test;jne`。
+            if (!(lackSet.find(it->second->GetLetterId()) == lackSet.end()))
             {
                 it->second->MakePacket(&packet, nowSec, user);
                 count = count + 1;
@@ -1205,6 +1221,9 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
     unsigned int money = 0;
     money = mail->GetPackageMoney();
 
+    // [2026-09-09 SweepCMailBoxHelper-2 复验] P225 while+break 形在此**反劣**
+    // （245→249，4.4 对大 body 生成真循环回边；探针 f2 仅单语句 body 时同形）⇒
+    // 维持 if 形，残余 setne/test 物化 2 条归 P197④/N122 跨版本族。
     if (money != 0)
     {
         if (bReset)
@@ -1519,10 +1538,12 @@ bool CMailBoxHelper::_DoGetPackageAvatar(CUser* user, CMailBox::CMail const* mai
         int slot = 0;
         slot = user->getCurCharacInvenW()->insertAvatarIntoInventory(
             pkg, (eAvatarItemAddReason)5, true);
-        // ORIG 同款判负形（槽→shr $0x1f→test）。neg 具名中转会引入独立槽
-        // 帧漂移（探针 49 反证）——4.4 对 call 结果直 shr（无槽）+ 槽值比较
-        // shr（N18a 两步）两形分立，此处槽值两步不可造，维持封顶。
-        if ((slot >> 31) != 0)
+        // [2026-09-09 SweepCMailBoxHelper-2 翻案] 旧判词「槽值 shr 两步不可造」
+        // 作废：ORIG 0x0855436e `mov -0xc(%ebp),%eax; shr $0x1f,%eax;
+        // test %al,%al; je` 由 while 形复现（P225：body 必 return ⇒ 与 if
+        // 语义等价；4.4 对 if 形恒折 `cmpl $0x0,槽; jns`）。探针 /tmp/p_mail/t.cpp
+        // f2 逐条同形（f1/f3 为折叠反例）。
+        while ((slot >> 31) != 0)
             return false;
         user->getCurCharacInvenW()->SendAvatarEvent(0x36, pkg.m_addInfo2, 0, slot + 10, 0);
         register const char* sysName =
@@ -1583,9 +1604,11 @@ bool CMailBoxHelper::_DoGetPackageCreature(CUser* user, CMailBox::CMail const* m
         slot = 0;
         slot = user->getCurCharacInvenW()->insertItemIntoInventory(
             pkg, (eItemAddReason)0x15, true, true);
-        // P197④：ORIG 槽值 `mov -N,%eax; shr $0x1f; test %al; je`（4.4 对
-        // `slot < 0` 折 test/jns）⇒ 保留 (slot>>31)!=0 形。
-        if ((slot >> 31) != 0)
+        // [2026-09-09 SweepCMailBoxHelper-2 翻案] ORIG 0x085545b1 槽值判负
+        // `mov -0x24(%ebp),%eax; shr $0x1f,%eax; test %al,%al; je`；
+        // while 形（P225，body 必 return）复现，4.4 对 if 形恒折
+        // `test %eax,%eax; jns`（探针 /tmp/p_mail/t.cpp f2）。
+        while ((slot >> 31) != 0)
             return false;
         user->getCurCharacInvenW()->GetCreatureMgrW()->RecvMail(
             (Inven_Item*)&pkg, slot, 0x15);
