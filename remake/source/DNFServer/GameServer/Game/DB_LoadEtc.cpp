@@ -109,6 +109,9 @@ int DB_LoadEtc::GetUserPvpBase(SIG_LOAD_ETC* sig)
 // b28d-31: N 封顶（N82）——ORIG 0x08407dc2；385 vs 390（帧/槽），p167 待核。
 // [b28d-solo-DB_LoadEtc] N封顶 ndiff=739 (orig=385/ours=390)：N82 帧/槽错位（4.1 不复用
 // 栈槽 vs 4.4 复用）+ N95 槽基差；p167 CLEAR 0/0、gap=5 ⇒ 语义完成、byte 层封顶（§6.2）。
+// [b28d-SweepDBLoadEtc 本波] 具名 nowSec 槽（ORIG `call getCurSec; mov %eax,-0xc` +
+// `cmp -0xc(%ebp),%eax; jge` 直跳）：旧内联 getCurSec() 致 4.4 setcc 物化；改后 385/386
+//（gap 5→1）、p167 CLEAR。
 int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
@@ -181,7 +184,10 @@ int DB_LoadEtc::GetUserPvp(SIG_LOAD_ETC* sig)
     int gradeExtUpdateSec = 0;
     if (!db->get_int(25, gradeExtUpdateSec))        // unix(pvp_grade_ext_update_time)
         return -1;
-    if (gradeExtUpdateSec + 0x15180 < (int)GlobalData::s_systemTime_.getCurSec())
+    // ORIG 0x0840xxxx：getCurSec 返回值先落具名槽（mov %eax,-0xc）再与
+    // gradeExtUpdateSec+0x15180 直跳比较（无 setcc 物化）。
+    int nowSec = (int)GlobalData::s_systemTime_.getCurSec();
+    if (gradeExtUpdateSec + 0x15180 < nowSec)
         sig->m_pvpResult.m_todayWinCount = 0;       // pvp_grade_ext 清零
 
     return 0;
@@ -749,6 +755,10 @@ bool DB_LoadEtc::LoadAuraAvatarOption(SIG_LOAD_ETC* sig)
 // 残差（不可翻）：①N107/N30 地址形（`lea 0xeac8(%eax),%edx` vs `add $0xeac8,%eax`；
 //   `mov 0xc(%eax,%edx,4)` 两步 vs 4.4 add+shl 链）；②N82 槽基差 4（db 槽 -0x20 vs
 //   ORIG -0x1c；col 槽引入后整体深 4）；③trace 槽深差。
+// [b28d-SweepDBLoadEtc 本波] 真 bug 修复：条目计数循环原 `for+if` 遍历全表统计非零数，
+// ORIG 0x08408734 `test %eax,%eax; je 0x0840874e` 首条 0 即 break（Ghidra C
+// `while (i<1000 && *(int*)(sig+i*0x18+0xecd8)!=0){++count;++i;}`）⇒ 改 while+break，
+// 计数=从头连续非零条数。读数 168/171→168/172（残差 N1 折叠）。
 bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
 {
     (void)userIdx;   // ORIG 仅透传第 3 参起作用（in_stack_00000010）
@@ -790,7 +800,8 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
     for (int i = 0; i <= 4; ++i)                             // base sig+0xC+(i+0x3b34)*4
     {
         int* p = reinterpret_cast<int*>(sig->m_bestClearTime + 4 + i * 4);
-        // = 0xECDC + i*4（ORIG mov %0xc(%eax,%edx,4) 读 + jns 跳 + movl $0 写）
+        // = 0xECDC + i*4（ORIG mov 0xc(%eax,%edx,4) 读 + jns 跳 + movl $0 写；
+        // 4.4 恒 add $0x3b37+shl+add 不折 disp ⇒ N94 封顶，保留 p 形）
         if (*p < 0)
         {
             *p = 0;
@@ -809,12 +820,16 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
     }
 
     int count = 0;
-    for (int i = 0; i <= 0x3e7; ++i)                         // 条目 stride 0x18@+0xecd8
+    int idx = 0;
+    // ORIG 0x08408734 `test %eax,%eax; je 0x0840874e`：首条 0 即 break（Ghidra C
+    // `while (i<1000 && *(int*)(sig+i*0x18+0xecd8)!=0){++count;++i;}`）；
+    // 旧 for+if 遍历全表统计非零数 = 真 bug（计数偏大）。
+    while (idx <= 0x3e7)
     {
-        if (*reinterpret_cast<int*>(sig->m_bestClearTime + i * 0x18 + 8) != 0)
-        {
-            ++count;
-        }
+        if (*reinterpret_cast<int*>(sig->m_bestClearTime + idx * 0x18 + 8) == 0)
+            break;
+        ++count;
+        ++idx;
     }
     sig->m_bestClearTimeCount = count;
     return true;
@@ -1218,8 +1233,8 @@ bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC* sig, ENUM_SKILL_TREE_KIND kind)
     struct ComboSkillView
     {
         char m_pad[0x14aae];
-        unsigned char m_tree1Count;      // +0x14aae
-        unsigned char m_tree2Count;      // +0x14aaf
+        unsigned char m_tree1Count;      // +0x14aae（N76 封顶：P211 档③不适用——字段与
+        unsigned char m_tree2Count;      // +0x14aaf  RHS 本已异型，signed/unsigned 同形）
         char m_pad2[4];                  // +0x14ab0
         comoboSkillData m_tree1Data[6];  // +0x14ab4（0x54）
         comoboSkillData m_tree2Data[6];  // +0x14b08（0x54）
@@ -1329,9 +1344,17 @@ bool DB_LoadEtc::getComboSkill(MySQL* db, unsigned int accId, int count,
 // 残差为帧/槽分配（ORIG 478 vs 4.4 468）。
 // [b28d-solo-DB_LoadEtc] N封顶 ndiff=624 (orig=478/ours=468)：N82 帧/槽错位（12 列 get/blob
 // 链的 trace 槽方向）+ N89 镜像（get_compressed_blob_data 内联差）；p167 CLEAR 0/0 ⇒ 语义完成。
+// [b28d-SweepDBLoadEtc 本波] 真 bug 修复：①col 初值 1→0（ORIG 0x084077e9 `movl $0x0,-0x10`
+// + 首列 `get_uint(col++)`；旧 col=1 使后续 blob 列号整体 +1）；②去 sk 指针/spVals 局部（P183，
+// ORIG 每处单条 lea/add disp 直写成员，改 m_mixedRegion[off] 常量索引）；③scriptVersion 直传
+// 成员地址（ORIG `lea 0xcdd1(%eax),%edx`）；④tag 段 col 变量（ORIG -0xc）；⑤9 处 trace 改
+// P227 全表达式临时链；⑥exec/fetch/get_uint 共 9 处改具名 ok 槽（ORIG -0x15）。
+// 读数：gap +10（478/468）→ +1（478/477）；p167 46=46（仅 cMyTrace C1/C2 别名）；
+// 残差=add+mov↔lea 跨版本（N107/P30）。
 bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
 {
     static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc12GetUserSkill…E9handleIdx
+    bool ok;                           // ORIG -0x15 具名槽（深于 db=-0x14，P212）
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect remain_sp,skill_slot,remain_sp_2nd, skill_slot_2nd,"
@@ -1339,11 +1362,12 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
                   " lethe_flag, skill_slot_lethe_2nd, lethe_flag_2nd,script_version"
                   " from %s where charac_no=%u",
                   get_skill_table_name(false), sig->m_characNo);
-    if (!db->exec(true))
+    ok = db->exec(true);
+    if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1d50, 5);
-        trace("DB_LoadSkill::GetUserSkill, exec() ERROR charac_no=%u",
-              sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d50, 5)(
+            "DB_LoadSkill::GetUserSkill, exec() ERROR charac_no=%u",
+            sig->m_characNo);
         return false;
     }
 
@@ -1352,82 +1376,89 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
         // ORIG：缺行 + PvP 技能树频道 → inSert 占位行并置 0xcdd4 标志。
         db->set_query("inSert into %s (charac_no) values(%u)",
                       get_skill_table_name(false), sig->m_characNo);
-        if (!db->exec(true))
+        ok = db->exec(true);
+        if (!ok)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           0x1d5d, 5);
-            trace("DB_LoadSkill::GetUserSkill insert, exec() ERROR charac_no=%u",
-                  sig->m_characNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0x1d5d, 5)(
+                "DB_LoadSkill::GetUserSkill insert, exec() ERROR"
+                " charac_no=%u", sig->m_characNo);
             return false;
         }
         sig->m_pvpSkillInsertFlag = 1;                       // +0xcdd4 movb
         return true;
     }
 
-    if (!db->fetch())
+    ok = db->fetch();
+    if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1d69, 5);
-        trace("DB_LoadSkill::GetUserSkill, fetch() ERROR charac_no=%u",
-              sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d69, 5)(
+            "DB_LoadSkill::GetUserSkill, fetch() ERROR charac_no=%u",
+            sig->m_characNo);
         return false;
     }
 
-    int col = 1;                                             // local_14 从 1 起
-    unsigned int spVals[4];
-    int letheFlags[2] = { 0, 0 };
+    int col = 0;                                             // ORIG -0x10 从 0 起
     // 混合区首 0x414 为 SIG_LOAD_SKILL 视图（+0xc9c0；字段名见 SigTypes_C.h，
     // 证据 GetSkill.md/SkillSlot 透传布局：+0x8/+0xc/+0x1a4/+0x1a8/+0x340/
     // +0x344/+0x348 = sig+0xc9c8/0xc9cc/0xcb64/0xcb68/0xcd00/0xcd04/0xcd08）。
-    SIG_LOAD_SKILL* sk = reinterpret_cast<SIG_LOAD_SKILL*>(sig->m_mixedRegion);
-
-    if (!db->get_uint(0,
-                      *reinterpret_cast<unsigned int*>(&sk->m_remainSpTree1)))
+    // P183/P30：ORIG 每处单条 lea/add disp（+0xc9c8/+0xc9cc/... 折叠），禁 sk 指针
+    // 缓存、禁 (SIG_LOAD_SKILL*)sig->m_mixedRegion->field（4.4 拆 add $0xc9c0;add $disp）。
+    // 常量索引与 SIG_LOAD_SKILL 视图字段一一对应（+0x8/+0xc/+0x1a4/+0x1a8/+0x340/
+    // +0x344/+0x348）。
+    ok = db->get_uint(col++,
+                      *reinterpret_cast<unsigned int*>(
+                          &sig->m_mixedRegion[0x8]));
+    if (!ok)
     {                                                        // col0 remain_sp
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1d71, 5);
-        trace("DB_LoadSkill::GetUserSkill, get(0) ERROR charac_no=%u",
-              sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d71, 5)(
+            "DB_LoadSkill::GetUserSkill, get(0) ERROR charac_no=%u",
+            sig->m_characNo);
         return false;
     }
-    ++col;
     if (!get_compressed_blob_data(db, col++,
-                                  reinterpret_cast<char*>(sk->m_skillSlotTree1),
+                                  sig->m_mixedRegion + 0xc,
                                   0x198, 2))
-    {                                                        // col1 skill_slot
+    {                                                        // skill_slot
         return false;
     }
-    if (!db->get_uint(col++, spVals[0]))                     // col2? → get(4)行号
+    ok = db->get_uint(col++,
+                      *reinterpret_cast<unsigned int*>(
+                          &sig->m_mixedRegion[0x1a4]));
+    if (!ok)
     {                                                        // remain_sp_2nd→0xcb64
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1d98, 5);
-        trace("DB_LoadSkill::GetUserSkill, get(4) ERROR charac_no=%u",
-              sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1d98, 5)(
+            "DB_LoadSkill::GetUserSkill, get(4) ERROR charac_no=%u",
+            sig->m_characNo);
         return false;
     }
-    sk->m_remainSpTree2 = static_cast<int>(spVals[0]);       // sig+0xcb64
     if (!get_compressed_blob_data(db, col++,
-                                  reinterpret_cast<char*>(sk->m_skillSlotTree2),
+                                  sig->m_mixedRegion + 0x1a8,
                                   0x198, 2))
     {                                                        // skill_slot_2nd
         return false;
     }
-    if (!db->get_uint(col++, spVals[1]))                     // remain_sfp_1st→0xcd00
+    ok = db->get_uint(col++,
+                      *reinterpret_cast<unsigned int*>(
+                          &sig->m_mixedRegion[0x340]));
+    if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1dac, 5);
-        trace("DB_LoadSkill::GetUserSkill, get(7) ERROR charac_no=%u",
-              sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1dac, 5)(
+            "DB_LoadSkill::GetUserSkill, get(7) ERROR charac_no=%u",
+            sig->m_characNo);
         return false;
     }
-    sk->m_remainSfpTree1 = static_cast<int>(spVals[1]);      // sig+0xcd00
-    if (!db->get_uint(col++, spVals[2]))                     // remain_sfp_2nd→0xcd04
+    ok = db->get_uint(col++,
+                      *reinterpret_cast<unsigned int*>(
+                          &sig->m_mixedRegion[0x344]));
+    if (!ok)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1db2, 5);
-        trace("DB_LoadSkill::GetUserSkill, get(8) ERROR charac_no=%u",
-              sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1db2, 5)(
+            "DB_LoadSkill::GetUserSkill, get(8) ERROR charac_no=%u",
+            sig->m_characNo);
         return false;
     }
-    sk->m_remainSfpTree2 = static_cast<int>(spVals[2]);      // sig+0xcd04
-    (void)spVals[3];
     if (!get_compressed_blob_data(db, col++,
-                                  reinterpret_cast<char*>(sk->m_commands),
+                                  sig->m_mixedRegion + 0x348,
                                   200, 4))
     {                                                        // skill_command
         return false;
@@ -1436,7 +1467,8 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     {                                                        // skill_slot_lethe
         return false;
     }
-    if (!db->get_int(col++, letheFlags[0]))                  // lethe_flag(int)
+    int letheFlag = 0;                                       // ORIG -0xac 列8
+    if (!db->get_int(col++, letheFlag))                      // lethe_flag(int)
     {
         return false;
     }
@@ -1444,52 +1476,51 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     {                                                        // skill_slot_lethe_2nd
         return false;
     }
-    if (!db->get_int(col++, letheFlags[1]))                  // lethe_flag_2nd(int)
+    int letheFlag2 = 0;                                      // ORIG -0xb0 列10
+    if (!db->get_int(col++, letheFlag2))                     // lethe_flag_2nd(int)
     {
         return false;
     }
-    unsigned char scriptVersion = 0;
-    if (!db->get_ubyte(col++, scriptVersion))                // script_version
+    if (!db->get_ubyte(col++, sig->m_scriptVersion))         // script_version→+0xcdd1
     {
         return false;
     }
-    sig->m_scriptVersion = scriptVersion;                    // ORIG get_ubyte→+0xcdd1
-
 
     // lethe 标志低位字节落位（ORIG movzbl/mov dl）。
-    sig->m_backupSkill[0x198] = (unsigned char)letheFlags[0];        // +0x2b95
-    sig->m_oneDayLetheFlag = (unsigned char)letheFlags[0];           // +0x29fc
-    sig->m_backupSkill2ND[0x198] = (unsigned char)letheFlags[1];     // +0x2d2f
-    sig->m_oneDayLetheFlag2ND = (unsigned char)letheFlags[1];        // +0x2b96
+    sig->m_backupSkill[0x198] = (unsigned char)letheFlag;            // +0x2b95
+    sig->m_oneDayLetheFlag = (unsigned char)letheFlag;               // +0x29fc
+    sig->m_backupSkill2ND[0x198] = (unsigned char)letheFlag2;        // +0x2d2f
+    sig->m_oneDayLetheFlag2ND = (unsigned char)letheFlag2;           // +0x2b96
 
     if (sig->m_fieldC != 0)
     {
         // tagCharacNo 存在 → 拉主/tag 双槽位 blob。
         db->set_query("seLect skill_slot, skill_slot_2nd from skill where"
                       " charac_no=%u", sig->m_fieldC);
-        if (!db->exec(true))
+        ok = db->exec(true);
+        if (!ok)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           0x1dea, 5);
-            trace("DB_LoadSkill::GetUserSkill, exec() ERROR tagCharacNo=%u",
-                  sig->m_fieldC);
+            cMyTrace(__PRETTY_FUNCTION__, 0x1dea, 5)(
+                "DB_LoadSkill::GetUserSkill, exec() ERROR tagCharacNo=%u",
+                sig->m_fieldC);
             return false;
         }
-        if (!db->fetch())
+        ok = db->fetch();
+        if (!ok)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           0x1df1, 5);
-            trace("DB_LoadSkill::GetUserSkill, fetch() ERROR tagCharacNo=%u",
-                  sig->m_fieldC);
+            cMyTrace(__PRETTY_FUNCTION__, 0x1df1, 5)(
+                "DB_LoadSkill::GetUserSkill, fetch() ERROR tagCharacNo=%u",
+                sig->m_fieldC);
             return false;
         }
-        if (!get_compressed_blob_data(db, 0,
+        int col = 0;                                        // ORIG -0xc 块内槽
+        if (!get_compressed_blob_data(db, col++,
                                       reinterpret_cast<char*>(&sig->m_tagEtc),
                                       0x198, 2))
         {
             return false;
         }
-        if (!get_compressed_blob_data(db, 1,
+        if (!get_compressed_blob_data(db, col++,
                                       reinterpret_cast<char*>(&sig->m_tagEtc.m_skillCombo),
                                       0x198, 2))
         {
