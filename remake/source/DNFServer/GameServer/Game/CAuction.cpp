@@ -533,12 +533,32 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
     switch (((PacketHeader*)data)->packetId)
     {
+        case 0x3e8:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(65);
+        guard.operator*()->operator<<((((Packet_Monitor_UDP_Login*)d)->m_channelId));
+        guard->put_binary(d, 51);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
     case 0x3ea:
     {
         char* d = data;
         guard.operator*()->operator<<(66);
         guard.operator*()->operator<<(-1);
         guard->put_binary(d, 11);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x3f9:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(301);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 10);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -553,22 +573,12 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x3f2:
+        case 0x27e2:
         {
         char* d = data;
-        guard.operator*()->operator<<(70);
+        guard.operator*()->operator<<(759);
         guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x3f3:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(94);
-        guard.operator*()->operator<<((int)(((Packet_Monitor_Other_Channel_Chat_ToUser*)d)->m_idByChannel));
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        guard->put_binary(d, 10);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -583,12 +593,113 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x3f9:
+        case 0x5e0:
         {
         char* d = data;
-        guard.operator*()->operator<<(301);
+        guard.operator*()->operator<<(171);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, 415);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x5dc:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(172);
+        guard.operator*()->operator<<((int)(((Packet_Register_To_BlackList*)d)->m_dbid));
+        guard->put_binary(d, 49);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x5dd:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(173);
+        guard.operator*()->operator<<((int)(((Packet_Delete_To_BlackList*)d)->m_dbid));
+        guard->put_binary(d, 49);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x3ef:
+        {
+        // 0x3ef：权威头 Packet_Monitor_Char_Info::m_channel 为 uchar，ORIG 此处 movl 整字读（4B），字段宽度不符，保留裸读。
+        char* d = data;
+        guard.operator*()->operator<<(68);
+        guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
+        guard->put_binary(d, 52);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x5e2:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(174);
+        guard.operator*()->operator<<((int)(((BlackListNoticeView*)d)->m_idByChannel));
+        guard->put_binary(d, 59);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x3f2:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(70);
         guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 10);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x44c:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(71);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 14);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x44d:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(74);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 34);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x40c:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(98);
+        guard.operator*()->operator<<(((IntView29*)d)->m_v);
+        guard->put_binary(d, 45);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x40b:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(97);
+        guard.operator*()->operator<<((int)(((SetGuildKeyView*)d)->m_channel));
+        guard->put_binary(d, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x40a:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(96);
+        guard.operator*()->operator<<((int)(((NoticeGuildInfoView*)d)->m_channel));
+        guard->put_binary(d, 313);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -615,6 +726,33 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
+        case 0x3ff:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(88);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, 22);
+        // ORIG put_binary 后、MsgQueueMgr::put 前 cMyTrace(0x1a4,0) 打公会徽章变更日志
+        // （channel=*(int*)(+10), character=*(int*)(+0xe), guildkey=*(int*)(+0x12)）。
+        // ORIG 单表达式链：日志实参先于 cMyTrace 构造求值（edi/esi/ebx 预装载）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x1a4, 0)(
+            "[GUILD MARK CHANGE] Recv from guild server. (channel:%d, character:%u, "
+            "guildkey:%u)",
+            (int)(((GuildMarkChangeView*)d)->m_channel), ((IntView0e*)d)->m_v, ((IntView12*)d)->m_v);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x3fc:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(89);
+        guard.operator*()->operator<<((((GuildKeyIntView*)d)->m_guildKey));
+        guard->put_binary(d, 18);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
         case 0x400:
         {
         char* d = data;
@@ -631,46 +769,6 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
         guard.operator*()->operator<<(91);
         guard.operator*()->operator<<(((IntView0a*)d)->m_v);
         guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x407:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(93);
-        guard.operator*()->operator<<((int)(((GuildMemberLoginOutView*)d)->m_channel));
-        guard->put_binary(d, 50);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x40a:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(96);
-        guard.operator*()->operator<<((int)(((NoticeGuildInfoView*)d)->m_channel));
-        guard->put_binary(d, 313);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x40c:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(98);
-        guard.operator*()->operator<<(((IntView29*)d)->m_v);
-        guard->put_binary(d, 45);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x40d:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(95);
-        guard.operator*()->operator<<((int)(((Packet_Monitor_Call_Guild_Info*)d)->m_uid));
-        guard->put_binary(d, 399);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -695,12 +793,53 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x42c:
+        case 0x428:
         {
         char* d = data;
-        guard.operator*()->operator<<(215);
-        guard.operator*()->operator<<((int)(((GuildMemberGradeView*)d)->m_channel));
-        guard->put_binary(d, 19);
+        guard.operator*()->operator<<(200);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x406:
+        {
+        // 0x406：重建源码无该类，布局未建模，保留裸读。
+        char* d = data;
+        guard.operator*()->operator<<(92);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, 9023);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x407:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(93);
+        guard.operator*()->operator<<((int)(((GuildMemberLoginOutView*)d)->m_channel));
+        guard->put_binary(d, 50);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x3f3:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(94);
+        guard.operator*()->operator<<((int)(((Packet_Monitor_Other_Channel_Chat_ToUser*)d)->m_idByChannel));
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x40d:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(95);
+        guard.operator*()->operator<<((int)(((Packet_Monitor_Call_Guild_Info*)d)->m_uid));
+        guard->put_binary(d, 399);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -711,6 +850,17 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
         guard.operator*()->operator<<(216);
         guard.operator*()->operator<<((int)(((Packet_Web_Notify_Message_To_Guild*)d)->m_guildKey));
         guard->put_binary(d, 119);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x42f:
+        {
+        // 0x42f：重建源码无该类，布局未建模，保留裸读。
+        char* d = data;
+        guard.operator*()->operator<<(100);
+        guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
+        guard->put_binary(d, 22);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -735,124 +885,12 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x434:
+        case 0x42c:
         {
         char* d = data;
-        guard.operator*()->operator<<(219);
-        guard.operator*()->operator<<((int)(((Packet_Guild_Call_Guild_Invite*)d)->m_guildKey));
-        guard->put_binary(d, 22);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x435:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(220);
-        guard.operator*()->operator<<((int)(((GuildInviteToInvitedView*)d)->m_e));
-        guard->put_binary(d, 71);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x437:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(222);
-        guard.operator*()->operator<<((int)(((GuildInviteToCallerView*)d)->m_e));
-        guard->put_binary(d, 52);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x439:
-        {
-        // 0x439：DBMW 统计族多类共用 pid 0x439，+0x14 处字段归属存疑（Party=char / Party_Charac=uint），布局未建模。
-        char* d = data;
-        guard.operator*()->operator<<(234);
-        guard.operator*()->operator<<((int)((UIntView14*)d)->m_v);
-        guard->put_binary(d, 82);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x43d:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(231);
-        guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
-        guard->put_binary(d, 48);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x43e:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(233);
-        guard.operator*()->operator<<((int)(((HasBeenGuildMasterView*)d)->m_channel));
-        guard->put_binary(d, 18);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x444:
-        {
-        // 0x444：权威头 +0x12 为 char m_name[0x1e]，ORIG 此处 movl 整字读（4B），字段宽度不符，保留裸读。
-        char* d = data;
-        guard.operator*()->operator<<(291);
-        guard.operator*()->operator<<((int)((UIntView12*)d)->m_v);
-        guard->put_binary(d, 46);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x445:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(298);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 46);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x447:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(388);
-        guard.operator*()->operator<<((int)((UIntView12*)d)->m_v);
-        guard->put_binary(d, 22);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x44c:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(71);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 14);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x44e:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(85);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 18);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x44f:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(133);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 18);
+        guard.operator*()->operator<<(215);
+        guard.operator*()->operator<<((int)(((GuildMemberGradeView*)d)->m_channel));
+        guard->put_binary(d, 19);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -877,12 +915,12 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x4b9:
+        case 0x4b8:
         {
         char* d = data;
-        guard.operator*()->operator<<(112);
-        guard.operator*()->operator<<(((IntView0d*)d)->m_v);
-        guard->put_binary(d, 57);
+        guard.operator*()->operator<<(110);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, 50);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -893,6 +931,26 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
         guard.operator*()->operator<<(111);
         guard.operator*()->operator<<(((IntView0d*)d)->m_v);
         guard->put_binary(d, 57);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x4b9:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(112);
+        guard.operator*()->operator<<(((IntView0d*)d)->m_v);
+        guard->put_binary(d, 57);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x4bb:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(113);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, 49);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -927,6 +985,16 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
+        case 0x4be:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(117);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, 481);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
         case 0x4c0:
         {
         char* d = data;
@@ -937,20 +1005,42 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x4cb:
+        case 0x4c1:
         {
         char* d = data;
-        guard.operator*()->operator<<(229);
-        guard.operator*()->operator<<((int)(((TowerRankingView*)d)->m_idByChannel));
-        guard->put_binary(d, 98);
+        guard.operator*()->operator<<(122);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, 18);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
 
-        case 0x4cf:
-    {
-        guard.operator*()->operator<<(230);
+        case 0x44f:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(133);
         guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 18);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x450:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(134);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 14);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x44e:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(85);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 18);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -965,32 +1055,22 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
+        case 0x414:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(153);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, 348);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
         case 0x546:
         {
         char* d = data;
         guard.operator*()->operator<<(170);
         guard.operator*()->operator<<(-1);
         guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x5dd:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(173);
-        guard.operator*()->operator<<((int)(((Packet_Delete_To_BlackList*)d)->m_dbid));
-        guard->put_binary(d, 49);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x5e0:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(171);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, 415);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -1015,132 +1095,22 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x6b0:
+        case 0x674:
         {
         char* d = data;
-        guard.operator*()->operator<<(379);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        guard.operator*()->operator<<(189);
+        guard.operator*()->operator<<((int)(((Packet_Monitor_Del_Buddy*)d)->m_idByChannel));
+        guard->put_binary(d, 49);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
 
-        case 0x6d8:
+        case 0x9dc:
         {
         char* d = data;
-        guard.operator*()->operator<<(372);
+        guard.operator*()->operator<<(146);
         guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x6dc:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(369);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x6e0:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(378);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x6e2:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(371);
-        guard.operator*()->operator<<((int)(((ChannelGuildAgitView*)d)->m_channel));
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x6ea:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(409);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 10);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x70a:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(426);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x70c:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(429);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x70d:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(430);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x70f:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(432);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x712:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(427);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x76c:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(211);
-        guard.operator*()->operator<<((int)(((Packet_GM_Request_Mid*)d)->m_gmId));
-        guard->put_binary(d, 52);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x9d3:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(437);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        guard->put_binary(d, 267);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -1151,6 +1121,16 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
         guard.operator*()->operator<<(148);
         guard.operator*()->operator<<(-1);
         guard->put_binary(d, 48);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x9e0:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(183);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 266);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -1167,12 +1147,153 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0xa8c:
+        case 0x3f7:
         {
         char* d = data;
-        guard.operator*()->operator<<(293);
+        guard.operator*()->operator<<(206);
         guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 61);
+        guard->put_binary(d, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x76c:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(211);
+        guard.operator*()->operator<<((int)(((Packet_GM_Request_Mid*)d)->m_gmId));
+        guard->put_binary(d, 52);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x432:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(218);
+        guard.operator*()->operator<<((int)(((Packet_Monitor_Send_Guild_Mail*)d)->m_guildId));
+        guard->put_binary(d, 19);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x434:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(219);
+        guard.operator*()->operator<<((int)(((Packet_Guild_Call_Guild_Invite*)d)->m_guildKey));
+        guard->put_binary(d, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x435:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(220);
+        guard.operator*()->operator<<((int)(((GuildInviteToInvitedView*)d)->m_e));
+        guard->put_binary(d, 71);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x436:
+        {
+        // 0x436：权威头 m_accept 为 uchar，ORIG movl 整字读（4B），字段宽度不符，保留裸读。
+        char* d = data;
+        guard.operator*()->operator<<(221);
+        guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
+        guard->put_binary(d, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x437:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(222);
+        guard.operator*()->operator<<((int)(((GuildInviteToCallerView*)d)->m_e));
+        guard->put_binary(d, 52);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x4cb:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(229);
+        guard.operator*()->operator<<((int)(((TowerRankingView*)d)->m_idByChannel));
+        guard->put_binary(d, 98);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x4cf:
+    {
+        guard.operator*()->operator<<(230);
+        guard.operator*()->operator<<(-1);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x439:
+        {
+        // 0x439：DBMW 统计族多类共用 pid 0x439，+0x14 处字段归属存疑（Party=char / Party_Charac=uint），布局未建模。
+        char* d = data;
+        guard.operator*()->operator<<(234);
+        guard.operator*()->operator<<((int)((UIntView14*)d)->m_v);
+        guard->put_binary(d, 82);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x43d:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(231);
+        guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
+        guard->put_binary(d, 48);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x43b:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(232);
+        guard.operator*()->operator<<((int)(((Packet_Guild_Request_Guild_Master_Delegate*)d)->m_requesterCharNo));
+        guard->put_binary(d, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x43e:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(233);
+        guard.operator*()->operator<<((int)(((HasBeenGuildMasterView*)d)->m_channel));
+        guard->put_binary(d, 18);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x43f:
+        {
+        // 0x43f：权威头 +0xa 为 char m_guildName[]，ORIG movl 整字读（4B），字段宽度不符，保留裸读。
+        char* d = data;
+        guard.operator*()->operator<<(237);
+        guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
+        guard->put_binary(d, 45);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x445:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(298);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 46);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
@@ -1186,6 +1307,65 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
             DB_ReloadAutoPunishRuleBackIP::makeRequest();
         else
             DB_ReloadAutoPunishRuleHackType::makeRequest();
+    }
+        break;
+
+        case 0xb5f:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(401);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 12);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x444:
+        {
+        // 0x444：权威头 +0x12 为 char m_name[0x1e]，ORIG 此处 movl 整字读（4B），字段宽度不符，保留裸读。
+        char* d = data;
+        guard.operator*()->operator<<(291);
+        guard.operator*()->operator<<((int)((UIntView12*)d)->m_v);
+        guard->put_binary(d, 46);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x446:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(292);
+        guard.operator*()->operator<<((int)(((GuildNameChangeView*)d)->m_channel));
+        guard->put_binary(d, 45);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x447:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(388);
+        guard.operator*()->operator<<((int)((UIntView12*)d)->m_v);
+        guard->put_binary(d, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0xa8c:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(293);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 61);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0xb55:
+    {
+        guard.operator*()->operator<<(294);
+        guard.operator*()->operator<<(-1);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
 
@@ -1207,50 +1387,24 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0xb5f:
+        case 0xb5e:
         {
         char* d = data;
-        guard.operator*()->operator<<(401);
+        guard.operator*()->operator<<(381);
         guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 12);
+        guard->put_binary(d, 1213);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
 
-        case 0xb60:
+        case 0xc1c:
         {
+        // 0xc1c：Packet_Monitor_Notify_Auction_Mail 定义在 ServerLab Auction 域 cpp，无字段头，布局未建模，保留裸读。
         char* d = data;
-        guard.operator*()->operator<<(418);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        guard.operator*()->operator<<(239);
+        guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
+        guard->put_binary(d, 38);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0xb64:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(603);
-        guard.operator*()->operator<<((int)(((PunishCancelView*)d)->m_idByChannel));
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0xb65:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(628);
-        guard.operator*()->operator<<((int)(((SecuConnectWebView*)d)->m_idByChannel));
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        // ORIG 0847a316 put 后无 jmp：直落 0x2712 的 cMyTrace 块（fall through 照抄，P171）
-        case 0x2712:
-    {
-        // ORIG je 847a31b：cMyTrace(0xdbf,5) "TOD: bug random select" 后直返。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xdbf, 5);
-        trace("TOD: bug random select");
     }
         break;
 
@@ -1271,6 +1425,16 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
         guard.operator*()->operator<<(-1);
         guard->put_binary(d, 42);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0xfa5:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(309);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 128);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);   // ORIG put(...,2,guard)
     }
         break;
 
@@ -1296,11 +1460,92 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
+        case 0xfad:
+        {
+        // 0xfad：重建源码无该类，布局未建模，保留裸读。
+        char* d = data;
+        guard.operator*()->operator<<(354);
+        guard.operator*()->operator<<(((IntView0b*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x6d8:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(372);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
         case 0xfae:
         {
         char* d = data;
         guard.operator*()->operator<<(368);
         guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x6dc:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(369);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x6de:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(370);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x6e2:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(371);
+        guard.operator*()->operator<<((int)(((ChannelGuildAgitView*)d)->m_channel));
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x4d2:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(374);
+        guard.operator*()->operator<<((int)((UIntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x6e0:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(378);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x6b0:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(379);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
         guard->put_binary(d, ((PacketHeader*)d)->packetSize);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
@@ -1313,184 +1558,6 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
         guard.operator*()->operator<<((int)(((Packet_Pcroom_Response*)d)->m_uid));
         guard->put_binary(d, ((PacketHeader*)d)->packetSize);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0xfe7:
-    {
-        // ORIG 0x847a140：GlobalData::s_hades_proxy->ConnTcpHadesSvr() 后直返。
-        GlobalData::s_hades_proxy->ConnTcpHadesSvr();
-    }
-        break;
-
-        case 0x1004:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(389);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1006:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(391);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x100a:
-        {
-        // 0x100a：Monitor 域 makePacketHeader(0x100a,0x1e1) 手拼包，无类建模，布局未建模，保留裸读。
-        char* d = data;
-        guard.operator*()->operator<<(392);
-        guard.operator*()->operator<<((int)((UIntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1039:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(402);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x103a:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(404);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1774:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(442);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1775:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(446);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1777:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(444);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1778:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(445);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x177e:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(448);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x17c0:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(463);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1b5b:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(470);
-        guard.operator*()->operator<<((int)(((Packet_Response_PvP_Buddy_Conn_List*)d)->m_uid));
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1b5d:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(471);
-        guard.operator*()->operator<<((int)(((Packet_Notice_Request_Add_PvP_Buddy*)d)->m_uid));
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1b61:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(473);
-        guard.operator*()->operator<<((int)(((Packet_Response_Remove_PvP_Buddy*)d)->m_uid));
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1b62:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(474);
-        guard.operator*()->operator<<((int)(((Packet_Notice_PvP_Buddy_In_Out*)d)->m_uid));
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1b64:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(476);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);   // ORIG put(...,2,guard)
-    }
-        break;
-
-        case 0x1b65:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(477);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);   // ORIG put(...,2,guard)
     }
         break;
 
@@ -1519,11 +1586,445 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x1b6c:
+        case 0x1004:
         {
         char* d = data;
-        guard.operator*()->operator<<(521);
+        guard.operator*()->operator<<(389);
         guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1005:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(390);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x100a:
+        {
+        // 0x100a：Monitor 域 makePacketHeader(0x100a,0x1e1) 手拼包，无类建模，布局未建模，保留裸读。
+        char* d = data;
+        guard.operator*()->operator<<(392);
+        guard.operator*()->operator<<((int)((UIntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1006:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(391);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x6e5:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(398);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 10);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x6b2:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(408);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, 23);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x6ea:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(409);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, 10);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x100f:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(416);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0xb60:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(418);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x70a:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(426);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x712:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(427);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x70b:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(428);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x70c:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(429);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x70d:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(430);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x70e:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(431);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x70f:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(432);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x713:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(434);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x2328:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(435);
+        guard.operator*()->operator<<((int)(((GuildBoardReplyView*)d)->m_f));
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x2332:
+        {
+        // 0x2332：权威头 Packet_Guild_Reply_Guild_Board_Delete 的 m_charNo 在 +0x10，+0xf 无字段；ORIG movl 整字读，保留裸读。
+        char* d = data;
+        guard.operator*()->operator<<(436);
+        guard.operator*()->operator<<((int)((UIntView0f*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1039:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(402);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x103a:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(404);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x9d3:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(437);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1773:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(441);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1774:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(442);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1776:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(443);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1777:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(444);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1778:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(445);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1775:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(446);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x177a:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(447);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x177e:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(448);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0xb61:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(461);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x17c0:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(463);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x17c2:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(465);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1b66:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(202);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, 351);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1b5b:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(470);
+        guard.operator*()->operator<<((int)(((Packet_Response_PvP_Buddy_Conn_List*)d)->m_uid));
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1b5d:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(471);
+        guard.operator*()->operator<<((int)(((Packet_Notice_Request_Add_PvP_Buddy*)d)->m_uid));
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1b5f:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(472);
+        guard.operator*()->operator<<((int)(((Packet_Notice_Add_PvP_Buddy_Result*)d)->m_uid));
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1b61:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(473);
+        guard.operator*()->operator<<((int)(((Packet_Response_Remove_PvP_Buddy*)d)->m_uid));
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1b62:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(474);
+        guard.operator*()->operator<<((int)(((Packet_Notice_PvP_Buddy_In_Out*)d)->m_uid));
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1b63:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(475);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);   // ORIG put(...,2,guard)
+    }
+        break;
+
+        case 0x1b64:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(476);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);   // ORIG put(...,2,guard)
+    }
+        break;
+
+        case 0x1b65:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(477);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);   // ORIG put(...,2,guard)
+    }
+        break;
+
+        case 0x27f9:
+        {
+        char* d = data;
+        // ORIG je 84797de：make_internal_stream_jpn(guard, 0x2a, -1) + put_binary(dyn)。
+        ARAD::DISPATCHER::make_internal_stream_jpn(
+            guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2a, -1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x27fa:
+        {
+        char* d = data;
+        // ORIG je 847985a：make_internal_stream_jpn(guard, 0x2b, -1) + put_binary(dyn)。
+        ARAD::DISPATCHER::make_internal_stream_jpn(
+            guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2b, -1);
         guard->put_binary(d, ((PacketHeader*)d)->packetSize);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
@@ -1543,6 +2044,96 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
         {
         char* d = data;
         guard.operator*()->operator<<(533);
+        guard.operator*()->operator<<(((IntView12*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1f40:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(503);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1f42:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(504);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1b6c:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(521);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1b6d:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(522);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1f45:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(523);
+        guard.operator*()->operator<<((int)(((Packet_Find_Charac_Name_UseUID*)d)->m_dbid));
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1f4a:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(528);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1f4b:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(529);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1f4c:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(530);
+        guard.operator*()->operator<<((int)(((TimeSyncLoginView*)d)->m_idByChannel));
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x1bc3:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(539);
         guard.operator*()->operator<<(((IntView12*)d)->m_v);
         guard->put_binary(d, ((PacketHeader*)d)->packetSize);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
@@ -1569,54 +2160,70 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x1f42:
+        case 0xfe6:
+        {
+        // 0xfe6：重建源码无该类（4070），布局未建模，保留裸读。
+        char* d = data;
+        guard.operator*()->operator<<(694);
+        if (((IntView0e*)d)->m_v != 0)
+            guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
+        else
+            guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0xfe7:
+    {
+        // ORIG 0x847a140：GlobalData::s_hades_proxy->ConnTcpHadesSvr() 后直返。
+        GlobalData::s_hades_proxy->ConnTcpHadesSvr();
+    }
+        break;
+
+        case 0xb64:
         {
         char* d = data;
-        guard.operator*()->operator<<(504);
+        guard.operator*()->operator<<(603);
+        guard.operator*()->operator<<((int)(((PunishCancelView*)d)->m_idByChannel));
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x2711:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(608);
         guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        guard->put_binary(d, 270);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
 
-        case 0x1f45:
+        case 0x2717:
         {
         char* d = data;
-        guard.operator*()->operator<<(523);
-        guard.operator*()->operator<<((int)(((Packet_Find_Charac_Name_UseUID*)d)->m_dbid));
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        // ORIG 0x847a272：CSwitchLog::SetLogWriteFlag(*(int*)(d+10)) 后直返
+        // （ORIG mov 0xa(%eax),%eax 整字读取，非单字节）。
+        CSwitchLog::SetLogWriteFlag(((IntView0a*)d)->m_v);
     }
         break;
 
-        case 0x1f4b:
+        case 0xb65:
         {
         char* d = data;
-        guard.operator*()->operator<<(529);
-        guard.operator*()->operator<<(-1);
+        guard.operator*()->operator<<(628);
+        guard.operator*()->operator<<((int)(((SecuConnectWebView*)d)->m_idByChannel));
         guard->put_binary(d, ((PacketHeader*)d)->packetSize);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
-        break;
-
-        case 0x1f4c:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(530);
-        guard.operator*()->operator<<((int)(((TimeSyncLoginView*)d)->m_idByChannel));
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x2332:
-        {
-        // 0x2332：权威头 Packet_Guild_Reply_Guild_Board_Delete 的 m_charNo 在 +0x10，+0xf 无字段；ORIG movl 整字读，保留裸读。
-        char* d = data;
-        guard.operator*()->operator<<(436);
-        guard.operator*()->operator<<((int)((UIntView0f*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        // ORIG 0847a316 put 后无 jmp：直落 0x2712 的 cMyTrace 块（fall through 照抄，P171）
+        case 0x2712:
+    {
+        // ORIG je 847a31b：cMyTrace(0xdbf,5) "TOD: bug random select" 后直返。
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xdbf, 5);
+        trace("TOD: bug random select");
     }
         break;
 
@@ -1628,12 +2235,13 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x2717:
+        case 0x2718:
         {
         char* d = data;
-        // ORIG 0x847a272：CSwitchLog::SetLogWriteFlag(*(int*)(d+10)) 后直返
-        // （ORIG mov 0xa(%eax),%eax 整字读取，非单字节）。
-        CSwitchLog::SetLogWriteFlag(((IntView0a*)d)->m_v);
+        guard.operator*()->operator<<(677);
+        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
 
@@ -1652,6 +2260,16 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
         char* d = data;
         guard.operator*()->operator<<(679);
         guard.operator*()->operator<<(((IntView0a*)d)->m_v);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x271b:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(680);
+        guard.operator*()->operator<<(-1);
         guard->put_binary(d, ((PacketHeader*)d)->packetSize);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
@@ -1678,6 +2296,16 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
+        case 0x27db:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(711);
+        guard.operator*()->operator<<(-1);
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
         case 0x27dc:
         {
         char* d = data;
@@ -1698,21 +2326,31 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x27e7:
+        case 0x27e8:
         {
         char* d = data;
-        guard.operator*()->operator<<(762);
+        guard.operator*()->operator<<(763);
+        guard.operator*()->operator<<((int)(((CollectRewardView*)d)->m_idByChannel));
+        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        break;
+
+        case 0x27e9:
+        {
+        char* d = data;
+        guard.operator*()->operator<<(764);
         guard.operator*()->operator<<(-1);
         guard->put_binary(d, ((PacketHeader*)d)->packetSize);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
         break;
 
-        case 0x27e8:
+        case 0x27e7:
         {
         char* d = data;
-        guard.operator*()->operator<<(763);
-        guard.operator*()->operator<<((int)(((CollectRewardView*)d)->m_idByChannel));
+        guard.operator*()->operator<<(762);
+        guard.operator*()->operator<<(-1);
         guard->put_binary(d, ((PacketHeader*)d)->packetSize);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     }
@@ -1738,28 +2376,6 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x27f9:
-        {
-        char* d = data;
-        // ORIG je 84797de：make_internal_stream_jpn(guard, 0x2a, -1) + put_binary(dyn)。
-        ARAD::DISPATCHER::make_internal_stream_jpn(
-            guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2a, -1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x27fa:
-        {
-        char* d = data;
-        // ORIG je 847985a：make_internal_stream_jpn(guard, 0x2b, -1) + put_binary(dyn)。
-        ARAD::DISPATCHER::make_internal_stream_jpn(
-            guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2b, -1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
         case 0x27fe:
     {
         // ORIG je 847ab96：initGeolocation 失败 → logFormat(1,...,0x1143,
@@ -1779,637 +2395,21 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
     }
         break;
 
-        case 0x3e8:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(65);
-        guard.operator*()->operator<<((((Packet_Monitor_UDP_Login*)d)->m_channelId));
-        guard->put_binary(d, 51);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x3ef:
-        {
-        // 0x3ef：权威头 Packet_Monitor_Char_Info::m_channel 为 uchar，ORIG 此处 movl 整字读（4B），字段宽度不符，保留裸读。
-        char* d = data;
-        guard.operator*()->operator<<(68);
-        guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
-        guard->put_binary(d, 52);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x3f7:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(206);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 22);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x3fc:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(89);
-        guard.operator*()->operator<<((((GuildKeyIntView*)d)->m_guildKey));
-        guard->put_binary(d, 18);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x3ff:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(88);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, 22);
-        // ORIG put_binary 后、MsgQueueMgr::put 前 cMyTrace(0x1a4,0) 打公会徽章变更日志
-        // （channel=*(int*)(+10), character=*(int*)(+0xe), guildkey=*(int*)(+0x12)）。
-        // ORIG 单表达式链：日志实参先于 cMyTrace 构造求值（edi/esi/ebx 预装载）。
-        cMyTrace(__PRETTY_FUNCTION__, 0x1a4, 0)(
-            "[GUILD MARK CHANGE] Recv from guild server. (channel:%d, character:%u, "
-            "guildkey:%u)",
-            (int)(((GuildMarkChangeView*)d)->m_channel), ((IntView0e*)d)->m_v, ((IntView12*)d)->m_v);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x406:
-        {
-        // 0x406：重建源码无该类，布局未建模，保留裸读。
-        char* d = data;
-        guard.operator*()->operator<<(92);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, 9023);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x40b:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(97);
-        guard.operator*()->operator<<((int)(((SetGuildKeyView*)d)->m_channel));
-        guard->put_binary(d, 22);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x414:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(153);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, 348);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x428:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(200);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x42f:
-        {
-        // 0x42f：重建源码无该类，布局未建模，保留裸读。
-        char* d = data;
-        guard.operator*()->operator<<(100);
-        guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
-        guard->put_binary(d, 22);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x432:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(218);
-        guard.operator*()->operator<<((int)(((Packet_Monitor_Send_Guild_Mail*)d)->m_guildId));
-        guard->put_binary(d, 19);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x436:
-        {
-        // 0x436：权威头 m_accept 为 uchar，ORIG movl 整字读（4B），字段宽度不符，保留裸读。
-        char* d = data;
-        guard.operator*()->operator<<(221);
-        guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
-        guard->put_binary(d, 22);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x43b:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(232);
-        guard.operator*()->operator<<((int)(((Packet_Guild_Request_Guild_Master_Delegate*)d)->m_requesterCharNo));
-        guard->put_binary(d, 22);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x43f:
-        {
-        // 0x43f：权威头 +0xa 为 char m_guildName[]，ORIG movl 整字读（4B），字段宽度不符，保留裸读。
-        char* d = data;
-        guard.operator*()->operator<<(237);
-        guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
-        guard->put_binary(d, 45);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x446:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(292);
-        guard.operator*()->operator<<((int)(((GuildNameChangeView*)d)->m_channel));
-        guard->put_binary(d, 45);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x44d:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(74);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 34);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x450:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(134);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 14);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x4b8:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(110);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, 50);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x4bb:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(113);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, 49);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x4be:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(117);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, 481);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x4c1:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(122);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, 18);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x4d2:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(374);
-        guard.operator*()->operator<<((int)((UIntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x5dc:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(172);
-        guard.operator*()->operator<<((int)(((Packet_Register_To_BlackList*)d)->m_dbid));
-        guard->put_binary(d, 49);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x5e2:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(174);
-        guard.operator*()->operator<<((int)(((BlackListNoticeView*)d)->m_idByChannel));
-        guard->put_binary(d, 59);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x674:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(189);
-        guard.operator*()->operator<<((int)(((Packet_Monitor_Del_Buddy*)d)->m_idByChannel));
-        guard->put_binary(d, 49);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x6b2:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(408);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, 23);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x6de:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(370);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x6e5:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(398);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 10);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x70b:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(428);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x70e:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(431);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x713:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(434);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x9dc:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(146);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 267);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x9e0:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(183);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 266);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0xb55:
-    {
-        guard.operator*()->operator<<(294);
-        guard.operator*()->operator<<(-1);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0xb5e:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(381);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 1213);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0xb61:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(461);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0xc1c:
-        {
-        // 0xc1c：Packet_Monitor_Notify_Auction_Mail 定义在 ServerLab Auction 域 cpp，无字段头，布局未建模，保留裸读。
-        char* d = data;
-        guard.operator*()->operator<<(239);
-        guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
-        guard->put_binary(d, 38);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0xfa5:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(309);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 128);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);   // ORIG put(...,2,guard)
-    }
-        break;
-
-        case 0xfad:
-        {
-        // 0xfad：重建源码无该类，布局未建模，保留裸读。
-        char* d = data;
-        guard.operator*()->operator<<(354);
-        guard.operator*()->operator<<(((IntView0b*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0xfe6:
-        {
-        // 0xfe6：重建源码无该类（4070），布局未建模，保留裸读。
-        char* d = data;
-        guard.operator*()->operator<<(694);
-        if (((IntView0e*)d)->m_v != 0)
-            guard.operator*()->operator<<((int)((UIntView0e*)d)->m_v);
-        else
-            guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1005:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(390);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x100f:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(416);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1773:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(441);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1776:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(443);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x177a:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(447);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x17c2:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(465);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1b5f:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(472);
-        guard.operator*()->operator<<((int)(((Packet_Notice_Add_PvP_Buddy_Result*)d)->m_uid));
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1b63:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(475);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);   // ORIG put(...,2,guard)
-    }
-        break;
-
-        case 0x1b66:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(202);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, 351);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1b6d:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(522);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1bc3:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(539);
-        guard.operator*()->operator<<(((IntView12*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1f40:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(503);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x1f4a:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(528);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x2328:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(435);
-        guard.operator*()->operator<<((int)(((GuildBoardReplyView*)d)->m_f));
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x2711:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(608);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 270);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x2718:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(677);
-        guard.operator*()->operator<<(((IntView0a*)d)->m_v);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x271b:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(680);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x27db:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(711);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x27e2:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(759);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, 10);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
-        case 0x27e9:
-        {
-        char* d = data;
-        guard.operator*()->operator<<(764);
-        guard.operator*()->operator<<(-1);
-        guard->put_binary(d, ((PacketHeader*)d)->packetSize);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-    }
-        break;
-
         case 0x6a5:
     {
         // ORIG je 847abf1：空 case（无操作），返 1。
     }
         break;
 
-        case 0x6ae:
-    {
-        // ORIG je 847abf7：空 case（无操作），返 1。
-    }
-        break;
-
         case 0x6af:
     {
         // ORIG je 847abf4：空 case（无操作），返 1。
+    }
+        break;
+
+        case 0x6ae:
+    {
+        // ORIG je 847abf7：空 case（无操作），返 1。
     }
         break;
 
