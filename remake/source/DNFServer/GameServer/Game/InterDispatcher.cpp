@@ -960,9 +960,14 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
         // 处罚信息回放 A：有效期内的道具掉率提升（type==0x65）。
         // ORIG:每处使用重新调用 getCurSec()（无缓存）。
+// §P183/P331：ORIG 对 data + i*0x18 + 0x3a54 的每个字段访问都从包基址重新物化
+// （`mov -0x60(%ebp),%ecx; imul 3; shl 3; lea; add $0x3a54; mov` 共 14 处，其中
+// add $0x3a54×9、add $0x3a68×5），我方原以 `SIG_LOGIN_PUNISH_INFO& entry` 起基址
+// 一次 ⇒ 缺 66 条地址计算（orig 2462 / our 2396）。引用改宏直取，两循环的 i 均为
+// 循环变量且循环体不改 i/pInfo ⇒ 寻址结果逐次相同，无可观察行为变化。
+#define entry (pInfo->m_punishInfos[i])
         for (int i = 0; i < pInfo->m_punishInfoCount; ++i)
         {
-            SIG_LOGIN_PUNISH_INFO& entry = pInfo->m_punishInfos[i];
             if (99 < entry.m_type && entry.m_type < 200)
             {
                 bool active = !(entry.m_endTime < GlobalData::s_systemTime_.getCurSec() &&
@@ -976,7 +981,6 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         // 处罚信息回放 B：交易处罚类型映射
         for (int i = 0; i < pInfo->m_punishInfoCount; ++i)
         {
-            SIG_LOGIN_PUNISH_INFO& entry = pInfo->m_punishInfos[i];
             bool active = !(entry.m_endTime < GlobalData::s_systemTime_.getCurSec() &&
                                 entry.m_endTime != 0);
             if (!active)
@@ -994,6 +998,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             default: break;
             }
         }
+#undef entry
 
         user->setTotalHackUserTradeCnt(pInfo->m_totalHackUserTradeCnt);
         user->setTotalHackUserTradeGold(pInfo->m_totalHackUserTradeGold);

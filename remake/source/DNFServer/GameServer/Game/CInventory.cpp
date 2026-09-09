@@ -3391,6 +3391,40 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             return true;
         }
 
+    case INVEN_TYPE_CREATURE:
+        if (m_pCreatureSlot[slot].m_addInfo == 0)
+        {
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x801, 5);
+            trace("[%s][%d]", __PRETTY_FUNCTION__, 0x801);
+            return false;
+        }
+        {
+            int nowTick = 0;
+            ((InterfacePacketBuf&)packet).put_short(slot);
+            ((InterfacePacketBuf&)packet).put_int(m_pCreatureSlot[slot].m_addInfo);
+            ((InterfacePacketBuf&)packet).put_int(m_pCreatureSlot[slot].m_addInfo2);
+            ((InterfacePacketBuf&)packet).put_byte(m_pCreatureSlot[slot].GetItemAttr());
+            ((InterfacePacketBuf&)packet).put_short(m_pCreatureSlot[slot].m_fieldb);
+            ((InterfacePacketBuf&)packet).put_byte(m_pCreatureSlot[slot].m_field0);
+            ((InterfacePacketBuf&)packet).put_int(m_pCreatureSlot[slot].m_fieldd);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_short(0);
+            if (m_pCreatureSlot[slot].m_field1 ==
+                (unsigned char)Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+            {
+                nowTick = OS_API::GetDateTimeTick();
+                ((InterfacePacketBuf&)packet).put_int(GetCreatureMgrR()->GetRemainDate(
+                    m_pCreatureSlot[slot].m_addInfo2, nowTick));
+            }
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_packet(m_pCreatureSlot[slot]);
+            return true;
+        }
+
+    // [b28d-tu-CInventory] 方法3 实测**反劣已回滚**：本件 switch 改书写序
+    //   EQUIP→AVATAR→INVEN→CREATURE（ORIG 叶块物理序 6f5/d93/29c/063）⇒
+    //   struct 113→668、ndiff 567→789 双反劣（4.4 对 0..3 密集值 switch 的
+    //   落体布局不跟随 ORIG 比较树，方法3 对本件不适用）⇒ 保持原书写序。
     case INVEN_TYPE_INVEN:
         if (m_invenItem[slot].m_addInfo == 0)
         {
@@ -3454,41 +3488,6 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             m_pParent, m_invenItem[slot], &packet);
         ((InterfacePacketBuf&)packet).put_packet(m_invenItem[slot]);
         return true;
-
-    // [b28d-tu-CInventory] 方法3（case 书写序=ORIG 叶块物理序）：ORIG
-    //   0x084fc6bc 决策树体序 EQUIP(0x84fc6f5)→AVATAR(0x84fcd93)→
-    //   INVEN(0x84fd29c)→CREATURE(0x84fd063)；原书写序 CREATURE 在 INVEN
-    //   前 ⇒ 4.4 落体倒置，hunk +145/-139 块位移。本对调仅移动 case，
-    //   行为不变（各 case 独立 return）。
-    case INVEN_TYPE_CREATURE:
-        if (m_pCreatureSlot[slot].m_addInfo == 0)
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x801, 5);
-            trace("[%s][%d]", __PRETTY_FUNCTION__, 0x801);
-            return false;
-        }
-        {
-            int nowTick = 0;
-            ((InterfacePacketBuf&)packet).put_short(slot);
-            ((InterfacePacketBuf&)packet).put_int(m_pCreatureSlot[slot].m_addInfo);
-            ((InterfacePacketBuf&)packet).put_int(m_pCreatureSlot[slot].m_addInfo2);
-            ((InterfacePacketBuf&)packet).put_byte(m_pCreatureSlot[slot].GetItemAttr());
-            ((InterfacePacketBuf&)packet).put_short(m_pCreatureSlot[slot].m_fieldb);
-            ((InterfacePacketBuf&)packet).put_byte(m_pCreatureSlot[slot].m_field0);
-            ((InterfacePacketBuf&)packet).put_int(m_pCreatureSlot[slot].m_fieldd);
-            ((InterfacePacketBuf&)packet).put_byte(0);
-            ((InterfacePacketBuf&)packet).put_short(0);
-            if (m_pCreatureSlot[slot].m_field1 ==
-                (unsigned char)Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
-            {
-                nowTick = OS_API::GetDateTimeTick();
-                ((InterfacePacketBuf&)packet).put_int(GetCreatureMgrR()->GetRemainDate(
-                    m_pCreatureSlot[slot].m_addInfo2, nowTick));
-            }
-            ((InterfacePacketBuf&)packet).put_byte(0);
-            ((InterfacePacketBuf&)packet).put_packet(m_pCreatureSlot[slot]);
-            return true;
-        }
 
     default:
         return false;

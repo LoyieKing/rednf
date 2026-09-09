@@ -2983,11 +2983,17 @@ bool CDataManager::init()
     }
 
     // 非 light server 必须成功加载 WarArea.etc（fail TRACE 0x1e18 ret0）。
-    if (!IsLightServer() && !ImportWarAreaCounter(&m_warAreaCounter))
+    // [b28d-orig-form] ORIG 报告 idx 1930-1940：两独立 `xor $1; test %al;
+    // je 同一续链目标`（&& 组合在 4.4 会物化 `mov $1/$0` 尾块，EXTRA 5 行）
+    // ⇒ 原码为嵌套形。
+    if (!IsLightServer())
     {
-        cMyTrace("bool CDataManager::init()", 0x1e18, 9, true, true)(
-            "\t- WarArea.etc file load failed");
-        return 0;
+        if (!ImportWarAreaCounter(&m_warAreaCounter))
+        {
+            cMyTrace("bool CDataManager::init()", 0x1e18, 9, true, true)(
+                "\t- WarArea.etc file load failed");
+            return 0;
+        }
     }
 
     // ---- 大类脚本链（Character→Monster→PassiveObject→Equipment→Stackable→

@@ -960,8 +960,6 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
                 item.m_fieldd = MB_ENTRY(i)->m_field35;
                 // ORIG 0x08552b4d/0x08552b6e/0x08552b78：item+0x15/0x19/0x1d
                 // = amp guid（m_amp.m_guid，ORIG 0x8552b4a 逐条 mov 宽 int/int/word）。
-                // ORIG 0x08552b4d/0x08552b6e/0x08552b78：item+0x15/0x19/0x1d
-                // = amp guid（m_amp.m_guid，ORIG 0x8552b4a 逐条 mov 宽 int/int/word）。
                 // [P331 本泳道实测反例 ⇒ 维持每句重发] ORIG 该段确实只物化一次基址
                 // （`imul $0x61 … add $0x30,%eax` 后连读 +0x9/+0xd/+0x11），但把
                 // `MB_ENTRY(i)` 提成 `Entry const* ep` 缓存后 4.4 并不像 4.1 那样把

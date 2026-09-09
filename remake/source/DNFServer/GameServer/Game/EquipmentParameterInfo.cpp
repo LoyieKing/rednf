@@ -2066,7 +2066,6 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     // Duff 式惰性注册链：__inited==0 时 id 强制 0 进 switch，每 case 头
     // `if (!__inited) { insert(own tag); goto next-case-guard }`，链尾（ORIG
     // 0x43a3）leave+置位后跳回重查；建表完成后 body 走共享尾。
-    int pad1, pad2, pad3, pad4, pad5, pad6, pad7, pad8, pad9, pad10;
     std::string token;
     int v = 0;
     int k = 0;

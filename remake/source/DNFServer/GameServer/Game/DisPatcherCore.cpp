@@ -12461,10 +12461,12 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
         0.5f + (float)((unsigned int)items[0].GetReSealCount() +
                        (unsigned int)items[1].GetReSealCount()) / 2.0f);
 
-    // ORIG local_4c：0x081d6e9d `call _ZNSsC1Ev` 先于 Inven_Item::Inven_Item(&newItem)，
-    // 正常出口 0x081d7265 与异常 landing pad 0x081d724e(+_Unwind_Resume) 各析构一次；
-    // 全函数**只构造不读取**（Ghidra 亦无引用）⇒ 原码即有一个未使用的 std::string 局部。
-    std::string unusedSealName;
+    // [BigDispatchCore] MISSING callee 实测核销：ORIG local_4c 是**只构造不读取**的
+    // std::string 局部（0x081d6e9d _ZNSsC1Ev / 0x081d724e+0x081d7265 _ZNSsD1Ev /
+    // 0x081d725a _Unwind_Resume）。补入 `std::string unusedSealName;` 可令 callee 差集
+    // 清零（含 _Unwind_Resume），但 4.4 把 dtor 集中到尾部 + 改写 landing pad，
+    // 实测 ndiff 216 → 257（+41）⇒ 属编译器析构序差（同 N78/N82 族），故**不补**，
+    // 登记为 N1042（ORIG 死对象 std::string 局部 + 其异常清理）。无任何可观察行为差。
     Inven_Item newItem;
     int regenCost = 0;
     // ORIG RegenerationROI::Regenerate T 0x085f8646（声明 CDataManager.h，定义 blocked：
