@@ -67,8 +67,10 @@ public:
 template <class T>
 T* Singleton<T>::Get()
 {
-    static T instance;
-    return &instance;
+    // ORIG 对象符号 = _ZZN4ARAD9SingletonI<T>E3GetEvE3obj（+ guard _ZGVZ...E3obj），
+    // nm 13 实例实证；命名 instance 会留下 13+13 个仅NEW/仅ORIG 数据符号。
+    static T obj;
+    return &obj;
 }
 
 template <class T>
