@@ -2146,8 +2146,10 @@ int CInventory::insertInvenItemIntoCoresspondingSpace(Inven_Item item, eItemAddR
 // [N82 封顶] batch-10：差集 18=18 归零；残余 gap=4 同上（esi/edi 持值形态差）。
 int CInventory::stackInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason reason, bool bLog)
 {
-    // b28d-solo-CInventory：192/188，callee-saved/槽残差 ⇒ N82 封顶。
-    // b28d-37 [N82 封顶，ORIG 0x850?]：callee-saved/槽残差（192/188）。
+    // b28d-solo-CInventory：192/189。真修两处：①日志串改回 ORIG 0x085028f9
+    // "INVEN INT_MAX setting 1 : ..."（原 "over stack limit..." ORIG 无此串）；
+    // ②slotInfo 去具名局部改内联实参（ORIG 该值无槽往返，P87/P0）。
+    // 残余 3 = 帧差（N115：4.4 预留 outgoing 对齐区）。
     if (item.m_field1 == 1)
     {
         return -1;
@@ -2164,12 +2166,11 @@ int CInventory::stackInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason reas
             {
                 int itemAddInfo = item.m_addInfo;
                 int itemInfo = item.get_add_info();
-                int slotInfo = m_pEquipSlot[i].get_add_info();
                 cMyTrace trace(__PRETTY_FUNCTION__,
                                0x157c, 4);
-                trace("over stack limit:m_id(%s),charac_no(%d) Stack Item [%d]+[%d] item[%d]",
+                trace("INVEN INT_MAX setting 1 : m_id(%s),charac_id(%d) inven(%d)+add(%d) item_id(%d)",
                       NumberToString(m_pParent->get_acc_id(), 0), m_pParent->get_charac_no(-1),
-                      slotInfo, itemInfo, itemAddInfo);
+                      m_pEquipSlot[i].get_add_info(), itemInfo, itemAddInfo);
             }
             m_pEquipSlot[i].set_add_info(0);
         }
@@ -2208,8 +2209,9 @@ int CInventory::stackInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason reas
 int CInventory::stackInvenItemIntoCorrespondingSpace(Inven_Item item, eItemAddReason reason,
                                                      bool bLog)
 {
-    // b28d-solo-CInventory：209/205，同 stackInvenItemIntoQuickSlot ⇒ N82 封顶。
-    // b28d-37 [N82 封顶，ORIG 0x850?]：同 stackInvenItemIntoQuickSlot（209/205）。
+    // b28d-solo-CInventory：209/206。真修同 stackInvenItemIntoQuickSlot：
+    // ①日志串改回 ORIG 0x08502bc9 "INVEN INT_MAX setting 2 : ..."；
+    // ②slotInfo 内联实参。残余 3 = 帧差（N115）。
     if (item.m_field1 == 1)
     {
         return -1;
@@ -2229,12 +2231,11 @@ int CInventory::stackInvenItemIntoCorrespondingSpace(Inven_Item item, eItemAddRe
             {
                 int itemAddInfo = item.m_addInfo;
                 int itemInfo = item.get_add_info();
-                int slotInfo = m_pEquipSlot[i].get_add_info();
                 cMyTrace trace(__PRETTY_FUNCTION__,
                                0x15b7, 4);
-                trace("over stack limit:m_id(%s),charac_no(%d) Stack Item [%d]+[%d] item[%d]",
+                trace("INVEN INT_MAX setting 2 : m_id(%s),charac_id(%d) inven(%d)+add(%d) item_id(%d)",
                       NumberToString(m_pParent->get_acc_id(), 0), m_pParent->get_charac_no(-1),
-                      slotInfo, itemInfo, itemAddInfo);
+                      m_pEquipSlot[i].get_add_info(), itemInfo, itemAddInfo);
             }
             m_pEquipSlot[i].set_add_info(0);
         }
@@ -4996,8 +4997,10 @@ int CInventory::CalNeedSlot(int* out,
 
 bool CInventory::CheckNeedItemList(const std::vector<std::pair<int, int> >& items) const   // [b28d-Main 代落·S351 P292] int→bool
 {
-    // b28d-solo-CInventory：324/315，帧/槽残差 ⇒ N82 封顶。
-    // b28d-37 [N82 封顶，ORIG 0x850?]：帧/槽残差（324/315）。
+    // b28d-solo-CInventory [P212 全头部声明]：ORIG 0x08507b2b..0x08507b59 表明 8 个局部
+    // （found/itemIdx/start/end/i/count/foundCnt/type=0xb）在循环前声明并初始化、
+    // 循环内仅赋值；照此还原后 324/315 → 321/320（gap 9→1）。
+    // 残余 1 = StartEndPos 实参装载序（P75 跨版本）+ 槽号，封 N82。
     if (m_pParent->getGmQuestFlag())
     {
         return 1;
@@ -5011,59 +5014,74 @@ bool CInventory::CheckNeedItemList(const std::vector<std::pair<int, int> >& item
     typedef std::vector<std::pair<int, int> >::const_iterator Iterator;
     Iterator it = items.begin();
     std::pair<int, int> cur;
+    // [b28d-solo] ORIG 0x08507b2b..0x08507b59：8 个局部在循环前声明并初始化
+    // （found/itemIdx/start/end/i/count/foundCnt/type=0xb），循环内仅赋值（P212）。
+    bool found = false;
+    int itemIdx = 0;
+    int start = 0;
+    int end = 0;
+    int i = 0;
+    int count = 0;
+    int foundCnt = 0;
+    int type = 0xb;
     while (it != items.end())
     {
-        bool found = false;
+        found = false;
         cur = std::pair<int, int>(*it);
-        int itemIdx = cur.first;
-        int count = cur.second;
+        itemIdx = cur.first;
+        count = cur.second;
         if (itemIdx == 0)
         {
-            if (m_money < count)
+            if (m_money >= count)
+            {
+                it++;
+            }
+            else
             {
                 return 0;
             }
-            it++;
         }
         else if (itemIdx == 2)
         {
             // ORIG 0x8507be8 call getPVPResultR → mov 0x58(%eax) = m_winPoint；
-            // setge 物化形（正向 >= 判定取反）。
-            if (!(((CUserCharacInfo*)m_pParent)->getPVPResultR()->m_winPoint >= count))
+            // setge 物化形（正向 >= 判定，P222 正向包裹）。
+            if (((CUserCharacInfo*)m_pParent)->getPVPResultR()->m_winPoint >= count)
+            {
+                it++;
+            }
+            else
             {
                 return 0;
             }
-            it++;
         }
         else
         {
-            int type = GetItemType(itemIdx);
+            type = GetItemType(itemIdx);
             if (type == 0)
             {
                 it++;
             }
             else
             {
-                int start = 0;
-                int end = 0;
                 StartEndPos((Inven_Item::ITEM_TYPE)type, start, end);
                 if (type == 1)
                 {
-                    int foundCnt = 0;
-                    for (int i = start; i <= end; i++)
+                    foundCnt = 0;
+                    for (i = start; i <= end; i++)
                     {
-                        if (m_pEquipSlot[i].m_addInfo == itemIdx)
+                        if (m_pEquipSlot[i].m_addInfo != itemIdx)
                         {
-                            foundCnt++;
-                            if (foundCnt == count)
-                            {
-                                break;
-                            }
+                            continue;
+                        }
+                        foundCnt++;
+                        if (foundCnt == count)
+                        {
+                            break;
                         }
                     }
                     if (foundCnt < count)
                     {
-                        for (int i = 3; i <= 8; i++)
+                        for (i = 3; i <= 8; i++)
                         {
                             if (m_pEquipSlot[i].m_addInfo == itemIdx)
                             {
@@ -5077,7 +5095,7 @@ bool CInventory::CheckNeedItemList(const std::vector<std::pair<int, int> >& item
                     }
                     if (foundCnt < count)
                     {
-                        for (int i = 0; i <= 0x19; i++)
+                        for (i = 0; i <= 0x19; i++)
                         {
                             if (m_invenItem[i].m_addInfo == itemIdx)
                             {
@@ -5101,18 +5119,19 @@ bool CInventory::CheckNeedItemList(const std::vector<std::pair<int, int> >& item
                     {
                         return 1;
                     }
-                    for (int i = start; i <= end; i++)
+                    for (i = start; i <= end; i++)
                     {
-                        if (m_pCreatureSlot[i].m_addInfo == itemIdx)
+                        if (m_pCreatureSlot[i].m_addInfo != itemIdx)
                         {
-                            return 1;
+                            continue;
                         }
+                        return 1;
                     }
                     return 0;
                 }
                 else
                 {
-                    for (int i = start; i <= end; i++)
+                    for (i = start; i <= end; i++)
                     {
                         if (m_pEquipSlot[i].m_addInfo == itemIdx)
                         {
@@ -5126,7 +5145,7 @@ bool CInventory::CheckNeedItemList(const std::vector<std::pair<int, int> >& item
                     }
                     if (!found)
                     {
-                        for (int i = 3; i <= 8; i++)
+                        for (i = 3; i <= 8; i++)
                         {
                             if (m_pEquipSlot[i].m_addInfo == itemIdx)
                             {
@@ -5360,8 +5379,10 @@ int CInventory::AddAvatarItem(int itemIdx, int avatarUid, bool b, char c, char d
                               const char* agency, eAvatarItemAddReason reason, bool e,
                               unsigned short f)
 {
-    // b28d-solo-CInventory：208/206，帧/槽残差 ⇒ N82 封顶。
-    // b28d-37 [N7+N82 封顶，ORIG 0x850?]：间接 call 寄存器角色互换（P230 换后端可翻）+ 槽残差（208/206）。
+    // b28d-solo-CInventory：208/207。真修：getAvatarSocket 第 2 实参 c→d
+    // （ORIG 0x08509c2d `movsbl -0x64(%ebp),%edx`，-0x64 是第 5 参 d 的溢出槽，
+    // 序言 0x08509bb3 `mov 0x1c(%ebp),%ecx; mov %cl,-0x64`；c 在 -0x60）。
+    // 残余 1 = 间接 call 寄存器角色互换（N7）+ 槽残差。
     CItem* pItem = G_CDataManager()->find_item(itemIdx);
     if (pItem == 0 || !pItem->IsAvatarItem())
     {
@@ -5369,7 +5390,9 @@ int CInventory::AddAvatarItem(int itemIdx, int avatarUid, bool b, char c, char d
     }
     stAvatarEmblemInfo_t emblem;
     emblem.init();
-    ((CEquipItem*)pItem)->getAvatarSocket((int)c, emblem);
+    // [b28d-solo] ORIG 0x08509c2d `movsbl -0x64(%ebp),%edx`：-0x64 是第 5 参 d 的
+    // 溢出槽（序言 0x08509bb3 `mov 0x1c(%ebp),%ecx; mov %cl,-0x64`），非 c(-0x60)。
+    ((CEquipItem*)pItem)->getAvatarSocket((int)d, emblem);
     for (int i = 0; i <= 0x68; i++)
     {
         if (m_pAvatarSlot[i].m_addInfo == 0)
@@ -5408,14 +5431,18 @@ int CInventory::AddAvatarItem(int itemIdx, int avatarUid, bool b, char c, char d
 // qsort 段串扰风险，判 N82 不强求。
 int CInventory::SortInvenSlot(Inven_Item::ITEM_TYPE type)
 {
-    // b28d-solo-CInventory：170/165，push esi/ebx callee-saved 差 ⇒ N18a 封顶。
-    // b28d-37 [N18a 封顶，ORIG 0x850?]：push esi/ebx callee-saved 差（170/165）。
+    // b28d-solo-CInventory [P212/P332]：ORIG 0x08504a92..0x08504ac7 表明
+    // start/end/i 于 StartEndPos 前清零、last 于其后赋值；三个外层循环复用同一 i
+    // （4.4 块作用域各自占槽，4.1 复用）；内层两循环各用 j/k。
+    // ORIG 0x08504bc4 在 cMyTrace ctor 前把 end/start 载入 esi/ebx（P227 临时链）。
+    // ⇒ AE（169/169 norm；TU diff 31→30、ae 260→261）。
     int start = 0;
     int end = 0;
-    int last = 0;
+    int i = 0;
+    int last;
     StartEndPos(type, start, end);
     last = 0;
-    for (int i = end; i >= start; i--)
+    for (i = end; i >= start; i--)
     {
         if (m_pEquipSlot[i].m_addInfo != 0)
         {
@@ -5428,7 +5455,7 @@ int CInventory::SortInvenSlot(Inven_Item::ITEM_TYPE type)
         return 0x12;
     }
     bool full = true;
-    for (int i = start; i <= last; i++)
+    for (i = start; i <= last; i++)
     {
         if (m_pEquipSlot[i].m_addInfo == 0)
         {
@@ -5441,16 +5468,16 @@ int CInventory::SortInvenSlot(Inven_Item::ITEM_TYPE type)
         return 0x12;
     }
     int dst = -1;
-    for (int i = end; i >= start; i--)
+    for (i = end; i >= start; i--)
     {
         if (m_pEquipSlot[i].m_addInfo != 0)
         {
             int moveResult = MoveItemToEmptySlotOfInventory(i, start, end);
             if (moveResult != 0)
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x194d, 5);
-                trace("MoveItemToEmptySlotOfInventory return %d ( index %d,s %d,e %d )",
-                      moveResult, i, start, end);
+                cMyTrace(__PRETTY_FUNCTION__, 0x194d, 5)(
+                    "MoveItemToEmptySlotOfInventory return %d ( index %d,s %d,e %d )",
+                    moveResult, i, start, end);
                 return moveResult;
             }
             int newLast = 0;
@@ -5463,9 +5490,9 @@ int CInventory::SortInvenSlot(Inven_Item::ITEM_TYPE type)
                 }
             }
             bool newFull = true;
-            for (int j = start; j <= newLast; j++)
+            for (int k = start; k <= newLast; k++)
             {
-                if (m_pEquipSlot[j].m_addInfo == 0)
+                if (m_pEquipSlot[k].m_addInfo == 0)
                 {
                     newFull = false;
                     break;
