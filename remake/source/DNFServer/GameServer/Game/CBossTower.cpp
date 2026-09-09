@@ -476,22 +476,28 @@ bool CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
     for (int i = 0; i <= 3; ++i)
     {
         CUser* member = m_party->get_user(i);
-        if (member == 0 || !m_party->checkValidUser(i))
-            continue;
-        if (member->get_charac_level() < m_dungeon->get_min_level())
+        // ORIG 0x081431b6..+0x1e3：正向包裹（P214①）——`member != 0 &&
+        // checkValidUser(i)` 产成功物化岛 `mov$1;jmp/mov$0 + test %al; je
+        // <循环尾>`；`|| !f()` 的 continue 形在 4.4 多一条 `xor $1`。
+        if (member != 0 && m_party->checkValidUser(i))
         {
-            cMyTrace trace("bool WongWork::CBossTower::checkStartGameCondition("
-                           "unsigned char&, bool)", 0xf0, 5);
-            trace("dungeon level check charac_level : %d, dungeon_min_level : %d",
-                  member->get_charac_level(), m_dungeon->get_min_level());
-            PacketGuard packet;
-            packet.clear();          // ORIG 0x08143229（本分支 C1 后显式 clear）
-            packet.put_header(1, 0x10);
-            packet.put_byte(0);
-            packet.put_int(0xe);
-            packet.finalize(true);
-            m_party->send_to_party(packet);
-            return 0;
+            if (member->get_charac_level() < m_dungeon->get_min_level())
+            {
+                // P227 全表达式临时链：ORIG 0x081431e9..+0x209 在 ctor call 前
+                // 右起求值 varargs（charac_level→%ebx、min_level→%esi 跨 ctor 保活）。
+                cMyTrace("bool WongWork::CBossTower::checkStartGameCondition("
+                         "unsigned char&, bool)", 0xf0, 5)(
+                    "dungeon level check charac_level : %d, dungeon_min_level : %d",
+                    member->get_charac_level(), m_dungeon->get_min_level());
+                PacketGuard packet;
+                packet.clear();      // ORIG 0x08143229（本分支 C1 后显式 clear）
+                packet.put_header(1, 0x10);
+                packet.put_byte(0);
+                packet.put_int(0xe);
+                packet.finalize(true);
+                m_party->send_to_party(packet);
+                return 0;
+            }
         }
     }
 
@@ -500,7 +506,11 @@ bool CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
         return 1;
     }
 
-    if (!m_party->CheckEnterAncientDungeon(m_dungeon, flag, items, itemParams))
+    // ORIG 0x08143328/0x0814342f：两处调用结果共用 -0x11 具名 bool 槽
+    // （`mov %al,-0x11; movzbl; xor $1; test; je`）⇒ 源码是同一个 `bool ok`
+    // 局部两次赋值（P158 形），第二次用 if(useItems) 包裹而非 `&&` 短路。
+    bool ok = m_party->CheckEnterAncientDungeon(m_dungeon, flag, items, itemParams);
+    if (!ok)
     {
         PacketGuard packet;
         packet.put_header(1, 0x10);
@@ -512,16 +522,19 @@ bool CBossTower::checkStartGameCondition(unsigned char& flag, bool useItems)
         return 0;
     }
 
-    if (useItems &&
-        !m_party->UseAncientDungeonItems(m_dungeon, items, itemParams))
+    if (useItems)
     {
-        PacketGuard packet;
-        packet.put_header(1, 0x10);
-        packet.put_byte(0);
-        packet.put_int(1);
-        packet.finalize(true);
-        m_party->send_to_party(packet);
-        return 0;
+        ok = m_party->UseAncientDungeonItems(m_dungeon, items, itemParams);
+        if (!ok)
+        {
+            PacketGuard packet;
+            packet.put_header(1, 0x10);
+            packet.put_byte(0);
+            packet.put_int(1);
+            packet.finalize(true);
+            m_party->send_to_party(packet);
+            return 0;
+        }
     }
     return 1;
 }
@@ -730,14 +743,16 @@ void CBossTower::_onTimerProcess(TIMER_MESSAGE msg, unsigned int a)
     // 4.4 折 `cmpl $imm,mem` 丢 `mov 0xc(%ebp),%eax`）同不通，维持 switch。
     switch (msg)
     {
+    // ORIG 0x08142ce4..+0x1e：比较序 0xa4→0xa5→0xa3（4.1 决策树），
+    // 叶块物理序 0xa3(+0x1e)/0xa4(+0x2b)/0xa5(+0x38) = case 书写序（P46/P324）。
+    case (TIMER_MESSAGE)0xa3:
+        onClearBossTower();
+        break;
     case (TIMER_MESSAGE)0xa4:
         onReturnVillage();
         break;
     case (TIMER_MESSAGE)0xa5:
         onReadyTimerCheck();
-        break;
-    case (TIMER_MESSAGE)0xa3:
-        onClearBossTower();
         break;
     default:
         break;
@@ -978,6 +993,10 @@ bool CBossTower::InsertRewardItems()
             else
             {
                 // 背包满 → 邮件补发
+                // ORIG 0x08144a73..+0x2da：邮件分支入口两条 int 预清
+                // （-0x28 写后未读死局部 P171 照抄；-0x24 expireSec P198③ 两段式）。
+                int mailDeadLocal = 0;             // ebp-0x28（ORIG 只写不读）
+                int expireSec = 0;                 // ebp-0x24
                 char uniqueNo[0x18] = {0};         // ebp-0x64（ORIG .rodata 清零模板）
 
                 CItem* itemData =
@@ -999,18 +1018,25 @@ bool CBossTower::InsertRewardItems()
                             4, "chn_game_server_msg_22", 0),
                         0xff);
 
+                // ORIG 0x08144b82 第一次 IsAvatarItem：仅决定是否换算到期秒
+                // （P48：同一 getter 在两臂各出现 ⇒ 源码两次独立调用，勿缓存）。
                 if (itemData->IsAvatarItem())
                 {
                     // 有效期换算到期秒（0 或 0x16d=365 视为无限）
                     const int period = itemData->getUsablePeriod();
-                    int expireSec = 0;             // ebp-0x24
+                    // ORIG 0x08144ba6..+0x42f：两个 je 同落 0 块（+0x431），
+                    // 计算块 fall-through ⇒ 正向包裹（计算入 then、0 归 else 尾岛）。
                     if (period != 0 && period != 0x16d)
-                    {
                         expireSec =
                             GlobalData::s_systemTime_.getCurSec() +
                             period * 0x15180;      // 天 → 秒
-                    }
+                    else
+                        expireSec = 0;             // ORIG 0x08144bd1 movl $0,-0x24
+                }
 
+                // ORIG 0x08144bd8 第二次 IsAvatarItem：决定邮件类型。
+                if (itemData->IsAvatarItem())
+                {
                     // [b28d-solo-CBossTower] P0/P183：Ghidra C 中 genIPGNo 结果
                     // （pcVar8）与 get_endurance 结果（cVar2）均为寄存器伪变量、
                     // 非具名局部槽 ⇒ 内联进实参（右起求值序 genIPGNo 先于
