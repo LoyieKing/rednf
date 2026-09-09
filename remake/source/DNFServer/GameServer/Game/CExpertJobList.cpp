@@ -715,34 +715,41 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) return false;
                     res.m_field6 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    res.m_field4 = (unsigned short)ScanInt(&ok);
+                    // b290-BigExpert [REAL-BUG 修正]：ORIG 0x0896d48f 第 4 次 ScanInt
+                    // 落 `mov %ax,-0x37c(%ebp)` = res+0x8（m_field8），非 res+0x4；
+                    // 收尾 0x0896d59c `movzwl -0x37c(%ebp)` 亦取 m_field8。原码写回
+                    // m_field4 ⇒ ①覆盖第 2 个值（分类条件 0x0896d4ba 读的正是 res+4）
+                    // ⇒ 分派用错操作数；②入表元素的 +8 字段恒为 ctor 链式残值。
+                    res.m_field8 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
                     int idx = 3;
-                    if (res.m_field4 == 0 || 0x1e < res.m_field6)
-                    {
-                        if (res.m_field4 < 0x1f || 0x32 < res.m_field6)
-                        {
-                            if (res.m_field4 < 0x33 || 0x50 < res.m_field6)
-                            {
-                                LogManager::logFormat(
-                                    0, "../RDARScriptExpertJob.cpp",
-                                    __FUNCTION__, 0x33b,
-                                    "import expertjob script - [doll_controller extraction result item] result_type is invalid");
-                                return false;
-                            }
-                            idx = 2;
-                        }
-                        else
-                        {
-                            idx = 1;
-                        }
-                    }
-                    else
+                    // b290-BigExpert [BigAuction 翻法三：ORIG 0x0896d4b3..0x0896d558 为
+                    // 平铺 else-if 链 ⇒ 叶块物理序 = idx=0 / 1 / 2 / 报错，且每段条件
+                    // 展开为「双 cmp + 反向跳转」的区间形（0x0896d4e3 cmp $0x1e jbe /
+                    // 0x0896d506 cmp $0x32 jbe）。原嵌套 else 形落物理序反成
+                    // 报错/2/1/0，且把 `> 0x1e` 写成 `< 0x1f` 变 `cmp $0x1f`。]
+                    if (res.m_field4 != 0 && res.m_field6 <= 0x1e)
                     {
                         idx = 0;
                     }
+                    else if (res.m_field4 > 0x1e && res.m_field6 <= 0x32)
+                    {
+                        idx = 1;
+                    }
+                    else if (res.m_field4 > 0x32 && res.m_field6 <= 0x50)
+                    {
+                        idx = 2;
+                    }
+                    else
+                    {
+                        LogManager::logFormat(
+                            0, "../RDARScriptExpertJob.cpp",
+                            __FUNCTION__, 0x33b,
+                            "import expertjob script - [doll_controller extraction result item] result_type is invalid");
+                        return false;
+                    }
                     script[scriptIdx].m_dollResultInfo.m_vec[idx].push_back(res);
-                    cnt[idx] += (int)res.m_field4;
+                    cnt[idx] += (int)res.m_field8;
                 }
                 for (int i = 0; i < 3; ++i)
                     script[scriptIdx].m_dollResultInfo.m_count[i] = cnt[i];
