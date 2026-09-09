@@ -15,6 +15,7 @@
 
 #include <map>
 #include <vector>
+#include <string.h>
 
 class CUser;
 class PacketBuf;
@@ -82,8 +83,10 @@ struct AccountHackingType
 class Secu_AccountHacking
 {
 public:
-    Secu_AccountHacking();                 // ORIG W 0x08695aa4（空体）
-    ~Secu_AccountHacking();                // ORIG W 0x08695aaa（空体）
+    // [SweepCHackAnalyzer 判据㉓] ORIG nm 均为 W（0x08695aa4/aaa）⇒ 原码头内
+    // 定义、使用点发射（P233）；我方原 .cpp 外联定义产生 T 强符号。
+    Secu_AccountHacking() {}               // ORIG W 0x08695aa4（空体）
+    ~Secu_AccountHacking() {}              // ORIG W 0x08695aaa（空体）
 
     void init(CUser* user);                // ORIG T 0x08278a98
     void resetInfo();                      // ORIG T 0x08278ab4
@@ -96,12 +99,12 @@ public:
                                            // ORIG T 0x08278b48
     bool isSameAccountCharacter(char const* name);  // ORIG T 0x08279182
     WongWork::ENUM_HACKTYPE getMatchingHacktype(AccountHackingType::T t);
-                                           // ORIG W 0x0827912a
+                                           // ORIG T 0x0827912a（nm 实测；旧注释误标 W）
     void setPatten(AccountHackingType::T t, char const* name, unsigned int a,
                    unsigned int b);        // ORIG T 0x0827903c
-    bool isGoldPatten(AccountHackingType::T t);      // ORIG W 0x08279258
-    bool isAvatarPatten(AccountHackingType::T t);    // ORIG W 0x08279282
-    bool isDetectionGoldPatten();                    // ORIG W 0x082792a0
+    bool isGoldPatten(AccountHackingType::T t);      // ORIG T 0x08279258（nm 实测）
+    bool isAvatarPatten(AccountHackingType::T t);    // ORIG T 0x08279282（nm 实测）
+    bool isDetectionGoldPatten();                    // ORIG T 0x082792a0（nm 实测）
     void sendAvatar(char const* name, unsigned int a);  // ORIG T 0x08278f16
     static bool checkAccountHackingHackType(WongWork::ENUM_HACKTYPE type);
                                            // ORIG T 0x08278a48
@@ -145,30 +148,65 @@ struct stHackInfo_t
     ~stHackInfo_t() = default;
 };
 
+// +0x7a08 具名视图（P95：ORIG setBaseHackType 0x080f9856 为「先 this 后值」
+// 序；[SweepCHackAnalyzer] 随头内 inline 定义一并迁入头）。
+namespace
+{
+struct CHackAnalyzer7a08View
+{
+    char m_pad[0x7a08];
+    int m_field7a08;
+};
+}
+
 // ============================================================================
 // WongWork::CHackAnalyzer —— CUser 子对象 +0x71bac（总尺寸 0x7a3c）
 class CHackAnalyzer
 {
 public:
-    CHackAnalyzer();
-    ~CHackAnalyzer();
+    // [SweepCHackAnalyzer 判据㉓] ORIG C1/C2/D1/D2 全为 W（0x086950d2 等）⇒
+    // 原码头内定义、使用点发射（P233）；原 .cpp 外联定义产生 T 强符号。
+    CHackAnalyzer()
+    {
+        resetHackInfo();
+        memset(m_serverHackCntA, 0, 0x3cf0);
+        AddCheckRateHackTypeList();
+    }
+    ~CHackAnalyzer() {}
 
     void addServerHackCnt(CUser* user, ENUM_HACKTYPE type, unsigned int count,
                           unsigned int a, unsigned int b);   // ORIG 0x080f8c7e
     void resetHackInfo();                    // ORIG 0x080f81a6
-    void resetServerHackAccumulatedCnt(ENUM_HACKTYPE type);  // ORIG W 0x086950b6
+    void resetServerHackAccumulatedCnt(ENUM_HACKTYPE type)  // ORIG W 0x086950b6
+    {
+        m_serverHackCntB[(int)type - 0x65] = 0;
+    }
     int getServerHackAccumulatedCnt(ENUM_HACKTYPE type) const;  // ORIG W 0x0822eef6（读 B 表）
-    int getServerHackCnt(ENUM_HACKTYPE type);          // ORIG W 0x08695086
-    void resetServerHackCnt(ENUM_HACKTYPE type);       // ORIG W 0x0869509c
-    void setServerHackAccumulatedCnt(ENUM_HACKTYPE type, unsigned int cnt);
-                                                       // ORIG W 0x084eb57c
+    int getServerHackCnt(ENUM_HACKTYPE type)           // ORIG W 0x08695086
+    {
+        return m_serverHackCntA[(int)type - 0x65];
+    }
+    void resetServerHackCnt(ENUM_HACKTYPE type)        // ORIG W 0x0869509c
+    {
+        m_serverHackCntA[(int)type - 0x65] = 0;
+    }
+    void setServerHackAccumulatedCnt(ENUM_HACKTYPE type, unsigned int cnt)
+    {                                                  // ORIG W 0x084eb57c
+        m_serverHackCntB[(int)type - 0x65] = (int)cnt;
+    }
     void reportHackInfo();                   // ORIG 0x080f8080
     void beginCollectHackInfo(CUser* user);  // ORIG 0x080f79e8
-    void setLastMonsterDeadTime(long t);     // ORIG W 0x085df98c
+    void setLastMonsterDeadTime(long t)      // ORIG W 0x085df98c
+    {
+        m_field24 = (int)t;
+    }
 
     void setUserP(CUser* user);              // ORIG T 0x080f79c0
     CUser* getUserP();                       // ORIG T 0x080f79ce
-    bool checkCollectedHack(ENUM_REPORT_4_HACK_FLAG flag);  // ORIG W 0x080f9876
+    bool checkCollectedHack(ENUM_REPORT_4_HACK_FLAG flag)   // ORIG W 0x080f9876
+    {
+        return (((unsigned char)m_flag04 & flag) == flag);
+    }
     void _addHackInfo(ENUM_REPORT_4_HACK_FLAG flag, ENUM_HACKTYPE type, int v);
                                              // ORIG T 0x080f7fd2
     int analyzeHackReport(CUser* user, PacketBuf* pkt);     // ORIG T 0x080f7a22
@@ -178,16 +216,22 @@ public:
     void _analyzeEquipmentUpgradeHack(unsigned short const* upgradeTbl);
                                              // ORIG T 0x080f7e18
     void _analyzeMonsterDieHack();                     // ORIG T 0x080f7eb6
-    void analyzeMonsterDieHack();                      // ORIG W 0x080f7cb6
-    void _reportIncurrectReport();                     // ORIG W 0x080f8032
+    void analyzeMonsterDieHack();                      // ORIG T 0x080f7cb6（nm 实测）
+    void _reportIncurrectReport();                     // ORIG T 0x080f8032（nm 实测）
     static void ValidateFixMobDiePos(CUser* user, unsigned short mobId,
                                      unsigned short x, unsigned short y);
     // ORIG 0x080f908c 栈布局：user@0x8、mobId/x/y@0xc/0x10/0x14、this 不入栈 → static
     void onUpdateHackCount(CUser* user, ENUM_HACKTYPE type, int a,
                            unsigned int b, unsigned int c);   // ORIG T 0x080f8c4e（Eijj：第3参 int）
 
-    ENUM_HACKTYPE getBaseHackType();         // ORIG W 0x080f9868
-    void setBaseHackType(ENUM_HACKTYPE t);   // ORIG W 0x080f9856
+    ENUM_HACKTYPE getBaseHackType()          // ORIG W 0x080f9868
+    {
+        return (ENUM_HACKTYPE)m_field7a08;
+    }
+    void setBaseHackType(ENUM_HACKTYPE t)    // ORIG W 0x080f9856
+    {
+        reinterpret_cast<CHackAnalyzer7a08View*>(this)->m_field7a08 = (int)t;
+    }
     bool CheckExceptionCnt(ENUM_HACKTYPE type, int cnt);          // 0x080f81fc
     bool CheckHackRateByPartyCount(ENUM_HACKTYPE type, int cnt);  // 0x080f8320
     bool CheckHackRateByDifficult(ENUM_HACKTYPE type, int lvDiff,

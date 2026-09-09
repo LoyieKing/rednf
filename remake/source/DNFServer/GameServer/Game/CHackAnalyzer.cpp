@@ -30,17 +30,6 @@
 #include "DB_ReqSaveHackUserPunish.h"
 #include "W6_HackPunishDeps.h"
 
-bool Secu_AccountHacking::checkAccountHackingHackType(WongWork::ENUM_HACKTYPE type)
-{
-    // ORIG T 0x08278a48（0x4f 字节）：线性 cmpl/je(jne) 判定，
-    // hacktype ∈ {0x2c6..0x2cb, 0x2cd} 返回 true，否则 false。（P45）
-    if (type == 0x2c6 || type == 0x2c7 || type == 0x2c8 ||
-        type == 0x2c9 || type == 0x2ca || type == 0x2cb ||
-        type == 0x2cd)
-        return true;
-    return false;
-}
-
 // ---- 静态概率表（ORIG .rodata 0x8b3e094 / 0x8b3e09c，objdump -s 实测）----
 static const short _S_HACK_CHECK_RATE_BY_PARTYCOUNT[4] = {100, 50, 33, 25};
 static const short _S_HACK_CHECK_RATE_BY_DIFFICULT[5] = {25, 20, 15, 10, 0};
@@ -57,44 +46,13 @@ namespace WongWork
 // addServerHackCnt 0x080f8c7e 反汇编核实）。
 #define HACK_CNT_A(T) (m_serverHackCntA[(int)(T) - 0x65])
 #define HACK_CNT_B(T) (m_serverHackCntB[(int)(T) - 0x65])
-// 数组成员式槽访问（ORIG resetServerHackCnt 0x0869509c / setServerHackAccumulatedCnt
-// 0x084eb57c / resetServerHackAccumulatedCnt 0x086950b6 的 lea idx+disp8 复合寻址形）。
-#define HACK_SLOT_A(T) (m_serverHackCntA[(int)(T) - 0x65])
+// B 表槽访问（ORIG addServerHackCnt 0x080f8c7e 的 lea idx-0x65+0xf44 复合寻址形；
+// A 表 getter/setter 已随判据㉓ 内联化进 CHackAnalyzer.h）。
 #define HACK_SLOT_B(T) (m_serverHackCntB[(int)(T) - 0x65])
 
 // ORIG WongWork::CAutoPunishRuleHackTypeMgr 布局镜像（权威定义在
 // GlobalData.cpp；此处仅按偏移只读访问 m_exceptionMap @+0x58）。「推断」标注：
 // 偏移来自 mgr ctor 反汇编 0x82a5b1a。
-// 报告缺失符号（nm W 0x080f9876，objdump 逐指令转写，0x1c 字节）：
-// return ((m_flag04 & flag) == flag) —— sete 规范化 bool。
-bool CHackAnalyzer::checkCollectedHack(ENUM_REPORT_4_HACK_FLAG flag)
-{
-    return (((unsigned char)m_flag04 & flag) == flag);
-}
-
-CHackAnalyzer::CHackAnalyzer()
-{
-    // ORIG C1 0x086950d2：隐式构造五个容器成员，再 resetHackInfo、
-    // memset(this+0x28,0,0x3cf0)、AddCheckRateHackTypeList。
-    resetHackInfo();
-    memset(m_serverHackCntA, 0, 0x3cf0);
-    AddCheckRateHackTypeList();
-}
-
-CHackAnalyzer::~CHackAnalyzer() {}
-
-ENUM_HACKTYPE CHackAnalyzer::getBaseHackType() { return (ENUM_HACKTYPE)m_field7a08; }
-
-// 旧判词 N（装载序互换）已翻案：P95 视图访问复现 ORIG「先 this 后值」序
-//   （探针 /tmp/setter_probe.cpp S2::set 逐条同形，ORIG 0x080f9856）。
-namespace {
-struct CHackAnalyzer7a08View { char m_pad[0x7a08]; int m_field7a08; };
-}
-void CHackAnalyzer::setBaseHackType(ENUM_HACKTYPE t)
-{
-    reinterpret_cast<CHackAnalyzer7a08View*>(this)->m_field7a08 = (int)t;
-}
-
 void CHackAnalyzer::setUserP(CUser* user)
 {
     // ORIG T 0x080f79c0（setUserP.md）：*(this+0) = user（与 beginCollectHackInfo
@@ -110,38 +68,6 @@ CUser* CHackAnalyzer::getUserP()
     if (m_baseHackType != 0)
         return (CUser*)m_baseHackType;
     return (CUser*)0;
-}
-
-int CHackAnalyzer::getServerHackCnt(ENUM_HACKTYPE type)
-{
-    // 报告缺失（nm W 0x08695086）：读 A 表槽（ORIG：lea -0x65 先于 this 载入，
-    // 复合寻址 0x8(%eax,%edx,4)）。
-    return HACK_SLOT_A(type);
-}
-
-void CHackAnalyzer::resetServerHackCnt(ENUM_HACKTYPE type)
-{
-    // 报告缺失（nm W 0x0869509c）：A 表槽清零。
-    HACK_SLOT_A(type) = 0;
-}
-
-void CHackAnalyzer::setServerHackAccumulatedCnt(ENUM_HACKTYPE type,
-                                                unsigned int cnt)
-{
-    // 报告缺失（nm W 0x084eb57c）：B 表累计槽直写（lea idx-0x65+0xf44 ×4 +8）。
-    HACK_SLOT_B(type) = (int)cnt;
-}
-
-void CHackAnalyzer::resetServerHackAccumulatedCnt(ENUM_HACKTYPE type)
-{
-    // ORIG W 0x086950b6：B 表累计槽清零（与 addServerHackCnt 同寻址）。
-    HACK_SLOT_B(type) = 0;
-}
-
-void CHackAnalyzer::setLastMonsterDeadTime(long t)
-{
-    // ORIG W 0x085df98c：写 +0x24 时间戳（=m_field24，resetHackInfo 清零项）。
-    m_field24 = (int)t;
 }
 
 void CHackAnalyzer::beginCollectHackInfo(CUser* user)
@@ -719,11 +645,6 @@ void CHackAnalyzer::ReqDBSaveHackUserPunish(unsigned int accId,
 // Secu_AccountHacking（全局作用域；声明见 CHackAnalyzer.h）
 // ============================================================================
 
-Secu_AccountHacking::Secu_AccountHacking() {}
-// ORIG C1/D1 @0x08695aa4/aaa 均为空体（push ebp/mov/pop ebp/ret）。
-
-Secu_AccountHacking::~Secu_AccountHacking() {}
-
 void Secu_AccountHacking::init(CUser* user)
 {
     // ORIG T 0x08278a98（init.md）：+0x10 存 user 后 resetInfo。
@@ -1059,3 +980,16 @@ bool stGetHackTypeOperator<T, N>::getHackType(PacketBuf* pkt, T& out)
 }
 
 template struct stGetHackTypeOperator<unsigned short, 2>;
+
+// [SweepCHackAnalyzer P327] 定义后移至文件末尾：让 CHackAnalyzer::setUserP 成为本
+// TU 第一个「强符号·外部链接·本 TU 定义」实体，对齐 ORIG GI 键名
+// `_GLOBAL__I__ZN8WongWork13CHackAnalyzer8setUserPEP5CUser`（ORIG 0x080f97f4）；
+// 本函数 ORIG T 0x08278a48（0x4f 字节，0x2c6..0x2cb/0x2cd 线性判定）。
+bool Secu_AccountHacking::checkAccountHackingHackType(WongWork::ENUM_HACKTYPE type)
+{
+    if (type == 0x2c6 || type == 0x2c7 || type == 0x2c8 ||
+        type == 0x2c9 || type == 0x2ca || type == 0x2cb ||
+        type == 0x2cd)
+        return true;
+    return false;
+}
