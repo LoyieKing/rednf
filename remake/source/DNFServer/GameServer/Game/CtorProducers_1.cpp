@@ -1360,8 +1360,10 @@ bool CCharacList::init()
 class CAICharacterFull   // ORIG 0x74；前缀 0x30 与 MonsterIndependentDrop.h 镜像一致
 {
 public:
-    CAICharacterFull();                                  // ORIG W 0x08373a9a（成员自动）
-    ~CAICharacterFull();                                 // ORIG W 0x08373b32
+    // [b28d-Main·检查点21] 删 ctor/dtor：ORIG 无 CAICharacterFull 符号（该名是
+    //   本 TU 局部视图；ORIG 的 0x08373a9a/0x08373b32 是 CAICharacter::C1/D1，
+    //   已由 CAICharacterList.cpp 发射）。本类仅作指针类型用于 sub_CAISet，
+    //   从不实例化 ⇒ 无 ctor/dtor 需求。
 
     // [b28d-solo-CtorProducers_1] +0x00 声明 unsigned：P211 异型化旋钮——ORIG
     // `mov 0xc(%ebp),%edx; mov 0x8(%ebp),%eax; mov %edx,(%eax)` 是 RHS-first
@@ -1380,15 +1382,7 @@ public:
     char m_pad71[3];                                    // → sizeof 0x74
 };
 
-CAICharacterFull::CAICharacterFull()
-    : m_idx(0), m_level(0), m_field8(0), m_appearancePoint(0),
-      m_dropItems(), m_pvpWinLow(0), m_pvpWinHigh(0),
-      m_independentDrops(), m_avatarDrops(), m_name(), m_rarity(0)
-{
-    memset(m_avatarDrops, 0, sizeof(m_avatarDrops));
-}
-
-CAICharacterFull::~CAICharacterFull() {}
+// [b28d-Main·检查点21] CAICharacterFull ctor/dtor 已删（见类内注释）。
 
 // §4.5 例外：CAICharacter::set 符号经 asm 别名桥提供（保留）。
 // 无法转真实成员调用的原因：`STAICharacterCommonScript` 完整 0x1010 布局仅

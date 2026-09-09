@@ -269,8 +269,8 @@ public:
 class BaseItemValue
 {
 public:
-    BaseItemValue();
-    BaseItemValue(int value);
+    // [b28d-Main·检查点21] ORIG 无 BaseItemValue 的任何 ctor 符号 ⇒ POD（隐式默认
+    //   ctor 不发符号）。原 2 个 ctor 无调用点，直接删除。
     int m_field0;   // +0x00
 };
 

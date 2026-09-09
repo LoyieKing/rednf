@@ -999,8 +999,7 @@ BaseItemKey::BaseItemKey(unsigned char rarity, unsigned char usableLevel,
     : m_rarity(rarity), m_level(usableLevel), m_partType(groupName)
 {
 }
-BaseItemValue::BaseItemValue() : m_field0(0) {}
-BaseItemValue::BaseItemValue(int value) : m_field0(value) {}
+// [b28d-Main·检查点21] BaseItemValue ctor 已删（ORIG 无符号，POD）。
 
 // ---- seriaRoomDecoEventScript（ORIG C1 0x8372ef4：构造 vector@0、+0xc=0、
 //      map@+0x10、vector@+0x28、+0x34=0、+0x38=0 后三容器各自 clear）----

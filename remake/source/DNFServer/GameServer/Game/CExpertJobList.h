@@ -49,7 +49,8 @@ class CExpertJobList
 {
 public:
     CExpertJobList();                                  // ORIG 0x896e312（map 构造）
-    ~CExpertJobList();                                 // 派生销毁
+    // [b28d-Main·检查点21] 无用户 dtor：ORIG 无 `_ZN14CExpertJobListD1/D2Ev`
+    //   （对象由 CDataManager `new` 后不 delete，隐式 dtor 从不被引用）。
 
     bool init();                                       // ORIG 0x896d8ec
     void destroy();                                    // ORIG 0x896dac6

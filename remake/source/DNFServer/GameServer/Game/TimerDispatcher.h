@@ -56,10 +56,15 @@ private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
 };
 
-class TimerPvpRankRes : public TimerSig
+// [b28d-Main·检查点21] 非多态：ORIG 只有 `_ZN15TimerPvpRankRes12dispatch_sigEiij`
+//   （0x08633be8，函数体不访问 this），无 vtable/typeinfo/ctor/dtor 符号
+//   （对比 TimerMapLoading 有 typeinfo 0x08ceaa90）⇒ 原码不继承 TimerSig。
+//   注意：必须是**非静态成员**——ORIG 以 this@ebp+0x8、p1@+0xc 取参（`mov 0xc(%ebp),%edx`
+//   喂 GetPvp 第一实参）；改 static 会使实参整体下移 4 字节（P 级回归实证）。
+class TimerPvpRankRes
 {
 public:
-    virtual int dispatch_sig(int p1, int p2, unsigned int p3);
+    int dispatch_sig(int p1, int p2, unsigned int p3);
 };
 
 class TimerMapLoading : public TimerSig

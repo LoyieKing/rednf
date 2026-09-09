@@ -805,7 +805,7 @@ bool ImportExpertJobEtcScript(STExpertJobEtcScript& script, const char* path)
 CExpertJobList::CExpertJobList()
     : m_jobMap(), m_etc() {}
 
-CExpertJobList::~CExpertJobList() {}
+// [b28d-Main·检查点21] CExpertJobList/STExpertJobEtcScript 的 dtor 已删（ORIG 无符号）。
 
 // ============================================================================
 // init（ORIG 0x896d8ec）
