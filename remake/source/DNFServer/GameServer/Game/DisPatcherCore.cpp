@@ -7875,6 +7875,16 @@ unsigned int DisPatcher_FinishLoad::check_error(CUser* user, MSG_BASE& /*msg*/)
 // [b28d-29] N82/P197③：ORIG 4 dead 局部预清 + push ebx，4.4 丢预清且帧 +4；语义集合全等  (ORIG 0x08264c28 insn 251->240)
 // 技能三槽不全等 → 仅清 0x32f 同 IP 标）。任一失败即短路置双标志为 0。
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 277（ORIG 250 / ours 235），残差=setcc-fold bool 物化岛/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
+// [SweepDispatchCore 2026-09-09] 真缺口修复：ORIG 对三处 16B 栈缓冲预清零
+// （basePrefix 0x08264c3a/41/48/4f、peerIpBuf 0x08264d43/4a/51/58、peerIp
+// 0x08264e67/6e/75/7c 各 4×movl $0）⇒ 原码 char[16]={0}；我方原缺清零，strncpy
+// 短写后残留栈垃圾（越界读隐患）。补 {0} 初始化并删多余显式终止 movb。
+// gap 15→2（ours 235→249，ORIG 251），四数不回退。残余 p167 MISSING
+// `_ZSt7strrchrPci`/EXTRA `strrchr` = glibc 头集差异：ORIG(4.1.2) 时
+// __CORRECT_ISO_CPP_STRING_H_PROTO 未启用（__GNUC_PREREQ(4,4) 不成立）⇒ <cstring>
+// 发射 inline 重载；4.4 头集启用该宏令重载被抑制。实测 undef 宏再引 <cstring>
+// 触发 "conflicts with previous using declaration" 编译错误 ⇒ 合法源码不可复现
+// （N130 同族工具链头集差异）。
 void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
 {   // ORIG 栈位映射：-0x40 sameIp / -0x3f multiBox / -0x3e job(sbyte) /
     // -0x3d growType / -0x50 baseIpPrefix[16] / -0x3c,-0x38,-0x34 = 技能三槽 index。
@@ -7885,7 +7895,10 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
     unsigned int skillIdx0 = 0;
     unsigned int skillIdx1 = 0;
     unsigned int skillIdx2 = 0;
-    char basePrefix[16];              // -0x50：0 号成员 IP 最后一个 '.' 前缀
+    // -0x50：0 号成员 IP 最后一个 '.' 前缀。ORIG 函数头 4×movl $0 预清零
+    // （0x08264c3a/41/48/4f）⇒ 原码数组带 {0} 初始化；缺清零会令 strncpy
+    // 短写后残留栈垃圾（越界读隐患）。
+    char basePrefix[16] = {0};
 
     CParty* party = static_cast<CParty*>(user->GetParty());   // ORIG _ZN5CUser8GetPartyEv
     if (party == 0)
@@ -7909,7 +7922,7 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
         }
         if (idx == 0)
         {   // 记录基准：job/growType/IP 网络前缀/技能三槽
-            char peerIpBuf[16];
+            char peerIpBuf[16] = {0};   // ORIG 0x08264d43..58 4×movl 预清零
             char* peerIp = peerIpBuf;   // char* 静态类型命中 std::strrchr(char*,int) 非const重载
             member->m_network.GetPeerIP2(peerIp, 0x10);
             if (strlen(peerIp) <= 8)
@@ -7932,7 +7945,7 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
             size_t dotLen = strlen(dot);
             size_t prefLen = fullLen - dotLen;
             strncpy(basePrefix, peerIp, prefLen);
-            basePrefix[prefLen] = 0;   // 无 memset：显式 null 终止（mov，非 call）
+            // 预清零已保证 null 终止（ORIG 无显式终止 store）
             // 现声明为 const char*（ORIG 实返回 SkillSlot*），按位转写
             SkillSlot* skill = reinterpret_cast<SkillSlot*>(
                 const_cast<char*>(member->getCurCharacSkillR()));
@@ -7957,7 +7970,7 @@ void DisPatcher_FinishLoad::Party_hack_check(CUser* user)
                 multiBox = 0;
                 break;
             }
-            char peerIp[16];
+            char peerIp[16] = {0};      // ORIG 0x08264e67..7c 4×movl 预清零
             member->m_network.GetPeerIP2(peerIp, 0x10);
             if (strncmp(basePrefix, peerIp, strlen(basePrefix)) != 0)
             {
@@ -9962,6 +9975,13 @@ void DisPatcher_MoveMap::CheckTrapBitsHackCnt(CUser* user, MSG_MOVE_MAP& info)
 // 而非 member 的 party。改后 ours 363→377（ORIG 411）。
 // ⚠️ 本件 ndiff 370→398（+28）：ORIG `==0` 带 sete 物化，4.4 O0 恒折直分支（N78/
 // setcc-fold 族）⇒ 形态代价，语义正确性优先故保留；回滚只需撤销本函数三处展开。
+// [SweepDispatchCore 2026-09-09] P183 修复：删 `unsigned int& slot = info.m_23[idx]`
+// 与 `CBattle_Field& battleField` 两处引用缓存，全部改 `info.m_23[idx]` / 内联取址
+// 表达式（ORIG 13 处每次重算 `mov idx; add $8; mov 0x3(base,idx,4)`，实证 0x081c4e0a/
+// 0x4e30/0x4f6d/0x4fbc/0x5075/0x50dd/0x50f7/0x5164/0x51a9/0x521e/0x528b/0x52d0）；
+// halfTick 具名 bool 改 if/else 表达式（ORIG 无 bool 槽：0x4fac `mov $1` / 0x4fb3
+// `mov $0` 岛直 test）。gap 32→-10（ours 380→422，ORIG 412），p167 CLEAR（39/39），
+// 四数不回退（213/639/2/74）。
 void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& info)
 {
     unsigned int limit = 0;
@@ -9995,11 +10015,10 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
         {
             continue;
         }
-        unsigned int& slot = info.m_23[idx];
-        if (slot > 10000)
+        if (info.m_23[idx] > 10000)
         {
-            unsigned int quotient = slot / 10000;
-            unsigned int remainder = slot % 10000;
+            unsigned int quotient = info.m_23[idx] / 10000;
+            unsigned int remainder = info.m_23[idx] % 10000;
             // ORIG 不为 dungeon 设局部：0x081c4e82（==0 判定）与 0x081c4eda
             // （else-if 取 index）各自重新 call CUser::GetParty 并直读 +0xcac。
             if (static_cast<CParty*>(member->GetParty())->m_battleField.m_pDungeon == 0)
@@ -10018,40 +10037,47 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
                 member->getHackAnalyzer()->addServerHackCnt(
                     member, (WongWork::ENUM_HACKTYPE)0x77, 1, quotient, 0);
             }
-            slot = remainder;
+            info.m_23[idx] = remainder;
         }
-        // ORIG 0x081c4f83 / 0x081c4f93 两处各自 call get_charac_job（无 job 局部缓存）。
-        bool halfTick = (member->get_charac_job() == 3) ||
-                        (member->get_charac_job() == 4 &&
-                         member->getCurCharFirstGrowType() == 2);
+        // ORIG 0x081c4f83 / 0x081c4f93 两处各自 call get_charac_job，结果经
+        // `mov $1 / $0` 岛物化后直接 test（无 bool 槽）⇒ 表达式直用于 if/else。
         // ORIG .rodata：0x8bd6320=0.5 / 0x8bd6328=0.8（fildll×const 后 fistpll 截断）
-        slot = (unsigned int)((double)slot * (halfTick ? 0.5 : 0.8));
+        if (member->get_charac_job() == 3 ||
+            (member->get_charac_job() == 4 &&
+             member->getCurCharFirstGrowType() == 2))
+        {
+            info.m_23[idx] = (unsigned int)((double)info.m_23[idx] * 0.5);
+        }
+        else
+        {
+            info.m_23[idx] = (unsigned int)((double)info.m_23[idx] * 0.8);
+        }
 
         // ORIG 0x081c505a 用 -0x24(%ebp)（= 函数头 user->GetParty() 的缓存）+0xb24，
-        // 不另取 member 的 party；先前多调一次 GetParty 属我方缓存。
-        CBattle_Field& battleField =
-            reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField;
-        if (!battleField.check_start_point() && slot > limit)
+        // 不另取 member 的 party；P183：ORIG 单次取址，无引用缓存槽。
+        if (!reinterpret_cast<CPartyBattleFieldView*>(party)
+                 ->m_battleField.check_start_point() &&
+            info.m_23[idx] > limit)
         {
-            if ((double)slot <= 1.5 * (double)limit)   // 0x8bd6330=1.5
+            if ((double)info.m_23[idx] <= 1.5 * (double)limit)   // 0x8bd6330=1.5
             {   // 单次记录
                 // ORIG 0x081c50e3 / 0x081c5145：两判定各自重新 call GetParty。
                 if (static_cast<CParty*>(member->GetParty())
                         ->m_battleField.m_pDungeon == 0)
                 {
                     member->getHackAnalyzer()->addServerHackCnt(
-                        member, (WongWork::ENUM_HACKTYPE)0x74, 1, slot, 0);
+                        member, (WongWork::ENUM_HACKTYPE)0x74, 1, info.m_23[idx], 0);
                 }
                 else if (static_cast<CParty*>(member->GetParty())
                              ->m_battleField.m_pDungeon->get_index() == 0x2afe)
                 {
                     member->getHackAnalyzer()->addServerHackCnt(
-                        member, (WongWork::ENUM_HACKTYPE)0x81, 1, slot, 0);
+                        member, (WongWork::ENUM_HACKTYPE)0x81, 1, info.m_23[idx], 0);
                 }
                 else
                 {
                     member->getHackAnalyzer()->addServerHackCnt(
-                        member, (WongWork::ENUM_HACKTYPE)0x74, 1, slot, 0);
+                        member, (WongWork::ENUM_HACKTYPE)0x74, 1, info.m_23[idx], 0);
                 }
             }
             else
@@ -10063,18 +10089,18 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
                             ->m_battleField.m_pDungeon == 0)
                     {
                         member->getHackAnalyzer()->addServerHackCnt(
-                            member, (WongWork::ENUM_HACKTYPE)0x74, 1, slot, 0);
+                            member, (WongWork::ENUM_HACKTYPE)0x74, 1, info.m_23[idx], 0);
                     }
                     else if (static_cast<CParty*>(member->GetParty())
                                  ->m_battleField.m_pDungeon->get_index() == 0x2afe)
                     {
                         member->getHackAnalyzer()->addServerHackCnt(
-                            member, (WongWork::ENUM_HACKTYPE)0x81, 1, slot, 0);
+                            member, (WongWork::ENUM_HACKTYPE)0x81, 1, info.m_23[idx], 0);
                     }
                     else
                     {
                         member->getHackAnalyzer()->addServerHackCnt(
-                            member, (WongWork::ENUM_HACKTYPE)0x74, 1, slot, 0);
+                            member, (WongWork::ENUM_HACKTYPE)0x74, 1, info.m_23[idx], 0);
                     }
                 }
             }
@@ -10169,6 +10195,25 @@ DisPatcher_SetPlayResult::~DisPatcher_SetPlayResult() {}
 //   ORIG 侧无 memcpy 符号）⇒ 净增 2 项 EXTRA，形态与语义双亏 ⇒ **判不修**。
 // 本件其余部分已按 P183（ORIG 逐处重调、我方局部缓存）展开 5 个无副作用 getter：
 //   实测 ndiff 772→726，P167 计数 87→92 与 ORIG 相等，行为等价。
+// [BigSetPlayResult] 2026-09-09 复核（ORIG 1083 / ours 874，gap 209，P167 92/92）：
+// 本件真缺口 2 类 4 处，均已修（全部在 N129 带之外的 0xe2/0xe3 检查块）：
+//  ① 0xe2 块原读 `(char*)&sigCharac + sizeof(SIG_LOAD_CHARAC)` = +0x703 **越界**；
+//     ORIG 0x081f5605 实证读 -0x158a = 缓冲 -0x15bb + 0x31
+//     = m_characData(+0xc)::m_lev(+0x25)（pack(1)）。
+//  ② 0xe3 块原读 `(char*)&sigChk + 0`（m_accId 低半字）；ORIG 0x081f583f 读 -0x1c8d
+//     = 缓冲 -0x1cbe + 0x31，同为 m_characData.m_lev。
+//  ③ 两块的 GetCharacInfo 返回值门禁缺失（原为逗号表达式 `(call(), cmp)`，返回值被丢弃）；
+//     ORIG 0x081f5601/0x081f583b 均为 `test %al,%al; je` 先于字段读取（即 && 短路）。
+// 形态收敛（P0 局部建模，语义不变）：
+//  - 金币余数区改回 ORIG 的两个具名局部（over=-0x34 / rest=-0x30，均在
+//    addServerHackCnt 之前算好；原写法 %10000 在 call 之后重读内存）。
+//  - 疲劳比率区改为 if/else 两分支各自内联（ORIG 0x081f5202/0x081f526b），
+//    消除 bool 槽 + double ratioDelta 局部；常量实证 .rodata 0x8bd6320=0.5 /
+//    0x8bd6328=0.8 / 0x8bd6354=100.0f / 0x8bd6358=99.98f。
+// 残差 = N129/N78 带 223 条（0x081f5489..0x081f5650 / 0x081f56eb.. 两段
+// CHARAC_DATA/TAG ctor + memset/memcpy 内联展开；我方为 SIG_LOAD_CHARAC C1 +
+// call memset）+ 其余 233 条未匹配全为形态（帧 0x1d0c vs 0xf54、槽平移、
+// fucompp vs fucomip、局部缓存指针）。
 int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user->get_state() != 5)
@@ -10279,26 +10324,36 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
     if (*coinSlot > 10000)
     {
+        // ORIG 0x081f5134/0x081f515b 两次独立读 party+0x1840，分别算 over(-0x34)
+        // 与 rest(-0x30)，二者均在 addServerHackCnt 之前算好（P0 具名局部）。
+        unsigned int over = *coinSlot / 10000;
+        unsigned int rest = *coinSlot % 10000;
         user->getHackAnalyzer()->addServerHackCnt(
-            user, (WongWork::ENUM_HACKTYPE)0x78, 1,
-            *coinSlot / 10000, 0);
-        *coinSlot = *coinSlot % 10000;
+            user, (WongWork::ENUM_HACKTYPE)0x78, 1, over, 0);
+        *coinSlot = rest;
     }
 
     // ORIG 本件 _ZNK15CUserCharacInfo14get_charac_jobEv 计数 = 2（我方原存 `int job`
     // 局部复用只 1 次）：与 DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt
     // 0x081c4f83/0x081c4f93 同型 —— 原码两处判定各自重新 call（getter 无副作用，
     // 展开后可观察行为完全不变）。
-    bool fatigueSpecJob =
-        reinterpret_cast<CUserCharacInfo*>(user)->get_charac_job() == 3 ||
+    // ORIG 0x081f5202/0x081f526b：if/else 两分支各自完整内联
+    // fildll/fldl/fmulp/fistpll（真分支 _DAT_08bd6320=0.5、假分支
+    // _DAT_08bd6328=0.8）⇒ 原码无 ratioDelta 局部（P0）；疲劳特化
+    // job==3 或 job==4 且 growtype==2 → ×0.5。
+    if (reinterpret_cast<CUserCharacInfo*>(user)->get_charac_job() == 3 ||
         (reinterpret_cast<CUserCharacInfo*>(user)->get_charac_job() == 4 &&
          reinterpret_cast<CUserCharacInfo*>(user)
-             ->getCurCharFirstGrowType() == 2);
-    double ratioDelta =
-        fatigueSpecJob ? 0.5 : 0.8;              // _DAT_08bd6320 / _DAT_08bd6328
-    *coinSlot = static_cast<unsigned int>(
-        static_cast<long long>(ratioDelta *
-                               static_cast<double>(*coinSlot)));
+             ->getCurCharFirstGrowType() == 2))
+    {
+        *coinSlot = static_cast<unsigned int>(
+            static_cast<long long>(0.5 * static_cast<double>(*coinSlot)));
+    }
+    else
+    {
+        *coinSlot = static_cast<unsigned int>(
+            static_cast<long long>(0.8 * static_cast<double>(*coinSlot)));
+    }
     if (party->GetMapPlayingTime() / 1000 < *coinSlot)
     {
         user->getHackAnalyzer()->addServerHackCnt(
@@ -10332,12 +10387,12 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         SIG_LOAD_CHARAC sigCharac;               // ORIG local_15bf 清零缓冲
         memset(&sigCharac, 0, sizeof(sigCharac));
-        if (user->GetCharacInfo(&sigCharac),
-            0x1d < *reinterpret_cast<short*>(
-                       reinterpret_cast<char*>(&sigCharac) + sizeof(SIG_LOAD_CHARAC)))
+        // ORIG 0x081f5601 `test %al,%al; je`（返回值门禁）+ 0x081f5605
+        // `movzwl -0x158a(%ebp),%eax`：-0x158a = 缓冲基址 -0x15bb + 0x31
+        // = SIG_LOAD_CHARAC::m_characData(+0xc)::m_lev(+0x25)（pack(1)）。
+        if (user->GetCharacInfo(&sigCharac) &&
+            0x1d < sigCharac.m_characData.m_lev)
         {
-            // ORIG local_158e 为 SIG_LOAD_CHARAC 尾部长度字段；
-            // 此处结构建模以 GetCharacInfo 报告为准【推断】。
             user->getHackAnalyzer()->addServerHackCnt(
                 user, (WongWork::ENUM_HACKTYPE)0xe2, 1, 0, 0);
         }
@@ -10351,13 +10406,18 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
         unsigned int tickUnits = playSec / 10;
         if (playSec % 10 != 0)
             ++tickUnits;
-        if (useSkillMaterialCount < static_cast<int>(tickUnits))
+        // ORIG 0x081f56df `mov -0x44(%ebp),%eax; cmp -0x28(%ebp),%eax; jae`：
+        // int 与 unsigned tickUnits 的**无符号**比较（int→unsigned 隐式提升）。
+        // 原 `static_cast<int>(tickUnits)` 会生成有符号 jle，count 为负时行为不同。
+        if (static_cast<unsigned int>(useSkillMaterialCount) < tickUnits)
         {
             SIG_LOAD_CHARAC sigChk;
             memset(&sigChk, 0, sizeof(sigChk));
-            if ((user->GetCharacInfo(&sigChk),
-                 0x1d < *reinterpret_cast<short*>(
-                            reinterpret_cast<char*>(&sigChk))))
+            // ORIG 0x081f583b `test %al,%al; je` + 0x081f583f
+            // `movzwl -0x1c8d(%ebp),%eax`：-0x1c8d = 缓冲基址 -0x1cbe + 0x31
+            // = 同上 m_characData.m_lev。
+            if (user->GetCharacInfo(&sigChk) &&
+                0x1d < sigChk.m_characData.m_lev)
                 user->getHackAnalyzer()->addServerHackCnt(
                     user, (WongWork::ENUM_HACKTYPE)0xe3, 1, 0, 0);
         }
