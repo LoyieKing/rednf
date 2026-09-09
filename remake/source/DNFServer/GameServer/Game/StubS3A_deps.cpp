@@ -478,3 +478,37 @@ void CItemMakingSkill::_reset()
 {
     memset(m_skillLevels, 0, 0x16);   // ORIG 0x085453ba：memset(this+6,0,0x16)
 }
+
+// ===========================================================================
+// [SweepCAutoPunish 2026-09-10] FreeType 收尾 API 占位定义（P210② 跨 TU 迁定义，
+// Main 授权；原定义在 GlobalData.cpp，迁出后 GlobalData.cpp 只见声明 ⇒ 4.4 对
+// CaptchaGen::~CaptchaGen 0x080de706 的 FT_Done_Face/FT_Done_FreeType 调用判
+// 可能抛，复现 ORIG 的 EH landing：push esi/ebx + `_ZNSt6vectorIPvSaIS0_EED2Ev`
+// cleanup + `_Unwind_Resume`。探针 /tmp/gdprobe/p2.cpp 实证：被调**同 TU 有定义**
+// ⇒ 4.4 判 nothrow 不布 landing；**仅声明** ⇒ 布 landing。nm 全链接集扫描确认
+// FT_Done_Face/FT_Done_FreeType 此前仅由 GlobalData.o 定义（无库定义）。
+// 函数体逐字节照搬自 GlobalData.cpp。
+// ===========================================================================
+extern "C" int FT_Done_Face(void* face)
+{
+    (void)face;
+    return 0;
+}
+
+// FreeType 库内部收尾函数（ORIG 0x087c3c00 FT_Done_Library / 0x087dc6b0
+// FT_Done_Memory）：定义仍在 GlobalData.cpp，此处仅取声明。
+extern "C" int FT_Done_Library(void* library);
+extern "C" int FT_Done_Memory(void* memory);
+
+// ORIG 0x087bca50（idx49 报告）：library != 0 时读取其首字段 memory（offset 0），
+// 依次调用 FT_Done_Library(library) 与 FT_Done_Memory(memory)；恒返 0。
+extern "C" int FT_Done_FreeType(void* library)
+{
+    if (library != 0)
+    {
+        void* memory = *(void**)library;   // library->memory @ offset 0
+        FT_Done_Library(library);
+        FT_Done_Memory(memory);
+    }
+    return 0;
+}

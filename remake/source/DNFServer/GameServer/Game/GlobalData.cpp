@@ -22,8 +22,21 @@
 //     残差=ORIG `xor $1;test;jne RET1` vs 4.4 恒 `je NEXT`，极性恒折 ⇒ N）。
 // 其余件按 N 类封顶（逐函数头有证据判词）：N18b 比较方向（CServerProxyMgr D1 ×3，
 // 模板体在 CServerProxyMgr.h，R1 禁改 .h）、N7 寄存器角色轮换、N82/N95 槽位分配、
-// N80 cMyTrace varargs 求值序、N4/P30 add-vs-mem、N-EH 占位定义可见性、
+// N80 cMyTrace varargs 求值序、N4/P30 add-vs-mem、
 // N-数据缺失（CHumanCertifier 人证表内容不可还原）。
+// ============================================================================
+// [SweepCAutoPunish 2026-09-10] dual_rank 13 件（gap' 降序）逐件复核：
+// 收口 identical=894 ae=**1784** near=8 diff=**47** missing=846
+// （基线 894/1772/15/54/849 ⇒ ae +12、near −7、diff −7、missing −3，零回退）。
+// 真修 4 件（逐件证据见函数头）：①CaptchaGen::~CaptchaGen gap16→**0**（AE）——
+// FT_Done_Face/FT_Done_FreeType 定义迁 StubS3A_deps.cpp（P210②，Main 授权），
+// 复现 ORIG 0x080de706 EH landing；②NetworkThread::dispatch gap6→**0**（AE）——
+// P0 具名局部 + P198① 预清 + P225 while 物化 + P47 极性；③SendCheckChannelScript
+// −4→+2——三处 P295 while 形消 sete 差异；④generateImage 680→**682**——P321 T1
+// int 局部 + 删 cast + FT_Bitmap::width 类型 + P243 首项序 + P223 双岛。
+// 其余 9 件维持 N（parse/InitTcp/DispatchThread/QueryConnInfo/CSimpleSSO/
+// CheckupAllRentalItems×2/pc_room×2：gap 1~6，无 jcc/调用差，p167 CLEAR 仅
+// C1/C2·D1/D2 同址别名，归 N7/N18a/N78/N82/N126）。
 // ============================================================================
 // [b28d-PoolGlobalData 二压 2026-09-09] 三数 基线 892/1780/8/53 →
 // 收口 identical=893 ae=1781 near=8 diff=52（+1/+1/0/−1，missing_in_game
@@ -48,7 +61,8 @@
 //   CheckInventoryEmptyCount（xor$1;jne 极性，probe f1–f9 复核 4.4 无
 //   「无往返+直分支」形）、CSimpleSSO::init（ndiff 已 3，N18a add 折叠）、
 //   CheckupAllRentalItems ×2（各 3 条，N18a regmove 融合）、CaptchaGen D1
-//   （N-EH，两泳道四形穷尽）、InitTcp（N80/N82）；CHumanCertifier::init
+//   （N-EH 判词已于 2026-09-10 被 SweepCAutoPunish 推翻并修复：FT 占位定义迁
+//    StubS3A_deps.cpp 后 AE 49=49）、InitTcp（N80/N82）；CHumanCertifier::init
 //   N-数据缺失；Init/Fini/dispatch 族与 IPG/ vending 超大件维持原判词。
 // ============================================================================
 
@@ -611,7 +625,12 @@ int CmmChannelProxy::RecvPacket()
 // channel_info.etc 并落盘。stat 失败且非 ENOENT → 0；version 文件读写两次；
 // CHECK_SCRIPT_VERSION(cat1/id5) 应答尾包写入 version；GET_SCRIPT(cat2/id9)
 // 应答尾包为脚本体（fwrite size-0xb 字节）。
-// [b28d-18 N82] 残差=槽位/寄存器（N82） | ORIG 0x081066ea
+// [SweepCAutoPunish 2026-09-10] 285→**291**（ORIG 289，余 +2）：三处 `if(fp==0)`
+// 改 P295 while 形，复现 ORIG 0x081067e4/0x081069d7/0x08106ae8 的
+// `cmpl $0,-0x20; sete %al; test %al,%al; je`（探针 /tmp/gdprobe/p3.cpp f2/f3；
+// if 形恒折 `jne`）。余 +2 = fgets 行剥离循环的 continue 岛布局（ORIG
+// `jne <body>` 回边 vs 我方 `jne; jmp; nop`，P223 边界）+ 3 条装载序，
+// 无 jcc 语义差、p167 CLEAR（仅 C1/C2 别名）。
 bool CmmChannelProxy::SendCheckChannelScript()
 {
     ConnectBridgeServer();
@@ -631,7 +650,10 @@ bool CmmChannelProxy::SendCheckChannelScript()
 
     char line[0x400];
     FILE* fp = std::fopen("channel_info/version", "wb+");
-    if (fp == 0)
+    // ORIG 0x081067e4：`cmpl $0,-0x20; sete %al; test %al,%al; je` ⇒ 原码是
+    // **while** 形（P295/IsGateArea 实证；探针 /tmp/gdprobe/p3.cpp f2/f3：
+    // `while(p==0){…return false;}` 4.4 产同形，`if` 形恒折 `jne`）。
+    while (fp == 0)
     {
         cMyTrace trace(
             __PRETTY_FUNCTION__, 0x143, 9,
@@ -689,7 +711,8 @@ bool CmmChannelProxy::SendCheckChannelScript()
     }
 
     fp = std::fopen("channel_info/version", "rb+");
-    if (fp == 0)
+    // ORIG 0x081069d7：同 P295 while 形（sete/test/je）。
+    while (fp == 0)
     {
         cMyTrace trace(
             __PRETTY_FUNCTION__, 0x188, 9,
@@ -723,7 +746,9 @@ bool CmmChannelProxy::SendCheckChannelScript()
         }
     }
     fp = std::fopen("channel_info/channel_info.etc", "w+");
-    if (fp == 0)
+    // ORIG 0x08106ae8：`cmpl $0,-0x20; sete; test; je; mov $0,%eax; jmp` ⇒
+    // while 形（探针 p3.cpp f3 逐条同形）。
+    while (fp == 0)
     {
         return false;
     }
@@ -1193,13 +1218,12 @@ extern "C" int FT_Init_FreeType(void** alibrary)
     return 0;
 }
 
-// FreeType 收尾 API（ORIG 0x087c14b0 / 0x087bca50，占位定义豁免同上；
-// CaptchaGen dtor 0x080de706 调用点 codegen 与 ORIG 一致）。
-extern "C" int FT_Done_Face(void* face)
-{
-    (void)face;
-    return 0;
-}
+// FreeType 收尾 API（ORIG 0x087c14b0）。[SweepCAutoPunish 2026-09-10] 定义已迁
+// StubS3A_deps.cpp（P210② 跨 TU 迁定义，Main 授权）：本 TU 只见声明 ⇒ 4.4 判该
+// 调用可能抛，CaptchaGen dtor 复现 ORIG 0x080de706 的 EH landing（push esi/ebx +
+// vector D2 cleanup + _Unwind_Resume）。探针 /tmp/gdprobe/p2.cpp（同 TU 定义 ⇒
+// 无 landing；仅声明 ⇒ 有 landing）实证；nm 全链接集确认无其它定义。
+extern "C" int FT_Done_Face(void* face);
 
 // FreeType 库内部收尾函数（ORIG 0x087c3c00 FT_Done_Library / 0x087dc6b0
 // FT_Done_Memory / 0x087c43a0 FT_Open_Face）。均真实存在于 ORIG，属静态链入
@@ -1242,27 +1266,13 @@ extern "C" int FT_Open_Face(void* library, FT_Open_Args* args, long face_index,
     return 0;
 }
 
-// [b22判词·N-codegen] FT_Done_FreeType 语义忠实 ORIG 0x087bca50：library!=0 时读
-// 其首字段 memory（offset 0），依次 FT_Done_Library(library)、FT_Done_Memory(memory)，
-// 恒返 0（orig_insns=our_insns=17）。残余 DIFF 全属跨版本 codegen 结构差、无法源码
-// 复现：①ORIG 用 callee-saved %ebx 跨两次 call 持有 memory（push/pop %ebx），
-// 4.4.7 -O0 为具名局部 memory 建 -0x4(%ebp) 槽；②ORIG `test %eax,%eax`（载入指针
-// 后测寄存器）vs 本 `cmpl $0x0,0x8(%ebp)`（测形参槽）；③ORIG epilogue
-// `add $0x14,%esp; xor %eax,%eax; pop %ebx; pop %ebp; ret`（有 %ebx 压栈）vs 本
-// `mov $0,%eax; leave; ret`；④`call <FT_Done_Library/FT_Done_Memory>` 未 relink 时
-// 为 .o 重定位占位（§6.3 假阳性），relink 后转 AE。语义等价。
-extern "C" int FT_Done_FreeType(void* library)
-{
-    // ORIG 0x087bca50（idx49 报告）：library != 0 时读取其首字段 memory，
-    // 依次调用 FT_Done_Library(library) 与 FT_Done_Memory(memory)；恒返 0。
-    if (library != 0)
-    {
-        void* memory = *(void**)library;   // library->memory @ offset 0
-        FT_Done_Library(library);
-        FT_Done_Memory(memory);
-    }
-    return 0;
-}
+// [b22判词·N-codegen] FT_Done_FreeType 语义忠实 ORIG 0x087bca50（体已迁
+// StubS3A_deps.cpp，见上条注释；本 TU 仅声明）。残余 DIFF 全属跨版本 codegen
+// 结构差：①ORIG 用 callee-saved %ebx 跨两次 call 持有 memory（push/pop %ebx），
+// 4.4.7 -O0 为具名局部 memory 建槽；②ORIG `test %eax,%eax` vs 本 `cmpl $0,0x8(%ebp)`；
+// ③ORIG epilogue 有 %ebx 压栈 vs 本 `mov $0,%eax; leave; ret`；④call 未 relink
+// 时为 .o 重定位占位（§6.3 假阳性），relink 后转 AE。语义等价。
+extern "C" int FT_Done_FreeType(void* library);
 
 // addFont 用 FreeType API（ORIG 0x087c4730/0x087c2f20/0x087bdd80）占位定义，
 // 豁免同 FT_Init_FreeType（本环境无 libfreetype；调用点 codegen 与 ORIG 一致，
@@ -1333,7 +1343,10 @@ struct FT_Matrix
 struct FT_Bitmap
 {
     unsigned int rows;            // +0x00
-    unsigned int width;           // +0x04
+    // ORIG 0x080df0xx：`mov -0x38(%ebp),%eax; lea 0x4(%eax),%edx` 把
+    // **成员地址**直接喂 `std::min<int>`（`_ZSt3minIiERKT_S2_S2_`）⇒ 成员
+    // 类型是 int（P321 T1：模板实例 + 取址直传，无临时中转）。
+    int width;                    // +0x04
     int pitch;                    // +0x08
     unsigned char* buffer;        // +0x0c
     unsigned short num_grays;     // +0x10
@@ -1398,9 +1411,13 @@ CaptchaGen::CaptchaGen()
     return;
 }
 
-// [b28d-18 N-EH] FreeType 占位定义同 TU 可见 ⇒ 4.4 判 nothrow 不布 landing（跨版本 EH 可见性，b28 已判） | ORIG 0x080de706
-// [b28d-solo-GlobalData] DIFF 封顶：p167 MISSING vector D1+_Unwind_Resume = N-EH（4.1 对外部
-// FreeType .so 不透明调用布 landing；本仓占位定义同 TU 可见 ⇒ 4.4 判 nothrow）。
+// [SweepCAutoPunish 2026-09-10 已修·AE 49=49] ORIG 0x080de706 的 EH landing 复现：
+// 根因是 FT_Done_Face/FT_Done_FreeType 占位定义**同 TU 可见** ⇒ 4.4 判 nothrow 不布
+// landing。按 P210② 把这两个 extern "C" 定义迁 StubS3A_deps.cpp（Main 授权），本 TU
+// 只留声明 ⇒ 4.4 判可能抛，逐条复现 ORIG：push esi/ebx + `call vector D2Ev` cleanup +
+// `_Unwind_Resume` + 尾 `add $0x20; pop ebx/esi/ebp`。探针 /tmp/gdprobe/p2.cpp
+// （同 TU 定义⇒无 landing；仅声明⇒有 landing）；nm 全链接集确认此前仅 GlobalData.o 定义。
+// 旧判词「N-EH 占位定义可见性」作废。
 CaptchaGen::~CaptchaGen()
 {
     // ORIG 0x080de717：ix 实参先载 i 槽（int→unsigned 转换 ⇒ arg 先于 this，
@@ -1497,9 +1514,13 @@ void CaptchaGen::generateText(CountryCode code, int len, unsigned short* out)
 // FT_Set_Transform/FT_Get_Char_Index/FT_Load_Glyph/FT_Render_Glyph extern "C" 占位 +
 // FT_Matrix/FT_Vector/FT_Bitmap/FT_GlyphSlotRec/FT_FaceRec 视图，按 ORIG 0x080dee9x..
 // 0x080df120 还原 16.16 定点矩阵与 bitmap 遍历（std::min<int>）；发明符号 static
-// renderGlyph 已删。余 gap 3 = 槽号平移（N82/N95 族）。
-// [SweepGlobalData] sinTbl 声明后移（ORIG call 序 cosf→C1Ev→resize）后 685 vs 680；
-// 残余 span 差（XorRand4/min/setAlphaAsMax 段）= 浮点/寄存器 N85/N18a 族。
+// renderGlyph 已删。
+// [SweepCAutoPunish 2026-09-10] 680→**682**（ORIG 685，余 3）：①字形 alpha 局部
+// uchar→int（P321 T1 双段零扩展直证，探针 p4/p5.cpp）；②删 `(int)bm->width` cast +
+// FT_Bitmap::width unsigned→int（ORIG 直取 &成员喂 min<int>）；③`dy*dy+dx*dx` 首项序
+// （P243 同族）；④两个 row 守卫改 P223 负条件 goto 尾标签串，复现 ORIG 0x080df05c/
+// 0x080df068 两岛（+4 条）。余 3 条 = XorRand4/min/setAlphaAsMax 段浮点/寄存器
+// N85/N18a 族（无 jcc/调用差，p167 CLEAR）。
 void CaptchaGen::generateImage(int width, int height, const unsigned short* text, int len,
                                const ImageOption& opt, GreyImage* image)
 {
@@ -1519,7 +1540,10 @@ void CaptchaGen::generateImage(int width, int height, const unsigned short* text
         {
             for (int dx = -r; dx <= r; ++dx)
             {
-                int v = ((dx * dx + dy * dy) * 0xff) / (r * r);
+                // ORIG 0x080debc7：先 `mov -0x80(dy),%eax; mov %eax,%edx;
+                // imul -0x80,%edx` 再算 -0x7c(dx) 平方 ⇒ 源码首操作数是
+                // dy*dy（P243 同族：首求值项=书写序左项；加法交换、语义等价）。
+                int v = ((dy * dy + dx * dx) * 0xff) / (r * r);
                 if (v < 0xff)
                 {
                     image->setAlphaAsMax(cx + dx, cy + dy,
@@ -1574,19 +1598,40 @@ void CaptchaGen::generateImage(int width, int height, const unsigned short* text
         for (int row = 0; row < (int)bm->rows; ++row)
         {
             int yy = penY + row + yOff;
-            if (yy > -1 && yy < height)
+            // ORIG 0x080df05c/0x080df068：`js 0x080df10d` + `jge 0x080df110`
+            // 两个守卫各自落独立岛（岛形 `jmp <外层增量>; nop`×2，共 4 条）
+            // ⇒ P223 正例形「负条件 goto 到共享尾空标签串，标签序=守卫序」
+            // （if 正向包裹恒被 4.4 jump-thread 成 0 岛）。
+            if (yy < 0)
+            {
+                goto rowSkip1;
+            }
+            if (yy >= height)
+            {
+                goto rowSkip2;
+            }
             {
                 int maxCols = width - penX;
-                int cols = std::min((int)bm->width, maxCols);
+                // ORIG 直接取 &bm->width 传 min<int>；`(int)` cast 会造右值
+                // 临时（多 -0xa4 槽 + 两条 mov）⇒ 删 cast（width 已改 int）。
+                int cols = std::min(bm->width, maxCols);
                 for (int c = 0; c < cols; ++c)
                 {
-                    unsigned char a = bm->buffer[bm->pitch * row + c];
+                    // ORIG 0x080df0xx：`movzbl (%eax),%eax; movzbl %al,%eax;
+                    // mov %eax,-0x24(%ebp); cmpl $0,-0x24` ⇒ 局部是 **int**
+                    // （P321 T1 双段零扩展 + 4 字节槽直证；uchar 形恒产
+                    // `mov %al,槽; cmpb $0,槽`，探针 /tmp/gdprobe/p4.cpp
+                    // f1/f3 vs f4 对照）。传参亦为 int→uchar 形
+                    // （`mov -0x24,%eax; movzbl %al,%eax`，探针 p5.cpp）。
+                    int a = bm->buffer[bm->pitch * row + c];
                     if (a != 0)
                     {
                         image->setAlphaAsMax(penX + c, yy, a);
                     }
                 }
             }
+rowSkip1:;
+rowSkip2:;
         }
         penX += (int)(opt.m_field20 * (float)bm->width);
     }
@@ -2123,7 +2168,12 @@ void DispatchThread::dispatch(void* arg)
 // 循环尾（ORIG 0x0857d89d `movzbl s_server_stop; xor $1; test; jne body` 为回边
 // 目标，trace 落循环外函数尾 0x0857d8af）⇒ `while(!stop){body} trace;`；
 // ②去 epoll 具名局部（P183，ORIG 0x0857d5c6 直 `call G_EpollHandler; mov %eax,(%esp)`）。
-// 余 gap=6/N82 槽位（帧 0x60 vs 0x?）⇒ N82 封顶。
+// [SweepCAutoPunish 2026-09-10 已修·AE 207/208] 旧判「gap=6/N82 槽位封顶」作废：
+// ORIG 循环前 `movl $0,-0x1c`/`movl $0,-0x18` 与内层 `movl $0,-0x14` 是 P0 具名局部
+// 直证 ⇒ 补函数级 user/nfds + 内层 quser + err 预清两句式（P198①）；err 守卫改
+// P225 while 物化（ORIG 0x0857d68c setne/test/je）；sendSize 分支改正极性
+// `if (>){DisConn}else{send}` 复现 ORIG 0x0857d80b `jbe` 落点（P47/P220）。
+// compare_tu 已判 AE（.o 重定位标签伪差）；余 1 条 = N7 寄存器角色。
 void NetworkThread::dispatch(void* arg)
 {
     (void)arg;
@@ -2131,6 +2181,11 @@ void NetworkThread::dispatch(void* arg)
     // （`call G_EpollHandler; mov %eax,(%esp); call GetEpollEvents`）。
     epoll_event* events = G_EpollHandler()->GetEpollEvents();
     int epollfd = G_EpollHandler()->GetEpollFD();
+    // ORIG 0x0857d5e6/0x0857d5ed：循环前 `movl $0,-0x1c` / `movl $0,-0x18`
+    // 两处槽清零 ⇒ 原码在外层 for 用的 CUser* 与 nfds 均为**函数级具名局部**
+    // 并在声明处初始化（P0 槽往返直证）。当前缺这两条 store ⇒ 槽图整体上移。
+    CUser* user = 0;
+    int nfds = 0;
 
     // [b28d-solo-GlobalData] ORIG 0x0857d89d：s_server_stop 检查在**循环尾**
     // （`movzbl s_server_stop; xor $1,%eax; test %al,%al; jne body`，+0x2df 即
@@ -2144,25 +2199,34 @@ void NetworkThread::dispatch(void* arg)
         if (!GlobalData::s_accept_que.empty())
         {
             GlobalData::s_accept_lock.lock();
+            // ORIG 0x0857d633：内层 front 结果槽 -0x14 在 lock 后先清零
+            // （P0 具名局部，声明在 while 之前）。
+            CUser* quser = 0;
             while (!GlobalData::s_accept_que.empty())
             {
-                CUser* user = GlobalData::s_accept_que.front();
-                int err = G_EpollHandler()->SetEpoll(
-                    user, user->m_network.get_socket(), false);
-                if (err != 0)
+                quser = GlobalData::s_accept_que.front();
+                // ORIG 0x0857d650：`movl $0,-0x10` 先于 SetEpoll 调用
+                // ⇒ 预清必写两句式（P198①），非初始化式。
+                int err = 0;
+                err = G_EpollHandler()->SetEpoll(
+                    quser, quser->m_network.get_socket(), false);
+                // ORIG 0x0857d68c：`cmpl $0,-0x10; setne %al; test %al,%al;
+                // je` ⇒ P225 物化形（`while(v!=0){body;break;}`；if 形恒折直跳）。
+                while (err != 0)
                 {
                     LogManager::logFormat(
                         1, "NetworkThread.cpp", __PRETTY_FUNCTION__, 0x2c4,
                         "(m_id: %s) G_EpollHandler()->SetEpoll(pUser->get_socket(%d)) %d(%s)",
-                        NumberToString(user->get_acc_id(), 0),
-                        user->m_network.get_socket(), err, strerror(err));
+                        NumberToString(quser->get_acc_id(), 0),
+                        quser->m_network.get_socket(), err, strerror(err));
+                    break;
                 }
                 GlobalData::s_accept_que.pop();
             }
             GlobalData::s_accept_lock.unlock();
         }
 
-        int nfds = epoll_wait(epollfd, events, 600, 100);
+        nfds = epoll_wait(epollfd, events, 600, 100);
         if (nfds == 0)
         {
             continue;
@@ -2173,7 +2237,7 @@ void NetworkThread::dispatch(void* arg)
         }
         for (int i = 0; i < nfds; ++i)
         {
-            CUser* user = (CUser*)events[i].data.ptr;
+            user = (CUser*)events[i].data.ptr;
             if (user == 0)
             {
                 continue;
@@ -2184,13 +2248,16 @@ void NetworkThread::dispatch(void* arg)
             }
             if (user->m_network.m_sendSize != 0 && (events[i].events & 4))
             {
-                if (user->m_network.m_sendSize <= 0x6ddd0)
+                // ORIG 0x0857d80b：`cmp $0x6ddd0,%eax; jbe 0857d837`（<= 跳
+                // send_packet，DisConnSig 块 fall-through 在前）⇒ 源形是
+                // 正极性 `if (>){DisConn}else{send}`（P47/P220 布局翻转）。
+                if (user->m_network.m_sendSize > 0x6ddd0)
                 {
-                    user->m_network.send_packet();
+                    user->DisConnSig((DISCONN_SIG)6, false, 0);
                 }
                 else
                 {
-                    user->DisConnSig((DISCONN_SIG)6, false, 0);
+                    user->m_network.send_packet();
                 }
             }
             if (events[i].events & 0x18)
