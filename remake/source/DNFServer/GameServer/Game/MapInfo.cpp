@@ -326,7 +326,9 @@ void MapInfo::SelectDonsterItemDropLimit(unsigned int limit)
 
 // ORIG _ZN11map_monster14isNamedMonsterEv @ 0x08151182 (W)：
 // m_mobIndex 落在命名怪区间 (0xc34f,0xc738] 或 (0xdabf,0xea60] → true。
-bool map_monster::isNamedMonster()
+// b28d-Main：`throw()` 与 WarField.h:145 声明一致（依据见该处注释：ORIG 调用点
+// checkClearedNamedMonsterMap 无 EH landing pad / 无 _Unwind_Resume）。
+bool map_monster::isNamedMonster() throw()
 {
     return (m_mobIndex > 0xc34f && m_mobIndex <= 0xc738)
         || (m_mobIndex > 0xdabf && m_mobIndex <= 0xea60);

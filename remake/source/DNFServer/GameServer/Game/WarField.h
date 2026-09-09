@@ -107,7 +107,8 @@ struct map_monster
     char m_pad35[3];          // +0x35
     ActiveStaticInfo m_active;      // +0x38（0x2f0 字节）
     std::vector<int> m_mobList;     // +0x328
-    short m_hellPartyGroupIdx;      // +0x334
+    unsigned short m_hellPartyGroupIdx;  // +0x334（ORIG 0x083073ca movzwl→edx 单段直存；
+                                    // 与 oit->first(u16) 同型 ⇒ 消 4.4 eax 中转）
     unsigned short m_hellPartyGroupOrder;    // +0x336（ORIG 0x0830d704 movzwl 零扩展读实证）
     char m_hellPartyScriptIdx;      // +0x338
     char m_pad339;                  // +0x339
@@ -134,7 +135,14 @@ struct map_monster
     map_monster(const map_monster& other);  // ORIG 08151aea
     ~map_monster();                         // ORIG 081515ae
     map_monster& operator=(const map_monster& other);  // ORIG 08151d3a
-    bool isNamedMonster();                 // ORIG 08151182（非 const）
+    // b28d-Main：加 `throw()`（异常规格不入 mangled）。依据：ORIG 的调用点
+    // CBattle_Field::checkClearedNamedMonsterMap（ORIG 0x08300c76, 304B）**无** EH landing
+    // pad / 无 `_Unwind_Resume` 调用（p167：ORIG calls=7 vs 我方 9，EXTRA 恰为
+    // `_Unwind_Resume`×1）；我方缺 throw() ⇒ 4.4 -O0 认为该调用可能抛出，在活跃对象
+    // 清理点生成 landing pad。同 TU 的 add_hell_party_monster 因含 std::list 拷贝构造
+    // （可抛）ORIG 侧**有** `_Unwind_Resume`（0x0830760e）⇒ 反证 isNamedMonster 为 nothrow。
+    // 定义侧 MapInfo.cpp:329 必须同加（异常规格头/定义不一致即编译错误）。
+    bool isNamedMonster() throw();         // ORIG 08151182（非 const）
 };
 
 
