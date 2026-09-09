@@ -11,11 +11,14 @@
 //     MakeStateInfo 0x086be07a / MakeSlotInfo 0x086bdea0 / MakeRoomInfo 0x086bdd58
 //     （局部 char*+调用点 cast 复现值先物化 %edx；P222 极性翻正）、
 //     ReviveUserByCoin 0x086bf324（地址归一后全等）。
-//   near/diff 封顶：EnterWarRoom（N82附 聚合优先低槽）、ImportWarRoomWPTable
-//     （4.1 do-while 底部布局/空岛）、SendGuildFP·CalcGuildFP·HandleDieCharacer·
-//     OnEnterState·HandleMonsterKill·ClearReward·HandleGetItem（N82/N95 帧槽平移）、
-//     HandleItemDrop（4.4 跳表前多一条范围检查）。逐件归因见
-//     /tmp/b28d_solo_WarRoom_result.tsv。
+//   near：SendGuildFP 0x086bc0b0（[SweepWarRoom] 本轮三循环岛形修复 271=271，
+//     gap 0，DIFF→NEAR；残余标量槽序 N82）、EnterWarRoom（N82附 聚合优先低槽）。
+//   diff 封顶（[SweepWarRoom] 本轮 gap 复核，dual_rank 候选 5→4、Σgap 39→7）：
+//     HandleMonsterKill 0x086be1fe（26→3，残余 4.4 强度归约 N86/N1）、
+//     HandleDieCharacer 0x086bd87e（2→1，残余版本槽基 4 N95/P332）、
+//     ImportWarRoomWPTable 0x08902543（gap 2，4.1 while 头部双入口岛 P283 N）、
+//     ReviveUserByCoin 0x086bf324（compare_tu AE；切片仅差 break 中继 nop P223 N）、
+//     CalcGuildFP·OnEnterState·ClearReward·HandleGetItem·HandleItemDrop（N82/N95 帧槽平移）。
 //   P0：全域无 register asm 绑定（唯一 register 为 P231 纯存储类提示）。
 // ---------------------------------------------------------------------------
 #include "CGameManager.h"        // G_CGameManager/GetWarRoom/PutWarRoom/CheckOutParty
@@ -1192,30 +1195,35 @@ void WarRoom::CalcGuildFP()
 
 void WarRoom::SendGuildFP()
 {
-    // [b28d-solo-WarRoom] DIFF | ORIG 0x086bc0b0 | 本轮 fresh .o ndiff 38→30
-    //   （our 263 / orig 267，P167 CLEAR 32/32）：①P97/P244 logFormat 的 vararg
-    //   来源改具名 bestSlot（ORIG 从 -0x14 槽装载，非字面量 0xffffffff）；
-    //   ②P225 推广把 while 内 `&&` 短路链拆嵌套 if ⇒ 复现 ORIG 第三条件
-    //   `cmp; setge %al; test; je` 物化。残余 = N82附 槽差（i ORIG -0x20 vs
-    //   4.4 -0x1c、minFp -0x1c vs -0x18、count -0x18 vs -0x20，PacketGuard 连动）
-    //   + 4.1 for 体尾 `jmp <incr>` 中继岛（0x086bc0xx，4.4 fall-through；
-    //   P225 while+break 复测 ndiff 30→40 反劣）⇒ N82 封顶。
+    // [SweepWarRoom] NEAR | ORIG 0x086bc0b0 | 本轮三循环岛形修复后 271=271（gap 0），
+    //   TU 判词由 DIFF 升 NEAR（identical_ae 113/242→113/242、near 1→2、diff 11→10）。
+    //   ①第一循环：slot==0 独立 goto nop 岛 + body 尾 goto（ORIG 086bc110 je→086bc150
+    //     nop、086bc13b je→086bc151、086bc14e jmp→086bc151）；
+    //   ②第二循环：slot==0 goto nop 岛（ORIG 086bc1a6 je→086bc235）+ 两分支体尾 jmp；
+    //   ③第三循环：三守卫三岛 goto 串（ORIG 086bc31c je→086bc369、086bc328 jne→
+    //     086bc36c、086bc347 je→086bc36d；P223 多岛形）。
+    //   残余 = 标量槽序差（i1 -0x1c vs ORIG -0x20、minFp -0x18 vs -0x1c、
+    //   count -0x20 vs -0x18；同尺寸标量区声明序 4.1/4.4 相反，P331 反转尝试
+    //   会连带 cMyTrace/PacketGuard 槽 ⇒ N82 封顶）+ 重定位地址显示差（AE 口径）。
     PacketGuard packet;
     packet.put_header(0, 0x60);
     packet.put_byte(GetWaiterCount());
     for (int i = 0; i <= 5; ++i)
     {
-        if (m_slots[i] != 0)
+        if (m_slots[i] == 0)
+            goto FP_NOP;
+        // ORIG 086bc13b/086bc14e/086bc150：cond 假 je→086bc151(incr)、body 尾
+        //   jmp→086bc151、slot==0 je→086bc150(nop 岛)；goto 尾标签串复现。
+        if ((m_slotsUser[i])->GetFinishPointTotal() <
+            G_CDataManager()->m_warAreaCounter.m_kickPoint)
         {
-            // ORIG 0x086bc127：`setl %al; test %al,%al; je <incr>` + body +
-            //   体尾 `jmp <incr>`（4.1 bool 物化四段形）；4.4 对 if(cond) 恒 jl
-            //   直跳 ⇒ P225 while+break 实测 ndiff 30→40 反劣，保持 if 形。
-            if ((m_slotsUser[i])->GetFinishPointTotal() <
-                G_CDataManager()->m_warAreaCounter.m_kickPoint)
-            {
-                m_slotData[i] = 9;
-            }
+            m_slotData[i] = 9;
         }
+        goto FP_END;
+    FP_NOP:
+        ;
+    FP_END:
+        ;
     }
     if (GetWaiterCount() > 4)
     {
@@ -1223,21 +1231,26 @@ void WarRoom::SendGuildFP()
         std::vector<int> v;
         for (int i = 0; i <= 5; ++i)
         {
-            if (m_slots[i] != 0)
+            if (m_slots[i] == 0)
+                goto V_NOP;
+            // ORIG 086bc1a6 je→086bc235(nop 岛)；两分支体尾 jmp→086bc236(incr)。
+            if ((m_slotsUser[i])->GetFinishPointTotal() < minFp)
             {
                 // b28d-lane25：P167 差集实证 ORIG（0x086bc1bc/0x086bc1db/0x086bc212）
                 // 在比较与两分支内各自重新调用 GetFinishPointTotal（共 3 次），不缓存。
-                if ((m_slotsUser[i])->GetFinishPointTotal() < minFp)
-                {
-                    minFp = (m_slotsUser[i])->GetFinishPointTotal();
-                    v.clear();
-                    v.push_back(i);
-                }
-                else if ((m_slotsUser[i])->GetFinishPointTotal() == minFp)
-                {
-                    v.push_back(i);
-                }
+                minFp = (m_slotsUser[i])->GetFinishPointTotal();
+                v.clear();
+                v.push_back(i);
             }
+            else if ((m_slotsUser[i])->GetFinishPointTotal() == minFp)
+            {
+                v.push_back(i);
+            }
+            goto V_END;
+        V_NOP:
+            ;
+        V_END:
+            ;
         }
         for (std::vector<int>::iterator it = v.begin(); it != v.end(); ++it)
         {
@@ -1252,20 +1265,24 @@ void WarRoom::SendGuildFP()
         int bestFp = -1;
         for (int i = 0; i <= 5; ++i)
         {
-            // [b28d-solo-WarRoom P225 推广] ORIG 0x086bc3xx：第三条件独立成 if
-            //   （call 结果 vs 槽比较物化 `cmp; setge %al; test; je`）；&& 短路链
-            //   在 4.4 恒折成 jl/mov$1/jmp/mov$0 物化链 ⇒ 拆嵌套 if 复现。
-            if (m_slots[i] != 0)
+            // ORIG 086bc31c/086bc328/086bc347：三守卫三岛（je→086bc369 nop、
+            //   jne→086bc36c nop、je→086bc36d incr），P223 多岛形复现。
+            if (m_slots[i] == 0)
+                goto B_NOP1;
+            if (local_3a[i] != 0)
+                goto B_NOP2;
+            if (bestFp <= (m_slotsUser[i])->GetFinishPointTotal())
             {
-                if (local_3a[i] == 0)
-                {
-                    if (bestFp <= (m_slotsUser[i])->GetFinishPointTotal())
-                    {
-                        bestFp = (m_slotsUser[i])->GetFinishPointTotal();
-                        bestSlot = i;
-                    }
-                }
+                bestFp = (m_slotsUser[i])->GetFinishPointTotal();
+                bestSlot = i;
             }
+            goto B_END;
+        B_NOP1:
+            ;
+        B_NOP2:
+            ;
+        B_END:
+            ;
         }
         if (bestSlot == -1)
         {
@@ -1645,9 +1662,16 @@ void WarRoom::HandleSetSeatState(CUser* user, int seat, ENUM_SEAT_STATE state)
 
 int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
 {
-    // [b28d-solo-WarRoom] DIFF(247) | ORIG 0x086bd87e | N95/N82 槽基差 4
-    //   （slot ORIG -0x14 vs 4.4 -0x18；cMyTrace 临时槽连动）+ 全帧偏移平移。
-    //   P167 CLEAR(41/41)；语义与 ORIG 一致。
+    // [SweepWarRoom] DIFF | ORIG 0x086bd87e | 本轮四修后 gap 2→1（our 324 / orig 325）：
+    //   ①killerUid short→unsigned short（ORIG 086bd9ec movw $0xffff + movzwl ⇒ P11，
+    //     旧形 movswl 符号扩展）；
+    //   ②m_slots[killerSlot] 分支反写为正极性 then=取 uid（ORIG 086bd9a1 je→086bd9a9
+    //     cMyTrace 块在 else 之后，P222/P272）；
+    //   ③m_flag12 分支反写（ORIG 086bda64 je→086bda96 ⇒ then=「!=0 → 0 参数」）；
+    //   ④两处 cMyTrace 改全表达式临时链（P221/P227；trace1 槽 -0x28→-0x38 与 ORIG
+    //     深→浅方向一致）。
+    //   残余 = 版本槽基常数 4（killerUid -0x12 vs ORIG -0xe、slot -0x18 vs -0x14、
+    //   packet -0x44 vs -0x40；P332/N95）+ 1 条重定位显示差 ⇒ N 封顶。
     if ((GetState() != 3) && (GetState() != 4) && (m_state != 5))
         return 0x13;
     int slot = GetUserSlot(user);
@@ -1657,37 +1681,43 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
         return 0x12;
     if ((killerSlot != 0xff) && ((killerSlot < 0) || (killerSlot > 5)))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x6d0, 5);
-        trace("WarRoom::HandleDieCharacer killerSlotIndex Error(%d)", killerSlot);
+        // P221/P227：全表达式临时链复现 ORIG 槽向（先出现者占更深槽 -0x34）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x6d0, 5)(
+            "WarRoom::HandleDieCharacer killerSlotIndex Error(%d)", killerSlot);
         return 1;
     }
-    short killerUid = -1;
+    // ORIG 086bd9ec movw $0xffff,-0xe + 086bda0x movzwl ⇒ unsigned short（P11）。
+    unsigned short killerUid = 0xffff;
     if (killerSlot != 0xff)
     {
-        if (m_slots[killerSlot] == 0)
+        // ORIG 086bd9a1 test/je→086bd9a9(cMyTrace 块，位于 else 块之后)：
+        // 正极性 then=取 uid、else=cMyTrace 才能复现 4.1 块序（P222/P272）。
+        if (m_slots[killerSlot] != 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x6de, 5);
-            trace("WARAREA WarRoom::HandleDieCharacer player_[] is NULL killerSlotIndex(%d)",
-                  killerSlot);
-            killerUid = -1;
+            killerUid = (m_slotsUser[killerSlot])->get_unique_id();
         }
         else
         {
-            killerUid = (m_slotsUser[killerSlot])->get_unique_id();
+            cMyTrace(__PRETTY_FUNCTION__, 0x6de, 5)(
+                "WARAREA WarRoom::HandleDieCharacer player_[] is NULL killerSlotIndex(%d)",
+                killerSlot);
+            killerUid = -1;
         }
     }
     SetCharacterLive(slot, user, false, false, killerUid, killerSlot);
     if ((killerSlot != 0xff) && (killerSlot >= 0) && (killerSlot <= 5) &&
         (m_slots[killerSlot] != 0))
     {
-        if (m_flag12 == 0)
+        // ORIG 086bda64 je→086bda96（else 块在 fall-through 之后）⇒ 源码为
+        // `if (m_flag12 != 0) {0 参数} else {m_d4}`（then 在前）。
+        if (m_flag12 != 0)
         {
-            (m_slotsUser[killerSlot])->WarAreaKill(
-                4, m_pDungeon->m_warRoomData.m_d4, 1.0f);
+            (m_slotsUser[killerSlot])->WarAreaKill(4, 0, 1.0f);
         }
         else
         {
-            (m_slotsUser[killerSlot])->WarAreaKill(4, 0, 1.0f);
+            (m_slotsUser[killerSlot])->WarAreaKill(
+                4, m_pDungeon->m_warRoomData.m_d4, 1.0f);
         }
         PacketGuard packet;
         packet.clear();
@@ -1741,127 +1771,154 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
 __attribute__((target("arch=i486")))
 bool WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)   // [b28d-Main·P292] int→bool
 {
-    // [b28d-solo-WarRoom] DIFF(421) | ORIG 0x086be1fe | N82 帧/槽平移
-    //   （map_monster 临时 ORIG -0x3a8 vs 4.4 -0x3ac，全帧 -4 连动）。
-    //   P167 CLEAR(40/40)：调用点多重集全等，无语义缺口；ours 418 vs orig 442
-    //   条为 4.1 展开更宽（同一调用序列的指令形态差）。
+    // [SweepWarRoom] DIFF | ORIG 0x086be1fe | 本轮六修：
+    //   ①删 result 局部改早返回（ORIG 结果走 %ebx：086be236/086be2fd mov $0,%ebx、
+    //     086be852 mov $1,%ebx；尾部 086be8a7 mov %ebx,%eax）；
+    //   ②第一循环三独立守卫 goto 岛（ORIG 086be25f je→nop 岛 086be2ac；
+    //     086be265/086be277 je/jne→共享尾 086be2ad；body 尾 086be2aa jmp 086be2ad）；
+    //   ③CheckQuestMonster 第 3 实参具名 int（ORIG 086be3af movl $1,-0x10 + 086be3cd
+    //     mov -0x10,%edx 回读）；
+    //   ④exp 乘算书写序 monster.m_field18 在左（ORIG 086be321 flds 先、086be410 fildl 后）
+    //     + 具名 float 局部 (float)(unsigned int)exp（ORIG 086be469 fildll→086be46f fstps，
+    //     零扩展 mov $0,%edx 证源为 unsigned 转换）；
+    //   ⑤total 段书写序 (float)total 在左（ORIG 086be4f4 fildl total 先、086be500 fildl
+    //     m_add 后）；
+    //   ⑥删 m_slotsUser[i] 指针缓存（P183 地址重物化；ORIG 086be75f/086be78b/086be79e/
+    //     086be7c7 每点重算 slot 地址）。
+    //   结果：gap 26→3（our 442 / orig 445），槽号全对齐（-0x3a8/-0x4c/-0x40/-0x3c/
+    //   -0x34/-0x30/-0x29/-0x28/-0x24/-0x10/-0x54/-0x3ac/-0x3b8/-0x3bc 逐值一致）。
+    //   残余 3 = 4.4 强度归约：gain_exp_sp 累加段 ORIG 11 条（mov/add 寄存器目标）
+    //   vs 4.4 8 条（lea 合并 + mem-add）；探针 h1（全局）/h20（实参位）证 4.4 对
+    //   局部/形参恒 lea+mem-add、源码不可择 ⇒ N86/N1 封顶。
     map_monster monster;
     PacketGuard packet;
-    int result = 0;
     int count = GetWaiterCount();
-    if (count != 0)
+    if (count == 0)
+        return false;
+    int wp = 0;
+    for (int i = 0; i <= 5; ++i)
     {
-        int wp = 0;
+        if (m_slots[i] == 0)
+            goto WP_NOP;
+        if ((killer != 0) && (m_slotsUser[i] == killer))
+        {
+            wp = m_field.HandleWpPerMonster(killer, monsterIdx, 0, monster);
+        }
+        goto WP_END;
+    WP_NOP:
+        ;
+    WP_END:
+        ;
+    }
+    if (m_field.HandleMonsterKill(monsterIdx, packet, monster, killer,
+                                  m_pDungeon) != 1)
+        return false;
+    m_roleKillCnt[monster.m_roleType] += monster.m_field28;
+    for (int i = 0; i <= 5; ++i)
+    {
+        if (m_slots[i] != 0)
+        {
+            bool isKiller = (killer != 0) && (m_slotsUser[i] == killer);
+            if (isKiller)
+            {
+                killer->WarAreaKill(monster.m_roleType, wp, monster.m_field18);
+                int enemyType = 1;
+                killer->CheckQuestMonster(m_pDungeon->get_index(),
+                                          monster.m_mobIndex,
+                                          (ENUM_QUEST_ENEMY_TYPE)enemyType);
+            }
+            int exp = (int)(long long)(
+                monster.m_field18 *
+                (float)m_pDungeon->m_warRoomData.m_9c[monster.m_roleType]);
+            if (isKiller)
+            {
+                exp = (int)(long long)(
+                    (float)(unsigned int)exp *
+                    G_CDataManager()->m_warAreaCounter.m_monsterExpConst);
+            }
+            ExpBonusPointResult bonus;
+            if (isKiller)
+            {
+                killer->checkBonusPoint();
+                killer->getExpBonusPoint(bonus);
+            }
+            int total = bonus.m_base + exp;
+            exp = (int)((float)total * ((float)bonus.m_add / 100.0f)) + total;
+            int upperExp = (m_slotsUser[i])->gainExpAsUpperMember(exp);
+            int guildExp = (m_slotsUser[i])->gainGuildSkillExp(exp);
+            int fatigueExp = 0;
+            if ((m_slotsUser[i])->getCurCharacFatigueGrownUpBuff() != 0)
+            {
+                fatigueExp = exp;
+                // ORIG 086be5bb：实参从 -0x18 槽回读（fatigueExp），非 -0x28(exp)。
+                (m_slotsUser[i])->set_charac_fatigue_buf_bonus_exp(fatigueExp);
+            }
+            int rewardExp = (m_slotsUser[i])->gainPowerWarRewardExp(exp);
+            int sp = 0;
+            int sfp = 0;
+            // ORIG 086be652/086be654：test %al,%al; je → addl（bool 直测，无 xor 物化）；
+            // 空 then + else-goto 形复现该极性（`== 0` 会多一条 xor $1）。
+            if ((m_slotsUser[i])->gain_exp_sp(
+                    upperExp + exp + guildExp + rewardExp + fatigueExp,
+                    sp, sfp, (CUser::eExpAddReason)4, monster.m_mobIndex,
+                    0) != 0)
+            {
+            }
+            else
+            {
+                goto NOTI_NOP;
+            }
+            (m_slotsUser[i])->SendNotiPacket(
+                (CUser::eSendTarget)3, (ENUM_NOTIPACKET)2, 1);
+            goto NOTI_END;
+        NOTI_NOP:
+            ;
+        NOTI_END:
+            ;
+        }
+    }
+    unsigned short killerUid = 0xffff;
+    if (killer != 0)
+        killerUid = (unsigned short)killer->get_unique_id();
+    packet.put_byte(1);
+    packet.put_short(killerUid);
+    packet.put_short(wp);
+    packet.finalize(true);
+    SendToRoom(packet);
+    if (m_field.IsGridClear() != 0)
+    {
         for (int i = 0; i <= 5; ++i)
         {
-            if ((m_slots[i] != 0) && (killer != 0) && (m_slotsUser[i] == killer))
+            if (m_slots[i] == 0)
+                goto FAT_NOP;
+            if (m_slotsUser[i]->m_fatigueGain > 0)
             {
-                wp = m_field.HandleWpPerMonster(killer, monsterIdx, 0, monster);
+                if (m_slotsUser[i]->getCurCharacInvenR()->GetCreatureMgrR()
+                        ->IsGrowCreature_Equipped_Creature() != 1)
+                {
+                    m_slotsUser[i]->getCurCharacInvenW()->GetCreatureMgrW()->GainExp(
+                        m_slotsUser[i]->m_fatigueGain);
+                }
             }
+            m_slotsUser[i]->m_fatigueGain = 0;
+            goto FAT_END;
+        FAT_NOP:
+            ;
+        FAT_END:
+            ;
         }
-        if (m_field.HandleMonsterKill(monsterIdx, packet, monster, killer,
-                                      m_pDungeon) != 1)
+        GenTimerKey((TIMER_MESSAGE)0x45);
+        if (m_field.m_stageIdx == m_pDungeon->m_warRoomData.m_50)
         {
-            result = 0;
+            m_flag12 = 1;
+            ChangeState(WARROOM_STATE_5);
         }
         else
         {
-            m_roleKillCnt[monster.m_roleType] += monster.m_field28;
-            for (int i = 0; i <= 5; ++i)
-            {
-                if (m_slots[i] != 0)
-                {
-                    bool isKiller =
-                        (killer != 0) && (m_slotsUser[i] == killer);
-                    if (isKiller)
-                    {
-                        killer->WarAreaKill(monster.m_roleType, wp, monster.m_field18);
-                        killer->CheckQuestMonster(m_pDungeon->get_index(),
-                                                  monster.m_mobIndex,
-                                                  (ENUM_QUEST_ENEMY_TYPE)1);
-                    }
-                    int exp = (int)(long long)(
-                        (float)m_pDungeon->m_warRoomData.m_9c[monster.m_roleType] *
-                        monster.m_field18);
-                    if (isKiller)
-                    {
-                        exp = (int)(long long)(
-                            G_CDataManager()->m_warAreaCounter.m_monsterExpConst *
-                            (float)exp);
-                    }
-                    ExpBonusPointResult bonus;
-                    if (isKiller)
-                    {
-                        killer->checkBonusPoint();
-                        killer->getExpBonusPoint(bonus);
-                    }
-                    int total = bonus.m_base + exp;
-                    exp = (int)(
-                        (float)bonus.m_add / 100.0f * (float)total) + total;
-                    int upperExp = (m_slotsUser[i])->gainExpAsUpperMember(exp);
-                    int guildExp = (m_slotsUser[i])->gainGuildSkillExp(exp);
-                    int fatigueExp = 0;
-                    if ((m_slotsUser[i])->getCurCharacFatigueGrownUpBuff() != 0)
-                    {
-                        fatigueExp = exp;
-                        (m_slotsUser[i])->set_charac_fatigue_buf_bonus_exp(exp);
-                    }
-                    int rewardExp =
-                        (m_slotsUser[i])->gainPowerWarRewardExp(exp);
-                    int sp = 0;
-                    int sfp = 0;
-                    if ((m_slotsUser[i])->gain_exp_sp(
-                            upperExp + exp + guildExp + rewardExp + fatigueExp,
-                            sp, sfp, (CUser::eExpAddReason)4, monster.m_mobIndex,
-                            0) != 0)
-                    {
-                        (m_slotsUser[i])->SendNotiPacket(
-                            (CUser::eSendTarget)3, (ENUM_NOTIPACKET)2, 1);
-                    }
-                }
-            }
-            unsigned short killerUid = 0xffff;
-            if (killer != 0)
-                killerUid = (unsigned short)killer->get_unique_id();
-            packet.put_byte(1);
-            packet.put_short(killerUid);
-            packet.put_short(wp);
-            packet.finalize(true);
-            SendToRoom(packet);
-            if (m_field.IsGridClear() != 0)
-            {
-                for (int i = 0; i <= 5; ++i)
-                {
-                    if (m_slots[i] != 0)
-                    {
-                        CUser* u = m_slotsUser[i];
-                        if (u->m_fatigueGain > 0)
-                        {
-                            if (u->getCurCharacInvenR()->GetCreatureMgrR()
-                                    ->IsGrowCreature_Equipped_Creature() != 1)
-                            {
-                                u->getCurCharacInvenW()->GetCreatureMgrW()->GainExp(
-                                    u->m_fatigueGain);
-                            }
-                        }
-                        u->m_fatigueGain = 0;
-                    }
-                }
-                GenTimerKey((TIMER_MESSAGE)0x45);
-                if (m_field.m_stageIdx == m_pDungeon->m_warRoomData.m_50)
-                {
-                    m_flag12 = 1;
-                    ChangeState(WARROOM_STATE_5);
-                }
-                else
-                {
-                    ChangeState(WARROOM_STATE_4);
-                }
-            }
-            result = 1;
+            ChangeState(WARROOM_STATE_4);
         }
     }
-    return result;
+    return true;
 }
 
 int WarRoom::HandleWpPerMonster(CUser* user, int a, int b, CUser* killer)
@@ -2325,8 +2382,11 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
 
 int WarRoom::ReviveUserByCoin(CUser* user, unsigned short uid)
 {
-    // [b28d-solo-WarRoom] AE | ORIG 0x086bf324 | 逐条归一全等（97/97）；b25 已补
-    //   target==0 → 0x15 语义块，本轮复验无残差。
+    // [SweepWarRoom] AE | ORIG 0x086bf324 | compare_tu 归一全等（TU ae 集合内）；
+    //   game_func_report 切片 97/98 仅差 ORIG 086bf3d8 break 中继 `jmp` 后的
+    //   086bf3da `nop`（4.1 循环 break 中继岛；本轮 break→goto LOOP_END 实测
+    //   4.4 仍 jump-thread 无 nop ⇒ P223 单源负例封顶）。
+    //   b25 已补 target==0 → 0x15 语义块。
     // ORIG 0x86bf33c：短路 && 条件直进 if（bool 局部会 spill cmpb）。
     if ((GetState() != 3) && (GetState() != 4))
         return 0x13;
@@ -2341,10 +2401,13 @@ int WarRoom::ReviveUserByCoin(CUser* user, unsigned short uid)
                 if (m_liveFlag[slot] != 0)
                     return 0x12;
                 target = m_slotsUser[slot];
-                break;
+                // ORIG 086bf3d8 jmp→086bf3ea + 086bf3da nop（4.1 break 中继岛）。
+                goto LOOP_END;
             }
         }
     }
+LOOP_END:
+    ;
     // ORIG 0x86bf3fb：target 空守卫 return 0x15（原重建缺失该语义块）。
     if (target == 0)
         return 0x15;
@@ -2488,14 +2551,13 @@ int EnterWarRoom(CUser* user, WarRoom* room, ENUM_CMDPACKET cmd)
 // ============================================================================
 int ImportWarRoomWPTable(stBloodWarGrowTable* table)
 {
-    // [b28d-solo-WarRoom] DIFF | ORIG 0x08902543 | 本轮 fresh .o ndiff 76→10
-    //   （our 119 / orig 123，P167 CLEAR 16/16）：①P283/P164 while(true)+break
-    //   复现 ORIG 循环头 `call ScanType; xor $0x1; test; jne` 否定形；
-    //   ②P0 判读去掉具名 `bool again`（ORIG 无槽往返，物化在 %ebx）⇒ do-while
-    //   直接复用 ok。残余 10 行 = 帧差 0x40(ORIG)/0x50(4.4) + 槽平移 4
-    //   （std::string/vector 槽序，N82附/N93）+ ORIG 的 %ebx 物化四段形
-    //   （`mov $0/$1,%ebx` 与 `test %ebx,%ebx; je`；register 提示实测方向相反）
-    //   ⇒ N82 封顶。语义与 ORIG 一致。
+    // [SweepWarRoom] DIFF | ORIG 0x08902543 | 复核 b28d 判词：our 126 / orig 128
+    //   （gap 2，P167 CLEAR 16/16）。残余 = 4.1 while 头部双入口岛：
+    //   ORIG 089025ab jmp→HEAD、089025ad nop、089025ae jmp→HEAD（else 分支岛）、
+    //   089025b0 nop（do-while again==0 落点）⇒ 4.4 对 else-goto 恒 jump-thread
+    //   成单 nop + fall（本轮 `goto LOOP_HEAD` 双标签串实测无效，指令数不变），
+    //   do-while 尾 ORIG `test %ebx; je NOP2; jmp DO_BODY` vs 4.4 `test %bl;
+    //   jne DO_BODY; jmp HEAD`（P283 底部条件布局）⇒ N 封顶。语义与 ORIG 一致。
     if (!loadRDARScriptFile("", "Etc/WarRoomWPTable.tbl"))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp", __FUNCTION__, 0xdb8,
