@@ -258,21 +258,19 @@ public:
     std::string m_str04;     // +0x04
     std::string m_str08;     // +0x08
     std::string m_str0c;     // +0x0c
-    std::string m_str10;     // +0x10
-    std::string m_str14;     // +0x14
+    // [SweepSTEquip 2026-09-09 P151] ORIG C1/C1ERKS_/D1/aSERKS_ 对 +0x10 起连续
+    // 区间发倒计数循环（`lea 0x10(%eax),%esi; mov $0x1,%ebx; … sub $1,%ebx;
+    // cmp $-1,%ebx; jne`，2 元素），只有真数组成员才会生成该循环 ⇒ 三个区间
+    // 声明为数组。sizeof 0x7c 与全部成员偏移不变（0x10/+0x14、0x2c..0x38、
+    // 0x3c..0x48 各为 8/16/16 字节连续区）。
+    std::string m_arr10[2];  // +0x10..+0x14（原 m_str10/m_str14）
     std::string m_str18;     // +0x18
     std::string m_str1c;     // +0x1c
     std::string m_str20;     // +0x20
     std::string m_str24;     // +0x24
     std::string m_str28;     // +0x28
-    std::string m_str2c;     // +0x2c
-    std::string m_str30;     // +0x30
-    std::string m_str34;     // +0x34
-    std::string m_str38;     // +0x38
-    std::string m_str3c;     // +0x3c
-    std::string m_str40;     // +0x40
-    std::string m_str44;     // +0x44
-    std::string m_str48;     // +0x48
+    std::string m_arr2c[4];  // +0x2c..+0x38（原 m_str2c/m_str30/m_str34/m_str38）
+    std::string m_arr3c[4];  // +0x3c..+0x48（原 m_str3c/m_str40/m_str44/m_str48）
     std::string m_str4c;     // +0x4c
     std::string m_str50;     // +0x50
     std::string m_str54;     // +0x54

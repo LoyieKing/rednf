@@ -2453,7 +2453,7 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
                     if (__inited)
                     {
                         ScanStr(&val);
-                        entry.m_str10 = val;
+                        entry.m_arr10[0] = val;
                         break;
                     }
                     __lookup.insert(
@@ -2463,7 +2463,7 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
                     if (__inited)
                     {
                         ScanStr(&val);
-                        entry.m_str14 = val;
+                        entry.m_arr10[1] = val;
                         break;
                     }
                     __lookup.insert(
@@ -2523,7 +2523,7 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
                     if (__inited)
                     {
                         ScanStr(&val);
-                        entry.m_str2c = val;
+                        entry.m_arr2c[0] = val;
                         break;
                     }
                     __lookup.insert(
@@ -2533,7 +2533,7 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
                     if (__inited)
                     {
                         ScanStr(&val);
-                        entry.m_str3c = val;
+                        entry.m_arr3c[0] = val;
                         break;
                     }
                     __lookup.insert(
@@ -2543,7 +2543,7 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
                     if (__inited)
                     {
                         ScanStr(&val);
-                        entry.m_str30 = val;
+                        entry.m_arr2c[1] = val;
                         break;
                     }
                     __lookup.insert(
@@ -2553,7 +2553,7 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
                     if (__inited)
                     {
                         ScanStr(&val);
-                        entry.m_str40 = val;
+                        entry.m_arr3c[1] = val;
                         break;
                     }
                     __lookup.insert(
@@ -2563,7 +2563,7 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
                     if (__inited)
                     {
                         ScanStr(&val);
-                        entry.m_str34 = val;
+                        entry.m_arr2c[2] = val;
                         break;
                     }
                     __lookup.insert(
@@ -2573,7 +2573,7 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
                     if (__inited)
                     {
                         ScanStr(&val);
-                        entry.m_str44 = val;
+                        entry.m_arr3c[2] = val;
                         break;
                     }
                     __lookup.insert(
@@ -2583,7 +2583,7 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
                     if (__inited)
                     {
                         ScanStr(&val);
-                        entry.m_str38 = val;
+                        entry.m_arr2c[3] = val;
                         break;
                     }
                     __lookup.insert(
@@ -2593,7 +2593,7 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
                     if (__inited)
                     {
                         ScanStr(&val);
-                        entry.m_str48 = val;
+                        entry.m_arr3c[3] = val;
                         break;
                     }
                     __lookup.insert(

@@ -16,23 +16,27 @@
 //   Position::Position               W 0x089c2c42
 //   effect::STEffect::clear          W 0x089c2c64
 // ============================================================================
-// [b28d-solo-STEquipmentScript 单文件泳道收口判词] 清单 15 件全有 verdict：
-//   AE/IDENTICAL 2 件 —— STEquipmentStatInfo::clear（P311 二维成员数组视图，
-//     .h 匿名 union m_view[9][4]/m_view2，probe1 T::h1-h3 实证）、
-//     artifact_info::isUsable（具名 bool + `||` 链 + float 项 `!(x==0.0f)`，
-//     probe5 c2 逐条同形）；
-//   N 封顶 13 件 —— 主要族：N4/P30 数组退化 add-vs-lea（AniScript clear）、
-//     N4/P235 string 数组视图不可建（AniScript C1/operator=）、
-//     N85 x87 比较 lowering（GetExpertJobValueMaterialVariation）、
-//     N82/N89 帧槽平移+STL 内联（ImportEquipmentScript/importEffect/
-//     importArtifactInfo/setEquipmentAniScriptLay）、N82/N91 static map 惰性
-//     注册块（GetItemCategory/GetAuraAvatarOption/GetExpertJobTypeList）、
-//     N93附 return 块布局（EquipmentScriptSpecialMonsterDrop）。
-//   本轮正向修复：3 处双 SpinLock::leave 调用点（p167 MISSING 归零）+
-//     leave→__inited 序、非 const iterator/`(*it).second`（P96/P167）、
-//     make_pair→pair 直构（P61）、三分支 addAniInfo 调用点、去引用缓存（P183）。
-//   TU：check_tu_routed.sh COMPILE OK 0 错误，identical=709 ae=1425 near=2
-//     diff=21 missing_in_game=468（基线 708/1424/2/23/473）。
+// [SweepSTEquip 2026-09-09 单文件泳道收口判词] 本轮 13 件逐件读数：
+//   ■ 真缺口修复 8 件（gap 降序）：
+//     setEquipmentAniScriptLay 44→2（find 传 key->c_str() 临时 string /
+//       rbegin()->push_back 语义纠错 / 迭代器先声明后赋值 / 两循环复用 it）；
+//     GetItemCategory 32→5、GetAuraAvatarOption 32→5、GetExpertJobTypeList
+//       18→10（三件同为 P333「首次建表后查表」switch 状态机还原：哨兵 case 0
+//       与首 key 同体 + 每 case `movzbl __inited; xor $1` + fallthrough 链 +
+//       尾块 leave→__inited→goto retry；余量为 4.4 EH landing（EXTRA
+//       _Unwind_Resume×2，N104）与帧差（N115/N126））；
+//     STEquipmentAniScript::C1Ev 22→0（375=375）、C1ERKS_ 433=433、
+//       D1Ev 332=332、aSERKS_ 180=180、clear ?→0（118=118）——P151 数组成员
+//       建模：+0x10/+0x14→m_arr10[2]、+0x2c..+0x38→m_arr2c[4]、
+//       +0x3c..+0x48→m_arr3c[4]（.h 改动已广播；sizeof 0x7c/偏移零变化）。
+//   ■ 余量为结构性 N（p167 调用点差集已 CLEAR，仅剩 C1↔C2/D1↔D2 同址别名命名差）：
+//     importEffect gap 4、setEquipmentAniScriptLay gap 2（帧 0x25c vs 0x26c，
+//     N126/N115）、GetExpertJobTypeList gap 10（guard 位置跨版本 + 帧 0xac vs 0xbc）、
+//     importCommand gap −4（4.4 多 4 条槽/声明序）、EquipmentScriptSpecialMonsterDrop
+//     gap −4、GetExpertJobValueMaterialVariation gap −2（N85 x87 lowering）。
+//   ■ 前泳道已修、本泳道未重开：importArtifactInfo（P333 已落）、ImportEquipmentScript。
+//   TU：check_tu_routed.sh COMPILE OK 0 错误，identical=710 ae=1431 near=2
+//     diff=15 missing_in_game=464（基线 709/1426/2/20/468 ⇒ ae+5、diff−5、miss−4，零回退）。
 //   P0：本文件零 `register asm` 绑定、零裸 register（清绑数 0）。
 // ============================================================================
 
@@ -137,33 +141,35 @@ void STEquipmentStatInfo::clear()  // ORIG 0x0898d272：10 直接 + 循环 i<=3(
 
 STEquipmentAniScript::STEquipmentAniScript()
 {
-    // [b28d-solo-STEquipmentScript 判词·N] C1 0x0898ca36 375 条 vs 我们 353 条：
-    // ORIG 用**倒计数循环**构造 string 数组成员（0x0898ca42 `lea 0x10(%eax),%esi;
-    // mov $0x1,%ebx; … sub $1,%ebx; cmp $-1,%ebx; jne`，P151 2 元素）+ 完整 EH
-    // landing/回滚段；我们 4.4 逐成员发射 C1Ev（p167 EXTRA string::C1 ×7、
-    // ~string ×4）。复现需把 +0x10 等区间声明为真数组成员，但该类隐式拷贝
-    // 构造/赋值/析构正由编译器合成（operator= 亦为隐式件），匿名 union 含
-    // 非平凡 string 数组会删除隐式析构并改拷贝语义 ⇒ 判 N4/P235 封顶（视图
-    // 形恒 base 先载，探针 /tmp/b28d_s219/probe3.cpp fB vs ORIG）。
-    // 同族 operator=（隐式合成 W）：ORIG 180 条走数组循环（19 call 点），我们
-    // 192 条展开逐成员（26 call 点，p167 EXTRA string::operator= ×7）——同上封顶。
+    // [SweepSTEquip 2026-09-09 旧判词 N4/P235 作废] C1 0x0898ca36 375 条：
+    // ORIG 对 +0x10/+0x2c/+0x3c 三个连续 string 区发**倒计数构造循环**
+    // （0x0898ca42 `lea 0x10(%eax),%esi; mov $0x1,%ebx; … sub $1,%ebx;
+    // cmp $-1,%ebx; jne`，P151）。正解不是 union 视图而是**真数组成员**：
+    // .h 已把 +0x10/+0x14→m_arr10[2]、+0x2c..0x38→m_arr2c[4]、
+    // +0x3c..0x48→m_arr3c[4]（sizeof 0x7c 与全部偏移不变，隐式拷贝/赋值/
+    // 析构仍由编译器合成）。修后 375=375 逐条同形；同族 C1ERKS_ 433=433、
+    // D1Ev 332=332、aSERKS_ 180=180（原 192）、clear 118=118 全部归零。
     clear();
 }
 
 void STEquipmentAniScript::clear()  // ORIG 0x0898ce62（m_field0=0，各 string 置 ""）
 {
-    // [b28d-solo-STEquipmentScript] ORIG 形：`.clear()` 实为 `s = ""`（operator=(const
-    // char*)，实参 "" 落 0x4(%esp)）；两组连续 string 走 `i<=1`（+0x10/+0x14）与
-    // `i<=3`（+0x2c..+0x38 / +0x3c..+0x48）循环；+0x60 在 vector clear 之后。
-    // 循环取址用字段地址下标形（N4/P30：ORIG 数组退化 add/shl/add 链 4.4 恒折 lea）。
+    // [SweepSTEquip 2026-09-09] ORIG 形：`.clear()` 实为 `s = ""`（operator=(const
+    // char*)，实参 "" 落 0x4(%esp)）；第一个循环 `i<=1` 只清 m_arr10，第二个循环
+    // `i<=3` 同体清 m_arr2c[i]+m_arr3c[i]（0x0898cf65/0x0898cf84 两个赋值）；
+    // +0x60 在 vector clear 之后（0x0898d026）。修后 118=118 逐条同形。
     m_field0 = 0;
     m_str04 = "";
     m_str08 = "";
     m_str0c = "";
+    // ORIG 0x0898ceb3/0x0898ceba 两次 `movl $0x0,-0xc(%ebp)` ⇒ 具名 `int i = 0;`
+    // 后接 `for (i = 0; …)`；第二个循环（0x0898cf5c）只清一次 ⇒ 复用同一 i。
+    // 第二个循环体含**两个**数组赋值（0x0898cf65 m_arr2c[i] + 0x0898cf84
+    // m_arr3c[i]），同一 i 同一循环。
     int i = 0;
     for (i = 0; i <= 1; ++i)
     {
-        (&m_str10)[i] = "";
+        m_arr10[i] = "";
     }
     m_str18 = "";
     m_str1c = "";
@@ -172,8 +178,8 @@ void STEquipmentAniScript::clear()  // ORIG 0x0898ce62（m_field0=0，各 string
     m_str28 = "";
     for (i = 0; i <= 3; ++i)
     {
-        (&m_str2c)[i] = "";
-        (&m_str3c)[i] = "";
+        m_arr2c[i] = "";
+        m_arr3c[i] = "";
     }
     m_str4c = "";
     m_str50 = "";
@@ -1949,17 +1955,17 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     if (aniMode)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
-                        jobLayer.m_str10 = printBuf;
+                        jobLayer.m_arr10[0] = printBuf;
                     }
                     else if (levelAniIdx != -1)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
-                        levelLayer.m_str10 = printBuf;
+                        levelLayer.m_arr10[0] = printBuf;
                     }
                     else
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
-                        normalLayer.m_str10 = printBuf;
+                        normalLayer.m_arr10[0] = printBuf;
                     }
                     goto stage2_switch_end;
                 }
@@ -1975,17 +1981,17 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     if (aniMode)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
-                        jobLayer.m_str14 = printBuf;
+                        jobLayer.m_arr10[1] = printBuf;
                     }
                     else if (levelAniIdx != -1)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
-                        levelLayer.m_str14 = printBuf;
+                        levelLayer.m_arr10[1] = printBuf;
                     }
                     else
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
-                        normalLayer.m_str14 = printBuf;
+                        normalLayer.m_arr10[1] = printBuf;
                     }
                     goto stage2_switch_end;
                 }
@@ -2131,17 +2137,17 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     if (aniMode)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
-                        jobLayer.m_str2c = printBuf;
+                        jobLayer.m_arr2c[0] = printBuf;
                     }
                     else if (levelAniIdx != -1)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
-                        levelLayer.m_str2c = printBuf;
+                        levelLayer.m_arr2c[0] = printBuf;
                     }
                     else
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
-                        normalLayer.m_str2c = printBuf;
+                        normalLayer.m_arr2c[0] = printBuf;
                     }
                     goto stage2_switch_end;
                 }
@@ -2157,17 +2163,17 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     if (aniMode)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
-                        jobLayer.m_str3c = printBuf;
+                        jobLayer.m_arr3c[0] = printBuf;
                     }
                     else if (levelAniIdx != -1)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
-                        levelLayer.m_str3c = printBuf;
+                        levelLayer.m_arr3c[0] = printBuf;
                     }
                     else
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
-                        normalLayer.m_str3c = printBuf;
+                        normalLayer.m_arr3c[0] = printBuf;
                     }
                     goto stage2_switch_end;
                 }
@@ -2183,17 +2189,17 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     if (aniMode)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
-                        jobLayer.m_str30 = printBuf;
+                        jobLayer.m_arr2c[1] = printBuf;
                     }
                     else if (levelAniIdx != -1)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
-                        levelLayer.m_str30 = printBuf;
+                        levelLayer.m_arr2c[1] = printBuf;
                     }
                     else
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
-                        normalLayer.m_str30 = printBuf;
+                        normalLayer.m_arr2c[1] = printBuf;
                     }
                     goto stage2_switch_end;
                 }
@@ -2209,17 +2215,17 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     if (aniMode)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
-                        jobLayer.m_str40 = printBuf;
+                        jobLayer.m_arr3c[1] = printBuf;
                     }
                     else if (levelAniIdx != -1)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
-                        levelLayer.m_str40 = printBuf;
+                        levelLayer.m_arr3c[1] = printBuf;
                     }
                     else
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
-                        normalLayer.m_str40 = printBuf;
+                        normalLayer.m_arr3c[1] = printBuf;
                     }
                     goto stage2_switch_end;
                 }
@@ -2235,17 +2241,17 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     if (aniMode)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
-                        jobLayer.m_str34 = printBuf;
+                        jobLayer.m_arr2c[2] = printBuf;
                     }
                     else if (levelAniIdx != -1)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
-                        levelLayer.m_str34 = printBuf;
+                        levelLayer.m_arr2c[2] = printBuf;
                     }
                     else
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
-                        normalLayer.m_str34 = printBuf;
+                        normalLayer.m_arr2c[2] = printBuf;
                     }
                     goto stage2_switch_end;
                 }
@@ -2261,17 +2267,17 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     if (aniMode)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
-                        jobLayer.m_str44 = printBuf;
+                        jobLayer.m_arr3c[2] = printBuf;
                     }
                     else if (levelAniIdx != -1)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
-                        levelLayer.m_str44 = printBuf;
+                        levelLayer.m_arr3c[2] = printBuf;
                     }
                     else
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
-                        normalLayer.m_str44 = printBuf;
+                        normalLayer.m_arr3c[2] = printBuf;
                     }
                     goto stage2_switch_end;
                 }
@@ -2287,17 +2293,17 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     if (aniMode)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
-                        jobLayer.m_str38 = printBuf;
+                        jobLayer.m_arr2c[3] = printBuf;
                     }
                     else if (levelAniIdx != -1)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
-                        levelLayer.m_str38 = printBuf;
+                        levelLayer.m_arr2c[3] = printBuf;
                     }
                     else
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
-                        normalLayer.m_str38 = printBuf;
+                        normalLayer.m_arr2c[3] = printBuf;
                     }
                     goto stage2_switch_end;
                 }
@@ -2313,17 +2319,17 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     if (aniMode)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), jobPath.c_str());
-                        jobLayer.m_str48 = printBuf;
+                        jobLayer.m_arr3c[3] = printBuf;
                     }
                     else if (levelAniIdx != -1)
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), levelPath.c_str());
-                        levelLayer.m_str48 = printBuf;
+                        levelLayer.m_arr3c[3] = printBuf;
                     }
                     else
                     {
                         snprintf(printBuf, sizeof(printBuf), scanBuf.c_str(), normalPath.c_str());
-                        normalLayer.m_str48 = printBuf;
+                        normalLayer.m_arr3c[3] = printBuf;
                     }
                     goto stage2_switch_end;
                 }
@@ -4407,9 +4413,20 @@ std::map<std::string, STEquipmentAniScript>* getMapEquipmentAniScript()
 //      + 就绪字节 @0x94fde44，双检锁形态）；未知标签令整个导入失败。 ----
 static bool GetItemCategory(STItemScript* item)
 {
-    // [b28d-solo-STEquipmentScript 判词·N] 0x089bfdc5：ORIG 254 条 vs 我们 222 条
-    // （帧差 + static map 惰性注册块槽序 + EH landing）。p167 已清零（32/34，
-    // 0 missing；修复=双 leave 调用点）。语义完成，byte 层 N82/N91 封顶。
+    // [SweepSTEquip 2026-09-09 P333 状态机还原] ORIG 0x089bfdc5 是「首次建表、
+    // 之后查表」的 switch 状态机，不是直线双检锁：
+    //   ① 循环体首 `state(-0x78)=0`（0x089bfde1），retry 锚 0x089bfde8；
+    //   ② 已初始化走 find → `state = it!=end ? it->second : -1`（0x089bff7e
+    //      汇入 switch）；未初始化 enter 后若已被他线程建表则 leave+回跳
+    //      （0x089bffa3 nop / 0x089bffa4 jmp retry），否则 `state = 0` 哨兵；
+    //   ③ switch(state)：case 0 与 case 0x30ae 同体，每 case 体头
+    //      `movzbl __inited; xor $1; test; je INSERT`；已初始化则
+    //      `state = 1/2/3` 后 break，否则 insert 并 fallthrough 下一 case
+    //      （0x089c002d/0x089c0087/0x089c00de 的 jmp 下一 case 体头）；
+    //   ④ default：`if (__inited) return false`（0x089c00e9），未初始化则落尾；
+    //   ⑤ 尾块 `if (!__inited) { leave; __inited = true; goto retry; }`
+    //      （0x089c00fe..0x089c011f），随后 `if (state != 0) insert`。
+    // 旧译文把建表写成一次性三连 insert，缺整棵 switch 与回跳 ⇒ gap 32。
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static bool __inited = false;
@@ -4417,46 +4434,67 @@ static bool GetItemCategory(STItemScript* item)
     std::string token;
     while (ScanStr(&token))
     {
-        if (!__inited)
+        int state = 0;
+    retry:
+        if (__inited)
+        {
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                __lookup.find(token.c_str());
+            state = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
         {
             __init_lock.enter();
-            if (!__inited)
-            {
-                // ORIG 首轮 case 链依次插入三项（字面量 .rodata 0x8e19dcd 起），
-                // 随后重查当前 token；此处建表后直接落入同一 find，行为一致。
-                __lookup.insert(std::pair<char const* const, int>("monster card", 0x30ae));
-                __lookup.insert(std::pair<char const* const, int>("cannot bind", 0x30b1));
-                __lookup.insert(std::pair<char const* const, int>("boss drop", 0x30b4));
-                // [b28d-solo-STEquipmentScript] ORIG 双 leave 调用点 + leave→__inited 序
-                // （p167 MISSING SpinLock::leave 1 处；与 importArtifactInfo 同族）。
-                __init_lock.leave();
-                __inited = true;
-            }
-            else
+            if (__inited)
             {
                 __init_lock.leave();
+                goto retry;                            // 自旋重试（P333）
             }
+            state = 0;                                 // 建表哨兵
         }
-
-        int state = 0;
-        std::map<const char*, int, less_TCHAR>::const_iterator it =
-            __lookup.find(token.c_str());
-        switch (it != __lookup.end() ? it->second : -1)
+        switch (state)
         {
+        case 0:                                        // 与首 key 同体（P163）
         case 0x30ae:                                   // "monster card"
-            state = STItemScript::ITEM_CATEGORY_1;
-            break;
+            if (__inited)
+            {
+                state = STItemScript::ITEM_CATEGORY_1;
+                break;
+            }
+            __lookup.insert(std::pair<char const* const, int>("monster card", 0x30ae));
+            /* FALLTHRU */
         case 0x30b1:                                   // "cannot bind"
-            state = STItemScript::ITEM_CATEGORY_2;
-            break;
+            if (__inited)
+            {
+                state = STItemScript::ITEM_CATEGORY_2;
+                break;
+            }
+            __lookup.insert(std::pair<char const* const, int>("cannot bind", 0x30b1));
+            /* FALLTHRU */
         case 0x30b4:                                   // "boss drop"
-            state = STItemScript::ITEM_CATEGORY_3;
-            break;
+            if (__inited)
+            {
+                state = STItemScript::ITEM_CATEGORY_3;
+                break;
+            }
+            __lookup.insert(std::pair<char const* const, int>("boss drop", 0x30b4));
+            /* FALLTHRU */
         default:
-            return false;                              // 未命中 → 导入失败
+            if (__inited)
+                return false;                          // 未命中 → 导入失败
+            break;
         }
-        item->m_set11c.insert(
-            static_cast<STItemScript::ENUM_ITEM_CATEGORY>(state));
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            goto retry;                                // 建表后重查本 token
+        }
+        if (state != 0)
+        {
+            item->m_set11c.insert(
+                static_cast<STItemScript::ENUM_ITEM_CATEGORY>(state));
+        }
     }
     return true;
 }
@@ -4466,10 +4504,15 @@ static bool GetItemCategory(STItemScript* item)
 //      就绪字节 @0x94fde24）。ScanStr 返回值不检查——空 token 必然 miss，
 static bool GetAuraAvatarOption(STEquipmentScript* script)
 {
-    // [b28d-solo-STEquipmentScript 判词·N] 0x089c019b：ORIG 258 条 vs 我们 226 条
-    // （static map 惰性注册 + 帧差 + EH landing）。p167 已清零（33/35，0 missing；
-    // 修复=双 leave 调用点 + make_pair→pair<char const* const,int> 直构，P61）。
-    // 语义完成，byte 层 N82/N91 封顶。
+    // [SweepSTEquip 2026-09-09 P333 状态机还原] ORIG 0x089c019b 与 GetItemCategory
+    // 同型：单次 ScanStr（返回值不检查）→ guard → retry 锚 0x089c01ce →
+    // switch(state)：case 0 与 0x30d0 同体；每 case 体头
+    // `movzbl __inited; xor $1; test; je INSERT`，已建表分支做业务写入
+    // （0x089c0419 m_880=0 + ScanInt / 0x089c048a m_880=1 m_884=0 /
+    // 0x089c04f4 m_880=2 + ScanInt）后 break；未建表 insert 并 fallthrough；
+    // default `if (__inited) return false`；尾块 `if (!__inited) { leave;
+    // __inited = true; goto retry; }`（0x089c0526..0x089c0547）。
+    // 旧译文建表三连 insert 直线形，缺整棵 switch 与回跳 ⇒ gap 32。
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static bool __inited = false;
@@ -4481,45 +4524,66 @@ static bool GetAuraAvatarOption(STEquipmentScript* script)
     std::string token;
     ScanStr(&token);
 
-    if (!__inited)
+    int state = 0;
+retry:
+    if (__inited)
+    {
+        std::map<const char*, int, less_TCHAR>::const_iterator it =
+            __lookup.find(token.c_str());
+        state = (it != __lookup.end()) ? it->second : -1;
+    }
+    else
     {
         __init_lock.enter();
-        if (!__inited)
-        {
-            // P61/P81：ORIG 用 pair 直构（MISSING pair<char const(&)[17],int> converting
-            // ctor），make_pair 会实例化另一模板并多一次转换临时。
-            __lookup.insert(
-                std::pair<char const* const, int>("[party teleport]", 0x30d0));
-            __lookup.insert(std::pair<char const* const, int>("[none]", 0x30d5));
-            __lookup.insert(std::pair<char const* const, int>("[solo teleport]", 0x30db));
-            __init_lock.leave();   // ORIG 双 leave + leave→__inited 序（p167 MISSING leave）
-            __inited = true;
-        }
-        else
+        if (__inited)
         {
             __init_lock.leave();
+            goto retry;                            // 自旋重试（P333）
         }
+        state = 0;                                 // 建表哨兵
     }
-
-    std::map<const char*, int, less_TCHAR>::const_iterator it =
-        __lookup.find(token.c_str());
-    switch (it != __lookup.end() ? it->second : -1)
+    switch (state)
     {
-    case 0x30d0:                                       // [party teleport]
-        script->m_880 = 0;
-        script->m_884 = ScanInt(&ok);
-        break;
-    case 0x30d5:                                       // [none]
-        script->m_880 = 1;
-        script->m_884 = 0;
-        break;
-    case 0x30db:                                       // [solo teleport]
-        script->m_880 = 2;
-        script->m_884 = ScanInt(&ok);
-        break;
+    case 0:                                        // 与首 key 同体（P163）
+    case 0x30d0:                                   // "[party teleport]"
+        if (__inited)
+        {
+            script->m_880 = 0;
+            script->m_884 = ScanInt(&ok);
+            break;
+        }
+        // P61/P81：ORIG 用 pair 直构（MISSING pair<char const(&)[17],int> converting
+        // ctor），make_pair 会实例化另一模板并多一次转换临时。
+        __lookup.insert(std::pair<char const* const, int>("[party teleport]", 0x30d0));
+        /* FALLTHRU */
+    case 0x30d5:                                   // "[none]"
+        if (__inited)
+        {
+            script->m_880 = 1;
+            script->m_884 = 0;
+            break;
+        }
+        __lookup.insert(std::pair<char const* const, int>("[none]", 0x30d5));
+        /* FALLTHRU */
+    case 0x30db:                                   // "[solo teleport]"
+        if (__inited)
+        {
+            script->m_880 = 2;
+            script->m_884 = ScanInt(&ok);
+            break;
+        }
+        __lookup.insert(std::pair<char const* const, int>("[solo teleport]", 0x30db));
+        /* FALLTHRU */
     default:
-        ok = false;                                    // 未命中 → 导入失败
+        if (__inited)
+            return false;                          // 未命中 → 导入失败
         break;
+    }
+    if (!__inited)
+    {
+        __init_lock.leave();
+        __inited = true;
+        goto retry;                                // 建表后重查本 token
     }
     return ok;
 }
@@ -4745,17 +4809,21 @@ void setEquipmentAniScriptLay(
     std::string* path, STEquipmentScript* script,
     ENUM_CHARACTERJOB job, equipmentAniType::T aniType)
 {
-    // [b28d-solo-STEquipmentScript 判词·N] 0x089c1cb9：ORIG 774 条 vs 我们 730 条。
-    // p167 仍有 MISSING（~string×2/allocator×3/c_str/basic_string(cc)/_Unwind_Resume/
-    // reverse_iterator::operator->/vector<STEquipmentAniScript>::push_back(const&)/
-    // __normal_iterator 默认 ctor）⇒ 残余为「三个分支各自 addAniInfo 调用点已补，
-    // 但 rbegin 解引用形（ORIG `rbegin()->` vs 我方 `*rbegin()`）与模板实例发射差」，
-    // 属 N82/N86/N89 族；语义完成，byte 层封顶。
+    // [SweepSTEquip 2026-09-09] 0x089c1cb9：ORIG 774 → 我方 772（gap 44→2）。
+    // 本轮四处修复：① `find(key->c_str())` 隐式构造临时 string（0x089c1cec..d02）；
+    // ② `m_level5c.rbegin()->push_back(*ani)` 语义纠错（ORIG ptEv + 内层 push_back，
+    //   旧译文 deEv + 外层 push_back 把 ani 追加错层）；③ 迭代器先默认构造再
+    //   `it = begin()`（P50/P314 复活，0x089c25c7 C1Ev）；④ 两循环复用同一 it 槽
+    //   （P160）。p167 147=147 CLEAR（仅余 C1↔C2/D1↔D2 同址别名命名差）；残余
+    //   2 条为帧差（0x25c vs ORIG 0x26c，N126/N115）。
     // ORIG 用 `lea -0x24c(%ebp),%ebx; mov $0x0,%eax;
     // mov $0x80,%edx; rep stos %eax,%es:(%edi)`（0x80 dwords = 512B）⇒ 原码是
     // `char buf[0x200] = {0};`（显式零初始化触发 4.4 rep stos）；旧 `memset` 生 call。
     char buf[0x200] = {0};
-    const STEquipmentAniScript& def = table->find(*key)->second;
+    // ORIG 0x089c1cec..0x089c1d02：`key->c_str()` → `string::C2(const char*, allocator)`
+    // 构造**临时 string** 再传 find（隐式转换），非直接传 *key 引用（p167 MISSING
+    // string::C2PKcRKSaIcE / ~string / allocator::C2Ev 各 1）。
+    const STEquipmentAniScript& def = table->find(key->c_str())->second;
 
     // [b28d-solo-STEquipmentScript] p167：ORIG 三个分支各有独立 addAniInfo 调用点
     // （MISSING addAniInfo×2），不是分支前统一取一次。
@@ -4763,7 +4831,14 @@ void setEquipmentAniScriptLay(
     {
         EquipmentAniInfoScript& info = script->addAniInfo(job);
         if (!info.m_level5c.empty())
-            info.m_level5c.push_back(*info.m_level5c.rbegin());
+        {
+            // ORIG 0x089c1dcd..0x089c1dea：`rbegin()` → reverse_iterator::operator->
+            // （ptEv）取**末个子 vector 的地址**，再对它 `push_back(ani)`；旧译文
+            // 写成外层 `m_level5c.push_back(*rbegin())`（deEv）语义错（复制末子表
+            // 而非把 ani 追加进末子表）——p167 MISSING ptEv / vector<AniScript>::
+            // push_back，EXTRA deEv / vector<vector<>>::push_back。
+            info.m_level5c.rbegin()->push_back(*ani);
+        }
     }
     else if (aniType == equipmentAniType::T_level)
     {
@@ -4792,21 +4867,21 @@ void setEquipmentAniScriptLay(
     SETANI_SLOT(m_str04);
     SETANI_SLOT(m_str08);
     SETANI_SLOT(m_str0c);
-    SETANI_SLOT(m_str10);
-    SETANI_SLOT(m_str14);
+    SETANI_SLOT(m_arr10[0]);   // +0x10
+    SETANI_SLOT(m_arr10[1]);   // +0x14
     SETANI_SLOT(m_str18);
     SETANI_SLOT(m_str1c);
     SETANI_SLOT(m_str20);
     SETANI_SLOT(m_str24);
     SETANI_SLOT(m_str28);
-    SETANI_SLOT(m_str2c);
-    SETANI_SLOT(m_str3c);
-    SETANI_SLOT(m_str30);
-    SETANI_SLOT(m_str40);
-    SETANI_SLOT(m_str34);
-    SETANI_SLOT(m_str44);
-    SETANI_SLOT(m_str38);
-    SETANI_SLOT(m_str48);
+    SETANI_SLOT(m_arr2c[0]);   // +0x2c
+    SETANI_SLOT(m_arr3c[0]);   // +0x3c
+    SETANI_SLOT(m_arr2c[1]);   // +0x30
+    SETANI_SLOT(m_arr3c[1]);   // +0x40
+    SETANI_SLOT(m_arr2c[2]);   // +0x34
+    SETANI_SLOT(m_arr3c[2]);   // +0x44
+    SETANI_SLOT(m_arr2c[3]);   // +0x38
+    SETANI_SLOT(m_arr3c[3]);   // +0x48
     SETANI_SLOT(m_str4c);
     SETANI_SLOT(m_str50);
     SETANI_SLOT(m_str54);
@@ -4814,15 +4889,19 @@ void setEquipmentAniScriptLay(
     SETANI_SLOT(m_str5c);
 #undef SETANI_SLOT
 
-    for (std::vector<std::string>::const_iterator it = def.m_vec64.begin();
-         it != def.m_vec64.end(); ++it)
+    // ORIG 0x089c25c7：迭代器先默认构造（`__normal_iterator::C1Ev`，P50 复活）
+    // 再 `it = begin()`（0x089c25cd C1Ev → 0x089c25e5 beginEv → 0x089c25f3 赋值）；
+    // 两个循环**复用同一 it 槽 -0x48**（P160 复用槽律）。
+    std::vector<std::string>::const_iterator it;
+    it = def.m_vec64.begin();
+    for (; it != def.m_vec64.end(); ++it)
     {
         // ORIG 0x89c2601..0x89c2634：格式串 = it 元素，参数 = path
         snprintf(buf, sizeof(buf), it->c_str(), path->c_str());
         ani->m_vec64.push_back(std::string(buf));
     }
-    for (std::vector<std::string>::const_iterator it = def.m_vec70.begin();
-         it != def.m_vec70.end(); ++it)
+    it = def.m_vec70.begin();
+    for (; it != def.m_vec70.end(); ++it)
     {
         // ORIG 0x89c272b..0x89c275e：同上
         snprintf(buf, sizeof(buf), it->c_str(), path->c_str());
@@ -4835,10 +4914,23 @@ void setEquipmentAniScriptLay(
 // ORIG t 0x089bf6ca：[usable list] —— 关键字→typeSel(1..5) + 每项等级下限。
 static bool GetExpertJobTypeList(STItemScript* item)
 {
-    // [b28d-solo-STEquipmentScript 判词·N] 0x089bf6ca：ORIG 330 条 vs 我们 302 条
-    // （帧 0xbc vs 0xcc、static map 注册块 + string 局部槽序 + EH landing）。
-    // p167 已清零（39/46，0 missing；修复=双 leave + `if(__inited)` 支 const_iterator /
-    // else 支非 const `(*it).second` 的混合 cv 形，P96/P167）。语义完成，byte 层封顶。
+    // [SweepSTEquip 2026-09-09 P333 状态机还原] ORIG 0x089bf6ca 是「首次建表、
+    // 之后查表」的 switch 状态机（与 GetItemCategory/GetAuraAvatarOption 同族）：
+    //   ① 循环条件 0x089bfbd2 为 `scanning && ScanStr(&token)`（scanning 是
+    //      0x089bf704 `movb $0x1,-0x21` 的永不修改死变量，P171 照抄）；
+    //   ② 循环体首 `typeSel(-0x20)=0`（0x089bf726），retry 锚 0x089bf72d；
+    //      已初始化走 const_iterator find（`typeSel = it!=end ? it->second : -1`），
+    //      未初始化 enter 后若已被建表则 leave+回跳（0x089bf8??），否则 typeSel=0；
+    //   ③ switch(typeSel)：case 0 与 case 0x303a 同体，每 case 体头
+    //      `movzbl __inited; xor $1; test; je INSERT`；已初始化则 `typeSel=1..5`
+    //      后 break 到 0x089bfb38，否则 insert 并 fallthrough 下一 case；
+    //   ④ default：`if (__inited) return false`；
+    //   ⑤ 尾块 `if (!__inited) { leave; __inited = true; goto retry; }`；
+    //   ⑥ 业务块 0x089bfb5f：`int level=0; if(!ScanInt(&level)) return false;
+    //      if (typeSel != 0) { entry...; push_back; }` 后回循环条件；
+    //      收尾 `return !item->m_expertJob.m_usable.empty();`。
+    // 旧译文把 find/switch 拆到两个分支（EXTRA 非 const find/end/c_str ×1），
+    // 且建表三连 insert 直线形，缺整棵 switch 与回跳 ⇒ gap 18。
     if (item == 0)
         return false;
     item->m_expertJob.m_usable.clear();
@@ -4851,60 +4943,92 @@ static bool GetExpertJobTypeList(STItemScript* item)
     bool scanning = true;
     while (scanning)
     {
-        int typeSel = 0;
+        // ORIG 0x089bf70d 是循环体开头（ScanStr 在此），0x089bfbd2 的条件只测
+        // scanning 后跳回体头 ⇒ 源形是 `while (scanning) { if(!ScanStr) break; }`，
+        // 不是 `while (scanning && ScanStr(&token))`（后者把 ScanStr 挪进条件段）。
         if (!ScanStr(&token))
             break;
-
-        // 首个 token 惰性登记全部关键字映射（锁内连续 insert），随后重查本 token。
-        if (!__inited)
+        int typeSel = 0;
+    retry:
+        if (__inited)
         {
-            __init_lock.enter();
-            if (!__inited)
-            {
-                __lookup.insert(std::pair<char const* const, int>("enchanter", 0x303a));
-                __lookup.insert(std::pair<char const* const, int>("alchemist", 0x303d));
-                __lookup.insert(std::pair<char const* const, int>("disjointer", 0x3040));
-                __lookup.insert(std::pair<char const* const, int>("doll_controller", 0x3043));
-                __lookup.insert(std::pair<char const* const, int>("all", 0x3046));
-                __init_lock.leave();   // ORIG 双 leave + leave→__inited 序（p167 MISSING leave）
-                __inited = true;
-            }
-            else
-            {
-                __init_lock.leave();
-            }
-
-            typeSel = 0;
-            // P167 差集定形：ORIG 该查询点是 const_iterator（2 次转换构造 + const
-            // operator!=/operator->），else 分支的 it 是非 const 且用 `(*it).second`。
             std::map<const char*, int, less_TCHAR>::const_iterator found =
                 __lookup.find(token.c_str());
-            if (found != __lookup.end())
-                typeSel = found->second;
+            typeSel = (found != __lookup.end()) ? found->second : -1;
         }
         else
         {
-            std::map<const char*, int, less_TCHAR>::iterator it =
-                __lookup.find(token.c_str());
-            if (it == __lookup.end())
-                return false;
-            switch ((*it).second)
+            __init_lock.enter();
+            if (__inited)
             {
-            case 0x303a: typeSel = 1; break;   // enchanter
-            case 0x303d: typeSel = 2; break;   // alchemist
-            case 0x3040: typeSel = 3; break;   // disjointer
-            case 0x3043: typeSel = 4; break;   // doll_controller
-            case 0x3046: typeSel = 5; break;   // all
-            default: return false;
+                __init_lock.leave();
+                goto retry;                            // 自旋重试（P333）
             }
+            typeSel = 0;                               // 建表哨兵
+        }
+        switch (typeSel)
+        {
+        case 0:                                        // 与首 key 同体（P163）
+        case 0x303a:                                   // enchanter
+            if (__inited)
+            {
+                typeSel = 1;
+                break;
+            }
+            __lookup.insert(std::pair<char const* const, int>("enchanter", 0x303a));
+            /* FALLTHRU */
+        case 0x303d:                                   // alchemist
+            if (__inited)
+            {
+                typeSel = 2;
+                break;
+            }
+            __lookup.insert(std::pair<char const* const, int>("alchemist", 0x303d));
+            /* FALLTHRU */
+        case 0x3040:                                   // disjointer
+            if (__inited)
+            {
+                typeSel = 3;
+                break;
+            }
+            __lookup.insert(std::pair<char const* const, int>("disjointer", 0x3040));
+            /* FALLTHRU */
+        case 0x3043:                                   // doll_controller
+            if (__inited)
+            {
+                typeSel = 4;
+                break;
+            }
+            __lookup.insert(std::pair<char const* const, int>("doll_controller", 0x3043));
+            /* FALLTHRU */
+        case 0x3046:                                   // all
+            if (__inited)
+            {
+                typeSel = 5;
+                break;
+            }
+            __lookup.insert(std::pair<char const* const, int>("all", 0x3046));
+            /* FALLTHRU */
+        default:
+            if (__inited)
+                return false;                          // 未命中 → 导入失败
+            break;
+        }
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            goto retry;                                // 建表后重查本 token
         }
 
+        int level = 0;
+        if (!ScanInt(&level))
+            return false;
         if (typeSel != 0)
         {
-            int level = 0;
-            if (!ScanInt(&level))
-                return false;
-            STItemScript::SEXPERTJOB::SUSABLE entry;
+            // ORIG 0x089bfb8e/0x089bfb98 先 `movl $0x0,-0xac/-0xa8` 两条清零，
+            // 再写 m_field0/m_field4 ⇒ value-init（POD 聚合零初始化）形。
+            STItemScript::SEXPERTJOB::SUSABLE entry = STItemScript::SEXPERTJOB::SUSABLE();
             entry.m_field0 = static_cast<ENUM_EXPERT_JOB_TYPE>(typeSel);
             entry.m_field4 = level;
             item->m_expertJob.m_usable.push_back(entry);
