@@ -173,17 +173,19 @@ WarRoom::~WarRoom()
 // 基础访问器（ORIG weak：GetIndex 0x822ee8a / GetState 0x822ee96 /
 //   SetState 0x82a5a56 / GenTimerKey 0x86c0b24 / CheckTimerKey 0x863bd92）
 // ============================================================================
-int WarRoom::GetIndex()
+// [SweepWarRoom ㉓ 符号绑定] ORIG 全 W（头内 inline 弱副本），我方 T ⇒ 定义加
+//   __attribute__((weak))（不改头，mangled/语义不变）。
+__attribute__((weak)) int WarRoom::GetIndex()
 {
     return m_index;
 }
 
-int WarRoom::GetState()
+__attribute__((weak)) int WarRoom::GetState()
 {
     return m_state;
 }
 
-bool WarRoom::CheckTimerKey(TIMER_MESSAGE msg, int key)
+__attribute__((weak)) bool WarRoom::CheckTimerKey(TIMER_MESSAGE msg, int key)
 {
     return m_timerKey[msg - 0x3f] == key;
 }
@@ -1670,8 +1672,17 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
     //   ③m_flag12 分支反写（ORIG 086bda64 je→086bda96 ⇒ then=「!=0 → 0 参数」）；
     //   ④两处 cMyTrace 改全表达式临时链（P221/P227；trace1 槽 -0x28→-0x38 与 ORIG
     //     深→浅方向一致）。
-    //   残余 = 版本槽基常数 4（killerUid -0x12 vs ORIG -0xe、slot -0x18 vs -0x14、
-    //   packet -0x44 vs -0x40；P332/N95）+ 1 条重定位显示差 ⇒ N 封顶。
+    // [SweepWarRoom-2 本轮三修，our 324→325 = orig 325，gap 0]：
+    //   ⑤删 `int fp` 具名局部改内联比较（P0：ORIG 086bdc16 结果直入 %ebx 无槽），
+    //     比较极性改 `fp <= penalty`（ORIG `cmp %eax,%ebx; setle`），then=
+    //     DecreaseWarPoint(0) 走 fall-through、else=penalty 段在 je 目标
+    //     （086bdc47 je→086bdc68），槽 -0xc 循环变量/循环尾全部对齐；
+    //   ⑥m_flag10 分支极性反转 `if (m_flag10 != 0) {ReviveAll…} else {GetLiveCount…}`
+    //     （ORIG 086bdd2c GetLiveCount 段在函数最末、ReviveAll 直落，P194）；
+    //   ⑦循环尾双源 goto 岛（ORIG 086bdc09 je→086bdcc4 nop 岛 + 086bdcc2 jmp
+    //     →086bdcc5，P223 多岛细则）⇒ +0x446 nop 岛与 +0x447 addl 复现。
+    //   残余 = game_func_report 切片仅 .o 未解析重定位显示差（call 目标/字面量
+    //   地址，N124/N132）；指令数 325=325、全部 jcc 目标下标逐位一致。
     if ((GetState() != 3) && (GetState() != 4) && (m_state != 5))
         return 0x13;
     int slot = GetUserSlot(user);
@@ -1727,12 +1738,11 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
         packet.finalize(true);
         SendToRoom(packet);
     }
-    if (m_flag10 == 0)
-    {
-        if (GetLiveCount() == 0)
-            SendWarRoomFailMsg();
-    }
-    else
+    // [SweepWarRoom P194/P222] ORIG 086bdd2c（GetLiveCount 段）位于函数最末、
+    //   ReviveAll 段走 fall-through（086bdb72 之后）⇒ 源码极性为
+    //   `if (m_flag10 != 0) {ReviveAll…} else {GetLiveCount…}`（4.4 对正极性
+    //   then 恒 fall-through，与 4.1 的块序一致）。
+    if (m_flag10 != 0)
     {
         ReviveAll();   // ORIG 0x086bdbb2：m_flag10!=0 时先全员复活
         if ((m_field.m_stageIdx == m_pDungeon->m_warRoomData.m_50) ||
@@ -1745,25 +1755,40 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
         packet.put_byte(GetWaiterCount());
         for (int i = 0; i <= 5; ++i)
         {
-            if (m_slots[i] != 0)
+            // [SweepWarRoom P223] ORIG 086bdc09 `je 086bdcc4`（nop 岛）+
+            //   086bdcc2 `jmp 086bdcc5`（体尾岛）⇒ 双源 goto 到连续尾标签。
+            if (m_slots[i] == 0)
+                goto DIE_NEXT;
             {
-                int fp = (m_slotsUser[i])->GetFinishPointTotal();
-                if (G_CDataManager()->m_warAreaCounter.m_wpPenalty < fp)
+                // [SweepWarRoom P0] ORIG 086bdc16..086bdc30：GetFinishPointTotal 结果
+                //   直入 %ebx（无槽往返）⇒ 原码无 fp 具名局部；比较为
+                //   `cmp %eax,%ebx; setle`（fp<=penalty），then=DecreaseWarPoint(0)
+                //   走 fall-through（ORIG 086bdc40 段），else=penalty 段在 je 目标。
+                if ((m_slotsUser[i])->GetFinishPointTotal() <=
+                    G_CDataManager()->m_warAreaCounter.m_wpPenalty)
+                {
+                    (m_slotsUser[i])->DecreaseWarPoint(0);
+                }
+                else
                 {
                     (m_slotsUser[i])->DecreaseWarPoint(
                         G_CDataManager()->m_warAreaCounter.m_wpPenalty);
                 }
-                else
-                {
-                    (m_slotsUser[i])->DecreaseWarPoint(0);
-                }
                 packet.put_byte(i);
                 packet.put_int((m_slotsUser[i])->GetFinishPointTotal());
             }
+            goto DIE_NEXT;
+        DIE_NEXT:
+            ;
         }
         packet.finalize(true);
         SendToRoom(packet);
         m_flag11 = 1;
+    }
+    else
+    {
+        if (GetLiveCount() == 0)
+            SendWarRoomFailMsg();
     }
     return 0;
 }
@@ -1787,6 +1812,11 @@ bool WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)   //
     //     086be7c7 每点重算 slot 地址）。
     //   结果：gap 26→3（our 442 / orig 445），槽号全对齐（-0x3a8/-0x4c/-0x40/-0x3c/
     //   -0x34/-0x30/-0x29/-0x28/-0x24/-0x10/-0x54/-0x3ac/-0x3b8/-0x3bc 逐值一致）。
+    //   [SweepWarRoom-2] ⑦CheckQuestMonster 第 3 实参局部 int→ENUM_QUEST_ENEMY_TYPE
+    //   同型化并删调用点 cast（P41 变体/P248 档①）⇒ 消掉 4.4 提前升格的多余
+    //   `mov -0x10(%ebp),%esi`，实参装载序与 ORIG 逐条一致（086be3af movl $1 存槽
+    //   → 086be3cd get_index call 后 mov -0x10,%edx 回读）；切片 diff 行 255→251，
+    //   our 442 不变（该条与别处 1 条抵消）。
     //   残余 3 = 4.4 强度归约：gain_exp_sp 累加段 ORIG 11 条（mov/add 寄存器目标）
     //   vs 4.4 8 条（lea 合并 + mem-add）；探针 h1（全局）/h20（实参位）证 4.4 对
     //   局部/形参恒 lea+mem-add、源码不可择 ⇒ N86/N1 封顶。
@@ -1822,10 +1852,13 @@ bool WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)   //
             if (isKiller)
             {
                 killer->WarAreaKill(monster.m_roleType, wp, monster.m_field18);
-                int enemyType = 1;
+                // [SweepWarRoom P41 变体] ORIG 086be3af `movl $0x1,-0x10` +
+                //   086be3cd `mov -0x10(%ebp),%edx`（get_index call 之后才回读）
+                //   ⇒ 局部与形参同型（enum）时不提前升格 callee-saved。
+                ENUM_QUEST_ENEMY_TYPE enemyType = (ENUM_QUEST_ENEMY_TYPE)1;
                 killer->CheckQuestMonster(m_pDungeon->get_index(),
                                           monster.m_mobIndex,
-                                          (ENUM_QUEST_ENEMY_TYPE)enemyType);
+                                          enemyType);
             }
             int exp = (int)(long long)(
                 monster.m_field18 *
@@ -2386,6 +2419,9 @@ int WarRoom::ReviveUserByCoin(CUser* user, unsigned short uid)
     //   game_func_report 切片 97/98 仅差 ORIG 086bf3d8 break 中继 `jmp` 后的
     //   086bf3da `nop`（4.1 循环 break 中继岛；本轮 break→goto LOOP_END 实测
     //   4.4 仍 jump-thread 无 nop ⇒ P223 单源负例封顶）。
+    //   [SweepWarRoom-2] 再试同层双 continue 形（P223②）实测 our 97→100
+    //   （多 2 continue 的 jmp/nop 段，且 jcc 形态改 setne）⇒ 劣化回退，
+    //   维持 goto 单源形；jcc 目标下标与 ORIG 逐位一致（je→+0xb6 nop 落点）。
     //   b25 已补 target==0 → 0x15 语义块。
     // ORIG 0x86bf33c：短路 && 条件直进 if（bool 局部会 spill cmpb）。
     if ((GetState() != 3) && (GetState() != 4))
@@ -2402,6 +2438,8 @@ int WarRoom::ReviveUserByCoin(CUser* user, unsigned short uid)
                     return 0x12;
                 target = m_slotsUser[slot];
                 // ORIG 086bf3d8 jmp→086bf3ea + 086bf3da nop（4.1 break 中继岛）。
+                // P223② 双 continue 形实测 +3 条（100/98）⇒ 回退；单源 break
+                // 中继 nop 归 P223 负例封顶。
                 goto LOOP_END;
             }
         }
@@ -2555,9 +2593,11 @@ int ImportWarRoomWPTable(stBloodWarGrowTable* table)
     //   （gap 2，P167 CLEAR 16/16）。残余 = 4.1 while 头部双入口岛：
     //   ORIG 089025ab jmp→HEAD、089025ad nop、089025ae jmp→HEAD（else 分支岛）、
     //   089025b0 nop（do-while again==0 落点）⇒ 4.4 对 else-goto 恒 jump-thread
-    //   成单 nop + fall（本轮 `goto LOOP_HEAD` 双标签串实测无效，指令数不变），
-    //   do-while 尾 ORIG `test %ebx; je NOP2; jmp DO_BODY` vs 4.4 `test %bl;
-    //   jne DO_BODY; jmp HEAD`（P283 底部条件布局）⇒ N 封顶。语义与 ORIG 一致。
+    //   成单 nop + fall；本轮再试三形均无效（①`goto LOOP_HEAD` 双标签串；
+    //   ②删 else 直落；③同层显式 continue 形）——指令数恒 126，4.4 恒把
+    //   单源 goto/continue 尾岛 thread 成 fall（P223 负例），且 do-while 尾
+    //   ORIG `test %ebx; je NOP2; jmp DO_BODY` vs 4.4 `test %bl; jne DO_BODY;
+    //   jmp HEAD`（P283 底部条件布局）⇒ N 封顶。语义与 ORIG 一致。
     if (!loadRDARScriptFile("", "Etc/WarRoomWPTable.tbl"))
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp", __FUNCTION__, 0xdb8,
@@ -2581,10 +2621,9 @@ int ImportWarRoomWPTable(stBloodWarGrowTable* table)
             // [b28d-solo-WarRoom P231] ORIG 0x08902669/0x08902688 两臂 `mov $0/$1,%ebx`
             //   + 0x089026af `test %ebx,%ebx; je` ⇒ 具名循环条件变量落在 %ebx
             //   （纯 register 存储类提示，无 asm 绑定，P0 合规）。
-            // [b28d-solo-WarRoom N] ORIG do-while 尾为「test %ebx,%ebx; je 退出岛;
-            //   jmp 回 body」（4.1 底部条件布局）；4.4 对 do-while/goto 两形恒
-            //   `jne body`（goto 双跳被 jump-thread）⇒ 布局不可翻，取指令数更少
-            //   的 register bool 形（`test %bl,%bl; jne`，比 int 形少 setne+test）。
+            // [b28d-solo-WarRoom P223] ORIG 循环头双岛：089025ad nop + 089025ae
+            //   jmp HEAD（if 假分支落点）、089025b0 nop（do-while again==0 落点）。
+            //   试 continue 形（同层 continue + 循环尾自然 fall）复现双岛。
             register bool again;
             do
             {
@@ -2684,17 +2723,17 @@ int DisPatcher_MakeWarRoomTemp::dispatch_sig(CUser* user, PacketBuf& packet)
     return 0;
 }
 
-int DisPatcher_MakeWarRoomTemp::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
+__attribute__((weak)) int DisPatcher_MakeWarRoomTemp::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 {
     return 0;    // ORIG 0x082335f8：恒定返回 0
 }
 
-int DisPatcher_MakeWarRoomTemp::process(CUser* /*user*/, MSG_BASE& /*msg*/,
-                                        ParamBase& /*param*/)
+__attribute__((weak)) int DisPatcher_MakeWarRoomTemp::process(CUser* /*user*/, MSG_BASE& /*msg*/,
+                                                              ParamBase& /*param*/)
 {
     return 0;    // ORIG 0x08233602：恒定返回 0
 }
 
-DisPatcher_MakeWarRoomTemp::~DisPatcher_MakeWarRoomTemp()
+__attribute__((weak)) DisPatcher_MakeWarRoomTemp::~DisPatcher_MakeWarRoomTemp()
 {
 }
