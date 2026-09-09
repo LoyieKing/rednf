@@ -459,6 +459,36 @@ bool initQuestScript(const char* dir, const char* list)
 }
 
 // [b28d-solo-STQuestScript · §6.2 三件套] ORIG 0x08a61813（raw 3883 / norm 3836）
+// ---------------------------------------------------------------------------
+// [2026-09-10 SweepSTQuestScript-2 收口判词] 本函数三项修复（逐项实测）：
+// ① [type]/[exception quest] 状态机 27+1 处块序翻转为
+//    `if(!__inited){insert}else{dst;break}` —— 与 ORIG 汇编逐条同构：
+//    `movzbl __inited;xor $1;test;je <dst>` → insert 块 → `jmp <下一 case>`
+//    → dst 块（ORIG 0x8a632b6..0x8a63ea4 / 0x8a65563 段实证）。效果：
+//    xor 61→89（ORIG 87）、jmp 283→311（ORIG 315）、raw 3841→3897。
+//    旧判词「翻转后 fn_diff 变差（3635→3676）」系在未做 ②③ 的基线上测得；
+//    三项联改后 difflib 对齐率 0.7255→0.7544（matched 2803→2932）⇒ 保留。
+// ② ConvertHHMMSSStringToInt 6 处改直接传 entry 成员引用（去 h/m/sec
+//    具名局部）：ORIG 0x8a6214d/15a/167/1e1/1ee/1fb 为
+//    `lea -0x45c; add $0x18/19/1a/1b/1c/1d`，我方原多 6 组
+//    `movb $0 + movb %al,entry` ⇒ 修后 raw 3897→3885。
+// ③ entry.m_eventId 改经具名局部 eventId（ORIG -0x40 中间槽实证
+//    0x8a61ee7/0x8a61efc：`mov %eax,-0x40; …; mov -0x40,%eax; mov %eax,-0x45c`）
+//    ⇒ raw 3885→3887（+2 条与 ORIG 对齐）。
+// 现状：raw 3883/3887（gap -4）、xor 87/89、jmp 315/311、
+// p167 517/517 CLEAR、四数 458/917/0/12 不回退。
+// 残余 gap -4 = 4.1/4.4 块布局差（非语义缺口，逐点核对）：
+//   · ORIG 序言 +0x84..+0xbf 的 20 组 `nop;jmp loop_head` continue 岛，
+//     20 个前驱全部实证在案（0x8a61a5a jne / 0x8a61e16 je / 0x8a623cd…/
+//     0x8a6572c je；**旧判词「17 组无前驱=死岛」系误判，已更正**）；
+//     我方 4.4 把 71 处 continue 汇入 1 个中继（jmp loop_head）并把 14 处
+//     break 生成 `jmp 收尾;nop` 岛链 ⇒ 岛归属/落点不可控（P223/N82 族）。
+//   · 13 处 `if(!ok) break;` 我方 `xor;test;jne <break 岛>` + fall-through
+//     到 continue；ORIG `xor;test;je <continue 岛>` + `jmp 收尾` —— 两侧
+//     极性/落点互补、语义逐点等价（抽查 .o 岛链 60b3..60c5 与
+//     ORIG 0x8a64e37 等 7 点）。
+//   · 槽漂移（line -0x320↔-0x308 族）与 setne/lea 级分散形态差 ⇒ N82/N126。
+// 以下为 2026-09-09 历史判词（gap 42 /「翻转变差」结论已被本次推翻）：
 // vs 我方（raw 3841 / norm 3811，gap 25）；p167 调用点差集 517/517 CLEAR
 // （唯一差异为 C1↔C2 / D1↔D2 镜像对，豁免）。残余 byte 层 N 封顶：
 // ① P223 实测复验（BigQuestScript 2026-09-09）：ORIG +0x86..+0xbf 为 19 组
@@ -725,11 +755,12 @@ bool importQuestScript(QuestScript* script, const char* path)
             entry.m_idx = idx;
             for (;;)
             {
-                entry.m_eventId = ScanInt(&ok);      // +0x00
+                int eventId = ScanInt(&ok);          // ORIG -0x40（具名局部）
                 if (!ok)
                 {
                     break;                           // 哨兵 → continue 主循环
                 }
+                entry.m_eventId = eventId;           // +0x00
                 if (!ScanStr(&strStart))
                 {
                     break;                          // ORIG 首个时间串失败=本段结束，回主循环
@@ -774,28 +805,22 @@ bool importQuestScript(QuestScript* script, const char* path)
                     entry.m_wday = static_cast<int>(wday);   // +0x14
                 }
                 {
-                    unsigned char h = 0;
-                    unsigned char m = 0;
-                    unsigned char sec = 0;
-                    if (!ConvertHHMMSSStringToInt(strStartTime, h, m, sec))
+                    if (!ConvertHHMMSSStringToInt(strStartTime,
+                                                  entry.m_startHour,
+                                                  entry.m_startMin,
+                                                  entry.m_startSec2))
                     {
                         return 0;
                     }
-                    entry.m_startHour = h;           // +0x18
-                    entry.m_startMin = m;            // +0x19
-                    entry.m_startSec2 = sec;         // +0x1a
                 }
                 {
-                    unsigned char h = 0;
-                    unsigned char m = 0;
-                    unsigned char sec = 0;
-                    if (!ConvertHHMMSSStringToInt(strEndTime, h, m, sec))
+                    if (!ConvertHHMMSSStringToInt(strEndTime,
+                                                  entry.m_endHour,
+                                                  entry.m_endMin,
+                                                  entry.m_endSec2))
                     {
                         return 0;
                     }
-                    entry.m_endHour = h;             // +0x1b
-                    entry.m_endMin = m;              // +0x1c
-                    entry.m_endSec2 = sec;           // +0x1d
                 }
                 script->m_dailySchedule.push_back(entry);
             }
@@ -1122,221 +1147,302 @@ bool importQuestScript(QuestScript* script, const char* path)
             {
             case 0:
             case 0x32c:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[seeking]", 0x32c));
+                }
+                else
                 {
                     script->m_triggerType = 0x0;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[seeking]", 0x32c));
             case 0x32f:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[condition under clear]", 0x32f));
+                }
+                else
                 {
                     script->m_triggerType = 0x1;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[condition under clear]", 0x32f));
             case 0x332:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[hunt monster]", 0x332));
+                }
+                else
                 {
                     script->m_triggerType = 0x2;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[hunt monster]", 0x332));
             case 0x335:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[clear map]", 0x335));
+                }
+                else
                 {
                     script->m_triggerType = 0x3;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[clear map]", 0x335));
             case 0x338:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[meet npc]", 0x338));
+                }
+                else
                 {
                     script->m_triggerType = 0x4;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[meet npc]", 0x338));
             case 0x33b:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[pvp rank]", 0x33b));
+                }
+                else
                 {
                     script->m_triggerType = 0x5;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[pvp rank]", 0x33b));
             case 0x33e:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[hunt enemy]", 0x33e));
+                }
+                else
                 {
                     script->m_triggerType = 0x6;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[hunt enemy]", 0x33e));
             case 0x342:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[powerwar win]", 0x342));
+                }
+                else
                 {
                     script->m_triggerType = 0x7;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[powerwar win]", 0x342));
             case 0x345:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[powerwar point]", 0x345));
+                }
+                else
                 {
                     script->m_triggerType = 0x8;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[powerwar point]", 0x345));
             case 0x34a:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[mobile]", 0x34a));
+                }
+                else
                 {
                     script->m_triggerType = 0x9;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[mobile]", 0x34a));
             case 0x34f:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[use item]", 0x34f));
+                }
+                else
                 {
                     script->m_triggerType = 0xa;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[use item]", 0x34f));
             case 0x352:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[get score]", 0x352));
+                }
+                else
                 {
                     script->m_triggerType = 0xb;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[get score]", 0x352));
             case 0x355:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[clear quest]", 0x355));
+                }
+                else
                 {
                     script->m_triggerType = 0xc;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[clear quest]", 0x355));
             case 0x358:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[check time]", 0x358));
+                }
+                else
                 {
                     script->m_triggerType = 0xd;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[check time]", 0x358));
             case 0x35b:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[check life]", 0x35b));
+                }
+                else
                 {
                     script->m_triggerType = 0xe;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[check life]", 0x35b));
             case 0x35e:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[amplify item]", 0x35e));
+                }
+                else
                 {
                     script->m_triggerType = 0xf;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[amplify item]", 0x35e));
             case 0x361:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[disjoint item]", 0x361));
+                }
+                else
                 {
                     script->m_triggerType = 0x10;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[disjoint item]", 0x361));
             case 0x364:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[equipped item]", 0x364));
+                }
+                else
                 {
                     script->m_triggerType = 0x11;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[equipped item]", 0x364));
             case 0x367:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[get item]", 0x367));
+                }
+                else
                 {
                     script->m_triggerType = 0x12;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[get item]", 0x367));
             case 0x36a:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[custom quest]", 0x36a));
+                }
+                else
                 {
                     script->m_triggerType = 0x13;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[custom quest]", 0x36a));
             case 0x36f:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[send chatting]", 0x36f));
+                }
+                else
                 {
                     script->m_triggerType = 0x14;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[send chatting]", 0x36f));
             case 0x372:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[turn gold card]", 0x372));
+                }
+                else
                 {
                     script->m_triggerType = 0x15;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[turn gold card]", 0x372));
             case 0x375:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[use fortune coin]", 0x375));
+                }
+                else
                 {
                     script->m_triggerType = 0x16;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[use fortune coin]", 0x375));
             case 0x378:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[meet secret npc]", 0x378));
+                }
+                else
                 {
                     script->m_triggerType = 0x17;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[meet secret npc]", 0x378));
             case 0x37d:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[ui click]", 0x37d));
+                }
+                else
                 {
                     script->m_triggerType = 0x18;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[ui click]", 0x37d));
             case 0x382:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[seek n meet npc]", 0x382));
+                }
+                else
                 {
                     script->m_triggerType = 0x19;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[seek n meet npc]", 0x382));
             case 0x387:
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[assault count]", 0x387));
+                }
+                else
                 {
                     script->m_triggerType = 0x1a;
                     break;
                 }
-                __lookup.insert(std::pair<const char* const, int>(
-                    "[assault count]", 0x387));
             default:
                 if (!__inited)
                 {
@@ -1735,7 +1841,10 @@ bool importQuestScript(QuestScript* script, const char* path)
             {
                 break;                               // 文件结束 → 收尾
             }
-            continue;
+            else
+            {
+                continue;
+            }
         }
         if (line == "[mail time]")
         {
@@ -1744,7 +1853,10 @@ bool importQuestScript(QuestScript* script, const char* path)
             {
                 break;                               // 文件结束 → 收尾
             }
-            continue;
+            else
+            {
+                continue;
+            }
         }
         if (line == "[mail title]")
         {
@@ -1777,7 +1889,10 @@ bool importQuestScript(QuestScript* script, const char* path)
             {
                 break;                               // 文件结束 → 收尾
             }
-            continue;
+            else
+            {
+                continue;
+            }
         }
         if (line == "[searching information]")
         {
@@ -1786,7 +1901,10 @@ bool importQuestScript(QuestScript* script, const char* path)
             {
                 break;                               // 文件结束 → 收尾
             }
-            continue;
+            else
+            {
+                continue;
+            }
         }
         if (line == "[grow number]")
         {
@@ -1795,7 +1913,10 @@ bool importQuestScript(QuestScript* script, const char* path)
             {
                 break;                               // 文件结束 → 收尾
             }
-            continue;
+            else
+            {
+                continue;
+            }
         }
         if (line == "[belong to winning power]")
         {
@@ -1804,7 +1925,10 @@ bool importQuestScript(QuestScript* script, const char* path)
             {
                 break;                               // 文件结束 → 收尾
             }
-            continue;
+            else
+            {
+                continue;
+            }
         }
         if (line == "[online]")
         {
@@ -1813,7 +1937,10 @@ bool importQuestScript(QuestScript* script, const char* path)
             {
                 break;                               // 文件结束 → 收尾
             }
-            continue;
+            else
+            {
+                continue;
+            }
         }
         if (line == "[job message]")
         {
@@ -1917,14 +2044,17 @@ bool importQuestScript(QuestScript* script, const char* path)
                 {
                 case 0:
                 case 0x5c1:
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(std::pair<const char* const, int>(
+                            "[urgent]", 0x5c1));
+                    }
+                    else
                     {
                         script->m_exceptionList.push_back(
                             ENUM_QUEST_EXCEPTION_TYPE_0);
                         break;
                     }
-                    __lookup.insert(std::pair<const char* const, int>(
-                        "[urgent]", 0x5c1));
                     /* fall through */
                 default:
                     if (__inited)
@@ -2232,6 +2362,12 @@ bool importTownScript(TownScript* script, const char* path)
 //    +0x2cb/+0x2ee 侧多一条 jmp（+1）⇒ 净 -4。
 // 4.4 对同址目标恒 jump-thread（P223 负例），nop 属 §6.1 对齐产物 ⇒ N 封顶。
 // 尾部 `movzbl -0x25(%ebp),%ebx` 已与 ORIG 单段形一致（旧 N18a 残差已消）。
+// [2026-09-10 SweepSTQuestScript-2] [level] 分支补 2 处显式 continue
+// （ORIG 0x8aaf7d6 / 0x8aaf802 两条 `jmp loop_head`）⇒ raw 253→254；
+// 残余 gap 3 = ORIG 循环头前 2 组 `jmp loop_head;nop`（0x8aaf5b2 入口 +
+// 0x8aaf5b5，后者是 0x8aaf7df `jne` 的落点）被 4.4 jump-thread 合并为 1 组，
+// 0x8aaf685 中继同被合并 ⇒ P223 族封顶（无合法 C++ 源形可分裂）。
+// 四数 458/917/0/12 不回退；p167 无 ORIG-only 游戏域 callee。
 bool importTrainingQuestScript(TrainingQuestScript* script, const char* path)  // [P330] 与 STQuestScript.h 同步
 {
     if (!loadRDARScriptFile("", path))
@@ -2321,6 +2457,7 @@ bool importTrainingQuestScript(TrainingQuestScript* script, const char* path)  /
                     }
                 }
                 prev = level;
+                continue;
             }
             else if (level == -100)
             {
@@ -2338,6 +2475,7 @@ bool importTrainingQuestScript(TrainingQuestScript* script, const char* path)  /
                         break;
                     }
                 }
+                continue;
             }
             continue;
         }
