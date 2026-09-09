@@ -44,13 +44,18 @@
 //   importTitleBookEtcScript 0x08aa8110 N 封顶 —— 650/650、P167 CLEAR(94/94)；
 //     残差 6 处全为 4.1 独占的 switch 叶块间 nop 占位岛（4.4 恒不发射；§6.2
 //     三件套：gap=0 / 调用点归零 / 逐块比对无语义差）。
-//   importQuestParameterScript 0x08a6b660 N 封顶 —— 447/444、P167 CLEAR(66/66)；
-//     残差为 4.1 独占 nop 岛 + `bool found=(appendage!=-1)` 的 setne 槽化物化
-//     （P194/N122 跨版本）。修法已落：p 形参缓存（-0x20）+ 各段块级 ok 槽 +
-//     isStr 无预清 + memcpy 1 字节 key + dead1c。
-//     [b28d-solo3 二次收口] [piece reward] 循环条件四形实测（独立 break 444 /
-//     具名 bool 合并 448 / 三目 441 / 语句表达式 444），取独立 break；
-//     found 语句表达式形 441 亦回退（ORIG 需 setne 物化）。
+//   importQuestParameterScript 0x08a6b660 N 封顶 —— 447/446（gap 3→1）、
+//     P167 CLEAR(66/66)。[b28d-solo3-2 收口] 两处形态修正：
+//     ①`[piece reward]` 循环头改**合并短路** `if (!ScanType(sub,true) ||
+//     sub=="[/piece reward]") break;` —— ORIG 0x08a6bace 是 `jne→mov $1 /
+//     je→mov $0 / test;jne` 物化（探针逐条同构），两个独立 break 恒产两个
+//     直跳出口（少 5 条）；
+//     ②`found` 具名 bool 改 `while (appendage != -1) { …; break; }`（P225）
+//     —— 精确复现 ORIG 0x08a6bb2a `cmpl $0xffffffff; setne; test; je` 且
+//     **零槽**，appendage 由 -0x10 归位 -0xc。修法已落：p 形参缓存（-0x20）+
+//     各段块级 ok 槽 + isStr 无预清 + memcpy 1 字节 key + dead1c。
+//     残余 1 条 = 4.1 独占循环前 `jmp+nop` 岛（O[42:44]）+ 帧差 0x10/槽号平移
+//     4（P332/N115）+ [piece reward table]/清理路径块序（difflib 对齐伪差）。
 //   importGuildParameterScript 0x08978d48 N 封顶 —— 507/505、P167 CLEAR(76/76)；
 //     残差为 4.1 独占 nop 岛 + 两步寻址伪影（N94：`[level-1][1]` 的 0x60 disp
 //     4.4 折单条 scaled mov，ORIG 拆 lea+mov，-1 条）。修法已落：7 处
@@ -795,8 +800,8 @@ scan_end:
 // m_map0；字符串令牌仅识别 [/difficulty] 终止符。[piece reward] 中首个
 // ScanInt 失败即整体返回 false（asm +0x445）。
 // ============================================================================
-// [b28d-solo-InitScriptProducers_3 N 封顶] 447/441、P167 CLEAR(66/66)；残差 =
-// 4.1 nop 岛 + setne 槽化物化（P194/N122）（详见文件头判词表）。
+// [b28d-solo3-2 收口] 447/446、P167 CLEAR(66/66)、gap 3→1；两处形态修正
+// （合并短路 break / while(appendage!=-1){…break;} 零槽 setne）见文件头判词表。
 bool importQuestParameterScript(QuestParameterScript* script, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -896,19 +901,19 @@ bool importQuestParameterScript(QuestParameterScript* script, const char* path)
             std::string sub;
             while (true)
             {
-                // ORIG 0x08a6bace..0x08a6bb13 为合并短路 + bool 物化；4.4 对
-                // 具名 bool/三目/语句表达式三形均折成直跳或槽化（N122 族），
-                // 故保留独立 break（gap 与三形相同）。
-                if (!ScanType(sub, true))
-                    break;
-                if (sub == "[/piece reward]")
+                // ORIG 0x08a6bace..0x08a6bb13：合并短路 `||` + bool 物化
+                // （jne→mov $1 / je→mov $0 / test; jne break）。探针实测
+                // `if (!ScanType(...) || sub == "[/piece reward]") break;`
+                // 逐条复现；独立 break 恒产两个直跳出口，少 5 条。
+                if (!ScanType(sub, true) || sub == "[/piece reward]")
                     break;
 
                 int appendage = loadAppendageType(sub);
-                // ORIG 0x08a6ba?d：`cmpl $0xffffffff,-0xc(%ebp); setne %al;
-                // test %al,%al; je` —— 4.1 的 != 物化（P194：具名 bool 局部）。
-                bool found = (appendage != -1);
-                if (found)
+                // ORIG 0x08a6bb2a：`cmpl $0xffffffff,-0xc(%ebp); setne %al;
+                // test %al,%al; je <循环头>` —— P225 实证 `while(cond){body;break;}`
+                // 精确复现该 setne/test/je 且**零槽**（具名 bool 恒落槽 -0x9，把
+                // appendage 由 -0xc 推到 -0x10、整帧 +0x10）。
+                while (appendage != -1)
                 {
                     pieceQuestRewardStatus status;
                     status.m_appendageType = appendage;
@@ -917,6 +922,7 @@ bool importQuestParameterScript(QuestParameterScript* script, const char* path)
                     status.m_valueType = loadValueType(typeText);
                     status.m_value = ScanFloat((bool*)0);
                     statuses.push_back(status);
+                    break;
                 }
             }
             p->m_map54.insert(std::make_pair(questIdx, statuses));
