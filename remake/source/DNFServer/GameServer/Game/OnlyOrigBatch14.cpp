@@ -84,28 +84,33 @@ struct STActiveStatus
 // ============================================================================
 
 // ORIG _ZL3ROLji @0x80c3dc0 / _ZL3RORji @0x809c42d：rol/ror %cl。
-// [b28d-D66 判词·N 封顶] ORIG 为 4.1 rotate lowering：`mov 0x8(%ebp),%eax`（value）→
+// [b14 复核·N 封顶（rotate lowering 跨版本）] ORIG 为 4.1 rotate lowering：
+// `mov 0x8(%ebp),%eax`（value）→
 // `mov 0xc(%ebp),%edx; mov %edx,%ecx`（count）→ `ror %cl,%eax` → 写回参数槽
 // `mov %eax,0x8(%ebp)` → 重读返回（10 insn）；4.4 对**形参赋值+rotate** 恒把读改写折成
 // 内存形 `rorl %cl,0x8(%ebp)`（8 insn，gap 2），对**单表达式 return** 恒发 callee-saved 形
 // `push %ebx; ... ror %cl,%ebx`（12 insn，ndiff 10）。探针 /tmp/d66_probe2.cpp r1..r6 +
-// /tmp/d66_probe3.cpp r7..r20 共 18 形穷举：无任何源形能同时保留「value 载入 %eax +
-// 寄存器 ror + 写回」，属 4.1/4.4 rotate lowering 跨版本差异 ⇒ 采用 gap 最小的写回形
-// （语义与 ORIG 完全一致，仅少 2 条寄存器中转）封顶。
-static unsigned int ROL(unsigned int value, int count)
+// /tmp/d66_probe3.cpp r7..r20 共 18 形穷举 + /tmp/b14_ror.cpp|ror2.cpp 再 12 形。
+// **b14 改进**：`register` 形参（P231 纯 register，非 asm 绑定）使 4.4 产
+// `mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov %edx,%ecx; ror %cl,%eax` —— 与 ORIG
+// 前 6 条逐条一致；唯一残差 = 4.1 的「写回参数槽 + 重读」2 条（4.4 对 register 形参
+// 恒不写回，探针 ROR2/ROR12 复证）。mangled/ABI 零变化（register 不入符号）。
+// 属 4.1/4.4 rotate lowering 跨版本差异 ⇒ 采用最接近 ORIG 的 register 形封顶。
+static unsigned int ROL(register unsigned int value, int count)
 {
     value = (value << count) | (value >> (32 - count));
     return value;
 }
 
-// [b28d-solo-OnlyOrigBatch14] N 封顶（rotate lowering 跨版本）：ORIG 0x0809c42d
+// [b14 复核·N 封顶（rotate lowering 跨版本）] ORIG 0x0809c42d
 // 10 insn = `mov value,%eax; mov count,%edx; mov %edx,%ecx; ror %cl,%eax;
 // mov %eax,0x8(%ebp); mov 0x8(%ebp),%eax`（寄存器 rotate + 写回参数槽）；
 // 4.4.6 恒折内存目标 `rorl %cl,0x8(%ebp)`（8 insn）。探针
 // /tmp/b28d_solo14_probe1.cpp r1..r10 十形穷举（赋值形/单表达式 return/
-// `return value=expr`/局部中转/掩码/交换操作数）无一复现寄存器形 ⇒ 采用
-// gap 最小的写回形，语义与 ORIG 全等。
-static unsigned int ROR(unsigned int value, int count)
+// `return value=expr`/局部中转/掩码/交换操作数）无一复现寄存器形；b14 增测
+// register 形参（/tmp/b14_ror.cpp ROR2）⇒ 寄存器 ror 复现，仍缺写回+重读 2 条。
+// 与 ROL 同判词。
+static unsigned int ROR(register unsigned int value, int count)
 {
     value = (value >> count) | (value << (32 - count));
     return value;
@@ -1077,6 +1082,12 @@ bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
 // 并由 `jmp 08900044` 进入，4.4 把该 dtor 内联在 continue 点（N104 EH 尾块
 // 相对序）。p167 MISSING `_ZSteqIcSt11char_traitsIcESaIcEE…EPKS3_`
 // （string==const char* 外链实例，4.4 libstdc++ 全内联，N89）。
+// [b14 复核] 槽序修复：P212「4.4 块内先声明占**浅**槽（4.1 相反）」⇒ 把
+// `int itemIdx;` 提到 `std::vector<STStackablePackageData> items;` 之前，
+// 复现 ORIG items@-0x30（12B，深）/ itemIdx@-0x24（4B，浅）的槽对
+// （改前我方 itemIdx@-0x30 / items@-0x2c 恰好互换）。修复后 174 vs 173，
+// 唯一残差即上述 `jmp +0x1cf` 单源 EH 尾岛（P223 负例：单源 goto 的尾岛
+// 4.4 恒 jump-thread ⇒ 不可造，封 N）。
 // 控制流/全部插入点与 ORIG 逐段核对，语义等价。
 bool importUniqueRewardForAllUsers(
     char* path,
@@ -1108,13 +1119,16 @@ bool importUniqueRewardForAllUsers(
             ScanType(token, true);
             while (token == "[package selection]")
             {
-                std::vector<STStackablePackageData> items;
                 // [gap-2 修复] ORIG 088fff63-69：`lea -0x24; call ScanInt;
                 // xor $1,%eax; test %al,%al; jne <跳出>`（负极性、无 for-init
                 // `movl $0`）⇒ 原码是 `int itemIdx; for(;;){ if(!ScanInt(&itemIdx))
                 // break; … }`，不是 `for(int itemIdx=0; ScanInt(&itemIdx); )`
                 // （后者 4.4 产 for-init + 尾条件正极性 jne，少 xor、多 movl）。
+                // [b14 槽序修复] P212：4.4 块内先声明占**浅**槽（4.1 相反）
+                // ⇒ 把 itemIdx 声明提到 items 之前，使 items 占深槽 -0x30、
+                // itemIdx 占浅槽 -0x24（与 ORIG 0x088fff58 段逐条一致）。
                 int itemIdx;
+                std::vector<STStackablePackageData> items;
                 for (;;)
                 {
                     if (!ScanInt(&itemIdx))
@@ -5374,35 +5388,30 @@ bool DecreaseTradeLimitCountByUser(CUser& user, int space, int slot)
 //                        serverGroup, false, false)。
 void GiveItemReturnUser(CUser* user)
 {
-    // [b28d-solo-OnlyOrigBatch14 判词·N 封顶（P78 + N82/N115）；gap-1 复核本波]
-    // ①P244/P0：ORIG 0x084bfd31 `movl $0x1f15,-0x2c(%ebp); movl $0x1,
-    // -0x28(%ebp)` 两具名常量局部入槽（声明序在 item 之前）+ 0x084bfd4d
-    // `mov -0x28(%ebp),%eax; mov %eax,0x4(%esp)`（set_add_info 实参从槽读）
-    // ⇒ 补具名 itemIdx/nAddInfo；P198 孪生「声明与赋值分离」阻止 4.4 常量
-    // 传播成立即数直传；②P232：dead `char pad[8]` 顶槽使 item 落 -0x69 与
-    // ORIG 一致。p167 CLEAR 22=22。发放调用点/循环与 ORIG 逐条一致。
-    // 本波 gap-1 探针（三次 fresh 编译实测）：
-    //   · 删 pad 全部 → item 浅 8（-0x61）、帧 0x190、gap 2（劣化）⇒ pad 必需；
-    //   · pad 占槽但不写 `(void)pad` → 4.4 不给槽、item 浅 8、gap 2 ⇒ 需真实 store；
-    //   · pad 移到标量之后 → 同 gap 1（当前采用，前两条 movl 序与 ORIG 一致）。
-    // 残差（N 封顶）：ORIG `push %edi`（3 callee-saved）vs 我方 esi/ebx（P78
-    // 寄存器分配差，连带 push/pop 各 -1）；ORIG 标量槽 -0x2c/-0x28/-0x24 vs
-    // 我方 -0x24/-0x20/-0x1c（4.4 聚合优先占低槽 + 标量分区，N82）；帧
-    // 0x1a0 vs 0x19c（N115 outgoing 16B 量化）；ORIG 多 jmp+nop 岛 1 对
-    // （P223 空 then 占位，与 push edi 帧差耦合）。语义全等。
+    // [b14 复核·AE 归零（145=145，gap 0）] 三项修复（旧判词 N82/N115 作废）：
+    // ①P329/P0：两处 `findString(4,"return_user_msg_title",0)` 原写成具名
+    //   `const char* title` 局部 ⇒ 求值被提前到 GetServerGroup 之前且多一槽；
+    //   内联回 ReqDBSendNewSystemMail 首实参位后，4.4 按 cdecl 右→左求值复现
+    //   ORIG 0x084bfe31 段顺序（GetServerGroup→strlen→getCurCharacNo→findString）。
+    // ②删除 dead `char pad[8]`（title 内联后槽自然重排，item 落 -0x69 与 ORIG
+    //   一致，且不再多发 `movb $0x0,-0x34(%ebp)`）；帧 0x19c / push edi 亦自动对齐。
+    // ③P223 多岛形：两个 return 改「两条独立 goto + 尾标签串」
+    //   （`if(def==0) goto ret1;` / `if(dungeon==0) goto ret2;` + 尾
+    //   `ret1:; ret2:;`）⇒ 复现 ORIG 0x084bff7f 的 `nop;jmp` 与 0x084bff82 的
+    //   `nop` 双岛（4.4 对裸 return 恒 jump-thread 掉第一个 jmp）。
+    // 虚调用核对（P193/P282）：`def->make_item(item)` ⇒ `mov (%eax),%eax;
+    // add $0x8,%eax; mov (%eax),%edx; call *%edx` = CItem vptr+8 = vtable 槽 @2；
+    // ORIG `_ZTV5CItem`@0x08c96da0 word[4]=0x08724fe0（纯虚）与 CItem.h 声明序
+    // （~CItem D1/D0 占 @0/@1，make_item @2）一致，且与 ORIG 逐条同偏移。
     int itemIdx;
     itemIdx = 0x1f15;
     int nAddInfo;
     nAddInfo = 1;
-    // [gap-1 探针] pad 移到标量之后：4.4 按首次使用序分配，试把 pad 槽
-    // 推离标量区（ORIG itemIdx/nAddInfo/def = -0x2c/-0x28/-0x24）。
-    char pad[8];
-    pad[0] = 0;
     Inven_Item item;
     CItem* def = G_CDataManager()->find_item(itemIdx);
     if (def == 0)
     {
-        return;
+        goto give_item_ret1;
     }
     item.m_addInfo = itemIdx;
     def->make_item(item);
@@ -5412,32 +5421,33 @@ void GiveItemReturnUser(CUser* user)
     {
         CDungeon* dungeon =
             G_CDataManager()->find_dungeon(user->getCurCharacLastPlayDungeonIndex());
-        if (dungeon != 0)
+        if (dungeon == 0)
         {
-            char buf[0x100];
-            OS_API::snprintf(
-                buf, 0xff,
-                g_scriptStringManager_.findString(4, "return_user_msg_1", 0),
-                dungeon->GetDungeonName());
-            const char* title =
-                g_scriptStringManager_.findString(4, "return_user_msg_title", 0);
-            WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-                title, item, 0, user->getCurCharacNo(), buf,
-                static_cast<unsigned int>(strlen(buf)), 7,
-                user->GetServerGroup(), false, false);
+            goto give_item_ret2;
         }
+        char buf[0x100];
+        OS_API::snprintf(
+            buf, 0xff,
+            g_scriptStringManager_.findString(4, "return_user_msg_1", 0),
+            dungeon->GetDungeonName());
+        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+            g_scriptStringManager_.findString(4, "return_user_msg_title", 0),
+            item, 0, user->getCurCharacNo(), buf,
+            static_cast<unsigned int>(strlen(buf)), 7,
+            user->GetServerGroup(), false, false);
     }
     else
     {
         const char* body =
             g_scriptStringManager_.findString(4, "return_user_msg_2", 0);
-        const char* title =
-            g_scriptStringManager_.findString(4, "return_user_msg_title", 0);
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            title, item, 0, user->getCurCharacNo(), body,
+            g_scriptStringManager_.findString(4, "return_user_msg_title", 0),
+            item, 0, user->getCurCharacNo(), body,
             static_cast<unsigned int>(strlen(body)), 7,
             user->GetServerGroup(), false, false);
     }
+give_item_ret1:;
+give_item_ret2:;
 }
 
 // ===== _Z38GetInstanceDeathTowerPlaydataStatisticv —— ORIG 0x0860f451 =====
