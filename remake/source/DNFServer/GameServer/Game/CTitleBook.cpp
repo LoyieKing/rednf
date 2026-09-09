@@ -592,7 +592,13 @@ int CTitleBook::getTitle(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
     CInventory* inven = (CInventory*)user->getCurCharacInvenW();
     int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space);
     Inven_Item title = *book->_getTitle(category, slot);
-    if ((itemIdx != 0) && (title.m_addInfo != itemIdx))
+    // [b28d-solo-CTitleBook 盲区修复·真 bug] ORIG 0x086426d1 段实证：
+    //   `cmpl $0,0x14(%ebp)(itemIdx); je <0x086426e4 = mov $0x2,%eax; jmp 返回>` +
+    //   `cmp %eax,%edx(m_addInfo); je <0x086426ee = 继续>` ⇒ 语义 = **itemIdx==0 也 return 2**。
+    // 旧写 `(itemIdx != 0) && (title.m_addInfo != itemIdx)` 在 itemIdx==0 时继续执行，
+    // 与 ORIG 相反（脚本/客户端传 itemIdx=0 时应拒绝）。AE 归一化把 jcc 目标折成 <T> 掩盖了
+    // 该差；本轮「jmp/jcc 目标下标逐位核对」命中（ORIG je→+0x120 / 我方 je→+0x12a）。
+    if ((itemIdx == 0) || (title.m_addInfo != itemIdx))
     {
         return 2;
     }
@@ -694,7 +700,11 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
     // 直构进 invenItem 槽（-0x8d）——「先声明后赋值」会多发一次 Inven_Item::C1Ev
     //（p167 EXTRA +1）。
     Inven_Item invenItem = inven->GetInvenSlot(invenType, slot);
-    if ((itemIdx != 0) && (invenItem.m_addInfo != itemIdx))
+    // [b28d-solo-CTitleBook 盲区修复·真 bug] 同 getTitle：ORIG 0x086420d9 段
+    // `cmpl $0,0x14(%ebp); je <0x086420ec = mov $0x2,%ebx; jmp 返回>` +
+    // `cmp %eax,%edx; je <0x086420f6 = 继续>` ⇒ **itemIdx==0 也 return 2**。
+    // 旧写在 itemIdx==0 时继续，与 ORIG 相反（jumpcheck 命中：ORIG je→+0x94 / 我方 je→+0x9e）。
+    if ((itemIdx == 0) || (invenItem.m_addInfo != itemIdx))
     {
         return 2;
     }
