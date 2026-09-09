@@ -209,18 +209,19 @@ std::vector<stTitleElement>* getTitleCollection(stTitleBookInfo* book, int tab)
 // [b28d-solo-ScriptDepsB AE-语义 / N(P197④) 形态封顶 | ORIG 0x08aa8b79]
 //  修法：else-if 链 + 单一 return 1（typeText 公共尾块析构）；appendage 异型化
 //  （unsigned）翻 store RHS-first（P211）；postal 分支照抄 ORIG -0x20 预清死局部。
-//  残差：appendage != -1 处 ORIG 为 4.1.2 槽比物化 `cmpl $-1,槽; setne; test; je`
-//  （3 条），4.4 恒直跳（1 条）；6 形探针（bool 局部/语句表达式/!!/cast/==true/
-//  异型化）全部不可复现（P197④ 定论）⇒ 净差 2 条指令、语义/调用点全等。
+//  首条件用 while+goto 复现 ORIG 槽比物化（P225 实证）：4.4 对 `if(槽!=K)` 恒
+//  直跳（je 1 条），对 **while 条件**才发 `cmpl $K,槽; setne; test; je` 同形；
+//  body 末尾 goto 公共尾（等价 break 后跳尾）⇒ 与 ORIG 0x08aa8ba4/0x08aa8c10 逐条
+//  一致（探针 /tmp/sdb_probe/p1.o f_while_goto）。
 //  D1 虚调目标（旧 N7）已由 CTitleBook.h 指针算术形修复。
 int importRewards(std::vector<stTitleRewardBasis*>* out, std::string token)
 {
     std::string typeText;
     const unsigned int appendage =
         static_cast<unsigned int>(loadAppendageType(token));
-    // N(P197④): ORIG 槽比物化 setne;test;je（4.1.2 固有），4.4 恒直跳；
-    // 6 形探针（bool 局部/语句表达式/双重否定/cast/==true）均不可复现。
-    if (appendage != static_cast<unsigned int>(-1))
+
+    // ORIG 0x08aa8ba4: cmpl $-1,槽; setne %al; test %al,%al; je <else>
+    while (appendage != static_cast<unsigned int>(-1))
     {
         stRewardChangeStatus* reward = new stRewardChangeStatus();
         reward->m_appendage = appendage;                    // +0x0c
@@ -228,8 +229,9 @@ int importRewards(std::vector<stTitleRewardBasis*>* out, std::string token)
         reward->m_valueType = loadValueType(typeText);      // +0x10
         reward->m_value = ScanFloat((bool*)0);              // +0x14（fstps）
         out->push_back(reward);
+        goto rewardsTail;                                   // ORIG 0x08aa8c10 jmp 尾
     }
-    else if (token == "[give emotion]")
+    if (token == "[give emotion]")
     {
         stRewardGiveEmotion* reward = new stRewardGiveEmotion();
         reward->m_emotionId = ScanInt((bool*)0);            // +0x0c
@@ -246,6 +248,7 @@ int importRewards(std::vector<stTitleRewardBasis*>* out, std::string token)
         ScanStr(&reward->m_message);                        // +0x14
         out->push_back(reward);
     }
+rewardsTail:
     return 1;
 }
 
@@ -462,13 +465,19 @@ int importSpPerLevelReferenceTable(const char* path, stSpPerLevelTable& table)
 //                              {+0xc,+8,+0} 三 int，自增键插入 +0x170。
 // loadRDARScriptFile 失败→false；其余路径均 true。
 // ============================================================================
-// [b28d-solo-ScriptDepsB AE-语义 / N(P223 单源 continue 岛) 形态封顶 | ORIG 0x08912336]
+// [b28d-solo-ScriptDepsB NEAR(仅 RGBA 寄存器角色) | ORIG 0x08912336]
 //  修法：补 ORIG 两枚死 string（-0xb0/-0xb4，P171 照抄）⇒ ctor/dtor 符号族归位；
 //  两处 `make_pair(key++, X)` 后置 ++（右值第一参 ⇒ make_pair<int,T&>，P315）；
 //  循环上界 `<= 5`/`<= 10` 复现 4.1 `setle;test;jne`（P51）。
-//  p167 调用点差集 55/55 CLEAR；gap=3 全为 ORIG 循环头前 3 个 `jmp;nop` 中继岛
-//  （[separate upgrade max]/[level]/[separate upgrade effect] 条件成功路径），
-//  continue/goto 两形探针（/tmp/b28d_b/p6.o f1/f2）实测 4.4 恒无岛 ⇒ P223 单源封顶。
+//  ① 7 处 `continue` 改 `goto sectionHead`（标签在循环体首）：4.4 对 continue 恒发
+//  共享 latch 块（`jmp <尾部>`，与 ORIG 直跳循环头 0x089123a2 形不符），goto 头标签
+//  才逐条复现 ORIG 的 10 处 `jmp 0x089123a2`（含入口 3 个 `jmp;nop` 中继岛，
+//  0x08912399/0x0891239c/0x0891239f）——探针 /tmp/sdb_probe/p5.o fGoto。
+//  ② [separate upgrade effect] 尾 `continue`→`break`（真 bug：ORIG 0x0891285d
+//  `je 0x089123a1` 后处理完即 0x089129c4 `jmp 退出块`，不再扫后续令牌）。
+//  ③ RGBA 打包用 `(unsigned char)` 逐字节 cast（movzbl），`& 0xffu` 会退化成 and。
+//  收口读数：raw 448=448、norm 444=444、p167 55/55 CLEAR；仅余 RGBA 首两操作数
+//  寄存器角色（4.1 累加器留 %eax vs 4.4 留 %edx，P321-T5 寄存器角色 ⇒ N）。
 bool importGenuineUpgradeTable(const char* path,
                               GenuineDamageUpgradeTable* table)
 {
@@ -482,6 +491,9 @@ bool importGenuineUpgradeTable(const char* path,
 
     for (;;)
     {
+    sectionHead:                 // ORIG 7 处 continue 均为 jmp 0x089123a2（直跳循环头）；
+                                 // 4.4 对 continue 恒发共享 latch 块（jmp 尾部），
+                                 // goto 头标签才复现直跳形（探针 /tmp/sdb_probe/p5.o fGoto）。
         if (!ScanType(token, true))
             break;
 
@@ -505,7 +517,7 @@ bool importGenuineUpgradeTable(const char* path,
                 table->m_infos.insert(
                     std::make_pair(key++, info));   // 后置 ++ ⇒ make_pair<int,T&>
             }
-            continue;
+            goto sectionHead;
         }
 
         if (token == "[separate upgrade max]")
@@ -517,7 +529,7 @@ bool importGenuineUpgradeTable(const char* path,
                     __FUNCTION__, 0x2f9e,
                     "importGenuineUpgradeTable() - [separate_upgrade max] false");
             }
-            continue;
+            goto sectionHead;
         }
 
         if (token == "[level]")
@@ -529,7 +541,7 @@ bool importGenuineUpgradeTable(const char* path,
                     __FUNCTION__, 0x2fa5,
                     "importGenuineUpgradeTable() - [level] false");
             }
-            continue;
+            goto sectionHead;
         }
 
         if (token == "[item weights by grade]")
@@ -547,7 +559,7 @@ bool importGenuineUpgradeTable(const char* path,
                 table->m_materials.insert(
                     std::make_pair(key, material));
             }
-            continue;
+            goto sectionHead;
         }
 
         if (token == "[item weights by rarity]")
@@ -562,7 +574,7 @@ bool importGenuineUpgradeTable(const char* path,
                         "importGenuineUpgradeTable() - [item weights by rarity] false");
                 }
             }
-            continue;
+            goto sectionHead;
         }
 
         if (token == "[stat weights by rarity]")
@@ -577,7 +589,7 @@ bool importGenuineUpgradeTable(const char* path,
                         "importGenuineUpgradeTable() - [stat weights by rarity] false");
                 }
             }
-            continue;
+            goto sectionHead;
         }
 
         if (token == "[weapon weights]")
@@ -595,7 +607,7 @@ bool importGenuineUpgradeTable(const char* path,
                     }
                 }
             }
-            continue;
+            goto sectionHead;
         }
 
         if (token == "[separate upgrade effect]")
@@ -613,11 +625,13 @@ bool importGenuineUpgradeTable(const char* path,
                     break;
                 if (!ScanInt(&b))
                     break;
-                // ORIG：(r&ff)|((g&ff)<<8)|((b&ff)<<16)|0xff000000 → +0x04。
+                // ORIG 0x08912863..0x0891289a：(unsigned char)r | ((unsigned char)g
+                //   << 8) | ((unsigned char)b << 16) | 0xff000000 → +0x04
+                //   （movzbl 逐字节扩展；`& 0xffu` 形会退化成 and，见 /tmp/sdb_probe/p3.o）
                 effect.m_b = static_cast<int>(
-                    (static_cast<unsigned>(r) & 0xffu) |
-                    ((static_cast<unsigned>(g) & 0xffu) << 8) |
-                    ((static_cast<unsigned>(b) & 0xffu) << 16) |
+                    static_cast<unsigned>(static_cast<unsigned char>(r)) |
+                    (static_cast<unsigned>(static_cast<unsigned char>(g)) << 8) |
+                    (static_cast<unsigned>(static_cast<unsigned char>(b)) << 16) |
                     0xff000000u);
                 if (!ScanInt(&effect.m_d))              // +0x0c
                     break;
@@ -628,7 +642,10 @@ bool importGenuineUpgradeTable(const char* path,
                 table->m_effects.insert(
                     std::make_pair(key++, effect));     // 后置 ++ ⇒ make_pair<int,T&>
             }
-            continue;
+            // ORIG 0x0891285d `je <continue 岛>` + 内层循环尾 0x089129c4 `jmp 退出块`
+            // ⇒ 本分支处理完即退出外层令牌循环（真 bug 修正：原写 continue 会继续
+            //  扫描后续令牌，与 ORIG 行为不同）。
+            break;
         }
     }
 
