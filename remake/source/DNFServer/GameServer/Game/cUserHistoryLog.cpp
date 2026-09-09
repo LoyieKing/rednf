@@ -159,6 +159,13 @@ void cUserHistoryLog::AvatarItemAdd(int itemIdx, int avatarUid, const char* agen
 //
 // [2026-09-09 N102 翻案后] 残差仅 N107 ×2：ORIG 单条 `lea 0x15(%eax),%ebx` vs 4.4
 // `add $0x15,%eax; mov %eax,%ebx`（成员常量偏移取址；tb4/tb5/tb6 共 16 形探针全 add）⇒ 封顶。
+// [SweepHistoryLog2 2026-09-09 复核] 再试 12 形（/tmp/print_probe{,2,3,4}.cpp，c6root 4.4.7
+// 与 -B cc1plus446bin 双编同结论）：数组成员退化/`&arr[0]`/`reinterpret_cast<Guid*>`/引用 cast/
+// 解引用 cast/`static_cast<const void*>`/union 具名视图（m_guid）/具名左值/指针算术/三目/
+// packed 非对齐偏移——**实参绑定「引用形参」时 4.4 恒发 `add $0x15,%eax; mov %eax,%ebx`**；
+// 唯实参绑定「指针形参（const void*）」时 4.4 才发 lea（探针 p1/p2/p9 实证），而 ORIG
+// `operator()(itemGloballyUniqueIdentifier_t const&)` 的 mangled 为 `clERK30…`（nm 0x084ebe82
+// 实证，引用）⇒ 引用路径无源形可择 ⇒ N107 封顶。
 void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
                               const Inven_Item& item, eItemAddReason reason)
 {
@@ -216,6 +223,7 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
 // 机理同 ItemAdd：ORIG 自末实参起求值，具名化使求值块/装载块错位。
 // [2026-09-09] N102 已翻案（`*(0, m_traderCharac)`）；Compound 段 `%0x1f` 掩码改位域
 // m_bits.m_lo 复现 ORIG 的「and 后截断」形（探针 mask2 w1）⇒ 残差仅 N107 ×2（同 ItemAdd）。
+// [SweepHistoryLog2 2026-09-09 复核] 同上 12 形复验（引用形参恒 add、指针形参才 lea）⇒ 维持封顶。
 void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
                               const Inven_Item& item, eItemDelReason reason)
 {
@@ -998,6 +1006,8 @@ void cUserHistoryLog::RemovePrivateStore(int zoneA, int zoneB, char const* name)
 // [2026-09-09 复核] 上面 N80/N82附/N18a 历史族已全部消解，当前仅剩 N107 ×1；
 // 补测 union 数组视角/引用实参/`(char*)&`/`static_cast<const void*>` 等共 16 形
 // （/tmp/hlprobe/tb4/tb5/tb6）全部产 add+mov ⇒ 成员取址 N107 封顶。
+// [SweepHistoryLog2 2026-09-09 复核] 再试 12 形（/tmp/print_probe{,2,3,4}.cpp 双后端）：
+// 引用形参恒 add、唯指针形参才 lea（ORIG operator() 为引用，nm 0x084ebe82 实证）⇒ 维持封顶。
 void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const& item,
                                           int addNew, int addOld, eItemAddReason reason,
                                           char const* name1, char const* name2)
@@ -1029,6 +1039,7 @@ void cUserHistoryLog::PrivateStoreItemAdd(INVEN_TYPE invenType, Inven_Item const
 // b28d-65 复核：去 (int)m_addInfo 冗余 cast ⇒ 163=163；残余同 Add（N80+N82附+N107）。
 // [b28d-solo-cUserHistoryLog] DIFF 164/163：P227 同 PrivateStoreItemAdd；残差仅 N107。
 // [2026-09-09 复核] 同上：仅剩 N107 ×1（16 形探针封顶）。
+// [SweepHistoryLog2 2026-09-09 复核] 同上 12 形复验（引用形参恒 add、指针形参才 lea）⇒ 维持封顶。
 void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const& item,
                                           int delNew, int delOld, eItemDelReason reason,
                                           char const* name1, char const* name2)
@@ -1285,6 +1296,13 @@ void cUserHistoryLog::EndRidable(eRidableType type, int a)
 // [2026-09-09 复核] 补测 register 形参/register 局部/语句表达式/逗号表达式/有符号移位
 // 等 6 形（/tmp/hlprobe/exp2/exp3/exp4）：register 形参可消重载但寄存器角色全变
 // （%eax=reason / %ebx=常量 / %esi=结果 + push esi），其余仍重载 ⇒ N18a 反向封顶。
+// [SweepHistoryLog2 2026-09-09 三度复核] 再试 10 形（/tmp/exp_probe.cpp f1..f14，c6root 4.4.7
+// 与 -B cc1plus446bin 双编同结论）：①(unsigned)reason 两侧同写；②三目 A?true:C；
+// ③反向 !(A&&B)；④正向 A>=..&&..；⑤1u→1（折 sar/and $1）；⑥去 cast（折 jg，证 enum 底层
+// signed，须保留 (unsigned)）；⑦register unsigned 局部（落 %ebx +2 条）；⑧register enum 局部
+// （+2 条）；⑨语句表达式 ({reason;})；⑩逗号 (0,reason)——**全部仍多 1 条
+// `mov 0x14(%ebp),%eax`**。机理：4.1 把 || 左操作数装载的 %eax 保留给右操作数 shl 源；
+// 4.4 -O0 无 CSE，第二次使用恒重读形参槽 ⇒ 无合法源形可造 ⇒ N18a 反向封顶（ORIG 31/我们 32）。
 void cUserHistoryLog::ExpAdd(int exp, int sp, eExpAddReason reason, int reasonIdx)
 {
     // [b28d-solo-cUserHistoryLog] N6 翻案：`(int)` cast 阻断 4.4 前端的 bool 位测试折叠
@@ -1639,9 +1657,16 @@ void cUserHistoryLog::CeraPoint(ENUM_CERAPOINT_LOG_TYPE type, unsigned int amoun
 // ORIG _ZN15cUserHistoryLog5LoginEPKcS1_iihi @0x08683d86（Login.md 全量转写）：
 //   扫描背包 invenType=0 槽 10..0x13 统计强化/稀有件、invenType=2 全槽计数、
 //   回归判定 local_60、专家职业等级，输出 "IP+,..." 18 字段行。
-// [b28d-solo-cUserHistoryLog] DIFF 241/241：裸偏移 *(int*)(charac+0x7b) → 具名
-// _Charac_info::m_field7b（CUser.h:546）复现 ORIG 单条 disp；残差 N108/P223（两循环 continue
-// 守卫分落 +0x118/+0x119 岛，4.4 恒合并共享出口）——正向包裹/嵌套 if 实测各劣 4 条，已回退。
+// [b28d-solo-cUserHistoryLog] 裸偏移 *(int*)(charac+0x7b) → 具名
+// _Charac_info::m_field7b（CUser.h:546）复现 ORIG 单条 disp。
+// [SweepHistoryLog2 2026-09-09 翻案 N108/P223] 两循环守卫统一改「单 continue + 正向 if 包裹
+// body」形后 ndiff=0（orig=239/our=239，p167 CLEAR）：
+//   ① `if (it == 0) continue;` 保留 ORIG 的 `je <nop 岛>`（4.4 对该单 continue 恰发 1 条）；
+//   ② 第二守卫 `it->m_addInfo` 不写 continue，改 `if (it->m_addInfo != 0) { body }` 正向包裹
+//      ⇒ 复现 ORIG 体尾唯一 `jmp <增量>`（实测：`||` 合并 continue 多 2 条 jmp、
+//      两个独立 continue 多 2 条、goto 双标签多 2 条、纯嵌套 if 少 1 条；唯有「1 continue +
+//      1 正向 if」两处各差 0）。
+//   探针 /tmp/hlprobe 复用与 check_tu_routed fresh 双证；旧判词「正向包裹各劣 4 条」已作废。
 void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int param4,
                             unsigned char loginType, int param6)
 {
@@ -1666,31 +1691,36 @@ void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int 
         // +0x118 nop 岛 / +0x119 增量段，++rareCount 后 `jmp +0x119`；4.4 对 continue
         // 恒生成 nop+jmp 岛（多 1 条 jmp）。实测：拆两 continue（+2）、goto 多源共享尾标签
         // （ndiff 同 2）、循环2 改 || continue（+2）均不闭合 ⇒ N108/P223 封顶。
-        if (it == 0 || it->m_addInfo == 0)
+        if (it == 0)
             continue;
-        if (slot == 10)
+        if (it->m_addInfo != 0)
         {
-            upgradeFirst = it->GetUpgrade() & 0xff;
-            firstItemId = it->m_addInfo;
-        }
-        else
-        {
-            upgradeSum += it->GetUpgrade() & 0xff;
-        }
-        CItem* item = G_CDataManager()->find_item(it->m_addInfo);
-        if (item != 0)
-        {
-            // ORIG 单次 get_rarity 缓存后判 0/1（P183 反向警告：二次访问须具名缓存）
-            int rarity = item->get_rarity();
-            if (rarity == 0 || rarity == 1)
-                ++rareCount;
+            if (slot == 10)
+            {
+                upgradeFirst = it->GetUpgrade() & 0xff;
+                firstItemId = it->m_addInfo;
+            }
+            else
+            {
+                upgradeSum += it->GetUpgrade() & 0xff;
+            }
+            CItem* item = G_CDataManager()->find_item(it->m_addInfo);
+            if (item != 0)
+            {
+                // ORIG 单次 get_rarity 缓存后判 0/1（P183 反向警告：二次访问须具名缓存）
+                int rarity = item->get_rarity();
+                if (rarity == 0 || rarity == 1)
+                    ++rareCount;
+            }
         }
     }
     for (int slot = 0; slot < 0x74; ++slot)
     {
         // ORIG 每循环迭代重复 getCurCharacInvenR（P48 去缓存）
         const Inven_Item* it = m_user->getCurCharacInvenR()->GetInvenRef(2, slot);
-        if (it != 0 && it->m_addInfo != 0)
+        if (it == 0)
+            continue;
+        if (it->m_addInfo != 0)
             ++petCount;
     }
 
