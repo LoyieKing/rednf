@@ -24,7 +24,7 @@
 //
 // SIG_LOGIN_DATA 字段访问说明：SigTypes_D.h 已按 ORIG 偏移字段化（m_punishInfos/
 // m_restrictedGoods/m_passPadPassword 等），本 TU 一律具名成员访问；仅对头内
-// 仍为 pad 的字节区使用 TU-local 同址视图（见下方 SigPunishTableView/SigPad394cView）。
+// 仍为 pad 的字节区使用 TU-local 同址视图（见下方 SigPad394cView）。
 // ============================================================================
 
 #include "ARAD_LoginSecurity.h"
@@ -46,18 +46,6 @@
 #include "StreamDeps.h"        // G_CEnvironment
 
 namespace {
-
-// [b28d-solo 新范式] pack(1) 外壳下的「4 对齐访问视图」：4.4 对 pack 元素类型
-// 恒把字段常量偏移拆成 (16 对齐 add + disp8)（0x3a68→add $0x3a60+disp 8），
-// 对 aligned(4) 视图则整体并入单条 add，复现 ORIG punish_user_check 0x0818f970 的
-// `lea (%ecx,%eax,1); add $0x3a68; mov (%eax)`（探针 /tmp/probe_pun5.cpp n3 逐条同形；
-// 旧 N102「4.4 恒折 disp、唯一出 add 的是裸偏移」判词在此形下作废）。
-// sizeof/偏移/mangled 零影响：仅为 SIG_LOGIN_DATA 的同址只读视角。
-struct SigPunishTableView
-{
-    char m_pad[0x3a54];
-    SIG_LOGIN_PUNISH_INFO m_punishInfos[32];
-} __attribute__((aligned(4)));
 
 // SIG_LOGIN_DATA +0x394c（m_pad391c 区内，ORIG `movl $0,0x394c(%eax)` 清零）的具名视图
 struct SigPad394cView
@@ -334,15 +322,19 @@ int Arad_Dispatcher_Login_Impl::inter_dispatch(CUser* /*user*/,
 int Arad_Dispatcher_Login_Impl::account_password_check(
     SIG_LOGIN_DATA* data, char* clientPwd)
 {
-    // [b28d-solo 判词·DIFF(N76)] ORIG 0x0818f746：ours 133 / ORIG 132（尾 nop
-    // 口径差 1）、p167 CLEAR。已修：
+    // [SweepARADLoginSecurity 2026-09-10 判词·AE] ORIG 0x0818f746：132=132、
+    // p167 CLEAR（旧 DIFF/N76 封顶判词**作废**）。已修：
     // P227 两段 trace 全表达式临时链（ORIG 0x0818f7af/0x0818f845 先算 accId 入
     // %ebx 跨 ctor 保活）；P0 删 curSec 具名局部改实参内联（ORIG 无该槽，
     // CheckDailyScheduleTime 实参右起求值，esi 保活形复现）；P191 GM 分支
     // `if(strncmp==0)return 0;` 让 return 0 走 fall-through（ORIG `jne <log>`）；
-    // 三处字段 store 经同型视图消 eax→edx 转换中转（P211 档③）。残余=3 处 store
-    // 装载序：ORIG 4.1 RHS-first 3 条形，4.4 恒 LHS-first（N76；P211 翻法要求
-    // ORIG 侧带中转，此处无中转）⇒ N76 封顶。
+    // 三处 store（0x3958/0x3964/0x39dc）原用同址视图写，4.4/4.1 对 LHS cast 形恒
+    // 先算基址（LHS-first，探针 t7.cpp h6-h8）与 ORIG 的 RHS-first 3 条形反；
+    // 改**具名真字段**直赋后逐条复现：字段与 RHS 同型是前提（探针 t8.cpp k3..k8：
+    // 异型恒 4 条带中转）⇒ SigTypes_D.h 侧按 stOutputData_t 的 MySQL getter 硬直证
+    // 修正 m_lastPlayTime→int、m_reliablePersonFlag→char、+0x39dc 拆具名
+    // m_ssoSecurityFlag（char），与 out 的 int/char 同型（ORIG 0x08602da6 调
+    // `_ZN5MySQL7get_intEiRi`/`_ZN5MySQL8get_byteEiRc`）。
     time_t nowSec = time(0);
     (void)nowSec;
 
@@ -375,21 +367,17 @@ int Arad_Dispatcher_Login_Impl::account_password_check(
     data->m_totalAccountFail = out.m_totalAccountFail;   // +0x3954 (out+0x08)
     data->m_reportMannerlessUserCount = out.m_reportCnt; // +0x3960 (out+0x0c)
     data->m_accountFail = out.m_accountFail;             // +0x3950 (out+0x04)
-    // P211/N76：目标 unsigned / 源 int 异型 ⇒ 4.4 多发 eax→edx 中转（4 条形 DIFF）；
-    // 经同型 int 视图写回落 3 条形（与 ORIG 仅装载序差）。同址视图，布局零影响。
-    struct VLastPlay { char m_pad[0x3958]; int m_lastPlayTime; };
-    ((VLastPlay*)data)->m_lastPlayTime = out.m_lastPlayTime;    // +0x3958 (out+0x00)
+    // [SweepARADLoginSecurity 2026-09-10] 三处曾用同址视图（cast）写：4.4/4.1 对
+    // LHS cast 形恒先算基址（LHS-first，探针 /tmp/p_arad/t7.cpp h6-h8），与 ORIG 的
+    // RHS-first 3 条形相反。ORIG 0x0818f8b6/ce/e8 与 DB_Login 0x08413713/4f 均
+    // `mov 槽,%edx; mov sig,%eax; mov %edx,disp`（无转换中转）⇒ 字段与 RHS 同型
+    // （探针 t8 k3..k8：异型恒 4 条带中转）⇒ 用真字段直赋（SIG 侧类型已按
+    // stOutputData_t 的 MySQL getter 硬直证修为 int/char，见 SigTypes_D.h）。
+    data->m_lastPlayTime = out.m_lastPlayTime;           // +0x3958 (out+0x00)
     data->m_overTradeGoldCount = out.m_tradeGoldDaily;   // +0x3968 (out+0x14)
-    struct VReliableFlag { char m_pad[0x3964]; char m_reliableFlag; };
-    ((VReliableFlag*)data)->m_reliableFlag =
-        out.m_reliableFlag;                              // +0x3964 byte (out+0x10)
+    data->m_reliablePersonFlag = out.m_reliableFlag;     // +0x3964 byte (out+0x10)
     data->m_tutorialSkipable = out.m_tutorialSkipable;   // +0x39a2 byte (out+0x3c)
-    {
-        // P1 字段视图（同 DB_Login::getSecurityCardInfo 手法）：ORIG `mov %dl,
-        // 0x39dc(%eax)` base+disp 直写；cast+add 形产 lea 中转多出。
-        struct VSecValid { char m_pad[0x39dc]; unsigned char m_valid; };
-        ((VSecValid*)data)->m_valid = out.m_securityFlag;  // byte (out+0x2c)
-    }
+    data->m_ssoSecurityFlag = out.m_securityFlag;        // +0x39dc byte (out+0x2c)
     data->m_dungeonGainedGold = static_cast<int>(out.m_dungeonGainGold);  // +0x395c
 
     if (CheckDailyScheduleTime(
@@ -409,19 +397,26 @@ int Arad_Dispatcher_Login_Impl::account_password_check(
 // +0x3918、Goblin 检查窗口格式 "%Y-%m-%d 06:00:00"（+0x15180=当日 06:00 对齐秒偏移）。
 int Arad_Dispatcher_Login_Impl::pad_certifiaction_check(SIG_LOGIN_DATA* data)
 {
-    // [b28d-solo 判词·NEAR(N82/N93)] ORIG 0x0818f4a6：ours 159 / ORIG 158
-    // （尾 nop 口径差 1）、p167 CLEAR。已修：P214③ 两缓冲 `={0}` 复现 rep stos
-    // （inputPadPwd -0x60 /
-    // encryptedPwd）；day[0x14] `={0}` 复现 ORIG 5×movl；nowSec 单变量复用
+    // [SweepARADLoginSecurity 2026-09-10 判词·NEAR(N82/N93)] ORIG 0x0818f4a6：
+    // 158=158、p167 CLEAR。已修：P214③ 两缓冲 `={0}` 复现 rep stos
+    // （inputPadPwd -0x60 / encryptedPwd）；day[0x14] `={0}` 复现 ORIG 5×movl；
+    // nowSec 单变量复用
     // （ORIG -0x3c 二次写=`getCurSec() - shift` 初始化式）；savedHash/failCnt
     // 具名指针局部（ORIG -0x10/-0xc，失败分支经指针自增）；strncmp `!= 0` 走
     // 失败 fall-through（ORIG `je <成功块>` 布局）；`failCnt > 9` 早返（ORIG
-    // `jle` 落 errCode=5 块）。残余=帧 0xc0 vs 0xa0 + 全帧槽号平移（ORIG 的
-    // tm/encryptedPwd 复用同槽 -0x8c，4.4 sibling 块不复用）⇒ N82/N93 封顶。
+    // `jle` 落 errCode=5 块）。残余=帧 0xc0 vs 0xa0 + 全帧槽号平移：ORIG 的
+    // brokTm(-0x8c, 0x2c) 与 encryptedPwd(-0x8c, 0x24) **复用同槽**（4.1 互斥块
+    // 复用），4.4 在本函数不复用（brokTm -0xb0 / encryptedPwd -0x84）。
+    // 本轮复核（判词维持 N，附实测）：① brokTm 提前到函数头、或置于 if 块首，
+    // 两形均不改变 brokTm/encryptedPwd 槽位（帧仍 0xc0）；② 4.4 本身**会**复用
+    // 互斥块槽（探针 /tmp/p_arad/t16.cpp f1-f3、t17.cpp f4-f6 含取地址实参均
+    // `sub $0x30/$0x48` 单槽复用）⇒ 本函数的不复用源于 brokTm 的地址逃逸
+    // （localtime_r/strftime 实参）与 encryptedPwd 的 `={0}` rep stos 组合，
+    // 非声明序可控；③ 显式 union 复用会改 rep stos 清零形（N78 memset 退化）。
+    // ⇒ N82/N93 封顶。
     static const char kFunc[] =
         "static int ARAD::Arad_Dispatcher_Login_Impl::pad_certifiaction_check("
         "SIG_LOGIN_DATA*)";
-
     if (data->m_passPadVersion == 2)
     {
         // 已通过二级认证转化：执行当日 06:00 格式化的 Goblin 奖励复查
@@ -568,14 +563,17 @@ int Arad_Dispatcher_Login_Impl::premium_info_set(
 int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
                                             Stream* stream)
 {
-    // [b28d-solo 判词·DIFF(N99)] ORIG 0x0818ef4c：168 vs 170、p167 CLEAR。
+    // [gap-2 修复·新范式 P339] ORIG 0x0818ef4c：168 vs 170、p167 CLEAR。
     // 已修：P0/P48 删 channelType/secondCheckType 具名槽改实参内联（复现 ORIG
     // `cmp $8/%7,%eax; sete %al; test %al,%al; je` 的 call 结果直比物化，P197④）；
     // pwdBuf 改 `={0}` 复现 rep stos $0x21 dwords；`==7 && (...)` 拆嵌套 if 消
     // 4.4 jump-thread（P225/P286）；补 ORIG 死局部 `int padDead = 0`（0x0818f0f5
     // `movl $0,-0x1c`，P232 帧律使帧 0xdc 与槽基全等）。残余=ORIG 保留
     // punish_user_check/pad_certifiaction_check 返回值两处死 `test %eax,%eax`
-    // （4.4 tree-DCE 删除，N99；(void)/空 if 三形不可复现）⇒ N99 封顶。
+    // （ORIG 0x0818f0f3 / 0x0818f112，test 后无 jcc）——旧判词 N99「不可复现」
+    // **作废**：4.4.7 对空体 `if (f()) {}`（结果丢弃）正是该形
+    // （探针 /tmp/p_arad/t4.cpp c3：`call f; test %eax,%eax; <下一条>`，无 setne/
+    // jcc；c1/c2 的 while 形才会多 setne）。改用空 if 即逐条复现。
     static const char kFunc[] =
         "virtual int ARAD::Arad_Dispatcher_Login_Impl::db_dispatch(int, int, "
         "Stream*)";
@@ -629,14 +627,14 @@ int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
 
     DATABASE::LOGIN_QUERY::arad_sp_select_punish_second_user(loginData);
 
-    punish_user_check(loginData);
+    if (punish_user_check(loginData)) {}
 
     // ORIG 0x0818f0f5 在 punish_user_check 之后对 -0x1c 槽写 0（死局部，4.1 保留）
     int padDead = 0;
     (void)padDead;
 
     DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(loginData);
-    pad_certifiaction_check(loginData);
+    if (pad_certifiaction_check(loginData)) {}
 
     std::vector<DB_Login::tagDNFEventEntry> entries;
     DATABASE::LOGIN_QUERY::arad_sp_load_event_entry(loginData, entries);
@@ -663,18 +661,21 @@ int Arad_Dispatcher_Login_Impl::punish_user_check(SIG_LOGIN_DATA* data)
     long curSec = GlobalData::s_systemTime_.getCurSec();
 
     int index = 0;
-    // [b28d-solo 判词·NEAR(N7/P75) + 新范式] 100=100 指令数全等、p167 CLEAR；
-    // 两处 `add $0x3a68/0x3a54; mov (%eax)` 由 SigPunishTableView（aligned(4) 视角）
-    // 翻正（旧 N102 判词作废，见文件头视图注释）；jg 的 nop 占位岛由负条件 goto 尾
-    // 空标签复现（P223）。唯一残差=数组基址(%ecx)与下标槽(%edx)两条 mov 的装载序：
-    // ORIG 4.1 下标先/基址后，4.4 恒基址先（cast 形，探针 /tmp/probe_pun6.cpp q7-q9 /
-    // probe_pun8.cpp r1-r5 十形全败）⇒ N7/P75 跨版本装载序封顶。ORIG 0x0818f970。
+    // [SweepARADLoginSecurity 2026-09-10 判词·AE] ORIG 0x0818f970：100=100、p167 CLEAR，
+    // 装载序与常量折分双正（旧 NEAR/N7/P75 判词作废）：
+    // ① 访问改具名真数组 `data->m_punishInfos[index]`——原 TU-local SigPunishTableView
+    //    cast 形恒 base 先载（探针 /tmp/p_arad/t7.cpp h6-h8），与 ORIG「下标先/基址后」反；
+    // ② SigTypes_D.h 对 SIG_LOGIN_DATA 加 pack(4)（外层仍 pack(1)）：4.4.7 在 pack(1)/(2)
+    //    下对成员数组常量偏移恒折分 `add $0x3a60; mov 0x8(%eax)`，pack(4) 合并为 ORIG 的
+    //    `add $0x3a68; mov (%eax)`（探针 /tmp/p_arad/t15.cpp G1/G2 vs G4；26 条
+    //    static_assert 全命中 ⇒ sizeof/偏移/mangled 零变化）。
+    // jg 的 nop 占位岛仍由负条件 goto 尾空标签复现（P223）。
     while (data->m_punishInfoCount > index)
     {
         long punishEnd =
-            (*(SigPunishTableView*)data).m_punishInfos[index].m_endTime;  // +0x3a68
+            data->m_punishInfos[index].m_endTime;  // +0x3a68
         int punishType =
-            (*(SigPunishTableView*)data).m_punishInfos[index].m_type;     // +0x3a54
+            data->m_punishInfos[index].m_type;     // +0x3a54
 
         PUNISH_CHECK::punish_check_by_HUB(data, punishType);
         PUNISH_CHECK::punish_check_by_RES(data, punishType);

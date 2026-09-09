@@ -75,6 +75,11 @@ struct SIG_INGAME_HISTORY_VIEW
     SIG_INGAME_HISTORY_ROW m_rows[30];         // +0x0c 起 30 行 × 0xc
 };
 
+// [SweepARADLoginSecurity 实验] 仅本结构用 pack(4)：ORIG 4.1 对 m_punishInfos
+// （pack(1) 外层）成员数组访问合并常量（`add $0x3a68; mov (%eax)`），4.4 在
+// pack(1)/pack(2) 下恒折分（`add $0x3a60; mov 0x8(%eax)`，探针 /tmp/p_arad/t15.cpp
+// G1/G2 vs G4）；pack(4) 下 4.4 合并且保持「下标先、基址后」装载序。
+#pragma pack(push, 4)
 struct SIG_LOGIN_DATA
 {
     // +0x0000..0x00a0 头部区（DisPatcher_Login::dispatch_sig 实证拆具名）：
@@ -128,10 +133,17 @@ struct SIG_LOGIN_DATA
     char           m_pad391c[0x3950 - 0x391c]; // +0x391c
     int            m_accountFail;           // +0x3950 ARAD 登录复核写入（account_password_check）
     int            m_totalAccountFail;      // +0x3954 同上
-    unsigned int   m_lastPlayTime;          // +0x3958 上次游戏秒（ReturnUser/每日窗口基准）
+    // [SweepARADLoginSecurity 类型直证 2026-09-10] int（非 unsigned）：
+    // ORIG account_password_check 0x0818f8b6 / DB_Login::GetAccountInfo 0x08413713 的
+    // store 均 3 条形 RHS-first 无转换中转（`mov 槽,%edx; mov sig,%eax; mov %edx,disp`）
+    // ⇒ 与 stOutputData_t::m_lastPlayTime 同型；RHS 侧由 ORIG 0x08602da6 调
+    // `_ZN5MySQL7get_intEiRi`（int&）硬直证为 int（4.1.2/4.4.7 探针：异型恒 4 条带中转）。
+    int            m_lastPlayTime;          // +0x3958 上次游戏秒（ReturnUser/每日窗口基准）
     unsigned int   m_dungeonGainedGold;     // +0x395c CDungeonGainedGold::setGainedGold
     int            m_reportMannerlessUserCount; // +0x3960 当日无礼举报数
-    unsigned char  m_reliablePersonFlag;    // +0x3964 SetReliablePerson(!=0)
+    // 同上：ORIG 0x0818f8ce / 0x0841374f 3 条形无中转；RHS 由 0x08602da6
+    // `_ZN5MySQL8get_byteEiRc`（char&）直证为 char ⇒ 本字段 char。
+    char           m_reliablePersonFlag;    // +0x3964 SetReliablePerson(!=0)
     char           m_pad3965[3];            // +0x3965
     unsigned int   m_overTradeGoldCount;    // +0x3968 当日超限交易金币
     unsigned int   m_schoolNo;              // +0x396c SetSchoolNo
@@ -146,7 +158,10 @@ struct SIG_LOGIN_DATA
     unsigned int   m_onlinePrelimServerGroup;// +0x39d0 渠道==0xe 时 SetServerGroup / setOnlinePreliminaryServerGroup
     unsigned int   m_onlinePrelimCharacNo;  // +0x39d4 setOnlinePreliminaryCharacNo
     int            m_onlinePrelimPlayType;  // +0x39d8 setOnlinePreliminaryPlayType
-    char           m_pad39dc[4];            // +0x39dc
+    // +0x39dc：ORIG account_password_check 0x0818f8e8 写入（源 ssoOut.m_securityFlag，
+    // 来自 member_login.security_flag 列）⇒ pad 拆具名（推断：SSO 安全标志字节）
+    char           m_ssoSecurityFlag;       // +0x39dc
+    char           m_pad39dd[3];            // +0x39dd
     bool           m_secCardActivate;       // +0x39e0 setSecurityCardInfo activate
     bool           m_secCardCertified;      // +0x39e1 certified
     char           m_pad39e2[2];            // +0x39e2
@@ -232,6 +247,7 @@ struct SIG_LOGIN_DATA
     SIG_GIVE_GROWTH_CREATURE_EVENT m_growthCreatureEvent; // +0x4154 SetGrowthCreatureEventInfo
     SIG_LEVELUP_GIFT_ACCOUNT_ONCE m_levelupGiftAccountOnce; // +0x4338 setCharacLevelUpGift_AccountOnce
 };                                             // sizeof = 0x4358
+#pragma pack(pop)
 #pragma pack(pop)
 
 static_assert(sizeof(SIG_LOGIN_DATA) == 0x4358, "SIG_LOGIN_DATA ABI drift");
