@@ -84,6 +84,9 @@ void CCreateDisjointStoreCmd::execute()
     // ORIG 0x084a9720：GetUser 四独立重调（P48 无 CSE）；posY/posX 值经
     // %esi/%ebx 跨 call 直传（P0 无槽），movzwl=(unsigned short) 拓宽直传；
     // 实参 R2L：y(+0x40) → x(+0x50) → user(+0x66)。
+    // ORIG 0x084a9740：job 在 GetUser call 前物化入 %ebx 跨调用保活（4.1 实参
+    // 提前物化）；4.4 恒 call 后重读槽（N-P75 跨版本调度，语句表达式 P226 实测
+    // 不升格——/tmp/bm3/p13 fSE 同结论），余 2 条为寄存器名差（N7）。
     GetUser()->SetCurCharacExpertJob(job);
     static_cast<expert_job::CDisjointer*>(job)->OnCreateDisjointStore(
         GetUser(), "test", 500,
@@ -135,6 +138,11 @@ void CDeleteGuild::execute()
     // 向 DB 队列发解散流：0x1df + (uid, characNo, guildkey)。
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("GameMaster.cpp", 0x68d), true);
+    // ORIG 0x084ab333：guildKey 在 guard 构造后立即求值并缓存具名局部（-0xc 槽往返，
+    // P0），供 notice.m_guildKey 复用；且必须早于下方 set_charac_guildkey(0)——否则
+    // 解散通知包里的公会键恒为 0（真语义 bug，原实现即栽在此）。
+    unsigned int guildKey =
+        static_cast<unsigned int>(user->get_charac_guildkey());
     // ORIG：`(*guard)->operator<<(x)`（operator* de()）标识调用形态。
     (*guard)->operator<<(0x1df);
     (*guard)->operator<<(user->GetUID());
@@ -151,11 +159,12 @@ void CDeleteGuild::execute()
     user->Send(packet);
 
     Packet_Monitor_Notice_Guild_Dismiss notice;
-    notice.m_guildKey =
-        static_cast<unsigned int>(user->get_charac_guildkey());
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendPacket(reinterpret_cast<char*>(&notice), 0xe);
+    notice.m_guildKey = guildKey;
+    // ORIG 0x084ab467..0x084ab492：GetServerProxy 结果 eax 直通 receiver（无 proxy
+    // 具名槽），&notice/packetSize 先物化 %ebx/%esi 跨调用保活（P52 链式 receiver +
+    // R2L 实参独占）；size 取包内 packetSize（P171 照抄）。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+        ->SendPacket(reinterpret_cast<char*>(&notice), notice.packetSize);
 }
 
 // ========================================================================
@@ -180,16 +189,22 @@ void DungeonDifficulty::execute()
     {
         return;
     }
-    unsigned char difficulty = m_difficulty;
-    if (difficulty == 0 || difficulty > 3)
+    // ORIG 0x084b2172/0x084b2181：m_difficulty 每次直读成员（无具名局部，P0）；
+    // 原实现多一个 unsigned char 具名局部（-0x19 槽 + store/load 往返）。
+    if (m_difficulty == 0 || m_difficulty > 3)
     {
         return;
     }
 
-    CDungeonList* list = G_CDataManager()->getDungeonIndexList();  // 真实定义 UserPartyLink4.cpp
+    // ORIG 0x084b2190 起：list 为 const 指针（begin/end 选 const 重载
+    // _ZNK…hash_map…5beginEv/3endEv），且 end 只在循环外求值一次（-0x2c 槽）。
+    const CDungeonList* list = G_CDataManager()->getDungeonIndexList();
     __gnu_cxx::hash_map<int, CDungeon*>::const_iterator it =
         list->m_dungeonMap.begin();
-    for (; it != list->m_dungeonMap.end(); ++it)
+    __gnu_cxx::hash_map<int, CDungeon*>::const_iterator end =
+        list->m_dungeonMap.end();
+    // ORIG 增量段调 ppEi（后置）⇒ 源形写 it++（P28）。
+    for (; it != end; it++)
     {
         CDungeon* dungeon = it->second;
         if (dungeon == 0)
@@ -197,17 +212,22 @@ void DungeonDifficulty::execute()
             continue;
         }
         // 血色地狱(1/2)、绝望之塔、锦标赛、kind==1 的地下城不写入。
-        bool skip = dungeon->get_blood_dungeon_type() == 1 ||
-                    dungeon->get_blood_dungeon_type() == 2 ||
-                    dungeon->isTowerOfDespairDungeon() ||
-                    dungeon->isTournamentDungeon() ||
-                    dungeon->getDungeonKind() == 1;
-        if (!skip)
+        // ORIG 0x084b21f5..0x084b2244：OR 短路链物化 %al（mov$1/mov$0 双岛 +
+        // test; jne 跳过 body，无具名 bool 槽）⇒ 4.4 复现形是正极性 AND 包裹
+        // （P214①：负极性短路恒 je;jne 反演）。
+        if (({ dungeon->get_blood_dungeon_type() == 1 ||
+               dungeon->get_blood_dungeon_type() == 2 ||
+               dungeon->isTowerOfDespairDungeon() ||
+               dungeon->isTournamentDungeon() ||
+               dungeon->getDungeonKind() == 1; }))
         {
-            WongWork::CDungeonClear* clear = user->getDungeonClearRefW();
-            clear->addClearedDungeon(static_cast<short>(dungeon->get_index()),
-                                     static_cast<char>(difficulty));
+            continue;
         }
+        // ORIG 0x084b2246 起：getDungeonClearRefW 结果为 receiver 直传
+        // （无具名 clear 局部）；实参 R2L（difficulty → get_index）。
+        user->getDungeonClearRefW()->addClearedDungeon(
+            static_cast<short>(dungeon->get_index()),
+            static_cast<char>(m_difficulty));
     }
 }
 
@@ -264,8 +284,9 @@ void CEnduranceCmd::parse()
 // ORIG execute 0x084aa858：GM 且槽位 ∈ (9,0x15]（cmp $0x15;jg 允许 ==0x15）时改写背包物品耐久并回发更新包。
 void CEnduranceCmd::execute()
 {
-    CUserCharacInfo* ci = GetUser();
-    CUser* user = static_cast<CUser*>(ci);
+    // ORIG 0x084aa866 起只有单个具名局部（-0x10 槽，GetUser 结果，P0）；原实现
+    // 多声明一个 CUserCharacInfo* 具名局部，多出 -0x14 槽 + 两条 mov 往返。
+    CUser* user = GetUser();
     // [b28d-63] ORIG 0x084aa879 起：bool 取反守卫 + 两次独立槽位比较各落
     // 独立 nop 岛（0x15f/0x162/0x165/0x168）⇒ P223 负条件 goto + 尾标签串；
     // m_slot 每次直读（无具名局部，P0）。
@@ -278,21 +299,27 @@ void CEnduranceCmd::execute()
 
     {
         Inven_Item* item =
-            const_cast<CInventory*>(ci->getCurCharacInvenW())->GetInvenRef(0, m_slot);
-        if (item == 0)
-            return;
-        if (item->m_addInfo == 0)
-            goto END4;
+            const_cast<CInventory*>(
+                static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW())
+                ->GetInvenRef(0, m_slot);
+        // ORIG 0x084aa8ca：item==0 直跳 epilogue（0x084aa9c1，无 nop 岛）⇒ 原码是
+        // 正向 `if (item != 0) { ... }` 包裹（写成 if(item==0)return 会多一个岛）。
+        if (item != 0)
+        {
+            if (item->m_addInfo == 0)
+                goto END4;
 
-        item->m_fieldb = m_endurance;
+            item->m_fieldb = m_endurance;
 
-        PacketGuard packet;
-        packet.put_header(0, 0xe);
-        packet.put_byte(3);
-        packet.put_short(1);
-        ci->getCurCharacInvenR()->MakeItemPacket(INVEN_TYPE_INVEN, m_slot, packet);
-        packet.finalize(true);
-        user->Send(packet);
+            PacketGuard packet;
+            packet.put_header(0, 0xe);
+            packet.put_byte(3);
+            packet.put_short(1);
+            static_cast<CUserCharacInfo*>(user)->getCurCharacInvenR()
+                ->MakeItemPacket(INVEN_TYPE_INVEN, m_slot, packet);
+            packet.finalize(true);
+            user->Send(packet);
+        }
     }
 END1:;
 END2:;
