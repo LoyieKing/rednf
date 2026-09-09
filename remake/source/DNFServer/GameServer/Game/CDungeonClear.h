@@ -12,16 +12,39 @@ namespace WongWork
 class CDungeonClear
 {
 public:
-    CDungeonClear();
-    ~CDungeonClear();
+    // b28d-60 绑定判据㉓（W vs T）：ORIG 下列 6 个符号全为 W 弱符号，地址分散
+    // 在不同 TU ⇒ 头内定义、使用点发射 W（P233）；我方原为 .cpp 强定义 T。
+    // ORIG W 0x08374ff2（sz 0x13）
+    CDungeonClear() {}
+    // ORIG W 0x08375006（sz 0x13）
+    ~CDungeonClear() {}
 
-    void clear();
-    char getClearedDungeonDiff(short dungeonIdx) const;
-    void addClearedDungeon(short dungeonIdx, char diff);
-    unsigned int getDungeonClearSize() const;
+    // ORIG W 0x08695972（sz 0x13）
+    void clear() { m_map.clear(); }
+    // ORIG W 0x085bf96c（sz 0x6c）
+    char getClearedDungeonDiff(short dungeonIdx) const
+    {
+        std::map<short, char>::const_iterator it = m_map.find(dungeonIdx);
+        if (it == m_map.end())
+            return 0;
+        return it->second;
+    }
+    // ORIG W 0x08374f24（sz 0xba）
+    void addClearedDungeon(short dungeonIdx, char diff)
+    {
+        std::map<short, char>::iterator it = m_map.find(dungeonIdx);
+        if (it == m_map.end())
+            m_map.insert(std::make_pair(dungeonIdx, diff));
+        else
+            it->second = diff;
+    }
+    // ORIG W 0x0869595e（sz 0x13）
+    unsigned int getDungeonClearSize() const { return m_map.size(); }
 
     // Binary methods
-    void AradfromString(CUser* pUser, const char* str);
+    // b28d-60：void→int。ORIG 0x08483fae 正常退出路径 08484351 `mov $0x1,%ebx`
+    // + 尾 `mov %ebx,%eax`（Ghidra C `return 1;`）；返回类型不入 mangled。
+    int AradfromString(CUser* pUser, const char* str);
     void enumDungeonClear(CUser* pUser, bool (*fn)(short, char, char*), ...) const;
     void fromString(CUser* pUser, char* str);
     int toString(char* buf, unsigned int bufSize) const;

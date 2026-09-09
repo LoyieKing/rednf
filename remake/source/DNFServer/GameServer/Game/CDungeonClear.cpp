@@ -15,42 +15,32 @@
 namespace WongWork
 {
 
-CDungeonClear::CDungeonClear()
+// ----------------------------------------------------------------------------
+// arad_parsing —— ORIG T 0x08483e98 (size 0x115)
+// b28d-60 跨 TU 迁移（P210②，Main 批准）：ORIG TU = DungeonClear.cpp
+//（orig_tu_names.tsv:429 GI 键名 `_GLOBAL__I__ZN8WongWork12arad_parsing...`；
+//  且 ORIG 中本函数 0x08483e98 结束 0x08483fad 紧接
+//  CDungeonClear::AradfromString T 0x08483fae）。原定义在 WongWorkEvents_A.cpp。
+// start=find_first_not_of(delims,pos)/end=find_first_of(...)，非全 npos 则循环
+// substr 入 vector（move push_back）；尾段 end==npos 但 start!=npos 也输出。
+// ----------------------------------------------------------------------------
+void arad_parsing(const std::string& src,
+                  std::vector<std::string>& out,
+                  const std::string& delims)
 {
+    std::string::size_type start = src.find_first_not_of(delims, 0);
+    std::string::size_type end = src.find_first_of(delims, start);
+    out.clear();
+
+    while (end != std::string::npos || start != std::string::npos)
+    {
+        out.push_back(src.substr(start, end - start));
+        start = src.find_first_not_of(delims, end);
+        end = src.find_first_of(delims, start);
+    }
 }
 
-CDungeonClear::~CDungeonClear()
-{
-}
-
-void CDungeonClear::clear()
-{
-    m_map.clear();
-}
-
-char CDungeonClear::getClearedDungeonDiff(short dungeonIdx) const
-{
-    std::map<short, char>::const_iterator it = m_map.find(dungeonIdx);
-    if (it == m_map.end())
-        return 0;
-    return it->second;
-}
-
-void CDungeonClear::addClearedDungeon(short dungeonIdx, char diff)
-{
-    std::map<short, char>::iterator it = m_map.find(dungeonIdx);
-    if (it == m_map.end())
-        m_map.insert(std::make_pair(dungeonIdx, diff));
-    else
-        it->second = diff;
-}
-
-unsigned int CDungeonClear::getDungeonClearSize() const
-{
-    return m_map.size();
-}
-
-void CDungeonClear::AradfromString(CUser* pUser, const char* str)
+int CDungeonClear::AradfromString(CUser* pUser, const char* str)
 {
     // ORIG 0x08483fb9：外层 char_separator(",",0,0) → 外层分隔符为 ","；
     // 构造顺序与 ORIG 一致（先 char_separator，后 std::string s）。
@@ -79,27 +69,30 @@ void CDungeonClear::AradfromString(CUser* pUser, const char* str)
             questId = pDungeon->getHeroesRequiredQuest();
         if (questId != 0)
         {
-            // CQuestClear 位于 UserQuest 内嵌 +4 处（CListTables.cpp 同型声明）
-            questCleared =
-                ((WongWork::CQuestClear*)((char*)pUser->getCurCharacQuestR() + 4))
-                    ->isClearedQuest(questId);
+            // UserQuest::m_cleared @+0x0004（CUser.h 权威布局）——具名访问，
+            // 禁裸偏移（ORIG 0x084841bc `add $0x4,%eax` 即 &m_cleared）。
+            questCleared = pUser->getCurCharacQuestR()->m_cleared.isClearedQuest(questId);
             if (questCleared != 0)
                 diff = 3;   // ORIG 0x8484169：quest 已清 → 强制 diff=3
         }
 
         std::map<short, char>::iterator mit = m_map.find((short)dungeonIdx);
-        if (mit != m_map.end())
-        {
-            if (mit->second < (char)diff)
-                mit->second = (char)diff;
-        }
-        else
+        // ORIG 块布局：`je` 跳更新分支、fallthrough 为插入分支 ⇒ 源码形态
+        // `if (it == end) 插入 else if (...)`（ORIG 0x08484233）。
+        // 比较用 int（ORIG 08484295 `movzbl; movsbl %al,%edx; cmp %eax,%edx`：
+        // char 提升为 int 的 32 位有符号比较），不得写 `(char)diff` 收窄成 8 位 cmp。
+        if (mit == m_map.end())
         {
             // ORIG 0x0848424f：make_pair<int&,int&>（不做 short/char 收窄转换），
             // 由 pair<short,char> 转换构造收窄。
             m_map.insert(std::make_pair(dungeonIdx, diff));
         }
+        else if (mit->second < diff)
+        {
+            mit->second = (char)diff;
+        }
     }
+    return 1;  // ORIG 08484351 `mov $0x1,%ebx` + 尾 `mov %ebx,%eax`
 }
 
 void CDungeonClear::enumDungeonClear(CUser* pUser, bool (*fn)(short, char, char*), ...) const
@@ -126,9 +119,9 @@ void CDungeonClear::enumDungeonClear(CUser* pUser, bool (*fn)(short, char, char*
             questId = pDungeon->getHeroesRequiredQuest();
         if (questId != 0)
         {
-            // CQuestClear 位于 UserQuest 内嵌 +4 处（CListTables.cpp 同型声明）
-            questCleared = ((WongWork::CQuestClear*)((char*)pUser->getCurCharacQuestR() + 4))
-                               ->isClearedQuest(questId);
+            // UserQuest::m_cleared @+0x0004（CUser.h 权威布局）——具名访问，
+            // 禁裸偏移（ORIG 0x0848478c `add $0x4,%eax` 即 &m_cleared）。
+            questCleared = pUser->getCurCharacQuestR()->m_cleared.isClearedQuest(questId);
             if (questCleared != 0)
                 diff = 4;
         }
