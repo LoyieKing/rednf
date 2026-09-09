@@ -1498,6 +1498,8 @@ void CaptchaGen::generateText(CountryCode code, int len, unsigned short* out)
 // FT_Matrix/FT_Vector/FT_Bitmap/FT_GlyphSlotRec/FT_FaceRec 视图，按 ORIG 0x080dee9x..
 // 0x080df120 还原 16.16 定点矩阵与 bitmap 遍历（std::min<int>）；发明符号 static
 // renderGlyph 已删。余 gap 3 = 槽号平移（N82/N95 族）。
+// [SweepGlobalData] sinTbl 声明后移（ORIG call 序 cosf→C1Ev→resize）后 685 vs 680；
+// 残余 span 差（XorRand4/min/setAlphaAsMax 段）= 浮点/寄存器 N85/N18a 族。
 void CaptchaGen::generateImage(int width, int height, const unsigned short* text, int len,
                                const ImageOption& opt, GreyImage* image)
 {
@@ -1597,13 +1599,16 @@ void CaptchaGen::generateImage(int width, int height, const unsigned short* text
     // ORIG：默认构造 + resize(n, 0)（p167 MISSING `vector()`×2 + `resize`×2；
     // 我们原 `vector(n)` 产 EXTRA `vector(unsigned, int const&)` + allocator 族）。
     std::vector<int> cosTbl;
-    std::vector<int> sinTbl;
     cosTbl.resize((unsigned)width, 0);
-    sinTbl.resize((unsigned)height, 0);
     for (int x = 0; x < width; ++x)
     {
         cosTbl[x] = (int)(65536.0f * cosf((float)x * freq) * amp);
     }
+    // ORIG call 序（0x080df0xx 段）：cosf 循环后才 `vector<int>::C1Ev` +
+    // `resize` 构造 sinTbl（O=517/538/544 vs 我们 500/506/524 实证）⇒
+    // sinTbl 的声明必须落在 cosTbl 循环之后（P331/P314 声明位置决定构造发射序）。
+    std::vector<int> sinTbl;
+    sinTbl.resize((unsigned)height, 0);
     for (int y = 0; y < height; ++y)
     {
         sinTbl[y] = (int)(65536.0f * sinf((float)y * freq) * amp);
@@ -4217,6 +4222,11 @@ void ItemVendingMachine::_GetItemString(const CCeraShopGoods* goods, char* buf,
 // [b28d-18 N82] 超大件：残差=槽位/STL（N82/N89） | ORIG 0x081769f6
 // [b28d-solo-GlobalData] DIFF：p167 EXTRA memset×7+memcpy×4 = N78（4.1 内联清零/块搬移 vs
 // 4.4 call）；大件三件套 gap 归 N82/N78，语义无缺口（MISSING 空）。
+// [SweepGlobalData 真缺口修正] 旧 N78 判词错误：4 处 memcpy 与 7 处 memset 是**源形**问题，
+// 非跨版本不可复现——ORIG 该段为直读直存（0x08177ed6/0x08177f87 等）与内联 rep stos
+// （0x08176a7f/0x08176a9b/0x0817804f/0x081780fb）。改 `*reinterpret_cast<..*>` 直写 +
+// `= {0}` value-init 后：OUR calls 139→128 = ORIG 128，MISSING 全清（仅剩 C1↔C2/D1↔D2
+// 入口别名差），our_insns 1585→1614。残余 = N82/N89 槽位/STL。
 bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 {
     if (user == 0)
@@ -4239,10 +4249,10 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
     int totalCera = 0, totalGold = 0, totalWin = 0, totalMileage = 0;
 
     std::vector<std::pair<int, int> > pairs;
-    const CItem* related[0x24];      // ORIG local_284（逐条目 _CheckEnableItemCondition 输出）
-    std::memset(related, 0, sizeof(related));
-    CCeraShopGoods* goods[0x24];     // ORIG local_314
-    std::memset(goods, 0, sizeof(goods));
+    // ORIG 0x08176a7f/0x08176a9b：两数组各 `mov $0x24,%edx; rep stos`（内联清零，
+    // 无 call memset）⇒ 源形用 = {0} 触发 4.4 内联 rep stos（P328⑨）。
+    const CItem* related[0x24] = {0};   // ORIG local_284（逐条目 _CheckEnableItemCondition 输出）
+    CCeraShopGoods* goods[0x24] = {0};  // ORIG local_314
 
     user->resetUsedCera();
 
@@ -4569,41 +4579,46 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
             for (unsigned int k = 0; k < req->m_subCount && k < MAX_ENTRIES; ++k)
             {
                 // 子项数组：entry+0x0e 起每项 5 字节 { int idx; uchar val; }
-                int idx = msg.m_entrySection.m_arr[j].m_subEntries[k].m_itemIdx;
-                unsigned char val = msg.m_entrySection.m_arr[j].m_subEntries[k].m_value;
-                std::memcpy(req->m_subEntries[k], &idx, sizeof(int));
-                req->m_subEntries[k][4] = val;
+                // ORIG 0x08177ed6/0x08177f04：两处各自重算源地址直读直存
+                // （`mov 0xe(%eax),%edx; mov %edx,0x8(..)` / `movzbl 0x42(%eax);
+                //  mov %dl,0xc(..)`），无 memcpy call、无源字段缓存（P183/P329）。
+                *reinterpret_cast<int*>(&req->m_subEntries[k][0]) =
+                    msg.m_entrySection.m_arr[j].m_subEntries[k].m_itemIdx;
+                req->m_subEntries[k][4] =
+                    msg.m_entrySection.m_arr[j].m_subEntries[k].m_value;
             }
             req->m_optCount = msg.m_entrySection.m_arr[j].m_optCount;
             for (unsigned int k = 0; k < req->m_optCount && k < MAX_ENTRIES; ++k)
             {
                 // 选项数组：entry+0xbe 起每项 8 字节 { ulong itemIdx; ushort a; ushort b; }
                 //（ORIG k 达 0x22 时读入邻条目尾，线格式遗留，数组越界读等价保留）
-                const MSG_CERA_SHOP_BUY_ENTRY::OptItem& srcOpt =
-                    msg.m_entrySection.m_arr[j].m_optEntries[k];
-                unsigned long itemIdx = srcOpt.m_itemUid;
-                unsigned short a = srcOpt.m_a;
-                unsigned short b = srcOpt.m_b;
-                unsigned char* opt = req->m_optEntries[k];
                 // 选项项布局：{ ulong itemIdx(4, at +0); ushort a(2, at +4); ushort b(2, at +6) }
                 //（dest 为 (k+0x2c)*8 + {4,8,10}，即 m_optEntries[k] 的 +0/+4/+6）。
-                std::memcpy(opt, &itemIdx, sizeof(unsigned long));
-                std::memcpy(opt + 4, &a, sizeof(unsigned short));
-                std::memcpy(opt + 6, &b, sizeof(unsigned short));
+                // ORIG 0x08177f87/0x08177fb4/0x08177fe3：三次独立重算源地址直读直存
+                // （`mov 0xe(%eax),%edx; mov %edx,0x4(%eax,%ecx,8)` 形），
+                // 无 memcpy call、无 srcOpt/itemIdx/a/b 具名缓存（P183/P329）。
+                *reinterpret_cast<unsigned long*>(&req->m_optEntries[k][0]) =
+                    msg.m_entrySection.m_arr[j].m_optEntries[k].m_itemUid;
+                *reinterpret_cast<unsigned short*>(&req->m_optEntries[k][4]) =
+                    msg.m_entrySection.m_arr[j].m_optEntries[k].m_a;
+                *reinterpret_cast<unsigned short*>(&req->m_optEntries[k][6]) =
+                    msg.m_entrySection.m_arr[j].m_optEntries[k].m_b;
             }
 
             guard.operator*()->operator<<(mileagePrice);
 
-            char itemStr[0x400];
-            char ceraPriceStr[0x24];
-            char productStr[8];
-            char itemIdxStr[0x14];      // ORIG -0x18c（0x08178137 取址目标，结果未被使用）
-            char uniqueStr[0x15];
-            std::memset(itemStr, 0, sizeof(itemStr));
-            std::memset(ceraPriceStr, 0, sizeof(ceraPriceStr));
-            std::memset(productStr, 0, sizeof(productStr));
-            std::memset(itemIdxStr, 0, sizeof(itemIdxStr));
-            std::memset(uniqueStr, 0, sizeof(uniqueStr));
+            // ORIG 清零全部内联（4.1 rep stos/展开，无 call memset）：
+            //   0x0817803b ceraPriceStr[-0x1f0] 0x24 → rep stos 0x9 dwords
+            //   0x08178051 itemIdxStr[-0x18c] 0x14 → 5×movl
+            //   0x08178083 uniqueStr[-0x1a1] 0x15 → 对齐剥离慢路
+            //   0x081780e7 itemStr[-0x710] 0x400 → rep stos 0x100 dwords
+            //   0x081780fd productStr[-0x1a9] 0x8 → 2×movl
+            // ⇒ 源形用 = {0} 触发 4.4 内联清零（P312/P328⑨）；memset 在 4.4 恒 call。
+            char itemStr[0x400] = {0};
+            char ceraPriceStr[0x24] = {0};
+            char productStr[8] = {0};
+            char itemIdxStr[0x14] = {0};   // ORIG -0x18c（0x08178137 取址目标，结果未被使用）
+            char uniqueStr[0x15] = {0};
             // ORIG 三次 snprintf 的**顺序与实参**（全部 OS_API::snprintf）：
             //  ① 0x08178140 snprintf(-0x18c, 0x14, "%d", goods[j]->GetItemIdx())
             //     （0x0817811e call _ZNK14CCeraShopGoods10GetItemIdxEv 结果作 %d，
@@ -4744,6 +4759,9 @@ bool CDBConnector::GetConnInfo(DBGroupMap& groupMap, DBInfoMap& infoMap)
 }
 
 // [b28d-18 N82] 残差=槽位/STL 展开（N82/N89） | ORIG 0x080ec760
+// [SweepGlobalData] 旧 gap 2 缺口修正：cMyTrace 两语句 → 单语句临时链
+// （ORIG 0x080ec7ba..0x080ec864 五实参先于 ctor 求值，P37/P87/P329）后
+// 117=117、call 序列 ratio=1.000（gap 0）；残余 = N82 槽位/寄存器。
 bool CDBConnector::Connect(DBInfoMap infoMap)
 {
     // ORIG 0x080ec760：按值遍历连接表；idx==0/5 跳过；cMyTrace 记录
@@ -4760,9 +4778,13 @@ bool CDBConnector::Connect(DBInfoMap infoMap)
     {
         if (!(it->first == 0 || it->first == (ENUM_DB_HANDLE_IDX)5))
         {
-            cMyTrace t("CDBConnector::Connect", 0x4e, 9, true, true);
-            t("Open(type:%2d, %s/%d/%s/%s)", (int)it->first, it->second.m_host,
-              (int)it->second.m_port, it->second.m_db, it->second.m_user);
+            // ORIG 0x080ec7ba..0x080ec864（P37/P87/P329）：五个实参在 cMyTrace
+            // ctor **之前**全部求值（m_host/-0x40、m_port/-0x3c、m_db/%edi、
+            // m_user/%esi、first/%ebx），随后 ctor + operator() ⇒ 源形是单语句
+            // 临时链 `cMyTrace(...)(...)`，不是具名对象两语句。
+            cMyTrace("CDBConnector::Connect", 0x4e, 9, true, true)
+                ("Open(type:%2d, %s/%d/%s/%s)", (int)it->first, it->second.m_host,
+                 (int)it->second.m_port, it->second.m_db, it->second.m_user);
             if (!Open(it->first, (ENUM_SERVER_GROUP)0, it->second))
             {
                 return false;
@@ -6079,13 +6101,18 @@ struct CDBEnvServerGroupMapView
 
 // [b28d-18 DIFF] p167 MISSING G_CEnvironment×1（真缺口未闭合）；余槽位（N82） | ORIG 0x0829d8e8
 // [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（42/42）；残差=N82 槽位/寄存器 + 行解析展开。
+// [SweepGlobalData] trim 返回值丢弃（ORIG 0x0829d928/0x0829d933 无回写）后 289 vs 283；
+// 残余 span 差 = N18a/P211 装载序（G_CEnvironment/make_pair 段各 1~4 条）。
 bool CDBEnviroment::parse(char* buf)
 {
     const char* sep = "=";
     char* p1 = strtok(buf, sep);
     char* p2 = strtok(0, sep);
-    p1 = trim(p1);
-    p2 = trim(p2);
+    // ORIG 0x0829d928/0x0829d933：trim 返回值被丢弃（`call trim` 后直接
+    // `mov -0x48(%ebp),%eax` 复用 p1/p2 槽，无 `mov %eax,-0x48` 回写）⇒
+    // 源形是语句调用 `trim(p1);`（trim 就地改缓冲，指针不变）。
+    trim(p1);
+    trim(p2);
     if (strcmp(p1, "game_db_type") == 0)
     {
         if (strcmp(p2, "cain") == 0)
@@ -6313,14 +6340,15 @@ void GlobalData::GenerateCaptchaData()
 // GlobalData::Fini
 // ============================================================================
 
-// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（52/52）；大件三件套：gap 7=N82 槽位复用策略。
+// [b28d-solo-GlobalData] 真 bug 修正（SweepGlobalData）：7 个线程对象 ORIG 为
+// **delete**（多态 deleting-dtor 虚调用 `mov (%eax),%eax; add $0x8,%eax;
+// call *%edx`；ThreadInterface vtable @0x8ce6b90 = [stop@vptr+0, D1@+4,
+// D0@+8, pure_virtual@+0xc] 实测），旧重建误写 `->stop()`（vptr+0 虚调，
+// 既不析构也不释放）⇒ 每处少 1 条指令，共 gap 7。
 void GlobalData::Fini()
 {
     delete s_ref_pvp_grade;
-    if (s_accept_thr)
-    {
-        s_accept_thr->stop();
-    }
+    delete s_accept_thr;          // ORIG 0x0829e0e8（vptr+8 虚 D0）
     if (s_monitor_proxy_mgr)
     {
         delete s_monitor_proxy_mgr;
@@ -6336,30 +6364,12 @@ void GlobalData::Fini()
         delete s_statistic_proxy_mgr;
         s_statistic_proxy_mgr = 0;
     }
-    if (s_udp_thr)
-    {
-        s_udp_thr->stop();
-    }
-    if (s_net_thr)
-    {
-        s_net_thr->stop();
-    }
-    if (s_dispatch_thr)
-    {
-        s_dispatch_thr->stop();
-    }
-    if (s_db_thr_for_logDB)
-    {
-        s_db_thr_for_logDB->stop();
-    }
-    if (s_db_thr)
-    {
-        s_db_thr->stop();
-    }
-    if (s_monitor_tcp_thr)
-    {
-        s_monitor_tcp_thr->stop();
-    }
+    delete s_udp_thr;             // ORIG 0x0829e196
+    delete s_net_thr;             // ORIG 0x0829e1b5
+    delete s_dispatch_thr;        // ORIG 0x0829e1d4
+    delete s_db_thr_for_logDB;    // ORIG 0x0829e1f3
+    delete s_db_thr;              // ORIG 0x0829e212
+    delete s_monitor_tcp_thr;     // ORIG 0x0829e231
     delete s_db_mgr;
     delete s_stream_pool;
     delete s_small_stream_pool;
@@ -7876,6 +7886,8 @@ L_pass0:
 // ---- PcRoom::checkAllRentalItemScript —— T 0x082708cc（同名报告全文转写）---
 // [b28d-18 N82] 残差=槽位/STL（N82/N89） | ORIG 0x082708cc
 // [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（50/50）；残差=N82 槽位/分支布局 + N89。
+// [SweepGlobalData] itemId 值拷贝 → 对象引用（ORIG 0x082709b6 `call operator*;
+// mov %eax,-0x14`）后每使用点复现重解引用；残余 = 4.4 寄存器中转（N18a/P211）。
 bool RentalMachinePcRoom::checkAllRentalItemScript()
 {
     // ORIG 0x082708cc 段（p167 实证）：外层 map 的 begin()/end() 各自独立重调
@@ -7898,57 +7910,60 @@ bool RentalMachinePcRoom::checkAllRentalItemScript()
                      iit = items.begin();
                  iit != items.end(); ++iit)
             {
-                const unsigned int itemId = (unsigned)(*iit).m_field0;
-                CItem* item = G_CDataManager()->find_item((int)itemId);
+                // ORIG 0x082709b6 `call operator*; mov %eax,-0x14` ⇒ 原码是引用
+                // 绑定 `const EventRewardItemInfo& info = *iit;`（-0x14 存对象
+                // 地址），6 个使用点各自重解引用（SPAN O=8/U=7 实证）。
+                const EventRewardItemInfo& info = *iit;
+                CItem* item = G_CDataManager()->find_item((int)info.m_field0);
                 if (item == 0)
                 {
                     std::cerr << "[RentalSystem::Ready()] Can`t find item["
-                              << itemId << "]" << std::endl;
+                              << (unsigned)info.m_field0 << "]" << std::endl;
                     return false;
                 }
                 if (item->IsImpossibleAmplify() != 1)     // vt+0x34 槽13
                 {
                     std::cerr << "[RentalSystem::Ready()] Impossible contents("
                                  "amplify upgrade) is not checked. ["
-                              << itemId << "]" << std::endl;
+                              << (unsigned)info.m_field0 << "]" << std::endl;
                     return false;
                 }
                 if (item->IsImpossibleCharacCargo() != 1)  // vt+0x40 槽16
                 {
                     std::cerr << "[RentalSystem::Ready()] Impossible contents("
                                  "charac cargo) is not checked. ["
-                              << itemId << "]" << std::endl;
+                              << (unsigned)info.m_field0 << "]" << std::endl;
                     return false;
                 }
                 if (item->IsImpossibleDisjoint() != 1)     // vt+0x38 槽14
                 {
                     std::cerr << "[RentalSystem::Ready()] Impossible contents("
                                  "disjoint) is not checked. ["
-                              << itemId << "]" << std::endl;
+                              << (unsigned)info.m_field0 << "]" << std::endl;
                     return false;
                 }
                 if (item->IsImpossibleGift() != 1)         // vt+0x3c 槽15
                 {
                     std::cerr << "[RentalSystem::Ready()] Impossible contents("
                                  "gift) is not checked. ["
-                              << itemId << "]" << std::endl;
+                              << (unsigned)info.m_field0 << "]" << std::endl;
                     return false;
                 }
                 if (item->IsImpossibleUpgrade() != 1)      // vt+0x30 槽12
                 {
                     std::cerr << "[RentalSystem::Ready()] Impossible contents("
                                  "upgrade) is not checked. ["
-                              << itemId << "]" << std::endl;
+                              << (unsigned)info.m_field0 << "]" << std::endl;
                     return false;
                 }
                 if (item->GetAttachType() != 2)
                 {
                     std::cerr << "[RentalSystem::Ready()] AtttachType is not "
                                  "trade delete. ["
-                              << itemId << "]" << std::endl;
+                              << (unsigned)info.m_field0 << "]" << std::endl;
                     return false;
                 }
-                m_impl->m_set.insert(itemId);
+                m_impl->m_set.insert((unsigned)info.m_field0);
             }
         }
     }
@@ -7959,6 +7974,7 @@ bool RentalMachinePcRoom::checkAllRentalItemScript()
 // （报告全文转写；五谓词次序同 PcRoom，cerr 前缀为 RentalDimensionSystem）
 // [b28d-18 N82] 残差=槽位/STL 展开（N82/N89） | ORIG 0x0826f14e
 // [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（43/43）；已按 P248 档① 改 bool 返回；残差=N82/N89。
+// [SweepGlobalData] 同 PcRoom：itemId 改对象引用（ORIG 0x0826f232 同形）。
 bool RentalMachineDimension::checkSelectionListScript(
     const std::vector<std::vector<EventRewardItemInfo> >& selectionList)
 {
@@ -7972,57 +7988,58 @@ bool RentalMachineDimension::checkSelectionListScript(
         for (std::vector<EventRewardItemInfo>::const_iterator iit = items.begin();
              iit != items.end(); ++iit)
         {
-            const unsigned int itemId = (unsigned)(*iit).m_field0;
-            CItem* item = G_CDataManager()->find_item((int)itemId);
+            // ORIG 0x0826f232 同形：`call operator*; mov %eax,-0x14` 引用绑定。
+            const EventRewardItemInfo& info = *iit;
+            CItem* item = G_CDataManager()->find_item((int)info.m_field0);
             if (item == 0)
             {
                 std::cerr << "[RentalDimensionSystem::Ready()] Can`t find item["
-                          << itemId << "]" << std::endl;
+                          << (unsigned)info.m_field0 << "]" << std::endl;
                 return 0;
             }
             if (item->IsImpossibleAmplify() != 1)
             {
                 std::cerr << "[RentalDimensionSystem::Ready()] Impossible "
                              "contents(amplify upgrade) is not checked. ["
-                          << itemId << "]" << std::endl;
+                          << (unsigned)info.m_field0 << "]" << std::endl;
                 return 0;
             }
             if (item->IsImpossibleCharacCargo() != 1)
             {
                 std::cerr << "[RentalDimensionSystem::Ready()] Impossible "
                              "contents(charac cargo) is not checked. ["
-                          << itemId << "]" << std::endl;
+                          << (unsigned)info.m_field0 << "]" << std::endl;
                 return 0;
             }
             if (item->IsImpossibleDisjoint() != 1)
             {
                 std::cerr << "[RentalDimensionSystem::Ready()] Impossible "
                              "contents(disjoint) is not checked. ["
-                          << itemId << "]" << std::endl;
+                          << (unsigned)info.m_field0 << "]" << std::endl;
                 return 0;
             }
             if (item->IsImpossibleGift() != 1)
             {
                 std::cerr << "[RentalDimensionSystem::Ready()] Impossible "
                              "contents(gift) is not checked. ["
-                          << itemId << "]" << std::endl;
+                          << (unsigned)info.m_field0 << "]" << std::endl;
                 return 0;
             }
             if (item->IsImpossibleUpgrade() != 1)
             {
                 std::cerr << "[RentalDimensionSystem::Ready()] Impossible "
                              "contents(upgrade) is not checked. ["
-                          << itemId << "]" << std::endl;
+                          << (unsigned)info.m_field0 << "]" << std::endl;
                 return 0;
             }
             if (item->GetAttachType() != 2)
             {
                 std::cerr << "[RentalDimensionSystem::Ready()] AtttachType is "
                              "not trade delete. ["
-                          << itemId << "]" << std::endl;
+                          << (unsigned)info.m_field0 << "]" << std::endl;
                 return 0;
             }
-            m_impl->m_set.insert(itemId);
+            m_impl->m_set.insert((unsigned)info.m_field0);
         }
     }
     return 1;

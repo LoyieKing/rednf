@@ -4129,8 +4129,14 @@ int Dispatcher_UpgradeItem::dispatch_sig(CUser* user, PacketBuf& packet)
             0, 0);
     }
 
-    unsigned int strLen = 0;
-    memset(req.m_28, 0, sizeof(req.m_28));           // ORIG memset(this+0x28,0,0x81)
+    // ORIG 0x082008bc..0x08200957：-0x14=0x80（随后被 get_int 覆盖）、-0x18=0（dead）、
+    // -0x99..-0x19 的 0x81 字节 dead 缓冲（内联对齐剥离慢路）。ORIG 无独立 memset(req+0x28)：
+    // ctor 0x0822dcea 已 memset(this+0x28,0,0x81)，此处旧码的 memset 是 EXTRA（p167）。
+    unsigned int strLen = 0x80;                      // ORIG -0x14
+    int deadLen0 = 0;                                // ORIG -0x18（dead）
+    char deadBuf[0x81] = {0};                        // ORIG -0x99..-0x19（dead）
+    (void)deadLen0;
+    (void)deadBuf;
     if (!packet.get_int(strLen))                     // 字符串长度前导
     {
         return LineFunc(
@@ -8539,7 +8545,6 @@ Dispatcher_CompleteDisplay::~Dispatcher_CompleteDisplay() {}
 int Dispatcher_CompleteDisplay::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x08202cda（docs/class_func_reports/Dispatcher_CompleteDisplay/dispatch_sig.md）
-    char subject[0x29];                       // -0x6b：开店名称（get_str 缓冲）
     std::string nameStr;                      // local_44
     private_store::ISeller* seller = 0;       // local_3c
     private_store::PrivateStoreItem item;     // local_bc
@@ -8560,8 +8565,9 @@ int Dispatcher_CompleteDisplay::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
 
-    // +0x66：subject 清零 0x29 字节（ORIG 为逐字节展开清零）；itemCount=0；seller=0
-    memset(subject, 0, 0x29);
+    // +0x66：ORIG 0x08202d?? 对 subject（-0x6b）0x29 字节为 4.1 内联对齐剥离慢路；
+    // 旧码 memset call。slotIdx/itemCount/seller 的初始化在 ORIG 中位于清零之后。
+    char subject[0x29] = {0};                 // -0x6b：开店名称（get_str 缓冲）
     item.Reset();   // ORIG ctor 0x0823457c 内联体（Reset 0x0823459a 清零位域）
 
     // +0xe5：读名称长度
@@ -22166,8 +22172,9 @@ int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBu
     int uncompreRet;                          // local_30 -0x30
     int clientDamage;                         // local_2c -0x2c
     int clientDuration;                       // local_28 -0x28
-    int svrDuration = 0;                      // local_68 -0x68（outA）
+    // ORIG 0x081ea3d1/0x081ea3d8：先 -0x64（svrDamage）后 -0x68（svrDuration）初始化。
     int svrDamage = 0;                        // local_64[0] -0x64（outB）
+    int svrDuration = 0;                      // local_68 -0x68（outA）
     unsigned char i;                          // local_3d -0x3d
     int ret;                                  // local_30 复用
     int adjDamage;                            // local_1c -0x1c
