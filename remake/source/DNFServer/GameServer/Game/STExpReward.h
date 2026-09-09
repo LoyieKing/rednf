@@ -14,7 +14,10 @@
 // +0x8d251..+0x8d263 独立字段（误塞），已移回 CUser.h。
 // ============================================================================
 
-struct STExpReward
+// [b28d-sweep2-InitScriptProducers_2] pack(1)：ORIG importGrowthPower 0x08911fe5
+// `lea -0x21(%ebp),%eax` 把局部落**非 4 对齐**槽 ⇒ 类型对齐 1（P250）；4.4 未 packed
+// 时给 -0x24（该件残余 37 行全为 +3 槽平移）。sizeof 仍 4、成员偏移/mangled 不变。
+struct __attribute__((packed)) STExpReward
 {
     // ORIG C1/C2 0x085bed52（W）：级联清零 +0x0..+0x3（4 字节）。
     // union 双视图：m_reward 整字（get_growth_power_exp_reward 按 dword 读

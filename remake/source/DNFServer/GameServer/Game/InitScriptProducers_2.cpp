@@ -242,6 +242,9 @@ scan_fail:
 //   布局跨版本差。
 // [P330 bool→int] 与 DataManagerInitDepends.h 声明同步（ORIG caller 4B store
 // 无 movzbl ⇒ int）。ORIG 所有出口 ebx=0 ⇒ 两个 return 0。
+// [sweep2-InitScriptProducers_2] 复核：fresh orig/ours=329/328 gap=1 ndiff=17，
+//   ORIG-only={je:2,jmp:1} vs OURS-only={jne:2}（循环尾 je-exit/jmp-body 布局）；
+//   p167 41/41 仅 C1↔C2 同址别名（P93）⇒ 无真缺口，N 封顶。
 int ImportBingoScript(const char* path, stBingoScript& out)
 {
     if (!loadRDARScriptFile("", path))
@@ -445,14 +448,18 @@ scan_done:
 //     [package reward]{[group]/[package selection]}→m_map18。
 // ============================================================================
 // [b28d-solo-InitScriptProducers_2] verdict=N82/N112 封顶（原 DIFF）ORIG
-//   0x08911ee3 orig/ours=269/268，P167 CLEAR（47/47）。本波已修真语义 bug：
+//   0x08911ee3 orig/ours=269/268，P167 CLEAR（47/47）。该波已修真语义 bug：
 //   ①[package selection] 内层用 `bool ScanInt(int*)`（ORIG `_Z7ScanIntPi`），
 //   原写成 `int ScanInt(bool*)`+ok 槽；②`token != "[/package reward]"` 生成
 //   operator!=（ORIG 只有 operator==，改 do+`if(==)break`）；③[exp reward]
 //   m_reward 用字节视图（ORIG `mov %al,-0x21`，int 视图产 dword 写）。
-//   残余：ORIG 把局部 STExpReward 落**非 4 对齐**槽 -0x21（4.1 按对齐 1 分配），
-//   4.4 恒 4 对齐槽 -0x24（局部 `__attribute__((packed))` 实测无效）⇒ [exp] 段
-//   槽号 +3 平移；属 N82/N112 槽分配族，语义等价。
+// [sweep2-InitScriptProducers_2] verdict=N 封顶（ndiff 37→5）orig/ours=262/261：
+//   本波修 [exp reward] 槽 +3 平移——STExpReward.h 加 `__attribute__((packed))`
+//   （ORIG 0x08911fe5 `lea -0x21(%ebp),%eax` 非 4 对齐槽 ⇒ 类型对齐 1，P250；
+//   探针 /tmp/sw2/p9.cpp：packed 局部落 -13 vs 普通 -16）；sizeof 仍 4、成员偏移/
+//   mangled 零变化（CUser::get_growth_power_exp_reward 8/8 identical 复核）。
+//   残余 5 行 = ORIG do-while/while 尾「je exit; jmp body」+ 循环头 jmp，4.4 恒
+//   「jne body」单跳（跨版本循环尾布局，同 importEquipmentPartSetInfo 族）⇒ N。
 bool importGrowthPower(char* path, STGrowthPowerData* out)
 {
     if (out == 0)
@@ -570,6 +577,9 @@ scan_done:
 //   ④-0x34 为 ORIG 死局部；⑤maxValue 先于 maxIndex 赋值；⑥make_pair<int&,
 //   stWarPoint&>（key 去 const，p167 归零）。残余：全帧槽位 +4 平移（N95/N82）
 //   + do-while 尾测 setne 物化（4.4 恒物化，ORIG 直跳 jne）。
+// [sweep2-InitScriptProducers_2] 复核：fresh orig/ours=313/316 gap=−3 ndiff=443
+//   （恒定 +4 槽平移 + 4 处 setne/je/jne 循环尾物化）；p167 32/32 仅 C1↔C2 同址
+//   别名（P93）⇒ 无真缺口，维持 N82 封顶。
 bool ImportWarAreaCounter(WarAreaCounter* out)  // [P330] 与 DataManagerInitDepends.h 同步
 {
     if (!loadRDARScriptFile("", "Etc/WarArea.etc"))
@@ -753,6 +763,10 @@ scan_done:
 //   残余 18 = ORIG 19 个 continue 跳板 `nop; jmp loop`（4.1 每个 continue 发
 //   3 字节跳板；4.4 jump-threading 合并为共享 jmp，P223 两种 goto 形实测均
 //   -1/-2 反劣）⇒ 封 N（跨版本 continue 代码生成差）。
+// [sweep2-InitScriptProducers_2] 复核（§6.2 三件套）：fresh orig/ours=548/549
+//   gap=−1；p167 calls=56/56，差集仅 C1↔C2 同址别名（P93 结构性噪音，非缺口）；
+//   ORIG 18 个集中 continue 跳板（0x08977e02..0x08977e3b 各 `nop; jmp 0x08977e3c`）
+//   vs 我方各段直接 jmp 循环头（ndiff 41 全在此）⇒ N 封顶，无真缺口。
 bool importPairPvPStatScript(FairPvPStatScript& script, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -978,6 +992,11 @@ bool importPairPvPStatScript(FairPvPStatScript& script, const char* path)
 //   展开，非 for 循环），原写成 `int ScanInt(bool*)`+ok 槽+循环；②P164 goto 循环。
 //   残余：5 处地址 `add $8; add $4` 两步形（4.1 常量乘法展开），4.4 恒折单条
 //   `add $0xc`（探针 /tmp/probe2d.cpp g2d/g3/g4/g5/g6 全折）⇒ N1 跨版本常量算术。
+// [sweep2-InitScriptProducers_2] 复核确认 N1：orig/ours=123/118 gap=5 ndiff=15，
+//   ORIG-only 全为 5 对 `add $X; add $4`（0x089114b2/b5、0x089114ea/ed、0x08911509/0c、
+//   0x08911548/4b、0x08911567/6a —— 即奇数索引 [1]/[3] 的两步地址）。探针
+//   /tmp/sw2/p7.cpp 两形（`&a[3]` 与 `&a[2]+1`）在 4.4.7 与 4.4.6 后端下均折单条
+//   `add $0xc` ⇒ 源形不可择，地址值等价，N1 封顶。
 bool ImportSecurityReward(SecurityReward* out)
 {
     if (!loadRDARScriptFile("", "Etc/SecurityReward.etc"))
@@ -1040,6 +1059,15 @@ scan_done:
 //   ②`data.m_field0 = ScanInt((bool*)0)` 去独立 key 局部；③do-while 复用
 //   ScanStr 返回值（去重复调用）；④`paramMap[-1]` 替代 `def->second`（补
 //   map::operator[] 调用点）；⑤P164 goto 主循环。
+// [sweep2-InitScriptProducers_2] verdict=N 封顶（ndiff 467→4，gap 25→0）：
+//   orig/ours=372/372。本波修：①删 `STEquipmentScript* script` 具名局部——
+//   ORIG 0x08907619 new 结果经 ebx 跨 ctor 保活后直存 it->second.m_script
+//   （P0/P183），后续 10 处 `call operator->; mov 0xc(%eax),%eax` 逐点重读；
+//   ②删 `paramMap` 引用局部，`it->second.m_script->m_paramMap678` 全展开；
+//   ③find/end 改单表达式（ORIG 0x08907741 先 end、0x08907775 后 find，P293）；
+//   ④do-while 的 ok 改 `register bool`（ORIG ebx 承载、无栈槽，P231）。
+//   残余 4 行 = ORIG `test %ebx,%ebx; je exit; jmp body` vs 4.4 `testb %bl; jne body`
+//   （bool 寄存器宽度 + do-while 尾布局，跨版本，N 封顶）。
 bool importEquipmentPartSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
 {
     if (!loadRDARScriptFile("", path))
@@ -1057,7 +1085,10 @@ bool importEquipmentPartSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
     std::string name;
     std::string pieceName;
     std::string tag;
-    bool ok = false;
+    // ORIG 用 ebx 承载 ok（无栈槽；0x08907503 mov $0,%ebx / 0x089075a5 mov $1,%ebx /
+    // 0x089075cc test %ebx,%ebx）⇒ 原码是 register 形（P231 纯 register 合法，非 asm
+    // 绑定）。int 版 while(ok) 实测多 setne 物化（gap −2）；bool 版 testb %bl 最接近。
+    register bool ok;
 
     g_equipmentPartSetMap_.clear();
 
@@ -1079,8 +1110,13 @@ scan_top:
             do
             {
                 STEquipmentPartSetPiece piece;           // ctor 三 int=-1
-                ok = ScanStr(&pieceName);                // 复用返回值作 do-while 条件
-                if (ok)
+                // ORIG 0x089074fc 正向 `if (!ScanStr)`：失败臂 mov $0,%ebx、成功臂尾
+                // mov $1,%ebx（两臂各写 ok，非 `ok = ScanStr(...)` 单赋值）。
+                if (!ScanStr(&pieceName))
+                {
+                    ok = false;
+                }
+                else
                 {
                     piece.m_name = pieceName;
                     ScanStr(&tag);
@@ -1092,6 +1128,7 @@ scan_top:
                     data.m_pieces.push_back(piece);
 
                     g_equipmentPartSetMap_[data.m_field0] = data;
+                    ok = true;
                 }
             } while (ok);
         }
@@ -1100,14 +1137,18 @@ scan_top:
 scan_done:
 
     // ---- 逐集合装载装备脚本并合并 [-1] 参数条目 ----
+    // P183：ORIG 无 script / paramMap 具名局部——每处重新 `call operator->;
+    // mov 0xc(%eax),%eax` 取 it->second.m_script（0x08907653/0x0890765e/0x08907686/
+    // 0x089076b7/0x089076fd/0x08907729/0x08907756/0x089077a4/0x089077d9/0x089077f4）。
     for (std::map<int, STEquipmentPartSetData>::iterator it =
              g_equipmentPartSetMap_.begin();
          it != g_equipmentPartSetMap_.end(); ++it)
     {
-        STEquipmentScript* script = new STEquipmentScript;   // ORIG 0x894 字节
-        it->second.m_script = script;
+        // ORIG 0x08907619：new 结果经 ebx 跨 ctor 保活后直存成员（无具名指针局部）。
+        it->second.m_script = new STEquipmentScript;         // ORIG 0x894 字节
 
-        if (!ImportEquipmentScript(script, it->second.m_name4.c_str(), false,
+        if (!ImportEquipmentScript(it->second.m_script,
+                                   it->second.m_name4.c_str(), false,
                                    moduleType, it->first))
         {
             LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
@@ -1116,23 +1157,24 @@ scan_done:
                                   "\xec\x9c\x84\xec\x85\x8b\xed\x8a\xb8 \xea\xb5"
                                   "\xac\xec\x84\xb1\xed\x92\x88 %s \xed\x8c\x8c"
                                   "\xec\x9d\xbc\xec\x9d\x84 \xec\xb0\xbe\xec\x9d"
-                                  "\x84\xec\x88\x98 \xec\x97\x86\xec\x8a\xb5\xeb"
+                                  "\xec\x88\x98 \xec\x97\x86\xec\x8a\xb5\xeb"
                                   "\x8b\x88\xeb\x8b\xa4.",
                                   it->second.m_name4.c_str());
-            delete script;
+            delete it->second.m_script;
             return false;
         }
 
-        std::map<int, EquipmentParameterInfo>& paramMap = script->m_paramMap678;
-        std::map<int, EquipmentParameterInfo>::iterator def =
-            paramMap.find(-1);
-        if (def != paramMap.end())
+        // ORIG 0x08907741 先 map::end、0x08907775 后 map::find（单表达式形，P293）。
+        if (it->second.m_script->m_paramMap678.find(-1) !=
+            it->second.m_script->m_paramMap678.end())
         {
             // ORIG 用 `paramMap[-1]` 取引用再拷贝构造（p167 MISSING ixERS4_），
             // 非 `def->second`（后者多一次 EquipmentParameterInfo 迭代器 ptEv）。
-            const EquipmentParameterInfo merged(paramMap[-1]);
-            paramMap.clear();
-            paramMap[it->second.m_pieces.size()] = merged;
+            const EquipmentParameterInfo merged(
+                it->second.m_script->m_paramMap678[-1]);
+            it->second.m_script->m_paramMap678.clear();
+            it->second.m_script->m_paramMap678[it->second.m_pieces.size()] =
+                merged;
         }
     }
     return true;
