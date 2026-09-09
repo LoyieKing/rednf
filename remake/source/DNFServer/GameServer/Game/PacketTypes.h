@@ -458,9 +458,12 @@ class MSG_ENCHANT : public MSG_BASE
 {
 public:
     MSG_ENCHANT();
-    short m_0d;           // +0x0d
+    // [P321 T1 直证] ORIG 全消费点 `movzwl 0xd(%eax),%eax; movzwl %ax,%edx`
+    //   （ProcUpgrade 0x0854a1d7/0x0854a38f/0x0854a65f，check_error 0x081d34b3）
+    //   零扩展 ⇒ 真型 unsigned short（旧 short 使 4.4 产 movswl/cwtl）。
+    unsigned short m_0d;  // +0x0d
     int m_0f;             // +0x0f
-    short m_13;           // +0x13
+    unsigned short m_13;  // +0x13（同上，0x0854a249/0x0854a53d/0x081d3537 movzwl）
     int m_15;             // +0x15
     unsigned char m_19;   // +0x19
 };

@@ -23,6 +23,7 @@
 
 #include <cstring>
 #include <cstdio>
+#include <ctime>     // ctor 的 time(0)（CMTRand 种子）
 
 // 类声明见 CDataManager.h（WongWork::CItemUpgrade）。
 namespace
@@ -37,10 +38,45 @@ struct UpgradeRateTableView
     char m_pad04[4];                  // +0x00..+0x03
     float m_rate[(0x404 - 4) / 4];    // +0x04 起 4 字节步长（同 m_bodyView.m_f32 区）
 };
+
 }  // namespace
 
 namespace WongWork
 {
+// [2026-09-10 判据㉔/P327 跨 TU 定义迁移] ORIG 地址序：C1/C2 @0x085461c8 <
+//   D1/D2 @0x085462c6（同一 CItemUpgrade.cpp TU 段），且本 TU `_GLOBAL__I_`
+//   键名 = `_ZN8WongWork12CItemUpgradeC2Ev`（0x0854b178，P327 取本 TU 第一个
+//   强符号·外链实体=C2 形）。原定义在 CtorProducers_2C.cpp 使本 TU 键名退化为
+//   `...D2Ev` ⇒ 定义迁回本文件并置于 dtor 之前。函数体逐字节照搬（0xfe 字节）。
+CItemUpgrade::CItemUpgrade()
+{
+    // ORIG 0x085461c8 逐段转写：
+    //   [表区] CItemUpgradeTable(this+0x04)（upgrade_table_t 薄包装，ctor 委托
+    //          upgrade_table_t 0x89000ca）——本重建沿用类内裸偏移约定，无成员建模；
+    //   [基类] IItemUpgrade(this) 0x080fc834 + vptr 写入（编译器生成；槽序
+    //          ProcUpgrade→LoadUpgradeScript，ORIG vtable 0x08c9d310 实证）；
+    //   [+0x4ec] = 100000（randInt 热身上界）；
+    //   [热身] time(NULL) 种子 → operator new(0x9c8) → CMTRand(seed) 存 +0x4e8，
+    //          循环 100 次 randInt(*+0x4ec) 预热 MT19937 状态（结果弃用）。
+    // b28d-lane12: ORIG 0x085461c8 实证三修（ndiff 20→0，verdict AE）——
+    //   ① 基类声明序改 CItemUpgradeTable 在前（CDataManager.h；0x085461d1 `add $0x4`
+    //      +call 表区先于 0x085461e2 call IItemUpgrade 实证；primary base/布局不变）；
+    //   ② 去具名 pRand 局部：0x08546242 循环每次重读 m_rand（+0x4e8，P183）；
+    //   ③ range 先于 seed 声明（0x0854620c seed@-0x24 / 0x0854625f range@-0x20）
+    //      + 实参内联赋值 `new CMTRand(seed = time(0))`：复现 0x0854620f
+    //      `lea -0x24(%ebp),%esi` 在 operator new 前装载 &seed（四形实测唯一命中：
+    //      普通形/两句式/语句表达式/逗号形均 ndiff=4）。
+    m_randMax = 100000;
+    unsigned long range;
+    unsigned long seed;
+    m_rand = new CMTRand(seed = time(0));
+    for (int i = 0; i < 100; ++i)
+    {
+        range = static_cast<unsigned long>(m_randMax);
+        m_rand->randInt(range);
+    }
+}
+
 CItemUpgrade::~CItemUpgrade()
 {
     // ORIG 0x85462c6：析构 +0x4e8 的 CMTRand*（构造时 new，见 0x8546247）。
@@ -332,7 +368,10 @@ bool CItemUpgrade::_GetUpgradeInfo(const Inven_Item* item,
 // ============================================================================
 // _CheckCondition @ 0x8546342
 //   校验强化/增幅条件，返回错误码（0=通过）。
-// [b28d-solo-CItemUpgrade 判词] DIFF（N4 add-vs-lea 2 处封顶；gap=2、p167 CLEAR 32/32）。
+// [2026-09-10 判词] DIFF（gap=2、p167 CALLSITE CLEAR 32/32）。残余 = 2 处
+//   `m_i32[rarity+0x104]`：ORIG 0x08546603/0x08546635 `add $0x104,%edx;
+//   mov 0xc(%eax,%edx,4)` vs 4.4 `lea 0x104(%eax),%edx`（P30 结构性伪影；
+//   已实测 P311 二维指针视角反劣 ourN 323→329 ⇒ 回滚）⇒ N4 封顶。
 //   本轮修 P0 内联/P222 正向包裹/UPG_TBL_I32 视图/predict 两句式/upType if-else。
 //   本轮已修：删 repeatEvent 判空（ORIG 0x0854639f 直接解引用）、内联 reduce
 //   （无具名局部）。残余 = 4.4 对具名局部的槽化 vs ORIG 的 %ebx/%esi 寄存器
@@ -426,6 +465,11 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
     // ORIG 0x8546600：读 table+(rarity+0x104)*4+0xc（intAtConst 减 0xc 内偏）；
     // 两步寻址形 `add $0x104,%edx; mov 0xc(%eax,%edx,4)` 需数组下标视图
     // （UPG_TBL_I32，P30/P309；指针算术版恒折 lea/shl）。
+    // [2026-09-10 N4 实测] 尝试 P311 二维指针视角
+    //   `((int(*)[0x104])(&m_i32[0]))[1][rarity]` ⇒ 4.4 改产
+    //   `mov 0x41c(%eax,%edx,4)` +6 条（ourN 323→329，反劣）⇒ 回滚为
+    //   一维 `m_i32[rarity+0x104]` 的 `lea 0x104(%eax),%edx` 形（P30 结构性伪影，
+    //   与 ORIG 的 `add $0x104,%edx` 差 1 条/处）。
     if (UPG_TBL_I32(&table, itemScript->get_rarity() + 0x104) != -1)
     {
         // ORIG 465 行内层比较再调一次 get_rarity（不复用外层索引）；
@@ -526,12 +570,25 @@ bool CItemUpgrade::isDoEnchant(const Inven_Item& item, char* buf)
 // ============================================================================
 // ProcUpgrade(MSG_ENCHANT*) @ 0x0854a1ba（ProcUpgrade_0854a1ba.md）
 //   三代强化（ENCHANT 消息）主流程。返回错误码；0 成功。
-// [b28d-solo-CItemUpgrade 判词] DIFF（N 封顶；p167 CLEAR 41/41）。
-//   本轮修：删 ORIG 无有的 user/msg/packet/invenW 判空（P171）、count 改 char、
-//   m_enchFields[0/1] 直取、SendUpdateItem 实参按 unsigned short 零扩展。
-//   残余 = uchar 位与加宽（P168a③）+ 帧 0x1ac/0x19c 与槽号平移（N82/N95）⇒ N 封顶。
+// [2026-09-10 判词] DIFF（gap 4→0；origN=ourN=437；jcc 逐位一致；imm 多重集一致；
+//   p167 CLEAR 41/41）。
+//   本轮真 bug 修：①**范围检查方向反**——ORIG 0x0854a39c `jl +0x204`/0x0854a3b0
+//   `jg +0x204` 均跳「继续」，fall-through 才是 `mov $0x13`，即正极性
+//   `if (m_0d >= start && m_0d <= end) return 0x13`（[3,8]=ITEM_TYPE_0 非装备栏
+//   槽 ⇒ 报错）；旧写 `m_0d < start || m_0d > end` 方向全反（判据⑧/jcc 逐位）；
+//   ②**GetSellItemPrice 第三实参来源错**——ORIG 0x0854a5f0 读 slotA+0x07
+//   (m_addInfo2)，旧写 `(short)msg->m_19`（判据㉕）；③删 ORIG 无有的 `& 0xffff`
+//   截断（判据⑮）。
+//   本轮形修：P198① 预清三处（cond/penalty/doEnchant 两句式）、P225 while 形 ×2、
+//   P0 去 equipType/ret 具名槽、P174 返回类型 int→ENUM_ERROR（__PRETTY_FUNCTION__
+//   串 0x53 与 ORIG 全等）、P248① ProcUpgrade_3rdChronicle int→bool、P272 块序。
+//   残余 = 帧 0x1ac/0x19c 与槽号平移（N82/N95）+ 位域读 2 处多 `movzbl %al,%eax`
+//   （P168a③）⇒ N 封顶。
 // ============================================================================
-int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ENCHANT* msg, PacketGuard* packet)
+// [P174 串定返回类型] ORIG __PRETTY_FUNCTION__ 串 = "ENUM_ERROR WongWork::
+//   CItemUpgrade::ProcUpgrade(CUser*, MSG_ENCHANT*, PacketGuard*)" ⇒ 返回
+//   ENUM_ERROR；函数体 return 立即数与 ORIG 一致（枚举底层 int）。
+ENUM_ERROR CItemUpgrade::ProcUpgrade(CUser* user, MSG_ENCHANT* msg, PacketGuard* packet)
 {
     // [b28d-solo-CItemUpgrade] ORIG 0x0854a1ba 开头**无** user/msg/packet 判空
     // （P171 照抄：加防御反而多 3 组 cmp/je 并顶浅全帧槽）。
@@ -540,91 +597,123 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ENCHANT* msg, PacketGuard* packet
 
     Inven_Item slotA = invenW->GetInvenSlot(1, msg->m_0d);
     if (slotA.isEmpty())
-        return 4;
+        return (ENUM_ERROR)4;
     if (slotA.m_addInfo != msg->m_0f)
-        return 4;
+        return (ENUM_ERROR)4;
 
     // ORIG ProcUpgrade_0854a1ba 554 行：Inven_Item::Inven_Item(&material) 先
     // 默认构造，再 GetInvenSlot 返回临时 + 拷贝赋值（4.1 无 copy-elision）。两段式必写。
     Inven_Item material;
     material = invenW->GetInvenSlot(1, msg->m_13);
     if (material.isEmpty())
-        return 0x16;
+        return (ENUM_ERROR)0x16;
 
     int start = 0, end = 0;
     invenW->getStartEndPos((Inven_Item::ITEM_TYPE)0, start, end);
-    if (msg->m_0d < start || msg->m_0d > end)
-        return 0x13;
+    // [jcc 逐位核对 2026-09-10] ORIG 0x0854a39c `cmp %eax,%edx; jl +0x204`（m_0d < start
+    //   → 继续）、0x0854a3b0 `cmp %eax,%edx; jg +0x204`（m_0d > end → 继续），
+    //   fall-through 才是 `mov $0x13`。即原码为**正极性 &&**：目标槽位落在
+    //   ITEM_TYPE_0 范围 [3,8]（CSlotBoundChecker::init insert(3,8,ITEM_TYPE_0)）
+    //   内 ⇒ 非装备栏槽位 ⇒ 返回 0x13。旧重建写成 `m_0d < start || m_0d > end`
+    //   方向全反（只有 [3,8] 内才放行）⇒ 真语义 bug。
+    if (msg->m_0d >= start && msg->m_0d <= end)
+        return (ENUM_ERROR)0x13;
 
     CItem* itemScript = G_CDataManager()->find_item(slotA.m_addInfo);
     if (itemScript == 0)
-        return 4;
+        return (ENUM_ERROR)4;
     CItem* materialScript = G_CDataManager()->find_item(material.m_addInfo);
     if (materialScript == 0)
-        return 4;
+        return (ENUM_ERROR)4;
 
-    int cond = _CheckCondition(user, slotA, itemScript, material, msg->m_19);
-    if (cond != 0)
+    // [2026-09-10 P198① 预清必写] ORIG 0x0854a416 在 call 前有
+    //   `movl $0x0,-0x24(%ebp)`（cond 预清）⇒ 源必须两句式；
+    //   [P225] ORIG 0x0854a45b `cmpl $0x0,-0x24; setne %al; test %al,%al; je`
+    //   四段物化 ⇒ while+break 族形。
+    int cond = 0;
+    cond = _CheckCondition(user, slotA, itemScript, material, msg->m_19);
+    while (cond != 0)
     {
         LogManager::logFormat(1, "ItemUpgrade.cpp",
             __PRETTY_FUNCTION__,
             0x756,
             "3RD_CHRONICLE_LOG : ENCHANT SYSTEM _CheckCondition() ERROR!! CHARAC NO(%u) ERROR(%u)",
             user->getCurCharacNo(), cond);
-        return cond;
+        return (ENUM_ERROR)cond;
     }
 
-    bool doEnchant = isDoEnchant(slotA, ((CStackableItem*)materialScript)->m_chars30d);
+    // [2026-09-10 P198① 预清必写] ORIG 0x0854a4b0 `movb $0x0,-0x1e(%ebp)` 在
+    //   isDoEnchant 调用前预清 doEnchant ⇒ 源必须两句式。
+    bool doEnchant = false;
+    doEnchant = isDoEnchant(slotA, ((CStackableItem*)materialScript)->m_chars30d);
 
     // ORIG ProcUpgrade_0854a1ba 605/611 行：delete_item 与 material2 的 GetInvenSlot
     // 各自重新调用 getCurCharacInvenW()（不复用函数头的 invenW/local_34）。
     if (!user->getCurCharacInvenW()->delete_item(
             INVEN_TYPE_EQUIP, msg->m_13, 1, (eItemDelReason)0xc, true))
-        return 0x11;
+        return (ENUM_ERROR)0x11;
 
     packet->put_byte(1);
     packet->put_short(msg->m_13);
     Inven_Item material2 = user->getCurCharacInvenW()->GetInvenSlot(1, msg->m_13);
-    packet->put_short((int)(material2.get_add_info() & 0xffff));
+    // [2026-09-10 判据⑮ 多余截断] ORIG 0x0854a595..0x0854a5a4：get_add_info 返回值
+    //   经 %eax 直压 0x4(%esp) 传 put_short(int)（无 movzwl/and $0xffff）⇒ 原码
+    //   无 `& 0xffff` 截断，删之照抄。
+    packet->put_short(material2.get_add_info());
     if (doEnchant)
         packet->put_byte(1);   // ORIG 619 行
     else
         packet->put_byte(0);   // ORIG 616 行
 
-    int ret = 0;
-    if (doEnchant)
-    {
-        // ORIG CItem 虚表 +0xc（GetItemType）返回装备类型。
-        ENUM_EQUIPMENTTYPE equipType =
-            (ENUM_EQUIPMENTTYPE)itemScript->GetItemType();
-        ret = ProcUpgrade_3rdChronicle(user, equipType, msg->m_19,
-                                       slotA, materialScript);
-        if (ret != 1)
-        {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x786, 5);
-            trace("3RD_CHRONICLE_LOG : ENCHANT SYSTEM ProcUpgrade_3rdChronicle() ERROR!! CHARAC NO(%u)\n",
-                  user->getCurCharacNo());
-            return 1;
-        }
-    }
-    else
+    // [2026-09-10 P272 块序] ORIG 0x0854a5d7 `movzbl doEnchant; xor $0x1; test
+    //   %al,%al; je 0x0854a6fc`：**!doEnchant 真则直落 _ProcPenalty 块**
+    //   （0x0854a5e6），3rdChronicle 块在 0x0854a6fc（then 在后、else 直落）。
+    //   正极性 `if (doEnchant) {A} else {B}` 在 4.4 反产「then 直落」⇒ 写
+    //   `if (!doEnchant) {B} else {A}` 复现。
+    // [P0] ORIG 3rdChronicle 调用点**无 ret 具名槽**（call 结果直接 xor 判），
+    //   且 [P248 档①] callee 返回 bool ⇒ 写 `if (!ProcUpgrade_3rdChronicle(...))`。
+    if (!doEnchant)
     {
         int sellPrice = 0;
-        G_Store()->GetSellItemPrice(slotA, itemScript, (short)msg->m_19, false,
-                                    sellPrice);
+        // [2026-09-10 判据㉕ 实参来源] ORIG 0x0854a5f0 `mov -0xd2(%ebp),%eax;
+        //   movswl %ax,%ebx`：-0xd2 = slotA(-0xd9)+0x07 = m_addInfo2（数量域），
+        //   **不是** msg->m_19（ORIG 全函数 movzbl 0x19(%eax) 仅 3 次：_CheckCondition/
+        //   ProcUpgrade_3rdChronicle/Enchant3rdChronicleItem 各一次）。旧重建传
+        //   (short)msg->m_19 ⇒ 售价统计用错数量来源（真 bug）。
+        G_Store()->GetSellItemPrice(slotA, itemScript, (short)slotA.m_addInfo2,
+                                    false, sellPrice);
         GetInstanceValueStatistic()->AddValueStatistic(
             (VALUE_STATISTIC_FIELD)0xf, user, (unsigned int)sellPrice);
-        int penalty = _ProcPenalty(user, &slotA, itemScript, msg->m_0d, packet);
-        if (penalty != 0)
+        // [2026-09-10 P198①] ORIG 0x0854a655 `movl $0x0,-0x1c(%ebp)` 预清；
+        //   [P225] ORIG 0x0854a697 `cmpl $0x0,-0x1c; setne %al; test %al,%al; je`。
+        int penalty = 0;
+        penalty = _ProcPenalty(user, &slotA, itemScript, msg->m_0d, packet);
+        while (penalty != 0)
         {
             cMyTrace trace(
                 __PRETTY_FUNCTION__,
                 0x77e, 5);
             trace("3RD_CHRONICLE_LOG : ENCHANT SYSTEM _ProcPenalty() ERROR!! ERROR CODE(%d)!! CHARAC NO(%u)\n",
                   penalty, user->getCurCharacNo());
-            return penalty;
+            return (ENUM_ERROR)penalty;
+        }
+    }
+    else
+    {
+        // ORIG CItem 虚表 +0xc（GetItemType）返回装备类型。
+        // [2026-09-10 P0] ORIG 0x0854a706..0x0854a72d：GetItemType() 结果经
+        //   %eax 直接压 0x8(%esp)，**无 equipType 具名槽**（无 store/load 往返）
+        //   ⇒ 表达式内联进实参。
+        if (!ProcUpgrade_3rdChronicle(user,
+                                      (ENUM_EQUIPMENTTYPE)itemScript->GetItemType(),
+                                      msg->m_19, slotA, materialScript))
+        {
+            cMyTrace trace(
+                __PRETTY_FUNCTION__,
+                0x786, 5);
+            trace("3RD_CHRONICLE_LOG : ENCHANT SYSTEM ProcUpgrade_3rdChronicle() ERROR!! CHARAC NO(%u)\n",
+                  user->getCurCharacNo());
+            return (ENUM_ERROR)1;
         }
     }
 
@@ -644,7 +733,7 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ENCHANT* msg, PacketGuard* packet
 
     user->m_historyLog.Enchant3rdChronicleItem(doEnchant,
         itemScript->get_index(), material.m_addInfo, msg->m_19, count);
-    return 0;
+    return ENUM_ERROR_NONE;
 }
 
 // ============================================================================
@@ -748,9 +837,11 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
 //   复现三段 RMW、内联 map2f4/stackItem/f 局部。残余 = N93附（return 1 的
 //   `mov $1,%ebx` 在 vector 析构之后 vs 4.4 之前）+ %al/%dl 寄存器名 ⇒ N 封顶。
 // ============================================================================
-int CItemUpgrade::ProcUpgrade_3rdChronicle(CUser* user, ENUM_EQUIPMENTTYPE equipType,
-                                           unsigned char param, Inven_Item& item,
-                                           const CItem* itemScript)
+// [P248 档①/P292] 调用点 ORIG 0x0854a743 `call; xor $0x1,%eax; test %al,%al; je`
+//   ⇒ 返回类型 bool（int 返回恒产 sete 三段）。
+bool CItemUpgrade::ProcUpgrade_3rdChronicle(CUser* user, ENUM_EQUIPMENTTYPE equipType,
+                                            unsigned char param, Inven_Item& item,
+                                            const CItem* itemScript)
 {
     // ORIG 0x0854a006：四字段键（job/growType/equipType/param）查
     // CStackableItem+0x2f4 附魔 map（键 STEnchantSystemMapKey，值
@@ -816,8 +907,11 @@ int CItemUpgrade::ProcUpgrade_3rdChronicle(CUser* user, ENUM_EQUIPMENTTYPE equip
 // ============================================================================
 // _ProcPenalty(ENCHANT 5 参) @ 0x08549ac8（_ProcPenalty_08549ac8.md）
 //   三代强化惩罚：删材料 → 分解 → 附加物品入包+插入事件物品+统计。返回错误码。
-// [b28d-solo-CItemUpgrade 判词] DIFF（N7/P75 实参装载调度封顶；p167 CLEAR 54/54、
-//   gap=0、槽位集对齐）。
+// [2026-09-10 判词] DIFF（origN=ourN=357；jcc 逐位一致；p167 CLEAR 54/54）。
+//   本轮真 bug 修：删 ORIG 0x08549d94 之后**无**的 `if (insertRet != 0)` 门禁
+//   （判据⑮：put_byte 后直接 begin；旧包裹使 outSlots 在 insertRet==0 时被跳过）
+//   + P223 if-join 岛（0x08549e99 `je 08549f7d(nop)` + body 尾 `jmp`）。
+//   残余 = 实参装载调度（N7/P75）+ 槽号 ⇒ N 封顶。
 //   本轮修**真语义 bug 4 处**：①djr 读索引 [4+i]→[5+i]（ORIG 0x08549c10 权威）；
 //   ②make_pair(fi,fi)→make_pair(m_f[i],m_f[i+5]) 两不同字段；③第二次
 //   _getAdditionalDisjointItem 漏传 hasAbility 第 5 实参（5 参重载）；
@@ -896,33 +990,39 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
     // [b28d-solo-CItemUpgrade] ORIG 0x08549dc5 循环：每次 `*it++` 三次取
     // slotVal/idx/cnt（无 it+=3、无 &0xffff 截断），随后**逐物品**补做
     // make_item + cube 统计 + 售价统计（原重建缺整段，属语义缺失，已补）。
-    if (insertRet != 0)
+    // [2026-09-10 判据⑮ 多余门禁] ORIG 0x08549d94 `call put_byte` 之后**直接**
+    //   0x08549d99 `lea -0x3c; call begin`（无 insertRet 判空/判非零分支）⇒
+    //   原码无 `if (insertRet != 0)` 包裹，删之照抄（outSlots 为空时循环自然不执行）。
+    for (std::vector<int>::const_iterator it = outSlots.begin();
+         it != outSlots.end(); )
     {
-        for (std::vector<int>::const_iterator it = outSlots.begin();
-             it != outSlots.end(); )
+        int slotVal = *it++;
+        int idx = *it++;
+        int cnt = *it++;
+        packet->put_short(slotVal);
+        packet->put_item_idx((unsigned long)idx);
+        packet->put_int(cnt);
+        CItem* script = G_CDataManager()->find_item(idx);
+        // [2026-09-10 P223] ORIG 0x08549e99 `je 08549f7d`（4.1 if-join 岛：
+        //   false 路落 nop 占位）+ body 尾 `jmp 08549f7e`。正向 if 被 4.4
+        //   jump-thread 掉 jmp+nop ⇒ 负条件 goto 到尾空标签复现（P223 定形）。
+        if (script == 0)
+            goto next_item;
         {
-            int slotVal = *it++;
-            int idx = *it++;
-            int cnt = *it++;
-            packet->put_short(slotVal);
-            packet->put_item_idx((unsigned long)idx);
-            packet->put_int(cnt);
-            CItem* script = G_CDataManager()->find_item(idx);
-            if (script != 0)
-            {
-                Inven_Item invenItem;
-                invenItem.m_addInfo = idx;
-                invenItem.set_add_info(cnt);
-                script->make_item(invenItem);
-                GetInstanceCubeStatistic()->collectCubeStatistics(
-                    script, cnt, user, (CUBE_STATISTIC_FIELD)1);
-                int sellPrice = 0;
-                G_Store()->GetSellItemPrice(invenItem, script,
-                    (short)invenItem.m_addInfo2, false, sellPrice);
-                GetInstanceValueStatistic()->AddValueStatistic(
-                    (VALUE_STATISTIC_FIELD)9, user, (unsigned int)sellPrice);
-            }
+            Inven_Item invenItem;
+            invenItem.m_addInfo = idx;
+            invenItem.set_add_info(cnt);
+            script->make_item(invenItem);
+            GetInstanceCubeStatistic()->collectCubeStatistics(
+                script, cnt, user, (CUBE_STATISTIC_FIELD)1);
+            int sellPrice = 0;
+            G_Store()->GetSellItemPrice(invenItem, script,
+                (short)invenItem.m_addInfo2, false, sellPrice);
+            GetInstanceValueStatistic()->AddValueStatistic(
+                (VALUE_STATISTIC_FIELD)9, user, (unsigned int)sellPrice);
         }
+    next_item:
+        ;
     }
     return 0;
 }
