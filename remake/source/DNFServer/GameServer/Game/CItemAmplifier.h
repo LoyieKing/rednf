@@ -21,6 +21,8 @@ class CItem;
 #include "STEquipmentScript.h"    // ENUM_EQUIPMENTTYPE / ItemUpgradeType::T（ODR 守卫已由 FixEquipmentTypeGuard 统一）
 #include "ST3rdChronicleDestructionResult.h"   // upgrade_table_t +0x434 成员（ORIG C1 0x089000ca 实证）
 #include <unordered_map>   // upgrade_table_t +0x4c4（ORIG _ZNSt13unordered_map…C1EjRKS3_RKS5_RKS9_）
+// cMyTrace（loadScript 类内定义体使用；ORIG 该函数为 W 弱绑定 ⇒ 源码类内定义）
+#include "GameTypes.h"
 
 class Inven_Item;
 
@@ -394,6 +396,14 @@ static_assert(offsetof(upgrade_table_t, m_destruction) == 0x434,
 #define UPG_TBL_I32(tbl, k)  ((tbl)->m_bodyView.m_i32[(k)])
 #define UPG_TBL_F32(tbl, k)  ((tbl)->m_bodyView.m_f32[(k)])
 
+// ---- 强化/升级脚本导入（定义在脚本导入域 TU；loadScript 类内定义需先见声明）----
+// ORIG T 0x0890a6b0 _Z17importAmplifyItemPKcR21stAmplifyItemScript_t：返回错误行，0=成功。
+int importAmplifyItem(const char* path, stAmplifyItemScript_t& out);
+// ORIG T 0x08900c26 _Z18importUpgradeTablePKcP15upgrade_table_t：[P248 档①] bool
+// （CDataManager::init 经 LoadUpgradeScript 的 ORIG 调用点 `call; xor $1,%eax;
+//  test %al,%al; je` 实证；体内 return 全为常量 0/1 ⇒ 机器码不变）。
+bool importUpgradeTable(const char* path, upgrade_table_t* table);
+
 class CItemAmplifier
 {
 public:
@@ -424,11 +434,26 @@ public:
     // ORIG W 0x0854b382：返回内嵌 upgrade_table_t（+0x100）。
     const upgrade_table_t* getUpgradeInfoTable() const { return &m_upgrade; }
 
-    // ORIG _ZN14CItemAmplifier10loadScriptEPKcS1_ W 0x08376060
-    // （CDataManager::init 调用：Etc/AmplifyItem.etc + Etc/AmplifyUpgrade.etc）
-    // [P248 档①] 返回 bool：ORIG 0x08376060 尾调 importUpgradeTable 无 movzbl
-    // ⇒ 与 callee 同型；链上调用点 ORIG 均为 `xor $1; test %al,%al` 形。
-    bool loadScript(const char* itemScript, const char* upgradeScript);
+    // ORIG _ZN14CItemAmplifier10loadScriptEPKcS1_ **W** 0x08376060 size 0x7e
+    // （nm 实证弱绑定 ⇒ 源码为类内定义；我方原 .cpp 定义为 T）。逐段转写：
+    //   line = importAmplifyItem(itemScript, m_script)；line!=0 →
+    //   cMyTrace(__PRETTY_FUNCTION__,0x14,0)("importAmplifyItem failed. line(%d)",
+    //   line)（ORIG 串 0x8c34400/0x8c2f674）返回 0；否则尾调
+    //   importUpgradeTable(upgradeScript, &m_upgrade)（asm 透传 eax ⇒ [P248 档①]
+    //   返回 bool：ORIG 尾调无 movzbl，与 callee 同型；链上调用点 ORIG 均为
+    //   `xor $1; test %al,%al` 形）。CDataManager::init 调用点：
+    //   Etc/AmplifyItem.etc + Etc/AmplifyUpgrade.etc。
+    bool loadScript(const char* itemScript, const char* upgradeScript)
+    {
+        int line = importAmplifyItem(itemScript, m_script);
+        if (line != 0)
+        {
+            cMyTrace(__PRETTY_FUNCTION__,
+                     0x14, 0)("importAmplifyItem failed. line(%d)", line);
+            return 0;
+        }
+        return importUpgradeTable(upgradeScript, &m_upgrade);
+    }
 
 private:
     void _generateOption(const CItem* item, ENUM_AMPLIFY_TYPE& type,
@@ -439,12 +464,4 @@ private:
 };
 
 
-// ---- 强化/升级脚本导入（定义待脚本导入域批次；loadScript 依赖）----
-// ORIG T 0x0890a6b0 _Z17importAmplifyItemPKcR21stAmplifyItemScript_t：返回错误行，0=成功。
-int importAmplifyItem(const char* path, stAmplifyItemScript_t& out);
-// ORIG T 0x08900c26 _Z18importUpgradeTablePKcP15upgrade_table_t：[P248 档①] bool
-// （CDataManager::init 经 LoadUpgradeScript 的 ORIG 调用点 `call; xor $1,%eax;
-//  test %al,%al; je` 实证；体内 return 全为常量 0/1 ⇒ 机器码不变）。
-bool importUpgradeTable(const char* path, upgrade_table_t* table);
- 
 #endif  // GAME_CITEMAMPLIFIER_H_

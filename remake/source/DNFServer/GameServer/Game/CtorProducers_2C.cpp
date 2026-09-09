@@ -9,11 +9,15 @@
 //                                  `_GLOBAL__I__ZN8WongWork12CItemUpgradeC2Ev`
 //                                  @0x0854b178 + ORIG 地址序 ctor 0x085461c8 <
 //                                  dtor 0x085462c6 同属该 TU 段）
-//   CItemAmplifier::loadScript    W 0x08376060（_ZN14CItemAmplifier10loadScriptEPKcS1_）
+//   CItemAmplifier::loadScript    W 0x08376060（_ZN14CItemAmplifier10loadScriptEPKcS1_；
+//                                 判据㉓：ORIG nm 实测 W（弱绑定）⇒ 定义已移入
+//                                 CItemAmplifier.h 类内，本 TU 不再发射该符号）
 //   WongWork::CMCAPManager::init  T 0x080f8aba +
 //                                 静态 int pointPerHackType_[3900] B 0x093fad20
 //                                 （nm 尺寸 15600=3900×4；double-memset 忠实转写）
-//   WongWork::CItemGeneratorMgr   C1 W 0x08374ef4 / initialize T 0x08533bc8
+//   WongWork::CItemGeneratorMgr   C1/C2 W 0x08374ef4（判据㉓：ORIG nm 实测 W ⇒
+//                                 定义已移入 CItemGeneratorMgr.h 类内）/
+//                                 initialize T 0x08533bc8
 //
 // 声明先行（定义待对应域批次，见交付报告 /tmp/df_batches/Ctor2_ContC.md）：
 //   WongWork::CItemUpgrade::ProcUpgrade（vtable 槽0 已对齐，报告 1957 行待升级域批次）
@@ -61,26 +65,10 @@ bool CItemUpgrade::Load3rdChronicleUpgradeScript(const char* path)  // [P330] �
 }  // namespace WongWork
 
 // ============================================================================
-// CItemAmplifier::loadScript —— 强化物品脚本 + 升级表双装载
+// CItemAmplifier::loadScript —— 已移入 CItemAmplifier.h 类内定义
+// （判据㉓：ORIG nm `_ZN14CItemAmplifier10loadScriptEPKcS1_` **W** 0x08376060
+//  size 0x7e ⇒ 源码为类内定义；函数体逐字不变，仅符号绑定 T→W）
 // ============================================================================
-
-bool CItemAmplifier::loadScript(const char* itemScript, const char* upgradeScript)
-{
-    // ORIG 0x08376060 逐段转写：
-    //   line = importAmplifyItem(itemScript, m_script)；line!=0 →
-    //   cMyTrace(__PRETTY_FUNCTION__,0x14,0)
-    //     ("importAmplifyItem failed. line(%d)", line)（字符串 0x8c34400/0x8c2f674）
-    //     返回 0；否则尾调 importUpgradeTable(upgradeScript, &m_upgrade)（asm 透传 eax，
-    //     故返回 int 行号而非 bool 截断）。
-    int line = importAmplifyItem(itemScript, m_script);
-    if (line != 0)
-    {
-        cMyTrace(__PRETTY_FUNCTION__,
-                 0x14, 0)("importAmplifyItem failed. line(%d)", line);
-        return 0;
-    }
-    return importUpgradeTable(upgradeScript, &m_upgrade);
-}
 
 // ============================================================================
 // WongWork::CMCAPManager —— init 与静态掉落点数表
@@ -134,11 +122,9 @@ void CMCAPManager::init()
 namespace WongWork
 {
 
-CItemGeneratorMgr::CItemGeneratorMgr() throw()
-{
-    // ORIG 0x08374ef4：仅对 +0x3e0 的内嵌 CGeneratorCommonData 调用空体 ctor
-    // （0x08374ebc push/mov/pop/ret），由编译器按成员初始化自动完成。
-}
+// CItemGeneratorMgr::CItemGeneratorMgr 已移入 CItemGeneratorMgr.h 类内定义
+// （判据㉓：ORIG nm C1/C2 **W** 0x08374ef4 size 0x18 ⇒ 源码为类内定义；
+//  函数体逐字不变，仅符号绑定 T→W）。
 
 bool CItemGeneratorMgr::initialize()
 {

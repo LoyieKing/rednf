@@ -54,7 +54,13 @@ public:
     void onTryGenerateRandomItem(eGenerateType_t genType, eItemDropType_t dropType,
                                  ENUM_RARITY rarity);
 
-    CItemGeneratorMgr() throw();     // ORIG _ZN8WongWork17CItemGeneratorMgrC1Ev W 0x08374ef4；b28d-Main(P216)：加 throw() 消 CDataManager::init 的 new landing pad
+    // ORIG _ZN8WongWork17CItemGeneratorMgrC1Ev/C2Ev **W** 0x08374ef4 size 0x18
+    // （nm 实证弱绑定 ⇒ 源码为类内定义；我方原 .cpp 定义为 T）。类内定义仅对
+    // +0x3e0 的内嵌 CGeneratorCommonData 调空体 ctor（ORIG 0x08374ebc
+    // push/mov/pop/ret），由编译器按成员初始化自动完成；sizeof/偏移/mangled/
+    // vtable 零变化（static_assert 0xa28 不变）。
+    // b28d-Main(P216)：throw() 消 CDataManager::init 的 new landing pad。
+    CItemGeneratorMgr() throw() {}
     ~CItemGeneratorMgr();            // 定义于 CDataManagerScripts.cpp（仅析构 common）
     void setDropRatio(float ratio);  // 定义于 CDataManagerScripts.cpp（逐生成器虚调用）
     // ORIG T 0x08534322 _ZN8WongWork17CItemGeneratorMgr12onTimerEventEi
