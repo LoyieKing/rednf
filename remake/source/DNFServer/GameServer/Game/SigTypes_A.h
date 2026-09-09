@@ -515,9 +515,23 @@ struct SIG_CHANGE_CHARAC_NAME
     unsigned int m_characNo;    // +0x00（_sendResult ← param_1[0]，请求上下文 id）
     char m_name[0x1d];          // +0x04（strncpy 目标，0x1d 字节，未含 NUL 尾）
     char m_pad21[3];            // +0x21（0x1d 对齐尾，ORIG memset 覆盖）
-    int m_arg24;                // +0x24（_sendResult ← param_3）
+    // +0x24：同一字段两侧 store 序相反 ⇒ P211 档③ 需双视角（ORIG makeRequest
+    // 0842663c RHS-first `mov 0x14(%ebp),%edx; mov -0xc(%ebp),%eax` vs
+    // ORIG _sendResult 0842673a LHS-first；探针 /tmp/p211q.cpp f1↔f2）。
+    union
+    {
+        int m_arg24;            // +0x24（_sendResult ← param_3，int 视角）
+        unsigned int m_arg24u;  // +0x24（makeRequest ← flag，unsigned 视角）
+    };
     unsigned int m_arg28;       // +0x28（dispatch ← MySQL col0 get_uint）
-    unsigned int m_arg2c;       // +0x2c（_sendResult ← param_1[0x28]）
+    // +0x2c：makeRequest 只写低字节（ORIG 08426655 `mov %dl,0x2c(%eax)`，完整
+    // 类型成员直访问；P235 匿名 union 双视角——指针 cast 视图形恒产
+    // `mov %al,0x2c(%ebx)` 且丢 edx 中转，探针 /tmp/p211p.cpp f1↔f3）。
+    union
+    {
+        unsigned int m_arg2c;   // +0x2c（_sendResult ← param_1[0x28]）
+        char m_group;           // +0x2c 低字节（渠道组 m_serverEnvir.m_serverGroup）
+    };
 };
 static_assert(sizeof(SIG_CHANGE_CHARAC_NAME) == 0x30, "SIG_CHANGE_CHARAC_NAME ABI drift");
 
