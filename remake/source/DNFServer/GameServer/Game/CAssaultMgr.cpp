@@ -1,6 +1,18 @@
 // df_game_r Game/ pvp_assault::CAssaultMgr 实现（批3：从 GameStubs.cpp 迁移）。
 // 语义依据 ORIG：OnMoveArea 0x82ef610 / SendPacket 0x82efb54 /
 // OnLeaveAssaultPlace 0x82ef176 / _GetAssaultPlace 0x82ed9fe。
+// b28d-solo-CAssaultMgr（2026-09-09，泳道 CAssaultMgr.cpp 9 件）判词：
+//   · LeaveAssaultPlace(Eibb)：**DIFF → IDENTICAL_AE**（leave 包作用域延长消
+//     独立 EH cleanup + 收尾链去冗余外层 `if(user!=0)` 真语义修正）。
+//   · CloseAssault：PacketGuard 改独立块（析构点对齐 082e9ec0）；残差 N22×1 +
+//     N121 尾岛×2 + 重定位。
+//   · CheckPoint：P167 归位（`(*it).m_*` 代 `it->m_*`，deEv 代 ptEv；missing 61→60）。
+//   · MakeUserState ×2：N7 单条 %eax↔%edx 角色互换（P248 三档旋钮穷举后封顶）。
+//   · CStaticDisposition::C1：N4/P30/N102 族（m_x 元素访问 + m_y 数组引用视图的
+//     基址载入/add-vs-lea 残差；八形探针无更优）。
+//   · AbuseUser / GetCharacName / ChangeHp：清单 NEAR → 路由口径 AE（复验不变）。
+//   · p167：9/9 符号 CLEAR（CStaticDisposition 的 CDisposition C1/C2 同址别名
+//     属 P93 良性；CheckPoint 已由 ptEv 归位 deEv）。
 #include "CAssaultMgr.h"
 
 #include "CUser.h"
@@ -1593,13 +1605,17 @@ void CAssaultMgr::FreeAssaultPlace(int id, CAssaultPlace* place)
 //   P0）；⑤stamina 内联（ORIG `movzbl %al,%edx` 直传）。
 // 残差仅 N18b 比较操作数序（ORIG `cmp %edx,%eax`）、N121 尾 jmp 岛 ×2、
 // N104 EH 块相对序（ORIG cleanup 居中 vs 我方居末），无语义缺口。
-// b28d-solo-CAssaultMgr: N 封顶（§6.2 三件套；清单 DIFF 235 复验）— ①clean
-// 口径 372/375（我方 +3，全在 PacketGuard EH cleanup 块位置与循环尾 nop 岛）；
-// ②p167 调用点差集 CLEAR（ORIG 60 = OUR 60，0 MISSING / 0 EXTRA）；
-// ③帧 `sub $0x40` 双方一致、槽基一致。残差族：N104（ORIG cleanup 居中、
-// 我方居末，difflib 放大 ~9 行 rotate）+ N7（GetTeam vs m_winTeam 比较段
-// %eax↔%edx 角色互换）+ N121（尾 `jmp+nop` 岛）+ N123/重定位（`mov 0x0,%eax`
-// 系 .o 未解析 R_386_32 显示，P264）。无语义缺口。
+// b28d-solo-CAssaultMgr（2026-09-09）: N 封顶（§6.2 三件套；清单 DIFF 235）。
+// 本轮修正：`PacketGuard packet` 由函数级作用域改**独立块**——ORIG 082e9ec0
+// 在 _SendPacketToArea 后立即 `jmp` 跳过 landing pad 直落 D1 ⇒ 原码是独立块
+//（旧形析构落函数尾，多尾岛 ×2 + EH 块位置整体偏移；归一化 ratio 0.449→0.572）。
+// 修正后 clean 口径 orig 374 / ours 379（+5 = N22 比较段 1 条 + N121 尾
+// `jmp+nop` 岛 ×2）；p167 调用点差集 CLEAR（ORIG 60 = OUR 60）；帧 `sub $0x40`
+// 双方一致。残差族：N22/N18b（`call GetTeam; mov this,%edx; mov 0x124(%edx),%edx;
+// cmp %edx,%eax` vs 4.4 `mov %eax,%edx; ...; cmp %eax,%edx`，字段/返回异型旋钮
+// 需改冻结头，S2 归 Main）+ N121（循环尾与 FreeAssaultPlace 后 `jmp+nop` 岛，
+// 三形实测不消）+ N123/重定位（`mov 0x0,%eax` 系 .o 未解析 R_386_32，P264）。
+// 无语义缺口。
 void CAssaultPlace::CloseAssault()
 {
     // b28d-solo: ORIG 0x082e9ade/0x082e9ae5 头部双初始化 `movl $0,-0x28;

@@ -419,22 +419,24 @@ int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
 void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
                       std::vector<std::pair<int, int> >* extra)
 {
-    // b28d-solo 修法（P190 附注）：双取址 double 撑帧 +0x10（见函数头判词）。
-    double framePad;
-    double framePad2;
-    (void)&framePad;
-    (void)&framePad2;
     info->clear();
+    // [b28d-solo-CStackableItem] it/end 槽方向：ORIG it=-0x48(深)/end=-0x44(浅)
+    // = 4.1「先声明深」；4.4 中部声明恒「先声明浅」(it=-0x44/end=-0x48)。P309
+    // 的「函数头声明翻向」形（逗号表达式保 clear→begin 序）实测零效 ⇒ 封 N（T5：
+    // 残差仅槽号）。n1/n2/n3 独立化 + 删 framePad 已消 360→218 行残差。
     std::vector<int>::iterator it = source->begin();
     std::vector<int>::iterator end = source->end();
     if (it == end)
     {
         return;
     }
-    int n = *it;
+    // [b28d-solo-CStackableItem] ORIG 三个 count 局部各占独立槽
+    // （0x89ba93e `mov %eax,-0x18`、第二段 `-0x10`、第三段 `-0xc`）⇒ 源码为
+    // 三个不同具名局部（复用同一变量时 4.4/4.1 都只给一个槽）。
+    int n1 = *it;
     it++;
     int i = 0;
-    for (i = 0; i < n; ++i)
+    for (i = 0; i < n1; ++i)
     {
         std::pair<int, int> p;
         p.first = *it;
@@ -443,9 +445,9 @@ void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
         it++;
         info->m_vec0.push_back(p);
     }
-    n = *it;
+    int n2 = *it;
     it++;
-    for (i = 0; i < n; ++i)
+    for (i = 0; i < n2; ++i)
     {
         std::pair<int, int> p;
         p.first = *it;
@@ -454,9 +456,9 @@ void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
         it++;
         info->m_vecC.push_back(p);
     }
-    n = *it;
+    int n3 = *it;
     it++;
-    for (i = 0; i < n; ++i)
+    for (i = 0; i < n3; ++i)
     {
         std::pair<int, int> p;
         p.first = *it;
@@ -583,7 +585,9 @@ void createStackableMultiBoxLotteryInfo(
         {
             break;
         }
-        while (it != (*itA).end())
+        // [b28d-solo-CStackableItem] ORIG 内层循环为底部旋转（0x089bb45a eq 检查
+        // 与 0x089bb493 ne 条件都在内层循环尾）⇒ 源码 do-while 形。
+        do
         {
             std::pair<int, int> p_item, p_bonus;
             p_item.first = *it;
@@ -599,7 +603,11 @@ void createStackableMultiBoxLotteryInfo(
             it++;
             unit.m_items.push_back(p_item);
             unit.m_bonus.push_back(p_bonus);
-        }
+            // [b28d-solo-CStackableItem] ORIG 0x089bb45a：第 4 个边界检查在
+            // **push_back 之后**（`eq; jne 0x4ab` 落在 m_units.push_back 之前），
+            // 即最后一组仍被提交后再退出（原写法在 push 前 break = 真语义 bug）。
+            if (it == (*itA).end()) break;
+        } while (it != (*itA).end());
         info->m_units.push_back(unit);
         itA++;
     }
@@ -617,46 +625,57 @@ void createStackableMultiBoxLotteryInfo(
         it++;
     }
     // ---- 解析 c：默认项 + m_items ----
+    // [b28d-solo-CStackableItem] P167/P223：ORIG 0x089bb694/0x089bb6fe/0x089bb768/
+    // 0x089bb7d2/0x089bb83c 五处 `eq(it,end)` 各落独立 nop 中继岛（0xa51/0xa54/
+    // 0xa57/0xa5a/0xa64）⇒ 源码为 5 个裸早返 `if (it == c->end()) return;`（不是
+    // 嵌套 `if (it != c->end())`：后者恒产 ne ×5，p167 实测 EXTRA ne×5/MISSING eq×6）。
     std::vector<int>::iterator it = c->begin();
-    if (it != c->end())
+    if (it == c->end())
     {
-        info->m_default.m_defaultCount = *it;
-        it++;
-        if (it != c->end())
-        {
-            info->m_default.m_defaultIdx = *it;
-            it++;
-            if (it != c->end())
-            {
-                info->m_default.m_defaultNum = *it;
-                it++;
-                if (it != c->end())
-                {
-                    info->m_default.m_defaultFlag = (char)*it;
-                    it++;
-                    if (it != c->end())
-                    {
-                        while (it != c->end())
-                        {
-                            MultiBoxLotteryInfo::stDefaultItem item;
-                            item.m_itemIdx = *it;
-                            it++;
-                            if (it == c->end()) break;
-                            item.m_prob = *it;
-                            it++;
-                            if (it == c->end()) break;
-                            item.m_count = *it;
-                            it++;
-                            if (it == c->end()) break;
-                            item.m_flag = (char)*it;
-                            it++;
-                            info->m_default.m_items.push_back(item);
-                        }
-                    }
-                }
-            }
-        }
+        return;
     }
+    info->m_default.m_defaultCount = *it;
+    it++;
+    if (it == c->end())
+    {
+        return;
+    }
+    info->m_default.m_defaultIdx = *it;
+    it++;
+    if (it == c->end())
+    {
+        return;
+    }
+    info->m_default.m_defaultNum = *it;
+    it++;
+    if (it == c->end())
+    {
+        return;
+    }
+    info->m_default.m_defaultFlag = (char)*it;
+    it++;
+    if (it == c->end())
+    {
+        return;
+    }
+    // [b28d-solo-CStackableItem] ORIG c 循环为底部旋转（body 0x089bb87d、条件
+    // 0x089bb9e2 的 end+ne）⇒ do-while（首轮由上一早退检查保证）。
+    do
+    {
+        MultiBoxLotteryInfo::stDefaultItem item;
+        item.m_itemIdx = *it;
+        it++;
+        if (it == c->end()) break;
+        item.m_prob = *it;
+        it++;
+        if (it == c->end()) break;
+        item.m_count = *it;
+        it++;
+        if (it == c->end()) break;
+        item.m_flag = (char)*it;
+        it++;
+        info->m_default.m_items.push_back(item);
+    } while (it != c->end());
 }
 
 class CChattingEmoticonList

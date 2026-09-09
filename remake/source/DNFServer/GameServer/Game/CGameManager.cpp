@@ -514,31 +514,27 @@ void WongWork::CMailBox::setMailIterator()
 // 定义先可见 ⇒ caller sub $0x4=ORIG；仅声明 ⇒ 4.4 保守 sub $0x18；探针 /tmp/bm3/p1-p10）。
 user_creature::CEgg::~CEgg()
 {
-    m_vptr = 0x08c2f4a8;  // ORIG 0x08338f74：movl $0x8c2f4a8,(%eax)
+    // [b28d-Main·检查点14] vptr 复位由编译器发射（ORIG 0x08338f74 同形，探针 vt_probe.cpp）。
 }
 user_creature::CCreature::~CCreature()
 {
-    m_vptr = 0x08c2f4c0;  // ORIG 0x83370a8：movl $0x8c2f4c0,(%eax)
+    // [b28d-Main·检查点14] 同上（ORIG 0x83370a8）。
 }
 template <> DynamicPool<user_creature::CEgg>::CNode::CNode()
 {
-    this->m_vptr = 0x08c2f478;
     m_type = 0x8f21;
     m_inUse = 0;
 }
 template <> DynamicPool<user_creature::CEgg>::CNode::~CNode()
 {
-    this->m_vptr = 0x08c2f478;
 }
 template <> DynamicPool<user_creature::CCreature>::CNode::CNode()
 {
-    this->m_vptr = 0x08c2f490;
     m_type = 0x8f21;
     m_inUse = 0;
 }
 template <> DynamicPool<user_creature::CCreature>::CNode::~CNode()
 {
-    this->m_vptr = 0x08c2f490;
 }
 
 // ============================================================================

@@ -33,6 +33,17 @@
 //   - LevelupSupport2ndEventManger::Process          T 0x08147880（无报告，objdump）
 //   - DB_SaveEventLevelupSupport::makeRequest        T 0x0844cc2e（无报告，objdump）
 //   - DB_EventAccountCharacterLevelUpOnceGift::makeRequest T 0x08449f66（无报告，objdump）
+//
+// [S426 单文件泳道 2026-09-09 复验/翻正] 清单 7 件：
+//   * _postQuestTriggerItem      DIFF→AE：else 内层 if 改 P223 负条件 goto 形，
+//     复现 ORIG 0x08668bfd `je <nop 岛>` + body 尾 `jmp <join>` + nop（203=203）。
+//   * GetRewardItemNo/GetItemCount  改 P231 纯 register 形参（无 asm 绑定）：
+//     ndiff 5→2（仅 this 装载位置 + job 寄存器角色），T5 封 N7/N98（NEAR 上限）。
+//   * processLevelUpEventReward  N107（`lea 0x79700(%eax),%edx` vs add，探针 14
+//     形全产 add）；UpdateEventInfo N7/P75（uid/characNo 装载时刻）；
+//     eventDeliveryBuyItem N7（两实参 callee-saved 角色互换）；
+//     _processLevelReward N95（局部槽基差 4，帧/深槽全等）。四件复验封顶。
+//   p167 七符号全 CLEAR；无 .h 改动；无子子代理。
 // ============================================================================
 
 #include <string.h>
@@ -321,11 +332,15 @@ void CUser::_postQuestTriggerItem(const Quest* quest)
     // ②P23/P44 实参内联右到左求值（ORIG edi=GetServerGroup、-0xb8=size、
     // esi=body.c_str、ebx=getCurCharacNo、title.c_str 即时），去 5 个具名槽；
     // ③去 items 引用局部（ORIG 每处重读 quest->m_mailItems）。
-    // [S191 本轮定案] ④第二对元素读完后才 `++it`（循环尾公共块，ORIG 0x08668cce）
-    // ——原写在 `int count = *it;` 后致 ppEv 落点前移 3 条。修正后 203(ORIG) vs
-    // 202，唯一残差 = ORIG else 路径末尾 `jmp +0x2e0` 跳过 1 条对齐 nop 的中继
-    // （4.1 循环回边目标对齐；N112：-falign-loops/-fno-align-jumps 实测无效，
-    // 4.4 不生成）⇒ N112/N121 封顶。p167 CLEAR（30/30）。ORIG 0x086689ee。
+    // [S426 本轮翻正 ⇒ AE（203=203 逐条同构）] ④第二对元素读完后才 `++it`
+    // （循环尾公共块，ORIG 0x08668cce）；⑤else 内层 `if (script != 0) { body }`
+    // 改写 P223 负条件 goto 形：ORIG 0x08668bfd `cmpl $0,-0x1c(%ebp);
+    // je <nop 岛 +0x2df>` + body 尾 0x08668ccb `jmp <join +0x2e0>` + nop 是
+    // 4.1 的 if-join 岛，4.4 对正向 if 恒 jump-thread（少 jmp+nop）；改
+    // `if (script == 0) goto post_quest_item_next; body; post_quest_item_next:;`
+    // 后 4.4 精确产 `je <nop>; body; jmp <join>; nop; join:`（探针
+    // /tmp/b28d_s426/probe_goto.cpp f1 复证）。旧「N112/N121 封顶」判词作废。
+    // p167 CLEAR（30/30）。ORIG 0x086689ee。
     if (quest->m_mailItems.empty())
     {
         Inven_Item mailItem;                       // 空列表单封默认道具邮件
@@ -358,17 +373,21 @@ void CUser::_postQuestTriggerItem(const Quest* quest)
             else
             {
                 CItem* script = G_CDataManager()->find_item(itemNo);
-                if (script != 0)
-                {
-                    script->make_item(mailItem);   // vtable+8
-                    mailItem.m_addInfo = itemNo;
-                    mailItem.m_addInfo2 = count;
-                    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-                        quest->m_mailTitle.c_str(), mailItem, 0,
-                        getCurCharacNo(), quest->m_mailContents.c_str(),
-                        static_cast<int>(quest->m_mailContents.size()), 0,
-                        GetServerGroup(), 0, 0);
-                }
+                // P223（本轮翻正）：ORIG 0x08668bfd `cmpl $0,-0x1c(%ebp);
+                // je <nop 岛 +0x2df>` + body 尾 0x08668ccb `jmp <join +0x2e0>`
+                // + nop ⇒ 4.4 唯一复现形 = 负条件 goto 到 else 块尾空标签
+                // （`if (script != 0) { body }` 被 jump-thread 成无 jmp/nop）。
+                if (script == 0)
+                    goto post_quest_item_next;
+                script->make_item(mailItem);   // vtable+8
+                mailItem.m_addInfo = itemNo;
+                mailItem.m_addInfo2 = count;
+                WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                    quest->m_mailTitle.c_str(), mailItem, 0,
+                    getCurCharacNo(), quest->m_mailContents.c_str(),
+                    static_cast<int>(quest->m_mailContents.size()), 0,
+                    GetServerGroup(), 0, 0);
+            post_quest_item_next:;
             }
             // ORIG 0x08668cce 段：第二对元素处理完后才 `++it`（循环尾公共块），
             // 非紧跟 `int count = *it;`（P28 增量侧：位置决定 ppEv 落点）。
@@ -611,34 +630,30 @@ bool stLevelUpRewardItemScript::get_data_when_growup(
 // ---- CLevelRewardTable 访问器（偏移与权威布局逐指令核对）----
 
 // ORIG W 0x086976f6：this+8+(jobIdx*0x46+levelIdx+0x44)*4 → m_rewardPrimary 下标。
-int CLevelRewardTable::GetRewardItemNo(int jobIdx, int levelIdx)
+int CLevelRewardTable::GetRewardItemNo(register int jobIdx, register int levelIdx)
 {
-    // b28d-solo-CUserDepsB: N 封顶（N86b/N7 族）——ORIG 0x086976f6 的
-    // `mov 0xc(%ebp),%ecx; mov 0x10(%ebp),%edx; mov 0x8(%ebp),%eax;
-    // imul $0x46,%ecx,%ecx; lea (%ecx,%edx,1),%edx` 寄存器分配（job→%ecx、
-    // lv 预载 %edx、lea 合流）4.4 恒折 `imul %eax,%eax; mov %eax,%edx;
-    // add lv(mem),%edx`。本轮 20 形探针（/tmp/b28d_s47/probe_idx{,2,3,4,5}.cpp：
-    // 操作数序/unsigned/enum/register 形参/指针下标/语句表达式）无一命中，
-    // 11=11 仅寄存器与装载序差。ORIG 0x086976f6。
-    // [S191 合规复核] 书写序 = levelIdx + jobIdx*0x46（ORIG 0x086976f6
-    // `mov 0xc(%ebp),%ecx; mov 0x10(%ebp),%edx; imul $0x46,%ecx,%ecx;
-    // lea (%ecx,%edx,1),%edx` 两操作数均在寄存器）。
-    // [S191 本轮复验] 再试 4 形（交换书写序 / 双 unsigned cast / 单 cast ×2）
-    // 均 11=11 且恒 `add mem` 或 `mov mem,%eax; add %eax,%edx`，出不了 ORIG 的
-    // 预载 + `lea (%ecx,%edx,1)` ⇒ N4/N102（4.4 折 add）封顶。
+    // b28d-solo-S426: NEAR 上限（本轮 register 形参旋钮把 ndiff 5→2）——ORIG
+    // 0x086976f6：`mov 0xc(%ebp),%ecx; mov 0x10(%ebp),%edx; mov 0x8(%ebp),%eax;
+    // imul $0x46,%ecx,%ecx; lea (%ecx,%edx,1),%edx; add $0x44,%edx;
+    // mov 0x8(%eax,%edx,4),%eax`。P231 纯 register 形参（无 asm 绑定，P0 合规）
+    // 使 4.4 出 `mov job→%eax; mov lv→%edx; imul; lea; mov this→%eax; add; mov`
+    // ——与 ORIG 仅差 this 装载位置（ORIG 第 3 条 / 4.4 第 5 条）与 job 目标
+    // 寄存器（%ecx vs %eax）。本轮 12 形探针（/tmp/b28d_s426/probe_idx{,2..8}.cpp）
+    // 实测：凡让 this 提前的形（Arr cast / 双重指针解引用 `(*(T**)(void*)&t)`）
+    // 都会把 base 偏移折进 add（少 1 条）或令 job→%edx、lv→%ecx，无法同时满足
+    // 「this 第 3 条 + job→%ecx + lea (%ecx,%edx,1)」⇒ T5：残差仅装载序/寄存器
+    // 角色，封 N7/N98（4.4 槽/寄存器分配不可由源形择）。ORIG 0x086976f6。
     return m_rewardPrimary[jobIdx * 0x46 + levelIdx];
 }
 
 // ORIG W 0x08697712：this+(jobIdx*0x46+levelIdx+0x2bc)*4 → m_rewardSecondary 下标。
-int CLevelRewardTable::GetItemCount(int jobIdx, int levelIdx)
+int CLevelRewardTable::GetItemCount(register int jobIdx, register int levelIdx)
 {
-    // b28d-solo-CUserDepsB: N 封顶（N86b/N7 族）——同 GetRewardItemNo：
-    // ORIG 0x08697712 `mov 0xc(%ebp),%ecx; mov 0x10(%ebp),%edx; imul
-    // $0x46,%ecx,%ecx; lea (%ecx,%edx,1),%edx; add $0x2bc,%edx`；4.4 恒折
-    // add mem 形。本轮 20 形探针（/tmp/b28d_s47/probe_idx*.cpp）无一命中，
-    // 11=11 仅寄存器/装载序差。ORIG 0x08697712。
-    // [S191 合规复核] 同上：ORIG 0x08697712 同形（add $0x2bc 之后 scaled 读）。
-    // [S191 本轮复验] 同 GetRewardItemNo：4 形实测均 11=11 不可翻 ⇒ N4/N102 封顶。
+    // b28d-solo-S426: NEAR 上限（同 GetRewardItemNo，本轮 ndiff 5→2）——ORIG
+    // 0x08697712 同形（`imul $0x46,%ecx,%ecx; lea (%ecx,%edx,1),%edx;
+    // add $0x2bc,%edx; mov (%eax,%edx,4),%eax`，m_rewardSecondary@+0xaf0 无 disp）。
+    // P231 register 形参后 4.4 出同序列，仅 this 装载位置与 job 寄存器差；
+    // 12 形探针（同上）无一能同时翻正 ⇒ T5 封 N7/N98。ORIG 0x08697712。
     return m_rewardSecondary[jobIdx * 0x46 + levelIdx];
 }
 

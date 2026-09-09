@@ -274,7 +274,8 @@ class CCreatureMgr;     // 前置：SaveCreatureItem/LoadCreatureItem 双向引�
 // 注意 IsGrowCreature ORIG 语义 = (+0x4c ^ 1) != 0（0x833f0ca xor $1 实证，
 // 即 Reset 后的 +0x4c==1 返回 false）；GainExp/UseFeed/vaildItemExp 则直接
 // 判 +0x4c==1 / ==0。
-class CCreature
+class CCreature : public CCreatureItem   // [b28d-Main·检查点14] 真继承（ORIG ctor 0x833705e
+                                         //   `call CCreatureItem::C1Ev` + `movl $0x8c2f4c0,(%eax)`）
 {
 public:
     CCreature();   // ORIG _ZN13user_creature9CCreatureC1Ev T 0x833705e
@@ -352,16 +353,7 @@ public:
     bool Die(CUser* user);
     // ORIG _ZN13user_creature9CCreature17CheckDiedCreatureEv... 实为 (P5CUser) T 0x83384b8
     bool CheckDiedCreature(CUser* user);
-    // ---- 布局（总 0x54；基区按 CCreatureItem 展开为具名字段）----
-    int m_vptr;                     // +0x00（ORIG vptr 槽占位）
-    int m_itemId;                   // +0x04（CCreatureItem::GetItemId）
-    int m_creatureItemType;         // +0x08（Reset=1；列表包过滤要求 ==1）
-    int m_uid;                      // +0x0c（CCreatureItem::GetUid）
-    int m_slotNo;                   // +0x10
-    bool m_noCharge;                // +0x14（Reset=0；IsNoCharge/SetNoCharge，ORIG bool 直返）
-    unsigned char m_stat;           // +0x15
-    char m_pad16[2];                // +0x16
-    int m_expireTime;               // +0x18（CCreatureItem::getExpireTime）
+    // ---- 布局（总 0x54；+0x00..+0x18 基区由 CCreatureItem 继承，字段/偏移逐项不变）----
     char m_name[13];                // +0x1c（GetName；Reset memset 0xd）
     unsigned char m_pad29[3];       // +0x29
     int m_level;                    // +0x2c（Reset=1；GainExp/isMaxLevel 比较）

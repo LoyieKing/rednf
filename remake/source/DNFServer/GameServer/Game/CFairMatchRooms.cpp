@@ -1147,17 +1147,18 @@ void CFairMatch::UpdateScore(PvP_Room* room, PlayerInfoThird& info,
                         user->GetCharacExpandData(
                             static_cast<ENUM_CHARAC_EXPAND_TYPE>(8)));
                 // ORIG `cmp $0x1,%al`（单字节比较）⇒ 调用点收窄（P3）。
-                MissionClearCondition_Parameter cond(
-                    static_cast<PVP_BATTLE_MODE>(
-                        static_cast<unsigned char>(GetPlayCountPerOneTeam()) == 1
-                            ? 2 : 3));
-                // ORIG 0x8565904 `mov %eax,-0x44(%ebp)`：二次取 GetKillCount 结果
-                // 写入死局部（P171 死写入照抄；P232 未使用标量仍占槽）。
                 {
-                    const int killCnt = room->m_relayMgr.GetKillCount(seat);
+                    MissionClearCondition_Parameter cond(
+                        static_cast<PVP_BATTLE_MODE>(
+                            static_cast<unsigned char>(GetPlayCountPerOneTeam())
+                                == 1 ? 2 : 3));
+                    // ORIG 0x8565904 `mov %eax,-0x44(%ebp)`：二次取 GetKillCount
+                    // 结果写入死局部（P171 死写入照抄；P232 未使用数组仍占槽）。
+                    int killCnt[1];
+                    killCnt[0] = room->m_relayMgr.GetKillCount(seat);
                     (void)killCnt;
+                    missionList->Update_GameOver_event(*user, cond);
                 }
-                missionList->Update_GameOver_event(*user, cond);
                 GiveTrainingSeal(user, win != 0);
             }
         }
@@ -1176,7 +1177,9 @@ void CFairMatch::GiveTrainingSeal(CUser* user, bool win)
     if (user->getCurCharacR() == 0)
         return;
 
-    bool bonusRemain = true;
+    // S1 一次性旋钮（P321-T3 直证不足：ORIG 消费端 `cmpb $0x0,-0x11; je`
+    // 无 setcc，bool/char 均可）——试 char 复现 4.1 内存直比（bool 恒 xor 物化）。
+    char bonusRemain = 1;
     // b28d-solo-CFairMatchRooms：P183 去缓存铁律。ORIG（p167 实证）每处 SPS 成员
     // 访问都重发 G_CDataManager()（13 次）、每处 score 访问都重发
     // GetCharacExpandData(7)（10 次）；我方缓存 sps 引用/score 指针只发 1/1 次。
@@ -1191,7 +1194,7 @@ void CFairMatch::GiveTrainingSeal(CUser* user, bool win)
     if (remain <= 0) {
         reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
             static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))->SetRemainBonusCount(0);
-        bonusRemain = false;
+        bonusRemain = 0;
     } else {
         reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
             static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))->SetRemainBonusCount(remain);
@@ -1205,44 +1208,50 @@ void CFairMatch::GiveTrainingSeal(CUser* user, bool win)
             sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[0]);
         else
             sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[1]);
-        if (!bonusRemain) {
+        // ORIG 块序：`cmpb $0,-0x11; je <尾部>`（bonusRemain==0 块在尾）、win
+        // 链 fall-through ⇒ P222 正向包裹。
+        if (bonusRemain) {
+            if (win) {
+                sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[2]);
+                reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+                    static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
+                    ->SetLastTrainingSealBonusCount(
+                        static_cast<int>(FM_SPS().m_schoolMatchSeal[2]));
+            } else {
+                sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[3]);
+                reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+                    static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
+                    ->SetLastTrainingSealBonusCount(
+                        static_cast<int>(FM_SPS().m_schoolMatchSeal[3]));
+            }
+        } else {
             reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
                 static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
                 ->SetLastTrainingSealBonusCount(0);
-        } else if (win) {
-            sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[2]);
-            reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
-                static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
-                ->SetLastTrainingSealBonusCount(
-                    static_cast<int>(FM_SPS().m_schoolMatchSeal[2]));
-        } else {
-            sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[3]);
-            reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
-                static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
-                ->SetLastTrainingSealBonusCount(
-                    static_cast<int>(FM_SPS().m_schoolMatchSeal[3]));
         }
     } else {
         if (win)
             sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[4]);
         else
             sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[5]);
-        if (!bonusRemain) {
+        if (bonusRemain) {
+            if (win) {
+                sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[6]);
+                reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+                    static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
+                    ->SetLastTrainingSealBonusCount(
+                        static_cast<int>(FM_SPS().m_schoolMatchSeal[6]));
+            } else {
+                sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[7]);
+                reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
+                    static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
+                    ->SetLastTrainingSealBonusCount(
+                        static_cast<int>(FM_SPS().m_schoolMatchSeal[7]));
+            }
+        } else {
             reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
                 static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
                 ->SetLastTrainingSealBonusCount(0);
-        } else if (win) {
-            sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[6]);
-            reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
-                static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
-                ->SetLastTrainingSealBonusCount(
-                    static_cast<int>(FM_SPS().m_schoolMatchSeal[6]));
-        } else {
-            sealTotal += static_cast<int>(FM_SPS().m_schoolMatchSeal[7]);
-            reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
-                static_cast<ENUM_CHARAC_EXPAND_TYPE>(7)))
-                ->SetLastTrainingSealBonusCount(
-                    static_cast<int>(FM_SPS().m_schoolMatchSeal[7]));
         }
     }
     reinterpret_cast<CFairPvPScore*>(user->GetCharacExpandData(
@@ -1251,20 +1260,22 @@ void CFairMatch::GiveTrainingSeal(CUser* user, bool win)
     if (sealTotal <= 0)
         return;
 
-    std::vector<std::pair<int,int> > giveList;
+    // ORIG 声明序实证：updatedSlots 先构造（lea -0x30 @0x085655bd）、giveList
+    // 后（lea -0x3c @0x085655c8），且 push_back this=-0x3c ⇒ giveList 后声明。
     std::vector<int> updatedSlots;
+    std::vector<std::pair<int,int> > giveList;
     // b28d-solo-CFairMatchRooms：P135——ORIG 选 push_back(O&&) 右值重载，
     // 具名左值 entry 会选 push_back(RKS1_)（p167 EXTRA 实证）。
     giveList.push_back(std::pair<int,int>(static_cast<int>(0xcf0), sealTotal));
-    CInventory* inven = user->getCurCharacInvenW();
-    const int insertResult = inven->insert_event_items(
+    // P0：ORIG 无 inven 具名槽（`call getCurCharacInvenW` 结果直留 %eax 跨
+    // 实参装载至 insert_event_items）⇒ 表达式内联。
+    const int insertResult = user->getCurCharacInvenW()->insert_event_items(
         giveList, updatedSlots,
         static_cast<eMoneyAddReason>(3), static_cast<eItemAddReason>(8),
         true, "game_server_msg_171", "game_server_msg_172");
-    bool ok = false;
-    if (insertResult >= 1 && updatedSlots.size() >= 3u)
-        ok = true;
-    if (ok) {
+    // ORIG 0x0856564e..0x08565675：`jle`/`jbe` 双短路 + `mov $1/mov $0` 汇聚
+    // （无 bool 具名局部物化）⇒ 直接短路 if。
+    if (insertResult >= 1 && updatedSlots.size() >= 3u) {
         user->SendUpdateItem(CUser::eSendTarget_1,
                              static_cast<ENUM_ITEMSPACE>(0),
                              updatedSlots[0]);
@@ -1276,12 +1287,14 @@ void CFairMatch::GiveTrainingSeal(CUser* user, bool win)
 // 变参寄存器分配。fresh ndiff=171（292/294）；call 差集 46=46 CLEAR。
 void CFairMatch::OnRematchTimeout(PvP_Room* room)
 {
-    const int rematchable = CheckRematch(room);
     // b28d-solo-CFairMatchRooms：P227 全表达式临时链。
+    // P0：ORIG 无 rematchable 槽（`call CheckRematch; movzbl %al,%edi` 直接留
+    // callee-saved 供 vararg）⇒ 表达式内联为最右实参。
     CSwitchLog(
         "virtual void fair_pvp::CFairMatch::OnRematchTimeout(PvP_Room*)",
         0xfd7, 0, 0)("pvp@log room(%d),%d,%d",
-                     room->get_index(), room->get_pvp_battle_mode(), rematchable);
+                     room->get_index(), room->get_pvp_battle_mode(),
+                     CheckRematch(room));
 
     if (CheckRematch(room) == 1) {
         m_teams[0].refresh();
@@ -1308,9 +1321,11 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
         _PullOutRoomTeam(room, static_cast<ENUM_SCHOOL_MATCH_TEAM>(1));
     }
     // ORIG 0x856607a 实证读 *(int*)(this+0x20) = m_teams[0].m_field04（4 字节）
-    // （队决定位，OnAskRematch 写入；FM_TeamByte0 队头字节仅 CheckRematch 用）
-    const int team0Decision = m_teams[0].m_field04;
-    if (team0Decision == 0) {
+    // （队决定位，OnAskRematch 写入；FM_TeamByte0 队头字节仅 CheckRematch 用）。
+    // ORIG 0x085661f5 段 `test %eax,%eax; je; test; js; cmp $2; jg` = 无槽
+    // switch 决策树（P251/P261；具名 team0Decision 恒产 cmpl mem 槽形）。
+    switch (m_teams[0].m_field04) {
+    case 0:
         _PullOutRoomTeam(room, static_cast<ENUM_SCHOOL_MATCH_TEAM>(0));
         if (m_teams[1].size() != 0) {
             PacketGuard pkt;
@@ -1324,8 +1339,9 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
             m_teams[1].reset();
             m_fieldB0 = 0;
         }
-
-    } else if (-1 < team0Decision && team0Decision < 3) {
+        break;
+    case 1:
+    case 2: {
         const int mgrTeam = room->get_manager_team();
         PvP_Room* kept =
             _ReturnTeam(room, mgrTeam, 0);
@@ -1344,6 +1360,8 @@ void CFairMatch::OnRematchTimeout(PvP_Room* room)
         m_teams[0].refresh();
         m_teams[1].reset();
         m_fieldB0 = 0;
+        break;
+    }
     }
 }
 
@@ -1388,7 +1406,12 @@ void CFairMatch::OnAskRematch(CUser* user, int decision)
     }
 
     PacketGuard pkt;
-    if (-1 < decision && decision < 2) {          // 拒绝 / 单人接受
+    // ORIG 0x085667a5 段：`mov 0x10(%ebp),%eax; test; js; cmp $1; jle;
+    // cmp $2; je; jmp` = 形参载入 + 寄存器比较决策链 ⇒ switch（P251/P286；
+    // if 链在 4.4 恒折内存直比 cmpl $imm,0x10(%ebp)）。
+    switch (decision) {
+    case 0:                                   // 拒绝 / 单人接受
+    case 1:
         pkt.clear();
         pkt.put_header(0, 0x13a);
         pkt.finalize(true);
@@ -1399,16 +1422,14 @@ void CFairMatch::OnAskRematch(CUser* user, int decision)
             room->setReamtchable(false);
         }
         room->revengeMission(false);
-    } else if (decision == 2) {                   // 全队满编 → 提交重赛
+        break;
+    case 2:                                   // 全队满编 → 提交重赛
         *reinterpret_cast<unsigned char*>(&m_teams[myTeam]) = 1;   // 队头字节置可重赛标记
-        bool reject = true;
-        if (m_teams[other].m_field04 == 2) {
-            if (m_teams[other].size() != 0 &&
-                _CheckRematchable(room) == 1) {
-                reject = false;
-            }
-        }
-        if (reject) {
+        // ORIG 0x08566795/0x0856679c：reject 为**无槽**寄存器物化（mov $1/mov $0
+        // 岛 + test/je），非具名 bool 局部 ⇒ P226 语句表达式复现（禁具名变量）。
+        if (({ !(m_teams[other].m_field04 == 2 &&
+                 m_teams[other].size() != 0 &&
+                 _CheckRematchable(room) == 1); })) {
             pkt.clear();
             pkt.put_header(0, 0x13a);
             pkt.finalize(true);
@@ -1421,6 +1442,7 @@ void CFairMatch::OnAskRematch(CUser* user, int decision)
             room->send_to_pvp(pkt);
             room->revengeMission(true);
         }
+        break;
     }
 
     // 全房广播本玩家投票（msg 0x137）

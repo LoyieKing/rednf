@@ -1031,10 +1031,19 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
     // local_20：归一化 category。ORIG 先按 itemIdx 特例置 1/3，再按区间映射。
     int category = 0;
 
-    if (a == 0x1adbd)
+    // P251/P286：ORIG 0x0832482a `mov 0x10(%ebp),%eax; cmp $0x1adbd,%eax; je;
+    // cmp $0x1c13c,%eax; je` 为无槽多路比较链 ⇒ 源形是 switch(a)，非 if-else。
+    switch (a)
+    {
+    case 0x1adbd:
         category = 1;
-    else if (a == 0x1c13c)
+        break;
+    case 0x1c13c:
         category = 3;
+        break;
+    default:
+        break;
+    }
 
     if (b != 1)
     {
@@ -1332,482 +1341,119 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
 // 补 case 2660545（0x2898C1 → outType=2/outValue=0x54，ORIG 0x083255cf 块，入口
 // `cmp $0x2898c2; jl` ⇒ 唯一未列值）后双方 case 表立即数多重集全等（159=159，
 // 0 MISSING/0 EXTRA）；P167 CLEAR 3/3；余 4.4 决策树节点数差 + STL 内联/帧槽。
+#define CERA_SPECIAL_CASE(idx, t, v) \
+    case idx: outType = t; outValue = v; goto L_true
+#define CERA_SPECIAL_CASE_F(idx, t, v, f) \
+    case idx: outType = t; outValue = v; flag = f; goto L_true
 bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& flag)
-
 {
     switch (itemIdx)
     {
-    case 5:
-        outType = 1;
-        outValue = 0x18;
-        return true;
-
-    case 6:
-        outType = 1;
-        outValue = 0x98;
-        return true;
-
-    case 9:
-        outType = 2;
-        outValue = 1;
-        return true;
-
-    case 11:
-        outType = 2;
-        outValue = 3;
-        return true;
-
-    case 16:
-        outType = 4;
-        outValue = 8;
-        return true;
-
-    case 17:                      // ORIG 0x08324a1e `param_1 < 0x12` 区间：0x11 → (3,7)
-        outType = 3;
-        outValue = 7;
-        return true;
-
-    case 18:
-        outType = 2;
-        outValue = 9;
-        flag = true;
-        return true;
-
-    case 19:
-        outType = 2;
-        outValue = 10;
-        flag = true;
-        return true;
-
-    case 20:
-        outType = 2;
-        outValue = 0xb;
-        flag = true;
-        return true;
-
-    case 22:
-        outType = 2;
-        outValue = 0xd;
-        flag = false;
-        return true;
-
-    case 23:
-        outType = 2;
-        outValue = 0xe;
-        flag = false;
-        return true;
-
-    case 29:
-        outType = 2;
-        outValue = 0x10;
-        flag = false;
-        return true;
-
-    case 30:
-        outType = 2;
-        outValue = 0x11;
-        flag = true;
-        return true;
-
-    case 31:
-        outType = 2;
-        outValue = 0x12;
-        flag = true;
-        return true;
-
-    case 32:
-        outType = 2;
-        outValue = 0x13;
-        flag = true;
-        return true;
-
-    case 33:
-        outType = 2;
-        outValue = 0x14;
-        flag = true;
-        return true;
-
-    case 34:
-        outType = 2;
-        outValue = 0x15;
-        flag = true;
-        return true;
-
-    case 35:
-        outType = 2;
-        outValue = 0x16;
-        flag = true;
-        return true;
-
-    case 43:
-        outType = 2;
-        outValue = 0x17;
-        flag = true;
-        return true;
-
-    case 44:
-        outType = 2;
-        outValue = 0x18;
-        flag = true;
-        return true;
-
-    case 45:
-        outType = 2;
-        outValue = 0x19;
-        flag = true;
-        return true;
-
-    case 46:                      // ORIG `param_1 < 0x2f` 区间：0x2e → (2,0x1a,true)
-        outType = 2;
-        outValue = 0x1a;
-        flag = true;
-        return true;
-
-    case 47:
-        outType = 2;
-        outValue = 0x1b;
-        flag = true;
-        return true;
-
+    // P46：叶块物理顺序 = case 书写顺序；下表按 ORIG 0x08324eaf..0x0832570e 的
+    // 块地址序书写（决策树与 case 序无关，故树形保持不变）。
+    // P63/P257：ORIG 所有 case 共用尾出口 +0xe2f `mov $0x1,%eax` ⇒ 统一 goto。
+    CERA_SPECIAL_CASE(110, 1, 0x28);
+    CERA_SPECIAL_CASE(5, 1, 0x18);
     case 50:
-    case 2660235:
-    case 2660236:
-    // ORIG 0x08324a1e: param_1 in [0x39,0x3f) 落 LAB_08324edd → (7,0x10)。
     case 57:
     case 58:
     case 59:
     case 60:
     case 61:
     case 62:
+    case 2660235:
+    case 2660236:
         outType = 7;
         outValue = 0x10;
-        return true;
-
-    case 68:
-        outType = 1;
-        outValue = 0x48;
-        return true;
-
-    case 110:
-        outType = 1;
-        outValue = 0x28;
-        return true;
-
-    case 137:
-        outType = 2;
-        outValue = 0x1d;
-        flag = true;
-        return true;
-
-    case 193:
-        outType = 2;
-        outValue = 0x1e;
-        flag = true;
-        return true;
-
-    case 194:
-        outType = 2;
-        outValue = 0x1f;
-        flag = true;
-        return true;
-
-    case 195:                     // ORIG `param_1 < 0xc4` 区间：0xc3 → (9,0)
-        outType = 9;
-        outValue = 0;
-        return true;
-
-    case 196:
-        outType = 2;
-        outValue = 0x20;
-        flag = true;
-        return true;
-
-    case 197:
-        outType = 2;
-        outValue = 0x21;
-        flag = true;
-        return true;
-
-    case 198:
-        outType = 2;
-        outValue = 0x21;
-        flag = true;
-        return true;
-
-    case 200:
-        outType = 2;
-        outValue = 0x28;
-        flag = true;
-        return true;
-
-    case 720:
-        outType = 2;
-        outValue = 0x23;
-        flag = true;
-        return true;
-
-    case 741:
-        outType = 2;
-        outValue = 0x24;
-        flag = true;
-        return true;
-
-    case 742:
-        outType = 2;
-        outValue = 0x25;
-        flag = true;
-        return true;
-
-    case 743:
-        outType = 2;
-        outValue = 0x26;
-        flag = true;
-        return true;
-
-    case 744:
-        outType = 2;
-        outValue = 0x27;
-        flag = true;
-        return true;
-
-    case 820:
-        outType = 2;
-        outValue = 0x29;
-        flag = true;
-        return true;
-
-    case 821:
-        outType = 10;
-        outValue = 0;
-        return true;
-
-    case 920:
-        outType = 2;
-        outValue = 0x2c;
-        flag = true;
-        return true;
-
-    case 2660012:
-        outType = 2;
-        outValue = 0x2d;
-        flag = true;
-        return true;
-
-    case 2660013:
-        outType = 2;
-        outValue = 0x2e;
-        flag = true;
-        return true;
-
-    case 2660050:
-        outType = 2;
-        outValue = 0x2f;
-        flag = true;
-        return true;
-
-    case 2660051:
-        outType = 2;
-        outValue = 0x30;
-        flag = true;
-        return true;
-
-    case 2660239:
-        outType = 8;
-        outValue = 1;
-        return true;
-
-    case 2660290:
-        outType = 2;
-        outValue = 0x21;
-        flag = true;
-        return true;
-
-    // ORIG `param_1 - 0x2897c8 < 2` 区间：0x2897c8/0x2897c9 → (0xb,8)
+        goto L_true;
+    CERA_SPECIAL_CASE(6, 1, 0x98);
     case 2660296:
     case 2660297:
         outType = 0xb;
         outValue = 8;
-        return true;
-
-    case 2660358:
-        outType = 2;
-        outValue = 0x21;
-        flag = true;
-        return true;
-
-    case 2660401:
-        outType = 2;
-        outValue = 0x23;
-        flag = true;
-        return true;
-
-    case 2660402:
-        outType = 2;
-        outValue = 0x26;
-        flag = true;
-        return true;
-
-    case 2660408:
-        outType = 2;
-        outValue = 0x4f;
-        flag = true;
-        return true;
-
-    case 2660409:
-        outType = 2;
-        outValue = 0x4c;
-        flag = true;
-        return true;
-
-    case 2660410:
-        outType = 2;
-        outValue = 0x4d;
-        flag = true;
-        return true;
-
-    case 2660411:
-        outType = 2;
-        outValue = 0x4e;
-        flag = true;
-        return true;
-
-    case 2660543:
-        outType = 2;
-        outValue = 0x50;
-        flag = true;
-        return true;
-
-    case 2660544:
-        outType = 2;
-        outValue = 0x53;
-        flag = true;
-        return true;
-
+        goto L_true;
+    CERA_SPECIAL_CASE(2660239, 8, 1);
+    CERA_SPECIAL_CASE(2670009, 1, 0x28);
+    CERA_SPECIAL_CASE(68, 1, 0x48);
+    CERA_SPECIAL_CASE(9, 2, 1);
+    CERA_SPECIAL_CASE(11, 2, 3);
+    CERA_SPECIAL_CASE(16, 4, 8);
+    CERA_SPECIAL_CASE(2675057, 4, 0x2a);
+    CERA_SPECIAL_CASE(17, 3, 7);
+    CERA_SPECIAL_CASE_F(18, 2, 9, true);
+    CERA_SPECIAL_CASE_F(19, 2, 10, true);
+    CERA_SPECIAL_CASE_F(20, 2, 0xb, true);
+    CERA_SPECIAL_CASE_F(22, 2, 0xd, false);
+    CERA_SPECIAL_CASE_F(23, 2, 0xe, false);
+    CERA_SPECIAL_CASE_F(2675025, 2, 0x11, true);
+    CERA_SPECIAL_CASE_F(30, 2, 0x11, true);
+    CERA_SPECIAL_CASE_F(31, 2, 0x12, true);
+    CERA_SPECIAL_CASE_F(32, 2, 0x13, true);
+    CERA_SPECIAL_CASE_F(33, 2, 0x14, true);
+    CERA_SPECIAL_CASE_F(34, 2, 0x15, true);
+    CERA_SPECIAL_CASE_F(35, 2, 0x16, true);
+    CERA_SPECIAL_CASE_F(741, 2, 0x24, true);
+    CERA_SPECIAL_CASE_F(2660012, 2, 0x2d, true);
+    CERA_SPECIAL_CASE_F(2660050, 2, 0x2f, true);
+    CERA_SPECIAL_CASE_F(137, 2, 0x1d, true);
+    CERA_SPECIAL_CASE_F(2675058, 2, 0x2b, true);
+    CERA_SPECIAL_CASE_F(193, 2, 0x1e, true);
+    CERA_SPECIAL_CASE_F(29, 2, 0x10, false);
+    CERA_SPECIAL_CASE_F(2675026, 2, 0x17, true);
+    CERA_SPECIAL_CASE_F(43, 2, 0x17, true);
+    CERA_SPECIAL_CASE_F(44, 2, 0x18, true);
+    CERA_SPECIAL_CASE_F(45, 2, 0x19, true);
+    CERA_SPECIAL_CASE_F(46, 2, 0x1a, true);
+    CERA_SPECIAL_CASE_F(47, 2, 0x1b, true);
+    CERA_SPECIAL_CASE_F(742, 2, 0x25, true);
+    CERA_SPECIAL_CASE_F(200, 2, 0x28, true);
+    CERA_SPECIAL_CASE_F(2660013, 2, 0x2e, true);
+    CERA_SPECIAL_CASE_F(2660051, 2, 0x30, true);
+    CERA_SPECIAL_CASE_F(2675028, 2, 0x1f, true);
+    CERA_SPECIAL_CASE_F(2670266, 2, 0x46, true);
+    CERA_SPECIAL_CASE_F(194, 2, 0x1f, true);
+    CERA_SPECIAL_CASE_F(196, 2, 0x20, true);
+    CERA_SPECIAL_CASE_F(720, 2, 0x23, true);
+    CERA_SPECIAL_CASE_F(197, 2, 0x21, true);
+    CERA_SPECIAL_CASE(195, 9, 0);
+    CERA_SPECIAL_CASE_F(198, 2, 0x21, true);
+    CERA_SPECIAL_CASE_F(743, 2, 0x26, true);
+    CERA_SPECIAL_CASE_F(744, 2, 0x27, true);
+    CERA_SPECIAL_CASE_F(820, 2, 0x29, true);
+    CERA_SPECIAL_CASE_F(920, 2, 0x2c, true);
+    CERA_SPECIAL_CASE_F(2660290, 2, 0x21, true);
+    CERA_SPECIAL_CASE_F(2660358, 2, 0x21, true);
+    CERA_SPECIAL_CASE_F(2660401, 2, 0x23, true);
+    CERA_SPECIAL_CASE_F(2660402, 2, 0x26, true);
+    CERA_SPECIAL_CASE(821, 10, 0);
+    CERA_SPECIAL_CASE_F(2660409, 2, 0x4c, true);
+    CERA_SPECIAL_CASE_F(2660410, 2, 0x4d, true);
+    CERA_SPECIAL_CASE_F(2660411, 2, 0x4e, true);
+    CERA_SPECIAL_CASE_F(2660408, 2, 0x4f, true);
+    CERA_SPECIAL_CASE_F(2660703, 2, 0x4f, true);
+    CERA_SPECIAL_CASE_F(2660543, 2, 0x50, true);
+    CERA_SPECIAL_CASE_F(2660544, 2, 0x53, true);
     // b28d-solo 真语义 bug 修复：ORIG 0x0832506e 段存在 outValue=0x54 的叶
     // （Ghidra 树以 `if (param_1 < 0x2898c2) { *param_3=0x54; return 1; }` 表达
     // 0x2898c1 这一未列 case）⇒ 源码补 case 2660545（0x2898C1）。
-    case 2660545:
-        outType = 2;
-        outValue = 0x54;
-        flag = true;
-        return true;
-
-    case 2660546:
-        outType = 2;
-        outValue = 0x57;
-        flag = true;
-        return true;
-
-    case 2660703:
-        outType = 2;
-        outValue = 0x4f;
-        flag = true;
-        return true;
-
-    case 2670009:
-        outType = 1;
-        outValue = 0x28;
-        return true;
-
-    case 2670266:
-        outType = 2;
-        outValue = 0x46;
-        flag = true;
-        return true;
-
-    case 2675025:
-        outType = 2;
-        outValue = 0x11;
-        flag = true;
-        return true;
-
-    case 2675026:
-        outType = 2;
-        outValue = 0x17;
-        flag = true;
-        return true;
-
-    case 2675028:
-        outType = 2;
-        outValue = 0x1f;
-        flag = true;
-        return true;
-
-    case 2675057:
-        outType = 4;
-        outValue = 0x2a;
-        return true;
-
-    case 2675058:
-        outType = 2;
-        outValue = 0x2b;
-        flag = true;
-        return true;
-
-    case 10000387:
-        outType = 2;
-        outValue = 0x5c;
-        flag = true;
-        return true;
-
-    case 10000388:
-        outType = 2;
-        outValue = 0x59;
-        flag = true;
-        return true;
-
-    case 10000389:
-        outType = 2;
-        outValue = 0x5a;
-        flag = true;
-        return true;
-
-    case 10000390:
-        outType = 2;
-        outValue = 0x5b;
-        flag = true;
-        return true;
-
-    case 10000391:
-        outType = 2;
-        outValue = 0x5d;
-        flag = true;
-        return true;
-
-    case 690000221:
-        outType = 0xd;
-        outValue = 10;
-        flag = true;
-        return true;
-
-    case 690000222:
-        outType = 0xd;
-        outValue = 0x32;
-        flag = true;
-        return true;
-
-    case 690000223:
-        outType = 0xd;
-        outValue = 100;
-        flag = true;
-        return true;
-
-    case 690000224:
-        outType = 0xd;
-        outValue = 500;
-        flag = true;
-        return true;
-
-    case 690000225:
-        outType = 0xd;
-        outValue = 1000;
-        flag = true;
-        return true;
+    CERA_SPECIAL_CASE_F(2660545, 2, 0x54, true);
+    CERA_SPECIAL_CASE_F(2660546, 2, 0x57, true);
+    CERA_SPECIAL_CASE_F(10000391, 2, 0x5d, true);
+    CERA_SPECIAL_CASE_F(10000388, 2, 0x59, true);
+    CERA_SPECIAL_CASE_F(10000389, 2, 0x5a, true);
+    CERA_SPECIAL_CASE_F(10000390, 2, 0x5b, true);
+    CERA_SPECIAL_CASE_F(10000387, 2, 0x5c, true);
+    CERA_SPECIAL_CASE_F(690000221, 0xd, 10, true);
+    CERA_SPECIAL_CASE_F(690000222, 0xd, 0x32, true);
+    CERA_SPECIAL_CASE_F(690000223, 0xd, 100, true);
+    CERA_SPECIAL_CASE_F(690000224, 0xd, 500, true);
+    CERA_SPECIAL_CASE_F(690000225, 0xd, 1000, true);
 
     default:
         break;
     }
 
+    {
     // 默认路径（ORIG +0xd0d）：可堆叠物品按 GetItemType 分类。
     CItem* item = G_CDataManager()->find_item(itemIdx);
     if (item != 0 && item->is_stackable())
@@ -1835,7 +1481,14 @@ bool CCeraShop::IsSpecialItem(int itemIdx, int& outType, int& outValue, bool& fl
         }
     }
     return false;
+    }
+
+L_true:
+    return true;
 }
+
+#undef CERA_SPECIAL_CASE
+#undef CERA_SPECIAL_CASE_F
 
 // ============================================================================
 // ProcessSpecialItem —— ORIG 0x0832587e (T)
@@ -2463,11 +2116,19 @@ int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& r
     // 尾部统一 `if(!ok) return 0; return 1;`（局部 vector 析构在 return 之前）。
     // P183/P157：ORIG 0x08327894 无 stackable/bmap 具名槽——map 基址每处
     // 现场重算 `mov item,%eax; lea 0x24c(%eax),%ecx`（禁指针/引用缓存）。
-    std::map<std::pair<char, char>,
-             std::vector<stStackableBoosterItemInfo_t> >::const_iterator it =
-        static_cast<CStackableItem*>(item)->m_booster.m_map.find(
+    // const 视图：ORIG 调 `_ZNKSt3map…4find`/`end`（const 形，无 iterator→
+    // const_iterator 转换构造），故按 const CStackableItem* 内联访问。
+    // 4.4 对 `static_cast<const C*>(p)->m.method()` 内联形仍选非 const 重载
+    // （探针 p2.cpp j vs i）；显式 `static_cast<const M&>` 视图 cast 才出
+    // `_ZNKSt3map…find` 且不占额外槽。
+    typedef std::map<std::pair<char, char>,
+                     std::vector<stStackableBoosterItemInfo_t> > BoosterMap_t;
+    BoosterMap_t::const_iterator it =
+        static_cast<const BoosterMap_t&>(
+            static_cast<const CStackableItem*>(item)->m_booster.m_map).find(
             std::make_pair(c1, c2));
-    if (it == static_cast<CStackableItem*>(item)->m_booster.m_map.end())
+    if (it == static_cast<const BoosterMap_t&>(
+                  static_cast<const CStackableItem*>(item)->m_booster.m_map).end())
         return 0;
     {
         const std::vector<stStackableBoosterItemInfo_t>& src = it->second;

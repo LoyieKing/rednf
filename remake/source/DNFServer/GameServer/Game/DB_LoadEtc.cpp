@@ -441,11 +441,15 @@ int DB_LoadEtc::_loadNPCRelasionship(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::LoadRedeemItem @0x846a6a？—— 报告头地址 0x08406a6a；
 // redeem_info blob → uncompress_zip → SIG_LOAD_ETC+0x40ce（m_expandData6 区）。
 // ============================================================================
-// b28d-31: N 封顶（N78）——ORIG 0x08406a6a；p167 EXTRA memset ×1
-//（ORIG 内联 rep stos vs 4.4 call memset），语义等价。
-// [b28d-solo-DB_LoadEtc] N封顶 ndiff=66 (orig=161/ours=129)：N78（ORIG rep stos vs 4.4
-// call memset，blob[0x6c7] 清零）+ N7 族（uncompress_zip 实参 eax/edx 角色互换）；
-// 已修：exec/fetch 具名 ok + 三处 trace 改 P227 临时链。
+// [b28d-solo-DB_LoadEtc] N封顶（N7）：ORIG 0x08406a6a；161=161、p167 CLEAR 14/14。
+// 已修（本波）：①`char blob[0x6c7] = { 0 };` 替 memset call（P214③/P253；ORIG 内联
+//   rep stos 慢路 + 尾字节，指令数 129→161 与 ORIG 全等）；②get_binary 第 3 参复用
+//   outLen 具名槽（P244；原直填 0x6c7 使 4.4 折常量）。
+// 残差（不可翻，N7）：uncompress_zip 实参装载的整组寄存器角色互换——ORIG
+//   `mov 0xc(%ebp),%eax; add $0x40ce,%eax` + `mov -0xc(%ebp),%edx`（dst→eax）；
+//   4.4 恒 `mov -0xc(%ebp),%eax` + `mov 0xc(%ebp),%edx; add $0x40ce,%edx`（dst→edx）。
+// 助记符序列与槽位全等，仅 eax/edx 角色互换（P230 补 N7 族；446 后端已应用）。
+// 已修（前波）：exec/fetch 具名 ok + 三处 trace 改 P227 临时链。
 bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC* sig)
 {
     static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc14LoadRedeemItem…E9handleIdx
@@ -474,10 +478,11 @@ bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC* sig)
         return false;
     }
 
-    char blob[0x6c7];
-    memset(blob, 0, sizeof(blob));
+    // [b28d-solo-DB_LoadEtc] `={0}` 触发 4.4 内联 rep stos（P214③；原 memset 生 call），
+    //   与 LoadPvPMissionList 同法；get_binary 第 3 参复用 outLen 具名槽（P244）。
+    char blob[0x6c7] = { 0 };
     unsigned int outLen = 0x6c7;
-    if (!db->get_binary(0, blob, 0x6c7))
+    if (!db->get_binary(0, blob, outLen))
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x1b28, 5)(
             "DB_LoadInventory::GetItemLock, get_binary(2) ERROR charac_no=%u",
@@ -503,6 +508,8 @@ bool DB_LoadEtc::LoadRedeemItem(SIG_LOAD_ETC* sig)
 //   复用 outLen 具名槽（原直填 0x198 使 4.4 折常量，P244）。
 // 残差（不可翻，P75）：uncompress_zip 实参装载序——ORIG 先 dst（`mov sig,%eax;
 //   add $0xcdd5,%eax`）后 srcLen；4.4 恒先 srcLen。余者全等（含槽位与 rep stos）。
+//   [b28d-solo 复测] 133=133、唯一 hunk 即该 3 行（srcLen 槽读与 dst 计算的先后）；
+//   探针 p4.cpp e4（srcLen 改 unsigned）仅把 dst 换成 lea+edx 形态，仍差 ⇒ N7 封顶。
 // 已修（前波）：exec/fetch 具名 ok + trace 临时链。
 bool DB_LoadEtc::LoadPvPMissionList(SIG_LOAD_ETC* sig)
 {
@@ -565,6 +572,9 @@ bool DB_LoadEtc::LoadPvPMissionList(SIG_LOAD_ETC* sig)
 //   ②循环基址——ORIG `lea (sig,i*12); add $0xb1a0,%eax; mov 0x4(%eax)`（基址 sig 原始、
 //     disp4 保留）；4.4 恒把基址偏移与元素内偏移合并为 `add $0xb1a4` + `mov (%eax)`
 //     （N1 常量折叠；offset-0/成员数组/short 元素三形实测均合并）。
+//     [b28d-solo 复测] 补测第四形：二维具名数组视图 `int m_entries[0x200][3]` +
+//     `m_entries[i][1]` ⇒ 4.4 仍折 `add $0xb1a4` + `mov (%eax)`（P311 于本偏移不适用），
+//     127=127 条；四形均合并 ⇒ 封顶。
 // 已修（前波）：exec 具名 ok、outLen 顺序、get_uint 直写 m_achievementLastUpdate（去局部）。
 bool DB_LoadEtc::LoadAchievement(SIG_LOAD_ETC* sig)
 {
@@ -660,14 +670,16 @@ bool DB_LoadEtc::LoadOnceGiveAvengerTitle(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::LoadAuraAvatarOption @0x0840838e
 // aura_avatar_option → stAuraAvatarOption 视图 @SIG_LOAD_ETC+0xd730。
 // ============================================================================
-// [b28d-solo-DB_LoadEtc] NEAR（N76 封顶）：ORIG 0x0840838e。
-// 已修（本波）：`add $0x35cc,%ecx` + `mov %edx,(%eax,%ecx,4)` 两步寻址——原数组视图
-//   位于 offset 0 使 4.4 折 `lea 0x35cc(%edx),%ecx`；改为**成员数组位于真实偏移
-//   0x35cc*4** 的视图（`char m_pad[0x35cc*4]; int m_words[3];` + `m_words[optionType]`）
-//   即复现 ORIG 的 add + scaled store（P30）。
-// 残差（不可翻）：store 基址装载序——4.4 恒 base-first（`mov 0xc(%ebp),%eax` 在最前），
-//   ORIG 4.1 为 index→value→base（P211/N76 族）；字段侧 unsigned/long/enum 异型化与
-//   RHS 侧均实测不翻（4.4 视 4 字节整型同型）。助记符序列已全等，仅该 mov 位置差。
+// [b28d-solo-DB_LoadEtc] **AE（残差 0；92=92、p167 CLEAR 8/8）**：ORIG 0x0840838e。
+// 已修（本波，本件归零）：①两步寻址 `add $0x35cc,%ecx` + `mov %edx,(%eax,%ecx,4)`——原
+//   数组视图位于 offset 0 使 4.4 折 `lea 0x35cc(%edx),%ecx`；改成员数组位于真实偏移
+//   0x35cc*4 的视图（P30）。
+//   ②store 装载序——ORIG 0x084084af 为 index→value→base；跨类型 cast 视图恒 base-first
+//   （探针 /tmp/dble_probe/p8.cpp k4），改 **SIG_LOAD_ETC 完整类型成员直访问**
+//   `sig->m_auraOptionWords[optionType]`（SigTypes_C.h +0xd730 匿名 union 视角，Main 代落，
+//   P235）复现 index→value→base（同探针 k1）；元素 unsigned int 与 RHS 异型消 4.4 的
+//   int→unsigned 装载中转（探针 p9.cpp m2）。旧「N76 不可翻」判词作废。
+// 残差：无（92=92、p167 CLEAR 8/8）。
 bool DB_LoadEtc::LoadAuraAvatarOption(SIG_LOAD_ETC* sig)
 {
     // ORIG 0x08408394：无 aura 具名局部（add $0xd730 直传 this，P0 槽律）。
@@ -730,11 +742,13 @@ bool DB_LoadEtc::LoadAuraAvatarOption(SIG_LOAD_ETC* sig)
 // (+0xECDC..)/blueMarbleEnterCount(+0x14a98)/charac_inform_notice(+0x14a9a,16B)
 // 及 best_clear_time 条目计数 +0xecd4。
 // ============================================================================
-// b28d-31: N 封顶（N82）——ORIG 0x084084e0；p167 CLEAR（0/0），
-// 残差为帧/槽分配（ORIG 169 vs 4.4 158）。
-// [b28d-solo-DB_LoadEtc] N封顶 ndiff=86 (orig=168/ours=158)：N107/N30（`lea 0xeac8(%eax)`
-// vs `add $0xeac8`；`mov 0xc(%eax,%edx,4)` 两步 vs 4.4 add+shl 链）+ col 常量折叠 +
-// trace 槽深差（N82）；p167 CLEAR 0/0。
+// [b28d-solo-DB_LoadEtc] N封顶（N82/N107/N30）：ORIG 0x084084e0；168 vs 171、p167 CLEAR 11/11。
+// 已修（本波）：列号改**自增具名局部** `int col = 0; … get_binary(col++, …)` ⇒ 复现 ORIG
+//   的 `mov -0x18(%ebp),%eax; addl $0x1,-0x18(%ebp)`（原字面量列号使 4.4 直填常量
+//   `movl $0x1,0x4(%esp)`，-10 条）。
+// 残差（不可翻）：①N107/N30 地址形（`lea 0xeac8(%eax),%edx` vs `add $0xeac8,%eax`；
+//   `mov 0xc(%eax,%edx,4)` 两步 vs 4.4 add+shl 链）；②N82 槽基差 4（db 槽 -0x20 vs
+//   ORIG -0x1c；col 槽引入后整体深 4）；③trace 槽深差。
 bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
 {
     (void)userIdx;   // ORIG 仅透传第 3 参起作用（in_stack_00000010）
@@ -758,15 +772,18 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
         return false;
     }
 
-    if (!db->get_binary(0, sig->m_characOptions, 0x200))     // col0 options
+    // [b28d-solo-DB_LoadEtc] ORIG 用自增列号局部（-0x18，`mov -0x18,%eax; addl $1,-0x18`
+    //   取后自增）；原字面量列号使 4.4 直填常量（`movl $0x1,0x4(%esp)`）。
+    int col = 0;
+    if (!db->get_binary(col++, sig->m_characOptions, 0x200))     // col0 options
     {
         return false;
     }
-    if (!get_compressed_blob_data(db, 1, sig->m_bestClearTime, 24000, 0))
+    if (!get_compressed_blob_data(db, col++, sig->m_bestClearTime, 24000, 0))
     {                                                        // col1 best_clear_time
         cMyTrace trace(__PRETTY_FUNCTION__, 0x1f5d, 5);
         trace("DB_LoadEtc::LoadCharacOption best_clear_time, get(%d) ERROR"
-              " charac_no=%u", 2 /*local_18 已自增*/, sig->m_characNo);
+              " charac_no=%u", col /*local_18 已自增*/, sig->m_characNo);
         return false;
     }
 
@@ -781,12 +798,12 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
     }
 
     sig->m_blueMarbleEnterCount = 0;                          // 先置 0 再回填
-    if (!db->get_ubyte(2, sig->m_blueMarbleEnterCount))
+    if (!db->get_ubyte(col++, sig->m_blueMarbleEnterCount))
     {
         return false;
     }
     // charac_inform_notice @+0x14a9a = attendanceEvent(+0x14a99)+1 重叠区。
-    if (!db->get_str(3, reinterpret_cast<char*>(sig->m_attendanceEvent.m_pad), 16))
+    if (!db->get_str(col++, reinterpret_cast<char*>(sig->m_attendanceEvent.m_pad), 16))
     {
         return false;
     }
@@ -994,11 +1011,13 @@ bool DB_LoadEtc::LoadQuestShop(SIG_LOAD_ETC* sig)
 // DB_LoadEtc::LoadTitleBook @0x08406092 —— 4 个压缩列分别解压到
 // +0x466a(cap0x10ae) / +0x5718(0x2fa8) / +0x86c0(0x1c98) / +0xa358(0xe4c)。
 // ============================================================================
-// b28d-31: N 封顶（N78）——ORIG 0x08406092；p167 EXTRA memset ×2
-//（ORIG 内联清零 vs 4.4 call），语义等价。
-// [b28d-solo-DB_LoadEtc] N封顶 ndiff=194 (orig=221/ours=217)：N78（四段 blob 清零 ORIG
-// rep stos vs 4.4 call memset，共 -8 条）+ N7 族（uncompress_zip 实参寄存器角色互换）；
-// 已修：exec 具名 ok + trace 临时链。
+// [b28d-solo-DB_LoadEtc] N封顶（N7/N82）：ORIG 0x08406092；p167 CLEAR 21/21。
+// 已修（本波）：①四段 `char blob[N] = { 0 };`（各段独立作用域声明）替 memset call ⇒
+//   复现 ORIG 四段内联 rep stos（P214③/P312），p167 EXTRA memset ×2 归零；
+//   ②（前波）exec 具名 ok + trace 临时链。
+// 残差（不可翻）：N7 族 uncompress_zip 实参寄存器角色互换 + N82 槽序（ORIG db=-0x20/
+//   ok=-0x19/srcLen=-0x18..-0xc/outLen=-0x34..-0x40 各 4 个独立槽；4.4 按 lifetime 复用
+//   ⇒ db=-0x1c。全头部声明（P212）实测把 db 顶到 -0xc 反劣，已回退）。
 bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
 {
     // ORIG 槽形：ok=-0x19 保存、srcLen=-0x18/-0x14/-0x10/-0xc（各列命名槽）、
@@ -1027,10 +1046,10 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
 
     // ORIG 四列各自函数级 static const compressed_buff_size（0x1410/_0 0x393c/
     // _1 0x225c/_2 0x1134），展开为四个独立作用域块保持符号一一对应。
-    char blob[0x397c];
     {
         static const int compressed_buff_size = 0x1410;
-        memset(blob, 0, compressed_buff_size);
+        // [b28d-solo-DB_LoadEtc] P214③：`={0}` 触发 4.4 内联 rep stos（替 memset call，N78）。
+        char blob[0x1410] = { 0 };
         if (!db->get_binary(0, blob, compressed_buff_size))
         {
             return false;
@@ -1045,7 +1064,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
     }
     {
         static const int compressed_buff_size = 0x393c;
-        memset(blob, 0, compressed_buff_size);
+        char blob[0x393c] = { 0 };
         if (!db->get_binary(1, blob, compressed_buff_size))
         {
             return false;
@@ -1060,7 +1079,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
     }
     {
         static const int compressed_buff_size = 0x225c;
-        memset(blob, 0, compressed_buff_size);
+        char blob[0x225c] = { 0 };
         if (!db->get_binary(2, blob, compressed_buff_size))
         {
             return false;
@@ -1075,7 +1094,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
     }
     {
         static const int compressed_buff_size = 0x1134;
-        memset(blob, 0, compressed_buff_size);
+        char blob[0x1134] = { 0 };
         if (!db->get_binary(3, blob, compressed_buff_size))
         {
             return false;
@@ -1149,6 +1168,8 @@ void DB_LoadEtc::LoadComboSkillInfo(SIG_LOAD_ETC* sig)
 //   mov sig,%eax; mov %dl,disp`（RHS-first + eax→edx 中转）vs 4.4 恒 LHS-first 直存
 //   `mov sig,%eax; mov -0xc,%edx; mov %dl,disp`；字段 unsigned char 与 int RHS 本已异型，
 //   P211 两旋钮（字段/callee）无第三档可用。
+//   [b28d-solo 复测] 去 `(unsigned char)` cast（`m_tree1Count = nRows;`）产物**完全相同**
+//   （4.4 视 uchar←int 为可直存，P211 档③不适用）⇒ 维持去 cast 形；p167 CLEAR 15/15。
 // 已修（前波）：去 kindVal 局部（P0 直比形参）+ exec 具名 ok + 四处 trace 临时链。
 bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC* sig, ENUM_SKILL_TREE_KIND kind)
 {
@@ -1549,10 +1570,13 @@ bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC* sig)
 // [b28d-solo-DB_LoadEtc] N封顶（N1 常量折叠 + 求值序）：ORIG 0x084040b4。
 // 已修（本波）：①`bool ok;` 声明前置于 db ⇒ 槽序对齐（ok=-0x11 深于 db=-0x10，帧 0x54；
 //   P212「先声明深」）；②地址式改 offset-0 视图 `m_rows[0x6b80 + col]`（元素基址即 sig）。
-// 残差（不可翻）：ORIG `mov col,%eax; add $0x6b78,%eax; add %eax,%eax; add sig,%eax;
+// 残差（不可翻，N1）：ORIG `mov col,%eax; add $0x6b78,%eax; add %eax,%eax; add sig,%eax;
 //   add $0x10,%eax`（index 先、base 用内存操作数、+0x10 独立）vs 4.4
 //   `mov sig,%eax; mov col,%edx; add $0x6b80,%edx; add %edx,%edx; add %edx,%eax`
-//   ——4.4 恒把基址 +0x10 折进索引常量（N1）；视图形/short/char/指针左结合四形实测均折。
+//   ——4.4 恒把基址 +0x10 折进索引常量（N1）。
+//   [b28d-solo 复测] 补测第五形：视图 `{char m_pad[0x10]; short m_rows[0x6b78+11];}` +
+//   `m_rows[0x6b78 + col]` ⇒ 4.4 仍折成 `add $0x6b78,%edx; add $0x8,%edx`（+0x10/2 折入
+//   索引），118 vs 119 条；视图形/short/char/指针左结合四形 + 本形共五形均折 ⇒ 封顶。
 // 已修（前波）：exec/fetch/get_short 复用具名 ok + trace 临时链 + **真 bug 修正**（exec 日志参数
 //   原写 m_accId，ORIG 0x084040e4 为 +0x4 = m_characNo，P92 来源照抄）。
 bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC* sig)
@@ -1614,16 +1638,18 @@ bool DB_LoadEtc::LoadItemMakingSkill(SIG_LOAD_ETC* sig)
 // 前置 exec/fetch/AffectedRowCount==1 任一失败均如实 ret 1；列失败走 cMyTrace 0。
 // col2 last_clear_layer 经 TOD_Layer(unsigned short) 构造后取其 m_layer 落位。
 // ============================================================================
-// [b28d-solo-DB_LoadEtc] N封顶（N107 + P211 store 序）：ORIG 0x08406eec。
-// 已修（本波）：①六处 trace 改 **P227 全表达式临时链** `cMyTrace(...)("fmt", sig->m_characNo)`
+// [b28d-solo-DB_LoadEtc] **AE（残差 0；232=232、p167 CLEAR 24/24）**：ORIG 0x08406eec。
+// 已修（本波，本件归零）：`sig->m_todLastClearLayer = layer.m_layer` 改**具名视图 cast**
+//   `reinterpret_cast<TODLayerSlotView*>(sig)->m_layer = layer.m_layer`（探针
+//   /tmp/dble_probe/p1.cpp f7）⇒ 复现 ORIG 0x08407114 的 base-first 装载序
+//   （`mov 0xc(%ebp),%eax` 先于 `movzwl -0x78(%ebp),%edx`）；直写具名字段 4.4 恒 RHS-first
+//   （旧「N107 + P211 不可翻」判词作废）。位模式/movw 宽度不变，语义等价。
+// 已修（前波）：①六处 trace 改 **P227 全表达式临时链** `cMyTrace(...)("fmt", sig->m_characNo)`
 //   ⇒ trace 槽方向翻正（ORIG -0x74/-0x64/-0x54/-0x44/-0x34/-0x24 全等；具名 tt 形恒
 //   反向 -0x28..-0x78 且 m_characNo 在 ctor 后才载）+ m_characNo 装 %ebx 跨 ctor 保活；
 //   ②`unsigned short layerVal;` 去预清（ORIG 无 `movw $0,-0x76`，get_ushort 直写）；
 //   ③末列改 `get_int(col++, …)`（ORIG 0x0840706x 有 `addl $1,-0x10`）。
-// 残差（不可翻）：①N107——`sig->m_todLastClearDate` 取址 ORIG `lea 0xd72c(%eax),%edx`
-//   vs 4.4 `add $0xd72c,%eax`；②P211——`sig->m_todLastClearLayer = layer.m_layer` 的
-//   base/值装载序（ORIG base 先，4.4 值先）。
-// p167 CLEAR 0/0、gap=0（232=232）⇒ 语义完成（§6.2）。
+// 残差：无（`lea 0xd72c(%eax),%edx` 取址形两侧本就一致；p167 CLEAR 24/24）。
 // 已修（前波）：三守卫改正极性嵌套（exec/fetch/AffectedRowCount==1 共享尾 return true）。
 bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
 {
@@ -1938,6 +1964,8 @@ bool DB_LoadEtc::LoadAccountFirstLoginDaily(SIG_LOAD_ETC* sig, int eventCode)
 // p167 待核。
 // [b28d-solo-DB_LoadEtc] N封顶 ndiff=516 (orig=474/ours=476)：N82 帧/槽错位（14 列 + 13 处
 // trace 的复用 bool ok 槽）；p167 CLEAR 0/0 ⇒ 语义完成、byte 层封顶（§6.2）。
+//   [b28d-solo 复测] 474=474 vs 476、p167 CLEAR 20/20；P221/P227 临时链试形对 trace 槽
+//   （ORIG -0xe8 深 vs 4.4 -0x28）**零效**（4.1 不复用 13 个 trace 槽，N82 真因）⇒ 封顶。
 bool DB_LoadEtc::LoadFairPvPScore(SIG_LOAD_ETC* sig)
 {
     static const int handleIdx = 3;    // ORIG _ZZN10DB_LoadEtc16LoadFairPvPScore…E9handleIdx
@@ -2210,14 +2238,15 @@ bool DB_LoadEtc::LoadPcRoomPlayTimeInfo(SIG_LOAD_ETC* sig)
 // b28d-31: N 封顶（P167 未闭合）——ORIG 0x08406810；p167 MISSING
 // string 拷贝构造/dtor ×2 + toTString(const string&) ×1 + _Unwind_Resume
 //（ORIG 具名 string 临时生命周期 + 重载选择差），语义等价但调用点未归零。
-// [b28d-solo-DB_LoadEtc] N封顶（N3/N82：多失败路径共享出口）：ORIG 0x08406810。
-// 已修（本波）：①四条守卫拆为独立 if-return（P133；原 `evMng==0 || !is_eventing` 与
-//   `entity==0 || !getIsCharacEvent` 两处合并 || 恒产 mov$1/jmp 物化块）；
-//   ②`bool isCharacEvent = false;` 移到 entity 判空之后（ORIG `movb $0,-0x15` 位置）。
-// 残差（不可翻）：ORIG 四条守卫的 `je` 全部落**同一尾块** `mov $1,%eax`（4.1 共享出口）；
-//   4.4 平铺 if-return 恒产各自 `mov $1,%ebx; jmp` 岛、goto 尾标签恒产 4 条 `jmp;nop` 中继岛链
-//   （实测两形均劣，P63 边界）+ 槽组整体深 4（-0x18/-0x14/-0x19/-0x20 vs -0x14/-0x10/-0x15/-0x1c）。
-//   p167 CLEAR 0/0（20=20）、gap=3 ⇒ 语义完成（§6.2）。
+// [b28d-solo-DB_LoadEtc] N封顶（N18a/N7）：ORIG 0x08406810；166 vs 168、p167 CLEAR 20/20。
+// 已修（本波）：①两组守卫改**正极性包裹** `if (evMng != 0 && evMng->is_eventing(0x65)) {…}
+//   return true;`（P214①）⇒ 复现 ORIG 的短路物化（`cmpl $0,-0x14; je` + `test;je` +
+//   `mov $1/$0; test; je`）并把槽组翻正（mng=-0x14/entity=-0x10/isCharac=-0x15/db=-0xc
+//   与 ORIG 全等；旧独立 if-return 使槽整体深 4）；②NumberToString 改内联实参（P259，
+//   值留 %ebx 跨 toTString call）。
+// 残差（不可翻）：①ORIG 取反段 `xor $1,%eax` 属负极性短路物化，正极性包裹形恒缺（4.4 直接
+//   `test %al,%al; je`）；②`mov $1,%ebx; jmp` 尾岛与 get_n_rows()==0 的 sete 物化属
+//   4.1 共享出口/短路物化，4.4 恒折；③quantity store 的 eax→edx 中转（N18a）。
 // 已修（前波）：具名 std::string tableName（p167 归零）、分支极性翻转（!isCharacEvent 直落 idx9/m_id）。
 bool DB_LoadEtc::LoadUsedGiftFatigueInfo(SIG_LOAD_ETC* sig)
 {
@@ -2226,68 +2255,58 @@ bool DB_LoadEtc::LoadUsedGiftFatigueInfo(SIG_LOAD_ETC* sig)
     EventClassify::CEventScriptMng* evMng =
         reinterpret_cast<EventClassify::CEventScriptMng*>(
             G_CDataManager()->get_event_script_mng());
-    // ORIG 0x08406810 段：四条独立守卫（P133）。ORIG 的 `je` 共享尾块 `mov $1,%eax`，
-    // 但 4.4 对 goto 尾标签恒产 jmp/nop 中继岛链（实测 4 岛）、对平铺 if-return 产各自
-    // `mov $1,%ebx` 岛（P63 边界）⇒ 保持独立 if-return，记 N3/N82 封顶（p167 CLEAR 0/0）。
-    if (evMng == 0)
-    {
-        return true;
-    }
-    if (!evMng->is_eventing(0x65))
-    {
-        return true;
-    }
+    // [b28d-solo-DB_LoadEtc] P214① 正极性包裹复现 ORIG 的短路物化：
+    //   ORIG 0x08406835 `cmpl $0,-0x14; je L1(mov $1)` + 0x0840684e `xor $1;test;je L0(mov $0)`
+    //   + `test %al;je 主流程` = `if (mng != 0 && mng->is_eventing(0x65)) { 主流程 } return true;`
+    //   的 4.1 形；平铺独立 if-return 恒产各自 `mov $1,%ebx; jmp` 岛（旧 N3/N82 判词作废）。
+    if (evMng != 0 && evMng->is_eventing(0x65))
     {
         EventClassify::CUsedFatigueGiveItem* entity =
             static_cast<EventClassify::CUsedFatigueGiveItem*>(
                 evMng->get_event_entity(0x65));
-        if (entity == 0)
-        {
-            return true;
-        }
-        // ORIG 0x084068a1：`movb $0,-0x15` 在 entity 判空**之后**（原码声明点晚于守卫）。
+        // ORIG 0x08406885：`movb $0,-0x15` 在 entity 存槽后、判空之前（声明点）。
         bool isCharacEvent = false;
-        if (!entity->getIsCharacEvent(isCharacEvent))
+        // 同 P214①：ORIG 0x08406889 `cmpl $0,-0x10; je L1` + `xor $1;test;je L0` + `test;je 主流程`。
+        if (entity != 0 && entity->getIsCharacEvent(isCharacEvent))
         {
-            return true;
-        }
+            MySQL* db = 0;
+            // ORIG 0x084068d1：具名 std::string（_ZNSsC1ERKSs 到 -0x1c）+ 每分支各调 toTString
+            // （p167 MISSING 指认 C1ERKSs/D1/toTString/_Unwind_Resume）。
+            std::string tableName = entity->get_db_table_name();
+            // ORIG 0x084068ea：`xor $1; je` 落 idx2 分支 ⇒ fall-through 为「非角色事件」idx9/m_id
+            // 分支（P220 极性翻转；旧块序相反）。
+            if (!isCharacEvent)
+            {
+                db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
+                                                       (ENUM_SERVER_GROUP)0);
+                // ORIG 0x0840692a：NumberToString 结果留 %ebx 跨 toTString call 保活（P259 内联实参）。
+                db->set_query("seLect fatigue_quantity from %s where m_id = %s",
+                              toTString(tableName),
+                              NumberToString(sig->m_accId, 0));
+            }
+            else
+            {
+                db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
+                                                       (ENUM_SERVER_GROUP)0);
+                db->set_query("seLect fatigue_quantity from %s where charac_no = %u",
+                              toTString(tableName), sig->m_characNo);
+            }
 
-        MySQL* db = 0;
-        // ORIG 0x084068d1：具名 std::string（_ZNSsC1ERKSs 到 -0x1c）+ 每分支各调 toTString
-        // （p167 MISSING 指认 C1ERKSs/D1/toTString/_Unwind_Resume）。
-        std::string tableName = entity->get_db_table_name();
-        // ORIG 0x084068ea：`xor $1; je` 落 idx2 分支 ⇒ fall-through 为「非角色事件」idx9/m_id
-        // 分支（P220 极性翻转；旧块序相反）。
-        if (!isCharacEvent)
-        {
-            db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)9,
-                                                   (ENUM_SERVER_GROUP)0);
-            char* accStr = NumberToString(sig->m_accId, 0);
-            db->set_query("seLect fatigue_quantity from %s where m_id = %s",
-                          toTString(tableName), accStr);
+            if (!db->exec(true))
+            {
+                return false;
+            }
+            if (db->get_n_rows() == 0 || !db->fetch())
+            {
+                return true;
+            }
+            unsigned int quantity = 0;
+            if (!db->get_uint(0, quantity))
+            {
+                return false;
+            }
+            sig->m_curCharacUsedGiftFatigueQuantity = quantity;
         }
-        else
-        {
-            db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)2,
-                                                   (ENUM_SERVER_GROUP)0);
-            db->set_query("seLect fatigue_quantity from %s where charac_no = %u",
-                          toTString(tableName), sig->m_characNo);
-        }
-
-        if (!db->exec(true))
-        {
-            return false;
-        }
-        if (db->get_n_rows() == 0 || !db->fetch())
-        {
-            return true;
-        }
-        unsigned int quantity = 0;
-        if (!db->get_uint(0, quantity))
-        {
-            return false;
-        }
-        sig->m_curCharacUsedGiftFatigueQuantity = quantity;
     }
     return true;
 }

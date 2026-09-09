@@ -24,6 +24,33 @@
 // CDBMsgSender W 内联方法（ChangeOwner/ChangeSlotNo/AuctionRegist/Cancel），
 // 均按 ORIG 逐指令转写【objdump】；归口收编时请宿主迁移后删除此处定义。
 //
+// ---- b28d-solo-CreatureOnlyMgrRest 泳道结果（清单 9 件，2026-09-09）----
+// TU 三数：identical 62 / ae 104（合计 166）/ near 5 / diff 3（含 _Z41 豁免）
+//   —— 基线 62/102/6/4 ⇒ ae +2、near −1、diff −1，零回归。
+// 转 AE（2）：
+//   Evolute 0x0833beb4（P221：兄弟块 cMyTrace 改全表达式临时链，翻 then/else
+//     槽向 -0x28/-0x18 与 ORIG 一致）。
+//   C1ERKS0_ 0x86992cc（N84 正向修复：CInventory.h 删用户拷贝构造声明 ⇒ 编译器
+//     隐式合成 W；P147 TU 级 force 使用点保发射；Main 删 m_pad49 后与 ORIG
+//     62 条逐条 AE，含 map/数组/尾部 bool 全序）。
+// 仍 NEAR（5）：
+//   IsSaveCreatureItem 0x0833ba30 / LoadCreatureItem 0x0833b68c：N7（4.4.7 间接
+//     call 目标恒 %eax vs ORIG %edx）；本波已把 §4.5 槽指针直调改为真虚调用
+//     （CCreatureItem 多态化后 entry->IsSave()/SaveCreatureItem(...)）。
+//   ChangeOwner 0x0833ad34 / ChangeSlotNo 0x0833aedc / InsertCreatureItemResult
+//     0x0833b38c：N82附（4.4 聚合优先低槽 vs 4.1 标量/生命周期穿插）+ N115
+//     栈边界。四形实测：reason 声明位置/顺序、结构体/数组聚合化、volatile、
+//     double framePad 均不可翻（聚合化反致额外拷贝劣化，已回退）。
+// 仍 DIFF（2，语义完整、p167 CLEAR）：
+//   SaveCreatureItem 0x0833bbbe：N115 全槽深 0x10 + push %edi（4.4 把函数指针/
+//     m_user/count 计算分配进 edi/esi vs ORIG ebx/ecx/eax/edx）；p167 16/16。
+//   SetOverSkillTime 0x0833c41e：N115 帧 0x7c vs 0x6c（槽整体深 0x10）+ N97
+//     有符号 /1000 lowering；p167 28/28（本波修掉 EXTRA GetOverSkillTime/GetTime
+//     各 1 次：trace 第 2 实参改用 last 槽）。
+// 本波改动：P139（ChangeOwner/ChangeSlotNo trace 串 → __PRETTY_FUNCTION__）、
+//   P171（SaveCreatureItem 删 entry 判空）、真虚调用转换、P221（Evolute）、
+//   SetOverSkillTime trace 段按 ORIG 槽集重写（ovstR/stR 存 /1000 结果）。
+//
 // 声明追加需求见 /tmp/df_batches/CreatureJob_decl_UCMgr.txt。
 // ============================================================================
 #include <string.h>
@@ -100,11 +127,10 @@ bool CCreatureMgr::ChangeOwner(Inven_Item* item, int slotFrom, int mapSizeHint,
     if (!sender.ChangeOwner(item, m_user->getCurCharacNo(), slotFrom, mapSizeHint,
                             mapSize, param_4, param_5))
     {
-        // b28d-solo-CreatureOnlyMgrRest [P227]：ORIG uid 在 ctor call 前
-        // movzwl→%ebx 保活 ⇒ 全表达式临时链。
-        cMyTrace(
-            "bool user_creature::CCreatureMgr::ChangeOwner("
-            "Inven_Item*, int, int, int, int)", 0xc26, 5)(
+        // b28d-solo-CreatureOnlyMgrRest [P227/P139]：ORIG uid 在 ctor call 前
+        // movzwl→%ebx 保活 ⇒ 全表达式临时链；函数名串用 __PRETTY_FUNCTION__
+        // 复现 ORIG `_ZZ...E19__PRETTY_FUNCTION__` 局部静态符号。
+        cMyTrace(__PRETTY_FUNCTION__, 0xc26, 5)(
             "cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
         return false;
     }
@@ -161,9 +187,9 @@ bool CCreatureMgr::ChangeSlotNo(Inven_Item* item, int newSlot, int param_3)
     // movzwl→%ebx 保活 ⇒ 全表达式临时链。
     if (!sender.ChangeSlotNo(item, m_user->getCurCharacNo(), newSlot, param_3))
     {
-        cMyTrace(
-            "bool user_creature::CCreatureMgr::ChangeSlotNo("
-            "Inven_Item*, int, int)", 0xc44, 5)(
+        // b28d-solo-CreatureOnlyMgrRest [P139]：函数名串用 __PRETTY_FUNCTION__
+        // 复现 ORIG `_ZZ...E19__PRETTY_FUNCTION__` 局部静态符号。
+        cMyTrace(__PRETTY_FUNCTION__, 0xc44, 5)(
             "cannot write db uid(%d)\n", m_user->get_unique_id() & 0xffff);
         return false;
     }
@@ -323,17 +349,11 @@ bool CCreatureMgr::LoadCreatureItem(Inven_Item* item,
 
     // [b23S3C] ORIG 0x833b727：`mov (%eax),%eax; add $0x8,%eax; mov (%eax),%edx;
     // …call *%edx` 单次 vtable 槽 +8 间接分派（蛋/宠由对象自身 vptr 决定），
-    // 原码无 type==1 判定、无 bool ok 槽（返回寄存器 xor 直测）。本镜像无虚表，
-    // 按 §4.5 先例（CCreatureMgr.cpp 0x833f5bc / CParty.cpp 0x85b9ffd 同形）
-    // 用 typedef 槽指针直调；实参右起（m_user→detail→item→mgr→newItem）与
-    // ORIG 装槽序逐条一致。
-    typedef bool (*LoadCreatureItemSlot)(CCreatureItem*, CCreatureMgr*,
-                                         Inven_Item*,
-                                         SIG_CREATURE_ITEM_DETAIL_INFO*,
-                                         CUser*);
-    if ((*reinterpret_cast<LoadCreatureItemSlot*>(
-              *reinterpret_cast<int*>(newItem) + 8))(
-            newItem, this, item, detail, m_user) != 1)
+    // [b28d-Main·检查点14 CCreatureItem 多态化] 原 typedef 槽指针直调改为**真虚调用**
+    //   （ORIG 0x0833b727..b756 `mov (%eax),%eax; add $0x8,%eax; mov (%eax),%edx;
+    //   …实参右起 m_user→detail→item→mgr→newItem…; call *%edx; xor $1; test %al;
+    //   je <成功>`）；vptr 由编译器在 ctor 写入。
+    if (newItem->LoadCreatureItem(this, item, detail, m_user) != 1)
     {
         // [b23S3C] 临时对象直调形：ORIG 0x833b774 起 vararg（item+7→%edi、
         // item+2→%esi、uid→%ebx）在 ctor call 之前求值，trace 对象落 -0x30 匿名槽。
@@ -395,28 +415,24 @@ bool CCreatureMgr::SaveCreatureItem()
         // 0x0833bc9b 起 `mov (%eax),%eax; add $4; mov (%eax),%edx; …call *%edx`
         // = IsSave 虚槽；0x0833bcb1 `add $0xc` = SaveCreatureItem 虚槽；
         // count 每处重读（无 cnt/base 具名局部）；增量段调 ppEi ⇒ `it++`。
-        if (entry != 0)
+        // b28d-solo-CreatureOnlyMgrRest [P171/P140]：ORIG 0x0833bc95 起直接
+        // `mov 0x4(%eax),%eax; mov %eax,-0xc; mov -0xc,%eax; mov (%eax),%eax`
+        // 无 entry 判空（原码不写即删，补写即多 cmpl/je）。
+        // b28d-Main·检查点14 CCreatureItem 多态化后改**真虚调用**：
+        // ORIG 0x0833bc9b 槽 1（vptr+4）= IsSave、0x0833bcb1 槽 3（vptr+0xc）
+        // = SaveCreatureItem。
+        if (entry->IsSave())
         {
-            typedef bool (*IsSaveSlotFn)(void*);
-            if ((*reinterpret_cast<IsSaveSlotFn*>(
-                     *reinterpret_cast<int*>(entry) + 4))(entry))
-            {
-                typedef bool (*SaveItemSlotFn)(void*, Inven_Item*,
-                                               SIG_CREATURE_ITEM_DETAIL_INFO*,
-                                               CUser*);
-                (*reinterpret_cast<SaveItemSlotFn*>(
-                    *reinterpret_cast<int*>(entry) + 0xc))(
-                    entry,
-                    (Inven_Item*)(void*)((char*)(void*)list +
-                                         *(int*)(void*)list * 0x3d + 4),
-                    (SIG_CREATURE_ITEM_DETAIL_INFO*)(void*)(
-                        (char*)(void*)list + *(int*)(void*)list * 0x38 + 0x21a0),
-                    m_user);
-                // detail.m_uid（详情区 +4）非 0 视为写入成功。
-                if (*(int*)((char*)(void*)list +
-                            *(int*)(void*)list * 0x38 + 0x21a4) != 0)
-                    *(int*)(void*)list = *(int*)(void*)list + 1;
-            }
+            entry->SaveCreatureItem(
+                (Inven_Item*)(void*)((char*)(void*)list +
+                                     (*(int*)(void*)list * 0x3d + 4)),
+                (SIG_CREATURE_ITEM_DETAIL_INFO*)(void*)(
+                    (char*)(void*)list + (*(int*)(void*)list * 0x38 + 0x21a0)),
+                m_user);
+            // detail.m_uid（详情区 +4）非 0 视为写入成功。
+            if (*(int*)((char*)(void*)list +
+                        *(int*)(void*)list * 0x38 + 0x21a4) != 0)
+                *(int*)(void*)list = *(int*)(void*)list + 1;
         }
     }
 
@@ -477,25 +493,24 @@ int CCreatureMgr::SetOverSkillTime(const int& itemIdx)
                     m_equippedCreature->GetOverSkillRecoveryTime() / 1000 >
                 GlobalData::s_systemTime_.getCurSec() + 2)
             {
-                unsigned int accId = m_user->get_acc_id();
-                char* idStr = NumberToString(accId, 0);
-                int ovstR = m_equippedCreature->GetOverSkillRecoveryTime();
-                int stR = m_equippedCreature->GetSkillRecoveryTime();
-                int curSec = GlobalData::s_systemTime_.getCurSec();
+                // b28d-solo-CreatureOnlyMgrRest [P0/P44/P227]：ORIG 槽集 =
+                // ovstR(-0x48, **已除 1000**)/stR(-0x44, **已除 1000**)/
+                // interval(-0x40)/last(-0x3c)；curSec/chNo/idStr 无槽（vararg
+                // 右起求值经 %ebx/%edi/%esi 跨 ctor 保活）⇒ 除法写进局部、
+                // 其余内联实参 + 全表达式临时链。
+                int ovstR = m_equippedCreature->GetOverSkillRecoveryTime() / 1000;
+                int stR = m_equippedCreature->GetSkillRecoveryTime() / 1000;
+                int interval = GlobalData::s_systemTime_.getCurSec() -
+                               *m_equippedCreature->GetOverSkillTime()->GetTime();
                 int last = *m_equippedCreature->GetOverSkillTime()->GetTime();
-                cMyTrace trace(
-                    __PRETTY_FUNCTION__,
-                    0xe6c, 0);
-                // b28d-solo-CreatureOnlyMgrRest [P167/P44 变参即时求值]：ORIG
-                // trace 实参内联重读 getCurSec 与 GetOverSkillTime()->GetTime()
-                // （各第 2 次调用；p167 差集 MISSING×3 实证）。
-                trace("fail:cur_time(%u),last_used_skilltime(%u),interval(%d) "
-                      "st(%d),ovst(%d),m_id(%s),ch_no(%u)",
-                      (unsigned int)GlobalData::s_systemTime_.getCurSec(),
-                      (unsigned int)*m_equippedCreature->GetOverSkillTime()->GetTime(),
-                      curSec - last, stR / 1000, ovstR / 1000,
-                      idStr,
-                      (unsigned int)m_user->getCurCharacNo());
+                cMyTrace(__PRETTY_FUNCTION__, 0xe6c, 0)(
+                    "fail:cur_time(%u),last_used_skilltime(%u),interval(%d) "
+                    "st(%d),ovst(%d),m_id(%s),ch_no(%u)",
+                    (unsigned int)GlobalData::s_systemTime_.getCurSec(),
+                    (unsigned int)last,
+                    interval, stR, ovstR,
+                    NumberToString(m_user->get_acc_id(), 0),
+                    (unsigned int)m_user->getCurCharacNo());
                 return 0x13;
             }
             m_equippedCreature->GetOverSkillTime()->SetTime();
@@ -525,12 +540,10 @@ bool CCreatureMgr::IsSaveCreatureItem()
         CCreatureItem* entry = it->second;
         if (entry != 0)
         {
-            // b28d-solo-CreatureOnlyMgrRest [§4.5 槽指针直调先例]：ORIG
-            // 0x0833ba52 `mov (%eax),%eax; add $0x4,%eax; mov (%eax),%edx;
-            // …call *%edx` = _ZTV CCreature word3（vptr+4）= IsSave 虚槽。
-            typedef bool (*IsSaveSlotFn)(void*);
-            if ((*reinterpret_cast<IsSaveSlotFn*>(
-                     *reinterpret_cast<int*>(entry) + 4))(entry))
+            // b28d-Main·检查点14 CCreatureItem 多态化后改**真虚调用**：
+            // ORIG 0x0833ba52 `mov (%eax),%eax; add $0x4,%eax; mov (%eax),%edx;
+            // …call *%edx` = _ZTV CCreatureItem 槽 1（vptr+4）= IsSave。
+            if (entry->IsSave())
                 return true;
         }
     }
@@ -650,7 +663,7 @@ bool CCreatureMgr::SetCreatureItemAddInfo(int slot, int value)
 bool CCreatureMgr::InsertCreatureItemResult(SIG_CREATURE_ITEM* sig)
 {
     Inven_Item localItem;
-    eItemAddReason reason[1];
+    eItemAddReason reason;
     // b28d-solo-CreatureOnlyMgrRest [ORIG 0x0833b395/N107]：ORIG 仅
     // `lea -0x55; call Inven_Item::C1`（清零由 ctor reset 完成，无独立
     // memset）；`lea 0x4(%eax),%edx` = 显式指针算术 `(char*)sig + 4`。
@@ -672,14 +685,14 @@ bool CCreatureMgr::InsertCreatureItemResult(SIG_CREATURE_ITEM* sig)
     // b28d-solo-CreatureOnlyMgrRest [P235/P211]：ORIG 0x0833b417 全部为
     // disp 折叠成员访问（`movzbl 0x51(%eax)` / `mov 0x30(%eax),%esi` /
     // `mov 0x8(%eax),%eax` / `movzbl 0x5(%eax)`）⇒ 用具名字段而非指针算术。
-    reason[0] = (eItemAddReason)(signed char)sig->m_reason;
+    reason = (eItemAddReason)(signed char)sig->m_reason;
     m_user->getCurCharacInvenR()->WriteCreatureLog(
         (INVEN_TYPE)3,
         sig->m_itemView.m_itemIdx,                            // +0x08
         sig->m_addInfo2,                                      // +0x30
         1,
         (int)sig->m_item[1],                                  // +0x05
-        reason[0]);
+        reason);
     m_user->set_cera_item_order_no(0);
     return true;
 }
@@ -712,9 +725,10 @@ bool CCreatureMgr::UpdateCreatureItemResult(SIG_CREATURE_ITEM* sig)
 // ORIG _ZN13user_creature12CCreatureMgr7EvoluteEiib T 0x083beb4
 // （Evolute.md）：等级达标或 force 时；单线/多线进化分别判定后执行，
 // 各失败 path trace（0xdd6 kind / 0xddb level）；空宠/不满足返 0。
-// [b28d-solo-CreatureOnlyMgrRest] verdict=NEAR：P226 语句表达式复现两处
-// `||` 的 mov$1/mov$0 物化岛（ORIG 0x0833bedc）+ P0 去 GetLevel 具名局部。
-// 残差：trace 对象槽分配方向（N82/P112）。
+// [b28d-solo-CreatureOnlyMgrRest] verdict=AE（原 NEAR）：P226 语句表达式复现
+// 两处 `||` 的 mov$1/mov$0 物化岛（ORIG 0x0833bedc）+ P0 去 GetLevel 具名局部；
+// 两分支 cMyTrace 改全表达式临时链（P221）后 then/else 槽向 -0x28/-0x18 与
+// ORIG 逐条一致 ⇒ NEAR→AE。
 bool CCreatureMgr::Evolute(int creatureId, int minLevel, bool force)
 {
     if (m_equippedCreature != 0)
@@ -871,23 +885,16 @@ bool CCreature::IsCreatureScript()
 
 }  // namespace user_creature
 
-// b28d-solo-CreatureOnlyMgrRest [N84 封顶]：ORIG 0x86992cc 是编译器隐式合成
-// 拷贝构造（map 拷贝 → +0x18/+0x1c → m_artifacts[3] 内联 3×mov → +0x2c →
-// map30 → +0x48 bool，无 CArtifact::C1 调用）。GCC 4.4.7 无法合成含用户
-// 默认构造元素数组的隐式拷贝构造：删用户定义后 nm 恒 U（不发射），类外
-// `= default` 直接报「数组被用作初始值设定」（实测）⇒ 只能保留用户定义形。
-// 用户定义形必然先默认构造 m_artifacts（3×CArtifact::C1 W 调用，ORIG 无）
-// 且符号为 T 非 W ⇒ DIFF 封顶；同时修正旧码漏拷 m_artifacts[2] 的真 bug
-// （ORIG 循环初值 2 递减到 -1 = 3 次拷贝）。
-user_creature::CCreatureMgr::CCreatureMgr(
-    const user_creature::CCreatureMgr& src)
-    : m_creatureItems(src.m_creatureItems),
-      m_equippedCreature(src.m_equippedCreature),
-      m_user(src.m_user),
-      m_tempExpireDelta(src.m_tempExpireDelta),
-      m_field30(src.m_field30),
-      m_isMaxLevelGrowCreature(src.m_isMaxLevelGrowCreature)
+// b28d-solo-CreatureOnlyMgrRest [P147/N84 正向修复]：CInventory.h 已删用户
+// 拷贝构造声明 ⇒ 编译器隐式合成 C1ERKS0_/C2ERKS0_（W，与 ORIG 0x86992cc
+// 同址同形：map 拷贝 → +0x18/+0x1c → m_artifacts[3] 3×mov 循环 → +0x2c →
+// map30 → +0x48 bool，无 CArtifact::C1 调用；探针 /tmp/ccm_probe.cpp 逐条
+// 同构）。本 TU 加 ODR 使用点强制发射 W 符号（P147 force 手法）。
+namespace
 {
-    for (int i = 0; i < 3; ++i)
-        m_artifacts[i] = src.m_artifacts[i];
+void forceCreatureMgrCopyEmit(const user_creature::CCreatureMgr& src)
+{
+    user_creature::CCreatureMgr copy(src);
+    (void)copy;
 }
+}  // namespace

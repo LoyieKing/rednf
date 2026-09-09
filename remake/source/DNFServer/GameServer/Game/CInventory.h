@@ -210,10 +210,26 @@ enum CREATURE_ITME_TYPE
     CREATURE_ITME_TYPE_CREATURE = 1
 };
 
+class CCreatureMgr;   // 前置：纯虚签名用（本文件 260 行有完整定义）
+
 class CCreatureItem
 {
 public:
     CCreatureItem();   // ORIG C1/C2 W 0x08340c82：写 vtable（外联定义 CreatureOnlySimple.cpp）
+    // [b28d-Main·检查点14 结构性·CCreatureItem 多态化] ORIG 真多态：
+    //   `_ZTVN13user_creature13CCreatureItemE`@0x08c2f4d0 四槽全为 `__cxa_pure_virtual`
+    //   ⇒ 4 个纯虚；槽序由 vtable 逐槽 nm 实证 = Reset / IsSave / LoadCreatureItem /
+    //   SaveCreatureItem（CCreature 覆盖为 0x83370b0/0x833f04c/0x83385aa/0x83387f6；
+    //   CEgg 覆盖为 0x8338f82/0x8333f102/0x8338fac/0x83390c8）。
+    //   删除原 `int m_vptr` 手工槽：编译器在 ctor/dtor 自动写 vptr（探针 /tmp/vt_probe.cpp
+    //   实证 4.4.6 ctor `call 基类C2Ev; movl $_ZTV+8,(%eax)`、dtor `movl $_ZTV+8,(%eax)`，
+    //   与 ORIG 0x08340c82/0x08338f74 同形）；sizeof/偏移零变化。
+    virtual void Reset() = 0;
+    virtual bool IsSave() = 0;
+    virtual bool LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
+                                  SIG_CREATURE_ITEM_DETAIL_INFO* info, CUser* user) = 0;
+    virtual bool SaveCreatureItem(Inven_Item* item,
+                                  SIG_CREATURE_ITEM_DETAIL_INFO* info, CUser* user) = 0;
     int GetRemainDate(int nowSec) const;  // ORIG _ZNK...13GetRemainDateEi 0x833f016（W）
 
     // ---- ORIG W 内联访问器（nm --defined-only 实证，体为单字段读写）----
@@ -226,7 +242,10 @@ public:
                                                                 //   SetStomach 0x08339ee0+0x69
                                                                 //   实证调用点为 call）
     int GetSlotNo() { return m_slotNo; }                        // W 0x833efca
-    unsigned char GetNoCharge();   // ORIG W 0x833efd6（movzbl +0x14）；外联定义 CreatureOnlySimple.cpp
+    // [b28d-Main·检查点14 P321-T3] 返回类型 uchar→bool：ORIG 体 0x833efd6
+    //   `movzbl 0x14(%eax),%eax; ret`（无 setne）+ Set 消费点 0x833ef86
+    //   `call GetNoCharge; mov %al,0x14(%edx)` 直存 ⇒ 与 bool 字段同型。
+    bool GetNoCharge();            // ORIG W 0x833efd6；外联定义 CreatureOnlySimple.cpp
     unsigned char GetStat();       // ORIG W 0x833eff0（movzbl +0x15）
     void SetExpireTime(int expireTime) { m_expireTime = expireTime; }  // W 0x833effc
     int getExpireTime() const { return m_expireTime; }          // W 0x833f00a（_ZNK）
@@ -236,14 +255,16 @@ public:
     //   （蛋 → 宠物项复制语义；定义 CCreatureMgr.cpp）。
     void Set(CCreatureItem* src);
 
-    int m_vptr;            // +0x00（ORIG vptr 槽；本镜像以整型保持偏移）
     int m_itemId;          // +0x04
     CREATURE_ITME_TYPE m_creatureItemType;  // +0x08（ORIG SetCreatureItemType 0x833efe2
                                             //  store LHS-first ⇒ 字段必为 enum 同型，
                                             //  探针 /tmp/bl8_probe3.cpp）
     int m_uid;             // +0x0c
     int m_slotNo;          // +0x10
-    unsigned char m_noCharge; // +0x14
+    // [b28d-Main·检查点14 P321-T3] uchar→bool（1 字节/偏移不变）：CCreature::IsSave
+    //   0x833f04c `movzbl +0x14; ret` 直返无 setne（bool 字段直返）+ 消费端 `!field`
+    //   形；GetNoCharge 返回 uchar 时 bool→uchar 亦为 movzbl 直返（同形）。
+    bool m_noCharge;          // +0x14
     unsigned char m_stat;     // +0x15
     char m_pad16[2];       // +0x16..0x17
     int m_expireTime;      // +0x18（GetRemainDate 读此；Set 0x833ef20 清零）
@@ -261,7 +282,10 @@ class CCreatureMgr
 {
 public:
     CCreatureMgr();   // ORIG T 0x08339196（map/CArtifact[3] 隐式成员构造）
-    CCreatureMgr(const CCreatureMgr& src);  // ORIG W C1 0x86992cc
+    // [b28d-Main·检查点14 S425] 删除拷贝构造声明 ⇒ 编译器隐式合成（ORIG nm 为
+    //   `W _ZN13user_creature12CCreatureMgrC1ERKS0_` 0x86992cc，无用户定义；
+    //   用户定义版会先默认构造 m_artifacts 3×CArtifact::C1，ORIG 无）。
+    //   探针 /tmp/ccm_probe.cpp 逐条同构；GCC 4.4 类外 `= default` 对数组成员报错 ⇒ 只能删声明。
     void Reset();
     bool CheckDiedCreature();   // ORIG T _ZN13user_creature12CCreatureMgr17CheckDiedCreatureEv 0x08339acc（TimerCreature 调用；定义缺口记报告）
     void SetUser(CUser* user);
@@ -365,7 +389,9 @@ public:
     int m_tempExpireDelta;                          // +0x2c（Reset 置 -1）
     std::map<int, int> m_field30;                   // +0x30
     bool m_isMaxLevelGrowCreature;                 // +0x48（Reset 置 1；ORIG isGrowCreatureMaxLevel movzbl 按 bool 读取）
-    char m_pad49[3];                                // +0x49，总 0x4c
+    // [b28d-Main·检查点14 P26] 删显式 pad：ORIG 隐式拷贝构造 0x86992cc 止于
+    //   `mov %dl,0x48(%eax)`（无 +0x49..+0x4b 写入，尾填充由编译器跳过）；
+    //   显式 pad 会被逐字节拷贝（多 6 条）。sizeof 仍 0x4c（自然对齐填充），偏移不变。
 };
 }
 // AvatarCoin 权威声明见 AvatarCoin.h（本头原内嵌空桩占位与权威头冲突，

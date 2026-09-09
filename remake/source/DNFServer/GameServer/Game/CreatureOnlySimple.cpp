@@ -70,11 +70,9 @@ CStomach::CStomach()
 
 // 【objdump】ORIG _ZN13user_creature13CCreatureItemC1Ev W 0x08340c82（C2 同址，
 // size 0x0e）：movl $0x8c2f4d8,(%eax) —— 写 CCreatureItem vtable 指针槽。
-// 本镜像以 int m_vptr 字段保持偏移；常量为 ORIG &_ZTVN13user_creature13CCreatureItemE+0x8
-// （nm V 0x08c2f4d0 → +8 = 0x08c2f4d8）。
+// [b28d-Main·检查点14] 真多态化后由编译器自动发射该 vptr 写（探针 /tmp/vt_probe.cpp）。
 CCreatureItem::CCreatureItem()
 {
-    m_vptr = (int)0x08c2f4d8;
 }
 
 // 【objdump】ORIG _ZN13user_creature13CCreatureItem19SetCreatureItemTypeENS_18CREATURE_ITME_TYPEE
@@ -101,7 +99,7 @@ int CCreatureItem::GetUid()
 // ORIG _ZN13user_creature13CCreatureItem11GetNoChargeEv W 0x0833efd6（size 0x0e）：
 // movzbl 0x14(%eax),%eax 直返。P9：返回 unsigned char（bool 会生成 setne 规范化）。
 // 头内不再保留 inline 定义（无调用点则永不 emission → 仅 ORIG 缺口），外联产出符号。
-unsigned char CCreatureItem::GetNoCharge()
+bool CCreatureItem::GetNoCharge()
 {
     return m_noCharge;
 }
@@ -126,7 +124,8 @@ unsigned char CCreatureItem::GetStat()
 // `CCreatureItem();` 会额外构造一次临时对象（NEW 反汇编 2 次 C1），删除。
 CEgg::CEgg()
 {
-    m_vptr = (int)0x08c2f4a8;  // ORIG movl $&_ZTVN13user_creature4CEggE+0x8
+    // [b28d-Main·检查点14] vptr 由编译器自动写为 &_ZTVN13user_creature4CEggE+0x8
+    //   （原手工常量已删）。
     Reset();
 }
 
