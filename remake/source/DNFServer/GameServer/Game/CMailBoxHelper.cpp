@@ -17,6 +17,16 @@
 //  ④isUnlimitMail / _DoGetPackageAvatar / _DoGetPackageCreature 维持 N
 //    （新试形与 ORIG 地址见各自函数头）。
 //  四数 141/299/1/16 → 141/300/2/14（CMailBox.cpp 98/149/0/4 不回退）。
+// [2026-09-09 二轮复扫波 SweepMailBox2] dual_rank 候选 4 件均为前泳道已处理；
+//  按「p167 call 锚点 + 段级归一化多重集 + Ghidra C 逐字对照」复扫剩余 DIFF：
+//  ①_makeSendMailData 真修（P247：m_guid/m_rand 具名视图结构赋值）gap -14→-4；
+//  ②_DoGetPackageItem 真 bug：ProcessSpecialItem 两处实参错位（第 3 参 count
+//    ← restrictCode、第 4 参 int& ← outCnt）⇒ ndiff 334→277；
+//  ③_DoGetPackage 真 bug：isAvatarPottery 原局部 namespace 假声明少压 this
+//    （成员函数当命名空间函数调，运行期 this=垃圾）⇒ 改权威类成员调用；
+//  ④SetMailBoxInfo/ReqDBSendNewMail/_DoSendNewMail/ReqDBRemoveMail 逐段核对
+//    无参数/字段语义差，残余为 N82/N76/P75 跨版本形态族。
+//  四数 141/300/2/14 不回退（三处真修 verdict 仍 DIFF：残余形态差未消）。
 
 #include "CMailBoxHelper.h"   // 本类权威叶子头（不再经 CGameManager.h）
 #include "SigTypes.h"
@@ -31,6 +41,7 @@
 #include "InterfacePacketBuf.h"
 #include "PacketGuard.h"
 #include "CDataManager.h"
+#include "DataManagerInitDepends.h"   // AvatarRouletteServer 权威类声明（CDataManager.h 之后）
 #include "CItemList.h"
 #include "CCeraShop.h"
 #include "GamePODTypes.h"
@@ -182,15 +193,14 @@ struct MailBoxSendNewMailV
     unsigned char m_itemAttr;        // +0x33
     unsigned short m_fieldb;         // +0x34
     int m_fieldd;                    // +0x36
-    int m_field15;                   // +0x3a
-    int m_field19;                   // +0x3e
-    unsigned short m_field1d;        // +0x42
+    // [b28d-sweep P247] +0x3a..+0x43 改具名 guid 视图（与 item.m_amp.m_guid 同型）
+    // ⇒ 结构赋值形复现 ORIG 0x085557e0 段「双基址各载一次 + int/int/word 连续 store」。
+    stAmplifyGuidView m_guid;        // +0x3a
     unsigned char m_ampType;         // +0x44
     unsigned short m_ampIdx;         // +0x45
-    int m_field25;                   // +0x47
-    int m_field29;                   // +0x4b
-    int m_field2d;                   // +0x4f
-    unsigned short m_field31;        // +0x53
+    // [b28d-sweep P247] +0x47..+0x54 改 RandomOption（与 item.m_random.m_random 同型）
+    // ⇒ 结构赋值形复现 ORIG 0x0855581c 段（0xe 字节 int/int/int/word 块拷贝）。
+    RandomOption m_rand;             // +0x47
     unsigned char m_upgradeSep;      // +0x55
     unsigned char m_isAvatarSend;    // +0x56（m_field1==8）
     unsigned char m_cashShopFlag;    // +0x57（CashShop 置 1）
@@ -206,6 +216,10 @@ struct MailBoxSendNewMailV
 static_assert(sizeof(MailBoxSendNewMailV) == 0x168, "MailBoxSendNewMailV ABI drift");
 static_assert(offsetof(MailBoxSendNewMailV, m_addInfo) == 0x2b,
               "MailBoxSendNewMailV m_addInfo offset drift");
+static_assert(offsetof(MailBoxSendNewMailV, m_guid) == 0x3a,
+              "MailBoxSendNewMailV m_guid offset drift");
+static_assert(offsetof(MailBoxSendNewMailV, m_rand) == 0x47,
+              "MailBoxSendNewMailV m_rand offset drift");
 
 // SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL（ReqDBSendNewSystemMultiMail 证据），总 0x3a9。
 #pragma pack(push, 1)
@@ -536,12 +550,6 @@ void DB_GetUserRegdate::makeRequest(int uid, unsigned int accId)
     sig->m_regDay = 0;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
-namespace AvatarRouletteServer
-{
-bool isAvatarPottery(unsigned long v);                                // 0x0817fb0a (T)
-} // namespace AvatarRouletteServer
-
-
 namespace WongWork
 {
 
@@ -1171,6 +1179,13 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
 // 残余 N：ORIG 0x08554697 槽比零物化 `cmpl $0; setne %al; test %al,%al; je`
 // 被 4.4 恒折 `cmpl $0; je`（N197④，P168a④ 补：非绑定不可造）+ 帧
 // 0x110 vs 0x120 与槽基差 0xc（N82/P112）；p167 CLEAR 29/29，243 vs 244。
+// [本波 2026-09-09 真 bug] isAvatarPottery 调用从局部 `namespace
+// AvatarRouletteServer { bool isAvatarPottery(unsigned long); }` 假声明改为
+// 权威类成员调用 `((AvatarRouletteServer*)GlobalData::s_pAvatarRoulette)
+// ->isAvatarPottery(itemIdx)`：ORIG 0x085548ac..0x085548b8 压栈
+// `mov &s_pAvatarRoulette,%eax; mov %eax,(%esp); mov itemIdx,0x4(%esp)` 实证
+// 是成员调用（this=s_pAvatarRoulette）。旧形少压 this ⇒ 运行期 this 为垃圾。
+// 243 vs 245（+2 为 this 装载/压栈），p167 仍 CLEAR（符号名相同，差集看不出）。
 bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
                                    std::vector<std::pair<int, int> >& items,
                                    bool bReset, ENUM_ERROR& err)
@@ -1241,7 +1256,13 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
     if (itemIdx == 1)
         return _DoGetPackageCoin(user, mail, items, bReset, err);
 
-    if (AvatarRouletteServer::isAvatarPottery(itemIdx))
+    // [本波 2026-09-09 真 bug 修复] ORIG 0x085548ac..0x085548b8 压栈实证：
+    // this = GlobalData::s_pAvatarRoulette（`mov &s_pAvatarRoulette,%eax; mov %eax,(%esp)`）
+    // + 1 个显式实参 ⇒ 是**成员调用**。旧局部 `namespace AvatarRouletteServer {
+    // bool isAvatarPottery(unsigned long); }` 声明把成员当命名空间函数调用，
+    // 少压 this ⇒ 运行期 this 为垃圾（读 this+0x18）。改权威类成员调用。
+    if (reinterpret_cast<AvatarRouletteServer*>(GlobalData::s_pAvatarRoulette)
+            ->isAvatarPottery(itemIdx))
         return AvatarCoin::GetPackage(
             user, pkg.m_addInfo2, bReset); // +0x07 avatar uid
 
@@ -1329,6 +1350,12 @@ bool CMailBoxHelper::_DoGetPackageCoin(CUser* user, CMailBox::CMail const* mail,
 // 改 `GlobalData::s_pCeraShop->` 每处直读（P0/P183 方向）⇒ 533→534 且短路块
 // 结构重排；②补 `int framePad` 撑帧（P31/P190）⇒ 槽 -0xd5→-0xdd 过头 4。
 // 残余 = sret/迭代器槽序与帧平移（N82/P112，523 vs 533）。
+// [本波 2026-09-09 真 bug] ProcessSpecialItem 两处实参错位已修（第 3 参 count
+// ← restrictCode 值、第 4 参 int& restrictCode ← outCnt；ORIG
+// 0x08553e94..0x08553eb0 / 0x08553fa3..0x08553fc4 压栈序实证 + 全仓同族
+// 调用点一致）⇒ ndiff 334→277，523 vs 534（+1 条为参数序寄存器分配）。
+// 残余 = 槽平移 + 4.4 bool 物化（N82/P168a④，ORIG `cmpl $0; setne; test; je`
+// vs 4.4 `cmpl $0; je`）。
 bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
                                        std::vector<std::pair<int, int> >& items,
                                        bool bReset, ENUM_ERROR& err)
@@ -1414,7 +1441,13 @@ bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
         std::vector<Inven_Item> outItems;
         CCeraShop::stCeraShopItemParam_t param;
         int outCnt = 0;
-        if (shop->ProcessSpecialItem(user, pkg.m_addInfo, 0, restrictCode, curSec, true,
+        // [本波 2026-09-09 真 bug 修复] ORIG 0x08553e94..0x08553eb0 压栈实证：
+        // 第 3 参（count）= -0x10(restrictCode 值)、第 4 参（int& restrictCode）
+        // = &(-0x78)(outCnt)。原写 `(…, 0, restrictCode, …)` 使 outCnt 恒为 0、
+        // restrictCode 被当出参覆写 ⇒ 参数错位。全仓同族调用点
+        // （Arad_ItemBonus/CConditionEventManager/W8_CU_A/Dispatcher_*）均为
+        // 「第 3 参 restrictCode、第 4 参出参」。
+        if (shop->ProcessSpecialItem(user, pkg.m_addInfo, restrictCode, outCnt, curSec, true,
                                      outItems, param, '\0', '\0', false, 1))
         {
             if (outCnt != 0)
@@ -1426,7 +1459,7 @@ bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
                 user->SendRestrictedGoods(true, restrictCode);
             }
             if (pkg.m_addInfo == 0xc1 &&
-                !shop->ProcessSpecialItem(user, 0x10, 0xc352, restrictCode, curSec,
+                !shop->ProcessSpecialItem(user, 0x10, 0xc352, outCnt, curSec,
                                           true, outItems, param, '\0', '\0', false, 1))
             {
                 LogManager::logFormat(
@@ -1609,6 +1642,18 @@ StaticPool<CMailBox, 600> CMailBoxHelper::g_MailBoxPool; // ORIG B 0x0943e000
 // +0x25/+0x29/+0x2d/+0x31、msg 载一次 %eax 连续写；4.4 每句重载，
 // N7/P75/P183 族）+ m_upgradeSep 段 msg 地址跨 call 装 %ebx
 // （ORIG call 后 `mov 0x8(%ebp),%edx`，N76/P211 档②实测不翻）。
+// [本波 2026-09-09 P247] 净修复 gap -14→-4（ORIG 131 / 我方 135）：
+//  ①+0x3a..+0x43 三标量 → `stAmplifyGuidView m_guid`，源码
+//    `m_guid = item.m_amp.m_guid` ⇒ 结构赋值复现 ORIG 0x085557e0 段
+//    「双基址各载一次 + int/int/word 连续 store」（三独立字段 4.4 恒逐条重载）；
+//  ②+0x47..+0x54 四标量 → `RandomOption m_rand`，源码
+//    `m_rand = item.m_random.m_random` ⇒ 复现 ORIG 0x0855581c 段
+//    （探针 /tmp/ms_probe.cpp /tmp/ms_probe2.cpp 逐条全等）；
+//  ③std::min 实参序改 `(lens[1], lens[0])`（ORIG 0x085558b3 压栈序；min 交换律等价）。
+//  残余 4 条 = 4.4 在 4 处 `msg->f = call()` 统一「call 前装 %ebx 保活 msg 地址」
+//  （ORIG 4.1 恒 call 后 `mov 0x8(%ebp),%edx` 重载）；单语句探针
+//  /tmp/ebx_probe{,3,4,5,6}.cpp 两侧均无 ebx ⇒ 本函数形状下 4.4 特有分配；
+//  字段异型化 char/short（P211 档③/P248 档②）实测 ebx 数量不变 ⇒ N7/P75 封顶。
 void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
                                        const char* pSender, int nSenderCharacNo,
                                        Inven_Item const& item, unsigned int nDestCharacNo,
@@ -1632,18 +1677,13 @@ void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
     MAIL_MSG->m_fieldb = MAIL_IT->m_fieldb;
     MAIL_MSG->m_itemAttr = MAIL_IT->GetItemAttr();
     MAIL_MSG->m_fieldd = MAIL_IT->m_fieldd;
-    // item+0x15/0x19/0x1d = amp guid（ORIG 0x08555756 逐条 int/int/word 读）。
-    MAIL_MSG->m_field15 = MAIL_IT->m_amp.m_guid.m_serverId;
-    MAIL_MSG->m_field19 = MAIL_IT->m_amp.m_guid.m_datetime;
-    MAIL_MSG->m_field1d = MAIL_IT->m_amp.m_guid.m_sequenceNo;
+    // item+0x15/0x19/0x1d = amp guid（ORIG 0x085557e0 段：双基址各载一次 +
+    // int/int/word 连续 store ⇒ 结构赋值，P247；三独立字段赋值 4.4 恒逐条重载）。
+    MAIL_MSG->m_guid = MAIL_IT->m_amp.m_guid;
     MAIL_IT->m_amp.getValues(MAIL_MSG->m_ampType, MAIL_MSG->m_ampIdx);
-    // RandomOption（&item.m_random.m_random = item+0x25）整块序列化读出，
-    // ORIG 逐条 int/int/int/word 视图，且每字段重发基址（P183/P157：引用
-    // 局部会多一枚指针槽 + 每处 `mov slot,%edx; mov (%edx)` 解引用）。
-    MAIL_MSG->m_field25 = reinterpret_cast<InvenItemRandTailV const*>(MAIL_IT)->m_w0;
-    MAIL_MSG->m_field29 = reinterpret_cast<InvenItemRandTailV const*>(MAIL_IT)->m_w4;
-    MAIL_MSG->m_field2d = reinterpret_cast<InvenItemRandTailV const*>(MAIL_IT)->m_w8;
-    MAIL_MSG->m_field31 = reinterpret_cast<InvenItemRandTailV const*>(MAIL_IT)->m_wc;
+    // RandomOption（item+0x25，0xe 字节）：ORIG 0x0855581c 段同型 ⇒ 结构赋值
+    // （探针 /tmp/ms_probe2.cpp 实测 4.4 展开 = int/int/int/word + 双基址各载一次）。
+    MAIL_MSG->m_rand = MAIL_IT->m_random.m_random;
     MAIL_MSG->m_upgradeSep = MAIL_IT->m_upgradeSep.GetUpgradeSeparate();
     // ORIG 0x085558xx：m_isCreature 直存（`mov %al,0x58`）、m_isAvatarSend
     // 为 bool 表达式（`sete %dl; mov %dl,0x56`）——三元 ?1:0 会多出 test/je 物化。
@@ -1657,7 +1697,9 @@ void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
         unsigned short lens[2];
         lens[0] = (unsigned short)nTitleLen;
         lens[1] = 0xff;
-        MAIL_MSG->m_titleLen = std::min(lens[0], lens[1]);
+        // ORIG 0x085558b3：第一实参 = &lens[1]、第二 = &lens[0]（cdecl 压栈序）
+        // ⇒ 源码为 min(lens[1], lens[0])（P18 实参序；min 交换律语义等价）。
+        MAIL_MSG->m_titleLen = std::min(lens[1], lens[0]);
         std::strncpy(MAIL_MSG->m_title, pTitle, MAIL_MSG->m_titleLen);
     }
     MAIL_MSG->m_nB = nB;
