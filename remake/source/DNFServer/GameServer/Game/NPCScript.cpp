@@ -351,11 +351,13 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
             {
                 slot = getCharacterJob(sub.c_str());
             }
-            std::vector<int>& list = npc->m_skills[slot];
-            list.clear();
+            // ORIG 0x089fc6dd 循环体内每轮重发 `slot*0xc + 0x68` 全链（P183
+            // 地址重物化铁律）：旧译文用 `std::vector<int>& list` 缓存基址，
+            // 少 6~7 条/轮。展开为逐次 `npc->m_skills[slot]` 表达式。
+            npc->m_skills[slot].clear();
             while ((v = ScanInt(&ok), ok))
             {
-                list.push_back(v);
+                npc->m_skills[slot].push_back(v);
             }
             continue;
         }
@@ -431,7 +433,14 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
             dlg.m_b = ScanInt(static_cast<bool*>(0));
             dlg.m_c = ScanInt(static_cast<bool*>(0));
             int condCount = ScanInt(static_cast<bool*>(0));
-            if (condCount != -1)
+            // ORIG 0x089fca26/0x089fca2f：`cmpl $0xffffffff,-0x88; jne else` +
+            // then 块 `movb $0x1,-0x648`（对象 +0x18 = m_flag0）——condCount==-1
+            // 时置 1，否则保持 clear() 的 0。旧译文缺该写入（真语义缺口）。
+            if (condCount == -1)
+            {
+                dlg.m_flag0 = 1;
+            }
+            else
             {
                 for (int i = 0; i < condCount * 2; ++i)
                 {
@@ -502,7 +511,10 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
             while (ScanStr(&one))
             {
                 char* pc = const_cast<char*>(one.c_str());
-                char* pg = strchr(pc, '>');
+                // ORIG 0x089fce66/0x089fce80：`movl $0,-0x7c` 前置 + strchr 结果
+                // 覆盖同槽 ⇒ 原码是「声明置 0 + 独立赋值」两段式（P198③/P50）。
+                char* pg = 0;
+                pg = strchr(pc, '>');
                 if (pg != 0)
                 {
                     pg = pg + 1;
