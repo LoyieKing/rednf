@@ -6,14 +6,25 @@
 // CountinuousItemOption/AvatarOptionChangeType）与 STStackableScript 同 TU
 // （ORIG 0x089c30dc..0x089c34e8 弱符号紧邻），方法实现于此。
 // ============================================================================
-// b28d-45 判词汇总（本 TU 4 件）：
-//   STStackableScript::Clear 0x0899087a DIFF190 N82/N89：322:320 基类 Clear
-//     转发 + AradStClear 调用点显示差。
-//   STStackableScript::operator= 0x089c418e DIFF379 N84/N82：621:627 基类
-//     operator= 转发 + Arad_STStackableScript::operator= 槽序。
-//   STStackableScript::C1ERKS_ 0x0898f218 DIFF434 N84/N82：643:647 拷贝构造链。
-//   ImportStackableScript 0x089aeaf4 DIFF9936 N89/N82：10096:10147 万行级
-//     解析件，§6.2 三件套判语义完成、byte 层封顶。
+// b28d-45 + sweep 判词汇总：
+//   STStackableScript::Clear 0x0899087a AE（322=322）P238 float 字段形。
+//   STStackableScript::operator= 0x089c418e N-ptrfold：621:627（p167 43=43
+//     CLEAR；4.4 折 `&a->f != &b->f` 为 `a != b` + memcpy 实参重算）。
+//   STStackableScript::C1ERKS_ 0x0898f218 NEAR：643=643（p167 仅 C2/D2 同址
+//     别名伪差 P93；残差=块内迭代器槽序 N93/P212）。
+//   ImportStackableScript 0x089aeaf4 N89/N82：10096:10155，§6.2 三件套判语义
+//     完成（p167 1174=1174 CLEAR；丢弃写入 26/26 一一对应，槽整体平移 0x34；
+//     jcc 差异全为块序镜像/折痕，无符号性反转 P196）。
+//   [sweep] GetExpertJobTypeList 0x089bf6ca：原直线形有真语义 bug（首轮建表后
+//     未命中应 return false，旧形却 typeSel=0 继续循环）+ 多 1 次 find/end/c_str
+//     ⇒ 改写为 P333 状态机形（P177 三件套入循环体），327=327 归零。
+//   [sweep] GetItemCategory 0x089bfdc5：改写为 P333 状态机形（gap +33 → −1）；
+//     残差 = 2×4.1 nop 岛（P223/N112）+ state 槽比零折痕（P197④/N）+ 槽分区
+//     （token/迭代器整体深 8、state 浅 0x58，N82附）⇒ N 封顶。
+//   [sweep] GetExpertJobValueMaterialVariation 0x089bfc2f：27:26 N85（x87
+//     fucompp/fnstsw/sete vs fucomip/jp 代际）。
+//   [sweep] 虚调用核对：ORIG/我方各 2 处 `call *%edx`（new_allocator<CRabbitBox>
+//     ::destroy / _Destroy<CRabbitBox>）位置与槽一致。
 
 #include "STStackableScript.h"
 #include "CStackableItem.h"  // RecipeInfo 权威布局（0x4c，ORIG 0x8513c6a 族）
@@ -567,46 +578,63 @@ static bool GetExpertJobValueCompoundRate(STItemScript* item);
 
 static bool GetItemCategory(STItemScript* item)
 {
-    static std::map<const char*, int, less_TCHAR> __lookup;
-    static SpinLock __init_lock;
-    static bool __inited = false;
-
     std::string token;
     while (ScanStr(&token))
     {
-        if (!__inited)
+        int state = 0;
+        // [sweep-STStackableScript] P333/P177（ORIG 0x089bfdc5 逐条实证）：
+        // 三件套落循环体（guard 每轮执行，ORIG 0x89bfde8 为 retry 回跳目标）；
+        // 单次 find（仅 __inited 分支）+ case 0/0x30ae 共享块 + case 尾 fallthrough
+        // 插入 + default `if(__inited) return false` + 建表后 `goto retry` 重查。
+        static std::map<const char*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+    retry:
+        int v;
+        if (__inited)
+        {
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                __lookup.find(token.c_str());
+            v = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
         {
             __init_lock.enter();
-            if (!__inited)
+            if (__inited)
             {
-                // ORIG 首轮 case 链依次插入三项，随后重查当前 token。
-                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("monster card", 0x30ae));
-                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("cannot bind", 0x30b1));
-                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("boss drop", 0x30b4));
-                __inited = true;
+                __init_lock.leave();
+                goto retry;
             }
-            __init_lock.leave();
+            v = 0;
         }
-
-        int state = 0;
-        std::map<const char*, int, less_TCHAR>::const_iterator it =
-            __lookup.find(token.c_str());
-        switch (it != __lookup.end() ? it->second : -1)
+        switch (v)
         {
+        case 0:
         case 0x30ae:                                   // "monster card"
-            state = STItemScript::ITEM_CATEGORY_1;
-            break;
+            if (!__inited) { __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("monster card", 0x30ae)); }
+            else { state = STItemScript::ITEM_CATEGORY_1; break; }
         case 0x30b1:                                   // "cannot bind"
-            state = STItemScript::ITEM_CATEGORY_2;
-            break;
+            if (!__inited) { __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("cannot bind", 0x30b1)); }
+            else { state = STItemScript::ITEM_CATEGORY_2; break; }
         case 0x30b4:                                   // "boss drop"
-            state = STItemScript::ITEM_CATEGORY_3;
-            break;
+            if (!__inited) { __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("boss drop", 0x30b4)); }
+            else { state = STItemScript::ITEM_CATEGORY_3; break; }
         default:
-            return false;                              // 未命中 → 导入失败
+            if (__inited)
+                return false;                          // 未命中 → 导入失败
+            break;
         }
-        item->m_set11c.insert(
-            static_cast<STItemScript::ENUM_ITEM_CATEGORY>(state));
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            goto retry;
+        }
+        if (state != 0)
+        {
+            item->m_set11c.insert(
+                static_cast<STItemScript::ENUM_ITEM_CATEGORY>(state));
+        }
     }
     return true;
 }
@@ -617,62 +645,86 @@ static bool GetExpertJobTypeList(STItemScript* item)
         return false;
     item->m_expertJob.m_usable.clear();
 
-    static std::map<const char*, int, less_TCHAR> __lookup;   // 0x94fde48
-    static SpinLock __init_lock;                              // 0x94fde60
-    static bool __inited = false;                             // 0x94fde64
-
+    // [sweep-STStackableScript] P333「首建表、之后查表」状态机形（ORIG
+    // 0x089bf6ca 逐条实证）：单次 find（仅 __inited 分支发射）+ case 0/0x303a
+    // 共享块 + 各 case 尾 fallthrough 到下一 case + default `if(__inited)
+    // return false` + 建表后 `goto retry` 重查。旧直线形（if/else 各一次 find）
+    // 有真语义 bug：首轮建表后未命中的 token 应 **return false**（ORIG
+    // 0x89bfb23 `movzbl __inited; test; je` → `mov $0,%ebx; jmp 0x89bfc14`），
+    // 旧形却 typeSel=0 继续循环 ⇒ 既少指令（gap +9）又多 1 次 find/end/c_str。
     std::string token;
     bool scanning = true;
     while (scanning)
     {
-        int typeSel = 0;
         if (!ScanStr(&token))
             break;
 
-        // 首个 token 惰性登记全部关键字映射（锁内连续 insert），随后重查本 token。
-        if (!__inited)
-        {
-            __init_lock.enter();
-            if (!__inited)
-            {
-                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("enchanter", 0x303a));
-                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("alchemist", 0x303d));
-                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("disjointer", 0x3040));
-                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("doll_controller", 0x3043));
-                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("all", 0x3046));
-                __inited = true;
-            }
-            __init_lock.leave();
-
-            typeSel = 0;
-            std::map<const char*, int, less_TCHAR>::const_iterator found =
-                __lookup.find(token.c_str());
-            if (found != __lookup.end())
-                typeSel = found->second;
-        }
-        else
+        int typeSel = 0;
+        // P177：三件套声明落循环标签处 ⇒ guard 检查每轮执行（ORIG 0x89bf72d
+        // guard 段在 ScanStr 之后、retry 回跳目标处；函数级声明会把 guard 提到
+        // 函数入口 = 我方旧形）。
+        static std::map<const char*, int, less_TCHAR> __lookup;   // 0x94fde48
+        static SpinLock __init_lock;                              // 0x94fde60
+        static bool __inited = false;                             // 0x94fde64
+    retry:
+        int v;
+        if (__inited)
         {
             std::map<const char*, int, less_TCHAR>::const_iterator it =
                 __lookup.find(token.c_str());
-            if (it == __lookup.end())
-                return false;
-            switch (it->second)
+            v = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
+            __init_lock.enter();
+            if (__inited)
             {
-            case 0x303a: typeSel = 1; break;   // enchanter
-            case 0x303d: typeSel = 2; break;   // alchemist
-            case 0x3040: typeSel = 3; break;   // disjointer
-            case 0x3043: typeSel = 4; break;   // doll_controller
-            case 0x3046: typeSel = 5; break;   // all
-            default: return false;
+                __init_lock.leave();
+                goto retry;
             }
+            v = 0;
+        }
+        switch (v)
+        {
+        // 极性照 ORIG：`movzbl __inited; xor $1; test; je <typeSel 段>` ⇒ 源写
+        // `if (!__inited) { insert } else { typeSel = N; break; }`（P59/P248 档②）。
+        case 0:
+        case 0x303a:                                   // enchanter
+            if (!__inited) { __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("enchanter", 0x303a)); }
+            else { typeSel = 1; break; }
+        case 0x303d:                                   // alchemist
+            if (!__inited) { __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("alchemist", 0x303d)); }
+            else { typeSel = 2; break; }
+        case 0x3040:                                   // disjointer
+            if (!__inited) { __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("disjointer", 0x3040)); }
+            else { typeSel = 3; break; }
+        case 0x3043:                                   // doll_controller
+            if (!__inited) { __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("doll_controller", 0x3043)); }
+            else { typeSel = 4; break; }
+        case 0x3046:                                   // all
+            if (!__inited) { __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("all", 0x3046)); }
+            else { typeSel = 5; break; }
+        default:
+            if (__inited)
+                return false;
+            break;
+        }
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            goto retry;
         }
 
+        int level = 0;
+        if (!ScanInt(&level))
+            return false;
         if (typeSel != 0)
         {
-            int level = 0;
-            if (!ScanInt(&level))
-                return false;
+            // ORIG 0x89bfb8e/0x89bfb98 两条 `movl $0x0,-0xac/-0xa8` = entry 预清零。
             STItemScript::SEXPERTJOB::SUSABLE entry;
+            entry.m_field0 = static_cast<ENUM_EXPERT_JOB_TYPE>(0);
+            entry.m_field4 = 0;
             entry.m_field0 = static_cast<ENUM_EXPERT_JOB_TYPE>(typeSel);
             entry.m_field4 = level;
             item->m_expertJob.m_usable.push_back(entry);
