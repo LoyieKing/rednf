@@ -48,73 +48,6 @@ void DestroyCryptoChecksum(IChecksum*& p)
 }
 
 // ---------------------------------------------------------------------------
-// 公共文件校验流程（ORIG 各 MakeChecksumFromFile 反编译同构）
-// ---------------------------------------------------------------------------
-
-namespace {
-
-struct ShaFileHooks
-{
-    void (*init)(void*);
-    void (*update)(void*, unsigned char const*, unsigned long);
-    void (*finish)(void*, unsigned char*);
-};
-
-int MakeShaChecksumFromFile(void* ctx, ShaFileHooks const& hooks,
-                            char const* path, unsigned char* out, int outSize,
-                            int digestSize)
-{
-    if (ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (outSize < digestSize)
-        return CKS_ERR_BUFSIZE;
-    if (path == 0)
-        return CKS_ERR_FILESIZE;
-
-    FILE* fp = std::fopen(path, "rb");
-    if (fp == 0)
-        return CKS_ERR_OPENFILE;
-
-    std::fseek(fp, 0, SEEK_END);
-    long fileLen = std::ftell(fp);
-    if (fileLen < 0) {
-        std::fclose(fp);
-        return CKS_ERR_FILESIZE;
-    }
-    std::fseek(fp, 0, SEEK_SET);
-
-    unsigned char buf[1024];
-    hooks.init(ctx);
-    for (unsigned long off = 0; off < (unsigned long)fileLen; ) {
-        size_t chunk = (unsigned long)fileLen - off;
-        if (chunk > sizeof(buf))
-            chunk = sizeof(buf);
-        std::fread(buf, chunk, 1, fp);
-        hooks.update(ctx, buf, (unsigned long)chunk);
-        off += (unsigned long)chunk;
-    }
-    hooks.finish(ctx, out);
-    std::fclose(fp);
-    return CKS_OK;
-}
-
-int MakeShaChecksumFromMemory(void* ctx, ShaFileHooks const& hooks,
-                              unsigned char const* data, int len,
-                              unsigned char* out, int outSize, int digestSize)
-{
-    if (ctx == 0)
-        return CKS_ERR_NOSTATE;
-    if (outSize < digestSize)
-        return CKS_ERR_BUFSIZE;
-    hooks.init(ctx);
-    hooks.update(ctx, data, (unsigned long)len);
-    hooks.finish(ctx, out);
-    return CKS_OK;
-}
-
-}  // namespace
-
-// ---------------------------------------------------------------------------
 // CNChecksumMd5（ORIG 0x0809830c..0x080986ac）
 // ---------------------------------------------------------------------------
 
@@ -224,37 +157,6 @@ int CNChecksumMd5::MakeChecksumFromFile(char const* path, unsigned char* out,
 // CNChecksumSha256 / Sha384 / Sha512（显式实现；copy ctor/or= 与 ORIG 一致）
 // ---------------------------------------------------------------------------
 
-namespace {
-
-// [b28d-Main·检查点18] 原 9 个 sha*Hook* 包装函数已删（ORIG 无这些符号）：
-//   直接取库函数地址 + 签名 cast（ABI 同形；原包装体仅做 const_cast 与形参适配）。
-ShaFileHooks Hooks256()
-{
-    ShaFileHooks h;
-    h.init = reinterpret_cast<void (*)(void*)>(&SHA256_Init);
-    h.update = reinterpret_cast<void (*)(void*, unsigned char const*, unsigned long)>(&SHA256_Update);
-    h.finish = reinterpret_cast<void (*)(void*, unsigned char*)>(&SHA256_Final);
-    return h;
-}
-ShaFileHooks Hooks384()
-{
-    ShaFileHooks h;
-    h.init = reinterpret_cast<void (*)(void*)>(&SHA384_Init);
-    h.update = reinterpret_cast<void (*)(void*, unsigned char const*, unsigned long)>(&SHA384_Update);
-    h.finish = reinterpret_cast<void (*)(void*, unsigned char*)>(&SHA384_Final);
-    return h;
-}
-ShaFileHooks Hooks512()
-{
-    ShaFileHooks h;
-    h.init = reinterpret_cast<void (*)(void*)>(&SHA512_Init);
-    h.update = reinterpret_cast<void (*)(void*, unsigned char const*, unsigned long)>(&SHA512_Update);
-    h.finish = reinterpret_cast<void (*)(void*, unsigned char*)>(&SHA512_Final);
-    return h;
-}
-
-}  // namespace
-
 // ---- CNChecksumSha256（ORIG 0x080986b8..0x08098a9c）----
 
 CNChecksumSha256::CNChecksumSha256()
@@ -317,15 +219,56 @@ int CNChecksumSha256::ChecksumFinish(unsigned char* out, int outSize)
 int CNChecksumSha256::MakeChecksumFromMemory(unsigned char const* data, int len,
                                              unsigned char* out, int outSize)
 {
-    return MakeShaChecksumFromMemory(m_ctx, Hooks256(), data, len, out,
-                                     outSize, GetChecksumSize());
+    if (m_ctx == 0)
+        return CKS_ERR_NOSTATE;
+    if (GetChecksumSize() > outSize)
+        return CKS_ERR_BUFSIZE;
+    if (len <= 0)
+        return CKS_ERR_DATALEN;
+    SHA256_Init(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx));
+    SHA256_Update(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx),
+                  const_cast<unsigned char*>(data), (unsigned long)len);
+    SHA256_Final(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx), out);
+    return CKS_OK;
 }
 
 int CNChecksumSha256::MakeChecksumFromFile(char const* path, unsigned char* out,
                                            int outSize)
 {
-    return MakeShaChecksumFromFile(m_ctx, Hooks256(), path, out, outSize,
-                                   GetChecksumSize());
+    if (m_ctx == 0)
+        return CKS_ERR_NOSTATE;
+    if (GetChecksumSize() > outSize)
+        return CKS_ERR_BUFSIZE;
+    if (path == 0)
+        return CKS_ERR_FILESIZE;
+
+    SHA256_Init(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx));
+
+    FILE* fp = std::fopen(path, "rb");
+    if (fp == 0)
+        return CKS_ERR_OPENFILE;
+
+    std::fseek(fp, 0, SEEK_END);
+    long fileLen = std::ftell(fp);
+    if (fileLen < 0) {
+        std::fclose(fp);
+        return CKS_ERR_FILESIZE;
+    }
+    std::fseek(fp, 0, SEEK_SET);
+
+    unsigned char buf[1024];
+    for (unsigned long off = 0; off < (unsigned long)fileLen; ) {
+        size_t chunk = (unsigned long)fileLen - off;
+        if (chunk > sizeof(buf))
+            chunk = sizeof(buf);
+        std::fread(buf, chunk, 1, fp);
+        SHA256_Update(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx), buf,
+                      (unsigned long)chunk);
+        off += (unsigned long)chunk;
+    }
+    SHA256_Final(reinterpret_cast<SHA256_ALG_INFO*>(m_ctx), out);
+    std::fclose(fp);
+    return CKS_OK;
 }
 
 // ---- CNChecksumSha384（ORIG 0x08098a9c..0x08098e76）----
@@ -391,15 +334,56 @@ int CNChecksumSha384::ChecksumFinish(unsigned char* out, int outSize)
 int CNChecksumSha384::MakeChecksumFromMemory(unsigned char const* data, int len,
                                              unsigned char* out, int outSize)
 {
-    return MakeShaChecksumFromMemory(m_ctx, Hooks384(), data, len, out,
-                                     outSize, GetChecksumSize());
+    if (m_ctx == 0)
+        return CKS_ERR_NOSTATE;
+    if (GetChecksumSize() > outSize)
+        return CKS_ERR_BUFSIZE;
+    if (len <= 0)
+        return CKS_ERR_DATALEN;
+    SHA384_Init(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx));
+    SHA384_Update(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx),
+                  const_cast<unsigned char*>(data), (unsigned long)len);
+    SHA384_Final(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx), out);
+    return CKS_OK;
 }
 
 int CNChecksumSha384::MakeChecksumFromFile(char const* path, unsigned char* out,
                                            int outSize)
 {
-    return MakeShaChecksumFromFile(m_ctx, Hooks384(), path, out, outSize,
-                                   GetChecksumSize());
+    if (m_ctx == 0)
+        return CKS_ERR_NOSTATE;
+    if (GetChecksumSize() > outSize)
+        return CKS_ERR_BUFSIZE;
+    if (path == 0)
+        return CKS_ERR_FILESIZE;
+
+    SHA384_Init(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx));
+
+    FILE* fp = std::fopen(path, "rb");
+    if (fp == 0)
+        return CKS_ERR_OPENFILE;
+
+    std::fseek(fp, 0, SEEK_END);
+    long fileLen = std::ftell(fp);
+    if (fileLen < 0) {
+        std::fclose(fp);
+        return CKS_ERR_FILESIZE;
+    }
+    std::fseek(fp, 0, SEEK_SET);
+
+    unsigned char buf[1024];
+    for (unsigned long off = 0; off < (unsigned long)fileLen; ) {
+        size_t chunk = (unsigned long)fileLen - off;
+        if (chunk > sizeof(buf))
+            chunk = sizeof(buf);
+        std::fread(buf, chunk, 1, fp);
+        SHA384_Update(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx), buf,
+                      (unsigned long)chunk);
+        off += (unsigned long)chunk;
+    }
+    SHA384_Final(reinterpret_cast<SHA384_ALG_INFO*>(m_ctx), out);
+    std::fclose(fp);
+    return CKS_OK;
 }
 
 // ---- CNChecksumSha512（ORIG 0x08098e80..0x0809925a）----
@@ -465,15 +449,56 @@ int CNChecksumSha512::ChecksumFinish(unsigned char* out, int outSize)
 int CNChecksumSha512::MakeChecksumFromMemory(unsigned char const* data, int len,
                                              unsigned char* out, int outSize)
 {
-    return MakeShaChecksumFromMemory(m_ctx, Hooks512(), data, len, out,
-                                     outSize, GetChecksumSize());
+    if (m_ctx == 0)
+        return CKS_ERR_NOSTATE;
+    if (GetChecksumSize() > outSize)
+        return CKS_ERR_BUFSIZE;
+    if (len <= 0)
+        return CKS_ERR_DATALEN;
+    SHA512_Init(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx));
+    SHA512_Update(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx),
+                  const_cast<unsigned char*>(data), (unsigned long)len);
+    SHA512_Final(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx), out);
+    return CKS_OK;
 }
 
 int CNChecksumSha512::MakeChecksumFromFile(char const* path, unsigned char* out,
                                            int outSize)
 {
-    return MakeShaChecksumFromFile(m_ctx, Hooks512(), path, out, outSize,
-                                   GetChecksumSize());
+    if (m_ctx == 0)
+        return CKS_ERR_NOSTATE;
+    if (GetChecksumSize() > outSize)
+        return CKS_ERR_BUFSIZE;
+    if (path == 0)
+        return CKS_ERR_FILESIZE;
+
+    SHA512_Init(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx));
+
+    FILE* fp = std::fopen(path, "rb");
+    if (fp == 0)
+        return CKS_ERR_OPENFILE;
+
+    std::fseek(fp, 0, SEEK_END);
+    long fileLen = std::ftell(fp);
+    if (fileLen < 0) {
+        std::fclose(fp);
+        return CKS_ERR_FILESIZE;
+    }
+    std::fseek(fp, 0, SEEK_SET);
+
+    unsigned char buf[1024];
+    for (unsigned long off = 0; off < (unsigned long)fileLen; ) {
+        size_t chunk = (unsigned long)fileLen - off;
+        if (chunk > sizeof(buf))
+            chunk = sizeof(buf);
+        std::fread(buf, chunk, 1, fp);
+        SHA512_Update(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx), buf,
+                      (unsigned long)chunk);
+        off += (unsigned long)chunk;
+    }
+    SHA512_Final(reinterpret_cast<SHA512_ALG_INFO*>(m_ctx), out);
+    std::fclose(fp);
+    return CKS_OK;
 }
 
 // ---------------------------------------------------------------------------
@@ -1139,7 +1164,7 @@ static unsigned long PaddSet(unsigned char* buf, unsigned long dataLen,
 }
 
 // ORIG static _ZL9PaddCheckPhmm（0x080a273d）
-static unsigned long PaddCheck(unsigned char const* buf, unsigned long len,
+static unsigned long PaddCheck(unsigned char* buf, unsigned long len,
                                unsigned long padding)
 {
     if (padding == 1)

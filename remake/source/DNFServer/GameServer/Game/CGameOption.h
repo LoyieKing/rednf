@@ -150,10 +150,13 @@ public:
     {
         // ORIG 0x80e5f12：头部 jmp→cond `mov -0xc,%eax; cmp $0x17,%eax;
         // setbe %al; test; jne` —— 4.1 无 cmpl mem 融合；4.4 对 unsigned
-        // 槽比较恒折 `cmpl $0x17,-0xc(%ebp)` ⇒ 技巧28 register asm(eax)
-        // 中转（for-cond 逗号表达式），产 `mov -0xc,%eax; cmp $0x17,%eax`。
-        register unsigned int v asm("eax");
-        for (unsigned int i = 0; (v = i, v <= 0x17u); ++i)
+        // 槽比较恒折 `cmpl $0x17,-0xc(%ebp)`。
+        // [Main·检查点30 P0/N96 清绑] 原形为 `register unsigned int v asm("eax")`
+        //   + for-cond 逗号表达式（技巧28）——**违反 P0 限定②/N96 全域禁绑**，
+        //   按 P209附 的实测结论（for 上界/<=/do-while/while 四形均不可复现
+        //   ORIG 的 `mov -0xc,%eax; cmp $0x17,%eax`）⇒ 清绑后取最短自然形，
+        //   残差归 **N96+N18a 封顶**（4.4 对 unsigned 槽比较恒 cmpl mem 融合）。
+        for (unsigned int i = 0; i <= 0x17u; ++i)
             m_Row[i].clear();
     }
 

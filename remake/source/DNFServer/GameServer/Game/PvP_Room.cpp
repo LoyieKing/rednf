@@ -372,16 +372,12 @@ void PvP_Room::CalcuateVictoryPoint(int* rank, int rankCount)   // [b28c-16 SIGF
         {
             if (P_SEATS(local_2c) != 0)
             {
-                bool bVar1;
-                if (P_SEATS(local_2c) == 0)
+                // [DualMisc] ORIG 0x085da2xx：&& 物化为寄存器临时后 jne 跳过（无 xor 取反），
+                // 非具名 bool 局部（后者恒落栈 -0x3d、撑大帧 $0x74 vs ORIG $0x64）。
+                if (({ (P_SEATS(local_2c) != 0) && (IsPvpObserver(local_2c) != 0); }))
                 {
-                    bVar1 = false;
+                    continue;
                 }
-                else
-                {
-                    bVar1 = IsPvpObserver(local_2c);
-                }
-                if (!bVar1)
                 {
                     int local_28 = 0;
                     while (local_28 < rankCount)
@@ -411,16 +407,11 @@ void PvP_Room::CalcuateVictoryPoint(int* rank, int rankCount)   // [b28c-16 SIGF
         {
             if (P_SEATS(local_24) != 0)
             {
-                bool bVar1;
-                if (P_SEATS(local_24) == 0)
+                // [DualMisc] ORIG 0x085da4xx：同单挑分支，&& 物化后 jne 跳过。
+                if (({ (P_SEATS(local_24) != 0) && (IsPvpObserver(local_24) != 0); }))
                 {
-                    bVar1 = false;
+                    continue;
                 }
-                else
-                {
-                    bVar1 = IsPvpObserver(local_24);
-                }
-                if (!bVar1)
                 {
                     int local_20 = GetTeamIndex(P_SEATS(local_24));
                     int local_1c = 0;
@@ -443,17 +434,12 @@ void PvP_Room::CalcuateVictoryPoint(int* rank, int rankCount)   // [b28c-16 SIGF
                     while (local_14 = local_14 - 1, -1 < local_14)
                     {
                         int local_10 = rank[local_14];
-                        bool bVar3;
-                        if (P_SEATS(local_10) == 0)
+                        // [DualMisc] ORIG 0x085da6xx：同前，&& 物化后 jne 跳过（无 xor）。
+                        if (({ (P_SEATS(local_10) != 0) && (IsPvpObserver(local_10) != 0); }))
                         {
-                            bVar3 = false;
+                            continue;
                         }
-                        else
-                        {
-                            bVar3 = IsPvpObserver(local_10);
-                        }
-                        if ((!bVar3) &&
-                            (GetTeamIndex(P_SEATS(local_10)) != local_20))
+                        if (GetTeamIndex(P_SEATS(local_10)) != local_20)
                         {
                             local_34 = local_34 - 1;
                         }

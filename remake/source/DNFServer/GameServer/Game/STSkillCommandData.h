@@ -20,25 +20,31 @@ struct STSkillCommandData
     //   bits 29-31 m_count（3）
     struct STCommand
     {
-        // §P336 packed 位域 ctor 用 `bf = bf;` 自赋值复现 ORIG(4.1) 的逐字段 RMW。
-        // ORIG W 0x0822da04 该 ctor 122 条指令、零 call，全是 +0x02/+0x03 两字节的
-        // 「读出 → and 掩码 → 移位 → or 合并 → 回写」往返（如 `movzbl 0x3(%eax);
-        // and $0x1f,%edx; mov %dl,0x3(%eax)`、`shr $0x5; and $7; lea 0x0(,%edx,4)`）。
-        // 探针实证（/tmp/fdp_probe/p4.cpp，route 与 c6root 4.4.7 逐位一致）：
-        //   成员初始化列表 = 41 条（本方旧形，与 CUser 侧 ourN=41 精确吻合）
-        //   体内 `bf = 0;`   = 41 条（4.4 把清零折叠，**无用**）
-        //   体内 `bf = bf;`  = 128 条 ≈ ORIG 122 条 ⇒ 唯一可复现 4.1 逐字段 RMW 的源级形。
-        // 不给 .h 加 volatile（避免污染全部消费 TU）；自赋值对已规范化对象是恒等操作，
-        // 未规范化位（同一 4B 单元内的相邻位域）被掩码保留 ⇒ 无可观察行为变化。
+        // §P336（拟）packed 位域 ctor 的「读一次再写 0」形 —— 复现 ORIG(4.1) 的逐字段
+        // read-modify-write，同时保持清零语义。
+        // ORIG W 0x0822da04 该 ctor 122 条指令、零 call，全是 +0x02/+0x03 两字节上的
+        // 「movzbl 读 → and 掩码清位 → （移位/or 合并）→ 回写」逐字段往返，如
+        // `movzbl 0x3(%eax),%edx; and $0x1f,%edx; mov %dl,0x3(%eax)`（= m_count 清零）、
+        // `shr $0x5; and $7; lea 0x0(,%edx,4); and $0xffffffe3; or; mov %dl,0x3(%eax)`。
+        // 四形指令数实测（/tmp/fdp_probe/{p4,p5,p6}.cpp，route 与 c6root 4.4.7 逐位一致）：
+        //   成员初始化列表        = 41 条（本方旧形；CUser 侧 ourN=41 精确吻合，gap 81）
+        //   体内 `bf = 0;`         = 41 条（4.4 把 packed 位域清零折叠 ⇒ 无效）
+        //   体内 `bf = bf;`        = 128 条（≈ ORIG 122，但**不清零** ⇒ 改可观察行为，弃）
+        //   体内 `t = bf; bf = 0;` = 93 条（清零语义与旧形逐位一致 ⇒ **采用**）
+        //   清+自赋值交替          = 165 条（超 ORIG，弃）
+        // 读出的旧值一律丢弃（非 volatile ⇒ 无可观察副作用），最终每位都被写 0，
+        // 与成员初始化列表版完全等价；不给 .h 加 volatile（避免污染全部消费 TU）。
         STCommand()
         {
-            m_command = m_command;
-            m_key0 = m_key0;
-            m_key1 = m_key1;
-            m_key2 = m_key2;
-            m_key3 = m_key3;
-            m_key4 = m_key4;
-            m_count = m_count;
+            unsigned int norm;
+            norm = m_command; m_command = 0;
+            norm = m_key0;    m_key0 = 0;
+            norm = m_key1;    m_key1 = 0;
+            norm = m_key2;    m_key2 = 0;
+            norm = m_key3;    m_key3 = 0;
+            norm = m_key4;    m_key4 = 0;
+            norm = m_count;   m_count = 0;
+            (void)norm;
         }
 
         unsigned int m_command : 14;

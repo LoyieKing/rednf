@@ -786,13 +786,16 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                                             elem.m_a = a;
                                             elem.m_b = ScanInt(&ok);
                                             if (!ok) { return IMPORT_FAIL; }
-                                            elem.m_w = ScanInt(&ok);
+                                            int w = ScanInt(&ok);
                                             if (!ok) { return IMPORT_FAIL; }
-                                            stFavorableRelationShip_t::stRewardItemInfo_t& rs =
-                                                fav.m_rewardItems.m_slots[level][mood];
-                                            elem.m_w += rs.m_weight[dir];
-                                            rs.m_byDir[dir].push_back(elem);
-                                            rs.m_weight[dir] = elem.m_w;
+                                            // ORIG 0x89fdf4a/0x89fdf86/0x89fe02d：三处各自重算
+                                            // m_slots[level][mood] 基址（无引用缓存）；w 为独立
+                                            // 栈槽（-0x48），elem.m_w 与写回各读一次 weight
+                                            // （0x89fdf79 / 0x89fe021）。
+                                            elem.m_w =
+                                                w + fav.m_rewardItems.m_slots[level][mood].m_weight[dir];
+                                            fav.m_rewardItems.m_slots[level][mood].m_byDir[dir].push_back(elem);
+                                            fav.m_rewardItems.m_slots[level][mood].m_weight[dir] += w;
                                         }
                                     }
                                 }

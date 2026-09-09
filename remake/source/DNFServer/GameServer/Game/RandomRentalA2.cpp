@@ -688,17 +688,22 @@ unsigned int CRandomOptionItemHandle::reset_option(unsigned long /*itemIdx*/,
     // 语义等价。
     // [b28d-solo-RandomRentalA2] P0/P48：ORIG 4 处独立调 GetRandomOption
     // （set200 find/end + map1e8 find/end），无具名 script 槽。
-    ENUM_RANDOM_OPTION_NUMBER slot = (ENUM_RANDOM_OPTION_NUMBER)optionType;
-
-    if (options->get_option_index(slot) == 0)
+    // [DualMisc] ORIG 0x085f39d2：无 slot 具名槽（mov 0x14(%ebp),%eax 每点重取形参）
+    // ⇒ P329 删具名局部，内联回实参位。
+    if (options->get_option_index((ENUM_RANDOM_OPTION_NUMBER)optionType) == 0)
     {
         return 0x17;
     }
 
     // set<unsigned long> @+0x200：禁重置道具黑名单；命中即拒绝。
-    unsigned long idx = (unsigned long)options->get_option_index(slot);
-    if (reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_set200.find(idx) !=
-        reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_set200.end())
+    // [DualMisc] ORIG 0x085f39d2：先求 end() 段（2 参调用）再算 idx、再 find(idx)
+    // （3 参调用）；idx 无具名槽（movzbl→-0x54 只是 find 的 const& 临时）
+    // ⇒ end() 独立语句先求值（4.4 实参右→左，写成一个表达式恒先算 find）。
+    const std::set<unsigned long>::const_iterator setEnd =
+        reinterpret_cast<const RandomOptionScript*>(GetRandomOption())->m_set200.end();
+    if (reinterpret_cast<const RandomOptionScript*>(GetRandomOption())
+            ->m_set200.find((unsigned long)options->get_option_index(
+                (ENUM_RANDOM_OPTION_NUMBER)optionType)) != setEnd)
     {
         return 0x17;
     }
@@ -734,8 +739,10 @@ unsigned int CRandomOptionItemHandle::reset_option(unsigned long /*itemIdx*/,
         value = MAX_OPTION_VALUE;
     }
 
-    options->set_first_value(slot, (unsigned char)(value & 0xff));
-    options->set_second_value(slot, (unsigned char)(value & 0xff));
+    options->set_first_value((ENUM_RANDOM_OPTION_NUMBER)optionType,
+                             (unsigned char)(value & 0xff));
+    options->set_second_value((ENUM_RANDOM_OPTION_NUMBER)optionType,
+                              (unsigned char)(value & 0xff));
     return 0;
 }
 

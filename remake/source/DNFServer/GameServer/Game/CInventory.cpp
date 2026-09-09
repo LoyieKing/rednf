@@ -720,26 +720,22 @@ Inven_Item CInventory::GetInvenSlot(int invenType, int slot) const
     switch (invenType)
     {
     case 0:
-        item = m_invenItem[slot];
-        break;
+        return m_invenItem[slot];
     case 1:
-        item = m_pEquipSlot[slot];
-        break;
+        return m_pEquipSlot[slot];
     case 2:
-        item = m_pAvatarSlot[slot];
-        break;
+        return m_pAvatarSlot[slot];
     case 3:
-        item = m_pCreatureSlot[slot];
-        break;
+        return m_pCreatureSlot[slot];
     case 5:
     {
         CExpandEquipslot* pExpand =
             m_pParent->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9);
         if (pExpand != 0)
         {
-            item = pExpand->GetInvenSlot(INVEN_TYPE_5, slot);
+            return pExpand->GetInvenSlot(INVEN_TYPE_5, slot);
         }
-        break;
+        return item;
     }
     default:
         break;
@@ -4026,7 +4022,7 @@ bool CInventory::tryDeleteEventItems(const std::vector<std::pair<int, int> >& it
     // [结果] our 633→651（ORIG 675），仅剩 ppEi 残差 ⇒ N 封顶，语义闭合。
     std::vector<std::pair<int, int> >::const_iterator it;
     it = items.begin();
-    for (; it != items.end(); it++)
+    while (it != items.end())
     {
         std::pair<int, int> entry;
         entry = std::pair<int, int>(*it);
@@ -4038,6 +4034,8 @@ bool CInventory::tryDeleteEventItems(const std::vector<std::pair<int, int> >& it
             {
                 okCount++;
             }
+            it++;
+            continue;
         }
         else if (itemIdx == 2)
         {
@@ -4045,6 +4043,8 @@ bool CInventory::tryDeleteEventItems(const std::vector<std::pair<int, int> >& it
             {
                 okCount++;
             }
+            it++;
+            continue;
         }
         else
         {
@@ -4149,6 +4149,7 @@ bool CInventory::tryDeleteEventItems(const std::vector<std::pair<int, int> >& it
                 }
             }
         }
+        it++;
     }
     return okCount == (int)items.size();
 }
@@ -4168,20 +4169,28 @@ int CInventory::tryInsertEventItems(const std::vector<std::pair<int, int> >& ite
     // ppEi×3（4.4 对结果未使用的后置 ++ 恒折 ppEv）⇒ N 封顶，语义闭合。
     std::vector<std::pair<int, int> >::const_iterator it;
     it = items.begin();
-    for (; it != items.end(); it++)
+    while (it != items.end())
     {
         std::pair<int, int> entry;
         entry = std::pair<int, int>(*it);
         int itemIdx = entry.first;
         int count = entry.second;
-        if (itemIdx == 0 || itemIdx == 1)
+        if (itemIdx == 0)
         {
             insertCount++;
+            it++;
+            continue;
+        }
+        if (itemIdx == 1)
+        {
+            insertCount++;
+            it++;
             continue;
         }
         CItem* pItem = G_CDataManager()->find_item(itemIdx);
         if (pItem == 0)
         {
+            it++;
             return insertCount;
         }
         Inven_Item inven;
@@ -4219,6 +4228,7 @@ int CInventory::tryInsertEventItems(const std::vector<std::pair<int, int> >& ite
             }
             insertCount++;
         }
+        it++;
     }
     return insertCount;
 }
@@ -4243,7 +4253,7 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
     // [结果] our 329→347（ORIG 362），仅剩 ppEi 残差 ⇒ N 封顶，语义闭合。
     std::vector<std::pair<int, int> >::const_iterator it;
     it = items.begin();
-    for (; it != items.end(); it++)
+    while (it != items.end())
     {
         std::pair<int, int> entry;
         entry = std::pair<int, int>(*it);
@@ -4264,6 +4274,8 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
                 GetInstanceValueStatistic()->AddValueStatistic(
                     (VALUE_STATISTIC_FIELD)0x11, m_pParent, (unsigned int)amount);
             }
+            it++;
+            continue;
         }
         else if (itemIdx == 2)
         {
@@ -4276,6 +4288,8 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
                 outSlots.push_back(2);
                 outSlots.push_back(amount);
             }
+            it++;
+            continue;
         }
         else
         {
@@ -4430,6 +4444,7 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
                 return 0;
             }
         }
+        it++;
     }
     if (deleteCount != (int)items.size())
     {
@@ -4458,7 +4473,7 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
     {
         if (m_pEquipSlot[b].m_addInfo == 0)
         {
-            m_pEquipSlot[b].setCopy(item);
+            m_pEquipSlot[b] = item;
             if (m_pParent != 0)
             {
                 m_pParent->m_historyLog.ItemAdd(
@@ -4531,7 +4546,7 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
         }
         if (m_pEquipSlot[b].m_addInfo == 0)
         {
-            m_pEquipSlot[b].setCopy(item);
+            m_pEquipSlot[b] = item;
             if (m_pParent != 0)
             {
                 m_pParent->m_historyLog.ItemAdd(

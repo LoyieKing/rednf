@@ -892,6 +892,11 @@ int DisPatcher_Exit::dispatch_sig(CUser* user, PacketBuf& packet)
         GlobalData::s_ExpertJobMgr->OnLeaveUser(user);
         GlobalData::s_onlinePreliminaryTeamMgr->OnLeaveUser(user);
         user->checkLogOutCorrectly();
+        // ORIG 0x081edcd6 `call _ZNK5CUser10get_acc_idEv` → -0x18(%ebp)：user_exit 之后
+        // **重新取** acc_id 供 DB_ArrangeUserLoginInfo / DB_SecuServiceUpdateValidityTime
+        // （0x081edd68/0x081edda1 读 -0x18），不复用 trace 处那次。我方原先只 2 次
+        // （ORIG 3 次）⇒ P183 局部缓存族。getter 无副作用，重复取值行为完全等价。
+        local_1c = user->get_acc_id();
         long lVar8 = user->GetCharacPlayTick();
         int iVar4 = user->get_charac_no(-1);
         DB_UpdateCharacPlayTime::makeRequest(iVar4, lVar8);
@@ -1795,9 +1800,10 @@ int DisPatcher_CreateCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     Stream* stream =
         GlobalData::s_big_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x7ab);
     CStreamGuard guard(stream, true);
-    guard << 4;                                   // SIG 类型 4
-    guard << static_cast<int>(user->GetUID());
-    SIG_CREATE_CHARAC* sig = guard.GetInBuffer<SIG_CREATE_CHARAC>();
+    // ORIG 0x081c0511/0x081c0539 每次 << 先 operator*()（de 0x080c8c46）再 operator<<
+    guard.operator*()->operator<<(4);             // SIG 类型 4
+    guard.operator*()->operator<<(static_cast<int>(user->GetUID()));
+    SIG_CREATE_CHARAC* sig = guard.operator->()->GetInBuffer<SIG_CREATE_CHARAC>();
     memset(sig, 0, 0x5354);
     sig->m_accId = user->get_acc_id();
     sig->m_slot = req.m_slot;
@@ -1812,13 +1818,17 @@ int DisPatcher_CreateCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     sig->m_eventCharacFlag = user->getUserEventCharacterFlag();
     // 角色创建表：G_CDataManager()->m_characList 基址 + job*0x7dc
     // （与 SkillSlot.cpp:43 / CUser.cpp:4820 同口径；CCharacList 权威布局未建模）
+    // P183 地址重物化：ORIG 0x081c0614 取一次基址供 m_field26+memcpy（`add $0x2` 复用），
+    // 0x081c064c 在 m_field78 处**重新** call G_CDataManager() 并重算 imul 0x7dc 全链
+    // （我方原先两处共用 jobRec ⇒ p167 MISSING _Z14G_CDataManagerv ×1）。
     const unsigned char* jobRec =
         reinterpret_cast<const unsigned char*>(G_CDataManager()->m_characList) +
         static_cast<int>(sig->m_slot) * 0x7dc;
-    sig->m_field26 =
-        *reinterpret_cast<const unsigned short*>(jobRec);
+    sig->m_field26 = *reinterpret_cast<const unsigned short*>(jobRec);
     memcpy(sig->m_jobData, jobRec + 2, sizeof(sig->m_jobData));
-    sig->m_field78 = jobRec[0x7d4];
+    sig->m_field78 =
+        (reinterpret_cast<const unsigned char*>(G_CDataManager()->m_characList) +
+         static_cast<int>(sig->m_slot) * 0x7dc)[0x7d4];
     addSkillOnCreateCharacter(
         reinterpret_cast<_Mastered_skill*>(sig->m_masteredSkillA),
         static_cast<int>(sig->m_slot));

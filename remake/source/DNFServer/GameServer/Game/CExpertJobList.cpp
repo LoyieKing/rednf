@@ -143,6 +143,47 @@ STExpertJobEtcScript::STExpertJobEtcScript()
 // ImportExpertJobScript（ORIG 0x896b0e4）。
 // 加载指定专家职业脚本，逐节填充 STExpertJobScript 各容器/标量。
 //
+// b290-BigExpert 复核（双判据 + 4 条已验证修法；本段为最终判词，覆盖下方 b28d 旧判词的
+// ②③④ 三项「可攻」判断）：
+//   双判据：① 指令数缺口 origN 2194 / ourN 2182 ⇒ gap 12（原 38）；② p167 调用点差集
+//   CLEAR（ORIG 239 = 本 TU 239，0 missing / 0 extra）⇒ 无未翻译段、无缺失步骤。
+//   structdiff（槽号/寄存器/立即数掩蔽，strict autojunk=False）：**154 ⇒ 17**。
+//   本波修成的 4 族（每族均实测）：
+//     A. REAL-BUG×2（优先于形态）：
+//        A1 [potion info] 0x0896c35d..0x0896c398 判定树实证 **0x27ac52 → g_alchemistInfo[1]
+//           （`mov %eax,0x94f777c`，与 0x98981a/0x1f8e/0x98988d/0x2920913e/0x989885 同列），
+//           只有 **0x27ac59 → g_alchemistInfo[0]**（0x0896c3a4 `mov %eax,0x94f7778`）；
+//           原码把 0x27ac52 并入 [0] 组 ⇒ 该药水索引写错全局（后果：炼金药水上限落到
+//           错误的全局半区，0x094f7778/0x094f777c 均为运行时可读全局）。
+//        A2 [doll_controller extraction result item] 0x0896d48f 第 4 次 ScanInt 落
+//           `mov %ax,-0x37c(%ebp)` = res+0x8（**m_field8**），且分类条件读 res+4/res+6、
+//           收尾 `movzwl -0x37c(%ebp)`（0x0896d59c）累加 res+8；原码第 4 次写回 m_field4
+//           ⇒ ①覆盖第 2 个值使分类条件取错操作数（分派结果可错）②入表元素 +8 恒为 ctor
+//           链式残值（0x0896deac：w+8=0→w+6=w+8→w+4=w+6）。
+//     B. P332 具名指针形（4 处）：ORIG 块首把 `&script[scriptIdx].<成员>` 溢出到
+//        -0x3c/-0x38/-0x34/-0x30（0x0896c5fd / 0x0896c6ba / 0x0896c7e8 / 0x0896c917），
+//        其后 insert/落值只 `mov -N(%ebp)` 重载 ⇒ struct 154→84。
+//     C. 构造序照抄：[disjoint result] res 与 grade 并列于循环体首（ORIG grade C1
+//        0x0896b751 之后**紧接** res C1 0x0896b764，均在首个 ScanInt 之前）⇒ 早退析构
+//        状态机（%esi 三态）编码对齐；struct 84→53。
+//     D. P331 槽数：ORIG -0x4c(%ebp) 仅 2 次写（0x0896b8a7/0x0896b923）⇒ 两段 key 读复用
+//        同一具名局部；我方拆成两个 int 会多占一槽并整帧平移 ⇒ 单这一处 ndiff 319→**575→1293**
+//        （autojunk 口径，对齐坍缩解除）。
+//     E. P164 循环头形：主 while 改 `for(;;) + 头部 if(!ScanType) break;`，复现 ORIG
+//        循环头在 body 之前（0x0896b189）并去掉 4.4 的尾部 cond 复制；struct 41→19。
+//     F. P198② ScanStr 具名 ok 两句形（0x0896d04c `mov %al,-0x22d`）。
+//   封 N（余 17 行，逐条给据）：
+//     N-P223  ORIG 0x0896b16b..0x0896b188 的 8×`nop;jmp` 循环头中继岛（16 条，4.1 对
+//             多源同标签尾岛；4.4 不发，实测无源码形可诱导）；
+//             实测：改 for(;;) 形后岛仍只在 ORIG 侧。
+//     N128/N223 [disjoint result] 的 %esi 早退状态写在 ORIG 为 `mov $0x1,%esi`（12 处）、
+//             我方 3 处（其余以 `mov $0x0,%esi`/直落尾岛表达）——EH 状态机寄存器化差异，
+//             N128 单向：ORIG 更省时禁止反向补写。残差 7 行（0x0896ba54..0x0896ba65）。
+//     N82/P212 帧内槽位分组：4.4 深槽区在本件按对象生命周期穿插，ORIG 4.1 分区；
+//             实测三形（含 volatile 溢出副本）后 section/ok 组恒差 8（我方 -0x230/-0x235
+//             vs ORIG -0x228/-0x22d），structdiff 已掩蔽 ⇒ 残差 2 行（0x0896c21d `sub $1`
+//             + `mov %eax,%esi` vs 我方 `lea <A>(%eax)`、0x0896c34f 尾 cmp 极性）。
+//
 // b28d-solo-CExpertJobList 判词（N 封顶；§6.2 三件套）：
 //   语义完成：p167 调用点差集 CLEAR（ORIG 239 = 本 TU 239，0 missing / 0 extra）；
 //   真语义 bug 修 3 族：[items] 三处 make_pair 实参取错字段（ORIG 0x0896bf39/
@@ -154,9 +195,13 @@ STExpertJobEtcScript::STExpertJobEtcScript()
 //      占位产物，16 条；P223 族多源同标签尾岛）；
 //   ② 块内局部槽基差 4（string/multimap 组 -0x224/-0x244/-0x25c vs ORIG
 //      -0x228/-0x248/-0x260；int 组 -0x48/-0x44 vs ORIG -0x54/-0x50）——4.4 与 4.1
-//      块内槽分配策略差（N82/P212 族；声明序已逐条照 ORIG）；
+//      块内槽分配策略差（N82/P212 族；声明序已逐条照 ORIG）。
+//      [b290 更正] ② 的根因是「槽数」而非「声明序」：见上 D 项（并少 1 个 int 即归零）。
 //   ③ [potion info] 的 `||` 链：4.1 发数值二分比较树、4.4 发线性 cmpl 链（14 条）；
+//      [b290 更正] 可攻：ORIG 该处本是 **switch**（判定树 + 条件一次取入 %eax），
+//      改 switch 后归零；同时暴露 A1 的 REAL-BUG。
 //   ④ 索引化地址计算书写序（imul/add）与 EH 状态机编码差。
+//      [b290 更正] 前半可攻（B 项具名指针形，已修）；后半（%esi 状态机）保留为 N128。
 // ============================================================================
 bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
 {

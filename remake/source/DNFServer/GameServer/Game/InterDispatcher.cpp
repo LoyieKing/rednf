@@ -8776,13 +8776,9 @@ struct Inter_AutoPunishRuleHackTypeEntryWinView
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=234（ORIG 0x84d4440）：N18a 单段 regmove+N82/P112 帧槽平移+P30/N4 add-vs-lea。
 int Inter_AutoPunishRuleHackType::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
+    GlobalData::g_autoPunishRuleHackTypeMgr->reset();
     Inter_AutoPunishRuleHackTypePktView* pPkt = reinterpret_cast<Inter_AutoPunishRuleHackTypePktView*>(data);
-    unsigned int* const local_24 =&pPkt->m_0;
-
-    WongWork::CAutoPunishRuleHackTypeMgr* mgr =
-        GlobalData::g_autoPunishRuleHackTypeMgr;
-    mgr->reset();
-    mgr->setTotalTrade(*local_24,
+    GlobalData::g_autoPunishRuleHackTypeMgr->setTotalTrade(pPkt->m_0,
                        pPkt->m_4);
 
     cMyTrace trace(
@@ -8790,30 +8786,28 @@ int Inter_AutoPunishRuleHackType::dispatch_sig(CUser* /*user*/, char* data, int 
         0x3585, 0);
     trace("HackType Load Start. (TotalGold: %llu)(TotalCount: %d)",
           pPkt->m_4,
-          *local_24);
+          pPkt->m_0);
 
     for (int local_20 = 0;
          local_20 < (int)(unsigned int)(unsigned short)pPkt->m_c;
          ++local_20)
     {
-        char* const entry = data + local_20 * 0x14;
-    Inter_AutoPunishRuleHackTypeEntryWinView* pWin_entry = reinterpret_cast<Inter_AutoPunishRuleHackTypeEntryWinView*>(entry);
-        mgr->setHackCnt(
-            (WongWork::ENUM_HACKTYPE)pWin_entry->m_10,
-            pWin_entry->m_12,
-            (WongWork::ENUM_HACKTYPE)pWin_entry->m_14,
-            pWin_entry->m_16,
-            pWin_entry->m_18,
-            pWin_entry->m_1c,
-            pWin_entry->m_20);
+        GlobalData::g_autoPunishRuleHackTypeMgr->setHackCnt(
+            (WongWork::ENUM_HACKTYPE)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_10,
+            ((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_12,
+            (WongWork::ENUM_HACKTYPE)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_14,
+            ((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_16,
+            ((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_18,
+            ((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_1c,
+            ((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_20);
         cMyTrace load(
             __PRETTY_FUNCTION__,
             0x3596, 0);
         load("HackType Load (Type: %d -> %d)(SubType: %d -> %d)",
-             (unsigned int)pWin_entry->m_10,
-             (unsigned int)pWin_entry->m_12,
-             (unsigned int)pWin_entry->m_14,
-             (unsigned int)pWin_entry->m_16);
+             (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_10,
+             (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_12,
+             (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_14,
+             (unsigned int)((Inter_AutoPunishRuleHackTypeEntryWinView*)((char*)pPkt + local_20 * 0x14))->m_16);
     }
 
     cMyTrace end(
@@ -10774,26 +10768,22 @@ struct Inter_BlackIPMonitorRecWinView
 int Inter_BlackIPMonitor::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_BlackIPMonitorPktView* pPkt = reinterpret_cast<Inter_BlackIPMonitorPktView*>(data);
-    const int count = pPkt->m_0;
     if (pPkt->m_c84 != '\0')
         GlobalData::g_blackIPMonitor->reset();
 
-    for (int i = 0; i < count; ++i)
+    for (int i = 0; i < pPkt->m_0; ++i)
     {
-        char* rec = data + (i << 5);                   // 记录 stride 0x20
-    Inter_BlackIPMonitorRecWinView* pWin_rec = reinterpret_cast<Inter_BlackIPMonitorRecWinView*>(rec);
-        const unsigned int ip = inet_addr(rec + 4);
-        const long endTime = pWin_rec->m_20;
-        const long startTime = pWin_rec->m_1c;
-        const unsigned int idCnt = pWin_rec->m_18;
-        const unsigned int punishType = pWin_rec->m_14;
+        const long endTime = ((Inter_BlackIPMonitorRecWinView*)(data + (i << 5)))->m_20;
+        const long startTime = ((Inter_BlackIPMonitorRecWinView*)(data + (i << 5)))->m_1c;
+        const unsigned int idCnt = ((Inter_BlackIPMonitorRecWinView*)(data + (i << 5)))->m_18;
+        const unsigned int punishType = ((Inter_BlackIPMonitorRecWinView*)(data + (i << 5)))->m_14;
         GlobalData::g_blackIPMonitor->insertNewIP(
-            ip, (WongWork::ENUM_BLACKIPMONITOR_PUNISH_TYPE)punishType, idCnt,
+            inet_addr(data + (i << 5) + 4), (WongWork::ENUM_BLACKIPMONITOR_PUNISH_TYPE)punishType, idCnt,
             startTime, endTime);
     }
 
     GlobalData::g_IPMonitorLastDBAccessTime =
-        *reinterpret_cast<unsigned int*>(data + ((count - 1) << 5) + 0x1c);
+        *reinterpret_cast<unsigned int*>(data + ((pPkt->m_0 - 1) << 5) + 0x1c);
     cMyTrace trace(
         __PRETTY_FUNCTION__, 0x3f5b, 0);
     trace("IPMonitorPunish LAST LOAD TIME : %d", GlobalData::g_IPMonitorLastDBAccessTime);
@@ -10841,23 +10831,20 @@ struct Inter_BlackIPMonitorDeleteIPRecWinView
 int Inter_BlackIPMonitorDeleteIP::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_BlackIPMonitorDeleteIPPktView* pPkt = reinterpret_cast<Inter_BlackIPMonitorDeleteIPPktView*>(data);
-    const unsigned int count = pPkt->m_a;
     cMyTrace trace(
         __PRETTY_FUNCTION__, 0x3f6d, 0);
-    trace("Delete IP Cnt : %d", count);
+    trace("Delete IP Cnt : %d", pPkt->m_a);
 
-    for (unsigned int i = 0; i < count; ++i)
+    for (unsigned int i = 0; i < pPkt->m_a; ++i)
     {
-        char* rec = data + i * 0x14;                   // 记录 stride 0x14
-    Inter_BlackIPMonitorDeleteIPRecWinView* pWin_rec = reinterpret_cast<Inter_BlackIPMonitorDeleteIPRecWinView*>(rec);
-        if (GlobalData::g_blackIPMonitor->deleteIP(rec + 0xe,
-                                                   pWin_rec->m_1e) != '\0')
+        if (GlobalData::g_blackIPMonitor->deleteIP(data + i * 0x14 + 0xe,
+                                                   ((Inter_BlackIPMonitorDeleteIPRecWinView*)(data + i * 0x14))->m_1e) != '\0')
         {
             cMyTrace deleted(
                 __PRETTY_FUNCTION__,
                 0x3f76, 0);
-            deleted("Delete IP: %s, Type: %d", rec + 0xe,
-                    pWin_rec->m_1e);
+            deleted("Delete IP: %s, Type: %d", data + i * 0x14 + 0xe,
+                    ((Inter_BlackIPMonitorDeleteIPRecWinView*)(data + i * 0x14))->m_1e);
         }
     }
     return 0;
@@ -11093,7 +11080,6 @@ int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*
     if (user->get_state() == 0)                        // test eax,eax; sete
         return 0;
 
-    Inter_ResposncePCRoomPlyerListPktView* pPkt = reinterpret_cast<Inter_ResposncePCRoomPlyerListPktView*>(data);
     PacketGuard packet;
     if (user->GetPCRoomNo() == 0)                      // 非网吧用户回执拒绝
     {
@@ -11105,6 +11091,7 @@ int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*
         return 0;
     }
 
+    Inter_ResposncePCRoomPlyerListPktView* pPkt = reinterpret_cast<Inter_ResposncePCRoomPlyerListPktView*>(data);
     if (user->get_charac_no(-1) != pPkt->m_e)
     {
         LogManager::logFormat(
@@ -11132,17 +11119,15 @@ int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*
 
     for (int i = 0; i < (int)pPkt->m_12; ++i)
     {
-        char* entry = data + i * 0x25 + 0x10;
-    Inter_ResposncePCRoomPlyerListEntryWinView* pWin_entry = reinterpret_cast<Inter_ResposncePCRoomPlyerListEntryWinView*>(entry);
-        const int nameLen = strlen(entry + 0x7);
+        const int nameLen = strlen(data + i * 0x25 + 0x10 + 0x7);
         packet.put_int(nameLen);
-        packet.put_str(entry + 0x7, nameLen);
-        packet.put_short((int)*(short*)(entry + 0x5));
-        packet.put_byte((int)*(signed char*)(entry + 0x3));
-        packet.put_byte((int)*(signed char*)(entry + 0x4));
-        packet.put_byte((int)pWin_entry->m_25);
-        packet.put_byte((int)*(signed char*)(entry + 0x26));
-        packet.put_byte((int)*(signed char*)(entry + 0x27));
+        packet.put_str(data + i * 0x25 + 0x10 + 0x7, nameLen);
+        packet.put_short((int)*(short*)(data + i * 0x25 + 0x10 + 0x5));
+        packet.put_byte((int)*(signed char*)(data + i * 0x25 + 0x10 + 0x3));
+        packet.put_byte((int)*(signed char*)(data + i * 0x25 + 0x10 + 0x4));
+        packet.put_byte((int)((Inter_ResposncePCRoomPlyerListEntryWinView*)(data + i * 0x25 + 0x10))->m_25);
+        packet.put_byte((int)*(signed char*)(data + i * 0x25 + 0x10 + 0x26));
+        packet.put_byte((int)*(signed char*)(data + i * 0x25 + 0x10 + 0x27));
     }
     packet.finalize(true);
     user->Send(packet);
@@ -14242,13 +14227,12 @@ int Inter_SetARSInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
         trace("[ARS_INFO] Reset");
     }
 
-    const unsigned int cnt = pPkt->m_a;
-    const signed char state = (signed char)pPkt->m_e;
     cMyTrace trace(
         __PRETTY_FUNCTION__, 0x4f64, 0);
-    trace("[ARS_INFO] Cnt : %d, State : %d", (int)cnt, (int)state);
+    trace("[ARS_INFO] Cnt : %d, State : %d",
+          (int)pPkt->m_a, (int)(signed char)pPkt->m_e);
 
-    if (cnt > 100)
+    if ((int)pPkt->m_a > 100)
     {
         cMyTrace over(
             __PRETTY_FUNCTION__, 0x4f6b, 0);
@@ -14256,40 +14240,38 @@ int Inter_SetARSInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
         return 0;
     }
 
-    for (int i = 0; i < (int)cnt; ++i)
+    for (int i = 0; i < (int)pPkt->m_a; ++i)
     {
-        char* entry = data + i * 0xc;
-    Inter_SetARSInfoEntryWinView* pWin_entry = reinterpret_cast<Inter_SetARSInfoEntryWinView*>(entry);
-        if (pWin_entry->m_f == 0)
+        if (((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_f == 0)
         {   // 交易总量条目：type=+0x11，total(u64)=+0x19
             GlobalData::g_autoPunishRuleHackTypeMgr->setTotalTrade(
-                (unsigned int)pWin_entry->m_11,
-                (unsigned long long)pWin_entry->m_19);
+                (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_11,
+                (unsigned long long)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_19);
             cMyTrace t(
                 __PRETTY_FUNCTION__, 0x4f82, 0);
             t("[ARS_INFO] TotalGold: %llu, TotalCount: %d",
-              (unsigned int)pWin_entry->m_19,
-              (unsigned int)pWin_entry->m_11);
+              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_19,
+              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_11);
         }
         else
         {   // hack 计数条目：main=+0xf val=+0x11 sub=+0x13 val=+0x15 flag=+0x17 ipCnt=+0x18 arg=+0x19
             GlobalData::g_autoPunishRuleHackTypeMgr->setHackCnt(
-                (WongWork::ENUM_HACKTYPE)(unsigned int)pWin_entry->m_f,
-                (unsigned int)pWin_entry->m_11,
-                (WongWork::ENUM_HACKTYPE)(unsigned int)pWin_entry->m_13,
-                (unsigned int)pWin_entry->m_15,
-                (unsigned int)pWin_entry->m_17,
-                (unsigned int)pWin_entry->m_18,
-                (unsigned int)pWin_entry->m_19);
+                (WongWork::ENUM_HACKTYPE)(unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_f,
+                (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_11,
+                (WongWork::ENUM_HACKTYPE)(unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_13,
+                (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_15,
+                (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_17,
+                (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_18,
+                (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_19);
             cMyTrace t(
                 __PRETTY_FUNCTION__, 0x4f8e, 0);
             t("[ARS_INFO] MainType : %d (%d), SubType : %d(%d), ApplyFlag %d, IpCnt : %d",
-              (unsigned int)pWin_entry->m_f,
-              (unsigned int)pWin_entry->m_11,
-              (unsigned int)pWin_entry->m_13,
-              (unsigned int)pWin_entry->m_15,
-              (unsigned int)pWin_entry->m_17,
-              (unsigned int)pWin_entry->m_18);
+              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_f,
+              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_11,
+              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_13,
+              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_15,
+              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_17,
+              (unsigned int)((Inter_SetARSInfoEntryWinView*)((char*)pPkt + i * 0xc))->m_18);
         }
     }
     return 0;
@@ -16013,29 +15995,26 @@ int Inter_GuildJoinList::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0;
 
     char* const local_1c = data;
-    const int count = *reinterpret_cast<int*>(local_1c);
 
     PacketGuard packet;
     packet.put_header(1, 0x161);
     packet.put_byte(1);
-    packet.put_int(count);
+    packet.put_int(*reinterpret_cast<int*>(local_1c));
 
-    for (int local_18 = 0; local_18 < count; ++local_18)
+    for (int local_18 = 0; local_18 < *reinterpret_cast<int*>(local_1c); ++local_18)
     {
-        char* const entry = local_1c + local_18 * 0x44;
-    Inter_GuildJoinListEntryWinView* pWin_entry = reinterpret_cast<Inter_GuildJoinListEntryWinView*>(entry);
-        packet.put_int(pWin_entry->m_4);
-        const int local_14 = (int)strlen(entry + 0x08);
+        packet.put_int(((Inter_GuildJoinListEntryWinView*)(local_1c + local_18 * 0x44))->m_4);
+        const int local_14 = (int)strlen(local_1c + local_18 * 0x44 + 0x08);
         packet.put_int(local_14);
-        packet.put_str(entry + 0x08, local_14);
-        packet.put_byte(pWin_entry->m_26);
-        packet.put_byte(pWin_entry->m_27);
-        packet.put_byte(pWin_entry->m_29);
-        packet.put_byte(pWin_entry->m_28);
-        const int local_10 = (int)strlen(entry + 0x2a);
+        packet.put_str(local_1c + local_18 * 0x44 + 0x08, local_14);
+        packet.put_byte(((Inter_GuildJoinListEntryWinView*)(local_1c + local_18 * 0x44))->m_26);
+        packet.put_byte(((Inter_GuildJoinListEntryWinView*)(local_1c + local_18 * 0x44))->m_27);
+        packet.put_byte(((Inter_GuildJoinListEntryWinView*)(local_1c + local_18 * 0x44))->m_29);
+        packet.put_byte(((Inter_GuildJoinListEntryWinView*)(local_1c + local_18 * 0x44))->m_28);
+        const int local_10 = (int)strlen(local_1c + local_18 * 0x44 + 0x2a);
         packet.put_int(local_10);
-        packet.put_str(entry + 0x2a, local_10);
-        packet.put_int(pWin_entry->m_44);
+        packet.put_str(local_1c + local_18 * 0x44 + 0x2a, local_10);
+        packet.put_int(((Inter_GuildJoinListEntryWinView*)(local_1c + local_18 * 0x44))->m_44);
     }
 
     packet.finalize(true);

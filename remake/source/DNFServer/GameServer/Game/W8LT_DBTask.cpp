@@ -19309,17 +19309,25 @@ bool DB_LoadBreakAwayPreventData::dispatch(int userIdx, int slot,
     {
         db->set_query(
             "upDate churn_system_manager set state_flag=%d where no = %d",
-            0, no);
+            // [b28d-BigW8LT 转写复原] ORIG 0x08438c8f 两路 UPDATE 的第一实参
+            // 都是 `movzbl -0x39(%ebp)`（**flag 变量本身**，非字面量 0/1）：
+            // `mov -0x40(%ebp),%edx; movzbl -0x39(%ebp),%eax; movzbl %al,%eax;
+            //  mov %edx,0xc(%esp); mov %eax,0x8(%esp)`。字面量形少发 2 组
+            // movzbl+mov（实测助记符 census movzbl 6/2）。bool 取值域 {0,1}
+            // ⇒ 两路传 flag 与原传常量**同值**，行为不变。
+            flag, no);
         if (!(db->exec(true) && db->getAffectedRowCount() != 0))
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x8684, 0)(
                 "BREAK_AWAY : STATE_FALG ALREADY OFF!!");
-            return 0;
         }
-        return 0;   // ORIG：flag==0 分支无论 UPDATE 成败均返 0
+        // ORIG 0x08438d25 为**单一** return 0 站点：0x08438ceb `test %al,%al;
+        // je 08438d25` 跳过 trace 直落此处，成功/失败同路返回（Ghidra 反编译
+        // 亦只有一个 `return 0;` 在 if(bVar1) 之后）。
+        return 0;
     }
     db->set_query(
-        "upDate churn_system_manager set state_flag=%d where no = %d", 1, no);
+        "upDate churn_system_manager set state_flag=%d where no = %d", flag, no);
     if (!(db->exec(true) && db->getAffectedRowCount() != 0))
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x868a, 0)(

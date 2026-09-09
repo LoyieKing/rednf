@@ -1765,13 +1765,10 @@ int SkillSlot::master_new_skill(int skillIdx, int level, int job,
         return -2;
     }
     std::list<_pre_skill>::const_iterator it;
-    it = skill->m_preSkillList.begin();
-    while (true)
+    const std::list<_pre_skill>& preSkillList = skill->m_preSkillList;
+    it = preSkillList.begin();
+    while (it != preSkillList.end())
     {
-        if (it == skill->m_preSkillList.end())
-        {
-            break;
-        }
         _pre_skill preSkill = *it;
         if (check_skill_mastered(preSkill.m_index, preSkill.m_jobType,
                                  preSkill.m_group) != 1)
@@ -1936,13 +1933,10 @@ int SkillSlot::try_master_new_skills(int skillIdx, int level, int job,
         return -2;
     }
     std::list<_pre_skill>::const_iterator it;
-    it = skill->m_preSkillList.begin();
-    while (true)
+    const std::list<_pre_skill>& preSkillList = skill->m_preSkillList;
+    it = preSkillList.begin();
+    while (it != preSkillList.end())
     {
-        if (it == skill->m_preSkillList.end())
-        {
-            break;
-        }
         _pre_skill preSkill = *it;
         if (check_skill_mastered(m_tempSkillSlot, preSkill.m_index,
                                  preSkill.m_jobType, preSkill.m_group) != 1)
@@ -2677,12 +2671,14 @@ bool SkillSlot::checkOverLevelSkill(std::vector<stSPReturnInfo_t>& out,
                 }
             }
             std::list<_pre_skill>::const_iterator pit;
-            pit = skill->m_preSkillList.begin();
-            while (pit != skill->m_preSkillList.end())
+            const std::list<_pre_skill>& preSkillList = skill->m_preSkillList;
+            pit = preSkillList.begin();
+            while (pit != preSkillList.end())
             {
-                preIndex = pit->m_index;
-                preJobType = pit->m_jobType;
-                preGroup = pit->m_group;
+                const _pre_skill& preSkill = *pit;
+                preIndex = preSkill.m_index;
+                preJobType = preSkill.m_jobType;
+                preGroup = preSkill.m_group;
                 if (check_skill_mastered(preIndex, preJobType, preGroup,
                                          kind) != 1)
                 {

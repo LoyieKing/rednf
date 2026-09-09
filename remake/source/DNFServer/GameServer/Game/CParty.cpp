@@ -1207,21 +1207,47 @@ bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag
                                     Inven_Item* items, int* param)
 {
     // b28d-49 判词：N 封顶（N82 帧/槽）。P167 CLEAR。@0x859ee66
-    if (((dungeon->m_entryRequiredItem2.m_itemIdx != -1) ||
-         (dungeon->m_entryRequiredItem.m_itemIdx != -1)) &&
-        ((dungeon->m_entryRequiredItem2.m_itemIdx == -1) ||
-         ((dungeon->m_entryRequiredItem2.m_enableFlag == 1) ||
+    // P133/P225：ORIG 0x859ee94..0x859eedc 为两层「条件失败即 return 1」，
+    // 每个失败分支各自 `mov $1,%eax; jmp epilog`，不是 && 合并短路。
+    if (!((dungeon->m_entryRequiredItem2.m_itemIdx != -1) ||
+          (dungeon->m_entryRequiredItem.m_itemIdx != -1)))
+        return 1;
+    if (!((dungeon->m_entryRequiredItem2.m_itemIdx == -1) ||
+          (dungeon->m_entryRequiredItem2.m_enableFlag == 1) ||
           (dungeon->m_entryRequiredItem.m_itemIdx == -1) ||
-          (dungeon->m_entryRequiredItem.m_enableFlag == 1))))
+          (dungeon->m_entryRequiredItem.m_enableFlag == 1)))
+        return 1;
+    int i = 0;
+    for (i = 0; i <= 3; ++i)
     {
-        for (int i = 0; i <= 3; ++i)
+        if (_checkValidUser(i) != 1)
+            continue;
+        char local_d = 1;
+        int* pi = &param[i];
+        *pi = m_member[i].m_pUser->getCurCharacInvenR()
+                  ->check_item_exist(dungeon->m_entryRequiredItem2.m_itemIdx);
+        if (*pi == -1)
         {
-            if (_checkValidUser(i) != 1)
-                continue;
-            char local_d = 1;
-            int* pi = &param[i];
+            flag = (unsigned char)i;
+            local_d = 0;
+        }
+        else
+        {
+            Inven_Item* piv = &items[i];
+            *piv = m_member[i].m_pUser->getCurCharacInvenR()
+                       ->GetInvenSlot(1, *pi);
+            if (piv->m_addInfo2 < dungeon->m_entryRequiredItem2.m_itemCount)
+            {
+                flag = (unsigned char)i;
+                local_d = 0;
+            }
+        }
+        if (!local_d)
+        {
+            local_d = 1;
+            pi = &param[i];
             *pi = m_member[i].m_pUser->getCurCharacInvenR()
-                      ->check_item_exist(dungeon->m_entryRequiredItem2.m_itemIdx);
+                      ->check_item_exist(dungeon->m_entryRequiredItem.m_itemIdx);
             if (*pi == -1)
             {
                 flag = (unsigned char)i;
@@ -1232,38 +1258,15 @@ bool CParty::CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag
                 Inven_Item* piv = &items[i];
                 *piv = m_member[i].m_pUser->getCurCharacInvenR()
                            ->GetInvenSlot(1, *pi);
-                if (piv->m_addInfo2 < dungeon->m_entryRequiredItem2.m_itemCount)
+                if (piv->m_addInfo2 < dungeon->m_entryRequiredItem.m_itemCount)
                 {
                     flag = (unsigned char)i;
                     local_d = 0;
                 }
             }
-            if (!local_d)
-            {
-                local_d = 1;
-                pi = &param[i];
-                *pi = m_member[i].m_pUser->getCurCharacInvenR()
-                          ->check_item_exist(dungeon->m_entryRequiredItem.m_itemIdx);
-                if (*pi == -1)
-                {
-                    flag = (unsigned char)i;
-                    local_d = 0;
-                }
-                else
-                {
-                    Inven_Item* piv = &items[i];
-                    *piv = m_member[i].m_pUser->getCurCharacInvenR()
-                               ->GetInvenSlot(1, *pi);
-                    if (piv->m_addInfo2 < dungeon->m_entryRequiredItem.m_itemCount)
-                    {
-                        flag = (unsigned char)i;
-                        local_d = 0;
-                    }
-                }
-            }
-            if (!local_d)
-                return 0;
         }
+        if (!local_d)
+            return 0;
     }
     return 1;
 }
@@ -5120,18 +5123,19 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
 {
     // b28d-49 判词：N 封顶 + 缺口。P167 MISS ActiveStaticInfo::getHpMax（1 次）。@0x85b5a4c
     IsCollectDungeonStatistic();
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
-    bool skip = false;
-    if (bf.IsClearDungeon() || dieInfo.m_fieldA22 != 0)
-        skip = true;
-    if (!skip && user != 0)
+    // P183 反向（ORIG 0x85b5a54..0x85b5e7c 实证）：ORIG 无 bf 缓存，每次
+    // `mov 0x8(%ebp),%eax; add $0xb24,%eax` 重取；skip/instantCheck 是 bool
+    // 表达式物化（mov $1/%0），不是 if 赋值；user 检查在 addCnt>2 之后。
+    bool skip = reinterpret_cast<CBattle_Field*>(&m_battleField)->IsClearDungeon() ||
+                dieInfo.m_fieldA22 != 0;
+    if (!skip)
     {
         int addCnt =
             reinterpret_cast<CTraceMobDieHack*>(&m_pad210)
                 ->addMonsterDamage(monsterIdx,
                                    (unsigned short)dieInfo.m_fieldF,
                                    (int)dieInfo.m_killValue2);
-        if (2 < addCnt)
+        if (2 < addCnt && user != 0)
         {
             WongWork::CHackAnalyzer* hack = user->getHackAnalyzer();
             hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0xc9, 1, 0, 0);
@@ -5139,7 +5143,8 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
     }
 
     bool doCrossCheck = true;
-    int dungIdx = bf.get_dungeon_index();
+    int dungIdx =
+        reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index();
     if (dungIdx == 0x3e || dungIdx == 0x3f || dungIdx == 0x40)
         doCrossCheck = false;
 
@@ -5202,13 +5207,11 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
         }
     }
 
-    bool instantCheck = false;
-    if (dieInfo.m_fieldA22 == 0 && monster.m_roleType < 4)
-    {
-        MapInfo* mapInfo = bf.GetCurrentMapInfo();
-        if (mapInfo->m_killChecker1.getUseSkillMaterialTime() == 0)
-            instantCheck = true;
-    }
+    bool instantCheck =
+        dieInfo.m_fieldA22 == 0 && monster.m_roleType < 4 &&
+        reinterpret_cast<CBattle_Field*>(&m_battleField)
+                ->GetCurrentMapInfo()
+                ->m_killChecker1.getUseSkillMaterialTime() == 0;
     if (instantCheck)
     {
         int level = 0;                                  // -0x10
@@ -5225,8 +5228,8 @@ void CParty::OnKilledMonster(CUser* user, int monsterIdx, map_monster monster,
             hack->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x86, level, 0, 0);
         }
     }
-    if (bf.check_grid_clear())
-        bf.onClearMap(true);
+    if (reinterpret_cast<CBattle_Field*>(&m_battleField)->check_grid_clear())
+        reinterpret_cast<CBattle_Field*>(&m_battleField)->onClearMap(true);
 }
 
 // ============================================================================
@@ -5446,36 +5449,35 @@ void CParty::prepare_dungeon_clear()
         {
         if (m_battleField.m_bloodState != 1)     // +0xcd8
         {
-            CUser* user = m_member[i].m_pUser;
-            UserQuest* quest = user->getCurCharacQuestW();
-            quest->set_authen_data((QUEST_CONDITION)1,
-                                   reinterpret_cast<CBattle_Field*>(&m_battleField)->get_cur_map(),
-                                   0);
-            if (0 < user->m_fatigueGain)
+            // P183 反向（ORIG 0x85aa42e/457/46b/49a/4c8/4f6/524 实证）：ORIG 无
+            // user/quest/mgr 具名缓存，每个使用点各自 9 条重算 m_member[i].m_pUser。
+            m_member[i].m_pUser->getCurCharacQuestW()->set_authen_data(
+                (QUEST_CONDITION)1,
+                reinterpret_cast<CBattle_Field*>(&m_battleField)->get_cur_map(),
+                0);
+            if (0 < m_member[i].m_pUser->m_fatigueGain)
             {
-                const user_creature::CCreatureMgr* mgrR =
-                    reinterpret_cast<CUserCharacInfo*>(user)
+                if (!reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser)
                         ->getCurCharacInvenR()
-                        ->GetCreatureMgrR();
-                if (!mgrR->IsGrowCreature_Equipped_Creature())
+                        ->GetCreatureMgrR()
+                        ->IsGrowCreature_Equipped_Creature())
                 {
-                    int exp = user->m_fatigueGain;
-                    user_creature::CCreatureMgr* mgrW =
-                        reinterpret_cast<CUserCharacInfo*>(user)
-                            ->getCurCharacInvenW()
-                            ->GetCreatureMgrW();
-                    mgrW->GainExp(exp);
+                    reinterpret_cast<CUserCharacInfo*>(m_member[i].m_pUser)
+                        ->getCurCharacInvenW()
+                        ->GetCreatureMgrW()
+                        ->GainExp(m_member[i].m_pUser->m_fatigueGain);
                 }
             }
-            user->m_fatigueGain = 0;
+            m_member[i].m_pUser->m_fatigueGain = 0;
         }
         }
     }
 
-    int mapIdx =
-        reinterpret_cast<CBattle_Field*>(&m_battleField)->GetCurrentMapIndex();
     if (reinterpret_cast<CBattle_Field*>(&m_battleField)
-            ->ClearCondition((ENUM_DUNGEON_CLEAR_CONDITION_TYPE)1, mapIdx))
+            ->ClearCondition(
+                (ENUM_DUNGEON_CLEAR_CONDITION_TYPE)1,
+                reinterpret_cast<CBattle_Field*>(&m_battleField)
+                    ->GetCurrentMapIndex()))
         ClearDungeon();
     else if (reinterpret_cast<CBattle_Field*>(&m_battleField)->check_end_point())
         ClearDungeon();
@@ -6185,14 +6187,18 @@ void CParty::beginBloodClearProcess(bool flag)
     {
         if (!(get_user(slot) == 0 || !checkValidUser(slot)))
         {
-            CUser* user = get_user(slot);
-            user->setChattingMessageCount(0);
+            // P183 反向（ORIG 085b778b/77b2/77d9/7800 实证）：ORIG 无具名 user/ci
+            // 缓存，每个使用点各自 9 条重算 m_member[slot].m_pUser（add $0x78 序列）。
+            get_user(slot)->setChattingMessageCount(0);
             onBloodClear(flag, slot);
-            CUserCharacInfo* ci = reinterpret_cast<CUserCharacInfo*>(user);
-            ci->set_charac_party_bonus_exp(0);
-            ci->set_charac_member_bonus_exp(0);
-            ci->set_charac_fatigue_buf_bonus_exp(0);
-            ci->set_charac_seria_buf_bonus_exp(0);
+            reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser)
+                ->set_charac_party_bonus_exp(0);
+            reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser)
+                ->set_charac_member_bonus_exp(0);
+            reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser)
+                ->set_charac_fatigue_buf_bonus_exp(0);
+            reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser)
+                ->set_charac_seria_buf_bonus_exp(0);
 
             checkBloodRenewMyRecord(slot, playTime, round,
                                     bf.get_dungeon_index());
@@ -6203,12 +6209,15 @@ void CParty::beginBloodClearProcess(bool flag)
             int itemLimit = 10;                         // -0x40[1]
             int itemCount = std::min(itemLimit, round);
             generateBloodRewardItem(slot, itemCount,
-                                    (unsigned int)ci->get_charac_level(),
+                                    (unsigned int)reinterpret_cast<CUserCharacInfo*>(
+                                        m_member[slot].m_pUser)->get_charac_level(),
                                     (unsigned int)itemMax, flag);
 
             unsigned int mobReward = 0;                 // -0x44
-            G_CDataManager()->get_mob_reward(ci->get_charac_level(),
-                                             mobReward);
+            G_CDataManager()->get_mob_reward(
+                reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser)
+                    ->get_charac_level(),
+                mobReward);
             QuickParty::RewardData_Param rp(this);
             QuickParty::RewardData_Result rr;
             rr.m_value00 = (int)mobReward;
@@ -6226,7 +6235,8 @@ void CParty::beginBloodClearProcess(bool flag)
             // 原本地视图读 +0x0c（m_weeklyEnterCount）为偏移错读，修正。
             int enterCount =
                 reinterpret_cast<CCharacBloodDungeon*>(
-                    user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)1))
+                    m_member[slot].m_pUser->GetCharacExpandData(
+                        (ENUM_CHARAC_EXPAND_TYPE)1))
                     ->GetEnterCount();   // -0x6c
             int expLimit = inoutSize - 1;               // -0x40[2]
             int inoutCnt = std::min(expLimit, enterCount);
@@ -6250,8 +6260,10 @@ void CParty::beginBloodClearProcess(bool flag)
                 playTime = 0;
                 round = 0;
             }
-            bestTime = (int)ci->getBloodBestTimeRecord();
-            bestRound = ci->getBloodBestRoundRecord();
+            bestTime = (int)reinterpret_cast<CUserCharacInfo*>(
+                m_member[slot].m_pUser)->getBloodBestTimeRecord();
+            bestRound = reinterpret_cast<CUserCharacInfo*>(
+                m_member[slot].m_pUser)->getBloodBestRoundRecord();
             if (bestRound == -1)
             {
                 bestTime = playTime;
@@ -6442,8 +6454,6 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
         {
             if (!(get_user(slot) == 0 || !checkValidUser(slot)))
             {
-                CUserCharacInfo* ci =
-                    reinterpret_cast<CUserCharacInfo*>(m_member[slot].m_pUser);
                 for (int i = 0; i < m_battleField.m_bloodReward.getRewardItemCount(slot);
                      ++i)                               // -0x30
                 {
@@ -6460,11 +6470,13 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                     {
                         if (item->m_addInfo == 0)   // 金币槽
                         {
-                            CInventory* inven = ci->getCurCharacInvenW();
                             int gained =
-                                inven->gain_money(item->get_add_info(),
-                                                  (eMoneyAddReason)5, true,
-                                                  false);
+                                reinterpret_cast<CUserCharacInfo*>(
+                                    m_member[slot].m_pUser)
+                                    ->getCurCharacInvenW()
+                                    ->gain_money(item->get_add_info(),
+                                                 (eMoneyAddReason)5, true,
+                                                 false);
                             if (gained < item->get_add_info())
                                 m_member[slot].m_pUser->SendMoneyFullReason(
                                     (ENUM_MONEY_FULL_REASON)0,
@@ -6489,10 +6501,13 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                         }
                         else
                         {
-                            putSlot = ci->getCurCharacInvenW()
-                                          ->insertItemIntoInventory(
-                                              *item, (eItemAddReason)0xb, true,
-                                              true);
+                            putSlot =
+                                reinterpret_cast<CUserCharacInfo*>(
+                                    m_member[slot].m_pUser)
+                                    ->getCurCharacInvenW()
+                                    ->insertItemIntoInventory(
+                                        *item, (eItemAddReason)0xb, true,
+                                        true);
                         }
                     }
                     if (putSlot < 0)
@@ -6515,8 +6530,10 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                                         0xff);
                                 unsigned int serverGroup =
                                     (unsigned int)m_member[slot].m_pUser->GetServerGroup();
-                                unsigned int characNo = (unsigned int)
-                                    ci->getCurCharacNo();
+                                unsigned int characNo =
+                                    (unsigned int)reinterpret_cast<CUserCharacInfo*>(
+                                        m_member[slot].m_pUser)
+                                        ->getCurCharacNo();
                                 WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                                     title, *item, 0, characNo, bodyText,
                                     (int)strlen(bodyText), 8,
@@ -6534,8 +6551,10 @@ bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
                         INVEN_TYPE invenType =
                             (INVEN_TYPE)GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)
                                 item->GetItemSpace());
-                        ci->getCurCharacInvenR()->MakeItemPacket(
-                            invenType, putSlot, packet);
+                        reinterpret_cast<CUserCharacInfo*>(
+                            m_member[slot].m_pUser)
+                            ->getCurCharacInvenR()
+                            ->MakeItemPacket(invenType, putSlot, packet);
                         packet.finalize(true);
                         m_member[slot].m_pUser->Send(packet);
                     }

@@ -7564,6 +7564,10 @@ int Dispatcher_DisJointAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
     CItem* pItem = static_cast<CItem*>(0);
     std::vector<std::pair<int, int> > results;
 
+    // ORIG 0x08217eaa..0x08218239：主链全部 throw 落在同一 try 内，
+    // catch (ENUM_ERROR) 发 0xcd 错误包后返回 0（ORIG 0x0821824a 段）。
+    try
+    {
     // +0x1ae: GetInvenSlot(2, slot) → item
     item = user->getCurCharacInvenR()->GetInvenSlot(2, static_cast<int>(slot));
 
@@ -7581,12 +7585,10 @@ int Dispatcher_DisJointAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     // +0x322: get_grade()==0 || get_grade()>3 → error 0x13
+    // ORIG 0x08217f23/0x08217f32：get_grade 两处各自重取（P183）。
+    if (pItem->get_grade() == 0 || pItem->get_grade() > 3)
     {
-        int grade = pItem->get_grade();
-        if (grade == 0 || grade > 3)
-        {
-            throw static_cast<ENUM_ERROR>(0x13);
-        }
+        throw static_cast<ENUM_ERROR>(0x13);
     }
 
     // +0x37a: 虚调用 vtbl+0x24 = isEnableAvatarFunc(2)
@@ -7647,6 +7649,13 @@ int Dispatcher_DisJointAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         throw static_cast<ENUM_ERROR>(0x16);
     }
+    }
+    catch (ENUM_ERROR e)
+    {
+        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xcd),
+                                 static_cast<unsigned char>(e));
+        return 0;
+    }
 
     // +0x6ca: SendAvatarEvent(0x36, uid, 5, uid+10, 0)
     user->getCurCharacInvenW()->SendAvatarEvent(
@@ -7673,12 +7682,9 @@ int Dispatcher_DisJointAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
     //          { put_short(*it++); put_item_idx(*it++); put_int(*it++); }
     for (std::vector<int>::const_iterator it = updates.begin(); it != updates.end();)
     {
-        pg.put_short(*it);
-        ++it;
-        pg.put_item_idx(static_cast<unsigned long>(*it));
-        ++it;
-        pg.put_int(*it);
-        ++it;
+        pg.put_short(*it++);
+        pg.put_item_idx(static_cast<unsigned long>(*it++));
+        pg.put_int(*it++);
     }
 
     // +0x8b2: finalize(true); Send(pg)
@@ -10330,7 +10336,7 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
         return LineFunc(0xe1f0,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    if (!packet.get_int((int&)msg.m_gold2f))
+    if (!packet.get_int(msg.m_gold2f))
         return LineFunc(0xe1f3,
                         __PRETTY_FUNCTION__,
                         0, 0);
@@ -10359,30 +10365,37 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
             return LineFunc(0xe202,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        unsigned long seqV = 0;
-        if (!packet.get_int(seqV))
+        // ORIG 0x082265da：get_int 直接落 e+3（u64 槽，无临时变量/memcpy）。
+        if (!packet.get_int(*(unsigned long*)(e + 3)))
             return LineFunc(0xe205,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        memcpy(e + 3, &seqV, sizeof(seqV));
-        if (*(const unsigned long*)(e + 3) == 0)
-            break;
+        // ORIG 0x08226638..0x08226678：seq 低 32 位为 0 → 错误包 0x11 并返回
+        //（非 break）。
+        if (*(const int*)(e + 3) == 0)
+        {
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0x11);
+            return 0;
+        }
         if (!packet.get_int(*(int*)(e + 7)))
             return LineFunc(0xe20e,
                             __PRETTY_FUNCTION__,
                             0, 0);
 
-        const unsigned short curSlot = *(const unsigned short*)(e + 1);
-        const int invenType =
-            GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(unsigned char)*e);
-        if (user->CheckItemLock(invenType, (int)curSlot) != 0)
+        // ORIG 0x0822671d/0x082267a4：invenType 与 slot 两处各自重取（P183）。
+        if (user->CheckItemLock(
+                GetInvenTypeFromItemSpace(
+                    (ENUM_ITEMSPACE)(unsigned char)*e),
+                (int)*(const unsigned short*)(e + 1)) != 0)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0xd5);
             return 0;
         }
         bool movable = true;
-        CheckItemTradeLimitCountToMoveByUser(*user, invenType,
-                                             (int)curSlot, movable);
+        CheckItemTradeLimitCountToMoveByUser(
+            *user,
+            GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(unsigned char)*e),
+            (int)*(const unsigned short*)(e + 1), movable);
         if (!movable)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0x72);
@@ -10390,6 +10403,9 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
         }
     }
 
+    // ORIG 0x0822680f：读长度前先清 m_msgLenA2 与正文缓冲。
+    msg.m_msgLenA2 = 0;
+    memset(msg.m_msgTextA6, 0, sizeof(msg.m_msgTextA6));
     if (!packet.get_int(msg.m_msgLenA2))
         return LineFunc(0xe229,
                         __PRETTY_FUNCTION__,
@@ -19131,35 +19147,36 @@ int Dispatcher_SecurityCardRetransfer::dispatch_sig(CUser* user, PacketBuf& pack
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa4, 0x7a);
             return 0;
         }
-    }
-    if (user->getPad()->isActivate())
-    {
-        if (user->getPad()->getFailCnt() > 2)
+        // ORIG 0x0820ab66：card 未激活直接返回 0；pad 检查与密钥生成全在 card 块内
+        //（0820ab68 `je 0820ad85` → 尾 return 0）。
+        if (user->getPad()->isActivate())
         {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa4, 0x88);
-            return 0;
+            if (user->getPad()->getFailCnt() > 2)
+            {
+                user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa4, 0x88);
+                return 0;
+            }
+            if (!user->getPad()->isCertified())
+            {
+                user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa4, 0x86);
+                return 0;
+            }
         }
-        if (!user->getPad()->isCertified())
-        {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa4, 0x86);
-            return 0;
-        }
-    }
 
-    int certKeyLen = 0;                 // -0x2e（int + word 清零）
-    short certKeyPad = 0;               // -0x2a
-    char serverKey[0x21];               // -0x4f
-    memset(serverKey, 0, 0x21);
-    char cardData[0x27];                // -0x76
-    memset(cardData, 0, 0x27);
-    char* pCardData = GlobalData::s_securityCardCenter->generateCardData(cardData);
-    char* pServerKey = GlobalData::s_securityCardCenter->generateServerKey(serverKey);
-    char* pCertKey = GlobalData::s_securityCardCenter->generateCertKey((char*)&certKeyLen);
-    int accId = user->get_acc_id();
-    int uid = user->GetUID();
-    DB_SecurityCardRetransfer::makeRequest(
-        uid, phoneBuf, phoneHex, (unsigned int)accId,
-        pCertKey, pServerKey, pCardData);
+        int certKeyLen = 0;                 // -0x2e（int + word 清零）
+        short certKeyPad = 0;               // -0x2a
+        // ORIG 0x0820ac59/0x0820acb1：两数组以聚合零初始化内联展开（非 memset call）。
+        char serverKey[0x21] = {0};         // -0x4f
+        char cardData[0x27] = {0};          // -0x76
+        char* pCardData = GlobalData::s_securityCardCenter->generateCardData(cardData);
+        char* pServerKey = GlobalData::s_securityCardCenter->generateServerKey(serverKey);
+        char* pCertKey = GlobalData::s_securityCardCenter->generateCertKey((char*)&certKeyLen);
+        int accId = user->get_acc_id();
+        int uid = user->GetUID();
+        DB_SecurityCardRetransfer::makeRequest(
+            uid, phoneBuf, phoneHex, (unsigned int)accId,
+            pCertKey, pServerKey, pCardData);
+    }
     return 0;
 }
 int Dispatcher_SecurityCardRetransfer::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
@@ -25808,22 +25825,22 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
     memset(decrypted, 0, sizeof(decrypted));
     int decryptedLen = 0x1000;
 
-    WongWork::CSecurityCard* card = user->getSecurityCard();
-    Sanicova::CPad* pad = user->getPad();
-    Cipher* cipher = GlobalData::s_secu_cipher_keystring_manager_
-        [pad->GetSelectedCipherIdx() & 0xffff].cipher;
-
-    const bool cardActive = (card->isActivate() && m.m_secuType == 0);
-    const bool padActive = (pad->isActivate() && m.m_secuType == 1);
-
-    if (!cardActive && !padActive)
-        return LineFunc(0x76,
-                        __PRETTY_FUNCTION__,
-                        0, 0);
-
-    if (!cardActive)
+    // ORIG 0x0826283f..0x082629ee：嵌套 if（card 先判，else-if 才判 pad），
+    // 两分支各自 getPad()->GetSelectedCipherIdx() 选 cipher（P183 逐点重取）。
+    if (user->getSecurityCard()->isActivate() && m.m_secuType == 0)
+    {
+        // card 分支：ORIG 不检查 Decrypt 返回值。
+        Cipher* cipher = GlobalData::s_secu_cipher_keystring_manager_
+            [user->getPad()->GetSelectedCipherIdx() & 0xffff].cipher;
+        cipher->Decrypt((int)m.m_cryptoType,
+                        reinterpret_cast<const unsigned char*>(m.m_data),
+                        m.m_dataLen, decrypted, &decryptedLen);
+    }
+    else if (user->getPad()->isActivate() && m.m_secuType == 1)
     {
         // pad 分支：解密失败即 trace + 错误出参后返回。
+        Cipher* cipher = GlobalData::s_secu_cipher_keystring_manager_
+            [user->getPad()->GetSelectedCipherIdx() & 0xffff].cipher;
         if (cipher->Decrypt((int)m.m_cryptoType,
                             reinterpret_cast<const unsigned char*>(m.m_data),
                             m.m_dataLen, decrypted, &decryptedLen) != 1)
@@ -25838,10 +25855,9 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
     }
     else
     {
-        // card 分支：ORIG 不检查 Decrypt 返回值。
-        cipher->Decrypt((int)m.m_cryptoType,
-                        reinterpret_cast<const unsigned char*>(m.m_data),
-                        m.m_dataLen, decrypted, &decryptedLen);
+        return LineFunc(0x76,
+                        __PRETTY_FUNCTION__,
+                        0, 0);
     }
 
     // 解密明文前 6 字节（安卡用前两字节作答案；pad 用全部 6 字节组 7 字节串）。
@@ -25852,25 +25868,25 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
     const unsigned char answer4 = decrypted[4];
     const unsigned char answer5 = decrypted[5];
 
-    if (cardActive)
+    // ORIG 0x08262a50：第二段处理链重复同一条件（card 再判 isActivate，每处重取）。
+    if (user->getSecurityCard()->isActivate() && m.m_secuType == 0)
     {
         // ORIG：cardActive 分支先 setRequestState(0)（ORIG 0x0822ef64），
         // 再预检 failCnt>2 → param.m_5=0x7a 直接拒绝（ORIG 0x08262a44 段）。
-        card->setRequestState(WongWork::CSecurityCard::eRequestStateNone);
-        if ((unsigned int)card->getFailCnt() > 2)
+        user->getSecurityCard()->setRequestState(WongWork::CSecurityCard::eRequestStateNone);
+        if ((unsigned int)user->getSecurityCard()->getFailCnt() > 2)
         {
             param.m_5 = 0x7a;
             return 0;
         }
         // ORIG checkAnswer(answer0, answer1)：非 1 走失败链。
-        if (card->checkAnswer(answer0, answer1) != 1)
+        if (user->getSecurityCard()->checkAnswer(answer0, answer1) != 1)
         {
             // ORIG SecuService(1, 0) → incFailCnt → 新值 >2 走 0x7a/0x17/hack，
             // 否则 0x79 + ChangeSecurity(1, failCnt==1 ? 0x15 : 0x16) → DB 上报后返回。
             user->m_historyLog.SecuService(
                 (ENUM_SECU_SERVICE_TYPE)1, (ENUM_SECU_SERVICE_ACTION)0);
-            unsigned int newFailCnt = (unsigned int)card->incFailCnt();
-            if (newFailCnt > 2)
+            if ((unsigned int)user->getSecurityCard()->incFailCnt() > 2)
             {
                 param.m_5 = 0x7a;
                 user->getHades()->ChangeSecurity(
@@ -25881,7 +25897,7 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
             else
             {
                 param.m_5 = 0x79;
-                if (newFailCnt == 1)
+                if (user->getSecurityCard()->getFailCnt() == 1)
                 {
                     user->getHades()->ChangeSecurity(
                         (XNuclear::ENUM_HADES_SECURITY)1, 0x15);
@@ -25893,7 +25909,8 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
                 }
             }
             DB_SecurityCardUpdateFailCnt::makeRequest(
-                user->get_acc_id(), (unsigned int)card->getFailCnt());
+                user->get_acc_id(),
+                (unsigned int)user->getSecurityCard()->getFailCnt());
             return 0;
         }
 
@@ -25906,30 +25923,30 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
         PacketGuard packet;
         packet.put_header(1, 0xa7);
         packet.put_byte(1);
-        int certCnt = card->getCertCnt();
+        int certCnt = user->getSecurityCard()->getCertCnt();
         packet.put_byte(certCnt > 0x3b ? 1 : 0);
         packet.finalize(true);
         user->Send(packet);
 
         DB_SecurityCardUpdateFailCnt::makeRequest(user->get_acc_id(), 0);
-        if (card->getCancelCnt() != 0)
+        if (user->getSecurityCard()->getCancelCnt() != 0)
         {
             DB_SecurityCardUpdateCancelCnt::makeRequest(user->get_acc_id(), 0);
         }
         DB_SecurityCardAddCertCnt::makeRequest(user->get_acc_id());
-        card->setCertified(true);
-        card->resetFailCnt();
+        user->getSecurityCard()->setCertified(true);
+        user->getSecurityCard()->resetFailCnt();
     }
-    else  // padActive
+    else if (user->getPad()->isActivate() && m.m_secuType == 1)
     {
-        pad->setRequestState(Sanicova::CPad::eRequestStateNone);
-        if (pad->getFailCnt() > 2)
+        user->getPad()->setRequestState(Sanicova::CPad::eRequestStateNone);
+        if (user->getPad()->getFailCnt() > 2)
         {
             param.m_5 = 0x88;
             return 0;
         }
 
-        char passAnswer[7];
+        char passAnswer[8] = { 0, };
         passAnswer[0] = (char)answer0;
         passAnswer[1] = (char)answer1;
         passAnswer[2] = (char)answer2;
@@ -25946,6 +25963,17 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
         if (param.m_4 == 0)
             return 0;
         param.m_5 = 1;
+    }
+    else
+    {
+        // ORIG 0x08262edb：两条件皆不满足（None Secu Service）。
+        cMyTrace trace(
+            __PRETTY_FUNCTION__,
+            0x10b, 0);
+        trace("ERROR [TRACE AUTH RPY] : None Secu Service");
+        return LineFunc(0x10c,
+                        __PRETTY_FUNCTION__,
+                        0, 0);
     }
 
     param.m_4 = 1;

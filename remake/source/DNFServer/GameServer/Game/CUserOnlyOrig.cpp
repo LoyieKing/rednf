@@ -1317,8 +1317,11 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
     // [b28d-solo-CUserOnlyOrig P167/P96/P28] ORIG 两循环均命中非 const
     // `__normal_iterator<...>::operator++(int)`（后置）与 `operator!=<P*,P*,vector>`；
     // 旧写法 const_iterator + 前置 ++ 产 const 转换构造/const 版 operator!= 差集。
-    for (std::vector<std::pair<Inven_Item, bool> >::iterator it = rewards.begin();
-         it != rewards.end(); it++)
+    // [DualCUOO 2026-09-09] ORIG 第一轮 0x086762a0 `lea -0x30` 直接作 begin 的 sret
+    // （声明+初始化）；第二轮 0x086763a9 `lea -0xbc` 临时 + 0x086763c1 拷回 -0x30
+    // ⇒ 两轮复用同一 it（第二轮是赋值语句），故 it 提到两轮之外声明。
+    std::vector<std::pair<Inven_Item, bool> >::iterator it = rewards.begin();
+    for (; it != rewards.end(); it++)
     {
         // [b28d-solo-CUserOnlyOrig P167 新判据] 旧判：ORIG 命中 `operator*`(deEv) 而非
         // `operator->`(ptEv)（p167 EXTRA ptEv ×2）⇒ 用 `(*it).first` 形。
@@ -1328,28 +1331,40 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
         // 发射即发明符号（missing_in_game 265→266）⇒ 违反硬口径1，回退 deEv 形。
         // 旧判词方向无误：本 TU 只允许对 ORIG 已有符号多发调用。MISSING ppEi×2 系
         // N113（4.4 对结果未用后置 ++ 恒折 ppEv，ppEi 不可复现）维持封顶。
-        unsigned char t = ((const unsigned char*)&(*it).first)[1];
-        if (getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)t, 1) != 1)
+        // [DualCUOO 2026-09-09 双判据 gap] ORIG 0x086762d2 `call deEv` 后紧跟
+        // 0x086762d8..0x08676307 的 mov 链，终以 `movzwl 0x3c(%eax)`/`mov %ax,-0x32(%ebp)`
+        // 收尾 ⇒ 拷贝长 0x3e=62B = 整个 pair<Inven_Item,bool>（Inven_Item 本体 61B）；
+        // 随后 0x0867630b `movzbl -0x6d(%ebp),%eax` 从**栈拷贝**取 first[1] 字节。
+        std::pair<Inven_Item, bool> item = *it;
+        // [DualCUOO] ORIG 0x08676326/0x0867632a 为 `movzbl -0x6d(%ebp),%eax; movzbl %al,%ebx`
+        // 无具名 uchar 的栈中转 ⇒ 源码把 m_field1 直接内联进实参位（P329 反向）。
+        if (getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)item.first.m_field1, 1) != 1)
             return 4;
     }
     // 第二轮：逐项插入
-    for (std::vector<std::pair<Inven_Item, bool> >::iterator it = rewards.begin();
-         it != rewards.end(); it++)
+    // [DualCUOO 2026-09-09 双判据 gap] ORIG 三处 `call ppEi`（0x08676400 回收分支、
+    // 0x086765d2 默认回收分支、0x08676654 循环体末尾）⇒ 第二轮是「空增量 for + 三处
+    // 显式 it++」，非标准 for 增量（那样只有一份 ppEi，本处缺 7 条）。
+    for (it = rewards.begin(); it != rewards.end(); )
     {
-        Inven_Item it2 = (*it).first;                        // 整体拷贝（Inven_Item 视图）
-        if ((*reinterpret_cast<const unsigned short*>(reinterpret_cast<const char*>(&it2)+4)) /*+0x04 视图*/ /*短区 u16@@+0x04 view of element+0x03..*/ == 1)
+        std::pair<Inven_Item, bool> it2 = *it;               // 整体拷贝（pair 视图，62B）
+        // [DualCUOO 2026-09-09] ORIG 0x0867646a `mov -0xaa(%ebp),%eax; cmp $0x1,%eax`
+        // （对象起始 -0xac ⇒ +0x02 的 dword）⇒ 源码是 m_addInfo == 1；旧「+4 u16 视图」
+        // 读的是 m_addInfo 高 16 位，与 ORIG 语义不同，按 ORIG 修正。
+        if (it2.first.m_addInfo == 1)
         {
-            leftover.push_back(*it);                          // 直接回收
+            leftover.push_back(it2);                          // 直接回收
+            it++;
             continue;
         }
-        CItem* script = G_CDataManager()->find_item(it2.m_addInfo);
+        CItem* script = G_CDataManager()->find_item(it2.first.m_addInfo);
         if (script == 0)
             return 0x11;
         // [b28d-solo-CUserOnlyOrig P282 真 bug] ORIG 0x086764de `add $0x10,%eax; call *%edx`
         // ⇒ vptr+0x10 = slot4 = CStackableItem::IsAvatarItem（_ZTV14CStackableItem @0x08c96ea0
         // word[6]=0x08514a92=_ZNK14CStackableItem12IsAvatarItemEv，nm 反查实证）；
         // 旧源码误写 IsClearAvatar（真槽 vptr+0x18）⇒ 运行时调错虚函数。
-        if (script->IsAvatarItem() == true)
+        if (script != 0 && script->IsAvatarItem() == true)
         {
             if (getCurCharacInvenW()->GetRemainCapacity((INVEN_TYPE)2, (Inven_Item::ITEM_TYPE)0) <= 0)
                 return 4;
@@ -1358,26 +1373,28 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
         if (script->IsCreatureItem() /*virt+0x14*/ &&
             script->GetItemType() /*virt+0x0c*/ == 0x16)
         {
-            if (((unsigned char*)&it2)[1] != 5)
+            if (it2.first.m_field1 != 5)
                 return 0x11;
-            if (!user_creature::CCreatureItemConverter::SetEggItem(&it2))
+            if (!user_creature::CCreatureItemConverter::SetEggItem(&it2.first))
                 return 0x11;
-            int r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2);
+            int r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2.first);
             if (r == -1) return 4;
             goto INSERT_OK;
         }
         else
         {
-            int r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2);
+            int r = getCurCharacInvenW()->tryInsertItemIntoInventory(it2.first);
             if (r == -1)
             {
                 ((CStackableItem*)opener)->get_multibox_default_item(&leftover);
+                it++;
                 continue;
             }
             if (script == 0) return 4;
         }
 INSERT_OK:
-        leftover.push_back(*it);
+        leftover.push_back(it2);
+        it++;
     }
     return 0;
 }

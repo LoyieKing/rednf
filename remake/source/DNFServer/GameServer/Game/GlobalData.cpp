@@ -4877,19 +4877,22 @@ bool CDBConnector::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group
     if (db->get_n_rows() != 1)
         return false;
 
+    // [DualMisc] ORIG 0x080eca6c：列索引是递增变量（`mov -0x1c,%eax; addl $1,-0x1c`
+    // ×5，i 声明在 info 之前），非字面常量 ⇒ 改 i++。
+    int i = 0;
     STDBConnInfo info;
     char passCipher[0x3c];
     char passPlain[0x15];
-    if (!db->get_str(0, info.m_db, 0x1f))
+    if (!db->get_str(i++, info.m_db, 0x1f))
         return false;
-    if (!db->get_str(1, info.m_host, 0x11))
+    if (!db->get_str(i++, info.m_host, 0x11))
         return false;
-    if (!db->get_int(2, info.m_port))
+    if (!db->get_int(i++, info.m_port))
         return false;
-    if (!db->get_str(3, info.m_user, 0x15))
+    if (!db->get_str(i++, info.m_user, 0x15))
         return false;
     std::memset(info.m_pass, 0, 60);
-    if (!db->get_str(4, passCipher, 0x3c))
+    if (!db->get_str(i++, passCipher, 0x3c))
         return false;
     if (!G_CEnvironment()->DecryptValue(passCipher, passPlain))
         return false;
@@ -5039,6 +5042,15 @@ break_away_prevent::CBreakAwayPreventSystem::~CBreakAwayPreventSystem()
 // 否则新建 list 插入 map。同时维护 m_keys（5 项）。
 // [b28d-18 N82] p167 CLEAR（21/21）；ORIG 243 vs 203 条，残差=槽位/STL（N82/N89） | ORIG 0x0831c49e
 // [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（21/21）；gap 40=N82 帧/槽 + 表初始化展开。
+// [b28d-tu-GlobalData] **gap 40→0 归位**（双判据真缺口，旧「N82 帧/槽」判词作废）：
+//   ① 删 `entry` 缓存 ⇒ 每字段自形参+槽(i) 完整重物化（ORIG 0831c50b..5c9 七段
+//     10 行/字段形实证，P48 无引用缓存族）；② P334 第二形：`STRewardData reward;`
+//     声明上移至 key 赋值前（ORIG 循环体首连发 key+reward 两 ctor）。
+//   现 243/243 gap 0、P167 21/21 CLEAR 保持、TU 四数不回退。残 ndiff 196/struct 145
+//   = ORIG 把 key 三字节读折成 `add $0x10` 基 + disp(+0/+1/+2) 复用（4.1 表达式
+//   分片）而 4.4 恒 `add $0x11; lea` 前置合常（装载形别名，非缺口）+ prologue
+//   count 装载位（ORIG -0x10 先清后 memcpy，我方 count store 在 clear 后）+
+//   循环尾 setg/setl 极性等价别名 ⇒ 判 N（形态）。
 void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
     SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER* data)
 {
