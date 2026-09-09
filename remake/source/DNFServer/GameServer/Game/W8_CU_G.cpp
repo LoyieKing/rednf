@@ -158,7 +158,8 @@ int CUser::getCharacAntibotSerialNum() const
 //   帧 0x54→0x30，spill 槽 -0x10/-0xc/-0x18/-0x14 与 ORIG 全等；
 // ⑤`gold + totalGold` 交换书写序复现 ORIG 0x0867fc3f 先载 totalGold 入 eax:edx。
 // 余 1 条：this=全局指针 g_autoPunishRuleHackTypeMgr 装载 ORIG `mov g,%edx` 直落
-// vs 4.4 `mov g,%eax; mov %eax,%edx`（N7 寄存器角色互换）。
+// vs 4.4 `mov %eax,%edx; mov g,%eax`（N7 寄存器角色互换）；b28d-W8b 复测去
+// `static_cast<unsigned int>`（隐式 int→unsigned 实参旋钮）同 101 ⇒ 封 N。
 void CUser::gainMoneyFromHackUser(unsigned int who, unsigned long long gold,
                                   unsigned int cnt, unsigned long long totalGold)
 {
@@ -346,8 +347,10 @@ void CUser::getHashCode(unsigned char* digestOut)
 //   读取由 add+movzwl 三步折回 ORIG 单条 `movzwl 0x8e0fxx(%eax),%eax`；
 // ③varargs 中 orig 组实参顺序改为 [0..4]（ORIG 压栈序 0xc/%esi=orig[0] … 0x1c/-0x34
 //   =orig[4]，P23/压栈序判读）⇒ 求值序 [4]→[0] 与 ORIG 全等。
-// 余：@0x0867f5e7 字符串地址归一化伪差（§6.3）+ memcmp 后分支布局/比较方向
-// （N93附/N22 族，160=160 指令逐条同构）。15/15 调用点全等，语义完成。
+// b28d-W8b: **DIFF→AE**（160/160）— 块布局判据（P47/P59）：ORIG 0x0867f62e
+// `test %eax,%eax; je +0x203` 把成功块尾置、失败块直落；负极性 `==0` 写法产
+// `jne <失败块>` + 成功块直落（指令数相同但 jcc/块位反）。翻转 if 顺序后逐条对齐。
+// 余：@0x0867f5e7 字符串地址归一化伪差（§6.3）。15/15 调用点全等，语义完成。
 bool CUser::checkHumanCertify(int len, unsigned short* answer)
 {
     // b21 verdict=DIFF（N 残余）：160/166。15=15 调用点全等（get_acc_id×n/NumberToString/
@@ -378,25 +381,29 @@ bool CUser::checkHumanCertify(int len, unsigned short* answer)
 
     DB_CountOfHumanCertify::makeRequest(get_acc_id());
 
-    if (memcmp(answer, m_capchaCertify, static_cast<size_t>(len)) == 0)
+    // b28d-W8b: 块布局判据（P47/P59 族）—— ORIG 0x0867f62e `test %eax,%eax;
+    // je +0x203` 把**成功块放尾部**、失败块直落（memcmp!=0 走直落失败路径）；
+    // 负极性 `==0` 写法则产 `jne <失败块>` + 成功块直落（块序互换，160/160 但
+    // jcc/块位反）。改为正极性 `!=0` + 失败块前置、成功块尾置，逐条复现。
+    if (memcmp(answer, m_capchaCertify, static_cast<size_t>(len)) != 0)
     {
-        if (m_humanCertifyErrorCnt != 0)
+        ++m_humanCertifyErrorCnt;
+        if (isCleanPadVerifyLimit() && m_field8e3ed)
         {
-            DB_ForceSaveSimpleSSO::makeRequest(get_acc_id(), 0);
+            DB_ForceSaveSimpleSSO::makeRequest(get_acc_id(), m_humanCertifyErrorCnt);
+            SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x91), 8);
         }
-        m_humanCertifyErrorCnt = 0;
         setHumanCertified(true);
-        return true;
+        return false;
     }
 
-    ++m_humanCertifyErrorCnt;
-    if (isCleanPadVerifyLimit() && m_field8e3ed)
+    if (m_humanCertifyErrorCnt != 0)
     {
-        DB_ForceSaveSimpleSSO::makeRequest(get_acc_id(), m_humanCertifyErrorCnt);
-        SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x91), 8);
+        DB_ForceSaveSimpleSSO::makeRequest(get_acc_id(), 0);
     }
+    m_humanCertifyErrorCnt = 0;
     setHumanCertified(true);
-    return false;
+    return true;
 }
 
 // ORIG 0x08649b44：验证三段 CleanPad 种子和是否等于上报校验值。
@@ -427,7 +434,11 @@ bool CUser::VerifyCleanPadVeriData(unsigned int value)
 // ORIG 调 `_ZN18InterfacePacketBuf10put_binaryEPKci`（const char*）⇒ 改
 // `reinterpret_cast<const char*>`，p167 转 CLEAR。余 1 条 N 族：
 // ①memcpy 首参 dst(this+0x8e0ec) ORIG `mov;add` 两步 vs 4.4 `lea` 单条（N107 负例）；
-// ②+0x8e0f8 成员读 ORIG `mov mem,%eax; mov %eax,%esi` 两段 vs 4.4 单段（N18a）。
+//    b28d-W8b 复测 `&m_capchaCertify[0]` / `reinterpret_cast<char*>(&数组)` 两形
+//    仍产 lea（154 不变）⇒ 封 N；
+// ②+0x8e0f8 成员读 ORIG `mov mem,%eax; mov %eax,%esi` 两段 vs 4.4 单段（N18a）；
+//    b28d-W8b 复测实参 `static_cast<unsigned int>(m_humanCertifyTimerKey)` 形
+//    无效（154 不变）⇒ 封 N。
 bool CUser::reqSendMailCertify()   // [b28d-Main·P292] unsigned int→bool
 {
     if (GlobalData::s_capchaDataManager.isEmpty())
@@ -436,6 +447,10 @@ bool CUser::reqSendMailCertify()   // [b28d-Main·P292] unsigned int→bool
     }
 
     MSG_UDP_CAPCHA_CERTIFY* data = GlobalData::s_capchaDataManager.peekData();
+    // b28d-W8b 复测（均无效，保持原形）：ORIG 0x0868a557 `mov 0x8(%ebp),%edx;
+    // add $0x8e0ec,%edx` 两步取址 vs 4.4 `lea 0x8e0ec(%eax),%edx` 单条
+    //（N107 负例方向）；`&m_capchaCertify[0]` / `reinterpret_cast<char*>(&数组)`
+    // 两形实测均仍产 lea（154 不变）⇒ 封 N。
     memcpy(m_capchaCertify, data, 10);
 
     PacketGuard packet;
@@ -490,7 +505,9 @@ bool CUser::reqSendMailCertify()   // [b28d-Main·P292] unsigned int→bool
 // ③body 0x100（非 0xff）⇒ 帧/槽位与 ORIG 只差 1B；failed 改 char（`cmpb $0` 直比）；
 // ④CheckInTrade 正向 `if(...)` + else 成功路径（`test %al,%al; je` 无 xor）；
 // ⑤P47 块序：`if(failed){失败; return false}` + 成功 fall-through；ReqDBSend 内联实参。
-// p167 CLEAR(9=9)，gap 0；余 1B 槽平移（N95/N82 族）。ORIG 0x0868833c。
+// b28d-W8b: **NEAR→AE**（149/149）— title 数组 0x14→0x15（ORIG -0x22..-0xe 共
+// 0x15 字节 = strncpy 长度 0x14 + 终止符）⇒ body 起始精确落 -0x15f，1B 槽平移消失。
+// p167 CLEAR(9=9)，gap 0。ORIG 0x0868833c。
 bool CUser::sendSecuRewardItem(Inven_Item* item, ENUM_SECURITY_REWARD_TYPE type,
                                int* outSlotVec)
 {
@@ -502,7 +519,9 @@ bool CUser::sendSecuRewardItem(Inven_Item* item, ENUM_SECURITY_REWARD_TYPE type,
     //（0x086883ba/be）。返回类型 void→bool（P159 尾 `mov $0/%1,%eax`）。
     char body[0x100];             // ORIG -0x15f..-0x60（256B，Ghidra local_163[256]）
     Inven_Item local(*item);      // ORIG 将 Inven_Item 原样拷贝入栈局部 -0x5f
-    char title[0x14];             // ORIG -0x22
+    // b28d-W8b: ORIG -0x22..-0xe 共 0x15 字节（strncpy 长度 0x14 + 终止符 1）
+    // ⇒ 数组 0x15 使 body 起始精确落 -0x15f（原 0x14 形整帧浅 1B）。
+    char title[0x15];             // ORIG -0x22
 
     if (item == 0)
     {
@@ -598,6 +617,9 @@ bool CUser::VerifyPresentAvengerTitle()
     // %esi 双 callee-saved 跨 string/Get/findScript 四 call 存活（push esi/push ebx
     // prologue 0x868b559-560）。b28d-21：按 P0/N96 清除 `asm("reg")` 绑定，
     // 改纯 register 存储类提示（P231/P248，非绑定形）。
+    // b28d-W8b 复测：P248 裸 register 位置旋钮无效 —— 仅 createTime 保留 register
+    // 时 accId 被槽化（-0x24）+ createTime→%ebx，341/340 反劣已回退；双 register
+    // 形 4.4 反配（accId→%esi/createTime→%ebx）⇒ N7 封顶。
     register unsigned int accId = (unsigned int)get_acc_id();
     register unsigned int createTime =
         static_cast<unsigned int>(getCurCharacCreateTime());
@@ -758,7 +780,11 @@ void CUser::rewardExp(int expBase, int& bonusA, int& bonusB,
 //   （0x0866a77b..0x0866a7e0 ctor 前右起求值 characNo→NumberToString）；
 // ④VerifyPresentAvengerTitle 返回 char→bool（CUser.h:3065 同步）⇒ 调用点
 //   `call; xor $1; test; je` 与 ORIG 0x0866a774 全等。
-// 余 1 条 + 帧差 0x10（N82/P112 槽族）；66/66 调用点全等（p167 CLEAR）。ORIG 0x0866a3fe。
+// b28d-W8b: **DIFF→AE**（388/388）— 帧 0x7c→0x6c 精确对齐：①P329 去
+// playCount/level/expertExp 三具名局部（ORIG 0x0866a8a0 段全程寄存器/实参位直传）；
+// ②P184/P171 补第二个独立 `if (levelUp)`（ORIG 0x0866a96c `je +0x56e` 与检查 A
+// 的 `je +0x522` 分离）+ 两条死局部常量 `movl $0x55,-0x20; movl $0x50,-0x1c`。
+// 66/66 调用点全等（p167 CLEAR）。ORIG 0x0866a3fe。
 bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
                         eExpAddReason reason, int param, bool flag)
 {
@@ -886,17 +912,31 @@ bool CUser::gain_exp_sp(int exp, int& sp, int& sfp,
 
     if (levelUp)
     {
-        int playCount = GetCurCharacDungeonPlayCount();
-        int level = get_charac_level();
-        GlobalData::s_statisticMgr->m_levelDungeonPlay.IncreaseLevelDungeonPlay(level, playCount);
+        // b28d-W8b: P329/P183 —— ORIG 0x0866a8a0 段无具名槽：playCount 先算留 %ebx
+        // 跨 call、level 后算留 %eax、receiver s_statisticMgr 载 %edx（0x0866a8c1
+        // `mov 0x941f764,%edx`）；expertExp 亦直压 0x4(%esp)（0x0866a8f0）。
+        // 具名局部形多 3 槽 + 帧 0x10（389/388）⇒ 内联回实参位。
+        GlobalData::s_statisticMgr->m_levelDungeonPlay.IncreaseLevelDungeonPlay(
+            get_charac_level(), GetCurCharacDungeonPlayCount());
         ResetCurCharacDungeonPlayCount();
 
-        int expertExp = GetCurCharacExpertJobExp();
-        expert_job::CExpertJob::IncreaseExpertJobExp(this, expertExp);
+        expert_job::CExpertJob::IncreaseExpertJobExp(this,
+                                                     GetCurCharacExpertJobExp());
 
         ReCalcChattingEmoticon();
         SendChattingEmoticon();
+    }
 
+    // b28d-W8b: P184/P171 —— ORIG 0x0866a96c 有**第二个独立** `if (levelUp)`
+    //（`cmpb $0x0,-0x29; je +0x56e`，与检查 A 的 `je +0x522` 分离，4.1 不
+    // jump-thread 合并）；块首两条死局部常量 0x0866a972/978 `movl $0x55,-0x20;
+    // movl $0x50,-0x1c`（全程无读取，原码遗留照抄，P171）。
+    if (levelUp)
+    {
+        int legacyMaxLevel = 0x55;
+        int legacyMaxLevel2 = 0x50;
+        (void)legacyMaxLevel;
+        (void)legacyMaxLevel2;
         if (get_charac_level() == 0x55)
         {
             APSystem::CUserProc::ClearActionAndSendtoUser(
@@ -936,7 +976,8 @@ void CUser::handleInformNoticeFlag(unsigned int bitIndex)
             goto L2;
         // b28d-W8: ORIG 0x0868f996 `call; test %al,%al; je <岛>`（bool callee 直判、
         // 无 xor）；4.4 对 `!call()`/`call()==0` 恒产 `xor $1; test; jne`（+1 条）⇒
-        // P168a③b 跨版本 bool ABI 封 N；正极性 if 包裹实测 51（少 4 条）已回退。
+        // P168a③b 跨版本 bool ABI 封 N；正极性 if 包裹实测 51（少 4 条，L1/L2 岛被
+        // jump-thread），if/else+goto 形同（b28d-W8b 复测 51）已回退。
         if (checkInformNoticeFlag(bit, byte) == 0)
             goto L3;
         // ORIG lea (%ebx,%edx,1) 加法形 ⇒ 源码 +（位不重叠与 | 等价）。
@@ -953,8 +994,8 @@ END:;
 // b28d-solo-W8_CU_G: NEAR/N — P285 空 else{return;} 复现 ORIG 0x0868f900 尾
 // `jmp;nop` 岛（ndiff 13→3）。b28d-W8 复验：28/29（ORIG 28），残 1 条 = 循环体
 // ORIG 单段 `movzbl (%edx),%ecx`，4.4 恒 `movzbl (%edx),%edx; mov %edx,%ecx` 两段
-//（N18a 反向）；P266 uchar 左值读旋钮（*reinterpret_cast<unsigned char*>）与
-// 隐式转换两形实测同为 29 ⇒ 封 N，不再试形。
+//（N18a 反向）；b28d-W8b 复测三形（隐式转换 / 显式 (unsigned char) cast /
+// P266 `*reinterpret_cast<unsigned char*>(src + i)`）同为 29 ⇒ 封 N，不再试形。
 void CUser::loadInformNoticeFlag(char* src)
 {
     resetInformNoticeFlag();
@@ -965,7 +1006,8 @@ void CUser::loadInformNoticeFlag(char* src)
             // b28d-W8: ORIG 0x0868f929 单段 `movzbl (%edx),%ecx`；4.4 恒
             // `movzbl (%edx),%edx; mov %edx,%ecx` 两段（+1 条，N18a 反向）；
             // P266 uchar 左值读旋钮 / 隐式转换两形实测同为 29 ⇒ 封 N。
-            m_informNoticeFlags[i] = src[i];
+            // b28d-W8b 复测：显式 (unsigned char) cast 无效（同 29）⇒ P266 左值读旋钮。
+            m_informNoticeFlags[i] = *reinterpret_cast<unsigned char*>(src + i);
         }
         sendInformNoticeFlag();
     }
