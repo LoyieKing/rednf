@@ -12116,9 +12116,16 @@ void CUser::SetCharacInfo(int count, char* data)
 // set_grow_type/_postCheckForceChangeGrowType/双 SendNotiPacket。
 // ============================================================================
 // [b28d-22 N82] ORIG 0x08668d1a：p167=CLEAR，gap=-493；语义完成、byte 层帧槽/物化族封顶。
-// [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x08668d1a：N89 封顶——4.1 发射 out-of-line
-// vector/map 模板实例（1279 vs 786 条，gap -493），4.4 libstdc++ 全内联不可复现
-// （改库头禁改、手写包装=发明符号）；p167 CLEAR。
+// [b28d-BigUseQuestItem 复核 2026-09-09] **旧判 N89 作废**：本函数 p167 差集只有
+// C1↔C2 / D1↔D2 同址别名，ORIG 1279 条内**无任何 std::/__gnu_cxx:: 模板 call**
+// （N89 机判条件不成立）。gap -493 的真因 = 判定树/叶块被归纳表查替代：
+// ①判定树+叶块 ≈790 条 vs 表查 ≈40 条；②curIdx/id/cnt 具名槽诱发 cmpl mem
+// 71 处（ORIG 全寄存器 cmp）；③outsideAll bool 物化 9 条 vs ORIG 1 条 ja；
+// ④doChangeGrow char（cmpb）vs ORIG bool（xor $1/test）。按 ORIG 叶块地址序
+// 恢复 75-case switch（4.4.7 lowering 与 4.1 逐条同构，探针 /tmp/probe_switch.cpp）
+// + 删具名中间量 + bool 化 + `= {0}` rep stos 后：our 1278 / ORIG 1279（gap -1），
+// p167 CLEAR，TU 四数 427/862/0/59/251 零回退。残余 = 帧槽基址差（sub 0xb8c vs
+// 0xb7c，N82/N126）、grow 界错误包内联 vs 远跳（块序）、经验钳制 setb/seta 物化（P225）。
 void CUser::UseQuestItem(int itemIdx)
 {
     if (get_state() != 3)
@@ -12133,57 +12140,101 @@ void CUser::UseQuestItem(int itemIdx)
     }
 
     const Inven_Item cur = getCurCharacInvenR()->GetInvenSlot(1, itemIdx);
-    const unsigned int curIdx = (unsigned int)cur.m_addInfo;   // local_9b
 
-    char grow = 0;                    // local_51：目标职业档位
-    int  subType = 0;                 // local_4c：二转/子类
-    int  keepSkill = 0;               // local_50：保留技能包标志
-    char doChangeGrow = 0;            // local_45
+    // P0：ORIG 无 curIdx 具名局部槽，判定树/守卫全程 `mov -0x97(%ebp),%eax`
+    // 重读 sret 对象字段 ⇒ 重建一律写 cur.m_addInfo 表达式（4.4 内存直比会
+    // 破坏 159 条寄存器 cmp 形，实测 cmpl mem 71 条 vs ORIG 5 条）。
+    char grow;                        // local_4d：目标职业档位（每 case 赋值）
+    int  subType;                     // local_48：二转/子类（每 case 赋值）
+    int  keepSkill = 0;               // local_4c：保留技能包标志（部分 case 置 1）
+    bool doChangeGrow = false;        // local_41：换职标记（P248 档②：ORIG
+                                      // `movzbl -0x41; xor $1; test; je` ⇒ bool）
 
-    // ORIG 二叉判定树叶子（+0x49a..+0xad6）归纳表，逐 id 精确。字段：
-    // (lo,hi, grow档位, subType, keepSkill, elixir标记)。注：ORIG 为 4.1 switch
-    // 二分树、全树复用单 %eax 装载（`mov -0x97,%eax` 一次 + 每节点双 cmp），
-    // 4.4 基本块模型逐块 reload，内联 if/else 树形实测 ndiff 反升(1531→1977)，
-    // 故保留表查（语义/调用序与 ORIG 完全一致，97 calls 全对齐）。
-    struct MapEntry { unsigned int lo, hi; int g, s, k, e; };
-    static const MapEntry kUseQuestItemMap[] = {
-        {0xfc9,0xfc9,0,1,0,0},{0xfca,0xfca,0,2,0,0},{0xfcb,0xfcb,0,3,0,0},{0xfcc,0xfcc,0,4,0,0},
-        {0xfcd,0xfcd,1,2,0,0},{0xfce,0xfce,1,1,0,0},{0xfcf,0xfcf,1,3,0,0},{0xfd0,0xfd0,1,4,0,0},
-        {0xfd1,0xfd1,2,1,0,0},{0xfd2,0xfd2,2,3,0,0},{0xfd3,0xfd3,2,2,0,0},{0xfd4,0xfd4,2,4,0,0},
-        {0xfef,0xfef,3,1,0,0},{0xff0,0xff0,3,3,0,0},{0xff1,0xff1,3,2,0,0},{0xff2,0xff2,3,4,0,0},
-        {0xff7,0xff7,0,1,0,1},{0xff8,0xff8,0,2,0,1},{0xff9,0xff9,0,3,0,1},{0xffa,0xffa,0,4,0,1},
-        {0xffb,0xffb,1,2,0,1},{0xffc,0xffc,1,1,0,1},{0xffd,0xffd,1,3,0,1},{0xffe,0xffe,1,4,0,1},
-        {0xfff,0xfff,2,1,0,1},{0x1000,0x1000,2,3,0,1},{0x1001,0x1001,2,2,0,1},{0x1002,0x1002,2,4,0,1},
-        {0x1003,0x1003,3,1,0,1},{0x1004,0x1004,3,3,0,1},{0x1005,0x1005,3,2,0,1},{0x1006,0x1006,3,4,0,1},
-        {0x1045,0x1045,4,1,0,0},{0x1046,0x1046,4,2,0,0},{0x1047,0x1047,4,3,0,0},
-        {0x1048,0x1048,4,4,0,0},
-        {0x105c,0x105c,1,1,1,1},{0x105d,0x105d,1,2,1,1},{0x105e,0x105e,1,3,1,1},
-        {0x105f,0x105f,1,4,1,1},{0x1060,0x1060,2,1,1,1},{0x1061,0x1061,2,2,1,1},{0x1062,0x1062,2,3,1,1},
-        {0x1063,0x1063,2,4,1,1},{0x1064,0x1064,3,1,1,1},{0x1065,0x1065,3,2,1,1},
-        {0x1079,0x1079,3,3,1,1},{0x107a,0x107a,0,1,1,1},{0x107b,0x107b,0,2,1,1},
-        {0x107c,0x107c,0,3,1,1},{0x107d,0x107d,0,4,1,1},
-        {0x1f1c,0x1f1c,3,4,1,1},{0x1f1d,0x1f1d,4,1,1,1},{0x1f1e,0x1f1e,4,2,1,1},{0x1f1f,0x1f1f,4,3,1,1},
-        {0x1f20,0x1f20,5,1,0,1},{0x1f21,0x1f21,5,3,0,1},{0x1f22,0x1f22,5,2,0,1},{0x1f23,0x1f23,5,4,0,1},
-        {0x1f24,0x1f24,5,1,1,1},{0x1f25,0x1f25,5,3,1,1},{0x1f26,0x1f26,5,2,1,1},{0x1f27,0x1f27,5,4,1,1},
-        {0x1f28,0x1f28,6,1,0,1},{0x1f29,0x1f29,6,2,0,1},
-        {0x1f2a,0x1f2a,6,1,1,1},{0x1f2b,0x1f2b,6,2,1,1},
-        {0x1f50,0x1f50,7,1,0,1},{0x1f51,0x1f51,7,3,0,1},{0x1f52,0x1f52,7,2,0,1},
-        {0x1f53,0x1f53,7,4,0,1},{0x1f54,0x1f54,7,1,1,1},{0x1f55,0x1f55,7,3,1,1},
-        {0x1f56,0x1f56,7,2,1,1},{0x1f57,0x1f57,7,4,1,1},
-    };
-    const MapEntry* hit = 0;
-    for (unsigned int mi = 0; mi < sizeof(kUseQuestItemMap) / sizeof(kUseQuestItemMap[0]);
-         ++mi)
+    // [b28d-solo 复核] 旧判 N89 作废：本函数 p167 差集仅 C1/C2、D1/D2 同址别名，
+    // 无任何 std::/__gnu_cxx:: 模板 call；gap 主体是「4.1 switch 二分判定树」
+    // 被表查替代。4.4.7 对同 case 集合 lowering 与 ORIG 逐条同构（探针
+    // /tmp/probe_switch.cpp 前 12 条 cmp/je/ja 全等），故按 ORIG 叶块地址序
+    // （+0x49a..+0xad6；P46/P324 叶块物理序=书写序）恢复 switch；
+    // default = LAB_08669808 未知道具错误包。
+    switch (cur.m_addInfo)
     {
-        if (kUseQuestItemMap[mi].lo <= curIdx && curIdx <= kUseQuestItemMap[mi].hi)
-        {
-            hit = &kUseQuestItemMap[mi];
-            break;
-        }
-    }
-    if (hit == 0)
-    {                                                       // LAB_08669808：未知道具
-        packet.clear();                                     // → 0x20/0x11 错误包
+    case 0xfc9: grow = 0; subType = 1; break;
+    case 0xfca: grow = 0; subType = 2; break;
+    case 0xfcb: grow = 0; subType = 3; break;
+    case 0xfcc: grow = 0; subType = 4; break;
+    case 0xfce: grow = 1; subType = 1; break;
+    case 0xfcd: grow = 1; subType = 2; break;
+    case 0xfcf: grow = 1; subType = 3; break;
+    case 0xfd0: grow = 1; subType = 4; break;
+    case 0xfd1: grow = 2; subType = 1; break;
+    case 0xfd3: grow = 2; subType = 2; break;
+    case 0xfd2: grow = 2; subType = 3; break;
+    case 0xfd4: grow = 2; subType = 4; break;
+    case 0xfef: grow = 3; subType = 1; break;
+    case 0xff1: grow = 3; subType = 2; break;
+    case 0xff0: grow = 3; subType = 3; break;
+    case 0xff2: grow = 3; subType = 4; break;
+    case 0x1045: grow = 4; subType = 1; break;
+    case 0x1046: grow = 4; subType = 2; break;
+    case 0x1047: grow = 4; subType = 3; break;
+    case 0x1048: grow = 4; subType = 4; break;
+    case 0xff7: grow = 0; subType = 1; doChangeGrow = 1; break;
+    case 0xff8: grow = 0; subType = 2; doChangeGrow = 1; break;
+    case 0xff9: grow = 0; subType = 3; doChangeGrow = 1; break;
+    case 0xffa: grow = 0; subType = 4; doChangeGrow = 1; break;
+    case 0xffc: grow = 1; subType = 1; doChangeGrow = 1; break;
+    case 0xffb: grow = 1; subType = 2; doChangeGrow = 1; break;
+    case 0xffd: grow = 1; subType = 3; doChangeGrow = 1; break;
+    case 0xffe: grow = 1; subType = 4; doChangeGrow = 1; break;
+    case 0xfff: grow = 2; subType = 1; doChangeGrow = 1; break;
+    case 0x1001: grow = 2; subType = 2; doChangeGrow = 1; break;
+    case 0x1000: grow = 2; subType = 3; doChangeGrow = 1; break;
+    case 0x1002: grow = 2; subType = 4; doChangeGrow = 1; break;
+    case 0x1003: grow = 3; subType = 1; doChangeGrow = 1; break;
+    case 0x1005: grow = 3; subType = 2; doChangeGrow = 1; break;
+    case 0x1004: grow = 3; subType = 3; doChangeGrow = 1; break;
+    case 0x1006: grow = 3; subType = 4; doChangeGrow = 1; break;
+    case 0x1f20: grow = 5; subType = 1; doChangeGrow = 1; break;
+    case 0x1f22: grow = 5; subType = 2; doChangeGrow = 1; break;
+    case 0x1f21: grow = 5; subType = 3; doChangeGrow = 1; break;
+    case 0x1f23: grow = 5; subType = 4; doChangeGrow = 1; break;
+    case 0x1f28: grow = 6; subType = 1; doChangeGrow = 1; break;
+    case 0x1f29: grow = 6; subType = 2; doChangeGrow = 1; break;
+    case 0x1f50: grow = 7; subType = 1; doChangeGrow = 1; break;
+    case 0x1f52: grow = 7; subType = 2; doChangeGrow = 1; break;
+    case 0x1f51: grow = 7; subType = 3; doChangeGrow = 1; break;
+    case 0x1f53: grow = 7; subType = 4; doChangeGrow = 1; break;
+    case 0x105c: grow = 1; subType = 1; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x105d: grow = 1; subType = 2; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x105e: grow = 1; subType = 3; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x105f: grow = 1; subType = 4; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1060: grow = 2; subType = 1; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1061: grow = 2; subType = 2; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1062: grow = 2; subType = 3; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1063: grow = 2; subType = 4; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1064: grow = 3; subType = 1; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1065: grow = 3; subType = 2; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1079: grow = 3; subType = 3; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x107a: grow = 0; subType = 1; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x107b: grow = 0; subType = 2; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x107c: grow = 0; subType = 3; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x107d: grow = 0; subType = 4; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f1c: grow = 3; subType = 4; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f1d: grow = 4; subType = 1; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f1e: grow = 4; subType = 2; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f1f: grow = 4; subType = 3; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f24: grow = 5; subType = 1; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f26: grow = 5; subType = 2; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f25: grow = 5; subType = 3; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f27: grow = 5; subType = 4; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f2a: grow = 6; subType = 1; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f2b: grow = 6; subType = 2; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f54: grow = 7; subType = 1; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f56: grow = 7; subType = 2; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f55: grow = 7; subType = 3; keepSkill = 1; doChangeGrow = 1; break;
+    case 0x1f57: grow = 7; subType = 4; keepSkill = 1; doChangeGrow = 1; break;
+    default:
+        packet.clear();                                     // LAB_08669808
         packet.put_header(1, 0x20);
         packet.put_byte(0);
         packet.put_byte(0x11);
@@ -12191,31 +12242,27 @@ void CUser::UseQuestItem(int itemIdx)
         Send(packet);
         return;
     }
-
-    grow = static_cast<char>(hit->g);
-    subType = hit->s;
-    keepSkill = hit->k;
-    doChangeGrow = hit->e;
-
-    const bool outsideAll =
-        (curIdx < 0x105c || 0x1065 < curIdx) &&
-        (curIdx < 0x1079 || 0x107d < curIdx) &&
-        (curIdx < 0x1f1c || 0x1f1f < curIdx) &&
-        (curIdx < 0x1f24 || 0x1f27 < curIdx) &&
-        (curIdx < 0x1f2a || 0x1f2b < curIdx) &&
-        (curIdx < 0x1f54 || 0x1f57 < curIdx);
 
     // ORIG：0x20/0x11 错误包体在四失败点各自内联一份（clear=6/Send=5 实证），
     // 4.1 无 helper 合并。外层区间守卫 → grow 界守卫 → 职业守卫，逐份展开。
-    if (!(outsideAll || getCurCharFirstGrowType() != 0))
+    // P0：ORIG 无 outsideAll 具名槽（链尾 `ja` 直跳，无 bool 物化）⇒ 内联。
+    if (!((cur.m_addInfo < 0x105c || 0x1065 < cur.m_addInfo) &&
+          (cur.m_addInfo < 0x1079 || 0x107d < cur.m_addInfo) &&
+          (cur.m_addInfo < 0x1f1c || 0x1f1f < cur.m_addInfo) &&
+          (cur.m_addInfo < 0x1f24 || 0x1f27 < cur.m_addInfo) &&
+          (cur.m_addInfo < 0x1f2a || 0x1f2b < cur.m_addInfo) &&
+          (cur.m_addInfo < 0x1f54 || 0x1f57 < cur.m_addInfo)))
     {
-        packet.clear();
-        packet.put_header(1, 0x20);
-        packet.put_byte(0);
-        packet.put_byte(0x11);
-        packet.finalize(true);
-        Send(packet);
-        return;
+        if (getCurCharFirstGrowType() == 0)
+        {
+            packet.clear();
+            packet.put_header(1, 0x20);
+            packet.put_byte(0);
+            packet.put_byte(0x11);
+            packet.finalize(true);
+            Send(packet);
+            return;
+        }
     }
     if (grow < 0 || grow > 10)
     {
@@ -12252,62 +12299,67 @@ void CUser::UseQuestItem(int itemIdx)
                 setCurCharacExp(levelHigh - 1);
         }
 
-        int slots[312];                                // local_68c（ORIG 0x138 个 int）
-        int idxs[312];                                 // local_b6c
-        // ORIG 0x08669??：两遍 dword 清零显式循环（无 memset call——orig 计数实证）。
-        for (int zi = 0; zi < 312; ++zi)
-            slots[zi] = 0;
-        for (int zi = 0; zi < 312; ++zi)
-            idxs[zi] = 0;
-        int n = 0;                                     // local_3c
+        int n = 0;                                     // local_3c（ORIG 先于清零）
+        // ORIG +0x0dd0：两遍 `rep stos`（0x138 dwords，常量内联展开；P214③/P312
+        // `T arr[N]={0}` 复现）。
+        int slots[312] = {0};                          // local_68c（ORIG 0x138 个 int）
+        int idxs[312] = {0};                           // local_b6c
 
         for (int s = 3; s < 9; ++s)
         {
             const Inven_Item it = getCurCharacInvenR()->GetInvenSlot(1, s);
-            const unsigned int id = (unsigned int)it.m_addInfo;
-            const int cnt = it.m_addInfo2;             // +0x07（local_d3）
-            bool match;
             if (keepSkill == 0)
             {
-                match = ((id > 0xfc8 && id < 0xfd5) || (id > 0xfee && id < 0xff3) ||
-                         (id > 0xff6 && id < 0x1007) || (id > 0x1044 && id < 0x1049) ||
-                         (id > 0x1f1f && id < 0x1f24) || (id > 0x1f27 && id < 0x1f2a) ||
-                         (id > 0x1f4f && id < 0x1f54));
+                if (!((it.m_addInfo > 0xfc8 && it.m_addInfo < 0xfd5) ||
+                      (it.m_addInfo > 0xfee && it.m_addInfo < 0xff3) ||
+                      (it.m_addInfo > 0xff6 && it.m_addInfo < 0x1007) ||
+                      (it.m_addInfo > 0x1044 && it.m_addInfo < 0x1049) ||
+                      (it.m_addInfo > 0x1f1f && it.m_addInfo < 0x1f24) ||
+                      (it.m_addInfo > 0x1f27 && it.m_addInfo < 0x1f2a) ||
+                      (it.m_addInfo > 0x1f4f && it.m_addInfo < 0x1f54)))
+                    continue;
             }
             else
             {
-                match = (id > 0x105b && id < 0x1066 &&
-                         (id < 0x1079 || id > 0x107d) &&
-                         (id < 0x1f1c || id > 0x1f1f) &&
-                         (id < 0x1f24 || id > 0x1f27) &&
-                         (id < 0x1f2a || id > 0x1f2b) &&
-                         (id < 0x1f54 || id > 0x1f57));
+                if (!(it.m_addInfo > 0x105b && it.m_addInfo < 0x1066 &&
+                      (it.m_addInfo < 0x1079 || it.m_addInfo > 0x107d) &&
+                      (it.m_addInfo < 0x1f1c || it.m_addInfo > 0x1f1f) &&
+                      (it.m_addInfo < 0x1f24 || it.m_addInfo > 0x1f27) &&
+                      (it.m_addInfo < 0x1f2a || it.m_addInfo > 0x1f2b) &&
+                      (it.m_addInfo < 0x1f54 || it.m_addInfo > 0x1f57)))
+                    continue;
             }
-            if (match) { slots[n] = s; idxs[n] = cnt; ++n; }
+            slots[n] = s;
+            idxs[n] = it.m_addInfo2;
+            ++n;
         }
         for (int s = 0x99; s < 0xc9; ++s)
         {
             const Inven_Item it = getCurCharacInvenR()->GetInvenSlot(1, s);
-            const unsigned int id = (unsigned int)it.m_addInfo;
-            const int cnt = it.m_addInfo2;
-            bool match;
             if (keepSkill == 0)
             {
-                match = ((id > 0xfc8 && id < 0xfd5) || (id > 0xfee && id < 0xff3) ||
-                         (id > 0xff6 && id < 0x1007) || (id > 0x1044 && id < 0x1049) ||
-                         (id > 0x1f1f && id < 0x1f24) || (id > 0x1f27 && id < 0x1f2a) ||
-                         (id > 0x1f4f && id < 0x1f54));
+                if (!((it.m_addInfo > 0xfc8 && it.m_addInfo < 0xfd5) ||
+                      (it.m_addInfo > 0xfee && it.m_addInfo < 0xff3) ||
+                      (it.m_addInfo > 0xff6 && it.m_addInfo < 0x1007) ||
+                      (it.m_addInfo > 0x1044 && it.m_addInfo < 0x1049) ||
+                      (it.m_addInfo > 0x1f1f && it.m_addInfo < 0x1f24) ||
+                      (it.m_addInfo > 0x1f27 && it.m_addInfo < 0x1f2a) ||
+                      (it.m_addInfo > 0x1f4f && it.m_addInfo < 0x1f54)))
+                    continue;
             }
             else
             {
-                match = (id > 0x105b && id < 0x1066 &&
-                         (id < 0x1079 || id > 0x107d) &&
-                         (id < 0x1f1c || id > 0x1f1f) &&
-                         (id < 0x1f24 || id > 0x1f27) &&
-                         (id < 0x1f2a || id > 0x1f2b) &&
-                         (id < 0x1f54 || id > 0x1f57));
+                if (!(it.m_addInfo > 0x105b && it.m_addInfo < 0x1066 &&
+                      (it.m_addInfo < 0x1079 || it.m_addInfo > 0x107d) &&
+                      (it.m_addInfo < 0x1f1c || it.m_addInfo > 0x1f1f) &&
+                      (it.m_addInfo < 0x1f24 || it.m_addInfo > 0x1f27) &&
+                      (it.m_addInfo < 0x1f2a || it.m_addInfo > 0x1f2b) &&
+                      (it.m_addInfo < 0x1f54 || it.m_addInfo > 0x1f57)))
+                    continue;
             }
-            if (match) { slots[n] = s; idxs[n] = cnt; ++n; }
+            slots[n] = s;
+            idxs[n] = it.m_addInfo2;
+            ++n;
         }
 
         if (n > 0)
@@ -12330,16 +12382,7 @@ void CUser::UseQuestItem(int itemIdx)
         }
 
         WongWork::CSkillChanger changer;
-        if (doChangeGrow == 1)
-        {
-            changer.CountElixer(this);
-            // ORIG 0x08669f?? 系：getCurCharacSkillW 每使用点重调（else 区 4 次 +
-            // 本支 1 次 = orig call 计数 5）；addSkill 实参先 job 后 W。
-            ((SkillSlot*)getCurCharacSkillW())
-                ->debugCheckGrowTypeSkill(get_charac_level(), get_charac_job(),
-                                          subType, keepSkill);
-        }
-        else
+        if (!doChangeGrow)
         {
             ((SkillSlot*)getCurCharacSkillW())->clear_all_skills_both();
             ((SkillSlot*)getCurCharacSkillW())->set_parent(this);
@@ -12350,6 +12393,15 @@ void CUser::UseQuestItem(int itemIdx)
                 ((SkillSlot*)getCurCharacSkillW())->m_skillSlot2,
                 get_charac_job());
             changer.SkillInitialize(this, 0, true);
+        }
+        else
+        {
+            changer.CountElixer(this);
+            // ORIG 0x08669f?? 系：getCurCharacSkillW 每使用点重调（else 区 4 次 +
+            // 本支 1 次 = orig call 计数 5）；addSkill 实参先 job 后 W。
+            ((SkillSlot*)getCurCharacSkillW())
+                ->debugCheckGrowTypeSkill(get_charac_level(), get_charac_job(),
+                                          subType, keepSkill);
         }
 
         WongWork::CCalcCharacStat::InitializeStat(
