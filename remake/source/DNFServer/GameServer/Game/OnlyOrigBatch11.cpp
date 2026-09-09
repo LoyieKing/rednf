@@ -652,20 +652,8 @@ greg_month::month_map_ptr_type greg_month::get_month_map_ptr()
 }  // namespace gregorian
 }  // namespace boost
 
-// ============================================================================
-// StaticPool<expert_job::CEnchanter,300>::CNode D0 force（P147）：
-// 显式 new/delete 触发 D0 发射（ORIG W 0x0849fe04）。
-// ============================================================================
-#include "CExpertJob.h"
-namespace expert_job {
-namespace {
-void forceCNodeD0()
-{
-    StaticPool<CEnchanter, 300>::CNode* n = new StaticPool<CEnchanter, 300>::CNode;
-    delete n;
-    // OnlyOrigBatch14：CDisjointer 池 CNode D0（ORIG W 0x084a00a8）。
-    StaticPool<CDisjointer, 600>::CNode* m = new StaticPool<CDisjointer, 600>::CNode;
-    delete m;
-}
-}  // namespace
-}  // namespace expert_job
+// [b29-SymForceBatch] StaticPool<expert_job::CEnchanter,300>::CNode D0 force 块
+// 删除：forceCNodeD0 本身是发明符号（ORIG 无）。两池 CNode 的 C1/C2/D0/D1/D2 +
+// vtable/typeinfo 已由真实宿主 GlobalData.cpp（CExpertJobMgr ctor →
+// pool C1 → new CNode[N]）自然发射（实测 tu_GlobalData.o 全套在），无需本 TU
+// 重复触发。

@@ -206,8 +206,11 @@ void forceCtorEmissions()
 // 成员析构布 EH landing pad（_Unwind_Resume）。libstdc++ 头实现差异不可改
 // （N89；`~stream_t() throw()` 探针实测不能消 landing pad）⇒ 语义等价封顶
 // （两 string 成员按声明逆序析构，与 ORIG 相同）。
-    CompiledDNFLex::stream_t* pst = new CompiledDNFLex::stream_t();
-    delete pst;
+    // [b29-SymForceBatch] ORIG 仅发 stream_t D1/D2（W 0x08ad1320），无 C1/C2
+    // （默认 ctor 从未 ODR-use）⇒ new/delete 改显式析构调用：只触发 dtor
+    // 发射，不再发明 ctor 符号。force 函数不被调用，无运行时行为。
+    CompiledDNFLex::stream_t* pst = 0;
+    pst->~stream_t();
     stQuestTargetCharacter_t* psqtc =
         new stQuestTargetCharacter_t((ENUM_CHARACTERJOB)1, 0, 0);
     delete psqtc;

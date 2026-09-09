@@ -17,18 +17,16 @@
 //   RSA_public_decrypt       T 0x087eaf60 (0x00c)
 //   RSA_size                 T 0x087eb2e0 (0x026)
 //   RSA_free                 T 0x087eab50 (0x127)  [nm 实测全局 C 符号]
-//   Taiwan::ntohl(unsigned long)   [ORIG 无此 mangled；glibc U 承接包装]
-//   Taiwan::ntohs(unsigned short)  [同上]
 // 伴生（BIO_s_file 方法表与 SET_FILENAME 路径必需，均为 ORIG T/t 真实符号）：
 //   methods_filep 数据 @.data 0x093f3800（dump 原样镜像，值为函数地址）
 //   file_new/file_free/file_read/file_write/file_gets/file_puts/file_ctrl
 //     （t 0x087ec6d0/700/7a0/870/750/a70/ae0）
 //   BIO_clear_flags T 0x087eb7d0 (0xe)、BUF_strlcpy T 0x088115c0 (0x57)
 //
-// Taiwan:: 三符号事实核查（2026-08-27 nm -S）：ORIG 无 _ZN6Taiwan5{RSA_free,
+// Taiwan:: 三符号事实核查（2026-09-09 nm -S 复核）：ORIG 无 _ZN6Taiwan5{RSA_free,
 // ntohl,ntohs}… mangled；ORIG 经 U ntohl@@GLIBC_2.0 / U ntohs@@GLIBC_2.0 与
-// 全局 T RSA_free 提供能力。这三个 Taiwan:: 版本是重建侧既有引用链的 invented
-// linkage 名，此处以语义等同薄包装承接（Main 指令授权）。
+// 全局 T RSA_free（0x087eab50）提供能力。上述三个 Taiwan:: 薄包装系重建侧发明，
+// 已按泳道口径删除：调用点直接使用 ::ntohl / ::ntohs / RSA_free（三方 C 符号本身豁免）。
 //
 // 未转写的传递依赖（extern "C" 引用，遗留清单交 Main 收口裁决）：
 //   CRYPTO_add_lock 0x087f5cd0 / CRYPTO_malloc 0x087f65d0 /
@@ -621,35 +619,6 @@ void RSA_free(void* rsa_v)
 int* __errno_location();
 
 }  // extern "C"
-
-// ===========================================================================
-// Taiwan:: 包装 —— 承接重建侧既有 undefined linkage（Main 授权，见头注）
-// ===========================================================================
-namespace Taiwan {
-
-void RSA_free(void* rsa)
-{
-    ::RSA_free(rsa);
-}
-
-unsigned long ntohl(unsigned long host_long)
-{
-    // 等同 ORIG U ntohl@@GLIBC_2.0（i386 LE 反转）
-    unsigned long v = host_long;
-    return ((v & 0x000000FFUL) << 24) |
-           ((v & 0x0000FF00UL) << 8)  |
-           ((v & 0x00FF0000UL) >> 8)  |
-           ((v & 0xFF000000UL) >> 24);
-}
-
-unsigned short ntohs(unsigned short s)
-{
-    unsigned short v = s;
-    return static_cast<unsigned short>((v << 8) | (v >> 8));
-}
-
-}  // namespace Taiwan
-
 
 // ===========================================================================
 // 第二批收口（LinkFinal）：/tmp/undef97.txt 中 libcrypto 传递依赖 14+ 符号。

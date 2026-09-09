@@ -37,8 +37,12 @@
 // [S426 单文件泳道 2026-09-09 复验/翻正] 清单 7 件：
 //   * _postQuestTriggerItem      DIFF→AE：else 内层 if 改 P223 负条件 goto 形，
 //     复现 ORIG 0x08668bfd `je <nop 岛>` + body 尾 `jmp <join>` + nop（203=203）。
-//   * GetRewardItemNo/GetItemCount  改 P231 纯 register 形参（无 asm 绑定）：
-//     ndiff 5→2（仅 this 装载位置 + job 寄存器角色），T5 封 N7/N98（NEAR 上限）。
+//   * GetRewardItemNo/GetItemCount  [b28d-PoolSmall 归零] S426 的「P231 纯 register
+//     形参」旋钮实为**反效果**：register 令 4.4 把 jobIdx→%edx / levelIdx→%eax，
+//     this 再要 %eax ⇒ 多 `mov %edx,%ecx; mov %eax,%edx` 两条 regmove（13 条 DIFF）。
+//     **删 register** 后 4.4 自然分配 job→%ecx / lv→%edx / this→%eax，两件各
+//     11=11 **IDENTICAL**（ORIG 0x086976f6 / 0x08697712）⇒ TU diff 5→3。
+//     ⇒ 补 P248「裸 register」反例：二维下标 `m[j][l]` 形参加 register 恒退化。
 //   * processLevelUpEventReward  N107（`lea 0x79700(%eax),%edx` vs add，探针 14
 //     形全产 add）；UpdateEventInfo N7/P75（uid/characNo 装载时刻）；
 //     eventDeliveryBuyItem N7（两实参 callee-saved 角色互换）；
@@ -630,30 +634,26 @@ bool stLevelUpRewardItemScript::get_data_when_growup(
 // ---- CLevelRewardTable 访问器（偏移与权威布局逐指令核对）----
 
 // ORIG W 0x086976f6：this+8+(jobIdx*0x46+levelIdx+0x44)*4 → m_rewardPrimary 下标。
-int CLevelRewardTable::GetRewardItemNo(register int jobIdx, register int levelIdx)
+int CLevelRewardTable::GetRewardItemNo(int jobIdx, int levelIdx)
 {
-    // b28d-solo-S426: NEAR 上限（本轮 register 形参旋钮把 ndiff 5→2）——ORIG
-    // 0x086976f6：`mov 0xc(%ebp),%ecx; mov 0x10(%ebp),%edx; mov 0x8(%ebp),%eax;
-    // imul $0x46,%ecx,%ecx; lea (%ecx,%edx,1),%edx; add $0x44,%edx;
-    // mov 0x8(%eax,%edx,4),%eax`。P231 纯 register 形参（无 asm 绑定，P0 合规）
-    // 使 4.4 出 `mov job→%eax; mov lv→%edx; imul; lea; mov this→%eax; add; mov`
-    // ——与 ORIG 仅差 this 装载位置（ORIG 第 3 条 / 4.4 第 5 条）与 job 目标
-    // 寄存器（%ecx vs %eax）。本轮 12 形探针（/tmp/b28d_s426/probe_idx{,2..8}.cpp）
-    // 实测：凡让 this 提前的形（Arr cast / 双重指针解引用 `(*(T**)(void*)&t)`）
-    // 都会把 base 偏移折进 add（少 1 条）或令 job→%edx、lv→%ecx，无法同时满足
-    // 「this 第 3 条 + job→%ecx + lea (%ecx,%edx,1)」⇒ T5：残差仅装载序/寄存器
-    // 角色，封 N7/N98（4.4 槽/寄存器分配不可由源形择）。ORIG 0x086976f6。
+    // [b28d-PoolSmall 归零] 旧 P231「纯 register 形参」旋钮是**反效果**（P248 裸
+    // register 反例）：带 register 时 4.4 把 jobIdx 装 %edx、levelIdx 装 %eax，
+    // 随后 this 又要装 %eax ⇒ 多出 `mov %edx,%ecx; mov %eax,%edx` 两条 regmove
+    // （13 条 DIFF）。**删 register** 后 4.4 自然分配 job→%ecx / lv→%edx /
+    // this→%eax，逐条复现 ORIG 0x086976f6 的
+    // `mov 0xc(%ebp),%ecx; mov 0x10(%ebp),%edx; mov 0x8(%ebp),%eax;
+    //  imul $0x46,%ecx,%ecx; lea (%ecx,%edx,1),%edx; add $0x44,%edx;
+    //  mov 0x8(%eax,%edx,4),%eax` ⇒ 11=11 IDENTICAL。
     return m_rewardPrimary[jobIdx][levelIdx];   // [b28d-Main·检查点17] 二维下标（头已改 [9][0x46]）
 }
 
 // ORIG W 0x08697712：this+(jobIdx*0x46+levelIdx+0x2bc)*4 → m_rewardSecondary 下标。
-int CLevelRewardTable::GetItemCount(register int jobIdx, register int levelIdx)
+int CLevelRewardTable::GetItemCount(int jobIdx, int levelIdx)
 {
-    // b28d-solo-S426: NEAR 上限（同 GetRewardItemNo，本轮 ndiff 5→2）——ORIG
-    // 0x08697712 同形（`imul $0x46,%ecx,%ecx; lea (%ecx,%edx,1),%edx;
-    // add $0x2bc,%edx; mov (%eax,%edx,4),%eax`，m_rewardSecondary@+0xaf0 无 disp）。
-    // P231 register 形参后 4.4 出同序列，仅 this 装载位置与 job 寄存器差；
-    // 12 形探针（同上）无一能同时翻正 ⇒ T5 封 N7/N98。ORIG 0x08697712。
+    // [b28d-PoolSmall 归零] 同 GetRewardItemNo：删 register 形参即逐条复现
+    // ORIG 0x08697712（`imul $0x46,%ecx,%ecx; lea (%ecx,%edx,1),%edx;
+    //  add $0x2bc,%edx; mov (%eax,%edx,4),%eax`，m_rewardSecondary@+0xaf0 无
+    // disp）⇒ 11=11 IDENTICAL。带 register 时同样多 2 条 regmove。
     return m_rewardSecondary[jobIdx][levelIdx];   // [b28d-Main·检查点17] 同上
 }
 

@@ -50,7 +50,18 @@ public:
     Singleton() {}                       // ORIG W C1（如 _ZN4ARAD9SingletonI16HeroMissionEventE9SingletonEv
                                          //   0x0816858c，5 字节空体）
     static T* Get();
-    static T* GetPtr();                  // ORIG W（0x0811c9c1：尾调 Get()）
+    // 有模板体（下方）：ORIG W _ZN4ARAD9SingletonI16HeroMissionEventE6GetPtrEv @0x0811c9c1
+    // 即其证据，体为 call 同 TU 的 Get() @0x0811c9ce（13 字节）。ORIG 该成员的唯一真实
+    // 调用点在 CEventManager.cpp 全局 `D events @0x936fa60`（0x62c = 79×sizeof(EventTableEntry)，
+    // 元素 20 字节 = {int id; int apply_type; CEventBase* base; const char* name;
+    // const char* explain}）的动态初始化：0x0811b8d9 `call 811c9c1` → 写入 0x9370058
+    // = events[76].base，而 .data 里 events[76].name 恰为 "HeroMissionEvent"（79 项里唯一
+    // 不以 new 填充的表项）。完整归位反证见 Game/Arad_Singletons.cpp 文件头。
+    // ⇒ 消费侧 TU 一律**不得**写 `template class Singleton<X>;`：整类显式实例化会把没有
+    //   调用点的 GetPtr 也发出来（ORIG 12/13 个实例无此符号）。需要补发符号时用成员级
+    //   显式实例化 `template Singleton<X>::Singleton();` + `template X* Singleton<X>::Get();`
+    //   ——见 Game/Arad_Singletons.cpp（唯一 owner）。
+    static T* GetPtr();
 };
 
 template <class T>

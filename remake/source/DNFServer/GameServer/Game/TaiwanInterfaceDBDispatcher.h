@@ -10,8 +10,10 @@
 //   W 0x0815dfc2 _ZNK26TaiwanInterfaceDBDispatcher7getCodeEv
 // getCode 返回类型 demangled 缺失，按 TaiwanInternalPack::T 值回传写 T【推断】。
 // vtable 槽序 = [~D1 @+0x08][~D0 @+0x0c][纯虚 dispatch @+0x10]（ORIG 基类
-// vtable 0x8b79470 槽2=__cxa_pure_virtual 0x8724fe0；具体子类如
-// LoadServiceRestrictPolicy vptr+8=dispatch @0x815a8f2）。
+// vtable 0x8b79470 尺寸 0x14，槽2=__cxa_pure_virtual 0x8724fe0；具体子类如
+// LoadServiceRestrictPolicy vptr+8=dispatch @0x815a8f2）。ORIG 无
+// _ZN27TaiwanInterfaceDBDispatcher8dispatchEiiP6Stream ⇒ dispatch 必为纯虚，
+// 基类不得提供定义（否则发射该 vague-linkage 符号，违反 ORIG 符号账）。
 class Stream;
 
 class TaiwanInterfaceDBDispatcher
@@ -19,7 +21,7 @@ class TaiwanInterfaceDBDispatcher
 public:
     TaiwanInterfaceDBDispatcher(TaiwanInternalPack::T) throw();  // ORIG W 0x0815df66（ORIG new 链无 EH → nothrow）
     virtual ~TaiwanInterfaceDBDispatcher();                      // ORIG W 0x0815dfa4
-    virtual bool dispatch(int /*code*/, int /*uid*/, Stream* /*stream*/) { return false; }
+    virtual bool dispatch(int /*code*/, int /*uid*/, Stream* /*stream*/) = 0;
     TaiwanInternalPack::T getCode() const;               // ORIG W 0x0815dfc2（返回 T【推断】）
 
 private:

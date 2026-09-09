@@ -85,18 +85,8 @@ class STFileListMapMirror
 {
 public:
     std::map<int, std::string> m_fileMap;                // +0x00
-    const char* GetFileName(int idx) const;              // ORIG T 0x088bad4e
     int FindIndexByFullScan(const char* path) const;     // ORIG T 0x088bae56
 };
-
-const char* STFileListMapMirror::GetFileName(int idx) const
-{
-    // ORIG 0x088bad4e：find(idx)；命中返回 second.c_str()，否则 0。
-    std::map<int, std::string>::const_iterator it = m_fileMap.find(idx);
-    if (it == m_fileMap.end())
-        return 0;
-    return it->second.c_str();
-}
 
 // ---- ORIG B 全局脚本文件列表（对象模型，map<int,string>@+0；定义归属
 //      InitScriptProducers_4.cpp / InitScriptProducers_5.cpp，此处仅引用）----

@@ -1378,6 +1378,12 @@ CAssaultPlace::~CAssaultPlace()
     // 把 CAssaulter::~CAssaulter 由头内 inline 空体改为本 TU 外联定义并置于本
     // caller 之前（CAssaultMgr.cpp:189），4.4 对 assaulters[8] 析构循环由保守
     // sub $0x14 翻为精确继承 ORIG 0x82f13b6 的 sub $0x4，逐条 AE。
+    // [b28d-PoolSmall 复验+反例] 本 TU 内把本 dtor 定义后置到 CloseAssault 之后
+    // （P210 三分律③方向）实测**零效**：StaticPool<CAssaultPlace,128>::CNodeD1
+    // 仍 `sub $0x4`（ORIG 0x82f1389 为 `sub $0x18`）——gcc4.4 在 finish_file 统一
+    // 输出 cgraph，COMDAT 发射点不受源码顺序影响 ⇒ 该件残差纯为 N115（4.4 -O0
+    // 恒预留对齐 outgoing 区，4.1 参数直写帧底），唯一解是 TU 级
+    // `-mpreferred-stack-boundary=2`（会塌陷同 TU 其它帧）⇒ 已回滚位置，封 N115。
 }
 
 // ORIG T 0x82e6d3a：m_pos.x/y 非零才向所在区域广播。

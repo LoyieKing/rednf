@@ -227,11 +227,6 @@ CUser* CParty::get_user(int idx)
     return m_member[idx].m_pUser;
 }
 
-int CParty::get_party_type() const
-{
-    return m_battleField.m_bloodState;
-}
-
 char CParty::getTitleIndex()
 {
     return m_titleIndex;

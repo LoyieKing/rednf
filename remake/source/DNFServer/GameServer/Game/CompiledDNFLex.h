@@ -32,6 +32,14 @@ public:
         char*        buffer;   // +0x0c
         char*        offset;   // +0x10
 
+        // [b29-SymForceBatch] 默认 ctor **必须保留**，勿删：本类另有用户两参
+        // ctor ⇒ 删默认 ctor 后无隐式默认 ctor 可生成，而
+        // CompiledDNFLexCore.cpp:183（PushInputStream）有默认构造形 `stream_t
+        // stream;`，该 TU 将直接编译失败。符号侧无害实证：ORIG 无 stream_t
+        // C1/C2（nm 计数 0）而我方 4.4 对该栈构造产 empty_rep 常量 store
+        // （objdump PushInputStream 体无 C1Ev call/reloc，tu_CompiledDNFLexCore.o
+        // 亦无 C1Ev 定义），**不发射** C1Ev/C2Ev；唯一曾发明 C1/C2 的发射点
+        // （OnlyOrigBatch7_Force 的 new/delete）已改显式 ~stream_t()。
         stream_t() : dir(), filename() {}
         stream_t(const std::string& d, const std::string& f)
             : dir(d), filename(f), size(0), buffer(0), offset(0) {}

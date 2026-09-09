@@ -263,7 +263,6 @@ public:
     void SetAssaultState(char state);
     cMember* GetMember();
     CUser* get_user(int idx);
-    int get_party_type() const;
     char getTitleIndex();
     void setTitleIndex(unsigned char idx);
     char* getTitle();

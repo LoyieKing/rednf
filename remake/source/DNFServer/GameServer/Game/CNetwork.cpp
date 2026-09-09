@@ -12,7 +12,6 @@ template int CNetwork<4096, 450000>::send_packet();
 template bool CNetwork<4096, 450000>::SetNonBlock(int);
 template void CNetwork<4096, 450000>::send_lock();
 template void CNetwork<4096, 450000>::send_unlock();
-template int CNetwork<4096, 450000>::GetRemainSendSize();
 template char* CNetwork<4096, 450000>::GetPeerIP2(char*, int);
 template char* CNetwork<4096, 450000>::get_str_ip();
 template char CNetwork<4096, 450000>::get_nat_type();

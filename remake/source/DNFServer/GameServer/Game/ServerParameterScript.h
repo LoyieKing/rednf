@@ -426,7 +426,7 @@ public:
     float getAssaultPriceChaospointWeight(int chaosPoint);
     int getLuckPoint(int idx, int& out);
     int getLuckPointDeductionRate(int level, int grade);  // ORIG T 0x08a8c4fe
-    bool LoadScript(const char* path);
+
 
     // ---- 简单 getter（ORIG weak inline，本 TU 具名实现） ----
     int GetLottoCost() { return m_7b8; }

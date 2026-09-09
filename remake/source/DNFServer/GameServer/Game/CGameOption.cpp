@@ -14,8 +14,8 @@ void CGameOption::SetHotKeyOption(unsigned char cSlot, CHotkeyOption& HotKeyOpti
     m_bLoadHotKeyFlag[cSlot] = 1;
 }
 
-unsigned char CGameOption::IsHotKeyOptionChanged(unsigned char cSlot,
-                                                 CHotkeyOption& HotKeyOption)
+bool CGameOption::IsHotKeyOptionChanged(unsigned char cSlot,
+                                        CHotkeyOption& HotKeyOption)
 {
     if (cSlot > 1)
         return 0;

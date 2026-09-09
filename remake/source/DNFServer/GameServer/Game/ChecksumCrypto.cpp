@@ -530,13 +530,14 @@ static const unsigned long long k_sha512K[80] = {
     ((unsigned int)_p[0] << 24) | ((unsigned int)_p[1] << 16) | \
     ((unsigned int)_p[2] << 8) | (unsigned int)_p[3]; })
 
-static void sha256StoreBE(unsigned int v, unsigned char* p)
-{
-    p[0] = (unsigned char)(v >> 24);
-    p[1] = (unsigned char)(v >> 16);
-    p[2] = (unsigned char)(v >> 8);
-    p[3] = (unsigned char)v;
-}
+// [b28d-SymChecksum·检查点18同法] 原 static 助手改宏（ORIG 无该局部符号；宏展开零符号）。
+#define sha256StoreBE(v, p) do { \
+    unsigned int _v = (unsigned int)(v); \
+    unsigned char* _p = (unsigned char*)(p); \
+    _p[0] = (unsigned char)(_v >> 24); \
+    _p[1] = (unsigned char)(_v >> 16); \
+    _p[2] = (unsigned char)(_v >> 8); \
+    _p[3] = (unsigned char)_v; } while (0)
 
 #define sha512BE(p, v) do { \
     const unsigned char* _p = (const unsigned char*)(p); \
@@ -544,13 +545,13 @@ static void sha256StoreBE(unsigned int v, unsigned char* p)
     for (int _i = 0; _i < 8; ++_i) _v = (_v << 8) | _p[_i]; \
     (v) = _v; } while (0)
 
-static void sha512StoreBE(unsigned long long v, unsigned char* p)
-{
-    for (int i = 7; i >= 0; --i) {
-        p[i] = (unsigned char)(v & 0xff);
-        v >>= 8;
-    }
-}
+// [b28d-SymChecksum·检查点18同法] 原 static 助手改宏（ORIG 无该局部符号；宏展开零符号）。
+#define sha512StoreBE(v, p) do { \
+    unsigned long long _v = (v); \
+    unsigned char* _p = (unsigned char*)(p); \
+    for (int _i = 7; _i >= 0; --_i) { \
+        _p[_i] = (unsigned char)(_v & 0xff); \
+        _v >>= 8; } } while (0)
 
 static void SHA256_Transform(unsigned long* stateWords, unsigned long* dataWords)
 {
@@ -922,58 +923,56 @@ static void RIJNDAEL_KeySchedule(unsigned char* key, unsigned long keyLen,
     }
 }
 
-static void aesAddRoundKey(unsigned char st[16], unsigned long const* rk)
-{
-    for (int c = 0; c < 4; ++c) {
-        unsigned long w = rk[c];
-        st[c * 4 + 0] ^= (unsigned char)(w >> 24);
-        st[c * 4 + 1] ^= (unsigned char)(w >> 16);
-        st[c * 4 + 2] ^= (unsigned char)(w >> 8);
-        st[c * 4 + 3] ^= (unsigned char)w;
-    }
-}
+// [b28d-SymChecksum·检查点18同法] 下列 7 个 aes* 原 static 助手改宏
+// （ORIG 无这些局部符号；实参先绑定局部、逐字保留求值顺序）。
+#define aesAddRoundKey(st, rk) do { \
+    unsigned char* _st = (unsigned char*)(st); \
+    unsigned long const* _rk = (rk); \
+    for (int _c = 0; _c < 4; ++_c) { \
+        unsigned long _w = _rk[_c]; \
+        _st[_c * 4 + 0] ^= (unsigned char)(_w >> 24); \
+        _st[_c * 4 + 1] ^= (unsigned char)(_w >> 16); \
+        _st[_c * 4 + 2] ^= (unsigned char)(_w >> 8); \
+        _st[_c * 4 + 3] ^= (unsigned char)_w; } } while (0)
 
-static void aesSubBytes(unsigned char st[16])
-{
-    for (int i = 0; i < 16; ++i)
-        st[i] = k_aesSBox[st[i]];
-}
+#define aesSubBytes(st) do { \
+    unsigned char* _st = (unsigned char*)(st); \
+    for (int _i = 0; _i < 16; ++_i) \
+        _st[_i] = k_aesSBox[_st[_i]]; } while (0)
 
-static void aesShiftRows(unsigned char st[16])
-{
-    unsigned char t;
-    t = st[1];  st[1] = st[5];   st[5] = st[9];   st[9] = st[13];  st[13] = t;
-    t = st[2];  st[2] = st[10];  st[10] = t;
-    t = st[6];  st[6] = st[14];  st[14] = t;
-    t = st[15]; st[15] = st[11]; st[11] = st[7];  st[7] = st[3];   st[3] = t;
-}
+#define aesShiftRows(st) do { \
+    unsigned char* _st = (unsigned char*)(st); \
+    unsigned char _t; \
+    _t = _st[1];  _st[1] = _st[5];   _st[5] = _st[9];   _st[9] = _st[13];  _st[13] = _t; \
+    _t = _st[2];  _st[2] = _st[10];  _st[10] = _t; \
+    _t = _st[6];  _st[6] = _st[14];  _st[14] = _t; \
+    _t = _st[15]; _st[15] = _st[11]; _st[11] = _st[7];  _st[7] = _st[3];   _st[3] = _t; \
+    } while (0)
 
-static void aesMixColumns(unsigned char st[16])
-{
-    for (int c = 0; c < 4; ++c) {
-        unsigned char* p = st + c * 4;
-        unsigned char a0 = p[0], a1 = p[1], a2 = p[2], a3 = p[3];
-        p[0] = (unsigned char)(aesMul(a0, 2)  ^ aesMul(a1, 3)  ^ a2 ^ a3);
-        p[1] = (unsigned char)(a0             ^ aesMul(a1, 2)  ^ aesMul(a2, 3) ^ a3);
-        p[2] = (unsigned char)(a0             ^ a1             ^ aesMul(a2, 2)  ^ aesMul(a3, 3));
-        p[3] = (unsigned char)(aesMul(a0, 3)  ^ a1             ^ a2             ^ aesMul(a3, 2));
-    }
-}
+#define aesMixColumns(st) do { \
+    unsigned char* _st = (unsigned char*)(st); \
+    for (int _c = 0; _c < 4; ++_c) { \
+        unsigned char* _p = _st + _c * 4; \
+        unsigned char _a0 = _p[0], _a1 = _p[1], _a2 = _p[2], _a3 = _p[3]; \
+        _p[0] = (unsigned char)(aesMul(_a0, 2)  ^ aesMul(_a1, 3)  ^ _a2 ^ _a3); \
+        _p[1] = (unsigned char)(_a0             ^ aesMul(_a1, 2)  ^ aesMul(_a2, 3) ^ _a3); \
+        _p[2] = (unsigned char)(_a0             ^ _a1             ^ aesMul(_a2, 2)  ^ aesMul(_a3, 3)); \
+        _p[3] = (unsigned char)(aesMul(_a0, 3)  ^ _a1             ^ _a2             ^ aesMul(_a3, 2)); \
+    } } while (0)
 
-static void aesInvSubBytes(unsigned char st[16])
-{
-    for (int i = 0; i < 16; ++i)
-        st[i] = k_aesInvSBox[st[i]];
-}
+#define aesInvSubBytes(st) do { \
+    unsigned char* _st = (unsigned char*)(st); \
+    for (int _i = 0; _i < 16; ++_i) \
+        _st[_i] = k_aesInvSBox[_st[_i]]; } while (0)
 
-static void aesInvShiftRows(unsigned char st[16])
-{
-    unsigned char t;
-    t = st[13]; st[13] = st[9];  st[9] = st[5];  st[5] = st[1];   st[1] = t;
-    t = st[2];  st[2] = st[10];  st[10] = t;
-    t = st[6];  st[6] = st[14];  st[14] = t;
-    t = st[3];  st[3] = st[7];   st[7] = st[11]; st[11] = st[15]; st[15] = t;
-}
+#define aesInvShiftRows(st) do { \
+    unsigned char* _st = (unsigned char*)(st); \
+    unsigned char _t; \
+    _t = _st[13]; _st[13] = _st[9];  _st[9] = _st[5];  _st[5] = _st[1];   _st[1] = _t; \
+    _t = _st[2];  _st[2] = _st[10];  _st[10] = _t; \
+    _t = _st[6];  _st[6] = _st[14];  _st[14] = _t; \
+    _t = _st[3];  _st[3] = _st[7];   _st[7] = _st[11]; _st[11] = _st[15]; _st[15] = _t; \
+    } while (0)
 
 #define aesInvMixColumnsBlk(st) do { \
     unsigned char* _st = (unsigned char*)(st); \
@@ -1750,37 +1749,37 @@ static const unsigned char k_desWeakKeys[16][8] = {
 #define desLoad64(p) ({ const unsigned char* _p = (const unsigned char*)(p); \
     unsigned long long _v = 0; for (int _i = 0; _i < 8; ++_i) _v = (_v << 8) | _p[_i]; _v; })
 
-static void desStore64(unsigned char* p, unsigned long long v)
-{
-    for (int i = 7; i >= 0; --i) {
-        p[i] = (unsigned char)(v & 0xff);
-        v >>= 8;
-    }
-}
+// [b28d-SymChecksum·检查点18同法] 下列 3 个 des* 原 static 助手改宏
+// （ORIG 无这些局部符号；实参先绑定局部、逐字保留求值顺序）。
+#define desStore64(p, v) do { \
+    unsigned char* _p = (unsigned char*)(p); \
+    unsigned long long _v = (v); \
+    for (int _i = 7; _i >= 0; --_i) { \
+        _p[_i] = (unsigned char)(_v & 0xff); \
+        _v >>= 8; } } while (0)
 
 // 通用置换：tbl 为 1-based 位序，输入/输出均 MSB-first
-static unsigned long long desPermute(unsigned long long in, int nbits,
-                                     int outbits, unsigned char const* tbl)
-{
-    unsigned long long out = 0;
-    for (int i = 0; i < outbits; ++i) {
-        int src = tbl[i] - 1;
-        out = (out << 1) | ((in >> (nbits - 1 - src)) & 1ULL);
-    }
-    return out;
-}
+#define desPermute(in, nbits, outbits, tbl) ({ \
+    unsigned long long _in = (in); \
+    int _nbits = (nbits), _outbits = (outbits); \
+    unsigned char const* _tbl = (tbl); \
+    unsigned long long _out = 0; \
+    for (int _i = 0; _i < _outbits; ++_i) { \
+        int _src = _tbl[_i] - 1; \
+        _out = (_out << 1) | ((_in >> (_nbits - 1 - _src)) & 1ULL); } \
+    _out; })
 
 #define desRotl28(v, n) ((unsigned long)((((unsigned long)(v) << (n)) | \
     ((unsigned long)(v) >> (28 - (n)))) & 0x0fffffffUL))
 
 // 第 round 轮 48 位子密钥（rk 区每轮 8 字节，前 6 字节有效）
-static unsigned long long desSubkey48(unsigned char const* rk, int round)
-{
-    unsigned long long k = 0;
-    for (int i = 0; i < 6; ++i)
-        k = (k << 8) | rk[round * 8 + i];
-    return k;
-}
+#define desSubkey48(rk, round) ({ \
+    unsigned char const* _rk = (rk); \
+    int _round = (round); \
+    unsigned long long _k = 0; \
+    for (int _i = 0; _i < 6; ++_i) \
+        _k = (_k << 8) | _rk[_round * 8 + _i]; \
+    _k; })
 
 // Feistel f(R, K)：E 扩展 → 异或 → S 盒 → P 置换
 #define desF(r, subkey) ({ \

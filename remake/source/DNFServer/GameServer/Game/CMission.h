@@ -41,7 +41,9 @@ public:
     // ORIG vtable（_ZTV19CMission_remains_hp 实证）：_makeTotalMissionInfo/
     // _canUpdate/_isAcceptCondition/~dtor(D1/D0)/isClearable/verifyMission/...
     // dtor 声明位置决定全族 vtable 槽位，必须位于 _isAcceptCondition 之后。
-    virtual ~CMission();
+    // ORIG _ZTV8CMission 槽 [3]/[4] = __cxa_pure_virtual ⇒ dtor 为纯虚
+    // （体外联定义于 CMission.cpp，ORIG 亦发射 _ZN8CMissionD[12]Ev）。
+    virtual ~CMission() = 0;
     virtual bool isClearable(MissionInfo& info, bool& clear) const = 0;
     virtual bool verifyMission(const MissionInfo& info) const = 0;
     virtual bool isSeriesMission() const = 0;
@@ -96,7 +98,6 @@ class CMission_rank : public CMission
 public:
     virtual ~CMission_rank();
     virtual bool isClearable(MissionInfo& info, bool& clear) const;
-    virtual bool verifyMission(const MissionInfo& info) const;
     virtual bool isSeriesMission() const;
     virtual int Update(MissionInfo& info,
                        const MissionClearCondition_Parameter& param) const;
@@ -105,7 +106,9 @@ public:
     // ORIG 0x85e372c：rank 任务接受条件 = 用户 PvP 段位落在 [m_rankRange.first,
     // m_rankRange.second)
     // 区间内（两次独立 get_pvp_grade 调用，O0 无 CSE；基类同名入口不含 -1 特判）
-    bool isAcceptCondition(const CUser& user) const;
+    // ORIG _ZTV13CMission_rank sz 0x40：本函数为 rank 自新虚槽（第 14 槽），
+    // 基类 CMission::isAcceptCondition 为非虚，故虚槽追加于 _Reward 之后。
+    virtual bool isAcceptCondition(const CUser& user) const;
 
     int m_clearCount;  // +0x40
 };

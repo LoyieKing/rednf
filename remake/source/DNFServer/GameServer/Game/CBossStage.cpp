@@ -730,30 +730,6 @@ bool CBossStage::RoutingPickupItem(CUser* user, unsigned int uid,
 }
 
 
-namespace
-{
-
-// Random/Normal 共用的展示分类（ORIG 逐虚槽判定，仅写入包字段）：
-// 可堆叠 && GetItemType()==9 → 7；生物物品 → 7；头像物品 → 1。
-int pickupRouteKind(const CItem* script)
-{
-    if (script->is_stackable())
-    {
-        if (script->GetItemType() == 9)
-            return 7;
-    }
-    else
-    {
-        if (script->IsCreatureItem())
-            return 7;
-        else if (script->IsAvatarItem())
-            return 1;
-    }
-    return 0;
-}
-
-}  // namespace
-
 // ---- NormalPickupItem（ORIG 0x0814ecec）----
 // [b28d-62] N82：p167 CLEAR。ORIG 0x0814ecec
 // [b28d-solo-CBossStage] 封顶 N7+N82：user==0 正向包裹（P222，ORIG je 814f0d5）、

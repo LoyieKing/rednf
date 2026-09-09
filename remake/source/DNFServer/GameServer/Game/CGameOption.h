@@ -171,7 +171,12 @@ public:
     CGameOption();
 
     void SetHotKeyOption(unsigned char cSlot, CHotkeyOption& HotKeyOption);
-    unsigned char IsHotKeyOptionChanged(unsigned char cSlot, CHotkeyOption& HotKeyOption);
+    // [Main·检查点22 P292/T3] 返回 uchar→**bool**。直证：ORIG 唯一消费点
+    //   Dispatcher_SaveCharacterOption::process 0x081ceedx 序列
+    //   `call IsHotKeyOptionChanged; xor $0x1,%eax; test %al,%al; je`（3 条、无
+    //   setne/sete、结果不落槽）⇒ callee 返回 bool；返回 uchar 时 4.4 恒多一条
+    //   `sete %al`（ndiff=3 全在此）。定义体本就只有 `return 0/1`，语义不变。
+    bool IsHotKeyOptionChanged(unsigned char cSlot, CHotkeyOption& HotKeyOption);
     void SetEtcOption(CETCOption& EtcOption);
     void SetQuickChatOption(const CQuickChattingOption& QuickChattingOption,
                             unsigned int nSlot);

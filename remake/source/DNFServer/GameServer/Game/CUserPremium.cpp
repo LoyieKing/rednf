@@ -1171,18 +1171,6 @@ SUserPremiumInfo CUserPremium::CheckPremiumTimeout() const
     return result;
 }
 
-void CUserPremium::GetPremiumInfoList(std::vector<SUserPremiumInfo>& list, int type) const
-{
-    list.clear();
-    const SUserPremiumInfo* entries = m_entries;
-    for (int i = 1; i < 0x6a; ++i)
-    {
-        const SUserPremiumInfo& entry = entries[i];
-        if (entry.m_type != 0 && (type == 0x270f || entry.m_type == type))
-            list.push_back(entry);
-    }
-}
-
 SUserPremiumInfo* CUserPremium::GetPremiumInfo(int type) const
 {
     // P0：ORIG 无局部槽（sub 0，`add 0x8(%ebp),%eax`）——原码内联右值直返，

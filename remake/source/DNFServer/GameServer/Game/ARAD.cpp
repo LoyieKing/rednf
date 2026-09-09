@@ -701,9 +701,15 @@ Arad_InterfaceGameScript* Arad_DataManager::findGameScript(std::string name)
     return m_scriptMap[name];
 }
 
-// Singleton<T>::Get() 模板定义已在 Arad_DataManager.h 提供；此处显式实例化。
-template class Singleton<Arad_DataManager>;
-template class Singleton<ScriptManager>;
+// Singleton<T> 模板定义已在 Arad_DataManager.h 提供。ORIG 对这两个实例只发射
+// { Singleton() C1/C2, Get() }（_ZN4ARAD9SingletonINS_16Arad_DataManagerE... /
+// ...INS_13ScriptManagerE...），**没有** GetPtr ⇒ 整类显式实例化会连带发出 ORIG
+// 不存在的 W _ZN4ARAD9SingletonI...E6GetPtrEv，故降级为成员级显式实例化。
+// 唯一定义点在 Game/Arad_Singletons.cpp；此处仅补发本 TU 用到的两个成员。
+template Singleton<Arad_DataManager>::Singleton();
+template Arad_DataManager* Singleton<Arad_DataManager>::Get();
+template Singleton<ScriptManager>::Singleton();
+template ScriptManager* Singleton<ScriptManager>::Get();
 
 // b28d-solo-ARAD verdict=IDENTICAL/AE：P248 档①（callee 返回类型旋钮）——返回类型
 // int→bool 复现 ORIG 0x0819798d `call CUser::Send; mov %eax,%ebx`（4.4 对 int 返回恒

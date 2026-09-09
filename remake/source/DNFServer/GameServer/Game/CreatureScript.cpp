@@ -411,17 +411,6 @@ int getActiveStatusType(const std::string& s)
     return 0x12;
 }
 
-// ORIG 0x809576e：SDC 元素合法性（AttackInfo 简化为 4 元素位掩码视图）。
-bool isValidAttackInfoElement(const void* sdc, int element)
-{
-    const char* p = (const char*)sdc;
-    if (element == 4)
-    {
-        return (p[0] == 0 && p[1] == 0 && p[2] == 0 && p[3] == 0);
-    }
-    return p[element] != 0;
-}
-
 // ============================================================================
 // importCreatureScript —— ORIG 0x8a35e47（RDARScriptObject.cpp）
 // 逐行 ScanType 分派；标签→字段写回。loadRDARScriptFile(g_creatureScriptBaseDirectory,
@@ -1272,6 +1261,13 @@ enum AttackInfoTag
 
 }  // namespace
 
+// ORIG 0x88d1450：无参，直接返回 true（10 字节：push/mov/xor 后 mov $1）。
+// 定义位置按 ORIG 布局置于 ImportAttackInfoScript（ORIG 0x88d145a）之前。
+bool InitAttackInfoScript()
+{
+    return true;
+}
+
 // ORIG 0x88d145a:ImportAttackInfoScript(AttackInfo*, char const*, int)
 // 注册链与解析共用同一 switch：ORIG 每个 case 头部 `if (!__inited)` 则
 // 构造 pair(key, tagId) 并 map::insert 后**贯穿(fall through)到下一 case**
@@ -1849,18 +1845,6 @@ bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
     }
     unloadRDARScriptFile();                   // 0x24ee
     return true;
-}
-
-// ORIG 0x88d1450：无参，直接返回 true（10 字节：push/mov/xor 后 mov $1）。
-bool InitAttackInfoScript()
-{
-    return true;
-}
-
-// 既有转发契约（非 ORIG 符号，保留供外部调用）。
-bool InitAttackInfoScript(AttackInfo* info, const char* path, int param3)
-{
-    return ImportAttackInfoScript(info, path, param3);
 }
 
 // ============================================================================

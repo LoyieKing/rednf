@@ -14435,12 +14435,15 @@ bool DB_TOD_Reset_UserAPC::dispatch(int userIdx, int slot, Stream* stream)
                                                      i);
             return 0;
         }
-        db->get_int(0, reinterpret_cast<_APCInfo*>(sig)[i].m_userCharacNo);
+        // [b28d-lane] 下标交换形 i[sig]：ORIG 站点为 `mov i,%eax; imul
+        // $0xbc; add sig槽,%eax`（idx 先、base 内存操作数后）；4.4 对
+        // sig[i] 恒 base 先载入 + lea 融合。C 语义逐字相同。
+        db->get_int(0, i[reinterpret_cast<_APCInfo*>(sig)].m_userCharacNo);
     }
     for (int i = 0; i < nRows && i < 10; ++i)
     {
-        if (reinterpret_cast<_APCInfo*>(sig)[i].m_userCharacNo != 0)
-            GetAPCUserInfo(reinterpret_cast<_APCInfo*>(sig)[i]);
+        if (i[reinterpret_cast<_APCInfo*>(sig)].m_userCharacNo != 0)
+            GetAPCUserInfo(i[reinterpret_cast<_APCInfo*>(sig)]);
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;

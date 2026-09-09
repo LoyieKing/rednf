@@ -923,12 +923,34 @@ dnf_service(game
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
         ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/zlib32/lib/libz.a
-        # libGeoIP 链接桩（ORIG NEEDED libGeoIP.so.1；桩 SONAME 同名，GeoIP_* 保持 U 与 ORIG 一致）
-        ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/geoip_stub/libGeoIP.so.1
+        # [b28d-Main·检查点22] 动态库改在 LINK_FLAGS 里按 ORIG 的 NEEDED 次序给（见下），
+        #   此处只留静态库。原「全路径直给 libGeoIP.so.1」形会让 ld 追加 DT_RUNPATH
+        #   （ORIG 无 RUNPATH），且 NEEDED 次序不受控 ⇒ 改 `-L<dir> -l:<file>` 形：
+        #   桩自身 SONAME=libGeoIP.so.1 ⇒ NEEDED 记名不变、RUNPATH 不再产生。
+        # [b28d-Main·检查点22] libnxencryption：**厂商真实 .so**（自
+        #   dnf_installer/.../neople/game/libnxencryption.so 复制入仓）参与链接。
+        #   ORIG 对 Encryption::Adler32 / EncodeDressStringWide 只有 U 引用（运行时由
+        #   该 .so 提供，故我方同样只留 U）。该 .so 无 SONAME ⇒ 用 `-L<dir>
+        #   -lnxencryption`，ld 直接记 "libnxencryption.so"，与 ORIG readelf -d 逐字一致。
+        #   替代原先写在 Game/ 源码里的 __attribute__((weak)) 空 stub——那是
+        #   "我方 .cpp 发明导出符号"（only_new 2 项），且运行期返回 0 与 ORIG
+        #   真实实现不一致（行为差异）。
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/mysqlclient/libmysqlclient.a
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/yassl/libyassl.a
     LINK_FLAGS
-        -m32 -lpthread -ldl -lm -lrt
+        # [b28d-Main·检查点22] NEEDED 次序与 ORIG 逐位对齐：
+        #   libpthread → librt → libnxencryption → libGeoIP.so.1 → libdl → libm → libc。
+        #   （CMake 把 LINK_FLAGS 放在 target_link_libraries 之前，故动态库全部在此给，
+        #     静态 .a 留在 LIBS；libc/ld-linux 由驱动隐式追加 ⇒ 天然在尾。）
+        -m32
+        -lpthread
+        -lrt
+        -L${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/nxencryption
+        -lnxencryption
+        -L${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/geoip_stub
+        -l:libGeoIP.so.1
+        -ldl
+        -lm
 )
 
 target_compile_options(game PRIVATE -std=gnu++0x)

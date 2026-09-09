@@ -12,6 +12,7 @@
 // ============================================================================
 
 #include <string.h>
+#include <new>   // b29：placement new（CDungeonExpStatistic 只发 ctor 不发 dtor）
 
 #include "MoneyLogPacket.h"
 #include "LimitNpcBuyItemRequestInfo.h"
@@ -98,9 +99,12 @@ namespace
 // 头内联 W 值类的显式构造/拷贝/析构（生成 ORIG 同名 W 符号）。
 void forceEmitBatch4()
 {
-    // CDungeonExpStatistic（头内联 ctor：map 默认构造）
-    CDungeonExpStatistic s0;
-    (void)s0;
+    // CDungeonExpStatistic（头内联 ctor：map 默认构造）。ORIG 仅发 C1/C2
+    // （W 0x082aa88a），无 D1/D2 ⇒ placement 构造触发 ctor ODR-use，对象不
+    // 析构 ⇒ 不发射 dtor（栈对象会多发明 D1/D2）。
+    char expStatStorage[sizeof(CDungeonExpStatistic)]
+        __attribute__((aligned(8)));
+    new (expStatStorage) CDungeonExpStatistic;
 
     // CDungeonSuccessNode（头内联拷贝构造：两 map 拷贝）
     CDungeonSuccessNode a1;

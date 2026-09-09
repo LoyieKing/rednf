@@ -303,7 +303,6 @@ extern char g_creatureScriptBaseDirectory[0x104];
 bool importCreatureScript(CreatureScript* script, const char* path);
 bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3);
 bool InitAttackInfoScript();                                   // ORIG 0x88d1450（无参）
-bool InitAttackInfoScript(AttackInfo* info, const char* path, int param3);  // 既有转发契约
 
 // ---- 辅助自由函数 ----
 int getElement(const char* s);                       // 0x88bfe5b
@@ -311,6 +310,5 @@ const char* getElementName(ENUM_ELEMENT element);    // 0x88bfee0
 int getActiveStatusType(const std::string& s);       // 0x88944fb
 int getDrawLayer(const char* s);                     // 0x88be12d
 void getDirectoryPath(std::string& out, const char* fmt, ...);  // NpcScript.h
-bool isValidAttackInfoElement(const void* sdc, int element);  // 0x809576e
 
 #endif  // DNF_CREATURESCRIPT_H

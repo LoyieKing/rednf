@@ -455,11 +455,12 @@ public:
     CUser* getUserByUnique(short uniqueId);
     CUser* getUser(int slotId, int increId);
     void insertUserByAccID(CUser* user);
-    // ORIG TimerScheduleTenSecond 0x8637936 / Inter_CodeChecksumRange 0x084d0648
-    // 内联遍历 +0x22c map（跨 TU 访问需要）；inline 不产生新链接符号。
-    std::map<unsigned int, CUser*>& getUserByAccIdMap() { return m_userByAccId; }
-    // ORIG getUser(unsigned int) 0x084bb9cf 读 +0x244 map（LinkE2 批）；inline 不产生新链接符号。
-    std::map<unsigned int, CUser*>& getUserByAccId2Map() { return m_userByAccId2; }
+    // [b28d-Main·检查点22] 两个 inline getter 已删：`getUserByAccIdMap()` 在 ORIG
+    //   nm 零命中（我方发明；inline 定义仍被 4.4 out-of-line 发射 ⇒ 违例）。
+    //   ORIG 实证调用方一律 `call G_CGameManager; lea 0x22c(%eax)` **成员直读**
+    //   （TimerScheduleTenSecond 0x08637936 / Inter_CodeChecksumRange 0x084d0648 /
+    //    BingoEvent::StartAction 0x080c9bb8 / BingoEvent::dailyresetData 0x080c9d82）
+    //   ⇒ 改由 friend 直访 m_userByAccId / m_userByAccId2，见下方 friend 块。
     bool isConnectUserByAccId(unsigned int accId);
     void returnUserPool(CUser* user);
     void check_user_var(CUser* user);
@@ -559,9 +560,11 @@ public:
     CAuctionAveragePrice* GetAuctionAveragePriceManager();
     CraneMinigameManager* GetCraneMinigameManager();
 
-    // ORIG QuickParty::CQuickParty::destroy(0x082695ca) 直读两计数的具名访问器
-    int GetActiveQuickPartyCnt() const;      // m_quickPartyMap.size()
-    int GetOccupiedQuickPartyPoolCnt();      // StaticPool Size()-Remain()
+    // [b28d-Main·检查点22] 两访问器声明已删（ORIG 无 `_ZNK12CGameManager22
+    // GetActiveQuickPartyCntEv` / `_ZN12CGameManager28GetOccupiedQuickPartyPoolCntEv`；
+    //   全仓零调用者——QuickParty.cpp:135 仅剩注释）。ORIG 的
+    //   QuickParty::CQuickParty::destroy(0x082695ca) 直读 m_quickPartyMap/池计数
+    //   （该 TU 已是 `friend class QuickParty::CQuickParty`）。
     bool IsNoGameGuardApplingUser(std::string& name, char* addr);
 
     // ---- FindUserByUnique（getUserByUnique 的局部谓词，ORIG 有独立 ctor 符号）----
@@ -579,6 +582,10 @@ public:
     friend class AcceptThread;              // GlobalData.cpp AcceptThread::dispatch 直访私有池
     friend class QuickParty::CQuickParty;   // ORIG destroy 0x082695ca 直访 +0x1cc pool
                                             //   /+0x2d4 hash_map（P48 直调形恢复，S23B 广播）
+    // [b28d-Main·检查点22] getter 删除后的成员直访授权（friend 不改布局/sizeof/
+    //   mangled，亦不发射任何符号；同 getUser/TimerScheduleTenSecond 先例）：
+    friend class BingoEvent;                 // ORIG 0x080c9bb8 / 0x080c9d82 直读 +0x22c
+    friend class Inter_CodeChecksumRange;    // ORIG 0x084d0648 直读 +0x22c
     // ORIG _Z7getUserj @0x084bb9cf 直访 m_userByAccId2（反汇编 `call G_CGameManager;
     // lea 0x244(%eax),%edx` 无 getter call，证明成员直读）——广播 2026-09-05 无异议。
     friend CUser* getUser(unsigned int uid);

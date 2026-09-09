@@ -28,6 +28,31 @@
 // ============================================================================
 TimerQueue* G_TimerQueue();
 
+// ---- Packet_VillageMonsterFightResult（ORIG ctor 0x86b4b84，0x2b 字节） ----
+// PacketHeader(0x1772, 0x2b) + [4](uid,characNo) @ +0x0a + flag byte @ +0x2a
+// [b29-SymForceBatch] 定义移到文件全局作用域：ORIG mangled 为顶层
+// _ZN32Packet_VillageMonsterFightResultC1Ev（W 0x086b4b84，无 namespace 前缀）；
+// 原定义位于 namespace village_attacked 内 ⇒ 发明 _ZN16village_attacked32…C1/C2。
+// 构造/字段语义逐字不变。
+struct Packet_VillageMonsterFightResult
+{
+    Packet_VillageMonsterFightResult()   // ORIG W 0x86b4b84；P223 双成员索引对形
+        : m_flag(0)
+    {
+        for (int i = 0; i <= 3; ++i)
+        {
+            m_uids[i] = 0;
+            m_characNos[i] = 0;
+        }
+    }
+    unsigned short m_header0;   // +0x00
+    unsigned short m_header2;   // +0x02
+    char m_pad4[6];             // +0x04
+    unsigned int m_uids[4];     // +0x0a
+    unsigned int m_characNos[4];// +0x1a
+    unsigned char m_flag;       // +0x2a
+} __attribute__((packed));      // ORIG ctor 0x86b4b84 紧凑 0x2b 布局（无 packed 会插 2B padding）
+
 namespace village_attacked
 {
 
@@ -143,27 +168,6 @@ void CVillageMonsterArea::SendPacket(PacketGuard& packet)
 {
     G_GameWorld()->send_to_area(m_field28, m_field2c, packet);
 }
-
-// ---- Packet_VillageMonsterFightResult（ORIG ctor 0x86b4b84，0x2b 字节） ----
-// PacketHeader(0x1772, 0x2b) + [4](uid,characNo) @ +0x0a + flag byte @ +0x2a
-struct Packet_VillageMonsterFightResult
-{
-    Packet_VillageMonsterFightResult()   // ORIG W 0x86b4b84；P223 双成员索引对形
-        : m_flag(0)
-    {
-        for (int i = 0; i <= 3; ++i)
-        {
-            m_uids[i] = 0;
-            m_characNos[i] = 0;
-        }
-    }
-    unsigned short m_header0;   // +0x00
-    unsigned short m_header2;   // +0x02
-    char m_pad4[6];             // +0x04
-    unsigned int m_uids[4];     // +0x0a
-    unsigned int m_characNos[4];// +0x1a
-    unsigned char m_flag;       // +0x2a
-} __attribute__((packed));      // ORIG ctor 0x86b4b84 紧凑 0x2b 布局（无 packed 会插 2B padding）
 
 // ============================================================================
 // CVillageMonster::SendVillageMonsterFightResult(CUser*,bool)

@@ -6,7 +6,6 @@
 
 #include "TaiwanQueries.h"
 
-#include <ctype.h>
 #include <string.h>
 #include <time.h>
 
@@ -26,6 +25,13 @@
 #include <netinet/in.h>
 #undef ntohl
 #undef ntohs
+
+// base64_decode：ORIG 为全局 C++ 链接 T 0x0807ebf4（_Z13base64_decodeRKSsRSt6vectorIhSaIhEE），
+// 权威定义在 PacketTypes.cpp（TU 归属证据：_GLOBAL__I__Z13base64_encodePKhjRSs @0x0807ef30
+// 与 base64_encode/base64_decode 地址紧邻域）。本 TU 仅声明引用，调用点未限定名解析到
+// 全局版本（namespace Taiwan 内不再有同名声明）。
+void base64_decode(std::string const& encoded_string,
+                   std::vector<unsigned char>& out);
 
 // 说明：ORIG GarenaAuthPCRoom 只取 CUser::GetUID()/get_acc_id() 两个 const
 // 访问器。因上游 CUser.h→CDataManager.h→CItemGenerator.h 链正被其它批改造
@@ -163,53 +169,6 @@ bool COpensslRSA::Encrypt(const char* in, int len, std::vector<unsigned char>& o
 }
 
 namespace Taiwan {
-
-// ---------------------------------------------------------------------------
-// base64（std::string/std::vector 语义版）
-// ORIG：_Z13base64_decodeRKSsRSt6vectorIhSaIhEE T 0x0807ebf4 /
-//       _Z13base64_encodePKhjRSs T 0x0807ea2e（静态链 libcrypto TU 内实现，
-//       表 _ZL12base64_chars B 0x093f56f4 由静态构造填充）。按 ORIG 反汇编
-//       逐分支还原；解密哈希类按用户规则以算法正确为准。
-// ---------------------------------------------------------------------------
-static const char k_base64_chars[] =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-static bool is_base64(unsigned char c)
-{
-    return isalnum(c) || (c == '+') || (c == '/');
-}
-
-void base64_decode(std::string const& encoded_string,
-                   std::vector<unsigned char>& out)
-{
-    // ORIG 循环：每收满 4 字符查表组 3 字节 push_back（i<in_len 判界，
-    // 不足处以 0 补齐第 4 路，与 0x807ed8d 循环一致）。
-    int in_len = static_cast<int>(encoded_string.size());
-    int i = 0;
-    int in_ = 0;
-    unsigned char char_array_4[4];
-    unsigned char char_array_3[3];
-
-    while (in_len-- && (encoded_string[in_] != '=') && is_base64(encoded_string[in_]))
-    {
-        char_array_4[i++] = encoded_string[in_];
-        in_++;
-        if (i == 4)
-        {
-            for (i = 0; i < 4; i++)
-                char_array_4[i] = static_cast<unsigned char>(
-                    static_cast<const char*>(strchr(k_base64_chars, char_array_4[i]))
-                        ? strchr(k_base64_chars, char_array_4[i]) - k_base64_chars
-                        : 0);
-            char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-            char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-            char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
-            for (i = 0; (i < 3); i++)
-                out.push_back(char_array_3[i]);
-            i = 0;
-        }
-    }
-}
 
 // ---------------------------------------------------------------------------
 // GarenaAuthData getter/setter（读侧网络序转换与 ORIG ntohl/ntohs 调用一致）

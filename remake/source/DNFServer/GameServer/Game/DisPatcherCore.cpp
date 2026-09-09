@@ -10532,6 +10532,11 @@ void DisPatcher_DropItem::send(CUser* user, ParamBase& param)
 // [b28d-29] N88/N82：3 处 ORIG 有 `mov $0x0,%eax` 死写入（写后未读），4.4 惰性求值位置错位；语义等价  (ORIG 0x081c2f94 insn 208->212)
 // m_errNo/m_8；其它 m_errNo=0x13。
 // [b28d-solo-DisPatcherCore] 复核 NEAR：ndiff 4（ORIG 208 / ours 208），残差=N82 槽/块序；N 封顶（详见上方 b28d-29 归因）。
+// [b28d-PoolPatchCore] 改判+修复：原残差实为 2 处 jle/je 极性差（旧 unsigned 形封死）。drop_item/
+// HandleItemDrop 返回 int，ORIG `cmpl $0,-0x28; jle` ⇒ 原码 `if (ret > 0)`（负返回不写 m_errNo，
+// 旧 !=0 为真实语义偏差）已修（P321-T2 直证）。现残差 = 2 块 store 装载序（ORIG RHS-first vs
+// 4.4 LHS-first）：字段 m_errNo(int) 与 RHS ret(int) 同型、ret 又受 jle 约束须 int，P211 双旋钮
+// 均不可动 ⇒ N76 封。NEAR(2)，bad 总数不增。
 int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     // ORIG +0x09/+0x0f：req(msg)→远槽 -0x34、out(param)→近槽 -0x30（技21 声明序）；
@@ -10557,9 +10562,11 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());
         if (party != 0)
         {
-            unsigned int ret = (unsigned int)party->drop_item(
+            // [b28d-PoolPatchCore] P321-T2：ORIG `cmpl $0x0,-0x28; jle` ⇒ 原码带符号
+            // `if (ret > 0)`（负值不写 errNo，旧 !=0 写法为真实语义偏差）。
+            int ret = party->drop_item(
                 user, req.m_0d, req.m_0f, (char)req.m_11, req.m_12, req.m_14);
-            if (ret != 0)
+            if (ret > 0)
             {
                 // [b28d-solo-DisPatcherCore] P211 档③：ORIG RHS-first
                 // （`mov -0x28,%edx; mov -0x30,%eax; mov %edx,0x4(%eax)`）⇒ RHS 局部异型化。
@@ -10586,9 +10593,10 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         WarRoom* room = G_CGameManager()->GetWarRoom(user->GetWarRoomIndex());
         if (room != 0)
         {
-            unsigned int ret = (unsigned int)room->HandleItemDrop(
+            // [b28d-PoolPatchCore] P321-T2：同上，ORIG `cmpl $0x0,-0x1c; jle`。
+            int ret = room->HandleItemDrop(
                 user, req.m_0d, req.m_0f, (char)req.m_11, req.m_12, req.m_14);
-            if (ret != 0)
+            if (ret > 0)
             {
                 out.m_errNo = ret;   // P211 档③（同上）
                 out.m_8 = req.m_11;

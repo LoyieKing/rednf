@@ -40,11 +40,27 @@ void DBDispatcher::dispatch(Message* pMsg)
             {
                 G_TraceLog()->sysLog(7,
                     "DB : \xbf\xac\xb0\xe1\xc0\xcc \xb2\xf7\xbe\xee\xc1\xb3\xbd\xc0\xb4\xcf\xb4\xd9.");
-                INTERNALMSG_SERVICE_UNAVAILABLE internalMsgServiceUnavailable;
-                internalMsgServiceUnavailable.reason = 2;
+                // ORIG（df_game_r）不发射 INTERNALMSG_SERVICE_UNAVAILABLE 的 ctor
+                // （无 _ZN31INTERNALMSG_SERVICE_UNAVAILABLEC[12]Ev，也无
+                //  nsl::INTERNALMSG_HEADER::setCategory/setInternalMsgID/setSize）
+                // ⇒ 该消息体在 ORIG 里是「零指令 POD 视图 + 显式字段写入」。
+                // 头内 ctor 服务于其它二进制（Auction），不能删；本 TU 改以字节
+                // 缓冲承载，逐条复现 ctor 体的写入序，不 odr-use 任何 inline 成员。
+                unsigned char svcRaw[sizeof(INTERNALMSG_SERVICE_UNAVAILABLE)];
+                INTERNALMSG_SERVICE_UNAVAILABLE* pSvc =
+                    reinterpret_cast<INTERNALMSG_SERVICE_UNAVAILABLE*>(svcRaw);
+                memset(pSvc, 0, sizeof(svcRaw));   // ctor: memset(this, 0, sizeof)
+                pSvc->classification = 0;          // ctor: setCategory(0)
+                pSvc->msg_no = 0;                  // ctor: setInternalMsgID(0)
+                pSvc->sLength = sizeof(svcRaw);    // ctor: setSize(sizeof(...))
+                pSvc->bWillDelete = false;
+                pSvc->workIndex = 0;
+                pSvc->mOwnerWorkId = 0;
+                pSvc->bActiveJob = false;
+                pSvc->reason = 2;
                 Message* pNewMsg = pApp->super_DataPools.getCommonDataPool(tlsThreadId)->createMessage(1);
                 CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
-                *pNewCell << &internalMsgServiceUnavailable;
+                *pNewCell << pSvc;
                 pApp->super_Threads.getWorkThread(pNewMsg->getCellFromMessage()->GetInternalMsg()->workIndex)->PushTransaction(pNewMsg);
             }
         }

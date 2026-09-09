@@ -116,13 +116,15 @@ void BingoEvent::StartEvent(Word_Param param)
 
 // StartAction @ 0x080c9bb8：遍历 CGameManager+0x22c（accId→CUser* map），
 // 对每个在线用户发 bingo 数据包。
-// [b28d-D9] 修复/N89：BOOST_FOREACH 复现（102→5）；残 = getUserByAccIdMap inline getter out-of-line call（ORIG 0x080c9bb8 sz 0x00000177）
+// [b28d-D9] 修复/N89：BOOST_FOREACH 复现（102→5）。原「残 = getUserByAccIdMap
+// inline getter out-of-line call」已消除：ORIG 无该 getter 符号（直读 +0x22c），
+// 调用点改 friend 直访 m_userByAccId。
 void BingoEvent::StartAction()
 {
     // [b28d-D9] ORIG 0x080c9bb8 用 BOOST_FOREACH 展开（contain/begin/end/deref/next/
     // done 全序列），非手写迭代器循环；容器为 G_CGameManager()+0x22c map。
     typedef std::map<unsigned int, CUser*>::value_type UserPair;
-    BOOST_FOREACH(UserPair& pr, G_CGameManager()->getUserByAccIdMap())
+    BOOST_FOREACH(UserPair& pr, G_CGameManager()->m_userByAccId)
     {
         CUser* user = pr.second;
         if (user != 0)
@@ -142,7 +144,8 @@ void BingoEvent::EndEvent()
 
 // dailyresetData @ 0x080c9d82：按日重置棋盘/quiz；随后遍历在线用户，清
 // BingoData、重发数据包并刷新装饰物计数。
-// [b28d-D9] 修复/N89：BOOST_FOREACH 复现（143→5）；残 = getUserByAccIdMap inline getter out-of-line call（ORIG 0x080c9d82 sz 0x00000267）
+// [b28d-D9] 修复/N89：BOOST_FOREACH 复现（143→5）。原「残 = getUserByAccIdMap
+// inline getter out-of-line call」已消除（同上：friend 直访 m_userByAccId）。
 void BingoEvent::dailyresetData()
 {
     int hourLimit = G_CEnvironment()->m_serverEnvir.m_fatigueTime;  // env+0x37c
@@ -159,7 +162,7 @@ void BingoEvent::dailyresetData()
     // [b28d-D9] ORIG 0x080c9d82 同样为 BOOST_FOREACH 展开（deref 后取 pair.second
     // 落 -0xc 槽，判空后三步操作）。
     typedef std::map<unsigned int, CUser*>::value_type UserPair;
-    BOOST_FOREACH(UserPair& pr, G_CGameManager()->getUserByAccIdMap())
+    BOOST_FOREACH(UserPair& pr, G_CGameManager()->m_userByAccId)
     {
         CUser* user = pr.second;
         if (user != 0)

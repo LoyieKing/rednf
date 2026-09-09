@@ -43,7 +43,10 @@ enum ENUM_BLACKIPMONITOR_PUNISH_TYPE
 
 struct stBlackIPMonitorEntry_t
 {
-    stBlackIPMonitorEntry_t();  // 0x84eba2c（W）
+    // ORIG 仅此一个 ctor：0x84eba2c（W）_ZN8WongWork23stBlackIPMonitorEntry_tC1E
+    //   NS_31ENUM_BLACKIPMONITOR_PUNISH_TYPEEjll。无默认 ctor（multimap 侧走
+    //   insert(make_pair(ip, entry))，lower_bound/upper_bound/erase 不需 value
+    //   默认构造），故原「stBlackIPMonitorEntry_t()」声明为发明符号，删除。
     stBlackIPMonitorEntry_t(ENUM_BLACKIPMONITOR_PUNISH_TYPE punishType,
                             unsigned int idCnt, long startTime, long endTime);
                                 // 0x84eba2c（W）

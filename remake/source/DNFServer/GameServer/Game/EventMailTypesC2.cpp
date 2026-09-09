@@ -47,18 +47,11 @@ Action_SendMail::~Action_SendMail()
 {
 }
 
-// ============ [b28c-L18] P147 force 发射 ============
-// ORIG W：C1ERKS_ 0x08987b48 / aSERKS_ 0x0898a922（nm 实证），调用方为
-// std::pair<ObjectBringUpScript::ObjectBringUpRule,Action_SendMail> 等三对模板
-// （objdump ORIG 9+3 处 call 实证）。重建侧 pair 实例化点未覆盖拷贝路径 ⇒
-// 隐式特殊成员不发射。按先例（ValueCtors.cpp forceInstantiate*）显式构造/
-// 拷贝/赋值一遍，O0 下为每个 ODR 使用点发射同名 W 符号。
-void forceInstantiateActionSendMailCtors()
-{
-    Action_SendMail a;
-    Action_SendMail b(a);
-    a = b;
-}
+// ============ Action_SendMail C1ERKS_/aSERKS_（ORIG W 0x08987b48/0x0898a922） ============
+// [b28d-Lane SymSrvParam] 原 forceInstantiateActionSendMailCtors 已删：nm 实证
+// 同名 W（C1ERKS/C2ERKS/aSERKS）由 EventScriptsCompleteB2.cpp.o 的
+// std::pair<XxxRule, Action_SendMail> 实例化点自然发射，链接期 COMDAT 合并，
+// 本 TU 无独立发射职责 ⇒ 删除补发函数不产生 only_orig。
 
 // ============ Condition_LevelUp C1/D1【报告缺失·objdump 转写】 ============
 // C1 0x0898605a：仅 _ZNSt6vectorIN17Condition_LevelUp11Reward_ItemsaIS1_EEC1Ev(this+4)；

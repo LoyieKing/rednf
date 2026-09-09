@@ -497,20 +497,6 @@ char g_StrBuyItemBuffer[0x800];   // 0x09401b80
 char g_ZipRewardBuffer[0x800];    // 0x09403380
 char g_StrRewardBuffer[0x800];    // 0x09403b80
 
-// ---- POD inline ctor W 符号实例化触发器（ORIG 使用点在 DBAndExchangeServerProc/
-//      CUser 缓存序列化链；本 TU 保留发射点保证 ABI 集齐）----
-__attribute__((unused)) static void instantiateAdvanceAltarDbPOD()
-{
-    _Stage a; _Slot b; _Reward c; _BuyItem d;
-    _AdvanceAltarDbData e; _CharacAdvanceAltarDbData f;
-    (void)a; (void)b; (void)c; (void)d; (void)e; (void)f;
-
-    // DB_Update C1/C2（ORIG W 0x844de06）：类无数据成员，隐式 inline ctor/dtor
-    // 仅展开基类 vptr 初始化；局部对象保证弱符号随本 TU 发射。
-    DB_Update u;
-    (void)u;
-}
-
 // charac_advance_altar 行头字段视图：改用共享头 advancealtar.h 的 _RidableDbHead
 // （union 叠加在 _AdvanceAltarDbData::m_ridable 上，字段偏移/宽度按 ORIG
 //  Select.md/update.md 指令实证）。原 TU 本地视图 DbHeadView 因自然对齐与

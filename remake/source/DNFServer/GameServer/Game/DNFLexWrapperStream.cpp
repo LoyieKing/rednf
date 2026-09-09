@@ -33,11 +33,20 @@
 
 const char* toMbcs(const char* src);
 
-static int dnf_lex_sprintf(char* buffer, const char* format, ...)
+// ORIG 变参格式化助手：弱模板 _Z10ss_sprintfILj1024EEiRAT__cPKcz @0x8acf0e0
+// （紧接本 TU switchChannelInputStream 之后，自然宿主即本文件）。ORIG 体为
+// ss_vsprintf(buffer, N, format, ap)；ss_vsprintf @0x8ad457c 的语义：
+// n=vsnprintf(buf,size,fmt,ap)；size>n 返回 n，否则清 buf[0] 返回 0（截断
+// 报错形）。声明不定义，宿主属字符串工具批次。
+int ss_vsprintf(char* buffer, unsigned int size, const char* format,
+                std::va_list ap);
+
+template <unsigned int N>
+int ss_sprintf(char (&buffer)[N], const char* format, ...)
 {
     std::va_list ap;
     va_start(ap, format);
-    int n = std::vsnprintf(buffer, 0x400, format, ap);
+    int n = ss_vsprintf(buffer, N, format, ap);
     va_end(ap);
     return n;
 }
@@ -147,8 +156,8 @@ bool DNFLexWrapper::switchInputStream(const char* dir, const char* filename,
         {
             if (lexerError_ == 0)
                 return false;
-            dnf_lex_sprintf(errbuf, "%s/%s Read failed!",
-                            toMbcs(dir), toMbcs(filename));
+            ss_sprintf(errbuf, "%s/%s Read failed!",
+                       toMbcs(dir), toMbcs(filename));
             reinterpret_cast<void (*)(const char*)>(lexerError_)(errbuf);
             return false;
         }

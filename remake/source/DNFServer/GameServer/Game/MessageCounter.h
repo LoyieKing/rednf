@@ -45,7 +45,9 @@ public:
 class MessageValue
 {
 public:
-    MessageValue() : m_count(0), m_bytesLow(0), m_bytesHigh(0), m_avg(0.0) {}
+    // [b28d-SymMsgCtr] ORIG 无 _ZN15message_counter12MessageValueC[12]Ev ⇒
+    // 原码为 POD（无用户 ctor）。零初始化经 value-init `MessageValue()` 完成，
+    // 不发 ctor 符号，语义与原手写清零一致。
 
     int           m_count;      // pair+0x08
     unsigned int  m_bytesLow;   // pair+0x0c

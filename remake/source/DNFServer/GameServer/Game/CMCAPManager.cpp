@@ -26,12 +26,6 @@ void CMCAPManager::incExposedCount()
 
 // ORIG 仅非 const getPoint（W 0x0822eea4，读 this+0x00）；const 版为发明，已删。
 
-// ORIG T 0x0822eede：读 +0x14
-bool CMCAPManager::isSaveCleanPadPoint() const
-{
-    return m_saveCleanPadPoint;
-}
-
 // ORIG T 0x0822eeea：写 +0x14=0
 void CMCAPManager::disableCleanPadPoint()
 {

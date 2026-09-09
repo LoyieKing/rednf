@@ -2916,14 +2916,3 @@ CGameManager::~CGameManager()
         delete m_pCraneMinigameMgr;
     // 其余容器/池成员（hash_map、StaticPool、std::map/set、Mutex）按声明逆序自动析构。
 }
-
-// ==== Wave6 QuickParty 访问器（声明 CGameManager.h:558 区）====
-int CGameManager::GetActiveQuickPartyCnt() const
-{
-    return static_cast<int>(m_quickPartyMap.size());
-}
-
-int CGameManager::GetOccupiedQuickPartyPoolCnt()
-{
-    return m_quickPartyPool.Size() - m_quickPartyPool.Remain();
-}

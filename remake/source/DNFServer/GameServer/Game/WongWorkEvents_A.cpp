@@ -721,27 +721,6 @@ void EventCommon::LoadCharacEventItem(unsigned int eventId,
 }
 
 // ----------------------------------------------------------------------------
-// ORIG 的 stHackInfo_t / HackTypeInfo_t 方法均为 inline（W 弱符号），其产生点
-// 在原 TU 中由实际调用触发；本批头内实现为忠实 inline，此处补 odr-use 以在本
-// TU 产出对应的 W 符号（不改变任何语义/布局）。
-// ----------------------------------------------------------------------------
-namespace
-{
-void EmitHackPodWeakSymbols()
-{
-    WongWork::HackTypeInfo_t infoDefault;   // C1Ev/C2Ev
-    WongWork::HackTypeInfo_t infoFull((WongWork::ENUM_HACKTYPE)1, 0,
-                                      (WongWork::ENUM_HACKTYPE)2, 0, 0, 0, 0);
-                                            // C1(E...)C2
-    infoFull.CopyStruct(infoDefault);       // CopyStruct
-    (void)infoFull;
-
-    WongWork::stHackInfo_t hackInfo;        // D1（作用域结束 complete dtor）
-    hackInfo.~stHackInfo_t();               // D2（base dtor 显式调用）
-}
-}
-
-// ----------------------------------------------------------------------------
 // arad_parsing —— ORIG T 0x08483e98 (size 0x115)
 // start=find_first_not_of(delims,pos)/end=find_first_of(...)，非全 npos 则循环
 // substr 入 vector（move push_back）；尾段 end==npos 但 start!=npos 也输出。

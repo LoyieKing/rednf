@@ -28,18 +28,19 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-// ORIG 0x0807e190/0x0807e8e0 为 PLT 死引用：_ZN10Encryption7Adler32EPcj 与
-// _ZN10Encryption21EncodeDressStringWideEPKwPwm 在 df_game_r 中仅是 GLOBAL UND
-//（无任何 T/W 定义、无重定位解析目标），chargeCash 调用分支从未可执行。
 namespace Encryption
 {
 unsigned int Adler32(char* data, unsigned int length);                      // _ZN10Encryption7Adler32EPcj
 void EncodeDressStringWide(const wchar_t* in, wchar_t* out,
                            unsigned long param);                            // _ZN10Encryption21EncodeDressStringWideEPKwPwm
-
-__attribute__((weak)) unsigned int Adler32(char*, unsigned int) { return 0; }
-__attribute__((weak)) void EncodeDressStringWide(const wchar_t*, wchar_t*,
-                                                 unsigned long) {}
+// [b28d-Main·检查点22] 删除原先的 `__attribute__((weak))` 空 stub：
+//   ① 二者在 ORIG 里是 **U 引用**（`nm $O` = U，由 NEEDED `libnxencryption.so`
+//      在运行期提供；0x0807e190/0x0807e8e0 为 PLT 调用点），我方在 Game/ 源码内
+//      发射 W 定义 ⇒ 属「我方 .cpp 发明导出符号」（only_new 2 项）。
+//   ② 空 stub 运行期返回 0/不写 out，与厂商实现不一致（行为差异）。
+//   现由 `toolchains/nxencryption/libnxencryption.so`（厂商真实二进制，已入仓）
+//   参与链接：本 TU 只留声明 ⇒ 我方 df_game_r 变成 U + NEEDED libnxencryption.so，
+//   与 ORIG readelf/nm 完全同型。
 }  // namespace Encryption
 
 namespace nexon {

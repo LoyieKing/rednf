@@ -521,15 +521,14 @@ struct str_index_to_itemgroup
 // _Calculate_RegenCost 报告实证：pair.second 两 int——f0==0 时取 f1 计费。
 struct _str_cost
 {
-    // ORIG C1/C2 0x8a7ea82（W）：两 int 形参顺序赋入 +0/+4。
-    _str_cost(int a, int b)
+    // ORIG C1/C2 0x8a7ea82（W）：两 int 形参顺序赋入 +0/+4。ORIG 无 C1Ev/C2Ev
+    // ⇒ 默认构造复用本 ctor（默认实参，mangled 仍 C1Eii）；map<int,_str_cost>::
+    // operator[]（ORIG W 0x8a7ee34）的 value-init 因此走 C1Eii，零初始化语义不变。
+    _str_cost(int a = 0, int b = 0)
     {
         m_field0 = a;
         m_field4 = b;
     }
-    // 内联默认 ctor：ORIG map operator[]（0x8a7ee34 实例化）经值初始化新建
-    // 元素，零初始化两 int（ORIG 无独立默认 ctor 符号，内联不发射）。
-    _str_cost() : m_field0(0), m_field4(0) {}
     int m_field0;   // +0x00
     int m_field4;   // +0x04
 };  // sizeof 8

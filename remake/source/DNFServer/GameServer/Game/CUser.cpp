@@ -3784,24 +3784,28 @@ char CUser::get_direction()
 // b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x082f0e70 | _ZN5CUser12GetUserStateEv
 int CUser::GetUserState()
 {
-    int state = m_chState;
-    if (state > 3)
-    {
-        if (state == 5 || state == 10)
-            return 1;
-        if (state == 8)
-            return 3;
-        if (state == 6 || state == 7)
-            return 2;
-        if (state == 12)
-            return 1;
-        if (state == 11)
-            return 7;
-        if (state == 12)
-            return 1;
-        return 0;
-    }
-    return CUserCharacInfo::GetUserStateByAssault();
+    // b28d-PoolCUser 重写（2026-09-09，P157/P168 逐使用点重载）：ORIG 0x082f0e70
+    //   每个条件均 `mov 0x8(%ebp),%eax; mov 0x8cfc4(%eax),%eax; cmp $K,%eax` 全量
+    //   重读（Ghidra/asm 同址 8 次 = P48 源码两次独立读），**无 state 槽**（P0）
+    //   ⇒ 删具名缓存局部。|| 短路对（5/10、6/7）je 落前置共享岛 + 第二条件
+    //   jne 跳过 = 4.4 `a==x || a==y` 自然形。
+    // b28d-PoolCUser 二修：ORIG `cmp $3; jg +0x24` 正向落主链、假路（<=3）跳**前置**
+    //   assault 岛 + `jmp` 共享尾（P222 判据——早返假路前置岛形）⇒ 改否定早返写法。
+    if (m_chState <= 3)
+        return CUserCharacInfo::GetUserStateByAssault();
+    if (m_chState == 5 || m_chState == 10)
+        return 1;
+    if (m_chState == 8)
+        return 3;
+    if (m_chState == 6 || m_chState == 7)
+        return 2;
+    if (m_chState == 12)
+        return 1;
+    if (m_chState == 11)
+        return 7;
+    if (m_chState == 12)
+        return 1;
+    return 0;
 }
 
 int CUser::GetAge()
@@ -11915,15 +11919,20 @@ bool CUser::DoGetGoldItem(int itemIdx, std::vector<std::pair<int, int> >& out,
 bool CUser::DoGetCeraPointItem(unsigned int money, bool bReset,
                                ENUM_ERROR& err, unsigned long itemIdx)
 {
-    // ORIG 0x8692a34：!bReset 时 IPG vtable+0xc = IPGInputPoint(this, money,
-    // itemIdx==0x28ec3d?3:1, 0, 0)，随后 vtable+0x2c = IPGOutputConfirm(0,0)。
+    // b28d-PoolCUser 重写（2026-09-09，P171/P133/P17）：ORIG 0x08692a34 **无判空**
+    //   （`mov s_pIPGHelper,%eax` 直进 vtable）⇒ 删 `!= 0` 防御（原为 EXTRA 判空 +
+    //   三目汇聚致 call *%ecx 物理点数 1≠2）；两分支**各自完整发射** IPGInputPoint
+    //   （3/1 立即数分叉）；尾 call 为 vptr+0x2c = _ZTV word13 = **slot11 IPGQuery
+    //   (CUser*)**（P282 槽序还原；旧注释 IPGOutputConfirm 误读），bReset 真值走
+    //   P222 正向包裹（!bReset 包体），假路共享尾 `mov $1`。
     (void)err;
-    if (!bReset && GlobalData::s_pIPGHelper != 0)
+    if (!bReset)
     {
-        GlobalData::s_pIPGHelper->IPGInputPoint(this, money,
-                                                (char)(itemIdx == 0x28ec3d ? 3 : 1),
-                                                0, 0);
-        GlobalData::s_pIPGHelper->IPGOutputConfirm(0, 0);
+        if (itemIdx == 0x28ec3d)
+            GlobalData::s_pIPGHelper->IPGInputPoint(this, money, 3, 0, 0);
+        else
+            GlobalData::s_pIPGHelper->IPGInputPoint(this, money, 1, 0, 0);
+        GlobalData::s_pIPGHelper->IPGQuery(this);
     }
     return true;
 }
@@ -11934,21 +11943,24 @@ bool CUser::DoGetCeraPointItem(unsigned int money, bool bReset,
 bool CUser::delete_ontime_reward_list()   // b28c-L5 SIGFIX（P174）
 {
     CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x33);
-    // b28d-solo-CUser 重写（2026-09-09）：ORIG 0x0868c3bc 两条独立失败路径——ev==0 走
-    //   trace 块（`je +0x4c`，物理居中），ev!=0 && !IsEventing() 直接 `mov $0,%eax`（无
-    //   trace）；用 goto 尾标签把 trace 块后置以复现 ORIG 的 je 方向（P223/P59）。
+    // b28d-PoolCUser 重写（2026-09-09）：ORIG 0x0868c3bc 物理块序 = [main: xor;test;je
+    //   DEL] [mov$0;jmp end] [TRACE 块 +0x4c] [DEL 块 +0x89 fall-through 尾]。
+    //   IsEventing 真 → je 直达尾 DEL 块（return 1 fall 到 leave）；假 → 落 mov$0 岛。
+    //   ⇒ 用 goto DEL 把 delete 块物理后置（P223 尾标签系）。
     if (ev == 0)
         goto TRACE;
     if (!ev->IsEventing(0))
         return 0;
-    ((COnTimeEvent*)ev)->delete_reward_user(this);
-    return 1;
+    goto DEL;
 TRACE:
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0xa828, 5);
         trace("[ON_TIME_EVENT]delete_ontime_reward_list() error");
         return 0;
     }
+DEL:
+    ((COnTimeEvent*)ev)->delete_reward_user(this);
+    return 1;
 }
 
 // ORIG T 0x086924aa sz0x119：job==9 才发包；去重 combo 技能 → 包 0x1bd。

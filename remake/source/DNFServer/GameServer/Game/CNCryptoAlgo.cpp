@@ -2231,91 +2231,12 @@ int blowfish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symme
 #endif
 
 
-/**
-  Performs a self-test of the Blowfish block cipher
-  @return CRYPT_OK if functional, CRYPT_NOP if self-test has been disabled
-*/
-int blowfish_test(void)
-{
- #ifndef LTC_TEST
-    return CRYPT_NOP;
- #else
-   int err;
-   symmetric_key key;
-   static const struct {
-          unsigned char key[8], pt[8], ct[8];
-   } tests[] = {
-       {
-           { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-           { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-           { 0x4E, 0xF9, 0x97, 0x45, 0x61, 0x98, 0xDD, 0x78}
-       },
-       {
-           { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
-           { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
-           { 0x51, 0x86, 0x6F, 0xD5, 0xB8, 0x5E, 0xCB, 0x8A}
-       },
-       {
-           { 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-           { 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01},
-           { 0x7D, 0x85, 0x6F, 0x9A, 0x61, 0x30, 0x63, 0xF2}
-       }
-   };
-   unsigned char tmp[2][8];
-   int x, y;
-
-   for (x = 0; x < (int)(sizeof(tests) / sizeof(tests[0])); x++) {
-      /* setup key */
-      if ((err = blowfish_setup(tests[x].key, 8, 16, &key)) != CRYPT_OK) {
-         return err;
-      }
-
-      /* encrypt and decrypt */
-      blowfish_ecb_encrypt(tests[x].pt, tmp[0], &key);
-      blowfish_ecb_decrypt(tmp[0], tmp[1], &key);
-
-      /* compare */
-      if ((ltc_compare_testvector(tmp[0], 8, tests[x].ct, 8, "Blowfish Encrypt", x) != 0) ||
-            (ltc_compare_testvector(tmp[1], 8, tests[x].pt, 8, "Blowfish Decrypt", x) != 0)) {
-         return CRYPT_FAIL_TESTVECTOR;
-      }
-
-      /* now see if we can encrypt all zero bytes 1000 times, decrypt and come back where we started */
-      for (y = 0; y < 8; y++) tmp[0][y] = 0;
-      for (y = 0; y < 1000; y++) blowfish_ecb_encrypt(tmp[0], tmp[0], &key);
-      for (y = 0; y < 1000; y++) blowfish_ecb_decrypt(tmp[0], tmp[0], &key);
-      for (y = 0; y < 8; y++) if (tmp[0][y] != 0) return CRYPT_FAIL_TESTVECTOR;
-   }
-
-
-   return CRYPT_OK;
- #endif
-}
-
 /** Terminate the context
    @param skey    The scheduled key
 */
 void blowfish_done(symmetric_key *skey)
 {
   LTC_UNUSED_PARAM(skey);
-}
-
-/**
-  Gets suitable key size
-  @param keysize [in/out] The length of the recommended key (in bytes).  This function will store the suitable size back in this variable.
-  @return CRYPT_OK if the input key size is acceptable.
-*/
-int blowfish_keysize(int *keysize)
-{
-   LTC_ARGCHK(keysize != NULL);
-
-   if (*keysize < 8) {
-      return CRYPT_INVALID_KEYSIZE;
-   }
-   if (*keysize > 72) {
-      *keysize = 72;
-   }
-   return CRYPT_OK;
 }
 
 #undef F

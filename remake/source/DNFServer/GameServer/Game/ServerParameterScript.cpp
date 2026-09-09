@@ -427,11 +427,6 @@ int ServerParameterScript::getLuckPointDeductionRate(int level, int grade)
     return 0;
 }
 
-bool ServerParameterScript::LoadScript(const char* path)
-{
-    return importServerParameterScript(this, path);
-}
-
 // ===================== 简单 getter =====================
 
 int ServerParameterScript::GetLottePoint(int idx)
@@ -820,60 +815,14 @@ typedef std::vector<std::pair<int, int> >& (ServerParameterScript::*SpsVecGetter
 static const SpsVecGetter g_spsVecGetter =
     &ServerParameterScript::GetPvPLiveEventReward;
 
-void anchorServerParameterScriptWMembers()
-{
-    // stLightServerNotice_t：C1 / C1ERKS / aSERKS（ORIG W 0x08a8ce10/0x08a8e764/0x08a8e81e）
-    stLightServerNotice_t noticeA;
-    stLightServerNotice_t noticeB(noticeA);
-    noticeA = noticeB;
-
-    // stLuckPointDeduction_t：C1 / C1ERKS / aSERKS（ORIG W 0x08a8ce26/0x08a8ee74/0x08a8ef22）
-    stLuckPointDeduction_t luckA;
-    stLuckPointDeduction_t luckB(luckA);
-    luckA = luckB;
-
-    // stBurningFatigueParam_t：C1（ORIG W 0x08a8cc64）
-    stBurningFatigueParam_t burn;
-
-    // PvPPlayerKey：C1Ehhh / operator<（ORIG W 0x084a60aa / 0x084a6034；
-    //   ORIG 无默认 ctor，不锚定 C1Ev）
-    ServerParameterScript::PvPPlayerKey keyA(1, 2, 3);
-    ServerParameterScript::PvPPlayerKey keyB(4, 5, 6);
-    if (keyA < keyB)
-    {
-        keyB.m_field0 = keyA.m_field0;
-    }
-
-    // stAssault* 系列：C1（析构由作用域结束触发 D1/D2）
-    stAssaultChaosPointWeight chaosW;
-    stAssaultLevelGhostPanalty ghostL;
-    stAssaultChaosPointGhostPanalty ghostC;
-
-    // STDungeonInoutTime / stAuctionLimitItemParam_t / stUpgradeItemTicketParam_t：C1
-    STDungeonInoutTime dungeonTime;
-    stAuctionLimitItemParam_t auctionLimit;
-    stUpgradeItemTicketParam_t ticket;
-
-    // stLuckPoint_t / stUnusableEquipmentInfo：构造（D1/D2 由作用域析构触发）
-    stLuckPoint_t luckPt;
-    stUnusableEquipmentInfo unusable;
-    luckPt.m_field0 = 1;
-    luckPt.m_field1 = 2;
-    unusable.m_field0 = 3;
-
-    // EventRewardSection / EventRewardItemInfo：C1 / C1ERKS / aSERKS / D1
-    EventRewardSection erA;
-    EventRewardSection erB(erA);
-    erA = erB;
-    EventRewardItemInfo eiA;
-    EventRewardItemInfo eiB(eiA);
-    eiA = eiB;
-    eiA.clear();
-
-    // 锚定函数体保持非空（引用上述常量避免未使用告警）
-    (void)g_spsIntGetters;
-    (void)g_spsVecGetter;
-}
+// [b28d-Lane SymSrvParam] anchorServerParameterScriptWMembers（T 符号，ORIG 无）
+// 与 ServerParameterScript::LoadScript（T 符号，ORIG 无同名，真实入口为
+// importServerParameterScript）均已删除。anchor 原补发的 stLightServerNotice_t/
+// stLuckPointDeduction_t/stBurningFatigueParam_t C1/C1ERKS/aSERKS 与其余弱符号
+// 共 92 个：ORIG 均在，且 nm 实证本仓 InitScriptProducers_6/7、STAssignMonster、
+// STMapScript、OnlyOrigBatch14 等多 TU 以同名 W 自然发射（链接期 COMDAT 合并），
+// 本 TU 删除 anchor 不产生 only_orig；ORIG 无 ServerParameterScript/上述 st* 型
+// 全局对象（nm -S ' [BbDd] ' 无 0x49f4/对应 size 命中），故无需数据锚补发。
 // ============================================================================
 // ============================================================================
 // importServerParameterScript —— ORIG T 0x08a870b7（0x51d4 字节，4616 insn）。

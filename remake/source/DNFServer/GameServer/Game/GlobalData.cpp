@@ -3255,7 +3255,7 @@ void WongWork::CBlackIPMonitor::reset()
     // ORIG 0x82a6512：multimap::clear()。
     m_monitorMap.clear();
 }
-WongWork::stBlackIPMonitorEntry_t::stBlackIPMonitorEntry_t() {}
+// ORIG 无 stBlackIPMonitorEntry_t 默认 ctor（仅 0x84eba2c 带参版）⇒ 不定义。
 WongWork::stBlackIPMonitorEntry_t::stBlackIPMonitorEntry_t(
     ENUM_BLACKIPMONITOR_PUNISH_TYPE punishType, unsigned int idCnt,
     long startTime, long endTime)

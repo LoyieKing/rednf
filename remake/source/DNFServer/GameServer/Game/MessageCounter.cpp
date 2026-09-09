@@ -24,33 +24,21 @@ static const int UPDATE_PERIOD = 600;
 //     {+0x00 uint id; +0x04 int count; +0x08 int bytesLow;
 //      +0x0c int bytesHigh; +0x10 int avgRounded}
 
-namespace
-{
-inline void sig_init_head(char* sig, int baseSec)
-{
-    *reinterpret_cast<int*>(sig) = baseSec;
-    *reinterpret_cast<int*>(sig + 4) = 0;
-}
-inline int sig_entry_count(const char* sig)
-{
-    return *reinterpret_cast<const int*>(sig + 4);
-}
-inline void sig_bump_count(char* sig)
-{
-    ++*reinterpret_cast<int*>(sig + 4);
-}
-void sig_write_entry(char* sig, int slot, unsigned int id, int count,
-                     unsigned int bytesLow, unsigned int bytesHigh,
-                     int avgRounded)
-{
-    char* e = sig + 8 + slot * 0x14;
-    *reinterpret_cast<unsigned int*>(e + 0x00) = id;
-    *reinterpret_cast<int*>(e + 0x04) = count;
-    *reinterpret_cast<unsigned int*>(e + 0x08) = bytesLow;
-    *reinterpret_cast<unsigned int*>(e + 0x0c) = bytesHigh;
-    *reinterpret_cast<int*>(e + 0x10) = avgRounded;
-}
-}  // namespace
+// [b28d-SymMsgCtr·检查点18手法] ORIG 无 _ZN15message_counter12_GLOBAL__N_113sig_*
+// 等局部符号（inline 在 -O0 仍发射 ⇒ 唯一可行手法是宏）。逐字保留副作用：每形参
+// 在展开体中仅出现一次（无双重求值），写序 = 原函数体语句序，无短路逻辑。
+#define sig_init_head(s, base) do { \
+    *reinterpret_cast<int*>((s)) = (base); \
+    *reinterpret_cast<int*>((s) + 4) = 0; } while (0)
+#define sig_entry_count(s) (*reinterpret_cast<const int*>((s) + 4))
+#define sig_bump_count(s) (++*reinterpret_cast<int*>((s) + 4))
+#define sig_write_entry(s, slot, id, count, bytesLow, bytesHigh, avgRounded) \
+    do { char* e = (s) + 8 + (slot) * 0x14; \
+    *reinterpret_cast<unsigned int*>(e + 0x00) = (id); \
+    *reinterpret_cast<int*>(e + 0x04) = (count); \
+    *reinterpret_cast<unsigned int*>(e + 0x08) = (bytesLow); \
+    *reinterpret_cast<unsigned int*>(e + 0x0c) = (bytesHigh); \
+    *reinterpret_cast<int*>(e + 0x10) = (avgRounded); } while (0)
 
 // ===================== MessageKey =====================
 
@@ -167,7 +155,13 @@ void CMessageCounter::IncreaseMessage(unsigned int id, unsigned char type,
     std::map<MessageKey, MessageValue>::iterator it = m_map.find(key);
     if (it == m_map.end())
     {
-        m_map.insert(std::make_pair(key, MessageValue()));
+        // [b28d-SymMsgCtr] MessageValue POD 化后，插入零记录用聚合初始化 +
+        // 左值实参 make_pair(key, zero)：ORIG 发射的是
+        // _ZSt9make_pairIRN15message_counter10MessageKeyERNS0_12MessageValueEE...
+        // （两个左值引用形参），右值形会多发 ORIG 没有的
+        // _ZSt7forwardIN15message_counter12MessageValueEE...。
+        MessageValue zero = { 0, 0, 0, 0.0 };   // 初值来源：ORIG 未命中插入全零记录
+        m_map.insert(std::make_pair(key, zero));
         return;
     }
 

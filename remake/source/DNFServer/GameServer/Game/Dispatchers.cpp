@@ -6266,8 +6266,9 @@ bool Dispatcher_MouseRegister::checkValiedPassword(char const* pwd)
     }
     for (int i = 0; i < len; ++i)
     {
-        char c = pwd[i];
-        if (c == 'a' || (c > '/' && c <= '9'))
+        // ORIG 0x082632ca：三个判定各自完整重取 `mov -0xc,%eax; add 0x8(%ebp),%eax;
+        // movzbl (%eax),%eax`（P0/P48：字符值**无槽往返** ⇒ 原码无 `char c` 局部）。
+        if (pwd[i] == 'a' || (pwd[i] > '/' && pwd[i] <= '9'))
         {
             continue;
         }
@@ -9342,24 +9343,28 @@ int Dispatcher_SaveQuestNotify::read(PacketBuf& packet, MSG_BASE& msg)
 int Dispatcher_SaveQuestNotify::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     saveQuestNotifyParam& res = static_cast<saveQuestNotifyParam&>(param);
-    const MSG_SAVE_QUEST_NOTIFY& req = reinterpret_cast<const MSG_SAVE_QUEST_NOTIFY&>(msg);
-
-    int err = check_error(user, msg);
-    res.m_errorCode = err;
-    if (err > 0)
+    // ORIG 0x0825edfc：check_error 结果**无 err 槽**——`call; mov -0x14(%ebp),%edx;
+    // mov %eax,0x4(%edx)` 直存 param+4，其后两判定都读回 `param->m_errorCode`（P0）。
+    res.m_errorCode = check_error(user, msg);
+    if (res.m_errorCode > 0)
     {
         return 0;
     }
-    if (err < 0)
+    if (res.m_errorCode < 0)
     {
         LogManager::logFormat(1, "PacketDispatcher_Impl_2.cpp",
                               __PRETTY_FUNCTION__,
-                              0x2cb, "Dispatcher Check_Error No(%d)", err);
+                              0x2cb, "Dispatcher Check_Error No(%d)",
+                              res.m_errorCode);
         return 0x2cc;
     }
-    // err==0：msg+0xd 起 0x28 字节写入 m_authenData.m_authen（+0x75f4）。
+    // err==0：ORIG 此处才物化 msg 指针槽 -0x10，并另立长度局部 -0xc（`movl $0x28,
+    // -0xc(%ebp)` → `mov -0xc(%ebp),%edx; mov %edx,0x8(%esp)`，P0 槽往返）⇒ 具名 len。
+    const MSG_SAVE_QUEST_NOTIFY& req =
+        reinterpret_cast<const MSG_SAVE_QUEST_NOTIFY&>(msg);
+    int len = 0x28;
     memcpy(user->getCurCharacQuestW()->m_authenData.m_authen,
-           req.m_0d, 0x28);
+           req.m_0d, len);
     return 0;
 }
 
@@ -10978,11 +10983,11 @@ int Dispatcher_SaveGameOption_2::process(CUser* user, MSG_BASE& msg, ParamBase& 
         char m_head[0x11];
         CHotkeyOption m_option;    // +0x11（ORIG read 落点，process 传引用）
     };
-    uchar changed =
-        gameOption->IsHotKeyOptionChanged(
-            hotKeyType, reinterpret_cast<HotkeyMsgView*>(pm)->m_option);
-    changed ^= 1;
-    if (changed)
+    // ORIG 0x081ceedx：`call IsHotKeyOptionChanged; xor $0x1,%eax; test %al,%al; je`
+    // —— 结果无栈槽往返（P0）⇒ 原码是内联条件；消费端 3 条形按 P292/T3 证
+    // callee 返回 bool（头声明改动已报 Main，本波先落裸形）。
+    if (!gameOption->IsHotKeyOptionChanged(
+            hotKeyType, reinterpret_cast<HotkeyMsgView*>(pm)->m_option))
         return 0;
     gameOption->SetHotKeyOption(
         hotKeyType, reinterpret_cast<HotkeyMsgView*>(pm)->m_option);
@@ -11271,29 +11276,31 @@ Dispatcher_AuctionRegistItem::~Dispatcher_AuctionRegistItem() {}
 
 
 Dispatcher_ChangeHostWarRoom::~Dispatcher_ChangeHostWarRoom() {}
-// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081d74d4 orig/ours=56/56 ndiff-blocks=10
-//   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
-//   首差: movl   $&_ZZN28Dispatcher_ChangeHostWarRoom11check_errorEP5CUserR8MSG_BASEE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN28Dispatcher_ChangeHostWarRo
 int Dispatcher_ChangeHostWarRoom::check_error(CUser* user, MSG_BASE& msg)
 {
-    const char* pretty =
-        "int Dispatcher_ChangeHostWarRoom::check_error(CUser*, MSG_BASE&)";
     if (user == 0)
     {
-        return LineFunc(0x41b1, pretty, 0, 0);
+        // ORIG 0x081d74f0 `movl $&_ZZ…E19__PRETTY_FUNCTION__,0x4(%esp)`（P139/P118：
+        // 手写签名串 + 具名指针局部会多占 -0x14 槽并产两段装载）⇒ 直传 __PRETTY_FUNCTION__。
+        return LineFunc(0x41b1, __PRETTY_FUNCTION__, 0, 0);
     }
     if (user->getCurCharacR() == 0)
     {
-        return LineFunc(0x41b4, pretty, 0, 0);
+        return LineFunc(0x41b4, __PRETTY_FUNCTION__, 0, 0);
     }
     const MSG_CHANGE_HOST_WARROOM& req =
         reinterpret_cast<const MSG_CHANGE_HOST_WARROOM&>(msg);
-    signed char warRoom = static_cast<signed char>(req.m_pad[0]);
-    if (warRoom < 0 || warRoom > 5)
+    // ORIG 0x081d7549/0x081d7554：两条件各自重读 `mov -0xc,%eax; movzbl 0xd(%eax),%eax`
+    // （P0/P48：无 warRoom 槽往返 ⇒ 表达式直读，禁具名局部）。
+    if ((signed char)req.m_pad[0] < 0 || (signed char)req.m_pad[0] > 5)
     {
-        return LineFunc(0x41b8, pretty, 0, user->get_acc_id());
+        return LineFunc(0x41b8, __PRETTY_FUNCTION__, 0, user->get_acc_id());
     }
-    return user->get_state() == 8 ? 0 : -1;
+    // ORIG 0x081d7597：`cmp $0x8,%eax; setne %al; test %al,%al; je <mov $0>`（4.1 bool
+    // 物化后分支）⇒ P225 while+return 形复现；三目/裸 if 在 4.4 折成 jne 直跳。
+    while (user->get_state() != 8)
+        return -1;
+    return 0;
 }
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081d73f6 orig/ours=64/64 ndiff-blocks=14
 //   帧差 sub $24 vs $38 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
@@ -14992,27 +14999,40 @@ int Dispatcher_SaveCharacterOption::check_error(CUser* user, MSG_BASE& msg)
 // ORIG 0x081ce97c（报告 Dispatcher_SaveCharacterOption/process.md）：
 // param+4=check_error；>0 → 0；<0 LineFunc(0x283d)；==0 setSaveCharacOption(true)
 // + SetCurCharacOption(msg+0x11)。
-// b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x081ce97c orig/ours=51/47 ndiff-blocks=9
-//   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
-//   首差: mov    0x14(%ebp),%eax | mov    %eax,-0x10(%ebp) | mov    %eax,%edx
 int Dispatcher_SaveCharacterOption::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    const int err = check_error(user, msg);
-    *(int*)((char*)&param + 4) = err;
-    if (err > 0)
+    // ORIG 0x081ce97c 序言：`mov 0x14(%ebp),%eax; mov %eax,-0x10(%ebp)` ⇒ param 指针
+    // **函数头即落槽**（P0 槽往返），其后所有条件读回的都是 `param+4`（无独立 err 槽：
+    // call 结果经 `mov %eax,%edx` 直存 disp）。裸偏移 +4 改具名 pack(1) 视图（§4.3）。
+    struct __attribute__((packed)) SaveCharacOptParamView
+    {
+        char m_head[4];
+        int m_err;                // +0x04
+    };
+    SaveCharacOptParamView* const p =
+        reinterpret_cast<SaveCharacOptParamView*>(&param);
+    p->m_err = check_error(user, msg);
+    if (p->m_err > 0)
     {
         return 0;
     }
-    if (err < 0)
+    // ORIG 0x081ce9xx：err<0 块在前（`test; jns` 越过），两臂汇入**共享尾 return**
+    // （4.4 对独立早返恒就地物化 `mov $0,%eax` ⇒ 用 if/else 而非二次 return）。
+    if (p->m_err < 0)
     {
         LineFunc(0x283d,
                  __PRETTY_FUNCTION__,
-                 err, (unsigned int)user->get_acc_id());
-        return 0;
+                 p->m_err, (unsigned int)user->get_acc_id());
     }
-    user->setSaveCharacOption(true);
-    MSG_SAVE_CHARACTER_OPTION& req = reinterpret_cast<MSG_SAVE_CHARACTER_OPTION&>(msg);
-    user->SetCurCharacOption(req.m_option);            // +0x11 CharacterOption
+    else
+    {
+        // ORIG 0x081ce9xx：msg 指针槽 -0xc 在 setSaveCharacOption **之前**物化
+        // ⇒ req 引用声明前置（4.4 在绑定处落槽）。
+        MSG_SAVE_CHARACTER_OPTION& req =
+            reinterpret_cast<MSG_SAVE_CHARACTER_OPTION&>(msg);
+        user->setSaveCharacOption(true);
+        user->SetCurCharacOption(req.m_option);        // +0x11 CharacterOption
+    }
     return 0;
 }
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N96] ORIG 0x081ce8bc orig/ours=51/54 ndiff-blocks=6
@@ -16386,14 +16406,25 @@ Dispatcher_ItemHyperLinkMessage::~Dispatcher_ItemHyperLinkMessage() {}
 //   首差: jne    081da527 <+0x13> | mov    $0xffffffff,%eax | jmp    081da581 <+0x6d>
 int Dispatcher_ItemHyperLinkMessage::check_error(CUser* user, MSG_BASE& msg)
 {
-    if (user == 0 || user->get_state() < 3)
+    // ORIG 0x081da514：两守卫**各自独立**（`cmpl $0,0xc; jne L1` / 第二段 bool 物化），
+    // 合并 `||` 在 4.4 恒折成单一 je（P133）。
+    if (user == 0)
+    {
+        return -1;
+    }
+    // ORIG 0x081da527：`call get_state; cmp $0x2,%eax; setle %al; test %al,%al; je`
+    // —— 4.1 bool 物化后带分支消费者 ⇒ P225 `while (expr) return …` 形。
+    while (user->get_state() <= 2)
     {
         return -1;
     }
     const MSG_ITEM_HYPER_LINK_MESSAGE& req =
         reinterpret_cast<const MSG_ITEM_HYPER_LINK_MESSAGE&>(msg);
-    unsigned char type = req.m_typeD;
-    return type == 0x24 || type == 0x25 || type == 0x21 || type == 7 ? -1 : 0;
+    // ORIG 四判定各自重取 `mov -0xc(%ebp),%eax; movzbl 0xd(%eax),%eax; cmp $K,%al`
+    // （P0：type 无槽往返）。
+    return req.m_typeD == 0x24 || req.m_typeD == 0x25 ||
+                   req.m_typeD == 0x21 || req.m_typeD == 7
+               ? -1 : 0;
 }
 
 // ORIG T 0x081d98c4：超链接聊天消息读取（MSG_ITEM_HYPER_LINK_MESSAGE）。
@@ -18921,29 +18952,38 @@ int Dispatcher_SecurityCardAuthCancel::dispatch_sig(CUser* user, PacketBuf& pack
     {
         if (user->getSecurityCard()->getRequestState() != 1)
         {
-            return 0;
+            goto LOUT;
         }
         if (process(user) == 0)   // ORIG call process(CUser*) @0x0820a580
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xaf, 0x7d);
         }
-        return 0;
+        goto LOUT;
     }
 
-    if (!user->getPad()->isActivate())
+    // ORIG 0x0820a42c 块序：`call isActivate; test %al,%al; je <LineFunc 块>`——
+    // 未激活块落在**函数尾部共享出口之前**（激活路径 fall-through）。4.4 对否定早返
+    // 恒把 LineFunc 前置 ⇒ 改正向包裹 + 尾部 return（P59/P222 布局钥匙）。
+    if (user->getPad()->isActivate())
     {
-        return LineFunc(0xa650,
-                        __PRETTY_FUNCTION__,
-                        0, 0);
+        if (user->getPad()->getRequestState() != 1)
+        {
+            goto LOUT;
+        }
+        if (process(user) == 0)   // ORIG call process(CUser*) @0x0820a580
+        {
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0xaf, 0x8b);
+        }
+        goto LOUT;
     }
-    if (user->getPad()->getRequestState() != 1)
-    {
-        return 0;
-    }
-    if (process(user) == 0)       // ORIG call process(CUser*) @0x0820a580
-    {
-        user->SendCmdErrorPacket((ENUM_CMDPACKET)0xaf, 0x8b);
-    }
+    // ORIG 0x0820a42c：`movl $0xa650,(%esp); call LineFunc; jmp <mov $0,%eax>; leave`
+    // —— LineFunc 返回值被**丢弃**，控制流经共享尾返回 0（P171 照抄）。
+    LineFunc(0xa650,
+             __PRETTY_FUNCTION__,
+             0, 0);
+    // ORIG 0x0820a42c 尾：四处 `return 0` 全部 `jmp` 到**唯一**共享出口
+    // `mov $0x0,%eax; leave; ret`（P325）；4.4 对独立 return 0 恒就地物化 ⇒ goto 汇聚。
+LOUT:
     return 0;
 }
 int Dispatcher_SecurityCardAuthCancel::process(CUser* user, MSG_BASE& msg, ParamBase& param)

@@ -136,17 +136,24 @@ public:
 
 // ORIG STSkillCommandData 命令键 i-th 访问（Ghidra 视图 m_commands[i] 的权威等价：
 // CUser.h STCommand 位域 m_key0..m_key4 @+0x03..+0x07）。
-static unsigned char& SkillCmdKey(STSkillCommandData& d, int i)
-{
-    switch (i)
-    {
-    case 0: return d.m_key0;
-    case 1: return d.m_key1;
-    case 2: return d.m_key2;
-    case 3: return d.m_key3;
-    default: return d.m_key4;
-    }
-}
+// 泳道口径：ORIG 无 SkillCmdKey 的 `_ZL` 局部符号（nm 判据）⇒ 该访问在 ORIG 是
+// 反编译期合成的成员寻址，非真实函数。O0 下 static/static inline 仍落 `_ZL` 符号 ⇒
+// 改宏展开。语句表达式的值是 rvalue（不能直接作被赋方），故末表达式取「目标字节的
+// 地址」再由宏外层解引用 ⇒ 与「返回 unsigned char&」等价：既可读亦可赋。
+// d/i 各只求值一次（引用/const 局量绑定），分支次序与原 switch 逐字一致（含 default
+// 钳制到 m_key4）。已用独立探针验证左值赋值、求值次数与钳制语义。
+// 状态：本 TU 内该宏当前**仅被注释代码引用**（下方 SkillCmdKey 调用点均在转写注释里），
+// 即宏体尚未走过真实 TU 展开——语义正确性由独立探针（同族 g++ 4.4 / -std=gnu++98 / -O0）
+// 保证；若后续启用调用点，须重跑本 TU 三数确认。
+#define SkillCmdKey(d, i)                                                \
+    (*({                                                                 \
+        STSkillCommandData& _skcd = (d);                                 \
+        const int _ski = (i);                                            \
+        &(_ski == 0 ? _skcd.m_key0 :                                     \
+          _ski == 1 ? _skcd.m_key1 :                                     \
+          _ski == 2 ? _skcd.m_key2 :                                     \
+          _ski == 3 ? _skcd.m_key3 : _skcd.m_key4);                      \
+    }))
 
 // body_A.cpp —— OnlyOrig_CUser.CuBatchA 转写草稿（Wave5: CUser 域 ORIG-only 批次 A）
 // 依据 docs/class_func_reports/CUser/ 各报告（## 汇编 + ## 反编译 C 全文已读）；
@@ -7563,23 +7570,32 @@ void CUser::UpdateCharacNameInMercenary(unsigned int characNo, const std::string
 //     对 output.m_deleted 逐项 find_if(FindRentalInfoByItemIndex)+erase;
 //     再 push_back 全部 output.m_infos。
 // ---------------------------------------------------------------------------
-namespace {
-class FindRentalInfoByItemIndex   // ORIG 全局 functor ctor @0x08697d2c
+// FindRentalInfoByItemIndex：ORIG 形态为**全局作用域**仿函数（nm 实证，均 W）：
+//   0x08697d2c _ZN25FindRentalInfoByItemIndexC1Ei / C2Ei
+//   0x08697d3a _ZNK25FindRentalInfoByItemIndexclERKN20InstanceRentalSystem10RentalInfoE
+//   0x0869b808 _ZSt7find_ifI...RentalInfo...E25FindRentalInfoByItemIndex...
+//   0x086a0fe8 _ZSt9__find_ifI...25FindRentalInfoByItemIndex...
+// 匿名 namespace 会把四者全部改写成 `_ZN12_GLOBAL__N_1...` ⇒ 发明 ORIG 不存在的符号。
+// 故定义于全局作用域。跨 TU 同形约束：CUser.cpp:7724 有一份**同名同体**定义，inline
+// 成员各自发射 W 后 link 期合并的前提是两侧类体逐 token 相同（ctor 初始化列表、
+// operator() 体、成员名/类型/顺序全部一致）—— 两份已按 `sed '/^struct/,/^};$/p'` +
+// diff 核对：类体逐字一致（含换行排版），无 ODR 隐患。
+// 任何一方改动成员或语义时 MUST 同步另一方，否则同名异构 = ODR 隐患。
+struct FindRentalInfoByItemIndex
 {
-public:
-    explicit FindRentalInfoByItemIndex(int idx) : m_itemIndex(idx) {}
+    explicit FindRentalInfoByItemIndex(int itemIndex) : m_itemIndex(itemIndex) {}
     bool operator()(const InstanceRentalSystem::RentalInfo& info) const
-    { return info.m_itemIndex == m_itemIndex; }
-private:
+    {
+        return info.m_itemIndex == m_itemIndex;
+    }
+
     int m_itemIndex;
 };
-}  // namespace
 
-// [b28d-22 N82] ORIG 0x08676e3c：p167=M0/E4:_ZNK15CUserCharacInfo14getCurCharacNoEv;_ZNK9__gnu_cxx17__normal_iteratorIPKN20InstanceRentalSystem15DeletedRentItemESt6vectorIS2_SaIS2_EEEptEv;_ZN12_GLOBAL__N_125FindRentalInfoByItemIndexC1Ei，gap=-7；语义完成、byte 层帧槽/物化族封顶。
-// [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x08676e3c：p167 差集源于 functor 归属——ORIG
-// `_ZN25FindRentalInfoByItemIndexC1Ei`（非匿名命名空间），我方为
-// `_ZN12_GLOBAL__N_125FindRentalInfoByItemIndex...`（匿名 namespace mangling 差）+ EXTRA
-// `getCurCharacNo`/ptEv；定义在非本泳道文件，属结构性符号差。
+// [b28d-22 N82] ORIG 0x08676e3c：p167=M0/E4:_ZNK15CUserCharacInfo14getCurCharacNoEv;_ZNK9__gnu_cxx17__normal_iteratorIPKN20InstanceRentalSystem15DeletedRentItemESt6vectorIS2_SaIS2_EEEptEv;find_if 仿函数 ctor（旧匿名 namespace 形），gap=-7；语义完成、byte 层帧槽/物化族封顶。
+// [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x08676e3c：functor 归属已修正为全局作用域
+// （`_ZN25FindRentalInfoByItemIndex...`，与 ORIG mangled 逐字一致）；残余 p167 差集为
+// EXTRA `getCurCharacNo`/`normal_iterator::ptEv` 物化族，属 byte 层封顶差。
 void CUser::UpdateCurrentCharacRentalInfo(
     const InstanceRentalSystem::RentOutput& output, int machineKey, bool clearFirst)
 {
@@ -11657,18 +11673,13 @@ void tagCharacVisibleFlag::reset()
 // ---------------------------------------------------------------------------
 // [b28d-22 N82/N83] ORIG 0x08699xxx `_ZN12_Charac_infoaSERKS_`（957 条）/`C1ERKS_`（1012 条）：
 // ORIG 对 +0x88 起 0x148 字节走 `mov $0x52,%ebx` 块拷贝循环；重建 CUser.h（冻结）把该区
-// 建模为具名标量字段，4.4 O0 只能逐字段拷贝；op=/拷贝构造均为编译器隐式生成（本 helper
-// 仅强制发射），函数体无源码可改 ⇒ 语义完成、byte 层 N82/N83 封顶（P167 差集见 TSV）。
-static void _cuoo_emit_charac_info_ops(const _Charac_info& a, _Charac_info* b)
-{
-    // [b28d-solo-CUserOnlyOrig] ORIG C1ERKS_ W 0x08699820 / aSERKS_ W 0x0869da62：
-    // 两符号为编译器隐式合成（本 TU 无源码体，仅此 force 使用点发射）；残余为
-    // 块搬移/槽序跨版本差（N84/N90/N82 族），语义等价，byte 层封顶。
-    _Charac_info t(a);   // 引用 C1ERKS_
-    *b = t;              // 引用 aSERKS_
-}
-void (*volatile g_cuoo_charac_info_emit)(const _Charac_info&, _Charac_info*) =
-    _cuoo_emit_charac_info_ops;   // volatile 指针防 DCE
+// 建模为具名标量字段，4.4 O0 只能逐字段拷贝；op=/拷贝构造均为编译器隐式生成 ⇒ 语义完成、
+// byte 层 N82/N83 封顶（P167 差集见 TSV）。
+// 泳道口径：原 `static _cuoo_emit_charac_info_ops` + `g_cuoo_charac_info_emit` 两个 force
+// 符号在 ORIG 均无（nm 判据）⇒ 已删除。两弱符号改由本 TU 的自然宿主发射：
+// `std::vector<_Charac_info> CUser::m_characList` 的 push_back/M_insert_aux→
+// new_allocator::construct 引 C1ERKS_，erase→move_backward/__copy_move 引 aSERKS_
+// （见本 TU 上方 `for (std::vector<_Charac_info>::iterator it = m_characList.begin(); ...)`）。
 
 // ---- _Charac_info ctor/dtor（LinkE2）----
 // 收敛口径（2026-09-05 EmoC11，Main 裁决记封顶不批成员化）：ORIG W 0x08695cf8

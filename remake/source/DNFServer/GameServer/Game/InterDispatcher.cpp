@@ -3070,8 +3070,13 @@ int Inter_ReloadIngameAdvertisement::dispatch_sig(CUser* /*user*/, char* data, i
     int count;
     for (count = 0; count < 200; ++count)
     {
+        // [b28d-PoolInterDisp] int 加法链形（probe_g 实证，10→4）：POINTER_PLUS 形被
+        // 4.4 fold 成 base+(prod+const)（恒残 10）；纯 int PLUS 不折 ⇒ 复现
+        // imul/lea/add $0x210 三段。字段访问形 cond[count].m_sentinel 实测折成
+        // `add MEM+mov 0x210(,)`（gap+2、ndiff 6，劣于本形）。残 4 = imul 目标寄存器
+        // 与 base 装载先后对调（LRA 形，N18a 族）。
         if (*reinterpret_cast<int*>(
-                reinterpret_cast<char*>(&cond[count]) + 0x210) == -1)
+                (reinterpret_cast<int>(cond) + count * 0x84c) + 0x210) == -1)
             break;                                       // ORIG +0x3c je（顶部门槛）
         InGameADManagerInstance()->InsertADExposeInfo(
             cond[count]);
@@ -6423,10 +6428,9 @@ int Inter_MonitorGuildWarInfo::dispatch_sig(CUser* user, char* data, int /*len*/
 Inter_CodeChecksumRange::~Inter_CodeChecksumRange() {}
 // ORIG 0x084d0648 T dispatch_sig —— 校验码区间比对：对所有登录用户执行校验并计数作弊。
 // 报告 docs/class_func_reports/Inter_CodeChecksumRange/dispatch_sig.md 全文转写。
-// [b28c-31] N（inline 展开跨版本）：ORIG 0x084d069c 内联 getUserByAccIdMap() 为
-// `lea 0x22c(%eax),%edx`，4.4 -O0 恒产 out-of-line call（局部引用形反劣已回退）。
-// [b28d-lane2] verdict=DIFF ndiff=82（ORIG 0x084d0648）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap-2。
-// [b28d-solo-InterDispatcher] verdict=DIFF（ORIG 0x84d0648）：N89 封顶——ORIG 内联 getUserByAccIdMap（lea 0x22c）而 4.4 发 out-of-line call（p167 EXTRA×2；m_userByAccId2 private 不可直访）。
+// [b28d-PoolInterDisp] 收口：getUserByAccIdMap 发明 getter 已删（ORIG 无该符号）；
+// 本类经 CGameManager.h `friend class Inter_CodeChecksumRange` 直访 m_userByAccId，
+// 复现 ORIG 0x084d069c `call G_CGameManager; lea 0x22c(%eax)` 无 call 形。
 int Inter_CodeChecksumRange::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     CodeHackCheckRangeEx range;
@@ -6435,12 +6439,10 @@ int Inter_CodeChecksumRange::dispatch_sig(CUser* /*user*/, char* data, int /*len
     const char* next = range.setData(data);
     checksum.setData(next);
 
-    // ORIG 0x084d069c：`call G_CGameManager; lea 0x22c(%eax),%edx`（getter 内联、
-    // 无具名槽）；4.4 -O0 对链式 inline getter 恒产 out-of-line call
-    // （m_userByAccId2 为 private 不可直访）⇒ N（inline 展开跨版本，p167 EXTRA×2）。
+    // ORIG 0x084d069c：`call G_CGameManager; lea 0x22c(%eax),%edx`（无具名槽）。
     for (std::map<unsigned int, CUser*>::iterator it =
-             G_CGameManager()->getUserByAccIdMap().begin();
-         it != G_CGameManager()->getUserByAccIdMap().end(); ++it)
+             G_CGameManager()->m_userByAccId.begin();
+         it != G_CGameManager()->m_userByAccId.end(); ++it)
     {
         CUser* target = it->second;                    // pair second
         if (!target->checkCodeChecksumRange(checksum, range))   // xor $1 取反
@@ -11456,6 +11458,9 @@ struct Inter_NoticeGuildMemoPktView
 
 // [b28d-lane2] verdict=DIFF ndiff=32（ORIG 0x084dad96）：槽序/帧差(N82/P212/P221)+寄存器中转(N18a/N7)+混合残差；gap0。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=60（ORIG 0x84dad96）：N22 cmp 操作数方向+P30/N4 add-vs-lea。
+// [b28d-PoolInterDisp] verdict=NEAR ndiff=2（ORIG 0x84dad96）：memoLen 单变量复用（ORIG
+// 84dae22/84dae61 同槽 -0xc 两次写实证）消 4B 多占槽 ⇒ 全族槽号对齐，60→2；残 = N22
+// get_charac_no(int) cmp 方向（六形封顶，同 PowerWarProcessInfo）。
 int Inter_NoticeGuildMemo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     if (user->get_state() == 0)
@@ -11469,12 +11474,14 @@ int Inter_NoticeGuildMemo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     PacketGuard packet;
     packet.put_header(0, 0xc5);
-    const int memo1Len = (int)strlen(pPkt->m_12);       // memo 串 1
-    packet.put_int(memo1Len);
-    packet.put_str(pPkt->m_12, memo1Len);
-    const int memo2Len = (int)strlen(pPkt->m_30);       // memo 串 2
-    packet.put_int(memo2Len);
-    packet.put_str(pPkt->m_30, memo2Len);
+    // ORIG 两段 memoLen 共用槽 -0xc（84dae22/84dae61 同址写）⇒ 单变量跨两段复用；
+    // 旧双声明多占一槽，使 pPkt/packet 整体下移 4（N82 假性帧差主项）。
+    int memoLen = (int)strlen(pPkt->m_12);              // memo 串 1
+    packet.put_int(memoLen);
+    packet.put_str(pPkt->m_12, memoLen);
+    memoLen = (int)strlen(pPkt->m_30);                  // memo 串 2（重入同槽）
+    packet.put_int(memoLen);
+    packet.put_str(pPkt->m_30, memoLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -14397,7 +14404,11 @@ int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_header(0, 0x10f);
     packet.put_int((int)pPkt->m_12);
     for (int i = 0; i < (int)pPkt->m_12; ++i)
-        packet.put_binary(reinterpret_cast<char*>(pPkt) + 0x10 + i * 0x29 + 0x6, 0x29);
+        // 求值序 = ORIG：i 项先算（eax），再 add $0x10 / add pPkt 槽 / add $0x6
+        // （pPkt 置于两常量之间阻折叠，4.4 恒发三段 add；旧形 pPkt 先置产 ecx 提前载+lea）。
+        packet.put_binary(reinterpret_cast<char*>(i * 0x29 + 0x10 +
+                                                  reinterpret_cast<int>(pPkt) + 6),
+                          0x29);
     packet.finalize(true);
     user->Send(packet);
     return 0;

@@ -1044,7 +1044,11 @@ public:
     // ---- 查询（ORIG T const）----
     SUserPremiumInfo* GetPremiumInfo(int type) const;
     SUserPremiumInfo CheckPremiumTimeout() const;
-    void GetPremiumInfoList(std::vector<SUserPremiumInfo>& list, int type) const;
+    // [b28d-Main·检查点22] 删 out-ref 重载：ORIG 只有按值 sret 版
+    //   `_ZNK8WongWork12CUserPremium18GetPremiumInfoListEi`（0x086ade9c），
+    //   两参版 `_...ERSt6vectorISsEi` ORIG 无 ⇒ 我方发明；全仓调用点
+    //   （CHandlePremium.cpp:141 / Inter_LoadEtc_impl.cpp:709 / CDeathTower.cpp:969）
+    //   均走按值版，两参版零调用者。定义同步从 CUserPremium.cpp 删除。
     // ORIG T 0x086ade9c _ZNK8WongWork12CUserPremium18GetPremiumInfoListEi（sret
     // 按值返回版；与上方 out-ref 重载并存。定义 W6_SecMiscDeps.cpp）。
     std::vector<SUserPremiumInfo> GetPremiumInfoList(int type) const;

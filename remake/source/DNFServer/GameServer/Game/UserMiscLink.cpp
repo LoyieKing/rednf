@@ -65,7 +65,8 @@ public:
         m_sum += weight;
         ++m_count;
     }
-    void operator()(const OptionGroup& og)
+    // ORIG 形参按值（_ZN11CRandomListIjEclE11OptionGroup，无 RK 前缀）。
+    void operator()(OptionGroup og)
     {
         (*this)(static_cast<unsigned int>(og.m_weight4));
     }

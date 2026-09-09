@@ -72,14 +72,20 @@ QuestScript::QuestScript()
     clear();
 }
 
-// [b28d-L8 · N84 处置②/P147] ORIG _ZN11QuestScriptC1ERKS_ 0x0837adc8 为 W
-// 隐式合成（0xd65）；本 TU 持完整类定义但无 ODR 使用点 ⇒ 加 TU-local force
-// 使用点保证 W 发射（与 CListTables.cpp 的镜像类弱定义合并时以完整版为准）。
-static void __attribute__((used)) forceQuestScriptCopyEmit(const QuestScript& o)
-{
-    QuestScript t(o);
-    (void)t;
-}
+// [b28d-Lane SymSrvParam · N84 处置③] ORIG _ZN11QuestScriptC1ERKS_ 0x0837adc8
+// 为 W 隐式合成（0xd65）；CListTables.cpp 镜像类仅有拷贝 ctor **声明**（U 引用，
+// 防 0x364/0x30c ODR 竞争，Main b28d 决定），全仓唯一 W 发射点必须在本 TU。原
+// forceQuestScriptCopyEmit（t 符号，ORIG 无）改为数据锚：文件作用域 static 对象
+// 定义（b 符号，非函数、不导出于链接命名空间）以拷贝初始化 ODR-use 合成拷贝
+// ctor ⇒ 4.4 在本 TU COMDAT 发射同名 W；构造/析构并入既有
+// __static_initialization_and_destruction_0 / _GLOBAL__I_*（t，ORIG 同名并存）。
+// 已核 ORIG 无该类型全局对象：`nm -S $O | grep ' [BbDd] '` 无 size 0x30c
+// （QuestScript）命中（同名前缀仅 g_questScriptFileList 0x18 /
+// g_questScriptBaseDirectory 0x100）⇒ 本锚唯一作用是保留 W 发射点，
+// 非物化任何 ORIG 数据。
+// 语义中性：clear() 纯成员置零、destroy() 对 0 指针安全，无外部可观察副作用。
+static QuestScript g_questScriptCopyEmitSrc;
+static QuestScript g_questScriptCopyEmitUse(g_questScriptCopyEmitSrc);
 
 
 
