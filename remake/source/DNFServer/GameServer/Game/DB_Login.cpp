@@ -293,6 +293,14 @@
 // 本轮类型判据修复（1 处）：DB_Login::SendResult int→bool（P292/T3：ORIG 9 个调用点
 //   `call; mov %eax,%ebx` 无 setne；旧判词「4.4 返回值规范化 N」作废）⇒ dispatch
 //   799→791 insn，gap −5→−3；mangled 不含返回类型，ABI 零变化（Main 已批准广播）。
+// 本轮签名书写名修复（3 处，P174 直证）：逐字节读 ORIG 16 个 `__PRETTY_FUNCTION__`
+//   串（objdump -s），发现 3 处类型书写名不符（4.4 生成的串在 ORIG 中不存在）：
+//   ① _getGameDBCharacView 返回 `int` → `RV_GetGameDBCharacInfo`（typedef int）；
+//   ② _DecryptUserInfo 第 3 参 `unsigned int` → `memberIdentificationNumber_t`；
+//   ③ SaveLoginTime 第 1 参 同 ②。改后 3 串与 ORIG 逐字节同（.o .rodata 复验
+//   PRESENT），mangled/ABI/帧/四数零变化（47/136/2/10 不变）。全 TU 字符串审计：
+//   .o 全部 >=8 字节 ASCII 串仅剩 2 个 ORIG 无（'DB_Login.cpp' 文件名符号 +
+//   GCC 4.4.7 版本串，均工具链元数据）。
 // 本轮符号判据修复（1 处）：判据㉖ 匿名 ns 16 个 `const unsigned int OFF_*` → 匿名
 //   enum ⇒ 消 16 个 NEW-only `r _ZN12_GLOBAL__N_1L..OFF_..E` 数据符号（ORIG 全无）。
 // 逐件读数（gap=orig−ours，.o 口径；改前→改后）：
@@ -379,6 +387,19 @@ CGameManager* G_CGameManager();
 // 改真实虚成员调用（范式 P5）。实测：仅 include 权威头对本 TU .o 逐函数
 // 全等（零扰动），无需 asm 槽直调。
 #include "CGuildServerProxy.h"
+
+// [SweepDBLogin-2] P174/P110：ORIG `__PRETTY_FUNCTION__` 串逐字节实证（objdump -s
+// 读 0x08c5ce20 / 0x08c5cf60 / 0x08c5ce80）本 TU 三处签名书写名：
+//   `DB_Login::RV_GetGameDBCharacInfo DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA*)`
+//   `bool DB_Login::_DecryptUserInfo(char*, char*, memberIdentificationNumber_t)`
+//   `void DB_Login::SaveLoginTime(memberIdentificationNumber_t, int, char*)`
+// 旧源码写 int / unsigned int ⇒ 4.4 生成 `int DB_Login::_getGameDBCharacView(...)` /
+// `bool DB_Login::_DecryptUserInfo(char*, char*, unsigned int)` /
+// `void DB_Login::SaveLoginTime(unsigned int, int, char*)`（.o .rodata 实证不在 ORIG）。
+// typedef 只影响 __PRETTY_FUNCTION__ 书写名；mangled/ABI/sizeof 零变化。
+// 先例：CGuildServerProxy.cpp:139 / InterSelectPcroomDailyReward.h:18（重复同型合法）。
+typedef unsigned int memberIdentificationNumber_t;
+typedef int RV_GetGameDBCharacInfo;
 
 namespace EventClassify
 {
@@ -1916,7 +1937,7 @@ bool DB_Login::CreateAccount(SIG_LOGIN_DATA* sig, MySQL* db)
 // 无 cast 三形均不翻。p167 CLEAR）。
 // S216：Hex2Binary/Decrypt 第三实参 cast 互换（(int)↔(unsigned int)）四形实测
 // 逐条不变（同宽 cast 被 4.4 折叠）⇒ 维持 N7/P75 封顶。
-bool DB_Login::_DecryptUserInfo(char* hex, char* out, unsigned int mid)
+bool DB_Login::_DecryptUserInfo(char* hex, char* out, memberIdentificationNumber_t mid)
 {
     // b28d-68 修法：ORIG 0x0841300e。①Initialize 后 cipherBuf 0x80 字节 rep stos 清零
     // （原注释「未清零」误判，ORIG 0x08413075..0x08413089 实证）；②strlen(hex) 三处
@@ -2416,7 +2437,7 @@ int DB_Login::GetGameDBInfo(SIG_LOGIN_DATA* sig)
 // SaveLoginTime（ORIG T 0x084148a6）
 // ============================================================================
 
-void DB_Login::SaveLoginTime(unsigned int mid, int loginTime, char* ip)
+void DB_Login::SaveLoginTime(memberIdentificationNumber_t mid, int loginTime, char* ip)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     char table[20];                          // ORIG 槽序：table 深于 db/trace（-0x30/-0x1c/-0xc）
@@ -2460,7 +2481,7 @@ bool get_compressed_blob_data(MySQL* db, int col, char* out, int outCap, int rec
 // .m_characNo` 令 4.4 产 `mov i,%eax; mov sig,%edx; imul $0x94,%eax,%eax;
 // lea (%edx,%eax,1),%eax; add $0xe0,%eax` 逐条 = ORIG（探针 /tmp/s216_probe1.cpp
 // fA=reinterpret_cast 形恒 base 先 vs fD=视角形 i 先）。p167 CLEAR。
-int DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* sig)
+RV_GetGameDBCharacInfo DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = _getGameDB(DB_HANDLE_2);
     db->set_query(
