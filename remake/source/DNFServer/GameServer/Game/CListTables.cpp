@@ -139,7 +139,14 @@ public:
     ~STSkillScript();
     int m_index;                            // +0x00
     std::string m_name;                     // +0x04
-    char m_pad8[0x28];                      // +0x08
+    char m_pad8[0xc];                       // +0x08..+0x14
+    int m_field14;                          // +0x14（ORIG 0x083517a9 单条 disp 读）
+    // [b28d-solo-CListTables 真语义 bug 修复] ORIG init 0x083513e4/0x0835143b：
+    // need_sp/need_sfp 循环访问 script+0x18 / script+0x24（Ghidra avStack_354/
+    // avStack_348，相对 STSkillScript 基址 +0x18/+0x24）；旧镜像把这两个 vector
+    // 塞进 pad，并把循环错指向 +0x44/+0x50（pre-skill 索引表）⇒ 读错字段。
+    std::vector<int> m_needSp;              // +0x18
+    std::vector<int> m_needSfp;             // +0x24
     int m_levelLimit;                       // +0x30
     int m_field34;                          // +0x34
     int m_field38;                          // +0x38
@@ -147,13 +154,20 @@ public:
     int m_field40;                          // +0x40
     std::vector<int> m_vec44;               // +0x44
     std::vector<int> m_vec50;               // +0x50
-    char m_skillType;                       // +0x5c
-    char m_pad5d[3];
+    int m_skillType;                        // +0x5c（ORIG 0x0835113d `mov; movsbl %al`
+                                            //  = int 字段转 char 形参；权威头 m_5c 亦 int）
     int m_group;                            // +0x60
     int m_fitness[6];                       // +0x64
     int m_typeMaxLevel[6];                  // +0x7c
-    int m_secondFitness[12];                // +0x94
-    char m_padC4[0x30];                     // +0xc4..+0xf4
+    // [b28d-solo-CListTables] 权威 STSkillScript.h：+0x94 为 m_growType[6]，
+    // 每项 {int m_0[2]; int m_8[2];}（16 字节）。ORIG 0x0835132a/0x08351390
+    // 的 `shl $2; lea; add $0x24; mov -0x364(%ebp,%eax,4)` 即 m_growType[i].m_0[j]
+    // / m_8[j]（0x94+16i+4j / 0x9c+16i+4j）。旧镜像用 int[12]+pad 裸偏移建模。
+    struct StGrowType
+    {
+        int m_0[2];   // +0x00
+        int m_8[2];   // +0x08
+    } m_growType[6];                        // +0x94..+0xf4
     std::vector<int> m_secondGrowType;      // +0xf4
     char m_pad100[0x70];                    // +0x100..+0x170
     std::vector<STKeyCommandUnit> m_keyCmd; // +0x170
@@ -162,17 +176,30 @@ public:
         m_fitnessTable;                     // +0x1a8
     char m_pad1b4[0x28];                    // +0x1b4..+0x1dc
     std::vector<int> m_fitGrowType;         // +0x1dc
-    char m_stealable;                       // +0x1e8
+    bool m_stealable;                       // +0x1e8（ORIG SetStealable 实参直读，无 setne）
     char m_pad1e9[7];
-    int m_stealLevelPenalty;                // +0x1f0
-    int m_stealSPPenalty;                   // +0x1f4
+    // [b28d-solo-CListTables 真语义 bug 修复] ORIG 0x08351192 读 script+0x1f4 传
+    // CSkill::SetStealLevelPenalty、0x083511a7 读 script+0x1f0 传 SetStealSPPenalty
+    // （nm: 0x08374b48=SetStealLevelPenalty / 0x08374b5a=SetStealSPPenalty）
+    // ⇒ 旧镜像两字段命名互换，导致 Level/SP 惩罚值互换。
+    int m_stealSPPenalty;                   // +0x1f0
+    int m_stealLevelPenalty;                // +0x1f4
     char m_pad1f8[0xc];                     // +0x1f8..+0x204
     std::vector<int> m_vec204;              // +0x204
     std::vector<int> m_vec210;              // +0x210
     char m_pad21c[0x44];                    // +0x21c..+0x260
-    char m_field260;                        // +0x260
+    // [b28d-solo-CListTables] ORIG 0x083510ec `movzbl -0x108; movzbl %al`（传
+    // reform_ui_group_no 的 bool 形参，无 setne）⇒ 该字段按 bool 直读。
+    bool m_field260;                        // +0x260
     char m_pad261[0x1f];                    // +0x261..+0x280
     char m_field280;                        // +0x280
+    // [b28d-solo-CListTables sizeof 修复] 权威 STSkillScript.h 尾部 +0x284..+0x2ac：
+    // 旧镜像截断到 +0x281（sizeof 0x284），ORIG 栈对象间隔 0x2ac（script -0x368 /
+    // s2 -0x614 / s3 -0x8c0 / s4 -0xb6c，差恒 0x2ac）⇒ 全帧槽位整体漂移 0x28。
+    std::vector<int> m_vec284;              // +0x284
+    char m_field290;                        // +0x290
+    std::vector<int> m_vec294;              // +0x294
+    std::vector<int> m_vec2a0;              // +0x2a0
 };
 // 本地镜像布局（权威完整定义见 CDungeon.h，sizeof 0x50a）；
 // 偏移以 ORIG load_list 0x0834d376 为准：
@@ -235,6 +262,11 @@ public:
     std::vector<MonsterKillItem>
         m_monsterKillList;                  // +0x144
     int m_mapIdx;                           // +0x150
+    // [b28d-solo-CListTables 真字段偏移修复] 无此 pad 时 m_mapIdx2 落 +0x154，
+    // 其后所有字段（m_questDataType +0x178 / m_questData +0x180 / m_dailySchedule
+    // +0x2dc）整体少 4 ⇒ 读错字段（ORIG 0x0835408a 用 script+0x178、
+    // 0x08354193 用 script+0x180、0x08353e9b 用 script+0x2dc 实证）。
+    char m_pad154[4];                       // +0x154..+0x158
     int m_mapIdx2;                          // +0x158
     char m_pad15c[0x1c];                    // +0x15c
     int m_questDataType;                    // +0x178
@@ -244,7 +276,9 @@ public:
     char m_mailQuestFlag;                   // +0x258
     char m_pad259[0x83];                    // +0x259..+0x2dc
     std::vector<_DailySchedule> m_dailySchedule;  // +0x2dc（ORIG size/AddDailSchedule 实证）
-    char m_pad2e8[0x7c];                    // +0x2e8..+0x364
+    // [b28d-solo-CListTables sizeof 修复] ORIG load_list 帧 0x76c / script@-0x734
+    // ⇒ sizeof = 0x314（旧镜像 pad 到 0x364 使全帧 +0x50、浅区整体深移）。
+    char m_pad2e8[0x24];                    // +0x2e8..+0x30c
 };
 
 class CNRDScriptData
@@ -284,9 +318,14 @@ int get_rand_int(int range);
 
 extern bool ImportSkillScript(STSkillScript* script, const char* path,
                              ENUM_CHARACTERJOB job, int type, int flag);
-extern int ImportDungeonScript(STDungeonScript* script, const char* path);
+// [b28d-solo-CListTables P248档①/P292] ORIG 调用点 0x0834d408 `call; xor $1;
+// test %al; je`（无 setne 物化）⇒ 返回 bool（返回类型不入 mangled）。
+extern bool ImportDungeonScript(STDungeonScript* script, const char* path);
 extern bool ImportMonsterScript(STMonsterScript* script, int type,
                                const char* path, bool flag);
+// [b28d-solo-CListTables P248档①·依赖] ORIG 0x08353e51 `call; xor $1; test %al`
+// ⇒ 真返回类型应为 bool；但 STQuestScript.h:92 / STQuestScript.cpp:477 现仍 int
+// （属 BigQuestScript 泳道）⇒ 本 TU 只能保持 int 声明（改 bool 与头冲突）。
 extern int importQuestScript(QuestScript* script, const char* path);
 
 // ====================================================================
@@ -337,23 +376,23 @@ CDungeon* CDungeonList::find_dungeon(int idx) const
 
 CDungeon* CDungeonList::get_dungeon_at_index(int idx) const
 {
+    // [b28d-solo-CListTables] ORIG 0x0834d846：`while (it != end)` 底部条件形
+    // （4.1 把条件块置循环尾：+0x74 end()/operator!=/jne 体；相等命中直接
+    // `return it->second`，遍历完落 `mov $0,%eax`）。旧写 `while(true){ if(it==end)
+    // return 0; ... break; }` 多 1 条对齐 nop 且块序相反。
     __gnu_cxx::hash_map<int, CDungeon*>::const_iterator it;
     int count = 0;
     it = m_dungeonMap.begin();
-    while (true)
+    while (it != m_dungeonMap.end())
     {
-        if (it == m_dungeonMap.end())
-        {
-            return 0;
-        }
         if (idx == count)
         {
-            break;
+            return it->second;
         }
         count++;
         it++;
     }
-    return it->second;
+    return 0;
 }
 
 CDungeonList* CDungeonList::getDungeonIndexList()
@@ -374,14 +413,25 @@ CDungeonList* CDataManager::getDungeonIndexList()
     return m_dungeonList->getDungeonIndexList();
 }
 
+// [b28d-solo-CListTables 修复] ORIG 0x0834d6cc：69/69（gap=0）。已修：it 先 C1Ev
+// 再 `it = find(idx)`（P50）、insert 改 value_type 直构 `pair<const int,CDungeon*>(
+// dungeon->get_index(), dungeon)`（ORIG 0x0838a848 C2IiRS2_EEOT_OT0_；旧 make_pair
+// 多出 make_pair + 转换 ctor 两个 EXTRA call，p167 现 CLEAR）。
 bool CDungeonList::insert_dungeon(CDungeon* dungeon)
 {
+    // [b28d-solo-CListTables] ORIG 0x0834d6d2：迭代器先 C1Ev 默认构造（-0x34）
+    // 再 `it = find(idx)`（sret -0x40 拷贝，P50）；insert 用 value_type 直构
+    // `pair<const int,CDungeon*>(get_index(), dungeon)`（ORIG 0x0838a848 实例
+    // `C2IiRS2_EEOT_OT0_`，且 key 是**重新调用** get_index()，非缓存 idx）。
+    __gnu_cxx::hash_map<int, CDungeon*>::iterator it;
     int idx = dungeon->get_index();
-    __gnu_cxx::hash_map<int, CDungeon*>::iterator it = m_dungeonMap.find(idx);
+    it = m_dungeonMap.find(idx);
     __gnu_cxx::hash_map<int, CDungeon*>::iterator end = m_dungeonMap.end();
     if (it == end)
     {
-        m_dungeonMap.insert(std::make_pair(idx, dungeon));
+        m_dungeonMap.insert(
+            __gnu_cxx::hash_map<int, CDungeon*>::value_type(
+                dungeon->get_index(), dungeon));
         return true;
     }
     LogManager::logFormat(
@@ -391,14 +441,21 @@ bool CDungeonList::insert_dungeon(CDungeon* dungeon)
     return false;
 }
 
+// [b28d-solo-CListTables 修复] ORIG 0x0834d376：178/178（gap=0）。已修：①it 先
+// C1Ev 再 `it = begin()` + 尾部后置 it++（P50/P28）；②ImportDungeonScript 声明
+// int→bool（ORIG 0x0834d408 `call; xor $1; test %al`，定义侧 STDungeonScript.cpp
+// 已 bool）；③cMyTrace 改全表达式临时链（P227，size() 结果入 %ebx 跨 ctor 保活）。
+// 残差仅帧 0x55c vs 0x56c + script/it/cMyTrace 槽位差（N82 族）⇒ 封顶。
 bool CDungeonList::load_list()
 {
     char* path = 0;
     STDungeonScript script;
     CDungeon* dungeon = 0;
-    for (std::map<int, std::string>::iterator it =
-             g_stDungeonScriptFileList.begin();
-         it != g_stDungeonScriptFileList.end(); ++it)
+    // [b28d-solo-CListTables] ORIG 0x0834d39e：迭代器先 C1Ev 默认构造（-0x3c）
+    // 再 `it = begin()`（P50 复活）；尾部后置 it++（ppEi，sret -0x24，P28）。
+    std::map<int, std::string>::iterator it;
+    it = g_stDungeonScriptFileList.begin();
+    while (it != g_stDungeonScriptFileList.end())
     {
         path = (char*)it->second.c_str();
         if (path == 0)
@@ -431,11 +488,14 @@ bool CDungeonList::load_list()
             ->init_quick_party_pool(dungeon);
         if (size() > 1000)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x8ec, 5);
-            trace("Best Clear Time Save Dungeon Index Over Error: %d\n",
-                  size());
+            // [b28d-solo-CListTables P227] ORIG 0x0834d532：size() 结果先入 %ebx
+            // 再跨 cMyTrace C1 保活（`mov %eax,%ebx` 在 ctor 前）⇒ 全表达式临时链。
+            cMyTrace(__PRETTY_FUNCTION__, 0x8ec, 5)(
+                "Best Clear Time Save Dungeon Index Over Error: %d\n",
+                size());
             return 0;
         }
+        it++;
     }
     return 1;
 }
@@ -688,12 +748,11 @@ bool CMonsterManager::insert_monster(int level, CMonster* monster)
     return false;
 }
 
-// [b28d-solo-CListTables N(P248档①/N82) DIFF] ORIG 0x0834fa84：215/221 + p167
-// CLEAR(34/34)。已修：truncate 负形早退复现 `xor $1; test; je`（P168a）、drops
-// 下标 unsigned→int 复现 `setg`（P196，旧 seta）。残差 +6：①ImportMonsterScript
-// 返回 int 而 ORIG 调用点 `xor $1; test %al` 为 bool（定义在 STMonsterScript.cpp
-// 非本泳道，已上报 Main）；②path==0 分支极性（ORIG je 落 return 1 尾块）；
-// ③槽号整体差 ⇒ 封顶。
+// [b28d-solo-CListTables N(N82) DIFF] ORIG 0x0834fa84：215/215（gap=0）+ p167
+// CLEAR(34/34，差集全为 C1/C2·D1/D2 别名）。已修：truncate 负形早退复现
+// `xor $1; test; je`（P168a）、drops 下标 unsigned→int 复现 `setg`（P196）。
+// 残差 8 处槽位差（unusedIt -0x38 vs -0x3c、STMonsterScript 基址 ±4、path==0
+// 分支 je/jne 布局）：sizeof 0x1cc0/0x1cc4 两探针均不可同时对齐 ⇒ N82 槽位族封顶。
 bool CMonsterManager::load_monsters()  // [P330 int→bool] 与 CDataManager.h 声明同步（ORIG caller xor $1 形）
 {
     // [b28d-solo-CListTables P168a] ORIG 0x0834fa8e `call; xor $1; test %al,%al;
@@ -937,6 +996,10 @@ void CSkillList::set_post_learning_skill(int jobType, CSkill* skill)
                 {
                     std::vector<std::pair<int, int> > vec;
                     vec.push_back(value);
+                    // [b28d-solo-CListTables N(P192) DIFF] ORIG 调 value_type 直构
+                    // `pair<const int,vector<pair<int,int>>>::C2IRiRS4_EEOT_OT0_`，
+                    // 但本 TU 改 value_type 实测 identical -2 / ae -5（他函数符号集
+                    // 变化）⇒ 回退保持 make_pair（batch-25c 结论复证）。
                     m_postLearningMap[jobType].insert(
                         std::make_pair(it->m_index, vec));
                 }
@@ -971,43 +1034,59 @@ __gnu_cxx::hash_map<int, CSkill*>* CSkillList::getSkillList(int jobType)
     return &m_skillList[jobType];
 }
 
-// [b28d-solo-CListTables §6.2 N 封顶] ORIG 0x08350c26：866/880 + p167 CLEAR(111/111)
-// + 主/尾循环迭代器 C1Ev+ppEi、s2/s3/s4 Import 与 insert 各自 printf、push_back(Oi)
-// 右值全部对齐；+14 条含 ImportSkillScript 调用点 int→bool 差（P248档①，定义在
-// STMonsterScript.cpp 非本泳道，已上报 Main）与槽位/块形差 ⇒ 语义完成、byte 层封顶。
+// [b28d-solo-CListTables 修复] ORIG 0x08350c26：866/866（gap=0）+ p167 CLEAR(111/111，
+// 差集全为 C1/C2·D1/D2 别名）。本轮真修复：①STSkillScript 镜像补 m_needSp(+0x18)/
+// m_needSfp(+0x24)（旧实现把 need_sp/need_sfp 循环错指向 +0x44/+0x50 = pre-skill
+// 索引表，**读错字段**）；②镜像尾部补 m_vec284/m_290/m_vec294/m_vec2a0（sizeof
+// 0x284→0x2ac，ORIG 对象间隔 0x2ac 实证）；③m_stealLevelPenalty/m_stealSPPenalty
+// 偏移互换修正（ORIG SetStealLevelPenalty 读 +0x1f4、SetStealSPPenalty 读 +0x1f0）；
+// ④m_growType[6] 具名子对象替代裸偏移（ORIG `shl $2; lea; add $0x24; mov -0x364(,%e,4)`）；
+// ⑤need_sp/sfp、learned、vec204/210 循环 size 缓存+int 比较、secondGrowType 嵌套 if（P225）、
+// m_stealable bool、pre.m_group 删发明写入（P171）、主循环 it 提函数头（ORIG C1Ev 仅一次）、
+// 死计数器 -0x78 照抄、push_back(int&&) 临时右值（ORIG 0x0808e1ee 实证）。
+// 残差为 N7 寄存器分配/N82 槽位族 ⇒ 语义完成、byte 层封顶。
 bool CSkillList::init()  // [P330 int→bool] 与 CDataManager.h 声明同步（ORIG caller xor $1 形）
 {
-    // [b28d-solo-CListTables N(§6.2/N82)] 866/880 + p167 CLEAR(111/111)：主循环/
-    // 尾循环迭代器 C1Ev+ppEi、s2/s3/s4 Import 与 insert 各自 printf、push_back(Oi)
-    // 右值 全部对齐；残差为槽位/块形差 ⇒ 按超大函数三件套封顶。
+    // [b28d-solo-CListTables] 866/866 + p167 CLEAR(111/111) ⇒ gap=0。
     STSkillScript script;
     CSkill* skill = 0;
     sync_script::GetInstanceSyncScript()->truncate_skill_index();
     sync_script::GetInstanceSyncScript()->trancate_skill_info();
-    int job = 0;
-    int path = 0;
+    // [b28d-solo-CListTables] ORIG 0x08350c40/0x08350c61：-0x78 与 path(-0x74) 两处
+    // 清零；-0x78 在内层循环尾每轮 +1（0x083517f4）且全函数无读取点 ⇒ 原码遗留死
+    // 计数器（P171 照抄死写入）。
+    int scriptCount = 0;
+    // [b28d-solo-CListTables] ORIG 0x08350cbc 存 c_str() 指针于 -0x74 并 `cmpl $0`
+    // ⇒ path 是 char*（旧实现用 int 存指针 + cast，实参装载序与 ORIG 相反）。
+    const char* path = 0;
+    // [b28d-solo-CListTables P309] ORIG 深区槽序：it(-0xa8) 深于 pre(-0xa4..-0x9c)
+    // ⇒ 4.4 函数头声明「先声明浅」，pre 声明在 it 之前即可复现（pre 为 POD，
+    // 提头无构造副作用；循环内仅赋值）。
+    _pre_skill pre;
+    // [b28d-solo-CListTables] ORIG 0x08350c78：主循环 map 迭代器 C1Ev 只在函数头
+    // 执行一次（循环外声明，-0xa8）；循环体内仅 begin() 赋值。
+    std::map<int, std::string>::iterator it;
+    int job;
     for (job = 0; job <= 10; ++job)
     {
-        // [b28d-solo-CListTables] ORIG：主循环 map 迭代器先 C1Ev 后 begin() 赋值
-        // （P50）+ 尾后置 it++（ppEi，P28）。
-        std::map<int, std::string>::iterator it;
+        // [b28d-solo-CListTables] ORIG：循环体内 begin() 赋值 + 尾后置 it++（ppEi，P28）。
         it = g_staSkillScriptFileList[job].begin();
         while (it != g_staSkillScriptFileList[job].end())
         {
-            path = (int)it->second.c_str();
+            path = it->second.c_str();
             if (path == 0)
             {
                 break;
             }
-            if (!ImportSkillScript(&script, (const char*)path, (ENUM_CHARACTERJOB)job, 0, -1))
+            if (!ImportSkillScript(&script, path, (ENUM_CHARACTERJOB)job, 0, -1))
             {
-                printf("Skill Script Error: %s\n", (const char*)path);
+                printf("Skill Script Error: %s\n", path);
                 return 0;
             }
             if (!sync_script::GetInstanceSyncScript()
                      ->insert_skill_index(&script, job))
             {
-                printf("insert_skill_index Error: %s\n", (const char*)path);
+                printf("insert_skill_index Error: %s\n", path);
                 return 0;
             }
             if (sync_script::GetInstanceSyncScript()->IsEnable())
@@ -1015,46 +1094,45 @@ bool CSkillList::init()  // [P330 int→bool] 与 CDataManager.h 声明同步（
                 if (!sync_script::GetInstanceSyncScript()
                          ->insert_skill_info(&script, job, 0))
                 {
-                    printf("insert_skill_info Error: %s\n",
-                           (const char*)path);
+                    printf("insert_skill_info Error: %s\n", path);
                     return 0;
                 }
                 STSkillScript s2;
                 // [b28d-solo-CListTables] ORIG 0x08350e20/0x08350e6f：Import 与
                 // insert_skill_info 各自独立 printf（两条消息串不同）。
-                if (!ImportSkillScript(&s2, (const char*)path, (ENUM_CHARACTERJOB)job, 4, -1))
+                if (!ImportSkillScript(&s2, path, (ENUM_CHARACTERJOB)job, 4, -1))
                 {
-                    printf("Skill Script Error: %s\n", (const char*)path);
+                    printf("Skill Script Error: %s\n", path);
                     return 0;
                 }
                 if (!sync_script::GetInstanceSyncScript()
                          ->insert_skill_info(&s2, job, 4))
                 {
-                    printf("insert_skill_info Error: %s\n", (const char*)path);
+                    printf("insert_skill_info Error: %s\n", path);
                     return 0;
                 }
                 STSkillScript s3;
-                if (!ImportSkillScript(&s3, (const char*)path, (ENUM_CHARACTERJOB)job, 6, -1))
+                if (!ImportSkillScript(&s3, path, (ENUM_CHARACTERJOB)job, 6, -1))
                 {
-                    printf("Skill Script Error: %s\n", (const char*)path);
+                    printf("Skill Script Error: %s\n", path);
                     return 0;
                 }
                 if (!sync_script::GetInstanceSyncScript()
                          ->insert_skill_info(&s3, job, 6))
                 {
-                    printf("insert_skill_info Error: %s\n", (const char*)path);
+                    printf("insert_skill_info Error: %s\n", path);
                     return 0;
                 }
                 STSkillScript s4;
-                if (!ImportSkillScript(&s4, (const char*)path, (ENUM_CHARACTERJOB)job, 11, -1))
+                if (!ImportSkillScript(&s4, path, (ENUM_CHARACTERJOB)job, 11, -1))
                 {
-                    printf("Skill Script Error: %s\n", (const char*)path);
+                    printf("Skill Script Error: %s\n", path);
                     return 0;
                 }
                 if (!sync_script::GetInstanceSyncScript()
                          ->insert_skill_info(&s4, job, 11))
                 {
-                    printf("insert_skill_info Error: %s\n", (const char*)path);
+                    printf("insert_skill_info Error: %s\n", path);
                     return 0;
                 }
             }
@@ -1067,7 +1145,9 @@ bool CSkillList::init()  // [P330 int→bool] 与 CDataManager.h 声明同步（
             skill->set_skill_type(script.m_skillType);
             skill->set_level_limit(script.m_levelLimit);
             skill->m_fieldC8 = script.m_field34;
-            skill->SetStealable(script.m_stealable != 0);
+            // [b28d-solo-CListTables] ORIG 0x08351179 `movzbl; movzbl %al` 直传
+            // （无 setne）⇒ m_stealable 为 bool 字段、实参直读。
+            skill->SetStealable(script.m_stealable);
             skill->SetStealLevelPenalty(script.m_stealLevelPenalty);
             skill->SetStealSPPenalty(script.m_stealSPPenalty);
             for (unsigned int i = 0; i < script.m_fitGrowType.size(); ++i)
@@ -1082,13 +1162,18 @@ bool CSkillList::init()  // [P330 int→bool] 与 CDataManager.h 声明同步（
             {
                 skill->set_type_max_level(i, script.m_typeMaxLevel[i]);
             }
-            for (int i = 0; i <= 1; ++i)
+            // [b28d-solo-CListTables] ORIG 0x08351307 `cmpl $0x1; setbe` ⇒ unsigned。
+            for (unsigned int i = 0; i <= 1; ++i)
             {
-                if (!script.m_secondGrowType.empty() &&
-                    (unsigned int)i < script.m_secondGrowType.size())
+                // [b28d-solo-CListTables P225 推广] ORIG 两条件各自 `setX; test; je`
+                // （0x083512aa/0x083512c7）⇒ 拆嵌套 if，`&&` 短路会被 4.4 折成直跳。
+                if (!script.m_secondGrowType.empty())
                 {
-                    skill->set_fitness_second_growtype(
-                        i + 1, script.m_secondGrowType[i]);
+                    if ((unsigned int)i < script.m_secondGrowType.size())
+                    {
+                        skill->set_fitness_second_growtype(
+                            i + 1, script.m_secondGrowType[i]);
+                    }
                 }
             }
             for (int i = 0; i <= 5; ++i)
@@ -1096,8 +1181,7 @@ bool CSkillList::init()  // [P330 int→bool] 与 CDataManager.h 声明同步（
                 for (int j = 0; j <= 1; ++j)
                 {
                     skill->set_second_growtype_fitness(
-                        i, j + 1, *(int*)((char*)&script + 0x94 +
-                                          (i * 4 + j) * 4));
+                        i, j + 1, script.m_growType[i].m_0[j]);
                 }
             }
             for (int i = 0; i <= 5; ++i)
@@ -1105,67 +1189,82 @@ bool CSkillList::init()  // [P330 int→bool] 与 CDataManager.h 声明同步（
                 for (int j = 0; j <= 1; ++j)
                 {
                     skill->set_second_growtype_max_level(
-                        i, j + 1, *(int*)((char*)&script + 0x9c +
-                                          (i * 4 + j) * 4));
+                        i, j + 1, script.m_growType[i].m_8[j]);
                 }
             }
-            for (unsigned int i = 0; i < script.m_vec44.size(); ++i)
+            // [b28d-solo-CListTables 真语义 bug 修复] ORIG 0x083513de/0x0835143b：
+            // need_sp 读 script+0x18、need_sfp 读 script+0x24（旧实现错读 +0x44/+0x50）。
+            // 循环形：size 先缓存具名局部（-0x6c/-0x68），比较 `setl`（signed）。
+            int needSpCount = script.m_needSp.size();
+            for (int i = 0; i < needSpCount; ++i)
             {
-                skill->add_need_sp(script.m_vec44.at(i));
+                skill->add_need_sp(script.m_needSp.at(i));
             }
-            for (unsigned int i = 0; i < script.m_vec50.size(); ++i)
+            int needSfpCount = script.m_needSfp.size();
+            for (int i = 0; i < needSfpCount; ++i)
             {
-                skill->add_need_sfp(script.m_vec50.at(i));
+                skill->add_need_sfp(script.m_needSfp.at(i));
             }
-            for (unsigned int i = 0; i < script.m_vec44.size(); ++i)
+            int preSkillCount = script.m_vec44.size();
+            for (int i = 0; i < preSkillCount; ++i)
             {
-                _pre_skill pre;
                 pre.m_index = script.m_vec44.at(i);
                 pre.m_jobType = script.m_vec50.at(i);
-                pre.m_group = *(int*)((char*)&script + 0x2cc);
+                // [P171 照抄] ORIG 0x083514fd 直读栈槽 -0x9c（= pre+0x08）且全函数
+                // 无写入点 ⇒ 原码未给 m_group 赋值，不得补写（旧实现多一条 store）。
                 skill->add_learned_skill(pre);
             }
-            for (unsigned int i = 0; i < script.m_vec204.size(); ++i)
+            int guildGspCount = script.m_vec204.size();
+            for (int i = 0; i < guildGspCount; ++i)
             {
-                // [b28d-solo-CListTables] ORIG push_back(Oi) 右值重载（p167）。
-                skill->m_guildSkillNeedGSP.push_back(
-                    static_cast<int&&>(script.m_vec204.at(i)));
+                // [b28d-solo-CListTables] ORIG 0x08111126 = push_back(int const&)
+                // （nm 实证）；实参为 at() 返回的 int&（`mov %eax,0x4(%esp)`），
+                // 旧实现用 static_cast<int&&> 会多一次解引用+临时槽。
+                skill->m_guildSkillNeedGSP.push_back(script.m_vec204.at(i));
             }
-            for (unsigned int i = 0; i < script.m_vec210.size(); ++i)
+            int guildGoldCount = script.m_vec210.size();
+            for (int i = 0; i < guildGoldCount; ++i)
             {
                 skill->m_guildSkillNeedGold.push_back(script.m_vec210.at(i));
             }
             skill->m_needGuildLevel = script.m_field3c;
             skill->m_needGuildLevelAdd = script.m_field40;
-            skill->m_field104 = *(int*)((char*)&script + 0x14);
+            skill->m_field104 = script.m_field14;
             for (unsigned int i = 0; i < script.m_fitnessTable.size(); ++i)
             {
                 std::vector<int> vec;
                 for (unsigned int j = 0;
                      j < script.m_fitnessTable[i].size(); ++j)
                 {
-                    int v = (int)script.m_fitnessTable[i].at(j);
-                    vec.push_back(v);
+                    // [b28d-solo-CListTables] ORIG 0x083516a3 调 0x0808e1ee =
+                    // vector<int>::push_back(int&&)（nm 实证）：实参是 ROUND 截断的
+                    // **临时右值**（先 `mov %eax,-0x94` 再传 &-0x94）⇒ 原码内联
+                    // 临时表达式，具名 int 局部会改选 push_back(int const&) 并丢
+                    // 3 个弱实例符号（AE 账 -3）。
+                    vec.push_back((int)script.m_fitnessTable[i].at(j));
                 }
                 skill->m_field108.push_back(vec);
             }
             skill->m_isSpecialSkill = script.m_field260;
             skill->m_keyCommandList = script.m_keyCmd;
-            *(char*)((char*)skill + 0x130) = script.m_field280;
+            // [b28d-solo-CListTables] CSkill.h:136 具名字段（ORIG 0x08351779
+            // `movzbl -0xe8; mov %dl,0x130` 单条 disp store）。
+            skill->m_isCommandCustomizing = script.m_field280;
             skill->setSkillName(script.m_name.c_str());
             skill->m_pvpSkillGrade = script.m_field38;
             insert_skill(job, skill);
             it++;
+            scriptCount++;
         }
     }
     for (int i = 0; i <= 10; ++i)
     {
         // [b28d-solo-CListTables] ORIG：尾部循环迭代器先 C1Ev 后 begin() 赋值
-        // （P50）+ 后置 ++it（ppEi，P28）。
+        // （P50）+ 条件区每轮重调 end()（sret -0x8c，无具名 end 缓存）+ 后置
+        // ++it（ppEi，P28）。
         __gnu_cxx::hash_map<int, CSkill*>::iterator it;
         it = m_skillList[i].begin();
-        __gnu_cxx::hash_map<int, CSkill*>::iterator end = m_skillList[i].end();
-        while (it != end)
+        while (it != m_skillList[i].end())
         {
             skill = it->second;
             skill->set_prelearned_skill();
@@ -1459,12 +1558,11 @@ void QuestList::select_quest(std::list<int>& out, stSelectQuestParam& param,
     allowable_questlist_as_npc(out, m_npcQuestList5, param, clear, false);
 }
 
-// [b28d-solo-CListTables N(P248档①/P168a) DIFF] ORIG 0x0835556c：131/133 + p167
-// CLEAR(16/16)。已修：range 提到函数头（C1Ev 在循环外）、三守卫独立 goto + 尾标签串
-// （P223 多岛，ORIG +0x136/+0x139/+0x13c 三 nop 岛复现）、flag 短路改
-// `if (flag) goto DO_PUSH`。残差 +2：①Check_Quest 返回 int 而 ORIG `xor $1;
-// test %al` 为 bool（声明在共享头 CDataManager.h:3040 ⇒ 上报 Main）；②flag 取反
-// 物化（ORIG movzbl+xor vs 4.4 cmpb，P168a③b 跨版本 bool ABI）⇒ 封顶。
+// [b28d-solo-CListTables 修复] ORIG 0x0835556c：131/131（gap=0）+ p167 CLEAR(16/16)。
+// 已修：range 提到函数头（C1Ev 在循环外）、三守卫独立 goto + 尾标签串（P223 多岛，
+// ORIG +0x136/+0x139/+0x13c 三 nop 岛复现）、flag 守卫改嵌套 `if (!flag) {...}`
+// 复现 ORIG `movzbl -0x3c; xor $1; test %al; je`（旧 `if (flag) goto DO_PUSH` 被
+// 4.4 折成 `cmpb $0; jne`）。残差仅 it/range/param 槽位差（N82 族）⇒ 封顶。
 void QuestList::allowable_questlist_as_npc(
     std::list<int>& out, const std::multimap<int, int>& npcList,
     stSelectQuestParam& param, const WongWork::CQuestClear& clear, bool flag)
@@ -1493,10 +1591,14 @@ void QuestList::allowable_questlist_as_npc(
                 goto SKIP_NULL_QUEST;
             if (!Check_Quest(quest, param, clear))
                 goto SKIP_CHECKQ_FAIL;
-            if (flag)
-                goto DO_PUSH;
-            if (!check_clear(param.m_questIdx, clear))
-                goto SKIP_CLEAR_FAIL;
+            // [b28d-solo-CListTables P168a/P194] ORIG 0x083556.. `movzbl -0x3c;
+            // xor $1; test %al; je`（bool 形参取反物化）⇒ 写嵌套 `if (!flag)`，
+            // 旧 `if (flag) goto DO_PUSH;` 被 4.4 折成 `cmpb $0; jne`（2 条）。
+            if (!flag)
+            {
+                if (!check_clear(param.m_questIdx, clear))
+                    goto SKIP_CLEAR_FAIL;
+            }
         DO_PUSH:
             out.push_back(param.m_questIdx);
         SKIP_NULL_QUEST:;
@@ -1567,22 +1669,28 @@ END1:;
 // [b28d-32 P282 修复] ORIG 0x08353fb5 `vptr+0xc` 虚槽 = CItem vtable slot 3 =
 // GetItemType()（CItem.h:45，槽序 ~CItem×2/make_item/GetItemType）；旧实现用
 // static getQuestItemType 手动 vtbl[3] 调用（发明符号+手动虚调，违 §4.5）已删，
-// 改为真实 `item->GetItemType() == 8`。残差 N89 内联差 991/983。
-// [b28d-solo-CListTables §6.2 N 封顶] ORIG 0x08353ec8：991/992（gap=1）+ p167
-// CLEAR(122/122) + 逐块同构（make_pair→value_type(9)/const_iterator(2)/(*mit)/
-// size() 内联/直接 set_quest 全对齐），仅剩槽位与 STL 内联形差 ⇒ 语义完成、封顶。
+// 改为真实 `item->GetItemType() == 8`。
+// [b28d-solo-CListTables 修复 + §6.2 N 封顶] ORIG 0x08353d98：991/997（gap=6）
+// + p167 CLEAR(122/122)。本轮真修复：①QuestScript 镜像 m_mapIdx2 前缺 4B pad
+// ⇒ m_questDataType/+0x178、m_questData/+0x180、m_dailySchedule/+0x2dc 全体少 4
+// （**读错字段**；ORIG 0x0835408a/0x08354193/0x08353e9b 实证）；②镜像 sizeof
+// 0x30c（帧 0x76c + script@-0x734 实证）；③函数头构造/清零序 it C1Ev → script
+// C1Ev → quest=0 → mit C1Ev → item=0；④尾部循环 q 循环外清零；⑤补 ORIG 死局部
+// -0x422(int)/-0x41e(short)（P171 照抄）；⑥enemyType int+显式 unsigned 比较复现
+// 两段寄存器比较（P310）。残差 6 条 = logFormat 变参 size/questDataType 的寄存器
+// 分配（N7：ORIG 直载 %edx，4.4 恒多 `mov %eax,%edx`）+ N87 `and $0x1f` +
+// N6 位折叠（4.4 sar+and$1 vs 4.1 shl+and$0x40e）⇒ 语义完成、byte 层封顶。
 bool QuestList::load_list()
 {
-    // [b28d-solo-CListTables N(§6.2/N82/N89)] 991/992 + p167 CLEAR(122/122) + gap=1：
-    // P282 vptr+0xc 虚槽已对齐（双侧 `add $0xc; mov (%eax),%edx; call *%edx`）；
-    // make_pair→value_type(9)、const_iterator(2)、(*mit)、size() 内联、直接
-    // set_quest 全部对齐；残差仅槽位/STL 内联形 ⇒ 封顶。
+    // [b28d-solo-CListTables] ORIG 0x08353da4..0x08353dd8 函数头构造/清零序：
+    // it C1Ev(-0x40c) → script C1Ev(-0x734) → quest=0(-0x410) → mit C1Ev(-0x414)
+    // → item=0(-0x40) → truncate 调用 ⇒ 声明序照此排列（4.4 按声明序发射）。
+    std::map<int, std::string>::iterator it;
     QuestScript script;
     Quest* quest = 0;
+    std::vector<MonsterKillItem>::iterator mit;
+    CItem* item = 0;
     sync_script::GetInstanceSyncScript()->truncate_quest_category();
-    // [b28d-solo-CListTables] ORIG 0x08353c..：主循环 map 迭代器先 C1Ev 默认构造
-    // 再 begin() 赋值（P50 复活）+ 尾部后置 it++（ppEi，P28）。
-    std::map<int, std::string>::iterator it;
     it = g_questScriptFileList.begin();
     while (it != g_questScriptFileList.end())
     {
@@ -1609,12 +1717,11 @@ bool QuestList::load_list()
         if (!script.m_monsterKillList.empty())
         {
             // [b28d-solo-CListTables] ORIG 用非 const iterator + deEv（P167：it-> 改 (*it).）
-            // + 先 C1Ev 后赋值 + 尾后置 mit++（ppEi，P28/P50）。
-            std::vector<MonsterKillItem>::iterator mit;
+            // + 函数头已 C1Ev、此处仅赋值 + 尾后置 mit++（ppEi，P28/P50）。
             mit = script.m_monsterKillList.begin();
             while (mit != script.m_monsterKillList.end())
             {
-                CItem* item = G_CDataManager()->find_item((*mit).m_itemIdx);
+                item = G_CDataManager()->find_item((*mit).m_itemIdx);
                 if (item == 0)
                 {
                     LogManager::logFormat(
@@ -1661,6 +1768,10 @@ bool QuestList::load_list()
             // + ppEi + ne(const,const)）。
             std::vector<int>::const_iterator vit = script.m_questData.begin();
             std::vector<int>::const_iterator vend = script.m_questData.end();
+            // [P171/P232 照抄] ORIG 0x083541ec/0x083541f6 在循环前写
+            // -0x422(int)/-0x41e(short) 两个死局部（全函数无读取点）。
+            int deadQuestData = 0;
+            short deadQuestData2 = 0;
             while (vit != vend)
             {
                 int v1 = *vit++;
@@ -1668,9 +1779,12 @@ bool QuestList::load_list()
                 int v3 = *vit++;
                 if (script.m_questDataType == 6)
                 {
-                    unsigned int enemyType = *vit++;
-                    if (enemyType > 10 || ((1 << (enemyType & 0x1f)) & 0x40e)
-                                              == 0)
+                    // [b28d-solo-CListTables P310] ORIG 0x083542eb `mov -0x28,%eax;
+                    // cmp $0xa,%eax; ja` 两段寄存器比较（unsigned 局部被 4.4 折成
+                    // mem 直比）⇒ 局部声明 int + 比较处显式 (unsigned int)。
+                    int enemyType = *vit++;
+                    if ((unsigned int)enemyType > 10 ||
+                        ((1 << (enemyType & 0x1f)) & 0x40e) == 0)
                     {
                         LogManager::logFormat(
                             1, "data_manager.cpp", __PRETTY_FUNCTION__,
@@ -1853,12 +1967,15 @@ bool QuestList::load_list()
     }
     if (!m_vecD4.empty())
     {
+        // [b28d-solo-CListTables] ORIG 0x08354c82 `movl $0x0,-0x1c` 循环外清零 +
+        // 循环内 `q = find_quest()`（0x08354cde）⇒ q 声明在循环外。
+        Quest* q = 0;
         // [b28d-solo-CListTables] ORIG 用 const_iterator（p167: C1IPi 共 2 处）。
         for (std::vector<int>::const_iterator it = m_vecD4.begin();
              it != m_vecD4.end(); ++it)
         {
             int questIdx = *it;
-            Quest* q = find_quest(questIdx);
+            q = find_quest(questIdx);
             if (q != 0)
             {
                 if (q->m_mailFlag == -1)
