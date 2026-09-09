@@ -214,10 +214,12 @@ stCompoundRate* CExpertJob::GetSuccessRate(CUser* user, CStackableItem const* it
 // IsSuccess @ 0x849b462：base 成功率 = rate->m_successRate + variation；
 // 随机 100 < base 则成功：resultExp ∈ [expMin, expMax]，再加
 // GetExpertJobAddtionalExp 的额外经验（概率 m_field0，量 m_field4）。
-// [b28d-solo-CExpertJob] N85 封顶（93/92）：书写序旋钮
-//   `base > get_rand_int(100)` 复现 ORIG 0x0849b49c 的 %ebx 免槽跨 call 保活
-//   （lea/cmp/setg 段逐条全等）；剩余 = x87 比较 lowering（4.1
-//   fucompp/fnstsw/test/sete vs 4.4 fucomip/fstp/seta，语义等价，N85 判例）。
+// [b28d-solo-CExpertJob] 书写序旋钮：`base > get_rand_int(100)` 复现 ORIG
+//   0x0849b49c 的 %ebx 免槽跨 call 保活（lea/cmp/setg 段逐条全等）。
+// [SweepCExpertJob 2026-09-09] 剩余 1 条 = x87 比较 lowering（4.1
+//   `fucompp; fnstsw %ax; test $0x45,%ah; sete` vs 4.4.7 默认
+//   `fucomip %st(1),%st; fstp %st(0); seta`），非源码可择；`-march=i486
+//   -mtune=generic` 下 4.4.7 直出 ORIG 形 ⇒ AE（93=93 尺寸全等）。
 //   p167 CLEAR。ORIG 0x0849b462
 bool CExpertJob::IsSuccess(CUser* user, CStackableItem const* item, int& resultExp)
 {
@@ -437,23 +439,22 @@ bool CCharacExpertJob::InitScript(STExpertJobScript* script)
 
 // get_recipe 0x0832b306：idx = index/8（带符号除），越界(<0 || >0x1d)返回 0；
 // 返回 bitmap 第 (index%8) 位。
-// b28c-1 N97: 手写除形后余 mov/sar/shr/lea vs 4.4 sar/shr/add 寄存器选择差。
-// [b28d-62] N97：有符号 /8 lowering（4.1 mov/sar/shr/lea vs 4.4 覆盖 %eax 回读
-//   形参）；返回类型改 bool 后调用点 xor $1 形归零。ORIG 0x0832b306
-// [b28d-solo-CExpertJob] N97 复核（fresh .o 逐条对齐）：剩余仅 idx 段 5 vs 6 条
-//   （4.1 index 留 %eax/sign 走 %edx/lea vs 4.4 覆盖 %eax/add mem 回读）+ 尾 nop。
-//   本轮再试 `(unsigned)index>>31>>29`(折 35 条更劣)、`(index>>31)&7`(sar/and/add
-//   更劣)、去 (int) 版(shr 逻辑右移，语义错) ⇒ 维持封顶。
+// [b28d-62] 返回类型改 bool 后调用点 xor $1 形归零。ORIG 0x0832b306
+// [b28d-solo-CExpertJob] N97 定位：残差仅 idx 段（ORIG 4.1 `mov %eax,%edx;
+//   sar/shr; lea (%edx,%eax,1); sar $3` 6 条 vs 默认旗标 4.4.7 `sar/shr %eax;
+//   add 0xc(%ebp),%eax` 5 条）。
+// [SweepCExpertJob 2026-09-09] 真因=旗标而非源码形：`-march=i486 -mtune=generic`
+//   下 4.4.7 对**自然形** `index/8` 直出 ORIG 逐条 6 条形（函数尺寸 0x65=ORIG，
+//   逐条相同 ⇒ AE）。四组实测（源码形×旗标两变量，逐函数 verdict 全表比对）：
+//     手写 sign 形 + 默认旗标 = 本注释历史形（DIFF）；
+//     `index/8` + 默认旗标 = 与前者逐函数读数完全相同（零回退，TU 36/45/0/5）；
+//     手写 sign 形 + i486 = 仍 DIFF（4.4 覆盖 %eax 回读形不变）；
+//     `index/8` + i486 = **AE**（TU 36/45/0/5 → 37/47/0/2，无任一函数劣化）。
+//   ⇒ 源码保持自然形 `index/8`，旗标由 Main 路由表落（同 CUserCharacInfo/
+//   PvP_Room 的 i486 先例）。p167 CLEAR。
 bool CCharacExpertJob::get_recipe(int index) const
 {
-    // [b28d-62] N97 封顶（三形实测）：ORIG 0x0832b30d `mov %eax,%edx; sar $0x1f,%edx;
-    //   shr $0x1d,%edx; lea (%edx,%eax,1),%eax; sar $3`（4.1 有符号 /8 lowering，
-    //   index 留 %eax、sign 走 %edx）；本形 4.4 恒覆盖 %eax 再回读形参
-    //   (`sar/shr %eax; add 0xc(%ebp),%eax`，38 条，差 1 条 + 寄存器名)；
-    //   `index/8` 生 cmovs 版（N97 原文）、`(unsigned)index>>31>>29` 被折成 35 条
-    //   更劣、裸 register 使 idx 免槽且比较改寄存器版（39 vs 38 但槽位全错）
-    //   ⇒ 源形不可造，语义等价封顶（ORIG 0x0832b306）。
-    int idx = (index + (int)(((unsigned int)(index >> 31)) >> 29)) >> 3;
+    int idx = index / 8;
     int bit = index % 8;
     if (idx < 0 || idx > 0x1d)
         return 0;
@@ -461,18 +462,15 @@ bool CCharacExpertJob::get_recipe(int index) const
 }
 
 // set_recipe 0x0832b264：未置位则置位并返回 1；已置位返回 0。
-// b28c-1 N97: 同上（手写 (index+((uint)(index>>31)>>29))>>3 已消 cmovs）。
-// [b28d-62] N97：同 get_recipe（三形实测）。ORIG 0x0832b264
-// [b28d-solo-CExpertJob] N97 复核（fresh .o 逐条对齐）：剩余仅 idx 段 5 vs 6 条
-//   （同 get_recipe：4.1 mov/sar/shr/lea vs 4.4 sar/shr/add mem），其余 61 条全等
-//   （含 P222 负极早返 set 岛形）；三形复测维持封顶。
+// [b28d-solo-CExpertJob] N97 定位：残差仅 idx 段 5 vs 6 条（同 get_recipe），
+//   其余 61 条全等（含 P222 负极早返 set 岛形）。ORIG 0x0832b264
+// [SweepCExpertJob 2026-09-09] 同 get_recipe：真因=旗标。`-march=i486
+//   -mtune=generic` 下 `index/8` 直出 ORIG 逐条 6 条形 ⇒ **IDENTICAL**
+//   （函数尺寸 0xa2=ORIG，全 62 条逐条相同）；默认旗标下 `index/8` 与手写
+//   sign 形读数逐函数相同（零回退）。旗标由 Main 路由表落。p167 CLEAR。
 int CCharacExpertJob::set_recipe(int index)
 {
-    // [b28d-62] N97 封顶（同 get_recipe 三形实测）：ORIG 0x0832b26b 为 4.1 有符号
-    // /8 lowering `mov %eax,%edx; sar $0x1f,%edx; shr $0x1d,%edx; lea (%edx,%eax,1),
-    // %eax; sar $3`；本手写 sign 形 4.4 恒覆盖 %eax 后回读形参（差 1 条 + 寄存器名），
-    // `index/8` 生 cmovs、裸 register 使 idx 免槽 ⇒ 语义等价封顶（ORIG 0x0832b264）。
-    int idx = (index + (int)(((unsigned int)(index >> 31)) >> 29)) >> 3;
+    int idx = index / 8;
     int bit = index % 8;   // ORIG 保留完整除余链（mov/sar/shr/add/and/sub）
     if (idx < 0 || idx > 0x1d)
         return 0;

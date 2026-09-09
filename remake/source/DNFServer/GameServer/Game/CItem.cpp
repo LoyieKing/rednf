@@ -1,18 +1,11 @@
 // df_game_r CItem 还原（I1 批次，2026-08-16）。
 // 函数形态以 docs/class_func_reports/CItem.md + ORIG weak 访问器反汇编为准
 // （AE 口径：调用目标归一；字段偏移/常量逐条一致）。
-// 依赖的 NeedMaterialDataManager 由 GameStubs.cpp 提供桩。
+// NeedMaterialDataManager 走权威头（完整定义 + 实现落 NeedMaterialDataManager.cpp），
+// 本 TU 不再重复声明（§4.4 单一声明点；两处调用 mangled 一致，零行为变化）。
 
 #include "CItem.h"
-
-// ===================== 外部依赖（其它 TU 提供） =====================
-
-class NeedMaterialDataManager
-{
-public:
-    static NeedMaterialDataManager* getInstance();
-    CItem* getNeedMaterial(const CItem* item) const;
-};
+#include "NeedMaterialDataManager.h"
 
 // ===================== 报告函数（CItem.md） =====================
 

@@ -434,7 +434,8 @@ case "$(basename "$src" .cpp)" in
                 exec "$C6446R" "$@" ;;
             *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp | *Game/STEquipmentScript.cpp | *Game/CCreatureMgr.cpp | *Game/OnlyOrigBatch12_rand_r.cpp | *Game/OnlyOrigBatch12_security_server.cpp | *Game/OnlyOrigBatch12_server_utility.cpp | *Game/STMonsterScript.cpp | *Game/PvP_Room.cpp | *Game/ItemVendingMachine_Auction.cpp | *Game/GameWorld.cpp | \
             *Game/CFairMatch.cpp | *Game/CEquipItem.cpp | *Game/CAccountCargo.cpp | \
-            *Game/CUserCharacInfo.cpp | *Game/ScriptDepsA.cpp)
+            *Game/CUserCharacInfo.cpp | *Game/ScriptDepsA.cpp | \
+            *Game/CExpertJob.cpp)
                 # b28d-6：ORIG CompareRating 的 x87 比较为 fucompp/fnstsw/sahf；4.4 需
                 # -march=i486 才出该 lowering（P230 补）。实测 TU ae 51→52 / diff 24→23。
                 # b28d-D44：LinkMiscSecuTimerSolo::GetMarketConditionRate 同族 x87 比较，
@@ -469,6 +470,10 @@ case "$(basename "$src" .cpp)" in
                 # x87 比较（ORIG fucompp/fnstsw/sahf）；该旗标下 BuyAuctionItem 413→461
                 # （ORIG 462，gap 49→1）、20 处 fucompp 同形，TU 四数 1/5/1/2 不变（零回归）。
                 # b28d-Main 旗标实验：GameWorld 在该旗标下 ae 451→452 / diff 14→13（零回归）。
+                # b28d-SweepCExpertJob（Main 独立核验）：CExpertJob 的 IsSuccess 需
+                # fucompp/fnstsw/sahf（x87 比较）+ get_recipe/set_recipe 的 index/8 有符号
+                # 除 2^k 需 i486 关 cmovs。三函数尺寸 0x12d/0x65/0xa2 与 ORIG 全等，
+                # set_recipe 全 62 条字节相同；TU 36/45/0/5 → **37/47/0/2** 零回归。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
             *Game/CExpandEquipslot.cpp)
                 # CExpandEquipslot：loadData 虚调用寄存器形态需 4.4.6
