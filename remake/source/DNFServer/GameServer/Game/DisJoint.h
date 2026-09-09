@@ -78,15 +78,36 @@ public:
     LotteryInfo m_legacyInfo[4];              // +0x3c（[legacy info]，步长 0x20）
     int m_skillSelect;                        // +0xbc（clear=-1；[skill info] 首值）
     std::vector<DisjointSkillScript> m_skills;  // +0xc0（[skill info] 行集）
-    float m_fieldCC;                          // +0xcc（[skill prob] 第 1 浮点；clear 置 0）
-    float m_skillProbD0;                      // +0xd0（[skill prob] 第 2 浮点；clear 置 0）
-    char m_padD4[0xe0 - 0xd4];                // +0xd4..0xdf（未建模，clear/import 均不触）
-    int m_avatarDisjoint[11][4][5];           // +0xe0（[avatar disjoint info]
+    // [SweepCtorProd2] 匿名 union 双视角（P235/P246）：ORIG clear 0x08375c5d..0x8375c7c
+    // 是 2 元素循环 `mov i,%edx; mov this,%eax; lea 0x30(%edx),%ecx; mov $0,%edx;
+    // mov %edx,0xc(%eax,%ecx,4)`（= this+0xcc+4i，成员数组寻址形；探针 /tmp/probe_v.cc
+    // 实测成员数组 @+0xcc 在 4.4.7 下逐条复现）⇒ 原码是两个 float 的**数组成员**。
+    // union 保留原字段名供 ScriptDepsA.cpp [skill prob] 消费点（365-366）与
+    // importDisjointScript 不变；两视角同为 2×float = 8B ⇒ sizeof(0x628)/全部偏移/
+    // mangled 零变化，成员全 POD 无别名风险（别名安全论证）。
+    union
+    {
+        struct
+        {
+            float m_fieldCC;                  // +0xcc（[skill prob] 第 1 浮点）
+            float m_skillProbD0;              // +0xd0（[skill prob] 第 2 浮点）
+        };
+        float m_skillProb[2];                 // +0xcc 数组视角（clear 的 2 元素循环用）
+    };
+    // [b28d-solo-ScriptDepsA] 数组基准修正 -0xc：ORIG clear 0x08375cbe 与
+    // importDisjointScript 0x088e53cc 均以 `...,0x4(%reg,%eax,4)`、eax 含元素常量
+    // 0x34 寻址 ⇒ 基准 = 4 + 0x34*4 = 0xd4（紧随 +0xd0 无缝），旧 m_padD4[0xc]
+    // 使两数组整体后移 0xc（运行时读写错位）。parts 基准 0x444 = 0xd4+0x370
+    // （[11][4][5] 大小自洽），clear 的 grade 循环 0..3 ⇒ 需 4 行。
+    // 写序（Main 裁决）：本段由 SweepScriptDepsA **先落**；+0xcc/+0xd0 的
+    // `m_skillProb[2]` 匿名 union 视角由 SweepCtorProd2 后续追加（两者正交）。
+    int m_avatarDisjoint[11][4][5];           // +0xd4（[avatar disjoint info]
                                               //      [job 0..10][grade 0..3][slot 0..4]，
                                               //      导入使用 grade 1..3，clear 全清零）
-    int m_avatarPartsDisjoint[3][10];         // +0x450（[avatar disjoint for parts info]
-                                              //      [grade-1][parts 0..9]）→ 止于 0x4c8
-    char m_pad4c8[0x534 - 0x4c8];             // +0x4c8..0x533（未建模）
+                                              //      → 止于 0x444
+    int m_avatarPartsDisjoint[4][10];         // +0x444（[avatar disjoint for parts info]
+                                              //      [grade 0..3][parts 0..9]）→ 止于 0x4e4
+    char m_pad4e4[0x534 - 0x4e4];             // +0x4e4..0x533（未建模）
     int m_creationConst;                      // +0x534（[cube creation const] 首值）
     float m_creationRate[6];                  // +0x538..0x54f（[cube creation const] 概率）
     // [additional result const] 区（importDisjointScript 0x088e4d88 写入实证）：

@@ -83,8 +83,19 @@ int LIGHTNING_TIME_PER_NUMBER = 2000;               // D 0x0936e488
 float ACTIVESTATUS_USER_TO_USER_DAMAGE_RATE = 1.0f;             // D 0x0936e48c
 float ACTIVESTATUS_USER_TO_USER_DAMAGE_RATE_DEATH_TOWER = 1.0f; // D 0x0936e490
 int ACTIVESTATUS_DURATION[18];                      // B 0x093f58a0 [0x48]
-float ACTIVESTATUS_POWER1[36];                      // B 0x093f5900 [0x90]
-float ACTIVESTATUS_POWER2[36];                      // B 0x093f59a0 [0x90]
+// [P291/P235 具名双视角] ORIG 4.1 对 `POWER[i*2]` 写侧发单条 scale-8
+// `fstps ACTIVESTATUS_POWER1(,%ebx,8)`；4.4 对 float[36] 下标 i*2 恒折
+// `add %eax,%eax` + scale-4（每段 +1 条 lea）。m_pair 以 8 字节元素下标
+// 即折叠为单条 scale-8；奇槽继续走 m_flat[i*2+1] 保持 ORIG 的两段寻址形。
+// 布局逐字节相同（0x90 字节，符号名不参与 mangling）；消费侧
+// W9_SDCCommon.cpp 持同布局 TU-local 视图。
+union SDCActiveStatusPowerView
+{
+    float m_flat[36];
+    struct { float m_lo; float m_hi; } m_pair[18];
+};
+SDCActiveStatusPowerView ACTIVESTATUS_POWER1;       // B 0x093f5900 [0x90]
+SDCActiveStatusPowerView ACTIVESTATUS_POWER2;       // B 0x093f59a0 [0x90]
 float ACTIVESTATUS_ETC_PARAMETERS[18][8];           // B 0x093f5a40 [0x240]
 float ACTIVESTATUS_LEVEL_RATE_FOR_PROB;             // B 0x093f5c80
 float ACTIVESTATUS_LEVEL_RATE_FOR_POWER;            // B 0x093f5c84
@@ -199,8 +210,13 @@ bool importActiveStatusTable(const char* path)
     }
 
     std::string token;
-    while (ScanType(token, true))
+    for (;;)
     {
+        // [P292/P283] ORIG 循环头 `call; xor $0x1,%eax; test %al,%al; jne exit`
+        // ⇒ 原码是 for(;;)+`if (!ScanType(...)) break;`（bool 返回的取反形），
+        // 非 while(ScanType(...))（后者 4.4 出无 xor 的 `test;jne body`）。
+        if (!ScanType(token, true))
+            break;
         if (token == "[active status max level]")
         {
             ACTIVESTATUS_MAXLEVEL = ScanInt(static_cast<bool*>(0));
@@ -214,16 +230,16 @@ bool importActiveStatusTable(const char* path)
         {
             for (int i = 0; i < 18; ++i)
             {
-                ACTIVESTATUS_POWER1[i * 2] = ScanFloat(static_cast<bool*>(0));
-                ACTIVESTATUS_POWER1[i * 2 + 1] = ScanFloat(static_cast<bool*>(0));
+                ACTIVESTATUS_POWER1.m_pair[i].m_lo = ScanFloat(static_cast<bool*>(0));
+                ACTIVESTATUS_POWER1.m_flat[i * 2 + 1] = ScanFloat(static_cast<bool*>(0));
             }
         }
         else if (token == "[active status power 2]")
         {
             for (int i = 0; i < 18; ++i)
             {
-                ACTIVESTATUS_POWER2[i * 2] = ScanFloat(static_cast<bool*>(0));
-                ACTIVESTATUS_POWER2[i * 2 + 1] = ScanFloat(static_cast<bool*>(0));
+                ACTIVESTATUS_POWER2.m_pair[i].m_lo = ScanFloat(static_cast<bool*>(0));
+                ACTIVESTATUS_POWER2.m_flat[i * 2 + 1] = ScanFloat(static_cast<bool*>(0));
             }
         }
         else if (token == "[active status etc parameters]")
@@ -290,24 +306,41 @@ bool importDisjointScript(DisjointScript* script, const char* path)
     int value = 0;
     bool ok = false;
 
-    while (ScanType(token, true))
+    // [P292/P283] ORIG 循环头 `xor $0x1,%eax; test %al,%al; jne/je` ⇒ 原码
+    // 统一 for(;;)+`if (!cond) break;`。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[cube index]")
         {
             ScanStr(&str);
             const int elem = getElement(str.c_str());
-            std::vector<int>& vec = script->m_cubeIndexVecs[elem];
-            vec.clear();
-            while ((value = ScanInt(&ok), ok))
-                vec.push_back(value);
+            // [P183] ORIG 0x088e4e3d/0x088e4e73 两处各自重算
+            // `3*elem*4 + script`（add/add/shl/add 链）⇒ 禁引用缓存，逐点重取。
+            script->m_cubeIndexVecs[elem].clear();
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                    break;
+                script->m_cubeIndexVecs[elem].push_back(value);
+            }
         }
         else if (token == "[legacy info]")
         {
             const int idx = ScanInt(static_cast<bool*>(0));
             std::vector<int> counts;
-            while ((value = ScanInt(&ok), ok))
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                    break;
                 counts.push_back(value);
-            if (idx >= 1 && idx <= 4)
+            }
+            // [P171/P137] ORIG 0x088e4ef6 仅 `sub $0x1,%eax; cmp $0x3,%eax; jg`
+            // 单一有符号上界（无下界守卫，idx=0 照抄越界行为）⇒ 写 idx-1 <= 3。
+            if (idx - 1 <= 3)
                 createLotteryInfo(&script->m_legacyInfo[idx - 1], &counts);
         }
         else if (token == "[skill info]")
@@ -315,8 +348,10 @@ bool importDisjointScript(DisjointScript* script, const char* path)
             script->m_skills.clear();
             script->m_skillSelect = ScanInt(static_cast<bool*>(0));
             DisjointSkillScript entry;
-            while (ScanStr(&str))
+            for (;;)
             {
+                if (!ScanStr(&str))
+                    break;
                 entry.m_field00 = getCharacterJob(str.c_str());
                 entry.m_field04 = ScanInt(static_cast<bool*>(0));
                 entry.m_field08 = ScanInt(static_cast<bool*>(0));
@@ -363,17 +398,19 @@ bool importDisjointScript(DisjointScript* script, const char* path)
             for (int g = 0; g < 6; ++g)
             {
                 script->m_additionalWeight[g] = ScanFloat(static_cast<bool*>(0));
-                if (script->m_additionalWeight[g] != 0.0f)
-                {
-                    script->m_additionalRate[g] = ScanFloat(static_cast<bool*>(0));
-                    script->m_additionalConst[g].m_item = ScanInt(static_cast<bool*>(0));
-                    script->m_additionalConst[g].m_count = ScanInt(static_cast<bool*>(0));
-                }
-                else
+                // [P47/P222] ORIG 0x088e5232 为 `jne <非零>; jp <非零>`（== 语义，
+                // 零分支直落）；写 `!=` 时 4.4 反产 `jp; je`（非零直落）⇒ 翻正极性。
+                if (script->m_additionalWeight[g] == 0.0f)
                 {
                     script->m_additionalRate[g] = 0.0f;
                     script->m_additionalConst[g].m_item = 0;
                     script->m_additionalConst[g].m_count = 0;
+                }
+                else
+                {
+                    script->m_additionalRate[g] = ScanFloat(static_cast<bool*>(0));
+                    script->m_additionalConst[g].m_item = ScanInt(static_cast<bool*>(0));
+                    script->m_additionalConst[g].m_count = ScanInt(static_cast<bool*>(0));
                 }
             }
         }
@@ -381,8 +418,10 @@ bool importDisjointScript(DisjointScript* script, const char* path)
         {
             // [b28d-solo-ScriptDepsA] ORIG 0x088e50xx 用 eq（`==`+break）而非
             // 短路 `!=`（p167：MISSING eq / EXTRA ne）。
-            while (ScanType(token, true))
+            for (;;)
             {
+                if (!ScanType(token, true))
+                    break;
                 if (token == "[/avatar disjoint info]")
                     break;
                 const int job = getCharacterJob(token.c_str());
@@ -392,8 +431,10 @@ bool importDisjointScript(DisjointScript* script, const char* path)
                 {
                     for (int slot = 0; slot < 5; ++slot)
                     {
-                        const int v = ScanInt(&ok);
-                        script->m_avatarDisjoint[job][grade - 1][slot] = v;
+                        // [P0/P171] ORIG 0x088e5397 段：ScanInt 结果入 %edi 直存
+                        //（无具名局部）；索引为 [job][grade][slot]（grade 1..3 直接
+                        // 使用，基址 +0xd4 = 0x088e53cc `0x4(%ecx,%eax,4)` 实证）。
+                        script->m_avatarDisjoint[job][grade][slot] = ScanInt(&ok);
                         if (!ok)
                             return false;
                     }
@@ -407,8 +448,9 @@ bool importDisjointScript(DisjointScript* script, const char* path)
             {
                 for (int parts = 0; parts < 10; ++parts)
                 {
-                    const int v = ScanInt(&ok);
-                    script->m_avatarPartsDisjoint[grade - 1][parts] = v;
+                    // [P171] ORIG 0x088e5d05 段（clear 同址式 0x08375d05）：
+                    // 索引 = 10*grade + parts + 0x110，grade 1..3 直接用 ⇒ 基址 +0x444。
+                    script->m_avatarPartsDisjoint[grade][parts] = ScanInt(&ok);
                     if (!ok)
                         return false;
                 }
@@ -933,8 +975,12 @@ bool importCreatureCommonScript(CreatureCommonScript* script, const char* path,
     int value = 0;
     bool ok = true;
 
-    while (ScanType(token, true))
+    // [P292/P283] ORIG 各循环头均 `xor $0x1,%eax; test %al,%al; jne/je`（bool
+    // 取反形）⇒ 原码统一为 for(;;)+`if (!cond) break;`，非 while(cond)。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[attack constant]")
         {
             script->m_attackConstant = ScanFloat(static_cast<bool*>(0));
@@ -993,8 +1039,11 @@ bool importCreatureCommonScript(CreatureCommonScript* script, const char* path,
         else if (token == "[damage]")
         {
             script->m_damage.clear();
-            while ((value = ScanInt(&ok), ok))
+            for (;;)
             {
+                value = ScanInt(&ok);
+                if (!ok)
+                    break;
                 script->m_damage.push_back(value);
                 damageTable->push_back(value);
             }
@@ -1002,33 +1051,55 @@ bool importCreatureCommonScript(CreatureCommonScript* script, const char* path,
         else if (token == "[mana]")
         {
             script->m_mana.clear();
-            while ((value = ScanInt(&ok), ok))
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                    break;
                 script->m_mana.push_back(value);
+            }
         }
         else if (token == "[module damage percent]")
         {
             g_creatureModuleDamageRateMap.clear();
-            while (ScanStr(&str) && (value = ScanInt(&ok), ok))
+            for (;;)
             {
+                // ORIG 0x08a387f6/0x08a38814 两处独立 `xor $0x1` 守卫 ⇒ 两条独立
+                // break，非 `ScanStr && …` 短路合并（P133）。
+                if (!ScanStr(&str))
+                    break;
+                value = ScanInt(&ok);
+                if (!ok)
+                    break;
                 // [b28d-solo-ScriptDepsA] ORIG 0x08a3866x 段：allocator+str.c_str()
                 // +string(const char*,const allocator&) 三件套 ⇒ 具名临时 string
                 // 由 c_str() 复制构造（P130 家族）。
                 std::string moduleName(str.c_str());
                 const ENUM_MODULE_TYPE type =
                     static_cast<ENUM_MODULE_TYPE>(getModuleTypeFromTag(moduleName));
-                addCreatureModuleRate(type, static_cast<float>(value) / 100.0f);
+                // [P252/P0] ORIG 0x08a38890 段 `fstps -0x10(%ebp); mov -0x10(%ebp),%eax;
+                // mov %eax,0x4(%esp)` ⇒ 原码有具名 float 局部（槽往返），非内联实参。
+                const float rate = static_cast<float>(value) / 100.0f;
+                addCreatureModuleRate(type, rate);
             }
         }
         else if (token == "[assault creature damage penalty]")
         {
             g_creatureIndexDamageRateMap.clear();
-            while ((value = ScanInt(&ok), ok))
+            for (;;)
             {
+                value = ScanInt(&ok);
+                if (!ok)
+                    break;
                 const int idx = value;
                 value = ScanInt(&ok);
                 if (!ok)
                     break;
-                g_creatureIndexDamageRateMap[idx] = static_cast<float>(value) / 100.0f;
+                // [P252/P0] ORIG 0x08a38944 段 `fstps -0xc(%ebp)` 先算存槽，
+                // operator[] 之后 `mov -0xc(%ebp),%edx; mov %edx,(%eax)` 读回 ⇒
+                // 原码具名 float 局部，且先于 map 查找求值。
+                const float rate = static_cast<float>(value) / 100.0f;
+                g_creatureIndexDamageRateMap[idx] = rate;
             }
         }
         else
@@ -2359,8 +2430,12 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
         std::string name;                // ORIG -0x36c（block 作用域构造/析构）
         // [b28d-solo-ScriptDepsA] ORIG 用 `section == "[/equipment ani script]"`
         // +break（p167 MISSING eq / EXTRA ne）。
-        while (ScanStr(&name))
+        // [P292/P283] ORIG 0x089c06d2 `call; xor $0x1,%eax; test %al,%al; jne`
+        // ⇒ for(;;)+`if (!ScanStr(...)) break;`。
+        for (;;)
         {
+            if (!ScanStr(&name))
+                break;
             if (section == "[/equipment ani script]")
                 break;
             files.push_back(name);
@@ -2379,8 +2454,12 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
         std::string val;                 // ORIG -0x374
         STEquipmentAniScript entry;      // ORIG -0x3f4（C1 0x0898ca36）
 
-        while (ScanType(tag, true))
+        // [P292/P283] ORIG 0x089c079c/0x089c07ed `call; xor $0x1,%eax; test;
+        // jne/je` ⇒ for(;;)+`if (!ScanType(...)) break;`。
+        for (;;)
         {
+            if (!ScanType(tag, true))
+                break;
             static AniLookupMap __lookup;    // 0x089c07f8 guard 区
             static SpinLock __init_lock;     // 0x089c0872 guard 区
             static bool __inited = false;    // 0x094fde04
@@ -2411,273 +2490,356 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
                 {
                 case 0:
                 case 0x3142:                       // [LAYER]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[LAYER]", 0x3142));
+                    }
+                    else
                     {
                         entry.m_field0 = ScanInt(static_cast<bool*>(0));
                         break;                     // 0x089c0bd9
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[LAYER]", 0x3142));
                     /* fall through（0x089c0bc5 → 0x089c0bde） */
                 case 0x3145:                       // [waiting motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[waiting motion]", 0x3145));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str04 = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[waiting motion]", 0x3145));
                     /* fall through（→ 0x089c0c69） */
                 case 0x3149:                       // [move motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[move motion]", 0x3149));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str08 = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[move motion]", 0x3149));
                     /* fall through */
                 case 0x314d:                       // [sit motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[sit motion]", 0x314d));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str0c = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[sit motion]", 0x314d));
                     /* fall through */
                 case 0x3151:                       // [damage motion 1]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[damage motion 1]", 0x3151));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_arr10[0] = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[damage motion 1]", 0x3151));
                     /* fall through */
                 case 0x3155:                       // [damage motion 2]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[damage motion 2]", 0x3155));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_arr10[1] = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[damage motion 2]", 0x3155));
                     /* fall through */
                 case 0x3159:                       // [down motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[down motion]", 0x3159));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str18 = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[down motion]", 0x3159));
                     /* fall through */
                 case 0x315d:                       // [overturn motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[overturn motion]", 0x315d));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str1c = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[overturn motion]", 0x315d));
                     /* fall through */
                 case 0x3161:                       // [jump motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[jump motion]", 0x3161));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str20 = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[jump motion]", 0x3161));
                     /* fall through */
                 case 0x3165:                       // [jumpattack motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[jumpattack motion]", 0x3165));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str24 = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[jumpattack motion]", 0x3165));
                     /* fall through */
                 case 0x3169:                       // [rest motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[rest motion]", 0x3169));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str28 = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[rest motion]", 0x3169));
                     /* fall through */
                 case 0x316d:                       // [throw motion 1-1]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[throw motion 1-1]", 0x316d));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_arr2c[0] = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[throw motion 1-1]", 0x316d));
                     /* fall through（0x089c11a7 → 0x089c11d7） */
                 case 0x3171:                       // [throw motion 1-2]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[throw motion 1-2]", 0x3171));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_arr3c[0] = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[throw motion 1-2]", 0x3171));
                     /* fall through（0x089c1232 → 0x089c1262） */
                 case 0x3175:                       // [throw motion 2-1]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[throw motion 2-1]", 0x3175));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_arr2c[1] = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[throw motion 2-1]", 0x3175));
                     /* fall through */
                 case 0x3179:                       // [throw motion 2-2]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[throw motion 2-2]", 0x3179));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_arr3c[1] = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[throw motion 2-2]", 0x3179));
                     /* fall through */
                 case 0x317d:                       // [throw motion 3-1]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[throw motion 3-1]", 0x317d));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_arr2c[2] = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[throw motion 3-1]", 0x317d));
                     /* fall through */
                 case 0x3181:                       // [throw motion 3-2]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[throw motion 3-2]", 0x3181));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_arr3c[2] = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[throw motion 3-2]", 0x3181));
                     /* fall through */
                 case 0x3185:                       // [throw motion 4-1]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[throw motion 4-1]", 0x3185));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_arr2c[3] = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[throw motion 4-1]", 0x3185));
                     /* fall through */
                 case 0x3189:                       // [throw motion 4-2]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[throw motion 4-2]", 0x3189));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_arr3c[3] = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[throw motion 4-2]", 0x3189));
                     /* fall through */
                 case 0x318d:                       // [dash motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[dash motion]", 0x318d));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str4c = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[dash motion]", 0x318d));
                     /* fall through */
                 case 0x3191:                       // [dashattack motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[dashattack motion]", 0x3191));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str50 = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[dashattack motion]", 0x3191));
                     /* fall through */
                 case 0x3195:                       // [getitem motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[getitem motion]", 0x3195));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str54 = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[getitem motion]", 0x3195));
                     /* fall through */
                 case 0x3199:                       // [buff motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[buff motion]", 0x3199));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str58 = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[buff motion]", 0x3199));
                     /* fall through */
                 case 0x319d:                       // [back motion]
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[back motion]", 0x319d));
+                    }
+                    else
                     {
                         ScanStr(&val);
                         entry.m_str5c = val;
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[back motion]", 0x319d));
                     /* fall through（0x089c182b → 0x089c185b） */
                 case 0x31a1:                       // [attack motion]（多行）
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[attack motion]", 0x31a1));
+                    }
+                    else
                     {
                         while (ScanStr(&val))
                             entry.m_vec64.push_back(std::string(val.c_str()));
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[attack motion]", 0x31a1));
                     /* fall through（0x089c18ba → 0x089c1980） */
                 case 0x31a7:                       // [etc motion]（多行）
-                    if (__inited)
+                    if (!__inited)
+                    {
+                        __lookup.insert(
+                            AniLookupMap::value_type("[etc motion]", 0x31a7));
+                    }
+                    else
                     {
                         while (ScanStr(&val))
                             entry.m_vec70.push_back(std::string(val.c_str()));
                         break;
                     }
-                    __lookup.insert(
-                        AniLookupMap::value_type("[etc motion]", 0x31a7));
                     /* fall through（注册链尾 → 公共尾 0x089c1aa0） */
                 default:
                     break;                     // 未命中（id=-1）静默
                 }
 
-                if (__inited)
-                    break;                     // 解析完成 → 下一 ScanType
-                __init_lock.leave();           // 0x089c1ab5
-                __inited = true;               // 0x089c1ac1
-                // continue → guard 重查（0x089c07f8）
+                // [P292] ORIG 0x089c1ab0 `movzbl __inited; xor $0x1,%eax;
+                // test %al,%al; je <跳出>` ⇒ 原码是 `if (!__inited) { …; continue; }`
+                // 后接裸 break，非 `if (__inited) break;`（后者无 xor 物化）。
+                if (!__inited)
+                {
+                    __init_lock.leave();       // 0x089c1ab5
+                    __inited = true;           // 0x089c1ac1
+                    continue;                  // → guard 重查（0x089c07f8）
+                }
+                break;                         // 解析完成 → 下一 ScanType
             }
         }
 
