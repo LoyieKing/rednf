@@ -3975,8 +3975,12 @@ int CInventory::erase_repeated_item(const std::vector<std::pair<int, int> >& ite
 {
     // b28d-solo-CInventory：158/159，帧/槽残差 ⇒ N82 封顶。
     // b28d-37 [N82 封顶，ORIG 0x850?]：帧/槽残差（158/159）。
+    // [P28/P315] ORIG 0x85056ca 增量段为 ppEi（后置）、push_back 实参为 const 左值
+    // （_ZNSt6vectorISt4pairIiiESaIS1_EE9push_backERKS1_）⇒ it++ + 具名 pair 局部。
+    // [实测] 进一步改 while+两处 it+++entry.first 赋值可使 p167 CLEAR（仅 C1/C2 别名），
+    // 但 TU 四数 identical+ae 392→390（ae 263→261）⇒ 按「四数不回退」保留本形。
     for (std::vector<std::pair<int, int> >::const_iterator it = items.begin(); it != items.end();
-         ++it)
+         it++)
     {
         int itemIdx = it->first;
         int type = GetItemType(itemIdx);
@@ -4018,7 +4022,8 @@ int CInventory::erase_repeated_item(const std::vector<std::pair<int, int> >& ite
         }
         if (it->second > 0)
         {
-            out.push_back(std::make_pair(itemIdx, need));
+            std::pair<int, int> newItem(itemIdx, need);
+            out.push_back(newItem);
         }
     }
     return out.size();
@@ -4197,7 +4202,7 @@ int CInventory::tryInsertEventItems(const std::vector<std::pair<int, int> >& ite
     int slot;
     if (items.size() == 0)
     {
-        return 0;
+        return insertCount;   // P0：ORIG 0x08506782 `mov -0x20(%ebp),%eax`（返回具名局部，非字面量 0）
     }
     std::pair<int, int> entry;
     std::vector<std::pair<int, int> >::const_iterator it;
@@ -4286,7 +4291,7 @@ int CInventory::delete_event_items(const std::vector<std::pair<int, int> >& item
     int deleteCount = 0;
     if (items.size() == 0)
     {
-        return 0;
+        return deleteCount;   // P0：ORIG 0x08505dfe `mov -0xc(%ebp),%eax`（返回具名局部，非字面量 0）
     }
     // P50 先声明后赋值 + P135 具名 pair 右值赋值保持。
     std::pair<int, int> entry;
@@ -4633,7 +4638,7 @@ void CInventory::MoveClearAvatar(int a, int b, int c, int d, int e, int f)
                 {
                     LogManager::logFormat(
                         1, "inventory.cpp", __PRETTY_FUNCTION__, 0x21db,
-                        "Avatar color error. ItemID(%d), colorId(%d)",
+                        "Avatar color1 error. ItemID(%d), colorId(%d)",
                         m_invenItem[d].m_addInfo2, (int)expInfo->m_color[0]);
                     return;
                 }
@@ -4641,7 +4646,7 @@ void CInventory::MoveClearAvatar(int a, int b, int c, int d, int e, int f)
                 {
                     LogManager::logFormat(
                         1, "inventory.cpp", __PRETTY_FUNCTION__, 0x21e2,
-                        "Avatar color error. ItemID(%d), colorId(%d)",
+                        "Avatar color2 error. ItemID(%d), colorId(%d)",
                         m_invenItem[d].m_addInfo2, (int)expInfo->m_color[1]);
                     return;
                 }
@@ -4686,6 +4691,8 @@ void CInventory::SendAvatarEvent(int a, int b, int c, int d, int e) const
     **guard << a;
     **guard << (int)m_pParent->GetUID();
     unsigned char b0 = (unsigned char)b;
+    // [P251 实测回滚] ORIG 0x08508d09 为寄存器决策树，但 4.4 对 switch(a)
+    // 生成不同树形（267 vs if 链 262，+5）⇒ 保留 if 链。
     if (a == 0x34)
     {
         char buf[7];
@@ -4800,6 +4807,8 @@ int CInventory::CalBlankSlot(int* out,
     {
         return 0;
     }
+    // [实测回滚] ORIG 0x8508536 为 entry=std::pair(*it)（deEv+aSEOS0_）+ 三处 ppEi，
+    // 但 4.4 复现形 349 insns（原 326，ORIG 312）且 TU ae -1 ⇒ 维持原形（记 N）。
     for (std::vector<std::pair<int, int> >::const_iterator it = items.begin(); it != items.end();
          ++it)
     {
