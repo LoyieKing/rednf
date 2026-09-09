@@ -411,12 +411,16 @@ bool importAvatarRouletteListDetail(AvatarRoulette& out,
 // ([swordman]..[DemonicSwordman])，每节 do{Detail}while(token==[/节名])。
 // EOF（ScanTypeOrInt 非型且返 0）或 load 失败之外的出口恒为 true。
 // ============================================================================
-// b28d-solo-InitScriptProducers_6: DIFF/N 封顶 — ORIG 0x089116eb。真语义 bug 已修：
-// job 节 do-while 继续条件原写 `token == "[/节名]"`（方向反，会多吃一个节头），
-// 按 ORIG 0x089118a5 `je body` 实证改为 `!(token == "[/节名]")`；十个 job 节为
-// **独立 if 序列**（非 else-if，0x08911a5 fall-through）；load 检查最前、EOF break
-// 落尾 return true。p167 CLEAR（47=47）。残差 N122（4.4 对 bool 取反恒 xor+jne，
-// 4.1 折叠为 je）+ N112（循环入口 jmp/nop 对齐）+ N82 槽（328 vs 304）。
+// b28d-21 复验 — ORIG 0x089116eb。真语义 bug 已修：job 节 do-while 继续条件原写
+// `token == "[/节名]"`（方向反，会多吃一个节头），按 ORIG 0x089118a5 `je body`
+// 实证改为 `!(token == "[/节名]")`；十个 job 节为**独立 if 序列**（非 else-if）。
+// 本轮：十节 do-while 改 `for(;;){Detail; if(token=="[/节名]")break;}` 复现 4.1
+// 形 `jmp body; nop; body…; test %al,%al; je body`（do-while 在 4.4 恒产
+// `xor $1; test; jne body`）⇒ gap 21→2（raw 328 vs 326，norm 307 vs 305）。
+// 残差 2 条：① m_avatarCoinInfo 首节 store ORIG `mov %eax,%edx; mov this,%eax;
+// mov %edx,(%eax)` RHS-first+中转 vs 我方 LHS-first（T1–T4 无字段类型直证，
+// P321 T5 禁以装载序改类型）⇒ N76；② ORIG 08911b57 节尾显式 `jmp 主循环头`
+// 被 4.4 jump-thread（空 else/continue 两形实测不闭合）⇒ N。p167 CLEAR（47=47）。
 bool importAvatarRouletteList(char* path, AvatarRoulette& out)
 {
     if (!loadRDARScriptFile("", path))
@@ -463,74 +467,89 @@ bool importAvatarRouletteList(char* path, AvatarRoulette& out)
         {
             if (token == "[swordman]")
             {
-                do
+                // ORIG 08911876 形：`body; call operator==; test %al,%al; je body`
+                // （4.1 do-while 条件在尾、无 xor）⇒ 用 for(;;)+`if(cond) break;`
+                // 复现直分支 je（do-while 在 4.4 恒产 `xor $1; test; jne body`）。
+                for (;;)
                 {
                     importAvatarRouletteListDetail(out, token, (ENUM_CHARACTERJOB)0);
-                } while (!(token == "[/swordman]"));
+                    if (token == "[/swordman]") { break; }
+                }
             }
             if (token == "[fighter]")
             {
-                do
+                for (;;)
                 {
                     importAvatarRouletteListDetail(out, token, (ENUM_CHARACTERJOB)1);
-                } while (!(token == "[/fighter]"));
+                    if (token == "[/fighter]") { break; }
+                }
             }
             if (token == "[gunner]")
             {
-                do
+                for (;;)
                 {
                     importAvatarRouletteListDetail(out, token, (ENUM_CHARACTERJOB)2);
-                } while (!(token == "[/gunner]"));
+                    if (token == "[/gunner]") { break; }
+                }
             }
             if (token == "[mage]")
             {
-                do
+                for (;;)
                 {
                     importAvatarRouletteListDetail(out, token, (ENUM_CHARACTERJOB)3);
-                } while (!(token == "[/mage]"));
+                    if (token == "[/mage]") { break; }
+                }
             }
             if (token == "[priest]")
             {
-                do
+                for (;;)
                 {
                     importAvatarRouletteListDetail(out, token, (ENUM_CHARACTERJOB)4);
-                } while (!(token == "[/priest]"));
+                    if (token == "[/priest]") { break; }
+                }
             }
             if (token == "[at_gunner]")
             {
-                do
+                for (;;)
                 {
                     importAvatarRouletteListDetail(out, token, (ENUM_CHARACTERJOB)5);
-                } while (!(token == "[/at_gunner]"));
+                    if (token == "[/at_gunner]") { break; }
+                }
             }
             if (token == "[thief]")
             {
-                do
+                for (;;)
                 {
                     importAvatarRouletteListDetail(out, token, (ENUM_CHARACTERJOB)6);
-                } while (!(token == "[/thief]"));
+                    if (token == "[/thief]") { break; }
+                }
             }
             if (token == "[at_fighter]")
             {
-                do
+                for (;;)
                 {
                     importAvatarRouletteListDetail(out, token, (ENUM_CHARACTERJOB)7);
-                } while (!(token == "[/at_fighter]"));
+                    if (token == "[/at_fighter]") { break; }
+                }
             }
             if (token == "[at_mage]")
             {
-                do
+                for (;;)
                 {
                     importAvatarRouletteListDetail(out, token, (ENUM_CHARACTERJOB)8);
-                } while (!(token == "[/at_mage]"));
+                    if (token == "[/at_mage]") { break; }
+                }
             }
             if (token == "[DemonicSwordman]")
             {
-                do
+                for (;;)
                 {
                     importAvatarRouletteListDetail(out, token, (ENUM_CHARACTERJOB)9);
-                } while (!(token == "[/DemonicSwordman]"));
+                    if (token == "[/DemonicSwordman]") { break; }
+                }
             }
+            // 注：ORIG 08911b57 节尾另有 1 条显式 `jmp 主循环头`；4.4 对链尾裸
+            // if 恒 jump-thread（空 else / 显式 continue 两形实测均不闭合）⇒ N。
         }
     }
     return true;
@@ -544,13 +563,16 @@ bool importAvatarRouletteList(char* path, AvatarRoulette& out)
 // 所有 Scan 均为「先写入字段、后校验 ok」（fstp/mov 先于 ok 判定；
 // [reward item prob] 三列前缀和亦同），与 ORIG 指令顺序一致。
 // ============================================================================
-// b28d-solo-InitScriptProducers_6: DIFF/N 封顶 — ORIG 0x089089f3。已修：ScanType
-// 失败走 break + 循环外 return 0（ORIG `jne <返回0岛>` 0x08908d0f）；表节循环
-// `field[i]=Scan; ++i; if(!ok)break`（ORIG `fstps; addl; xor; test; je body`）；
-// [reward item prob] 三列前缀和无具名中转局部。p167 CLEAR（24=24）。
-// 残差 N112（nop 对齐 ×9）+ N4/P30（`mov+add` vs 4.4 `lea` ×2）+ P211 字段侧
-// 未翻（m_rewardItemProb int 与 ScanInt int 同型 ⇒ LHS-first；改 unsigned 需
-// CDataManager.h + 4 个消费 TU 联判，本轮不改）⇒ N 封顶（243 vs 232）。
+// b28d-21 复验 — ORIG 0x089089f3。已修：ScanType 失败走 break + 循环外 return 0
+// （ORIG `jne <返回0岛>` 0x08908d0f）；表节循环 `field[i]=Scan; ++i; if(!ok)break`
+// （ORIG `fstps; addl; xor; test; je body`）；[reward item prob] 三列前缀和无具名
+// 中转局部。p167 CLEAR（24=24）。残差 gap 1（raw 243 vs 242，norm 234 vs 233）：
+// ① 3 处 store ORIG 为 RHS-first+`mov %eax,%edx` 中转（[apc exp weight] 首节
+// 08908a73 段 + [reward card num] 08908b06 段 + [illusion reward card num]
+// 08908ba8 段）vs 我方 LHS-first——m_rewardItemProb/m_rewardCardNum 的 int/unsigned
+// 无 T1–T4 直证，且改型需动 CDataManager.h + 4 个消费 TU（P321 T5 禁）⇒ N76；
+// ② [reward item prob] 两个 += 段我方 `lea (%edx,%eax,1); mov %eax,%edx` vs ORIG
+// `add %eax,%edx`（N4/P30）⇒ N 封顶。
 int importDeathTowerScript(const char* path, stDeathTower_t& out)
 {
     bool ok = false;
@@ -1595,21 +1617,31 @@ int importDailyScheduleEtcScript(const char* path,
 // (getCharacterJob,idx) 入 m_mapC(+0x28)；[give group] 按 (job,growIdx) 入
 // m_map24(+0x40)。节内 ScanStr 失败 → return false；EOF(ScanType 失败) → true。
 // ============================================================================
-// b28d-solo-InitScriptProducers_6: DIFF/N 封顶 — p167 调用点差集 CLEAR（175=175，
-// 语义完整）；残差 N82（帧/槽 1143 vs 1122）+ N89（libstdc++ 模板全内联）。
-// ORIG 0x0890c1f0 段。
+// b28d-21 复验 — ORIG 0x089160f0（0x0890c1f0 段为同 TU 邻居）。p167 CLEAR（175=175）。
+// 本轮修真语义 bug + 归位形态，指令数 1143 vs 1122 → 1143 vs 1128（norm 1127 vs 1128）：
+// ① **[section] 循环条件方向反**（真 bug）：ORIG 089169da `movzbl ok; xor $1; test;
+//    je 记录块` ⇒ 原码 `if (!ok) break;`；旧写 `if (ok) break;` 在成功读到记录时反而
+//    停止读 m_field1/m_field2/count/items。
+// ② 9 处静态表守卫改负极性 `if (!__inited) { insert } else { 派发 }`（ORIG 089163b5/
+//    0891642a/08916958/08916ac7/08916fa6/089166e9/08916755/089167c1/0891682a 均
+//    `movzbl; xor $1; test; je 派发`）⇒ 各补回 1 条 xor + 1 条块尾 jmp。
+// ③ 两张表的 guard 循环头改正极性 `if (__inited) { find } else { 锁 }`（ORIG 08916272/
+//    089165b1 `movzbl; test; je 锁`，无 xor）。
+// ④ 两处公共尾改 `if (!__inited) { leave; inited=1; continue; } break;`（ORIG 08916891/
+//    0891735b `movzbl; xor $1; test; je …`）。
+// ⑤ `int v = 0;` 单变量跨节复用（ORIG Ghidra local_1ac@-0x1a8：prologue 清零 +
+//    coin-info used + section count + give-group value），旧拆 4 个局部致全帧槽号漂移。
+// ⑥ 两串声明移到 load 检查之后（ORIG 08916130/0891613e ctor 在 load 后）；EOF 改
+//    `break` + 循环外 `return true`（P164 尾部共享块）；`int first;` 去预清；
+//    give-group 死存补具名 `dead20`（ORIG 0891710f `mov %eax,-0x1c`）。
+// 残差 1 条（我方多）：块序差异（items 构造/tokenizeStr 段位置）+ 槽号整体深 4
+//（N95/N126 版本首槽基址常数）+ 1 条尾 jmp ⇒ N82/N95 封顶。
 bool importDimensionActivationData(const char* path,
                                    DimensionActivationData* out)
 {
     // ORIG 实证两张函数级静态表同为 map<char const*,int,less_TCHAR>。
     typedef std::map<const char*, int, less_TCHAR> DimSectionMap;
     typedef std::map<const char*, int, less_TCHAR> DimCoinDiffMap;
-
-    std::string token;                  // ORIG -0x19c（节名，ctor 首位）
-    std::string sub;                    // ORIG -0x1a0（子串）
-    bool ok = false;                    // ORIG -0x1a1（ScanInt 出错 flag，两串后写）
-    int dead0 = 0;                      // ORIG -0x1a8 prologue $0 写（dead，P31）
-    (void)dead0;
 
     if (out == 0)
     {
@@ -1620,11 +1652,23 @@ bool importDimensionActivationData(const char* path,
         return false;
     }
 
+    // b28d-21: ORIG 08916130/0891613e 两串 ctor 在 load 检查之后（声明位置即
+    // ctor 发射点）——旧版声明在判空之前，序言 8 条整体前移。
+    std::string token;                  // ORIG -0x19c（节名，ctor 首位）
+    std::string sub;                    // ORIG -0x1a0（子串）
+    bool ok = false;                    // ORIG -0x1a1（ScanInt 出错 flag，两串后写）
+    // ORIG -0x1a8：Ghidra local_1ac 在 prologue 清零，并被 [coin info] used、
+    // [section] count、[give group] value 三处**复用**（源码级同一具名变量，
+    // 非编译器槽复用）——拆成多个局部会令全帧槽号漂移。
+    int v = 0;
+
     for (;;)                            // ORIG LAB_0891615d 主循环
     {
         if (!ScanType(token, true))
         {
-            return true;                // ORIG 0x8917388 EOF → 1
+            // P164：`return true` 会被 4.4 inline 到检查点后（多 je+mov+jmp）；
+            // 改 break + 循环外 return true 复现 ORIG 尾部共享块（08917387 jne 直达）。
+            break;                      // ORIG 0x8917388 EOF → 1
         }
         for (;;)                        // ORIG LAB_0891617e guard 重试
         {
@@ -1632,7 +1676,14 @@ bool importDimensionActivationData(const char* path,
             static SpinLock __init_lock;        // ORIG ...E11__init_lock
             static bool __inited = false;       // ORIG ...E8__inited
             int idx;
-            if (!__inited)
+            // ORIG 08916272 `movzbl __inited; test; je 锁路径`（无 xor）⇒ P168a②
+            // 正极性 + 交换分支（`!__inited`/`==0` 均多一条 xor 物化）。
+            if (__inited)
+            {
+                DimSectionMap::const_iterator it = __lookup.find(token.c_str());
+                idx = (it != __lookup.end()) ? it->second : -1;
+            }
+            else
             {
                 __init_lock.enter();
                 if (__inited)
@@ -1642,25 +1693,30 @@ bool importDimensionActivationData(const char* path,
                 }
                 idx = 0;
             }
-            else
-            {
-                DimSectionMap::const_iterator it = __lookup.find(token.c_str());
-                idx = (it != __lookup.end()) ? it->second : -1;
-            }
             switch (idx)
             {
             case 0:
             case 0x3488:                // [play day count]
-                if (__inited)
+                // b28d-21: ORIG 089163b5 `movzbl __inited; xor $1; test; je 派发块`
+                // ⇒ 原码负极性 `if (!__inited) { insert } else { 派发 }`（P168a②）。
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        DimSectionMap::value_type("[play day count]", 0x3488));
+                }
+                else
                 {
                     out->m_field0 = ScanInt(&ok);  // ORIG 不查 flag
                     break;
                 }
-                __lookup.insert(
-                    DimSectionMap::value_type("[play day count]", 0x3488));
                 /* fall through */
             case 0x348d:                // [coin info]
-                if (__inited)
+                // b28d-21: ORIG 0891642a 同形（`movzbl __inited; xor $1; test; je 派发`）。
+                if (!__inited)
+                {
+                    __lookup.insert(DimSectionMap::value_type("[coin info]", 0x348d));
+                }
+                else
                 {
                     for (;;)
                     {
@@ -1676,7 +1732,15 @@ bool importDimensionActivationData(const char* path,
                             static SpinLock __init_lock_0;       // ...__init_lock_0
                             static bool __inited_0 = false;      // ...__inited_0
                             int diff;
-                            if (!__inited_0)
+                            // ORIG 089165b1 同形（movzbl; test; je，无 xor）。
+                            if (__inited_0)
+                            {
+                                DimCoinDiffMap::const_iterator it2 =
+                                    __lookup_0.find(sub.c_str());
+                                diff = (it2 != __lookup_0.end())
+                                           ? it2->second : -1;
+                            }
+                            else
                             {
                                 __init_lock_0.enter();
                                 if (__inited_0)
@@ -1686,46 +1750,70 @@ bool importDimensionActivationData(const char* path,
                                 }
                                 diff = 0;
                             }
-                            else
-                            {
-                                DimCoinDiffMap::const_iterator it2 =
-                                    __lookup_0.find(sub.c_str());
-                                diff = (it2 != __lookup_0.end())
-                                           ? it2->second : -1;
-                            }
                             switch (diff)
                             {
                             case 0:
                             case 0x3499:
-                                if (__inited_0) { coinType = 0; break; }
-                                __lookup_0.insert(
-                                    DimCoinDiffMap::value_type("[easy]", 0x3499));
+                                if (!__inited_0)
+                                {
+                                    __lookup_0.insert(
+                                        DimCoinDiffMap::value_type("[easy]", 0x3499));
+                                }
+                                else
+                                {
+                                    coinType = 0;
+                                    break;
+                                }
                                 /* fall through */
                             case 0x349e:
-                                if (__inited_0) { coinType = 1; break; }
-                                __lookup_0.insert(
-                                    DimCoinDiffMap::value_type("[medium]", 0x349e));
+                                if (!__inited_0)
+                                {
+                                    __lookup_0.insert(
+                                        DimCoinDiffMap::value_type("[medium]", 0x349e));
+                                }
+                                else
+                                {
+                                    coinType = 1;
+                                    break;
+                                }
                                 /* fall through */
                             case 0x34a3:
-                                if (__inited_0) { coinType = 2; break; }
-                                __lookup_0.insert(
-                                    DimCoinDiffMap::value_type("[hard]", 0x34a3));
+                                if (!__inited_0)
+                                {
+                                    __lookup_0.insert(
+                                        DimCoinDiffMap::value_type("[hard]", 0x34a3));
+                                }
+                                else
+                                {
+                                    coinType = 2;
+                                    break;
+                                }
                                 /* fall through */
                             case 0x34a8:
-                                if (__inited_0) { coinType = 3; break; }
-                                __lookup_0.insert(
-                                    DimCoinDiffMap::value_type("[ultimate]", 0x34a8));
+                                if (!__inited_0)
+                                {
+                                    __lookup_0.insert(
+                                        DimCoinDiffMap::value_type("[ultimate]", 0x34a8));
+                                }
+                                else
+                                {
+                                    coinType = 3;
+                                    break;
+                                }
                             }
-                            if (__inited_0)
+                            // b28d-21: ORIG 08916891 `movzbl __inited_0; xor $1;
+                            // test; je 读字段` ⇒ 原码负极性（未建表则 leave+置位+回查）。
+                            if (!__inited_0)
                             {
-                                break;  // 未命中保持 -1，仍走公共尾 insert
+                                __init_lock_0.leave();
+                                __inited_0 = true;
+                                continue;
                             }
-                            __init_lock_0.leave();
-                            __inited_0 = true;
+                            break;  // 未命中保持 -1，仍走公共尾 insert
                         }
                         coinInfo.m_field0 = ScanInt(&ok);        // -0x1b8
-                        int used = ScanInt(&ok);                 // -0x1a8
-                        coinInfo.m_field4 = (used != 0) ? 1 : 0; // setne 字节
+                        v = ScanInt(&ok);                        // ORIG -0x1a8
+                        coinInfo.m_field4 = (v != 0) ? 1 : 0;    // setne 字节
                         // ORIG 0x8921dcd/0x8921e14：make_pair<int,DimensionCoinInfo>
                         // （按值实例化）+ value_type 转换 ctor 两级临时。
                         out->m_coinMap.insert(
@@ -1735,24 +1823,30 @@ bool importDimensionActivationData(const char* path,
                     }
                     break;
                 }
-                __lookup.insert(DimSectionMap::value_type("[coin info]", 0x348d));
                 /* fall through */
             case 0x34b7:                // [section]
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(DimSectionMap::value_type("[section]", 0x34b7));
+                }
+                else
                 {
                     for (;;)
                     {
                         EventRewardSection section;   // ctor 0x89154ee
                         section.m_field0 =
                             static_cast<unsigned char>(ScanInt(&ok));
-                        if (ok)
+                        // b28d-21: ORIG 0x89169e0 `movzbl ok; xor $1; test; je 记录块`
+                        // ⇒ 源码为负极性 `if (!ok) break;`。旧写 `if (ok) break;`
+                        // 方向反（成功读到记录时反而不读后续字段）——真语义 bug。
+                        if (!ok)
                         {
-                            break;      // ORIG 0x89169e8 flag 真 → 结束节块
+                            break;      // ORIG 0x89169e8 ok 假 → 结束节块
                         }
                         section.m_field1 = ScanInt(static_cast<bool*>(0));
                         section.m_field2 = ScanInt(static_cast<bool*>(0));
-                        int count = ScanInt(static_cast<bool*>(0));
-                        for (int i = 0; i < count; ++i)
+                        v = ScanInt(static_cast<bool*>(0));      // ORIG -0x1a8（复用）
+                        for (int i = 0; i < v; ++i)
                         {
                             section.m_items.push_back(
                                 static_cast<unsigned char>(
@@ -1762,10 +1856,14 @@ bool importDimensionActivationData(const char* path,
                     }
                     break;
                 }
-                __lookup.insert(DimSectionMap::value_type("[section]", 0x34b7));
                 /* fall through */
             case 0x34ca:                // [select group]
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        DimSectionMap::value_type("[select group]", 0x34ca));
+                }
+                else
                 {
                     if (!ScanStr(&sub))
                     {
@@ -1785,7 +1883,9 @@ bool importDimensionActivationData(const char* path,
                         if (token == "[package selection]")
                         {
                             std::vector<EventRewardItemInfo> items;  // 0x8921bee
-                            int first = 0;
+                            int first;      // ORIG -0x1e0 无预清（ScanInt 直写）
+                            // 注：ORIG 08916bed 条件在头（`call; xor $1; test; jne 退出`）；
+                            // for(;;)+break 两形实测 +2 反劣（4.4 仍插前置 jmp）⇒ 维持 while。
                             while (ScanInt(&first))
                             {
                                 EventRewardItemInfo info;   // ctor 0x891548a
@@ -1826,11 +1926,14 @@ bool importDimensionActivationData(const char* path,
                     }
                     break;
                 }
-                __lookup.insert(
-                    DimSectionMap::value_type("[select group]", 0x34ca));
                 /* fall through */
             case 0x34ff:                // [give group]
-                if (__inited)
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        DimSectionMap::value_type("[give group]", 0x34ff));
+                }
+                else
                 {
                     if (!ScanStr(&sub))
                     {
@@ -1863,12 +1966,14 @@ bool importDimensionActivationData(const char* path,
                                 std::vector<EventRewardItemInfo> items;  // 0x8921bee
                                 if (token == "[package selection]")
                                 {
-                                    ScanInt(&ok);   // ORIG -0x1c 死存
+                                    // ORIG 0x891710f `mov %eax,-0x1c`：返回值落具名
+                                    // 死局部（P0 槽往返 ⇒ 原码有该局部）。
+                                    int dead20 = ScanInt(&ok);
+                                    (void)dead20;
                                     EventRewardItemInfo info;  // ctor 0x891548a 一次
-                                    int value = 0;
-                                    while (ScanInt(&value))
+                                    while (ScanInt(&v))     // ORIG -0x1a8（复用）
                                     {
-                                        info.m_field0 = value;
+                                        info.m_field0 = v;
                                         info.m_short8 = static_cast<short>(
                                             ScanInt(&ok));               // %ax
                                         info.m_field4 = ScanInt(&ok);
@@ -1908,17 +2013,19 @@ bool importDimensionActivationData(const char* path,
                     }
                     break;
                 }
-                __lookup.insert(
-                    DimSectionMap::value_type("[give group]", 0x34ff));
             }
-            if (__inited)
+            // b28d-21: ORIG 0891735b `movzbl __inited; xor $1; test; je 回主循环`
+            // ⇒ 原码负极性（未建表则 leave+置位+回 guard 头重派发）。
+            if (!__inited)
             {
-                break;                  // 派发完成 → 主循环下一 token
+                __init_lock.leave();        // ORIG 0x8917369 建表收尾重派发
+                __inited = true;
+                continue;
             }
-            __init_lock.leave();        // ORIG 0x8917369 建表收尾重派发
-            __inited = true;
+            break;                  // 派发完成 → 主循环下一 token
         }
     }
+    return true;                        // ORIG 0x8917388 EOF → 1（尾部共享块）
 }
 
 // ============================================================================
