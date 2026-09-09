@@ -278,7 +278,7 @@ bool DB_LoadActionPoint::ParseActionClearState(char* text, _ActionPoint* table,
 
 // Select —— 报告全文转写。ORIG T 0x08123b9e。
 // [b28d-27] DIFF N82/N89：ORIG 0x08123b9e；p167 CLEAR（21/21），残差为 SQL/STL
-// [b28d-solo-APSystemOnlyOrig] 判词：**N82/N89 封顶**（残差 = 槽基/帧与 STL 实例；p167 CLEAR 21/21）。
+// [b28d-solo-APSystemOnlyOrig] 判词：**gap -3→0**（本轮还原：列号具名局部 `col++` 后置自增、5 次 get_ubyte 复用同一 flag 槽 -0x39、col 后死局部 -0x14、apSum 直传 `&sig.m_apSum`、blobLen unsigned、尾部 `if(!Parse)return false; return true;`；245=245）。残差 = N93附（nRows `jne false岛` vs 4.4 `je+mov$0+jmp`）。p167 CLEAR 21/21。
 // 实例与帧/槽分配，语义闭合。
 bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
 {
@@ -286,10 +286,11 @@ bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     int dailyHour =
         G_CEnvironment()->m_serverEnvir.m_fatigueTime;   // +0x37c
-    int dailyTime = getDailyInitializeTime(dailyHour, 0, 0);
-    time_t tt = dailyTime;
+    // [b28d-solo-APSystemOnlyOrig] ORIG：getDailyInitializeTime 结果直落 -0x2c
+    // 并作为 localtime_r 实参（无 tt 副本；旧版多 `mov -0x20,%eax; mov %eax,-0x2c`）。
+    time_t dailyTime = getDailyInitializeTime(dailyHour, 0, 0);
     struct tm tmc;
-    localtime_r(&tt, &tmc);
+    localtime_r(&dailyTime, &tmc);
     char date[16];
     sprintf(date, "%04d-%02d-%02d", tmc.tm_year + 1900,
             tmc.tm_mon + 1, tmc.tm_mday);
@@ -303,7 +304,10 @@ bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
     {
         return false;
     }
-    if (db->get_n_rows() != 1)
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08123c88..0x08123c8f：行数落具名局部
+    // -0x1c 后 `cmpl $0x1,-0x1c; jne`（无 setne 物化）。
+    int nRows = db->get_n_rows();
+    if (nRows != 1)
     {
         return false;
     }
@@ -312,38 +316,44 @@ bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
         return false;
     }
 
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08123cf0..0x08123e37：列号是具名局部
+    // -0x18（初值 0，`mov S,%eax; addl $0x1,S` 后置自增），5 次 get_ubyte 复用
+    // **同一 flag 槽** -0x39（仅首次 `movb $0x0` 初始化），apSum 直接传
+    // `&sig.m_apSum`（ORIG `lea 0x4(%eax),%edx`，无 apSumTmp 临时）。
+    unsigned int col = 0;
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08123cb8：col 之后另有
+    // `movl $0x0,-0x14` 死局部（全函数无读点，P171 照抄）。
+    int deadSlot = 0;
+    (void)deadSlot;
+    // packed 字段不能直接绑定到 unsigned int&（GCC 报错，且 reinterpret_cast
+    // 自 &sig.m_apSum 仍被追踪）⇒ 经 char* 基址 + offsetof 转写；codegen 仍为
+    // ORIG 的 `lea 0x4(%eax),%edx`。
+    if (!db->get_uint(col++, *reinterpret_cast<unsigned int*>(
+                                 reinterpret_cast<char*>(&sig) + 4)))
     {
-        unsigned int apSumTmp = 0;               // packed 成员不可绑引用，经临时转写
-        if (!db->get_uint(0, apSumTmp))          // col0 → sig+4
-        {
-            return false;
-        }
-        sig.m_apSum = apSumTmp;
+        return false;
     }
-    // ORIG 手动展开 5 次 get_ubyte（col 递增 1..5，P48：禁 for 循环合并成单调用点）
-    unsigned char flag0 = 0;
-    if (!db->get_ubyte(1, flag0)) return false;
-    sig.m_isRewardMedal = (flag0 != 0) ? 1 : 0;
-    unsigned char flag1 = 0;
-    if (!db->get_ubyte(2, flag1)) return false;
-    sig.m_isRewardItem[0] = (flag1 != 0) ? 1 : 0;
-    unsigned char flag2 = 0;
-    if (!db->get_ubyte(3, flag2)) return false;
-    sig.m_isRewardItem[1] = (flag2 != 0) ? 1 : 0;
-    unsigned char flag3 = 0;
-    if (!db->get_ubyte(4, flag3)) return false;
-    sig.m_isRewardItem[2] = (flag3 != 0) ? 1 : 0;
-    unsigned char flag4 = 0;
-    if (!db->get_ubyte(5, flag4)) return false;
-    sig.m_isRewardItem[3] = (flag4 != 0) ? 1 : 0;
+    unsigned char flag = 0;
+    if (!db->get_ubyte(col++, flag)) return false;
+    sig.m_isRewardMedal = (flag != 0);
+    if (!db->get_ubyte(col++, flag)) return false;
+    sig.m_isRewardItem[0] = (flag != 0);
+    if (!db->get_ubyte(col++, flag)) return false;
+    sig.m_isRewardItem[1] = (flag != 0);
+    if (!db->get_ubyte(col++, flag)) return false;
+    sig.m_isRewardItem[2] = (flag != 0);
+    if (!db->get_ubyte(col++, flag)) return false;
+    sig.m_isRewardItem[3] = (flag != 0);
 
-    int blobLen = db->get_binary_length(6);     // 第 7 列 ap_clear_state；>0x7ff 拒绝
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08123e3a：`cmpl $0x7ff,-0x10; jbe`
+    // （无符号比较）⇒ 局部类型 unsigned。
+    unsigned int blobLen = db->get_binary_length(col);   // 第 7 列 ap_clear_state；>0x7ff 拒绝
     if (!(blobLen <= 0x7ff))
     {
         return false;
     }
     memset(g_szZipAP_CLEAR_STATE, 0, ConstMaxZipAP_CLEAR_STATE);
-    if (!db->get_binary(6, g_szZipAP_CLEAR_STATE, blobLen))
+    if (!db->get_binary(col, g_szZipAP_CLEAR_STATE, blobLen))
     {
         return false;
     }
@@ -360,7 +370,14 @@ bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
     {
         return false;
     }
-    return ParseActionClearState(g_szStrAP_CLEAR_STATE, sig.m_actionPoints, 300);
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08123f2f..0x08123f4e：`call; xor $1;
+    // test; je ok; mov $0,%eax; jmp ret; ok: mov $1,%eax; leave; ret`
+    // ⇒ 源码是 `if (!Parse...) return false; return true;`（直返 call 会丢物化岛）。
+    if (!ParseActionClearState(g_szStrAP_CLEAR_STATE, sig.m_actionPoints, 300))
+    {
+        return false;
+    }
+    return true;
 }
 
 // SendResult —— 报告全文转写。ORIG T 0x08124156。
@@ -435,7 +452,7 @@ void DB_UpdateActionPoint::MakeActionClearStateString(std::string& out,
 
 // Update —— 报告全文转写。ORIG T 0x08124386。
 // [b28d-27] DIFF N82/N89：ORIG 0x08124386；p167 CLEAR（22/22），残差为 SQL/STL
-// [b28d-solo-APSystemOnlyOrig] 判词：**N82/N115 封顶**（残差 = 全帧槽基浅 4 + 帧 0xbc↔0xac；P190 double framePad 实测反劣；p167 CLEAR 22/22）。
+// [b28d-solo-APSystemOnlyOrig] 判词：**gap 0**（本轮还原 ORIG 0x08124472..d7 指令序：zipLen=0x400 → `cmp $0x7ff; jbe` → memset → compress_zip；旧版把检查放 compress 后、memset 放 zipLen 前 ⇒ 整段错位）。残差 = 实参装载时刻（ORIG 提前装 sig.m_apSum 到 %ebx）+ 寄存器分配（N7/N82）。p167 CLEAR 22/22。
 // 实例与帧/槽分配，语义闭合。
 bool DB_UpdateActionPoint::Update(bool bExpireDate, const _SIG_LOAD_ACTION_POINT& sig)
 {
@@ -469,16 +486,18 @@ bool DB_UpdateActionPoint::Update(bool bExpireDate, const _SIG_LOAD_ACTION_POINT
     std::string clearState;
     MakeActionClearStateString(clearState, sig.m_actionPoints, 300);
 
-    memset(g_szZipAP_CLEAR_STATE, 0, ConstMaxZipAP_CLEAR_STATE);
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08124472..0x081244d7 指令序 =
+    // `zipLen=0x400` → `cmp $0x7ff; jbe`（容量检查）→ memset → compress_zip；
+    // 旧版把检查放在 compress 之后、memset 放在 zipLen 之前 ⇒ 整段错位。
     unsigned int zipLen = 0x400;
+    if (zipLen > 0x7ff)
+        return false;
+    memset(g_szZipAP_CLEAR_STATE, 0, ConstMaxZipAP_CLEAR_STATE);
     if (!compress_zip(g_szZipAP_CLEAR_STATE, zipLen, clearState.c_str(),
                       static_cast<int>(clearState.size())))
     {
         return false;
     }
-    // ORIG：压缩结果仍超 0x7ff 字节 → 更新失败（防御性检查，ORIG 实证）
-    if (zipLen > 0x7ff)
-        return false;
 
     char* blobStr = db->blob_to_str(0, g_szZipAP_CLEAR_STATE, zipLen);
     db->set_query("update charac_action_point set ap_sum=%d, is_reward_medal=%u, \t\t\t\t\tis_reward_item_1=%u, is_reward_item_2=%u, is_reward_item_3=%u, is_reward_item_4=%u,\t\t\t\t\t\tap_clear_state='%s'\t\t\t\t\t\twhere occ_date='%s'\t\t\t\t\t\tand charac_no=%u",
@@ -550,7 +569,7 @@ bool DB_LoadRewardMedal::dispatch(int a, int b, Stream* stream)
 
 // Select —— 报告全文转写。ORIG T 0x08124910。
 // [b28d-27] DIFF N82/N89：ORIG 0x08124910；p167 CLEAR（18/18），残差为 SQL/STL
-// [b28d-solo-APSystemOnlyOrig] 判词：**N82/N115 封顶**（残差 = 局部槽基浅 4 + char 数组间距 11↔16；p167 CLEAR 18/18）。
+// [b28d-solo-APSystemOnlyOrig] 判词：**gap -4→-1**（本轮还原：medalCount=size() 先于 minAp=99999、strToday/strYesterday 16 字节、get_uint 直传 &sig.m_apSum；165 vs 166）。残差 = N93附（nRows `jle` vs 4.4 `jg+mov$0+jmp`）。p167 CLEAR 18/18。
 // 实例与帧/槽分配，语义闭合。
 bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
 {
@@ -566,8 +585,10 @@ bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
     // P0：Ghidra C 无 today/prev 中间局部 —— localtime_r 直接取 dailyTime 槽地址
     localtime_r(&dailyTime, &tmToday);
     localtime_r(&yesterdaySec, &tmYesterday);
-    char strToday[ConstOCC_DATELength];
-    char strYesterday[ConstOCC_DATELength];
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08124910：两个 sprintf 目标各 16 字节
+    // （Ghidra local_40[16]/local_50[16]；旧版 11 字节短 5）。
+    char strToday[16];
+    char strYesterday[16];
     sprintf(strToday, "%04d-%02d-%02d", tmToday.tm_year + 1900, tmToday.tm_mon + 1,
             tmToday.tm_mday);
     sprintf(strYesterday, "%04d-%02d-%02d", tmYesterday.tm_year + 1900,
@@ -576,9 +597,10 @@ bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
     const std::vector<_MedalRewardItem>& medals =
         G_CDataManager()->GetActionPointEtcParameter(CActionPointManager::_IsGMOn != 0)->m_medalRewards;
 
-    unsigned int minAp = 99999;
-    // P0：Ghidra C 具名局部 local_1c = size(medals)（ORIG 循环外缓存 size 一次）
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08124910：size() 先于 99999 初始化
+    // （Ghidra local_1c=size、local_18=99999）。
     std::size_t medalCount = medals.size();
+    unsigned int minAp = 99999;
     for (unsigned int i = 0; i < medalCount; ++i)
     {
         if (static_cast<int>(medals[i].m_field00) < static_cast<int>(minAp))
@@ -608,13 +630,12 @@ bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
     {
         return false;
     }
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08124b4d：`mov 0xc(%ebp),%eax;
+    // add $0x4,%eax` 直传 &sig.m_apSum（packed 字段经 char* 基址转写）。
+    if (!db->get_uint(1, *reinterpret_cast<unsigned int*>(
+                             reinterpret_cast<char*>(&sig) + 4)))
     {
-        unsigned int apSumTmp = 0;               // packed 成员不可绑引用，经临时转写
-        if (!db->get_uint(1, apSumTmp))
-        {
-            return false;
-        }
-        sig.m_apSum = apSumTmp;
+        return false;
     }
     return true;
 }
@@ -833,7 +854,7 @@ bool CActionPointManager::ClearAction(CUser& user, _ActionGroupIndex group,
 // ——旧版预尺寸 C1EjRKS3_RKS4_ 缺 C1Ev/push_back(&&)；
 // ⑤过滤循环用 `candidates[i]=0` 标记 + goto next（每字段重调 operator[]，共 11 次）；
 // ⑥group 判定链顺序 0x1d/0x1e/0x1f/**0x2d**/0x20（P46 case 序）；
-// [b28d-solo-APSystemOnlyOrig] 判词：**N82 封顶**（空 vector+push_back(&&)+11×ixEj+ppEi+group 链序 0x1d/1e/1f/2d/20 还原后 p167 CLEAR 35/35；残差 = 帧/槽与地址装载序）。
+// [b28d-solo-APSystemOnlyOrig] 判词：**gap 10→2**（本轮还原：标准 `for(;row<300 && it!=end; it++)` 循环旋转布局（4.1 init 后 jmp 底部条件）、P223 fA/fH goto 空标签岛补回 3 处 nop+jmp 岛、lo/hi 表达式直读；370 vs 368）。残差 = N18b（weekday 比较 2 条 mov 中转）+ N107（memcpy dest `add $0x15` vs `lea`）。p167 CLEAR 35/35。
 // ⑦循环尾 `it++`（ppEi 后置，P28 增量侧）。
 void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
                                          ENUM_EXPERT_JOB_TYPE jobType,
@@ -851,25 +872,19 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
     std::map<unsigned short, std::vector<CActionPointEx> >::const_iterator it =
         table.begin();
     int row = 0;
-    for (;;)
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x0812167a..0x08121686：init 后
+    // 无条件 `jmp` 到底部条件块（4.1 for 循环旋转布局）⇒ 源码必须写成
+    // 标准 for(; cond; it++) 形（body 尾 ++row、cond 失败后 m_flag00=1），
+    // 而非 `for(;;){ bool cond; ...; if(!cond) return; }`（4.4 条件置顶）。
+    for (; row < 300 && it != table.end(); it++)
     {
-        bool cond;
-        if (row < 300)
-        {
-            cond = (it != table.end());
-        }
-        else
-        {
-            cond = false;
-        }
-        if (!cond)
-        {
-            m_flag00 = 1;
-            return;
-        }
         const std::vector<CActionPointEx>* list = &it->second;
         int total = static_cast<int>(list->size());
-        if (total != 0)
+        // [b28d-solo-APSystemOnlyOrig] ORIG 0x081216a5..0x08121a8f：`je 0x475`
+        // 落到 nop 岛、then 块尾 `jmp 0x476` 跳过岛（4.1 空 else 占位）⇒
+        // P223 复现形 `if (total==0) goto after_body; { body } after_body:;`
+        // （4.4 探针 /tmp/ap_probe.cpp fA 精确产 `je <nop>; body; jmp; nop`）。
+        if (total == 0) goto after_body;
         {
             bool useWeekday = false;
             bool useLevelBand = false;
@@ -889,7 +904,11 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
             int remain = 0;
             for (unsigned int i = 0; static_cast<int>(i) < total; ++i)
             {
-                if (candidates[i] != 0)
+                // [b28d-solo-APSystemOnlyOrig] ORIG 0x08121772..0x0812198e：
+                // 空 then 占位 nop 岛（`jne 0x371`→nop→`jmp 0x375`）⇒ P223
+                // fH 形（探针 /tmp/ap_probe2.cpp fH 产 `je L; body; jmp L+1;
+                // L: nop`）。
+                if (candidates[i] == 0) goto next_candidate;
                 {
                     if (useWeekday)
                     {
@@ -905,10 +924,13 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
                     }
                     if (useLevelBand)
                     {
-                        unsigned char lo = (*list)[i].m_record.m_levelMin;   // +0x0f
-                        unsigned char hi = (*list)[i].m_record.m_levelMax;   // +0x10
-                        if (level < static_cast<int>(lo) ||
-                            static_cast<int>(hi) < level)
+                        // [b28d-solo-APSystemOnlyOrig] ORIG 0x081217e0..0x0812181a：
+                        // 两次独立 `(*list)[i]` 直读（P183 地址重物化），lo/hi
+                        // **无栈槽**（P0）⇒ 表达式内联，勿声明具名局部。
+                        if (level < static_cast<int>(
+                                        (*list)[i].m_record.m_levelMin) ||
+                            static_cast<int>(
+                                (*list)[i].m_record.m_levelMax) < level)
                         {
                             candidates[i] = 0;
                             goto next_candidate;
@@ -968,15 +990,21 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
                 const CActionPointEx* chosen = 0;
                 for (unsigned int k = 0; static_cast<int>(k) < total; ++k)
                 {
-                    if (candidates[k] != 0)
+                    // [b28d-solo-APSystemOnlyOrig] ORIG 0x081219ec..0x08121a1e：
+                    // 同 fH 形（`sete; jne <nop 岛>; then; jmp; ++seen`）。
+                    if (candidates[k] == 0) goto next_k;
                     {
                         if (seen == pick)
                         {
                             chosen = candidates[k];
                             break;
                         }
-                        ++seen;
+                        else
+                        {
+                            ++seen;
+                        }
                     }
+                next_k:;
                 }
                 if (chosen == 0)
                 {
@@ -990,9 +1018,10 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
                 }
             }
         }
+    after_body:;
         ++row;
-        it++;
     }
+    m_flag00 = 1;
 }
 
 // GetTodayRewardAndSendMail —— 报告全文转写。ORIG T 0x08122104。
@@ -1000,7 +1029,7 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
 // 逐字段 `todays[i].xxx` **每次重调** const operator[]（P157 禁引用缓存；旧版
 // `const _TodayRewardItem& entry=todays[i]` 只 1 次调用 ⇒ p167 MISSING 3）；
 // `entry` 是**循环外声明的具名指针**（-0x18 初值 0，命中即 break），循环后
-// [b28d-solo-APSystemOnlyOrig] 判词：**N82 + X 族封顶**（残差 = 槽基浅 4（i -0xc vs -0x14）+ m_isRewardItem uchar 字段 `cmp $1` vs ORIG bool `xor $1`；p167 CLEAR 18/18）。
+// [b28d-solo-APSystemOnlyOrig] 判词：**N82 + 档②封顶**（残差 = 槽基浅 4 + N93附 两处 `je` vs 4.4 `jne+mov$0+jmp` + N7 虚调目标寄存器 + P75 实参装载序 + P254 字段中转；m_isRewardItem uchar `cmp $1` vs ORIG bool `xor $1`（档②候选：探针 /tmp/ap_probe6.cpp gS3 显示需 bool 字段 + `if(!f)` 才出 xor，共享头改动未落）；p167 CLEAR 18/18）。
 // `if(entry==0)return false`（死检查照抄 P171），`m_flag00=1` 在该检查**之后**。
 bool CActionPointManager::GetTodayRewardAndSendMail(
     CUser& user, _SIG_LOAD_ACTION_POINT::_TodayRewardItem reward)
@@ -1066,7 +1095,7 @@ bool CActionPointManager::GetTodayRewardAndSendMail(
 // ============================================================================
 // [b28d-solo-APSystemOnlyOrig] ORIG 0x08124ea0：size() 缓存 -0x1c、hit -0x18
 // （初值 0）、i -0x14；两个条件各逐字段重调 const operator[]（P157；旧版
-// [b28d-solo-APSystemOnlyOrig] 判词：**N82 封顶**（残差 = 槽基浅 4 与 i 槽 -0xc↔-0x14；P157 逐字段重调 const operator[] 后 p167 CLEAR 20/20）。
+// [b28d-solo-APSystemOnlyOrig] 判词：**N82 封顶**（残差 = 槽基浅 4 + N93附 两处 return 块序 + N7 虚调目标寄存器 + P254 字段 eax→ebx 中转 + P75 实参装载序（`movl $0x8,S` 提前）；171 vs 175）。p167 CLEAR 20/20。
 // `const _MedalRewardItem& m = medals[i]` 只 1 次 ⇒ p167 MISSING 5）。
 bool Inter_LoadRewardMedal::SendMail(CUser& user, unsigned int medalCount)
 {
