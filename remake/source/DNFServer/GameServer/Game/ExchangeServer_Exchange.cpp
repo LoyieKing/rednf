@@ -359,9 +359,12 @@ bool CExchangeServer::SendResponseCharacInfo_forchina(int a, int b,
 // ReturnCacheCharacter                     ORIG 0x84918d8
 // 本 channel 命中缓存并回包；参数 e 控制命中后是否归还池内存。
 // ---------------------------------------------------------------------------
-// [b28d-solo-Exchange] DIFF 判 N82+P226：p167 CLEAR(12/12)、控制流/调用点全等；
-// 残差=4.1 块内局部深槽（pCache -0x34 vs -0x14）+ `&&` 短路物化（4.4 直跳，
-// P226 语句表达式不触发）。真 bug 已修：GetCacheCharacter 实参 c→d。
+// [b28e 2026-09-09] 126/127（p167 CLEAR）：P231 纯 register bool 复现 ORIG 的
+// `&&` 短路物化岛（P226 语句表达式对内存第二条件被 4.4 jump-thread，探针 p1-t2；
+// register 形探针 p7-t47 出岛，仅多 1 条 `mov %eax,%ebx`，ORIG 值在 %al）。
+// 真 bug 已修：GetCacheCharacter 实参 c→d。
+// 残差=块内局部槽向（pCache -0x34 vs -0x14、trace -0x30/-0x20 vs -0x2c/-0x3c，
+// N93 附）+ 1 条寄存器中转 mov 封顶。
 bool CExchangeServer::ReturnCacheCharacter(int a, int b, int c, int d,
                                            bool e, CSession* session)
 {
@@ -383,7 +386,12 @@ bool CExchangeServer::ReturnCacheCharacter(int a, int b, int c, int d,
             bool found = false;
             pos = pCache->GetMemberPosition((ENUM_INTERNALPACKET)a,
                                             &memberIdx, found);
-            if (({ pos != 0 && found; }))
+            // [b28e] P226 语句表达式对「内存字段」第二条件被 4.4 jump-thread（探针
+            // /tmp/probe_es p1-t2）；ORIG 0x8491963..0x849197f 为 && 结果物化岛
+            // （mov$1/jmp/mov$0/test）且无槽 ⇒ P231 纯 register 存储类提示复现
+            // （探针 p7-t47：岛形一致，仅 test 寄存器 %bl vs ORIG %al）。
+            register bool valid = (pos != 0 && found);
+            if (valid)
             {
                 if (session != NULL)
                 {
@@ -481,8 +489,10 @@ bool CExchangeServer::ForwardRequestCharac(int a, int b, void* data,
 // OnRecvPacketCharacInfo                   ORIG 0x84922ee（返回失败行号/0）
 // 包字段：type, idx, channel_no, charac_no[, msg_size, binary]
 // ---------------------------------------------------------------------------
-// [b28d-solo-Exchange] DIFF 判 N82：p167 CLEAR(18/18)；残差=CACHE_CHARACTER_TYPE
-// 帧基（-0x3f8b5 vs -0x3f8bc）+ 全帧槽平移（P225 while 形已复现 setne 物化）。
+// [b28e 2026-09-09] 199/200（p167 CLEAR）：P225 while 形补 setne 物化 + 去具名
+// fromChannel（P0）+ trace 全表达式临时链（P227，复现 ORIG 的 4 对深槽求值/回读）。
+// 残差=循环出口对齐 nop（N112）+ SendResponseCharacInfo 实参装载序 1 条 mov（P75）
+// + CACHE_CHARACTER_TYPE 帧基 -0x3f8b5 vs -0x3f8bc（N82）封顶。
 int CExchangeServer::OnRecvPacketCharacInfo(CSession* session,
                                             PacketGuard& guard)
 {
@@ -534,16 +544,19 @@ int CExchangeServer::OnRecvPacketCharacInfo(CSession* session,
         break;
     }
 
-    const int fromChannel = session->GetChannelNo();
-    {
-        cMyTrace trace("int exchange_server::CExchangeServer::"
-                       "OnRecvPacketCharacInfo(exchange_server::CSession*, "
-                       "PacketGuard&)", 0x253, 0);
-        trace("OnRecvPacketCharacInfo() type(%d), idx(%d), msg len(%d), "
-              "member_size(%d), channel_no(%d), charac_no(%d), "
-              "from_channel_no",
-              errBook, idx, mi2, mi1, chNoArg, characNo, fromChannel);
-    }
+    // P0：ORIG 0x084923bb `call GetChannelNo; mov %eax,%ebx` 无槽往返 ⇒ 原码
+    // 无具名 fromChannel 局部（旧码多发一槽并把帧撑大 0x20）。
+    // P227：ORIG 0x084923bd..0x084923e4 在 ctor 前右起求值 7 个实参
+    // （characNo/chNoArg/mi1/mi2 落深槽，idx/errBook 落 %edi/%esi，
+    // fromChannel 落 %ebx）⇒ 全表达式临时链复现。
+    cMyTrace("int exchange_server::CExchangeServer::"
+             "OnRecvPacketCharacInfo(exchange_server::CSession*, "
+             "PacketGuard&)", 0x253, 0)
+        ("OnRecvPacketCharacInfo() type(%d), idx(%d), msg len(%d), "
+         "member_size(%d), channel_no(%d), charac_no(%d), "
+         "from_channel_no",
+         errBook, idx, mi2, mi1, chNoArg, characNo,
+         session->GetChannelNo());
 
     if (errBook == 0x20)
     {
@@ -570,8 +583,9 @@ int CExchangeServer::OnRecvPacketCharacInfo(CSession* session,
 // 包字段：ret, type, idx[, msg_size, binary]
 // ret==0 且本地回包失败（或 ret!=0）→ ForwardRequestCharac 兜底
 // ---------------------------------------------------------------------------
-// [b28d-solo-Exchange] DIFF 判 N82：p167 CLEAR(15/15，P276 合并共享调用点后)；
-// 残差=帧 0x3f8cc vs 0x3f8bc + 槽平移 + 4.1 varargs 临时槽中转（-0x3f8b4..）。
+// [b28e 2026-09-09] DIFF→NEAR（165/166，p167 CLEAR）：P225 while 形补 setne 物化
+// + 去具名 channel（P0）+ trace 全表达式临时链（P227，复现 ctor 前深槽/寄存器求值）。
+// 残差=N82/N93 槽号平移（ORIG -0x38..-0x40 vs 我方 -0x2c..-0x34）封顶。
 int CExchangeServer::OnRecvPacketCharacInfoRet(CSession* session,
                                                PacketGuard& guard)
 {
@@ -608,7 +622,9 @@ int CExchangeServer::OnRecvPacketCharacInfoRet(CSession* session,
     bool found = false;
     pos = cc.GetMemberPosition((ENUM_INTERNALPACKET)idx, &mi1, found);
 
-    if (pos != 0)
+    // P225：ORIG 0x0849271a `cmpl $0x0,-0x1c(%ebp); setne %al; test %al,%al;
+    // je` ⇒ while(v!=0){body;break;} 精确复现 4.1 bool 四段物化（4.4 对 if 直跳）。
+    while (pos != 0)
     {
         if (!guard.get_int(mi2))                      // line 0x27a
         {
@@ -618,17 +634,19 @@ int CExchangeServer::OnRecvPacketCharacInfoRet(CSession* session,
         {
             return 0x282;
         }
+        break;
     }
 
-    const int channel = session->GetChannelNo();
-    {
-        cMyTrace trace("int exchange_server::CExchangeServer::"
-                       "OnRecvPacketCharacInfoRet(exchange_server::"
-                       "CSession*, PacketGuard&)", 0x28a, 0);
-        trace("OnRecvPacketCharacInfoRet() ret(%d) type(%d), idx(%d), "
-              "msg len(%d), member_size(%d), from_channel(%d)",
-              ret, idx, fromCh, mi2, mi1, channel);
-    }
+    // P0：ORIG 0x08492778 `call GetChannelNo; mov %eax,%ebx` 无槽往返 ⇒ 原码
+    // 无具名 channel 局部（旧码 `const int channel` 多发一槽）。
+    // P227：ORIG 在 ctor 前求值 mi1/mi2/fromCh 到深槽、idx/ret 到 %edi/%esi、
+    // channel 到 %ebx（0x0849277d..0x084927a5）⇒ 全表达式临时链复现。
+    cMyTrace("int exchange_server::CExchangeServer::"
+             "OnRecvPacketCharacInfoRet(exchange_server::"
+             "CSession*, PacketGuard&)", 0x28a, 0)
+        ("OnRecvPacketCharacInfoRet() ret(%d) type(%d), idx(%d), "
+         "msg len(%d), member_size(%d), from_channel(%d)",
+         ret, idx, fromCh, mi2, mi1, session->GetChannelNo());
 
     if (ret == 0)
     {
@@ -647,8 +665,10 @@ int CExchangeServer::OnRecvPacketCharacInfoRet(CSession* session,
 // OnRecvPacketServerInfo                   ORIG 0x8492854
 // 包字段：serverId, ip, port(short)；Master 回全表、Slave 回空注册响应包
 // ---------------------------------------------------------------------------
-// [b28d-solo-Exchange] DIFF 判 N82：p167 CLEAR(46/46)；残差=缺 push %edi + 帧
-// 0x9c vs 0x90 + 全帧槽平移。
+// [b28e 2026-09-09] 282/282（gap 0，p167 CLEAR）：P227 临时链 + 具名 ipv 补回
+// push %edi/esi/ebx 与帧 0x9c；真 bug 修复=trace 实参序（见函数内注释）。
+// 残差=N82/N98 槽号差（ORIG info -0x5c/pkt -0x6c/trace -0x48 vs 我方
+// -0x3c/-0x64/-0x3c）封顶。
 int CExchangeServer::OnRecvPacketServerInfo(CSession* session,
                                             PacketGuard& guard)
 {
@@ -675,14 +695,19 @@ int CExchangeServer::OnRecvPacketServerInfo(CSession* session,
     }
     info.m_type08 = (CONNECT_TYPE)2;                  // ORIG 立即数 2
 
-    {
-        cMyTrace trace("int exchange_server::CExchangeServer::"
-                       "OnRecvPacketServerInfo(exchange_server::CSession*, "
-                       "PacketGuard&)", 0x2a5, 0);
-        trace("channel no(%d), server ip(%s), port(%d)",
-              inet_ntoa(*(struct in_addr*)&info.m_field00), serverId,
-              (int)(short)info.m_word04);
-    }
+    // [b28e 真 bug] ORIG 0x849291e/0x8492922/0x8492926 压栈序 = serverId(0x8)、
+    // ip(0xc)、port(0x10)，与格式串 "channel no(%d), server ip(%s), port(%d)" 对应
+    // ⇒ 实参序应为 (serverId, ip, port)；旧码 (ip, serverId, port) 把 %d 喂指针、
+    // %s 喂 int（可变参类型不匹配，日志错乱）。
+    // P0：ORIG 0x84928de `mov -0x5c(%ebp),%eax; mov %eax,-0x60(%ebp)`（槽往返）
+    // ⇒ 原码有具名 ipv 局部。P227：inet_ntoa 在 cMyTrace ctor 前求值并跨 ctor 保活。
+    struct in_addr ipv;
+    ipv.s_addr = info.m_field00;
+    cMyTrace("int exchange_server::CExchangeServer::"
+             "OnRecvPacketServerInfo(exchange_server::CSession*, "
+             "PacketGuard&)", 0x2a5, 0)
+        ("channel no(%d), server ip(%s), port(%d)", serverId, inet_ntoa(ipv),
+         (int)(short)info.m_word04);
 
     // [b28d-48 P48/P282] ORIG 0x0849293d 与 0x08492ac5 两处独立
     // `mov (%eax),%eax; add $0x10,%eax; … call *%edx`（vptr+0x10 = GetServerType
@@ -718,17 +743,20 @@ int CExchangeServer::OnRecvPacketServerInfo(CSession* session,
 
     if (!RegisterExchangeServer(serverId, info))
     {
-        cMyTrace trace("int exchange_server::CExchangeServer::"
-                       "OnRecvPacketServerInfo(exchange_server::CSession*, "
-                       "PacketGuard&)", 0x2c6, 0);
-        trace("RegisterExchangeServer! failed (%d)", serverId);
+        // P227 全表达式临时链：ORIG 0x08492bc1 `mov -0x4c(%ebp),%ebx` 在 ctor 前
+        // 把 serverId 载入 callee-saved 并跨 ctor 保活（旧具名形 ctor 后重读槽）。
+        cMyTrace("int exchange_server::CExchangeServer::"
+                 "OnRecvPacketServerInfo(exchange_server::CSession*, "
+                 "PacketGuard&)", 0x2c6, 0)
+            ("RegisterExchangeServer! failed (%d)", serverId);
     }
     if (!AttachSessionInExchangeServer(serverId, session))
     {
-        cMyTrace trace("int exchange_server::CExchangeServer::"
-                       "OnRecvPacketServerInfo(exchange_server::CSession*, "
-                       "PacketGuard&)", 0x2cb, 0);
-        trace("AttachSessionInExchangeServer! failed (%d)", serverId);
+        // P227 同上：ORIG 0x08492c1e `mov -0x4c(%ebp),%ebx` 跨 ctor 保活。
+        cMyTrace("int exchange_server::CExchangeServer::"
+                 "OnRecvPacketServerInfo(exchange_server::CSession*, "
+                 "PacketGuard&)", 0x2cb, 0)
+            ("AttachSessionInExchangeServer! failed (%d)", serverId);
     }
     return 0;
 }
@@ -738,8 +766,9 @@ int CExchangeServer::OnRecvPacketServerInfo(CSession* session,
 // Master 广播的 server 表回执：跳过自身表项，其余尝试互连并登记；
 // 最后 Attach 发起方会话并转 Slave 角色。
 // ---------------------------------------------------------------------------
-// [b28d-solo-Exchange] DIFF 判 N82：p167 CLEAR(26/26，控制流按 ORIG 重写后)；
-// 残差=帧 +0x10 + 全帧槽平移。真差异已修：三处 continue→循环内无条件注册。
+// [b28e 2026-09-09] 228/228（gap 0，p167 CLEAR）：P227 临时链 + 具名 ipv 复现
+// ctor 前 %esi/%ebx/%edi 保活；真 bug 修复=trace 实参序两处（见函数内注释）。
+// 残差=N82/N93 槽号差（ORIG -0x84/-0x70/-0x60 vs 我方 -0x80/-0x64/-0x54）封顶。
 int CExchangeServer::OnRecvPacketServerInfoRet(CSession* session,
                                                PacketGuard& guard)
 {
@@ -768,10 +797,14 @@ int CExchangeServer::OnRecvPacketServerInfoRet(CSession* session,
     }
 
     {
-        cMyTrace trace("int exchange_server::CExchangeServer::"
-                       "OnRecvPacketServerInfoRet(exchange_server::"
-                       "CSession*, PacketGuard&)", 0x2dc, 0);
-        trace("channel no(%d), server count(%d)", entryCount, senderId);
+        // [b28e 真 bug] ORIG 0x08492d0a/d0x08492d13 压栈序 = senderId(0x8)、
+        // entryCount(0xc) ⇒ 实参序 (senderId, entryCount)；旧码两值互换
+        // （"channel no(%d), server count(%d)" 打印反）。
+        // P227：ORIG 在 ctor 前把两值载入 %esi/%ebx 跨 ctor 保活。
+        cMyTrace("int exchange_server::CExchangeServer::"
+                 "OnRecvPacketServerInfoRet(exchange_server::"
+                 "CSession*, PacketGuard&)", 0x2dc, 0)
+            ("channel no(%d), server count(%d)", senderId, entryCount);
     }
 
     for (int i = 0; i < entryCount; ++i)
@@ -791,14 +824,18 @@ int CExchangeServer::OnRecvPacketServerInfoRet(CSession* session,
         }
         info.m_type08 = (CONNECT_TYPE)1;              // ORIG 立即数 1
 
-        {
-            cMyTrace trace("int exchange_server::CExchangeServer::"
-                           "OnRecvPacketServerInfoRet(exchange_server::"
-                           "CSession*, PacketGuard&)", 0x2e8, 0);
-            trace("channel no(%d), server ip(%s), port(%d)",
-                  inet_ntoa(*(struct in_addr*)&info.m_field00), remoteId,
-                  (int)(short)info.m_word04);
-        }
+        // [b28e 真 bug] ORIG 0x08492e60/0x8492e68/0x8492e6e 压栈序 =
+        // remoteId(0x8)、ip(0xc)、port(0x10) ⇒ 实参序 (remoteId, ip, port)；
+        // 旧码 (ip, remoteId, port) 把 %d 喂指针、%s 喂 int。
+        // P0：ORIG 0x08492e4c `mov -0x8c(%ebp),%eax; mov %eax,-0x90(%ebp)` ⇒ 具名 ipv。
+        // P227：ip/port/remoteId 在 ctor 前求值（%ebx/%edi/%esi 保活）。
+        struct in_addr ipv;
+        ipv.s_addr = info.m_field00;
+        cMyTrace("int exchange_server::CExchangeServer::"
+                 "OnRecvPacketServerInfoRet(exchange_server::"
+                 "CSession*, PacketGuard&)", 0x2e8, 0)
+            ("channel no(%d), server ip(%s), port(%d)", remoteId,
+             inet_ntoa(ipv), (int)(short)info.m_word04);
 
         // [b28d-solo-Exchange] ORIG 0x8492e2b（自身表项）/0x8492e82（find==end，
         // eqERKS5_）/0x8492ebb（TryConnect 成功）三处 `je 8492f15` 与 TryConnect
@@ -814,31 +851,33 @@ int CExchangeServer::OnRecvPacketServerInfoRet(CSession* session,
             // 未登记：不重连，直接注册
         }
         else if (!m_sessionMgr.TryConnect(
-                     inet_ntoa(*(struct in_addr*)&info.m_field00),
+                     inet_ntoa(ipv),
                      (int)(short)info.m_word04))
         {
-            cMyTrace trace("int exchange_server::CExchangeServer::"
-                           "OnRecvPacketServerInfoRet(exchange_server::"
-                           "CSession*, PacketGuard&)", 0x2f2, 0);
-            trace("cannot connect other game server! (%s,%d)",
-                  inet_ntoa(*(struct in_addr*)&info.m_field00),
-                  (int)(short)info.m_word04);
+            // P227：ORIG 0x08492ebd/0x8492ec7 在 ctor 前求值 port(%esi)/ip(%ebx)。
+            cMyTrace("int exchange_server::CExchangeServer::"
+                     "OnRecvPacketServerInfoRet(exchange_server::"
+                     "CSession*, PacketGuard&)", 0x2f2, 0)
+                ("cannot connect other game server! (%s,%d)",
+                 inet_ntoa(ipv), (int)(short)info.m_word04);
         }
         if (!RegisterExchangeServer(remoteId, info))
         {
-            cMyTrace trace("int exchange_server::CExchangeServer::"
-                           "OnRecvPacketServerInfoRet(exchange_server::"
-                           "CSession*, PacketGuard&)", 0x301, 0);
-            trace("RegisterExchangeServer! failed (%d)", remoteId);
+            // P227：ORIG 0x08492f38 `mov -0x78(%ebp),%ebx` 跨 ctor 保活。
+            cMyTrace("int exchange_server::CExchangeServer::"
+                     "OnRecvPacketServerInfoRet(exchange_server::"
+                     "CSession*, PacketGuard&)", 0x301, 0)
+                ("RegisterExchangeServer! failed (%d)", remoteId);
         }
     }
 
     if (!AttachSessionInExchangeServer(senderId, session))
     {
-        cMyTrace trace("int exchange_server::CExchangeServer::"
-                       "OnRecvPacketServerInfoRet(exchange_server::"
-                       "CSession*, PacketGuard&)", 0x307, 0);
-        trace("AttachSessionInExchangeServer! failed (%d)", senderId);
+        // P227：ORIG 0x08492faa `mov -0x7c(%ebp),%ebx` 跨 ctor 保活。
+        cMyTrace("int exchange_server::CExchangeServer::"
+                 "OnRecvPacketServerInfoRet(exchange_server::"
+                 "CSession*, PacketGuard&)", 0x307, 0)
+            ("AttachSessionInExchangeServer! failed (%d)", senderId);
     }
     SetSlave();
     return 0;
@@ -850,8 +889,10 @@ int CExchangeServer::OnRecvPacketServerInfoRet(CSession* session,
 // 返回类型 int（ORIG 尾 mov %ebx,%eax 无 bool 归一，0x315 行号直传；
 // 调用点 ExchangeServer_Session.cpp 存 int moved 后 cmpl $0）。
 // ---------------------------------------------------------------------------
-// [b28d-solo-Exchange] DIFF 判 N7/N18a：p167 CLEAR(14/14)；唯一残差=type 分支
-// pktType 保活（ORIG `mov -0x10(%ebp),%ebx` vs 4.4 ctor 后重读槽）。
+// [b28e 2026-09-09] 129/129（p167 CLEAR）：唯一残差=外层 default 的 pktType
+// 求值时机（ORIG 0x8493150 `mov -0x10(%ebp),%ebx` 在 ctor 前，4.4 恒 ctor 后读槽）。
+// 已试无效：去 const、`(int)pktType`、语句表达式实参、纯 register（消掉 ORIG 的
+// -0x10 槽 ⇒ 帧 0x50→0x40）⇒ 判 N80/P87（单实参 varargs 4.4 不提前求值）封顶。
 int CExchangeServer::DispatchPacket(CSession* session, char* data,
                                     int len)
 {
@@ -861,7 +902,10 @@ int CExchangeServer::DispatchPacket(CSession* session, char* data,
     // 0x84930eb(0x82)/0x849310b(0x83)；default 与函数尾 return 0 共享
     // `mov $0x0,%ebx` 块（0x84931a8），非 pktCode。
     PacketGuard guard;
-    const int pktType = (signed char)data[0];
+    // [b28e] ORIG 0x8493150 `mov -0x10(%ebp),%ebx` 在 cMyTrace ctor 之前读槽并
+    // 跨 ctor 保活（P87/P227）；对照 pktCode 的 `(int)pktCode` 实参形使 4.4
+    // 提前求值 ⇒ pktType 实参同样显式 cast（裸 register 会消掉 ORIG 的 -0x10 槽）。
+    int pktType = (signed char)data[0];
     const unsigned char pktCode = (unsigned char)data[1];
 
     if (!guard.bind_packet(data, len))
@@ -900,7 +944,7 @@ int CExchangeServer::DispatchPacket(CSession* session, char* data,
         cMyTrace("virtual int exchange_server::CExchangeServer::"
                  "DispatchPacket(exchange_server::CSession*, "
                  "char*, int)", 0x330, 0)
-            ("unknown packet type %d", pktType);
+            ("unknown packet type %d", (int)pktType);
         break;
     }
     return 0;
