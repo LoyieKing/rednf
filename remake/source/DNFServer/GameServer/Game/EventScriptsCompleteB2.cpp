@@ -195,17 +195,21 @@ LevelupSupport2ndScript::~LevelupSupport2ndScript() {}
 // 比较链 je/jne 朝向为 setcc-fold 族。
 bool importActionMailScript(Action_SendMail* mail)
 {
-    // b28d-solo-EventScriptsCompleteB2: DIFF/N82+N95 — p167 CLEAR(59/59)；
-    // AE 归一 orig=380 our=378（gap 2），帧 0xd0 全等。残差 = 全帧槽号镜像：
-    // ORIG(4.1) 先声明深（token -0xac、8 组 value_type/insert-sret 临时
-    // -0x14..-0xa8），4.4 先声明浅（token -0xc）且按 lifetime 复用块内临时，
-    // 而 4.1 不复用；pair<const int,..> 无默认构造不可提至函数头（P212/N93）
-    // ⇒ 无合法源码解。语义逐分支与 ORIG 汇编一致 ⇒ byte 层 N 封顶。
+    // b28d-solo-EventScriptsCompleteB2 复扫（2026-09-09）：原判 DIFF/N82+N95。
+    // 本轮修复：外层 `while (ScanType(...))` 改 `for(;;)+if(!ScanType) return
+    // false`，复现 ORIG 否定早退形（+0x1a jmp / +0x23 xor;test;je body）⇒
+    // gap 2→0、ORIG/OURS 助记符差集清零、DIFF→NEAR（p167 CLEAR(59/59) 不变）。
+    // 残差仅全帧槽号镜像（ORIG token -0xac 先声明深、8 组 value_type/
+    // insert-sret 临时 -0x14..-0xa8；4.4 token -0xc 先声明浅且按 lifetime
+    // 复用块内临时）⇒ N82/N95；语义逐分支与 ORIG 汇编一致。
     std::string token;
     bool ok = false;
 
-    while (ScanType(token, true))
+    for (;;)
     {
+        if (!ScanType(token, true))
+            return false;
+
         if (token == "[inven]")
         {
             // +0x064 ScanInt(&ok)，字节存 +0x1c。
@@ -1745,12 +1749,12 @@ scan_done:
 // 「fatigue 内层循环/clear 复位/mail 失败不复位 rule」三处语义，已按 ORIG 修正。
 bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* path)
 {
-    // b28d-solo-EventScriptsCompleteB2: DIFF/N96+N18a — p167 CLEAR(86/86)；
-    // AE 归一 orig=643 our=643（gap 0）、槽号集全等（删 switch 前 dead 局部后
-    // -0x168→-0x164 归位）。修法：push_back(右值) 复现 EOi、两处 pair 直构改
-    // make_pair、[send]/[eventitem send] 的 result 检查改 `if(!result) break`。
-    // 残差 = 4 处 `!result` 正极性 je（4.4 恒 jne，/tmp/probe_pol*.cpp 实证）
-    // + continue 岛数（4.4 jump-thread 合并）⇒ 语义完成、N 封顶。
+    // b28d-solo-EventScriptsCompleteB2 复扫（2026-09-09）：原判 DIFF/N96+N18a。
+    // 本轮修复：[send] 节三处 reward 检查（+0x8aa/+0x8eb/+0x930）改用显式
+    // `if(!result) goto send_loop_end; else goto send_loop_head;`（双非紧邻
+    // goto）复现 ORIG 正极性 `xor;test;je <body>`，ndiff 20→4（gap 0、
+    // p167 CLEAR(86/86) 不变）。残差 = [material item] idx 循环 1 处 je/jne
+    // + 节尾 jmp 岛（4.4 jump-thread 实证不可翻）⇒ 语义完成、N 封顶。
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -1939,28 +1943,32 @@ bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* pat
                 ObjectBringUpScript::ObjectBringUpRule rule;   // -0x18c
                 for (;;)
                 {
+                send_loop_head:;
                 if (!ScanType(token, true))
                         break;                          // EOF → +0xa64 公共尾
                 if (token == "[reward start count]")
                     {
                     rule.m_rewardStartCount = ScanInt(&result);
                         if (!result)
-                            break;                      // 失败 → 公共尾
-                        continue;                       // +0x8aa→节内头
+                            goto send_loop_end;         // 失败 → 公共尾
+                        else
+                            goto send_loop_head;        // +0x8aa→节内头
                     }
                 else if (token == "[reward end count]")
                     {
                     rule.m_rewardEndCount = ScanInt(&result);
                         if (!result)
-                            break;
-                        continue;
+                            goto send_loop_end;
+                        else
+                            goto send_loop_head;
                     }
                 else if (token == "[reward mutiple number]")
                     {
                     rule.m_rewardMutipleNumber = ScanInt(&result);
                         if (!result)
-                            break;
-                        continue;
+                            goto send_loop_end;
+                        else
+                            goto send_loop_head;
                     }
                 else if (token == "[send mail]")
                     {
@@ -1983,6 +1991,7 @@ bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* pat
             else
                         continue;
                 }
+                send_loop_end:;
                 break;
             }
         }
@@ -2029,13 +2038,14 @@ scan_done:
 // 逐分支对照 ORIG 汇编一致。
 bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
 {
-    // b28d-solo-EventScriptsCompleteB2: DIFF/N82+N93 — p167 CLEAR(164/164)；
-    // gap +4（our 1168 / ORIG 1164）；槽序镜像（ORIG token -0x140 先声明深、
-    // 帧 0x170；4.4 token -0x68 先声明浅、帧 0x1a0）。11 个职业分支的
-    // cond/item/entry 块内对象被 4.4 独立分槽而 4.1 交错复用；`next` 在 ORIG
-    // 为 %ebx 寄存器（4.4 -O0 恒槽化，纯 register 提示无效）。取反形
-    // `if(!ScanType)` 可对齐 xor(47=47) 但每分支多 1 jmp ⇒ gap 恶化至 +16，
-    // 按 §6.2 gap 优先回退正向形。语义逐分支与 ORIG 汇编一致 ⇒ byte 层 N 封顶。
+    // b28d-solo-EventScriptsCompleteB2 复扫（2026-09-09）：原判 DIFF/N82+N93。
+    // 本轮实测：11 处 `if(!ScanType) { next=false; goto levelup_section_end; }`
+    // 可对齐 xor（我方 36→47=ORIG 47、ORIG-only xor 归零），但每分支多 1 条
+    // next 槽写 + goto 岛 ⇒ gap -5→-15（register next 亦 -15），按 §6.2 gap
+    // 优先回退正向形。槽序镜像（ORIG token -0x140 先声明深、帧 0x170；4.4
+    // token -0x68 先声明浅、帧 0x1a0）、11 分支 cond/item/entry 块内对象 4.4
+    // 独立分槽而 4.1 交错复用、next 在 ORIG 为 %ebx 寄存器（4.4 -O0 恒槽化）
+    // ⇒ N82/N93 封顶；语义逐分支与 ORIG 汇编一致。
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -2386,11 +2396,12 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
 bool importPurchaseCashItemBonusEventScript(PurchaseCashItemBonusScript* script,
                                             char const* path)
 {
-    // b28d-solo-EventScriptsCompleteB2: DIFF/N96+N18a — p167 CLEAR(69/69)；
-    // AE 归一 orig=563 our=563（gap 0）。修法：push_back 直构改
-    // make_pair（ORIG `_ZSt9make_pairIRN27...` 左值引用版）；[item idx end]
-    // 改否定早返 `if(end==0) break;`。残差 = 5 处 `!ok` 正极性 je（4.4 恒
-    // jne）+ 4 个 continue 岛（4.4 jump-thread 合并）⇒ 语义完成、N 封顶。
+    // b28d-solo-EventScriptsCompleteB2 复扫（2026-09-09）：原判 DIFF/N96+N18a。
+    // 本轮修复：[send] 节 [purchase start/end count] 与 [purchase mutiple
+    // number] 三处（+0x776/+0x7b7/+0x7fc）改显式双 goto（send_loop_head/
+    // send_loop_end）复现 ORIG 正极性 `xor;test;je <节内头>; jmp <公共尾>`，
+    // ndiff 16→**0**、DIFF→AE（gap 0、p167 CLEAR(69/69) 不变；[item idx]
+    // 循环经此布局后亦随块序归位）。语义与 ORIG 一致。
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -2557,28 +2568,32 @@ bool importPurchaseCashItemBonusEventScript(PurchaseCashItemBonusScript* script,
             PurchaseCashItemBonusScript::PurchaseBonusRule rule;
                 for (;;)
                 {
+                send_loop_head:;
                 if (!ScanType(token, true))
                         break;              // 节内 EOF → 公共尾（+0x932）
                 if (token == "[purchase start count]")
                     {
                     rule.m_purchaseStartCount = ScanInt(&ok);
                         if (!ok)
-                            break;                      // 失败退出节（+0x778）
-                        continue;                       // 成功回节内头
+                            goto send_loop_end;         // 失败退出节（+0x778）
+                        else
+                            goto send_loop_head;        // 成功回节内头
                     }
                 else if (token == "[purchase end count]")
                     {
                     rule.m_purchaseEndCount = ScanInt(&ok);
                         if (!ok)
-                            break;
-                        continue;
+                            goto send_loop_end;
+                        else
+                            goto send_loop_head;
                     }
                 else if (token == "[purchase mutiple number]")
                     {
                     rule.m_purchaseMutipleNumber = ScanInt(&ok);
                         if (!ok)
-                            break;
-                        continue;
+                            goto send_loop_end;
+                        else
+                            goto send_loop_head;
                     }
                 else if (token == "[send mail]")
                     {
@@ -2604,6 +2619,7 @@ bool importPurchaseCashItemBonusEventScript(PurchaseCashItemBonusScript* script,
                         }
                     }
                 }
+                send_loop_end:;
                 break;
             }
         }
