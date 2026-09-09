@@ -198,8 +198,17 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
 
     std::string line;
     bool ok = false;
-    while (ScanType(line, true))
+    // ORIG 0x08a70ad7 为**头测**（`movl $0x1,0x4(%esp); …; call ScanType;
+    // xor $0x1,%eax; test %al,%al; jne 0x8a7385d` + 体尾 `jmp 0x8a70ad7`）；
+    // 4.4 对 `while (ScanType(...))` 恒旋转为「体前 jmp + 尾测块」（我方多
+    // 4 个 continue jmp、少 1 条 xor）。改 `for (;;) + if (!ScanType) break;`
+    // 复现 ORIG 头测形（P165/P283 配套）。
+    for (;;)
     {
+        if (!ScanType(line, true))
+        {
+            break;
+        }
         int v;
 
         if (line == "[random application]")
@@ -277,7 +286,9 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             // ORIG 每行三字段：partType itemGroupName weight；循环回 0x8a70e28
             // 重新读 partType。weight 读失败 → return 0x6e（非跳出）。
             std::string name;
-            int partType = 0;
+            // ORIG partType(-0x424) 无预清零（Ghidra 段首仅 ScanInt 直存）；
+            // 我方 `= 0` 多发 1 条 movl $0x0（P171：ORIG 不写即删）。
+            int partType;
             PartSelectonField field;   // ORIG -0x428/-0x424：两 int 槽由扫描直填
             for (;;)
             {
@@ -923,7 +934,9 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             std::string str;
             for (;;)
             {
-                v = ScanInt(&ok);
+                // ORIG 0x08a731eb：ScanInt 结果**丢弃**（Ghidra `ScanInt(&local_409);`
+                // 无赋值，无 v 槽 store）⇒ 不写 `v =`（P171：ORIG 不写即删）。
+                ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -952,31 +965,32 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                 {
                     return 0x2ba;
                 }
-                int v2 = ScanInt(&ok);
+                // ORIG 0x08a732f7/0x08a73323：ScanInt 结果**直存 val 成员槽**
+                // （-0x59c = m_field0、-0x598 = m_field4），后续比较/范围检查
+                // 全部直接读这两槽（Ghidra 无 v2/v3 具名局部；P0 槽律）。
+                DifferentWeightValue val;
+                val.m_field0 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x2be;
                 }
-                int v3 = ScanInt(&ok);
+                val.m_field4 = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0x2c2;
                 }
-                if (v3 <= v2)
+                if (val.m_field4 <= val.m_field0)
                 {
                     return 0x2c5;
                 }
-                if (v3 > 0x64 || v3 < 0)
+                if (val.m_field4 > 0x64 || val.m_field4 < 0)
                 {
                     return 0x2c8;
                 }
-                if (v2 > 0x64 || v2 < 0)
+                if (val.m_field0 > 0x64 || val.m_field0 < 0)
                 {
                     return 0x2cb;
                 }
-                DifferentWeightValue val;
-                val.m_field0 = v2;
-                val.m_field4 = v3;
                 if (!script.m_mapf4.insert(std::make_pair(keyView.m_key, val)).second)
                 {
                     LogManager::logFormat(0, "../RDARScriptRandomOption.cpp",
@@ -1008,36 +1022,38 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     return 0x2eb;
                 }
                 // ORIG 0x08a73522：此行 ScanInt 结果仅消费、不入 ResetValue（丢弃）。
-                int minVal = ScanInt(&ok);
+                // ORIG 0x08a7352a/0x08a7353b/0x08a7354c：ScanInt 结果**直存 rv 成员槽**
+                // （Ghidra `local_5b4 = ScanInt`，无 minVal/maxVal/weight 中转局部；
+                //  P0：ORIG 无槽往返 ⇒ 原码无该具名局部）。后续 m_count 累加/初值
+                //  ORIG 亦读 rv.m_weight8 槽（`*(int*)(iVar3+0x10) += local_5ac` /
+                //  `local_5bc = local_5ac`）。
+                ResetValue rv;
+                rv.m_min = ScanInt(&ok);       // +0x00
                 if (!ok)
                 {
                     return 0x2ef;
                 }
-                int maxVal = ScanInt(&ok);
+                rv.m_max = ScanInt(&ok);       // +0x04
                 if (!ok)
                 {
                     return 0x2f3;
                 }
-                int weight = ScanInt(&ok);
+                rv.m_weight8 = ScanInt(&ok);   // +0x08
                 if (!ok)
                 {
                     return 0x2f7;
                 }
-                ResetValue rv;
-                rv.m_min = minVal;       // +0x00
-                rv.m_max = maxVal;       // +0x04
-                rv.m_weight8 = weight;   // +0x08
                 std::map<unsigned char, ResetValues>::iterator it =
                     script.m_map1e8.find(key);
                 if (it != script.m_map1e8.end())
                 {
-                    it->second.m_count += weight;
+                    it->second.m_count += rv.m_weight8;
                     it->second.m_values.push_back(rv);
                 }
                 else
                 {
                     ResetValues rvs;
-                    rvs.m_count = weight;   // ORIG 0x08a73678：not-found 直接置本行 weight
+                    rvs.m_count = rv.m_weight8;   // ORIG 0x08a73678：not-found 直接置本行 weight
                     rvs.m_values.push_back(rv);
                     script.m_map1e8.insert(std::make_pair(key, rvs));
                 }

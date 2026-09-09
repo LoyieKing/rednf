@@ -65,9 +65,11 @@ public:
     int ComputeFatigueBatteryCharging(int charge, int level, int specialCnt);  // ORIG 0x84a8004
     short ActiveFatigueBattery_NotEndLevel(class CUser* user);  // ORIG 0x84a829e
     short ActiveFatigueBattery_EndLevel(class CUser* user);   // ORIG 0x84a81f4（CUser 升级 0x55 调用）
-
-private:
-    char m_pad[8];
 };
+
+// [b28d-BigGlobalInit] 空类（sizeof==1）：ORIG GlobalData::Init 0x829b033
+// `movl $0x1,(%esp); call _ZnwjRKSt9nothrow_t` 证明 nothrow new 只分配 1 字节；
+// ORIG C1/D1 0x84a7ff8/0x84a7ffe 均 5 字节空体且无 vptr。原 `char m_pad[8]`
+// 使我方 new 分配 8 字节（Init gap 真因之一），已删。
 
 #endif  // GAME_CFatigueBatteryHandle_H

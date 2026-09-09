@@ -222,15 +222,24 @@ const int IMPORT_FAIL  = 0;
 // 深水区（长尾 keyword 的次要字段、静态 lookup 表优化）以语义等价形式实现，
 // 已在对应分支标注「推断」。
 // ----------------------------------------------------------------------------
-// [b28d-solo-NPCScript 封顶] ORIG 0x089fc264：超大函数（>500，§6.2 三件套）：
-//   ① p167 调用点差集 **CLEAR**（ORIG 351 = OUR 351，0 missing/0 extra）；
-//   ② 字段写 multiset 差 10/10 且逐条核对全为寻址形式差（我方具名指针缓存
-//      vs ORIG 全表达式重算，P183）；
-//   ③ 帧 0x67c vs 0x66c、槽号系统性偏移，且 ORIG 的 10 个 continue 中继岛
-//      （+0x30..+0x87 十对 jmp/nop 同落 +0xab）、EH cleanup 块序、`ok` 极性
-//      （ORIG movzbl+xor$1+test+je vs 4.4 test+jne）为 4.1/4.4 结构性差异
-//      ⇒ **N82/N89/N93 封顶，语义完成**（EOF 处理已按 p167 序位 345/351
-//      移出循环；ok 已按 P320 收敛为函数级单槽）。
+// [b28e-NPCScript 语义修复批] ORIG 0x089fc264：超大函数（>500，§6.2 三件套）。
+//   p167 调用点差集 CLEAR（ORIG 351 = OUR 351，仅 C1/C2、D1/D2 同址别名差，P93）。
+//   按 call 锚点分段 + 槽号归一化多重集比对，本批修 6 处：
+//   ① [web page] 0x089fc74a：ORIG ScanStr 后直接 push_back（无返回值检查）⇒
+//      删我方多余的 `if(!ScanStr(&sub)) break;`（P171 照抄）。
+//   ② [click mark] 0x089fc94f：ORIG info 在循环外、m_param 仅在 m_type==0 时由
+//      ScanInt(&ok) 更新（type!=0 保留旧值）⇒ 改条件写 + info 移出循环。
+//   ③ [favor_duration_reward_buff_dialog] 0x089fcf57：ScanInt 实参 NULL→&ok。
+//   ④ [change] 0x089fd2f4：ORIG 循环头 `int value = 0` ⇒ 提前声明。
+//   ⑤ 函数头 0x089fc2e3：ORIG 函数级 int 槽（-0x1a4，被 [skill]/[speech]/[dialog]/
+//      [int data] 复用）⇒ int v 提升函数级（P320 int 版）。
+//   ⑥ [reward item] 0x089fdc81/0x089fdcf0/0x089fddeb：三层 `!ScanType || tok==end`
+//      拆两条独立 if（P225 推广），消 4.4 setcc 物化。
+//   残余 = 4.1/4.4 结构性差异（N 封顶）：ORIG 9 条 continue 中继岛
+//   （0x089fc2f4..0x089fc30e 九对 jmp/nop 同落 +0xab，4.4 就地 jmp）、bool 局部
+//   物化（ORIG mov %al,-S; movzbl; xor$1 vs 4.4 直接 test，N122）、状态机路径标志
+//   （ORIG %esi/%ebx vs 4.4 栈 bool）、`fav` 引用缓存致成员偏移基数差 0x170
+//   （P183，语义等价）、帧 0x67c vs 0x66c（N82）。
 bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 xor $1 取反 ⇒ bool（P22）
 {
     if (!loadRDARScriptFile(g_npcScriptBaseDirectory, path))
@@ -248,6 +257,9 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
     // 一个 ok 槽（-0x1a5，函数头 movb $0 一次），各分支复用；原每分支
     // 独立 `bool ok = false;`（20 个槽）使帧 +0x30、槽序整体偏移。
     bool ok = false;
+    // ORIG 0x089fc2e3：函数头 movl $0,-0x1a4 一次；该槽被 [skill]/[speech]/
+    // [dialog]/[int data] 四段复用（P320 int 版），分支内不得重新初始化。
+    int v = 0;
 
     for (;;)
     {
@@ -341,7 +353,6 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
             }
             std::vector<int>& list = npc->m_skills[slot];
             list.clear();
-            int v = 0;
             while ((v = ScanInt(&ok), ok))
             {
                 list.push_back(v);
@@ -353,10 +364,8 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
             int count = ScanInt(static_cast<bool*>(0));
             for (int i = 0; i < count; ++i)
             {
-                if (!ScanStr(&sub))
-                {
-                    break;  // 推断：ORIG 未检查返回值，此处防御性终止
-                }
+                // ORIG 0x089fc74a：ScanStr 后直接 push_back，无返回值检查（P171 照抄）。
+                ScanStr(&sub);
                 npc->m_webPages.push_back(sub);
             }
             continue;
@@ -395,19 +404,22 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
             ScanInt(static_cast<bool*>(0));
             ScanStr(&tmp);
             ScanStr(&tmp);
-            while (ScanInt(&ok), ok)
+            while ((v = ScanInt(&ok), ok))
             {
             }
             continue;
         }
         if (token == "[click mark]")
         {
-            int type = 0;
-            while ((type = ScanInt(&ok), ok))
+            // ORIG 0x089fc94f：info 对象在循环外（-0x1b8/-0x1b4），type 直接写
+            // info.m_type；m_param 仅在 type==0 时更新（type!=0 保留旧值，照抄 ORIG）。
+            ClickMarkInfo info;
+            while ((info.m_type = ScanInt(&ok), ok))
             {
-                ClickMarkInfo info;
-                info.m_type = type;
-                info.m_param = (type == 0) ? ScanInt(static_cast<bool*>(0)) : 0;
+                if (info.m_type == 0)
+                {
+                    info.m_param = ScanInt(&ok);
+                }
                 npc->m_clickMarks.push_back(info);
             }
             continue;
@@ -429,7 +441,6 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
             dlg.m_d = ScanInt(static_cast<bool*>(0));
             dlg.m_flag = ScanInt(static_cast<bool*>(0)) != 0;
             ScanStr(&dlg.m_str);
-            int v = 0;
             while ((v = ScanInt(&ok), ok))
             {
                 dlg.m_list2.push_back(v);
@@ -509,7 +520,7 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
         if (token == "[favor_duration_reward_buff_dialog]")
         {
             ScanStr(&npc->m_favorDurationBuffDialog);
-            ScanInt(static_cast<bool*>(0));
+            ScanInt(&ok);   // ORIG 0x089fcf57：传 &ok（非 NULL）
             continue;
         }
         if (token == "[string data]")
@@ -524,7 +535,6 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
         if (token == "[int data]")
         {
             npc->m_intData.clear();
-            int v = 0;
             while ((v = ScanInt(&ok), ok))
             {
                 npc->m_intData.push_back(v);
@@ -552,7 +562,11 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
 
             for (;;)
             {
-                if (!ScanType(token, true) || token == "[/favorable relationship]")
+                if (!ScanType(token, true))
+                {
+                    break;
+                }
+                if (token == "[/favorable relationship]")
                 {
                     break;
                 }
@@ -580,7 +594,11 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                 {
                     for (;;)
                     {
-                        if (!ScanType(token, true) || token == "[/mood]")
+                        if (!ScanType(token, true))
+                        {
+                            break;
+                        }
+                        if (token == "[/mood]")
                         {
                             break;
                         }
@@ -591,10 +609,11 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                                 // ORIG make_pair<ENUM_NPC_MOOD&, unsigned int>：首参为
                                 // ENUM_NPC_MOOD 具名左值，次参 unsigned int 右值临时。
                                 ENUM_NPC_MOOD mood = static_cast<ENUM_NPC_MOOD>(3);
+                                int value = 0;   // ORIG 0x089fd2f4：循环头 movl $0
                                 if (!ScanStr(&sub)) { break; }
                                 mood = static_cast<ENUM_NPC_MOOD>(getNpcMoodFromString(sub.c_str()));
                                 if (mood == 3) { return IMPORT_FAIL; }
-                                int value = ScanInt(&ok);
+                                value = ScanInt(&ok);
                                 if (!ok) { return IMPORT_FAIL; }
                                 fav.m_fav.m_moodChanges.push_back(
                                     std::make_pair(mood,
@@ -622,7 +641,11 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                 {
                     for (;;)
                     {
-                        if (!ScanType(token, true) || token == "[/gift item]")
+                        if (!ScanType(token, true))
+                        {
+                            break;
+                        }
+                        if (token == "[/gift item]")
                         {
                             break;
                         }
@@ -730,9 +753,15 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                     // 0x89fdcf0 中层 [item info]、0x89fddeb 内层 [mood]），逐层退出。
                     for (;;)                       // 外层
                     {
-                        if (!ScanType(token, true) || token == "[/reward item]")
+                        // ORIG 两条独立检查（xor$1/test/je + test/je 同落出口），
+                        // 写 `||` 会被 4.4 折成 setcc 物化（P225 推广：拆嵌套 if）。
+                        if (!ScanType(token, true))
                         {
                             break;                  // → 回 favorable 子块
+                        }
+                        if (token == "[/reward item]")
+                        {
+                            break;
                         }
                         if (token == "[item info]")
                         {
@@ -740,9 +769,13 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                             int mood = 3;
                             for (;;)                 // 中层 [item info]
                             {
-                                if (!ScanType(token, true) || token == "[/item info]")
+                                if (!ScanType(token, true))
                                 {
                                     break;          // → 回外层
+                                }
+                                if (token == "[/item info]")
+                                {
+                                    break;
                                 }
                                 if (token == "[favor level]")
                                 {
@@ -761,7 +794,12 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                                         bool haveFavor = false;
                                         for (;;)
                                         {
-                                            if (!ScanType(token, true) || token == "[/mood]")
+                                            if (!ScanType(token, true))
+                                            {
+                                                stop = true;   // → 回中层
+                                                break;
+                                            }
+                                            if (token == "[/mood]")
                                             {
                                                 stop = true;   // → 回中层
                                                 break;

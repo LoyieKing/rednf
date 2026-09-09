@@ -339,12 +339,33 @@ typedef std::map<const char*, int, less_TCHAR> SkillTagMap;
 // 语义核对（ORIG↔.o 常量组差集）：imm 集仅剩帧 0x67c/0x69c + xor$1 物化×2；
 // 非 ebp 字段访问集仅剩 `lea 0x44(%ebx)`↔`0x40(%ebx)` 一处寄存器折叠差 ⇒
 // 65 张 TAG/字段写/循环界**无缺失**。
-// 剩余 293 构成：deep 区 -0x5f0..-0x67c 块临时槽 +8/+0x24 平移（4.1 跨 case
-// 复用同一 -0x650 feat 槽，4.4 两份不重用 ⇒ 帧 +0x20，N82/N86 类封顶；实测把
-// opToken 移入循环/do-while 形均使 ndiff 持平或恶化，已回退并留注）；
+// [大件语义修复波 BigSkillScript] 归一化 gap 3058/3053(−5)→**3051/3053(+2)**、
+// call 锚点段差异 60→5、clean 全序列非 nop 差异 opcode 28（p167 368=368 不变、
+// TU 四数 identical=219/ae=491/near=1/diff=4 不变）：
+//  ① [special level up] 8a9a6d9..8a9a822：opToken 由循环外改**循环体内**局部
+//     （ORIG 每轮 ~string C1 8a9a6d9 / D1 8a9a815）、`while(cont)` 改 do-while、
+//     cont 去初始化（ORIG 循环前无 mov $1,%ebx）—— 该段 12 个 call 锚点现与
+//     ORIG **逐条全等**（含槽位 -0x610/-0x620/-0x614）；
+//  ② [combo set] 8a9ab36..ab80：m_290=1 退出块移到循环外（ORIG 8a9ab76 在循环
+//     之后，循环内联形产 je 反极性）；
+//  ③ default 8a9ab85：`if(!__inited)break` 改 `if(__inited){...}`（ORIG
+//     movzbl;test;je 正极性，非 xor$1;jne）；
+//  ④ 尾部 8a9ae90：if/else 两臂各自 store 改**三目**（ORIG 两臂物化到 %eax 后
+//     汇合 8a9aebc 单点 store，P47）。
+//  ⑤ finalize vec128 8a9ae22..8a9ae7d：`while(!empty() && size<m)` 改
+//     `if(!empty()) while(size<m)`（ORIG 回跳目标 8a9ae3b=body，empty 只在入口
+//     查一次；Ghidra C 亦为 `if (cVar2 != '\x01') { while … }`）——该段 4 个
+//     call 锚点差异全消。
+// 剩余构成：deep 区 -0x5f0..-0x67c 块临时槽 +8/+0x24 平移（4.1 跨 case
+// 复用同一 -0x650 feat 槽，4.4 两份不重用 ⇒ 帧 +0x20，N82/N86 类封顶）；
 //  - N4/N102：成员数组偏移折入索引 vs disp 折叠（m_dw110[i] 等）。
-//  - P292/N122：bool 局部循环条件 4.4 恒 setne 物化 vs ORIG dword 直测。
+//  - P292/N122：bool 局部循环条件 4.4 恒 test %bl vs ORIG test %ebx（8a9a81a/
+//    a9ed）；改 int 反产 setne 物化（+2 条），两难 ⇒ N 封顶。
 //  - N121：4.4 jump-threading 尾岛（read_token 前 1 条 jmp+nop，ORIG 无）。
+//  - P63/P223：ORIG 主循环尾 6 个共享出口 nop+jmp 中继岛（8a9ac14..8a9ac23），
+//    4.4 直跳主循环尾 ⇒ 我方少 2 岛（补岛反而拉大 gap，不补）。
+//  - finalize while 族 8a9ad05..8a9ae7f：4.1 body-first 旋转 vs 4.4 条件置顶；
+//    ORIG `size<m_14` 物化 setb 8a9ae78 vs 4.4 jae+mov$1/mov$0 岛（P197④ 镜像）。
 // （65 个 TAG insert 块槽号实测与 ORIG 逐条一致，不计残差源。）
 bool ImportSkillScript(STSkillScript* script, const char* path,
                       ENUM_CHARACTERJOB job, int paramB, int iconIdx)
@@ -1283,37 +1304,39 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             }
         {
             script->m_passive268.clear();            // 8a9a6d4 clear(+0x268)
-            std::string opToken;                     // -0x610（每轮复用；ORIG 每轮
-                                                     // ctor/dtor，但 4.4 移入循环体后
-                                                     // dtor 落点/槽号反平移 8，实测
-                                                     // ndiff 293→295 无收益，保留外置形）
-            // ORIG 用 callee-saved %ebx 承载循环标志（P231 纯 register，非 asm 绑定）。
-            register bool cont = true;
-            while (cont)                             // ORIG do{ obj ctor; ... }while(ebx)（8a9a6d9..8a9a822）
+            // ORIG 8a9a6d9..8a9a822：do{ opToken C1 → featData C1 → body }while(ebx)，
+            // opToken 是循环体内局部（每轮 C1/D1，8a9a6d9/8a9a815），cont 为 4 字节
+            // int 走 callee-saved %ebx（mov $1,%ebx 8a9a7ea / mov $0,%ebx 8a9a714 /
+            // test %ebx,%ebx 8a9a81a —— 32 位测试 ⇒ 非 bool，P292/P321-T3）。
+            register bool cont;                      // ORIG 循环前无 mov $1,%ebx
+            do                                       // （体末各路径均赋值，8a9a714/8a9a7ea）
             {
+                std::string opToken;                 // -0x610：每轮 ctor/dtor
                 STPassiveFeatureData featData;       // -0x620：每轮 ctor 重置 enable=1 / m_4=0 / m_8=0 / m_c=0
                 enVal = ScanInt(&okFlag);            // -0x24
-                if (!okFlag)                         // 8a9a70d：失败 ebx=0 出循环
+                if (!okFlag)                         // 8a9a70d：失败 ebx=0 → 跳 D1（8a9a80c）
                 {
                     cont = false;
-                    break;
                 }
-                if (enVal != -1)                     // 8a9a71e：仅 -1 保持 ctor 初值 enable=1
-                    featData.m_enable = 0;           // movb $0,-0x620
-                featData.m_4 = ScanInt(&okFlag);     // -0x61c（8a9a734 传 &ok，值不查）
-                ScanStr(&opToken);
-                // ORIG 8a9a74d/75e 先比 "+"（==则显式写 0），再 "-"，再 "%"，
-                // 三者皆非则保留 ctor 初值（无 else）；共 3 处 string operator==。
-                if (opToken == "+")                  // 8a9a75e == → movl $0,-0x618
-                    featData.m_8 = 0;
-                else if (opToken == "-")             // 8a9a784 == → 1
-                    featData.m_8 = 1;
-                else if (opToken == "%")             // 8a9a7aa == → 2
-                    featData.m_8 = 2;
-                featData.m_c = ScanInt((bool*)0);    // -0x614（8a9a7c4：数值槽）
-                script->m_passive268.push_back(featData);
-                cont = true;                         // ebx=1 继续
-            }
+                else
+                {
+                    if (enVal != -1)                 // 8a9a71e：仅 -1 保持 ctor 初值 enable=1
+                        featData.m_enable = 0;       // movb $0,-0x620
+                    featData.m_4 = ScanInt(&okFlag); // -0x61c（8a9a734 传 &ok，值不查）
+                    ScanStr(&opToken);
+                    // ORIG 8a9a74d/75e 先比 "+"（==则显式写 0），再 "-"，再 "%"，
+                    // 三者皆非则保留 ctor 初值（无 else）；共 3 处 string operator==。
+                    if (opToken == "+")              // 8a9a75e == → movl $0,-0x618
+                        featData.m_8 = 0;
+                    else if (opToken == "-")         // 8a9a784 == → 1
+                        featData.m_8 = 1;
+                    else if (opToken == "%")         // 8a9a7aa == → 2
+                        featData.m_8 = 2;
+                    featData.m_c = ScanInt((bool*)0); // -0x614（8a9a7c4：数值槽）
+                    script->m_passive268.push_back(featData);
+                    cont = true;                        // ebx=1 继续
+                }
+            } while (cont);
             break;
         }
 
@@ -1346,7 +1369,7 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             }
         {
             // ORIG 8a9a96b..：string 临时（-0x624）每轮 ctor/dtor；cont 走 4.1 callee-saved
-            // %ebx（mov $0/$1,%ebx + test%ebx 后测 do-while）。
+            // %ebx（mov $0/$1,%ebx + test %ebx,%ebx 后测 do-while —— 32 位测试 ⇒ int，P321-T3）。
             register bool cont;
             do
             {
@@ -1393,32 +1416,30 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             for (;;)
             {
                 value = ScanInt(&okFlag);
-                if (okFlag)
-                    script->m_vec294.push_back(value);
-                else
-                {
-                    script->m_290 = 1;
+                if (!okFlag)                         // 8a9ab56 jne 8a9ab75（跳循环外退出块）
                     break;
-                }
+                script->m_vec294.push_back(value);
             }
+            script->m_290 = 1;                       // 8a9ab76 循环后统一置位
             break;
 
         default:                                     // 8a9ab85（含 tagId==-1 未知标签）
             // ORIG 8a9ab85 头守卫：首轮 tagId=0 由 [name] 块承接，default 仅在
             // 注册链尾被借道（8a9ab34 jmp 8a9ab85）→ 未注册直接短路主循环尾。
-            if (!__inited)
-                break;
-            // switch 仅在 __inited 后到达（未就绪时上面注册块已置 __inited=true），
-            // 故 ORIG 8a9ab85 的 `if(__inited)` 短路恒真，直接执行 module 处理。
-            // processModuleTagSet(int&,int&,string*,type,bool)：_Z19processModuleTagSetRiS_PSsib
-            // type 实参 = 形参 4（0x14(%ebp)），非 job（汇编 8a9abb0/8a9abb3 实证）
-            int moduleA = -1;                        // -0x628
-            int moduleB = -1;                        // -0x62c
-            moduleRet = processModuleTagSet(moduleA, moduleB, &token, paramB, true);
-            if (moduleA != -1)
-                script->m_228[moduleA] = 1;          // +0x228+a（8a9abf0）
-            if (moduleB != -1)
-                script->m_224 = moduleB;             // +0x224（8a9ac0c）
+            // ORIG 8a9ab85 movzbl __inited;test%al;je 8a9ac24（正极性短路）⇒ 写
+            // if(__inited){...} 而非 if(!__inited)break（后者产 xor$1;jne 反极性）。
+            if (__inited)
+            {
+                // processModuleTagSet(int&,int&,string*,type,bool)：_Z19processModuleTagSetRiS_PSsib
+                // type 实参 = 形参 4（0x14(%ebp)），非 job（汇编 8a9abb0/8a9abb3 实证）
+                int moduleA = -1;                    // -0x628
+                int moduleB = -1;                    // -0x62c
+                moduleRet = processModuleTagSet(moduleA, moduleB, &token, paramB, true);
+                if (moduleA != -1)
+                    script->m_228[moduleA] = 1;      // +0x228+a（8a9abf0）
+                if (moduleB != -1)
+                    script->m_224 = moduleB;         // +0x224（8a9ac0c）
+            }
             break;
     }
 
@@ -1457,9 +1478,13 @@ finalize:                                           // 8a9ac50 尾部修正段�
     if (script->m_vec210.size() != 0)
         while (script->m_vec210.size() < static_cast<unsigned>(script->m_14))
             script->m_vec210.push_back(script->m_vec210.back());
-    while (!script->m_vec128.empty() &&
-           script->m_vec128.size() < static_cast<unsigned>(script->m_14))
-        script->m_vec128.push_back(script->m_vec128.back());
+    // ORIG 8a9ae22..8a9ae7d：empty() 只在**入口检查一次**（回跳目标 8a9ae3b=body，
+    // 不回到 8a9ae22 的 empty 调用）⇒ if(!empty()) while(size<m) 形；写成
+    // `while(!empty() && size<m)` 会让 4.4 每轮重查 empty（Ghidra C 亦为
+    // `if (cVar2 != '\x01') { while (size<m) … }`）。
+    if (!script->m_vec128.empty())
+        while (script->m_vec128.size() < static_cast<unsigned>(script->m_14))
+            script->m_vec128.push_back(script->m_vec128.back());
 
     // job==0xb 特判 -1；否则 iconIdx==-1 时经技能脚本文件表全量扫描定位（8a9ae7f..ae90）
     if (job == 0xb)
@@ -1468,13 +1493,14 @@ finalize:                                           // 8a9ac50 尾部修正段�
     }
     else
     {
-        // ORIG 8a9ae7f 段两臂各自写 m_field0（无 iconIdx 写回）：if 臂用 call
-        // 返回值直存，else 臂读形参直存。
-        if (iconIdx == -1)
-            script->m_field0 = reinterpret_cast<STScriptFileList*>(
-                                   &g_staSkillScriptFileList[job])->FindIndexByFullScan(path);
-        else
-            script->m_field0 = iconIdx;
+        // ORIG 8a9ae90 段：两臂各自把值物化到 %eax（if 臂 call 返回值 8a9aeb7 jmp
+        // 8a9aebc / else 臂 mov 0x18(%ebp),%eax 8a9aeb9）后**汇合**到 8a9aebc
+        // `mov this,%edx; mov %eax,(%edx)` 单点 store ⇒ 三目形（P47），if/else
+        // 各自 store 会使 4.4 在 else 臂内联 store（无汇合点）。
+        script->m_field0 = (iconIdx == -1)
+            ? reinterpret_cast<STScriptFileList*>(
+                  &g_staSkillScriptFileList[job])->FindIndexByFullScan(path)
+            : iconIdx;
     }
     return 1;
 }

@@ -778,12 +778,13 @@ private:
 
 class CStatisticMgr : public CLevelDungeonPlayStatistic
 {
-public:
-    CStatisticMgr();
 private:
     // ORIG ctor 0x82aa89e：CLevelDungeonPlayStatistic@+0（0x18，map<int,
     // stDungeonPlayInfo>）+ CDungeonExpStatistic@+0x18（0x18，map<int,
     // stDungeonExp>）。基类即 CLevelDungeonPlayStatistic（首基类同址）。
+    // [b28d-BigGlobalInit] 无用户默认 ctor（ORIG nm：W _ZN13CStatisticMgrC1Ev
+    // 0x45 为隐式合成）⇒ new (nothrow) CStatisticMgr() 走 value-init 前置清零
+    // （P299/CWG434：用户 ctor 会抑制该清零，ORIG 0x829c5bc 有 rep stos 0xc dwords）。
     CDungeonExpStatistic m_dungeonExp;      // +0x18（权威定义见 CDungeonExpStatistic.h）
 };
 
@@ -4971,11 +4972,6 @@ bool CGM_Manager::LoadGmListFromDb()
     }
     return ok;
 }
-CStatisticMgr::CStatisticMgr()
-{
-    // ORIG 0x82aa89e：两个统计子对象（map 成员自动构造）。
-}
-
 // ORIG T 0x0860ecc6 IncreaseLevelDungeonPlay(level, playCount)：
 // level ∉ [1,200] → 仅 trace(type=0)；否则 find 命中 → 引用缓存后
 // m_playCount += playCount、++m_userCount；未命中 → 先写 playCount 再置
@@ -6457,6 +6453,16 @@ bool GlobalData::initTournamentDB(const char* fileName)
 // [b28d-18 N89] 超大件：残差=STL 实例展开差（N89）；§6.2 语义完成度按调用差集+gap 计 | ORIG 0x08299fa0
 // [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（大件 3139 insn）；N89（ORIG out-of-line STL
 // 实例 vs 4.4 全内联）+ N82 槽位；语义完成，byte 层 N 封顶。
+// [b28d-BigGlobalInit] 真缺口修复（gap +16→0，3139=3139，四数 894/1781/8/52 零回退）：
+//   ① CStatisticMgr 两处 new(nothrow) 缺 value-init 前置清零 —— 删用户默认 ctor
+//      （ORIG nm `W _ZN13CStatisticMgrC1Ev` 0x45 = 隐式合成）⇒ ORIG 0x829c5bc 的
+//      `rep stos 0xc dwords` 复现（P299/CWG434）；
+//   ② antibot init 调用缺 vptr 两级解引用 + 第二实参两段装载 —— 改
+//      `(*(AntibotInitFn**)A)[0](A,(int)B,seq)`（P265/P211 档②：int 形参触发 4.4 中转）；
+//   ③ CFatigueBatteryHandle 的臆造 `char m_pad[8]` 使 nothrow new 分配 8B 而 ORIG 为 1B
+//      （0x829b033 `movl $0x1,(%esp)`）—— 删 pad，空类 sizeof=1（头改动已全仓广播+6 TU 复编）。
+//   残余 = 1 条 ORIG 0x829cd78 `jmp`（ORIG 失败块无任何入口=死块，4.4 生成 `je 成功`，d=0 等长）
+//   + N82/P112 槽位差（帧 0x79c vs 0x78c）；p167 CLEAR（565=565，差集全 C1/C2 同址别名）。
 bool GlobalData::Init()
 {
     s_server_stop = false;
@@ -7061,11 +7067,16 @@ bool GlobalData::Init()
         char seq[4] = {'\0'};
         // ORIG 0x8471ebd：G_CEnvironment()->getProcessSequence() 真实读环境进程序列号
         sprintf(seq, "%d", G_CEnvironment()->getProcessSequence());
-        // ORIG 0x0829cd6f：init 经 vtable 槽0 调用，返回值非 0 记 "AntiBot init fail" 并返 0。
-        typedef int (*AntibotInitFn)(void*, void*, char*);
+        // ORIG 0x0829cd6f：init 经 vtable 槽0 调用（对象首字段=表指针，表[0]=Init：
+        // 0x829cd49 `mov A,%eax; mov (%eax),%eax; mov (%eax),%ebx` 两级解引用），
+        // 返回值非 0 记 "AntiBot init fail" 并返 0。
+        // 第二参按 32 位整型传递（ORIG 0x829cd57 `mov B,%eax; mov %eax,%edx` 两段装载，
+        // 形参 int 才触发 4.4 同形；void* 形参 4.4 折单段）。
+        typedef int (*AntibotInitFn)(void*, int, char*);
         // ORIG 0x0829cd6f-0x0829cdd8：调用结果 test/setne 物化（P15），表达式直放条件位，
         // 勿先存具名局部（具名 int + `!= 0` 生成 cmpl/je 无 setne）。
-        if ((*(AntibotInitFn*)s_antibotChecker_)(s_antibotChecker_, s_antibotBusinessImpl_, seq))
+        if ((*(AntibotInitFn**)s_antibotChecker_)[0](
+                s_antibotChecker_, (int)s_antibotBusinessImpl_, seq))
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x1eb7, 5);
             t("AntiBot init fail");
