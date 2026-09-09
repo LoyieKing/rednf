@@ -247,16 +247,25 @@ void stUltimateWarMonsterInfo::clear()
 // ============================================================================
 int importQPGuideScript(const char* path, stQPGuideScript& out)
 {
-    // [b28d-solo-StScriptImporters] 判词：p167 48/48 CLEAR（修真调用点错位）、指令数 388/396。
-    // 本波修复：①外层改 while(bRec){ if(!ScanType) break; } + 去掉两处 continue，复现 ORIG
-    // 「body 在顶、cond(bRec) 在底、入口 jmp cond」形；②[qp recommendation] 的 ScanStr
-    // then/else 物理序交换（ORIG `xor$1;test;je <then>`）；③`size()!=0xb` 与 count 检查
-    // 改早退形；④`val != ""` → `val.compare("") != 0`（P167 MISSING _ZNKSs7compareEPKc /
-    // EXTRA _ZStneIc… 真调用点错位，改后 CLEAR）。
-    // 残留 N：①bool 条件 lowering——ORIG 外层退出检查发 `movzbl;xor$1;test;je`（12 条），
-    // 4.4 对 `if(bRec)` 恒 `cmpb $0; jne`（6 条，差 6）；②esi 状态机（0/1/2）块序/编码
-    // 差异（ORIG 多共享失败块，我方每 return 独立块）；③token/data 槽基 -0x40 vs ORIG -0x3c
-    // 与 find 临时槽深（N86/N93 族）。语义等价（p167 CLEAR）。
+    // [SweepStScriptImporters 2026-09-10] 判词：AE（本件 DIFF→AE；TU 四数 227/448/0/3）。
+    // 对照 ORIG 0x0890ff93 逐块修复（本波，原 388/396）：
+    //  ① 推荐段 ScanStr(&jobStr) 成功路径补 `bRec2 = true;`（ORIG 0x08910092 movb $1,-0x16）；
+    //  ② ScanStr(&growStr) 改否定形 if(!...)（复现 ORIG 0x089100ea xor$1;test;je <成功>）；
+    //  ③ data.m_job=job 前置于 int grow=-1（ORIG 0x089100ca/0x089100cd）；
+    //  ④ data.m_grow=grow 前置于 int count=0（ORIG 0x0891012e/0x08910134）；
+    //  ⑤ tooltip 段 key/val 声明移出 while 体 + 体内 key=-1 重置（ORIG 0x089102ba/c1/d1）；
+    //  ⑥ tooltip empty 检查改否定 if/else（ORIG 0x089102f8 xor$1;test;je <return0>）；
+    //  ⑦ val.compare("") 改「空 then + goto 尾标签」形（P223，复现 ORIG 0x08910367
+    //     sete;test;jne <nop 岛 0x0891043c>）；
+    //  ⑧ map find 改具名左操作数 iterator it=find(key); if(it==end())（P219：翻求值序
+    //     end→find 为 ORIG 的 find→end，sret 槽 -0x6c/-0x38 与 ORIG 全等）；
+    //  ⑨ 尾部 3×if-return 改单一 return(!bRec&&!bRec2&&!bTool)（ORIG 0x0891047f 三连
+    //     movzbl;xor$1;test;je + movzbl %al,%ebx）。
+    // 验证：insns 396=396；jcc 67/67 助记符与目标偏移全等（mismatch=0）；结构化 diff 仅剩
+    // 4 处字符串立即数（ORIG 报告 $"..."/我方 .o 重定位占位，AE 归一化）；p167 48/48
+    // （MISSING/EXTRA 仅 C1/C2、D1/D2 同址别名，P93）；槽位集全等（token -0x3c / data -0x50 /
+    // jobStr -0x54 / growStr -0x58 / count -0x5c / itemIdx -0x60 / key -0x64 / val -0x68 /
+    // find -0x6c / end -0x38 / job -0x14 / grow -0x10 / i -0xc / bRec2 -0x16 / bRec -0x17）。
     if (!loadRDARScriptFile("", path))
         return 0x28b6;
     std::string token;
@@ -279,25 +288,36 @@ int importQPGuideScript(const char* path, stQPGuideScript& out)
                     if (!ScanStr(&jobStr))
                     {
                         // ScanStr 失败：out[10] 已填充则结束记录段，否则返回 0。
-                        if (out.m_vec0.at(10).empty())
+                        if (!out.m_vec0.at(10).empty())
+                        {
+                            bRec2 = false;
+                            break;
+                        }
+                        else
+                        {
                             return 0;
-                        bRec2 = false;
+                        }
                     }
                     else
                     {
+                        bRec2 = true;
                         job = getCharacterJob(jobStr.c_str());
                         if (job < 0 || job > 10)
                             return 0;
-                        int grow = -1;
                         data.m_job = job;
+                        int grow = -1;
                         std::string growStr;
-                        if (ScanStr(&growStr))
+                        if (!ScanStr(&growStr))
+                        {
+                            return 0;
+                        }
+                        else
                         {
                             grow = getGrowTypeIndex(growStr.c_str());
                             if (grow == 0xffff)
                                 return 0;
-                            int count = 0;
                             data.m_grow = grow;
+                            int count = 0;
                             if (!ScanInt(&count))
                                 return 0;
                             if (count <= 0)
@@ -315,48 +335,47 @@ int importQPGuideScript(const char* path, stQPGuideScript& out)
                                 return 0;
                             out.m_vec0[job].push_back(data);
                         }
-                        else
-                        {
-                            return 0;
-                        }
                     }
                 }
             }
             else if (token == "[qp tooltip mapping]")
             {
+                int key = -1;
+                std::string val;
                 while (bTool)
                 {
-                    int key = -1;
-                    std::string val;
+                    key = -1;
                     if (!ScanInt(&key))
                     {
-                        if (out.m_tooltipMapC.empty())
+                        if (!out.m_tooltipMapC.empty())
+                        {
+                            bTool = false;
+                            bRec = false;
+                            break;
+                        }
+                        else
+                        {
                             return 0;
-                        bTool = false;
-                        bRec = false;
-                        break;
+                        }
                     }
                     if (key < 0)
                         return 0;
                     if (!ScanStr(&val))
                         return 0;
-                    if (val.compare("") != 0)
+                    if (!val.compare(""))
+                        goto tooltip_skip;
                     {
-                        if (out.m_tooltipMapC.find(key) == out.m_tooltipMapC.end())
+                        std::map<int, std::string>::iterator it = out.m_tooltipMapC.find(key);
+                        if (it == out.m_tooltipMapC.end())
                         {
                             out.m_tooltipMapC.insert(std::make_pair(key, val.c_str()));
                         }
                     }
+tooltip_skip:;    // [P223] 空 then 占位岛锚点（复现 ORIG 0x0891043c 的 nop 岛）
                 }
             }
     }
-    if (bRec)
-        return 0;
-    if (bRec2)
-        return 0;
-    if (bTool)
-        return 0;
-    return 1;
+    return (!bRec && !bRec2 && !bTool);
 }
 
 // ============================================================================
