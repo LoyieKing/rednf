@@ -137,9 +137,8 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
     Inven_Item invItem =
         user->getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_INVEN, (int)slot);
 
-    CDataManager* dm = G_CDataManager();
     CStackableItem* stackable =
-        static_cast<CStackableItem*>(dm->find_item((int)invItem.m_addInfo));
+        static_cast<CStackableItem*>(G_CDataManager()->find_item((int)invItem.m_addInfo));
 
     // 物品种类必须为可叠放(0x10)或选择强化罐(0x22)；ORIG 逐次虚调 GetItemType（P48）。
     if (stackable == 0 ||
@@ -153,10 +152,9 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
 
-    // 转职校验
-    char grow = user->getCurCharFirstGrowType();
-    char job  = (char)user->get_charac_job();
-    if (!stackable->check_change_job_type(grow, job))
+    // 转职校验（ORIG 0x08208f20：无 grow/job 局部，实参右→左求值：先 job 后 grow）
+    if (!stackable->check_change_job_type(user->getCurCharFirstGrowType(),
+                                          (char)user->get_charac_job()))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa3, 0x17);
         return 0;
@@ -178,19 +176,18 @@ int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet)
         Inven_Item add;
 
         // 在 stStackableBooster_t::m_map（+0x24c）里按 (c1,c2) 取值。
-        // ORIG 走 const find/end + const_iterator（_ZNKSt3map…findERS8_）。
-        const std::map<std::pair<char, char>,
-                       std::vector<stStackableBoosterItemInfo_t> >& bmap =
-            stackable->m_booster.m_map;
+        // ORIG 走 const find/end + const_iterator（_ZNKSt3map…findERS8_），
+        // 且无引用局部（P183：4.4 引用/指针局部恒落槽）。
 
         int count = stackable->m_boosterSelect.m_field8;   // +0x26c
         if (count == 0)
         {
             std::map<std::pair<char, char>,
                      std::vector<stStackableBoosterItemInfo_t> >::const_iterator it =
-                bmap.find(std::make_pair(c1, c2));
+                static_cast<const CStackableItem*>(stackable)->m_booster.m_map
+                    .find(std::make_pair(c1, c2));
             // ORIG 0x082090ae：end() 只求值一次，empty/size 走嵌套 if。
-            if (it != bmap.end())
+            if (it != static_cast<const CStackableItem*>(stackable)->m_booster.m_map.end())
             {
                 if (it->second.empty())
                 {

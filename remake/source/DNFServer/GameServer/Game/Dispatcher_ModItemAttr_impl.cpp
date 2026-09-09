@@ -85,28 +85,30 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
     // 13 次该调用、缺 19+19 次 allocate/throw 与 2 catch），语义近似但结构与
     // ORIG 完全不符（gap 173），现按 ORIG 恢复。为免整函数重排，try 内保持原缩进。
     // ========================================================================
-    register int ret asm("ebx");        // ORIG 出口统一 mov %ebx,%eax
+    // [N96 清绑 2026-09-09] 原 `register int ret asm("ebx")` 已删（P0 限定②/N96 全域
+    // 禁绑；P248 不得恢复）。ORIG 出口统一 `mov %ebx,%eax`（0x0820192b）+ 各 return
+    // 前 `mov $0,%ebx` ⇒ 原码确有统一返回局部；按 P0 还原为具名栈槽局部。残差见判词。
+    int ret;
     try {
     // ---- 1. 状态检查 ----
     // ORIG 0x08200b1a..0x08200b41 实证是 **正向 || 物化双岛**，不是普通短路 if：
     //   `call get_state; cmp $0x3; jne L1` / `call getCurCharacR; test; jne L2`
     //   L1: mov $1,%eax ; jmp L3        L2: mov $0,%eax
     //   L3: test %al,%al ; je 0x08200bdb
-    // ⇒ 必须先物化 bad 到 %al 再单点判跳（技巧40 家族的正向形，与 batch-10 的
+    // ⇒ ORIG 先物化 bad 到 %al 再单点判跳（技巧40 家族的正向形，与 batch-10 的
     //   `!(A && B)` 三条直分支形不同，不可混用）。
     // 岛内：NumberToString 结果直落 %ebx（0x08200b62 `mov %eax,%ebx`）、第二次
     // get_state 结果直落 %esi（0x08200b6f `mov %eax,%esi`），跨 cMyTrace 两 call
-    // 存活（技巧2）。
-    register bool bad asm("al");
-    bad = (user->get_state() != 3 || user->getCurCharacR() == 0);
-    if (bad)
+    // 存活（技巧2）。三者均无栈槽 ⇒ 按 P0 双推律原码无 bad/idStr/st 具名局部。
+    // [N96 清绑 2026-09-09] 已删 `register bool bad asm("al")` /
+    // `register char* idStr asm("ebx")` / `register int st asm("esi")`（P0/N96 全域
+    // 禁绑，P248 不得恢复）；还原为表达式直判 + 右值直传。
+    if (user->get_state() != 3 || user->getCurCharacR() == 0)
     {
-        register char* idStr asm("ebx");
-        idStr = NumberToString(user->get_acc_id(), 0);
-        register int st asm("esi") = user->get_state();
         cMyTrace tr(__PRETTY_FUNCTION__,
                     0x95db, 5);
-        tr("Dispatcher_ModItemAttr => User State : %d, m_id : %s", st, idStr);
+        tr("Dispatcher_ModItemAttr => User State : %d, m_id : %s",
+           user->get_state(), NumberToString(user->get_acc_id(), 0));
         throw 0;                        // ORIG 0x08200bd6 throw int(0)
     }
 
