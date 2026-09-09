@@ -704,7 +704,7 @@ int CNCryptoRc6::GetBlockSize() const
 // Skipjack/TwoFish/XTea）：统一 ECB 逐块处理，算法/上下文见 CNCryptoAlgo
 // ============================================================================
 
-#define LTC_WRAPPER_DEF(Name, CtorType, BlockSize, KeySize, CtxSize, Rounds, KeyErr, FirstErr, SecondErr, SetupFn, EncFn, DecFn) \
+#define LTC_WRAPPER_DEF(Name, CtorType, BlockSize, KeySize, CtxSize, Rounds, KeyErr, FirstErr, SecondErr, LenFirst, SetupFn, EncFn, DecFn) \
 Name::Name() : ICryptoGraph(CtorType)                                                       \
 {                                                                                           \
     m_pCrypto = 0;                                                                          \
@@ -757,11 +757,19 @@ int Name::Encrypt(unsigned char* buf, int len)                                  
 {                                                                                           \
     if (!m_pCrypto)                                                                         \
         return 0x7000000c;                                                                  \
+    if (LenFirst)                                                                           \
+    {                                                                                       \
+        if (len <= 0)                                                                       \
+            return 0x7000000a;                                                              \
+    }                                                                                       \
     int blockSize = GetBlockSize();                                                         \
     if (len % blockSize != 0)                                                               \
         return 0x70000006;                                                                  \
-    if (len <= 0)                                                                           \
-        return 0x7000000a;                                                                  \
+    if (!LenFirst)                                                                          \
+    {                                                                                       \
+        if (len <= 0)                                                                       \
+            return 0x7000000a;                                                              \
+    }                                                                                       \
     symmetric_key* c = (symmetric_key*)m_pCrypto;                                            \
     int count = len / GetBlockSize();                                                       \
     for (int i = 0; i < count; ++i)                                                         \
@@ -775,11 +783,19 @@ int Name::Decrypt(unsigned char* buf, int len)                                  
 {                                                                                           \
     if (!m_pCrypto)                                                                         \
         return 0x7000000c;                                                                  \
+    if (LenFirst)                                                                           \
+    {                                                                                       \
+        if (len <= 0)                                                                       \
+            return 0x7000000a;                                                              \
+    }                                                                                       \
     int blockSize = GetBlockSize();                                                         \
     if (len % blockSize != 0)                                                               \
         return 0x70000006;                                                                  \
-    if (len <= 0)                                                                           \
-        return 0x7000000a;                                                                  \
+    if (!LenFirst)                                                                          \
+    {                                                                                       \
+        if (len <= 0)                                                                       \
+            return 0x7000000a;                                                              \
+    }                                                                                       \
     symmetric_key* c = (symmetric_key*)m_pCrypto;                                            \
     int count = len / GetBlockSize();                                                       \
     for (int i = 0; i < count; ++i)                                                         \
@@ -836,14 +852,14 @@ int Name::GetBlockSize() const                                                  
     return BlockSize;                                                                       \
 }
 
-LTC_WRAPPER_DEF(CNCryptoAnubis,  CRYPTO_GRAPH_ANUBIS,    0x10, 0x10, 0x268, 0x0c, 0x70000002, CRYPT_INVALID_ROUNDS,   CRYPT_INVALID_KEYSIZE, anubis_setup,   anubis_ecb_encrypt,   anubis_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoCast5,   CRYPTO_GRAPH_CAST5,     8,    0x10, 0x84,  0x10, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  cast5_setup,    cast5_ecb_encrypt,    cast5_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoKasumi,  CRYPTO_GRAPH_KASUMI,    8,    0x10, 0x100, 0x08, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  kasumi_setup,   kasumi_ecb_encrypt,   kasumi_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoKhazad,  CRYPTO_GRAPH_KHAZAD,    8,    0x10, 0x90,  0x08, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  khazad_setup,   khazad_ecb_encrypt,   khazad_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoMulti2,  CRYPTO_GRAPH_MULTI2,    8,    0x28, 0x24,  0x80, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  multi2_setup,   multi2_ecb_encrypt,   multi2_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoNoekeon, CRYPTO_GRAPH_NOEKEON,   0x10, 0x10, 0x20,  0x10, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  noekeon_setup,  noekeon_ecb_encrypt,  noekeon_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoSkipjack,CRYPTO_GRAPH_SKIPJACK,  8,    0x0a, 0x10,  0x20, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  skipjack_setup, skipjack_ecb_encrypt, skipjack_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoTwoFish, CRYPTO_GRAPH_TWOFISH,   0x10, 0x20, 0x10a0,0x10, 0x70000002, CRYPT_INVALID_ROUNDS,   CRYPT_INVALID_KEYSIZE, twofish_setup,  twofish_ecb_encrypt,  twofish_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoXTea,    CRYPTO_GRAPH_XTEA,      8,    0x10, 0x100, 0x20, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  xtea_setup,     xtea_ecb_encrypt,     xtea_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoAnubis,  CRYPTO_GRAPH_ANUBIS,    0x10, 0x10, 0x268, 0x0c, 0x70000002, CRYPT_INVALID_ROUNDS,   CRYPT_INVALID_KEYSIZE, 1, anubis_setup,   anubis_ecb_encrypt,   anubis_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoCast5,   CRYPTO_GRAPH_CAST5,     8,    0x10, 0x84,  0x10, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  0, cast5_setup,    cast5_ecb_encrypt,    cast5_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoKasumi,  CRYPTO_GRAPH_KASUMI,    8,    0x10, 0x100, 0x08, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  0, kasumi_setup,   kasumi_ecb_encrypt,   kasumi_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoKhazad,  CRYPTO_GRAPH_KHAZAD,    8,    0x10, 0x90,  0x08, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  0, khazad_setup,   khazad_ecb_encrypt,   khazad_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoMulti2,  CRYPTO_GRAPH_MULTI2,    8,    0x28, 0x24,  0x80, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  0, multi2_setup,   multi2_ecb_encrypt,   multi2_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoNoekeon, CRYPTO_GRAPH_NOEKEON,   0x10, 0x10, 0x20,  0x10, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  0, noekeon_setup,  noekeon_ecb_encrypt,  noekeon_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoSkipjack,CRYPTO_GRAPH_SKIPJACK,  8,    0x0a, 0x10,  0x20, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  0, skipjack_setup, skipjack_ecb_encrypt, skipjack_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoTwoFish, CRYPTO_GRAPH_TWOFISH,   0x10, 0x20, 0x10a0,0x10, 0x70000002, CRYPT_INVALID_ROUNDS,   CRYPT_INVALID_KEYSIZE, 0, twofish_setup,  twofish_ecb_encrypt,  twofish_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoXTea,    CRYPTO_GRAPH_XTEA,      8,    0x10, 0x100, 0x20, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  0, xtea_setup,     xtea_ecb_encrypt,     xtea_ecb_decrypt)
 
 #undef LTC_WRAPPER_DEF

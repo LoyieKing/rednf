@@ -197,14 +197,18 @@ int CDungeonClear::toString(std::string& out, int nUnknown) const
     std::map<short, char>::const_iterator end = m_map.end();
     while (it != end)
     {
-        w = OS_API::snprintf(const_cast<char*>(out.c_str()) + written,
-                             (unsigned int)(curSize - written), ",%d|%d",
-                             (int)it->first, (int)it->second);
-        if (w < 0)
+        // ORIG 0x084846a7 `jmp 0x0848462a`（回循环体头，非条件块）⇒ 内层重试循环
+        // `while(true){ ...; if (w>=0) break; resize; curSize+=nUnknown; }`；
+        // 用 `continue` 会跳条件块（jmp 目标下标差 42），与 ORIG CFG 不同。
+        while (true)
         {
+            w = OS_API::snprintf(const_cast<char*>(out.c_str()) + written,
+                                 (unsigned int)(curSize - written), ",%d|%d",
+                                 (int)it->first, (int)it->second);
+            if (w >= 0)
+                break;
             out.resize((unsigned int)(nUnknown + curSize));
             curSize += nUnknown;
-            continue;
         }
         written += w;
         ++it;
