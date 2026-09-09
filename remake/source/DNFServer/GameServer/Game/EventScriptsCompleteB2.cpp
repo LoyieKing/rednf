@@ -45,7 +45,15 @@ int getCharacterJobToEnumValue(std::string& job);
 // A. 事件脚本 ctor（ctor 内显式语句顺序严格对照各自反汇编）
 // ============================================================================
 
+// 报告 LevelupSupportSciprt.md @0x08ab5124：仅构造 +0x00 的
+// map<int, vector<ItemInfo>*>。
+LevelupSupportSciprt::LevelupSupportSciprt() {}
+
 // ORIG W 0x089861da：基类 → string+0xc → map+0x10 → mail+0x28。
+// +0x08 字节故意不初始化（is_recv_check_item 读此字节；[recv check db table]
+// 未出现时保持未定值，忠实保留）。
+LevelUpRewardScript::LevelUpRewardScript() {}
+
 // +0x08 字节故意不初始化（is_recv_check_item 读此字节；[recv check db table]
 // 未出现时保持未定值，忠实保留）。
 LevelUpRewardScript::LevelUpRewardScript() {}

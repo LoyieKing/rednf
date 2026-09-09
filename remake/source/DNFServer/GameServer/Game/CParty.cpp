@@ -97,6 +97,11 @@ typedef std::vector<MapInfo> MapInfoVec;
 // ============================================================================
 // CParty::cMember
 // ============================================================================
+CParty::cMember::cMember()
+{
+    Init();
+}
+
 void CParty::cMember::Init()
 {
     m_pUser = 0;
@@ -107,11 +112,6 @@ void CParty::cMember::Init()
     memset(m_fielde, 0, 4);
     m_field12 = 0xff;
     m_field14 = 0;
-}
-
-CParty::cMember::cMember()
-{
-    Init();
 }
 
 // ============================================================================
@@ -4780,8 +4780,10 @@ bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
         return true;                                    // ORIG 跳共用尾部
 
     CUserCharacInfo* ci = reinterpret_cast<CUserCharacInfo*>(user);
-    BattleData& bd = m_battleData;
-    Inven_Item& reward = bd.m_itemGroups2[slot][1];     // +0x7ad + slot*0x7a
+// §P331 第二形：ORIG 每次 reward 字段访问都重物化 `imul 3;shl 3`（=slot*0x7a）+
+// `add $0x79d`（imul$0x7a 7 处 / add$0x79d 7 处，本方原 1/0 —— 被 bd + reward 两个
+// 引用吸收）。slot 此后不再改变 ⇒ 逐次寻址同物，无可观察行为变化。
+#define reward (m_battleData.m_itemGroups2[slot][1])   // +0x7ad + slot*0x7a
     int putSlot = ci->getCurCharacInvenW()->tryInsertItemIntoInventory(reward);
     if (putSlot == -1)
     {
@@ -4830,8 +4832,9 @@ bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
     }
     return true;
 }
+#undef reward
 
-void CParty::CompleteCardSelect()
+bool CParty::onBloodRewardTimer(TIMER_MESSAGE msg)
 {
     for (int i = 0; i <= 3; ++i)                        // -0x14
     {
@@ -5624,6 +5627,14 @@ void CParty::dungeon_clear()
     PacketGuard packet;
     int memberCount = get_member_count();               // -0x20
     int goldCardCount = 0;                              // -0x24
+// §P331 第二形（Main 认定首选形，实证 Inter_LoginInfo −661）：ORIG 对
+// m_member[slot].m_pUser 与 m_itemGroups{0,1,2}[slot] 每次访问都从 this 重物化
+// （imul$0x7a 13 处、add$0x79d 4 处、add$0x760 3 处；本方原 3/0/0 —— 被 user +
+// g0/g1/g2 四个具名指针吸收）。slot 为循环变量、体内不改 slot/this ⇒ 逐次寻址同物。
+#define user (m_member[slot].m_pUser)
+#define g0 (m_battleData.m_itemGroups0[slot])
+#define g1 (m_battleData.m_itemGroups1[slot])
+#define g2 (m_battleData.m_itemGroups2[slot])
     for (int slot = 0; slot <= 3; ++slot)               // -0x18
     {
         if (slot > 3)
@@ -5653,10 +5664,6 @@ void CParty::dungeon_clear()
         }
         if (_checkValidUser(slot))
         {
-            CUser* user = m_member[slot].m_pUser;
-            Inven_Item* g0 = bd.m_itemGroups0[slot];    // +0x3a0 组
-            Inven_Item* g1 = bd.m_itemGroups1[slot];    // +0x588 组
-            Inven_Item* g2 = bd.m_itemGroups2[slot];    // +0x770 组
             int put = _putItemIntoUser(user, &g0[0], packet);
             put += _putItemIntoUser(user, &g1[0], packet);
             if (HaveAlreadySelectedCard(
@@ -5693,6 +5700,10 @@ void CParty::dungeon_clear()
             OnSuccessedDungeonClear(user);
         }
     }
+#undef user
+#undef g0
+#undef g1
+#undef g2
 }
 
 // ============================================================================
@@ -6134,7 +6145,10 @@ void CParty::generateBloodRewardExp(int slot, int round, unsigned int baseExp,
 void CParty::beginBloodClearProcess(bool flag)
 {
     // b28d-49 判词：N 封顶（N82 帧/槽）。P167 CLEAR。@0x85b75d4
-    CBattle_Field& bf = *reinterpret_cast<CBattle_Field*>(&m_battleField);
+// §P331 第二形：ORIG 每次 bf 成员访问都 `mov 0x8(%ebp),%eax; add $0xb24,%eax` 重物化
+// （add$0xb24 8 处，本方原 1 —— 引用起基址吸收了 7 处）。改宏每次直取，bf 全程只读
+// 该视图 ⇒ 寻址同物，无可观察行为变化。
+#define bf (*reinterpret_cast<CBattle_Field*>(&m_battleField))
     if (bf.getBloodState() >= 3)
         return;
 
@@ -6261,6 +6275,7 @@ void CParty::beginBloodClearProcess(bool flag)
         }
     }
 }
+#undef bf
 
 // ============================================================================
 // CParty::generateBloodRewardItem —— ORIG 0x85b840e：血轮物品奖励

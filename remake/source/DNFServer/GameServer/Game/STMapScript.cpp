@@ -3033,11 +3033,13 @@ bool ExportMapScript(STMapScript* script, const char* path)
     static char szSaveFileName[0x100];                 // 函数级静态 szSaveFileName
     getScriptFileFullPath(szSaveFileName, 0x100,
                           g_szMapScriptBaseDirectory, path);
+    // ORIG 槽序实证（-0x94 file / -0x8c tileIdx / -0x85..-0x88 bool4）：
+    // 声明位置在 file 初始化之前（实测最优形；仅声明、不初始化，不发指令）。
+    bool chL, chR, chT, chB;                           // -0x88..-0x85（screen edge）
+    unsigned int tileIdx;                              // -0x8c：tile/exttile 共用循环变量
     FILE* file = fopen(szSaveFileName, "wb");
     if (!file)
         return false;
-    bool chL, chR, chT, chB;                           // ORIG -0x88..-0x85（screen edge）
-    unsigned int tileIdx;                              // ORIG -0x8c：tile/exttile 共用
 
     STMapScript defaults;                       // auStack_48c：缺省值对照
 

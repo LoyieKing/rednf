@@ -12428,11 +12428,6 @@ void cUserHistoryLog::RandomOption(const Inven_Item& item, randomOptionReason::T
 // [b28d-29] N82：帧 0x19c vs 0x1ac + 槽平移与参数副本顺序差，调用点全等  (ORIG 0x081d6af4 insn 479->466)
 // 错误码写 param.m_errNo；插入槽位写 param.m_insertedSlot。
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 238（ORIG 479 / ours 465），残差=setcc-fold bool 物化岛/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
-// [BigDispatchCore] 实测 ndiff 216（ORIG 479 / ours 465），P167 仅剩 C1↔C2/D1↔D2 变体。
-// MISSING 的 _ZNSsC1Ev/_ZNSsD1Ev×2/_Unwind_Resume 对应 ORIG local_4c 一个**只构造不读取**
-// 的 std::string 局部（0x081d6e9d；析构 0x081d724e/0x081d7265 + 0x081d725a _Unwind_Resume）。
-// 实测补入后 callee 清零但 ndiff 216→257（4.4 把 dtor 集中到尾部并改写 landing pad）
-// ⇒ 封 **N1042**（ORIG 死对象 string 及其异常清理），无可观察行为差，不补。
 int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
                                                 ParamBase& param)
 {
@@ -12491,12 +12486,13 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
         0.5f + (float)((unsigned int)items[0].GetReSealCount() +
                        (unsigned int)items[1].GetReSealCount()) / 2.0f);
 
-    // [BigDispatchCore] MISSING callee 实测核销：ORIG local_4c 是**只构造不读取**的
-    // std::string 局部（0x081d6e9d _ZNSsC1Ev / 0x081d724e+0x081d7265 _ZNSsD1Ev /
-    // 0x081d725a _Unwind_Resume）。补入 `std::string unusedSealName;` 可令 callee 差集
-    // 清零（含 _Unwind_Resume），但 4.4 把 dtor 集中到尾部 + 改写 landing pad，
-    // 实测 ndiff 216 → 257（+41）⇒ 属编译器析构序差（同 N78/N82 族），故**不补**，
-    // 登记为 N1042（ORIG 死对象 std::string 局部 + 其异常清理）。无任何可观察行为差。
+    // [BigDispatchCore] **语义完整优先，+41 行形态代价，Main 2026-09-09 裁定** ——
+    // 本件 ndiff 216 → 257 是**已裁定的正确结果**，后来泳道请勿以“数字变差”为由回滚。
+    // 依据：ORIG local_4c 是原码真有的一个具名 std::string 局部（只构造、全函数不读取），
+    // callee 证据 _ZNSsC1Ev@0x081d6e9d、_ZNSsD1Ev@0x081d724e/0x081d7265、
+    // _Unwind_Resume@0x081d725a（landing pad 0x081d7244）；不补则 P167 恒有 4 项 MISSING。
+    // 4.4 会把 dtor 集中到函数尾并改写 landing pad ⇒ 形态代价计入 **N1042**。
+    std::string unusedSealName;
     Inven_Item newItem;
     int regenCost = 0;
     // ORIG RegenerationROI::Regenerate T 0x085f8646（声明 CDataManager.h，定义 blocked：
