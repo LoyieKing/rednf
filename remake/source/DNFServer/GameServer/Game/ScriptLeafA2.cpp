@@ -26,6 +26,15 @@
 //   不兼容 ⇒ 跨泳道同步改造；本泳道受「单 .cpp 铁律」约束不越界，已上报 Main
 //   请求分派（附探针与改动清单）。现状 84/74、61/51 差 = union 块拷贝 vs ORIG
 //   逐字段；语义等价。
+//   本波复核（fresh）：C1ERKS_ 84/74、aSERKS_ 61/51 读数不变；ORIG 0x08895ebc
+//   从 +0xc 起每成员重载 `mov 0xc(%ebp),%eax`/`mov 0x8(%ebp),%eax`（objdump 实证
+//   0x08895ee3/0x08895ef1/0x08895efe/0x08895f0b/0x08895f18/0x08895f30/0x08895f3c），
+//   我方 4.4 全程寄存器缓存 ⇒ N18a/N76 命中（隐式拷贝构造形不可源码控制）。
+// [b28d-solo-ScriptLeafA2] new_allocator<stNPCCommonData_t::stOneBuff_t>::construct<
+// stOneBuff_t>(T*, T&&) ORIG 0x08a04930 size 0x4e / 我方 0x43（gap 2）：
+//   ORIG 把 move 源先拷进 3 个栈临时（0x08a04941/46/4c → -0x14/-0x10/-0xc）再拷进
+//   placement-new 目标；我方 libstdc++ 头直接 `mov (%ebx),%edx; mov %edx,(%eax)`
+//   直拷 ⇒ 库头内部构造形差异（N89/N130 族，禁改头）⇒ 判 N；语义等价。
 //   stLevelUpRewardItemScript::clear()                             W 0x083711d6（无报告，objdump）
 //   seriaRoomDecoAniEventScript::clear()                           W 0x083732a4（无报告，objdump）
 //   rewardSubKey::{rewardSubKey,clear,operator<}                   W 0x080f1190/0x080f11de/0x080f11a2
@@ -486,10 +495,18 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
 // ============================================================================
 bool StrikerScript::importScript(const char* path)
 {
-    // [b28d-solo-ScriptLeafA2] 判词 = N（帧差 + 容器族，N82/N89；p167 CLEAR 87=87）。
-    //   已修：19 处 token 比较改「字面量在左」（p167 原 19×EXTRA/MISSING 反向，
-    //   P196 族）+ m_skillMap.find 比较改 operator==（反向包裹，P222）。
-    //   残余 = 帧差（ORIG 0x8c vs 我方 0x7c，P210/N82 族）；语义等价。
+    // [b28d-solo-ScriptLeafA2] 判词 = N（帧/槽形差，N82；p167 CLEAR 87=87）。
+    //   已修：19 处 token 比较改「字面量在左」（P196 族）+ m_skillMap.find 比较改
+    //   operator==（反向包裹，P222）。
+    //   本波：①引入函数级 int num（ORIG -0x48）供 6 个分支复用——[tag mode]
+    //   （0x08a9de49 死写入照抄，P171）、[tag cost time]（0x08a9de70/79 两段中转）、
+    //   [striker start time]（0x08a9def9/df02）、[striker dungeon impossible]
+    //   （0x08a9e035/53 while(ScanInt(&num))）、[striker skill]（0x08a9e10d）、
+    //   [striker skill macro]（0x08a9e2e8）；②[striker skill] 还原 5 个具名 int
+    //   局部 a..e（ORIG -0x30..-0x20，0x08a9e129..0x08a9e198 先取值后逐字段拷进
+    //   skill，帧差 0x10 的来源）。
+    //   读数（本波 fresh）：gap 21→10（ORIG 497 vs 我方 487）；残余 = 帧/槽形差
+    //   （ORIG 帧 0x8c vs 我方，N82）；语义等价。
     if (!loadRDARScriptFile("", path))
     {
         return false;
@@ -498,16 +515,18 @@ bool StrikerScript::importScript(const char* path)
     std::string token;
     std::string s;
     bool ok = false;
+    int num;                                        // ORIG -0x48：多分支复用（P171 死写入照抄）
 
     while (ScanType(token, true))
     {
         if ("[tag mode]" == token)
         {
-            ScanInt(&ok);                           // 仅存局部（ORIG 同）
+            num = ScanInt(&ok);                     // 仅存局部、后续不读（ORIG 0x08a9de49 死写入）
         }
         else if ("[tag cost time]" == token)
         {
-            m_tagCostTime = ScanInt(&ok);
+            num = ScanInt(&ok);                     // ORIG 0x08a9de70/0x08a9de79 两段中转
+            m_tagCostTime = num;
         }
         else if ("[tag character setting]" == token)
         {
@@ -519,7 +538,8 @@ bool StrikerScript::importScript(const char* path)
         }
         else if ("[striker start time]" == token)
         {
-            m_strikerStartTime = ScanInt(&ok);
+            num = ScanInt(&ok);                     // ORIG 0x08a9def9/0x08a9df02 两段中转
+            m_strikerStartTime = num;
         }
         else if ("[striker skill data up]" == token)
         {
@@ -549,14 +569,9 @@ bool StrikerScript::importScript(const char* path)
         else if ("[striker dungeon impossible]" == token)
         {
             m_dungeonImpossible.clear();
-            for (;;)
+            while (ScanInt(&num))                   // ORIG 复用 -0x48（0x08a9e035/0x08a9e053）
             {
-                int dungeon;
-                if (!ScanInt(&dungeon))
-                {
-                    break;
-                }
-                m_dungeonImpossible.push_back(dungeon);
+                m_dungeonImpossible.push_back(num);
             }
         }
         else if ("[striker end time]" == token)
@@ -574,21 +589,26 @@ bool StrikerScript::importScript(const char* path)
             for (;;)
             {
                 StrikerSkill skill;
-                int first;
-                if (!ScanInt(&first))
+                if (!ScanInt(&num))                 // ORIG 复用 -0x48（0x08a9e10d）
                 {
                     break;                              // 扫描失败退出该段
                 }
-                int second = ScanInt(static_cast<bool*>(0));
-                skill.m_field00 = ScanInt(static_cast<bool*>(0));
-                skill.m_field04 = ScanInt(static_cast<bool*>(0));
-                skill.m_field08 = ScanInt(static_cast<bool*>(0));
+                // ORIG 0x08a9e129..0x08a9e198：5 个具名 int 局部（-0x30..-0x20）
+                // 先取值，再逐字段拷进 skill（帧差 0x10 的来源）。
+                int a = num;                        // -0x30（0x08a9e129）
+                int b = ScanInt(static_cast<bool*>(0));      // -0x2c
+                int c = ScanInt(static_cast<bool*>(0));      // -0x28
+                int d = ScanInt(static_cast<bool*>(0));      // -0x24
+                int e = ScanInt(static_cast<bool*>(0));      // -0x20
                 ScanStr(&s);
-                skill.m_name = s;
+                skill.m_field00 = c;                // -0x58（0x08a9e176）
+                skill.m_field04 = d;                // -0x54
+                skill.m_field08 = e;                // -0x50
+                skill.m_name = s;                   // -0x4c（0x08a9e198 operator=）
                 // map 键 = 两个截断 ushort 打包（栈 -0x5c/-0x5a 对）
                 int key = static_cast<int>(
-                    static_cast<unsigned short>(first) |
-                    (static_cast<unsigned int>(static_cast<unsigned short>(second))
+                    static_cast<unsigned short>(a) |
+                    (static_cast<unsigned int>(static_cast<unsigned short>(b))
                      << 16));
                 std::map<int, std::vector<StrikerSkill>*>::iterator it =
                     m_skillMap.find(key);
@@ -610,13 +630,12 @@ bool StrikerScript::importScript(const char* path)
             m_macroCommands.clear();
             for (;;)
             {
-                int index;
-                if (!ScanInt(&index))
+                if (!ScanInt(&num))                 // ORIG 复用 -0x48（0x08a9e2e8）
                 {
                     break;
                 }
                 StrikerSkillAddCommand cmd;
-                cmd.m_field00 = index;
+                cmd.m_field00 = num;
                 cmd.m_field04 = ScanInt(static_cast<bool*>(0));
                 cmd.setType(ScanInt(static_cast<bool*>(0)));
                 m_macroCommands.push_back(cmd);
@@ -716,7 +735,10 @@ bool StageMapList::loadList()
     //   已修：三层遍历由索引 size()/operator[] 改迭代器（begin/end/operator!=/
     //   operator->/operator++(int)，P28 后置 ++）+ ORIG 的容器引用缓存（Ghidra C
     //   `local_20 = local_20 + 0x20`）+ 尾循环条件/体内各调 summaries.size()
-    //   （ORIG 三处调用点）⇒ 本件 +18 AE。残余 = 帧/槽号差（N82）；语义等价。
+    //   （ORIG 三处调用点）⇒ 本件 +18 AE。
+    //   读数（本波 fresh）：gap 3（ORIG 356 vs 我方 353），帧 ORIG 0xf0 vs 我方 0xe0
+    //   （块内局部未提函数头，ORIG -0x2c/-0x24/-0x20/-0x1c/-0x18/-0x14/-0x10 为
+    //   函数级槽）；p167 CLEAR；语义等价 ⇒ N82 封顶。
     std::vector<_StageMapSummary> summaries;
 
     for (std::map<int, std::string>::iterator it =
@@ -1076,218 +1098,247 @@ int CActionPointEtcParameter::importActionPointSystemEtcScript(
 // ============================================================================
 int eventReward::ImportRewardScript(const char* dir, const char* file)
 {
-    // [b28d-solo-ScriptLeafA2] 判词 = N（结构性重写未闭合：§6.2，帧 0x21c vs 0x25c）。
-    //   已修：①9 处 __lookup.insert 改 map::value_type 直构（P315，消 9×make_pair
-    //   +9×pair 转换构造）；②两处 findKey 去 const（ORIG make_pair<int&,vector&>）；
-    //   ③两处 find 比较改 != + 两臂还原（P222）⇒ 本件 +7 AE，MISSING 仅剩 string
-    //   ctor/dtor 计数。残余 = ORIG「ret 变量 + 合并 switch（case 内 if(__inited)
-    //   业务 else 插表）」结构与现有两次 find 结构不同（Ghidra C 1044-1073 实证），
-    //   完整重写需逐 case 改造 ~900 行（跨 9 个 case）⇒ 本轮不闭合，判 N；语义等价
-    //   （p167 122=128，EXTRA 全为 EH 清理/迭代器计数类）。
+    // [b28d-solo-ScriptLeafA2] 结构按 ORIG 0x080ef3a2 还原为 **P333 状态机形**：
+    //   每 case 块头 `if (__inited) {业务; break;} else {insert; fallthrough}`，
+    //   9 项插完后共同尾部 `if(!__inited){leave; __inited=1; goto retry;}` 回跳重查
+    //   （ORIG 0x080f01d5/0x080f01e3）；static 三件套声明在循环体内 retry 标签之后
+    //   （P177：每轮穿 guard，ORIG 0x080ef438 每轮执行 guard 检查）。
+    //   业务块逐块按报告 ## 汇编 转写，含 3 处此前漏掉的返回值检查：
+    //   ①[job type] ScanStr 失败 → return 0（0x080ef79a）；②[sub type] 首 ScanStr
+    //   失败 → return 0（0x080ef8d9）；③[option] ScanStr 成功才调 getOptionType
+    //   （0x080efa47 失败直跳析构）。[equipment item]/[stackable item] 行扫描失败
+    //   一律回主循环（0x080efb6b/0x080efb92/0x080efe03/0x080efe2a/0x080efe51 →
+    //   0x080f01d5），非 return 0；[stackable item] 的 `curItem.m_count = 1` 在
+    //   循环体内每轮执行（0x080efdb3）。key 三标量为 signed char 直落（0x080ef7be）。
+    //   读数（本波 fresh）：gap 30→18（ORIG 885 vs 我方 867）；p167 **122=122**
+    //   （EXTRA/MISSING 仅剩 C1↔C2/D1↔D2 对称差；itemDataD1Ev ×6 已由 itemData
+    //   删用户空析构消除）。残余 18 条 = 每 call 段 ≤2 条的槽/寄存器形差
+    //   （N82/N18a）；判**语义完成、byte 层封顶**。
     if (!loadRDARScriptFile(dir, file))
     {
         return 0;
     }
 
-    static std::map<const char*, int, less_TCHAR> __lookup;
-    static SpinLock __init_lock;
-    static char __inited = 0;
-
-    std::string token;
-    std::string tok2;
-    bool ok = false;
-
-    rewardKey key;                                  // 5 字节栈键（-0x1a9..-0x1a5）
-    std::map<int, std::vector<itemData> > subMap;   // 每 jobtype 局部表
-    itemData curItem;                               // [option] 累积区
+    std::string token;                              // -0x188
+    bool ok = false;                                // -0x189
+    std::map<int, std::vector<itemData> > subMap;   // -0x1a4
+    rewardKey key;                                  // -0x1a9
+    int deadPad = 0;                                // -0x20（ORIG 死局部，P232）
+    itemData curItem;                               // -0x1b8
+    (void)deadPad;
 
     while (ScanType(token, true))
     {
+    retry:
+        static std::map<const char*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static char __inited = 0;
         int id;
-        if (!__inited)
+
+        if (__inited)
+        {
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                __lookup.find(token.c_str());
+            id = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
         {
             __init_lock.enter();
             if (__inited)
             {
                 __init_lock.leave();
-                continue;
+                goto retry;
             }
             id = 0;                                 // 首遍登记态
-        }
-        else
-        {
-            std::map<const char*, int, less_TCHAR>::const_iterator it =
-                __lookup.find(token.c_str());
-            id = (it != __lookup.end()) ? it->second : -1;
-        }
-
-        if (!__inited)
-        {
-            // 首遍：登记全部键值（顺序与 ORIG 级联一致），随后按当前令牌派发。
-            // p167：ORIG 直接调 value_type::C1<char const(&)[N], int>（无 make_pair
-            // 中转），按 P315 用 map::value_type 直构。
-            __lookup.insert(
-                std::map<const char*, int, less_TCHAR>::value_type("[/reward]", 0x8f));
-            __lookup.insert(
-                std::map<const char*, int, less_TCHAR>::value_type("[job type]", 0x93));
-            __lookup.insert(
-                std::map<const char*, int, less_TCHAR>::value_type("[sub type]", 0xa3));
-            __lookup.insert(
-                std::map<const char*, int, less_TCHAR>::value_type("[option]", 0xaf));
-            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type(
-                "[equipment item]", 0xb9));
-            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type(
-                "[stackable item]", 0xd8));
-            __lookup.insert(
-                std::map<const char*, int, less_TCHAR>::value_type("[/sub type]", 0xfc));
-            __lookup.insert(
-                std::map<const char*, int, less_TCHAR>::value_type("[/job type]", 0x102));
-            __lookup.insert(
-                std::map<const char*, int, less_TCHAR>::value_type("[/option]", 0x107));
-            __init_lock.leave();
-            __inited = 1;
-
-            std::map<const char*, int, less_TCHAR>::const_iterator it =
-                __lookup.find(token.c_str());
-            id = (it != __lookup.end()) ? it->second : -1;
         }
 
         switch (id)
         {
+        case 0:         // 首轮哨兵（与 [/reward] 共体）
         case 0x8f:      // [/reward]
-            return 1;
-
+            if (__inited)
+            {
+                return 1;
+            }
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[/reward]", 0x8f));
+            // fallthrough
         case 0x93:      // [job type]
-        {
-            ScanStr(&tok2);
-            key.m_job = static_cast<unsigned char>(getCharacterJobToEnumValue(tok2));
-            key.m_a = static_cast<unsigned char>(ScanInt(&ok));
-            if (!ok)
+            if (__inited)
             {
-                return 0;
+                std::string tok2;
+                if (!ScanStr(&tok2))
+                {
+                    return 0;
+                }
+                key.m_job = static_cast<signed char>(getCharacterJobToEnumValue(tok2));
+                key.m_a = static_cast<signed char>(ScanInt(&ok));
+                if (!ok)
+                {
+                    return 0;
+                }
+                key.m_b = static_cast<signed char>(ScanInt(&ok));
+                if (!ok)
+                {
+                    return 0;
+                }
+                break;
             }
-            key.m_b = static_cast<unsigned char>(ScanInt(&ok));
-            if (!ok)
-            {
-                return 0;
-            }
-            break;
-        }
-
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[job type]", 0x93));
+            // fallthrough
         case 0xa3:      // [sub type]
-        {
-            ScanStr(&tok2);
-            key.m_sub.m_type = static_cast<unsigned char>(getSubKeyType(tok2));
-            if (!ScanStr(&tok2))
+            if (__inited)
             {
-                return 0;
+                std::string tok2;
+                if (!ScanStr(&tok2))
+                {
+                    return 0;
+                }
+                key.m_sub.m_type = static_cast<signed char>(getSubKeyType(tok2));
+                std::string tok3;
+                if (!ScanStr(&tok3))
+                {
+                    return 0;
+                }
+                key.m_sub.m_action = static_cast<signed char>(getSubKeyAction(tok3));
+                break;
             }
-            key.m_sub.m_action = static_cast<unsigned char>(getSubKeyAction(tok2));
-            break;
-        }
-
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[sub type]", 0xa3));
+            // fallthrough
         case 0xaf:      // [option]
-        {
-            ScanStr(&tok2);
-            getOptionType(tok2, curItem);
-            break;
-        }
-
+            if (__inited)
+            {
+                std::string tok2;
+                if (ScanStr(&tok2))
+                {
+                    getOptionType(tok2, curItem);
+                }
+                break;
+            }
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[option]", 0xaf));
+            // fallthrough
         case 0xb9:      // [equipment item]
-        {
-            defaultOption(key.m_sub.m_action, curItem);
-            for (;;)
+            if (__inited)
             {
-                itemData item = curItem;            // 栈副本
-                // p167：ORIG 调 make_pair<int&, vector&>（非 const&）⇒ findKey 去 const。
-                int findKey = ScanInt(&ok);         // ORIG 键为独立局部 int（不占 itemData）
-                if (!ok)
+                defaultOption(key.m_sub.m_action, curItem);
+                for (;;)
                 {
-                    goto next_token;                // 回主循环
+                    int findKey = 0;
+                    itemData item = curItem;        // 栈副本
+                    findKey = ScanInt(&ok);         // ORIG 键为独立局部 int（不占 itemData）
+                    if (!ok)
+                    {
+                        break;                      // 回主循环
+                    }
+                    item.m_itemIdx = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        break;                      // 回主循环（非 return 0）
+                    }
+                    std::map<int, std::vector<itemData> >::iterator fit =
+                        subMap.find(findKey);
+                    if (fit != subMap.end())
+                    {
+                        fit->second.push_back(item);
+                    }
+                    else
+                    {
+                        std::vector<itemData> vec;
+                        vec.push_back(item);
+                        subMap.insert(std::make_pair(findKey, vec));
+                    }
                 }
-                item.m_itemIdx = ScanInt(&ok);
-                if (!ok)
-                {
-                    return 0;
-                }
-                std::map<int, std::vector<itemData> >::iterator fit =
-                    subMap.find(findKey);
-                if (fit != subMap.end())
-                {
-                    fit->second.push_back(item);
-                }
-                else
-                {
-                    std::vector<itemData> vec;
-                    vec.push_back(item);
-                    subMap.insert(std::make_pair(findKey, vec));
-                }
+                break;
             }
-        }
-
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type(
+                "[equipment item]", 0xb9));
+            // fallthrough
         case 0xd8:      // [stackable item]
-        {
-            curItem.m_count = 1;                    // 段首一次性置 1（ORIG 同）
-            defaultOption(key.m_sub.m_action, curItem);
-            for (;;)
+            if (__inited)
             {
-                itemData item = curItem;
-                int findKey = ScanInt(&ok);         // ORIG 键为独立局部 int
-                if (!ok)
+                defaultOption(key.m_sub.m_action, curItem);
+                for (;;)
                 {
-                    goto next_token;
+                    int findKey = 0;
+                    curItem.m_count = 1;            // 每轮重置（ORIG 0x080efdb3）
+                    itemData item = curItem;
+                    findKey = ScanInt(&ok);         // ORIG 键为独立局部 int
+                    if (!ok)
+                    {
+                        break;                      // 回主循环
+                    }
+                    item.m_itemIdx = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        break;                      // 回主循环（非 return 0）
+                    }
+                    item.m_count = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        break;                      // 回主循环（非 return 0）
+                    }
+                    std::map<int, std::vector<itemData> >::iterator fit =
+                        subMap.find(findKey);
+                    if (fit != subMap.end())
+                    {
+                        fit->second.push_back(item);
+                    }
+                    else
+                    {
+                        std::vector<itemData> vec;
+                        vec.push_back(item);
+                        subMap.insert(std::make_pair(findKey, vec));
+                    }
                 }
-                item.m_itemIdx = ScanInt(&ok);
-                if (!ok)
-                {
-                    return 0;
-                }
-                item.m_count = ScanInt(&ok);
-                if (!ok)
-                {
-                    return 0;
-                }
-                std::map<int, std::vector<itemData> >::iterator fit =
-                    subMap.find(findKey);
-                if (fit != subMap.end())
-                {
-                    fit->second.push_back(item);
-                }
-                else
-                {
-                    std::vector<itemData> vec;
-                    vec.push_back(item);
-                    subMap.insert(std::make_pair(findKey, vec));
-                }
+                break;
             }
-        }
-
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type(
+                "[stackable item]", 0xd8));
+            // fallthrough
         case 0xfc:      // [/sub type]
-        {
-            m_map0.insert(std::make_pair(key, subMap));
-            key.m_sub.clear();                      // rewardSubKey::clear 仅清子键
-            subMap.clear();
-            break;
-        }
-
+            if (__inited)
+            {
+                m_map0.insert(std::make_pair(key, subMap));
+                key.m_sub.clear();                  // rewardSubKey::clear 仅清子键
+                subMap.clear();
+                break;
+            }
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[/sub type]", 0xfc));
+            // fallthrough
         case 0x102:     // [/job type]
-        {
-            key.clear();                            // rewardKey::clear
-            subMap.clear();
-            break;
-        }
-
+            if (__inited)
+            {
+                key.clear();                        // rewardKey::clear
+                subMap.clear();
+                break;
+            }
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[/job type]", 0x102));
+            // fallthrough
         case 0x107:     // [/option]
-        {
-            curItem.clear();                        // itemData::clear（W 0x080f1162，call 实证）
+            if (__inited)
+            {
+                curItem.clear();                    // itemData::clear（W 0x080f1162，call 实证）
+                break;
+            }
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[/option]", 0x107));
             break;
-        }
 
         default:        // 未知令牌忽略
             break;
         }
 
-    next_token:;
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = 1;
+            goto retry;
+        }
     }
     // 自然 EOF：返回最后一次 ok 态（ORIG ebx=local_18d）
     return ok ? 1 : 0;

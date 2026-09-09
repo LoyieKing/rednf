@@ -5,7 +5,11 @@
 // ORIG 符号（df_game_r nm，全部 W）：
 //   _ZN8itemDataC1Ev / _ZN8itemDataC2Ev   0x080f1134（同址）
 //   _ZN8itemData5clearEv                  0x080f1162
-//   _ZN8itemDataD1Ev / _ZN8itemDataD2Ev   0x080f32fa（空体用户析构）
+//   _ZN8itemDataD1Ev / _ZN8itemDataD2Ev   0x080f32fa（空体，**隐式** trivial 析构；
+//     判据：ORIG eventReward::ImportRewardScript 0x080ef3a2 全函数对 6 处
+//     `itemData item = curItem;` 局部副本**无任何 D1Ev 调用** ⇒ ORIG 无用户
+//     声明析构（用户空析构会强制 -O0 逐点发 call）。P317：删声明后 D1/D2 仍由
+//     使用点发射同名 W 符号，符号集不变。）
 //
 // 布局证据（objdump df_game_r 逐指令）：
 //   itemData::C1/clear：+0x00 字节=0、+0x01 字节=1、+0x02 字节=1、
@@ -30,7 +34,6 @@ struct itemData
     int m_count;               // +0x08 [推断] 数量（stackable 行 ScanInt；defaultOption action==2 置 1）
 
     itemData();
-    ~itemData();
     void clear();
 };                             // sizeof 0x0c
 
