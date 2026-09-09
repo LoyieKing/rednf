@@ -30,6 +30,14 @@
 // （__slang_filter__FlexLexer 段 0x08093xxx..0x08095xxx，由 SlangFilter.cpp 的 YYText() 调用点
 // 发射）；本 TU 全部 getter 按 ORIG 直读 dnfLex_.yytext / dnfLex_.yylineno（见各函数判词），
 // 不再发射该弱符号（改动前本 TU 因调用它而发射，body 的 pop/load 序与 ORIG 相反）。
+// ----------------------------------------------------------------------------
+// [GiBodyLex R3] ScanAll×2 与 g_dnfLex 定义已迁出本 TU（→ DNFLexWrapperHelpers.cpp）：
+//   ORIG 中 ScanAll(0x088bdea9 / 0x088bde5a) 与 ScanStrOrInt/ScanAnyData 同属 0x088b 段
+//   -O0 TU，不在 DNFLexWrapper.cpp TU（0x08ace290..0x08acecf0）；g_dnfLex(B 0x09495020)
+//   的构造在 ORIG RDARScript.cpp TU 的 __static_initialization_and_destruction_0@0x088c3055。
+//   二者留在本 TU 会使本 TU static_init 变大、并因 ScanAll 的 optimize("O0") 触发 4.4
+//   TU 级内联抑制，导致 _GLOBAL__I__ZN13DNFLexWrapperC2Ev 无法复现 ORIG 的 11 条
+//   内联 __ioinit 体（迁出后归一化逐条相同）。
 // ============================================================================
 
 #include <cstdio>
@@ -40,7 +48,6 @@
 #include "DNFLexWrapper.h"
 #include "ScriptStringManager.h"
 #include "SyncScriptDeps.h"
-#include "RDARScriptStringManager.h"   // g_scriptStringManager_（ScanAll pair 分支）
 
 extern "C" double __strtod_internal(const char*, char**, int);
 extern "C" long __strtol_internal(const char*, char**, int, int);
@@ -57,8 +64,6 @@ DNFLexWrapper::DNFLexWrapper()
       loadStream_(0)
 {
 }
-
-DNFLexWrapper g_dnfLex;
 
 void DNFLexWrapper::setLexType(ENUM_LEX_TYPE t)
 {
@@ -312,17 +317,11 @@ char* DNFLexWrapper::getPairStr()
     return pc;
 }
 
-// [b28d-solo-DNFLexWrapper] N 封顶（TU 级 optimize 属性污染，非本函数源码形可解）：
-// ORIG 0x08ace4d0（33 insn）的 `return std::string(pc);` 只发 toTString + _ZNSsC1EPKcRKSaIcE +
-// _Unwind_Resume 三个 call；本 TU 因 ScanAll×2 的 `__attribute__((optimize("O0")))` 触发 4.4
-// 全局内联抑制，额外发射 _ZNSaIcEC1Ev×1 + _ZNSaIcED1Ev×2（p167 EXTRA=3）。
-// 证据：同旗标（-O2 -std=gnu++98 + 4.4.6 头集/后端）小 TU 探针（仅 includes+本函数）4.4.6/4.4.7
-// 均内联空 allocator ctor（0 个 allocator call）；整删 ScanAll×2 或仅删其 optimize 属性即恢复
-// （TU 读数：保留 ae=22/diff=3；删属性 ae=21/diff=3；删 ScanAll ae=21/diff=1 且本件转 AE）。
-// 已试无效：本函数加 optimize("O2"/"O3")、`#pragma GCC push_options/optimize("O0")/pop_options`
-// 替代 ScanAll 属性（同样污染）、具名 std::string 局部。P167 语义等价。
-// 迁移建议已上报 Main（ScanAll ORIG 邻域 0x088bdb56 ScanAnyData/0x088bda1c scanChangeStatusData，
-// 不属 DNFLexWrapper 段 0x8ace290..0x8acecf0）。
+// [GiBodyLex] AE：ORIG 0x08ace4d0（33 insn）的 `return std::string(pc);` 只发 toTString +
+// _ZNSsC1EPKcRKSaIcE + _Unwind_Resume 三个 call。此前本件因 ScanAll×2 的
+// `__attribute__((optimize("O0")))` 触发 4.4 TU 级内联抑制而多发 _ZNSaIcEC1Ev×1 +
+// _ZNSaIcED1Ev×2（p167 EXTRA=3）；ScanAll×2 已按 R3 迁至 DNFLexWrapperHelpers.cpp
+// （ORIG 中与 ScanStrOrInt/ScanAnyData 同属 0x088b 段 -O0 TU），本 TU 内联抑制随之消除。
 std::string DNFLexWrapper::getLastTokenDataAsString()
 {
     const char* pc;
@@ -381,73 +380,4 @@ void DNFLexWrapper::SetHandler(bool (*isDbcsLeadChar)(char),
 DNFLexWrapper::~DNFLexWrapper()
 {
     // 成员析构自动完成（compiledDnfLex_ → dnfLex_）。
-}
-// ============================================================================
-// ScanAll —— 脚本全类型扫描（ORIG T 0x088bdea9 / 0x088bde5a）
-// token 码：2=dec、3=hex、4=float、5/6=type、7=string、9=pair(int,str)。
-// ============================================================================
-
-// [b28d-solo-DNFLexWrapper] AE：ORIG 0x088bdea9；optimize("O0") 复现 4.1 -O0 帧/槽，
-// token 5/6 拆两个独立 else-if（ORIG 两体重复 getType→toTString→assign 序列）⇒ 101=101。
-__attribute__((optimize("O0")))
-int ScanAll(int* intOut, float* floatOut, std::string* strOut)
-{
-    int token = g_dnfLex.getToken();
-    if (token == 2)
-    {
-        if (intOut != 0)
-            *intOut = g_dnfLex.getDecimal();
-    }
-    else if (token == 3)
-    {
-        if (intOut != 0)
-            *intOut = g_dnfLex.getHexDecimal();
-    }
-    else if (token == 4)
-    {
-        if (floatOut != 0)
-            *floatOut = g_dnfLex.getFloat();
-    }
-    else if (token == 7)
-    {
-        if (strOut != 0)
-            *strOut = toTString(g_dnfLex.getString());
-    }
-    else if (token == 5)
-    {
-        if (strOut != 0)
-            *strOut = toTString(g_dnfLex.getType());
-    }
-    else if (token == 6)
-    {
-        if (strOut != 0)
-            *strOut = toTString(g_dnfLex.getType());
-    }
-    else if (token == 9)
-    {
-        int pair = g_dnfLex.getPairInt();
-        if (g_dnfLex.getToken() == 0xa)
-        {
-            token = 7;
-            if (strOut != 0)
-                *strOut = g_scriptStringManager_.findString(
-                    pair, g_dnfLex.getPairStr(), 0);
-        }
-    }
-    return token;
-}
-
-// [b28d-solo-DNFLexWrapper] AE：ORIG 0x088bde5a；optimize("O0") 复现 4.1 -O0 帧 0x38、
-// 双局部槽 -0x10/-0xc 与 (float)v 的 -0x1c 转换临时 ⇒ 25=25 逐条同形。
-__attribute__((optimize("O0")))
-int ScanAll(float* value, std::string* str)
-{
-    int v = 0;
-    int r = ScanAll(&v, value, str);
-    if (r == 2 || r == 3)
-    {
-        r = 4;
-        *value = (float)v;
-    }
-    return r;
 }

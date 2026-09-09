@@ -407,7 +407,7 @@ struct DB_RedeemInfoView
 // ---- DB_InsertEventStageLog::dispatch 载荷视图（SIG_EVENT_STAGE_LOG 0x78）----
 // ORIG 0x8449144：+0x00 event_id(int)、+0x04 m_id(uint，NumberToString(,0))、
 // +0x08 charac_no(int)、+0x0c server_info(int)、+0x10 stage(int)、
-// +0x14 stage_result(char*，SQL '%s')。写入方 W8LT_EventTail.cpp fill_stage_sig
+// +0x14 stage_result(char*，SQL '%s')。写入方 SeriaRoomAniDecoEvent.cpp fill_stage_sig
 // 写前 0x14 字节 + 内嵌文本（<100，见 questClearLog/buyItemLog）。
 #pragma pack(push, 1)
 struct DB_EventStageLogView

@@ -46,19 +46,28 @@
 //     还原 + 四 callee bool 化（GetItemGrowtype/GetSkillApplyCondition/GetSkillPhase/
 //     GetSkillLevelUp）⇒ 318→2；残差 = 4.4 外层 return 0 中继块落点（N121/P63 族）。
 //     附真语义修正：s_first static→局部（ORIG 0x089becbd 局部标志）
-//   GetSkillApplyCondition 0x089bd8ea     DIFF P167 CLEAR（102/102）：ORIG 为多块贯穿
-//     建表链（嵌套三表），我方为简化形 ⇒ 超大件 N82 口径（839/794，槽号/EH 布局）。
-//   exportEquipmentParameterScript 0x089acf78 DIFF：p167 MISSING allocator/string C1EPKcRKSaIcE/
-//     _Unwind_Resume，EXTRA vector::empty/string()；avatar 段 ORIG 用 std::string name
-//     而本文件为历史 buf/snprintf 简化实现 ⇒ N（P165 结构还原未做）
+//   GetSkillApplyCondition 0x089bd8ea     DIFF P167 CLEAR：ORIG 为多块贯穿建表链
+//     （嵌套三表），我方为简化形 ⇒ 超大件 N82 口径（849/792，槽号/EH 布局）。
+//     [本波] result/terminated 声明序与极性对齐 ORIG（0x89bd914 `movb $0,-0x2e` /
+//     0x89bd918 `movb $1,-0x2d`；命中 0x2f31 时 0x89bdbe5/be9 写 result=1/terminated=0）
+//     ⇒ gap 55→57（形态对齐、指令数 -2，N82 族；语义等价）。
+//   exportEquipmentParameterScript 0x089acf78 DIFF：本波 p167 真缺口清零 ——
+//     ①avatar job 串 `std::string job("")`（补 allocator C1Ev/C1EPKcRKSaIcE/D1Ev + EH，
+//     ORIG 0x89ae343..0x89ae368）②判空改 `m_avatar264.size() != 0` 正极性
+//     （then=avatar / else=roomList，ORIG 0x89ae286 `call size; test eax; setne`）⇒
+//     gap 61→40；残余 = x87 fabs/fucompp 段（N85）+ 帧 0x180/0x170（N115/N95）。
 //   readCondtion 0x0899ce3b               DIFF P167 仅 EXTRA _Unwind_Resume ×2（N104 EH 布局）
 //   importEquipmentParameterInfo 0x089a75ea DIFF：本波**p167 MISSING 清零**（补
 //     LevelUpSkill lu 循环外构造+循环内 clear、push_backEOi 右值直传、0x19d6/0x19f4
 //     拆成两个独立分支各一次 getActiveStatusToEnumValue）；残余 EXTRA string D1×6/
 //     ScanInt×6/operator==×5 等 = switch 后死 if 链等历史结构差 ⇒ N（P165 结构还原未做）
-//   readAction 0x089a13e5                 DIFF：p167 MISSING ScanFloat×2/push_backERKf×4
-//     （重载选错：我方右值实参选 EOf）+ EXTRA _Unwind_Resume×2/string D1×2/ScanInt/
-//     ScanTypeOrInt/vector::size 等；P165 循环抽象 vs ORIG 物理展开 + N82 全帧槽号 ⇒ N
+//   readAction 0x089a13e5                 DIFF：本波 p167 真缺口 5 项 → 1 项（仅 EXTRA
+//     ScanTypeOrInt×1）—— ①[active status] cnt 变量循环物理展开三分支（补 ScanFloat×2，
+//     ORIG 0x89a2eb9 cnt=2 / 0x89a3330 cnt=4 / 0x89a31e4 单发）②[perform skill] 4 个
+//     具名 float 先物化 + 4×push_backERKf、删多余 ScanInt（ORIG 0x89a5090..0x89a51a9）
+//     ③[add absolute defense percent] `push_back((float)fv)` 右值（ORIG 0x89a3b0f..b2b）
+//     ④[passive object] 删发明守卫 `if (values.size()>1)`（ORIG 0x89a484d 直 at(1)）⇒
+//     gap 32→24；残余 = [active status] 子键展开链（P165）+ N82 帧槽。
 //   共同归因：4.1/4.4 寄存器分配·栈槽复用·EH 布局差（N7/N18a/N76/N82/N90/N104 族）。
 //   P167 CLEAR 件按 §6.2 判「语义完成、byte 层 N 封顶」。
 //   P0/N96：本文件全域无 `register asm` 绑定（grep 零命中）；`asm(".set …")` 仅用于
@@ -1097,16 +1106,27 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
             }
             if (sid == -1) break;
             {
-                // 附加状态浮点参数计数（ORIG 0x1344..0x135e 子键分派链）：
-                // blind/slow/haste 2 个；burn/bless/curse 4 个；其余 1 个。
-                int cnt;
+                // 附加状态浮点参数（ORIG 物理展开三份，P165 we-smaller）：
+                // 0x89a2eb9 cnt=2 循环（槽 -0x44、`k<=1`）/ 0x89a3330 cnt=4 循环
+                // （槽 -0x40、`k<=3`）/ 0x89a31e4 单发。共用 cnt 变量循环会少 2 个
+                // ScanFloat 站点（p167 MISSING ScanFloat×2）。
                 if (sid == 0x1344 || sid == 0x1345 || sid == 0x1346)
-                    cnt = 2;
+                {
+                    for (int k = 0; k <= 1; ++k)
+                    {
+                        if (!ScanFloat(&fv)) return false;
+                        values.push_back(fv);
+                    }
+                }
                 else if (sid == 0x135c || sid == 0x135d || sid == 0x135e)
-                    cnt = 4;
+                {
+                    for (int k = 0; k <= 3; ++k)
+                    {
+                        if (!ScanFloat(&fv)) return false;
+                        values.push_back(fv);
+                    }
+                }
                 else
-                    cnt = 1;
-                for (int k = 0; k < cnt; ++k)
                 {
                     if (!ScanFloat(&fv)) return false;
                     values.push_back(fv);
@@ -1239,7 +1259,9 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(43.0f);
         if (!ScanStr(&token)) return false;
         if (!ScanFloat(&fv)) return false;
-        values.push_back(fv);
+        // ORIG 0x89a3b0f..0x89a3b2b：fv 先拷入临时槽 -0x4e0 再按右值传参
+        // （`push_backEOf`）⇒ 源码是 prvalue 形 `push_back((float)fv)`。
+        values.push_back((float)fv);
         goto L_chain_end;
     }
     // 0x13fe [aura active]
@@ -1432,8 +1454,9 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
             int r = ScanTypeOrInt(isType, tok, isInt, true);
             if (isType && tok == "[/passive object]")
             {
-                if (values.size() > 1)
-                    values.at(1) = (float)cnt;   // ORIG 0x89a485b：vector<float>::at（越界抛异常路径）
+                // ORIG 0x89a484d..0x89a4865：无 size() 守卫，直接 at(1)=cnt
+                // （越界走 at 自身抛异常路径，P140/P171 照抄）。
+                values.at(1) = (float)cnt;   // ORIG 0x89a485b：vector<float>::at
                 goto L_chain_end;
             }
             fv = (float)r;
@@ -1582,15 +1605,19 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(20.0f);
         if (!ScanStr(&token)) return false;
-        values.push_back((float)getCharacterJobToEnumValue(token));
+        // ORIG 0x89a5090..0x89a51a9：4 个具名 float 槽（-0x9e8/-0x9ec/-0x9f0/-0x9f4）
+        // 先全部物化，末尾 4 次 push_backERKf；且只有 3 次 ScanInt（旧实现多 1 次）。
+        float f1 = (float)getCharacterJobToEnumValue(token);
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        float f2 = (float)iv;
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        float f3 = (float)iv;
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
-        if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        float f4 = (float)iv;
+        values.push_back(f1);
+        values.push_back(f2);
+        values.push_back(f3);
+        values.push_back(f4);
         goto L_chain_end;
     }
     // 0x156b [end skill]
@@ -3510,9 +3537,12 @@ static bool GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
 {
     if (sp == 0) return 0;
     std::string token;
-    bool terminated = false;   // ORIG local_31：主循环续行标志
-    bool result = false;       // ORIG local_32：仅命中 [/skill apply condition] 置 1
-    while (terminated == false && ScanType(token, true))
+    // ORIG 0x89bd914/0x89bd918：先 `movb $0,-0x2e`（result）再 `movb $1,-0x2d`
+    // （terminated）⇒ 声明序 result 在前、terminated 初值 1；命中 0x2f31 时
+    // 0x89bdbe5/0x89bdbe9 写 result=1 / terminated=0。
+    bool result = false;
+    bool terminated = true;
+    while (terminated && ScanType(token, true))
     {
         int id;
         {
@@ -3557,7 +3587,7 @@ static bool GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
             if (id == 0x2f31)
             {
                 result = true;
-                terminated = true;
+                terminated = false;
             }
             else if (id == 0x2f35)
             {
@@ -5835,14 +5865,9 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
         fwrite("[/skill levelup]\n", 1, 0x11, file);
     }
 
-    // avatar select ability（空时才输出 room list move speed rate）
-    if (info->m_avatar264.empty())
-    {
-        if (info->m_roomListMoveSpeedRate != 0.0f)
-            fprintf(file, "[room list move speed rate] %.2f\n",
-                    (double)info->m_roomListMoveSpeedRate);
-    }
-    else
+    // avatar select ability（ORIG 0x089ae286 `call size; test eax; setne al; test al;
+    // je <room list 块>` ⇒ 正极性 then=avatar / else=room list move speed rate）
+    if (info->m_avatar264.size() != 0)
     {
         fprintf(file, "[avatar select ability]\n");
         if (info->m_avatar264[0].m_field0 != 0)
@@ -5858,7 +5883,9 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
                 int idx = info->m_avatar264[i].m_field0;
                 if (idx == 0x2b)
                 {
-                    std::string job;
+                    // ORIG 0x089ae343..0x089ae368：显式 `std::string job("")` 形 ——
+                    // 先构造临时 allocator（C1Ev）再 C1EPKcRKSaIcE，正常路径 D1Ev 收尾。
+                    std::string job("");
                     if (info->m_avatar264[i].m_skill.m_job == 0xb)
                         job = "[common]";
                     else
@@ -5877,6 +5904,12 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
             }
         }
         fwrite("[/avatar select ability]\n", 1, 0x19, file);
+    }
+    else
+    {
+        if (info->m_roomListMoveSpeedRate != 0.0f)
+            fprintf(file, "[room list move speed rate] %.2f\n",
+                    (double)info->m_roomListMoveSpeedRate);
     }
 
     if (info->m_rigidity != 0)       fprintf(file, "[rigidity] %d\n", info->m_rigidity);

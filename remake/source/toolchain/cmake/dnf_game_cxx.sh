@@ -200,7 +200,9 @@ case "$src" in
             *Game/NewAccountLevelUpEventToJob.cpp | \
             *Game/OnlinePreliminaryMatch.cpp | \
             *Game/OnlyOrigBatch11.cpp | \
-            *Game/OnlyOrigBatch12.cpp | \
+            *Game/OnlyOrigBatch12_rand_r.cpp | \
+            *Game/OnlyOrigBatch12_security_server.cpp | \
+            *Game/OnlyOrigBatch12_server_utility.cpp | \
             *Game/OnlyOrigBatch14.cpp | \
             *Game/PackSet.cpp | \
             *Game/PacketDispatcher.cpp | \
@@ -254,7 +256,8 @@ case "$src" in
             *Game/W6_CeraShopDeps.cpp | \
             *Game/W7_UserOnlyC.cpp | \
             *Game/W8LT_DBTask.cpp | \
-            *Game/W8LT_EventTail.cpp | \
+            *Game/GiveGrowCreatureEvent.cpp | \
+            *Game/SeriaRoomAniDecoEvent.cpp | \
             *Game/W8_CU_G.cpp | \
             *Game/W8_EventClassifyB.cpp | \
             *Game/WarRoom.cpp | \
@@ -429,7 +432,7 @@ case "$(basename "$src" .cpp)" in
                 # 在 4.4.6 下翻 AE。实测 4.4.7 identical=6/ae=37/near=2/diff=6
                 # vs 4.4.6 identical=6/ae=38/near=1/diff=6 ⇒ 零回归。
                 exec "$C6446R" "$@" ;;
-            *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp | *Game/STEquipmentScript.cpp | *Game/CCreatureMgr.cpp | *Game/OnlyOrigBatch12.cpp | \
+            *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp | *Game/STEquipmentScript.cpp | *Game/CCreatureMgr.cpp | *Game/OnlyOrigBatch12_rand_r.cpp | *Game/OnlyOrigBatch12_security_server.cpp | *Game/OnlyOrigBatch12_server_utility.cpp | \
             *Game/CFairMatch.cpp | *Game/CEquipItem.cpp | *Game/CAccountCargo.cpp | \
             *Game/CUserCharacInfo.cpp | *Game/ScriptDepsA.cpp)
                 # b28d-6：ORIG CompareRating 的 x87 比较为 fucompp/fnstsw/sahf；4.4 需

@@ -1,0 +1,220 @@
+// ============================================================================
+// nexon::cash::ByteBuffer —— 大端序读写游标缓冲（独立 TU）。
+//
+// [GI 拆分] 本文件由 nexon_cash.cpp 拆出：ORIG 侧 ByteBuffer 属独立编译单元
+// `ByteBuffer.cpp`，其 _GLOBAL__I_ 键名 = 本 TU 首个「强符号 · 外部链接 ·
+// 本 TU 定义」实体 = _ZN5nexon4cash10ByteBufferlsEPKc（ORIG @0x081acedd，
+// 对应函数体 @0x081acba0）。故 operator<<(const char*) 必须保持为本文件
+// 第一处外联定义；ctor/wrap 等保持其后（相对次序与 nexon_cash.cpp 内一致，
+// 避免 P210 帧继承形态变化）。
+//
+// 逐符号按 df_game_r ORIG 反汇编转写；地址见各函数注释。
+// ============================================================================
+#include "nexon_cash.h"
+
+// ORIG 该 TU 含 file-scope 动态初始化（0x081ace9d
+// __static_initialization_and_destruction_0 → ios_base::Init::C1Ev +
+// __cxa_atexit(D1)）；include <iostream> 是 GI 的发射前提（纯 POD 全局 +
+// 只有函数的 TU 不发 _GLOBAL__I_，P327）。
+#include <iostream>
+
+#include <limits>
+#include <stdexcept>
+#include <string.h>
+#include <wchar.h>
+
+namespace nexon {
+namespace cash {
+
+// 内联通用形态：cap 校验通过则逐字节大端写入，推进 write 游标；
+// 空间不足时静默丢弃（游标不动），ORIG 无返回错误通道。
+
+// ORIG 0x081acba0：strlen → 超 ushort::max 抛 invalid_argument("string length
+// too long: must shorter than max(unsigned short)")；length()+len 不超容量时
+// 写 ushort 长度前缀（大端）+ strncpy(len 字节，不含 NUL）+ 游标前进 strlen。
+ByteBuffer& ByteBuffer::operator<<(const char* value)
+{
+    // [b27L8] ORIG 0x081acc8d 为 setb（无符号比较）⇒ len 无符号；int 形 4.4 出 setl。
+    unsigned int len = strlen(value);
+    if (len > (unsigned)std::numeric_limits<unsigned short>::max())
+        throw std::invalid_argument("string length too long: must shorter than max(unsigned short)");
+    if (length() + len <= m_capacity)
+    {
+        *this << (unsigned short)len;
+        strncpy(m_writePtr, value, len);
+        m_writePtr += strlen(value);
+    }
+    return *this;
+}
+
+// ORIG 0x081ae9e2：start=write=read=buffer; capacity=len。
+ByteBuffer::ByteBuffer(char* buffer, unsigned int len)
+    : m_start(buffer), m_writePtr(buffer), m_readPtr(buffer), m_capacity(len)
+{
+}
+
+// [b28d-D43] ORIG 0x081ae9b8：static 成员 + 按值 sret 返回 —— 体 = 单次
+// `call ByteBuffer::C1EPcj(sret, buffer, len)` + `mov %ebx,%eax; ret $0x4`，
+// 全字段由 ctor 覆盖（无 this 参与）。调用点（0x081ad43b 等）只压
+// sret/buffer/len 三参、无 this ⇒ P88/P245 static 判据。旧重建的
+// `ByteBuffer&` + 字段直写产 17 条逐字段 store（ORIG 16 条 sret 构造）。
+ByteBuffer ByteBuffer::wrap(char* buffer, unsigned int len)
+{
+    // [b28d-solo-nexon_cash] N 封顶（帧量化跨版本）：ORIG `sub $0x14` vs 4.4
+    // `sub $0xc`。实测 4.4 帧增量恒 align16(局部需求)（char[4]/char[8]/int 均
+    // 落 $0x1c），$0x14 不可达（P190 附注②/N95 族）。体 16/16 条全等，仅帧
+    // sub/add 立即数差，语义等价。
+    return ByteBuffer(buffer, len);
+}
+
+// ORIG 0x081acd1e：len=wcslen；字节数=len*2；超 0xffff 抛 invalid_argument；
+// 空间足够则写 ushort 长度前缀（大端）+ wcsncpy + 游标前进 len*2。
+// [b28d-D43] N82/N89 大函数（124/124）：STL 实例化 + 槽平移（ORIG 0x081acd1e）。
+ByteBuffer& ByteBuffer::operator<<(const wchar_t* value)
+{
+    // [b28d-solo-nexon_cash] P0/P48：ORIG 0x081acd2d 的 wcslen 结果直接
+    // `add %eax,%eax`（无具名 len 局部槽），且 0x081ace63 在 wcsncpy 前二次
+    // 调 wcslen ⇒ 原码无 len 局部，字节数就地计算。
+    size_t bytes = wcslen(value) * 2;
+    if (bytes > (size_t)std::numeric_limits<unsigned short>::max())
+        throw std::invalid_argument("string too long");
+    if (static_cast<unsigned int>(length() + bytes) <= m_capacity)
+    {
+        *this << static_cast<unsigned short>(bytes);
+        wcsncpy(reinterpret_cast<wchar_t*>(m_writePtr), value, wcslen(value));
+        m_writePtr += bytes;
+    }
+    return *this;
+}
+
+// ORIG 0x081ae614：if(length()+1 < m_capacity){ *wp=v; ++wp; }
+ByteBuffer& ByteBuffer::operator<<(unsigned char value)
+{
+    if (static_cast<unsigned int>(length() + 1) < m_capacity)
+    {
+        *m_writePtr = static_cast<char>(value);
+        ++m_writePtr;
+    }
+    return *this;
+}
+
+// ORIG 各 lsEx W body 为手写字节反序拷贝（-O0 不展开循环，逐对 movzbl）：
+// 具名 src 指针槽 + m_writePtr[i] = src[n-1-i] 逐条赋值。
+
+// ORIG 0x081ae65e（W）：if(length()+2 <= cap) 写 2B 大端；src 槽 -0xc、value 副本 -0x1c。
+ByteBuffer& ByteBuffer::operator<<(short value)
+{
+    const char* src = reinterpret_cast<const char*>(&value);   // 槽位早于 length() 调用（ORIG lea 先于 call）
+    if (static_cast<unsigned int>(length() + 2) <= m_capacity)
+    {
+        m_writePtr[0] = src[1];
+        m_writePtr[1] = src[0];
+        m_writePtr += 2;
+    }
+    return *this;
+}
+
+// ORIG 0x081acefa（W）：u16 版本，同形。
+ByteBuffer& ByteBuffer::operator<<(unsigned short value)
+{
+    const char* src = reinterpret_cast<const char*>(&value);   // 槽位早于 length() 调用（ORIG lea 先于 call）
+    if (static_cast<unsigned int>(length() + 2) <= m_capacity)
+    {
+        m_writePtr[0] = src[1];
+        m_writePtr[1] = src[0];
+        m_writePtr += 2;
+    }
+    return *this;
+}
+
+// ORIG 0x081ae6c4（W）：int 大端 4B 逐条；incoming 地址直取（lea 0xc）。
+ByteBuffer& ByteBuffer::operator<<(int value)
+{
+    const char* src = reinterpret_cast<const char*>(&value);   // 槽位早于 length() 调用（ORIG lea 先于 call）
+    if (static_cast<unsigned int>(length() + 4) <= m_capacity)
+    {
+        m_writePtr[0] = src[3];
+        m_writePtr[1] = src[2];
+        m_writePtr[2] = src[1];
+        m_writePtr[3] = src[0];
+        m_writePtr += 4;
+    }
+    return *this;
+}
+
+// ORIG 0x081ae74c（W）：u32 版本，同形。
+ByteBuffer& ByteBuffer::operator<<(unsigned int value)
+{
+    const char* src = reinterpret_cast<const char*>(&value);   // 槽位早于 length() 调用（ORIG lea 先于 call）
+    if (static_cast<unsigned int>(length() + 4) <= m_capacity)
+    {
+        m_writePtr[0] = src[3];
+        m_writePtr[1] = src[2];
+        m_writePtr[2] = src[1];
+        m_writePtr[3] = src[0];
+        m_writePtr += 4;
+    }
+    return *this;
+}
+
+// ORIG 0x081ae7d4（W）：u64 大端 8B 逐条；value 副本槽 -0x20/-0x1c。
+ByteBuffer& ByteBuffer::operator<<(unsigned long long value)
+{
+    const char* src = reinterpret_cast<const char*>(&value);   // 槽位早于 length() 调用（ORIG lea 先于 call）
+    if (static_cast<unsigned int>(length() + 8) <= m_capacity)
+    {
+        m_writePtr[0] = src[7];
+        m_writePtr[1] = src[6];
+        m_writePtr[2] = src[5];
+        m_writePtr[3] = src[4];
+        m_writePtr[4] = src[3];
+        m_writePtr[5] = src[2];
+        m_writePtr[6] = src[1];
+        m_writePtr[7] = src[0];
+        m_writePtr += 8;
+    }
+    return *this;
+}
+
+// ORIG 0x081ae8bc：从 read 游标读 1B 并推进。
+ByteBuffer& ByteBuffer::operator>>(unsigned char& value)
+{
+    value = static_cast<unsigned char>(*m_readPtr);
+    ++m_readPtr;
+    return *this;
+}
+
+// ORIG 0x081ae8e4（W）：dst 指针槽 -0x4 + 逐字节 m_readPtr[3-i] 直读（无 tmp）。
+ByteBuffer& ByteBuffer::operator>>(int& value)
+{
+    char* dst = reinterpret_cast<char*>(&value);
+    dst[0] = m_readPtr[3];
+    dst[1] = m_readPtr[2];
+    dst[2] = m_readPtr[1];
+    dst[3] = m_readPtr[0];
+    m_readPtr += 4;
+    return *this;
+}
+
+// ORIG 0x081ae94e（W）：u32 版本，同形。
+ByteBuffer& ByteBuffer::operator>>(unsigned int& value)
+{
+    char* dst = reinterpret_cast<char*>(&value);
+    dst[0] = m_readPtr[3];
+    dst[1] = m_readPtr[2];
+    dst[2] = m_readPtr[1];
+    dst[3] = m_readPtr[0];
+    m_readPtr += 4;
+    return *this;
+}
+
+// ORIG 0x081acf60：length = m_writePtr - m_start。
+// 定义置于全部 <<x/>>x 消费者之后：ORIG 各 W body 内 call length 为宽松帧
+// （sub $0x18 + 具名 value 槽 -0xc），同 TU 定义前置会收紧 caller 帧（技巧31）。
+unsigned int ByteBuffer::length() const
+{
+    return static_cast<unsigned int>(m_writePtr - m_start);
+}
+
+}  // namespace cash
+}  // namespace nexon

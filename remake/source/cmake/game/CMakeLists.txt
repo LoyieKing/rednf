@@ -255,6 +255,8 @@ dnf_service(game
         ${SVC_DIR}/TaiwanCash.cpp
         ${SVC_DIR}/TaiwanQueries.cpp
         ${SVC_DIR}/nexon_cash.cpp
+        ${SVC_DIR}/ByteBuffer.cpp
+        ${SVC_DIR}/NXCash.cpp
         ${SVC_DIR}/nexon_packet.cpp
         ${SVC_DIR}/WongWorkSecurityCard_A.cpp
         ${SVC_DIR}/Arad_Verify.cpp
@@ -362,7 +364,8 @@ dnf_service(game
         ${SVC_DIR}/W7LinkDB.cpp
         ${SVC_DIR}/W8_AradSig.cpp
         ${SVC_DIR}/W8_EventClassifyB.cpp
-        ${SVC_DIR}/W8LT_EventTail.cpp
+        ${SVC_DIR}/GiveGrowCreatureEvent.cpp
+        ${SVC_DIR}/SeriaRoomAniDecoEvent.cpp
         ${SVC_DIR}/W9_EventSmall.cpp
         ${SVC_DIR}/W9_SDCCommon.cpp
         ${SVC_DIR}/CDataManagerTailB.cpp
@@ -390,7 +393,9 @@ dnf_service(game
         ${SVC_DIR}/OnlyOrigBatch6_Force.cpp
         ${SVC_DIR}/OnlyOrigBatch7_Force.cpp
         ${SVC_DIR}/OnlyOrigBatch11.cpp
-        ${SVC_DIR}/OnlyOrigBatch12.cpp
+        ${SVC_DIR}/OnlyOrigBatch12_rand_r.cpp
+        ${SVC_DIR}/OnlyOrigBatch12_security_server.cpp
+        ${SVC_DIR}/OnlyOrigBatch12_server_utility.cpp
         ${SVC_DIR}/OnlyOrigBatch14.cpp
         ${SVC_DIR}/AlignDeadConsts.cpp
         ${SVC_DIR}/PerfMgr.cpp

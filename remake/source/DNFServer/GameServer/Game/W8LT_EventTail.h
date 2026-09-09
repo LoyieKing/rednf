@@ -1,7 +1,8 @@
 // W8LT_EventTail.h —— Batch05_EventTail(W8_LongTail) 独立事件小类族声明。
 // OneADayItemShopEvent / GiveGrowCreatureEvent / SeriaRoomAniDecoEvent /
 // SDCActiveStatusSyncCommon。全部签名/mangled 与 ORIG(df_game_r) 一致；
-// 定义位于 W8LT_EventTail.cpp。
+// 定义位于 GiveGrowCreatureEvent.cpp / SeriaRoomAniDecoEvent.cpp
+//（[GI 拆分 2026-09-09] 原 W8LT_EventTail.cpp 为 ONE2MANY，按 ORIG TU 边界拆分）。
 #ifndef GAME_W8LT_EVENTTAIL_H_
 #define GAME_W8LT_EVENTTAIL_H_
 
@@ -60,8 +61,8 @@ struct EventStageLogDeliveryMsg : public DeliveryMsg
     std::vector<std::pair<int, int> >* m_progressList;        // +0x20（ORIG：BOOST_FOREACH 非 const 实例）
 };
 
-// ---- 依赖的 DB request 类（权威声明；makeRequest 定义属 W8LT_EventTail.cpp，
-// dispatch 定义属 W8LT_DBTask.cpp，与 ORIG 单一类一致） ----
+// ---- 依赖的 DB request 类（权威声明；makeRequest 定义属 GiveGrowCreatureEvent.cpp /
+// SeriaRoomAniDecoEvent.cpp，dispatch 定义属 W8LT_DBTask.cpp，与 ORIG 单一类一致） ----
 class DB_InsertEventStageLog : public DBDispatcher
 {
 public:
@@ -98,7 +99,7 @@ public:
     DB_UpdateSeriaRoomAnimationDeco() {}           // ORIG C1 0x844febe (sz 0x4: base ctor+vptr only)
     static void makeRequest(unsigned int accId, short serverGroup, int characNo,
                             short field1, short field2);
-    virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0844adc0（W8LT_EventTail.cpp）
+    virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x0844adc0（SeriaRoomAniDecoEvent.cpp）
 };
 
 // ============================ OneADayItemShopEvent ============================
