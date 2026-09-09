@@ -605,6 +605,10 @@ int CItemUpgrade::_ProcPortableUpgradeItem(const Inven_Item& material,
 //   （4.4 首次使用序 vs 4.1 声明序，N82）②`rollWin = roll < prob` 4.4 恒
 //   setb+槽+xor，ORIG 是 mov $1/$0 + test 岛（P197④ setcc-fold，call 结果
 //   寄存器直比不可翻）。
+// [2026-09-10 SweepCEquipItem2] 本轮复核（未改）：gap 3（orig 166 / our 163），
+// p167 14=14 CLEAR；非槽差异仅 `setb %al` 一处（ORIG 0x085476xx 的
+// `jae; mov $1,%eax; jmp; mov $0,%eax` setcc-fold 岛，P197④/N 封顶），
+// 其余为 prob/wornIdx 等局部槽号重排（N82）。语义与 ORIG 一致。
 // ============================================================================
 bool CItemUpgrade::_DoProcUpgrade(CUser* user, Inven_Item* item,
                                   const upgrade_info_t* info)
@@ -709,6 +713,12 @@ bool CItemUpgrade::_DoProcUpgrade(CUser* user, Inven_Item* item,
 //   MSG_ITEM_UPGRADE +0x1a/+0x1b/+0x1d/+0x21/+0x23 字段化已由 Main 代落
 //   PacketTypes.h:807-812；本函数无裸偏移读（CEnvironment+0x378 已按 §4.3
 //   具名化为 m_serverEnvir.m_serverGroup）。
+// [2026-09-10 SweepCEquipItem2] 本轮复核（未改）：gap 1（fresh .o orig 1242 /
+//   our 1241），p167 115=115 CLEAR（仅 Inven_Item/upgrade_info_t 的 C1/C2 同址
+//   别名伪差）。虚槽 5/5 与 ORIG 逐处一致：0x44 / 0x30 / 0x34 / 0x34 / 0x4c
+//   （ORIG 0x08547a63 / 0x08547e12 / 0x08547e4d / 0x085481be / 0x08548aae）。
+//   非槽差异为 setcc-fold（setne/setge 岛）与浮点书写序（P243）；帧差 4 来自
+//   ORIG 多一条 `push %edi`（N7 寄存器分配）。按 §6.2 三件套判语义完成。
 //
 // 物化口径（P183/P167 实证）：ORIG 对材料/保护券槽各发
 //   Inven_Item C2（0x080cb854）+ GetInvenSlot 临时槽（-0x2c8）+ 15×movl+1×movb
@@ -1180,6 +1190,15 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
 //   `flds mem; fstps` vs 4.4 mov（volatile 实测反劣 +1）②槽号重排（N82）
 //   ③fistpll 后 4.4 DCE 掉 `mov -0x3c,%edx` ④尾部 3 个 jmp+nop 岛（4.1
 //   多出口，4.4 jump-thread 合并）。
+// [2026-09-10 SweepCEquipItem2] 本轮复核（未改）：gap 7（orig 108 / our 101），
+// p167 8=8 CLEAR。逐条核对 Ghidra C 与汇编：weight 字段确为 float
+// （CItemAmplifier.h `float m_additionalWeight[6]` @+0x240），4.4 对 float 局部
+// 拷贝恒 `mov` 位直搬、4.1 用 `flds/fstps`（0x085469bf，N85① 封顶）；
+// 寻址 `add $0x90,(%eax,%edx,4)` vs `add $0x8c; mov 0x10(%eax,%edx,4)`
+// 等价（0x8c*4+0x10 = 0x240，P30 拆分差）；fistpll 后 ORIG 多读高 32 位
+// （0x08546a3x，N92）；尾 3 岛为 4.1 多出口 jmp+nop（N/P223 负例）。
+// 语义（pow 底数 up-m_additionalMinUpgrade、截断两段、make_pair 转换链、
+// count!=0 门禁）与 ORIG 逐点一致，判 N。
 // ============================================================================
 void CItemUpgrade::_getAdditionalDisjointItem(unsigned int up,
                                               const CItem* itemScript,
@@ -1276,6 +1295,20 @@ void CItemUpgrade::_getAdditionalDisjointItem(unsigned int up,
 //   重排与 `info->m_prob20[2]=1` 的 4.1 地址中转（-0x3c 指针槽，4.4 折单条
 //   movl）+ bool 物化（setge vs jge/jns）。已修：penaltyType 正极性重排、
 //   toZero 改 `A || B` 短路表达式（复现 jge/jns 双跳）。
+// [2026-09-10 SweepCEquipItem2] 本轮 gap 15→1（fresh .o orig 634 / our 633），
+// p167 87=87 CLEAR，四数零回退。修法：
+//   ① **真 bug（缺条件守卫）**：ORIG 0x08546da1 `cmpl $0x3,-0x40(%ebp);
+//      jne 0854754b`（直接返回 0），Ghidra C 亦为 `else if (local_44 == 3) {…}`；
+//      旧译文在 penaltyType==2 return 后无条件执行破坏流程 ⇒ penaltyType∉{1,2,3}
+//      时仍 delete_item/返料。已补 `if (penaltyType == 3) { … }` 包裹。
+//   ② **真 bug（数组下标差 1）**：ORIG 0x085471ab `mov -0xa0(%ebp,%eax,4),%eax`
+//      （eax=i+4、result 基址 -0xa4）⇒ 条件是 **m_f[i+5]**，与 0x085471dc 的
+//      make_pair 第 1 参 &m_f[i+5] 自洽；旧写 m_f[i+4] 漏末元素且误纳 m_f[4]。
+//   ③ m_prob20[2]=1 改具名指针局部（复现 0x08546cbb 的 -0x3c 指针槽）；
+//      保护券链改 P198① 预清两句式 + if/else-if 链（复现三条 -1 预置）；
+//      savedUp 改 unsigned int + 掩码（复现 `movzbl %al,%eax; mov %eax,-0x38`）。
+// 残余 1 条为槽基平移 8（-0x40↔-0x48，N95/N126 版本常数）；`call *` 1 处
+// vptr+0x8（make_item）与 ORIG 0x0854743d 一致。
 // ============================================================================
 int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
                                const CItem* itemScript, unsigned short slot,
@@ -1322,7 +1355,12 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
     {
         if (GlobalData::s_pEvent_UpGrade_Jar->isFortune())
         {
-            const_cast<upgrade_info_t*>(info)->m_prob20[2] = 1;  // info +0x28
+            // [2026-09-10 SweepCEquipItem2] P0：ORIG 0x08546cbb..0x08546cc7 为
+            // `mov info,%eax; add $0x28,%eax; mov %eax,-0x3c(%ebp); mov -0x3c,%eax;
+            // movl $0x1,(%eax)` ⇒ 原码有具名指针局部（槽 -0x3c）；直接写
+            // const_cast 链会被 4.4 折成单条 `movl $0x1,0x28(%eax)`（少 3 条）。
+            upgrade_info_t* probSlot = const_cast<upgrade_info_t*>(info);
+            probSlot->m_prob20[2] = 1;  // info +0x28
         }
         // [b28d-solo-ItemUpgradeVtableB2] P167/P48：ORIG 0x08546cd9 比较用
         // GetUpgrade（值留 %eax 无槽）、0x08546d22/0x08546d4a 两个 SetUpgrade
@@ -1354,145 +1392,191 @@ int CItemUpgrade::_ProcPenalty(CUser* user, Inven_Item* item,
     }
 
     // ---- penaltyType == 3：破坏 ----
-    if (!item->m_amp.hasAbility())
+    // [2026-09-10 SweepCEquipItem2] 真 bug 修（缺条件守卫）：ORIG 0x08546da1
+    // `cmpl $0x3,-0x40(%ebp); jne 0854754b`（直接返回 0），Ghidra C 同证
+    // `else if (local_44 == 3) { …整个破坏流程… }`。旧译文在
+    // penaltyType==2 分支 return 后**无条件**执行破坏流程 ⇒
+    // penaltyType∉{1,2,3}（如 GetPenaltyType 返回 0）时仍会 delete_item/返料。
+    if (penaltyType == 3)
     {
-        // 保护券链：0x28be7e → 0x1f72 → 0x20ba，末位 0x292091ac 优先覆盖。
-        int protectSlot =
-            ((const CUserCharacInfo*)user)->getCurCharacInvenR()->check_item_exist(0x28be7e);
-        int slot172 =
-            ((const CUserCharacInfo*)user)->getCurCharacInvenR()->check_item_exist(0x1f72);
-        int slot20ba =
-            ((const CUserCharacInfo*)user)->getCurCharacInvenR()->check_item_exist(0x20ba);
-        protectSlot = protectSlot != -1
-                          ? protectSlot
-                          : (slot172 != -1 ? slot172
-                                           : (slot20ba != -1 ? slot20ba : -1));
-        const int slot292 =
-            ((const CUserCharacInfo*)user)->getCurCharacInvenR()->check_item_exist(0x292091ac);
-        if (slot292 != -1)
+        if (!item->m_amp.hasAbility())
         {
-            protectSlot = slot292;
+            // 保护券链：0x28be7e → 0x1f72 → 0x20ba，末位 0x292091ac 优先覆盖。
+            // [2026-09-10 SweepCEquipItem2] 三目嵌套形改 ORIG 形（P198① 预清
+            // 两句式 + if/else-if 链）：ORIG 0x08546dc4/0x08546dcb/0x08546dd2 三条
+            // `movl $0xffffffff` 预置 protectSlot/slotA/slotB，0x08546e15 预置 slotC，
+            // 0x08546e62 预置 slotD；选择段为 0x08546e3a..0x08546e62 的 je/赋值/jmp
+            // 链（Ghidra C 同形：`if (local_30==-1){ if(local_2c==-1){…} else … } else …`）。
+            int protectSlot = -1;
+            int slotA = -1;
+            int slotB = -1;
+            slotA = ((const CUserCharacInfo*)user)
+                        ->getCurCharacInvenR()
+                        ->check_item_exist(0x28be7e);
+            slotB = ((const CUserCharacInfo*)user)
+                        ->getCurCharacInvenR()
+                        ->check_item_exist(0x1f72);
+            int slotC = -1;
+            slotC = ((const CUserCharacInfo*)user)
+                        ->getCurCharacInvenR()
+                        ->check_item_exist(0x20ba);
+            if (slotA == -1)
+            {
+                if (slotB == -1)
+                {
+                    if (slotC != -1)
+                    {
+                        protectSlot = slotC;
+                    }
+                }
+                else
+                {
+                    protectSlot = slotB;
+                }
+            }
+            else
+            {
+                protectSlot = slotA;
+            }
+            int slotD = -1;
+            slotD = ((const CUserCharacInfo*)user)
+                        ->getCurCharacInvenR()
+                        ->check_item_exist(0x292091ac);
+            if (slotD != -1)
+            {
+                protectSlot = slotD;
+            }
+            if (protectSlot != -1)
+            {
+                // [b28d-solo-ItemUpgradeVtableB2] P167/P183：ORIG 0x08546ea3
+                // （GetInvenSlot）与 0x08546f10（delete_item）各自重调
+                // getCurCharacInvenW，无具名 invenW 缓存（缓存少 1 个调用点）。
+                Inven_Item used = ((CUserCharacInfo*)user)
+                                      ->getCurCharacInvenW()
+                                      ->GetInvenSlot(INVEN_TYPE_EQUIP, protectSlot);
+                if (used.m_addInfo != 0x28be7e && used.m_addInfo != 0x1f72 &&
+                    used.m_addInfo != 0x20ba && used.m_addInfo != 0x292091ac)
+                {
+                    return 0x11;
+                }
+                if (((CUserCharacInfo*)user)
+                        ->getCurCharacInvenW()
+                        ->delete_item(INVEN_TYPE_EQUIP, protectSlot, 1,
+                                      eItemDelReason_3, true) != 1)
+                {
+                    return 0x11;
+                }
+                user->m_historyLog.apply_Item(used.m_addInfo, item->m_addInfo,
+                                              eApplyItemReason_0);
+                user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
+                                     protectSlot);
+                item->SetUpgrade(0);
+                ((CUserCharacInfo*)user)->getCurCharacInvenW()->update_item(
+                    INVEN_TYPE_EQUIP, slot, *item);
+                user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
+                                     (int)slot);
+                return 0xd8;
+            }
         }
-        if (protectSlot != -1)
+
+        CInventory* invenW = ((CUserCharacInfo*)user)->getCurCharacInvenW();
+        if (invenW->delete_item(INVEN_TYPE_EQUIP, slot, 1, eItemDelReason_0xd,
+                                true) != 1)
         {
-            // [b28d-solo-ItemUpgradeVtableB2] P167/P183：ORIG 0x08546ea3
-            // （GetInvenSlot）与 0x08546f10（delete_item）各自重调
-            // getCurCharacInvenW，无具名 invenW 缓存（缓存少 1 个调用点）。
-            Inven_Item used = ((CUserCharacInfo*)user)
-                                  ->getCurCharacInvenW()
-                                  ->GetInvenSlot(INVEN_TYPE_EQUIP, protectSlot);
-            if (used.m_addInfo != 0x28be7e && used.m_addInfo != 0x1f72 &&
-                used.m_addInfo != 0x20ba && used.m_addInfo != 0x292091ac)
-            {
-                return 0x11;
-            }
-            if (((CUserCharacInfo*)user)
-                    ->getCurCharacInvenW()
-                    ->delete_item(INVEN_TYPE_EQUIP, protectSlot, 1,
-                                  eItemDelReason_3, true) != 1)
-            {
-                return 0x11;
-            }
-            user->m_historyLog.apply_Item(used.m_addInfo, item->m_addInfo,
-                                          eApplyItemReason_0);
-            user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
-                                 protectSlot);
-            item->SetUpgrade(0);
-            ((CUserCharacInfo*)user)->getCurCharacInvenW()->update_item(
-                INVEN_TYPE_EQUIP, slot, *item);
-            user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
-                                 (int)slot);
-            return 0xd8;
+            return 0x11;
         }
-    }
-
-    CInventory* invenW = ((CUserCharacInfo*)user)->getCurCharacInvenW();
-    if (invenW->delete_item(INVEN_TYPE_EQUIP, slot, 1, eItemDelReason_0xd,
-                            true) != 1)
-    {
-        return 0x11;
-    }
-    const unsigned char savedUp = item->GetUpgrade();
-    item->SetUpgrade(0);
-    pg->put_byte(0);
-    pg->put_short((int)slot);
-
-    DisJointResult result;
-    if (G_CDataManager()->m_disJoint->GetResult(item->m_addInfo, result) != 0)
-    {
+        // [2026-09-10 SweepCEquipItem2] T1 直证：ORIG 取 GetUpgrade 后
+        // `movzbl %al,%eax; mov %eax,-0x38`（32 位槽 + 零扩展）⇒ 原码是
+        // 32 位局部再掩码（uchar 局部恒 `mov %al,-N`，槽宽 1 且少 1 条）。
+        const unsigned int savedUp = static_cast<unsigned int>(
+            static_cast<unsigned char>(item->GetUpgrade()));
+        item->SetUpgrade(0);
         pg->put_byte(0);
-        return 0;
-    }
-    item->m_addInfo = 0;
+        pg->put_short((int)slot);
 
-    std::vector<std::pair<int, int> > items;
-    items.reserve(6);
-    for (int i = 0; i <= 4; ++i)
-    {
-        if (result.m_f[i + 4] != 0)
+        DisJointResult result;
+        if (G_CDataManager()->m_disJoint->GetResult(item->m_addInfo, result) != 0)
         {
-            items.push_back(std::make_pair(result.m_f[i + 5], result.m_f[i]));
+            pg->put_byte(0);
+            return 0;
+        }
+        item->m_addInfo = 0;
+
+        std::vector<std::pair<int, int> > items;
+        items.reserve(6);
+        for (int i = 0; i <= 4; ++i)
+        {
+        // [2026-09-10 SweepCEquipItem2] 真 bug 修（数组下标差 1）：ORIG 0x085471ab
+        // `mov -0x1c(%ebp),%eax; add $0x4,%eax; mov -0xa0(%ebp,%eax,4),%eax`
+        // （result 基址 -0xa4）⇒ 条件读 **m_f[i+5]**（= m_b[i]），与下方
+        // make_pair 第 1 参 `lea 0x4(%eax)`（0x085471dc，同样 &m_f[i+5]）自洽；
+        // 旧译文写 m_f[i+4] 既漏掉末元素 m_f[9]，又误纳入 m_f[4]。
+        if (result.m_f[i + 5] != 0)
+        {
+                items.push_back(std::make_pair(result.m_f[i + 5], result.m_f[i]));
+        }
+            }
+        _getAdditionalDisjointItem(savedUp, itemScript, items, table);
+        if (item->m_amp.hasAbility())
+        {
+            // 表区子对象走**真实成员调用**（0x0854b382
+            // CItemUpgradeTable::getUpgradeInfoTable）；inline 视图代返会丢该 call
+            // （P167 差集实证 missing 1）。
+            _getAdditionalDisjointItem(savedUp, itemScript, items,
+                                       *getUpgradeInfoTable());
+        }
+
+        std::vector<int> slots;
+        // ORIG 尾参 a/b 为 .rodata 空串 0x08c9c3a0（邮件标题/正文查找键）。
+        static const char kEmptyKey[1] = "";
+        // [b28d-solo-ItemUpgradeVtableB2] P167：ORIG 0x08547295 在
+        // insert_event_items 前**重调** getCurCharacInvenW（不复用上面的 invenW）。
+        const int rc = ((CUserCharacInfo*)user)->getCurCharacInvenW()
+                           ->insert_event_items(items, slots, (eMoneyAddReason)7,
+                                                eItemAddReason_0x13, false,
+                                                kEmptyKey, kEmptyKey);
+        pg->put_byte(rc);
+
+        // insert_event_items 输出三元组 {slot, itemIdx, addInfo2/count}。
+        // 【batch-16 P175 反向铁律】ORIG 0x085472xx 起走 **begin/end 迭代器**
+        // （vector::begin、normal_iterator<int const*>(int*) 转换 ctor、每轮重取
+        // end()、operator!=、operator++ ×3、operator*），我们写成 size()+operator[]
+        // 索引形会丢这 4 个迭代器调用并多出 3×ix 与 1×size（P167 差集实测
+        // missing 23 / extra 13）。三元组取数用 `*(it + n)` 形复现 3 次 operator++。
+        // [b28d-solo-ItemUpgradeVtableB2] P167/P28：ORIG 每轮调 **ppEi ×3**
+        // （MISSING -3 `normal_iterator::ppEi`、EXTRA +3 `pl`）⇒ 源码是三次
+        // 后置 `*it++` 取三元组，不是 `it += 3` + `*(it+n)`。
+        for (std::vector<int>::const_iterator it = slots.begin();
+             it != slots.end(); )
+        {
+            const int outSlot = *it++;
+            const int outIdx = *it++;
+            const int outCnt = *it++;
+            pg->put_short(outSlot);
+            pg->put_item_idx((unsigned long)outIdx);
+            pg->put_int(outCnt);
+
+            CItem* outScript = G_CDataManager()->find_item(outIdx);
+            if (outScript != 0)
+            {
+                Inven_Item tmp;
+                tmp.m_addInfo = outIdx;
+                tmp.set_add_info(outCnt);
+                outScript->make_item(tmp);
+                GetInstanceCubeStatistic()->collectCubeStatistics(
+                    outScript, outCnt, user, (CUBE_STATISTIC_FIELD)1);
+                int price = 0;
+                // ORIG 0x085474xx 直读 Inven_Item+0x07 低 16 位（`movzwl`/`movswl`），
+                // 不走 get_add_info() 调用。
+                G_Store()->GetSellItemPrice(tmp, outScript,
+                                        (short)tmp.m_addInfo2, false,
+                                            price);
+                GetInstanceValueStatistic()->AddValueStatistic(
+                    (VALUE_STATISTIC_FIELD)9, user, (unsigned int)price);
+            }
         }
     }
-    _getAdditionalDisjointItem(savedUp, itemScript, items, table);
-    if (item->m_amp.hasAbility())
-    {
-        // 表区子对象走**真实成员调用**（0x0854b382
-        // CItemUpgradeTable::getUpgradeInfoTable）；inline 视图代返会丢该 call
-        // （P167 差集实证 missing 1）。
-        _getAdditionalDisjointItem(savedUp, itemScript, items,
-                                   *getUpgradeInfoTable());
-    }
 
-    std::vector<int> slots;
-    // ORIG 尾参 a/b 为 .rodata 空串 0x08c9c3a0（邮件标题/正文查找键）。
-    static const char kEmptyKey[1] = "";
-    // [b28d-solo-ItemUpgradeVtableB2] P167：ORIG 0x08547295 在
-    // insert_event_items 前**重调** getCurCharacInvenW（不复用上面的 invenW）。
-    const int rc = ((CUserCharacInfo*)user)->getCurCharacInvenW()
-                       ->insert_event_items(items, slots, (eMoneyAddReason)7,
-                                            eItemAddReason_0x13, false,
-                                            kEmptyKey, kEmptyKey);
-    pg->put_byte(rc);
-
-    // insert_event_items 输出三元组 {slot, itemIdx, addInfo2/count}。
-    // 【batch-16 P175 反向铁律】ORIG 0x085472xx 起走 **begin/end 迭代器**
-    // （vector::begin、normal_iterator<int const*>(int*) 转换 ctor、每轮重取
-    // end()、operator!=、operator++ ×3、operator*），我们写成 size()+operator[]
-    // 索引形会丢这 4 个迭代器调用并多出 3×ix 与 1×size（P167 差集实测
-    // missing 23 / extra 13）。三元组取数用 `*(it + n)` 形复现 3 次 operator++。
-    // [b28d-solo-ItemUpgradeVtableB2] P167/P28：ORIG 每轮调 **ppEi ×3**
-    // （MISSING -3 `normal_iterator::ppEi`、EXTRA +3 `pl`）⇒ 源码是三次
-    // 后置 `*it++` 取三元组，不是 `it += 3` + `*(it+n)`。
-    for (std::vector<int>::const_iterator it = slots.begin();
-         it != slots.end(); )
-    {
-        const int outSlot = *it++;
-        const int outIdx = *it++;
-        const int outCnt = *it++;
-        pg->put_short(outSlot);
-        pg->put_item_idx((unsigned long)outIdx);
-        pg->put_int(outCnt);
-
-        CItem* outScript = G_CDataManager()->find_item(outIdx);
-        if (outScript != 0)
-        {
-            Inven_Item tmp;
-            tmp.m_addInfo = outIdx;
-            tmp.set_add_info(outCnt);
-            outScript->make_item(tmp);
-            GetInstanceCubeStatistic()->collectCubeStatistics(
-                outScript, outCnt, user, (CUBE_STATISTIC_FIELD)1);
-            int price = 0;
-            // ORIG 0x085474xx 直读 Inven_Item+0x07 低 16 位（`movzwl`/`movswl`），
-            // 不走 get_add_info() 调用。
-            G_Store()->GetSellItemPrice(tmp, outScript,
-                                    (short)tmp.m_addInfo2, false,
-                                        price);
-            GetInstanceValueStatistic()->AddValueStatistic(
-                (VALUE_STATISTIC_FIELD)9, user, (unsigned int)price);
-        }
-    }
     return 0;
 }
 
