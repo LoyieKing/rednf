@@ -2035,10 +2035,11 @@ void CGameManager::WarRoomCountManage(int hourIndex)
     guard.put_short(0);
     int totalDiff = 0;
     int area = 0;
-    // ORIG 0x082a2b?? 尾部 `addl $0x1,-0x3c; cmpl $0x9,-0x3c; setle %al; test %al,%al;
-    // jne <头>`（循环条件在尾 + setle 物化）⇒ do-while 形（P25/P51）；原 for(;;)+
-    // 头部 `if(area>9){...return;}` 产头部 2 条 + 尾 jmp，净差 1 条。
-    do
+    // ORIG 0x082a291d `jmp 082a2b28`（入口跳条件）+ 0x082a2b28 `cmpl $0x9,-0x3c;
+    // setle; test; jne 082a2922`（回边）⇒ while 形（P25：前置 jmp + 尾部 setle 物化）。
+    // [jcc 目标判据修正] 原 do-while 形缺 ORIG 的入口 jmp（jcc 33 vs 32），已改回
+    // while；Ghidra C 的 `do{...}while(true)`+`if(9<area)` 是条件块序误读。
+    while (area <= 9)
     {
         // ORIG 0x082a292f..0x082a293f `add $0x223c; mov 0x8(%ecx,%eax,4),%edx`：
         // m_warRoomCount[hour][area] 成员数组二维索引（WarAreaCounter+0x144）；
@@ -2090,7 +2091,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
         }
         totalDiff = totalDiff + (diff < 0 ? -diff : diff);
         area = area + 1;
-    } while (area <= 9);
+    }
     if (totalDiff != 0)
     {
         guard.put_short(index, totalDiff);
