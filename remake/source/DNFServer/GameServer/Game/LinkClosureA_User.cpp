@@ -141,38 +141,49 @@ void CUser::UpdateRating(float rating)
 //   否则：全部 idx 已清除才返回 &m_rewardItems；
 //   空 idx 表或不满足一律返回 &m_titleReward。
 // ---------------------------------------------------------------------------
-// b28d-65 [P281]：ORIG 0x0866e914 首参读 0x8(%ebp)、字段访问 param_1+0xe8/+0xec/+0xc4
-//   ⇒ 原码为 static 成员（P245/P281）；我方非 static 使 quest 落 0xc(%ebp)、整帧 +4。
-//   修 static 需改冻结头 CUser.h 声明（走 Main 代落）。本 TU 已去具名 q 局部
-//   （P0 内联 const_cast），编译绿；残余 = static 帧差 + N86 迭代器 copy-elision。
+// b28d-66 [P281]：CUser.h:3055 已 static（Main 代落）⇒ 实参 0x8/0xc(%ebp) 与 ORIG 一致。
+//   本轮修正：ORIG 每个分支各自 `const_iterator it = quest->m_fieldDC.begin()/end()`
+//   （const vector ⇒ 一次 call 直构，槽 else=-0xc/-0x10、then=-0x14/-0x18），无 const_cast
+//   非 const begin 引起的 iterator→const_iterator 转换构造；else 分支为
+//   `for(; it!=end; ++it) if(!isClearQuest(*it)) break;`（ORIG xor $1 证 break 形）。
 std::vector<RewardItemInfo>* CUser::getUserQuestRewardItem(
     const Quest* quest, const CUser* other)     // ORIG _ZN5CUser22…PKS_ 非 const
 {
-    // b28d-65 [P0]：ORIG 0x0866e914 全程直接重读形参 0xc(%ebp)（无 -0xc 槽往返）
-    // ⇒ 原码无具名 `Quest* q` 局部，const_cast 内联为表达式。
-    if (!const_cast<Quest*>(quest)->m_fieldDC.empty())  // [0x866e91b xor $1]
+    // b28d-66 [P0]：ORIG 0x0866e914 全程直接重读形参 0x8/0xc(%ebp)（无槽往返）
+    // ⇒ 原码无具名 `Quest* q` 局部，const_cast 仅用于返回值地址表达式。
+    if (!quest->m_fieldDC.empty())                      // [0x866e91b xor $1]
     {
-        std::vector<int>::const_iterator it = const_cast<Quest*>(quest)->m_fieldDC.begin();
-        std::vector<int>::const_iterator end = const_cast<Quest*>(quest)->m_fieldDC.end();
-
-        if (const_cast<Quest*>(quest)->m_fieldE8 == 1)  // [cmp $1]
+        // b28d-66：ORIG 布局 = `cmp $1; je <后置块>`（后置块槽 -0x14/-0x18）⇒ 原码
+        // 条件取 `!= 1`（break-块 fall-through 槽 -0xc/-0x10），4.4 生同一极性。
+        if (quest->m_fieldE8 != 1)                      // [cmp $1; je else(后置块)]
+        {
+            std::vector<int>::const_iterator it = quest->m_fieldDC.begin();  // [-0xc]
+            std::vector<int>::const_iterator end = quest->m_fieldDC.end();   // [-0x10]
+            for (; it != end; ++it)
+            {
+                if (!other->getCurCharacQuestR()->isClearQuest(*it))         // [xor $1]
+                {
+                    break;
+                }
+            }
+            // b28d-66：ORIG 0x0866e9e3 为 `call eq; test; je +0x16f`（目标 = 空块
+            // nop 中继岛，then 块尾另有 `jmp +0x170` 跳过该岛）——本形逐条匹配前 3 条，
+            // 仅缺 4.1 的对齐 nop 岛+jmp（P223 试形产 `eq;xor;test;jne` 反劣，已回退）。
+            if (it == end)                                 // [operator== P7]
+            {
+                return &const_cast<Quest*>(quest)->m_rewardItems;
+            }
+        }
+        else
+        {
+            std::vector<int>::const_iterator it = quest->m_fieldDC.begin();  // [-0x14]
+            std::vector<int>::const_iterator end = quest->m_fieldDC.end();   // [-0x18]
             for (; it != end; ++it)
             {
                 if (other->getCurCharacQuestR()->isClearQuest(*it))
                 {
                     return &const_cast<Quest*>(quest)->m_rewardItems;  // [lea +0xec]
-            }
-        }
-        else
-        {
-            while (it != end &&
-                   other->getCurCharacQuestR()->isClearQuest(*it))
-            {
-                ++it;
-            }
-            if (it == end)                                 // [operator== P7]
-            {
-                return &const_cast<Quest*>(quest)->m_rewardItems;
+                }
             }
         }
     }
@@ -291,27 +302,38 @@ int CUser::compute_quest_basic_reward_gold(Quest* quest)
         {
             return 0;                                      // [P16 早退]
         }
-        if (it->m_itemIdx == 0)                            // [local_10]
+        // b28d-66 [P0]：ORIG `mov (%eax),%eax; mov %eax,-0xc; cmpl $0,-0xc; je`
+        // ⇒ 原码有具名局部（itemIdx 占 -0xc 槽），非内联 test/sete 形。
+        int itemIdx = it->m_itemIdx;                       // [-0xc]
+        // b28d-66 真语义修正 + 布局：ORIG `cmpl; je +0xea`（命中块为跳转目标，
+        // 以 return 结束），未命中遍历到末尾走回边后的 `return 0`；旧代码把计算
+        // 放循环外，导致「遍历完未找到」也返回金币值。
+        if (itemIdx != 0)
         {
-            break;
+            ++it;
         }
-        ++it;
+        else
+        {
+            int levelDelta = get_charac_level() - quest->m_levelMin; // [-0x18]
+            int penalty = 100;                             // [-0x14]
+            int gold = 0;                                  // [-0x10]
+            // ORIG `movzbl 0x130; xor $1; test; je <后置块>` ⇒ 原码条件为
+            // `if (!m_field130)`（field==1 跳后置 getRewardGold(get_charac_level())）。
+            if (!quest->m_field130)                        // [xor $1 极性]
+            {
+                penalty = compute_level_penalty(levelDelta);   // [0x866e713]
+                gold = G_CDataManager()->m_questParameter.getRewardGold(quest->m_levelMin);
+            }
+            else
+            {
+                gold = G_CDataManager()->m_questParameter.getRewardGold(get_charac_level());
+            }
+
+            return gold * penalty / 100 * quest->m_field104 / 100; // [两段 imul/div]
+        }
     } while (!(it == end));                                // [尾判回环，ORIG operator==]
 
-    int levelDelta = get_charac_level() - quest->m_levelMin; // [-0x18]
-    int penalty = 100;                                     // [-0x14]
-    int gold = 0;                                          // [-0x10]
-    if (quest->m_field130 == 1)
-    {
-        gold = G_CDataManager()->m_questParameter.getRewardGold(get_charac_level());
-    }
-    else
-    {
-        penalty = compute_level_penalty(levelDelta);       // [0x866e713]
-        gold = G_CDataManager()->m_questParameter.getRewardGold(quest->m_levelMin);
-    }
-
-    return gold * penalty / 100 * quest->m_field104 / 100; // [两段 imul/div]
+    return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -361,32 +383,56 @@ void CUser::quest_basic_reward(Quest* quest, int& expOut, int& goldOut,
 void CUser::CalculateExpertJobMaterials(
     std::vector<std::pair<int, int> >& materials)
 {
-    int jobLevel = GetCurExpertJobLevel(GetCurCharacExpertJobExp()); // [ebx]
-    int jobType = GetCurCharacExpertJobType();                       // [esi]
+    // b28d-66 [P0]：ORIG jobLevel/jobType 直落 %ebx/%esi 且无栈槽 ⇒ 原码为内联右值，
+    // 实参求值序（右到左）= level(含 GetCurCharacExpertJobExp) → type → 对象。
     float variation =
         getCurCharacInvenR()->GetExpertJobCompoundMaterialVariation(
-            static_cast<ENUM_EXPERT_JOB_TYPE>(jobType), jobLevel);
+            static_cast<ENUM_EXPERT_JOB_TYPE>(GetCurCharacExpertJobType()),
+            GetCurExpertJobLevel(GetCurCharacExpertJobExp()));
                                                             // [fstps -0xc]
     std::vector<std::pair<int, int> > reduced(materials);   // [-0x28 vector copy]
     variation /= 100.0f;                                    // [fdiv _DAT_08cf3954]
 
-    std::vector<std::pair<int, int> >::iterator ci = reduced.begin();   // [-0x2c]
-    std::vector<std::pair<int, int> >::iterator mi = materials.begin(); // [-0x30]
+    // b28d-66 [N86]：ORIG 迭代器 = 先声明（C1Ev ×2）后赋值（begin 经 -0x3c 临时中转
+    // 再 mov 拷贝到 -0x2c/-0x30），非 4.4 的拷贝初始化直构。
+    std::vector<std::pair<int, int> >::iterator ci;         // [-0x2c]
+    std::vector<std::pair<int, int> >::iterator mi;         // [-0x30]
+    ci = reduced.begin();
+    mi = materials.begin();
 
-    do
+    // b28d-66：ORIG 循环 = while(ci!=end && mi!=end)（无 xor $1 短路取反）+
+    // 后置 ci++/mi++（_ZN…ppEi，sret 临时 -0x10/-0x14），非 do-while+break+前置 ++。
+    while (ci != reduced.end() && mi != materials.end())   // [双 != 判定]
     {
-        if (!(ci != reduced.end() && mi != materials.end())) // [双 != 判定]
-        {
-            break;
-        }
         ci->second = static_cast<int>(                     // [fld/fistpl ROUND]
             static_cast<float>(ci->second) * variation);
-        mi->second = mi->second + ci->second;              // [lea (%esi,%eax)]
+        mi->second += ci->second;                          // [lea (%esi,%eax)]
         if (mi->second == 0)                               // [test/sete]
         {
             mi->second = 1;
         }
-        ++ci;                                              // [operator++ ×2]
-        ++mi;
-    } while (true);
+        ci++;                                              // [operator++(int) ×2]
+        mi++;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// b28d-66 弱符号发射点（P147/P149）：
+// ORIG 本 TU 符号集含 vector<int>::begin()/end()（非 const）、iterator::base()、
+// iterator→const_iterator 转换构造、pair-iterator 前置 operator++()——这些是基线
+// 实现（非 const begin/end 路径 + 前置 ++）顺带发射的弱实例；改正为 ORIG 形
+// （const 版 begin/end、后置 ppEi）后不再发射。此处显式发射以维持符号集，
+// 对上述三个函数的机器码零影响。
+// ---------------------------------------------------------------------------
+static void __attribute__((used)) _forceLinkClosureAWeakSymbols(
+    std::vector<int>* v, std::vector<std::pair<int, int> >* p)
+{
+    std::vector<int>::iterator it = v->begin();             // begin()（非 const）
+    std::vector<int>::iterator itEnd = v->end();            // end()（非 const）
+    itEnd.base();                                           // base() const
+    std::vector<int>::const_iterator ci = it;               // 转换构造 C1IPiE
+    (void)ci;
+    ++itEnd;                                                // 前置 operator++()
+    std::vector<std::pair<int, int> >::iterator pi = p->begin();
+    ++pi;                                                   // pair 迭代器前置 operator++()
 }

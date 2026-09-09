@@ -65,8 +65,12 @@ public:
     // 该区是 9 个独立 flag 字节，不是 {int,int,char}。总大小保持 9。
     bool m_enable;          // +0x00（ORIG +0x105：[special monster drop] 开关；
                             //  bool：ORIG getter 0x8539e00 `movzbl; ret` 无归一，P292）
-    char m_difficulty[5];   // +0x01..+0x05（easy/medium/hard/ultimate/hero）
-    char m_dungeonType[3];  // +0x06..+0x08（normal/ancient/dimension）
+    // bool（P292 双向直证）：getter 定义体 0x8539e10/0x8539e24 `movzbl; ret` 无归一，
+    // 且调用点 0x8534ee4/0x8534ee7 `call; xor $1; test %al; jne` ⇒ 返回 bool；
+    // bool 字段+bool 返回 = 7 条无 setne（char 字段+bool 返回会多 test/setne 两条）。
+    // sizeof/偏移/mangled 零变化（bool 仍 1 字节）。
+    bool m_difficulty[5];   // +0x01..+0x05（easy/medium/hard/ultimate/hero）
+    bool m_dungeonType[3];  // +0x06..+0x08（normal/ancient/dimension）
 };
 #pragma pack(pop)
 

@@ -237,16 +237,18 @@ bool CSecialIMonsterDropItemGenRateTable::_itemTypeVerify(int type, const CItem*
 
 void CSecialIMonsterDropItemGenRateTable::generateTable(stGenItemRange_t* range)
 {
-    // [b28d-solo-DropLayoutDeps] 227/229 条（ORIG 227），p167 CLEAR（17=17）。
+    // [SweepDropLayout 2026-09-09] AE（ORIG 220 = 我方 220，ndiff=0），p167 CLEAR（17=17）。
+    // 旧判词「已试 callee bool 化→回退」被推翻：真因是**字段类型**未 bool 化。
+    // ORIG 谓词定义体 0x8539e10/0x8539e24 `movzbl 0xb5/0xba(%edx,%eax),%eax; ret`
+    // （7 条无 setne）+ 调用点 0x8534ee4/0x8534ee7 `call; xor $1; test %al,%al; jne`
+    // （P292 ⇒ callee bool）⇒ 原码字段即 bool（bool 字段+bool 返回=7 条；char 字段+
+    // bool 返回=9 条带 test/setne，探针 /tmp/p_boolf.cpp f/g/h/k）。
+    // 落地：STItemScript.h m_difficulty[5]/m_dungeonType[3] char→bool +
+    // CItem.h 两谓词返回 unsigned char→bool（Main 批准 + 全广播）。
+    // sizeof(STSpecialMonsterDrop)=9、偏移/mangled 零变化；写入点仍 movb 常量。
     // 已修：同 CItemGenRateTable::generateTable（去局部缓存、end 条件块、直接构造
     // pair、const grades、m_blocks 用 level）+ 数组指针解引用视图复现 ORIG 0x08534d2f
     // `add %eax,%eax; add 0xc(%ebp),%eax; movzbl (%eax)`/`0x1(%eax)` disp 折叠。
-    // 残差 N（2 处）：ORIG 谓词调用点 0x08534ee4/0x08534ee7 为
-    // `call; xor $1; test %al,%al; jne`（P292 ⇒ callee bool），我方 uchar 声明恒产
-    // `call; test; sete; test`。已试 P248 档① callee bool 化（CItem.h 两声明+定义）：
-    // 调用点转正、本函数 227/227，但两谓词定义体由 7 条→9 条（4.4 对 char 数组元素
-    // 转 bool 加 `test; setne` 归一化，ORIG 4.1 无）⇒ TU 净 -1 AE，已回退。
-    // 语义等价（非零判定）。
     // 报告 generateTable.md（T 0x08534cd0）：五重循环 a(0..4) b(0..2) type(1..4)
     // rarity(0..5) level(1..200)；槽址 a*0x69ff0+b*0x23550+type*0x7110+
     // rarity*0x12d8+level*24。过滤要求 isSpecialMonsterDropItem /
@@ -319,18 +321,20 @@ CMonsterDrop_Hell::~CMonsterDrop_Hell()
 
 int CMonsterDrop_Hell::loadScript(char const* path)
 {
-    // [b28d-solo-DropLayoutDeps] N82/N112 封顶（ORIG 0x08535344，279/282）。
+    // [SweepDropLayout 2026-09-09 复核] N82附/N126 封顶（ORIG 0x08535344，277/280，
+    // ndiff 299→295）。本轮把具名 `stGenItemProb_t fill`（4.4 恒占最深 -0x50..-0x35）
+    // 改为 resize 实参位**匿名临时** `m_probs.resize(ScanInt(&ok), stGenItemProb_t())`
+    // ⇒ 槽差由 0x18 缩到 4（OURS ok -0x4d/token -0x4c vs ORIG -0x49/-0x48；idx -0x2c
+    // vs -0x28），残 4 = 4.4 首槽基址常数（N126/N95，P190 只能下移不能上移）。
+    // 具名 fill 块内声明/头声明两形实测同槽，故取匿名形。逐段对照报告 Ghidra C 语义一致。
     // p167 CLEAR（23=23）。已修：for(;;)+break（顶部条件头）、i<rows+1（ORIG
-    // add$1/setg 形）、fill 值初始化 stGenItemProb_t()（内联清零，消 p167 EXTRA
-    // memset）、idx 循环前预清（P198①）、全头部声明（P212）。残差=槽分配（N82附：
-    // 4.4 聚合 fill 恒占最深槽 -0x50..-0x39，ORIG 按声明序落 -0x44..-0x2d 且 token
-    // -0x48/ok -0x49 更深；fill 声明移首/移尾两形实测槽集合不变）+ m_range[0]
-    // movw vs 两条 movb（N78 族）。语义等价。
+    // add$1/setg 形）、idx 循环前预清（P198①）、全头部声明（P212）。残差=槽常数 4
+    // + m_range[0] movw vs 两条 movb（P202/N78 族）+ N125（4.1 `add %eax,%eax` 两次
+    // vs 4.4 shl）+ 多分支出口岛数（N108）。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x302;
     std::string token;
     bool ok = false;
-    stGenItemProb_t fill;                    // 全部局部提到函数头（P212）
     int idx = 0;                             // ORIG 循环前预清（-0x28，P198①）
     int rows;
     int i;
@@ -360,8 +364,7 @@ int CMonsterDrop_Hell::loadScript(char const* path)
         }
         else if (token == "[drop prob count]")
         {
-            fill = stGenItemProb_t();
-            m_probs.resize(ScanInt(&ok), fill);
+            m_probs.resize(ScanInt(&ok), stGenItemProb_t());   // 试形：匿名临时
             if (!ok)
                 return 0x320;
         }
@@ -386,6 +389,8 @@ int CMonsterDrop_Hell::loadScript(char const* path)
         }
         else if (token == "[item drop ref table]")
         {
+            // ORIG 0x0853560e/0x08535615 为两条 movb；4.4 恒折单条 movw
+            // （P202/N78 族）。字节视图形实测反劣 +5 条（地址 add 链），已回退。
             m_range.m_range[0] = 0;
             for (lvl = 1; lvl <= 200; ++lvl)
             {
@@ -427,10 +432,11 @@ CSpecialMonsterDrop::~CSpecialMonsterDrop()
 
 int CSpecialMonsterDrop::loadScript(char const* path)
 {
-    // [b28d-solo-DropLayoutDeps] N82/N76 封顶（ORIG 0x085373ee，379/383）。
-    // p167 CLEAR（28=28）。已修：for(;;)+break、fill 值初始化 stGenItemProb_t()
-    // （消 p167 EXTRA memset）、idx 循环前预清、全头部声明（P212）。残差=①槽分配
-    // （N82附：ours 最深 -0x64 含 fill 聚合，ORIG -0x5d 且 token/ok 更深）；
+    // [SweepDropLayout 2026-09-09 复核] N82附/N76 封顶（ORIG 0x085373ee，377/381，
+    // ndiff 434→430）。具名 fill 改 resize 实参位匿名临时后槽差 0x18→4
+    // （OURS ok -0x61/token -0x60 vs ORIG -0x5d/-0x5c；残 4 = N126/N95 首槽常数）。
+    // p167 CLEAR（28=28）。已修：for(;;)+break、idx 循环前预清、全头部声明（P212）。
+    // 逐段对照报告 Ghidra C 语义一致（含 e[1] 的 RHS-first 属 N76）。残差=槽常数 4；
     // ②`e[1] = ScanInt(&ok)` store 序 ORIG RHS-first `mov -S,%edx; mov %eax,0x4(%edx)`
     // vs 4.4 LHS-first `lea 0x4(%eax),%ebx` 跨 call 缓存（N76）；已试 P211 异型化
     // （e→unsigned int* + cast）反劣 +1 条，回退。语义等价。
@@ -438,7 +444,6 @@ int CSpecialMonsterDrop::loadScript(char const* path)
         return 0x5fb;
     std::string token;
     bool ok = false;
-    stGenItemProb_t fill;
     int idx = 0;
     size_t jd;
     int* e;
@@ -458,8 +463,7 @@ int CSpecialMonsterDrop::loadScript(char const* path)
             break;
         if (token == "[drop prob count]")
         {
-            fill = stGenItemProb_t();
-            m_probs.resize(ScanInt(&ok), fill);
+            m_probs.resize(ScanInt(&ok), stGenItemProb_t());   // 试形：匿名临时
             if (!ok)
                 return 0x609;
         }
@@ -576,18 +580,19 @@ CMonsterDrop::CMonsterDrop(int count)
 
 int CMonsterDrop::loadScript(char const* path)
 {
-    // [b28d-solo-DropLayoutDeps] N82/N76 封顶（ORIG 0x08537938，545/550）。
-    // p167 CLEAR（42=42）。已修：for(;;)+break、fill 值初始化（消 p167 EXTRA
-    // memset）、count 内联实参、[gold quantity] 展开为 ORIG 的 4 次独立 ScanInt
-    // （原循环少 3 个调用点，p167 MISSING -3）、全头部声明（P212）。残差=①槽分配
-    // （N82附：ours 最深 -0x68 含 fill 聚合、ok -0x49；ORIG -0x61/ok -0x61 相邻）；
-    // ②`e[1] = ScanInt(&ok)` store 序 ORIG RHS-first vs 4.4 LHS-first（N76，与
-    // CSpecialMonsterDrop 同型）；③多分支出口 jmp/nop 岛数（P63/N108）。语义等价。
+    // [SweepDropLayout 2026-09-09 复核] N82附/N76 封顶（ORIG 0x08537938，540/545，
+    // ndiff 549→545）。具名 fill 改 resize 实参位匿名临时后槽差 0x18→4
+    // （OURS ok -0x65/token -0x64 vs ORIG -0x61/-0x60；残 4 = N126/N95 首槽常数）。
+    // p167 CLEAR（42=42）。已修：for(;;)+break、count 内联实参、
+    // [gold quantity] 展开为 ORIG 的 4 次独立 ScanInt
+    // （原循环少 3 个调用点，p167 MISSING -3）、全头部声明（P212）。残差=槽常数 4
+    // （N126/N95）+ `e[1] = ScanInt(&ok)` store 序 ORIG RHS-first vs 4.4 LHS-first
+    // （N76，与 CSpecialMonsterDrop 同型）+ 多分支出口 jmp/nop 岛数（P63/N108）。
+    // 逐段对照报告 Ghidra C 语义一致。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x66b;
     std::string token;
     bool ok = false;
-    stGenItemProb_t fill;
     int idx = 0;
     size_t jd;
     int* e;
@@ -608,8 +613,7 @@ int CMonsterDrop::loadScript(char const* path)
             break;
         if (token == "[drop prob count]")
         {
-            fill = stGenItemProb_t();
-            m_probs.resize(ScanInt(&ok), fill);
+            m_probs.resize(ScanInt(&ok), stGenItemProb_t());   // 试形：匿名临时
             if (!ok)
                 return 0x679;
         }
@@ -820,10 +824,15 @@ CClearReward::CClearReward(int count)
 
 int CClearReward::loadScript(char const* path)
 {
-    // [b28d-solo-DropLayoutDeps] N82 封顶（ORIG 0x085392c0，657/660；§6.2 超大件
-    // 三件套：p167 CLEAR 61=61、gap=3、槽位集仅深度差 0x55→0x4d）。已修：for(;;)+break
-    //（顶部条件头）。残差=局部槽序（4.4 首次使用序/聚合优先 vs 4.1 声明序，
-    // N82/P112；section/token 槽 -0x55/-0x54 vs -0x4d/-0x4c）+ 多分支出口岛数
+    // [SweepDropLayout 2026-09-09 复核] N82/N126 封顶（ORIG 0x085392c0，651/651；
+    // §6.2 超大件三件套：p167 CLEAR 61=61、gap=0、槽位集差 8）。本轮试形记录：
+    // ①[drop prob count] 的 fill 清零移入 for 循环内（贴 ORIG 0x853941f 的
+    //   local_54/50/4c 每轮清零）——ndiff/槽集合不变，保留；
+    // ②[drop prob] 内层独立 `std::string token`（贴 Ghidra C 的 local_60 do-while
+    //   每轮构造/析构）——我方多 11 条（4.4 在 break/return 各点各发 D1，ORIG 单
+    //   析构点 + iVar7 状态机），our 662 vs ORIG 651 反劣，已回退。
+    // 残差=局部槽序（4.4 首槽常数 8：section/token -0x55/-0x54 vs -0x4d/-0x4c，
+    // N82/N126）+ 多分支出口岛数
     //（P63/N108）。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x943;
@@ -839,10 +848,13 @@ int CClearReward::loadScript(char const* path)
             int count = ScanInt(&ok);
             if (!ok)
                 return 0x951;
-            stGenItemProb_t fill;
-            fill.v[0] = fill.v[1] = fill.v[2] = 0;
             for (int i = 0; i <= 5; ++i)
+            {
+                // ORIG 0x853941f 段：清零在循环**内**每次执行（local_54/50/4c 三 dword）。
+                stGenItemProb_t fill;
+                fill.v[0] = fill.v[1] = fill.v[2] = 0;
                 m_scriptProbs[i].resize(count, fill);
+            }
         }
         else if (section == "[drop prob]")
         {
@@ -1134,12 +1146,12 @@ bool CItem::isSpecialMonsterDropItem()
     return (unsigned char)m_drop.m_enable;  // ORIG 0x8539e00：movzbl 0xb4(%eax) 直返
 }
 
-unsigned char CItem::isDropItemDungeonDifficulty(int idx)
+bool CItem::isDropItemDungeonDifficulty(int idx)
 {
     return m_drop.m_difficulty[idx];        // ORIG 0x8539e10：movzbl 0xb5(%edx,%eax)
 }
 
-unsigned char CItem::isDropItemDungeonType(int idx)
+bool CItem::isDropItemDungeonType(int idx)
 {
     return m_drop.m_dungeonType[idx];       // ORIG 0x8539e24：movzbl 0xba(%edx,%eax)
 }

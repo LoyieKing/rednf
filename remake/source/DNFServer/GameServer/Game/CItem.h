@@ -91,8 +91,10 @@ public:
     int get_gen_rate() const;                             // ORIG W 0x832e02a：返回 m_field50
     bool isSpecialMonsterDropItem();                      // ORIG W 0x8539e00：m_drop.m_enable
                                                           // （bool：ORIG 调用点直判 test %al,%al）
-    unsigned char isDropItemDungeonDifficulty(int idx);   // ORIG W 0x8539e10：m_drop.m_difficulty[idx]
-    unsigned char isDropItemDungeonType(int idx);         // ORIG W 0x8539e24：m_drop.m_dungeonType[idx]
+    bool isDropItemDungeonDifficulty(int idx);            // ORIG W 0x8539e10：m_drop.m_difficulty[idx]
+                                                          // （bool：ORIG 调用点 0x8534ee4 `xor $1` 直判）
+    bool isDropItemDungeonType(int idx);                  // ORIG W 0x8539e24：m_drop.m_dungeonType[idx]
+                                                          // （bool：ORIG 调用点 0x8534ee7 `xor $1` 直判）
     int getUsablePeriod() const;
     int getExpirationDate() const;
     unsigned long GetQuestItemDropBouns();

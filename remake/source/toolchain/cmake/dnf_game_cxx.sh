@@ -542,6 +542,14 @@ case "$(basename "$src" .cpp)" in
                 # nsl 基础库：ORIG 为 Red Hat GCC 4.4.6-3（cc1plus446bin）编译
                 # （E/D/C 组独立验证：4.4.6 下虚调用/寄存器分配与 point ORIG 逐操作数一致）
                 exec "$C6446R" "$@" ;;
+            *Game/TimerDispatcher.cpp)
+                # b28d-Main 旗标实验（SweepTimerDispatcher-2 上报 + Main 独立复编核验）：
+                # TimerGeneratePowerUp::dispatch_sig 的 x87 比较段（fucompp/fnstsw/sahf/sete）
+                # 需 -march=i486 才出 ORIG lowering（P230/S156 同族；默认旗标产 fucomip/fstp）。
+                # 实测（同源码仅旗标差）：函数尺寸 0x3f8 → **0x400 = ORIG 0x400**（nm -S 双侧），
+                # ndiff 36 → 12（余 clamp 段 setl 物化），TU 四数 60/694/near4/diff17 逐项不变、
+                # 其余 8 件读数不变 ⇒ 零回归。注意 -mtune=generic 必须同带（默认 tune 改调度）。
+                exec "$C6" "$@" -march=i486 -mtune=generic ;;
             *)
                 exec "$C6" "$@" ;;
         esac ;;
