@@ -2098,11 +2098,10 @@ int CUser::addAvatarItem(unsigned long itemIdx, char param2, char param3,
     CEquipItem* pItem = (CEquipItem*)pMgr->find_item(itemIdx);
     if (pItem == 0)
         return -1;
-    // b28d-solo-CUser 试形回退（P96 容器 cv 旋钮）：ORIG 0x08681224 走 const 版
-    //   `_ZNKSt6vectorI20stAvatarTypeSelect_tSaIS0_EEixEj`，但 const 指针形实测
-    //   TU 合计 2207→2204（净负）⇒ 回退，维持非 const 形 + p167 差集记录。
-    std::vector<stAvatarTypeSelect_t>* pSelect =
-        (std::vector<stAvatarTypeSelect_t>*)pItem->getAvatarTypeSelect();
+    // 判据⑤（重载选择）：ORIG 0x08681224 调 `_ZNKSt6vectorI20stAvatarTypeSelect_t
+    //   SaIS0_EEixEj`（const operator[]）⇒ 视图必须为 const 指针（P96 cv 旋钮）。
+    const std::vector<stAvatarTypeSelect_t>* pSelect =
+        (const std::vector<stAvatarTypeSelect_t>*)pItem->getAvatarTypeSelect();
     int usablePeriod = pItem->getUsablePeriod();
     if (param3 < (int)pSelect->size())
         usablePeriod = (int)(*pSelect)[param3].m_field0;
@@ -8500,17 +8499,25 @@ bool CUser::CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type)
             again = false;
             if (kills.empty())
                 break;
-            int pick = get_rand_int((int)kills.size());
-            if (pick < 0 || pick >= (int)kills.size())
-                break;
-            // ORIG 0x0866cd0?：局部 MonsterKillItem 默认构造（C2）+ 结构赋值
-            //   `drop = kills[pick]`（非引用绑定——ORIG 有 C2Ev call，我方引用形缺）。
+            // P0 声明序（ORIG idx 80-104）：MonsterKillItem 默认构造 @-0xc0 →
+            //   4 个 int 清零 @-0x58/-0x54/-0x50/-0x4c → pick @-0x48 → 短路判定。
+            //   结构赋值 `drop = kills[pick]`（非引用绑定——ORIG 有 C2Ev call）。
             MonsterKillItem drop;
+            int itemIdx = 0;      // 掉落道具 idx
+            int tryCount = 0;     // 掷骰次数
+            int dropRate = 0;     // 基础掉率
+            int needCount = 0;    // 需要数量（-1=无限）
+            int pick = get_rand_int((int)kills.size());
+            // P338 块布局：ORIG 条件为 De Morgan 正向形 `!(pick >= 0 && size > pick)`
+            //   （汇编 js/jle → mov $1 → test/je SKIP），非 `pick < 0 || size <= pick`
+            //   （后者 4.4 生成 jg → mov $0 → test/jne BREAK 的反向块）。
+            if (!(pick >= 0 && (int)kills.size() > pick))
+                break;
             drop = kills[pick];
-            const int itemIdx = drop.m_field10;    // 掉落道具 idx
-            const int tryCount = drop.m_field14;   // 掷骰次数
-            const int dropRate = drop.m_field18;   // 基础掉率
-            const int needCount = drop.m_field1c;  // 需要数量（-1=无限）
+            itemIdx = drop.m_field10;
+            tryCount = drop.m_field14;
+            dropRate = drop.m_field18;
+            needCount = drop.m_field1c;
 
             int bonus = 0;
             for (int s = 0; s < 0x1a; ++s)
@@ -8573,7 +8580,11 @@ bool CUser::CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type)
                 tr("CUser::CheckQuestMonster, mon_item.item.set_add_info , "
                    "ITEM #%d, %d , QUEST#%d",
                    itemIdx, gained, questIdx);
-                item.m_addInfo2 = 1000;   // ORIG 字段直写（set_add_info 仅前面 1 次）
+                // 判据㊿：ORIG 0x0866cfdc `movl $0x3e8,-0x40(%ebp)` 写的是 **gained
+                //   局部槽**（-0x40，即上方 set_add_info(gained)/cmpl $0x3e7 的同一槽），
+                //   非 item 字段；Ghidra C 亦作 `local_44 = 1000;`。原写
+                //   item.m_addInfo2 会污染发包内容（put_int(item.get_add_info())）。
+                gained = 1000;
             }
 
             PacketGuard packet;
@@ -9184,15 +9195,20 @@ int CUser::gainGuildSkillExp(int exp)
 // b28d-lane5 N封顶: P11 符号扩展; P11 反向符号扩展; N82/P112 槽号分配 | ORIG 0x08659faa | _ZN5CUser16make_charac_statER11PacketGuard
 void CUser::make_charac_stat(PacketGuard& packet)
 {
+    // ORIG 0x08659fb6 `movb $0x1,-0x21(%ebp)`（Ghidra local_25=1，写后不读）：
+    //   该具名局部参与栈布局，使 addInfo 副本落在 -0xc5（奇地址）⇒ 结构复制展开为
+    //   「对齐 peel + rep movsl + 尾块」与 ORIG 同形（P0 槽-局部双向对应律）。
+    bool localFlag = true;
+    (void)localFlag;
     if (G_GameWorld()->IsCharacterStatRevisionChannel())
     {
         // 通路 C：FairPvP 表非零字段覆盖副本。
         _Additioal_info addInfo =
             *static_cast<const _Additioal_info*>(getCurCharacAddInfoR());
-        int growType = (int)getCurCharFirstGrowType();
-        int job = get_charac_job();
-        CharacterStatus* stat =
-            G_CDataManager()->m_fairPvPStat.FindCharacStat(job, growType);
+        // P0：ORIG 无 growType/job 具名局部（movsbl→%esi / %ebx 直传 FindCharacStat），
+        // 且实参求值序 = 右→左（先 getCurCharFirstGrowType 后 get_charac_job）。
+        CharacterStatus* stat = G_CDataManager()->m_fairPvPStat.FindCharacStat(
+            get_charac_job(), (int)getCurCharFirstGrowType());
         if (stat != 0)
         {
             if (stat->m_field00 != 0)
@@ -9207,15 +9223,17 @@ void CUser::make_charac_stat(PacketGuard& packet)
                 addInfo.m_field0c = stat->m_field08[2];
             if (stat->m_field08[3] != 0)
                 addInfo.m_field0e = stat->m_field08[3];
-            for (int i = 0; i <= 3; ++i)   // ORIG 循环1：+0x10..+0x16
+            // P0 单槽：ORIG 两循环共用 -0x1c（声明 int i = 0; + 两次 for init）。
+            int i = 0;
+            for (i = 0; i <= 3; ++i)   // ORIG 循环1：+0x10..+0x16
             {
                 if (stat->m_field08[i + 4] != 0)
                     addInfo.m_field10[i] = stat->m_field08[i + 4];
             }
-            for (int j = 0; j <= 0x10; ++j)   // ORIG 循环2：+0x18..+0x38
+            for (i = 0; i <= 0x10; ++i)   // ORIG 循环2：+0x18..+0x38
             {
-                if (stat->m_field08[j + 8] != 0)
-                    addInfo.m_field18[j] = stat->m_field08[j + 8];
+                if (stat->m_field08[i + 8] != 0)
+                    addInfo.m_field18[i] = stat->m_field08[i + 8];
             }
             if (stat->m_field3c != 0)
                 addInfo.m_field3a = stat->m_field3c;
@@ -10670,12 +10688,8 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
     m_subMasterCnt = 0;             // +0x2d
     m_guildSkillPoint = 0;          // +0x42
     m_skillLearnCnt = 0;            // +0x44
-    // ORIG 此处循环 16× call STGuildSkill::C1Ev（+0x45 步长 5；ctor 写
-    // m_field0=-1 + m_field4=0xff，即每 5 字节全 0xff）。m_skills 为 char[0x50]，
-    // 无法直接 in-band ctor 调用（§8.2 冻结头），以等宽 memset 表达；随后被
-    // 下方 memset 覆盖清零——该循环净效果为零，属 N 封顶的表示差异。
-    for (int i = 0xf; i != -1; --i)
-        memset(m_skills + i * 5, 0xff, 5);
+    // ORIG 此处的 16× call STGuildSkill::C1Ev（+0x45 步长 5）由 m_skills 的
+    //   隐式成员构造自动生成（CUser.h: STGuildSkill m_skills[16]），无需手写循环。
     m_field95 = 0;                  // +0x95
     m_powerSecedeTime = 0;          // +0x96
     m_powerWarPoint = 0;            // +0x9a
@@ -12094,10 +12108,12 @@ void CUser::_deleteSpecificItemAccountCargo(
             else if (G_CDataManager()->m_deleteInvalidItem.IsInvalidItem2Delete(
                          item.m_addInfo))
             {
-                // b28d-solo-CUser 试形回退：ORIG 为 make_pair<unsigned long&, int&>
-                //   （IRmRiE），但引用 cast 实测 TU 合计净负（2207→2203）⇒ 回退，
-                //   维持 IRjRiE + p167 差集记录（本件仍 DIFF，归 N82 槽号族）。
-                mailDel.push_back(std::make_pair(item.m_addInfo, item.m_addInfo2));
+                // p167 判据②：ORIG 实例化 make_pair<unsigned long&, int&>（IRmRiE），
+                //   实参即 item+0x02（m_addInfo）左值 ⇒ ORIG 源码以 unsigned long 视图
+                //   取该 4 字节槽。reinterpret_cast 引用零开销（32 位同宽）。
+                mailDel.push_back(std::make_pair(
+                    reinterpret_cast<unsigned long&>(item.m_addInfo),
+                    item.m_addInfo2));
                 del = true;
             }
         }
@@ -12108,8 +12124,10 @@ void CUser::_deleteSpecificItemAccountCargo(
                 cargo->DeleteItem(slot, item.m_addInfo2);
             else
                 cargo->DeleteItem(slot, item.m_addInfo2 - matched);
-            // b28d-solo-CUser p167：ORIG 实例化 `make_pair<ENUM_ITEMSPACE, int&>`。
-            out.push_back(std::make_pair((ENUM_ITEMSPACE)0xc, slot));
+            // p167 判据②：ORIG 实例化 make_pair<ENUM_ITEMSPACE, unsigned int&>
+            //   （I14ENUM_ITEMSPACERjE），第二实参为 -0x50 槽左值。
+            out.push_back(std::make_pair((ENUM_ITEMSPACE)0xc,
+                                         reinterpret_cast<unsigned int&>(slot)));
         }
     }
 

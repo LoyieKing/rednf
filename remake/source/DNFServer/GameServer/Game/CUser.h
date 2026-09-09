@@ -113,6 +113,8 @@ enum ENUM_CHARAC_LINK_BONUS_STATE { ENUM_CHARAC_LINK_BONUS_STATE_0 = 0 };
                                  //   供 SigTypes_C.h SIG_LOAD_SKILL 数组成员构造）
 #include "CCharacter.h"   // _Additioal_info 完整类型（CUserPremium::GetAdditionalInfo 返回值；
                           // 叶子头：string.h/utility/vector，无环）
+#include "STGuildSkill.h" // STGuildSkill 完整类型（STGuildDBInfoOnly::m_skills[16]；
+                          // 叶子头：pack(1) 5B，无环）
 #include "CMCAPManager.h" // WongWork::CMCAPManager 唯一声明点（自本文件收敛）
 #include "CHackAnalyzer.h" // WongWork::CHackAnalyzer / Secu_AccountHacking /
                           // ENUM_HACKTYPE 权威声明点（2026-08-27 自本头迁出）
@@ -1345,7 +1347,11 @@ struct STGuildDBInfoOnly
     int m_subMasterData[5];           // +0x2e（pack(1) 区非对齐 int 副会长表）
     unsigned short m_guildSkillPoint; // +0x42
     unsigned char m_skillLearnCnt;    // +0x44
-    char m_skills[0x50];              // +0x45（16×STGuildSkill 5B）
+    // 判据㉜/㊹：ORIG STGuildDBInfoOnly::C1Ev 0x08693f56 以 5B 步长循环 call
+    //   STGuildSkill::C1Ev（ctor 写 +0=0xffffffff/+4=0xff）；char[0x50]+手写 memset
+    //   会产出 EXTRA memset/MISSING STGuildSkill::C2Ev（p167 实证）。改真类型后由
+    //   隐式成员构造复现 ORIG 循环。sizeof 0x50 不变（pack(1) 5B×16）。
+    STGuildSkill m_skills[16];        // +0x45（16×STGuildSkill 5B）
     unsigned char m_field95;          // +0x95（SetGuildInfoProxy 0x0865cd43 单步 movzbl 直落⇒uchar；char 反产双步，CUOC7 技巧5）
     int m_powerSecedeTime;            // +0x96
     unsigned int m_powerWarPoint;     // +0x9a（ORIG Decrease 0x082301bc copy-sub 形需 uint）
