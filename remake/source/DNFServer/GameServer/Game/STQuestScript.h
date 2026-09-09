@@ -89,6 +89,12 @@ bool initQuestScript(const char* dir, const char* list);
 bool importTrainingQuestScript(TrainingQuestScript* script, const char* path);
 bool initTownScript(char* dir, char* list);   // 同上，ORIG @0x8aad9ec 族尾形
 bool importTownScript(TownScript* script, const char* path);
-int importQuestScript(QuestScript* script, const char* path);
+// [b28d-solo-STQuestScript · P292/P315 档①] 返回类型 int→bool：
+// ORIG 调用点 0x08353e51（QuestList::load_list 内）`call 08a61813;
+// xor $0x1,%eax; test %al,%al; je 08353e95`（无 setne 物化）⇒ callee 真
+// 返回 bool。返回类型不入 mangled（_Z17importQuestScriptP11QuestScriptPKc
+// 不变）⇒ 符号名/ABI/sizeof/偏移零变化，仅调用点 codegen 变。
+// 消费点：CListTables.cpp:329 本地镜像声明须同步 bool；其余 TU 无引用。
+bool importQuestScript(QuestScript* script, const char* path);
 
 #endif  // GAME_STQUESTSCRIPT_H_

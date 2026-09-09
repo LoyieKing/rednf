@@ -474,7 +474,21 @@ bool initQuestScript(const char* dir, const char* list)
 //    （本区固有 mov+22/jne+11/movb+8 冗余未消）⇒ 保持现形，判镜像块序差。
 // ③ 其余 6 条为 je/add/lea/sete 级分散形态差（我方 3 处 setcc 分支形、
 //    我方多 mov/movb/movzbl 与 ORIG 多 je/add/lea 互为抵消），非语义缺口。
-int importQuestScript(QuestScript* script, const char* path)
+// [b28d-solo-STQuestScript · P292/P315 档①] int→bool（与头同步）：
+// ORIG 调用点 0x08353e51 `call; xor $0x1,%eax; test %al,%al; je`（无 setne）。
+// 函数体 return 0/1 均为常量 ⇒ bool 化不引入 setne，定义侧形态不变；
+// mangled _Z17importQuestScriptP11QuestScriptPKc 不变（返回类型不入 mangled）。
+// [b28d-solo-STQuestScript 2026-09-09 复核] 定义侧同快照 A/B（bool vs int）
+// 四数逐项相同 460/906/0/23 ⇒ 返回类型改动零形态影响；fresh 读数
+// 458/917/0/12（missing 362，全 TU）。gap 42（raw 3883/3841）主体 = ORIG
+// 序言 +0x32..+0x71 共 20 组 `nop;jmp 0x8a618d3` 中继岛（仅 +0x86/+0x8c/
+// +0x92 三组有 jne 前驱，余 17 组无前驱 = 死岛）vs 我方 1 组（+0x21cb
+// jmp +0x21cd nop）⇒ 4.4 jump-thread 合并；死岛无法用合法 C++ 生成
+// （P337 volatile 守卫每处固有 +4 条 > 收益，净负）⇒ P223 负例封顶；
+// 余 4 条为槽漂移（非恒定：line -0x320↔-0x308、qd0 -0x3d8↔-0x3e0）
+// 与 [type] 块序 ⇒ N82/N126 封顶。p167 517/517 CLEAR（差集全 C1/C2·D1/D2
+// 同址镜像，P93 豁免），miss=0（无 ORIG-only 游戏域 callee）。
+bool importQuestScript(QuestScript* script, const char* path)
 {
     // ORIG importQuestScript 的函数局部辅助类 QuestData（报告
     // importQuestScript_QuestScript___char_const____QuestData/：
@@ -2209,10 +2223,15 @@ bool importTownScript(TownScript* script, const char* path)
 //   槽往返 ⇒ 原码有具名指针局部，P0）；②pair 循环外默认构造 + 成员赋值；
 // ③各段尾 `sub` 与闭合标签比较（ORIG 中 sub 全函数无写入点 = 原码遗留恒假
 //   死条件，P171 照抄）；④ScanType 失败/[training quest end] 走统一 `return ok`。
-// [§6.2 三件套] 257 vs 254（gap 3）；p167 30/30 CLEAR。残余 N 封顶：
-// ① P223 定案②：ORIG 循环头前 `jmp;nop` 双中继岛（多源 continue），4.4 合并；
-// ② N18a：尾 `movzbl -0x25,%ebx`（4.1 单段）vs 4.4 `movzbl;movzbl %al,%ebx`；
-// ③ 段尾 sub 比较 `je` 落点/块序跨版本差（两极性形互试 257↔254 后取优）。
+// [§6.2 三件套] 2026-09-09 复核：257 vs 253（gap 4）；p167 30/30 CLEAR。
+// 逐条归一化 diff 实测 4 处残差全为跳转中继岛/对齐 nop（无语义）：
+// ① +0x5e..+0x63 ORIG `jmp;nop;jmp;nop` 双中继岛（[level] else 的 continue
+//    落 +0x5b4、[training quest end] 不等落 +0x5b7）vs 我方单 `jmp`（差 2）；
+// ② +0x71e nop（`je` 后 `jmp` 前）与 +0x802 nop 两处 4.1 对齐填充（差 2）；
+// ③ +0x680/+0x685 两条同目标 jmp（5b8）4.4 合并为一条（差 1），我方
+//    +0x2cb/+0x2ee 侧多一条 jmp（+1）⇒ 净 -4。
+// 4.4 对同址目标恒 jump-thread（P223 负例），nop 属 §6.1 对齐产物 ⇒ N 封顶。
+// 尾部 `movzbl -0x25(%ebp),%ebx` 已与 ORIG 单段形一致（旧 N18a 残差已消）。
 bool importTrainingQuestScript(TrainingQuestScript* script, const char* path)  // [P330] 与 STQuestScript.h 同步
 {
     if (!loadRDARScriptFile("", path))

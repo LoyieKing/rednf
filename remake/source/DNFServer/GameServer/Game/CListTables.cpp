@@ -323,10 +323,10 @@ extern bool ImportSkillScript(STSkillScript* script, const char* path,
 extern bool ImportDungeonScript(STDungeonScript* script, const char* path);
 extern bool ImportMonsterScript(STMonsterScript* script, int type,
                                const char* path, bool flag);
-// [b28d-solo-CListTables P248档①·依赖] ORIG 0x08353e51 `call; xor $1; test %al`
-// ⇒ 真返回类型应为 bool；但 STQuestScript.h:92 / STQuestScript.cpp:477 现仍 int
-// （属 BigQuestScript 泳道）⇒ 本 TU 只能保持 int 声明（改 bool 与头冲突）。
-extern int importQuestScript(QuestScript* script, const char* path);
+// [b28d-solo-CListTables P248档①] ORIG 0x08353e51 `call; xor $1; test %al`（无
+// setne）⇒ bool。SweepSTQuestScript 已把 STQuestScript.h:98 / .cpp:481 定义改
+// bool，本 TU 声明同步（返回类型不入 mangled，零 ABI 风险）。
+extern bool importQuestScript(QuestScript* script, const char* path);
 
 // ====================================================================
 
@@ -1670,7 +1670,7 @@ END1:;
 // GetItemType()（CItem.h:45，槽序 ~CItem×2/make_item/GetItemType）；旧实现用
 // static getQuestItemType 手动 vtbl[3] 调用（发明符号+手动虚调，违 §4.5）已删，
 // 改为真实 `item->GetItemType() == 8`。
-// [b28d-solo-CListTables 修复 + §6.2 N 封顶] ORIG 0x08353d98：991/997（gap=6）
+// [b28d-solo-CListTables 修复 + §6.2 N 封顶] ORIG 0x08353d98：991/996（gap=5）
 // + p167 CLEAR(122/122)。本轮真修复：①QuestScript 镜像 m_mapIdx2 前缺 4B pad
 // ⇒ m_questDataType/+0x178、m_questData/+0x180、m_dailySchedule/+0x2dc 全体少 4
 // （**读错字段**；ORIG 0x0835408a/0x08354193/0x08353e9b 实证）；②镜像 sizeof
@@ -1680,6 +1680,9 @@ END1:;
 // 两段寄存器比较（P310）。残差 6 条 = logFormat 变参 size/questDataType 的寄存器
 // 分配（N7：ORIG 直载 %edx，4.4 恒多 `mov %eax,%edx`）+ N87 `and $0x1f` +
 // N6 位折叠（4.4 sar+and$1 vs 4.1 shl+and$0x40e）⇒ 语义完成、byte 层封顶。
+// [b28d-solo-CListTables 归零] importQuestScript 定义/声明 int→bool 已由
+// SweepSTQuestScript 落盘、本 TU 声明同步 ⇒ 0x1357 调用点由 sete 物化改为
+// ORIG 的 `call; xor $0x1,%eax; test %al,%al; je`（991/997→991/996）。
 bool QuestList::load_list()
 {
     // [b28d-solo-CListTables] ORIG 0x08353da4..0x08353dd8 函数头构造/清零序：
