@@ -18,9 +18,9 @@ public:
     void clear();                                       // W 0x0891b18a
     int m_index;            // +0x00  [推断: importDeadTowerDialogScript 中 ScanInt 结果]
     std::string m_str;      // +0x04  [推断: ScanStr 结果]
-    unsigned char m_flag1;  // +0x08  [推断: 脚本中置 1 的标记]
-    unsigned char m_flag2;  // +0x09
-    unsigned char m_flag3;  // +0x0a
+    unsigned char m_flag1;  // +0x08  [dialog on map start]    分支置 1（ORIG 0x8908e13）
+    unsigned char m_flag2;  // +0x09  [dialog on map complete] 分支置 1（ORIG 0x8908ed3）
+    unsigned char m_flag3;  // +0x0a  [dialog on die]          分支置 1（ORIG 0x8908f96）
 };
 
 static_assert(sizeof(STDeadTowerDialog) == 0x0c, "STDeadTowerDialog ABI drift");
