@@ -185,7 +185,7 @@ void generateIndependentItem(
                         break;                                      // 未命中沿用旧值
                     }
                 }
-                G_CDataManager()->getItemList()->create_item(
+                G_CDataManager()->m_itemList->create_item(
                     ENUM_ITEM_CREATE_TYPE_1, item, 1);
                 out.push_back(item);
             }
@@ -199,7 +199,7 @@ void generateIndependentItem(
                 continue;
 
             item.m_addInfo = drop.m_itemIdx;                        // +0x02 ← +0x00
-            G_CDataManager()->getItemList()->create_item(
+            G_CDataManager()->m_itemList->create_item(
                 ENUM_ITEM_CREATE_TYPE_1, item, 1);
             if (item.m_addInfo == 0 && drop.m_rate[10] == 0)
             {

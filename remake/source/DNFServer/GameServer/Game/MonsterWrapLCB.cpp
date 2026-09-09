@@ -168,7 +168,7 @@ void generateCatchMonsterItem(const std::vector<CatchItemInfo>& items,
 
         Inven_Item item;
         item.m_addInfo = entry.m_field0;                    // [0x8349fe5 写 +0x02 视图]
-        G_CDataManager()->getItemList()->create_item(
+        G_CDataManager()->m_itemList->create_item(
             (ENUM_ITEM_CREATE_TYPE)1, item, 1);             // [0x8349ffd create_item(1,.,1)]
         for (int j = 0; j < entry.m_field4; ++j)            // [0x834a031 setg signed]
             out.push_back(item);

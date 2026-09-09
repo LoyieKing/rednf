@@ -3012,7 +3012,7 @@ public:
     CDungeonGainedGold* getDungeonGainedGold();
     WongWork::CHackAnalyzer* getHackAnalyzer();
     CExpandEquipslot* GetCharacExpandDataR(ENUM_CHARAC_EXPAND_TYPE type) const;
-    CExpandEquipslot* GetCharacExpandDataR(ENUM_CHARAC_EXPAND_TYPE& type) const;
+    // [b28d-Main·检查点18] 删除 `ENUM_CHARAC_EXPAND_TYPE&` 重载（ORIG 仅按值版 0x0828b5de）。
     CExpandEquipslot* GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE type) const;
     void AddDBLogItem(unsigned int itemIdx, unsigned int type,
                       ENUM_DBLOG_ITEM_TYPE value);

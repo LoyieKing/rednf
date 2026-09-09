@@ -3730,7 +3730,7 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
         }
         int restrictCode = 0;
         if (isSpecial)
-            restrictCode = G_CDataManager()->getItemList()->GetRestrictCode(
+            restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(
                 limit->getRelateditem());
         if (restrictCode != 0)
         {
@@ -3854,7 +3854,7 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
             if (get_rand_int(1000) <= bonusRate)
             {
                 unsigned int usedCera = user->getUsedCera();
-                G_CDataManager()->getItemList()->getCeraShopBonusItem((int)usedCera,
+                G_CDataManager()->m_itemList->getCeraShopBonusItem((int)usedCera,
                                                                       bonusItemIdx, bonusCount);
                 if ((int)bonusItemIdx != -1)
                 {
@@ -8237,19 +8237,12 @@ int get_seed_from_date()
 }
 
 // ============================================================================
-// GlobalInstance 显式实例化（弱符号，COMDAT 合并；与 ORIG nm 的 W/V 一致）
-//   EncryptTool: inst_ptr 0x848e1d3 / create 0x848e1e5 / m_p V 0x943d9a0
-//   Cipher:      inst_ptr 0x82ab9da / create 0x82b6577 / m_p V 0x941f8a4
-//   CDataManager/InterDispatcher/TimerDispatcher/Store/GameWorld: inst_ptr 等
-//   ORIG 均 W/u（弱/外部引用），此处显式实例化补链接符号，不影响各权威 TU。
+// [b28d-Main·检查点18] 原 7 条 GlobalInstance 显式实例化已删（同 StaticPool 问题）：
+//   显式实例化为每个 T 发射**全部**成员（inst/create/destroy/inst_ptr），而 ORIG 只
+//   发射实际使用的（如 GlobalInstance<EncryptTool> 仅 create/inst_ptr/m_p，
+//   GlobalInstance<Cipher> 同）⇒ inst/destroy 成为 only-NEW。定义在 CEnvironment.h
+//   类体内（实例化点可见）⇒ 按使用点隐式实例化即与 ORIG 一致。
 // ============================================================================
-template class GlobalInstance<EncryptTool>;
-template class GlobalInstance<CDataManager>;
-template class GlobalInstance<InterDispatcher>;
-template class GlobalInstance<TimerDispatcher>;
-template class GlobalInstance<Store>;
-template class GlobalInstance<Cipher>;
-template class GlobalInstance<GameWorld>;
 // ---- 全局单例访问器（ORIG W：G_TimerDispatcher 0x0847e8a4 /
 // G_InterDispatcher 0x0847e8b7，GlobalInstance inst_ptr 形态，同 G_TimerQueue）----
 TimerDispatcher* G_TimerDispatcher()

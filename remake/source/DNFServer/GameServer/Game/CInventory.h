@@ -822,9 +822,8 @@ public:
     WongWork::CAvatarItemMgr m_avatarItemMgr;   // +0x734（权威类型 0x84，CInventory 总 0x7b8）
 };
 
-// ORIG 调用点怪癖：ChangeEquip 以 4 参自由函数形态调用 GetInvenSlot
-// （压栈 out,this,1,slot），符号实际指向成员 _ZNK10CInventory12GetInvenSlotEii。
-// 为还原逐字节压栈形态保留此声明；链接桩由主 agent 提供。
-int GetInvenSlot(Inven_Item* out, CInventory* self, int invenType, int slot);
+// [b28d-Main·检查点18] 原自由函数 shim 声明已删：全仓无调用点（成员调用一律
+// `->GetInvenSlot(...)`），ORIG 亦无该符号（仅成员 `_ZNK10CInventory12GetInvenSlotEii`
+// 0x084fb918）⇒ 纯 only-NEW 发明符号。
 
 #endif  // GAME_CINVENTORY_H_

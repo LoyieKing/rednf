@@ -124,22 +124,7 @@ struct __attribute__((packed)) ParamSlotView_A2
     unsigned short m_slot2;   // +0x12
 };
 
-// GM 消息包（oldGmRoutine 内联展开模式，ORIG 多处重复同一序列）：
-// put_header(0,0xc) / put_byte(0) / put_short(0) / put_byte(0) / put_int(len) /
-// put_str(msg,len) / finalize(true) / Send。
-static void A2_SendGmMessage(CUser* user, const char* msg)
-{
-    PacketGuard guard;
-    guard.put_header(0, 0xc);
-    guard.put_byte(0);
-    guard.put_short(0);
-    guard.put_byte(0);
-    int len = static_cast<int>(strlen(msg));
-    guard.put_int(len);
-    guard.put_str(msg, len);
-    guard.finalize(true);
-    user->Send(guard);
-}
+// [b28d-Main·检查点18] 删除死助手 A2_SendGmMessage（全 TU 无调用点；ORIG 无该符号）。
 
 // ============================================================================
 // 1. Dispatcher_DisJointAvatar::_selectJewelTypeIndex

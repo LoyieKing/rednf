@@ -48,9 +48,15 @@ dnf_service(game
         ${SERVERLIB}/common_source/DBDispatcher.cpp
         ${SERVERLIB}/common_source/IArea.cpp
         ${SERVERLIB}/common_source/IHandler.cpp
+        # [b28d-Main·检查点18] 注：本文件属 ServerLab/ServerLib（**第三方基础库**），
+        #   按用户口径「三方基础库允许导出函数不对齐」豁免；Game 侧 InterDispatcher
+        #   为独立类（全仓 grep 0 引用）。曾试移除，因 WorkThread/ServiceFactory
+        #   依赖其符号而回退。
         ${SERVERLIB}/common_source/InterDispatcher.cpp
         ${SERVERLIB}/common_source/LogSendThread.cpp
         ${SERVERLIB}/common_source/NSLDBThread.cpp
+        # [b28d-Main·检查点18] 注：本文件属 ServerLab/ServerLib（**第三方基础库**），
+        #   按用户口径豁免（其 nsl::GetErrorStr 被同库 InterDispatcher/WorkThread 引用）。
         ${SERVERLIB}/common_source/ServiceError.cpp
         ${SERVERLIB}/common_source/ServiceFactory.cpp
         ${SERVERLIB}/common_source/Socket.cpp
@@ -804,7 +810,9 @@ dnf_service(game
         ${SVC_DIR}/AutoMarketDeps.cpp
         ${SVC_DIR}/cMyTraceNoop.cpp
         ${SVC_DIR}/IsEquipable.cpp
-        ${SVC_DIR}/RealGameFunctions.cpp
+        # [b28d-Main·检查点18] RealGameFunctions.cpp 已删：其唯一函数
+        # GameWorld_IsCharacterLevelRevisionChannel 是 ORIG 无的死 wrapper（已移除），
+        # 文件其余内容仅注释/头 → 空 TU 只多发射 `_GLOBAL__I_RealGameFunctions.cpp`。
         ${SVC_DIR}/CDataManagerScripts.cpp
         ${SVC_DIR}/GameBasicsScripts.cpp
         ${SVC_DIR}/CDataManagerMethods.cpp

@@ -523,7 +523,7 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
 
                     Inven_Item probe;                          // ORIG buf(-0xf5)：整块复核
                     probe.setCopy(result.m_dropItems.front());
-                    CItemList* itemList = G_CDataManager()->getItemList();   // dm+0xc 具名访问器
+                    CItemList* itemList = G_CDataManager()->m_itemList;   // [b28d-Main] dm+0xc 直读
                     CItem* found = itemList->find_item(probe.m_addInfo);
                     if (found != 0)
                     {

@@ -26,11 +26,12 @@ public:
     const char* getJewelSocketData() const;
     void* getExpansionInfo() const;
     int* getExnansionInfoRef() const;
-    void setColorEss(short color1, short color2);
+    // [b28d-Main·检查点18] 删除发明名 setColorEss（ORIG 无此符号）——语义等同 setColor。
     void setExpansionInfo(const ::stAvatarExpansionInfo_t& info);
     void SetData(int expireDate, int registTime, const char* ipgAgency);
     void setEmblemSocketData(const stAvatarEmblemInfo_t& emblem);
-    int updateEmblemSocket(int grade, unsigned long itemId);
+    // [b28d-Main·检查点18] 删除 `(int, unsigned long)` 重载声明（发明签名）——
+    //   ORIG 仅 `(unsigned int, unsigned int)`（0x082fa2a6），下方已有声明与定义。
     // ---- G7 miscB 追加（ORIG 真实符号，定义 WongWorkMiscB_A.cpp）----
     void setColor(short color1, short color2);  // _ZN8WongWork11Avatar_Item8setColorEss W 0x082fa2fa（语义同 setColorEss）
     int updateEmblemSocket(unsigned int grade, unsigned int itemId);

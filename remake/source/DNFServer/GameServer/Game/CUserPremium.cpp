@@ -2,6 +2,17 @@
 // 声明以 CUser.h 为准；ORIG 字段已全部具名化（m_entries / m_additionalBase /
 // m_additionalInfo 等，见 CUser.h 的 WongWork::CUserPremium），本 TU 不再使用
 // 裸偏移访问（参照 docs/class_func_reports/WongWork__CUserPremium）。
+// [b28d-solo-CUserPremium] 本波（单文件泳道）终判汇总（check_tu_routed 现编现测）：
+//   TU 三数 521(184+337)/near1/diff7 → 524(185+339)/near1/diff6（零回归，+3 AE）；
+//   IDENTICAL：SetPremiumItemData 52（P315 定义处 key top-level const 令
+//     make_pair 推 IRKm，p167 6/6 CLEAR）、RemovePremium 59（两臂裸早返复现
+//     第二 jmp + je 落 nop 岛）；
+//   DIFF/N 封顶（p167 全 CLEAR）：LoadPremiumInfo（size!=0 极性/end 缓存/i 提头，
+//     ndiff 316→56，残 N82/N95/N1）、importPremiumList（分支局部 bool/int rate/
+//     分支头置零等，ndiff 923→712，残 N93/N98/N82）、_Additioal_info::add 116→52、
+//     subtract 121→62（N-86b：13 形探针不可择）、setPremiumState 8→7（N107/N7）、
+//     GetReturnItemRate（N93/N98，两迭代器槽互换）。
+//   全 8 件 p167 CLEAR；无 .h 改动（CUser.h int→bool 由 Main 代落）。
 #include "CUser.h"
 #include "GlobalData.h"
 #include "DNFLexWrapper.h"   // loadRDARScriptFile/ScanType/ScanInt/ScanStr（ORIG 真实符号）
@@ -178,12 +189,19 @@ void stPremiumTable_t::clean()
 std::vector<SPremiumOverEquipableInfo> g_vecPremiumOverEquipableInfo;
 std::vector<SPremiumReturnItemInfo> g_vecPremiumReturnItemInfo;
 
-// [b28d-solo-CUserPremium] 修法（P167/N-XVAL）：ORIG 0x08905d95 调
-// `vector<unsigned int>::push_back(unsigned int&&)`（EOj）；左值实参使 4.4 选
-// const& 重载（RKj），改 static_cast<unsigned int&&> 后差集清零。
-// 终判：P167 CLEAR（145/145）+ gap 17/1142（1.5%）⇒ 语义完成；byte 层为
-// 帧-槽族（帧 0x100 vs 0xf0、局部槽 -0x74/-0x78 vs -0x60/-0x64 全帧错位、
-// ORIG-only movl×13 全为槽偏移对齐失败非缺写）⇒ N82/N95/P212 封顶。
+// [b28d-solo-CUserPremium] 终判（b28d 复测，routed 口径）：P167 CLEAR（145/145），
+// 语义完成。本波按 ORIG 直证改写的源形（全部经 clean/AE ndiff 前后对比）：
+//  ①[target item]/[item] 两分支各自的局部 bool（ORIG -0x7a/-0x7b 两独立槽，
+//    旧函数头单例 itemOk 只产一槽）——P0；
+//  ②[target item] 补 `int v = 0; v = ScanInt(...)` 两句式（ORIG -0x14 预清）；
+//  ③[independent drop rate] `for (int rate = 0; ; rate = 0)` + `push_back(rate)`
+//    （ORIG -0x40 int 槽 + -0x70 转换临时 ⇒ int→unsigned int 右值选中 EOj）；
+//  ④[items]/[item]-inner 按 ORIG 分支头三连置零/两句式声明改写（P198①）；
+//  ⑤equipCase 去初始化、cur 移到 clean 循环后声明、补 ORIG -0x6c 死局部（P171/P232）。
+// 残差（ndiff 923→712，本文 TU 口径）全为 4.1↔4.4 栈槽分配序族：ORIG 头段
+// token/value/ok 在 -0x74/-0x78/-0x79 而 4.4 给 -0x6c/-0x70/-0x71（全帧 8 字节
+// 平移）、cur/equipCase/i 相对序相反，以及各 `cur->m_X = ScanInt()` 点的值/地址
+// 寄存器角色互换（N7）⇒ N93/N98/N82 封顶，语义与调用点差集均已闭合。
 int importPremiumList(const char* path,
                       stPremiumTable_t* table,
                       std::vector<SPremiumOverEquipableInfo>& overVec,
@@ -326,16 +344,23 @@ int importPremiumList(const char* path,
 
         if (token == "[items]")
         {
-            for (int n = 0;; ++n)
+            // [b28d-solo-CUserPremium] P0/P198①：ORIG 0x0890646f 分支头三连
+            // `movl $0x0,-0x4c/-0x48/-0x44`（itemIdx/cnt/n 三个具名局部声明即
+            // 置零、循环内仅赋值）⇒ 提至分支头、循环体只赋值。
+            int itemIdx = 0;
+            int cnt = 0;
+            int n = 0;
+            for (;;)
             {
-                int itemIdx = ScanInt(&ok);
+                itemIdx = ScanInt(&ok);
                 if (!ok)
                     break;
-                int cnt = ScanInt(&ok);
+                cnt = ScanInt(&ok);
                 if (!ok)
                     break;
                 cur->m_advantageItems[n].first = itemIdx;
                 cur->m_advantageItems[n].second = cnt;
+                ++n;
             }
             continue;
         }
@@ -636,7 +661,10 @@ int importPremiumList(const char* path,
                     return 0x1600;
                 if (token == "[term]")
                 {
-                    int v = ScanInt(&itemOk);
+                    // [b28d-solo-CUserPremium] P198①：ORIG 0x08906f9a
+                    // `movl $0x0,-0x10` 先于 ScanInt ⇒ 两句式（声明置零 + 赋值）。
+                    int v = 0;
+                    v = ScanInt(&itemOk);
                     if (!itemOk)
                         continue;
                     item.m_termFlag = (unsigned char)v;
@@ -644,7 +672,9 @@ int importPremiumList(const char* path,
                 }
                 if (token == "[restrict]")
                 {
-                    int v = ScanInt(&itemOk);
+                    // ORIG 0x08906fc2 `movl $0x0,-0xc` 同形。
+                    int v = 0;
+                    v = ScanInt(&itemOk);
                     if (!itemOk)
                         continue;
                     item.m_restrictFlag = (unsigned char)v;
@@ -761,6 +791,8 @@ void CUserPremium::AddPremium(int type, int start, int end, int flag)
 // （探针 /tmp/b28d_solo/p3.o f4：`if(kind==1){…;return;} …;return;` 产
 // `jne 臂2; 臂1; jmp exit; 臂2; jmp exit; nop; exit` 与 ORIG 逐条同形）；
 // if/else 形 4.4 令末臂直落（缺第二 jmp）⇒ 已由本形取代。
+// 终判（b28d-solo-CUserPremium，routed 口径）：IDENTICAL 59/59（ndiff 0）、
+// P167 CLEAR（2/2）。
 void CUserPremium::RemovePremium(int type)
 {
     // ORIG 0x86adba6：计数递减走 std::max<int>(zero, dec) 调用形（两临时
@@ -972,6 +1004,8 @@ void CUserPremium::ReCalcAdvantage()
 // 中转）——均劣于指针算术形。两段 lea（N107：4.4 对成员常量偏移恒折
 // disp/add）+ 形参装载序（4.4 this-first vs 4.1 type-first）双封顶；
 // P167 CLEAR、gap 1/14 ⇒ 语义等价。
+// 本波复测：clean/AE ndiff=7、14 vs 13（唯一缺口 = ORIG `lea 0x10(%eax),%edx;
+// mov %eax,(%edx)` 两段取址 vs 4.4 折 disp），N107 六形探针结论不变 ⇒ 维持封顶。
 void CUserPremium::setPremiumState(ENUM_PREMIUM_TYPE type, ENUM_PREMIUM_STATE state)
 {
     (m_entries + (int)type)->m_state = (int)state;
@@ -1002,8 +1036,10 @@ bool CUserPremium::_CheckApply(int type, tm t)
 
 // [b28d-solo-CUserPremium] IDENTICAL/AE（routed 口径 check_tu_routed 复验）：
 // ORIG 0x086af70a 逐条对齐（52/52，ndiff=0）。P167 唯一差 = make_pair 模板
-// 实参 IRKm vs IRm（形参 top-level const 差异，不入 mangled/布局）。
-bool CUserPremium::SetPremiumItemData(unsigned long key, const STPremiumItemData& data)
+// 实参 IRKm vs IRm ⇒ 定义处形参加 top-level const（P315：const 左值实参令
+// make_pair 推导 IRKm；top-level const 不入函数类型/mangled，声明无需同步）。
+// 终判（b28d-solo-CUserPremium）：IDENTICAL 52/52、P167 CLEAR（6/6）。
+bool CUserPremium::SetPremiumItemData(const unsigned long key, const STPremiumItemData& data)
 {
     if (key == 0)
         return 1;
@@ -1167,6 +1203,9 @@ SUserPremiumInfo* CUserPremium::GetPremiumInfo(int type) const
 // 4.4 相反）。交换声明序 ⇒ 调用序反；提头声明 ⇒ 默认 C1+sret 拷贝（N86）；
 // P293 单表达式形 ⇒ end 先于 find（ORIG 调用序反）。P167 CLEAR（5/5）、
 // 42=42 gap0 ⇒ 语义等价，封 N93。
+// 本波复测：clean/AE ndiff=10（唯二残差 = find/end 两迭代器槽互换，
+// ORIG -0x10/-0xc vs 4.4 -0xc/-0x10；交换声明序会反转调用序，探针族已证）
+// ⇒ N93/N98 维持。
 int CUserPremium::GetReturnItemRate(int type) const
 {
     // ORIG 0x86ae7a8：先 empty() 预检；find/end 结果落 const_iterator 临时
@@ -1263,13 +1302,21 @@ std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
 }
 
 // ---------------------------------------------------------------------------
-// 终判（b28d-solo-CUserPremium，b28d 复测）：P167 CLEAR（20/20）；两处修法：
-// ①删冗余 `unsigned long key` 具名局部（ORIG 该键内联为实参、无槽往返，P0）；
-// ②拷贝段赋值顺序按 ORIG g 表 store 序列重排（0x00/0x04/0x08/0x0c/0x34/0x38/
-// 0x3c/0x58/0x5a/0x5c/0x40/0x44/0x48/0x60/0x64，见下方注释）⇒ ndiff 725→261、
-// 761 条 vs 758（gap -3）。残余：帧 0x7e3c vs 0x7e4c、数组基址 -0x7e28 vs
-// -0x7e2c（N95 槽基差）＋附加信息段 ORIG `sub $0x7d50 + disp 0x10..` vs 4.4
-// `sub $0x7d40 + disp 0`（N1 常量折叠基准分配）⇒ N82/N95/P232 封顶，语义等价。
+// 终判（b28d-solo-CUserPremium，b28d 复测）：P167 CLEAR（20/20），语义完成。
+// 本波按 ORIG 直证改写（clean/AE ndiff 466→56）：
+//  ①`size() != 0` 正向判 + 非空分支直落/空分支置后（ORIG 0x86af571
+//    `test;setne;test;je <空分支>`；旧 `==0` 产 sete 且块序相反）；
+//  ②for 初始化处直构 it/itEnd 并缓存 end()（ORIG 0x86af5a2/0x86af5ce 各一次、
+//    it=-0x44/end=-0x48；旧形每轮重调 end() 且槽错位）；
+//  ③两处 SetPremiumItemData 调用点改 bool 裸 `!`（ORIG 0x86af61d/0x86af679
+//    `call;xor $1;test %al;je`；返回类型经 Main 代落 CUser.h int→bool，T3 直证）；
+//  ④外层循环变量 i 提函数头（P212，复现 ORIG i=-0x34）。
+// 残差 56 行 = ORIG `sub $0x7d50/$0x7d10 + disp 0x10` vs 4.4 `sub $0x7d40/
+// $0x7d00 + disp 0` 的常量折叠基准差（N1/N4 族，等效地址）+ 键值局部取舍：
+// ORIG 0x86af54c 确有 key 栈槽往返（P0），但 4.4 为它分配栈槽会触发整帧
+// 0x7e3c→0x7e4c / table 基址 -0x7e28→-0x7e2c 平移（探针 /tmp/b28d_solo：
+// 带槽 466、内联实参 56、纯 register 52）⇒ 取内联实参形（语义一致，仅少
+// store/load 对）⇒ N82/N95/N1 封顶。
 // ORIG T 0x086aeca4 WongWork::CUserPremium::LoadPremiumInfo(char const*)。
 // importPremiumList 失败→0x15c；逐记录拷贝进 g_SPremiumInfo[i]（0x130→0x120
 // 字段重排，+0xc8 起写穿 _Additioal_info 子对象区）；SetPremiumItemData
@@ -1426,6 +1473,12 @@ void _Additioal_info::operator+=(const _Additioal_info& other)
 // 寄存器舞 + %edx 索引中转；4.4 恒折 `movzwl/movzwl/add/mov %dx` 直形且用
 // %ecx 索引（探针 /tmp/probe_add.cpp 六形 + probe_add2.cpp 五形全败）。
 // P167 CLEAR（0/0）、逐字段语义相等 ⇒ 封顶。
+// 本波复测（探针 /tmp/b28d_solo/p1.o c1..c8 + p2.o v1..v5，共 13 形：
+// `x+=y` / `x=x+y` / 显式 (unsigned short)/(int)/(unsigned) cast / 数组元素
+// / 具名临时 / bitfield 位置）——4.4 恒 `movzx edx; movzx eax; add edx,eax`，
+// ORIG 的 `movzx eax; mov edx,eax; …; lea eax,[edx+eax]; mov edx,eax` 舞
+// 无任何源形可择 ⇒ N-86b 维持；clean/AE ndiff 116→52（gap 12 条全为四 union
+// 字段 + 两循环体的收形差），语义逐字段相等。
 void _Additioal_info::add(const _Additioal_info& other)
 {
     m_field00 += other.m_field00;
@@ -1459,6 +1512,7 @@ void _Additioal_info::add(const _Additioal_info& other)
 // [b28d-solo-CUserPremium] N-86b/N7 封顶（b28d 复测）：同 add——ORIG 16 位差
 // 经 lea/mov 寄存器舞 + %edx 索引中转，4.4 恒直接 sub/add + %ecx；0x4c/0x4e
 // 两字段加法特例已忠实保留。P167 CLEAR（0/0）⇒ 语义等价，封顶。
+// 本波复测：同 add 探针族（13 形）不可择；clean/AE ndiff 121→62，语义等价。
 void _Additioal_info::subtract(const _Additioal_info& other)
 {
     m_field00 -= other.m_field00;

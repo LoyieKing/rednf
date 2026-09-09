@@ -253,9 +253,9 @@ public:
     int get_cera_auction_server_port();
     char* get_system_monitoring_ip();
 
-    // 偏移清理（OffsetCleanup2）：DB 连接信息表（+0x68，m_dbConnInfo）。
-    // inline accessor 不产生符号、不改变布局；替代裸偏移 reinterpret 访问。
-    std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo>& get_db_conn_info() { return m_dbConnInfo; }
+    // [b28d-Main·检查点18] 删除自造 accessor get_db_conn_info()：ORIG 无该符号；
+    //   -O0 下头内 inline accessor 被调用时仍发射弱符号（实测 only-NEW 有
+    //   `_ZN12CEnvironment16get_db_conn_infoEv`）⇒ 调用点改直读 m_dbConnInfo。
 
     void lock();
     void unlock();

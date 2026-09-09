@@ -41,7 +41,7 @@ public:
     unsigned long RegistNotAssignedAvatarItem(int itemIdx, int tick,
                                               const char* ipgAgency, bool b,
                                               const stAvatarEmblemInfo_t& emblem);
-    unsigned long RegistNotAssignedAvatarItem(const Inven_Item& item);
+    // [b28d-Main·检查点18] 删除 `(const Inven_Item&)` 重载（ORIG 仅按值版 `E10Inven_Item` 0x082f95f4）。
     // ORIG T 0x082f95f4 按值版 _ZN8WongWork14CAvatarItemMgr27RegistNotAssignedAvatarItemE10Inven_Item
     // （与 const 引用重载语义一致：SetData(item.m_addInfo2,0,"") 后入 m_waitAssignItems，
     //   返回 tempKey；定义 CAvatarItemMgr.cpp）。

@@ -61,7 +61,10 @@ static int readIntFromBuffer(char*& offset)
     return intBuffer;
 }
 
-int readCharFromBuffer(char*& offset)
+// [b28d-Main·检查点18] static 化：ORIG 符号表无 `_Z18readCharFromBufferRPc`
+// （仅函数内 static `_ZZ18readCharFromBufferRPcE10charBuffer`）⇒ ORIG 为文件内静态
+// 且被 -O2 内联；本 TU 与 readIntFromBuffer 同款。
+static int readCharFromBuffer(char*& offset)
 {
     static char charBuffer;
     signed char c = *reinterpret_cast<signed char*>(offset);
@@ -70,7 +73,8 @@ int readCharFromBuffer(char*& offset)
     return c;
 }
 
-float readFloatFromBuffer(char*& offset)
+// [b28d-Main·检查点18] static 化：同上（ORIG 仅 `_ZZ19readFloatFromBufferRPcE11floatBuffer`）。
+static float readFloatFromBuffer(char*& offset)
 {
     static float floatBuffer;
     floatBuffer = *reinterpret_cast<float*>(offset);

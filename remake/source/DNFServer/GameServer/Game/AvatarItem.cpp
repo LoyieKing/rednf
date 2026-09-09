@@ -53,11 +53,8 @@ void* Avatar_Item::getExpansionInfo() const { return (void*)&m_color1; }
 
 int* Avatar_Item::getExnansionInfoRef() const { return (int*)&m_color1; }
 
-void Avatar_Item::setColorEss(short color1, short color2)
-{
-    m_color1 = (unsigned short)color1;
-    m_color2 = (unsigned short)color2;
-}
+// [b28d-Main·检查点18] 原 `setColorEss` 定义已删（发明名，ORIG 无此符号）；
+//   权威定义在 WongWorkMiscB_A.cpp `Avatar_Item::setColor(short,short)` 0x082fa2fa。
 
 void Avatar_Item::setExpansionInfo(const ::stAvatarExpansionInfo_t& info)
 {
@@ -84,13 +81,7 @@ void Avatar_Item::setEmblemSocketData(const stAvatarEmblemInfo_t& emblem)
     m_emblemInfo = emblem;
 }
 
-int Avatar_Item::updateEmblemSocket(int grade, unsigned long itemId)
-{
-    // 报告中的 grade * 6 + 2 对应 packed 槽的具名成员，保持原 ABI 与布局。
-    if (m_emblemInfo.stEmblemSocket[grade].emblemSocketType_ == 0)
-        return 0;
-    m_emblemInfo.stEmblemSocket[grade].emblemItemIdx_ = (int)itemId;
-    return 1;
-}
+// [b28d-Main·检查点18] 原 `updateEmblemSocket(int, unsigned long)` 定义已删（发明签名）；
+//   权威定义在 WongWorkMiscB_A.cpp `updateEmblemSocket(unsigned int, unsigned int)` 0x082fa2a6。
 
 }  // namespace WongWork

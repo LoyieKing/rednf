@@ -2169,6 +2169,7 @@ WideString operator+(wchar_t ch, const WideString& src2)
 // <...,int>::insert 同模板实例，同判。
 #include "HashMap.h"
 
-template class StringUnorderedMap<CharStringHashTrait, std::string>;
-template class StringUnorderedMap<CharStringHashTrait, float>;
-template class StringUnorderedMap<CharStringHashTrait, int>;
+// [b28d-Main·检查点18] 原 3 条 StringUnorderedMap 显式实例化已删（同 StaticPool/
+//   GlobalInstance 问题）：显式实例化发射**全部**成员，而 ORIG 只发射实际使用的
+//   （end/get/begin/ValueEx::operator= 在 ORIG 中不存在 ⇒ 此前为 only-NEW）。
+//   定义在 HashMap.h 类体内 ⇒ 按使用点隐式实例化即与 ORIG 一致。

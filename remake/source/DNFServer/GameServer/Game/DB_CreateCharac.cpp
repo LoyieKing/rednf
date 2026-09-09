@@ -666,10 +666,10 @@ bool DB_CreateCharac::CreateNewCharac(SIG_CREATE_CHARAC* sig)
     }
 
     // G_CEnvironment()->m_dbConnInfo[DB_HANDLE_2].m_db —— ORIG map::operator[]
-    // 于 env+0x68、STDBConnInfo m_db 在 +0x42；经 get_db_conn_info() 访问
-    //（CEnvironment.h OffsetCleanup2 添加的 inline accessor，不产生符号）。
+    // 于 env+0x68、STDBConnInfo m_db 在 +0x42；[b28d-Main·检查点18] 改成员直读
+    //（原 get_db_conn_info() accessor 会发射 only-NEW 弱符号）。
     std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo>& connMap =
-        G_CEnvironment()->get_db_conn_info();
+        G_CEnvironment()->m_dbConnInfo;
     ENUM_DB_HANDLE_IDX connIdx = DB_HANDLE_2;       // 栈上局部初始值 2
     STDBConnInfo& connInfo = connMap[connIdx];
     if (!_checkCharacName(db, connInfo.m_db, sig))

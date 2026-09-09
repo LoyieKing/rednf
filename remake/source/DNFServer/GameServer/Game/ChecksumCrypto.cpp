@@ -224,40 +224,32 @@ int CNChecksumMd5::MakeChecksumFromFile(char const* path, unsigned char* out,
 // CNChecksumSha256 / Sha384 / Sha512（显式实现；copy ctor/or= 与 ORIG 一致）
 // ---------------------------------------------------------------------------
 
-static void sha256HookInit(void* c);
-static void sha256HookUpdate(void* c, unsigned char const* d, unsigned long n);
-static void sha256HookFinish(void* c, unsigned char* o);
-static void sha384HookInit(void* c);
-static void sha384HookUpdate(void* c, unsigned char const* d, unsigned long n);
-static void sha384HookFinish(void* c, unsigned char* o);
-static void sha512HookInit(void* c);
-static void sha512HookUpdate(void* c, unsigned char const* d, unsigned long n);
-static void sha512HookFinish(void* c, unsigned char* o);
-
 namespace {
 
+// [b28d-Main·检查点18] 原 9 个 sha*Hook* 包装函数已删（ORIG 无这些符号）：
+//   直接取库函数地址 + 签名 cast（ABI 同形；原包装体仅做 const_cast 与形参适配）。
 ShaFileHooks Hooks256()
 {
     ShaFileHooks h;
-    h.init = &sha256HookInit;
-    h.update = &sha256HookUpdate;
-    h.finish = &sha256HookFinish;
+    h.init = reinterpret_cast<void (*)(void*)>(&SHA256_Init);
+    h.update = reinterpret_cast<void (*)(void*, unsigned char const*, unsigned long)>(&SHA256_Update);
+    h.finish = reinterpret_cast<void (*)(void*, unsigned char*)>(&SHA256_Final);
     return h;
 }
 ShaFileHooks Hooks384()
 {
     ShaFileHooks h;
-    h.init = &sha384HookInit;
-    h.update = &sha384HookUpdate;
-    h.finish = &sha384HookFinish;
+    h.init = reinterpret_cast<void (*)(void*)>(&SHA384_Init);
+    h.update = reinterpret_cast<void (*)(void*, unsigned char const*, unsigned long)>(&SHA384_Update);
+    h.finish = reinterpret_cast<void (*)(void*, unsigned char*)>(&SHA384_Final);
     return h;
 }
 ShaFileHooks Hooks512()
 {
     ShaFileHooks h;
-    h.init = &sha512HookInit;
-    h.update = &sha512HookUpdate;
-    h.finish = &sha512HookFinish;
+    h.init = reinterpret_cast<void (*)(void*)>(&SHA512_Init);
+    h.update = reinterpret_cast<void (*)(void*, unsigned char const*, unsigned long)>(&SHA512_Update);
+    h.finish = reinterpret_cast<void (*)(void*, unsigned char*)>(&SHA512_Final);
     return h;
 }
 
@@ -533,11 +525,10 @@ static const unsigned long long k_sha512K[80] = {
     0x4cc5d4becb3e42b6ULL, 0x597f299cfc657e2aULL, 0x5fcb6fab3ad6faecULL, 0x6c44198c4a475817ULL
 };
 
-static unsigned int sha256BE(unsigned char const* p)
-{
-    return ((unsigned int)p[0] << 24) | ((unsigned int)p[1] << 16) |
-           ((unsigned int)p[2] << 8) | (unsigned int)p[3];
-}
+// [b28d-Main·检查点18] 原 static 助手改宏（ORIG 无这些局部符号；宏展开零符号、行为等价）。
+#define sha256BE(p) ({ const unsigned char* _p = (const unsigned char*)(p); \
+    ((unsigned int)_p[0] << 24) | ((unsigned int)_p[1] << 16) | \
+    ((unsigned int)_p[2] << 8) | (unsigned int)_p[3]; })
 
 static void sha256StoreBE(unsigned int v, unsigned char* p)
 {
@@ -547,12 +538,11 @@ static void sha256StoreBE(unsigned int v, unsigned char* p)
     p[3] = (unsigned char)v;
 }
 
-static void sha512BE(unsigned char const* p, unsigned long long& v)
-{
-    v = 0;
-    for (int i = 0; i < 8; ++i)
-        v = (v << 8) | p[i];
-}
+#define sha512BE(p, v) do { \
+    const unsigned char* _p = (const unsigned char*)(p); \
+    unsigned long long _v = 0; \
+    for (int _i = 0; _i < 8; ++_i) _v = (_v << 8) | _p[_i]; \
+    (v) = _v; } while (0)
 
 static void sha512StoreBE(unsigned long long v, unsigned char* p)
 {
@@ -604,30 +594,26 @@ static void SHA256_Transform(unsigned long* stateWords, unsigned long* dataWords
     state[4] += e; state[5] += f; state[6] += g; state[7] += h;
 }
 
-static void sha512TransformCore(unsigned long long* state, unsigned char const* block)
-{
-    unsigned long long w[80];
-    for (int t = 0; t < 16; ++t)
-        sha512BE(block + t * 8, w[t]);
-    for (int t = 16; t < 80; ++t) {
-        unsigned long long s0 = SHA_ROTR64(w[t-15], 1) ^ SHA_ROTR64(w[t-15], 8) ^ (w[t-15] >> 7);
-        unsigned long long s1 = SHA_ROTR64(w[t-2], 19) ^ SHA_ROTR64(w[t-2], 61) ^ (w[t-2] >> 6);
-        w[t] = w[t-16] + s0 + w[t-7] + s1;
-    }
-    unsigned long long a=state[0], b=state[1], c=state[2], d=state[3];
-    unsigned long long e=state[4], f=state[5], g=state[6], h=state[7];
-    for (int t = 0; t < 80; ++t) {
-        unsigned long long S1 = SHA_ROTR64(e,14) ^ SHA_ROTR64(e,18) ^ SHA_ROTR64(e,41);
-        unsigned long long ch = (e & f) ^ (~e & g);
-        unsigned long long t1 = h + S1 + ch + k_sha512K[t] + w[t];
-        unsigned long long S0 = SHA_ROTR64(a,28) ^ SHA_ROTR64(a,34) ^ SHA_ROTR64(a,39);
-        unsigned long long mj = (a & b) ^ (a & c) ^ (b & c);
-        unsigned long long t2 = S0 + mj;
-        h=g; g=f; f=e; e=d+t1; d=c; c=b; b=a; a=t1+t2;
-    }
-    state[0]+=a; state[1]+=b; state[2]+=c; state[3]+=d;
-    state[4]+=e; state[5]+=f; state[6]+=g; state[7]+=h;
-}
+#define sha512TransformCore(state, block) do { \
+    unsigned long long* _st = (state); const unsigned char* _bl = (const unsigned char*)(block); \
+    unsigned long long _w[80]; \
+    for (int _t = 0; _t < 16; ++_t) sha512BE(_bl + _t * 8, _w[_t]); \
+    for (int _t = 16; _t < 80; ++_t) { \
+        unsigned long long _s0 = SHA_ROTR64(_w[_t-15], 1) ^ SHA_ROTR64(_w[_t-15], 8) ^ (_w[_t-15] >> 7); \
+        unsigned long long _s1 = SHA_ROTR64(_w[_t-2], 19) ^ SHA_ROTR64(_w[_t-2], 61) ^ (_w[_t-2] >> 6); \
+        _w[_t] = _w[_t-16] + _s0 + _w[_t-7] + _s1; } \
+    unsigned long long _a=_st[0], _b=_st[1], _c=_st[2], _d=_st[3]; \
+    unsigned long long _e=_st[4], _f=_st[5], _g=_st[6], _h=_st[7]; \
+    for (int _t = 0; _t < 80; ++_t) { \
+        unsigned long long _S1 = SHA_ROTR64(_e,14) ^ SHA_ROTR64(_e,18) ^ SHA_ROTR64(_e,41); \
+        unsigned long long _ch = (_e & _f) ^ (~_e & _g); \
+        unsigned long long _t1 = _h + _S1 + _ch + k_sha512K[_t] + _w[_t]; \
+        unsigned long long _S0 = SHA_ROTR64(_a,28) ^ SHA_ROTR64(_a,34) ^ SHA_ROTR64(_a,39); \
+        unsigned long long _mj = (_a & _b) ^ (_a & _c) ^ (_b & _c); \
+        unsigned long long _t2 = _S0 + _mj; \
+        _h=_g; _g=_f; _f=_e; _e=_d+_t1; _d=_c; _c=_b; _b=_a; _a=_t1+_t2; } \
+    _st[0]+=_a; _st[1]+=_b; _st[2]+=_c; _st[3]+=_d; \
+    _st[4]+=_e; _st[5]+=_f; _st[6]+=_g; _st[7]+=_h; } while (0)
 
 static void sha256Absorb(SHA256_ALG_INFO* ctx, unsigned char const* in,
                          unsigned long len)
@@ -849,24 +835,7 @@ void SHA512_Final(SHA512_ALG_INFO* ctx, unsigned char* out)
         sha512StoreBE(ctx->state[i], out + i * 8);
 }
 
-static void sha256HookInit(void* c)
-{ SHA256_Init((SHA256_ALG_INFO*)c); }
-static void sha256HookUpdate(void* c, unsigned char const* d, unsigned long n)
-{ SHA256_Update((SHA256_ALG_INFO*)c, const_cast<unsigned char*>(d), n); }
-static void sha256HookFinish(void* c, unsigned char* o)
-{ SHA256_Final((SHA256_ALG_INFO*)c, o); }
-static void sha384HookInit(void* c)
-{ SHA384_Init((SHA384_ALG_INFO*)c); }
-static void sha384HookUpdate(void* c, unsigned char const* d, unsigned long n)
-{ SHA384_Update((SHA384_ALG_INFO*)c, const_cast<unsigned char*>(d), n); }
-static void sha384HookFinish(void* c, unsigned char* o)
-{ SHA384_Final((SHA384_ALG_INFO*)c, o); }
-static void sha512HookInit(void* c)
-{ SHA512_Init((SHA512_ALG_INFO*)c); }
-static void sha512HookUpdate(void* c, unsigned char const* d, unsigned long n)
-{ SHA512_Update((SHA512_ALG_INFO*)c, const_cast<unsigned char*>(d), n); }
-static void sha512HookFinish(void* c, unsigned char* o)
-{ SHA512_Final((SHA512_ALG_INFO*)c, o); }
+// [b28d-Main·检查点18] 9 个 sha*Hook* 包装函数已删（见上方 Hooks* 直接指针赋值）。
 
 // ---------------------------------------------------------------------------
 // Rijndael 核心（Nb=4；SBox/InvSBox 为 FIPS-197 权威表）
@@ -910,22 +879,11 @@ static const unsigned char k_aesInvSBox[256] = {
     0x17,0x2b,0x04,0x7e,0xba,0x77,0xd6,0x26,0xe1,0x69,0x14,0x63,0x55,0x21,0x0c,0x7d
 };
 
-static unsigned int aesXTime(unsigned int x)
-{
-    return ((x << 1) ^ ((x & 0x80) ? 0x1b : 0)) & 0xff;
-}
+#define aesXTime(x) ((unsigned int)((((unsigned int)(x) << 1) ^ \
+    ((((unsigned int)(x)) & 0x80) ? 0x1b : 0)) & 0xff))
 
-static unsigned int aesMul(unsigned int x, unsigned int y)
-{   // GF(2^8) 乘法
-    unsigned int r = 0;
-    while (y != 0) {
-        if (y & 1)
-            r ^= x;
-        x = aesXTime(x);
-        y >>= 1;
-    }
-    return r & 0xff;
-}
+#define aesMul(x, y) ({ unsigned int _x = (unsigned int)(x), _y = (unsigned int)(y), _r = 0; \
+    while (_y != 0) { if (_y & 1) _r ^= _x; _x = aesXTime(_x); _y >>= 1; } _r & 0xff; })
 
 // ORIG static _ZL20RIJNDAEL_KeySchedulePhmPm（0x0809ec59）：标准 Rijndael 密钥扩展。
 // 输出 (Nr+1)*4 个轮密钥字（Nr = Nk + 6，Nb 固定 4，Nk = keyLen/4）。
@@ -1017,17 +975,16 @@ static void aesInvShiftRows(unsigned char st[16])
     t = st[3];  st[3] = st[7];   st[7] = st[11]; st[11] = st[15]; st[15] = t;
 }
 
-static void aesInvMixColumnsBlk(unsigned char st[16])
-{
-    for (int c = 0; c < 4; ++c) {
-        unsigned char* p = st + c * 4;
-        unsigned char a0 = p[0], a1 = p[1], a2 = p[2], a3 = p[3];
-        p[0] = (unsigned char)(aesMul(a0, 14) ^ aesMul(a1, 11) ^ aesMul(a2, 13) ^ aesMul(a3, 9));
-        p[1] = (unsigned char)(aesMul(a0, 9)  ^ aesMul(a1, 14) ^ aesMul(a2, 11) ^ aesMul(a3, 13));
-        p[2] = (unsigned char)(aesMul(a0, 13) ^ aesMul(a1, 9)  ^ aesMul(a2, 14) ^ aesMul(a3, 11));
-        p[3] = (unsigned char)(aesMul(a0, 11) ^ aesMul(a1, 13) ^ aesMul(a2, 9)  ^ aesMul(a3, 14));
-    }
-}
+#define aesInvMixColumnsBlk(st) do { \
+    unsigned char* _st = (unsigned char*)(st); \
+    for (int _c = 0; _c < 4; ++_c) { \
+        unsigned char* _p = _st + _c * 4; \
+        unsigned char _a0 = _p[0], _a1 = _p[1], _a2 = _p[2], _a3 = _p[3]; \
+        _p[0] = (unsigned char)(aesMul(_a0, 14) ^ aesMul(_a1, 11) ^ aesMul(_a2, 13) ^ aesMul(_a3, 9)); \
+        _p[1] = (unsigned char)(aesMul(_a0, 9)  ^ aesMul(_a1, 14) ^ aesMul(_a2, 11) ^ aesMul(_a3, 13)); \
+        _p[2] = (unsigned char)(aesMul(_a0, 13) ^ aesMul(_a1, 9)  ^ aesMul(_a2, 14) ^ aesMul(_a3, 11)); \
+        _p[3] = (unsigned char)(aesMul(_a0, 11) ^ aesMul(_a1, 13) ^ aesMul(_a2, 9)  ^ aesMul(_a3, 14)); \
+    } } while (0)
 
 // ORIG AES_Encrypt(void*, unsigned char*) @0x0809f981：完全展开单块加密。
 // 参数语义：pNumArea = &alg->num（结构体 +0x3c），ek 紧随其后（+0x40）。
@@ -1790,13 +1747,8 @@ static const unsigned char k_desWeakKeys[16][8] = {
 };
 
 // 大端 64 位装载/存储（ORIG DES_Encrypt 对首 dword 做 ror24 字节交换 = 大端）
-static unsigned long long desLoad64(unsigned char const* p)
-{
-    unsigned long long v = 0;
-    for (int i = 0; i < 8; ++i)
-        v = (v << 8) | p[i];
-    return v;
-}
+#define desLoad64(p) ({ const unsigned char* _p = (const unsigned char*)(p); \
+    unsigned long long _v = 0; for (int _i = 0; _i < 8; ++_i) _v = (_v << 8) | _p[_i]; _v; })
 
 static void desStore64(unsigned char* p, unsigned long long v)
 {
@@ -1818,10 +1770,8 @@ static unsigned long long desPermute(unsigned long long in, int nbits,
     return out;
 }
 
-static unsigned long desRotl28(unsigned long v, int n)
-{
-    return (unsigned long)(((v << n) | (v >> (28 - n))) & 0x0fffffffUL);
-}
+#define desRotl28(v, n) ((unsigned long)((((unsigned long)(v) << (n)) | \
+    ((unsigned long)(v) >> (28 - (n)))) & 0x0fffffffUL))
 
 // 第 round 轮 48 位子密钥（rk 区每轮 8 字节，前 6 字节有效）
 static unsigned long long desSubkey48(unsigned char const* rk, int round)
@@ -1833,18 +1783,15 @@ static unsigned long long desSubkey48(unsigned char const* rk, int round)
 }
 
 // Feistel f(R, K)：E 扩展 → 异或 → S 盒 → P 置换
-static unsigned long desF(unsigned long r, unsigned long long subkey)
-{
-    unsigned long long e = desPermute(r, 32, 48, k_desE) ^ subkey;
-    unsigned long f = 0;
-    for (int i = 0; i < 8; ++i) {
-        int b6 = (int)((e >> (42 - i * 6)) & 0x3f);
-        int row = ((b6 >> 4) & 2) | (b6 & 1);
-        int col = (b6 >> 1) & 0xf;
-        f = (f << 4) | k_desS[i][row * 16 + col];
-    }
-    return (unsigned long)desPermute(f, 32, 32, k_desP);
-}
+#define desF(r, subkey) ({ \
+    unsigned long long _e = desPermute((r), 32, 48, k_desE) ^ (unsigned long long)(subkey); \
+    unsigned long _f = 0; \
+    for (int _i = 0; _i < 8; ++_i) { \
+        int _b6 = (int)((_e >> (42 - _i * 6)) & 0x3f); \
+        int _row = ((_b6 >> 4) & 2) | (_b6 & 1); \
+        int _col = (_b6 >> 1) & 0xf; \
+        _f = (_f << 4) | k_desS[_i][_row * 16 + _col]; } \
+    (unsigned long)desPermute(_f, 32, 32, k_desP); })
 
 // 16 轮核心以宏直接展开进导出函数体（O0 下不得是仅转调 helper 的短 wrapper，
 // 否则 scan_stubs 按 ≤12 指令判桩；ENCRYPT=1 顺序 / 0 逆序）
@@ -2995,10 +2942,8 @@ int DES3_DecFinal(DES3_ALG_INFO* alg, unsigned char* out, unsigned long* outLen)
 // 实际使用 Anubis-128/12轮 冒充 Rijndael（"fake"之名由此）——按 ORIG 忠实转写。
 // ---------------------------------------------------------------------------
 
-static unsigned char* fakeXor(void* p, unsigned int salt)
-{
-    return reinterpret_cast<unsigned char*>(reinterpret_cast<std::size_t>(p) ^ (std::size_t)salt);
-}
+#define fakeXor(p, salt) \
+    reinterpret_cast<unsigned char*>(reinterpret_cast<std::size_t>(p) ^ (std::size_t)(salt))
 
 CRijndael_fake::CRijndael_fake()
 {   // ORIG 0x080b824c：salt=0xa321bcde ^ (rand()|rand()<<16)；new(0x268) 后 ptr^=salt

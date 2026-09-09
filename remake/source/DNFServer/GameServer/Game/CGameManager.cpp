@@ -1,5 +1,21 @@
 #include "GameRand.h"
 #include "CShutdowManager.h"   // GetInstanceShutdowManager 完整类型（SendLastMsgDBQueue 调用）
+// [b28d-solo-CGameManager 本波判词（2026-09-09）] 清单 23 件收口（TU 编译绿、
+// p167 逐符号核对：语义件全 CLEAR；N91 族 D1Ev/MoreAlloc 的 delete[] EH EXTRA 与
+// CNodeC1 的 memset/C1Ev 见各自函数头判词）：
+//   · 真语义 bug 2 处，均在 user_disconnect：①SendLastMsgDBQueue 是 if/else **共享
+//     尾部**（ORIG 0x08298d54/0x08298da1 两路同落 0x08298da6；原形只在 state<3 分支
+//     内 ⇒ state>=3 路径漏发）；②长链 CheckOutParty 第二实参 ORIG 为 true
+//     （0x08298c25 `movl $0x1,0x8(%esp)`，原写 false）。
+//   · 翻正 3 处：①send_userinfos_to_cutoff_server 写目标改
+//     `buckets[bucketIdx].m_ids[bucket->m_count]` 重算基址（复现 ORIG 0x08295f87
+//     `imul $0x259,%esi,%edx; add %ebx,%edx; mov %eax,-0x6904(%ebp,%edx,4)`）；
+//     ②FindQuickJoinablePvPRoom 的 IsExistPassword 已由 Main 落 bool（PvP_Room.h:110，
+//     T3 直证 0x082a3263）⇒ 裸 `!` 形复现 `call; xor $1; test; je`；
+//     ③SendPartyList 局部 matching char→unsigned char（T1 直证 0x08296b88 movzbl）。
+//   · 余件残差为 N 族：N82（槽组分区）/N91（delete[] EH cleanup）/N115（帧）/
+//     N122（bool 取反 xor）/N7（三目 join 点）/P321-T5（lea-vs-add），已逐件在函数头
+//     记 ORIG 地址与实测两形数据。
 // df_game_r CGameManager（G2 单例对象池/房间管理器）还原（2026-08-17）。
 // 逐函数对照 docs/class_func_reports/CGameManager.md 与 ORIG 反汇编实现；
 // 目标：编译产物与 ORIG 逐操作数一致（AE 口径）。
@@ -398,10 +414,11 @@ template <> DynamicPool<user_creature::CCreature>::CNode::~CNode()
 //   StaticPool<_IO_FILE, 50> 为全特化（定义仍在本文件下方）。
 
 // DynamicPool 显式实例化
-template class DynamicPool<PacketBuf>;
-template class DynamicPool<user_creature::CEgg>;
-template class DynamicPool<user_creature::CCreature>;
-template class DynamicPool<WongWork::Avatar_Item>;
+// [b28d-Main·检查点18] 4 条 DynamicPool 显式实例化已删（与 StaticPool 同型问题）：
+//   方法定义均在 GameTypes.h（实例化点可见）⇒ 按使用点隐式实例化即与 ORIG 一致；
+//   显式实例化会为 4 个类型发射全部成员（IsValidPtr/SetPoolSize/双 ctor），
+//   而 ORIG 只有 Stream 族用 IsValidPtr/SetPoolSize、CEgg/CCreature 仅用 C1Ei、
+//   Avatar_Item 仅用 C1Eii ⇒ 多出 15 个 only-NEW 符号。
 // b28d-solo-CGameManager 判词（DynamicPool<Avatar_Item>::MoreAlloc，ORIG 0x0843bxxx，
 // 103 vs 129）：N91 封顶——ORIG `new CNode[n]` 无 EH landing（p167 差集 ORIG 7 calls，
 // 我方 EXTRA `CNodeD1Ev`+`_ZdaPv`+`_Unwind_Resume` 三件，4.4 对元素 dtor 非平凡数组
@@ -1688,7 +1705,10 @@ void CGameManager::SendPartyList(CUser* user)
             guard.put_byte((int)type);
             if (type == 0 || type == 1)
             {
-                guard.put_byte(party->getTitleIndex() & 0xff);
+                // T1 直证：ORIG 0x082968a1 `call getTitleIndex; movzbl %al,%eax`
+                // ⇒ 低字节按 unsigned 扩展（原 `& 0xff` 在 char 返回下产
+                // movsbl+and，P321-T1 照抄扩展形）。
+                guard.put_byte((unsigned char)party->getTitleIndex());
                 if (party->getTitleIndex() == 0)
                 {
                     guard.put_int((int)strlen(party->getTitle()));
@@ -2389,6 +2409,11 @@ void CGameManager::send_userinfos_to_cutoff_server()
     //   去 bucket 指针缓存（P183）、empty() 早返（P16）、字段写序照 ORIG。
     //   残余 = STTempUsers buckets[10] 对象组槽基差 + 第二循环表寻址 shl/lea 折叠
     //   （P311 族）——4.4 槽分区不可控。
+    //   [b28d-solo 本波翻正] 写目标改 `buckets[bucketIdx].m_ids[bucket->m_count]`
+    //   复现 ORIG 0x08295f87..0x08295f93 重算基址形
+    //   （`imul $0x259,%esi,%edx; add %ebx,%edx; mov %eax,-0x6904(%ebp,%edx,4)`；
+    //   原 `bucket->m_ids[...]` 产 `mov %edx,0x4(%eax,%ebx,4)`）；余差仅
+    //   bucketIdx/bucket 槽号互换与 %esi 装载（N82）。
     // b28d-solo-CGameManager: ORIG 0x08295e84（178 insn）。修法（P167+P0+P183）：
     //   ①删发明 placement-new 循环（ORIG 无 _ZnwjPv/重复 ctor，P167 EXTRA）；
     //   ②accId 去具名 → get_acc_id() 两次表达式直读（ORIG 两处 call，P0）；

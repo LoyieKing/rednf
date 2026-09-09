@@ -8966,7 +8966,7 @@ int Dispatcher_LimitNpcBuyItem::check_error(CUser* user, MSG_BASE& msg)
     // +0x20b：构造购买物品（itemIdx = msg+0x0d）并尝试入包
     Inven_Item buyItem;                                           // ctor 080cb854（-0xa2）
     buyItem.m_addInfo = (int)msgD;                                // msg+0x0d → item+0x02
-    G_CDataManager()->getItemList()->create_item((ENUM_ITEM_CREATE_TYPE)0, buyItem, 1);
+    G_CDataManager()->m_itemList->create_item((ENUM_ITEM_CREATE_TYPE)0, buyItem, 1);
     if (((const CInventory*)user->getCurCharacInvenRefR())->tryInsertItemIntoInventory(buyItem) < 0)
         return 0x4;
     return 0;

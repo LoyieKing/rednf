@@ -2285,33 +2285,10 @@ void DB_Login::SaveLoginTime(unsigned int mid, int loginTime, char* ip)
 }
 
 // ============================================================================
-// get_compressed_blob_data（ORIG T 0x083fbc79）+ CCompressedBlob::uncompress
-// （ORIG W 0x844df40，按反汇编忠实转写）
+// get_compressed_blob_data（ORIG T 0x083fbc79）
+// [b28d-Main·检查点18] 原自由函数 `CCompressedBlobUncompress`（/6 容量公式）已删：
+//   ORIG 无该符号、全仓无调用点（真实路径走 CCompressedBlob::uncompress）。
 // ============================================================================
-
-bool CCompressedBlobUncompress(CCompressedBlob& blob, MySQL* db, int col,
-                               char* out, int outCap, int recordSize)
-{
-    // 容量 = outCap + outCap/6 + 0xc（ORIG imul 0x66666667 有符号除 6 公式）
-    int cap = outCap + outCap / 6 + 0xc;
-    blob.resize(cap);
-    blob.reset();
-    unsigned int compressedLen = (unsigned int)db->get_binary_length(col);
-    if (!db->get_binary(col, blob.m_data, cap))
-    {
-        return false;
-    }
-    unsigned int outLen = (unsigned int)cap;
-    if (!uncompress_zip(out, outLen, blob.m_data, compressedLen))
-    {
-        return false;
-    }
-    if (recordSize != 0 && (outLen % (unsigned int)recordSize) != 0 && outLen != 0)
-    {
-        return false;
-    }
-    return true;
-}
 
 // 其余 TU 声明均为 bool（mangled 不含返回型）；ORIG 尾 `call uncompress; leave; ret`
 // bool→bool 透传零转换（int 返回+`?1:0` 反产 test/setne 尾段，实测 +5 行）。

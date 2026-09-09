@@ -427,7 +427,7 @@ void _Quest_Authen_Data::reset()
     m_field10 = 0;
     m_field14 = 0;
 }
-bool mission_list_is_clear(void* data) { return false; }
+// [b28d-Main·检查点18] 删除 stub `mission_list_is_clear`：ORIG 无该符号、全仓无调用点。
 
 void CUser::_379::reset()
 {
@@ -2557,11 +2557,6 @@ CExpandEquipslot* CUser::GetCharacExpandDataR(ENUM_CHARAC_EXPAND_TYPE type) cons
     return m_characExpand.GetDataR(type);
 }
 
-CExpandEquipslot* CUser::GetCharacExpandDataR(ENUM_CHARAC_EXPAND_TYPE& type) const
-{
-    int frame_pad; (void)frame_pad;   // ORIG 0x828b5de sub $0x18：2 outgoing 槽帧，4.4 同-TU 调用只舍到 0x8，dead 局部补 16B（无指令）
-    return m_characExpand.GetDataR(type);
-}
 
 // ---- quest point / piece helpers（ORIG：CUser 0x868ad88 / 0x868afd0 / 0x868adc2 / 0x868af66）----
 
@@ -8378,7 +8373,7 @@ bool CUser::CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type)
                     const_cast<CInventory*>(getCurCharacInvenR())->GetInvenRef((INVEN_TYPE)0, s);
                 if (it != 0 && it->m_addInfo != 0)
                     bonus += dropRate *
-                             G_CDataManager()->getItemList()
+                             G_CDataManager()->m_itemList
                                  ->GetQuestItemDropBouns(
                                      reinterpret_cast<unsigned long&>(
                                          it->m_addInfo)) /

@@ -7031,8 +7031,6 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
 
 // 链接桩：ORIG ChangeEquip 以 4 参自由函数形态调用成员 GetInvenSlot
 // （压栈 out,this,1,slot），转发到成员实现。
-int GetInvenSlot(Inven_Item* out, CInventory* self, int invenType, int slot)
-{
-    *out = self->GetInvenSlot(invenType, slot);
-    return 0;
-}
+// [b28d-Main·检查点18] 原自由函数 shim `int GetInvenSlot(Inven_Item*, CInventory*, int, int)`
+// 已删：全仓无调用点（成员调用一律走 `->GetInvenSlot(...)`），ORIG 亦无该符号
+// （仅成员 `_ZNK10CInventory12GetInvenSlotEii` 0x084fb918）⇒ 纯 only-NEW 发明符号。

@@ -6368,7 +6368,7 @@ void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
         {
             WongWork::stGenerateResult_t specific;
             Inven_Item made;                        // -0x14e（默认构造）
-            G_CDataManager()->getItemList()->create_item(
+            G_CDataManager()->m_itemList->create_item(
                 ENUM_ITEM_CREATE_TYPE_1, made, 1);
             specific.m_dropItems.push_back(made);
             const Inven_Item& item = *specific.m_dropItems.begin();

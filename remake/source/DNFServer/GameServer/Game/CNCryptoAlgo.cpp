@@ -2011,22 +2011,14 @@ void blowfish_enc(ulong32 *data, unsigned long blocks, const symmetric_key *skey
    }
 }
 
-static ulong32 s_blowfish_stream2word(const unsigned char *d, int dlen, int *cur)
-{
-   unsigned int z;
-   int y = *cur;
-   ulong32 ret = 0;
-
-   for (z = 0; z < 4; z++) {
-       ret = (ret << 8) | ((ulong32)d[y++] & 255);
-       if (y == dlen) {
-          y = 0;
-       }
-   }
-
-   *cur = y;
-   return ret;
-}
+// [b28d-Main·检查点18] 原 static 助手改宏（ORIG 无该局部符号）。
+#define s_blowfish_stream2word(d, dlen, cur) ({ \
+   const unsigned char* _d = (const unsigned char*)(d); int _dlen = (int)(dlen); \
+   int _y = *(cur); ulong32 _ret = 0; \
+   for (unsigned int _z = 0; _z < 4; _z++) { \
+       _ret = (_ret << 8) | ((ulong32)_d[_y++] & 255); \
+       if (_y == _dlen) _y = 0; } \
+   *(cur) = _y; _ret; })
 
  /**
     Expand the Blowfish internal state
@@ -4188,94 +4180,74 @@ int khazad_keysize(int *keysize)
 
 #ifdef LTC_MULTI2
 
-static void s_pi1(ulong32 *p)
-{
-   p[1] ^= p[0];
-}
+#define s_pi1(p) do { (p)[1] ^= (p)[0]; } while (0)
 
-static void s_pi2(ulong32 *p, const ulong32 *k)
-{
-   ulong32 t;
-   t = (p[1] + k[0]) & 0xFFFFFFFFUL;
-   t = (ROL(t, 1) + t - 1)  & 0xFFFFFFFFUL;
-   t = (ROL(t, 4) ^ t)  & 0xFFFFFFFFUL;
-   p[0] ^= t;
-}
+#define s_pi2(p, k) do { ulong32* _p = (p); const ulong32* _k = (k); ulong32 _t; \
+   _t = (_p[1] + _k[0]) & 0xFFFFFFFFUL; \
+   _t = (ROL(_t, 1) + _t - 1)  & 0xFFFFFFFFUL; \
+   _t = (ROL(_t, 4) ^ _t)  & 0xFFFFFFFFUL; \
+   _p[0] ^= _t; } while (0)
 
-static void s_pi3(ulong32 *p, const ulong32 *k)
-{
-   ulong32 t;
-   t = p[0] + k[1];
-   t = (ROL(t, 2) + t + 1)  & 0xFFFFFFFFUL;
-   t = (ROL(t, 8) ^ t)  & 0xFFFFFFFFUL;
-   t = (t + k[2])  & 0xFFFFFFFFUL;
-   t = (ROL(t, 1) - t)  & 0xFFFFFFFFUL;
-   t = ROL(t, 16) ^ (p[0] | t);
-   p[1] ^= t;
-}
+#define s_pi3(p, k) do { ulong32* _p = (p); const ulong32* _k = (k); ulong32 _t; \
+   _t = _p[0] + _k[1]; \
+   _t = (ROL(_t, 2) + _t + 1)  & 0xFFFFFFFFUL; \
+   _t = (ROL(_t, 8) ^ _t)  & 0xFFFFFFFFUL; \
+   _t = (_t + _k[2])  & 0xFFFFFFFFUL; \
+   _t = (ROL(_t, 1) - _t)  & 0xFFFFFFFFUL; \
+   _t = ROL(_t, 16) ^ (_p[0] | _t); \
+   _p[1] ^= _t; } while (0)
 
-static void s_pi4(ulong32 *p, const ulong32 *k)
-{
-   ulong32 t;
-   t = (p[1] + k[3])  & 0xFFFFFFFFUL;
-   t = (ROL(t, 2) + t + 1)  & 0xFFFFFFFFUL;
-   p[0] ^= t;
-}
+#define s_pi4(p, k) do { ulong32* _p = (p); const ulong32* _k = (k); ulong32 _t; \
+   _t = (_p[1] + _k[3])  & 0xFFFFFFFFUL; \
+   _t = (ROL(_t, 2) + _t + 1)  & 0xFFFFFFFFUL; \
+   _p[0] ^= _t; } while (0)
 
-static void s_setup(const ulong32 *dk, const ulong32 *k, ulong32 *uk)
-{
-   int n, t;
-   ulong32 p[2];
+#define s_setup(dk, k, uk) do { \
+   const ulong32* _dk = (dk); const ulong32* _k = (k); ulong32* _uk = (uk); \
+   int _n = 0, _t = 4; ulong32 _p[2]; \
+   _p[0] = _dk[0]; _p[1] = _dk[1]; \
+      s_pi1(_p); \
+      s_pi2(_p, _k); \
+      _uk[_n++] = _p[0]; \
+      s_pi3(_p, _k); \
+      _uk[_n++] = _p[1]; \
+      s_pi4(_p, _k); \
+      _uk[_n++] = _p[0]; \
+      s_pi1(_p); \
+      _uk[_n++] = _p[1]; \
+      s_pi2(_p, _k+_t); \
+      _uk[_n++] = _p[0]; \
+      s_pi3(_p, _k+_t); \
+      _uk[_n++] = _p[1]; \
+      s_pi4(_p, _k+_t); \
+      _uk[_n++] = _p[0]; \
+      s_pi1(_p); \
+      _uk[_n++] = _p[1]; } while (0)
 
-   p[0] = dk[0]; p[1] = dk[1];
+#define s_encrypt(p, N, uk) do { \
+   ulong32* _p = (p); int _N = (N); const ulong32* _uk = (uk); \
+   int _n, _t; \
+   for (_t = _n = 0; ; ) { \
+      s_pi1(_p); if (++_n == _N) break; \
+      s_pi2(_p, _uk+_t); if (++_n == _N) break; \
+      s_pi3(_p, _uk+_t); if (++_n == _N) break; \
+      s_pi4(_p, _uk+_t); if (++_n == _N) break; \
+      _t ^= 4; } } while (0)
 
-   t = 4;
-   n = 0;
-      s_pi1(p);
-      s_pi2(p, k);
-      uk[n++] = p[0];
-      s_pi3(p, k);
-      uk[n++] = p[1];
-      s_pi4(p, k);
-      uk[n++] = p[0];
-      s_pi1(p);
-      uk[n++] = p[1];
-      s_pi2(p, k+t);
-      uk[n++] = p[0];
-      s_pi3(p, k+t);
-      uk[n++] = p[1];
-      s_pi4(p, k+t);
-      uk[n++] = p[0];
-      s_pi1(p);
-      uk[n++] = p[1];
-}
-
-static void s_encrypt(ulong32 *p, int N, const ulong32 *uk)
-{
-   int n, t;
-   for (t = n = 0; ; ) {
-      s_pi1(p); if (++n == N) break;
-      s_pi2(p, uk+t); if (++n == N) break;
-      s_pi3(p, uk+t); if (++n == N) break;
-      s_pi4(p, uk+t); if (++n == N) break;
-      t ^= 4;
-   }
-}
-
-static void s_decrypt(ulong32 *p, int N, const ulong32 *uk)
-{
-   int n, t;
-   for (t = 4*(((N-1)>>2)&1), n = N; ;  ) {
-      switch (n<=4 ? n : ((n-1)%4)+1) {
-         case 4: s_pi4(p, uk+t); --n; LTC_FALLTHROUGH; /* FALLTHROUGH */
-         case 3: s_pi3(p, uk+t); --n; LTC_FALLTHROUGH; /* FALLTHROUGH */
-         case 2: s_pi2(p, uk+t); --n; LTC_FALLTHROUGH; /* FALLTHROUGH */
-         case 1: s_pi1(p); --n; break;
-         case 0: return;
-      }
-      t ^= 4;
-   }
-}
+#define s_decrypt(p, N, uk) do { \
+   ulong32* _p = (p); int _N = (N); const ulong32* _uk = (uk); \
+   int _n, _t; \
+   for (_t = 4*(((_N-1)>>2)&1), _n = _N; ;  ) { \
+      switch (_n<=4 ? _n : ((_n-1)%4)+1) { \
+         case 4: s_pi4(_p, _uk+_t); --_n; /* FALLTHROUGH */ \
+         case 3: s_pi3(_p, _uk+_t); --_n; /* FALLTHROUGH */ \
+         case 2: s_pi2(_p, _uk+_t); --_n; /* FALLTHROUGH */ \
+         case 1: s_pi1(_p); --_n; break; \
+         case 0: goto _s_decrypt_done; \
+      } \
+      _t ^= 4; \
+   } \
+   _s_decrypt_done: ; } while (0)
 
 
 int  multi2_setup(const unsigned char *key, int keylen, int num_rounds, symmetric_key *skey)
@@ -5167,39 +5139,19 @@ static ulong32 gf_mult(ulong32 a, ulong32 b, ulong32 p)
 
 /* computes [y0 y1 y2 y3] = MDS . [x0] */
 #ifndef LTC_TWOFISH_TABLES
-static ulong32 mds_column_mult(unsigned char in, int col)
-{
-   ulong32 x01, x5B, xEF;
-
-   x01 = in;
-   x5B = gf_mult(in, 0x5B, MDS_POLY);
-   xEF = gf_mult(in, 0xEF, MDS_POLY);
-
-   switch (col) {
-       case 0:
-          return (x01 << 0 ) |
-                 (x5B << 8 ) |
-                 (xEF << 16) |
-                 (xEF << 24);
-       case 1:
-          return (xEF << 0 ) |
-                 (xEF << 8 ) |
-                 (x5B << 16) |
-                 (x01 << 24);
-       case 2:
-          return (x5B << 0 ) |
-                 (xEF << 8 ) |
-                 (x01 << 16) |
-                 (xEF << 24);
-       case 3:
-          return (x5B << 0 ) |
-                 (x01 << 8 ) |
-                 (xEF << 16) |
-                 (x5B << 24);
-   }
-   /* avoid warnings, we'd never get here normally but just to calm compiler warnings... */
-   return 0;
-}
+#define mds_column_mult(in, col) ({ \
+   unsigned char _in = (unsigned char)(in); int _col = (int)(col); \
+   ulong32 _x01 = _in; \
+   ulong32 _x5B = gf_mult(_in, 0x5B, MDS_POLY); \
+   ulong32 _xEF = gf_mult(_in, 0xEF, MDS_POLY); \
+   ulong32 _r = 0; \
+   switch (_col) { \
+       case 0: _r = (_x01 << 0) | (_x5B << 8) | (_xEF << 16) | (_xEF << 24); break; \
+       case 1: _r = (_xEF << 0) | (_xEF << 8) | (_x5B << 16) | (_x01 << 24); break; \
+       case 2: _r = (_x5B << 0) | (_xEF << 8) | (_x01 << 16) | (_xEF << 24); break; \
+       case 3: _r = (_x5B << 0) | (_x01 << 8) | (_xEF << 16) | (_x5B << 24); break; \
+   } \
+   _r; })
 
 #else /* !LTC_TWOFISH_TABLES */
 

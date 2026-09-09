@@ -3613,7 +3613,10 @@ public:
     // (+0x8770) 内偏移 0x0e；本区域为 m_pad 未具名，按 ORIG 偏移读取。
     unsigned char getPremiumTermMultiplier() const;
     CItemLimitEditionMgr* getItemLimitEditionMgr();    // ORIG 0x08179fa6：返回 m_itemLimitEditionMgr (+0x18 of m_npcRelation)
-    CItemList* getItemList() { return m_itemList; }   // ORIG 布局 +0x0c：返回 m_itemList（具名访问器，替代 *(CItemList**)((char*)G_CDataManager()+0xc) 裸偏移）
+    // [b28d-Main·检查点18] 删除自造访问器 getItemList()：ORIG 无该符号（仅成员
+    //   `m_itemList` @+0x0c，调用点直读 `mov 0xc(%eax),%eax`）；-O0 下头内 inline
+    //   accessor 不内联 ⇒ 每个调用点多一条 call + 一个 only-NEW 符号。
+    //   调用点一律改用 `G_CDataManager()->m_itemList`。
     WongWork::CItemGeneratorMgr* getItemGenerator();  // ORIG W 0x0814a6ea：返回 m_itemGeneratorMgr (+0x8cc0)；定义见 CDataManagerScripts.cpp
     std::set<int>* getUltimateDungeonList() const;
     CDungeonList* getDungeonIndexList();   // ORIG T 0x08365434 _ZN12CDataManager19getDungeonIndexListEv（透传 CDungeonList::getDungeonIndexList 返回值；非 const）

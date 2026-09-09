@@ -152,7 +152,7 @@ int CConditionEventManager::RequestConditionEventReward(
             if (item != 0)
             {
                 Inven_Item inv;
-                G_CDataManager()->getItemList()->create_item(
+                G_CDataManager()->m_itemList->create_item(
                     static_cast<ENUM_ITEM_CREATE_TYPE>(0), inv, it->second);
 
                 // ORIG guard（0x08334b07..+0x2df）：itemIdx==0 或 get_add_info()==0 → 不处理。
@@ -194,7 +194,7 @@ int CConditionEventManager::RequestConditionEventReward(
                         {
                             // ORIG 0x08334bb5 区：ProcessSpecialItem 发放特殊物品。
                             int restrictCode =
-                                G_CDataManager()->getItemList()->GetRestrictCode(it->first);
+                                G_CDataManager()->m_itemList->GetRestrictCode(it->first);
                             long curSec = GlobalData::s_systemTime_.getCurSec();
                             int outRestrict = 0;
                             std::vector<Inven_Item> items;
