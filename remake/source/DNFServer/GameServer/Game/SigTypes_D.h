@@ -168,7 +168,16 @@ struct SIG_LOGIN_DATA
     bool           m_joinedSchoolPointEventFlag; // +0x3a4a setJoinedSchoolPointEvent
     char           m_pad3a4b[1];            // +0x3a4b
     int            m_cleanPadDecreaseCnt;   // +0x3a4c clean pad 点数递减基准
-    int            m_punishInfoCount;       // +0x3a50 punish 信息条数（err_code==4 亦作索引）
+    // +0x3a50：写入侧（GetPunishUserInfo）ORIG 08410da9 为 RHS-first+edx 中转
+    // ⇒ 字段与 int RHS 异型；消费侧 T2 直证 signed（ARAD_LoginSecurity 0x0818f970
+    // `jg`）⇒ 双视角（P235/P211 档③，探针 /tmp/punp.cpp f↔g）。A/B 实测：
+    // ARAD_LoginSecurity 53/100/2/3/49 与 InterDispatcher 121/1331/5/133/700
+    // 在 union 前后逐项零变化（int 视角消费点不受影响）。
+    union
+    {
+        int m_punishInfoCount;          // +0x3a50 punish 信息条数（err_code==4 亦作索引）
+        unsigned int m_punishInfoCountU;// +0x3a50 写入视角（GetPunishUserInfo 专用）
+    };
     SIG_LOGIN_PUNISH_INFO m_punishInfos[32];// +0x3a54（stride 0x18；容量 ≤ 相邻已知槽）
     char           m_pad3d54[0x3f04 - 0x3d54]; // +0x3d54 punish 表后未访问区
     bool           m_returnUserDbFlag;      // +0x3f04 有 DB 归还用户记录（走 +0x3f08 过期时间）

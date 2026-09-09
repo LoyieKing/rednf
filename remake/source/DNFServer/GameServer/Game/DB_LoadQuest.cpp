@@ -76,7 +76,16 @@ bool DB_LoadQuest::dispatch(int userIdx, int slot, Stream* stream)
 // +0x75e0 notify(0x28)。任一步失败 throw int（DBThread.cpp 行号），
 // catch 后 logFormat 0x2a81 并返 0；成功返 1。
 // ============================================================================
-// [b28d-L8] N78/N82 | memset rep stos lowering（N78）+ 槽平移（ORIG 0x08xxxxxx）
+// [SweepDBLoadEtcMain 本波复核] 1030/1029（gap=1）、p167 CLEAR（156/156，仅 cMyTrace
+// C1/C2 同址别名）、帧 `sub $0x8d00` 与 push 集全等；残余 3 处全部封顶：
+//   ① memset size 经 `mov $0x8cac,%edx; mov %edx,0x8(%esp)` 中转（ORIG 0840e3e7）
+//      —— 范式库「待解」条目；4.4 对字面量/cast/`'\0'`/sizeof 四形恒 `movl $imm,
+//      0x8(%esp)`（探针 /tmp/memsetp.cpp f1..f4）⇒ N；
+//   ② ORIG 0840e634 `nop`（if-join 对齐填充，§6.1 豁免）；
+//   ③ 成功块 `mov $0x1,%ebx` 位置：ORIG 0840f47d 在 catch 块之后（`je` 直达尾块），
+//      4.4 置于 try 末尾 `mov $0x1,%ebx; jmp`（0840f3d4 对应处）⇒ N104 EH 块相对序；
+//   ④ 槽号恒定平移 4：ORIG db -0x18/col -0x14/buf -0x8cdc vs 我方 -0x1c/-0x18/
+//      -0x8ce0（大数组+标量混合区，P331 声明序不可翻）⇒ N82/N95。
 bool DB_LoadQuest::GetUserQuest(SIG_LOAD_QUEST* sig)
 {
     char buf[0x8cac];

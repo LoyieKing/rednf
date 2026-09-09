@@ -214,6 +214,23 @@ bool DB_LoadInventory::SendResult_forchina(int userIdx, int slot,
 // `&m_invenType3[72].m_reserved` 编译成 +0x1002d，与 ORIG 差 0x1000 字节
 // ⇒ blob 落到错误槽区。已改为 `&m_invenType3[0x8c]`，.o 立即数 0x1102d
 // 与 ORIG 逐字节一致（四数不变、p167 81/81 CLEAR）。
+// [SweepDBLoadEtcMain 本波] **gap 4→0（725/725）、p167 CLEAR、jcc 49/49 逐位核过**，
+// 修 4 处真 bug + 2 处源形：
+//   ① 三处「incorrect inventory size」日志第 3 参误用 len（解压后容量）——ORIG
+//      0840b9a1/0840ba2b/0840baba 读的是 `-0x2c/-0x30/-0x28`（binLen，DB 压缩尺寸）
+//      ⇒ 改 equip/inven/creatureBinLen（日志契约 original_size,db_size 才自洽）；
+//   ② `char* m = NumberToString(...)` 具名局部：ORIG 0840bb7a `mov %eax,0x8(%esp)`
+//      直压实参、无 m 槽（P0 槽-局部对应律）⇒ 内联进 set_query 实参位；
+//   ③ col 具名局部（ORIG -0x20，`movl $0x6` + 后三调用 `col++`）：补后
+//      get_int/get_uint 取址回到 ORIG 的 `lea 0x1287c(%eax),%edx` 形（旧字面量形
+//      发 add 且少 col 的 8 条装载/自增）；
+//   ④ 三个 binLen 与 len 同型化 unsigned（P211 档③/P209）：int 型时 4.4 走
+//      `mov binLen,%edx; mov L,%eax; cmp %eax,%edx`（+1 条×3），unsigned 后复现
+//      ORIG `mov L,%eax; cmp %eax,binLen; jbe` 两段 mem-dst 形
+//      （探针 /tmp/p209p/q.cpp p7↔p9）。
+// 残余 = N104（catch/unwind 块 29 条内容逐条全等、仅相对 % 检查块位置互换）+
+// N82（ok -0x25 vs -0x31、binLen 组整体深 4）+ 3 处 `jbe↔jae`（cmp 操作数方向
+// fold：ORIG `cmp %eax,B`=B−L 配 jbe，我方 `cmp B,%eax`=L−B 配 jae，落点同体）。
 // ============================================================================
 bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
 {
@@ -228,9 +245,13 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
     unsigned int creatureLen = 0x1d36;  // ORIG -0x148
     unsigned int equipLen = 0x37a;      // ORIG -0x14c（解压 in/out 容量）
     unsigned int invenLen = 0x473e;     // ORIG -0x150
-    int invenBinLen = invenLen;         // ORIG -0x30
-    int equipBinLen = equipLen;         // ORIG -0x2c
-    int creatureBinLen = creatureLen;   // ORIG -0x28
+    // 三个 binLen 必须与 len 同型（unsigned）：ORIG 比较形
+    // `mov L,%eax; cmp %eax,binLen; jbe`（binLen 为内存 dst，0840b791/0840b7c8/
+    // 0840b7ff）；int 型时 4.4 走 `mov binLen,%edx; mov L,%eax; cmp %eax,%edx`
+    // 多一条中转（P209 同族，探针 /tmp/p209p/q.cpp p7↔p9 实证）。
+    unsigned int invenBinLen = invenLen;      // ORIG -0x30
+    unsigned int equipBinLen = equipLen;      // ORIG -0x2c
+    unsigned int creatureBinLen = creatureLen;// ORIG -0x28
     bool ok;                            // ORIG -0x31（所有 db 检查共用槽）
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
@@ -304,11 +325,11 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
              sig->m_characNo);
         return 0;
     }
-    // 注：ORIG 此处用 col 变量（-0x20）+ col++ 形；4.4 引入该变量会把整个
-    // 标量区推深 4（len -0x14c/-0x150/-0x154）且指令数 721→730 反劣
-    // （S1 一次性旋钮实测：gap +4 → -5）⇒ 保持字面量（N82 封顶）。
-    creatureBinLen = db->get_binary_length(6);
-    ok = db->get_binary(6, creatureBuf, creatureLen);
+    // ORIG 具名 col 槽（-0x20）：`movl $0x6,-0x20` + 后三调用 col++ 形
+    // （0840b5e3/0840b5ea/0840b607/0840b692/0840b713，P0 槽-局部对应律）。
+    int col = 6;
+    creatureBinLen = db->get_binary_length(col);
+    ok = db->get_binary(col++, creatureBuf, creatureLen);
     if (!ok)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x251b, 5)
@@ -316,7 +337,7 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
              sig->m_characNo);
         return 0;
     }
-    ok = db->get_int(7, sig->m_creatureCount);     // +0x1287c（int 直引）
+    ok = db->get_int(col++, sig->m_creatureCount);  // +0x1287c（int 直引）
     if (!ok)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x2522, 5)
@@ -324,7 +345,7 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
              sig->m_characNo);
         return 0;
     }
-    ok = db->get_uint(8, *(unsigned int*)&sig->m_inventoryCapacity);
+    ok = db->get_uint(col++, *(unsigned int*)&sig->m_inventoryCapacity);
     if (!ok)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x253a, 5)
@@ -335,15 +356,15 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
 
     try
     {
-        if (equipLen < static_cast<unsigned int>(equipBinLen))
+        if (equipLen < equipBinLen)
         {
             throw static_cast<unsigned int>(0x255a);
         }
-        if (invenLen < static_cast<unsigned int>(invenBinLen))
+        if (invenLen < invenBinLen)
         {
             throw static_cast<unsigned int>(0x255c);
         }
-        if (creatureLen < static_cast<unsigned int>(creatureBinLen))
+        if (creatureLen < creatureBinLen)
         {
             throw static_cast<unsigned int>(0x2563);
         }
@@ -356,20 +377,20 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
         // 0x1000 字节 ⇒ 真语义 bug（creature blob 落到错误槽区）。
         if (!uncompress_zip(reinterpret_cast<char*>(&sig->m_equipMirror[10]),
                             equipLen, equipBuf,
-                            static_cast<unsigned int>(equipBinLen)))
+                            equipBinLen))
         {
             throw static_cast<unsigned int>(0x2565);
         }
         if (!uncompress_zip(reinterpret_cast<char*>(sig->m_invenType1), invenLen,
                             invenBuf,
-                            static_cast<unsigned int>(invenBinLen)))
+                            invenBinLen))
         {
             throw static_cast<unsigned int>(0x2567);
         }
         if (!uncompress_zip(
                 reinterpret_cast<char*>(&sig->m_invenType3[0x8c]),
                 creatureLen, creatureBuf,
-                            static_cast<unsigned int>(creatureBinLen)))
+                            creatureBinLen))
         {
             throw static_cast<unsigned int>(0x256e);
         }
@@ -391,7 +412,8 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x2573, 5)
             ("incorrect inventory size charac_no(%d), equip,"
-             " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x53e, equipLen);
+             " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x53e,
+             equipBinLen);
         return 0;
     }
     if ((invenLen % 0x3d) != 0 && invenLen != 0)
@@ -399,7 +421,7 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
         cMyTrace(__PRETTY_FUNCTION__, 0x2579, 5)
             ("incorrect inventory size charac_no(%d), inven,"
              " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x4a58,
-             invenLen);
+             invenBinLen);
         return 0;
     }
     if ((creatureLen % 0x3d) != 0 && creatureLen != 0)
@@ -407,12 +429,12 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
         cMyTrace(__PRETTY_FUNCTION__, 0x2588, 5)
             ("incorrect inventory size charac_no(%d), creature,"
              " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x4a58,
-             creatureLen);
+             creatureBinLen);
         return 0;
     }
-    char* m = NumberToString(sig->m_accId, 0);
     db->set_query("seLect ifnull(min(avatar_coin),0) as avatar_coin"
-                  " from member_avatar_coin where m_id = %s", m);
+                  " from member_avatar_coin where m_id = %s",
+                  NumberToString(sig->m_accId, 0));
     // ORIG 尾部为 guard 形（fail 块直落、je 跳主流程）⇒ 逐个早返。
     ok = db->exec(true);
     if (!ok)
@@ -569,8 +591,13 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
     int uiId = 0;
     int clearAvatarId = 0;
     // ORIG 0840bfdc 为 `mov %eax,%edx; mov 0x18(%ebp),%eax; mov %edx,(%eax)`
-    // （RHS-first + 中转）；4.4 对同型 int& 恒 LHS-first，视图/cast 形实测均劣化
-    // （710 vs 707）⇒ 记 N76/P211 封顶（改 get_n_rows 返回类型属共享头 S2 范围）。
+    // （RHS-first + 中转）；我方 LHS-first。S2 取证（2026-09-09）判 N76：
+    // ① nm 两侧 get_n_rows 同 size 0xb 同体、返回类型不入 mangled；
+    // ② 231=231 个调用点，比较指令逐点全等（ORIG 0843da14 `cmp $0x32,%eax; ja`
+    //    ＝ 我方 082eaa3a；0842b04d `jbe` ＝ 082ea4ce；0862dea5 `seta` ＝ 0879419f；
+    //    0840ca52 `setg` ＝ 08294e85）⇒ 返回类型两侧相同；
+    // ③ store 装载序两侧各自双向（ORIG 08429c25 LHS-first 反例；我方 08322e69
+    //    RHS-first 反例）⇒ 非类型驱动，属 N76 跨版本固有差，禁改 MySQL.h。
     count = db->get_n_rows();
     int abilityNo = 0;
     int row = 0;

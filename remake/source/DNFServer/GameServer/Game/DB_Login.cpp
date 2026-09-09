@@ -63,8 +63,7 @@
 //       P48/P0 去 mid 缓存已修，32→6）
 //   GetAccountCharacterLevelUpOnceGift 0x0844834e DIFF gap=27（N82 槽/帧；P0/P140 去
 //       evt 局部与判空、P158 bool 槽、P222 正极性包裹已修，56→27）
-//   GetPunishUserInfo 0x08410cf6 DIFF gap=3（N18a：m_punishInfoCount unsigned 化可翻
-//       但会改 ARAD_LoginSecurity/InterDispatcher 三处比较符号性 ⇒ 不采纳）
+//   GetPunishUserInfo 0x08410cf6 AE（本波修：+0x3a50 双视角 union，见函数头）
 //   GetGrowthCreatureEvent 0x08448102 DIFF gap=35（N82 槽/帧；P0/P140/P158/P222 已修，66→35）
 //   _getGameDBCharacView 0x084149ce DIFF gap=3（N4/P30 数组寻址 add-vs-lea；
 //       P253 三缓冲 `={0}` rep stos 清零 + P87/P227 链式 trace 已修，32→3）
@@ -264,9 +263,9 @@
 //  ③ GetAccountInfo gap −22→**−17**（`long long curSec` 64 位物化改内联 32 位实参）。
 //  ④ GetMercenarySystemInfo gap −9→**−14** 但 xor/jne 形匹配 6→1（bool ok 链改提前
 //     continue；三形并列读数见函数头，取形匹配者）。
-//  ⑤ GetPunishUserInfo gap 1 维持封顶（唯一残差 = 同型字段 LHS-first vs ORIG 异型
-//     RHS-first+中转；字段侧旋钮被 T2 直证否决：ARAD_LoginSecurity 0x0818f970 消费点
-//     `jg` signed；callee 侧需改共享 MySQL.h get_n_rows 返回类型，跨泳道代价 > 1 条）。
+//  ⑤ GetPunishUserInfo gap 1 **已修**（本波）：SigTypes_D.h +0x3a50 匿名 union 双视角，
+//     写入走 unsigned 视角复现 ORIG RHS-first+中转（08410da9）；int 视角消费点
+//     （ARAD_LoginSecurity 0x0818f970 `jg` / InterDispatcher）A/B 实测零变化。
 //  ⑥ 其余 6 件（GetBingoEvent / GetAccountCharacterLevelUpOnceGift / GetGrowthCreatureEvent /
 //     _DecryptUserInfo / getBreakAwayMemberData / GetPremiumInfo）逐件复核残差均落
 //     已登记 N 族（N1 常量折叠 / N7+P75 装载序 / N82 帧槽 / N107 取址 add-vs-lea /
@@ -998,15 +997,13 @@ int DB_Login::GetDailyCleanPadPoint(SIG_LOGIN_DATA* sig)
 // GetPunishUserInfo（ORIG T 0x08410cf6）—— member_punish_info 行载入
 // ============================================================================
 
-// [b28d-solo-DB_Login] verdict=DIFF ndiff=3 gap=1（N18a/P211 档③：ORIG
-// `mov %eax,%edx; mov 0xc(%ebp),%eax; mov %edx,0x3a50(%eax)` = 字段与
-// get_n_rows() 的 int 返回**异型**；共享头 m_punishInfoCount 为 int（同型 ⇒ 4.4
-// LHS-first 2 条）。视图取址三形帧膨胀（probe_pun f1–f3 push ebx+sub 4）、局部
-// 指针形多地址槽（f5）；改共享头牵动 ARAD_LoginSecurity/InterDispatcher 三处比较
-// 符号性 ⇒ 封顶）。
-// S216：RHS `(unsigned int)db->get_n_rows()` cast 形实测仍 LHS-first（4.4 折叠同宽
-// cast）⇒ 维持 N18a/P211 封顶（字段侧 unsigned 化牵动 ARAD_LoginSecurity/
-// InterDispatcher 三处比较符号性，跨泳道代价 > 1 条收益）。
+// [SweepDBLoadEtcMain 本波] 旧「N18a/P211 封顶」**作废**，DIFF→AE：写入侧改走
+// SigTypes_D.h 匿名 union 的 `m_punishInfoCountU` unsigned 视角（异型 ⇒
+// RHS-first+edx 中转），复现 ORIG 08410da9 `mov %eax,%edx; mov 0xc(%ebp),%eax;
+// mov %edx,0x3a50(%eax)`（探针 /tmp/punp.cpp f↔g）；消费侧 int 视角零变化
+// （A/B 实测 ARAD_LoginSecurity 53/100/2/3/49、InterDispatcher 121/1331/5/133/700
+// union 前后逐项相同，T2 signed 直证 ARAD_LoginSecurity 0x0818f970 `jg` 保持）。
+// S216 旧结论「RHS cast 形仍 LHS-first」成立（4.4 折叠同宽 cast），故必须字段侧双视角。
 bool DB_Login::GetPunishUserInfo(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
@@ -1027,7 +1024,11 @@ bool DB_Login::GetPunishUserInfo(SIG_LOGIN_DATA* sig)
     // 视图取址三形（f1/f2/f3）恒 push ebx+sub 4 帧膨胀，局部指针形（f5）多地址槽
     // ⇒ 字段侧旋钮须改共享头，牵动 ARAD_LoginSecurity/InterDispatcher 三处比较符号性，
     // 跨泳道代价 > 本件 1 条 jmp 收益 ⇒ 维持 N18a 封顶（3 行）。
-    sig->m_punishInfoCount = db->get_n_rows();   // +0x3a50
+    // [SweepDBLoadEtcMain 本波] 走 SigTypes_D.h 匿名 union 的 unsigned 视角
+    // （异型 ⇒ RHS-first+edx 中转），复现 ORIG 08410da9 `mov %eax,%edx;
+    // mov 0xc(%ebp),%eax; mov %edx,0x3a50(%eax)`；消费侧保持 int 视角
+    // （ARAD_LoginSecurity 0x0818f970 `jg` signed，T2 直证）。探针 /tmp/punp.cpp f↔g。
+    sig->m_punishInfoCountU = db->get_n_rows();  // +0x3a50
     for (i = 0; i < db->get_n_rows(); ++i)
     {
         // P157/P183：ORIG 无引用缓存，每次重算完整 i*0x18 地址链。
