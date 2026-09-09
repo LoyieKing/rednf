@@ -197,7 +197,10 @@ public:
 
     std::vector<WindowsExeFile*>  m_exeFiles;    // +0x0c..0x17
     char                 m_name[0x104];          // +0x18..0x11b
-    int                  m_curSectionIndex;      // +0x11c 常量区段轮转游标
+    // [b28d-solo-WindowsPackFiles] ORIG 0x08574bde 索引装载 `mov 0x11c(%eax),%edx`
+    // 单条（与 vector::operator[](size_t) 同型）而 0x08574c3c `*outSecIdx=…` 为
+    // `mov %eax,%edx` 中转（与 long 异型）⇒ P211 档③：成员须为 unsigned long。
+    unsigned long        m_curSectionIndex;      // +0x11c 常量区段轮转游标
     unsigned long        m_curOffset;            // +0x120 当前扫描起始
     unsigned long        m_randMin;              // +0x124
     unsigned long        m_randMax;              // +0x128

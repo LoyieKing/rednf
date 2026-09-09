@@ -331,7 +331,16 @@ static_assert(sizeof(SIG_EVENT_STAGE_LOG) == 0x78, "SIG_EVENT_STAGE_LOG ABI drif
 // 一一对应；仅 _saveData/loadData 按此结构读写。
 struct SIG_EXPERT_JOB
 {
-    int            m_characNo;         // +0x00
+    // [b28d-solo-CExpertJob P211档③/P235] charac_no 双视角（同 4 字节，sizeof 0x30
+    // 与全部偏移/mangled 零影响）：DB 侧 W8LT_DBTask DB_SaveExpertJob 读 int 视角
+    // （register int 直落 %esi 形保持）；_saveData 写 unsigned 视角与
+    // CUserCharacInfo::getCurCharacNo()(unsigned int) 同型 ⇒ 4.4 复现 ORIG
+    // 0x0832b15e 段 LHS-first 直存 `mov -0xc(%ebp),%edx; mov %eax,(%edx)`。
+    union
+    {
+        int            m_characNo;     // +0x00
+        unsigned int   m_characNoU;    // +0x00（同址视角，仅 _saveData 写入）
+    };
     unsigned short m_giveupCount;      // +0x04
     unsigned short m_pad06;            // +0x06（wire 保留）
     int            m_endurance;        // +0x08
@@ -382,11 +391,15 @@ struct SIG_FAIR_PVP_SCORE
     // mov %eax,0x680(%edx)`）⇒ int 字段 ← int 返回同型。探针 /tmp/l2_p7.o
     // s4/s1 分别复现两形。宽度/偏移/sizeof 0x688 不变。
     unsigned int m_characNo;                   // +0x00
-    int m_modeStats[2][3];                     // +0x04..+0x18（modeA0..2 / modeB0..2）
-    int m_field1c;                             // +0x1c（↔ CFairPvPScore::m_field40）
-    int m_field20;                             // +0x20（↔ m_field44）
-    int m_winStreak;                           // +0x24
-    int m_bestWinStreak;                       // +0x28
+    // [b28d-solo-CFairPvPScore] getData 084a574c/084a5794 与 loadData 084a4a9b/
+    // 084a4ae3 的逐字段 store 均单段（无转换中转）⇒ 线格式镜像与容器字段同型；
+    // 容器侧 m_modeStats/m_field40/m_field44/m_winStreak/m_bestWinStreak 已
+    // unsigned 化（P274/ORIG put_int 两段实证），镜像同步为 unsigned。
+    unsigned int m_modeStats[2][3];            // +0x04..+0x18（modeA0..2 / modeB0..2）
+    unsigned int m_field1c;                    // +0x1c（↔ CFairPvPScore::m_field40）
+    unsigned int m_field20;                    // +0x20（↔ m_field44）
+    unsigned int m_winStreak;                  // +0x24
+    unsigned int m_bestWinStreak;              // +0x28
     unsigned char m_jobScoreCount;             // +0x2c
     char m_pad2d[3];                           // +0x2d..0x2f
     SIG_FAIR_PVP_SCORE_ENTRY m_jobScore[100];  // +0x30..+0x66f

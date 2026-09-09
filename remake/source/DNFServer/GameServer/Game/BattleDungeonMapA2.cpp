@@ -81,9 +81,13 @@ bool CBattle_Field::is_last_field_item(int uid)
 // 统计 4 席有效成员的等级 min/max（无角色者按 1 级），依据与副本标准等级的
 // 差值决定 *flag；等级离散(>8)且 ≥2 人、或两个旗标未置且类型 1 时清除缓存。
 // mode==1（普通模式）强制清除并置 flag=false。
-// 【验收 batch-11】orig=149 / our=149（gap 0）：双臂 P48 重发 get_user/
-// getCurCharacR 链、正向嵌套防聚合岛、uchar `> 0` 真值形、level 循环前
-// 0 初始化槽。残差为 N82 槽号平移与 call 目标显示。
+// [b28d-solo-BattleDungeonMapA2] IDENTICAL/AE（147=147，本波 DIFF→AE）：
+// ① IsEnableHellDungeon 改裸 bool 判（P292；`> 0` 形 4.4 产 movzbl/test/setg）；
+// ② min/max 三目臂序翻转 `(min>level)?min:level`（复现 ORIG jle 直落+then 岛）；
+// ③ validCount 块 P222 反向包裹 `if(validCount>1){…}else{flag=1}`；
+// ④ CParty::m_field1864/m_sealDoorFlag bool 化（P248 档②，ORIG
+// `movzbl;xor $1;test;je`；CParty.h 已 R2 广播，消费点 CParty.cpp/
+// CPartyDepsA2.cpp 回执零回归）。
 void CBattle_Field::check_random_appear_hell_dungeon(const CDungeon* dungeon,
                                                      ENUM_DUNGEON_MODE mode,
                                                      ENUM_DUNGEON_TYPE type,
@@ -98,7 +102,7 @@ void CBattle_Field::check_random_appear_hell_dungeon(const CDungeon* dungeon,
     // （外层已保证非零）系 ORIG 原样（@0x026-0x033）。
     // uchar 返回真值测试：`!= 0`/裸调用在 4.4 折 setne 物化（P73），
     // `> 0` 无符号下限形可回 test/je 直跳（对齐 ORIG @0x1e）。
-    if (IsEnableHellDungeon() > 0)
+    if (IsEnableHellDungeon())
     {
     if (m_party->m_hellWorldMap != 0)
     {
@@ -119,9 +123,10 @@ void CBattle_Field::check_random_appear_hell_dungeon(const CDungeon* dungeon,
                 level = (int)m_party->get_user(i)->getCurCharacR()->m_level;
             else
                 level = 1;
-            // ORIG @0x0e9/@0x0fc：三目物化岛（两臂各载一侧、统一 store）。
-            minLevel = (level <= minLevel) ? level : minLevel;
-            maxLevel = (level >= maxLevel) ? level : maxLevel;
+            // ORIG @0x0e9/@0x0fc：三目物化岛（两臂各载一侧、统一 store）；
+            // 目标值必须写在三目第一操作数位（P243 族：ORIG 先载目标槽）。
+            minLevel = (minLevel > level) ? minLevel : level;
+            maxLevel = (maxLevel < level) ? maxLevel : level;
             validCount += 1;
         }
 
@@ -129,15 +134,23 @@ void CBattle_Field::check_random_appear_hell_dungeon(const CDungeon* dungeon,
         // （P160 勿缓存）。
         if (minLevel - dungeon->get_standard_level() <= 5)
         {
-            if (validCount <= 1)
+            // ORIG @0x147-0x166：`jle <flag=1 块>` 使 validCount<=1 的
+            // true 块落在远位、else-if 判断直落（4.1 块序）；4.4 对
+            // if/else-if 恒反 ⇒ 反向包裹复现（P222/P47）。
+            if (validCount > 1)
+            {
+                if (minLevel - maxLevel <= 8)
+                    flag = true;
+            }
+            else
+            {
                 flag = true;
-            else if (minLevel - maxLevel <= 8)
-                flag = true;
+            }
         }
 
         if ((minLevel - maxLevel > 8 && validCount > 1) ||
-            ((char)m_party->m_field1864 != 1 && type == 1) ||
-            ((char)m_party->m_sealDoorFlag != 1 && type == 1))
+            (!m_party->m_field1864 && type == 1) ||
+            (!m_party->m_sealDoorFlag && type == 1))
         {
             m_party->m_hellWorldMap = 0;
         }
@@ -157,6 +170,15 @@ void CBattle_Field::check_random_appear_hell_dungeon(const CDungeon* dungeon,
 // → m_89d 非 1 时清 hell 标记 → 由 dungeon->m_6e0[diff] 取迷宫指针 →
 // GetAppropriateMaze/SetGridPath/清除条件 → 起始格定位起始地图 →
 // 构造 MapInfo{mapIndex,startMap} 插入 m_mapInfo 并 ConsistMap。
+// [b28d-solo-BattleDungeonMapA2] IDENTICAL/AE（313=313，本波 DIFF→AE）：
+// ① logFormat 第 3 参改 __PRETTY_FUNCTION__（P118/P139；ORIG 具
+// _ZZN13CBattle_Field13SelectDungeon…E19__PRETTY_FUNCTION__ 局部静态，
+// 手写字符串只产匿名 .rodata）；② IsEnableHellDungeon 裸 bool 判（P292）；
+// ③ m_hellPartyMode 经权威头匿名 union 的 enum 视角赋值复现 LHS-first
+// （P211 档③；探针 f1/f2/f3 证 int 字段+(int)cast 恒 RHS-first）；
+// ④ m_hellPartyRandom bool 化（同型 store）；⑤ CDungeon::m_89d bool 化 +
+// `!dungeon->m_89d`（P248 档②）；⑥ startMap 声明=0 + 独立赋值（P198③）。
+// CBattle_Field.h/CDungeon.h 两处 .h 改动均已 R2 广播。
 bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
                                   int diff, ENUM_DUNGEON_TYPE type,
                                   int memberCount, CWorldMap* worldMap,
@@ -169,21 +191,17 @@ bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
     m_field198 = memberCount;                          // +0x198
     m_questStageMap = questStageMap;                   // +0x19c
     m_hellPartyActive = 0;                             // +0x1b8
-    m_hellPartyMode = type;                            // +0x1b0
+    // ORIG @0x41 为 LHS-first `mov this; mov type; store` ⇒ 字段与 RHS 同型
+    // （P211 档③）；用权威头匿名 union 的 enum 视角（int 视角保留给其他消费点）。
+    m_hellPartyModeE = type;                           // +0x1b0
 
-    static const char s_pretty[] =
-        "bool CBattle_Field::SelectDungeon(int, const CDungeon*, int, "
-        "ENUM_DUNGEON_TYPE, int, CWorldMap*, bool, int)";
-
+    // ORIG 三处 logFormat 第 3 参为 `_ZZN13CBattle_Field13SelectDungeon…
+    // E19__PRETTY_FUNCTION__` 局部静态（P118/P139）⇒ 必须传 __PRETTY_FUNCTION__，
+    // 手写字符串只产匿名 .rodata 且留 missing。
     // 三条件各自 je 直达统一出口（ORIG @0x1e/@0x25/@0x36 →0x22a）：`&&` 链在
     // 4.4 末尾条件折 bool 聚合岛（mov$1/jmp/mov$0，+3），正向嵌套同形 ORIG；
-    // uchar 真值测试用 `> 0`（P73 反向，同 check_random 实证）。
-    // X1 形在此**不适用**（实测 ndiff 10→13 已回退）：ORIG 是
-    // `xor $1,%eax; test %al,%al; je BODY`（真值跳进 body），而 4.4 对
-    // `if (!v) {body}` 恒产 `test; jne SKIP`（假值跳过 body），je/jne 块序相反；
-    // 要翻成 je 需把三层嵌套体改成 `goto` 尾置块，会连带影响本函数
-    // 统一出口与其它 2 个条件的既有同形性 —— 属"块序+装载序"复合差，非纯 xor 族。
-    if (IsEnableHellDungeon() > 0)
+    // ORIG @0x63 为 `call; test %al,%al; je`（bool callee 直判，P292）⇒ 裸调用。
+    if (IsEnableHellDungeon())
     {
     if (worldMap != 0)
     {
@@ -196,7 +214,7 @@ bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
             if (m_hellPartyDifficulty == 0)
             {
                 LogManager::logFormat(
-                    1, "battle_field.cpp", s_pretty, 0x1fc,
+                    1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1fc,
                     "HELLPARTY_LOG : HELLPARTY DIFFICULTY ERROR!!\n");
                 return false;
             }
@@ -222,7 +240,7 @@ bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
                 if (m_hellPartyDifficulty == 0)
                 {
                     LogManager::logFormat(
-                        1, "battle_field.cpp", s_pretty, 0x22b,
+                        1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x22b,
                         "HELLPARTY_LOG : HELLPARTY DIFFICULTY ERROR!!\n");
                     return false;
                 }
@@ -235,7 +253,7 @@ bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
     }
     }
 
-    if (dungeon != 0 && dungeon->m_89d != 1)
+    if (dungeon != 0 && !dungeon->m_89d)
         m_hellPartyActive = 0;                         // +0x89d 非 1 清标记
 
     m_pDungeon = const_cast<CDungeon*>(dungeon);       // +0x188
@@ -257,10 +275,13 @@ bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
     if (grid == 0)
         return false;
 
-    int startMap = dungeon->GetStartMap(grid->m_gridValue);
+    // ORIG @0x34b：`movl $0x0,-0x10` 先置 0 再赋 GetStartMap 结果（P198③
+    // 声明=0 + 独立赋值两句式）。
+    int startMap = 0;
+    startMap = dungeon->GetStartMap(grid->m_gridValue);
     if (startMap < 1)
     {
-        LogManager::logFormat(1, "battle_field.cpp", s_pretty, 0x27c,
+        LogManager::logFormat(1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x27c,
                               "[CBattle_Field::SelectDungeon] Error Map : (%d)(%d,%d)\n",
                               dungeonIdx, m_curX, m_curY);
         return false;
@@ -276,11 +297,15 @@ bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
 }
 
 // ---- MakePacket(int, void*) —— ORIG 0x083090a4（MakePacket.md 全文） ----
-// 【§6.2 超大函数验收（batch-11）】orig_insns=1053 / our=1058（gap −5）；
-// P167 调用点差集已清零（48 符号×次数全命中，含 find_map/logFormat/TOD 链/
-// ppEi 后置自增）；switch 决策树与叶块序逐条同 ORIG（cmp 0xd3 根、叶序
-// 0x1d,0x1c,0xd3,0xd4,0x182,0x183）。残余为 N82（帧 0x46c vs 0x45c、pkt 槽
-// -0x5c vs -0x58 全帧平移）与 N76/N18a（store 装载两步/单步）封顶，勿再追。
+// [b28d-solo-BattleDungeonMapA2] §6.2 超大函数三件套验收（fresh .o）：
+// ① gap +5（our 1058 / orig 1053）；② P167 调用点差集 CLEAR（182=182；
+// 本波补回真语义缺口——ORIG @0xd8/0xea 是两条独立 put_byte 调用点，
+// 旧实现写成三目合并致 MISSING put_byte×1）；③ put_byte 实参直方图 64=64
+// 逐类全等（reg 44 / 0×14 / 0xff×2 / 0xb×2 / 0x1 / 0x3）、equal 885/1053、
+// 帧 0x46c vs 0x45c。残余全为跨版本形态族：N82（帧/槽平移）+ N7/N18a
+// （4.1 值经 %edx 中转 vs 4.4 %eax 直传）+ P194/setcc（bool 物化）⇒ 语义完成、
+// byte 层 N 封顶。本波另修：0x182 的 setg 有符号比较、find_map 结果落具名槽
+// （void* mapData）、`m_party==0` 两处 P222 反向 if/else。
 // 六个包分支（switch 决策树 cmp 0xd3 根）：0x1d（进图全量：坐标/怪物/掉落）、
 // 0x1c（房间基础+骑乘物+当日层）、0xd3/0x183（小地图信息，两份独立展开，
 // find_map 失败走日志且不 finalize）、0xd4（无头的精简房间信息）、
@@ -305,7 +330,12 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
         getCurPosXY(posX, posY);
         pkt->put_byte(posX);
         pkt->put_byte(posY);
-        pkt->put_byte(GetCurrentMapInfo()->m_layeredMap != 0 ? 1 : 0);   // +0xe8
+        // ORIG @0xd8-0xea：两处独立 put_byte 调用点（then 落 $1、else 落 $0），
+        // 非三目合并（p167 MISSING put_byte×1 即此）。
+        if (GetCurrentMapInfo()->m_layeredMap != 0)                          // +0xe8
+            pkt->put_byte(1);
+        else
+            pkt->put_byte(0);
         pkt->put_int(GetCurrentMapInfo()->m_mapBasisLevel);              // +0x48
         pkt->put_byte((char)m_hellPartyDifficulty);          // +0x1cc
         pkt->put_byte((char)m_hellPartyEventType);           // +0x1cd
@@ -380,7 +410,9 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
         pkt->put_byte(m_ridable.GetObjectCnt());
         std::vector<std::pair<int, int> > ridablePos;
         m_ridable.GetObjectPos(ridablePos);
-        for (size_t i = 0; i < ridablePos.size(); ++i)
+        // ORIG @0x79d 尾测 `call size; cmp i,size; setg`（有符号比较）⇒
+        // 索引 int 化且比较写 size > i。
+        for (int i = 0; (int)ridablePos.size() > i; ++i)
         {
             pkt->put_byte(ridablePos[i].first);
             pkt->put_byte(ridablePos[i].second);
@@ -397,10 +429,10 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
             todayLayer = layer.GetLayer();
         }
         pkt->put_short(todayLayer);
-        if (m_party == 0)
-            pkt->put_byte(0xb);
-        else
-            pkt->put_byte(m_party->get_random_buff_type());
+        if (m_party != 0)
+                    pkt->put_byte(m_party->get_random_buff_type());
+                else
+                    pkt->put_byte(0xb);
         pkt->finalize(true);
         break;
     }
@@ -419,7 +451,10 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
             pkt->put_byte((char)GetCurrentMapInfo()->m_mapType);       // +0x44
             pkt->put_short(GetCurrentMapInfo()->m_mapIndex);            // +0x04
             const CDataManager* dataMgr = G_CDataManager();
-            if (dataMgr->find_map(GetCurrentMapInfo()->m_mapIndex) == 0)
+            // ORIG @0x9ff：结果先落具名槽 -0x44 再槽比较（`cmpl $0,-0x44; jne`），
+            // 内联实参形 4.4 产 test/sete/test/je（+2）。
+            void* mapData = dataMgr->find_map(GetCurrentMapInfo()->m_mapIndex);
+            if (mapData == 0)
             {
                 LogManager::logFormat(
                     1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x1746,
@@ -450,10 +485,10 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
         pkt->put_byte(0);
         pkt->put_byte(0);
         pkt->put_byte(m_bloodState);
-        if (m_party == 0)
-            pkt->put_byte(0xb);
-        else
-            pkt->put_byte(m_party->get_random_buff_type());
+        if (m_party != 0)
+                    pkt->put_byte(m_party->get_random_buff_type());
+                else
+                    pkt->put_byte(0xb);
         pkt->finalize(true);
         break;
     }
@@ -516,7 +551,9 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
             pkt->put_byte((char)GetCurrentMapInfo()->m_mapType);       // +0x44
             pkt->put_short(GetCurrentMapInfo()->m_mapIndex);            // +0x04
             const CDataManager* dataMgr = G_CDataManager();
-            if (dataMgr->find_map(GetCurrentMapInfo()->m_mapIndex) == 0)
+            // ORIG @0xf8a：同 0xd3 分支（结果落具名槽 -0x1c 后槽比较）。
+            void* mapData = dataMgr->find_map(GetCurrentMapInfo()->m_mapIndex);
+            if (mapData == 0)
             {
                 LogManager::logFormat(
                     1, "battle_field.cpp", __PRETTY_FUNCTION__, 0x17d2,
@@ -549,31 +586,34 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
 // 按 CMap::get_map_type() 选择容器：0 → m_map1a4[idx]；2 → m_dummyMap4a4[idx]
 // 并置 m_624=1；其余 → m_dummyMap324[idx]。direction 位 1/2/4/8 各插入一条
 // pair(方向键, CMap*)。三段结构按 ORIG 原样展开。
-// N82 封顶（b26 Lane27）：347 条助记符序列全等、语义/调用点差集归零；残余
-// 102 行全为 4.1 不复用槽（各分支独立 key@-0xbc/-0xac/-0x9c…）vs 4.4 生命周期
-// 复用（-0x68/-0x60/-0x58…）+ call/jmp 目标显示差。ND82 槽策略跨版本不可翻。
+// [b28d-solo-BattleDungeonMapA2] NEAR 封顶（N82）：347=347 助记符序列全等、
+// P167 调用点差集 CLEAR；本波把 12 组 pair 构造实参改为 PATH_DIRECTION 枚举
+// （ORIG mangled `C1I14PATH_DIRECTIONRS2_EEOT_OT0_`，权威头 CDungeon.h 新增
+// 全局 enum PATH_DIRECTION 定义）后调用点符号全等。残余 102 行全为 4.1
+// 不复用槽（各分支独立 key@-0xbc/-0xac/…）vs 4.4 生命周期复用
+// （-0x68/-0x60/…）+ call/jmp 目标显示差；槽策略跨版本不可翻。
 void CDungeon::InsertMap(int idx, int direction, CMap* map)
 {
     if (map->get_map_type() == 0)
     {
         if ((direction & 1) != 0)
         {
-            std::multimap<int, CMap*>::value_type value(1, map);
+            std::multimap<int, CMap*>::value_type value((PATH_DIRECTION)1, map);
             m_map1a4[idx].insert(value);
         }
         if ((direction & 2) != 0)
         {
-            std::multimap<int, CMap*>::value_type value(2, map);
+            std::multimap<int, CMap*>::value_type value((PATH_DIRECTION)2, map);
             m_map1a4[idx].insert(value);
         }
         if ((direction & 4) != 0)
         {
-            std::multimap<int, CMap*>::value_type value(4, map);
+            std::multimap<int, CMap*>::value_type value((PATH_DIRECTION)4, map);
             m_map1a4[idx].insert(value);
         }
         if ((direction & 8) != 0)
         {
-            std::multimap<int, CMap*>::value_type value(8, map);
+            std::multimap<int, CMap*>::value_type value((PATH_DIRECTION)8, map);
             m_map1a4[idx].insert(value);
         }
     }
@@ -583,22 +623,22 @@ void CDungeon::InsertMap(int idx, int direction, CMap* map)
         {
             if ((direction & 1) != 0)
             {
-                std::multimap<int, CMap*>::value_type value(1, map);
+                std::multimap<int, CMap*>::value_type value((PATH_DIRECTION)1, map);
                 m_dummyMap4a4[idx].insert(value);
             }
             if ((direction & 2) != 0)
             {
-                std::multimap<int, CMap*>::value_type value(2, map);
+                std::multimap<int, CMap*>::value_type value((PATH_DIRECTION)2, map);
                 m_dummyMap4a4[idx].insert(value);
             }
             if ((direction & 4) != 0)
             {
-                std::multimap<int, CMap*>::value_type value(4, map);
+                std::multimap<int, CMap*>::value_type value((PATH_DIRECTION)4, map);
                 m_dummyMap4a4[idx].insert(value);
             }
             if ((direction & 8) != 0)
             {
-                std::multimap<int, CMap*>::value_type value(8, map);
+                std::multimap<int, CMap*>::value_type value((PATH_DIRECTION)8, map);
                 m_dummyMap4a4[idx].insert(value);
             }
             m_hasDummyMap = 1;                         // +0x624（byte 写）
@@ -607,22 +647,22 @@ void CDungeon::InsertMap(int idx, int direction, CMap* map)
         {
             if ((direction & 1) != 0)
             {
-                std::multimap<int, CMap*>::value_type value(1, map);
+                std::multimap<int, CMap*>::value_type value((PATH_DIRECTION)1, map);
                 m_dummyMap324[idx].insert(value);
             }
             if ((direction & 2) != 0)
             {
-                std::multimap<int, CMap*>::value_type value(2, map);
+                std::multimap<int, CMap*>::value_type value((PATH_DIRECTION)2, map);
                 m_dummyMap324[idx].insert(value);
             }
             if ((direction & 4) != 0)
             {
-                std::multimap<int, CMap*>::value_type value(4, map);
+                std::multimap<int, CMap*>::value_type value((PATH_DIRECTION)4, map);
                 m_dummyMap324[idx].insert(value);
             }
             if ((direction & 8) != 0)
             {
-                std::multimap<int, CMap*>::value_type value(8, map);
+                std::multimap<int, CMap*>::value_type value((PATH_DIRECTION)8, map);
                 m_dummyMap324[idx].insert(value);
             }
         }
@@ -631,9 +671,12 @@ void CDungeon::InsertMap(int idx, int direction, CMap* map)
 
 // ---- insertStart(int, CMap*) —— ORIG 0x0834be5a（insertStart.md 全文） ----
 // 以 CMap::get_index() 为键把起始地图插入 m_maplist[idx]（hash_map @+0x64）。
-// P112/N82 封顶：助记符全等，仅 key/value/insert-sret-dest 三槽分配位互换
-//（4.1 key@-0xc/value@-0x14/dest@-0x20 vs 4.4 -0x18/-0x20/-0x14）；嵌套实参形、
-// 具名接收 r 形均劣化（+5 条 N86），穷举后封顶。
+// [b28d-solo-BattleDungeonMapA2] NEAR 封顶（N86/N82）：31=31 助记符序列全等、
+// P167 CLEAR，pair 构造符号与 ORIG 全等（`C1IiRS2_EEOT_OT0_`）；仅三临时槽
+// 分配位互换（ORIG int 临时@-0xc/pair@-0x14/insert-sret@-0x20 vs 4.4
+// sret@-0x14/临时@-0x18/pair@-0x20）。本波实测：具名 key 形改符号为
+// `C1IRiRS2_E`（左值）不可用；static_cast<int&&> 形劣化为 DIFF；4.4 的
+// 临时槽分配序由前端固定，源形不可择。
 void CDungeon::insertStart(int idx, CMap* map)
 {
     std::multimap<int, CMap*>::value_type value(map->get_index(), map);

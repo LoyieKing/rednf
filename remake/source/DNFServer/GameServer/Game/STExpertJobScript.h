@@ -97,7 +97,12 @@ struct stCompoundRate
 // 保持占位名。
 struct stRecipeInfo
 {
-    char             m_pad[8];   // +0x00..+0x07
+    // b28d-solo [R2 广播]：ORIG ImportExpertJobScript [items] 段 0x0896bf39/0x0896bfaa/
+    // 0x0896c01b 三处 make_pair 的第一/第二实参分别为 &(+0x00) ulong&、&(+0x04) ulong&、
+    // &(+0x08) ushort&（`_ZSt9make_pairIRmRiE`/`IRmRtE`/`IRmS0_E` 实证）⇒ +0x00/+0x04
+    // 为真实 ulong 字段，原 char m_pad[8] 为占位。sizeof 仍 0xc、全部偏移/mangled 不变。
+    unsigned long    m_field0;   // +0x00（[items] 第 2 个 ScanInt）
+    unsigned long    m_field4;   // +0x04（[items] 第 3 个 ScanInt）
     unsigned short   m_field8;   // +0x08（学习门槛值，语义未证）
     unsigned short   m_padA;     // +0x0a（尾 pad：ORIG sizeof 0xc，pair/_Rb_tree_node ctor
                                  //  三 word 拷贝实证 mov 0x8../mov 0xc..；原 0xa 错位）
@@ -123,7 +128,9 @@ public:
         // w@+4）——原 m_field8(ushort)/m_fieldA 建模偏移错：+0x4 即 ushort 字段
         // （CExpertJobList 解析写 m_field4），尾 pad2 对齐。
         stMonsterCardBindResult();               // ORIG C1/C2 @0x0896dc20
-        ~stMonsterCardBindResult();              // ORIG D1/D2 @0x08974fac（空体）
+        // b28d-solo [R2/P317]：ORIG ImportExpertJobScript 0x0896caa3 等五处栈对象只调 C1、
+        // 零 D1 调用 ⇒ 析构为编译器隐式 trivial；ORIG D1/D2 W 0x08974fac 仅由
+        // new_allocator::destroy（0x08974fbe）使用点发射，不得声明用户析构。
         int            m_field0;  // +0x00
         unsigned short m_field4;  // +0x04
         char           m_pad6[2]; // +0x06
@@ -133,7 +140,8 @@ public:
     struct stDollControllerResult
     {
         stDollControllerResult();                // ORIG C1/C2 @0x0896deac
-        ~stDollControllerResult();               // ORIG D1/D2 @0x089751fa（空体）
+        // b28d-solo [R2/P317]：同 stMonsterCardBindResult，ORIG D1/D2 W 0x089751fa 由
+        // new_allocator::destroy（0x0897520c）发射；栈对象零 D1 调用 ⇒ 删用户析构。
         int            m_field0;  // +0x00
         unsigned short m_field4;  // +0x04
         unsigned short m_field6;  // +0x06

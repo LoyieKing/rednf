@@ -54,10 +54,11 @@ public:
     // ---- RewardData：奖励物品描述 ----
     // rewardProcess 用法：m_itemIdx → G_CDataManager()->find_item()；
     // m_addInfo → Inven_Item::set_add_info（ushort，reward+0x04）。
-    // ORIG D1/D2 0x08966634 为空体用户析构（out-of-line 保持 non-trivial 链路）。
+    // [b28d-Main 代落·S241 P317] 删用户空析构：ORIG 仅实例化平凡版
+    // `_ZNSt12_Destroy_auxILb1EE9__destroyIPN20HeroMissionCondition10RewardDataEEEvT_S5_`
+    // （无 Lb0E 版）⇒ 类型 trivial；importHeroMissionConditionsData 区间 0 处 D1 call。
     struct RewardData
     {
-        ~RewardData();              // ORIG W 0x08966634（空）
         int m_itemIdx;              // +0x00（find_item 目标）
         unsigned short m_addInfo;   // +0x04（set_add_info）
     };

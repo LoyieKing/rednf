@@ -50,6 +50,20 @@ struct InvenRandBlobV
 #pragma pack(pop)
 static_assert(sizeof(InvenRandBlobV) == 0xe, "InvenRandBlobV == RandomOption size");
 
+// Inven_Item 尾部视图（+0x25 起 = RandomOption）：直接 cast item 指针访问 ⇒
+// 4.4 折 disp 0x25（取址 `&item.m_random.m_random` 会多发 add $0x25，P183）。
+#pragma pack(push, 1)
+struct InvenItemRandTailV
+{
+    char m_pad[0x25];
+    int m_w0;              // +0x25
+    int m_w4;              // +0x29
+    int m_w8;              // +0x2d
+    unsigned short m_wc;   // +0x31
+};
+#pragma pack(pop)
+static_assert(offsetof(InvenItemRandTailV, m_w0) == 0x25, "rand tail w0 drift");
+
 #pragma pack(push, 1)
 struct MailBoxListV
 {
@@ -210,7 +224,7 @@ struct MailBoxSendNewMailAvatarV
     char m_senderName[0x1d];         // +0x04
     char m_pad21[0x24 - 0x21];
     int m_nCharacNo;                 // +0x24
-    unsigned int m_senderCharacNo;   // +0x28
+    int m_senderCharacNo;            // +0x28（P211 档③：与 unsigned getCurCharacNo 异型）
     SIG_AVATAR_INSERT m_avatar;      // +0x2c
     char m_pad7f[0xa0 - 0x2c - 0x53];
     unsigned short m_titleLen;       // +0xa0
@@ -235,7 +249,7 @@ struct MailBoxSendNewMailCreatureV
     char m_senderName[0x1d];         // +0x04
     char m_pad21[0x24 - 0x21];
     int m_nCharacNo;                 // +0x24
-    unsigned int m_senderCharacNo;   // +0x28
+    int m_senderCharacNo;            // +0x28（P211 档③：与 unsigned getCurCharacNo 异型）
     char m_pad2c[4];                 // +0x2c..+0x30
     // ORIG 0x0855651e `lea 0x30(%eax),%edx; call _ZN21Inven_Item_Compatible7setCopyERK10Inven_Item`
     // ⇒ +0x30 槽按 Inven_Item_Compatible 布局转写（sizeof 0x28 → 紧接 +0x58 seed）。
@@ -415,22 +429,27 @@ bool IsTradeLimitAttachTypeItemByUser(CUser& user, int space, int slot)
 // 数组基址 + 元素内 disp（ORIG 0x8552561 `add $0x50; mov 0xc(%eax)` 拆段）。
 // 返回类型 unsigned char（ORIG 尾 `movzbl (%eax),%eax` 单段直返，P9）。
 // [b28d-L8] N18b/N4 | ORIG 两段 mov 0xc(%eax),%edx + cmp %eax,%edx；4.4 折单段 cmp mem（负例表 N18b）；装载序互换 P211 族（ORIG 0x08557e6x）
-// [b28d-solo-CMailBoxHelper] DIFF/N4·P30 封顶：imul+lea vs add 链 + info/i 装载序 +
-// cmp 折单段；成员数组 / 指针算术 / 基址拆分三形实测。
+// [b28d-solo-CMailBoxHelper] N 封顶（N7+N102+N18b 组合，ORIG 0x0855254c）：
+// 已修 = 子对象嵌套视图 + `0x61*i + info` 基址序（i 先求值，lea 形与 ORIG 全等）。
+// 残余三族实测不可翻：①装载序两条 mov 互换（ORIG i-first/4.4 info-first，N7/P75）；
+// ②ORIG 两级 `add $0x50,%eax; mov 0xc(%eax)` 被 4.4 恒折 `mov 0x5c(%eax)`
+//   （成员访问/取子对象地址/指针算术三形实测，N102/N4）；
+// ③ORIG 比较两段 `mov mem,%edx; mov arg,%eax; cmp %eax,%edx` 被 4.4 折
+//   `cmp mem,%eax` 单段（N18b，交换操作数无效）。31→28 insn。
 unsigned char isUnlimitMail(SIG_MAILBOX_LIST const* info, int letterId)
 {
     #pragma pack(push, 1)
+    struct PostalSub
+    {
+        unsigned char m_pad[0xb];
+        unsigned char m_unlimit;               // 子对象 +0x0b（全局 +0x5b）
+        int m_letterId;                        // 子对象 +0x0c（全局 +0x5c）
+    };
     struct PostalEntry
     {
-        unsigned char m_pad[0xc];
-        int m_letterId;                        // +0x5c
-        unsigned char m_tail[0x61 - 0x10];
-    };
-    struct PostalEntryU
-    {
-        unsigned char m_pad[0x5b];
-        unsigned char m_unlimit;               // +0x5b
-        unsigned char m_tail[0x61 - 0x5c];
+        unsigned char m_head[0x50];
+        PostalSub m_sub;                       // +0x50
+        unsigned char m_tail[0x61 - 0x60];
     };
     struct CountView
     {
@@ -438,16 +457,15 @@ unsigned char isUnlimitMail(SIG_MAILBOX_LIST const* info, int letterId)
         int m_count;
     };
     #pragma pack(pop)
-    // P0/P183：条目基址写 `i*0x61 + info + 0x50`（i 先求值，ORIG
+    // P0/P183：条目基址写 `i*0x61 + info`（i 先求值，ORIG
     // 0x08552561 `mov -0x4(%ebp),%eax; mov 0x8(%ebp),%edx; imul; lea`）；
     // 成员数组形 `((ListView*)info)->m_postals[i]` 会被 4.4 折成 info 先载。
     for (int i = 0; i < reinterpret_cast<CountView const*>(info)->m_count; ++i)
     {
-        if (reinterpret_cast<PostalEntry const*>(
-                (i * 0x61 + 0x50) + reinterpret_cast<char const*>(info))->m_letterId
-            == letterId)
-            return reinterpret_cast<PostalEntryU const*>(
-                i * 0x61 + reinterpret_cast<char const*>(info))->m_unlimit;
+        if (letterId == reinterpret_cast<PostalEntry const*>(
+                0x61 * i + reinterpret_cast<char const*>(info))->m_sub.m_letterId)
+            return reinterpret_cast<PostalEntry const*>(
+                0x61 * i + reinterpret_cast<char const*>(info))->m_sub.m_unlimit;
     }
     return 0;
 }
@@ -535,8 +553,9 @@ bool CMailBoxHelper::IsCeraPointItem(unsigned long itemIdx)
 
 // ---- 用户侧取件 ----
 // [b28d-L8] N82 | 帧差 + 槽平移（ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] DIFF/槽帧：p167 CLEAR 56/56；end 缓存 +
-// const_iterator 转换 + makeRequest 重取已修，残余 = 槽/帧平移。
+// [b28d-solo-CMailBoxHelper] N 封顶（N82/P112，p167 CLEAR 56/56，324 vs 320）：
+// end 缓存 + const_iterator 转换 + makeRequest 重取已修；残余 = 帧 0x8c vs 0x9c
+// 与全帧槽平移 8（box -0x20→-0x28、items -0x34→-0x3c、err -0x38→-0x40 等）。
 void CMailBoxHelper::GetPackege(CUser* user, unsigned int mailIndex)
 {
     // ORIG 0x085549de
@@ -639,8 +658,12 @@ void CMailBoxHelper::ReqDBLoadMail(CUser* user, unsigned int mailIndex)
 }
 
 // [b28d-L8] P30/N4 | ORIG 数组两步寻址 add 0xc(%ebp)+scaled store；4.4 折 lea(%eax,%edx,1) 型（N4/P30 封顶，ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] DIFF/N81 封顶：循环 dst scaled 直存
-// `mov %ecx,(%eax,%edx,4)` vs 4.4 lea+mov（P30/N4 族，三形实测）。
+// [b28d-solo-CMailBoxHelper] 修法（N81 翻案，P311/P288）：具名数组成员视图
+// `struct DelMailArrV { unsigned int m_arr[0x15]; }` 使 4.4 生 ORIG scaled 直存
+// `mov %ecx,(%eax,%edx,4)`（裸指针下标恒折 shl+lea）。残余 = N76 装载时刻：
+// ORIG RHS 先算（`mov -0xc,%eax; shl; add mailIdx; mov (%eax),%ecx` 后才载 v），
+// 4.4 恒先载 LHS 基址 v 到 %eax；元素 unsigned/int 两档 + `*(mailIdx+i)` 三形
+// 实测均 LHS-first（90=90 insn，仅 4 条顺序差）。
 void CMailBoxHelper::ReqDBRemoveMail(CUser const* user, unsigned int* mailIdx, bool a)
 {
     // ORIG 0x08556772
@@ -655,16 +678,27 @@ void CMailBoxHelper::ReqDBRemoveMail(CUser const* user, unsigned int* mailIdx, b
     // `mov %ecx,(%eax,%edx,4)` 且 RHS 值先物化 ecx；4.4 恒 LHS 地址先（N76）+
     // shl/lea 折单步（N81 探针复测：dst[i]=src[i]、*(dst+i)、char*+i*4 三形
     // 均产 mov %edx,(%eax)，scaled 不可造）。其余 88 行全等（含 EH 段）。
+    // P311/P288：具名数组成员视图（元素首 = 消息首，m_arr[i] 覆盖 v+4i）⇒
+    // 4.4 生 ORIG 的 scaled 直存 `mov %ecx,(%eax,%edx,4)`；裸指针下标
+    // `((unsigned int*)v)[i]` 恒折 shl+lea（N81）。
+    struct DelMailArrV { unsigned int m_arr[0x15]; };
     for (unsigned int i = 1; i <= mailIdx[0]; ++i)
-        reinterpret_cast<unsigned int*>(v)[i] = mailIdx[i];
+        reinterpret_cast<DelMailArrV*>(v)->m_arr[i] = *(mailIdx + i);
     v->m_type = a ? 2u : 1u;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 // [b28d-L8] N82/P1974 | 槽平移 4 + sete 物化不可复现（P197④ 槽比零产物，ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] DIFF/N7+N：InsertTimer 段 GetLoginTick/GetUID
-// callee-saved 角色互换（N7 4.4.7 恒 %eax）；isUnlimit 取反物化两形实测
-// （if(!f()) sete+test+je / continue test+setne+test+jne，取前者）。
+// [b28d-solo-CMailBoxHelper] N 封顶（P292 跨版本 bool 物化 + N82 槽平移，
+// ORIG 0x085523e2）：①isUnlimit 返回 uchar（P9 直返），ORIG 条件仅
+// `test %al,%al; jne <skip>` 两条；4.4 恒物化——`if(!f())` 产
+// `test; sete; test; je`、`if(f()) continue` 形 110 vs 108 反劣，两形均不可
+// 复现。②深区槽 ORIG 多一枚 -0x3c（比较 this）⇒ it/-0x38、minPeriod/-0x34、
+// endIt/-0x30、period/-0x2c；我方整体浅 4（it/-0x34、minPeriod/-0x30、
+// endIt/-0x2c、period/-0x3c），属 N82/P112 槽分配族。
+// ③InsertTimer 段 ORIG 用 %edi/%esi/%ebx 三 callee-saved 装载
+// （GetLoginTick/GetUID/GetCurCharacNo），4.4 角色互换（N7 族，本 TU 路由
+// 4.4.6 仍不翻）。
 void CMailBoxHelper::SetPeriodCheckTimer(CUser* user)
 {
     // ORIG 0x085523e2
@@ -684,6 +718,10 @@ void CMailBoxHelper::SetPeriodCheckTimer(CUser* user)
         // [b28d-solo-CMailBoxHelper] N：ORIG `call isUnlimit; test %al; jne`
         // 直判跳走（3 条）；4.4 两形实测——`if(!f())` 产 sete+test+je（+1）、
         // continue 形产 test+setne+test+jne（+2），取原形。
+        // [b28d-solo-CMailBoxHelper] N 封顶（P292 跨版本 bool 物化，ORIG 0x08552486）：
+        // isUnlimit 返回 uchar（P9 直返），ORIG 条件仅 `test %al,%al; jne <skip>`
+        // 两条；4.4 恒物化——`if(!f())` 产 `test; sete; test; je`、
+        // `if(f()) continue` 形产 +2 条（实测 110 vs 108），两形均不可复现。
         if (!it->second->isUnlimit())
         {
             long period = it->second->GetPeriod();
@@ -699,8 +737,10 @@ void CMailBoxHelper::SetPeriodCheckTimer(CUser* user)
 }
 
 // [b28d-L8] N82 | 块序（jmp 岛）+ xor 物化差（ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] DIFF/槽帧：p167 CLEAR 26/26；残余 = removed[21]
-// 数组槽 + 迭代器槽序 + 帧平移。
+// [b28d-solo-CMailBoxHelper] N 封顶（p167 CLEAR 26/26，189 vs 188）：
+// ①isUnlimit 条件 ORIG `xor $1; je`（bool 物化）vs 4.4 `test; jne` 直判；
+// ②kc 段 ORIG `mov 0x80(%eax),%eax; lea 0x1(%eax),%edx` vs 4.4 用 %ebx（N7）；
+// ③removed[21] 数组槽 + 迭代器槽序 + 帧平移（N82/P112）。
 unsigned int CMailBoxHelper::CheckMailTimeout(CUser* user, PacketGuard* packet)
 {
     // ORIG 0x08554e90
@@ -805,8 +845,8 @@ void CMailBoxHelper::MakeMailBoxListPacket(CUser* user, PacketGuard* packet)
 //  P75/P52——avatar/creature 段 ORIG 先物化 3 int 至 edi/esi/ebx 再调 getter，
 //        4.4.7 先求值链式对象表达式，装载时刻跨版本调度差异。
 // [b28d-L8] N82 | 全帧槽平移（-0x2e4 vs -0x2e0，ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] DIFF/N82：超大件三件套——p167 CLEAR 125/125 +
-// 明细段 strlen 复用同一局部已修；残余 = 全帧槽平移（跨版本槽基差）。
+// [b28d-solo-CMailBoxHelper] N 封顶（§6.2 三件套，p167 CLEAR 125/125，1086 vs 1100）：
+// 明细段 strlen 复用同一局部已修；残余 = 全帧槽平移（跨版本槽基差，N82/P112）。
 int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
 {
     // ORIG 0x085525a6：DB 邮箱列表落地 → 增量/全量 0x61 列表包 + 信件明细。
@@ -1065,8 +1105,9 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
 
 // ---- 取件内部实现 ----
 // [b28d-L8] N82 | 帧差 0x110 vs 0xa0 + 块序（ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] DIFF/槽帧：p167 CLEAR 29/29；三次 GetPackageItem
-// 去缓存 + make_pair<ENUM_ITEMSPACE,INVEN_SLOT> 已修，残余 = 引用槽/帧差。
+// [b28d-solo-CMailBoxHelper] N 封顶（§6.2，p167 CLEAR 29/29，243 vs 242）：
+// 三次 GetPackageItem 去缓存 + make_pair<ENUM_ITEMSPACE,INVEN_SLOT> 已修；
+// 残余 = 引用槽/帧差（N82/P112）。
 bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
                                    std::vector<std::pair<int, int> >& items,
                                    bool bReset, ENUM_ERROR& err)
@@ -1144,9 +1185,14 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
     return _DoGetPackageItem(user, mail, items, bReset, err);
 }
 
-// [b28d-solo-CMailBoxHelper] 修法：三枚具名 int 局部（ORIG 每点重取
-// getCurCharacInvenW()，无 invW 缓存）+ switch(m_fieldb) 无槽寄存器比较链 +
-// hist 不具名（ORIG 每点 `mov 0x8(%ebp),%edx; add $0x79700`）。
+// [b28d-solo-CMailBoxHelper] 修法（DIFF 132→NEAR，156=156 insn）：
+// ①`Inven_Item const& pkg` → 按值 `Inven_Item pkg`（ORIG 0x085536fa
+// `lea -0x69(%ebp); call 拷贝构造`；引用局部多一枚指针槽 + 每处解引用，-9 条）；
+// ②删 SetEventCoin/SetPayCoin/SetCoin 三处冗余 `(int)` cast（P41，-6 条）；
+// ③switch case 书写序改 0,1,2（P46 叶块序 = case 序；ORIG 决策链
+// `cmp $1;je;cmp $2;je;test;jne default` 且 case0 fall-through，-1 条）。
+// 残余 N：make_pair 两立即数物化槽序互换（ORIG `movl $1,-0x1c; movl $0,-0x18`
+// = 4.1 左→右求值；4.4 右→左 ⇒ `movl $0,-0x1c; movl $1,-0x18`，P18 族）。
 bool CMailBoxHelper::_DoGetPackageCoin(CUser* user, CMailBox::CMail const* mail,
                                        std::vector<std::pair<int, int> >& items,
                                        bool bReset, ENUM_ERROR& err)
@@ -1163,32 +1209,34 @@ bool CMailBoxHelper::_DoGetPackageCoin(CUser* user, CMailBox::CMail const* mail,
     if (bReset)
         return true;
 
-    Inven_Item const& pkg = mail->GetPackageItem();
+    // ORIG 0x085536fa：`lea -0x69(%ebp),%eax; call Inven_Item 拷贝构造` ⇒
+    // 按值局部（非引用；引用局部会多一枚指针槽 + 每处指针解引用）。
+    Inven_Item pkg = mail->GetPackageItem();
     // ORIG 决策链 cmp $1/cmp $2/test（无槽）⇒ switch；amount=pkg.m_addInfo2
     // （Inven_Item +0x07）、coinType=pkg.m_fieldb（+0x0b，ushort movzwl 两段）。
     // ORIG 历史日志第二参均为 getCurCharacInvenR()->GetEventCoin() 重取。
     switch (pkg.m_fieldb)
     {
+    case 0:
+        user->getCurCharacInvenW()->SetCoin(
+            user->getCurCharacInvenR()->GetCoin() + pkg.m_addInfo2);
+        user->m_historyLog.CoinAdd(
+            (int)user->getCurCharacInvenR()->GetEventCoin(), pkg.m_addInfo2,
+            (eCoinAddReason)0);
+        break;
     case 1:
         user->getCurCharacInvenW()->SetEventCoin(
-            (int)user->getCurCharacInvenR()->GetEventCoin() + pkg.m_addInfo2);
+            user->getCurCharacInvenR()->GetEventCoin() + pkg.m_addInfo2);
         user->m_historyLog.EventCoinAdd(
             (int)user->getCurCharacInvenR()->GetEventCoin(), pkg.m_addInfo2,
             (eCoinAddReason)2);
         break;
     case 2:
         user->getCurCharacInvenW()->SetPayCoin(
-            (int)user->getCurCharacInvenR()->GetPayCoin() + pkg.m_addInfo2);
+            user->getCurCharacInvenR()->GetPayCoin() + pkg.m_addInfo2);
         user->m_historyLog.PayCoinAdd(
             (int)user->getCurCharacInvenR()->GetEventCoin(), pkg.m_addInfo2,
             (eCoinAddReason)3);
-        break;
-    case 0:
-        user->getCurCharacInvenW()->SetCoin(
-            (int)user->getCurCharacInvenR()->GetCoin() + pkg.m_addInfo2);
-        user->m_historyLog.CoinAdd(
-            (int)user->getCurCharacInvenR()->GetEventCoin(), pkg.m_addInfo2,
-            (eCoinAddReason)0);
         break;
     }
 
@@ -1198,23 +1246,29 @@ bool CMailBoxHelper::_DoGetPackageCoin(CUser* user, CMailBox::CMail const* mail,
 }
 
 // [b28d-L8] N82 | 超大函数帧差 0xca30 vs 0xca60 + 结构槽序（ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] DIFF/N82：超大件三件套——p167 CLEAR 63/63 +
-// 双分支（bReset/else 各一套 IsSpecialItem 检查）重构 + const_iterator/
-// make_pair 类型已修；残余 = sret/迭代器槽序与帧（523 vs 565）。
+// [b28d-solo-CMailBoxHelper] 修法 + N 封顶（§6.2，p167 CLEAR 63/63）：
+// ①`Inven_Item const& pkgRef` + 二次拷贝 → 直接初始化
+//   `Inven_Item pkg = mail->GetPackageItem()`（ORIG 0x08553936 单次拷贝构造；
+//   旧形多指针槽 + 4.4 逐字段展开，565→530）；
+// ②删 `int itemIdx` 具名局部改内联 pkg.m_addInfo（P0：ORIG 每处直读
+//   -0xd7(%ebp)；保留具名版 530、内联版 533，取 P0 合规形）。
+// 残余 = sret/迭代器槽序与帧平移（N82/P112，523 vs 533）。
 bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
                                        std::vector<std::pair<int, int> >& items,
                                        bool bReset, ENUM_ERROR& err)
 {
     // ORIG 0x08553936
-    Inven_Item const& pkgRef = mail->GetPackageItem();
-    Inven_Item pkg(pkgRef); // 按值副本（ORIG 栈拷贝语义）
-    int itemIdx = pkg.m_addInfo;
-
-    if (0x28d287 < (unsigned int)itemIdx && (unsigned int)itemIdx < 0x28d29a)
-        return user->DoGetGoldItem(itemIdx, items, bReset, err);
-    if (IsCeraPointItem((unsigned long)itemIdx))
+    // ORIG 0x08553936：`lea -0xd9(%ebp),%eax; call Inven_Item 拷贝构造` ⇒
+    // 直接初始化（引用局部 + 二次拷贝会多一枚指针槽并触发 4.4 逐字段展开）。
+    Inven_Item pkg = mail->GetPackageItem();
+    // P0：ORIG 无 itemIdx 具名局部（每处直读 `mov -0xd7(%ebp),%eax`）⇒
+    // 全部内联为 pkg.m_addInfo。
+    if (0x28d287 < (unsigned int)pkg.m_addInfo &&
+        (unsigned int)pkg.m_addInfo < 0x28d29a)
+        return user->DoGetGoldItem(pkg.m_addInfo, items, bReset, err);
+    if (IsCeraPointItem((unsigned long)pkg.m_addInfo))
         return user->DoGetCeraPointItem(mail->GetPackageMoney(), bReset, err,
-                                        (unsigned long)itemIdx);
+                                        (unsigned long)pkg.m_addInfo);
 
     WongWork::CCeraShop* shop = GlobalData::s_pCeraShop;
     // ORIG 0x08553936：bReset 与 !bReset 两分支各自一套
@@ -1225,9 +1279,9 @@ bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
         int specialA = 0;
         int specialB = 0;
         bool specialFlag = false;
-        if (shop->IsSpecialItem(itemIdx, specialA, specialB, specialFlag) &&
+        if (shop->IsSpecialItem(pkg.m_addInfo, specialA, specialB, specialFlag) &&
             _isUnusableSpecialItemInVillage(
-                G_CDataManager()->find_item(itemIdx)))
+                G_CDataManager()->find_item(pkg.m_addInfo)))
         {
             if (specialA == 1)
             {
@@ -1241,7 +1295,7 @@ bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
             {
                 // 背包镜像预演 event items 插入
                 std::vector<std::pair<int, int> > evItems;
-                CItem* proto = G_CDataManager()->find_item(itemIdx);
+                CItem* proto = G_CDataManager()->find_item(pkg.m_addInfo);
                 // P96/P270：ORIG 用 const 版 begin/end + const_iterator
                 // （_ZNKSt6vectorI22STStackablePackageDataSaIS0_EE5beginEv）。
                 const std::vector<STStackablePackageData>& vec =
@@ -1274,15 +1328,17 @@ bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
     int specialA = 0;
     int specialB = 0;
     bool specialFlag = false;
-    if (shop->IsSpecialItem(itemIdx, specialA, specialB, specialFlag) &&
-        _isUnusableSpecialItemInVillage(G_CDataManager()->find_item(itemIdx)))
+    if (shop->IsSpecialItem(pkg.m_addInfo, specialA, specialB, specialFlag) &&
+        _isUnusableSpecialItemInVillage(
+            G_CDataManager()->find_item(pkg.m_addInfo)))
     {
-        int restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(itemIdx);
+        int restrictCode =
+            G_CDataManager()->m_itemList->GetRestrictCode(pkg.m_addInfo);
         long curSec = GlobalData::s_systemTime_.getCurSec();
         std::vector<Inven_Item> outItems;
         CCeraShop::stCeraShopItemParam_t param;
         int outCnt = 0;
-        if (shop->ProcessSpecialItem(user, itemIdx, 0, restrictCode, curSec, true,
+        if (shop->ProcessSpecialItem(user, pkg.m_addInfo, 0, restrictCode, curSec, true,
                                      outItems, param, '\0', '\0', false, 1))
         {
             if (outCnt != 0)
@@ -1293,7 +1349,7 @@ bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
                 shop->SaveFeaturedIdx(user, restrictCode, (int)curSec, 0);
                 user->SendRestrictedGoods(true, restrictCode);
             }
-            if (itemIdx == 0xc1 &&
+            if (pkg.m_addInfo == 0xc1 &&
                 !shop->ProcessSpecialItem(user, 0x10, 0xc352, restrictCode, curSec,
                                           true, outItems, param, '\0', '\0', false, 1))
             {
@@ -1317,8 +1373,10 @@ bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
 }
 
 // [b28d-L8] N82 | 块序/负值分支布局差 + 帧槽平移（ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] DIFF/P197④：槽值 `(slot>>31)!=0` 被 4.4 折
-// test/jns（P225 while 形实测同折）；残余 = 帧/槽平移 4（p167 CLEAR 20/20）。
+// [b28d-solo-CMailBoxHelper] N 封顶（N18a/P197④，ORIG 0x0855419c）：唯一实质差 =
+// slot 判负。ORIG `mov -0xc(%ebp),%eax; shr $0x1f,%eax; test %al,%al; je`
+// （4 条），4.4 折 `cmpl $0x0,-0xc(%ebp); jns`（2 条）；`(unsigned int)slot>>31`
+// 变体实测同折。call 结果直判段（bReset 分支 +0x112）两侧全等。195 vs 193 insn。
 bool CMailBoxHelper::_DoGetPackageAvatar(CUser* user, CMailBox::CMail const* mail,
                                          std::vector<std::pair<int, int> >& items,
                                          bool bReset, ENUM_ERROR& err)
@@ -1371,15 +1429,18 @@ bool CMailBoxHelper::_DoGetPackageAvatar(CUser* user, CMailBox::CMail const* mai
 }
 
 // [b28d-L8] N82 | 帧差 0x10（sub 0xc4 vs 0xb4）+ 全帧槽平移（ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] DIFF：p167 CLEAR 20/20；残余 = pkg sret 槽差 4
-// （ORIG -0x61 vs -0x5d）+ slot 判负折 jns（P197④）+ 槽平移。
+// [b28d-solo-CMailBoxHelper] 修法：①补 dead 局部 `int deadSlot=0`（ORIG
+// 0x08554486 +0x04a 无条件 `movl $0x0,-0xc(%ebp)` 且此后不读，P171 照抄）；
+// ②改 if/else + 单一 `return true`（P214② 共享尾块，ORIG `je +0x1c9` 直跳
+// 尾部 mov $1）；③声明/初始化分离使 slot 的 0 初始化落 else 开头
+// （ORIG +0x08f）。残余 = N18a/P197④：ORIG 槽值判负 `mov -0x24,%eax;
+// shr $0x1f,%eax; test %al,%al; je`，4.4 恒折 `test %eax,%eax; jns`
+// （`(unsigned int)slot>>31` 变体实测同折）。125 vs 124 insn。
 bool CMailBoxHelper::_DoGetPackageCreature(CUser* user, CMailBox::CMail const* mail,
                                            std::vector<std::pair<int, int> >& items,
                                            bool bReset, ENUM_ERROR& err)
 {
     // ORIG 0x0855447c
-    int framePad;      // P31/P232：ORIG 帧深 4（sub 0xc4 vs 0xc0），dead 局部补差
-    (void)framePad;
     Inven_Item pkg(mail->GetPackageItem());
     if (!mail->isCreaturePackage())
     {
@@ -1387,9 +1448,11 @@ bool CMailBoxHelper::_DoGetPackageCreature(CUser* user, CMailBox::CMail const* m
         return false;
     }
 
-    // ORIG 0x0855447c：`movl $0x0,-0xc(%ebp)` 在 bReset 判断之前（slot 声明
-    // 前置到 isCreaturePackage 之后）。
-    int slot = 0;
+    // ORIG 0x0855447c +0x04a：`movl $0x0,-0xc(%ebp)` 无条件执行（bReset
+    // 判断之前）且此后从不被读 ⇒ 原码 dead 具名局部（P171 照抄）。
+    int deadSlot = 0;
+    (void)deadSlot;
+    int slot;
     if (bReset)
     {
         if (user->getCurCharacInvenR()->tryInsertItemIntoCreature(pkg) < 0)
@@ -1397,19 +1460,24 @@ bool CMailBoxHelper::_DoGetPackageCreature(CUser* user, CMailBox::CMail const* m
             err = (ENUM_ERROR)4;
             return false;
         }
-        return true;
     }
-
-    slot = user->getCurCharacInvenW()->insertItemIntoInventory(
-        pkg, (eItemAddReason)0x15, true, true);
-    // P197④：ORIG 槽值 `mov -N,%eax; shr $0x1f; test %al; je`（4.4 对
-    // `slot < 0` 折 test/jns）⇒ 保留 (slot>>31)!=0 形。
-    if ((slot >> 31) != 0)
-        return false;
-    user->getCurCharacInvenW()->GetCreatureMgrW()->RecvMail(
-        (Inven_Item*)&pkg, slot, 0x15);
-    if (pkg.m_field1 != 5)
-        items.push_back(std::make_pair((ENUM_ITEMSPACE)7, slot));
+    else
+    {
+        // ORIG 0x0855450b：`movl $0x0,-0x24(%ebp)` 在 bReset 假跳落点（else 开头）
+        // ⇒ 原码声明/初始化分离（4.4 对合并式会把 init 提到分支之前）。
+        slot = 0;
+        slot = user->getCurCharacInvenW()->insertItemIntoInventory(
+            pkg, (eItemAddReason)0x15, true, true);
+        // P197④：ORIG 槽值 `mov -N,%eax; shr $0x1f; test %al; je`（4.4 对
+        // `slot < 0` 折 test/jns）⇒ 保留 (slot>>31)!=0 形。
+        if ((slot >> 31) != 0)
+            return false;
+        user->getCurCharacInvenW()->GetCreatureMgrW()->RecvMail(
+            (Inven_Item*)&pkg, slot, 0x15);
+        if (pkg.m_field1 != 5)
+            items.push_back(std::make_pair((ENUM_ITEMSPACE)7, slot));
+    }
+    // P214②：bReset 成功路径与主流程共享尾块 return true（ORIG je 到尾部 mov $1）。
     return true;
 }
 
@@ -1449,8 +1517,16 @@ StaticPool<CMailBox, 600> CMailBoxHelper::g_MailBoxPool; // ORIG B 0x0943e000
 
 // ---- 发信 ----
 // [b28d-L8] P75/N82 | 帧差 0x28 vs 0x30 + 实参装载序（strncpy/memcpy 参数，ORIG 0x08555756）
-// [b28d-solo-CMailBoxHelper] DIFF/帧差：p167 CLEAR 8/8；残余 = 帧 0x28 vs 0x30 +
-// 实参装载序（P75 跨版本）。
+// [b28d-solo-CMailBoxHelper] 修法（DIFF 153→14 行，156→145 insn）：
+// ①删 `InvenRandBlobV const&` 引用局部（多指针槽 + 每处解引用）改
+//   `InvenItemRandTailV`（0x25 进 pad）直接 cast item 指针 ⇒ disp 折叠
+//   （P183/P311）；
+// ②m_isCreature 直存（ORIG `mov %al,0x58`）、m_isAvatarSend 写 bool 表达式
+//   （ORIG `sete %dl; mov %dl,0x56`），删两处三元 ?1:0（-8 条）。
+// 残余 N：4.1 跨语句寄存器缓存（ORIG item 指针载一次 %edx 连续读
+// +0x25/+0x29/+0x2d/+0x31、msg 载一次 %eax 连续写；4.4 每句重载，
+// N7/P75/P183 族）+ m_upgradeSep 段 msg 地址跨 call 装 %ebx
+// （ORIG call 后 `mov 0x8(%ebp),%edx`，N76/P211 档②实测不翻）。
 void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
                                        const char* pSender, int nSenderCharacNo,
                                        Inven_Item const& item, unsigned int nDestCharacNo,
@@ -1478,18 +1554,17 @@ void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
     MAIL_MSG->m_field1d = MAIL_IT->m_amp.m_guid.m_sequenceNo;
     MAIL_IT->m_amp.getValues(MAIL_MSG->m_ampType, MAIL_MSG->m_ampIdx);
     // RandomOption（&item.m_random.m_random = item+0x25）整块序列化读出，
-    // ORIG 逐条 int/int/int/word 视图。
-    {
-        InvenRandBlobV const& randBlob =
-            *reinterpret_cast<InvenRandBlobV const*>(&MAIL_IT->m_random.m_random);
-        MAIL_MSG->m_field25 = randBlob.m_w0;
-        MAIL_MSG->m_field29 = randBlob.m_w4;
-        MAIL_MSG->m_field2d = randBlob.m_w8;
-        MAIL_MSG->m_field31 = randBlob.m_wc;
-    }
+    // ORIG 逐条 int/int/int/word 视图，且每字段重发基址（P183/P157：引用
+    // 局部会多一枚指针槽 + 每处 `mov slot,%edx; mov (%edx)` 解引用）。
+    MAIL_MSG->m_field25 = reinterpret_cast<InvenItemRandTailV const*>(MAIL_IT)->m_w0;
+    MAIL_MSG->m_field29 = reinterpret_cast<InvenItemRandTailV const*>(MAIL_IT)->m_w4;
+    MAIL_MSG->m_field2d = reinterpret_cast<InvenItemRandTailV const*>(MAIL_IT)->m_w8;
+    MAIL_MSG->m_field31 = reinterpret_cast<InvenItemRandTailV const*>(MAIL_IT)->m_wc;
     MAIL_MSG->m_upgradeSep = MAIL_IT->m_upgradeSep.GetUpgradeSeparate();
-    MAIL_MSG->m_isCreature = MAIL_IT->IsCreatureItemType() ? 1 : 0;
-    MAIL_MSG->m_isAvatarSend = (MAIL_IT->m_field1 == 8) ? 1 : 0;
+    // ORIG 0x085558xx：m_isCreature 直存（`mov %al,0x58`）、m_isAvatarSend
+    // 为 bool 表达式（`sete %dl; mov %dl,0x56`）——三元 ?1:0 会多出 test/je 物化。
+    MAIL_MSG->m_isCreature = MAIL_IT->IsCreatureItemType();
+    MAIL_MSG->m_isAvatarSend = (MAIL_IT->m_field1 == 8);
 
     MAIL_MSG->m_titleLen = 0;
     std::memset(MAIL_MSG->m_title, 0, 0x100);
@@ -1510,7 +1585,8 @@ void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
 
 // [b28d-L8] N76 | store 装载序 4.1 RHS-first vs 4.4 LHS-first；P248 档①(int cast)/档③(字段 int/unsigned) 实测无效（ORIG 0x08555a9x call GetServerGroup 后载 msg）
 // [b28d-solo-CMailBoxHelper] DIFF/N76 封顶：msg 地址跨 call 先载 %ebx；字段
-// unsigned/int/ENUM_SERVER_GROUP 三形 + P248 档① 实测均 LHS-first（ORIG RHS-first）。
+// unsigned/int/ENUM_SERVER_GROUP 三形 + P248 档① 实测均 LHS-first（ORIG RHS-first）；
+// P226 语句表达式包 RHS 反劣（多 lea 0x15f(%eax),%ebx，118→119）。
 int CMailBoxHelper::_DoSendNewMail(CUser* user, Inven_Item const& item,
                                    unsigned int nDestCharacNo, unsigned int nAmount,
                                    bool bA, const char* pTitle, int nTitleLen,
@@ -1550,7 +1626,8 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, Inven_Item const& item,
 }
 
 // [b28d-L8] N82 | 帧差 0x120 vs 0x110 + 槽平移（ORIG 0x08555cxx）
-// [b28d-solo-CMailBoxHelper] DIFF/N82：p167 CLEAR 38/38；残余 = 帧槽平移。
+// [b28d-solo-CMailBoxHelper] N 封顶（§6.2，p167 CLEAR 38/38，454 vs 463）：
+// 残余 = 帧/槽平移（跨版本槽基差，N82/P112）。
 int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
                                      unsigned int nCharacNo, bool bA,
                                      unsigned int nB, int nC)
@@ -2038,16 +2115,22 @@ void SIG_AVATAR_INSERT::set(int a1, unsigned int a2, int a3, int expire, bool bS
 {
     // [b28d-L8] N82/P211 | 已去具名视图局部（P0/P183，ORIG 0x0850d3c8 每次
     // 重载 this）；残余 = store 装载序 ORIG 值先(this 后载) vs 4.4 this 先，
-    // [b28d-solo-CMailBoxHelper] DIFF/N76 封顶：store 装载序（值-first vs this-first）；
-    // P136 bool 直存 + 去冗余 cast 已修（46→42），残余装载序不可翻。
+    // [b28d-solo-CMailBoxHelper] N 封顶（N76+窄化 regmove 折，ORIG 0x0850d3c8）：
+    // ①m_field0 ← a1：ORIG RHS-first（`mov 0xc(%ebp),%edx; mov 0x8(%ebp),%eax`），
+    //   4.4 恒 LHS-first；字段 unsigned/int/enum 三档与 (unsigned)cast 实测均不变
+    //   （4 字节 signed↔unsigned 转换无指令 ⇒ 4.4 视同型，N76）。
+    // ②m_field8 ← a3(int)、m_field2c ← a8(ulong)：ORIG 保留窄化中转
+    //   `mov 0x14(%ebp),%eax; mov %eax,%edx; mov %dl,...`，4.4 恒折
+    //   `mov 0x14(%ebp),%edx; mov %dl,...`（显式 (unsigned char) cast 实测无效）。
+    // 其余 40 条全等（含 bSet/c 的截断 spill 槽 -0xc/-0x10）。44→42 insn。
     reinterpret_cast<AvatarInsertV*>(this)->m_field0 = a1;
     reinterpret_cast<AvatarInsertV*>(this)->m_field4 = a2;
-    reinterpret_cast<AvatarInsertV*>(this)->m_field8 = a3;
+    reinterpret_cast<AvatarInsertV*>(this)->m_field8 = (unsigned char)a3;
     reinterpret_cast<AvatarInsertV*>(this)->m_fielda = expire;
     reinterpret_cast<AvatarInsertV*>(this)->m_fielde = bSet;   // P136 bool 直存
     reinterpret_cast<AvatarInsertV*>(this)->m_field9 = c;   // +0x09 = c
     if (agency != 0)
         std::strncpy(reinterpret_cast<AvatarInsertV*>(this)->m_agency, agency, 0x18);
     reinterpret_cast<AvatarInsertV*>(this)->m_field28 = a7;
-    reinterpret_cast<AvatarInsertV*>(this)->m_field2c = a8;
+    reinterpret_cast<AvatarInsertV*>(this)->m_field2c = (unsigned char)a8;
 }

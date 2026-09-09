@@ -34,7 +34,7 @@ public:
     bool CreateEquip(unsigned int characNo, Inven_Item* item);      // T @0x084023ac
     bool CreateSkill(SIG_CREATE_CHARAC* sig);           // T @0x084024e6
     bool CreatePvP(unsigned int characNo);              // T @0x084026ec
-    int SendResult(int userIdx, int slot, SIG_CREATE_CHARAC* sig);  // T @0x084027b0
+    bool SendResult(int userIdx, int slot, SIG_CREATE_CHARAC* sig);  // T @0x084027b0
 
     // ---- 名称/限制检查与登记 ----
     bool _checkCharacName(MySQL* db, char const* dbTable,

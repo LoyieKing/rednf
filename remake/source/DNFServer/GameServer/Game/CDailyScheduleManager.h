@@ -13,19 +13,27 @@
 // GetScheduleState 0x81266e2 证据）：
 //   +0x00 int m_eventId（重复事件 id，传给 CEventManager::GetRepeatEvent）
 //   +0x04 int m_type（_DailyScheduleType）
-//   +0x08 int m_idx
+//   +0x08 unsigned int m_idx
 //   +0x0c int m_startSec / +0x10 int m_endSec（时间窗，秒）
-//   +0x14 int m_wday（7 = 每天）
+//   +0x14 unsigned int m_wday（7 = 每天）
 //   +0x18..0x1a byte 起始时/分/秒，+0x1b..0x1d byte 结束时/分/秒
 //   +0x20 int m_state（1 = 进行中；GetScheduleState ORIG 0x81266e2）
+enum _DailyScheduleEventIdEnum { _DSEI_NONE = 0 };
+
 struct _DailySchedule
 {
-    int m_eventId;              // +0x00
-    int m_type;                 // +0x04（_DailyScheduleType）
-    int m_idx;                  // +0x08
+    union {
+        int m_eventId;              // +0x00
+        _DailyScheduleEventIdEnum m_eventIdE;
+    };
+    union {
+        int m_type;                 // +0x04（_DailyScheduleType）
+        _DailyScheduleType m_typeE;
+    };
+    unsigned int m_idx;         // +0x08（P211 档③：与 idx 形参异型触发 ORIG 形）
     int m_startSec;             // +0x0c
     int m_endSec;               // +0x10
-    int m_wday;                 // +0x14（7 = 每天）
+    unsigned int m_wday;        // +0x14（7 = 每天）
     unsigned char m_startHour;  // +0x18
     unsigned char m_startMin;   // +0x19
     unsigned char m_startSec2;  // +0x1a

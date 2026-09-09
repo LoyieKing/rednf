@@ -4812,6 +4812,9 @@ CGM_Manager::~CGM_Manager()
 // b28c-l23 SIGFIX：返回类型 char→bool（ORIG __PRETTY_FUNCTION__ 串 + 体尾
 // `movzbl -0x11(%ebp),%ebx` 直返 bool 局部；char 声明使 4.4 出 movsbl）。
 // [b28d-18 N82] p167 CLEAR（17/17）；残差=槽位分配（ORIG -0x48/-0x4c vs 4.4 -0x18/-0x1c） | ORIG 0x08299530
+// [b28d-solo-GlobalData] NEAR 封顶 N82：p167 CLEAR（17/17）；残差=栈槽分配
+// （ORIG 深槽 -0x48/-0x4c vs 4.4 -0x18/-0x1c，4.4 按首次使用序 vs 4.1 声明序）
+// + 全局符号地址重定位显示伪差（`movl $<L>` vs `movl <L>`）。
 bool CGM_Manager::LoadGmListFromDb()
 {
     // [b23S3C] ORIG 0x08299530：ok 即返回变量（exec/get_int 逐次覆写），
@@ -5420,7 +5423,10 @@ int StackableAction::Action::proc_bingo(input_param& p)
 }
 // [b28d-18 NEAR] 修：getCurCharacFatigue 两次独立调用（P48 无 CSE，p167 MISSING 实证）；
 // 调用差集 CLEAR 8/8；余槽位/寄存器（N82） | ORIG 0x0827fbd6
-// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR；残差=N82/N7 槽位与寄存器角色。
+// [b28d-solo-GlobalData] NEAR 73=73（p167 8/8 CLEAR）：P0 具名 user 局部
+// （ORIG -0x10 三次复用）+ P183 去 costs 指针缓存（每次重发 item+0x3a0）后
+// 由 74 条收敛；余 1 处槽互换（ORIG lower -0x14 / max 常量临时 -0x1c vs
+// 4.4 -0x1c/-0x14，P212 头部声明/前置声明三形实测均反劣）⇒ N98 封顶。
 int StackableAction::Action::proc_addFatigue(input_param& p)
 {
     // ORIG 0x0827fbd6：user/item 判空→0x13；item+0x3a0 的 vector<int> 取第 0 项
@@ -5429,27 +5435,40 @@ int StackableAction::Action::proc_addFatigue(input_param& p)
     {
         return 0x13;
     }
+    // [b28d-solo-GlobalData] P0：ORIG 0x0827fbf0 `mov 0x8(%eax),%eax;
+    // mov %eax,-0x10(%ebp)` 在 m_item 判空前即写具名局部，后续三次调用
+    // （getCurCharacFatigue×2/setCurCharacFatigue/SendFatigue）全部
+    // `mov -0x10(%ebp),%eax` 复用该槽（无重读 p.m_user）。
+    CUser* user = p.m_user;
     if (p.m_item == 0)
     {
         return 0x13;
     }
-    // ORIG item+0x3a0 = CStackableItem::m_vec3a0（运行时 item 为 stackable）
-    std::vector<int>* costs = &static_cast<CStackableItem*>(p.m_item)->m_vec3a0;
-    if (costs->empty())
+    // ORIG item+0x3a0 = CStackableItem::m_vec3a0（运行时 item 为 stackable）。
+    // [b28d-solo-GlobalData] P183 去指针缓存：ORIG 0x0827fc0d/0x0827fc2e 每次
+    // 重发 `mov 0xc(%ebp),%eax; mov 0xc(%eax),%eax; add $0x3a0,%eax`，具名
+    // costs 局部会占 -0x10 槽并把后续 max 临时槽顶浅（-0x14 vs ORIG -0x1c）。
+    if (static_cast<CStackableItem*>(p.m_item)->m_vec3a0.empty())
     {
         return 4;
     }
-    int need = std::max(0, costs->at(0));
+    int need = std::max(
+        0, static_cast<CStackableItem*>(p.m_item)->m_vec3a0.at(0));
     // ORIG 0x0827fc6a/0x0827fc89：getCurCharacFatigue 两次独立调用
     // （O0 无 CSE，P48；原具名 cur 缓存少 1 次调用，p167 MISSING 实证）。
-    if ((int)(p.m_user->getCurCharacFatigue() & 0xffff) < need)
+    if ((int)(user->getCurCharacFatigue() & 0xffff) < need)
     {
         return 0x5f;
     }
-    int after = (p.m_user->getCurCharacFatigue() & 0xffff) - need;
+    // [b28d-solo-GlobalData] ORIG 0x0827fc97/0x0827fc9e：实参序
+    // `lea -0x14(lower),%eax; mov %eax,(%esp)`（第一实参 lower）⇒
+    // `std::max(lower, after)`。余 1 处槽互换（ORIG lower -0x14 / max 常量临时
+    // -0x1c；4.4 按首次使用分配恒相反，P212 头部声明/前置声明三形实测均反劣）
+    // ⇒ N98/N93 封顶。
+    int after = (int)(user->getCurCharacFatigue() & 0xffff) - need;
     int lower = 0;
-    p.m_user->setCurCharacFatigue(std::max(after, lower));
-    p.m_user->SendFatigue();
+    user->setCurCharacFatigue(std::max(lower, after));
+    user->SendFatigue();
     return 0;
 }
 int StackableAction::Action::proc_lotteryCount(input_param& p)
@@ -5667,61 +5686,56 @@ NPC_Teleport::NPC_Teleport()
 NPC_Teleport::~NPC_Teleport() {}
 
 // [b28d-18 N82] p167 CLEAR（11/11）；残差=槽位/寄存器分配 | ORIG 0x08283c5a
-// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR；残差=N82 槽位/分支布局。
+// [b28d-solo-GlobalData] 归零 AE 85=85（p167 11/11 CLEAR）：①各失败点 ORIG 为
+// `mov $imm,%eax; jmp end` 直接物化 ⇒ 源码全 `return X;` 早返（旧 result 变量
+// 汇聚形多 -0x1c 槽 + 4 条）；②pvp/expired 两处零槽短路物化用 P226 语句表达式
+// `if (({ A || B; }))`（具名 bool 落槽 -0x16/-0xd）；③remain 声明在 if 外、
+// 赋值在 if 体内（ORIG 0x08283cfb 在 isGMUser 之后）；④CUser.h is_equip_aura_avatar
+// 返回 char→int（Main 代落，消调用点 movsbl）。
 int Teleport::check_rule(CUser* user)
 {
     // ORIG 0x08283c5a：状态/渠道/vill/aura 冷却校验链（报告 Teleport/check_rule.md）。
+    // [b28d-solo-GlobalData] ①各失败点 ORIG 为 `mov $imm,%eax; jmp end` 直接
+    // 物化 ⇒ 源码全 `return X;` 早返（Ghidra 的 iVar3 汇聚是假象，旧 result
+    // 赋值形多 -0x1c 槽）；②pvp/expired 两处为 `mov $1/$0` 岛 + test 直测
+    // （零槽，P226 语句表达式）——具名 bool 会落槽 -0x16/-0xd 并顶浅后续槽。
     if (user == 0)
     {
         return 1;
     }
-    int result;
     if (user->get_state() != 3)
     {
-        result = 0x13;
+        return 0x13;
     }
-    else
+    if (({ G_GameWorld()->IsPVPChannel() ||
+           G_GameWorld()->IsPvPSkilTreeChannel(); }))
     {
-        bool pvpChannel = G_GameWorld()->IsPVPChannel() || G_GameWorld()->IsPvPSkilTreeChannel();
-        if (pvpChannel)
+        return 0x13;
+    }
+    if (user->getCurCharacVill() == 7)
+    {
+        return 0xbe;
+    }
+    // [b28d-solo-GlobalData] ORIG 0x08283cfb `movl $0,-0x14(%ebp)` 在
+    // isGMUser 检查之后（Ghidra C 亦为 if 体内 local_18 = 0）⇒ 声明在 if 外、
+    // 赋值在 if 体内（声明即初始化会提前到 0x08283ce9 之前 +1 条）。
+    int remain;
+    if (!user->isGMUser())
+    {
+        remain = 0;
+        int equipped = (int)user->is_equip_aura_avatar(2, remain);
+        if (equipped > 0)
         {
-            result = 0x13;
-        }
-        else
-        {
-            char vill = user->getCurCharacVill();
-            if (vill == 7)
-            {
-                result = 0xbe;
-            }
-            else
-            {
-                int remain = 0;
-                if (!user->isGMUser())
-                {
-                    int equipped =
-                        (int)user->is_equip_aura_avatar(2, remain);
-                    if (equipped > 0)
-                    {
-                        return equipped;
-                    }
-                }
-                int auraEnd = user->get_aura_avatar_option_value(2);
-                bool expired =
-                    (!user->isGMUser()) &&
-                    (auraEnd > GlobalData::s_systemTime_.getCurSec());
-                if (expired)
-                {
-                    result = 0x16;
-                }
-                else
-                {
-                    result = 0;
-                }
-            }
+            return equipped;
         }
     }
-    return result;
+    int auraEnd = user->get_aura_avatar_option_value(2);
+    if (({ (!user->isGMUser()) &&
+           (auraEnd > GlobalData::s_systemTime_.getCurSec()); }))
+    {
+        return 0x16;
+    }
+    return 0;
 }
 
 
@@ -5832,6 +5846,9 @@ void* random_option::GetRandomOption()
     return &G_CDataManager()->m_randomOption;
 }
 // [b28d-18 N7] 修：register seed 使 seed 先载（P231）；余纯寄存器名轮换（N7 封顶） | ORIG 0x085f0d64
+// [b28d-solo-GlobalData] NEAR 封顶 N7：p167 逐调用同形（imul/lea/seed 段一致）；
+// 残差=callee-saved 角色轮换（ORIG eax/edx/ecx vs 4.4 ebx/eax/edx，P230 定稿：
+// 4.4.7 分配固定，源形不可择）+ 首条 vptr 存的重定位显示伪差（`$&<L>` vs `<L>`）。
 random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
 {
     // ORIG 0x085f0d64：new[0x7f28] 13×CMTRand，逐元素 seed(time(0))；
@@ -7290,6 +7307,10 @@ EventRewardSection* GetRewardSection(int idx, register int type)
 
 // ---- GetRentItemInfo —— T 0x08271396（同名报告全文转写）--------------------
 // [b28d-18 NEAR] 修：委托 pc_room::GetRewardItemSelectionList(packageKey,type)（p167 MISSING）；CLEAR 9/9；余槽位 | ORIG 0x08271396
+// [b28d-solo-GlobalData] 归零 AE 88=88（p167 9/9 CLEAR）：ORIG 0x08271444 族为
+// `cmpb $0,-0x2c; js F1` + `movsbl; cmp -0x14; jl OK1`（失败块 F1 居中、成功体
+// jl 直落）⇒ 源码须写负极性短路 `if (a < 0 || size <= a) return false;` + 体直落；
+// 旧正条件包裹 `if (a>=0 && size>a) {…} return false` 产 jge 反形 + 尾部常量岛。
 bool GetRentItemInfo(CUser& user, char sectionIdx, char seqIdx,
                      EventRewardItemInfo& out, int type)
 {
@@ -7316,21 +7337,22 @@ bool GetRentItemInfo(CUser& user, char sectionIdx, char seqIdx,
         return false;
     }
 
-    // [b28d-solo-GlobalData] P214① 正条件 if 包裹 + P0 具名 size 槽：ORIG 0x08271444
-    // 先 call size() 落 -0x14，再 `cmpb $0,-0x2c; js F1`、`movsbl; cmp -0x14; jl OK1`
-    // 两跳共享 F1 块（无 bool 物化）；负极性早返/`||` 均产 setcc 汇聚（+4 条）。
+    // [b28d-solo-GlobalData] P214①/P222：ORIG 0x08271444 先 call size() 落
+    // -0x14，再 `cmpb $0,-0x2c; js F1`、`movsbl; cmp -0x14; jl OK1`（失败块
+    // F1 居中、成功体 jl 直落、无 setcc 汇聚）；第二段同构（0x0827148a）。
     const int listSize = (int)list->size();
-    if (sectionIdx >= 0 && listSize > sectionIdx)
+    if (sectionIdx < 0 || listSize <= sectionIdx)
     {
-        std::vector<EventRewardItemInfo>& inner = list->at((std::size_t)sectionIdx);
-        const int innerSize = (int)inner.size();
-        if (seqIdx >= 0 && innerSize > seqIdx)
-        {
-            out = inner[(std::size_t)seqIdx];
-            return true;
-        }
+        return false;
     }
-    return false;
+    std::vector<EventRewardItemInfo>& inner = list->at((std::size_t)sectionIdx);
+    const int innerSize = (int)inner.size();
+    if (seqIdx < 0 || innerSize <= seqIdx)
+    {
+        return false;
+    }
+    out = inner[(std::size_t)seqIdx];
+    return true;
 }
 
 // ---- CheckInventoryEquipmentEmptyCount —— T 0x08271062（同名报告全文转写）--
@@ -7345,43 +7367,50 @@ bool CheckInventoryEquipmentEmptyCount(CUser& user, int need)
 
 // ---- CheckInventoryEmptyCount —— T 0x0827108c（同名报告全文转写）-----------
 // [b28d-18 N82] p167 CLEAR（16/16）；残差=槽位/寄存器分配 | ORIG 0x0827108c
-// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR（16/16）；残差=N82 槽位/寄存器分配。
+// [b28d-solo-GlobalData] DIFF 封顶 N（P63）：ORIG 7 处 `xor $1;test;jne +0x15d`
+// 全部直达同一 `mov $1` 尾块（4.1 共享 return 块），4.4 对每个 if-return 独立发
+// `je next; mov $1; jmp`（+14 条）；goto 尾标签形（探针 /tmp/b28d_probe_pol.cpp t2）
+// 得 jne 但每源多 1 个 nop 岛（+7），嵌套正向 if/`||` 链（t3/t6）丢 xor 或末项
+// 物化 ⇒ 无源码解。**真语义 bug 修正**：ORIG jne 落点 +0x15d 即 return 1 ⇒
+// 任一 check 为假返回 1（旧重建 `return false` 与 ORIG 相反，Ghidra C 同证）。
 bool CheckInventoryEmptyCount(CUser& user, int need)
 {
     // ORIG（0x0827108c，report 汇编+反编译 C 全读）：每次 check 前重调
-    // getCurCharacInvenR()；任一次 check 失败 → 直接 return false（ORIG「斜体」
-    // jne 直跳两处 `mov $0,%eax` 返回 0）；全部通过后再 `cmp need; jl` 查
-    // GetRemainCapacity(2,8) < need → return false，否则 return true。
-    // 原转写极性写反（!check→return true），据 Ghidra C 纠正为 !check→return false。
-    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)1, need))
+    // getCurCharacInvenR()。**真语义 bug 修正（b28d-solo-GlobalData）**：ORIG
+    // 0x082710b4 族为 `xor $1,%eax; test %al,%al; jne +0x15d`，而 +0x15d 即
+    // `mov $0x1,%eax; jmp leave` ⇒ **任一 check 为假即 return 1**（Ghidra C 同形：
+    // `if (cVar1 == 1) { … } return 1;`）；旧重建写 `return false` 与 ORIG 相反。
+    // 末检查 0x082711e7 `jl +0x164(=mov $0,%eax)` ⇒ GetRemainCapacity < need 才
+    // return 0，否则 return 1。照抄 ORIG 可观察行为（P171）。
+    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)1, need))
     {
-        return false;
+        return true;
     }
-    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)2, need))
+    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)2, need))
     {
-        return false;
+        return true;
     }
-    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)3, need))
+    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)3, need))
     {
-        return false;
+        return true;
     }
-    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)10, need))
+    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)10, need))
     {
-        return false;
+        return true;
     }
-    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)9, need))
+    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)9, need))
     {
-        return false;
+        return true;
     }
-    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)5, need))
+    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)5, need))
     {
-        return false;
+        return true;
     }
-    if (!user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)6, need))
+    if (user.getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)6, need))
     {
-        return false;
+        return true;
     }
-    // ORIG cmp 0xc(%ebp),%eax; jl —— remain < need 直返 false。
+    // ORIG 0x082711e4 `cmp 0xc(%ebp),%eax; jl +0x164` —— remain < need 直返 0。
     if (user.getCurCharacInvenR()->GetRemainCapacity((INVEN_TYPE)2,
                                                      (Inven_Item::ITEM_TYPE)8) < need)
     {
@@ -7535,6 +7564,9 @@ int ProcessInsertItem(CUser& user,
 
 // ---- PcRoom::log —— T 0x082707c0（同名报告全文转写）------------------------
 // [b28d-18 N7] p167 CLEAR；残差=callee-saved 角色轮换 + 槽位（N7/N82） | ORIG 0x082707c0
+// [b28d-solo-GlobalData] NEAR 封顶 N7/N82：p167 CLEAR；残差=callee-saved 角色
+// 轮换（esi/ebx/edi 循环移位）+ 槽深差 4（-0x19/-0x1d、-0x2c/-0x1c，P230 定稿
+// 4.4.7 分配固定不可择）+ 符号地址重定位显示伪差。
 void RentalMachinePcRoom::log(CUser& user, int itemId)
 {
     char serverInfo = 0;

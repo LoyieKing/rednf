@@ -52,7 +52,9 @@ struct stGenerateRefClearReward_t
     unsigned char m_level;      // +0x01
     char m_pad02[2];            // +0x02..03
     float m_bonusRate;          // +0x04
-    int m_dropProb;             // +0x08（eClearRewardDropProb_t）
+    // +0x08：ORIG 0x085387d8 `mov 0x8(%eax),%edx` 单段直落（与
+    // _getGenItemProbIdx 第二形参同型）⇒ 字段即 eClearRewardDropProb_t（P254）。
+    eClearRewardDropProb_t m_dropProb;
     CDungeon* m_dungeon;        // +0x0c
 };
 
@@ -66,6 +68,47 @@ static const int kRefClearRewardCtx =
     static_cast<int>(offsetof(stGenerateRefData_t, m_field34));
 static_assert(sizeof(stGenerateRefClearReward_t) == 0x10,
               "clear-reward ctx size drift");
+
+// ORIG 0x08538ad8 段 `call G_CDataManager; mov -0xc(%ebp),%edx; add $0x1264,%edx;
+// mov 0x14(%eax,%edx,4),%eax` 实证：六档稀有度概率表以 CDataManager +0x14 为基址、
+// 索引 i+0x1264（scaled ×4）。以本域具名视图表达（§4.3：禁裸偏移字面量）；
+// 基址字节偏移 0x14 按元素折算进索引（0x14/4=5）——4.4 会把成员 disp 强度归约成
+// 额外 add，折进索引后与 ORIG 同为「add 常量 + scaled disp」两条（探针 p6 f1/f2）。
+static const int kRarityProbIdx = 0x1264 + 0x14 / 4;   // = 0x1269
+struct CDataManagerRarityProbView
+{
+    int m_probs[kRarityProbIdx + 6];   // 六档概率 @ dm+0x14，索引 i+0x1264
+};
+
+// power_war_dungeon_gold_clear_reward / generateSpecificItem 的 ref+0x34 上下文
+// （ORIG 0x08538e77 / 0x08538c9x 段访问实证：+1 金币档位、+2 队伍档位、
+// +8/+0xa/+0xe 三个 ushort 分量）。与 _generateRandomItem 的
+// stGenerateRefClearReward_t 同起点但消费面不同，故各立具名视图（§4.3）。
+struct stPowerWarRefCtx_t
+{
+    unsigned char m_field00;       // +0x00（generateSpecificItem 的 getGoldGenTable 档位）
+    unsigned char m_levelGold;     // +0x01（m_dungeonGoldBonus 档位）
+    unsigned char m_levelParty;    // +0x02（m_partyBonus 档位）
+    char m_pad03;                  // +0x03
+    // +0x04：ORIG 0x08538eaa `mov 0x4(%eax),%ebx` 单段直落 ⇒ 字段与
+    // GetExpBonusWeight 形参（eRankBonusIndex）同型（P211 档③）。
+    eRankBonusIndex m_rankBonusIndex;
+    unsigned short m_field08;      // +0x08
+    unsigned short m_field0a;      // +0x0a
+    char m_pad0c[2];               // +0x0c..0x0d
+    unsigned short m_field0e;      // +0x0e
+};
+static_assert(sizeof(stPowerWarRefCtx_t) == 0x10,
+              "power-war ref ctx size drift");
+
+// m_common->getGoldGenTable() 返回的两元素表（ORIG 0x08538ee9 `mov (%eax),%eax`
+// / 0x08538f90 `mov 0x4(%eax),%eax` 实证）。指针下标在 4.4 会被拆成
+// `add $0x4; mov (%eax)` 两步，具名成员访问折单条 disp。
+struct stGoldGenTable_t
+{
+    int m_base;    // +0x00（base = m_base*0xaf/1000）
+    int m_range;   // +0x04（GetRandomRange 半径）
+};
 
 void CClearReward::setDropRatio(float ratio)
 {
@@ -102,6 +145,9 @@ int CClearReward::getRewardItemRatePerMapMaxCount(int mapCount) const
     return 0;
 }
 
+// [b28d-solo-CClearReward] verdict=AE：循环体基址改数组指针形
+// `(*(m_workProbs + drop))[i]`，复现 ORIG `lea 0x60(%eax),%ecx; …;
+// lea (%ecx,%eax,1),%edx`（下标形 4.4 恒折 add 链；探针 /tmp/b28d_ccr/p5.cpp f1↔f2）。
 int CClearReward::_getGenItemProbIdx(int value, eClearRewardDropProb_t drop)
 {
     // [b28d-63] ORIG 0x08538694：基址 `this+drop*0xc+0x60` 每次重算（无具名
@@ -110,7 +156,12 @@ int CClearReward::_getGenItemProbIdx(int value, eClearRewardDropProb_t drop)
     size_t i = 0;
     while (i < m_workProbs[drop].size())
     {
-        const stGenItemProb_t& prob = m_workProbs[drop][i];
+        // [b28d-solo-CClearReward] ORIG 0x085386a3 循环体基址形：
+        // `mov 0x8(%ebp),%eax; lea 0x60(%eax),%ecx; …; lea (%ecx,%eax,1),%edx`
+        // —— 数组名退化指针 + 下标（`*(m_workProbs+drop)`）才产「先算基址常量再
+        // 合并索引」；下标形 `m_workProbs[drop][i]` 在 4.4 恒折 `add $0x60,%eax;
+        // add this,%eax`（探针 /tmp/b28d_ccr/p5.cpp f1↔f2 实证）。
+        const stGenItemProb_t& prob = (*(m_workProbs + drop))[i];
         if (value >= prob.v[0] && value <= prob.v[1])
             break;
         ++i;
@@ -143,6 +194,14 @@ void CClearReward::generateRandomItem(stGenerateRefData_t const& ref,
                               result);
     }
 }
+// [b28d-solo-CClearReward] verdict=DIFF（N 封顶）：
+// 已修 —— m_dropProb 枚举化（P254 单段直落）、数组指针形 (*(m_workProbs+drop))[idx]
+// （P30/P183 钥匙，探针 p5 f1/f2）、dropRoll 内联（P0）、thr 改 A*(1.0f-dropRate)
+// 书写序（P243）、find_item 具名结果（P115）。
+// 残余：①ORIG 把 e.v[0]/v[1]/v[2] 三字段各存槽（-0x3c/-0x38/-0x34）而我方只存
+// e 地址（-0x40）——「三具名 int 局部（v0/v1 后续未用）」不可由合法源形反推；
+// ②帧 0xa4 vs 0x9c（push edi/esi）+ 全帧槽号平移（N82）；③itemIdx/found/循环变量
+// 槽位连锁。
 void CClearReward::_generateRandomItem(stGenerateRefClearReward_t const& refClear,
                                        int param, stGenerateResult_t& result,
                                        float dropRate)
@@ -150,23 +209,26 @@ void CClearReward::_generateRandomItem(stGenerateRefClearReward_t const& refClea
     // 第一参 = refClear.m_value（命中基准）；档位 = refClear.m_dropProb。
     int idx = _getGenItemProbIdx(
         static_cast<int>(refClear.m_value),
-        static_cast<eClearRewardDropProb_t>(refClear.m_dropProb));
+        refClear.m_dropProb);
     if (idx < 0)
         return;
 
-    const stGenItemProb_t& e = m_workProbs[refClear.m_dropProb][idx];
+    // ORIG 0x085387e5：`lea 0x60(%eax),%ebx; …; lea (%ebx,%eax,1),%edx` —— 数组名
+    // 退化指针 + 下标形（同 _getGenItemProbIdx；探针 p5 f1/f2 实证）。
+    const stGenItemProb_t& e = (*(m_workProbs + refClear.m_dropProb))[idx];
     // ORIG 两处均 fistpl 截断（fnstcw/fldcw 0xc 截断模式），非 round；
-    // 保持 (int) 强转截断语义。
+    // 保持 (int) 强转截断语义。ORIG 的 x87 序：先算整数因子 A，再 fld1/fsubs
+    // 得 (1.0f-dropRate) 并 fmulp（P243 书写序 ⇒ A * (1.0f-dropRate)）。
     int thr = static_cast<int>(
-        (1.0f - dropRate) *
         static_cast<float>(
             (static_cast<int>(refClear.m_bonusRate * e.v[2]) +
              m_dungeonDropBonus[refClear.m_level]) *
-            (param / 100)));
+            (param / 100)) *
+        (1.0f - dropRate));
 
-    // ORIG 0x085388ca：generateNumber(0, 10000) 掉落概率判定，roll >= thr 直接退出。
-    int dropRoll = m_random.generateNumber(0, 10000);
-    if (dropRoll >= thr)
+    // ORIG 0x085388ca：generateNumber(0,10000) 结果**不落槽**（`cmp -0x2c(%ebp),%eax;
+    // setge %al; test; jne` 直判）⇒ 内联实参（P0）。
+    if (m_random.generateNumber(0, 10000) >= thr)
         return;
 
     int dropType = 1;   // 初值（未命中即 1）
@@ -196,7 +258,9 @@ void CClearReward::_generateRandomItem(stGenerateRefClearReward_t const& refClea
                                      refClear.m_value);
     if (itemIdx == -1)
         return;
-    if (G_CDataManager()->m_itemList->find_item(itemIdx) == 0)
+    // ORIG `mov %eax,-0x10(%ebp); cmpl $0x0,-0x10(%ebp); je` ⇒ 具名结果局部（P115）。
+    CItem* found = G_CDataManager()->m_itemList->find_item(itemIdx);
+    if (found == 0)
         return;
     Inven_Item inv;
     inv.m_addInfo = itemIdx;
@@ -226,40 +290,38 @@ void CClearReward::_generateSpecificItem(stGenerateRefClearReward_t const& refCl
 void CClearReward::generateSpecificItem(stGenerateRefData_t const& ref,
                                         stGenerateResult_t& result)
 {
-    // b21 verdict=DIFF（N 残余）：151/169。7=7 调用点全等（G_CDataManager/GetExpBonusWeight/
-    //   getGoldGenTable/GetRandomRange/Inven_ItemC1/set_add_info/push_back）。FPU flds/fmuls/
-    //   fistpl(fldcw 0xc 截断)时序与 ORIG 全等，金币 sum/base/gold/piece 公式逐位核；rc=+0x34
-    //   基址可用性、m_serverParameter(+0x68)、m_common->getGoldGenTable 均核。已把 g0/g1/g2
-    //   具名局部内联进 sum 表达式(-3)；register rc 探针无效（Y14 反向）。残余仅 rc[.k] 基址
-    //   经栈槽+add vs ORIG 位移寻址、sum/baseCount 占槽(帧 0xb4 vs 0x84+ebx)。语义完成。
+    // [b28d-solo-CClearReward] verdict=AE。与 power_war_dungeon_gold_clear_reward 同族修形：
+    // ORIG 0x08538c9x 段 rc 具名指针局部（-0x24），fA/fB/rankIdx/sp/sum/baseCount
+    // 全部无槽（表达式内联，P0/P183）；ushort 与档位经具名视图 disp 访问。
     unsigned char const* rc =
-        reinterpret_cast<unsigned char const*>(&ref) + 0x34;
-    // fA = 队伍加成表(档位-1)；fB = 金币加成表(档位)。
-    float fA = m_partyBonus[rc[2] - 1];
-    float fB = m_dungeonGoldBonus[rc[1]];
-    int rankIdx = ref.m_rankBonusIndex;
-    // §4.3 具名化：脚本区 = CDataManager::m_serverParameter（+0x68，
-    // CDataManager.h:3551；同 CAssaultMgr.cpp 判例）。
-    ServerParameterScript* sp = &G_CDataManager()->m_serverParameter;
-    float weight = (1.0f + sp->GetExpBonusWeight(
-        static_cast<eRankBonusIndex>(rankIdx))) * (fB * fA);
-    int* goldTable = m_common->getGoldGenTable(rc[0]);
-    int base = (goldTable[0] * 0xaf) / 1000;
-    // ORIG 金币输入：ushort@+8(base) + (ushort@+0xe(dungeon 高 16 位)*2 + ushort@+0xa(factor))*2
-    int sum = static_cast<int>(
-        *reinterpret_cast<unsigned short const*>(rc + 8) +
-        (*reinterpret_cast<unsigned short const*>(rc + 0xe) * 2 +
-         *reinterpret_cast<unsigned short const*>(rc + 0xa)) * 2);
-    int baseCount = rc[2];
-    // ORIG 两处 fistpl 截断（fldcw 0xc），非 round。
-    int gold = static_cast<int>(static_cast<float>((sum * base) / 2) * weight);
+        reinterpret_cast<unsigned char const*>(&ref) + kRefClearRewardCtx;
+    float weight =
+        (m_partyBonus[reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_levelParty - 1] *
+         m_dungeonGoldBonus[reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_levelGold]) *
+        (1.0f + G_CDataManager()->m_serverParameter.GetExpBonusWeight(
+                    reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_rankBonusIndex));
+    stGoldGenTable_t* goldTable = reinterpret_cast<stGoldGenTable_t*>(
+        m_common->getGoldGenTable(reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_field00));
+    int base = (goldTable->m_base * 0xaf) / 1000;
+    // ORIG 0x08538cfx：sum 无槽（表达式内联到 (sum*base)/2）。
+    int gold = static_cast<int>(
+        static_cast<float>(
+            (static_cast<int>(reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_field08 +
+                              (reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_field0e * 2 +
+                               reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_field0a) * 2) *
+             base) / 2) *
+        weight);
     static const float kGoldDivisor = 2.0f;   // _DAT_08c9a6d8 = 0x40000000 = 2.0f
-    for (int i = 0; i < baseCount; ++i)
+    // ORIG 循环条件每轮重读 rc[2]（`movzbl 0x2(%eax),%eax`）⇒ baseCount 不具名。
+    for (int i = 0; i < reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_levelParty; ++i)
     {
-        float piece = (static_cast<float>(gold) / kGoldDivisor /
-                       static_cast<float>(baseCount)) * weight;
-        int randSpan = GetRandomRange(-goldTable[1], goldTable[1]);
-        int amount = (static_cast<int>(piece) * (randSpan + 100)) / 100;
+        // piece/randSpan 均无槽（FPU 链连续 + GetRandomRange 内联实参）。
+        int amount =
+            (static_cast<int>((static_cast<float>(gold) / kGoldDivisor /
+                               static_cast<float>(static_cast<int>(
+                                   reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_levelParty))) *
+                              weight) *
+             (GetRandomRange(-goldTable->m_range, goldTable->m_range) + 100)) / 100;
         Inven_Item inv;
         inv.m_field1 = static_cast<unsigned char>(2);
         inv.m_addInfo = 0;
@@ -271,29 +333,36 @@ void CClearReward::generateSpecificItem(stGenerateRefData_t const& ref,
 void CClearReward::power_war_dungeon_gold_clear_reward(
     stGenerateRefData_t const& ref, stGenerateResult_t& result, int level)
 {
+    // [b28d-solo-CClearReward] verdict=AE。ORIG 0x08538e6e..0x08538ea4：rc 具名指针局部（-0x20）；
+    // fA/fB **无槽**（`flds 0xc(%eax,%edx,4)` 直读成员，P0/P183），书写序照 P243
+    // （先 flds 左操作数 = m_partyBonus）；rankIdx/sp 亦无槽（内联表达式）。
     unsigned char const* rc =
-        reinterpret_cast<unsigned char const*>(&ref) + 0x34;
-    float fA = m_partyBonus[rc[2] - 1];
-    float fB = m_dungeonGoldBonus[rc[1]];
-    int rankIdx = ref.m_rankBonusIndex;
-    // §4.3 具名化：脚本区 = CDataManager::m_serverParameter（+0x68，
-    // CDataManager.h:3551；同 CAssaultMgr.cpp 判例）。
-    ServerParameterScript* sp = &G_CDataManager()->m_serverParameter;
-    float weight = (1.0f + sp->GetExpBonusWeight(
-        static_cast<eRankBonusIndex>(rankIdx))) * (fB * fA);
-    int* goldTable = m_common->getGoldGenTable(static_cast<unsigned char>(level));
-    int base = (goldTable[0] * 0xaf) / 1000;
-    unsigned short g0 = *reinterpret_cast<unsigned short const*>(rc + 8);
-    unsigned short g1 = *reinterpret_cast<unsigned short const*>(rc + 0xe);
-    unsigned short g2 = *reinterpret_cast<unsigned short const*>(rc + 0xa);
-    int sum = static_cast<int>(g0 + (g1 * 2 + g2) * 2);
-    // ORIG 两处 fistpl 截断，非 round。
-    int gold = static_cast<int>(static_cast<float>((sum * base) / 2) * weight);
+        reinterpret_cast<unsigned char const*>(&ref) + kRefClearRewardCtx;
+    // ctx 视图不落具名指针槽（ORIG 仅 rc 一个指针槽 -0x20）。
+    float weight =
+        (m_partyBonus[reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_levelParty - 1] *
+         m_dungeonGoldBonus[reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_levelGold]) *
+        (1.0f + G_CDataManager()->m_serverParameter.GetExpBonusWeight(
+                    reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_rankBonusIndex));
+    stGoldGenTable_t* goldTable = reinterpret_cast<stGoldGenTable_t*>(
+        m_common->getGoldGenTable(static_cast<unsigned char>(level)));
+    int base = (goldTable->m_base * 0xaf) / 1000;
+    // ORIG 0x08538f0b：sum 无槽（表达式内联到 (sum*base)/2），ushort 经视图 disp 访问。
+    // ORIG 0x08538f61：piece 亦无槽（FPU 链连续，末尾 fistpl 截断），故一并内联。
+    int gold = static_cast<int>(
+        static_cast<float>(
+            (static_cast<int>(reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_field08 +
+                              (reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_field0e * 2 +
+                               reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_field0a) * 2) *
+             base) / 2) *
+        weight);
     static const float kGoldDivisor = 2.0f;   // _DAT_08c9a6d8 = 2.0f
-    float piece = (static_cast<float>(gold) / kGoldDivisor /
-                   static_cast<float>(rc[2])) * weight;
-    int randSpan = GetRandomRange(-goldTable[1], goldTable[1]);
-    int amount = (static_cast<int>(piece) * (randSpan + 100)) / 100;
+    int amount =
+        (static_cast<int>((static_cast<float>(gold) / kGoldDivisor /
+                           static_cast<float>(static_cast<int>(
+                               reinterpret_cast<stPowerWarRefCtx_t const*>(rc)->m_levelParty))) *
+                          weight) *
+         (GetRandomRange(-goldTable->m_range, goldTable->m_range) + 100)) / 100;
     Inven_Item inv;
     inv.m_field1 = static_cast<unsigned char>(2);
     inv.m_addInfo = 0;
@@ -301,40 +370,49 @@ void CClearReward::power_war_dungeon_gold_clear_reward(
     result.m_dropItems.push_back(inv);
 }
 
+// [b28d-solo-CClearReward] verdict=NEAR（N1 封顶）：102=102。唯一残差 = 概率表
+// 基址常量折叠——ORIG `add $0x1264,%edx; mov 0x14(%eax,%edx,4),%eax`（两步）vs
+// 4.4 折 `add $0x1269,%edx; mov (%eax,%edx,4),%eax`（一步；探针 p6 f1/f2/f6 穷举）。
 void CClearReward::generatePremiumGoldCardItem(
     stGenerateRefData_t const& ref, stGenerateResult_t& result,
     ENUM_RARITY rarity, unsigned int defaultItem)
 {
-    int rarityIdx;
+    // [b28d-solo-CClearReward] ORIG 0x08538a99 函数头两条初始化
+    // （`movl $0x2,-0x20(%ebp)` / `movl $0x0,-0x1c(%ebp)`）⇒ 原码 dropType/rarityIdx
+    // 均为函数头具名局部（P0 槽往返律），调用点读 -0x20/-0x1c 而非内联立即数。
+    eItemDropType_t dropType = eItemDropType_2;
+    ENUM_RARITY rarityIdx = static_cast<ENUM_RARITY>(0);
     if (static_cast<int>(rarity) < 0)
     {
         int roll = m_random.generateNumber(3, 10000);
-        rarityIdx = 0;
         for (int i = 0; i < 6; ++i)
         {
-            // dm+0x14+(i+0x1264)*4：六档概率（未被本域具名，按 ORIG 偏移读取）。
-            int* prob = reinterpret_cast<int*>(
-                reinterpret_cast<char*>(G_CDataManager()) + 0x14 + (i + 0x1264) * 4);
-            if (roll <= *prob)
+            // 视图 + 内联索引：ORIG `mov 0x14(%eax,%edx,4),%eax` 单条 scaled 装载
+            // （指针局部会多占槽并使基址链改形，P0）。
+            if (roll <= reinterpret_cast<CDataManagerRarityProbView*>(
+                            G_CDataManager())->m_probs[i + kRarityProbIdx])
             {
-                rarityIdx = i;
+                rarityIdx = static_cast<ENUM_RARITY>(i);
                 break;
             }
         }
     }
     else
     {
-        rarityIdx = static_cast<int>(rarity);
+        rarityIdx = rarity;
     }
     G_CDataManager()->getItemGenerator()->onTryGenerateRandomItem(
         static_cast<CItemGeneratorMgr::eGenerateType_t>(getGeneratorType()),
-        eItemDropType_2, static_cast<ENUM_RARITY>(rarityIdx));
+        dropType, rarityIdx);
     int itemIdx = m_table.chooseItem(
-        eItemDropType_2, static_cast<ENUM_RARITY>(rarityIdx),
+        dropType, rarityIdx,
         static_cast<unsigned char>(ref.m_field34));   // §4.3 具名化（+0x34）
     if (itemIdx == -1)
         itemIdx = static_cast<int>(defaultItem);
-    if (G_CDataManager()->m_itemList->find_item(itemIdx) == 0)
+    // ORIG `mov %eax,-0x14(%ebp); cmpl $0x0,-0x14(%ebp); je` ⇒ 原码为具名结果局部
+    // 后内存判空（P115），非调用表达式直比（后者 4.4 产 sete/test 物化）。
+    CItem* found = G_CDataManager()->m_itemList->find_item(itemIdx);
+    if (found == 0)
         return;
     Inven_Item inv;
     inv.m_addInfo = itemIdx;
@@ -343,6 +421,9 @@ void CClearReward::generatePremiumGoldCardItem(
     result.m_dropItems.push_back(inv);
 }
 
+// [b28d-solo-CClearReward] verdict=AE：stGoldCardBlankItemInfo_t::v 由 int[3]
+// 改 unsigned int[3]（CItemGenerator.h:790）—— v[1]→Inven_Item::m_addInfo 单段
+// 直落、v[2]→CItemList::create_item(...,int) 两段 eax→ebx 中转（P211 档③）。
 int CClearReward::generateGoldCardBlankItem(Inven_Item& item)
 {
     if (m_goldBlanks.empty())
@@ -370,6 +451,7 @@ int CClearReward::generateGoldCardBlankItem(Inven_Item& item)
     return 0;
 }
 
+// [b28d-solo-CClearReward] verdict=AE：同 generateGoldCardBlankItem（v 无符号化）。
 int CClearReward::generatePcRoomCardBlankItem(Inven_Item& item)
 {
     if (m_pcRoomBlanks.empty())
@@ -397,42 +479,54 @@ int CClearReward::generatePcRoomCardBlankItem(Inven_Item& item)
 }
 
 // ---- 依赖：CItemGenRateTable::chooseItem（ORIG T 0x085349a4）----
+// [b28d-solo-CClearReward] verdict=NEAR（N82 封顶）：182=182，助记符序列全等
+// （`setne` 物化经 P225 while+return 形复现）；仅余槽号/寄存器分配差
+// （ORIG 迭代器 -0x38 / result -0x10，我方 -0x28 / -0x18；帧同 0x60）。
 int CItemGenRateTable::chooseItem(eItemDropType_t type, ENUM_RARITY rarity, int level)
 {
-    // ORIG 0x085349a4：try 块覆盖表查询；catch(...) 打 cMyTrace 日志后返回 -1
-    // （__cxa_begin_catch → cMyTrace("int WongWork::CItemGenRateTable::chooseItem"
-    // "(WongWork::eItemDropType_t, ENUM_RARITY, int)", 0x279, 5) →
-    // operator()("[%s][%d].", name, 0x279) → end_catch → return -1）。
+    // [b28d-solo-CClearReward] 逐条对齐 ORIG 0x085349a4：
+    //  ①首判 `cmpl $0x2,0xc(%ebp)` 是 **type==2**（0xc=第一形参），且 choose_item
+    //    第一参压 `lea 0x10(%ebp)`（形参 rarity 的引用）；itemIdx 预置 -1 再赋值
+    //    （P198① 预清两句式）。
+    //  ②`call size; test; sete; test; je` ⇒ 源形 `size()==0`（P197④），非 empty()。
+    //  ③迭代器先默认构造（C1Ev）后赋 end()（P50 复活）；`it--` 为**后置**
+    //    （ORIG 调 operator--(int)，带 0 哑元 + sret 临时）。
+    //  ④槽址每次重算（三处 imul 链），故不缓存 map 引用（P183）。
+    //  ⑤try 仅覆盖 lower_bound..it->second（ORIG .gcc_except_table 08534b11..08534b8b）；
+    //    catch 用 __PRETTY_FUNCTION__ 恢复 `_ZZ...E19__PRETTY_FUNCTION__` 局部静态
+    //    （P139/P118），格式串 "[%s][%d]"、行号 0x279。
+    if (type == eItemDropType_2)
+    {
+        int itemIdx = -1;
+        itemIdx = static_cast<int>(m_optHandle.choose_item(rarity, level));
+        // P225：ORIG `cmpl $0xffffffff,-0xc; setne %al; test %al,%al; je` 的
+        // 4.1 bool 物化形由 while+return 复现（普通 if 在 4.4 恒直跳 je）。
+        while (itemIdx != -1)
+        {
+            return itemIdx;
+        }
+    }
+    if (m_slots[type][rarity][level].size() == 0)
+        return -1;
+    std::map<unsigned int, int>::iterator it;
+    it = m_slots[type][rarity][level].end();
+    it--;
+    unsigned int maxKey = it->first;
+    unsigned int roll = static_cast<unsigned int>(m_rand->randInt(maxKey));
+    int result = -1;
     try
     {
-        if (rarity == RARITY_RARE)
-        {
-            int itemIdx = static_cast<int>(m_optHandle.choose_item(rarity, level));
-            if (itemIdx != -1)
-                return itemIdx;
-        }
-        // ORIG 槽址 = type*0x7110+rarity*0x12d8+level*24（type 调用方传 1..4），
-        // 等价 m_slots[type]（m_slots 无 type0 前缀，直接 5×6×201）。
-        std::map<unsigned int, int>& slot = m_slots[type][rarity][level];
-        if (slot.empty())
-            return -1;
-        std::map<unsigned int, int>::iterator it = slot.end();
-        --it;
-        unsigned long maxKey = it->first;
-        unsigned long roll = static_cast<unsigned long>(m_rand->randInt(maxKey));
-        std::map<unsigned int, int>::iterator lb = slot.lower_bound(roll);
-        if (lb == slot.end())
-            --lb;
-        return lb->second;
+        it = m_slots[type][rarity][level].lower_bound(roll);
+        if (it == m_slots[type][rarity][level].end())
+            it--;
+        result = it->second;
     }
     catch (...)
     {
-        cMyTrace trace("int WongWork::CItemGenRateTable::chooseItem("
-                       "WongWork::eItemDropType_t, ENUM_RARITY, int)", 0x279, 5);
-        trace("[%s][%d].", "int WongWork::CItemGenRateTable::chooseItem("
-              "WongWork::eItemDropType_t, ENUM_RARITY, int)", 0x279);
-        return -1;
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x279, 5);
+        trace("[%s][%d]", __PRETTY_FUNCTION__, 0x279);
     }
+    return result;
 }
 
 // ---- 依赖：CItemGeneratorMgr::onTryGenerateRandomItem（ORIG T 0x085342c6）----
@@ -553,17 +647,26 @@ int CLuckPoint::GetLuckPoint()
     return 0;   // 空集共用尾块（ORIG +0x9f mov $0,%eax）
 }
 
+// [b28d-solo-CClearReward] verdict=DIFF（N 封顶）：
+// 已修 —— 拆嵌套 if 消 `&&` 常量岛（P225 推广反向）、luck/sp 内联（P0）、
+// 0.01f 右结合复现 `fildl A; fildl B; flds 0.01; fmulp; fmulp`（P243）。
+// 残余：①x87 槽组整体平移（ORIG -0x4c/-0x50 vs 我方 -0x3c/-0x40，帧同 0x74）——
+// 4.1 临时槽与具名槽穿插 vs 4.4 分区排布（N82附）；②unique/rare 两分支的 (int)
+// 截断槽号连锁；③循环下标 int vs size_t 的 seta/setb 形（N 族）。
 int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
 {
     int acc[6] = {0};
 
-    if (dropType == 2 && !m_users.empty())
+    // [b28d-solo-CClearReward] ORIG 0x08550c0e 两守卫**直跳**（`jne` + `call empty;
+    // xor $1; test; je`，无 && 整体物化）⇒ 拆嵌套 if（P225 推广反向；`&&` 单表达式
+    // 在 4.4 会多一段 mov$1/jmp/mov$0 常量岛）。luck 无槽（ORIG `mov %eax,%ebx` 内联
+    // 实参）、sp 无槽（`lea 0x68(%eax),%edx` 内联）⇒ 均按 P0 内联。
+    if (dropType == 2)
     {
-        int luck = GetLuckPoint();
+        if (!m_users.empty())
+        {
         int lp = 0;
-        ServerParameterScript* sp =  // §4.3 具名化（m_serverParameter @+0x68）
-            &G_CDataManager()->m_serverParameter;
-        sp->getLuckPoint(luck, lp);
+        G_CDataManager()->m_serverParameter.getLuckPoint(GetLuckPoint(), lp);
         int neg = -GetTenThousandPercentage(table[2] - table[1], lp);
         int unique = 0;
         int rare = 0;
@@ -582,9 +685,11 @@ int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
         }
         if (unique != 0)
         {
+            // ORIG 0x08550dxx：`fildl A; fildl B; flds 0.01f; fmulp; fmulp`
+            // ⇒ A*(B*0.01f) 右结合（P243 书写序）。
             int v = static_cast<int>(
                 static_cast<float>(table[3] - table[2]) *
-                           static_cast<float>(unique) * 0.01f);
+                           (static_cast<float>(unique) * 0.01f));
             acc[2] -= v;
             if (table[3] > 999999)
                 acc[2] = 0;
@@ -593,12 +698,13 @@ int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
         {
             int v = static_cast<int>(
                 static_cast<float>(table[2] - table[1]) *
-                           static_cast<float>(rare) * 0.01f);
+                           (static_cast<float>(rare) * 0.01f));
             neg -= v;
         }
         if (table[1] != 0)
             acc[0] = table[0] * neg / table[1];
         acc[1] = neg;
+        }
     }
     int ret = 0;
     for (int i = 0; i <= 5; ++i)

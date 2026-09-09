@@ -48,10 +48,16 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     unsigned int m_sellTimeChkBaseSec; // +0x3c（0x8e42c；CUser::SellItemTimeChecker
                                      //   ORIG 0x08230256 的窗口基准秒，超窗重置分支写回 nowSec）
     int m_sellTimeHitCount;          // +0x40（0x8e430；同函数命中计数/重置清零）
-    short m_timeChkMinA;         // +0x44（GetItemTimeChecker 窗口 min val1）
-    short m_timeChkMaxA;         // +0x46（max val1）
-    short m_timeChkMinB;         // +0x48（min val2）
-    short m_timeChkMaxB;         // +0x4a（max val2）
+    // +0x44..+0x4b：GetItemTimeChecker 四端点双视角。signed 视角供比较段
+    //   （ORIG 0x082302e0/0x0823034e 等 `movzwl 字段; movswl %ax,%edx`）；
+    //   unsigned 视角供形参直存（ORIG 0x0823030c 等 LHS-first store
+    //   `mov this,%eax; movzwl -0x4(%ebp),%edx; mov %dx,off`，4.4 仅在与 RHS
+    //   同型 unsigned short 时复现，探针 /tmp/probe_tc3.cpp 逐条全等）。
+    //   sizeof/偏移/mangled 零变化，旧成员名保留可见。
+    union { short m_timeChkMinA; unsigned short m_timeChkMinA_u; };  // +0x44
+    union { short m_timeChkMaxA; unsigned short m_timeChkMaxA_u; };  // +0x46
+    union { short m_timeChkMinB; unsigned short m_timeChkMinB_u; };  // +0x48
+    union { short m_timeChkMaxB; unsigned short m_timeChkMaxB_u; };  // +0x4a
     unsigned int m_timeChkBaseSec; // +0x4c（nowSec 差窗基准）
     int m_timeChkCount;          // +0x50（命中计数/重置清零）
     short m_timeChkDiffA;        // +0x54（|maxA-minA|）
@@ -61,8 +67,13 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     //   CUser 嵌套类避免拆类 ODR，本处按等尺寸字节域承载【推断归属 mcap】。
     char m_monsterKillWindow[0x14];
     char m_pad6c[0x80 - 0x6c];   // +0x6c..0x7f（原 m_pad58 余段）
-    short m_serialLastIdx;       // +0x80（GetItemSerialChecker 序列基准 idx）
-    short m_serialLastVal;       // +0x82（序列基准值）
+    // +0x80/+0x82：GetItemSerialChecker 基准对双视角。signed 视角供 4 条件差窗
+    //   比较（ORIG 0x0820689 段 `movzwl 字段; cwtl`）；unsigned 视角供形参直存
+    //   （ORIG 0x082078e 段 reset LHS-first store `mov this,%eax; movzwl -0x1c,%edx;
+    //   mov %dx,off`，4.4 仅在与 RHS 同型 unsigned short 时复现）。
+    //   sizeof/偏移/mangled 零变化，旧成员名保留可见。
+    union { short m_serialLastIdx; unsigned short m_serialLastIdx_u; };  // +0x80
+    union { short m_serialLastVal; unsigned short m_serialLastVal_u; };  // +0x82
     int m_serialHitCount;        // +0x84（连续命中计数）
     unsigned int m_blackIpPunishMask;   // +0x88（CUser+0x8e478；Inter_LoginInfo::dispatch_sig
                                         //   写入 CBlackIPMonitor::getPunishType 位标志，bit0/bit1 判定）

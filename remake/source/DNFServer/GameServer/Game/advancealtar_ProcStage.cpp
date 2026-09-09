@@ -56,6 +56,62 @@
 //   ProcStage::sendClearStage 0x0812e6de —— N86（迭代器/容器 copy-elision 槽差）
 //   ProcSummonObjectMs::debugLog 0x0812d804 —— N89（vector/map 迭代器外链 + trace 变参）
 // ============================================================================
+// b28d-solo-ProcStage 收口判词（16 件清单；verdict 只认 check_tu_routed.sh + p167）
+//   本泳道收口读数：identical=226 ae=435（合计 661）near=0 diff=6
+//   （diff 余 = _GLOBAL__ 噪音 + 下列 5 件 N 封顶件）；missing_in_game 169→155。
+//   AE/IDENTICAL（11 件，逐条对齐，p167 CLEAR）：
+//     addAchievementReward 0x0812f3ae（P0 内联 cam/rewardParam + enum 槽 diff/value）
+//     completePushSummonObject 0x0812d5d0（P226 语句表达式 + P171 `size()-1` 照抄 + P285）
+//     ProcSummonObjectMs::dieMob 0x0812db00（P48 四次 operator-> + P248② bool 字段 + P171 死局部）
+//     CharacData::upGage 0x0812d0b6（P319 索引 cast + 去多余 +0.5f + 两臂各 sendTestCheckGage）
+//     CharacData::upgreadGage 0x0812d176（switch 决策树 P251/P286 + P319 + 去 +0.5f）
+//     isEndStage 0x0812e2c6（P28 it++ + P222 正向包裹 + P225 嵌套 if sete 物化）
+//     HistoryLog::enterDungeon 0x081339b0（P312 慢路 + P0 全实参内联）
+//     ProcStage::rewardClearStage 0x0812f0fa（P167 符号族：items const 指针 + const_iterator
+//       + `it->m_type`（ptEv 非 deEv）；P28 it++；P197④ size()!=0；P286 单 case switch；
+//       NDIFF 189→0、p167 34/34 CLEAR）
+//     ProcStage::sendClearStage 0x0812e6de（P28 三循环 it++；put_binary(char*,int) 非 const
+//       重载（C cast 去 const，P167 3 处）；rewardCount 具名 size 缓存 + `if (n>0)` 守卫；
+//       body.m_stage 逐字段直写（消 memcpy EXTRA）；NDIFF 191→0）
+//     ProcStage::startStage 0x0812de70（P211 档③：CDataManager::find_map 返回类型 void*→CMap*
+//       （CDataManager.h，已 R2 广播）+ 删本处 cast ⇒ LHS-first 直存；NDIFF 129→0）
+//     ProcSummonObjectMs::debugLog 0x0812d804（P167 `it->second`（ptEv×7 非 deEv）；P28 两循环
+//       it++；P171 死计数器移入 for 增量段（`it++, ++n`，清零在 begin 之后）；NDIFF 197→0）
+//     isSurvivalModeFirstRound 0x0812f70c（P0/N96 清绑 + P226 条件向语句表达式）
+//   N 封顶（5 件，语义等价；各件函数头注记残差与实测数据）：
+//     dungeonClearInfo 0x08133bd4 —— N18a：余 1 条 `mov (%eax),%eax; mov %eax,%ebx`
+//       （ORIG 两段中转 vs 4.4 单段直落）。P254 enum 化路径受阻：CharacData::m_field0
+//       无权威 enum 类型且写入端在 advancealtar_StageControl.cpp（非本泳道，已 N76 判词），
+//       本波不动。NDIFF 101→2、p167 CLEAR。
+//     ProcSummonObjectMs::summonObjectAndSendPacket 0x0812d658 —— N95：全帧槽号整体深 4
+//       （4.4 帧顶 gap；prologue sub $0x50 与 ORIG 全等、指令逐条对齐）。已修：P223 空 then
+//       岛（`if (p==0) goto L_next;` 复现 ORIG `sete;test;jne <nop岛>`，setne/je 旧形消除）、
+//       P48/P157 so 缓存复用（消 1 次 operator[] EXTRA）。NDIFF 119→23。
+//     sendMailRewardItem 0x0812f47a —— N82/N95：数组组 1 字节差（title -0x15b vs -0x15c、
+//       itemBase -0x3bd vs -0x3be）+ count 装载序（P75）。已修：P170 _RewardItem::m_value1
+//       int→unsigned long（AdvanceAltarField.h，R2；make_pair IRKm mangled 实证）、P0/P44
+//       group/titleLen/characNo 实参内联、P171 0xf 死局部、P312 framePad[1] 顶数组组、
+//       P28 `it++, ++i` 增量段。NDIFF 151→11、p167 CLEAR。
+//     clearStageAndReward 0x0812e3f6 —— N7（esi/ebx/edi 角色互换）+ 物化块序（P214①/P225
+//       边界：4.4 对 `(A||B) && !C` 的 setcc 汇合块序与 4.1 相反；P226 条件向语句表达式已把
+//       NDIFF 19→14）。已修：P48 两次独立 getStageType、P197④ size()!=0、P168a 档① 裸 !decTicket、
+//       P0/P183 去 cam 引用局部（ORIG 逐次 lea 内联）。p167 CLEAR。
+//     makeCurrentPhaseSummonObject 0x0812eba8 —— N82/N86：帧 0xac vs ORIG 0xb0（少 4）+
+//       槽组平移（phase -0x3c vs -0x38）。已修：P167/P96 全套 const 迭代器族（TimeLine const
+//       化，头 R2；消 12 处 MISSING/EXTRA）、P220 迭代器哨兵形（两 end() 预求值 + `rangedIt==end()`
+//       eq 正极性）、P28 Action 循环 it++、const ActionDefine*（消转换构造）。tl/assigns 具名
+//       局部两形实测均劣（NDIFF 156→201/474）已回退。NDIFF 371→156。
+//   P0 清绑：isSurvivalModeFirstRound 的 `register bool r __asm__("al")` 已删（改 P226 语句表达式，
+//     22=22 AE）。全文件无 register asm 绑定（N96 清零，扫描零命中）。
+//   真语义 bug（本波修正）：CharacData::summonSlotUnit 0x0812d278 —— 第二条件误用 union 视角
+//     m_needGage（+0x08）；ORIG 0x0812d330 `mov 0x8(%eax)`（eax=pair* ⇒ pair+0x8=second+0x04=
+//     m_itemId）+ Ghidra C `if (*(int*)(iVar4+8)==param_2)` 联证 ⇒ 改 `it->second.m_itemId == need`，
+//     该件 DIFF→AE（NEAR→AE，p167 8/8 CLEAR）。
+//   .h 改动（R2 已广播，均零 ABI：返回/字段类型不入 mangled）：
+//     CDataManager.h find_map const 版返回 void*→CMap*；
+//     advancealtar_ProcStage.h getTimeLine/ m_timeLine → const TimeLine*；
+//     AdvanceAltarField.h _RewardItem::m_value1 int→unsigned long（32 位同宽）。
+// ============================================================================
 
 #include "advancealtar_ProcStage.h"
 
@@ -120,37 +176,38 @@ void CharacData::reset()
 }
 
 // ----------------------------------------------------------------------------
-// ORIG T 0x0812d0b6（upGage.md 全文）：maxGage =
-//   CDataManager+0x637c 解引 * (+0x6370 + (m_gageLevel+4)*4)；未达上限时
-//   m_gage += ROUND(系数(+0x636c) * level 表(+0x636c+level*4) / base)；
-//   两分支尾均调 sendTestCheckGage()（ORIG 空函数）。
+// ORIG T 0x0812d0b6（upGage.md 全文）：cfg = G_CDataManager()+0x6364；
+//   maxGage = **(int**)(cfg+0x18) * cfg->[0xc+(level+4)*4]（= *m_strPtr * m_gageUpAux[level]）；
+//   m_gage >= maxGage → m_gage = maxGage；否则 ratio = m_gageUpRate[level] / base（float 局部）、
+//   inc = (int)(m_gageUpRate[0] * ratio)（x87 截断，无 +0.5f）、m_gage += inc；
+//   两臂各自调用 sendTestCheckGage()（ORIG 两处 call 0x812d103/0x812d16e）。
 // ----------------------------------------------------------------------------
-// [B24D判词 N] 语义正确：maxGage = *(cfg->m_strPtr) * cfg 表(level+4)；
-//   m_gage<maxGage → m_gage += ROUND(rate*level表/base) 否则 m_gage=maxGage；
-//   分支尾均 sendTestCheckGage()。差异=fldcw ROUND 物化(fadd 0.5f+fistp) vs ORIG
-//   fistp 舍入、imul/cmp 寄存器序、分支 jl vs jge，纯 lowering 表示差异，语义等价。
+// b28d-solo-ProcStage：原实现有两处语义偏差——①`+ 0.5f` 多余（ORIG 0x812d141 段
+//   `fnstcw/fldcw $0xc/fistpl` 为纯 (int) 截断，无 fadd 0.5）；②sendTestCheckGage()
+//   写在 if 外（4.4 共享尾一次 call）而 ORIG 两臂各一次。形态另按 ORIG 对齐：
+//   then 块在后（`jl <then>` 由 m_gage>=maxGage 反向条件复现）、ratio/inc 具名局部
+//   （ORIG -0x10/-0xc 槽）、maxGage 内联表达式（ORIG 无 base 具名槽）。
 void CharacData::upGage()
 {
-    // CDataManager 配置区基址具名化：+0x6364 = CDataManager::m_altarConfig（ConfigParameter）。
-    // 证据 CDataManager.h:3550 + upGage.md 汇编 +0x0b `add $0x6364,%eax`。
     ConfigParameter* cfg = &G_CDataManager()->m_altarConfig;
-    // +0x18 = m_strPtr（char*，ctor 指向 m_gageUpRate[0]）；ORIG 双解引 mov 0x18(%eax);mov(%eax)。
-    int base = *reinterpret_cast<int*>(cfg->m_strPtr);
-    // ORIG `mov 0xc(%eax,%edx,4)` edx=level+4 = cfg+0x1c+level*4 = m_gageUpAux[level]
-    //   （ConfigParameter+0x1c int[4]，[gage up rate] 第 3 列）。
-    int maxGage = base * cfg->m_gageUpAux[m_gageLevel];
-    if (m_gage < maxGage)
+    // ORIG 求值序：先 aux[level]（→edx）后 *m_strPtr（→eax）再 imul ⇒ 交换书写序；
+    //   索引位 `static_cast<unsigned int>(m_gageLevel)` 复现 ORIG 两段装载
+    //   `mov 0x8(%eax),%eax; mov %eax,%edx`（P319；裸 int 索引 4.4 恒折单段）。
+    int maxGage = cfg->m_gageUpAux[static_cast<unsigned int>(m_gageLevel)] *
+                  *reinterpret_cast<int*>(cfg->m_strPtr);
+    if (m_gage >= maxGage)
     {
-        // +0x08 = m_gageUpRate[0]；+0x08+level*4 = m_gageUpRate[level]（ORIG mov 0x8(%eax)/mov 0x8(%eax,%edx,4)）。
-        float inc = (float)cfg->m_gageUpRate[0] *
-                    ((float)cfg->m_gageUpRate[m_gageLevel] / (float)base);
-        m_gage = m_gage + (int)(inc + 0.5f);
+        m_gage = maxGage;
+        sendTestCheckGage();
     }
     else
     {
-        m_gage = maxGage;
+        float ratio = (float)cfg->m_gageUpRate[static_cast<unsigned int>(m_gageLevel)] /
+                      (float)*reinterpret_cast<int*>(cfg->m_strPtr);
+        int inc = (int)((float)cfg->m_gageUpRate[0] * ratio);
+        m_gage = m_gage + inc;
+        sendTestCheckGage();
     }
-    sendTestCheckGage();
 }
 
 // ORIG T 0x0812d372（sendTestCheckGage.md 全文）：空函数。
@@ -261,12 +318,20 @@ int ProcStage::ProcSummonObjectMs::getLastInsertDataIndex()
 // ----------------------------------------------------------------------------
 void ProcStage::ProcSummonObjectMs::completePushSummonObject(int firstIndex)
 {
-    if (firstIndex > 0 &&
-        static_cast<int>(m_summons.size()) > firstIndex)
+    // b28d-solo-ProcStage：ORIG 0x0812d5e0 用 size()+operator[] 取地址形
+    //   （`call size; lea -0x1(%eax),%edx; …call operator[]`，无 begin()/end()
+    //   迭代器构造）；且第二实参是 `&m_summons[size()-1]`（P171 照抄 ORIG 的
+    //   末元素不参与排序行为，勿按语义"修正"成 end()）。
+    // ORIG 0x0812d5d7 物化形 = `(fi<=0) || (size()<=fi)` 短路（`cmpl $0,mem; jle <mov$1>`
+    //   + `cmp fi,%eax; jg <mov$0>` + fall `mov $1`）⇒ 条件写德摩根取反形
+    //   （4.4 对 `A&&B` 恒双失败跳，与 ORIG 极性不符）。
+    if (({ firstIndex <= 0 ||
+          static_cast<int>(m_summons.size()) <= firstIndex; }))
     {
-        std::sort(m_summons.begin() + firstIndex, m_summons.end(),
-                  ProcStage::ProcSummonObjectMs::compare);
+        return;
     }
+    std::sort(&m_summons[firstIndex], &m_summons[m_summons.size() - 1],
+              ProcStage::ProcSummonObjectMs::compare);
 }
 
 // ORIG T 0x0812daec（compare.md 全文）：return lhs->m_ms < rhs->m_ms。
@@ -285,33 +350,46 @@ bool ProcStage::ProcSummonObjectMs::compare(const _SummonObjectMs* lhs,
 // ----------------------------------------------------------------------------
 void ProcStage::ProcSummonObjectMs::summonObjectAndSendPacket()
 {
-    while (static_cast<unsigned int>(m_summons.size()) >
-           static_cast<unsigned int>(m_currentMs))
+    // b28d-solo-ProcStage：ORIG 0x0812d660 先把 size() 缓存到 -0x10（P13），
+    //   `so` 具名局部在 -0xc；判空用一次独立 operator[]（P48 无 CSE），
+    //   m_sentFlag 条件再发第三次 operator[]。
+    unsigned int count = static_cast<unsigned int>(m_summons.size());
+    _SummonObjectMs* so;
+    while (static_cast<unsigned int>(m_currentMs) < count)
     {
-        _SummonObjectMs* so = m_summons[m_currentMs];
-        if (so != 0)
+        // b28d-solo-ProcStage：P223——ORIG 0x0812d691 `sete %al; test %al,%al;
+        //   jne 0812d7d9`（nop 占位岛）+ body 尾 `jmp 0812d7da` ⇒ 原码是
+        //   `if (p == 0) goto L_next; body; L_next: ++m_currentMs;`（空 then 岛）。
+        //   旧正向 `if (p != 0) {body}` 4.4 恒产 setne/je（差集观察）。
+        if (m_summons[m_currentMs] == 0)
         {
-            if (*m_pCurrentMs < so->m_ms)
-            {
-                return;
-            }
-            if (so->m_ms <= *m_pCurrentMs && so->m_sentFlag == 0)
-            {
-                ++m_aliveDelta;
-                so->m_sentFlag = 1;
-
-                NOTIPacketStruct::_NotiAdvanceAltarSpawnUnit body;
-                body.m_spawnIndex = static_cast<unsigned short>(so->m_seq);
-                std::memcpy(&body.m_summon, &so->m_summon, 0x24);
-
-                PacketGuard guard;
-                guard.put_header(0, 0x20b);
-                guard.put_binary((char*)&body, 0x28);
-                guard.finalize(true);
-                CUser* user = m_characData->getUser();
-                user->Send(guard);
-            }
+            goto L_next;
         }
+        so = m_summons[m_currentMs];
+        if (so->m_ms > *m_pCurrentMs)
+        {
+            return;
+        }
+        // b28d-solo-ProcStage：P48/P157——ORIG 0x812d6cd/0x812d6e2 两处均读
+        //   `-0xc(%ebp)`（so 缓存）而非重发 operator[]（差集旧形多 1 次
+        //   `vector::operator[](unsigned)`）。
+        if (so->m_ms <= *m_pCurrentMs && so->m_sentFlag == 0)
+        {
+            ++m_aliveDelta;
+            so->m_sentFlag = 1;
+
+            NOTIPacketStruct::_NotiAdvanceAltarSpawnUnit body;
+            body.m_spawnIndex = static_cast<unsigned short>(so->m_seq);
+            std::memcpy(&body.m_summon, &so->m_summon, 0x24);
+
+            PacketGuard guard;
+            guard.put_header(0, 0x20b);
+            guard.put_binary((char*)&body, 0x28);
+            guard.finalize(true);
+            CUser* user = m_characData->getUser();
+            user->Send(guard);
+        }
+    L_next:
         ++m_currentMs;
     }
 }
@@ -324,38 +402,47 @@ void ProcStage::ProcSummonObjectMs::summonObjectAndSendPacket()
 // ----------------------------------------------------------------------------
 void ProcStage::ProcSummonObjectMs::debugLog() const
 {
+    // b28d-solo-ProcStage：ORIG 0x0812d834 起每字段重发 operator*（P48/P157 无 CSE，
+    //   共 9 次 `call …deEv`）+ 判空 `sete/jne` + cMyTrace 每轮构造即调用
+    //   （P221/P37 全表达式临时链，ctor 在循环体内 -0x4c）。
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x140, 0);
-        for (std::vector<_SummonObjectMs*>::const_iterator it = m_summons.begin();
-             it != m_summons.end(); ++it)
+        // P171 死计数器照抄：ORIG 0x0812d828 的 `movl $0,-0x20` 在 begin() 之后、
+        //   `addl $1,-0x20` 在增量段 ppEi 之后（0x0812d94d）⇒ 源码是
+        //   `it=begin(); n=0; for(; it!=end(); it++, ++n)`（continue 也走增量段）。
+        std::vector<_SummonObjectMs*>::const_iterator it = m_summons.begin();
+        int n = 0;
+        for (; it != m_summons.end(); it++, ++n)   // P28：ORIG 增量段 ppEi（后置）
         {
-            const _SummonObjectMs* so = *it;
-            const _SummonObject* sm = &so->m_summon;
-            trace("\tVecotr Ms = %06d ActionDefineId=%d ObjectId=%d spawndId=%d isDead=%d ObjectType=%d ObjectIndex=%d\n",
-                  so->m_ms, so->m_actionDefineId,
-                  sm->m_id,
-                  static_cast<int>(so->m_seq), static_cast<int>(so->m_deadFlag),
-                  sm->m_type,
-                  sm->m_field0c);
+            if ((*it) == 0)
+            {
+                continue;
+            }
+            cMyTrace(__PRETTY_FUNCTION__, 0x140, 0)(
+                "\tVecotr Ms = %06d ActionDefineId=%d ObjectId=%d spawndId=%d isDead=%d ObjectType=%d ObjectIndex=%d\n",
+                (*it)->m_ms, (*it)->m_actionDefineId,
+                (*it)->m_summon.m_id,
+                static_cast<int>((*it)->m_seq),
+                static_cast<int>((*it)->m_deadFlag),
+                (*it)->m_summon.m_type,
+                (*it)->m_summon.m_field0c);
         }
     }
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x14d, 0);
-        for (std::map<short, _SummonObjectMs*>::const_iterator it = m_summonMap.begin();
-             it != m_summonMap.end(); ++it)
+        // P171 死计数器照抄：ORIG 0x0812d99b `movl $0,-0x1c` 在 begin() 之后。
+        std::map<short, _SummonObjectMs*>::const_iterator it = m_summonMap.begin();
+        int n = 0;
+        for (; it != m_summonMap.end(); it++, ++n)   // P28：ORIG 增量段 ppEi（后置）
         {
-            const _SummonObjectMs* so = it->second;
-            const _SummonObject* sm = &so->m_summon;
-            trace("\tMap Ms = %06d ActionDefineId=%d ObjectId=%d spawndId=%d isDead=%d ObjectType=%d ObjectIndex=%d\n",
-                  so->m_ms, so->m_actionDefineId,
-                  sm->m_id,
-                  static_cast<int>(so->m_seq), static_cast<int>(so->m_deadFlag),
-                  sm->m_type,
-                  sm->m_field0c);
+            // b28d-solo-ProcStage：ORIG 0x0812d9a7 起为 `call operator->; mov 0x4(%eax),%eax`
+            //   （P167 新判据：ptEv 而非 deEv ⇒ 源写 `it->second`，每字段重发；map 侧无判空）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x14d, 0)(
+                "\tMap Ms = %06d ActionDefineId=%d ObjectId=%d spawndId=%d isDead=%d ObjectType=%d ObjectIndex=%d\n",
+                it->second->m_ms, it->second->m_actionDefineId,
+                it->second->m_summon.m_id,
+                static_cast<int>(it->second->m_seq),
+                static_cast<int>(it->second->m_deadFlag),
+                it->second->m_summon.m_type,
+                it->second->m_summon.m_field0c);
         }
     }
 }
@@ -372,22 +459,28 @@ bool ProcStage::ProcSummonObjectMs::dieMob(unsigned short mobSeq, unsigned short
 {
     (void)param;  // ORIG 未使用
     std::map<short, _SummonObjectMs*>::iterator it = m_summonMap.find((short)mobSeq);
-    if (it == m_summonMap.end())
+    // b28d-solo-ProcStage：ORIG 0x0812db53 起正向包裹（`test %al; je <尾 mov$0>` 单出口），
+    //   且 `it->second` 每次重发 operator->（P48/P167：0x812db73/0x812db84/0x812dbb1/
+    //   0x812dbe9 四处 `call operator->`），`so` 仅作首次结果缓存；
+    //   m_deadFlag 判读为 `movzbl; xor $1; test; je`（P248 档② bool 字段 + 裸 `!`）。
+    if (it != m_summonMap.end())
     {
-        return 0;
-    }
-    _SummonObjectMs* so = it->second;
-    if (so->m_sentFlag == 1 && so->m_deadFlag != 1)
-    {
-        so->m_deadFlag = 1;
-        ++m_deadCount;
-        CUser* user = m_characData->getUser();
-        if (user != 0)
+        _SummonObjectMs* so = it->second;
+        // P171 死写入照抄：ORIG 0x812db7e~0x812db8f 第二次 operator-> 取
+        //   it->second->m_sentFlag 存 -0x10 后从不读取。
+        const int sentFlag = it->second->m_sentFlag;
+        (void)sentFlag;
+        if (so->m_sentFlag == 1 && !so->m_deadFlag)
         {
-            const int monsterId = so->m_summon.m_id;
-            HistoryLog::killMonster(*user, monsterId, msg);
+            it->second->m_deadFlag = true;
+            ++m_deadCount;
+            CUser* user = m_characData->getUser();
+            if (user != 0)
+            {
+                HistoryLog::killMonster(*user, it->second->m_summon.m_id, msg);
+            }
+            return 1;
         }
-        return 1;
     }
     return 0;
 }
@@ -410,7 +503,7 @@ ProcStage::ProcStage(CharacData& characData)
       m_field14(0),
       m_summonObjectMs(*m_characData, m_field8),
       m_createdMapMonsters(),
-      m_difficulty(-1),
+      m_difficulty(static_cast<StageDifficulty::T>(-1)),
       m_mapBasisLevel(0),
       m_dungeon(0),
       m_map(0),
@@ -477,42 +570,54 @@ bool ProcStage::makeCurrentPhaseSummonObject()
         return false;
     }
 
-    Phase& phase = m_timeLine->m_phases[m_fieldc];
+    // b28d-solo-ProcStage：P167/P96——ORIG 0x812ebd9 `_ZNKSt6vectorI…Phase…EixEj`
+    //   （const 版 operator[]）+ 全套 `__normal_iteratorIPKN…` ⇒ m_timeLine 为
+    //   const TimeLine*（头已 const 化），phase 取 const 引用。
+    const Phase& phase = m_timeLine->m_phases[m_fieldc];
     ++m_fieldc;
     const int alive = m_summonObjectMs.getAliveMonsterCount();
-    const int phaseLength = phase.m_field0;
-    const int phaseEnd = phaseLength + m_field10;
+    // ORIG 0x0812ec27/0x0812ec2f 两局部：-0x30=phaseEnd（先取 m_field0 再 add
+    //   m_field10）、-0x2c=phaseLength（phaseEnd 的副本，供尾部 m_field10+=）。
+    int phaseEnd = phase.m_field0;
+    const int phaseLength = phaseEnd;
+    phaseEnd += m_field10;
 
-    _ActionAssign* unlimitedAssign = 0;
-    _ActionAssign* rangedAssign = 0;
-    for (std::vector<_ActionAssign>::iterator it = phase.m_assigns.begin();
-         it != phase.m_assigns.end(); ++it)
+    // b28d-solo-ProcStage：P167/P220——ORIG 0x812ec5c/0x812ec71 循环前两次 end()
+    //   初始化两个 const_iterator 哨兵（-0x7c=rangedIt、-0x80=unlimitedIt），
+    //   命中分支直接 `mov -0x78,%eax; mov %eax,-0x80/-0x7c`（迭代器整体赋值）；
+    //   两处 `rangedIt == end()` 用 eq 正极性（差集 eq ×2）。
+    std::vector<_ActionAssign>::const_iterator rangedIt = phase.m_assigns.end();
+    std::vector<_ActionAssign>::const_iterator unlimitedIt = phase.m_assigns.end();
+    for (std::vector<_ActionAssign>::const_iterator it = phase.m_assigns.begin();
+         it != phase.m_assigns.end(); it++)
     {
         if (it->m_minAliveCount == -1 && it->m_maxAliveCount == -1)
         {
-            unlimitedAssign = &*it;      // 不限档
+            unlimitedIt = it;            // 不限档
         }
         else if (alive >= it->m_minAliveCount && it->m_maxAliveCount >= alive)
         {
-            rangedAssign = &*it;         // 存活数区间档（循环不覆盖已命中者）
+            rangedIt = it;               // 存活数区间档（循环不覆盖已命中者）
         }
     }
-    if (rangedAssign == 0)
+    if (rangedIt == phase.m_assigns.end())
     {
-        rangedAssign = unlimitedAssign;
+        rangedIt = unlimitedIt;
     }
-    if (rangedAssign == 0)
+    if (rangedIt == phase.m_assigns.end())
     {
         return false;
     }
 
     std::map<int, int> spawnCounts;
     int firstIndex = -1;
-    ActionDefine* define = rangedAssign->m_define;
+    // b28d-solo-ProcStage：P167——ORIG 的 m_actions 迭代器为 const 族
+    //   （ZNK begin/end + ne(const,const)），无转换构造 ⇒ define 须为 const 指针。
+    const ActionDefine* define = rangedIt->m_define;
     if (define != 0)
     {
-        for (std::vector<_Action>::iterator it = define->m_actions.begin();
-             it != define->m_actions.end(); ++it)
+        for (std::vector<_Action>::const_iterator it = define->m_actions.begin();
+             it != define->m_actions.end(); it++)   // P28：ORIG 增量段 ppEi
         {
             int spawnMs = m_field10 + it->m_firstDelayMs;
             while (spawnMs < phaseEnd)
@@ -636,7 +741,7 @@ CMap* ProcStage::getMap() const
 }
 
 // ORIG W 0x08134852：return *(int*)(this+0x90)。
-TimeLine* ProcStage::getTimeLine() const
+const TimeLine* ProcStage::getTimeLine() const
 {
     return m_timeLine;
 }
@@ -663,7 +768,7 @@ void ProcStage::reset(StageType::T type)
     m_field8 = 0;
     m_fieldc = 0;
     m_field10 = 0;
-    m_difficulty = -1;
+    m_difficulty = static_cast<StageDifficulty::T>(-1);
     m_map = 0;                    // ORIG +0x74 总是清零
     m_summonObjectMs.reset();
 
@@ -690,9 +795,10 @@ void ProcStage::resetAll()
 // ORIG T 0x0812f70c：stageType==1 && survivalFirst!=0。
 bool ProcStage::isSurvivalModeFirstRound() const
 {
-    register bool r __asm__("al");
-    r = (getStageType() == 1 && m_survivalFirst != 0);
-    if (r)
+    // b28d-solo-ProcStage：P0/N96 清绑（原 `register bool r __asm__("al")` 违禁）。
+    // ORIG 0x0812f70d 汇聚值仅存 %eax/%al（无栈槽往返）⇒ 用 P226 条件向语句表达式
+    // （`if (({ A && B; }))`，内不含具名变量）复现短路物化岛 + 零槽。
+    if (({ getStageType() == 1 && m_survivalFirst != 0; }))
         return true;
     return false;
 }
@@ -752,9 +858,9 @@ int ProcStage::startStage(int stageId, StageDifficulty::T diff)
         reset(StageType::STAGE_SURVIVAL);
         if (isSurvivalModeFirstRound())
         {
-            // ORIG: roundMaps = dungeon->m_vec814（CDungeon+0x814，startStage.md `lea 0x814(%eax)`）；random_shuffle。
-            const std::vector<int>& src = m_dungeon->m_vec814;
-            m_roundMaps = src;
+            // ORIG: roundMaps = dungeon->m_vec814（CDungeon+0x814，startStage.md `lea 0x814(%eax)`）；
+            //   P0：无 src 具名引用槽 ⇒ 直接内联赋值（旧 src 形多 sret 临时）。
+            m_roundMaps = m_dungeon->m_vec814;
             std::random_shuffle(m_roundMaps.begin(), m_roundMaps.end());
             // ORIG: state=1、startStageTime=getCurSec、HistoryLog::enterDungeon。
             m_state = 1;
@@ -766,7 +872,8 @@ int ProcStage::startStage(int stageId, StageDifficulty::T diff)
             ++m_survivalRound;
         }
 
-        if (static_cast<unsigned int>(m_survivalRound) >= m_roundMaps.size())
+        // P211/P254：ORIG `mov 0x7c(%eax),%ebx` 单段直落 + `setae` 无符号 ⇒ 隐式转换。
+        if (m_survivalRound >= m_roundMaps.size())
         {
             m_state = 7;
             return 0x15;
@@ -777,7 +884,7 @@ int ProcStage::startStage(int stageId, StageDifficulty::T diff)
     else
     {
         reset(StageType::STAGE_NORMAL);
-        m_difficulty = static_cast<int>(diff);
+        m_difficulty = diff;
         m_state = 1;
         // ORIG: mapIdx/mapBasisLevel 按 difficulty 索引 CDungeon 表——
         //   mapIdx: `mov 0x8(%eax,%edx,4)` edx=diff+0x200 → dungeon+0x808+diff*4 = m_808[diff]
@@ -789,7 +896,10 @@ int ProcStage::startStage(int stageId, StageDifficulty::T diff)
         HistoryLog::enterDungeon(*user, *this);
     }
 
-    m_map = static_cast<CMap*>(G_CDataManager()->find_map(mapIdx));
+    // P211 档③（b28d-solo-ProcStage）：find_map 返回类型修正为 CMap*（CDataManager.h，
+    //   已 R2 广播）⇒ 本处无 cast、字段与 RHS 同型，复现 ORIG 0x0812e0a8
+    //   `mov 0x8(%ebp),%edx; mov %eax,0x74(%edx)` LHS-first 直存。
+    m_map = G_CDataManager()->find_map(mapIdx);
     if (m_map == 0)
     {
         return 0x15;
@@ -841,34 +951,39 @@ void HistoryLog::killMonster(CUser& user, int monsterId, const MSG_MONSTER_DIE& 
 // ----------------------------------------------------------------------------
 void HistoryLog::dungeonClearInfo(CUser& user, StageControl& control, bool isLast)
 {
-    ProcStage* procStage = control.getProcStage();
-    const int startStageTime = procStage->getStartStageTime();
-
+    // b28d-solo-ProcStage：ORIG 0x08133bf0 起每次重发 control.getProcStage()
+    //   （P48/P0 表达式内联，无 procStage 具名槽）；-0x1c=startStageTime、-0x20=playSec
+    //   为 ORIG 具名局部（`movl $0,-0x20` 预清 + `sub -0x1c,%eax` 回写）；
+    //   数组 -0x11f 用 P312 `={0}` 慢路（旧显式循环为逐字节形）；
+    //   stageIndex/ridableData/hist 全内联（ORIG 无槽，ridableData 经 %ebx 保活）。
+    // ORIG 槽序：-0x20=playSec（先声明，函数头预清 `movl $0,-0x20`）、
+    //   -0x1c=startStageTime；分支为 then 后置（`cmpl $0,-0x1c; jg <then>`）⇒ 反向条件。
     long playSec = 0;
-    if (startStageTime >= 1)
+    const int startStageTime = control.getProcStage()->getStartStageTime();
+    if (startStageTime <= 0)
+    {
+        playSec = 0;
+    }
+    else
     {
         playSec = static_cast<long>(
             GlobalData::s_systemTime_.getCurSec() - startStageTime);
     }
 
-    char memberNames[255];                    // ebp-0x11f 起 0xff 字节清零
-    for (int i = 0; i < static_cast<int>(sizeof(memberNames)); ++i)
-    {
-        memberNames[i] = 0;
-    }
+    char memberNames[255] = {0};              // ebp-0x11f 起 0xff 字节清零
     getMemberNames(&user, memberNames);
 
-    const int stageIndex = procStage->getStageIndex();
-    const int ridableData = control.getCharacData()->m_field0;
-
-    cUserHistoryLog* hist = &user.m_historyLog;
-    hist->DungeonClearInfo(static_cast<int>(isLast), playSec, stageIndex,
-                           0, 1, ENUM_DUNGEON_MODE_0, memberNames, ridableData);
+    user.m_historyLog.DungeonClearInfo(
+        static_cast<int>(isLast), playSec,
+        control.getProcStage()->getStageIndex(),
+        0, 1, ENUM_DUNGEON_MODE_0, memberNames,
+        control.getCharacData()->m_field0);
 
     if (isLast)
     {
         HistoryLog::advanceAltarstatistics_.incrementEntranceData(
-            static_cast<unsigned int>(stageIndex), 0, 1, 0);
+            static_cast<unsigned int>(control.getProcStage()->getStageIndex()),
+            0, 1, 0);
     }
 }
 
@@ -879,21 +994,21 @@ void HistoryLog::dungeonClearInfo(CUser& user, StageControl& control, bool isLas
 // ----------------------------------------------------------------------------
 void HistoryLog::enterDungeon(CUser& user, const ProcStage& procStage)
 {
-    char memberNames[255];                    // ebp-0x107 起 0xff 字节清零
-    for (int i = 0; i < static_cast<int>(sizeof(memberNames)); ++i)
-    {
-        memberNames[i] = 0;
-    }
+    // b28d-solo-ProcStage：ORIG 0x081339bb 是 4.1 的「对齐剥离 + rep stos + 尾字节」
+    //   慢路（数组槽 -0x107 非 4 对齐）⇒ P312 形 `char buf[N]={0}` + 前置死局部
+    //   （1 字节 pad 把数组顶到非对齐槽）；旧显式循环为逐字节形。
+    char memberNames[255] = {0};             // ebp-0x107 起 0xff 字节清零
     getMemberNames(&user, memberNames);
 
-    const int difficulty = procStage.getStageDifficulty();
-    const int stageIndex = procStage.getStageIndex();
-
-    cUserHistoryLog* hist = &user.m_historyLog;
-    hist->EnterDungeon(stageIndex, difficulty, 1, memberNames, 2, 0);
+    // P0：ORIG 无 difficulty/stageIndex/hist 具名槽——difficulty 经 %ebx 跨
+    //   getStageIndex 调用保活（`mov %eax,%ebx`）、stageIndex 留 %eax、
+    //   hist 由 `lea 0x79700(%edx),%ecx` 内联 ⇒ 全部表达式内联。
+    user.m_historyLog.EnterDungeon(procStage.getStageIndex(),
+                                   procStage.getStageDifficulty(), 1,
+                                   memberNames, 2, 0);
 
     HistoryLog::advanceAltarstatistics_.incrementEntranceData(
-        static_cast<unsigned int>(stageIndex), 1, 0, 0);
+        static_cast<unsigned int>(procStage.getStageIndex()), 1, 0, 0);
 }
 
 
@@ -918,11 +1033,10 @@ int CharacData::getGageLevel() const
 }
 
 // ----------------------------------------------------------------------------
-// ORIG T 0x0812d176（upgreadGage.md 全文）：cfg=(char*)G_CDataManager()+0x6364；
-// level==3 → ret2；cost = **(int**)(cfg+0x18) * ROUND((float)*(float*)(cfg+4) *
-// *(int*)(cfg+0x0c+(level+4)*4))（fldcw 舍入到最近，正数用 +0.5f 近似，
-// 与 upGage() 同模式）；m_gage<cost → ret3；否则扣费并按档位
-// 0→1 / 1→2 / 2→3 推进 m_gageLevel，ret0。
+// ORIG T 0x0812d176（upgreadGage.md 全文）：cfg = G_CDataManager()+0x6364；
+//   level==3 → ret2；cost = (int)((float)m_gageUpAux[level] * m_4)（x87 截断，
+//   无 +0.5f）再 `cost = *m_strPtr * cost`；m_gage<cost → ret3；否则扣费并按档位
+//   0→1 / 1→2 / 2→3 推进 m_gageLevel，ret0。
 // ----------------------------------------------------------------------------
 unsigned int CharacData::upgreadGage()   // b28c-L5 SIGFIX：ORIG 三出口写 %eax 错误码；
                                          // 消费点 store 直存形定案 unsigned（见 .h 判词）
@@ -932,30 +1046,30 @@ unsigned int CharacData::upgreadGage()   // b28c-L5 SIGFIX：ORIG 三出口写 %
     {
         return 2;   // ORIG 0x0812d194 `mov $0x2,%eax; jmp 尾`：满级错误码 2
     }
-    // +0x18 = m_strPtr 双解引（mov 0x18(%eax);mov(%eax)）；+0x04 = m_4（float，flds 0x4）。
-    const int base = *reinterpret_cast<int*>(cfg->m_strPtr);
-    const float ratio = cfg->m_4;
-    // ORIG 折叠寻址 mov 0xc(%eax,%edx,4) edx=level+4 = cfg+0x1c+level*4 = m_gageUpAux[level]。
-    const int tableValue = cfg->m_gageUpAux[m_gageLevel];
-    const int cost = base *
-                     static_cast<int>(ratio * static_cast<float>(tableValue) +
-                                      0.5f);
+    // b28d-solo-ProcStage：ORIG 0x812d1b3 `fildl aux[level]` → `flds 0x4` → fmulp →
+    //   `fistpl`（纯截断，无 +0.5f）→ `imul *m_strPtr` 覆盖同槽；base/ratio 均无具名槽。
+    int cost = (int)((float)cfg->m_gageUpAux[static_cast<unsigned int>(m_gageLevel)] *
+                     cfg->m_4);
+    cost = *reinterpret_cast<int*>(cfg->m_strPtr) * cost;
     if (m_gage < cost)
     {
         return 3;   // ORIG 0x0812d1f0 `mov $0x3,%eax; jmp 尾`：gage 不足
     }
     m_gage -= cost;
-    if (m_gageLevel == 1)
+    // ORIG 0x812d20b 决策树 `cmp $1; je L1; cmp $2; je L2; test; jne default` +
+    //   叶块物理序 0,1,2 ⇒ 原码是 `switch (m_gageLevel)`（P251/P286；if-else 链
+    //   在 4.4 恒反产 jne 内联块序）。
+    switch (m_gageLevel)
     {
-        m_gageLevel = 2;
-    }
-    else if (m_gageLevel == 2)
-    {
-        m_gageLevel = 3;
-    }
-    else if (m_gageLevel == 0)
-    {
+    case 0:
         m_gageLevel = 1;
+        break;
+    case 1:
+        m_gageLevel = 2;
+        break;
+    case 2:
+        m_gageLevel = 3;
+        break;
     }
     return 0;   // ORIG 0x0812d23e `mov $0x0,%eax`（成功统一出口，非各臂就地写）
 }
@@ -966,7 +1080,7 @@ unsigned int CharacData::upgreadGage()   // b28c-L5 SIGFIX：ORIG 三出口写 %
 // pair second@+4 内 +0x08 字段）；条件 it->second.m_needGage==need（+0x08）
 // 且 cost<=m_gage → 扣费 ret0；否则 ret2。
 // ----------------------------------------------------------------------------
-int CharacData::summonSlotUnit(unsigned char slot, int need)
+unsigned int CharacData::summonSlotUnit(unsigned char slot, int need)
 {
     ConfigParameter* cfg = &G_CDataManager()->m_altarConfig;  // CDataManager+0x6364（summonSlotUnit.md `add $0x6364`）
     std::map<unsigned char, _SlotItem>::const_iterator it = m_slotItems.find(slot);
@@ -978,7 +1092,11 @@ int CharacData::summonSlotUnit(unsigned char slot, int need)
     // ORIG 0x812d…：先读 it->second.m_field8（0xc(%eax)→%edx）再解 m_strPtr，
     // imul %edx —— 乘法左操作数为 m_field8（求值顺序复现）。
     const int cost = it->second.m_field8 * *reinterpret_cast<int*>(cfg->m_strPtr);
-    if (it->second.m_needGage == need && cost <= m_gage)
+    // b28d-solo-ProcStage 真语义 bug 修正：ORIG 0x0812d330 `mov 0x8(%eax),%eax`
+    //   （eax=pair* ⇒ pair+0x8 = second+0x04 = m_itemId）与 need 比较；
+    //   Ghidra C `if (*(int*)(iVar4 + 8) == param_2)` 联证。旧形误用 union 视角
+    //   m_needGage（+0x08），比错字段 4 字节。
+    if (it->second.m_itemId == need && cost <= m_gage)
     {
         m_gage -= cost;
         return 0;
@@ -1027,16 +1145,21 @@ bool ProcStage::isEndStage(StageEndType::T& endType) const
     int aliveOnMap = 0;
     for (std::map<short, _MapMonsterSummary>::const_iterator it =
              m_createdMapMonsters.begin();
-         it != m_createdMapMonsters.end(); ++it)
+         it != m_createdMapMonsters.end(); it++)
     {
-        if (m_map != 0 &&
-            // ORIG `movzwl 0x8(...)` 读 _MapMonsterSummary+0x06 m_towerRefA（short）零扩 u16，
-            //   与 CMap+0x110 m_110（int，`mov 0x110(%eax)` 全 dword）比较。
-            static_cast<unsigned>(static_cast<unsigned short>(it->second.m_towerRefA)) ==
-                static_cast<unsigned>(m_map->m_110) &&
-            it->second.m_padC != 1)
+        // ORIG `movzwl 0x8(...)` 读 _MapMonsterSummary+0x06 m_towerRefA（short）零扩 u16，
+        //   与 CMap+0x110 m_110（int，`mov 0x110(%eax)` 全 dword）比较；P225 推广：
+        //   && 链拆嵌套 if 才能让 4.4 对中间比较发 `sete; test; je` 物化。
+        if (m_map != 0)
         {
-            ++aliveOnMap;
+            if (static_cast<unsigned>(static_cast<unsigned short>(it->second.m_towerRefA)) ==
+                static_cast<unsigned>(m_map->m_110))
+            {
+                if (!it->second.m_padC)
+                {
+                    ++aliveOnMap;
+                }
+            }
         }
     }
     if (aliveOnMap == 0)
@@ -1044,12 +1167,16 @@ bool ProcStage::isEndStage(StageEndType::T& endType) const
         endType = StageEndType::END_N0;
         return true;
     }
-    if (!allPhaseEnd || !summonEnd || aliveSummons != 0)
+    // b28d-solo-ProcStage：ORIG 0x812e3cd 为正向包裹——`cmpb $0,slot; je <尾 mov$0>`
+    //   ×2 + `cmpl $0; jne`，即 4.1 对 bool 槽直接 cmpb（P222 正极性；4.4 对
+    //   `!bool` 恒 movzbl+xor，N122）。it++ 为 P28 后置形（ORIG 增量段有独立临时槽
+    //   -0x18，使 begin/end 槽深移 4 位对齐 -0x20/-0x1c）。
+    if (allPhaseEnd && summonEnd && aliveSummons == 0)
     {
-        return false;
+        endType = StageEndType::END_N3;
+        return true;
     }
-    endType = StageEndType::END_N3;
-    return true;
+    return false;
 }
 
 // ----------------------------------------------------------------------------
@@ -1070,16 +1197,17 @@ void ProcStage::clearStageAndReward()
     {
         return;
     }
-    CharacAdvanceAltarManager& cam = user->m_advanceAltar;
-
     int starCount = 0;
     bool unlockBuy = false;
     bool bFlag = false;
-    if (!cam.clearStage(getStageIndex(),
-                        static_cast<StageDifficulty::T>(m_difficulty),
-                        static_cast<StageType::T>(getStageType()),
-                        getClearSurvivalRoundNo(),
-                        starCount, unlockBuy, bFlag))
+    // b28d-solo-ProcStage：P0/P183——ORIG 无 cam 引用槽（0x812e464 每次
+    //   `mov -0x1c(%ebp),%edx; lea 0x8df60(%edx),%ecx` 内联）⇒ 全部实参内联。
+    if (!user->m_advanceAltar.clearStage(
+            getStageIndex(),
+            static_cast<StageDifficulty::T>(m_difficulty),
+            static_cast<StageType::T>(getStageType()),
+            getClearSurvivalRoundNo(),
+            starCount, unlockBuy, bFlag))
     {
         return;
     }
@@ -1088,30 +1216,36 @@ void ProcStage::clearStageAndReward()
     addAchievementReward(rewardMap);
     std::vector<_RewardItem> rewardItems;
     rewardClearStage(rewardItems);
-    cam.setNextStage(getStageIndex());
+    user->m_advanceAltar.setNextStage(getStageIndex());
 
-    const int stageType = getStageType();
-    bool consumeTicketOnly = (stageType == 0) ||
-                             (stageType == 1 && !rewardItems.empty());
-    bool skipSendBranch = consumeTicketOnly && cam.decTicket() == 0;
-    if (!skipSendBranch)
+    // b28d-solo-ProcStage：P48——ORIG 0x812e4ff/0x812e50e 两次独立 getStageType()
+    //   （差集 MISSING ×1；旧具名 stageType 缓存少一条 call）；
+    //   P197④——ORIG 0x812e51e `call size; test; je` ⇒ 原码 `size() != 0` 非 empty()；
+    //   P168a 档①——ORIG 0x812e547 `call decTicket; xor $1; test; je` ⇒ bool 返回 + 裸 `!`。
+    // ORIG 0x812e533 `test %al; je 主流程` + 0x812e54c `xor $1; test; je 主流程`
+    //   ⇒ 单条 `if ((A||B) && !C) return;`（A/B 物化为 mov$1/mov$0 汇合）。
+    //   P226 条件向语句表达式（内不含具名变量）复现 A||B 的零槽短路物化岛。
+    if (({ getStageType() == 0 ||
+          (getStageType() == 1 && rewardItems.size() != 0); }) &&
+        !user->m_advanceAltar.decTicket())
     {
-        std::vector<_BuyItem> buyItems;
-        if (unlockBuy)
-        {
-            cam.setUnlockBuyItem(static_cast<AdvanceAltarShopType::T>(0),
-                                 getStageIndex(), &buyItems);
-            cam.setUnlockBuyItem(static_cast<AdvanceAltarShopType::T>(1),
-                                 getStageIndex(), &buyItems);
-            cam.setUnlockBuyItem(static_cast<AdvanceAltarShopType::T>(2),
-                                 getStageIndex(), &buyItems);
-        }
-        sendClearStage(rewardItems, buyItems, rewardMap, starCount, bFlag);
-        if (0 < starCount)
-        {
-            HistoryLog::starAdd(*user, AddStarType::ADD_BY_CLEAR,
-                                getStageIndex(), starCount);
-        }
+        return;
+    }
+    std::vector<_BuyItem> buyItems;
+    if (unlockBuy)
+    {
+        user->m_advanceAltar.setUnlockBuyItem(
+            static_cast<AdvanceAltarShopType::T>(0), getStageIndex(), &buyItems);
+        user->m_advanceAltar.setUnlockBuyItem(
+            static_cast<AdvanceAltarShopType::T>(1), getStageIndex(), &buyItems);
+        user->m_advanceAltar.setUnlockBuyItem(
+            static_cast<AdvanceAltarShopType::T>(2), getStageIndex(), &buyItems);
+    }
+    sendClearStage(rewardItems, buyItems, rewardMap, starCount, bFlag);
+    if (0 < starCount)
+    {
+        HistoryLog::starAdd(*user, AddStarType::ADD_BY_CLEAR,
+                            getStageIndex(), starCount);
     }
 }
 
@@ -1192,30 +1326,39 @@ void ProcStage::rewardClearStage(std::vector<_RewardItem>& out)
     }
     out.clear();
 
-    std::vector<_RewardItem>* items = 0;
-    if (getStageType() == 1)
+    // b28d-solo-ProcStage：P167 符号族——ORIG 迭代器为 const 族
+    //   （`__normal_iteratorIPKN…` deEv×5 + ptEv×2、ZNK begin/end、ne(const,const)、
+    //   ppEi），且**无** const_iterator 转换构造 ⇒ items 本身是 const 指针。
+    const std::vector<_RewardItem>* items = 0;
+    // b28d-solo-ProcStage：ORIG 0x812f12d `cmp $1; je <生存块>`（生存块后置）——
+    //   4.4 对 if 形 `==1`/`!=1` 恒产 setcc 物化（各试一形），P286 单 case switch
+    //   才出 ORIG 的寄存器比较直跳；default 块在前 = ORIG 普通块 fall-through。
+    switch (getStageType())
     {
-        // CDungeon+0x850 = m_survivalReward（SurvivalRewardData，rewardClearStage.md `add $0x850`）。
-        items = m_dungeon->m_survivalReward.getRoundRewardData(m_survivalRound);
-    }
-    else
-    {
+    default:
         // CDungeon+0x82c = m_clearReward（ClearRewardData），元素 stride 0xc = sizeof(vector<_RewardItem>)，
         //   按 difficulty 索引 m_vec[diff]（rewardClearStage.md `add $0x820`/`add $0xc` 折叠 base）。
         items = &m_dungeon->m_clearReward.m_vec[static_cast<unsigned int>(m_difficulty)];
+        break;
+    case 1:
+        // CDungeon+0x850 = m_survivalReward（SurvivalRewardData，rewardClearStage.md `add $0x850`）。
+        items = m_dungeon->m_survivalReward.getRoundRewardData(m_survivalRound);
+        break;
     }
 
     std::vector<_RewardItem> mailNormal;   // local_28
     std::vector<_RewardItem> mailEvent;    // local_34
     if (items != 0)
     {
+        int n = 0;   // P171 死计数器照抄（ORIG -0xc）
+        // P28——ORIG 增量段 0x812f276 为 ppEi（后置）⇒ 写 it++。
         for (std::vector<_RewardItem>::const_iterator it = items->begin();
-             it != items->end(); ++it)
+             it != items->end(); it++)
         {
             if (isOnEvent())
             {
                 out.push_back(*it);
-                if (it->m_type == 0)
+                if (it->m_type == 0)   // P167：ORIG ptEv（非 deEv）
                 {
                     mailNormal.push_back(*it);
                 }
@@ -1224,19 +1367,22 @@ void ProcStage::rewardClearStage(std::vector<_RewardItem>& out)
                     mailEvent.push_back(*it);
                 }
             }
-            else if (it->m_type == 0)
+            else if (it->m_type == 0)   // P167：ORIG ptEv
             {
                 out.push_back(*it);
                 mailNormal.push_back(*it);
             }
         }
+        (void)n;   // P171：ORIG 仅 `movl $0,-0xc` 初始化、无自增（死写入照抄）
     }
-    if (!mailNormal.empty())
+    // b28d-solo-ProcStage：P197④——ORIG 0x812f2c2 `call size; test; setne; test; je`
+    //   ⇒ 原码 `size() != 0`（empty() 在 4.4 恒 out-of-line call 且无 setne 段）。
+    if (mailNormal.size() != 0)
     {
         sendMailRewardItem(m_characData->getUser(), mailNormal,
                            "chn_game_server_msg_88", "chn_game_server_msg_89");
     }
-    if (isOnEvent() && !mailEvent.empty())
+    if (isOnEvent() && mailEvent.size() != 0)
     {
         sendMailRewardItem(m_characData->getUser(), mailEvent,
                            "chn_game_server_msg_86", "chn_game_server_msg_87");
@@ -1256,20 +1402,25 @@ void ProcStage::addAchievementReward(std::map<int, _Reward>& out)
     {
         return;
     }
-    CharacAdvanceAltarManager& cam = user->m_advanceAltar;
 
     int summary[3];
     std::memset(summary, 0, sizeof(summary));      // memset(local,0,0xc)
-    cam.getClearStageSummary(summary);
-    // CDataManager+0x634c = m_altarReward（RewardParameter，addAchievementReward.md 配置区偏移）。
-    RewardParameter* rewardParam = &G_CDataManager()->m_altarReward;
+    user->m_advanceAltar.getClearStageSummary(summary);
+    // b28d-solo-ProcStage：P0 槽-局部律——ORIG 0x0812f3e9 `lea 0x8df60(%eax),%edx` /
+    //   0x0812f41f `lea 0x634c(%eax),%edx` 均寄存器直传（无槽）⇒ 原码是表达式内联，
+    //   不得写具名引用/指针局部（旧形 cam/rewardParam 各占一槽、多 3 条并挤掉
+    //   -0x14/-0x10 两个 ORIG 具名局部）；-0x14=diff（`mov -0x18,%eax; mov %eax,-0x14`）、
+    //   -0x10=value（`mov -0x14,%eax; mov -0x28(%ebp,%eax,4),%eax; mov %eax,-0x10`）照抄。
     for (int i = 0; i < 3; ++i)
     {
-        AchievementRewardData* data = rewardParam->getAchievementRewardData(
-            static_cast<StageDifficulty::T>(i), summary[i]);
+        StageDifficulty::T diff = static_cast<StageDifficulty::T>(i);
+        int value = summary[diff];
+        AchievementRewardData* data =
+            G_CDataManager()->m_altarReward.getAchievementRewardData(
+                diff, value);
         if (data != 0)
         {
-            cam.addRewardData(data->m_type, out);  // *(int*)data [+0x00]
+            user->m_advanceAltar.addRewardData(data->m_type, out);  // *(int*)data [+0x00]
         }
     }
 }
@@ -1291,34 +1442,47 @@ void ProcStage::sendMailRewardItem(CUser* user,
         return;
     }
 
-    const char* senderText = g_scriptStringManager_.findString(4, senderKey, 0);
+    // b28d-solo-ProcStage：P0——ORIG 0x812f4c6/0x812f500 的 strncpy 第 2 参直接是
+    //   findString 的 %eax（无 senderText/titleText 具名指针槽；旧形多 2 槽 ⇒
+    //   全帧深 3）。循环计数器槽序：-0x14=count（在 itemBase 前声明、体首 ++）、
+    //   -0x10=i（在 pairs 后声明、体尾 ++、条件 `cmpl $0x9` 用它）。
+    // b28d-solo-ProcStage：P312——ORIG 数组槽基比 4.4 深 5 字节（sender -0x4b
+    //   vs -0x46）⇒ 前置 5 字节死局部把数组组整体顶到 ORIG 同址。
+    char framePad[1];
+    (void)framePad;
     char sender[30];                      // ebp-0x4b 起 0x1e
-    std::strncpy(sender, senderText, sizeof(sender));
-    const char* titleText = g_scriptStringManager_.findString(4, titleKey, 0);
+    std::strncpy(sender, g_scriptStringManager_.findString(4, senderKey, 0),
+                 sizeof(sender));
     char title[255];                      // ebp-0x15c 起 0xff
-    std::strncpy(title, titleText, sizeof(title));
+    std::strncpy(title, g_scriptStringManager_.findString(4, titleKey, 0),
+                 sizeof(title));
 
+    unsigned int count = 0;               // -0x14
     Inven_Item itemBase[10];              // ebp-0x3be，stride 0x3d 十次构造
     std::vector<std::pair<int, int>> pairs;
-    unsigned int count = 0;               // local_18
-    int i = 0;                            // -0x10 双计数器（上限 10）
+    int i = 0;                            // -0x10（上限 10）
     for (std::vector<_RewardItem>::const_iterator it = items.begin();
-         it != items.end() && i < 10; ++it, ++i)
+         it != items.end() && i < 10; it++, ++i)
     {
         ++count;
-        pairs.push_back(std::make_pair(it->m_value1, it->m_value2));
-        // 第二分量 [推断]：op-> 后 (ulong)(item+4)/(int)(item+?) 折叠显示，
-        // 按 RewardItem{type,value1,value2} 布局语义取 value1/value2。
+        // P178 嵌套实参形：ORIG 0x812f5a4 make_pair → pair<int,int> 转换 ctor → push_back。
+        pairs.push_back(std::pair<int, int>(
+            std::make_pair(it->m_value1, it->m_value2)));
     }
 
+    // b28d-solo-ProcStage：P171——ORIG 0x812f631 `movl $0xf,-0xc(%ebp)` 死写入
+    //   （调用点仍压立即数 0xf）⇒ 具名 int 局部照抄，同时把 count/i 槽顶深 4。
+    int fieldType = 0xf;
+    (void)fieldType;
     WongWork::CMailBoxHelper::MakeSystemMultiMailPostal(pairs, itemBase, count);
-    ENUM_SERVER_GROUP group = user->GetServerGroup();
-    const size_t titleLen = std::strlen(title);
-    const unsigned int characNo = static_cast<unsigned int>(
-        user->get_charac_no(-1));
+    // b28d-solo-ProcStage：P0/P44——ORIG 0x812f65f/0x812f66f/0x812f684 把
+    //   group/titleLen/characNo 留在 %ebx/%esi/%edx（无槽）⇒ 全部实参内联；
+    //   求值序 = 右→左（group → titleLen → characNo），与 ORIG 装载序一致。
     WongWork::CMailBoxHelper::ReqDBSendNewSystemMultiMail(
-        sender, itemBase, count, 0, characNo, title,
-        static_cast<unsigned int>(titleLen), 0xf, group, false);
+        sender, itemBase, count, 0,
+        static_cast<unsigned int>(user->get_charac_no(-1)), title,
+        static_cast<unsigned int>(std::strlen(title)), 0xf,
+        user->GetServerGroup(), false);
 }
 
 // ----------------------------------------------------------------------------
@@ -1351,33 +1515,44 @@ void ProcStage::sendClearStage(const std::vector<_RewardItem>& rewards,
     body.m_stageType = getStageType();
     body.m_clearSurvivalRoundNo = getClearSurvivalRoundNo();
     body.m_ridableId = ridableId;
-    body.m_clearFlag = clearFlag ? 1 : 0;
-    {
-        int stageFields[2] = { getStageIndex(), m_difficulty };
-        std::memcpy(&body.m_stage, stageFields, sizeof(stageFields));
-    }
+    body.m_clearFlag = clearFlag;
+    // b28d-solo-ProcStage：ORIG 0x812e76b/0x812e776 逐字段直写 packed 子对象
+    //   （`call getStageIndex; mov %eax,-0x3f` + `mov 0x68(%eax),%eax; mov %eax,-0x3b`）
+    //   ⇒ 不得用 int[2]+memcpy（多一条 memcpy call，P167 EXTRA）。
+    body.m_stage.m_field0 = getStageIndex();
+    body.m_stage.m_field4 = static_cast<StageField4_t>(m_difficulty);
     body.m_starCount = starCount;
 
     PacketGuard guard;
     guard.put_header(0, 0x20f);
     guard.put_binary(reinterpret_cast<char*>(&body), 0x1c);
-    guard.put_int(static_cast<int>(rewards.size()));
-    for (std::vector<_RewardItem>::const_iterator it = rewards.begin();
-         it != rewards.end(); ++it)
+    // b28d-solo-ProcStage：ORIG 0x812e7c8 先 size() 缓存到 -0xc，put_int 复用缓存，
+    //   随后 `cmpl $0,-0xc; jle <跳过循环>` —— 原码是 `int n=rewards.size();
+    //   put_int(n); if (n > 0) { for(...) }`（buyItems/rewardMap 两段无此守卫）。
+    const int rewardCount = static_cast<int>(rewards.size());
+    guard.put_int(rewardCount);
+    if (rewardCount > 0)
     {
-        guard.put_binary(reinterpret_cast<const char*>(&*it), 0xc);
+        for (std::vector<_RewardItem>::const_iterator it = rewards.begin();
+             it != rewards.end(); it++)   // P28：ORIG 增量段 ppEi（后置）
+        {
+            // ORIG 0x812e820 调用 put_binary(char*,int)（Pc 非 const 重载；P167 差集：
+            //   ORIG `_ZN18InterfacePacketBuf10put_binaryEPci` vs 旧 `EPKci`）⇒ C cast 去 const。
+            guard.put_binary((char*)&*it, 0xc);
+        }
     }
     guard.put_int(static_cast<int>(buyItems.size()));
     for (std::vector<_BuyItem>::const_iterator it = buyItems.begin();
-         it != buyItems.end(); ++it)
+         it != buyItems.end(); it++)   // P28：ORIG 增量段 ppEi（后置）
     {
-        guard.put_binary(reinterpret_cast<const char*>(&*it), 0xc);
+        guard.put_binary((char*)&*it, 0xc);
     }
     guard.put_int(static_cast<int>(rewardMap.size()));
     for (std::map<int, _Reward>::const_iterator it = rewardMap.begin();
-         it != rewardMap.end(); ++it)
+         it != rewardMap.end(); it++)   // P28：ORIG 增量段 ppEi（后置）
     {
-        guard.put_binary(reinterpret_cast<const char*>(&it->second), 5);
+        // ORIG 0x812e944 `call operator->; add $0x4,%eax` ⇒ &it->second（Pc 版）。
+        guard.put_binary((char*)&it->second, 5);
     }
     guard.finalize(true);
     user->Send(guard);

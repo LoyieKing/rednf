@@ -81,7 +81,11 @@ public:
     bool check_requiredRecipe(const Inven_Item& item) const;     // 0x080f4bb0
     unsigned int _getFailProb_Fortune(int materialIdx, unsigned int upgrade) const; // 0x080f4be0
     unsigned int _getFailProb_NewNPC(unsigned int idx) const;    // 0x080f4c8e
-    unsigned int _getMeterialCount_NewNPC(unsigned int idx);     // 0x080f4ccc
+    // b28d-solo-EventUpgradeJar：返回类型 unsigned→int（P248 档①；返回类型不入
+    // mangled、布局零影响）。依据 ORIG SettingRecipeNUpConunt 0x080f4ebc 调用点
+    // `mov 0x10(%ebp),%edx; mov %eax,0x30(%edx)`（LHS-first 直存）⇒ 与 int 字段
+    // m_meterialCount 同型；本符号全仓唯一调用点即该处。
+    int _getMeterialCount_NewNPC(unsigned int idx);              // 0x080f4ccc
     float _getDiscountRate_NewNPC() const;                       // 0x080f4d0c
     void CheckMaterialIndex(unsigned long index);                // 0x080f4d20
     void SettingRecipeNUpConunt(int materialIdx, upgrade_info_t& info, unsigned char upgrade); // 0x080f4dac

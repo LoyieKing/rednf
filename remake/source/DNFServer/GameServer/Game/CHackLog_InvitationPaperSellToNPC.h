@@ -6,8 +6,11 @@
 class CHackLog_InvitationPaperSellToNPC
 {
 public:
-    int GetHackType();
-    static int IsInvitationPaper(int);   // ORIG 读 itemNo@+0x8（static，无 this）
+    static int GetHackType();   // [b28d-solo-Store] ORIG 0x08619c4c 调用点无 this 压栈 ⇒ static
+    // [b28d-solo-Store] ORIG 0x08619c43 调用点 `call; test %al,%al; je`（无 setne）
+    // ⇒ 返回类型 bool（P292/P315 档①；返回类型不入 mangled，符号/ABI 不变）。
+    // 定义在 OrigInvitationHack.cpp:27，需同步为 bool（已 R2 广播）。
+    static bool IsInvitationPaper(int);
 };
 
 

@@ -175,18 +175,17 @@ struct STEnchantSystemMapKey : public STEnchantSystemData
         // 残余：m_a/m_c 装载 4.1 两段 eax→edx 中转 vs 4.4 单段（P254 需字段
         // enum 化，但 = 0 赋值点在 STEquipmentScript.cpp/STStackableScript.cpp，
         // 跨 TU 不可改 ⇒ 记 N/P254 封顶）。
-        if (m_a < o.m_a)
+        if (m_job < o.m_job)
             return true;
-        if (m_a == o.m_a)
+        if (m_job == o.m_job)
         {
-            if (static_cast<signed char>(m_b) < static_cast<signed char>(o.m_b))
+            if (m_bSigned < o.m_bSigned)
                 return true;
-            if (static_cast<unsigned char>(m_b) ==
-                static_cast<unsigned char>(o.m_b))
+            if (m_bSigned == o.m_bSigned)
             {
-                if (m_c < o.m_c)
+                if (m_equipType < o.m_equipType)
                     return true;
-                if (m_c == o.m_c)
+                if (m_equipType == o.m_equipType)
                 {
                     if (m_fieldC < o.m_fieldC)
                         return true;
@@ -227,7 +226,12 @@ struct STEnchantSystemMapData
 
 struct stStackableBoosterItemInfo_t
 {
-    int m_itemIdx;              // +0x00（item index）
+    // [b28d-solo-DispLinkA1 P315/P167] ORIG getBoosterItem 消费点
+    // `make_pair<unsigned int const&, unsigned short const&>` +
+    // `pair<int,int>::pair<unsigned int, unsigned short>(pair&&)` 实例化 ⇒
+    // 字段真型 unsigned int（int 版实测走 make_pair<int const&,...> 并少 1 条
+    // iterator→const_iterator 转换构造）。宽度/偏移/sizeof 零变化。
+    unsigned int m_itemIdx;     // +0x00（item index）
     int m_prob;                 // +0x04（概率/范围）
     unsigned short m_addInfo;   // +0x08（set_add_info / 附加数量；ORIG movzwl 0x8）
     unsigned char m_byteA;      // +0x0a（endType 附加字段）
@@ -279,11 +283,11 @@ struct stLimitCubeResult
     int m_count;     // +0x04
     int m_prob;      // +0x08
     // ORIG C1 0x089c3362 / D1 0x089d4262（W 弱符号，共 C1/C2/D1/D2 4 个）：
-    //   C1 三次独立重读 this 逐句清零三 int（函数体赋值，非初始化列表，P29 反面形态）；
-    //   D1 空体。用户 ctor+空析构 → vector 元素非 trivial（P71 gcc4.1 场景，
-    //   gcc4.4 下 _Destroy_aux 实例差异属跨编译器结构性豁免）。
+    //   C1 三次独立重读 this 逐句清零三 int（函数体赋值，非初始化列表，P29 反面形态）。
+    //   [b28d-solo-STStackableScript] P317：ORIG D1 尺寸 5（trivial 隐式体），
+    //   ImportStackableScript 0x089b8982 栈对象仅 C1 无 D1（p167 EXTRA -2）
+    //   ⇒ 删用户空析构；D1/D2 仍由 vector<stLimitCubeResult> 使用点发射同名 W。
     stLimitCubeResult() { m_itemIdx = 0; m_count = 0; m_prob = 0; }
-    ~stLimitCubeResult() {}
 };
 // ORIG 4 个用户定义符号：_ZN17stLimitCubeResultC1/C2/D1/D2Ev（0x089c3362/0x089d4262 W）；
 // vector 元素步进实证 sizeof==0xc（allocate: n*3 shl 2），三 int 无 pad。

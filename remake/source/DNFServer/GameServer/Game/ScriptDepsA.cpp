@@ -149,9 +149,9 @@ std::map<int, float> g_creatureIndexDamageRateMap;
 // ORIG GetRoundInt W 0x08a3df64：v>=0 ? (int)(v+0.5f) : (int)(v-0.5f)。
 int GetRoundInt(float v)
 {
-    // [b28d-48 复核] N85 封顶（NDIFF 31，36/37 条）：ORIG 0x08a3df64 用
-    // fucompp/fnstsw %ax/sahf 两向比较，4.4 恒 fucomip/fstp；P230 补候选
-    // （-march=i486 可消该族，路由表由 Main 统一变更，本波不动）。
+    // [b28d-solo-ScriptDepsA 判词] AE（Main 已落路由）：dnf_game_cxx.sh i486 组
+    // 纳入本 TU 后，fucompp/fnstsw %ax/sahf 两向比较与 ORIG 0x08a3df64 全等。
+    // 双后端读数：默认 707/17 → i486 708/16，本件 DIFF→AE，零回归。
     if (v >= 0.0f) return static_cast<int>(v + 0.5f);
     return static_cast<int>(v - 0.5f);
 }
@@ -179,9 +179,12 @@ int getItemRarity(const char* name)
 // level-rate 三段为 ScanInt 结果乘 0.01f（_DAT_08e122ec=0.01f 实证）后存 float。
 bool importActiveStatusTable(const char* path)
 {
-    // [b28d-48 复核] N82/N89 封顶（NDIFF 202，229/235 条）：大解析函数帧/槽
-    // 平移 + std::map/vector 模板实例内联差；§6.2 三件套（callsite 差集 +
-    // gap + 槽位集）由 Main 收口。
+    // [b28d-solo-ScriptDepsA 判词] N82/N115 封顶（§6.2：237/235，gap=2，
+    // p167 31/31 CLEAR）：本波修三处 level-rate 的具名 float 槽往返
+    // （fstps→槽→读回→存全局，P252）。残差=帧 0x60 vs 0x50（ORIG 多 3 个
+    // dead 槽 -0x30..-0x38）+ 全帧槽号平移 + 4.1/4.4 bool while 归一化方向
+    // 相反（ORIG `xor $1;test;jne` vs 4.4 `test;jne`，探针 g1/g2 实证不可翻）
+    // + power 段索引地址计算时刻差（P75）。
     if (!loadRDARScriptFile("", path))
     {
         LogManager::logFormat(
@@ -228,17 +231,22 @@ bool importActiveStatusTable(const char* path)
         else if (token == "[active status level rate for prob]")
         {
             const int v = ScanInt(static_cast<bool*>(0));
-            ACTIVESTATUS_LEVEL_RATE_FOR_PROB = 0.01f * static_cast<float>(v);
+            // [b28d-solo-ScriptDepsA] ORIG 0x089071dc 段：fstps 先落具名 float
+            // 槽(-0x14) 再读回存全局（P252 槽往返形）。
+            const float rate = 0.01f * static_cast<float>(v);
+            ACTIVESTATUS_LEVEL_RATE_FOR_PROB = rate;
         }
         else if (token == "[active status level rate for power]")
         {
             const int v = ScanInt(static_cast<bool*>(0));
-            ACTIVESTATUS_LEVEL_RATE_FOR_POWER = 0.01f * static_cast<float>(v);
+            const float rate = 0.01f * static_cast<float>(v);
+            ACTIVESTATUS_LEVEL_RATE_FOR_POWER = rate;
         }
         else if (token == "[active status level absolute rate]")
         {
             const int v = ScanInt(static_cast<bool*>(0));
-            ACTIVESTATUS_LEVEL_ABSOLUTE_RATE = 0.01f * static_cast<float>(v);
+            const float rate = 0.01f * static_cast<float>(v);
+            ACTIVESTATUS_LEVEL_ABSOLUTE_RATE = rate;
         }
         else if (token == "[lightning time per number]")
         {
@@ -264,8 +272,10 @@ bool importActiveStatusTable(const char* path)
 // createLotteryInfo(CStackableItem.cpp)/DisjointSkillScript 生命周期(CtorProducers_2.cpp)。
 bool importDisjointScript(DisjointScript* script, const char* path)
 {
-    // [b28d-48 复核] N82 封顶（NDIFF 520，530/536 条）：巨件帧/槽平移 +
-    // 解析段物化次数差；§6.2 三件套由 Main 收口。
+    // [b28d-solo-ScriptDepsA 判词] N82/N89 封顶（§6.2：542/529，gap=13，
+    // p167 65/65 CLEAR）：本波修 [additional result] 的 push_back 右值内联实参
+    // （ORIG 0x088e5198 EOi）+ [avatar disjoint info] 终止守卫改 `==`+break
+    // （P133）。残差=巨件帧/槽平移 + map/vector 模板实例内联差。
     if (!loadRDARScriptFile("", path))
         return false;
 
@@ -336,8 +346,11 @@ bool importDisjointScript(DisjointScript* script, const char* path)
                     script->m_additional[g].m_count);
                 for (int j = 0; j < script->m_additional[g].m_count; ++j)
                 {
-                    const int item = ScanInt(static_cast<bool*>(0));
-                    script->m_additional[g].m_items.push_back(item);
+                    // [b28d-solo-ScriptDepsA] ORIG 0x088e5198 为 push_backEOi
+                    //（右值）：源码把 ScanInt 调用内联进实参（4.1 为右值建临时槽
+                    // -0x48 并传址）。
+                    script->m_additional[g].m_items.push_back(
+                        ScanInt(static_cast<bool*>(0)));
                 }
             }
         }
@@ -362,8 +375,12 @@ bool importDisjointScript(DisjointScript* script, const char* path)
         }
         else if (token == "[avatar disjoint info]")
         {
-            while (ScanType(token, true) && token != "[/avatar disjoint info]")
+            // [b28d-solo-ScriptDepsA] ORIG 0x088e50xx 用 eq（`==`+break）而非
+            // 短路 `!=`（p167：MISSING eq / EXTRA ne）。
+            while (ScanType(token, true))
             {
+                if (token == "[/avatar disjoint info]")
+                    break;
                 const int job = getCharacterJob(token.c_str());
                 if (job == 0xb)
                     return false;
@@ -437,54 +454,62 @@ int getCompoundRareAvatarType(const std::string& token)
 // pair={itemIdx, 截至当前的累计权重}。任一 ScanInt 失败 → ret0。
 bool setCompoundAvatarData(tagCompoundAvatar* avatar, ENUM_EQUIPMENTTYPE equip)
 {
-    // [b28d-48 复核] N82/N84 封顶（NDIFF 225，230/224 条）：开列式解析段
-    // pair/vector 模板实例与帧槽差；同族 setCompoundRareAvatarData 已由
-    // m_field0c unsigned 化闭合（NDIFF 0）。
-    const int idx = static_cast<int>(equip);
-    bool ok = false;
+    // [b28d-solo-ScriptDepsA 判词] AE（p167 16/16 CLEAR）：修 (1) m_b/m_c/m_d
+    // 字段 unsigned 化（CCompoundAvatar.h，ORIG pair converting ctor `C1IRiRj`
+    // 实证）；(2) 三处 make_pair→pair 直构（P192）+ item/weight 去 const
+    // （`IRKiRj` 是错误变体）；(3) 删 idx 具名槽（P0，每次重读 0xc(%ebp)）、
+    // ok 去预清、count 改 int（循环尾 setl）。
+    bool ok;
 
-    const unsigned int countA = static_cast<unsigned int>(ScanInt(&ok));
+    const int countA = ScanInt(&ok);
     if (!ok)
         return false;
-    avatar->m_optsA[idx].reserve(countA);
-    for (unsigned int i = 0; i < countA; ++i)
+    avatar->m_optsA[static_cast<int>(equip)].reserve(countA);
+    for (int i = 0; i < countA; ++i)
     {
-        const int item = ScanInt(&ok);
+        // [b28d-solo-ScriptDepsA] ORIG pair ctor `C1IRiRj` 第一参非 const
+        //（IRKiRj 是 const int& 变体，符号不符）⇒ item/weight 去 const。
+        int item = ScanInt(&ok);
         if (!ok)
             return false;
-        const int weight = ScanInt(&ok);
+        int weight = ScanInt(&ok);
         if (!ok)
             return false;
-        avatar->m_b[idx] += weight;
-        avatar->m_optsA[idx].push_back(std::make_pair(item, avatar->m_b[idx]));
+        avatar->m_b[static_cast<int>(equip)] += weight;
+        // [b28d-solo-ScriptDepsA] P192：ORIG 0x08902d84 直构 pair（converting
+        // ctor `C1IRiRj`，第二参 m_b[idx] 为 unsigned 左值），非 make_pair。
+        avatar->m_optsA[static_cast<int>(equip)].push_back(
+            std::pair<int, int>(item, avatar->m_b[static_cast<int>(equip)]));
     }
 
-    const unsigned int countC = static_cast<unsigned int>(ScanInt(&ok));
+    const int countC = ScanInt(&ok);
     if (!ok)
         return false;
-    avatar->m_optsC[idx].reserve(countC);
-    for (unsigned int i = 0; i < countC; ++i)
+    avatar->m_optsC[static_cast<int>(equip)].reserve(countC);
+    for (int i = 0; i < countC; ++i)
     {
-        const int item = ScanInt(&ok);
+        int item = ScanInt(&ok);
         if (!ok)
             return false;
-        const int weight = ScanInt(&ok);
+        int weight = ScanInt(&ok);
         if (!ok)
             return false;
-        avatar->m_d[idx] += weight;
-        avatar->m_optsC[idx].push_back(std::make_pair(item, avatar->m_d[idx]));
+        avatar->m_d[static_cast<int>(equip)] += weight;
+        avatar->m_optsC[static_cast<int>(equip)].push_back(
+            std::pair<int, int>(item, avatar->m_d[static_cast<int>(equip)]));
     }
 
     while (true)
     {
-        const int item = ScanInt(&ok);
+        int item = ScanInt(&ok);
         if (!ok)
             break;
-        const int weight = ScanInt(&ok);
+        int weight = ScanInt(&ok);
         if (!ok)
             return false;
-        avatar->m_c[idx] += weight;
-        avatar->m_optsB[idx].push_back(std::make_pair(item, avatar->m_c[idx]));
+        avatar->m_c[static_cast<int>(equip)] += weight;
+        avatar->m_optsB[static_cast<int>(equip)].push_back(
+            std::pair<int, int>(item, avatar->m_c[static_cast<int>(equip)]));
     }
     return true;
 }
@@ -530,8 +555,11 @@ bool setCompoundRareAvatarData(tagCompoundAvatar* avatar, ENUM_EQUIPMENTTYPE equ
 int importCompoundAvatarTableCore(const char* dir, const char* path,
                                            tagCompoundAvatarTable* table)
 {
-    // [b28d-48 复核] N82 封顶（NDIFF 775，830/783 条）：巨件解析树 + 帧槽
-    // 平移；§6.2 三件套由 Main 收口。
+    // [b28d-solo-ScriptDepsA 判词] N82/N89 封顶（§6.2：808/830，gap=-22，
+    // p167 88/88 CLEAR）：本波修 [ancient bind cube] 终止守卫 `==`+break（P133）
+    // + 4 处 tail/cube push_back 直构 pair（P192）+ tagCompoundAvatar 改用
+    // value-init 临时作 resize 实参（消 C1ERKS 参数副本，ORIG 0x0890334e 形）。
+    // 残差=巨件解析树帧/槽平移 + vector/map 模板实例内联差。
     if (!loadRDARScriptFile(dir, path))
         return 0xf1e;
 
@@ -563,8 +591,10 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
                 return 0xf37;
             if (curTable == 0)
                 return 0xf39;
-            tagCompoundAvatar tmp;                        // memset+ctor 由默认构造覆盖
-            curTable->m_avatars.resize(grade + 1, tmp);
+            // [b28d-solo-ScriptDepsA] ORIG 0x0890334e 段：rep stos 0x308B 前置清零
+            // + 就地 C1Ev（value-init 临时）+ 直接作 resize 第二实参（无具名 tmp
+            // ⇒ 无 C1ERKS 参数副本）。
+            curTable->m_avatars.resize(grade + 1, tagCompoundAvatar());
             avatar = &curTable->m_avatars[grade];
             avatar->Clean();
             avatar->m_idx = grade;
@@ -675,11 +705,11 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
             if (!ok) return 0xfcd;
             for (int i = 0; i < count; ++i)
             {
-                const int item = ScanInt(&ok);
+                int item = ScanInt(&ok);
                 if (!ok) break;
-                const int weight = ScanInt(&ok);
+                int weight = ScanInt(&ok);
                 if (!ok) return 0xfd4;
-                avatar->m_tailA.push_back(std::make_pair(item, weight));
+                avatar->m_tailA.push_back(std::pair<int, int>(item, weight));
                 if (weight != 1) return 0xfd9;
             }
         }
@@ -690,11 +720,11 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
             if (!ok) return 0x100f;
             for (int i = 0; i < count; ++i)
             {
-                const int item = ScanInt(&ok);
+                int item = ScanInt(&ok);
                 if (!ok) break;
-                const int weight = ScanInt(&ok);
+                int weight = ScanInt(&ok);
                 if (!ok) return 0x1016;
-                avatar->m_tailB.push_back(std::make_pair(item, weight));
+                avatar->m_tailB.push_back(std::pair<int, int>(item, weight));
                 if (weight != 1) return 0x101b;
             }
         }
@@ -705,11 +735,11 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
             if (!ok) return 0x1026;
             for (int i = 0; i < count; ++i)
             {
-                const int item = ScanInt(&ok);
+                int item = ScanInt(&ok);
                 if (!ok) break;
-                const int weight = ScanInt(&ok);
+                int weight = ScanInt(&ok);
                 if (!ok) return 0x102d;
-                avatar->m_tailC.push_back(std::make_pair(item, weight));
+                avatar->m_tailC.push_back(std::pair<int, int>(item, weight));
                 if (weight != 1) return 0x1032;
             }
         }
@@ -720,19 +750,21 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
             if (!ok) return 0x103d;
             for (int i = 0; i < count; ++i)
             {
-                const int item = ScanInt(&ok);
+                int item = ScanInt(&ok);
                 if (!ok) break;
-                const int weight = ScanInt(&ok);
+                int weight = ScanInt(&ok);
                 if (!ok) return 0x1044;
-                avatar->m_cube.m_vec.push_back(std::make_pair(item, weight));
+                avatar->m_cube.m_vec.push_back(std::pair<int, int>(item, weight));
                 if (weight != 1) return 0x1049;
             }
         }
         else if (token == "[ancient bind cube]")
         {
             if (avatar == 0) return 0x104f;
-            while (ScanType(token, true) && token != "[/ancient bind cube]")
+            while (ScanType(token, true))
             {
+                if (token == "[/ancient bind cube]")
+                    break;
                 if (token == "[hat rare avatar]" || token == "[hair rare avatar]" ||
                     token == "[face rare avatar]" || token == "[neck rare avatar]" ||
                     token == "[coat rare avatar]" || token == "[pants rare avatar]" ||
@@ -756,8 +788,10 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
 
 // _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIii... 0x088bbd77 T
 //（定义 STScriptFileList.cpp；第 4 参 ORIG 未使用）。
-int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
-                           const char* listPath, std::map<int, int>* unused);
+// [b28d-solo-ScriptDepsA] P292：ORIG 0x08903edb 调用点 `test %al,%al; je`（无
+// sete/setne）⇒ 该函数返回 bool；已上报 Main 同步 STScriptFileList.cpp 定义。
+bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
+                            const char* listPath, std::map<int, int>* unused);
 
 // _Z29importCompoundAvatarTableCorePKcS0_P22tagCompoundAvatarTable 0x089031d2 T。
 int importCompoundAvatarTableCore(const char* dir, const char* path,
@@ -766,21 +800,29 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
 int importCompoundAvatarTable(const char* dir, const char* path,
                               tagCompoundAvatarTable* table)
 {
-    // [b28d-48 复核] N82 封顶（NDIFF 79，93/91 条）：STScriptFileList/
-    // vector 模板实例与帧槽差。
     STScriptFileList list;
-    if (!loadRDARScriptListFile(&list, dir, path, 0))
-        return 0x107b;
-    if (list.m_fileMap.size() != 11)
-        return 0x106e;
-
-    for (std::map<int, std::string>::iterator it = list.m_fileMap.begin();
-         it != list.m_fileMap.end(); ++it)
+    // [b28d-solo-ScriptDepsA 判词] AE（§6.2 全等）：修 (1) loadRDARScriptListFile
+    // 返回类型 bool（P292，Main 已同步 STScriptFileList.cpp）；(2) ORIG 0x08903edb
+    // `test %al,%al; je <0x107b 岛>`（无 xor）⇒ 正极性包裹（P214①/P257）；
+    // (3) begin/end 缓存顺序 it(-0x24)→e(-0x28)（循环体 operator-> 实证）。
+    if (loadRDARScriptListFile(&list, dir, path, 0))
     {
-        if (importCompoundAvatarTableCore(dir, it->second.c_str(), table) != 0)
-            return 0x1075;
+        if (list.m_fileMap.size() != 11)
+            return 0x106e;
+
+        // ORIG 0x08903f02 先 begin（it 落 -0x24，循环体 operator-> 实证）、
+        // 0x08903f17 后 end（e 落 -0x28）；条件 operator!=(it,e)，增量 operator++。
+        std::map<int, std::string>::iterator it = list.m_fileMap.begin();
+        std::map<int, std::string>::iterator e = list.m_fileMap.end();
+        while (it != e)
+        {
+            if (importCompoundAvatarTableCore(dir, it->second.c_str(), table) != 0)
+                return 0x1075;
+            ++it;
+        }
+        return 0;
     }
-    return 0;
+    return 0x107b;
 }
 
 
@@ -872,8 +914,10 @@ public:
 bool importCreatureCommonScript(CreatureCommonScript* script, const char* path,
                                 std::vector<int>* damageTable)
 {
-    // [b28d-48 复核] N82/N89 封顶（NDIFF 384，368/412 条）：巨件帧/槽平移 +
-    // hash_map/vector 模板实例差；§6.2 三件套由 Main 收口。
+    // [b28d-solo-ScriptDepsA 判词] N82/N89 封顶（§6.2：415/405，gap=10，
+    // p167 69/69 CLEAR）：本波补 [module damage percent] 的具名临时 string
+    // （allocator+str.c_str()+SsC1EPKcRKSaIcE 三件套，ORIG 0x08a3866x）。
+    // 残差=巨件帧/槽平移 + hash_map/vector 模板实例内联差。
     if (!loadRDARScriptFile(g_creatureScriptBaseDirectory, path))
         return false;
 
@@ -962,8 +1006,12 @@ bool importCreatureCommonScript(CreatureCommonScript* script, const char* path,
             g_creatureModuleDamageRateMap.clear();
             while (ScanStr(&str) && (value = ScanInt(&ok), ok))
             {
+                // [b28d-solo-ScriptDepsA] ORIG 0x08a3866x 段：allocator+str.c_str()
+                // +string(const char*,const allocator&) 三件套 ⇒ 具名临时 string
+                // 由 c_str() 复制构造（P130 家族）。
+                std::string moduleName(str.c_str());
                 const ENUM_MODULE_TYPE type =
-                    static_cast<ENUM_MODULE_TYPE>(getModuleTypeFromTag(str));
+                    static_cast<ENUM_MODULE_TYPE>(getModuleTypeFromTag(moduleName));
                 addCreatureModuleRate(type, static_cast<float>(value) / 100.0f);
             }
         }
@@ -1095,8 +1143,12 @@ int getObjectCategory(std::string name)
 // 三个 hash_map 投资段 key=ScanInt、value={查表类型, 第二个 ScanInt}。
 int importAmplifyItem(const char* path, stAmplifyItemScript_t& out)
 {
-    // [b28d-48 复核] N82 封顶（NDIFF 694，719/725 条）：巨件解析段帧槽平移；
-    // §6.2 三件套由 Main 收口。
+    // [b28d-solo-ScriptDepsA 判词] N82/N89 封顶（§6.2：737/766，gap=-29）：
+    // 本波修 4 处 const_iterator（P96 反向，MISSING const C1ERK/eq/ptE 全消）
+    // + 3 处 invest key 去 const（ORIG make_pair `IRmR...`）+ 3 处 pair 直构。
+    // 残差：p167 尚余 EXTRA map<string,ENUM_AMPLIFY_TYPE> C1/D1×3 + ScanInt×1
+    // （ORIG 该三处 map 生命周期/读序与 4.4 折叠不同；语义等价，非缺失调用）；
+    // 其余为巨件帧/槽平移 + 模板实例内联差。
     if (!loadRDARScriptFile("", path))
         return 0x1d21;
 
@@ -1151,7 +1203,7 @@ int importAmplifyItem(const char* path, stAmplifyItemScript_t& out)
             int sum = 0;
             while (ScanStr(&str))
             {
-                AmplifyTypeMap::iterator it = typeMap.find(str);
+                AmplifyTypeMap::const_iterator it = typeMap.find(str);
                 if (it == typeMap.end())
                     return 0x1d5e;
                 const ENUM_AMPLIFY_TYPE type = it->second;
@@ -1197,11 +1249,10 @@ int importAmplifyItem(const char* path, stAmplifyItemScript_t& out)
         }
         else if (token == "[equip level const]")
         {
-            // ORIG：本段与「未匹配任何段名」的链尾默认路径共用同一段代码
-            // （反编译 C 的 do-while 尾部 ScanInt 实证）；默认分支见链尾。
-            out.m_field3c = ScanInt(&ok);
-            if (!ok)
-                return 0x1d92;
+            // [b28d-solo-ScriptDepsA] ORIG：本段与「未匹配任何段名」的链尾
+            // 默认路径**共用同一段代码**（反编译 C 的 do-while 尾部 ScanInt
+            // 实证）⇒ 单一 ScanInt 调用点（p167 EXTRA ScanInt×1 的来源）。
+            goto parse_equip_level;
         }
         else if (token == "[purify material]")
         {
@@ -1228,12 +1279,15 @@ int importAmplifyItem(const char* path, stAmplifyItemScript_t& out)
                 stInvestAmplifyOption_t entry;      // ORIG ctor 0x0822aea6
                 if (!ScanStr(&str))
                     break;
-                AmplifyTypeMap::iterator it = typeMap.find(str);
+                // [b28d-solo-ScriptDepsA] P96 反向：ORIG 用 const_iterator
+                //（p167 MISSING const C1ERK/eq/ptE，EXTRA 非 const 版）。
+                AmplifyTypeMap::const_iterator it = typeMap.find(str);
                 if (it == typeMap.end())
                     return 0x1dbd;
                 entry.m_amount = it->second;
-                const unsigned long key =
-                    static_cast<unsigned long>(ScanInt(&ok));
+                // [b28d-solo-ScriptDepsA] ORIG make_pair 实例为
+                // `IRmR23stInvestAmplifyOption_tE`（unsigned long& 非 const）。
+                unsigned long key = static_cast<unsigned long>(ScanInt(&ok));
                 if (!ok) return 0x1dc3;
                 const int v = ScanInt(&ok);
                 if (!ok) return 0x1dc7;
@@ -1249,12 +1303,11 @@ int importAmplifyItem(const char* path, stAmplifyItemScript_t& out)
                 stInvestAmplifyOption_t entry;
                 if (!ScanStr(&str))
                     break;
-                AmplifyTypeMap::iterator it = typeMap.find(str);
+                AmplifyTypeMap::const_iterator it = typeMap.find(str);
                 if (it == typeMap.end())
                     return 0x1dd8;
                 entry.m_amount = it->second;
-                const unsigned long key =
-                    static_cast<unsigned long>(ScanInt(&ok));
+                unsigned long key = static_cast<unsigned long>(ScanInt(&ok));
                 if (!ok) return 0x1dde;
                 const int v = ScanInt(&ok);
                 if (!ok) return 0x1de2;
@@ -1269,12 +1322,11 @@ int importAmplifyItem(const char* path, stAmplifyItemScript_t& out)
                 stInvestAmplifyOption_t entry;
                 if (!ScanStr(&str))
                     break;
-                AmplifyTypeMap::iterator it = typeMap.find(str);
+                AmplifyTypeMap::const_iterator it = typeMap.find(str);
                 if (it == typeMap.end())
                     return 0x1df4;
                 entry.m_amount = it->second;
-                const unsigned long key =
-                    static_cast<unsigned long>(ScanInt(&ok));
+                unsigned long key = static_cast<unsigned long>(ScanInt(&ok));
                 if (!ok) return 0x1dfa;
                 const int v = ScanInt(&ok);
                 if (!ok) return 0x1dfe;
@@ -1284,6 +1336,7 @@ int importAmplifyItem(const char* path, stAmplifyItemScript_t& out)
         }
         else
         {
+        parse_equip_level:
             // 链尾合并默认路径（与 [equip level const] 同一代码）。
             out.m_field3c = ScanInt(&ok);
             if (!ok)
@@ -1311,7 +1364,6 @@ void WeaponInfo::clear()
 // ORIG WeaponInfo C1 W 0x08a3ce08：vector 构造后 clear()。D1 W 0x083dc13a 平凡
 //（成员逆序析构由编译器生成）；copy 为逐成员语义（ORIG C1ERKS_ W 0x08a3dfca）。
 WeaponInfo::WeaponInfo() { clear(); }
-WeaponInfo::~WeaponInfo() {}
 
 // ORIG STRDCharacterStatus::Clear W 0x08367642（objdump 全文转写，无独立报告）：
 // +0x52 字节与 +0x53 dword 不在 [HP MAX]/[weight] 等导入写入区（仅清零）。
@@ -1431,11 +1483,11 @@ void _ComboInfo::clear()
 // 双技能表 + 双 etc 域。
 void STCharacterScript::STSecondGrowTypeData::clear()
 {
-    // [b28d-48 复核] N4 封顶（NDIFF 31，36/35 条）：ORIG 首元素地址
-    // `imul $0x57; add 0x8(%ebp),%eax` vs 4.4 先载 this 再 lea（N4/N18a）。
-    // [b28c-27] N4：ORIG 首元素地址 `imul $0x57; add 0x8(%ebp),%eax`（基址内存加），
-    // 4.4 恒 `mov 0x8(%ebp),%edx; imul; lea (%edx,%eax,1)`（先载 this 再 lea）；
-    // 下标形/引用形/指针算术三形实测同产 lea，属数组寻址组合固有差异。
+    // [b28d-solo-ScriptDepsA 判词] N4/N18a 封顶（35/36，唯一残差 2 条）：
+    // ORIG 首元素地址 `imul $0x57; add 0x8(%ebp),%eax`（基址内存加），4.4 恒
+    // `mov 0x8(%ebp),%edx; imul; lea (%edx,%eax,1)`（先载 this 再 lea）。
+    // 本波探针复验 6 形（单成员指针算术/数组下标/`*ptr`/reinterpret_cast/
+    // 数组引用/具名指针缓存）全部产 lea 或加槽，无源形可产 `add mem` ⇒ 封顶。
     for (int i = 0; i < 2; ++i)
     {
         // ORIG imul $0x57 直接寻址 ⇒ 数组下标形（CCharacter.cpp 同款先例）
@@ -1448,18 +1500,22 @@ void STCharacterScript::STSecondGrowTypeData::clear()
 // ORIG STCharacterScript::Clear W 0x08367a98（objdump 0x3a5 字节全文转写）。
 void STCharacterScript::Clear()
 {
-    // [b28d-48 复核] N82 封顶（NDIFF 222，235/225 条）：巨件 clear 帧/槽平移。
+    // [b28d-solo-ScriptDepsA 判词] N82 封顶（§6.2：225/230，gap=-5，
+    // p167 30/30 CLEAR）：本波按 ORIG 0x08367a98 结构重排——两个独立循环
+    // （i<=5 清名字 + 内层 j<=1 的 m_awakeningName；i<=6 清子对象）+
+    // 字符串数组化（m_motionDamage[2]/m_throwMotion1[4]/m_throwMotion2[4]，
+    // STCharacterScript.h；消 8 个多余 aSsaSEPKc 调用点）。残差=帧/槽平移。
     m_job = 0xb;
     m_width = 0;
     m_height = 0;
+    for (int i = 0; i <= 5; ++i)
+    {
+        m_growtypeName[i] = "";
+        for (int j = 0; j <= 1; ++j)
+            m_awakeningName[i][j] = "";
+    }
     for (int i = 0; i <= 6; ++i)
     {
-        if (i < 6)
-        {
-            m_growtypeName[i] = "";
-            m_awakeningName[i][0] = "";
-            m_awakeningName[i][1] = "";
-        }
         (i == 0 ? m_initialStatus : m_growStatus[i - 1]).Clear();
         m_skillList[i].clear();
         m_etcStats[i].clear();
@@ -1470,21 +1526,18 @@ void STCharacterScript::Clear()
     m_motionWaiting = "";
     m_motionMove = "";
     m_motionSit = "";
-    m_motionDamage1 = "";                    // +0xae0
-    m_motionDamage2 = "";                    // +0xae4
+    for (int i = 0; i <= 1; ++i)             // +0xae0（ORIG i<=1 循环）
+        m_motionDamage[i] = "";
     m_motionDown = "";
     m_motionOverturn = "";
     m_motionJump = "";
     m_motionJumpattack = "";
     m_motionRest = "";
-    m_throwMotion11 = "";                    // +0xb04..+0xb10（throw N-1）
-    m_throwMotion21 = "";
-    m_throwMotion31 = "";
-    m_throwMotion41 = "";
-    m_throwMotion12 = "";                    // +0xb14..+0xb20（throw N-2）
-    m_throwMotion22 = "";
-    m_throwMotion32 = "";
-    m_throwMotion42 = "";
+    for (int i = 0; i <= 3; ++i)             // +0xb04/+0xb14（ORIG i<=3 同循环）
+    {
+        m_throwMotion1[i] = "";
+        m_throwMotion2[i] = "";
+    }
     m_motionDash = "";
     m_motionDashattack = "";
     m_motionGetitem = "";
@@ -1520,9 +1573,11 @@ static std::map<ENUM_CHARACTERJOB, std::string> s_bodyImagePath;
 //  ③ 其余为 .o 重定位地址显示差（链接 AE 口径消除）。
 bool ImportCharacterScript(STCharacterScript* script, const char* path)
 {
-    // [b28d-48 复核] N82/N89 封顶（NDIFF 2707，2813/2818 条）：本 TU 最大件，
-    // 帧/槽平移 + 模板实例内联差；§6.2 三件套（callsite 差集 + gap + 槽位集）
-    // 由 Main 收口。
+    // [b28d-solo-ScriptDepsA 判词] N82/N89 封顶（§6.2：2875/2791，gap=84，
+    // p167 332/332 CLEAR）：本波修 [category] 守卫极性（P133，eq→ne 方向）
+    // + push_back 右值内联（EOi）+ 两处 WeaponInfo resize 改 value-init 临时
+    // （消 C1ERKS 参数副本 + D1×4）+ P317 删 WeaponInfo 用户空析构。
+    // 残差=本 TU 最大件的帧/槽平移 + 模板实例内联差。
     if (!loadRDARScriptFile(g_szCharacterScriptBaseDirectory, path))
         return false;
 
@@ -1675,7 +1730,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
                 }
                 if (ScanInt(&value) == false)
                     return false;
-                curSkills->push_back(std::make_pair(v, value));
+                // [b28d-solo-ScriptDepsA] ORIG pair converting ctor `C1IRiS2_`
+                //（int&,int&）⇒ 直构（P192）。
+                curSkills->push_back(std::pair<int, int>(v, value));
             }
         }
         else if (token == "[HP MAX]")
@@ -1806,7 +1863,7 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
                 }
                 if (ScanInt(&value) == false)
                     return false;
-                curSkills->push_back(std::make_pair(v, value));
+                curSkills->push_back(std::pair<int, int>(v, value));
             }
         }
         else if (token == "[category]")
@@ -1820,13 +1877,16 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
                     return false;
                 if (isType)
                 {
-                    if (t == "[/category]")
-                        break;
-                    return false;
+                    // [b28d-solo-ScriptDepsA] P133：ORIG 0x08a0de4f 用否定式
+                    // 守卫（`_ZStne`）；p167 MISSING ne / EXTRA eq。
+                    if (t != "[/category]")
+                        return false;
+                    break;
                 }
                 const int cat = getObjectCategory(t);   // 传值 → 拷贝临时
                 if (cat != 0x2c)
-                    curEtc->m_category.push_back(cat);
+                    // ORIG 0x08a0dde0：push_backEOi（右值临时 -0xb4）。
+                    curEtc->m_category.push_back(static_cast<int>(cat));
             }
         }
         else if (token == "[module damage rate]")
@@ -1841,22 +1901,22 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[waiting motion]")   { if (!ScanStr(&script->m_motionWaiting)) return false; }
         else if (token == "[move motion]")      { if (!ScanStr(&script->m_motionMove)) return false; }
         else if (token == "[sit motion]")       { if (!ScanStr(&script->m_motionSit)) return false; }
-        else if (token == "[damage motion 1]")  { if (!ScanStr(&script->m_motionDamage1)) return false; }
-        else if (token == "[damage motion 2]")  { if (!ScanStr(&script->m_motionDamage2)) return false; }
+        else if (token == "[damage motion 1]")  { if (!ScanStr(&script->m_motionDamage[0])) return false; }
+        else if (token == "[damage motion 2]")  { if (!ScanStr(&script->m_motionDamage[1])) return false; }
         else if (token == "[down motion]")      { if (!ScanStr(&script->m_motionDown)) return false; }
         else if (token == "[overturn motion]")  { if (!ScanStr(&script->m_motionOverturn)) return false; }
         else if (token == "[jump motion]")      { if (!ScanStr(&script->m_motionJump)) return false; }
         else if (token == "[jumpattack motion]"){ if (!ScanStr(&script->m_motionJumpattack)) return false; }
         else if (token == "[rest motion]")      { if (!ScanStr(&script->m_motionRest)) return false; }
-        else if (token == "[throw motion 1-1]") { if (!ScanStr(&script->m_throwMotion11)) return false; }
-        else if (token == "[throw motion 1-2]") { if (!ScanStr(&script->m_throwMotion12)) return false; }
-        else if (token == "[throw motion 2-1]") { if (!ScanStr(&script->m_throwMotion21)) return false; }
-        else if (token == "[throw motion 2-2]") { if (!ScanStr(&script->m_throwMotion22)) return false; }
-        else if (token == "[throw motion 3-1]") { if (!ScanStr(&script->m_throwMotion31)) return false; }
-        else if (token == "[throw motion 3-2]") { if (!ScanStr(&script->m_throwMotion32)) return false; }
+        else if (token == "[throw motion 1-1]") { if (!ScanStr(&script->m_throwMotion1[0])) return false; }
+        else if (token == "[throw motion 1-2]") { if (!ScanStr(&script->m_throwMotion2[0])) return false; }
+        else if (token == "[throw motion 2-1]") { if (!ScanStr(&script->m_throwMotion1[1])) return false; }
+        else if (token == "[throw motion 2-2]") { if (!ScanStr(&script->m_throwMotion2[1])) return false; }
+        else if (token == "[throw motion 3-1]") { if (!ScanStr(&script->m_throwMotion1[2])) return false; }
+        else if (token == "[throw motion 3-2]") { if (!ScanStr(&script->m_throwMotion2[2])) return false; }
         // ORIG 0x08a0e399/0x08a0e3de：4-1/4-2 在 3-2 之后、dash 之前。
-        else if (token == "[throw motion 4-1]") { if (!ScanStr(&script->m_throwMotion41)) return false; }
-        else if (token == "[throw motion 4-2]") { if (!ScanStr(&script->m_throwMotion42)) return false; }
+        else if (token == "[throw motion 4-1]") { if (!ScanStr(&script->m_throwMotion1[3])) return false; }
+        else if (token == "[throw motion 4-2]") { if (!ScanStr(&script->m_throwMotion2[3])) return false; }
         else if (token == "[dash motion]")      { if (!ScanStr(&script->m_motionDash)) return false; }
         else if (token == "[dashattack motion]"){ if (!ScanStr(&script->m_motionDashattack)) return false; }
         else if (token == "[getitem motion]")   { if (!ScanStr(&script->m_motionGetitem)) return false; }
@@ -2052,8 +2112,9 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
                 }
                 if (script->m_weaponWav.size() <= idx)
                 {
-                    WeaponInfo tmp;                 // 拷贝实参临时
-                    script->m_weaponWav.resize(idx + 1, tmp);
+                    // [b28d-solo-ScriptDepsA] ORIG 0x08a3eae6 段：value-init 临时
+                    // 就地构造进 resize 按值形参（无 C1ERKS 参数副本，D1 少一枚）。
+                    script->m_weaponWav.resize(idx + 1, WeaponInfo());
                 }
                 WeaponInfo* w = &script->m_weaponWav[idx];
                 if (t == "[blow]") w->m_hitType = 0;
@@ -2092,8 +2153,7 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
                 }
                 if (script->m_weaponWav.size() <= idx)
                 {
-                    WeaponInfo tmp;
-                    script->m_weaponWav.resize(idx + 1, tmp);
+                    script->m_weaponWav.resize(idx + 1, WeaponInfo());
                 }
                 WeaponInfo* w = &script->m_weaponWav[idx];
                 w->m_skillRates[0] = fvalue;
@@ -2205,11 +2265,15 @@ typedef std::map<const char*, int, less_TCHAR> AniLookupMap;
 //     地址显示差（链接 AE 口径消除）。
 int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
 {
-    // [b28d-48 复核] N82/N89 封顶（NDIFF 1181，1221/1274 条）：巨件帧/槽平移 +
-    // std::map/string 模板实例差；§6.2 三件套由 Main 收口。
-    // 附：STEquipmentAniScript::C1ERKS_（NDIFF 405）与 D1（NDIFF 363）为本 TU
-    // 使用点发射的编译器隐式 W 符号（无显式定义可挂判词）——残差为 N90
-    // 数组成员块搬移分块启发式 + N91 EH cleanup 跨版本差，判词随本函数。
+    // [b28d-solo-ScriptDepsA 判词] N82/N89 封顶（§6.2：1279/1225，gap=54，
+    // p167 181/181 CLEAR）：本波修文件迭代器先声明后赋值（P314/P50 复活，
+    // 复现 normal_iterator C1Ev）+ [equipment ani script] 终止守卫改 `==`+break
+    // （P133）。
+    // 附：STEquipmentAniScript::C1ERKS_（433/423）与 D1（332/365）为本 TU 使用点
+    // 发射的编译器隐式 W 符号（无显式定义可挂判词）——ORIG 0x0898xxxx 段对
+    // 连续 string 成员用 `mov $0x3,%ebx` 倒计数块搬移循环（前 10 个逐个
+    // SsC1ERKSs、其余走循环），4.4 恒逐个展开 ⇒ N90 数组成员块搬移分块启发式
+    // + N91 EH cleanup 跨版本差，判词随本函数。
     if (!loadRDARScriptFile("", "Etc/equipmentAniScript.etc"))
     {
         LogManager::logFormat(0, "../RDARScriptItem.cpp",
@@ -2229,12 +2293,20 @@ int ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table)
     if (section == "[equipment ani script]")
     {
         std::string name;                // ORIG -0x36c（block 作用域构造/析构）
-        while (ScanStr(&name) && section != "[/equipment ani script]")
+        // [b28d-solo-ScriptDepsA] ORIG 用 `section == "[/equipment ani script]"`
+        // +break（p167 MISSING eq / EXTRA ne）。
+        while (ScanStr(&name))
+        {
+            if (section == "[/equipment ani script]")
+                break;
             files.push_back(name);
+        }
     }
 
-    for (std::vector<std::string>::iterator fit = files.begin();
-         fit != files.end(); ++fit)
+    // [b28d-solo-ScriptDepsA] P314/P50 复活：ORIG 0x089c0698 段先默认构造
+    // iterator（C1Ev）再赋值 begin()。
+    std::vector<std::string>::iterator fit;
+    for (fit = files.begin(); fit != files.end(); ++fit)
     {
         if (!loadRDARScriptFile("", fit->c_str()))
             return false;

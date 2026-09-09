@@ -15,10 +15,17 @@
 //       char const*, CActionPointEtcParameter&)                    T 0x08894996
 //   eventReward::ImportRewardScript(char const*, char const*)      T 0x080ef3a2
 //   importUpgradeTable(char const*, upgrade_table_t*)              T 0x08900c26
-// [b28d-34] 本 TU 发射的 APSystem::CActionPointEx 隐式 C1ERKS_(0x08895ebc)/
-// aSERKS_(0x0889603a)：ORIG 逐字段拷贝（int@0/int@4/short@8/char@a/short@c/
-// char@e,f,10 + 容器@14），我方 APSystemTypes.h 平铺 union 布局致块拷贝形
-// （84 vs 74 / 61 vs 51）⇒ N（布局妥协，见 APSystemLeafC3.cpp 判词）；语义等价。
+// [b28d-solo-ScriptLeafA2] APSystem::CActionPointEx 隐式 C1ERKS_(0x08895ebc)/
+// aSERKS_(0x0889603a) 判词 = **N（布局妥协，N18a/N76 族）**：
+//   ORIG 逐字段粒度 int@0/int@4/short@8/char@a/short@c/char@e/f/10 → vector@14 →
+//   int@20 → string@24 → string@28 → char@2c（无 +0x11..+0x13）。正解已探针定案：
+//   packed 基类 {int,int,short,char}(0xb) + 派生字段（/tmp/b28d_a2/probe_layout.cpp
+//   用例 C4 与 ORIG 0x08895ebc 逐条全等；C1 平铺 8 字段则寄存器形态不符）。
+//   落地需把 CActionPointEx 改继承结构，与现有 m_field00/m_record/m_bytes02 平铺
+//   视图（APSystemLeafC3.cpp ctor 4 处 + APSystemOnlyOrig.cpp m_record 多处消费）
+//   不兼容 ⇒ 跨泳道同步改造；本泳道受「单 .cpp 铁律」约束不越界，已上报 Main
+//   请求分派（附探针与改动清单）。现状 84/74、61/51 差 = union 块拷贝 vs ORIG
+//   逐字段；语义等价。
 //   stLevelUpRewardItemScript::clear()                             W 0x083711d6（无报告，objdump）
 //   seriaRoomDecoAniEventScript::clear()                           W 0x083732a4（无报告，objdump）
 //   rewardSubKey::{rewardSubKey,clear,operator<}                   W 0x080f1190/0x080f11de/0x080f11a2
@@ -83,12 +90,20 @@ extern char g_npcScriptBaseDirectory[0x100];                // B 0x094fe680
 // ============================================================================
 int convertTabTypeStringToEnum(const char* text)
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x08aa7d98 帧 0x8c vs 4.4 0x9c（N82 族）；
-    // 语义等价。
+    // [b28d-solo-ScriptLeafA2] 结构按 ORIG 0x08aa7d98 还原（报告 Ghidra C 全文）：
+    //   ret 局部 + 合并 switch——FIND 命中值（0x11/0x14/0x17/0x1a）与初始化哨兵
+    //   0 共用同一 switch（case 0 与 0x11 共块，P163 的"补未列 case 0"同族）；
+    //   各 case 的 `!__inited` 分支插入、else 返回 N；未命中 ret=-1 落 switch 外。
+    //   已修：①insert 实参改 map::value_type 直构（P315）→ p167 CLEAR（29=29）；
+    //   ②迭代器改 `!= end`（ORIG operator!=）；③__inited 改 bool + `!` 极性复现
+    //   ORIG `movzbl;xor $1;test;je`（P168a/N122）。帧 sub $0x8c 与 ORIG 全等。
+    //   残余 = 4.1/4.4 的 return 岛物理位置（P47/P59 族，ours 241 vs orig 225
+    //   insn）⇒ N 封顶；语义等价（p167 CLEAR）。
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
-    static char __inited = 0;
+    static bool __inited = false;
 
+    int ret = 0;
     for (;;)
     {
         if (!__inited)
@@ -99,34 +114,70 @@ int convertTabTypeStringToEnum(const char* text)
                 __init_lock.leave();
                 continue;
             }
-            __lookup.insert(std::make_pair("general", 0x11));
-            __lookup.insert(std::make_pair("specific", 0x14));
-            __lookup.insert(std::make_pair("despair", 0x17));
-            __lookup.insert(std::make_pair("event", 0x1a));
-            __init_lock.leave();
-            __inited = 1;
-            continue;   // ORIG jmp 回入口走 find 派发
+            ret = 0;
+        }
+        else
+        {
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                __lookup.find(text);
+            // ORIG 0x08aa7ea7 段调 operator!=（非 ==，p167 EXTRA ==/MISSING !=）。
+            ret = (it != __lookup.end()) ? it->second : -1;
         }
 
-        std::map<const char*, int, less_TCHAR>::const_iterator it =
-            __lookup.find(text);
-        if (it == __lookup.end())
+        switch (ret)
         {
-            return 4;
-        }
-        switch (it->second)
-        {
+        case 0:
         case 0x11:
-            return 0;   // general
+            // p167：ORIG 直接调 value_type::C1<char const(&)[N], int>（无 make_pair
+            // 中转），按 P315 用 map::value_type 直接构造。极性写 `!__inited`
+            // 复现 ORIG 0x08aa7fc0 段 `movzbl;xor $1;test;je`（P168a/N122）。
+            if (!__inited)
+            {
+                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type(
+                    "general", 0x11));
+            }
+            else
+            {
+                return 0;   // general
+            }
         case 0x14:
-            return 1;   // specific
+            if (!__inited)
+            {
+                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type(
+                    "specific", 0x14));
+            }
+            else
+            {
+                return 1;   // specific
+            }
         case 0x17:
-            return 2;   // despair
+            if (!__inited)
+            {
+                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type(
+                    "despair", 0x17));
+            }
+            else
+            {
+                return 2;   // despair
+            }
         case 0x1a:
-            return 3;   // event
-        default:
+            if (!__inited)
+            {
+                __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type(
+                    "event", 0x1a));
+            }
+            else
+            {
+                return 3;   // event
+            }
+        }
+
+        if (__inited)
+        {
             return 4;
         }
+        __init_lock.leave();
+        __inited = 1;
     }
 }
 
@@ -155,8 +206,16 @@ void stNPCCommonData_t::clear()
 // ============================================================================
 int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x089fafc5 `movb $0/$1,-0x50`（bool 物化）
-    // vs 我们 `movl $0,-0x50`（P158/P219 bool 化族）；语义等价。
+    // [b28d-solo-ScriptLeafA2] 本件修复：
+    //   ① CDataManager.h stOneBuff_t::m_isNotPlus int→bool（P248②/P32）复现
+    //      ORIG 0x089fb390/0x089fb396 的 `movb $0/$1,-0x50(%ebp)`；
+    //   ② 同结构补 +0x09..+0x0b 显式 pad，使 new_allocator::construct 对 +0x08
+    //      恢复 ORIG 0x8a01d24 的 dword 块拷贝（bool 单独拷贝退化为 movzbl+movb）；
+    //   ③ make_pair 实例改右值版（P61/P81 + P234 static_cast<T&&>）复现 ORIG
+    //      0x089fb40d 的 make_pair<int,vector>(int&&,vector&&)。
+    //   p167：MISSING 0（CLEAR）。残余 EXTRA = stOneBuff_t::~stOneBuff_t() ×2
+    //   （4.4 对含非平凡析构的局部对象恒布 EH cleanup，ORIG 4.1 消除空体析构调用，
+    //   N91 族跨版本 EH 块；头内空体实验无效已回退）⇒ N 封顶，语义等价。
     if (!loadRDARScriptFile(g_npcScriptBaseDirectory, path))
     {
         return 0x3c;
@@ -298,7 +357,15 @@ int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
                     }
                     buffs.push_back(buff);
                 }
-                out.m_favorDurationBuffList.push_back(std::make_pair(first, buffs));
+                // [b28d-solo-ScriptLeafA2] ORIG 0x089fb40d 调
+                // make_pair<int, vector<stOneBuff_t> >(int&&, vector&&)（p167 MISSING
+                // 左值引用版 `<int&,vector&>`）；按 P61/P81 实参左值性决定实例名，
+                // 用 P234 的 static_cast<T&&>（纯语言构造、零 call）传右值即复现。
+                out.m_favorDurationBuffList.push_back(
+                    std::make_pair(
+                        static_cast<int>(first),
+                        static_cast<
+                            std::vector<stNPCCommonData_t::stOneBuff_t>&&>(buffs)));
             }
         }
     }
@@ -314,8 +381,12 @@ int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
 int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
                                          const char* path)
 {
-    // [b28d-34] 复核维持 DIFF（§6.2）：orig 297/ours 299，残差为容器实例化族
-    // （N89）+ 槽序；语义等价。
+    // [b28d-solo-ScriptLeafA2] 判词 = N（槽序/帧差，P28/N82 族；p167 CLEAR 47=47）。
+    //   已修：①4 处 token 比较改「字面量在左」复现 operator==(char const*, string)
+    //   （P196 族，原 4×EXTRA 反向）；②[choose part] 去 entry 引用缓存、循环内
+    //   重写 reg.m_map0[part].m_vec8（P157/P183，补回 1×operator[]）。
+    //   残余 = 局部槽基差（ORIG token@-0x2c/s@-0x30/ok@-0x31/part@-0x38 与我方
+    //   -0x28/-0x2c/-0x2d/-0x34 整体浅 4）+ 容器实例化族（N89）；语义等价。
     if (!loadRDARScriptFile("", path))
     {
         return 0;
@@ -328,7 +399,10 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
 
     while (ScanType(token, true))
     {
-        if (token == "[choose part]")
+        // [b28d-solo-ScriptLeafA2] 4 处 token 比较按 ORIG 写成「字面量在左」
+        // （p167：ORIG 调 operator==(char const*, string const&)，我方原为
+        // (string const&, char const*) 反向 4 处 EXTRA/MISSING，P196 族）。
+        if ("[choose part]" == token)
         {
             part = ScanInt(&ok);
             if (!ok)
@@ -336,14 +410,15 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
                 return 0x1d;
             }
             ScanStr(&s);
-            str_index_to_itemgroup& entry = reg.m_map0[part];
-            entry.m_name4 = s;
+            // ORIG 循环内重新 operator[]（p167 MISSING 1×operator[]；P157/P183
+            // 容器成员禁缓存引用），故不设 entry 引用。
+            reg.m_map0[part].m_name4 = s;
             while (ScanStr(&s))
             {
-                entry.m_vec8.push_back(s);
+                reg.m_map0[part].m_vec8.push_back(s);
             }
         }
-        else if (token == "[adjust quantity ratio]")
+        else if ("[adjust quantity ratio]" == token)
         {
             part = ScanInt(&ok);            // ORIG 不校验 ok
             ScanStr(&s);
@@ -353,7 +428,7 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
                 reg.m_vec30.push_back(ScanInt(&ok));
             }
         }
-        else if (token == "[adjust value ratio]")
+        else if ("[adjust value ratio]" == token)
         {
             part = ScanInt(&ok);            // ORIG 不校验 ok
             ScanStr(&s);
@@ -371,7 +446,7 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
                 reg.m_field48 += ratio.m_weight8;
             }
         }
-        else if (token == "[regeneration price]")
+        else if ("[regeneration price]" == token)
         {
             int limit = ScanInt(&ok);       // ORIG 不校验 ok
             for (;;)
@@ -411,8 +486,10 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
 // ============================================================================
 bool StrikerScript::importScript(const char* path)
 {
-    // [b28d-34] 复核维持 DIFF（§6.2）：orig 497/ours 477，残差为帧差
-    // （0x8c vs 0x7c）+ 容器族（N89）；语义等价。
+    // [b28d-solo-ScriptLeafA2] 判词 = N（帧差 + 容器族，N82/N89；p167 CLEAR 87=87）。
+    //   已修：19 处 token 比较改「字面量在左」（p167 原 19×EXTRA/MISSING 反向，
+    //   P196 族）+ m_skillMap.find 比较改 operator==（反向包裹，P222）。
+    //   残余 = 帧差（ORIG 0x8c vs 我方 0x7c，P210/N82 族）；语义等价。
     if (!loadRDARScriptFile("", path))
     {
         return false;
@@ -424,43 +501,43 @@ bool StrikerScript::importScript(const char* path)
 
     while (ScanType(token, true))
     {
-        if (token == "[tag mode]")
+        if ("[tag mode]" == token)
         {
             ScanInt(&ok);                           // 仅存局部（ORIG 同）
         }
-        else if (token == "[tag cost time]")
+        else if ("[tag cost time]" == token)
         {
             m_tagCostTime = ScanInt(&ok);
         }
-        else if (token == "[tag character setting]")
+        else if ("[tag character setting]" == token)
         {
             m_tagCharacterSetting = ScanInt(&ok);
         }
-        else if (token == "[striker combo]")
+        else if ("[striker combo]" == token)
         {
             m_strikerCombo = ScanInt(&ok);
         }
-        else if (token == "[striker start time]")
+        else if ("[striker start time]" == token)
         {
             m_strikerStartTime = ScanInt(&ok);
         }
-        else if (token == "[striker skill data up]")
+        else if ("[striker skill data up]" == token)
         {
             importSkillDataUpVector();
         }
-        else if (token == "[striker skill attack penalty]")
+        else if ("[striker skill attack penalty]" == token)
         {
             importSkillAttackPenalty();
         }
-        else if (token == "[striker skill cooltime penalty]")
+        else if ("[striker skill cooltime penalty]" == token)
         {
             importSkillCoolTimePenalty();
         }
-        else if (token == "[striker level penalty]")
+        else if ("[striker level penalty]" == token)
         {
             importParentLevelPenlaty();
         }
-        else if (token == "[striker module impossible]")
+        else if ("[striker module impossible]" == token)
         {
             m_moduleImpossible.clear();
             while (ScanStr(&s))
@@ -469,7 +546,7 @@ bool StrikerScript::importScript(const char* path)
                     static_cast<ContentsType::T>(ContentsType::getType(s.c_str())));
             }
         }
-        else if (token == "[striker dungeon impossible]")
+        else if ("[striker dungeon impossible]" == token)
         {
             m_dungeonImpossible.clear();
             for (;;)
@@ -482,17 +559,17 @@ bool StrikerScript::importScript(const char* path)
                 m_dungeonImpossible.push_back(dungeon);
             }
         }
-        else if (token == "[striker end time]")
+        else if ("[striker end time]" == token)
         {
             m_strikerEndTime = ScanInt(static_cast<bool*>(0));
         }
-        else if (token == "[position]")
+        else if ("[position]" == token)
         {
             m_positionType = ScanInt(static_cast<bool*>(0));   // +0xac
             m_field38 = ScanInt(static_cast<bool*>(0));        // +0x38
             m_field3c = ScanInt(static_cast<bool*>(0));        // +0x3c
         }
-        else if (token == "[striker skill]")
+        else if ("[striker skill]" == token)
         {
             for (;;)
             {
@@ -515,19 +592,20 @@ bool StrikerScript::importScript(const char* path)
                      << 16));
                 std::map<int, std::vector<StrikerSkill>*>::iterator it =
                     m_skillMap.find(key);
-                if (it != m_skillMap.end())
-                {
-                    it->second->push_back(skill);
-                }
-                else
+                // p167：ORIG 调 _Rb_tree_iterator::operator==（非 !=）⇒ 反向包裹。
+                if (it == m_skillMap.end())
                 {
                     std::vector<StrikerSkill>* vec = new std::vector<StrikerSkill>;
                     vec->push_back(skill);
                     m_skillMap[key] = vec;
                 }
+                else
+                {
+                    it->second->push_back(skill);
+                }
             }
         }
-        else if (token == "[striker skill macro]")
+        else if ("[striker skill macro]" == token)
         {
             m_macroCommands.clear();
             for (;;)
@@ -544,15 +622,15 @@ bool StrikerScript::importScript(const char* path)
                 m_macroCommands.push_back(cmd);
             }
         }
-        else if (token == "[common cool time]")
+        else if ("[common cool time]" == token)
         {
             m_commonCoolTime = ScanInt(static_cast<bool*>(0));
         }
-        else if (token == "[direction type]")
+        else if ("[direction type]" == token)
         {
             m_direction.setType(ScanInt(static_cast<bool*>(0)));
         }
-        else if (token == "[contents revision]")
+        else if ("[contents revision]" == token)
         {
             m_contentsRevision.clear();
             while (ScanStr(&s))
@@ -565,7 +643,7 @@ bool StrikerScript::importScript(const char* path)
                 m_contentsRevision.push_back(rev);
             }
         }
-        else if (token == "[upgrade revision]")
+        else if ("[upgrade revision]" == token)
         {
             m_upgradeRevision = ScanInt(static_cast<bool*>(0));
         }
@@ -634,13 +712,16 @@ bool importStageMapScript(stagemap::StageMapScript* out, const char* path);
 // ============================================================================
 bool StageMapList::loadList()
 {
-    // [b28d-34] 复核维持 DIFF（§6.2）：orig 356/ours 290，残差为 STL 实例化族
-    // （N89）+ 帧 0xf0；语义等价。
+    // [b28d-solo-ScriptLeafA2] 判词 = N（§6.2 口径，残余帧/槽差；p167 CLEAR 55=55）。
+    //   已修：三层遍历由索引 size()/operator[] 改迭代器（begin/end/operator!=/
+    //   operator->/operator++(int)，P28 后置 ++）+ ORIG 的容器引用缓存（Ghidra C
+    //   `local_20 = local_20 + 0x20`）+ 尾循环条件/体内各调 summaries.size()
+    //   （ORIG 三处调用点）⇒ 本件 +18 AE。残余 = 帧/槽号差（N82）；语义等价。
     std::vector<_StageMapSummary> summaries;
 
     for (std::map<int, std::string>::iterator it =
              g_stageMapScriptFileList.m_fileMap.begin();
-         it != g_stageMapScriptFileList.m_fileMap.end(); ++it)
+         it != g_stageMapScriptFileList.m_fileMap.end(); it++)
     {
         const char* name = it->second.c_str();
         if (name == 0)
@@ -655,36 +736,47 @@ bool StageMapList::loadList()
             return false;
         }
 
-        for (size_t a = 0; a < script.m_areaVec.size(); ++a)
+        // p167：ORIG 三层均为迭代器遍历（begin/end/operator!=/operator->/
+        // operator++(int)），非索引 + size()/operator[]；后置 ++ 由 P28 增量侧
+        // 推论（ORIG 增量段调 ppEi）。
+        for (std::vector<stagemap::AreaData>::iterator ai =
+                 script.m_areaVec.begin();
+             ai != script.m_areaVec.end(); ai++)
         {
-            stagemap::AreaData& area = script.m_areaVec[a];
             int districtId = 0;
-            for (size_t d = 0; d < area.m_vec20.size(); ++d)
+            // ORIG 缓存容器引用（Ghidra C：`local_20 = local_20 + 0x20` 即 &ai->m_vec20
+            // 一次取址；p167 显示我方 begin/end 各多一次 operator->）。
+            std::vector<stagemap::DistrictData>& districts = ai->m_vec20;
+            for (std::vector<stagemap::DistrictData>::iterator di =
+                     districts.begin();
+                 di != districts.end(); di++)
             {
-                stagemap::DistrictData& district = area.m_vec20[d];
                 int stageIdx = 0;
-                for (size_t s = 0; s < district.m_vec4.size(); ++s)
+                std::vector<stagemap::StageData>& stages = di->m_vec4;
+                for (std::vector<stagemap::StageData>::iterator si =
+                         stages.begin();
+                     si != stages.end(); si++)
                 {
                     _StageMapSummary sum;
                     sum.m_nextId = 0;
-                    sum.m_stageId = district.m_vec4[s].m_field0;
+                    sum.m_stageId = si->m_field0;
                     sum.m_uniqueId =
-                        makeStageMapUniqueId(area.m_field0, district.m_field0,
+                        makeStageMapUniqueId(ai->m_field0, di->m_field0,
                                              stageIdx);
                     summaries.push_back(sum);
                     ++stageIdx;
                 }
-                districtId = district.m_field0;
+                districtId = di->m_field0;
             }
             districtId += 1;
             int stageIdx2 = 0;
-            if (0 < area.m_field2c)
+            if (0 < ai->m_field2c)
             {
                 _StageMapSummary sum;
                 sum.m_nextId = 1;
-                sum.m_stageId = area.m_field2c;
+                sum.m_stageId = ai->m_field2c;
                 sum.m_uniqueId =
-                    makeStageMapUniqueId(area.m_field0, districtId, stageIdx2);
+                    makeStageMapUniqueId(ai->m_field0, districtId, stageIdx2);
                 summaries.push_back(sum);
             }
         }
@@ -692,14 +784,15 @@ bool StageMapList::loadList()
 
     std::sort(summaries.begin(), summaries.end(), compare);
 
-    size_t count = summaries.size();
-    for (size_t i = 0; i < count; ++i)
+    // ORIG 0x08365… 尾循环条件每轮调 size()，体内另调一次（p167 MISSING size×1；
+    // 报告 Ghidra C 556-591 三处 size() 调用点）。
+    for (size_t i = 0; i < summaries.size(); ++i)
     {
         if (i == 0)
         {
             m_firstStageId = summaries[0].m_stageId;
         }
-        if (i != count - 1)
+        if (summaries.size() - 1 != i)
         {
             summaries[i].m_nextId = summaries[i + 1].m_stageId;
         }
@@ -721,8 +814,13 @@ namespace APSystem
 bool CActionPointEtcParameter::importActionPointSystemEtcScript(
     const char* path, CActionPointEtcParameter& out)
 {
-    // [b28d-34] 复核维持 DIFF（§6.2）：orig 794/ours 798，残差为帧/槽与容器
-    // 实例化族；语义等价。
+    // [b28d-solo-ScriptLeafA2] 判词 = N（残余迭代器计数/EH 清理差；p167 110=112）。
+    //   已修：①EOF 段改 const_iterator + 后置 ++ + const vector&（P96/P28）；
+    //   ②itemList 缓冲改 c_str() 视图（p167 原 operator[] EXTRA/c_str MISSING）；
+    //   ③vector<int>::push_back 改具名 int 左值（ORIG const& 版）；④find 比较改
+    //   operator==（反向包裹，P222）。残余 EXTRA = _TodayRewardItem::~_TodayRewardItem
+    //   ×2（4.4 对含非平凡析构局部恒布 EH 清理，ORIG 消除，N91 族）+ const_iterator
+    //   operator->/operator[] const 各 1 计数差；语义等价。
     std::string token;
     bool ok = false;
 
@@ -737,11 +835,13 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
         if (!ScanType(token, true))
         {
             // EOF：把各组元素指针登记进 +0x18 引用表（ORIG 尾段循环）
-            for (std::map<unsigned short, std::vector<CActionPointEx> >::iterator it =
-                     out.m_actionPoints.begin();
-                 it != out.m_actionPoints.end(); ++it)
+            // p167：ORIG 用 const_iterator（转换构造 ×2）+ operator++(int) +
+            // operator->/operator[] const ⇒ 按 P96/P28 改写。
+            for (std::map<unsigned short, std::vector<CActionPointEx> >::const_iterator
+                     it = out.m_actionPoints.begin();
+                 it != out.m_actionPoints.end(); it++)
             {
-                std::vector<CActionPointEx>& vec = it->second;
+                const std::vector<CActionPointEx>& vec = it->second;
                 for (size_t i = 0; i < vec.size(); ++i)
                 {
                     out.m_actionPointRefs.insert(
@@ -820,11 +920,14 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
                 {
                     // strtok_r 按 "," 切分 atoi 入 vector<int>（B+0x14）
                     char* context = 0;
-                    char* buf = &itemList[0];
+                    // p167：ORIG 调 string::c_str()（我方原为 operator[]）。
+                    char* buf = const_cast<char*>(itemList.c_str());
                     for (char* tok = strtok_r(buf, ",", &context); tok != 0;
                          tok = strtok_r(0, ",", &context))
                     {
-                        ex.m_itemList.push_back(atoi(tok));
+                        // ORIG 调 push_back(int const&)（具名 int 局部），非右值版。
+                        int value = atoi(tok);
+                        ex.m_itemList.push_back(value);
                     }
                 }
 
@@ -865,17 +968,18 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
 
                 std::map<unsigned short, std::vector<CActionPointEx> >::iterator fit =
                     out.m_actionPoints.find(*reinterpret_cast<unsigned short*>(&ex.m_bytes02[0x0a]));
-                if (fit != out.m_actionPoints.end())
-                {
-                    fit->second.push_back(ex);
-                }
-                else
+                // p167：ORIG 调 _Rb_tree_iterator::operator==（非 !=）⇒ 反向包裹。
+                if (fit == out.m_actionPoints.end())
                 {
                     std::vector<CActionPointEx> vec;
                     vec.push_back(ex);
                     out.m_actionPoints.insert(
                         std::make_pair(
                         *reinterpret_cast<unsigned short*>(&ex.m_bytes02[0x0a]), vec));
+                }
+                else
+                {
+                    fit->second.push_back(ex);
                 }
             }
         }
@@ -968,8 +1072,14 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
 // ============================================================================
 int eventReward::ImportRewardScript(const char* dir, const char* file)
 {
-    // [b28d-34] 复核维持 DIFF（§6.2）：orig 885/ours 909，帧 0x21c vs 0x25c
-    // （N82/P210 族）；语义等价。
+    // [b28d-solo-ScriptLeafA2] 判词 = N（结构性重写未闭合：§6.2，帧 0x21c vs 0x25c）。
+    //   已修：①9 处 __lookup.insert 改 map::value_type 直构（P315，消 9×make_pair
+    //   +9×pair 转换构造）；②两处 findKey 去 const（ORIG make_pair<int&,vector&>）；
+    //   ③两处 find 比较改 != + 两臂还原（P222）⇒ 本件 +7 AE，MISSING 仅剩 string
+    //   ctor/dtor 计数。残余 = ORIG「ret 变量 + 合并 switch（case 内 if(__inited)
+    //   业务 else 插表）」结构与现有两次 find 结构不同（Ghidra C 1044-1073 实证），
+    //   完整重写需逐 case 改造 ~900 行（跨 9 个 case）⇒ 本轮不闭合，判 N；语义等价
+    //   （p167 122=128，EXTRA 全为 EH 清理/迭代器计数类）。
     if (!loadRDARScriptFile(dir, file))
     {
         return 0;
@@ -1009,16 +1119,27 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
 
         if (!__inited)
         {
-            // 首遍：登记全部键值（顺序与 ORIG 级联一致），随后按当前令牌派发
-            __lookup.insert(std::make_pair("[/reward]", 0x8f));
-            __lookup.insert(std::make_pair("[job type]", 0x93));
-            __lookup.insert(std::make_pair("[sub type]", 0xa3));
-            __lookup.insert(std::make_pair("[option]", 0xaf));
-            __lookup.insert(std::make_pair("[equipment item]", 0xb9));
-            __lookup.insert(std::make_pair("[stackable item]", 0xd8));
-            __lookup.insert(std::make_pair("[/sub type]", 0xfc));
-            __lookup.insert(std::make_pair("[/job type]", 0x102));
-            __lookup.insert(std::make_pair("[/option]", 0x107));
+            // 首遍：登记全部键值（顺序与 ORIG 级联一致），随后按当前令牌派发。
+            // p167：ORIG 直接调 value_type::C1<char const(&)[N], int>（无 make_pair
+            // 中转），按 P315 用 map::value_type 直构。
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[/reward]", 0x8f));
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[job type]", 0x93));
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[sub type]", 0xa3));
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[option]", 0xaf));
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type(
+                "[equipment item]", 0xb9));
+            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type(
+                "[stackable item]", 0xd8));
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[/sub type]", 0xfc));
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[/job type]", 0x102));
+            __lookup.insert(
+                std::map<const char*, int, less_TCHAR>::value_type("[/option]", 0x107));
             __init_lock.leave();
             __inited = 1;
 
@@ -1074,7 +1195,8 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
             for (;;)
             {
                 itemData item = curItem;            // 栈副本
-                const int findKey = ScanInt(&ok);   // ORIG 键为独立局部 int（不占 itemData）
+                // p167：ORIG 调 make_pair<int&, vector&>（非 const&）⇒ findKey 去 const。
+                int findKey = ScanInt(&ok);         // ORIG 键为独立局部 int（不占 itemData）
                 if (!ok)
                 {
                     goto next_token;                // 回主循环
@@ -1086,15 +1208,15 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
                 }
                 std::map<int, std::vector<itemData> >::iterator fit =
                     subMap.find(findKey);
-                if (fit == subMap.end())
+                if (fit != subMap.end())
+                {
+                    fit->second.push_back(item);
+                }
+                else
                 {
                     std::vector<itemData> vec;
                     vec.push_back(item);
                     subMap.insert(std::make_pair(findKey, vec));
-                }
-                else
-                {
-                    fit->second.push_back(item);
                 }
             }
         }
@@ -1106,7 +1228,7 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
             for (;;)
             {
                 itemData item = curItem;
-                const int findKey = ScanInt(&ok);   // ORIG 键为独立局部 int
+                int findKey = ScanInt(&ok);         // ORIG 键为独立局部 int
                 if (!ok)
                 {
                     goto next_token;
@@ -1123,15 +1245,15 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
                 }
                 std::map<int, std::vector<itemData> >::iterator fit =
                     subMap.find(findKey);
-                if (fit == subMap.end())
+                if (fit != subMap.end())
+                {
+                    fit->second.push_back(item);
+                }
+                else
                 {
                     std::vector<itemData> vec;
                     vec.push_back(item);
                     subMap.insert(std::make_pair(findKey, vec));
-                }
-                else
-                {
-                    fit->second.push_back(item);
                 }
             }
         }
@@ -1197,8 +1319,10 @@ int eventReward::ImportRewardScript(const char* dir, const char* file)
 
 int importUpgradeTable(const char* path, upgrade_table_t* table)
 {
-    // [b28d-34] 复核维持 DIFF（§6.2）：orig 1119/ours 1166，帧 0x190 vs 0x160
-    // （N82/P210 族）；语义等价。
+    // [b28d-solo-ScriptLeafA2] 判词 = N（§6.2 超大函数口径：p167 仅 3 项残差）。
+    //   残余 = string ctor ×1 / dtor ×2 计数差（ORIG 多一个 string 局部及其 EH
+    //   路径）+ _Unwind_Resume ×1（我方多一处 EH landing）；gap 1119 vs 1166 为
+    //   N82 帧/槽族。语义等价（token 比较方向/表插入/错误路径均与 ORIG 对齐）。
     if (!loadRDARScriptFile("", path))
     {
         return 0;

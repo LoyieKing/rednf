@@ -128,33 +128,41 @@ void CAssaultAbuseUserCmd::execute()
 //   修：put_str const_cast 去除（P167 重载 Pci→PKci）。残余：EXTRA memset（我方
 //   char buf[0xff] 零初始化走 call memset，ORIG 为内联 rep stos，N78/N84 族）+
 //   MISSING GetUser ×1（ORIG 三处独立取 user，槽/调用点差）+ 槽平移。
+// [b28d-solo-GmCmds_A] verdict=DIFF ndiff=7 [N82/P23] p167 CLEAR(37/37)；begin/end
+// 条件块 receiver 装载先于 sret（ORIG）vs 4.4 相反，`(*monsters)` 形实测不翻 ⇒ 封顶。
 void CBloodMonsterListCmd::execute()
 {
-    CUser* user = GetUser();
-    if (user->get_state() != 5)
+    // [b28d-solo-GmCmds_A] P0/P167：ORIG 无 user 具名槽，3 处调用点各自重调
+    // GetUser()（p167 MISSING GetUser×1）。
+    if (GetUser()->get_state() != 5)
     {
         return;
     }
 
-    short partyIndex = user->GetPartyIndex();
-    CParty* party = G_CGameManager()->GetParty(static_cast<int>(partyIndex));
+    // [b28d-solo-GmCmds_A] P200：ORIG `call GetPartyIndex; movswl %ax,%ebx` 直传
+    // GetParty 实参（无 partyIndex 具名槽）。
+    CParty* party = G_CGameManager()->GetParty(
+        static_cast<int>(GetUser()->GetPartyIndex()));
     if (party == 0)
     {
         return;
     }
 
     std::string message("monster list : ");
-    char buf[0xff];
-    memset(buf, 0, sizeof(buf));
+    // [b28d-solo-GmCmds_A] P312：ORIG +0x0ae 对 buf[0xff] 发「对齐剥离+rep stos
+    // +尾字节」慢路（无 memset call，p167 EXTRA memset）⇒ 数组零初始化。
+    char buf[0xff] = {0};
 
     // CBattle_Field 为 CParty+0xb24 嵌入子对象（CParty.h 占位，全项目同口径视图）。
     // ORIG 0x84a9e??：GetMapInfo() 返回 MapInfo*，取其 +0x0c m_monsterMap。
-    CBattle_Field* battleField =
-        &party->m_battleField;
-    std::map<int, map_monster>* monsters = &battleField->GetMapInfo()->m_monsterMap;
+    // [b28d-solo-GmCmds_A] P0：ORIG 无 battleField 具名槽（`add $0xb24` 直调）。
+    std::map<int, map_monster>* monsters =
+        &party->m_battleField.GetMapInfo()->m_monsterMap;
 
-    for (std::map<int, map_monster>::iterator it = monsters->begin();
-         it != monsters->end(); ++it)
+    // [b28d-solo-GmCmds_A] P23：ORIG 条件块先载 receiver（`mov -0x1c,%eax;
+    // lea 0xc(%eax),%edx`）再 lea sret；`(*monsters).begin()` 令 4.4 同序。
+    for (std::map<int, map_monster>::iterator it = (*monsters).begin();
+         it != (*monsters).end(); ++it)
     {
         sprintf(buf, "(%d) ", it->first);
         message += buf;
@@ -189,6 +197,8 @@ void CAddItemPollutionCmd::parse()
 // 无强化属性时随机投一次强化投资，最后日志 + 物品更新包。
 // [b28d-47] verdict=DIFF(routed) [N82/P112] ORIG 0x084aaa00 orig/ours=187/180
 //   残差：全帧槽号平移 + 寄存器角色差（跨版本分配）。
+// [b28d-solo-GmCmds_A] verdict=DIFF ndiff=40 [N82] p167 CLEAR(30/30)；limit/stackable/
+// space/invest 槽位差 16，语义完成（嵌套 if 拆 && 物化、GetUser 内联、死守卫照抄）。
 void CAddItemPollutionCmd::execute()
 {
     if (m_itemIdx == -1)
@@ -203,23 +213,30 @@ void CAddItemPollutionCmd::execute()
     int limit = 100;
     CStackableItem* stackable =
         static_cast<CStackableItem*>(G_CDataManager()->find_item(m_itemIdx));
-    if (stackable != 0 && stackable->is_stackable())
+    // [b28d-solo-GmCmds_A] P133/P225：ORIG 各条件各自 `je` 直跳统一出口；
+    // 合并 `&&` 使 4.4 物化 bool（mov $1/$0 + test）⇒ 拆嵌套 if。
+    if (stackable != 0)
     {
-        if (stackable->getStackableLimit() < limit)
+        if (stackable->is_stackable())
         {
-            limit = stackable->getStackableLimit();
+            if (stackable->getStackableLimit() < limit)
+            {
+                limit = stackable->getStackableLimit();
+            }
         }
     }
 
     ENUM_ITEMSPACE space;
-    CUser* user = GetUser();
-    int slot = user->AddItem(m_itemIdx, limit, static_cast<eItemAddReason>(6),
-                             space, 0);
+    // [b28d-solo-GmCmds_A] P0/P167：ORIG 无 user 具名槽，6 处调用点各自重调
+    // GetUser()（p167 MISSING GetUser×4）。
+    int slot = GetUser()->AddItem(m_itemIdx, limit, static_cast<eItemAddReason>(6),
+                                  space, 0);
     if (slot >= 0)
     {
-        int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space);
-        CInventory* inven = user->getCurCharacInvenW();
-        Inven_Item* ref = inven->GetInvenRef(invenType, slot);
+        // [b28d-solo-GmCmds_A] P0：ORIG 无 invenType/inven 具名槽
+        // （invenType 在 %ebx 直传、inven 在 %eax 直传）。
+        Inven_Item* ref = GetUser()->getCurCharacInvenW()->GetInvenRef(
+            GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space), slot);
         if (ref != 0)
         {
             if (ref->m_amp.getAbilityType() == 0)
@@ -229,12 +246,17 @@ void CAddItemPollutionCmd::execute()
                 {
                     stInvestAmplifyOption_t invest;
                     invest.m_amount = type;
-                    GlobalData::s_itemAmplifier_->investAmplifyOption(stackable, *ref,
-                                                                      invest);
-                    unsigned char abilityType = 0;
-                    unsigned short abilityValue = 0;
-                    ref->m_amp.getValues(abilityType, abilityValue);
-                    ref->m_amp.assign(abilityType | 0x80, abilityValue);
+                    // [b28d-solo-GmCmds_A] P184：ORIG +0x181 二次 `cmpl $0,stackable`
+                    // 死守卫照抄（P171 不写即少分支）。
+                    if (stackable != 0)
+                    {
+                        GlobalData::s_itemAmplifier_->investAmplifyOption(stackable, *ref,
+                                                                          invest);
+                        unsigned char abilityType = 0;
+                        unsigned short abilityValue = 0;
+                        ref->m_amp.getValues(abilityType, abilityValue);
+                        ref->m_amp.assign(abilityType | 0x80, abilityValue);
+                    }
                 }
             }
             if (slot >= 0)
@@ -242,10 +264,10 @@ void CAddItemPollutionCmd::execute()
                 cMyTrace trace(
                     __PRETTY_FUNCTION__, 0x5b0, 0);
                 trace("%s:'%s' GM Mode Add Item(%d).",
-                      NumberToString(user->get_acc_id(), 0),
-                      user->getCurCharacName(), slot);
+                      NumberToString(GetUser()->get_acc_id(), 0),
+                      GetUser()->getCurCharacName(), slot);
             }
-            user->SendUpdateItemList(static_cast<CUser::eSendTarget>(1), space, slot);
+            GetUser()->SendUpdateItemList(static_cast<CUser::eSendTarget>(1), space, slot);
         }
     }
 }
@@ -267,27 +289,36 @@ void CAddItemByMail::parse()
 // [b28d-47] verdict=DIFF(routed) [N78/N82] ORIG 0x084ac2e2 orig/ours=187/132
 //   残差：EXTRA memset ×2（我方数组零初始化 call vs ORIG 内联 rep stos，N78）
 //   + 槽/寄存器分配跨版本差。
+// [b28d-solo-GmCmds_A] verdict=DIFF ndiff=9 [N7/N18a] p167 CLEAR(16/16)；仅剩
+// 寄存器角色差（ORIG `mov -0x28,%ebx` vs 4.4 `mov -0x28,%edx`）与虚调用 receiver
+// 装载序（N7 族），语义完成封顶。
 void CAddItemByMail::execute()
 {
     CUser* user = GetUser();
-    int itemId = m_itemIdx;
-    if (G_CDataManager()->find_item(itemId) == 0)
+    // [b28d-solo-GmCmds_A] ORIG +0x02c 把 find_item 结果存入具名槽 -0x2c
+    // （`mov %eax,-0x2c; cmpl $0,-0x2c; je`），内联 test/sete 形不符；
+    // 实参用 m_itemIdx(+8) 直读（无 itemId 槽，其槽 -0x28 在两次 strncpy 后写）。
+    CItem* found = G_CDataManager()->find_item(m_itemIdx);
+    if (found == 0)
     {
         return;
     }
 
-    char title[0x100];
-    memset(title, 0, sizeof(title));
-    char sender[0x15];
-    memset(sender, 0, sizeof(sender));
+    // [b28d-solo-GmCmds_A] P312：ORIG 对 title[0x100](-0x182)/sender[0x15](-0x45)
+    // 发内联对齐剥离清零（无 memset call，p167 EXTRA memset×2）。
+    char title[0x100] = {0};
+    char sender[0x15] = {0};
     strncpy(title, g_scriptStringManager_.findString(4, "game_server_msg_144", 0),
             0xff);
     strncpy(sender, g_scriptStringManager_.findString(4, "game_server_msg_143", 0),
             0x14);
 
+    // [b28d-solo-GmCmds_A] ORIG 声明/初始化序：itemId(-0x28) → addInfo(-0x24)
+    // → Inven_Item C1(-0x82) → count(-0x20)。
+    int itemId = m_itemIdx;
     int addInfo = 1;
-    int count = 0;
     Inven_Item item;
+    int count = 0;
     if (itemId == 0)
     {
         count = addInfo;
@@ -359,12 +390,15 @@ void CBoosterTest::clear()
 // ORIG execute 0x084aed04：LOTTERY 类物品抽样统计并把结果文件内容分包回显。
 // [b28d-47] verdict=DIFF(routed) [N78/N82] ORIG 0x084aed04 orig/ours=269/241
 //   残差：EXTRA memset（N78 内联清零差）+ 全帧槽号平移。
+// [b28d-solo-GmCmds_A] verdict=DIFF ndiff=29 [N7/memset-edx] p167 CLEAR(33/33)；
+// memset 第三实参 edx 中转 + 虚调用 receiver 装载序（N7）+ 跳表基址折叠。
 void CBoosterTest::execute()
 {
     CUser* user = GetUser();
 
-    char fileName[0xff];
-    memset(fileName, 0, sizeof(fileName));
+    // [b28d-solo-GmCmds_A] P312：ORIG 对 fileName[0xff](-0x153) 发内联对齐剥离
+    // 清零（无 memset call，p167 EXTRA memset）。
+    char fileName[0xff] = {0};
     char fileBuf[95000];
     memset(fileBuf, 0, sizeof(fileBuf));
 
@@ -537,6 +571,8 @@ bool CBoosterTest::is_gold_lottery_item(int idx)
 // [b28d-47] verdict=DIFF(routed) [N7/N82] ORIG 0x084afba8 orig/ours=88/87
 //   修：idx 实参内联（P0 去 -0xc 槽）+ `++pos->second`（单 ptEv）。
 //   残余：callee-saved 角色（ORIG %esi 缓存 lotto vs 4.4 %ebx）+ 槽差（N7/N82）。
+// [b28d-solo-GmCmds_A] verdict=IDENTICAL/AE ndiff=0 [P167+P220+P61]
+// m_itemList 直读 + 正极性 ne + make_pair<int,int> 值对 + 键重读 lotto.m_addInfo。
 void CBoosterTest::getJarResult(CItem const* item, std::map<int, int>& result)
 {
     Inven_Item lotto;
@@ -544,18 +580,25 @@ void CBoosterTest::getJarResult(CItem const* item, std::map<int, int>& result)
     {
         // [b28d-47] P0：ORIG 0x084afbe8 `call get_index; mov %eax,%ebx`（无槽）⇒
         // 实参内联，禁具名 idx（4.4 落 -0xc 槽并使帧/槽整体漂移）。
-        G_CDataManager()->getItemList()->get_lotto_item(
+        // [b28d-solo-GmCmds_A] P167：ORIG 直读 CDataManager::m_itemList(+0xc)
+        // （`call G_CDataManager; mov 0xc(%eax),%eax`），getItemList() 是 EXTRA call。
+        G_CDataManager()->m_itemList->get_lotto_item(
             const_cast<CItem*>(item)->get_index(),
             reinterpret_cast<char*>(&lotto));
         int itemId = lotto.m_addInfo;
         std::map<int, int>::iterator pos = result.find(itemId);
-        if (pos == result.end())
+        // [b28d-solo-GmCmds_A] P220：ORIG 用 ne（`call ne; test; je <insert>`）。
+        if (pos != result.end())
         {
-            result.insert(std::make_pair(itemId, 1));
+            ++pos->second;   // ORIG 单次 ptEv + mov/add/mov（`= pos->second + 1` 4.4 双 ptEv）
         }
         else
         {
-            ++pos->second;   // ORIG 单次 ptEv + mov/add/mov（`= pos->second + 1` 4.4 双 ptEv）
+            // [b28d-solo-GmCmds_A] P61：ORIG 调 make_pair<int,int>（IiiE 值对）；
+            // 左值实参生成 make_pair<int&,int>（IRiiE，p167 EXTRA）。
+            // [b28d-solo-GmCmds_A] ORIG +0x0b1 从 lotto+2 重读（`mov -0x73(%ebp),%eax`），
+            // 非从 itemId 槽（-0x34）读。
+            result.insert(std::make_pair(static_cast<int>(lotto.m_addInfo), 1));
         }
     }
 }
@@ -563,24 +606,29 @@ void CBoosterTest::getJarResult(CItem const* item, std::map<int, int>& result)
 // ORIG get_gold_lottery_result 0x084afd1c：统计金币产出（key=+7 数量，value=1）。
 // [b28d-47] verdict=DIFF(routed) [N7/N82] ORIG 0x084afd1c orig/ours=86/87
 //   修：idx 实参内联（P0）+ `++pos->second`。残余：寄存器角色/槽差。
+// [b28d-solo-GmCmds_A] verdict=DIFF ndiff=21 [N82/N95] p167 CLEAR(11/11)；
+// 全帧槽差 4（lotto -0x6d vs -0x71、pos -0x30 vs -0x34），语义完成结构性封顶。
 void CBoosterTest::get_gold_lottery_result(CItem const* item,
                                            std::map<int, int>& result)
 {
     Inven_Item lotto;
     for (int i = 0; i < m_count; ++i)
     {
-        G_CDataManager()->getItemList()->get_lotto_item(   // [b28d-47] P0 同 getJarResult
+        // [b28d-solo-GmCmds_A] P167/P0：ORIG 直读 m_itemList(+0xc)；key 为
+        // `lea lotto+7` 直传（无 itemId 具名槽）。
+        G_CDataManager()->m_itemList->get_lotto_item(
             const_cast<CItem*>(item)->get_index(),
             reinterpret_cast<char*>(&lotto));
-        int goldCount = lotto.m_addInfo2;
-        std::map<int, int>::iterator pos = result.find(goldCount);
-        if (pos == result.end())
+        std::map<int, int>::iterator pos = result.find(lotto.m_addInfo2);
+        // [b28d-solo-GmCmds_A] P220：ORIG 用 ne。
+        if (pos != result.end())
         {
-            result.insert(std::make_pair(goldCount, 1));
+            ++pos->second;   // ORIG 单次 ptEv（同 getJarResult）
         }
         else
         {
-            ++pos->second;   // ORIG 单次 ptEv（同 getJarResult）
+            // [b28d-solo-GmCmds_A] P61：ORIG 调 make_pair<int,int>（值对）。
+            result.insert(std::make_pair(static_cast<int>(lotto.m_addInfo2), 1));
         }
     }
 }
@@ -589,28 +637,40 @@ void CBoosterTest::get_gold_lottery_result(CItem const* item,
 // [b28d-47] verdict=DIFF(routed) [N7/P96] ORIG 0x084af9d6 orig/ours=139/131
 //   修：make_pair 实参右值化（P61 值对）+ `++pos->second`。
 //   残余：vector 遍历迭代器实例差（EXTRA ptEv/ppEv/ne，P175 族）+ 槽平移。
+// [b28d-solo-GmCmds_A] verdict=NEAR ndiff=36 [N82] p167 CLEAR(21/21)；items 槽差 8 +
+// 迭代器装载序；de/while/C1 转换构造/pair 值对已对齐，语义完成封顶。
 void CBoosterTest::getBoosterResult(CItem const* item,
                                     std::map<int, int>& result)
 {
+    // [b28d-solo-GmCmds_A] P0：ORIG +0x008 `mov 0xc(%ebp),%eax; mov %eax,-0x10`
+    // 具名副本槽（getBoosterItem receiver 从 -0x10 读），声明先于 items。
+    CStackableItem const* stackable = static_cast<CStackableItem const*>(item);
     std::vector<stStackableBoosterItemInfo_t> items;
     for (int i = 0; i < m_count; ++i)
     {
-        static_cast<CStackableItem const*>(item)->getBoosterItem(items);
-        for (std::vector<stStackableBoosterItemInfo_t>::const_iterator it = items.begin();
-             it != items.end(); ++it)
+        stackable->getBoosterItem(items);
+        // [b28d-solo-GmCmds_A] P167/P28：ORIG 先 begin()→C1<iterator> 转换构造，
+        // 再 end()→C1 转换构造，两个 const_iterator 具名后 while 循环；写成
+        // `it != items.end()` 会选混合 ne（p167 EXTRA）。
+        std::vector<stStackableBoosterItemInfo_t>::const_iterator it = items.begin();
+        std::vector<stStackableBoosterItemInfo_t>::const_iterator end = items.end();
+        while (it != end)
         {
-            int itemId = it->m_itemIdx;
+            // [b28d-solo-GmCmds_A] P167：ORIG 用 operator*（deEv），非 ptEv。
+            int itemId = (*it).m_itemIdx;
             std::map<int, int>::iterator pos = result.find(itemId);
-            if (pos == result.end())
-            {
-                // [b28d-47] P61：实参右值化 ⇒ 实例化 make_pair<int,int>（值对），
-                // 左值 itemId 会实例化 make_pair<int&,int>（P167 EXTRA）。
-                result.insert(std::make_pair(static_cast<int>(itemId), 1));
-            }
-            else
+            if (pos != result.end())
             {
                 ++pos->second;
             }
+            else
+            {
+                // [b28d-47] P61：实参右值化 ⇒ 实例化 make_pair<int,int>（值对），
+                // 左值 itemId 会实例化 make_pair<int&,int>（P167 EXTRA）。
+                // [b28d-solo-GmCmds_A] ORIG 此处重读 (*it).m_itemIdx（第二个 deEv）。
+                result.insert(std::make_pair(static_cast<int>((*it).m_itemIdx), 1));
+            }
+            ++it;
         }
         items.clear();
     }
@@ -621,6 +681,8 @@ void CBoosterTest::getBoosterResult(CItem const* item,
 //   修：P220 正极性 `pos != end`（消 EXTRA eq/MISSING ne）+ P61 make_pair 右值化
 //   + `++pos->second`。残余：EXTRA memcpy（我方 memcpy vs ORIG 结构整体赋值
 //   rep movsl，N84）+ 槽平移。
+// [b28d-solo-GmCmds_A] verdict=NEAR ndiff=10 [N82] p167 CLEAR(16/16)；drops 槽差 4
+// （-0x44 vs -0x40），语义完成（结构整体赋值替 memcpy、正极性 ne、make_pair 值对）。
 void CBoosterTest::getRandomboxResult(CItem const* item,
                                       std::map<int, int>& result)
 {
@@ -632,7 +694,9 @@ void CBoosterTest::getRandomboxResult(CItem const* item,
         const_cast<CStackableItem*>(static_cast<CStackableItem const*>(item))->get_multibox_lottery_item(&drops);
         for (unsigned int j = 0; j < drops.size(); ++j)
         {
-            memcpy(&dropped, &drops[j].first, sizeof(Inven_Item));  // ORIG 逐字段浅拷贝
+            // [b28d-solo-GmCmds_A] N84③：ORIG 为结构整体赋值逐字段浅拷贝
+            // （+0x6b 段 16×mov dword + movzbl），memcpy 是 EXTRA call。
+            dropped = drops[j].first;
             int itemId = dropped.m_addInfo;
             std::map<int, int>::iterator pos = result.find(itemId);
             // [b28d-47] P220 正极性：ORIG 用 `ne`（pos != end 时 ++），旧 `==` 形
@@ -652,14 +716,24 @@ void CBoosterTest::getRandomboxResult(CItem const* item,
 // ORIG getCompoundEmblemResult 0x084af0d6：合成徽章统计；目标不是 16 型物品返回 false。
 // [b28d-47] verdict=DIFF(routed) [N82] ORIG 0x084af0d6 orig/ours=218/200
 //   残差：槽/寄存器分配跨版本差 + STL 内联实例（N89）。
+// [b28d-solo-GmCmds_A] verdict=DIFF ndiff=61 [N82/N4] p167 CLEAR(31/31)；sockets 槽差
+// 0x10 + ORIG 单条 scaled disp `mov 0xc(%ebx,%eax,4)` vs 4.4 shl+lea 折叠 + sete 形。
+// （S298 将 stStackableBoosterItemInfo_t::m_itemIdx 改 unsigned int 后本件 ndiff 76→61。）
 bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
                                            std::map<int, int>& result)
 {
+    // [b28d-solo-GmCmds_A] ORIG +0x00e..+0x039：两个具名 item 副本
+    // （-0x28/-0x24）+ 死槽 count=2（-0x20）+ jewelType 预置 -1（-0x1c）。
+    CItem const* p1 = item;
+    CItem const* p2 = item;
+    int count = 2;
     unsigned short sockets[2];
-    sockets[0] = static_cast<CStackableItem const*>(item)->getJewelTargetSocket();
-    sockets[1] = static_cast<CStackableItem const*>(item)->getJewelTargetSocket();
+    sockets[0] = static_cast<CStackableItem const*>(p1)->getJewelTargetSocket();
+    sockets[1] = static_cast<CStackableItem const*>(p2)->getJewelTargetSocket();
 
-    int jewelType = this->_selectJewelTypeIndex(2, sockets);
+    int jewelType = -1;
+    jewelType = this->_selectJewelTypeIndex(2, sockets);
+    (void)count;
     if (jewelType == -1)
     {
         return false;
@@ -681,23 +755,31 @@ bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
     {
         std::vector<stStackableBoosterItemInfo_t> items;
         emblem->getBoosterItem(items);
-        for (std::vector<stStackableBoosterItemInfo_t>::const_iterator it = items.begin();
-             it != items.end(); ++it)
+        // [b28d-solo-GmCmds_A] P167/P28：同 getBoosterResult，两个具名
+        // const_iterator（begin/end 各一次 C1<iterator> 转换构造）+ while 形。
+        std::vector<stStackableBoosterItemInfo_t>::const_iterator it = items.begin();
+        std::vector<stStackableBoosterItemInfo_t>::const_iterator end = items.end();
+        while (it != end)
         {
-            if (G_CDataManager()->find_item(it->m_itemIdx) == 0)
+            // [b28d-solo-GmCmds_A] P167：本件 ORIG 用 ptEv（08111bc0），与
+            // getBoosterResult 的 deEv（084b4a16）相反；条件取反避免第二个
+            // ppEv 调用点（ORIG 仅 +0x267 一处 ppEv）。
+            if (G_CDataManager()->find_item(it->m_itemIdx) != 0)
             {
-                continue;
+                int key = it->m_itemIdx;
+                std::map<int, int>::iterator pos = result.find(key);
+                // [b28d-solo-GmCmds_A] P220：ORIG 用 ne（`call ne; test; je <else>`）；
+                // operator[] 实参重读 it->m_itemIdx（p167 ptEv×6）。
+                if (pos != result.end())
+                {
+                    result[it->m_itemIdx] += it->m_addInfo;
+                }
+                else
+                {
+                    result[it->m_itemIdx] = it->m_addInfo;
+                }
             }
-            int key = it->m_itemIdx;
-            std::map<int, int>::iterator pos = result.find(key);
-            if (pos == result.end())
-            {
-                result[key] = static_cast<int>(it->m_addInfo);
-            }
-            else
-            {
-                result[key] = pos->second + static_cast<int>(it->m_addInfo);
-            }
+            ++it;
         }
     }
     return true;
@@ -707,18 +789,32 @@ bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
 // [b28d-47] verdict=DIFF(routed) [N82] ORIG 0x084af3b2 orig/ours=94/87
 //   残差：全帧槽号整体平移 4（ORIG -0x38.. vs 我方 -0x34..）+ push ebx 差异
 //   （4.1 不按 lifetime 复用栈槽，N82/P112）。
+// [b28d-solo-GmCmds_A] verdict=DIFF ndiff=12 [N82/N93+P184] p167 CLEAR(2/2)；
+// push %ebx（4.4 需 callee-saved）+ 槽序差 + ORIG 空 then 死比较 `cmpl $-1,-0x18`
+// 被 4.4 DCE（P184 照抄不可复现）。
 int CBoosterTest::_selectJewelTypeIndex(unsigned int count,
                                         unsigned short const* sockets) const
 {
     int counts[5] = {0, 0, 0, 0, 0};
-    int cumul[5];
+    // [b28d-solo-GmCmds_A] ORIG +0x029..+0x045 对 cumul[5] 也逐条清零
+    // （-0x4c..-0x3c 五条 movl $0）⇒ 数组带零初始化列表。
+    int cumul[5] = {0, 0, 0, 0, 0};
     int total = 0;
+    // [b28d-solo-GmCmds_A] ORIG 清零序 counts→cumul→total(-0x50)→running(-0x24)
+    // →i(-0x1c) ⇒ running 声明在首个循环之前。
+    int running = 0;
 
     for (unsigned int i = 0; i < count; ++i)
     {
         if (sockets[i] != 0)
         {
-            getAvatarEmblemTypeIdxForCompountEmblem(sockets[i], counts, total);
+            // [b28d-solo-GmCmds_A] P184：ORIG +0x097 保存返回值到 -0x18 并
+            // `cmpl $0xffffffff,-0x18`（then 为空块，4.1 仍发射）⇒ 照抄死比较。
+            int ret = getAvatarEmblemTypeIdxForCompountEmblem(sockets[i], counts,
+                                                              total);
+            if (ret == -1)
+            {
+            }
         }
     }
     if (total == 0)
@@ -726,7 +822,6 @@ int CBoosterTest::_selectJewelTypeIndex(unsigned int count,
         return -1;
     }
 
-    int running = 0;
     for (int i = 0; i <= 4; ++i)
     {
         int weight = counts[i] * (10000 / total);
@@ -748,36 +843,49 @@ int CBoosterTest::_selectJewelTypeIndex(unsigned int count,
 // ORIG makeFileContents 0x084af504：map 结果追加为 TSV 行（超限提示续接并中止）。
 // [b28d-47] verdict=DIFF(routed) [N82] ORIG 0x084af504 orig/ours=192/174
 //   残差：槽/寄存器分配 + 字符串物化链差。
+// [b28d-solo-GmCmds_A] verdict=IDENTICAL/AE ndiff=0 [P214③+P251+P0]
+// 数组零初始化 + switch(it->first) 单次 ptEv 分发 + 各分支重读 it->first。
 void CBoosterTest::makeFileContents(CUser* user, char* fileBuf,
                                     std::map<int, int>& result)
 {
-    char line[1024];
-    memset(line, 0, 0x100);   // ORIG rep stos 0x100（循环内 memset 仍 0x400）
+    // [b28d-solo-GmCmds_A] P214③：ORIG 首清零为内联 rep stos 0x100 dwords
+    // （=0x400 字节，ORIG +0x00c 段）⇒ 数组零初始化；旧 `memset(line,0,0x100)`
+    // 既多一次 call（p167 EXTRA memset）又少清 0x300 字节。
+    char line[1024] = {0};
 
     for (std::map<int, int>::iterator it = result.begin(); it != result.end();)
     {
-        int itemId = it->first;
-        CItem* info = G_CDataManager()->find_item(itemId);
-        if (itemId == 0)
+        // [b28d-solo-GmCmds_A] P0/P167：ORIG 无 itemId 具名槽，各分支重读
+        // `it->first`（p167 MISSING ptEv×5：ORIG 11 次 ptEv）。
+        CItem* info = G_CDataManager()->find_item(it->first);
+        // [b28d-solo-GmCmds_A] P251：ORIG 分发段 `call ptEv; mov (%eax),%eax;
+        // test; je <0>; cmp $1; je <1>; jmp <default>`（first 只读一次）
+        // ⇒ 源形是 switch(it->first)，if 链会多一次 ptEv（p167 EXTRA ptEv）。
+        switch (it->first)
         {
-            sprintf(line, "%d\t\"%s\"\t\"%s\"\t%u\n", itemId, "gold", "unknown", it->second);
-        }
-        else if (itemId == 1)
-        {
-            sprintf(line, "%d\t\"%s\"\t\"%s\"\t%u\n", itemId, "coin", "unknown", it->second);
-        }
-        else if (info == 0)
-        {
-            sprintf(line, "%d\t\"%s\"\t\"%s\"\t%u\n", itemId, "unknown", "unknown",
+        case 0:
+            sprintf(line, "%d\t\"%s\"\t\"%s\"\t%u\n", it->first, "gold", "unknown",
                     it->second);
-        }
-        else
-        {
-            sprintf(line, "%d\t\"%s\"\t\"%s\"\t%u\t%d\t%d\t%d\n",
-                    itemId, info->GetItemName(),
-                    getRarityStr(static_cast<ENUM_RARITY>(info->get_rarity())),
-                    it->second, info->get_price(), info->GetSellPrice(),
-                    info->getUsableLevel());
+            break;
+        case 1:
+            sprintf(line, "%d\t\"%s\"\t\"%s\"\t%u\n", it->first, "coin", "unknown",
+                    it->second);
+            break;
+        default:
+            if (info == 0)
+            {
+                sprintf(line, "%d\t\"%s\"\t\"%s\"\t%u\n", it->first, "unknown", "unknown",
+                        it->second);
+            }
+            else
+            {
+                sprintf(line, "%d\t\"%s\"\t\"%s\"\t%u\t%d\t%d\t%d\n",
+                        it->first, info->GetItemName(),
+                        getRarityStr(static_cast<ENUM_RARITY>(info->get_rarity())),
+                        it->second, info->get_price(), info->GetSellPrice(),
+                        info->getUsableLevel());
+            }
+            break;
         }
 
         if (strlen(fileBuf) + strlen(line) > 89999)
@@ -796,18 +904,25 @@ void CBoosterTest::makeFileContents(CUser* user, char* fileBuf,
 // （格式串 %I64u 按 ORIG 原样保留；glibc 下由 %llu 语义承载 64 位实参。）
 // [b28d-47] verdict=DIFF(routed) [N82/P112] ORIG 0x084af7fc orig/ours=121/113
 //   p167 CLEAR（18/18 调用点全等）⇒ 语义完成；残差为槽/寄存器分配跨版本差。
+// [b28d-solo-GmCmds_A] verdict=IDENTICAL/AE ndiff=0 [P214③+P171+P0]
+// 首清零 rep stos 0x400B（数组零初始化）+ 末尾死写入 memset（P171）+ maxGold 前置。
 void CBoosterTest::make_file_gold_contents(CUser* user, char* fileBuf,
                                            std::map<int, int>& result)
 {
-    char line[1024];
-    memset(line, 0, 0x100);   // ORIG rep stos 0x100（循环内 memset 仍 0x400）
-
+    // [b28d-solo-GmCmds_A] ORIG +0x00b 先清零 maxGold（-0x10/-0xc）再 rep stos
+    // ⇒ 声明序 maxGold 在前（P0 槽序）。
     unsigned long long maxGold = 0;
+    // [b28d-solo-GmCmds_A] P214③：ORIG 首清零为内联 rep stos 0x100 dwords
+    // （=0x400 字节，ORIG +0x019 段）⇒ 源形是数组零初始化，且长度真值 0x400
+    // （旧 `memset(line,0,0x100)` 少清 0x300 字节，属真 bug）。
+    char line[1024] = {0};
+
     for (std::map<int, int>::iterator it = result.begin(); it != result.end();)
     {
         sprintf(line, "%d gold count = %d \n", it->first, it->second);
-        int gold = it->first * it->second;
-        maxGold += gold;
+        // [b28d-solo-GmCmds_A] P0：ORIG 无 gold 具名槽（imul 结果直入
+        // `mov %eax,%edx; sar $0x1f; add %eax,-0x10; adc %edx,-0xc`）。
+        maxGold += it->first * it->second;
 
         if (strlen(fileBuf) + strlen(line) > 89999)
         {
@@ -822,6 +937,9 @@ void CBoosterTest::make_file_gold_contents(CUser* user, char* fileBuf,
 
     sprintf(line, "max gold = %llu \n", maxGold);
     strcat(fileBuf, line);
+    // [b28d-solo-GmCmds_A] P171：ORIG +0x1cb 末尾死写入 memset(line,0,0x400)
+    // （结果从不被读）照抄，缺失即少一个调用点（p167 MISSING memset）。
+    memset(line, 0, 0x400);
 }
 
 // ===========================================================================
@@ -841,6 +959,9 @@ void CBindCubeTest::parse()
 // [b28d-47] verdict=DIFF(routed) [N78/N84] ORIG 0x084acc1e orig/ours=166/134
 //   残差：EXTRA memset（我方缓冲零初始化 call vs ORIG 内联 rep stos，N78）+
 //   槽/寄存器分配差。
+// [b28d-solo-GmCmds_A] verdict=DIFF ndiff=5 [N-待解] p167 CLEAR(14/14)；仅剩
+// memset 第三实参 edx 中转（ORIG `mov $0x17318,%edx; mov %edx,0x8(%esp)` vs 4.4
+// 立即数直写，范式库「memset 首参 edx 中转」待解项），语义完成封顶。
 void CBindCubeTest::execute()
 {
     if (!(static_cast<signed char>(m_flag) >= 0 &&
@@ -849,8 +970,9 @@ void CBindCubeTest::execute()
         return;
     }
 
-    char fileName[0xff];
-    memset(fileName, 0, sizeof(fileName));
+    // [b28d-solo-GmCmds_A] P312：ORIG 对 fileName[0xff](-0x13b) 发内联对齐剥离
+    // 清零（无 memset call，p167 EXTRA memset）。
+    char fileName[0xff] = {0};
     char fileBuf[95000];
     memset(fileBuf, 0, sizeof(fileBuf));
 
@@ -903,18 +1025,24 @@ void BlueMarbleSet::parse()
 // 对应标记，atoi(tokens[1]) 写步数字节。
 // [b28d-47] verdict=DIFF(routed) [N82] ORIG 0x084b235c orig/ours=183/178
 //   残差：槽号平移 + std::string 局部构造/拷贝实例差。
+// [b28d-solo-GmCmds_A] verdict=IDENTICAL/AE ndiff=0 [P0/P212]
+// 删局部 used 改用成员 m_param(+0xc) + pos 声明先于 tokens。
 void BlueMarbleSet::getParam(std::string param)
 {
-    std::string tokens[16];
-    int used = 0;
     int pos = 0;
+    // [b28d-solo-GmCmds_A] ORIG +0x009 `movl $0,-0x1c` 在 tokens 构造循环之前
+    // ⇒ pos 声明在 tokens 之前。
+    std::string tokens[16];
+    // [b28d-solo-GmCmds_A] ORIG 用成员 m_param(+0xc) 作 tokens 下标与计数
+    // （`mov 0x8(%ebp),%eax; mov 0xc(%eax),%edx`，parse 已清零），非局部 used
+    // ⇒ 删 `int used = 0;`（ORIG 函数头无该清零）。
     while ((pos = static_cast<int>(param.find(' ', 0))) != -1)
     {
-        tokens[used] = param.substr(0, pos);
+        tokens[m_param] = param.substr(0, pos);
         param = param.substr(pos + 1, std::string::npos);
-        ++used;
+        ++m_param;
     }
-    tokens[used] = param;
+    tokens[m_param] = param;
 
     if (tokens[0].compare("move") == 0)
     {
@@ -1013,6 +1141,9 @@ void CBingoGmTest::resetData()
 //   残差：`if (gained > 3) gained = 3;` 4.4 恒折内存比较+内存写
 //   （`cmpl $3,-0x10; movl $3,-0x10`）vs ORIG 寄存器中转 4 条
 //   （`mov slot,%eax; cmp; mov $3,%eax; mov %eax,slot`）⇒ N18b 封顶。
+// [b28d-solo-GmCmds_A] verdict=DIFF ndiff=4 [N18b] p167 CLEAR(24/24)；clamp 段
+// 4.4 恒折 `cmpl $3,-0x10; movl $3,-0x10`，ORIG 为寄存器中转；if/三目/副本三形实测
+// ndiff=4/5/42 ⇒ 取 if 形封顶（4 条内存-寄存器形差）。
 void CBingoGmTest::reqValue()
 {
     CUser* user = GetUser();
@@ -1055,6 +1186,9 @@ void CBingoGmTest::reqValue()
         if (gained > 0)
         {
             // [b23S3C] ORIG +0x0f5 分支形 clamp（读槽→cmp reg→jle→mov $3→写回）。
+            // [b28d-solo-GmCmds_A] 实测：if 形 ndiff=4（4.4 折 `cmpl $3,-0x10;
+            // movl $3,-0x10`）、三目形 ndiff=5（发 cmovle）、副本三段 ndiff=42
+            // ⇒ 取 if 形，余 3 条寄存器/内存形差 N18b 封顶。
             if (gained > 3)
                 gained = 3;
             static_cast<BingoData*>(user->getBingoData())->m_pad4 =
@@ -1097,6 +1231,8 @@ void CBillingRechargeCommand::parse()
 // [b28d-47] verdict=NEAR(routed) [N7] ORIG 0x084b3ad4 orig/ours=67/67
 //   残差：间接 call 目标寄存器——ORIG 4.1 %ecx；4.4.7 恒 %eax、4.4.6 恒 %edx
 //   （P230 实测 446 后端亦不达 %ecx）⇒ N7 封顶，连锁实参/数据寄存器名互换。
+// [b28d-solo-GmCmds_A] verdict=NEAR ndiff=21 [N7] p167 CLEAR(3/3)；三处间接 call
+// 目标寄存器 ORIG %ecx vs 4.4.7 %eax / 4.4.6 %edx（P230 实测），语义完成封顶。
 void CBillingRechargeCommand::execute()
 {
     CUser* user = GetUser();

@@ -217,7 +217,6 @@ struct sItemGenRef
 struct STAgitUpgradeInfo
 {
     STAgitUpgradeInfo();
-    ~STAgitUpgradeInfo();
     void clear();
     int m_field0;    // +0x00
     int m_field4;    // +0x04
@@ -231,7 +230,6 @@ struct STAgitUpgradeInfo
 struct STGuildStorageUpgradeInfo
 {
     STGuildStorageUpgradeInfo();
-    ~STGuildStorageUpgradeInfo();
     void clear();
     int m_field0;    // +0x00（ok 校验的首字段）
     int m_field4;    // +0x04
@@ -326,7 +324,12 @@ struct pieceQuestRewardStatus
 // ORIG C1 W 0x08370d8c（call clear 0x08370da0），getClearTimeBonusPoint
 // 0x08363af0/0x08363afb 两次 `lea obj; call ctor` 实证；定义唯一归属
 // stBonusPointValues.cpp（同名 mangled 链接）。
-struct stClearTimeAverage         { int m_v[5]; };   // +0x00..0x13
+struct stClearTimeAverage                            // +0x00..0x13
+{
+    int m_v[5];
+    stClearTimeAverage();   // ORIG C1/C2 W 0x0891b6a8（体内 call clear 0x0891b6bc）
+    void clear();           // ORIG 0x0891b6bc：5 int 逐字段清零
+};
 struct stBonusPointValues
 {
     int m_a;   // +0x00
@@ -799,10 +802,19 @@ struct stNPCCommonData_t
     {
         int m_changeStatusType;    // +0x00
         int m_value;               // +0x04
-        // ORIG construct 0x8a7ea98 族：+0x08 以 **dword** 拷贝（`mov 0x8(%edx),%edx;
-        // mov %edx,0x8(%eax)`），uchar 载体反产 movzbl/movb 字节对 ⇒ int（技巧 5
-        // signedness/宽度装载序定律）。
-        int m_isNotPlus;           // +0x08
+        // [b28d-solo-ScriptLeafA2] ORIG loadNPCCommonData 0x089fb396/0x089fb39a 对本
+        // 字段直接 `movb $0x0/$0x1,-0x50(%ebp)`（1 字节 store）⇒ 字段为 bool；int
+        // 载体产 `movl $0/$1,-0x50`（本件 DIFF 根因，P248 档②/P32）。construct 侧
+        // 的 dword 拷贝（0x8a7ea98 族 `mov 0x8(%edx),%edx`）系 bool+3B 尾部 padding
+        // 的隐式块拷贝，非字段宽度证据。sizeof(stOneBuff_t)=0xc、+0x08 偏移不变。
+        bool m_isNotPlus;          // +0x08
+        // [b28d-solo-ScriptLeafA2] +0x09..+0x0b 显式 padding：ORIG construct
+        // 0x8a01d24 段对 +0x08 发 dword 整体拷贝（`mov 0x8(%edx),%edx;
+        // mov %edx,0x8(%eax)`），bool 单独拷贝在 4.4 退化为 movzbl+movb
+        // （本 TU new_allocator::construct 实例 DIFF 根因）。显式 3 字节 pad
+        // 使 4.4 恢复 dword 块拷贝（探针 /tmp/b28d_a2/probe_buff.cpp fB 实证），
+        // sizeof(stOneBuff_t)=0xc 与全部偏移不变。
+        unsigned char m_pad09[3];  // +0x09..+0x0b
         ~stOneBuff_t();            // ORIG W 0x08a04b54
     };                             // sizeof 0xc
     // 用户提供默认构造：值初始化仅构造容器成员、不零初始化 POD 前缀。
@@ -1054,7 +1066,7 @@ public:
     {
         // ORIG C1 0x0896251c：map ctor(+0)、+0x18=0、string ctor(+0x1c/+0x20)
         // 后逐一 clear。copy C1ERKS_ 0x08962c1e（隐式成员拷贝等价）、D1 0x083cf7e0。
-        fatigueMatchGift();
+        fatigueMatchGift() throw();   // P216：消 caller EH landing（ORIG 无 landing）
 
         std::map<int, int> m_rewardMap;  // +0x00（[reward list] 三元组 pair(v1,v2)）
         int m_field18;                   // +0x18（第三列扫描值，>=1 校验）
@@ -1100,7 +1112,7 @@ struct seriaRoomDecoRewardInfo
 // +0x04=7、+0x08/+0x0c/+0x10=0；D1 0x083cf9ba；copy C1ERKS_ 0x08962e6e）----
 struct seriaRoomDecoAniInfo
 {
-    seriaRoomDecoAniInfo();
+    seriaRoomDecoAniInfo() throw();   // P216：消 caller EH landing（ORIG 无 landing）
     ~seriaRoomDecoAniInfo();
     void clear();              // ORIG W 0x08962606（不清 m_name）
 
@@ -1168,7 +1180,10 @@ public:
 struct stNPCEventItemInfo
 {
     int m_itemId;   // +0x00
-    int m_count;    // +0x04
+    // [b28d-solo-CDataManagerScripts] P254 档③：ORIG GetItemKind 0x0890d2a8
+    // `mov -0x20(%ebp),%eax; mov $0x0,%edx; mov %eax,-0x38; mov %edx,-0x34;
+    //  fildll -0x38` 零扩展到 64 位再装 x87 ⇒ 字段真型为 unsigned int。
+    unsigned int m_count;    // +0x04
 
     // ORIG W 0x0891b52e _ZN18stNPCEventItemInfoaSES_（按值参数）。
     stNPCEventItemInfo& operator=(stNPCEventItemInfo other);  // 定义 OnlyOrigBatch12.cpp
@@ -1546,7 +1561,9 @@ public:
     struct stDungeonClearTimeData
     {
         stDungeonClearTimeData();          // ORIG W 0x0891b6f2：调 clear
-        ~stDungeonClearTimeData();         // ORIG W 0x0893fbc6：空体
+        // [b28d-Main 代落·S334 P317] 删用户空析构：ORIG 0x0890ee31..0x0890f03b 七处
+        // `if(ok!=true)` 出口均单条 `jmp`（无 D1 调用）⇒ 类型 trivial 析构；
+        // D1/D2 W@0x0893fbc6 由 vector<stDungeonClearTimeData> 元素析构使用点发射。
         void clear();                      // ORIG W 0x0891b706
         int m_v[7];                        // +0x00..0x1b
     };
@@ -1555,7 +1572,7 @@ public:
     struct stComboIntervalBoundary
     {
         stComboIntervalBoundary();         // ORIG W 0x0891b72a：调 clear
-        ~stComboIntervalBoundary();        // ORIG W 0x08940176：空体
+        // [b28d-Main 代落·S334 P317] 同上；D1/D2 W@0x08940176 由 vector 使用点发射。
         void clear();                      // ORIG W 0x0891b73e
         int m_v[4];                        // +0x00..0x0f
     };
@@ -1660,7 +1677,13 @@ private:
     // 再构造 2 个 vector（+0x60/+0x6c）；vector 需保持 public 供跨 TU 直读，
     // 故置于类尾 public 段（顺序不变）。
     std::map<unsigned short, std::vector<CActionPointEx> > m_actionPoints;       // +0x00
+public:
+    // [b28d-solo-APSystemOnlyOrig] ORIG ClearActionOne 0x08121f56/0x08121f98 直读
+    // +0x18 并调**非 const** map::find/end（_ZNSt3map…4findERS7_ / 3endEv，无 K 前缀）
+    // ⇒ 原码该 map 可非 const 访问；仅改访问段，声明序/布局/sizeof 不变
+    // （m_actionPoints +0x00、本成员 +0x18、后续 +0x30/+0x48/+0x60/+0x6c 全部不变）。
     std::map<unsigned short, const CActionPointEx*> m_actionPointRefs;           // +0x18
+private:
     std::map<unsigned int, std::string> m_rewardMessages;                        // +0x30
     std::map<unsigned int, std::string> m_rewardMessages2;                       // +0x48
 public:
@@ -2760,7 +2783,10 @@ struct _AradJumpingRewardItem
     int            m_job;        // +0x00
     int            m_growValue;  // +0x04
     unsigned long  m_money;      // +0x08（ia32 ulong=4B）
-    ~_AradJumpingRewardItem();   // ORIG 空体 dtor（显式声明以产出 D1 符号）
+    // [b28d-solo] 无用户 dtor（P317/P12）：ORIG D1/D2 为 W 0x088b597e（5B），由
+    // new_allocator<T>::destroy/construct 使用点发射；ORIG importScript 0x088b4128
+    // 对局部 item 无任何 D1 调用 ⇒ 类型必须 trivially destructible（用户空 dtor
+    // 会使 4.4 判 non-trivial，多发 2 处 D1 call + EH landing）。
 };
 
 class AradJumpingScriptData
@@ -3037,7 +3063,9 @@ public:
     bool select_mail_quest(std::list<int>& out,
                            const WongWork::CQuestClear& clear,
                            const stSelectQuestParam& param);
-    int Check_Quest(Quest* quest, stSelectQuestParam& param,
+    // [b28d-Main 代落·S224 P248档①] int→bool：ORIG 0x083556a5 `call; xor $1; test %al`。
+    // 返回域 0/1。返回类型不入 mangled。
+    bool Check_Quest(Quest* quest, stSelectQuestParam& param,
                     const WongWork::CQuestClear& clear);
     void allowable_questlist_as_npc(
         std::list<int>& out, const std::multimap<int, int>& npcList,
@@ -3134,8 +3162,9 @@ public:
     // ORIG _ZN8WongWork12CItemUpgrade29Load3rdChronicleUpgradeScriptEPKc（init 调用）
     int Load3rdChronicleUpgradeScript(const char* path);
     float getUpgradeItemRepairCostRate(int idx, bool flag) const;
-    void make3rdChroniclePacket(CUser* user, const Inven_Item& item,
-                                PacketGuard* packet);
+    // ORIG 0x0854ac35 尾 `mov $0x1,%ebx … mov %ebx,%eax`（P159：返回非 void）
+    int make3rdChroniclePacket(CUser* user, const Inven_Item& item,
+                               PacketGuard* packet);
 
     // ---- 强化随机增幅（amplify random upgrade）入口 ----
     // ORIG 0x854af38：检查随机增幅券并计算强化值，写入 int&。
@@ -3232,7 +3261,9 @@ public:
     CChattingEmoticonList();   // ORIG _ZN21CChattingEmoticonListC1Ev（init new；定义待专属批次）
     ~CChattingEmoticonList();
     ChattingEmoticonBase* find_emoticon(int idx);
-    void ReCalc(CChattingEmoticonConfig& config, const CUser& user);
+    // ORIG 0x080e5880 尾 `mov $0x1,%ebx … mov %ebx,%eax` ⇒ 返回 int（P159；
+    // mangled 不含返回类型，唯一调用点 ReCalcEmoticonConf 忽略返回值）。
+    int ReCalc(CChattingEmoticonConfig& config, const CUser& user);
     ChattingEmoticonBase* Factory(const EmoticonType::EmoticonScript& script);  // ORIG 0x80e53a8
     bool Load_list();                                            // ORIG 0x80e54d2
 
@@ -3324,7 +3355,9 @@ public:
     // ---- 查询 ----
     bool checkValidShopItem(unsigned int itemIdx, unsigned long count);
     bool checkLimitNpcBuyItemList(unsigned int itemIdx, unsigned long count);
-    char IsOneADayShop(int shopId) const;
+    // [b28d-Main 代落·S259 P292/P248档①] char→bool：ORIG 0x081ba611 调用点
+    // `call; xor $1,%eax; test %al,%al`（无 setne/sete）。返回类型不入 mangled。
+    bool IsOneADayShop(int shopId) const;
     std::vector<std::pair<int, int> >& GetOneADayItemList() const;
 
     // ---- 每日商店 ----
@@ -3459,7 +3492,11 @@ public:
     Quest* find_quest(int idx) const;
     CDungeon* find_dungeon(int idx) const;
     void* get_dungeon(int idx);       // ORIG W 0x8111036（Village::set_village 引用）
-    void* find_map(int idx) const;
+    // [b28d-solo-ProcStage R2] 返回类型 void*→CMap*（P211 档③：ORIG startStage
+    // 0x0812e0a8 `mov 0x8(%ebp),%edx; mov %eax,0x74(%edx)` LHS-first 直存 ⇒ 字段
+    // 与 RHS 同型；void* 使 4.4 判异型产 RHS-first+`mov %eax,%edx` 中转）。
+    // 返回类型不入 mangled；全仓消费点均为 CMap*/void*/int cast 形，隐式转换不破。
+    CMap* find_map(int idx) const;
     void* find_monster(int idx) const;
     void* find_mission(int idx) const;
     int find_npc(unsigned int idx) const;

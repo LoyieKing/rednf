@@ -193,7 +193,9 @@ public:
     std::vector<int> m_vec2a0;            // +0x2a0
 };
 
-int ImportSkillScript(STSkillScript* script, const char* path,
+// [b28d-Main 代落·S224 P248档①] int→bool：ORIG 三处调用点（0x08350d0e/0x08350e0d/0x08350ebf）
+// 均 `call; xor $1; test %al`。返回域 0/1（STSkillScript.cpp:325/1435）。返回类型不入 mangled。
+bool ImportSkillScript(STSkillScript* script, const char* path,
                       int job, int a, int b);
 
 #endif  // GAME_STSKILLSCRIPT_H_

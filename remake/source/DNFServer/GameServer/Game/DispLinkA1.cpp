@@ -41,17 +41,6 @@
 #include "Packet_Emblem_Create_Statistic.h"
 #include "Packet_Avater_Disjoint_Statistic.h"
 
-namespace
-{
-
-inline CStatisticServerProxy* statisticProxyGroup0()
-{
-    return GlobalData::s_statistic_proxy_mgr->GetServerProxy(
-        (ENUM_SERVER_GROUP)0);
-}
-
-}  // namespace
-
 // ============================================================================
 // 1. Dispatcher_Avatar_Disjoint_Random_Reward::read  ORIG 0x081de9da
 //    LineFunc(0x5041, pretty, 0, 0)
@@ -70,6 +59,9 @@ int Dispatcher_Avatar_Disjoint_Random_Reward::read(PacketBuf& packet, MSG_BASE& 
 // ============================================================================
 // 2. Dispatcher_Avatar_Disjoint_Random_Reward::send  ORIG 0x081dec56
 //    拷贝 stAvatarDisjointRandomReward（含 vector 拷贝），按结果码分支发包。
+// [b28d-solo-DispLinkA1] verdict=AE（compare_tu clean；p167 25/25 CLEAR）。
+//   修法：P96 迭代器改非 const iterator；P13+ORIG 多一次 size() 并以非零包裹
+//   循环（setne 物化）；P28 it++（ORIG operator++(int)）。
 // ============================================================================
 void Dispatcher_Avatar_Disjoint_Random_Reward::send(CUser* user, ParamBase& param)
 {
@@ -83,11 +75,16 @@ void Dispatcher_Avatar_Disjoint_Random_Reward::send(CUser* user, ParamBase& para
         packet.put_byte(1);
         packet.put_short(result.m_8);
         packet.put_byte((int)result.m_rewards.size());
-        for (std::vector<std::pair<int, int> >::const_iterator it =
-                 result.m_rewards.begin();
-             it != result.m_rewards.end(); ++it) {
-            packet.put_int(it->first);
-            packet.put_int(it->second);
+        // [b28d-solo-DispLinkA1 P96/P13] ORIG 迭代器为非 const iterator
+        // （p167: operator-><pair<int,int>*> / ne<pair*,pair*>），且 size() 被
+        // 调用两次：一次作 put_byte 实参、一次以其非零包裹循环（setne 物化）。
+        if (result.m_rewards.size() != 0) {
+            for (std::vector<std::pair<int, int> >::iterator it =
+                     result.m_rewards.begin();
+                 it != result.m_rewards.end(); ++it) {
+                packet.put_int(it->first);
+                packet.put_int(it->second);
+            }
         }
     }
     else {
@@ -140,6 +137,7 @@ void Dispatcher_CallGuildInvite::send_packet_guild_invite(
 // ============================================================================
 // 5. Dispatcher_CallGuildLevelUp::send_packet_guild_levelup  ORIG 0x08200126
 //    同 4 型：header(1,0x4c)
+// [b28d-solo-DispLinkA1] verdict=IDENTICAL（58=58，纯重定位标签差）。
 // ============================================================================
 void Dispatcher_CallGuildLevelUp::send_packet_guild_levelup(
     CUser* user, unsigned char errCode)
@@ -212,6 +210,10 @@ int Dispatcher_CompatibilityIndex::check_error(CUser* user, MSG_BASE& msg,
 
 // ============================================================================
 // 9. Dispatcher_Compound_ExtreamItem::_read_packet  ORIG 0x08225806
+// [b28d-solo-DispLinkA1] verdict=AE（172=172，ndiff=0；p167 12/12 CLEAR）。
+//   修法：P0 删具名 slot 局部（ORIG 值留 %edi 跨 GetInvenSlot）；P211 档③
+//   字段侧旋钮——m_itemRefs 改 4 字节整型存储（Dispatchers.h），复现 ORIG
+//   RHS-first + `mov %eax,%edx` 中转（const CItem*/const void* 两形实测均同型）。
 // ============================================================================
 int Dispatcher_Compound_ExtreamItem::_read_packet(PacketBuf& packet)
 {
@@ -227,13 +229,16 @@ int Dispatcher_Compound_ExtreamItem::_read_packet(PacketBuf& packet)
         // +0x08 + i*2：材料槽位
         packet.get_short(
             *reinterpret_cast<unsigned short*>(&m_slots[i]));
-        const int slot = m_slots[i];
+        // [b28d-solo-DispLinkA1 P0] ORIG 无具名 slot 槽（值留 %edi 跨
+        // GetInvenSlot 调用），实参内联直传 m_slots[i]。
         m_materials[i] =
-            m_user->getCurCharacInvenR()->GetInvenSlot(1, slot);
+            m_user->getCurCharacInvenR()->GetInvenSlot(1, m_slots[i]);
         if (!m_materials[i].isEquipableItemType())
             return 0;
-        // find_item(m_materials[i].m_addInfo)（ORIG 读 this+i*0x3d+0xe int）
-        m_itemRefs[i] = G_CDataManager()->find_item(m_materials[i].m_addInfo);
+        // find_item(m_materials[i].m_addInfo)（ORIG 读 this+i*0x3d+0xe int）；
+        // [P211 档③] 字段为整型存储（异型 RHS）⇒ 复现 ORIG RHS-first+edx 中转。
+        m_itemRefs[i] = reinterpret_cast<unsigned int>(
+            G_CDataManager()->find_item(m_materials[i].m_addInfo));
     }
 
     // +0xcd：选择字节（≤2 合法）
@@ -282,6 +287,14 @@ int Dispatcher_CreateDisjointStore::check_error(CUser* user, MSG_BASE& msg,
 // 11. Dispatcher_DisJointAvatar::SendCreateEmblemInfo  ORIG 0x08218a36
 //     条数<6 才发；每对 (itemIdx, value)：find_item 失败即整体放弃；
 //     slots[i+1]=素材 grade、slots[i+6]=附加值；末写 slots[0]=条数。
+// [b28d-solo-DispLinkA1] verdict=DIFF N 封顶（98 vs 97，ndiff=13；p167 14/14 CLEAR）。
+//   已修：P28 it++（operator++(int)）、P167 内联 GetServerProxy（删匿名 helper）、
+//   P0 具名 itemIdx/value 槽、P13 end 缓存、P196/P218 负条件 setne/jne、
+//   P239 begin→end→count=0 发射序、P311 具名数组成员视图（m_grades 已归正）。
+//   残余 N：①N7 实参先升格 %ebx 跨 receiver call（P226 语句表达式/裸形均不翻，
+//   4.4 恒先 call 后装载）；②N94 m_values 常量拆分（ORIG add $8+disp -0x58，
+//   4.4 lea 0x4+disp -0x48，地址等价）；③N18b 尾比较（ORIG mov count,%ebx;
+//   call size; cmp %eax,%ebx，4.4 恒 cmp mem,%eax 内存直比）。
 // ============================================================================
 void Dispatcher_DisJointAvatar::SendCreateEmblemInfo(
     std::vector<std::pair<int, int> > const& results)
@@ -290,24 +303,33 @@ void Dispatcher_DisJointAvatar::SendCreateEmblemInfo(
     if (results.size() >= 6)
         return;
 
-    int count = 0;
     std::vector<std::pair<int, int> >::const_iterator it = results.begin();
-    while (it != results.end()) {
-        const CItem* item = G_CDataManager()->find_item(it->first);
+    std::vector<std::pair<int, int> >::const_iterator end = results.end();
+    // [b28d-solo-DispLinkA1 P239] ORIG 发射序：begin→end→count=0。
+    int count = 0;
+    while (it != end) {
+        // [b28d-solo-DispLinkA1 P0] ORIG 具名槽 -0x14/-0x10（各一次 operator->）。
+        const int itemIdx = it->first;
+        const int value = it->second;
+        // [b28d-solo-DispLinkA1 N] ORIG 实参先升格 %ebx 跨 receiver call
+        // （G_CDataManager）保活；P226 语句表达式/裸形均不翻（4.4 恒先 call 后装载）。
+        const CItem* item = G_CDataManager()->find_item(itemIdx);
         if (item == 0)
             return;
-        packet.m_slots[count + 1] = item->get_grade();
-        packet.m_slots[count + 6] = it->second;
+        packet.m_grades[count] = item->get_grade();
+        packet.m_values[count] = value;
         ++count;
         if (count > 5)
             break;
-        ++it;
+        it++;   // [b28d-solo-DispLinkA1 P28] ORIG 调 operator++(int)（sret -0x1c）
     }
-    if (count == (int)results.size()) {
-        packet.m_slots[0] = count;
-        statisticProxyGroup0()->SendPacket(reinterpret_cast<char*>(&packet),
-                                           0x36);
-    }
+    // [b28d-solo-DispLinkA1 P196/P218] ORIG 为负条件（setne/jne）。
+    if (count != (int)results.size())
+        return;
+    packet.m_count = count;
+    // [b28d-solo-DispLinkA1 P167] ORIG 直调 GetServerProxy(0)（无匿名 helper）。
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0)
+        ->SendPacket(reinterpret_cast<char*>(&packet), 0x36);
 }
 
 // ============================================================================
@@ -341,6 +363,16 @@ void Dispatcher_DisJointAvatar::SendDisjointAvatarInfo(CItem const* pItem)
 //     DisJoint 表选素材：jewelTypeIndex==-1 → [grade][type] 区（+0x444 起），
 //     否则按 job 遍历定位（+0xd4 起）；素材须为 stackable(0x10)，收集
 //     getBoosterItem 条目 (m_itemIdx, m_addInfo)。
+// [b28d-solo-DispLinkA1] verdict=DIFF N 封顶（186 vs 190，ndiff=52；p167 23/23 CLEAR）。
+//   已修：P315/P167 字段 m_itemIdx int→unsigned int（CStackableItem.h）⇒
+//   make_pair<unsigned int const&,unsigned short const&> 与
+//   pair<int,int>::pair<unsigned,unsigned short> 实例、2 次 iterator→const_iterator
+//   转换构造、ne<const*,const*> 全部归位；P47/P222 if/else 反转（je 落表查找块）；
+//   P0 去 dj/grade/type 具名槽；P231 纯 register dj（非 asm 绑定）消槽。
+//   残余 N：4.4 算术 lowering/寄存器角色差（N86/N87/N7 族）——ORIG dj→%esi 且
+//   job 先于 get_grade 装载、grade*5 用 edx 累加、`add $0x34; mov 0x4(%esi,%eax,4)`
+//   单条 scaled（成员数组视图缺 +4 表建模）；4.4 恒 dj→%ebx、job 后装、指针下标
+//   `[i+K]` 折 shl+lea。P226/裸 register/基址+4 三形实测均不翻。
 // ============================================================================
 int Dispatcher_DisJointAvatar::_getResultItems(
     CUser* user, CItem const* pItem, int jewelTypeIndex,
@@ -348,16 +380,9 @@ int Dispatcher_DisJointAvatar::_getResultItems(
 {
     (void)user;
     int materialIdx = 0;
-    if (jewelTypeIndex == -1) {
-        // ORIG：*(int*)(G_CDataManager()+0x1c) → DisJoint；表基 +4。
-        DisJoint* const dj = G_CDataManager()->m_disJoint;
-        const int grade = pItem->get_grade();
-        const int type = pItem->GetItemType();
-        materialIdx = *reinterpret_cast<int*>(
-            reinterpret_cast<char*>(dj) + 4 +
-            (grade * 10 + type + 0x110) * 4);
-    }
-    else {
+    // [b28d-solo-DispLinkA1 P47/P222] ORIG 布局：`je` 跳到函数后部的表查找块，
+    // job 遍历块在 fall-through ⇒ 源码条件取反、两臂互换。
+    if (jewelTypeIndex != -1) {
         char job = '\xb';
         for (int i = 0; i < 0xb; ++i) {
             if (pItem->check_job_type((char)i))
@@ -365,11 +390,21 @@ int Dispatcher_DisJointAvatar::_getResultItems(
         }
         if (job == '\xb')
             return 0x16;
-        DisJoint* const dj = G_CDataManager()->m_disJoint;
-        const int grade = pItem->get_grade();
-        materialIdx = *reinterpret_cast<int*>(
-            reinterpret_cast<char*>(dj) + 4 +
-            (grade * 5 + job * 0x14 + jewelTypeIndex + 0x34) * 4);
+        // [b28d-solo-DispLinkA1 P0] ORIG 无具名 dj/grade 槽（dj→%esi、job→%ebx
+        // 跨调用保活），全部内联表达式。
+        // §4.3 例外（P156 表寻址 intAtConst）：ORIG 把 DisJoint 对象首部起
+        // +4 处的跨成员大表当 int 数组访问（dj+4+idx*4），DisjointScript 现有
+        // 成员建模（vector 族）无法线性表达该视图，保留地址形式并注明。
+        // [b28d-solo-DispLinkA1 P231] ORIG 无 dj 栈槽（`mov 0x1c(%eax),%esi`
+        // 单段落 callee-saved）⇒ 纯 register 存储类提示（非 asm 绑定，P0 合规）。
+        register DisJoint* const dj = G_CDataManager()->m_disJoint;
+        materialIdx = reinterpret_cast<int*>(dj)
+            [pItem->get_grade() * 5 + (int)job * 0x14 + jewelTypeIndex + 0x35];
+    }
+    else {
+        register DisJoint* const dj = G_CDataManager()->m_disJoint;
+        materialIdx = reinterpret_cast<int*>(dj)
+            [pItem->get_grade() * 10 + pItem->GetItemType() + 0x111];
     }
 
     if (materialIdx == 0)
@@ -382,9 +417,13 @@ int Dispatcher_DisJointAvatar::_getResultItems(
 
     std::vector<stStackableBoosterItemInfo_t> boosters;
     mat->getBoosterItem(boosters);
-    for (std::vector<stStackableBoosterItemInfo_t>::const_iterator it =
-             boosters.begin();
-         it != boosters.end(); ++it) {
+    // [b28d-solo-DispLinkA1 P167/P13] ORIG begin()/end() 各求值一次并各触发一次
+    // iterator→const_iterator 转换构造，循环条件用 ne<const*,const*>。
+    std::vector<stStackableBoosterItemInfo_t>::const_iterator it =
+        boosters.begin();
+    std::vector<stStackableBoosterItemInfo_t>::const_iterator end =
+        boosters.end();
+    for (; it != end; ++it) {
         results.push_back(std::make_pair(it->m_itemIdx, it->m_addInfo));
     }
     return 0;

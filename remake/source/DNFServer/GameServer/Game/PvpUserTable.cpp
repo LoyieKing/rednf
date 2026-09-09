@@ -9,7 +9,7 @@
 //   +0x120 m_users[8][8]（CUser*+uchar，8 字节/项，0x200）
 //   +0x320 int m_winTeam
 //   +0x324 float m_minPoint[8]      各队伍最小分（0x20，GetLeavePenalty 用）
-//   +0x344 uchar m_dan[8]           丹位标记
+//   +0x344 bool m_dan[8]            丹位标记（b28d-solo：P248 档② bool 化）
 // 大小合计 0x34c。
 // ============================================================================
 
@@ -63,8 +63,15 @@ int PvpUserTable::Set(int team, CUser* user)
     {
         return 0;
     }
-    m_users[team][count].user = user;
-    m_users[team][count].flag = 0;
+    // b28d-solo-PvpUserTable：ORIG 0x085d49df..0x085d4a04 先把 8 字节局部写满
+    //   （-0x14 user / -0x10 flag）再整体拷贝到 m_users[team][count]
+    //   （`mov %eax,(%ecx,%ebx,8); mov %edx,0x4(%ecx,%ebx,8)`，ebx 缓存元素基址，
+    //   函数头 push %ebx）⇒ 局部 UserSlot + 结构整体赋值（P247；逐字段赋值时
+    //   4.4 每条重发完整 team*8+count 寻址链）。
+    UserSlot slot;
+    slot.user = user;
+    slot.flag = 0;
+    m_users[team][count] = slot;
     return 1;
 }
 
@@ -99,9 +106,10 @@ int PvpUserTable::GetTeamUserCount(int team)
     return count;
 }
 
-// [b28d-54 N] ORIG 0x085d4ab8：`user==0 || grade>9` 短路物化方向反（ORIG
-//   jg/jne vs 4.4 jle/je，P194/P272 族；三种源形实测同差）；IsValidConvertedGrade
-//   bool 化 + 两独立守卫已翻正，95=95。语义等价。
+// b28d-solo-PvpUserTable：ORIG 0x085d4ab8，AE。翻正：空 then 的
+//   `if (user != 0 && grade <= 9) {} else {回退}` 使 4.4 物化成功值
+//   （`mov $1/jmp/mov $0/test %al,%al/jne`，P272 德摩根块序）；此前
+//   `!(A&&B)` 与 `A'||B'` 两形恒物化失败值（jle/je 反极性）。
 float PvpUserTable::GetExpectVal(int grade1, int grade2, CUser* user)
 {
     int saved1 = grade1;
@@ -112,11 +120,14 @@ float PvpUserTable::GetExpectVal(int grade1, int grade2, CUser* user)
     bool changed = false;
     if ((grade1 == 1 && grade2 == 0) || (grade1 == 0 && grade2 == 1))
     {
-        // b28d-54：ORIG 0x085d4b2d `cmpl $0,0x14(%ebp); je 同岛` + `cmp $9,%eax;
-        //   jg 同岛`（两跳同落回退块）+ `mov $1/jmp/mov $0/test/jne`。4.4 对
-        //   `a==0||b>9` 与 `!(a!=0&&b<=9)`、具名 keep 三形恒产 jle/je（反向物化，
-        //   P194/P272 族），仅指令极性差、语义等价 ⇒ 取本形（95/95，残差 2 行）。
-        if (user == 0 || ((CUserCharacInfo*)user)->get_pvp_grade() > 9)
+        // b28d-solo-PvpUserTable：ORIG 0x085d4b2d `cmpl $0,0x14(%ebp); je 岛` +
+        //   `cmp $9,%eax; jg 岛`（两条失败路径同落 `mov $0` 块）+ `mov $1/jmp/
+        //   mov $0/test %al,%al/jne`（成功才跳过回退体）⇒ 4.1 物化的是
+        //   `user != 0 && grade <= 9`（正向合取，P272 的德摩根块序）。
+        if (user != 0 && ((CUserCharacInfo*)user)->get_pvp_grade() <= 9)
+        {
+        }
+        else
         {
             grade1 = saved1;
             grade2 = saved2;
@@ -145,10 +156,16 @@ float PvpUserTable::GetExpectVal(int grade1, int grade2, CUser* user)
     return 0.024f * (float)(grade1 - grade2) + 0.5f;
 }
 
-// [b28d-54 N] ORIG 0x085d4bd0：帧/槽平移（N82）+ 调用序列全等。
+// b28d-solo-PvpUserTable：ORIG 0x085d4bd0。三处翻正——
+//   ① 0x085d4bd7 `mov 0x8(%ebp),%eax` 先于两个常量压栈 ⇒ P68 `(char*)this`；
+//   ② 0x085d4caa 段先算第二实参（&m_teamVsTeam[j][i]）再算第一实参
+//      （&m_minPoint[i]，`lea 0x4(%edx)`）⇒ std::min 实参序为
+//      (m_minPoint[i], m_teamVsTeam[j][i])；
+//   ③ 0x085d4c64 空 then 占位岛（`je +0x94(nop)` + body 尾 `jmp +0x95`）⇒
+//      P223 正条件 goto 尾空标签形。
 int PvpUserTable::Calculate()
 {
-    memset(this, 0, 0x100);
+    memset((char*)this, 0, 0x100);
     memset(m_teamPoint, 0, sizeof(m_teamPoint));
     CheckDan();
 
@@ -157,10 +174,10 @@ int PvpUserTable::Calculate()
         SetWinTeam(i);
         for (int j = 0; j < 8; ++j)
         {
-            if (i != j)
-            {
-                GetTeamVsTeamPoint(i, j);
-            }
+            if (i == j)
+                goto skip_vs;
+            GetTeamVsTeamPoint(i, j);
+        skip_vs:;
         }
     }
 
@@ -169,7 +186,7 @@ int PvpUserTable::Calculate()
         m_minPoint[i] = 0.0f;
         for (int j = 0; j < 8; ++j)
         {
-            m_minPoint[i] = std::min(m_teamVsTeam[j][i], m_minPoint[i]);
+            m_minPoint[i] = std::min(m_minPoint[i], m_teamVsTeam[j][i]);
         }
     }
 
@@ -183,7 +200,17 @@ int PvpUserTable::Calculate()
     return 1;
 }
 
-// [b28d-54 N] ORIG 0x085d4d5e：帧/槽平移（N82）+ 寄存器角色（N7）。
+// b28d-solo-PvpUserTable：ORIG 0x085d4d5e，AE（其余件）⇒ 本件 byte 层 N 封顶。
+//   翻正——
+//   ① 0x085d4db6 `movzbl flag; xor $1; test %al; je` ⇒ `!flag`（字段已 bool 化）；
+//   ② 0x085d4e6b `mov -0x28,%eax; cmp -0x24,%eax; jle`（count1 vs count2）⇒
+//      条件写 `count1 > count2`（写 count2<count1 时 4.4 载 count2 反序）；
+//   ③ 0x085d4f38 ratio 段先 `fstps -0x1c` 存局部再 `flds -0x1c` 回读 ⇒ 两条语句；
+//   ④ 零分支 0x085d4eee `fstpl -0x48` 在 ctor 前 ⇒ 具名 double 局部（N80 求值序）。
+//   残余：①0x085d4ed2 fucompp/fnstsw/sahf vs 4.4 fucomip/fstp（N85 x87 比较
+//   lowering，-march=i486 已生效仍不可翻）；②槽号整体深 8/帧 0x70 vs 0x60
+//   （N82；4.4 把 double 临时放浅槽 -0x10 vs ORIG -0x48）。指令 191 vs 194
+//   （差即 N85 段）、p167 CLEAR 7/7 ⇒ 语义完成。
 bool PvpUserTable::GetTeamVsTeamPoint(int team1, int team2)
 {
     int count1 = GetTeamUserCount(team1);
@@ -192,7 +219,7 @@ bool PvpUserTable::GetTeamVsTeamPoint(int team1, int team2)
     {
         return 0;
     }
-    if (m_users[team1][0].flag != 1)
+    if (!m_users[team1][0].flag)
     {
         return 0;
     }
@@ -207,7 +234,7 @@ bool PvpUserTable::GetTeamVsTeamPoint(int team1, int team2)
         GetUserVsTeamPoint(i, team2, team1, u);
     }
 
-    if (count2 < count1)
+    if (count1 > count2)
     {
         int diff = count1 - count2;
         for (int k = 0; k < diff; ++k)
@@ -219,13 +246,15 @@ bool PvpUserTable::GetTeamVsTeamPoint(int team1, int team2)
     float ratioSum = m_teamPoint[team1] + m_teamPoint[team2];
     if (ratioSum == 0.0f)
     {
+        double dbl = ratioSum;
         cMyTrace tr(__PRETTY_FUNCTION__, 0x162, 5);
         tr("[FPE][PvpUserTable::GetTeamVsTeamPoint] RatioSum: %f",
-           (double)ratioSum);
+           dbl);
         return 0;
     }
 
-    float ratio = (m_teamPoint[team2] / ratioSum) * (float)(count1 + count2);
+    float ratio = m_teamPoint[team2] / ratioSum;
+    ratio *= (float)(count1 + count2);
     m_teamVsTeam[team1][team1] += ratio / (float)count1;
     m_teamVsTeam[team1][team2] -= ratio / (float)count2;
     return 1;
@@ -251,7 +280,16 @@ int PvpUserTable::GetGhostVsTeamPoint(int team, int)
     return 1;
 }
 
-// [b28d-54 N] ORIG 0x085d5064：帧/槽平移（N82）+ 寄存器角色（N7）；调用序列全等。
+// b28d-solo-PvpUserTable：ORIG 0x085d5064，byte 层 N85 封顶。翻正——
+//   ① m_dan bool 化（P248 档②，0x085d511d xor 形）；
+//   ② 四处 trace 改全表达式临时链（P227：double 实参 ctor 前 `flds;fstpl`、
+//      int 结果 `mov -0x74,%ebx` 跨 ctor 保活）；
+//   ③ revision 分支物理序改 A(mode<=14)→B(mode>14)→C(m_winTeam==team)
+//      （P222/P47；4.4 对独立 if+return 恒 then 放前）；
+//   ④ 0x1dd trace 的 %d 实参修正为 `(int)m_teamVsTeam[...]`（ORIG
+//      0x085d569e 无 ×1000 乘法，真语义差异）。
+//   残余：0x085d5148 fucompp/fnstsw/sahf vs 4.4 fucomip/fstp（N85）；
+//   467=467 条、帧 0xb4+push %ebx 全等、p167 CLEAR 13/13 ⇒ 语义完成。
 int PvpUserTable::GetResult(int team, bool isWinTeam, int mode)
 {
     if (!IsValidTeam(team))
@@ -289,54 +327,65 @@ int PvpUserTable::GetResult(int team, bool isWinTeam, int mode)
     // 一旦引入具名局部，4.4 会复用 ⇒ 少 ~110 条（技巧 36/37 的浮点推广）。
     if (G_GameWorld()->IsCharacterPvPExpRevisionChannel())
     {
-        if (m_winTeam == team)
+        // b28d-solo-PvpUserTable：ORIG 分支物理序 = A(mode<=14, [team][team],
+        //   +0x128) → B(mode>14, [m_winTeam][team], +0x28d) → C(m_winTeam==team,
+        //   ×120, +0x410)。4.4 对「独立 if + return」恒把 then 放前 ⇒ 写成
+        //   `if (m_winTeam != team) { if (mode <= 0xe) A else B } else C`
+        //   （P222/P47 分支序翻正）。
+        if (m_winTeam != team)
         {
-            // 0x085d5410 区（line 0x1d0）：下标 [m_winTeam][team]
+            if (mode <= 0xe)
+            {
+                // A：0x085d5182 区（line 0x1b9），下标 [team][team]
+                // （0x085d5195 `shl $0x3,%ecx; lea (%ecx,%edx,1)` ecx=edx=team）
+                if ((int)(m_teamVsTeam[team][team] * 1000.0f * 40.0f / 100.0f) < -100000 ||
+                    100000 < (int)(m_teamVsTeam[team][team] * 1000.0f * 40.0f / 100.0f))
+                {
+                    cMyTrace(__PRETTY_FUNCTION__, 0x1b9, 5)("pvp_exp_error1 %d, %f",
+                       (int)(m_teamVsTeam[team][team] * 1000.0f * 40.0f / 100.0f),
+                       (double)m_teamVsTeam[team][team]);
+                }
+                return (int)(m_teamVsTeam[team][team] * 1000.0f * 40.0f / 100.0f);
+            }
+            else
+            {
+                // B：0x085d52f1 区（line 0x1c4），mode > 14
+                if ((int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 40.0f / 100.0f) < -100000 ||
+                    100000 < (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 40.0f / 100.0f))
+                {
+                    cMyTrace(__PRETTY_FUNCTION__, 0x1c4, 5)("pvp_exp_error2 %d, %f",
+                       (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 40.0f / 100.0f),
+                       (double)m_teamVsTeam[m_winTeam][team]);
+                }
+                return (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 40.0f / 100.0f);
+            }
+        }
+        else
+        {
+            // C：0x085d5410 区（line 0x1d0），下标 [m_winTeam][team]
+            // ORIG 0x085d5217 段先 `flds; fstpl -0x98` 求值 double 实参、再
+            // 重算 int 并 `mov -0x74,%ebx` 缓存，全部位于 ctor call 之前
+            // （P227 全表达式临时链形；具名 tr 对象 4.4 恒 ctor 后求值实参）。
             if ((int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 120.0f / 100.0f) < -100000 ||
                 100000 < (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 120.0f / 100.0f))
             {
-                cMyTrace tr(__PRETTY_FUNCTION__, 0x1d0, 5);
-                tr("pvp_exp_error3 %d, %f",
+                cMyTrace(__PRETTY_FUNCTION__, 0x1d0, 5)("pvp_exp_error3 %d, %f",
                    (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 120.0f / 100.0f),
                    (double)m_teamVsTeam[m_winTeam][team]);
             }
             return (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 120.0f / 100.0f);
         }
-
-        if (mode >= 0xf)
-        {
-            // 0x085d52f1 区（line 0x1c4）：cmpl $0xe,0x14; jg → mode > 14 走本支
-            if ((int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 40.0f / 100.0f) < -100000 ||
-                100000 < (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 40.0f / 100.0f))
-            {
-                cMyTrace tr(__PRETTY_FUNCTION__, 0x1c4, 5);
-                tr("pvp_exp_error2 %d, %f",
-                   (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 40.0f / 100.0f),
-                   (double)m_teamVsTeam[m_winTeam][team]);
-            }
-            return (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f * 40.0f / 100.0f);
-        }
-
-        // 0x085d5182 区（line 0x1b9）：mode < 0xf ⇒ 下标 [team][team]
-        // （0x085d5195 `shl $0x3,%ecx; lea (%ecx,%edx,1)` ecx=edx=team ⇒ team*9*4=team*0x24）
-        if ((int)(m_teamVsTeam[team][team] * 1000.0f * 40.0f / 100.0f) < -100000 ||
-            100000 < (int)(m_teamVsTeam[team][team] * 1000.0f * 40.0f / 100.0f))
-        {
-            cMyTrace tr(__PRETTY_FUNCTION__, 0x1b9, 5);
-            tr("pvp_exp_error1 %d, %f",
-               (int)(m_teamVsTeam[team][team] * 1000.0f * 40.0f / 100.0f),
-               (double)m_teamVsTeam[team][team]);
-        }
-        return (int)(m_teamVsTeam[team][team] * 1000.0f * 40.0f / 100.0f);
     }
 
-    // 0x085d55f7 区（line 0x1dd）：非 revision 频道 ⇒ 仅 ×1000
+    // 0x085d55f7 区（line 0x1dd）：非 revision 频道 ⇒ 仅 ×1000。
+    // b28d-solo-PvpUserTable：ORIG trace 的 %d 实参为 0x085d569e
+    //   `flds (%eax,%edx,4); fldcw -0x70; fistpl -0x74`（**无 ×1000 乘法**）
+    //   ⇒ 原码写 `(int)m_teamVsTeam[m_winTeam][team]`（此前多乘 1000，真语义差异）。
     if ((int)(m_teamVsTeam[m_winTeam][team] * 1000.0f) < -100000 ||
         100000 < (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f))
     {
-        cMyTrace tr(__PRETTY_FUNCTION__, 0x1dd, 5);
-        tr("pvp_exp_error4 %d, %f",
-           (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f),
+        cMyTrace(__PRETTY_FUNCTION__, 0x1dd, 5)("pvp_exp_error4 %d, %f",
+           (int)m_teamVsTeam[m_winTeam][team],
            (double)m_teamVsTeam[m_winTeam][team]);
     }
     return (int)(m_teamVsTeam[m_winTeam][team] * 1000.0f);
@@ -393,8 +442,10 @@ void PvpUserTable::CheckDan()
     }
 }
 
-// [b28d-54 N] ORIG 0x085d585e：4.4 多一个循环局部槽 + `push %ebx`（三目 flag
-//   写形致 ebx 缓存），N82/N7 族。语义等价。
+// b28d-solo-PvpUserTable：ORIG 0x085d585e 两分支各自 `movb $0x1/$0x0` 直写
+//   （then 落 0x085d589c、else 落 0x085d58b5，无 al 物化、无 push %ebx、
+//   循环槽 -0x8/-0x4）⇒ 三目写形在 4.4 恒物化 `mov $1/jmp/mov $0` 并缓存 i 到
+//   %ebx（P171 反向：ORIG 不物化就必须写成两分支独立赋值）。
 void PvpUserTable::SetWinTeam(int team)
 {
     m_winTeam = team;
@@ -402,7 +453,10 @@ void PvpUserTable::SetWinTeam(int team)
     {
         for (int j = 0; j < 8; ++j)
         {
-            m_users[i][j].flag = (i == team) ? 1 : 0;
+            if (i == team)
+                m_users[i][j].flag = 1;
+            else
+                m_users[i][j].flag = 0;
         }
     }
 }

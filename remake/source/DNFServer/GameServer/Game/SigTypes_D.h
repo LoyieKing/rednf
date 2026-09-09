@@ -37,6 +37,44 @@ struct SIG_LOGIN_PUNISH_INFO       // stride 0x18（@0x3a54，ARAD 复核同型�
     int m_endTime;                 // +0x14 与 getCurSec 比较的有效期
 };
 
+// [S216/P235] SIG_LOGIN_DATA::m_characData（+0x00e0，0x24×0x94 角色槽）的数组视角。
+// 依据：ORIG DB_Login::_getGameDBCharacView @0x084149ba 循环体
+//   `mov -0xc(%ebp),%eax; mov 0xc(%ebp),%edx; imul $0x94,%eax,%eax;
+//    lea (%edx,%eax,1),%eax; add $0xe0,%eax; mov (%eax),%eax`
+//   ⇒ i 先、base 后、成员偏移 $0xe0 最后加 = **完整类型成员直访问**；
+//   reinterpret_cast<View*>(sig) 形在 4.4.7 恒先载 base（探针 /tmp/s216_probe1.cpp
+//   fA vs fD 逐条对照）。本视角只增并列成员，两视角等宽 0x14d0，
+//   SIG_LOGIN_DATA sizeof/m_characData 偏移/全部 mangled 零影响。
+struct SIG_CHARAC_SLOT_VIEW
+{
+    int  m_characNo;               // +0x00 槽内 charac_no（ORIG `mov (%eax),%eax`）
+    char m_rest[0x90];             // +0x04..0x93（name/job/lev 等，本视角不展开）
+};
+struct SIG_CHARAC_SLOTS_VIEW
+{
+    SIG_CHARAC_SLOT_VIEW m_slots[0x24];   // 36 槽（blob 0x14d0 = 36×0x94）
+};
+
+// [S216/P235] SIG_LOGIN_DATA +0x3fa0 区（m_characSlotCurCount..m_ingameEventHistory）
+// 的历史表数组视角。依据 ORIG DB_Login::GetUserInGameEventHistory 0x08415391 地址链
+//   `mov i,%edx; mov %edx,%eax; add %edx,%eax; add %edx,%eax; shl $0x2,%eax;
+//    add $0x3fa0,%eax; add 0xc(%ebp),%eax; add $0xc,%eax`
+//   ⇒ 成员偏移 $0x3fa0 先加、base 后加、行内字段偏移 $0xc 最后加 = 完整类型成员
+//   直访问（探针 /tmp/s216_probe3.cpp fH 逐条同形）；裸 char* 算术恒把 $0x3fa0+$0xc
+//   折成 $0x3fac（N1）。视角等宽（struct 侧 0x184 > 视角 0x174），
+//   SIG_LOGIN_DATA sizeof/全部偏移/mangled 零影响。
+struct SIG_INGAME_HISTORY_ROW
+{
+    int m_type;        // +0x00 seLect type
+    int m_history1;    // +0x04 history_1
+    int m_history2;    // +0x08 history_2
+};
+struct SIG_INGAME_HISTORY_VIEW
+{
+    char m_pad[0x0c];                          // +0x00..0x0b（0x3fa0..0x3fab 既有标量）
+    SIG_INGAME_HISTORY_ROW m_rows[30];         // +0x0c 起 30 行 × 0xc
+};
+
 struct SIG_LOGIN_DATA
 {
     // +0x0000..0x00a0 头部区（DisPatcher_Login::dispatch_sig 实证拆具名）：
@@ -57,7 +95,11 @@ struct SIG_LOGIN_DATA
     unsigned int   m_regTime;               // +0x00d4 setRegTime（32 位 long）
     int            m_loginErrDetail;        // +0x00d8 err_code∈[9,0xc] 时 put_byte 输出
     int            m_characCount;           // +0x00dc SetCharacInfo 计数
-    char           m_characData[0x14d0];    // +0x00e0 _Charac_info 区域视图（SetCharacInfo）
+    union
+    {
+        char m_characData[0x14d0];          // +0x00e0 _Charac_info 区域视图（SetCharacInfo）
+        SIG_CHARAC_SLOTS_VIEW m_characView; // +0x00e0 同址数组视角（P235，见上）
+    };
     int            m_mercenaryCount;        // +0x15b0 SetCharacMercenaryInfo 计数（上限 0x24）
     CHARAC_LOAD_MERCENARY m_mercenaries[34];// +0x15b4 元素 stride 0x54（hack 检查读 m_field28）
     char           m_pad20dc[0x2184 - 0x20dc]; // +0x20dc mercenary 表（34×0x54）后未访问区
@@ -157,14 +199,21 @@ struct SIG_LOGIN_DATA
     short          m_memberBonusFatigueInc; // +0x3f5e incAccountMemberBonusFatigue 数据源
     unsigned int   m_memberBonusSaveTime;   // +0x3f60 CheckDailyScheduleTime 判定基准（32 位 long）
     user_gold_info m_goldInfo;              // +0x3f64 Secu_GoldControl::SetInfo（sizeof 0x3c）
-    unsigned char  m_characSlotCurCount;    // +0x3fa0 setCharacSlotCountInfo 参数1
-    unsigned char  m_characSlotMaxCount;    // +0x3fa1 参数2
-    char           m_pad3fa2[2];            // +0x3fa2
-    int            m_ontimeLastRecvIdx;     // +0x3fa4 set_ontime_last_recv_idx
-    bool           m_checkPickUpRandomOptionItemFlag; // +0x3fa8 true→setCheckPickUpRandomOptionItem(true)
-    unsigned char  m_fatigueKind;           // +0x3fa9 set_fatigue_count_db 参数1
-    short          m_fatigueValue;          // +0x3faa 参数2
-    SIG_INGAME_EVENT_HISTORY m_ingameEventHistory; // +0x3fac set_ingame_event_history 整包
+    union
+    {
+        struct
+        {
+            unsigned char  m_characSlotCurCount;    // +0x3fa0 setCharacSlotCountInfo 参数1
+            unsigned char  m_characSlotMaxCount;    // +0x3fa1 参数2
+            char           m_pad3fa2[2];            // +0x3fa2
+            int            m_ontimeLastRecvIdx;     // +0x3fa4 set_ontime_last_recv_idx
+            bool           m_checkPickUpRandomOptionItemFlag; // +0x3fa8 true→setCheckPickUpRandomOptionItem(true)
+            unsigned char  m_fatigueKind;           // +0x3fa9 set_fatigue_count_db 参数1
+            short          m_fatigueValue;          // +0x3faa 参数2
+            SIG_INGAME_EVENT_HISTORY m_ingameEventHistory; // +0x3fac set_ingame_event_history 整包
+        };
+        SIG_INGAME_HISTORY_VIEW m_ingameEventHistoryView;  // +0x3fa0 同址数组视角（P235）
+    };
     bool           m_ingameHackItemFlag;    // +0x4124 addServerHackCnt(0x261) 触发
     char           m_informNoticeBuf[0x13]; // +0x4125 loadInformNoticeFlag 缓冲
     char           m_bingoWinFlag;          // +0x4138 SetBingoData 读 byte!=0 → BingoData.m_isWin
@@ -282,10 +331,85 @@ static_assert(offsetof(SIG_MAILBOX_DEL_MAIL, m_type) == 0x54,
 // sizeof 0x338a（ReqDBLoadMail memset 证据）不变；consumers 全部经
 // reinterpret 视图/偏移宏按绝对偏移访问，不依赖 m_data 起点。
 #pragma pack(push, 1)
+// SIG_MAILBOX_LIST postal 区具名视图（§8.3 字段化，b28d-solo-DB_MailBox_Req_List 广播）：
+// ORIG 对 postal 明细发 `imul $0x61` + `mov (%edx,%eax,1)`（postal_id@+0）与
+// `add $0x20; mov 0xe(%edx)`（add_info@+0x2e 两级）——视图经**参数类型自身的成员**
+// 访问才能复现 ORIG 4.1 的「下标先、基址后」装载序（cast 视图形恒 base 先，
+// P235；探针 /tmp/p2/rm2.cpp 与 ORIG 0x0841cd03 逐条同形）。
+struct SIG_MAILBOX_POSTAL_TAIL
+{
+    unsigned char m_pad[5];      // +0x20..0x24
+    int m_itemId;                // +0x25
+    char m_sealFlag;             // +0x29
+    int m_occTime;               // +0x2a
+    unsigned int m_addInfo;      // +0x2e
+    unsigned char m_rest[0x61 - 0x20 - 0x12];
+};
+struct SIG_MAILBOX_POSTAL
+{
+    int m_postalId;              // +0x00
+    unsigned char m_head[0x20 - 4];
+    SIG_MAILBOX_POSTAL_TAIL m_tail;   // +0x20
+};
+struct SIG_MAILBOX_LIST_BOX
+{
+    SIG_MAILBOX_POSTAL m_postals[0x14];   // 0x14*0x61 = 0x794
+    int m_count;                          // +0x794
+    int m_remain;                         // +0x798
+    unsigned int m_maxPostalId;           // +0x79c
+};
+// creature_items 明细视图（stride 0x25，基址 +0xd30；item[0] 首 4 字节即条数，
+// ORIG 0x0841dd0f `mov %edx,0xd30(%eax)` 与 0x0841dddb `add $0xd30; mov %ecx,0x4` 实证）
+struct SIG_MAILBOX_CREATURE_ITEM
+{
+    union
+    {
+        unsigned char m_pad[4];
+        unsigned int m_count;    // +0x00（仅 item[0] 用；与 get_n_rows int 异型触发
+                                 // ORIG 0x0841dd0a `mov %eax,%edx` 中转，P211/P217）
+    };
+    int m_uiId;                  // +0x04
+    int m_expireDate;            // +0x08
+    int m_regDate;               // +0x0c
+    unsigned char m_rest[0x25 - 0x10];
+};
+struct SIG_MAILBOX_CREATURE_AREA
+{
+    unsigned char m_pad[0xd30];
+    SIG_MAILBOX_CREATURE_ITEM m_items[0x100];   // +0xd30
+};
+// user_items 明细视图（stride 0x47，基址 +0x7a0；ORIG 0x0841ee1a 段实证：
+// +0x04 ui_id / +0x08 expire_date / +0x0c reg_date / +0x10 ipg_agency(0x18) /
+// +0x29 jewel_socket(0x1e)；item[0] 首 4 字节为条数）
+struct SIG_MAILBOX_USER_ITEM
+{
+    union
+    {
+        unsigned char m_pad[4];
+        int m_count;             // +0x00（仅 item[0] 用）
+    };
+    int m_uiId;                  // +0x04
+    unsigned int m_expireDate;   // +0x08
+    unsigned int m_regDate;      // +0x0c
+    char m_ipgAgency[0x18];      // +0x10
+    char m_field28;              // +0x28
+    unsigned char m_jewel[0x1e]; // +0x29
+};
+struct SIG_MAILBOX_USER_AREA
+{
+    unsigned char m_pad[0x7a0];
+    SIG_MAILBOX_USER_ITEM m_items[0x80];    // +0x7a0（0x7a0+0x80*0x47=0x2b20 ≤ 0x3332）
+};
 struct SIG_MAILBOX_LIST
 {
     // ORIG 尺寸 0x338a（ReqDBLoadMail memset 证据）
-    unsigned char m_head[0x3332];       // +0x00 请求头/ postal 区（视图消费）
+    union
+    {
+        unsigned char m_head[0x3332];   // +0x00 请求头/ postal 区（原字段，保留）
+        SIG_MAILBOX_LIST_BOX m_box;     // +0x00 postal 区具名视图（0x7a0，b28d 新增）
+        SIG_MAILBOX_USER_AREA m_user;   // +0x7a0 user_items 视图（b28d 新增）
+        SIG_MAILBOX_CREATURE_AREA m_creature;   // +0xd30 creature_items 视图（b28d 新增）
+    };
     int m_curCharacNo;                  // +0x3332（请求角色号）
     int m_mailLoadCount;                // +0x3336（装载计数，loaded-twice 比对）
     unsigned char m_data[0x338a - 0x333a];   // +0x333a 明细尾区
@@ -293,6 +417,8 @@ struct SIG_MAILBOX_LIST
 #pragma pack(pop)
 static_assert(sizeof(SIG_MAILBOX_LIST) == 0x338a,
               "SIG_MAILBOX_LIST ORIG size drift");
+static_assert(offsetof(SIG_MAILBOX_LIST, m_box.m_maxPostalId) == 0x79c,
+              "SIG_MAILBOX_LIST postal max offset drift");
 
 struct SIG_MAILBOX_SEND_NEW_MAIL
 {
@@ -377,7 +503,11 @@ struct SIG_ONLINE_PRELIMINARY_MEMBER
 {
     unsigned short m_serverGroup;  // +0x00 movw @0x085860a1（CUser::GetServerGroup）
     char           m_pad02[2];     // +0x02..0x03 无读写证据
-    int            m_characNo;     // +0x04 movl（CUserCharacInfo::getCurCharacNo 返回 int，ORIG 4B 直拷无 cvt）
+    // [b28d-solo-OnlinePreliminaryTeam] P211 档③：ORIG _saveData 0x08586085
+    // `mov -0xc(%ebp),%edx; mov %eax,0x4(%edx)` = LHS-first 直存无中转 ⇒ 字段与
+    // RHS 同型（getCurCharacNo 返 unsigned int，CUserCharacInfo.h:776）。int 时
+    // 4.4 产 RHS-first + `mov %eax,%edx` 中转（实测 +1 条）。宽度/偏移/mangled 不变。
+    unsigned int   m_characNo;     // +0x04 movl（同型直存）
     float          m_rating;       // +0x08 4B 位拷贝（成员 m_rating float）
     int            m_winCount;     // +0x0c movl
     int            m_loseCount;    // +0x10 movl
@@ -393,7 +523,13 @@ static_assert(sizeof(SIG_ONLINE_PRELIMINARY_MEMBER) == 0x14,
 //   movl→0x10（key.m_uniqueId）、movl→0x14（PlayCountInfo::m_count）；
 //   loadData.md 0x08586466：count@+8（int）、sid movzwl@+0xc、uid@+0x10、
 //   playCount@+0x14。0xc + 12*100 = 0x4bc。
-#pragma pack(push, 1)
+// [b28d-solo-OnlinePreliminaryTeam] 去 pack(1)：全部成员偏移已自然对齐
+// （u16@+0/u16@+2/u32@+4/u32@+8 ⇒ Entry 12B；u16@+0/pad/u32@+4/int@+8/
+// Entry@+0xc ⇒ 0x4bc），pack(1) 只把对齐压到 1 并使 4.4 把
+// `d->m_entries[i].m_uniqueId/m_playCount` 折成 scaled disp 单条
+// （探针 /tmp/p3_probe2.cpp），而 ORIG 0x0858648b/0x085864e3 为
+// `lea (%ecx,%eax,1); add $0x10,%eax; mov (%eax)` 两段 ⇒ 原码是自然对齐
+// 结构体（探针 /tmp/p3_probe.cpp f1 逐条全等）。sizeof/偏移/static_assert 不变。
 struct SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST
 {
     struct Entry
@@ -409,7 +545,6 @@ struct SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST
     int            m_count;          // +0x08 条目计数（int，100 分批比较 @0x08586695）
     Entry          m_entries[100];   // +0x0c stride 12B
 };
-#pragma pack(pop)
 static_assert(sizeof(SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST) == 0x4bc,
               "SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST ABI drift");
 static_assert(sizeof(SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST::Entry) == 0xc,

@@ -107,8 +107,9 @@ CPrivateStoreMgr* GetInstancePrivateStoreMgr()
 //   byte(1) | short(seller unique id) | int+str(店名) | byte(state!=1)
 //   | byte(pos.a) | byte(pos.b) | short(pos.field2) | short(pos.field4)
 //   | byte(isDollCreated)
-// [b28d-solo-CPrivateStoreMgr] 残 122 行：寄存器分配（ORIG `movzbl %al,%ebx` vs
-// 我们 `%eax`）+ 槽号整体偏移（trace 对象 ORIG -0x58 vs 我们 -0x28，N82 槽复用）。
+// [b28d-solo-CPrivateStoreMgr] P167 归零。残 154 行：寄存器分配（ORIG
+// `movzbl %al,%ebx` vs 我们 `%eax`）+ 槽号整体偏移（trace 对象 ORIG -0x58 vs
+// 我们 -0x28，N82 槽复用）。
 bool CPrivateStorePos::put_object_info(PacketGuard& p)
 {
     if (m_pStore == 0)
@@ -282,24 +283,30 @@ void CPrivateStore::Clear()
 // 收集 state==3 且物品索引非 0 的条目，经 ReqDBSendNewSystemMultiMail 以系统邮件退还；
 // 发送失败仅 trace；成功或无条目时 ResetItems。恒返回 1。
 // [b28d-24] DIFF 残147: P167 EXTRA vector::operator[]×2 + memset×2。ORIG 0x085c5cec
-// [b28d-solo-CPrivateStoreMgr] 残 192 行：N82 帧差（ORIG 0x4cc vs 我们 0x4c0）+
-// N4/P30 寻址（ORIG add vs 4.4 lea）+ P292 条件极性（sete/setne）+ P167
-// vector::operator[] 逐次访问形。语义已对齐（无缺调用）。
+// [b28d-solo-CPrivateStoreMgr] P167 差集归零（op[] 一次后缓存到 -0x20 槽；
+// memset→初始化式）。残 85 行 = ORIG 内联 memset 慢路展开（title@-0x14d 非 4
+// 对齐 → 「对齐剥离+rep stos+尾字节」vs 4.4 简单 rep stos；P312 pad 实测无效）
+// + 槽基差 3（N95）+ N4/P30 寻址。语义已对齐（无缺调用）。
 bool CPrivateStore::RecallPrivateStoreItemToMail()
 {
     Inven_Item items[14];
     int count = 0;
     for (unsigned int i = 0; i < 0xe; ++i)
     {
-        if (m_items[i].GetState() == 3 && m_items[i].m_item.m_addInfo != 0)
-            items[count++].setCopy(m_items[i].m_item);
+        // [b28d-solo-CPrivateStoreMgr] ORIG 0x085c5d2f：operator[] 一次后把
+        // 返回引用缓存到 -0x20 槽（`mov %eax,-0x20(%ebp)`），GetState/+2 读/
+        // setCopy 实参全用该缓存 ⇒ 旧逐次下标形 P167 EXTRA op[]×2。
+        PrivateStoreItem& storeItem = m_items[i];
+        if (storeItem.GetState() == 3 && storeItem.m_item.m_addInfo != 0)
+            items[count++].setCopy(storeItem.m_item);
     }
     if (0 < count)
     {
-        char sender[0x15];
-        std::memset(sender, 0, sizeof(sender));
-        char title[0x100];
-        std::memset(title, 0, sizeof(title));
+        // [b28d-solo-CPrivateStoreMgr] P214③/P253：ORIG 0x085c5da3/0x085c5e04 为
+        // 局部数组初始化内联清零（对齐剥离+rep stos），显式 memset 生 call
+        // ⇒ P167 EXTRA memset×2。改初始化式。
+        char sender[0x15] = {0};
+        char title[0x100] = {0};
         std::strcpy(sender, g_scriptStringManager_.findString(4, "game_server_msg_183", 0));
         std::strcpy(title, g_scriptStringManager_.findString(4, "game_server_msg_186", 0));
         int ret = WongWork::CMailBoxHelper::ReqDBSendNewSystemMultiMail(
@@ -323,11 +330,10 @@ bool CPrivateStore::RecallPrivateStoreItemToMail()
 // Stream(0x77)+GetUID 后取 SIG_PRIVATE_STORE：清零 0x434、写 charac_no、
 // 拷贝 14 条目至 +8、按 isDollCreated 写 +0x430 标志，入 DB 队列(DB_Q=2)。
 // [b28d-24] DIFF 残54: P167 MISSING CStreamGuard::deEv×2 + isDollCreated×1；EXTRA ptEv×2（`*guard` vs `guard->` 链，P103/P132）。ORIG 0x085ca116
-// [b28d-solo-CPrivateStoreMgr] 已修：P259 去 stream 具名局部（Acquire 直落
-// CStreamGuard ctor 实参槽）。残 11 行 = `&sig->m_items`（+0x8 常量偏移取址）
-// ORIG `lea 0x8(%eax),%ebx` vs 4.4 `add $0x8,%eax; mov %eax,%ebx`——数组/取址/
-// 数组引用/引用形 4 形实测均不可择（N107/N18a 族：4.4 成员常量偏移取址恒 add）
-// + 由该 2 字节差引起的 3 处 jmp 偏移连锁。
+// [b28d-solo-CPrivateStoreMgr] 残 3 行：P259 去 stream 具名局部（Acquire 直落
+// CStreamGuard ctor 实参槽）。余 `&sig->m_items`（+0x8 常量偏移取址）ORIG
+// `lea 0x8(%eax),%ebx` vs 4.4 `add $0x8,%eax; mov %eax,%ebx`——数组/取址/数组引用/
+// 引用形 4 形实测均不可择（N107/N18a 族：4.4 成员常量偏移取址恒 add）。
 void CPrivateStore::SavePrivateStore()
 {
     // P259：ORIG 0x085ca116 无 stream 具名局部，Acquire 结果直落 ctor 实参槽。
@@ -392,9 +398,9 @@ int CPrivateStore::RecreatePrivateStore(SIG_PRIVATE_STORE* sig)
 // 构造碰撞位并注册村庄对象，置状态 1，命令包与广播包，有队伍则离队分发，
 // 历史/拍卖代理上报。
 // [b28d-24] DIFF 残69: P167 EXTRA getCurCharacName×1；余帧/槽分配（480=480）。ORIG 0x085c53ea
-// [b28d-solo-CPrivateStoreMgr] 残 290 行：ORIG 在 IsPermissionPrivateStore 之后
-// 插 G_GameWorld/IsPVPChannel/Do(0x3e) 段（块序）+ 条件极性（ORIG xor$1 形，P292）
-// + 帧/槽（N82）。指令总数 480=480 已对齐。
+// [b28d-solo-CPrivateStoreMgr] P167 归零（删孤立 getCurCharacName 调用）。残 234
+// 行 = 块序（ORIG 在 IsPermissionPrivateStore 之后插 G_GameWorld/IsPVPChannel/
+// Do(0x3e) 段）+ 条件极性（ORIG xor$1 形，P292）+ 帧/槽（N82）。指令数 476 vs 480。
 bool CPrivateStore::CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
                                        short posX, short posY, unsigned short dollSlot)
 {
@@ -526,7 +532,8 @@ bool CPrivateStore::CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
         trace("CreatePrivateStore() uid:%d\n",
               (unsigned int)m_pSeller->get_unique_id() & 0xffff);
     }
-    m_pSeller->getCurCharacName();
+    // [b28d-solo-CPrivateStoreMgr] P167 EXTRA getCurCharacName×1：删孤立调用，
+    // 仅保留 historyLog 实参位的一次（ORIG 调用点唯一）。
     m_pSeller->m_historyLog.CreatePrivateStore(          // CUser 内嵌 +0x79700（CUser.h:1596）
         (int)zoneA, (int)zoneB, m_pSeller->getCurCharacName());
 
@@ -548,7 +555,7 @@ bool CPrivateStore::CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
 // 释放卖家表项并 Clear。sendFail=false 且条目退还失败时中止。
 // [b28d-solo-CPrivateStoreMgr] 已修真语义 bug：sendFail 守卫反转（ORIG
 // 0x085c616c xor$1 ⇒ `if(!sendFail) return false;`）；trace 改 P227 全表达式
-// 临时链（get_unique_id 跨 ctor %ebx 保活）。残 34 行 = 块级对象槽方向镜像
+// 临时链（get_unique_id 跨 ctor %ebx 保活）。残 46 行 = 块级对象槽方向镜像
 // （ORIG packet -0x28/zone -0x1a/trace -0x18 vs 我们 -0x24/-0x26/-0x3c）⇒ N93
 // + ORIG Send 后预取 &m_storePos 入 %ebx（P52 物化时机）⇒ N 封顶。
 bool CPrivateStore::RemovePrivateStore(bool sendFail)
@@ -706,7 +713,7 @@ bool CPrivateStore::CompleteDisplay(char const* subject, unsigned short dollSlot
 // [b28d-24] DIFF 残26: P167 归零；残差=帧/槽分配（P112/N82）。ORIG 0x085c751a
 // [b28d-solo-CPrivateStoreMgr] 已修：packet 声明下移至双守卫后（ORIG 0x085c754a
 // 才 C1）；unregister_object 返回类型 int→bool（P292 档①，调用点 xor$1 形）。
-// 残 26 行 = ①块外 packet(-0x18)/块内 zone(-0xa) 槽方向镜像 vs 我们 -0x14/-0x16
+// 残 24 行 = ①块外 packet(-0x18)/块内 zone(-0xa) 槽方向镜像 vs 我们 -0x14/-0x16
 // ⇒ N93；②ORIG 在 Send 后把 &m_storePos 预取 %ebx 跨 Zone ctor 保活、4.4 在
 // 调用点才 lea（P52 实参物化时机，具名局部会引入槽）⇒ 跨版本寄存器分配。
 bool CPrivateStore::MoveToGate()
@@ -832,9 +839,10 @@ bool CPrivateStore::ExitPrivateStore()
 // 校验背包来源物品（非现金价、非化身、可交易限制），prevCountSlot==0 时重置
 // 全部条目后按 slot_no 落位。
 // [b28d-24] DIFF 残87: P167 MISSING vector::operator[]×2（访问方式差异）。ORIG 0x085c6d48
-// [b28d-solo-CPrivateStoreMgr] 残 175 行：P167 vector::operator[] 逐次访问形
-//（ORIG 每字段重发 op[]；缓存 T& 会坍缩调用点）+ N18a 单段直落不可造 + 帧/槽
-//（N82）。语义已对齐（无缺调用）。
+// [b28d-solo-CPrivateStoreMgr] P167 归零（尾部 op[]×3 + +0x3d 字段直读；
+// invenType 内联消 -0x1c 槽）。残 41 行 = find_item/GetCashPrice 的 sete/setg
+// 物化点位置（P225 while 形已应用）+ N7 寄存器角色互换（invenType eax↔edx）+
+// 帧/槽（N82）。
 bool CPrivateStore::AddItem(PrivateStoreItem& item, int prevCountSlot)
 {
     if (isDollCreated())
@@ -898,10 +906,18 @@ bool CPrivateStore::AddItem(PrivateStoreItem& item, int prevCountSlot)
         return false;
     }
 
-    int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(char)item.m_field46);  // ORIG 返回 int
-    Inven_Item srcItem = inventory->GetInvenSlot((INVEN_TYPE)invenType, (int)item.m_field48);
-    CItem* itemInfo = G_CDataManager()->find_item((int)srcItem.m_addInfo);
-    if (itemInfo == 0)
+    // [b28d-solo-CPrivateStoreMgr] P0：ORIG 0x085c6ff1 后 `mov %eax,%edx`（无槽）
+    // ⇒ invenType 是内联右值，无具名局部（旧具名形多 -0x1c 槽并使 srcItem 槽位
+    // 由 -0x59 漂到 -0x5d）。
+    Inven_Item srcItem = inventory->GetInvenSlot(
+        (INVEN_TYPE)GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(char)item.m_field46),
+        (int)item.m_field48);
+    // [b28d-solo-CPrivateStoreMgr] P197③ 预清零两句式 + P225 while 形：
+    // ORIG 0x085c7015 `movl $0x0,-0x18` 预清零；0x085c7035 `cmpl $0,-0x18;
+    // sete %al; test; je` 槽比零物化 ⇒ while(==0) 复现。
+    CItem* itemInfo = 0;
+    itemInfo = G_CDataManager()->find_item((int)srcItem.m_addInfo);
+    while (itemInfo == 0)
     {
         LogManager::logFormat(1, "PrivateStore.cpp", __PRETTY_FUNCTION__, 0x582,
                               "CPrivateStore::AddItem find_item() ERROR item_id(%d)",
@@ -910,43 +926,49 @@ bool CPrivateStore::AddItem(PrivateStoreItem& item, int prevCountSlot)
     }
 
     // ORIG：cash 价 >=1 的商城物品禁止上架（报告反编译 iVar6<1 才继续）。
-    if ((int)itemInfo->GetCashPrice() >= 1)
+    // ORIG 0x085c7088 `test %eax,%eax; setg %al; test %al,%al; je` ⇒ while 形。
+    while ((int)itemInfo->GetCashPrice() >= 1)
     {
         LogManager::logFormat(1, "PrivateStore.cpp", __PRETTY_FUNCTION__, 0x5b8,
                               "CPrivateStore::AddItem GetCashPrice() ERROR item_id(%d), cash_price(%d)",
                               (int)srcItem.m_addInfo, (int)itemInfo->GetCashPrice());
         return false;
     }
-    if (!srcItem.m_upgradeSep.IsTradeRestriction())   // ORIG lea 副本+0x33（UpgradeSeparateInfo 子对象）
-    {
-        // ORIG 经 CItem vtable 槽 +0x10 判定化身类道具，禁止私商上架。
-        if (itemInfo->IsAvatarItem())
-        {
-            LogManager::logFormat(1, "PrivateStore.cpp", __PRETTY_FUNCTION__, 0x5be,
-                                  "CPrivateStore::AddItem IsAvatarItem() ERROR item_id(%d), cash_price(%d)",
-                                  (int)srcItem.m_addInfo, (int)itemInfo->GetCashPrice());
-            return false;
-        }
-
-        if (item.m_field44 < 0xe && item.m_field44 >= 0 &&
-            prevCountSlot < 0xe && prevCountSlot >= 0)
-        {
-            if (prevCountSlot == 0)
-                ResetItems();
-
-            PrivateStoreItem& target = m_items[item.m_field44];
-            if (target.GetState() != 0)
-                return false;
-
-            if (item.m_field46 == 3)
-                return false;   // ORIG：item space 3 的条目不可上架
-
-            item.m_flag3d = 1;
-            target.Reset();
-            target = item;
-            return true;
-        }
+    // [b28d-solo-CPrivateStoreMgr] P59 负向守卫形：ORIG `call IsTradeRestriction;
+    // test %al,%al; setne %al; test %al,%al; je <主流程>`（restriction 为真直返）
+    // ⇒ 旧 `if(!f()){主流程}` 形产 sete 且块序反。
+    if (srcItem.m_upgradeSep.IsTradeRestriction())   // ORIG lea 副本+0x33（UpgradeSeparateInfo 子对象）
         return false;
+
+    // ORIG 经 CItem vtable 槽 +0x10 判定化身类道具，禁止私商上架。
+    if (itemInfo->IsAvatarItem())
+    {
+        LogManager::logFormat(1, "PrivateStore.cpp", __PRETTY_FUNCTION__, 0x5be,
+                              "CPrivateStore::AddItem IsAvatarItem() ERROR item_id(%d), cash_price(%d)",
+                              (int)srcItem.m_addInfo, (int)itemInfo->GetCashPrice());
+        return false;
+    }
+
+    if (item.m_field44 < 0xe && item.m_field44 >= 0 &&
+        prevCountSlot < 0xe && prevCountSlot >= 0)
+    {
+        if (prevCountSlot == 0)
+            ResetItems();
+
+        // [b28d-solo-CPrivateStoreMgr] P157/P183 + P167：ORIG 尾部逐次
+        // operator[]×3（读 +0x3d 字段 / Reset / operator=），且 +0x3d 判定
+        // 是**直接字段读**非 GetState() 调用（旧缓存引用 ⇒ MISSING op[]×2
+        // + EXTRA GetState×1）。
+        if (m_items[item.m_field44].m_flag3d != 0)
+            return false;
+
+        if (item.m_field46 == 3)
+            return false;   // ORIG：item space 3 的条目不可上架
+
+        item.m_flag3d = 1;
+        m_items[item.m_field44].Reset();
+        m_items[item.m_field44] = item;
+        return true;
     }
     return false;
 }
@@ -957,8 +979,9 @@ bool CPrivateStore::AddItem(PrivateStoreItem& item, int prevCountSlot)
 // 反外挂检测（金额阈值公式常量 0.01/0.7，ORIG rodata 0x8cbead0/0x8cbead8），
 // 最后写入流通统计。
 // [b28d-24] DIFF 残177: 帧/槽分配 + 分支块序（N82/P112）。ORIG 0x085c7e74
-// [b28d-solo-CPrivateStoreMgr] 残 393 行：帧 0xbc vs 0xe0（N82 槽复用差异）+
-// 块序/调用序（CErrorHandler::Do / GetAttachType / getCurCharacInvenR 的发射位置）。
+// [b28d-solo-CPrivateStoreMgr] P167 归零。残 335 行 = 帧 0xbc vs 0xe0（N82 槽复用
+// 差异）+ 块序/调用序（CErrorHandler::Do / GetAttachType / getCurCharacInvenR
+// 的发射位置）。
 bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
 {
     m_errorHandler.Set(m_pBuyer, 1, 0x55);
@@ -975,7 +998,9 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
         m_errorHandler.Do(0x15);
         return false;
     }
-    if (m_pBuyer->getCurCharacR() == 0)
+    // [b28d-solo-CPrivateStoreMgr] P225：ORIG 0x085c8804 `test %eax,%eax; sete %al;
+    // test; je`（寄存器比零物化）⇒ while(==0) 形复现。
+    while (m_pBuyer->getCurCharacR() == 0)
     {
         m_errorHandler.Do(1);
         return false;
@@ -994,7 +1019,8 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
     CItem* itemInfo = 0;
     PrivateStoreItem& storeItem = m_items[slot];
     itemInfo = G_CDataManager()->find_item((int)storeItem.m_item.m_addInfo);
-    if (itemInfo == 0)
+    // ORIG 0x085c895e `cmpl $0,-0x1c; sete %al; test; je` ⇒ while 形。
+    while (itemInfo == 0)
     {
         m_errorHandler.Do(0x11);
         return false;
@@ -1136,8 +1162,9 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
 // 计价/交易限制/每日金额校验通过后，按条目类型序列化（avatar 附剩余时间、
 // 宝石槽 30B 与扩展信息 4B），put_packet 后发买家。
 // [b28d-24] DIFF 残47: 帧/槽分配（P112/N82）。ORIG 0x085c874c
-// [b28d-solo-CPrivateStoreMgr] 残 124 行：CErrorHandler::Do 调用序 + put_binary
-// 段顺序 + jmp 偏移差 0x1b（帧/槽 N82）。
+// [b28d-solo-CPrivateStoreMgr] 残 76 行：P225 while 形已用于
+// getCurCharacR()==0 / find_item==0 两处；余为 CErrorHandler::Do 调用序 +
+// put_binary 段顺序 + jmp 偏移差（帧/槽 N82）。
 bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
 {
     m_errorHandler.Set(m_pBuyer, 1, 0x195);
@@ -1320,10 +1347,11 @@ int CPrivateStore::CheckPrivateStoreDoll(unsigned short dollSlot)
 // ---- IsAreaNearEntranceDungeon（ORIG T 0x85c5082，报告 IsAreaNearEntranceDungeon.md L15-269 全文）----
 // 开店区域校验：村庄 2 区 0 即入口区允许开店；区域类型 4 禁止；异常走 errno 日志垫。
 // [b28d-24] DIFF 残53: P167 MISSING cMyTrace::operator()×1（少一条日志调用，真缺口）。ORIG 0x085c5082
-// [b28d-solo-CPrivateStoreMgr] 残 105 行 = N111（ORIG 的 area==0 trace 块
-// `0x085c5273..0x085c5299` 被 `jmp 0x298` 跳过、无入口 ⇒ 4.1 死错误块；补 trace
-// 会让 area==0 时多打日志、改变行为，故不补）+ N82（5 个互斥 cMyTrace 对象 4.1
-// 各占独立槽，帧 0x90 vs 我们 0x70）。
+// [b28d-solo-CPrivateStoreMgr] 残 79 行 = N111（ORIG 的 area==0 trace 块
+// `0x085c5273..0x085c5299` 被 `jmp 0x298` 跳过、字节级复核无任何跳转指向该区
+// ⇒ 4.1 无入口死错误块；补 trace 会让 area==0 时多打日志、改变行为，故不补，
+// P167 该 MISSING 项按 N111 豁免）+ N82（5 个互斥 cMyTrace 对象 4.1 各占独立槽，
+// 帧 0x90 vs 我们 0x70）。
 bool CPrivateStore::IsAreaNearEntranceDungeon(CUser* user)
 {
     GameWorld* gameWorld = 0;
@@ -1391,15 +1419,20 @@ bool CPrivateStore::IsAreaNearEntranceDungeon(CUser* user)
 // 两轮扫描：state==1 条目经 GetItemInfo 刷新后置 2 并校验（avatar 校验剩余期，
 // 其余回写 +0x07）；CheckTotalItemPrice 通过后把 state==2 条目 DeleteItem 置 3。
 // [b28d-24] DIFF 残191: P167 MISSING vector::operator[]×2（访问方式差异）。ORIG 0x085c7246
-// [b28d-solo-CPrivateStoreMgr] 残 172 行：P292 极性（ORIG `GetState()!=1 continue`
-// 处 sete vs 我们 setne，可修点）+ N4/P30（ORIG `add $0x3c,%edx` vs 4.4
-// `lea 0x3c(%eax),%edx`）+ 帧 0x34 vs 0x44 + trace 具名对象槽（P227）。
+// [b28d-solo-CPrivateStoreMgr] P167 归零（第二循环逐次 op[]×3）；P191 双初始化 +
+// P292 档① 正向包裹已应用（两循环）。残 202 行 = N4/P30 寻址（ORIG `mov this,%edx;
+// add $0x3c,%edx` vs 4.4 `mov this,%eax; lea 0x3c(%eax),%edx`）+ i 槽差 4
+//（N98/N95）+ trace 具名对象槽（P227）。
 bool CPrivateStore::MoveItems()
 {
-    for (unsigned int i = 0; i < 0xe; ++i)
+    // [b28d-solo-CPrivateStoreMgr] P191 双初始化 + P292 档① 正向包裹：
+    // ORIG 0x085c724d/0x085c7254 两条 `movl $0x0,-0x10`（i 声明+for 初始化）；
+    // 0x085c727d `cmp $1,%al; sete %al; test; je <循环尾>` ⇒ `==1` 正向包裹。
+    unsigned int i = 0;
+    for (i = 0; i < 0xe; ++i)
     {
-        if (m_items[i].GetState() != 1)
-            continue;
+        if (m_items[i].GetState() == 1)
+        {
 
         int prevAddInfo2 = (int)m_items[i].m_item.m_addInfo2;
         if (!GetItemInfo(m_pSeller, m_items[i]))
@@ -1426,6 +1459,7 @@ bool CPrivateStore::MoveItems()
         {
             m_items[i].m_item.m_addInfo2 = prevAddInfo2;
         }
+        }
     }
 
     if (CheckTotalItemPrice() != 1)
@@ -1435,22 +1469,26 @@ bool CPrivateStore::MoveItems()
         return false;
     }
 
-    for (unsigned int i = 0; i < 0xe; ++i)
+    // ORIG 0x085c7414 `movl $0x0,-0x10` 单条（复用 i 槽）+ `cmp $2; sete; je` 正向。
+    for (i = 0; i < 0xe; ++i)
     {
-        PrivateStoreItem& item = m_items[i];
-        if (item.GetState() != 2)
-            continue;
-        if (DeleteItem(item))
+        // [b28d-solo-CPrivateStoreMgr] P157/P183：ORIG 逐次 operator[]（3 次：
+        // GetState / DeleteItem 实参 / 写 +0x3d），旧缓存引用只 1 次 ⇒ P167
+        // MISSING operator[]×2。改为每使用点重新下标。
+        if (m_items[i].GetState() == 2)
         {
-            item.m_flag3d = 3;
-        }
-        else
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x637, 5);
-            trace("CPrivateStore [%s][%d]", __PRETTY_FUNCTION__, 0x637);
-            ResetItems();
-            m_errorHandler.Do(0x11);
-            return false;
+            if (DeleteItem(m_items[i]))
+            {
+                m_items[i].m_flag3d = 3;
+            }
+            else
+            {
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x637, 5);
+                trace("CPrivateStore [%s][%d]", __PRETTY_FUNCTION__, 0x637);
+                ResetItems();
+                m_errorHandler.Do(0x11);
+                return false;
+            }
         }
     }
     return true;
@@ -1460,9 +1498,10 @@ bool CPrivateStore::MoveItems()
 // 第一轮把 state==3 条目按类型插回 avatar 背包(reason 0xa)/普通背包(reason 0x12)，
 // 回填槽号后置 4；任一插入负值中断转第二轮回退 state==4→3；全部成功 ResetItems。
 // [b28d-24] DIFF 残173: P167 MISSING getCurCharacName×1（真缺口）。ORIG 0x085c63ca
-// [b28d-solo-CPrivateStoreMgr] 残 317 行：帧 0x140 vs 0xe0（N82，4.1 不复用槽）
-// + N4 寻址（add $0x3c vs lea）+ P292 极性（sete vs setne）。getCurCharacName
-// 计数已核（两侧各 1 次，非缺口）。
+// [b28d-solo-CPrivateStoreMgr] P167 归零（getCurCharacName 两次独立调用，P48）。
+// 残 281 行 = 帧 0x140 vs 0xd0（N82，4.1 不复用槽）+ N4 寻址（add $0x3c vs lea）
+// + P292 极性（sete vs setne）。P191 双初始化+P292 正向包裹实测 281→285 劣化
+//（已回退）⇒ 封顶。
 bool CPrivateStore::RecallPrivateStoreItem()
 {
     unsigned int i = 0;
@@ -1508,11 +1547,11 @@ bool CPrivateStore::RecallPrivateStoreItem()
             addNew = (int)info.m_item.get_add_info();
             addOld = (int)item.m_item.get_add_info();
         }
-        char const* characName = m_pSeller->getCurCharacName();
-        // ORIG 对同一 getter 连调两次取名字（纯 getter，此处复用一次）。
+        // [b28d-solo-CPrivateStoreMgr] P48/P157：ORIG 对同一 getter 连调两次
+        // （P167 差集 getCurCharacName×2，旧缓存形只 1 次）⇒ 实参处各写一次。
         m_pSeller->m_historyLog.PrivateStoreItemAdd(
             (INVEN_TYPE)1, item.m_item, addNew, addOld, (eItemAddReason)0x12,
-            characName, characName);
+            m_pSeller->getCurCharacName(), m_pSeller->getCurCharacName());
 
         item.m_field48 = (unsigned short)slot;
         item.m_flag3d = 4;
@@ -1543,9 +1582,9 @@ bool CPrivateStore::RecallPrivateStoreItem()
 // 按 item space 四路删除来源槽：0=背包(INVEN_TYPE 1, count=+0x07)、1=avatar(reason 4，
 // 成功补发事件)、2=cargo、3=装备栏(INVEN_TYPE 0，成功 send_equip)；其余直接成功。
 // [b28d-24] DIFF 残282: 大函数帧/槽分配 + 分支块序（N82/P112）。ORIG 0x085c68b4
-// [b28d-solo-CPrivateStoreMgr] 残 409 行：cMyTrace 具名对象发射位置（ORIG C1 在
-// getCurCharacNo/Name 之后，P227）+ 帧 0x9c vs 0xac（N82）+ N18a 单段直落
-//（`mov 0x2(%eax),%edi` vs 我们两段）。
+// [b28d-solo-CPrivateStoreMgr] P167 归零。残 357 行 = cMyTrace 具名对象发射位置
+//（ORIG C1 在 getCurCharacNo/Name 之后，P227）+ 帧 0x9c vs 0xac（N82）+ N18a
+// 单段直落（`mov 0x2(%eax),%edi` vs 我们两段）。
 bool CPrivateStore::DeleteItem(PrivateStoreItem& item)
 {
     int sellPrice = item.m_field40;
@@ -1876,11 +1915,10 @@ bool CErrorHandler::Do(int errorCode)
 // 仅统计 state==2 在售条目；可堆叠经 COperator<int>::Product（ORIG 覆写 total 非累加），
 // 不可堆叠累加且非正即失败。返回 total>0。
 // [b28d-24] AE（P167 归零，clean 后 0 残差）。ORIG 0x085c76f0
-// [b28d-solo-CPrivateStoreMgr] P0 清绑：删除原 `register int addInfo asm("ebx")`
-// 与 `register bool nullp __asm__("al")`（全域禁用绑定，N96）；改为实参内联 +
-// 裸 if(pItem==0)。清绑后残 27 行 = ORIG 槽比零 `cmpl $0,-0xc; sete %al; test; je`
-// （4.4 对槽比恒 cmp/jne 直跳，P197④ 源形不可复现）+ 实参/ receiver 求值序
-//（ORIG 先 `mov 0x2(%eax),%eax; mov %eax,%ebx` 再 call G_CDataManager，P23）⇒ N。
+// [b28d-solo-CPrivateStoreMgr] **AE（clean 后 0 残差，83=83）**：P0 清绑（删
+// `register int addInfo asm("ebx")` / `register bool nullp __asm__("al")`，N96）；
+// 槽比零物化改 **P225 while(pItem==0){return 0;}** 复现 ORIG `cmpl $0,-0xc;
+// sete %al; test %al,%al; je`（新范式：4.4 对 if 槽比恒直跳，while 形才出四段）。
 int CPrivateStore::CheckTotalItemPrice()
 {
     int total = 0;
@@ -1897,9 +1935,11 @@ int CPrivateStore::CheckTotalItemPrice()
         // 原码无具名中转 ⇒ 实参内联。
         pItem = G_CDataManager()->find_item((int)entry.m_item.m_addInfo);
         // ORIG +0x78 `cmpl $0x0,-0xc(%ebp); sete %al; test %al,%al; je`：4.1 槽比零
-        // 物化；4.4 对槽比恒 cmp/jne 直跳（P197④）⇒ 源形不可复现，N 封顶。
-        if (pItem == 0)
+        // 物化；4.4 对 if 槽比恒 cmp/jne 直跳（P197④）⇒ 试 P225 while 形复现四段。
+        while (pItem == 0)
+        {
             return 0;
+        }
         if (pItem->is_stackable())
         {
             if (!COperator<int>::Product(entry.m_field40,
@@ -2028,7 +2068,7 @@ int CPrivateStore::GetCommissionPercent()
 // [b28d-solo-CPrivateStoreMgr] 已修真缺口：ORIG 共 4 次 getCurCharacName（trace 2
 // 次 + historyLog 实参 2 次独立调用，P48）——删除 sellerName/buyerName 具名局部、
 // trace 改全表达式临时链（P227，结果入 %esi/%ebx 无槽）、PrivateStoreItemAdd
-// 实参改表达式直写。残 116 行 = N18a 单段 callee-saved 直落不可造 + 帧/槽（N82）。
+// 实参改表达式直写。残 104 行 = N18a 单段 callee-saved 直落不可造 + 帧/槽（N82）。
 int CPrivateStore::BuyItem(int /*slot*/, Inven_Item& item, int gold,
                            int /*commissionBase*/, int /*flag*/, int& outSlot)
 {
@@ -2126,10 +2166,10 @@ int CPrivateStore::BuyItem(int /*slot*/, Inven_Item& item, int gold,
 // 净额入卖方：无 doll 直接 gain_money；有 doll 组邮件文本走系统邮件。
 // slot 参数未读；恒返回 1。
 // [b28d-24] DIFF 残109: P167 EXTRA memset×2（ORIG 无 memset 调用）。ORIG 0x085c97e2
-// [b28d-solo-CPrivateStoreMgr] 已修：EXTRA memset×2 → `char msgBuf[256]={0};
-// char title[21]={0};`（P214③/P202①）；三处条件极性/块序按 ORIG 正向化
-//（isEquipableItemType 正向、isDollCreated 正向 then=邮件、!is_stackable 否定形
-// fall-through=msg_184）。残 56 行 = 块布局/槽号（N82）。
+// [b28d-solo-CPrivateStoreMgr] **AE（clean 后 0 残差，255=255）**：EXTRA memset×2
+// → `char msgBuf[256]={0}; char title[21]={0};`（P214③/P202①）；三处条件极性/块序
+// 按 ORIG 正向化；**真语义 bug 修正**：msg_184/msg_185 的 snprintf 变参错位
+//（count 属 msg_185 分支，0x085c99a8/0x085c9a1f 压栈槽证据）。
 int CPrivateStore::SellItem(int /*slot*/, Inven_Item& item, int gold,
                             int commission, int count, int field7)
 {
@@ -2166,11 +2206,15 @@ int CPrivateStore::SellItem(int /*slot*/, Inven_Item& item, int gold,
         CItem* pItem = G_CDataManager()->find_item((int)item.m_addInfo);
         // ORIG 0x085c99xx `call is_stackable; xor $1; test; je` ⇒ 否定条件 + 非堆叠
         // 分支 fall-through（msg_184）；正向写法少 xor 且块序反。
+        // [b28d-solo-CPrivateStoreMgr] 真语义 bug 修正：ORIG 0x085c99a8（!stackable
+        // fall-through, msg_184）变参 5 个 `GetItemName,gold,commission,GetItemName,
+        // netGold`；0x085c9a1f（stackable, msg_185）变参 6 个含 count（0x1c(%ebp)
+        // 压 0x10(%esp)）。旧码把 count 放在 184 分支 ⇒ 邮件正文参数错位。
         if (!pItem->is_stackable())
         {
             OS_API::snprintf(msgBuf, 0xff,
                              g_scriptStringManager_.findString(4, "game_server_msg_184", 0),
-                             pItem->GetItemName(), count, gold, commission,
+                             pItem->GetItemName(), gold, commission,
                              pItem->GetItemName(), netGold);
         }
         else
@@ -2178,7 +2222,7 @@ int CPrivateStore::SellItem(int /*slot*/, Inven_Item& item, int gold,
             // ORIG 对 GetItemName 连续两次独立调用，保形转写。
             OS_API::snprintf(msgBuf, 0xff,
                              g_scriptStringManager_.findString(4, "game_server_msg_185", 0),
-                             pItem->GetItemName(), gold, commission,
+                             pItem->GetItemName(), count, gold, commission,
                              pItem->GetItemName(), netGold);
         }
         Inven_Item mailItem;   // ORIG 默认构造 W 0x80cb854
@@ -2360,6 +2404,8 @@ int CPrivateStoreMgr::GetStoreSeller(ISeller** out, CUser* user)
 // 查其 store 并登记买家表；两者皆无时回退 +0x04 嵌入 store 的 IBuyer 子对象
 // （this+8）并 SetBuyer 返回 0；命中时 *out 为 store+4 之 IBuyer 接口。
 // [b28d-24] DIFF 残1: ORIG 遗留死 cmpl（P171 照抄）；P167 归零。ORIG 0x085ca7b8
+// [b28d-solo-CPrivateStoreMgr] 残 1 行 = ORIG 0x085ca7b8 段 `cmpl $0x0,-0xc(%ebp)`
+// 无 jcc 的死比较（4.1 对 `if(p==0){}` 删 je 留 cmp；4.4 前端整块 DCE）⇒ N99 封顶。
 int CPrivateStoreMgr::GetStoreBuyer(IBuyer** out, CUser* user, CUser* sellerUser)
 {
     CPrivateStore* store;
@@ -2473,15 +2519,19 @@ void CPrivateStoreMgr::LoadPrivateStore(CUser* user)
 // byte(GetItemAttr)/short(endurance)/int(+0xd)/byte+short(强化类型与值)/put_packet(item)，
 // 回填计数占位并 finalize(true)。返回上柜条数。
 // [b28d-24] DIFF 残54: 协议字段序列化槽序/顺序（P95/P99）。ORIG 0x085cc5bc
-// [b28d-solo-CPrivateStoreMgr] P183：ORIG 每次重算 `sig+i*0x4c+8` 全链，无
-// items 缓存指针槽；宏展开保持表达式直写（宏不产生符号）。P292 档①：ORIG
-// `cmp $3,%al; sete; test; je` ⇒ 正向 `== 3` 包裹替代 `!=3 continue`。
-// 残 106 行 = 寻址链形态：ORIG 每条访问 `mov i; imul $0x4c; add sig; add $8`
-// （4 条，索引先算）；4.4 恒 `mov sig; add $8; mov %eax,%edx; mov i; imul;
-// lea (%edx,%eax,1)`（6 条，基址先算）。实测 4 形（成员下标 / sig+i*S+off 左结合
-// 两序 / unsigned char* 指针算术）均恒基址先算 ⇒ N1 常量折叠 + P30/N4 寻址族
-// 封顶；另 count/i 槽互换属 N98（4.4 按首次使用序分配）。
-#define PS_ITEM(i) (reinterpret_cast<PrivateStoreItem*>(sig->m_items)[(i)])
+// [b28d-solo-CPrivateStoreMgr] 残 39 行：P311 成员数组视图（PrivateStoreItemsView
+// 的 `m_items[14]` 成员数组）把寻址链从 6 条/处降到 ORIG 的 4 条形（102→39）；
+// N93 标量例外调 i/count 槽序（i 零初始化提前）。余为寄存器角色互换 + 一处
+// lea-vs-add（N7/N1）。P292 档① `== 3` 正向包裹已应用。
+// [b28d-solo-CPrivateStoreMgr] P311 成员数组视图：ORIG 0x085cc5bc 每条条目访问
+// 发 `mov i; imul $0x4c; add sig; add $8`（索引先算，4 条）；字节数组 + cast
+// 形 4.4 恒基址先算（6 条）。用具名数组成员视图替代裸字节 cast。
+struct PrivateStoreItemsView
+{
+    char m_pad[8];
+    PrivateStoreItem m_items[14];
+};
+#define PS_ITEM(i) (reinterpret_cast<PrivateStoreItemsView*>(sig)->m_items[(i)])
 int CPacketBufPrivate::MakeNotipacketPrivateStoreInfo(SIG_PRIVATE_STORE* sig)
 {
     clear();
@@ -2490,8 +2540,11 @@ int CPacketBufPrivate::MakeNotipacketPrivateStoreInfo(SIG_PRIVATE_STORE* sig)
     int countIndex = get_index();
     put_byte(0);
 
+    // [b28d-solo-CPrivateStoreMgr] N93 标量例外 + ORIG 槽序：ORIG i@-0x10（深）、
+    // count@-0xc（浅）⇒ 把 i 的零初始化提到 count 之前（4.4 按首次使用序分配）。
+    int i = 0;
     int count = 0;
-    for (int i = 0; i <= 0xd; ++i)
+    for (; i <= 0xd; ++i)
     {
         if (PS_ITEM(i).GetState() == 3)
         {
@@ -2592,8 +2645,8 @@ void CPacketBufPrivate::MakeCmdpacketExitPrivateStore()
 // 仅序列化 GetState()==3 的条目；条目数先写占位字节、循环后回填。
 // [b28d-24] DIFF 残32: 计数器局部槽/循环形状（P25/P31）。ORIG 0x085cc160
 // [b28d-solo-CPrivateStoreMgr] 已修条件极性（`==3` 正向包裹，P292 档①）；
-// 残 78 行 = nowTick/count/i 槽序（N98，4.4 按首次使用序分配）+ 寻址链（N1/P30）+
-// put_binary 实参装载序（P75）。
+// 残 56 行 = nowTick/writtenCount/i 槽序（N98，4.4 按首次使用序分配；声明序互换
+// 实测 66 劣化 ⇒ 封顶）+ 寻址链（N1/P30）+ put_binary 实参装载序（P75）。
 void CPacketBufPrivate::MakeCmdpacketEnterPrivateStore(CUser* sellerUser,
                                                        unsigned short sellerIndex,
                                                        std::vector<PrivateStoreItem>& items)
@@ -2725,7 +2778,7 @@ void CPacketBufPrivate::MakeNotipacketBuyPrivateStoreItem(CUser* buyerUser, int 
 // ORIG _ZN13private_store17CPacketBufPrivate32MakeCmdpacketBuyPrivateStoreItemEP5CUserR10Inven_Itemiiii @0x85cbd38
 // buyerUser=买家 m_pBuyer（收包人，序列化金钱/胜点/cera）；a3/a4 在 ORIG 函数体内从未读取；
 // a5=BuyItem 返回的落位槽位；a6=购买数量（avatar 时为 uid）。
-// [b28d-solo-CPrivateStoreMgr] 残 31 行 = 3 处 `put_int/put_binary(链式调用结果)`
+// [b28d-solo-CPrivateStoreMgr] 残 21 行 = 3 处 `put_int/put_binary(链式调用结果)`
 // 的实参装载序：ORIG `call; mov %eax,%edx; mov this,%eax; mov %edx,0x4(%esp);
 // mov %eax,(%esp)`（实参先算入 edx），4.4 恒 `mov this,%edx; mov %eax,0x4(%esp);
 // mov %edx,(%esp)`（this 先算）。receiver 为 packet this 固定，实参为链式调用
@@ -2739,6 +2792,9 @@ void CPacketBufPrivate::MakeCmdpacketBuyPrivateStoreItem(CUser* buyerUser, Inven
     clear();
     put_header(1, 0x55);
     put_byte(1);
+    // ORIG `call 链; mov %eax,%edx; mov this,%eax; mov %edx,0x4(%esp);
+    // mov %eax,(%esp)`（实参先于 this 装载）；P226 裸语句表达式实测劣化
+    // （21→26）⇒ 保留直写，残差按 P75 跨版本实参装载序封顶。
     put_int(buyerUser->getCurCharacInvenR()->get_money());
     put_int(buyerUser->GetWinPoint());
     put_int(buyerUser->GetCera());

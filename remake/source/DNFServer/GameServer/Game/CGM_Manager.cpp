@@ -63,7 +63,7 @@ unsigned char CGM_Manager::TurnGmMode(unsigned int accId)
 // readGuard(m_lock)；find 未命中返回 0；否则经 operator[] 读 +0 模式字节。
 // [b28d-solo-CGM_Manager 判词 AE] ORIG 60 = our 60（compare_tu AE 口径）。旧 B24D
 //   「N」与 b28c-13「N18a」判词作废：同 TurnGmMode，register bool 局部即直落 %ebx。
-char CGM_Manager::GetCurrentGmMode(unsigned int accId)
+bool CGM_Manager::GetCurrentGmMode(unsigned int accId)
 {
     readGuard<rwLock> guard(&m_lock);
     std::map<unsigned int, CGMRecord>::iterator it = m_gmMap.find(accId);

@@ -30,9 +30,11 @@ class CUser;
 // ），故定义在命名空间外。
 struct FAIR_PVP_SCORE_MODE_COUNT
 {
-    int m_cnt0;  // value+0x00
-    int m_cnt1;  // value+0x04
-    int m_cnt2;  // value+0x08
+    // [b28d-solo-CFairPvPScore 试验] unsigned 字段 + int 形参 ⇒ ORIG 084a5aac
+    // 的 `mov mem,%ecx; mov param,%edx; lea (%ecx,%edx,1)` 四条形（P274）。
+    unsigned int m_cnt0;  // value+0x00
+    unsigned int m_cnt1;  // value+0x04
+    unsigned int m_cnt2;  // value+0x08
 };  // sizeof 0x0c
 
 
@@ -96,16 +98,24 @@ public:
     // add/add+shl、lea (ecx,ea)、add $0x28/0x2c/0x30 尾折叠」六步全链（探针
     // /tmp/l2_p6.cpp r1 与 4.4 逐字同形）⇒ 原码为 2D 数组成员而非 6 标量；
     // m_modeA0..m_modeB2 = m_modeStats[0..1][0..2]，偏移/sizeof 不变（+0x28..0x3c）。
-    int m_modeStats[2][3];  // +0x28（A=m_modeStats[0][0..2]，B=[1][0..2]）
+    // [b28d-solo-CFairPvPScore 试验] P274 判据：unsigned 字段 + int 形参 ⇒
+    // 4.4 产 `mov mem,%edx; mov param,%eax; add %eax,%edx`（ORIG 084a5b4a 形）。
+    unsigned int m_modeStats[2][3];  // +0x28（A=m_modeStats[0][0..2]，B=[1][0..2]）
 
-    int m_field40;              // +0x40（resultKind==2 计数）
-    int m_field44;              // +0x44（resultKind==3 计数）
-    int m_winStreak;            // +0x48（cnt0!=0&&cnt1==0 连胜链长）
-    int m_bestWinStreak;        // +0x4c
+    // [b28d-solo-CFairPvPScore 试验] 四字段 unsigned 化：ORIG MakePacketSocre
+    // 084a5e02/084a5e1f 的 put_int 实参为两段（unsigned 字段→int 形参异型），
+    // UpdateScore 084a5c8c 的 `(unsigned)best < (unsigned)cur` 为单段。
+    unsigned int m_field40;              // +0x40（resultKind==2 计数）
+    unsigned int m_field44;              // +0x44（resultKind==3 计数）
+    unsigned int m_winStreak;            // +0x48（cnt0!=0&&cnt1==0 连胜链长）
+    unsigned int m_bestWinStreak;        // +0x4c
     unsigned int m_dailyPlayCount;       // +0x50（与 SetDailyPlayCount(int) 形参异型化，
                                          // NL7 判据：4.4 store 展开序翻 RHS 先=ORIG 形；
                                          // ORIG jns 钳负后 v≥0，无符号读取无语义差）
-    int m_field54;              // +0x54（上次结算时间）
+    // [b28d-solo-CFairPvPScore] 与 SIG.m_lastPlayTime(int) 异型 ⇒ getData
+    // 084a57d3 / loadData 084a4b25 两段中转（ORIG 实证）；_saveData 直写
+    // SIG 字段不受影响。
+    unsigned int m_field54;     // +0x54（上次结算时间）
 
     unsigned char m_lastTrainingSealCount;        // +0x58
     unsigned char m_lastTrainingSealBonusCount;   // +0x59

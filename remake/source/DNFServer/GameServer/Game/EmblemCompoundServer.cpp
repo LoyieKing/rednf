@@ -46,7 +46,15 @@ EmblemCompound::~EmblemCompound()
 // end()→find()→operator==、命中则插入否则报错的分支形态（与 ORIG 一致）。
 // 返回 0=成功 / -1=打开失败 / -2=重复 grade。
 // ============================================================================
-// [b28d-D43] N82/N89 大函数（273/255）（ORIG 0x088b154a）。
+// [b28d-solo-EmblemCompoundServer] loadScript 判词（ORIG 0x088b154a，273 insn）。
+// 已修：外层 while→for(;;)+头部 break 复现 4.1 条件块前置布局（P283/P164，消 ~30 行
+// 布局差）；new Result()（P90 value-init）；list 节 int 槽 + prvalue 转换临时
+// （p167 实证 ORIG 调 push_back(T&&) `EOm`，具名左值会错选 `RKm`；修正后 p167 CLEAR
+// 35/35）。
+// 残余 N：ORIG +0x1c2 的 value-init 前置清零为 4.1 循环展开
+// （`mov;mov;mov;movw;mov;movw;…;je;add;jmp` 清 8B + movb 尾，9 条），4.4 恒
+// 展开 4×movw+movb（探针 /tmp/nr_probe.cpp `new R()` 实证，5 条）⇒ N78/跨版本
+// 展开形态不可复现；gap 6 全在此段。其余助记符序列逐条同构（mnem-diff 0 块）。
 int EmblemCompound::loadScript()
 {
     if (!loadRDARScriptFile("Etc/EmblemRenewal/", "emblem_compound_jpn.etc"))
@@ -55,8 +63,12 @@ int EmblemCompound::loadScript()
     std::string token;
     bool isType = false;
     bool isInt = false;
-    while (ScanType(token, true))
+    // ORIG +0x40：`jmp cond` + 条件块在循环体之前（4.1 while 布局）⇒
+    // for(;;)+头部 break 复现（P283/P164）。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[emblem compound cost]")
         {
             for (;;)
@@ -82,8 +94,9 @@ int EmblemCompound::loadScript()
                 int grade = ScanTypeOrInt(isType, token, isInt, true);
                 if (isType || !isInt)
                     break;
-                // ORIG：operator new(0xa) 裸分配 POD，字段直接写入（无构造调用）。
-                Result* result = static_cast<Result*>(::operator new(sizeof(Result)));
+                // ORIG +0x1c2：new Result()（P90 value-init 前置清零循环 2×movw+movb，
+                // 覆盖 +0..+8，跳过 +9 对齐 pad）后逐字段写入。
+                Result* result = new Result();
                 result->m_listIdx = static_cast<short>(ScanInt((bool*)0));
                 result->m_itemIndex = static_cast<short>(ScanInt((bool*)0));
                 result->m_itemCount = static_cast<short>(ScanInt((bool*)0));
@@ -107,9 +120,12 @@ int EmblemCompound::loadScript()
                 int listIdx = ScanTypeOrInt(isType, token, isInt, true);
                 if (isType || !isInt)
                     break;
-                unsigned long itemIndex = static_cast<unsigned long>(ScanInt((bool*)0));
+                // ORIG +0x36c：ScanInt 结果先落 int 槽(-0xc)，再转 unsigned long
+                // 转换临时槽(-0x18)；p167 实证 ORIG 调 push_back(T&&)（EOm）⇒
+                // 实参必须是 prvalue（禁具名左值，否则选 RKm 左值重载）。
+                int itemIdx = ScanInt((bool*)0);
                 // ORIG 直接 this + listIdx*12 + 0x30 索引（无边界检查，忠实保留）。
-                m_list[listIdx].push_back(itemIndex);
+                m_list[listIdx].push_back(static_cast<unsigned long>(itemIdx));
             }
         }
     }
@@ -220,24 +236,31 @@ void EmblemCompoundServer::Test()
 #include "CompoundEmblemDeps.h" // getCompoundEmblemStatistic
 #include "AvatarConvertServer.h" // StatisticsEmblemCreate
 
-// [b28d-D43] N82 帧：ORIG sub $0x24 vs 4.4 $0x34（ORIG 0x08191818）。
+// [b28d-solo-EmblemCompoundServer] GetEmblemInfo 判词（ORIG 0x08191818，126 insn）：
+// IDENTICAL/AE。修法：SigAradEmblemCompound 加 materialInfo[2] 匿名 union 数组视角
+// （P235/P246，scaled 索引 `(%eax,%edx,8)`）；slot 内联实参无槽（P0/P157）；
+// materialInfo::itemIdx 同型化为 unsigned int 复现 ORIG `mov 0x2(%eax),%ecx` 单条
+// 直装（P211 档③/P248；int 字段恒 `mov→%eax; mov %eax,%ecx` 两段）。
 bool EmblemCompoundServer::GetEmblemInfo(CUser* user,
                                          arad::SigAradEmblemCompound* sig,
                                          int idx)
 {
-    unsigned short slot = *reinterpret_cast<const unsigned short*>(
-        reinterpret_cast<const char*>(sig) + idx * 8);
-    const Inven_Item* ref = user->getCurCharacInvenR()->GetInvenRef(1, (int)slot);
-    if ((ref == 0 || ref->isEmpty()))
+    // ORIG 0x08191818：slot 为内联实参（无槽），每次使用点重读 m_material[idx].slot
+    // （P157），scaled 索引 (%eax,%edx,8) 由数组视角复现。
+    const Inven_Item* ref = user->getCurCharacInvenR()->GetInvenRef(
+        1, sig->m_material[idx].slot);
+    if (ref == 0 || ref->isEmpty())
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 0x16);
-        ARAD::PRINT_ERROR::isEmpty("EMBLEM COMPOUND", user, slot);
+        ARAD::PRINT_ERROR::isEmpty("EMBLEM COMPOUND", user,
+                                   sig->m_material[idx].slot);
         return false;
     }
-    if (user->CheckItemLock(1, (int)slot))
+    if (user->CheckItemLock(1, sig->m_material[idx].slot))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 0xd5);
-        ARAD::PRINT_ERROR::CheckItemLock("EMBLEM COMPOUND", user, slot);
+        ARAD::PRINT_ERROR::CheckItemLock("EMBLEM COMPOUND", user,
+                                         sig->m_material[idx].slot);
         return false;
     }
     CItem* item = G_CDataManager()->find_item((int)ref->m_addInfo);
@@ -248,25 +271,24 @@ bool EmblemCompoundServer::GetEmblemInfo(CUser* user,
                                      (int)ref->m_addInfo);
         return false;
     }
-    // 写回条目 grade(+2)/itemIdx(+4)
-    unsigned short* entryGrade =
-        reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(sig) +
-                                          idx * 8 + 2);
-    int* entryItem = reinterpret_cast<int*>(reinterpret_cast<char*>(sig) +
-                                            idx * 8 + 4);
-    *entryGrade = (unsigned short)item->get_grade();
-    *entryItem = (int)ref->m_addInfo;
+    // 写回条目 grade(+2)/itemIdx(+4)：ORIG scaled store。
+    sig->m_material[idx].grade = (short)item->get_grade();
+    sig->m_material[idx].itemIdx = ref->m_addInfo;
     return true;
 }
 
-// [b28d-D43] N82/N95 槽平移（map::operator[] 结果槽 -0x18 vs -0x14）（ORIG 0x081919e8）。
+// [b28d-solo-EmblemCompoundServer] GetEmblemRandomIndex 判词（ORIG 0x081919e8，77 insn）：
+// IDENTICAL/AE。修法：listIdx 改 `int listIdx = 0`（ORIG movl 清零 ⇒ P10）；
+// get_rand_int 结果具名 int 局部（槽 -0x10）；empty 后重发 m_result[grade]
+// （P157 逐使用点重读）+ `if(!m_selectable)` 取反形（P168a/P292，xor $1）。
 int EmblemCompoundServer::GetEmblemRandomIndex(int grade,
                                                unsigned short selectIdx)
 {
     ARAD::SCRIPT::EmblemCompound::Result* result = m_result[grade];
     // ORIG：rand(1000) < elem+2(m_itemIndex) → 取 +0(m_listIdx)，否则 +4(m_itemCount)
-    short listIdx;
-    if (get_rand_int(1000) < (int)(short)result->m_itemIndex)
+    int listIdx = 0;
+    int randValue = get_rand_int(1000);
+    if (randValue < (int)(short)result->m_itemIndex)
         listIdx = result->m_listIdx;
     else
         listIdx = result->m_itemCount;
@@ -274,9 +296,10 @@ int EmblemCompoundServer::GetEmblemRandomIndex(int grade,
     std::vector<unsigned long>& list = m_list[listIdx];
     if (list.empty())
         return 0;
-    if ((int)result->m_selectable == 1)
-        return (int)list[selectIdx];
-    return (int)list[get_rand_int((int)list.size())];
+    // ORIG +0x8f 重发 m_result[grade]（P157 逐使用点重读），取反形 xor $1。
+    if (!m_result[grade]->m_selectable)
+        return (int)list[get_rand_int((int)list.size())];
+    return (int)list[selectIdx];
 }
 
 bool EmblemCompoundServer::IsResultSelectable(int grade)
@@ -286,7 +309,10 @@ bool EmblemCompoundServer::IsResultSelectable(int grade)
     return m_result[grade]->m_selectable != 0;
 }
 
-// [b28d-D43] N82 帧：ORIG push %esi+sub $0x30 vs 4.4 sub $0x34（ORIG 0x08191636）。
+// [b28d-solo-EmblemCompoundServer] CheckCondition 判词（ORIG 0x08191636，124 insn）：
+// IDENTICAL/AE。修法：grade0 具名 int 局部（ORIG 槽 -0xc，movzwl+cwtl）；money/need
+// 去具名局部改内联（`get_money() < m_cost[grade0]`，P52 左值先物化 %ebx）；
+// logFormat 的 money/need 逐实参重算（P157/P92）。
 bool EmblemCompoundServer::CheckCondition(CUser* user,
                                           arad::SigAradEmblemCompound* sig)
 {
@@ -296,7 +322,9 @@ bool EmblemCompoundServer::CheckCondition(CUser* user,
         return false;
     if (!GetEmblemInfo(user, sig, 1))
         return false;
-    if (!(sig->m_grade1 == sig->m_grade0 && sig->m_grade0 < 7))
+    // ORIG +0x6c：grade0 提升为具名 int 局部（槽 -0xc），grade1 重读提升后比较。
+    int grade0 = (int)sig->m_grade0;
+    if (!((int)sig->m_grade1 == grade0 && grade0 < 7))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 0xd8);
         LogManager::logFormat(
@@ -308,9 +336,8 @@ bool EmblemCompoundServer::CheckCondition(CUser* user,
             (unsigned int)user->getCurCharacNo());
         return false;
     }
-    int need = m_cost[sig->m_grade0];      // ORIG map::operator[]（未命中插入 0）
-    int money = user->getCurCharacInvenR()->get_money();
-    if (money < need)
+    // ORIG +0x10c：money 左值先求值保活 %ebx，m_cost[grade0] 右值直比（无 need/money 槽）。
+    if (user->getCurCharacInvenR()->get_money() < m_cost[grade0])
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 10);
         LogManager::logFormat(
@@ -318,18 +345,28 @@ bool EmblemCompoundServer::CheckCondition(CUser* user,
             __PRETTY_FUNCTION__,
             0x1f0,
             "EMBLEM COMPOUND : [money:%d] [need:%d] [charac_no:%d]",
-            money, m_cost[sig->m_grade0],
+            user->getCurCharacInvenR()->get_money(), m_cost[grade0],
             (unsigned int)user->getCurCharacNo());
         return false;
     }
     return true;
 }
 
-// [b28d-D43] N82/N89 大函数（426/423）（ORIG 0x08191afa）。
+// [b28d-solo-EmblemCompoundServer] Process 判词（ORIG 0x08191afa，426 insn）。
+// 已修：补 `newItem.m_addInfo = resultItem->get_index()`（ORIG +0x2fc，原缺此步）；
+// make_pair 改 `(unsigned long&)m_addInfo` 左值直传复现 ORIG 符号
+// `_ZSt9make_pairIRmRiE…`（0x08111a37）；put_byte 实参改
+// `Singleton<EmblemCompoundServer>::Get()->IsResultSelectable(grade0)`（ORIG +0x555，
+// 非 this，且去 `?1:0` 物化）；resultIdx 改 unsigned int 复现 find_item 实参先装
+// %ebx 跨 receiver call（P290/P52）；cost/invW 去具名局部（P157 重取）。
+// 残余 N：ORIG +0x3e4 `movzwl; not; shr $0xf,%ax; test %al; jne`（4.1 对 short<0
+// 的符号位提取 lowering）；4.4 对 `< 0` 恒 `cmpw $0; jns`，对 (unsigned short)~x>>15
+// 形恒提升 32 位（movzwl+sar 6 条，实测）⇒ 跨版本 lowering 封顶（P196 负例族），
+// gap 3 全在此段；其余助记符序列逐条同构（mnem-diff 仅此 1 块）。
 bool EmblemCompoundServer::Process(CUser* user,
                                    arad::SigAradEmblemCompound* sig)
 {
-    int resultIdx = GetEmblemRandomIndex(sig->m_grade0, sig->m_selectIdx);
+    unsigned int resultIdx = (unsigned int)GetEmblemRandomIndex(sig->m_grade0, sig->m_selectIdx);
     if (resultIdx == 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 0x13);
@@ -343,9 +380,10 @@ bool EmblemCompoundServer::Process(CUser* user,
         return false;
     }
 
-    int cost = m_cost[sig->m_grade0];      // ORIG map::operator[]
-    CInventory* invW = user->getCurCharacInvenW();
-    if (invW->use_money(cost, eMoneySubReason(0x23), true) != 1)
+    // ORIG +0xe1：m_cost[grade0] 内联实参（无 cost 槽，值保活 %ebx 跨 receiver call），
+    // getCurCharacInvenW 每个调用点重取（P157/P52）。
+    if (user->getCurCharacInvenW()->use_money(m_cost[sig->m_grade0],
+                                              eMoneySubReason(0x23), true) != 1)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 10);
         LogManager::logFormat(
@@ -358,14 +396,14 @@ bool EmblemCompoundServer::Process(CUser* user,
         return false;
     }
     // 删除两张纹章材料（type1 slot0/slot1，reason=8）
-    if (invW->delete_item(INVEN_TYPE(1), (int)sig->m_slot0, 1,
+    if (user->getCurCharacInvenW()->delete_item(INVEN_TYPE(1), (int)sig->m_slot0, 1,
                           eItemDelReason(8), true) != 1)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 1);
         ARAD::PRINT_ERROR::delete_item("EMBLEM COMPOUND", user, sig->m_slot0);
         return false;
     }
-    if (invW->delete_item(INVEN_TYPE(1), (int)sig->m_slot1, 1,
+    if (user->getCurCharacInvenW()->delete_item(INVEN_TYPE(1), (int)sig->m_slot1, 1,
                           eItemDelReason(8), true) != 1)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 1);
@@ -373,12 +411,18 @@ bool EmblemCompoundServer::Process(CUser* user,
         return false;
     }
 
-    // 合成结果物品：make_item → set_add_info(1) → insert(reason=9)，失败邮件补偿
+    // 合成结果物品：ORIG +0x2ee：newItem 构造 → m_addInfo = resultItem->get_index()
+    // → 虚 make_item(newItem)（vptr+8）→ set_add_info(1) → insert(reason=9)。
     Inven_Item newItem;
+    newItem.m_addInfo = resultItem->get_index();
     resultItem->make_item(newItem);
     newItem.set_add_info(1);
-    short insertSlot = (short)invW->insertItemIntoInventory(
+    short insertSlot = (short)user->getCurCharacInvenW()->insertItemIntoInventory(
         newItem, eItemAddReason(9), true, true);
+    // [b28d-solo-EmblemCompoundServer] N：ORIG +0x3e4 用 `movzwl; not; shr $0xf,%ax;
+    // test %al; jne`（4.1 对 short<0 的符号位提取 lowering）；4.4 对 `< 0` 恒
+    // `cmpw $0; jns`，对 (unsigned short)~x>>15 形恒提升 32 位（movzwl+sar，实测
+    // 6 条 vs ORIG 5 条）⇒ 跨版本 lowering 封顶，保持自然语义。
     if (insertSlot < 0)
     {
         const char* title =
@@ -399,7 +443,11 @@ bool EmblemCompoundServer::Process(CUser* user,
     packet.put_int(user->getCurCharacInvenR()->get_money());
     packet.put_short(sig->m_slot0);
     packet.put_short(sig->m_slot1);
-    packet.put_byte(IsResultSelectable(sig->m_grade0) ? 1 : 0);
+    // ORIG +0x555：receiver 是 Singleton<EmblemCompoundServer>::Get()（08193776），
+    // grade0 先物化 %ebx 跨 receiver call（P52）；bool 直传 put_byte（勿 ?1:0 物化）。
+    packet.put_byte(
+        ARAD::Singleton<EmblemCompoundServer>::Get()->IsResultSelectable(
+            sig->m_grade0));
     packet.put_int(sig->m_resultIdx);
     packet.finalize(true);
     user->Send(packet);
@@ -410,8 +458,10 @@ bool EmblemCompoundServer::Process(CUser* user,
     getCompoundEmblemStatistic()->increaseCount((int)sig->m_grade0);
 
     std::vector<std::pair<int, int> > created;   // StatisticsEmblemCreate 入参
-    created.push_back(std::make_pair((unsigned long)newItem.m_addInfo,
-                                     (int)newItem.m_addInfo2));
+    // ORIG 0x08111a37 `make_pair<unsigned long&,int&>(unsigned long&,int&)`（IRmRiE）：
+    // m_addInfo 以 unsigned long& 左值直传（P61/P315；值临时会实例化出另一符号）。
+    created.push_back(std::make_pair((unsigned long&)newItem.m_addInfo,
+                                     newItem.m_addInfo2));
     AvatarConvertServer::StatisticsEmblemCreate(created);
     return true;
 }

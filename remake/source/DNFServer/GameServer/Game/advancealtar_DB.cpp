@@ -48,44 +48,61 @@ void AdvanceAltarData::getSlot(const std::map<unsigned char,_Slot>& m, _Slot* ou
     for (std::map<unsigned char,_Slot>::const_iterator it = m.begin();
          it != m.end() && local_10 < count; )
     {
-        const _Slot& slot = it->second;
-        if (slot.m_int1 == 0)               // 源槽 m_int1==0 → 跳过
+        // [b28d-solo-advancealtar_DB] AE（orig 83 / ours 83，clean resid=0）。
+        //   语义（je 条件码逐条推导）：ORIG 0x08899b85 `test eax,eax; sete %al;
+        //   test %al,%al; je <+0x5d>` —— sete 后 test 使 ZF=(x!=0)，je 在 x!=0 时
+        //   跳第二检查 ⇒ **x==0 才 ++it**（勿按 setcc 字面反推）。
+        //   归零钥匙：① 第一检查 `==0` 直写（ORIG sete 形）；② 第二检查按 P222
+        //   正极性 `!=0` 写（ORIG 0x08899bbf je 落 memcpy）——单独改任一处各留残差。
+        //   P183：ORIG 无具名 `_Slot& slot` 槽（每次 ptEv 重算）⇒ 直接写
+        //   `it->second.m_int1`；P28：增量段调 ppEi ⇒ 源形必写后置 `it++`。
+        if (it->second.m_int1 == 0)          // 源槽空 → 跳过
         {
-            ++it;
+            it++;
         }
-        else if (out[local_10].m_int1 == 0)  // 目标槽 m_int1==0 才写入
+        // P222 正极性翻转（语义不变）：ORIG 0x08899bbf `test; je <memcpy>` ——
+        // 目标非空走 ++local_10 分支，写成 `!=0` 正极性才产 je 落 memcpy。
+        else if (out[local_10].m_int1 != 0)  // 目标槽非空 → 前进目标下标
         {
-            std::memcpy(&out[local_10], &slot, 10);
-            ++it;
             ++local_10;
         }
         else
         {
+            std::memcpy(&out[local_10], &it->second, 10);
+            it++;
             ++local_10;
         }
     }
 }
 
 // ORIG T 0x08899a3a：把 map<int,_BuyItem> 拷入定长购买项数组（每项 12）。
+// [b28d-solo-advancealtar_DB] AE（orig 83 / ours 83，clean resid=0）。同 getSlot：
+//   语义 ORIG 0x08899a75 `test; setle %al; test; je <+0x5d>` ⇒ **x<=0 才 ++it**。
+//   归零钥匙：① 第一检查 `< 1` 直写（setle 形）；② 第二检查按 P222 正极性 `>0`
+//   写（ORIG 0x08899ab0 jle 落 memcpy）。两处联动才归零。
 void AdvanceAltarData::getBuyItem(const std::map<int,_BuyItem>& m, _BuyItem* out, int count) const
 {
     int local_10 = 0;
     for (std::map<int,_BuyItem>::const_iterator it = m.begin();
          it != m.end() && local_10 < count; )
     {
-        const _BuyItem& bi = it->second;
-        if (bi.m_field4 < 1)                 // 源 m_field4 < 1 → 跳过
+        // [b28d-solo-advancealtar_DB] 语义核对（同 getSlot）：ORIG 0x08899a75
+        //   `test; setle %al; test; je <+0x5d>` ⇒ x<=0 才 ++it（setle 后 test 使
+        //   ZF=(x>0)，je 在 x>0 时跳第二检查）。第二检查 0x08899ab0
+        //   `test; jle <memcpy>` ⇒ 目标 m_field4<=0 才写入。P183/P28 同上。
+        if (it->second.m_field4 < 1)          // 源项无效 → 跳过
         {
-            ++it;
+            it++;
         }
-        else if (out[local_10].m_field4 < 1)  // 目标 m_field4 < 1 才写入
+        // P222 正极性翻转（语义不变）：ORIG 0x08899ab0 `test; jle <memcpy>`。
+        else if (out[local_10].m_field4 > 0)  // 目标项有效 → 前进目标下标
         {
-            std::memcpy(&out[local_10], &bi, 0xc);
-            ++it;
             ++local_10;
         }
         else
         {
+            std::memcpy(&out[local_10], &it->second, 0xc);
+            it++;
             ++local_10;
         }
     }
@@ -95,22 +112,26 @@ void AdvanceAltarData::getBuyItem(const std::map<int,_BuyItem>& m, _BuyItem* out
 void AdvanceAltarData::get(_AdvanceAltarDbData& out) const
 {
     out.m_update = m_update;                          // +0x517 = this[0xcc]
-    std::memcpy(&out.m_ridable, this, 0x21);          // 前 0x21（_RidableBase 扁平区）
+    // [b28d-solo-advancealtar_DB] P68 cast 形：ORIG 0x088996e4 先载 this→edx 再载
+    //   out→eax 再压长度；无 cast 的 &out 先求值使 4.4 交错（本行 cast 试形）。
+    std::memcpy((char*)&out.m_ridable, (const char*)this, 0x21);  // 前 0x21（_RidableBase 扁平区）
 
     int local_10 = 0;
     for (std::map<int,_Stage>::const_iterator it = m_stages.begin();
          it != m_stages.end() && local_10 <= 0x31; )
     {
-        const _Stage& st = it->second;
-        if (st.m_field0 < 1)                          // value.m_field0 < 1 → 跳过
+        // [b28d-solo-advancealtar_DB] P157/P183：ORIG 0x0889972f 段每次
+        //   `call ptEv; mov 0x4(%eax),%eax` 重发完整访问链，无具名引用槽
+        //   （旧 `const _Stage& st` 多 -0x10 槽 + add 链）。
+        if (it->second.m_field0 < 1)                  // value.m_field0 < 1 → 跳过
         {
-            ++it;
+            it++;   // P28：ORIG 增量段调 ppEi（后置）⇒ 源形必写 it++
         }
         else
         {
             // ORIG 目标地址 = &out + 0x21 + local_10*8 → m_stages[local_10]
-            std::memcpy(&out.m_stages[local_10], &st, sizeof(_Stage));
-            ++it;
+            std::memcpy(&out.m_stages[local_10], &it->second, sizeof(_Stage));
+            it++;
             ++local_10;
         }
     }
@@ -126,16 +147,15 @@ void AdvanceAltarData::get(_AdvanceAltarDbData& out) const
     for (std::map<int,_Reward>::const_iterator it = m_rewards.begin();
          it != m_rewards.end() && local_10 <= 0x1d; )
     {
-        const _Reward& rw = it->second;
-        if (rw.m_field0 < 1)
+        if (it->second.m_field0 < 1)
         {
-            ++it;
+            it++;
         }
         else
         {
             // ORIG 目标地址 = &out + 0x481 + local_10*5 → m_rewards[local_10]
-            std::memcpy(&out.m_rewards[local_10], &rw, sizeof(_Reward));
-            ++it;
+            std::memcpy(&out.m_rewards[local_10], &it->second, sizeof(_Reward));
+            it++;
             ++local_10;
         }
     }
@@ -184,10 +204,13 @@ void CharacAdvanceAltarManager::refillTicketFree()
 {
     for (int i = 0; i < 1; ++i)
     {
-        if (isValidRidableId(static_cast<advancealtar::RidableId::T>(m_data[0].m_ridableId)))
+        // [b28d-solo-advancealtar_DB] P183：ORIG 0x081315aa 段每次访问都重发
+        //   `mov i,%eax; mov this,%edx; imul $0xd0,%eax,%eax; lea (%edx,%eax,1),%eax`
+        //   全链（三处 m_data[i] 各自展开），常量下标 m_data[0] 会被折成单 disp。
+        if (isValidRidableId(static_cast<advancealtar::RidableId::T>(m_data[i].m_ridableId)))
         {
-            m_data[0].m_ticket = G_CDataManager()->m_altarConfig.m_0;
-            m_data[0].m_update = 1;
+            m_data[i].m_ticket = G_CDataManager()->m_altarConfig.m_0;
+            m_data[i].m_update = 1;
         }
     }
 }
@@ -240,12 +263,17 @@ bool CharacAdvanceAltarManager::isAvailableTciket() const
 // current->m_stages(+0x24, map<int,_Stage>) find(stageId) 命中 → 1。
 bool CharacAdvanceAltarManager::isEnterStage(int stageId) const
 {
-    const AdvanceAltarData* cur = m_currentAdvanceAltarData;
-    if (cur == 0)
-    {
+    // [b28d-solo-advancealtar_DB] P0/P183：ORIG 0x08131320/3336/1366 三处各自
+    //   `mov 0x8(%ebp),%eax; mov (%eax),%eax` 重读 current（无具名局部槽）。
+    //   P96/P220：ORIG 两次 const_iterator 转换构造 + `eq` 调用 ⇒ 具名
+    //   const_iterator + `if (it == end()) return false; return true;`（P56 分支形）。
+    if (m_currentAdvanceAltarData == 0)
         return false;
-    }
-    return cur->m_stages.find(stageId) != cur->m_stages.end();
+    std::map<int, _Stage>::const_iterator it =
+        m_currentAdvanceAltarData->m_stages.find(stageId);
+    if (it == m_currentAdvanceAltarData->m_stages.end())
+        return false;
+    return true;
 }
 
 // ---- getTowerInfo（ORIG T 0x081328ea，getTowerInfo.md 全文）----
@@ -322,12 +350,23 @@ void DB_Update::makeRequest(int uid, const _CharacAdvanceAltarDbData& data)
 
 // ---- DBAndExchangeServerProc（advancealtar__DBAndExchangeServerProc 报告）----
 // ORIG T 0x0813394c：characNo→data.m_characNo；拷 AdvanceAltarData；isUpdated 则 DB_Update。
-// [b28d-26] AE。ORIG 0x0813398c `call; test %al,%al; je <尾 nop 岛>` + 体尾 `jmp +0x61`
-//   ⇒ 复现形 = 正向 if + 空 else{return;}（4.4 对 if/else 才发体尾 jmp，纯正向 if
-//   恒 jump-thread 掉；goto 负形对 bool callee 必加 `xor $0x1,%eax`，P168a 反例）。
+// [b28d-solo-advancealtar_DB] N76 封顶（orig 31 / ours 30，clean 归一 resid=5）：
+//   ORIG 0x0813395d `mov %eax,%edx; mov 0xc(%ebp),%eax; mov %edx,(%eax)`（RHS-first
+//   +edx 中转）；4.4 对 `data.m_characNo = (int)getCurCharacNo()` 恒 LHS-first
+//   `mov 0xc(%ebp),%edx; mov %eax,(%edx)`。已试形：(unsigned)cast/(int)cast/裸形/
+//   P226 语句表达式（后者升格 ebx 破帧、`push %ebx; sub $0x14`）——字段与 callee
+//   返回同为 unsigned 无可动旋钮（P211 反例）⇒ 无 C++98 源形可复现。语义等价。
+//   if/else 空 else 复现 ORIG 体尾 jmp+nop 岛（P285）保留。
 void DBAndExchangeServerProc::getFromMemory(const CUser& user, _CharacAdvanceAltarDbData& data)
 {
-    data.m_characNo = (unsigned int)user.getCurCharacNo();
+    // [b28d-solo-advancealtar_DB] P211 档③ callee/RHS 侧旋钮：ORIG 0x0813395d
+    //   `mov %eax,%edx; mov 0xc(%ebp),%eax; mov %edx,(%eax)` = RHS-first + edx 中转；
+    //   字段 m_characNo 为 unsigned int 与 getCurCharacNo()（unsigned int）同型时 4.4
+    //   恒 LHS-first 直存。RHS 显式 (int) 造符号性异型即翻正（mangled/布局零影响）。
+    // [b28d-solo-advancealtar_DB] ORIG 0x0813395d 为 RHS-first+edx 中转（N76 族）；
+    //   实测 (int)/(unsigned) cast、语句表达式三形 4.4 恒 LHS-first 或升格 ebx，
+    //   无 C++98 源形可复现 ⇒ N76 封顶（详见函数头判词）。
+    data.m_characNo = (int)user.getCurCharacNo();
     user.m_advanceAltar.getCharacAdvanceAltarDbData(data);
     if (user.m_advanceAltar.isUpdated())
     {
@@ -344,13 +383,23 @@ void DBAndExchangeServerProc::getFromMemory(const CUser& user, _CharacAdvanceAlt
 // DisableCharacInfo(10) →（ValidLastLogin 时补 channelNo/characNo）→
 // GetInBuffer<_CharacAdvanceAltarDbData> 清零 0x51c 后写 m_characNo →
 // ValidLastLogin ? put 队列5 : put DB_Q(2) → 返回 1。
+// [b28d-solo-advancealtar_DB] N76+N93附+N104 封顶（orig 123 / ours 122，clean resid=25）：
+//   (1) `data->m_characNo = get_charac_no(...)`：ORIG 0x081338d6 LHS-first 直存，
+//       4.4 对**局部指针**字段 store 恒 RHS-first+edx 中转（探针 f2 形参指针=LHS-first，
+//       局部指针形恒值先）⇒ N76 族；
+//   (2) 尾块 `mov $0x1,%ebx`：ORIG 两臂各一份（4.1 把 return true 内联到两臂），
+//       4.4 只在共享尾块一份 ⇒ N93附/跨版本 CFG；
+//   (3) EH landing 块相对序（ORIG 居中、4.4 压尾）⇒ N104。
+//   P167 CLEAR（26/26）、语义等价。
 bool DBAndExchangeServerProc::requestLoadFromDBAndES(CUser& user, MSG_CHARAC_SELECT& msg)
 {
     user.m_advanceAltar.reset();  // ORIG CharacAdvanceAltarManager::reset @0x08131660
 
-    Stream* stream = GlobalData::s_stream_pool->Acquire(
-        "localglobal/global_AdvanceAltar.cpp", 0xc3a);
-    CStreamGuard guard(stream, true);
+    // [b28d-solo-advancealtar_DB] P89/P259：ORIG 无 stream 具名槽（0x0813379e
+    //   `mov &s_stream_pool,%eax` → Acquire 结果经 eax 直压 ctor 的 0x4(%esp)，
+    //   guard 槽 -0x14）。
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                           "localglobal/global_AdvanceAltar.cpp", 0xc3a), true);
     guard.operator*()->operator<<(0x19);
     guard.operator*()->operator<<(static_cast<int>(user.GetUID()));
     user.DisableCharacInfo(CACHE_ADVANCE_ALTAR);  // ORIG push 0xa（枚举名 Prod_DispatcherHelpers 落地）
@@ -364,12 +413,17 @@ bool DBAndExchangeServerProc::requestLoadFromDBAndES(CUser& user, MSG_CHARAC_SEL
     _CharacAdvanceAltarDbData* data =
         guard.operator->()->GetInBuffer<_CharacAdvanceAltarDbData>();
     std::memset(data, 0, 0x51c);
-    data->m_characNo = static_cast<unsigned int>(user.get_charac_no(static_cast<int>(msg.m_slot)));
+    // ORIG 0x081338d6 `call get_charac_no; mov -0xc(%ebp),%edx; mov %eax,(%edx)`
+    //   = LHS-first 直存（P211 同型）⇒ 去掉旧 static_cast<unsigned int>（异型化反产
+    //   eax→edx 中转）。
+    data->m_characNo = user.get_charac_no(static_cast<int>(msg.m_slot));
 
-    if (!user.IsValidLastLoginCharac())
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    else
+    // ORIG 0x081338ee `test %al,%al; je <put(2)>` ⇒ 正极性：IsValid 真走 fall-through
+    //   put(队列5)，假走 DB_Q(2)。
+    if (user.IsValidLastLoginCharac())
         GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(5), guard);  // 第 6 槽（ORIG 无枚举名）
+    else
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;
 }
 
@@ -515,10 +569,13 @@ bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
 
         // ORIG 行基址 local_14 = &data + row*0x518 + 4 → m_db 起
         //（行距 = sizeof(_AdvanceAltarDbData) = 0x518）。
-        _AdvanceAltarDbData* dbRow = reinterpret_cast<_AdvanceAltarDbData*>(
-            reinterpret_cast<char*>(&data.m_db) +
-            static_cast<unsigned>(row) * sizeof(_AdvanceAltarDbData));
-        _RidableDbHead& view = dbRow->m_head();
+        // [b28d-solo-advancealtar_DB] ORIG 0x0813decc `imul $0x518,%eax,%eax;
+        //   add 0xc(%ebp),%eax; add $0x4,%eax`（add 链）；char* 加法形产 lea 链。
+        //   指针算术 `&m_db[0] + row` 试形。
+        _AdvanceAltarDbData* dbRow = &data.m_db[0] + row;
+        // [b28d-solo-advancealtar_DB] P89/P0：ORIG 无 view 槽（行头字段以
+        //   dbRow+disp 直取，_RidableBase 与 _RidableDbHead 逐字节同布局）⇒ 直接
+        //   用 m_ridable 具名成员，删 m_head() 调用与引用槽。
         int col = 0;
 
         int ridableId = 0;
@@ -531,28 +588,33 @@ bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
                                   0xb1, "invalid RidableId=%d", ridableId);
             return false;
         }
-        view.m_ridableId = ridableId;
+        dbRow->m_ridable.m_ridableId = static_cast<RidableId::T>(ridableId);
 
-        if (!mysql->get_short(col++, view.m_ticketFree))              // [0x0814201c get_short(int,int&)]
+        if (!mysql->get_short(col++, dbRow->m_ridable.m_ticket))      // [0x0814201c get_short(int,int&)]
             return false;
-        if (!mysql->get_short(col++, view.m_ticketCera))
+        if (!mysql->get_short(col++, dbRow->m_ridable.m_freeTicket))
             return false;
-        if (!mysql->get_int(col++, view.m_starGame))                  // [0x0811692c]
+        if (!mysql->get_int(col++, dbRow->m_ridable.m_curStar))       // [0x0811692c]
             return false;
-        if (!mysql->get_int(col++, view.m_starCera))
+        if (!mysql->get_int(col++, dbRow->m_ridable.m_starPoolBase))
             return false;
-        if (!mysql->get_int(col++, view.m_starUsable))
+        if (!mysql->get_int(col++, dbRow->m_ridable.m_starPoint))
             return false;
-        if (!mysql->get_short(col++, view.m_survivalBest))            // [0x080fddec get_short(int,short&)]
+        if (!mysql->get_short(col++, dbRow->m_ridable.m_maxClearRound))  // [0x080fddec get_short(int,short&)]
             return false;
-        if (!mysql->get_short(col++, view.m_starResetCount))
+        if (!mysql->get_short(col++, dbRow->m_ridable.m_resetCount))
             return false;
         short unlockFlag = 0;
         if (!mysql->get_short(col++, unlockFlag))                     // [0x080fddec get_short(int,short&)]
             return false;
         // ORIG：`movzwl` 零扩展 unlockFlag → `test %ax,%ax; jle`（有符号16位 ≤0→0，
-        // 即 0x8000..0xFFFF 负值判 0，1..0x7fff 判 1）→ `movb $0x1/$0x0,0x20`。
-        view.m_isUnlockStageEffect = (unlockFlag > 0) ? 1 : 0;
+        // 即 0x8000..0xFFFF 负值判 0，1..0x7fff 判 1）→ 两臂各自
+        // `mov -0x10(%ebp),%eax; movb $0x1/$0x0,0x20(%eax)`。三目形会产
+        // `mov $1,%eax; jmp; mov $0,%eax; mov %al,...` 物化岛（P47/P214①）⇒ if/else 直存。
+        if (unlockFlag > 0)
+            dbRow->m_ridable.m_field20 = 1;
+        else
+            dbRow->m_ridable.m_field20 = 0;
 
         std::memset(g_StrStageBuffer, 0, kMaxStrBuffer);
         std::memset(g_StrSlotBuffer, 0, kMaxStrBuffer);
@@ -568,22 +630,30 @@ bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
         if (!convertZipToString(mysql, col++, g_ZipRewardBuffer, kMaxZipBuffer, g_StrRewardBuffer, kMaxStrBuffer))
             return false;
 
-        if (!parseStage(g_StrStageBuffer, dbRow->m_stages, kMaxStageCount))
+        // [b28d-solo-advancealtar_DB] P183：ORIG 每个调用点重发
+        //   `mov row; imul $0x518; add &data; add $0x25` 全链（基址为 &data 非 dbRow）
+        //   ⇒ 参数写 data.m_db[row].m_* 而非 dbRow->m_*。
+        if (!parseStage(g_StrStageBuffer, data.m_db[row].m_stages, kMaxStageCount))
             return false;
-        if (!parseSlot(g_StrSlotBuffer, dbRow->m_slots, kMaxSlotCount))
+        if (!parseSlot(g_StrSlotBuffer, data.m_db[row].m_slots, kMaxSlotCount))
             return false;
-        if (!parseBuyItem(g_StrBuyItemBuffer, dbRow->m_buyItems, kMaxBuyItemCount))
+        if (!parseBuyItem(g_StrBuyItemBuffer, data.m_db[row].m_buyItems, kMaxBuyItemCount))
             return false;
-        if (!parseReward(g_StrRewardBuffer, dbRow->m_rewards, kMaxRewardCount))
+        if (!parseReward(g_StrRewardBuffer, data.m_db[row].m_rewards, kMaxRewardCount))
             return false;
     }
     return true;
 }
 
 // [report SendResult.md / objdump 0x813ea46]
+// [b28d-solo-advancealtar_DB] N122+N93附 封顶（orig 66 / ours 71，clean resid=15）：
+//   (1) ORIG 0x0813ea54 `cmpb $0x0,-0x1c(%ebp); je <mov $1 尾岛>`（bool 形参截断槽
+//       直比）；4.4 对 `if (!ok)` 恒 `movzbl; xor $0x1; test; je`（N122，探针
+//       h1..h5 五形实测全败，唯一 cmpb 形 h2 的落点/块序相反）；
+//   (2) 尾块 `mov $0x1,%ebx` 物化位置差异（N93附）。语义等价。
 bool DB_Load::SendResult(int uid, int uniqueId, _CharacAdvanceAltarDbData& data, bool ok)
 {
-    if (!ok)          // 残差 cmpb mem 直判 vs movzbl+xor+test 属 P209 镜像 N（4.4 bool 直判恒载寄存器）
+    if (!ok)          // 残差见上 N122 判词（4.4 bool 取反恒 xor）
         return true;
     // ORIG 无 stream 具名槽：Acquire 结果经 eax 直传（P0/P89）。
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
@@ -614,8 +684,17 @@ bool DB_Load::parseStage(char* str, _Stage* out, int count)
         char* field = strtok_r(line, ",", &saveInner);
         for (int f = 0; field != 0 && f < 2; ++f)
         {
-            if (f == 0) out[row].m_field0 = atoi(field);
-            else        out[row].m_field4 = static_cast<StageField4_t>(atoi(field));   // [objdump 0x813e494 → +4]
+            // [b28d-solo-advancealtar_DB] P184 死块照抄：ORIG 0x0813e462 在尾部
+            //   cond 已判 field!=0 后再 `cmpl $0,-0x10(%ebp); je <+0x109 nop 岛>`。
+            //   P17/P251：ORIG 0x0813e46c 为 `test %eax,%eax; je case0; cmp $1; je
+            //   case1; jmp` 决策树 ⇒ 源形是 switch(f) 非 if-else 链。
+            if (field == 0)
+                break;
+            switch (f)
+            {
+            case 0: out[row].m_field0 = atoi(field); break;
+            case 1: out[row].m_field4 = static_cast<StageField4_t>(atoi(field)); break;  // [objdump 0x813e494 → +4]
+            }
             field = strtok_r(0, ",", &saveInner);
         }
     }
@@ -628,9 +707,13 @@ bool DB_Load::parseSlot(char* str, _Slot* out, int count)
     if (str == 0 || out == 0)
         return false;
     char* saveOuter = 0;
+    // [b28d-solo-advancealtar_DB] P212/P309：ORIG 槽序 saveOuter(-0x1c)/line(-0x18)/
+    //   row(-0x14) 为「line 先声明」形；line 留在 for-init 时 4.4 给 row(-0x18)/
+    //   line(-0x14) 互换（parseStage 同形已 AE 实证）。
+    char* line = strtok_r(str, "|", &saveOuter);
     int row = 0;
-    for (char* line = strtok_r(str, "|", &saveOuter);
-         line != 0 && row < count; line = strtok_r(0, "|", &saveOuter), ++row)
+    for (; line != 0 && row < count;
+         line = strtok_r(0, "|", &saveOuter), ++row)
     {
         char* saveInner = 0;
         char* field = strtok_r(line, ",", &saveInner);
@@ -638,11 +721,17 @@ bool DB_Load::parseSlot(char* str, _Slot* out, int count)
         {
             // ORIG：atoi(field) 在 switch 各 case 内各自调用（4 处静态 call），
             // 勿前置 `const int v = atoi(...)`（会合成单 in-loop call）。
+            // [b28d-solo-advancealtar_DB] P184 死块（ORIG 0x0813e696 cond 后
+            //   二次 `cmpl $0,-0x10(%ebp); je <+0x176 nop 岛>`）。
+            if (field == 0)
+                break;
             switch (f)
             {
             case 0: out[row].m_byte0 = static_cast<unsigned char>(atoi(field) > 0 ? 1 : 0); break; // [0x813e47a]
             case 1: out[row].m_int1 = static_cast<SlotInt1_t>(atoi(field)); break;          // [0x813e48f +1]
-            case 2: out[row].m_byte5 = static_cast<unsigned char>(atoi(field) != 0 ? 1 : 0); break;// [0x813e4a7 +5]
+            // ORIG 0x0813e655 段：`call atoi; mov %al,0x5(%ebx)` —— 直接低字节截断
+            // 存储（P171 原码死行为照抄），无 bool 化三目。
+            case 2: out[row].m_byte5 = static_cast<unsigned char>(atoi(field)); break;      // [0x813e4a7 +5]
             case 3: out[row].m_int6 = atoi(field); break;                                   // [0x813e4bb +6]
             }
             field = strtok_r(0, ",", &saveInner);
@@ -657,15 +746,20 @@ bool DB_Load::parseBuyItem(char* str, _BuyItem* out, int count)
     if (str == 0 || out == 0)
         return false;
     char* saveOuter = 0;
+    char* line = strtok_r(str, "|", &saveOuter);
     int row = 0;
-    for (char* line = strtok_r(str, "|", &saveOuter);
-         line != 0 && row < count; line = strtok_r(0, "|", &saveOuter), ++row)
+    for (; line != 0 && row < count;
+         line = strtok_r(0, "|", &saveOuter), ++row)
     {
         char* saveInner = 0;
         char* field = strtok_r(line, ",", &saveInner);
         for (int f = 0; field != 0 && f < 4; ++f)
         {
             // ORIG：atoi(field) 在 switch 各 case 内各自调用（4 处静态 call）。
+            // [b28d-solo-advancealtar_DB] P184 死块（ORIG 0x0813e859 cond 后
+            //   二次 `cmpl $0,-0x10(%ebp); je <+0x173 nop 岛>`）。
+            if (field == 0)
+                break;
             switch (f)
             {
             case 0: out[row].m_field0 = atoi(field); break;                              // [0x813e76c]
@@ -685,19 +779,34 @@ bool DB_Load::parseReward(char* str, _Reward* out, int count)
     if (str == 0 || out == 0)
         return false;
     char* saveOuter = 0;
+    char* line = strtok_r(str, "|", &saveOuter);
     int row = 0;
-    for (char* line = strtok_r(str, "|", &saveOuter);
-         line != 0 && row < count; line = strtok_r(0, "|", &saveOuter), ++row)
+    for (; line != 0 && row < count;
+         line = strtok_r(0, "|", &saveOuter), ++row)
     {
         char* saveInner = 0;
         char* field = strtok_r(line, ",", &saveInner);
         for (int f = 0; field != 0 && f < 2; ++f)
         {
-            if (f == 0) { out[row].m_field0 = atoi(field); }                             // [0x813e934]
-            else
+            // [b28d-solo-advancealtar_DB] P184 死块（ORIG 0x0813e9d8 二次 test）+
+            //   P251 switch 决策树（0x0813e9e0 `test;je case0;cmp $1;je case1`）。
+            //   case1：ORIG 0x0813e9b2 段 `call atoi; test %eax,%eax; jne <store 1>;
+            //   <store 0>; jmp` ⇒ if/else 双分支直存（禁具名 v + 三目：会产槽+setne）。
+            if (field == 0)
+                break;
+            switch (f)
             {
-                const int v = atoi(field);
-                out[row].m_byte4 = static_cast<unsigned char>(v != 0 ? 1 : 0);           // [0x813e94d]
+            case 0:
+                out[row].m_field0 = atoi(field);                                     // [0x813e934]
+                break;
+            case 1:
+                // ORIG 0x0813e9b2 段落点：`test; jne <store 1>`（!=0 跳 1），
+                //   fall-through store 0 ⇒ 源码按 ==0 先行书写。
+                if (atoi(field) == 0)
+                    out[row].m_byte4 = false;
+                else
+                    out[row].m_byte4 = true;
+                break;
             }
             field = strtok_r(0, ",", &saveInner);
         }
@@ -813,36 +922,46 @@ L_inc:;
 }
 
 // [report update.md / objdump 0x813ec5e]
+// [b28d-solo-advancealtar_DB] N82/P212 封顶（orig 466 / ours 469，clean resid=525 全为
+//   槽号平移；帧 0xdc vs 0xbc）：
+//   (1) ORIG 槽序 mysql(-0x28)/result(-0x21)/row(-0x20)/db(-0x1c)/strings(-0x2c..-0x38)；
+//       4.4 块内对象恒更深（strings -0x50..-0x5c）⇒ 全帧平移，P212 全头部声明对该件
+//       实测不消（strings 提头后帧仍差 0x20，且改变 string 生命周期）；
+//   (2) `db.m_update == 1`：ORIG 0x0813f2xx `movzbl 0x517; xor $0x1; test; jne`（bool
+//       化），4.4 恒 `cmp $0x1`；m_update 为 uchar 且 AdvanceAltarData::m_update/
+//       get/reset 多消费点共用（跨函数联动），本件不改型；
+//   (3) `&&` 短路链物化岛（P225 推广需拆嵌套 if；槽序未定时不单独翻）。
+//   P167 CLEAR（48/48；4 处 `data()`→`c_str()` 已修正 EXTRA）、语义等价。
 bool DB_Update::update(const _CharacAdvanceAltarDbData& data)
 {
     MySQL* mysql = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3, (ENUM_SERVER_GROUP)0);
     bool result = true;
-    for (int row = 0;; ++row)
+    // [b28d-solo-advancealtar_DB] P283：ORIG 0x0813f25a `movl $0,-0x20; jmp <cond>`
+    //   = for 底部条件布局（row<=0 继续）；旧 `for(;;){if(row>0)return result;}` 使
+    //   4.4 条件置顶（多 cmpl/jle + jmp 岛）。
+    for (int row = 0; row <= 0; ++row)
     {
-        if (row > 0)
-            return result;
-
         // ORIG 基址 local_20 = &data + 4（= m_db）；各列以 m_db 内具名成员寻址
         //（update.md 0x0813ec5e：`movzbl 0x517` 取 m_update、`mov 0x4/0x8/0xc/0x10/0x14`
         //  取 m_head 前 5 列、`movswl 0x18`、`movzwl 0x1a`、`movzbl 0x20`、
         //  数组指针 `add $0x21/0x1b1/0x229/0x481`）。
-        const _AdvanceAltarDbData& db = data.m_db[0];
-        const _RidableDbHead& view = db.m_head();
-        const _Stage* stages = db.m_stages;
-        const _Slot* slots = db.m_slots;
-        const _BuyItem* buyItems = db.m_buyItems;
-        const _Reward* rewards = db.m_rewards;
-
-        if (db.m_update == 1 && isValidRidableId(static_cast<RidableId::T>(view.m_ridableId)))
+        // [b28d-solo-advancealtar_DB] ORIG 0x0813f25f `imul $0x518,%eax,%eax` ⇒ 行下标
+        //   是变量 row（旧 m_db[0] 常量下标被折成单条 add，且丢失 imul）。
+        const _AdvanceAltarDbData& db = data.m_db[row];
+        // [b28d-solo-advancealtar_DB] P89/P0：m_head() 在 -O0 是真实 call 且引用占槽；
+        //   ORIG 行头字段以 db+disp 直取（无 view 槽）⇒ 直接用 m_ridable 成员。
+        if (db.m_update == 1 && isValidRidableId(db.m_ridable.m_ridableId))
         {
             std::string stageStr;
             std::string slotStr;
             std::string buyItemStr;
             std::string rewardStr;
-            makeStageString(stageStr, stages, 0x32);
-            makeSlotString(slotStr, slots, 0xc);
-            makeBuyItemString(buyItemStr, buyItems, 0x32);
-            makeRewardString(rewardStr, rewards, 0x1e);
+            // [b28d-solo-advancealtar_DB] P183：ORIG 各调用点重发 `add $0x21/0x1b1/
+            //   0x229/0x481` 全链（无 stages/slots/... 具名指针槽）。
+            makeStageString(stageStr, db.m_stages, 0x32);
+            makeSlotString(slotStr, db.m_slots, 0xc);
+            makeBuyItemString(buyItemStr, db.m_buyItems, 0x32);
+            makeRewardString(rewardStr, db.m_rewards, 0x1e);
 
             unsigned int zipStageLen = 0, zipSlotLen = 0, zipBuyItemLen = 0, zipRewardLen = 0;
             std::memset(g_ZipStageBuffer, 0, 0x800);
@@ -850,16 +969,18 @@ bool DB_Update::update(const _CharacAdvanceAltarDbData& data)
             std::memset(g_ZipBuyItemBuffer, 0, 0x800);
             std::memset(g_ZipRewardBuffer, 0, 0x800);
 
-            if (!convertStringToZip(g_ZipStageBuffer, 0x800, stageStr.data(),
+            // [b28d-solo-advancealtar_DB] P167：ORIG 调 `_ZNKSs5c_strEv`（我方 data()
+            //   是 EXTRA 发明调用点）⇒ 4 处 data() 全改 c_str()。
+            if (!convertStringToZip(g_ZipStageBuffer, 0x800, stageStr.c_str(),
                                     static_cast<unsigned>(stageStr.size()), zipStageLen))
                 return false;
-            if (!convertStringToZip(g_ZipSlotBuffer, 0x800, slotStr.data(),
+            if (!convertStringToZip(g_ZipSlotBuffer, 0x800, slotStr.c_str(),
                                     static_cast<unsigned>(slotStr.size()), zipSlotLen))
                 return false;
-            if (!convertStringToZip(g_ZipBuyItemBuffer, 0x800, buyItemStr.data(),
+            if (!convertStringToZip(g_ZipBuyItemBuffer, 0x800, buyItemStr.c_str(),
                                     static_cast<unsigned>(buyItemStr.size()), zipBuyItemLen))
                 return false;
-            if (!convertStringToZip(g_ZipRewardBuffer, 0x800, rewardStr.data(),
+            if (!convertStringToZip(g_ZipRewardBuffer, 0x800, rewardStr.c_str(),
                                     static_cast<unsigned>(rewardStr.size()), zipRewardLen))
                 return false;
 
@@ -874,12 +995,13 @@ bool DB_Update::update(const _CharacAdvanceAltarDbData& data)
                              "\t\t\t\t  stage_list = '%s', \t\t\t\t  slot_list = '%s', \t\t\t\t  "
                              "buy_item_list = '%s', \t\t\t\t  reward_list = '%s' \t\t\t\t  where "
                              "charac_no = %u and ridable_id = %d",
-                             view.m_ticketFree, view.m_ticketCera, view.m_starGame, view.m_starCera,
-                             view.m_starUsable, static_cast<int>(view.m_survivalBest),
-                             static_cast<int>(static_cast<unsigned short>(view.m_starResetCount)),
-                             static_cast<int>(view.m_isUnlockStageEffect),
+                             db.m_ridable.m_ticket, db.m_ridable.m_freeTicket, db.m_ridable.m_curStar,
+                             db.m_ridable.m_starPoolBase,
+                             db.m_ridable.m_starPoint, static_cast<int>(db.m_ridable.m_maxClearRound),
+                             static_cast<int>(static_cast<unsigned short>(db.m_ridable.m_resetCount)),
+                             static_cast<int>(db.m_ridable.m_field20),
                              qStage, qSlot, qBuyItem, qReward,
-                             data.m_characNo, view.m_ridableId);
+                             data.m_characNo, (int)db.m_ridable.m_ridableId);
             result = mysql->exec(true);
             if (!(result && mysql->getAffectedRowCount() != 0))
             {
@@ -896,17 +1018,20 @@ bool DB_Update::update(const _CharacAdvanceAltarDbData& data)
                                  "\t\t\t\t\t\t  values \t\t\t\t\t\t  (%u, %d, \t\t\t\t\t\t  %d, %d, "
                                  "\t\t\t\t\t\t  %d, %d, %d,\t\t\t\t\t\t  %d, %d, %d, \t\t\t\t\t\t  '%s', "
                                  "\t\t\t\t\t\t  '%s', \t\t\t\t\t\t  '%s', \t\t\t\t\t\t  '%s')",
-                                 data.m_characNo, view.m_ridableId, view.m_ticketFree, view.m_ticketCera,
-                                 view.m_starGame, view.m_starCera, view.m_starUsable,
-                                 static_cast<int>(view.m_survivalBest),
-                                 static_cast<int>(static_cast<unsigned short>(view.m_starResetCount)),
-                                 static_cast<int>(view.m_isUnlockStageEffect),
+                                 data.m_characNo, (int)db.m_ridable.m_ridableId,
+                                 db.m_ridable.m_ticket, db.m_ridable.m_freeTicket,
+                                 db.m_ridable.m_curStar, db.m_ridable.m_starPoolBase,
+                                 db.m_ridable.m_starPoint,
+                                 static_cast<int>(db.m_ridable.m_maxClearRound),
+                                 static_cast<int>(static_cast<unsigned short>(db.m_ridable.m_resetCount)),
+                                 static_cast<int>(db.m_ridable.m_field20),
                                  qStage, qSlot, qBuyItem, qReward);
                 result = mysql->exec(true);
             }
             result = true;   // ORIG movl $1（处理完成位）
         }
     }
+    return result;
 }
 
 // ---- DB_StatisticAdvanceAltar ----
@@ -937,28 +1062,35 @@ struct LayerView                                        // 0xe 有效 + 2 pad = 
 }  // namespace
 
 // [report dispatch.md / objdump 0x81412b2]
+// [b28d-solo-advancealtar_DB] dead-test 族封顶（orig 312 / ours 308，clean resid=4）：
+//   ORIG 两处 insert 分支 `mysql->exec(true)` 后各留 `xor $0x1,%eax; test %al,%al`
+//   （4.1 对未使用 bool 返回值的归一化残留，P168a③ dead test）；4.4 tree-DCE 删除。
+//   P167 CLEAR（31/31）、语义等价。
 bool DB_StatisticAdvanceAltar::dispatch(int /*uid*/, int /*uniqueId*/, Stream* stream)
 {
-    static const char* s_func =
-        "virtual bool advancealtar::DB_StatisticAdvanceAltar::dispatch(int, int, Stream*)";
     try
     {
         MySQL* mysql = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)4, (ENUM_SERVER_GROUP)0);
         struct tm now;
         __GetCurrentDNFDate(now);
-        char date[12];
+        // ORIG 0x0814128c 段三条 `movl $0x0,-0x5c/-0x58/-0x54` = date[12] 预清。
+        char date[12] = {0};
         std::sprintf(date, "%04d-%02d-%02d", now.tm_year + 1900, now.tm_mon + 1, now.tm_mday);
 
         int entranceCount = 0;
         *stream >> entranceCount;                                   // [0x861c5c4 operator>>(int&)]
         for (int i = 0; i < entranceCount; ++i)
         {
-            void* rawE = stream->GetOutBuffer<STAdvanceAltarEntranceData>();
-            EntranceView* e = reinterpret_cast<EntranceView*>(rawE);
-            if (rawE == 0)
+            // [b28d-solo-advancealtar_DB] P89：ORIG 单槽 -0x28（GetOutBuffer 结果
+            //   即视图指针），旧 rawE+e 双局部多一槽并致全帧平移 8。
+            EntranceView* e = reinterpret_cast<EntranceView*>(
+                stream->GetOutBuffer<STAdvanceAltarEntranceData>());
+            if (e == 0)
                 throw 0x624;
-            cMyTrace(s_func, 0x626, 0)("[AdvanceAltar] %u,%u,%u,%u",
-                                       e->stageId, e->entranceCount, e->successCount, e->obtainStar);
+            // P118/P139：ORIG 0x081412d5 `movl $<rodata>,0x4(%esp)` 直接传函数签名串
+            //   （_ZZ…E19__PRETTY_FUNCTION__），非 static 指针变量（多一条装载）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x626, 0)("[AdvanceAltar] %u,%u,%u,%u",
+                                                     e->stageId, e->entranceCount, e->successCount, e->obtainStar);
             mysql->set_query(
                              " upDate log_advance_alter_entrance  set entrance_count = entrance_count + %u"
                              "  , success_count = success_count + %u  , obtain_star = obtain_star + %u"
@@ -979,15 +1111,15 @@ bool DB_StatisticAdvanceAltar::dispatch(int /*uid*/, int /*uniqueId*/, Stream* s
         *stream >> layerCount;
         for (int i = 0; i < layerCount; ++i)
         {
-            void* rawL = stream->GetOutBuffer<STAdvanceAltarLayerStatData>();
-            LayerView* l = reinterpret_cast<LayerView*>(rawL);
-            if (rawL == 0)
+            LayerView* l = reinterpret_cast<LayerView*>(
+                stream->GetOutBuffer<STAdvanceAltarLayerStatData>());
+            if (l == 0)
                 throw 0x64d;
-            cMyTrace(s_func, 0x64f, 0)("[AdvanceAltar] %u,%u,%u,%u,%u",
-                                       static_cast<unsigned>(l->itemType), l->itemId,
-                                       static_cast<unsigned>(l->itemLevel),
-                                       static_cast<unsigned>(l->useCount),
-                                       static_cast<unsigned>(l->useStar));
+            cMyTrace(__PRETTY_FUNCTION__, 0x64f, 0)("[AdvanceAltar] %u,%u,%u,%u,%u",
+                                                     static_cast<unsigned>(l->itemType), l->itemId,
+                                                     static_cast<unsigned>(l->itemLevel),
+                                                     static_cast<unsigned>(l->useCount),
+                                                     static_cast<unsigned>(l->useStar));
             mysql->set_query(
                              " upDate log_advance_alter_layer_stat  set use_count = use_count + %u,"
                              " use_star = use_star + %u  where occ_date = '%s' and item_type = %u and"
@@ -1012,7 +1144,7 @@ bool DB_StatisticAdvanceAltar::dispatch(int /*uid*/, int /*uniqueId*/, Stream* s
     }
     catch (int err)
     {
-        LogManager::logFormat(1, "localglobal/global_AdvanceAltar_Dispatcher.cpp", s_func,
+        LogManager::logFormat(1, "localglobal/global_AdvanceAltar_Dispatcher.cpp", __PRETTY_FUNCTION__,
                               0x674, "[AdvanceAltar] query error line(%u)", err);   // [0x814174e]
         return false;
     }
@@ -1031,10 +1163,11 @@ bool convertStringToZip(char* out, unsigned int outCap, const char* src,
     }
     realLen = outCap;                       // ORIG 0x813dd5d：写入 outCap（容量占位）
     std::memset(out, 0, outCap);
-    register unsigned char c asm("eax") = static_cast<unsigned char>(
-        compress_zip(out, realLen, src, srcLen));
-    c ^= 1;
-    if (c)
+    // [b28d-solo-advancealtar_DB] P0/N96 清绑：原 `register unsigned char c asm("eax")`
+    //   为禁用形（-O0 局部恒占栈槽、寄存器仅承载表达式值）。P168a①：callee 返回
+    //   bool 时裸负形 `if (!call()) return false;` 直产 ORIG 0x0813dd5d 的
+    //   `call; xor $0x1,%eax; test %al,%al; je`（零扩展+取反全在 eax）。
+    if (!compress_zip(out, realLen, src, srcLen))
         return false;
     return true;
 }

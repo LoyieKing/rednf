@@ -40,8 +40,17 @@ struct MSG_STATIC_COMMAND
 {
     unsigned char m_pad00[0xd];  // +0x00..+0x0c
     unsigned char m_type0d;      // +0x0d（类别 byte）
-    int m_value0e;               // +0x0e（find_item 参数 = 内联 stItemPos_t 起点；
-                                 //  ORIG OnPutItemForEnchant 访问 +0xe 实证）
+    // +0x0e（find_item 参数 = 内联 stItemPos_t 起点；ORIG OnPutItemForEnchant 访问
+    // +0xe 实证）。匿名 union 双视角（P235/P254）：OnPutItemForEnchant 走 int 视角
+    // （与 _PutItemForEnchant(int) 同型 ⇒ 单段 `mov 0xe(%eax),%edx`）；
+    // OnTryEnchant 走 unsigned 视角（与 find_item(int) 异型 ⇒ 4.4 复现 ORIG 两段
+    // 升格 `mov 0xe(%eax),%eax; mov %eax,%ebx`，探针 /tmp/probe_p254d.cpp f1/f2 实证）。
+    // sizeof 0x12 / 偏移 +0xe / mangled 均不变。
+    union
+    {
+        int m_value0e;
+        unsigned int m_value0eU;
+    };
 };                               // sizeof 0x12（pack(1)）
 #pragma pack(pop)
 #endif
@@ -303,8 +312,13 @@ public:
     static STExpertJobEtcScript* GetEtcScript();  // ORIG T 0x085d1e3a（同上）
     int OnCreateDisjointStore(CUser* user, const char* name, int level, int x,
                               int y);    // ORIG T 0x085d2d08
-    int get_disjoint_result_(CItem* item, Inven_Item* inventItem, int count,
-                             DisJointResult& result, bool flag, CUser* user);  // ORIG T 0x085d234a
+    // ORIG T 0x085d234a：体内首参读 0x8(%ebp)=item、全程无 this（0x8=item/
+    // 0xc=invenItem/0x10=count/0x14=result/0x18=flag/0x1c=user），且
+    // get_disjoint_result 调用点仅压 6 槽（0x0..0x14）⇒ static 语义实证
+    // （P245/P281；static 不入 mangling，符号名不变）。
+    static int get_disjoint_result_(CItem* item, Inven_Item* inventItem,
+                                    int count, DisJointResult& result, bool flag,
+                                    CUser* user);  // ORIG T 0x085d234a
     int complete_disjoint(CUser* requestUser, PacketGuard& packet);   // ORIG T 0x085d31a0
     int get_disjoint_result(CItem* item, Inven_Item* inventItem,
                             DisJointResult& result, CUser* user);     // ORIG W 0x082347ec
@@ -430,7 +444,10 @@ private:
 // ---- 自由函数（OnlyOrig_CreatureJob 批；定义 ExpertJobOnlyMaterial.cpp）----
 CItem* FindMonsterCard(CItem* recipe);                                        // ORIG T 0x0849be32
 void GetRecipeInputItems(CItem* recipe, std::vector<std::pair<int, int> >& inputs);   // ORIG T 0x0849b734
-int IsExistRecipeItem(CUser* user, CItem* recipe, bool onlyInputs);           // ORIG T 0x0849b820
+// ORIG T 0x0849b820。bool（P292/P248 档①）：ORIG 调用点 _DoEnchant 0x127
+// `xor $1,%eax; test %al,%al; je`（无 setne）⇒ callee 单字节 bool 返回；
+// 返回类型不入 mangled，定义体 return 0/1 不变（ExpertJobOnlyMaterial.cpp 待属主同步）。
+bool IsExistRecipeItem(CUser* user, CItem* recipe, bool onlyInputs);
 bool DelMaterialOfRecipe(CUser* user, std::vector<std::pair<int, int> >& materials,
                          int slot, PacketGuard* packet, bool& changed,
                          int bodyCount);                                      // ORIG T 0x0849b957

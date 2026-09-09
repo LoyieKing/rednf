@@ -104,7 +104,24 @@ public:
     void clear();   // ORIG W 0x086947d8 _ZN10CommonTime5clearEv（_Charac_info::Reset 消费；定义 owner 待分派）
     void GetCreateTime(char* buf) const;   // ORIG T 0x082a41e0（定义 CommonTime.cpp；getCharacInfoDetail 消费）
 
-    char m_pad[0x14];   // 与 _Charac_info +0x39 对齐（0x14 字节）
+    // [b28d-solo-GameMain R2] 匿名 union 双视角（P235/P311）：ORIG ShowLogo
+    // 0x0829f9e1..0x0829fa01 以 `movzbl -0x14..-0x18(%ebp),%eax; movsbl` 单条
+    // disp 读 5 个字节（min/hour/day/month/year），我方经 m_pad[i] 数组索引恒
+    // lea+add。加具名标量视角后逐条同形；sizeof(CommonTime)=0x14、全部偏移、
+    // mangled、vtable 零变化（union 两视角等宽 0x14）。
+    union
+    {
+        char m_pad[0x14];   // 与 _Charac_info +0x39 对齐（0x14 字节）
+        struct
+        {
+            signed char m_year;   // +0x00
+            signed char m_month;  // +0x01
+            signed char m_day;    // +0x02
+            signed char m_hour;   // +0x03
+            signed char m_min;    // +0x04
+            char m_rest[0xf];     // +0x05
+        };
+    };
 };
 
 class CReliablePerson
@@ -255,12 +272,19 @@ public:
     int _AddStackItem(const Inven_Item& item, int slot);
     void _AddItem(const Inven_Item& item, int slot);
     bool delete_item(int idx, int count, eItemDelReason reason);  // ORIG bool 返回
-    int move_item(int from, int to);
+    // b28d-solo-CUserStatC（P292 档①）：ORIG 0x0866080d 调用点 `call; xor $0x1,%eax;
+    // test %al,%al; je <then>` ⇒ 返回 bool；int 恒产 `test %eax; setne %al`（多 2 条）。
+    // 返回类型不入 mangled/布局；消费点全仓仅 CUserStatC.cpp:507；定义 CCargo.cpp:376 由 Main 同步。
+    bool move_item(int from, int to);
     void update_item(int idx, const Inven_Item& item);
     void _ResetSlot(int idx, eItemDelReason reason);
 
     // ---- 查询 ----
-    int check_slot_empty(int idx) const;
+    // b28d-solo-CUserStatC（P292 档①）：ORIG 0x0865fa5a/0x086621f6 调用点
+    // `call; xor $0x1,%eax; test %al,%al; je`（3 条）⇒ 返回 bool；int 恒产
+    // `test %eax,%eax; sete %al; test %al,%al`（4 条）。返回类型不入 mangled/
+    // 布局；消费点全仓仅 CUserStatC.cpp；定义 CCargo.cpp:414 需同步（已上报 Main）。
+    bool check_slot_empty(int idx) const;
     int check_item_exist(int itemIdx) const;
     int get_empty_slot() const;
     int _GetItemCount();
@@ -479,7 +503,7 @@ struct CharacInfoFields
     unsigned char m_isInitSkillFlag;       // +0xeb4
     unsigned char m_oneDayLetheFlag2ND;    // +0xeb5
     unsigned char m_isInitSkillFlag2ND;    // +0xeb6
-    unsigned char m_firstTimeLogin;        // +0xeb7
+    bool m_firstTimeLogin;                 // +0xeb7（[b28d-Main 代落·S336 P235/P292] uchar→bool：ORIG IsFirstTimeLogin 0x08162338 体为 `movzbl; ret` 无 setne ⇒ 字段与返回同型 bool；1 字节/偏移不变）
     unsigned char m_saveDemensionInout;    // +0xeb8
     unsigned char m_demensionInout[6];     // +0xeb9（ORIG 宽度实证：CParty
                                            //   CheckEnterDimensionDungeon 0859f510
@@ -539,7 +563,7 @@ struct CharacInfoFields
     unsigned char m_curEquipslotFlag;      // +0x1275
     unsigned char m_curChannelEquipslotSwitch;  // +0x1276
     unsigned char m_curExpandEquipslotSwitch;   // +0x1277
-    unsigned char m_bringUpRewardFlag;     // +0x1278
+    bool m_bringUpRewardFlag;              // +0x1278（[b28d-Main 代落·S350 P235/P292] uchar→bool：ORIG getter 体 0x08110d76 无 setne + 调用点 0x0810ff7b `call; test %al,%al; jne` ⇒ 字段/返回同型 bool；1 字节/偏移不变）
     unsigned char m_curUseBringUpMaterialCount; // +0x1279
     unsigned char m_curUseBringUpMaterialTotal; // +0x127a
     unsigned char m_growthPowerExpRewardRight;  // +0x127b
@@ -1026,11 +1050,14 @@ public:
     void resetCurUseBringUpMaterialCount();
     unsigned char getCurUseBringUpMaterialTotal() const;
     void setCurUseBringUpMaterialTotal(unsigned char total);
-    unsigned char getBringUpRewardFlag() const;
+    bool getBringUpRewardFlag() const;   // [b28d-Main 代落·S350 P292] uchar→bool
     void setBringUpRewardFlag(bool flag);
     int getCurCharacLastPlayDungeonIndex();
     void setCurCharacLastPlayDungeonIndex(unsigned int index);
-    unsigned char is_growth_power_exp_reward_right() const;
+    // [b28d-Main 代落·S302 P292/P248档①] unsigned char→bool：ORIG 0x0868db45/
+    // 0x0868dbfb/0x0868dc00 三处调用点均 `call; xor $0x1,%eax; test %al,%al; je`。
+    // 返回类型不入 mangled。
+    bool is_growth_power_exp_reward_right() const;
     void set_growth_power_exp_reward_right(bool flag);
     unsigned char get_growth_power_reward() const;
     void set_growth_power_reward(int reward);
@@ -1053,7 +1080,7 @@ public:
     bool IsCurCharacVisible();  // ORIG 0x0868bee4 mov $1/$0,%eax 直返（bool ABI）
     void SetVisible();
     void SetInvisible();
-    unsigned char IsFirstTimeLogin();
+    bool IsFirstTimeLogin();   // [b28d-Main 代落·S336 P292] uchar→bool（ORIG 调用点 0x08161d0b `call; test %al,%al; je` 无 setne）
     void SetFirstTimeLogin(bool flag);
     bool isDisguiseCharac();    // ORIG 0x0822f8f6；调用点 0x0821b4d8 xor $1 判据（bool-only）
     unsigned char getDisguiseKind();

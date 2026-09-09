@@ -131,7 +131,7 @@ Inven_Item* CAccountCargo::GetSlotRef(int slot)
 }
 
 // ---- 插入条件 / 插入 / 删除 / 移动 ----
-int CAccountCargo::CheckInsertCondition(Inven_Item& item)
+bool CAccountCargo::CheckInsertCondition(Inven_Item& item)
 {
     // [b28d-solo-CAccountCargo 判词·DIFF（N 封顶）] ORIG 0x08289a4a：172 vs 175。
     // 已修真 bug：①0x08289bc6 虚调用 vptr+0x10 = _ZTV5CItem slot 4 = IsAvatarItem
@@ -244,7 +244,7 @@ int CAccountCargo::InsertItem(Inven_Item& item, int slot)
     return ret;
 }
 
-int CAccountCargo::DeleteItem(int slot, int count)
+bool CAccountCargo::DeleteItem(int slot, int count)
 {
     // [b28d-solo-CAccountCargo] ORIG 0x08289e3c：两个独立早返（P133 拆守卫，
     // 各自 `mov $0; jmp` 出口）+ `isEquipableItemType` 正极性（ORIG `test %al;
@@ -296,7 +296,7 @@ int CAccountCargo::GetEmptySlot()
     return -1;
 }
 
-int CAccountCargo::CheckSlotEmpty(int slot)
+bool CAccountCargo::CheckSlotEmpty(int slot)
 {
     // P168a ① 裸形（CheckValidSlot 返回 bool）：ORIG `xor $1; test %al,%al;
     // je BODY; mov $0,%eax; jmp end; BODY: …` —— return 0 块在前、命中路径跳走。
@@ -317,7 +317,7 @@ int CAccountCargo::GetSpecificItemSlot(int itemIdx)
     return -1;
 }
 
-int CAccountCargo::CheckStackLimit(int slot, int itemIdx, int count)
+bool CAccountCargo::CheckStackLimit(int slot, int itemIdx, int count)
 {
     // [b28d-solo-CAccountCargo] ORIG 0x0828a670：G_CDataManager 结果无槽往返
     // （P0 内联实参，禁 dm 具名局部）；ci 槽 -0x14 → si 槽 -0x10 → sum 槽 -0xc

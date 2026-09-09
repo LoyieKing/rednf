@@ -86,7 +86,7 @@ public:
     void SetIDX(int idx);
     void lock();
     void unlock();
-    char IsLocked();
+    bool IsLocked();  // ORIG remove_item 0x0852bfe3 `call; test %al,%al; je`（无 setne）⇒ bool（P292）
     void _SetLock(bool flag);
     bool is_empty();  // ORIG 0x82343a0 movzbl 0x1c + xor$1 = bool 返回
     int get_index();

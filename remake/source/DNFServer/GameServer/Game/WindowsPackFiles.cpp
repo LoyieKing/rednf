@@ -22,6 +22,21 @@
 //   CompleteLoadingWindowsExeFiles 279/281 N91（EXTRA Interval D1×2）；
 //   ReadPeHeader 551/532 N82（P167 MISSING 迭代器遍历×2 + IntervalSet 段，我方索引形）。
 //   注：本清单含 13 行（TSV 10 件 + 3 件 D58 已判同 TU 归因）。
+// [b28d-solo-WindowsPackFiles 判词汇总 · 单文件泳道] 8 件
+//   （明细 /tmp/b28d_solo_WindowsPackFiles_result.tsv）：
+//   AE/IDENTICAL 5：WindowsExeFileFamily::GenerateRange（P211 档③ 成员 unsigned long
+//     + P198① 两句式预清 + 4 形槽序探针 genD）、WindowsDataFileFamily::GenerateChecksum
+//     （迭代器形 + 正向 if + P247 8 字节视图）、WindowsExeFileFamily::GenerateChecksum
+//     （同型）、LoadWindowsFile（exe/data 域序镜像翻正 + 单 return false 共享尾 +
+//     嵌套守卫拆 && 物化）、WindowsCodeProtectorServer::GenerateChecksum
+//     （P198① 预清 + if(m_loaded) 单出口包裹 + 扁平 else-if + (int)size() setle）。
+//   N 封顶 3：MakeCommonWindowsExeConstantSections（N95/N82，p167 CLEAR 20/20）、
+//     CompleteLoadingWindowsExeFiles（N95/N89，p167 CLEAR 37/37）、ReadPeHeader
+//     （P165 双份展开/N82/N89，p167 差集为等价改写形态）。
+//   .h 改动 2（均已 R2 广播 + 消费点核对）：WindowsPackFiles.h m_curSectionIndex
+//     int→unsigned long（P211 档③）；CodeHackChecksum.h CodeHackCheckRangeEx
+//     匿名 union {m_start104/m_size108; CodeHackCheckRange m_range;}（P247）。
+//   P0：本文件无 register asm 绑定（0 命中，无需清绑）。
 #include "WindowsPackFiles.h"
 #include "AdvanceAltarZip.h"
 #include "MySQL.h"
@@ -405,6 +420,19 @@ WindowsExeFile::~WindowsExeFile()
 //    （local_38）——前批两处误读已修正。
 bool WindowsExeFile::ReadPeHeader()
 {
+    // [b28d-solo-WindowsPackFiles] verdict=DIFF，N 封顶（P165 双份物理展开未还原 +
+    // N82 具名局部/槽号 + N89 模板实例）：orig_insns=551（>500，按 §6.2 三件套）。
+    // p167：MISSING = Interval 迭代器族 ×2 + {IntervalSet::C1, Interval::C1(long,long),
+    // AddInterval, operator new, push_back, _Unwind_Resume} ×1；EXTRA =
+    // vector<Interval>::operator[] ×2。差集性质 = **等价改写形态**（见下），非语义缺口：
+    // ① ORIG 在「非可执行解剖」与「可执行」两分支各物理展开一份
+    //    `IntervalSet workSet; Interval base; AddInterval; 遍历 new/push_back`（P165
+    //    的循环抽象 vs ORIG 物理内联展开，两分支互斥故语义等价）；
+    // ② ORIG 两处遍历走迭代器（begin/end/operator*/ppEv），我方为索引形；
+    // ③ ORIG 头部另有 img@-0x68 / pe@-0x60 / p@-0x5c / sig@-0x64 / fileHdr@-0x58 /
+    //    optHdr@-0x54 具名局部中转（P0 槽往返 ⇒ 原码有具名局部），我方为表达式直读。
+    // 语义已逐段核（PE 签名/节数/可选头/节表遍历/目录减法/导入表 hint-name-dll-table/
+    // 入口头 10B/区间遍历建节），未发现真语义 bug；残余全为上述形态差。
     if (m_image == 0)
     {
         return false;
@@ -560,20 +588,30 @@ L_empty:;
 bool WindowsExeFile::MakeCommonWindowsExeConstantSections(
     const IntervalSet& intervals)                            // 0x085741c6
 {
+    // [b28d-solo-WindowsPackFiles] verdict=DIFF，N 封顶（N82/N95 槽号 + 4.4 C1Ev 展开差）：
+    // p167 CLEAR 20/20（调用点多集全等，无发明/缺失调用）；fresh 150/164（我方少 14 条）。
+    // 已复现：头部 4 枚构造序（iterator C1Ev×2 + Interval C1Ev×2，ORIG +0x8..+0x2f）、
+    // 短路物化守卫 `call size; test; je <mov$1>; call sections.size; test; jne <mov$0>`、
+    // 尾部 dead size 具名 store（P171）。残余 = 4.4 槽基恒 ebp-8 起致全帧槽号浅移 4
+    // （N95）+ 4.4 对 Interval 死局部 C1Ev 的内联/中转差（ORIG 4.1 逐条发射），无语义缺口。
     // ORIG 0x085741c6 逐段：两枚 Interval 默认构造（local_48 + local_40 槽对）
-    // → clear（在合法检查**前**）→ `intervals.size()==0 || sections.size()!=0`
-    // 的 bVar 双否链 → 双层迭代器循环（每轮 end/operator!=/operator*/++）；
+    // → clear（在合法检查**前**）→ `intervals.size()==0 || sections.size()==0`
+    // 的短路物化链（jne 落 mov$0 ⇒ 第二项为 ==0，勿写 !=）→ 双层迭代器循环；
     // src 四字段无条件拷入独立 uint 槽后再判；尾部一次 dead size() 调用。
-    Interval range0;                                         // local_48 第二默认构造
-    (void)range0;
+    // [b28d-solo-WindowsPackFiles] ORIG 头部 4 枚构造（+0x8..+0x2f）：iterator C1Ev、
+    // const_iterator C1Ev、Interval C1Ev ×2 ⇒ 两个 Interval 死局部（P232 帧律 +
+    // Interval 有用户默认构造 W@0x08575e58）。守卫为短路物化形
+    // `call size; test; je <mov$1>; call sections.size; test; jne <mov$0>` ⇒ 合并 ||。
+    // 极性判读（0x08574225）：sections.size()!=0 ⇒ jne +0x6a(mov $0=bad false)，
+    // 即坏条件为 `intervals.size()==0 || sections.size()==0`（**==**，勿写 !=）。
     std::vector<WindowsExeConstantSection*>::iterator sit0;  // ORIG 头部两枚迭代器
     std::vector<Interval>::const_iterator it0;               // 默认构造 call
+    Interval range0;
+    Interval range1;
+    (void)range0;
+    (void)range1;
     m_commonSections.clear();
-    if (intervals.m_intervals.size() == 0)
-    {
-        return false;
-    }
-    if (m_sections.size() == 0)
+    if (intervals.m_intervals.size() == 0 || m_sections.size() == 0)
     {
         return false;
     }
@@ -602,7 +640,10 @@ bool WindowsExeFile::MakeCommonWindowsExeConstantSections(
             }
         }
     }
-    m_commonSections.size();                                 // ORIG 尾部 dead size
+    // ORIG 尾部 `call size; mov %eax,-0xc(%ebp)`（P171 死写入照抄：4.4 对裸
+    // `m_commonSections.size();` 会 DCE，须经具名局部保留 store）。
+    unsigned long deadSize = m_commonSections.size();
+    (void)deadSize;
     return true;
 }
 
@@ -770,31 +811,39 @@ bool WindowsDataFileFamily::GenerateChecksum(CodeHackChecksumEx* ckEx,
 {
     // ORIG 0x08575302：GenerateRange 失败 → return 0（与 ExeFileFamily 恒 1 不同，
     // 原码两版行为各异，逐版照抄）；rangeEx 回写在成功块内。
+    // [b28d-solo-WindowsPackFiles] 三处照 ORIG 改形：
+    // ① 0x08575361 `call GenerateRange; test %al,%al; je <mov $0,%eax>`（无 xor）
+    //    ⇒ 正向 `if (GenerateRange(...)) { … return true; } return false;`；
+    // ② 循环是迭代器形（C1Ev@0x08576bb6 + begin 临时@-0x4c + end 临时@-0x10 +
+    //    operator*@-0xc 具名 f + 前置 ++）——索引 for 缺 4 个模板调用点（P167）；
+    // ③ rangeEx 两字段从 range 槽(-0x24/-0x20)重读回写（非直读 rangeStart/Len）。
+    // [b28d-solo-WindowsPackFiles] ORIG 槽（深→浅）：sum@-0x44, it0@-0x1c,
+    // rangeLen@-0x18, rangeStart@-0x14。4.4「先声明浅」⇒ it0 须声明在标量之后。
+    unsigned long rangeStart;
+    unsigned long rangeLen;
     std::vector<WindowsDataFile*>::iterator it0;
     CodeHackChecksum sum;
-    unsigned long rangeStart = 0;
-    unsigned long rangeLen = 0;
     ckEx->Clear();                                           // CodeHackChecksumData::Clear
     ckEx->SetFileName(m_name);
     rangeEx->SetFileName(m_name);
-    if (!GenerateRange(&rangeStart, &rangeLen))
-    {
-        return false;
-    }
+    if (GenerateRange(&rangeStart, &rangeLen))
     {
         CodeHackCheckRange range;
         range.m_start = static_cast<int>(rangeStart);
         range.m_size  = static_cast<int>(rangeLen);
-        rangeEx->m_start104 = static_cast<int>(rangeStart);
-        rangeEx->m_size108 = static_cast<int>(rangeLen);
-        for (std::size_t i = 0; i < m_files.size(); ++i)
+        rangeEx->m_range = range;                            // P247：8 字节视图整体赋值
+        it0 = m_files.begin();
+        while (it0 != m_files.end())
         {
-            m_files[i]->GenerateChecksum(&sum, rangeStart, rangeLen);
+            WindowsDataFile* f = *it0;
+            f->GenerateChecksum(&sum, rangeStart, rangeLen);
             ckEx->SetCodeHackCheckRange(range);
             ckEx->AddCodeHackChecksum(sum);
+            ++it0;
         }
+        return true;
     }
-    return true;
+    return false;
 }
 
 bool WindowsDataFileFamily::IsScanningAddressReset()   // 0x08575444
@@ -897,29 +946,43 @@ void swap_value(T& a, T& b)
 
 bool WindowsExeFileFamily::CompleteLoadingWindowsExeFiles()  // 0x08574736
 {
+    // [b28d-solo-WindowsPackFiles] verdict=DIFF，N 封顶（N95 槽号 + N89 模板实例）：
+    // p167 CLEAR 37/37（调用点多集全等）；fresh 277/279（gap=2）。
+    // 已复现：头部 3 枚独立 C1Ev（iterator<WindowsExeFile>@-0x3c、
+    // iterator<WindowsExeConstantSection>@-0x40、vector<IntervalSet*>@-0x4c —— 迭代器
+    // 先声明后赋值 P50）、sets[3] 倒计数构造循环、指针级 swap_value<IntervalSet*>、
+    // 双层 while（每轮 end/operator!=/operator*/ppEv）、尾部 operator=+Sort+第二循环。
+    // 残余 = 4.4 全帧槽号较 ORIG 浅 4（N95：4.4 槽基恒 ebp-8 起）与
+    // vector<IntervalSet*>::C1Ev 的 out-of-line/inline 差（N89），无语义缺口。
     // ORIG 0x08574736 全形转写：sets[3] 逐元素构造 + 三个 IntervalSet* 槽做
     // **指针级** swap_value<IntervalSet*>（非对象 std::swap）；未使用的局部
     // std::vector<IntervalSet*>（ORIG local_50 ctor/dtor，0x08574757/尾部）；
     // 双层迭代器循环（begin 一次入槽 + 每轮 end/operator!=/operator*/++）。
+    // [b28d-solo-WindowsPackFiles] ORIG 头部 3 枚独立 C1Ev（+0x8..+0x36）：
+    // iterator<WindowsExeFile>@-0x3c、iterator<WindowsExeConstantSection>@-0x40、
+    // vector<IntervalSet*>@-0x4c ⇒ 迭代器**先声明后赋值**（P50，for 内直构会消 C1Ev）。
+    // vector<IntervalSet*>::C1Ev 为 ORIG-only out-of-line 模板实例（N89），保留声明。
+    std::vector<WindowsExeFile*>::iterator it0;
+    std::vector<WindowsExeConstantSection*>::iterator sit0;
+    std::vector<IntervalSet*> unusedVec;
     IntervalSet sets[3];
     IntervalSet* pCur = &sets[0];
     IntervalSet* pPrev = &sets[1];
     IntervalSet* pInter = &sets[2];
     bool first = true;
-    std::vector<IntervalSet*> unusedVec;
 
-    for (std::vector<WindowsExeFile*>::iterator it = m_exeFiles.begin();
-         it != m_exeFiles.end(); ++it)
+    it0 = m_exeFiles.begin();
+    while (it0 != m_exeFiles.end())
     {
-        WindowsExeFile* exe = *it;
+        WindowsExeFile* exe = *it0;
         pPrev->Clear();
-        for (std::vector<WindowsExeConstantSection*>::iterator sit =
-                 exe->m_sections.begin();
-             sit != exe->m_sections.end(); ++sit)
+        sit0 = exe->m_sections.begin();
+        while (sit0 != exe->m_sections.end())
         {
-            WindowsExeConstantSection* sec = *sit;
+            WindowsExeConstantSection* sec = *sit0;
             Interval iv(sec->start, sec->size);
             pPrev->AddInterval(iv);
+            ++sit0;
         }
         if (first)
         {
@@ -935,6 +998,7 @@ bool WindowsExeFileFamily::CompleteLoadingWindowsExeFiles()  // 0x08574736
             }
             swap_value(pCur, pInter);
         }
+        ++it0;
     }
 
     if (pCur->m_intervals.size() == 0)
@@ -958,26 +1022,30 @@ bool WindowsExeFileFamily::GenerateRange(long* outSecIdx,
                                          unsigned long* outStart,
                                          unsigned long* outLen)     // 0x08574b8e
 {
+    // [b28d-solo-WindowsPackFiles] ORIG 槽布局（0x08574b95 起）：clipped@-0x9
+    // （prologue 后立即 movb $0x0 预清）、section@-0x10、span@-0x14。4.4 探针实测：
+    // 声明序 `span; const Interval* section; bool clipped=false;` + 指针赋值形
+    // 精确复现该三槽（4 形探针 /tmp/wpf_probe/p.cpp genD，其余三形 -0x11/-0xd）。
+    // 条件本体 ORIG 为 `cmp %eax,%edx; ja +0xae` 直跳（非 setbe 物化）⇒ if 直判。
+    unsigned long span;
+    const Interval* section;
+    bool clipped = false;
     if (m_intervals.empty())
     {
         return false;
     }
-    unsigned long span =
+    span =
         static_cast<unsigned long>(m_randMin) +
         static_cast<unsigned long>(rand()) %
             (static_cast<unsigned long>(m_randMax) + 1U);
 
-    const Interval& section = m_intervals[m_curSectionIndex];
-    // [b28d-64 N 封顶] ORIG 0x08574bca `movb $0x0,-0x9` 预清位置早于 section 载入、
-    // 且无双 movb/cmpb 回读；初始化式/两句式/if 形三探针实测 109/110/110（ORIG 106），
-    // 残余为 4.4 预清落点与 setbe 物化顺序差（P198 边界）⇒ 取最短初始化式封顶。
-    bool clipped =
-        static_cast<unsigned long>(section.m_start + section.m_size) <=
-        m_curOffset + span;
-    if (clipped)
+    section = &m_intervals[m_curSectionIndex];
+    if (static_cast<unsigned long>(section->m_start + section->m_size) <=
+        m_curOffset + span)
     {
-        span = static_cast<unsigned long>(section.m_start + section.m_size) -
+        span = static_cast<unsigned long>(section->m_start + section->m_size) -
                m_curOffset;
+        clipped = true;
     }
     *outSecIdx = m_curSectionIndex;
     *outStart = m_curOffset;
@@ -985,7 +1053,10 @@ bool WindowsExeFileFamily::GenerateRange(long* outSecIdx,
     if (clipped)
     {
         m_curSectionIndex += 1;
-        if (static_cast<std::size_t>(m_curSectionIndex) >= m_intervals.size())
+        // [b28d-solo-WindowsPackFiles] ORIG 0x08574c88 比较方向为
+        // `call size; mov idx,%edx; cmp %edx,%eax; setbe`（size() <= idx，
+        // call 后重读成员）；写 `idx >= size()` 会引 %ebx 跨 call 缓存 + setae。
+        if (m_intervals.size() <= static_cast<unsigned long>(m_curSectionIndex))
         {
             m_curSectionIndex = 0;
         }
@@ -1004,26 +1075,34 @@ bool WindowsExeFileFamily::GenerateChecksum(CodeHackChecksumEx* ckEx,
     // ORIG 0x08574cf0 真形（Ghidra C 全文核读）：**恒 return 1**——GenerateRange
     // 失败只是跳过聚合块，无 false 出口（前批 return false 系误转真语义 bug）；
     // rangeEx 两字段回写位于成功块内；循环为迭代器形；sum 对象在函数头部声明。
+    // [b28d-solo-WindowsPackFiles] ORIG 槽（深→浅）：sum@-0x48, it0@-0x20,
+    // rangeLen@-0x1c, rangeStart@-0x18, secIdx@-0x14（4.4「先声明浅」）。
+    long secIdx;
+    unsigned long rangeStart;
+    unsigned long rangeLen;
     std::vector<WindowsExeFile*>::iterator it0;
     CodeHackChecksum sum;
-    long secIdx = 0;
-    unsigned long rangeStart = 0;
-    unsigned long rangeLen = 0;
     ckEx->Clear();
     ckEx->SetFileName(m_name);
     rangeEx->SetFileName(m_name);
+    // [b28d-solo-WindowsPackFiles] ORIG 0x08574cf0：① `test %al,%al; je <mov $1>`
+    // （无 xor，且失败与成功共用尾块 ⇒ if 正向包裹 + 恒 return true）；
+    // ② 循环为迭代器形（C1Ev + begin 临时@-0x4c + operator*@-0xc 具名 f +
+    //    前置 ++ + 每次 end()）；③ rangeEx 两字段从 range 槽(-0x28/-0x24)重读回写。
     if (GenerateRange(&secIdx, &rangeStart, &rangeLen))
     {
         CodeHackCheckRange range;
-        range.m_start = rangeStart;
-        range.m_size  = rangeLen;
-        rangeEx->m_start104 = static_cast<int>(rangeStart);
-        rangeEx->m_size108 = static_cast<int>(rangeLen);
-        for (std::size_t i = 0; i < m_exeFiles.size(); ++i)
+        range.m_start = static_cast<int>(rangeStart);
+        range.m_size  = static_cast<int>(rangeLen);
+        rangeEx->m_range = range;                            // P247：8 字节视图整体赋值
+        it0 = m_exeFiles.begin();
+        while (it0 != m_exeFiles.end())
         {
-            m_exeFiles[i]->GenerateChecksum(&sum, secIdx, rangeStart, rangeLen);
+            WindowsExeFile* f = *it0;
+            f->GenerateChecksum(&sum, secIdx, rangeStart, rangeLen);
             ckEx->SetCodeHackCheckRange(range);
             ckEx->AddCodeHackChecksum(sum);
+            ++it0;
         }
     }
     return true;
@@ -1124,51 +1203,62 @@ bool WindowsCodeProtectorServer::BeginLoading()              // 0x08575700
 bool WindowsCodeProtectorServer::LoadWindowsFile(const char* path,
                                                  const char* name) // 0x08575712
 {
-    // b21 verdict=DIFF（N 布局残余）：163/175，21=21 调用点全等（strstr/FindExe*/FindData*/
-    //   LoadWindows{Exe,Data}File/SetCheckingOption×3/Windows{Exe,Data}FileFamily C1+D1/
-    //   operator_new/operator_delete/push_back/Unwind_Resume）。exe(.exe.bak)↔data 频域、
-    //   new+Load→Set-check→push_back 语义、失败删 `delete family` 均已核。残余仅 4.1 共享
-    //   尾块 fall-through vs 4.4 独立 return 块、寄存器分配、块调度。语义完成，N 封顶。
-    if (strstr(path, ".exe.bak") == 0)                       // data 文件域
+    // [b28d-solo-WindowsPackFiles] ORIG 0x08575729 `test %eax,%eax; je +0x120`：
+    // **exe 域物理在前（fall-through）、data 域在后（je 目标）** ⇒ 源码为
+    // `if (strstr(...) != 0) { exe } else { data }`；且**全函数只有一枚
+    // `mov $0x0,%eax`（+0x20c）**，所有失败路径 `je +0x20c` 直达共享尾 ⇒ 源码
+    // 必须写成「单 return false 出口」（if/else + else-if 链），不能每支 return false
+    // （4.4 会就地复制 `mov $0; jmp` 块，旧版 173 vs 163 的 +10 即此）。
+    if (strstr(path, ".exe.bak") != 0)                       // exe 文件域
     {
+        if (m_exeFamily == 0)                                // 首个 .exe.bak
+        {
+            m_exeFamily = new WindowsExeFileFamily;
+            if (m_exeFamily->LoadWindowsExeFile(path, name))
+            {
+                m_exeFamily->SetCheckingOption(
+                    static_cast<unsigned long>(m_exeMin),
+                    static_cast<unsigned long>(m_exeMax));
+                return true;
+            }
+        }
+        else
+        {
+            // ORIG 两守卫各自 `test %al,%al; je <共享 mov $0>`（无 && 物化岛）⇒
+            // P133/P225：拆两条嵌套 if，`a && b` 会被 4.4 折成 mov$1/mov$0 物化。
+            if (FindExeFamilyFile(name))
+            {
+                if (m_exeFamily->LoadWindowsExeFile(path, name))
+                {
+                    m_exeFamily->SetCheckingOption(
+                        static_cast<unsigned long>(m_exeMin),
+                        static_cast<unsigned long>(m_exeMax));
+                    return true;
+                }
+            }
+        }
+    }
+    else
+    {
+        // data 文件域（ORIG +0x120 起）
         WindowsDataFileFamily* family = FindDataFamilyFile(name);
         if (family == 0)
         {
             family = new WindowsDataFileFamily;
-            if (!family->LoadWindowsDataFile(path, name))
+            if (family->LoadWindowsDataFile(path, name))
             {
-                delete family;
-                return false;
+                family->SetCheckingOption(
+                    static_cast<unsigned long>(m_dataMin),
+                    static_cast<unsigned long>(m_dataMax));
+                m_dataFamilies.push_back(family);
+                return true;
             }
-            family->SetCheckingOption(
-                static_cast<unsigned long>(m_dataMin),
-                static_cast<unsigned long>(m_dataMax));
-            m_dataFamilies.push_back(family);
-            return true;
+            delete family;
         }
-        return family->LoadWindowsDataFile(path, name);
-    }
-
-    if (m_exeFamily == 0)                                    // 首个 .exe.bak
-    {
-        m_exeFamily = new WindowsExeFileFamily;
-        if (m_exeFamily->LoadWindowsExeFile(path, name))
+        else if (family->LoadWindowsDataFile(path, name))
         {
-            m_exeFamily->SetCheckingOption(
-                static_cast<unsigned long>(m_exeMin),
-                static_cast<unsigned long>(m_exeMax));
             return true;
         }
-        return false;
-    }
-
-    if (FindExeFamilyFile(name) &&
-        m_exeFamily->LoadWindowsExeFile(path, name))
-    {
-        m_exeFamily->SetCheckingOption(
-            static_cast<unsigned long>(m_exeMin),
-            static_cast<unsigned long>(m_exeMax));
-        return true;
     }
     return false;
 }
@@ -1224,59 +1314,69 @@ bool WindowsCodeProtectorServer::IsDifferentExeVersionRoughly() // 0x08575970
 bool WindowsCodeProtectorServer::GenerateChecksum(CodeHackChecksumEx* ckEx,
                                                   CodeHackCheckRangeEx* rangeEx) // 0x08575a3c
 {
-    if (m_loaded == 0)
-    {
-        return false;
-    }
-    if ((m_exeFamily == 0) && m_dataFamilies.empty())
-    {
-        return false;
-    }
-
+    // [b28d-solo-WindowsPackFiles] 按 ORIG 0x08575a3c 逐段重写：
+    // ① prologue 后立即预清两 bool（`movb $0,-0xa`/`-0x9`，在 m_loaded 检查之前）；
+    // ② m_loaded==0 与函数尾共享 `mov $0x0,%eax`（+0x1df）⇒ 整体用
+    //    `if (m_loaded != 0) { 主体 }` 包裹 + 单一 return false；
+    // ③ 四路分支为**扁平 else-if**（ORIG 每支显式写 wantExe/wantData 两字节）；
+    // ④ wantData 段 `call size; cmp idx; setle`（有符号）⇒ (int)size() <= idx。
     bool wantExe = false;
     bool wantData = false;
-    if (m_exeFamily != 0 && m_dataFamilies.empty())
+    if (m_loaded != 0)
     {
-        wantExe = true;
-    }
-    else if (m_exeFamily == 0 || !m_dataFamilies.empty())
-    {
-        if (m_exeFamily == 0)
+        if (m_exeFamily == 0 && m_dataFamilies.empty())
         {
+            return false;
+        }
+        if (m_exeFamily != 0 && m_dataFamilies.empty())
+        {
+            wantExe = true;
+            wantData = false;
+        }
+        else if (m_exeFamily == 0 && !m_dataFamilies.empty())
+        {
+            wantExe = false;
             wantData = true;
         }
         else if (m_retryCount < m_cfgLong)
         {
             wantExe = true;
+            wantData = false;
             m_retryCount += 1;
         }
         else
         {
+            wantExe = false;
             wantData = true;
             m_retryCount = 0;
         }
-    }
 
-    if (wantExe && m_exeFamily->GenerateChecksum(ckEx, rangeEx))
-    {
-        rangeEx->SetFileName("");
-        return true;
-    }
-    if (wantData)
-    {
-        // ORIG：m_dataFamilies[m_curDataFamily] 各取一次（不缓存指针）
-        if (m_dataFamilies[m_curDataFamily]->GenerateChecksum(ckEx, rangeEx))
+        // ORIG 0x08575b36 `cmpb $0,-0xa; je +0x13c` + `call; test %al; je +0x13c`
+        // 两守卫同落点、无 mov$1/mov$0 物化岛 ⇒ 拆嵌套 if（P133/P225）。
+        if (wantExe)
         {
-            if (m_dataFamilies[m_curDataFamily]->IsScanningAddressReset())
+            if (m_exeFamily->GenerateChecksum(ckEx, rangeEx))
             {
-                m_curDataFamily += 1;
-                if (static_cast<std::size_t>(m_curDataFamily) >=
-                    m_dataFamilies.size())
-                {
-                    m_curDataFamily = 0;
-                }
+                rangeEx->SetFileName("");
+                return true;
             }
-            return true;
+        }
+        if (wantData)
+        {
+            // ORIG：m_dataFamilies[m_curDataFamily] 各取一次（不缓存指针）
+            if (m_dataFamilies[m_curDataFamily]->GenerateChecksum(ckEx, rangeEx))
+            {
+                if (m_dataFamilies[m_curDataFamily]->IsScanningAddressReset())
+                {
+                    m_curDataFamily += 1;
+                    if (static_cast<int>(m_dataFamilies.size()) <=
+                        m_curDataFamily)
+                    {
+                        m_curDataFamily = 0;
+                    }
+                }
+                return true;
+            }
         }
     }
     return false;

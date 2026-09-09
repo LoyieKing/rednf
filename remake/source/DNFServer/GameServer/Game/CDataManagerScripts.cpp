@@ -75,7 +75,11 @@ int QuestParameterScript::getRewardLevel(int level)
     return result;
 }
 
-// [b28d-solo-CDataManagerScripts] DIFF→N：N86/N93 —— 帧 0x7c vs 0x8c + 迭代器/临时槽序（已按 P96/P28 非 const + 后置 ++；4.1 两段拷贝 vs 4.4 直构）；ORIG 0x08a6be66。
+// [b28d-solo-CDataManagerScripts] NEAR：p167 CLEAR（28/28）—— 本轮修两处：
+// ①section 按值拷贝（ORIG 0x8a6bee3 `operator->(it)→+4→vector C1ERKS(-0x54)` 实证，
+//   补 MISSING C1ERKS×1 + D1Ev×2）；②`(*found).m_value += (*sit).m_value` 的
+//   operator*（deEv）形（P167：MISSING deEv×2 / EXTRA ptEv×2）。帧 0x8c=ORIG；
+//   残余仅槽号文本差（-0x3c vs ORIG -0x48 族，N86/N93 分配策略）；ORIG 0x08a6be66。
 std::vector<pieceQuestRewardStatus> QuestParameterScript::getRewardStatus(
     int level)
 {
@@ -90,7 +94,9 @@ std::vector<pieceQuestRewardStatus> QuestParameterScript::getRewardStatus(
         if (rewardLevel < it->first)
             break;
 
-        std::vector<pieceQuestRewardStatus>& section = it->second;
+        // ORIG 0x8a6bee3：`operator->(it) → +4 → vector C1ERKS(-0x54, node->second)`
+        // ⇒ 原码按值拷贝 section（p167 MISSING C1ERKS×1 + D1Ev×2 实证）。
+        std::vector<pieceQuestRewardStatus> section = it->second;
         for (std::vector<pieceQuestRewardStatus>::iterator sit =
                  section.begin(); sit != section.end(); sit++)
         {
@@ -99,7 +105,9 @@ std::vector<pieceQuestRewardStatus> QuestParameterScript::getRewardStatus(
                 std::find_if(result.begin(), result.end(), pred);
             if (found != result.end())
             {
-                found->m_value += sit->m_value;
+                // P167：ORIG 发 operator*（deEv）而非 operator->（ptEv）
+                // ⇒ 写 (*it).member 形。
+                (*found).m_value += (*sit).m_value;
             }
             else
             {
@@ -167,7 +175,7 @@ void PvPSkillTreeParameterScript::clear()
 // 再减 m_map30[(job,firstGrow)] 的 m_pointCost。secondGrow 不参与
 // （ORIG 写入 0 后仅用于 key 第三字节，恒 0）。
 // ============================================================================
-// [b28d-solo-CDataManagerScripts] DIFF→N：带参 `PvPSkillTreeKey key(job,firstGrow,secondGrow)` + `secondGrow=0` 写回形参槽已落（ORIG C1Ehhh 0x08a5e768）；残余全帧槽序平移 4 + key 槽 -0x3f vs ORIG -0x1b（N93/P112 声明序不可控）；ORIG 0x08a5df0e。
+// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（23/23）。带参 `PvPSkillTreeKey key(job,firstGrow,secondGrow)` + `secondGrow=0` 写回形参槽已落（ORIG C1Ehhh 0x08a5e768）；残余全帧槽序平移 4 + key 槽 -0x3f vs ORIG -0x1b（N93/P112 声明序不可控）；ORIG 0x08a5df0e。
 int PvPSkillTreeParameterScript::getPvPSkillPointNext(
     int job, int firstGrow, int secondGrow, int grade) const
 {
@@ -254,7 +262,7 @@ bool stBroadCastItemScript::isUnCommonItem(int itemIdx) const
 // 59 vs 我方 39 指令差为 gcc4.1.2 的 dead-bool XOR 哨兵（local_11^=1 + 嵌套 while +
 // int* 物化重载，见 ## 汇编 0x08918ce2 xorb/0x08918d7a）——非源码可表达；范式库
 // 「负例 N 类·跨版本」。证据 ORIG 0x08918cdc。
-// [b28d-solo-CDataManagerScripts] DIFF→N：跨版本 dead-bool XOR 哨兵（ORIG 0x8918d8b `xorb $0x1,-0xd(%ebp); cmpb $0,-0xd` 栈槽物化 + 入口 `movb $0,-0xd; cmpb; jne`），P168a④ 判据：栈槽物化点位非源码可表达；ORIG 0x08918cdc。
+// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（5/5）。跨版本 dead-bool XOR 哨兵（ORIG 0x8918d8b `xorb $0x1,-0xd(%ebp); cmpb $0,-0xd` 栈槽物化 + 入口 `movb $0,-0xd; cmpb; jne`），P168a④ 判据：栈槽物化点位非源码可表达；ORIG 0x08918cdc。
 bool stBroadCastItemScript::checkCommonItem(int itemIdx) const
 {
     for (std::vector<int>::const_iterator it = m_vec0.begin(); it != m_vec0.end(); it++)
@@ -271,14 +279,21 @@ bool stBroadCastItemScript::checkCommonItem(int itemIdx) const
 // [N类·跨版本豁免] 语义与 ORIG 一致（find!=end → 子 vector 迭代 *vit==subItemIdx 返 1）。
 // ORIG 87 vs 我方 69 差同 checkCommonItem：dead-bool XOR 哨兵（0x08918f03 xorb + 嵌套
 // while + operator!=/operator* 双缓存续算），非源码可表达；范式库「跨版本」。证据 0x08918dfe。
-// [b28d-solo-CDataManagerScripts] DIFF→N：同 checkCommonItem —— 跨版本 dead-bool XOR 哨兵（栈槽物化）+ operator->/operator!= 双缓存形差，非源码可表达；ORIG 0x08918dfe。
+// [b28d-solo-CDataManagerScripts] DIFF→N：p167 已 CLEAR（10/10）—— 本轮把引用缓存
+// `const vector<int>& v = it->second` 改为 it->second.begin()/end() 两次 ptEv
+// （ORIG 0x08918e69/0x08918e89 各一次 operator-> 实证，补 MISSING ptEv×1）；
+// 残余同 checkCommonItem 的跨版本 dead-bool XOR 哨兵（栈槽物化），非源码可表达；ORIG 0x08918dfe。
 bool stBroadCastItemScript::checkUnCommonNestedItem(int itemIdx, int subItemIdx) const
 {
     std::map<int, std::vector<int> >::const_iterator it = m_mapC.find(itemIdx);
     if (it != m_mapC.end())
     {
-        const std::vector<int>& v = it->second;
-        for (std::vector<int>::const_iterator vit = v.begin(); vit != v.end(); vit++)
+        // ORIG 0x08918e69/0x08918e89：`operator->(it)` 两次（begin/end 各取一次
+        // ptEv，p167 MISSING ptEv×1 实证）⇒ 不用引用缓存，直接 it->second.begin()/end()。
+        // P13：end 在循环初始化区求值一次（ORIG -0x24 缓存）。
+        for (std::vector<int>::const_iterator vit = it->second.begin(),
+                 vitEnd = it->second.end();
+             vit != vitEnd; vit++)
         {
             if (*vit == subItemIdx)
             {
@@ -900,7 +915,7 @@ bool _checkTimeoutItem(const Inven_Item& item)   // b28d-Main(P292/P248档①)�
 //   0xb < GetItemType() <= 0x15 → item.GetReSealCount() << 5；
 //   其余 → item.GetItemAttr()。
 // ============================================================================
-// [b28d-solo-CDataManagerScripts] DIFF→N：P9 —— GetReSealCount/GetItemAttr 返回 uchar（ORIG body 0x822b456 `movzbl 0x6(%eax),%eax; shr $0x5,%al` 实证），4.4 调用点恒插 `movzbl %al,%eax`（ORIG 无）；改共享头返回类型会动他 TU 调用点，保留；ORIG 0x084fc541。
+// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（5/5）。P9 —— GetReSealCount/GetItemAttr 返回 uchar（ORIG body 0x822b456 `movzbl 0x6(%eax),%eax; shr $0x5,%al` 实证），4.4 调用点恒插 `movzbl %al,%eax`（ORIG 无）；改共享头返回类型会动 Inven_Item.cpp body 与本 TU 全部调用点，保留；ORIG 0x084fc541。
 int _getIntegratedPvPItemAttr(const Inven_Item& item)
 {
     CItem* it = G_CDataManager()->find_item(item.m_addInfo);
@@ -1081,7 +1096,7 @@ void stRankSystemInfo::stDungeonClearTimeData::clear()
 {
     memset(this, 0, sizeof(*this));   // ORIG memset 0x1c
 }
-stRankSystemInfo::stDungeonClearTimeData::~stDungeonClearTimeData() {}
+// [b28d-Main 代落·S334 P317] 空析构定义删除（声明端同步）。
 
 // stComboIntervalBoundary：C1 0x0891b72a / clear 0x0891b73e
 // （memset(this,0,0x10)）/ D1 0x08940176（空体）。
@@ -1093,7 +1108,7 @@ void stRankSystemInfo::stComboIntervalBoundary::clear()
 {
     memset(this, 0, sizeof(*this));   // ORIG memset 0x10
 }
-stRankSystemInfo::stComboIntervalBoundary::~stComboIntervalBoundary() {}
+// [b28d-Main 代落·S334 P317] 空析构定义删除（声明端同步）。
 
 // ---- stBloodDungeon_t（ORIG C1 0x8370a3a / clear 0x8370b02 / D1 0x8370ab0）----
 stBloodDungeon_t::stBloodDungeon_t() : m_vec334(), m_map358()
@@ -1213,7 +1228,11 @@ reseal_table_t::reseal_table_t()
 reseal_table_t::~reseal_table_t() {}
 
 // ORIG get_reseal_cost @0x08900b02（T）。见 CDataManager.h 声明注释。
-// [b28d-solo-CDataManagerScripts] DIFF→N：有符号除 10 已翻正（`int idx=(param_2-1)/10` ⇒ ORIG magic 0x66666667）；残余 ①idx 槽 -0x10 vs ORIG -0xc 的 mem 直比（4.4 恒插 mov 中转）②%ebx/result 寄存器分配（P248 三档试尽）；ORIG 0x08900b02。
+// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（3/3）。有符号除 10 已翻正
+// （`int idx=(param_2-1)/10` ⇒ ORIG magic 0x66666667）；本轮交换第二项乘法操作数
+// ⇒ 消 push %ebx、帧 0x38=ORIG、idx 槽 -0xc=ORIG（判词旧读数 -0x10 作废）；
+// 残余 2 条：①`cmp -0xc(%ebp),%eax` mem 直比 vs 4.4 `mov -0xc,%edx; cmp %edx,%eax`
+// （P209 unsigned 比较恒载寄存器）②`mov %eax,%ecx` 单段 regmove（N18a）；ORIG 0x08900b02。
 int reseal_table_t::get_reseal_cost(unsigned char param_1,
                                     unsigned char param_2,
                                     unsigned char param_3)
@@ -1235,7 +1254,7 @@ int reseal_table_t::get_reseal_cost(unsigned char param_1,
     // return m_vec[idx]*m_arr1[param_1] + param_3*m_arr2[param_1]
     // （ORIG imul 为 32 位模 2^32，此处用无符号累加再一次性转 int 保持位模式）
     return (int)(m_vec[idx] * (unsigned int)m_arr1[param_1]
-                 + (unsigned int)param_3 * (unsigned int)m_arr2[param_1]);
+                 + (unsigned int)m_arr2[param_1] * (unsigned int)param_3);
 }
 
 // ORIG get_oneshot_reseal_cost @0x08900be0（T）。见头声明注释。
@@ -1346,7 +1365,7 @@ void CNPCRelationEventManager::AddFavorItemInfo(
 
 // ---- CNPCRelationEventManager::AddRewardItemInfo（ORIG 0x890cfda：
 //      find(idx)，非 end 时写 node+kind*0x14+0xc / +0x10 两奖励值）----
-// [b28d-solo-CDataManagerScripts] DIFF→N：N107/N7 —— ORIG 两步 lea（`lea (%ecx,%eax,1); lea 0xc(%eax),%edx`）vs 4.4 `lea+add $0xc`（数组名算术 P214① 本轮实测不翻），另加实参装载序 + %ebx 分配；ORIG 0x0890cfda。
+// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（4/4）。N107/N7 —— ORIG 两步 lea（`lea (%ecx,%eax,1); lea 0xc(%eax),%edx`）vs 4.4 `lea+add $0xc`（数组名算术 P214① 本轮实测不翻），另加实参装载序 + %ebx 分配；ORIG 0x0890cfda。
 void CNPCRelationEventManager::AddRewardItemInfo(
     unsigned short idx, ENUM_NPC_RELATION_EVENT_FAVOR_KIND kind,
     unsigned int rewardA, unsigned int rewardB)
@@ -1430,7 +1449,12 @@ bool CNPCRelationEventManager::IsDislikeItem(unsigned short idx,
 // [N类·跨版本豁免] 已还原 ORIG 真形（our 113 vs 112）：残 1 指令差为 gcc4.1/4.4 的
 // outgoing-frame / 死栈槽产物（范式库『跨版本』），助记符序列已对齐；语义完全一致。
 // ============================================================================
-// [b28d-solo-CDataManagerScripts] DIFF→N：值拷贝 `stNPCEventItemInfo item = at(col)` 已落（消引用指针槽）；残余整体槽平移 8（-0x1c.. vs ORIG -0x14..）+ ROUND x87 段槽序（N93/N86）；ORIG 0x0890d1c0。
+// [b28d-solo-CDataManagerScripts] AE：p167 CLEAR（7/7）。本轮两处翻正：
+// ①`stNPCEventItemInfo::m_count` int→unsigned int（CDataManager.h，P254 档③）——
+//   复现 ORIG 0x0890d2a8 `mov $0,%edx; mov %eax,-0x38; mov %edx,-0x34; fildll`
+//   的无符号零扩展（旧 int 字段产 `fildl`）；②相等比较按 ORIG 操作数序写
+//   `itemId == (unsigned int)item.m_itemId` ⇒ 复现 `mov -0x24(%ebp),%eax;
+//   cmp 0x14(%ebp),%eax`（旧写法多一条形参装载）。帧/全部槽号与 ORIG 逐一对齐；ORIG 0x0890d1c0。
 stTempRewardInfo CNPCRelationEventManager::GetItemKind(
     unsigned short idx, unsigned int itemId, unsigned int count)
 {
@@ -1451,7 +1475,9 @@ stTempRewardInfo CNPCRelationEventManager::GetItemKind(
              col < node->m_favor[kind].m_items.size(); ++col)
         {
             stNPCEventItemInfo item = node->m_favor[kind].m_items.at(col);
-            if (item.m_itemId == (int)itemId
+            // ORIG 0x0890d277：`mov -0x24(%ebp),%eax; cmp 0x14(%ebp),%eax; jne`
+            // （形参在 mem 源、字段入 eax）⇒ 相等比较按 ORIG 操作数序书写。
+            if (itemId == (unsigned int)item.m_itemId
                 && (unsigned int)item.m_count <= count)
             {
                 if (item.m_count == 0)
@@ -1475,7 +1501,10 @@ stCharacLinkSystem_t::~stCharacLinkSystem_t() {}
 // ---- CNPCRelationEventManager::GetRewardItem（ORIG T 0x0890d326，sret
 //      stNPCRewardItemInfo）：find(idx) 未命中 → {0,0}；命中 →
 //      node->m_favor[kind].m_rewardA / m_rewardB（+0xc/+0x10）。----
-// [b28d-solo-CDataManagerScripts] 部分翻正：`return stNPCRewardItemInfo(result);` 破 4.4 NRVO ⇒ result 落 -0x18/-0x14 + 尾部拷贝 sret，帧/槽与 ORIG 对齐；残余 = N107 成员数组寻址折叠（ORIG `mov 0xc(%eax,%ecx,1)` vs 4.4 lea+add）⇒ N107/N86 封顶；ORIG 0x0890d326。
+// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（4/4）。本轮改单 return 形
+// （`result` 清零后命中分支覆盖再 return，去显式临时拷贝）；残余 = N107 成员数组寻址
+// 折叠（ORIG `mov 0xc(%eax,%ecx,1)` 单条 scaled vs 4.4 `lea (%ecx,%eax,1); add $0xc`）
+// + 4.1 的 it==end 分支具名对象拷贝（N86）；ORIG 0x0890d326。
 stNPCRewardItemInfo CNPCRelationEventManager::GetRewardItem(
     unsigned short idx, ENUM_NPC_RELATION_EVENT_FAVOR_KIND kind)
 {
@@ -1484,13 +1513,13 @@ stNPCRewardItemInfo CNPCRelationEventManager::GetRewardItem(
     result.m_rewardB = 0;
     std::map<unsigned short, stNPCRelationEventInfo*>::iterator it =
         m_npcEventMap.find(idx);
-    if (it == m_npcEventMap.end())
-        return stNPCRewardItemInfo(result);
-
-    stNPCRelationEventInfo* node = it->second;
-    result.m_rewardA = node->m_favor[kind].m_rewardA;
-    result.m_rewardB = node->m_favor[kind].m_rewardB;
-    return stNPCRewardItemInfo(result);
+    if (it != m_npcEventMap.end())
+    {
+        stNPCRelationEventInfo* node = it->second;
+        result.m_rewardA = node->m_favor[kind].m_rewardA;
+        result.m_rewardB = node->m_favor[kind].m_rewardB;
+    }
+    return result;
 }
 
 // ---- advancealtar（StageTimeLineParameter D1 0x8899e88 /
@@ -1672,9 +1701,16 @@ bool DeleteInvalidItemScript::loadScript()
 //    [/gage up rate]、[/gage upgrade cost percent]、[/daily refill ticket]（结果丢弃）。
 //    原实现缺这三条比较 → we-smaller 主因。成功/文件打开失败均返 0（非零=Fail）。
 // ============================================================================
-// [b28d-solo-CDataManagerScripts] DIFF→N：N93 —— 帧 sub $0x30 vs 0x40 + 块级对象槽序（语义完成：三段解析/闭标签短路比对齐）；ORIG 0x0889b6cc。
+// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（17/17）。本轮加 P232
+// `char framePad[4]`（首声明）⇒ 帧 sub $0x40=ORIG、token -0x28 / ok -0x29 /
+// lineNo -0x20 / idx -0x1c / p -0x18 / q -0x14 / fv -0x10 / tv -0xc 全部与 ORIG 对齐；
+// 残余 = 尾部闭标签 6 条（ORIG `test %al,%al; jne <循环头岛>` 正极性 vs 4.4
+// `test; je 下一块; jmp 岛` 反极性——continue/嵌套包裹/goto 尾标签三形实测均不翻，
+// P222/P223 边界）；ORIG 0x0889b6cc。
 int advancealtar::ConfigParameter::importConfigParameter(const char* path)
 {
+    char framePad[4];      // P232 试验：把 token 槽顶到 ORIG 的 -0x28
+    (void)framePad;
     std::string token;
     bool ok = false;
     // [X2 形·技巧22精化（DispC8 probe 实证，Main 批准）] ORIG 对 bool callee 返回一律
@@ -1726,8 +1762,9 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
         }
         else
         {
-            // ORIG 0x0889b872..：三段 `call operator== ; test %al,%al ; jne <loop>`，
-            // 命中闭标签直接回循环头（true→jne，非 != 取反物化）。
+            // ORIG 0x0889b885/0x0889b8a2：`test %al,%al; jne <循环头岛>` 正极性
+            // ⇒ continue/嵌套包裹/goto 尾标签三形 4.4 实测恒产反极性 je+jmp（P222/P223
+            // 均不翻），保留语义等价的最短形。
             if (token == "[/gage up rate]")
                 continue;
             if (token == "[/gage upgrade cost percent]")
@@ -1761,7 +1798,12 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
 // （范式库「负例 N 类·跨版本：delete[]+成员 dtor EH cleanup / EH 双份 dtor epilogue vs
 // merge」），非源码可表达；证据 ORIG 0x088a18de/0x088a2731/0x088a2704 CatchHandler 区段。
 // ============================================================================
-// [b28d-solo-CDataManagerScripts] DIFF→N：N82 —— 超大件帧槽（§6.2 口径：调用点差集已核、语义完成、byte 层封顶）；ORIG 0x088a10cc。
+// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（201/201）—— 本轮修 6 处调用点
+// 符号差：①`item.m_fieldTypes.push_back(具名 FieldType::T 左值)` ×3（ORIG 调
+// `push_back(const FieldType::T&)` RKS2_，右值临时会选 `push_back(FieldType::T&&)` OS2_）；
+// ②`!(token == "[id]")` ×3（ORIG 调 operator==，写 != 会发 operator!=）。
+// 残余 = N82 超大件帧槽（帧 sub $0x320 vs ORIG $0x350、token -0x214 vs ORIG -0x230，
+// 4.1/4.4 聚合/标量槽分区策略差）；ORIG 0x088a10cc。
 int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
     const char* path)
 {
@@ -1832,7 +1874,8 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                         break;                              // ORIG fail → 回段循环
                     if (token == "[/unit]")
                         break;
-                    if (token != "[id]")
+                    // p167：ORIG 调 operator==（`_ZSteq...`），写 `!(==)` 保持同一符号。
+                    if (!(token == "[id]"))
                         continue;
                     BuyUpgradeData item;
                     item.m_nItemId = ScanInt(&ok);
@@ -1864,8 +1907,13 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                                     break;
                                 int ft = getFieldType(fieldName);
                                 if (ft != -1)
-                                    item.m_fieldTypes.push_back(
-                                        static_cast<FieldType::T>(ft));
+                                {
+                                    // p167：ORIG 调 push_back(const FieldType::T&)
+                                    // （RKS2_）⇒ 传具名左值（右值临时选 && 重载）。
+                                    FieldType::T ftype =
+                                        static_cast<FieldType::T>(ft);
+                                    item.m_fieldTypes.push_back(ftype);
+                                }
                             }
                             continue;
                         }
@@ -1928,7 +1976,7 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                         break;
                     if (token == "[/skill]")
                         break;
-                    if (token != "[id]")
+                    if (!(token == "[id]"))
                         continue;
                     BuyUpgradeData item;
                     item.m_nItemId = ScanInt(&ok);
@@ -1968,8 +2016,11 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                                     break;
                                 int ft = getFieldType(fieldName);
                                 if (ft != -1)
-                                    item.m_fieldTypes.push_back(
-                                        static_cast<FieldType::T>(ft));
+                                {
+                                    FieldType::T ftype =
+                                        static_cast<FieldType::T>(ft);
+                                    item.m_fieldTypes.push_back(ftype);
+                                }
                             }
                             continue;
                         }
@@ -2032,7 +2083,7 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                         break;
                     if (token == "[/tower]")
                         break;
-                    if (token != "[id]")
+                    if (!(token == "[id]"))
                         continue;
                     BuyUpgradeData item;
                     item.m_nItemId = ScanInt(&ok);
@@ -2064,8 +2115,11 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                                     break;
                                 int ft = getFieldType(fieldName);
                                 if (ft != -1)
-                                    item.m_fieldTypes.push_back(
-                                        static_cast<FieldType::T>(ft));
+                                {
+                                    FieldType::T ftype =
+                                        static_cast<FieldType::T>(ft);
+                                    item.m_fieldTypes.push_back(ftype);
+                                }
                             }
                             continue;
                         }
@@ -2185,10 +2239,15 @@ advancealtar::AdvanceAltarShopParameter::getBuyUpgradeDataVec(
 // 邮政标题 0x39e / 正文 0x3a3。[reward item] 三元组仅 {type,_,itemId}
 // 进入向量（第三值写入越界临时不入拷贝，见报告注记）。
 // ============================================================================
-// [b28d-solo-CDataManagerScripts] DIFF→N：N82/N93 —— 大件槽序平移（语义完成；调用点/字段访问已核，4.1/4.4 槽复用策略差）；ORIG 0x0889afb0。
+// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（48/48）—— 本轮两处：
+// ①`if (token == "[reward data]") { … }` 正向包裹（ORIG 调 operator==，
+//   `if (!=) continue` 会发 operator!=）；②P232 `char framePad[4]` ⇒ token -0x70 /
+//   ok -0x71 与 ORIG 对齐（帧 0xc0=ORIG）。残余 = N82 大件槽序（4.1/4.4 槽复用策略差）；ORIG 0x0889afb0。
 int advancealtar::RewardParameter::importAchievementRewardParameter(
     const char* path)
 {
+    char framePad[4];   // P232：把 token 槽顶到 ORIG 的 -0x70
+    (void)framePad;
     std::string token;
     bool ok = false;
     reset();
@@ -2197,93 +2256,94 @@ int advancealtar::RewardParameter::importAchievementRewardParameter(
 
     while (ScanType(token, true))
     {
-        if (token != "[reward data]")
-            continue;
-
-        AchievementRewardData data;
-        while (ScanType(token, true))
+        // p167 MISSING operator==×1 / EXTRA operator!=×1 ⇒ ORIG 为正向 `==` 包裹。
+        if (token == "[reward data]")
         {
-            if (token == "[/reward data]")
+            AchievementRewardData data;
+            while (ScanType(token, true))
             {
-                m_rewardMap.insert(std::make_pair(data.m_type, data));
-                break;
-            }
-            if (token == "[type]")
-            {
-                data.m_type = ScanInt(&ok);
-                if (!ok)
-                    return 0x362;
-                if (!(data.m_type > 0))
-                    return 0x364;
-                continue;
-            }
-            if (token == "[stage difficulty]")
-            {
-                std::string diffName;
-                if (!ScanStr(&diffName))
-                    return 0x36a;
-                StageDifficulty::T diff;
-                if (!StageDifficulty::getDifficulty(diffName, diff))
-                    return 0x36d;
-                data.m_difficulty = static_cast<int>(diff);
-                continue;
-            }
-            if (token == "[stage clear count]")
-            {
-                data.m_stageClearCount = ScanInt(&ok);
-                if (!ok)
-                    return 0x373;
-                continue;
-            }
-            if (token == "[icon image]")
-            {
-                data.m_iconImage = ScanInt(&ok);
-                if (!ok)
-                    return 0x37a;
-                continue;
-            }
-            if (token == "[reward item]")
-            {
-                for (;;)
+                if (token == "[/reward data]")
                 {
-                    _RewardItem item;
-                    std::string typeName;
-                    RewardItemType::T itemType;
-                    if (!ScanStr(&typeName))
-                        break;                       // 静默退出本段
-                    if (!RewardItemType::getRewardItemType(typeName, itemType))
-                        break;
-                    item.m_type = itemType;
-                    item.m_value2 = ScanInt(&ok);    // ORIG 写 scratch+8
-                    if (!ok)
-                        break;
-                    // ORIG 第二次 ScanInt 写入 12 字节临时对象之外，
-                    // push_back 仅拷贝前 12 字节，计数值不入向量；
-                    // 此处保留解析推进语义但不存储。
-                    ScanInt(&ok);
-                    if (!ok)
-                        return 0x391;
-                    data.m_rewardItems.push_back(item);
+                    m_rewardMap.insert(std::make_pair(data.m_type, data));
+                    break;
                 }
-                continue;
-            }
-            if (token == "[reward title]")
-            {
-                if (!ScanStr(&data.m_rewardTitle))
-                    return 0x399;
-                continue;
-            }
-            if (token == "[postal title]")
-            {
-                if (!ScanStr(&data.m_postalTitle))
-                    return 0x39e;
-                continue;
-            }
-            if (token == "[postal letter]")
-            {
-                if (!ScanStr(&data.m_postalLetter))
-                    return 0x3a3;
-                continue;
+                if (token == "[type]")
+                {
+                    data.m_type = ScanInt(&ok);
+                    if (!ok)
+                        return 0x362;
+                    if (!(data.m_type > 0))
+                        return 0x364;
+                    continue;
+                }
+                if (token == "[stage difficulty]")
+                {
+                    std::string diffName;
+                    if (!ScanStr(&diffName))
+                        return 0x36a;
+                    StageDifficulty::T diff;
+                    if (!StageDifficulty::getDifficulty(diffName, diff))
+                        return 0x36d;
+                    data.m_difficulty = static_cast<int>(diff);
+                    continue;
+                }
+                if (token == "[stage clear count]")
+                {
+                    data.m_stageClearCount = ScanInt(&ok);
+                    if (!ok)
+                        return 0x373;
+                    continue;
+                }
+                if (token == "[icon image]")
+                {
+                    data.m_iconImage = ScanInt(&ok);
+                    if (!ok)
+                        return 0x37a;
+                    continue;
+                }
+                if (token == "[reward item]")
+                {
+                    for (;;)
+                    {
+                        _RewardItem item;
+                        std::string typeName;
+                        RewardItemType::T itemType;
+                        if (!ScanStr(&typeName))
+                            break;                       // 静默退出本段
+                        if (!RewardItemType::getRewardItemType(typeName, itemType))
+                            break;
+                        item.m_type = itemType;
+                        item.m_value2 = ScanInt(&ok);    // ORIG 写 scratch+8
+                        if (!ok)
+                            break;
+                        // ORIG 第二次 ScanInt 写入 12 字节临时对象之外，
+                        // push_back 仅拷贝前 12 字节，计数值不入向量；
+                        // 此处保留解析推进语义但不存储。
+                        ScanInt(&ok);
+                        if (!ok)
+                            return 0x391;
+                        data.m_rewardItems.push_back(item);
+                    }
+                    continue;
+                }
+                if (token == "[reward title]")
+                {
+                    if (!ScanStr(&data.m_rewardTitle))
+                        return 0x399;
+                    continue;
+                }
+                if (token == "[postal title]")
+                {
+                    if (!ScanStr(&data.m_postalTitle))
+                        return 0x39e;
+                    continue;
+                }
+                if (token == "[postal letter]")
+                {
+                    if (!ScanStr(&data.m_postalLetter))
+                        return 0x3a3;
+                    continue;
+                }
             }
         }
     }
@@ -2624,7 +2684,10 @@ pvp_channel_info_t::pvp_channel_info_t()
 // 权威声明见 STExpertJobScript.h（CUser::GetCurExpertJobLevel 真实调用）。
 // ============================================================================
 
-// [b28d-solo-CDataManagerScripts] NEAR(1)：N22 —— 4.4 恒 `cmp %ebx,%eax`（dst=call 结果/字段侧），ORIG 4.1 `cmp %eax,%ebx`（dst=局部 e）；交换源码操作数两形均不翻（P248 三档试尽）；语义等价；ORIG 0x0849f420。
+// [b28d-solo-CDataManagerScripts] NEAR(1)：p167 CLEAR（4/4）。N22 —— 4.4 恒
+// `cmp %ebx,%eax`（dst=call 结果/字段侧），ORIG 4.1 `cmp %eax,%ebx`（dst=局部 e）；
+// 本轮 fresh 复验：交换源码操作数（`e == m_expVec[i].m_exp`）仍产同形，P248 三档试尽；
+// 语义等价；ORIG 0x0849f420。
 bool STExpertJobScript::isBoundaryExpValue(int exp)
 {
     // [b28c-L18] NEAR（fresh 32=32，助记符序列全等，仅 cmp 操作数序差 2 行）：

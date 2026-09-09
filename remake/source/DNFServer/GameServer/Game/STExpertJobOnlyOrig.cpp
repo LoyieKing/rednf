@@ -44,9 +44,6 @@ STExpertJobScript::stMonsterCardBindResult::stMonsterCardBindResult()
     m_field0 = 0;
 }
 
-STExpertJobScript::stMonsterCardBindResult::~stMonsterCardBindResult()
-{
-}
 
 // ----------------------------------------------------------------------------
 // stDollControllerResult — C1/C2 W 0x0896deac range [...dee5]
@@ -62,9 +59,6 @@ STExpertJobScript::stDollControllerResult::stDollControllerResult()
         static_cast<unsigned short>(m_field4)); // +0 dword = zext(w+4)
 }
 
-STExpertJobScript::stDollControllerResult::~stDollControllerResult()
-{
-}
 
 // ----------------------------------------------------------------------------
 // stSelfDisjoinMaterialInfo::clear — ORIG W 0x0896dbe6 range [...dc0c]

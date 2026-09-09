@@ -74,7 +74,8 @@ namespace WongWork {
 // CWebEvent 权威声明已收敛至 GlobalData.h:274(Main 沉降仲裁,含 GetItemType);
 // 本 TU 的局部 class 视图已删除,仅保留 ORIG T 定义。
 
-// [b28d-D9] N82/P46：switch 决策树+叶块序+帧/槽号差；调用点差集待核（ORIG 0x086c1aba sz 0x000000ed）
+// [b28d-solo-LinkClosureB_Misc] AE：P46 同值 case 合并为 fallthrough 标签组
+//（4.4 不合并同体叶块）+ P286 内层 switch 形 + 照抄原码遗留重复 else-if。
 int CWebEvent::GetItemType(int eventKind, int itemNo)
 {
     int type = 0;
@@ -82,28 +83,41 @@ int CWebEvent::GetItemType(int eventKind, int itemNo)
     {
         switch (itemNo)
         {
-        case 0xae68: type = 1; break;
-        case 0x659d: type = 3; break;
-        case 999:    type = 4; break;   // 0x3e7
-        case 0x9ed0: type = 1; break;
-        case 0xa060: type = 2; break;
-        case 0xbf9c: type = 2; break;
-        case 0xaff8: type = 2; break;
-        case 0xbe0c: type = 1; break;
-        case 0xcd81: type = 1; break;
-        case 0xcf11: type = 2; break;
-        default:     type = 0; break;
+        // [b28d-solo-LinkClosureB_Misc] P46：ORIG 仅 4 个共享叶块（序 1/2/3/4）
+        // ⇒ 同值 case 必须写成 fallthrough 标签组（4.4 不合并同体叶块）。
+        case 0xae68:
+        case 0x9ed0:
+        case 0xbe0c:
+        case 0xcd81:
+            type = 1; break;
+        case 0xa060:
+        case 0xaff8:
+        case 0xbf9c:
+        case 0xcf11:
+            type = 2; break;
+        case 0x659d:
+            type = 3; break;
+        case 999:    // 0x3e7
+            type = 4; break;
         }
     }
     else if (eventKind == 3)
     {
-        if (itemNo == 8)
-            type = 2;
-        else if (itemNo == 0x659e)
-            type = 1;
+        // P286：ORIG 为 switch 形（形参载入 %eax + 寄存器比较），非 if 链。
+        switch (itemNo)
+        {
+        case 0x659e: type = 1; break;
+        case 8:      type = 2; break;
+        }
     }
-    if (eventKind == 3 && itemNo == 1)
-        type = 1;
+    else if (eventKind == 3)
+    {
+        // ORIG 原码遗留的重复分支（Ghidra 亦显示两次 param_1 != 3）。
+        switch (itemNo)
+        {
+        case 1:      type = 1; break;
+        }
+    }
     return type;
 }
 
@@ -191,11 +205,15 @@ void EventATI::UpdateEventATIInfo(unsigned int uid, int itemNo)
 // ArrangeATIEventItem —— ORIG T 0x083fa1d3 (size 0x287)
 // 行收集：item_check==0 且 item_server_id==serverId 一条；
 // avata_server_id==serverId 时 avata_check1==0 / avata_check2==0 各一条。
-// [b28d-D9] P75/N80：变参装载序 + 帧差 0x114 vs 0x118（ORIG 0x083fa1d3 sz 0x000004c9）
+// [b28d-solo-LinkClosureB_Misc] N 封顶：语义/调用点已闭合（p167 24/24 CLEAR）。
+// 已修：__PRETTY_FUNCTION__（P139）、dead local limit=10（P232）、P227 全表达式
+// 临时链、P164/P283 for 底部条件 + unsigned 尾测 seta、P171 删 count<10 防御、
+// 存储序 [0],[2],[3],[1]。残余 = P209（4.4 unsigned 形参比较恒载寄存器 +1/分支）
+// + P311/N81 族（4.4 对 rows[count][1..2] 常量列下标折 scaled，4.1 恒 shl+lea+sub 链）。
 void EventATI::ArrangeATIEventItem(unsigned int mid, unsigned int serverId)
 {
-    const char* kFunc =
-        "void WongWork::EventATI::ArrangeATIEventItem(memberIdentificationNumber_t, unsigned int)";
+    // ORIG 函数头 `movl $0xa,-0x1c` 为未被读的 dead int 局部（P232）。
+    int limit = 10;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query(
@@ -205,16 +223,21 @@ void EventATI::ArrangeATIEventItem(unsigned int mid, unsigned int serverId)
         NumberToString(mid, 0), 10);
     if (!db->exec(true))
     {
-        cMyTrace trace(kFunc, 0xa1, 5);
-        trace("%s, exec ERROR m_id=%s", kFunc, NumberToString(mid, 0));
+        // P227 全表达式临时链：NumberToString 跨 ctor 以 %ebx 保活。
+        cMyTrace(__PRETTY_FUNCTION__, 0xa1, 5)(
+            "%s, exec ERROR m_id=%s", __PRETTY_FUNCTION__,
+            NumberToString(mid, 0));
         return;
     }
 
     unsigned int rows[10][4];      // [dbId, stackCount?, itemId, flag]
     int count = 0;
-    int scanned = 0;
-    while (scanned < db->get_n_rows() && db->fetch())
+    // P283/P164：ORIG for 底部条件布局 + unsigned 尾测（seta）。
+    for (unsigned int scanned = 0;
+         scanned < static_cast<unsigned int>(db->get_n_rows()); ++scanned)
     {
+        if (!db->fetch())
+            break;
         unsigned int rowId = 0; int cera = 0; int ceraCheck = 0; int itemNo = 0;
         int itemServerId = 0; int itemCharacNo = 0; int itemCheck = 0;
         int avataNo1 = 0; int avataNo2 = 0; int avataServerId = 0;
@@ -233,34 +256,34 @@ void EventATI::ArrangeATIEventItem(unsigned int mid, unsigned int serverId)
         db->get_int(0xb, avataCheck1);
         db->get_int(0xc, avataCheck2);
 
-        if (itemCheck == 0 && itemServerId == static_cast<int>(serverId) && count < 10)
+        // P171：ORIG 无 count<10 防御（照抄越界语义），存储序 [0],[2],[3],[1]。
+        if (itemCheck == 0 && itemServerId == static_cast<int>(serverId))
         {
             rows[count][0] = static_cast<unsigned int>(rowId);
-            rows[count][1] = static_cast<unsigned int>(itemCharacNo);
             rows[count][2] = static_cast<unsigned int>(itemNo);
             rows[count][3] = 1;
+            rows[count][1] = static_cast<unsigned int>(itemCharacNo);
             ++count;
         }
         if (avataServerId == static_cast<int>(serverId))
         {
-            if (avataCheck1 == 0 && count < 10)
+            if (avataCheck1 == 0)
             {
                 rows[count][0] = static_cast<unsigned int>(rowId);
-                rows[count][1] = static_cast<unsigned int>(avataCharacNo);
                 rows[count][2] = static_cast<unsigned int>(avataNo1);
                 rows[count][3] = 1;
+                rows[count][1] = static_cast<unsigned int>(avataCharacNo);
                 ++count;
             }
-            if (avataCheck2 == 0 && count < 10)
+            if (avataCheck2 == 0)
             {
                 rows[count][0] = static_cast<unsigned int>(rowId);
-                rows[count][1] = static_cast<unsigned int>(avataCharacNo);
                 rows[count][2] = static_cast<unsigned int>(avataNo2);
                 rows[count][3] = 1;
+                rows[count][1] = static_cast<unsigned int>(avataCharacNo);
                 ++count;
             }
         }
-        ++scanned;
     }
 
     for (int i = 0; i < count; ++i)
@@ -311,11 +334,15 @@ void EventMuz::UpdateEventMuzInfo(unsigned int uid, int itemNo)
 }
 
 // ArrangeMuzEventItem —— ORIG T 0x083fb16a (size 0x240)
-// [b28d-D9] P75/N80：变参装载序（$0xa 槽位互换）+ 帧差 0xf4 vs 0xf8（ORIG 0x083fb16a sz 0x00000308）
+// [b28d-solo-LinkClosureB_Misc] N 封顶：同 ArrangeATIEventItem（p167 CLEAR）。
+// 已修：__PRETTY_FUNCTION__、dead local limit=10、P227 临时链、for 底部条件、
+// 存储序 [0],[2],[3],[1]。残余 = P209 + P311 数组常量列下标 scaled 折叠。
 void EventMuz::ArrangeMuzEventItem(unsigned int mid, unsigned int serverId)
 {
-    const char* kFunc =
-        "void WongWork::EventMuz::ArrangeMuzEventItem(memberIdentificationNumber_t, unsigned int)";
+    // [b28d-solo-LinkClosureB_Misc] ORIG 函数头 `movl $0xa,-0x1c` 为未被读的
+    // dead int 局部（P232/P31 帧槽对齐）；kFunc 局部已删（P118/P139 用
+    // __PRETTY_FUNCTION__ 生成 _ZZ...E19__PRETTY_FUNCTION__ 符号）。
+    int limit = 10;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query(
@@ -324,16 +351,23 @@ void EventMuz::ArrangeMuzEventItem(unsigned int mid, unsigned int serverId)
         NumberToString(mid, 0), 10);
     if (!db->exec(true))
     {
-        cMyTrace trace(kFunc, 0x1ce, 5);
-        trace("%s, exec ERROR m_id=%s", kFunc, NumberToString(mid, 0));
+        // P227：全表达式临时链（构造即调用）令 NumberToString 在 ctor 前求值
+        // 并以 %ebx 跨 ctor 保活（ORIG `call NumberToString; mov %eax,%ebx`）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x1ce, 5)(
+            "%s, exec ERROR m_id=%s", __PRETTY_FUNCTION__,
+            NumberToString(mid, 0));
         return;
     }
 
     unsigned int rows[10][4];
     int count = 0;
-    int scanned = 0;
-    while (scanned < db->get_n_rows() && db->fetch())
+    // P283/P164：ORIG 为 for 底部条件布局（fetch 在体内、get_n_rows 在尾条件），
+    // 且 scanned 为 unsigned（尾测 seta）。
+    for (unsigned int scanned = 0;
+         scanned < static_cast<unsigned int>(db->get_n_rows()); ++scanned)
     {
+        if (!db->fetch())
+            break;
         unsigned int rowId = 0; int itemServerId = 0; int itemCharacNo = 0;
         int itemNo = 0; int itemCheck = 0; int itemCnt = 0;
         db->get_int(0, rowId);
@@ -343,15 +377,16 @@ void EventMuz::ArrangeMuzEventItem(unsigned int mid, unsigned int serverId)
         db->get_int(4, itemCheck);
         db->get_int(5, itemCnt);
 
-        if (itemCheck == 0 && itemServerId == static_cast<int>(serverId))
+        if (itemCheck == 0 &&
+            static_cast<int>(itemServerId) == static_cast<int>(serverId))
         {
+            // ORIG 存储序 [0],[2],[3],[1]（-0x30/-0x3c/-0x44/-0x38 实证）。
             rows[count][0] = static_cast<unsigned int>(rowId);
-            rows[count][1] = static_cast<unsigned int>(itemCharacNo);
             rows[count][2] = static_cast<unsigned int>(itemNo);
             rows[count][3] = static_cast<unsigned int>(itemCnt);
+            rows[count][1] = static_cast<unsigned int>(itemCharacNo);
             ++count;
         }
-        ++scanned;
     }
 
     for (int i = 0; i < count; ++i)
@@ -408,40 +443,57 @@ CAdvanceAltarLog advancealtar::HistoryLog::advanceAltarstatistics_;  // ORIG B 0
 // rate = 1.0f + (-1000.0/((m_equipProbBase-1.0)*v))（fldl/fdivrp 常量
 // 0x8c1fc70=-1000.0 实证）；计数器 %1000 命中时打 itemDropRate trace。
 // ---------------------------------------------------------------------------
-// [b28d-D9] N95/N93：槽基差 -0xc vs -0x20、块级槽序；极性 P220（ORIG 0x082f8ae8 sz 0x000001a4）
+// [b28d-solo-LinkClosureB_Misc] NEAR：真语义 bug 修 3 处——(a) 除法方向应为
+// `(v*sub)/(-1000.0)`（原 `-1000.0/(v*sub)` 整段反，ORIG fdivp 实证）；
+// (b) 漏第二次 operator[]（P183；p167 MISSING×1 → CLEAR）；(c) 日志格式串多
+// %s+重复签名实参、cMyTrace 第三参 5→0。另补 __PRETTY_FUNCTION__（P139）、
+// logCount 符号名（P187）+ 后置自增序。残余 = N82附/N93/N95（4.4 聚合对象优先
+// 低槽 + 标量分区 vs 4.1 生命周期穿插 ⇒ 槽号整体平移）。
 float CAutoMarketConditionsControl::GetItemDropRate(int levelRange)
 {
     float rate = 1.0f;
-    if (m_field380 == 0)
-        return rate;
-
-    if (!(static_cast<int>(m_vec3dc.size()) > levelRange && levelRange >= 0))
+    // [b28d-solo-LinkClosureB_Misc] P59/P257 正向包裹：ORIG `test; je <统一返回块>`
+    //（m_field380==0 直落尾块，无 mov+jmp 提前返回岛）。
+    if (m_field380 != 0)
     {
-        cMyTrace trace(
-            "double CAutoMarketConditionsControl::GetItemDropRate(int)", 0xde, 5);
-        trace("%s error levelRange(%d)",
-              "double CAutoMarketConditionsControl::GetItemDropRate(int)",
-              levelRange);
-        return rate;
-    }
+        if (!(static_cast<int>(m_vec3dc.size()) > levelRange && levelRange >= 0))
+        {
+            // [b28d-solo-LinkClosureB_Misc] P118/P139：ORIG 首参是 __PRETTY_FUNCTION__
+            // 局部静态符号（_ZZ...E19__PRETTY_FUNCTION__）；格式串为单参版
+            //（原重建多写 %s + 重复签名实参 = 真 bug）。
+            cMyTrace trace(__PRETTY_FUNCTION__, 0xde, 0);
+            trace("GetItemDropRate() error levelRange(%d)", levelRange);
+            return rate;
+        }
 
-    int v = m_vec3dc[levelRange];
-    if (v != 0)
-    {
-        double sub = m_equipProbBase - 1.0;
-        rate = static_cast<float>(
-            1.0 + (-1000.0 / (sub * v)));
-    }
+        // [b28d-solo-LinkClosureB_Misc] P183/P157：ORIG 两次独立 operator[]（p167
+        // MISSING×1 实证）——原重建缓存 `int v` 少一次调用点。
+        if (m_vec3dc[levelRange] != 0)
+        {
+            // ORIG fsubrp 实证 = `1.0 - m_equipProbBase`（非 base-1.0）。
+            // ORIG fdivp 实证 = `(v*sub)/(-1000.0)`（非 -1000.0/(v*sub)，原重建
+            // 除法方向整段写反 = 真语义 bug）。
+            // 4.4 对标量 double 局部折叠为 `fmul mem`（少 1 条）；数组元素左值
+            // 才发 ORIG 的 `fld mem; fmulp`（探针 p3.cpp f9）。
+            double sub[1];
+            sub[0] = 1.0 - m_equipProbBase;
+            rate = static_cast<float>(
+                1.0 + (m_vec3dc[levelRange] * sub[0]) / -1000.0);
+        }
 
-    static int s_traceCounter;                 // ORIG 匿名 b 计数器 0x0943bd78
-    ++s_traceCounter;
-    if (s_traceCounter % 1000 == 0)
-    {
-        double curRate = static_cast<double>(rate);
-        cMyTrace trace(
-            "double CAutoMarketConditionsControl::GetItemDropRate(int)", 0xe8, 5);
-        trace("itemDropRate(%f), levelRange(%d), curRate(%lf)",
-              curRate, levelRange, m_equipProbBase);
+        // [b28d-solo-LinkClosureB_Misc] ORIG 符号名 _ZZ...E8logCount（P187）；
+        // 后置自增形 `logCount++ % 1000 == 0` 才复现「先 sete 物化、后 lea 自增写回」。
+        static int logCount;                   // ORIG b 0x0943bd78
+        if (logCount++ % 1000 == 0)
+        {
+            // P0：ORIG 在 cMyTrace ctor 前先把 m_equipProbBase / (double)rate 各落具名
+            // double 槽（-0x50/-0x48），trace 实参从槽读（非 ctor 后读成员）。
+            double base = m_equipProbBase;
+            double curRate = static_cast<double>(rate);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0xe8, 0);
+            trace("itemDropRate(%f), levelRange(%d), curRate(%lf)",
+                  curRate, levelRange, base);
+        }
     }
     return rate;
 }
@@ -454,58 +506,64 @@ float CAutoMarketConditionsControl::GetItemDropRate(int levelRange)
 //   out[i]=item[i]-acc; if(out[i]<0) out[i]=0; 恒返 true。
 // item/out 两表各取前 4 项打 trace（两次独立匿名计数器）。
 // ---------------------------------------------------------------------------
-// [b28d-D9] N95/N85：槽基差 -0x50 vs -0x60 + x87 fldl/fstpl 序列（ORIG 0x082f8c8c sz 0x000002b3）
+// [b28d-solo-LinkClosureB_Misc] N 封顶：语义/调用点闭合（p167 CLEAR）。
+// 已修：__PRETTY_FUNCTION__、logCount/logCount2 符号名（P187）+ 后置自增序、
+// cMyTrace 第三参 0、格式串删多余 %s、P191 i 双初始化 + 两循环复用同槽、
+// P59 正向包裹、P227 全表达式临时链。残余 = N85（4.4 对 double 局部拷贝恒
+// fld/fstp 中转，ORIG 恒 2×mov；探针 /tmp/b28d_lcbm/p4.cpp 六形全败）⇒ 帧 +0x10。
 bool CAutoMarketConditionsControl::ChangeItemRarity(int* itemRarity,
                                                     int* outItemRarity,
                                                     int raritySize,
                                                     double controlRarity)
 {
-    double factor = controlRarity;               // ebp+0x18/0x1c 双槽载入
-    if (m_field380 == 0)
-        return false;
-
-    {                                            // 头部 trace（0x82f8cf4..）
-        static int s_traceCounter;               // ORIG 0x0943bd70
-        ++s_traceCounter;
-        if (s_traceCounter % 1000 == 0)
-        {
-            cMyTrace trace(
-                "bool CAutoMarketConditionsControl::ChangeItemRarity(int*,int*,int,double)",
-                0xf4, 5);
-            trace("%s itemRarity[%d,%d,%d,%d], outItemRarity[%d,%d,%d,%d], "
-                  "itemRaritySize(%d), controlRarity(%lf)",
-                  "bool CAutoMarketConditionsControl::ChangeItemRarity(int*,int*,int,double)",
-                  itemRarity[0], itemRarity[1], itemRarity[2], itemRarity[3],
-                  outItemRarity[0], outItemRarity[1], outItemRarity[2],
-                  outItemRarity[3], raritySize, factor);
-        }
-    }
-
-    for (int i = 2; i <= 5; ++i)
-        outItemRarity[i] = itemRarity[i];
-
-    int acc = 0;                                  // ebp-0x24
-    for (int i = 2; i >= 0; --i)
+    // ORIG 为两条 mov 直拷（无 fld/fstp 中转）⇒ 声明与赋值分两句。
+    double factor;
+    factor = controlRarity;                      // ebp+0x18/0x1c 双槽载入
+    // P59/P257 正向包裹：ORIG `test; je <mov $0 尾块>`，成功路径 mov $1 fall-through。
+    if (m_field380 != 0)
     {
-        int delta = itemRarity[i + 1] - itemRarity[i];
-        acc += static_cast<int>(delta * factor);  // fnstcw RC=nearest 后 fistpl
-        outItemRarity[i] = itemRarity[i] - acc;
-        if (outItemRarity[i] < 0)
-            outItemRarity[i] = 0;
-    }
-
-    {                                            // 尾部 trace（0x82f8ebf..）
-        static int s_traceCounter;               // ORIG 0x0943bd74
-        ++s_traceCounter;
-        if (s_traceCounter % 1000 == 0)
+      {                                          // 头部 trace（0x82f8cf4..）
+        // P187：ORIG 符号 _ZZ...E8logCount；后置自增形复现 sete/lea 序。
+        static int logCount;                     // ORIG b 0x0943bd70
+        if (logCount++ % 1000 == 0)
         {
-            cMyTrace trace(
-                "bool CAutoMarketConditionsControl::ChangeItemRarity(int*,int*,int,double)",
-                0x114, 5);
-            trace("ChangeItemRarity outItemRarity[%d,%d,%d,%d]",
-                  outItemRarity[0], outItemRarity[1], outItemRarity[2],
-                  outItemRarity[3]);
+            cMyTrace(__PRETTY_FUNCTION__, 0xf4, 0)(
+                "ChangeItemRarity itemRarity[%d,%d,%d,%d], "
+                "outItemRarity[%d,%d,%d,%d], "
+                "itemRaritySize(%d), controlRarity(%lf)",
+                itemRarity[0], itemRarity[1], itemRarity[2], itemRarity[3],
+                outItemRarity[0], outItemRarity[1], outItemRarity[2],
+                outItemRarity[3], raritySize, factor);
         }
+      }
+
+      // P191/P160-162：ORIG i 双初始化（`movl $0,-0x20` 后 `movl $2,-0x20`），
+      // 且两个循环复用同一 i/acc 槽。
+      int acc = 0;                                // ebp-0x24
+      int i = 0;
+      for (i = 2; i <= 5; ++i)
+          outItemRarity[i] = itemRarity[i];
+
+      for (i = 2; i >= 0; --i)
+      {
+          int delta = itemRarity[i + 1] - itemRarity[i];
+          acc += static_cast<int>(delta * factor); // fnstcw RC=nearest 后 fistpl
+          outItemRarity[i] = itemRarity[i] - acc;
+          if (outItemRarity[i] < 0)
+              outItemRarity[i] = 0;
+      }
+
+      {                                          // 尾部 trace（0x82f8ebf..）
+        static int logCount2;                    // ORIG b 0x0943bd74
+        if (logCount2++ % 1000 == 0)
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0x114, 0)(
+                "ChangeItemRarity outItemRarity[%d,%d,%d,%d]",
+                outItemRarity[0], outItemRarity[1], outItemRarity[2],
+                outItemRarity[3]);
+        }
+      }
+      return true;
     }
-    return true;
+    return false;
 }

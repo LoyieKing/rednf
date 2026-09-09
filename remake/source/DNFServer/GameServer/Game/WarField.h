@@ -64,8 +64,12 @@ struct map_item
 
 // ---- map_monster（0x34c 字节；ctor 081511c8） ----
 // ORIG 布局 +0x10 byte/+0x11 word/+0x13 byte…：m_field11(short) 位于奇数偏移
-// +0x11（非 2 对齐，ORIG ConsistMap 逐字节写 +0x11/+0x12 实证），整体 pack(1)。
-#pragma pack(push, 1)
+// +0x11（非 2 对齐，ORIG ConsistMap 逐字节写 +0x11/+0x12 实证）⇒ 仅该成员带
+// __attribute__((packed))，结构整体保持自然对齐 4。依据：ORIG C1ERKS_/aSERKS_
+// （0x8151aea/0x8151d3a）对 m_active(+0x38, 0x2f0) 发无对齐检查的
+// `rep movsl`（4.4 在 pack(1) 结构下恒走对齐剥离慢路）；成员 packed 方案下
+// 4.4.7 复现同形，且全部成员偏移与 sizeof 0x34c 逐项实测不变（探针
+// /tmp/b28d_map_probe/layout2.cpp 34 项偏移断言 + sizeof/align 断言）。
 struct map_monster
 {
     int m_mobId;              // +0x00
@@ -74,7 +78,7 @@ struct map_monster
     char m_pad9[3];           // +0x09
     int m_mobIndex;           // +0x0c（击杀逻辑的怪物索引）
     unsigned char m_level;    // +0x10（byte；ORIG 读取全 movzbl → unsigned）
-    short m_field11;          // +0x11
+    short m_field11 __attribute__((packed));  // +0x11（非 2 对齐，ORIG 实证）
     unsigned char m_field13;  // +0x13（ORIG 读取 movzbl）
     unsigned char m_field14;  // +0x14（ORIG 读取 movzbl）
     char m_field15;           // +0x15
@@ -120,7 +124,6 @@ struct map_monster
     map_monster& operator=(const map_monster& other);  // ORIG 08151d3a
     bool isNamedMonster();                 // ORIG 08151182（非 const）
 };
-#pragma pack(pop)
 
 
 // ---- MapInfo 支撑结构（0x18/0x10；init ORIG 081512ec/0815132c） ----

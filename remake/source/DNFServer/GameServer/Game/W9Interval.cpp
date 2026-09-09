@@ -30,10 +30,8 @@ Interval::Interval(long start, long size)              // W @0x08575e5e
     m_size = size;
 }
 
-// [b28d-lane15] 试 `= default` 无效（4.4.7 仍发 2 处 D1 引用），回退空体。
-Interval::~Interval()                                  // W @0x08577554（空体）
-{
-}
+// [b28d-Main 代落·S329 P317] 用户空析构定义删除（声明端同步）：隐式 trivial dtor 的
+// D1/D2 仍由 new_allocator::destroy 发射 W @0x08577554；`_Destroy_aux<true>` 与 ORIG 同形。
 
 IntervalSet::IntervalSet()                             // W @0x08575e9c：仅构造 vector<Interval>
     : m_intervals()

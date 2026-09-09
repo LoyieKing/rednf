@@ -523,7 +523,7 @@ public:
     //   命中成员记录槽且次数未达 dm 上限时 CUser::AddDungeonClear(dungeonIdx,3)。
     bool addDungeonClear(const CDungeon* dungeon, int param, int slot);
     void DungeonPermission(int param);           // ORIG T 0x085b12f8（clear_reward 尾部调用）
-    void OnDungeonClear(CUser* user, bool success);
+    int OnDungeonClear(CUser* user, bool success);   // b28d-solo-PartyClosureC2：ORIG 0x085b5518 尾 `mov $0x1,%eax` ⇒ int 返回 1（P159）
     void OnFailedDungeonClear(CUser* user);
     void OnSuccessedDungeonClear(CUser* user);
     void RestartDungeon();
@@ -798,8 +798,18 @@ public:
     union {
         unsigned char m_padResult[0x50];    // +0x17f4 GameResultSet
         struct {
-            unsigned char m_resultPad[0x4a];        // +0x17f4..+0x183d
+            // [b28d-solo-CPartyDepsD2] P235/P311 具名标量视角（ORIG SetPlayResult
+            // 0x085b24be 单条 movzbl 0x17fd / 0x085b251b mov %ax,0x183c /
+            // 0x085b2525 mov %edx,0x1800 / 0x085b2539 mov %dl,0x1804 实证）。
+            unsigned char m_resultPad[9];           // +0x17f4..+0x17fc
+            unsigned char m_resultField9;           // +0x17fd GameResultType+0x09
+            unsigned char m_resultPadA[2];          // +0x17fe..+0x17ff
+            int m_resultFieldC;                     // +0x1800 GameResultType+0x0c
+            unsigned char m_resultField10;          // +0x1804 GameResultType+0x10
+            unsigned char m_resultPad11[0x37];      // +0x1805..+0x183b
+            unsigned short m_resultField48;         // +0x183c GameResultType+0x48
             unsigned short m_resultField4a;         // +0x183e GameResultType 尾字段
+            unsigned char m_resultPad4c[4];         // +0x1840..+0x1843
         } m_resultView;
     };
     std::map<int, int> m_killMobCounter;   // +0x1844（ORIG DieMob dispatch_sig
@@ -807,11 +817,13 @@ public:
 
     int m_field185c;        // +0x185c
     int m_usedCoinCount;    // +0x1860
-    char m_field1864;       // +0x1864（game_start 字节写：hell 无未清任务=1；
-                            //   ORIG game_start.md +0x5c2/+0x7c3 为 movb）
-    // [b28d-solo-CPartyDepsA2] ORIG 0x085a7d4b 返回段 `movzbl 0x1865(%eax),%ebx`
-    // （零扩展非 movsbl）⇒ 字段 unsigned char 非 char；1 字节/偏移不变。
-    unsigned char m_sealDoorFlag;    // +0x1865（CheckHaveHellPartyPassItem 置位；dungeon_start 读）
+    // [b28d-solo-BattleDungeonMapA2] ORIG check_random_appear_hell_dungeon
+    // 0x0830a9ea/0x0830aa03：`movzbl 0x1864/0x1865(%eax),%eax; xor $0x1,%eax;
+    // test %al,%al; je` ⇒ P248 档②：两字段为 bool（char/uchar 的 `!f` 4.4 恒
+    // 产 `test; jne` 缺 xor 段，实测本 TU v4 diff）。1 字节/偏移不变；
+    // CPartyDepsA2 的 movzbl 零扩展证据与 bool 相容（bool 读亦 movzbl）。
+    bool m_field1864;       // +0x1864（game_start 字节写：hell 无未清任务=1）
+    bool m_sealDoorFlag;    // +0x1865（CheckHaveHellPartyPassItem 置位；dungeon_start 读）
     unsigned short m_field1866;             // +0x1866（ORIG 未单独命名，保持占位）
     CWorldMap* m_hellWorldMap;  // +0x1868（CheckHellDungeonFreepassItemHaveAndDel 缓存的世界地图指针）
     int m_overlapRare;      // +0x186c
@@ -836,7 +848,13 @@ public:
     int m_quickPartyIndex;           // +0x1ae0
     bool m_isQuickParty;             // +0x1ae4
     unsigned char m_pad1ae5[3];      // +0x1ae5
-    unsigned int m_field1ae8;        // +0x1ae8（P211：与 int RHS 符号异型→store RHS-first=ORIG 形 @0x0859b814）
+    // +0x1ae8 同址双视角（union 等宽 4B，sizeof/偏移/mangled 零影响）：
+    //   m_field1ae8    —— P211：与 int RHS 符号异型→store RHS-first=ORIG @0x0859b814；
+    //   m_field1ae8Type—— 与 RandomBuffType 形参同型 mem 直比=ORIG @0x0859b925（P209）。
+    union {
+        unsigned int m_field1ae8;
+        QuickParty::RandomBuffType m_field1ae8Type;
+    };
     QuickParty::RandomBuffType m_randomBuffType;  // +0x1aec（ORIG set_gm 赋值为同型无转换：eax 先取址）
     bool m_weekendEvent;             // +0x1af0
     bool m_dungeonMapSaving;         // +0x1af1

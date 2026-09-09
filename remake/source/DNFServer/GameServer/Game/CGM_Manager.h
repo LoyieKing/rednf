@@ -36,7 +36,9 @@ public:
     int GetGmLevel(unsigned int accId);   // ORIG T 0x082993d8
     bool IsGm(unsigned int accId);
     unsigned char TurnGmMode(unsigned int accId);   // ORIG 0x0829917c，返回切换后的模式
-    char GetCurrentGmMode(unsigned int accId);      // ORIG T 0x08299276（Batch8 实现，补声明）
+    // [b28d-Main 代落·S319 P292档①] char→bool：ORIG 调用点 0x0814720d `test %al,%al; je`、
+    // 0x081fa406/0x081fa474 `xor $0x1; test %al,%al`（均无 setne 归一）。返回类型不入 mangled。
+    bool GetCurrentGmMode(unsigned int accId);      // ORIG T 0x08299276（Batch8 实现，补声明）
     // b28c-l23 SIGFIX：ORIG __PRETTY_FUNCTION__ 串 @0x08c1b280 =
     // "bool CGM_Manager::LoadGmListFromDb()"（P174）；体尾 `movzbl -0x11(%ebp),%ebx`
     // 直返 bool 局部 ok ⇒ char 为 Ghidra 误读。mangled 不含返回类型，ABI 零变。

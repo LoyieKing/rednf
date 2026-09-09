@@ -4,38 +4,34 @@
 // 忠实转写 docs/class_func_reports/HeroMissionEvent/{processMission,findMissionValue}.md。
 // 判活：ORIG 经 vptr+0x34 调用 CEventBase::IsEventing(NULL)（即读取 +0x08 标志）。
 // ============================================================================
-// [b28d-solo-HeroMissionEvent 集中判词] 本 TU 清单 19 件逐件收口
-//   （fresh check_tu_routed：COMPILE OK 0 错误 / identical=184 ae=350 near=1 diff=9；
-//    基线 ae=331 diff=22 ⇒ 净翻正 19 件中的 14 件为 AE，另 5 件 N 封顶）。
-//   · ConvertString2EnumMissionType@0x089613d7 —— AE（残留仅 .o 重定位 + 对齐 nop）。
-//   · findMissionValue@0x08168010 —— AE（P235 匿名 union 枚举视图 ⇒ `mov (%eax),%eax;
-//     cmp 0x10(%ebp),%eax`，N18b 作废）。
-//   · TotalMission@0x08166378 / UseCubeMission@0x08165992 / UseFatigueMission
-//     @0x08165706 / ClearDungeonMission@0x081653b4 ::processMission —— AE（守卫改
-//     ORIG 方向 `size()/limit <= (unsigned)field4` + 条件 2/3 同向；P209/P218 扩展）。
-//   · AttendanceMission::processMission@0x08166002 —— AE（同守卫方向 + tm 槽序
-//     today(-0x40) 先声明 + 条件 3 `limit <= field4+1`）。
-//   · UseCubeMission@0x08165a2e / UseFatigueMission@0x081657a2 / AttendanceMission
-//     @0x081661d6 / ClearDungeonMission@0x08165484 ::rewardMission —— AE（P226 语句
-//     表达式零槽短路物化 / P227 全表达式临时链 / m_missionType 枚举视图两段装载）。
-//   · HeroMissionEvent::processMission@0x081672be —— AE（P222 正向包裹消 xor；
-//     `fieldA > prev` 复现 `cmp -0xa(%ebp),%ax; jbe`）。
-//   · HeroMissionValue::getStringToken@0x08164bca —— AE（枚举视图选 `_ZNSolsEi`；
-//     链拆两语句复现 4.1 分批装载）。
-//   · setEventData@0x08166752 —— AE（删 characNo 局部：4 次独立 get_charac_no(-1)，
-//     make_pair<int,...>；`tit->c_str()` 复现 boost ptEv + string(char*,alloc)）。
-//   · loadScript@0x08167ac8 —— N104 封顶（insn 364=364、p167 仅缺 1 次
-//     _Unwind_Resume：4.4 把 new-cleanup 汇入 catch 尾块，4.1 走 _Unwind_Resume）。
-//   · saveEventData@0x08166d38 —— N95 封顶（insn 227=227、p167 CLEAR；局部槽基整体
-//     深 4~8：4.4 槽基/分配序跨版本，data/characNo 两序实测均不闭合）。
-//   · LevelUpMission::processMission@0x08165c1e —— N18a 封顶（insn 232 vs 231、
-//     p167 CLEAR；唯一残差 `mov (%eax),%eax; mov %eax,%ebx` 单段 regmove 不可造）。
-//   · loadEventData@0x0816709e —— N7+N18a 封顶（insn 94 vs 93；虚调用 callee 目标
-//     寄存器 eax↔edx + `*sig=` LHS 预存 1 条；P259 Acquire 内联已消 stream 局部）。
-//   · importHeroMissionConditionsData@0x0896171b —— N 封顶（超大解析 732 insn：
-//     p167 仅 EXTRA +2 RewardData D1（push_back 临时析构作用域），N89 惰性 map 注册
-//     链 + P163 决策树 + N82 帧槽；按 P165/P166 三件套口径收）。
-//   语义均按报告逐指令转写并核对；残差全为跨版本结构族，无真语义缺口。
+// [b28d-solo-HeroMissionEvent 集中判词 · 单文件泳道 7 件收口]
+//   （fresh check_tu_routed：COMPILE OK 0 错误 / identical=186 ae=362 near=0 diff=5；
+//    本轮基线 identical=184 ae=350 near=1 diff=9）。
+//   · HeroMissionValue::getStringToken@0x08164bca —— AE（fresh clean ndiff=0；
+//     清单 NEAR1 系旧读数）。
+//   · ConvertString2EnumMissionType@0x089613d7 —— AE（fresh clean ndiff=0；旧 NEAR19）。
+//   · loadEventData@0x0816709e —— AE【本波翻正】P211 具名成员访问：
+//     `sig->m_field0 = user->get_charac_no(-1);` 复现 ORIG RHS-first
+//     `mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,(%eax)`；此前
+//     `*reinterpret_cast<unsigned int*>(sig)=…` 令 4.4 把 sig 升格 %ebx 跨 call
+//     保活（LHS-first + `mov %eax,(%ebx)`）。gap 0 / ndiff 0。
+//   · saveEventData@0x08166d38 —— N95 封顶（insn 225=225、p167 CLEAR、帧 0x60 相同；
+//     全部局部槽整体深 4：ORIG -0xc/-0x20/-0x24/-0x2c/-0x30 ↔ OURS -0x10/-0x24/
+//     -0x28/-0x30/-0x34。P259 删 stream 局部实测 gap 0→2 反劣已回退；data/characNo
+//     两声明序均试不闭合）。
+//   · LevelUpMission::processMission@0x08165c1e —— N18a 封顶（唯一残差
+//     `mov (%eax),%eax; mov %eax,%ebx`。P254 enum 化实测净零：字段枚举化使
+//     0x08165d3b 两段翻正，但同字段 0x08165e3a 单段被拖成两段（gap 1→-1），已回退；
+//     P265 实参 cast 形无效。⇒ 同字段多使用点方向相反，源形不可同时满足）。
+//   · loadScript@0x08167ac8 —— N104 封顶（insn 364=364、帧 0x6c 相同、p167 仅缺
+//     1 次 _Unwind_Resume：4.4 把 new-cleanup 汇入 catch 尾块，4.1 走 _Unwind_Resume）。
+//   · importHeroMissionConditionsData@0x0896171b —— N89/N82 封顶（732 vs 717、
+//     gap 15、p167 CLEAR；剩余 ORIG-only 18 条 = movl 6（dead 局部初始化）+ jmp 8
+//     （决策树块排布）+ xor/jg/movw/add 各 1；槽基差 4 属 N95）。
+//     配套：RewardData 用户空析构删除（P317，Main 代落 HeroMissionCondition.h +
+//     W9HeroCondition.cpp）后 EXTRA +2 RewardData D1 消失，本 TU 净 +2 identical/+11 ae。
+//   前波其余 12 件（findMissionValue/processMission/rewardMission 族/setEventData 等）
+//   维持原 AE/N 判词；语义均按报告逐指令转写，无真语义缺口。
 //   P0/N96：本文件 0 处 `register asm` 绑定（grep 实证）。
 // ============================================================================
 
@@ -218,8 +214,9 @@ void HeroMissionEvent::loadEventData(CUser* user)
         sig->init();
         // [b28d-solo-HeroMissionEvent] ORIG 0x081671c5 store 为 RHS-first
         // （`mov %eax,%edx; mov -0xc(%ebp),%eax; mov %edx,(%eax)`）⇒ P211 异型化：
-        // 目标字段写 unsigned（RHS 为 int）复现中转序。
-        *reinterpret_cast<unsigned int*>(sig) = user->get_charac_no(-1);
+        // 字段 unsigned（RHS int 异型）+ 具名成员访问（reinterpret_cast 视图会令
+        // 4.4 把基址指针升格 %ebx 跨 call 保活，退化为 LHS-first）。
+        sig->m_field0 = user->get_charac_no(-1);
         GlobalData::s_msgq_mgr->put(
             static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
     }
@@ -604,10 +601,13 @@ void LevelUpMission::processMission(CUser* user, HeroMissionValue& value,
         m_condition.m_rewards.end();
     for (; it != end; ++it)
     {
-        // [b28d-solo-HeroMissionEvent] N18a：ORIG 0x08165d3b 先物化实参
+        // [b28d-solo-HeroMissionEvent] N18a 封顶：ORIG 0x08165d3b 先物化实参
         // `it->m_itemIdx`（mov (%eax),%eax; mov %eax,%ebx）再 call G_CDataManager；
-        // 4.4 恒 receiver 先且折单段 mov (%eax),%ebx（P23/P75 跨版本求值序，
-        // 语句表达式/具名局部两形实测不可翻）。
+        // 4.4 恒 receiver 先且折单段 mov (%eax),%ebx。P254 enum 化实测净零——
+        // 字段枚举化（HeroMissionCondition.h 临时实验，已回退）使本处两段翻正，
+        // 但同字段日志路径 0x08165e3a（ORIG `mov (%eax),%edi` 单段）被拖成两段，
+        // gap 1→-1；P265 实参 cast 形亦无效。同字段多使用点方向相反 ⇒ 源形不可
+        // 同时满足，判 N18a。
         CItem* item = G_CDataManager()->find_item(it->m_itemIdx);
         if (item == 0)
         {
@@ -744,6 +744,8 @@ bool AttendanceMission::rewardMission(CUser* user, HeroMissionValue& value)
 // [type] 标签的字符串枚举 → 整型（"normal"→1 / "payment"→2 / "final"→3）。
 // 函数级 static 惰性表（lookup @0x94f7598 / SpinLock @0x94f75b0 / 就绪字节
 // @0x94f75b4，双检锁 + 首轮 fallthrough 建表后重查，P21 范式）。
+// [b28d-solo-HeroMissionEvent] 判词 AE：fresh clean ndiff=0（orig=213 our=213，
+// gap=0）；清单 NEAR19 系旧读数。
 // ============================================================================
 static int ConvertString2EnumMissionType(std::string& s)
 {
@@ -807,6 +809,12 @@ loop_top:
 // 首轮经 switch fallthrough 链惰性填充标签表（lookup @0x94f7578 / SpinLock
 // @0x94f7590 / 就绪字节 @0x94f7594，P21 范式），随后重查当前行分派。
 // ============================================================================
+// importHeroMissionConditionsData @ 0x0896171b —— [b28d-solo-HeroMissionEvent ·
+//   N89/N82 封顶] 732 vs 717、gap 15、p167 CLEAR（0 missing/0 extra）。
+//   剩余 ORIG-only 18 条 = movl 6（dead 局部初始化）+ jmp 8（决策树块排布）
+//   + xor/jg/movw/add 各 1；槽基差 4（ORIG cond -0x16c ↔ OURS -0x170）属 N95；
+//   4.1 对 vector/map 模板 out-of-line 实例（N89）+ 4.4 槽分配序（N82）不可翻。
+//   配套：RewardData 用户空析构删除（P317）后 EXTRA +2 D1 消失。
 int importHeroMissionConditionsData(std::vector<HeroMissionCondition>* out,
                                     const char* path)
 {
@@ -989,6 +997,10 @@ int importHeroMissionConditionsData(std::vector<HeroMissionCondition>* out,
     return 0;
 }
 
+// loadScript @ 0x08167ac8 —— [b28d-solo-HeroMissionEvent · N104 封顶]
+//   insn 364=364、帧 0x6c 相同、p167 仅缺 1 次 _Unwind_Resume：4.4 把
+//   new-cleanup 汇入 catch 尾块，4.1 走 _Unwind_Resume（N104 EH 尾块相对序）。
+//   语义完成（new×6 + import + 条件遍历 + logFormat 调用点全数对齐）。
 bool HeroMissionEvent::loadScript()
 {
 	try {
@@ -1147,6 +1159,8 @@ void HeroMissionEvent::setEventData(CUser* user, char const* data)
 // 若 out 非空先补 ','，再按 "mission f4 f6 fA f8" 空格分隔追加（字段序与
 // setStringToken 的解析偏移一一对应：tok0→m_mission、tok1→+0x04、tok2→+0x06、
 // tok3→+0x0a、tok4→+0x08）。
+// [b28d-solo-HeroMissionEvent] 判词 AE：fresh clean ndiff=0（orig=111 our=111，
+// gap=0）；清单 NEAR1 系旧读数。修法=枚举视图选 `_ZNSolsEi` + 链拆两语句。
 // ============================================================================
 void HeroMissionValue::getStringToken(std::string& out)
 {
@@ -1226,6 +1240,11 @@ END:;
 // s_msgq_mgr->put(QUEUE_IDX(2), guard)；removeData 为真再 erase(charac_no)。
 // （ORIG try/catch 形态由栈对象自动析构等价承载。）
 // ============================================================================
+// saveEventData @ 0x08166d38 —— [b28d-solo-HeroMissionEvent · N95 封顶]
+//   insn 225=225、帧 0x60 相同、p167 CLEAR；全部局部槽整体深 4
+//   （ORIG -0xc/-0x20/-0x24/-0x2c/-0x30 ↔ OURS -0x10/-0x24/-0x28/-0x30/-0x34），
+//   属 4.4 局部槽基/分配序跨版本（N95）。P259 删 stream 局部实测 gap 0→2 反劣
+//   （已回退）；data/characNo 两声明序均试不闭合。
 void HeroMissionEvent::saveEventData(CUser* user, bool removeData)
 {
     // ORIG 0x08166d5e `call *%edx`：虚调用 CEventBase::IsEventing(NULL)（§4.5）。

@@ -393,20 +393,30 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
     // `vector<vector<...>>::operator[]`（size 检查 + 取值，P157，去 outer/inner 引用缓存）；
     // ②技能段改**非 const** `_Rb_tree_iterator`（P96）+ `find` 判存在后
     // `m_addCharacSkillMap[uid]`/`skillMap[grade]` 二次 `operator[]`（P123，Ghidra C 同形）。
-    // 残余：帧 0x7c vs 0x70 与槽号平移（N82：4.1 不复用槽）⇒ 封顶。
+    // 本轮修：ORIG 0x0817fb42 死写入局部 -0x2c（0/2/1，全程未读，P171 照抄
+    // ⇒ bandKind；gap 10→7）。残余：帧 0x7c vs 0x70 与槽号平移（N82）+ 比较
+    // 方向 fold（ORIG setbe vs 我们 setae，P196 语义等价；交换书写序 ndiff 反升
+    // 295→309 已回退）⇒ 封顶。
     // ORIG 0x0817fb28（报告 AvatarRouletteServer/Pickup.md 全文）。
     // 档位抽取：randVal<roulette+0x0c 时 band∈{0,1}，否则从
     // m_avatars[0].size()-2 偏移取 band（内联 size helper 08180760 实证）。
     int randVal = get_rand_int(m_totalCount);
+    // [b28d-solo-CtorProducers_1 修复·P171] ORIG 0x0817fb42 `movl $0x0,-0x2c`
+    // 并在两分支写 2/1，但全程**未读**（Ghidra C `local_30` 无消费者）= 原码死
+    // 写入，必须照抄（缺它 -0x2c 槽与后续装载形态全异）。
+    int bandKind = 0;
     if (randVal < m_pRoulette->m_upperAvatarRate)
     {
         picked.m_gradeBand = static_cast<char>(get_rand_int(2));
+        bandKind = 2;   // ORIG 0x0817fb6b
     }
     else
     {
         picked.m_gradeBand = static_cast<char>(
             get_rand_int(static_cast<int>(m_pRoulette->m_avatars[0].size()) - 2) + 2);
+        bandKind = 1;   // ORIG 0x0817fb9b
     }
+    (void)bandKind;   // 死写入（P171 照抄；无消费者）
 
     if (grade < 0 || grade > 10)
         return false;
@@ -414,6 +424,9 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
     // [b28d-solo-CtorProducers_1] P157/p167：ORIG 对 `outer[band]` 调
     // `vector<vector<...>>::operator[]` **两次**（size 检查一次、取值一次），
     // 禁具名 outer/inner 引用缓存（旧写法仅 1 次，p167 MISSING×1）。
+    // [b28d-solo-CtorProducers_1 判词·P196 折痕] ORIG `cmp band,size; setbe`；
+    // 交换书写序（`size()<=band`）虽消 setae/setbe 差，但 jne 块错位使 ndiff
+    // 295→309 ⇒ 回退；setbe/setae 属比较方向 fold（语义等价）封顶。
     if (static_cast<unsigned int>(picked.m_gradeBand) >=
         m_pRoulette->m_avatars[grade].size())
         return false;
@@ -584,9 +597,15 @@ TowerOfDespairMgr::TowerOfDespairMgr()
     m_enterableCount = 0;
     m_minLevel = 0;
     m_field358 = 0;
-    CDungeon* nullDungeon = 0;
+    // [b28d-solo-CtorProducers_1 判词·P309] ORIG 0x08643ac4 槽序：
+    // nullDungeon=-0x20（深）/ nullIndex=-0x1c（浅）。4.4 对函数头声明按
+    // 「先声明浅」分配（与 4.1 相反）⇒ 全头部声明、声明序按 ORIG 槽浅→深
+    // （先 nullIndex 后 nullDungeon），赋值（清零）位置保持原位。
+    int nullIndex;
+    CDungeon* nullDungeon;
+    nullDungeon = 0;
     std::fill(m_layerDungeons, m_layerDungeons + 101, nullDungeon);
-    int nullIndex = 0;
+    nullIndex = 0;
     std::fill(m_dungeonIndexOfLayer, m_dungeonIndexOfLayer + 101, nullIndex);
     m_apcMgr = new TowerOfDespair_APC_Mgr;
 }
@@ -661,6 +680,10 @@ int TowerOfDespairMgr::LoadScript(const char* dir, const char* path)
                 unsigned int layer = static_cast<unsigned int>(ScanInt(&ok));
                 if (!ok) break;
                 unsigned int dungeonIdx = static_cast<unsigned int>(ScanInt((bool*)0));
+                // [b28d-solo-CtorProducers_1 判词·N/P75] ORIG 0x08643e7e 两实参
+                // 先物化 %edx/%eax 再写 esp 槽（4.1 求值-压栈分离）；4.4 逐实参
+                // 「载入-压栈」。语句表达式/纯 register 两形实测均劣化
+                // （前者零效、后者帧 -8 且槽漂移）⇒ P75 跨版本封顶。
                 _Set_LayerByDungeonIndex(layer, dungeonIdx);
             }
         }
@@ -685,11 +708,13 @@ int TowerOfDespairMgr::LoadScript(const char* dir, const char* path)
 
 CLevelRewardTable::CLevelRewardTable()
 {
-    // [b28d-solo-CtorProducers_1 判词·N4/N102 复核] ORIG 0x086975fe：67 vs 67，
-    // p167 CLEAR；残差两类：①成员常量偏移 ORIG 拆 `add $0x14c0; add this; add $8`
-    // 三步，4.4 折 `lea 0x14c8(%eax)`；②`j*0x46+l` ORIG `imul $0x46,%ecx,%ecx;
-    // lea (%ecx,%edx,1)`，4.4 `imul; mov %eax,%edx; add 内存`（N4/N102 源形不可择）
-    // ⇒ 维持 b28d-46 封顶判词。
+    // [b28d-solo-CtorProducers_1 判词·N4/N102，本轮修复①] ORIG 0x086975fe：67 vs 67。
+    // 本轮修：①成员数组**取址形** `&m_nameStrings[21*i]` / `&m_messages[0x100*i]`
+    // 复现 ORIG 的 `add $0x14c0; add this; add $8` 三步地址链（旧 `arr + 21*i`
+    // 退化形被 4.4 折 `lea 0x14c8(%eax)`）；②零初始化/声明序不变。
+    // 残余：`j*0x46+l` ORIG `imul $0x46,%ecx,%ecx; lea (%ecx,%edx,1)`，
+    // 4.4 `imul; mov %eax,%edx; add 内存`（N4/N102 源形不可择；加法交换序/
+    // register 循环变量/指针算术三形实测均无效或劣化）⇒ 封顶。
     // ORIG 0x086975fe：i∈[0,0x45] 清 levelKeys[i]，名字槽(+0x14c8+21i)/留言槽
     // (+0x1a86+0x100i) 首字节 memcpy '1'（0x31，来自 rodata "127.0.0.1" 首字符，
     // 非 '\0'）；双层清空 primary(@+0x118)/secondary(@+0xaf0) 两块。
@@ -698,8 +723,8 @@ CLevelRewardTable::CLevelRewardTable()
     for (int i = 0; i <= 0x45; ++i)
     {
         m_levelKeys[i] = 0;
-        memcpy(m_nameStrings + 21 * i, "1", 1);
-        memcpy(m_messages + 0x100 * i, "1", 1);
+        memcpy(&m_nameStrings[21 * i], "1", 1);
+        memcpy(&m_messages[0x100 * i], "1", 1);
     }
     for (int j = 0; j < 9; ++j)
         for (int l = 0; l <= 0x45; ++l)
@@ -789,7 +814,9 @@ void CLevelRewardTableMgr::SetChallengeInfo(stUnlimitChallengeInfo& info)
     // [b28d-solo-CtorProducers_1 判词·P167 修复，残余 N82] ORIG 0x08687828：
     // 本轮修第二循环 `it->m_subIdx` 缓存（ORIG 该循环 operator-> 仅 4 次；
     // 旧写两遍致 EXTRA×1），修后 p167 CLEAR 50/50。
-    // 残余：帧 0x8c vs 0x90 与槽号整体平移（N82：4.1 不复用槽）⇒ 封顶。
+    // 本轮修（③）：`m_flag = info.m_field0` 直赋（P136/P292 bool→bool 直存，
+    // 消 test/setne 物化；旧 `*(const char*)&info.m_field0` 形）。gap -4→-2。
+    // 残余：帧 0x8c vs 0x90 与三段循环槽号整体平移（N82：4.1 不复用槽）⇒ 封顶。
     // ORIG 0x08687828 全量转写（报告双段 + objdump 逐条）：
     // 0x08687837 `movzbl (%eax)` + 0x0868783d `mov %dl,(%eax)` ⇒ flag 单字节；
     // 0x08687852 vec 赋值、0x08687868 SetJobAffection(true)；随后三段同构循环，
@@ -800,7 +827,10 @@ void CLevelRewardTableMgr::SetChallengeInfo(stUnlimitChallengeInfo& info)
     //   `call operator!=`（0x08687902）+ bool 物化岛 ⇒ 原码是 `i < sz && it != last`；
     // ④ 体内 `addl $1,-0x30` 之后 `call operator++(int)`（0x086878e5，带临时槽
     //   -0x58）⇒ **i++ 与 it++ 都是后置**，不是 ++it。
-    m_flag = *reinterpret_cast<const char*>(&info.m_field0);   // ORIG movzbl (%eax) 读 1 字节
+    // [b28d-solo-CtorProducers_1 修复·P136/P292] ORIG 0x08687837..0x0868783d
+    // `movzbl (%eax),%edx; mov %dl,(%eax)` = bool→bool 直接字节存储（无 setne）；
+    // 旧 `*(const char*)&info.m_field0` 引入 uchar→bool 物化（+2 条 test/setne）。
+    m_flag = info.m_field0;
     m_vec8 = info.m_vec4;
     m_table->SetJobAffection(true);
 
@@ -895,12 +925,19 @@ void WorldMapScript::clear()
 
 bool importWorldMapScript(WorldMapScript* script, const char* path)
 {
-    // [b28d-solo-CtorProducers_1 判词·P234 修复，残余 P71/N82] ORIG 0x08ab0388：
-    // 本轮修 `std::pair<int,int>(tmp, second)` 第二参右值化（`static_cast<int&&>`，
-    // P234）——p167 MISSING `pair<int&,int>(int&,int&&)` / EXTRA `pair<int&,int&>`
-    // 归零。残余：①EXTRA 2×`WorldMapDungeon::~D1`（ORIG 4.1 视用户空析构为 trivial
-    // 不发射调用、但有 W D1 符号 0x08ab0f74，4.4 恒调，P71 跨编译器豁免）；
-    // ②块内局部槽序（N93/N98）⇒ 封顶。
+    // [b28d-solo-CtorProducers_1 判词·P234/P164/P317/P171/P0，残余 N82]
+    // ORIG 0x08ab0388（ndiff 62→12、gap -20→-2）：本轮修
+    // ①`std::pair<int,int>(tmp, second)` 第二参右值化（`static_cast<int&&>`，P234）；
+    // ②外层 while → `for(;;){ if(!ScanType(...)) break; }` 复现头部
+    //   `call; xor $0x1; test; jne 尾`（P164）；
+    // ③`script->m_field10 = ScanInt(NULL)` 内联实参（P0，消 tmp 往返 3 条）；
+    // ④isType 声明移到 wd.m_dungeonIndex 赋值之后（P171 照抄序）；
+    // ⑤删 first/secondPoint 零初始化（P171）；⑥WorldMapScript.h 删
+    //   WorldMapDungeon 用户空析构（P317，消 2×out-of-line D1 call+EH 段；
+    //   D1/D2 W 符号仍发射、尺寸 5 与 ORIG 同——R2 已广播）。
+    // 残余：`second = ScanInt()` 经复用槽 -0x40 的 2 条中转 + minimap 槽
+    // -0x44/-0x48 vs ORIG -0x40/-0x44（4.4 块内标量赋值恒经复用槽；register/
+    // 函数头声明/初始化式三形实测均无效或劣化）⇒ N82 封顶。
     // ORIG 0x08ab0388。
     if (!loadRDARScriptFile(g_worldMapScriptBaseDirectory, path))
         return false;
@@ -916,8 +953,13 @@ bool importWorldMapScript(WorldMapScript* script, const char* path)
     std::string token;
     int tmp = 0;
     bool flag = false;
-    while (ScanType(token, true))
+    // [b28d-solo-CtorProducers_1 修复·P164] ORIG 0x08ab03d5 `jmp` 到头部条件块
+    // 0x08ab03d8（`call ScanType; xor $0x1; test; jne 尾`）；4.4 对 while 恒旋转到
+    // 尾部 ⇒ 改 `for(;;){ if(!ScanType(...)) break; … }` 复现头部取反物化块。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[name]")
         {
             ScanStr(&script->m_name);
@@ -925,10 +967,10 @@ bool importWorldMapScript(WorldMapScript* script, const char* path)
         else if (token == "[map image]")
         {
             ScanStr(&script->m_mapImage);
-            // 0x08ab0442..0x08ab0451：ScanInt(NULL) 先落 -0x28（tmp）再
-            // `mov %eax,0x10(%edx)` ⇒ 两步经函数级暂存。
-            tmp = ScanInt((bool*)0);
-            script->m_field10 = tmp;
+            // [b28d-solo-CtorProducers_1 修复·P0] ORIG 0x08ab0449..0x08ab0451
+            // `call ScanInt; mov 0x8(%ebp),%edx; mov %eax,0x10(%edx)` ⇒ 返回值
+            // 直存成员，**无** tmp 槽往返（旧形多 3 条）。
+            script->m_field10 = ScanInt((bool*)0);
         }
         else if (token == "[ui path]")
         {
@@ -947,11 +989,13 @@ bool importWorldMapScript(WorldMapScript* script, const char* path)
                 tmp = ScanInt(&flag);
                 if (!flag)
                     break;
-                // ORIG 槽位：isType@-0x39（wd 基址 -0x38 的紧邻上方）⇒ 声明序
-                // isType 先于 wd。
-                bool isType = false;
+                // [b28d-solo-CtorProducers_1 修复·P171 照抄序] ORIG 0x08ab04c7
+                // 先构造 wd（-0x38）→ 0x08ab04d2 写 wd.m_dungeonIndex →
+                // 0x08ab04d8 `movb $0x0,-0x39`（isType 初始化）⇒ isType 声明在
+                // wd 之后（槽 -0x39 紧邻 wd 上方由编译器排布，非声明序）。
                 WorldMapDungeon wd;
                 wd.m_dungeonIndex = tmp;
+                bool isType = false;
                 // mangled _Z13ScanTypeOrIntRbRSsS_b = (bool&, string&, bool&, bool)，
                 // 0x08ab04f2 传的是 `lea -0x39`（&isType）与 0x08ab04e7 的
                 // `lea -0x29`（&flag）两个地址。
@@ -994,7 +1038,14 @@ bool importWorldMapScript(WorldMapScript* script, const char* path)
                 tmp = ScanInt(&flag);
                 if (!flag)
                     break;
-                int second = ScanInt((bool*)0);   // ORIG 独立槽 -0x18
+                // [b28d-solo-CtorProducers_1 实验·P212] ORIG 0x08ab062a..0x08ab062f
+                // `call ScanInt; mov %eax,-0x18` 直存；块内声明致 4.4 中转 -0x40
+                // （函数头声明实测槽全漂 ndiff 12→80，回退块内）。
+                // [b28d-solo-CtorProducers_1 判词·N82] 残余 2 条中转 + minimap 槽
+                // -0x44/-0x48 vs ORIG -0x40/-0x44（4.4 块内标量赋值恒经复用槽；
+                // register/函数头声明/初始化式三形实测均无效或劣化）⇒ 封顶。
+                int second;
+                second = ScanInt((bool*)0);   // ORIG 独立槽 -0x18
                 // ORIG 0x08ab0646 `call _ZNSt4pairIiiEC1IRiiEEOT_OT0_`（pair<int,int>
                 // 以两个 **int lvalue 引用** 实例化构造）+ 0x08ab065b
                 // `push_back(EOS1_)` ⇒ 原码是嵌套 pair 临时构造，
@@ -1028,8 +1079,10 @@ bool importWorldMapScript(WorldMapScript* script, const char* path)
             tmp = ScanInt(&flag);
             while (flag)
             {
-                int first = 0;
-                int secondPoint = 0;
+                // [b28d-solo-CtorProducers_1 修复·P171] ORIG 0x08ab06e6 直接进
+                // for 头，**无** first/secondPoint 零初始化（多写即 +2 条）。
+                int first;
+                int secondPoint;
                 for (int k = 0; k < 2 && flag; ++k)
                 {
                     if (k == 0)
@@ -1068,10 +1121,11 @@ void CWorldMap::set_world_map(WorldMapScript* script)
     // ③else 分支直接读 `!dungeon->m_villageAttackEventFlag`（+0x87a bool，P292），
     // 删除 `ctors1::IsBlockWorldMapMark` helper（EXTRA×1）；④`if (dungeon != 0)`
     // 正向包裹替 continue（P296，Ghidra C 同形）。
-    // 残余：`m_isHellDungeon = script->m_isHellDungeon` 的 uchar→bool 物化
-    // （`test %al,%al; setne %dl`，ORIG 直 `movzbl→mov %edx`；P168a③b 跨版本 ABI，
-    // 需改 WorldMapScript.h 字段为 bool，属跨泳道 .h，未在本单改）+ 三段 assign
-    // 临时槽序（N82）⇒ 封顶。
+    // 本轮修（②）：三段 assign 的 begin/end 临时 ORIG 各占独立一对
+    // （-0x3c/-0x38、-0x34/-0x30、-0x2c/-0x28），4.4 原复用同一对 ⇒ 改**具名
+    // 迭代器**拉长生命周期阻止复用（ndiff 211→151；end-first 声明序 155 稍差
+    // 已回退）。残余：帧/槽基差（ORIG it=-0x40/last=-0x44 vs 我们 -0x30 区）+
+    // 极性 fold（ORIG-only jmp×2/jne×1 vs OURS-only je/xor）⇒ N82 封顶。
     // ORIG 0x0836421a：标量回写 + 三段 vector assign + m_dungeonIndex=MAXINT；
     // 遍历 script->m_dungeons：find_dungeon 命中者 push 进 m_dungeonList，
     // 并按 kind==1/kind==2/其它三分支以 min 收敛 m_dungeonIndex（kind==1 另置
@@ -1079,12 +1133,19 @@ void CWorldMap::set_world_map(WorldMapScript* script)
     // 再按 index==100 与 standard_level 收敛。
     m_index = script->m_index;
     m_isHellDungeon = script->m_isHellDungeon;
-    m_field1c.assign(script->m_hellQuests.begin(), script->m_hellQuests.end());
+    // [b28d-solo-CtorProducers_1 实验·N82] 三段 assign 的 begin/end 临时槽
+    // ORIG 各占独立一对（-0x3c/-0x38、-0x34/-0x30、-0x2c/-0x28），4.4 复用同槽。
+    // 试具名迭代器拉长生命周期阻止复用。
+    std::vector<int>::iterator hqBegin = script->m_hellQuests.begin();
+    std::vector<int>::iterator hqEnd = script->m_hellQuests.end();
+    m_field1c.assign(hqBegin, hqEnd);
     m_hasDeathTower = 0;
-    m_hellPassItemList.assign(script->m_freepassItems.begin(),
-                              script->m_freepassItems.end());
-    m_field34.assign(script->m_itemConditions.begin(),
-                     script->m_itemConditions.end());
+    std::vector<std::pair<int, int> >::iterator fpBegin = script->m_freepassItems.begin();
+    std::vector<std::pair<int, int> >::iterator fpEnd = script->m_freepassItems.end();
+    m_hellPassItemList.assign(fpBegin, fpEnd);
+    std::vector<int>::iterator icBegin = script->m_itemConditions.begin();
+    std::vector<int>::iterator icEnd = script->m_itemConditions.end();
+    m_field34.assign(icBegin, icEnd);
     m_dungeonIndex = 0x7fffffff;
     // [b28d-solo-CtorProducers_1] Ghidra C + p167 实证三处修：
     // ①迭代器 **const_iterator**（ORIG `__normal_iterator<WorldMapDungeon const*>`；
@@ -1159,6 +1220,10 @@ bool CWorldMapList::insert_world_map(CWorldMap* worldMap)
     std::map<int, CWorldMap*>::iterator it;
     it = m_map.find(worldMap->get_index());
     std::map<int, CWorldMap*>::iterator last = m_map.end();
+    // [b28d-solo-CtorProducers_1 判词·N93] ORIG it=-0x30（深）/last=-0x28（浅）
+    // 为 4.1「先声明深」；4.4 对头声明 it（C1Ev 首用）给浅槽 -0x2c。last 必须保持
+    // 初始化式（ORIG end 直构无 C1Ev），无法提前声明 ⇒ 槽方向不可翻（N93 类对象，
+    // 标量例外不适用）。方案 A（last 先声明后赋值）实测 73→78 且多一条 C1Ev ⇒ 回退。
     if (it == last)
     {
         m_map.insert(std::make_pair(worldMap->get_index(), worldMap));

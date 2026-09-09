@@ -33,7 +33,9 @@ public:
 
     Interval();                                      // W @0x08575e58（空）
     Interval(long start, long size);                 // W @0x08575e5e
-    ~Interval();                                     // W @0x08577554（空体；公开以支持 vector<Interval> 生命周期）
+    // [b28d-Main 代落·S329 P317] 删用户空析构：ORIG `_Destroy_aux<true>::__destroy<Interval*>`
+    // @0x0857a67b 存在 ⇒ trivial 析构；`~Interval` W@0x08577554 由 new_allocator::destroy 发射。
+    // 我方原为用户空体 ⇒ `_Destroy_aux<false>` 且 vector<Interval> 生命周期路径多发 D1 call。
 };
 
 // 布局断言（C++98 兼容）：两 long = 0x8。

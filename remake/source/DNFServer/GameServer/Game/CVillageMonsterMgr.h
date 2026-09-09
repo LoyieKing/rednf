@@ -53,7 +53,8 @@ struct MapArea
 
     // ORIG T 0x82f02e6：把 (x,y) 按 margin 裁剪到区域内，结果写 outX/outY；
     // 未发生移动（裁剪后 == 原坐标）返回 1，否则返回 0。
-    int include(int x, int y, int& outX, int& outY, int margin);
+    // P292：ORIG 0x82e5a0b 调用点 `call; test %al,%al; je`（无 setne）⇒ 返回 bool。
+    bool include(int x, int y, int& outX, int& outY, int margin);
 
     // ORIG T 0x82f0298：矩形包含判定（m_x<=x<=m_x+m_w 且 m_y<=y<=m_y+m_h）。
     bool include(int x, int y);
@@ -136,6 +137,14 @@ public:
 };
 
 // ---- CVillageMonsterArea（布局 ORIG ctor 0x86b3752 实证，0x3c 字节） ----
+// ORIG 0x86b3f06 对 +0x30 读出发两段 `mov 0x30(%eax),%eax; mov %eax,%edx`
+// （P265：int 字段 + 实参处显式 cast 到 enum 触发 4.4 转换中转；unsigned 恒单段）。
+// 语义 = 轮转索引槽（仅与 idx%3 比较并自增），4 字节，偏移/mangled 不变。
+enum ENUM_VILLAGE_MONSTER_ROTATE
+{
+    ENUM_VILLAGE_MONSTER_ROTATE_0 = 0
+};
+
 class CVillageMonsterArea
 {
 public:
@@ -147,7 +156,7 @@ public:
     std::vector<STAttackedMonster> m_monsterList;  // +0x1c (0x14)
     int m_field28;                    // +0x28
     int m_field2c;                    // +0x2c
-    int m_field30;                    // +0x30
+    ENUM_VILLAGE_MONSTER_ROTATE m_field30;  // +0x30（P254：enum 字段复现两段装载）
     unsigned int m_field34;           // +0x34（P211 异型化：ctor int 形参→unsigned 字段
                                       //   触发 4.4 RHS-first store=ORIG 形，b28-L11；
                                       //   读取侧 395 已显式 (unsigned int) cast，行为不变）

@@ -61,21 +61,42 @@ bool CWaitingRoomList::insert(IMatch* room)
     return m_roomSet.insert(room).second;
 }
 
-int CWaitingRoomList::doMatch(IMatch* me, std::multimap<float, IMatch*>& out)
+bool CWaitingRoomList::doMatch(IMatch* me, std::multimap<float, IMatch*>& out)
 {
-    // b28d-L3: DIFF/P168a+N82 — ORIG `call; xor $1; test; je`（bool callee 取反直判）与 4.4 形差（P168a③b 跨版本 bool ABI）+ 帧/槽号差
-    if (m_roomSet.empty())
-        return 0;
-    for (std::set<IMatch*>::iterator it = m_roomSet.begin();
-         it != m_roomSet.end(); ++it) {
-        IMatch* cand = *it;
-        if (cand == me)
-            continue;
-        if (!me->CheckMatchable(cand))
-            continue;
-        out.insert(std::make_pair(me->GetGap(cand), cand));
+    // b28d-solo-MatchRoomList VERDICT: NEAR（447，110=110；446 后端 AE）| 修法：
+    // if(!empty)包裹 + 死局部 found/bestGap/bestIt + gap 具名左值 make_pair +
+    // goto 尾块布局 | N7（虚调 GetGap/CheckMatchable 目标 %eax↔%edx，4.4.7 恒 %eax）
+    // b28d-solo-MatchRoomList: 还原 ORIG 0x08566d9c——
+    // ①`if (!m_roomSet.empty()) { 主流程 } return 0;`（ORIG call empty 后 xor$1/test/je
+    //   直跳 return 0；正极性 if 少该 xor 段）；
+    // ②ORIG 保留三个未参与主流程的死局部（P171/P232：-O0 仍发初始化 store）：
+    //   found(-0xd)/bestGap(-0xc)/bestIt=end()(-0x2c)；
+    // ③gap 具名左值 → make_pair<float&,IMatch*&>（ORIG 085694f9 实例），
+    //   而非 GetGap 右值直传的 make_pair<float,IMatch*&>。
+    if (!m_roomSet.empty()) {
+        bool found = false;
+        float bestGap = 0.0f;
+        std::set<IMatch*>::iterator bestIt = m_roomSet.end();
+        (void)found;
+        (void)bestGap;
+        (void)bestIt;
+        for (std::set<IMatch*>::iterator it = m_roomSet.begin();
+             it != m_roomSet.end(); ++it) {
+            IMatch* cand = *it;
+            if (cand == me)
+                continue;
+            if (!me->CheckMatchable(cand))
+                continue;
+            float gap = me->GetGap(cand);
+            out.insert(std::make_pair(gap, cand));
+        }
+        goto check_out;
     }
-    return out.empty() ? 0 : 1;
+    return 0;
+check_out:
+    if (out.empty())
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -104,11 +125,18 @@ bool CLeagueMatchRoomList::DelRoom(IMatch* room)
 
 bool CLeagueMatchRoomList::Match(IMatch* me, IMatch** out)
 {
-    // b28d-L3: DIFF/N89 — p167 MISSING=2：`map<IMatch*,int>::end()` + `_Rb_tree_iterator<pair<IMatch* const,int>>::operator!=`（ORIG 外部 ca
-    if (m_roomMap.size() == 0)
-        return false;
+    // b28d-solo-MatchRoomList VERDICT: DIFF（447/446 均 136 vs 133）| 修法：
+    // found/bestGap 前置 size 检查、bestIt!=end 收口、赋值序 bestGap→bestIt |
+    // N7 + 浮点比较 lowering（ORIG flds/fxch/fucompp/fnstsw/sahf vs 4.4 恒
+    // fucomip/fstp，TU 旗标不可动 ⇒ 封 N）
+    // b28d-solo-MatchRoomList: 还原 ORIG 0x08567d00——
+    // ①found/bestGap 初始化前置于 size() 检查（ORIG movb$0/mov$0 在 call size 之前）；
+    // ②循环尾用 `bestIt != end()` 收口（ORIG 无 `if(!found)` 物化）；
+    // ③两处汇聚块赋值序 = bestGap 先、bestIt 后（ORIG mov gap→-0x14 在前）。
     bool found = false;
     float bestGap = 0.0f;
+    if (m_roomMap.size() == 0)
+        return false;
     std::map<IMatch*, int>::iterator bestIt = m_roomMap.end();
     for (std::map<IMatch*, int>::iterator it = m_roomMap.begin();
          it != m_roomMap.end(); ++it) {
@@ -119,20 +147,21 @@ bool CLeagueMatchRoomList::Match(IMatch* me, IMatch** out)
             continue;
         float gap = me->GetGap(cand);
         if (!found) {
-            bestIt = it;
             bestGap = gap;
+            bestIt = it;
             found = true;
         }
         if (gap < bestGap) {
-            bestIt = it;
             bestGap = gap;
+            bestIt = it;
         }
     }
-    if (!found)
-        return false;
-    *out = bestIt->first;
-    m_roomMap.erase(bestIt);
-    return true;
+    if (bestIt != m_roomMap.end()) {
+        *out = bestIt->first;
+        m_roomMap.erase(bestIt);
+        return true;
+    }
+    return false;
 }
 
 // ============================================================================
@@ -141,18 +170,31 @@ bool CLeagueMatchRoomList::Match(IMatch* me, IMatch** out)
 
 CMultiMatchRoomList::CMultiMatchRoomList()
 {
-    // b28d-L3: DIFF/N89 — ORIG 0x856... p167 MISSING=2：`IRoomList::C1Ev`（基类构造外部 call）+ `make_pair<int, CWaitingRoomList&>` 右值实例 `_ZSt9ma
-    // 按每队人数（1..GetPlayCountPerOneTeam）预建等待列表；
-    // GetPlayCountPerOneTeam() 恒返 1，故实际仅插入 key=1。
+    // b28d-solo-MatchRoomList VERDICT: AE（447/446 均离开 DIFF 列表）| 修法：
+    // 去 playCount 局部（条件每轮重调 GetPlayCountPerOneTeam）、make_pair 第二参
+    // 具名左值（复现 make_pair<int,CWaitingRoomList&> 实例）、(unsigned char) cast
+    // 复现 ORIG movzbl 零扩展 | p167 的 IRoomList C1/C2 为同址别名（P93 豁免）
+    // b28d-solo-MatchRoomList: 还原 ORIG 0x08566efc 形——
+    // ①无 playCount 局部槽：条件每轮重调 GetPlayCountPerOneTeam（`call;movzbl;cmp;
+    //   setg;test;jne`）；
+    // ②make_pair 第二参为具名左值 waiting（ORIG 实例 `make_pair<int,
+    //   CWaitingRoomList&>`，实参 &-0x68 循环外构造/循环后析构一次）；
+    // ③i+1 物化临时槽后取址传引用。
     // 非静态成员经 NULL this 调用（ORIG 恒返 1，不访问 this），同 MatchRoomLCB.cpp。
-    const int playCount = ((fair_pvp::CFairMatch*)0)->GetPlayCountPerOneTeam() & 0xff;
-    for (int i = 0; i < playCount; ++i)
-        m_roomMap.insert(std::make_pair(i + 1, CWaitingRoomList()));
+    CWaitingRoomList waiting;
+    for (int i = 0;
+         i < (unsigned char)(((fair_pvp::CFairMatch*)0)->GetPlayCountPerOneTeam());
+         ++i)
+        m_roomMap.insert(std::make_pair(i + 1, waiting));
 }
 
 bool CMultiMatchRoomList::AddRoom(IMatch* room)
 {
     char name[255] = {0};
+    // b28d-solo-MatchRoomList VERDICT: NEAR（447 167=167；446 167=165）| 修法：
+    // if/else 正极性 + find 具名临时拷贝（tmpIt→it，复现 ORIG sret 中转）|
+    // N7（虚调 GetPlayerCount 目标 %eax↔%edx）+ N82（name[255] 槽基 -0x12f vs
+    // ORIG -0x127 ⇒ sret 临时 disp8/disp32 长度差 6B，帧布局族）
     // b28d-L3：同 DelRoom（ORIG 0x8567c35 形）——GetUserName 返回值经 %ebx 跨
     // CSwitchLog ctor 保活并作 log 的 %s 实参；register 提示令 4.4.6 免落槽。
     register char* pName = GetUserName(room, name);
@@ -169,15 +211,20 @@ bool CMultiMatchRoomList::AddRoom(IMatch* room)
         }
     }
     int playCount = room->GetPlayerCount();
-    std::map<int, CWaitingRoomList>::iterator it = m_roomMap.find(playCount);
-    if (!(it != m_roomMap.end())) {
+    // b28d-solo-MatchRoomList: ORIG 为 4.1 初始化式形（find sret 临时 -0x12c 拷回
+    // -0x28）；4.4 直接 sret 到 it 槽（少 1 条 mov+临时槽，P112/N82 族封顶）。
+    // 「先声明后赋值」反而引入 _Rb_tree_iterator::C1Ev call（ORIG 无）⇒ 不可用。
+    std::map<int, CWaitingRoomList>::iterator tmpIt = m_roomMap.find(playCount);
+    std::map<int, CWaitingRoomList>::iterator it = tmpIt;
+    // b28d-solo-MatchRoomList: 正极性 if（ORIG test%al;je <error>，then=insert 直落）
+    if (it != m_roomMap.end()) {
+        it->second.insert(room);
+    }
+    else {
         LogManager::logFormat(1, "MatchingSystem.cpp",
             __PRETTY_FUNCTION__, 0x11ff,
             "error find line(%d), playCount(%d)", 0x11ff,
             room->GetPlayerCount());
-    }
-    else {
-        it->second.insert(room);
     }
     return true;
 }
@@ -202,49 +249,62 @@ bool CMultiMatchRoomList::DelRoom(IMatch* room)
 
 bool CMultiMatchRoomList::Match(IMatch* me, IMatch** out)
 {
-    // b28d-L3: DIFF/N82+N89 — ORIG 280 vs 258（我方少 22 条）
+    // b28d-solo-MatchRoomList VERDICT: NEAR（447，280=280；446 后端 AE）| 修法：
+    // perTeam/myCnt 内联表达式（P0）、失败块直落/成功跳后、*vec.begin() 形、
+    // doMatch/GetWaitingRoomCombination 返回类型 bool 化（P292）| N7
+    // b28d-solo-MatchRoomList: 还原 ORIG 0x085675d0——
+    // ①perTeam/myCnt 无局部槽（P0）：比较与实参均内联表达式，GetPlayerCount
+    //   先求值存 %ebx，GetPlayCountPerOneTeam 后求值（movzbl 零扩展）；
+    // ②成功/失败块序 = `if (!GetWaitingRoomCombination(...)) { AddRoom 循环; return
+    //   false; }` 失败直落、成功跳后（ORIG xor$1/test/je <成功块>）；
+    // ③vec 元素一律 `*vec.begin()` 形（ORIG 每处调用 begin()+operator*，非 _M_start 直读）。
     if (m_roomMap.empty())
         return false;
     std::vector<IMatch*> vec;
-    const int perTeam =
-        ((fair_pvp::CFairMatch*)0)->GetPlayCountPerOneTeam();   // 恒返 1
-    int myCnt = me->GetPlayerCount();
-    if (myCnt < perTeam) {
-        if (!GetWaitingRoomCombination(me, perTeam - myCnt, vec))
+    if (me->GetPlayerCount() <
+        (unsigned char)((fair_pvp::CFairMatch*)0)->GetPlayCountPerOneTeam()) {
+        if (!GetWaitingRoomCombination(me,
+                (unsigned char)((fair_pvp::CFairMatch*)0)->GetPlayCountPerOneTeam() -
+                me->GetPlayerCount(), vec))
             return false;
         for (std::vector<IMatch*>::iterator it = vec.begin();
              it != vec.end(); ++it)
             DelRoom(*it);
     }
-    if (GetWaitingRoomCombination(me, perTeam, vec)) {
-        if (!vec.empty()) {
-            if (vec.size() == 1) {
-                DelRoom(vec[0]);
-                *out = vec[0];
-                return true;
-            }
-            IMatch* prev = vec[0];
-            *out = prev;
-            for (std::vector<IMatch*>::iterator it = vec.begin() + 1;
-                 it != vec.end(); ++it) {
-                DelRoom(*it);
-                prev->SetNextMatch(*it);
-                prev = *it;
-            }
-            return true;
-        }
+    if (!GetWaitingRoomCombination(me,
+            (unsigned char)((fair_pvp::CFairMatch*)0)->GetPlayCountPerOneTeam(),
+            vec)) {
+        for (std::vector<IMatch*>::iterator it = vec.begin();
+             it != vec.end(); ++it)
+            AddRoom(*it);
         return false;
     }
-    for (std::vector<IMatch*>::iterator it = vec.begin();
-         it != vec.end(); ++it)
-        AddRoom(*it);
-    return false;
+    if (vec.empty())
+        return false;
+    if (vec.size() == 1) {
+        DelRoom(*vec.begin());
+        *out = *vec.begin();
+        return true;
+    }
+    IMatch* prev = *vec.begin();
+    *out = prev;
+    for (std::vector<IMatch*>::iterator it = vec.begin() + 1;
+         it != vec.end(); ++it) {
+        DelRoom(*it);
+        prev->SetNextMatch(*it);
+        prev = *it;
+    }
+    return true;
 }
 
-int CMultiMatchRoomList::GetWaitingRoomCombination(IMatch* me, int playCount,
-                                                   std::vector<IMatch*>& out)
+bool CMultiMatchRoomList::GetWaitingRoomCombination(IMatch* me, int playCount,
+                                                    std::vector<IMatch*>& out)
 {
-    // b28d-L3: DIFF/N82+N89 — ORIG 419 vs 401
+    // b28d-solo-MatchRoomList VERDICT: DIFF（447/446 均 424 vs 435）| 修法：
+    // for+break 重构、totalPlayers 头声明、min 直读、doMatch 两独立守卫、
+    // avgScore 前置、bestAvg/bestIdx 赋值序、count int 物化 | N82（槽布局）
+    // + N86b（三维下标强度归约：4.4 恒 imul $0x8c/add 链 vs ORIG imul
+    // $0x46/scaled；一维视图探针 g1b 实测净负已回退）
     // 与 ORIG 同名的函数内静态常量/组合表（数据导出自 0x8ca3200，
     // 0x8ca35d4 起为四个 1 字节常量）。
     static const unsigned char MAX_SAME_COUNT = 2;
@@ -298,54 +358,44 @@ int CMultiMatchRoomList::GetWaitingRoomCombination(IMatch* me, int playCount,
           {5,1,1,1,0,0,0,0,0,0,0,0,0,0}, {0,0,0,0,0,0,0,0,0,0,0,0,0,0} },
     };
 
-    std::vector<IMatch*> combination[MAX_COMBINATION_COUNT];
+    int totalPlayers = 0;
     float avgScore[MAX_COMBINATION_COUNT] = {0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                                              0.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    std::vector<IMatch*> combination[MAX_COMBINATION_COUNT];
     std::multimap<float, IMatch*> matched;
     int resultCount = 0;
     int combIdx = 0;
 
-    while (true) {
-        // 行标志（CombinationTable[playCount][row][0]）为 0 或行号越界 → 收尾
-        if (combIdx > 9 || CombinationTable[playCount][combIdx][0] == 0) {
-            if (resultCount == 0)
-                return 0;
-            bool found = false;
-            int bestIdx = 0;
-            float bestAvg = 0.0f;
-            for (int i = 0; i < MAX_COMBINATION_COUNT; ++i) {
-                if (!combination[i].empty()) {
-                    if (!found) {
-                        bestIdx = i;
-                        bestAvg = avgScore[i];
-                        found = true;
-                    }
-                    if (avgScore[i] == bestAvg) {
-                        bestIdx = i;
-                        bestAvg = avgScore[i];
-                    }
-                }
-            }
-            out.insert(out.end(), combination[bestIdx].begin(),
-                       combination[bestIdx].end());
-            return 1;
-        }
-        int totalPlayers = 0;
+    // b28d-solo-MatchRoomList: for 循环 + 首行标志 break（ORIG 条件在底部、
+    // 收尾块在循环外）；totalPlayers 函数头声明、每轮重置。
+    // 注：一维视图 (ci*7+pc*70+j)*2 探针（/tmp/b28d_gwc_probe.cpp g1b）实测
+    // 外层 j=0 被 4.4 常量折叠回 imul $0x8c、内层多 1 条中转 ⇒ 净负，保留
+    // 三维下标（4.4 强度归约与 ORIG 不同形，判 N86b）。
+    for (combIdx = 0; combIdx <= 9; ++combIdx) {
+        if (CombinationTable[playCount][combIdx][0] == 0)
+            break;
+        totalPlayers = 0;
         for (int j = 0; j < MAX_WAITING_ROOM_COUNT; ++j) {
-            unsigned char count = CombinationTable[playCount][combIdx][j * 2];
-            if (count == 0)
+            if (CombinationTable[playCount][combIdx][j * 2] == 0)
                 break;
-            unsigned char min = CombinationTable[playCount][combIdx][j * 2 + 1];
             matched.clear();
+            // ORIG：if 检查为表达式直读（test %al），find 侧再算一次并物化 int 槽
+            unsigned int count =
+                (unsigned char)CombinationTable[playCount][combIdx][j * 2];
             // ORIG 对 find 结果不做 end() 检查（GetPlayCountPerOneTeam=1 时
             // 组合表只使用 key=1 的列表），此处忠实还原。
             std::map<int, CWaitingRoomList>::iterator it = m_roomMap.find(count);
-            if (!it->second.doMatch(me, matched) ||
-                matched.size() < min)
+            // ORIG 两个独立守卫（xor$1/test/jne 与 size<min 各一 break 岛）
+            if (!it->second.doMatch(me, matched))
+                break;
+            if (matched.size() <
+                CombinationTable[playCount][combIdx][j * 2 + 1])
                 break;
             int k = 0;
             for (std::multimap<float, IMatch*>::iterator mit = matched.begin();
-                 mit != matched.end() && k < min; ++mit, ++k) {
+                 mit != matched.end() &&
+                 k < CombinationTable[playCount][combIdx][j * 2 + 1];
+                 ++mit, ++k) {
                 avgScore[combIdx] = (totalPlayers * avgScore[combIdx] +
                                      mit->second->GetPlayerCount() * mit->first) /
                                     (float)(mit->second->GetPlayerCount() + totalPlayers);
@@ -359,8 +409,28 @@ int CMultiMatchRoomList::GetWaitingRoomCombination(IMatch* me, int playCount,
             else
                 combination[combIdx].clear();
         }
-        ++combIdx;
     }
+    if (resultCount == 0)
+        return 0;
+    bool found = false;
+    int bestIdx = 0;
+    float bestAvg = 0.0f;
+    for (int i = 0; i < MAX_COMBINATION_COUNT; ++i) {
+        if (!combination[i].empty()) {
+            if (!found) {
+                bestIdx = i;
+                bestAvg = avgScore[i];
+                found = true;
+            }
+            if (avgScore[i] == bestAvg) {
+                bestAvg = avgScore[i];
+                bestIdx = i;
+            }
+        }
+    }
+    out.insert(out.end(), combination[bestIdx].begin(),
+               combination[bestIdx].end());
+    return 1;
 }
 
 // ============================================================================

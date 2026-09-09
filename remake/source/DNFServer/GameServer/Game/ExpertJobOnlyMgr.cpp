@@ -58,20 +58,12 @@ namespace expert_job
 namespace
 {
 
-// ORIG OnGiveup 经 __cxa_throw 携带 ENUM_ERROR 类实例，被函数内部 catch 捕获后
-// 调 SendCmdErrorPacket(0xf3, errCode) 并正常返回（0x849eccc catch 块实证：
-// movzbl 异常对象首字节 → SendCmdErrorPacket(0xf3, al) → __cxa_end_catch → ret）。
-// 还原以直接发包返回实现等价行为（避免裸 throw 逃逸导致 terminate）。
-void SendGiveupError(CUser* user, int code)
-{
-    user->SendCmdErrorPacket((ENUM_CMDPACKET)0xf3, (unsigned char)code);
-}
-
-// 自身扩展数据槽（charac_expand 槽 0）快捷读取，与各报告两次独立取址序一致。
-inline CCharacExpertJob* GetSelfExpand(CUser* user)
-{
-    return (CCharacExpertJob*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0);
-}
+// 自身扩展数据槽（charac_expand 槽 0）快捷读取。b28d-solo：P49 必须用**宏**——
+// -O0 下 static inline helper 会发射真实 call 符号（ORIG 无该符号，属发明符号），
+// 且每个使用点须独立重发 GetCharacExpandData 调用（P48，ORIG 逐处 call 实证）。
+#define GetSelfExpand(user) \
+    reinterpret_cast<CCharacExpertJob*>((user)->GetCharacExpandData( \
+        (ENUM_CHARAC_EXPAND_TYPE)0))
 
 }  // namespace
 
@@ -91,18 +83,21 @@ void CAlchemist::UseDelilah(CUser* user)
 }
 
 // ---- UseRevivalItem（报告 UseRevivalItem.md，ORIG T 0x085d1694 sz 0x7d）----
-// b28d-31 N82附（复核 b28c-1）: ORIG 0x085d1694 多实参 call 首值 callee-saved
-// 角色为 %esi（GetRevivalTime）/ %ebx（GetUID）；4.4.7 恒反向（首值 %ebx）。
-// 两值均跨 G_TimerQueue() call 保活且 4.4 自升格 ⇒ 裸 register 三条件②不成立，
-// 具名局部反增槽（ORIG 无槽往返）⇒ 语义等价封顶。
+// b28d-solo-ExpertJobOnlyMgr：AE（near 1→0，47 件 identical/AE）。
+// ORIG 0x085d1694 多实参 call 首值 callee-saved 角色 = %esi（GetRevivalTime）/
+// %ebx（GetUID）；4.4.7 对裸内联实参恒反向（首值 %ebx）。修法 = P231 裸
+// `register int` 局部（非 asm 绑定，P0 合规）：两值以 register 提示升格
+// callee-saved 且不落槽，分配偏好翻正为 ORIG 的 esi/ebx 序。
 void CAlchemist::UseRevivalItem(CUser* user)
 {
-    // ORIG：getCurSec 经全局符号直载；revivalTime/uid 以 esi/ebx 跨调用缓存
-    //（P24 内联实参形，禁具名局部）。
+    // b28d-solo 试形：P231 裸 register（非绑定，P0 合规）复现 ORIG 的
+    // GetRevivalTime→%esi / GetUID→%ebx 分配偏好（4.4.7 恒反向）。
     user->SetRevivalTime(GlobalData::s_systemTime_.getCurSec() + 0x4b0);
+    register int revivalTime = user->GetRevivalTime();
+    register int uid = user->GetUID();
     G_TimerQueue()->InsertTimer(
-        (TimerEntry::OBJ_TYPE)0, user->GetUID(), (TIMER_MESSAGE)0x82, 0x4b0,
-        user->GetRevivalTime(), 0);
+        (TimerEntry::OBJ_TYPE)0, uid, (TIMER_MESSAGE)0x82, 0x4b0,
+        revivalTime, 0);
 }
 
 // ---- GetQuestItemDropRate（报告，ORIG T 0x085d12ee sz 0x71）----
@@ -347,7 +342,18 @@ int CDisjointer::OnRepairDisjointMachine(CUser* user)
 }
 
 // ---- OnUpgradeDisjointMachine（报告，ORIG T 0x085d37e8 sz 0x2e2）----
-// b28d-31: N 封顶（N82）——ORIG 0x085d37e8；202 vs 209（帧/槽）。
+// b28d-solo-ExpertJobOnlyMgr：N 封顶（块序 N93附/N121 类）+ 真语义修复。
+// 修复：①P49 宏化 GetSelfExpand（原 static inline 发射发明符号
+//   _ZN10expert_job12_GLOBAL__N_113GetSelfExpandEP5CUser，ORIG 无）⇒ 每使用点
+//   独立重发 GetCharacExpandData 调用（P48）；②**真 bug** put_int(grade + 1)
+//   （ORIG 0x085d3a2e `mov -0x18(%ebp),%eax; add $0x1,%eax`，原实现漏 +1）；
+//   ③keyByte unsigned char + find 直传其地址（无 cast 临时）+ 两次独立
+//   GetEtcScript() + 非 const iterator（P48/P96/P270）；④upgradeCost<0||==0
+//   双独立守卫（P133①）；⑤比较方向 `it->second > level`（ORIG 先算 RHS）。
+// 残差：it==end 的 0x13 错误块物理位置（ORIG 0x085d38ee 紧跟 0xe 块后，4.4 恒
+// 置于函数尾 fall-through；202 vs 201，差 1 条 jmp）。else-if/正向包裹两形互试
+// ⇒ 正向包裹最优（identical 20 vs 19）。p167 调用点 38/38 CLEAR、指令集合与
+// 槽位集全等 ⇒ 语义完成、块序 N 封顶。
 int CDisjointer::OnUpgradeDisjointMachine(CUser* user)
 {
     int grade = GetSelfExpand(user)->get_disjoint_machine_grade();
@@ -363,46 +369,64 @@ int CDisjointer::OnUpgradeDisjointMachine(CUser* user)
     }
 
     // Etc 脚本 [expertjob level limit] 表：key=grade+2 → 所需角色等级。
-    char keyByte = (char)(grade + 2);
-    std::map<unsigned char, short>& levelMap = GetEtcScript()->m_levelMap;
-    std::map<unsigned char, short>::const_iterator it =
-        levelMap.find((unsigned char)keyByte);
-    if (it == levelMap.end())
+    // b28d-solo 修法（P48/P96/P270）：ORIG 0x085d386c keyByte 为 unsigned char
+    // 且 find 直传其地址（无 cast 临时）；0x085d386f/0x085d388f 两次独立
+    // GetEtcScript()（禁缓存 map 引用局部）；迭代器为非 const（ORIG 仅发射
+    // _Rb_tree_iterator 实例，const_iterator 会多转换构造）。
+    unsigned char keyByte = (unsigned char)(grade + 2);
+    std::map<unsigned char, short>::iterator it =
+        GetEtcScript()->m_levelMap.find(keyByte);
+    // b28d-solo（P222 正向包裹）：ORIG 把 it==end 的 0x13 错误块放在 0xe 块
+    // **之后**（0x085d38ee vs 0x085d38e4）；实测 else-if 链劣化（identical
+    // 20→19），正向包裹为最优形（残差仅块序，见函数头判词）。
+    if (it != GetEtcScript()->m_levelMap.end())
     {
-        return 0x13;
-    }
-    if (user->get_charac_level() < it->second)
-    {
-        return 0xe;
-    }
+        // ORIG 0x085d38c9 先取 it->second（movzwl+movswl→%ebx）再调
+        // get_charac_level（→%eax）、`cmp %eax,%ebx; setg` ⇒ 比较方向写
+        // `it->second > level`（等价改写，先算 RHS）。
+        if (it->second > user->get_charac_level())
+        {
+            return 0xe;
+        }
 
-    ++grade;   // 升级
-    int upgradeCost = GetScript()->GetUpgradeCost((unsigned)grade);
-    if (upgradeCost <= 0 || user->getCurCharacMoney() < upgradeCost)
-    {
-        return 0x16;
+        ++grade;   // 升级
+        int upgradeCost = GetScript()->GetUpgradeCost((unsigned)grade);
+        // ORIG 0x085d3913/0x085d3919 两条**独立**比较（js <0 / jne !=0 共落
+        // 0x137 错误块）⇒ 拆两条独立守卫（P133①）；money 检查独立成句。
+        if (upgradeCost < 0 || upgradeCost == 0)
+        {
+            return 0x16;
+        }
+        if (user->getCurCharacMoney() < upgradeCost)
+        {
+            return 0x16;
+        }
+
+        user->getCurCharacInvenW()->use_money(upgradeCost,
+                                              (eMoneySubReason)0x20, true);
+        GetSelfExpand(user)->set_disjoint_machine_grade(grade);
+
+        // 新等级满值耐久若存在则一并重置。
+        stEnduranceRepairCost* full =
+            GetScript()->_GetEnduranceRepairCost((unsigned)(grade + 1));
+        if (full != 0)
+        {
+            GetSelfExpand(user)->set_disjoint_machine_endurance(full->m_field4);
+        }
+
+        PacketGuard packet;
+        packet.put_header(1, 0xf4);
+        packet.put_byte(1);
+        packet.put_int(user->getCurCharacMoney());
+        // b28d-solo 真语义修正：ORIG 0x085d3a2e `mov -0x18(%ebp),%eax;
+        // add $0x1,%eax` ⇒ put_int(grade + 1)（原实现少 +1）。
+        packet.put_int(grade + 1);
+        packet.put_int(GetSelfExpand(user)->get_disjoint_machine_endurance());
+        packet.finalize(true);
+        user->Send(packet);
+        return 0;
     }
-
-    user->getCurCharacInvenW()->use_money(upgradeCost, (eMoneySubReason)0x20, true);
-    GetSelfExpand(user)->set_disjoint_machine_grade(grade);
-
-    // 新等级满值耐久若存在则一并重置。
-    stEnduranceRepairCost* full =
-        GetScript()->_GetEnduranceRepairCost((unsigned)(grade + 1));
-    if (full != 0)
-    {
-        GetSelfExpand(user)->set_disjoint_machine_endurance(full->m_field4);
-    }
-
-    PacketGuard packet;
-    packet.put_header(1, 0xf4);
-    packet.put_byte(1);
-    packet.put_int(user->getCurCharacMoney());
-    packet.put_int(grade);   // 已升后的新等级（ORIG put_int(local-1c 即 grade））
-    packet.put_int(GetSelfExpand(user)->get_disjoint_machine_endurance());
-    packet.finalize(true);
-    user->Send(packet);
-    return 0;
+    return 0x13;
 }
 
 }  // namespace expert_job
@@ -498,8 +522,13 @@ void CExpertJobMgr::OnRequestPeer(CUser* requester, CUser* target,
 }
 
 // ---- OnResponsePeer（报告，ORIG T 0x0849e362 sz 0x1fb）----
-// b28d-31: P225 while 形已消 2 条（135→133，ORIG 132）；残余 N7/N82
-//（G_CDataManager 等 callee 寄存器角色 + 尾块序）。
+// b28d-solo-ExpertJobOnlyMgr：AE（DIFF→AE，48 件 identical/AE）。
+// 两处修法：①**真语义 bug**——首包 put_header 前多一次 packet.clear()，
+// ORIG 全函数仅 0x0849e4ce 一次 clear（首包 Send 之后）⇒ 删除（P171 照抄）；
+// ②P277 派生 cast 前置到调用点
+//（`static_cast<CEnchanter*>(enchanter)->SetPeerRequestType(type)`）复现 ORIG
+// 0x0849e43b 段 this-first 装载（`mov -0xc,%eax; mov 0x20,%edx; …`）；
+// 虚调用 OnStartMission 保持基类 CExpertJob* 形（槽 0）。
 void CExpertJobMgr::OnResponsePeer(CUser* requester, CUser* peerTarget,
                                    CUser* jobOwnerA, CUser* jobOwnerB,
                                    int cookie, ENUM_PEER_REQUEST_TYPE type,
@@ -517,18 +546,20 @@ void CExpertJobMgr::OnResponsePeer(CUser* requester, CUser* peerTarget,
         return;
     }
 
-    CEnchanter* enchanter =
-        static_cast<CEnchanter*>(AcquireExpertJob((ENUM_EXPERT_JOB_TYPE)1));
+    CExpertJob* enchanter = AcquireExpertJob((ENUM_EXPERT_JOB_TYPE)1);
     if (enchanter == 0)
     {
         requester->SendCmdPeerErrorPacket((ENUM_CMDPACKET)0xb, type, 0x16, packet);
         return;
     }
 
+    // b28d-solo 试形（P277）：派生 cast 前置到调用点 ⇒ 复现 ORIG
+    // 0x0849e43b 段 this-first 装载（`mov -0xc,%eax; mov 0x20,%edx; …`）。
     enchanter->OnStartMission(jobOwnerA, jobOwnerB);   // ORIG vptr+0 业务槽 0
-    enchanter->SetPeerRequestType(type);
+    static_cast<CEnchanter*>(enchanter)->SetPeerRequestType(type);
 
-    packet.clear();
+    // b28d-solo 真语义修正（P171 照抄）：ORIG 0x0849e44d 首包前**无** clear，
+    // 唯一 clear 在首包 Send 之后（0x0849e4ce）⇒ 删除多余的一次 clear()。
     packet.put_header(0, 8);
     packet.put_short((int)(requester->get_unique_id() & 0xffff));
     packet.put_byte(type);
@@ -546,7 +577,15 @@ void CExpertJobMgr::OnResponsePeer(CUser* requester, CUser* peerTarget,
 }
 
 // ---- OnEnchantByBead（报告，ORIG T 0x0849ed1a sz 0x474）----
-// b28d-31: N 封顶（N82）——ORIG 0x0849ed1a；297 vs 290（帧/槽）。
+// b28d-solo-ExpertJobOnlyMgr：N 封顶（N82附/N115/N7）+ 真语义修复。
+// 修复：①**真 bug**——统计调用漏第二次 `masterItem->get_index()`
+//   （ORIG 0x0849f076 为第二次独立调用，P48；p167 修前 MISSING 1 → 修后 46/46
+//   CLEAR）；②m_fieldd 写入时机提前到发包前（ORIG 0x0849f288）且 EnchantItem
+//   第 3 参**重读** ringRef->m_fieldd（无 replacedCardIdx 具名局部，P0/P48）；
+//   ③cMyTrace 改 `__PRETTY_FUNCTION__` + 全表达式临时链（P118/P139/P227）。
+// 残差：帧 0x60 vs ORIG 0x6c（4.4 带 call 帧恒 16k 量化，N115/P190②不可凑）+
+// 缺 push %edi（ORIG 用 %edi 存 &user->m_historyLog，4.4 用 %esi）⇒ 全帧槽号
+// 整体差 0x10；callee-saved 角色互换（N7/N82附）。指令集合/调用点全等。
 int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
                                    int param4, int ringSlot)
 {
@@ -615,15 +654,19 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
                                                 (eItemDelReason)8, true);
     if (!deleted)
     {
-        cMyTrace trace("int expert_job::CExpertJobMgr::OnEnchantByBead(CUser*, "
-                       "int, int, int, int)", 0x6cd, 5);
-        trace("CExpertJobMgr::OnEnchantByBead, getCurCharacInvenW()->delete_item "
-              "failed , %d %d", user->getCurCharacNo(), beadSlot);
+        // b28d-solo（P118/P139/P227）：ORIG 0x0849ef5f ctor 实参为
+        // __PRETTY_FUNCTION__ 局部静态符号，且 getCurCharacNo() 在 ctor **前**
+        // 求值并入 %ebx 跨 ctor 保活（全表达式临时链）⇒ 不用具名 trace 对象。
+        cMyTrace(__PRETTY_FUNCTION__, 0x6cd, 5)(
+            "CExpertJobMgr::OnEnchantByBead, getCurCharacInvenW()->delete_item "
+            "failed , %d %d", user->getCurCharacNo(), beadSlot);
         return 0x11;
     }
 
     int savedCardIdx = ringRef->m_fieldd;
-    int replacedCardIdx = masterItem->get_index();
+    // b28d-solo：ORIG 0x0849f076 先写 ringRef->m_fieldd = masterItem->get_index()
+    //（第一次调用），无 replacedCardIdx 具名局部（P0 无槽往返）。
+    ringRef->m_fieldd = masterItem->get_index();
 
     PacketGuard packet;
     packet.clear();
@@ -636,17 +679,15 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
     user->Send(packet);
 
     // 统计（ORIG 0x860f940/0x860f9d4：increaseItemCount((ENUM_EXPERT_JOB_TYPE)1,
-    // masterIndex, 1)）
+    // masterIndex, 1)）——ORIG 0x0849f076 为**第二次独立** get_index 调用（P48）。
     GetInstanceExpertJobStatistic()->increaseItemCount(
-        (ENUM_EXPERT_JOB_TYPE)1, (unsigned long)replacedCardIdx, 1);
+        (ENUM_EXPERT_JOB_TYPE)1, (unsigned long)masterItem->get_index(), 1);
 
     // 历史（ORIG 0x8684d74：EnchantItem(ringRef->m_addInfo, savedCardIdx,
-    // replacedCardIdx, true, acc_name, characName)）
+    // ringRef->m_fieldd 重读, true, acc_name, characName)）
     user->m_historyLog.EnchantItem(ringRef->m_addInfo, savedCardIdx,
-                                   replacedCardIdx, true, user->get_acc_name(),
+                                   ringRef->m_fieldd, true, user->get_acc_name(),
                                    user->getCurCharacName());
-
-    ringRef->m_fieldd = replacedCardIdx;
 
     packet.clear();
     packet.put_header(1, 0x113);
@@ -657,109 +698,152 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
 }
 
 // ---- OnGiveup（报告，ORIG T 0x0849e60c sz 0x70d）----
-// b28d-31: N 封顶（N82/P165）——ORIG 0x0849e60c；458 vs 396（物理内联
-// 展开 vs 循环抽象差）。
+// b28d-solo-ExpertJobOnlyMgr：N 封顶（N82附/P75 求值序 + 帧槽差）+ 真结构还原。
+// 还原：①删除 TU-local SendGiveupError helper（**发明符号**）⇒ 6 处
+//   `throw (ENUM_ERROR)<code>` + `catch (ENUM_ERROR err){ SendCmdErrorPacket
+//   (0xf3,(uchar)err); }`（P6/P229；p167 修前 MISSING __cxa_throw×6/
+//   __cxa_begin_catch/__cxa_end_catch/__cxa_allocate_exception×6/GetCurCharac
+//   ExpertJobType/getCurCharacQuestR/vector<pair>::operator[]/… + EXTRA
+//   SendGiveupError×5 → 修后 95/95 CLEAR）；②补 jobType==0 独立守卫（ORIG
+//   0x0849e6d0，第二次独立调用取 GetExpertJobScript 实参）；③get_quest_info
+//   receiver 改 getCurCharacQuestR（ORIG 实证，非 QuestW）；④m_growSkillVec
+//   每轮**两次** operator[] + 两次 getCurCharacSkillW（P48）；⑤删具名 inven
+//   局部（P0，getCurCharacInvenW() 结果不落槽）；⑥两循环改 P283 goto 尾标签形
+//   （ORIG begin/end 后无条件 jmp 底部条件块，for 恒条件置顶）。
+// 残差：4.4 实参右→左求值序 vs ORIG 左→右（skillIdx 先于 get_charac_job，
+// P75/N82附）、帧 0x50 vs ORIG 0x60、PacketGuard 槽 -0x34 vs -0x30；
+// 指令数 460 vs 458，调用点 95/95 CLEAR，语义完成。
 void CExpertJobMgr::OnGiveup(CUser* user)
 {
-   if (user->getCurCharacR() == 0)
+    try
     {
-        SendGiveupError(user, 3);
-        return;
-    }
-    STExpertJobScript* script =
-        (STExpertJobScript*)G_CDataManager()->GetExpertJobScript(
-            user->GetCurCharacExpertJobType());
-   if (script == 0)
-    {
-        SendGiveupError(user, 8);
-        return;
-    }
-
-    unsigned int giveupCount = GetSelfExpand(user)->get_giveup_count() & 0xffff;
-   if ((unsigned int)script->m_giveupCost.size() <= giveupCount)
-    {
-        SendGiveupError(user, 1);
-        return;
-    }
-    int giveupCost = script->m_giveupCost.at(giveupCount);
-   if (user->getCurCharacMoney() < giveupCost)
-    {
-        SendGiveupError(user, 0x15);
-        return;
-    }
-
-    // 前置校验：[clear quest] 清单全部已达标，任一未清 → 错误 8。
-    for (std::vector<int>::iterator it = script->m_clearQuests.begin();
-         it != script->m_clearQuests.end(); ++it)
-    {
-       if (user->getCurCharacQuestRefR()->isClearQuest(*it) != true)
+        if (user->getCurCharacR() == 0)
         {
-            SendGiveupError(user, 8);
-            return;
+            throw (ENUM_ERROR)3;
         }
-    }
-    for (std::vector<int>::iterator it = script->m_clearQuests.begin();
-         it != script->m_clearQuests.end(); ++it)
-    {
+        // ORIG 0x0849e6d0：jobType==0 单独守卫（第二次独立调用取实参）。
+        if (user->GetCurCharacExpertJobType() == 0)
+        {
+            throw (ENUM_ERROR)8;
+        }
+        STExpertJobScript* script =
+            (STExpertJobScript*)G_CDataManager()->GetExpertJobScript(
+                user->GetCurCharacExpertJobType());
+        if (script == 0)
+        {
+            throw (ENUM_ERROR)8;
+        }
+
+        unsigned int giveupCount =
+            GetSelfExpand(user)->get_giveup_count() & 0xffff;
+        if ((unsigned int)script->m_giveupCost.size() <= giveupCount)
+        {
+            throw (ENUM_ERROR)1;
+        }
+        int giveupCost = script->m_giveupCost.at(giveupCount);
+        if (user->getCurCharacMoney() < giveupCost)
+        {
+            throw (ENUM_ERROR)0x15;
+        }
+
+        // 前置校验：[clear quest] 清单全部已达标，任一未清 → 错误 8。
+        // b28d-solo（P283）：ORIG begin/end 求值后**无条件 jmp 底部条件块**，
+        // 用 goto 尾标签复现（4.4 对 for 恒条件置顶）；两循环复用同一对迭代器槽
+        // （ORIG -0x20/-0x24 实证）。
+        std::vector<int>::iterator it = script->m_clearQuests.begin();
+        std::vector<int>::iterator itEnd = script->m_clearQuests.end();
+        goto clearCheckCond;
+    clearCheckBody:
+        if (user->getCurCharacQuestRefR()->isClearQuest(*it) != true)
+        {
+            throw (ENUM_ERROR)8;
+        }
+        ++it;
+    clearCheckCond:
+        if (it != itEnd)
+        {
+            goto clearCheckBody;
+        }
+
+        it = script->m_clearQuests.begin();
+        itEnd = script->m_clearQuests.end();
+        goto clearResetCond;
+    clearResetBody:
         user->getCurCharacQuestW()->resetClearQuest(*it);
+        ++it;
+    clearResetCond:
+        if (it != itEnd)
+        {
+            goto clearResetBody;
+        }
+
+        PacketGuard packet;
+        // ORIG 0x0849e915：getCurCharacInvenW() 结果**不落槽**（P0 无具名局部），
+        // 直接作 receiver 调 use_money（具名 inven 会多占一槽致全帧下移 4）。
+        user->getCurCharacInvenW()->use_money(giveupCost, (eMoneySubReason)0x1e,
+                                              true);
+
+        packet.clear();
+        packet.put_header(0, 0xe);
+        packet.put_byte(0);
+        packet.put_short(1);
+        user->getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, 0, packet);
+        packet.finalize(true);
+        user->Send(packet);
+
+        // 删除双树技能（[skill] 表 first = skillIdx）。ORIG 每轮**两次**
+        // operator[] + 两次 getCurCharacSkillW（P48 逐点重取，无具名 skillIdx）。
+        for (unsigned int i = 0; i < (unsigned int)script->m_growSkillVec.size();
+             ++i)
+        {
+            ((SkillSlot*)user->getCurCharacSkillW())->delete_skill(
+                script->m_growSkillVec[i].first, user->get_charac_job(),
+                (ENUM_SKILL_TREE_KIND)0);
+            ((SkillSlot*)user->getCurCharacSkillW())->delete_skill(
+                script->m_growSkillVec[i].first, user->get_charac_job(),
+                (ENUM_SKILL_TREE_KIND)1);
+        }
+        user->send_skill_info();
+
+        user->LogHistory("ExpertJob-,%d,%d,%d", user->get_charac_level(),
+                         user->GetCurCharacExpertJobType(), (int)giveupCount);
+        user->SetCurCharacExpertJobType(0);
+        user->SetCurCharacExpertJobExp(-1);
+
+        // ORIG 0x0849ead5 用 getCurCharacQuestR（非 QuestW）调 get_quest_info。
+        user->getCurCharacQuestR()->get_quest_info(
+            reinterpret_cast<char*>(&packet));   // 复用包缓冲
+        user->Send(packet);
+
+        ++giveupCount;
+        if ((unsigned int)script->m_giveupCost.size() <= giveupCount)
+        {
+            giveupCount = script->m_giveupCost.size() - 1;
+        }
+        ((charac_expand::CData*)user->GetCharacExpandData(
+            (ENUM_CHARAC_EXPAND_TYPE)0))->reset();
+        GetSelfExpand(user)->set_giveup_count((unsigned short)giveupCount);
+
+        packet.clear();
+        packet.put_header(0, 2);
+        packet.put_byte(0);
+        packet.put_short(1);
+        user->make_basic_info(reinterpret_cast<char*>(&packet), '\0');
+        packet.finalize(true);
+        G_GameWorld()->send_all(packet, user);
+
+        packet.clear();
+        packet.put_header(1, 0xf3);
+        packet.put_byte(1);
+        packet.put_int(user->getCurCharacMoney());
+        packet.put_byte((int)giveupCount);
+        packet.finalize(true);
+        user->Send(packet);
     }
-
-    PacketGuard packet;
-    CInventory* inven = user->getCurCharacInvenW();
-    inven->use_money(giveupCost, (eMoneySubReason)0x1e, true);
-
-    packet.clear();
-    packet.put_header(0, 0xe);
-    packet.put_byte(0);
-    packet.put_short(1);
-    user->getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, 0, packet);
-    packet.finalize(true);
-    user->Send(packet);
-
-    // 删除双树技能（[skill] 表 first = skillIdx）。
-    SkillSlot* skillSlot = (SkillSlot*)user->getCurCharacSkillW();
-    for (unsigned int i = 0; i < (unsigned int)script->m_growSkillVec.size(); ++i)
+    catch (ENUM_ERROR err)
     {
-        int skillIdx = script->m_growSkillVec[i].first;
-        skillSlot->delete_skill(skillIdx, user->get_charac_job(),
-                                (ENUM_SKILL_TREE_KIND)0);
-        skillSlot->delete_skill(skillIdx, user->get_charac_job(),
-                                (ENUM_SKILL_TREE_KIND)1);
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0xf3, (unsigned char)err);
     }
-    user->send_skill_info();
-
-    user->LogHistory("ExpertJob-,%d,%d,%d", user->get_charac_level(),
-                     user->GetCurCharacExpertJobType(), (int)giveupCount);
-    user->SetCurCharacExpertJobType(0);
-    user->SetCurCharacExpertJobExp(-1);
-
-    UserQuest* quest = user->getCurCharacQuestW();
-    quest->get_quest_info(reinterpret_cast<char*>(&packet));   // 复用包缓冲
-    user->Send(packet);
-
-    ++giveupCount;
-    if ((unsigned int)script->m_giveupCost.size() <= giveupCount)
-    {
-        giveupCount = script->m_giveupCost.size() - 1;
-    }
-    static_cast<charac_expand::CData*>(GetSelfExpand(user))->reset();
-    GetSelfExpand(user)->set_giveup_count((unsigned short)giveupCount);
-
-    packet.clear();
-    packet.put_header(0, 2);
-    packet.put_byte(0);
-    packet.put_short(1);
-    user->make_basic_info(reinterpret_cast<char*>(&packet), '\0');
-    packet.finalize(true);
-    G_GameWorld()->send_all(packet, user);
-
-    packet.clear();
-    packet.put_header(1, 0xf3);
-    packet.put_byte(1);
-    packet.put_int(user->getCurCharacMoney());
-    packet.put_byte((int)giveupCount);
-    packet.finalize(true);
-    user->Send(packet);
 }
 
 }  // namespace expert_job
@@ -772,10 +856,14 @@ namespace expert_job
 {
 
 // ---- SendExpertJobInfo（报告，ORIG T 0x0832b454 sz 0x201）----
-// b28c-1 N: N-88 槽比零 sete 物化 + P168a X2 占槽（X1 实测 7→78 回退）。
-// b28d-31: N 封顶（P248 档①待属主）——ORIG 0x0832b454；调用点
-// `call get_recipe; xor $1,%eax; jne` 需 callee 返回类型 bool 化
-//（get_recipe 定义在 CExpertJob.cpp，非本 TU ⇒ 未改）。
+// b28d-solo-ExpertJobOnlyMgr：N 封顶（P197④/N-88 族，语义等价）。
+// ORIG 0x0832b572 `cmpl $0,-0xc; sete %al; test %al,%al; jne <continue 岛>` 系
+// 4.1.2 槽比零 setcc 物化；4.4.7 对 if/while 条件恒折直跳 `je`（-3 条）。
+// 本波实测旋钮：①P194 具名 bool（落槽 -0x9 ⇒ 全帧重排，劣化）；
+// ②P225 while+break（产镜像 setne/je 且少 1 岛，劣化）；③P226 语句表达式
+//（回退基线 je）；④内联比较 = 双调用真 bug（P197④ 禁）。其余逐条全等：
+// switch(1,2,3,4) 决策树、三 continue 岛（nop;jmp;nop;jmp;nop）、槽位集
+//（-0x18/-0x28/-0x14/-0xc/-0x10）与全部调用点。唯一残差 = 该 3 条 setcc 物化。
 int CCharacExpertJob::SendExpertJobInfo(CUser* user)
 {
     PacketGuard packet;
@@ -813,13 +901,14 @@ int CCharacExpertJob::SendExpertJobInfo(CUser* user)
                 // 再 GetRecipeInfo ⇒ 两句式。
                 stRecipeInfo* info = 0;
                 info = script->GetRecipeInfo(i);
-                // b28c-1：ORIG 0x0832b56b `cmpl $0,-0xc; sete %al; test %al;
-                //  jne` 为 4.1 槽比零物化（P197-④/N-88 族，具名 bool 实测占槽劣化）。
                 if (info == 0)
                     continue;
-                if (*reinterpret_cast<const int*>(info->m_pad) == 0)
+                // b28d-solo [R2 适配]：STExpertJobScript.h 将 m_pad 拆为真实字段
+                // m_field0(+0x00, ulong)；本 TU 按 ORIG 0x0832b57d/0x586 的
+                // `mov (%eax),%eax; test %eax,%eax` 4 字节读语义直取该字段。
+                if (info->m_field0 == 0)
                     continue;
-                packet.put_int(*reinterpret_cast<const int*>(info->m_pad));
+                packet.put_int(static_cast<int>(info->m_field0));
                 ++count;
             }
         }

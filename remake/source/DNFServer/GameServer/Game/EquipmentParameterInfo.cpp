@@ -9,55 +9,68 @@
 // ============================================================================
 // [b28d-solo-EquipmentParameterInfo] 本 TU 判词表（verdict = game_func_report
 //   --no-compile 新鲜 .o + compare_tu_game_orig；P167 = 调用点差集口径）：
-//   getStatusType 0x089a74a2              DIFF N76：store RHS-first 不可翻。已试尽
-//     P211 三档旋钮（调用侧 (unsigned)/(ENUM)/双层 cast/`out[0]`/unsigned 左值视图；
-//     左值视图反多 `mov 0x8(%ebp),%ebx`）；callee 跨 TU、目标为 int* 形参解引用。
-//   SASPROPERTY::operator= 0x083dbdfc     DIFF N90：ORIG/我方均为 W 隐式合成
-//     （nm 实证）；4.1 逐字段重载双基址 vs 4.4 基址缓存+ecx 中转，源形不可控。
-//   addString 0x089c2e98                  DIFF N：内层 `while(b)` 条件 ORIG 4.1
-//     `cmpb $0,-0xd; jne` 直判 vs 4.4 恒插 `setne %al; test %al`（char/bool/裸条件
-//     三形实测；char 形已取最接近者）。
+//   getStatusType 0x089a74a2              ✅ AE（本波 P211 档①：本 TU 镜像声明
+//     `unsigned int getChangeStatusType(...)` 触发 RHS-first 中转，ORIG 0x089a74dc
+//     `mov %eax,%edx; mov this,%eax; mov %edx,(mem)` 逐条同形；返回类型不入 mangled、
+//     ABI 同；本文件 `(float)` 消费点加 `(int)` 内层 cast 保持 fildl，零回归）
+//   SASPROPERTY::operator= 0x083dbdfc     ✅ AE（本波 P246/P308：m_head[8] 拆 8 个独立
+//     int 成员 ⇒ 隐式 op= 逐条重载双基址 = ORIG 形；探针 /tmp/b28d_epi/p10.cpp SC vs SA）
+//   addString 0x089c2e98                  ✅ AE（本波：b 改 bool ⇒ 内层 `while(b)`
+//     `cmpb $0,-0xd; jne` 直判；外层改 `if (b) {} else {…}` 复现 bool 的直判形
+//     （bool 的 `!b` 恒产 xor，探针 p6/p7/p8 w19））
 //   GetStatValue 0x089914b9               ✅ AE（具名 fval 先物化 + `if(!ok)` 负极性早退）
 //   GetStatByCondition 0x08991384         ✅ AE（同）
-//   SASPROPERTY::C1ERKS0_ 0x083cb038      DIFF N90：同 operator=（W 隐式、跨版本
-//     逐字段 vs 基址缓存 codegen）。
+//   SASPROPERTY::C1ERKS0_ 0x083cb038      ✅ AE（同 op=：独立 int 成员隐式 C2ERKS 逐条
+//     重载双基址 + vector/string C1 + EH landing 逐条同形）
 //   GetApplyStatusInRange 0x08991229      ✅ AE（单一 bool ok + 两次 ScanInt 共用 +
 //     具名 f1/f2 紧跟 fildl/fstps + 负极性早退）
 //   GetSkillLevelUp 0x08991085            ✅ AE（具名 f1/f2；`(float)(unsigned int)`
-//     getCharacterJob 复现 fildll 零扩展；P223 goto 尾标签共享 return 1）
+//     getCharacterJob 复现 fildll 零扩展；P223 goto 尾标签共享 return 1；本波返回
+//     int→bool（P248 档①），调用点 `xor $1; test; je`，自身仍 123=123 全等）
 //   scanThen 0x089a123c                   ✅ AE（补 ORIG 两个 dead local：
 //     vector<vector<float>> + string；P223 goto 尾标签共享 return true）
-//   importItemOverpowerDesc 0x089bf290    DIFF P167 CLEAR ⇒ 语义完成、byte 层 N 封顶；
-//     附真语义修正：s_first 由 static 改局部（ORIG 0x089bf2a8 局部标志，每次调用丢首 token）
-//   importSkillDataUp 0x088c049c           DIFF P167 CLEAR ⇒ 语义完成、N 封顶
-//   GetSkillPhase 0x089be70c              DIFF：静态符号名照 ORIG 改 __lookup/__init_lock/
-//     __inited；双检+逐条 !__inited insert 守卫形重写；**删两处 continue 真语义 bug**
-//     （ORIG 建表后继续用当前 token 查表）；残差 = 4.4 多 2 个 _Unwind_Resume（N104）。
-//   clear 0x089193c0                      DIFF P167 CLEAR ⇒ 语义完成、N 封顶
-//   importAllSkillItem 0x089bec41         DIFF P167 CLEAR ⇒ 语义完成、N 封顶；
+//   importItemOverpowerDesc 0x089bf290    ✅ **IDENTICAL**（266=266，P167 CLEAR 35/35）：
+//     P165/P177 贯穿建表链 + 双检 goto 重试 + case 0/0x3001 共享 [stat] insert 调用点
+//     + 德摩根尾条件 `!(terminated && !empty())`；**真语义修正**：ORIG 是 terminated 且
+//     m_428 **非空**才置 m_424/m_425=1（旧实现/旧判词判反）
+//   importSkillDataUp 0x088c049c           ✅ **IDENTICAL**（393=393）：P165/P177 同模式
+//     + 四处 `e.m_v8 = ScanInt(...); e.m_v8 = 0;` 死写照抄（P171）
+//   GetSkillPhase 0x089be70c              ✅ **IDENTICAL**（317=317）：P165/P177 同模式
+//     （`if(!ScanStr) return false;` 负极性 + `int phase` 值槽 + 声明序 `int phase; int id;`）
+//   clear 0x089193c0                      ✅ **离开 DIFF（identical/AE）**：本波修复 =
+//     5 组标量 union 视图 + 按 ORIG 循环结构改写（+0xb0/4、+0xc4/17、+0x230/3 float、
+//     第二次 0x30 循环含 growthGrade/growthRepair）+ 函数级共用循环变量 i（双初始化
+//     P191 形，四循环复用槽 -0x28）+ **真语义修正**：补漏清 m_allActiveStatusResistance
+//     （ORIG 0x891960b，旧实现整段缺失）。506=506 逐条对齐、P167 CLEAR 20/20。
+//   importAllSkillItem 0x089bec41         DIFF ndiff=2（P167 CLEAR 43/43）：P165/P177 结构
+//     还原 + 四 callee bool 化（GetItemGrowtype/GetSkillApplyCondition/GetSkillPhase/
+//     GetSkillLevelUp）⇒ 318→2；残差 = 4.4 外层 return 0 中继块落点（N121/P63 族）。
 //     附真语义修正：s_first static→局部（ORIG 0x089becbd 局部标志）
-//   GetSkillApplyCondition 0x089bd8ea     DIFF P167 CLEAR（本波补 2 个 SpinLock::leave
-//     调用点：块2/块3 与主表同形 `if(__inited) leave` + `if(!__inited){leave;__inited=true}`）
-//     ⇒ 超大件 N82 口径（799/849，槽号/EH 布局）
-//   exportEquipmentParameterScript 0x089acf78 DIFF：本波修 `it++`（P28 ppEi）+
-//     `std::min<int>`（0x089ae30a）；残差 = avatar 段 ORIG 用 std::string name
-//     （C1EPKcRKSaIcE+allocator）而本文件为历史 buf/snprintf 简化实现 + empty 结构差
+//   GetSkillApplyCondition 0x089bd8ea     DIFF P167 CLEAR（102/102）：ORIG 为多块贯穿
+//     建表链（嵌套三表），我方为简化形 ⇒ 超大件 N82 口径（839/794，槽号/EH 布局）。
+//   exportEquipmentParameterScript 0x089acf78 DIFF：p167 MISSING allocator/string C1EPKcRKSaIcE/
+//     _Unwind_Resume，EXTRA vector::empty/string()；avatar 段 ORIG 用 std::string name
+//     而本文件为历史 buf/snprintf 简化实现 ⇒ N（P165 结构还原未做）
 //   readCondtion 0x0899ce3b               DIFF P167 仅 EXTRA _Unwind_Resume ×2（N104 EH 布局）
-//   importEquipmentParameterInfo 0x089a75ea DIFF：历史简化实现结构差（p167 664 vs 609：
-//     多 string D1×6/ScanInt×5/operator==×5 等；MISSING push_backEOi/LevelUpSkill::clear/
-//     getActiveStatusToEnumValue 各 1）⇒ N（P165 结构还原未做）
-//   readAction 0x089a13e5                 DIFF：P165 循环抽象 vs ORIG 物理展开
-//     （ScanFloat 静态点 13 vs 15、push_back EOf 多 4）+ N82 全帧槽号 ⇒ N
+//   importEquipmentParameterInfo 0x089a75ea DIFF：本波**p167 MISSING 清零**（补
+//     LevelUpSkill lu 循环外构造+循环内 clear、push_backEOi 右值直传、0x19d6/0x19f4
+//     拆成两个独立分支各一次 getActiveStatusToEnumValue）；残余 EXTRA string D1×6/
+//     ScanInt×6/operator==×5 等 = switch 后死 if 链等历史结构差 ⇒ N（P165 结构还原未做）
+//   readAction 0x089a13e5                 DIFF：p167 MISSING ScanFloat×2/push_backERKf×4
+//     （重载选错：我方右值实参选 EOf）+ EXTRA _Unwind_Resume×2/string D1×2/ScanInt/
+//     ScanTypeOrInt/vector::size 等；P165 循环抽象 vs ORIG 物理展开 + N82 全帧槽号 ⇒ N
 //   共同归因：4.1/4.4 寄存器分配·栈槽复用·EH 布局差（N7/N18a/N76/N82/N90/N104 族）。
 //   P167 CLEAR 件按 §6.2 判「语义完成、byte 层 N 封顶」。
 //   P0/N96：本文件全域无 `register asm` 绑定（grep 零命中）；`asm(".set …")` 仅用于
 //   P203 点号匿名类型符号别名（非绑定）。
 //   [D47 委派件] EquipmentParameterInfo::operator= (W 隐式) 0x083662ca
-//     DIFF(716/797)：修法①删 m_pad441[3]（P26，ORIG 拷贝段跳过 +0x441..0x443）
-//     使 803→797；残差 = ORIG 对相邻标量分组的块拷贝（+0xb0..+0xbc 双基址缓存、
-//     +0xc4..+0x104 17 dword `rep movsl`、+0x120/+0x124 等 8 字节对）而我方逐字段
-//     重载双基址 —— 成员序**可控**（P247/P246：把成组标量收进数组/union 视图即
-//     复现），但需重排头成员与全部访问点，本波未实施；现形语义等价 ⇒ N90 封顶。
+//     ✅ **离开 DIFF（identical/AE）**：本波修复 = ①头内 7 组相邻标量收进匿名 union
+//     数组视图（P246/P247：+0xb0×4、+0xc4×17、+0x120×2、+0x230×3、+0x288×4、
+//     +0x3e0×2、+0x408×2；探针 /tmp/b28d_epi_probe/mix.cpp 实证 4.4.6 块拷贝形与 ORIG
+//     全等）②`t_119::operator=` / `tt_159::operator=` 用 **asm 标签**直指 ORIG 点号
+//     别名 `._159aSERKS0_` / `._119aSERKS0_`（推翻 P203「operator= 只能 .set」；
+//     探针 /tmp/b28d_epi_probe/asmlabel.cpp 证明标签对 op= 有效且调用点重定位同步）
+//     ③删 m_pad441[3]（P26）。716=716 逐条对齐、P167 CLEAR 19/19。
 // ============================================================================
 // ============================================================================
 
@@ -156,7 +169,9 @@ EquipmentParameterInfo::tt_159::operator=(const tt_159& other)
 // ORIG 0x089193c0（0x928 字节）：标量清零 + 数组循环清零 + 容器 clear。
 // 所有已解析的数组/标量均通过 EquipmentParameterInfo 具名字段访问；重复清零
 // 保留 ORIG 的最终状态，字段类型与偏移以 EquipmentParameterInfo.h 为准。
-// [b28d-solo-EquipmentParameterInfo] clear：P167 CLEAR ⇒ 语义完成、byte 层 N 封顶（N82 槽号）。
+// [b28d-solo-EquipmentParameterInfo] clear：✅ 离开 DIFF（identical/AE）——5 组标量 union
+// 视图 + ORIG 循环结构（含 P191 双初始化共用循环变量 i）+ 补漏清
+// m_allActiveStatusResistance（真语义修正）；506=506、P167 CLEAR 20/20。
 void EquipmentParameterInfo::clear()
 {
     m_field0 = 2;
@@ -199,28 +214,22 @@ void EquipmentParameterInfo::clear()
     m_a4 = 0;
     m_a8 = 0;
     m_ac = 0;
-    m_fireResistance = 0;
-    m_waterResistance = 0;
-    m_darkResistance = 0;
-    m_lightResistance = 0;
+    // [b28d-solo-EquipmentParameterInfo] ORIG 0x89195b3：这 4 个元素走 i=0..3 循环
+    // （`add $0x2c,%edx; movl $0,(%eax,%edx,4)`），非逐字段。
+    // ORIG 该循环变量为函数级具名局部：声明处双初始化（0x89195a3/0x89195aa 两条
+    // `movl $0,-0x28`）+ 后续 17 元素/3 float/m_levelUpSkills 三个循环**复用同一槽**
+    // ⇒ 四者共用一个变量（P191 双初始化形 + P0 槽往返）。
+    int i = 0;
+    for (i = 0; i <= 3; ++i)
+        m_elementResistance[i] = 0;
     m_allElementalResistance = 0;
-    m_slowResistance = 0;
-    m_freezeResistance = 0;
-    m_poisonResistance = 0;
-    m_stunResistance = 0;
-    m_curseResistance = 0;
-    m_blindResistance = 0;
-    m_lightningResistance = 0;
-    m_stoneResistance = 0;
-    m_sleepResistance = 0;
-    m_burnResistance = 0;
-    m_weaponBreakResistance = 0;
-    m_bleedingResistance = 0;
-    m_piercingResistance = 0;
-    m_stuckResistance = 0;
-    m_confuseResistance = 0;
-    m_holdResistance = 0;
-    m_armorBreakResistance = 0;
+    // [b28d-solo-EquipmentParameterInfo] ORIG 0x89195e8：17 元素走 i=0..16 循环
+    // （`add $0x30,%edx; movl $0,0x4(%eax,%edx,4)`）。
+    for (i = 0; i <= 16; ++i)
+        m_statusResistance[i] = 0;
+    // [b28d-solo-EquipmentParameterInfo] 真语义修正（漏清）：ORIG 0x891960b
+    // `movl $0x0,0x108(%eax)` 清 [all activestatus resistance]，旧实现整段缺失。
+    m_allActiveStatusResistance = 0;
     m_inventoryLimit = 0;
     m_hpRegenSpeed = 0;
     m_mpRegenSpeed = 0;
@@ -267,12 +276,13 @@ void EquipmentParameterInfo::clear()
     m_liftUp = 0;
     m_stuck = 0;
     m_ignoreDefense = 0;
-    m_humanDamageRate = 0.0f;
-    m_fortDamageRate = 0.0f;
-    m_monsterDamageRate = 0.0f;
+    // [b28d-solo-EquipmentParameterInfo] ORIG 0x8919887：3 个 float 走 i=0..2 循环
+    // （`lea 0x8c(%edx),%ecx; mov $0,%edx; mov %edx,(%eax,%ecx,4)`）。
+    for (i = 0; i <= 2; ++i)
+        m_damageRate[i] = 0.0f;
     m_hpDrain = 0;
     m_mpDrain = 0;
-    for (int i = 0; i <= 1; ++i)
+    for (i = 0; i <= 1; ++i)
         m_levelUpSkills[i].clear();
     m_avatar264.clear();
     m_270 = -1;
@@ -281,10 +291,10 @@ void EquipmentParameterInfo::clear()
     m_str27c = "";
     m_antiEvil = 0;
     m_rigidity = 0;
-    m_fireAttack = 0;
-    m_waterAttack = 0;
-    m_darkAttack = 0;
-    m_lightAttack = 0;
+    // [b28d-solo-EquipmentParameterInfo] ORIG 0x8919973：4 个 attack 走 i=0..3 循环
+    // （`add $0xa0,%edx; movl $0,0x8(%eax,%edx,4)`）。
+    for (int i = 0; i <= 3; ++i)
+        m_elementAttack[i] = 0;
     for (int i = 0; i <= 17; ++i)
     {
         m_activeStatusProbability[i] = 0;
@@ -300,8 +310,18 @@ void EquipmentParameterInfo::clear()
     m_398 = 0;
     m_39c = 0;
     m_414 = 0;
-    m_growthGradeBegin = 0;
-    m_growthGradeEnd = 0;
+    // [b28d-solo-EquipmentParameterInfo] ORIG 0x8919a7c：第二次 i=0..1 循环，同时清
+    // 4 个 linear 数组与 growthGrade/growthRepair（`add $0xf8,%edx` → +0x3e0、
+    // `add $0x100,%edx; movl $0,0x8(...)` → +0x408）。
+    for (int i = 0; i <= 1; ++i)
+    {
+        m_linPhyAtk[i] = 0;
+        m_linPhyDef[i] = 0;
+        m_linMagAtk[i] = 0;
+        m_linMagDef[i] = 0;
+        m_growthGrade[i] = 0;
+        m_growthRepair[i] = 0;
+    }
     for (int i = 0; i <= 3; ++i)
     {
         m_linEqPhyAtk[i] = 0;
@@ -311,8 +331,6 @@ void EquipmentParameterInfo::clear()
         m_linSepAtk[i] = 0;
         m_linSepRate[i] = 1.0f;
     }
-    m_growthRepairBegin = 0;
-    m_growthRepairEnd = 0;
     m_410 = 0;
     m_skill1b8.clear();
     m_descMap1c4.clear();
@@ -350,10 +368,16 @@ int EquipmentParameterInfo::addString(std::string str)
     // `cmpb $0,-0xd; jne`，4.4 恒插 `setne %al; test %al,%al`（char/bool/
     // uchar/显式比较四形均实测不可去，P168a③b 族）。ndiff 2 封顶。
     int key = -1;
-    // [b28d-solo-EquipmentParameterInfo] ORIG 内层 `cmpb $0,-0xd; jne` 直判
-    // （无 setne）⇒ 条件上下文写 `while (b)` 而非 `while (b != 0)`。
-    char b = 0;
-    if (!b)
+    // [b28d-solo-EquipmentParameterInfo] ORIG 两处 `cmpb $0,-0xd; jne` 均无 setne：
+    // 4.4 只对 **bool** 局部在 while 条件直判（char/uchar/int 恒插 `setne;test`，
+    // 探针 /tmp/b28d_epi/p6.cpp w1..w6），而 bool 的 `!b` 又恒产
+    // `movzbl;xor $1;test;je`（p7.cpp w9/w11/w12）⇒ 外层改用 `if (b) {} else {…}`
+    // （p8.cpp w19：`cmpb $0; jne` 直判 + body 直落，与 ORIG 外层同形）。
+    bool b = false;
+    if (b)
+    {
+    }
+    else
     {
         std::map<int, std::string>::iterator it = m_descMap1c4.begin();
         std::map<int, std::string>::iterator e = m_descMap1c4.end();
@@ -372,7 +396,7 @@ int EquipmentParameterInfo::addString(std::string str)
                 }
                 else
                 {
-                    b = 0;
+                    b = false;
                 }
             }
             it++;
@@ -437,7 +461,14 @@ int getElementToEnumValue(std::string& s);             // 0x89bca42
 int getAttackConditionToEnumValue(std::string& s);     // 0x89bcb6d
 int getCategoryToEnumValue(std::string& s);            // 0x89bcbf2
 int getGradeToEnumValue(std::string& s);               // 0x89bcd5b
-int getChangeStatusType(std::string& s);               // 0x8892b0d
+// [b28d-solo-EquipmentParameterInfo] P211 档① 局部镜像声明旋钮：ORIG 调用点
+// （getStatusType 0x089a74dc、ScriptValue scanChangeStatusData 0x088bda54）均为
+// `mov %eax,%edx; mov this,%eax; mov %edx,(mem)` = RHS 值先 + eax→edx 中转；
+// 4.4 对「int 目标 ← int callee」恒折 LHS 地址先（探针 /tmp/b28d_epi/p1.cpp g1 vs
+// g4，p5.cpp gu1：仅当 callee 返回类型与 int 异型才产 RHS-first）。返回类型不入
+// mangled、ABI 同（eax 传值、值域非负），故本 TU 镜像声明改 unsigned int 复现
+// ORIG 形；本文件 `(float)` 消费点同步加 `(int)` 内层 cast 保持 fildl（p5.cpp fu1）。
+unsigned int getChangeStatusType(std::string& s);      // 0x8892b0d（定义侧返回 int，ABI 同）
 int getObjectTypeToEnumValue(std::string& s);          // 0x89bbd99
 int getTargetToEnumValue(std::string& s);              // 0x88c2c34
 int scanModuleType();                                  // 0x88c0b9a（ORIG 返回 int）
@@ -512,7 +543,7 @@ int GetStatValue(std::vector<float>* v)
 {
     std::string s;
     if (!ScanStr(&s)) return 0;
-    float st = (float)getChangeStatusType(s);
+    float st = (float)(int)getChangeStatusType(s);
     if (!ScanStr(&s)) return 0;
     float pct = (s == "%") ? 1.0f : 0.0f;
     // [b28d-solo-EquipmentParameterInfo] P0：ORIG `mov %eax,-0x2c; fildl; fstps -0x1c`
@@ -544,7 +575,7 @@ int GetStatByCondition(std::vector<float>* v)
     v->push_back(38.0f);
     std::string s;
     if (!ScanStr(&s)) return 0;
-    float st = (float)getChangeStatusType(s);
+    float st = (float)(int)getChangeStatusType(s);
     if (!ScanStr(&s)) return 0;
     float pct = (s == "%") ? 1.0f : 0.0f;
     bool ok = false;
@@ -562,7 +593,7 @@ int GetApplyStatusInRange(std::vector<float>* v)
     v->push_back(39.0f);
     std::string s;
     if (!ScanStr(&s)) return 0;
-    float st = (float)getChangeStatusType(s);
+    float st = (float)(int)getChangeStatusType(s);
     if (!ScanStr(&s)) return 0;
     float pct = (s == "%") ? 1.0f : 0.0f;
     // ORIG 0x089912c8/0x089912e0：两次 ScanInt 共用同一 bool 槽（-0x19），
@@ -580,7 +611,7 @@ int GetApplyStatusInRange(std::vector<float>* v)
 }
 
 // [b28d-solo-EquipmentParameterInfo] AE：具名 f1/f2 + (float)(unsigned int) fildll + P223 goto 尾标签。
-int GetSkillLevelUp(std::vector<float>* v)
+bool GetSkillLevelUp(std::vector<float>* v)
 {
     std::string s;
     bool isType = false;
@@ -594,7 +625,7 @@ int GetSkillLevelUp(std::vector<float>* v)
             // mov $1,%ebx>` + `mov $0,%ebx` 失败块 ⇒ P223 尾标签法（goto 跳出循环到
             // 共享 return 1 出口）。
             if (s == "[/skill levelup]") goto L_skillLevelUp_ret1;
-            return 0;
+            return false;
         }
         v->push_back(29.0f);
         if (s == "[common]")
@@ -618,7 +649,7 @@ int GetSkillLevelUp(std::vector<float>* v)
         v->push_back(f2);
     }
 L_skillLevelUp_ret1:
-    return 1;
+    return true;
 }
 
 int getBuffToEnumValue(std::string& s)
@@ -681,7 +712,9 @@ int getEquipmentTypeToEnumValue(std::string& s)
 // 成功返回 true（1）。ORIG 的 __lookup 静态 map + 惰性初始化仅为编译期
 // 优化，行为等价于按关键字字符串 if/else；此处省略惰性初始化直接分派。
 // ============================================================================
-// [b28d-solo-EquipmentParameterInfo] N：P165 循环抽象 vs ORIG 物理展开 + N82 全帧槽号。
+// [b28d-solo-EquipmentParameterInfo] N：P165 循环抽象 vs ORIG 物理展开 + N82 全帧槽号；
+// p167 MISSING ScanFloat×2 / push_backERKf×4（我方右值实参选 EOf，重载错位）+
+// EXTRA _Unwind_Resume×2/string D1×2/ScanInt/ScanTypeOrInt/size 等。5275 vs 5339。
 bool readAction(const std::string& line, EquipmentParameterInfo* info,
                 std::string& out, std::vector<float>& values, int idx)
 {    // [N类豁免] 残余 DIFF 归因（范式库 §7 跨版本组）：本函数指令多重集已与 ORIG
@@ -1199,7 +1232,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(11.0f);
         if (!ScanStr(&token)) return false;
-        fv = (float)getChangeStatusType(token);
+        fv = (float)(int)getChangeStatusType(token);
         values.push_back(fv);
         if (!ScanStr(&token)) return false;
         if (!ScanFloat(&fv)) return false;
@@ -1229,7 +1262,7 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(40.0f);
         ScanStr(&token);
-        fv = (float)getChangeStatusType(token);
+        fv = (float)(int)getChangeStatusType(token);
         values.push_back(fv);
         ScanStr(&token);
         float pct = (token == "%") ? 1.0f : 0.0f;
@@ -2952,14 +2985,14 @@ L_scanThen_ret1:
 }
 
 // ---- SASPROPERTY 子解析 helper（ORIG static，本 TU） ----
-static int GetItemGrowtype(EquipmentParameterInfo::SASPROPERTY* sp)
+static bool GetItemGrowtype(EquipmentParameterInfo::SASPROPERTY* sp)
 {
-    if (sp == 0) return 0;
+    if (sp == 0) return false;
     std::string s;
-    if (!ScanStr(&s)) return 0;
-    sp->m_head[0] = getCharacterJob(s.c_str());
-    if (!ScanInt(&sp->m_head[1])) return 0;
-    return 1;
+    if (!ScanStr(&s)) return false;
+    sp->m_head0 = getCharacterJob(s.c_str());
+    if (!ScanInt(&sp->m_head1)) return false;
+    return true;
 }
 
 // [skill apply condition] 块直至 "[/skill apply condition]"。ORIG 用三张
@@ -2968,18 +3001,18 @@ static int GetItemGrowtype(EquipmentParameterInfo::SASPROPERTY* sp)
 // 分派（报告 0x089bd8ea 实证：三组 __cxa_guard/SpinLock/__inited 双检 +
 // 13 处 pair<char const(&)[N],int>::insert）。语义：
 //   0x2f31 [/skill apply condition]→结束并返回 1；
-//   0x2f35 [lower bound level]→ScanInt→m_head[3]（+0xc）；
-//   0x2f39 [upper bound level]→ScanInt→m_head[4]（+0x10）；
-//   0x2f3d [value]→ScanInt→m_head[5]（+0x14）；
+//   0x2f35 [lower bound level]→ScanInt→m_head3（+0xc）；
+//   0x2f39 [upper bound level]→ScanInt→m_head4（+0x10）；
+//   0x2f3d [value]→ScanInt→m_head5（+0x14）；
 //   0x2f41 [skill group]→ScanStr 查子表：0x2f49 passive→1 /
-//     0x2f4c active→0 / 0x2f4f all→-1，写 m_head[2]（+0x8）；
+//     0x2f4c active→0 / 0x2f4f all→-1，写 m_head2（+0x8）；
 //   0x2f59 [extra condition]→ScanStr 循环查子表：0x2f60 [normal skill]|1 /
 //     0x2f63 [consume item skill]|2 / 0x2f66 [ex skill]|4 /
 //     0x2f69 [except for ex skill]|3 位或入 flags，==0 返回 0，否则写
-//     m_head[6]（+0x18）。
+//     m_head6（+0x18）。
 // 任一 ScanType/ScanInt/ScanStr 失败、或子表/主表未命中 → 返回 0。
 // [b28d-solo-EquipmentParameterInfo] P167 CLEAR（本波补 2 个 SpinLock::leave 点）⇒ 超大件 N82 封顶。
-static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
+static bool GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
 {
     if (sp == 0) return 0;
     std::string token;
@@ -3023,7 +3056,7 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
         }
         if (id == 0x2f39)
         {
-            if (!ScanInt(&sp->m_head[4])) return 0;
+            if (!ScanInt(&sp->m_head4)) return 0;
         }
         else if (id < 0x2f3a)
         {
@@ -3034,7 +3067,7 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
             }
             else if (id == 0x2f35)
             {
-                if (!ScanInt(&sp->m_head[3])) return 0;
+                if (!ScanInt(&sp->m_head3)) return 0;
             }
             else
             {
@@ -3045,7 +3078,7 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
         {
             if (id == 0x2f3d)
             {
-                if (!ScanInt(&sp->m_head[5])) return 0;
+                if (!ScanInt(&sp->m_head5)) return 0;
             }
             else if (id == 0x2f41)
             {
@@ -3088,7 +3121,7 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
                 else if (gid == 0x2f4c) group = 0;
                 else if (gid == 0x2f4f) group = -1;
                 else                    return 0;   // 子表未命中
-                sp->m_head[2] = group;
+                sp->m_head2 = group;
             }
             else if (id == 0x2f59)
             {
@@ -3135,7 +3168,7 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
                     else                    return 0;   // 子表未命中
                 }
                 if (flags == 0) return 0;
-                sp->m_head[6] = flags;
+                sp->m_head6 = flags;
             }
             else
             {
@@ -3148,242 +3181,348 @@ static int GetSkillApplyCondition(EquipmentParameterInfo::SASPROPERTY* sp)
 
 // GetSkillPhase —— ORIG 0x89be70c（static local）。消费 [skill phase] 块：
 // 惰性初始化 static map（"[all]"→0x2f8c … "[fourth]"→0x2f9b），ScanStr 读
-// token 查表，命中写 sp->m_head[7] = phase（0..5）并返回 1，未命中返回 0。
-// [b28d-solo-EquipmentParameterInfo] GetSkillPhase：符号名照 ORIG + 双检形重写 + 删 continue 真 bug；残差 N104。
-static int GetSkillPhase(EquipmentParameterInfo::SASPROPERTY* sp)
+// token 查表，命中写 sp->m_head7 = phase（0..5）并返回 1，未命中返回 0。
+// [b28d-solo-EquipmentParameterInfo] GetSkillPhase：✅ **IDENTICAL**（0x089be70c，
+// 317=317）。P165/P177 结构还原（`if(!ScanStr) return false;` 负极性 + goto guard_retry
+// 双检 + `int phase` 值槽 + 六 case 链式共享 insert 调用点，case 0 与 0x2f8c 共享）；
+// 关键旋钮 = `int phase; int id;` 声明序（4.4 先声明占深槽 -0x20/-0x1c 与 ORIG 反，
+// 交换后逐槽全等）。旧判词「删 continue 真 bug + 残差 N104」已由本波结构还原消解。
+static bool GetSkillPhase(EquipmentParameterInfo::SASPROPERTY* sp)
 {
-    if (!sp) return 0;
-    // [b28d-solo-EquipmentParameterInfo] 符号名照 ORIG nm：__lookup/__init_lock/__inited。
-    static std::map<const char*, int, less_TCHAR> __lookup;
-    static SpinLock __init_lock;
-    static bool __inited = false;
+    if (!sp) return false;
     std::string token;
-    for (;;)
-    {
-        if (!ScanStr(&token)) return 0;
-        if (!__inited)
+    // [b28d-solo-EquipmentParameterInfo] P165/P177 结构还原（照 ORIG 0x089be70c 逐条
+    // 转写）：`if (ScanStr(&token))` 正向包裹 + `for(;;)` 双检（find 在 `if(__inited)`
+    // 分支内、双检命中 `continue` 回 guard 重查）+ `int phase` 值槽 + 六 case 链式
+    // 共享 insert 调用点（case 0 与 0x2f8c 共享）+ switch 后统一
+    // `if(!__inited){leave; __inited=true; goto guard_retry;}` 再 `sp->m_head7 = phase`。
+    if (!ScanStr(&token)) return false;
+    guard_retry:
+        static std::map<const char*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+        int phase;
+        int id;
+        if (__inited)
         {
-            // [b28d-solo-EquipmentParameterInfo] P165①/P167：ORIG 0x089be911 enter →
-            // 0x089be91d 双检 `if (__inited) { leave; ... }` → 逐条 `if (!__inited)
-            // insert` 守卫（0x089be997 起）→ 0x089bebdf leave + 0x089bebeb
-            // `__inited = true` → 回 guard 检查**继续用当前 token 查表**。
-            // 原 `continue`（重新 ScanStr）会丢弃当前 token ⇒ 真语义 bug，已删。
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                __lookup.find(token.c_str());
+            id = (it != __lookup.end()) ? it->second : -1;
+        }
+        else
+        {
             __init_lock.enter();
             if (__inited)
             {
                 __init_lock.leave();
+                goto guard_retry;
             }
-            else
-            {
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[all]", 0x2f8c));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[common]", 0x2f8f));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[first]", 0x2f92));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[second]", 0x2f95));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[third]", 0x2f98));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[fourth]", 0x2f9b));
-                __init_lock.leave();
-                __inited = true;
-            }
+            id = 0;
         }
-        std::map<const char*, int, less_TCHAR>::const_iterator it =
-            __lookup.find(token.c_str());
-        int id = (it != __lookup.end()) ? it->second : -1;
         switch (id)
         {
-        case 0x2f8c: sp->m_head[7] = 5; return 1;
-        case 0x2f8f: sp->m_head[7] = 4; return 1;
-        case 0x2f92: sp->m_head[7] = 0; return 1;
-        case 0x2f95: sp->m_head[7] = 1; return 1;
-        case 0x2f98: sp->m_head[7] = 2; return 1;
-        case 0x2f9b: sp->m_head[7] = 3; return 1;
-        default: return 0;
+        case 0:
+        case 0x2f8c:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[all]", 0x2f8c));
+                goto L_2f8f;
+            }
+            phase = 5;
+            goto after_switch;
+    L_2f8f:
+        case 0x2f8f:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[common]", 0x2f8f));
+                goto L_2f92;
+            }
+            phase = 4;
+            goto after_switch;
+    L_2f92:
+        case 0x2f92:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[first]", 0x2f92));
+                goto L_2f95;
+            }
+            phase = 0;
+            goto after_switch;
+    L_2f95:
+        case 0x2f95:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[second]", 0x2f95));
+                goto L_2f98;
+            }
+            phase = 1;
+            goto after_switch;
+    L_2f98:
+        case 0x2f98:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[third]", 0x2f98));
+                goto L_2f9b;
+            }
+            phase = 2;
+            goto after_switch;
+    L_2f9b:
+        case 0x2f9b:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[fourth]", 0x2f9b));
+                goto L_default;
+            }
+            phase = 3;
+            goto after_switch;
+    L_default:
+        default:
+            if (__inited)
+                return false;
+            break;
         }
-    }
+    after_switch:
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            goto guard_retry;
+        }
+        sp->m_head7 = phase;
+        return true;
 }
 
 // ORIG：static map<const char*,int> 懒初始化——首次调用丢弃第一个 token（仅
 // 触发初始化），其后未知 token 一律返回 0（default 分支）；[skill levelup] 的
 // GetSkillLevelUp 直接填充 sp.m_vec20（+0x20），非局部 vector。
-// [b28d-solo-EquipmentParameterInfo] importAllSkillItem：P167 CLEAR ⇒ N 封顶；s_first static→局部（真语义修正）。
+// [b28d-solo-EquipmentParameterInfo] importAllSkillItem：P165/P177 结构还原（贯穿建表
+// 链 + 双检 goto 重试 + 五 case 链式共享 insert 调用点，P167 35/35 CLEAR）+ 四个
+// callee bool 化（P248 档①：GetItemGrowtype/GetSkillApplyCondition/GetSkillPhase/
+// GetSkillLevelUp 返回 int→bool，调用点 `call; xor $1; test; je` 逐条同形）⇒
+// ndiff 318→2。残差 = 4.4 把外层 `return 0` 中继块落在成功块之后（ORIG 落函数末尾
+// 与 && 短路失败共享）——块物理位置差（N121/P63 族），语义等价。
 static int importAllSkillItem(EquipmentParameterInfo* info)
 {
     EquipmentParameterInfo::SASPROPERTY sp;
-    sp.m_head[0] = 0xb; sp.m_head[1] = 0; sp.m_head[2] = 0xffffffff;
-    sp.m_head[3] = 0;   sp.m_head[4] = 0; sp.m_head[5] = 0;
-    sp.m_head[6] = 7;   sp.m_head[7] = 5;
+    sp.m_head0 = 0xb; sp.m_head1 = 0; sp.m_head2 = 0xffffffff;
+    sp.m_head3 = 0;   sp.m_head4 = 0; sp.m_head5 = 0;
+    sp.m_head6 = 7;   sp.m_head7 = 5;
     std::string token;
     bool terminated = false;
     // [b28d-solo-EquipmentParameterInfo] 真语义修正：ORIG 0x089becbd
     // `movb $0x1,-0x1d(%ebp)` 是**局部**标志（每次调用都丢弃首 token），
     // 原 static 只在首次调用丢弃 ⇒ 语义偏差。
     bool s_first = true;
-    while (ScanType(token, true))
+    int id;
+    // [b28d-solo-EquipmentParameterInfo] P165/P177 结构还原（照 ORIG 0x089bec41 逐条
+    // 转写）：while(s_first) 底部条件 + 循环体内 static 三件套（每轮穿 __cxa_guard）
+    // + 双检 `if(__inited){leave; goto guard_retry}` + id=0 贯穿建表：case 0/0x2fc1
+    // 共享块插入首项后 goto 到 case 0x2fc5 的 `if(!__inited)` 检查，各 case 的 insert
+    // 块再链式 goto 到下一 case（P167 实证每项 insert 仅一个调用点）。
+    while (s_first)
     {
-        if (s_first)
+        if (!ScanType(token, true))
+            break;
+    guard_retry:
+        static std::map<const char*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+        if (__inited)
         {
-            s_first = false;
-            continue;
-        }
-        // ORIG 0x089beeed..0x89bf247：函数局部 static map<char const*,int,less_TCHAR>
-        // 5 项（[/all skill item]=0x2fc1, [item growtype]=0x2fc5,
-        // [skill apply condition]=0x2fc9, [skill phase]=0x2fcd,
-        // [skill levelup]=0x2fd1，@0x89bef2c/89bef8a/89beffb/89bf06c/89bf0dd
-        // 逐条 !__inited 守卫+insert 链实证）→ find(token.c_str()) 分派。
-        int id;
-        {
-            static std::map<const char*, int, less_TCHAR> __lookup;
-            static SpinLock __init_lock;
-            static bool __inited = false;
-            if (!__inited)
-            {
-                __init_lock.enter();
-                if (__inited)
-                {
-                    __init_lock.leave();
-                }
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[/all skill item]", 0x2fc1));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[item growtype]", 0x2fc5));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[skill apply condition]", 0x2fc9));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[skill phase]", 0x2fcd));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[skill levelup]", 0x2fd1));
-                if (!__inited)
-                {
-                    __init_lock.leave();
-                    __inited = true;
-                }
-            }
             std::map<const char*, int, less_TCHAR>::const_iterator it =
                 __lookup.find(token.c_str());
             id = (it != __lookup.end()) ? it->second : -1;
         }
+        else
+        {
+            __init_lock.enter();
+            if (__inited)
+            {
+                __init_lock.leave();
+                goto guard_retry;
+            }
+            id = 0;
+        }
         switch (id)
         {
+        case 0:
         case 0x2fc1:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[/all skill item]", 0x2fc1));
+                goto L_2fc5;
+            }
             terminated = true;
-            break;
+            s_first = false;
+            goto after_switch;
+    L_2fc5:
         case 0x2fc5:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[item growtype]", 0x2fc5));
+                goto L_2fc9;
+            }
             if (!GetItemGrowtype(&sp)) return 0;
-            break;
+            goto after_switch;
+    L_2fc9:
         case 0x2fc9:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[skill apply condition]", 0x2fc9));
+                goto L_2fcd;
+            }
             if (!GetSkillApplyCondition(&sp)) return 0;
-            break;
+            goto after_switch;
+    L_2fcd:
         case 0x2fcd:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[skill phase]", 0x2fcd));
+                goto L_2fd1;
+            }
             if (!GetSkillPhase(&sp)) return 0;
-            break;
+            goto after_switch;
+    L_2fd1:
         case 0x2fd1:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[skill levelup]", 0x2fd1));
+                goto L_default;
+            }
             if (!GetSkillLevelUp(&sp.m_vec20)) return 0;
-            break;
+            goto after_switch;
+    L_default:
         default:
-            return 0;             // ORIG 0x89bf13f：未知 token → 失败
-        }
-        if (terminated)
+            if (__inited)
+                return 0;             // ORIG 0x89bf13f：未知 token（已初始化）→ 失败
             break;
-    }
-    if (terminated)
-    {
-        if ((sp.m_head[0] == 0xb && sp.m_head[7] != 5) && sp.m_head[7] != 4) return 0;
-        if ((unsigned)sp.m_head[3] < 0x47 && (unsigned)sp.m_head[4] < 0x47 &&
-            sp.m_head[3] <= sp.m_head[4])
-        {
-            if (sp.m_head[5] < 1) return 0;
-            info->m_119.m_418.push_back(sp);
-            return 1;
         }
+    after_switch:
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            goto guard_retry;
+        }
+    }
+    // ORIG 0x089bf192：`if (!terminated) return 0;`（xor 物化 + 共享 return 0）。
+    if (!terminated)
         return 0;
+    if ((sp.m_head0 == 0xb && sp.m_head7 != 5) && sp.m_head7 != 4) return 0;
+    // [b28d-solo-EquipmentParameterInfo] P222 两形互试定案：ORIG 0x89bf1f5 是三条失败
+    // 路径（head3>0x46 / head4>0x46 / head3>head4）共享的 `mov $0,%ebx; jmp`，与函数末
+    // return 0 同出口。正向包裹形（`if(h3<=h4){…}` 嵌套）4.4 反产 `jg`+独立 mov 块
+    // （389 vs 391，更差）；早返形 391=391 仅余该共享块落点差 ⇒ N 封顶（N121/P63 族）。
+    if ((unsigned)sp.m_head3 < 0x47 && (unsigned)sp.m_head4 < 0x47)
+    {
+        if (sp.m_head3 > sp.m_head4) return 0;
+        if (sp.m_head5 < 1) return 0;
+        info->m_119.m_418.push_back(sp);
+        return 1;
     }
     return 0;
 }
 
 // ---- importItemOverpowerDesc（ORIG 0x089bf290，static local） ----
 // 循环 ScanType 读 token；"[stat]"→局部 vector+GetStat（失败不 push）后 push
-// 到 info->m_428；"[/item overpower desc]"→结束。ORIG 结尾语义（与直觉相反，
-// 忠实保留）：token 耗尽（未 terminated）返回 0；terminated 且 m_428 为**空**
-// 时置 m_424=m_425=1 返回 1；terminated 且 m_428 非空返回 0。未知 token 返回
-// 0（default）；首次调用丢弃首 token（static map 懒初始化）。
-// [b28d-solo-EquipmentParameterInfo] importItemOverpowerDesc：P167 CLEAR ⇒ N 封顶；s_first static→局部（真语义修正）。
+// 到 info->m_428；"[/item overpower desc]"→结束。ORIG 结尾语义：token 耗尽
+// （未 terminated）返回 0；terminated 且 m_428 **非空**时置 m_424=m_425=1 返回 1；
+// terminated 且 m_428 为空返回 0（0x089bf618 `je` 落 mov $0 块实证）。未知 token
+// 返回 0（default）；首次调用以 id=0 贯穿建表后重查（P177）。
+// [b28d-solo-EquipmentParameterInfo] importItemOverpowerDesc：✅ **IDENTICAL**
+// （0x089bf290，266=266，P167 CLEAR 35/35）。本波 P165/P177 结构还原（贯穿建表链
+// + 双检 goto 重试 + case 0/0x3001 共享 [stat] insert 调用点）+ 真语义修正（见尾部）。
 static int importItemOverpowerDesc(EquipmentParameterInfo* info)
 {
     std::string token;
     bool terminated = false;
     // ORIG 0x089bf2a8 `movb $0x1,-0x1d(%ebp)`：局部标志（同 importAllSkillItem）。
     bool s_first = true;
-    while (ScanType(token, true))
+    int id;
+    // [b28d-solo-EquipmentParameterInfo] P165/P177 结构还原（照 ORIG 0x089bf290
+    // 逐条转写）：while(s_first) 底部条件 + 循环体内 static 三件套（每轮穿
+    // __cxa_guard 检查）+ 双检 `if(__inited){leave; goto guard_retry}` +
+    // `id=0` 贯穿建表（case 0 与 0x3001 共享块，首次插入两项后 goto 重试）+
+    // switch 后 `if(!__inited){leave; __inited=true; goto guard_retry}`。
+    while (s_first)
     {
-        if (s_first)
+        if (!ScanType(token, true))
+            break;
+    guard_retry:
+        static std::map<const char*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+        if (__inited)
         {
-            s_first = false;
-            continue;
-        }
-        // ORIG 0x089bf290：函数局部 static map<char const*,int,less_TCHAR>
-        // 2 项（[/item overpower desc]=0x3001 @0x89bf4be，[stat]=0x3005
-        // @0x89bf519，逐条 !__inited 守卫 insert 链）→ find(token.c_str())
-        // 分派树 @0x89bf497（cmp je / test jne）。
-        int id;
-        {
-            static std::map<const char*, int, less_TCHAR> __lookup;
-            static SpinLock __init_lock;
-            static bool __inited = false;
-            if (!__inited)
-            {
-                __init_lock.enter();
-                if (__inited)
-                {
-                    __init_lock.leave();
-                }
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[/item overpower desc]", 0x3001));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[stat]", 0x3005));
-                if (!__inited)
-                {
-                    __init_lock.leave();
-                    __inited = true;
-                }
-            }
             std::map<const char*, int, less_TCHAR>::const_iterator it =
                 __lookup.find(token.c_str());
             id = (it != __lookup.end()) ? it->second : -1;
         }
+        else
+        {
+            __init_lock.enter();
+            if (__inited)
+            {
+                __init_lock.leave();
+                goto guard_retry;
+            }
+            id = 0;
+        }
         switch (id)
         {
         case 0:
-            break;   // P163：独立 case 0 块参与 range 撑宽（值域 0..0x3005）
         case 0x3001:
-            terminated = true;
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[/item overpower desc]", 0x3001));
+                // ORIG 0x089bf4fc `jmp 089bf50b`：第一项插入后**跳到 case 0x3005
+                // 的 `if (!__inited)` 检查块**（共享 [stat] insert 调用点，
+                // P167 实证 ORIG 该 insert 仅一个调用点）。
+                goto L_insert_stat;
+            }
+            else
+            {
+                terminated = true;
+                s_first = false;
+            }
             break;
+    L_insert_stat:
         case 0x3005:
-        {
-            // ORIG 0x89bf559：局部 vector C1 + GetStat（内部 push 12.0f +
-            // GetStatValue，返回值取 %eax 残留）成功才 push 到 m_428；D1。
-            std::vector<float> v;
-            if (GetStat(&v))
-                info->m_119.m_428.push_back(v);
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[stat]", 0x3005));
+            }
+            else
+            {
+                // ORIG 0x89bf559：局部 vector C1 + GetStat（内部 push 12.0f +
+                // GetStatValue，返回值取 %eax 残留）成功才 push 到 m_428；D1。
+                std::vector<float> v;
+                if (GetStat(&v))
+                    info->m_119.m_428.push_back(v);
+            }
             break;
-        }
         default:
-            return 0;             // ORIG 0x89bf5b2：未知 token → 失败
-        }
-        if (terminated)
+            if (__inited)
+                return 0;         // ORIG 0x89bf5b2：未知 token（已初始化）→ 失败
             break;
+        }
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            goto guard_retry;
+        }
     }
-    if (terminated && info->m_119.m_428.empty())
-    {
-        info->m_119.m_424 = 1;
-        info->m_119.m_425 = 1;
-        return 1;
-    }
-    return 0;
+    // ORIG 0x089bf5fb 段实证：`movzbl terminated; xor $1; test; jne <mov $1>` +
+    // `call empty; test %al; je <mov $0>` ⇒ cond = `!terminated || empty()`；
+    // cond==0（terminated 且 m_428 **非空**）才置 m_424/m_425=1 返回 1。
+    // [真语义修正] 旧实现（及旧判词「空时置 1」）把条件判反：ORIG 是**非空**置 1。
+    // 德摩根取反包裹形（P258）复现 cond 物化 + 共享 return 0 块，逐条全等。
+    if (!(terminated && !info->m_119.m_428.empty()))
+        return 0;
+    info->m_119.m_424 = 1;
+    info->m_119.m_425 = 1;
+    return 1;
 }
 
 // ============================================================================
@@ -3395,7 +3534,10 @@ static int importItemOverpowerDesc(EquipmentParameterInfo* info)
 //   （ORIG 经 param_1+0x434 子指针，字段未建模则跳过），返回 1。
 //   本版覆盖已具名字段关键字；其余关键字落入结尾（返回 1 不中断脚本）。
 // ============================================================================
-// [b28d-solo-EquipmentParameterInfo] N：历史简化实现结构差（p167 664 vs 609），P165 结构还原未做。
+// [b28d-solo-EquipmentParameterInfo] N（结构差封顶）：本波 p167 **MISSING 清零**
+// （LevelUpSkill lu 循环外构造+循环内 clear、push_backEOi 右值直传、0x19d6/0x19f4 拆成
+// 两个独立分支各一次 getActiveStatusToEnumValue）；残余 EXTRA string D1×6/ScanInt×6/
+// operator==×5 等 = switch 后死 if 链等历史结构差（P165 结构还原未做）。5088 vs 4801。
 bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
                                   std::string& path, const char* dir,
                                   int& a, int& b)
@@ -3755,7 +3897,10 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
     }
     case 0x17b6:
     {
-        { iv = ScanInt((bool*)0); info->m_vec194.push_back(iv); } goto done;
+        // [b28d-solo-EquipmentParameterInfo] ORIG 0x89a88f8 调 push_backEOi（右值引用版：
+        // `call ScanInt; mov %eax,-0x8a8; lea -0x8a8; call EOi`）⇒ 实参是右值表达式；
+        // 旧实现经具名 iv 传左值 ⇒ 选 push_backRKi（p167 MISSING EOi ×1）。
+        { info->m_vec194.push_back(ScanInt((bool*)0)); } goto done;
     }
     case 0x17bb:
     {
@@ -4114,9 +4259,13 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
     case 0x1970:
     {
         info->m_levelUpSkills[0].clear();
+        // [b28d-solo-EquipmentParameterInfo] ORIG 0x89ab334/0x89ab350：`LevelUpSkill lu;`
+        // 在循环**外**构造一次（C1），循环体内先 `lu.clear()` 再填字段；旧实现把 lu 放在
+        // 循环内 ⇒ 每轮 C1/D1 且缺 clear 调用（p167 MISSING LevelUpSkill::clear ×1）。
+        LevelUpSkill lu;
         while (ScanStr(&s))
         {
-        LevelUpSkill lu;
+        lu.clear();
         lu.m_job = (s == "[common]") ? 0xb : getCharacterJob(s.c_str());
         lu.m_field4 = ScanInt((bool*)0);
         lu.m_field8 = ScanInt((bool*)0);
@@ -4237,10 +4386,13 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         info->m_lightAttack= ScanInt((bool*)0); goto done;
     }
     case 0x19d6:
-    case 0x19f4:
     {
         // ORIG 0x89ab9c6（probability）/0x89abafc（level）：ScanStr 状态名转枚举，
         // ScanInt 无检查；枚举 0x13 写满 18 槽，0..0x11 写对应槽，0x12/其它不写。
+        // [b28d-solo-EquipmentParameterInfo] 两个 id 必须**各自独立**成块：ORIG 是两个
+        // 独立分支（probability RA28_ @0x89aba26、level RA22_ @0x89abb5c），各有一次
+        // ScanStr+getActiveStatusToEnumValue；合并写 `if (id==0x19d6) … else …` 使该调用
+        // 只剩 2 处（p167 MISSING getActiveStatusToEnumValue ×1）。
         if (ScanStr(&s))
         {
         int st = getActiveStatusToEnumValue(s);
@@ -4251,17 +4403,35 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         {
         for (int i = 0; i < 0x12; ++i)
         {
-        if (id == 0x19d6)
         info->m_activeStatusProbability[i] = val;
-        else
+        }
+        }
+        else if (st >= 0 && st < 0x12)
+        {
+        info->m_activeStatusProbability[st] = val;
+        }
+        }
+        }
+        goto done;
+    }
+    case 0x19f4:
+    {
+        // ORIG 0x89abb5c：level 分支，与 probability 同形但写 m_activeStatusLevelTable。
+        if (ScanStr(&s))
+        {
+        int st = getActiveStatusToEnumValue(s);
+        int val = ScanInt((bool*)0);
+        if (st != 0x12)
+        {
+        if (st == 0x13)
+        {
+        for (int i = 0; i < 0x12; ++i)
+        {
         info->m_activeStatusLevelTable[i] = val;
         }
         }
         else if (st >= 0 && st < 0x12)
         {
-        if (id == 0x19d6)
-        info->m_activeStatusProbability[st] = val;
-        else
         info->m_activeStatusLevelTable[st] = val;
         }
         }
@@ -4981,87 +5151,116 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
 // [b28d-solo-EquipmentParameterInfo] importSkillDataUp：P167 CLEAR ⇒ 语义完成、byte 层 N 封顶。
 void importSkillDataUp(std::vector<EquipmentSkillDataUp>& out)
 {
-    out.reserve(0x14);
-    EquipmentSkillDataUp e;   // ORIG 在函数顶部构造一次，逐条覆写复用
+    // [b28d-solo-EquipmentParameterInfo] P165/P177 结构还原（照 ORIG 0x088c049c 逐条
+    // 转写）：对象构造序 e(-0xd4)→line(-0xd8)→reserve；`while (ScanStr(&line))`
+    // 底部条件形；循环体内 static 三件套每轮穿 guard + 双检 goto guard_retry +
+    // id=0 贯穿建表（case 0 与 0xa47 共享块，各 case insert 后链式 goto 下一 case）。
+    EquipmentSkillDataUp e;
     std::string line;
+    out.reserve(0x14);
     while (ScanStr(&line))
     {
         e.m_job = getCharacterJob(line.c_str());
         e.m_v4 = ScanInt((bool*)0);
         e.m_module = scanModuleType();
         ScanStr(&line);   // 标签 token
-        // ORIG 0x088c077c..0x88c0a4f：函数局部 static map<char const*,int,less_TCHAR>
-        // 7 项（[static]=0xa47 [level]=0xa4b [cooltime]=0xa4f [mp]=0xa54
-        // [maintain mp]=0xa59 [skill consume item]=0xa5e [casting time]=0xa6d，
-        // insert 链 @0x88c078e..0x88c0a6b 逐条 !__inited 守卫实证）→ find 分派。
+    guard_retry:
+        static std::map<const char*, int, less_TCHAR> __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
         int id;
+        if (__inited)
         {
-            static std::map<const char*, int, less_TCHAR> __lookup;
-            static SpinLock __init_lock;
-            static bool __inited = false;
-            if (!__inited)
-            {
-                __init_lock.enter();
-                if (__inited)
-                {
-                    __init_lock.leave();
-                }
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[static]", 0xa47));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[level]", 0xa4b));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[cooltime]", 0xa4f));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[mp]", 0xa54));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[maintain mp]", 0xa59));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[skill consume item]", 0xa5e));
-                if (!__inited)
-                __lookup.insert(std::pair<const char* const, int>("[casting time]", 0xa6d));
-                if (!__inited)
-                {
-                    __init_lock.leave();
-                    __inited = true;
-                }
-            }
             std::map<const char*, int, less_TCHAR>::const_iterator it =
                 __lookup.find(line.c_str());
             id = (it != __lookup.end()) ? it->second : -1;
         }
-        // P163：case 0 与 default 共享（ORIG 0x88c0ac3 尾，未知/0 均不消费）
-        // 撑宽 range 至 0xa6d，4.4.7 放弃跳表改发 cmp-imm 二分树，
-        // 与 ORIG @0x88c070f 树逐节点同序。
+        else
+        {
+            __init_lock.enter();
+            if (__inited)
+            {
+                __init_lock.leave();
+                goto guard_retry;
+            }
+            id = 0;
+        }
         switch (id)
         {
         case 0:
-            break;   // P163：独立 case 0 块参与 range 撑宽
-        default:
-            break;   // 未知标签：key/level 保持默认（ORIG 0x88c0ac3 尾）
         case 0xa47:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[static]", 0xa47));
+                goto L_a4b;
+            }
             e.m_key = 0; e.m_v8 = ScanInt((bool*)0);
-            break;
+            goto after_switch;
+    L_a4b:
         case 0xa4b:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[level]", 0xa4b));
+                goto L_a4f;
+            }
             e.m_key = 1; e.m_v8 = ScanInt((bool*)0);
-            break;
+            goto after_switch;
+    L_a4f:
         case 0xa4f:
-            e.m_key = 2; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
-            break;
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[cooltime]", 0xa4f));
+                goto L_a54;
+            }
+            e.m_key = 2; e.m_v8 = ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 死写后清零（P171）
+            goto after_switch;
+    L_a54:
         case 0xa54:
-            e.m_key = 3; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
-            break;
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[mp]", 0xa54));
+                goto L_a59;
+            }
+            e.m_key = 3; e.m_v8 = ScanInt((bool*)0); e.m_v8 = 0;
+            goto after_switch;
+    L_a59:
         case 0xa59:
-            e.m_key = 4; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
-            break;
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[maintain mp]", 0xa59));
+                goto L_a5e;
+            }
+            e.m_key = 4; e.m_v8 = ScanInt((bool*)0); e.m_v8 = 0;
+            goto after_switch;
+    L_a5e:
         case 0xa5e:
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[skill consume item]", 0xa5e));
+                goto L_a6d;
+            }
             e.m_key = 5; e.m_v8 = ScanInt((bool*)0);
-            break;
+            goto after_switch;
+    L_a6d:
         case 0xa6d:
-            e.m_key = 6; ScanInt((bool*)0); e.m_v8 = 0;   // ORIG 丢弃 ScanInt 结果
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<const char* const, int>("[casting time]", 0xa6d));
+                goto L_default;
+            }
+            e.m_key = 6; e.m_v8 = ScanInt((bool*)0); e.m_v8 = 0;
+            goto after_switch;
+    L_default:
+        default:
             break;
         }
-
+    after_switch:
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            goto guard_retry;
+        }
         ScanStr(&line);
         e.m_percent = (line == "+") ? 0 : 1;
         e.m_v10 = ScanInt((bool*)0);
@@ -5072,12 +5271,12 @@ void importSkillDataUp(std::vector<EquipmentSkillDataUp>& out)
 // ============================ EquipmentParameterInfo::._119/._159 别名 ============================
 // GCC 对 ctor/dtor 的 asm 别名（asm("...")）无效（硬限制）；匿名嵌套 struct 又按本 TU
 // 行号计数命名（如 4._85），与 ORIG `5._119`/`5._159` 不一致。故在类内命名 `_119`，
-// 用 `.set` 把自然 mangled `4_119*` 强制改名为 ORIG 带点号 `5._119*`；
-// `._159` 为另一 TU 的同形副本（仅 aSERKS0_），复用同一 op= 的 `.set` 别名。
-// ORIG 为局部 `t` 符号；`.set` 只产 local t 别名，objdump 同址只标注 binding 强者
-// （自然名 T 压掉 local t），故按 P203 附注补 `.globl`+`.type @function`+`.size`
-// 四件套使别名成为同址标注名（objdump 同址取较短名：别名 6 字符段 < 自然名
-// `4_119` 的 5 字符段？实测 `.119`/`.159` 别名段更长 ⇒ 见下方 probe 结论）。
+// 用 `.set` 把自然 mangled `5t_119*` 强制改名为 ORIG 带点号 `5._119*`（ctor/dtor 四件）。
+// **operator= 例外（b28d-solo-EquipmentParameterInfo 实证）**：asm 标签对 operator=
+// **有效**（探针 /tmp/b28d_epi_probe/asmlabel.cpp：声明带标签 ⇒ 定义与调用点重定位
+// 均用标签名），故两个 op= 的符号名由头文件 asm 标签直接指定（t_119 → `._159aSERKS0_`
+// 匹配 ORIG 0x08348024 的调用点；tt_159 → `._119aSERKS0_` 对应 ORIG 0x088fd910），
+// 不再走 `.set`（P262：两别名须各有独立函数体，此式满足）。
 // cf. docs/class_func_reports/EquipmentParameterInfo__._119
 // （0x088fd884/0x0898c680）与 ._159（0x08348024/0x0861c9b8）。
 asm(".set _ZN22EquipmentParameterInfo5._119C1Ev, _ZN22EquipmentParameterInfo5t_119C1Ev\n"
@@ -5096,11 +5295,3 @@ asm(".set _ZN22EquipmentParameterInfo5._119D2Ev, _ZN22EquipmentParameterInfo5t_1
     ".globl _ZN22EquipmentParameterInfo5._119D2Ev\n"
     ".type _ZN22EquipmentParameterInfo5._119D2Ev,@function\n"
     ".size _ZN22EquipmentParameterInfo5._119D2Ev,0x45");
-asm(".set _ZN22EquipmentParameterInfo5._119aSERKS0_, _ZN22EquipmentParameterInfo5t_119aSERKS0_\n"
-    ".globl _ZN22EquipmentParameterInfo5._119aSERKS0_\n"
-    ".type _ZN22EquipmentParameterInfo5._119aSERKS0_,@function\n"
-    ".size _ZN22EquipmentParameterInfo5._119aSERKS0_,0x4f");
-asm(".set _ZN22EquipmentParameterInfo5._159aSERKS0_, _ZN22EquipmentParameterInfo6tt_159aSERKS0_\n"
-    ".globl _ZN22EquipmentParameterInfo5._159aSERKS0_\n"
-    ".type _ZN22EquipmentParameterInfo5._159aSERKS0_,@function\n"
-    ".size _ZN22EquipmentParameterInfo5._159aSERKS0_,0x4f");

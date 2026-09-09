@@ -49,6 +49,9 @@ int g_alchemistInfo[2];
 // expert_job::get_disjoint_additional_items（ORIG 0x896d75d）。
 // 在 multimap 中按 key 取 equal_range，将每个 mapped stItemSelectRate 压入 out；
 // 未找到返回 false，否则返回 true。供 [disjoint result] 校验/填充附加/大奖物品。
+// b28d-solo-CExpertJobList 判词（AE）：P222 正向包裹（命中块 fall-through、false 归
+// 共享尾 0x0896d829）+ P13 缓存 upper_bound（ORIG 0x0896d7e2 循环初始化区一次求值、
+// 条件只比较）；64=64。
 // ============================================================================
 namespace expert_job
 {
@@ -56,14 +59,19 @@ bool get_disjoint_additional_items(
     std::multimap<int, stItemSelectRate>& m, int key,
     std::vector<stItemSelectRate>& out)
 {
-    if (m.find(key) == m.end())
-        return false;
-    for (std::multimap<int, stItemSelectRate>::iterator it = m.lower_bound(key);
-         it != m.upper_bound(key); ++it)
+    // b28d-solo [P222 正向包裹；P13：ORIG 循环初始化区一次性求值 lower/upper_bound
+    // （-0x14/-0x18 两具名迭代器），条件仅比较不重复调用]。
+    std::multimap<int, stItemSelectRate>::iterator found = m.find(key);
+    if (found != m.end())
     {
-        out.push_back(it->second);
+        for (std::multimap<int, stItemSelectRate>::iterator it = m.lower_bound(key),
+                 e = m.upper_bound(key); it != e; ++it)
+        {
+            out.push_back(it->second);
+        }
+        return true;
     }
-    return true;
+    return false;
 }
 }
 
@@ -134,14 +142,36 @@ STExpertJobEtcScript::STExpertJobEtcScript()
 // ============================================================================
 // ImportExpertJobScript（ORIG 0x896b0e4）。
 // 加载指定专家职业脚本，逐节填充 STExpertJobScript 各容器/标量。
+//
+// b28d-solo-CExpertJobList 判词（N 封顶；§6.2 三件套）：
+//   语义完成：p167 调用点差集 CLEAR（ORIG 239 = 本 TU 239，0 missing / 0 extra）；
+//   真语义 bug 修 3 族：[items] 三处 make_pair 实参取错字段（ORIG 0x0896bf39/
+//   0x0896bfaa/0x0896c01b 实证 (m_field0,idx)/(m_field0,m_field8)/(m_field4,m_field0)
+//   + stRecipeInfo +0/+4 字段化）、[expertness exp] 去 string 临时+operator=（改直写
+//   e.m_name）、load 判定改 bool 早返形。
+//   byte 层残差（ndiff 702 / gap 38 @ ORIG 2194 条）：
+//   ① ORIG 0x0896b16b..0x0896b188 的 8 个 `nop;jmp` 循环头中继岛（4.1 if-else 链
+//      占位产物，16 条；P223 族多源同标签尾岛）；
+//   ② 块内局部槽基差 4（string/multimap 组 -0x224/-0x244/-0x25c vs ORIG
+//      -0x228/-0x248/-0x260；int 组 -0x48/-0x44 vs ORIG -0x54/-0x50）——4.4 与 4.1
+//      块内槽分配策略差（N82/P212 族；声明序已逐条照 ORIG）；
+//   ③ [potion info] 的 `||` 链：4.1 发数值二分比较树、4.4 发线性 cmpl 链（14 条）；
+//   ④ 索引化地址计算书写序（imul/add）与 EH 状态机编码差。
 // ============================================================================
 bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
 {
-    bool ok;
-    if (loadRDARScriptFile(g_expertJobScriptBaseDirectory, path))
+    // b28d-solo [P16/P292：ORIG 0x0896b102 `xor $1; test %al,%al; je` bool 形早返；局部集合照抄
+    // ORIG：-0x54 scriptIdx（恒 0，成员访问索引化）/ -0x50 死 int / -0x22c 死 string /
+    // -0x22d ok 预清]。
+    if (!loadRDARScriptFile(g_expertJobScriptBaseDirectory, path))
+        return false;
     {
-        script->Clear();
+        int scriptIdx = 0;
+        (*script).Clear();
         std::string section;
+        std::string unusedSection;   // ORIG -0x22c（构造/析构但未使用，P171 照抄）
+        int unusedCount = 0;         // ORIG -0x50（死 int，P171 照抄）
+        bool ok = false;             // ORIG -0x22d（预清）
         std::multimap<int, stItemSelectRate> additional;  // [additional result]
         std::multimap<int, stItemSelectRate> bigwin;      // [big win result]
 
@@ -151,35 +181,38 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             {
                 while (true)
                 {
-                    int exp = ScanInt(&ok);
-                    if (!ok) break;
-                    int level = ScanInt(&ok);
-                    if (!ok) return false;
-                    std::string name;
-                    ScanStr(&name);
+                    // b28d-solo [ORIG 0x0896b1df：先构造 ExpertJobExp，三个字段直写成员
+                    // （ScanStr 直接写 e.m_name，无 string 临时+operator=）]。
                     ExpertJobExp e;
-                    e.m_exp = exp;
-                    e.m_level = level;
-                    e.m_name = name;
-                    script->m_expVec.push_back(e);
+                    e.m_exp = ScanInt(&ok);
+                    if (!ok) break;
+                    e.m_level = ScanInt(&ok);
+                    if (!ok) return false;
+                    ScanStr(&e.m_name);
+                    script[scriptIdx].m_expVec.push_back(e);
                 }
             }
             else if (section == "[skill]")
             {
-                script->m_growSkillVec.clear();
+                script[scriptIdx].m_growSkillVec.clear();
                 std::pair<int, int> p;
-                while (p.first = ScanInt(&ok), ok)
+                for (;;)
                 {
+                    p.first = ScanInt(&ok);
+                    if (!ok) break;
                     p.second = ScanInt(&ok);
                     if (!ok) return false;
-                    script->m_growSkillVec.push_back(p);
+                    script[scriptIdx].m_growSkillVec.push_back(p);
                 }
             }
             else if (section == "[additional result]")
             {
                 additional.clear();
-                for (int key = ScanInt(&ok); ok; key = ScanInt(&ok))
+                int key;
+                for (;;)
                 {
+                    key = ScanInt(&ok);
+                    if (!ok) break;
                     stItemSelectRate rate;
                     rate.m_rateMin   = ScanInt(&ok); if (!ok) return false;
                     rate.m_rateMax   = ScanInt(&ok); if (!ok) return false;
@@ -192,8 +225,11 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             else if (section == "[big win result]")
             {
                 bigwin.clear();
-                for (int key = ScanInt(&ok); ok; key = ScanInt(&ok))
+                int key;
+                for (;;)
                 {
+                    key = ScanInt(&ok);
+                    if (!ok) break;
                     stItemSelectRate rate;
                     rate.m_rateMin   = ScanInt(&ok); if (!ok) return false;
                     rate.m_rateMax   = ScanInt(&ok); if (!ok) return false;
@@ -205,17 +241,17 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             }
             else if (section == "[base const]")
             {
-                script->m_baseConst = ScanInt(&ok);
+                script[scriptIdx].m_baseConst = ScanInt(&ok);
                 if (!ok) return false;
             }
             else if (section == "[additional const]")
             {
-                script->m_additionalConst = ScanInt(&ok);
+                script[scriptIdx].m_additionalConst = ScanInt(&ok);
                 if (!ok) return false;
             }
             else if (section == "[disjoint result]")
             {
-                script->m_disjointResultMap.clear();
+                script[scriptIdx].m_disjointResultMap.clear();
                 while (true)
                 {
                     DisjointMachineGrade grade;
@@ -244,22 +280,30 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                         return false;
                     ScanInt(&ok);   // 读取但未建模持久化（local_38c）
                     if (!ok) return false;
-                    script->m_disjointResultMap.insert(std::make_pair(grade, res));
+                    script[scriptIdx].m_disjointResultMap.insert(std::make_pair(grade, res));
                 }
             }
             else if (section == "[clear quests]")
             {
-                script->m_clearQuests.clear();
-                for (int v = ScanInt(&ok); ok; v = ScanInt(&ok))
-                    script->m_clearQuests.push_back(v);
+                script[scriptIdx].m_clearQuests.clear();
+                int v;
+                for (;;)
+                {
+                    v = ScanInt(&ok);
+                    if (!ok) break;
+                    script[scriptIdx].m_clearQuests.push_back(v);
+                }
             }
             else if (section == "[giveup cost]")
             {
-                script->m_giveupCost.clear();
-                for (int v = ScanInt(&ok); ok; v = ScanInt(&ok))
+                script[scriptIdx].m_giveupCost.clear();
+                int v;
+                for (;;)
                 {
-                    script->m_giveupCost.push_back(v);
-                    if (script->m_giveupCost.size() > 9)
+                    v = ScanInt(&ok);
+                    if (!ok) break;
+                    script[scriptIdx].m_giveupCost.push_back(v);
+                    if (script[scriptIdx].m_giveupCost.size() > 9)
                     {
                         printf("SCRIPT ERROR over count [%s] %s\n",
                                path, section.c_str());
@@ -269,29 +313,38 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             }
             else if (section == "[compound rate]")
             {
-                script->m_compoundRateVec.clear();
+                script[scriptIdx].m_compoundRateVec.clear();
                 stCompoundRate r;
-                while (r.m_level = ScanInt(&ok), ok)
+                for (;;)
                 {
+                    r.m_level = ScanInt(&ok);
+                    if (!ok) break;
                     r.m_successRate = ScanInt(&ok); if (!ok) return false;
                     r.m_expMin      = ScanInt(&ok); if (!ok) return false;
                     r.m_expMax      = ScanInt(&ok); if (!ok) return false;
-                    script->m_compoundRateVec.push_back(r);
+                    script[scriptIdx].m_compoundRateVec.push_back(r);
                 }
             }
             else if (section == "[items]")
             {
-                script->m_recipeInfoMap.clear();
-                script->m_recipeIndexMap.clear();
-                script->m_recipeLevelMap.clear();
-                script->m_recipeItemMap.clear();
-                for (int idx = ScanInt(&ok); ok; idx = ScanInt(&ok))
+                script[scriptIdx].m_recipeInfoMap.clear();
+                script[scriptIdx].m_recipeIndexMap.clear();
+                script[scriptIdx].m_recipeLevelMap.clear();
+                script[scriptIdx].m_recipeItemMap.clear();
+                int idx;
+                for (;;)
                 {
-                    int itemIdx = ScanInt(&ok);
+                    idx = ScanInt(&ok);
+                    if (!ok) break;
+                    // b28d-solo [ORIG 0x0896beae..0x0896c01b：三个字段直写 info(+0/+4/+8)，
+                    // 三处 make_pair 实参 = (m_field0, idx)/(m_field0, m_field8)/
+                    // (m_field4, m_field0)（p167 MISSING IRmRiE/IRmRtE/IRmS0_E 实证）]。
+                    stRecipeInfo info;
+                    info.m_field0 = ScanInt(&ok);
                     if (!ok) return false;
-                    unsigned long v3 = ScanInt(&ok);
+                    info.m_field4 = ScanInt(&ok);
                     if (!ok) return false;
-                    unsigned short v4 = (unsigned short)ScanInt(&ok);
+                    info.m_field8 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
                     if (0xef < idx)
                     {
@@ -299,49 +352,52 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                                path, section.c_str());
                         return false;
                     }
-                    stRecipeInfo info;
-                    info.m_field8 = v4;
-                    script->m_recipeInfoMap.insert(std::make_pair(idx, info));
-                    script->m_recipeIndexMap.insert(
-                        std::make_pair((unsigned long)itemIdx, (int)v3));
-                    script->m_recipeLevelMap.insert(
-                        std::make_pair(itemIdx, (int)v3));
-                    script->m_recipeItemMap.insert(
-                        std::make_pair(v3, (unsigned long)v4));
+                    script[scriptIdx].m_recipeInfoMap.insert(std::make_pair(idx, info));
+                    script[scriptIdx].m_recipeIndexMap.insert(
+                        std::make_pair(info.m_field0, idx));
+                    script[scriptIdx].m_recipeLevelMap.insert(
+                        std::make_pair(info.m_field0, info.m_field8));
+                    script[scriptIdx].m_recipeItemMap.insert(
+                        std::make_pair(info.m_field4, info.m_field0));
                 }
             }
             else if (section == "[endurance repair cost]")
             {
-                script->m_enduranceRepairCost.clear();
+                script[scriptIdx].m_enduranceRepairCost.clear();
                 stEnduranceRepairCost r;
-                while (r.m_field0 = ScanInt(&ok), ok)
+                for (;;)
                 {
+                    r.m_field0 = ScanInt(&ok);
+                    if (!ok) break;
                     r.m_field4 = ScanInt(&ok); if (!ok) return false;
-                    script->m_enduranceRepairCost.push_back(r);
+                    script[scriptIdx].m_enduranceRepairCost.push_back(r);
                 }
             }
             else if (section == "[endurance reduce]")
             {
-                script->m_enduranceReduce1 = ScanInt(&ok);
+                script[scriptIdx].m_enduranceReduce1 = ScanInt(&ok);
                 if (!ok) return false;
-                script->m_enduranceReduce2 = ScanInt(&ok);
+                script[scriptIdx].m_enduranceReduce2 = ScanInt(&ok);
                 if (!ok) return false;
             }
             else if (section == "[endurance initial value]")
             {
-                script->m_enduranceInit = ScanInt(&ok);
+                script[scriptIdx].m_enduranceInit = ScanInt(&ok);
                 if (!ok) return false;
             }
             else if (section == "[upgrade cost]")
             {
-                script->m_upgradeCost.clear();
-                for (int idx = ScanInt(&ok); ok; idx = ScanInt(&ok))
+                script[scriptIdx].m_upgradeCost.clear();
+                int idx;
+                for (;;)
                 {
-                    if (idx - 1 != (int)script->m_upgradeCost.size())
+                    idx = ScanInt(&ok);
+                    if (!ok) break;
+                    if (idx - 1 != (int)script[scriptIdx].m_upgradeCost.size())
                         return false;
                     int v = ScanInt(&ok);
                     if (!ok) return false;
-                    script->m_upgradeCost.push_back(v);
+                    script[scriptIdx].m_upgradeCost.push_back(v);
                 }
             }
             else if (section == "[potion info]")
@@ -372,23 +428,26 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             }
             else if (section == "[gain exp]")
             {
-                script->m_gainExp1 = ScanInt(&ok);
+                script[scriptIdx].m_gainExp1 = ScanInt(&ok);
                 if (!ok) return false;
-                script->m_gainExp2 = ScanInt(&ok);
+                script[scriptIdx].m_gainExp2 = ScanInt(&ok);
                 if (!ok) return false;
             }
             else if (section == "[limit disjoint gold]")
             {
-                script->m_limitDisjointGold = ScanInt(&ok);
+                script[scriptIdx].m_limitDisjointGold = ScanInt(&ok);
                 if (!ok) return false;
             }
             else if (section == "[portable disjoint info]")
             {
-                for (int key = ScanInt(&ok); ok; key = ScanInt(&ok))
+                int key;
+                for (;;)
                 {
+                    key = ScanInt(&ok);
+                    if (!ok) break;
                     unsigned short val = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    if (!script->m_portableDisjointMap.insert(
+                    if (!script[scriptIdx].m_portableDisjointMap.insert(
                             std::make_pair(key, val)).second)
                     {
                         LogManager::logFormat(
@@ -401,20 +460,23 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             }
             else if (section == "[disjoint self service]")
             {
-                script->m_selfDisjoin.m_field0 = ScanInt(&ok);
+                script[scriptIdx].m_selfDisjoin.m_field0 = ScanInt(&ok);
                 if (!ok) return false;
-                script->m_selfDisjoin.m_field4 = ScanInt(&ok);
+                script[scriptIdx].m_selfDisjoin.m_field4 = ScanInt(&ok);
                 if (!ok) return false;
-                script->m_selfDisjoin.m_field8 = ScanInt(&ok);
+                script[scriptIdx].m_selfDisjoin.m_field8 = ScanInt(&ok);
                 if (!ok) return false;
             }
             else if (section == "[shop doll info]")
             {
-                for (int key = ScanInt(&ok); ok; key = ScanInt(&ok))
+                int key;
+                for (;;)
                 {
+                    key = ScanInt(&ok);
+                    if (!ok) break;
                     unsigned char val = (unsigned char)ScanInt(&ok);
                     if (!ok) return false;
-                    if (!script->m_shopDollMap.insert(
+                    if (!script[scriptIdx].m_shopDollMap.insert(
                             std::make_pair(key, val)).second)
                     {
                         LogManager::logFormat(
@@ -427,11 +489,14 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             }
             else if (section == "[unseal scroll level limit info]")
             {
-                for (int key = ScanInt(&ok); ok; key = ScanInt(&ok))
+                int key;
+                for (;;)
                 {
+                    key = ScanInt(&ok);
+                    if (!ok) break;
                     unsigned short val = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    if (!script->m_unsealScrollMap.insert(
+                    if (!script[scriptIdx].m_unsealScrollMap.insert(
                             std::make_pair(key, val)).second)
                     {
                         LogManager::logFormat(
@@ -444,14 +509,17 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             }
             else if (section == "[monstercard bind info]")
             {
-                for (int key = ScanInt(&ok); ok; key = ScanInt(&ok))
+                int key;
+                for (;;)
                 {
+                    key = ScanInt(&ok);
+                    if (!ok) break;
                     stMonsterCardBindRate rate;
                     rate.m_field0 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
                     rate.m_field2 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    if (!script->m_monsterCardBindRateMap.insert(
+                    if (!script[scriptIdx].m_monsterCardBindRateMap.insert(
                             std::make_pair(key, rate)).second)
                     {
                         LogManager::logFormat(
@@ -474,11 +542,11 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) return false;
                     res.m_field4 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    script->m_specialBindInfo.m_vec[idx].push_back(res);
+                    script[scriptIdx].m_specialBindInfo.m_vec[idx].push_back(res);
                     cnt[idx] += (int)res.m_field4;
                 }
                 for (int i = 0; i < 4; ++i)
-                    script->m_specialBindInfo.m_count[i] = cnt[i];
+                    script[scriptIdx].m_specialBindInfo.m_count[i] = cnt[i];
             }
             else if (section == "[monstercard bind list]")
             {
@@ -492,19 +560,22 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) return false;
                     res.m_field4 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    script->m_commonBindInfo.m_vec[idx].push_back(res);
+                    script[scriptIdx].m_commonBindInfo.m_vec[idx].push_back(res);
                     cnt[idx] += (int)res.m_field4;
                 }
                 for (int i = 0; i < 4; ++i)
-                    script->m_commonBindInfo.m_count[i] = cnt[i];
+                    script[scriptIdx].m_commonBindInfo.m_count[i] = cnt[i];
             }
             else if (section == "[alchemist extraction info]")
             {
-                for (int key = ScanInt(&ok); ok; key = ScanInt(&ok))
+                int key;
+                for (;;)
                 {
+                    key = ScanInt(&ok);
+                    if (!ok) break;
                     unsigned short val = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    if (!script->m_alchemistExtractInfo.insert(
+                    if (!script[scriptIdx].m_alchemistExtractInfo.insert(
                             std::make_pair(key, val)).second)
                     {
                         LogManager::logFormat(
@@ -517,11 +588,14 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             }
             else if (section == "[enchanter extraction info]")
             {
-                for (int key = ScanInt(&ok); ok; key = ScanInt(&ok))
+                int key;
+                for (;;)
                 {
+                    key = ScanInt(&ok);
+                    if (!ok) break;
                     unsigned short val = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    if (!script->m_enchanterExtractInfo.insert(
+                    if (!script[scriptIdx].m_enchanterExtractInfo.insert(
                             std::make_pair(key, val)).second)
                     {
                         LogManager::logFormat(
@@ -534,11 +608,14 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             }
             else if (section == "[doll_controller extraction info]")
             {
-                for (int key = ScanInt(&ok); ok; key = ScanInt(&ok))
+                int key;
+                for (;;)
                 {
+                    key = ScanInt(&ok);
+                    if (!ok) break;
                     unsigned short val = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    if (!script->m_dollExtractInfo.insert(
+                    if (!script[scriptIdx].m_dollExtractInfo.insert(
                             std::make_pair(key, val)).second)
                     {
                         LogManager::logFormat(
@@ -577,11 +654,11 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                             "import expertjob script - [alchemist extraction result item] result_type is invalid");
                         return false;
                     }
-                    script->m_alchemistResultInfo.m_vec[idx].push_back(res);
+                    script[scriptIdx].m_alchemistResultInfo.m_vec[idx].push_back(res);
                     cnt[idx] += (int)res.m_field4;
                 }
                 for (int i = 0; i < 3; ++i)
-                    script->m_alchemistResultInfo.m_count[i] = cnt[i];
+                    script[scriptIdx].m_alchemistResultInfo.m_count[i] = cnt[i];
             }
             else if (section == "[enchanter extraction result item]")
             {
@@ -594,9 +671,9 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     res.m_field4 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
                     total += (int)res.m_field4;
-                    script->m_enchanterResultInfo.m_vec.push_back(res);
+                    script[scriptIdx].m_enchanterResultInfo.m_vec.push_back(res);
                 }
-                script->m_enchanterResultInfo.m_count = total;
+                script[scriptIdx].m_enchanterResultInfo.m_count = total;
             }
             else if (section == "[doll_controller extraction result item]")
             {
@@ -636,11 +713,11 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     {
                         idx = 0;
                     }
-                    script->m_dollResultInfo.m_vec[idx].push_back(res);
+                    script[scriptIdx].m_dollResultInfo.m_vec[idx].push_back(res);
                     cnt[idx] += (int)res.m_field4;
                 }
                 for (int i = 0; i < 3; ++i)
-                    script->m_dollResultInfo.m_count[i] = cnt[i];
+                    script[scriptIdx].m_dollResultInfo.m_count[i] = cnt[i];
             }
         }
         return true;
@@ -651,58 +728,75 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
 // ============================================================================
 // ImportExpertJobEtcScript（ORIG 0x896ae21）。
 // 加载专家职业「.etc」脚本：填充等级上限 map 与分解机大奖概率 map。
+// b28d-solo-CExpertJobList 判词（AE）：P164 for(;;)+头部 if(!ScanType) break（复现
+// ORIG cond 块在 body 之前）+ P16/P292 bool 形早返 + P198① ok 预清两句式 + P171 照抄
+// ORIG 死局部（-0x30 std::string 仅构造/析构、-0xc int 清零未读）+ 两处预清声明分组
+// 在循环体首；189=189。
 // ============================================================================
 bool ImportExpertJobEtcScript(STExpertJobEtcScript& script, const char* path)
 {
-    bool ok;
-    if (loadRDARScriptFile(g_expertJobScriptBaseDirectory, path))
+    // b28d-solo [P16/P292：ORIG 0x0896ae3c `xor $1; test; je <主体>` 为「bool 形早返」]。
+    if (!loadRDARScriptFile(g_expertJobScriptBaseDirectory, path))
+        return false;
+    script.Clear();
+    std::string section;
+    // b28d-solo [P171 照抄 ORIG 死局部：-0x30 std::string（0x0896ae69 构造、
+    // 仅 EH/尾段 0x08707be0 析构，全程未使用）与 -0xc int（0x0896ae6e 清零后未读）]。
+    std::string unusedSection;
+    int unusedLine = 0;
+    // b28d-solo [P198①：ORIG 0x0896ae75 `movb $0x0,-0x31` 为 bool 局部预清 ⇒ 两句式]。
+    bool ok = false;
+    // b28d-solo [P164：ORIG 0x0896ae7c cond 块在 body 之前（4.4 对 while 恒旋转到尾部）
+    // ⇒ for(;;) + 头部 `if (!ScanType) break;`，循环外统一 return true]。
+    for (;;)
     {
-        script.Clear();
-        std::string section;
-        while (ScanType(section, true))
+        if (!ScanType(section, true))
+            break;
+        if (section == "[expertjob level limit]")
         {
-            if (section == "[expertjob level limit]")
+            while (true)
             {
-                while (true)
+                // ORIG 0x0896aeb8/0x0896aebc：循环体首 `movb $0`+`movw $0` 预清 ⇒ 声明=0+赋值。
+                unsigned char level = 0;
+                short needLevel = 0;
+                level = (unsigned char)ScanInt(&ok);
+                if (!ok) break;
+                needLevel = (short)ScanInt(&ok);
+                if (!ok) return false;
+                if (!script.m_levelMap.insert(
+                        std::make_pair(level, needLevel)).second)
                 {
-                    unsigned char level = (unsigned char)ScanInt(&ok);
-                    if (!ok) break;
-                    short needLevel = (short)ScanInt(&ok);
-                    if (!ok) return false;
-                    if (!script.m_levelMap.insert(
-                            std::make_pair(level, needLevel)).second)
-                    {
-                        LogManager::logFormat(
-                            0, "../RDARScriptExpertJob.cpp",
-                            __FUNCTION__, 0x4a,
-                            "import expertjob etc script - [expertjob level limit] index duplicated");
-                        return false;
-                    }
-                }
-            }
-            else if (section == "[disjointer big win rate]")
-            {
-                while (true)
-                {
-                    unsigned char key = (unsigned char)ScanInt(&ok);
-                    if (!ok) break;
-                    unsigned char val = (unsigned char)ScanInt(&ok);
-                    if (!ok) return false;
-                    if (!script.m_disjointerBigWinRate.insert(
-                            std::make_pair(key, val)).second)
-                    {
-                        LogManager::logFormat(
-                            0, "../RDARScriptExpertJob.cpp",
-                            __FUNCTION__, 0x60,
-                            "import expertjob etc script - [disjointer big win rate] index duplicated");
-                        return false;
-                    }
+                    LogManager::logFormat(
+                        0, "../RDARScriptExpertJob.cpp",
+                        __FUNCTION__, 0x4a,
+                        "import expertjob etc script - [expertjob level limit] index duplicated");
+                    return false;
                 }
             }
         }
-        return true;
+        else if (section == "[disjointer big win rate]")
+        {
+            while (true)
+            {
+                unsigned char key = 0;
+                unsigned char val = 0;
+                key = (unsigned char)ScanInt(&ok);
+                if (!ok) break;
+                val = (unsigned char)ScanInt(&ok);
+                if (!ok) return false;
+                if (!script.m_disjointerBigWinRate.insert(
+                        std::make_pair(key, val)).second)
+                {
+                    LogManager::logFormat(
+                        0, "../RDARScriptExpertJob.cpp",
+                        __FUNCTION__, 0x60,
+                        "import expertjob etc script - [disjointer big win rate] index duplicated");
+                    return false;
+                }
+            }
+        }
     }
-    return false;
+    return true;
 }
 
 // ============================================================================
@@ -715,14 +809,21 @@ CExpertJobList::~CExpertJobList() {}
 
 // ============================================================================
 // init（ORIG 0x896d8ec）
+// b28d-solo-CExpertJobList 判词（NEAR / N82附 封顶）：133=133 助记符序列全等；
+// 残差仅 job 槽位（ORIG -0x24 vs 本 TU -0x40）与其后 make_pair/pair/insert/end
+// 四个临时槽整体差 4——4.4 标量分区排布 vs 4.1 按生命周期穿插（N82附；job 在
+// 函数头/循环体首/循环尾三形实测均落 -0x40..-0x48，it/script/begin 临时槽已对齐）。
 // ============================================================================
 bool CExpertJobList::init()
 {
     // ORIG 0x896d8ec：无空指针检查，直接遍历 g_expertJobScriptFileList 对象。
     const char* path = 0;   // ORIG -0x1c(%ebp)：循环内最后 path，ETC 失败时作 %s 参数
-    for (std::map<int, std::string>::const_iterator it =
-             g_expertJobScriptFileList.m_fileMap.begin();
-         it != g_expertJobScriptFileList.m_fileMap.end(); ++it)
+    int job;                // ORIG -0x24(%ebp)（4.4 恒排深槽区 -0x40，见 N82附 标量分区）
+    // b28d-solo [P96/P50：ORIG 用非 const iterator + 独立 C1Ev 默认构造（-0x44）
+    // + begin() 临时槽 -0x4c 后内联拷贝赋值；P28：增量段为 ppEi（后置 it++）]。
+    std::map<int, std::string>::iterator it;
+    for (it = g_expertJobScriptFileList.m_fileMap.begin();
+         it != g_expertJobScriptFileList.m_fileMap.end(); it++)
     {
         path = it->second.c_str();
         if (path == 0)
@@ -730,16 +831,16 @@ bool CExpertJobList::init()
         STExpertJobScript* script = new STExpertJobScript();
         if (!ImportExpertJobScript(script, path))
         {
-            printf("expert job Script Error: %s", path);
+            printf("expert job Script Error: %s\n", path);
             delete script;
             return false;
         }
-        int job = g_expertJobScriptFileList.FindIndexByFullScan(path);
+        job = g_expertJobScriptFileList.FindIndexByFullScan(path);
         m_jobMap.insert(std::make_pair(job, script));   // ORIG 0x896d8ec：find 后 insert（NEW 二进制/源码曾丢失）
     }
     if (!ImportExpertJobEtcScript(m_etc, "expertjob.etc"))
     {
-        printf("ExpertJob ETC Script Error : %s", path);
+        printf("ExpertJob ETC Script Error : %s\n", path);
         return false;
     }
     return true;
@@ -747,15 +848,17 @@ bool CExpertJobList::init()
 
 // ============================================================================
 // destroy（ORIG 0x896dac6）
+// b28d-solo-CExpertJobList 判词（AE）：P13 缓存 end()（ORIG 0x0896dada 前一次性求值、
+// 条件只比较）+ P141 删手写 delete 判空（ORIG 仅 test/je 自带守卫）；42=42。
 // ============================================================================
 void CExpertJobList::destroy()
 {
-    for (std::map<int, STExpertJobScript*>::iterator it = m_jobMap.begin();
-         it != m_jobMap.end(); ++it)
+    // b28d-solo [P13：ORIG 0x0896dada 前一次性求值 end()（循环条件只比较不重调）]。
+    for (std::map<int, STExpertJobScript*>::iterator it = m_jobMap.begin(),
+             e = m_jobMap.end(); it != e; ++it)
     {
         STExpertJobScript* script = it->second;
-        if (script != 0)
-            delete script;
+        delete script;
     }
 }
 

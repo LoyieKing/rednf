@@ -37,6 +37,8 @@ CTournamentDungeonReward::~CTournamentDungeonReward() {}
 // [b28d-N18a] fresh 复验 36/37：Clear 外联化后帧 0x14 / 槽 -0x8/-0x4 已与 ORIG
 // 全等；残 1 行 = 二维索引中间寄存器（ORIG `lea 0x0(,%eax,4),%ecx` 直落 vs
 // 4.4 `mov %eax,%edx` 中转，P30/N18a 封顶）。
+// [b28d-solo-CTournamentDungeonReward] DIFF 36/37：残 = N18a 二维索引中转×1；
+// p167 1=1 CLEAR，语义全等 ⇒ N 封顶。
 void CTournamentDungeonReward::ResetReward()
 {
     for (int c = 0; c < 2; ++c)
@@ -64,6 +66,11 @@ int CTournamentDungeonReward::GetItemFromCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE t
     //   直写（-64 insn）。残余仅索引计算寄存器/leas 调度(N82)与共享退出块布局(N-JMP,+2)。
     //   语义完成，byte 层 N 封顶。
     // [b28d-N82] fresh 复验 168/170：同上（N82 帧/槽 + N18a 索引寄存器）。
+    // [b28d-solo-CTournamentDungeonReward] 试形记录：早返拆分（maxItems>2 / type 越界
+    // 各自 return 0）实测 168/174（原形 168/170）⇒ 4.4 仍尾部合并三处失败块，
+    // 多 4 条，回退为合并守卫形。
+    // [b28d-solo-CTournamentDungeonReward] DIFF 168/170：残 = N18a×5 + 三失败块尾部
+    // 合并（N-JMP，ORIG 就地 `mov $0,%eax; jmp` ×3）；p167 9=9 CLEAR ⇒ N 封顶。
     if (maxItems < 3 && (int)type >= 0 && (int)type < 2)
     {
         for (int i = 0; i < 2; ++i)
@@ -100,6 +107,9 @@ int CTournamentDungeonReward::GetItemFromCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE t
 // ORIG 0x8284a24：两张卡槽各按 rate 掷点决定奖励（未过首档则 m_id=0）。
 // [b28d-N82] fresh 复验 118/130：残差 = 4.4 多 push %edi + 帧 0x30→0x3c
 // （callee-saved 需求/帧策略差）+ 二维索引寄存器（N18a）⇒ 语义等价封顶。
+// [b28d-solo-CTournamentDungeonReward] DIFF 118/121：P272 德摩根块序（else 体直落、
+// 双跳同落 then）+ `pick+1` 初始化物化 + operator[] 引用缓存（ORIG 槽 -0xc）三项修后
+// 130→121；残 = 寄存器角色互换（card↔slotIdx，N7/N18a 族）；p167 4=4 CLEAR。
 // ============================================================================
 void CTournamentDungeonReward::DecisionRewardType(
     ENUM_TOURNAMENT_REWARD_CARD_TYPE card, TournamentRewardRate& rate,
@@ -108,29 +118,28 @@ void CTournamentDungeonReward::DecisionRewardType(
     for (int slotIdx = 0; slotIdx < 2; ++slotIdx)
     {
         int roll = get_rand_int(rate.m_c + 1);
-        if (rate.m_0 == 0 || rate.m_0 < roll)
-        {
-            if (roll <= rate.m_0 + rate.m_4)
-            {
-                int pick = get_rand_int(itemRate->m_c);
-                int accum = 0;
-                for (size_t i = 0; i < itemRate->m_items.size(); ++i)
-                {
-                    accum += itemRate->m_items[i].m_data[1];
-                    if (pick + 1 <= accum)
-                    {
-                        m_rewards[(int)card][slotIdx].m_id =
-                            itemRate->m_items[i].m_data[0];
-                        m_rewards[(int)card][slotIdx].m_field04 =
-                            itemRate->m_items[i].m_data[2];
-                        break;
-                    }
-                }
-            }
-        }
-        else
+        // ORIG 双跳同落 then（je/jl 0x8284a92）、else 体直落（P272 德摩根形）。
+        if (rate.m_0 != 0 && rate.m_0 >= roll)
         {
             m_rewards[(int)card][slotIdx].m_id = 0;
+        }
+        else if (roll <= rate.m_0 + rate.m_4)
+        {
+            // ORIG `add $1,%eax; mov %eax,-0x18` ⇒ pick 在初始化处 +1 物化
+            int pick = get_rand_int(itemRate->m_c) + 1;
+            int accum = 0;
+            for (size_t i = 0; i < itemRate->m_items.size(); ++i)
+            {
+                // ORIG 缓存 operator[] 返回的引用（槽 -0xc），两处赋值复用
+                const TournamentRewardItem& item = itemRate->m_items[i];
+                accum += item.m_data[1];
+                if (pick <= accum)
+                {
+                    m_rewards[(int)card][slotIdx].m_id = item.m_data[0];
+                    m_rewards[(int)card][slotIdx].m_field04 = item.m_data[2];
+                    break;
+                }
+            }
         }
     }
 }
@@ -183,6 +192,10 @@ void CTournamentDungeonReward::MakeReward(
 // （金币额）乘金币率写入 m_field04。
 // [b28d-N82] fresh 复验 91/94：同 DecisionRewardType（多 push %edi、帧 0x30→0x3c、
 // 循环槽 -0x10/-0xc → -0x20/-0x1c）+ N18a 索引差 ⇒ 语义等价封顶。
+// [b28d-solo-CTournamentDungeonReward] DIFF 91/95：修 empty()→begin()!=end()（P197④
+// 反向：4.4 empty 是 out-of-line call+bool 物化岛）与 get_add_info()→m_addInfo2
+// 直读（ORIG `mov 0x7(%eax),%eax`）后调用点 4=4 与 ORIG 全等；残 = N18a + push %edi/
+// N115 帧 0x10；p167 4=4 CLEAR。
 // ============================================================================
 void CTournamentDungeonReward::SetRewardGold(
     WongWork::stGenerateResult_t& result, float goldRate)
@@ -191,13 +204,20 @@ void CTournamentDungeonReward::SetRewardGold(
     {
         for (int slotIdx = 0; slotIdx < 2; ++slotIdx)
         {
-            if (m_rewards[card][slotIdx].m_id == 0 &&
-                !result.m_dropItems.empty())
+            if (m_rewards[card][slotIdx].m_id == 0)
             {
-                // ORIG x87 RC=truncate 直接截断（fildl+fmuls+fistpl，无 +0.5）
-                m_rewards[card][slotIdx].m_field04 =
-                    (int)((float)result.m_dropItems.begin()->get_add_info()
-                          * goldRate);
+                // ORIG：具名 iterator 局部（槽 -0x18）+ end() 临时（-0x14）
+                // + operator!=/operator-> 实例；4.4 的 empty() 是 out-of-line
+                // call 且带 bool 物化岛（P197④ 反向），故写 begin()!=end() 形。
+                std::vector<Inven_Item>::iterator it =
+                    result.m_dropItems.begin();
+                if (it != result.m_dropItems.end())
+                {
+                    // ORIG 直读 +0x07（m_addInfo2），无 get_add_info call；
+                    // x87 RC=truncate 直接截断（fildl+fmuls+fistpl，无 +0.5）
+                    m_rewards[card][slotIdx].m_field04 =
+                        (int)((float)it->m_addInfo2 * goldRate);
+                }
             }
         }
     }
@@ -205,6 +225,8 @@ void CTournamentDungeonReward::SetRewardGold(
 
 // ORIG 0x82852e4：单卡型奖励包体（byte2 + 每卡槽 int/int/short0）
 // [b28d-N18a] fresh 复验 65/66：残 1 行 = 二维索引中间寄存器 + 块尾 nop 差。
+// [b28d-solo-CTournamentDungeonReward] DIFF 65/66：残 = N18a×2 + ORIG 空 then 占位
+// nop 岛（§6.1 剥离）；p167 4=4 CLEAR。
 void CTournamentDungeonReward::_MakeRewardPacket(
     ENUM_TOURNAMENT_REWARD_CARD_TYPE type, PacketGuard* packet)
 {
@@ -235,6 +257,8 @@ void CTournamentDungeonReward::MakeRewardPacket(PacketGuard* packet, bool flag)
 // 才写入 slotNo 低字节并返回 1；否则返回 0。
 // [b28d-N18a] fresh 复验 66/68：残差 = 二维索引中间寄存器（movsbl 装载序 +
 // `mov %eax,%edx` 中转，P30/N18a）。
+// [b28d-solo-CTournamentDungeonReward] DIFF 66/68：残 = N18a×2（读/写各一）；
+// p167 0=0 CLEAR。
 // ============================================================================
 bool CTournamentDungeonReward::SelectCard(int slotNo, char cardA, char cardB)
 {
@@ -261,6 +285,7 @@ bool CTournamentDungeonReward::SelectCard(int slotNo, char cardA, char cardB)
 // 直落 ecx（type 在 edx/slot 在 ecx），4.4 恒 slot*12→eax 后 `mov %eax,%edx`
 // 多 1 条并改寄存器名（type→ecx/slot→eax）。探针 /tmp/l16p/p8.cpp 两形不可择。
 // [b28d-N18a] fresh 复验 34/35：维持 N18a。
+// [b28d-solo-CTournamentDungeonReward] DIFF 34/35：残 = N18a×1；p167 0=0 CLEAR。
 // ============================================================================
 bool CTournamentDungeonReward::isMemberSelectCard(
     ENUM_TOURNAMENT_REWARD_CARD_TYPE type, int cardNo)
@@ -278,6 +303,9 @@ bool CTournamentDungeonReward::isMemberSelectCard(
 // 对两槽：m_flag08==0xff（未选）时遍历 members，凡 !isMemberSelectCard(type,*it)
 // 者写入 m_flag08（低字节）。持续遍历不提前退出（ORIG 形态）。
 // [b28d-N82] fresh 复验 95/96：残差 = 多 push %edi + 帧 0x20→0x2c + 循环槽平移。
+// [b28d-solo-CTournamentDungeonReward] DIFF 95/101：修 `++it`→`it++`（P28 增量侧：
+// ORIG 增量段 `operator++(it,0)` + 独立 sret 临时 -0x10）；修后结构/槽序与 ORIG
+// 全等，残 = N18a×1 + push %edi/N115 帧 0x10；p167 7=7 CLEAR。
 // ============================================================================
 void CTournamentDungeonReward::_ForceSelectCard(
     ENUM_TOURNAMENT_REWARD_CARD_TYPE type, const std::vector<int>& members)
@@ -289,11 +317,13 @@ void CTournamentDungeonReward::_ForceSelectCard(
     {
         if (static_cast<unsigned char>(m_rewards[(int)type][slot].m_flag08) == 0xff)
         {
+            // ORIG 增量段调 operator++(it,0)（后置，带独立 sret 临时槽 -0x10）⇒
+            // 源形必写 it++（P28 增量侧推论）。
             for (std::vector<int>::const_iterator it = members.begin();
-                 it != members.end(); ++it)
+                 it != members.end(); it++)
             {
                 if (!isMemberSelectCard(type, *it))
-                    m_rewards[(int)type][slot].m_flag08 = static_cast<char>(*it);
+                    m_rewards[(int)type][slot].m_flag08 = *it;
             }
         }
     }
@@ -316,6 +346,9 @@ void CTournamentDungeonReward::ForceSelectCard(std::vector<int>& members, bool v
 // _ZSt4findI...cET_S8_S8_RKT0_）都必须出现在 members 中；否则查该行两槽。
 // 全命中 → 1。
 // [b28d-N82] fresh 复验 137/139：残差 = 帧/槽平移 + find 块尾 jmp 岛（N104）。
+// [b28d-solo-CTournamentDungeonReward] DIFF 137/139：修具名 found 迭代器后求值序
+// 与槽位（end -0x2c / begin -0x28 / find -0x30 / end -0x24；else 支 -0x20/-0x1c/
+// -0x34/-0x18）与 ORIG 逐槽全等；残 = N18a×2；p167 11=11 CLEAR。
 // ============================================================================
 bool CTournamentDungeonReward::isCardSelectComplete(
     ENUM_TOURNAMENT_REWARD_CARD_TYPE type, const std::vector<int>& members)
@@ -329,8 +362,12 @@ bool CTournamentDungeonReward::isCardSelectComplete(
         {
             for (int j = 0; j < 2; ++j)
             {
-                if (std::find(members.begin(), members.end(),
-                              m_rewards[i][j].m_flag08) == members.end())
+                // ORIG 求值序 = &flag → end() → begin() → find → 比较侧 end()；
+                // 具名 found 使 4.4 的 find 结果先落槽再调 end（P293 同族）。
+                std::vector<int>::const_iterator found =
+                    std::find(members.begin(), members.end(),
+                              m_rewards[i][j].m_flag08);
+                if (found == members.end())
                     return false;
             }
         }
@@ -339,8 +376,10 @@ bool CTournamentDungeonReward::isCardSelectComplete(
     {
         for (int j = 0; j < 2; ++j)
         {
-            if (std::find(members.begin(), members.end(),
-                          m_rewards[(int)type][j].m_flag08) == members.end())
+            std::vector<int>::const_iterator found =
+                std::find(members.begin(), members.end(),
+                          m_rewards[(int)type][j].m_flag08);
+            if (found == members.end())
                 return false;
         }
     }
@@ -352,6 +391,7 @@ bool CTournamentDungeonReward::isCardSelectComplete(
 // put_byte((char)m_flag08 符号扩展)。
 // [b28c-16 定论 N18a] 同上（二维寻址中间寄存器单段直落不可造）。
 // [b28d-N18a] fresh 复验 44/45：维持 N18a。
+// [b28d-solo-CTournamentDungeonReward] DIFF 44/45：残 = N18a×1；p167 2=2 CLEAR。
 // ============================================================================
 void CTournamentDungeonReward::MakeSelectPacket(PacketGuard* packet)
 {

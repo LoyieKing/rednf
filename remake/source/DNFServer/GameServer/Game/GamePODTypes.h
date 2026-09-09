@@ -10,7 +10,15 @@ struct stAvatarEmblemInfo_t
     struct
     {
         unsigned short emblemSocketType_;
-        int emblemItemIdx_;
+        union
+        {
+            int emblemItemIdx_;
+            // [b28d-solo-WongWorkMiscB_A] P248 档②/③ 同型化视角：ORIG
+            // 0x082fa2a6 写段为 LHS-first `lea 0x20(%eax),%edx; mov %eax,0x3(%edx)`；
+            // int 字段 + unsigned 形参在 4.4 下退化为 RHS-first + push %ebx，
+            // 经此 unsigned 视角（同址、同宽、零布局影响）即逐条复现 ORIG。
+            unsigned int emblemItemIdxU_;
+        };
     } stEmblemSocket[5];
 };
 #pragma pack(pop)
@@ -63,7 +71,10 @@ struct SIG_CREATURE_ITEM_DETAIL_INFO
     unsigned char m_stat;             // +0x27（兼作删除标记）
     int           m_expireTime;       // +0x28
     unsigned char m_pad2c[4];         // +0x2c..0x2f
-    unsigned char m_growExpFlag;      // +0x30
+    bool          m_growExpFlag;      // +0x30（ORIG CCreatureMgr::LoadCreatureItem
+                                      // 0x0833b7dc `movzbl 0x30; xor $1,%eax;
+                                      // test %al,%al; je` = 字段 bool + 裸 if(!f)
+                                      // P248 档②；sizeof/偏移不变）
     bool          m_isMaxLevel;       // +0x31（ORIG CCreature::LoadCreatureItem
                                       // 0x83386xx `mov %al,0x31(%edx)` bool→bool
                                       // 直存形，P219/P211 同型判据；sizeof 不变）

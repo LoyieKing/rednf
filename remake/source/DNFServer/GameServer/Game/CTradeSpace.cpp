@@ -118,7 +118,7 @@ void CTradeSpace::unlock()
 {
 }
 
-char CTradeSpace::IsLocked()
+bool CTradeSpace::IsLocked()
 {
     return m_bLocked;
 }
@@ -230,22 +230,23 @@ int CTradeSpace::_IsTradable(const Inven_Item& item)
         return 0;
     if (item.m_upgradeSep.IsTradeRestriction())
         return 0;
-    unsigned int t = (unsigned int)ci->GetAttachType();
-    if (t < 6) {
-        // b28d-35：N 封顶（P197④ 镜像 + N6 位折叠族）。ORIG 0x08529dce 的 bit
-        //   全程留 %eax（无槽，仅一组 shl），尾部含死计算 `and $0x1,%eax;
-        //   test %eax,%eax`（`if(bit&1) return 1;` 与 `return 1;` 同臂合并）。
-        //   三形实测：①具名 bit（本形）63/62，槽整体差 4 且 bit 逐次回读；
-        //   ②内联 `(1u<<t)&M` 被 4.4 折成 `shr`+`and $1`（N6，净 +3）；
-        //   ③register bit 落 %ebx+push/pop（净 +4）。ORIG 无槽形不可复现，
-        //   语义/边界（t<6、0x36/8/1 掩码）全等。
-        unsigned int bit = 1u << t;
+    // b28d-solo-CTradeSpace：按 ORIG 0x08529dce 还原。
+    //   t 为 int 局部 + 显式 (unsigned int) 比较 ⇒ 4.4 发 ORIG 的
+    //   `mov slot,%eax; cmp $0x5,%eax; ja`（P310）；bit 用纯 register 存储类
+    //   提示（P231，非绑定、P0 合规）复现 ORIG 无槽 %eax 存活形；
+    //   m_field0 是 bool ⇒ `!item.m_field0` 发 ORIG 的 xor $1 物化（P292）。
+    //   [b28d-solo-CTradeSpace 判词] 余 17 ndiff 全为跨版本 codegen：①ORIG bit 主副本
+    //   在 %eax、scratch 用 %edx（4.4 恒 eax，N7 寄存器角色）；②ORIG 在 cmp 后复用
+    //   %eax 免 t 重装载（4.4 保守重载 +1）；③ORIG 尾部死块 `and $1;test;jmp`
+    //   （4.4 jump-thread 成 je 岛，N121/setcc-fold，删死块后 23→17）。语义/边界全等。
+    int t = ci->GetAttachType();
+    if ((unsigned int)t < 6) {
+        register unsigned int bit = 1u << t;
         if ((bit & 0x36) != 0)
             return 0;
         if ((bit & 8) != 0) {
-            if (item.m_field0 == 1)
-                return 1;
-            return 0;
+            if (!item.m_field0)
+                return 0;
         }
     }
     return 1;
@@ -261,11 +262,12 @@ void CTradeSpace::_SaveAvatarItemOwnerChange(unsigned int a, unsigned int b,
 // ---- add_item @ 0x08529aa2 ----
 int CTradeSpace::add_item(int traderIdx, TradeSlot slot, int count)
 {
-    // b28d-35: DIFF→N82（帧/槽平移：ORIG @0x08529aa2 槽 -0x10 vs 我方 -0x18；
-    //   189/192）。语义/调用点一致。
-    // ORIG 0x8529aa2（O=190）：单槽 local_14 = idx = 返回值；equipable 分支
-    // 物理在前（+0x3b test-true fallthrough）；dst 每用点全链重算（P157）；
-    // 已存在路径 newCount 落 local_10 槽（+0xe8/+0xee add mem 形）。
+    // b28d-solo-CTradeSpace：按 ORIG 0x08529aa2 还原。
+    //   ①dst 用纯 register 指针（P231，非绑定、P0 合规）复现 ORIG 单次全链
+    //     计算 + cmp/memcpy 共用的无槽形（余 26 ndiff 为 N7：ORIG dst 落 %eax/
+    //     &slot 落 %edx，4.4 分别落 %ebx/%eax）；②两个 trace 用全表达式临时链
+    //     （P227，ORIG m_addInfo 先入 %ebx 跨 ctor 保活）；③newCount 声明/赋值
+    //     分两句复现 ORIG「先存槽后 add mem」序（P198①）。
     int idx;
     if (count < 0)
         return -1;
@@ -274,36 +276,34 @@ int CTradeSpace::add_item(int traderIdx, TradeSlot slot, int count)
     if (slot.m_item.isEquipableItemType()) {
         idx = get_empty_itemslot(traderIdx);
         if (idx != -1) {
-            // ORIG +0x5a：单次全链计算，cmp 与 memcpy 共用（local dst 形）
-            TradeSlot* dst = &m_slotsData[traderIdx][idx];
+            register TradeSlot* dst = &m_slotsData[traderIdx][idx];
             if (dst != &slot)
                 memcpy(dst, &slot, 0x46);
         }
     } else {
         idx = check_item_exist(traderIdx, slot.m_item.m_addInfo);
-        if (idx == -1) {
+        if (idx != -1) {
+            int newCount =
+                m_slotsData[traderIdx][idx].m_item.m_addInfo2;
+            newCount += count;
+            m_slotsData[traderIdx][idx].m_item.set_add_info(newCount);
+            if (newCount > 999) {
+                cMyTrace(__PRETTY_FUNCTION__, 0xd1, 5)(
+                    "CTradeSpace::add_item, ITEM #%d, %d",
+                    m_slotsData[traderIdx][idx].m_item.m_addInfo, newCount);
+            }
+        } else {
             idx = get_empty_itemslot(traderIdx);
             if (idx != -1) {
-                TradeSlot* dst = &m_slotsData[traderIdx][idx];  // +0x1b7
+                register TradeSlot* dst = &m_slotsData[traderIdx][idx];
                 if (dst != &slot)
                     memcpy(dst, &slot, 0x46);
-                // set_add_info/trace 各自重算全链（+0x1f3/+0x22c，P157）
                 m_slotsData[traderIdx][idx].m_item.set_add_info(count);
                 if (count > 999) {
                     cMyTrace(__PRETTY_FUNCTION__, 0xde, 5)(
                         "CTradeSpace::add_item, ITEM #%d, %d",
                         m_slotsData[traderIdx][idx].m_item.m_addInfo, count);
                 }
-            }
-        } else {
-            // +0xc5 全链读 m_addInfo2；+0x109 重算链 set_add_info
-            int newCount =
-                m_slotsData[traderIdx][idx].m_item.m_addInfo2 + count;
-            m_slotsData[traderIdx][idx].m_item.set_add_info(newCount);
-            if (newCount > 999) {
-                cMyTrace(__PRETTY_FUNCTION__, 0xd1, 5)(
-                    "CTradeSpace::add_item, ITEM #%d, %d",
-                    m_slotsData[traderIdx][idx].m_item.m_addInfo, newCount);
             }
         }
     }
@@ -361,69 +361,30 @@ bool CTradeSpace::cancel_trade()
 }
 
 // ---- send_lose_item_for_china @ 0x0852e3a8 ----
+// [b28d-solo-CTradeSpace verdict=IDENTICAL/AE ndiff=0（O110/N110）]
+//   修法：①if 判空改正向包裹（ORIG je 到尾部 return 0 岛，P222/P285）；
+//   ②msg(0xff)/title(29) 先/后声明使 4.4 槽位与 ORIG 同址（msg -0x134 4 对齐
+//   → 简单 rep stos；title -0x35 非 4 对齐 → 对齐剥离慢路，P312）；
+//   ③findString/strlen/getCurCharacNo/GetServerGroup 全部内联实参（P0/P86），
+//   消 5 个具名局部槽（帧 0x16c→0x15c）。
 int CTradeSpace::send_lose_item_for_china(CUser* user, Inven_Item& item)
 {
-    // b28d-35: DIFF→N82（帧 0x15c vs 0x18c；110/136）。ORIG @0x0852e3a8。
-    char title[41];
-    char msg[0xff];
-    if (item.m_addInfo == 0)
-        return 0;
-    // ORIG +0x24..：4.1 将 memset(title,0,0x1d)/memset(msg,0,0xff) 内联展开为
-    // 寄存器基址对齐循环（ebx/ecx/edx，无栈槽迭代器）。4.4 对字面 memset 发
-    // call（-35 假 we-smaller）或手展成槽变量形（+31）；此处按 ORIG 展开语义
-    // 手写，形态差记跨版本结构性残差（expansion 寄存器分配不可源码控制）。
-    {
-        // 4.1 memset 内联展开循环变量全程 callee-saved（ebx/edx/ecx）；
-        // register 形促 4.4 保留寄存器分配（P87），避免栈槽迭代器 +31
-        register char* q = title;
-        register int n = 0x1d;
-        if (((unsigned int)q & 1) != 0) {
-            *q = 0;
-            ++q;
-            --n;
-        }
-        if (((unsigned int)q & 2) != 0) {
-            *(short*)q = 0;
-            q += 2;
-            n -= 2;
-        }
-        register unsigned int m = n & 0xfffffffc;
-        register unsigned int k = 0;
-        do {
-            *(int*)(q + k) = 0;
-            k += 4;
-        } while (k < m);
-        q += k;
-        if ((n & 2) != 0) {
-            *(short*)q = 0;
-            q += 2;
-        }
-        if ((n & 1) != 0)
-            *q = 0;
+    // b28d-solo-CTradeSpace：ORIG 0x0852e3a8。
+    //   title/msg 的清零在 item 判空之后 ⇒ 原码是 if 后的 `char x[N] = {0};`
+    //   （4.1 对 memset 内联展开；4.4 对 29B 直写、255B 走对齐剥离慢路，N78 残差）。
+    //   槽位：msg(0xff) 先声明占深槽 -0x134（4 对齐 → 简单 rep stos），
+    //   title(29B) 后声明占浅槽 -0x35（非 4 对齐 → 慢路），与 ORIG 同址。
+    if (item.m_addInfo != 0) {
+        char title[29] = {0};
+        char msg[0xff] = {0};
+        strncpy(title, g_scriptStringManager_.findString(4, "game_server_msg_287", 0), 0x1d);
+        strncpy(msg, g_scriptStringManager_.findString(4, "game_server_msg_288", 0), 0xff);
+        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+            title, item, 0, (unsigned int)user->getCurCharacNo(), msg, (int)strlen(msg), 0,
+            user->GetServerGroup(), false, false);
+        return 1;
     }
-    {
-        register char* q = msg;
-        for (register int i = 0x3f; i != 0; --i) {
-            q[0] = 0;
-            q[1] = 0;
-            q[2] = 0;
-            q[3] = 0;
-            q += 4;
-        }
-        q[0] = 0;
-        q[1] = 0;
-        q[2] = 0;
-    }
-    const char* s1 = g_scriptStringManager_.findString(4, "game_server_msg_287", 0);
-    strncpy(title, s1, 0x1d);
-    const char* s2 = g_scriptStringManager_.findString(4, "game_server_msg_288", 0);
-    strncpy(msg, s2, 0xff);
-    ENUM_SERVER_GROUP group = user->GetServerGroup();
-    size_t len = strlen(msg);
-    unsigned int characNo = (unsigned int)user->getCurCharacNo();
-    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        title, item, 0, characNo, msg, (int)len, 0, group, false, false);
-    return 1;
+    return 0;
 }
 
 // ============================================================================
@@ -440,6 +401,14 @@ int CTradeSpace::send_lose_item_for_china(CUser* user, Inven_Item& item)
 // 金钱分支 gain_money 返回值 != 提交额即失败；物品三分支
 //（item.m_field1==8 头像 / m_field08==7 宠物 / else 背包），失败按
 // field1==8 双 trace（0xba7/0xbab）。bool 返回（PRETTY @0x8c98444）。
+// [b28d-solo-CTradeSpace verdict=NEAR ndiff=16（O425/N425）]
+//   修法：局部全头部声明照 ORIG 槽序（P212）：count(-0x30) ret(-0x2c)
+//   trader(-0x28) s1(-0x24) got(-0x20) s2(-0x1c)，两循环变量物理独立
+//   （4.4 复用槽少一槽）；trader 单初始化（`int trader=0; for(;…)`）。
+//   109→16。残差 16 = InventoryMemory 两局部栈地址差 1/2 字节
+//   （ORIG -0xd0ff/-0x1923e vs 我方 -0xd100/-0x19240）。Main 2026-09-09 裁决：
+//   不得删 InventoryMemory::m_tailC13f（ORIG 全量 110 处 CUser+0x858d4 反证
+//   sizeof=0xC140），本残差按 N 封顶（4.1 相邻同型局部 1B 布局差）。
 bool CTradeSpace::checkTrade()
 {
     // b28d-35: DIFF→N82（425/424 差 1 条；§6.2 口径）。ORIG @0x08530210。
@@ -453,45 +422,52 @@ bool CTradeSpace::checkTrade()
     // 头同区 m_inven 视图）；ORIG 0x85302f9 直取 characR()+0xda 传 setCopy
     copy[0].setCopy(*(const CInventory*)m_pTraders[0]->getCurCharacR()->m_padda);
     copy[1].setCopy(*(const CInventory*)m_pTraders[1]->getCurCharacR()->m_padda);
+    // b28d-solo-CTradeSpace：局部集合照 ORIG 槽序（P212 全头部声明）：
+    //   count(-0x30) ret(-0x2c) trader(-0x28) s1(-0x24) got(-0x20) s2(-0x1c)，
+    //   两循环变量物理独立（4.4 复用槽会少一槽，ORIG 4.1 不复用）。
     int count = 0;
-    for (int trader = 0; trader <= 1; ++trader) {
+    int ret = 0;
+    int trader = 0;
+    int s1;
+    int got;
+    int s2;
+    for (; trader <= 1; ++trader) {
         count = 0;
-        for (int s = 3; s <= 0x1a; ++s) {
-            if (m_slotsData[trader][s].m_item.m_addInfo != 0)
+        for (s1 = 3; s1 <= 0x1a; ++s1) {
+            if (m_slotsData[trader][s1].m_item.m_addInfo != 0)
                 ++count;
         }
-        // ORIG +0x??：money>0 → ++count → m_pTraders[1-trader] 判空 →
+        // ORIG +0x194：money>0 → ++count → m_pTraders[1-trader] 判空 →
         // gain_money 到对方副本；返回值 != 提交额 → false
         if (m_nMoney[trader] > 0) {
             ++count;
             if (m_pTraders[1 - trader] != 0) {
-                int got = copy[1 - trader].gain_money(
+                got = copy[1 - trader].gain_money(
                     m_nMoney[trader], (eMoneyAddReason)1, 0, 0);
                 if (m_nMoney[trader] != got)
                     return false;
             }
         }
-        for (int s = 3; s <= 0x1a; ++s) {
-            // 条件序：对方指针在前、槽非空在后（ORIG +0x1f9-0x214）
+        for (s2 = 3; s2 <= 0x1a; ++s2) {
+            // 条件序：对方指针在前、槽非空在后（ORIG +0x22d-0x267）
             if (m_pTraders[1 - trader] != 0 &&
-                m_slotsData[trader][s].m_item.m_addInfo != 0) {
-                int ret;
-                if (m_slotsData[trader][s].m_item.m_field1 ==
+                m_slotsData[trader][s2].m_item.m_addInfo != 0) {
+                if (m_slotsData[trader][s2].m_item.m_field1 ==
                     Inven_Item::ITEM_TYPE_AVATAR) {
                     ret = copy[1 - trader].insertAvatarIntoInventory(
-                        m_slotsData[trader][s].m_item,
+                        m_slotsData[trader][s2].m_item,
                         (eAvatarItemAddReason)1, 0);
-                } else if (m_slotsData[trader][s].m_field08 == 7) {
+                } else if (m_slotsData[trader][s2].m_field08 == 7) {
                     ret = copy[1 - trader].insertItemIntoCreature(
-                        m_slotsData[trader][s].m_item, (eItemAddReason)0x1a,
+                        m_slotsData[trader][s2].m_item, (eItemAddReason)0x1a,
                         0, 1);
                 } else {
                     ret = copy[1 - trader].insertItemIntoInventory(
-                        m_slotsData[trader][s].m_item, (eItemAddReason)1, 0,
+                        m_slotsData[trader][s2].m_item, (eItemAddReason)1, 0,
                         1);
                 }
                 if (ret < 0) {
-                    if (m_slotsData[trader][s].m_item.m_field1 ==
+                    if (m_slotsData[trader][s2].m_item.m_field1 ==
                         Inven_Item::ITEM_TYPE_AVATAR)
                         cMyTrace(__PRETTY_FUNCTION__, 0xba7, 5)(
                             "try insert_item(INVEN_TYPE_AVATAR) fail - "
@@ -530,6 +506,12 @@ bool CTradeSpace::checkTrade()
 //     局部恒不占槽（技巧31 负结论），源码不可复现 +1；
 //   [跨版本空体岛] +0x756/+0x759 两条失败路径各挂 nop;jmp;nop 中继
 //     （负例表「空 else nop;jmp 岛 vs jump-threading」行），4.4 恒直达自增 +3。
+// [b28d-solo-CTradeSpace verdict=DIFF ndiff=17（O531/N530）]
+//   修法：局部全头部声明照 ORIG 槽序（P212）：count(-0x30) trader(-0x2c)
+//   ret(-0x28) s1(-0x24) got(-0x20) s2(-0x1c)；补 gain_money 返回值死写入
+//   got（P171 照抄）；两循环变量独立；trader 双初始化（P191）。173→17。
+//   残差：①InventoryMemory 栈地址差 1/2 字节（同 checkTrade，Main 裁决 N）；
+//   ②尾部一条 jmp 中继（N121/epilogue-threading）。p167 47/47 CLEAR。
 bool CTradeSpace::checkCancelTrade()
 {
     // b28d-35: DIFF→N82（531/529）。ORIG @0x0852dbb8。
@@ -548,29 +530,34 @@ bool CTradeSpace::checkCancelTrade()
     copy[1].SetInventoryMemory(&mem1);
     copy[0].setCopy(*m_pTraders[0]->getCurCharacInvenRefR());
     copy[1].setCopy(*m_pTraders[1]->getCurCharacInvenRefR());
+    // b28d-solo-CTradeSpace：局部集合照 ORIG 槽序（P212 全头部声明）：
+    //   count(-0x30) trader(-0x2c) ret(-0x28) s1(-0x24) got(-0x20) s2(-0x1c)；
+    //   got 是 gain_money 返回值（ORIG +0x253 死写入照抄，P171）；两循环变量独立。
     int count = 0;
-    // ORIG +0x189/+0x190：trader 声明置 0 + for init 双写（P191 双初始化形）
     int trader = 0;
+    int ret;
+    int s1;
+    int got;
+    int s2;
     for (trader = 0; trader <= 1; ++trader) {
         count = 0;
-        for (int s = 3; s <= 0x1a; ++s) {
-            if (m_slotsData[trader][s].m_item.m_addInfo != 0)
+        for (s1 = 3; s1 <= 0x1a; ++s1) {
+            if (m_slotsData[trader][s1].m_item.m_addInfo != 0)
                 ++count;
         }
         // ORIG +0x20e：嵌套两 if（逗号/&& 混写会诱发 bool 物化岛）
         if (m_nMoney[trader] > 0) {
             ++count;
             if (m_pTraders[trader] != 0)
-                copy[trader].gain_money(m_nMoney[trader],
-                                        (eMoneyAddReason)2, 0, 0);
+                got = copy[trader].gain_money(m_nMoney[trader],
+                                              (eMoneyAddReason)2, 0, 0);
         }
-        for (int s = 3; s <= 0x1a; ++s) {
-            if (m_slotsData[trader][s].m_item.m_addInfo != 0 &&
+        for (s2 = 3; s2 <= 0x1a; ++s2) {
+            if (m_slotsData[trader][s2].m_item.m_addInfo != 0 &&
                 m_pTraders[trader] != 0) {
-                int ret;
-                if (m_slotsData[trader][s].m_field08 == 0) {
+                if (m_slotsData[trader][s2].m_field08 == 0) {
                     ret = copy[trader].insertItemIntoInventory(
-                        m_slotsData[trader][s].m_item, (eItemAddReason)2, 0,
+                        m_slotsData[trader][s2].m_item, (eItemAddReason)2, 0,
                         1);
                     if (ret < 0) {
                         cMyTrace(__PRETTY_FUNCTION__, 0x6af, 5)(
@@ -579,9 +566,9 @@ bool CTradeSpace::checkCancelTrade()
                             m_pTraders[trader]->getCurCharacNo());
                         return false;
                     }
-                } else if (m_slotsData[trader][s].m_field08 == 1) {
+                } else if (m_slotsData[trader][s2].m_field08 == 1) {
                     ret = copy[trader].insertAvatarIntoInventory(
-                        m_slotsData[trader][s].m_item,
+                        m_slotsData[trader][s2].m_item,
                         (eAvatarItemAddReason)3, 0);
                     if (ret < 0) {
                         cMyTrace(__PRETTY_FUNCTION__, 0x6b9, 5)(
@@ -590,9 +577,9 @@ bool CTradeSpace::checkCancelTrade()
                             m_pTraders[trader]->getCurCharacNo());
                         return false;
                     }
-                } else if (m_slotsData[trader][s].m_field08 == 7) {
+                } else if (m_slotsData[trader][s2].m_field08 == 7) {
                     ret = copy[trader].insertItemIntoCreature(
-                        m_slotsData[trader][s].m_item, (eItemAddReason)0x1c,
+                        m_slotsData[trader][s2].m_item, (eItemAddReason)0x1c,
                         0, 1);
                     if (ret < 0) {
                         cMyTrace(__PRETTY_FUNCTION__, 0x6c3, 5)(
@@ -603,7 +590,7 @@ bool CTradeSpace::checkCancelTrade()
                     }
                 } else {
                     ret = copy[trader].insertItemIntoEquipment(
-                        m_slotsData[trader][s].m_item, (eItemAddReason)2, 0,
+                        m_slotsData[trader][s2].m_item, (eItemAddReason)2, 0,
                         1);
                     if (ret < 0) {
                         cMyTrace(__PRETTY_FUNCTION__, 0x6d8, 5)(
@@ -640,6 +627,11 @@ bool CTradeSpace::checkCancelTrade()
 //   残差归因 N 类（详见 docs/asm_translation_patterns.md 负例表）：上述
 //   [setcc-fold]/[jump-threading 块序重排 @@-337,28+329,189/-403,157+556,25]/[N18b]
 //   结构性等价残差，P167 调用点 multiset 全等、语义逐分支对照完整，N 封顶。
+// [b28d-solo-CTradeSpace verdict=DIFF ndiff=660（O798/N814, gap -16）]
+//   N 封顶（§6.2 三件套）：p167 47/47 CLEAR；gap -16（我方多发的 setcc 物化/
+//   块序重排）；槽位集 N82 平移（PacketGuard -0x58↔-0x60）。残差归因：
+//   [setcc-fold]/[jump-threading 类型四分支物理序]/[N18b put_short 前 count
+//   预载]/[N82 全帧槽号错位]。语义逐分支对照完整。
 bool CTradeSpace::cancel_trade_for_china(CUser* user)
 {
     // b28d-35: DIFF→N82（798/814）。ORIG @0x0852e544。
@@ -764,6 +756,11 @@ bool CTradeSpace::cancel_trade_for_china(CUser* user)
 // 残差豁免（O=1096/N=1098，+2）：bool hack 汇聚岛与 4.4 折叠的 ±差异、
 // [jump-threading] case2 cancel 成功/失败块序。float/double 阈值块按
 // ORIG Ghidra 精度（第一块 float 0.7+0.01*r1，第二块 double 0.9）。
+// [b28d-solo-CTradeSpace verdict=DIFF ndiff=824（O1088/N1086, gap 2）]
+//   N 封顶（§6.2 三件套）：p167 112/112 CLEAR；gap 2；槽位集 N82 全帧平移
+//   （PacketGuard -0xc0↔-0xd0、标量组 -0x120/-0x11c/-0x118 无对应）。
+//   残差归因：N82（4.1 不按 lifetime 复用槽 vs 4.4 复用）+ [jump-threading]
+//   case2 成功/失败块序 + bool 汇聚岛折叠。语义逐分支对照完整。
 bool CTradeSpace::change_trade_state(CUser* user, int state)   // SIGFIX: bool（ORIG 串）
 {
     // b28d-35: DIFF→N82 + P282 复核。ORIG @0x0852f134；vcall_cand 件记
@@ -1064,6 +1061,12 @@ bool CTradeSpace::change_trade_state(CUser* user, int state)   // SIGFIX: bool�
 //     +0xef0 8 条），4.4 双索引重算 13 条（+= 展开策略版本差，源码不可控）。
 //   [N7/寄存器] 尾 TradeComplete money 槽基址 -0xa4 vs -0x88 与 ebx/edx 互换
 //     （.o 帧槽序，AE 归一吸收）。
+// [b28d-solo-CTradeSpace verdict=DIFF ndiff=884（O1606/N1614, gap -8）]
+//   真修：①p167 差集 MISSING operator* ×2 / EXTRA operator-> ×2 ⇒ `it->first`/
+//   `it->second` 改 `(*it).first`/`(*it).second`（P167/P256）；②GetGoldControl
+//   头内 inline 在 4.4 -O0 不内联 ⇒ 改具名成员 `m_pTraders[t]->m_goldControl`
+//   复现 ORIG 内联形（P119 反向）。p167 现 140/140 CLEAR。901→884。
+//   N 封顶：gap -8、N82 槽号平移、bool 汇聚岛。
 bool CTradeSpace::proceed_trade()
 {
     // b28d-35: DIFF→N82（1606/1618；§6.2）。ORIG @0x0853087a。
@@ -1335,10 +1338,10 @@ bool CTradeSpace::proceed_trade()
              updateMap.begin();
          it != updateMap.end(); ++it)
     {
-        CUser* user = it->first;
+        CUser* user = (*it).first;
         if (!user)
             return false;
-        std::vector<int>& vec = it->second;
+        std::vector<int>& vec = (*it).second;
         for (std::vector<int>::iterator vit = vec.begin(); vit != vec.end();
              ++vit)
         {
@@ -1352,7 +1355,10 @@ bool CTradeSpace::proceed_trade()
         m_pTraders[trader]->m_historyLog.TradeEnd(
             (eTradeEndReason)2, avgPrice[trader], tradeLogMoney[trader],
             avgPrice[1 - trader], tradeLogMoney[1 - trader]);
-        m_pTraders[trader]->GetGoldControl()->TradeComplete(
+        // b28d-solo-CTradeSpace：ORIG 在调用点内联 GetGoldControl（无 call，
+        //   直接 lea +0x8e980）；4.4 -O0 不内联头内 inline ⇒ 写具名成员访问
+        //   复现 ORIG 形（P119 反向：调用点展开）。
+        m_pTraders[trader]->m_goldControl.TradeComplete(
             tradeLogMoney[trader], tradeLogMoney[1 - trader]);
     }
     return true;
@@ -1374,6 +1380,11 @@ bool CTradeSpace::proceed_trade()
 //   [tail-merge]/[setcc-fold]/[jump-threading] + [N82 全帧槽号错位]
 //   （ndiff 796 与语义完成度反向；槽集/调用点 multiset 全等，语义逐分支对照
 //   完整），N 封顶。
+// [b28d-solo-CTradeSpace verdict=DIFF ndiff=794（O2021/N2019, gap 2）]
+//   修法：IsLocked bool 化（P292）。N 封顶（§6.2 三件套）：p167 227/227 CLEAR；
+//   gap 2；槽位集 N82 平移（-0xd4/-0xc4/-0xb4/-0xa4 ↔ -0xd0/-0xc0/-0xb0/-0xa0）。
+//   残差归因：[tail-merge slotIdx==-1 四分支]/[setcc-fold m_addInfo2<b]/
+//   [jump-threading type0 回滚块序]/[N82 全帧槽号错位]。
 int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
 {
     // b28d-35: DIFF→N82（2021/2021 等量，帧/槽平移；§6.2）。ORIG @0x08529e7e。
@@ -1802,6 +1813,12 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
 //   [setcc-fold]/[N18b]/[N76] + [N82 全帧槽号错位]（ndiff 650 与语义完成度
 //   反向；槽集/调用点 multiset 全等，语义逐分支对照完整），N 封顶。
 // ============================================================================
+// [b28d-solo-CTradeSpace verdict=DIFF ndiff=648（O1767/N1765, gap 2）]
+//   修法：IsLocked 返回类型 char→bool（P292，ORIG +0x17 `call;test %al,%al;je`
+//   无 setne）——650→648 并连带 regist_item/proceed_trade 大降。
+//   N 封顶（§6.2 三件套）：p167 160/160 CLEAR；gap 2；槽位集差 1 槽
+//   （ORIG -0x74 vs 我方 -0x70，N82）。残差归因：[setcc-fold check_empty_count]/
+//   [N18b slotItemType 比较]/[N76 newAddInfo store-then-sub]/[N82 全帧槽号错位]。
 int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
                              int target_slot, int count)
 {
@@ -1809,7 +1826,7 @@ int CTradeSpace::remove_item(CUser* user, int trade_slot_no, int type,
     //   ORIG @0x0852bfcc。
     // ORIG +0x17 `test %al,%al; je`：直判形（4.4 对裸 if(char) 生 setne 物化，
     // 显式 !=0 抑制归一尝试）
-    if (IsLocked() != 0)
+    if (IsLocked())
         return -1;
     if (count <= 0)
         return -0x62;

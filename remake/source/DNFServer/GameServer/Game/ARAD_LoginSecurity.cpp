@@ -22,9 +22,9 @@
 //   _ZN4ARAD16AradWhiteAccount4LoadEv            0x081ab5f8
 //   _ZN4ARAD16AradWhiteAccount14IsWhiteAccountEj 0x081ab59c
 //
-// SIG_LOGIN_DATA 字段访问说明：SigTypes.h 中该结构当前为 char m_pad[0x4358]
-// pad 占位（共享头按纪律禁改）。本 TU 以私有 ABI 镜像 accessor（模板 SGF）按
-// ORIG 偏移访问；已向 Main/W6_ARAD 上报字段化需求（见批次报告）。
+// SIG_LOGIN_DATA 字段访问说明：SigTypes_D.h 已按 ORIG 偏移字段化（m_punishInfos/
+// m_restrictedGoods/m_passPadPassword 等），本 TU 一律具名成员访问；仅对头内
+// 仍为 pad 的字节区使用 TU-local 同址视图（见下方 SigPunishTableView/SigPad394cView）。
 // ============================================================================
 
 #include "ARAD_LoginSecurity.h"
@@ -47,13 +47,24 @@
 
 namespace {
 
-// ---- SIG_LOGIN_DATA 私有 ABI 镜像 accessor ----------------------------------
-// SigTypes.h 现状：struct SIG_LOGIN_DATA { char m_pad[0x4358]; }。
-template <class T>
-inline T& SGF(SIG_LOGIN_DATA* p, unsigned int off)
+// [b28d-solo 新范式] pack(1) 外壳下的「4 对齐访问视图」：4.4 对 pack 元素类型
+// 恒把字段常量偏移拆成 (16 对齐 add + disp8)（0x3a68→add $0x3a60+disp 8），
+// 对 aligned(4) 视图则整体并入单条 add，复现 ORIG punish_user_check 0x0818f970 的
+// `lea (%ecx,%eax,1); add $0x3a68; mov (%eax)`（探针 /tmp/probe_pun5.cpp n3 逐条同形；
+// 旧 N102「4.4 恒折 disp、唯一出 add 的是裸偏移」判词在此形下作废）。
+// sizeof/偏移/mangled 零影响：仅为 SIG_LOGIN_DATA 的同址只读视角。
+struct SigPunishTableView
 {
-    return *reinterpret_cast<T*>(reinterpret_cast<char*>(p) + off);
-}
+    char m_pad[0x3a54];
+    SIG_LOGIN_PUNISH_INFO m_punishInfos[32];
+} __attribute__((aligned(4)));
+
+// SIG_LOGIN_DATA +0x394c（m_pad391c 区内，ORIG `movl $0,0x394c(%eax)` 清零）的具名视图
+struct SigPad394cView
+{
+    char m_pad[0x394c];
+    int  m_field;
+};
 
 }  // namespace
 
@@ -222,41 +233,36 @@ int PVP_CHANNEL::check_Login_server_group(SIG_LOGIN_DATA* data)
 
 bool pvp_grade_check(CUser* user)
 {
-    // [b28d-46 判词·N/N82] ORIG 0x0819ebde：111 vs 111，p167 CLEAR；帧 0x5c vs
-    // 0x64 与 callee-saved 组合（N82/N7）⇒ 封顶。
-    // [b23S3C] P48 去缓存：GetChannelType 两比较点各重取；G_CDataManager 每用点
-    // 重取直落实参（ORIG 无 mgr 槽）；log 块求值序 max→min→charac_no（ORIG
-    // 0x0819ec65 起）；尾块 get_pvp_grade 重取（ORIG 0x0819ed16，grade 非跨块
-    // 局部）；__PRETTY_FUNCTION__ 直实参（ORIG movl $__ZZ…PRETTY）。
-    if (G_GameWorld()->GetChannelType() != 8 &&
-        G_GameWorld()->GetChannelType() != 13)
+    // [b28d-solo 判词·AE] ORIG 0x0819ebde：ours 112 / ORIG 111（尾 nop 口径差 1）、
+    // p167 CLEAR。修法：P48 去缓存（GetChannelType 两比较点各重取）；两段 trace 改
+    // P227 全表达式临时链（ORIG 0x0819ec65/0x0819ed10 实参在 ctor 前右起求值并
+    // %edi/%esi/%ebx 跨 ctor 保活，无具名槽）；IsAvailable 改 `if(!boolcall)` 正出口
+    // 形（ORIG 0x0819ed09 `xor $1;test %al;je <return 1>`，P168a 技巧 1）；P258
+    // 正极性 or 包裹物化「是 pvp 渠道」正条件（负极性 && 早返恒反演，b28d-46 旧形）。
+    if (G_GameWorld()->GetChannelType() == 8 ||
+        G_GameWorld()->GetChannelType() == 13)
     {
-        return true;
-    }
+        int level = user->get_charac_level();
+        if (level < G_CDataManager()->GetMinLevelPvPChannel() ||
+            level > G_CDataManager()->GetMaxLevelPvPChannel())
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0x12b, 5)(
+                "User Level charac_no[%d] charac_level[%d] pvpchannelLev[%d][%d]",
+                user->get_charac_no(-1), level,
+                G_CDataManager()->GetMinLevelPvPChannel(),
+                G_CDataManager()->GetMaxLevelPvPChannel());
+            return false;
+        }
 
-    int level = user->get_charac_level();
-    if (level < G_CDataManager()->GetMinLevelPvPChannel() ||
-        level > G_CDataManager()->GetMaxLevelPvPChannel())
-    {
-        int maxLevel = G_CDataManager()->GetMaxLevelPvPChannel();
-        int minLevel = G_CDataManager()->GetMinLevelPvPChannel();
-        int characNo = user->get_charac_no(-1);
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x12b, 5);
-        trace("User Level charac_no[%d] charac_level[%d] pvpchannelLev[%d][%d]",
-              characNo, level, minLevel, maxLevel);
-        return false;
+        if (!G_CDataManager()->IsAvailablePvPChannel(user->get_pvp_grade()))
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0x135, 5)(
+                "User grade Error charac_no[%d] charac_pvp_grade[%d]",
+                user->get_charac_no(-1), user->get_pvp_grade());
+            return false;
+        }
     }
-
-    if (G_CDataManager()->IsAvailablePvPChannel(user->get_pvp_grade()) == 1)
-    {
-        return true;
-    }
-
-    int characNo = user->get_charac_no(-1);
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x135, 5);
-    trace("User grade Error charac_no[%d] charac_pvp_grade[%d]",
-          characNo, user->get_pvp_grade());
-    return false;
+    return true;
 }
 
 // ============================================================================
@@ -328,14 +334,15 @@ int Arad_Dispatcher_Login_Impl::inter_dispatch(CUser* /*user*/,
 int Arad_Dispatcher_Login_Impl::account_password_check(
     SIG_LOGIN_DATA* data, char* clientPwd)
 {
-    // [b28d-46 判词·N/N82] ORIG 0x0818f746：132 vs 133，p167 CLEAR；帧 0xa0 vs
-    // 0xa4 与槽号平移（N82）⇒ 封顶。
-    // [b23S3C] P48 去缓存：m_accId 各用点重取（ORIG 无 userIdx 槽）；改调
-    // getGameStartTime 薄转发（ORIG call 0x086031f6，bool 返回 xor 直测 P22，
-    // 头声明同步改 bool）；函数头补 time(0) 落槽（ORIG +0x00b）；两 long 预清
-    // 在 out ctor 前（ORIG +0x01a 序）；字段回写按 ORIG 序 3954/3960/3950/
-    // 3958/3968/3964/39a2/39dc/395c；39dc 手改内联 cast（SGF 模板 4.4 不实参
-    // 内联，call 多出）；GM 分支 strncmp 失败走 body、真值直返岛（P191 极性）。
+    // [b28d-solo 判词·DIFF(N76)] ORIG 0x0818f746：ours 133 / ORIG 132（尾 nop
+    // 口径差 1）、p167 CLEAR。已修：
+    // P227 两段 trace 全表达式临时链（ORIG 0x0818f7af/0x0818f845 先算 accId 入
+    // %ebx 跨 ctor 保活）；P0 删 curSec 具名局部改实参内联（ORIG 无该槽，
+    // CheckDailyScheduleTime 实参右起求值，esi 保活形复现）；P191 GM 分支
+    // `if(strncmp==0)return 0;` 让 return 0 走 fall-through（ORIG `jne <log>`）；
+    // 三处字段 store 经同型视图消 eax→edx 转换中转（P211 档③）。残余=3 处 store
+    // 装载序：ORIG 4.1 RHS-first 3 条形，4.4 恒 LHS-first（N76；P211 翻法要求
+    // ORIG 侧带中转，此处无中转）⇒ N76 封顶。
     time_t nowSec = time(0);
     (void)nowSec;
 
@@ -345,8 +352,8 @@ int Arad_Dispatcher_Login_Impl::account_password_check(
     if (!GlobalData::s_psimpleSSO->getGameStartTime(
             data->m_accId, loginTime, expireTime, out))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x16a, 5);
-        trace("get game start time error : user_idx[%d]", data->m_accId);
+        cMyTrace(__PRETTY_FUNCTION__, 0x16a, 5)(
+            "get game start time error : user_idx[%d]", data->m_accId);
         return -1;
     }
 
@@ -355,22 +362,27 @@ int Arad_Dispatcher_Login_Impl::account_password_check(
         // GM 口令核对：SIG_LOGIN_DATA::m_pad18（+0x18，0x84 字节 memset 清零区）
         // 即服务端 GM 口令串槽。
         if (strncmp(clientPwd,
-                    reinterpret_cast<const char*>(data->m_pad18), 0x84) != 0)
+                    reinterpret_cast<const char*>(data->m_pad18), 0x84) == 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x176, 5);
-            trace("gm user password error user_id[%d]", data->m_accId);
-            return -1;
+            return 0;
         }
-        return 0;
+        cMyTrace(__PRETTY_FUNCTION__, 0x176, 5)(
+            "gm user password error user_id[%d]", data->m_accId);
+        return -1;
     }
 
     // 普通登录：out（sizeof 0x48）各字段落位到 SIG_LOGIN_DATA 固定 SSO 槽。
     data->m_totalAccountFail = out.m_totalAccountFail;   // +0x3954 (out+0x08)
     data->m_reportMannerlessUserCount = out.m_reportCnt; // +0x3960 (out+0x0c)
     data->m_accountFail = out.m_accountFail;             // +0x3950 (out+0x04)
-    data->m_lastPlayTime = out.m_lastPlayTime;           // +0x3958 (out+0x00)
+    // P211/N76：目标 unsigned / 源 int 异型 ⇒ 4.4 多发 eax→edx 中转（4 条形 DIFF）；
+    // 经同型 int 视图写回落 3 条形（与 ORIG 仅装载序差）。同址视图，布局零影响。
+    struct VLastPlay { char m_pad[0x3958]; int m_lastPlayTime; };
+    ((VLastPlay*)data)->m_lastPlayTime = out.m_lastPlayTime;    // +0x3958 (out+0x00)
     data->m_overTradeGoldCount = out.m_tradeGoldDaily;   // +0x3968 (out+0x14)
-    data->m_reliablePersonFlag = out.m_reliableFlag;     // +0x3964 byte (out+0x10)
+    struct VReliableFlag { char m_pad[0x3964]; char m_reliableFlag; };
+    ((VReliableFlag*)data)->m_reliableFlag =
+        out.m_reliableFlag;                              // +0x3964 byte (out+0x10)
     data->m_tutorialSkipable = out.m_tutorialSkipable;   // +0x39a2 byte (out+0x3c)
     {
         // P1 字段视图（同 DB_Login::getSecurityCardInfo 手法）：ORIG `mov %dl,
@@ -380,10 +392,9 @@ int Arad_Dispatcher_Login_Impl::account_password_check(
     }
     data->m_dungeonGainedGold = static_cast<int>(out.m_dungeonGainGold);  // +0x395c
 
-    long curSec = GlobalData::s_systemTime_.getCurSec();
     if (CheckDailyScheduleTime(
             G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-            out.m_lastPlayTime, curSec))
+            out.m_lastPlayTime, GlobalData::s_systemTime_.getCurSec()))
     {
         data->m_dungeonGainedGold = 0;
     }
@@ -398,36 +409,36 @@ int Arad_Dispatcher_Login_Impl::account_password_check(
 // +0x3918、Goblin 检查窗口格式 "%Y-%m-%d 06:00:00"（+0x15180=当日 06:00 对齐秒偏移）。
 int Arad_Dispatcher_Login_Impl::pad_certifiaction_check(SIG_LOGIN_DATA* data)
 {
-    // [b28d-46 判词·N/N82] ORIG 0x0818f4a6：158 vs 153，p167 CLEAR；帧 0xa0 vs
-    // 0xc8、槽号整体平移（N82）⇒ 封顶。
+    // [b28d-solo 判词·NEAR(N82/N93)] ORIG 0x0818f4a6：ours 159 / ORIG 158
+    // （尾 nop 口径差 1）、p167 CLEAR。已修：P214③ 两缓冲 `={0}` 复现 rep stos
+    // （inputPadPwd -0x60 /
+    // encryptedPwd）；day[0x14] `={0}` 复现 ORIG 5×movl；nowSec 单变量复用
+    // （ORIG -0x3c 二次写=`getCurSec() - shift` 初始化式）；savedHash/failCnt
+    // 具名指针局部（ORIG -0x10/-0xc，失败分支经指针自增）；strncmp `!= 0` 走
+    // 失败 fall-through（ORIG `je <成功块>` 布局）；`failCnt > 9` 早返（ORIG
+    // `jle` 落 errCode=5 块）。残余=帧 0xc0 vs 0xa0 + 全帧槽号平移（ORIG 的
+    // tm/encryptedPwd 复用同槽 -0x8c，4.4 sibling 块不复用）⇒ N82/N93 封顶。
     static const char kFunc[] =
         "static int ARAD::Arad_Dispatcher_Login_Impl::pad_certifiaction_check("
         "SIG_LOGIN_DATA*)";
 
-    char encryptedPwd[36];         // ORIG -0x8c(%ebp) 输出缓冲（rep stos 清零）
-
     if (data->m_passPadVersion == 2)
     {
         // 已通过二级认证转化：执行当日 06:00 格式化的 Goblin 奖励复查
-        char day[0x14];
-        for (unsigned int i = 0; i < sizeof(day); ++i)
-        {
-            day[i] = 0;
-        }
+        char day[0x14] = {0};
 
+        int shift = 0;
         time_t nowSec = GlobalData::s_systemTime_.getCurSec();
         struct tm brokTm;
         localtime_r(&nowSec, &brokTm);
 
-        int shift = 0;
         if (brokTm.tm_hour < 6)
         {
             shift = 0x15180;   // 回退到前一日 06:00（86400 秒）
         }
 
-        time_t targetSec = GlobalData::s_systemTime_.getCurSec();
-        targetSec -= shift;
-        localtime_r(&targetSec, &brokTm);
+        nowSec = GlobalData::s_systemTime_.getCurSec() - shift;
+        localtime_r(&nowSec, &brokTm);
 
         strftime(day, sizeof(day), "%Y-%m-%d 06:00:00", &brokTm);
 
@@ -440,11 +451,8 @@ int Arad_Dispatcher_Login_Impl::pad_certifiaction_check(SIG_LOGIN_DATA* data)
     // 二级口令校验主流程
     data->m_passPadVersion = 1;
 
-    char inputPadPwd[0x24];        // ORIG -0x60(%ebp) 输入缓冲（rep stos 清零）
-    for (unsigned int i = 0; i < sizeof(encryptedPwd); ++i)
-    {
-        encryptedPwd[i] = 0;
-    }
+    char inputPadPwd[0x24] = {0};   // ORIG -0x60(%ebp) 输入缓冲（rep stos 清零）
+    char encryptedPwd[0x24] = {0};  // ORIG -0x8c(%ebp) 输出缓冲（rep stos 清零）
 
     strncpy(inputPadPwd,
             data->m_passPadPassword + 0x24, 0x24);   // +0x3905
@@ -452,34 +460,37 @@ int Arad_Dispatcher_Login_Impl::pad_certifiaction_check(SIG_LOGIN_DATA* data)
     ARAD_CRYPT::encryptAES(GlobalData::s_pcryptRijndael_MousePassword_,
                            inputPadPwd, encryptedPwd);
 
+    // ORIG 0x0818f633/0x0818f63e：两个具名指针局部（-0x10 savedHash / -0xc failCnt）
     const char* savedHash = data->m_passPadPassword;   // +0x38e1
-    if (strncmp(savedHash, encryptedPwd, 0x24) == 0)
-    {
-        data->m_passPadFailCnt = 0;
-        data->m_passPadCancelCnt = 0;
-        if (DATABASE::LOGIN_QUERY::arad_sp_update_history(data, 7) != 0)
-        {
-            data->m_errCode = 6;
-            return 1;
-        }
-        if (DATABASE::LOGIN_QUERY::arad_sp_delete_member_mouspass(data) != 0)
-        {
-            data->m_errCode = 6;
-            return 1;
-        }
-        data->m_passPadEnable = 0;
-        return 0;
-    }
+    int* failCnt = &data->m_passPadFailCnt;            // +0x3914
 
-    data->m_passPadFailCnt = data->m_passPadFailCnt + 1;
-    DATABASE::LOGIN_QUERY::arad_sp_update_fail_record(data);
-    if (data->m_passPadFailCnt <= 9)
+    if (strncmp(savedHash, encryptedPwd, 0x24) != 0)
     {
+        *failCnt = *failCnt + 1;
+        DATABASE::LOGIN_QUERY::arad_sp_update_fail_record(data);
+        if (*failCnt > 9)
+        {
+            data->m_errCode = 6;
+            return 0x49;
+        }
         data->m_errCode = 5;
         return 0x48;
     }
-    data->m_errCode = 6;
-    return 0x49;
+
+    data->m_passPadFailCnt = 0;
+    data->m_passPadCancelCnt = 0;
+    if (DATABASE::LOGIN_QUERY::arad_sp_update_history(data, 7) != 0)
+    {
+        data->m_errCode = 6;
+        return 1;
+    }
+    if (DATABASE::LOGIN_QUERY::arad_sp_delete_member_mouspass(data) != 0)
+    {
+        data->m_errCode = 6;
+        return 1;
+    }
+    data->m_passPadEnable = 0;
+    return 0;
 }
 
 // premium_info_set @ 0x0818f1ca（0x2db 指令）。
@@ -492,58 +503,58 @@ int Arad_Dispatcher_Login_Impl::premium_info_set(
     std::vector<DB_Login::tagDNFEventEntry>& entries,
     int serverGroup)
 {
-    // [b28d-46 判词·N/N82+N89] ORIG 0x0818f1ca：213 vs 201；帧 0x60 vs 0x50、
-    // `vector<int>::operator=` 实例差（N89）⇒ 封顶。
-    unsigned short pushCount = 0;
+    // [b28d-solo 判词·AE] ORIG 0x0818f1ca：215=215 指令数全等、mnemonic 全等、
+    // p167 CLEAR。修法：entry 改**值拷贝**（ORIG operator* 后逐 dword 搬 -0x50）；
+    // 条件一律 `it->m_eventId`（每次重调 operator->）；压栈目标
+    // `m_restrictedGoods[m_restrictedGoodsCount++]`（ORIG 读 count 一次入 %ebx 复用 +
+    // `lea 0x1(%ebx)` 写回）；pushCount 改 int（ORIG `movl $0,-0xc`）且仅结尾
+    // `m_premiumCount = pushCount`（恒 0，P171 照抄原码不更新）；+0x394c 经
+    // SigPad394cView 具名视图清零；P13 for 初始化区缓存 end()。**真语义 bug 修正**：
+    // 旧重建 else 分支的 `vecB = vecA;` 让 select_member_premium 第 4 实参携带
+    // vecA 内容，ORIG 传的是空 vecB 的按值拷贝（同时该语句链多发射 19 个
+    // vector<int>::operator= 族弱符号）。
+    int pushCount = 0;   // ORIG `movl $0,-0xc`（4B 写）⇒ int 非 unsigned short
 
     data->m_premiumCount = 0;
     data->m_restrictedGoodsCount = 0;
-    SGF<int>(data, 0x394c) = 0;
+    ((SigPad394cView*)data)->m_field = 0;
 
     std::vector<int> vecA;                       // select_member_premium 目标 A
     std::vector<int> vecB;                       // 每次 copy 为临时实参 B
 
     typedef std::vector<DB_Login::tagDNFEventEntry>::iterator It;
-    for (It it = entries.begin(); it != entries.end(); ++it)
+    // P13：ORIG 在循环初始化区求值 end() 一次（两迭代器槽 -0x34/-0x38）
+    for (It it = entries.begin(), endIt = entries.end(); it != endIt; ++it)
     {
-        DB_Login::tagDNFEventEntry& entry = *it;
+        DB_Login::tagDNFEventEntry entry = *it;   // ORIG 值拷贝到 -0x50
 
-        bool skipFirst = !(entry.m_eventId >= 50000 && entry.m_eventId <= 89999);
-        if (skipFirst)
+        if (it->m_eventId < 50000 || it->m_eventId > 89999)
         {
             continue;
         }
 
-        bool isBroadcastKind =
-            (entry.m_eventId >= 70000 && entry.m_eventId <= 89999);
-        if (isBroadcastKind)
+        if (it->m_eventId >= 70000 && it->m_eventId <= 89999)
         {
-            SGF<unsigned int>(
-                data, static_cast<unsigned>(pushCount + 0xa4c) * 4 + 0xc) =
-                static_cast<unsigned int>(entry.m_eventId);
-            data->m_restrictedGoodsCount = pushCount + 1;
-            pushCount = data->m_restrictedGoodsCount;
+            // ORIG 读 count 一次入 %ebx 复用（索引 + `lea 0x1(%ebx)` 写回）⇒ 后置 ++
+            data->m_restrictedGoods[data->m_restrictedGoodsCount++] =
+                it->m_eventId;
             continue;
         }
 
-        if (WongWork::CUserPremium::IsRestrictedPremium(entry.m_eventId))
+        if (WongWork::CUserPremium::IsRestrictedPremium(it->m_eventId))
         {
-            SGF<unsigned int>(
-                data, static_cast<unsigned>(pushCount + 0xa4c) * 4 + 0xc) =
-                static_cast<unsigned int>(entry.m_eventId);
-            data->m_restrictedGoodsCount = pushCount + 1;
-            pushCount = data->m_restrictedGoodsCount;
+            data->m_restrictedGoods[data->m_restrictedGoodsCount++] =
+                it->m_eventId;
             continue;
         }
 
-        if (entry.m_eventId >= 0xa029 && entry.m_eventId <= 0xa02b)
+        if (it->m_eventId >= 0xa029 && it->m_eventId <= 0xa02b)
         {
             DATABASE::LOGIN_QUERY::arad_sp_select_member_brodcast(
                 data, entry, serverGroup);
         }
         else
         {
-            vecB = vecA;
             DATABASE::LOGIN_QUERY::arad_sp_select_member_premium(
                 data, entry, vecA, vecB);
         }
@@ -557,8 +568,14 @@ int Arad_Dispatcher_Login_Impl::premium_info_set(
 int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
                                             Stream* stream)
 {
-    // [b28d-46 判词·N/N82] ORIG 0x0818ef4c：169 vs 165，p167 CLEAR；帧 0xdc vs
-    // 0xd0 与槽号平移（N82）⇒ 封顶。
+    // [b28d-solo 判词·DIFF(N99)] ORIG 0x0818ef4c：168 vs 170、p167 CLEAR。
+    // 已修：P0/P48 删 channelType/secondCheckType 具名槽改实参内联（复现 ORIG
+    // `cmp $8/%7,%eax; sete %al; test %al,%al; je` 的 call 结果直比物化，P197④）；
+    // pwdBuf 改 `={0}` 复现 rep stos $0x21 dwords；`==7 && (...)` 拆嵌套 if 消
+    // 4.4 jump-thread（P225/P286）；补 ORIG 死局部 `int padDead = 0`（0x0818f0f5
+    // `movl $0,-0x1c`，P232 帧律使帧 0xdc 与槽基全等）。残余=ORIG 保留
+    // punish_user_check/pad_certifiaction_check 返回值两处死 `test %eax,%eax`
+    // （4.4 tree-DCE 删除，N99；(void)/空 if 三形不可复现）⇒ N99 封顶。
     static const char kFunc[] =
         "virtual int ARAD::Arad_Dispatcher_Login_Impl::db_dispatch(int, int, "
         "Stream*)";
@@ -574,8 +591,9 @@ int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
 
     loginData->m_errCode = 0;
 
-    int channelType = G_GameWorld()->GetChannelType();
-    if (channelType == 8)
+    // P0/P48：ORIG 无 channelType 槽，GetChannelType 结果寄存器直比（`cmp $8,%eax;
+    // sete %al; test %al,%al; je`，P197④ call 结果直比出 sete）⇒ 实参内联。
+    if (G_GameWorld()->GetChannelType() == 8)
     {
         DBMgr::stUserDBInfo_t info;
         info.m_userDBIdx = 0;
@@ -586,11 +604,7 @@ int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
         GlobalData::s_db_mgr->setUserIdx(userIdx);
     }
 
-    char pwdBuf[0x84];
-    for (unsigned int i = 0; i < sizeof(pwdBuf); ++i)
-    {
-        pwdBuf[i] = 0;
-    }
+    char pwdBuf[0x84] = {0};   // ORIG rep stos $0x21 dwords
 
     if (DATABASE::LOGIN_QUERY::arad_sp_select_account_info(loginData, pwdBuf)
         != 0)
@@ -617,6 +631,10 @@ int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
 
     punish_user_check(loginData);
 
+    // ORIG 0x0818f0f5 在 punish_user_check 之后对 -0x1c 槽写 0（死局部，4.1 保留）
+    int padDead = 0;
+    (void)padDead;
+
     DATABASE::LOGIN_QUERY::arad_sp_convert_pass_pad_info(loginData);
     pad_certifiaction_check(loginData);
 
@@ -624,12 +642,15 @@ int Arad_Dispatcher_Login_Impl::db_dispatch(int code, int userIdx,
     DATABASE::LOGIN_QUERY::arad_sp_load_event_entry(loginData, entries);
     premium_info_set(loginData, entries, userIdx);
 
-    int secondCheckType = G_GameWorld()->GetChannelType();
-    if (secondCheckType == 7 &&
-        (loginData->m_tournamentAccountFlag == 0 ||
-         loginData->m_tournamentServerGroup == 0))
+    // P225/P286：ORIG 第一条件单独物化（`cmp $7,%eax; sete %al; test; je`），
+    // `== 7 && (...)` 合并形会被 4.4 jump-thread 成 `jne` 直跳 ⇒ 拆嵌套 if。
+    if (G_GameWorld()->GetChannelType() == 7)
     {
-        loginData->m_errCode = 8;
+        if (loginData->m_tournamentAccountFlag == 0 ||
+            loginData->m_tournamentServerGroup == 0)
+        {
+            loginData->m_errCode = 8;
+        }
     }
 
     return 0;
@@ -642,19 +663,26 @@ int Arad_Dispatcher_Login_Impl::punish_user_check(SIG_LOGIN_DATA* data)
     long curSec = GlobalData::s_systemTime_.getCurSec();
 
     int index = 0;
-    // [b28d-46 判词·N/N102] 99/99 指令数全等（while 形修复入口检查重复，P25/P283）。
-    // 残余仅 2 处「数组元素成员常量偏移」disp 折叠：ORIG `add $0x3a68; mov (%eax)`
-    // vs 4.4 `add $0x3a60; mov 0x8(%eax)`（同 0x3a54/0x3a50+4）。N102 定论：
-    // 4.4 恒折单条 disp，唯一出 add 的源形是裸偏移（§4.3 禁）⇒ 封顶。ORIG 0x0818f970。
+    // [b28d-solo 判词·NEAR(N7/P75) + 新范式] 100=100 指令数全等、p167 CLEAR；
+    // 两处 `add $0x3a68/0x3a54; mov (%eax)` 由 SigPunishTableView（aligned(4) 视角）
+    // 翻正（旧 N102 判词作废，见文件头视图注释）；jg 的 nop 占位岛由负条件 goto 尾
+    // 空标签复现（P223）。唯一残差=数组基址(%ecx)与下标槽(%edx)两条 mov 的装载序：
+    // ORIG 4.1 下标先/基址后，4.4 恒基址先（cast 形，探针 /tmp/probe_pun6.cpp q7-q9 /
+    // probe_pun8.cpp r1-r5 十形全败）⇒ N7/P75 跨版本装载序封顶。ORIG 0x0818f970。
     while (data->m_punishInfoCount > index)
     {
-        long punishEnd = data->m_punishInfos[index].m_endTime;   // +0x3a68
-        int punishType = data->m_punishInfos[index].m_type;      // +0x3a54
+        long punishEnd =
+            (*(SigPunishTableView*)data).m_punishInfos[index].m_endTime;  // +0x3a68
+        int punishType =
+            (*(SigPunishTableView*)data).m_punishInfos[index].m_type;     // +0x3a54
 
         PUNISH_CHECK::punish_check_by_HUB(data, punishType);
         PUNISH_CHECK::punish_check_by_RES(data, punishType);
 
-        if (curSec <= punishEnd)
+        // [b28d-solo P223] ORIG 的 jg 落点是 body 前的 nop 占位岛（+0x12b），
+        // ARS 失败 je 落点跳过该岛到 ++index（+0x12c）⇒ 负条件 goto 尾空标签形。
+        if (curSec > punishEnd)
+            goto punish_next;
         {
             if (PUNISH_CHECK::punish_check_by_WEB(data, punishEnd,
                                                   punishType) == 0)
@@ -675,6 +703,7 @@ int Arad_Dispatcher_Login_Impl::punish_user_check(SIG_LOGIN_DATA* data)
                 return 0;
             }
         }
+    punish_next:
         ++index;
     }
     return 1;

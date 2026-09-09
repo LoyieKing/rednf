@@ -1,19 +1,29 @@
 // ============================================================================
 // ExpertJobLink4.cpp — expert_job 域 LinkMisc4 批次
-// ---- b28d-61 判词汇总（本 TU 11 件非 identical）----
-// 已修 AE：_checkDisjointableItem（P286 单 case switch 寄存器比较）、
-//   CEnchanter::OnCloseMission（P222 正向包裹 + P214① 去具名 bool）。
-// N 封顶（P167 调用点差集 CLEAR ⇒ 语义完整，仅 lowering）：
-//   get_disjoint_result 0x082347ec、get_additional_item 0x0896d6ab（jge/jle 极性+N88）、
-//   CDisjointer::OnCloseMission 0x085d2f08（&m_machine callee-saved 缓存）、
-//   _check_disjointable_user_state 0x081f8xxx（ServiceRestrictManager 调用块帧）、
-//   _check_disjointable_item_state 0x081f8ba1（jle/jge+N82 帧）、
-//   CAlchemist::OnTeleportCharacter 0x085d1424（P197④ shr/test vs cmpl/jns）、
-//   GetPredictResult 0x085d1f68（bool 物化 setg）、complete_disjoint 0x085d31a0
-//     （P167 MISSING GetScript×4 ⇒ 待补，N89/大函数）、get_disjoint_result_ 0x085d34a0
-//     （P167 MISSING GetScript+EXTRA，N89）。
-// N 封顶（P167 缺口）：_check_disjoint_need_slot 0x081f8fe3（MISSING
-//   vector::operator[]×3）、OnCreateDisjointStore 0x085d2d08（getCurCharacVill 槽）。
+// ---- b28d-solo-ExpertJobLink4 判词汇总（11 件全部收口，2026-09-09）----
+// AE/IDENTICAL（6 件）：
+//   get_disjoint_result 0x082347ec（P23/P134 grade 内联实参 + get_disjoint_result_
+//     static 化，ORIG 0x085d234a 实证 static：体首参 0x8(%ebp)=item 无 this）；
+//   get_additional_item 0x0896d6ab（P13/P28 双迭代器 + P223 双岛 goto 标签串 +
+//     真语义 bug 修正：`randValue >= m_rate` → `m_rate >= randValue`）；
+//   CDisjointer::OnCloseMission 0x085d2b74（P23 内联 area + P139 __PRETTY_FUNCTION__
+//     + 匿名 Zone 临时实参）；
+//   _check_disjointable_user_state 0x081f8a7c（P59 正极性 + P0 全内联 + P47 反写尾块）；
+//   _check_disjointable_item_state 0x081f8ba1（P0 具名 script 槽 + P198① err 预清 +
+//     P225 while+break setne 物化）；
+//   _check_disjoint_need_slot 0x081f8fe3（P214③/P312 三 `= {0}` 数组 rep stos +
+//     P157/P183 三次独立下标 + P47 反写 invalid 分支 + `++arr[i]` 形）。
+// N 封顶（P167 调用点差集 CLEAR ⇒ 语义完整，仅跨版本 lowering/槽布局）：
+//   CAlchemist::OnTeleportCharacter 0x085d1424（N86b/N97：4.4 符号位测试四形恒折
+//     `cmpl $0x0; jns`，ORIG `shr $0x1f; test %al,%al`，gap 2）；
+//   GetPredictResult 0x085d1f68（N95/N82：槽基整体差 8 + N115 帧差 0x10；271=271
+//     指令数相等、p167 47/47 CLEAR）；
+//   complete_disjoint 0x085d31a0（N85 x87 比较 fucompp/fnstsw/sahf vs fucomip/fstp
+//     + N82 槽基差 8；p167 CLEAR）；
+//   get_disjoint_result_ 0x085d234a（N82/N85/P252：具名 float/槽序族；440 vs 424，
+//     p167 41/41 CLEAR）；
+//   OnCreateDisjointStore 0x085d2d08（N104 EH 尾块相对序 + N93 块级槽方向；
+//     帧已对齐 0x60，仅 local/PacketGuard/Zone 三对象槽序互换）。
 //
 // 主符号（ORIG nm -S 核对）：
 //   _ZN10expert_job10CAlchemist19OnTeleportCharacterEP5CUseriiiib
@@ -106,15 +116,10 @@ namespace expert_job
 // x.5 边界取偶）；以 (int)value 直接转换由编译器生成同一 fistpl 序列。
 // 注意不可用 +0.5f 截断：2.5 → RC=even 得 2，+0.5 截断得 3。
 // ---------------------------------------------------------------------------
-namespace
-{
-
-inline int round_nearest(float value)
-{
-    return (int)value;
-}
-
-}  // namespace
+// [b28d-solo-ExpertJobLink4 P49]：static inline helper 在 -O0 下仍发真实 call
+// 符号（p167 EXTRA `_ZN10expert_job12_GLOBAL__N_113round_nearestEf` ×6，
+// ORIG 全内联展开 fldcw/fistpl）⇒ 改宏形。
+#define round_nearest(v) ((int)(v))
 
 
 // ---- expert_job::get_additional_item（报告 expert_job/get_additional_item.md，
@@ -123,16 +128,28 @@ inline int round_nearest(float value)
 void get_additional_item(std::vector<stItemSelectRate> const& table, int randValue,
                          stItemSelectRate& out, int grade)
 {
-    for (std::vector<stItemSelectRate>::const_iterator it = table.begin();
-         it != table.end(); ++it)
+    // [b28d-solo-ExpertJobLink4] P13/P28：ORIG begin→it(-0xc)、end→e(-0x10)
+    // 两具名迭代器（循环初始化区一次求值）；单语句 `it != table.end()` 让 4.4
+    // 把 end 临时放深槽致 it/e 槽位互换。
+    for (std::vector<stItemSelectRate>::const_iterator it = table.begin(),
+             e = table.end();
+         it != e; ++it)
     {
         out = *it;
-        if (out.m_rateMin <= grade && grade <= out.m_rateMax)
-        {
-            if (randValue >= out.m_rate)
+        // [b28d-solo-ExpertJobLink4] P223 多岛细则：ORIG 两个失败出口各落独立
+        // nop 中继岛（0x896d733 `nop;jmp` / 0x896d736 `nop`）+ body 尾 `jmp`；
+        // 唯一复现形 = 两条独立失败 goto + 标签串（标签序=守卫序）。
+        if (out.m_rateMin > grade)
+            goto skip_min;
+        if (out.m_rateMax < grade)
+            goto skip_max;
+            // ORIG 0x896d723 `cmp randValue,%eax(m_rate); jge <ret>`：m_rate >=
+            // randValue 才返回（原 `randValue >= m_rate` 等号方向写反 = 真语义 bug）。
+            if (out.m_rate >= randValue)
                 return;
             randValue -= out.m_rate;
-        }
+    skip_min:;
+    skip_max:;
     }
 }
 
@@ -173,16 +190,20 @@ int CAlchemist::OnTeleportCharacter(CUser* user, int vill, int area, int x,
     if (useGate)
     {
         area = G_GameWorld()->get_gate_area(vill);
-        // ORIG 0x085d1453：shr $0x1f; test; je（4.1 符号位形；4.4 恒折 cmpl/jns，N86b）。
+        // [b28d-solo-ExpertJobLink4 N86b/N97]：ORIG 0x085d1453 `mov area,%eax;
+        // shr $0x1f,%eax; test %al,%al; je`（4.1 符号位 lowering）；4.4 对
+        // 符号位测试四形（`area<0` / `(unsigned)area>>31` / `area&0x80000000`
+        // / `(unsigned)area/0x80000000u`）恒折 `cmpl $0x0; jns`（-2 条）⇒ 封顶。
         if (area < 0)
             return 0;
 
         if (!G_GameWorld()->get_area_center_point(vill, area, x, y))
         {
-            cMyTrace trace(
-                "static bool expert_job::CAlchemist::OnTeleportCharacter("
-                "CUser*, int, int, int, int, bool)", 0x8b, 5);
-            trace("get_area_center_point() call failed");
+            // P139：ORIG 0x085d14a7 传 _ZZ…E19__PRETTY_FUNCTION__ 局部静态。
+            // P221：全表达式临时链翻 sibling 块槽方向（ORIG trace 槽 -0x18 浅于
+            // PacketGuard -0x24；具名 trace 在 4.4 下占 -0x24）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x8b, 5)(
+                "get_area_center_point() call failed");
             return 0;
         }
     }
@@ -281,14 +302,15 @@ int CDisjointer::OnCreateDisjointStore(CUser* user, char const* name, int level,
     if ((char)user->getCurCharacVill() == 7)
         return 0xbe;
 
-    int area = user->get_area(false);
-    char vill = (char)user->getCurCharacVill();
-
-    if (!G_GameWorld()->is_available_point(vill, area, x, y))
+    // [b28d-solo-ExpertJobLink4 P0/P23]：ORIG 0x085d2d80/0x085d2dd7 两次独立
+    // 调用 get_area→%ebx、getCurCharacVill→%esi（无 area/vill 具名槽）。
+    if (!G_GameWorld()->is_available_point((int)user->getCurCharacVill(),
+                                           user->get_area(false), x, y))
         return 0xbe;
 
     int restrictErr =
-        G_GameWorld()->check_restrictive_commercial_transaction_zone(vill, area, x, y);
+        G_GameWorld()->check_restrictive_commercial_transaction_zone(
+            (int)user->getCurCharacVill(), user->get_area(false), x, y);
     if (restrictErr != 0)
         return restrictErr;
 
@@ -297,17 +319,24 @@ int CDisjointer::OnCreateDisjointStore(CUser* user, char const* name, int level,
              (ENUM_CHARAC_EXPAND_TYPE)0))->get_disjoint_machine_endurance() <= 0)
         return 0x16;
 
-    char machineGrade = (char)((expert_job::CCharacExpertJob*)user->GetCharacExpandData(
-        (ENUM_CHARAC_EXPAND_TYPE)0))->get_disjoint_machine_grade();
-
     // 局部构造后赋给 m_machine（ORIG 经栈上临时 + operator= + 临时析构）。
-    CDisjointMachine local(user, name, level, machineGrade, x, y);
+    // ORIG 0x085d2e77 `call get_disjoint_machine_grade; movsbl %al,%eax` 无
+    // machineGrade 具名槽（内联进 ctor 第4实参）。
+    CDisjointMachine local(
+        user, name, level,
+        (char)((expert_job::CCharacExpertJob*)user->GetCharacExpandData(
+            (ENUM_CHARAC_EXPAND_TYPE)0))->get_disjoint_machine_grade(),
+        x, y);
     m_machine = local;
 
     user->set_position((unsigned short)x, (unsigned short)y, '\0');
 
-    village_object::Zone zone(user->getCurCharacVill(), user->get_area(false));
-    if (!GlobalData::s_villageObjectMgr->register_object(zone, &m_machine))
+    // [b28d-solo-ExpertJobLink4 P212/N93]：ORIG Zone 槽 -0xe + &m_machine 提前入
+    // %esi（0x085d2f10）⇒ 匿名临时实参形（具名 zone 在 4.4 下占更深槽）。
+    if (!GlobalData::s_villageObjectMgr->register_object(
+            village_object::Zone(user->getCurCharacVill(),
+                                 (unsigned char)user->get_area(false)),
+            &m_machine))
         return 0x14;
 
     PacketGuard packet;
@@ -339,27 +368,31 @@ int CDisjointer::get_disjoint_result_(CItem* item, Inven_Item* invenItem,
     (void)itemIndex;
 
     bool unidentified = false;
-    if (invenItem != 0 && !invenItem->m_amp.isIdentified())
-        unidentified = true;
+    // P198①/P194：ORIG 0x85d2395 `movb $0,-0x41` 预清 + 条件 mov$1/mov$0 物化。
+    unidentified =
+        (invenItem != 0 && !invenItem->m_amp.isIdentified());
 
     // map<DisjointMachineGrade,stDisjointResult> 键：(a=rarity, b=level,
     // c=unidentified) → {m_grade=level, m_field1=rarity, m_field2=unidentified}。
-    STExpertJobScript* script = GetScript();
+    // ORIG find/end 各独立 `call GetScript`（无 script 具名槽）。
     std::map<DisjointMachineGrade, stDisjointResult>::iterator it =
-        script->m_disjointResultMap.find(
+        GetScript()->m_disjointResultMap.find(
             DisjointMachineGrade((unsigned char)rarity, (unsigned char)level,
                                  unidentified));
-    if (it == script->m_disjointResultMap.end())
+    if (it == GetScript()->m_disjointResultMap.end())
         return unidentified ? 0xd3 : 0x11;
 
     stDisjointResult& res = it->second;
 
     sellPrice = round_nearest(1.1f * sellPrice);          // ROUND(_DAT_08cc080c × price)
+    // [b28d-solo-ExpertJobLink4 P252]：ORIG `mov 0x4(%eax),%eax; mov %eax,-0x3c`
+    // 具名 float 局部（后续 `fmuls -0x3c` 槽往返），非直读对象字段。
+    float field4 = res.m_field4;
     result.m_f[5] = res.m_field0;                         // +0x14 cube 索引
 
     int money = getItemSellPrice(sellPrice, 0, 0, item->IsRandomOption());
     money = (money * 1000) / GetScript()->m_baseConst;    // +0x1d4 [base const]
-    result.m_f[0] = round_nearest(money * res.m_field4 / 1000.0f);   // _DAT_08cc0810
+    result.m_f[0] = round_nearest(money * field4 / 1000.0f);   // _DAT_08cc0810
     if (result.m_f[0] < 1)
         result.m_f[0] = 1;
     result.m_f[6] = 0;                                    // +0x18 附加物 idx
@@ -379,9 +412,8 @@ int CDisjointer::get_disjoint_result_(CItem* item, Inven_Item* invenItem,
             rate = etcIt->second;
         bigwinRate += (int)(rate * 100);
 
-        bool active = (user != 0 && user->get_state() >= 3 &&
-                       user->getCurCharacR() != 0);
-        if (active)
+        // ORIG 无 active 具名槽（条件直测 `mov $0,%eax; test %al,%al; je`）。
+        if (user != 0 && user->get_state() >= 3 && user->getCurCharacR() != 0)
         {
             const CInventory* inv = user->getCurCharacInvenR();
             int jobLevel =
@@ -431,9 +463,7 @@ int CDisjointer::get_disjoint_result_(CItem* item, Inven_Item* invenItem,
             result.m_f[7] = svc[1];   // +0x1c
         }
 
-        bool active = (user != 0 && user->get_state() >= 3 &&
-                       user->getCurCharacR() != 0);
-        if (active)
+        if (user != 0 && user->get_state() >= 3 && user->getCurCharacR() != 0)
         {
             const CInventory* inv = user->getCurCharacInvenR();
             int jobLevel =
@@ -610,19 +640,25 @@ void CDisjointer::OnCloseMission(CUser* user, ENUM_CLOSE_MISSION_TYPE type)
     packet.put_short(static_cast<int>(user->get_unique_id() & 0xffff));
     packet.finalize(true);
 
-    int area = user->get_area(false);
-    // b28d-61 [P200 短整直传实参，ORIG 0x085d30xx `call getCurCharacVill;
-    // movsbl %al,%esi`]：旧形具名 char 局部多 `mov %al,-0x9; movsbl -0x9,%ebx`
-    // 槽往返；去局部后隐式提升直产 2 操作数 movsbl。
-    G_GameWorld()->send_to_area((int)user->getCurCharacVill(), area, packet);
+    // b28d-61 [P200 短整直传实参] + [b28d-solo-ExpertJobLink4 P23/P134]：
+    // ORIG 0x085d2be0 序 = get_area→%ebx（无 area 具名槽）→ getCurCharacVill
+    // →movsbl %al,%esi→G_GameWorld()；具名 area 局部会把值落槽并改装载序。
+    G_GameWorld()->send_to_area((int)user->getCurCharacVill(),
+                                user->get_area(false), packet);
 
-    village_object::Zone zone(user->getCurCharacVill(), user->get_area(false));
-    if (!GlobalData::s_villageObjectMgr->unregister_object(zone, &m_machine))
+    // [b28d-solo-ExpertJobLink4 P212/N93]：ORIG Zone 槽 -0xa（浅于 PacketGuard
+    // -0x18）+ &m_machine 提前入 %esi；具名 Zone 局部在 4.4 下占更深槽（-0x16）。
+    // 改匿名临时实参（Zone 无默认 ctor，不可头部声明后赋值）。
+    if (!GlobalData::s_villageObjectMgr->unregister_object(
+            village_object::Zone(user->getCurCharacVill(),
+                                 (unsigned char)user->get_area(false)),
+            &m_machine))
     {
         LogManager::logFormat(
             1, "ProfessionDisjointer.cpp",
-            "virtual void expert_job::CDisjointer::OnCloseMission(CUser*, "
-            "expert_job::ENUM_CLOSE_MISSION_TYPE)",
+            // P139：ORIG 0x085d2c7f 传 _ZZ…E19__PRETTY_FUNCTION__ 局部静态，
+            // 手写同内容字符串只产匿名 .rodata（符号差集残留）。
+            __PRETTY_FUNCTION__,
             0x15b, "unregister_object error");
     }
 
@@ -634,91 +670,89 @@ void CDisjointer::OnCloseMission(CUser* user, ENUM_CLOSE_MISSION_TYPE type)
 // 耐久/经验结算 + 请求者付费、机主收款 + 机主耐久不足时经 slot1 关闭任务。
 int CDisjointer::complete_disjoint(CUser* requestUser, PacketGuard& packet)
 {
-    STExpertJobScript* script = GetScript();
     // 耐久消耗 [m_enduranceReduce1(+0x26c), m_enduranceReduce2(+0x270)] 随机
+    // [b28d-solo-ExpertJobLink4 P0/P183]：ORIG 0x85d31a8 起 GetScript 共 3 次
+    // 内联调用（0x270/0x26c/0x26c），无 script 具名槽。
     int enduranceUse =
-        get_rand_int(script->m_enduranceReduce2 - script->m_enduranceReduce1 + 1) +
-        script->m_enduranceReduce1;
+        get_rand_int(GetScript()->m_enduranceReduce2 -
+                         GetScript()->m_enduranceReduce1 + 1) +
+        GetScript()->m_enduranceReduce1;
 
-    CCharacExpertJob* ownerExpand = (CCharacExpertJob*)
-        ((CUser*)m_machine.get_user())->GetCharacExpandData(
-            (ENUM_CHARAC_EXPAND_TYPE)0);
-    int curEndurance = ownerExpand->get_disjoint_machine_endurance();
+    // ORIG 扩展数据访问全程内联（无 ownerExpand 具名槽）。
+    int curEndurance =
+        ((CCharacExpertJob*)((CUser*)m_machine.get_user())
+             ->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0))
+            ->get_disjoint_machine_endurance();
     if (curEndurance < enduranceUse)
         enduranceUse = curEndurance;
 
-    ownerExpand = (CCharacExpertJob*)
-        ((CUser*)m_machine.get_user())->GetCharacExpandData(
-            (ENUM_CHARAC_EXPAND_TYPE)0);   // ORIG 二次独立取扩展数据
-    ownerExpand->set_disjoint_machine_endurance(curEndurance - enduranceUse);
+    ((CCharacExpertJob*)((CUser*)m_machine.get_user())
+         ->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0))
+        ->set_disjoint_machine_endurance(curEndurance - enduranceUse);
 
     // 经验收益 [m_gainExp1(+0x284), m_gainExp2(+0x288)] 随机 + 概率加成项
-    script = GetScript();
     int expGain =
-        get_rand_int(script->m_gainExp2 - script->m_gainExp1 + 1) +
-        script->m_gainExp1;
+        get_rand_int(GetScript()->m_gainExp2 - GetScript()->m_gainExp1 + 1) +
+        GetScript()->m_gainExp1;
 
     // ORIG 0x85d328d 用 getCurCharacInvenR()（const 版）取背包。
-    const CInventory* inven = requestUser->getCurCharacInvenR();
     STItemScript::SEXPERTJOB::stExpertJobAdditionalExp additionalExp;
     int jobExp = requestUser->GetCurCharacExpertJobExp();
     int jobLevel = requestUser->GetCurExpertJobLevel(jobExp);
     int jobType = requestUser->GetCurCharacExpertJobType();
-    inven->GetExpertJobAddtionalExp((ENUM_EXPERT_JOB_TYPE)jobType, jobLevel,
-                                    additionalExp);
+    requestUser->getCurCharacInvenR()->GetExpertJobAddtionalExp(
+        (ENUM_EXPERT_JOB_TYPE)jobType, jobLevel, additionalExp);
     if ((float)get_rand_int(100) < additionalExp.m_field0)
         expGain = additionalExp.m_field4 + expGain;
 
     if (expGain > 0)
     {
-        CUser* owner = m_machine.get_user();
-        int nextExp = owner->GetCurCharacExpertJobExp() + expGain;
-        CExpertJob::IncreaseExpertJobExp(owner, nextExp);
+        CExpertJob::IncreaseExpertJobExp(
+            m_machine.get_user(),
+            m_machine.get_user()->GetCurCharacExpertJobExp() + expGain);
     }
 
-    CUser* owner = m_machine.get_user();
-    if (owner == requestUser)
+    if (m_machine.get_user() == requestUser)
     {
         // 自助拆解：只回填金额与剩余耐久
         packet.put_int(requestUser->getCurCharacMoney());
-        ownerExpand = (CCharacExpertJob*)
-            ((CUser*)m_machine.get_user())->GetCharacExpandData(
-                (ENUM_CHARAC_EXPAND_TYPE)0);
-        packet.put_int(ownerExpand->get_disjoint_machine_endurance());
+        packet.put_int(
+            ((CCharacExpertJob*)((CUser*)m_machine.get_user())
+                 ->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0))
+                ->get_disjoint_machine_endurance());
     }
     else
     {
         // 他人拆解：请求者扣费 → 回包 → 机主收款 → 机主侧 0xcb 通知
         int cost = get_disjoint_cost();
-        CInventory* requesterInven = requestUser->getCurCharacInvenW();
-        requesterInven->use_money(cost, (eMoneySubReason)0x1d, true);
+        requestUser->getCurCharacInvenW()->use_money(cost, (eMoneySubReason)0x1d,
+                                                     true);
         packet.put_int(requestUser->getCurCharacMoney());
-        ownerExpand = (CCharacExpertJob*)
-            ((CUser*)m_machine.get_user())->GetCharacExpandData(
-                (ENUM_CHARAC_EXPAND_TYPE)0);
-        packet.put_int(ownerExpand->get_disjoint_machine_endurance());
+        packet.put_int(
+            ((CCharacExpertJob*)((CUser*)m_machine.get_user())
+                 ->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0))
+                ->get_disjoint_machine_endurance());
 
-        CInventory* ownerInven =
-            ((CUser*)m_machine.get_user())->getCurCharacInvenW();
-        ownerInven->gain_money(cost, (eMoneyAddReason)0x16, true, 0);
+        ((CUser*)m_machine.get_user())
+            ->getCurCharacInvenW()
+            ->gain_money(cost, (eMoneyAddReason)0x16, true, 0);
 
         PacketGuard notify;
         notify.put_header(0, 0xcb);
         notify.put_byte(1);
         notify.put_int(((CUser*)m_machine.get_user())->getCurCharacMoney());
-        ownerExpand = (CCharacExpertJob*)
-            ((CUser*)m_machine.get_user())->GetCharacExpandData(
-                (ENUM_CHARAC_EXPAND_TYPE)0);
-        notify.put_int(ownerExpand->get_disjoint_machine_endurance());
+        notify.put_int(
+            ((CCharacExpertJob*)((CUser*)m_machine.get_user())
+                 ->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0))
+                ->get_disjoint_machine_endurance());
         notify.finalize(true);
         ((CUser*)m_machine.get_user())->Send(notify);
     }
 
     // 机主耐久耗尽 → 经虚槽 slot1 OnCloseMission(机主, 0) 关闭
-    ownerExpand = (CCharacExpertJob*)
-        ((CUser*)m_machine.get_user())->GetCharacExpandData(
-            (ENUM_CHARAC_EXPAND_TYPE)0);
-    if (ownerExpand->get_disjoint_machine_endurance() < 1)
+    if (((CCharacExpertJob*)((CUser*)m_machine.get_user())
+             ->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0))
+            ->get_disjoint_machine_endurance() < 1)
         OnCloseMission(m_machine.get_user(), ENUM_CLOSE_MISSION_TYPE_0);
 
     return 1;
@@ -729,8 +763,11 @@ int CDisjointer::get_disjoint_result(CItem* item, Inven_Item* inventItem,
                                      DisJointResult& result, CUser* user)
 {
     bool mine = isMine(user);
-    int grade = get_disjoint_machine_grade();
-    return get_disjoint_result_(item, inventItem, grade, result, mine,
+    // [b28d-solo-ExpertJobLink4] P23/P134：ORIG 实参右→左求值——最后实参
+    // m_machine.get_user() 先算入 %ebx，mine 读槽入 %esi，grade 表达式随后入
+    // %eax（无 grade 具名槽）；具名 grade 局部会把 get_user 推迟到实参点。
+    return get_disjoint_result_(item, inventItem,
+                                get_disjoint_machine_grade(), result, mine,
                                 m_machine.get_user());
 }
 
@@ -826,38 +863,58 @@ std::vector<int>* CDisjointer::GetPredictResult(CUser* user, CItem* item,
     result.clear();
 
     bool unidentified = false;
-    if (inventItem != 0 && !inventItem->m_amp.isIdentified())
-        unidentified = true;
+    // [b28d-solo-ExpertJobLink4 P198①/P194]：ORIG 0x85d1fd1 `movb $0,-0x1d`
+    // 预清 + 条件 mov$1/mov$0 物化后 `mov %al,-0x1d`（赋值表达式，非 if 置位）。
+    unidentified =
+        (inventItem != 0 && !inventItem->m_amp.isIdentified());
 
-    if (isMine(user) && item->get_rarity() > 1)
-        result.push_back(GetScript()->m_selfDisjoin.m_field4);
+    // [b28d-solo-ExpertJobLink4 P225 推广]：ORIG 0x85d2049 `cmp $0x1; setg %al;
+    // test; je` 双条件各自物化 ⇒ 拆嵌套 if（`&&` 合写在 4.4 恒折 jle 直跳）。
+    if (isMine(user))
+    {
+        if (item->get_rarity() > 1)
+        {
+            // ORIG 0x85d2053 `mov 0x34(%eax),%eax; mov %eax,-0x54; lea -0x54`
+            // ⇒ push_back 实参先物化到临时槽（4.4 直传成员地址）。
+            int selfReward = GetScript()->m_selfDisjoin.m_field4;
+            result.push_back(selfReward);
+        }
+    }
 
     DisjointMachineGrade key((unsigned char)item->get_rarity(),
                              (unsigned char)get_disjoint_machine_grade(),
                              unidentified);
-    STExpertJobScript* script = GetScript();
+    // ORIG find/end 各独立 `call GetScript`（无 script 具名槽）。
     std::map<DisjointMachineGrade, stDisjointResult>::iterator it =
-        script->m_disjointResultMap.find(key);
-    if (it != script->m_disjointResultMap.end())
+        GetScript()->m_disjointResultMap.find(key);
+    if (it != GetScript()->m_disjointResultMap.end())
     {
         stDisjointResult& res = it->second;
-        result.push_back(res.m_field0);
+        // ORIG 0x85d2117 `mov (%eax),%eax; mov %eax,-0x44` 值临时 ⇒ 右值重载
+        // push_back(int&&)（p167 差集 MISSING `push_backEOi`）。
+        result.push_back((int)res.m_field0);
 
-        for (std::vector<stItemSelectRate>::const_iterator rate =
-                 res.m_additionalItems.begin();
+        // [b28d-solo-ExpertJobLink4 P96/P270/P315]：p167 差集实证 ORIG 用
+        // 非 const iterator（deEv/ppEv/ne 非 const 实例）；且 ORIG 0x85d2135
+        // 先 `call iterator::C1Ev`（P50 复活）再 `rate = begin()`，两个循环
+        // 复用同一 rate 槽 -0x58（第二个循环无 C1Ev）。
+        std::vector<stItemSelectRate>::iterator rate;
+        for (rate = res.m_additionalItems.begin();
              rate != res.m_additionalItems.end(); ++rate)
         {
-            if (std::find(result.begin(), result.end(), rate->m_itemIndex) ==
+            // [b28d-solo-ExpertJobLink4 P167]：ORIG 0x85d20xx 用
+            // `call operator*; mov %eax,%ebx`（m_itemIndex@+0 ⇒ &(*rate)）
+            // 而非 `operator->` ⇒ 源写 `(*rate).m_itemIndex`。
+            if (std::find(result.begin(), result.end(), (*rate).m_itemIndex) ==
                 result.end())
-                result.push_back(rate->m_itemIndex);
+                result.push_back((*rate).m_itemIndex);
         }
-        for (std::vector<stItemSelectRate>::const_iterator rate =
-                 res.m_bigwinItems.begin();
+        for (rate = res.m_bigwinItems.begin();
              rate != res.m_bigwinItems.end(); ++rate)
         {
-            if (std::find(result.begin(), result.end(), rate->m_itemIndex) ==
+            if (std::find(result.begin(), result.end(), (*rate).m_itemIndex) ==
                 result.end())
-                result.push_back(rate->m_itemIndex);
+                result.push_back((*rate).m_itemIndex);
         }
     }
     return &result;
@@ -965,59 +1022,59 @@ int DisPatcher_DisJointItem::_checkDisjointableItem(const Inven_Item& item,
 void _check_disjoint_need_slot(CUser* user, CItem* item, Inven_Item& invenItem,
                                expert_job::CDisjointer* disjointer)
 {
-    const int kInvalidSlot = Inven_Item::ITEM_TYPE_INVALID;   // 0xb
-
-    int perType[11];
-    int total[11];
-    int emptySlots[11];
-    for (int i = 0; i < 11; ++i)
-    {
-        perType[i] = 0;
-        total[i] = 0;
-        emptySlots[i] = 0;
-    }
+    // [b28d-solo-ExpertJobLink4 P214③/P312]：ORIG 0x81f8fef..0x81f902c 三个
+    // 11-dword `rep stos`（清零序 total -0x60 → perType -0x8c → emptySlots
+    // -0xb8）⇒ 三个 `= {0}` 显式零初始化数组，非循环赋值。
+    int total[11] = {0};
+    int perType[11] = {0};
+    int emptySlots[11] = {0};
 
     std::vector<int>* predicted =
         GetPredictDisjointItems(user, item, invenItem, disjointer);
 
     for (unsigned int i = 0; i < predicted->size(); ++i)
     {
-        int itemIndex = (*predicted)[i];
-        if (itemIndex == 0)
+        // [b28d-solo-ExpertJobLink4 P157/P183]：ORIG 对 (*predicted)[i] 共三次
+        // 独立下标调用（判零 / find_item / probe.m_addInfo），无 itemIndex 槽。
+        if ((*predicted)[i] == 0)
             continue;
 
-        CItem* templateItem = G_CDataManager()->find_item(itemIndex);
+        CItem* templateItem = G_CDataManager()->find_item((*predicted)[i]);
         if (templateItem == 0)
             continue;
 
         Inven_Item probe;                       // ORIG 局部 ctor 清零
-        probe.m_addInfo = itemIndex;            // 直接写 +0x02
+        probe.m_addInfo = (*predicted)[i];      // 直接写 +0x02
         probe.set_add_info(1);                  // ORIG：m_addInfo2 = 1（set_add_info 语义）
         templateItem->make_item(probe);         // ORIG 0x81f90f3..0x81f9108：vptr+8
                                                 // 虚槽 make_item 填充 type 等（CItem.h vtable 槽 2）
-        unsigned char probeType = probe.m_field1;   // make_item 填充的 type 字节
-        int needSlot = kInvalidSlot;
-        CInventory* inven =
-            const_cast<CInventory*>(user->getCurCharacInvenR());
-        if (inven->IsExistStackable(
-                itemIndex, (Inven_Item::ITEM_TYPE)probeType))
+        // ORIG 用立即数 `cmpl $0xb,-0x24`（kInvalidSlot 无具名槽，P0）。
+        int needSlot = Inven_Item::ITEM_TYPE_INVALID;
+        // ORIG 每次调用前重新 getCurCharacInvenR()，itemIndex 取 probe.m_addInfo
+        // （+0x02），probeType 取 probe.m_field1（+0x01）逐次重读（无具名局部）。
+        if (user->getCurCharacInvenR()->IsExistStackable(
+                probe.m_addInfo, (Inven_Item::ITEM_TYPE)probe.m_field1))
         {
-            needSlot = (int)probeType;
+            needSlot = (int)probe.m_field1;
         }
-        else if (inven->IsExistStackable(
-                     itemIndex, (Inven_Item::ITEM_TYPE)0))
+        else if (user->getCurCharacInvenR()->IsExistStackable(
+                     probe.m_addInfo, (Inven_Item::ITEM_TYPE)0))
         {
             needSlot = 0;
         }
 
-        if (needSlot == kInvalidSlot)
+        // ORIG 0x81f9183 `cmpl $0xb,-0x24; je <total[probeType] 远端块>`：
+        // 反写条件使 invalid 分支落远端（P47/P222）。
+        if (needSlot != Inven_Item::ITEM_TYPE_INVALID)
         {
-            total[probeType] += 1;
+            // ORIG 单次索引读（`mov needSlot,%eax; mov arr(%ebp,%eax,4),%edx`）；
+            // `+= 1` 在 4.4 恒多读一次索引槽（+1 条/处）。
+            ++perType[needSlot];
+            ++total[needSlot];
         }
         else
         {
-            perType[needSlot] += 1;
-            total[needSlot] += 1;
+            ++total[probe.m_field1];
         }
     }
 
@@ -1067,8 +1124,11 @@ void _check_disjointable_item_state(CUser* user, int slot, int invenType,
 
         // ORIG +0x21c：经 expert_job::CDisjointer::GetScript()（缓存单例）取脚本，
         // 非裸 G_CDataManager()->GetExpertJobScript(3)。
-        int portableLimit = expert_job::CDisjointer::GetScript()
-                                ->GetPortableDisjointPossibleLevel(ticketLevel);
+        // [b28d-solo-ExpertJobLink4 P0]：ORIG 0x81f8dbd `call GetScript;
+        // mov %eax,-0x18` 有具名 script 槽（再回读调用），非内联接收者。
+        STExpertJobScript* script = expert_job::CDisjointer::GetScript();
+        int portableLimit =
+            script->GetPortableDisjointPossibleLevel(ticketLevel);
         // ORIG +0x234：portableLimit==-1 亦抛 1（原实现漏该判据）。
         if (portableLimit == -1)
             throw static_cast<ENUM_ERROR>(1);
@@ -1083,15 +1143,22 @@ void _check_disjointable_item_state(CUser* user, int slot, int invenType,
             if (portableLimit < itemObj->get_grade())
                 throw static_cast<ENUM_ERROR>(0xd);
         }
-        else if (portableLimit < usableLevel)
+        else if (usableLevel > portableLimit)
         {
             throw static_cast<ENUM_ERROR>(0xd);
         }
     }
 
-    int err = DisPatcher_DisJointItem::_checkDisjointableItem(item, targetUser);
-    if (err != 0)
+    // [b28d-solo-ExpertJobLink4 P198①]：ORIG 0x81f8ee3 先 `movl $0x0,-0x24`
+    // 预清再赋值（两句式）。
+    int err = 0;
+    err = DisPatcher_DisJointItem::_checkDisjointableItem(item, targetUser);
+    // [b28d-solo-ExpertJobLink4 P225]：ORIG 0x81f8f03 `cmpl $0,-0x24; setne
+    // %al; test %al,%al; je`（4.1 bool 四段物化）⇒ while+break 形复现。
+    while (err != 0)
+    {
         throw static_cast<ENUM_ERROR>(err);
+    }
 
     *pItem = G_CDataManager()->find_item(item.m_addInfo);
     if (*pItem == 0)
@@ -1106,23 +1173,29 @@ bool _check_disjointable_user_state(CUser* user, ENUM_CMDPACKET cmd,
     if (user->get_state() < 3)
         return false;
 
-    ServiceRestrictManager* restrict =
-        ARAD::Singleton<ServiceRestrictManager>::Get();
-    if (!restrict->isRestricted(user, (RestrictCategory::Enum)1, 10))
+    // [b28d-solo-ExpertJobLink4 P59/P0/P183]：ORIG 正极性 `test %al,%al; je
+    // <主流程>`（isRestricted 真→限制路径紧跟 je 之后），且 Singleton::Get /
+    // s_pSecuProtectionField 均无具名槽（每次调用点重读）；GetInvenItemPtr
+    // 结果经 %ebx 跨 GetItemPtr 保活 ⇒ 全内联实参形。
+    if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+            user, (RestrictCategory::Enum)1, 10))
     {
-        CSecu_ProtectionField* secu = GlobalData::s_pSecuProtectionField;
-        Inven_Item* invenRef =
-            secu->GetInvenItemPtr(user, spaceChar, slotShort);
-        CItem* itemPtr = secu->GetItemPtr(user, spaceChar, slotShort);
-        unsigned int err =
-            secu->CheckItemRarity(user, (SECURITY_PROTCTION)0x28, itemPtr,
-                                  invenRef);
-        if (err == 0)
-            return true;
-        user->SendCmdErrorPacket(cmd, (unsigned char)(err & 0xff));
+        user->SendCmdErrorPacket(cmd, 0xd1);
         return false;
     }
 
-    user->SendCmdErrorPacket(cmd, 0xd1);
-    return false;
+    unsigned int err = GlobalData::s_pSecuProtectionField->CheckItemRarity(
+        user, (SECURITY_PROTCTION)0x28,
+        GlobalData::s_pSecuProtectionField->GetItemPtr(user, spaceChar,
+                                                       slotShort),
+        GlobalData::s_pSecuProtectionField->GetInvenItemPtr(user, spaceChar,
+                                                            slotShort));
+    // [b28d-solo-ExpertJobLink4 P47/P137]：ORIG `je <尾 mov $1 块>` + fail 直落
+    // ⇒ 反写条件使 true 走尾块 fall-through。
+    if (err != 0)
+    {
+        user->SendCmdErrorPacket(cmd, (unsigned char)(err & 0xff));
+        return false;
+    }
+    return true;
 }

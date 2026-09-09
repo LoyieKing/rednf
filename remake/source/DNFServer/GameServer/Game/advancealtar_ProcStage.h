@@ -94,9 +94,17 @@ struct _SlotItem
     // ORIG W C1/C2 @0x081347e2：memset(this,0,0xc)——inline 定义随使用点发射弱符号。
     _SlotItem() { std::memset(this, 0, sizeof(*this)); }
 
-    int m_itemId;                // +0x00
-    int m_needGage;              // +0x04
-    int m_field8;                // +0x08（ctor 清零；无显式写入点）
+    // [b28d-solo-advancealtar_Manager] ORIG getSlotItem 0x08132638 写入点实证：
+    //   +0x00 byte：`movzbl 0x6(%eax),%eax; mov %al,-0x74(%ebp)`（= sit->second.m_byte5
+    //          槽号；make_pair 首参取 &slotItem 即此字节）
+    //   +0x04 int ：point->m_value（`mov 0x4(%eax),%eax; mov %eax,-0x70`）
+    //   +0x08 int ：CItem::getAdvanceAltarNeedGage（`mov %eax,-0x6c`；
+    //          Dispatchers::characDataSummonSlotUnit 读作 cost 乘数 m_field8）
+    // 原建模（itemId@+0/needGage@+4/field8@+8）错位 4 字节，本次按 ORIG 写点修正；
+    // sizeof 0xc 不变（byte+pad3+int+int）。
+    unsigned char m_byte0;       // +0x00 槽号（= _Slot.m_byte5）
+    int m_itemId;                // +0x04
+    union { int m_field8; int m_needGage; };   // +0x08（P235 双视角：消费端两名并存）
 };                               // sizeof 0xc
 typedef char _assert_slot_item_size[(sizeof(_SlotItem) == 0xc) ? 1 : -1];
 
@@ -112,7 +120,9 @@ struct _SummonObjectMs
     short m_seq;                     // +0x04（ProcStage::m_field14 递增序号；map key）
     short m_pad6;                    // +0x06
     int m_actionDefineId;            // +0x08（来源 ActionDefine::m_id）
-    unsigned char m_deadFlag;        // +0x0c（dieMob 击杀置 1）
+    bool m_deadFlag;                 // +0x0c（dieMob 击杀置 1；P248 档②：
+                                     //   ORIG 0x812dba0 `movzbl 0xc; xor $1; test %al; je`
+                                     //   ⇒ 字段 bool + 裸 `!field`；sizeof/偏移不变）
     unsigned char m_padD[3];         // +0x0d
     int m_sentFlag;                  // +0x10（summonObjectAndSendPacket 发包后置 1）
     _SummonObject m_summon;          // +0x14（真实子对象 ⇒ 编译器发 C1 call）
@@ -146,7 +156,9 @@ public:
     //   callee 必返回 unsigned int（P211 双向开关的调用点反证；ORIG rodata 无该函数
     //   的 __PRETTY_FUNCTION__ 串可查，故以两条 store 形联立定案）。
     unsigned int upgreadGage();                // T 0x0812d176：等级商城配表扣 gage 升级
-    int summonSlotUnit(unsigned char slot, int needGage);  // T 0x0812d278
+    // [b28d-solo-Dispatchers 代落 P211 同型] int→unsigned int：ORIG store LHS-first
+    // （0x081405b8）⇒ 与 _Res*.m_nErrorCode 同型。返回值恒非负（0/2/4）。返回类型不入 mangled。
+    unsigned int summonSlotUnit(unsigned char slot, int needGage);  // T 0x0812d278
     int getGage() const;                       // W 0x08142088：return m_gage
     int getGageLevel() const;                  // W 0x08142094：return m_gageLevel
 
@@ -191,7 +203,11 @@ public:
     int getStageIndex() const;                           // T 0x0812eb26
     int getStageDifficulty() const;                      // W 0x0813486c
     CMap* getMap() const;                                // W 0x08134860：return m_map
-    TimeLine* getTimeLine() const;                       // W 0x08134852：return m_timeLine
+    // b28d-solo-ProcStage：返回类型 const TimeLine*（ORIG 0x0812eba8 对 m_phases 发
+    //   `_ZNKSt6vectorIN12advancealtar5PhaseESaIS1_EEixEj`（const operator[]）⇒ 原成员
+    //   为 const TimeLine*；返回类型不入 mangled，唯一消费点 advancealtar_StageControl.cpp:516
+    //   丢弃返回值）。
+    const TimeLine* getTimeLine() const;                 // W 0x08134852：return m_timeLine
     int getCurrentSurvivalRoundNo() const;               // W 0x08134878：return m_survivalRound+1
     int getMapBasisLevel() const;                        // W 0x08134894：return m_mapBasisLevel
     int getStartStageTime() const;                       // W 0x08134886
@@ -270,15 +286,24 @@ public:
     short m_field14;                 // +0x14（ctor/reset 置 0；addCreatedMapMonster 序号源）
     ProcSummonObjectMs m_summonObjectMs;  // +0x18（sizeof 0x38，ctor 注入 m_characData/&m_field8）
     std::map<short, _MapMonsterSummary> m_createdMapMonsters;  // +0x50（sizeof 0x18@32位）
-    int m_difficulty;                // +0x68（ctor=-1；startStage 写 diff）
+    StageDifficulty::T m_difficulty; // +0x68（ctor=-1；startStage 写 diff；b28d-solo-ProcStage：
+                                     //   P211 档③——字段与 RHS(diff) 同型 enum 才复现 ORIG
+                                     //   0x0812df9f LHS-first `mov 0x8(%ebp),%eax;
+                                     //   mov 0x10(%ebp),%edx; mov %edx,0x68(%eax)`）
     int m_mapBasisLevel;             // +0x6c（getMapBasisLevel）
     CDungeon* m_dungeon;             // +0x70（startStage find_dungeon）
     CMap* m_map;                     // +0x74（getMap/startStage find_map）
     unsigned char m_survivalFirst;   // +0x78（ctor/reset=1；首轮标记）
-    int m_survivalRound;             // +0x7c（当前生存轮次下标）
+    unsigned int m_survivalRound;    // +0x7c（当前生存轮次下标；b28d-solo-ProcStage：
+                                     //   P211 档③——ORIG startStage 0x0812dfcc
+                                     //   `mov 0x7c(%eax),%ebx`（比较侧单段）+ 0x0812e07a
+                                     //   `mov 0x7c(%eax),%eax; mov %eax,%edx`（赋 int
+                                     //   字段侧两段）⇒ 字段为 unsigned 才同时成立）
     std::vector<int> m_roundMaps;    // +0x80（ctor 构造 vector<int>；startStage 由 CDungeon+0x814 拷贝）
     int m_startStageTime;            // +0x8c（getCurSec 起点；getStartStageTime）
-    TimeLine* m_timeLine;            // +0x90（startStage 写 m_map+0xf4）
+    const TimeLine* m_timeLine;      // +0x90（startStage 写 m_map+0xf4；b28d-solo-ProcStage：
+                                     //   const 化以复现 makeCurrentPhaseSummonObject 的
+                                     //   const 版 vector operator[]/迭代器族）
 };                                       // sizeof 0x94
 
 typedef char _assert_procstage_size[(sizeof(ProcStage) == 0x94) ? 1 : -1];

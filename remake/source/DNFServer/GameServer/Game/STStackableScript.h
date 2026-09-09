@@ -93,7 +93,6 @@ class STStatChange
 {
 public:
     STStatChange();
-    ~STStatChange();
     void clear();
 
     int m_field0;       // +0x00
@@ -235,11 +234,13 @@ public:
     CountinuousItemOption m_option1bc;                // +0x1bc（3 字节）
     char m_1bf;                                       // +0x1bf
     char m_1c0;                                       // +0x1c0
-    int m_1c4;                                        // +0x1c4（ORIG Clear 0x089909e1
-                                                      //   `mov $0,%edx; mov %edx` 中转，
-                                                      //   unsigned 化实测无效，见判词）
+    float m_1c4;                                      // +0x1c4（ORIG Clear 0x089909e1
+                                                      //   `mov $0,%edx; mov %edx` 常量中转
+                                                      //   = P238 float 字段形；且
+                                                      //   ImportStackableScript 写
+                                                      //   ScanFloat 返回值，真型为 float）
     char m_1c8;                                       // +0x1c8
-    int m_1cc;                                        // +0x1cc（同 0x089909f9）
+    float m_1cc;                                      // +0x1cc（同 0x089909f9）
     char m_1d0;                                       // +0x1d0
     int m_1d4;                                        // +0x1d4
     std::string m_str1d8;                             // +0x1d8

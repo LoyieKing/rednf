@@ -8,7 +8,7 @@
 //   _Z13sha256_startsP14sha256_context     T @0x080841fc（size 0x68）
 //   _Z14sha256_processP14sha256_contextPh  T @0x08084264（size 0x3688）
 //   _Z13sha256_updateP14sha256_contextPhm  T @0x080878ec（size 0xfe）
-//   _Z13sha256_finishP14sha256_contextPh   T @0x080879ea（size 0x27c）
+//   _Z13sha256_finishP14sha256_contextPh   T @0x080879ea（size 0x2ce）
 //   _Z13StrCpyMaxPathPcPKc                 T @0x0808a5dd（size 0x3d）
 //
 // sha256_context 布局由 starts/update/finish 反汇编实证，sizeof == 0x68：

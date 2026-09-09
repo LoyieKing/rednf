@@ -1157,7 +1157,7 @@ unsigned char CUserCharacInfo::needCurCharacCheckOverEquip()
 }
 
 
-unsigned char CUserCharacInfo::is_growth_power_exp_reward_right() const
+bool CUserCharacInfo::is_growth_power_exp_reward_right() const
 {
     return m_selected ? CUR->m_growthPowerExpRewardRight : 0;
 }
@@ -2035,7 +2035,7 @@ int CUserCharacInfo::getCharacLinkBonusExp()
     return m_selected ? CUR->m_characLinkBonusExp : 0;
 }
 
-unsigned char CUserCharacInfo::getBringUpRewardFlag() const
+bool CUserCharacInfo::getBringUpRewardFlag() const   // [b28d-Main 代落·S350 P292] uchar→bool
 {
     return m_selected ? CUR->m_bringUpRewardFlag : 0;
 }
@@ -2836,7 +2836,7 @@ bool CUserCharacInfo::IsProperDungeonUser()
     return m_selected ? CUR->m_properDungeonUser : 0;
 }
 
-unsigned char CUserCharacInfo::IsFirstTimeLogin()
+bool CUserCharacInfo::IsFirstTimeLogin()   // [b28d-Main 代落·S336 P292] uchar→bool
 {
     return CUR->m_firstTimeLogin;
 }

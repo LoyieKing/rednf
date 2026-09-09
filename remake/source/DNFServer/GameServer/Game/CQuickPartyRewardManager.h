@@ -133,13 +133,15 @@ class LevelDataRandomReward
 
 public:
     LevelDataRandomReward()
-        : m_field0(0xb)
+        : m_field0((RandomBuffType)0xb)
     {
         m_levelDatas.clear();
         m_name.clear();
     }
 
-    int m_field0;                          // +0x00（ctor 默认 0xb）
+    // +0x00（ctor 默认 0xb）。ORIG importQuickPartyScript 0x08a6eb6e 用
+    // pair<const RBT,LDRR>::pair<RBT&,LDRR&> 引用构造 ⇒ 真型为 RandomBuffType。
+    RandomBuffType m_field0;
     std::string m_name;                    // +0x04
     std::vector<LevelData> m_levelDatas;   // +0x08
 };                                         // sizeof = 0x14

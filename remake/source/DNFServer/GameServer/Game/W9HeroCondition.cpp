@@ -33,13 +33,6 @@
 #include "CUserCharacInfo.h"              // getCurCharacInvenW/ENUM_ITEMSPACE
 
 // ---------------------------------------------------------------------------
-// HeroMissionCondition::RewardData
-// ORIG _ZN20HeroMissionCondition10RewardDataD1Ev 0x08966634：
-// push ebp / pop ebp / ret —— 空体但为用户定义析构（保持类型 non-trivial，
-// vector reallocation 走 move/uninitialized_copy 链）。
-HeroMissionCondition::RewardData::~RewardData()
-{
-}
 
 // ---------------------------------------------------------------------------
 // HeroMissionCondition C1/C2 —— ORIG 0x081681c8：仅依次构造 +0x0c/+0x10

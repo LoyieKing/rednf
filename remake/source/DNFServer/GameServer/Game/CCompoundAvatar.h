@@ -79,11 +79,15 @@ struct tagCompoundAvatar
 
     int m_idx;                                       // +0x000（Clean 置 0）
     int m_a[10];                                     // +0x004（Clean memset 0x28）
-    int m_b[10];                                     // +0x02c（Clean 置零）
-    int m_c[10];                                     // +0x054（Clean 置零）
+    // [b28d-solo-ScriptDepsA] m_b/m_c/m_d 为累计权重：ORIG setCompoundAvatarData
+    // 0x08902d84/0x08902e40 段 push_back 的第二实参 pair converting ctor 符号为
+    // `_ZNSt4pairIiiEC1IRiRjEEOT_OT0_`（int&/unsigned int&，与 setCompoundRareAvatarData
+    // 的 m_field0c 同证据）⇒ 三字段实为 unsigned int。宽度/偏移/sizeof 不变。
+    unsigned int m_b[10];                            // +0x02c（Clean 置零）
+    unsigned int m_c[10];                            // +0x054（Clean 置零）
     std::vector<std::pair<int, int> > m_optsA[10];   // +0x07c
     std::vector<std::pair<int, int> > m_optsB[10];   // +0x0f4
-    int m_d[10];                                     // +0x16c（Clean 置零）
+    unsigned int m_d[10];                            // +0x16c（Clean 置零）
     std::vector<std::pair<int, int> > m_optsC[10];   // +0x194
     STAncientRareAvatarCube m_cube;                  // +0x20c
     std::vector<std::pair<int, int> > m_tailA;       // +0x2b8（Clean clear）
@@ -145,7 +149,14 @@ public:
         void clear();                             // 字段复位（见 ORIG W 实现）
         ~tagCompoundInfo();                       // 仅析构 vector
 
-        int m_field00;                            // +0x00（clear 置 0xb；ProcCompound 取表索引）
+        union
+        {
+            int m_field00;                        // +0x00（clear 置 0xb；ProcCompound 取表索引）
+            // [b28d-solo-WongWorkMiscB_A] P254 同址 enum 视角：ORIG 0x0833394f
+            // `mov -0x100(%ebp),%eax; mov %eax,%edx` 两段装载（int 字段 4.4 恒折
+            // 单段）⇒ 该字段原码为枚举类型。同宽零布局影响。
+            ENUM_CHARACTERJOB m_field00Job;
+        };
         int m_field04;                            // +0x04
         unsigned short m_field08;                 // +0x08
         Inven_Item m_materialA;                   // +0x0a 合成材料①
@@ -172,7 +183,9 @@ public:
     // ORIG T 0x08333a76：SendCmdErrorPacket(user, 0x66, (unsigned char)err)。
     void _SendError(CUser* user, ENUM_ERROR err);
     // ORIG T 0x08333a9c：组 0x66 结果包（见 WongWorkMiscB_A.cpp）。
-    void _SendResult(CUser* user, const tagCompoundInfo& info);
+    // [b28d-solo-WongWorkMiscB_A] 返回 int：ORIG 尾 `mov $0x1,%ebx; … call D1;
+    // mov %ebx,%eax` ⇒ 返回 1（P159 判据；返回类型不入 mangled，零 ABI 影响）。
+    int _SendResult(CUser* user, const tagCompoundInfo& info);
 
     // ---- ProcCompound 直接依赖（声明先行；定义归后续批次）----
     tagCompoundInfo _MakeCompoundInfo(const CUser* user,

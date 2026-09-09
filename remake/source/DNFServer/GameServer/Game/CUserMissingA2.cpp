@@ -21,6 +21,25 @@
 //                                            ORIG T 0x0842f710
 //
 // eventDeliveryBuyItem（ORIG T 0x0866463c）已由 CUserDepsB.cpp 定义，本 TU 不重复。
+//
+// ---------------------------------------------------------------------------
+// [b28d-solo-CUserMissingA2] 单文件泳道收口（13 件清单，ndiff 升序）：
+//   AE  : CUser::calc_quest_stat（qc 内联消槽，DIFF→AE）
+//   NEAR: CUser::GetETC（N93 槽序）；CUser::processAwakenReward（N7）；
+//         CUser::CalcMercenaryAvatarBonus（修复后 NEAR，残 N7）
+//   DIFF(N 封顶):
+//     CUser::updateBingoData        N18a 反向（单段直落 callee-saved 不可造）
+//     CHARAC_LOAD_MERCENARY::GetCompetitionPeriodTerm  N18a（分子双中转）
+//     CUser::SaveMercenaryData      N101 imul vs shl/add + N93 槽序
+//     CUser::SetEquipment           N7 寄存器分配（p167 CLEAR 7/7）
+//     CUser::_fnStatQuestClear      N164/N82（for-init 旋转）+ N89 实例差
+//     CHARAC_LOAD_MERCENARY::Competition   N82/N93 槽序帧差（p167 CLEAR 30/30）
+//     CUser::processFatigueCharac   N82 槽复用差（p167 CLEAR 29/29）
+//     CHARAC_LOAD_MERCENARY::Reward        N82/N89（p167 CLEAR 49/49）
+//     CHARAC_LOAD_MERCENARY::GetRewardItem 真 bug 已修；残 N82/N93 槽序
+//   真语义 bug: GetRewardItem m_itemList 的 pair 字段互换（sum 应读 first、
+//               m_addInfo 应读 second；ORIG 0x081b376c/0x081b3790 实证）。
+//   P0/N96 绑定: 本文件 0 处 register asm（grep 复核）。
 // ============================================================================
 
 #include <string.h>  // memset
@@ -146,8 +165,11 @@ int CUser::GetCharacHotKeyType(int characJob)
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82：ORIG 0x0868ea68；p167 CLEAR（8/8），残差为帧/槽号与
 // callee-saved 分配（4.1 保守帧 vs 4.4 紧凑帧），语义闭合。
-// [b28d-solo-CUserMissingA2] 复验 96/93（重定位归一）：残差为局部槽整体平移 +
-// 多余临时槽（4.4 按首次使用序分配）；p167 CLEAR 8/8 ⇒ N82 封顶。
+// [b28d-solo-CUserMissingA2] 修复⇒NEAR：去 `CItem* item` 具名局部（dynamic_cast
+// 直调 find_item 结果，ORIG 0x0868eb0f 无 item 槽）+ P222 正向包裹 equip 判定 +
+// 尾部 `if (3 < best) return 0;` ⇒ 槽位集与 ORIG 全等（best/-0x1c、inven/-0x18、
+// i/-0x14、ref/-0x10、equip/-0xc）。残差仅 N7（虚调用目标 4.4.7 恒 %eax vs ORIG
+// %edx）+ .o 重定位伪差；p167 CLEAR 8/8。
 int CUser::CalcMercenaryAvatarBonus() const
 {
     int best = 10;
@@ -165,16 +187,26 @@ int CUser::CalcMercenaryAvatarBonus() const
         if (ref == 0)
             return 0;
 
-        // *(int*)(ref+2)：m_addInfo（item idx）
-        CEquipItem* equip;
-        if (CItem* item = G_CDataManager()->find_item(ref->m_addInfo))
-            equip = dynamic_cast<CEquipItem*>(item);
-        if (equip == 0)
-            return 0;
-        if (equip->IsAvatarItem())
+        // ref->m_addInfo（+0x2）为 item idx；ORIG 0x0868eaeb 在 find_item 返回 0 时
+        // 直接给 equip 赋 0（`test %eax,%eax; jne L; mov $0,%eax; jmp after; L:
+        // dynamic_cast`）⇒ 不设 `CItem* item` 具名局部（会多占一槽使全帧深 4）。
+        // dynamic_cast<CEquipItem*>(0) 返回 0，语义与 ORIG 一致。
+        CEquipItem* equip = dynamic_cast<CEquipItem*>(
+            G_CDataManager()->find_item(ref->m_addInfo));
+        // P222 正向包裹：ORIG 0x0868eb32 `cmpl $0,-0xc; je <+0x112 return-0 岛>`
+        // （false 块归共享尾），4.4 对 `if (equip == 0) return 0;` 恒产
+        // `jne 继续; mov $0,%eax; jmp` 反形 ⇒ 改正向包裹。
+        if (equip != 0)
         {
-            if (equip->get_grade() < best)
-                best = equip->get_grade();
+            if (equip->IsAvatarItem())
+            {
+                if (equip->get_grade() < best)
+                    best = equip->get_grade();
+            }
+            else
+            {
+                return 0;
+            }
         }
         else
         {
@@ -183,8 +215,7 @@ int CUser::CalcMercenaryAvatarBonus() const
     }
 
     if (3 < best)
-        best = 0;
-
+        return 0;
     return best;
 }
 
@@ -563,9 +594,10 @@ int CHARAC_LOAD_MERCENARY::GetCompetitionPeriodSecond(char periodIdx) const
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N93附/N18a：ORIG 0x081b2f32；bool 物化方向 + 具名局部槽/帧差，
 // p167 CLEAR（8/8），语义闭合。
-// [b28d-solo-CUserMissingA2] 修复：8 位有符号比较 + 无具名 bool 物化 + 两句式
-// term（分子落 -0xc 槽回读）+ unsigned `divl` ⇒ 84/87；残余 N18a（ORIG 分子
-// edx/ecx 双中转 3 条，4.4 恒单段）。
+// [b28d-solo-CUserMissingA2] 复验：divl 段逐条同形；残余 N18a——ORIG 分子段
+// `call getCurSec; mov %eax,%edx; mov 0x28(%eax),%eax; mov %edx,%ecx; sub %eax,%ecx`
+// 双中转，4.4 恒折 `mov 0x28(%edx),%edx; sub %edx,%eax` 单段（P248 三档旋钮无
+// callee 返回/字段异型位点可动）。
 int CHARAC_LOAD_MERCENARY::GetCompetitionPeriodTerm(bool* isFinalPeriod) const
 {
     if (!CheckCompetitionPeriodIndex(static_cast<char>(m_field31)))
@@ -682,9 +714,12 @@ int CHARAC_LOAD_MERCENARY::GetRewardGold(CUser* user,
 // [b28d-27] DIFF（cv 旋钮待修）：ORIG 0x081b3276；p167 差集显示 ORIG 用 const
 // 迭代器/const operator[]（_ZNKSt6vector...ixEj ×4、_ZNKSt17_Rb_tree_iterator...ptEv ×3、
 // _ZNKSt6vector...emptyEv），我方用非 const 版（+4/+3/+2）⇒ N89/P96 封顶。
-// [b28d-solo-CUserMissingA2] 修复：const 指针/引用（pArea/pArea2/group/dropLists/
-// list）+ 非 const map iterator + `m_itemList` 成员直访（消 getItemList EXTRA×2）
-// ⇒ p167 50/49（余 empty 为工具口径，.o 内实有该调用）；残差 N82 槽序，367/383。
+// [b28d-solo-CUserMissingA2] 修复（真语义 bug）：m_itemList 的 pair 语义为
+// (概率, 道具id)——`sum2 += .first`、命中 `item.m_addInfo = .second`
+// （ORIG 0x081b376c `mov (%eax),%eax` / 0x081b3790 `mov 0x4(%eax),%eax` 实证；
+// 原实现两处互换 ⇒ 概率累加错、道具 id 取错）。另：pArea 表达式内联（消 -0x48
+// 具名槽）、`itemDropDice >= dropRate` 比较方向翻正（ORIG `cmp dropRate,%eax; jl`）。
+// p167 49/50（余 const empty 为工具口径）；残差槽序/三条清零差 ⇒ N82/N93 封顶。
 bool CHARAC_LOAD_MERCENARY::GetRewardItem(
     CUser* user, competition_reward_result& result, Inven_Item& item,
     std::string& msg)
@@ -697,9 +732,11 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
     if (!CheckCompetitionAreaIndex(static_cast<char>(m_field30), m_level))
         return false;
 
-    const stMercenaryCompetitionArea* pArea = &G_CDataManager()
-        ->m_mercenarySystem.m_vec40[static_cast<int>(static_cast<char>(m_field30))];
-    if (pArea->m_areaLevel == 0)
+    // ORIG 0x081b32d8：`call operator[]; movzwl 0x14(%eax),%eax` 无 pArea 具名槽
+    // （P157/P183）⇒ 内联表达式直读。
+    if (G_CDataManager()->m_mercenarySystem
+            .m_vec40[static_cast<int>(static_cast<char>(m_field30))]
+            .m_areaLevel == 0)
         m_field30 = 0;
 
     static CMTRand probabilityRewardItem;
@@ -709,7 +746,9 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
     itemDropDice = probabilityRewardItem.randInt(range);
     if (user->m_field6ef68 != 0)
         itemDropDice = 0;
-    if (dropRate <= itemDropDice)
+    // ORIG 0x081b33c6：`mov itemDropDice,%eax; cmp dropRate,%eax; jl <继续>`
+    // ⇒ 源码比较方向为 itemDropDice < dropRate（P196 折痕：jg↔jl 同义）。
+    if (itemDropDice >= dropRate)
         return false;
 
     const stMercenaryCompetitionArea* pArea2 = &G_CDataManager()
@@ -787,10 +826,14 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
     int sum2 = 0;
     for (unsigned int k = 0; k < group.m_itemList.size(); ++k)
     {
-        sum2 += group.m_itemList[k].second;
+        // [b28d-solo-CUserMissingA2 真 bug 修正] ORIG 0x081b376c/0x081b3790：
+        // m_itemList 的 pair 语义为 (概率, 道具id)——累加读 +0（first），命中取
+        // +4（second）赋 m_addInfo（与 m_mobList 的 (id, prob) 相反）。原实现
+        // 两处互换 ⇒ 概率累加错、道具 id 取错。
+        sum2 += group.m_itemList[k].first;
         if (itemDice <= sum2)
         {
-            item.m_addInfo = group.m_itemList[k].first;
+            item.m_addInfo = group.m_itemList[k].second;
             item.m_addInfo2 = 1;
             G_CDataManager()->m_itemList->create_item(
                 ENUM_ITEM_CREATE_TYPE_1, item, 1);
@@ -809,8 +852,10 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82/N89：ORIG 0x081b3b68；p167 CLEAR（49/49），残差为 STL 实例
 // 形态与帧/槽分配，语义闭合。
-// [b28d-solo-CUserMissingA2] 复验 364/357：p167 CLEAR 49/49，残差为帧/槽与 STL
-// 实例形态 ⇒ N82/N89 封顶。
+// [b28d-solo-CUserMissingA2] 修复：`bool isFinal2` 去预清（ORIG 无 movb $0，
+// 直读 movzbl -0x3a）+ `emptyItem.m_addInfo` 两处独立读取（P48 无 CSE，消
+// itemIdx 具名槽）。p167 CLEAR 49/49；残差为槽序（4.4 首次使用序）+ STL 实例
+// 形态 ⇒ N82/N89 封顶。
 bool CHARAC_LOAD_MERCENARY::Reward(CUser* user,
                                    competition_reward_result& result)
 {
@@ -870,21 +915,24 @@ bool CHARAC_LOAD_MERCENARY::Reward(CUser* user,
         mailTitle.c_str(), emptyItem, gold, m_characNo, strMessage, msgLen,
         0x1e, user->GetServerGroup(), false, false);
 
-    bool isFinal2 = false;
+    // ORIG 0x081b3f?? 无预清（`movzbl -0x3a,%eax; test` 直读，GetCompetitionPeriodTerm
+    // 命中路径必写）⇒ 不初始化（P198① 反向：ORIG 无 movb $0）。
+    bool isFinal2;
     int term2 = GetCompetitionPeriodTerm(&isFinal2);
     user->m_historyLog.MercenaryReturn(m_characNo, m_field28, m_field2c,
                                        term2, gold, 0);
 
     char status = isFinal2 ? 2 : 1;
-    int itemIdx = emptyItem.m_addInfo;
-    CItem* pItem = G_CDataManager()->find_item(itemIdx);
+    // ORIG 0x081b3fc?：emptyItem.m_addInfo 两处各自独立读取（P48 无 CSE，
+    // `mov 0x9407ec2,%eax` ×2），不设 itemIdx 具名局部。
+    CItem* pItem = G_CDataManager()->find_item(emptyItem.m_addInfo);
     int rarity = -1;
     if (pItem != 0)
         rarity = pItem->get_rarity();
     DB_MercenaryLogInfo::makeRequest(
         user->get_acc_id(), m_characNo, m_field28,
         GlobalData::s_systemTime_.getCurSec(), status, m_field31, m_field30,
-        gold, itemIdx, rarity);
+        gold, emptyItem.m_addInfo, rarity);
 
     m_field28 = 0;
     m_field2c = 0;
@@ -901,8 +949,10 @@ bool CHARAC_LOAD_MERCENARY::Reward(CUser* user,
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82/N86：ORIG 0x081b3814；p167 CLEAR（30/30），残差为容器迭代器
 // 临时槽 + 帧分配，语义闭合。
-// [b28d-solo-CUserMissingA2] 复验 248/245：帧 0x8c vs 0x7c + 全槽平移（N82），
-// p167 CLEAR 30/30 ⇒ 封顶。
+// [b28d-solo-CUserMissingA2] 修复：`if (!CheckCompetitionAreaIndex(...)) areaIdx=0;
+// else areaIdx=idx;` 否定形复现 ORIG 0x081b3a4a `xor $1,%eax` 物化 + pArea 表达式
+// 内联（消具名槽）⇒ 全段 diff 行 254→200。p167 CLEAR 30/30；残差帧 0x8c vs 0x7c +
+// 槽序（N82/N93）封顶。
 bool CHARAC_LOAD_MERCENARY::Competition(CUser* user, char periodIdx,
                                         char areaIdx)
 {
@@ -918,9 +968,10 @@ bool CHARAC_LOAD_MERCENARY::Competition(CUser* user, char periodIdx,
     if (!CheckCompetitionAreaIndex(areaIdx, m_level))
         return false;
 
-    stMercenaryCompetitionArea* pArea = &G_CDataManager()
-        ->m_mercenarySystem.m_vec40[static_cast<int>(areaIdx)];
-    if (pArea->m_worldMapIdx == 0xffff)
+    // ORIG 0x081b38d1：`call operator[]; movzwl 0x14(%eax),%eax` 直接内联
+    // （无 pArea 具名局部槽）⇒ 表达式直读（P157/P183）。
+    if (G_CDataManager()->m_mercenarySystem
+            .m_vec40[static_cast<int>(areaIdx)].m_worldMapIdx == 0xffff)
     {
         static CMTRand probArea;
         std::vector<int> validIdx;
@@ -935,10 +986,12 @@ bool CHARAC_LOAD_MERCENARY::Competition(CUser* user, char periodIdx,
         unsigned long range = validIdx.size() - 1;
         int pick = probArea.randInt(range);
         int idx = validIdx[pick];
-        if (CheckCompetitionAreaIndex(static_cast<char>(idx), m_level))
-            areaIdx = static_cast<char>(idx);
-        else
+        // ORIG 0x081b3a4b：`call CheckCompetitionAreaIndex; xor $1,%eax; test %al,%al;
+        // je <idx 分支>`（bool 取反物化，P22/P292）⇒ 源码是否定形 if(!cond)。
+        if (!CheckCompetitionAreaIndex(static_cast<char>(idx), m_level))
             areaIdx = 0;
+        else
+            areaIdx = static_cast<char>(idx);
     }
 
     int seconds = GetCompetitionPeriodSecond(periodIdx);
@@ -967,8 +1020,9 @@ bool CHARAC_LOAD_MERCENARY::Competition(CUser* user, char periodIdx,
 // [b28d-27] NEAR N93：ORIG 0x08697474；ORIG end()槽 -0x14 / find()槽 -0x10（4.1
 // 先声明占深槽），4.4 恒反向（先声明浅槽）；交换声明序会改调用序（ORIG end 先、
 // find 后）⇒ 封顶。p167 CLEAR（5/5），语义闭合。
-// [b28d-solo-CUserMissingA2] 复验 47/47：p167 CLEAR 5/5；N93 槽序不可翻
-// （交换声明序会改 end/find 调用序）⇒ 封顶。
+// [b28d-solo-CUserMissingA2] 复验：p167 CLEAR 5/5。两形实测——①交换声明序（it
+// 先/e 后）⇒ NEAR→DIFF（调用序反）；②it 包内层块作用域 ⇒ 槽序仍反。ORIG
+// end=-0x14 / find=-0x10（4.1 先声明深），4.4 恒反向 ⇒ N93 封顶。
 int CUser::GetETC(short key)
 {
     std::map<short, int>::iterator e = m_mapEtc.end();
@@ -1087,9 +1141,10 @@ int CUser::Competition_Mercenary_Charac(unsigned int slot, char modeA, char mode
 // [b28d-27] DIFF N18a 反向：ORIG 0x086914cc；ORIG `mov (%eax),%esi` 单段直落
 // callee-saved，4.4 恒经 %eax 两段；旧探针族（具名/内联/register）均不翻 ⇒ 封顶。
 // p167 CLEAR（7/7），语义闭合。
-// [b28d-solo-CUserMissingA2] 复验 44/43：P226 裸语句表达式与 P231 纯 register
-// 两形实测均不翻（register 反使 isWin 装载序劣化），ORIG `mov (%eax),%esi`
-// 单段直落不可造 ⇒ N18a 反向封顶。
+// [b28d-solo-CUserMissingA2] 复验 44/43：P226 裸语句表达式、P231 纯 register、
+// 删 `static_cast<int>` 三形实测均不翻（register 反使 isWin 装载序劣化），
+// ORIG `mov (%eax),%esi` 单段直落 callee-saved 不可造 ⇒ N18a 反向封顶；
+// p167 CLEAR 7/7。
 void CUser::updateBingoData()
 {
     // 语义闭合（ndiff 43/44 残 1 条定性）：ORIG `mov (%eax),%esi` 为 m_needSave
@@ -1099,7 +1154,7 @@ void CUser::updateBingoData()
     {
         DB_UpdateBingoEvent::makeRequest(
             GetUID(), get_acc_id(),
-            static_cast<int>(static_cast<BingoData*>(getBingoData())->m_eventId),
+            static_cast<BingoData*>(getBingoData())->m_eventId,
             static_cast<BingoData*>(getBingoData())->m_isWin);
         static_cast<BingoData*>(getBingoData())->m_needSave = 0;
     }
@@ -1168,32 +1223,43 @@ void CUser::UpdateBloodRecord()
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82：ORIG 0x0865da4e；p167 CLEAR（7/7），残差为帧/槽分配，
 // 语义闭合。
-// [b28d-solo-CUserMissingA2] 复验 89/87：帧 0x38 vs 0x28+push %ebx + 多余局部槽，
-// p167 CLEAR 7/7 ⇒ N82 封顶。
+// [b28d-solo-CUserMissingA2] 修复：P226 条件语句表达式复现 `je skip`×3 + `mov
+// $1/%eax … mov $0/%eax; test` 物化岛（消 expired bool 槽）；P311 具名视图
+// OutDataView/OutTailView 复现 `mov %edx,0x4(%eax,%ebx,4)` /
+// `mov %cl,0x5a4(%edx,%eax,1)` 单条 scaled/disp store（消 shl+add 地址链）；
+// 第三条件操作数交换为 `get_add_info() < GetDateTimeTick()` 复现 ORIG 求值序。
+// 残差仅 N7 寄存器分配：4.4 跨 operator[] 保活基址+索引（push %esi；ORIG 只保活
+// 索引 %ebx、基址重载）；p167 CLEAR 7/7。
 void CUser::SetEquipment(int slot, void* invenData, int size, void* outData)
 {
     int* cnt = (int*)outData;
+    Inven_Item* items = (Inven_Item*)invenData;
     for (int i = 0; i <= 9; ++i)
     {
-        Inven_Item* items = (Inven_Item*)invenData;
-        Inven_Item& it = items[i];
-        bool expired = false;
-        if (it.m_addInfo != 0)
+        // P226 条件向语句表达式（b28c C28L9 扩展）：ORIG 0x0865da4e 对短路链发
+        // `je skip`×3 + `mov $1,%eax; jmp; skip: mov $0,%eax; test %al,%al; je`
+        // 寄存器物化岛（无 bool 槽）；写具名 bool 会落槽（movb/cmpb 对 + 帧 +4）。
+        // 表达式内保持逐次重读（P157/P183，get_add_info 两次独立调用）。
+        if (({ items[i].m_addInfo != 0 && items[i].get_add_info() >= 1
+                && items[i].get_add_info() < OS_API::GetDateTimeTick(); }))
         {
-            // ORIG：get_add_info() 在 `<1` 判与 `<=tick` 判两处各自重调，缓存违反 P183/P48。
-            if (it.get_add_info() >= 1)
+            // P311/P291：ORIG 对两个写出均发单条 scaled/disp store
+            // （`mov %edx,0x4(%eax,%ebx,4)` / `mov %cl,0x5a4(%edx,%eax,1)`）；
+            // 裸指针下标 4.4 恒折 shl+add 地址链 ⇒ 用具名视图成员数组。
+            struct OutDataView
             {
-                int now = OS_API::GetDateTimeTick();
-                if (now > it.get_add_info())
-                    expired = true;
-            }
-        }
-        if (expired)
-        {
-            _Charac_info& ch = m_characList[slot];
-            ((int*)outData)[*cnt + 1] = ch.m_characNo;
-            ((char*)outData)[*cnt + 0x5a4] = (char)i;
-            it.reset();
+                int m_count;      // +0x00（*cnt）
+                int m_items[1];   // +0x04
+            };
+            struct OutTailView
+            {
+                char m_pad[0x5a4];  // +0x000
+                char m_flags[1];    // +0x5a4
+            };
+            reinterpret_cast<OutDataView*>(cnt)->m_items[*cnt] =
+                m_characList[slot].m_characNo;
+            reinterpret_cast<OutTailView*>(cnt)->m_flags[*cnt] = (char)i;
+            items[i].reset();
             *cnt = *cnt + 1;
         }
     }
@@ -1208,8 +1274,10 @@ void CUser::SetEquipment(int slot, void* invenData, int size, void* outData)
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82：ORIG 0x086925c4；p167 CLEAR（29/29），残差为帧/槽与
 // 寄存器分配，语义闭合。
-// [b28d-solo-CUserMissingA2] 复验 168/161：多 push %edi + 帧 0x1bc vs 0x190
-// （多余局部槽），p167 CLEAR 29/29 ⇒ N82 封顶。
+// [b28d-solo-CUserMissingA2] 修复：变参位内联 getCurCharacUsedFatigue()（ORIG
+// 0x086926d8 `movzwl %ax,%ebx` 无局部槽）。残差为跨版本槽复用：ORIG 的 itemIndex
+// 槽与 item.m_addInfo(-0x5f) 重叠（4.1 允许，4.4 独立分配）+ 帧 0x1bc vs 0x190
+// ⇒ N82 封顶；p167 CLEAR 29/29。
 void CUser::processFatigueCharac(int usedMin)
 {
     int job = get_charac_job();
@@ -1233,11 +1301,12 @@ void CUser::processFatigueCharac(int usedMin)
     def->make_item(item);
     item.set_add_info(1);
 
-    unsigned short fatigue = getCurCharacUsedFatigue();
     char msg[256];
+    // ORIG 0x086926d8：`call getCurCharacUsedFatigue; movzwl %ax,%ebx`（无局部槽，
+    // 值在 %ebx 跨 c_str/findString 保活）⇒ 变参位内联（P44/P0）。
     OS_API::snprintf(msg, 0xff,
                      g_scriptStringManager_.findString(4, fmtKey.c_str(), 0),
-                     fatigue);
+                     getCurCharacUsedFatigue());
     if (itemIndex != 0)
     {
         int expire = def->getExpirationDate();
@@ -1408,9 +1477,11 @@ void CUser::updatePcRoomPlayTime()
 // [b28d-27] DIFF（p167 MISSING 8 族）：ORIG 0x08664e8e；ORIG 用迭代器遍历
 // （begin/end/C1Ev/ptEv/deEv/ppEv/ne 共 14 次），我方索引遍历 ⇒ 符号族不同
 // （P175/N89 类），语义等价。
-// [b28d-solo-CUserMissingA2] 修复：const_iterator（rewards 指针 const 化）+
-// P50 先声明后赋值 + 缓存 end + 4 迭代器全头部声明 ⇒ 148/163、p167 差 2
-// （4.1 把内层 for-init 旋转到外层体末尾，4.4 恒置开头）⇒ N164/N82 封顶。
+// [b28d-solo-CUserMissingA2] 复验：const_iterator（rewards 指针 const 化）+ P50
+// 先声明后赋值 + 缓存 end + 4 迭代器全头部声明。p167 差 2 = ORIG 非 const
+// `vector<int>::begin()` + `C1IPiE` 转换构造实例未发射（N89 实例差异，语义等价：
+// 我方同点位有 begin/C1IPiE 调用）；残差为 4.1 内层 for-init 旋转到外层体末尾、
+// 4.4 恒置开头 ⇒ N164/N82 封顶。
 bool CUser::_fnStatQuestClear(unsigned int questIdx, char* context)
 {
     CUser* user = *(CUser**)context;
@@ -1463,8 +1534,9 @@ const int elixir_item_id[8] = { 1039, 1040, 1041, 1042, 1043, 1044, 1045, 1046 }
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82：ORIG 0x08664c50；p167 CLEAR（18/18），残差为帧/槽分配，
 // 语义闭合。
-// [b28d-solo-CUserMissingA2] 复验 120/118：槽整体平移 4 + 多余临时槽（N82），
-// p167 CLEAR 18/18 ⇒ 封顶。
+// [b28d-solo-CUserMissingA2] 修复⇒AE：qc 表达式内联进 enumQuestClear 实参
+// （ORIG 0x08664c9e `lea 0x4(%eax),%edx`，无具名局部）⇒ 消 -0x14 槽、全帧槽号
+// 与 ORIG 对齐，DIFF→AE（p167 CLEAR 18/18）。
 void CUser::calc_quest_stat(_Additioal_info& ai)
 {
     std::vector<int> elixirIds;
@@ -1475,9 +1547,10 @@ void CUser::calc_quest_stat(_Additioal_info& ai)
     count_specific_items(elixirIds, ownCounts);
 
     std::vector<std::pair<int, int> > rewards;
-    WongWork::CQuestClear* qc =
-        (WongWork::CQuestClear*)((char*)getCurCharacQuestR() + 4);
-    qc->enumQuestClear(_fnStatQuestClear, this, &elixirIds, &rewards);
+    // ORIG 0x08664c9e：`call getCurCharacQuestR; lea 0x4(%eax),%edx` 直接内联进
+    // 实参装载（无 qc 具名局部）⇒ 表达式内联，避免多占 -0x14 槽使全帧深 4。
+    ((WongWork::CQuestClear*)((char*)getCurCharacQuestR() + 4))
+        ->enumQuestClear(_fnStatQuestClear, this, &elixirIds, &rewards);
 
     complete_reward_list(rewards, ownCounts);
 

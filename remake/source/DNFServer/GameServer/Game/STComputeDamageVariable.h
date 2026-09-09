@@ -49,9 +49,10 @@ public:
         m_f00F[1] = 1.0f;
         m_f00F[2] = 1.0f;
         m_f00F[3] = 1.0f;
-        m_f00F[4] = 1.0f;
-        m_f00F[5] = 1.0f;
-        m_f00F[6] = 1.0f;
+        // [b28d-solo-CreatureScript] ORIG 0x088909b0 循环 i<=2 写
+        // 0xf+4*(i+4)=0x1f/0x23/0x27 ⇒ m_f00F[4..6] 为 3 次循环而非逐写。
+        for (int i = 0; i < 3; ++i)
+            m_f00F[i + 4] = 1.0f;
         m_f02B = 1.0f;
         m_field02F = 0;
         m_field033 = 0;
@@ -87,17 +88,19 @@ public:
         m_f0B3 = 1.0f;
         m_physMDefBase = 0;
         m_magicMDefBase = 0;
-        m_physReduceRate = 0.0f;
-        m_magicReduceRate = 0.0f;
         m_physMDefAdd = 0;
         m_magicMDefAdd = 0;
         m_field0CF = 0;
         m_char0D3 = 0;
         m_char0D4 = 0;
         m_char0D5 = 0;
-        for (int i = 0; i < 2; ++i)
-            for (int j = 0; j < 26; ++j)
-                m_critMatrix[i][j] = 1.0f;
+        // [b28d-solo-CreatureScript] ORIG 0x08890bd8 单循环 i<=0x19 同轮写两行
+        // （0x6+4*(i+0x34)=0xd6 与 0x6+4*(i+0x4e)=0x13e）⇒ 非嵌套二维循环。
+        for (int i = 0; i < 26; ++i)
+        {
+            m_critMatrix[0][i] = 1.0f;
+            m_critMatrix[1][i] = 1.0f;
+        }
         m_f1A6 = 1.0f;
         m_d1AA = 0.0;
         m_objTypeByte = 0;
@@ -132,6 +135,10 @@ public:
         m_f1F0 = 1.0f;
         m_f1F4 = 0.0f;
         m_f1F8 = 0.0f;
+        // [b28d-solo-CreatureScript] ORIG 0x08890d94/0x08890d9f：两 reduce 率
+        // 在 ctor **最末**写 0xbf/0xc3（非中间）。
+        m_physReduceRate = 0.0f;
+        m_magicReduceRate = 0.0f;
     }
 
     /* 0x000 */ float  m_field000;          // ctor: 0；ORIG C1 edx 中转形+调用点 flds 直读实证 float

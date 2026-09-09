@@ -512,7 +512,7 @@ void StageControl::sendMapInfo()
     }
     // ORIG 0x0813026e：body ctor 在 map 判空之后、getTimeLine 之前（Ghidra local_5c）。
     NOTIPacketStruct::_NotiAdvanceAltarMapInfo body;
-    TimeLine* timeLine =
+    const TimeLine* timeLine =   // [b28d-Main 代落·S374] getTimeLine 返回 const TimeLine*（ORIG 调用点 0x8130237 为 `_ZNK...getTimeLineEv`，消费端仅读）
         reinterpret_cast<ProcStage*>(m_procStage)->getTimeLine();
     if (timeLine == 0)
     {

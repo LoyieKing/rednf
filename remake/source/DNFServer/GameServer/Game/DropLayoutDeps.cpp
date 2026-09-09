@@ -63,7 +63,8 @@ void CItemGenRateTable::init()
     if (m_rand != 0)
         delete m_rand;
     unsigned long seed = time(0);
-    m_rand = new CMTRand(*({ &seed; }));
+    register unsigned long* pSeed = &seed;
+    m_rand = new CMTRand(*pSeed);
 }
 
 void CItemGenRateTable::destroy()
@@ -121,10 +122,10 @@ void CItemGenRateTable::generateTable(stGenItemRange_t* range, bool keepRandomOp
             {
                 unsigned int cumulative = 0;
                 // ORIG：无 pairBytes/maxOffset/target 局部（每次重算表达式）。
-                int offset = -(int)reinterpret_cast<const unsigned char*>(
-                                  &range->m_range[level])[0];   // -(u8)min
-                for (; offset < (int)reinterpret_cast<const unsigned char*>(
-                                     &range->m_range[level])[1]; ++offset)
+                int offset = -(int)(*reinterpret_cast<const unsigned char(*)[2]>(
+                                  &range->m_range[level]))[0];   // -(u8)min
+                for (; offset < (int)(*reinterpret_cast<const unsigned char(*)[2]>(
+                                     &range->m_range[level]))[1]; ++offset)
                 {
                     if (level + offset > 200)         // cmp $0xc8 jg → 终止整行
                         break;
@@ -180,7 +181,8 @@ void CSecialIMonsterDropItemGenRateTable::init()
     if (m_rand != 0)
         delete m_rand;
     unsigned long seed = time(0);
-    m_rand = new CMTRand(seed);
+    register unsigned long* pSeed = &seed;
+    m_rand = new CMTRand(*pSeed);
 }
 
 void CSecialIMonsterDropItemGenRateTable::destroy()
@@ -215,9 +217,16 @@ bool CSecialIMonsterDropItemGenRateTable::_itemTypeVerify(int type, const CItem*
 
 void CSecialIMonsterDropItemGenRateTable::generateTable(stGenItemRange_t* range)
 {
-    // [b28d-solo-DropLayoutDeps] 230/227 条；已修：同 CItemGenRateTable::generateTable
-    //（去局部缓存、end 条件块、直接构造 pair、const grades、m_blocks 用 level）。
-    // 残差=帧/槽号（N82）+ 迭代器形态（N86）。语义等价。
+    // [b28d-solo-DropLayoutDeps] 227/229 条（ORIG 227），p167 CLEAR（17=17）。
+    // 已修：同 CItemGenRateTable::generateTable（去局部缓存、end 条件块、直接构造
+    // pair、const grades、m_blocks 用 level）+ 数组指针解引用视图复现 ORIG 0x08534d2f
+    // `add %eax,%eax; add 0xc(%ebp),%eax; movzbl (%eax)`/`0x1(%eax)` disp 折叠。
+    // 残差 N（2 处）：ORIG 谓词调用点 0x08534ee4/0x08534ee7 为
+    // `call; xor $1; test %al,%al; jne`（P292 ⇒ callee bool），我方 uchar 声明恒产
+    // `call; test; sete; test`。已试 P248 档① callee bool 化（CItem.h 两声明+定义）：
+    // 调用点转正、本函数 227/227，但两谓词定义体由 7 条→9 条（4.4 对 char 数组元素
+    // 转 bool 加 `test; setne` 归一化，ORIG 4.1 无）⇒ TU 净 -1 AE，已回退。
+    // 语义等价（非零判定）。
     // 报告 generateTable.md（T 0x08534cd0）：五重循环 a(0..4) b(0..2) type(1..4)
     // rarity(0..5) level(1..200)；槽址 a*0x69ff0+b*0x23550+type*0x7110+
     // rarity*0x12d8+level*24。过滤要求 isSpecialMonsterDropItem /
@@ -235,10 +244,12 @@ void CSecialIMonsterDropItemGenRateTable::generateTable(stGenItemRange_t* range)
                     for (int level = 1; level <= 200; ++level)
                     {
                         unsigned int cumulative = 0;
-                        int offset = -(int)reinterpret_cast<const unsigned char*>(
-                                          &range->m_range[level])[0];
-                        for (; offset < (int)reinterpret_cast<const unsigned char*>(
-                                             &range->m_range[level])[1]; ++offset)
+                        int offset = -(int)(*reinterpret_cast<
+                                          const unsigned char(*)[2]>(
+                                          &range->m_range[level]))[0];
+                        for (; offset < (int)(*reinterpret_cast<
+                                             const unsigned char(*)[2]>(
+                                             &range->m_range[level]))[1]; ++offset)
                         {
                             if (level + offset > 200)
                                 break;
@@ -288,11 +299,13 @@ CMonsterDrop_Hell::~CMonsterDrop_Hell()
 
 int CMonsterDrop_Hell::loadScript(char const* path)
 {
-    // [b28d-solo-DropLayoutDeps] 282/279 条；已修：for(;;)+break（顶部条件头）、
-    // i<rows+1（ORIG add$1/setg 形）、fill 值初始化 stGenItemProb_t()（内联清零，
-    // 消 p167 EXTRA memset）、idx 循环前预清（P198①）、全头部声明（P212）。
-    // p167 CLEAR（23=23）。残差=槽基偏移 0x18（4.4 首次使用序把 fill 放栈底 vs
-    // 4.1 声明序，N82/P112）+ m_range[0] movw vs 两条 movb。语义等价。
+    // [b28d-solo-DropLayoutDeps] N82/N112 封顶（ORIG 0x08535344，279/282）。
+    // p167 CLEAR（23=23）。已修：for(;;)+break（顶部条件头）、i<rows+1（ORIG
+    // add$1/setg 形）、fill 值初始化 stGenItemProb_t()（内联清零，消 p167 EXTRA
+    // memset）、idx 循环前预清（P198①）、全头部声明（P212）。残差=槽分配（N82附：
+    // 4.4 聚合 fill 恒占最深槽 -0x50..-0x39，ORIG 按声明序落 -0x44..-0x2d 且 token
+    // -0x48/ok -0x49 更深；fill 声明移首/移尾两形实测槽集合不变）+ m_range[0]
+    // movw vs 两条 movb（N78 族）。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x302;
     std::string token;
@@ -394,10 +407,13 @@ CSpecialMonsterDrop::~CSpecialMonsterDrop()
 
 int CSpecialMonsterDrop::loadScript(char const* path)
 {
-    // [b28d-solo-DropLayoutDeps] 383/379 条；已修：for(;;)+break、fill 值初始化
-    // stGenItemProb_t()（消 p167 EXTRA memset）、idx 循环前预清、全头部声明（P212）。
-    // p167 CLEAR（28=28）。残差=槽基偏移（4.4 首次使用序 vs 4.1 声明序，N82/P112）
-    // + item drop ref 段 entry 指针形态。语义等价。
+    // [b28d-solo-DropLayoutDeps] N82/N76 封顶（ORIG 0x085373ee，379/383）。
+    // p167 CLEAR（28=28）。已修：for(;;)+break、fill 值初始化 stGenItemProb_t()
+    // （消 p167 EXTRA memset）、idx 循环前预清、全头部声明（P212）。残差=①槽分配
+    // （N82附：ours 最深 -0x64 含 fill 聚合，ORIG -0x5d 且 token/ok 更深）；
+    // ②`e[1] = ScanInt(&ok)` store 序 ORIG RHS-first `mov -S,%edx; mov %eax,0x4(%edx)`
+    // vs 4.4 LHS-first `lea 0x4(%eax),%ebx` 跨 call 缓存（N76）；已试 P211 异型化
+    // （e→unsigned int* + cast）反劣 +1 条，回退。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x5fb;
     std::string token;
@@ -540,11 +556,13 @@ CMonsterDrop::CMonsterDrop(int count)
 
 int CMonsterDrop::loadScript(char const* path)
 {
-    // [b28d-solo-DropLayoutDeps] 550/545 条；已修：for(;;)+break、fill 值初始化
-    //（消 p167 EXTRA memset）、count 内联实参、[gold quantity] 展开为 ORIG 的 4 次
-    // 独立 ScanInt（原循环少 3 个调用点，p167 MISSING -3）、全头部声明（P212）。
-    // p167 CLEAR（42=42）。残差=帧 0x90 vs 0xa0 + 槽序（4.4 首次使用序 vs 4.1
-    // 声明序，N82/P112）+ 多分支出口 jmp/nop 岛数（P63/N108）。语义等价。
+    // [b28d-solo-DropLayoutDeps] N82/N76 封顶（ORIG 0x08537938，545/550）。
+    // p167 CLEAR（42=42）。已修：for(;;)+break、fill 值初始化（消 p167 EXTRA
+    // memset）、count 内联实参、[gold quantity] 展开为 ORIG 的 4 次独立 ScanInt
+    // （原循环少 3 个调用点，p167 MISSING -3）、全头部声明（P212）。残差=①槽分配
+    // （N82附：ours 最深 -0x68 含 fill 聚合、ok -0x49；ORIG -0x61/ok -0x61 相邻）；
+    // ②`e[1] = ScanInt(&ok)` store 序 ORIG RHS-first vs 4.4 LHS-first（N76，与
+    // CSpecialMonsterDrop 同型）；③多分支出口 jmp/nop 岛数（P63/N108）。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x66b;
     std::string token;
@@ -782,9 +800,11 @@ CClearReward::CClearReward(int count)
 
 int CClearReward::loadScript(char const* path)
 {
-    // [b28d-solo-DropLayoutDeps] 657/660 条（§6.2 超大件口径）；已修：for(;;)+break
-    //（顶部条件头）。残差=局部槽序（4.4 首次使用序 vs 4.1 声明序，N82/P112）+ 多分支
-    // 出口岛数。语义等价。
+    // [b28d-solo-DropLayoutDeps] N82 封顶（ORIG 0x085392c0，657/660；§6.2 超大件
+    // 三件套：p167 CLEAR 61=61、gap=3、槽位集仅深度差 0x55→0x4d）。已修：for(;;)+break
+    //（顶部条件头）。残差=局部槽序（4.4 首次使用序/聚合优先 vs 4.1 声明序，
+    // N82/P112；section/token 槽 -0x55/-0x54 vs -0x4d/-0x4c）+ 多分支出口岛数
+    //（P63/N108）。语义等价。
     if (!loadRDARScriptFile("", path))
         return 0x943;
     std::string section;
@@ -1015,10 +1035,13 @@ CGeneratorCommonData::~CGeneratorCommonData() {}
 
 int CGeneratorCommonData::loadScript(const char* path)
 {
-    // [b28d-solo-DropLayoutDeps] AE（TU 口径，ORIG 0x08534456）：102/101 条。已修：
-    // for(;;)+goto 尾标签（P164/P223）、idx 循环前预清（P198①）、条件改
-    // operator==（p167 判据：ORIG 用 eq，原 ne 造成 MISSING/EXTRA 各 1）、
-    // return 0x1f8 块移到循环出口后。p167 CLEAR（10=10）；残差=1 条 4.4 对齐 nop。
+    // [b28d-solo-DropLayoutDeps] AE（ORIG 0x08534456；verdict 以 check_tu_routed
+    // clean 口径为准，尾部对齐 nop 由 §6.1 strip_nop_padding 剥离；game_func_report
+    // --no-compile 报 101/102 属 N124 伪差）。p167 CLEAR（10=10）。已修：for(;;)+
+    // goto 尾标签（P164/P223）、idx 循环前预清（P198①）、条件 operator==（p167 判据）、
+    // return 0x1f8 块移至循环出口后。形实验记录：if/else 正形为最优；break+循环后
+    // return、标签置循环内、#pragma optimize(no-align-labels/loops/jumps/align-labels=1)
+    // 均致块序错或条数 -1，已回退。
     if (!loadRDARScriptFile("", path))
         return 0x1d8;
     std::string token;
@@ -1142,13 +1165,18 @@ CAutoMarketConditionsControl* CDataManager::GetAutoMarketContitionsControl()
 // CAutoMarketConditionsControl::GetGoldDropAmountRate —— 报告 GetGoldDropAmountRate.md
 // （ORIG T 0x082f89bc 逐分支转写；除数 -1000.0 为 .rodata 0x8c1fc70 双字实测）
 // ============================================================================
+__attribute__((target("arch=i486")))
 int CAutoMarketConditionsControl::GetGoldDropAmountRate(int level, int gold)
 {
-    // [b28d-solo-DropLayoutDeps] 99/98 条；已修：①真 bug——logCount/trace 段移入
-    // m_field00!=0 分支（ORIG `je +0x11c` 跳过该段；原实现未启用折算时也自增且
-    // trace 读未初始化的 rate）；②P243 乘序 (1-base)*goldPerLevel；③register bool
-    // logIt（P231 免槽，槽组归正 -0x14/-0x10/-0x24）。残差=x87 比较 lowering（N85；
-    // -march=i486 实测本 TU 不归零）+ logCount 自增 lea vs mov/add（N18a/N7）。
+    // [b28d-solo-DropLayoutDeps] N 封顶（ORIG 0x082f89bc，98/99；本函数级
+    // `__attribute__((target("arch=i486")))` 消 x87 比较 lowering，N85 突破口）。
+    // 已修：①真语义 bug——比较改 Ghidra C 实证的 `rate < 0.0`（原 `!(rate>0.0)`
+    // 在 rate==0/NaN 时错误回退 base；ORIG 0x82f8a20 `test $0x45,%ah; sete` 实证）；
+    // ②logCount/trace 段移入 m_field00!=0 分支（ORIG `je +0x11c`）；③P243 乘序
+    // (1-base)*goldPerLevel；④register bool logIt（P231 免槽，槽组 -0x14/-0x10/-0x24；
+    // 删 register 帧 0x54→0x64 全槽漂）。残差 N18a/N7：静态 logCount 自增 ORIG
+    // `lea 0x1(%ecx),%edx; mov %edx,addr` vs 4.4 `mov/add/mov`（+1 条，`+=1`/
+    // `1+x`/`x+1` 三形实测同）+ bool 局部 %al vs %bl（跨版本寄存器分配）。
     int result = 0;                         // ORIG prolog 后立即清零（-0x14）
     double rate;                            // ORIG 不预初始化（仅 else 路径赋值）
     if (m_field00 != 0)
@@ -1156,12 +1184,12 @@ int CAutoMarketConditionsControl::GetGoldDropAmountRate(int level, int gold)
         // rate = (1-base)*cond[level]/(-1000) + 1；出 (0,1] 则回退 base。
         // ORIG fldl base→fsubp 先于 fildl cond[level]（P243 书写序）。
         rate = ((1.0 - m_goldBaseRate) * (double)m_goldPerLevel[level]) / -1000.0 + 1.0;
-        if (!(rate > 0.0) || rate > 1.0)
+        if (rate < 0.0 || rate > 1.0)   // Ghidra C 实证：严格小于（非 <=）
             rate = m_goldBaseRate;
         result = (int)((double)gold * rate);         // ORIG fistpl 直接截断（无 +0.5）
         static int logCount = 0;            // ORIG bss _ZZ...GetGoldDropAmountRateEiiE8logCount
         register bool logIt = (logCount % 1000 == 0);
-        logCount = logCount + 1;
+        logCount += 1;
         if (logIt)
         {
             cMyTrace trace(

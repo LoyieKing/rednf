@@ -85,7 +85,9 @@ public:
     bool queryADExposeInfo(stInGameADExposeCondition* cond);       // ORIG T 0x080fd19e
     bool checkLevel(CUser* user, char* data);                      // ORIG T 0x080fca9e
     bool checkCondition(CUser* user, CAdvertisementExposeInfo* info);  // ORIG T 0x080fcd2e
-    bool CheckFailMultiBoxLottery(CUser* user,
+    // [b28d-Main 代落·S284 P159] bool→void：ORIG 0x080fcb3e 尾无 `mov $0,%eax`
+    // （Ghidra 亦为 void）；W8_CU_A.cpp:860 定义本已是 void ⇒ 消除跨 TU 返回类型 ODR 分歧。
+    void CheckFailMultiBoxLottery(CUser* user,
         std::vector<std::pair<Inven_Item, bool> >& items);         // ORIG T 0x080fcb3e
     bool CheckIngameAdvertisementCondition(CUser* user,
         stNotifyIngameADInfo& info, int flag);                     // ORIG T 0x080fcfa8

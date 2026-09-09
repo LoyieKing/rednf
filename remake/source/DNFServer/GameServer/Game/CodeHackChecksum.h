@@ -48,13 +48,14 @@
 // 证据：Ex/Data::IsRightChecksum 均 memcmp(elem, param, 0x20)；
 //       ZeroMemoryChecksum 由 sha256_finish(ctx, this) 写入；
 //       ~CodeHackChecksum @0x0808b7da 为空析构（push ebp/mov/pop/ret）。
+// [b28d-Main 代落·S329 P299/P317] 删用户 ctor/dtor 声明：ORIG nm 无 C1/C2；
+// D1/D2 为 W（0x0808b7da，仅由 new_allocator::destroy 的 p->~T() 发射）；
+// ORIG `_Destroy_aux<true>::__destroy<CodeHackChecksum>` 为空 ⇒ 类型 trivial 析构。
+// 我方原为 `_Destroy_aux<false>`（非 trivial）且局部对象多发 C1/D1 call（每件 +2）。
 // ---------------------------------------------------------------------------
 class CodeHackChecksum
 {
 public:
-    CodeHackChecksum();                                  // POD 式清零构造（隐式 W）
-    ~CodeHackChecksum();
-
     unsigned char m_data[0x20];                          // +0x00..+0x1f 摘要
 };
 
@@ -151,8 +152,15 @@ public:
     char* setData(const char* serialized);               // T @0x0808a9cc
 
     char m_fileName[0x104];                              // +0x000..+0x103（StrCpyMaxPath 目标）
-    int m_start104;                                      // +0x104
-    int m_size108;                                       // +0x108
+    // [b28d-solo-WindowsPackFiles] ORIG 0x08575375 双 store 先缓存 dest 到 %ecx
+    // （`mov 0x10(%ebp),%ecx; mov %eax,0x104(%ecx); mov %edx,0x108(%ecx)`）⇒ P247：
+    // 相邻两 int 以 8 字节具名视图 `m_range` 整体赋值复现；匿名 union 保留原两名字，
+    // sizeof/偏移/mangled 与全部消费点（CUserOnlyOrig.cpp:1527-1528、本 .cpp:262/283）零影响。
+    union
+    {
+        struct { int m_start104; int m_size108; };       // +0x104 / +0x108
+        CodeHackCheckRange m_range;                      // 同 8 字节视图
+    };
 };
 
 static_assert(sizeof(CodeHackCheckRangeEx) == 0x10c, "CodeHackCheckRangeEx ABI drift");

@@ -127,6 +127,17 @@ struct GmDID : GmDBase                                       // CIndependentDrop
     std::set<int> ais;                                       // +0x24
 };
 
+// CHeroMissionCommand +0x0c/+0x10 的 enum 字段视图（P254）：ORIG execute
+// 0x084b3e91/0x084b3e99 为 `mov disp(%eax),%eax; mov %eax,%esi/%ebx` 两段装载
+// （4.1 对 enum 字段保留 eax→callee-saved 中转），4.4 对 unsigned 字段恒折单段。
+enum GmDParamEnum { GmD_PARAM_ENUM_0 };
+struct GmDHeroMissionCmdView : GmDBase
+{
+    void* str0;                                              // +0x08 std::string(COW)
+    HeroMissionCondition::MissionNo::T no;                   // +0x0c
+    GmDParamEnum param;                                      // +0x10
+};
+
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -175,10 +186,16 @@ void CItemInfoCmd::parse()
 }
 
 // ORIG execute 0x084aa2d2：按名查物品并回发查询结果包，找到则再 GM 发放一件。
+// 【b28d-solo-GmCmds_D 判词 N78/N82】p167 CLEAR（49=49）；getStackableLimit 双调用
+// && 链（P48/P214①）已归位。残差 = ORIG 两分支各一次 memset 被 4.1 内联成对齐剥离
+// 慢路（各 39 条）而 4.4 恒 call（N78）+ 全帧槽号错位（N82），封顶。
 void CItemInfoCmd::execute()
 {
-    char info[0x100];                                        // -0x157
-    memset(info, 0, sizeof(info));
+    // b28d-solo-GmCmds_D 判词 N78：ORIG 两分支各一次 `memset(info,0,0x100)` 被
+    // 4.1 内联成对齐剥离慢路（各 39 条，0x084aa30c/0x084aa48c）；4.4 恒发 call
+    // memset（两次 call 还会令 p167 EXTRA +2）⇒ 改用 `={0}`（P214③）一次 rep
+    // stos 表达同一写前清零语义，p167 CLEAR；慢路形态差记 N78 封顶。
+    char info[0x100] = {0};                                  // -0x157
     CItem* item = G_CDataManager()->find_item(m_str0.c_str());
     if (item == 0)
     {
@@ -209,14 +226,12 @@ void CItemInfoCmd::execute()
     const int itemIdx = item->get_index();                   // local_2c
     CUser* user = GetUser();                                 // local_28
     int count = 100;                                         // local_20
-    if (item != 0 && item->is_stackable())
+    // ORIG 0x084aa642/0x084aa657：getStackableLimit 两次独立调用（比较+赋值，
+    // P48 无 CSE）且为 && 短路链末项（setl 物化）⇒ 单条 && 链 + 两次调用。
+    if (item != 0 && item->is_stackable() &&
+        static_cast<CStackableItem*>(item)->getStackableLimit() < count)
     {
-        const int limit =
-            static_cast<CStackableItem*>(item)->getStackableLimit(); // ORIG 0x822c9fc
-        if (limit < count)
-        {
-            count = limit;
-        }
+        count = static_cast<CStackableItem*>(item)->getStackableLimit();
     }
     ENUM_ITEMSPACE space;                                    // local_44（AddItem 出参）
     const int added = user->AddItem(itemIdx, count,
@@ -240,23 +255,25 @@ void CItemInfoCmd::execute()
 // ORIG ctor：仅基类 vptr(0x8c819a8)。
 
 // ORIG execute 0x084ab16e。
-// 【b28 判词 N-P75】末段 set_money(invenW, oldMoney)：ORIG 4.1 在 call
-// getCurCharacInvenW 前将 -0xc 槽值物化入 %ebx 跨调用（`mov -0xc(%ebp),%ebx`
-// 前置），4.4 恒 call 后装载 %edx（参数物化时刻受版本调度，P75；语句表达式
-// 形探针 /tmp/bm3/p13 fSE 亦不可翻），余逐条相等。
+// 【b28d-solo-GmCmds_D 判词 AE】旧「N-P75 参数物化时刻」判词作废：末段
+// set_money(invenW, oldMoney) 的 ORIG `mov -0xc(%ebp),%ebx`（receiver call 前
+// 装载 callee-saved）经裸 register 中转局部复现（P231/P248④：值跨 call 保活、
+// 4.4 不自升、ORIG 目标 %ebx；非 asm 绑定，P0 合规）。探针 /tmp/b28d_gmd/p2.cpp
+// f4 与 fA/fC/f5/f6 对照：取址形（*(&old)/volatile）反把 old 挤到深槽。
 void CInvalidGold::execute()
 {
     CUser* user = GetUser();
-    // b28d-248③：ORIG 0x084ab16e 两段 `mov <A>,%eax; mov %eax,%ebx` ⇒ 静态计数
-    // 需与 set_money(unsigned int) 形参异型（int 位模式不变）。裸 register 形
-    // 实测反劣（多 push %esi，41 vs 39）⇒ 不加。
     const unsigned int oldMoney = user->getCurCharacMoney();
     // ORIG .data 0x093abb40 初值 ffffd8f0（-10000）；每次执行再减 10000。
     static int invalidMoney = (int)0xffffd8f0u;
     invalidMoney -= 10000;
     user->getCurCharacInvenW()->set_money(invalidMoney);
     user->SendUpdateItemList(CUser::eSendTarget_1, ENUM_ITEMSPACE_0, 0);
-    user->getCurCharacInvenW()->set_money(oldMoney);
+    // b28d-331：ORIG 末段 `mov -0xc(%ebp),%ebx` 在 receiver call 前装载
+    // （4.1 实参先求值）⇒ 经裸 register 中转局部（P231/P248 合规，非 asm 绑定）
+    // 令 4.4 提前物化入 %ebx 并复用 oldMoney 槽（探针 /tmp/b28d_gmd/p2.cpp f4 同形）。
+    register unsigned int restoreMoney = oldMoney;
+    user->getCurCharacInvenW()->set_money(restoreMoney);
 }
 
 // ===========================================================================
@@ -328,19 +345,20 @@ void CItemDropInDungeon::parse()
 
 // ORIG execute 0x084abce8：可堆叠或 avatar/creature 类型(idx 0x16/0x17) 物品跳过，
 // 其余交队伍 drop_item_gm。
+// 【b28d-solo-GmCmds_D 判词 AE】p167 CLEAR；P0 表达式直读（无 reqIdx/skip 槽）、
+// party==0 正向包裹消尾岛（P285/P223 变体）均已按 ORIG 复现。
 void CItemDropInDungeon::execute()
 {
-    const int reqIdx = ((const GmDFld<int>*)this)->f08;
-    CItem* item = G_CDataManager()->find_item(reqIdx);
+    // b28d-solo-GmCmds_D：ORIG 无 reqIdx 槽（P0 表达式直读；末段 drop_item_gm
+    // 处重读 +0x08 实证），skip 亦无 bool 槽（`test %al,%al` 直测）。
+    CItem* item = G_CDataManager()->find_item(((const GmDFld<int>*)this)->f08);
     if (item == 0)
     {
         return;
     }
     // ORIG 虚表第 4 槽(vtable+0xc)=GetItemType。
-    const bool skip = item->is_stackable() ||
-                      item->GetItemType() == 0x16 ||
-                      item->GetItemType() == 0x17;
-    if (skip)
+    if (item->is_stackable() || item->GetItemType() == 0x16 ||
+        item->GetItemType() == 0x17)
     {
         return;
     }
@@ -350,11 +368,12 @@ void CItemDropInDungeon::execute()
         return;
     }
     CParty* party = static_cast<CParty*>(user->GetParty());
-    if (party == 0)
+    // ORIG party==0 的 `je` 直落 end（无 nop 岛，+0xc5）⇒ 正向包裹而非早返。
+    if (party != 0)
     {
-        return;
+        party->drop_item_gm(
+            user, static_cast<unsigned int>(((const GmDFld<int>*)this)->f08));
     }
-    party->drop_item_gm(user, static_cast<unsigned int>(reqIdx));
 }
 
 // ===========================================================================
@@ -389,19 +408,12 @@ void CInGameEventSetDay::execute()
 
 namespace {
 
-// ORIG 真实布局镜像 GmDID（见上）；访问器保持 disp/lea 寻址形态。
-inline bool& indAllFlag(CIndependentDrop* self)
-{
-    return ((GmDID*)self)->all;
-}
-inline std::set<int>& indMonsterSet(CIndependentDrop* self)
-{
-    return ((GmDID*)self)->mons;
-}
-inline std::set<int>& indAiSet(CIndependentDrop* self)
-{
-    return ((GmDID*)self)->ais;
-}
+// b28d-solo-GmCmds_D：P49 —— -O0 下 inline 访问器仍发真实 call 符号
+// （p167 EXTRA：indMonsterSet×5/indAiSet×5/indAllFlag×2，ORIG 无）⇒ 改宏，
+// 零 call 且寻址形与 ORIG 的 disp 访问一致。
+#define GMD_IND_ALL(p)  (((GmDID*)(p))->all)
+#define GMD_IND_MONS(p) (((GmDID*)(p))->mons)
+#define GMD_IND_AIS(p)  (((GmDID*)(p))->ais)
 
 } // namespace
 
@@ -419,6 +431,13 @@ void CIndependentDrop::parse()
 }
 
 // ORIG execute 0x084b0b4e。
+// 【b28d-solo-GmCmds_D 判词 N82/N78/P215】p167：MISSING 0 / EXTRA 1
+// （vector<stMonsterIndependentDrop_t>::C1Ev，P215：ORIG 4.1 对空默认 ctor 展开为
+// 内联三指针清零，4.4 恒发 call）；gap=-5（616 vs 621）。语义闭合：4 个缓冲清零
+// 按 ORIG 逐 buffer 形复现（lineBuf/chatMsg 简单 rep stos、content call memset、
+// fileName 慢路）；hash_map/set/list/vector 迭代器 cv+后置增量、P183 去
+// `it->second`/`getMonsterScript` 缓存、P49 宏化访问器均已归位。残余为 4.4 槽复用
+// vs 4.1 独立槽的全帧槽号错位（N82）与 N78/P215 形差，封顶。
 void CIndependentDrop::execute()
 {
     CUser* user = GetUser();
@@ -438,73 +457,78 @@ void CIndependentDrop::execute()
         return;
     }
 
-    char lineBuf[0x100];                                     // -0x508 sprintf 行缓冲
-    memset(lineBuf, 0, sizeof(lineBuf));
+    // ORIG 逐 buffer 形不同（0x084b0bb6/0x084b0be6/0x084b0bf1/0x084b0c40）：
+    // lineBuf/chatMsg 对齐 ⇒ 简单 rep stos（`={0}`）；content 95000B ⇒ call
+    // memset；fileName[0x1e] 非对齐 ⇒ 内联慢路（P312）。
+    char lineBuf[0x100] = {0};                               // -0x508 sprintf 行缓冲
     char content[95000];                                     // auStack_17c24 输出累计缓冲
     memset(content, 0, sizeof(content));
-    char fileName[0x1e];                                     // -0xc6
-    memset(fileName, 0, sizeof(fileName));
-    char chatMsg[0x100];                                     // -0x908
-    memset(chatMsg, 0, sizeof(chatMsg));
+    char fileName[0x1e] = {0};                               // -0xc6
+    char chatMsg[0x100] = {0};                               // -0x908
 
-    indMonsterSet(this).clear();
-    indAiSet(this).clear();
+    GMD_IND_MONS(this).clear();
+    GMD_IND_AIS(this).clear();
 
-    if (!indAllFlag(this))
+    if (!GMD_IND_ALL(this))
     {
         // 当前副本当前地图：roleType<4 → 普通怪集，4..8 → AI 集合。
         CBattle_Field* field =
             &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField;  // ORIG 内嵌 CBattle_Field
         MapInfo* curMap = field->GetCurrentMapInfo();        // ORIG 0x822cbcc
         for (std::map<int, map_monster>::iterator it = curMap->m_monsterMap.begin();
-             it != curMap->m_monsterMap.end(); ++it)
+             it != curMap->m_monsterMap.end(); it++)
         {
             if (it->second.m_roleType < 4)
             {
-                indMonsterSet(this).insert(it->second.m_mobIndex);
+                GMD_IND_MONS(this).insert(it->second.m_mobIndex);
             }
             else if (it->second.m_roleType < 9)
             {
-                indAiSet(this).insert(it->second.m_mobIndex);
+                GMD_IND_AIS(this).insert(it->second.m_mobIndex);
             }
         }
     }
     else
     {
         // 全地图收集属于本副本的所有普通怪/AI idx。
-        CMapList* mapList = G_CDataManager()->m_mapList->GetMapList(); // ORIG this=datamgr+4
+        // ORIG 调 hash_map::begin() const / end() const ⇒ 原码经 const 指针访问。
+        const CMapList* mapList =
+            G_CDataManager()->m_mapList->GetMapList();       // ORIG this=datamgr+4
         const int di = dungeon->get_index();                 // ORIG CDungeon::get_index
         for (__gnu_cxx::hash_map<int, CMap*>::const_iterator it =
                  mapList->m_mainMap.begin();
-             it != mapList->m_mainMap.end(); ++it)
+             it != mapList->m_mainMap.end(); it++)
         {
-            CMap* map = it->second;
-            std::list<int>* dungs = map->getDungeonLists();
-            if (std::find(dungs->begin(), dungs->end(), di) == dungs->end())
+            // ORIG 循环体 3 次独立 `it->second`（ptEv @0x084b0deb/0x084b0ea3/
+            // 0x084b0f63，P183 禁指针缓存）⇒ 逐处表达式直读，无 map 局部。
+            // ORIG list<int>::begin()/end() const + find<_List_const_iterator> ⇒
+            // dungs 经 const 指针访问；守卫用正极性 `!=`（P220，消 operator==）。
+            const std::list<int>* dungs = it->second->getDungeonLists();
+            if (std::find(dungs->begin(), dungs->end(), di) != dungs->end())
             {
-                continue;
-            }
-            std::list<_mapMonster> monsters = map->get_monster_list(); // 按值返回（ORIG sret）
-            for (std::list<_mapMonster>::iterator mit = monsters.begin();
-                 mit != monsters.end(); ++mit)
-            {
-                indMonsterSet(this).insert(mit->m_mobId);    // insert 取首 int
-            }
-            const std::vector<STAICharacterMapArrangeData>* ais =
-                map->getAICharacters();
-            for (std::vector<STAICharacterMapArrangeData>::const_iterator ait =
-                     ais->begin();
-                 ait != ais->end(); ++ait)
-            {
-                indAiSet(this).insert(ait->m_type);          // insert 取首 int
+                std::list<_mapMonster> monsters =
+                    it->second->get_monster_list();          // 按值返回（ORIG sret）
+                for (std::list<_mapMonster>::iterator mit = monsters.begin();
+                     mit != monsters.end(); mit++)
+                {
+                    GMD_IND_MONS(this).insert(mit->m_mobId); // insert 取首 int
+                }
+                const std::vector<STAICharacterMapArrangeData>* ais =
+                    it->second->getAICharacters();
+                for (std::vector<STAICharacterMapArrangeData>::const_iterator ait =
+                         ais->begin();
+                     ait != ais->end(); ait++)
+                {
+                    GMD_IND_AIS(this).insert(ait->m_type);   // insert 取首 int
+                }
             }
         }
     }
 
     // ---- 普通怪独立掉落输出（script+0x3ac 表拷贝逐条 ResultToStr）----
     int count = 0;                                           // -0x34
-    for (std::set<int>::const_iterator sit = indMonsterSet(this).begin();
-         sit != indMonsterSet(this).end(); ++sit)
+    for (std::set<int>::const_iterator sit = GMD_IND_MONS(this).begin();
+         sit != GMD_IND_MONS(this).end(); sit++)
     {
         CMonster* monster =
             static_cast<CMonster*>(G_CDataManager()->find_monster(*sit));
@@ -512,12 +536,16 @@ void CIndependentDrop::execute()
         {
             continue;
         }
-        STMonsterScript* script = static_cast<STMonsterScript*>(
-            monster->getMonsterScript());
-        std::vector<stMonsterIndependentDrop_t> drops(script->m_independentDrops);
+        // ORIG 两次独立 `monster->getMonsterScript()`（0x084b10eb/0x084b1126，
+        // P0/P183 无 script 局部缓存）。
+        std::vector<stMonsterIndependentDrop_t> drops(
+            static_cast<STMonsterScript*>(monster->getMonsterScript())
+                ->m_independentDrops);
         if (!drops.empty())
         {
-            sprintf(lineBuf, "%d\t%d\t%s\n", *sit, 0, script->m_name.c_str());
+            sprintf(lineBuf, "%d\t%d\t%s\n", *sit, 0,
+                    static_cast<STMonsterScript*>(monster->getMonsterScript())
+                        ->m_name.c_str());
             strcat(content, lineBuf);
             GmD_CIndependentDrop_ResultToStr(this, drops, content);
             ++count;
@@ -525,8 +553,8 @@ void CIndependentDrop::execute()
     }
 
     // ---- AI 角色独立掉落输出 ----
-    for (std::set<int>::const_iterator sit = indAiSet(this).begin();
-         sit != indAiSet(this).end(); ++sit)
+    for (std::set<int>::const_iterator sit = GMD_IND_AIS(this).begin();
+         sit != GMD_IND_AIS(this).end(); sit++)
     {
         CAICharacter* ai = G_CDataManager()->m_aiCharacterList->get(// ORIG datamgr+0x869c
             static_cast<unsigned int>(*sit));
@@ -546,7 +574,7 @@ void CIndependentDrop::execute()
         }
     }
 
-    if (indAllFlag(this))
+    if (GMD_IND_ALL(this))
     {
         sprintf(fileName, "item_indepedent_drop_all_%s.txt",
                 dungeon->GetDungeonName());
@@ -587,6 +615,8 @@ void CIndependentDropByForce::parse()
 }
 
 // ORIG execute 0x084b1fda：回显开关状态并写入发起者 setForceDropFlag。
+// 【b28d-solo-GmCmds_D 判词 AE】p167 CLEAR；字段 bool 视图 + 无 flag 槽表达式直读
+// （P0/P73）、fall-through=on 块序（P47）已按 ORIG 复现。
 void CIndependentDropByForce::execute()
 {
     CUser* user = GetUser();
@@ -594,16 +624,16 @@ void CIndependentDropByForce::execute()
     {
         return;
     }
-    const unsigned char flag =
-        ((const GmDFld<unsigned char>*)this)->f08;
+    // b28d-solo-GmCmds_D：ORIG 无 flag 槽（`movzbl 0x8(%eax),%eax; test %al,%al;
+    // je <off>`）⇒ 表达式直读（P0）；块序 fall-through=on（P47/P191）。
     std::string msg;                                          // local_14
-    if (flag == 0)
+    if (((const GmDFld<bool>*)this)->f08)
     {
-        msg = "independent drop item 100% off";
+        msg = "independent drop item 100% on";
     }
     else
     {
-        msg = "independent drop item 100% on";
+        msg = "independent drop item 100% off";
     }
     PacketGuard packet;                                       // -0x1c
     G_GameWorld()->make_packet_chat_msg(packet, user,
@@ -611,7 +641,7 @@ void CIndependentDropByForce::execute()
                                         static_cast<int>(msg.length()), 2,
                                         static_cast<ENUM_NOTIPACKET>(0xc));
     user->Send(packet);
-    user->setForceDropFlag(flag != 0);
+    user->setForceDropFlag(((const GmDFld<bool>*)this)->f08);
 }
 
 // ===========================================================================
@@ -673,9 +703,10 @@ void CHeroMissionCommand::parse()
 
 // ORIG execute 0x084b3e5e："set"→processMission，"reset"→setEventData("")，
 // 最后统一 sendMissionData 回发任务数据。
-// 【b28 判词 N18a】残差 2 处 = m_field10/m_field12 读取后 ORIG 两段
-// `mov 0x10(%eax),%eax; mov %eax,%esi`（4.1 冗余 regmove，4.4 恒折单段直落，
-// N18a 在册不可造），余含 P48 三独立 Get() 均逐条相等。
+// 【b28d-solo-GmCmds_D 判词 AE】旧 N18a 判词作废：ORIG 两处
+// `mov 0x10/0xc(%eax),%eax; mov %eax,%esi/%ebx` 两段装载经「enum 字段视图 +
+// 裸 register 局部」复现（P254 档③：4.1 对 enum 字段保留 eax→callee-saved 中转；
+// 4.4 对 unsigned 字段恒折单段）。探针 /tmp/b28d_gmd/p6.cpp g10 全等。
 void CHeroMissionCommand::execute()
 {
     CUser* user = GetUser();
@@ -684,8 +715,13 @@ void CHeroMissionCommand::execute()
     // 入 callee-saved 跨 Get() 保活（P87 形），再 call Get 作 receiver。
     if (m_str0 == "set")
     {
-        register unsigned int param = m_param;
-        register unsigned int no = m_missionNo;
+        // b28d-solo-GmCmds_D：ORIG 两处 `mov 0x10/0xc(%eax),%eax; mov %eax,%esi/%ebx`
+        // 两段装载（4.1 对 enum 字段保留 eax→callee-saved 中转）⇒ 经 enum 字段
+        // 视图 + 裸 register 局部复现（P254/P231；探针 /tmp/b28d_gmd/p6.cpp g10 全等）。
+        register unsigned int param = static_cast<unsigned int>(
+            ((const GmDHeroMissionCmdView*)this)->param);
+        register unsigned int no = static_cast<unsigned int>(
+            ((const GmDHeroMissionCmdView*)this)->no);
         ARAD::Singleton<HeroMissionEvent>::Get()->processMission(
             user, static_cast<HeroMissionCondition::MissionNo::T>(no), param);
     }
@@ -704,19 +740,24 @@ void CHeroMissionCommand::execute()
 
 // ORIG ResultToStr 0x084b165c：逐条拷贝 stMonsterIndependentDrop_t，
 // 按 copy+0x2c（m_rate[10] 主掉率）非 0 决定 PrintItemDropList 详细模式。
+// 【b28d-solo-GmCmds_D 判词 AE】p167 CLEAR（11=11）：循环前缓存 begin/end（P13）、
+// `else if (copy.m_rate[10] != 0)` 二次 test/je（P184 死块照抄）均按 ORIG 复现。
 void GmD_CIndependentDrop_ResultToStr(
     CIndependentDrop* self,
     const std::vector<stMonsterIndependentDrop_t>& drops, char* out)
 {
-    for (std::vector<stMonsterIndependentDrop_t>::const_iterator it = drops.begin();
-         it != drops.end(); ++it)
+    // b28d-solo-GmCmds_D：ORIG 在循环前一次性求值 begin(-0xc)/end(-0x10)（P13
+    // end 缓存），4.4 对 `it != drops.end()` 恒每次循环重调 end() ⇒ 手动缓存 end。
+    std::vector<stMonsterIndependentDrop_t>::const_iterator it = drops.begin();
+    std::vector<stMonsterIndependentDrop_t>::const_iterator last = drops.end();
+    for (; it != last; ++it)
     {
         stMonsterIndependentDrop_t copy(*it);                // ORIG copy ctor 0x8376bb2
         if (copy.m_rate[10] == 0)
         {
             GmD_CIndependentDrop_PrintItemDropList(self, copy, out, false);
         }
-        else
+        else if (copy.m_rate[10] != 0)                      // ORIG 二次 test/je（P184）
         {
             GmD_CIndependentDrop_PrintItemDropList(self, copy, out, true);
         }
@@ -724,20 +765,23 @@ void GmD_CIndependentDrop_ResultToStr(
 }
 
 // ORIG PrintItemDropList 0x084b1756：单条独立掉落统计文本追加到 out。
+// 【b28d-solo-GmCmds_D 判词 N78/N82/P167】`={0}` rep stos 替代 ORIG 的内联
+// memset 慢路（N78）；`if(!detail)` 反形（P168a②）、rate 第一次内联/第二次具名
+// float（P252）、内层 begin/end 缓存（P13）、segRate 内联均已按 ORIG 复现。
+// p167：EXTRA operator-> ×2 / MISSING operator* ×1（ORIG 单次 `*pit` + 内联 pair
+// 拷贝；改用 pair 局部虽 p167 CLEAR 但会丢 ORIG 存在的 operator-> 弱符号
+// 0x08193912 使 TU identical −1，故取当前形）。残差另含全帧槽号错位（N82）。
 void GmD_CIndependentDrop_PrintItemDropList(
     CIndependentDrop* self, const stMonsterIndependentDrop_t& drop,
     char* out, bool detail)
 {
     (void)self;
-    char lineBuf[0x400];                                     // -0x42c
-    memset(lineBuf, 0, sizeof(lineBuf));
+    // b28d-solo-GmCmds_D：ORIG 用内联 rep stos 清零（P214③/P253）⇒ `={0}` 形。
+    char lineBuf[0x400] = {0};                               // -0x42c
 
-    if (detail)
-    {
-        memcpy(lineBuf, kListDrop, 0xd);
-        strcat(out, lineBuf);
-    }
-    else
+    // ORIG `movzbl -0x43c,%eax; xor $1; test %al,%al; je <memcpy 块>`（P168a②）⇒
+    // 源码为 `if (!detail) { find } else { memcpy }`。
+    if (!detail)
     {
         CItem* item = G_CDataManager()->find_item(drop.m_itemIdx);
         if (item != 0)
@@ -745,6 +789,11 @@ void GmD_CIndependentDrop_PrintItemDropList(
             sprintf(lineBuf, "%d\t%s\n", drop.m_itemIdx, item->GetItemName());
             strcat(out, lineBuf);
         }
+    }
+    else
+    {
+        memcpy(lineBuf, kListDrop, 0xd);
+        strcat(out, lineBuf);
     }
 
     for (int i = 0; i < 5; ++i)
@@ -756,15 +805,19 @@ void GmD_CIndependentDrop_PrintItemDropList(
         sprintf(lineBuf, kDifficultyFmt, i);
         strcat(out, lineBuf);
 
-        const float rate =
-            static_cast<float>(drop.m_rate[i]) / 10000.0f;   // ORIG flds [0x8c81474]
-        sprintf(lineBuf, kDropRateFmt, static_cast<double>(rate));
+        // ORIG 第一次 rate 无 float 槽（fildl/flds/fdivrp/fstpl 直落实参）⇒ 内联
+        // 表达式；第二次 `fstps -0x14` 具名 float 局部供 4 次乘法（P252）。
+        sprintf(lineBuf, kDropRateFmt,
+                static_cast<double>(
+                    static_cast<float>(drop.m_rate[i]) / 10000.0f));
         strcat(out, lineBuf);
 
         sprintf(lineBuf, kTryCountFmt, drop.m_rate[5], drop.m_rate[6],
                 drop.m_rate[7], drop.m_rate[8]);
         strcat(out, lineBuf);
 
+        const float rate =
+            static_cast<float>(drop.m_rate[i]) / 10000.0f;   // ORIG fstps -0x14
         sprintf(lineBuf, kTotalDropRateFmt,
                 static_cast<double>(static_cast<float>(drop.m_rate[5]) * rate),
                 static_cast<double>(static_cast<float>(drop.m_rate[6]) * rate),
@@ -781,18 +834,22 @@ void GmD_CIndependentDrop_PrintItemDropList(
             strcat(out, lineBuf);
 
             int prevAcc = 0;                                 // -0x10
-            for (std::vector<std::pair<int, int> >::const_iterator pit =
-                     drop.m_pairList.begin();
-                 pit != drop.m_pairList.end(); ++pit)
+            // ORIG 循环前一次性求值 begin(-0x24)/end(-0x20)（P13）。
+            std::vector<std::pair<int, int> >::const_iterator pit =
+                drop.m_pairList.begin();
+            std::vector<std::pair<int, int> >::const_iterator pend =
+                drop.m_pairList.end();
+            for (; pit != pend; ++pit)
             {
                 const int itemId = pit->first;
                 const int acc = pit->second;
                 CItem* item = G_CDataManager()->find_item(itemId);
                 if (item != 0)
                 {
-                    const double segRate = static_cast<double>(
-                        static_cast<float>(acc - prevAcc) / 10000.0f);
-                    sprintf(lineBuf, "%d\t%f\t%s\n", itemId, segRate,
+                    // ORIG segRate 无槽（fildl/flds/fdivrp 直落 sprintf 实参）。
+                    sprintf(lineBuf, "%d\t%f\t%s\n", itemId,
+                            static_cast<double>(
+                                static_cast<float>(acc - prevAcc) / 10000.0f),
                             item->GetItemName());
                     strcat(out, lineBuf);
                     prevAcc = acc;

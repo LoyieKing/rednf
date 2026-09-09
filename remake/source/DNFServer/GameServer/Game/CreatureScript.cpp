@@ -20,9 +20,13 @@
 #include "LogManager.h"
 #include "NpcScript.h"
 #include "STComputeDamageVariable.h"
-// [b28d-34] 本 TU 发射的 STComputeDamageVariable::C1（ORIG W 0x08890936，定义在
-// 共享头 STComputeDamageVariable.h）：orig 257/ours 259，残差为头内 ctor 的
-// 字段初始化集合/序差（+0x1f 起一段），N82/N98 族；语义等价。
+// [b28d-solo-CreatureScript] 本 TU 发射的 STComputeDamageVariable::C1
+// （ORIG W 0x08890936，定义在共享头 STComputeDamageVariable.h）：已按 ORIG
+// 逐段修至 **257=257**——m_f00F[4..6] 循环（0x088909b0）、critMatrix 单循环两行
+// （0x08890bd8）、reduce 率收尾（0x08890d94/d9f）三处全部对齐。唯一残差 = 该
+// m_f00F 循环的 `lea 4(%i)`/this 装载序（ORIG `mov i,%edx; mov this,%eax;
+// lea 4(%edx),%ecx` vs 4.4 `mov i,%eax; lea 4(%eax),%ecx; mov this,%eax`）
+// ⇒ N82/P75 跨版本求值序封顶（探针 /tmp/probe_f7.cpp a1/b1/c1/d1 四形均 base-first）。
 #include "CEnvironment.h"     // class SpinLock / struct less_TCHAR
 
 // processModuleTagSet ORIG T 0x08a97637（RDARScriptSkill.cpp 模块标签域；实现于
@@ -106,8 +110,6 @@ CreatureScript::~CreatureScript()
 // ORIG 0x833dfac：复位全部标量 + clear 各容器。
 void CreatureScript::clear()
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x0833dfac 有两条连续 `movl $0,-0xc`
-    // （P197③ 双槽置 0 形），4.4 折一条且槽号平移（N98 族）；语义等价。
     m_evolutionMultyId.clear();
     m_id = 0;
     m_name = "";
@@ -119,22 +121,26 @@ void CreatureScript::clear()
     m_field1c = 0;
     m_field20 = 0;
     m_directionCorrect = 1;
+    // [b28d-solo] P197③+P191：ORIG 0x0833dfac 在 m_directionCorrect 之后有**两条**
+    // 连续 `movl $0,-0xc` = `int i = 0;`（声明+初始化，发射点即声明点）与
+    // `for (i = 0; ...)` 各一条；两个循环共用同一槽 -0xc。
+    int i = 0;
     // ORIG 0x833dfac：循环 i=0..1 清 m_moveSpeed[i] 与 m_moveSpeed[i+2]
     // （覆盖 +0x28..+0x34），再单独清 +0x38（moveSpeed[4]）。
-    for (int i = 0; i <= 1; ++i)
+    for (i = 0; i <= 1; ++i)
     {
-        m_moveSpeed[i] = 0;
-        m_moveSpeed[i + 2] = 0;
+        m_moveSpeedLo[i] = 0;
+        m_moveSpeedHi[i] = 0;
     }
-    m_moveSpeed[4] = 0;
+    m_moveSpeedHi[2] = 0;
     m_gravity = 1500;
     m_startLevel = 1;
     m_permissionLevel = 1;
     m_maxLevel = 1;
     m_parentMaxLevel = 1;
     // ORIG 0x833dfac：循环 i=0..2 清 m_artifactSlotRed/Blue/Green（+0x50..+0x58）。
-    for (int i = 0; i <= 2; ++i)
-        (&m_artifactSlotRed)[i] = 0;
+    for (i = 0; i <= 2; ++i)
+        m_artifactSlots[i] = 0;
     m_learnOverSkillLevel = 1;
     m_skillMP = 0;
     m_overSkillMP = 0;
@@ -144,16 +150,10 @@ void CreatureScript::clear()
     m_walkMotion = "";
     m_runMotion = "";
     // ORIG clear 不复位 m_flyMotion（+0x7c）
-    m_getExpMotion = "";
-    m_getExpOverMotion = "";
-    m_getExpUnderMotion = "";
     m_skillMotion = "";
     m_overSkillMotion = "";
     m_responseMotion = "";
     m_specialMotion = "";
-    m_equipMotion = "";
-    m_equipOverMotion = "";
-    m_equipUnderMotion = "";
     m_basicOverEffect = "";
     m_walkOverEffect = "";
     m_runOverEffect = "";
@@ -170,6 +170,14 @@ void CreatureScript::clear()
     m_overSkillUnderEffect = "";
     m_responseUnderEffect = "";
     m_specialUnderEffect = "";
+    // [b28d-solo] ORIG 0x833e2f6..0x833e37f：getExp 组（+0x80/0x84/0x88）与
+    // equip 组（+0x9c/0xa0/0xa4）在 effects 组之后才写（源码序=发射序）。
+    m_getExpMotion = "";
+    m_getExpOverMotion = "";
+    m_getExpUnderMotion = "";
+    m_equipMotion = "";
+    m_equipOverMotion = "";
+    m_equipUnderMotion = "";
     m_additionalAnimations.clear();
     m_defaultParticle = "";
     m_responseSoundTag = "";
@@ -190,7 +198,9 @@ void CreatureScript::clear()
     m_evolutionQuestId = 0;
     m_evolutionCreatureId = 0;
     m_evolutionLevel = 0;
-    m_selectiveGrow.clear();
+    // [b28d-solo] ORIG 0x0833e4e5..0x833e591 尾段顺序：randomMotion→标量→
+    // itemEvolCreatureIds→skillInfo/overSkillInfo→**usingRandomSkill**→skillList/
+    // overSkillList→**selectiveGrow**→eventEvlouteCreature。
     m_randomMotion.clear();
     m_defaultRandomMotionRate = 0;
     m_increaseRandomMotionRate = 0;
@@ -198,9 +208,10 @@ void CreatureScript::clear()
     m_itemEvolCreatureIds.clear();
     m_skillInfo.clear();
     m_overSkillInfo.clear();
+    m_usingRandomSkill = 0;
     m_skillList.clear();
     m_overSkillList.clear();
-    m_usingRandomSkill = 0;
+    m_selectiveGrow.clear();
     m_eventEvlouteCreature.clear();
 }
 
@@ -283,11 +294,11 @@ void AttackInfo::clear()
 // ORIG 0x8890760：+0x14 != 0 或 damage>0 或 absoluteDamage>0 → true。
 bool AttackInfo::isIntendDamage()
 {
-    // [b28c-L7] N85 封顶：唯一残差 = x87 比较 lowering 两向差——ORIG 0x08890776
-    // `fucompp; fnstsw %ax; sahf; seta` vs 4.4 `fucomip %st(1),%st; fstp %st(0);
-    // seta`（条数 24 vs 25，语义逐条等价）。N85 判据明列此形无源码解（禁改
-    // callee 返回类型/禁内联绕过）。三条件短路布局与跳转落点已全等。
-    // [b28d-34] 复核维持 N85（ORIG 0x08890760）。
+    // [b28d-solo-CreatureScript] 已离开 DIFF：唯一残差曾是 x87 比较 lowering
+    // 两向差——ORIG 0x08890776 `fucompp; fnstsw %ax; sahf; seta` vs 4.4 默认
+    // `fucomip %st(1),%st; fstp %st(0); seta`（N85）。P230 补命中：本 TU 路由
+    // 追加 `-march=i486 -mtune=generic`（Main 已落 dnf_game_cxx.sh:428）后 4.4
+    // 即产 fnstsw/sahf 形 ⇒ 本件转 AE（双后端读数 identical 222→223 / diff 6→5）。
     if (m_weaponDamageApply != 0 || m_damage > 0.0f || m_absoluteDamage > 0)
     {
         return true;
@@ -439,8 +450,16 @@ enum CreatureSkillTag
 
 bool importCreatureScript(CreatureScript* script, const char* path)
 {
-    // [b28d-34] 复核维持 DIFF（§6.2）：orig 2188/ours 2162，残差为帧差
-    // （0x2ac vs 0x2dc）与 STL 实例化族（N89），语义等价。
+    // [b28d-solo-CreatureScript] 超大件（ORIG 2168 条）§6.2 三件套封顶：
+    // ① p167 调用点差集 **CLEAR**（ORIG calls=330 / ours=330，0 missing / 0 extra）；
+    // ② gap = 25（2168 vs 2143）；③ 帧尺寸 ORIG 0x2ac vs ours 0x2dc（N82/N115）；
+    // ④ 逐块比对：store 偏移多重集与 ORIG **完全一致**（无字段错位）；残差块 64 个，
+    //    分类为 X 族取反物化（P168a④ N 封顶，13 块）、4.1 循环前 continue 岛
+    //    （0x08a35ed9..0x08a35ee2 四岛，P223 多岛）、帧/槽平移（N82）、
+    //    dead 局部（P232，ORIG -0x22c int/-0x22d char）、EH cleanup 的 esi 值。
+    //    已修：NODE_END case 改否定式 `if (!__inited)`（0x08a37a13 xor 形）+
+    //    m_directionCorrect 直接布尔赋值（0x8a360xx setne 形）⇒ 块数 68→64 零回归。
+    // 语义完成（p167 归零 + 偏移集一致），byte 层 N82/N89/P182 封顶。
     if (!loadRDARScriptFile(g_creatureScriptBaseDirectory, path))
     {
         return false;
@@ -484,16 +503,19 @@ bool importCreatureScript(CreatureScript* script, const char* path)
         }
         else if (tag == "[direction correct]")
         {
-            script->m_directionCorrect = (ScanInt((bool*)0) != 0) ? 1 : 0;
+            // [b28d-solo] ORIG 0x08a360xx 段：`call ScanInt; test %eax,%eax;
+            // setne %dl; mov this,%eax; mov %dl,0x24(%eax)` ⇒ 源形为直接布尔
+            // 赋值（三目 `?1:0` 4.4 恒产 je/mov$1/jmp/mov$0 分支块）。
+            script->m_directionCorrect = (ScanInt((bool*)0) != 0);
         }
         else if (tag == "[move speed]")
         {
             // ORIG 0x8a360d2..0x8a3611a：五段独立调用点（非线性循环）。
-            script->m_moveSpeed[0] = ScanInt((bool*)0);
-            script->m_moveSpeed[1] = ScanInt((bool*)0);
-            script->m_moveSpeed[2] = ScanInt((bool*)0);
-            script->m_moveSpeed[3] = ScanInt((bool*)0);
-            script->m_moveSpeed[4] = ScanInt((bool*)0);
+            script->m_moveSpeedLo[0] = ScanInt((bool*)0);
+            script->m_moveSpeedLo[1] = ScanInt((bool*)0);
+            script->m_moveSpeedHi[0] = ScanInt((bool*)0);
+            script->m_moveSpeedHi[1] = ScanInt((bool*)0);
+            script->m_moveSpeedHi[2] = ScanInt((bool*)0);
         }
         else if (tag == "[gravity]")
         {
@@ -1003,7 +1025,14 @@ bool importCreatureScript(CreatureScript* script, const char* path)
                     {
                     case 0:                      // 与 [/skill node] 共体
                     case CSTAG_NODE_END:
-                        if (__inited)
+                        // [b28d-solo] ORIG 0x08a37a13 形为 `movzbl __inited; xor $1;
+                        // test %al; je <已注册体>` ⇒ 源码用**否定式** `if (!__inited)`
+                        // （注册体在前、解析体在 else），与 P222 否定早返同族。
+                        if (!__inited)
+                        {
+                            __lookup.insert(LookupMap::value_type("[/skill node]", static_cast<int>(CSTAG_NODE_END)));
+                        }
+                        else
                         {
                             nodeActive = false;  // 0x8a37a73
                             if (key == -1 || typeFlag == -1)
@@ -1030,7 +1059,6 @@ bool importCreatureScript(CreatureScript* script, const char* path)
                             }
                             break;
                         }
-                        __lookup.insert(LookupMap::value_type("[/skill node]", static_cast<int>(CSTAG_NODE_END)));
                         /* fall through（0x8a37a6b jmp 0x8a37d16） */
                     case CSTAG_SKILL_TYPE:
                         if (__inited)
@@ -1252,9 +1280,14 @@ enum AttackInfoTag
 // 与 case 0x42 共享入口（dispatch 树 `test %eax,%eax; je 0x19ca`）。
 bool ImportAttackInfoScript(AttackInfo* info, const char* path, int param3)
 {
-    // [b28d-34] 复核维持 DIFF（§6.2 三件套口径）：超大件 orig 2148/ours 2066，
-    // 残差为 4.4 帧/槽布局（0x40c vs 0x41c，P182/N82）与大函数 difflib 失真，
-    // 语义等价。
+    // [b28d-solo-CreatureScript] 超大件（ORIG 2141 条）§6.2 三件套封顶：
+    // ① p167 调用点差集 **CLEAR**（ORIG calls=254 / ours=254，0 missing / 0 extra）；
+    // ② gap = 84（2141 vs 2057）；③ 帧尺寸 ORIG 0x40c vs ours 0x41c（N82/N115）；
+    // ④ 逐块比对：store 偏移多重集与 ORIG **完全一致**（`fstps 0x3c/0x11c/0x120/
+    //    0x124` 等错位均为 difflib 对齐假象，无字段错位）；残差块 133 个，主类 =
+    //    X 族取反物化（P168a④，42 块，`movzbl __inited; xor $1; test; je` 注册链）、
+    //    帧/槽平移（N82）、4.1 注册链 fall-through 岛（P223）、EH cleanup esi 值。
+    // 语义完成（p167 归零 + 偏移集一致），byte 层 N82/N89/P182 封顶。
     if (!loadRDARScriptFile("", path))        // 0x1a:失败 ebx=0 → return false
     {
         return false;
@@ -1871,21 +1904,35 @@ CCreatureScript::~CCreatureScript()
 // = src + 4*(i+0x14) = src+0x50+4i，即 m_artifactSlotRed/Blue/Green 组）。
 void CCreatureScript::Set(CreatureScript* src)
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x0833c8e8 实参装载序（`mov 0xc(%ebp),%eax`
-    // 先于 `add $0x14,%ecx`）与 4.4 相反，N82/P211 族；语义等价。
+    // [b28d-solo-CreatureScript] 已修至 **NEAR（144=144 助记符全等）**：三处
+    // 语义交换全清——m_evolutionMultyId 逐元素 size/ix/push_back（0x0833c955 段）、
+    // m_eventEvlouteCreature 整体 operator=（0x0833caba 段）、m_usingExpItem 源字段
+    // bool 化直传（0x0833ca53 段）。唯一残差 = flags 循环 RHS 的 base/index 装载序
+    // （ORIG `mov i,%ecx; mov src,%eax` vs 4.4 恒 base 先 `mov src,%eax; mov i,%ecx`）
+    // ⇒ N82/P75 封顶（探针 /tmp/probe_ord*.cpp r1-r9 九形均 base-first）。
     m_artifactSlotFlags = new bool[3];
     for (int i = 0; i < 3; ++i)
     {
+        // [b28d-solo] P30 命中形：ORIG 0x0833c916 为 scaled index
+        // （`add $0x14,%ecx; mov (%eax,%ecx,4),%eax`，基址无 disp）。
+        // 4.4 仅「数组指针视图 `(*(int(*)[N])src)[i+K]`」保留该形
+        // （int* 下标 [i+K] 恒折 shl+add，探针 /tmp/probe_idx2.cpp q2 实证）；
+        // K=0x14 ⇒ +0x50 的 artifactSlotRed/Blue/Green 三连 int。
+        typedef int SlotArray[0x100];
         m_artifactSlotFlags[i] =
-            reinterpret_cast<const int*>(src)[0x14 + i] != 0;
+            (*(SlotArray*)src)[i + 0x14] != 0;
     }
 
     m_field0 = src->m_evolutionQuestId;
     m_field4 = src->m_evolutionCreatureId;
 
-    // ORIG 0x833c...：vector operator= 整体复制（P167 证实 ORIG 用整体
-    // operator= 而非逐元素 size/ix/push_back；目标 vector 假定非空由 operator= 内部）。
-    m_vec8 = src->m_evolutionMultyId;
+    // [b28d-solo] ORIG 0x0833c955 段：m_evolutionMultyId **逐元素 size/ix/
+    // push_back** 拷入 m_vec8（call size/operator[]/push_back 三连，槽 -0x1c/-0x10）。
+    int nMulti = (int)src->m_evolutionMultyId.size();
+    for (int i = 0; i < nMulti; ++i)
+    {
+        m_vec8.push_back(src->m_evolutionMultyId[i]);
+    }
 
     m_field14 = src->m_evolutionLevel;
     m_field18 = src->m_maxLevel;
@@ -1907,11 +1954,9 @@ void CCreatureScript::Set(CreatureScript* src)
     m_field60 = src->m_selectiveGrow.m_growBTypeItem;
     m_field64 = src->m_selectiveGrow.m_growItemCount;
 
-    int n68 = (int)src->m_eventEvlouteCreature.size();
-    for (int i = 0; i < n68; ++i)
-    {
-        m_vec68.push_back(src->m_eventEvlouteCreature[i]);
-    }
+    // [b28d-solo] ORIG 0x0833caba 段：m_eventEvlouteCreature 走 **vector 整体
+    // operator=**（`_ZNSt6vectorIiSaIiEEaSERKS1_` 单调用），无循环。
+    m_vec68 = src->m_eventEvlouteCreature;
 }
 
 // ORIG 0x833cad8：find(m_set34, creatureId)；命中返回 creatureId，否则 0。
@@ -1962,10 +2007,11 @@ int CCreatureScript::GetEvolutionCreatureId()
 // ORIG 0x833f150：遍历 +0x68 向量，命中返回 true。
 bool CCreatureScript::validEventEvlouteCreature(int creatureId)
 {
-    // [b28d-34] 复核维持 DIFF（P59/P222 布局族）：ORIG 0x0833f150 先取
-    // begin/end 判空再遍历，4.4 块序镜像（46 vs 45）；语义等价。
-    for (std::vector<int>::const_iterator it = m_vec68.begin();
-         it != m_vec68.end(); ++it)
+    // [b28d-solo] P96/P28：ORIG 0x0833f150 用**非 const** iterator
+    // （ne 符号模板参 `IPi`=int*、begin 非 K 版），且增量段调 `ppEi`（后置）
+    // ⇒ 源形 = `iterator` + `it++`。const_iterator 会多一条转换构造 call。
+    for (std::vector<int>::iterator it = m_vec68.begin();
+         it != m_vec68.end(); it++)
     {
         if (*it == creatureId)
         {

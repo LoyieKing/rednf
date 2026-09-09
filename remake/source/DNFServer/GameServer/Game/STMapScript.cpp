@@ -138,8 +138,13 @@ static const char* const DRAW_LAYER_NAMES[7] = {
 // ScanChampionFeatures / WriteChampionFeatures —— ORIG 0x089e6cf4 / 0x089e6e94
 // ===========================================================================
 
+// [b28d-solo-STMapScript] _Z20ScanChampionFeaturesiR15STAssignMonster：AE（离开 DIFF/NEAR）。
+// 修法：补 ORIG 具名临时 feature@-0x14（P0 值先物化）并置于 tok 之前，复现槽序
+// -0x18(tok)/-0x14(feature)/-0x10(i)/-0xc(k)。p167 残 1：ORIG push_back(int&&)（4.1 视同型
+// cast 为 prvalue），4.4 对 (int)feature 多一条 mov ⇒ 保留 lvalue 形；int 拷贝/移动等价（N）。
 void ScanChampionFeatures(int count, STAssignMonster& monster)
 {
+    int feature;                       // ORIG -0x14(%ebp)：值先物化再传址（P0）
     std::string tok;
     for (int i = 0; i < count; ++i)
     {
@@ -148,7 +153,10 @@ void ScanChampionFeatures(int count, STAssignMonster& monster)
         {
             if (tok == CHAMPION_FEATURE_NAME[CHAMPION_FEATURE_LIST[k] & 0xff])
             {
-                monster.m_vec28.push_back(CHAMPION_FEATURE_LIST[k]);
+                feature = CHAMPION_FEATURE_LIST[k];   // ORIG 0x089e6d4d-0x089e6d6a
+                // ORIG 调 push_back(int&&)（4.1 把同类型 cast 视作 prvalue）；
+                // 4.4 对 (int)feature 产额外 mov ⇒ 保留 lvalue 形（拷贝/移动对 int 等价）。
+                monster.m_vec28.push_back(feature);
                 break;
             }
         }
@@ -169,31 +177,47 @@ void WriteChampionFeatures(FILE* file, STAssignMonster& monster)
 // （STMapScript Export 段使用的 ORIG 静态；逐条转写）
 // ===========================================================================
 
+// [b28d-solo-STMapScript] _Z16getDrawLayerName14ENUM_DRAWLAYER：AE（离开 DIFF）。
+// 修法：switch→线性 if/else-if 链（P17：ORIG 0x088be212 为 cmpl $K,0x8(%ebp);jne 链，
+// 非跳表）。p167 CLEAR 8/8。
 const char* getDrawLayerName(ENUM_DRAWLAYER drawLayer)
 {
     static char buffer[0x10];   // ORIG _ZZ16getDrawLayerName14ENUM_DRAWLAYERE6buffer 0x0949b4d0
-    switch (drawLayer)
-    {
-    case DRAWLAYER_CLOSE:       strncpy(buffer, "[close]", 0x10); break;
-    case DRAWLAYER_NORMAL:      strncpy(buffer, "[normal]", 0x10); break;
-    case DRAWLAYER_BOTTOM:      strncpy(buffer, "[bottom]", 0x10); break;
-    case DRAWLAYER_CLOSEBACK:   strncpy(buffer, "[closeback]", 0x10); break;
-    case DRAWLAYER_MIDDLEBACK:  strncpy(buffer, "[middleback]", 0x10); break;
-    case DRAWLAYER_DISTANTBACK: strncpy(buffer, "[distantback]", 0x10); break;
-    case DRAWLAYER_COVER:       strncpy(buffer, "[cover]", 0x10); break;
-    default:                    strncpy(buffer, "[normal]", 0x10); break; // ORIG 缺省 → "[normal]"
-    }
+    // ORIG 0x088be212 为线性比较链（cmpl $K,0x8(%ebp); jne next），非 switch
+    // 跳表（P17）：逐项 if/else-if 转写。
+    if (drawLayer == DRAWLAYER_CLOSE)
+        strncpy(buffer, "[close]", 0x10);
+    else if (drawLayer == DRAWLAYER_NORMAL)
+        strncpy(buffer, "[normal]", 0x10);
+    else if (drawLayer == DRAWLAYER_BOTTOM)
+        strncpy(buffer, "[bottom]", 0x10);
+    else if (drawLayer == DRAWLAYER_CLOSEBACK)
+        strncpy(buffer, "[closeback]", 0x10);
+    else if (drawLayer == DRAWLAYER_MIDDLEBACK)
+        strncpy(buffer, "[middleback]", 0x10);
+    else if (drawLayer == DRAWLAYER_DISTANTBACK)
+        strncpy(buffer, "[distantback]", 0x10);
+    else if (drawLayer == DRAWLAYER_COVER)
+        strncpy(buffer, "[cover]", 0x10);
+    else
+        strncpy(buffer, "[normal]", 0x10);   // ORIG 缺省 → "[normal]"
     return buffer;
 }
 
+// [b28d-solo-STMapScript] _Z19convertBinaryToTextPKc：AE（离开 DIFF）。
+// 修法：声明序 fp 先于 count（ORIG -0x14/-0x10）、for(;;)+两个 break（复现 ORIG 0x088be085/
+// 0x088be092 双 nop 岛）、fwrite 实参序 (buf,count,1,fp)。p167 CLEAR 8/8。
 void convertBinaryToText(const char* path)
 {
     static char buffer[0x5b400];   // ORIG _ZZ19convertBinaryToTextPKcE6buffer 0x0949b4e0
+    FILE* fp = fopen(toMbcs(path), "rb");                 // -0x14(%ebp)（ORIG 声明序 fp 先）
     int count = 0;                                        // -0x10(%ebp)
-    FILE* fp = fopen(toMbcs(path), "rb");                 // 0x08e086ac
-    for (int c = fgetc(fp); c != -1; c = fgetc(fp))       // -0xc(%ebp)
+    for (;;)                                              // ORIG 0x088be04c：循环头在体内
     {
-        if (count > 0x5b3ff)                              // 缓冲上限
+        int c = fgetc(fp);                                // -0xc(%ebp)
+        if (c == -1)                                      // 0x088be085 岛
+            break;
+        if (count > 0x5b3ff)                              // 缓冲上限（0x088be092 岛）
             break;
         if (c == '\n')
         {
@@ -205,7 +229,7 @@ void convertBinaryToText(const char* path)
     }
     fclose(fp);
     fp = fopen(toMbcs(path), "wb");                       // 0x08e086af
-    fwrite(buffer, 1, count, fp);
+    fwrite(buffer, count, 1, fp);                         // ORIG 实参序 (buf,count,1,fp)
     fclose(fp);
 }
 
@@ -214,6 +238,11 @@ void convertBinaryToText(const char* path)
 // action 表扫描；"[hellparty]" 分支联动地狱派对单例与组序池）
 // ===========================================================================
 
+// [b28d-solo-STMapScript] _Z24procSpecialPassiveObject…：p167 CLEAR 64/64（语义无缺口）；
+// verdict DIFF 残差＝N82 槽/寄存器分配（大函数帧伪影，P182）。
+// 修法：①make_pair 键用 int 形参 cnt（ORIG 0x089e9db8 make_pair<int&,…>，勿收窄 ushort）；
+// ②pool insert 改 std::make_pair(fileIdx,localOrders)（ORIG 走 pair&& move ctor）；
+// ③`tok == "[hellparty]"` 正极性包裹（P222，ORIG _ZSteqIcSt…）；④rate 累加改 `+=`。
 bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,
                               STAssignSpecialPassiveObj& owner, int fileIdx)
 {
@@ -255,8 +284,9 @@ bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,
             action.m_type = 3;
             continue;
         }
-        if (tok != "[hellparty]")                         // 0x08e1c0f4
-            continue;
+        // P222：ORIG 用正极性 `tok == "[hellparty]"` 包裹（p167 MISSING _ZSteqIcSt…）
+        if (tok == "[hellparty]")                         // 0x08e1c0f4
+        {
 
         // ---- [hellparty] 分支（0x89e7ae3..）----
         std::map<unsigned short, STHellPartyGroupOrder> localOrders;   // -0xf0
@@ -309,9 +339,10 @@ bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,
                 localOrders.find(static_cast<unsigned short>(cnt));
             if (mit != localOrders.end())                 // 0x89e7d64 前分支
             {
+                // P167：ORIG 调 _Rb_tree_iterator::ptEv（operator->）×2
                 mit->second.m_rates.push_back(orderRate);
-                mit->second.m_rateByDifficulty[diffSlot] = static_cast<unsigned short>(
-                    mit->second.m_rateByDifficulty[diffSlot] + rate);
+                mit->second.m_rateByDifficulty[diffSlot] +=
+                    static_cast<unsigned short>(rate);
             }
                                             // 0x89e7d64 未命中分支
             else
@@ -320,14 +351,15 @@ bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,
                 newOrder.m_rates.push_back(orderRate);
                 newOrder.m_rateByDifficulty[diffSlot] = static_cast<unsigned short>(
                     newOrder.m_rateByDifficulty[diffSlot] + rate);
-                localOrders.insert(std::make_pair(
-                    static_cast<unsigned short>(cnt), newOrder));
+                // P167：ORIG 调 make_pair<int&, STHellPartyGroupOrder&>
+                //（0x089e9db8）；键必须是 int 形参 cnt，勿加 (unsigned short) 收窄。
+                localOrders.insert(std::make_pair(cnt, newOrder));
             }
         }
 
         // 组序表入池（key=fileIdx；ORIG make_pair(0x10(%ebp), localOrders)）
         Get_instance_groupOrder_map_pool()->insert(
-            HellPartyGroupOrderMapPool::value_type(fileIdx, localOrders));
+            std::make_pair(fileIdx, localOrders));   // P167/P315：ORIG 走 move ctor（pair&&）
 
         // 大顶队列去重排空：每个唯一非零 top 处理一轮（0x89e7f31..）
         while (!groupQueue.empty())
@@ -364,6 +396,8 @@ bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,
             slotIdx = 0;
         }
         return false;                                     // 89e8097 ebx=0
+        }
+        continue;
     }
     return true;                                          // 89e80da ebx=1
 }
@@ -698,6 +732,10 @@ STMapScript::STMapScript()                  // ORIG C1 0x0836cc94
     Clear();
 }
 
+// [b28d-solo-STMapScript] _ZN11STMapScriptC1ERKS_：p167 CLEAR 95/95（语义无缺口）；
+// verdict DIFF 残差＝N90 数组成员块搬移分块启发式（ORIG 5+4+1+1 组间重载基址，4.4 单次连发）。
+// 修法：m_pvpStartArea 进初始化列表（复现 ORIG 0x0837eb82 倒计数 C1ERKS_×5；原为
+// C1Ev×5+aSERKS_×5）。
 STMapScript::STMapScript(const STMapScript& other)      // ORIG C1 0x0837e698
     : m_index(other.m_index),                           // *param_1 = *param_2
       m_list4(other.m_list4),                           // list<int> copy
@@ -739,6 +777,7 @@ STMapScript::STMapScript(const STMapScript& other)      // ORIG C1 0x0837e698
       m_str1b0(other.m_str1b0),                         // string@0x6c(0x1b0)
       m_playerCountMin(other.m_playerCountMin),         // param_1[0x6d]/[0x6e] 成对
       m_playerCountMax(other.m_playerCountMax),
+      m_pvpStartArea(other.m_pvpStartArea),             // MapArea[5]@0x1bc（ORIG C1ERKS_×5 倒计数）
             m_pvpByPartySlot(other.m_pvpByPartySlot),         // byte @0x92(0x248)
       m_keepStateAxisX(other.m_keepStateAxisX),         // u16 @0x249 成对
       m_keepStateAxisY(other.m_keepStateAxisY),
@@ -792,14 +831,18 @@ STMapScript::STMapScript(const STMapScript& other)      // ORIG C1 0x0837e698
         m_pathgatePos[i] = other.m_pathgatePos[i];
         m_pathgateRange[i] = other.m_pathgateRange[i];
     }
-    for (int i = 0; i < 5; ++i)                         // MapAreaC2ERKS_ ×5（步进 7 words）
-        m_pvpStartArea[i] = other.m_pvpStartArea[i];
 }
 
 STMapScript::~STMapScript()                 // ORIG D2 0x0836d4bc（逆序析构由编译器生成）
 {
 }
 
+// [b28d-solo-STMapScript] _ZN11STMapScript5ClearEv：p167 CLEAR 41/41（语义无缺口）；
+// verdict DIFF 残差＝N82 槽复用（ORIG 两独立 pathgate 外层循环共用 i@-0x20，4.4 第二循环
+// 用 -0x18）+ sightScroll 索引 add-vs-lea（P30 族）。
+// 修法：①m_str1a0/m_str1b0 的 assign→operator=（ORIG _ZNSsaSEPKc，真调用目标修正）；
+// ②pathgate 拆两个独立嵌套循环（ORIG 0x0836c91b/0x0836c963）；③`register int c`（P231）
+// 复现 ORIG %ebx 缓存（push ebx;sub $0x34 已与 ORIG 同帧）。
 void STMapScript::Clear()                   // ORIG T 0x0836c688（顺序保持汇编原序）
 {
     m_maxMonsterDropException = 0;          // param_1[0xa1]=0
@@ -830,7 +873,7 @@ void STMapScript::Clear()                   // ORIG T 0x0836c688（顺序保持�
     // 缓存 %ebx 为 4.1 寻址寄存器分配，4.4 不缓存 → 残余 N，助记符已全同）。
     int r = 0;
     for (r = 0; r < 2; ++r)
-        for (int c = 0; c < 3; ++c)
+        for (register int c = 0; c < 3; ++c)   // P231：纯 register 提示复现 ORIG %ebx 缓存
             m_sightScroll[r * 3 + c] = 100; //  0x20+r*3+c word 基 0x22..0x27
     m_vecBackAni.clear();                   // vector<BackAniScript>::clear(+0x28)
     m_vecBackGroundEffect.clear();          // vector<BackGroundEffect>::clear(+0x2b)
@@ -843,20 +886,26 @@ void STMapScript::Clear()                   // ORIG T 0x0836c688（顺序保持�
     m_vecTownMovableArea.clear();           // vector<TownPath>::clear(+0x37)
     m_vecVirtualMovableArea.clear();        // vector<MapArea>::clear(+0x3a)
     m_vecGuildAgitEntrance.clear();         // vector<TownPath>::clear(+0x3d)
-    for (int i = 0; i < 4; ++i)             // ORIG 0x0836c91b：外层 4（-0x20≤3）
+    // ORIG 0x0836c91b / 0x0836c963：**两个独立嵌套循环**（各自 i@-0x20 复用，
+    // j 分别 -0x18/-0x14），非单一外层包两内层。
+    for (int i = 0; i < 4; ++i)
     {
-        for (int j = 0; j < 2; ++j)         // ORIG 0x0836c8f0/938：每外轮两
-            m_pathgatePos[i * 2 + j] = 0;   // 个内层 2 步循环（0x40+i*2+j、
-        for (int j = 0; j < 2; ++j)         // 0x48+i*2+j word 基）
-            m_pathgateRange[i * 2 + j] = 0;
+        for (int j = 0; j < 2; ++j)
+            m_pathgatePos[i * 2 + j] = 0;   // 0x40+i*2+j word 基
+    }
+    for (int i = 0; i < 4; ++i)
+    {
+        for (int j = 0; j < 2; ++j)
+            m_pathgateRange[i * 2 + j] = 0; // 0x48+i*2+j word 基
     }
     m_dungeonStartArea.clear();             // MapArea::clear(+0x50)
     m_openingBgm.clear();                   // Ss::clear(+99=0x18c)
     m_openingBgmParam = 0;                  // param_1[100]=0(0x190)
     m_sortBottom = 0;                       // byte(param_1+0x6b)=0
     m_vecSound.clear();                     // vector<string>::clear(+0x65=0x194)
-    m_str1a0.assign("");                    // Ss::assign(+0x68,"")（UNK_08c2f620=""）
-    m_str1b0.assign("PVP놀이게임");          // Ss::assign(+0x6c,&UNK_08c2f621)
+    // p167：ORIG 调 `_ZNSsaSEPKc`（string::operator=），非 assign（P167 调用目标）
+    m_str1a0 = "";                          // Ss::operator=(+0x68,"")（UNK_08c2f620=""）
+    m_str1b0 = "PVP놀이게임";                // Ss::operator=(+0x6c,&UNK_08c2f621)
     m_playerCountMin = 2;                   // param_1[0x6d]=2
     m_playerCountMax = 8;                   // param_1[0x6e]=8
     for (int i = 0; i < 5; ++i)             // 5×MapArea::clear(+0x6f+i*7 words)
@@ -917,6 +966,13 @@ struct STMapScriptWordView
 };
 static_assert(sizeof(STMapScriptWordView) <= 0x140, "word view within header span");
 
+// [b28d-solo-STMapScript] _Z15ImportMapScriptP11STMapScriptPKc：p167 残 1/851——
+// vector<pair<int,int>>::push_back 选 const& 而 ORIG 选 &&（同 ScanChampionFeatures 的
+// 重载选择族，int 对拷贝/移动等价 ⇒ N）。
+// 已闭合：SPOBJ_ACTION_DATAS::D1Ev ×2 经 P317 删用户空析构（Main 代落 SPOBJ_ACTION_DATAS.h/
+// .cpp）后消失（ORIG 0x089e0a66 循环内 C1Ev 后无 D1 call）。
+// 超大函数 verdict DIFF 按 §6.2 口径收：残差＝N82/N89 + P163 决策树密度。
+// 修法：m_vec180 嵌套转换临时形、[hellparty] make_pair 键 int 化等（与 proc 同族）。
 bool ImportMapScript(STMapScript* script, const char* path)
 {
     if (!loadRDARScriptFile(g_szMapScriptBaseDirectory, path))
@@ -1933,7 +1989,8 @@ bool ImportMapScript(STMapScript* script, const char* path)
                 if (ok != true)
                     break;
                 y = okInt;
-                script->m_vec180.push_back(std::make_pair(x, y));  // -0x360 make_pair<int&,int&>
+                // P178/P135：ORIG push_back(pair&&)（MISSING EOS1_）；嵌套转换临时形
+                script->m_vec180.push_back(std::pair<int, int>(std::make_pair(x, y)));
             }
             continue;
         }
@@ -2958,6 +3015,9 @@ bool ImportMapScript(STMapScript* script, const char* path)
 // fprintf 生成中间文本，收尾 convertBinaryToText 转最终脚本）
 // ===========================================================================
 
+// [b28d-solo-STMapScript] _Z15ExportMapScriptP11STMapScriptPKc：p167 CLEAR 378/378
+//（§6.2 三件套②归零）；超大函数 verdict DIFF 按 §6.2 口径收：残差＝N82 帧/槽号 + N89
+// libstdc++ 全内联（ORIG 大量 out-of-line 模板实例），无真语义缺口。
 bool ExportMapScript(STMapScript* script, const char* path)
 {
     static char szSaveFileName[0x100];                 // 函数级静态 szSaveFileName
@@ -3516,17 +3576,25 @@ const char* getCharacterJobName(ENUM_CHARACTERJOB job)
 // ORIG 0x088be4d9：职业/技能类目 → 字符串资源 id（CStringManager::getStr）。
 // job>0xa 或 category>4 → 0；category==4 → getStr(0x522a)；否则按 job 基址
 // + category 查询（job 8..10 基址为 0，照 ORIG switch 无 default 的 local_10）。
+// [b28d-solo-STMapScript] _Z20getSkillCategoryName17ENUM_CHARACTERJOBi：p167 CLEAR 2/2；
+// verdict DIFF 残差＝跨版本共享 return 块合并（ORIG 把两处 return 0 合并为中间块：
+// 0x088be4ef `jg` 落点=内层块 + `jbe body`；4.4 恒尾置块并多发一条 mov）⇒ N（块排布）。
+// 修法：switch((int)job)（P305：窄枚举 switch(job) 的 case 1..7 被 -fstrict-enums 静默删除，
+// 原 36 条缺跳表）+ 外层正向 if 包裹（P222）复现 8 路跳表与 jg/jbe 极性。
 const char* getSkillCategoryName(ENUM_CHARACTERJOB job, int category)
 {
     // ORIG：job>0xa 直接返回 0（jg）；category<=4（jbe 无符号）才进主体。
-    if (job > 0xa)
-        return 0;
-    else if ((unsigned int)category <= 4u)
+    // 【P305】ENUM_CHARACTERJOB 为窄枚举（全仓仅 _0=0），switch(job) 的
+    // case 1..7 会被 -fstrict-enums 静默删除 ⇒ 必须 switch((int)job) 才发
+    // ORIG 的 8 路跳表（0x088be51c `jmp *table(,%eax,4)`）。
+    if (job <= 0xa)
     {
+        if ((unsigned int)category > 4u)
+            return 0;                       // ORIG 0x088be4f9 段：jbe body 落点
         if (category == 4)
             return CStringManager::getStr(0x522a);
         int base = 0;
-        switch (job)
+        switch ((int)job)
         {
         case 0:  base = 0x5226; break;
         case 1:  base = 0x522b; break;
@@ -3540,10 +3608,7 @@ const char* getSkillCategoryName(ENUM_CHARACTERJOB job, int category)
         }
         return CStringManager::getStr(base + category);
     }
-    else
-    {
-        return 0;
-    }
+    return 0;
 }
 
 // ORIG 0x088c0144：字符串向量线性查找，命中返回下标，未命中 0xffffffff。
@@ -3582,6 +3647,10 @@ void OutputErrorMessage(const char* msg)
 // 唯一文本差 = 每对物化槽立即数配对互换（ORIG 4.1 U1 先物化：`movl $1,-0x20c;
 // movl $0,-0x208`；4.4 U2 先：`movl $0,-0x20c; movl $1,-0x208`，ORIG 0x088bf2d1
 // vs ours .o 同偏移）——跨版本实参物化槽序，无合法源码写法翻转（P75 同类）。
+// [b28d-solo-STMapScript] _Z15getGrowTypeName17ENUM_CHARACTERJOBi：NEAR 封顶（542=542）。
+// p167 CLEAR 73/73（pair converting ctor C1IS0_iEEOT_OT0_ 与 map ctor/operator[] 全对齐）。
+// 残差＝每对 pair 物化槽的立即数配对序（ORIG 先 first 后 second：`movl $1,-0x20c;
+// movl $0,-0x208`；4.4 反之）⇒ N（P75 跨版本实参物化序，帧 0x240/槽位集全等）。
 const char* getGrowTypeName(ENUM_CHARACTERJOB job, int grow)
 {
     typedef std::pair<ENUM_CHARACTERJOB, int> GrowKey;
@@ -3645,6 +3714,11 @@ int checkValidIndex(int index, STScriptFileList& list)
 // j>=2 直接 ScanInt。[hellparty] 分支与 procSpecialPassiveObject 同构，
 // 处理完立即返回 hasError（ORIG 控制流）。
 // ===========================================================================
+// [b28d-solo-STMapScript] _Z35procSpecialPassiveObjectVerifyError…：p167 CLEAR 74/74
+//（语义无缺口）；verdict DIFF 残差＝N82 槽/寄存器分配（大函数帧伪影，P182）。
+// 修法：①pool insert 改 std::make_pair；②`tok == "[hellparty]"` 正极性包裹（P222）；
+// ③priority_queue 第二实参 static_cast<vector<int>&&>（ORIG C1ERKS4_OS2_ move 重载）；
+// ④assignItems 步进改后置 it++（ORIG _List_iterator ppEi）；⑤rate 累加改 `+=`。
 bool procSpecialPassiveObjectVerifyError(SPOBJ_ACTION_DATAS& action,
                                          const char* path,
                                          STScriptFileList& monsterList,
@@ -3656,7 +3730,10 @@ bool procSpecialPassiveObjectVerifyError(SPOBJ_ACTION_DATAS& action,
     bool hasError = false;                     // -0x35
     std::string tok;                           // -0xd4
     std::vector<int> heapVec;                  // -0xd0
-    std::priority_queue<int> groupQueue(std::less<int>(), heapVec);  // -0xe4
+    // P167/P234：ORIG 选 priority_queue(less&, vector&&)（MISSING C1ERKS4_OS2_），
+    // heapVec 此后不再使用 ⇒ 用 static_cast<T&&> 选中 move 重载（零 out-of-line call）。
+    std::priority_queue<int> groupQueue(std::less<int>(),
+                                        static_cast<std::vector<int>&&>(heapVec));  // -0xe4
     int fieldIdx = 0;                          // -0x2c
     int slotIdx = 0;                           // -0x28
     int curTop = 0;                            // -0x34
@@ -3688,16 +3765,9 @@ bool procSpecialPassiveObjectVerifyError(SPOBJ_ACTION_DATAS& action,
                 action.m_type = 3;
                 continue;
             }
-            if (tok != "[hellparty]")          // 0x8e1c0f4
+            // P222：ORIG 用正极性 `tok == "[hellparty]"`（ORIG 5 处 eq 之一）
+            if (tok == "[hellparty]")          // 0x8e1c0f4
             {
-                LogManager::logFormat(0, "../RDARScriptMap.cpp",
-                                      __FUNCTION__, 0xced,
-                                      "CRITICAL_ERROR : \xc0\xdf\xb8\xf8\xb5\xc8 [special passive object] \xc5\xc2\xb1\xd7 - \xbe\xf8\xb4\xc2 \xc4\xab\xc5\xd7\xb0\xed\xb8\xae - %s\n",
-                                      path);
-                hasError = true;
-                continue;
-            }
-
             // ---- [hellparty] 分支（同 procSpecialPassiveObject，错误记 hasError）----
             std::map<unsigned short, STHellPartyGroupOrder> localOrders;  // -0x100
             for (;;)
@@ -3745,9 +3815,8 @@ bool procSpecialPassiveObjectVerifyError(SPOBJ_ACTION_DATAS& action,
                 if (mit != localOrders.end())
                 {
                     mit->second.m_rates.push_back(orderRate);
-                    mit->second.m_rateByDifficulty[diffSlot] =
-                        static_cast<unsigned short>(
-                            mit->second.m_rateByDifficulty[diffSlot] + rate);
+                    mit->second.m_rateByDifficulty[diffSlot] +=
+                        static_cast<unsigned short>(rate);
                 }
                 else
                 {
@@ -3756,12 +3825,11 @@ bool procSpecialPassiveObjectVerifyError(SPOBJ_ACTION_DATAS& action,
                     newOrder.m_rateByDifficulty[diffSlot] =
                         static_cast<unsigned short>(
                             newOrder.m_rateByDifficulty[diffSlot] + rate);
-                    localOrders.insert(std::make_pair(
-                        static_cast<unsigned short>(cnt), newOrder));
+                    localOrders.insert(std::make_pair(cnt, newOrder));   // P167 同上
                 }
             }
             Get_instance_groupOrder_map_pool()->insert(
-                HellPartyGroupOrderMapPool::value_type(fileIdx, localOrders));
+                std::make_pair(fileIdx, localOrders));   // P167：ORIG make_pair<int&,map&>
 
             while (!groupQueue.empty())
             {
@@ -3796,6 +3864,13 @@ bool procSpecialPassiveObjectVerifyError(SPOBJ_ACTION_DATAS& action,
                 slotIdx = 0;
             }
             return hasError;                   // 89e762c：hellparty 直接收尾
+            }
+            LogManager::logFormat(0, "../RDARScriptMap.cpp",
+                                  __FUNCTION__, 0xced,
+                                  "CRITICAL_ERROR : \xc0\xdf\xb8\xf8\xb5\xc8 [special passive object] \xc5\xc2\xb1\xd7 - \xbe\xf8\xb4\xc2 \xc4\xab\xc5\xd7\xb0\xed\xb8\xae - %s\n",
+                                  path);
+            hasError = true;
+            continue;
         }
         else if (j == 1)
         {
@@ -3831,7 +3906,7 @@ bool procSpecialPassiveObjectVerifyError(SPOBJ_ACTION_DATAS& action,
                     int target = (&action.m_type)[j];
                     std::list<STAssignItem>::iterator it = assignItems.begin();
                     for (int k = 0; k < target; ++k)
-                        ++it;
+                        it++;                         // P167：ORIG ppEi（后置）
                     if (it->m_field00 != 0xffff0001)
                     {
                         it->m_field00 = 0xffff0001;
@@ -3872,6 +3947,12 @@ bool procSpecialPassiveObjectVerifyError(SPOBJ_ACTION_DATAS& action,
 // throw 段顺序 11/21/31/41 再 12/22/32/42（+0xb04/+0xb08/+0xb0c/+0xb10/
 // +0xb14/+0xb18/+0xb1c/+0xb20）。
 // ===========================================================================
+// [b28d-solo-STMapScript] _Z21exportCharacterScriptP17STCharacterScriptPKc：
+// p167 CLEAR 162/162（语义无缺口）；verdict DIFF 残差＝N82/N89（fprintf/fwrite 巨型序列
+// 的槽与 STL 内联差）。
+// 修法：①5 个 vector<string> 循环改非 const iterator + `(*it).c_str()` + 后置 `it++`
+//（P96/P167/P28：ORIG 调 iterator deEv/ppEi，非 ptEv/ppEv）；②m_wavs 改 size()+operator[]
+// 下标形（ORIG 调 ixEj/size，非 begin/end）。
 int exportCharacterScript(STCharacterScript* script, const char* path)
 {
     static char saveFileName[0x100];
@@ -3909,10 +3990,10 @@ int exportCharacterScript(STCharacterScript* script, const char* path)
         fprintf(file, "[move motion] `%s`\n", script->m_motionMove.c_str());
     if (script->m_motionSit != "")
         fprintf(file, "[sit motion] `%s`\n", script->m_motionSit.c_str());
-    if (script->m_motionDamage1 != "")
-        fprintf(file, "[damage motion 1] `%s`\n", script->m_motionDamage1.c_str());
-    if (script->m_motionDamage2 != "")
-        fprintf(file, "[damage motion 2] `%s`\n", script->m_motionDamage2.c_str());
+    if (script->m_motionDamage[0] != "")        // S248 STCharacterScript.h 数组化同步
+        fprintf(file, "[damage motion 1] `%s`\n", script->m_motionDamage[0].c_str());
+    if (script->m_motionDamage[1] != "")
+        fprintf(file, "[damage motion 2] `%s`\n", script->m_motionDamage[1].c_str());
     if (script->m_motionDown != "")
         fprintf(file, "[down motion] `%s`\n", script->m_motionDown.c_str());
     if (script->m_motionOverturn != "")
@@ -3923,22 +4004,22 @@ int exportCharacterScript(STCharacterScript* script, const char* path)
         fprintf(file, "[jumpattack motion] `%s`\n", script->m_motionJumpattack.c_str());
     if (script->m_motionRest != "")
         fprintf(file, "[rest motion] `%s`\n", script->m_motionRest.c_str());
-    if (script->m_throwMotion11 != "")
-        fprintf(file, "[throw motion 1-1] `%s`\n", script->m_throwMotion11.c_str());
-    if (script->m_throwMotion12 != "")
-        fprintf(file, "[throw motion 1-2] `%s`\n", script->m_throwMotion12.c_str());
-    if (script->m_throwMotion21 != "")
-        fprintf(file, "[throw motion 2-1] `%s`\n", script->m_throwMotion21.c_str());
-    if (script->m_throwMotion22 != "")
-        fprintf(file, "[throw motion 2-2] `%s`\n", script->m_throwMotion22.c_str());
-    if (script->m_throwMotion31 != "")
-        fprintf(file, "[throw motion 3-1] `%s`\n", script->m_throwMotion31.c_str());
-    if (script->m_throwMotion32 != "")
-        fprintf(file, "[throw motion 3-2] `%s`\n", script->m_throwMotion32.c_str());
-    if (script->m_throwMotion41 != "")
-        fprintf(file, "[throw motion 4-1] `%s`\n", script->m_throwMotion41.c_str());
-    if (script->m_throwMotion42 != "")
-        fprintf(file, "[throw motion 4-2] `%s`\n", script->m_throwMotion42.c_str());
+    if (script->m_throwMotion1[0] != "")
+        fprintf(file, "[throw motion 1-1] `%s`\n", script->m_throwMotion1[0].c_str());
+    if (script->m_throwMotion2[0] != "")
+        fprintf(file, "[throw motion 1-2] `%s`\n", script->m_throwMotion2[0].c_str());
+    if (script->m_throwMotion1[1] != "")
+        fprintf(file, "[throw motion 2-1] `%s`\n", script->m_throwMotion1[1].c_str());
+    if (script->m_throwMotion2[1] != "")
+        fprintf(file, "[throw motion 2-2] `%s`\n", script->m_throwMotion2[1].c_str());
+    if (script->m_throwMotion1[2] != "")
+        fprintf(file, "[throw motion 3-1] `%s`\n", script->m_throwMotion1[2].c_str());
+    if (script->m_throwMotion2[2] != "")
+        fprintf(file, "[throw motion 3-2] `%s`\n", script->m_throwMotion2[2].c_str());
+    if (script->m_throwMotion1[3] != "")
+        fprintf(file, "[throw motion 4-1] `%s`\n", script->m_throwMotion1[3].c_str());
+    if (script->m_throwMotion2[3] != "")
+        fprintf(file, "[throw motion 4-2] `%s`\n", script->m_throwMotion2[3].c_str());
     if (script->m_motionDash != "")
         fprintf(file, "[dash motion] `%s`\n", script->m_motionDash.c_str());
     if (script->m_motionDashattack != "")
@@ -3951,17 +4032,17 @@ int exportCharacterScript(STCharacterScript* script, const char* path)
     if (!script->m_attackMotion.empty())
     {
         fwrite("[attack motion]\n", 1, 0x10, file);
-        for (std::vector<std::string>::const_iterator it = script->m_attackMotion.begin();
-             it != script->m_attackMotion.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+        for (std::vector<std::string>::iterator it = script->m_attackMotion.begin();
+             it != script->m_attackMotion.end(); it++)   // P167/P28：ORIG deEv + ppEi
+            fprintf(file, "`%s`\n", (*it).c_str());
         fwrite("[/attack motion]\n", 1, 0x11, file);
     }
     if (!script->m_etcMotion.empty())
     {
         fwrite("[etc motion]\n", 1, 0xd, file);
-        for (std::vector<std::string>::const_iterator it = script->m_etcMotion.begin();
-             it != script->m_etcMotion.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+        for (std::vector<std::string>::iterator it = script->m_etcMotion.begin();
+             it != script->m_etcMotion.end(); it++)
+            fprintf(file, "`%s`\n", (*it).c_str());
         fwrite("[/etc motion]\n", 1, 0xe, file);
     }
     fputc(10, file);
@@ -3973,17 +4054,17 @@ int exportCharacterScript(STCharacterScript* script, const char* path)
     if (!script->m_attackInfo.empty())
     {
         fwrite("[attack info]\n", 1, 0xe, file);
-        for (std::vector<std::string>::const_iterator it = script->m_attackInfo.begin();
-             it != script->m_attackInfo.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+        for (std::vector<std::string>::iterator it = script->m_attackInfo.begin();
+             it != script->m_attackInfo.end(); it++)
+            fprintf(file, "`%s`\n", (*it).c_str());
         fwrite("[/attack info]\n", 1, 0xf, file);
     }
     if (!script->m_etcAttackInfo.empty())
     {
         fwrite("[etc attack info]\n", 1, 0x12, file);
-        for (std::vector<std::string>::const_iterator it = script->m_etcAttackInfo.begin();
-             it != script->m_etcAttackInfo.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+        for (std::vector<std::string>::iterator it = script->m_etcAttackInfo.begin();
+             it != script->m_etcAttackInfo.end(); it++)
+            fprintf(file, "`%s`\n", (*it).c_str());
         fwrite("[/etc attack info]\n", 1, 0x13, file);
     }
     fputc(10, file);
@@ -3991,10 +4072,10 @@ int exportCharacterScript(STCharacterScript* script, const char* path)
     for (std::vector<WeaponInfo>::size_type w = 0; w < script->m_weaponWav.size(); ++w)
     {
         fwrite("[weapon wav]\n", 1, 0xd, file);
-        const std::vector<std::string>& wavs = script->m_weaponWav[w].m_wavs;
-        for (std::vector<std::string>::const_iterator it = wavs.begin();
-             it != wavs.end(); ++it)
-            fprintf(file, "`%s`\n", it->c_str());
+        std::vector<std::string>& wavs = script->m_weaponWav[w].m_wavs;
+        // P167：ORIG 用 size()+operator[]（MISSING ixEj/size），非 begin/end 迭代器
+        for (std::vector<std::string>::size_type i = 0; i < wavs.size(); ++i)
+            fprintf(file, "`%s`\n", wavs[i].c_str());
         fwrite("[/weapon wav]\n", 1, 0xe, file);
     }
     fputc(10, file);

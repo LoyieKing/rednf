@@ -79,7 +79,10 @@ public:
 
     RETAILER m_retailer;  // +0x00
     SHOPPER m_shopper;    // +0x0c
-    char m_bClear;        // +0x18
+    // [b28d-solo-CSecretShop] char→bool：ORIG CSecretShop::BuyItem 0x085fb228
+    // `movzbl 0x18(%eax),%eax; xor $1; test; je`（零扩展 + 取反物化 = bool 字段，
+    // P248 档②）；同 1 字节，sizeof/偏移/mangled 零变化。
+    bool m_bClear;        // +0x18
     char m_pad[3];        // +0x19
 };
 

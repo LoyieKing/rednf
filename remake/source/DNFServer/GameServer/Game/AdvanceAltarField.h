@@ -89,7 +89,10 @@ struct _RewardItem
     }
 
     int m_type;      // +0x00（RewardItemType：0=normal 1=event）
-    int m_value1;    // +0x04
+    // b28d-solo-ProcStage（P170 c++filt 实证）：ORIG sendMailRewardItem 0x0812f5a4
+    //   调 `_ZSt9make_pairIRKmRKiE…`（IRKm=const unsigned long&）⇒ 本字段真型
+    //   unsigned long（32 位同宽；sizeof 0xc/偏移/mangled 零变）。
+    unsigned long m_value1;    // +0x04
     int m_value2;    // +0x08（ORIG ImportAdvanceAltarDungeonTag 按 3 个 int 写入）
 };
 

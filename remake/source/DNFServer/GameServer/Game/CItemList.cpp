@@ -1036,8 +1036,10 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
 //   +2 `~basic_string`、+1 `string::C1ERKSs`），无 MISSING 语义调用；gap=6；
 //   残差全为 N104（EH 尾块相对序 rotate）+ N91（数组/临时 string cleanup）
 //   族 ⇒ 语义完成、byte 层 N 封顶。
-// [b28d-solo-CItemList] DIFF | p167 余 2 _Unwind_Resume（MISSING）+ string 拷贝
-//   构造/析构 EXTRA（N104 EH 尾块序 + N91 临时 string cleanup）。
+// [b28d-solo-CItemList] DIFF | 本轮修：去具名 typeName，GetType 内联实参
+//   script->m_strbc（ORIG 0x86209b7 的 C1ERKSs 是**按值形参**拷贝、参数槽 -0x5c）
+//   ⇒ p167 309/309 **CLEAR**（原 -2 _Unwind_Resume / +2 D1Ev / +1 C1ERKSs 全消）；
+//   残 N104（EH 尾块相对序）+ N82（槽/帧）⇒ 语义完成、byte 层 N 封顶。
 bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
 {
     // 依据 docs/class_func_reports/sync_script__CSyncScript/
@@ -1053,9 +1055,12 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
     int out1 = 0;
     int out2 = 0;
-    // ORIG（+0x43）：先按值拷贝 script+0xbc 构造临时 string 供 GetType。
-    std::string typeName = script->m_strbc;
-    if (!GetType(typeName, (ENUM_CHARACTERJOB)0, 0, out1, out2, false))
+    // [b28d-solo-CItemList] P167/P183：ORIG 0x86209b7 的 `C1ERKSs` 是 GetType
+    //   **按值形参**（mangled `7GetTypeESs17ENUM_CHARACTERJOBiRiS2_b`）的实参
+    //   拷贝（参数槽 -0x5c，调用后 0x8620a05 D1Ev + landing 0x8620a1a D1Ev +
+    //   _Unwind_Resume），**无具名 typeName 局部**——我方具名形多 1×C1ERKSs
+    //   + 2×D1Ev EXTRA ⇒ 内联实参。
+    if (!GetType(script->m_strbc, (ENUM_CHARACTERJOB)0, 0, out1, out2, false))
     {
         return false;
     }
@@ -1830,8 +1835,9 @@ bool CItemList::load_item_files()
 //   （我方非 const 版）⇒ 消费点 vector 需 const 上下文（const 引用/指针）；
 //   其余残差 = 帧 0x13c/0x14c + 局部缓冲 -0x114/-0x120 偏移（N82/P232 族）。
 //   语义等价（逐字段写与 ORIG 对应）⇒ 封顶。
-// [b28d-solo-CItemList] DIFF | 修：make_pair 第二实参 (int&) 强转修复编译
-//   （enum 不可绑定 int&）+ avatarList const 化（P167 CLEAR 37/37）；残 N82 帧差 0x10。
+// [b28d-solo-CItemList] DIFF | p167 CLEAR（37/37）；残 N82/N95：帧差 0x10
+//   （ORIG 0x13c / 我方 0x14c）+ shopList 基址槽 -0x114/-0x120 平移 0xc，
+//   局部集合与调用位次逐条一致，属 4.4 槽基/outgoing 预留族 ⇒ 封顶。
 bool CItemList::Load_Goods_File(const char* path)
 {
     // ORIG 形态：16 个 vector<STCeraShopItem> 桶；内层循环先缓存 count 与
@@ -1947,9 +1953,9 @@ Arad_GiftItem_Set::~Arad_GiftItem_Set()
 //   0x081a2f?? 为 `mov %eax,%edx; sar $0x1f,%edx` 符号扩展，零扩展会改负值
 //   时的 64 位 key）。残差 = Data/pair 插入路径多一次 Data 拷贝构造
 //   （P81 引用 pair 与 4.4 转换构造差异）+ 槽 -0x3c/-0x54 漂移 ⇒ N7/P81 封顶。
-// [b28d-solo-CItemList] DIFF | N7/P81：ORIG converting ctor
-//   `pair<const long long,Data>::C1<long long&,Data&>` 系 4.1 前端直构
-//   （具名引用对形实测反劣 +1 EXTRA）；残槽漂移。
+// [b28d-solo-CItemList] DIFF（153/159）| 本轮修：P183 去 `name` 具名槽
+//   （内联 c_str() 实参；ndiff 48→42）；残 N7/P81（ORIG converting ctor 系
+//   4.1 前端直构，我方多 1 次 pair ctor call + key/data 槽深 0x10）。
 int Arad_GiftItem_Set::open(STStackableScript* script)
 {
     // ORIG：if (*(int*)(param_1 + 0x178) != 0) —— Arad_STStackableScript.m_0（+0x178）
@@ -1959,8 +1965,9 @@ int Arad_GiftItem_Set::open(STStackableScript* script)
     }
 
     // ORIG：kind = str_to_enum(c_str(script + 0x180))——调用真实 str_to_enum。
-    const char* name = script->m_arad178.m_str8.c_str();
-    const int kind = str_to_enum(name);
+    // [b28d-solo-CItemList] P183 去缓存：ORIG 直把 c_str() 返回值压 0x4(%esp)
+    //   （无 name 具名槽；我方具名槽多 mov store+load 一对）。
+    const int kind = str_to_enum(script->m_arad178.m_str8.c_str());
     if (kind == 0)
     {
         return 0;
@@ -2131,8 +2138,8 @@ BindCube_LvBonusScriptData::~BindCube_LvBonusScriptData() {}
 //   ① `new CMTRand(({ seed; }))` ⇒ 多临时槽 -0x20（103 vs 101）；
 //   ② `new CMTRand(({ (const unsigned long&)seed; }))` ⇒ 仍右值化临时 -0x20
 //   （GCC 语句表达式在 C++ 下强制 lvalue→rvalue）。⇒ 判 N18a/N7 封顶。
-// [b28d-solo-CItemList] DIFF 6 行 | N18a/N7：&seed 提前入 callee-saved 跨
-//   operator new 保活不可造（P226 两形实测反劣，101/101 指令数已等）。
+// [b28d-solo-CItemList] DIFF（101/101，ndiff 4）| N18a/N7：&seed 提前入
+//   callee-saved 跨 operator new 保活不可造（P226 两形实测反劣，指令数已等）。
 CCompound_ExtreamDun_Item::CCompound_ExtreamDun_Item()
 {
     const unsigned long seed = time(0);
@@ -2177,8 +2184,9 @@ void CCompound_ExtreamDun_Item::after_addItem()                     // ORIG 0x83
 //   entry2@-0x14（entry 先构造占深槽）；4.4 先声明占浅槽（entry@-0x14），
 //   交换声明序会倒转两对象的构造/实参求值序（N93 槽方向律）⇒ 封顶。
 //   语义与 ORIG 一致（P234 static_cast<T&&> 已用，无 std::move 外链）。
-// [b28d-solo-CItemList] DIFF | 修：语句序 entry→push_back→entry2→push_back
-//   （ORIG 控制流；47→27 差异行）；残 N93 entry/entry2 槽 + N7 索引寄存器。
+// [b28d-solo-CItemList] DIFF（78/79，ndiff 21）| 语句序 entry→push_back→
+//   entry2→push_back 已对齐 ORIG 控制流；残 N93 entry/entry2 槽方向
+//   （ORIG entry=-0x1c/entry2=-0x14，交换声明序倒转构造序）+ N7 索引乘法链。
 bool CCompound_ExtreamDun_Item::_AddItem(CEquipItem& item)          // ORIG 0x832dd1c
 {
     // cat=_convertOutputItem(GetUsableEquipmentType)；cat==4 → 不可入表；
@@ -2551,11 +2559,10 @@ int CCompound_ExtreamDun_Item::_determine_rarity(                   // ORIG T 0x
     }
     return i;
 }
-// [b28d-20] _determine_level_bonus(Eii)（ORIG 0x832c9ca，91/79，nd 44）：
-//   残差 = 帧 0x20(ORIG)/0x30(我方) + 循环变量 c 的槽位/减量段形态
-//   （ORIG `mov -0xc; cmp $0; je` 两段 vs 4.4 折 `cmpl $0,-0x10` 单段）⇒ N82。
-// [b28d-solo-CItemList] NEAR | 修：m_rates[0]→**m_levels**（真语义 bug，
-//   ORIG `add $0xc`）+ P183 去缓存 + idx 置比较左位；残 N93 lo/hi 槽。
+// [b28d-solo-CItemList] AE（91/91，ndiff 0）| 本轮修：清零序解耦——声明序定槽
+//   （lo 浅 -0x10 / hi 深 -0x14）、赋值语句序定 store 序（`hi=0; lo=0;`）复现
+//   ORIG 先深后浅；4.4 对「声明+初始化」恒按声明序 store（旧 N93 lo/hi 槽序差
+//   由此消除）。
 std::pair<unsigned int, unsigned int>                              // ORIG T 0x832c9ca
 CCompound_ExtreamDun_Item::_determine_level_bonus(
     unsigned int baseLevel, ENUM_INPUTITEMS_RARITY inRarity,
@@ -2572,8 +2579,12 @@ CCompound_ExtreamDun_Item::_determine_level_bonus(
     if (idxOut == 0 ||
         idxOut >= m_lvBonus[(int)bind].m_levels.size())
     {
-        int lo = 0;
-        int hi = 0;
+        // [b28d-solo-CItemList] ORIG 清零序 = 深槽 -0x14(hi) 先、浅槽 -0x10(lo) 后；
+        //   4.4 槽按声明序（lo 浅/hi 深）⇒ 声明不带初始化、赋值语句按 hi→lo 序。
+        int lo;
+        int hi;
+        hi = 0;
+        lo = 0;
         return std::pair<unsigned int, unsigned int>(lo, hi);  // pair<int,int> 形
     }
     return std::pair<unsigned int, unsigned int>(
@@ -2581,12 +2592,8 @@ CCompound_ExtreamDun_Item::_determine_level_bonus(
         m_lvBonus[(int)bind].m_levels[idxOut]);
 }
 
-// [b28d-20] _determine_level_bonus（ORIG 0x832cadc，95/83，nd 71）：同 Eii 版
-//   残差族（帧 0x20/0x30 + 循环变量槽段），语义（RARITY 守卫 + m_lvBonus
-//   索引查表）逐条对应 ⇒ N82 封顶。
-// [b28d-solo-CItemList] NEAR | 修：m_rates[0]→**m_levels**（真语义 bug：
-//   ORIG `add $0xc` 段 = m_lvBonus[bind]+0，非 m_rates[0] 的 +0x18）
-//   + P183 去缓存 + idx 置比较左位（%esi 缓存形）；残 N93 lo/hi 槽。
+// [b28d-solo-CItemList] AE（95/95，ndiff 0）| 本轮修：同 Eii 版清零序解耦
+//   （声明 lo/hi + 赋值 `hi=0; lo=0;` 复现 ORIG 先 -0x18 后 -0x14）。
 std::pair<unsigned int, unsigned int>                              // ORIG T 0x832cadc
 CCompound_ExtreamDun_Item::_determine_level_bonus(
     ENUM_INPUTITEMS_RARITY inRarity, unsigned int baseLevel,
@@ -2601,8 +2608,11 @@ CCompound_ExtreamDun_Item::_determine_level_bonus(
     //   P183/P157 去引用缓存（ORIG 逐次重算成员地址）。
     if (idx == 0 || m_lvBonus[(int)bind].m_levels.size() <= idx)
     {
-        int lo = 0;
-        int hi = 0;
+        // [b28d-solo-CItemList] 同 Eii 版：ORIG 先 hi(-0x18) 后 lo(-0x14)。
+        int lo;
+        int hi;
+        hi = 0;
+        lo = 0;
         return std::pair<unsigned int, unsigned int>(lo, hi);
     }
     return std::pair<unsigned int, unsigned int>(
@@ -2614,8 +2624,10 @@ CCompound_ExtreamDun_Item::_determine_level_bonus(
 //   残差 = 帧 0x24(ORIG)/0x28(我方)+push ebx 有无 + idx 缓存寄存器（ORIG
 //   `mov -0xc(%ebp),%ebx`）与 m_lvBonus 索引乘法展开（4.1 imul 链 vs 4.4
 //   lea 链）；语义等价（RARITY 守卫与 while 短路链逐条对应）⇒ N7/N82 封顶。
-// [b28d-solo-CItemList] DIFF | N7/N82：idx 的 %ebx 跨 call 缓存（register
-//   形实测免槽 `mov $0,%ebx` 反劣）+ 索引乘法展开链，语义已核。
+// [b28d-solo-CItemList] DIFF（64/63）| 本轮修：合并 && → `while(size())`+
+//   `if(rates[idx] >= baseLevel) break` 复现 ORIG 循环布局（短路第二项落 body、
+//   第一项落尾条件；ndiff 75→45）；残 N7：idx 的 %ebx 跨 call 缓存
+//   （ORIG `push %ebx` + `mov -0xc,%ebx`）与乘法链/`lea 0x18` vs `add $0x18`。
 unsigned int CCompound_ExtreamDun_Item::_determine_level_bonus_index(  // ORIG T 0x832cc02
     unsigned int baseLevel, ENUM_INPUTITEMS_RARITY inRarity,
     eBindSphereType bind) const
@@ -2628,10 +2640,17 @@ unsigned int CCompound_ExtreamDun_Item::_determine_level_bonus_index(  // ORIG T
     // 全地址重算（P48 无引用缓存）
     // [b28d-solo] P231 不适用：ORIG 0x832cc02 的 idx 占槽 -0xc（每轮
     //   `mov -0xc(%ebp),%ebx` 重载）——register 形实测免槽（`mov $0,%ebx`）反劣。
+    // [b28d-solo-CItemList] P225/循环旋转：ORIG 4.1 把短路链**第二项**
+    //   (rates[idx] >= baseLevel，setae 物化) 落在 body、第一项 (size()!=0)
+    //   落在尾条件；4.4 对合并 && 恒反向展开（++idx 落 body）。改
+    //   while(size())+if-break 复现 ORIG 布局。
     unsigned int idx = 0;
-    while (m_lvBonus[(int)bind].m_rates[(int)inRarity].size() != 0 &&
-           m_lvBonus[(int)bind].m_rates[(int)inRarity][idx] < baseLevel)
+    while (m_lvBonus[(int)bind].m_rates[(int)inRarity].size() != 0)
     {
+        if (m_lvBonus[(int)bind].m_rates[(int)inRarity][idx] >= baseLevel)
+        {
+            break;
+        }
         ++idx;
     }
     return idx;
@@ -2641,8 +2660,13 @@ int CCompound_ExtreamDun_Item::_exception_Rare(                     // ORIG T 0x
     const CEquipItem** refs, char select, ENUM_OUTPUTITEMS_RARITY outRarity,
     unsigned int baseLevel) const
 {
-    // [b28d-solo-CItemList] DIFF | 修：make_pair→pair<unsigned,unsigned> 直构
-    //   （P167 CLEAR，4/4 calls；消 MISSING converting ctor ×2）；残 N7/N82 块序。
+    // [b28d-solo-CItemList] AE（106/106，ndiff 0）| 本轮 3 处真语义修正：
+    //   ① 第三实参传**循环变量 c**（ORIG `mov -0xc(%ebp),%ebx; mov %ebx,0xc(%esp)`），
+    //   非 outRarity 原值；② c>1 分支第二实参 = baseLevel + g*5u（ORIG 0x832d0bc
+    //   段 `shl $2; add; add baseLevel`），原写 baseLevel+g 使上界错位；
+    //   ③ pair 顺序 (+1,+5)（ORIG ctor 0x4/0x8(%esp) = -0x28/-0x2c），原 (+5,+1)
+    //   使 range.first/second 颠倒。另：`c <= 0` 复现 `cmpl $0; jg <else>` 布局、
+    //   分支内各自 found 检查复现 ORIG 逐分支 `cmpl/je/mov/jmp`。
     // [b28d-20] 真语义修正：ORIG 0x832d01e `mov 0x14(%ebp),%eax; mov %eax,-0xc(%ebp)`
     //   —— 内层 c 初值取自第 3 参 outRarity（0x14），非 baseLevel（0x18）；
     //   baseLevel 仅参与 pair 计算（0x832d03d/0x832d050 `add 0x18(%ebp),%eax`）。
@@ -2653,24 +2677,41 @@ int CCompound_ExtreamDun_Item::_exception_Rare(                     // ORIG T 0x
     {
         for (int c = (int)outRarity; c >= 0; --c)
         {
-            if (c == 0)
+            // [b28d-solo-CItemList] 真语义修正 ×2（ORIG 0x832cffe 汇编为准）：
+            //   ① 第三实参传**循环变量 c**（ORIG `mov -0xc(%ebp),%ebx;
+            //      mov %ebx,0xc(%esp)`），非 outRarity 原值；
+            //   ② c>1 分支第二实参 = baseLevel + g*5u（ORIG 0x832d0bc 段
+            //      `shl $2; add %edx,%eax; add 0x18(%ebp),%eax` = 5g+baseLevel），
+            //      原写 baseLevel+g 使上界错位。
+            //   条件用 `c <= 0` 复现 ORIG `cmpl $0x0,-0xc; jg <else>` 布局
+            //   （`c == 0` 生 jne）。
+            if (c <= 0)
             {
                 // [b28d-solo] P167/P192：ORIG 0x832cffe 用 pair<unsigned,unsigned>
                 //   直构（MISSING `pair<unsigned,unsigned>::pair<unsigned&&,
                 //   unsigned&&>`），make_pair 落 EXTRA。
-                found = _FindItemAll_BindSphere(refs, select, outRarity,
+                //   真语义修正③：ORIG ctor 0x4/0x8(%esp) = -0x28/-0x2c ⇒
+                //   pair = (+1, +5)（原写 (+5, +1) 使 range.first/second 颠倒）；
+                //   4.1 右→左求值 ⇒ 先算 second(+5) 存 -0x2c、后算 first(+1) 存 -0x28。
+                found = _FindItemAll_BindSphere(refs, select,
+                    (ENUM_OUTPUTITEMS_RARITY)c,
                     std::pair<unsigned int, unsigned int>(
-                        baseLevel + g * 5u + 5u, baseLevel + g * 5u + 1u));
+                        baseLevel + g * 5u + 1u, baseLevel + g * 5u + 5u));
+                if (found != 0)
+                {
+                    return found;
+                }
             }
             else if (c > 1)
             {
-                found = _FindItemAll_BindSphere(refs, select, outRarity,
+                found = _FindItemAll_BindSphere(refs, select,
+                    (ENUM_OUTPUTITEMS_RARITY)c,
                     std::pair<unsigned int, unsigned int>(baseLevel + g,
-                                                          baseLevel + g));
-            }
-            if (found != 0)
-            {
-                return found;
+                                                          baseLevel + g * 5u));
+                if (found != 0)
+                {
+                    return found;
+                }
             }
         }
     }
@@ -2691,8 +2732,9 @@ bool BindTable_Predicate(                                           // ORIG T 0x
 //   0x48(ORIG，无 push ebx)/0x54(我方，push ebx) + lower_bound/upper_bound 的
 //   迭代器临时槽与 this+0x30 绝对偏移寻址寄存器分配；守卫与谓词调用序逐条
 //   对应（group==0/>0x3a 双查 + outRarity 有符号窗口）⇒ N7/N82 封顶。
-// [b28d-solo-CItemList] DIFF | 修：m_data.m_bindItems 具名化 + begin/end
-//   缓存（P167 CLEAR，8/8 calls；110→89 差异行）；残 N7/N82/N86。
+// [b28d-solo-CItemList] DIFF（109/111）| 本轮修：去 `table` 引用槽（ORIG 无该槽，
+//   begin/end 各自重算完整地址）+ 比较对象改 `lo == tend`（ORIG 0x832d296 用
+//   tend 而非 hi）⇒ ndiff 68→54；残 N7（乘法链多 1 mov）/N82/N115（帧差 0x10）。
 int CCompound_ExtreamDun_Item::_FindSelectItem(                     // ORIG T 0x832d15e
     unsigned int group, ENUM_OUTPUTITEMS_RARITY outRarity,
     const std::pair<unsigned int, unsigned int>& range) const
@@ -2710,20 +2752,21 @@ int CCompound_ExtreamDun_Item::_FindSelectItem(                     // ORIG T 0x
     typedef std::vector<OUTPUT_ITEM_STR> ItemVec;
     // [b28d-solo] §4.3 具名化：m_data.m_bindItems[group][outRarity]（等价
     //   this+0x30+48*group+12*outRarity），去裸偏移 reinterpret_cast。
-    //   内联到使用点实测反劣（135 vs 93）⇒ 保留具名引用（P0 槽往返）。
-    const ItemVec& table = m_data.m_bindItems[group][(int)outRarity];
-    // [b28d-solo] P167：ORIG 0x832d15e 只调 begin()/end() 各一次（Ghidra C
-    //   `begin(); end();` 后 lower_bound/upper_bound 复用）⇒ 缓存迭代器边界。
-    ItemVec::const_iterator tbegin = table.begin();
-    ItemVec::const_iterator tend = table.end();
+    // [b28d-solo-CItemList] P183/P167：ORIG 0x832d15e **无 table 引用槽**——
+    //   begin()/end() 各自重算完整地址（0x832d193 与 0x832d1cd 两段 12 条
+    //   全等地址链），且只调 begin()/end() 各一次，lower_bound/upper_bound
+    //   复用 tbegin/tend ⇒ 边界缓存但地址内联（消 -0xc 引用槽）。
+    ItemVec::const_iterator tbegin = m_data.m_bindItems[group][outRarity].begin();
+    ItemVec::const_iterator tend = m_data.m_bindItems[group][outRarity].end();
     OUTPUT_ITEM_STR lowKey((int)range.first, 0);
     ItemVec::const_iterator lo = std::lower_bound(
         tbegin, tend, lowKey, &BindTable_Predicate);
     OUTPUT_ITEM_STR highKey((int)range.second, 0x7fffffff);
     ItemVec::const_iterator hi = std::upper_bound(
         tbegin, tend, highKey, &BindTable_Predicate);
-    // [b28d-solo] ORIG 0x832d15e 段用 operator==（Ghidra `bVar1 = operator==`）。
-    if (lo == hi)
+    // [b28d-solo] P167/P171：ORIG 0x832d296 段 `operator==(lo, tend)`——比较
+    //   对象是 **tend**(-0x20) 而非 hi(-0x28)（hi 仅供 _FindItemRelateCreationRate）。
+    if (lo == tend)
     {
         return 0;
     }
@@ -2734,8 +2777,9 @@ int CCompound_ExtreamDun_Item::_FindSelectItem(                     // ORIG T 0x
 //   m_resultItems 基址折叠形态（ORIG `add 0x8(%ebp); add $0x4` 两步 vs 4.4
 //   lea 合并）+ pair 构造临时槽方向 + 尾块 `mov $0/-0x38` 岛；调用点与谓词
 //   一致 ⇒ N86/N93 封顶。
-// [b28d-solo-CItemList] DIFF | 修：m_data.m_resultItems 具名化（去裸偏移）
-//   + `lo!=hi` 正极性（P167：消 EXTRA operator==）；93→36 差异行；残 N86/N82。
+// [b28d-solo-CItemList] NEAR（104/104，gap 0）| 本轮修：比较对象改
+//   `lo != table.end()`（ORIG 0x832d3ea 在比较前多调一次 end()，gap 6→0；
+//   原 `lo != hi` 缺该调用）⇒ p167 CLEAR；残 N82/N98 槽位分配。
 int CCompound_ExtreamDun_Item::_FindRandomItem(                     // ORIG T 0x832d2ce
     ENUM_OUTPUTITEMS_RARITY outRarity,
     const std::pair<unsigned int, unsigned int>& range) const
@@ -2756,9 +2800,10 @@ int CCompound_ExtreamDun_Item::_FindRandomItem(                     // ORIG T 0x
     OUTPUT_ITEM_STR highKey((int)range.second, 0x7fffffff);
     ItemVec::const_iterator hi = std::upper_bound(
         table.begin(), table.end(), highKey, &BindTable_Predicate);
-    // [b28d-solo] P167/P220：ORIG 0x832d40c 调 operator!=（正极性早返），
-    //   我方 `==` 落 EXTRA operator== 且 MISSING !=。
-    if (lo != hi)
+    // [b28d-solo] P167/P220/P171：ORIG 0x832d3ea 在比较前**再调一次
+    //   table.end()**（sret -0x10）后 `operator!=(lo, end)`（0x832d40c）⇒
+    //   源码为 `lo != table.end()`（非 lo != hi；gap 6 = 该次 end 调用）。
+    if (lo != table.end())
     {
         return _FindItemRelateCreationRate(lo, hi);
     }
@@ -2845,7 +2890,12 @@ int CCompound_ExtreamDun_Item::_FindItemRelateCreationRate(         // ORIG T 0x
 //   0x0832c6xx 的 `lea -0x4c; call C1Ev`（string 具名局部先声明后赋值形）与
 //   其后的 bool 物化段（ORIG `movb $0; … call; xor $1; test; jne`），
 //   4.4 把该 string 直构在 -0x50 且短路链折成正极性直跳 ⇒ P225/P28 族封顶。
-// [b28d-solo-CItemList] DIFF | p167 CLEAR（25/25 calls）；残 N82/N7 槽序与块布局。
+// [b28d-solo-CItemList] AE（222/222，ndiff 0）| 本轮修：① scratch/token 声明序
+//   交换（复现 ORIG token=-0x50/scratch=-0x4c）；② 补 dead bool `bScan`（复现
+//   ORIG `movb $0,-0x35` 预清，P171/P198①）；③ while(cond)→for(;;)+
+//   `if(!ScanType) break`（复现头条件 + `xor $1` 物化，P283/P168a）；
+//   ④ CItemList.h `m_rarityDicision` int→unsigned int（P211 字段侧旋钮，
+//   复现 RHS-first store；sizeof/偏移不变）。
 int CCompound_ExtreamDun_Item::LoadScript(const char* dir, const char* path)
 {
     if (!loadRDARScriptFile(dir, path))
@@ -2853,11 +2903,25 @@ int CCompound_ExtreamDun_Item::LoadScript(const char* dir, const char* path)
         return 0x62;
     }
 
-    std::string token;
+    // [b28d-solo-CItemList] 槽序：ORIG token=-0x50/scratch=-0x4c（构造序
+    //   scratch 先）⇒ 源码声明序 scratch, token（4.4 先声明浅）。
     std::string scratch;
+    std::string token;
+    // [b28d-solo-CItemList] P171/P198①：ORIG 0x832c65e 循环前有
+    //   `movb $0x0,-0x35(%ebp)`（只写不读的 bool 局部预清）⇒ 补 dead bool
+    //   声明复现该 store。
+    bool bScan = false;
+    (void)bScan;
 
-    while (ScanType(token, true))
+    // [b28d-solo-CItemList] P283/P168a：ORIG 循环条件在**头**（`jmp L_cond;
+    //   L_cond: call ScanType; xor $1; test; jne <exit>`），4.4 对 while(cond)
+    //   恒旋转成尾条件 ⇒ 改 for(;;)+if(!ScanType) break 复现头条件与 xor 物化。
+    for (;;)
     {
+        if (!ScanType(token, true))
+        {
+            break;
+        }
         if (token == "[insert rarity]")
         {
             for (int i = 0; i < 3; ++i)

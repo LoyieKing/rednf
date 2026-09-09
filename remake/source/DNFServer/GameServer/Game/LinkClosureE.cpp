@@ -79,24 +79,22 @@ CBuffGroup::CBuffGroup(CUser* user)
     m_user = user;
 }
 
-// [b28d-54 N] ORIG 0x08697c64：帧 0x14→0x24 + 4.4 把 |x| 绝对值段槽化
-//   （ORIG `sar/xor/sub` 全寄存器 vs 4.4 mov 落槽两次，N82/N18a）；语义等价。
+// [b28d-solo-LinkClosureE] DIFF 61/62（p167 CLEAR 5/5）：ORIG 的 bool 物化形已复现
+//   （`mov $1/%eax … mov $0/%eax; test %al`，|dx|/|dy| 全寄存器表达式），残余仅 4.4 把
+//   over 分配 %ebx（多 `mov %eax,%ebx` + `test %bl`）而 ORIG 用 %eax ⇒ N18a/N96
+//   「单段 regmove 不可造」封顶；bool/char/uchar/int 四型旋钮实测同读数。
 char CBuffGroup::IsRight(CUser* user)
 {
     if (user->get_charac_level() > 0x45)
         return 0;
-    int dx = (int)(unsigned short)user->get_posX() -
-             (int)(unsigned short)m_user->get_posX();
-    int dy = (int)(unsigned short)user->get_posY() -
-             (int)(unsigned short)m_user->get_posY();
-    char out;
-    if (__builtin_abs(dx) > 0x12c)
-        out = 1;
-    else if (__builtin_abs(dy) > 0x12c)
-        out = 1;
-    else
-        out = 0;
-    return out ? 0 : 1;
+    unsigned char over =
+        (__builtin_abs((int)(unsigned short)user->get_posX() -
+                       (int)(unsigned short)m_user->get_posX()) > 0x12c
+         || __builtin_abs((int)(unsigned short)user->get_posY() -
+                          (int)(unsigned short)m_user->get_posY()) > 0x12c);
+    if (over)
+        return 0;
+    return 1;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +104,8 @@ char CBuffGroup::IsRight(CUser* user)
 // 包 0x100（param→int, 0xe10）直发 + send_to_area（带 CBuffGroup）；
 // 包 0x103（get_unique_id 低 16 位, param）send_to_area（无 belong）。
 // ---------------------------------------------------------------------------
-// [b28d-54 N] ORIG 0x0865defc：槽整体平移 8（N82/N95）；调用序列全等。
+// [b28d-solo-LinkClosureE] AE 115/115（p167 CLEAR 25/25）：area/vill 去具名局部
+//   （P0 表达式直传 %ebx/%esi），group/packet 槽 -0x10/-0x1c 全对齐。
 void SendLV70Buff(CUser* user, unsigned long buff)
 {
     CBuffGroup group(user);
@@ -117,17 +116,15 @@ void SendLV70Buff(CUser* user, unsigned long buff)
     packet.put_int((int)buff);
     packet.put_int(0xe10);
     packet.finalize(true);
-    int area = user->get_area(false);
-    int vill = user->getCurCharacVill();
-    G_GameWorld()->send_to_area(vill, area, packet, &group);
+    G_GameWorld()->send_to_area(user->getCurCharacVill(), user->get_area(false),
+                                packet, &group);
     packet.clear();
     packet.put_header(0, 0x103);
     packet.put_short((int)(unsigned short)user->get_unique_id());
     packet.put_int((int)buff);
     packet.finalize(true);
-    area = user->get_area(false);
-    vill = user->getCurCharacVill();
-    G_GameWorld()->send_to_area(vill, area, packet);
+    G_GameWorld()->send_to_area(user->getCurCharacVill(), user->get_area(false),
+                                packet);
 }
 
 // ---------------------------------------------------------------------------
@@ -179,42 +176,47 @@ int CItemMakingSkill::Send_ItemMakingSkillList(CUser* user) const
 // CItemMakingSkill 技能成长链（报告 docs/class_func_reports/CItemMakingSkill/）。
 // ---------------------------------------------------------------------------
 
-namespace
-{
-
-cUserHistoryLog* userHistoryLogOf(CUser* user)
-{
-    return &user->m_historyLog;   // CUser::m_historyLog（+0x79700）
-}
-
-}  // namespace
-
 // ORIG T _ZNK16CItemMakingSkill13GetSkillLevelE21ENUM_ITEM_MAKING_TYPEP5CUser
 // @0x08545c0c。报告 GetSkillLevel.md：idxByExp = 第一个 vec[i].first > 当前点数
 // 的下标；idxByLevel = 第一个 user 等级 < vec[i].second 的下标；取 min。
-// [b28d-54 N] ORIG 0x08545c0c：循环局部槽/扩展宽度差（ORIG movswl %ax,%ebx vs
-//   4.4 落槽 -0x12 回读，N82/P200）；语义等价。
+// [b28d-solo-LinkClosureE] AE 76/76（p167 CLEAR 7/7）：删 cur 具名（P0）；
+//   两循环改 `for(init; i<size;) { if (cur>=first){++i} else break; }` 复现 ORIG 的
+//   setge/setl + je 物化与「cond1 底部、cond2 在 body 顶、++ 在 cond2 后」布局；
+//   尾部三目 `(idxByExp<=idxByLevel)?…` 对齐。idxByLevel 方向修正为 `level>=second`
+//   （ORIG setge；旧写法 setl 方向相反）。
 int CItemMakingSkill::GetSkillLevel(ENUM_ITEM_MAKING_TYPE type, CUser* user) const
 {
     const stItemMakingSkill* table =
         reinterpret_cast<stItemMakingSkill*>(G_CDataManager()->GetItemMakingSkill());
-    const short cur = static_cast<short>(m_skillLevels[type]);
     int idxByExp = 0;
-    while (static_cast<int>(idxByExp) < static_cast<int>(table->m_vec18.size())
-           && table->m_vec18[idxByExp].first <= static_cast<int>(cur))
+    int idxByLevel = 0;
+    for (idxByExp = 0;
+         static_cast<int>(idxByExp) < static_cast<int>(table->m_vec18.size());)
     {
-        ++idxByExp;
-    }
-    int idxByLevel;
-    for (idxByLevel = 0;
-         idxByLevel < static_cast<int>(table->m_vec18.size()); ++idxByLevel)
-    {
-        if (user->get_charac_level() < table->m_vec18[idxByLevel].second)
+        if (static_cast<int>(static_cast<short>(m_skillLevels[type]))
+            >= static_cast<int>(table->m_vec18[idxByExp].first))
+        {
+            ++idxByExp;
+        }
+        else
+        {
             break;
+        }
     }
-    if (idxByExp <= idxByLevel)
-        idxByLevel = idxByExp;
-    return idxByLevel;
+    for (idxByLevel = 0;
+         static_cast<int>(idxByLevel) < static_cast<int>(table->m_vec18.size());)
+    {
+        if (user->get_charac_level()
+            >= static_cast<int>(table->m_vec18[idxByLevel].second))
+        {
+            ++idxByLevel;
+        }
+        else
+        {
+            break;
+        }
+    }
+    return (idxByExp <= idxByLevel) ? idxByExp : idxByLevel;
 }
 
 // ORIG T _ZN16CItemMakingSkill23GetItemMakingSkillLevelEPK14CStackableItemP5CUser
@@ -231,7 +233,12 @@ int CItemMakingSkill::GetItemMakingSkillLevel(const CStackableItem* item, CUser*
 // @0x0854571c。报告 UpSkillLevel.md：type>0xa 或表空守卫 → 直接返回；
 // 仅当 point∈(0,m_bonusExp] 且 point<=vec.back().first 时加值；随后按等级
 // （0x46 级钳 vec.back().first / 否则逐档钳制）+ 1000 上限 clamp；alter() 通知。
-// [b28d-54 N] ORIG 0x0854571c：帧 0x34→0x44 + 槽平移（N82）+ 迭代器/临时槽（N86）。
+// [b28d-solo-LinkClosureE] DIFF 235/233（p167 CLEAR 24/24）：唯一残差 = 技能点加法
+//   的指令选择——ORIG `movzwl→%eax; mov %eax,%ecx; mov point,%eax;
+//   lea (%ecx,%eax,1),%eax; mov %eax,%ecx` vs 4.4 `movzwl→%ecx; add %eax,%ecx`
+//   （差 2 条中转）⇒ N86「同一算术多 codegen」封顶（`+=` / 显式 int 提升 / 去 cast
+//   三形实测同读数）。其余全等：守卫 `!(point>0 && point<=m_bonusExp && first>=point)`、
+//   trace 临时链（P227 令 vararg 在 ctor 前落 %esi/%ebx）、rbegin()->first 族。
 void CItemMakingSkill::UpSkillLevel(ENUM_ITEM_MAKING_TYPE type, int point, CUser* user)
 {
     const stItemMakingSkill* table =
@@ -240,31 +247,23 @@ void CItemMakingSkill::UpSkillLevel(ENUM_ITEM_MAKING_TYPE type, int point, CUser
         return;
     if (table->m_vec18.rbegin() == table->m_vec18.rend())   // ORIG rbegin==rend 空判定
         return;
-    bool allowed = false;
-    if (0 < point && point <= table->m_bonusExp
-        && point <= table->m_vec18.back().first)
-    {
-        allowed = true;
-    }
-    if (!allowed)
+    // ORIG 0x085457a3..0x085457d3：point<=0 / point>m_bonusExp / first<point 一律返回
+    if (!(point > 0 && point <= table->m_bonusExp
+          && table->m_vec18.rbegin()->first >= point))
         return;
 
-    m_skillLevels[type] =
-        static_cast<unsigned short>(static_cast<short>(m_skillLevels[type])
-                                    + static_cast<short>(point));
+    m_skillLevels[type] += static_cast<unsigned short>(point);
     if (user->get_charac_level() == 0x46)
     {
-        if (static_cast<int>(table->m_vec18.back().first)
-            < static_cast<short>(m_skillLevels[type]))
+        if (static_cast<short>(m_skillLevels[type])
+            > table->m_vec18.rbegin()->first)
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0xb5, 0);
-            trace("CHARACTER_LEVEL_CURRENT_MAX :item_making_skill_[%d] = %d",
-                  static_cast<int>(type),
-                  static_cast<int>(static_cast<short>(m_skillLevels[type])));
+            cMyTrace(__PRETTY_FUNCTION__, 0xb5, 0)(
+                "CHARACTER_LEVEL_CURRENT_MAX :item_making_skill_[%d] = %d",
+                static_cast<int>(type),
+                static_cast<int>(static_cast<short>(m_skillLevels[type])));
             m_skillLevels[type] =
-                static_cast<unsigned short>(table->m_vec18.back().first);
+                static_cast<unsigned short>(table->m_vec18.rbegin()->first);
         }
     }
     else
@@ -272,29 +271,27 @@ void CItemMakingSkill::UpSkillLevel(ENUM_ITEM_MAKING_TYPE type, int point, CUser
         for (std::vector<std::pair<int, int> >::size_type i = 0;
              i < table->m_vec18.size(); ++i)
         {
-            if (user->get_charac_level() < table->m_vec18[i].second
-                && static_cast<int>(table->m_vec18[i].first)
-                       < static_cast<short>(m_skillLevels[type]))
+            if (user->get_charac_level() < table->m_vec18[i].second)
             {
-                cMyTrace trace(
-                    __PRETTY_FUNCTION__,
-                    0xc5, 0);
-                trace("NO CHARACTER_LEVEL_CURRENT_MAX : item_making_skill_[%d] = %d",
-                      static_cast<int>(type),
-                      static_cast<int>(static_cast<short>(m_skillLevels[type])));
-                m_skillLevels[type] =
-                    static_cast<unsigned short>(table->m_vec18[i].first);
+                if (static_cast<short>(m_skillLevels[type])
+                    > table->m_vec18[i].first)
+                {
+                    cMyTrace(__PRETTY_FUNCTION__, 0xc5, 0)(
+                        "NO CHARACTER_LEVEL_CURRENT_MAX : item_making_skill_[%d] = %d",
+                        static_cast<int>(type),
+                        static_cast<int>(static_cast<short>(m_skillLevels[type])));
+                    m_skillLevels[type] =
+                        static_cast<unsigned short>(table->m_vec18[i].first);
+                }
             }
         }
     }
-    if (1000 < static_cast<short>(m_skillLevels[type]))
+    if (static_cast<short>(m_skillLevels[type]) > 0x3e8)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0xce, 0);
-        trace("ITEM_MAKING_SKILL_LEVEL_LIMIT : item_making_skill_[%d] = %d",
-              static_cast<int>(type),
-              static_cast<int>(static_cast<short>(m_skillLevels[type])));
+        cMyTrace(__PRETTY_FUNCTION__, 0xce, 0)(
+            "ITEM_MAKING_SKILL_LEVEL_LIMIT : item_making_skill_[%d] = %d",
+            static_cast<int>(type),
+            static_cast<int>(static_cast<short>(m_skillLevels[type])));
         m_skillLevels[type] = 1000;
     }
     alter();
@@ -304,7 +301,11 @@ void CItemMakingSkill::UpSkillLevel(ENUM_ITEM_MAKING_TYPE type, int point, CUser
 // @0x085453e0。报告 GainItemMakingSkillPoint.md：随机 gained = rand % m_bonusExp
 // + m_exp（0x28/0x24）；等级/点数上限违规时 errCode/gained 清零（0xd/0x16/0x5f）；
 // UpSkillLevel 后 gained=新增量；包 0x15f 应答 + ItemMakingSkillAdd 日志。
-// [b28d-54 N] ORIG 0x085453e0：帧/槽整体平移（N82）+ 迭代器/模板槽（N86/N108）。
+// [b28d-solo-LinkClosureE] AE 239/239（p167 CLEAR 28/28）：等级分支/循环改
+//   rbegin()->first + `cur>=first` 正极性并拆嵌套 if（P225 推广，复现 setge+je 双物化）；
+//   levelLimit 比较改 `skillLevel-needLevel >= m_levelLimit`（消 %ebx 中转）；
+//   日志第 4 参改回 `(short)m_skillLevels[type]`（ORIG 重读成员）；
+//   删发明 helper `userHistoryLogOf`（N114），改 `user->m_historyLog.ItemMakingSkillAdd`。
 void CItemMakingSkill::GainItemMakingSkillPoint(const CStackableItem* item, CUser* user)
 {
     const ENUM_ITEM_MAKING_TYPE type =
@@ -317,7 +318,7 @@ void CItemMakingSkill::GainItemMakingSkillPoint(const CStackableItem* item, CUse
                      % static_cast<unsigned int>(table->m_bonusExp)
                  + table->m_exp;
     int errCode = 0;
-    if (table->m_levelLimit <= skillLevel - needLevel)
+    if (skillLevel - needLevel >= table->m_levelLimit)
     {
         errCode = 0xd;
         gained = 0;
@@ -326,8 +327,8 @@ void CItemMakingSkill::GainItemMakingSkillPoint(const CStackableItem* item, CUse
         return;
     if (user->get_charac_level() == 0x46)
     {
-        if (static_cast<int>(table->m_vec18.back().first)
-            <= static_cast<short>(m_skillLevels[type]))
+        if (static_cast<short>(m_skillLevels[type])
+            >= table->m_vec18.rbegin()->first)
         {
             errCode = 0x16;
             gained = 0;
@@ -338,13 +339,15 @@ void CItemMakingSkill::GainItemMakingSkillPoint(const CStackableItem* item, CUse
         for (std::vector<std::pair<int, int> >::size_type i = 0;
              i < table->m_vec18.size(); ++i)
         {
-            if (user->get_charac_level() < table->m_vec18[i].second
-                && static_cast<int>(table->m_vec18[i].first)
-                       <= static_cast<short>(m_skillLevels[type]))
+            if (user->get_charac_level() < table->m_vec18[i].second)
             {
-                errCode = 0x16;
-                gained = 0;
-                break;
+                if (static_cast<short>(m_skillLevels[type])
+                    >= static_cast<int>(table->m_vec18[i].first))
+                {
+                    errCode = 0x16;
+                    gained = 0;
+                    break;
+                }
             }
         }
     }
@@ -363,7 +366,8 @@ void CItemMakingSkill::GainItemMakingSkillPoint(const CStackableItem* item, CUse
     packet.put_short(gained);
     packet.finalize(true);
     user->Send(packet);
-    userHistoryLogOf(user)->ItemMakingSkillAdd(type, errCode, gained, before);
+    user->m_historyLog.ItemMakingSkillAdd(
+        type, errCode, gained, static_cast<short>(m_skillLevels[type]));
 }
 
 
@@ -378,8 +382,12 @@ void CItemMakingSkill::GainItemMakingSkillPoint(const CStackableItem* item, CUse
 // → find_item 失败 logFormat+0；否则 item.make_item(inven)（CItem vtable slot
 //   +0x8）→ 读 endurance → ARAD::send_mail(info)。
 // ---------------------------------------------------------------------------
-// [b28d-54 N] ORIG 0x081a329e：局部初始化语句序（ORIG 先 put 后写 flag 槽，P239）
-//   + 槽平移（N82）；调用序列全等。
+// [b28d-solo-LinkClosureE] DIFF 95/94（p167 CLEAR 12/12）：唯一残差 = make_item 的
+//   间接 call 目标寄存器（ORIG `mov (%eax),%edx … call *%edx` vs 4.4.7 恒 %eax）
+//   ⇒ N7 封顶（P230：需 4.4.6 后端，路由由 Main 统一管）。真 bug 已修：
+//   info.m_fieldC 实参 p3→p2（ORIG 读 0x10(%ebp)）、find_item/日志源
+//   data->m_item → info.m_item.m_fieldC（ORIG 从栈槽重读）；m_item 字段写序
+//   m_fieldC/m_field8/m_field4/m_fieldA/m_itemAttr 与 Inven_Item 声明位置照 ORIG。
 int Arad_GiftItem_Set::send_mail(CUser* user, int p2, int p3, int p4, int giftIdx)
 {
     Data* data = find(giftIdx, p4, p3);
@@ -392,23 +400,27 @@ int Arad_GiftItem_Set::send_mail(CUser* user, int p2, int p3, int p4, int giftId
     }
 
     ARAD_DATAS::AradMailInfo info;
-    info.m_fieldC = p3;
+    info.m_fieldC = p2;
     info.m_isSystemMail = (unsigned char)user->GetServerGroup();
     info.m_name = const_cast<char*>(data->m_str4.c_str());
     info.m_content = const_cast<char*>(data->m_str8.c_str());
     info.m_field14 = (int)data->m_str8.length();
 
-    Inven_Item inven;
     info.m_item.m_fieldC = data->m_item;
-    info.m_item.m_field4 = 1;
     info.m_item.m_field8 = 2;
+    info.m_item.m_field4 = 1;
+    info.m_item.m_fieldA = 0;
+    info.m_item.m_itemAttr = 0;
 
-    CItem* item = G_CDataManager()->find_item(data->m_item);
+    Inven_Item inven;
+
+    CItem* item = G_CDataManager()->find_item(info.m_item.m_fieldC);
     if (item == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_Script_Loader.cpp",
                               __PRETTY_FUNCTION__,
-                              0x175, "[ARAD_RYOSIKA] Item Null. (index:%d)", data->m_item);
+                              0x175, "[ARAD_RYOSIKA] Item Null. (index:%d)",
+                              info.m_item.m_fieldC);
         return 0;
     }
 
@@ -440,15 +452,30 @@ public:
                                int job, int level, int grow1, int grow2);
 };
 
-// [b28d-54 N] ORIG 0x08145e64：帧/槽整体平移（N82）+ memcpy 展开形（N78）。
+// [b28d-solo-LinkClosureE] DIFF 299/314（p167 CLEAR 17/17）：唯一残差 = 7 个 epilogue
+//   中继岛（每守卫 1 组 `jmp+nop`，共 14 条）；`return` 与 `goto` 尾标签两形实测均不消
+//   ⇒ N121 封顶。其余逐条全等：七守卫独立 `movzwl/mov + test + jne`、结构体拷贝
+//   （对齐剥离 + rep movsl + 尾 2/1 字节，替代 memcpy）、三 trace 槽 -0x58/-0x48/-0x38、
+//   12 个 vararg 全表达式（前 9 spill、末 3 落 %edi/%esi/%ebx）。
 void InitializeCharacStat::initCharacStat(_Additioal_info& info,
                                           unsigned int characNo, int job,
                                           int level, int grow1, int grow2)
 {
-    if (info.m_field08 != 0 || info.m_field0c != 0 || info.m_field0a != 0 ||
-        info.m_field0e != 0 || info.m_field00 != 0 || info.m_field04 != 0 ||
-        info.m_field42 != 0)
-        return;
+    // ORIG 0x08145e70..0x08145ed3：七条独立守卫各自 jne 直跳函数尾
+    if (info.m_field08 != 0)
+        goto L_done;
+    if (info.m_field0c != 0)
+        goto L_done;
+    if (info.m_field0a != 0)
+        goto L_done;
+    if (info.m_field0e != 0)
+        goto L_done;
+    if (info.m_field00 != 0)
+        goto L_done;
+    if (info.m_field04 != 0)
+        goto L_done;
+    if (info.m_field42 != 0)
+        goto L_done;
 
     info.clear();
     if (job < 0 || job > 10 || level > 0x46 || level < 1)
@@ -458,57 +485,53 @@ void InitializeCharacStat::initCharacStat(_Additioal_info& info,
             0x1f, 5);
         trace("[ARAD,STAT,RESET] Invalid character job. charac %u, job %d, level %d",
               characNo, job, level);
-        return;
+        goto L_done;
     }
 
-    char base[0x52];
-    memcpy(base,
-           reinterpret_cast<const char*>(G_CDataManager()->m_characList) +
-               job * 0x7dc,
-           0x52);
-
-    const CCharacter* charac =
-        &G_CDataManager()->m_characList->m_characs[job];
-    const void* stat1 = charac->get_growtype_stat(0, 0);
-    const void* stat2 = charac->get_growtype_stat(grow1, 0);
-    const void* stat3 = charac->get_growtype_stat(grow1, grow2);
-    if (stat1 == 0 || stat2 == 0 || stat3 == 0)
     {
-        cMyTrace trace(
-            __PRETTY_FUNCTION__,
-            0x2d, 5);
-        trace("[ARAD,STAT,RESET] Invalid character grow type. charac %u, first %d, second %d",
-              characNo, grow1, grow2);
-        return;
-    }
+        // ORIG 0x08145f4c..0x08145fb9：结构体拷贝（对齐剥离 + rep movsl + 尾字节）
+        _Additioal_info base = *reinterpret_cast<const _Additioal_info*>(
+            reinterpret_cast<const char*>(G_CDataManager()->m_characList) +
+            job * 0x7dc);
 
-    memcpy(&info, base, 0x52);
-    for (int i = 1; i < level; ++i)
-    {
-        if (i <= 0xe)
-            info.add(*reinterpret_cast<const _Additioal_info*>(stat1));
-        else if (i <= 0x31)
-            info.add(*reinterpret_cast<const _Additioal_info*>(stat2));
-        else
-            info.add(*reinterpret_cast<const _Additioal_info*>(stat3));
-    }
+        const void* stat1 =
+            G_CDataManager()->m_characList->m_characs[job].get_growtype_stat(0, 0);
+        const void* stat2 =
+            G_CDataManager()->m_characList->m_characs[job].get_growtype_stat(grow1, 0);
+        const void* stat3 =
+            G_CDataManager()->m_characList->m_characs[job].get_growtype_stat(grow1, grow2);
+        if (stat1 == 0 || stat2 == 0 || stat3 == 0)
+        {
+            cMyTrace trace(
+                __PRETTY_FUNCTION__,
+                0x2d, 5);
+            trace("[ARAD,STAT,RESET] Invalid character grow type. charac %u, first %d, second %d",
+                  characNo, grow1, grow2);
+            goto L_done;
+        }
 
-    int v16 = (int)(short)info.m_field10[3];
-    int v14 = (int)(short)info.m_field10[2];
-    int v12 = (int)(short)info.m_field10[1];
-    int v10 = (int)(short)info.m_field10[0];
-    int v42 = info.m_field42;
-    int v0e = (int)info.m_field0e;
-    int v0c = (int)info.m_field0c;
-    int v0a = (int)info.m_field0a;
-    int v08 = (int)info.m_field08;
-    int v04 = info.m_field04;
-    int v00 = info.m_field00;
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x41, 0);
-    trace("[ARAD][RESET STAT] Init Character : %d, stat : hp %d, mp %d, pyatt %d, pydef %d, mgatt %d, mgdef %d, speed %d, element %d, element %d, element %d, element %d)",
-          characNo, v00, v04, v08, v0a, v0c, v0e, v42, v10, v12, v14, v16);
+        info = base;
+        for (int i = 1; i < level; ++i)
+        {
+            if (i <= 0xe)
+                info.add(*reinterpret_cast<const _Additioal_info*>(stat1));
+            else if (i <= 0x31)
+                info.add(*reinterpret_cast<const _Additioal_info*>(stat2));
+            else
+                info.add(*reinterpret_cast<const _Additioal_info*>(stat3));
+        }
+
+        // ORIG 0x0814616e..0x081461e8：12 个 vararg 全为表达式（右起求值，前 9 个 spill、
+        // 末 3 个落 %edi/%esi/%ebx）⇒ 不设具名局部。
+        cMyTrace(__PRETTY_FUNCTION__, 0x41, 0)(
+            "[ARAD][RESET STAT] Init Character : %d, stat : hp %d, mp %d, pyatt %d, pydef %d, mgatt %d, mgdef %d, speed %d, element %d, element %d, element %d, element %d)",
+            characNo, (int)info.m_field00, info.m_field04, (int)info.m_field08,
+            (int)info.m_field0a, (int)info.m_field0c, (int)info.m_field0e,
+            info.m_field42, (int)(short)info.m_field10[0],
+            (int)(short)info.m_field10[1], (int)(short)info.m_field10[2],
+            (int)(short)info.m_field10[3]);
+    }
+L_done:;
 }
 
 }  // namespace tools
@@ -524,8 +547,11 @@ void InitializeCharacStat::initCharacStat(_Additioal_info& info,
 //     user 等级 < vec[i].second 且当前值 > vec[i].first 时钳到 vec[i].first 并停；
 //   clamp：值 >0x3e8 → 0x3e8；alter() 通知；Send_ItemMakingSkillList(user)。
 // ============================================================================
-// [b28d-54 N] ORIG 0x08545d24：帧 0x34→0x44 + 成员取址 `lea 0x18(%eax)` vs 4.4
-//   `add $0x18`（N107）+ 槽平移（N82）。
+// [b28d-solo-LinkClosureE] AE 178/178（p167 CLEAR 19/19）。真 bug 修正：放行判定
+//   极性反置——旧 `gate=(first<point); if(!gate)return` 在 point<=0 / point>0x3e8 时
+//   继续写入技能点（ORIG 该两路 return），且 first>=point 被误拒。现按 ORIG 写
+//   `if (!(point>0 && point<=0x3e8 && rbegin()->first>=point)) return;`。
+//   配套：删 vec 具名引用与 cur 具名（P0/P183）、clamp 改有符号 (short) 比较。
 void CItemMakingSkill::SetItemMakingSkillPoint(int skillIdx, int point,
                                                CUser* user)
 {
@@ -533,45 +559,41 @@ void CItemMakingSkill::SetItemMakingSkillPoint(int skillIdx, int point,
         reinterpret_cast<stItemMakingSkill*>(G_CDataManager()->GetItemMakingSkill());
     if (skillIdx > 0xa)                                    // ORIG 0x8545d3f
         return;
-    const std::vector<std::pair<int, int> >& vec = table->m_vec18;
-    if (vec.rbegin() == vec.rend())                        // ORIG 空表 → 返回
+    if (table->m_vec18.rbegin() == table->m_vec18.rend())  // ORIG 空表 → 返回
         return;
 
-    bool gate;
-    if (point > 0 && point <= 0x3e8)                       // ORIG 0x8545d95
-        gate = (vec.rbegin()->first < point);              // ORIG cmp/jge：first<point 才放行
-    else
-        gate = true;
-    if (!gate)
+    // ORIG 0x8545d8f..0x8545dd6：point<=0 / point>0x3e8 / first>=point 一律返回
+    if (!(point > 0 && point <= 0x3e8
+          && table->m_vec18.rbegin()->first >= point))
         return;
 
     m_skillLevels[skillIdx] = static_cast<unsigned short>(point);  // ORIG mov %cx,0x6(,idx,2)
 
     if (user->get_charac_level() == 0x46)                  // ORIG 0x8545df7
     {
-        const short cur = static_cast<short>(m_skillLevels[skillIdx]);
-        if (cur > vec.rbegin()->first)                     // ORIG 0x8545e34 setg
+        if (static_cast<short>(m_skillLevels[skillIdx])
+            > table->m_vec18.rbegin()->first)              // ORIG 0x8545e34 setg
             m_skillLevels[skillIdx] =
-                static_cast<unsigned short>(vec.rbegin()->first);
+                static_cast<unsigned short>(table->m_vec18.rbegin()->first);
     }
     else
     {
-        for (unsigned int i = 0; i < vec.size(); ++i)      // ORIG 0x8545e84 循环
+        for (unsigned int i = 0; i < table->m_vec18.size(); ++i)  // ORIG 0x8545e84 循环
         {
-            if (user->get_charac_level() < vec[i].second)  // ORIG vec[i]+4 等级档
+            if (user->get_charac_level() < table->m_vec18[i].second)
             {
-                const short cur = static_cast<short>(m_skillLevels[skillIdx]);
-                if (cur > vec[i].first)                    // ORIG 0x8545ed9 setg
+                if (static_cast<short>(m_skillLevels[skillIdx])
+                    > table->m_vec18[i].first)             // ORIG 0x8545ed9 setg
                 {
                     m_skillLevels[skillIdx] =
-                        static_cast<unsigned short>(vec[i].first);
+                        static_cast<unsigned short>(table->m_vec18[i].first);
                     break;                                 // ORIG 0x8545f04
                 }
             }
         }
     }
 
-    if (m_skillLevels[skillIdx] > 0x3e8)                   // ORIG 0x8545f31 clamp
+    if (static_cast<short>(m_skillLevels[skillIdx]) > 0x3e8)   // ORIG 0x8545f31 clamp
         m_skillLevels[skillIdx] = 0x3e8;
 
     alter();                                               // ORIG 0x8545f4a

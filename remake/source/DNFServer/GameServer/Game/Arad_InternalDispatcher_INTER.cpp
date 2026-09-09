@@ -157,14 +157,15 @@ int Arad_INTER_kDeleteServerState::dispatch_sig(CUser* /*user*/, char* body, int
 //   addUserRewardData → eventReward<FnRewardLethe>(0x8f) →
 //   GetRepeatEvent(0x9b)->IsEventing(NULL) 命中再 eventReward<FnRewardMomoji>(0x9b)。
 // ============================================================================
-int Arad_INTER_kLoadRewardEventItem::dispatch_sig(CUser* user, char* /*body*/, int len)
+int Arad_INTER_kLoadRewardEventItem::dispatch_sig(CUser* user, char* body, int len)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x08198fd0）：198/190 条，残差=帧 0x40 vs 0x60
-    // + 局部槽序（0x10 vs 0x14 首参偏移差为形参读序）。语义等价。
+    // [b28d-solo-Arad_InternalDispatcher_INTER 判词] AE 闭合（ORIG 0x08198fd0）：190=190 条、帧/槽全等。
+    // 真语义 bug 已修：sig 原取自 len（0x14(%ebp) int），ORIG 0x08199007 读
+    // 0x10(%ebp)=body(char*) ⇒ 原码解引用的是包体指针而非长度。
     if (user == 0 || user->getCurCharacR() == 0)
         return 0x4d3;
 
-    arad::SigLoadRewardEventItem* sig = (arad::SigLoadRewardEventItem*)len;
+    arad::SigLoadRewardEventItem* sig = (arad::SigLoadRewardEventItem*)body;
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
@@ -172,26 +173,22 @@ int Arad_INTER_kLoadRewardEventItem::dispatch_sig(CUser* user, char* /*body*/, i
         return 0x4d9;
     }
 
-    Arad_EventPeriodDataManager* epdm =
-        (Arad_EventPeriodDataManager*)Singleton<Arad_DataManager>::Get()->findGameScript(
-            std::string("Arad_EventPeriodDataManager"));
-    epdm->addUserRewardData(user, *sig);
+    // [b28d-solo] P52/P134 链式单语句：ORIG 0x08199073/0x08199082 findGameScript 结果
+    // 直接经 %eax 传入 receiver 调用（无具名 epdm 槽）；eventReward 的 curSec 在
+    // string 构造前求值并 %ebx 保活（0x081990ee）。具名局部形落 4 槽、帧 0x60 vs 0x40。
+    ((Arad_EventPeriodDataManager*)Singleton<Arad_DataManager>::Get()->findGameScript(
+        std::string("Arad_EventPeriodDataManager")))->addUserRewardData(user, *sig);
 
-    unsigned int curSec = GlobalData::s_systemTime_.getCurSec();
-    Arad_EventPeriodDataManager* epdm2 =
-        (Arad_EventPeriodDataManager*)Singleton<Arad_DataManager>::Get()->findGameScript(
-            std::string("Arad_EventPeriodDataManager"));
-    epdm2->eventReward<FnRewardLethe>((ENUM_REPEAT_EVENT_CODE)0x8f, curSec, user);
+    ((Arad_EventPeriodDataManager*)Singleton<Arad_DataManager>::Get()->findGameScript(
+        std::string("Arad_EventPeriodDataManager")))->eventReward<FnRewardLethe>(
+            (ENUM_REPEAT_EVENT_CODE)0x8f, GlobalData::s_systemTime_.getCurSec(), user);
 
-    CEventBase* repeat = GlobalData::s_event_manager->GetRepeatEvent(0x9b);
     // ORIG 无判空直接虚调 vtable+0x34（slot IsEventing）传 NULL。
-    if (repeat->IsEventing(0))
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x9b)->IsEventing(0))
     {
-        unsigned int curSec2 = GlobalData::s_systemTime_.getCurSec();
-        Arad_EventPeriodDataManager* epdm3 =
-            (Arad_EventPeriodDataManager*)Singleton<Arad_DataManager>::Get()->findGameScript(
-                std::string("Arad_EventPeriodDataManager"));
-        epdm3->eventReward<FnRewardMomoji>((ENUM_REPEAT_EVENT_CODE)0x9b, curSec2, user);
+        ((Arad_EventPeriodDataManager*)Singleton<Arad_DataManager>::Get()->findGameScript(
+            std::string("Arad_EventPeriodDataManager")))->eventReward<FnRewardMomoji>(
+                (ENUM_REPEAT_EVENT_CODE)0x9b, GlobalData::s_systemTime_.getCurSec(), user);
     }
     return 0;
 }
@@ -202,73 +199,87 @@ int Arad_INTER_kLoadRewardEventItem::dispatch_sig(CUser* user, char* /*body*/, i
 //   QuestList::getQuestNPCList(GRADE 0) 的 multimap value 对应任务，排除转职
 //   0xe04..0xe08 且职业匹配、未清者结清+发奖。返回是否有任一结清。
 // ============================================================================
-void Arad_INTER_kAradJumpingCharacter::clearEpicQuest(CUser* user)
+bool Arad_INTER_kAradJumpingCharacter::clearEpicQuest(CUser* user)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x081993c4）：232/231 条，残差=帧 0x74 vs 0x84
-    // 槽位差；QuestClear bool 链消费点 0x0819968f `call isClearedQuest; xor $1;
-    // test %al; je` 已 fresh 复编核对一致。语义等价。
+    // [b28d-solo-Arad_InternalDispatcher_INTER] P157/P183 逐字段重读 + P171 照抄：ORIG 0x081993c4 全链式
+    // （getCurCharacQuestW/R 结果直接下标，无具名 questW/questR 槽）；
+    // 返回类型 bool（尾 movzbl -0x29(%ebp),%eax 双出口）；r0 原码未初始化
+    // （仅 3 条 movl $0 落 -0x34/-0x38/-0x3c）；getQuestNPCList 无 npcQuestList
+    // 判空（ORIG 直接 mgr+0x18 取表调用）。
     bool anyCleared = false;                                // -0x29
 
-    QuestList* npcQuestList = G_CDataManager()->m_questList;  // mgr+0x18
-    std::multimap<int, int>* npcMap =
-        npcQuestList ? npcQuestList->getQuestNPCList((ENUM_QUEST_GRADE)0) : 0;
+    // [b28d-solo] ORIG 调 const 版 begin/end（_ZNKSt8multimap…3endEv/5beginEv，p167
+    // MISSING）⇒ 指针本身 const。
+    const std::multimap<int, int>* npcMap =
+        G_CDataManager()->m_questList->getQuestNPCList((ENUM_QUEST_GRADE)0);  // -0x28
     if (npcMap == 0)
-        return;
+        return anyCleared;
 
-    int level = user->get_charac_level();    // -0x20
+    int clearedCount = 0;                                   // -0x24
+    int level = user->get_charac_level();                   // -0x20
 
     for (int i = 0; i < 0x14; ++i)                          // -0x1c
     {
-        UserQuest* questW = user->getCurCharacQuestW();
-        if (questW->m_quest[i] == 0)                        // base+8+(i+0x1d4c)*4
+        if (user->getCurCharacQuestW()->m_quest[i] == 0)
             continue;
-        UserQuest* questR = user->getCurCharacQuestR();
-        Quest* quest = G_CDataManager()->find_quest(questR->m_quest[i]);
-        if (quest != 0 && quest->m_type == 0)
+        Quest* quest = G_CDataManager()->find_quest(
+            user->getCurCharacQuestR()->m_quest[i]);        // -0x18
+        if (quest == 0)
+            continue;
+        if (quest->m_type != 0)
+            continue;
+        int r3 = 0, r2 = 0, r1 = 0, r0;                     // -0x34/-0x38/-0x3c/-0x40
+        int levelMin = quest->m_levelMin;                   // -0x14
+        if (levelMin < level)
         {
-            int r0 = 0, r1 = 0, r2 = 0, r3 = 0;             // -0x34/-0x38/-0x3c/-0x40
-            if (quest->m_levelMin < level)                  // +0x20
-            {
-                WongWork::CQuestClear* clearR =
-                    &user->getCurCharacQuestR()->m_cleared;
-                clearR->setClearedQuest((unsigned int)questR->m_quest[i]);
-                UserQuest* questW2 = user->getCurCharacQuestW();
-                questW2->m_quest[i] = 0;                    // 进行区清零
-                UserQuest* questW3 = user->getCurCharacQuestW();
-                questW3->m_trigger[i] = 0;                  // trigger 区清零(+0x1d60 段)
-                user->quest_basic_reward(quest, r3, r2, r1, r0, true);
-                anyCleared = true;
-            }
+            user->getCurCharacQuestW()->m_cleared.setClearedQuest(
+                (unsigned int)user->getCurCharacQuestR()->m_quest[i]);
+            user->getCurCharacQuestW()->m_quest[i] = 0;
+            user->getCurCharacQuestW()->m_trigger[i] = 0;
+            user->quest_basic_reward(quest, r3, r2, r1, r0, true);
+            anyCleared = true;
+            ++clearedCount;
         }
     }
 
-    // 第二遍：NPC list 对应任务族（Ghidra clearedCount 与 anyCleared 同步自增）。
-    for (std::multimap<int, int>::iterator it = npcMap->begin(); it != npcMap->end(); ++it)
+    // 第二遍：NPC list 对应任务族（P74 迭代器双旋钮：end 先于 begin 求值）。
+    // [b28d-solo] P96/P270：ORIG 调 const_iterator 族（p167 EXTRA 非 const 5 符号）⇒
+    // 显式 const_iterator（Ghidra C 亦为 _Rb_tree_const_iterator）。
+    std::multimap<int, int>::const_iterator itEnd = npcMap->end();       // -0x30
+    for (std::multimap<int, int>::const_iterator it = npcMap->begin();   // -0x44
+         it != itEnd; ++it)
     {
-        Quest* quest = G_CDataManager()->find_quest(it->second);
+        Quest* quest = G_CDataManager()->find_quest(it->second);   // -0x10
         if (quest == 0)
             continue;
-        if (quest->m_index == 0xe04 || quest->m_index == 0xe05 ||
-            quest->m_index == 0xe06 || quest->m_index == 0xe07 ||
-            quest->m_index == 0xe08)
+        if (quest->m_index == 0xe04)
+            continue;
+        if (quest->m_index == 0xe05)
+            continue;
+        if (quest->m_index == 0xe06)
+            continue;
+        if (quest->m_index == 0xe07)
+            continue;
+        if (quest->m_index == 0xe08)
             continue;
         if (!quest->checkPossibleJob((ENUM_CHARACTERJOB)user->get_charac_job()))
             continue;
+        int r3 = 0, r2 = 0, r1 = 0, r0;                     // -0x48/-0x4c/-0x50/-0x54
+        int levelMin = quest->m_levelMin;                   // -0xc
+        if (levelMin < level)
         {
-            int r0 = 0, r1 = 0, r2 = 0, r3 = 0;             // -0x48/-0x4c/-0x50/-0x54
-            if (quest->m_levelMin < level)
+            if (!user->getCurCharacQuestW()->m_cleared.isClearedQuest(
+                    (unsigned int)quest->m_index))
             {
-                UserQuest* questW = user->getCurCharacQuestW();
-                WongWork::CQuestClear* clear = &questW->m_cleared;
-                if (!clear->isClearedQuest((unsigned int)quest->m_index))
-                {
-                    clear->setClearedQuest((unsigned int)quest->m_index);
-                    user->quest_basic_reward(quest, r3, r2, r1, r0, true);
-                    anyCleared = true;
-                }
+                user->getCurCharacQuestW()->m_cleared.setClearedQuest(
+                    (unsigned int)quest->m_index);
+                user->quest_basic_reward(quest, r3, r2, r1, r0, true);
+                anyCleared = true;
+                ++clearedCount;
             }
         }
     }
+    return anyCleared;
 }
 
 // ----------------------------------------------------------------------------
@@ -279,8 +290,13 @@ bool Arad_INTER_kAradJumpingCharacter::sendHelperBox(CUser* user,
                                                      unsigned char ticketType,
                                                      unsigned char growValue)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x0819973e）：153/146 条，残差=帧 0x1d8 大局部
-    // 槽位/寄存器分配（4.4 少 callee-saved 保活）。语义等价。
+    // [b28d-solo-Arad_InternalDispatcher_INTER 判词] NEAR→封 N7/P78（ORIG 0x0819973e）：146=146 条、帧 0x1b8 全等、
+    // 槽基 item@-0x6e/body@-0x16e/title@-0x31/rewardIndex@-0x1c 全等；唯一残差 =
+    // callee-saved 角色互换（ORIG job→%esi、ticketType→%edi；4.4 恒 job→%edi、
+    // ticketType→%esi，压参 0x20/0x1c 随之）。实测三旋钮均不翻：①内联实参
+    // ②裸 register 两声明序 ③去 rewardIndex 冗余 cast ⇒ P248 条件②/N109 封顶。
+    // 真语义 bug 已修：getCurRewardItem 第三参原传独立局部 itemId，ORIG 传
+    // &item.m_addInfo（Inven_Item+0x02 物品 idx 出参）⇒ 原码 create_item 造 0 号物品。
     Inven_Item item;                                        // -0x6e
     char body[256];                                         // -0x16e
     char title[21];                                         // -0x31
@@ -303,33 +319,44 @@ bool Arad_INTER_kAradJumpingCharacter::sendHelperBox(CUser* user,
                           4, "jumping_character_mail_02", 0), 0xff);
     }
 
-    int job = user->get_charac_job();
-    unsigned long itemId = 0;
-    bool got = G_CDataManager()->m_aradJumping.getCurRewardItem(job, rewardIndex, itemId);
-    if (got)
+    // [b28d-solo] 真 bug 修复：ORIG 0x0819989a 第三参 = `lea -0x6e(%ebp); add $0x2`
+    // 即 &item.m_addInfo（Inven_Item+0x02 物品 idx 出参）。原用独立局部 unsigned long
+    // itemId ⇒ getCurRewardItem 结果写栈槽、item.m_addInfo 恒 0，create_item 造 0 号物品。
+    // [b28d-solo] ORIG 0x081998b7 `xor $1; test %al; je <success>`：bool callee 裸形
+    // `if (!call())` 直产（P168a①，勿经 bool 局部——4.4 会落槽 mov%al/cmpb）。
+    // 负极性直落 error、success 为跳转目标（P222 正向包裹/P194 块序）。
+    if (!G_CDataManager()->m_aradJumping.getCurRewardItem(
+            user->get_charac_job(), rewardIndex,
+            *reinterpret_cast<unsigned long*>(&item.m_addInfo)))
     {
-        CItemList* itemList = G_CDataManager()->getItemList();
-        itemList->create_item((ENUM_ITEM_CREATE_TYPE)0, item, 1);
-        item.set_add_info(1);                               // item+0x07 = 1
-        ENUM_SERVER_GROUP group = (ENUM_SERVER_GROUP)user->GetServerGroup();
-        unsigned long bodyLen = strlen(body);
-        unsigned long characNo = (unsigned long)user->getCurCharacNo();
-        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            title, item, 100000, characNo, body, (int)bodyLen, 0, group, false, false);
-    }
-    else
-    {
-        unsigned int jobU = (unsigned int)user->get_charac_job();
-        unsigned int characNo = (unsigned int)user->get_charac_no(-1);
-        unsigned int accId = (unsigned int)user->get_acc_id();
+        // [b28d-solo] ORIG 0x081998c2..0x08199909 右起求值：get_charac_job→%esi、
+        // ticketType→%edi、get_charac_no→%ebx、get_acc_id→%eax 内联实参保活。
+        register unsigned int jobArg = (unsigned int)user->get_charac_job();
+        register unsigned int ticketArg = (unsigned int)ticketType;
         LogManager::logFormat
             (1, "localjapan/Arad_InterDispatcher.cpp",
              __PRETTY_FUNCTION__,
              0x5d5,
              "JUMPING CHARACTER : REWARD ERROR - m_id:%u, charac_no:%u, tickettype:%d, job:%d, growValue:%d",
-             accId, characNo, (unsigned int)ticketType, jobU, (unsigned int)rewardIndex);
+             (unsigned int)user->get_acc_id(),
+             (unsigned int)user->get_charac_no(-1),
+             ticketArg,
+             jobArg,
+             rewardIndex);
     }
-    return got ? true : false;
+    else
+    {
+        // ORIG 直读 mgr+0xc（getItemList 虽头内 inline，4.4 -O0 仍折成 call）。
+        G_CDataManager()->m_itemList->create_item((ENUM_ITEM_CREATE_TYPE)0, item, 1);
+        item.m_addInfo2 = 1;                                // ORIG movl $1,-0x67(%ebp) 直写
+        // [b28d-solo] ORIG 0x08199977..0x081999dc 右起求值：GetServerGroup→%ebx、
+        // strlen→%esi、getCurCharacNo→%eax 全部内联实参（具名局部会落 3 槽 + 帧 +0x14）。
+        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+            title, item, 100000, (unsigned long)user->getCurCharacNo(), body,
+            (int)strlen(body), 0, (ENUM_SERVER_GROUP)user->GetServerGroup(), false, false);
+        return true;
+    }
+    return false;
 }
 
 // ============================================================================
@@ -337,14 +364,16 @@ bool Arad_INTER_kAradJumpingCharacter::sendHelperBox(CUser* user,
 // ============================================================================
 int Arad_INTER_kAradJumpingCharacter::dispatch_sig(CUser* user, char* body, int len)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x081999f2）：241/231 条，残差=帧 0x40 vs 0x50
-    // + 局部槽序。语义等价。
+    // [b28d-solo-Arad_InternalDispatcher_INTER] 真 bug 修复：sig 原取自 len（0x14(%ebp) int），ORIG 0x08199a28 读
+    // 0x10(%ebp)=body(char*)；字段访问改 arad::SigAradJumpingCharacter 具名成员
+    // （ORIG movzwl 0xb(%eax)/movzbl 0x9(%eax)/0xa(%eax) disp 折叠，裸偏移 sig+N
+    // 恒产 add $N,%eax + movzwl (%eax) 两步，§4.3）。
     if (user == 0)
         return 0x5e9;
     if (user->getCurCharacR() == 0)
         return 0x5ee;
 
-    unsigned char* sig = (unsigned char*)len;               // SigAradJumpingCharacter*
+    arad::SigAradJumpingCharacter* sig = (arad::SigAradJumpingCharacter*)body;
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
@@ -352,33 +381,33 @@ int Arad_INTER_kAradJumpingCharacter::dispatch_sig(CUser* user, char* body, int 
         return 0x5f4;
     }
 
-    // 跳级券：delete_item(INVEN 1, slot=*(ushort*)(sig+0xb), 1, reason 3, true)
-    unsigned short slot = *(unsigned short*)(sig + 0xb);
-    CInventory* inventory = user->getCurCharacInvenW();
-    bool deleted = (inventory->delete_item((INVEN_TYPE)1, slot, 1,
-                                           (eItemDelReason)3, true) == 1);
-    if (!deleted)
+    // 跳级券：delete_item(INVEN 1, slot=sig->m_itemIndex, 1, reason 3, true)
+    // [b28d-solo] P157 逐字段重读：ORIG 两次独立 movzwl 0xb(%eax)（delete_item 前
+    // %ebx 保活、SendUpdateItemList 处重读），禁具名 slot/inventory 缓存。
+    if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)1, sig->m_itemIndex, 1,
+                                                (eItemDelReason)3, true) != 1)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x249, 0x13);
         return 0;
     }
-    user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, slot);
+    user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, sig->m_itemIndex);
 
     // 升到 19→20 区间（<=0x13 循环自增）。
     while (user->get_charac_level() <= 0x13)
         user->SetCharacLevel(user->get_charac_level() + 1);
 
-    // 一次成长（growValue=sig[10]），二段成长（sig[9]==2 时两次跳段）。
-    int firstGrowTarget = (int)(unsigned char)sig[0xa];     // -0x14
+    // 一次成长（growValue=m_growType），二段成长（m_eventKind==2 时两次跳段）。
+    int firstGrowTarget = (int)sig->m_growType;             // -0x14
     int secondGrowFlag = 0;                                 // -0x10
     user->ChangeGrowType_GM(firstGrowTarget, secondGrowFlag);
-    if ((char)sig[9] == 2)
+    if (sig->m_eventKind == 2)
     {
         while (user->get_charac_level() <= 0x31)
             user->SetCharacLevel(user->get_charac_level() + 1);
         secondGrowFlag = 1;
-        int curFirstGrow = (int)user->getCurCharFirstGrowType();
-        user->ChangeGrowType_GM(curFirstGrow, secondGrowFlag);
+        // ORIG 0x08199bab `call getCurCharFirstGrowType; movsbl %al,%eax` 直传，
+        // 无具名 curFirstGrow 槽（具名形使 sig 起全帧槽基深 4）。
+        user->ChangeGrowType_GM((int)user->getCurCharFirstGrowType(), secondGrowFlag);
         while (user->get_charac_level() <= 0x36)
             user->SetCharacLevel(user->get_charac_level() + 1);
     }
@@ -395,7 +424,7 @@ int Arad_INTER_kAradJumpingCharacter::dispatch_sig(CUser* user, char* body, int 
     int exp = G_CDataManager()->get_level_exp(user->get_charac_level());
     user->setCurCharacExp(exp);
 
-    sendHelperBox(user, sig[9], sig[0xa]);
+    sendHelperBox(user, (unsigned char)sig->m_eventKind, sig->m_growType);
 
     user->SendNotiPacket((CUser::eSendTarget)1, (ENUM_NOTIPACKET)0x25, 0);
     user->SendNotiPacket((CUser::eSendTarget)0, (ENUM_NOTIPACKET)2, 0);
@@ -408,9 +437,8 @@ int Arad_INTER_kAradJumpingCharacter::dispatch_sig(CUser* user, char* body, int 
 // ============================================================================
 int Arad_INTER_kAvatarHiddenOptionChange::dispatch_sig(CUser* user, char* body, int len)
 {
-    #pragma pack(push, 1)
-    struct SigHV { char m_pad0[2]; short m_f2; unsigned short m_f4; };
-    #pragma pack(pop)
+    // [b28d-solo-Arad_InternalDispatcher_INTER 判词] AE（ORIG 0x08199d6e）：112=112、
+    // 帧 0x30/槽 -0xc/-0x18 全等；SigHV 视图改真实字段、sete 直测形见下方注释。
     // ORIG ebx 出口寄存：各失败路径直接设值返回（检查顺序 user→sig→getCurCharacR）。
     if (user == 0)
         return 0x664;
@@ -422,11 +450,11 @@ int Arad_INTER_kAvatarHiddenOptionChange::dispatch_sig(CUser* user, char* body, 
                               0x669, "AVATAR HIDDENOPTION CHANGE INTER_DSP(SigAvatarHiddenOptionChange) null.");
         return 0x66a;
     }
-    // [b28d-59 P0 清绑] ORIG 0x08199dx：call; test %eax,%eax; sete %al; test; je
-    // ＝ P194② `bool z = (x == 0); if (z)` 物化形（int callee 非 bool）；
-    // 原 `register bool z asm("al")` 绑定已按 P0/N96 清为纯表达式。
-    bool z = (user->getCurCharacR() == 0);
-    if (z)
+    // [b28d-solo-Arad_InternalDispatcher_INTER] ORIG 0x08199dd3：call; test %eax,%eax; sete %al; test %al,%al; je
+    // ＝ 直接 `if (x == 0)` 的 4.4 sete 物化直测形（int callee 非 bool）。
+    // 反例：`bool z=(x==0); if(z)` 落 `mov %al,-0x9; cmpb $0,-0x9` 撑帧；
+    // `register bool z` 免槽但落 %bl（P78 汇聚变量寄存器差）⇒ 均劣于直接 if。
+    if (user->getCurCharacR() == 0)
         return 0x670;
 
     // P48：ORIG 每次使用均重调 Singleton<...>::Get()，不许提升到局部。
@@ -439,10 +467,10 @@ int Arad_INTER_kAvatarHiddenOptionChange::dispatch_sig(CUser* user, char* body, 
     packet.clear();
     packet.put_header(1, 0x24c);
     packet.put_byte(1);
-    // ORIG movzwl 0x2(%eax)/0x4(%eax) disp 折叠＝ pack(1) 视图字段访问
-    // （(char*)sig+N 实参恒 add 分解，探针 /tmp/l18p/q2.cpp）。
-    packet.put_short((int)((const SigHV*)sig)->m_f2);
-    packet.put_short((unsigned int)((const SigHV*)sig)->m_f4);
+    // ORIG movzwl 0x2(%eax)+cwtl / movzwl 0x4(%eax)+movzwl %ax disp 折叠
+    // ＝ 真实字段 short m_avatarSlot / unsigned short m_hiddenOption。
+    packet.put_short((int)sig->m_avatarSlot);
+    packet.put_short((unsigned int)sig->m_hiddenOption);
     packet.finalize(true);
     user->Send(packet);
     return 0;
@@ -512,8 +540,8 @@ out:
 // ============================================================================
 int Arad_INTER_kEmblemCompound::dispatch_sig(CUser* user, char* body, int len)
 {
-    // [b28d-59 判词] 封 N82/N7（ORIG 0x0819a0c0）：88/90 条，残差=callee-saved
-    // push 组（ORIG push edi/esi/ebx vs 4.4 少）+ 首参判空块序。语义等价。
+    // [b28d-solo-Arad_InternalDispatcher_INTER 判词] AE（ORIG 0x0819a0c0）：90=90、
+    // push edi/esi/ebx 组与槽位全等。解法 = P227 全表达式临时链（见函数尾注释）。
     if (user == 0)
         return 0x6b6;
     if (user->getCurCharacR() == 0)
@@ -533,14 +561,13 @@ int Arad_INTER_kEmblemCompound::dispatch_sig(CUser* user, char* body, int len)
     if (!Singleton<EmblemCompoundServer>::Get()->Process(user, sig))
         return 0;
 
-    // ORIG 加载序：charac_no(sig+0x10 前先算)，再 sig[0]/sig[8]/sig[0x10]。
-    unsigned int charac_no = (unsigned int)user->getCurCharacNo();   // uVar7
-    unsigned int resultIdx = (unsigned int)sig->m_resultIdx;         // uVar4 = sig+0x10
-    unsigned int slot2 = (unsigned int)sig->m_slot1;                 // uVar1 = sig+0x08
-    unsigned int slot1 = (unsigned int)sig->m_slot0;                 // uVar2 = sig+0x00
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x6cc, 0);
-    trace("EMBLEM COMPOUND : success [slot1:%d] [slot2:%d] [selectNo:%d] [resultIdx:%d] [charac_no:%d]",
-          slot1, slot2, resultIdx, charac_no);
+    // [b28d-solo-Arad_InternalDispatcher_INTER] P227 全表达式临时链：ORIG 0x0819a199..0x0819a1d5 在 cMyTrace
+    // ctor 前右起求 varargs（getCurCharacNo→%ebx、m_resultIdx→槽、m_slot1→%edi、
+    // m_slot0→%esi）并跨 ctor 保活；具名局部形 4.4 全落栈槽（前测 4 槽）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x6cc, 0)(
+        "EMBLEM COMPOUND : success [slot1:%d] [slot2:%d] [selectNo:%d] [resultIdx:%d] [charac_no:%d]",
+        (unsigned int)sig->m_slot0, (unsigned int)sig->m_slot1,
+        (unsigned int)sig->m_resultIdx, (unsigned int)user->getCurCharacNo());
     return 0;
 }
 
@@ -576,12 +603,22 @@ int Arad_INTER_kAvatarConvert::dispatch_sig(CUser* user, char* body, int len)
 // ============================================================================
 int Arad_INTER_kAvatarRoulette::dispatch_sig(CUser* user, char* body, int len)
 {
-    // [b28d-59 判词] 封 N82（ORIG 0x08198a9a）：325/320 条，残差=局部槽整体平移
-    //（-0x2c vs -0x3c）。语义等价。
+    // [b28d-solo-Arad_InternalDispatcher_INTER 判词] 封 N82/P211/P77（ORIG 0x08198a9a）：320 vs 322，残差 2 条 +
+    // 全帧槽基 +4（属 N82/N95 槽复用/槽基差，指令一一对应）：
+    // ①levelParam unsigned short 局部：4.4 恒 16 位 store+movzwl 回读 vs ORIG
+    //   32 位槽直存（P77/P10 跨版本局部宽度；int/unsigned int 承载、去 cast 各试均劣）；
+    // ②`picked.m_itemId`（unsigned int 字段→int 形参）4.4 多 1 条 regmove
+    //   （ORIG 单条 mov -0x50(%ebp),%ebx；无 cast 形同，P211/N18a）。
+    // ③AvatarCoin::Use 已由 Main 代落 bool（原 unsigned int ⇒ 调用点 setne 多 1 条，
+    //   P292；323→322）。p167 47/47 CLEAR。
+    // 真 bug 修复：①getCurCharacInvenRefW() 返回 CInventory*（巨类），裸 `+0x658`
+    // 按元素缩放成 +0x30f740；ORIG 0x08198ca2 是字节偏移 add $0x658 ⇒ (char*) 化。
+    // ②G_CEnvironment()+0x1b0 裸偏移改具名 m_serverEnvir.m_channelNo（ORIG 单条
+    // mov 0x1b0(%eax),%eax）。③sig 改 arad::SigAvatarRoulette 具名成员。
     if (user == 0)
         return 0x3c8;
 
-    unsigned char* sig = (unsigned char*)body;              // SigAvatarRoulette*（ORIG 读 0x10(%ebp)=body）
+    arad::SigAvatarRoulette* sig = (arad::SigAvatarRoulette*)body;  // ORIG 读 0x10(%ebp)=body
     if (sig == 0)
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
@@ -597,16 +634,15 @@ int Arad_INTER_kAvatarRoulette::dispatch_sig(CUser* user, char* body, int len)
     time_t now = (time_t)GlobalData::s_systemTime_.getCurSec();   // -0x48
     tm* broken = localtime(&now);                           // -0x28
 
-    unsigned int characNo = (unsigned int)user->getCurCharacNo();
     OS_API::snprintf(dateKey, 0x14, "M%02d%02d%02d%02d%10d",
-                     *(const int*)((const char*)G_CEnvironment() + 0x1b0),
+                     G_CEnvironment()->m_serverEnvir.m_channelNo,
                      (broken->tm_year + 1900) % 2000, broken->tm_mon + 1,
-                     broken->tm_mday, characNo);
+                     broken->tm_mday, (unsigned int)user->getCurCharacNo());
 
-    AvatarRouletteServer* roulette =
-        (AvatarRouletteServer*)GlobalData::s_pAvatarRoulette;
     AvatarRouletteServer::PickedAvatarInfo picked;
-    if (!roulette->Pickup(picked, sig[0], sig[1]))
+    // ORIG 0x08198bf3 直接 `mov <A>,%eax` 传 receiver（无 roulette 具名槽）。
+    if (!((AvatarRouletteServer*)GlobalData::s_pAvatarRoulette)->Pickup(
+            picked, sig->m_type, sig->m_slotIdx))
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x3e7, "[kAvatarRoulette] Avatar Roulette Pickup failed. (%u - %u)",
@@ -616,14 +652,16 @@ int Arad_INTER_kAvatarRoulette::dispatch_sig(CUser* user, char* body, int len)
         return 0;
     }
 
-    // gradeBand>1 -> 归约成档位 3；否则 -1。
+    // gradeBand>1 -> 归约成档位 3；否则 -1（ORIG cmpb $0x1,%al; jle = signed char）。
     signed char decBand = (signed char)-1;                  // -0x21
-    if ((unsigned char)picked.m_gradeBand > (unsigned char)1)
+    if (picked.m_gradeBand > 1)
         decBand = (signed char)3;
 
     // AvatarCoin 可用性判定(refW+0x658)，不可用则拒抽。
     // P48：ORIG 每次使用均重调 getCurCharacInvenRefW()+0x658，不许提升到局部。
-    if (!((AvatarCoin*)(user->getCurCharacInvenRefW() + 0x658))->IsUsable())
+    // [b28d-solo] 真 bug 修复：getCurCharacInvenRefW() 返回 CInventory*（巨类），
+    // 裸 `+0x658` 按元素缩放成 +0x30f740；ORIG 0x08198ca2 为字节偏移 add $0x658。
+    if (!((AvatarCoin*)((char*)user->getCurCharacInvenRefW() + 0x658))->IsUsable())
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x3f9, "[kAvatarRoulette] need avatarCoin. (%u - %u)",
@@ -636,12 +674,14 @@ int Arad_INTER_kAvatarRoulette::dispatch_sig(CUser* user, char* body, int len)
     int avatarUid = 0;                                      // -0x20
     if ((unsigned char)picked.m_zoneType == 3)
         avatarUid = 0;                                      // ORIG 重写同值，保留指令序
+    // ORIG 0x08198d46 存 32 位到 -0x6c（4.1 对 short 局部用 32 位槽）；4.4 对
+    // unsigned short 局部恒 16 位 store + movzwl 回读（多 1 条，P77 跨版本封顶）。
     unsigned short levelParam =                             // -0x6c
-        (unsigned short)(int)(signed char)picked.m_pad9;
+        (unsigned short)(signed char)picked.m_pad9;
 
-    CInventory* inventory = user->getCurCharacInvenW();
-    int slot = inventory->AddAvatarItem(
-        (int)picked.m_itemId, avatarUid, false,
+    // ORIG 0x08198d57 先装实参到 %edi/%esi/%ebx 再 call getCurCharacInvenW（无槽）。
+    int slot = user->getCurCharacInvenW()->AddAvatarItem(
+        picked.m_itemId, avatarUid, false,
         (char)picked.m_optionOrSkillIdx, (char)decBand,
         dateKey, (eAvatarItemAddReason)0x15, false, levelParam);
 
@@ -657,7 +697,7 @@ int Arad_INTER_kAvatarRoulette::dispatch_sig(CUser* user, char* body, int len)
 
     user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)1, slot);
 
-    if (!((AvatarCoin*)(user->getCurCharacInvenRefW() + 0x658))->Use())
+    if (!((AvatarCoin*)((char*)user->getCurCharacInvenRefW() + 0x658))->Use())
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x410, "[kAvatarRoulette] need avatarCoin. (%u - %u)",

@@ -132,6 +132,11 @@ STSkillScript::~STSkillScript()
 {
 }
 
+// [b28d-solo-STSkillScript] verdict=NEAR（307/307 insns，助记符序列全等，p167 CLEAR）
+// 残差 1 处：+0x110 m_dw110[i] 清零 ORIG `add $0x44,%edx; movl $0,(%eax,%edx,4)`
+// vs 4.4 `add $0x40,%edx; movl $0,0x10(%eax,%edx,4)`（成员偏移折入索引 vs disp 折叠）
+// ⇒ N4/N102 封顶（P30 定论：4.4 不可造 add+零 disp 形；语义等价）。
+// 其余 hunk 差异均为 .o 重定位显示（call 目标/rodata 地址），链接后归 AE。
 void STSkillScript::Clear()
 {
     m_field0 = 0;
@@ -154,26 +159,32 @@ void STSkillScript::Clear()
     m_vec50.clear();
     m_5c = 0;
     m_60 = 0;
-    for (int i = 0; i < 6; ++i)
+    // ORIG 83751ad/83751b4 双 `movl $0,-0x10`：原码 `int i = 0;` + `for(i=0;…)`
+    // 两条初始化都要写（P191 配套）。growType 是独立嵌套 for（4.1 setle 尾测）。
+    int i = 0;
+    for (i = 0; i <= 5; ++i)
     {
         m_arr64[i] = 0;
         m_arr7c[i] = 0;
-        m_growType[i].m_0[0] = 0;
-        m_growType[i].m_0[1] = 0;
-        m_growType[i].m_8[0] = 0;
-        m_growType[i].m_8[1] = 0;
+    }
+    for (i = 0; i <= 5; ++i)
+    {
+        for (int j = 0; j <= 1; ++j)
+        {
+            m_growType[i].m_0[j] = 0;
+            m_growType[i].m_8[j] = 0;
+        }
     }
     m_vecf4.clear();
-    for (int i = 0; i < 2; ++i)
+    // ORIG 8375262..83752bc 单循环：m_f100/m_f108 用 float 视图（mov $0,%edx 中转，
+    // P238）、m_dw110/m_arr138 用 int 视图直写。
+    for (i = 0; i <= 1; ++i)
     {
         m_f100[i] = 0.f;
+        m_f108[i] = 0.f;
+        m_dw110[i] = 0;
+        m_arr138[i] = 0;
     }
-    for (int i = 0; i < 4; ++i)
-    {
-        m_i108[i] = 0;
-    }
-    m_arr138[0] = 0;
-    m_arr138[1] = 0;
     m_118 = 0;
     m_useItems11c.clear();
     m_vec128.clear();
@@ -182,17 +193,18 @@ void STSkillScript::Clear()
     m_vec14c.clear();
     m_158 = 1;
     m_15c = 0;
-    m_str160[0] = "";
-    m_str160[1] = "";
-    m_arr168[0] = 0;
-    m_arr168[1] = 0;
+    // ORIG 8375332..8375375 单循环：m_str160[i]="" 后 m_arr168[i]=0。
+    for (i = 0; i <= 1; ++i)
+    {
+        m_str160[i] = "";
+        m_arr168[i] = 0;
+    }
     m_keyCommand170.clear();
     m_str194 = "";
     m_vec198.clear();
     m_1a4 = -1;
     m_vec1a8.clear();
     m_levelFeatures1b4.clear();
-    m_levelFeatures1c0.clear();
     m_1cc = 0;
     m_1d0 = 0;
     m_1d4 = 0;
@@ -205,6 +217,8 @@ void STSkillScript::Clear()
     m_vec1dc.clear();
     m_vecf4.clear();                    // ORIG 0x8375463：0xf4 二次 clear（P171 照抄）
     m_vec1f8.clear();
+    m_str10 = "";                       // ORIG 837547b：+0x10 m_str10 清空
+    m_levelFeatures1c0.clear();         // ORIG 837548e：0x1c0 clear 在 0x1f8 之后
     m_21c = 0;
     m_220 = 0;
     m_224 = -1;
@@ -220,12 +234,12 @@ void STSkillScript::Clear()
     m_258 = -1;
     m_25c = -1;
     m_260 = 0;
-    m_264 = 0;
     m_passive268.clear();
     m_str274.clear();
     m_str278.clear();
     m_280 = 1;
     m_vec284.clear();
+    m_264 = 0;                          // ORIG 83755c5：0x264 在 0x284 clear 之后
     m_290 = 0;                          // [0x837559x] ORIG 在 0x284 之后清 0x290
     m_vec294.clear();                   // [0x8375xxx] ORIG clear 0x294
     m_vec2a0.clear();                   // ORIG clear 0x2a0
@@ -317,7 +331,15 @@ typedef std::map<const char*, int, less_TCHAR> SkillTagMap;
 
 } // namespace
 
-int ImportSkillScript(STSkillScript* script, const char* path,
+// [b28d-solo-STSkillScript] verdict=DIFF（ORIG 3078 / ours 3080，gap=+2）
+// 语义完成：p167 调用点差集 CLEAR（368=368，0 missing / 0 extra；含右值 push_back
+// 与 pair C1<int&,int> 修正）。byte 层 N 封顶（§6.2 三件套口径）：
+//  - N82/N82附：帧 0x67c vs 0x69c；4.4 聚合对象优先占低槽、标量分区排布（ORIG 按
+//    生命周期穿插）⇒ 全帧槽号错位。
+//  - N4/N102：成员数组偏移折入索引 vs disp 折叠（m_dw110[i] 等）。
+//  - P292/N122：bool 局部循环条件 4.4 恒 setne 物化 vs ORIG dword 直测。
+//  - N121：4.4 jump-threading 尾岛（read_token 前 1 条 jmp+nop，ORIG 无）。
+bool ImportSkillScript(STSkillScript* script, const char* path,
                       ENUM_CHARACTERJOB job, int paramB, int iconIdx)
 {
     if (!loadRDARScriptFile(g_szSkillScriptBaseDirectory, path))   // 8a97942 实参 &g_szSkillScriptBaseDirectory
@@ -460,10 +482,10 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 value = ScanInt(&okFlag);
                 if (!okFlag)
                     break;                           // 8a9822a jne 8a982b1（出循环进 erase）
-                int value2 = ScanInt((bool*)0);
-                feat.m_vecC.push_back(std::pair<int, int>(value, value2));
-                float fValue = ScanFloat((bool*)0);
-                feat.m_vec18.push_back(fValue);
+                // ORIG 8a9825f pair C1<int&,int>（第二参右值直传）+ 8a982a7
+                // push_back(float&&)（fstps 临时槽直传）——P315 右值判定。
+                feat.m_vecC.push_back(std::pair<int, int>(value, ScanInt((bool*)0)));
+                feat.m_vec18.push_back(ScanFloat((bool*)0));
             }
             // ORIG 内联重叠擦除（8a982b2..8a983a9）：删除与 [feat.f0, feat.f1] 相交项
             for (std::vector<SkillLevelFeature>::iterator it =
@@ -597,12 +619,11 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 value = ScanInt(&okFlag);
                 if (!okFlag)
                     break;                           // 8a988aa je 走失败路（nop; jmp loop_end）
-                // ORIG 8a988b2 vec44.push_back(value)（-0x5dc 命名左值 → RKi 实参）；
-                // 8a988d6/8e2 vec50.push_back(v2)：值先落 -0x490 命名槽再取址 ⇒ 同为
-                // const int&（RKi，0808e1ee 调用体），非右值 EOi 实例。
+                // ORIG 8a988b2 vec44.push_back(value)（-0x5dc 命名左值 → RKi 实参）。
                 script->m_vec44.push_back(value);
-                int v2 = ScanInt((bool*)0);
-                script->m_vec50.push_back(v2);
+                // ORIG 8a988ef 调 0808e1ee = vector<int>::push_back(int&&)：
+                // 值先落临时槽 -0x490 再取址（右值引用形），非 RKi。
+                script->m_vec50.push_back(ScanInt((bool*)0));
             }
             break;
         }
@@ -990,31 +1011,32 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             }
         {
             script->m_vec1a8.clear();
-            int rowCnt = ScanInt((bool*)0);                 // -0x40
-            {
-                std::vector<float> rowFiller;        // resize 第 2 参临时向量
-                script->m_vec1a8.resize(rowCnt, rowFiller);
-            }
+            // ORIG 8a99a1c 起直接用函数头声明槽（-0x40 rowCnt/-0x3c poolSize/
+            // -0x38 jIdx/-0x30 chunk/-0x28 srcIdx/-0x2c kIdx），无块内 shadow。
+            rowCnt = ScanInt((bool*)0);                     // -0x40
+            // ORIG 8a99a5b resizeEjS1_：第二参为匿名临时 vector<float>()（-0x25c
+            // C1Ev + 正常/EH 两路 D1），无具名 rowFiller（P0 槽-局部律）。
+            script->m_vec1a8.resize(rowCnt, std::vector<float>());
             valuePool.clear();
-            bool cont = true;
-            while (cont)
+            // ORIG 8a99a99..：`call ScanFloat; fstps; movzbl okFlag; xor $1;
+            // test; jne <exit>` ⇒ 裸 `if (!okFlag) break;`（P168a②，无 cont 变量）。
+            for (;;)
             {
                 float fValue = ScanFloat(&okFlag);
-                if (okFlag)
-                    valuePool.push_back(fValue);
-                else
-                    cont = false;
+                if (!okFlag)
+                    break;
+                valuePool.push_back(fValue);
             }
-            int poolSize = static_cast<int>(valuePool.size());
-            for (int j = 0; j < rowCnt; ++j)         // 列优先填充：v[j + k*n]
+            poolSize = static_cast<int>(valuePool.size());  // -0x3c
+            for (jIdx = 0; jIdx < rowCnt; ++jIdx)    // 列优先填充：v[j + k*n]
             {
-                std::vector<float>& row = script->m_vec1a8[j];
-                int chunk = poolSize / rowCnt;       // 有符号除法（sar/idivl 形态）
+                std::vector<float>& row = script->m_vec1a8[jIdx];
+                chunk = poolSize / rowCnt;           // 有符号除法（sar/idivl 形态）
                 row.resize(chunk, 0.0f);
-                int srcIdx = j;
-                for (int k = 0; k < chunk; ++k)
+                srcIdx = jIdx;
+                for (kIdx = 0; kIdx < chunk; ++kIdx)
                 {
-                    row[k] = valuePool[srcIdx];
+                    row[kIdx] = valuePool[srcIdx];
                     srcIdx += rowCnt;
                 }
             }
@@ -1042,10 +1064,8 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 value = ScanInt(&okFlag);
             if (!okFlag)
                 break;
-                    int value2 = ScanInt((bool*)0);
-                feat.m_vecC.push_back(std::pair<int, int>(value, value2));
-                    float fValue = ScanFloat((bool*)0);
-                feat.m_vec18.push_back(fValue);
+                feat.m_vecC.push_back(std::pair<int, int>(value, ScanInt((bool*)0)));
+                feat.m_vec18.push_back(ScanFloat((bool*)0));
             }
             // ORIG 内联重叠擦除（[level property] 同 [basic property] 段）
             for (std::vector<SkillLevelFeature>::iterator it =
@@ -1081,7 +1101,9 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 __lookup.insert(SkillTagMap::value_type("[seal enable]", 0x280));
                 goto L_SKLTAG_TAG_ACTIVE_SEAL_ENABLE;
             }
-            script->m_1d4 = (ScanInt((bool*)0) != 0) ? 1 : 0;
+            // ORIG `setne %dl; mov this,%eax; mov %dl,0x1d4`：bool 表达式直接赋
+            // char 字段（P32/P56），三目 1:0 产分支形。
+            script->m_1d4 = (ScanInt((bool*)0) != 0);
             break;
 
         L_SKLTAG_TAG_ACTIVE_SEAL_ENABLE:
@@ -1091,7 +1113,7 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 __lookup.insert(SkillTagMap::value_type("[active seal enable]", 0x283));
                 goto L_SKLTAG_TAG_PHYSICAL_MAGICAL_CHANGE;
             }
-            script->m_1d5 = (ScanInt((bool*)0) != 0) ? 1 : 0;
+            script->m_1d5 = (ScanInt((bool*)0) != 0);
             break;
 
         L_SKLTAG_TAG_PHYSICAL_MAGICAL_CHANGE:
@@ -1235,7 +1257,7 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 __lookup.insert(SkillTagMap::value_type("[feature skill type]", 0x2c1));
                 goto L_SKLTAG_TAG_SPECIAL_LEVEL_UP;
             }
-            script->m_260 = (ScanInt((bool*)0) != 0) ? 1 : 0;
+            script->m_260 = (ScanInt((bool*)0) != 0);
             break;
 
         L_SKLTAG_TAG_SPECIAL_LEVEL_UP:
@@ -1248,7 +1270,8 @@ loop_head:                                          // 8a979dc：guard(__lookup)
         {
             script->m_passive268.clear();            // 8a9a6d4 clear(+0x268)
             std::string opToken;                     // -0x610（每轮复用，ORIG 每轮 string ctor/dtor）
-            bool cont = true;                        // ebx
+            // ORIG 用 callee-saved %ebx 承载循环标志（P231 纯 register，非 asm 绑定）。
+            register bool cont = true;
             while (cont)                             // ORIG do{ obj ctor; ... }while(ebx)（8a9a6d9..8a9a822）
             {
                 STPassiveFeatureData featData;       // -0x620：每轮 ctor 重置 enable=1 / m_4=0 / m_8=0 / m_c=0
@@ -1307,7 +1330,7 @@ loop_head:                                          // 8a979dc：guard(__lookup)
         {
             // ORIG 8a9a96b..：string 临时（-0x624）每轮 ctor/dtor；cont 走 4.1 callee-saved
             // %ebx（mov $0/$1,%ebx + test%ebx 后测 do-while）。
-            bool cont;
+            register bool cont;
             do
             {
                 std::string unused;
@@ -1340,7 +1363,7 @@ loop_head:                                          // 8a979dc：guard(__lookup)
                 __lookup.insert(SkillTagMap::value_type("[command customizing]", 0x319));
                 goto L_SKLTAG_TAG_COMBO_SET;
             }
-            script->m_280 = (ScanInt((bool*)0) != 0) ? 1 : 0;
+            script->m_280 = (ScanInt((bool*)0) != 0);
             break;
 
         L_SKLTAG_TAG_COMBO_SET:
@@ -1353,12 +1376,13 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             for (;;)
             {
                 value = ScanInt(&okFlag);
-                if (!okFlag)
+                if (okFlag)
+                    script->m_vec294.push_back(value);
+                else
                 {
                     script->m_290 = 1;
                     break;
                 }
-                script->m_vec294.push_back(value);
             }
             break;
 
@@ -1427,10 +1451,13 @@ finalize:                                           // 8a9ac50 尾部修正段�
     }
     else
     {
+        // ORIG 8a9ae7f 段两臂各自写 m_field0（无 iconIdx 写回）：if 臂用 call
+        // 返回值直存，else 臂读形参直存。
         if (iconIdx == -1)
-            iconIdx = reinterpret_cast<STScriptFileList*>(
-                          &g_staSkillScriptFileList[job])->FindIndexByFullScan(path);
-        script->m_field0 = iconIdx;
+            script->m_field0 = reinterpret_cast<STScriptFileList*>(
+                                   &g_staSkillScriptFileList[job])->FindIndexByFullScan(path);
+        else
+            script->m_field0 = iconIdx;
     }
     return 1;
 }

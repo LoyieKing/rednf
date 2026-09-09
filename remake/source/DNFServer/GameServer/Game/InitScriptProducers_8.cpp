@@ -67,16 +67,19 @@ int getDrawLayer(const char* name);                  // _Z12getDrawLayerPKc T 0x
 int importDeathTowerScript(const char* path, struct stDeathTower_t& out); // _Z22importDeathTowerScriptPKcR14stDeathTower_t T 0x089089f3（唯一定义 InitScriptProducers_6.cpp）
 
 
-int loadRDARScriptListFile(class STScriptFileList* list, const char* dir,
-                           const char* listPath, std::map<int, int>* unused);
-// _Z22loadRDARScriptListFile.. T 0x088bbd77（STScriptFileList.cpp）
+bool loadRDARScriptListFile(class STScriptFileList* list, const char* dir,
+                            const char* listPath, std::map<int, int>* unused);
+// _Z22loadRDARScriptListFile.. T 0x088bbd77（STScriptFileList.cpp，定义侧已 bool；
+// P292：ORIG 调用点 `test %al,%al` 直判 ⇒ 本 TU 旧 int 声明产 test/sete 物化）。
 
 // ---- PvP 全局表：定义于 PvP_Room.cpp 的三个，此处仅 extern 引用 ----
 // [b28d-Main 代落·S165] 元素 unsigned char→bool（定义侧 PvP_Room.cpp:65 已改；
 // 消 ODR 不一致；sizeof/地址 0x94f70e0 不变，写侧值域 0/1）。
 extern bool PVPMAP_DEATHMATCH_MODE[0x14];                     // ORIG B 0x94f70e0
-extern char PVPMAP_ONLY_NORMAL_EXPOSURE[0x14];       // ORIG B 0x94f7108
-extern char PVPMAP_ONLY_TOURNAMENT_RANDOM[0x14];     // ORIG B 0x94f711c
+// [b28d-Main 代落·S215] 元素 char→bool（定义侧 PvP_Room.cpp 已改，P248 档②；
+// 同符号同宽，读侧已按 bool 读 0/1）。
+extern bool PVPMAP_ONLY_NORMAL_EXPOSURE[0x14];       // ORIG B 0x94f7108
+extern bool PVPMAP_ONLY_TOURNAMENT_RANDOM[0x14];     // ORIG B 0x94f711c
 
 // ---- PvP map 全局表（ORIG 数据符号；外部链接）----
 // D 0x93f4f00 [0x50]：int[20]，仅 [0]=-1 其余 0（.data 字节实证）。
@@ -94,21 +97,32 @@ char PVPMAP_ONLY_TOURNAMENT_EXPOSURE[0x14] = {0};
 // [rarity weight]→m_arr1[0..5](+0xc)；[extended rarity weight]→m_arr2[0..5]
 // (+0x24)；[grade]→m_vec push_back 直至 Scan 失败。Scan 失败仍写入后仅记日志。
 // ============================================================================
-// [b28d-lane16 DIFF] ORIG 089008b8：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-InitScriptProducers_8 AE] ORIG 089008b8：clean 162/162（fresh .o 口径，
+// ORIG 165 insns）；p167 CLEAR。已对齐：死 string×2（P171）、bool ok 独立槽
+// （-0x2d/-0x2e/-0x2f）、三段 ScanInt(bool*) 循环、push_back(unsigned int)。
 bool importResealTable(const char* path, reseal_table_t* out)
 {
     if (!loadRDARScriptFile("", path))
         return false;
 
     std::string token;
-    bool ok = false;
-    int value = 0;
+    // ORIG 0x89008ef/0x89008fa：另两个 string 局部（构造+析构、全程未使用；
+    // P171 死对象照抄，4.4 亦保留其 C1/D1 调用）。
+    std::string deadToken1;
+    std::string deadToken2;
+    (void)deadToken1;
+    (void)deadToken2;
 
-    while (ScanType(token, true))
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[rarity weight]")                       // 0x8e122be 区字符串
         {
-            for (int i = 0; i < 6; ++i)
+            bool ok;                                          // ORIG -0x2d
+            int i;
+            int value;
+            for (i = 0; i < 6; ++i)
             {
                 value = ScanInt(&ok);
                 if (!ok)
@@ -122,7 +136,10 @@ bool importResealTable(const char* path, reseal_table_t* out)
         }
         else if (token == "[extended rarity weight]")
         {
-            for (int i = 0; i < 6; ++i)
+            bool ok;                                          // ORIG -0x2e
+            int i;
+            int value;
+            for (i = 0; i < 6; ++i)
             {
                 value = ScanInt(&ok);
                 if (!ok)
@@ -137,8 +154,15 @@ bool importResealTable(const char* path, reseal_table_t* out)
         }
         else if (token == "[grade]")
         {
-            while ((value = ScanInt(&ok), ok))
+            bool ok;                                          // ORIG -0x2f
+            int value;
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                    break;
                 out->m_vec.push_back(static_cast<unsigned int>(value));
+            }
         }
     }
     return true;
@@ -149,7 +173,9 @@ bool importResealTable(const char* path, reseal_table_t* out)
 // set 清空后扫描；[apply ultimate] 段内逐 int insert；遇到 [/apply ultimate]
 // 或任意其他 token 连续吞至该结束标记；EOF 与正常结束均返回 1，打开失败返回 0。
 // ============================================================================
-// [b28d-lane16 DIFF] ORIG 08913c7e：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-InitScriptProducers_8 AE] ORIG 08913c7e：clean 89/89（ORIG 92 insns）；
+// p167 CLEAR。已对齐：set::clear、ok 每轮重置、insert(int)、EOF 与 [/apply ultimate]
+// 共享尾块 return 1、打开失败日志返回 0。
 int importUltimateDungeonList(const char* path, std::set<int>& out)
 {
     if (!loadRDARScriptFile("", path))
@@ -165,19 +191,24 @@ int importUltimateDungeonList(const char* path, std::set<int>& out)
     }
 
     std::string token;
-    bool ok = false;
-    int value = 0;
+    bool ok;
+    int value;
 
     out.clear();                                   // ORIG set::clear
     for (;;)
     {
-        ok = false;                                // ORIG local_19=false 每轮重置
         if (!ScanType(token, true))
-            return 1;                              // EOF → 成功
+            break;                                 // EOF → 共享尾块 return 1
+        ok = false;                                // ORIG local_19=false 每轮重置
         if (token == "[apply ultimate]")
         {
-            while ((value = ScanInt(&ok), ok))
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                    break;
                 out.insert(value);
+            }
             continue;
         }
         if (token == "[/apply ultimate]")
@@ -193,36 +224,40 @@ int importUltimateDungeonList(const char* path, std::set<int>& out)
 // 第 2/3/4 列 Scan 失败分别返回 0x1990/0x1994/0x1998；打开失败 0x197f；
 // 成功返回 0。
 // ============================================================================
-// [b28d-lane16 DIFF] ORIG 089093ee：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-InitScriptProducers_8 AE] ORIG 089093ee：clean 96/96（ORIG 99 insns）；
+// p167 CLEAR。已对齐：4 列 ScanInt 独立错误码 0x1990/0x1994/0x1998、首列失败回标签、
+// stAttackedMapInfo_t 逐字段 + push_back、打开失败 0x197f。
 int importVillageAttackedScript(const char* path, stVillageAttacked_t& out)
 {
-    std::string token;
     bool ok = false;
+    std::string token;
 
     if (!loadRDARScriptFile("", path))
         return 0x197f;
 
-    while (ScanType(token, true))
+    for (;;)
     {
-        if (token != "[attacked map info]")
-            continue;
-        for (;;)
+        if (!ScanType(token, true))
+            break;
+        if (token == "[attacked map info]")
         {
-            stAttackedMapInfo_t info;
-            ok = false;
-            info.m_vill = ScanInt(&ok);
-            if (!ok)
-                break;                             // 首列失败 → 回标签扫描
-            info.m_area = ScanInt(&ok);
-            if (!ok)
-                return 0x1990;
-            info.m_field8 = ScanInt(&ok);
-            if (!ok)
-                return 0x1994;
-            info.m_fieldC = ScanInt(&ok);
-            if (!ok)
-                return 0x1998;
-            out.m_mapList.push_back(info);
+            for (;;)
+            {
+                stAttackedMapInfo_t info;
+                info.m_vill = ScanInt(&ok);
+                if (!ok)
+                    break;                         // 首列失败 → 回标签扫描
+                info.m_area = ScanInt(&ok);
+                if (!ok)
+                    return 0x1990;
+                info.m_field8 = ScanInt(&ok);
+                if (!ok)
+                    return 0x1994;
+                info.m_fieldC = ScanInt(&ok);
+                if (!ok)
+                    return 0x1998;
+                out.m_mapList.push_back(info);
+            }
         }
     }
     return 0;
@@ -234,7 +269,9 @@ int importVillageAttackedScript(const char* path, stVillageAttacked_t& out)
 // [pvp map basic data]：首列弃读 + 6 列入全局表（3 int 表 + 3 bool 化 char 表），
 // 计满 0x14 条打印超限日志并仍返回成功；EOF 返回成功；打开失败返回 0。
 // ============================================================================
-// [b28d-lane16 DIFF] ORIG 0890a427：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-InitScriptProducers_8 AE] ORIG 0890a427：clean 160/160（ORIG 164 insns）；
+// p167 CLEAR。已对齐：首列弃读、6 列全局表写、entryIdx>0x13 日志 + break、
+// [pvp map order] while(out!=0) 形、PVPMAP_DATA ctor + clear + push_back。
 bool loadPvpMapBasicDataScript(const char* path, std::vector<PVPMAP_DATA>* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -253,18 +290,19 @@ bool loadPvpMapBasicDataScript(const char* path, std::vector<PVPMAP_DATA>* out)
         out->clear();
 
     std::string token;
-    bool ok = false;
     int orderIdx = 0;
+    bool ok = false;
     int entryIdx = 0;
 
     for (;;)
     {
         if (!ScanType(token, true))
-            return true;                           // EOF → 成功
+            break;                                 // EOF → 共享尾块 return true
 
         if (token == "[pvp map basic data]")
         {
-            (void)ScanInt((bool*)0);               // ORIG 首列读入 -0xc 后弃用
+            const int firstCol = ScanInt((bool*)0); // ORIG 首列读入 -0xc 后弃用
+            (void)firstCol;
             PVPMAP_BIG_IMAGE[entryIdx] = ScanInt((bool*)0);
             PVPMAP_SMALL_IMAGE[entryIdx] = ScanInt((bool*)0);
             PVPMAP_DEATHMATCH_MODE[entryIdx] =
@@ -286,26 +324,25 @@ bool loadPvpMapBasicDataScript(const char* path, std::vector<PVPMAP_DATA>* out)
                     "\x95\xa0\xec\x88\x98\xec\x97\x86\xec\x8a\xb5\xeb\x8b\x88"
                     "\xeb\x8b\xa4!!!",
                     0x14);
-                return true;
+                break;
             }
         }
         else if (token == "[pvp map order]")
         {
-            if (out == 0)
-                continue;                          // ORIG 循环条件带 NULL 检查
-            for (;;)
+            // ORIG do-while 布局：先 jmp 条件，`out != 0` 走 setne 物化。
+            while (out != 0)
             {
-                ok = false;
-                const int mapIdx = ScanInt(&ok);
+                orderIdx = ScanInt(&ok);           // ORIG 复用 -0x14 槽
                 if (!ok)
-                    break;                         // → 回标签扫描
+                    break;                         // → 回外层标签扫描
                 PVPMAP_DATA data;                  // ctor：仅构造 m_name
-                data.m_mapIdx = mapIdx;
+                data.m_mapIdx = orderIdx;
                 data.m_name.clear();               // ORIG push 前 string::clear
                 out->push_back(data);
             }
         }
     }
+    return true;
 }
 
 // ============================================================================
@@ -326,7 +363,12 @@ const char* const kVendBonusTag = "[bonus output]";
 
 }  // namespace
 
-// [b28d-lane16 DIFF] ORIG 0890b2a3：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-InitScriptProducers_8 N] ORIG 0890b2a3：p167 CLEAR（39/39 调用点全等）；
+// clean 320/321（fresh .o 口径，ORIG 327 insns，净 1 条）。已对齐：删多余死 string
+// （ORIG 无第二 string ⇒ 帧 0xb0→0xa0、ok 回 -0x35）、ok!=true 的 xor 物化 ×14 与
+// ORIG 全等、output/bonus 改 for(;;)+if(!ok)break 形（P165 两份物理独立块）、
+// make_pair<unsigned long&,unsigned int&>、push_back(O&&)、P171 越界读照抄。
+// 残余为 4.1/4.4 块序（ORIG 两连 jmp 中继 vs 4.4 jump-thread）——N104/N121 封顶。
 int importVendingMachineInfoCore(const char* dir, const char* file,
                                  stVendingMachine_t& vm)
 {
@@ -335,128 +377,118 @@ int importVendingMachineInfoCore(const char* dir, const char* file,
 
     std::string token;
     bool ok = false;
-    int result = 0;
 
     for (;;)
     {
+    scan_again:
         // ---- 组外：未知标签记日志，直到 [item group] 或 EOF ----
         for (;;)
         {
             if (!ScanType(token, true))
-                return 0;
+                goto eof_exit;                     // ORIG jne 尾岛（890b714）
             if (token == "[item group]")
                 break;
-            LogManager::logFormat(
-                0, "../RDARScriptEtcParameter.cpp",
-                __FUNCTION__, 0x1e66,
-                "ERROR : Unknown tag error. %s", token.c_str());
+            goto unknown_tag;                      // ORIG 冷块落函数尾
         }
 
         stVendingMachineInfo_t info;                   // ctor 后自 clear
 
-        bool cont = true;
-        while (cont)
+        for (;;)
         {
             if (!ScanType(token, true))
-            {
-                cont = false;                          // EOF：析构后外层再扫失败→0
-                break;
-            }
+                break;                                 // EOF：析构后外层再扫失败→0
             if (token == "[/item group]")
             {
                 vm.m_infoList.push_back(info);
                 info.clear();
-                cont = false;
                 break;
             }
             if (token == "[group num]")
             {
                 info.m_groupNum = ScanInt(&ok);
-                if (!ok)
-                {
-                    result = 0x1e27;
-                    cont = false;
-                    break;
-                }
+                if (ok != true)
+                    return 0x1e27;
                 continue;
             }
             if (token == "[material]")
             {
                 info.m_payType = ScanInt(&ok);
-                if (!ok)
-                {
-                    result = 0x1e2d;
-                    cont = false;
-                    break;
-                }
+                if (ok != true)
+                    return 0x1e2d;
                 info.m_payAmount = ScanInt(&ok);
-                if (!ok)
+                if (ok != true)
+                    return 0x1e30;
+                continue;
+            }
+            // P165：ORIG 0x890b444/0x890b572 为两份物理独立块（各 4 次
+            // ScanInt(bool*)，槽集不同）⇒ 源内展开两份，勿用 bonus 标志参数化。
+            if (token == kVendOutputTag)
+            {
+                stVendingMachineOutput_t entry;
+                for (;;)
                 {
-                    result = 0x1e30;
-                    cont = false;
-                    break;
+                    entry.m_itemId = ScanInt(&ok);
+                    if (!ok)
+                        break;
+                    const int rate = ScanInt(&ok);
+                    if (ok != true)
+                        return 0x1e3d;
+                    entry.m_count = ScanInt(&ok);
+                    if (ok != true)
+                        return 0x1e40;
+                    if (ScanInt(&ok) == 1)
+                        info.m_lottery.push_back(
+                            std::make_pair(
+                                reinterpret_cast<unsigned long&>(
+                                    entry.m_itemId),
+                                entry.m_count));
+                    if (ok != true)
+                        return 0x1e44;
+                    info.m_giveCount += rate;
+                    entry.m_cumWeight = info.m_giveCount;
+                    info.m_vecGive.push_back(entry);
                 }
                 continue;
             }
-            if (token == kVendOutputTag || token == kVendBonusTag)
+            if (token == kVendBonusTag)
             {
-                const bool bonus = (token == kVendBonusTag);
+                stVendingMachineOutput_t entry;
                 for (;;)
                 {
-                    ok = false;
-                    const int itemId = ScanInt(&ok);
+                    entry.m_itemId = ScanInt(&ok);
                     if (!ok)
-                        break;                         // → 回组内标签扫描
+                        break;
                     const int rate = ScanInt(&ok);
-                    if (!ok)
-                    {
-                        result = bonus ? 0x1e55 : 0x1e3d;
-                        cont = false;
-                        break;
-                    }
-                    const int count = ScanInt(&ok);
-                    if (!ok)
-                    {
-                        result = bonus ? 0x1e58 : 0x1e40;
-                        cont = false;
-                        break;
-                    }
-                    const int flag = ScanInt(&ok);
-                    if (flag == 1)
+                    if (ok != true)
+                        return 0x1e55;
+                    entry.m_count = ScanInt(&ok);
+                    if (ok != true)
+                        return 0x1e58;
+                    if (ScanInt(&ok) == 1)
                         info.m_lottery.push_back(
-                            std::make_pair(itemId, count));
-                    if (!ok)
-                    {
-                        result = bonus ? 0x1e5c : 0x1e44;
-                        cont = false;
-                        break;
-                    }
-                    if (!bonus)
-                    {
-                        info.m_giveCount += rate;
-                        stVendingMachineOutput_t entry;
-                        entry.m_itemId = itemId;
-                        entry.m_cumWeight = info.m_giveCount;
-                        entry.m_count = static_cast<unsigned int>(count);
-                        info.m_vecGive.push_back(entry);
-                    }
-                    else
-                    {
-                        info.m_bonusCount += rate;
-                        stVendingMachineOutput_t entry;
-                        entry.m_itemId = itemId;
-                        entry.m_cumWeight = info.m_bonusCount;
-                        entry.m_count = static_cast<unsigned int>(count);
-                        info.m_vecBonus.push_back(entry);
-                    }
+                            std::make_pair(
+                                reinterpret_cast<unsigned long&>(
+                                    entry.m_itemId),
+                                entry.m_count));
+                    if (ok != true)
+                        return 0x1e5c;
+                    info.m_bonusCount += rate;
+                    entry.m_cumWeight = info.m_bonusCount;
+                    info.m_vecBonus.push_back(entry);
                 }
                 continue;
             }
             // 组内其他标签：静默继续（ORIG 无日志路径）
         }
-        if (!cont && result != 0)
-            return result;                             // 中途失败：错误码直返
     }
+unknown_tag:
+    LogManager::logFormat(
+        0, "../RDARScriptEtcParameter.cpp",
+        __FUNCTION__, 0x1e66,
+        "ERROR : Unknown tag error. %s", token.c_str());
+    goto scan_again;
+eof_exit:
+    return 0;
 }
 
 // ============================================================================
@@ -464,28 +496,36 @@ int importVendingMachineInfoCore(const char* dir, const char* file,
 // 列表文件 → map<idx,name>；逐项构造 stVendingMachine_t{键, Core 解析}，
 // 成功 push_back，Core 失败返回 0x1e7c。空列表 0x1e73，列表加载失败 0x1e83。
 // ============================================================================
-// [b28d-lane16 DIFF] ORIG 0890b74e：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-InitScriptProducers_8 AE] ORIG 0890b74e：clean 118/118（ORIG 118 insns）；
+// p167 CLEAR。已对齐：P214①/P257 正向包裹、iterator 双缓存、Core 结果内联实参（P0）。
 int importVendingMachineInfo(const char* dir, const char* list,
                              std::vector<stVendingMachine_t>& out)
 {
     STScriptFileList fileList;
-    if (!loadRDARScriptListFile(&fileList, dir, list, 0))
-        return 0x1e83;
-    if (fileList.m_fileMap.empty())
-        return 0x1e73;
-
-    for (std::map<int, std::string>::iterator it = fileList.m_fileMap.begin();
-         it != fileList.m_fileMap.end(); ++it)
+    // P214①/P257：正向包裹复现 ORIG `call; test %al,%al; je <尾部失败块>`
+    // （4.4 对 `if(!boolcall())` 恒产 xor $1 + 就地内联失败块）。
+    if (loadRDARScriptListFile(&fileList, dir, list, 0))
     {
-        stVendingMachine_t vm;                         // ctor：仅构造 +0x04 vector
-        vm.m_id = it->first;
-        const int rc =
-            importVendingMachineInfoCore(dir, it->second.c_str(), vm);
-        if (rc != 0)
-            return 0x1e7c;
-        out.push_back(vm);
+        if (fileList.m_fileMap.empty())
+            return 0x1e73;
+
+        // ORIG 70-72：++it 紧跟 push_back（body 内语句，先于 vm 析构）⇒ while 形。
+        std::map<int, std::string>::iterator
+            it = fileList.m_fileMap.begin(),
+            end = fileList.m_fileMap.end();
+        while (it != end)
+        {
+            stVendingMachine_t vm;                     // ctor：仅构造 +0x04 vector
+            vm.m_id = it->first;
+            // P0：ORIG 无 rc 槽往返（call; test %eax; setne）⇒ 内联实参。
+            if (importVendingMachineInfoCore(dir, it->second.c_str(), vm) != 0)
+                return 0x1e7c;
+            out.push_back(vm);
+            ++it;
+        }
+        return 0;
     }
-    return 0;
+    return 0x1e83;
 }
 
 // ============================================================================
@@ -493,29 +533,39 @@ int importVendingMachineInfo(const char* dir, const char* list,
 // 列表文件遍历：sprintf("%s%s") 拼 per-file 路径 → importDeathTowerScript →
 // insert(key, tower)。列表加载失败 0x1eab、空列表 0x1e8e、单文件失败 0x1ea2。
 // ============================================================================
-// [b28d-lane16 DIFF] ORIG 0890b8d0：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-InitScriptProducers_8 AE] ORIG 0890b8d0：clean 160/160（ORIG 160 insns）；
+// p167 CLEAR。已对齐：P214① 正向包裹、sprintf 路径拼接、importDeathTowerScript +
+// insert(key,tower)、三档错误码 0x1eab/0x1e8e/0x1ea2。
 int importTowerInfo(const char* dir, const char* list,
                     std::map<unsigned int, stDeathTower_t>& out)
 {
     STScriptFileList fileList;
-    if (!loadRDARScriptListFile(&fileList, dir, list, 0))
-        return 0x1eab;
-    if (fileList.m_fileMap.empty())
-        return 0x1e8e;
-
-    char path[0xff];
-    for (std::map<int, std::string>::iterator it = fileList.m_fileMap.begin();
-         it != fileList.m_fileMap.end(); ++it)
+    // P214①/P257：正向包裹复现 ORIG `call; test %al,%al; je <尾部失败块>`。
+    if (loadRDARScriptListFile(&fileList, dir, list, 0))
     {
-        std::memset(path, 0, sizeof(path));            // ORIG memset 0xff 字节
-        std::sprintf(path, "%s%s", dir, it->second.c_str());
+        if (fileList.m_fileMap.empty())
+            return 0x1e8e;
 
-        stDeathTower_t tower;
-        if (importDeathTowerScript(path, tower) != 0)
-            return 0x1ea2;
-        out.insert(std::make_pair(static_cast<unsigned int>(it->first), tower));
+        std::map<int, std::string>::iterator
+            it = fileList.m_fileMap.begin(),
+            end = fileList.m_fileMap.end();
+        while (it != end)
+        {
+            unsigned int key;                          // ORIG -0x197c（块首声明）
+            stDeathTower_t tower;
+            // P312/P214③：`={0}` 触发 4.4 内联 rep stos 慢路（ORIG 20+ 条）
+            char path[0xff] = {0};
+            key = static_cast<unsigned int>(it->first);
+            std::sprintf(path, "%s%s", dir, it->second.c_str());
+
+            if (importDeathTowerScript(path, tower) != 0)
+                return 0x1ea2;
+            out.insert(std::make_pair(key, tower));
+            ++it;
+        }
+        return 0;
     }
-    return 0;
+    return 0x1eab;
 }
 
 // ============================================================================
@@ -528,13 +578,21 @@ int importTowerInfo(const char* dir, const char* list,
 // [combo practice bonus inerval]：连续 int 覆写 m_field74 直至 Scan 失败。
 // 打开失败返回 0，EOF 返回 1。
 // ============================================================================
-// [b28d-lane16 DIFF] ORIG 0890ed7f：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-InitScriptProducers_8 N] ORIG 0890ed7f：p167 CLEAR（48/48）；clean 376/375
+// （ORIG 379 insns，净 1 条）。已对齐：死 string（-0x70，P171）、stClearTimeAverage
+// ctor 声明补入 CDataManager.h（P104，MISSING C1Ev 归零）、[rank grade]/
+// [reduction bonus] 改 for(;;)+if(ok!=true)break 形（ORIG 0x890f156/0x890f05b 实证）、
+// stDungeonClearTimeData/stComboIntervalBoundary 用户空 dtor 删除（P317，Main 代落
+// CDataManagerScripts.cpp）⇒ EXTRA D1×4 归零。残余为返回值汇聚寄存器（ORIG %ebx vs
+// 4.4 %esi）与 ScanType 失败块极性（ORIG jne 尾块 vs 4.4 je+就地物化）——N7/N104 封顶。
 bool importRankSystemScript(const char* path, stRankSystemInfo* out)
 {
     if (!loadRDARScriptFile("", path))
         return false;
 
     std::string token;
+    std::string deadToken;                             // ORIG -0x70 死 string（P171）
+    (void)deadToken;
     bool ok = false;
 
     for (;;)
@@ -547,21 +605,28 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
             for (;;)
             {
                 stRankSystemInfo::stDungeonClearTimeData data;
-                ok = false;
+                // ORIG 0x890ee15..：逐列独立检查，各 `xor $1;test;je` + 共享 break 出口
                 data.m_v[0] = ScanInt(&ok);
-                if (!ok) break;
+                if (ok != true)
+                    break;
                 data.m_v[1] = ScanInt(&ok);
-                if (!ok) break;
+                if (ok != true)
+                    break;
                 data.m_v[2] = ScanInt(&ok);
-                if (!ok) break;
+                if (ok != true)
+                    break;
                 data.m_v[3] = ScanInt(&ok);
-                if (!ok) break;
+                if (ok != true)
+                    break;
                 data.m_v[4] = ScanInt(&ok);
-                if (!ok) break;
+                if (ok != true)
+                    break;
                 data.m_v[5] = ScanInt(&ok);
-                if (!ok) break;
+                if (ok != true)
+                    break;
                 data.m_v[6] = ScanInt(&ok);
-                if (!ok) break;
+                if (ok != true)
+                    break;
                 out->m_vec38.push_back(data);
 
                 stClearTimeAverageMapKey key;          // ORIG ctor 即 clear
@@ -574,9 +639,11 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
                 average.m_v[3] = data.m_v[5];
                 average.m_v[4] = data.m_v[6];
 
-                // ORIG：find 命中（!= end）即整体失败
-                if (out->m_dungeonRank.m_map0.find(key) !=
-                    out->m_dungeonRank.m_map0.end())
+                // ORIG：迭代器先默认构造后赋值（P50/P314）+ `==` 比较（P220 反极性）
+                std::map<stClearTimeAverageMapKey,
+                         stClearTimeAverage>::iterator it;
+                it = out->m_dungeonRank.m_map0.find(key);
+                if (!(it == out->m_dungeonRank.m_map0.end()))
                     return false;
                 out->m_dungeonRank.m_map0.insert(
                     std::make_pair(key, average));
@@ -584,13 +651,18 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
         }
         else if (token == "[dungeon clear time reduction bonus]")
         {
+            int a;
+            int b;
+            // ORIG 0x890f05b..：两列各自 ScanInt+ok!=true break，再 insert/
+            // bonus 逐字段/vec18.push_back，尾部 jmp 回循环头。
             for (;;)
             {
-                ok = false;
-                const int a = ScanInt(&ok);
-                if (!ok) break;
-                const int b = ScanInt(&ok);
-                if (!ok) break;
+                a = ScanInt(&ok);
+                if (ok != true)
+                    break;
+                b = ScanInt(&ok);
+                if (ok != true)
+                    break;
                 out->m_map44.insert(std::make_pair(a, b));
                 stBonusPointValues bonus;
                 bonus.m_a = a;
@@ -601,14 +673,16 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
         else if (token == "[rank grade]")
         {
             int rankIdx = 0;
+            int grade;
+            // ORIG 0x890f156..：ScanInt → ok!=true break → push_back →
+            // rankIdx>8 break → m_rankLevel[rankIdx]=grade → ++rankIdx 回跳。
             for (;;)
             {
-                ok = false;
-                const int grade = ScanInt(&ok);
-                if (!ok)
+                grade = ScanInt(&ok);
+                if (ok != true)
                     break;
                 out->m_vec5c.push_back(grade);
-                if (!(rankIdx < 9))                    // ORIG i<9（含下标 8）
+                if (rankIdx > 8)
                     break;
                 out->m_dungeonRank.m_rankLevel[rankIdx] =
                     static_cast<unsigned short>(grade);
@@ -621,13 +695,17 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
             {
                 stRankSystemInfo::stComboIntervalBoundary boundary;
                 boundary.m_v[0] = ScanInt(&ok);
-                if (!ok) break;
+                if (ok != true)
+                    break;
                 boundary.m_v[1] = ScanInt(&ok);
-                if (!ok) break;
+                if (ok != true)
+                    break;
                 boundary.m_v[2] = ScanInt(&ok);
-                if (!ok) break;
+                if (ok != true)
+                    break;
                 boundary.m_v[3] = ScanInt(&ok);
-                if (!ok) break;
+                if (ok != true)
+                    break;
                 out->m_vec68.push_back(boundary);
             }
         }
@@ -666,7 +744,10 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
 //     `test %ebx,%ebx`）= 4.1 统一 dtor epilogue；4.4 每路径独立 dtor
 //     （负例“EH 双份 dtor epilogue vs merge”）；
 //  ③ 其余为 .o 重定位地址显示差（链接后 AE 口径消除）。
-// [b28d-lane16 DIFF] ORIG 0890bc63：残余 DIFF 归因（N 类豁免，语义已全等、指令数 1085/1093）：
+// [b28d-solo-InitScriptProducers_8 N] ORIG 0890bc63：p167 CLEAR（121/121 调用点全等）；
+// clean 1070/1067（ORIG 1092 insns，净 3 条）。残余为 ScanType 失败块极性（ORIG jne
+// 尾块 vs 4.4 je+mov $1,%ebx 就地物化，0x0890bcd3 段）与 message 段 EH 汇聚
+// （0x0890cd42 ebx flag）——N104/N121/N82 封顶，语义全等。
 bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -1079,7 +1160,9 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
 // m_matchEventMap（第二列 Scan 结果不校验）；[sound info] 清 m_soundList 后
 // 每行“序号(弃)+int+int+string+int”构造元素 push。打开/空指针返回 0。
 // ============================================================================
-// [b28d-lane16 DIFF] ORIG 0895e4bf：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-InitScriptProducers_8 AE] ORIG 0895e4bf：clean 212/212（ORIG 217 insns）；
+// p167 CLEAR。已对齐：逐段 ScanInt/ScanStr 形、seriaRoomDecoEventSoundInfo 生命周期、
+// 未知标签日志继续。
 bool importSeriaRoomDecoEvent(class seriaRoomDecoEventScript* s,
                               const char* path)
 {
@@ -1089,11 +1172,16 @@ bool importSeriaRoomDecoEvent(class seriaRoomDecoEventScript* s,
         return false;
 
     std::string token;
-    bool ok = false;
+    std::string deadToken;                         // ORIG -0x24 死 string（P171）
+    (void)deadToken;
     int value = 0;
+    bool ok = false;                               // ORIG -0x9 死局部（P171）
+    (void)ok;
 
-    while (ScanType(token, true))
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;                                 // EOF → 共享尾块 return true
         if (token == "[object max count]")
         {
             ScanInt(&s->m_maxEventItemCount);
@@ -1103,8 +1191,8 @@ bool importSeriaRoomDecoEvent(class seriaRoomDecoEventScript* s,
             s->m_eventItemIdx.clear();
             for (;;)
             {
-                value = ScanInt(&ok);                  // ScanInt(int*) 返回 bool
-                if (!ok)
+                // ORIG 0x895e58c：ScanInt(int*) 返回 bool（非 ScanInt(bool*)）
+                if (!ScanInt(&value))
                     break;
                 s->m_eventItemIdx.push_back(value);
             }
@@ -1117,12 +1205,12 @@ bool importSeriaRoomDecoEvent(class seriaRoomDecoEventScript* s,
         {
             for (;;)
             {
-                int first = 0;
-                int second = 0;
-                if (!ScanInt(&first))
+                // ORIG 0x895e5f0：std::pair<int,int> 局部（-0x30）+ 转换构造
+                std::pair<int, int> p;
+                if (!ScanInt(&p.first))
                     break;                             // 首列失败回标签扫描
-                ScanInt(&second);                      // 第二列不校验
-                s->m_matchEventMap.insert(std::make_pair(first, second));
+                ScanInt(&p.second);                    // 第二列不校验
+                s->m_matchEventMap.insert(p);
             }
         }
         else if (token == "[reward item mail expire]")
@@ -1136,9 +1224,8 @@ bool importSeriaRoomDecoEvent(class seriaRoomDecoEventScript* s,
             for (;;)
             {
                 elem.clear();                          // ORIG 循环首 clear
-                ok = false;
-                value = ScanInt(&ok);                  // 行序号（弃）
-                if (!ok)
+                // ORIG 0x895e6bd：ScanInt(int*)（行序号弃读）
+                if (!ScanInt(&value))
                     break;
                 ScanInt(&elem.m_field0);
                 ScanInt(&elem.m_field4);
@@ -1159,7 +1246,12 @@ bool importSeriaRoomDecoEvent(class seriaRoomDecoEventScript* s,
 // [/job type]=0x252。[/job type] 时 insert(jobType,gift) 并复位累计态。
 // [reward list] 行校验：第 2 列 >=0、第 3 列 >0，违规立即返回失败。
 // ============================================================================
-// [b28d-lane16 DIFF] ORIG 0895f817：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-InitScriptProducers_8 N] ORIG 0895f817：p167 CLEAR（62/62）；clean 470/425
+// （ORIG 473 insns）。已对齐：value_type 转发构造替换 make_pair（P315，消 6 处
+// pair<const char* const,int> C1 缺口）、三件套声明移入循环体（P177，ORIG 0x895f8a5
+// 每轮穿 guard 实证）、fatigueMatchGift ctor 加 throw()（P216，消 caller EH landing
+// ⇒ EXTRA _Unwind_Resume×2 归零）。残余为 4.4 循环旋转（body 前置 vs ORIG 循环头
+// ScanType）与 EH cleanup 分布——N104/N82/N91 封顶。
 bool importUseJobFatigueGiftScript(class useCharacterJobFatigue* out,
                                    const char* path)
 {
@@ -1168,17 +1260,18 @@ bool importUseJobFatigueGiftScript(class useCharacterJobFatigue* out,
     if (out == 0)
         return false;
 
-    static std::map<const char*, int, less_TCHAR> __lookup;   // ORIG __lookup
-    static SpinLock __init_lock;                               // ORIG __init_lock
-    static bool __inited = false;                             // ORIG __inited
-
     std::string token;
     bool ok = false;
-    int jobType = -1;                                       // ORIG local_128
     useCharacterJobFatigue::fatigueMatchGift gift;          // ctor 全清零
+    int jobType = -1;                                       // ORIG local_128
 
     while (ScanType(token, true))
     {
+        // ORIG 0x895f8a5：三件套声明落循环体内（每轮穿 guard，P177）。
+        static std::map<const char*, int, less_TCHAR> __lookup;  // ORIG __lookup
+        static SpinLock __init_lock;                              // ORIG __init_lock
+        static bool __inited = false;                             // ORIG __inited
+
         if (!__inited)
         {
             __init_lock.enter();
@@ -1186,12 +1279,15 @@ bool importUseJobFatigueGiftScript(class useCharacterJobFatigue* out,
             {
                 // ORIG 插入链 0x895fc3c/0x895fca6/0x895fd18/0x895fa10/
                 //                 0x895fb70/0x895fe83
-                __lookup.insert(std::make_pair("[/job fatigue]", 0x217));
-                __lookup.insert(std::make_pair("[job type]", 0x21b));
-                __lookup.insert(std::make_pair("[fatigue title]", 0x229));
-                __lookup.insert(std::make_pair("[fatigue text]", 0x22d));
-                __lookup.insert(std::make_pair("[reward list]", 0x231));
-                __lookup.insert(std::make_pair("[/job type]", 0x252));
+                // P315：ORIG 用 value_type 转发构造（pair<const char* const,int>
+                // C1<char const(&)[N],int>），非 make_pair（后者多一层转换构造+EH）。
+                typedef std::map<const char*, int, less_TCHAR>::value_type V;
+                __lookup.insert(V("[/job fatigue]", 0x217));
+                __lookup.insert(V("[job type]", 0x21b));
+                __lookup.insert(V("[fatigue title]", 0x229));
+                __lookup.insert(V("[fatigue text]", 0x22d));
+                __lookup.insert(V("[reward list]", 0x231));
+                __lookup.insert(V("[/job type]", 0x252));
                 __init_lock.leave();
                 __inited = true;
             }
@@ -1270,7 +1366,12 @@ bool importUseJobFatigueGiftScript(class useCharacterJobFatigue* out,
 // string(name)+string(layer)+int×3 入 m_finishAniMap；未知层名返回失败。
 // 该段仅能经 EOF（ScanStr 失败）退出。打开/空指针返回 0，EOF 返回 1。
 // ============================================================================
-// [b28d-lane16 DIFF] ORIG 08960861：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-InitScriptProducers_8 N] ORIG 08960861：p167 CLEAR（90/90）；clean 620/596
+// （ORIG 628 insns）。已对齐：found->second 单次读取（三目落槽，ORIG ptEv×1
+// @0x8960e8c..ee5 实证）、三件套移入循环体（P177，ORIG 重扫 0x8960fc9 jmp 0x8960cf2
+// 实证）、seriaRoomDecoAniInfo ctor 加 throw()（P216，消 EXTRA _Unwind_Resume×2）、
+// ScanInt(int*)×3、pair<int,int> 转发构造、make_pair<aniLayer::T&,…> 左值。残余为
+// 惰性注册链布局（ORIG 注册落 case 内 0x8960efb/0x8960f55 + 重扫）——N104/N82 封顶。
 bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
                                        const char* path)
 {
@@ -1278,10 +1379,6 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
         return false;
     if (s == 0)
         return false;
-
-    static std::map<const char*, int, less_TCHAR> __lookup;   // ORIG __lookup 0x94f75b8
-    static SpinLock __init_lock;                               // ORIG __init_lock 0x94f75d0
-    static bool __inited = false;                             // ORIG __inited 0x94f75d4
 
     std::string token;
     std::string layerName;
@@ -1293,19 +1390,25 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
         if (!ScanType(token, true))
             return true;                                    // EOF → 成功
 
+        // ORIG 0x8960cf2：三件套声明落循环体内（每轮穿 guard，P177）。
+        static std::map<const char*, int, less_TCHAR> __lookup;   // ORIG __lookup 0x94f75b8
+        static SpinLock __init_lock;                              // ORIG __init_lock 0x94f75d0
+        static bool __inited = false;                             // ORIG __inited 0x94f75d4
+
         if (token == "[using item]")
         {
             s->m_itemMap.clear();
             for (;;)
             {
-                ok = false;
-                const int key = ScanInt(&ok);
-                if (!ok)
+                // ORIG：ScanInt(int*)（p167 MISSING ScanInt(int*)×3）
+                int key;
+                if (!ScanInt(&key))
                     break;
                 int val = 0;
                 if (!ScanInt(&val))
                     return false;
-                s->m_itemMap.insert(std::make_pair(key, val));
+                // ORIG pair<int,int> 转发构造（非 make_pair）
+                s->m_itemMap.insert(std::pair<int, int>(key, val));
             }
         }
         else if (token == "[reward item]")
@@ -1314,9 +1417,7 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
             for (;;)
             {
                 seriaRoomDecoRewardInfo reward;
-                ok = false;
-                reward.m_itemIdx = ScanInt(&ok);
-                if (!ok)
+                if (!ScanInt(&reward.m_itemIdx))
                     break;
                 if (!ScanInt(&reward.m_reward))
                     return false;
@@ -1331,10 +1432,8 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
             for (;;)
             {
                 info.clear();
-                ok = false;
-                int key = 0;
-                key = ScanInt(&ok);
-                if (!ok)
+                int key;
+                if (!ScanInt(&key))
                     break;
                 if (!ScanStr(&info.m_name))
                     return false;
@@ -1367,8 +1466,10 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
                     __init_lock.enter();
                     if (!__inited)
                     {
-                        __lookup.insert(std::make_pair("[front]", 0x318));
-                        __lookup.insert(std::make_pair("[back]", 0x31b));
+                        typedef std::map<const char*, int,
+                                         less_TCHAR>::value_type V;
+                        __lookup.insert(V("[front]", 0x318));
+                        __lookup.insert(V("[back]", 0x31b));
                         __init_lock.leave();
                         __inited = true;
                     }
@@ -1380,14 +1481,16 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
                 std::map<const char*, int, less_TCHAR>::const_iterator found =
                     __lookup.find(layerName.c_str());
                 int layerId;
-                if (found == __lookup.end())
-                    return false;                      // ORIG 未命中 → 失败
-                if (found->second == 0x318)
+                // ORIG 8960e8c..8960ee5：ne 判定后 found->second 只读一次
+                // （ptEv×1，结果落 -0x1c 槽）再与 0x318/0x31b 比较。
+                const int foundId =
+                    (found != __lookup.end()) ? found->second : -1;
+                if (foundId == 0x318)
                     layerId = 0;                       // [front]
-                else if (found->second == 0x31b)
+                else if (foundId == 0x31b)
                     layerId = 1;                       // [back]
                 else
-                    return false;
+                    return false;                      // 未命中/未知 → 失败
 
                 if (!ScanStr(&info.m_name))
                     return false;
@@ -1400,11 +1503,11 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
                     return false;
                 if (!ScanInt(&info.m_c))
                     return false;
-                s->m_finishAniMap.insert(
-                    std::make_pair(
-                        static_cast<seriaRoomDecoAniEventScript::aniLayer::T>(
-                            layerId),
-                        info));
+                // ORIG make_pair<aniLayer::T&, seriaRoomDecoAniInfo&>（左值实参）
+                seriaRoomDecoAniEventScript::aniLayer::T layer =
+                    static_cast<seriaRoomDecoAniEventScript::aniLayer::T>(
+                        layerId);
+                s->m_finishAniMap.insert(std::make_pair(layer, info));
             }
         }
     }
@@ -1419,7 +1522,9 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
 namespace AvatarVariation
 {
 
-// [b28d-lane16 DIFF] ORIG 088d444f：p167 CLEAR/跨版本寄存器·槽位残差（N 类），详见 TSV
+// [b28d-solo-InitScriptProducers_8 AE] ORIG 088d444f：clean 192/192（ORIG 194 insns）；
+// p167 CLEAR。已对齐：m_colorMap/m_nameMap 双 insert、RGB 字节宽度 mov %al 实证、
+// name 扫描失败退段。
 bool importAvatarColorVariation(AvatarColorInfo* out)
 {
     if (!loadRDARScriptFile("", "Etc/AvatarColorVariation.etc"))
@@ -1428,42 +1533,40 @@ bool importAvatarColorVariation(AvatarColorInfo* out)
     out->m_colorMap.clear();
 
     std::string token;
-    std::string name;
     bool ok = false;
+    int dead = 0;                                      // ORIG -0xc 死写入（P171）
+    (void)dead;
 
     for (;;)
     {
         if (!ScanType(token, true))
             return true;
 
-        if (token != "[avatar color map]")
-            continue;
-
-        for (;;)
+        if (token == "[avatar color map]")
         {
-            colorRGB rgb;                              // ctor：三字节置 0xff
-            ok = false;
-            const int key = ScanInt(&ok);
-            if (!ok)
-                break;
-            rgb.m_r = static_cast<unsigned char>(ScanInt(&ok));
-            if (!ok)
-                break;
-            rgb.m_g = static_cast<unsigned char>(ScanInt(&ok));
-            if (!ok)
-                break;
-            rgb.m_b = static_cast<unsigned char>(ScanInt(&ok));
-            if (!ok)
-                break;
-
-            ok = ScanStr(&name);
-            if (ok)
+            for (;;)
             {
+                colorRGB rgb;                          // ctor：三字节置 0xff
+                const int key = ScanInt(&ok);
+                if (!ok)
+                    break;
+                rgb.m_r = static_cast<unsigned char>(ScanInt(&ok));
+                if (!ok)
+                    break;
+                rgb.m_g = static_cast<unsigned char>(ScanInt(&ok));
+                if (!ok)
+                    break;
+                rgb.m_b = static_cast<unsigned char>(ScanInt(&ok));
+                if (!ok)
+                    break;
+
+                std::string name;                      // ORIG 循环内 -0x4c
+                ok = ScanStr(&name);
+                if (!ok)
+                    break;
                 out->m_colorMap.insert(std::make_pair(key, rgb));
                 out->m_nameMap.insert(std::make_pair(key, name));
             }
-            if (!ok)
-                break;                                 // ORIG do-while(ok)
         }
     }
 }
@@ -1493,7 +1596,7 @@ void seriaRoomDecoEventSoundInfo::clear()
 }
 
 // ORIG fatigueMatchGift C1 0x0896251c：成员默认构造后 +0x18=0、map/string clear。
-useCharacterJobFatigue::fatigueMatchGift::fatigueMatchGift()
+useCharacterJobFatigue::fatigueMatchGift::fatigueMatchGift() throw()
     : m_field18(0)   // 声明先于 m_msg1(+1c)/m_msg2(+20) string 自动构造，故置 init-list(ORIG 序)
 {
     m_rewardMap.clear();
@@ -1502,7 +1605,7 @@ useCharacterJobFatigue::fatigueMatchGift::fatigueMatchGift()
 }
 
 // ORIG C1 0x089625e8：string 默认构造后调 clear（+0x04=7，其余 int 清零）。
-seriaRoomDecoAniInfo::seriaRoomDecoAniInfo()
+seriaRoomDecoAniInfo::seriaRoomDecoAniInfo() throw()
 {
     clear();
 }

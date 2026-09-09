@@ -85,7 +85,7 @@ struct yy_buffer_state
 
 class FlexLexer {
 public:
-	virtual ~FlexLexer()	{ }
+	virtual ~FlexLexer()	{ }	// [b28d-solo-SlangFlexLexerEngine] D0/D1 verdict=AE（SlangFlexLexerEngine.cpp 发射，逐条 13/13、11/11；仅重定位显示差）
 
 	const char* YYText() const	{ return yytext; }
 	int YYLeng()	const	{ return yyleng; }

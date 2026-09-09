@@ -13,9 +13,6 @@ SPOBJ_ACTION_DATAS::SPOBJ_ACTION_DATAS()
     memset((char*)this, -1, 0x18);
 }
 
-SPOBJ_ACTION_DATAS::~SPOBJ_ACTION_DATAS()
-{
-}
 
 int SPOBJ_ACTION_DATAS::getActionType()
 {

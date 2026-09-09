@@ -249,7 +249,9 @@ struct SigAradAvatarConvert
     unsigned short m_selectNo;       // +0x00（CheckCondition 传 getConvertResult 判界）
     short          m_slot;           // +0x02（avatar 物品槽 INVEN 2）
     int            m_itemId;         // +0x04（目标 avatar item index）
-    int            m_resultItemId;   // +0x08（Convert 写回：make_item 的物品 index）
+    // +0x08：ORIG 0x08192cd8 传成员地址给 make_pair<unsigned long&, short&>
+    // ⇒ 原字段类型 unsigned long（与 int 同为 4 字节，布局/mangled 不变）。
+    unsigned long  m_resultItemId;   // +0x08（Convert 写回：make_item 的物品 index）
     short          m_resultCount;    // +0x0c（Convert 写回：GetInfo::m_count）
 };                                   // sizeof = 0x10
 #pragma pack(pop)
@@ -270,19 +272,33 @@ struct SigAradEmblemCompound
         void init();                 // ORIG W 0x081a0a0c；定义在 Game/W8_AradSig.cpp
         unsigned short slot;         // +0
         short grade;                 // +2
-        int itemIdx;                 // +4
+        unsigned int itemIdx;        // +4
     };                               // sizeof = 8
     SigAradEmblemCompound();         // ORIG W C1/C2 0x081a0a2c：调 init()；定义在 Game/W8_AradSig.cpp
     void init();                     // ORIG 0x081a0a40；定义在 Game/W8_AradSig.cpp
-    unsigned short m_slot0;          // +0x00
-    short          m_grade0;         // +0x02（GetEmblemInfo 写回）
-    int            m_itemId0;        // +0x04（写回）
-    unsigned short m_slot1;          // +0x08
-    short          m_grade1;         // +0x0a（GetEmblemInfo 写回）
-    int            m_itemId1;        // +0x0c（写回）
+    // [b28d-solo-EmblemCompoundServer] P235/P246 匿名 union 双视角：字段名/偏移不变
+    // （消费点 Arad_InternalDispatcher_INTER.cpp/Dispatchers.cpp/W8_AradSig.cpp 零改动），
+    // 新增 materialInfo[2] 数组视角以复现 ORIG GetEmblemInfo 的 scaled 索引
+    // `movzwl (%eax,%edx,8),%eax` / `mov %dx,0x2(%eax,%ebx,8)`（ORIG 0x08191818）。
+    // 两视角各 0x10 字节，sizeof/偏移/mangled 均不变。
+    union
+    {
+        struct
+        {
+            unsigned short m_slot0;          // +0x00
+            short          m_grade0;         // +0x02（GetEmblemInfo 写回）
+            int            m_itemId0;        // +0x04（写回）
+            unsigned short m_slot1;          // +0x08
+            short          m_grade1;         // +0x0a（GetEmblemInfo 写回）
+            int            m_itemId1;        // +0x0c（写回）
+        };
+        materialInfo m_material[2];          // +0x00（数组视角，元素步长 8）
+    };
     int            m_resultIdx;      // +0x10（Process 写回合成结果物品 index）
     unsigned short m_selectIdx;      // +0x14（Process 读：getRandomIndex 选择序号）
 };
+static_assert(sizeof(SigAradEmblemCompound) == 0x16,
+              "SigAradEmblemCompound ABI drift（ORIG 0x16，pack(1)）");
 #pragma pack(pop)
 
 // SigAvatarHiddenOptionChange —— AvatarFixedHiddenOptionServer::

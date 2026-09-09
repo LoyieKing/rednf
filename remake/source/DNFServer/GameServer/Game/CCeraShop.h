@@ -139,7 +139,10 @@ public:
     // 错误日志输入视图（LogError 0x0832033a 消费；字段语义未全还原，标注【推断】）。
     struct stErrorLogInput_t
     {
-        int m_field0;            // +0x00（→ SIG_CERASHOP_ERROR_LOG +0x00）
+        unsigned int m_field0;   // +0x00（→ SIG_CERASHOP_ERROR_LOG +0x00）
+                                 // [b28d-S278 P248档③] int→uint：ORIG LogError 0x08320394
+                                 // `mov (%eax),%ebx` 单段直落 callee-saved 要求与
+                                 // operator<<(uint) 形参同型（探针 /tmp/lg_probe.cpp fB）。
         int m_field4;            // +0x04（→ +0x04）
         int m_field8;            // +0x08（→ +0x14）
         int m_fieldc;            // +0x0c（→ +0x18）

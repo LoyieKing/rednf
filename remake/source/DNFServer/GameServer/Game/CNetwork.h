@@ -417,6 +417,14 @@ bool CNetwork<N1, N2>::CreateListenSocket(int& sock, int port, const char* ip)
 template <int N1, int N2>
 bool CNetwork<N1, N2>::Parsing_ServerPacket(int recvLen)
 {
+    // [b28d-solo-CNetwork] AE（ORIG 0x0846d050，155=155 条；p167 6/6 CLEAR）。
+    // 修两处真语义 bug：①packetSize 守卫为负极性短路 `ps<=9 || ps>0x1800` 走 log
+    // （ORIG 0x0846d153 `jbe <log>` / 0x0846d159 `jbe <dispatch>`；旧嵌套
+    // if(ps>9){if(ps>0x1800)} 在 4.4 下把 ps<=9 误送 dispatch）；
+    // ②dispatch 后 `>9 continue` 属 if 块内部、0<remain<=9 落块外 break
+    // （ORIG 0x0846d204 `jne` / 0x0846d214 `cmpl $0x9;jg`）；旧版块内无条件
+    // continue ⇒ 半包回循环。残余仅 .o 未解析重定位（call 目标/rodata 地址）
+    // ⇒ AE 口径（P264/N124）。
     PacketHeader header(0, 0);
     int remain = m_recvOffset + recvLen;
     unsigned int packetSize;
@@ -439,17 +447,17 @@ bool CNetwork<N1, N2>::Parsing_ServerPacket(int recvLen)
             memcpy(&header, m_recvBuf, 0xa);
         }
         packetSize = header.packetSize;
-        if (packetSize > 9)
+        // [b28d-solo-CNetwork] ORIG 0x0846d153 段实证：`cmpl $0x9; jbe <log>; cmpl
+        // $0x1800; jbe <dispatch>` ⇒ 原码是负极性短路 `ps<=9 || ps>0x1800` 走 log；
+        // 旧嵌套 if(ps>9){if(ps>0x1800)} 在 4.4 下把 ps<=9 误送 dispatch（真语义 bug）。
+        if (packetSize <= 9 || packetSize > 0x1800)
         {
-            if (packetSize > 0x1800)
-            {
-                LogManager::logFormat(1, "CNetwork.h", "Parsing_ServerPacket(int)",
-                    0x32d, "Packet size(%d:%d:%d) ERROR", recvLen, packetSize,
-                    m_recvBuf);
-                m_recvBuf = m_recv;
-                m_recvOffset = 0;
-                return 0;
-            }
+            LogManager::logFormat(1, "CNetwork.h", "Parsing_ServerPacket(int)",
+                0x32d, "Packet size(%d:%d:%d) ERROR", recvLen, packetSize,
+                m_recvBuf);
+            m_recvBuf = m_recv;
+            m_recvOffset = 0;
+            return 0;
         }
         if (remain >= packetSize)
         {
@@ -462,20 +470,15 @@ bool CNetwork<N1, N2>::Parsing_ServerPacket(int recvLen)
                 m_recvBuf = m_recv;
                 break;
             }
-            // [b28d-48 判 N·跨版本 jump-to-next] ORIG 0x0846d1f9 段形：
-            //   cmpl $0x0,remain; jne +0x10; <赋值>; jmp exit;
-            //   +0x10: cmpl $0x9,remain; jg <loop>; jmp exit; nop; exit:
-            // 即 4.1 无显式 continue 的 jmp、且为 break 发射 jmp exit（跳过对齐
-            // nop）。4.4 两向都不可复现：删本 continue 后 4.4 把末尾 break 折成
-            // fall-through（少 jmp exit，clean 错位 31 行）；保留则 continue 的
-            // jmp 前置到 `cmpl $0x9` 之前（本形，clean 残 3 行/助记符序列同）。
-            // 探针 /tmp/p48_cnet{,2,3}.cpp v1..v11 十一形全试（含 goto 尾标签/
-            // if-else/负条件守卫），4.4 恒消除 jump-to-next ⇒ 封 N。
-            continue;
-        }
-        if (remain > 9)
-        {
-            continue;
+            // [b28d-solo-CNetwork] ORIG 0x0846d204/0x0846d214 段形：
+            //   jne +0x10; <赋值>; jmp exit; +0x10: cmpl $0x9,remain; jg <loop>;
+            //   jmp exit; nop; exit:  ⇒ 该 `>9 continue` 属 dispatch 块内部；
+            // remain<=9 落到块外 break。旧版把它放在 if 块外且块内无条件
+            // continue ⇒ dispatch 后 0<remain<=9 也回循环（真语义 bug）。
+            if (remain > 9)
+            {
+                continue;
+            }
         }
         break;
     }
@@ -496,9 +499,18 @@ bool CNetwork<N1, N2>::Parsing_ServerPacket(int recvLen)
 template <int N1, int N2>
 bool CNetwork<N1, N2>::Parsing_AuctionServerPacket(int recvLen)
 {
-    // [b28d-48 复核] N82 封顶（NDIFF 146，152/146 条）：帧/槽平移 +
-    // nsl::PACKET_HEADER 访问器链。
-    nsl::PACKET_HEADER header;
+    // [b28d-solo-CNetwork] AE（ORIG 0x082f7ee2，148=148 条；p167 8/8 CLEAR）。
+    // 修三处：①packetSize 守卫负极性短路 `ps<=0x11 || ps>0x5000` 走 log
+    // （ORIG 0x082f7f7d `jbe <log>` / 0x082f7f83 `jbe <dispatch>`）；
+    // ②dispatch 后 `>0x11 continue` 与 log(0x41c) 归 if 块内、remain<packetSize
+    // 落块外 break（ORIG 0x082f8044 段）；③header 用线格式字节缓冲 + 具型视图
+    // 复现 ORIG 无 nsl::PACKET_HEADER::C1 调用形（P215；ORIG 0x082f7f52 段为
+    // -0x26 处 0x12 字节栈缓冲直 call getSize）。旧「N82 封顶」判词作废。
+    // [b28d-solo-CNetwork] ORIG 0x082f7f52 段：header 为 -0x26 处 0x12 字节栈
+    // 缓冲，且**无** nsl::PACKET_HEADER::C1 调用（4.1 前端把空默认 ctor 展开为
+    // 0 条，P215）。用线格式字节缓冲 + 具型视图（P80/P95/P156）复现，消除 4.4
+    // 的 out-of-line 空 ctor call（本件唯一残差 3 条）。
+    char headerBuf[0x12];
     int remain = m_recvOffset + recvLen;
     unsigned int packetSize;
     int headerSize = 0x12;
@@ -514,23 +526,24 @@ bool CNetwork<N1, N2>::Parsing_AuctionServerPacket(int recvLen)
         if (m_recvOffset != 0)
         {
             m_recvBuf -= m_recvOffset;
-            memcpy(&header, m_recvBuf, 0x12);
+            memcpy(headerBuf, m_recvBuf, 0x12);
         }
-        packetSize = header.getSize();
-        if (packetSize > 0x11)
+        packetSize = reinterpret_cast<nsl::PACKET_HEADER*>(headerBuf)->getSize();
+        // [b28d-solo-CNetwork] ORIG 0x082f7f7d 段实证：`cmpl $0x11; jbe <log>;
+        // cmpl $0x5000; jbe <dispatch>` ⇒ 负极性短路 `ps<=0x11 || ps>0x5000`
+        // 走 log；旧嵌套 if 在 4.4 下把 ps<=0x11 误送 dispatch（真语义 bug）。
+        if (packetSize <= 0x11 || packetSize > 0x5000)
         {
-            if (packetSize > 0x5000)
-            {
-                int packetID = header.getPacketID();
-                int category = header.getCategory();
-                LogManager::logFormat(1, "CNetwork.h",
-                    "Parsing_AuctionServerPacket(int)", 0x402,
-                    "Packet size(%d:%d:%d:%d) ERROR", recvLen, packetSize,
-                    category, packetID);
-                m_recvBuf = m_recv;
-                m_recvOffset = 0;
-                return 0;
-            }
+            // ORIG 0x082f7f92..0x082f7fa8：packetID 先求值存 %ebx 跨 getCategory
+            // 调用 ⇒ 无具名局部，实参内联（P44/P226）。
+            LogManager::logFormat(1, "CNetwork.h",
+                "Parsing_AuctionServerPacket(int)", 0x402,
+                "Packet size(%d:%d:%d:%d) ERROR", recvLen, packetSize,
+                reinterpret_cast<nsl::PACKET_HEADER*>(headerBuf)->getCategory(),
+                reinterpret_cast<nsl::PACKET_HEADER*>(headerBuf)->getPacketID());
+            m_recvBuf = m_recv;
+            m_recvOffset = 0;
+            return 0;
         }
         if (remain >= packetSize)
         {
@@ -543,14 +556,18 @@ bool CNetwork<N1, N2>::Parsing_AuctionServerPacket(int recvLen)
                 m_recvBuf = m_recv;
                 break;
             }
-            continue;
+            // [b28d-solo-CNetwork] ORIG 0x082f8044 段形：jne +0x10; <赋值>; jmp exit;
+            // +0x10: cmpl $0x11,remain; jg <loop>; <log 0x41c>; jmp exit; nop; exit:
+            // ⇒ `>0x11 continue` 与 log(0x41c) 均属 dispatch 块内部；remain<packetSize
+            // 落到块外 break。旧版块内无条件 continue + 块外守卫（真语义 bug）。
+            if (remain > 0x11)
+            {
+                continue;
+            }
+            LogManager::logFormat(1, "CNetwork.h", "Parsing_AuctionServerPacket(int)",
+                0x41c, "Packet size(%d) < HEADER_SIZE", remain);
+            break;
         }
-        if (remain > 0x11)
-        {
-            continue;
-        }
-        LogManager::logFormat(1, "CNetwork.h", "Parsing_AuctionServerPacket(int)",
-            0x41c, "Packet size(%d) < HEADER_SIZE", remain);
         break;
     }
 

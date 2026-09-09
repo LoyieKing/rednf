@@ -136,7 +136,8 @@ int ExpertJobMaterial::IsRight()
 // ORIG _ZN10expert_job17ExpertJobMaterial15FindMonsterCardERKSt6vectorISt4p
 // airIiiESaIS5_EE @0x0849c612：清单内第一枚 sub_type==1 的 stackable 材料
 // （怪物卡片）。
-// b28c-1 N18a: pair 首字段装载 4.4 单段 vs ORIG 双段（mov 0x4;mov;mov）。
+// b28d-solo-ExpertJobOnlyMaterial: AE — 匿名 pair 值临时取 first 复现
+// `mov 0x4(%eax),%edx; mov (%eax),%eax` 双段；P296 嵌套正向包裹消 continue 岛。
 CItem* ExpertJobMaterial::FindMonsterCard(
     const std::vector<std::pair<int, int> >& materials)
 {
@@ -145,15 +146,19 @@ CItem* ExpertJobMaterial::FindMonsterCard(
          it != materials.end(); ++it)
     {
         CStackableItem* found = static_cast<CStackableItem*>(
-            G_CDataManager()->find_item(it->first));
-        // b28 P133：ORIG 两独立守卫各 je 直落统一增量尾 ⇒ 逐条独立 if。
-        if (found == 0)
-            continue;
-        // b28 P222：正极性包（ORIG `call;test%al;je 尾` 直落形）。
-        if (found->is_stackable())
+            G_CDataManager()->find_item(std::pair<int, int>(*it).first));
+        // b28d-solo-ExpertJobOnlyMaterial（P254 族）：ORIG 0x0849c63b 对 first
+        // 发 `mov 0x4(%eax),%edx; mov (%eax),%eax` 双段 ⇒ 原码经匿名 pair 值临时
+        // 取 first（具名局部落栈、裸 it->first 单段，探针实测）。
+        // b28d-solo-ExpertJobOnlyMaterial（P296）：嵌套正向包裹消 continue 的
+        // nop+jmp 中继岛（ORIG 三处 je 直落统一增量尾 0x0849c685）。
+        if (found != 0)
         {
-            if (found->get_sub_type() == 1)
-                return found;
+            if (found->is_stackable())
+            {
+                if (found->get_sub_type() == 1)
+                    return found;
+            }
         }
     }
     return 0;
@@ -175,7 +180,8 @@ CItem* ExpertJobMaterial::GetEnchantItem()
 
 // ORIG _ZN10expert_job17ExpertJobMaterial23IsExistMaterialOfRecipeEv
 // @0x0849c166：配方成立且背包满足整份材料需求才通过。
-// b28c-1 N: N-88 槽比零 setne 物化 + P168a X2 占槽（X1 实测 5→15 回退）。
+// b28d-solo-ExpertJobOnlyMaterial: AE — P225 while+break 复现槽比零
+// `cmpl;setne;test;je` 物化；P292 档① CheckNeedItemList bool 化消 test/sete。
 int ExpertJobMaterial::IsExistMaterialOfRecipe()
 {
     if (Empty())
@@ -195,7 +201,8 @@ int ExpertJobMaterial::IsExistMaterialOfRecipe()
         return 3;
 
     // ORIG 0x849c1cb：materials 经 lea 0x174(%eax) 内联（P49：勿经 static inline helper）；
-    // 0x849c1ea xor $1/test %al 为 4.1 bool 物化（4.4 恒折 test 方向，N18b，探针实证）。
+    // 0x849c1ea `call; xor $1,%eax; test %al,%al; je` ⇒ callee 返回 bool
+    // （P292 档①；CInventory.h/.cpp 的 CheckNeedItemList 已由 Main 代落 bool）。
     if (!reinterpret_cast<CUser*>(m_user)->getCurCharacInvenR()->CheckNeedItemList(
             reinterpret_cast<CStackableItem*>(m_item)->m_recipe174.m_vec0))
         return 0x15;
@@ -208,7 +215,8 @@ int ExpertJobMaterial::IsExistMaterialOfRecipe()
 // changed），失败记 trace 返 false；成功 put_byte(delCount+1)、删除配方
 // 物品本体槽（count 固定 1）并按 byte/short/int 三连写本体条目，随后对
 // 每个事件删除槽位同样三连写入。
-// b28c-1 N: removedBody 取反 4.4 恒折 cmpb vs ORIG movzbl/xor/test（P168a④/N18b；!/^1/uchar 三形实测）。
+// b28d-solo-ExpertJobOnlyMaterial: AE — P248 档② removedBody 局部 bool 化
+// 复现 ORIG `movzbl -0x9; xor $1; test %al,%al; je`（char 局部 4.4 恒折 cmpb）。
 bool ExpertJobMaterial::DelMaterialOfRecipe(
     CUser* user, const std::vector<std::pair<int, int> >& materials,
     int slot, PacketGuard* packet, bool& changed)
@@ -237,11 +245,11 @@ bool ExpertJobMaterial::DelMaterialOfRecipe(
 
     packet->put_byte(delCount + materialCount);
 
-    char removedBody = user->getCurCharacInvenW()->delete_item(
+    // b28d-solo-ExpertJobOnlyMaterial：P248 档②——局部改 bool 复现 ORIG
+    // `movzbl -0x9; xor $1,%eax; test %al,%al; je`（char 局部 4.4 恒折 cmpb）。
+    bool removedBody = user->getCurCharacInvenW()->delete_item(
         INVEN_TYPE_EQUIP, slot, materialCount,
         static_cast<eItemDelReason>(8), true);
-    // b28c-1：ORIG `movzbl -0x9; xor $1; test; je` 取反物化；4.4 恒折
-    //  cmpb 直比（P168a④/N18b 族，^1/!/uchar 三形实测均不可翻）。
     if (!removedBody)
     {
         cMyTrace(
@@ -274,6 +282,8 @@ bool ExpertJobMaterial::DelMaterialOfRecipe(
 
 // ORIG _ZN10expert_job17ExpertJobMaterial19UseMaterialOfRecipeEP11PacketGu
 // ard @0x0849c536：套用配方，删全部材料 + 本体；changed 时 send_equip(0x16)。
+// b28d-solo-ExpertJobOnlyMaterial: AE — P0 删 m_user 具名缓存（逐点重读）；
+// P171 删 changed 初始化（ORIG 只读 -0xd）；P225 while+break 槽比零物化。
 int ExpertJobMaterial::UseMaterialOfRecipe(PacketGuard* packet)
 {
     if (Empty())
@@ -288,19 +298,22 @@ int ExpertJobMaterial::UseMaterialOfRecipe(PacketGuard* packet)
         return recipeErr;
     }
 
-    CUser* user = reinterpret_cast<CUser*>(m_user);
-    if (user->getCurCharacR() == 0)
+    // b28d-solo-ExpertJobOnlyMaterial（P0）：ORIG 0x0849c59b/0x0849c5e9 均重读
+    // m_user（无 user 具名槽）⇒ 删局部，每使用点内联。
+    if (reinterpret_cast<CUser*>(m_user)->getCurCharacR() == 0)
         return 3;
 
-    bool changed = false;
-    if (!DelMaterialOfRecipe(user,
+    // b28d-solo-ExpertJobOnlyMaterial（P171）：ORIG 0x0849c5e9 只读 -0xd 槽，
+    // 无 `movb $0` 初始化 ⇒ 原码 `bool changed;` 未初始化（出参由被调写入）。
+    bool changed;
+    if (!DelMaterialOfRecipe(reinterpret_cast<CUser*>(m_user),
                              reinterpret_cast<CStackableItem*>(m_item)
                                  ->m_recipe174.m_vec0,
                              static_cast<int>(m_slot), packet, changed))
         return 0x11;
 
     if (changed)
-        user->send_equip(0x16);
+        reinterpret_cast<CUser*>(m_user)->send_equip(0x16);
     return 0;
 }
 
@@ -309,6 +322,8 @@ int ExpertJobMaterial::UseMaterialOfRecipe(PacketGuard* packet)
 // ---------------------------------------------------------------------------
 
 // ORIG _ZN10expert_job15FindMonsterCardEP5CItem @0x0849be32。
+// b28d-solo-ExpertJobOnlyMaterial: AE — 匿名 pair 值临时取 first（双段装载）
+// + P296 嵌套正向包裹消 continue 岛；P49 逐点内联 m_recipe174.m_vec0。
 CItem* FindMonsterCard(CItem* recipe)
 {
     // b28d-36（P49）：ORIG 0x0849be32 内联 `lea 0x174(%eax),%edx`（helper 被
@@ -321,11 +336,17 @@ CItem* FindMonsterCard(CItem* recipe)
          ++it)
     {
         CStackableItem* found = static_cast<CStackableItem*>(
-            G_CDataManager()->find_item(it->first));
-        if (found == 0 || !found->is_stackable())
-            continue;
-        if (found->get_sub_type() == 1)
-            return found;
+            G_CDataManager()->find_item(std::pair<int, int>(*it).first));
+        // b28d-solo-ExpertJobOnlyMaterial（P296）：嵌套正向包裹消 continue 岛
+        // （ORIG 0x0849be92/0x0849bea1/0x0849beb6 三处 je 直落 0x0849bebd）。
+        if (found != 0)
+        {
+            if (found->is_stackable())
+            {
+                if (found->get_sub_type() == 1)
+                    return found;
+            }
+        }
     }
     return 0;
 }
@@ -333,9 +354,16 @@ CItem* FindMonsterCard(CItem* recipe)
 // ORIG _ZN10expert_job19GetRecipeInputItemsEP5CItemRSt6vectorISt4pairIiiES
 // aIS4_EE @0x0849b734：从配方材料中筛出非怪卡（sub_type!=1）且可堆叠的
 // 输入项追加到出参。
+// b28d-solo-ExpertJobOnlyMaterial: AE — P171/P232 补函数头死初始化局部
+// `int unused=0`（复现 ORIG `movl $0x0,-0x10(%ebp)` 并撑帧 0x24→0x34）；
+// 匿名 pair 值临时取 first；P296 嵌套正向包裹消 continue 岛。
 void GetRecipeInputItems(CItem* recipe,
                          std::vector<std::pair<int, int> >& inputs)
 {
+    // b28d-solo-ExpertJobOnlyMaterial：ORIG 0x0849b737 `movl $0x0,-0x10(%ebp)`
+    // 为函数头死初始化局部（P171/P232：照抄未使用局部，同时撑帧 0x24→0x34）。
+    int unused = 0;
+    (void)unused;
     // b28d-36（P49）：同 FindMonsterCard，删 helper/引用局部，逐点内联。
     for (std::vector<std::pair<int, int> >::const_iterator it =
              reinterpret_cast<CStackableItem*>(recipe)
@@ -345,40 +373,56 @@ void GetRecipeInputItems(CItem* recipe,
          ++it)
     {
         CStackableItem* found = static_cast<CStackableItem*>(
-            G_CDataManager()->find_item(it->first));
-        if (found == 0 || !found->is_stackable())
-            continue;
-        if (found->get_sub_type() != 1)
-            inputs.push_back(*it);
+            G_CDataManager()->find_item(std::pair<int, int>(*it).first));
+        // b28d-solo-ExpertJobOnlyMaterial（P296）：嵌套正向包裹消 continue 岛
+        // （ORIG 0x0849b79b/0x0849b7aa/0x0849b7bf 三处 je 直落 0x0849b7db）。
+        if (found != 0)
+        {
+            if (found->is_stackable())
+            {
+                if (found->get_sub_type() != 1)
+                    inputs.push_back(*it);
+            }
+        }
     }
 }
 
 // ORIG _ZN10expert_job17IsExistRecipeItemEP5CUserP5CItemb @0x0849b820：
 // onlyInputs=true 时只校验输入材料，否则校验完整材料清单。
-int IsExistRecipeItem(CUser* user, CItem* recipe, bool onlyInputs)
+// b28d-solo-ExpertJobOnlyMaterial: AE — clear 移入两分支各自开头（ORIG
+// 0x0849b845/0x0849b8b8 各一次）；else 分支 recipe 具名局部（-0xc 槽，
+// P0）；两分支各自 CheckNeedItemList（ORIG 两个调用点）；P292 档① bool 化。
+// 返回类型 int→bool（P292 档① callee 侧）：ORIG 调用点 _DoEnchant
+// 0x0849cc58 `call; xor $1,%eax; test %al,%al; je` 无 setne ⇒ callee bool；
+// 返回类型不入 mangled，函数体 return 0/1 不变（S370 同步改 CExpertJob.h:450）。
+bool IsExistRecipeItem(CUser* user, CItem* recipe, bool onlyInputs)
 {
     std::vector<std::pair<int, int> > materials;
-    materials.clear();
 
     if (onlyInputs)
     {
+        materials.clear();
         GetRecipeInputItems(recipe, materials);
         user->CalculateExpertJobMaterials(materials);
         if (materials.empty())
+            return 0;
+        if (!user->getCurCharacInvenR()->CheckNeedItemList(materials))
             return 0;
     }
     else
     {
         materials.clear();
-        if (recipe == 0)
+        // b28d-solo-ExpertJobOnlyMaterial：ORIG 0x0849b8bd 把 recipe 存入
+        // -0xc 具名槽后再判空（P0：有槽 ⇒ 原码有具名局部）。
+        CItem* item = recipe;
+        if (item == 0)
             return 0;
-        materials = reinterpret_cast<CStackableItem*>(recipe)
+        materials = reinterpret_cast<CStackableItem*>(item)
                         ->m_recipe174.m_vec0;
         user->CalculateExpertJobMaterials(materials);
+        if (!user->getCurCharacInvenR()->CheckNeedItemList(materials))
+            return 0;
     }
-
-    if (!user->getCurCharacInvenR()->CheckNeedItemList(materials))
-        return 0;
     return 1;
 }
 
@@ -386,7 +430,7 @@ int IsExistRecipeItem(CUser* user, CItem* recipe, bool onlyInputs)
 // aIS4_EEiP11PacketGuardRbi @0x0849b957：与成员版差别——清单先经
 // CalculateExpertJobMaterials 归一化；尾参 bodyCount 取 1 时附带删除并包
 // 上报配方本体条目，其它值只上报材料。
-// b28c-1 N: free 版 removedBody 取反 4.4 恒折 cmpb vs ORIG movzbl/xor/test。
+// b28d-solo-ExpertJobOnlyMaterial: AE — P248 档②（同成员版 bool 局部）。
 bool DelMaterialOfRecipe(CUser* user,
                          std::vector<std::pair<int, int> >& materials,
                          int slot, PacketGuard* packet, bool& changed,
@@ -420,12 +464,11 @@ bool DelMaterialOfRecipe(CUser* user,
     if (bodyCount == 1)
     {
         packet->put_byte(delCount + bodyCount);
-        char removedBody = user->getCurCharacInvenW()->delete_item(
+        // b28d-solo-ExpertJobOnlyMaterial：P248 档②（同成员版）。
+        bool removedBody = user->getCurCharacInvenW()->delete_item(
             INVEN_TYPE_EQUIP, slot, bodyCount,
             static_cast<eItemDelReason>(8), true);
-        // b28c-1：ORIG `movzbl -0x9; xor $1; test; je` 取反物化；4.4 恒折
-    //  cmpb 直比（P168a④/N18b 族，^1/!/uchar 三形实测均不可翻）。
-    if (!removedBody)
+        if (!removedBody)
         {
             cMyTrace(
                 "bool expert_job::DelMaterialOfRecipe(CUser*, "
@@ -461,6 +504,8 @@ bool DelMaterialOfRecipe(CUser* user,
 
 // ORIG _ZN10expert_job19UseMaterialOfRecipeEP5CUserP5CItemP11PacketGuardb
 // @0x0849bcfb。
+// b28d-solo-ExpertJobOnlyMaterial: AE — 删 onlyInputs 分支多余的
+// materials.clear()（ORIG C1Ev 后直接 GetRecipeInputItems）。
 int UseMaterialOfRecipe(CUser* user, CItem* recipe, PacketGuard* packet,
                         bool onlyInputs)
 {
@@ -468,7 +513,6 @@ int UseMaterialOfRecipe(CUser* user, CItem* recipe, PacketGuard* packet,
     if (onlyInputs)
     {
         std::vector<std::pair<int, int> > materials;
-        materials.clear();
         GetRecipeInputItems(recipe, materials);
         if (materials.empty())
             return 0x11;

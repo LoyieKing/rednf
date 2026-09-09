@@ -72,11 +72,11 @@ static void make_crc_table()
 // Crc32 —— docs/class_func_reports/Crc32/{crc32,getCrc32Table}.md
 unsigned int Crc32::crc32(unsigned int crc, char const* buf, unsigned int len)
 {
-    // b28d-solo-PackSet 判词（N 封顶，ORIG 0x08ad34ae size 0x55）：body 的
-    // `crc>>8` 求值序已由 `(crc>>8) ^ table[...]` 书写序翻正；唯一残差 = cond 段
-    // `subl $1,len` 位置——ORIG `cmp;setne;subl;test;jne`（条件先物化后递减），
-    // 4.4 恒 `subl;cmp;setne;test`（递减提前）。for/while/前置/后置四形实测均
-    // 不可翻 ⇒ 4.4 循环旋转固有差（N82/P112 族），语义等价。
+    // b28d-solo-PackSet 判词（AE / ndiff=0，ORIG 0x08ad34ae size 0x55）：①body
+    // 的 `crc>>8` 求值序由 `(crc>>8) ^ table[...]` 书写序翻正（P243）；②cond 段
+    // `cmp;setne;subl $1,len;test;jne`（旧值先物化、后置递减）由
+    // `while (len-- != 0)` 复现——前轮「N82 不可翻」判词作废：for/while/前置三形
+    // 确不可翻，**后置递减写进条件**才是唯一解。
     if (crc_table[255] == 0)
     {
         make_crc_table();
@@ -84,11 +84,12 @@ unsigned int Crc32::crc32(unsigned int crc, char const* buf, unsigned int len)
     crc = ~crc;
     // b28d-solo-PackSet（P243 同族）：ORIG body 首两条即 `mov crc,%eax; mov %eax,%edx;
     // shr $8,%edx`（右操作数 `crc>>8` 先求值）⇒ 源把 `crc >> 8` 写在 `^` 左侧。
-    while (len != 0)
+    // b28d-solo-PackSet（P225 变体）：ORIG cond 段为 `cmp; setne %al; subl $1,len;
+    // test %al,%al; jne`（旧值先物化、后置递减）⇒ `len--` 写进条件。
+    while (len-- != 0)
     {
         crc = (crc >> 8) ^ crc_table[(static_cast<unsigned char>(*buf) ^ crc) & 0xffu];
         ++buf;
-        len--;
     }
     return ~crc;
 }
@@ -175,11 +176,12 @@ static int _decrypt_N_crc32(unsigned long crc, unsigned long checksum,
                             unsigned long key, unsigned char* buffer,
                             unsigned int size)
 {
-    // b28d-solo-PackSet 判词（N 封顶，ORIG 0x08ac398b size 0x150）：e 的
-    // `shr $2; shl $2`（`p + (size>>2)*4` 形）、rotate 单表达式、`(x>>8)^table`
-    // 求值序、crc 自身累积（无 tmp 槽）均已对齐；唯一残差 = 帧 ORIG `sub $0x18`
-    // vs 4.4 `sub $0x10`（0x18 非 16k 量化值；P190② 4.4 带 call 帧恒 16k+4
-    // 量化，dead 局部/double pad 两形实测不可凑）⇒ 槽位整体浅 8，语义等价封顶。
+    // b28d-solo-PackSet 判词（N 封顶，ORIG 0x08ac398b size 0x150；本轮 ndiff
+    // 54→52）：e 的 `shr $2; shl $2` 本轮改字节指针形复现、rotate 单表达式、
+    // `(x>>8)^table` 求值序、crc 自身累积（无 tmp 槽）、尾部 `if/return 0` 极性
+    // 均已对齐；残余 = 帧 ORIG `sub $0x18` vs 4.4 `sub $0x10`（0x18 非 16k 量化
+    // 值；P190② 4.4 带 call 帧恒 16k+4 量化，dead 局部/double pad 两形实测不可
+    // 凑）⇒ 槽位整体浅 8，语义等价封顶。
     if ((size & 3u) != 0u)
     {
         return 0;
@@ -191,9 +193,11 @@ static int _decrypt_N_crc32(unsigned long crc, unsigned long checksum,
         key ^= XOR_KEY;
     }
     unsigned int* p = reinterpret_cast<unsigned int*>(buffer);
-    // b28d-solo-PackSet：ORIG 0x08ac39c7 为 `shr $2; shl $2`（= (size>>2)<<2），
-    // 非 `and $0xfffffffc`（4.4 对 &~3 折叠成单条 and，两条形不同）。
-    unsigned int* e = p + ((size >> 2) * 4);
+    // b28d-solo-PackSet：ORIG 0x08ac39c7 为 `shr $2; shl $2; add p`——`(size>>2)*4`
+    // 是**字节**偏移直接加到字节地址；写成 `p + ((size>>2)*4)` 时 4.4 会把
+    // 指针缩放的 *4 一并折成 `shl $4`（元素偏移）⇒ 用字节指针形式复现。
+    unsigned int* e = reinterpret_cast<unsigned int*>(
+        reinterpret_cast<unsigned char*>(p) + ((size >> 2) * 4));
     for (; p != e; ++p)
     {
         if (g_AdditionalKey != 0u)
@@ -214,7 +218,12 @@ static int _decrypt_N_crc32(unsigned long crc, unsigned long checksum,
         crc = (crc >> 8) ^ table[(bytes[2] ^ crc) & 0xffu];
         crc = (crc >> 8) ^ table[(bytes[3] ^ crc) & 0xffu];
     }
-    return (~crc == checksum) ? 1 : 0;
+    // b28d-solo-PackSet（P47）：ORIG 尾为 `notl; cmp; je <mov $1>` 形。
+    if (~crc == checksum)
+    {
+        return 1;
+    }
+    return 0;
 }
 
 // _fwrite_str —— _lt_global_gt_/_fwrite_str.md（t @0x08ac3714）：len(4B)+内容
@@ -283,27 +292,43 @@ int _correct_filename(char const* src, char* dst, unsigned int dst_size,
         return 1;
     }
 
-    // b28d-solo-PackSet 判词（N108 封顶，ORIG 0x08ac3b9a size 0x247）：
-    // ①p167 判据：ORIG 全部 stack 调用为 **非 const** 版 `std::stack<char*>`
-    //   （push(char* const&) 左值、top 返 char*）；旧 `stack<char const*>` 使 p167
-    //   出现整组 EXTRA/MISSING（push 走右值转换 + top 返回类型不同）。改后 p167
-    //   16=16 CLEAR。
-    // ②ORIG 序：`movl $0,-0x18`(dead 局部) → w=dst(-0x44) → r=src(-0x10) →
-    //   deque C1(-0x40) → stack C1(-0x6c) → push ⇒ 先赋值指针再构造 STL（P212）。
+    // b28d-solo-PackSet 判词（N 封顶：跨版本循环体/exit 头块序，ORIG 0x08ac3b9a
+    // size 0x247；本轮 ndiff 164→29、gap -10→+1）：
+    // ①p167：ORIG 全部 stack 调用为**非 const** `std::stack<char*>`（push 左值、
+    //   top 返 char*）⇒ 16=16 CLEAR。
+    // ②全槽位对齐：prev_tok -0x18 / w -0x44 / seg -0x14 / r -0x10 / c -0x9 /
+    //   deque 临时 -0x40 / stack -0x6c。关键两处：**seg 声明先于 r**（两指针槽
+    //   互换归位）；**尾部复用 seg 而非独立 tail 局部**（4.4 不复用两者槽 ⇒
+    //   全帧深移 4）。
+    // ③`while ((c = *r++) != 0)` 复现底部 cond 块 + `setne %al; addl $1,r;
+    //   test %al,%al; jne` 物化（P225/P283；goto 尾标签形无 setne）。
+    // ④`*(unsigned short*)seg == 0x2e2e` 复现 ORIG `movzwl; cmp $0x2e2e,%ax`
+    //   （`seg[0]=='.'&&seg[1]=='.'` 在 4.4 生两段 movzbl+cmp）。
+    // ⑤dir 单出口 `if (dir != 0) {…} return 0;` 复现 `cmpl $0,dir; je <共享
+    //   return 块>`（P47）。
+    // ⑥恒真守卫 `if (c != 0) { 结算 }` 复现 exit 头 `cmpb $0,c; jne +0x110`
+    //   （break 出口与分隔符路径共用该检查）。
+    // 残余（语义等价，N 封顶）：4.1 把结算段物理置于 cond/exit 头**之后**
+    // （+0x110）；4.4 恒把结算段发射在 cond 之前且守卫生成 `je` 负极性 ⇒ 差
+    // 1 条 jne + 1 条 jmp（ndiff 29 全为块序对齐残差，指令集只差这对跳转）。
     int prev_tok = 0;                // -0x18（ORIG dead 局部，Ghidra local_1c 无读）
     (void)prev_tok;
     char* w = dst;                   // -0x44
+    char* seg;                       // -0x14
     char const* r = src;             // -0x10
+    char c;                          // -0x9
     std::stack<char*> st;            // 分量起点栈（ORIG stack<char*, deque<char*>>）
-    st.push(dst);                    // 初始哨兵
+    st.push(w);                      // 初始哨兵（ORIG push 实参 = w 局部 &-0x44，非形参 dst）
 
-    char c;
-    for (;;)
+    // b28d-solo-PackSet（P283/P184）：ORIG 循环条件块在**物理底部**（+0xd9 读 c/
+    // 物化 setne/`++r`/test/jne 回体），入口 +0x88 无条件 `jmp +0xd9`，且体首
+    // `cmpb $0,c; je +0xf3` 为 4.1 保留的死块 ⇒ 用 while(赋值表达式) 形复现
+    // （4.4 对 `for(;;)`+break 恒把条件置顶）。
+    while ((c = *r++) != 0)
     {
-        c = *r++;
         if (c == 0)
         {
-            break;
+            break;                    // ORIG 死块（4.1 保留）
         }
         if (c == '/' || c == '\\')
         {
@@ -323,47 +348,60 @@ int _correct_filename(char const* src, char* dst, unsigned int dst_size,
         }
 
         // ---- 分量结算（ORIG @08ac3caa）----
-        char* seg = st.top();             // -0x14
-        unsigned long diff = static_cast<unsigned long>(w - seg);
-        if (diff == 1)
+        // b28d-solo-PackSet：ORIG exit 头 +0xf4 有 `cmpb $0,c; jne +0x110`
+        // （break 出口与分隔符路径共用该检查；c 恒非 0）⇒ 显式写出恒真守卫，
+        // 复现该 cmpb/jne 对（4.4 对无守卫形直接内联结算段，少 2 条）。
+        if (c != 0)
         {
-            w = seg;                                 // 段为空
-        }
-        else if (diff == 2 && seg[0] == '.')
-        {
-            w = seg;                                 // 抛弃 "./"
-        }
-        else if (diff == 3 && seg[0] == '.' && seg[1] == '.')
-        {
-            if (st.empty())
+            seg = st.top();
+            // b28d-solo-PackSet（P0/P183）：ORIG 无 diff 栈槽，三处 if 各自重算
+            // `w - seg`（`mov w,%eax; mov %eax,%edx; mov seg,%eax; mov %edx,%ecx;
+            // sub %eax,%ecx`）；具名 diff 会被 4.4 合并成单次计算 + 槽往返。
+            if (static_cast<unsigned long>(w - seg) == 1)
             {
-                return 1;                            // 空栈分支实际不可达，忠实保留
+                w = seg;                             // 段为空
             }
-            st.pop();
-            w = st.top();
-        }
-        else
-        {
-            st.push(w);
+            else if (static_cast<unsigned long>(w - seg) == 2 && seg[0] == '.')
+            {
+                w = seg;                             // 抛弃 "./"
+            }
+            // b28d-solo-PackSet：ORIG +0x176 `movzwl (%eax),%eax; cmp $0x2e2e,%ax`
+            // ⇒ 原码是 16 位双字节比较（`seg[0]=='.'&&seg[1]=='.'` 在 4.4 生两段
+            // movzbl+cmp）。
+            else if (static_cast<unsigned long>(w - seg) == 3 &&
+                     *reinterpret_cast<unsigned short const*>(seg) == 0x2e2eu)
+            {
+                if (st.empty())
+                {
+                    return 1;                        // 空栈分支实际不可达，忠实保留
+                }
+                st.pop();
+                w = st.top();
+            }
+            else
+            {
+                st.push(w);
+            }
         }
     }
 
     *w = '\0';
 
-    if (dir == 0)
+    // b28d-solo-PackSet（P0/P47）：ORIG `cmpl $0,dir; je +0x212`（跳到共享
+    // return 块）⇒ 单出口 `if (dir != 0) {…} return 0;`；ORIG 尾部复用 seg 槽
+    // -0x14（无独立 tail 局部），避免多占 4 字节使全帧深移。
+    if (dir != 0)
     {
-        return 0;
-    }
-
-    char* tail = st.top();
-    ss_strcpy(dir, dir_size, tail);
-    if (tail == dst)
-    {
-        tail[0] = '\0';
-    }
-    else
-    {
-        tail[-1] = '\0';                            // 去尾段（ORIG sptr[-1]=0）
+        seg = st.top();
+        ss_strcpy(dir, dir_size, seg);
+        if (seg == dst)
+        {
+            seg[0] = '\0';
+        }
+        else
+        {
+            seg[-1] = '\0';                         // 去尾段（ORIG sptr[-1]=0）
+        }
     }
     return 0;
 }
@@ -1108,11 +1146,25 @@ pack_ret_t PackSet::open(char const* name, char const* tag, pack_load_type_t typ
         return openEncryptedFile(name, tag, type);
     }
 
-    // b28d-solo-PackSet 判词（N 封顶，ORIG 0x08ac5a52 size 0x69d）：
-    // ORIG 在 is_ready() 之前先 `lea -0x50; call iterator::C1Ev`（函数级迭代器）
-    // 再 `lea -0x64; call tstring::C1Ev` ⇒ 两个局部都在函数头、构造序 it→index_tag
-    // （P28/P50/P212）；旧形只在 for 内直构 it、index_tag 构造被 4.4 后置。
+    // b28d-solo-PackSet 判词（N 封顶：两处跨版本 codegen 残差，ORIG 0x08ac5a52
+    // size 0x69d；本轮 ndiff 330→9、gap→-1）：
+    // ①ORIG is_ready() 之前 it C1Ev(-0x50) → index_tag C1Ev(-0x64)，两局部都在
+    //   函数头、构造序 it→index_tag（P28/P50/P212）。
+    // ②槽序 = 4.4 **声明序**分配：it -0x50 / idxHdrSize -0x54 / idxHdrCrc -0x58
+    //   / idxHdrKey -0x5c / cur -0x60 / index_tag -0x64 ⇒ idxHdr*/cur 声明必须
+    //   排在 index_tag **之前**（一处改动使 6 处 lea 立即数全对齐）。
+    // ③三处遍历改 while 底部条件布局（P283）；④idxHdrSize/Crc/Key 去预清零
+    //   （P171：ORIG fread 直接写槽）；⑤`cur = idxHdrData` 移到 resize 之前
+    //   （ORIG +0x2ef）；⑥npos 用 volatile 视图复现内存装载。
+    // 残余（语义等价，N 封顶）：a) ORIG `mov <A>,%edx; cmp %edx,%eax` 单条绝对
+    //   地址装载 vs 4.4 `mov $A,%edx; mov (%edx),%edx`（非 volatile 会被折成
+    //   `cmp $-1`）；b) fread 实参装载序（P75：ORIG 先 fp 后 fileSize，4.4 先把
+    //   fileSize 载 %eax 再丢弃）——两处净差 1 条 mov。
     index_vector_it it;
+    unsigned int idxHdrSize;        // -0x54：索引头区大小
+    hash_t idxHdrCrc;               // -0x58：头 CRC（checksum/key）
+    hash_t idxHdrKey;               // -0x5c：解密种子兼条目数
+    unsigned char* cur;             // -0x60：索引头游标
     tstring index_tag;
 
     if (is_ready())
@@ -1142,10 +1194,6 @@ pack_ret_t PackSet::open(char const* name, char const* tag, pack_load_type_t typ
         }
     }
 
-    unsigned int idxHdrSize = 0;    // -0x54：索引头区大小
-    hash_t idxHdrCrc = 0;           // -0x58：头 CRC（checksum/key）
-    hash_t idxHdrKey = 0;           // -0x5c：解密种子兼条目数
-
     fread(&m_revision, 4, 1, fp);
     fread(&idxHdrSize, 4, 1, fp);
     fread(&idxHdrCrc, 4, 1, fp);
@@ -1163,14 +1211,20 @@ pack_ret_t PackSet::open(char const* name, char const* tag, pack_load_type_t typ
         return PACK_ERROR;
     }
 
+    // b28d-solo-PackSet：ORIG +0x2ef `mov -0x1c,%eax; mov %eax,-0x60` 在
+    // `resize` 之前 ⇒ cur 赋值必须先于 resize。
+    cur = idxHdrData;
     m_indexes.resize(static_cast<std::size_t>(idxHdrKey), index_pair_t());
 
-    unsigned char* cur = idxHdrData;
-    for (it = m_indexes.begin(); it != m_indexes.end(); ++it)
+    // b28d-solo-PackSet（P283）：ORIG 三处遍历均为 while 底部条件布局
+    // （init → `jmp cond` → body → cond），4.4 对 for 恒把 cond 置顶。
+    it = m_indexes.begin();
+    while (it != m_indexes.end())
     {
         it->first = *reinterpret_cast<unsigned long*>(cur);
         cur += 4;
         it->second.read_info(cur);
+        ++it;
     }
     delete[] idxHdrData;
 
@@ -1181,9 +1235,11 @@ pack_ret_t PackSet::open(char const* name, char const* tag, pack_load_type_t typ
         fseek(fp, 0, SEEK_SET);
         unsigned char* whole = new unsigned char[fileSize];
         fread(whole, fileSize, 1, fp);
-        for (it = m_indexes.begin(); it != m_indexes.end(); ++it)
+        it = m_indexes.begin();
+        while (it != m_indexes.end())
         {
             it->second.update_content_from_memory(whole, this);
+            ++it;
         }
         delete[] whole;
     }
@@ -1196,16 +1252,22 @@ pack_ret_t PackSet::open(char const* name, char const* tag, pack_load_type_t typ
             fseek(fp, 0, SEEK_SET);
             unsigned char* whole = new unsigned char[fileSize];
             fread(whole, fileSize, 1, fp);
-            for (it = m_indexes.begin(); it != m_indexes.end(); ++it)
+            it = m_indexes.begin();
+            while (it != m_indexes.end())
             {
                 // b28d-solo-PackSet（p167）：ORIG 调 `IndexEntry::name()` getter
                 // （0x08ac5ffa/0x08ac6010 两处 call _ZNK10IndexEntry4nameEv）
                 // 而非直访 name_ 成员。
                 it->second.name();
-                if (it->second.name().find(".ani", 0) != tstring::npos)
+                // b28d-solo-PackSet（P304 同族）：ORIG `mov &_ZNSs4nposE,%edx;
+                // cmp %edx,%eax` 为内存装载 npos；4.4 把 npos 折成立即数 ⇒
+                // `*&` 强制取址装载。
+                if (it->second.name().find(".ani", 0) !=
+                    *reinterpret_cast<volatile tstring::size_type const*>(&tstring::npos))
                 {
                     it->second.update_content_from_memory(whole, this);
                 }
+                ++it;
             }
             delete[] whole;
         }
@@ -1226,11 +1288,18 @@ pack_ret_t PackSet::verify()    // 0x08ac6c8a
     unsigned char* buff_file = 0;
     unsigned char* buff_pack = 0;
     unsigned int contentSize = 0;
-    // b28d-solo-PackSet 判词（N 封顶，ORIG 0x08ac6c8a size 0x973）：
-    // ①ORIG 序言后 4 个标量清零 → `lea -0x70; call iterator::C1Ev` → is_ready
-    //   ⇒ 迭代器为函数级声明（p167 MISSING 该 C1Ev；两循环复用同一槽）。
-    // ②ORIG 在 new[] 之后才清零 proc_count/total_count/proc_size/total_size，
-    //   再构造两个 Tick，最后清零 run_time/avg_time/remain_time ⇒ 声明序照抄。
+    // b28d-solo-PackSet 判词（N 封顶：4.4 栈槽分配策略差异，ORIG 0x08ac6c8a
+    // size 0x973）：
+    // ①ORIG 序言 5 标量清零 → it C1Ev(-0x70) → is_ready；迭代器为函数级声明
+    //   （p167 MISSING 该 C1Ev；两循环复用同一槽）。
+    // ②两处遍历改 while 底部条件布局（P283）；③删 printf 首参 `+0.5f`（ORIG 为
+    //   `flds 100.0f; fmulp; fistpl`，无 faddp）；④`if (1000 < since_refresh)`
+    //   改 `while (…) { …; break; }` 复现 ORIG `cmp $0x3e8; setg %al;
+    //   test %al,%al; je`（P225）。
+    // 残余（语义等价，N82/N98）：4.1 按生命周期/类型分组分配（contentSize
+    //   -0x6c、bufferSize -0x48、size_file -0x3c、proc_count -0x38…），4.4 按
+    //   首次使用序紧密分配（contentSize -0x74、bufferSize -0x50…）⇒ 全帧槽号
+    //   整体深 8、帧 0xac vs 0xcc。contentSize 声明位置两形实测均不翻 ⇒ 封顶。
     index_vector_it it;
 
     if (!is_ready())
@@ -1253,16 +1322,20 @@ pack_ret_t PackSet::verify()    // 0x08ac6c8a
     float avg_time = 0.0f;
     int remain_time = 0;
 
-    for (it = m_indexes.begin(); it != m_indexes.end(); ++it)
+    // b28d-solo-PackSet（P283）：ORIG 两处遍历均为 while 底部条件布局。
+    it = m_indexes.begin();
+    while (it != m_indexes.end())
     {
         total_size += it->second.size_;
+        ++it;
     }
     total_count = m_indexes.size();
 
     start_time = Tick::now();          // 进度更新基准
     frame_start = Tick::now();
 
-    for (it = m_indexes.begin(); it != m_indexes.end(); ++it)
+    it = m_indexes.begin();
+    while (it != m_indexes.end())
     {
         if (bufferSize < it->second.aligned_size_)
         {
@@ -1317,20 +1390,25 @@ pack_ret_t PackSet::verify()    // 0x08ac6c8a
         proc_count += 1;
 
         int since_refresh = Tick::now() - frame_start;
-        if (1000 < since_refresh)
+        // b28d-solo-PackSet（P225）：ORIG `cmp $0x3e8,%eax; setg %al; test %al,%al;
+        // je` 为 4.1 条件物化 ⇒ while+break 形复现（4.4 对 if 恒直跳 jle）。
+        while (1000 < since_refresh)
         {
             frame_start = Tick::now();
             run_time = Tick::now() - start_time;
             avg_time = static_cast<float>(run_time) / static_cast<float>(proc_size);
             remain_time = static_cast<int>((static_cast<float>(total_size - proc_size) * avg_time));
-            // ORIG ROUND(100.0f*(proc_size/total_size))：ROUND 宏按四舍五入推断
+            // b28d-solo-PackSet：ORIG 无 `+0.5f` 的 faddp（序列为
+            // `flds 100.0f; fmulp; fistpl`）⇒ 直接截断转换。
             printf("%3d%% (%2dmin %2dsec)/(%2dmin %2dsec) (%d/%d)    \n",
                    static_cast<int>((100.0f * (static_cast<float>(proc_size)
-                                                / static_cast<float>(total_size))) + 0.5f),
+                                                / static_cast<float>(total_size)))),
                    run_time / 60000, (run_time % 60000) / 1000,
                    remain_time / 60000, (remain_time % 60000) / 1000,
                    static_cast<int>(proc_count), static_cast<int>(total_count));
+            break;
         }
+        ++it;
     }
 
     run_time = Tick::now() - start_time;
@@ -1338,7 +1416,7 @@ pack_ret_t PackSet::verify()    // 0x08ac6c8a
     remain_time = static_cast<int>((static_cast<float>(total_size - proc_size) * avg_time));
     printf("%3d%% (%2dmin %2dsec)/(%2dmin %2dsec) (%d/%d)    \n",
            static_cast<int>((100.0f * (static_cast<float>(proc_size)
-                                        / static_cast<float>(total_size))) + 0.5f),
+                                        / static_cast<float>(total_size)))),
            run_time / 60000, (run_time % 60000) / 1000,
            remain_time / 60000, (remain_time % 60000) / 1000,
            static_cast<int>(proc_count), static_cast<int>(total_count));
@@ -1391,11 +1469,23 @@ pack_ret_t PackSet::output_file_list(char const* pszOutputPath) const    // 0x08
 
 pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)   // 0x08ac60fa
 {
-    // b28d-solo-PackSet 判词（N 封顶，ORIG 0x08ac60fa size 0x88d）：p167 判据——
-    // ORIG 缺两个函数级迭代器默认构造（pair<ulong,IndexEntry> 与
-    // pair<ulong,IndexEntry*> 的 `__normal_iterator::C1Ev`）⇒ 原码在函数头声明
-    // `it`/`it2`、循环内赋值（P28/P50 两段式）。
+    // b28d-solo-PackSet 判词（N 封顶：tail-merge 残差，ORIG 0x08ac60fa size
+    // 0x88d；本轮 ndiff 455→32、gap→2）：
+    // ①p167：ORIG 缺两个函数级迭代器默认构造 ⇒ 原码函数头声明 `it`/`it2`、
+    //   循环内赋值（P28/P50 两段式）。
+    // ②槽序 = 4.4「先声明深」：fp -0x18 / accumOffset -0x14 / sz -0x10 /
+    //   headerBuf -0xc；发射序 fp 清零 → it(-0x34 C1Ev) → it2(-0x38) →
+    //   writeIdx(-0x44) → headerBuf 清零（一处重排使 10+ 处槽引用归位）。
+    // ③dir/file 声明序 file 先（ORIG dir@-0x260 深、file@-0x15c 浅）；
+    // ④删 tmp.first/second 预清零（P171）；⑤accumOffset 改「值先」形 + int 化
+    //   复现 `lea (%edx,%eax,1)` 序列；⑥hdrDataSz int 化复现两段装载。
+    // 残余（语义等价，N121 tail-merge）：4.1 把 4 处 `return PACK_ERROR` 汇到
+    //   +0x82d 共享块（`if(fp) fclose` + 双判空 delete[] + `mov $1,%ebx`），
+    //   4.4 -O0 恒内联各失败路径（我们多 3 条 mov $1,%ebx、少共享块 2×cmpl/je
+    //   与 jmp）。显式 goto 尾标签（+内层块）实测劣化槽位（ndiff 41/127）⇒ 保持内联。
     FILE* fp = 0;
+    int accumOffset;                // -0x14（ORIG 在 sort 之后才清零）
+    long sz;                        // -0x10
     index_vector_it it;
     index_vector2_it it2;
     index_vector2_t writeIdx;
@@ -1418,18 +1508,18 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
     }
 
     {
-        char dir[260];
+        // b28d-solo-PackSet：ORIG dir@-0x260 / file@-0x15c（先声明深）⇒ 4.4
+        // 先声明浅，故 file 必须先声明。
         char file[260];
+        char dir[260];
         for (it = m_indexes.begin(); it != m_indexes.end(); ++it)
         {
             index_pair2_t tmp;
-            tmp.first = 0;
-            tmp.second = 0;
             if (_correct_filename(it->second.name_.c_str(), file, 0x104,
                                   dir, 0x104) == PACK_ERROR)
             {
                 fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x4ff, __FUNCTION__);
-                return PACK_ERROR;      // writeIdx 由栈展开析构
+                return PACK_ERROR;      // ORIG tail-merge 至 +0x82d（N121）
             }
             tmp.first = _write_hash(file, dir);
             tmp.second = &(it->second);
@@ -1438,11 +1528,14 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
     }
     std::sort(writeIdx.begin(), writeIdx.end(), &_index_less2);
 
-    unsigned int accumOffset = 0;
+    accumOffset = 0;
     for (it2 = writeIdx.begin(); it2 != writeIdx.end(); ++it2)
     {
         it2->second->offset_ = accumOffset;
-        accumOffset += it2->second->aligned_size_;
+        // b28d-solo-PackSet（P38/P183）：ORIG 为值先 lea 形
+        // （`mov 0xc(%eax),%edx; mov -0x14,%eax; lea (%edx,%eax,1),%eax;
+        // mov %eax,-0x14`），`+=` 在 4.4 生 `add %eax,-0x14` 内存自增。
+        accumOffset = it2->second->aligned_size_ + accumOffset;
     }
 
     fp = fopen(TEMP_HEADER_FILENAME, "wb");
@@ -1450,7 +1543,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
     {
         fprintf(stdout, "_tfopen failed. %s", TEMP_HEADER_FILENAME);
         fprintf(stdout, "%s(%d) - %s\n", k_srcFile, 0x514, __FUNCTION__);
-        return PACK_ERROR;
+        return PACK_ERROR;              // ORIG tail-merge 至 +0x82d
     }
 
     for (it = m_indexes.begin(); it != m_indexes.end(); ++it)
@@ -1474,7 +1567,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
     }
 
     fseek(fp, 0, SEEK_END);
-    long sz = ftell(fp);
+    sz = ftell(fp);
     if (sz < 0)
     {
         // ORIG sz<0 不 fclose，直接返回（实证 0x08ac65ef）
@@ -1482,7 +1575,7 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
     }
     fseek(fp, 0, SEEK_SET);
 
-    unsigned int hdrDataSz = static_cast<unsigned int>(sz + 3) & ~3u;
+    int hdrDataSz = static_cast<int>(sz + 3) & ~3;
     headerBuf = new unsigned char[hdrDataSz];
     memset(headerBuf, 0, hdrDataSz);
     fread(headerBuf, sz, 1, fp);

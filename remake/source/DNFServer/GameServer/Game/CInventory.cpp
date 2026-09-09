@@ -1730,9 +1730,11 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
 
 bool CInventory::use_money(int amount, eMoneySubReason reason, bool bLog)
 {
-    // b28d-solo-CInventory：166/163，cMyTrace 槽序/帧残差 ⇒ N82/P221 封顶（两形互试已做）。
-    // b28d-37 [N82/P221 封顶，ORIG 0x84fef?]：cMyTrace 对象槽序与帧残差
-    // （166/163；P221 临时链两形互试按 ORIG 槽址择一）。
+    // b28d-solo-CInventory：163/166，N82 槽号错位封顶（P0 具名局部已还原）。
+    // ORIG 0x084ff54c 槽序 -0x40(具名 money 缓存) / -0x3c(bool spill) / -0x30(trace)
+    // / -0x20(oldMoney) / -0x1c(limit)；4.4 分配为 -0xc/-0x10 族 ⇒ 全帧槽号差
+    // （N82：4.1 不复用槽/聚合优先低槽）。具名局部 overMoney 已按 P0 还原（store+load
+    // 两处），语义闭合；残余仅槽号与 cMyTrace 变参装载序，判 N82 封顶。
     int oldMoney;
     int limit;
 
@@ -1751,10 +1753,13 @@ bool CInventory::use_money(int amount, eMoneySubReason reason, bool bLog)
     if (limit < m_money)
     {
         m_money = limit;
+        // b28d-solo-CInventory [P0]：ORIG `mov 0x4(%eax),%eax; mov %eax,-0x40(%ebp)` 与
+        // 日志处 `mov -0x40(%ebp),%eax` 两次槽往返 ⇒ 原码有具名局部缓存（非成员直读）。
+        int overMoney = m_money;
         cMyTrace local_34(__PRETTY_FUNCTION__, 0xf30, 4);
         local_34("over money limit:m_id(%s),charac_no(%d),level(%d) use_money inven(%d)-sub(%d)",
                  NumberToString(m_pParent->get_acc_id(), 0), m_pParent->get_charac_no(-1),
-                 ((CUserCharacInfo*)m_pParent)->get_charac_level(), m_money, amount);
+                 ((CUserCharacInfo*)m_pParent)->get_charac_level(), overMoney, amount);
     }
     if (m_money < 0)
     {
@@ -3451,20 +3456,25 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
 int CInventory::MakeSecuRewarditemPacket(INVEN_TYPE invenType, int slot,
                                          PacketGuard& packet) const
 {
-    // b28d-solo-CInventory：66/68，分支块序+实参中转残差 ⇒ N82/P222 封顶。
-    // b28d-37 [N82/P222 封顶，ORIG 0x850?]：分支块序 + 实参中转残差（66/68）。
-    InterfacePacketBuf& buf = reinterpret_cast<InterfacePacketBuf&>(packet);
+    // b28d-solo-CInventory [P0+P223 双岛]：①ORIG 无 `buf` 局部槽——每调用点重新
+    // `mov 0x14(%ebp),%eax; mov %eax,(%esp)`（形参直用）⇒ 删除具名引用局部；
+    // ②ORIG 两 fail 块独立落 +0xd5/+0xdc（`jne <tail>` / `je <mid>`）⇒ 双 goto
+    // 标签（fail2 前、fail1 后）复现（探针 /tmp/probe_guard2.cpp fD 逐条同构）。
     if (invenType != INVEN_TYPE_EQUIP)
-        return 0;
+        goto l_msr_fail1;
     if (m_pEquipSlot[slot].m_addInfo == 0)
-        return 0;
-    buf.put_short(slot);
+        goto l_msr_fail2;
+    ((InterfacePacketBuf*)&packet)->put_short(slot);
     if (m_pEquipSlot[slot].m_addInfo == 0 || m_pEquipSlot[slot].m_addInfo2 == 0)
-        buf.put_item_idx(0xffffffff);
+        ((InterfacePacketBuf*)&packet)->put_item_idx(0xffffffff);
     else
-        buf.put_item_idx(m_pEquipSlot[slot].m_addInfo);
-    buf.put_int(m_pEquipSlot[slot].m_addInfo2);
+        ((InterfacePacketBuf*)&packet)->put_item_idx(m_pEquipSlot[slot].m_addInfo);
+    ((InterfacePacketBuf*)&packet)->put_int(m_pEquipSlot[slot].m_addInfo2);
     return 1;
+l_msr_fail2:
+    return 0;
+l_msr_fail1:
+    return 0;
 }
 
 int CInventory::RemoveFPItem()
@@ -3488,21 +3498,24 @@ int CInventory::RemoveFPItem(Inven_Item* inven, Inven_Item* equip)
     // ⇒ 4.4 无「1 直落 + 2 岛」组合形，维持现形 N 封顶 2。
     for (int i = 0; i <= 0x19; i++)
     {
-        if (inven[i].m_addInfo == 0 || inven[i].m_addInfo <= 0x1963 ||
-            inven[i].m_addInfo > 0x1b57)
+        // b28d-solo-CInventory [P296+P223]：ORIG「条件1 直落 addl + 条件2/3 各带
+        // nop 岛」（je +0x5c / jbe +0x58 / ja +0x5b）由「正向包裹 + 两条独立 continue」
+        // 复现（探针 /tmp/probe_island2.cpp fP 逐条同形）；短路 || 形恒 3 岛（fO）。
+        if (inven[i].m_addInfo != 0)
         {
-            continue;
+            if (inven[i].m_addInfo <= 0x1963) continue;
+            if (inven[i].m_addInfo > 0x1b57) continue;
+            inven[i].reset();
         }
-        inven[i].reset();
     }
     for (int i = 3; i <= 0x137; i++)
     {
-        if (equip[i].m_addInfo == 0 || equip[i].m_addInfo <= 0x1963 ||
-            equip[i].m_addInfo > 0x1b57)
+        if (equip[i].m_addInfo != 0)
         {
-            continue;
+            if (equip[i].m_addInfo <= 0x1963) continue;
+            if (equip[i].m_addInfo > 0x1b57) continue;
+            equip[i].reset();
         }
-        equip[i].reset();
     }
 }
 
@@ -3524,44 +3537,46 @@ int CInventory::RemoveKCItem(Inven_Item* inven, Inven_Item* equip)
     // G_CDataManager 存活(0x850a0f7)。COND setle i<=0x19/i<=0x137。
     for (int i = 0; i <= 0x19; i++)
     {
-        if (inven[i].m_addInfo == 0 || inven[i].m_addInfo <= 0x1963 ||
-            inven[i].m_addInfo > 0x1b57)
+        // b28d-solo-CInventory [P296+P223]：同 RemoveFPItem——正向包裹 + 两条独立
+        // continue 复现「条件1 直落 + 条件2/3 nop 岛」（探针 /tmp/probe_island2.cpp fP）。
+        if (inven[i].m_addInfo != 0)
         {
-            continue;
-        }
-        CItem* pItem = G_CDataManager()->find_item(inven[i].m_addInfo);
-        if (pItem == 0)
-        {
-            LogManager::logFormat(
-                1, "inventory.cpp",
-                __PRETTY_FUNCTION__, 0x23fe,
-                "CInventory::RemoveKCItem No EquipItem(%d) Found loopcount(%d)",
-                inven[i].m_addInfo, i);
-        }
-        else if (pItem->GetFinishPointPrice() != 0)
-        {
-            inven[i].reset();
+            if (inven[i].m_addInfo <= 0x1963) continue;
+            if (inven[i].m_addInfo > 0x1b57) continue;
+            CItem* pItem = G_CDataManager()->find_item(inven[i].m_addInfo);
+            if (pItem == 0)
+            {
+                LogManager::logFormat(
+                    1, "inventory.cpp",
+                    __PRETTY_FUNCTION__, 0x23fe,
+                    "CInventory::RemoveKCItem No EquipItem(%d) Found loopcount(%d)",
+                    inven[i].m_addInfo, i);
+            }
+            else if (pItem->GetFinishPointPrice() != 0)
+            {
+                inven[i].reset();
+            }
         }
     }
     for (int i = 3; i <= 0x137; i++)
     {
-        if (equip[i].m_addInfo == 0 || equip[i].m_addInfo <= 0x1963 ||
-            equip[i].m_addInfo > 0x1b57)
+        if (equip[i].m_addInfo != 0)
         {
-            continue;
-        }
-        CItem* pItem = G_CDataManager()->find_item(equip[i].m_addInfo);
-        if (pItem == 0)
-        {
-            LogManager::logFormat(
-                1, "inventory.cpp",
-                __PRETTY_FUNCTION__, 0x2416,
-                "CInventory::RemoveKCItem No InvenItem(%d) Found loopcount(%d)",
-                equip[i].m_addInfo, i);
-        }
-        else if (pItem->GetFinishPointPrice() != 0)
-        {
-            equip[i].reset();
+            if (equip[i].m_addInfo <= 0x1963) continue;
+            if (equip[i].m_addInfo > 0x1b57) continue;
+            CItem* pItem = G_CDataManager()->find_item(equip[i].m_addInfo);
+            if (pItem == 0)
+            {
+                LogManager::logFormat(
+                    1, "inventory.cpp",
+                    __PRETTY_FUNCTION__, 0x2416,
+                    "CInventory::RemoveKCItem No InvenItem(%d) Found loopcount(%d)",
+                    equip[i].m_addInfo, i);
+            }
+            else if (pItem->GetFinishPointPrice() != 0)
+            {
+                equip[i].reset();
+            }
         }
     }
 }
@@ -3793,9 +3808,15 @@ int CInventory::try_use_item(int slot, int count, int invenType) const
 void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& f, int& g,
                                      int& h)
 {
-    // b28d-solo-CInventory：178/173，分支极性+nop 落点残差 ⇒ N82/P222 封顶。
-    // b28d-37 [N82/P222 封顶，ORIG 0x850?]：分支极性与 nop 落点残差（178/173）。
-    if (a < 9 && b < 5)
+    // b28d-solo-CInventory [169/173；P223 双岛 + P59/P222 布局已复现，余 N 封顶]
+    // ORIG 0x850ce40：①两守卫 `cmpl $8; jg <nop 岛>`/`cmpl $4; jg <nop 岛>`
+    // （+0x20c/+0x20f 两独立 landing）由双否定 goto 尾标签串复现；②for 内
+    // `if (i <= 0x13)` 翻正条件 `i > 0x13` 复现 ORIG「else 直落 + then 后置跳转」。
+    // 残余 4 条跨版本 codegen 无源形旋钮：①`mov 0x10(%ebp),%ecx` 先载形参（P75，
+    // 4.4 恒 `add mem,%eax`）②`shl $2`+`mov TBL(%eax)` 强度归约（N86b，4.4 恒
+    // scaled `mov TBL(,%eax,4)`）③尾 goto 岛合并（N121）。
+    if (a > 8) goto l_ces_skip1;
+    if (b > 4) goto l_ces_skip2;
     {
         if (m_invenItem[10].m_addInfo == 0)
         {
@@ -3807,7 +3828,17 @@ void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& 
         }
         for (int i = 0xc; i < 0x16; i++)
         {
-            if (i <= 0x13)
+            // b28d-solo-CInventory [P59/P222]：ORIG 为 else 块直落、then 块后置跳转
+            // （`cmpl $0x13; jle <then>`）⇒ 源码翻转成正条件 `i > 0x13` 包 else 体，
+            // 4.4 即产 `jle <else>` 与 ORIG 同布局。
+            if (i > 0x13)
+            {
+                if (m_invenItem[i].m_addInfo != 0)
+                {
+                    g++;
+                }
+            }
+            else
             {
                 if (m_invenItem[i].m_addInfo == 0)
                 {
@@ -3856,15 +3887,10 @@ void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& 
                     }
                 }
             }
-            else
-            {
-                if (m_invenItem[i].m_addInfo != 0)
-                {
-                    g++;
-                }
-            }
         }
     }
+l_ces_skip1:;
+l_ces_skip2:;
 }
 
 int CInventory::erase_repeated_item(const std::vector<std::pair<int, int> >& items,
@@ -4894,7 +4920,7 @@ int CInventory::CalNeedSlot(int* out,
 // [N82 封顶] batch-10 新立项：差集 15=15 归零（while+it++ 后置×4、pair 临时&& 赋值、
 // 循环头 found 初始化、winPoint !(>=) setge 形、i<=8/i<=0x19 setle 界）。gap 43→7。
 
-int CInventory::CheckNeedItemList(const std::vector<std::pair<int, int> >& items) const
+bool CInventory::CheckNeedItemList(const std::vector<std::pair<int, int> >& items) const   // [b28d-Main 代落·S351 P292] int→bool
 {
     // b28d-solo-CInventory：324/315，帧/槽残差 ⇒ N82 封顶。
     // b28d-37 [N82 封顶，ORIG 0x850?]：帧/槽残差（324/315）。
@@ -5415,16 +5441,15 @@ int CInventory::ChangeEquip(INVEN_TYPE invenType, int slot, int equipSlot)
         }
         int result = 0;
         result = move_item((INVEN_TYPE)0, equipSlot, (INVEN_TYPE)1, slot);
-        // b28d-37 [setcc-fold + N93附 封顶，ORIG 0x084fc4dd/0x084fc52d]：ORIG 为
-        // `cmpl $0,-0x14(%ebp); setne %al; test %al,%al; je`（4.1 槽比零物化，P197④
-        // 实证 4.4 对槽比恒折 `cmpl/je` 直跳、唯 call 结果寄存器直比才产 sete）。
-        // 具名 bool 局部实测槽化（帧 +8、ndiff 18→22 劣化）；尾 `nop` 落点差属
-        // N93附（尾部双 return 块发射序相反）。保持直判形，ndiff 封顶。
-        if ((bool)result)
+        // b28d-solo-CInventory [P225+P223]：ORIG `cmpl $0,-0x14; setne %al; test %al,%al;
+        // je <nop 岛>` 为 4.1 槽比零物化（裸 if 4.4 恒折直跳）⇒ `while (r != 0) { return r; }`
+        // 复现物化；两 case 各自的 `return 0` 在 ORIG 共享到函数尾且 case1 落 nop 岛、
+        // case2 直落 mov$0（两独立 landing）⇒ 双 goto 尾标签串复现（探针 /tmp/probe_ce3.cpp fJ）。
+        while (result != 0)
         {
             return result;
         }
-        return 0;
+        goto l_end1;
     }
     case 2:
     {
@@ -5434,17 +5459,20 @@ int CInventory::ChangeEquip(INVEN_TYPE invenType, int slot, int equipSlot)
         }
         int result = 0;
         result = move_item((INVEN_TYPE)0, equipSlot, (INVEN_TYPE)2, slot);
-        if ((bool)result)
+        while (result != 0)
         {
             return result;
         }
-        return 0;
+        goto l_end2;
     }
     default:
     {
-        return 0;
+        goto l_end2;
     }
     }
+l_end1:;
+l_end2:;
+    return 0;
 }
 
 bool IsCreatureItemType(int itemType)

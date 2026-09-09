@@ -78,7 +78,7 @@ class DB_EventSaveGiveGrowCreature : public DBDispatcher
 {
 public:
     DB_EventSaveGiveGrowCreature() {}              // ORIG C1 0x844fdfa (sz 0x4: base ctor+vptr only)
-    static bool makeRequest(unsigned int accId,
+    static void makeRequest(unsigned int accId,    // P159：ORIG 尾无 mov $1 ⇒ void
                             SIG_GIVE_GROWTH_CREATURE_EVENT::eventCharacInfo& info);
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x08449c50
 };
@@ -87,7 +87,7 @@ class DB_EventUpdateGiveGrowCreature : public DBDispatcher
 public:
     // ORIG T（地址见 nm _ZN29DB_EventUpdateGiveGrowCreature11makeRequestEjRN30SIG...）。
     DB_EventUpdateGiveGrowCreature() {}            // ORIG C1 0x844fe16 (sz 0x4: base ctor+vptr only)
-    static bool makeRequest(unsigned int accId,
+    static void makeRequest(unsigned int accId,    // P159：ORIG 尾无 mov $1 ⇒ void
                             SIG_GIVE_GROWTH_CREATURE_EVENT::eventCharacInfo& info);
     virtual bool dispatch(int userIdx, int slot, Stream* stream);  // ORIG T 0x08449d00
 };

@@ -55,15 +55,15 @@ void AvatarRoulette::getStikerList(bool& isOk, ENUM_CHARACTERJOB job,
     return;
 }
 
-unsigned int AvatarCoin::Use()
+bool AvatarCoin::Use()   // [b28d-Main 代落·S341 P292] unsigned int→bool
 {
     // [b28c-lane17] P0：清除历史 register asm("al") 绑定，改自然条件形。
     if (IsUsable())
     {
         m_coin = m_coin + -1;
-        return 1;
+        return true;
     }
-    return 0;
+    return false;
 }
 
 // ---- AvatarCoin 对象位于角色背包基址 +0x658（ORIG 全局约定） ----
@@ -71,8 +71,13 @@ unsigned int AvatarCoin::Use()
 // ORIG 各调用点均为内联 `getCurCharacInvenW(); add $0x658` 直落 receiver）。
 
 // ---- CUser::_GetSaveInvenBase ORIG @ 0x0864fd80 ----
-// SIG_SAVE_INVENTORY 权威尺寸约 0xada0（写入 +0xad95 实证）；本仓库
-// SigTypes.h 中该结构仍为 0x100 占位，故全部按原始偏移裸写。
+// [b28d-solo-Arad_AvatarRoulette AE] 61=61 逐条对齐，p167 11/11 CLEAR。
+// P211 档③字段侧同型化：ORIG 0x0864fda1 段为 LHS-first 直存
+// `mov 0xc(%ebp),%edx; mov %eax,0x4(%edx)`；SIG_SAVE_INVENTORY::m_characNo 为 int 时
+// 与 getCurCharacNo()(unsigned int) 异型 ⇒ 4.4 恒产 RHS-first+`mov %eax,%edx` 中转。
+// 字段改 unsigned int（SigTypes_E.h:104，宽度/偏移/sizeof 0xad99 不变）后逐条全等；
+// 源侧 static_cast<int> 形实测无效（P211 明证，勿再试）。
+// 其余 store（+0x00/+0x09/+0x0d/+0x11/+0x15）本就与各自 callee 同型直存。
 void CUser::_GetSaveInvenBase(SIG_SAVE_INVENTORY* out)
 {
     out->m_accId = get_acc_id();

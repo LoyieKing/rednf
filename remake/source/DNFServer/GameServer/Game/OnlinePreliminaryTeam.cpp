@@ -152,28 +152,28 @@ int COnlinePreliminaryTeam::GetCurrentUserCount()
 // ORIG T 0x085884b6：find；命中→flag=1、count++；未命中且 size>999 →
 // cMyTrace 报警后直接 return（不置 0x3d）；否则插入 PlayCountInfoEx(1,true)；
 // 最后 m_hasLoseFlag(+0x3d)=1。
-// [b28d-23 N·N93] ⇒ N。ORIG 0x085884b6
+// [b28d-solo-OnlinePreliminaryTeam] P222 正向包裹（ORIG 命中块在前、`je` 落
+// miss 块）+ P227 全表达式临时链（ORIG 先 size() 并 %ebx 跨 ctor 保活、
+// 再构造 cMyTrace）。ORIG 0x085884b6
 void COnlinePreliminaryTeam::IncreaseEachOtherTeamPlayCount(int teamId)
 {
     std::map<int, PlayCountInfoEx>::iterator it = m_playCountMap.find(teamId);
-    if (it == m_playCountMap.end())
+    if (it != m_playCountMap.end())
+    {
+        it->second.m_flag = 1;
+        it->second.m_count += 1;
+    }
+    else
     {
         if (m_playCountMap.size() > 999)
         {
             // ORIG __PRETTY_FUNCTION__ 行号 0xca（202）
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0xca, 0);
-            trace("Online Preliminary each other team play count map size over! %d",
-                  static_cast<unsigned int>(m_playCountMap.size()));
+            cMyTrace(__PRETTY_FUNCTION__, 0xca, 0)(
+                "Online Preliminary each other team play count map size over! %d",
+                static_cast<unsigned int>(m_playCountMap.size()));
             return;
         }
         m_playCountMap.insert(std::make_pair(teamId, PlayCountInfoEx(1, true)));
-    }
-    else
-    {
-        it->second.m_flag = 1;
-        it->second.m_count += 1;
     }
     m_hasLoseFlag = 1;
 }
@@ -237,11 +237,14 @@ bool COnlinePreliminaryTeam::_saveTeam()
 // 遍历 map，flag==1 条目写入 +8+i*8=key、+0xc+i*8=count 并清 flag；
 // 计满 100 → put 后 Set(Acquire(file,0x66)) 重建同格式头部续写；
 // 收尾 count==0 → StreamPool::Free(guard)，否则 put；清 m_hasLoseFlag。
-// [b28d-23 N·N89] ⇒ N。ORIG 0x0858800c
-void COnlinePreliminaryTeam::_saveTeamMatchList()
+// [b28d-solo-OnlinePreliminaryTeam] P159 返回 int（ORIG 尾 `mov $0x1,%ebx`）+
+// P183 具名引用缓存 it->second（ORIG -0xc 槽，仅一次 ptEv 后复用）+ 下标内联
+// （ORIG 两次独立读 p->m_count：首读入 %ebx 跨 ptEv 保活、次读重发）+
+// put/Free 块序（ORIG test;je Free; put 在前）。ORIG 0x0858800c
+int COnlinePreliminaryTeam::_saveTeamMatchList()
 {
     if (!m_hasLoseFlag)
-        return;
+        return 1;
 
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("OnlinePreliminaryTeam.cpp", 0x4e),
@@ -250,38 +253,43 @@ void COnlinePreliminaryTeam::_saveTeamMatchList()
     guard.operator*()->operator<<(-1);
 
     SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST* p =
-        guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST>();
+        guard->GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST>();
     p->m_teamId = m_field04;
     p->m_count = 0;
 
     for (std::map<int, PlayCountInfoEx>::iterator it = m_playCountMap.begin();
          it != m_playCountMap.end(); ++it)
     {
-        if (!it->second.m_flag)
+        PlayCountInfoEx& info = it->second;
+        if (!info.m_flag)
             continue;
-        it->second.m_flag = 0;
+        info.m_flag = 0;
 
-        int idx = p->m_count;
-        p->m_entries[idx].m_otherTeamId = it->first;
-        p->m_entries[idx].m_playCount = it->second.m_count;
-        p->m_count = idx + 1;
+        p->m_entries[p->m_count].m_otherTeamId = it->first;
+        p->m_entries[p->m_count].m_playCount = info.m_count;
+        p->m_count += 1;
 
         if (p->m_count == 100)
         {
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
             guard.Set(GlobalData::s_stream_pool->Acquire(
                 "OnlinePreliminaryTeam.cpp", 0x66));
-            p = guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST>();
+            // ORIG 0x085881a0..0x085881de：Set 后重写流头（<<0x1ed、<<-1）
+            // 再经 operator-> 取新缓冲（P103 调用链不可省）。
+            guard.operator*()->operator<<(0x1ed);
+            guard.operator*()->operator<<(-1);
+            p = guard->GetInBuffer<SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST>();
             p->m_teamId = m_field04;
             p->m_count = 0;
         }
     }
 
-    if (p->m_count == 0)
-        GlobalData::s_stream_pool->Free(guard);
-    else
+    if (p->m_count != 0)
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    else
+        GlobalData::s_stream_pool->Free(guard);
     m_hasLoseFlag = 0;
+    return 1;
 }
 
 // ORIG T 0x085882b8：data[0]→teamId(+0x4)；strncpy(name,data+4,0xf)；
@@ -301,17 +309,19 @@ int COnlinePreliminaryTeam::loadDataPreliminaryTeam(char* data)
 
 // ORIG T 0x0858831a：data 布局 int matchCount@+4 + 每 8 字节记录
 // （key@0/value(count)@4）；逐条写入 m_playCountMap[key].m_count。
-// [b28d-23 N·P183/P157] 引用/迭代器缓存形差（帧 0x28 vs 0x38、槽 -0x10..-0x1c vs -0xc..-0x18）⇒ N。ORIG 0x0858831a
+// [b28d-solo-OnlinePreliminaryTeam] P0/P183：ORIG 仅 d(-0x10)/i(-0xc) 两槽，
+// 无 count/key/value 缓存局部（条件每轮重读 d->m_count，RHS 在 operator[] 之后
+// 按 scaled 下标重读）；循环条件 ORIG 为 `mov d->m_count,%eax; cmp i,%eax; setg`
+// ⇒ 写 `d->m_count > i`（`i < d->m_count` 反产 mov i/cmp count/setl）。
+// ORIG 0x0858831a
 int COnlinePreliminaryTeam::loadDataPreliminaryTeamMatchList(char* data)
 {
     SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST* d =
         reinterpret_cast<SIG_ONLINE_PRELIMINARY_TEAM_MATCH_LIST*>(data);
-    int count = d->m_count;
-    for (int i = 0; i < count; ++i)
+    for (int i = 0; d->m_count > i; ++i)
     {
-        int key = d->m_entries[i].m_otherTeamId;
-        int value = static_cast<int>(d->m_entries[i].m_playCount);
-        m_playCountMap[key].m_count = static_cast<unsigned int>(value);
+        m_playCountMap[d->m_entries[i].m_otherTeamId].m_count =
+            d->m_entries[i].m_playCount;
     }
     return 1;
 }
@@ -346,10 +356,11 @@ bool COnlinePreliminaryMember::loadData(CUser* /*pUser*/, char* pData)
 // ORIG T 0x08585fd6：流（"OnlinePreliminaryData.cpp",0x21）：<<0x1e7、<<uid；
 // SIG_ONLINE_PRELIMINARY_MEMBER(0x14)：+0=u16 ServerGroup、+4=curCharacNo、
 // +8=rating(位)、+0xc=win、+0x10=lose；put(DB_Q)；返回 1。
-// 逐条对齐 ORIG：GetInBuffer 经 `guard->`（operator-> ptEv + GetInBuffer 两 call）、
-// characNo 用 int 直赋（getCurCharacNo 返回 int，ORIG movl 4B 无 cvt，免符号转换
-// 物化 mov）。残余 --no-compile 下仅链接期 call 重定位未解析 + 数据地址（s_stream_pool/
-// s_msgq_mgr），relink 后转 AE，指令 85=85 全等。
+// [b28d-solo-OnlinePreliminaryTeam] 逐条对齐 ORIG：GetInBuffer 经 `guard->`
+// （operator-> ptEv + GetInBuffer 两 call）、characNo 同型直存（P211 档③：
+// SIG 字段 unsigned int ↔ getCurCharacNo unsigned int，ORIG 0x08586085 无
+// eax→edx 中转）。残余 --no-compile 下仅链接期 call 重定位未解析 + 数据地址
+// （s_stream_pool/s_msgq_mgr），relink 后转 AE，指令 85=85 全等。
 bool COnlinePreliminaryMember::_saveData(CUser* pUser)
 {
     CStreamGuard guard(
@@ -413,18 +424,20 @@ COnlinePreliminaryMemberMatchList::~COnlinePreliminaryMemberMatchList()
 
 // ORIG T 0x08586466：count@data+8；每条 12B：u16 serverId@+0xc、
 // u32 uniqueId@+0x10、u32 playCount@+0x14；写入 m_peerMap[key].m_count。
-// [b28d-23 N·N82] 槽/帧差（59/60）⇒ N。ORIG 0x08586466
+// [b28d-solo-OnlinePreliminaryTeam] P0/P183：ORIG 仅 d(-0x10)/i(-0xc)/key(-0x18)
+// 三槽，无 count/serverId/uniqueId 缓存局部（条件每轮重读 d->m_count、字段逐点重读）。
+// ORIG 0x08586466
 bool COnlinePreliminaryMemberMatchList::loadData(CUser* /*pUser*/, char* pData)
 {
     // 签名保持 char*（ORIG mangled …EP5CUserPc）；pData 即 MEMBER_MATCH_LIST 布局。
     SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST* d =
         reinterpret_cast<SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST*>(pData);
-    int count = d->m_count;
-    for (int i = 0; i < count; ++i)
+    for (int i = 0; d->m_count > i; ++i)
     {
-        unsigned short serverId = d->m_entries[i].m_serverId;
-        unsigned int uniqueId = d->m_entries[i].m_uniqueId;
-        CharacterInServer key(static_cast<int>(serverId), uniqueId);
+        CharacterInServer key(
+            static_cast<int>(static_cast<unsigned short>(
+                d->m_entries[i].m_serverId)),
+            d->m_entries[i].m_uniqueId);
         m_peerMap[key].m_count = d->m_entries[i].m_playCount;
     }
     return true;
@@ -437,7 +450,10 @@ bool COnlinePreliminaryMemberMatchList::loadData(CUser* /*pUser*/, char* pData)
 // 建临时守卫写 MEMBER 格式头（<<0x1e7、<<uid、group/characNo/count 复位）并将
 // 工作指针切至其缓冲（ORIG 忠实行为，含守卫析构）；收尾 count==0 → Free，
 // 否则 put；最后析构主守卫。返回 1。
-// [b28d-23 N·N89] ⇒ N。ORIG 0x08586510
+// [b28d-solo-OnlinePreliminaryTeam] P103 operator-> 调用链（guard->/tmp-> 取
+// InBuffer）+ P183 双具名缓存（ORIG -0x10=it->first、-0xc=it->second，各一次
+// ptEv 后复用）+ 下标内联三次独立读 p->m_count + put/Free 块序。
+// ORIG 0x08586510
 bool COnlinePreliminaryMemberMatchList::_saveData(CUser* pUser)
 {
     CStreamGuard guard(
@@ -447,7 +463,7 @@ bool COnlinePreliminaryMemberMatchList::_saveData(CUser* pUser)
     guard.operator*()->operator<<(static_cast<int>(pUser->GetUID()));
 
     SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST* p =
-        guard.GetInBuffer<SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST>();
+        guard->GetInBuffer<SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST>();
     p->m_serverGroup = static_cast<unsigned short>(pUser->GetServerGroup());
     p->m_characNo = static_cast<unsigned int>(pUser->getCurCharacNo());
     p->m_count = 0;
@@ -456,16 +472,17 @@ bool COnlinePreliminaryMemberMatchList::_saveData(CUser* pUser)
              m_peerMap.begin();
          it != m_peerMap.end(); ++it)
     {
-        if (!it->second.m_flag)
+        const CharacterInServer& key = it->first;
+        PlayCountInfo& info = it->second;
+        if (!info.m_flag)
             continue;
-        it->second.m_flag = 0;
+        info.m_flag = 0;
 
-        int idx = p->m_count;
-        p->m_entries[idx].m_serverId =
-            static_cast<unsigned short>(it->first.m_serverId);
-        p->m_entries[idx].m_uniqueId = it->first.m_uniqueId;
-        p->m_entries[idx].m_playCount = it->second.m_count;
-        p->m_count = idx + 1;
+        p->m_entries[p->m_count].m_serverId =
+            static_cast<unsigned short>(key.m_serverId);
+        p->m_entries[p->m_count].m_uniqueId = key.m_uniqueId;
+        p->m_entries[p->m_count].m_playCount = info.m_count;
+        p->m_count += 1;
 
         if (p->m_count == 100)
         {
@@ -478,7 +495,7 @@ bool COnlinePreliminaryMemberMatchList::_saveData(CUser* pUser)
                 true);
             tmp.operator*()->operator<<(0x1e7);
             tmp.operator*()->operator<<(static_cast<int>(pUser->GetUID()));
-            p = tmp.GetInBuffer<SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST>();
+            p = tmp->GetInBuffer<SIG_ONLINE_PRELIMINARY_MEMBER_MATCH_LIST>();
             p->m_serverGroup =
                 static_cast<unsigned short>(pUser->GetServerGroup());
             p->m_characNo =
@@ -487,10 +504,10 @@ bool COnlinePreliminaryMemberMatchList::_saveData(CUser* pUser)
         }
     }
 
-    if (p->m_count == 0)
-        GlobalData::s_stream_pool->Free(guard);
-    else
+    if (p->m_count != 0)
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    else
+        GlobalData::s_stream_pool->Free(guard);
     return true;
 }
 
@@ -510,32 +527,32 @@ void COnlinePreliminaryMemberMatchList::ResetDailyMidnight()
 // ORIG T 0x08586208：find；命中→flag=1、count++；未命中且 size>999 →
 // cMyTrace 报警后直接 return（不 alter）；否则插入 PlayCountInfo(1,true)；
 // 末尾 alter()。
-// [b28d-23 N·N93] ⇒ N。ORIG 0x08586208
+// [b28d-solo-OnlinePreliminaryTeam] P222 正向包裹（命中块在前、`je` 落 miss）
+// + P227 全表达式临时链（ORIG 0x085862c5 先 size() 入 %ebx 跨 ctor 保活）。
+// ORIG 0x08586208
 void COnlinePreliminaryMemberMatchList::IncreasePeerPlayCount(
     int serverId, unsigned int uniqueId)
 {
     CharacterInServer key(serverId, uniqueId);
     std::map<CharacterInServer, PlayCountInfo>::iterator it =
         m_peerMap.find(key);
-    if (!(it != m_peerMap.end()))
+    if (it != m_peerMap.end())
+    {
+        it->second.m_flag = 1;
+        it->second.m_count += 1;
+    }
+    else
     {
         if (m_peerMap.size() > 999)
         {
             // ORIG __PRETTY_FUNCTION__ 行号 0x65（101）
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x65, 0);
-            trace("Online Preliminary peer play count map size over! %d",
-                  static_cast<unsigned int>(m_peerMap.size()));
+            cMyTrace(__PRETTY_FUNCTION__, 0x65, 0)(
+                "Online Preliminary peer play count map size over! %d",
+                static_cast<unsigned int>(m_peerMap.size()));
             return;
         }
         m_peerMap.insert(std::make_pair(CharacterInServer(serverId, uniqueId),
                                         PlayCountInfo(1, true)));
-    }
-    else
-    {
-        it->second.m_flag = 1;
-        it->second.m_count += 1;
     }
     alter();
 }

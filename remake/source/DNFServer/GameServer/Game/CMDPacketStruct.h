@@ -147,8 +147,10 @@ struct _ReqAdvanceAltarResetStar : public STBaseRequest
 
 struct _ResAdvanceAltarResetStar : public STBaseResponse
 {
-    unsigned int m_nErrorCode;    // +0x04（b28d-solo-S162：P211 档③，ORIG check_error
-                                  //   store 为 RHS-first+%edx 中转）
+    // b28d-solo-S162：P211 档③，ORIG check_error store 为 RHS-first+%edx 中转
+    //   （0x081410aa `call; mov %eax,%edx; mov -0x10(%ebp),%eax; mov %edx,0x4(%eax)`，
+    //   objdump 直读复核）。[b28d-solo-S206] int 回改实测仍 DIFF（方向反转）⇒ 保持 unsigned。
+    unsigned int m_nErrorCode;    // +0x04
     int m_field08;                // +0x08（req+0x10 回显；objdump 0x08140fe7 `mov %eax,-0x24(%ebp)`）
 
     _ResAdvanceAltarResetStar();  // memset K=0xc == sizeof
@@ -168,7 +170,8 @@ struct _ReqAdvanceAltarSummonUnit : public STBaseRequest
 
 struct _ResAdvanceAltarSummonUnit : public STBaseResponse
 {
-    unsigned int m_nErrorCode;    // +0x04（b28d-solo-S162：P211 档③，同上）
+    // b28d-solo-S162：P211 档③（ORIG 0x081405b8 objdump 直读 RHS-first+中转）⇒ unsigned。
+    unsigned int m_nErrorCode;    // +0x04
     unsigned char m_bySlotType;   // +0x08（req+0x0d 回显）
     unsigned char m_pad09[3];
     int m_nUnitId;                // +0x0c（req+0x10 回显）

@@ -309,7 +309,7 @@ public:
     ~Arad_INTER_kAradJumpingCharacter();
     virtual int dispatch_sig(CUser* user, char* body, int len);  // 0x081999f2
 
-    void clearEpicQuest(CUser* user);                // 0x081993c4
+    bool clearEpicQuest(CUser* user);                // 0x081993c4（ORIG 尾 movzbl -0x29 → bool）
     bool sendHelperBox(CUser* user, unsigned char a, unsigned char b);  // 0x0819973e
 };
 

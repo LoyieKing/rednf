@@ -22,6 +22,17 @@
 #include "CBossPlay.h"
 #include "WarField.h"   // MapInfo 完整类型（m_stageData 成员）
 
+// b28d-solo-CBossTower：m_expParamAE 视角需要 ENUM_DUNGEON_TYPE（本 TU include
+// 链在此点尚未定义）。与 CParty.h:47-51 / CBossTower.h:32-36 同体 + 共享 guard
+// （既有约定，符号/类型一致）。
+#ifndef DNF_ENUM_ENUM_DUNGEON_TYPE_DEFINED
+#define DNF_ENUM_ENUM_DUNGEON_TYPE_DEFINED
+enum ENUM_DUNGEON_TYPE
+{
+    ENUM_DUNGEON_TYPE_0 = 0
+};
+#endif
+
 class CUser;
 struct map_item;
 struct map_monster;
@@ -39,15 +50,18 @@ public:
     void reset();               // ORIG 0x0814bea2
 
     // ---- 新增虚函数（虚表槽，紧随 CBossPlay 的 6 个虚函数之后）----
-    virtual int handleMoveMap(unsigned short* mapIndex);   // 0x0814f66a
-    virtual int handlePickupItem(CUser* user, int a, bool b, char& c);  // 0x0814fa76（bool 化实测致 body 全帧槽漂移回归，维持 int）
+    virtual bool handleMoveMap(unsigned short* mapIndex);  // 0x0814f66a
+    virtual int handlePickupItem(CUser* user, int a, bool b, char& c);  // 0x0814fa76（bool 化实测致 CBossTower::handlePickupItem AE→NEAR 回归，维持 int）
     virtual bool handleDropItem(CUser* user, int a, int b, char c, int d, int e);  // 0x0814ff4a（ORIG 调用点 mov %al 直存槽=返回值在 al；尾 mov$1,%ebx bool epilogue 形，P9/P27）
-    virtual int handleKillMonster(CUser* user, unsigned short a, unsigned short b,
+    virtual bool handleKillMonster(CUser* user, unsigned short a, unsigned short b,
                                   const MSG_MONSTER_DIE& die, int* d);  // 0x08150388
 
     // ---- 其余非虚方法（实现见 CBossStage.cpp，逐函数 ORIG 报告转写）----
     bool GoldPickupItem(CUser* user, unsigned int a, const map_item& item);  // 0x0814f0e6
-    int KillMonsterGetExp(const map_monster& mob, unsigned int& exp);        // 0x0814d300
+    // b28d-solo-CBossStage P248 档①：ORIG 调用点 0x08150518 `call; xor $0x1,%eax;
+    //   test %al,%al; je` ⇒ 返回类型 bool（int 恒产 test/sete 两段）。返回类型不入
+    //   mangled、无 sizeof/偏移影响；消费点仅 CBossStage.cpp:365（本泳道）。
+    bool KillMonsterGetExp(const map_monster& mob, unsigned int& exp);       // 0x0814d300
     bool NormalPickupItem(CUser* user, unsigned int a, const map_item& item); // 0x0814ecec
     bool RandomConsistMap(CUser& user);                                       // 0x0814f426（ORIG eax 流出）
     bool randomMapIndex(int& mapIdx);                                         // 0x0814f4fc
@@ -72,8 +86,22 @@ protected:
     unsigned int m_stageCur;   // +0xae0（当前层，ctor=1）
     unsigned int m_stageMax;       // +0xae4（P211 异型化：getRandomTowerMaxStage 返 int
                                //  ⇒ RHS-first+edx 中转 = ORIG InitBossTower 形）
-    int m_difficulty;          // +0xae8
-    int m_expParamA;           // +0xaec（KillMonsterGetExp 的费率表索引参数）
+    // b28d-solo-CBossTower P235/P254：ORIG CBossTower::generateRewardItem 0x08144fc9
+    // 读取为单段 `mov 0xae8(%eax),%ebx`（callee 第 4 形参为 ENUM_DUNGEON_DIFFICULTY，
+    // 同型直传），而 handleLeaveUser 0x08143bb0 为两段（LeaveDungeon 第 2 形参 int，
+    // enum→int 转换）。两消费端类型需求不同 ⇒ 匿名 union 双视角（CBossStage.cpp 的
+    // int 字面量赋值/读取继续走 m_difficulty 名，零改动）。sizeof/偏移/mangled 零变化。
+    union {
+        int m_difficulty;                        // +0xae8（int 视角）
+        ENUM_DUNGEON_DIFFICULTY m_difficultyE;   // +0xae8（enum 视角）
+    };
+    // b28d-solo-CBossTower P211/P235：ORIG handleStartGame 0x08143531
+    // `mov this,%eax; mov 0x18(%ebp),%edx; mov %edx,0xaec(%eax)` 为 LHS-first
+    // ⇒ 字段与 RHS（ENUM_DUNGEON_TYPE）同型。CBossStage.cpp:491 消费走 int 视角。
+    union {
+        int m_expParamA;                  // +0xaec（int 视角，KillMonsterGetExp 费率索引）
+        ENUM_DUNGEON_TYPE m_expParamAE;   // +0xaec（enum 视角）
+    };
 
     // 序号/seed 复用 MapInfo 既有字段（ORIG 同址访问）：
     //   m_stageData.m_assignItemIdx(+0x3c)=怪物序号、m_dropItemCnt(+0x40)=物品

@@ -653,9 +653,9 @@ CExchangeServerThread* GetInstanceExchangeServerThread()
 }
 
 // BeginExchangeServerThread ORIG 0x848f2b8：GetInstance()->begin()。
-void BeginExchangeServerThread()
+bool BeginExchangeServerThread()
 {
-    GetInstanceExchangeServerThread()->begin();
+    return GetInstanceExchangeServerThread()->begin();
 }
 
 // getExchangeServerThreadID ORIG 0x848f2cd：GetInstance()->getThreadID()。

@@ -37,7 +37,10 @@ public:
         bool m_flag;             // +0x02
     };
 
-    InterSelectCreateDnfEventInfo();             // ORIG 0x816201a
+    // [b28d-solo-TaiwanInternalDispatcher] nothrow：ORIG init 0x0816201a 调用点无 EH
+    // landing（其余 9 个子类 ctor 均 throw()/nothrow，ORIG 同样无 landing）⇒ 4.4 需
+    // nothrow 判定才不布 cleanup。mangled/布局不变（本仓 Inven_Item.h 同惯例）。
+    InterSelectCreateDnfEventInfo() __attribute__((nothrow));   // ORIG 0x816201a
     virtual ~InterSelectCreateDnfEventInfo();    // ORIG D1 0x816203e / D0 0x816206e
     virtual int dispatch_sig(CUser* user, char* data, int len);  // ORIG 0x8160d5e
     static void makeRequest(int hour, int rate, int eventDay);   // ORIG 0x8160ef6

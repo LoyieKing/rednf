@@ -117,28 +117,39 @@ bool importEventAvatarListScript(EventAvatarListScript* s, const char* path)
 // "[seria room deco material list]" 按 (值, 序号) 写 m_mapC（序号自增）；
 // "[christmas event end]" 结束并返回 true。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82/P61] ORIG 0x0895e30f orig/ours=128/122
-//   残差：p 缓存槽(-0x10)/run 槽(-0x9 vs -0xd)/make_pair<IRiS0_> 引用对实例
-//   （P61 左值性）+ 全帧槽平移；控制流与调用集同构。
+// [b28d-solo-InitScriptProducers_7] verdict=AE（已修）ORIG 0x0895e30f
+//   P164 分离形 `while(run){ if(!ScanType) break; }` + p 缓存槽(-0x10) +
+//   make_pair<int&,int&> 左值对（P61）。orig/ours=128/128。
 bool importEventEtcScript(EventEtcScript* s, const char* path)
 {
     if (!loadRDARScriptFile("", path))
     {
         return false;
     }
+    // [b28d-solo-InitScriptProducers_7] ORIG -0x10 具名 p 缓存（store 先于 clear
+    // call；后续 push_back/mapC insert 的 this 均从该槽取）。
+    EventEtcScript* p = s;
     s->clear();
 
     std::string token;
     bool run = true;
 
-    while (run && ScanType(token, true))
+    // [b28d-solo-InitScriptProducers_7] ORIG 0x0895e30f 分离形：条件头仅测 run
+    //（cmpb $0,-0x9; jne 体），ScanType 检查落体内首（P164 同族）。
+    while (run)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[seria room tree material list]")
         {
             int value = -1;
-            while (ScanInt(&value))
+            for (;;)
             {
-                s->m_vec0.push_back(value);
+                if (!ScanInt(&value))
+                {
+                    break;
+                }
+                p->m_vec0.push_back(value);
             }
         }
         else if (token == "[seria room deco material list]")
@@ -151,8 +162,10 @@ bool importEventEtcScript(EventEtcScript* s, const char* path)
                 {
                     break;
                 }
-                s->m_mapC.insert(std::map<unsigned int, unsigned int>::value_type(
-                    static_cast<unsigned int>(key), static_cast<unsigned int>(index)));
+                // ORIG 0x0895e402：make_pair<int&,int&>(key,index)（P61 左值性）
+                // → value_type 转换构造 pair<const unsigned,unsigned>(pair<int,int>)
+                // → map::insert(value_type&)。直构 value_type(u,u) 形不同。
+                p->m_mapC.insert(std::make_pair(key, index));
                 ++index;
             }
         }
@@ -172,8 +185,9 @@ bool importEventEtcScript(EventEtcScript* s, const char* path)
 // "[package selection]" 包（成对 itemId/count 直至 ScanInt 失败），整组赋给
 // (*out)[key]。[/fair pvp package] 或流结束均返回 true。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82/P112] ORIG 0x088ffbfc orig/ours=183/180
-//   残差：栈槽分配方向/槽号平移（4.1 不按 lifetime 复用）+ STL 内联实例差。
+// [b28d-solo-InitScriptProducers_7] verdict=AE（已修）ORIG 0x088ffbfc
+//   P164 外层/内层 `for(;;)+break` 双改 + itemId 去预清（槽 -0x2c 对齐）；
+//   p167 95/95 CLEAR。
 bool importFairPVPEquipment(char* path, std::map<int, std::vector<std::vector<STStackablePackageData> > >* out)
 {
     if (out == NULL)
@@ -188,8 +202,13 @@ bool importFairPVPEquipment(char* path, std::map<int, std::vector<std::vector<ST
     std::string token;
     std::string jobName;
 
-    while (ScanType(token, true))
+    // [b28d-solo-InitScriptProducers_7] ORIG 0x088ffbfc：循环头 ScanType 检查
+    //（P164 `for(;;){ if(!ScanType) break; }`），内层 items 循环亦 `for(;;)+break`
+    //（ORIG `call ScanInt; xor$1; test; jne 退出`）。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[group]")
         {
             if (!ScanStr(&jobName))
@@ -204,10 +223,12 @@ bool importFairPVPEquipment(char* path, std::map<int, std::vector<std::vector<ST
             ScanType(token, true);
             while (token == "[package selection]")
             {
+                int itemId;                      // ORIG -0x2c（无预清 store）
                 std::vector<STStackablePackageData> pack;
-                int itemId = 0;
-                while (ScanInt(&itemId))
+                for (;;)
                 {
+                    if (!ScanInt(&itemId))
+                        break;
                     STStackablePackageData data;
                     data.m_field0 = itemId;
                     data.m_field4 = ScanInt((bool*)NULL);
@@ -233,8 +254,9 @@ bool importFairPVPEquipment(char* path, std::map<int, std::vector<std::vector<ST
 // 成对 (idx, reward) 入 m_rewardMap。
 // 字段偏移与 growthEquipmentScript 布局一致（+0x18/+0x1c/+0x20/+0x22/+0x24）。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x0895eb3f orig/ours=183/180
-//   残差：全帧槽号平移 + callee-saved 角色差（跨版本分配，语义对齐）。
+// [b28d-solo-InitScriptProducers_7] verdict=AE（已修）ORIG 0x0895eb3f
+//   P164 循环头 ScanType + P223 多源 goto 返回岛（done1..done5）+ 独立 if
+//   序列（非 else-if）。orig/ours=183/183。
 bool importGrowthEquipmentScript(growthEquipmentScript* s, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -249,33 +271,39 @@ bool importGrowthEquipmentScript(growthEquipmentScript* s, const char* path)
     std::string token;
     bool ok = false;
 
-        while (ScanType(token, true))
-    {     if (token == "[gift growth weapon box]")
+    // [b28d-solo-InitScriptProducers_7] ORIG 0x0895eb3f：循环头 ScanType 检查
+    //（P164 `for(;;){ if(!ScanType) break; }`），五处 ok 失败各发独立 nop 岛
+    // + `jmp 0895ed68` 共享 `mov $1,%ebx` 返回岛（P223 多源 goto 尾标签）。
+    for (;;)
+    {
+        if (!ScanType(token, true))
+            break;
+        if (token == "[gift growth weapon box]")
         {
             s->m_giftBox = ScanInt(&ok);
-            if (!ok) { return true; }        // ORIG：失败跳出解析但仍返回 1
+            if (!ok) goto done1;             // ORIG：失败跳出解析但仍返回 1
         }
-        else if (token == "[growth material item]")
+        if (token == "[growth material item]")
         {
             s->m_materialItem = ScanInt(&ok);
-            if (!ok) { return true; }
+            if (!ok) goto done2;
         }
-        else if (token == "[growth material item max]")
+        if (token == "[growth material item max]")
         {
             s->m_materialMax = static_cast<unsigned short>(ScanInt(&ok));
-            if (!ok) { return true; }
+            if (!ok) goto done3;
         }
-        else if (token == "[event bubble max]")
+        if (token == "[event bubble max]")
         {
             s->m_eventBubbleMax = static_cast<unsigned short>(ScanInt(&ok));
-            if (!ok) { return true; }
+            if (!ok) goto done4;
         }
-        else if (token == "[event sand max]")
+        if (token == "[event sand max]")
         {
             s->m_eventSandMax = static_cast<unsigned short>(ScanInt(&ok));
-            if (!ok) { return true; }
+            if (!ok) goto done5;
         }
-        else if (token == "[growth equipment reward list]")
+        if (token == "[growth equipment reward list]")
         {
             for (;;)
             {
@@ -294,6 +322,11 @@ bool importGrowthEquipmentScript(growthEquipmentScript* s, const char* path)
             }
         }
     }
+done1:;
+done2:;
+done3:;
+done4:;
+done5:;
     return true;
 }
 
@@ -303,6 +336,9 @@ bool importGrowthEquipmentScript(growthEquipmentScript* s, const char* path)
 // "[in game advertisement expose condition of teen]" 后每个 idx（ScanInt
 // 成功且 <=150）清 0 一字节，idx>150 结束本段。
 // ============================================================================
+// [b28d-solo-InitScriptProducers_7] verdict=AE（已修）ORIG 0x0897e9c4
+//   P164 分离形 `while (run) { if (!ScanType(token, true)) break; }`（条件头
+//   仅测 run、ScanType 检查落体内首）。
 bool importInGameAdvertisementEtcScript(InGameAdvertisementScript* s, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -317,8 +353,13 @@ bool importInGameAdvertisementEtcScript(InGameAdvertisementScript* s, const char
     int idx = 0;                               // ORIG -0xc（声明序 run→idx→ok，[b28d-47]）
     bool ok = false;                           // ORIG -0x19
 
-    while (run && ScanType(token, true))       // ORIG 4.1 复合条件：run 检查在体尾
+    // [b28d-solo-InitScriptProducers_7] ORIG 0x0897e9c4 分离形：条件头仅测 run
+    //（cmpb $0,-0xd; jne 体），ScanType 检查落体内首（call;xor$1;test;jne nop 岛）
+    // —— 合并 `while (run && ScanType(...))` 在 4.4 产短路段物化 + je 体，形异。
+    while (run)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[in game advertisement expose condition of teen]")
         {
             for (;;)
@@ -344,8 +385,13 @@ bool importInGameAdvertisementEtcScript(InGameAdvertisementScript* s, const char
 // "Etc/Chn_Server_LimititemUsageinfo.etc" → m_limitItemUsage）。
 // 三段分别填充 Ex 结构的三个子表；日期串经 ConvertStringToTime 转秒。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82/P112] ORIG 0x0890d871 orig/ours=247/246
-//   残差：槽号/寄存器分配差（4.1 不按 lifetime 复用栈槽）；指令数近等。
+// [b28d-solo-InitScriptProducers_7] verdict=AE（已修）ORIG 0x0890d871
+// 按 ORIG 逐段重排：
+//  ① [Limit Item Usage Info] 首个 ScanInt 存 char 槽(-0x1d) ⇒ 源码首参是 char kind，
+//    第二/三参是 int a(-0x1c)/b(-0x18)（原重建把 kind/a 类型写反）；
+//  ② 循环头 ScanType 检查（P164）+ ok 失败 break/return 双出口；
+//  ③ itemIdx(-0x14)/itemId(-0x10)/count(-0xc) 循环外声明并预清（ORIG movl $0）；
+//  ④ ORIG -0x24 循环外 dead int 预清（P171/P232）补齐帧。
 bool importLimitItemUsageInfo(char* path, stLimitItemUsageInfoEx* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -353,9 +399,10 @@ bool importLimitItemUsageInfo(char* path, stLimitItemUsageInfoEx* out)
         return false;
     }
 
-    std::string token;
-    std::string dateText;
-    bool ok = false;
+    std::string token;                         // ORIG -0x30
+    std::string dateText;                      // ORIG -0x34
+    int unused24 = 0; (void)unused24;          // ORIG -0x24（循环外预清，全程无读）
+    bool ok = false;                           // ORIG -0x35
 
     for (;;)                                   // ORIG 4.1 while 落点形（check 在头）
     {
@@ -365,29 +412,30 @@ bool importLimitItemUsageInfo(char* path, stLimitItemUsageInfoEx* out)
         {
             for (;;)
             {
-                const int kind = ScanInt(&ok);
+                const char kind = (char)ScanInt(&ok);   // ORIG mov%al,-0x1d（char 槽）
                 if (!ok)
                 {
                     break;                                   // 回主循环
                 }
-                const char a = (char)ScanInt(&ok);   // ORIG mov%al,-0x1d（char 槽）
+                const int a = ScanInt(&ok);              // ORIG -0x1c
                 if (!ok)
                 {
                     return false;
                 }
-                const int b = ScanInt(&ok);
+                const int b = ScanInt(&ok);              // ORIG -0x18
                 if (!ok)
                 {
                     return false;
                 }
-                out->m_info0.Add(static_cast<unsigned char>(kind), a, b);
+                out->m_info0.Add(kind, a, b);
             }
         }
         else if (token == "[reset item]")
         {
+            int itemIdx = 0;                     // ORIG -0x14（块首预清）
             for (;;)
             {
-                const int itemIdx = ScanInt(&ok);
+                itemIdx = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -396,7 +444,7 @@ bool importLimitItemUsageInfo(char* path, stLimitItemUsageInfoEx* out)
                 {
                     return false;
                 }
-                long endTime = 0;
+                long endTime;                    // ORIG -0x3c（无预清）
                 if (!ConvertStringToTime(dateText, endTime))
                 {
                     return false;
@@ -406,14 +454,16 @@ bool importLimitItemUsageInfo(char* path, stLimitItemUsageInfoEx* out)
         }
         else if (token == "[refill item]")
         {
+            int itemId = 0;                      // ORIG -0x10（块首预清）
+            int count = 0;                       // ORIG -0xc（块首预清）
             for (;;)
             {
-                const int itemIdx = ScanInt(&ok);
+                itemId = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                const int count = ScanInt(&ok);
+                count = ScanInt(&ok);
                 if (!ok)
                 {
                     return false;
@@ -422,12 +472,12 @@ bool importLimitItemUsageInfo(char* path, stLimitItemUsageInfoEx* out)
                 {
                     return false;
                 }
-                long endTime = 0;
+                long endTime;                    // ORIG -0x40（无预清）
                 if (!ConvertStringToTime(dateText, endTime))
                 {
                     return false;
                 }
-                out->m_refill18.Add(itemIdx, count, endTime);
+                out->m_refill18.Add(itemId, count, endTime);
             }
         }
     }
@@ -442,8 +492,18 @@ bool importLimitItemUsageInfo(char* path, stLimitItemUsageInfoEx* out)
 // "[item]" 成对入 AddFavorItemInfo、"[reward]" 单条入 AddRewardItemInfo；
 // "[can not give item]" 连续 id 入 AddDislikeItemInfo。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x0890d44f orig/ours=309/314
-//   残差：槽分配/寄存器分配跨版本差 + 迭代器实例差；调用集同族。
+// [b28d-solo-InitScriptProducers_7] verdict=DIFF [N82/N112] ORIG 0x0890d44f
+// 按 ORIG 重排（已修）：
+//  ① sub(-0x4c) 移入 [NPC] 内层循环内声明（ORIG 每轮 C1/D1，非函数级）；
+//  ② favorKind 改裸短路 if 条件（ORIG eax 物化 mov$1/mov$0，非 int 槽）；
+//  ③ 内层循环改 `for(;;)`；curIdx 循环内预清（去函数头重复 store）；
+//  ④ 真 bug：`token != "[NPC]"`/`sub != "[can not give item]"` 改 operator==
+//     正判（p167 实测 MISSING eq×2 / EXTRA ne×2，ne 选错重载）；
+//  ⑤ [NPC] 非匹配与循环 EOF 共享 done 返回岛（goto done）。
+// 残余 DIFF 归因（N 封顶，p167 40/40 CLEAR、orig/ours=309/314）：
+//  sub 槽 -0x4c vs -0x54（4.4 块内 string 槽序）+ 4.4 continue 标志编码
+//  `mov $0x2,%ebx` vs 4.1 `mov $0x1,%ebx` + AddFavor/RewardItemInfo 实参
+//  寄存器 edx↔ecx 角色差（N82/N112/N7 族）。
 bool importNPCRelationEventScript(const char* path, CNPCRelationEventManager* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -451,30 +511,33 @@ bool importNPCRelationEventScript(const char* path, CNPCRelationEventManager* ou
         return false;
     }
 
-    std::string sub;                           // ORIG local_50（本窗保持函数级：4.4 per-round dtor 复制 +24）
-    std::string token;                         // ORIG local_44（ctor 首位）
-    std::string deadStr;                       // ORIG local_48（prologue ctor、尾 dtor，全程无用的死串）
-    int dead40 = 0; (void)dead40;              // ORIG local_40 prologue $0 写
-    bool ok = false;                           // ORIG local_49（-0x45）
+    std::string token;                         // ORIG -0x40（ctor 首位）
+    std::string deadStr;                       // ORIG -0x44（prologue ctor、尾 dtor，全程无用的死串）
+    int dead3c = 0; (void)dead3c;              // ORIG -0x3c prologue $0 写
+    bool ok = false;                           // ORIG -0x45
     if (out == NULL)                           // ORIG 判空在 ok 初始化之后
     {
         return false;
     }
-    int curIdx = 0;
+    int curIdx;                                // ORIG -0x38（循环内每轮预清）
 
     for (;;)                                   // ORIG 4.1 while 落点形（check 在头）
     {
         if (!ScanType(token, true))
             break;
         curIdx = 0;
-        if (token != "[NPC]")
+        // ORIG 用 operator== 正判（p167：eq 2 处；写 != 会误选 ne 重载）
+        if (token == "[NPC]")
         {
-            return true;                        // ORIG：非 [NPC] 顶层 token 即结束
+        }
+        else
+        {
+            goto done;                          // ORIG：非 [NPC] 顶层 token 即结束（共享返回岛）
         }
 
-        bool moreSub = true;
-        while (moreSub)
+        for (;;)
         {
+            std::string sub;                   // ORIG -0x4c（每轮 C1/D1）
             if (!ScanType(sub, true))
             {
                 break;
@@ -492,81 +555,83 @@ bool importNPCRelationEventScript(const char* path, CNPCRelationEventManager* ou
                 continue;
             }
 
-            const int favorKind =              // ORIG ebx 寄存器物化（int 形免 spill）
-                (sub == "[good]") || (sub == "[soso]") || (sub == "[bad]");
-            if (!favorKind)
+            // ORIG 0x0890d5aa：裸短路链物化（mov $1,%eax / mov $0,%eax + test），
+            // 非具名 int 局部（具名形产 setne 槽化，见旧 DIFF）。
+            if (sub == "[good]" || sub == "[soso]" || sub == "[bad]")
             {
-                if (sub != "[can not give item]")
-                {
-                    continue;                   // 未知子 token 跳过
-                }
+                // ---- 好感段：kind token 循环 ----
                 for (;;)
                 {
-                    const int itemId = ScanInt(&ok);
+                    std::string kindToken;
+                    if (!ScanType(kindToken, true))
+                    {
+                        break;
+                    }
+                    const ENUM_NPC_RELATION_EVENT_FAVOR_KIND favor =
+                        out->GetFavorIndex(kindToken.c_str());
+
+                    if (kindToken == "[item]")
+                    {
+                        for (;;)
+                        {
+                            const int itemId = ScanInt(&ok);
+                            if (!ok)
+                            {
+                                break;
+                            }
+                            const int count = ScanInt(&ok);
+                            if (!ok)
+                            {
+                                break;
+                            }
+                            out->AddFavorItemInfo(static_cast<unsigned short>(curIdx), favor,
+                                                  static_cast<unsigned int>(itemId),
+                                                  static_cast<unsigned int>(count));
+                        }
+                    }
+                    else if (kindToken == "[reward]")
+                    {
+                        const int a = ScanInt(&ok);
+                        if (!ok)
+                        {
+                            break;
+                        }
+                        const int b = ScanInt(&ok);
+                        if (!ok)
+                        {
+                            break;
+                        }
+                        out->AddRewardItemInfo(static_cast<unsigned short>(curIdx), favor,
+                                               static_cast<unsigned int>(a),
+                                               static_cast<unsigned int>(b));
+                        continue;                 // ORIG LAB_0890d75a：bVar2=true 回内层
+                    }
+                    else
+                    {
+                        break;                  // 未知 kind token 结束好感段
+                    }
+                }
+                continue;                       // 好感段结束 → 回 [NPC] 内层循环头
+            }
+
+            // ORIG 0x0890d78a：operator== 正判（p167：eq 补 2 处 / ne 多 2 处）
+            if (sub == "[can not give item]")
+            {
+                int dislikeId = 0;              // ORIG -0x1c（块首预清）
+                for (;;)
+                {
+                    dislikeId = ScanInt(&ok);
                     if (!ok)
                     {
                         break;
                     }
                     out->AddDislikeItemInfo(static_cast<unsigned short>(curIdx),
-                                            static_cast<unsigned int>(itemId));
-                }
-                continue;
-            }
-
-            // ---- 好感段：kind token 循环 ----
-            for (;;)
-            {
-                std::string kindToken;
-                if (!ScanType(kindToken, true))
-                {
-                    break;
-                }
-                const ENUM_NPC_RELATION_EVENT_FAVOR_KIND favor =
-                    out->GetFavorIndex(kindToken.c_str());
-
-                if (kindToken == "[item]")
-                {
-                    for (;;)
-                    {
-                        const int itemId = ScanInt(&ok);
-                        if (!ok)
-                        {
-                            break;
-                        }
-                        const int count = ScanInt(&ok);
-                        if (!ok)
-                        {
-                            break;
-                        }
-                        out->AddFavorItemInfo(static_cast<unsigned short>(curIdx), favor,
-                                              static_cast<unsigned int>(itemId),
-                                              static_cast<unsigned int>(count));
-                    }
-                }
-                else if (kindToken == "[reward]")
-                {
-                    const int a = ScanInt(&ok);
-                    if (!ok)
-                    {
-                        break;
-                    }
-                    const int b = ScanInt(&ok);
-                    if (!ok)
-                    {
-                        break;
-                    }
-                    out->AddRewardItemInfo(static_cast<unsigned short>(curIdx), favor,
-                                           static_cast<unsigned int>(a),
-                                           static_cast<unsigned int>(b));
-                    continue;                     // ORIG LAB_0890d75a：bVar2=true 回内层
-                }
-                else
-                {
-                    break;                      // 未知 kind token 结束好感段
+                                            static_cast<unsigned int>(dislikeId));
                 }
             }
         }
     }
+done:
     return true;
 }
 
@@ -577,8 +642,12 @@ bool importNPCRelationEventScript(const char* path, CNPCRelationEventManager* ou
 //   0x284f loadAppendageType==-1 / 0x286d [quest point] ScanInt 失败。
 // "[initialization costs]" 三值写 m_initCost（失败按 ORIG 返回 0）。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82/P50] ORIG 0x0890fa3d orig/ours=351/362
-//   残差：槽平移 + 迭代器默认构造/临时槽（P50/N86 族）。
+// [b28d-solo-InitScriptProducers_7] verdict=DIFF [N82/P71] ORIG 0x0890fa3d
+//  已修：status 提函数头（-0xcc）；[quest status]/[initialization costs] 改
+//  if/else 链（p167 MISSING eq → == 正判）；map 插入改 make_pair
+//  （p167 MISSING make_pair/pair C1 OS_ 变体，P61/P192）。
+//  残余：p167 仅 EXTRA `stStatusLevelInfoD1Ev` ×2 —— P71 用户空析构跨版本
+//  trivial 判定差（CDataManager.h 共享头，不改）；槽/临时分配 N82。
 int importQuestShopScript(const char* path, stQuestShop& out)
 {
     if (!loadRDARScriptFile("", path))
@@ -586,13 +655,114 @@ int importQuestShopScript(const char* path, stQuestShop& out)
         return 0x2815;
     }
 
-    std::string token;
-    std::string text;
-    bool ok = false;
+    // [b28d-solo-InitScriptProducers_7] ORIG 0x0890fa3d 声明序/槽：
+    // token -0x80 / ok -0x81 / text -0x88 / status -0xcc（status 函数头 C1，
+    // 每 [quest status] 记录调 clear；旧版块内声明致帧 0xb0 vs ORIG 0xe0）。
+    std::string token;                         // ORIG -0x80
+    bool ok = false;                           // ORIG -0x81
+    std::string text;                          // ORIG -0x88
+    stQuestShopStatus status;                  // ORIG -0xcc
 
     while (ScanType(token, true))
     {
-        if (token == "[initialization costs]")
+        // ORIG 0x0890fac9：[quest status] 用 operator== 正判、else 落
+        // [initialization costs]（p167：MISSING eq / EXTRA ne）；map 插入用
+        // make_pair（p167：MISSING make_pair/pair C1<...>OS_ 变体，P61/P192）。
+        if (token == "[quest status]")
+        {
+            // ---- 单个 [quest status] 记录 ----
+            status.clear();
+            const int idx = ScanInt(&ok);
+            if (!ok)
+            {
+                return 0x2829;
+            }
+            if (out.m_field18 < idx)
+            {
+                out.m_field18 = idx;
+            }
+
+            bool closeRecord = false;
+            while (!closeRecord)
+            {
+                if (!ScanType(token, true))
+                {
+                    closeRecord = true;         // ORIG：流结束也先入库再回主循环
+                    break;
+                }
+                if (token == "[/quest status]")
+                {
+                    closeRecord = true;
+                    break;
+                }
+                if (token == "[name]")
+                {
+                    ScanStr(&status.m_name);
+                }
+                else if (token == "[name2]")
+                {
+                    ScanStr(&status.m_name2);
+                }
+                else if (token == "[explain]")
+                {
+                    ScanStr(&status.m_explain);
+                }
+                else if (token == "[icon]")
+                {
+                    ScanStr(&status.m_icon);
+                    status.m_field10 = ScanInt((bool*)NULL);
+                }
+                else if (token == "[quest status info]")
+                {
+                    if (!ScanStr(&text))
+                    {
+                        return 0x284f;
+                    }
+                    const int appendage = loadAppendageType(text);
+                    if (appendage == -1)
+                    {
+                        return 0x284f;
+                    }
+                    if (!ScanStr(&text))
+                    {
+                        return 0x284f;
+                    }
+                    const int valueType = loadValueType(text);
+                    (void)valueType;
+                    const float value = ScanFloat((bool*)NULL);
+                    (void)value;
+                    // ORIG：out+0x28+appendage = (char)idx（appendage 槽位标记）
+                    out.m_pad28[appendage] = static_cast<char>(idx);
+                }
+                else if (token == "[level info]")
+                {
+                    stStatusLevelInfo info;
+                    info.m_second = static_cast<unsigned char>(ScanInt(&ok));
+                    if (!ok)
+                    {
+                        continue;
+                    }
+                    info.m_first = static_cast<unsigned char>(ScanInt(&ok));
+                    if (!ok)
+                    {
+                        continue;
+                    }
+                    status.m_levelInfos.push_back(info);
+                }
+                else if (token == "[quest point]")
+                {
+                    const int point = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        return 0x286d;
+                    }
+                    status.m_questPoint = static_cast<unsigned char>(point);
+                }
+            }
+
+            out.m_map0.insert(std::make_pair(idx, status));
+        }
+        else if (token == "[initialization costs]")
         {
             stQuestShoptInitCost cost;
             cost.m_cost0 = ScanInt(&ok);
@@ -605,104 +775,6 @@ int importQuestShopScript(const char* path, stQuestShop& out)
             out.m_initCost.m_cost1 = cost.m_cost1;
             out.m_initCost.m_cost2 = cost.m_cost2;
         }
-        if (token != "[quest status]")
-        {
-            continue;
-        }
-
-        // ---- 单个 [quest status] 记录 ----
-        stQuestShopStatus status;
-        status.clear();
-        const int idx = ScanInt(&ok);
-        if (!ok)
-        {
-            return 0x2829;
-        }
-        if (out.m_field18 < idx)
-        {
-            out.m_field18 = idx;
-        }
-
-        bool closeRecord = false;
-        while (!closeRecord)
-        {
-            if (!ScanType(token, true))
-            {
-                closeRecord = true;             // ORIG：流结束也先入库再回主循环
-                break;
-            }
-            if (token == "[/quest status]")
-            {
-                closeRecord = true;
-                break;
-            }
-            if (token == "[name]")
-            {
-                ScanStr(&status.m_name);
-            }
-            else if (token == "[name2]")
-            {
-                ScanStr(&status.m_name2);
-            }
-            else if (token == "[explain]")
-            {
-                ScanStr(&status.m_explain);
-            }
-            else if (token == "[icon]")
-            {
-                ScanStr(&status.m_icon);
-                status.m_field10 = ScanInt((bool*)NULL);
-            }
-            else if (token == "[quest status info]")
-            {
-                if (!ScanStr(&text))
-                {
-                    return 0x284f;
-                }
-                const int appendage = loadAppendageType(text);
-                if (appendage == -1)
-                {
-                    return 0x284f;
-                }
-                if (!ScanStr(&text))
-                {
-                    return 0x284f;
-                }
-                const int valueType = loadValueType(text);
-                (void)valueType;
-                const float value = ScanFloat((bool*)NULL);
-                (void)value;
-                // ORIG：out+0x28+appendage = (char)idx（appendage 槽位标记已收录状态）
-                out.m_pad28[appendage] = static_cast<char>(idx);
-            }
-            else if (token == "[level info]")
-            {
-                stStatusLevelInfo info;
-                info.m_second = static_cast<unsigned char>(ScanInt(&ok));
-                if (!ok)
-                {
-                    continue;
-                }
-                info.m_first = static_cast<unsigned char>(ScanInt(&ok));
-                if (!ok)
-                {
-                    continue;
-                }
-                status.m_levelInfos.push_back(info);
-            }
-            else if (token == "[quest point]")
-            {
-                const int point = ScanInt(&ok);
-                if (!ok)
-                {
-                    return 0x286d;
-                }
-                status.m_questPoint = static_cast<unsigned char>(point);
-            }
-        }
-
-        out.m_map0.insert(
-            std::map<int, stQuestShopStatus>::value_type(idx, status));
     }
     return 0;
 }
@@ -715,8 +787,9 @@ int importQuestShopScript(const char* path, stQuestShop& out)
 // short、"逗号串"→tokenize/getGrowTypeIndex 逐项 push_back），[/group] 时
 // insert 进 m_mapC。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x08915606 orig/ours=582/581
-//   残差：全帧槽号平移 + 寄存器角色差（跨版本，逐条助记符近等）。
+// [b28d-solo-InitScriptProducers_7] verdict=DIFF [N82/N18a] ORIG 0x08915606
+//  已修：m_items.push_back 右值形（p167 MISSING push_back(EOh) → 内联 cast 实参）。
+//  残余：p167 95/95 CLEAR；全帧槽号平移 8 + 寄存器角色差（跨版本，N82/N18a）。
 bool importPcBangEquipmentRendar(const char* path, PcBangItemRentarData* out)
 {
     // ORIG 双相派发（T 0x08915606）：out 判空先于 loadRDAR（+0x0c）；__lookup
@@ -797,8 +870,10 @@ bool importPcBangEquipmentRendar(const char* path, PcBangItemRentarData* out)
                             count = ScanInt((bool*)NULL);
                             for (int i = 0; i < count; ++i)
                             {
-                                unsigned char value = ScanInt((bool*)NULL);
-                                section.m_items.push_back(value);
+                                // ORIG 0x08915c??：push_back(EOh) 右值形
+                                //（p167：MISSING push_back(EOh) / EXTRA (RKh)）
+                                section.m_items.push_back(
+                                    static_cast<unsigned char>(ScanInt((bool*)NULL)));
                             }
                             out->m_vec0.push_back(section);
                             more = true;
@@ -899,8 +974,10 @@ bool importPcBangEquipmentRendar(const char* path, PcBangItemRentarData* out)
 //    epilogue（+0xc04/+0xcf5），4.4 生成中继 jmp（EH 双份 dtor epilogue vs
 //    merge 跨版本差异）。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x089f6c50 orig/ours=838/838
-//   残差：超大件全帧槽号错位（4.1 不按 lifetime 复用，N82）；指令数全等。
+// [b28d-solo-InitScriptProducers_7] verdict=DIFF [N18a/N7] ORIG 0x089f6c50
+//  p167 102/102 CLEAR；orig/ours=838/838。残余 65 行归一化差异全部为 N18a
+//  regmove（4.1 `mov mem,%edx` vs 4.4 `mov mem,%eax; mov %eax,%edx`，5 处）
+//  + EH 尾岛 2 处（跨版本，语义完成）。
 int importMercenarySystemEtcScript(const char* path, stMercenarySystemInfo* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -1150,8 +1227,10 @@ int importMercenarySystemEtcScript(const char* path, stMercenarySystemInfo* out)
 // 0x1a37..0x1aa3 基础值各 Scan / 0x1aba 组下标 / 0x1acd..0x1aed 组名 /
 // 0x1aed 未知组名 / 0x1b08 组下标重复 / 0x1b1a..0x1b30 difficulty 段。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x08909857 orig/ours=679/667
-//   残差：槽/寄存器分配跨版本差 + make_pair 实例差。
+// [b28d-solo-InitScriptProducers_7] verdict=DIFF [N82/N112] ORIG 0x08909857
+//  已修：m_groupMap 插入改 make_pair（p167 MISSING make_pair/pair C1 OS_ 变体）。
+//  残余：p167 79/79 CLEAR；循环回边岛 ×11（4.4 多发 jmp+nop）+ 循环变量槽
+//  差异（N82/N112）。
 int importHellPartyScript(const char* path, stHellParty_t& out)
 {
     std::string token;
@@ -1321,9 +1400,9 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
                     {
                         return 0x1b08;              // 组下标重复
                     }
-                    out.m_groupMap.insert(
-                        std::map<unsigned short, stHellPartyMonsterGroupList>::value_type(
-                            out.m_groupIndex, list));
+                    // ORIG make_pair<unsigned short&, stHellPartyMonsterGroupList&>
+                    // → value_type 转换构造（p167：MISSING make_pair/pair C1 OS_ 变体）
+                    out.m_groupMap.insert(std::make_pair(out.m_groupIndex, list));
                 }
                 else
                 {
@@ -1387,30 +1466,36 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
 // result(-0x1d) 仅 ScanType EOF / [/event_list] 两退出路径读取（P164 scan_exit
 // 岛共享尾：`movzbl -0x1d,%ebx` + dtor 统一块）。
 //
-// 残余 DIFF 归因（N 类豁免，语义/槽位集/帧 0xec 全等，355→362/364）：
-//  ① [/event_list] 真路径 ORIG 经 jump-threading 直 `mov $0x1,%ebx` 跳共享
-//     退出岛（0x0897ee2b），4.4 恒具名槽写 `movb $1,-0x1d` 后回读——
-//     负例 jump-threading/setcc-fold 族；② 4.4 跳表多一段
-//     `mov table(%eax),%eax; jmp *%eax` vs 4.1 `jmp *table(%eax)`（1 insn）；
-//  ③ 其余为 .o 对 &_ZZ…__inited/__lookup 数据符号重定位的显示差
-//     （链接 AE 口径消除）与单 nop 岛位差。
+// 本波已修（P 范式命中）：
+//  P309 key 提函数头声明（`const char* key;` 无 init）⇒ token 槽 -0xc0 对齐；
+//  P168a② 公共尾负极性 `if (!__inited) { leave; 置位; goto redo; }` ⇒ 复现
+//   ORIG `movzbl __inited; xor $1; test; je <nop 岛>`；
+//  [/event_list] 路径改裸 `return true;` ⇒ 4.4 直 `mov $0x1,%ebx; jmp 共享退出岛`
+//   （与 ORIG 0x0897ee2b 同形，旧 `result=true; goto` 的槽写已消）。
+//
+// 残余 DIFF 归因（N 类封顶，语义完成：p167 50/50 CLEAR、orig/ours=364/363）：
+//  ① 4.4 循环入口对齐填充 `jmp +2; nop`（info C1 之后、ScanType 之前），ORIG
+//     4.1 直接 fall-through（N112 变体，jmp 非 nop 不被 strip_nop_padding 剥离）；
+//  ② find 的 sret 临时槽与 key 槽互换：ORIG key -0xb8 / temp -0xbc，4.4 编译器
+//     临时恒优先占最浅槽 ⇒ key -0xbc / temp -0xb8（N82/N86 槽分配族；穷举
+//     具名 iterator/声明序互换/内联实参三形均不闭合）。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x0897eb59 orig/ours=364/362
-//   残差：__lookup 三件套槽序 + 全帧槽号平移（P177/N82 族）。
+// [b28d-solo-InitScriptProducers_7] verdict=DIFF [N112/N82] orig/ours=364/363
+//   p167 50/50 CLEAR（语义完成）；残差=循环入口对齐 jmp+nop + find sret 槽互换。
 bool importInGameEventInfoList(InGameEventInfoList* list, const char* path)
 {
     if (!loadRDARScriptFile("", path))
         return false;
 
+    const char* key;                  // ORIG -0xb8（函数头声明，P309 先声明浅；无 init）
     std::string token;                // ORIG -0xc0
     bool result = false;              // ORIG -0x1d（0x0897eb97 movb $0）
     InGameEventInfo info;             // ORIG -0xd8（循环外 C1 0x0897eba4）
 
-    for (;;)
+    while (true)
     {
         if (!ScanType(token, true))
         {
-        scan_exit:
             break;                    // EOF → return result(false)（0x0897f0df）
         }
 
@@ -1422,7 +1507,7 @@ bool importInGameEventInfoList(InGameEventInfoList* list, const char* path)
         int id;
         if (__inited)
         {
-            const char* key = token.c_str();         // 0x0897ecd6
+            key = token.c_str();                     // 0x0897ecd6
             std::map<const char*, int, less_TCHAR>::const_iterator it =
                 __lookup.find(key);
             id = (it != __lookup.end()) ? it->second : -1;
@@ -1451,8 +1536,7 @@ bool importInGameEventInfoList(InGameEventInfoList* list, const char* path)
                         "[/event_list]", 0x24));
                 break;                               // → 公共尾
             }
-            result = true;                           // 0x0897ee2b mov$1,%ebx
-            goto scan_exit;
+            return true;                             // 0x0897ee2b mov$1,%ebx
         case 0x27:                       // [idx]
             if (!__inited)
             {
@@ -1518,11 +1602,14 @@ bool importInGameEventInfoList(InGameEventInfoList* list, const char* path)
             break;                                   // 未命中静默（含 "[event_list]" 开标签）
         }
 
-        if (__inited)
-            goto scan_next;                          // 0x0897f0da → ScanType 回边
-        __init_lock.leave();                         // 0x0897f0c8
-        __inited = true;                             // 0x0897f0cd
-        goto redo_lookup;                            // 0x0897f0d4 → guard 重派发
+        // ORIG 公共尾取反物化形：movzbl __inited; xor $1; test; je <nop 岛>
+        // ⇒ 源码写负极性 `if (!__inited) { leave; 置位; 重派发; }`（P168a②）。
+        if (!__inited)
+        {
+            __init_lock.leave();                     // 0x0897f0c8
+            __inited = true;                         // 0x0897f0cd
+            goto redo_lookup;                        // 0x0897f0d4 → guard 重派发
+        }
 
     scan_next:;
     }
@@ -1600,19 +1687,27 @@ stHellPartyMonsterGroupList::stHellPartyMonsterGroupList()
 
 // ORIG stHellParty_t C1 0x891b242 W：map@0x54 构造；标量清零；三段 memset；
 // 难度表五组循环清零；+0x90=0。
-// [b28d-47] verdict=DIFF(routed446) [N91/N82] stHellParty_t::C1 orig/ours=71/95
-//   残差：数组元素隐式构造循环 EH cleanup（4.4 恒发 _Unwind_Resume 残段，N91）
-//   + 槽/帧分配差；ORIG 报告缺失，按 objdump 切片核对。
+// [b28d-solo-InitScriptProducers_7] verdict=AE（已修）ORIG 0x0891b242
+// 4.1 发射序 = map C1(+0x54) → +0x50 →
+// +0x0..0xc → +0x4c → +0x10 → +0x14 → memset 0x18/0x28/0x3c → +0x90 → 清零环
+//（P239：类成员 meminit 前置、其余标量 store 段按 ORIG 序落 ctor 体）；
+// 原全 meminit 形在 4.4 按声明序混合发射且 m_difficultyRates()/m_partyRates()
+// 另发 value-init 循环（重复清零），删除并把标量移入体内。
 stHellParty_t::stHellParty_t()
-    : m_groupMap(),
-      m_maxBaseValue(0), m_minBaseValue(0), m_baseValue(0), m_baseRisingValue(0),
-      m_subBaseRates(0.f), m_passSubBaseRates(0.f),
-      m_difficultyRates(), m_partyRates(), m_ancientDungeonAddRate(0.f),
-      m_groupIndex(0), m_guideLineValue(0)
+    : m_groupMap()
 {
-    memset(m_levelDiffRates, 0, sizeof(m_levelDiffRates));
-    memset(m_difficultyRates, 0, sizeof(m_difficultyRates));
-    memset(m_partyRates, 0, sizeof(m_partyRates));
+    m_groupIndex = 0;                        // +0x50
+    m_maxBaseValue = 0;                      // +0x00
+    m_minBaseValue = 0;                      // +0x04
+    m_baseValue = 0;                         // +0x08
+    m_baseRisingValue = 0;                   // +0x0c
+    m_ancientDungeonAddRate = 0.f;           // +0x4c
+    m_subBaseRates = 0.f;                    // +0x10
+    m_passSubBaseRates = 0.f;                // +0x14
+    memset(m_levelDiffRates, 0, sizeof(m_levelDiffRates));     // +0x18
+    memset(m_difficultyRates, 0, sizeof(m_difficultyRates));   // +0x28
+    memset(m_partyRates, 0, sizeof(m_partyRates));             // +0x3c
+    m_guideLineValue = 0;                    // +0x90
     for (int i = 0; i <= 5; ++i)
     {
         m_field6c[i] = 0;

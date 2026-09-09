@@ -96,13 +96,8 @@ void CalculateFileChecksum(CodeHackChecksum* ck, FILE* fp, unsigned long totalSi
 // ===========================================================================
 // class CodeHackChecksum —— POD；~CodeHackChecksum W @0x0808b7da 空体。
 // ===========================================================================
-CodeHackChecksum::CodeHackChecksum()
-{
-}
-
-CodeHackChecksum::~CodeHackChecksum()
-{
-}
+// [b28d-Main 代落·S329 P299/P317] 用户 ctor/dtor 定义删除（声明端同步）：
+// ORIG 无 C1/C2 符号，D1/D2 由使用点（new_allocator::destroy）发射 W。
 
 // ===========================================================================
 // class CodeHackChecksumData

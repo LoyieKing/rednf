@@ -34,36 +34,17 @@
 #include "RDARScriptStringManager.h"
 #include "PacketGuard.h"
 
-namespace
-{
-
-// CCargo 域通用：check_slot_empty(slot)!=1 时改取 get_empty_slot()；负值失败。
-inline bool cargoResolveSlot(const CCargo* cargo, int& slot)
-{
-    if (cargo->check_slot_empty(slot) == 1)
-        return true;
-    slot = cargo->get_empty_slot();
-    return slot >= 0;  // 失败 → 调用方 return 4
-}
-
-// CAccountCargo 域同形检查。
-inline bool accountCargoResolveSlot(CAccountCargo* cargo, int& slot)
-{
-    if (cargo->CheckSlotEmpty(slot) == 1)
-        return true;
-    slot = cargo->GetEmptySlot();
-    return slot >= 0;  // 失败 → 调用方 return 4
-}
-
-}  // namespace
-
 // ============================================================================
 // CUser::delete_item(char space, int position, unsigned long itemIdx,
 //                    int count, eItemDelReason reason)
 // ORIG 0x0866285c sz 0x25d。返回：0 成功 / 0x11 校验或删除失败 / 0x13 交易中。
-// b21 NEAR：语义与 ORIG 全等。修：移除冗余 >7u 守卫（原 movzbl+jbe+双判，与 switch 重复），
-//   交由 switch 的 default 统一越界（负值/8+）→ movsbl overflow 单判，163→160 指令。
-//   残余：ORIG 冗余 setne/test、switch 分支块序、jump 表/调用目标【AE】。
+// [b28d-solo-CUserStatC 判词·AE] P167 CLEAR（17/17），orig 162 = our 162 逐条对齐
+//   （仅跳表地址/jump-table 重定位属 AE 口径）。本件修法：
+//   ① 0x086628c1 比较：ORIG 为 4.1 bool 寄存器物化 `setne %al; test %al,%al; je`，
+//      if 形 4.4 恒折 `je` 直跳 ⇒ 改 P225 形 `while (cond) { return 0x11; }`
+//      （探针 /tmp/b28d_cstatc_probe2.cpp fJ 逐条命中）。
+//   ② switch 叶块物理序 = case 书写序（P46）：ORIG 序 case0,case2,case3,case1,case7
+//      ⇒ 源码 case 1 移至 case 3 之后、case 7 之前（原序 case0,1,2,3,7 致块错位）。
 // ============================================================================
 int CUser::delete_item(char itemSpace, int position, unsigned long itemIdx,
                        int count, eItemDelReason reason)
@@ -75,18 +56,18 @@ int CUser::delete_item(char itemSpace, int position, unsigned long itemIdx,
     // GetInvenSlot(out, curCharacInvenR(), GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)space), position)
     Inven_Item slotItem = getCurCharacInvenR()->GetInvenSlot(
         (INVEN_TYPE)GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)itemSpace), position);
-    if ((unsigned long)slotItem.m_addInfo != itemIdx)
+    // b28d-solo-CUserStatC：ORIG 0x086628c1 该比较为 4.1 的 bool 寄存器物化
+    // （setne %al; test %al,%al; je，无栈槽）；if 形 4.4 恒折 je 直跳。
+    // P225 形（while+return）精确复现四段物化（探针 /tmp/b28d_cstatc_probe2.cpp fJ）。
+    while ((unsigned long)slotItem.m_addInfo != itemIdx)
+    {
         return 0x11;
+    }
 
     switch (itemSpace)
     {
     case 0:  // INVEN_TYPE_EQUIP(1) 背包
         if (!getCurCharacInvenW()->delete_item(INVEN_TYPE_EQUIP, position, count,
-                                               reason, true))
-            return 0x11;
-        break;
-    case 1:  // INVEN_TYPE_AVATAR(2)
-        if (!getCurCharacInvenW()->delete_item(INVEN_TYPE_AVATAR, position, count,
                                                reason, true))
             return 0x11;
         break;
@@ -99,6 +80,13 @@ int CUser::delete_item(char itemSpace, int position, unsigned long itemIdx,
                                                reason, true))
             return 0x11;
         send_equip(position);
+        break;
+    // b28d-solo-CUserStatC：ORIG 叶块物理序 = case0,case2,case3,case1,case7
+    // （P46：叶块排放顺序 = case 书写顺序），故 case 1 紧跟 case 3。
+    case 1:  // INVEN_TYPE_AVATAR(2)
+        if (!getCurCharacInvenW()->delete_item(INVEN_TYPE_AVATAR, position, count,
+                                               reason, true))
+            return 0x11;
         break;
     case 7:  // INVEN_TYPE_CREATURE(3)：宠物装备且类型!=5(ITEM_TYPE_CREATURE_EQUIP)
     {
@@ -121,9 +109,33 @@ int CUser::delete_item(char itemSpace, int position, unsigned long itemIdx,
 
 // ============================================================================
 // CUser::exchange_interspace(...)
-// §6.2 巨件核销：P167 265/265 [0缺0多]；gap 2638→2627（our-11）；残差归因
-// N82 槽号错位 + Inven_Item 拷贝物化差族，语义完整仅剩 codegen 差，N 封顶
-// （详见 docs/asm_translation_patterns.md 负例表）。
+// [b28d-solo-CUserStatC 判词·DIFF→N 封顶] §6.2 三件套：①P167 CLEAR 265/265
+//   [0 缺 0 多]；②gap 2637−2619 = 18（our−18）；③帧/槽：ORIG `sub $0x45c` +
+//   push edi/esi/ebx vs 我们 `sub $0x490` + push ebx/esi（N82 槽复用/帧分区族）。
+//   本波次修正（语义级，均已 fresh 复编核销）：
+//   ① 真语义 bug：case 3→7 的 GetInvenRef 实参原写 INVEN_TYPE_INVEN(0)；
+//      ORIG 0x08660ec4 为 INVEN_TYPE_CREATURE(3)（目标为宠物槽）——已修。
+//   ② 5 处 `check_trade_possibility() == 1` 改反极性 `if (!f())`（P272/P292）：
+//      ORIG 为 `call; xor $0x1; test %al,%al; je <then>`，`==1` 形 4.4 恒产 cmp $1。
+//   ③ 13 处 bool callee 的 `!= 1`/`== 1` 改 `!f()`/真值（P292 档①）：
+//      CCargo::check_slot_empty、CAccountCargo::{CheckInsertCondition,CheckSlotEmpty,
+//      CheckStackLimit} 声明+定义 int→bool（已 R2 广播；CUser.h/CAccountCargo.cpp
+//      /CCargo.cpp 定义端由 Main 代落同步）。
+//   ④ case 1 源两组 if-else 链、case 7 源 if-else 链改 switch（P286/P208 推广）：
+//      ORIG 为 `mov 0x1c(%ebp),%eax; cmp $K,%eax; je` 载入寄存器比较链，4.4 对
+//      if 链恒折内存直比；switch 按 case 书写序复现（case1: 3,4,1；case7: 4,7,3）。
+//   ⑤ case 3→1 的 `ret < 1` 改正守卫早返（ORIG 0x0866168a 为 `cmpl $0; jle <then>`，
+//      `ret<1`/`ret<=0` 均使 4.4 反产 `jg`）。
+//   ⑥ 5 处 move_item 返回检查改 P225 形 `while (ret != 0) { return ret; }`：
+//      ORIG 为 `cmpl $0x0,槽; setne %al; test %al,%al; je`（4.1 bool 物化），
+//      if 形 4.4 恒折 `cmpl; jne/je`。
+//   ⑦ 2 处 `if (!delOk)` 反写为 `if (delOk) {成功} else {trace}`（N122：4.4 对 bool
+//      局部取反恒加 `movzbl; xor $1`；ORIG 为 `mov %al,槽; cmpb $0x0,槽; je <失败>`）。
+//   ⑧ CCargo::move_item / CAccountCargo::DeleteItem int→bool（P292 档①；定义端
+//      CCargo.cpp:376 / CAccountCargo.cpp:247 由 Main 同步）。
+//   残余 N：4.1 `mov 槽,%eax; shr $0x1f; test %al,%al; je`（12 处 toSlot<0 符号位
+//   lowering；4.4 恒 test/jns，探针 /tmp/b28d_cstatc_probe3.cpp 六形全败）+ N82 帧/槽
+//   + 跳表数据地址（AE 伪影）。
 // ORIG 0x0865f7b0 sz 0x2d47。参数（报告语义）：fromSpace/fromSlot/fromItemIdx/
 //   addInfo(数量或强化附加)/toSpace/toSlot/toItemIdx/outSlot。
 // 返回：0 成功 / 1 参数域不支持 / 4 目标槽不可用 / 0x11 通用失败 /
@@ -134,7 +146,8 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                                int addInfo, int toSpace, int toSlot,
                                unsigned long toItemIdx, int* outSlot)
 {
-    // b28d-49 判词：N 封顶（N82 帧/槽 + N89 STL 内联）。P167 CLEAR（265/265）。@0x865f7b0
+    // b28d-solo-CUserStatC 判词：N 封顶（N82 帧/槽 + 4.1 shr $0x1f 符号位 lowering）。
+    // P167 CLEAR（265/265）；gap 18/2637；真语义 bug 1 处已修。@0x865f7b0
     PacketGuard packetGuard;      // ORIG 栈上 RAII 局部（无其它使用）
     Inven_Item item;              // 主工作副本（ORIG -0x131）
 
@@ -155,12 +168,14 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
         {
             int ret = getCurCharacInvenW()->move_item(INVEN_TYPE_EQUIP, fromSlot,
                                                       INVEN_TYPE_EQUIP, toSlot);
-            if (ret == 0)
+            // b28d-solo-CUserStatC：ORIG 0x0865f8a0 为 `cmpl $0x0,槽; setne %al;
+            // test %al,%al; je <成功>`（4.1 bool 物化）⇒ P225 形 while+return 复现。
+            while (ret != 0)
             {
-                *outSlot = toSlot;
-                return 0;
+                return ret;
             }
-            return ret;
+            *outSlot = toSlot;
+            return 0;
         }
         case 2:  // 背包→角色仓库
         {
@@ -179,7 +194,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
 
             if (item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
             {
-                if (getCurCharacCargoR()->check_slot_empty(toSlot) != 1)
+                if (!getCurCharacCargoR()->check_slot_empty(toSlot))
                 {
                     toSlot = getCurCharacCargoR()->get_empty_slot();
                     if (toSlot < 0)
@@ -198,7 +213,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                     toSlot = exist;
                 else
                 {
-                    if (getCurCharacCargoR()->check_slot_empty(toSlot) != 1)
+                    if (!getCurCharacCargoR()->check_slot_empty(toSlot))
                     {
                         toSlot = getCurCharacCargoR()->get_empty_slot();
                         if (toSlot < 0)
@@ -213,24 +228,32 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
 
             bool delOk = getCurCharacInvenW()->delete_item(
                 INVEN_TYPE_EQUIP, fromSlot, addInfo, (eItemDelReason)7, true);
-            if (!delOk)
+            // b28d-solo-CUserStatC：ORIG 0x0865fbdf 为 `mov %al,槽; cmpb $0x0,槽;
+            // je <失败 trace 块>`（4.1 bool 局部直测）；4.4 对 `if (!delOk)` 恒加
+            // `movzbl; xor $1`（N122）⇒ 反写 `if (delOk)` 复现。
+            if (delOk)
             {
+                *outSlot =
+                    getCurCharacCargoW()->insert_item_special_slot(item, toSlot);
+
+                const Inven_Item slotIt =
+                    getCurCharacCargoR()->get_cargo_slot(*outSlot);
+                if (slotIt.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+                    m_historyLog.ItemAddCargo(item.m_addInfo, addInfo, 1);
+                else
+                    m_historyLog.ItemAddCargo(item.m_addInfo, addInfo,
+                                              slotIt.get_add_info());
+            }
+            else
+            {
+                // ORIG：删除失败仍返回 0
                 cMyTrace trace("int CUser::exchange_interspace(int, int, "
                                "itemIndexOnlyServer_t, int, int, int, "
                                "itemIndexOnlyServer_t, int*)",
                                0x3b21, 5);
                 trace("delete_item failed %d %d %d", getCurCharacNo(), fromSlot,
                       addInfo);
-                break;  // ORIG：删除失败仍返回 0
             }
-            *outSlot = getCurCharacCargoW()->insert_item_special_slot(item, toSlot);
-
-            const Inven_Item slotIt = getCurCharacCargoR()->get_cargo_slot(*outSlot);
-            if (slotIt.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
-                m_historyLog.ItemAddCargo(item.m_addInfo, addInfo, 1);
-            else
-                m_historyLog.ItemAddCargo(item.m_addInfo, addInfo,
-                                          slotIt.get_add_info());
             break;
         }
         case 3:  // 背包→装备栏
@@ -260,7 +283,15 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 m_tradeSpaceIdx = -1;
                 return 0x15;
             }
-            if (trade->check_trade_possibility() == 1)
+            // b28d-solo-CUserStatC：ORIG 0x0865fdfd 为 `xor $1; test %al,%al;
+            // je <then>`（bool callee 取反段）⇒ 源码是反极性 if(!f()){else 体}
+            // else{then 体}（P272/P292）；写 ==1 时 4.4 恒产 cmp $1。
+            if (!trade->check_trade_possibility())
+            {
+                trade->cancel_trade();
+                G_CGameManager()->PutTradeSpace(trade);
+            }
+            else
             {
                 if (trade->IsLocked())
                     return 0x11;
@@ -281,11 +312,6 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                     return 0x11;
                 }
                 *outSlot = ret;
-            }
-            else
-            {
-                trade->cancel_trade();
-                G_CGameManager()->PutTradeSpace(trade);
             }
             break;
         }
@@ -309,12 +335,12 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
 
             if (IsTradeLimitAttachTypeItem(item))
                 return 0x17;
-            if (cargo->CheckInsertCondition(item) != 1)
+            if (!cargo->CheckInsertCondition(item))
                 return 0x11;
 
             if (item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
             {
-                if (cargo->CheckSlotEmpty(toSlot) != 1)
+                if (!cargo->CheckSlotEmpty(toSlot))
                 {
                     toSlot = cargo->GetEmptySlot();
                     if (toSlot < 0)
@@ -329,14 +355,13 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 int specific = cargo->GetSpecificItemSlot(item.m_addInfo);
                 if (specific >= 0)
                 {
-                    if (cargo->CheckStackLimit(specific, item.m_addInfo, addInfo)
-                        != 1)
+                    if (!cargo->CheckStackLimit(specific, item.m_addInfo, addInfo))
                         return 4;
                     toSlot = specific;
                 }
                 else
                 {
-                    if (cargo->CheckSlotEmpty(toSlot) != 1)
+                    if (!cargo->CheckSlotEmpty(toSlot))
                     {
                         toSlot = cargo->GetEmptySlot();
                         if (toSlot < 0)
@@ -372,20 +397,25 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
         // ORIG 在分支入口构造两个临时项并按目的域选择性填充。
         Inven_Item itemA;
         Inven_Item itemB;  // toSpace==4 时仅保持构造初值（ORIG 同）
-        if (toSpace == 3)
+        // b28d-solo-CUserStatC：ORIG 0x0866112a/0x08661641 为「形参载入寄存器 + cmp 链」
+        // （mov 0x1c(%ebp),%eax; cmp $3/$4/$1; je），4.4 对 if-else 链恒折内存直比；
+        // 3-case switch 按书写序复现该链（P286/P208 推广，探针 /tmp/b28d_cstatc_probe4.cpp）。
+        switch (toSpace)
         {
+        case 3:
             itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
             // ORIG：toSpace==3 各子分支独立读两个槽（itemA/itemB 不合并条件）。
             itemB = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_INVEN, toSlot);
-        }
-        else if (toSpace == 1)
-        {
+            break;
+        case 4:
+            itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
+            break;
+        case 1:
             itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
             itemB = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, toSlot);
-        }
-        else if (toSpace == 4)
-        {
-            itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
+            break;
+        default:
+            break;
         }
 
         // ORIG:IsTempKey 为静态语义（值符号位判定），直接静态调用，不经 mgr 访问器。
@@ -393,14 +423,17 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
             || WongWork::CAvatarItemMgr::IsTempKey((int)itemB.m_addInfo2))
             return 0x13;
 
-        if (toSpace == 3)
+        switch (toSpace)
+        {
+        case 3:
         {
             int ret = change_equip(fromSpace, (short)fromSlot, toSlot);
             if (ret > 0)
                 return ret;
             *outSlot = toSlot;
+            break;
         }
-        else if (toSpace == 4)
+        case 4:
         {
             CTradeSpace* trade =
                 G_CGameManager()->GetTradeSpace((int)m_tradeSpaceIdx);
@@ -411,7 +444,13 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 m_tradeSpaceIdx = -1;
                 return 0x15;
             }
-            if (trade->check_trade_possibility() == 1)
+            // b28d-solo-CUserStatC：ORIG 0x08660de9 同为 bool 取反段 ⇒ 反极性 if。
+            if (!trade->check_trade_possibility())
+            {
+                trade->cancel_trade();
+                G_CGameManager()->PutTradeSpace(trade);
+            }
+            else
             {
                 if (trade->IsLocked())
                     return 0x11;
@@ -420,22 +459,21 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                     return 0x11;
                 *outSlot = ret;
             }
-            else
-            {
-                trade->cancel_trade();
-                G_CGameManager()->PutTradeSpace(trade);
-            }
+            break;
         }
-        else if (toSpace == 1)
+        case 1:
         {
             int ret = getCurCharacInvenW()->move_item(
                 INVEN_TYPE_AVATAR, fromSlot, INVEN_TYPE_AVATAR, toSlot);
-            if (ret != 0)
+            // b28d-solo-CUserStatC：ORIG 0x086616e3 同 setne 物化 ⇒ P225 形。
+            while (ret != 0)
+            {
                 return ret;
+            }
             *outSlot = toSlot;
+            break;
         }
-        else
-        {
+        default:
             return 1;
         }
         break;
@@ -461,16 +499,10 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
             bool delOk =
                 getCurCharacCargoW()->delete_item(fromSlot, addInfo,
                                                   (eItemDelReason)7);
-            if (!delOk)
-            {
-                cMyTrace trace("int CUser::exchange_interspace(int, int, "
-                               "itemIndexOnlyServer_t, int, int, int, "
-                               "itemIndexOnlyServer_t, int*)",
-                               0x3bea, 5);
-                trace("delete_item failed %d %d %d", getCurCharacNo(),
-                      item.m_addInfo, addInfo);
-            }
-            else
+            // b28d-solo-CUserStatC：ORIG 0x08660624 为 `mov %al,槽; cmpb $0x0,槽;
+            // je <失败 trace 块>`；4.4 对 `if (!delOk)` 恒加 `movzbl; xor $1`（N122）
+            // ⇒ 反写 `if (delOk)` 复现。
+            if (delOk)
             {
                 *outSlot = getCurCharacInvenW()->insertItemIntoInventory(
                     copy, (eItemAddReason)7, true, false);
@@ -485,15 +517,24 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                           getCurCharacNo(), copy.m_addInfo, addInfo);
                 }
             }
+            else
+            {
+                cMyTrace trace("int CUser::exchange_interspace(int, int, "
+                               "itemIndexOnlyServer_t, int, int, int, "
+                               "itemIndexOnlyServer_t, int*)",
+                               0x3bea, 5);
+                trace("delete_item failed %d %d %d", getCurCharacNo(),
+                      item.m_addInfo, addInfo);
+            }
             return 0;
         }
         case 2:  // 仓库→仓库
-            if (getCurCharacCargoW()->move_item(fromSlot, toSlot) == 1)
-            {
-                *outSlot = toSlot;
-                return 0;
-            }
-            return 0x11;
+            // b28d-solo-CUserStatC：ORIG 0x0866080d 为 `call; xor $0x1,%eax;
+            // test %al,%al; je <then>` ⇒ 反极性早返形（P292/P272）。
+            if (!getCurCharacCargoW()->move_item(fromSlot, toSlot))
+                return 0x11;
+            *outSlot = toSlot;
+            return 0;
         case 3:
             return CheckInTrade() ? 0x13 : 1;
         case 7:
@@ -513,12 +554,12 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
             CAccountCargo* cargo = GetAccountCargo();
             item = getCurCharacCargoR()->get_cargo_slot(fromSlot);
 
-            if (cargo->CheckInsertCondition(item) != 1)
+            if (!cargo->CheckInsertCondition(item))
                 return 0x11;
 
             if (item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
             {
-                if (cargo->CheckSlotEmpty(toSlot) != 1)
+                if (!cargo->CheckSlotEmpty(toSlot))
                 {
                     toSlot = cargo->GetEmptySlot();
                     if (toSlot < 0)
@@ -533,14 +574,13 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 int specific = cargo->GetSpecificItemSlot(item.m_addInfo);
                 if (specific >= 0)
                 {
-                    if (cargo->CheckStackLimit(specific, item.m_addInfo, addInfo)
-                        != 1)
+                    if (!cargo->CheckStackLimit(specific, item.m_addInfo, addInfo))
                         return 4;
                     toSlot = specific;
                 }
                 else
                 {
-                    if (cargo->CheckSlotEmpty(toSlot) != 1)
+                    if (!cargo->CheckSlotEmpty(toSlot))
                     {
                         toSlot = cargo->GetEmptySlot();
                         if (toSlot < 0)
@@ -598,12 +638,13 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 || WongWork::CAvatarItemMgr::IsTempKey((int)avatarSlot.m_addInfo2))
                 return 0x13;
             int ret = change_equip(fromSpace, (short)fromSlot, toSlot);
-            if (ret < 1)
-            {
-                *outSlot = toSlot;
-                return 0;
-            }
-            return ret;
+            // b28d-solo-CUserStatC：ORIG 0x0866168a 为 `cmpl $0x0,槽; jle <then>`
+            // （then 为跳转目标、else 直落返回 ret）⇒ 必须写成「正守卫早返」形，
+            // `if (ret < 1) {then}` 与 `if (ret <= 0) {then}` 均使 4.4 反产 `jg`。
+            if (ret > 0)
+                return ret;
+            *outSlot = toSlot;
+            return 0;
         }
         case 2:
             return CheckInTrade() ? 0x13 : 1;
@@ -618,7 +659,13 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 m_tradeSpaceIdx = -1;
                 return 0x15;
             }
-            if (trade->check_trade_possibility() == 1)
+            // b28d-solo-CUserStatC：ORIG 0x0866103e 同为 bool 取反段 ⇒ 反极性 if。
+            if (!trade->check_trade_possibility())
+            {
+                trade->cancel_trade();
+                G_CGameManager()->PutTradeSpace(trade);
+            }
+            else
             {
                 if (trade->IsLocked())
                     return 0x11;
@@ -628,19 +675,16 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 *outSlot = ret;
                 send_equip(fromSlot);
             }
-            else
-            {
-                trade->cancel_trade();
-                G_CGameManager()->PutTradeSpace(trade);
-            }
             return 0;
         }
         case 7:  // 装备→宠物
         {
             if (G_GameWorld()->IsCheckUnusableEquipmentChannel())
             {
+                // b28d-solo-CUserStatC：真语义 bug 修正——ORIG 0x08660ec4 实参为
+                // INVEN_TYPE_CREATURE(3)（目标为宠物槽），原写 INVEN_TYPE_INVEN(0) 取错域。
                 const Inven_Item* ref = getCurCharacInvenR()->GetInvenRef(
-                    INVEN_TYPE_INVEN, toSlot);
+                    INVEN_TYPE_CREATURE, toSlot);
                 if (!online_preliminary::COnlinePreliminary::
                         CheckUnusableEquipment(ref))
                 {
@@ -653,13 +697,14 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
             }
             int ret = getCurCharacInvenW()->move_item(
                 INVEN_TYPE_INVEN, fromSlot, INVEN_TYPE_CREATURE, toSlot);
-            if (ret == 0)
+            // b28d-solo-CUserStatC：ORIG 0x08660f6d 同 setne 物化 ⇒ P225 形。
+            while (ret != 0)
             {
-                *outSlot = toSlot;
-                send_equip(toSlot);
-                return 0;
+                return ret;
             }
-            return ret;
+            *outSlot = toSlot;
+            send_equip(toSlot);
+            return 0;
         }
         default:
             return 1;
@@ -680,7 +725,13 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
             m_tradeSpaceIdx = -1;
             return 0x15;
         }
-        if (trade->check_trade_possibility() == 1)
+        // b28d-solo-CUserStatC：ORIG 0x086619f6 同为 bool 取反段 ⇒ 反极性 if。
+        if (!trade->check_trade_possibility())
+        {
+            trade->cancel_trade();
+            G_CGameManager()->PutTradeSpace(trade);
+        }
+        else
         {
             if (trade->IsLocked())
                 return 0x11;
@@ -691,17 +742,16 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
             if (toSpace == 3)
                 send_equip(toSlot);
         }
-        else
-        {
-            trade->cancel_trade();
-            G_CGameManager()->PutTradeSpace(trade);
-        }
         break;
     }
 
     // -------------------------------------------------------------- 宠物源
     case 7:
-        if (toSpace == 4)
+        // b28d-solo-CUserStatC：ORIG 0x08661816 为「形参载入寄存器 + cmp 链 4/7/3」
+        // （cmp 序 = case 书写序），if-else 链 4.4 恒折内存直比 ⇒ 改 switch。
+        switch (toSpace)
+        {
+        case 4:
         {
             CTradeSpace* trade =
                 G_CGameManager()->GetTradeSpace((int)m_tradeSpaceIdx);
@@ -712,7 +762,13 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 m_tradeSpaceIdx = -1;
                 return 0x15;
             }
-            if (trade->check_trade_possibility() == 1)
+            // b28d-solo-CUserStatC：ORIG 0x08661767 同为 bool 取反段 ⇒ 反极性 if。
+            if (!trade->check_trade_possibility())
+            {
+                trade->cancel_trade();
+                G_CGameManager()->PutTradeSpace(trade);
+            }
+            else
             {
                 if (trade->IsLocked())
                     return 0x11;
@@ -721,13 +777,21 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                     return 0x11;
                 *outSlot = ret;
             }
-            else
-            {
-                trade->cancel_trade();
-                G_CGameManager()->PutTradeSpace(trade);
-            }
+            break;
         }
-        else if (toSpace == 3)
+        case 7:
+        {
+            int ret = getCurCharacInvenW()->move_item(
+                INVEN_TYPE_CREATURE, fromSlot, INVEN_TYPE_CREATURE, toSlot);
+            // b28d-solo-CUserStatC：ORIG 0x08661900 同 setne 物化 ⇒ P225 形。
+            while (ret != 0)
+            {
+                return ret;
+            }
+            *outSlot = toSlot;
+            break;
+        }
+        case 3:
         {
             if (G_GameWorld()->IsCheckUnusableEquipmentChannel())
             {
@@ -745,24 +809,16 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
             }
             int ret = getCurCharacInvenW()->move_item(
                 INVEN_TYPE_CREATURE, fromSlot, INVEN_TYPE_INVEN, toSlot);
-            if (ret == 0)
+            // b28d-solo-CUserStatC：ORIG 0x08661972 同 setne 物化 ⇒ P225 形。
+            while (ret != 0)
             {
-                *outSlot = toSlot;
-                send_equip(toSlot);
-                return 0;
-            }
-            return ret;
-        }
-        else if (toSpace == 7)
-        {
-            int ret = getCurCharacInvenW()->move_item(
-                INVEN_TYPE_CREATURE, fromSlot, INVEN_TYPE_CREATURE, toSlot);
-            if (ret != 0)
                 return ret;
+            }
             *outSlot = toSlot;
+            send_equip(toSlot);
+            return 0;
         }
-        else
-        {
+        default:
             return 1;
         }
         break;
@@ -840,7 +896,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
 
             if (item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
             {
-                if (getCurCharacCargoR()->check_slot_empty(toSlot) != 1)
+                if (!getCurCharacCargoR()->check_slot_empty(toSlot))
                 {
                     toSlot = getCurCharacCargoR()->get_empty_slot();
                     if (toSlot < 0)
@@ -857,7 +913,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                     toSlot = exist;
                 else
                 {
-                    if (getCurCharacCargoR()->check_slot_empty(toSlot) != 1)
+                    if (!getCurCharacCargoR()->check_slot_empty(toSlot))
                     {
                         toSlot = getCurCharacCargoR()->get_empty_slot();
                         if (toSlot < 0)

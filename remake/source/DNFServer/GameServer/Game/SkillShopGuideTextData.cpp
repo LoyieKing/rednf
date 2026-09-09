@@ -67,6 +67,14 @@ SkillShopGuideTextData& SkillShopGuideTextData::operator=(SkillShopGuideTextData
 //   迭代经 guard 跳过初始化），故声明须在循环体内。
 // 注册链按 ORIG fall-through：case 按数值升序，__inited==0 时逐段注册后落入
 // 下一 case；段键注册用直接 pair 构造（ORIG pair<char_const(&)[N],int> 模板实例）。
+// ---------------------------------------------------------------------------
+// b28d-solo-SkillShopGuideTextData 判词：语义完成（p167 CLEAR 76=76；帧 0x14c、
+//   槽位 key/-0x104、data/-0x114、vec/-0x120、token/-0x124、type/-0x1c、
+//   jobStr/-0x12c、growStr/-0x130 与 ORIG 全等；修真语义 bug：case "[/text info]"
+//   原缺 vec.push_back(data)；case 0x3334 的 ok 走寄存器消 4B 槽，帧/槽全等）。
+//   byte 层 N 封顶：残余 = guard/返回值 %esi↔%ebx 角色互换与 8/32 位 test 宽度
+//   （N7 跨版本寄存器分配）+ ScanStr 检查块布局方向（P164 循环旋转）+ 对齐 nop 岛；
+//   源码形不可择，不再耗轮次。
 // ============================================================================
 int importSkillShopGuideText(
     const char* path,
@@ -98,8 +106,16 @@ int importSkillShopGuideText(
     std::vector<SkillShopGuideTextData> vec;
     std::string token;
 
-    while (ScanType(token, true))
+    // ORIG 0x08914532：循环条件在顶部（入口直落 ScanType，失败 jne 出口）；
+    // 4.4 对 while 恒旋转 ⇒ 用 for(;;)+break 复现（P164）。
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
+        // ORIG 0x08914d35 的 goto 回跳目标是 0x08914553（__lookup guard 检查）⇒
+        // loop 标签在三个 static 声明之前，回跳时重新过 guard 检查（P177 同族）。
+    loop:
+        ;
         typedef std::map<const char*, int, less_TCHAR> LookupMap;
         static LookupMap __lookup;
         static SpinLock __init_lock;
@@ -107,14 +123,11 @@ int importSkillShopGuideText(
 
         int type;
 
-    loop:
         if (__inited)
         {
             std::map<const char*, int, less_TCHAR>::const_iterator it = __lookup.find(token.c_str());
-            if (it != __lookup.end())
-                type = it->second;
-            else
-                type = -1;
+            // ORIG 0x08914704/08914709：两臂经 %eax 汇聚后统一 mov %eax,-0x1c ⇒ 三目形（P47）。
+            type = (it != __lookup.end()) ? it->second : -1;
         }
         else
         {
@@ -131,18 +144,30 @@ int importSkillShopGuideText(
         {
         case 0:
         case 0x332c:   // "[guide]"
-            if (__inited) break;
-            __lookup.insert(LookupMap::value_type("[guide]", 0x332c));
+            if (!__inited)
+                __lookup.insert(LookupMap::value_type("[guide]", 0x332c));
+            else
+                break;
             // fall through
         case 0x3330:   // "[/guide]"
-            if (__inited) break;
-            __lookup.insert(LookupMap::value_type("[/guide]", 0x3330));
+            if (!__inited)
+                __lookup.insert(LookupMap::value_type("[/guide]", 0x3330));
+            else
+                break;
             // fall through
         case 0x3334:   // "[character job]"
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[character job]", 0x3334));
+            }
+            else
             {
                 std::string jobStr;
-                bool ok = ScanStr(&jobStr);
+                // ORIG 0x0891490c/0891495a 的 ok 值走 %esi（无栈槽）⇒ 纯 register
+                // 存储类提示（P231；非 asm 绑定，P0 合规）。
+                // ORIG 0x089149b6 用 32 位 test %esi,%esi ⇒ ok 取 int 宽度（纯 register
+                // 存储类提示，P231；非 asm 绑定，P0 合规）。
+                register int ok = ScanStr(&jobStr);
                 if (ok)
                 {
                     key.first = (ENUM_CHARACTERJOB)getCharacterJob(jobStr.c_str());
@@ -155,10 +180,13 @@ int importSkillShopGuideText(
                     return 0;
                 break;
             }
-            __lookup.insert(LookupMap::value_type("[character job]", 0x3334));
             // fall through
         case 0x3342:   // "[/character job]"
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[/character job]", 0x3342));
+            }
+            else
             {
                 // ORIG 0x08914a7b：直接就地构造 out 的 value_type
                 // （_ZNSt4pairIKS_I17ENUM_CHARACTERJOBiESt6vectorI22SkillShopGuideTextData
@@ -171,42 +199,62 @@ int importSkillShopGuideText(
                 vec.clear();
                 break;
             }
-            __lookup.insert(LookupMap::value_type("[/character job]", 0x3342));
             // fall through
         case 0x334c:   // "[text info]"
-            if (__inited) break;
-            __lookup.insert(LookupMap::value_type("[text info]", 0x334c));
+            if (!__inited)
+                __lookup.insert(LookupMap::value_type("[text info]", 0x334c));
+            else
+                break;
             // fall through
         case 0x3350:   // "[/text info]"
-            if (__inited) break;
-            __lookup.insert(LookupMap::value_type("[/text info]", 0x3350));
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[/text info]", 0x3350));
+            }
+            else
+            {
+                // ORIG 0x08914b92：__inited==1 路径把当前 data 推入 vec
+                // （_ZNSt6vectorI22SkillShopGuideTextDataSaIS0_EE9push_backERKS0_，
+                //   p167 差集曾 MISSING×1）。
+                vec.push_back(data);
+                break;
+            }
             // fall through
         case 0x3355:   // "[text]"
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[text]", 0x3355));
+            }
+            else
             {
                 ScanStr(&data.m_text);
                 break;
             }
-            __lookup.insert(LookupMap::value_type("[text]", 0x3355));
             // fall through
         case 0x335a:   // "[color]"
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[color]", 0x335a));
+            }
+            else
             {
                 data.m_colorR = (unsigned char)ScanInt((bool*)0);
                 data.m_colorG = (unsigned char)ScanInt((bool*)0);
                 data.m_colorB = (unsigned char)ScanInt((bool*)0);
                 break;
             }
-            __lookup.insert(LookupMap::value_type("[color]", 0x335a));
             // fall through
         case 0x3361:   // "[level range]"
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(LookupMap::value_type("[level range]", 0x3361));
+            }
+            else
             {
                 data.m_levelMin = ScanInt((bool*)0);
                 data.m_levelMax = ScanInt((bool*)0);
                 break;
             }
-            __lookup.insert(LookupMap::value_type("[level range]", 0x3361));
             break;
         default:
             break;
@@ -229,6 +277,13 @@ int importSkillShopGuideText(
 //   逐 token："[skill tree]" 段内循环 ScanStr 职业名 → getCharacterJob 转枚举、
 //   ScanStr 树名，pair 构造后 insert 进 out map；ScanStr 失败跳出内层循环回到
 //   外层 do；遇到 "[/skill tree]" 或 EOF 结束返回 1。
+// ---------------------------------------------------------------------------
+// b28d-solo-SkillShopGuideTextData 判词：语义完成（p167 CLEAR 24=24；帧 0x50、
+//   槽位 token/-0x20、bool/-0x9、job/-0x24、treeStr/-0x28、jobStr/-0x2c、
+//   pair/-0x14、insert 返回/-0x1c 与 ORIG 全等）。byte 层 N 封顶：内层 ScanStr
+//   检查 ORIG 为「xor $1;test;je body;jmp outer」两跳形，4.4 恒产
+//   「xor $1;test;jne outer」单跳 + 中继 nop 岛（P164 循环旋转族）；外层/析构段
+//   另有 N7 %esi↔%ebx 角色差。源码形不可择，不再耗轮次。
 // ============================================================================
 int importSkillShopTree(
     const char* path,
@@ -242,34 +297,59 @@ int importSkillShopTree(
                               "ERROR : %s \xed\x8c\x8c\xec\x9d\xbc\xec\x9d\x84 \xec\xb0\xbe\xec\x9d\x84\xec\x88\x98 \xec\x97\x86\xec\x8a\xb5\xeb\x8b\x88\xeb\x8b\xa4.", path);
         return 0;
     }
-    out.clear();
+    // 声明序/clear 位置按 ORIG 0x089142de..0x08914309：token(-0x20)、treeStr(-0x28)、
+    // jobStr(-0x2c) 三个 string 构造完成后才调 out.clear()。
     std::string token;
-    std::string jobStr;
+    // ORIG 0x089142e9 有 movb $0x0,-0x9(%ebp)（token 构造后的一次性 bool 清零，
+    // 全函数不再读写）= 原码具名 bool 局部死初始化，照抄（P171/P232）。
+    bool parseOk = false;
+    (void)parseOk;
+    // ORIG 0x08914374 用 mov %eax,-0x24(%ebp) 写该值 ⇒ 原码 job 声明在函数头
+    // （槽 -0x24 夹在 token 与 treeStr 之间），循环内仅赋值。
+    ENUM_CHARACTERJOB job;
     std::string treeStr;
-    while (ScanType(token, true))
+    std::string jobStr;
+    out.clear();
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[skill tree]")
         {
-            while (ScanStr(&jobStr))
+            for (;;)
             {
-                ENUM_CHARACTERJOB job = (ENUM_CHARACTERJOB)getCharacterJob(jobStr.c_str());
-                if (!ScanStr(&treeStr))
+                // 4.4 对本形产「xor $1;test;jne 共享出口」；ORIG 为
+                // 「xor $1;test;je body;jmp outer」两跳——P164 旋转族不可择
+                // （X1/裸内联/语句表达式/goto 尾标签四形实测均不闭合）。
+                if (!ScanStr(&jobStr))
+                {
                     break;
-                // ORIG 0x0891439f：直接就地构造 value_type
-                // （_ZNSt4pairIK17ENUM_CHARACTERJOBSsEC1IRS0_RSsEEOT_OT0_ =
-                //   pair<const ENUM_CHARACTERJOB,string> 的 pair<JOB&,string&> 构造）
-                // 后 map::insert(value_type const&)；make_pair 会多出转换临时。
-                out.insert(
-                    std::map<ENUM_CHARACTERJOB, std::string,
-                             std::less<ENUM_CHARACTERJOB>,
-                             std::allocator<std::pair<ENUM_CHARACTERJOB const,
-                             std::string> > >::value_type(job, treeStr));
+                }
+                else
+                {
+                    job = (ENUM_CHARACTERJOB)getCharacterJob(jobStr.c_str());
+                    if (!ScanStr(&treeStr))
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        // ORIG 0x0891439f：直接就地构造 value_type
+                        // （_ZNSt4pairIK17ENUM_CHARACTERJOBSsEC1IRS0_RSsEEOT_OT0_ =
+                        //   pair<const ENUM_CHARACTERJOB,string> 的 pair<JOB&,string&> 构造）
+                        // 后 map::insert(value_type const&)；make_pair 会多出转换临时。
+                        out.insert(
+                            std::map<ENUM_CHARACTERJOB, std::string,
+                                     std::less<ENUM_CHARACTERJOB>,
+                                     std::allocator<std::pair<ENUM_CHARACTERJOB const,
+                                     std::string> > >::value_type(job, treeStr));
+                    }
+                }
             }
+            continue;
         }
-        else if (token == "[/skill tree]")
-        {
+        if (token == "[/skill tree]")
             break;
-        }
     }
     return 1;
 }

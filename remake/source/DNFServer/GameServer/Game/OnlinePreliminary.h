@@ -163,7 +163,10 @@ public:
     int  GetEachOtherTeamPlayCount(int teamId) const;
     void saveData();
     bool _saveTeam();
-    void _saveTeamMatchList();
+    // [b28d-solo-OnlinePreliminaryTeam] ORIG T 0x0858800c 尾 `mov $0x1,%ebx; …
+    // mov %ebx,%eax` ⇒ 真实返回 int（P159；mangled 不含返回类型，调用点 saveData
+    // 忽略返回值）。void 使 4.4 头部守卫落尾 `jne <return>`，ORIG 为 fail 块直落。
+    int _saveTeamMatchList();
     void Reset();                                    // T 0x858838a
     void ResetDailyMidnight();
 

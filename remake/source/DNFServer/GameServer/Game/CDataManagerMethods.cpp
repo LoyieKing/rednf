@@ -1,11 +1,19 @@
 // ============================================================================
 // df_game_r 还原 —— CDataManager 独立方法 TU（Prod_CDataManager 批次）
-// ---- b28d-61 判词汇总（本 TU 5 件非 identical，全 N 封顶）----
-// set_reward_sp 0x08360bde（P167 CLEAR；N18a/N4 lea-vs-add+寄存器指派）、
-// initRandomOptionItem 0x083580aa（P167 CLEAR；N18a make_pair 首 ref lea 折叠）、
-// hasSpecialCharacter 0x0836xxxx（P167 MISSING normal_iterator，N89）、
-// load_map_files 0x0835fxxx（P167 MISSING Rb_tree_iterator ppEi，N89）、
-// initFairPVPSkillPoint 0x0835f1d6（P167 MISSING Rb_tree_iterator×5 + P183 指针缓存）。
+// ---- b28d-solo-CDataManagerMethods 判词汇总（本 TU 5 件复核后状态）----
+// hasSpecialCharacter 0x08363140 → IDENTICAL（修法：const_iterator+缓存 end、
+//   2 字节 union 视图拼 big-endian、for+else 内 ++i、r.m_max>=p[0] 比较方向）；
+// initFairPVPSkillPoint 0x0835f1d6 → IDENTICAL（修法：删引用局部 s、展开
+//   perIt->second、push_back 改 pair 直构、continue 改正向包裹、cMyTrace 改
+//   P221 全表达式临时链）；
+// load_map_files 0x0835fe02 → NEAR（修法：dungeon/map 提升函数级、迭代器先声明
+//   后赋值、两处后置 it++、pos 整体赋值；残差全帧槽号平移 0x10 = N82/P112）；
+// set_reward_sp 0x08360bde → DIFF 封 N76/N94（P167 CLEAR；两循环 4.4 恒 LHS-first
+//   「先装 this 再求下标」，ORIG 4.1 为 RHS-first+`mov %eax,%edx` 中转；探针
+//   f_int/h_int 证明成员函数下类型异型化不翻，寄存器指派亦不可齐）；
+// initRandomOptionItem 0x083580aa → DIFF 封 N107/N18a（P167 CLEAR；唯一残差
+//   `&innerIt->second.m_field0` ORIG `lea 0x4(%eax),%ecx` vs 4.4 恒
+//   `add $0x4,%eax; mov %eax,%edx`；六形探针含字段 unsigned long 化全产 add）。
 // 仅承载以下六个真实 ORIG 符号，逐指令对照
 // docs/class_func_reports/CDataManager/ 各报告转写：
 //   set_reward_sp                              _ZN12CDataManager13set_reward_spEv        0x08360bde
@@ -65,6 +73,10 @@ public:
 }  // namespace
 
 // ===================== set_reward_sp =====================
+// [b28d-solo-CDataManagerMethods] DIFF 封 N76/N94：P167 CLEAR（6/6）。
+// ORIG 两循环均为「先求下标/RHS、后装 this」（第二循环值经 eax→edx 中转）；
+// 4.4 成员函数恒 LHS-first（探针 f_int/f_uint/h_int/h_zero：类型异型化不翻），
+// 第一循环仅 mov 装载序差、第二循环求值序差 ⇒ 语义等价封顶。
 // ORIG 0x08360bde：导入 Etc/spTable.etc 至局部 stSpPerLevelTable；
 // 导入失败返回 0。成功时将 +0xDA90 表清零后自 index1 起回填表值
 // （index0 恒为 0），返回 1。逐次重读 this（与 O0 成员访问一致）。
@@ -90,6 +102,10 @@ int CDataManager::set_reward_sp()
 }
 
 // ===================== initRandomOptionItem =====================
+// [b28d-solo-CDataManagerMethods] DIFF 封 N107/N18a：P167 CLEAR（14/14）。
+// 唯一残差 = `&innerIt->second.m_field0`：ORIG `lea 0x4(%eax),%ecx` 单条，
+// 4.4 恒 `add $0x4,%eax; mov %eax,%edx` 两段；探针（引用/解引用/指针算术/
+// 字段 unsigned long 化）全产 add ⇒ 源形不可择。
 // ORIG 0x083580aa：遍历 +0x4e70 的 map<int,map<int,BaseItemValue>>，
 // 对每个内层元素以 make_pair(值, 递增序号) 插入 +0x4e88 反查表；
 // 任一插入冲突立即返回 0，全部成功返回 1。（计数器每个外层键重置。）
@@ -126,6 +142,11 @@ int CDataManager::initRandomOptionItem()
 }
 
 // ===================== initFairPVPSkillPoint =====================
+// [b28d-solo-CDataManagerMethods] IDENTICAL（orig=506 our=506 ndiff=0）。
+// 关键修法：删 `PvPSkillTreeParameterScript& s` 引用局部（P0 表达式直用）、
+// perIt->second 逐使用点展开（补 5 处 operator-> 调用点）、push_back 改
+// `std::pair<int,int>(rem->first, rem->second)` 直构（P192）、两处 continue
+// 改正向 if 包裹、三处 cMyTrace 改 P221 全表达式临时链翻槽序。
 // ORIG 0x0835f1d6：
 // 1) m_pvpSkillTree.m_map0 非空时取内层最大等级 → m_field48(+0xa848)；
 // 2) m_pvpSkillTree.m_map18 非空时取外层最大键 → m_field4c(+0xa84c)；
@@ -138,76 +159,72 @@ int CDataManager::initRandomOptionItem()
 bool CDataManager::initFairPVPSkillPoint()
 {
     bool ok = true;
-    PvPSkillTreeParameterScript& s = m_pvpSkillTree;
 
-    if (!s.m_map0.empty())
+    if (!m_pvpSkillTree.m_map0.empty())
     {
         for (std::map<PvPSkillTreeKey,
                       std::map<int, PvPSkillTreeValue> >::iterator it =
-                 s.m_map0.begin();
-             it != s.m_map0.end(); ++it)
+                 m_pvpSkillTree.m_map0.begin();
+             it != m_pvpSkillTree.m_map0.end(); ++it)
         {
             for (std::map<int, PvPSkillTreeValue>::iterator lv =
                      it->second.begin();
                  lv != it->second.end(); ++lv)
             {
-                if (s.m_field48 < lv->first)
+                if (m_pvpSkillTree.m_field48 < lv->first)
                 {
-                    s.m_field48 = lv->first;
+                    m_pvpSkillTree.m_field48 = lv->first;
                 }
             }
         }
     }
 
-    if (!s.m_map18.empty())
+    if (!m_pvpSkillTree.m_map18.empty())
     {
         for (std::map<int, std::map<int, int> >::iterator it =
-                 s.m_map18.begin();
-             it != s.m_map18.end(); ++it)
+                 m_pvpSkillTree.m_map18.begin();
+             it != m_pvpSkillTree.m_map18.end(); ++it)
         {
-            if (s.m_field4c < it->first)
+            if (m_pvpSkillTree.m_field4c < it->first)
             {
-                s.m_field4c = it->first;
+                m_pvpSkillTree.m_field4c = it->first;
             }
         }
     }
 
-    if (!s.m_map30.empty())
+    if (!m_pvpSkillTree.m_map30.empty())
     {
         for (std::map<PvPSkillTreeKey,
                       FAIR_PVP_SKILL_TREE_SKILL_PER_POINT>::iterator perIt =
-                 s.m_map30.begin();
-             perIt != s.m_map30.end(); ++perIt)
+                 m_pvpSkillTree.m_map30.begin();
+             perIt != m_pvpSkillTree.m_map30.end(); ++perIt)
         {
-            FAIR_PVP_SKILL_TREE_SKILL_PER_POINT& per = perIt->second;
-
             std::map<int, int> totalSp;
             int sum = 0;
-            for (std::map<int, int>::iterator add = per.m_addSkills.begin();
-                 add != per.m_addSkills.end(); ++add)
+            for (std::map<int, int>::iterator add =
+                     perIt->second.m_addSkills.begin();
+                 add != perIt->second.m_addSkills.end(); ++add)
             {
                 CSkill* skill =
                     G_CDataManager()->find_skill(
                         perIt->first.m_a, add->first);
-                if (skill == 0)
+                if (skill != 0)
                 {
-                    continue;
+                    int sp = skill->get_need_sp_for_level(0, add->second);
+                    sum += sp;
+                    totalSp.insert(std::make_pair(add->first, sp));
                 }
-                int sp = skill->get_need_sp_for_level(0, add->second);
-                sum += sp;
-                totalSp.insert(std::make_pair(add->first, sp));
             }
 
             int running = 0;
-            for (std::map<int, int>::iterator rem = per.m_removeSkills.begin();
-                 rem != per.m_removeSkills.end(); ++rem)
+            for (std::map<int, int>::iterator rem =
+                     perIt->second.m_removeSkills.begin();
+                 rem != perIt->second.m_removeSkills.end(); ++rem)
             {
                 CSkill* skill =
                     G_CDataManager()->find_skill(
                         perIt->first.m_a, rem->first);
-                if (skill == 0) {
-                    continue;
-                }
+                if (skill != 0) {
                 int sp = skill->get_need_sp_for_level(0, rem->second);
                 sum -= sp;
 
@@ -217,16 +234,14 @@ bool CDataManager::initFairPVPSkillPoint()
                     found->second -= sp;
                     if (found->second < 0)
                     {
-                        cMyTrace trace(
-                            __PRETTY_FUNCTION__,
-                            0x2379, 0);
-                        trace("skill point (-) error");
+                        cMyTrace(__PRETTY_FUNCTION__, 0x2379, 0)
+                            ("skill point (-) error");
                         ok = false;
                     }
                 }
 
-                per.m_giveSkills.push_back(
-                    std::make_pair(rem->first, rem->second));
+                perIt->second.m_giveSkills.push_back(
+                    std::pair<int, int>(rem->first, rem->second));
 
                 int current = 0;
                 for (std::map<int, int>::iterator it = totalSp.begin();
@@ -237,12 +252,11 @@ bool CDataManager::initFairPVPSkillPoint()
                 if (current + running != sum)
                 {
                     running += sum - current;
-                    cMyTrace trace(
-                        __PRETTY_FUNCTION__, 0x2390,
-                        0);
-                    trace("skill point diff job(%d), skill(%d)",
-                          (int)perIt->first.m_a, rem->first);
+                    cMyTrace(__PRETTY_FUNCTION__, 0x2390, 0)
+                        ("skill point diff job(%d), skill(%d)",
+                         (int)perIt->first.m_a, rem->first);
                     ok = false;
+                }
                 }
             }
 
@@ -254,13 +268,12 @@ bool CDataManager::initFairPVPSkillPoint()
             }
             if (grand != sum)
             {
-                cMyTrace trace(__PRETTY_FUNCTION__,
-                               0x239f, 0);
-                trace("skill point diff");
+                cMyTrace(__PRETTY_FUNCTION__, 0x239f, 0)
+                    ("skill point diff");
                 ok = false;
             }
 
-            per.m_pointCost = sum;
+            perIt->second.m_pointCost = sum;
         }
     }
 
@@ -268,6 +281,11 @@ bool CDataManager::initFairPVPSkillPoint()
 }
 
 // ===================== load_map_files(vector<PVPMAP_DATA>&) =====================
+// [b28d-solo-CDataManagerMethods] NEAR（orig=316 our=316 gap=0，P167 CLEAR 44/44）。
+// 关键修法：dungeon/map 提升为函数级具名局部、it/stageIt 先声明后赋值
+// （P50 复活）、两处后置 `it++`（ORIG 083416e4=ppEi）、pos 改 pair 整体赋值
+// （单次 operator[]）。残差 = 全帧槽号平移 0x10（4.4 把 set_map 按值参数临时
+// 放浅、具名局部随之浅移）⇒ N82/P112 槽分配族封顶。
 // ORIG 0x0835fe02：遍历 g_stMapScriptFileList（map<int,string>）。
 // 键==50000 仅 Clear；否则 ImportMapScript 导入（失败打印并返回 0）。
 // 每个文件 new CMap + set_map(拷贝)。m_list4 为空时仅以 (15,15) 注册进
@@ -275,11 +293,15 @@ bool CDataManager::initFairPVPSkillPoint()
 // 按 m_recoveryObjects 各坐标注册进 dungeon 与 m_mapList；m_dungeonStartArea.m_w>0 时额外 insertStart。
 bool CDataManager::load_map_files(std::vector<PVPMAP_DATA>& pvpMaps)
 {
-    STMapScript script;
     const char* filename = 0;
-    for (std::map<int, std::string>::iterator it =
-             g_stMapScriptFileList.begin();
-         it != g_stMapScriptFileList.end(); ++it)
+    STMapScript script;
+    CDungeon* dungeon = 0;
+    CMap* map = 0;
+    std::map<int, std::string>::iterator it;
+    std::list<int>::iterator stageIt;
+    it = g_stMapScriptFileList.begin();
+    std::pair<int, int> pos;
+    while (it != g_stMapScriptFileList.end())
     {
         filename = it->second.c_str();
         if (filename == 0)
@@ -297,20 +319,21 @@ bool CDataManager::load_map_files(std::vector<PVPMAP_DATA>& pvpMaps)
         }
 
         // ORIG 同样不释放错误路径上的 CMap（忠实转写）。
-        CMap* map = new CMap();
+        map = new CMap();
         map->set_map(script);
 
         if (script.m_list4.size() == 0)
         {
             m_mapList->insert_map(15, 15, map, pvpMaps);
+            it++;
             continue;
         }
 
-        for (std::list<int>::iterator stageIt = script.m_list4.begin();
-             stageIt != script.m_list4.end(); ++stageIt)
+        stageIt = script.m_list4.begin();
+        while (stageIt != script.m_list4.end())
         {
             int stageIdx = *stageIt;
-            CDungeon* dungeon = m_dungeonList->find_dungeon(stageIdx);
+            dungeon = m_dungeonList->find_dungeon(stageIdx);
             if (dungeon == 0)
             {
                 cMyTrace trace(
@@ -333,77 +356,96 @@ bool CDataManager::load_map_files(std::vector<PVPMAP_DATA>& pvpMaps)
 
             for (int i = 0; i < static_cast<int>(script.m_recoveryObjects.size()); ++i)
             {
-                int x = script.m_recoveryObjects[i].first;
-                int y = script.m_recoveryObjects[i].second;
-                dungeon->InsertMap(x, y, map);
-                m_mapList->insert_map(x, y, map, pvpMaps);
+                pos = script.m_recoveryObjects[i];
+                dungeon->InsertMap(pos.first, pos.second, map);
+                m_mapList->insert_map(pos.first, pos.second, map, pvpMaps);
                 if (script.m_dungeonStartArea.m_w > 0)  /* +0x148 = m_dungeonStartArea.m_w（新 0x1c MapArea 吸收旧独立 int）*/
                 {
-                    dungeon->insertStart(x, map);
+                    dungeon->insertStart(pos.first, map);
                 }
             }
+            stageIt++;
         }
+        it++;
     }
     return 1;
 }
 
 // ===================== hasSpecialCharacter =====================
+// [b28d-solo-CDataManagerMethods] IDENTICAL（orig=235 our=235 ndiff=0）。
+// 关键修法：四循环改 const_iterator + for-init 缓存 end（P96/P13）、双字节值
+// 改 2 字节 union 视图逐字节写（movw $0 + 两个 movb + movzwl）、while 改
+// for+else 内 ++i（复现两条 addl $1）、比较方向 `r.m_max >= p[0]`（翻 jb）。
 // ORIG 0x08363140：逐字符扫描（宽字符步进 2）。单字节走 m_invalidChar 的
 // uchar 区间表(+0x0c)/单字表(+0x00)；双字节拼 big-endian u16 后走 ushort
 // 区间表(+0x24)/单字表(+0x18)。命中即 true；扫完返回 false。
 bool CDataManager::hasSpecialCharacter(const char* name)
 {
-    size_t i = 0;
-    while (i < strlen(name))
+    for (size_t i = 0; i < strlen(name); ++i)
     {
         const unsigned char* p =
             reinterpret_cast<const unsigned char*>(name + i);
         if (_isOneByteCharacter(p[0]))
         {
             for (std::vector<InvalidCharData::stRangeElement<unsigned char> >::
-                     iterator range = m_invalidChar.m_charRange.begin();
-                 range != m_invalidChar.m_charRange.end(); ++range)
+                     const_iterator range = m_invalidChar.m_charRange.begin(),
+                     rangeEnd = m_invalidChar.m_charRange.end();
+                 range != rangeEnd; ++range)
             {
-                if (range->m_min <= p[0] && p[0] <= range->m_max)
+                const InvalidCharData::stRangeElement<unsigned char>& r =
+                    *range;
+                if (r.m_min <= p[0] && r.m_max >= p[0])
                 {
                     return true;
                 }
             }
-            for (std::vector<unsigned char>::iterator ch =
-                     m_invalidChar.m_charList.begin();
-                 ch != m_invalidChar.m_charList.end(); ++ch)
+            for (std::vector<unsigned char>::const_iterator ch =
+                     m_invalidChar.m_charList.begin(),
+                     chEnd = m_invalidChar.m_charList.end();
+                 ch != chEnd; ++ch)
             {
                 if (*ch == p[0])
                 {
                     return true;
                 }
             }
-            i += 1;
         }
         else
         {
-            const unsigned short value =
-                static_cast<unsigned short>((p[0] << 8) | p[1]);
-            for (std::vector<InvalidCharData::stRangeElement<
-                     unsigned short> >::iterator range =
-                     m_invalidChar.m_shortRange.begin();
-                 range != m_invalidChar.m_shortRange.end(); ++range)
+            union stShortValueView
             {
-                if (range->m_min <= value && value <= range->m_max)
+                unsigned short m_value;
+                unsigned char m_bytes[2];
+            } shortValue;
+            shortValue.m_value = 0;
+            shortValue.m_bytes[0] = p[1];
+            shortValue.m_bytes[1] = p[0];
+            const unsigned short value =
+                *reinterpret_cast<const unsigned short*>(&shortValue);
+            for (std::vector<InvalidCharData::stRangeElement<
+                     unsigned short> >::const_iterator range =
+                     m_invalidChar.m_shortRange.begin(),
+                     rangeEnd = m_invalidChar.m_shortRange.end();
+                 range != rangeEnd; ++range)
+            {
+                const InvalidCharData::stRangeElement<unsigned short>& r =
+                    *range;
+                if (r.m_min <= value && value <= r.m_max)
                 {
                     return true;
                 }
             }
-            for (std::vector<unsigned short>::iterator ch =
-                     m_invalidChar.m_shortList.begin();
-                 ch != m_invalidChar.m_shortList.end(); ++ch)
+            for (std::vector<unsigned short>::const_iterator ch =
+                     m_invalidChar.m_shortList.begin(),
+                     chEnd = m_invalidChar.m_shortList.end();
+                 ch != chEnd; ++ch)
             {
                 if (*ch == value)
                 {
                     return true;
                 }
             }
-            i += 2;
+            ++i;
         }
     }
     return false;

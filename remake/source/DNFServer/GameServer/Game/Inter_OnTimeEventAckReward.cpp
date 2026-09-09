@@ -27,7 +27,11 @@ struct AckRewardView
 //   全程返回 0；日志走 cMyTrace 临时链式（P37：args 提前求值存 ebx/push 帧，
 //   栈槽从低地址按词法序分配——与 ORIG -0x6c..-0x1c 逐槽对应）。
 // ---------------------------------------------------------------------------
-// [b28c-32] verdict=DIFF：N82 变参预装（ORIG cMyTrace ctor 前 %edi/%esi 保活 vararg，4.4 直压）。
+// [b28d-solo-Inter_OnTimeEventAckReward] verdict=AE（check_tu_routed.sh clean 口径；p167 27/27 CLEAR）。
+//   修法：get_charac_no 比较点**字段侧删 (int) cast**、右侧同型化 (unsigned int)：
+//   ORIG 单条 `mov 0x10(%eax),%ebx` 直落 callee-saved 复现；4.4 对「unsigned 字段 + (int) cast」
+//   恒发 `mov mem,%eax; mov %eax,%ebx` 两段中转（探针 /tmp/b28d_s309_probe.cpp f1 vs f3）。
+//   变参预装：全表达式临时链形（P227）已复现 ORIG ctor 前 %edi/%esi/%ebx 保活，非 N82。
 int Inter_OnTimeEventAckReward::dispatch_sig(CUser* user, char* data, int len)
 {
     int local_20;
@@ -62,7 +66,7 @@ int Inter_OnTimeEventAckReward::dispatch_sig(CUser* user, char* data, int len)
             ((AckRewardView*)local_20)->m_resultNo);
         return 0;
     }
-    if ((int)((AckRewardView*)local_20)->m_accId != user->get_charac_no(-1)) {
+    if (((AckRewardView*)local_20)->m_accId != (unsigned int)user->get_charac_no(-1)) {
         return 0;
     }
     if (!user->InsertOnTimeEventReward(((AckRewardView*)local_20)->m_charNo,

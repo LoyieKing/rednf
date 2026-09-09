@@ -72,12 +72,18 @@ unsigned int Event_Upgrade_Jar::_getFailProb_Fortune(int materialIdx, unsigned i
     // ORIG：i 为 int（size() 与 i 有符号 setg 比较）。
     for (int i = 0; i < static_cast<int>(m_materialIndices.size()); ++i)
     {
-        if (materialIdx == (int)m_materialIndices[i])
+        // [b28d-solo-EventUpgradeJar] P231/P248：ORIG 0x080f4bf0 每轮循环体首条
+        // `mov 0xc(%ebp),%ebx` 把形参升格 callee-saved 跨 operator[] 保活 ⇒ 纯
+        // register 存储类提示、声明在循环体内（无 asm 绑定，P0 合规）。残余
+        // `cmp %eax,%ebx` vs `cmp %ebx,%eax` 操作数序属 N18b。
+        register int midx = materialIdx;
+        if (midx == (int)m_materialIndices[i])
         {
-            const std::vector<unsigned int>& failRates = m_failRateByFortune[i];
-            if (upgrade >= failRates.size())
+            // [b28d-solo-EventUpgradeJar] P157/P183：ORIG 0x080f4c13/0x080f4c3e 两次
+            // 重算 this+i*0xc+0x40 全链（无引用缓存槽），逐次表达式访问。
+            if (upgrade >= m_failRateByFortune[i].size())
                 return 100000;
-            return failRates[upgrade];
+            return m_failRateByFortune[i][upgrade];
         }
     }
     return 100000;
@@ -92,7 +98,7 @@ unsigned int Event_Upgrade_Jar::_getFailProb_NewNPC(unsigned int idx) const
 }
 
 // ORIG 0x080f4ccc。NewNPC 分支：按 m_npcScripts[idx].m_meterialCount 取值；越界返回 1000000。
-unsigned int Event_Upgrade_Jar::_getMeterialCount_NewNPC(unsigned int idx)
+int Event_Upgrade_Jar::_getMeterialCount_NewNPC(unsigned int idx)
 {
     if (idx >= m_npcScripts.size())
         return 1000000;
@@ -136,58 +142,78 @@ void Event_Upgrade_Jar::CheckMaterialIndex(unsigned long index)
 //     m_recipeItem=0x28be7b、m_discountBase=round(discountRate*原值)。末写 m_materialIdx=upgrade。
 void Event_Upgrade_Jar::SettingRecipeNUpConunt(int materialIdx, upgrade_info_t& info, unsigned char upgrade)
 {
-    if (m_materialKind != 0)
+    // [b28d-solo-EventUpgradeJar] N 封顶（verdict=NEAR，助记符序列全等、指令数
+    // 95=95）：残余① float base 槽 -0x10 vs ORIG -0x28（4.1 浮点局部落帧最深、
+    // 4.4 落浅槽；N82/N95 族，pad/声明序探针反劣）；② kind==1 循环
+    // `cmp %eax,%ebx` vs `cmp %ebx,%eax` 操作数序（N18b 4.4 恒折）。
+    // [b28d-solo-EventUpgradeJar] P212/N98：ORIG 槽序 i=-0xc（浅）/base=-0x28（深），
+    // 全头部声明「先声明深」——base 先声明、i 后声明即复现（块内声明 4.4 反向）。
+    float base;
+    int i;
+
+    // [b28d-solo-EventUpgradeJar] ORIG 0x080f4dac：kind==0 落 leave 前 nop 岛
+    // （0x080f4edb），kind==1 尾 `jmp TAIL`、kind==2 fall-through 到 TAIL，TAIL 写
+    // m_materialIdx 后 `jmp END` 跳过 nop 岛 ⇒ 负极性早退 goto + 中间 TAIL 标签
+    // （P223 正例；探针 /tmp/eu_probe1.cpp fB）。
+    if (m_materialKind == 0)
+        goto END;
+
+    if (m_materialKind == 1)
     {
-        if (m_materialKind == 1)
+        // ORIG：+0x34(m_discountBase)=0、+0x30(m_meterialCount)=1、
+        // +0x2c(m_recipeItem)=m_materialIndices 中命中 materialIdx 的值。
+        info.m_discountBase = 0;
+        info.m_meterialCount = 1;
+        // ORIG 循环比较为有符号 setg（P196：unsigned 生 seta）。
+        for (i = 0; i < (int)m_materialIndices.size(); ++i)
         {
-            // ORIG：+0x34(m_discountBase)=0、+0x30(m_meterialCount)=1、
-            // +0x2c(m_recipeItem)=m_materialIndices 中命中 materialIdx 的值。
-            info.m_discountBase = 0;
-            info.m_meterialCount = 1;
-            for (unsigned int i = 0; i < m_materialIndices.size(); ++i)
+            // P231/P248：ORIG 0x080f4df9 每轮循环体首条 `mov 0xc(%ebp),%ebx`。
+            register int midx = materialIdx;
+            if (midx == (int)m_materialIndices[i])
             {
-                if (materialIdx == (int)m_materialIndices[i])
-                {
-                    info.m_recipeItem = m_materialIndices[i];
-                    break;
-                }
+                info.m_recipeItem = m_materialIndices[i];
+                break;
             }
         }
-        else if (m_materialKind == 2)
-        {
-            // b28d-lane25：P167 差集实证 ORIG 0x080f4d?? 调 _getDiscountRate_NewNPC()
-            // 取折扣率（非直读 m_discountRate 成员）。
-            info.m_discountBase = (int)(_getDiscountRate_NewNPC() * (float)info.m_discountBase);
-            info.m_meterialCount = _getMeterialCount_NewNPC(upgrade);
-            info.m_recipeItem = 0x28be7b;
-        }
-        m_materialIdx = upgrade;
+        goto TAIL;
     }
+    if (m_materialKind == 2)
+    {
+        // b28d-lane25：P167 差集实证 ORIG 0x080f4d?? 调 _getDiscountRate_NewNPC()
+        // 取折扣率（非直读 m_discountRate 成员）。
+        // [b28d-solo-EventUpgradeJar] P252：ORIG 0x080f4e73 先读 m_discountBase 到
+        // -0x20、fildl+fstps 存具名 float 局部（-0x28），**之后**才 call 折扣率 getter，
+        // 再 fmuls 该槽 ⇒ 原码有具名 float 局部且求值序在 call 之前。
+        base = (float)info.m_discountBase;
+        info.m_discountBase = (int)(_getDiscountRate_NewNPC() * base);
+        info.m_meterialCount = _getMeterialCount_NewNPC(upgrade);
+        info.m_recipeItem = 0x28be7b;
+    }
+TAIL:
+    m_materialIdx = upgrade;
+END:;
 }
 
 // ORIG 0x080f4ee2。按 m_materialKind 取失败概率写入 outProb：kind==1 → _getFailProb_Fortune，
 // kind==2 → _getFailProb_NewNPC。kind==0 或其它不改 outProb。
 void Event_Upgrade_Jar::GetProbability(int materialIdx, unsigned int& outProb) const
 {
-    // [b28c-35] N：ORIG 0x080f4f2b/0x080f4f5c 两分支各自 `jmp <尾>` + 尾前 nop 岛
-    // （4.1 无 jump-threading）；4.4 对 else-if / return / 多源 goto 三形均把 case2 的
-    // jmp 折成 fall-through（P223 单源 goto 尾岛合并负例）。语义全等。
-    // ORIG 0x080f4ee2：先显式 test kind;je 直跳到共同尾（m_materialKind!=0 外guard），
-    // 再 ==1 / ==2 分支。原 if==1 else-if==2 缺外 guard 的 test/je 5 条。
-    if (m_materialKind != 0)
+    // [b28d-solo-EventUpgradeJar] ORIG 0x080f4ee2：kind==0 的 je 落到 leave 前的
+    // 空 then nop 岛（0x080f4f5e），两分支各自 `jmp leave`。4.4 的复现形为
+    // 「负极性早退 goto + 尾标签」（P223 正例），外层 if(kind!=0) 包裹会被
+    // jump-thread 掉 nop 岛（探针 /tmp/eu_probe1.cpp fB/fD 实证）。
+    if (m_materialKind == 0)
+        goto END;
+
+    if (m_materialKind == 1)
     {
-        if (m_materialKind == 1)
-        {
-            outProb = _getFailProb_Fortune(materialIdx, (unsigned int)m_materialIdx);
-            // [b28c-35] ORIG 0x080f4f2b/0x080f4f5c 两分支各自 `jmp <尾>` 且尾前有
-            // 空块 nop 岛（P223）；else-if 形 4.4 把 case2 的 jmp 折成 fall-through。
-            goto END;
-        }
-        if (m_materialKind == 2)
-        {
-            outProb = _getFailProb_NewNPC((unsigned int)m_materialIdx);
-            goto END;
-        }
+        outProb = _getFailProb_Fortune(materialIdx, (unsigned int)m_materialIdx);
+        goto END;
+    }
+    if (m_materialKind == 2)
+    {
+        outProb = _getFailProb_NewNPC((unsigned int)m_materialIdx);
+        goto END;
     }
 END:;
 }
@@ -228,26 +254,36 @@ unsigned long Event_Upgrade_Jar::getBoosterIndex_byUpgradeCardIndex(unsigned lon
     // make_pair(low,high) 为 pair<short,short>→pair<int,int> 转换（P96/P270/P192）。
     std::map<unsigned long, short>::iterator itCard = m_boosterIndexMap.find(cardIdx);
     std::map<unsigned long, short>::iterator itBooster = m_boosterIndexMap.find(boosterIdx);
-    // ORIG：两处均 `!=`（ne）且为嵌套 if；low/high 手写交换（非 std::swap）。
-    if (itCard != m_boosterIndexMap.end())
+    // [b28d-solo-EventUpgradeJar] ORIG 0x080f4a78/0x080f4aa6 两条件各 test/je 后
+    // `mov $1/%eax … mov $0` 再 `test %al,%al; je`（bool 短路物化、值无槽往返）⇒
+    // P226 语句表达式包裹 && 短路（嵌套 if 会被 4.4 直跳、缺物化岛）。
+    // P74 补充②：ORIG 0x080f4a66/0x080f4a94 的 ne 调用 this=end 临时、实参=it
+    // ⇒ 源码把 end() 写在表达式左侧（`end() != it`）。
+    if (({ m_boosterIndexMap.end() != itCard && m_boosterIndexMap.end() != itBooster; }))
     {
-        if (itBooster != m_boosterIndexMap.end())
+        // ORIG 槽序：low=-0x2c（深）/high=-0x2a（浅）。用 short[2] 数组：ORIG
+        // 0x080f4b1e 的 make_pair 第二实参 `lea -0x2c(%ebp),%edx; add $0x2,%edx`
+        // 只在数组形下复现（独立标量恒直接 lea -0x2a；探针 /tmp/eu_probe8.cpp
+        // fA 独立标量/fB 数组对照）。
+        short lh[2];
+        lh[0] = itCard->second;
+        lh[1] = itBooster->second;
+        // ORIG 0x080f4af1..0x080f4b17：三次 `movzwl; xor; mov %ax` ⇒ 原码 XOR 交换
+        // （tmp 局部产 mov 三连，非 ORIG 形）。
+        // ORIG 0x080f4ae4 先装 low（-0x2c）后装 high（-0x2a），`cmp %ax,%dx; jle`
+        // ⇒ 跳过条件为 low<=high，写成 `low > high` 才得同装载序/极性。
+        if (lh[0] > lh[1])
         {
-            short low = itCard->second;
-            short high = itBooster->second;
-            if (high < low)
-            {
-                short tmp = high;
-                high = low;
-                low = tmp;
-            }
+            lh[0] ^= lh[1];
+            lh[1] ^= lh[0];
+            lh[0] ^= lh[1];
+        }
 
-            std::map<std::pair<int, int>, unsigned long>::iterator itRecipe =
-                m_recipeMap.find(std::make_pair(low, high));
-            if (itRecipe != m_recipeMap.end())
-            {
-                return itRecipe->second;
-            }
+        std::map<std::pair<int, int>, unsigned long>::iterator itRecipe =
+            m_recipeMap.find(std::make_pair(lh[0], lh[1]));
+        if (m_recipeMap.end() != itRecipe)
+        {
+            return itRecipe->second;
         }
     }
     return 0;
@@ -273,10 +309,18 @@ bool Event_Upgrade_Jar::isNewNPC() const
 // 段：`[group info]`（npcCount + 索引 map + 配方 map）、`[fortune index]`（材料索引）、
 // `[fortune fail rate]`（分段失败率）、`[event upgrade table]`（折扣率 + NPC 脚本）、
 // `[upgrade max]`。任一 Scan 失败返回 false（0）。
+// [b28d-solo-EventUpgradeJar] N 封顶：ORIG 405 insn / 我方 404 insn，p167 调用点
+// 43/43 CLEAR（--demangle），残余为跨版本结构性差异：① 4.4 对本函数**大 body**
+// 的段分支反转布局（`jne <body>; jmp 循环头` vs ORIG `je <下一段>; body; jmp 循环头`；
+// 小 body 探针 /tmp/eu_probe9.cpp f/g/h 三形均产 ORIG 形 ⇒ 属 4.4 reorder-blocks
+// 启发式，非源形可控；__builtin_expect 实测反劣 404→407）；② 槽位分配
+// （ORIG cardIdx=-0x28/boosterIdx=-0x24/pairCount=-0x20/i=-0x1c vs 4.4 反向，
+// N82/N98 族）。已修项：id==-1 只 break 内层 while（真 bug）、string 声明序、
+// id/recipeIndex 头部初始化、ScanType EOF 尾岛（P164）、(n+1)*n 书写序（P243 姊妹）。
 bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
 {
-    if (info == 0 || path == 0)
-        return false;
+    // [b28d-solo-EventUpgradeJar] P140/P171：ORIG 0x089687d1 首条即
+    // `loadRDARScriptFile("", path)`，无 info/path 空指针防御 ⇒ 删除多余守卫。
     if (!loadRDARScriptFile("", path))
         return false;
 
@@ -285,16 +329,25 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
     // ② 全部 ScanInt/ScanFloat 走 bool* 重载 `x = ScanInt(&ok); if (!ok)`；
     // ③ 两个 string 局部（ORIG C1Ev/D1Ev 各 1）；
     // ④ 主循环 for(;;) 各段尾回头部；失败 return false / EOF return true。
-    std::string token;
-    std::string unusedToken;   // ORIG 第二 string 局部（0x08968811 C1Ev / 0x08968d31 D1Ev）
+    // [b28d-solo-EventUpgradeJar] ORIG 扫描/比较用的是**第二个** string（-0x70，
+    // 0x08968841/0x08968857 实证）；第一个 string（-0x6c）全程未被读取 ⇒ 声明序
+    // unusedToken 在前、token 在后。id/recipeIndex 在函数头初始化（0x0896881a
+    // `movl $0,-0x78`、0x08968821 `movl $0,-0x2c`），循环内 id 再显式重置。
+    std::string unusedToken;   // ORIG 第一 string 局部（0x08968806 C1Ev / -0x6c，未读）
+    std::string token;         // ORIG 第二 string 局部（0x08968811 C1Ev / -0x70）
     (void)unusedToken;
     bool ok = false;
-    ST_Event_Upgrade_Jar_EventNPCs_Script npc;   // ORIG 函数级对象（0x08968828 C1，-0x84）
+    unsigned int id = 0;       // ORIG -0x78
+    int recipeIndex = 0;       // ORIG -0x2c
+    ST_Event_Upgrade_Jar_EventNPCs_Script npc;   // ORIG 函数级对象（0x08968828 C1，-0x80）
 
     for (;;)
     {
+        // [b28d-solo-EventUpgradeJar] P164：ORIG 0x08968851 `jne 08968cfd`（尾部
+        // EOF 块 `nop; mov $1,%ebx; jmp 清理`）⇒ 用 break + 循环外统一 return true
+        // 复现尾部共享块（就地 `return true` 反产 je 跳过形）。
         if (!ScanType(token, true))
-            return true;
+            break;
 
         if ("[group info]" == token)
         {
@@ -307,20 +360,29 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
             for (unsigned short g = 0; g < info->m_npcCount; ++g)
             {
                 // ORIG make_pair 模板参 <unsigned int&, unsigned short&> ⇒ id 为 unsigned。
-                unsigned int id = 0;
-                id = ScanInt(&ok);
-                if (!ok)
-                    return false;
-                if (id == -1)
-                    break;
-                info->m_boosterIndexMap.insert(std::make_pair(id, g));
+                id = 0;
+                // [b28d-solo-EventUpgradeJar] 真 bug 修正：ORIG 0x089688d8 `je +0x15b`
+                // 落 g++（0x0896892c）——id==-1 只 break **内层 while**、继续下一轮 g；
+                // 原码 break 出 for 会终止整个 [group info] 扫描。
+                while (true)
+                {
+                    id = ScanInt(&ok);
+                    if (!ok)
+                        return false;
+                    if (id == -1)
+                        break;
+                    info->m_boosterIndexMap.insert(std::make_pair(id, g));
+                }
             }
 
             // 配方对：`<cardIdx> <boosterIdx> <recipeIndex>`，共 npcCount*(npcCount+1)/2 组。
-            int pairCount = (int)((unsigned int)info->m_npcCount * (info->m_npcCount + 1U)) >> 1;
+            // [b28d-solo-EventUpgradeJar] ORIG 0x08968959 先 `lea 0x1(%eax),%edx`
+            // （算 n+1）再读 n 入 eax、`imul %edx,%eax` ⇒ 源把 (n+1) 写在左侧。
+            int pairCount = (int)((unsigned int)(info->m_npcCount + 1U) * info->m_npcCount) >> 1;
             for (int i = 0; i < pairCount; ++i)
             {
-                int cardIdx = 0, boosterIdx = 0, recipeIndex = 0;
+                int cardIdx;
+                int boosterIdx;
                 cardIdx = ScanInt(&ok);
                 if (!ok)
                     return false;
@@ -333,8 +395,12 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
                 info->m_recipeMap[std::make_pair(cardIdx - 1, boosterIdx - 1)] =
                     (unsigned long)recipeIndex;
             }
+            // [b28d-solo-EventUpgradeJar] ORIG 段尾 `jmp 主循环头`（0x08968a48）、
+            // 失败比较 `je 下一段` ⇒ 独立 if + continue（else-if 链被 4.4 排成
+            // 「jne body; jmp 循环头」反形）。
+            continue;
         }
-        else if ("[fortune index]" == token)
+        if ("[fortune index]" == token)
         {
             // ORIG 0x08968a6e..0x08968b60：固定 4 次（直线，无循环、无 -1 终止），
             // 每次 `push_back((unsigned long)ScanInt(&ok))`（右值临时槽）。
@@ -355,8 +421,9 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
             if (!ok)
                 return false;
             info->m_materialIndices.push_back((unsigned long)idx);
+            continue;
         }
-        else if ("[fortune fail rate]" == token)
+        if ("[fortune fail rate]" == token)
         {
             // ORIG 0x08968b86：逗号条件 while((groupIdx=ScanInt(&ok)), ok)；
             // 第二个值丢弃、第三个为 rate；首值失败仅回主循环（break），
@@ -373,8 +440,9 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
                     return false;
                 info->m_failRateByFortune[groupIdx - 1].push_back((unsigned int)rate);
             }
+            continue;
         }
-        else if ("[event upgrade table]" == token)
+        if ("[event upgrade table]" == token)
         {
             // ORIG 0x08968c35：ScanFloat(&ok) 直存 m_discountRate（fstps 序）。
             float discount = ScanFloat(&ok);
@@ -392,8 +460,9 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
                     return false;
                 info->m_npcScripts.push_back(npc);
             }
+            continue;
         }
-        else if ("[upgrade max]" == token)
+        if ("[upgrade max]" == token)
         {
             // ORIG 0x08968cd7：先写 m_upgradeMax 字段，后查 ok。
             info->m_upgradeMax = ScanInt(&ok);
@@ -401,6 +470,7 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
                 return false;
         }
     }
+    return true;
 }
 
 // ORIG 0x08968d59。把 EventUpgradeJarInfo 的 NPC 脚本填进 upgrade_table_t 的 m_infos
@@ -408,7 +478,11 @@ bool importEventUpgradeJarScript(EventUpgradeJarInfo* info, const char* path)
 // 的折扣基数应用 m_discountRate。任一指针为空返回 0。
 bool updateUpgradeTableFromEventUpgradeJarScript(upgrade_table_t* table, EventUpgradeJarInfo* info)
 {
-    if (table == 0 || info == 0)
+    // [b28d-solo-EventUpgradeJar] P133：ORIG 0x08968d60/0x08968d70 两条独立守卫
+    // 各发 `cmpl $0; jne <下一检查>` + fall-through 早退块（合并 `||` 反产 je 跳早退）。
+    if (table == 0)
+        return false;
+    if (info == 0)
         return false;
 
     for (unsigned int i = 0; i < info->m_npcScripts.size(); ++i)
@@ -424,11 +498,19 @@ bool updateUpgradeTableFromEventUpgradeJarScript(upgrade_table_t* table, EventUp
 
     // 对 upgrade_table_t 主体表（m_body）的 100 项应用折扣：
     // 绝对偏移 (i+0x28)*4+4 处为 int 计数值，乘 m_discountRate 后四舍五入回写。
-    // （ORIG： *(int*)(param_1 + (i+0x28)*4+4) = round(discount * 旧值)）
+    // （ORIG： *(int*)(param_1 + (i+0x28)*4+4) = round(旧值 * discount)）
+    // [b28d-solo-EventUpgradeJar] 用 dword 下标视图：ORIG 0x08968e0b 每轮
+    // `mov i,%ecx/edx; add $0x28,%edx; mov 0x4(%eax,%edx,4),%eax` 两次重算
+    // （P157 无缓存、P48 双访问）；m_i32 相对 m_body(+0xc) 的等效下标 = i+0x26。
+    // N 封顶（P30/N81 族）：ORIG 基址 table+4/索引 i+0x28；我方视图基址只能
+    // m_bodyView(+0xc) ⇒ `lea 0x26(%eax),%edx; mov 0xc(%eax,%edx,4)` —— 同一地址
+    // 0xa4+4i，仅 4.1/4.4 对「前导成员偏移」的 add/disp 拆分常数不同
+    // （探针 /tmp/eu_probe7.cpp fA 复证）。指令数 83=83 全等、调用点 p167 全清。
+    // 乘法书写序按 P243：ORIG 先 fildl 旧值（-0x1c）后 flds 折扣率 ⇒ 旧值在左。
     for (unsigned int i = 0; i < 100; ++i)
     {
-        int off = (i + 0x28) * 4 + 4;
-        UPG_TBL_INT(table, off) = (int)(info->m_discountRate * (float)UPG_TBL_INT(table, off));
+        UPG_TBL_I32(table, (int)i + 0x26) =
+            (int)((float)UPG_TBL_I32(table, (int)i + 0x26) * info->m_discountRate);
     }
 
     return true;

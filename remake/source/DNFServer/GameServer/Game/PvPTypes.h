@@ -190,7 +190,10 @@ public:
     struct UserSlot
     {
         CUser* user;         // 槽内 +0x00
-        unsigned char flag;  // 槽内 +0x04（胜方标记）
+        // b28d-solo-PvpUserTable：ORIG GetTeamVsTeamPoint 0x085d4db6
+        //   `movzbl 0x4(%eax),%eax; xor $0x1,%eax; test %al,%al; je` ⇒ 字段 bool
+        //   （P248 档②）；uchar 生 `cmp $0x1,%al; je`。宽度仍 1B，sizeof/偏移不变。
+        bool flag;           // 槽内 +0x04（胜方标记）
     };
 
     float m_teamVsTeam[8][8]; // +0x000 队伍间分差矩阵
@@ -198,7 +201,10 @@ public:
     UserSlot m_users[8][8];   // +0x120 用户槽表（8 字节/项）
     int m_winTeam;            // +0x320
     float m_minPoint[8];      // +0x324 各队伍最小分（GetLeavePenalty）
-    unsigned char m_dan[8];   // +0x344 丹位标记
+    // b28d-solo-PvpUserTable：ORIG GetResult 0x085d511d
+    //   `movzbl 0x344(%edx,%eax,1),%eax; xor $0x1,%eax; test %al,%al; je` ⇒ bool
+    //   元素（P248 档②）。宽度仍 1B/元素，sizeof/偏移不变。
+    bool m_dan[8];            // +0x344 丹位标记
 };
 
 static_assert(sizeof(PvpUserTable) == 0x34c, "PvpUserTable ABI drift");
@@ -217,7 +223,15 @@ public:
     void Clear();
     bool IsRecv(int flag) const;
 private:
-    char m_pad[0x8];
+    // [b28d-solo-PvP_Room] P235/P311：具名数组视角。ORIG IsRecv 0x085d5ff0 为
+    // `mov 0xc(%ebp),%eax; mov 0x8(%ebp),%edx; movzbl (%edx,%eax,1),%eax`
+    // （index 先、base 后）；reinterpret_cast 视图形在 4.4 恒 base 先载，
+    // 完整类型成员直访问才复现 ORIG 序。sizeof/偏移零变化（仍 8B，全 byte）。
+    union
+    {
+        char m_pad[0x8];
+        bool m_bool[0x8];
+    };
 };
 
 // ---- IMatchingSystem / CMatchingSystem（0x18） ----
@@ -237,7 +251,9 @@ class IMatch;
 class CMatchingSystem
 {
 public:
-    CMatchingSystem();
+    // [b28d-Main 代落·S215 N100/P216] ctor 加 throw()：ORIG `new CMatchingSystem`
+    // 无 EH cleanup（p167 EXTRA _ZdlPv×1）；体仅置 6 个指针为 0，不可能抛出。
+    CMatchingSystem() throw();
     ~CMatchingSystem();
     void* GetMatchingSystem(ENUM_PVP_MATCHING_TYPE type);
 private:

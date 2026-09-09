@@ -2159,9 +2159,10 @@ TimerNotResponseUserTimeout::~TimerNotResponseUserTimeout() {}
 
 // ORIG T 0x0863695a (_ZN27TimerNotResponseUserTimeout12dispatch_sigEiij)
 // [b28d-30] 复核 DIFF：帧差 4 + 槽位差（N7/N82 族），ORIG 0x0863695a。
-// [b28d-solo-TimerDispatcher] 判词 N82+P292 封顶：5×movl 零清已修（int[5] 缓冲）；
-// 残差 = 全帧槽平移 + GetPeerIP2 结果 ORIG 驻 %ebx vs 4.4 槽化；IsRecvEvent 需 bool
-// （CUser.h 冻结，已上报 Main）。
+// [b28d-solo-TimerDispatcher2] 本轮改善：P231 纯 register 使 GetPeerIP2 结果回 %ebx、
+// push ebx/帧 0x44/user 槽 -0xc 全对齐、68/68。残差 = ipBuf 块级槽序（ORIG -0x30..-0x20
+// vs 4.4 -0x20..-0x10，N82/P212）+ 成员偏移取址 add-vs-lea（N107）；IsRecvEvent 需 bool
+//（CUser.h 冻结，已上报 Main）。
 int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 0xc);
@@ -2179,7 +2180,9 @@ int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
         // 以 5×`movl $0x0,-0x30..-0x20(%ebp)` 清零（4.1 对 20B 块按 dword 展开）
         // ⇒ 源形用 int[5] 具名缓冲（逐字节 movb 反劣），语义同为全零 IP 缓冲。
         int ipBuf[5] = {0};
-        const char* ipStr =
+        // [b28d-solo-TimerDispatcher2] ORIG `mov %eax,%ebx`（结果驻 %ebx 跨 cMyTrace
+        // ctor，无栈槽）⇒ P231/P307 纯 register 存储类提示（非 asm 绑定，P0 合规）。
+        register const char* ipStr =
             user->m_network.GetPeerIP2((char*)ipBuf, 0x14);  // +0xe0
         cMyTrace trace(
             __PRETTY_FUNCTION__,
@@ -2695,11 +2698,13 @@ int TimerScheduleTenSecond::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*
     // ORIG 0x8637936：遍历 +0x22c 用户 map；get_state()>=2 且 getAntibotKey()>=0
     // 时经 s_antibotChecker_ 虚槽 +0x14（antibot 检查，签名 (void*, seq, 0, accId)）
     // 发起防机器人校验；循环完 registNextTimer(10) 返回 1。
-    // [b28d-solo-TimerDispatcher] P96/P270：p167 差集 MISSING = const_iterator 族
-    // （C1ERKS_/ptEv/ppEv/ne 全 const 版）、EXTRA = 非 const 版 ⇒ 原码是 const map
-    // 引用 + const_iterator（ORIG 0x08637936）。
+    // [b28d-solo-TimerDispatcher2] P167 差集 MISSING = const_iterator 族
+    // （C1ERKS_ ×2 = begin()/end() 的 iterator→const_iterator 转换 + const 版
+    // ptEv/ppEv/ne）、EXTRA = 非 const 版 ⇒ 原码是**非 const map 引用 + const_iterator
+    // 循环变量**（若 map 引用本身 const 则 begin/end 直返 const_iterator、C1ERKS_ 不再
+    // 发射，故旧「改 const 引用」形计数恶化）。ORIG 0x08637936。
     std::map<unsigned int, CUser*>& users = G_CGameManager()->getUserByAccIdMap();
-    for (std::map<unsigned int, CUser*>::iterator it = users.begin();
+    for (std::map<unsigned int, CUser*>::const_iterator it = users.begin();
          it != users.end(); ++it)
     {
         CUser* user = it->second;
@@ -3700,26 +3705,32 @@ Timer_DungeonInoutOpenTime::~Timer_DungeonInoutOpenTime() {}
 // [b28d-solo-TimerDispatcher] P157：ORIG 每个字段都重新 `it->ptEv()`（无
 // `it->second` 引用缓存），旧码 `const STDungeonInoutTime& w = it->second;`
 // 引入指针槽 -0xc 且只调一次 ptEv ⇒ 改回逐字段 `it->second.m_xxx`。
-// [b28d-solo-TimerDispatcher] 判词 N82 封顶：P157 逐字段重访问 + P56 if/return 已修
-// （73→78 条）；残差 = hour/min 槽号平移 8（ORIG -0x14/-0x10 vs 4.4 -0xc/-0x10）。
+// [b28d-solo-TimerDispatcher2] P167 差集（MISSING G_CDataManager/ne/ptEv、EXTRA eq）
+// 判明原码形：①时间读取（getCurSec/localtime_r/hour/min）在 find **之前**；
+// ②find 与 end 各自重发 `G_CDataManager()`+`lea 0x130`（无 map 引用局部缓存，P157/P183）；
+// ③正极性 `if (it != end) { if (cond) return true; } return false;`（P220，ORIG ne）。
 bool Timer_DungeonInoutOpenTime::checkDungeonInoutTime(int dungeonIdx)
 {
-    std::map<int, STDungeonInoutTime>& dungeonInout =
-        G_CDataManager()->m_serverParameter.m_dungeonInoutc8;
-    std::map<int, STDungeonInoutTime>::iterator it = dungeonInout.find(dungeonIdx);
-    if (it == dungeonInout.end())
-        return false;
     const time_t nowSec = static_cast<time_t>(GlobalData::s_systemTime_.getCurSec());
     struct tm timeBuf;
     struct tm* localTm = localtime_r(&nowSec, &timeBuf);
     const int hour = localTm->tm_hour;
     const int min = localTm->tm_min;
-    // [b28d-solo-TimerDispatcher] P56：ORIG 尾段 `mov $0; test %al; je; mov $1;
-    // jmp; mov $0` = `if (…) return true; return false;`（直 return 表达式
-    // 4.4 恒折直跳，无 bool 归一岛）。
-    if (hour >= it->second.m_startHour && hour <= it->second.m_endHour
-        && min >= it->second.m_startMin && min < it->second.m_endMin)
-        return true;
+    std::map<int, STDungeonInoutTime>::iterator it =
+        G_CDataManager()->m_serverParameter.m_dungeonInoutc8.find(dungeonIdx);
+    if (it != G_CDataManager()->m_serverParameter.m_dungeonInoutc8.end())
+    {
+        // [b28d-solo-TimerDispatcher2] P171 死写入照抄：ORIG 08639ab0 `mov (%eax),%eax;
+        // mov %eax,-0xc(%ebp)` 读 pair 首字段（key）后不再使用（第 5 次 ptEv 来源）。
+        const int itKey = it->first;
+        (void)itKey;
+        // [b28d-solo-TimerDispatcher] P56：ORIG 尾段 `mov $0; test %al; je; mov $1;
+        // jmp; mov $0` = `if (…) return true; return false;`（直 return 表达式
+        // 4.4 恒折直跳，无 bool 归一岛）。
+        if (hour >= it->second.m_startHour && hour <= it->second.m_endHour
+            && min >= it->second.m_startMin && min < it->second.m_endMin)
+            return true;
+    }
     return false;
 }
 
@@ -3806,8 +3817,10 @@ Timer_DungeonInoutCloseTime::Timer_DungeonInoutCloseTime() {}
 Timer_DungeonInoutCloseTime::~Timer_DungeonInoutCloseTime() {}
 // ORIG Timer_DungeonInoutCloseTime::dispatch_sig @ 0x863a1d0 (0x25f)
 // [b28d-30] 复核 DIFF：帧差 0x10（0xa4 vs 0xb4，N82/P210 族），ORIG 0x0863a1d0。
-// [b28d-solo-TimerDispatcher] 判词 N82 封顶：p3 槽 -0x58↔形参直读 + cMyTrace 槽平移
-// （-0x3c↔-0x50/-0x60）（150/150）。
+// [b28d-solo-TimerDispatcher2] P167 差集 MISSING G_CDataManager×1 ⇒ ORIG find/end
+// **各自重发** `G_CDataManager()`+`lea 0x130`（无 dataMgr 局部缓存，P157/P183）；
+// P0：ORIG 0863a213 `mov 0x14(%ebp),%eax; mov %eax,-0x58(%ebp)` 全程读 -0x58
+// ⇒ 原码有 p3 的具名副本（dungeonIdx），旧码形参直读。
 int Timer_DungeonInoutCloseTime::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     (void)p1; (void)p2;
@@ -3816,13 +3829,13 @@ int Timer_DungeonInoutCloseTime::dispatch_sig(int p1, int p2, unsigned int p3)
     struct tm* ptm = localtime_r(&now, &tmBuf);
     const int curHour = ptm->tm_hour;
     const int curMin = ptm->tm_min;
-    if (p3 == 0)
+    const unsigned int dungeonIdx = p3;   // ORIG -0x58 具名副本（P0 槽往返）
+    if (dungeonIdx == 0)
         return 0;
 
-    CDataManager* dataMgr = G_CDataManager();
     std::map<int, STDungeonInoutTime>::iterator it =
-        dataMgr->m_serverParameter.m_dungeonInoutc8.find(p3);
-    if (it != dataMgr->m_serverParameter.m_dungeonInoutc8.end())
+        G_CDataManager()->m_serverParameter.m_dungeonInoutc8.find(dungeonIdx);
+    if (it != G_CDataManager()->m_serverParameter.m_dungeonInoutc8.end())
     {
         ptm->tm_hour = curHour + 1;
         ptm->tm_min = it->second.m_endMin;   // 迭代器 value +0xc
@@ -3837,7 +3850,7 @@ int Timer_DungeonInoutCloseTime::dispatch_sig(int p1, int p2, unsigned int p3)
             return 0;
         }
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x93,
-                                    delay, 0, static_cast<unsigned int>(p3));
+                                    delay, 0, dungeonIdx);
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x14b1, 0);
             trace("ULTIMATE_LOG : ULTIMATE DUNGEON OPEN TIMER ON!!");
@@ -3847,8 +3860,8 @@ int Timer_DungeonInoutCloseTime::dispatch_sig(int p1, int p2, unsigned int p3)
         if (!GlobalData::s_power_manager->IsPowerWarEventOn() &&
             !GlobalData::s_villageMonsterMgr->OnEvent())
         {
-            G_CDataManager()->m_serverParameter.setDungeonOpen(p3, false);
-            G_GameWorld()->send_all_dungeon_inout_message(p3);
+            G_CDataManager()->m_serverParameter.setDungeonOpen(dungeonIdx, false);
+            G_GameWorld()->send_all_dungeon_inout_message(dungeonIdx);
             {
                 cMyTrace trace(__PRETTY_FUNCTION__, 0x14b8, 0);
                 trace("ULTIMATE_LOG : ULTIMATE DUNGEON CLOSE!!");
@@ -4076,8 +4089,8 @@ int Timer_EventManagement::dispatch_sig(int p1, int p2, unsigned int p3)
 Timer_QuickPartyWaitingPartyMatching::Timer_QuickPartyWaitingPartyMatching() {}
 Timer_QuickPartyWaitingPartyMatching::~Timer_QuickPartyWaitingPartyMatching() {}
 // ORIG Timer_QuickPartyWaitingPartyMatching::dispatch_sig @ 0x863ac18 (0x17e)
-// [b28d-30] 复核 DIFF：帧差 0x10（0x28 vs 0x38）+ 槽差（N82/P210 族），ORIG 0x0863ac18。
-// [b28d-solo-TimerDispatcher] 判词 N82/P210 封顶：帧差 0x10 + 槽差（113/117）。
+// [b28d-solo-TimerDispatcher2] 已 AE：P52 链式 receiver 内联（去 game/mgr 槽）+
+// 短路条件内联去 bool cancelNow 槽 ⇒ 帧 0x38→0x28、全槽回正、113/113。
 int Timer_QuickPartyWaitingPartyMatching::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     QuickParty::CQuickParty* quickParty =
@@ -4103,37 +4116,33 @@ int Timer_QuickPartyWaitingPartyMatching::dispatch_sig(int p1, int p2, unsigned 
     }
 
     // ORIG：!(cnt < count) && !(is_change_quick_party_count()) 时取消
+    // [b28d-solo-TimerDispatcher2] ORIG 无 firstCnt/cancelNow 槽（`movsbl %al,%eax;
+    // cmp -0xc(%ebp),%eax; jl skip` + `xor $1; test; je skip` 两直跳）⇒ 短路条件
+    // 内联（旧具名 bool 槽多 4 条物化 + 帧 +0x10）。
+    if (static_cast<int>(quickParty->get_first_matching_cnt()) >= quickPartyCount &&
+        !quickParty->is_change_quick_party_count())
     {
-        bool cancelNow;
-        const int firstCnt = static_cast<int>(quickParty->get_first_matching_cnt());
-        if (firstCnt < quickPartyCount)
-        {
-            cancelNow = false;
-        }
-        else
-        {
-            cancelNow = !quickParty->is_change_quick_party_count();
-        }
-        if (cancelNow)
-        {
-            if (!cancel_quick_party(quickParty))
-                return 0;
-        }
+        if (!cancel_quick_party(quickParty))
+            return 0;
     }
 
     QuickParty::STQuickPartyPoolMap_Key poolKey;   // ORIG ctor W @0x082344ca
     poolKey.m_dungeonIndex = quickParty->get_dungeon_index();
     poolKey.m_dungeonDiff  = static_cast<unsigned char>(quickParty->get_dungeon_diff());
 
-    CGameManager* game = G_CGameManager();
-    QuickParty::CQuickPartySystemManager* mgr = game->GetQuickPartySystemManager();
-    mgr->start_game(quickParty, poolKey);
+    // [b28d-solo-TimerDispatcher2] P52/P183：ORIG 无 game/mgr 具名槽（`call
+    // G_CGameManager; mov %eax,(%esp); call GetQuickPartySystemManager` 链式直传）
+    // ⇒ 内联 receiver 链，帧 0x38→0x28、全槽回正。
+    G_CGameManager()->GetQuickPartySystemManager()->start_game(quickParty, poolKey);
     return 1;
 }
 
 // ORIG T 0x863ad96（cancel_quick_party.md 全文转写；成员函数，需 TimerDispatcher.h 补声明）
 // [b28d-30] 复核 DIFF：帧差 0x10（0x20 vs 0x30）+ 槽差（N82/P210 族），ORIG 0x0863ad96。
-// [b28d-solo-TimerDispatcher] 判词 N82/P210 封顶：帧差 0x10 + 槽差（65/69）。
+// [b28d-solo-TimerDispatcher2] P194/P222 + P52：ORIG `test %al,%al; je <mov $1,%ebx>`
+// = **正极性包裹**（旧码 `!call` 多 xor 物化）；ORIG 无 mgr 具名槽（`call
+// GetQuickPartySystemManager; mov %eax,(%esp)` 直传）⇒ 内联 receiver 链；party 槽
+// 由 -0x10 回 -0xc（ORIG）。
 bool Timer_QuickPartyWaitingPartyMatching::cancel_quick_party(
     QuickParty::CQuickParty* quickParty)
 {
@@ -4142,25 +4151,24 @@ bool Timer_QuickPartyWaitingPartyMatching::cancel_quick_party(
     {
         return false;
     }
-    QuickParty::CQuickPartySystemManager* mgr =
-        G_CGameManager()->GetQuickPartySystemManager();
-    if (!mgr->cancel_quick_party(party, true, static_cast<CUser*>(0)))
+    if (G_CGameManager()->GetQuickPartySystemManager()->cancel_quick_party(
+            party, true, static_cast<CUser*>(0)))
     {
-        return true;
+        PacketGuard packet;
+        packet.clear();
+        packet.put_header(0, 0x17f);
+        packet.finalize(true);
+        party->send_to_party(packet);
+        return false;
     }
-    PacketGuard packet;
-    packet.clear();
-    packet.put_header(0, 0x17f);
-    packet.finalize(true);
-    party->send_to_party(packet);
-    return false;
+    return true;
 }
 
 Timer_QuickPartyWaitingStartGame::Timer_QuickPartyWaitingStartGame() {}
 Timer_QuickPartyWaitingStartGame::~Timer_QuickPartyWaitingStartGame() {}
 // ORIG Timer_QuickPartyWaitingStartGame::dispatch_sig @ 0x863ae82 (0x238)
-// [b28d-30] 复核 DIFF：帧差 0x10（0x40 vs 0x50）+ 槽差（N82/P210 族），ORIG 0x0863ae82。
-// [b28d-solo-TimerDispatcher] 判词 N82/P210 封顶：帧差 0x10 + 槽差（145/148）。
+// [b28d-solo-TimerDispatcher2] 已 AE：P52 内联 getManager 链（去 managerInfo 槽）+
+// P231 纯 register managerName ⇒ `mov %eax,%ebx` 与 ORIG 全等、帧 0x50→0x40；145/145。
 int Timer_QuickPartyWaitingStartGame::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -4173,8 +4181,10 @@ int Timer_QuickPartyWaitingStartGame::dispatch_sig(int p1, int p2, unsigned int 
     party->send_quick_party_matching_result(false, (CUser*)0);
     party->set_quick_party(false);
 
-    CUserCharacInfo* managerInfo = party->getManager();
-    const char* managerName = managerInfo->getCurCharacName();
+    // [b28d-solo-TimerDispatcher2] ORIG `call getManager; mov %eax,(%esp); call
+    // getCurCharacName; mov %eax,%ebx`（无 managerInfo 槽、结果落 %ebx 跨 cMyTrace
+    // ctor）⇒ P52 链式内联 + P231 纯 register 提示。
+    register const char* managerName = party->getManager()->getCurCharacName();
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x16a8, 0);
         trace("QUICK_PARTY_LOG : PARTY DESTROY AND LEAVE DUNGEON !! : MANAGER (%s)", managerName);
@@ -4364,13 +4374,14 @@ Timer_NoticeEmergencyPatchMessage::~Timer_NoticeEmergencyPatchMessage() {}
 //   cMyTrace(PRETTY,0x1849,0)("Emergency Patch Message Received")；
 // !=0 → RegistNextTimer()；return 1。
 // [b28d-30] 复核 DIFF：push edi 缺失 + 帧差 4（0x43c vs 0x440，N82/P210 族），ORIG 0x0863bxxx。
-// [b28d-solo-TimerDispatcher] 判词 N82/P210 封顶：push edi 缺失 + 帧差 4
-// （0x43c↔0x440）+ PacketGuard 槽平移（-0x38↔-0x1c）（114/111）。
+// [b28d-solo-TimerDispatcher2] P167 差集 EXTRA memset×1 ⇒ ORIG 的 0x400 字节清零是
+// **内联 rep stos**（N78/P214③/P312 突破口：`char buf[N] = {0}` 复现 4.1 rep stos，
+// 显式 memset 调用在 4.4 恒为 call）⇒ 改数组零初始化形。残差（push edi/帧差/槽平移）
+// 为 N82/P210 族。
 int Timer_NoticeEmergencyPatchMessage::dispatch_sig(int /*p1*/, int /*p2*/,
                                                     unsigned int /*p3*/)
 {
-    char local_43c[0x400];              // ORIG rep stos ecx=0x100（dword）→ 清 0x400 字节
-    memset(local_43c, 0, sizeof(local_43c));
+    char local_43c[0x400] = {0};        // ORIG rep stos ecx=0x100（dword）→ 清 0x400 字节
     PacketGuard packet;
     packet.put_header(0, 0xc);
     packet.put_byte(0);
@@ -4532,8 +4543,10 @@ int Timer_CreateDnfDbLoad::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p
 // ORIG T 0x0815ba94（_ZN26DBSelectCreateDnfEventInfo11makeRequestEv）
 // 报告：docs/class_func_reports/DBSelectCreateDnfEventInfo/makeRequest.md：
 // 事件未在进行中（或 receiver 空）时发 Taiwan DbThread 0x9 选择请求。
-// [b28d-solo-TimerDispatcher] 判词 P75/N7 封顶：虚调用 this 装载序（ORIG 先压参
-// 0x4(%esp) 后载 this；4.4 恒 this-first），余行全等（69/69）。
+// [b28d-solo-TimerDispatcher2] P277 边界复核：ORIG 虚调用段 `movl $0x0,0x4(%esp)`
+// （**立即数**实参）先于 `mov -0xc(%ebp),%eax`（this）。P277 探针的实参是复杂
+// 表达式（引用解引用）才成立；具名派生指针形与点号形 `(*event).IsEventing(0)`
+// 实测均 this-first（本件实参为立即数 0）⇒ 装载序不可翻，判 N7/P75 封顶（69/69）。
 void DBSelectCreateDnfEventInfo::makeRequest()
 {
     CEventCreateDnf* event =

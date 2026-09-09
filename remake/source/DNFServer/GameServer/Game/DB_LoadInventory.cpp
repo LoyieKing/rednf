@@ -66,9 +66,18 @@ DB_LoadInventory::~DB_LoadInventory()
 // GetUserAvatar/creature 槽 reset/GetUserCreature/_getCharacInvenExpand/
 // GetItemLock/_GetEquipMaxItemLevel，任一步失败 throw int（1/2/3/4/6/7），
 // catch 后置 sig->m_result=1 继续 SendResult。错误行号 0x2364..0x23a4。
+// b28d-solo-DB_LoadInventory：P227 全表达式临时链（6 处 trace 的 ebx 保活）
+// + 尾 SendResult 具名 bool 早返已归位；残差 = 4.4 EH 帧/槽布局（sub 0x94 vs
+// 0x84、sig -0x1c vs -0x14、catch 段 __cxa_get_exception_ptr + _Unwind_Resume）
+// ⇒ N104/跨版本 EH 封顶；p167 差集 MISSING=0（语义完整）。
 // ============================================================================
 bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
 {
+    // P212/P309 试验：全头部声明 + 声明序按 ORIG 槽深序（sig -0x14 / err -0x10
+    // / i -0xc），复现 4.1「先声明深」的标量区布局。
+    SIG_LOAD_INVENTORY* sig;
+    int err;
+    int i;
     if (!DBDispatcher::dispatch(userIdx, slot, stream))
     {
         return false;
@@ -76,7 +85,7 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
 
     // Stream::GetOutBuffer<SIG_LOAD_INVENTORY>(param_3)（模板实例本 TU 隐式
     // 产出，ORIG 对应 W 实例符号）。
-    SIG_LOAD_INVENTORY* sig = stream->GetOutBuffer<SIG_LOAD_INVENTORY>();
+    sig = stream->GetOutBuffer<SIG_LOAD_INVENTORY>();
     if (sig == 0)
     {
         return false;
@@ -86,22 +95,22 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
     {
         if (!GetUserInven(sig))
         {
-            cMyTrace t(__PRETTY_FUNCTION__,
-                       0x2364, 5);
-            t("DB_LoadInventory::dispatch, GetUserInven ERROR charac_no=%u",
-              sig->m_characNo);
+            // P227 全表达式临时链：实参在 ctor 前求值并入 %ebx 跨 ctor 保活
+            // （ORIG `mov 0x4(%eax),%ebx` + `mov %ebx,0x8(%esp)`）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x2364, 5)
+                ("DB_LoadInventory::dispatch, GetUserInven ERROR charac_no=%u",
+                 sig->m_characNo);
             throw 1;
         }
         if (!GetUserAvatar(sig))
         {
-            cMyTrace t(__PRETTY_FUNCTION__,
-                       0x2369, 5);
-            t("DB_LoadInventory::dispatch, GetUserAvatar ERROR charac_no=%u",
-              sig->m_characNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0x2369, 5)
+                ("DB_LoadInventory::dispatch, GetUserAvatar ERROR charac_no=%u",
+                 sig->m_characNo);
             throw 2;
         }
         // 140 个 creature 槽 + 1 个尾槽 reset（Inven_Item::reset W 0x080cb7d8）。
-        for (int i = 0; i < 0x8c; ++i)
+        for (i = 0; i < 0x8c; ++i)
         {
             sig->m_invenType3[i].reset();
         }
@@ -111,38 +120,34 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
         {
             if (!GetUserCreature(sig))
             {
-                cMyTrace t(__PRETTY_FUNCTION__,
-                           0x2379, 5);
-                t("DB_LoadInventory::dispatch, GetUserCreature ERROR charac_no=%u",
-                  sig->m_characNo);
+                cMyTrace(__PRETTY_FUNCTION__, 0x2379, 5)
+                    ("DB_LoadInventory::dispatch, GetUserCreature ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 throw 3;
             }
         }
-        int err = _getCharacInvenExpand(sig);
+        err = _getCharacInvenExpand(sig);
         if (err != 0)
         {
-            cMyTrace t(__PRETTY_FUNCTION__,
-                       0x2381, 5);
-            t("DB_LoadInventory::dispatch, _getCharacInvenExpand ERROR"
-              " charac_no=%u, line(%d)", sig->m_characNo, err);
+            cMyTrace(__PRETTY_FUNCTION__, 0x2381, 5)
+                ("DB_LoadInventory::dispatch, _getCharacInvenExpand ERROR"
+                 " charac_no=%u, line(%d)", sig->m_characNo, err);
             throw 4;
         }
         err = GetItemLock(sig->m_characNo,
                           &sig->m_locks[0]);
         if (err != 0)
         {
-            cMyTrace t(__PRETTY_FUNCTION__,
-                       0x2395, 5);
-            t("DB_LoadInventory::dispatch, GetItemLock ERROR charac_no=%u, line(%d)",
-              sig->m_characNo, err);
+            cMyTrace(__PRETTY_FUNCTION__, 0x2395, 5)
+                ("DB_LoadInventory::dispatch, GetItemLock ERROR charac_no=%u,"
+                 " line(%d)", sig->m_characNo, err);
             throw 6;
         }
         if (!_GetEquipMaxItemLevel(sig))
         {
-            cMyTrace t(__PRETTY_FUNCTION__,
-                       0x23a4, 5);
-            t("DB_LoadInventory::dispatch, _GetEquipMaxItemLevel ERROR charac_no=%u",
-              sig->m_characNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0x23a4, 5)
+                ("DB_LoadInventory::dispatch, _GetEquipMaxItemLevel ERROR"
+                 " charac_no=%u", sig->m_characNo);
             throw 7;
         }
     }
@@ -150,7 +155,14 @@ bool DB_LoadInventory::dispatch(int userIdx, int slot, Stream* stream)
     {
         sig->m_result = 1;      // ORIG catch handler @0x84aa6a：+0x4030 置 1
     }
-    return SendResult(userIdx, slot, sig);
+    // ORIG 尾形：SendResult 结果落具名 bool 槽 -0x15 → `xor $1; test; je` 分支，
+    // 成功 `mov $1,%eax`、失败 `mov $0,%eax`（直接 return 调用被 4.4 tail 化）。
+    bool sent = SendResult(userIdx, slot, sig);
+    if (!sent)
+    {
+        return false;
+    }
+    return true;
 }
 
 // ============================================================================
@@ -190,6 +202,9 @@ bool DB_LoadInventory::SendResult_forchina(int userIdx, int slot,
 // _GetTagCharacInven。blob 溢出/uncompress 失败 throw unsigned int
 // （0x255a/0x255c/0x2563/0x2565/0x2567/0x256e），catch 后 logFormat
 // 0x259c 并返 0。错误行号 0x24cb..0x25b2。
+// b28d-solo-DB_LoadInventory：ok 变量（14 处共用槽）+ P227 临时链 +
+// len/binLen 副本（P171，声明序对齐 ORIG 槽）已归位；残差 = 4.4 标量分区
+// （ok -0x25 vs -0x31、binLen 副本整体深 4）⇒ N82 封顶；p167 MISSING=0。
 // ============================================================================
 bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
 {
@@ -199,103 +214,112 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
     char equipBuf[0x37a] = {0};
     char invenBuf[0x473e] = {0};
     char creatureBuf[0x1d36] = {0};
-    unsigned int equipLen = 0x37a;      // ORIG local_150（解压 in/out 容量）
-    unsigned int invenLen = 0x473e;     // ORIG local_154
-    unsigned int creatureLen = 0x1d36;  // ORIG local_14c
+    // ORIG 标量区（4.1 先声明浅）：creatureLen -0x148 / equipLen -0x14c /
+    // invenLen -0x150；binLen 副本 -0x30/-0x2c/-0x28 成对初始化（P171）。
+    unsigned int creatureLen = 0x1d36;  // ORIG -0x148
+    unsigned int equipLen = 0x37a;      // ORIG -0x14c（解压 in/out 容量）
+    unsigned int invenLen = 0x473e;     // ORIG -0x150
+    int invenBinLen = invenLen;         // ORIG -0x30
+    int equipBinLen = equipLen;         // ORIG -0x2c
+    int creatureBinLen = creatureLen;   // ORIG -0x28
+    bool ok;                            // ORIG -0x31（所有 db 检查共用槽）
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect money,coin,inventory,equipslot,pay_coin,event_coin,"
                   "creature,creature_flag,inventory_capacity from inventory"
                   " where charac_no=%u", sig->m_characNo);
-    if (!db->exec(true))
+    ok = db->exec(true);
+    if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x24cb, 5);
-        t("DB_LoadInventory::GetUserInven, exec ERROR charac_no=%u",
-          sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x24cb, 5)
+            ("DB_LoadInventory::GetUserInven, exec ERROR charac_no=%u",
+             sig->m_characNo);
         return 0;
     }
-    if (!db->fetch())
+    ok = db->fetch();
+    if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x24d2, 5);
-        t("DB_LoadInventory::GetUserInven, fetch ERROR charac_no=%u",
-          sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x24d2, 5)
+            ("DB_LoadInventory::GetUserInven, fetch ERROR charac_no=%u",
+             sig->m_characNo);
         return 0;
     }
-    if (!db->get_uint(0, *(unsigned int*)&sig->m_money))
+    ok = db->get_uint(0, *(unsigned int*)&sig->m_money);
+    if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x24d9, 5);
-        t("DB_LoadInventory::GetUserInven, get_uint(0, pContext->money) ERROR"
-          " charac_no=%u", sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x24d9, 5)
+            ("DB_LoadInventory::GetUserInven, get_uint(0, pContext->money)"
+             " ERROR charac_no=%u", sig->m_characNo);
         return 0;
     }
-    if (!db->get_uint(1, sig->m_coin))             // +0x4038（unsigned int 直引）
+    ok = db->get_uint(1, sig->m_coin);             // +0x4038（unsigned int 直引）
+    if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x24e0, 5);
-        t("DB_LoadInventory::GetUserInven, get_uint(1, pContext->coin) ERROR"
-          " charac_no=%u", sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x24e0, 5)
+            ("DB_LoadInventory::GetUserInven, get_uint(1, pContext->coin)"
+             " ERROR charac_no=%u", sig->m_characNo);
         return 0;
     }
-    int invenBinLen = db->get_binary_length(2);
-    if (!db->get_binary(2, invenBuf, 0x473e))
+    invenBinLen = db->get_binary_length(2);
+    ok = db->get_binary(2, invenBuf, invenLen);
+    if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x24e8, 5);
-        t("DB_LoadInventory::GetUserInven, get_binary(2) ERROR charac_no=%u",
-          sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x24e8, 5)
+            ("DB_LoadInventory::GetUserInven, get_binary(2) ERROR"
+             " charac_no=%u", sig->m_characNo);
         return 0;
     }
-    int equipBinLen = db->get_binary_length(3);
-    if (!db->get_binary(3, equipBuf, 0x37a))
+    equipBinLen = db->get_binary_length(3);
+    ok = db->get_binary(3, equipBuf, equipLen);
+    if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x24f0, 5);
-        t("DB_LoadInventory::GetUserInven, get_binary(3) ERROR charac_no=%u",
-          sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x24f0, 5)
+            ("DB_LoadInventory::GetUserInven, get_binary(3) ERROR"
+             " charac_no=%u", sig->m_characNo);
         return 0;
     }
-    if (!db->get_uint(4, sig->m_payCoin))          // +0x403c
+    ok = db->get_uint(4, sig->m_payCoin);          // +0x403c
+    if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x24f7, 5);
-        t("DB_LoadInventory::GetUserInven, get_uint(4) ERROR charac_no=%u",
-          sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x24f7, 5)
+            ("DB_LoadInventory::GetUserInven, get_uint(4) ERROR charac_no=%u",
+             sig->m_characNo);
         return 0;
     }
-    if (!db->get_uint(5, sig->m_eventCoin))        // +0x4040
+    ok = db->get_uint(5, sig->m_eventCoin);        // +0x4040
+    if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x24ff, 5);
-        t("DB_LoadInventory::GetUserInven, get_uint(5) ERROR charac_no=%u",
-          sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x24ff, 5)
+            ("DB_LoadInventory::GetUserInven, get_uint(5) ERROR charac_no=%u",
+             sig->m_characNo);
         return 0;
     }
-    int creatureBinLen = db->get_binary_length(6);
-    if (!db->get_binary(6, creatureBuf, 0x1d36))
+    // 注：ORIG 此处用 col 变量（-0x20）+ col++ 形；4.4 引入该变量会把整个
+    // 标量区推深 4（len -0x14c/-0x150/-0x154），净劣 ⇒ 保持字面量（N82 封顶）。
+    creatureBinLen = db->get_binary_length(6);
+    ok = db->get_binary(6, creatureBuf, creatureLen);
+    if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x251b, 5);
-        t("DB_LoadCreature, get_binary(8) ERROR charac_no=%u", sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x251b, 5)
+            ("DB_LoadCreature, get_binary(8) ERROR charac_no=%u",
+             sig->m_characNo);
         return 0;
     }
-    if (!db->get_int(7, sig->m_creatureCount))     // +0x1287c（int 直引）
+    ok = db->get_int(7, sig->m_creatureCount);     // +0x1287c（int 直引）
+    if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x2522, 5);
-        t("DB_LoadInventory::GetUserInven, get_uint(9) ERROR charac_no=%u",
-          sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x2522, 5)
+            ("DB_LoadInventory::GetUserInven, get_uint(9) ERROR charac_no=%u",
+             sig->m_characNo);
         return 0;
     }
-    if (!db->get_uint(8, *(unsigned int*)&sig->m_inventoryCapacity))
+    ok = db->get_uint(8, *(unsigned int*)&sig->m_inventoryCapacity);
+    if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x253a, 5);
-        t("DB_LoadInventory::GetUserInven, get_uint(13) ERROR charac_no=%u",
-          sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x253a, 5)
+            ("DB_LoadInventory::GetUserInven, get_uint(13) ERROR charac_no=%u",
+             sig->m_characNo);
         return 0;
     }
 
@@ -355,56 +379,53 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
                 char* m = NumberToString(sig->m_accId, 0);
                 db->set_query("seLect ifnull(min(avatar_coin),0) as avatar_coin"
                               " from member_avatar_coin where m_id = %s", m);
-                if (db->exec(true))
+                // ORIG 尾部为 guard 形（fail 块直落、je 跳主流程）⇒ 逐个早返。
+                ok = db->exec(true);
+                if (!ok)
                 {
-                    if (db->fetch())
-                    {
-                        if (db->get_uint(0, sig->m_avatarCoin))   // +0x14780
-                        {
-                            if (sig->m_field8 != 0)
-                            {
-                                _GetTagCharacInven(sig->m_field8,
-                                                   &sig->m_tagInven);
-                            }
-                            return 1;
-                        }
-                        cMyTrace t("bool DB_LoadInventory::GetUserInven("
-                                   "SIG_LOAD_INVENTORY*)", 0x25b2, 5);
-                        t("DB_LoadInventory::GetUserInven, get_uint(%u,"
-                          " pContext->avatar_coin) ERROR m_id=%s",
-                          NumberToString(sig->m_accId, 0));
-                        return 0;
-                    }
-                    cMyTrace t("bool DB_LoadInventory::GetUserInven("
-                               "SIG_LOAD_INVENTORY*)", 0x25ac, 5);
-                    t("DB_LoadInventory::GetUserInven, avatar_coin fetch ERROR"
-                      " m_id=%s", NumberToString(sig->m_accId, 0));
+                    cMyTrace(__PRETTY_FUNCTION__, 0x25a6, 5)
+                        ("DB_LoadInventory::GetUserInven, avatar_coin exec"
+                         " ERROR m_id=%s", NumberToString(sig->m_accId, 0));
                     return 0;
                 }
-                cMyTrace t("bool DB_LoadInventory::GetUserInven("
-                           "SIG_LOAD_INVENTORY*)", 0x25a6, 5);
-                t("DB_LoadInventory::GetUserInven, avatar_coin exec ERROR"
-                  " m_id=%s", NumberToString(sig->m_accId, 0));
-                return 0;
+                ok = db->fetch();
+                if (!ok)
+                {
+                    cMyTrace(__PRETTY_FUNCTION__, 0x25ac, 5)
+                        ("DB_LoadInventory::GetUserInven, avatar_coin fetch"
+                         " ERROR m_id=%s", NumberToString(sig->m_accId, 0));
+                    return 0;
+                }
+                ok = db->get_uint(0, sig->m_avatarCoin);   // +0x14780
+                if (!ok)
+                {
+                    cMyTrace(__PRETTY_FUNCTION__, 0x25b2, 5)
+                        ("DB_LoadInventory::GetUserInven, get_uint(%u,"
+                         " pContext->avatar_coin) ERROR m_id=%s",
+                         NumberToString(sig->m_accId, 0));
+                    return 0;
+                }
+                if (sig->m_field8 != 0)
+                {
+                    _GetTagCharacInven(sig->m_field8, &sig->m_tagInven);
+                }
+                return 1;
             }
-            cMyTrace t(__PRETTY_FUNCTION__,
-                       0x2588, 5);
-            t("incorrect inventory size charac_no(%d), creature,"
-              " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x4a58,
-              creatureLen);
+            cMyTrace(__PRETTY_FUNCTION__, 0x2588, 5)
+                ("incorrect inventory size charac_no(%d), creature,"
+                 " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x4a58,
+                 creatureLen);
             return 0;
         }
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x2579, 5);
-        t("incorrect inventory size charac_no(%d), inven,"
-          " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x4a58,
-          invenLen);
+        cMyTrace(__PRETTY_FUNCTION__, 0x2579, 5)
+            ("incorrect inventory size charac_no(%d), inven,"
+             " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x4a58,
+             invenLen);
         return 0;
     }
-    cMyTrace t(__PRETTY_FUNCTION__,
-               0x2573, 5);
-    t("incorrect inventory size charac_no(%d), equip,"
-      " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x53e, equipLen);
+    cMyTrace(__PRETTY_FUNCTION__, 0x2573, 5)
+        ("incorrect inventory size charac_no(%d), equip,"
+         " original_size(%d), db_size(%d)\n", sig->m_characNo, 0x53e, equipLen);
     return 0;
 }
 
@@ -414,6 +435,9 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
 //   主：sig+0xcd20 / sig+0x4044 / sig+0xa3a1 / sig+0xcd1c
 //   tag：sig+0x1e53 / sig+0x54a / sig+0xc / sig+0x1e4f
 // 错误行号 0x25cb / 0x25d7。
+// b28d-solo-DB_LoadInventory：AE（87=87 仅重定位差）。修法 = P59 guard 形
+// （if(!ok) 早返，ORIG `movzbl; xor $1; test; je` fail 直落）+ P227 全表达式
+// 临时链（实参入 %ebx 跨 ctor 保活）。
 // ============================================================================
 bool DB_LoadInventory::GetUserAvatar(SIG_LOAD_INVENTORY* sig)
 {
@@ -422,31 +446,33 @@ bool DB_LoadInventory::GetUserAvatar(SIG_LOAD_INVENTORY* sig)
                              sig->m_invenType2,
                              sig->m_equipMirror,
                              sig->m_avatarCount);
-    if (ok)
+    // P59 guard 形：ORIG `movzbl -0x9; xor $1; test; je <主流程>`（fail 块直落）
+    // ⇒ 必须写 if(!ok) 早返，写 if(ok){...}else{...} 会被 4.4 折 cmpb 直比。
+    // P227 全表达式临时链：实参在 ctor 前求值并以 %ebx 跨 ctor 保活（ORIG 形）。
+    if (!ok)
     {
-        if (sig->m_field8 != 0)
-        {
-            ok = _GetUserAvatar(sig->m_field8,
-                                reinterpret_cast<AvatarDetailInfo*>(
-                                    sig->m_tagInven.m_avatarDetail),      // +0x1e53
-                                sig->m_tagInven.m_items2,                 // +0x54a
-                                sig->m_tagInven.m_items,                  // +0xc
-                                sig->m_tagInven.m_avatarCount);           // +0x1e4f
-            if (!ok)
-            {
-                cMyTrace t("bool DB_LoadInventory::GetUserAvatar("
-                           "SIG_LOAD_INVENTORY*)", 0x25d7, 5);
-                t("DB_LoadInventory::_GetUserAvatar ERROR::tag_charac_no(%d)",
-                  sig->m_field8);
-                return 0;
-            }
-        }
-        return 1;
+        cMyTrace(__PRETTY_FUNCTION__, 0x25cb, 5)
+            ("DB_LoadInventory::_GetUserAvatar ERROR::charac_no(%d)",
+             sig->m_characNo);
+        return 0;
     }
-    cMyTrace t(__PRETTY_FUNCTION__,
-               0x25cb, 5);
-    t("DB_LoadInventory::_GetUserAvatar ERROR::charac_no(%d)", sig->m_characNo);
-    return 0;
+    if (sig->m_field8 != 0)
+    {
+        ok = _GetUserAvatar(sig->m_field8,
+                            reinterpret_cast<AvatarDetailInfo*>(
+                                sig->m_tagInven.m_avatarDetail),      // +0x1e53
+                            sig->m_tagInven.m_items2,                 // +0x54a
+                            sig->m_tagInven.m_items,                  // +0xc
+                            sig->m_tagInven.m_avatarCount);           // +0x1e4f
+        if (!ok)
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0x25d7, 5)
+                ("DB_LoadInventory::_GetUserAvatar ERROR::tag_charac_no(%d)",
+                 sig->m_field8);
+            return 0;
+        }
+    }
+    return 1;
 }
 
 // ============================================================================
@@ -461,6 +487,10 @@ bool DB_LoadInventory::GetUserAvatar(SIG_LOAD_INVENTORY* sig)
 // 槽位；Inven_Item 写：m_field1=8、m_fieldb=ability_no、m_addInfo=it_id、
 // m_addInfo2=ui_id、m_amp lock、m_fielddLo=hidden、m_avatarEndur=endurance、
 // +0x33 trade_restrict 位 0x20。错误行号 0x26dc..0x277d（col12 失败仅记日志）。
+// b28d-solo-DB_LoadInventory：17 处 trace 改 __PRETTY_FUNCTION__（ORIG 有
+// _ZZ...E19__PRETTY_FUNCTION__ 符号）+ 前 6 处 db 检查改共用 bool ok（ORIG
+// `mov %al,-0x19`）；残差 = 4.4 临时槽/标量分区（db -0x24 vs -0x18、trace
+// -0x60 vs -0x12c、ipgAgencyNo 无对齐剥离展开）⇒ N82 封顶；p167 MISSING=0。
 // ============================================================================
 bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
                                       AvatarDetailInfo* out,
@@ -476,11 +506,12 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
                   " emblem_endurance, color1, color2, trade_restrict"
                   " from user_items where charac_no=%u and expire_date>now()"
                   " and stat=0 limit %d", characNo, 0x73);
-    if (!db->exec(true))
+    // ORIG：exec/fetch/get_int(0)/get_int(1)/get_uint(2)/get_int(3) 六处共用
+    // 函数级 bool 槽 -0x19（`mov %al,-0x19; movzbl`），其余 get_* 内联 xor 判。
+    bool ok = db->exec(true);
+    if (!ok)
     {
-        cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                   " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                   0x26dc, 5);
+        cMyTrace t(__PRETTY_FUNCTION__, 0x26dc, 5);
         t("DB_LoadInventory::GetUserAvatar, exec() ERROR charac_no=%u", characNo);
         return 0;
     }
@@ -496,85 +527,72 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
     int row = 0;
     while (row < db->get_n_rows())
     {
-        if (!db->fetch())
+        ok = db->fetch();
+        if (!ok)
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x26f3, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x26f3, 5);
             t("DB_LoadInventory::GetUserAvatar, fetch() ERROR charac_no=%u,%d",
               characNo, row);
             break;
         }
         int slot = 0;
-        if (!db->get_int(0, slot))
+        ok = db->get_int(0, slot);
+        if (!ok)
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x26fa, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x26fa, 5);
             t("DB_LoadInventory::GetUserAvatar, get_int(0) ERROR charac_no=%u",
               characNo);
             return 0;
         }
         int itId = 0;
-        if (!db->get_int(1, itId))
+        ok = db->get_int(1, itId);
+        if (!ok)
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x2701, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2701, 5);
             t("DB_LoadInventory::GetUserAvatar, get_int(1) ERROR charac_no=%u",
               characNo);
             return 0;
         }
-        if (!db->get_uint(2, expireDate))
+        ok = db->get_uint(2, expireDate);
+        if (!ok)
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x2708, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2708, 5);
             t("DB_LoadInventory::GetUserAvatar, get_uint(2) ERROR charac_no=%u",
               characNo);
             return 0;
         }
-        if (!db->get_int(3, abilityNo))
+        ok = db->get_int(3, abilityNo);
+        if (!ok)
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x270f, 5);          // ORIG 0840c1fc（原 9999 占位清除）
+            cMyTrace t(__PRETTY_FUNCTION__, 0x270f, 5);  // ORIG 0840c1fc
             t("DB_LoadInventory::GetUserAvatar, get_int(3) ERROR charac_no=%u",
               characNo);
             return 0;
         }
         if (!db->get_str(4, ipgAgencyNo, 0x18))
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x2727, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2727, 5);
             t("DB_LoadInventory::GetUserAvatar, get_int(4) ERROR charac_no=%u",
               characNo);
             return 0;
         }
         if (!db->get_int(5, regDate))
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x272e, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x272e, 5);
             t("DB_LoadInventory::GetUserAvatar, get_int(5) ERROR charac_no=%u",
               characNo);
             return 0;
         }
         if (!db->get_int(6, uiId))
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x2734, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2734, 5);
             t("DB_LoadInventory::GetUserAvatar, get_int(6) ERROR charac_no=%u",
               characNo);
             return 0;
         }
         if (!db->get_int(7, clearAvatarId))
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x273b, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x273b, 5);
             t("DB_LoadInventory::GetUserAvatar, get_int(6) ERROR charac_no=%u",
               characNo);
             return 0;
@@ -583,9 +601,7 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
         jewel.init();
         if (!db->get_binary(8, &jewel, 0x1e))
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x2742, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2742, 5);
             t("DB_LoadInventory::GetUserAvatar, get_int(6) ERROR charac_no=%u",
               characNo);
             return 0;
@@ -593,9 +609,7 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
         unsigned char lockKey = 0;
         if (!db->get_ubyte(9, lockKey))
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x2749, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2749, 5);
             t("DB_LoadInventory::GetUserAvatar, get_ubyte(8) ERROR charac_no=%u",
               characNo);
             return 0;
@@ -603,9 +617,7 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
         unsigned int hiddenOption = 0;     // ORIG local_190[1]（col10）
         if (!db->get_uint(10, hiddenOption))
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x275c, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x275c, 5);
             t("DB_LoadInventory::GetUserAvatar, get_int(%d) ERROR charac_no=%u",
                10, characNo);
             return 0;
@@ -613,9 +625,7 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
         unsigned int emblemEndurance = 0;  // ORIG local_190[0]（col11）
         if (!db->get_uint(11, emblemEndurance))
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x2762, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2762, 5);
             t("DB_LoadInventory::GetUserAvatar, get_int(%d) ERROR charac_no=%u",
                11, characNo);
             return 0;
@@ -623,9 +633,7 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
         short color1 = 0;
         if (!db->get_short(12, color1))
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x276a, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x276a, 5);
             t("DB_LoadInventory::GetUserAvatar, get_short(10) ERROR charac_no=%u",
               characNo);
             // ORIG：本列失败仅记录日志，继续执行
@@ -633,9 +641,7 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
         short color2 = 0;
         if (!db->get_short(13, color2))
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x2771, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x2771, 5);
             t("DB_LoadInventory::GetUserAvatar, get_short(10) ERROR charac_no=%u",
               characNo);
             return 0;
@@ -643,9 +649,7 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
         char tradeRestrict = 0;
         if (!db->get_byte(14, tradeRestrict))
         {
-            cMyTrace t("static bool DB_LoadInventory::_GetUserAvatar(unsigned int,"
-                       " AvatarDetailInfo*, Inven_Item*, Inven_Item*, int&)",
-                       0x277d, 5);
+            cMyTrace t(__PRETTY_FUNCTION__, 0x277d, 5);
             t("DB_LoadInventory::GetUserAvatar, get_byte(11) ERROR charac_no=%u",
               characNo);
             return 0;
@@ -735,6 +739,10 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
 // m_amp lock。详情条目
 // （+0x12880，步长 0x38）按 SIG_CREATURE_ITEM_DETAIL_INFO 写点填充。
 // 错误行号 0x27f0..0x28e9。
+// b28d-solo-DB_LoadInventory：exec/fetch/get_int(0) 共用 bool ok（ORIG -0x1d）
+// + 13 处 trace 全表达式临时链（ebx 保活）已归位；残差 = 4.4 标量/临时槽分区
+// （帧 0x280 vs 0x2c0、db -0x34 vs -0x1c）+ 循环体局部块（ORIG 单次 memset
+// 0x74 合并清零 vs 4.4 逐条初始化）⇒ N82 封顶；p167 差集 MISSING=0。
 // ============================================================================
 bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
 {
@@ -746,23 +754,25 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
                   "unix_timestamp(expire_date) from creature_items"
                   " where charac_no=%u and stat = 0 and expire_date>now()",
                   sig->m_characNo);
-    if (!db->exec(true))
+    // ORIG：exec/fetch/get_int(0) 共用函数级 bool 槽 -0x1d（`mov %al,-0x1d;
+    // movzbl -0x1d`），其余 get_* 为内联 xor 判（无槽）⇒ 源码用同一 ok 变量。
+    bool ok = db->exec(true);
+    if (!ok)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x27f0, 5);
-        t("DB_LoadInventory::GetUserCreature, exec() ERROR charac_no=%u",
-          sig->m_characNo);
+        // P227 全表达式临时链：实参在 ctor 前求值入 %ebx 跨 ctor 保活。
+        cMyTrace(__PRETTY_FUNCTION__, 0x27f0, 5)
+            ("DB_LoadInventory::GetUserCreature, exec() ERROR charac_no=%u",
+             sig->m_characNo);
         return 0;
     }
     sig->m_creatureCount = db->get_n_rows();
     int row = 0;
     if (sig->m_creatureCount >= 0x8e)
     {
-        cMyTrace t(__PRETTY_FUNCTION__,
-                   0x27fb, 5);
-        t("DB_LoadInventory::GetUserCreature, creature_item_count overflow"
-          " ERROR charac_no=%u, item_count=%d", sig->m_characNo,
-          sig->m_creatureCount);
+        cMyTrace(__PRETTY_FUNCTION__, 0x27fb, 5)
+            ("DB_LoadInventory::GetUserCreature, creature_item_count overflow"
+             " ERROR charac_no=%u, item_count=%d", sig->m_characNo,
+             sig->m_creatureCount);
         return 0;
     }
 
@@ -772,12 +782,12 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
     bool dupSlot = false;
     for (row = 0; row < sig->m_creatureCount; ++row)
     {
-        if (!db->fetch())
+        ok = db->fetch();
+        if (!ok)
         {
-            cMyTrace t(__PRETTY_FUNCTION__,
-                       0x280e, 5);
-            t("DB_LoadInventory::GetUserCreature, fetch() ERROR charac_no=%u,%d",
-              sig->m_characNo, row);
+            cMyTrace(__PRETTY_FUNCTION__, 0x280e, 5)
+                ("DB_LoadInventory::GetUserCreature, fetch() ERROR"
+                 " charac_no=%u,%d", sig->m_characNo, row);
             break;
         }
         // ORIG 以 memset(local_220,0,0x74) 合并清零下列局部变量，语义等价。
@@ -789,7 +799,7 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
         unsigned char lockKey = 0;
         memset(name, 0, sizeof(name));
 
-        bool gotSlot = db->get_int(0, slot);
+        ok = db->get_int(0, slot);
         // dup 检测在 get_int 失败检查之前（ORIG 0x282c 出口顺序）。
         int checkSlot = (slot == 0xee) ? 0x8c : slot;
         if (checkSlot < 0x8d)
@@ -802,108 +812,108 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
             {
                 used[checkSlot] = 1;
             }
-            if (!gotSlot)
+            if (!ok)
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x282c, 5);
-                t("DB_LoadInventory::GetUserCreature, get_int(0) ERROR"
-                  " charac_no=%u", sig->m_characNo);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x282c, 5)
+                    ("DB_LoadInventory::GetUserCreature, get_int(0) ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_ulong(1, itId))
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x2833, 5);
-                t("DB_LoadInventory::GetUserCreature, get_ushort(1) ERROR"
-                  " charac_no=%u", sig->m_characNo);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x2833, 5)
+                    ("DB_LoadInventory::GetUserCreature, get_ushort(1) ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_str(2, name, 0xd))
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x2846, 5);
-                t("DB_LoadInventory::GetUserCreature, get_int(2) ERROR"
-                  " charac_no=%u", sig->m_characNo);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x2846, 5)
+                    ("DB_LoadInventory::GetUserCreature, get_int(2) ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_int(3, stomach))
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x284e, 5);
-                t("DB_LoadInventory::GetUserCreature, get_int(3) ERROR"
-                  " charac_no=%u", sig->m_characNo);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x284e, 5)
+                    ("DB_LoadInventory::GetUserCreature, get_int(3) ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_int(4, exp))
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x2855, 5);
-                t("DB_LoadInventory::GetUserCreature, get_int(4) ERROR"
-                  " charac_no=%u", sig->m_characNo);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x2855, 5)
+                    ("DB_LoadInventory::GetUserCreature, get_int(4) ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_ushort(5, endurance))
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x285b, 5);
-                t("DB_LoadInventory::GetUserCreature, get_ushort(5) ERROR"
-                  " charac_no=%u", sig->m_characNo);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x285b, 5)
+                    ("DB_LoadInventory::GetUserCreature, get_ushort(5) ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_int(6, creatureType))
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x2862, 5);
-                t("DB_LoadInventory::GetUserCreature, get_int(6) ERROR"
-                  " charac_no=%u", sig->m_characNo);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x2862, 5)
+                    ("DB_LoadInventory::GetUserCreature, get_int(6) ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_int(7, uiId))
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x2869, 5);
-                t("DB_LoadInventory::GetUserCreature, get_int(7) ERROR"
-                  " charac_no=%u", sig->m_characNo);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x2869, 5)
+                    ("DB_LoadInventory::GetUserCreature, get_int(7) ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_int(8, noCharge))
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x2870, 5);
-                t("DB_LoadInventory::GetUserCreature, get_int(8) ERROR"
-                  " charac_no=%u", sig->m_characNo);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x2870, 5)
+                    ("DB_LoadInventory::GetUserCreature, get_int(8) ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_int(9, stat))
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x2878, 5);
-                t("DB_LoadInventory::GetUserCreature, get_int(9) ERROR"
-                  " charac_no=%u", sig->m_characNo);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x2878, 5)
+                    ("DB_LoadInventory::GetUserCreature, get_int(9) ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_ubyte(10, lockKey))
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x2880, 5);
-                t("DB_LoadInventory::GetUserCreature, get_ubyte(10) ERROR"
-                  " charac_no=%u", sig->m_characNo);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x2880, 5)
+                    ("DB_LoadInventory::GetUserCreature, get_ubyte(10) ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_int(11, expire))
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x28a6, 5);
-                t("DB_LoadInventory::GetUserCreature, get_int(12) ERROR"
-                  " charac_no=%u", sig->m_characNo);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x28a6, 5)
+                    ("DB_LoadInventory::GetUserCreature, get_int(12) ERROR"
+                     " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (0xf1 < slot)
             {
-                cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                           "SIG_LOAD_INVENTORY*)", 0x28ad, 5);
-                t("DB_LoadInventory::GetUserCreature, slot_no overflow ERROR"
-                  " charac_no=%u, slot_no=%d", sig->m_characNo, slot);
+                cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                         "SIG_LOAD_INVENTORY*)", 0x28ad, 5)
+                    ("DB_LoadInventory::GetUserCreature, slot_no overflow ERROR"
+                     " charac_no=%u, slot_no=%d", sig->m_characNo, slot);
                 return 0;
             }
             // detailWord 字节布局（SIG_CREATURE_ITEM_DETAIL_INFO +0x24）：
@@ -960,10 +970,10 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
         }
         else
         {
-            cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                       "SIG_LOAD_INVENTORY*)", 0x281d, 5);
-            t("DB_LoadInventory::GetUserCreature, charac_no=%u, slot=%d"
-              " overflow", sig->m_characNo, checkSlot);
+            cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                     "SIG_LOAD_INVENTORY*)", 0x281d, 5)
+                ("DB_LoadInventory::GetUserCreature, charac_no=%u, slot=%d"
+                 " overflow", sig->m_characNo, checkSlot);
         }
     }
 
@@ -990,10 +1000,10 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
         int cur = emptySlot;
         if (cur != 0xee && cur > 0x8b)
         {
-            cMyTrace t("bool DB_LoadInventory::GetUserCreature("
-                       "SIG_LOAD_INVENTORY*)", 0x28e9, 5);
-            t("DB_LoadInventory::GetUserCreature, charac_no=%u, slot overflow",
-              sig->m_characNo);
+            cMyTrace("bool DB_LoadInventory::GetUserCreature("
+                     "SIG_LOAD_INVENTORY*)", 0x28e9, 5)
+                ("DB_LoadInventory::GetUserCreature, charac_no=%u,"
+                 " slot overflow", sig->m_characNo);
             break;
         }
         Inven_Item& dst = sig->m_invenType3[cur];
@@ -1013,19 +1023,30 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
 // jewel(2)→+0x949e，expand_equipslot(3)→+0x14aa4。容量 0x2b82/0x120f/0xa5c；
 // 解压后 cargo/jewel 按 0x3d 对齐校验，expand_equipslot 按 (size-4)%0x3d。
 // 返回 LineFunc 风格错误行号 0x243b..0x2463，成功 0。
+// b28d-solo-DB_LoadInventory：len/binLen 副本（P171）+ col 变量 + 清零三形
+// （memset call / 对齐剥离慢路 / 简单 rep stos）已归位（277 vs 278，残差 9 行）
+// ＝N107（`&sig->m_cargoCapacity` 4.4 恒 add $0xa8e0 两步 vs ORIG lea；字段须
+// unsigned 不可改）+ P75（3 处 uncompress_zip arg0/arg4 装载序跨版本）；
+// p167 差集 MISSING=0。
 // ============================================================================
 int DB_LoadInventory::_getCharacInvenExpand(SIG_LOAD_INVENTORY* sig) const
 {
-    static const int handleIdx = 3;
-    // b28d-214③/N78：同 GetUserInven——ORIG rep stos 内联清零，无 memset call。
+    // ORIG 本函数无 handleIdx 静态符号（其余 4 函数有 `_ZZ...E9handleIdx`）
+    // ⇒ 直接字面量 3，避免仅NEW 符号。
+    // ORIG 清零三形（memset call / 对齐剥离慢路 / 简单 rep stos）由数组尺寸与
+    // 槽对齐自然产生；长度变量与其 binLen 副本成对（ORIG `mov -0x20,%eax;
+    // mov %eax,-0x1c`），照抄 P171。
     char cargoBuf[0x2b82] = {0};
+    unsigned int cargoLen = 0x2b82;     // ORIG -0x20
+    int cargoBinLen = cargoLen;         // ORIG -0x1c（初始化副本，后被覆盖）
     char jewelBuf[0x120f] = {0};
+    unsigned int jewelLen = 0x120f;     // ORIG -0x24
+    int jewelBinLen = jewelLen;         // ORIG -0x18
     char equipBuf[0xa5c] = {0};
-    unsigned int cargoLen = 0x2b82;     // ORIG local_24
-    unsigned int jewelLen = 0x120f;     // ORIG local_28
-    unsigned int equipLen = 0xa5c;      // ORIG local_2c
+    unsigned int equipLen = 0xa5c;      // ORIG -0x28
+    int equipBinLen = equipLen;         // ORIG -0x14
 
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect cargo_capacity,cargo,jewel,expand_equipslot from"
                   " charac_inven_expand where charac_no=%u", sig->m_characNo);
@@ -1033,22 +1054,25 @@ int DB_LoadInventory::_getCharacInvenExpand(SIG_LOAD_INVENTORY* sig) const
     {
         return 0x243b;
     }
-    if (!db->get_int(0, *(int*)&sig->m_cargoCapacity))
+    // 声明序=槽深序（4.4 先声明深）：db 声明在前占 -0x10，col 声明在后占
+    // -0xc，与 ORIG 一致；col 的初始化位置也落在 exec/fetch 检查之后。
+    int col = 0;                        // ORIG -0xc（get_* 的 col++ 实参形）
+    if (!db->get_int(col++, reinterpret_cast<int&>(sig->m_cargoCapacity)))
     {
         return 0x243f;
     }
-    int cargoBinLen = db->get_binary_length(1);
-    if (!db->get_binary(1, cargoBuf, 0x2b82))
+    cargoBinLen = db->get_binary_length(col);
+    if (!db->get_binary(col++, cargoBuf, cargoLen))
     {
         return 0x2443;
     }
-    int jewelBinLen = db->get_binary_length(2);
-    if (!db->get_binary(2, jewelBuf, 0x120f))
+    jewelBinLen = db->get_binary_length(col);
+    if (!db->get_binary(col++, jewelBuf, jewelLen))
     {
         return 0x2448;
     }
-    int equipBinLen = db->get_binary_length(3);
-    if (!db->get_binary(3, equipBuf, 0xa5c))
+    equipBinLen = db->get_binary_length(col);
+    if (!db->get_binary(col++, equipBuf, equipLen))
     {
         return 0x2453;
     }
@@ -1110,16 +1134,14 @@ bool DB_LoadInventory::_GetTagCharacInven(unsigned int characNo,
     {
         // P221：具名 cMyTrace 在兄弟 if 块的槽深方向跨版本相反；全表达式
         // 临时链复现 ORIG（tt1 -0x44 / tt2 -0x34 / tt3 -0x24）。
-        cMyTrace("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
-                 " TAG_CHARAC_INVEN_DATA*)", 0x23e2, 5)
+        cMyTrace(__PRETTY_FUNCTION__, 0x23e2, 5)
             ("DB_LoadInventory::_GetTagCharacInven, exec ERROR charac_no=%u",
              characNo);
         return 0;
     }
     if (!db->fetch())
     {
-        cMyTrace("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
-                 " TAG_CHARAC_INVEN_DATA*)", 0x23e8, 5)
+        cMyTrace(__PRETTY_FUNCTION__, 0x23e8, 5)
             ("DB_LoadInventory::_GetTagCharacInven, fetch ERROR charac_no=%u",
              characNo);
         return 0;
@@ -1132,8 +1154,7 @@ bool DB_LoadInventory::_GetTagCharacInven(unsigned int characNo,
                                   0x2dc, 0x3d);
     if (!ok)
     {
-        cMyTrace("static bool DB_LoadInventory::_GetTagCharacInven(unsigned int,"
-                 " TAG_CHARAC_INVEN_DATA*)", 0x23f1, 5)
+        cMyTrace(__PRETTY_FUNCTION__, 0x23f1, 5)
             ("DB_LoadInventory::GetUserInven, get_compressed_blob_data ERROR"
              " charac_no=%u", characNo);
         return 0;
@@ -1180,21 +1201,20 @@ bool DB_LoadInventory::_GetEquipMaxItemLevel(SIG_LOAD_INVENTORY* sig)
 // uncompress_zip 进 out（stItemLockInfo）；解压后尺寸 mod 8 != 0 且非 0
 // → 0x2931。返回 0=OK，其余为 DBThread.cpp 行号（0x291a/0x2924/0x292b/
 // 0x292f/0x2931）。
+// b28d-solo-DB_LoadInventory：AE（137=137 仅重定位差）。修法 = 独立
+// `char buf[0x3cc]={0}`（rep stos 0xf3 精确）+ 独立 outLen（取址折叠
+// lea -0x48，消旧结构体形的 N78 计数差与 add 两步）+ P221 全表达式临时链
+// （3 处 trace 槽 -0x44/-0x34/-0x24）+ get_binary 判空内联（ORIG 无 ok 槽）。
 // ============================================================================
 unsigned int DB_LoadInventory::GetItemLock(unsigned int characNo,
                                            stItemLockInfo* out)
 {
     static const int handleIdx = 3;
-    // ORIG 槽距：buf@-0x414、outLen 紧接其后 -0x48（4.1 声明序连排）；4.4 小变量
-    // 另置浅槽 → 用同结构体保证相邻。ok=-0x11（exec/fetch 保存读回位）。
-    // b28d-78（N78 封顶，语义等价）：ORIG 以 rep stos 0xf3 dword 内联清零（无
-    // memset call），4.4 需「同结构体聚合零初始化」才不 call memset，但计数按
-    // sizeof(Local)/4=0xf4（多清 1 dword=outLen 自身，随后仍被赋值 0x3cc）。
-    // 独立 `char buf[0x3cc]={0}` 可精确 0xf3，但 outLen 落浅槽 -0x18（ORIG -0x48）
-    // 并使 cMyTrace 槽全漂 ⇒ 取结构体形，1 dword 计数差封 N78。
-    struct Local { char buf[0x3cc]; unsigned int outLen; } local = {};
+    // ORIG 槽距：buf@-0x414（rep stos 0xf3）、outLen@-0x48（独立标量 ⇒ 取址
+    // 单条 lea）、ok=-0x11（exec/fetch 保存读回位）。
+    char buf[0x3cc] = {0};
+    unsigned int outLen = 0x3cc;
     bool ok;
-    local.outLen = 0x3cc;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   (ENUM_SERVER_GROUP)0);
     db->set_query("seLect item_lock_info  from charac_item_lock_info"
@@ -1202,9 +1222,10 @@ unsigned int DB_LoadInventory::GetItemLock(unsigned int characNo,
     ok = db->exec(true);
     if (!ok)
     {
-        cMyTrace t("static unsigned int DB_LoadInventory::GetItemLock(unsigned int,"
-                   " stItemLockInfo*)", 0x2919, 5);
-        t("DB_LoadInventory::GetItemLock, exec() ERROR charac_no=%u", characNo);
+        // P221：互斥 if 块内具名 cMyTrace 的槽深方向跨版本相反（ORIG 先出现者
+        // 最深 -0x44/-0x34/-0x24；4.4 具名恒反向）⇒ 全表达式临时链复现。
+        cMyTrace(__PRETTY_FUNCTION__, 0x2919, 5)
+            ("DB_LoadInventory::GetItemLock, exec() ERROR charac_no=%u", characNo);
         return 0x291a;
     }
     if (db->get_n_rows() == 0)
@@ -1214,28 +1235,26 @@ unsigned int DB_LoadInventory::GetItemLock(unsigned int characNo,
     ok = db->fetch();
     if (!ok)
     {
-        cMyTrace t("static unsigned int DB_LoadInventory::GetItemLock(unsigned int,"
-                   " stItemLockInfo*)", 0x2923, 5);
-        t("DB_LoadInventory::GetItemLock, fetch() ERROR charac_no=%u", characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x2923, 5)
+            ("DB_LoadInventory::GetItemLock, fetch() ERROR charac_no=%u", characNo);
         return 0x2924;
     }
     unsigned int binLen = db->get_binary_length(0);
     // ORIG 第三实参 `mov -0x48,%eax` = outLen 变量（非字面量）。
-    ok = db->get_binary(0, local.buf, local.outLen);
-    if (!ok)
+    // ORIG 此处直接 `xor $0x1,%eax`（无 ok 槽保存）⇒ 判空内联，勿经具名 ok。
+    if (!db->get_binary(0, buf, outLen))
     {
-        cMyTrace t("static unsigned int DB_LoadInventory::GetItemLock(unsigned int,"
-                   " stItemLockInfo*)", 0x292a, 5);
-        t("DB_LoadInventory::GetItemLock, get_binary(2) ERROR charac_no=%u",
-          characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x292a, 5)
+            ("DB_LoadInventory::GetItemLock, get_binary(2) ERROR charac_no=%u",
+             characNo);
         return 0x292b;
     }
-    if (!uncompress_zip(reinterpret_cast<char*>(out), local.outLen, local.buf,
+    if (!uncompress_zip(reinterpret_cast<char*>(out), outLen, buf,
                         binLen))
     {
         return 0x292f;
     }
-    if ((local.outLen & 7) != 0 && local.outLen != 0)
+    if ((outLen & 7) != 0 && outLen != 0)
     {
         return 0x2931;
     }

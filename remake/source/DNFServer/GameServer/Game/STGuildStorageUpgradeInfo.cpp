@@ -8,7 +8,6 @@ STGuildStorageUpgradeInfo::STGuildStorageUpgradeInfo()
     clear();
 }
 
-STGuildStorageUpgradeInfo::~STGuildStorageUpgradeInfo() {}
 
 void STGuildStorageUpgradeInfo::clear()
 {

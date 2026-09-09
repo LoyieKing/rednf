@@ -51,14 +51,14 @@ public:
     ~CBossPlay();                       // ORIG W 0x08151a3a（非虚）
 
     // ---- 虚函数（虚表槽顺序必须保持：[2]..[7]）----
-    virtual int generateRewardItem(int memberIdx, int itemCount, unsigned int a,
+    virtual bool generateRewardItem(int memberIdx, int itemCount, unsigned int a,
                                    ENUM_DUNGEON_DIFFICULTY diff, unsigned int b,
                                    const CDungeon* dungeon);  // ORIG 0x08149914
-    virtual int generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
+    virtual bool generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
                                   const CDungeon* dungeon);   // ORIG 0x08149e20
     virtual bool _checkMemberDie();                            // ORIG 0x08149382
-    virtual int checkAllMemberReady(int);                      // ORIG 0x081493fe
-    virtual int handleDieUser(CUser* user);                    // ORIG 0x081494a4（bool 化实测使 4.4 epilogue 走 %ebx 合并+调用点 setne 物化回归，维持 int）
+    virtual bool checkAllMemberReady(int);                     // ORIG 0x081493fe
+    virtual bool handleDieUser(CUser* user);                   // ORIG 0x081494a4
     virtual bool handleLeaveUser(CUser* user);                 // ORIG 0x08149724（[b27 DL3R] ORIG 调用点 CBossTower 0x08143b04 为 `call; test %al,%al; je` 单字节直判 ⇒ callee 返回 bool/uchar；mangled 不含返回类型，ABI 安全）
 
     // ---- 非虚成员 ----
@@ -69,7 +69,10 @@ public:
     void reset();
 
     // ---- 弱（inline）helper（ORIG W）----
-    unsigned char isMemberAlive(int idx) { return m_memberAlive[idx]; }   // 0x08145682：单 movzbl 直返（ORIG 非 int，避免 bool/int 归一化双扩展）
+    // 0x08145682：单 movzbl 直返（bool 字段直返与 uchar 返回同形）。b28d-solo-CBossTower：
+    // uchar→bool（P292 调用点判据——ORIG 0x0814414d/0x081439f5 `call; test %al,%al; je`
+    // 无 setne ⇒ callee bool；uchar 恒多 setne 两段）。符号尺寸/body 不变。
+    bool isMemberAlive(int idx) { return m_memberAlive[idx]; }
     void setMemberAlive(int idx, bool alive) { m_memberAlive[idx] = alive ; } // 0x0814a7e4
     void setMemberReady(int idx, bool ready) { m_memberReady[idx] = ready ; } // 0x08145692
 

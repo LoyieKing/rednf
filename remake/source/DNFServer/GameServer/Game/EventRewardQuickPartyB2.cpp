@@ -125,6 +125,16 @@ const char* ContentsType::getString(ContentsType::T type)
 
 // ORIG T 0x08ac34a4：线性 i=0..12，双构串后 operator==（name 串 vs getString 串），
 // 命中返回 i；穷尽未命中返回 0。
+// b28d-solo-EventRewardQuickPartyB2 判词：DIFF（N93/N96 族封顶，语义等价）。
+// 残差三源均跨版本结构性：①4.1 把 string 单参构造展开的 allocator 临时析构推迟
+// 到块尾（槽 -0x15/-0xd），4.4 在 string 构造后立即 ~allocator（显式 allocator
+// 局部会新增 ORIG 无的具名槽，P0 禁）；②if(current==expected)return i; 的 CFG：
+// ORIG 把 operator== 结果留 %ebx、析构两串后 test %bl；4.4 在测试点即分支并以
+// %ebx 作 cleanup 路径标志（多 mov $0/$1,%ebx + 两处 test/reload）；
+// ③块级对象槽方向相反（N93）：ORIG expected@-0x1c/current@-0x14，4.4 相反
+// （current@-0x18/expected@-0x14），帧 0x30 vs 0x20。
+// 实测：continue 形 / 函数级 i / 临时表达式三写法 our_insns 恒 109（ORIG 96）；
+// p167 15 vs 16 调用点、0 MISSING（仅 +1 _Unwind_Resume，EH 共享差）。
 int ContentsType::getType(const char* name)
 {
     for (int i = 0; i <= 12; ++i)
@@ -196,196 +206,293 @@ RandomBuffType getRandomBuffTypeByName(const std::string& name)
 //   [require party num]    → m_minCounts[dungeonType][diff]
 //                            （QuickPartyData +0x1a0 区，行 stride 0x10；
 //                            ORIG 寻址 (type*4+diff+0x68)*4 完全一致）
+// b28d-solo-EventRewardQuickPartyB2 判词：DIFF（§6.2 三件套达标，byte 层 N 封顶）。
+// 已修真缺口：①7 段注册由「循环头统一插入」改 ORIG 的 case 内 fall-through 链
+//   （含 case 0 哨兵、goto re_lookup 双检、switch 后 leave+__inited+goto）——
+//   消除 pair 值构造/make_pair/临时 ~pair 共 10 类 EXTRA，改 map::value_type
+//   引用构造（pair<const char* const,int>::pair<char const(&)[N],int&&>）；
+//   ②补 token/value 的 Ss::clear、LevelData entry 提为函数级复用槽、lv 复用
+//   -0xf8、ok=ScanStr 两跳槽往返、ScanInt(&lv) 复用；③[reward] 的
+//   !=+continue 改 == 包裹（消 operator!= EXTRA / operator== MISSING）；
+//   ④while(ScanType) 改 for+if(!ScanType)break（P164 抗循环旋转）。
+// 验收：p167 调用点 97=97 CLEAR（0 missing / 0 extra）；栈槽集 42/42 逐项全等；
+// gap=2（ORIG 740 / ours 742）。归一化残差 19 行仅剩：LevelData::C1 后 4.4
+// EH 边界 jmp+nop（P223/N121 族）、循环内 if(!ok)break 的 je+jmp vs 4.1 jne
+// （N122 族）、while 条件块物理位置差（difflib 对齐）。语义与 ORIG 逐块一致。
+// 依赖：LevelDataRandomReward::m_field0 int→RandomBuffType（.h 改动，R2 已广播）。
 bool importQuickPartyScript(const char* path, QuickPartyData* data)
 {
-    static std::map<const char*, int, less_TCHAR> s_lookup;
-    static SpinLock s_initLock;
-    static bool s_inited = false;
-
     if (!loadRDARScriptFile("", path))
         return false;
 
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+
     std::string token;
+    token.clear();                                    // ORIG：C1 后紧跟 Ss::clear
     std::string value;
+    value.clear();
     bool ok = false;
+    int lv = 0;                                       // ORIG -0xf8：全函数复用
+    LevelData entry;                                  // ORIG -0x100：函数级，两节复用
+
+    int id;
 
     while (true)
     {
         if (!ScanType(token, true))
             break;                                    // 主扫描失败 → false
 
-        if (!s_inited)
+    re_lookup:
+        static std::map<const char*, int, less_TCHAR> s_lookup;
+        static SpinLock s_initLock;
+        static bool s_inited = false;
+
+        if (s_inited)
+        {
+            LookupMap::const_iterator it = s_lookup.find(token.c_str());
+            id = (it != s_lookup.end()) ? it->second : -1;
+        }
+        else
         {
             s_initLock.enter();
-            if (!s_inited)
+            if (s_inited)
             {
-                typedef std::pair<const char*, int> SecEntry;
-                s_lookup.insert(SecEntry("[/quick party]",
-                                         (int)QPSEC_QUICK_PARTY_END));
-                s_lookup.insert(SecEntry("[unable to quickparty]",
-                                         (int)QPSEC_UNABLE));
-                s_lookup.insert(SecEntry("[level section]",
-                                         (int)QPSEC_LEVEL_SECTION));
-                s_lookup.insert(SecEntry("[basic reward]",
-                                         (int)QPSEC_BASIC_REWARD));
-                s_lookup.insert(SecEntry("[random reward]",
-                                         (int)QPSEC_RANDOM_REWARD));
-                s_lookup.insert(SecEntry("[random reward prob]",
-                                         (int)QPSEC_RANDOM_REWARD_PROB));
-                s_lookup.insert(SecEntry("[require party num]",
-                                         (int)QPSEC_REQUIRE_PARTY_NUM));
+                s_initLock.leave();
+                goto re_lookup;                       // 双检命中：重查表
             }
-            s_initLock.leave();
+            id = 0;                                   // 首遍哨兵 → 注册链
         }
-
-        std::map<const char*, int, less_TCHAR>::const_iterator it =
-            s_lookup.find(token.c_str());
-        const int id = (it != s_lookup.end()) ? it->second : -1;
 
         switch (id)
         {
+        case 0:                                       // 首遍注册哨兵（与 0x3e 同块）
         case QPSEC_QUICK_PARTY_END:                   // [/quick party] → 成功
-            return true;
+            if (!s_inited)
+            {
+                s_lookup.insert(LookupMap::value_type(
+                    "[/quick party]", (int)QPSEC_QUICK_PARTY_END));
+            }
+            else
+            {
+                return true;
+            }
+            // 首遍：继续登记下一段
 
         case QPSEC_UNABLE:                            // 单扫描：值即入列元素
-            for (;;)
+            if (!s_inited)
             {
-                const int lv = ScanInt(&ok);
-                if (!ok)
-                    break;
-                data->m_dungeonIdxList.push_back(lv);
+                s_lookup.insert(LookupMap::value_type(
+                    "[unable to quickparty]", (int)QPSEC_UNABLE));
             }
-            break;
-
-        case QPSEC_LEVEL_SECTION:                     // 单扫描：值即入列元素
-            for (;;)
+            else
             {
-                const int lv = ScanInt(&ok);
-                if (!ok)
-                    break;
-                data->m_vec00.push_back(lv);
-            }
-            break;
-
-        case QPSEC_BASIC_REWARD:
-            while (ScanType(token, true))
-            {
-                if (token == "[/basic reward]")
-                    break;
-
-                if (token == "[increase gold card]")
+                for (;;)
                 {
-                    for (;;)                          // 门扫描弃值，体读「档」
-                    {
-                        ScanInt(&ok);
-                        if (!ok)
-                            break;
-                        LevelData entry;
-                        entry.m_value4 = ScanInt((bool*)0);
-                        ok = ScanStr(&value);
-                        entry.m_field0 = (ok && value == "%") ? 1 : 0;
-                        data->m_basicReward.m_levelDatas.push_back(entry);
-                    }
-                }
-                else if (token == "[hell ratio]")
-                {
-                    if (!ScanStr(&value))
-                        break;                        // ORIG：退出节回主循环
-                    data->m_basicReward.m_field18 = ScanInt((bool*)0);  // +0x30
-                    data->m_basicReward.m_field1c = ScanInt((bool*)0);  // +0x34
-                    for (;;)                          // 门扫描弃值，体读两 int
-                    {
-                        ScanInt(&ok);
-                        if (!ok)
-                            break;
-                        LevelDataHell entry;
-                        entry.m_field0 = ScanInt((bool*)0);
-                        entry.m_value4 = ScanInt((bool*)0);
-                        data->m_basicReward.m_hellDatas.push_back(entry);
-                    }
-                }
-                // 其余令牌：忽略并继续节内扫描
-            }
-            break;
-
-        case QPSEC_RANDOM_REWARD:
-            while (ScanType(token, true))
-            {
-                if (token == "[/random reward]")
-                    break;
-                if (token != "[reward]")
-                    continue;
-
-                if (!ScanStr(&value))
-                    break;                            // ORIG：退出节回主循环
-
-                LevelDataRandomReward lrr;            // ctor：+0=0xb、串/向量清空
-                lrr.m_field0 = (int)getRandomBuffTypeByName(value);
-                ScanStr(&lrr.m_name);                 // 返回值被忽略（ORIG 同）
-
-                for (;;)                              // 门扫描弃值，体读「档」
-                {
-                    ScanInt(&ok);
+                    lv = ScanInt(&ok);
                     if (!ok)
                         break;
-                    LevelData entry;
-                    entry.m_value4 = ScanInt((bool*)0);
-                    ok = ScanStr(&value);
-                    entry.m_field0 = (ok && value == "%") ? 1 : 0;
-                    lrr.m_levelDatas.push_back(entry);
+                    data->m_dungeonIdxList.push_back(lv);
                 }
-
-                // pair<RBT,LDRR> 栈拷贝后 insert，插入结果被忽略（ORIG 同）
-                data->m_randomRewards.insert(
-                    std::make_pair((RandomBuffType)lrr.m_field0, lrr));
+                break;
             }
-            break;
+            // 首遍：继续登记下一段
+
+        case QPSEC_LEVEL_SECTION:                     // 单扫描：值即入列元素
+            if (!s_inited)
+            {
+                s_lookup.insert(LookupMap::value_type(
+                    "[level section]", (int)QPSEC_LEVEL_SECTION));
+            }
+            else
+            {
+                for (;;)
+                {
+                    lv = ScanInt(&ok);
+                    if (!ok)
+                        break;
+                    data->m_vec00.push_back(lv);
+                }
+                break;
+            }
+            // 首遍：继续登记下一段
+
+        case QPSEC_BASIC_REWARD:
+            if (!s_inited)
+            {
+                s_lookup.insert(LookupMap::value_type(
+                    "[basic reward]", (int)QPSEC_BASIC_REWARD));
+            }
+            else
+            {
+                for (;;)
+                {
+                    if (!ScanType(token, true))
+                        break;
+                    if (token == "[/basic reward]")
+                        break;
+
+                    if (token == "[increase gold card]")
+                    {
+                        for (;;)                      // 门扫描弃值，体读「档」
+                        {
+                            lv = ScanInt(&ok);
+                            if (!ok)
+                                break;
+                            lv = ScanInt((bool*)0);
+                            entry.m_value4 = lv;
+                            ok = ScanStr(&value);
+                            entry.m_field0 = (ok && value == "%") ? 1 : 0;
+                            data->m_basicReward.m_levelDatas.push_back(entry);
+                        }
+                    }
+                    else if (token == "[hell ratio]")
+                    {
+                        ok = ScanStr(&value);
+                        if (!ok)
+                            break;                    // ORIG：退出节回主循环
+                        lv = ScanInt((bool*)0);
+                        data->m_basicReward.m_field18 = lv;   // +0x30
+                        lv = ScanInt((bool*)0);
+                        data->m_basicReward.m_field1c = lv;   // +0x34
+                        LevelDataHell entryHell;
+                        for (;;)                      // 门扫描弃值，体读两 int
+                        {
+                            lv = ScanInt(&ok);
+                            if (!ok)
+                                break;
+                            lv = ScanInt((bool*)0);
+                            entryHell.m_field0 = lv;
+                            lv = ScanInt((bool*)0);
+                            entryHell.m_value4 = lv;
+                            data->m_basicReward.m_hellDatas.push_back(entryHell);
+                        }
+                    }
+                    // 其余令牌：忽略并继续节内扫描
+                }
+                break;
+            }
+            // 首遍：继续登记下一段
+
+        case QPSEC_RANDOM_REWARD:
+            if (!s_inited)
+            {
+                s_lookup.insert(LookupMap::value_type(
+                    "[random reward]", (int)QPSEC_RANDOM_REWARD));
+            }
+            else
+            {
+                for (;;)
+                {
+                    if (!ScanType(token, true))
+                        break;
+                    if (token == "[/random reward]")
+                        break;
+
+                    if (token == "[reward]")
+                    {
+                        ok = ScanStr(&value);
+                        if (!ok)
+                            break;
+                        LevelDataRandomReward lrr;    // ctor：+0=0xb、串/向量清空
+                        lrr.m_field0 = getRandomBuffTypeByName(value);
+                        ScanStr(&lrr.m_name);         // 返回值被忽略（ORIG 同）
+
+                        for (;;)                      // 门扫描弃值，体读「档」
+                        {
+                            lv = ScanInt(&ok);
+                            if (!ok)
+                                break;
+                            lv = ScanInt((bool*)0);
+                            entry.m_value4 = lv;
+                            ok = ScanStr(&value);
+                            entry.m_field0 = (ok && value == "%") ? 1 : 0;
+                            lrr.m_levelDatas.push_back(entry);
+                        }
+
+                        // ORIG：value_type 引用构造（非 make_pair）
+                        data->m_randomRewards.insert(
+                            std::map<RandomBuffType, LevelDataRandomReward>::value_type(
+                                lrr.m_field0, lrr));
+                    }
+                }
+                break;
+            }
+            // 首遍：继续登记下一段
 
         case QPSEC_RANDOM_REWARD_PROB:
-            for (;;)
+            if (!s_inited)
             {
-                if (!ScanStr(&value))
-                    break;
-                const int idx = (int)getRandomBuffTypeByName(value);
-                if (idx > 10)                         // ORIG jle 实证上界
-                    continue;
-                for (int i = 0; i < 7; ++i)
-                    data->m_probs[idx][i] = ScanInt((bool*)0);
+                s_lookup.insert(LookupMap::value_type(
+                    "[random reward prob]", (int)QPSEC_RANDOM_REWARD_PROB));
             }
-            break;
+            else
+            {
+                for (;;)
+                {
+                    ok = ScanStr(&value);
+                    if (!ok)
+                        break;
+                    const int idx = (int)getRandomBuffTypeByName(value);
+                    if (idx > 10)                     // ORIG jle 实证上界
+                        continue;
+                    for (int i = 0; i < 7; ++i)
+                    {
+                        lv = ScanInt((bool*)0);
+                        data->m_probs[idx][i] = lv;
+                    }
+                }
+                break;
+            }
+            // 首遍：继续登记下一段
 
         case QPSEC_REQUIRE_PARTY_NUM:
-            while (ScanStr(&value))
+            if (!s_inited)
             {
-                int dungeonType;
-                if (value == "[normal]")       dungeonType = 0;
-                else if (value == "[ancient]") dungeonType = 1;
-                else break;
-
-                if (!ScanStr(&value))
-                    break;
-
-                int diff;
-                if      (value == "[easy]")     diff = 0;
-                else if (value == "[medium]")   diff = 1;
-                else if (value == "[hard]")     diff = 2;
-                else if (value == "[ultimate]") diff = 3;
-                else break;
-
-                int requireNum = 0;
-                if (!ScanInt(&requireNum))
-                    break;
-
-                // ORIG 双边界检查（js/jg 实证）：type∈{0,1}、diff∈{0..4}
-                if (dungeonType >= 0 && dungeonType <= 1 && diff >= 0 && diff <= 4)
-                {
-                    data->m_minCounts[dungeonType][diff] = requireNum;
-                }
+                s_lookup.insert(LookupMap::value_type(
+                    "[require party num]", (int)QPSEC_REQUIRE_PARTY_NUM));
             }
-            break;
+            else
+            {
+                while (ScanStr(&value))
+                {
+                    int dungeonType = -1;
+                    if (value == "[normal]")       dungeonType = 0;
+                    else if (value == "[ancient]") dungeonType = 1;
+                    else break;
+
+                    if (!ScanStr(&value))
+                        break;
+
+                    int diff = -1;
+                    if      (value == "[easy]")     diff = 0;
+                    else if (value == "[medium]")   diff = 1;
+                    else if (value == "[hard]")     diff = 2;
+                    else if (value == "[ultimate]") diff = 3;
+                    else break;
+
+                    if (!ScanInt(&lv))
+                        break;
+
+                    // ORIG 双边界检查（js/jg 实证）：type∈{0,1}、diff∈{0..4}
+                    if (dungeonType >= 0 && dungeonType <= 1 &&
+                        diff >= 0 && diff <= 4)
+                    {
+                        data->m_minCounts[dungeonType][diff] = lv;
+                    }
+                }
+                break;
+            }
+            // 首遍：继续登记下一段
 
         default:                                      // 未知令牌（id==-1）：跳过
             break;
+        }
+
+        if (!s_inited)
+        {
+            s_initLock.leave();
+            s_inited = true;
+            goto re_lookup;                           // 首遍登记完 → 重查表
         }
     }
 

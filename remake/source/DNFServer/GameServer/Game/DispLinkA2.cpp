@@ -113,6 +113,17 @@ struct __attribute__((packed)) ParamUidView_A2
     unsigned short m_uid;
 };
 
+// ParamBase+0x0e/+0x12 两个 ushort 槽位视图（EnchantByBead::check_error 专用：
+// ORIG 0x081d2396/0x081d23d2 为 movzwl 0xe/0x12(%eax),%eax + movswl %ax,%ebx 两段
+// —— 字段按 unsigned short 读、以 (short) 截断后拓宽为 int 实参，P200 形）。
+struct __attribute__((packed)) ParamSlotView_A2
+{
+    char m_pad00[0xe];
+    unsigned short m_slot1;   // +0x0e
+    unsigned short m_pad10;   // +0x10..+0x11
+    unsigned short m_slot2;   // +0x12
+};
+
 // GM 消息包（oldGmRoutine 内联展开模式，ORIG 多处重复同一序列）：
 // put_header(0,0xc) / put_byte(0) / put_short(0) / put_byte(0) / put_int(len) /
 // put_str(msg,len) / finalize(true) / Send。
@@ -133,6 +144,14 @@ static void A2_SendGmMessage(CUser* user, const char* msg)
 // ============================================================================
 // 1. Dispatcher_DisJointAvatar::_selectJewelTypeIndex
 //    报告 docs/class_func_reports/Dispatcher_DisJointAvatar/_selectJewelTypeIndex.md
+//    [b28d-solo-DispLinkA2 判词] verdict=IDENTICAL（compare_tu clean：ORIG 125/OURS 124；
+//    唯一残差 = ORIG 尾部 1 条对齐 nop，§6.1 豁免）。修法两处：
+//    ①`typeCounts[idx] = typeCounts[idx] + 1;` → `typeCounts[idx]++;`
+//      （P38 栈数组变体：4.4 对 `a[i]=a[i]+1` 恒双读下标 `mov idx,%eax; mov idx,%edx; …`；
+//       `a[i]++` 复现 ORIG 单读 `mov idx,%eax; mov a(,%eax,4),%edx; add $1; mov %edx,a(,%eax,4)`。
+//       探针 /tmp/a2probe/p.cpp probeA/H 对照。）
+//    ②`weight = typeCounts[j] * (10000/total);` → `(10000/total) * typeCounts[j]`
+//      （ORIG 先 idiv 后取数组成员；交换书写序令 4.4 同序，P23/P75。探针 p.cpp probeD/E。）
 // ============================================================================
 int Dispatcher_DisJointAvatar::_selectJewelTypeIndex(
     stAvatarEmblemInfo_t const* jewelSocketData) const
@@ -162,7 +181,10 @@ int Dispatcher_DisJointAvatar::_selectJewelTypeIndex(
             jewelSocketData->stEmblemSocket[i].emblemSocketType_);
         if (idx == -1)
             continue;
-        typeCounts[idx] = typeCounts[idx] + 1;
+        // [b28d-solo-DispLinkA2] P38 栈数组变体：`arr[i]=arr[i]+1` 在 4.4 恒双读下标
+        // （mov idx,%eax; mov idx,%edx; …）；`arr[i]++` 复现 ORIG 单读
+        // （mov idx,%eax; mov arr(,%eax,4),%edx; add $1; mov %edx,arr(,%eax,4)）。
+        typeCounts[idx]++;
         total = total + 1;
     }
 
@@ -171,7 +193,9 @@ int Dispatcher_DisJointAvatar::_selectJewelTypeIndex(
 
     for (j = 0; j < 5; ++j)
     {
-        weight = typeCounts[j] * (10000 / total);
+        // [b28d-solo-DispLinkA2] ORIG 先 idiv 后取数组成员（右操作数先求值）；
+        // 交换乘法书写序令 4.4 同序（P23/P75：整乘交换律语义等价）。
+        weight = (10000 / total) * typeCounts[j];
         cumul[j] = weight + totalWeight;
         totalWeight = totalWeight + weight;
     }
@@ -291,12 +315,20 @@ bool Dispatcher_EPLPCommand::isReTurnToVillage(CUser* user)
 // ============================================================================
 // 6. Dispatcher_EnchantByBead::check_error
 //    报告 docs/class_func_reports/Dispatcher_EnchantByBead/check_error.md
+//    [b28d-solo-DispLinkA2 判词] verdict=IDENTICAL_AE（compare_tu clean：107/107；唯一残差
+//    `mov &s_pSecuProtectionField,%eax` vs .o 未解析 R_386_32 显示 0x0，P264 归一口径）。
+//    **真语义 bug（实参取错形参）**：原码 `reinterpret_cast<ParamSlotView_A2*>(&param)`
+//    读 0x14(%ebp)=param；ORIG 0x081d238d 读 **0x10(%ebp)=msg**。铁证：ORIG process
+//    0x081d2534 亦从 msg(0x10(%ebp)) 读 +0xd/0xe/0x10/0x12 四字段；本 TU 其它 check_error
+//    注释同判（「ORIG mov 0x10(%ebp) 即 msg」）⇒ 已改 `&msg`。
+//    其余修法：②删 static inline A2_paramShort helper（P49：-O0 static inline 产真实 call
+//    `_ZL13A2_paramShortR9ParamBasei`）+ 具名 short 局部 → 槽位以 `(short)` 截断作普通实参
+//    直传（P200：4.4 产 ORIG 的 `movzwl 0xe/0x12(%eax),%eax; movswl %ax,%ebx` 两段）；
+//    ③删缓存 inven/dm，改链式单语句（P52：m_addInfo 先物化 %ebx 跨 G_CDataManager() 保活；
+//    getCurCharacInvenW 每处重调，ORIG 两次独立 call）；④set 访问改 const
+//    （p167：ORIG-only `std::set<int>::find(int const&) const`，我方原为非 const 版）
+//    + 具名 const_iterator 令 find 先于 end 求值（ORIG sret -0x28/-0x20 序）。
 // ============================================================================
-static inline short A2_paramShort(ParamBase& param, int off)
-{
-    return *reinterpret_cast<short*>(reinterpret_cast<char*>(&param) + off);
-}
-
 int Dispatcher_EnchantByBead::check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     if (user->get_state() <= 2)
@@ -308,27 +340,38 @@ int Dispatcher_EnchantByBead::check_error(CUser* user, MSG_BASE& msg, ParamBase&
     if (err != 0)
         return err;
 
-    short slot1 = A2_paramShort(param, 0xe);
-    CInventory* inven = user->getCurCharacInvenW();     // 0x080da28e
-    Inven_Item* item1 = inven->GetInvenRef(1, slot1);   // 0x084fc2ae
+    // [b28d-solo-DispLinkA2] 真语义 bug（实参取错形参）：ORIG 0x081d238d 读的是
+    // **0x10(%ebp)=msg**（同 TU 其它 check_error 注释「ORIG mov 0x10(%ebp) 即 msg」
+    // 同判；铁证 = ORIG process 0x081d2534 亦从 msg 读 +0xd/0xe/0x10/0x12）。
+    // msg 指针落 -0x18 具名槽，两处槽位以 (short) 截断后作普通实参直传 ⇒ 4.4 复现
+    // ORIG 的 movzwl 0xe/0x12(%eax),%eax; movswl %ax,%ebx（P200 拓宽直传 + P52 保活）。
+    ParamSlotView_A2* view = reinterpret_cast<ParamSlotView_A2*>(&msg);
+
+    Inven_Item* item1 = user->getCurCharacInvenW()->GetInvenRef(   // 0x080da28e / 0x084fc2ae
+        1, static_cast<short>(view->m_slot1));
     if (item1 == 0)
         return 0x11;
 
-    short slot2 = A2_paramShort(param, 0x12);
-    Inven_Item* item2 = inven->GetInvenRef(1, slot2);
+    Inven_Item* item2 = user->getCurCharacInvenW()->GetInvenRef(
+        1, static_cast<short>(view->m_slot2));
     if (item2 == 0)
         return 0x11;
 
-    CDataManager* dm = G_CDataManager();
-    CItem* pItem = dm->find_item(item1->m_addInfo);     // Inven_Item+0x02
+    // ORIG 0x081d240b：m_addInfo 先物化 %ebx、跨 G_CDataManager() 保活（P52 单语句链式）。
+    CItem* pItem = G_CDataManager()->find_item(item1->m_addInfo);   // Inven_Item+0x02
     if (pItem == 0)
         return 0x11;
 
-    // CItem 派生视图 +0x3d8 的可装配珠子类型集合（CStackableItem::m_set3d8）。
-    std::set<int>& acceptSet = static_cast<CStackableItem*>(pItem)->m_set3d8;
-    if (!acceptSet.empty())
+    // CItem 派生视图 +0x3d8 的可装配珠子类型集合（CStackableItem::m_set3d8）；
+    // ORIG 每处重新取址（无引用局部槽），且 find 走 **const 版**
+    // （p167：ORIG-only `set::find(int const&) const`）。
+    // 具名 const_iterator 令 find 先求值（ORIG 先 find 后 end，sret -0x28/-0x20）。
+    if (!static_cast<const CStackableItem*>(pItem)->m_set3d8.empty())
     {
-        if (acceptSet.find(item2->m_addInfo) == acceptSet.end())
+        std::set<int>::const_iterator it =
+            static_cast<const CStackableItem*>(pItem)->m_set3d8.find(
+                item2->m_addInfo);
+        if (it == static_cast<const CStackableItem*>(pItem)->m_set3d8.end())
             return 0x13;
     }
     return 0;
@@ -472,6 +515,22 @@ int Dispatcher_Request_Seria_Buff::check_error(CUser* user, MSG_BASE& msg,
 //     报告 docs/class_func_reports/Dispatcher_New_Gmdebug_Command/oldGmRoutine.md
 //     （ORIG 0x0820bf2c..0x082134a7，约 0x757b 字节；旧式 GM 调试命令解释器，
 //      空格分隔命令字 → 分支分发。Dispatchers.cpp:11927 调用。）
+//     [b28d-solo-DispLinkA2 判词] verdict=DIFF（超大函数 §6.2 三件套：**语义完成、
+//     byte 层 N82+N-形态 封顶**）。
+//     ① 调用点差集（p167_callsite.py，新鲜 /tmp/tu_DispLinkA2.o）：
+//        ORIG calls=1374 / OUR calls=1374，**0 MISSING / 0 EXTRA = CLEAR** ⇒ 无语义缺口。
+//     ② gap：OURS 6676 − ORIG 6625 = **+51**（本轮 6824→6676）。
+//     ③ 帧/槽：ORIG `push edi/esi/ebx; sub $0xb7c` vs OURS 同三 push `sub $0xc3c`
+//        （差 0xc0，本轮 0xd00→0xc3c）。深部对象偏移统一差 0xc0（base[10] 内部 0xb2c→0xbec、
+//        char 缓冲 0x668→0x728、CSkillChanger 0x568→0x628）；浅部 dbgCmd/guard 差 0x68
+//        （0x250→0x2b8）。逐块抽查（/tmp/a2_diff.py）差异主体为纯槽号平移
+//        （`lea -0x32c(%ebp)` ↔ `lea -0x3b4(%ebp)`），属 N82（4.1 不按 lifetime 复用互斥块
+//        局部 / 4.4 复用 ⇒ 全帧槽号错位）+ 跨版本 callee-saved 分配（P52/N7）与 bool 物化
+//        形态（ORIG -0x12d 死存储 `mov %al,-0x12d`×4，返回路径恒 `mov $0x0,%ebx` = P171 死写）。
+//        本轮实证修复（帧 −0xc4、insn −148）：`char b[0x100]; A2_ZERO(b);`（always_inline
+//        循环，4.4 恒保留循环 + 每处 3 个辅助槽 -0x98/-0x90/-0x94 族）→
+//        `char b[0x100] = {0};`（P214③/P312：复现 ORIG 内联 `mov $0x40,%edx; rep stos`），
+//        并恢复 `push %edi`。残余 +51 条为上述形态差（无调用差集），按 §6.2 不再耗轮次。
 // ============================================================================
 
 #include "GameMasterCmd.h"              // DisPatcher_DebugCommand 前向域依赖
@@ -538,16 +597,10 @@ public:
 // AradServerStateMessage.h 声明（定义归 ARAD 域 TU）。
 
 
-// GM 消息缓冲（ORIG local_66c，栈上 0x100 字节，sprintf 前先内联清零）。
-// ORIG 反汇编里清零是编译器展开的 int 步长循环（非 memset 调用），故此处用
-// always_inline 循环复现，避免向 oldGmRoutine 引入额外 call。
-static inline __attribute__((always_inline)) void A2_ZERO(char* p)
-{
-    unsigned int* q = reinterpret_cast<unsigned int*>(p);
-    for (int i = 0; i < 0x40; ++i)
-        q[i] = 0;
-}
-
+// [b28d-solo-DispLinkA2] GM 消息缓冲（ORIG local_66c，栈上 0x100 字节）：
+// ORIG 0x0820d0e3 段为内联 `mov $0x40,%edx; rep stos`（P214③）⇒ 源形必须是
+// `char b[0x100] = {0};`。原 always_inline A2_ZERO 循环在 4.4 恒保留循环 + 每处
+// 3 个辅助槽（-0x98/-0x90/-0x94 族），帧 0xd00 vs ORIG 0xb7c 的主因之一。
 // GM 文本消息包（ORIG show lp / max lp / ulti max / dimen max 内联展开序列）：
 // 局部 PacketGuard + put_header(0,0xc)/put_byte(0)/put_short(0)/put_byte(0) +
 // put_int(str.size())/put_str(str.c_str(), str.size())/finalize(true)/Send。
@@ -708,7 +761,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     {
         int luck = user->GetCurCharacLuckPoint();
         std::string text("remained luck point : ");
-        char b[0x100]; A2_ZERO(b);
+        char b[0x100] = {0};
         std::sprintf(b, "(%d) ", luck);
         text += b;
         A2_SEND_STR(user, text);
@@ -803,13 +856,13 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     // ---- npcfav / favterm / pickup / refund / durable / bluemarble：双参透传 ----
     else if (args[0] == "npcfav")
     {
-        char b[0x100]; A2_ZERO(b);
+        char b[0x100] = {0};
         std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
         DoUserDefineCommand(user, 0x24, b);
     }
     else if (args[0] == "favterm")
     {
-        char b[0x100]; A2_ZERO(b);
+        char b[0x100] = {0};
         std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
         DoUserDefineCommand(user, 0x23, b);
     }
@@ -826,7 +879,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     else if (args[0] == "mdt" || args[0] == "monsterdroptest" || args[0] == "startmdt" ||
              args[0] == "endmdt" || args[0] == "goldmdt")
     {
-        char b[0x100]; A2_ZERO(b);
+        char b[0x100] = {0};
         if (args[0] == "startmdt")
             std::sprintf(b, "%d %s", 1, args[1].c_str());
         else if (args[0] == "endmdt")
@@ -840,7 +893,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     // ---- cli / checklottoitem ----
     else if (args[0] == "cli" || args[0] == "checklottoitem")
     {
-        char b[0x100]; A2_ZERO(b);
+        char b[0x100] = {0};
         if (args[1] == "ven")
         {
             std::sprintf(b, "%d %s", 1, args[2].c_str());
@@ -873,13 +926,13 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     // ---- pickup / refund ----
     else if (args[0] == "pickup")
     {
-        char b[0x100]; A2_ZERO(b);
+        char b[0x100] = {0};
         std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
         DoUserDefineCommand(user, 0x47, b);
     }
     else if (args[0] == "refund")
     {
-        char b[0x100]; A2_ZERO(b);
+        char b[0x100] = {0};
         std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
         DoUserDefineCommand(user, 0x48, b);
     }
@@ -960,14 +1013,14 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     }
     else if (args[0] == "durable")
     {
-        char b[0x100]; A2_ZERO(b);
+        char b[0x100] = {0};
         std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
         DoUserDefineCommand(user, 0x29, b);
     }
     // ---- sep upgrade/up success|s|fail|f ----
     else if (args[0] == "sep" && (args[1] == "upgrade" || args[1] == "up"))
     {
-        char b[0x100]; A2_ZERO(b);
+        char b[0x100] = {0};
         if (args[2] == "success" || args[2] == "s")
         {
             if (user->getUpgradeSeparateTrueFlag() == 0)
@@ -1037,7 +1090,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     // ---- startevent（三参）/ endevent ----
     else if (args[0] == "startevent")
     {
-        char b[0x100]; A2_ZERO(b);
+        char b[0x100] = {0};
         std::sprintf(b, "%s %s %s", args[1].c_str(), args[2].c_str(), args[3].c_str());
         DoUserDefineCommand(user, 0x2e, b);
     }
@@ -1098,7 +1151,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     // ---- bluemarble ----
     else if (args[0] == "bluemarble")
     {
-        char b[0x100]; A2_ZERO(b);
+        char b[0x100] = {0};
         std::sprintf(b, "%s %s", args[1].c_str(), args[2].c_str());
         DoUserDefineCommand(user, 0x7d, b);
     }
@@ -1184,7 +1237,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xd)));
         state->setEnterLayer(layer);
         TOD_Layer today = state->getTodayEnterLayer();
-        char b[0x100]; A2_ZERO(b);
+        char b[0x100] = {0};
         std::sprintf(b, "set Enter Layer : %d",
                      static_cast<int>(today.GetLayer()) & 0xffff);
         TowerOfDespairMgr::SendMessageToCUser(user, b);
@@ -1338,7 +1391,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         CItem* pItem = G_CDataManager()->find_item(name.c_str());
         if (pItem == 0)
         {
-            char b[0x100]; A2_ZERO(b);
+            char b[0x100] = {0};
             std::sprintf(b, "cannot find item (%s) ", name.c_str());
             PacketGuard g;
             g.put_header(0, 0xc);
@@ -1352,7 +1405,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             return 0;
         }
         {
-            char b[0x100]; A2_ZERO(b);
+            char b[0x100] = {0};
             std::sprintf(b, "item_index(%d) ", pItem->get_index());
             PacketGuard g;
             g.put_header(0, 0xc);
@@ -1481,7 +1534,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         CItem* pItem = G_CDataManager()->find_item(itemIdx);
         if (pItem == 0)
         {
-            char b[0x100]; A2_ZERO(b);
+            char b[0x100] = {0};
             std::sprintf(b, "cannot find item (%s) ", args[1].c_str());
             PacketGuard g;
             g.put_header(0, 0xc);
@@ -1584,7 +1637,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             if (party != 0 && party->get_member_count() >= 2)
             {
                 party->set_gm_random_buff_type(static_cast<QuickParty::RandomBuffType>(v));
-                char b[0x100]; A2_ZERO(b);
+                char b[0x100] = {0};
                 std::sprintf(b, "GM QUICK PARTY RANDOM BUFF (%d) TYPE!!", v);
                 PacketGuard g;
                 g.put_header(0, 0xc);
@@ -1614,7 +1667,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 BattleData* bd = &party->m_battleData;   // +0x32c（MonC9 具名化：m_padBattleData→BattleData m_battleData）
                 bd->SetHellPartyValueTotal(v);
                 party->send_hellParty_value();
-                char b[0x100]; A2_ZERO(b);
+                char b[0x100] = {0};
                 std::sprintf(b, "HELL PARTY VALUE (%d)",
                              bd->GetHellPartyValueTotal());
                 PacketGuard g;

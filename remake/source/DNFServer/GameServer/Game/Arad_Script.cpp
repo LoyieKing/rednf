@@ -45,26 +45,26 @@ Arad_Script::~Arad_Script()
         delete[] cells_;
 }
 
+// [b28d-solo-Arad_Script] Create verdict=AE（fresh .o 66/66 ndiff=0）：三处形全等——
+// ①memset size 实参两段 `mov 0x10(%eax),%eax; mov %eax,%edx` 由 `int bufBytes_`
+// 的 int→size_t 转换复现（探针 fb/fk）；②store 段 `shl;mov` 由 RHS `* 0x80u`
+// 与 int 字段异型复现（探针 gb）；③new[]/map clear 段原形。连带 ExpandCol/ExpandRow
+// 同时 AE（RHS 异型 `unsigned<<7` / 同型 `*128` 两向开关，探针 ga/gd）。
 bool Arad_Script::Create()
 {
     // ORIG 0x0817b72a 头部 test;jne+test;je 双检 = 源形 `if (cells_ == 0)
     // delete[] cells_;`（外层 ==0 守卫 + delete[] 编译器自带 null 守卫）。
-    // [b28d-58] 载入中转已由 `(int)(cols_ * (unsigned int)rows_) * 0x80` 复现
-    // （探针 F1/F3）：ORIG 0x0817b768 `mov (%eax),%eax; mov %eax,%edx` +
+    // [b28d-solo] 载入中转由 `(int)(cols_ * (unsigned int)rows_) * 0x80u` 复现
+    // （探针 gb）：ORIG 0x0817b768 `mov (%eax),%eax; mov %eax,%edx` +
     // 0x0817b775 `shl $7,%eax; mov %eax,%edx` 逐条全等。
-    // [b28d-58] 残余 N18a（memset size 实参）：ORIG 0x0817b7aa
-    // `mov 0x10(%eax),%eax; mov %eax,%edx; mov %edx,0x8(%esp)`，4.4 恒折
-    // `mov 0x10(%eax),%edx`。三档旋钮试尽：字段改 int 可复现两段（I3 探针）
-    // 但反破 shl 段（I1/I2 恒 mov;shl）；`(size_t)(int)` / `(unsigned long)`
-    // cast 恒折叠（H2/H4 探针）⇒ 1 条 mov 封顶，语义等价（gap=1）。
+    // [b28d-solo] memset size 实参两段（ORIG 0x0817b7aa `mov 0x10(%eax),%eax;
+    // mov %eax,%edx`）由字段 `int bufBytes_` 的 int→size_t 转换复现（探针 fb）；
+    // 旧 unsigned 字段恒单段。字段类型为 int 后本函数三处与 ORIG 全等。
     if (cells_ == 0)
         delete[] cells_;
     cols_ = 0x20;
     rows_ = 0x100;
-    // [b28d-58] 载入中转（ORIG 0x0817b768 `mov (%eax),%eax; mov %eax,%edx`）：
-    // 探针 F1/F3 实证 `(int)(左 * (unsigned int)右) * 0x80` 使 4.4 复现两段载入
-    // + `shl;mov` 形（双 int 或无 cast 恒单段 `mov mem,%edx`）。
-    bufBytes_ = (int)(cols_ * (unsigned int)rows_) * 0x80;
+    bufBytes_ = (int)(cols_ * (unsigned int)rows_) * 0x80u;
     cells_ = new char[bufBytes_];
     if (cells_ == 0)
         return 0;
@@ -78,11 +78,10 @@ bool Arad_Script::Create()
 
 bool Arad_Script::ExpandCol()
 {
-    // [b28c-13 N18a] 残余同 Create：ORIG 0x0817b816 `mov 0x4(%eax),%eax;
-    // mov %eax,%edx` 载入中转 —— [b28d-58] 已由 `(int)(rows_ * (unsigned int)cols_)
-    // << 7` 复现（探针 E1/E4 逐条命中）。
+    // [b28d-solo] ORIG 0x0817b816 `mov 0x4(%eax),%eax; mov %eax,%edx` 载入中转 +
+    // `shl $7,%eax; mov %eax,%edx`：RHS 须与 int 字段异型（unsigned 移位，探针 ga）。
     cols_ = cols_ + 0x20;
-    bufBytes_ = (int)(rows_ * (unsigned int)cols_) << 7;
+    bufBytes_ = (unsigned int)(rows_ * (unsigned int)cols_) << 7;
     char* n = new char[bufBytes_];
     if (n == 0)
         return 0;
@@ -94,19 +93,17 @@ bool Arad_Script::ExpandCol()
 
 bool Arad_Script::ExpandRow()
 {
-    // [b28d-58] AE（探针 A7/subI）：ORIG 0x0817b892 的 shl 段为 `mov %eax,%edx;
-    // shl $0x7,%edx`（先搬后移，与 Create 的 `shl;mov` 相反）⇒ 原码是 unsigned
-    // 常量乘法 `rows_ * cols_ * 128u`（探针 A1..A5 全 shl;mov，仅 `* 128u` 命中）；
-    // memset size 段 ORIG `mov m,%eax; sub nsz,%eax; mov %eax,%edx` 需 int-int
-    // 减法（探针 subI 逐条全等；unsigned-int 会产 RHS-first `mov m,%edx; sub`）
-    // ⇒ 显式 `(int)bufBytes_ - nsz`。
+    // [b28d-solo] ORIG 0x0817b892 shl 段为 `mov %eax,%edx; shl $0x7,%edx`（先搬后移，
+    // 与 Create 的 `shl;mov` 相反）⇒ RHS 与 int 字段**同型**（int 常量 128，探针 gd）；
+    // `* 128u` 异型反产 `shl;mov`（探针 ge）。memset size 段 ORIG `mov m,%eax;
+    // sub nsz,%eax; mov %eax,%edx` 为 int-int 减法（字段改 int 后 cast 可去）。
     rows_ = rows_ * 2;
-    bufBytes_ = rows_ * cols_ * 128u;
+    bufBytes_ = rows_ * cols_ * 128;
     char* n = new char[bufBytes_];
     if (n == 0)
         return 0;
     int nsz = bufBytes_;
-    std::memset(n + nsz, 0, (size_t)((int)bufBytes_ - nsz));
+    std::memset(n + nsz, 0, (size_t)(bufBytes_ - nsz));
     std::memcpy(n, cells_, (size_t)nsz);
     delete[] cells_;
     cells_ = n;
@@ -282,6 +279,12 @@ void Arad_Script::SetString(int row, char* col, char* value)
 // -0x44/-0x3d…（NEAR 级槽序）；⑤EH landing-pad 块序（"EH 双份 dtor epilogue vs
 // merge"）。源码层无合法写法翻转以上各向。
 // ---------------------------------------------------------------------------
+// [b28d-solo-Arad_Script] Load(PKc,PKc) verdict=N 封顶（fresh .o 387/387 gap=0,
+// p167 CLEAR 31/31，ndiff 196 中 139 条为块内临时对象槽号整体深 0x10：4.1 把循环内
+// allocator/string 对放在 -0x4d/-0x54 贴近 colBuf，4.4 放在 -0x3d/-0x44 贴近 ebp
+// —— 4.1 声明序 vs 4.4 首次使用序的槽方向差，N82/N93 族（P212 全头部声明法不适用
+// 于依赖运行期实参构造的块内对象）；其余为 4.1 空块 nop;jmp 岛/块序（N104/N112/N121）
+// 与 `mov %eax,%ecx; lea` vs `add`（N18a/P30）。语义完成、byte 层 N 封顶。
 bool Arad_Script::Load(const char* dir, const char* file)
 {
     if (!Create())
@@ -432,6 +435,11 @@ bool Arad_Script::Load(const char* dir, const char* file)
     return 1;
 }
 
+// [b28d-solo-Arad_Script] Load(PKc) verdict=N 封顶（fresh .o 408/408 gap=0,
+// p167 CLEAR 39/39）。残余同双参版：块内 allocator/string 临时槽整体差 0x10
+// （N82/N93 槽方向）、4.1 空块 nop;jmp 岛与块序（N104/N112/N121）、
+// `mov %eax,%ecx; lea (%ecx,%eax,1)` vs `add`（N18a/P30；rowIdx 为 int 且需与 -1
+// 比较，无法用 P211 同型化翻 add-vs-lea）。语义完成、byte 层 N 封顶。
 bool Arad_Script::Load(const char* path)
 {
     // ORIG _ZN11Arad_Script4LoadEPKc @ 0x0817bea4（报告缺失：docs 同名 Load.md
@@ -642,12 +650,6 @@ SEventPeriodData::SEventPeriodData(int eventCode, unsigned int beginTime,
     m_endTime   = endTime;
 }
 
-// 【objdump】D1：空体。
-SEventPeriodData::~SEventPeriodData()
-{
-}
-
-
 bool SEventPeriodData::operator==(SEventPeriodData const& other)
 {
     return m_eventCode == other.m_eventCode;   // 【objdump】仅比 +0x00
@@ -689,11 +691,6 @@ bool readTime(short* out)
     }
 }
 
-// 【objdump】D1：空体。
-SRewardPeriodData::~SRewardPeriodData()
-{
-}
-
 bool SRewardPeriodData::operator==(SRewardPeriodData const& other)
 {
     return m_eventCode == other.m_eventCode;   // 【objdump】仅比 +0x00
@@ -723,9 +720,9 @@ unsigned int uint32Time(short* t)
 // ============================================================================
 namespace SCRIPT {
 
-_AradJumpingRewardItem::~_AradJumpingRewardItem()
-{
-}   // 【objdump】W 0x088b597e：5 字节空体。
+// [b28d-solo] _AradJumpingRewardItem 无用户 dtor（P317/P12）：ORIG D1/D2 W 0x088b597e
+// 由 new_allocator<T>::destroy/construct 使用点发射为 W；显式空体定义会使类型
+// non-trivial 并让 importScript 多发 D1 call + EH landing（ORIG 无）。
 
 AradJumpingScriptData::AradJumpingScriptData()
 {
@@ -752,6 +749,13 @@ std::vector<_AradJumpingRewardItem>* AradJumping_Script::getRDARScriptData()
     return &m_rewardItems;   // 【objdump】W 0x088b43ee：mov %eax,%eax … 返回 this+0。
 }
 
+// [b28d-solo-Arad_Script] importScript verdict=N 封顶（fresh .o 90/90 gap=0,
+// p167 CLEAR 12/12, ndiff 4）。修复：①删 `_AradJumpingRewardItem` 用户空 dtor
+// （P317：ORIG 局部 item 无 D1 call，D1/D2 仍由 allocator::destroy 使用点发射 W）；
+// ②外层 while 改 goto 顶测消 loop rotation（P283 反向，ndiff 39→21）；③内层
+// `while(a&&b&&c)` 物化岛改 for+`if(!ok)break;`（ndiff 21→4）。残余 4 条 =
+// ORIG `mov items,%eax; lea &item,%edx`（this 先求值保活）vs 4.4 实参先装载
+// （N7/P75；`(*items).`/语句表达式/static_cast receiver 三形实测均 4 条不变）。
 bool AradJumping_Script::importScript(char* path, AradJumping_Script& target)
 {
     // 报告 ARAD__SCRIPT__AradJumping_Script/importScript.md 全文转写（T 0x088b4128）。
@@ -765,28 +769,46 @@ bool AradJumping_Script::importScript(char* path, AradJumping_Script& target)
     // getRDARScriptData(target) 在解析循环前取一次（ORIG +0x41 存 -0xc(%ebp)）。
     std::vector<_AradJumpingRewardItem>* items = target.getRDARScriptData();
 
-    while (ScanType(token, true))
+    // [b28d-solo-importScript] ORIG 外层循环为「条件置顶 + 体尾回跳」布局
+    // （0x088b4174 条件块 → 0x088b418c `jne 0x088b4213` 退出 → 体 →
+    // 0x088b420e `jmp 0x088b4174`），4.4 对 while 恒做 loop rotation
+    // （条件置底 + 入口 jmp）⇒ goto 顶测形复现（P283 反向用法）。
+    // 内层：ORIG 每条件 `movzbl ok; xor $1; test; je 继续; jmp 出口`（4.1 短路
+    // 平铺）；4.4 对 `while(a&&b&&c)` 恒物化 0/1（+6 条）⇒ 改 for(;;)+`if(!ok)break;`
+    // 消物化（ndiff 39→4）。残余 4 条 = ORIG `mov items,%eax; lea &item,%edx`（this
+    // 先求值保活）vs 4.4 `lea &item,%eax; mov items`（实参先）——this-first 装载序
+    // 不可翻（N7/P75 跨版本实参装载时刻；`(*items).`/语句表达式/static_cast receiver
+    // 三形实测均 4 条不变）。gap=0、调用点集全等。
+outer_test:
+    if (!ScanType(token, true))
+        goto outer_done;
+    if (token == "[Jumping Gift]")
     {
-        if (token == "[Jumping Gift]")
+        _AradJumpingRewardItem item;
+        for (;;)
         {
-            _AradJumpingRewardItem item;
-            for (;;)
-            {
-                item.m_job = ScanInt(&ok);
-                if (!ok)
-                    break;
-                item.m_growValue = ScanInt(&ok);
-                if (!ok)
-                    break;
-                item.m_money = (unsigned long)(unsigned int)ScanInt(&ok);
-                if (!ok)
-                    break;
-                items->push_back(item);
-            }
+            item.m_job = ScanInt(&ok);
+            if (!ok)
+                break;
+            item.m_growValue = ScanInt(&ok);
+            if (!ok)
+                break;
+            item.m_money = (unsigned long)(unsigned int)ScanInt(&ok);
+            if (!ok)
+                break;
+            items->push_back(item);
         }
     }
+    goto outer_test;
+outer_done:
     return false;
 }
+// [b28d-solo-Arad_Script] importAradEventScript verdict=N 封顶（fresh .o 336/336
+// gap=0，p167 CLEAR 57/57）。修复：①删 SEventPeriodData/SRewardPeriodData 用户空
+// dtor（P317，消 4 处 EXTRA D1 call，identical +4/missing -4）；②外层 while 改
+// goto 顶测消 loop rotation（P283 反向，gap -22→0）。残余（归一化槽号后 35 条）=
+// 槽号差 8（N82/N93）、SRewardPeriodData 5 实参装载序/中转寄存器差（N7/P75）、
+// 尾部 ebx 返回值物化位置（N104）。语义完成、byte 层 N 封顶。
 bool importAradEventScript(std::vector<SCRIPT::SEventPeriodData>& eventList,
                                    std::vector<SCRIPT::SRewardPeriodData>& rewardList)
 {
@@ -800,7 +822,12 @@ bool importAradEventScript(std::vector<SCRIPT::SEventPeriodData>& eventList,
     {
         std::string token;
         bool ok = false;
-        while (ScanType(token, true))
+        // [b28d-solo] ORIG 0x088b3bd8 外层循环同为「条件置顶 + 体尾回跳」
+        // （条件块 `movl $1,0x4(%esp); lea token; call ScanType; xor $1; test;
+        // jne 出口`），4.4 while 恒 loop rotation ⇒ goto 顶测形（P283 反向）。
+event_scan:
+        if (!ScanType(token, true))
+            goto event_done;
         {
             if (token == "[event period]")
             {
@@ -862,6 +889,8 @@ bool importAradEventScript(std::vector<SCRIPT::SEventPeriodData>& eventList,
                 }
             }
         }
+        goto event_scan;
+event_done:
         return true;    // ORIG 扫描完成 ebx=1。
     }
     catch (char const* msg)

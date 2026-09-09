@@ -53,7 +53,7 @@ void CVillageObjectMgr::on_move_area(CUser* user)
     user->Send(packet);
 }
 
-int CVillageObjectMgr::register_object(Zone zone, IObject* object)
+bool CVillageObjectMgr::register_object(Zone zone, IObject* object)
 {
     // [b28d-39 判词 · N82/N93] ORIG 0x086b6f58：帧 0x50 vs 0x40 + ORIG 具名局部
     // `add $0x4,%eax; mov %eax,-0xc` 与迭代器槽阶梯（N86/N93）；插入/碰撞/返回

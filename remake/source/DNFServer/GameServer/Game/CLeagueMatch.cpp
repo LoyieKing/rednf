@@ -32,6 +32,43 @@
 //     P226 物化差、_PutInRoom=N104（EH 尾块相对序）、OnReward=N82（帧 0x1fc vs
 //     0x24c 槽复用策略）。
 //   · P0：本 TU 无 `register asm` 绑定（清绑数 0）。
+//
+// [b28d-solo-CLeagueMatch·S217 复验总判词] 口径修正：S180 清单/早期读数的
+// "our_insns/ndiff" 取自**链接二进制 df_game_r**（Main 上次 relink 的中间态，
+// 与当前源码不同步）；本轮一律以**新鲜 .o**（check_tu_routed.sh → compare_tu
+// clean 口径；逐件 ndiff 用 /tmp/b28d_s217/ndiff.py 复算）为准。当前真值：
+//   · _getSameSchool ndiff=0（AE）；OnEndFight 2；size 4；reset 4；OnWalkOut 6；
+//     GetSchoolNo/GetUser/GetGap 各 8；del 12；_PutInRoom 19；OnCompleteLoad 22；
+//     _SendMatchStatePacket 22；_RegisterWaitingRoom 24；OnLeaveRoom 24；add 28；
+//     refresh 36；CheckMatchable 66；OnMatchRoom 102；OnReward 1048。
+//   · 残差结构（逐条明细已核）：N-STRIDE（`lea 0x0(,%eax,4),%edx` vs
+//     `shl $0x2,%eax`，及其连带基址寄存器 %eax↔%edx、`add $K` vs `lea K(%edx)`）
+//     + N7（间接 call 目标 %eax vs %ecx/%edx）+ N-P75（实参装载时刻）+
+//     N104（_PutInRoom EH 尾块相对序）+ N95（OnMatchRoom 槽基差 8）+
+//     N82（OnReward 帧 0x1fc vs 0x24c）。0x70 族（OnCompleteLoad/
+//     _SendMatchStatePacket）另含乘法展开序差：ORIG 先 `shl $4`(t*16) 再
+//     `lea(,%x,8);sub`，4.4 先算 i*7 再 shl；同属 N-STRIDE 族。
+//   · 本轮新旋钮实测（均无净收益，已回滚/不入库）：
+//     ① P311/P288/P291 视图族（char/int/short 二维视图、数组引用、flat、
+//        PI 指针视图共 6 形，/tmp/b28d_s217/probe_view.o）⇒ 4.4 全产
+//        `shl $0x2`，N-STRIDE 不可翻（补 S180 探针矩阵）。
+//     ② P226 条件向语句表达式（OnMatchRoom badSize 改 `if (({a||b;}))`）⇒
+//        局部复现零槽短路物化岛（`mov $0/$1,%eax; test %al,%al` 消掉
+//        `mov %al,-0x19; cmpb`），但全函数 ndiff 102→134（槽号平移连锁）⇒ 回滚。
+//     ③ P231 纯 register 提示（OnEndFight managerTeam）⇒ 丢 ORIG 的 -0x1c 槽、
+//        帧 0x2c→0x1c ⇒ 回滚。
+//     ④ 4.4.6 后端 + i486（/tmp/s217tool 副本）⇒ 与 4.4.7+i486 产物 md5 相同
+//        （两者 .comment 均 4.4.6），逐件 ndiff 全等 ⇒ 零收益，不上报路由。
+//     ⑤ _RegisterWaitingRoom 的 x87 书写序（`<`↔`>`）⇒ 新鲜 .o 两形同产
+//        `fucompp; fnstsw %ax; sete %al`（S180 判词里的 fucomip/seta 系 stale
+//        链接二进制假象）⇒ 保持原写法。
+//   · p167 全量复验 CLEAR（19 件 0 missing / 0 extra；OnReward 45/45、
+//     OnMatchRoom 29/29、_PutInRoom 15/15、OnLeaveRoom 7/7、CheckMatchable 4/4、
+//     _RegisterWaitingRoom 3/3 …）⇒ §6.2 语义完成、byte 层 N 封顶。
+//   · 真语义 bug：本轮无新增（S180 已修 4 处：OnLeaveRoom 用第 3 参 team、
+//     OnMatchRoom 守卫用形参 room、CheckMatchable 段位窗口 `<=10`、
+//     OnReward 徽章回填固定 teamB 槽）。
+//   · P0：无 register asm 绑定（清绑数 0）。无 .h 改动。
 // ============================================================================
 
 #include "CLeagueMatch.h"
@@ -392,8 +429,8 @@ int CLeagueMatch::OnRegisterMatch(CUser* user, PvP_Room* room)
 }
 
 // ORIG T 0x0855dc64。ORIG 返回 int：失败路径 → 0；成功 → 1。
-// [b28d-solo-CLeagueMatch] DIFF 278/278·真语义 bug 已修 + N95（S180 复验，
-// p167 29/29 CLEAR）：①0x2c2 守卫
+// [b28d-solo-CLeagueMatch] DIFF 277/277·ndiff 102·真语义 bug 已修 + N95
+// （S217 新鲜 .o 口径；p167 29/29 CLEAR）：①0x2c2 守卫
 // 原用 theirRoom->get_player_count()，ORIG 0x0855de5e `mov 0xc(%ebp),%eax` +
 // Ghidra C `get_player_count(param_1)` 实证为**形参 room** ⇒ 改回 room（真 bug）；
 // ②leader/theirRoom 按 ORIG 0x0855dca0/dca7 函数头预清 0（P198③，gap 2→0）；
@@ -494,10 +531,12 @@ void CLeagueMatch::OnStartFight()           // ORIG T 0x0855e21c
 }
 
 // ORIG T 0x0855e55a
-// [b28d-solo-CLeagueMatch] DIFF 45/45·N-P75（S180 复验）：ORIG 0x0855e594 第二
-// 实参先入 %eax 再压常量 0，4.4 恒先压常量；cast/NULL/具名局部 3 形复测不可翻
-// （S180 追加逗号求值序形 ((void)managerTeam,(CUser*)0) 亦不变）⇒ 4 形全败，
-// 语义等价。
+// [b28d-solo-CLeagueMatch] DIFF 45/45·ndiff 2·N-P75（S217 新鲜 .o 复验）：
+// ORIG 0x0855e594 第二实参先入 %eax 再压常量 0，4.4 恒先压常量；cast/NULL/
+// 具名局部 3 形不可翻（S180 追加逗号求值序形 ((void)managerTeam,(CUser*)0)
+// 亦不变）。S217 再补 2 形：`0L` 与 `0` 同形；`*&managerTeam` 虽消实参序差但
+// 把 `cmpl $1,-0x1c(%ebp)` 变 `mov;cmp $1,%eax`（46 条 +1，净零）⇒ 回滚。
+// 共 6 形全败，语义等价。
 void CLeagueMatch::OnEndFight(PvP_Room* room)
 {
     int managerTeam = room->get_manager_team();
@@ -548,7 +587,8 @@ bool CLeagueMatch::OnReady(CUser* /*user*/, bool ready)
 //   3) GetDailyBadge 由循环改 3 条独立调用（ORIG $0x0/$0x1/$0x2 立即数直传
 //      三处 call，P0），读取 user 按数组化寻址 (&m_teamA)[t].m_players[i].m_user
 //      复现 ORIG 乘法寻址链（无具名缓存槽）。
-// [b28d-solo-CLeagueMatch] DIFF 996/962·N82（S180 复验）：帧 0x1fc vs 0x24c，
+// [b28d-solo-CLeagueMatch] DIFF 992/960·ndiff 1048·N82（S217 新鲜 .o 口径）：
+// 帧 0x1fc vs 0x24c，
 // 4.4 槽复用策略差（§6.2 三件套口径：p167 调用点差集 45/45 CLEAR [0 缺 0 多]、
 // gap 34 归因槽复用与 t*0x70/j*3 寻址代数分解；S180 试 P235 union 视角
 // m_teams[t] 该件反劣（1390→1398）⇒ 两形取优保留 (&m_teamA)[t]；剩余全为
@@ -721,11 +761,9 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
 }
 
 // ORIG T 0x0855e22c：向全体成员广播加载完成通知（0x81 包，携带 unique id）。
-// [b28d-solo-CLeagueMatch] DIFF 97/97·N-STRIDE（S180 更新）：删 TeamInfo&/
-// PlayerInfo& 引用槽 + member 具名局部（ORIG -0x10）后条数 97=97；S180 再以
-// P235 匿名 union 视角 m_teams[t] 复现 ORIG「偏移先算 + lea this + add $0x24」
-// 寻址序（0x0855e2a2 段，改前 4.4 先算 this+0x1c 基址），残差仅剩 i*4 的
-// shl-vs-lea（N-STRIDE），语义等价。
+// [b28d-solo-CLeagueMatch] DIFF 97/95·ndiff 22·N-STRIDE（S217 新鲜 .o 复验）：
+// 残差 = i*0x1c 的 shl-vs-lea + 0x70 族乘法展开序差（ORIG 先 `shl $4`(t*16)
+// 再 `lea(,%x,8);sub`，4.4 先算 i*7 再 shl），逐条语义等价；p167 9/9 CLEAR。
 void CLeagueMatch::OnCompleteLoad(CUser* user)
 {
     PacketGuard pkt;
@@ -951,7 +989,9 @@ PvP_Room* CLeagueMatch::_MakeRoom(CUser* user)   // ORIG T 0x0855d572
     return pvp;
 }
 
-// [b28d-solo-CLeagueMatch] DIFF 132/132·N-STRIDE+N85（S180 更新）：foundMin 改
+// [b28d-solo-CLeagueMatch] DIFF 132/132·ndiff 24·N-STRIDE+N7（S217 新鲜 .o
+// 复验；x87 比较段已产 ORIG 的 `fucompp;fnstsw;sahf/test;sete` 形，S180 判词
+// 里的 fucomip/seta 系 stale 链接二进制假象）：foundMin 改
 // int（ORIG -0x20 `cmpl $0`）+ 两循环改嵌套正向 if（P296）后条数 132=132；
 // S180 再把 sort 双实参改 P235 视角 m_teams[0]/m_teams[1]，复现 ORIG
 // 0x0855da16 的 `add $0x8c` / `add $0x1c` 双独立算址；残差仅剩 stride
@@ -1103,10 +1143,9 @@ void CLeagueMatch::_ReturnTeam(PvP_Room* room, int team, CUser* except)  // ORIG
     m_state = 0;
 }
 
-// [b28d-solo-CLeagueMatch] DIFF 95/95·N-STRIDE（S180 更新）：删 TeamInfo& 引用
-// 缓存 + user 具名局部（ORIG t/i/user 三槽）后条数 95=95；S180 再以 P235 匿名
-// union 视角 m_teams[t] 复现 ORIG「偏移先算 + lea this」序，残差仅剩 i*4 的
-// shl-vs-lea（N-STRIDE），语义等价。
+// [b28d-solo-CLeagueMatch] DIFF 95/93·ndiff 22·N-STRIDE（S217 新鲜 .o 复验）：
+// 残差 = i*0x1c 的 shl-vs-lea + 0x70 族乘法展开序差（同 OnCompleteLoad），
+// 语义等价；p167 8/8 CLEAR。
 void CLeagueMatch::_SendMatchStatePacket(int state, int teams)   // ORIG T 0x0855e664
 {
     PacketGuard pkt;

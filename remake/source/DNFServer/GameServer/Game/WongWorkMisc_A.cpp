@@ -114,8 +114,12 @@ void CCalcCharacStat::InitializeStat(_Additioal_info* out, int job)
 // ORIG 汇编不物化 (short)value：逐 case 以 32 位 value 乘 50 后 movw 截断
 // （mod 2^16 与 s16 乘加等价）；case 物理布局序 = 4,6,5,7,2,3,8,9
 // （ORIG 块序 +0x1f/+0x4c/+0x79/+0xa6/+0xd3/+0xea/+0x103/+0x120）。
-// [b28d-54 N 复核] ORIG 0x0831e85c：case9 循环体寄存器角色互换（N7）+ jump table
-//   基址 reloc（AE 归一）；switch/各 case/store 序全等，语义等价。
+// [b28d-solo-WongWorkMisc_A] verdict=DIFF(N 封顶)：case0..8 与 ORIG 段级逐条全等
+//   （仅 jmp/jump-table 重定位伪差）；唯一残差 = case9 循环体寄存器角色互换
+//   （ORIG: i→%ecx、元素值→%ebx、`lea (%ebx,%eax,1)`；4.4: i→%ebx、值→%ecx、
+//   `add %eax,%ecx`+`lea 0x8(%ebx),%edx`）= N7+N18a。已试 7 形（`=`/`+=`/交换加数/
+//   语句表达式/register 索引/register 元素/long 索引）+ 4.4.6 后端复测，同形 ⇒ 封顶。
+//   p167: 0 missing / 0 extra；语义与 Ghidra C 逐 case 一致（mod 2^16 等价）。
 void CCalcCharacStat::ApplyElixerItem(_Additioal_info* out, int statIdx, int value)
 {
     // [b27 封顶] 残差仅 case9 循环体寄存器角色（ORIG arr值→ebx/i基址重读→ecx，
@@ -200,15 +204,25 @@ _Additioal_info* CCalcCharacStat::CalcStat(_Additioal_info* out, int job,
 // 报告：_CalcSwordman.md。secondType 只认 0..4，越界不改写。
 // [b28d-54 N] 4.1 内联 16 位算术 vs 4.4 cwtl/movswl 显式扩展 + `add imm,%eax;mov`
 //   vs `lea imm(%eax)` 折叠（N1/N97 族）；语义等价。
+// [b28d-solo-WongWorkMisc_A] verdict=DIFF(N 封顶)：本棒修法——①全部 32 位字段段
+//   （m_field00/04/3a/42）改用 unsigned 字面量（`+0xCxxxu`）：4.4 对 signed 常量的
+//   `add imm,%eax;mov %eax,%edx` 恒折 `lea imm(%eax),%edx`，unsigned 即复现 ORIG
+//   add+mov（探针 /tmp/probe_ty.cpp fC/fD、/tmp/probe_u.cpp fN/fP/fQ/fR）；②删除
+//   `const short t` 具名局部与 `(short)(level<<K)+t` 形式，改写 `level*K + level`
+//   （`*` 而非 `<<`）——消除帧 sub/movswl/cwtl/t 槽（ORIG 无帧 sub，P0 判无该具名
+//   局部；探针 /tmp/probe_shift.cpp fB/fC）。段级 identical 12→34/47。
+//   残余 N（不可翻）：16 位字段段（m_field08..0e/10/40/46/48/4a）ORIG 发 16 位
+//   `add/sub $C,%ax` 或 32 位 `add $C,%eax;mov`，4.4 对 u16 目标恒折 `lea C(%eax)`
+//   （8 形探针 /tmp/probe_w.cpp gA-gF、/tmp/probe_h.cpp hA-hG 全 lea）⇒ N1/N86b +
+//   跨版本窄化。p167: 0 missing / 0 extra；语义与 Ghidra C 逐字段一致。
 _Additioal_info* CCalcCharacStat::_CalcSwordman(_Additioal_info* out,
                                                 int secondType, int level)
 {
-    const short t = static_cast<short>(level);          // sVar1=(short)param_3
     switch (secondType)
     {
     case 0:
-        out->m_field00 = (level - 1) * 0x20d + 0x5dc;   // (sVar1-1)*0x1e 写回 u16
-        out->m_field04 = (level - 1) * 0xaf + 0x5dc;
+        out->m_field00 = (level - 1) * 0x20d + 0x5dcu;  // (sVar1-1)*0x1e 写回 u16
+        out->m_field04 = (level - 1) * 0xaf + 0x5dcu;
         out->m_field08 = static_cast<unsigned short>((level - 1) * 0x1e + 0x32);
         out->m_field0a = static_cast<unsigned short>((level - 1) * 0x1e + 0x32);
         out->m_field0c = static_cast<unsigned short>((level - 1) * 0x23 + 0x3c);
@@ -217,71 +231,51 @@ _Additioal_info* CCalcCharacStat::_CalcSwordman(_Additioal_info* out,
         out->m_field4a = static_cast<unsigned short>((level - 1) * 0x14 + 6000);
         break;
     case 1:
-        out->m_field00 = level * 400 + 0xc99;
-        out->m_field04 = level * 300 - 0x39d;
+        out->m_field00 = level * 400 + 0xc99u;
+        out->m_field04 = level * 300 - 0x39du;
         out->m_field08 = static_cast<unsigned short>(level * 0x23 - 0x46);
-        out->m_field0a = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x14);
-        out->m_field0c = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x73);
-        out->m_field0e = static_cast<unsigned short>((t + 1) * 0x19);
+        out->m_field0a = static_cast<unsigned short>(level * 32 - level * 2 + 0x14);
+        out->m_field0c = static_cast<unsigned short>(level * 32 - level * 2 + 0x73);
+        out->m_field0e = static_cast<unsigned short>((level + 1) * 0x19);
         out->m_field3a = (level - 1) * 3000 + 400000;
         out->m_field46 = static_cast<unsigned short>(level * 10 + 0x2080);
-        out->m_field4a = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x16a8);
+        out->m_field4a = static_cast<unsigned short>(level * 32 - level * 2 + 0x16a8);
         break;
     case 2:
-        out->m_field00 = level * 0x15e + 0x101d;
-        out->m_field04 = level * 0x15e - 0x721;
-        out->m_field08 = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 200;
-        out->m_field0a = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 200;
-        out->m_field0c = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 8 - 0x41);
-        out->m_field0e = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 8 - 0xf5);
-        out->m_field10[2] = static_cast<unsigned short>((t + 7) * 8);   // +0x14
+        out->m_field00 = level * 0x15e + 0x101du;
+        out->m_field04 = level * 0x15e - 0x721u;
+        out->m_field08 = static_cast<unsigned short>((level * 4 + level) * 4 + 200);
+        out->m_field0a = static_cast<unsigned short>((level * 4 + level) * 4 + 200);
+        out->m_field0c = static_cast<unsigned short>((level * 4 + level) * 8 - 0x41);
+        out->m_field0e = static_cast<unsigned short>((level * 4 + level) * 8 - 0xf5);
+        out->m_field10[2] = static_cast<unsigned short>((level + 7) << 3);  // +0x14
         out->m_field3a = (level - 1) * 3000 + 400000;
-        out->m_field40 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 - 0xd2);
-        out->m_field48 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 0x19f0);
-        out->m_field4a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 2 + 0x1810);
+        out->m_field40 = static_cast<unsigned short>((level * 4 + level) * 4 - 0xd2);
+        out->m_field48 = static_cast<unsigned short>((level * 4 + level) * 4 + 0x19f0);
+        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 2 + 0x1810);
         break;
     case 3:
-        out->m_field00 = level * 0x226 + 0x20d;
-        out->m_field04 = level * 0x96 + 0x6ef;
-        out->m_field08 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 8 - 0xa0);
-        out->m_field0a = static_cast<unsigned short>(t * 0x2d - 0xfa);
-        out->m_field0c = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 4)) - t + 0x181);
-        out->m_field0e = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 0x73);
+        out->m_field00 = level * 0x226 + 0x20du;
+        out->m_field04 = level * 0x96 + 0x6efu;
+        out->m_field08 = static_cast<unsigned short>((level * 4 + level) * 8 - 0xa0);
+        out->m_field0a = static_cast<unsigned short>(level * 0x2d - 0xfa);
+        out->m_field0c = static_cast<unsigned short>(level * 16 - level + 0x181);
+        out->m_field0e = static_cast<unsigned short>((level * 4 + level) * 4 + 0x73);
         out->m_field3a = (level - 1) * 3000 + 400000;
-        out->m_field42 = level * 10 + 0x2080;
-        out->m_field4a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 8 + 0x15f4);
+        out->m_field42 = level * 10 + 0x2080u;
+        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 8 + 0x15f4);
         break;
     case 4:
-        out->m_field00 = level * 0x20d + 0x3cf;
-        out->m_field04 = level * 0xaf + 0x52d;
-        out->m_field08 = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x14);
-        out->m_field0a = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x14);
-        out->m_field0c = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x73);
-        out->m_field0e = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 - 0x41);
+        out->m_field00 = level * 0x20d + 0x3cfu;
+        out->m_field04 = level * 0xaf + 0x52du;
+        out->m_field08 = static_cast<unsigned short>(level * 32 - level * 2 + 0x14);
+        out->m_field0a = static_cast<unsigned short>(level * 32 - level * 2 + 0x14);
+        out->m_field0c = static_cast<unsigned short>(level * 32 - level * 2 + 0x73);
+        out->m_field0e = static_cast<unsigned short>(level * 32 - level * 2 - 0x41);
         out->m_field3a = (level - 1) * 3000 + 400000;
-        out->m_field40 = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 2)) + t + 0x3c);
+        out->m_field40 = static_cast<unsigned short>(level * 4 + level + 0x3c);
         out->m_field48 = static_cast<unsigned short>(level * 10 + 0x1aa4);
-        out->m_field4a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 0x1608);
+        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 4 + 0x1608);
         break;
     default:
         break;
@@ -292,15 +286,18 @@ _Additioal_info* CCalcCharacStat::_CalcSwordman(_Additioal_info* out,
 // ORIG T 0x0831f282 _ZN8WongWork15CCalcCharacStat12_CalcFighterEP15_Additioal_infoii
 // 报告：_CalcFighter.md。
 // [b28d-54 N] 同 _CalcSwordman（短整扩展/lea 折叠，N1/N97）；语义等价。
+// [b28d-solo-WongWorkMisc_A] verdict=DIFF(N 封顶)：同 _CalcSwordman 修法（32 位字段段
+//   unsigned 字面量 + `*` 化去 t 槽），段级 identical 17→33/45；残余 7 段 = 16 位
+//   字段 add/sub vs lea（N1/N86b+跨版本窄化，探针见 _CalcSwordman 注释）⇒ 封顶。
+//   p167: 0 missing / 0 extra；语义与 Ghidra C 逐字段一致。
 _Additioal_info* CCalcCharacStat::_CalcFighter(_Additioal_info* out,
                                                int secondType, int level)
 {
-    const short t = static_cast<short>(level);
     switch (secondType)
     {
     case 0:
-        out->m_field00 = (level - 1) * 0x1c2 + 0x708;
-        out->m_field04 = (level - 1) * 0xfa + 0x5dc;
+        out->m_field00 = (level - 1) * 0x1c2 + 0x708u;
+        out->m_field04 = (level - 1) * 0xfa + 0x5dcu;
         out->m_field08 = static_cast<unsigned short>((level - 1) * 0x20 + 0x3c);
         out->m_field0a = static_cast<unsigned short>((level - 1) * 0x23 + 0x3c);
         out->m_field0c = static_cast<unsigned short>((level - 1) * 0x1e + 0x32);
@@ -309,64 +306,49 @@ _Additioal_info* CCalcCharacStat::_CalcFighter(_Additioal_info* out,
         out->m_field4a = static_cast<unsigned short>((level - 1) * 0x14 + 6000);
         break;
     case 1:
-        out->m_field00 = level * 400 + 0x8ca;
-        out->m_field04 = level * 300 + 0x15e;
-        out->m_field08 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 0xf4);
-        out->m_field0a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 0x127);
-        out->m_field0c = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 8 - 0xa0);
-        out->m_field0e = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 8 - 0x117);
+        out->m_field00 = level * 400 + 0x8cau;
+        out->m_field04 = level * 300 + 0x15eu;
+        out->m_field08 = static_cast<unsigned short>((level * 4 + level) * 4 + 0xf4);
+        out->m_field0a = static_cast<unsigned short>((level * 4 + level) * 4 + 0x127);
+        out->m_field0c = static_cast<unsigned short>((level * 4 + level) * 8 - 0xa0);
+        out->m_field0e = static_cast<unsigned short>((level * 4 + level) * 8 - 0x117);
         out->m_field3a = (level - 1) * 0x9c4 + 300000;
-        out->m_field40 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 - 0xe6);
-        out->m_field48 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 0x25a8);
-        out->m_field4a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 2 + 0x1810);
+        out->m_field40 = static_cast<unsigned short>((level * 4 + level) * 4 - 0xe6);
+        out->m_field48 = static_cast<unsigned short>((level * 4 + level) * 4 + 0x25a8);
+        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 2 + 0x1810);
         break;
     case 2:
-        out->m_field00 = level * 500 + 0x1c2;
-        out->m_field04 = level * 200 + 0x866;
+        out->m_field00 = level * 500 + 0x1c2u;
+        out->m_field04 = level * 200 + 0x866u;
         out->m_field08 = static_cast<unsigned short>(level * 0x23 - 0x1a);
-        out->m_field0a = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x73);
+        out->m_field0a = static_cast<unsigned short>(level * 32 - level * 2 + 0x73);
         out->m_field0c = static_cast<unsigned short>(level * 0x23 - 0x46);
-        out->m_field0e = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 0x51);
+        out->m_field0e = static_cast<unsigned short>((level * 4 + level) * 4 + 0x51);
         out->m_field3a = (level - 1) * 0x9c4 + 300000;
         out->m_field46 = static_cast<unsigned short>(level * 10 + 0x2468);
-        out->m_field4a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 8 + 0x15f4);
+        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 8 + 0x15f4);
         break;
     case 3:
-        out->m_field00 = level * 600 - 0x546;
-        out->m_field04 = level * 100 + 0xf6e;
+        out->m_field00 = level * 600 - 0x546u;
+        out->m_field04 = level * 100 + 0xf6eu;
         out->m_field08 = static_cast<unsigned short>(level * 0x26 - 0x50);
-        out->m_field0a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 8 - 0x41);
+        out->m_field0a = static_cast<unsigned short>((level * 4 + level) * 8 - 0x41);
         out->m_field0c = static_cast<unsigned short>(level * 0x1b + 0x4a);
-        out->m_field0e = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 4)) - t + 0xab);
-        out->m_field10[2] = static_cast<unsigned short>(t * 6 - 0x134);  // +0x14
+        out->m_field0e = static_cast<unsigned short>(level * 16 - level + 0xab);
+        out->m_field10[2] = static_cast<unsigned short>(level * 6 - 0x134);  // +0x14
         out->m_field3a = level * 3000 + 0x466f4;
-        out->m_field42 = level * 10 + 0x22d8;
-        out->m_field4a = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x16a8);
+        out->m_field42 = level * 10 + 0x22d8u;
+        out->m_field4a = static_cast<unsigned short>(level * 32 - level * 2 + 0x16a8);
         break;
     case 4:
-        out->m_field00 = level * 0x1c2 + 0x546;
-        out->m_field04 = level * 0xfa + 0x4e2;
+        out->m_field00 = level * 0x1c2 + 0x546u;
+        out->m_field04 = level * 0xfa + 0x4e2u;
         out->m_field08 = static_cast<unsigned short>((level - 0x12) * 0x20 + 0x25c);
         out->m_field0a = static_cast<unsigned short>(level * 0x23 + 0x19);
-        out->m_field0c = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x14);
+        out->m_field0c = static_cast<unsigned short>(level * 32 - level * 2 + 0x14);
         out->m_field0e = static_cast<unsigned short>(level * 0x17 + 0x1b);
         out->m_field3a = (level - 1) * 0x9c4 + 300000;
-        out->m_field4a = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x16a8);
+        out->m_field4a = static_cast<unsigned short>(level * 32 - level * 2 + 0x16a8);
         break;
     default:
         break;
@@ -385,14 +367,17 @@ _Additioal_info* CCalcCharacStat::_CalcFighter(_Additioal_info* out,
 //   Swordman 沿用同型（非本棒）。
 // [b28d-54 N 复核] ORIG 0x0831fc3a：既有判例（ADeepY4[5]）——短整扩展/lea 折叠族，
 //   语义与 Ghidra C 逐条一致。
+// [b28d-solo-WongWorkMisc_A] verdict=DIFF(N 封顶)：同 _CalcSwordman 修法，段级
+//   identical 21→35/50；残余 10 段 = 16 位字段 add/sub vs lea（N1/N86b+跨版本窄化）
+//   ⇒ 封顶。p167: 0 missing / 0 extra；语义与 Ghidra C 逐字段一致。
 _Additioal_info* CCalcCharacStat::_CalcMage(_Additioal_info* out,
                                             int secondType, int level)
 {
     switch (secondType)
     {
     case 0:
-        out->m_field00 = (level - 1) * 0x145 + 1000;
-        out->m_field04 = (level - 1) * 0x177 + 2000;
+        out->m_field00 = (level - 1) * 0x145 + 1000u;
+        out->m_field04 = (level - 1) * 0x177 + 2000u;
         out->m_field08 = static_cast<unsigned short>((level - 1) * 0x14 + 0x1e);
         out->m_field0a = static_cast<unsigned short>((level - 1) * 0x14 + 0x1e);
         out->m_field0c = static_cast<unsigned short>((level - 1) * 0x28 + 0x50);
@@ -402,69 +387,53 @@ _Additioal_info* CCalcCharacStat::_CalcMage(_Additioal_info* out,
         out->m_field4a = static_cast<unsigned short>((level - 1) * 10 + 5000);
         break;
     case 1:
-        out->m_field00 = level * 0x113 + 0x627;
-        out->m_field04 = level * 0x1a9 + 0x2d5;
-        out->m_field08 = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 4)) - static_cast<short>(level) + 100);
-        out->m_field0a = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 4)) - static_cast<short>(level) + 100);
+        out->m_field00 = level * 0x113 + 0x627u;
+        out->m_field04 = level * 0x1a9 + 0x2d5u;
+        out->m_field08 = static_cast<unsigned short>(level * 16 - level + 100);
+        out->m_field0a = static_cast<unsigned short>(level * 16 - level + 100);
         out->m_field0c = static_cast<unsigned short>(level * 0x2d - 0x32);
         out->m_field0e = static_cast<unsigned short>(level * 0x2d - 0x3c);
         out->m_field3a = level * 0x9c4 + 0x43bfc;
-        out->m_field40 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + static_cast<short>(level)) * 4 + 10);
-        out->m_field48 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + static_cast<short>(level)) * 4 + 0x25a8);
-        out->m_field4a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + static_cast<short>(level)) * 2 + 0x137e);
+        out->m_field40 = static_cast<unsigned short>((level * 4 + level) * 4 + 10);
+        out->m_field48 = static_cast<unsigned short>((level * 4 + level) * 4 + 0x25a8);
+        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 2 + 0x137e);
         break;
     case 2:
-        out->m_field00 = level * 300 + 0x465;
-        out->m_field04 = level * 400 + 0x497;
-        out->m_field08 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + static_cast<short>(level)) * 4 + 10);
-        out->m_field0a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + static_cast<short>(level)) * 4 + 10);
-        out->m_field0c = static_cast<unsigned short>(
-            (static_cast<short>(level) + 1) * 0x28);
-        out->m_field0e = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + static_cast<short>(level)) * 8 + 0x1e);
+        out->m_field00 = level * 300 + 0x465u;
+        out->m_field04 = level * 400 + 0x497u;
+        out->m_field08 = static_cast<unsigned short>((level * 4 + level) * 4 + 10);
+        out->m_field0a = static_cast<unsigned short>((level * 4 + level) * 4 + 10);
+        out->m_field0c = static_cast<unsigned short>((level + 1) * 0x28);
+        out->m_field0e = static_cast<unsigned short>((level * 4 + level) * 8 + 0x1e);
         out->m_field3a = level * 0x9c4 + 0x43bfc;
-        out->m_field40 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + static_cast<short>(level)) * 4 + 10);
-        out->m_field48 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + static_cast<short>(level)) * 4 + 0x25a8);
-        out->m_field4a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + static_cast<short>(level)) * 2 + 0x137e);
+        out->m_field40 = static_cast<unsigned short>((level * 4 + level) * 4 + 10);
+        out->m_field48 = static_cast<unsigned short>((level * 4 + level) * 4 + 0x25a8);
+        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 2 + 0x137e);
         break;
     case 3:
-        out->m_field00 = level * 400 - 0x2a3;
-        out->m_field04 = level * 300 + 0xb9f;
+        out->m_field00 = level * 400 - 0x2a3u;
+        out->m_field04 = level * 300 + 0xb9fu;
         out->m_field08 = static_cast<unsigned short>(level * 0x23 - 0x104);
         out->m_field0a = static_cast<unsigned short>(level * 0x19 - 0x50);
         out->m_field0c = static_cast<unsigned short>(level * 0x23 + 0x82);
         out->m_field0e = static_cast<unsigned short>(level * 0x19 + 300);
         out->m_field3a = level * 0x9c4 + 0x43bfc;
         out->m_field46 = static_cast<unsigned short>(level * 10 + 0x265c);
-        out->m_field42 = level * 10 + 0x265c;
-        out->m_field4a = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + static_cast<short>(level) * -2 + 0x1216);
-        out->m_field40 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + static_cast<short>(level)) * 2 + 0xbe);
+        out->m_field42 = level * 10 + 0x265cu;
+        out->m_field4a = static_cast<unsigned short>(level * 32 - level * 2 + 0x1216);
+        out->m_field40 = static_cast<unsigned short>((level * 4 + level) * 2 + 0xbe);
         break;
     case 4:
-        out->m_field00 = level * 0x15e + 0xe1;
-        out->m_field04 = level * 0x15e + 0x81b;
+        out->m_field00 = level * 0x15e + 0xe1u;
+        out->m_field04 = level * 0x15e + 0x81bu;
         out->m_field08 = static_cast<unsigned short>(level * 0x19 - 0x50);
         out->m_field0a = static_cast<unsigned short>(level * 0x19 - 0x50);
         out->m_field0c = static_cast<unsigned short>(level * 0x23 + 0x82);
         out->m_field0e = static_cast<unsigned short>(level * 0x23 + 0x78);
         out->m_field3a = level * 0x9c4 + 0x43bfc;
-        out->m_field40 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + static_cast<short>(level)) * 4 + 10);
+        out->m_field40 = static_cast<unsigned short>((level * 4 + level) * 4 + 10);
         out->m_field48 = static_cast<unsigned short>(level * 10 + 0x265c);
-        out->m_field4a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + static_cast<short>(level)) * 4 + 0x12ca);
+        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 4 + 0x12ca);
         break;
     default:
         break;
@@ -475,15 +444,17 @@ _Additioal_info* CCalcCharacStat::_CalcMage(_Additioal_info* out,
 // ORIG T 0x0831f75c _ZN8WongWork15CCalcCharacStat11_CalcGunnerEP15_Additioal_infoii
 // 报告：_CalcGunner.md。
 // [b28d-54 N] 同 _CalcMage（短整扩展/lea 折叠，N1/N97）；语义等价。
+// [b28d-solo-WongWorkMisc_A] verdict=DIFF(N 封顶)：同 _CalcSwordman 修法，段级
+//   identical 15→33/44；残余 6 段 = 16 位字段 add/sub vs lea（N1/N86b+跨版本窄化）
+//   ⇒ 封顶。p167: 0 missing / 0 extra；语义与 Ghidra C 逐字段一致。
 _Additioal_info* CCalcCharacStat::_CalcGunner(_Additioal_info* out,
                                               int secondType, int level)
 {
-    const short t = static_cast<short>(level);
     switch (secondType)
     {
     case 0:
-        out->m_field00 = (level - 1) * 400 + 0x4e2;
-        out->m_field04 = (level - 1) * 300 + 0x708;
+        out->m_field00 = (level - 1) * 400 + 0x4e2u;
+        out->m_field04 = (level - 1) * 300 + 0x708u;
         out->m_field08 = static_cast<unsigned short>((level - 1) * 0x19 + 0x28);
         out->m_field0a = static_cast<unsigned short>((level - 1) * 0x17 + 0x28);
         out->m_field0c = static_cast<unsigned short>((level - 1) * 0x25 + 0x46);
@@ -492,65 +463,48 @@ _Additioal_info* CCalcCharacStat::_CalcGunner(_Additioal_info* out,
         out->m_field4a = static_cast<unsigned short>((level - 1) * 0x14 + 6000);
         break;
     case 1:
-        out->m_field00 = level * 0x15e + 0x6d6;
-        out->m_field04 = level * 0x15e + 600;
+        out->m_field00 = level * 0x15e + 0x6d6u;
+        out->m_field04 = level * 0x15e + 600u;
         out->m_field08 = static_cast<unsigned short>(level * 0x23 - 0xa5);
         out->m_field0a = static_cast<unsigned short>(level * 0x19 - 0x13);
-        out->m_field0c = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x9f);
-        out->m_field0e = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x73);
+        out->m_field0c = static_cast<unsigned short>(level * 32 - level * 2 + 0x9f);
+        out->m_field0e = static_cast<unsigned short>(level * 32 - level * 2 + 0x73);
         out->m_field3a = (level - 1) * 3000 + 330000;
         out->m_field46 = static_cast<unsigned short>(level * 10 + 0x2468);
-        out->m_field42 = level * 10 + 0x1f54;
-        out->m_field4a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 8 + 0x15f4);
+        out->m_field42 = level * 10 + 0x1f54u;
+        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 8 + 0x15f4);
         break;
     case 2:
-        out->m_field00 = level * 0x1a9 + 400;
-        out->m_field04 = level * 0x113 + 0x79e;
-        out->m_field08 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 8 - 0xff);
+        out->m_field00 = level * 0x1a9 + 400u;
+        out->m_field04 = level * 0x113 + 0x79eu;
+        out->m_field08 = static_cast<unsigned short>((level * 4 + level) * 8 - 0xff);
         out->m_field0a = static_cast<unsigned short>(level * 0x2d - 0x17b);
-        out->m_field0c = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 4)) - t + 0x1ad);
-        out->m_field0e = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 0x127);
+        out->m_field0c = static_cast<unsigned short>(level * 16 - level + 0x1ad);
+        out->m_field0e = static_cast<unsigned short>((level * 4 + level) * 4 + 0x127);
         out->m_field3a = (level - 1) * 3000 + 330000;
-        out->m_field4a = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x16a8);
+        out->m_field4a = static_cast<unsigned short>(level * 32 - level * 2 + 0x16a8);
         break;
     case 3:
-        out->m_field00 = level * 300 + 0xa5a;
-        out->m_field04 = level * 400 - 300;
-        out->m_field08 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 0x69);
-        out->m_field0a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 0x47);
-        out->m_field0c = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 8 - 0x15);
-        out->m_field0e = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 8 - 0x41);
+        out->m_field00 = level * 300 + 0xa5au;
+        out->m_field04 = level * 400 - 300u;
+        out->m_field08 = static_cast<unsigned short>((level * 4 + level) * 4 + 0x69);
+        out->m_field0a = static_cast<unsigned short>((level * 4 + level) * 4 + 0x47);
+        out->m_field0c = static_cast<unsigned short>((level * 4 + level) * 8 - 0x15);
+        out->m_field0e = static_cast<unsigned short>((level * 4 + level) * 8 - 0x41);
         out->m_field3a = (level - 1) * 3000 + 330000;
-        out->m_field40 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 - 0xb9);
-        out->m_field48 = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 4 + 0x1dd8);
-        out->m_field4a = static_cast<unsigned short>(
-            (static_cast<int>(static_cast<short>(level << 2)) + t) * 2 + 0x1810);
+        out->m_field40 = static_cast<unsigned short>((level * 4 + level) * 4 - 0xb9);
+        out->m_field48 = static_cast<unsigned short>((level * 4 + level) * 4 + 0x1dd8);
+        out->m_field4a = static_cast<unsigned short>((level * 4 + level) * 2 + 0x1810);
         break;
     case 4:
-        out->m_field00 = level * 400 + 0x352;
-        out->m_field04 = level * 300 + 0x5dc;
-        out->m_field08 = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 - 0x4b);
+        out->m_field00 = level * 400 + 0x352u;
+        out->m_field04 = level * 300 + 0x5dcu;
+        out->m_field08 = static_cast<unsigned short>(level * 32 - level * 2 - 0x4b);
         out->m_field0a = static_cast<unsigned short>(level * 0x19 - 0x13);
         out->m_field0c = static_cast<unsigned short>(level * 0x23 + 0x45);
-        out->m_field0e = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x73);
+        out->m_field0e = static_cast<unsigned short>(level * 32 - level * 2 + 0x73);
         out->m_field3a = (level - 1) * 3000 + 330000;
-        out->m_field4a = static_cast<unsigned short>(
-            static_cast<int>(static_cast<short>(level << 5)) + t * -2 + 0x16a8);
+        out->m_field4a = static_cast<unsigned short>(level * 32 - level * 2 + 0x16a8);
         break;
     default:
         break;

@@ -87,9 +87,9 @@ const int kBuyEntryStride = 0x1cf;   // MSG 条目区步长（ProcessBuyRequest 
 // 会产真实 call 符号（仅NEW 发明符号违规），统一用宏直发 ORIG 的内联寻址形。
 // AtoiAt/ReadIntAt 语义字段化由后续 IPG 批次收口【推断】。
 #define AtoiAt(data, off) atoi(reinterpret_cast<const char*>(data) + (off))
-#define ReadIntAt(data, off) \
-    *reinterpret_cast<const int*>(reinterpret_cast<const char*>(data) + (off))
-#define BufAt(data, off) (reinterpret_cast<char*>(data) + (off))
+// [b28d-S278 P319] 整型加法+回 cast：复现 4.1 `add $K,%eax; mov %eax,%reg`
+// 两步形（指针算术 4.4 恒折单条 `lea K(%eax),%reg`；探针 /tmp/lg_probe4.cpp fA/fB）。
+#define BufAt(data, off) ((char*)((unsigned int)(data) + (off)))
 
 // ---------------------------------------------------------------------------
 // CallSpecialItemHandler —— ORIG T 0x08325854 (0x2a)
@@ -109,6 +109,10 @@ bool CCeraShop::CallSpecialItemHandler(int type, const STSpecailItem_Param& para
 // guard.operator->()->put_binary(&sig,0x1c)（P103 链保留）→ put(DB_Q) → 返回 1
 // （P159 尾部 mov $1 跨 D1 保活）。
 // ---------------------------------------------------------------------------
+// [b28d-solo-W6_CeraShopDeps] verdict=AE（check_tu_routed DIFF→AE；修法=P248 档③
+// 字段同型化：stErrorLogInput_t::m_field0 与 SIG_CERASHOP_ERROR_LOG::m_field0
+// int→unsigned int，消 4.4 的 `mov (%eax),%eax; mov %eax,%ebx` 两段，复现 ORIG
+// 0x08320394 单段直落 callee-saved。p167 CLEAR）。
 int CCeraShop::LogError(const stErrorLogInput_t& input) const
 {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("CeraShop.cpp", 0x7a),
@@ -145,20 +149,30 @@ int CCeraShop::LogError(const stErrorLogInput_t& input) const
 // resData->status(+0x1c)==2 且 atoi(resData+0x173)==1 时走 helper 取消链；
 // 否则 logFormat "IPG ERROR (Goods No: %d)(%s)"；末尾 user!=0 转 ProcessError。
 // ---------------------------------------------------------------------------
+// [b28d-solo-W6_CeraShopDeps] verdict=DIFF-N 封顶（orig 109 / our 110，gap=1；
+// p167 CLEAR 3/3）。本轮修法：P59/P222 分支极性翻转（ORIG 0x08323837 `je <user==0
+// 块>`，then 为 9 参重载 slot7、else 为 2 参重载 slot9 + return 直跳 epilogue）、
+// P235 具名成员访问（resData->m_type 消 ReadIntAt 宏的 add+mov）、P319 整型加法
+// BufAt 复现 add+mov 并使虚指针回落栈槽（与 ORIG `call *-0x28(%ebp)` 同形）、
+// P223 负条件 goto 尾空标签复现 4.1 if-join 岛（`call ProcessError; jmp; nop`）。
+// 残余唯一 1 条：logFormat 0x177 实参 4.4 恒插 `mov %eax,%edx` 中转
+// （int 形参/const char* cast 两形实测不消）⇒ 语义等价，byte 层 N 封顶。
 void CCeraShop::_ProcessIPGError(CUser* user, IPG::SIPGData* reqData,
                                  IPG::SIPGData* resData, unsigned char errCodeA,
                                  int errCodeB, unsigned int productNo, int subCode,
                                  int code2, char flag)
 {
-    if (ReadIntAt(resData, 0x1c) == 2)
+    // [b28d-S278] P235 具名成员访问消 add：ORIG 0x0832380e `mov 0x1c(%eax),%eax`
+    // 单条 disp（ReadIntAt 宏的指针算术 4.4 恒发 add+mov）。
+    if (resData->m_type == 2)
     {
         if (atoi(BufAt(resData, 0x173)) == 1)
         {
-            if (user == 0)
-            {
-                GlobalData::s_pIPGHelper->IPGOutputCancel(reqData, resData);
-            }
-            else
+            // [b28c-P59/P222] ORIG 0x08323837 `je <user==0 块>`：then 为 user!=0
+            // 的 9 参重载（vptr+0x1c slot7），else 为 user==0 的 2 参重载
+            // （vptr+0x24 slot9，TaiwanCash.h:239/245 槽序实证）+ return 直跳
+            // epilogue（+0x17a），故写正向 if(user!=0)/else{...;return;}。
+            if (user != 0)
             {
                 GlobalData::s_pIPGHelper->IPGOutputCancel(
                     user,
@@ -170,6 +184,11 @@ void CCeraShop::_ProcessIPGError(CUser* user, IPG::SIPGData* reqData,
                     BufAt(reqData, 0xf5),
                     static_cast<void*>(0),
                     static_cast<Taiwan::BillTransaction*>(0));
+            }
+            else
+            {
+                GlobalData::s_pIPGHelper->IPGOutputCancel(reqData, resData);
+                return;
             }
         }
         else
@@ -183,11 +202,16 @@ void CCeraShop::_ProcessIPGError(CUser* user, IPG::SIPGData* reqData,
         }
     }
 
-    if (user != 0)
+    // [b28d-S278 P223] ORIG 0x08323929 尾部为 4.1 if-join 岛：
+    // `cmpl;je <nop 占位>; body; jmp join; nop; join:`。4.4 对正向 if 恒
+    // jump-thread ⇒ 唯一复现形 = 负条件 goto 到共享尾空标签。
+    if (user == 0)
     {
-        ProcessError(user, static_cast<unsigned short>(errCodeA), errCodeB,
-                     productNo, subCode, code2, flag);
+        goto ipg_error_done;
     }
+    ProcessError(user, static_cast<unsigned short>(errCodeA), errCodeB,
+                 productNo, subCode, code2, flag);
+ipg_error_done:;
 }
 
 // gift 族（coinGift×2/itemGift/avatarGift/creatureGift）ORIG 均内联
@@ -198,18 +222,23 @@ void CCeraShop::_ProcessIPGError(CUser* user, IPG::SIPGData* reqData,
 // _processCoinGift —— ORIG T 0x0832619c (0x195)：四参重载
 // 代币物品 idx=1、count=currencyType 构造 Inven_Item → 赠送邮件 + 统计日志。
 // ---------------------------------------------------------------------------
+// [b28d-solo-W6_CeraShopDeps] verdict=AE（DIFF→AE）。修法：①P28 声明序——item 先、
+// msgBuf 后（ORIG 0x0832619c rep stos 在 ResetItemAttr call +0x041 之后 +0x046）；
+// ②真 bug：SendCeraShopGiftStatisticLog 第 3/4 实参应取 item.m_addInfo(-0x43) /
+// item.m_addInfo2(-0x3e)，原写常量 1L/currencyType（数据源取错，P92 族）。
 void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
                                  unsigned int buyIdx, int cost)
 {
-    // [b28d-L14 实证] ORIG 0x0832619c：rep stos 零初始化 + 内联 sprintf 实参（P214③/P52）。
-    char msgBuf[256] = {0};
-
     Inven_Item item;
     item.m_addInfo = 1;                               // movl $1 → idx=1
     item.m_field1 = 2;                                // ITEM_TYPE_2（movb $2,-0x44）
     item.m_addInfo2 = static_cast<int>(currencyType); // movzwl → set_add_info2
     item.m_fieldb = 2;                                // endurance=2
     item.ResetItemAttr();
+
+    // [b28d-S278 实证] ORIG 0x0832619c：msgBuf 的 rep stos 在 ResetItemAttr call
+    // （+0x041）之后（+0x046）⇒ 声明序为 item 先、msgBuf 后（P28 声明序即槽序）。
+    char msgBuf[256] = {0};
 
     sprintf(msgBuf,
             g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0),
@@ -218,8 +247,11 @@ void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
     user->m_historyLog.SendMailForCeraShopGift(
         static_cast<unsigned int>(cost), '\x01', 1u,
         static_cast<unsigned int>(currencyType));
+    // [b28d-S278 真 bug 修正] ORIG +0x11b：统计额取 item.m_addInfo(-0x43) 与
+    // item.m_addInfo2(-0x3e)，原写常量 1/currencyType 取错数据源（P92 族）。
     user->SendCeraShopGiftStatisticLog(buyIdx, static_cast<unsigned int>(cost),
-                                       1L, static_cast<unsigned int>(currencyType));
+                                       static_cast<long>(item.m_addInfo),
+                                       static_cast<unsigned int>(item.m_addInfo2));
 
     CMailBoxHelper::ReqDBSendNewMailCashShop(user, item, 0u,
                                              static_cast<unsigned int>(cost), true,
@@ -230,18 +262,22 @@ void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
 // _processCoinGift —— ORIG T 0x08326332 (0x1a4)：五参重载（count 选用赠品种类）
 // kindFlag：count==0xec→4、count==0xca→5、否则 0。
 // ---------------------------------------------------------------------------
+// [b28d-solo-W6_CeraShopDeps] verdict=AE（DIFF→AE）。修法同四参重载：P28 声明序
+// （ORIG 0x08326332 rep stos 在 ResetItemAttr 之后）+ 统计日志第 3/4 实参改
+// item.m_addInfo(-0x54)/item.m_addInfo2(-0x4f)（原写 count/currencyType）。
 void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
                                  unsigned int buyIdx, int cost, int count)
 {
-    // [b28d-L14 实证] ORIG 0x08326332 同 rep stos + 内联实参形（P214③/P52）。
-    char msgBuf[256] = {0};
-
     Inven_Item item;
     item.m_addInfo = count;                           // movl param_5 → idx=count
     item.m_field1 = 2;                                // ITEM_TYPE_2
     item.m_addInfo2 = static_cast<int>(currencyType);
     item.m_fieldb = 2;
     item.ResetItemAttr();
+
+    // [b28d-S278 实证] ORIG 0x08326332：msgBuf rep stos 在 ResetItemAttr（+0x041）
+    // 之后（+0x046）⇒ item 先声明、msgBuf 后（P28）。
+    char msgBuf[256] = {0};
 
     sprintf(msgBuf,
             g_scriptStringManager_.findString(4, "game_server_msg_02", (bool*)0),
@@ -262,8 +298,8 @@ void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
         static_cast<unsigned int>(count),
         static_cast<unsigned int>(currencyType));
     user->SendCeraShopGiftStatisticLog(buyIdx, static_cast<unsigned int>(cost),
-                                       static_cast<long>(count),
-                                       static_cast<unsigned int>(currencyType));
+                                       static_cast<long>(item.m_addInfo),
+                                       static_cast<unsigned int>(item.m_addInfo2));
 
     CMailBoxHelper::ReqDBSendNewMailCashShop(user, item, 0u,
                                              static_cast<unsigned int>(cost), true,
@@ -386,13 +422,23 @@ void CCeraShop::_processCreatureGift(CUser* user, Inven_Item item, unsigned int 
 // ---------------------------------------------------------------------------
 // [b28c-L7][SIGFIX:WongWork::CCeraShop::ProcessBuyRequest] int→bool（判词见
 // CCeraShop.h:153）；体内两处 return 值实测仅 1（无错误码语义）。
+// [b28d-solo-W6_CeraShopDeps] verdict=DIFF-N82 封顶（orig 1551 / our 1588，
+// gap=37=2.4%；p167 CLEAR 127/127）。本轮修法：P0/P227 全表达式临时链
+// （NumberToString 结果无槽、itemCount 在 cMyTrace ctor 前求值）、P214③
+// goodsList/relatedItems 数组零初始化复现 ORIG 两段 rep stos、P16 早返形
+// （firstGoods==0 错误块直落 + jmp 尾）。残余：帧 0x43c vs ORIG 0x40c 及全帧
+// 槽号平移（N82：ORIG 给 12 个 cMyTrace 各占独立 0x10 槽，4.4 复用同槽）
+// + N7 间接调用目标寄存器 + 跨版本寄存器/寻址形态 ⇒ §6.2 三件套判语义完成、
+// byte 层 N 封顶。
 bool CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 {
-    char* idStr = NumberToString(user->get_acc_id(), 0);
-
-    cMyTrace trace(__PRETTY_FUNCTION__, 0x92, 0);
-    trace("NEXON BILLING : ProcessBuyRequest(m_id(%s),count(%d))", idStr,
-          static_cast<int>(msg.m_scalars.m_itemCount));
+    // [b28d-S278 P0/P227] ORIG 0x0832047a：NumberToString 结果落 %ebx 无栈槽、
+    // itemCount 在 cMyTrace ctor **之前**求值入 %esi ⇒ 原码是全表达式临时链
+    // （具名 idStr/trace 两语句各多 store/load 并让实参求值后移到 ctor 之后）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x92, 0)(
+        "NEXON BILLING : ProcessBuyRequest(m_id(%s),count(%d))",
+        NumberToString(user->get_acc_id(), 0),
+        static_cast<int>(msg.m_scalars.m_itemCount));
 
     // ORIG 0x77：36-dword 清零区（-0x2a8..-0x218，后续无任何读点，-O0 死
     // 清零照抄，P171）；随后 -0x84/-0x80 两槽写 0（-0x80 即 avatarField
@@ -407,24 +453,28 @@ bool CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 
     CCeraShopGoods* firstGoods =
         G_CDataManager()->FindGoods(msg.m_entrySection.m_arr[0].m_productNo);
-    if (firstGoods != 0)
+    if (firstGoods == 0)
+    {
+        // [b28d-S278 P16] ORIG 0x08320538 `jne <主体>`：错误块直落 + `mov $1; jmp 尾`
+        // ⇒ 原码为早返形（if(!=0)/else 会让 4.4 把错误块排到函数末尾，整段窗口错位）。
+        ProcessError(user, 0x15, 0, msg.m_entrySection.m_arr[0].m_productNo, 1, 1,
+                     static_cast<char>(msg.m_scalars.m_buyFlag));
+        return true;
+    }
+
     {
         if (WongWork::CEventMgr::IsChildrensDayEventing())
         {
             user->ClearChildrensDayEvent();
         }
 
-        CCeraShopGoods* goodsList[36];
-        for (int i = 0; i < 36; ++i)
-        {
-            goodsList[i] = 0;
-        }
-        int relatedItems[36];
-        for (int i = 0; i < 36; ++i)
-        {
-            relatedItems[i] = 0;
-        }
+        // [b28d-S278 P214③] ORIG 0x083205a9/0x083205bf 两段 `rep stos`（各 0x24
+        // dwords）⇒ 原码是数组零初始化；逐元素 for 循环 4.4 恒生成循环体。
+        CCeraShopGoods* goodsList[36] = {0};
+        int relatedItems[36] = {0};
 
+        // [b28d-S278 负例] ORIG -0x78 双循环复用，但函数级共用变量实测不可复现
+        // 槽位（我方 -0x78 被 checkIdx 决策树占用、i 落他槽，净 +1 条）⇒ 回退。
         for (int i = 0; i < static_cast<int>(msg.m_scalars.m_itemCount); ++i)
         {
             goodsList[i] = G_CDataManager()->FindGoods(
@@ -877,11 +927,6 @@ bool CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
             // guard RAII 析构释放流（ORIG 1876 D1）。
         }
     }
-    else
-    {
-        ProcessError(user, 0x15, 0, msg.m_entrySection.m_arr[0].m_productNo,
-                     1, 1, static_cast<char>(msg.m_scalars.m_buyFlag));
-    }
     return true;
 }
 
@@ -896,30 +941,38 @@ bool CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 // （avatar/coin/item/item-special/creature/additional 六路分派）→ 成功路径
 // 扣款与响应包 0x43/0x35/0xe 广播 + ChildrensDay 补发 + Bonus 概率奖励。
 // ---------------------------------------------------------------------------
+// [b28d-solo-W6_CeraShopDeps] verdict=DIFF-N82 封顶（orig 1564 / our 1627，
+// gap=63=4.0%；p167 CLEAR 192/192）。本轮修法：删 bSend 标志局部（ORIG 无该槽：
+// type==4/0 处理完直落尾部 send 块 08321ea3/08321f0d jmp 08323791，type==2 由
+// success 的 bool 归一化决定 08323755，user==0 早返 08321d5b je 083237dc）、
+// P235 具名 m_type 消 add+mov。残余：帧 0x31c vs ORIG 0x2cc + 全帧槽号平移（N82，
+// difflib 大面积窗口错位）+ 4.4 EH cleanup 物化（N91/N104 族）⇒ §6.2 三件套判
+// 语义完成、byte 层 N 封顶。
 void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                                    IPG::SIPGData* resData, Stream* stream)
 {
     PacketGuard outPkt;                                   // local_d8
-    bool bSend = false;   // ORIG 尾部统一 finalize+Send；仅析构路径不进
+    // [b28d-S278] ORIG 无 bSend 标志局部：type==4/0 路径处理完直接落尾部 send 块
+    // （08321ea3/08321f0d jmp 08323791），type==2 由 success 的 bool 归一化决定
+    // （08323755 test/normalize），user==0 早返（08321d5b je 083237dc）⇒ 删标志槽。
 
-    if (ReadIntAt(resData, 0x1c) == 4)
+    if (resData->m_type == 4)
     {
-        if (user != 0)
+        if (user == 0)
         {
-            const int total =
-                AtoiAt(resData, 0x99) + AtoiAt(resData, 0xa5) + AtoiAt(resData, 0x81) +
-                AtoiAt(resData, 0x75) + AtoiAt(resData, 0x8d) + AtoiAt(resData, 0x69);
-            user->SetCera(static_cast<unsigned int>(total));
-
-            outPkt.put_header( 0, 0x35);
-            outPkt.put_byte( 1);
-            outPkt.put_int( user->GetCera());
-            bSend = true;
+            return;
         }
-        // user==0：ORIG goto LAB_083237dc（仅析构，不发包）
+        const int total =
+            AtoiAt(resData, 0x99) + AtoiAt(resData, 0xa5) + AtoiAt(resData, 0x81) +
+            AtoiAt(resData, 0x75) + AtoiAt(resData, 0x8d) + AtoiAt(resData, 0x69);
+        user->SetCera(static_cast<unsigned int>(total));
+
+        outPkt.put_header( 0, 0x35);
+        outPkt.put_byte( 1);
+        outPkt.put_int( user->GetCera());
     }
 
-    if (ReadIntAt(resData, 0x1c) == 0)
+    if (resData->m_type == 0)
     {
         if (atoi(BufAt(resData, 0x26e)) == 1)
         {
@@ -936,9 +989,8 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
         outPkt.put_header( 0, 0x35);
         outPkt.put_byte( 0);
         outPkt.put_int( 0);
-        bSend = true;
     }
-    else if (ReadIntAt(resData, 0x1c) == 2)
+    else if (resData->m_type == 2)
     {
         if (user->getCurCharacR() == 0)
         {
@@ -1367,14 +1419,10 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
         {
             return;
         }
-        bSend = true;
     }
 
-    if (bSend)
-    {
-        outPkt.finalize( true);
-        user->Send(outPkt);
-    }
+    outPkt.finalize( true);
+    user->Send(outPkt);
 }
 
 }  // namespace WongWork

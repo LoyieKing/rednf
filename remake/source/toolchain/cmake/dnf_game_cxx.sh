@@ -314,7 +314,18 @@ case "$src" in
             *Game/LevelupSupport2ndEvent.cpp | \
             *Game/LevelupSupportEvent.cpp | \
             *Game/OnlinePreliminaryTeam.cpp | \
+            *Game/Inter_DispatcherAradOnly.cpp | \
+            *Game/AvatarConvertServer.cpp | \
             *Game/W9_EventSmall.cpp)
+                # b28d-S314：Inter_DispatcherAradOnly::dispatch_sig 的 N7（间接 call
+                # 目标 %eax↔%edx）属后端敏感族；4.4.7 下 NEAR（助记符全等），
+                # 换 446 后端（-B cc1plus446bin）即 AE 归零。
+                # 实测 447 identical=0/ae=4/near=1/diff=2 → 446 identical=0/ae=5/
+                # near=0/diff=1（唯一 diff 为 N123 撞名噪音）⇒ 零回归。
+                # b28d-S353：AvatarConvertServer::StatisticsAvatarDisjoint 的间接 call
+                # 目标寄存器同族（ORIG %edx vs 4.4.7 %eax）。实测 4.4.7
+                # identical=97/ae=181/near=1/diff=6 → 4.4.6 identical=97/ae=182/
+                # near=0/diff=6 ⇒ 零回归。
         set -- -B"${ROOT}/cc1plus446bin/" "$@" ;;
 esac
 
@@ -387,9 +398,15 @@ case "$(basename "$src" .cpp)" in
                 # 4.4.7 identical=20/ae=68/near=3/diff=2 vs 4.4.6 合计 90AE/near=1/diff=2
                 # ⇒ 零回归。
                 exec "$C6446R" "$@" ;;
+            *Game/W6_AssaultPlaceDepsB.cpp)
+                # b28d-S237：CAssaultPlace::_MoveUser(CDisposition*,int,int) 的 N7
+                # 间接 call 目标寄存器（ORIG=4.4.6 形 %edx/%eax，4.4.7 恒 %eax/%edx）
+                # 在 4.4.6 下翻 AE。实测 4.4.7 identical=6/ae=37/near=2/diff=6
+                # vs 4.4.6 identical=6/ae=38/near=1/diff=6 ⇒ 零回归。
+                exec "$C6446R" "$@" ;;
             *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp | *Game/STEquipmentScript.cpp | *Game/CCreatureMgr.cpp | *Game/OnlyOrigBatch12.cpp | \
             *Game/CFairMatch.cpp | *Game/CEquipItem.cpp | *Game/CAccountCargo.cpp | \
-            *Game/CUserCharacInfo.cpp)
+            *Game/CUserCharacInfo.cpp | *Game/ScriptDepsA.cpp)
                 # b28d-6：ORIG CompareRating 的 x87 比较为 fucompp/fnstsw/sahf；4.4 需
                 # -march=i486 才出该 lowering（P230 补）。实测 TU ae 51→52 / diff 24→23。
                 # b28d-D44：LinkMiscSecuTimerSolo::GetMarketConditionRate 同族 x87 比较，
@@ -409,15 +426,32 @@ case "$(basename "$src" .cpp)" in
                 # b28d-S156：CUserCharacInfo 的 `index / 8`（有符号除 2^k）在 i486 下
                 # 产 ORIG 精确 5 条（sar/shr/lea/sar），默认旗标产 cmovs（N97）。
                 # 实测 ae 374→376 / diff 5→3 零回归。
+                # b28d-S248：ScriptDepsA 的 GetRoundInt 为 x87 两向比较
+                # （ORIG fucompp/fnstsw/sahf，默认 4.4.7 产 fucomip/fstp，N85）；
+                # 实测 identical=375 不变 / ae 707→708 / diff 17→16 零回归。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
             *Game/CExpandEquipslot.cpp)
                 # CExpandEquipslot：loadData 虚调用寄存器形态需 4.4.6
                 # （c6 NEAR / c6446r AE；G1-3 refine agent 验证）
                 exec "$C6446R" "$@" ;;
+            *Game/MatchRoomList.cpp)
+                # b28d-S349：CMultiMatchRoomList::doMatch/MultiMatch 的虚调用目标
+                # 寄存器属 N7 后端敏感族（4.4.7 %eax / 4.4.6 %edx）。实测
+                # 4.4.7 identical=130/ae=239/near=3/diff=4 →
+                # 4.4.6 identical=130/ae=241/near=1/diff=4（doMatch/MultiMatch
+                # NEAR→AE，两后端 p167 均 5/6 CLEAR）⇒ 零回归。
+                exec "$C6446R" "$@" ;;
             # ---- 脚本 Import/Export 族 + 相关：ORIG GameServer 为 GCC 4.4.6（DWARF producer 实证），
             # 切 4.4.6 后端使寄存器/栈槽分配逐操作数对齐，翻 NEAR→IDENTICAL。 ----
+            *Game/CreatureScript.cpp)
+                # b28d-S275：AttackInfo::isIntendDamage 的 x87 比较 ORIG 为
+                # fucompp/fnstsw/sahf/seta；4.4.6 默认产 fucomip/fstp（N85），需
+                # -march=i486 关 SSE/CMOV 比较 lowering（P230）。实测默认
+                # identical=222/ae=455/near=1/diff=6 → i486 identical=223/ae=455/
+                # near=1/diff=5 ⇒ 零回归。
+                exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
             *Game/STMonsterScript.cpp | *Game/STEquipmentScript.cpp | *Game/STStackableScript.cpp | \
-            *Game/STMapScript.cpp | *Game/OnlyOrigBatch14.cpp | *Game/CreatureScript.cpp | \
+            *Game/STMapScript.cpp | *Game/OnlyOrigBatch14.cpp | \
             *Game/NPCScript.cpp | *Game/GameScriptEnumHelpers.cpp | *Game/EventScriptsCompleteB2.cpp | \
             *Game/W8LT_PassiveObjectScript.cpp | *Game/InitScriptProducers_6.cpp | *Game/sync_script.cpp | \
             *Game/EquipmentParameterInfo.cpp | *Game/DispLinkA2.cpp | *Game/CAuction.cpp)
@@ -441,7 +475,12 @@ case "$(basename "$src" .cpp)" in
             *Game/DNFLexWrapperLoadStream.cpp)
                 exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" -O2 -std=gnu++98 ;;
             *Game/CompiledDNFLexCore.cpp)
-                exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" -O2 -std=gnu++98 ;;
+                # b28d-S245：ORIG PushInputStream 0x8ad0b8 调
+                # `_ZNSt5dequeIN14CompiledDNFLex8stream_tESaIS1_EE16_M_push_back_auxIIRKS1_EEEvDpOT_`
+                # （C++0x 变参版）⇒ 该 TU 原为 C++0x。实测 gnu++98 identical=0/ae=24/diff=8/
+                # missing=9 → gnu++0x identical=0/ae=25/diff=8/missing=8，逐函数 ndiff 合计 471
+                # 不变（8 件 DIFF 集合与读数完全一致）⇒ 零回归。
+                exec "$C6446R" "$SA_COMPAT" "$SA_HDR" "$@" -O2 -std=gnu++0x ;;
             *Game/Arad_Script.cpp)
                 # ORIG Arad_Script is -O0 (reload this from 0x8(%ebp) each
                 # field access). -O2 made every getter DIFF.

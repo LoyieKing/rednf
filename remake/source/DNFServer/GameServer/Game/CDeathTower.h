@@ -198,8 +198,12 @@ namespace WongWork
         class CPacketHandler : public PacketGuard
         {
         public:
-            CPacketHandler();                   // ORIG W 0x08469a8c
-            ~CPacketHandler();                  // ORIG W 0x08469aa0
+            // [b28d-Main 复核·S214] 曾试加 throw()（P216）——A/B 实测对 handleMoveMap 零影响
+            // （两向均 0 处 _Unwind_Resume，TU 计数同为 994）：本处是**局部对象**非 new 表达式，
+            // 且 ORIG 的 landing pad 确实调用 CPacketHandlerD1Ev（0x8465cfe/0x8465d80/0x8465f8b/
+            // 0x8466004）⇒ S214 的「ORIG 判 nothrow 不布」根因不成立，已回退。
+            CPacketHandler();           // ORIG W 0x08469a8c
+            ~CPacketHandler();          // ORIG W 0x08469aa0
 
             void makePickupItemHeader(unsigned short a, unsigned short b);   // ORIG T 0x0845fc6c
             void appendPickupMoney(int* moneyA, int* moneyB, CParty* party);// ORIG T 0x0845fcc4

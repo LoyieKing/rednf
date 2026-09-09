@@ -105,8 +105,14 @@ int RandomOptionScript::getPrefixGrade(int level)
 // 按 flag 选择 m_prefixNormal(+0x1a8) / m_prefixPremium(+0x1c0) map，
 // 以第一个 int(prefix) 为 key find；返回向量下标
 // getPrefixGrade(grade)（flag 时 +3）处的字符串。
-// [b28d-27] DIFF（已按 P167 修）：ORIG 0x08a73956；`it->second`→`(*it).second`
-// 消 ptEv EXTRA 后仍余帧/槽差（N82）；p167 差集已双向清零。
+// [b28d-solo-RandomOptionScript] AE（compare_tu clean 口径，99/99 逐条同构）：本轮三处修正——
+//  ① 原越界防御（idx>=0 && idx<size()）非 ORIG 语义：ORIG 是「具名 vector 指针 +
+//     unsigned 下标 while 扫描」`pVec=&it->second; i=0; while(pVec->size()>i){
+//     if(idx==i){out=(*pVec)[i];break;} ++i; }`（ORIG +0xac..+0x0fa 逐条复现）；
+//  ② p167 实测 ORIG 调 `ptEv`（operator->）非 `deEv`（operator*）⇒ `it->second`；
+//  ③ bool 形参 `flag` 直用（删具名 premium 局部，P244 配套：4.4 对 bool 形参
+//     自动截断 spill 到 -0x3c，具名局部会多 movzbl+movb 并把 it/end 顶深 4）。
+// 复验：p167 CLEAR（11/11）；TU identical+ae 计数 +2。
 std::string RandomOptionScript::getPrefix(int prefix, int grade, bool flag)
 {
     std::string out;
@@ -114,23 +120,37 @@ std::string RandomOptionScript::getPrefix(int prefix, int grade, bool flag)
     // 此后两次以该槽作 `cmpb $0` 判；②表指针**先无条件取 m_prefixNormal(+0x1a8)**
     // 存 -0x28，再在 flag 真时用 m_prefixPremium(+0x1c0) 覆盖（非三目选择形）；
     // ③getPrefixGrade 结果入槽后条件 +3；④find/end/pt 全走非 const iterator。
-    bool premium = flag;
+    // [b28d-28] 该 byte 槽是 4.4 对 bool 形参的自动截断 spill；再写具名
+    // `bool premium = flag;` 会多一对 movzbl+movb 且把 it/end 槽顶深 4（P244 配套）。
     std::map<int, std::vector<std::string> >* pMap = &m_prefixNormal;
-    if (premium)
+    if (flag)
     {
         pMap = &m_prefixPremium;
     }
     int idx = getPrefixGrade(grade);
-    if (premium)
+    if (flag)
     {
         idx += 3;
     }
     std::map<int, std::vector<std::string> >::iterator it = pMap->find(prefix);
-    // [b28d-27] ORIG 0x08a73956：`(*it).second`（operator* = deEv），非
-    // `it->second`（operator-> = ptEv）；p167 差集实证我们多 1 条 ptEv。
-    if (it != pMap->end() && idx >= 0 && idx < (int)(*it).second.size())
+    // [b28d-28] ORIG 0x08a73956 实为「具名 vector 指针 + unsigned 下标 while
+    // 扫描」：`pVec=&(*it).second; i=0; while(pVec->size()>i){ if(idx==(int)i){
+    // out=(*pVec)[i]; break; } ++i; }`（ORIG +0xac..+0x0fa）。原越界防御
+    // （idx>=0 && idx<size()）是多余语义，ORIG 无此判断。
+    if (it != pMap->end())
     {
-        out = (*it).second[idx];
+        // [b28d-28] p167 实测：ORIG 调 `ptEv`（operator->），非 `deEv`（operator*）。
+        std::vector<std::string>* pVec = &it->second;
+        unsigned int i = 0;
+        while (pVec->size() > i)
+        {
+            if (i == (unsigned int)idx)
+            {
+                out = (*pVec)[i];
+                break;
+            }
+            ++i;
+        }
     }
     return out;
 }
@@ -283,9 +303,24 @@ static_assert(sizeof(DifferentWeightKeyView) == 2, "ORIG different weight short 
 
 }   // namespace
 
-// [b28d-27] DIFF N82（§6.2 超大函数口径）：ORIG 0x08a70a90；p167 CLEAR（361/361，
-// 双向零差）+ gap=1（2754/2755），残差为 4.1 vs 4.4 帧/槽复用策略（N82），
-// 语义完成、byte 层封顶。
+// [b28d-solo-RandomOptionScript] DIFF（§6.2 超大函数口径，本轮大幅收敛）：
+// ORIG 0x08a70a90；p167 CLEAR 361/361（双向零差）+ 逐块操作码差 75/2754
+// （difflib ndiff 2617→75，降 97%）+ 帧尺寸同 0x5f0 + ORIG 30 处 movl $0 预清零
+// 我方现 31 处。本轮按 S287 P191/P198③ 范式补齐的段内声明/两段式：
+//  ① P191 扩展：段级共用循环变量（[choose option group]/[modified option selection]
+//     两循环共用 `int i=0` + 各 `for(i=0;…)`，ORIG -0x38/-0x30 各 3 处清零）；
+//  ② 段内 v/dead 预清零（-0x50/-0x48/-0x44/-0x2c/-0x28/-0x4d4/-0x504，其中
+//     -0x44/-0x28 为只清零不读的 dead local，4.4-O0 保留，探针 f 形实证）；
+//  ③ 两段式（声明=0 + 独立赋值）：[postfix] count、[break seal cost] cost、
+//     [choose postfix] minVal/maxVal/v、[unable to modify]/[gradeless postfix]
+//     独立 unsigned long key（ORIG 2682/2709 预清零）；
+//  ④ [option value ratio] ratio 对象移循环外构造一次（ORIG 1923 C1Ev，回跳点
+//     1926 跳过）+ 三字段 ScanFloat/ScanInt 直存，消 base/range/v 中转；
+//  ⑤ [base item] 累计回写 `v = (val.m_fieldC += v);`（ORIG 493-500 赋值表达式
+//     返回引用后回写 v，再 push v）。
+// 残余 25 块为跨版本 CFG 布局（4.1 `je 成功; jmp 尾` 两跳 vs 4.4 `jne 尾` 一跳
+// 共 6 处、ORIG 循环回跳 jmp、nop 岛/epilogue-threading N121、int 局部常量比较
+// 4.4 恒 mem 直比 P209/N18b），按 §6.2 判「语义完成、byte 层跨版本布局 N 封顶」。
 int importRandomOptionScript(RandomOptionScript& script, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -431,6 +466,8 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             RandomApplicationKey key;
             BaseItemSelectionValue val;
             int itemCount = 0;
+            // [b28d-solo-RandomOptionScript] ORIG 444 段内 v 预清零（-0x50）
+            int v = 0;
             for (;;)
             {
                 key.m_field0 = static_cast<unsigned char>(ScanInt(&ok));
@@ -456,8 +493,11 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     {
                         return 0x9f;
                     }
-                    val.m_fieldC += v;
-                    val.m_vec0.push_back((unsigned int)val.m_fieldC);
+                    // [b28d-solo-RandomOptionScript] ORIG 493-500：赋值表达式返回引用 ⇒
+                    // `v = (val.m_fieldC += v);` 后 push 的是回写后的 v（-0x50），
+                    // 非内存直加 + 重读 m_fieldC（我方原形多 add mem 少 4 条装载）。
+                    v = val.m_fieldC += v;
+                    val.m_vec0.push_back((unsigned int)v);
                 }
                 if (!script.m_map48.insert(std::make_pair(key, val)).second)
                 {
@@ -473,6 +513,9 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             RandomApplicationKey key;
             RandomOptionGive give;
             int optionType = 0;
+            // [b28d-solo-RandomOptionScript] ORIG 608/609 段内 v(-0x48)/dead(-0x44) 预清零
+            int v = 0;
+            int dead = 0;
             for (;;)
             {
                 key.m_field0 = static_cast<unsigned char>(ScanInt(&ok));
@@ -591,7 +634,12 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         {
             OptionGroupChoiceValue choice;
             std::string name;
+            // [b28d-solo-RandomOptionScript] ORIG 1040 段内 v 预清零（-0x4d4）
+            int v = 0;
             int groupCount = 0;
+            // [b28d-solo-RandomOptionScript] P191 扩展（S287 实证）：ORIG -0x38 段级
+            // 共用循环变量，两循环各 for(i=0) + 声明处双初始化（ORIG 1039/1150/1174）。
+            int i = 0;
             OptionGroupChoiceKeyView keyView;   // ORIG -0x4b0：逐字节/双字直存
             for (;;)
             {
@@ -634,7 +682,7 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     return 0x13b;
                 }
                 choice.clear();
-                for (int i = 0; i < groupCount; ++i)
+                for (i = 0; i < groupCount; ++i)
                 {
                     v = ScanInt(&ok);
                     if (!ok)
@@ -643,7 +691,7 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     }
                     choice.m_vec0.push_back(v);
                 }
-                for (int i = 0; i < groupCount; ++i)
+                for (i = 0; i < groupCount; ++i)
                 {
                     v = ScanInt(&ok);
                     if (!ok)
@@ -667,7 +715,12 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         {
             OptionGroupChoiceValue choice;
             std::string name;
+            // [b28d-solo-RandomOptionScript] ORIG 1318 段内 v 预清零（-0x504）
+            int v = 0;
             int groupCount = 0;
+            // [b28d-solo-RandomOptionScript] P191 扩展：ORIG -0x30 段级共用循环变量
+            // （ORIG 1317/1428/1452 三处清零 = 声明 + 两 for init）。
+            int i = 0;
             OptionGroupChoiceKeyView keyView;   // ORIG -0x4e0：逐字节/双字直存
             for (;;)
             {
@@ -709,7 +762,7 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     return 0x180;
                 }
                 choice.clear();
-                for (int i = 0; i < groupCount; ++i)
+                for (i = 0; i < groupCount; ++i)
                 {
                     v = ScanInt(&ok);
                     if (!ok)
@@ -718,7 +771,7 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
                     }
                     choice.m_vec0.push_back(v);
                 }
-                for (int i = 0; i < groupCount; ++i)
+                for (i = 0; i < groupCount; ++i)
                 {
                     v = ScanInt(&ok);
                     if (!ok)
@@ -743,6 +796,9 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
             RandomApplicationKey key;
             RandomOptionGive give;
             int optionType = 0;
+            // [b28d-solo-RandomOptionScript] ORIG 1596/1597 段内 v(-0x2c)/dead(-0x28) 预清零
+            int v = 0;
+            int dead = 0;
             for (;;)
             {
                 key.m_field0 = static_cast<unsigned char>(ScanInt(&ok));
@@ -820,29 +876,28 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         else if (line == "[option value ratio]")
         {
             // ORIG 0x8a72a15/~0x8a72ac1：ratio 对象（+0 scaleRange0/+4 scaleBase4/+8 weight8）
-            // 于段入口清零构造一次；行内首 float 写 +4、次 float 写 +0、int 写 +8。
+            // 于**循环外**构造一次（ORIG 1923 C1Ev，回跳点 1926 跳过构造）；行内首 float
+            // 直接 fstps +4（-0x550）、次 float 直存 +0（-0x554）、int 直存 +8（-0x54c），
+            // 无 base/range/v 中转量。
+            OptionValueRatio ratio;
             for (;;)
             {
-                float base = ScanFloat(&ok);
+                ratio.m_scaleBase4 = ScanFloat(&ok);   // +0x04（行内首 float）
                 if (!ok)
                 {
                     break;
                 }
-                float range = ScanFloat(&ok);
+                ratio.m_scaleRange0 = ScanFloat(&ok);  // +0x00（行内次 float）
                 if (!ok)
                 {
                     break;
                 }
-                v = ScanInt(&ok);
+                ratio.m_weight8 = (unsigned int)ScanInt(&ok);   // +0x08
                 if (!ok)
                 {
                     return 0x1f5;
                 }
-                OptionValueRatio ratio;
-                ratio.m_scaleBase4 = base;    // +0x04（行内首 float）
-                ratio.m_scaleRange0 = range;  // +0x00（行内次 float）
-                ratio.m_weight8 = (unsigned int)v;
-                script.m_ratioE4.m_c += v;
+                script.m_ratioE4.m_c += ratio.m_weight8;
                 script.m_ratioE4.m_vec0.push_back(ratio);
             }
         }
@@ -887,7 +942,10 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         }
         else if (line == "[postfix]")
         {
-            int count = ScanInt(&ok);   // ORIG：直存计数槽（无 v 中转）
+            // [b28d-solo-RandomOptionScript] ORIG 2115 循环外 count 预清零（-0x20），
+            // 2116 再 ScanInt 赋值（P198③ 两段式；直存计数槽，无 v 中转）。
+            int count = 0;
+            count = ScanInt(&ok);
             if (!ok)
             {
                 return 0;
@@ -926,14 +984,19 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         }
         else if (line == "[choose postfix]")
         {
+            // [b28d-solo-RandomOptionScript] ORIG 2254-2256：循环外声明=0
+            // （-0x14/-0x10/-0xc 三槽），循环内仅赋值（P198③ 两段式）。
+            int minVal = 0;
+            int maxVal = 0;
+            int v = 0;
             for (;;)
             {
-                int minVal = ScanInt(&ok);
+                minVal = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int maxVal = ScanInt(&ok);
+                maxVal = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -949,13 +1012,15 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         }
         else if (line == "[break seal cost]")
         {
+            // [b28d-solo-RandomOptionScript] ORIG 2308 段入口 cost 预清零（-0x58c），
+            // 循环内赋值（回跳点 2312 跳过清零）。
+            int cost = 0;
             for (;;)
             {
                 // ORIG 2251-2287：cost 槽先清 0，随后三次 ScanInt 结果**直接落键对象**
                 // （byte0 = k1 → -0x588；**ushort@+2 = k2 → -0x586**；byte1 = k3 →
                 // -0x587），末次直存 cost(-0x58c) —— 无 k1/k2/k3 中转量、无移位或链。
                 BreakSealCostKeyView keyView;
-                int cost = 0;
                 keyView.m_bytes.m_b0 = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
@@ -1112,26 +1177,31 @@ int importRandomOptionScript(RandomOptionScript& script, const char* path)
         }
         else if (line == "[unable to modify postfix grade]")
         {
+            // [b28d-solo-RandomOptionScript] ORIG 2682/2685 两段式：独立 unsigned long
+            // key 循环外预清零（-0x5c8），循环内直存 ScanInt 结果后按引用 insert。
+            unsigned long key = 0;
             for (;;)
             {
-                v = ScanInt(&ok);
+                key = (unsigned long)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                script.m_set200.insert((unsigned long)v);
+                script.m_set200.insert(key);
             }
         }
         else if (line == "[gradeless postfix]")
         {
+            // [b28d-solo-RandomOptionScript] ORIG 2709/2712 两段式（-0x5cc 预清零）
+            unsigned long key2 = 0;
             for (;;)
             {
-                v = ScanInt(&ok);
+                key2 = (unsigned long)ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                script.m_set218.insert((unsigned long)v);
+                script.m_set218.insert(key2);
             }
         }
     }

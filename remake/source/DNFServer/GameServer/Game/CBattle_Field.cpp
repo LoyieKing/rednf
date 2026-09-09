@@ -804,13 +804,9 @@ CBattle_Field::stConditionEnterBossRoomStatus_t::operator=(
     return *this;
 }
 
-CBattle_Field::stEventMonsterStatus_t::stEventMonsterStatus_t()
-{
-}
-
-CBattle_Field::stEventMonsterStatus_t::~stEventMonsterStatus_t()
-{
-}
+// [b28d-Main 代落·S324 P299/P317] 用户 ctor/dtor 定义删除（声明端同步）：
+// 隐式 ctor 由使用点发射 W（含 m_pos 的 pair 默认构造），隐式 trivial dtor 的
+// D1/D2 由 new_allocator::destroy 发射 W——与 ORIG 0830ee4c / 08316adc 同形。
 
 // ============================================================================
 // 外部依赖（CGameManager.h 与本头组合存在重定义冲突，按 ORIG 符号做最小声明，

@@ -138,11 +138,15 @@ CAutoMarketConditionsControl::~CAutoMarketConditionsControl()
 // `cmpl $9; setle` = i<=9 头检 for；key2 上界检查 ORIG 不存在（仅 <=0 →
 // 0x3c）；key4 push_back 后存在 ok 二次重载检查（0x082f8386，别名后重读）；
 // 未知键直接 return 0x64（0x082f8401），非 continue。
-// [b28d-solo-CDataManager DIFF-N] 真语义 bug ×2 修复：① ORIG 0x082f8287 有
+// [b28d-solo-CDataManager AE 208=208] 真语义 bug ×2 修复：① ORIG 0x082f8287 有
 // `cmp $0xc8; jle` 上界检查（value>200 → 0x3c），旧码缺；② ORIG 0x082f82ac 写
 // 地址 = this+0xc+(value+0x14)*4 = m_goldPerLevel[value]，旧码 `[value+0x17]`
-// 多写 0x5c 字节越界。残差仅入口 jmp 旋转 1 条（P164 负例，for(;;)+break 反 +2）
-// ⇒ N 封顶；p167 19/19 CLEAR。
+// 多写 0x5c 字节越界。本轮翻正（o 208 / n 209→208，DIFF→AE）：
+//   ① 外层 while 旋转 1 条 ⇒ goto 头条件形（P223/P283）；
+//   ② `if (v<=0) return 0x3c; if (v>200) return 0x3c;` 两处独立 err 块被 4.4
+//      各自内联 ⇒ 合并短路 `if (v<=0 || v>200) return 0x3c;` 复现 ORIG 共享
+//      失败块（P258 短路物化方向）。
+// p167 19/19 CLEAR。
 int CAutoMarketConditionsControl::LoadScript(const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -153,9 +157,11 @@ int CAutoMarketConditionsControl::LoadScript(const char* path)
     int value = 0;
     bool ok = false;
     // [b28d-solo-CDataManager] ORIG 条件块在循环头（+0x42 直落）、尾部回跳；
-    // 4.4 对 while(cond) 恒旋转成入口 jmp 尾条件（+1 条，P164 负例；
-    // for(;;)+break 形实测 +2 更差）。唯一残差 1 条 jmp，语义等价。
-    while (ScanType(token, true) != false)
+    // 4.4 对 while(cond) 恒旋转成入口 jmp 尾条件（+1 条；while(true)+break
+    // 形实测 our 210 更差）。改 goto 头条件形（P223/P283 族）复现。
+load_cond:
+    if (!ScanType(token, true))
+        goto load_done;
     {
         if (token == "[control of gold drop amount rate]")
         {
@@ -178,13 +184,12 @@ int CAutoMarketConditionsControl::LoadScript(const char* path)
                 {
                     break;
                 }
-                if (value <= 0)
-                {
-                    return 0x3c;
-                }
                 // [b28d-solo-CDataManager 真语义 bug 修复] ORIG 0x082f8280-8c 有
                 // 上界检查（`cmp $0xc8; jle` ⇒ value>200 也返回 0x3c），旧码缺。
-                if (value > 200)
+                // 短路合并复现 ORIG `jle err; cmp; jle body; err:` 共享失败块
+                // （P258 德摩根/短路物化方向；两个独立 if-return 在 4.4 会各自
+                // 内联 err 块，our +3）。
+                if (value <= 0 || value > 200)
                 {
                     return 0x3c;
                 }
@@ -249,6 +254,8 @@ int CAutoMarketConditionsControl::LoadScript(const char* path)
             return 0x64;
         }
     }
+    goto load_cond;
+load_done:
     return 0;
 }
 
@@ -316,7 +323,7 @@ CDungeon* CDataManager::find_dungeon(int idx) const
     return m_dungeonList->find_dungeon(idx);
 }
 
-void* CDataManager::find_map(int idx) const
+CMap* CDataManager::find_map(int idx) const   // [b28d-Main 代落·S374 P211档③] void*→CMap*（声明端 CDataManager.h:3499 已改）
 {
     return m_mapList->find_map(idx);
 }
@@ -412,9 +419,14 @@ int CDataManager::get_creature_exp_level(int exp) const
     return level - 1;
 }
 
-// [b28d-solo-CDataManager NEAR-N] 唯一残差 1 条：ORIG `mov level,%edx; mov this,
-// %eax` vs 4.4 恒 this 先（探针 /tmp/p_sp/{a,b,c}.cpp 六形全败；cast 视图恒 base
-// 先，真实成员直访问产 lea 折叠亦不符）⇒ N76 load 侧/P30 封顶，语义等价。
+// [b28d-solo-CDataManager NEAR-N] 本轮复核：ORIG `mov level,%edx; mov this,
+// %eax; add $0x36a2,%edx; mov 0x8(%eax,%edx,4),%eax`。探针 /tmp/p_sp_at{,2,3,4,5}.cpp
+// 全形实测：显式 `m_sp8[level+0x36a2]`（视图 +8）4.4 恒产 `mov level,%eax;
+// lea 0x36a2(%eax),%edx; mov this,%eax`（lea 合并 + this 后置，q1..q8/r1..r5
+// 12 形全败）；改大偏移视图 `m[level]`（视图 +0xda90）可复现装载序
+// `mov level,%edx; mov this,%eax; add …,%edx` 但常量被折成 add $0x36a4 + disp 0
+// （ORIG 为 add $0x36a2 + disp 8）⇒ 4.4 对 scaled-index 大常量的「全折」约束
+// （N94）无源码解。语义等价封顶。
 unsigned int CDataManager::GetSpAtLevelUp(int level) const
 {
     if (level < 1 || level > 95)
@@ -608,10 +620,13 @@ end:
 // 遍历 m_genRefs1(+0x468)/m_genRefs0(+0x428)，元素 +0x10=m_dropRate 按
 // ROUND(v*ratio) 截断缩放；float 比较为 i486 形态。尾部空块中继岛按 P223
 // goto 尾空标签形复现；x87 分步 flds+fdivp vs 4.4 fdivs 折叠属 N85附②。
-// [b28d-solo-CDataManager DIFF-N] 残差 2 条：① x87 `/const` 折叠 `fdivs mem`
-// vs ORIG `flds+fdivp`（N85附② 跨版本中端差）；② 尾 jmp/nop 落点
-// （P223 边界：4.4 自身 epilogue-threading；早返/正向 if+空 else/goto 尾标签
-// 三形实测同产物）。语义等价封顶。
+// [b28d-solo-CDataManager DIFF-N] 本轮复核（o 96 / n 95）：唯一实质残差 =
+// ratio 除法 ORIG `flds 0xb3f0; flds rate; fdivp` vs 4.4 `flds 0xb3f0;
+// fdivs rate`（N85附② 跨版本中端差）。六形探针 /tmp/p_x87div.cpp s1..s6
+// 全败：s1 直除/s2 具名 cur/s4 两语句/s5 double 提升/s6 +0.0f 恒 `fdivs`；
+// s3 volatile 分母产 `flds+fdivrp`（助记符与语义方向均异且多槽）。
+// 4.4 对 `/` 恒折内存操作数除法，无源码形可产 ORIG 的 `fdivp`；后续地址列
+// 因 2 字节长度差整体错位致 ndiff 虚高（difflib 伪差）。语义等价封顶。
 __attribute__((target("arch=i486"))) void CDataManager::SetItemDropRate(float rate)
 {
     if (m_dropRate == rate)
@@ -1018,19 +1033,22 @@ ChattingEmoticonBase* CChattingEmoticonList::find_emoticon(int idx)
 // 族——同址参数装载的 eax↔edx 指派与 spill 序（如 `mov (%eax),%edx` vs
 // `mov (%eax),%eax` 后接不同中转），4.4.7 分配器固定反向，穷举表达式形
 // 不可翻（范式库 N7/N18a/N22 + setcc 装载组合）。
-// [b28d-solo-CDataManager DIFF-N] 残差：① 循环尾测 4.4 恒内存直比
-// `cmpl $0x17,-0x20(%ebp)` vs ORIG `mov -0x20,%eax; cmp $0x17,%eax`
-// （P209 附，三形探针 /tmp/p_sp/i.cpp 全折）；② EH 尾块相对序（N104）。
-// p167 29/29 CLEAR ⇒ 语义完整，byte 层封顶。
-void CChattingEmoticonList::ReCalc(CChattingEmoticonConfig& config,
-                                   const CUser& user)
+// [b28d-solo-CDataManager AE 298=298] 本轮翻正（o=298 n=296→298）：
+//   ① 循环尾测 ORIG `mov -0x20,%eax; cmp $0x17,%eax; setbe` 两段形 ⇒ 局部改
+//      int + 显式 `(unsigned int)i <= 0x17`（P310，unsigned 局部恒折内存直比）；
+//   ② 尾块 `mov $0x1,%ebx … mov %ebx,%eax` ⇒ 返回类型 void→int（P159；头
+//      CDataManager.h 同步，mangled 不含返回类型，唯一调用点忽略返回值）。
+// p167 29/29 CLEAR。
+int CChattingEmoticonList::ReCalc(CChattingEmoticonConfig& config,
+                                  const CUser& user)
 {
     std::vector<CChattingEmoticonConfigRow> rows;
     std::set<int> used;
 
     // ORIG 0x080e58?? `mov -0x20; cmp $0x17; setbe` = 无符号比较（范式库
-    // P2 反例：signed setle 异形）。
-    for (unsigned int i = 0; i <= 0x17; ++i)
+    // P2 反例：signed setle 异形）。P310：局部 int + 显式 (unsigned) 比较
+    // 复现 ORIG 的「装载 + 寄存器比较」两段尾测（unsigned 局部恒折内存直比）。
+    for (int i = 0; (unsigned int)i <= 0x17; ++i)
     {
         ChattingEmoticonBase* p = find_emoticon(config.m_Row[i].m_nCount);
         if (p == 0)
@@ -1074,6 +1092,7 @@ void CChattingEmoticonList::ReCalc(CChattingEmoticonConfig& config,
             }
         }
     }
+    return 1;
 }
 
 // ReCalcEmoticonConf —— ORIG T 0x0835fc76 _ZN12CDataManager18ReCalcEmoticonConfER23CChattingEmoticonConfigRK5CUser
@@ -1596,22 +1615,35 @@ const char* CDataManager::SuddenShopFileName3()
 //  跨版本 this-cache 物化——4.1.2 对局部容器成员调用先 `lea obj; mov %eax,-slot`
 //  （-0x58=&monsterList、-0x54=aiList 等，0x08362125 实证），4.4.7 直发 lea 不
 //  物化，全帧槽号系统性平移（P112 族）；条目基址/负值检查行随之整块错位。
-// [b28d-solo-CDataManager DIFF-N] p167 94/94 CLEAR（调用点零差）；残差为
-// 帧 0x130 vs 0x120 与槽/寄存器指派（P112/N82 族）⇒ 语义完成、byte 层 N 封顶。
+// [b28d-solo-CDataManager DIFF-N] 本轮复核（o 704 / n 689→692）：p167 94/94
+// CLEAR（调用点零差）。翻正项：① monsterList 加具名指针 `pMonsterList`
+// （ORIG 0x08362125 `lea -0xd0; mov %eax,-0x58` 物化槽，P0 槽往返判据，+2）；
+// ② 空体短路链改否定 goto + 尾标签（ORIG 0x08362153 两处条件跳转被 4.4 空
+// then DCE 折叠，P223/P225，+1）。残差 12 条仍为 4.1 this-cache 物化致帧
+// 0x130 vs 0x120 与后续槽号系统性平移（P112/N82 族）⇒ 语义完成、byte 层 N 封顶。
 bool CDataManager::VerifyMap(const CMap& map, int idx) const
 {
     // ORIG 0x083620ee：map type 与 monster list 只被读取，结果不参与返回。
     (void)map.get_map_type();
     const std::list<_mapMonster> monsterList = map.get_monster_list();
-    for (std::list<_mapMonster>::const_iterator it = monsterList.begin();
-         it != monsterList.end(); it++)
+    // ORIG 0x08362125：`lea -0xd0; mov %eax,-0x58` —— monsterList 经具名指针
+    // 局部访问（-0x58 槽，P0 槽往返判据），begin/end 实参从该槽重载。
+    const std::list<_mapMonster>* pMonsterList = &monsterList;
+    for (std::list<_mapMonster>::const_iterator it = pMonsterList->begin();
+         it != pMonsterList->end(); it++)
     {
         // ORIG 0x08362153..：`test %al; jne ++; mov 0x8; test %eax` 尾 test 无
         // 消费者 = `flag==0 && field` 空体短路链（结果丢弃，不物化槽）。
         const _mapMonster& mon = *it;
-        if (mon.m_flag04 == 0 && mon.m_field08 != 0)
+        // ORIG 0x08362153..：空体短路链仍发射两处条件跳转（4.4 对空 then
+        // 做 DCE 后条件求值被折叠）⇒ 否定 goto + 尾标签（P223/P225）保留。
+        if (mon.m_flag04 != 0)
+            goto mon_skip;
+        if (mon.m_field08 == 0)
+            goto mon_skip;
         {
         }
+    mon_skip:;
     }
 
     const std::vector<STAICharacterMapArrangeData>* aiList =
@@ -1789,9 +1821,15 @@ void* CDataManager::get_dungeon(int idx)
 // （P151 同族形已用，槽 -0x6e4 对齐）；② for_each 段 4.4 引用别名物化槽
 // 使 maker 区平移（P112）；③ ORIG EH landing pad（0x08363d2c..0x08363d89
 // cleanup 展开）与 4.4 异常表结构差异属跨版本负例。
-// [b28d-solo-CDataManager DIFF-N] 修复：CStringMaker 改匿名临时全表达式链
-// （P37/P221；ORIG 段零 copy ctor call、D1×4，旧具名形多 C1ERKS_×1+D1×2），
-// p167 31/31 CLEAR；残差为 multiset[0x46] 构造循环（P151 族）+ EH 结构（N104）。
+// [b28d-solo-CDataManager AE 306=306] 本轮翻正（o=306 n=294→306）：
+//   ① quest 提升为函数头声明（ORIG 0x08363cec 入口 `movl $0,-0x28`，P212/P309）；
+//   ② cur/questIdx 提到 level 循环头（ORIG 0x08363dbe/0x08363dc5 每 level 一次
+//      具名初始化）；
+//   ③ 去掉 bucket 引用槽：内联 `static_cast<const multiset<int>&>(applyLevels
+//      [level-1]).begin()/end()`，复现 ORIG 每轮重算地址 + 重调 end（P183）；
+//   ④ m_type 分支改否定式（ORIG 0x08363e6f `je` 跳 push_back 块，P272）；
+//   ⑤ 两处空块 nop 中继岛用否定 goto + 尾标签串（ORIG 0x08363e42/0x08363e64，
+//      P223）。p167 31/31 CLEAR。
 bool CDataManager::reselectDailyTrainingQuest()
 {
     // ORIG 0x08363ce0 T。主分支：
@@ -1801,6 +1839,9 @@ bool CDataManager::reselectDailyTrainingQuest()
     //     遍历 multiset，用 getTrainingQuest(level, prevApply, prevMin) 取任务 idx；
     //     find_quest 命中且 Quest::m_type==1 → push_back 到当日列表；否则 error 日志。
     //  4) reset_same_apply_level_cnt()；非空列表记 TRAINING_QUEST trace。
+    // ORIG 0x08363cec 函数入口 `movl $0x0,-0x28` ⇒ quest 为函数头声明
+    // （P212/P309 全头部声明），循环内仅赋值。
+    Quest* quest = 0;
     m_trainingQuest.suffleTrainingQuests();
 
     // ORIG 0x08363d03：getApplyLevel 按 level 分桶写入 multiset 数组
@@ -1812,37 +1853,50 @@ bool CDataManager::reselectDailyTrainingQuest()
     {
         m_dailyTrainingQuest[level - 1].clear();
         int prevApply = 0x7fffffff;
+        // ORIG 0x08363dbe/0x08363dc5：cur(-0x1c)/questIdx(-0x50) 亦为每
+        // level 一次的具名初始化（cur 初值 0x7fffffff、questIdx 0）。
+        int cur = 0x7fffffff;
+        int questIdx = 0;
         // ORIG 0x08363dee 调 _ZNKSt8multiset...beginEv（const 版）+
         // _Rb_tree_const_iterator deref/!=，且无 iterator→const_iterator
-        // 转换调用 ⇒ 经 const 引用别名走 const 重载。
-        const std::multiset<int>& bucket = applyLevels[level - 1];
-        for (std::multiset<int>::const_iterator it = bucket.begin();
-             it != bucket.end(); ++it)
+        // 转换调用 ⇒ 经 const 视图走 const 重载。ORIG 0x08363ee7/0x08363f0e
+        // 每次迭代重算 applyLevels[level-1] 地址并重调 end()（无 bucket 引用
+        // 槽、无 end 缓存，P183 地址重物化）⇒ 内联 static_cast 视图表达式。
+        for (std::multiset<int>::const_iterator it =
+                 static_cast<const std::multiset<int>&>(applyLevels[level - 1]).begin();
+             it != static_cast<const std::multiset<int>&>(applyLevels[level - 1]).end();
+             ++it)
         {
-            int cur = *it;
-            int questIdx = m_trainingQuest.getTrainingQuest(level, cur, prevApply);
+            cur = *it;
+            questIdx = m_trainingQuest.getTrainingQuest(level, cur, prevApply);
             prevApply = cur;
-            if (questIdx != 0x7fffffff)
+            // ORIG 0x08363e42 `je +0x1f8` / 0x08363e64 `je +0x1fb` 两处空块
+            // nop 中继岛（P223）：否定 goto + 尾标签串（标签序=守卫序）。
+            if (questIdx == 0x7fffffff)
+                goto train_skip_quest;
+            quest = m_questList->find_quest(questIdx);
+            if (quest == 0)
+                goto train_skip_branch;
             {
-                Quest* quest = m_questList->find_quest(questIdx);
-                if (quest != 0)
+                if (quest->m_type != 1)
                 {
-                    if (quest->m_type == 1)
-                    {
-                        m_dailyTrainingQuest[level - 1].push_back(questIdx);
-                    }
-                    else
-                    {
-                        LogManager::logFormat(
-                            1, "data_manager.cpp",
-                            __PRETTY_FUNCTION__,
-                            0x2ac8,
-                            "reselectDailyTrainingQuest() ERROR : quest(%d), "
-                            "level(%d)",
-                            questIdx, level);
-                    }
+                    // ORIG 0x08363e6f `je +0x1cd`（m_type==1 跳 push_back 块，
+                    // 日志块直落）⇒ 源形为否定式（P272 德摩根块序交换）。
+                    LogManager::logFormat(
+                        1, "data_manager.cpp",
+                        __PRETTY_FUNCTION__,
+                        0x2ac8,
+                        "reselectDailyTrainingQuest() ERROR : quest(%d), "
+                        "level(%d)",
+                        questIdx, level);
+                }
+                else
+                {
+                    m_dailyTrainingQuest[level - 1].push_back(questIdx);
                 }
             }
+        train_skip_branch:;
+        train_skip_quest:;
         }
         m_trainingQuest.reset_same_apply_level_cnt();
         if (!m_dailyTrainingQuest[level - 1].empty())
@@ -1927,11 +1981,15 @@ int getCharacterJobToEnumValue(std::string& job)
 // 逗号 while ORIG 头检测形 vs 4.4 循环旋转（P75/EvtC9 技巧①对该形未试全）；
 // ③ 外 guard `xor$1;test;je` 与 `cnt add$1;mov %eax,%edx` 两段式 = N18a/N1；
 // ④ 入口三组 `jmp +0x42; nop` 中转岛 = 跨版本空 else nop;jmp 负例。
-// [b28d-solo-CDataManager DIFF-N] 修复：① m_count 去具名 cnt 槽（P0，ORIG
-// 0x0890861c `call ScanInt; add $0x1,%eax` 直用）；② rankRate push_back 传左值
-// v（ORIG 0x089087ec ERKi）、recordOrder 直接传函数返回值（ORIG 0x08908961 EOi）
-// —— 旧形两处重载恰好互换使 p167 假 CLEAR，修正后仍 46/46 CLEAR；残差 =
-// resize 值参 vs const&（跨 libstdc++）+ while 循环旋转（P164）。
+// [b28d-solo-CDataManager DIFF-N] 本轮复核（o 318 / n 305→317，差 1 条）：
+// p167 46/46 CLEAR。翻正项：① 外层 while 与两个内层逗号 while 改 goto 头条件
+// 形（P223/P283；ORIG 0x089085bd 条件在循环头、失败路径 `jmp +0x42`），消
+// 入口 jmp 旋转并复现 ORIG 的 ScanInt→查 ok→continue 直落序；② m_count 字段
+// int→unsigned（P211 异型化，RefPvpGrade.h 已 R2 广播）复现 ORIG
+// `add $0x1,%eax; mov %eax,%edx` 两段 store；③ grade 去入口清零、`1+ScanInt`
+// 书写序。残差 1 条 = 4.4 为 goto 回边生成 4 个 `nop;jmp` 中继岛 vs ORIG 2 个
+// （jump-threading 跨版本差），另 resize 值参 `EjS1_` vs const& `EjRKS1_` 属
+// 跨 libstdc++ 结构性差异。语义完成、byte 层 N 封顶。
 int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
 {
     // ORIG 0x0890857b：ok(-0x25) 为函数级共享旗（入口 `movb $0,-0x25` 一次，
@@ -1943,14 +2001,19 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
     {
         return 0x1816;
     }
-    while (ScanType(line, true))
+    // [b28d-solo-CDataManager] ORIG 0x089085bd 条件块在循环头（+0x42 直落）、
+    // 各块失败路径 `jmp +0x42` 回边；4.4 对 while 恒旋转成入口 jmp（P164）。
+    // 改 goto 头条件形复现（LoadScript 同法 AE 实证）。
+pvp_cond:
+    if (!ScanType(line, true))
+        goto pvp_done;
     {
         if (line == "[pvp experience max grade]")
         {
             // [b28d-solo-CDataManager] ORIG 0x0890861c 无 cnt 槽往返
             // （`call ScanInt; add $0x1,%eax` 表达式直用，P0）——旧具名 cnt
             // 多 store+load 两条。
-            table.m_count = ScanInt(&ok) + 1;
+            table.m_count = 1 + ScanInt(&ok);
             if (!ok)
                 return 0x181f;
             table.m_grades.reserve(table.m_count);
@@ -1962,14 +2025,18 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
             // 内层失败 ebx=0x182d；exp 落 -0xc；operator[] LHS 地址先行
             // （0x089086c1），stPvPGradeExp_t(grade,exp) 临时(-0x1c) 后构，
             // 末两 dword 写入。
-            int grade = 0;
-            while (grade = ScanInt(&ok), ok == true)
+            int grade;
+        pvp_exp_scan:
+            grade = ScanInt(&ok);
+            if (!ok)
+                goto pvp_cond;
             {
                 int exp = ScanInt(&ok);
                 if (!ok)
                     return 0x182d;
                 table.m_grades[grade] = stPvPGradeExp_t(grade, exp);
             }
+            goto pvp_exp_scan;
         }
         else if (line == "[pvp experience loss]")
         {
@@ -1997,10 +2064,12 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
             // 旧形 `int v = 0` + `static_cast<int&&>(v)` 多入口 store 与
             // 右值临时槽（-0x18）两条并选错 EOi 重载。
             int v;
-            while (v = ScanInt(&ok), ok == true)
-            {
-                table.m_rankRate.push_back(v);
-            }
+        pvp_rate_scan:
+            v = ScanInt(&ok);
+            if (!ok)
+                goto pvp_cond;
+            table.m_rankRate.push_back(v);
+            goto pvp_rate_scan;
         }
         else if (line == "[pvp normal battle time]")
         {
@@ -2043,6 +2112,8 @@ int importPvPReferenceTable(const char* path, stPvpRefTable_t& table)
             ScanFloat((bool*)0);  // 读取但丢弃
         }
     }
+    goto pvp_cond;
+pvp_done:
     return 0;  // EOF：解析成功
 }
 
@@ -2169,8 +2240,9 @@ bool CDataManager::InitLoginState(ENUM_SERVER_GROUP serverGroup, int channelNo)
 // ③ 非空判定改 size()!=0（ORIG 0x08359ec9 调 size，旧 empty() 为 EXTRA）。另消除
 // ptEv ×5（EquipmentPartSet 段 data/pieces 具名引用，ORIG 0x0835e4f0/0x0835e4fe）。
 // Main 已代落 CItemGeneratorMgr::C1 throw()（CItemGeneratorMgr.h + CtorProducers_2C.cpp）
-// ⇒ new-expression landing pad 消除，p167 843/843 CLEAR（0 missing/0 extra）；
-// 残余为帧/槽（P112/N82 族）⇒ 语义完成、byte 层 N 封顶。
+// ⇒ new-expression landing pad 消除，p167 843/843 CLEAR（0 missing/0 extra，
+// 本轮 fresh .o 复算）。读数 o 5430 / n 5446（+16，含 ~160 步装载链的
+// 跨版本帧/槽与 cMyTrace 槽位差，P112/N82 族）⇒ 语义完成、byte 层 N 封顶。
 bool CDataManager::init()
 {
     // ORIG 版本五元组落在具名区最浅端（槽 -0xf1c/-0xf18/-0xf14/-0xf10/

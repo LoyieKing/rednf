@@ -149,11 +149,11 @@ CQuickPartySystemManager::~CQuickPartySystemManager() {}
 // 非绝望之塔副本时，按 4 个难度档位向池 map 插入空数据
 // （血/任务 NPC 副本仅插入档位 0）。
 // [b28d-L1] 修法（P167/P96）：ORIG 0x08269c0c 只调 `__gnu_cxx::ne<const int*>`（两侧 const_iterator）；非 const 引用使 4.4 多发 begin/end+转换构造+混合 ne(PKi,Pi)（EXTRA×4/MISSING×1）。改 const 引用后迭代器差集清零；残余帧差 0x90 vs 0xa0（N82/P232）。
-// [b28d-solo-QuickParty] verdict=DIFF 封顶（167 vs 168）：修法=P24 双调用
-// get_dungeon_idx_list().begin()/.end()（ORIG 两次调用）+ `(const std::vector<int>&)`
-// cast 消迭代器转换构造 C1IPiE + 内联 special。残余 1 条 `xor $0x1,%eax`——4.4 对
-// bool 物化后取反恒 xor，ORIG 4.1 直 `test %al,%al; je`；7 形实测（goto/do-while/
-// ==false/具名 bool/德摩根）均不消，N96/P292 族封顶。P167 CLEAR（29/29）。
+// [b28d-solo-QuickParty] verdict=AE（163=163，TU routed 口径；P167 CLEAR）：修法=
+// P214① 正极性早返 `if (dungeon->isTowerOfDespairDungeon()) return;`（复现 ORIG
+// 0x08269cc6 `test %al,%al; jne <nop 岛>`，消 `xor $0x1` 反形）+ 三条件正向 if 包裹
+// （ORIG 0x08269d3a or 链物化后 `test %al,%al; je <插入块>` 直落）+ blood 条件
+// `(signed char)` 化复现 `test %al,%al; jg`。旧「N96/P292 xor 不可翻」判词作废。
 void CQuickPartySystemManager::init_quick_party_pool(const CDungeon* dungeon)
 {
     if (dungeon == 0)
@@ -203,8 +203,11 @@ void CQuickPartySystemManager::init_quick_party_pool(const CDungeon* dungeon)
 // cancel_quick_party @0x0826a386：把 party 从其所属 CQuickParty 中注销，
 // 剩余成员>1 且非解散(flag=true)时重新入池；EPLP 等待态且 flag 时重掷等待 timer。
 // [b28d-L1] 修法（P167）：ORIG 0x0826a386 三处 get_quick_party_index（无 qpIndex 具名局部）——①短路条件 ②日志三元 ③GetQuickParty(内联实参)。原 qpIndex 缓存使 P167 报 MISSING×1；改为表达式直读后差集归零。残余为帧/槽形态差（N82）。
-// [b28d-solo-QuickParty] verdict=DIFF 封顶（243 vs 250）：残余为帧/槽形态差（N82）——
-// 我们多一处具名 int 落槽（-0x18 + cmpl）与日志重定位块序差。P167 CLEAR（37/37）。
+// [b28d-solo-QuickParty] verdict=AE（243=243，TU routed 口径；P167 CLEAR）：修法=
+// ①`int count = 0;` 声明预清（ORIG 0x0826a586 在条件前 `movl $0,-0xc`）；
+// ②删日志三元 party 判空（P171 照抄 ORIG 直调 get_quick_party_index）；
+// ③EPLP 段去 bf/buffType 缓存（P48/P183：ORIG 两次独立 `mov party,%edx; add $0xb24`，
+// getRandomBuffDungeonType 结果直传 setEplpWaitingTimer）。旧 N82 判词作废。
 bool CQuickPartySystemManager::cancel_quick_party(CParty* party, bool flag, CUser* user)
 {
     // [b28d-L1] 修法（P167）：ORIG 37 calls 三处 get_quick_party_index（无
@@ -433,9 +436,12 @@ void CQuickParty::send_matching_update_quick_party(char poolIdx,
 // insert_timer_waiting_party_matching @0x0826acea：
 // InsertTimer(objType=1, qpIndex, msg=0x9e, sec=0x14, key, 0x9e)。
 // [b28d-L1] N82附 封顶：ORIG 0x0826acea 首值 gen_timer_key→%ebx、get_quick_party_index→%esi；4.4 恒 esi/ebx 对调（裸内联实参/P226 语句表达式两形实测均不可翻），P167 CLEAR（4/4）语义等价。
-// [b28d-solo-QuickParty] verdict=NEAR 封顶（28=28）：本轮复测裸 register key、双 register
-// key/partyIdx、具名两局部三形，%esi/%ebx 角色互换恒不变（N7/N82附；4.4.6 后端敏感族，
-// 若本 TU 路由 446h46 可复测）。P167 CLEAR。
+// [b28d-solo-QuickParty] verdict=NEAR 封顶（28=28，仅 gen_timer_key→%esi /
+// get_quick_party_index→%ebx 与 ORIG 的 %ebx/%esi 角色互换；P167 CLEAR）。本轮实测：
+// ①裸内联/双 register/具名 uint key 恒互换（具名 uint 落槽 -0xc 反劣 29 条）；
+// ②`register unsigned int key` + 内联 index 令 gen→%ebx 但 4.4 多发 `mov %ebx,%esi`
+// 中转（29 条，N18a 反向）；③4.4.6 后端（-B cc1plus446bin）复测同样互换 ⇒ 非 N7
+// 后端敏感族，属 N82附「多实参 call 首值 callee-saved 对调」封顶。
 void CQuickPartySystemManager::insert_timer_waiting_party_matching(
     CQuickParty* qp)
 {
@@ -453,10 +459,11 @@ void CQuickPartySystemManager::insert_timer_waiting_party_matching(
 // pool index ∈ [0,3)；map 未命中 → destroy + trace 并返回 false；
 // 命中 → 从对应档位 list 移除 quick party index 并返回 true。
 // [b28d-L1] N93/N98 封顶：ORIG 0x0826aa9a 槽序 it=-0x28/end 临时=-0x24/qpIndex=-0x20；块内声明使 4.4 把 qpIndex 排最深。P212 全头部声明已把 it 翻正 -0x28（ndiff 52→46），残余 end 临时槽与 qpIndex 互换——声明序/具名 e 两形实测（r19c/r19d）只交换槽位，4.4 按首次使用序分配不可翻。
-// [b28d-solo-QuickParty] verdict=NEAR 封顶（71=71）：ORIG end 临时 -0x24 / qpIndex -0x20，
-// 4.4 恒 end -0x20 / qpIndex -0x24（N82附 聚合优先低槽+标量分区）。本轮复测三形：
-// qpIndex 声明后置（find sret 漂到 -0x24）、具名 itEnd（it/itEnd/qpIndex 整体反序
-// -0x20/-0x24/-0x28）、`end() != it` 旋钮（同槽）——均只交换槽位不可闭合。P167 CLEAR。
+// [b28d-solo-QuickParty] verdict=AE（71=71，TU routed 口径；P167 CLEAR）：修法=
+// qpIndex 具名局部改内联实参 `m_lists[poolIdx].remove(qp->get_quick_party_index())`
+// ——ORIG 0x0826ab40 的 qpIndex 槽实为 list::remove(const int&) 绑定的匿名临时
+// （-0x20），end() sret 临时落 -0x24；原具名局部使 4.4 把两者槽号互换。旧
+// N93/N98 封顶判词作废。
 bool CQuickPartySystemManager::remove_quick_party_in_pool(
     CQuickParty* qp, const STQuickPartyPoolMap_Key& key)
 {
@@ -850,10 +857,15 @@ bool CQuickPartySystemManager::check_quick_party_min_count(
 
 // ---- match_proper_party @0x08269f3c：为新 party 匹配同图快速队伍 ----
 // [b28d-L1] 修法（P167/P220/P197④）：ORIG 0x08269f3c 调 ne×1 + list::size×1（无 eq/empty）⇒ 改正极性 `if (it != end) { 主体 }` + `size()==0`。差集仅余 N89（4.1 不内联 operator-> 发 ptEv×4）。残余槽位差 N82。
-// [b28d-solo-QuickParty] verdict=DIFF 封顶（280 vs 270）：修法=P226 匿名语句表达式消
-// abnormal 具名 bool 落槽（-0x2d + cmpb）+ P171 删日志三元 party 判空（ORIG 直调
-// get_quick_party_index）。残余=N89（ORIG 发 _Rb_tree_iterator::ptEv×4，4.4 内联，
-// P167 报 MISSING×4 结构性豁免）+ N82 槽位差。
+// [b28d-solo-QuickParty] verdict=AE（279=279，TU routed 口径；P167 CLEAR）：修法=
+// ①去 `STQuickPartyPoolMap_Data& data = it->second` 引用缓存，每处重发 `it->second`
+//   （P183；4.4 亦发 ptEv，N89 调用点差集消）；
+// ②档位判空改正极性 `size() != 0` 包裹（P220 setne 形）；
+// ③then/else 交换为 `if (need+memberCount == maxMembers)` 正极性（P222）；
+// ④qp 两句式预清（ORIG 0x0826a128 `movl $0,-0x10`）；
+// ⑤qpIndex 内联进 cMyTrace 实参（P227 全表达式临时链，%ebx 跨 ctor 保活）；
+// ⑥`if (total != maxMembers) { trace+push } start_game(qp); return 0;` 块序（N93附）；
+// ⑦traceMiss 改原位全表达式临时链。旧 N89/N82 判词作废。
 int CQuickPartySystemManager::match_proper_party(
     const STQuickPartyPoolMap_Key& key, CParty* party, CUser* user)
 {
@@ -906,71 +918,82 @@ int CQuickPartySystemManager::match_proper_party(
     // （4.1 不内联 operator-> 发 ptEv×4，4.4 内联，结构性豁免）。
     if (it != m_poolMap.end())
     {
-        STQuickPartyPoolMap_Data& data = it->second;
-
         // 从"还差 memberCount 人即可开团"的档位向下尝试归并。
+        // [b28d-solo-QuickParty] 修法（P183/P220）：ORIG 0x0826a0xx 每处重发
+        // `lea it; call ptEv; ...`（无 data 引用缓存），且档位判空为正极性
+        // `size()!=0`（setne;test;je 直落 body）。
         for (int need = maxMembers - memberCount; need > 0; --need)
         {
-            if (data.m_lists[need].size() == 0)
-                continue;
-
-            if (need + memberCount != maxMembers)
+            if (it->second.m_lists[need].size() != 0)
             {
-                // 尚不足开局人数：并入现有等待队列（注册新组合）。
-                if (!regist_quick_party(key, data, need, party, memberCount))
-                    return 1;
-                return 0;
-            }
+                if (need + memberCount == maxMembers)
+                {
+                    // 正好补齐：弹出该档 quick party 并立即尝试开局。
+                    // ORIG 0x0826a128 预清 qp（movl $0,-0x10）后赋值。
+                    CQuickParty* qp = 0;
+                    qp = find_quick_party_in_pool(it->second.m_lists[need]);
+                    if (qp == 0)
+                        continue;
 
-            // 正好补齐：弹出该档 quick party 并立即尝试开局。
-            CQuickParty* qp = find_quick_party_in_pool(data.m_lists[need]);
-            if (qp == 0)
-                continue;
-
-            qp->set_party_index(party->GetPartyIndex());
-            int total = qp->get_quick_party_count();
-            if (total == maxMembers)
-            {
-                start_game(qp);
-                return 0;
+                    qp->set_party_index(party->GetPartyIndex());
+                    int total = qp->get_quick_party_count();
+                    // [b28d-solo-QuickParty] 修法（P222/N93附）：ORIG 0x0826a18c
+                    // `cmp -0x18; je <后置 start_game 块>`（相等时跳过 trace 块）
+                    // ⇒ 源码须负极性包 trace 块、start_game 直落后置。
+                    if (total != maxMembers)
+                    {
+                        // [b28d-solo-QuickParty] 修法（P0/P227）：ORIG 0x0826a1a0
+                        // 的 get_quick_party_index 结果入 %ebx 跨 cMyTrace ctor
+                        // 保活（无具名槽）⇒ 实参内联，勿声明 qpIndex 局部。
+                        cMyTrace(__PRETTY_FUNCTION__, 0x1b4, 0)(
+                            "QUICK_PARTY_LOG : REPUSH QUICK PARTY IN POOL!! QUICK_PARTY_INDEX(%d), QUICK_PARTY_COUNT(%d)",
+                            static_cast<unsigned int>(qp->get_quick_party_index()),
+                            total);
+                        if (!push_quick_party_in_pool(key, it->second, party,
+                                                      total, qp, true))
+                        {
+                            LogManager::logFormat(
+                                1, "QuickParty.cpp",
+                                __PRETTY_FUNCTION__,
+                                0x1bc, "QUICK_PARTY_LOG : ABNOMAL QUICK PARTY!! (%d)", total);
+                            return 1;
+                        }
+                        return 0;
+                    }
+                    start_game(qp);
+                    return 0;
+                }
+                else
+                {
+                    // 尚不足开局人数：并入现有等待队列（注册新组合）。
+                    if (!regist_quick_party(key, it->second, need, party,
+                                            memberCount))
+                        return 1;
+                    return 0;
+                }
             }
-
-            unsigned int qpIndex =
-                static_cast<unsigned int>(qp->get_quick_party_index());
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x1b4, 0);
-            trace("QUICK_PARTY_LOG : REPUSH QUICK PARTY IN POOL!! QUICK_PARTY_INDEX(%d), QUICK_PARTY_COUNT(%d)",
-                  qpIndex, total);
-            if (!push_quick_party_in_pool(key, data, party, total, qp, true))
-            {
-                LogManager::logFormat(
-                    1, "QuickParty.cpp",
-                    __PRETTY_FUNCTION__,
-                    0x1bc, "QUICK_PARTY_LOG : ABNOMAL QUICK PARTY!! (%d)", total);
-                return 1;
-            }
-            return 0;
         }
 
         // 无可归并组合：以空队首领新池对象挂起等待。
-        if (!regist_quick_party(key, data, 0, party, memberCount))
+        if (!regist_quick_party(key, it->second, 0, party, memberCount))
             return 1;
         return 0;
     }
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0x1d6, 5);
-    trace("QUICK_PARTY_LOG : NO EXIST KEY DATA!!");
+    cMyTrace(__PRETTY_FUNCTION__, 0x1d6, 5)(
+        "QUICK_PARTY_LOG : NO EXIST KEY DATA!!");
     return 1;
 }
 
 // ---- make_quick_party @0x0826b222：把池内 quick party 合并成一个真实 party ----
 // [b28d-L1] N82 封顶：ORIG 0x0826b222；P167 CLEAR（37/37）⇒ 语义完成，残余为槽位/帧形态差（real diff 264 全为 disp/reg）。
-// [b28d-solo-QuickParty] verdict=DIFF 封顶（245=245）：修法=detached 声明移至 qp 判空后
-// （P0 声明序，ORIG 0x0826b23a 才构造）。残余=detached/host 槽基整体差（我们 -0x3c/-0x30
-// vs ORIG -0x38/-0x28）+ qp==0 返回寄存器 %ebx vs %eax，N82/N95 槽基族。P167 CLEAR（37/37）。
+// [b28d-solo-QuickParty] verdict=AE（239=239，TU routed 口径；P167 CLEAR）：修法=
+// ①第一循环 member 提至函数头、按 ORIG 槽序（member -0x30 深于 host -0x2c）声明
+//   `CParty* member; CParty* host = 0;`；
+// ②第二循环补具名 partyIdx（ORIG -0x1c）；第三循环 member 两句式预清
+//   （ORIG 0x0826b430 `movl $0,-0x10`）+ user 内联实参（ORIG 0x0826b490 无 user 槽）；
+// ③尾迭代器循环拆 `iterator it = begin(); iterator itEnd = end();` 后置比较
+//   （复现 ORIG it=-0x3c/itEnd=-0x40/detached=-0x38 槽组）。旧 N82/N95 判词作废。
 CParty* CQuickPartySystemManager::make_quick_party(CQuickParty* qp)
 {
     if (qp == 0)
@@ -1048,8 +1071,9 @@ CParty* CQuickPartySystemManager::make_quick_party(CQuickParty* qp)
         }
     }
 
-    for (std::list<CUser*>::iterator it = detached.begin();
-         it != detached.end(); ++it)
+    std::list<CUser*>::iterator it = detached.begin();
+    std::list<CUser*>::iterator itEnd = detached.end();
+    for (; it != itEnd; ++it)
     {
         host->join_user(*it);
     }

@@ -146,13 +146,13 @@ int importGoldLimitByLevel(unsigned int* out)
 // （P71/P67 跨编译器结构性差异；ORIG D1/D2 W 0x8948ff0/0x89491a6 须保留，
 // 不删用户析构）⇒ 标 N 封顶。
 // ===========================================================================
-// [b28d-solo-RDARScriptEtcParameter] DIFF N 封顶：ORIG 0x08908338；真形按
-// Ghidra C 复原（外层 for+break 条件置顶、四个独立 if、内层 for+break 逗号
-// ScanInt 短路链）；删 stRangeElement 用户空析构后 4.4 不再发 4×D1+EH
-// （P71/P67 消解；D1/D2 仍由 vector 使用点发 W，与 ORIG 0x8948ff0/0x89491a6
-// 同名同弱）。残差 6 条 = ORIG 4 处二次守卫 `movzbl;test;je`（4.1 bool 内存
-// 直测）vs 4.4 恒 `xor$1;test;jne`（P168a④：bool 局部取反无寄存器形）+
-// 跳板岛 2 条（P223 边界）。p167 CLEAR（22/22），语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] IDENTICAL/AE：ORIG 0x08908338；本波两处钥匙：
+// ①6 处二次守卫 `if (!ok) break;` 改「正极性 if + else break」⇒ 4.4 产 ORIG 的
+// `movzbl;test;je`（P194/P168a④ 反例复活；`==0`/`!=true` 两写法仍产 xor）；
+// ②6 个 bool 按 ORIG 槽浅→深声明（okA..okF，P309）⇒ 槽 -0x21..-0x26 全部归位。
+// 173=173 归一化逐条全等（ndiff 158→0）。删 stRangeElement 用户空析构后 4.4 不发
+// 4×D1+EH（P71/P67），D1/D2 仍由 vector 使用点发 W（同 ORIG 0x8948ff0/0x89491a6）。
+// p167 CLEAR（22/22），语义闭合。
 int importInvalidName(char* path, InvalidCharData* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -161,13 +161,14 @@ int importInvalidName(char* path, InvalidCharData* out)
     // [b28d-solo-RDARScriptEtcParameter] ORIG 0x08908338 真形（Ghidra C 复核）：
     // 外层 while(ScanType) + 四个**独立 if**（非 else-if 链）+ 内层 while 条件循环
     // （逗号表达式内联 ScanInt）；ok 变量 6 个独立（okA..okF），lo/hi 跨块共享。
+    // [b28d-solo] 4.4 头部声明「先声明浅」⇒ 按 ORIG 槽浅→深排列（okA=-0x21..okF=-0x26，P309）。
     std::string token;                      // ORIG -0x20
-    bool okF;                               // ORIG -0x26
-    bool okE;                               // ORIG -0x25
-    bool okD;                               // ORIG -0x24
-    bool okC;                               // ORIG -0x23
-    bool okB;                               // ORIG -0x22
     bool okA;                               // ORIG -0x21
+    bool okB;                               // ORIG -0x22
+    bool okC;                               // ORIG -0x23
+    bool okD;                               // ORIG -0x24
+    bool okE;                               // ORIG -0x25
+    bool okF;                               // ORIG -0x26
     int lo;                                 // ORIG -0x14
     int hi;                                 // ORIG -0x10
     for (;;)
@@ -182,13 +183,19 @@ int importInvalidName(char* path, InvalidCharData* out)
                 if (!okA)
                     break;
                 hi = ScanInt(&okB);
-                if (okA == false)
+                if (okA)
+                {
+                    if (okB)
+                    {
+                        out->m_charRange.push_back(
+                            InvalidCharData::stRangeElement<unsigned char>(
+                                (unsigned char)lo, (unsigned char)hi));
+                    }
+                    else
+                        break;
+                }
+                else
                     break;
-                if (okB == false)
-                    break;
-                out->m_charRange.push_back(
-                    InvalidCharData::stRangeElement<unsigned char>(
-                        (unsigned char)lo, (unsigned char)hi));
             }
         }
         if (token == "[one byte]")
@@ -196,9 +203,10 @@ int importInvalidName(char* path, InvalidCharData* out)
             for (;;)
             {
                 lo = ScanInt(&okC);
-                if (okC == false)
+                if (okC)
+                    out->m_charList.push_back((unsigned char)lo);
+                else
                     break;
-                out->m_charList.push_back((unsigned char)lo);
             }
         }
         if (token == "[two byte range]")
@@ -209,13 +217,19 @@ int importInvalidName(char* path, InvalidCharData* out)
                 if (!okD)
                     break;
                 hi = ScanInt(&okE);
-                if (okD == false)
+                if (okD)
+                {
+                    if (okE)
+                    {
+                        out->m_shortRange.push_back(
+                            InvalidCharData::stRangeElement<unsigned short>(
+                                (unsigned short)lo, (unsigned short)hi));
+                    }
+                    else
+                        break;
+                }
+                else
                     break;
-                if (okE == false)
-                    break;
-                out->m_shortRange.push_back(
-                    InvalidCharData::stRangeElement<unsigned short>(
-                        (unsigned short)lo, (unsigned short)hi));
             }
         }
         if (token == "[two byte]")
@@ -223,9 +237,10 @@ int importInvalidName(char* path, InvalidCharData* out)
             for (;;)
             {
                 lo = ScanInt(&okF);
-                if (okF == false)
+                if (okF)
+                    out->m_shortList.push_back((unsigned short)lo);
+                else
                     break;
-                out->m_shortList.push_back((unsigned short)lo);
             }
         }
     }
@@ -253,11 +268,11 @@ int importInvalidName(char* path, InvalidCharData* out)
 // 注意报告 Ghidra 的 make_pair 两分支实参顺序相反，以 objdump 为准：
 //   false 分支把 -0x48(val) 放 first、-0x44(level) 放 second；true 分支相反。
 // ============================================================================
-// [b28d-solo-RDARScriptEtcParameter] NEAR N95：ORIG 0x089136a4；局部槽基差 4
-// （ORIG -0x40/-0x39 vs 我方 -0x3c/-0x3d）。P190/P232 撑帧探针实测
-// （double/float 取址、char[4]/char[0x10] 未取址）均使帧 +0x20、槽基下移 8 或
-// 0x20，无 +4 档 ⇒ 4.1 大局部顶到 ebp 的槽基差不可翻（N95 定论）。
-// p167 CLEAR（17/17），语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] AE：ORIG 0x089136a4；本波按 P309（4.4 头部
+// 声明「先声明浅」）把 ok 提到 token 之前 ⇒ token 归位 -0x40、key/val/形参截断槽
+// 全部归位（134=134 助记符全等）。残余 4 条 = ok 槽 -0x3c vs ORIG -0x39：4.4 标量
+// 槽基 4 对齐而 4.1 从 -0x39 起；实测 4B 数组/结构体尾字节取址恒 `lea -0x3c;add $0x3`
+// 不折叠（P235 反例）⇒ N95 族封顶。p167 CLEAR（17/17），语义闭合。
 int importExperienceItemMapInfo(std::map<int, int, std::less<int>,
                                 std::allocator<std::pair<int const, int> > >& m,
                                 bool second)
@@ -267,8 +282,13 @@ int importExperienceItemMapInfo(std::map<int, int, std::less<int>,
     if (!loadRDARScriptFile("Etc/ItemDictionary/", "(R)baseItemDictionaryTable.etc"))
         return 0;
 
-    std::string token;
-    bool ok;                      // ORIG -0x39 无初始化（ScanInt 必写）
+    // [b28d-solo-RDARScriptEtcParameter] ORIG 槽序 token@-0x40 / ok@-0x39（4.1 先声明深）；
+    // 4.4 先声明浅 ⇒ 倒序声明（ok 先、token 后）使 token 归位 -0x40（key/val/形参截断槽
+    // 因 4 字节对齐吸收差异全部归位）。残余 4 条 = ok 槽 -0x3c vs ORIG -0x39：4.4 标量槽基
+    // 4 对齐（-0x3c）而 4.1 从 -0x39 起；实测 4B 数组/结构体尾字节取址恒 `lea -0x3c;add $0x3`
+    // 不折叠（P235 反例），无源码形可造 ⇒ N95 族封顶。无初始化（ORIG ScanInt 必写）。
+    bool ok;
+    std::string token;            // ORIG -0x40
     if (!ScanType(token, true))
         return 0;
     if (token == "[base table]")
@@ -380,11 +400,10 @@ int importBoosterGage(char* path, BoosterGageData* out)
 // 验收：gap 12→1；差集 10/10 归零；残余 = ORIG 三态汇聚 ebx+终值 esi 双
 // 寄存器物化（4.1 choose-without-store，N3/N76 族）。
 // ===========================================================================
-// [b28d-solo-RDARScriptEtcParameter] DIFF N3/N76 封顶：ORIG 0x08913dbc 真形 =
-// do-while(state!=1) 三态机（state 0=return result / 1=退出返回 1 / 2=继续；
-// Ghidra C 复核），result/state 在 ORIG 全程 esi/ebx 无槽往返。普通局部
-// （ours 121）与纯 register（ours 123）两形 4.4 实测均落槽反劣 ⇒ 取指令数最
-// 接近形（111/112）。p167 CLEAR（10/10），语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] AE：ORIG 0x08913dbc；本波把两处 `return 1`
+// 改为 `break` + 循环外单一 `return 1`（P283/P63）⇒ 4.4 复现 ORIG 三态共享尾
+// （state 0=返回 result / 1=退出返回 1 / 2=继续，result/state 全程 esi/ebx 无槽），
+// 112=112 归一化逐条全等（ndiff 45→0）。p167 CLEAR（10/10），语义闭合。
 int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -396,10 +415,9 @@ int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
     }
     // [b28d-solo-RDARScriptEtcParameter] ORIG 0x08913dbc：循环体内每轮重置
     // isType(-0xd)/ok(-0xe)+构造 token(-0x14)、尾析构；ScanTypeOrInt 返回值落
-    // -0xc 死槽（照抄 P171）。ORIG 真形为 do-while(state!=1) 三态机（Ghidra C
-    // 复核：state 0=return result / 1=退出返回1 / 2=继续），但 result/state 在
-    // ORIG 全程 esi/ebx 无槽往返；4.4 对普通局部(+10 条)与纯 register(+12 条)
-    // 两形实测均落槽反劣 ⇒ N3/N76 跨版本寄存器化封顶，取指令数最接近形。
+    // -0xc 死槽（照抄 P171）。ORIG 真形 = 三态共享尾（state 0=返回 result /
+    // 1=退出循环返回 1 / 2=继续；result/state 全程 esi/ebx 无槽往返 ⇒ 原码用
+    // break+循环外 return 1，而非循环内 return 1，P283/P63 族）。
     for (;;)
     {
         bool isType = false;
@@ -414,13 +432,14 @@ int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
             out->m_charge = ScanInt(&ok);
             if (!ok)
                 return 0;
-            return 1;
+            break;
         }
         if (isType && token == "[/image communication]")
         {
-            return 1;
+            break;
         }
     }
+    return 1;
 }
 
 // ===========================================================================
@@ -454,10 +473,12 @@ int importImageCommunicationInfo(const char* path, ImageCommunicationData* out)
 // 4.4 在 token== 匹配后发射 `jmp <内层检查>` 中继 vs 4.1 fall-through
 // （跨版本 nop;jmp 岛 vs jump-threading，N 类豁免）。
 // ===========================================================================
-// [b28d-solo-RDARScriptEtcParameter] DIFF N95/N7 封顶：ORIG 0x08912e47；
-// char[4] framePad 对齐 token 槽（-0xfc）；残余 data 槽深 4（我方 -0x154 vs
-// ORIG -0x150，槽间距 0x58 vs 0x54）与立即数压栈/callee-saved 角色差
-// （4.1 vs 4.4，N7）不可翻。p167 CLEAR（64/64），语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] NEAR N95/N7：ORIG 0x08912e47；
+// char[4] framePad 对齐 token 槽（-0xfc，与 ORIG 同址）；残余 413 条 =
+// ①data 槽深 4（我方 -0x154 vs ORIG -0x150，槽间距 0x58 vs 0x54：data 与 token
+// 之间的编译器临时集合差，sizeof(PremiumServiceData)=0x3c 已 static_assert 锁定）；
+// ②循环头 `jmp+nop` 与 XOR 形循环头位置差；③立即数压栈/callee-saved 角色差
+// （4.1 vs 4.4，N7）不可翻。485=485 指令数全等。p167 CLEAR（64/64），语义闭合。
 int importPremiumServiceData(std::vector<PremiumServiceData>& out)
 {
     typedef std::map<const char*, int, less_TCHAR> LookupMap;
@@ -633,11 +654,15 @@ int importPremiumServiceData(std::vector<PremiumServiceData>& out)
 // 成功返 1。
 // 验收：差集 35/35 归零；残余为 set/pair 临时链槽位序（N82）+ 块排布镜像。
 // ===========================================================================
-// [b28d-solo-RDARScriptEtcParameter] DIFF N82/P171 封顶：ORIG 0x08913f48；
-// 外层 ScanType 失败改 break+函数尾 return 1，复现 ORIG `jne <共享出口>`；
-// 残余 = 槽序（ORIG -0x60/-0x78 vs 我方 -0x74/-0x78 族；4.4 按首次使用分配，
-// N82）与 ORIG 保留的 `movl $0xb,-0x60` 死初始化（4.4 消除，P171 不可复现）。
-// p167 CLEAR（35/35），语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] NEAR N95（临时对象槽序）：ORIG 0x08913f48。
+// 本波修：①token/ok 声明提到两 clear 之前、job 提到 skills 之前（P309 先声明浅）
+// ⇒ 局部槽 -0x54/-0x55/-0x5c/-0x60/-0x78/-0x7c/-0x7d/-0x84 全部归位；
+// ②okJob 守卫改正极性 if/else-break 形 ⇒ `test;je` 与 ORIG 同助记符。
+// 残余 103 条 = 临时对象槽布局：ORIG 4.1 按使用序分配（skills.insert 返回值
+// -0x10 → make_pair sret -0x2c → pair 临时 -0x48 → map insert 返回值 -0x50），
+// 4.4 按对象大小降序（28B -0x24 → 24B -0x40 → 8B -0x48 → 8B -0x50）；
+// 两者对象集合相同、语义全同，无源码旋钮（P178 具名 entry 反致全帧平移）
+// ⇒ N95/N82 族封顶。p167 CLEAR（35/35），语义闭合。
 int importCommonSkillIndexes(
     const char* path,
     std::vector<int>& commonSkill,
@@ -649,10 +674,11 @@ int importCommonSkillIndexes(
                               __FUNCTION__, 0x329a, "%s", path);
         return 0;
     }
-    commonSkill.clear();
-    exceptSkill.clear();
+    // [b28d-solo] ORIG 声明序 token/ok 先于两 clear，job 先于 skills（P309 槽序）。
     std::string token;
     bool ok = false;                        // ORIG -0x55 函数级一次初始化
+    commonSkill.clear();
+    exceptSkill.clear();
     for (;;)
     {
         if (!ScanType(token, true))
@@ -669,6 +695,7 @@ int importCommonSkillIndexes(
         }
         else if (token == "[except skill info]")
         {
+            ENUM_CHARACTERJOB job = ENUM_CHARACTERJOB(0xb);   // ORIG -0x60 外层一次
             std::set<int> skills;                       // ORIG -0x78 外层块构造一次
             for (;;)
             {
@@ -676,7 +703,7 @@ int importCommonSkillIndexes(
                     break;
                 if (token == "[/except skill info]")
                     break;
-                ENUM_CHARACTERJOB job = ENUM_CHARACTERJOB(0xb);   // ORIG 每轮 movl $0xb,-0x60
+                job = ENUM_CHARACTERJOB(0xb);           // ORIG 每轮 movl $0xb,-0x60
                 skills.clear();
                 std::string jobName;                    // ORIG -0x7c 每轮构造
                 if (!ScanStr(&jobName))
@@ -686,9 +713,10 @@ int importCommonSkillIndexes(
                 for (;;)
                 {
                     int v = ScanInt(&okJob);
-                    if (!okJob)
+                    if (okJob)
+                        skills.insert(v);
+                    else
                         break;
-                    skills.insert(v);
                 }
                 exceptSkill.insert(std::make_pair(job, skills));
             }
@@ -719,10 +747,11 @@ int importCommonSkillIndexes(
 // 验收：gap 52→1（413/412）；P167 差集 58/58 归零；残余=槽号平移+ctor/dtor
 // 块序（N82/EH-merge 族）。
 // ===========================================================================
-// [b28d-solo-RDARScriptEtcParameter] DIFF N95/N7 封顶：ORIG 0x08914dd1；
+// [b28d-solo-RDARScriptEtcParameter] NEAR N95/N7：ORIG 0x08914dd1；
 // char[4] framePad 使槽基精确对齐 ORIG（key -0xb4/-0xb0、skills -0xc8）；
-// 残余 = 立即数压栈与 callee-saved 角色差（4.1 vs 4.4，N7）及 token 槽内偏移。
-// p167 CLEAR（58/58），语义闭合。
+// 残余 338 条 = ①循环头 ORIG 条件置顶直落 vs 我方前置 `jmp+nop`（while 形实测
+// 反劣 345 ⇒ 保留 for(;;)）；②立即数压栈与 callee-saved 角色差（4.1 vs 4.4，N7）
+// 及 token 槽内偏移。p167 CLEAR（58/58），语义闭合。
 int importCancelSkillIndices(
     const char* path,
     std::map<std::pair<ENUM_CHARACTERJOB, int>, std::set<int> >& out)
@@ -1051,11 +1080,15 @@ int importNoviceCommandScript(const char* path, stNoviceCommand& out)
 // 拷贝链逐点对应）；残余 = 循环出口多路 dtor 链块序与槽号
 // （N82/EH merge 跨版本族）。
 // ===========================================================================
-// [b28d-solo-RDARScriptEtcParameter] DIFF P231/N82 封顶：ORIG 0x0890793f；
-// 内层改 do-while(ScanStr)（push_back/map 赋值在 if 内）后 345 vs 343；
-// 残余 2 条 = do-while 的 okPiece 局部 4.4 落槽（`mov %al,-0x21; cmpb $1`）
-// vs ORIG 寄存器 `xor$1;test;jne`（纯 register 实测无效）⇒ N。p167 CLEAR
-// （66/66），语义闭合。
+// [b28d-solo-RDARScriptEtcParameter] NEAR N95/N82：ORIG 0x0890793f。本波修：
+// ①okPiece 具名局部删除、改 `for(;;){ piece; if(!ScanStr(&pieceName)) break; ... }`
+// ⇒ 消 4.4 落槽物化（`mov %al,-0x21; cmpb`），与 ORIG 寄存器直测同族；
+// ②`pNew` 具名局部删除、内联 `it->second.m_script = new STEquipmentScript;`
+// ⇒ 消 -0x20 槽往返（ORIG new 结果留 %ebx）。347/343，ndiff 278→173。
+// 残余 = 帧顶槽基差 4（ORIG token -0x34 vs 我方 -0x30；4.4 帧顶 gap 0x24 vs
+// 4.1 0x28）+ 帧 0x50c vs 0x4fc：未使用标量/数组局部 4.4 不占槽（int/float
+// 取址探针零效），double framePad 反致 +0xc 过度下移 ⇒ N95/N82 族封顶。
+// p167 CLEAR（66/66），语义闭合。
 int importEquipmentEffectSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
 {
     if (!loadRDARScriptFile("", path))
@@ -1078,20 +1111,17 @@ int importEquipmentEffectSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
             data.m_field0 = ScanInt((bool*)0);
             ScanStr(&name);
             data.m_name4 = name;
-            // ORIG do-while(ScanStr==1)：push_back/map 赋值在 if 内，piece 每轮先构造
-            bool okPiece;
-            do
+            // ORIG 无 okPiece 槽（ScanStr 结果留寄存器 xor$1/test/je，P0）⇒ 用 for(;;)+早退
+            for (;;)
             {
                 STEquipmentPartSetPiece piece;
-                okPiece = ScanStr(&pieceName);
-                if (okPiece)
-                {
-                    piece.m_field4 = getSameStringIndex(pieceName.c_str(),
-                                                        characterEquipmentTypeTags, 0x1a);
-                    data.m_pieces.push_back(piece);
-                    g_equipmentEffectSetMap_[data.m_field0] = data;
-                }
-            } while (okPiece);
+                if (!ScanStr(&pieceName))
+                    break;
+                piece.m_field4 = getSameStringIndex(pieceName.c_str(),
+                                                    characterEquipmentTypeTags, 0x1a);
+                data.m_pieces.push_back(piece);
+                g_equipmentEffectSetMap_[data.m_field0] = data;
+            }
         }
     }
     for (std::map<int, STEquipmentPartSetData>::iterator it =
@@ -1100,8 +1130,7 @@ int importEquipmentEffectSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
     {
         // P157：ORIG 每次字段访问重调 _Rb_tree_iterator::operator->（共 13+ 次），
         // 禁缓存 it->second 引用；m_script 传参/删除前均重读。
-        STEquipmentScript* pNew = new STEquipmentScript;
-        it->second.m_script = pNew;
+        it->second.m_script = new STEquipmentScript;   // ORIG 无 pNew 槽（new 结果留 %ebx，P0）
         if (!ImportEquipmentScript(it->second.m_script,
                                    it->second.m_name4.c_str(), false,
                                    (int)moduleType, it->first))

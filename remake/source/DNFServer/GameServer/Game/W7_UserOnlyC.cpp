@@ -4,7 +4,8 @@
 // 对应报告或 objdump 逐指令忠实转写，偏移/常量来自汇编。符号清单：
 //   CPacketTimeChecker::{reset,check} + validCount_E/validSecond_E
 //   CPacketVerifier::CPacketVerifier/Init/UpdatePacket/GetSequence + 4 statics
-//   _NS_PI_2ND_GetHackTypeEnum / _NS_PI_2ND_GetHackType（本 TU 内部 static）
+//   _NS_PI_2ND_GetHackType（b28d-solo：本 TU static 副本已删，改用 GameSecurity.cpp
+//     权威全局 W 0x08277359；符号名对齐 _Z22…）
 //   PIReceiverManager::CheckHashReceived                    T 0x0808bf7e
 //   _NS_PI_2ND_RecvHash_CS                                  T 0x08274f73
 //   CUser::Parsing(int)                                     T 0x08647890
@@ -79,6 +80,23 @@ extern bool CheckDailyScheduleTime(int scheduleTime, long lastPlayTime,
 unsigned char MakeHash(unsigned char* data, unsigned int len,
                        unsigned char seed);          // 定义 PIHash.cpp
 short _NS_PI_2ND_GetPacketIndex(char* packet);       // 定义 PIHash.cpp
+// ORIG W 0x08277359（权威定义 GameSecurity.cpp，去 static 全量重建 0x17b6）；
+// 本 TU 原先的 static 副本符号名错（_ZL…）且实现为查表版 ⇒ 删除改用全局符号。
+int _NS_PI_2ND_GetHackType(unsigned int type, unsigned char b,
+                           unsigned short c);
+
+// _header（CUser.h 冻结）m_checksum 为 unsigned int；ORIG UpdatePacket 赋值段
+// `mov 0x7(%eax),%edx` 要求与 int 字段 m_lastChecksum 同型（P211）。
+// pack(1) 具名视图提供 int 视角，仅本 TU 使用，无成员函数 ⇒ 零符号发射。
+namespace {
+#pragma pack(push, 1)
+struct HeaderChecksumIntView
+{
+    char m_pad[7];
+    int m_checksum;   // +0x07
+};
+#pragma pack(pop)
+}  // namespace
 
 // ============================================================================
 // ---- CPacketTimeChecker（ORIG W 0x8696d5c reset / 0x8696d74 check）----
@@ -126,6 +144,9 @@ int CPacketVerifier::GetSequence()
 }
 
 // 返回错误码：0=正常；1=同包洪水；3=timechecker 节流；4=拍卖包洪水。
+// b28d-solo-W7_UserOnlyC 判词：P225 while+break 复现 setg 物化 + m_checksum 经
+// HeaderChecksumIntView int 视图同型直存（P211）⇒ 120=120，TU 层 AE。
+// 本件无 class_func_reports 报告（报告缺失，按 nm 切片 + objdump 兜底）。
 int CPacketVerifier::UpdatePacket(const _header& hdr)
 {
     if (!m_checker.check())
@@ -136,20 +157,23 @@ int CPacketVerifier::UpdatePacket(const _header& hdr)
     if ((unsigned int)(hdr.m_id - 0xb9) <= 8)
     {
         ++m_auctionCount;
-        if (m_auctionCount > m_nAuctionVaridCount)
+        // P225：ORIG 0x8696ead `setg %al; test %al,%al; je` 为 4.1 的 bool 物化条件；
+        // 4.4 对裸 if 恒折 `jle` ⇒ 用 while+break 单趟形复现（b28 BL5 实证）。
+        while (m_auctionCount > m_nAuctionVaridCount)
         {
             long now = time(0);
             if (now - m_auctionTime < m_nAuctionVaridSecond)
                 return 4;
             m_auctionCount = 0;
             m_auctionTime = now;
+            break;
         }
     }
 
     // ORIG 比较按 int 直读 class/id/checksum。
     if (static_cast<int>(hdr.m_class) == m_lastClass &&
         static_cast<int>(hdr.m_id) == m_lastId &&
-        *reinterpret_cast<const int*>(&hdr.m_checksum) == m_lastChecksum)
+        hdr.m_checksum == m_lastChecksum)
     {
         ++m_sameCount;
         if (m_sameCount > m_nVaridCount)
@@ -165,7 +189,9 @@ int CPacketVerifier::UpdatePacket(const _header& hdr)
     {
         m_lastClass = hdr.m_class;
         m_lastId = hdr.m_id;
-        m_lastChecksum = *reinterpret_cast<const int*>(&hdr.m_checksum);
+        // P211：int 具名视图令 RHS 与 int 字段同型 ⇒ 复现 ORIG `mov 0x7(%eax),%edx`。
+        m_lastChecksum =
+            reinterpret_cast<const HeaderChecksumIntView*>(&hdr)->m_checksum;
         m_sameCount = 0;
         m_sameTime = time(0);
     }
@@ -176,184 +202,184 @@ int CPacketVerifier::UpdatePacket(const _header& hdr)
 // ---- PI_2ND 反作弊 hash 族 ----
 // ============================================================================
 
-// class==1：包 id → hack type 映射表（ORIG 跳转表 0x08bff190 共 607 项，
-// 每项取对应 mov $imm,%eax 桩的返回值，0 = 表内默认分支）。class==0：
-// 第二张表 0x08bffb0c 共 563 项；其余 class 返回 0（ORIG 0x82767bc jne →
-// 0x82772a2 ret 0）。
-#include "W7_PiHackTables.inc"
-
-static int _NS_PI_2ND_GetHackTypeEnum(unsigned char cls, short id)
-{
-    if (cls == 1)
-    {
-        if (id > 0x25e)
-            return 0;
-        return s_pi2HackTypeClass1[id];
-    }
-    if (cls == 0)
-    {
-        if (id > 0x232)
-            return 0;
-        return s_pi2HackTypeClass0[id];
-    }
-    return 0;
-}
-
-// ORIG W 0x08277359：(hackEnum + 1000)*2 + packId，封顶 0xe0f。
-static unsigned int _NS_PI_2ND_GetHackType(unsigned int packId,
-                                           unsigned char cls,
-                                           unsigned short id)
-{
-    unsigned int v =
-        static_cast<unsigned int>(_NS_PI_2ND_GetHackTypeEnum(cls, id) + 0x3e8) *
-            2 +
-        packId;
-    return (v <= 0xe0f) ? v : 0xe0f;
-}
+// b28d-solo-W7_UserOnlyC：本 TU 原 static _NS_PI_2ND_GetHackType{Enum} 副本已删
+// （ORIG 权威符号为 GameSecurity.cpp 的全局 W 0x08277359/0x08275af3；副本符号
+// `_ZL22…`/`_ZL26…` 与 ORIG `_Z22…`/`_Z26…` 不符且实现不同）。声明见文件头。
 
 // ORIG T 0x0808bf7e PIReceiverManager::CheckHashReceived(uchar*,uint,uint,bool)
 // this+0x04 为接收 hash key 字节状态。
+// b28d-solo-W7_UserOnlyC 判词：P0/P183 删 pThis 指针缓存（this 表达式直读）+
+// P211 cur 同型化（L/S 同型 ⇒ LHS-first）⇒ 72=72，TU 层 AE。
 bool PIReceiverManager::CheckHashReceived(unsigned char* data,
                                           unsigned int len, unsigned int key,
                                           bool bNewKey)
 {
-    unsigned char* pThis = reinterpret_cast<unsigned char*>(this);
+    // P0/P183：ORIG 无 this 指针缓存槽（每处 `mov 0x8(%ebp),%eax` 表达式直读）。
+    // CUser.h 冻结：+0x04 现为 char m_pad[4]（hash key 字节），以 m_pad[0] 具名访问。
     if (bNewKey)
-        pThis[4] = 0x27;
+        m_pad[0] = 0x27;
 
     const unsigned short packed = static_cast<unsigned short>(key >> 8);
-    const unsigned char oldKey = pThis[4];
+    const unsigned char oldKey = m_pad[0];
 
     // 新 key 低字节重组：位段 12..13→0..1、4..5→2..3、8..9→4..5、整体左移 6 取低 8 位。
-    const unsigned char cur = static_cast<unsigned char>(
-        ((packed >> 12) & 3) | ((packed >> 2) & 0xc) |
+    // P211 同型化：字段 char 与 RHS 同型 ⇒ store 装载序 LHS-first（ORIG 形）。
+    const char cur = static_cast<char>(
+        ((packed & 0x3000) >> 12) | ((packed & 0x30) >> 2) |
         ((packed & 0x300) >> 4) | (packed << 6));
+    m_pad[0] = cur;      // ORIG 无条件写回新 key（在 expect 计算之前）
 
     // 校验字节：位段 6..7→0..1、14..15→2..3、2..3→4..5、10..11→6..7。
-    bool ok;
+    // P198①：ORIG 先 movb $0,-0xb / movb $0,-0xa 预清 ok/hash 两句式。
+    bool ok = false;
+    unsigned char hash = 0;
+    const unsigned char expect = static_cast<unsigned char>(
+        ((packed & 0xc0) >> 6) | ((packed & 0xc000) >> 12) |
+        ((packed & 0xc) << 2) | ((packed & 0xc00) >> 4));
     if (len == 0)
     {
         ok = true;
     }
     else
     {
-        const unsigned char expect = static_cast<unsigned char>(
-            ((packed & 0xc0) >> 6) | ((packed & 0xc000) >> 12) |
-            ((packed & 0xc) << 2) | ((packed & 0xc00) >> 4));
-        ok = (MakeHash(data, len, oldKey) == expect);
+        hash = MakeHash(data, len, oldKey);
+        ok = (hash == expect);
     }
 
-    pThis[4] = cur;      // ORIG 无条件写回新 key
     return ok;
 }
 
 // ORIG T 0x08274f73：接收 hash 登记 / 异常路径报 hack。
+// b28d-solo-W7_UserOnlyC 判词（含 3 处真 bug 修正）：①CheckHashReceived 的 key
+// 实参应为 hashDword>>8（原写 hashDword）；②record = !check && !existing（原写
+// !check && existing，极性反）；③GetHackType 第一实参为常量 0（原写 hackPackId）。
+// 另：make_pair 单次构造复用、index 改 unsigned short（对齐 ORIG `IRhRtE`）⇒
+// p167 14/14 CLEAR，132=132，TU 层 AE。
 void _NS_PI_2ND_RecvHash_CS(char* packet, CUser* user, unsigned int recvSize)
 {
-    const unsigned char cls = static_cast<unsigned char>(packet[0]);
-    const short index = _NS_PI_2ND_GetPacketIndex(packet);
+    // 非 const：ORIG make_pair 实例为 <uchar&, ushort&>（`IRhRtE`，P61；t=unsigned short）。
+    unsigned char cls = static_cast<unsigned char>(packet[0]);
+    unsigned short index =
+        static_cast<unsigned short>(_NS_PI_2ND_GetPacketIndex(packet));
 
     std::set<std::pair<unsigned char, unsigned short> >* seen =
         static_cast<std::set<std::pair<unsigned char, unsigned short> >*>(
             user->GetCSHashSet());
 
-    // P167：ORIG 用 make_pair<uchar&,ushort&> + find(...) != end（operator!= 判定存在）
-    const bool existing = (seen->find(std::make_pair(cls, index)) != seen->end());
+    // ORIG 只构造一次 make_pair（-0x44），find 与 insert 复用同一 pair（-0x44）。
+    std::pair<unsigned char, unsigned short> entry = std::make_pair(cls, index);
+    const bool existing = (seen->find(entry) != seen->end());
 
     const unsigned int hashDword =
         *reinterpret_cast<const unsigned int*>(packet + 7);
 
-    bool isSpecial = false;
-    if (cls == 1 && index == 1)
-        isSpecial = true;
+    // ORIG 0x0827501f `mov $1,%eax; jmp; mov $0,%eax` 短路物化。
+    const bool isSpecial = (cls == 1 && index == 1);
 
     const unsigned int hackPackId = hashDword >> 8;
-    const unsigned int bodyLen = recvSize - 13;
     unsigned char* body = reinterpret_cast<unsigned char*>(packet + 13);
+    const unsigned int bodyLen = recvSize - 13;
 
-    // ORIG：check 通过，或首见包未通过 ⇒ 直接返回；非首见未通过 ⇒ 记 hack。
-    bool record;
-    if (static_cast<PIReceiverManager*>(user->GetPIReceiverManager())
-            ->CheckHashReceived(body, bodyLen, hashDword, isSpecial))
+    // b28d-solo 真 bug 修正①：ORIG 0x0827505c 传 key=hashDword>>8（hackPackId），
+    // 原写 hashDword（实参取错）。
+    const bool check =
+        static_cast<PIReceiverManager*>(user->GetPIReceiverManager())
+            ->CheckHashReceived(body, bodyLen, hackPackId, isSpecial);
+    // b28d-solo 真 bug 修正②：ORIG 0x08275080/0827508b 双 `xor $1; test; je`
+    // 同落 false 块 ⇒ record = !check && !existing（原写 `!check && existing` 极性反）。
+    // ORIG 0x08275092 `mov $1,%eax; jmp; mov $0,%eax; mov %al,-0xd` ⇒ 赋值物化。
+    const bool record = (!check && !existing);
+    if (record != 0)
     {
-        record = false;
+        // b28d-solo 真 bug 修正③：ORIG 0x082750c1 `movl $0x0,(%esp)` ⇒ 第一实参为常量 0
+        //（原写 hackPackId 取错数据源）。
+        const unsigned int hackType = _NS_PI_2ND_GetHackType(
+            0, cls, static_cast<unsigned short>(index));
+        // P0：ORIG 无 analyzer 局部槽（getHackAnalyzer 结果直传 this）。
+        user->getHackAnalyzer()->addServerHackCnt(
+            user, static_cast<WongWork::ENUM_HACKTYPE>(hackType), 1, 0, 0);
+        user->lock();
+        seen->insert(entry);
+        user->unlock();
     }
-    else
-    {
-        record = existing;
-    }
-    if (!record)
-        return;
-
-    // record 时 insert 用与 find 相同的 pair 键
-    const std::pair<unsigned char, unsigned short> entry(cls, index);
-    const unsigned int hackType =
-        _NS_PI_2ND_GetHackType(hackPackId, cls,
-                               static_cast<unsigned short>(index));
-    WongWork::CHackAnalyzer* analyzer = user->getHackAnalyzer();
-    analyzer->addServerHackCnt(user,
-                               static_cast<WongWork::ENUM_HACKTYPE>(hackType),
-                               1, 0, 0);
-    user->lock();
-    seen->insert(entry);
-    user->unlock();
 }
 
 // ============================================================================
 // ---- CUser::Parsing（ORIG T 0x08647890，报告 Parsing.md 转写）----
+// b28d-solo-W7_UserOnlyC 判词：本件 p167 调用点差集 46/46 CLEAR（0 missing /
+// 0 extra），语义完成；byte 层残差 4 条为 N82/N95/N7 族：帧 0x63c vs 0x62c
+// （槽基差 0x10）+ cMyTrace 实参寄存器角色（4.1 esi/edi/ebx vs 4.4 ecx/edx/eax）
+// + zero 槽载入（4.1 `mov -0x34,%edx` vs 4.4 `mov $0x0,%edx`）。已还原：
+// net 引用去缓存（this 直读）、tick/zero/headerLen 具名槽、m_lastRecvGapPair
+// u64 整写、size 32 位读。不再耗轮次。
 // ============================================================================
 
 bool CUser::Parsing(int received)
 {
     _header hdr;
-    CNetwork<4096, 450000>& net = m_network;
+    // P0/P183：ORIG 无 net 引用局部（每处 `mov 0x8(%ebp),%eax; mov 0xf8(%eax),…`
+    // this 表达式直读）⇒ 全部改 m_network 具名成员访问。
 
-    int remain = static_cast<int>(net.m_recvOffset) + received;
-    const long long nowTick = GlobalData::s_systemTime_.getCurTickCount();
-
-    net.m_lastRecvTick = (unsigned int)nowTick;   // CUser+0xe4（ORIG 64 位整写拆两 int，tick 在低 4 字节）
-    net.m_recvGapTick = 0;                        // CUser+0xe8
+    int remain = static_cast<int>(m_network.m_recvOffset) + received;
+    // ORIG 骨架（CUserOnlyOrig.cpp:4524-4529）：tick/zero/headerLen 三具名局部；
+    // `m_lastRecvTick=tick; m_recvGapTick=zero;` 由 4.1 合并 8 字节写。
+    unsigned int tick =
+        static_cast<unsigned int>(GlobalData::s_systemTime_.getCurTickCount());
+    unsigned int zero = 0;
+    (void)zero;
+    // ORIG 4.1 把相邻两 int 字段合并为单次 8 字节写（`mov eax,0xe4; mov edx,0xe8`）；
+    // CNetwork.h 已备 u64 整写视图 m_lastRecvGapPair（P206 先例），4.4 逐条重载
+    // this 的问题由此消解。
+    m_network.m_lastRecvGapPair = static_cast<unsigned long long>(tick);
+    int headerLen = 0xd;                  // ORIG -0x28（照抄；memcpy 用立即数）
+    (void)headerLen;
 
     if (remain <= 0xc)
     {
-        net.m_recvOffset += received;                 // +0xf8
-        net.m_recvBuf += received;                    // +0x10c
+        m_network.m_recvOffset += received;                 // +0xf8
+        m_network.m_recvBuf += received;                    // +0x10c
         cMyTrace t(__PRETTY_FUNCTION__, 0x69d, 0);
         t("(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d]",
-          reinterpret_cast<unsigned int>(net.m_recvBuf),
-          reinterpret_cast<unsigned int>(net.m_recv), net.m_recvOffset,
+          reinterpret_cast<unsigned int>(m_network.m_recvBuf),
+          reinterpret_cast<unsigned int>(m_network.m_recv), m_network.m_recvOffset,
           received);
-        net.m_bBufOffsetTrace = 1;                    // bufoffset 标记 +0x109
+        m_network.m_bBufOffsetTrace = 1;                    // bufoffset 标记 +0x109
         return true;
     }
 
     do
     {
-        if (net.m_recvOffset != 0)
-            net.m_recvBuf -= net.m_recvOffset;
+        if (m_network.m_recvOffset != 0)
+            m_network.m_recvBuf -= m_network.m_recvOffset;
 
-        if (net.m_bBufOffsetTrace != 0)
+        if (m_network.m_bBufOffsetTrace != 0)
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x6b2, 0);
             t("[BUFOFFSET TRACE](offset:%x - buf:%x) = remainlen:%d, Recv Size[%d]",
-              reinterpret_cast<unsigned int>(net.m_recvBuf),
-              reinterpret_cast<unsigned int>(net.m_recv), net.m_recvOffset,
+              reinterpret_cast<unsigned int>(m_network.m_recvBuf),
+              reinterpret_cast<unsigned int>(m_network.m_recv),
+              m_network.m_recvOffset,
               received);
         }
 
-        std::memcpy(&hdr, net.m_recvBuf, 13);
+        std::memcpy(&hdr, m_network.m_recvBuf, 13);
 
-        if (hdr.m_size < 13 || hdr.m_size > 0x578)
+        // ORIG 0x08647a59 `mov -0x76(%ebp),%eax; mov %eax,-0x2c(%ebp)`：m_size 以
+        // 32 位整读入具名 unsigned size 局部（P171 照抄 ORIG 的 32 位读形）。
+        const unsigned int size =
+            *reinterpret_cast<const unsigned int*>(&hdr.m_size);
+
+        if (size < 13 || size > 0x578)
         {
             LogManager::logFormat(
                 1, "user.cpp", __PRETTY_FUNCTION__, 0x6ce,
                 "Recv Size[%d], Parsing Packet Size[%d], recvbuf_offset[%d] is Too Large",
-                received, static_cast<int>(hdr.m_size),
-                reinterpret_cast<int>(net.m_recvBuf));
+                received, static_cast<int>(size),
+                reinterpret_cast<int>(m_network.m_recvBuf));
             return false;
         }
 
-        if (remain < hdr.m_size)
+        if (remain < size)
             break;
 
         int verdict = m_packetVerifier.UpdatePacket(hdr);
@@ -372,8 +398,8 @@ bool CUser::Parsing(int received)
 
         if (verdict == 0)
         {
-            _NS_PI_2ND_RecvHash_CS(net.m_recvBuf, this,
-                                   static_cast<unsigned int>(hdr.m_size));
+            _NS_PI_2ND_RecvHash_CS(m_network.m_recvBuf, this,
+                                   size);
 
             if (hdr.m_id != 0x25c)
             {
@@ -381,14 +407,15 @@ bool CUser::Parsing(int received)
                 int outLen = 0x578;
                 G_Cipher()->Decrypt(
                     static_cast<int>(hdr.m_id),
-                    reinterpret_cast<const unsigned char*>(net.m_recvBuf + 13),
-                    hdr.m_size - 13, decrypted, &outLen);
+                    reinterpret_cast<const unsigned char*>(
+                        m_network.m_recvBuf + 13),
+                    size - 13, decrypted, &outLen);
                 if (outLen > 0)
-                    std::memcpy(net.m_recvBuf + 13, decrypted, outLen);
+                    std::memcpy(m_network.m_recvBuf + 13, decrypted, outLen);
 
                 unsigned int crc = Encryption::crc32N(
-                    reinterpret_cast<void*>(net.m_recvBuf + 11),
-                    hdr.m_size - 11);
+                    reinterpret_cast<void*>(m_network.m_recvBuf + 11),
+                    size - 11);
                 _NS_PI_2ND_MakeChecksumTo1Byte2(crc, hdr.m_checksum);
                 if (hdr.m_checksum != crc)
                 {
@@ -412,23 +439,24 @@ bool CUser::Parsing(int received)
             // P48：每次写入均重调 operator*；put_binary 经 operator->。
             (**guard) << 0;
             (**guard) << static_cast<int>(GetUID());
-            guard->put_binary(reinterpret_cast<void*>(net.m_recvBuf), hdr.m_size);
+            guard->put_binary(reinterpret_cast<void*>(m_network.m_recvBuf),
+                              size);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
-            net.m_bBufOffsetTrace = 0;
+            m_network.m_bBufOffsetTrace = 0;
         }
 
-        remain -= hdr.m_size;
-        net.m_recvBuf += hdr.m_size;
-        net.m_recvOffset = 0;
+        remain -= size;
+        m_network.m_recvBuf += size;
+        m_network.m_recvOffset = 0;
 
         if (remain == 0)
         {
-            net.m_recvBuf = net.m_recv;
+            m_network.m_recvBuf = m_network.m_recv;
             break;
         }
     } while (remain > 0xc);
 
-    net.m_bBufOffsetTrace = 0;
+    m_network.m_bBufOffsetTrace = 0;
 
     if (remain > 0)
     {
@@ -448,9 +476,9 @@ bool CUser::Parsing(int received)
             }
             return false;
         }
-        memmove(net.m_recv, net.m_recvBuf, remain);
-        net.m_recvOffset = remain;
-        net.m_recvBuf = net.m_recv + remain;
+        memmove(m_network.m_recv, m_network.m_recvBuf, remain);
+        m_network.m_recvOffset = remain;
+        m_network.m_recvBuf = m_network.m_recv + remain;
     }
     return true;
 }
@@ -461,6 +489,9 @@ bool CUser::Parsing(int received)
 
 // 返回 int：ORIG 0x0867b51c 尾 `mov eax,0x1; ret`（成功）/早退 `mov eax,0x0`
 // （runnable 假 / skill==0）——Model22 桥清零证据；签名与 CUser.h 同步（Main 代落）。
+// b28d-solo-W7_UserOnlyC 判词：P0/P36 内联 job（%ebx 跨 G_CDataManager 保活）、
+// secondGrow（两次独立调用，setle 物化）、treeIdx（%esi 保活）三处具名槽 ⇒
+// 131=131，TU 层 AE。
 bool CUser::SetSkillLevel(int skillIdx, int level)
 {
     // b28d-52：ORIG 0x0867b528 `movzbl 0x711d8(%eax); xor $1; test; jne` =
@@ -470,13 +501,13 @@ bool CUser::SetSkillLevel(int skillIdx, int level)
     if (!m_clientSpec.m_gmUserFlag || getCurCharacR() == 0)
         return 0;
 
-    const int job = get_charac_job();
-    CSkill* skill = G_CDataManager()->find_skill(job, skillIdx);
+    // P0/P36：ORIG job 无槽（%ebx 跨 G_CDataManager 保活）⇒ 内联实参。
+    CSkill* skill = G_CDataManager()->find_skill(get_charac_job(), skillIdx);
     if (skill == 0)
         return 0;
 
-    const char secondGrow = getCurCharSecondGrowType();
-    if (secondGrow < 1)
+    // P0：ORIG 0x0867b5a2 `test %al,%al; setle` 无 secondGrow 槽（两次独立调用）。
+    if (getCurCharSecondGrowType() < 1)
     {
         level = std::max(
             0, std::min(skill->get_type_max_level(getCurCharFirstGrowType()),
@@ -485,15 +516,16 @@ bool CUser::SetSkillLevel(int skillIdx, int level)
     else
     {
         int maxLevel = skill->get_second_growtype_max_level(
-            getCurCharFirstGrowType(), secondGrow);
+            getCurCharFirstGrowType(), getCurCharSecondGrowType());
         if (maxLevel == 0)
             maxLevel = skill->get_type_max_level(getCurCharFirstGrowType());
         level = std::max(0, std::min(maxLevel, level));
     }
 
-    const int treeIdx = GetCurCharacSkillTreeIndex();
-    reinterpret_cast<SkillSlot*>(getCurCharacSkillW())->growtype_skill(job, skillIdx, level,
-                                         (ENUM_SKILL_TREE_KIND)treeIdx);
+    // P0：ORIG treeIdx 无槽（%esi 跨调用保活）⇒ 内联实参（右起求值序与 ORIG 一致）。
+    reinterpret_cast<SkillSlot*>(getCurCharacSkillW())->growtype_skill(
+        get_charac_job(), skillIdx, level,
+        (ENUM_SKILL_TREE_KIND)GetCurCharacSkillTreeIndex());
     return 1;
 }
 
@@ -523,70 +555,87 @@ int CUser::getReturnUserLevelKey(int level, int mode)
 }
 
 // ORIG T 0x08692000，报告 GiveItemsReturnUser.md。
+// b28d-solo-W7_UserOnlyC 判词：addInfo 具名槽（去 const 折叠）+ group/msgLen/
+// characNo/sender 内联实参（P0/P52）+ P285 空 else 岛 ⇒ 81=81，TU 层 AE。
 void CUser::GiveItemsReturnUser()
 {
     // ORIG 读 G_CDataManager()+0xb548 = m_returnUserReward.m_field0。
     const int itemIdx = G_CDataManager()->m_returnUserReward.m_field0;
+    // ORIG 0x0869201a `movl $0x1,-0x24(%ebp)`：addInfo 为具名局部（P0 槽往返）。
+    // 非 const：4.4 对 const 局部会常量传播折成立即数（ORIG 从槽读取）。
+    int addInfo = 1;
     Inven_Item item;                                 // ctor 清零
     CItem* base = G_CDataManager()->find_item(itemIdx);
     if (base != 0)
     {
         item.m_addInfo = itemIdx;                    // +0x02 item idx
         base->make_item(item);                       // vtable+8 虚调用
-        item.set_add_info(1);
+        item.set_add_info(addInfo);
 
         const char* msgBody =
             g_scriptStringManager_.findString(4, "return_user_msg_1", 0);
-        const ENUM_SERVER_GROUP group = GetServerGroup();
-        const unsigned int msgLen = strlen(msgBody);
-        const unsigned int characNo =
-            static_cast<unsigned int>(getCurCharacNo());
-        const char* sender =
-            g_scriptStringManager_.findString(4, "return_user_msg_title", 0);
+        // P0/P52：ORIG 的 group/msgLen/characNo/sender 均无具名槽（esi/edi/ebx/eax
+        // 跨调用保活）⇒ 保持内联实参；仅 msgBody 具名（-0x1c 槽）。
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            sender, item, 100000u, characNo, msgBody,
-            static_cast<int>(msgLen), 7u, group, false, false);
+            g_scriptStringManager_.findString(4, "return_user_msg_title", 0),
+            item, 100000u, static_cast<unsigned int>(getCurCharacNo()),
+            msgBody, static_cast<int>(strlen(msgBody)), 7u, GetServerGroup(),
+            false, false);
+    }
+    else
+    {
+        return;   // P285：空 else 保留 ORIG 体尾 jmp+nop 岛（4.4 纯正向 if 会 jump-thread）
     }
 }
 
 // ORIG T 0x08692140（objdump 直转）：装备回馈走 +0xb550 =
 // m_returnUserReward.m_levelUp 表。
+// b28d-solo-W7_UserOnlyC 判词：本件已收至 120/121 —— 唯一残差为
+// `mov -0x30(%ebp),%eax; mov %eax,%ebx`（4.1 冗余 regmove 跨 G_CDataManager call
+// 保活）。4.4 恒折单段 `mov -0x30(%ebp),%ebx`，语句表达式 / unsigned cast 两旋钮
+// 实测均无效 ⇒ 按 N18a（反向亦不可造）封顶；调用点差集与语义已对齐。
 void CUser::GiveEquipItemsReturnUser()
 {
-    // P48：ORIG 每次使用均重调 getCurCharFirstGrowType（两遍，见 Ghidra）。
-    const int growType = getCurCharFirstGrowType();
-    const int level = get_charac_level();
-    const int key = getReturnUserLevelKey(level, growType);
+    // P0/P48：ORIG growType/level/growType2/job 均无槽（%ebx/%eax 直传）⇒ 内联实参；
+    // key 有具名槽 -0x24。getCurCharFirstGrowType 每次使用均重调（两遍）。
+    const int key = getReturnUserLevelKey(get_charac_level(),
+                                          getCurCharFirstGrowType());
 
-    const int growType2 = getCurCharFirstGrowType();
-    const int job = get_charac_job();
-    LevelUpRewardItemTableKey tableKey(key, job, growType2);
+    LevelUpRewardItemTableKey tableKey(key, get_charac_job(),
+                                       getCurCharFirstGrowType());
     LevelUpRewardItemData data;
+    // P168a②：ORIG `call; xor $1; test %al; jne` ⇒ bool callee 的否定形
+    // `if (!get_data(...))`（4.4 直产 xor 段）。
     if (!G_CDataManager()->m_returnUserReward.m_levelUp.get_data(tableKey,
                                                                  data))
-        return;
+    {
+        return;       // P285：外层空 else 保留 ORIG 的 jmp+nop 岛
+    }
+    else
+    {
+        Inven_Item item;
+        CItem* base = G_CDataManager()->find_item(data.m_field0);
+        if (base != 0)
+        {
+            item.m_addInfo = data.m_field0;
+            base->make_item(item);
+            item.set_add_info(data.m_field4);
 
-    Inven_Item item;
-    CItem* base = G_CDataManager()->find_item(data.m_field0);
-    if (base == 0)
-        return;
-
-    item.m_addInfo = data.m_field0;
-    base->make_item(item);
-    item.set_add_info(data.m_field4);
-
-    const char* msgBody =
-        g_scriptStringManager_.findString(4, "return_user_msg_2", 0);
-    const ENUM_SERVER_GROUP group = GetServerGroup();
-    const unsigned int msgLen = strlen(msgBody);
-    const unsigned int characNo =
-        static_cast<unsigned int>(getCurCharacNo());
-    const char* sender =
-        g_scriptStringManager_.findString(4, "return_user_msg_title", 0);
-    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(sender, item, 0u, characNo,
-                                                     msgBody,
-                                                     static_cast<int>(msgLen),
-                                                     7u, group, false, false);
+            const char* msgBody =
+                g_scriptStringManager_.findString(4, "return_user_msg_2", 0);
+            // P0/P52：group/msgLen/characNo/sender 无具名槽 ⇒ 内联实参。
+            WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                g_scriptStringManager_.findString(4, "return_user_msg_title",
+                                                  0),
+                item, 0u, static_cast<unsigned int>(getCurCharacNo()),
+                msgBody, static_cast<int>(strlen(msgBody)), 7u,
+                GetServerGroup(), false, false);
+        }
+        else
+        {
+            return;   // P285：内层空 else 保留 ORIG 的 nop 占位岛
+        }
+    }
 }
 
 // ORIG W 0x084ece20：单字节写 this+0x703d8（m_breakAway.m_field14 bool 直写）。
@@ -608,6 +657,8 @@ void CUser::SendLimitItemUsageNotiInfo(int a, int b, int c)
 }
 
 // ORIG T 0x0868a87a，报告 SendCeraShopGiftStatisticLog.md。
+// b28d-solo-W7_UserOnlyC 判词：删 raw 裸偏移指针（§4.3），改 SigTypes_E.h 字段化
+// 具名成员（sizeof/偏移/mangled 不变，已 R2 广播）⇒ 82=82，TU 层 AE。
 void CUser::SendCeraShopGiftStatisticLog(unsigned int arg1, unsigned int arg2,
                                          unsigned long val64,
                                          unsigned int arg4)
@@ -619,14 +670,13 @@ void CUser::SendCeraShopGiftStatisticLog(unsigned int arg1, unsigned int arg2,
 
     SIG_STATISTIC_CERASHOP_GIFT_LOG* sig =
         guard->GetInBuffer<SIG_STATISTIC_CERASHOP_GIFT_LOG>();
-    unsigned char* raw = reinterpret_cast<unsigned char*>(sig);
-    *reinterpret_cast<unsigned int*>(raw + 0x00) = m_accId;
-    *reinterpret_cast<unsigned int*>(raw + 0x04) =
-        static_cast<unsigned int>(getCurCharacNo());
-    *reinterpret_cast<unsigned int*>(raw + 0x08) = arg1;
-    *reinterpret_cast<unsigned int*>(raw + 0x0c) = arg2;
-    *reinterpret_cast<unsigned long*>(raw + 0x10) = val64;
-    *reinterpret_cast<unsigned int*>(raw + 0x14) = arg4;
+    // §4.3：具名成员访问（SigTypes_E.h 已按 ORIG 偏移字段化），禁裸偏移。
+    sig->m_accId = m_accId;
+    sig->m_characNo = static_cast<unsigned int>(getCurCharacNo());
+    sig->m_buyIdx = arg1;
+    sig->m_cost = arg2;
+    sig->m_itemAddInfo = static_cast<unsigned int>(val64);
+    sig->m_itemAddInfo2 = arg4;
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
 }
@@ -752,12 +802,16 @@ void CUserEventUtil::updateCharacterDayEvent(CUser* user, int day)
 // ============================================================================
 
 // ORIG T 0x0834cb7c。
+// b28d-solo-W7_UserOnlyC 判词：P197④ size()==0 复现 sete；两循环具名 pos 消双
+// operator[]；第三段 find 内联 pair<int&,int&> + P223 三岛 goto 尾标签 ⇒ 345=345，
+// TU 层 AE。
 bool CDungeon::VerifyMaze(const MazeScript& maze) const
 {
     if (maze.m_width == 1 && maze.m_height == 1)
         return true;
 
-    if (maze.m_vec14.empty())
+    // P197④：ORIG `call size; test; sete; test; je` ⇒ 写 size()==0。
+    if (maze.m_vec14.size() == 0)
     {
         LogManager::logFormat(
             1, "data_manager.cpp",
@@ -768,20 +822,20 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
     }
     for (unsigned int i = 0; i < maze.m_vec14.size(); ++i)
     {
-        const GridScript& grid =
-            maze.getGridR(maze.m_vec14[i].first, maze.m_vec14[i].second);
+        // ORIG 一次 operator[] 后存 -0x54/-0x50 两槽（具名 pos，非两次下标）。
+        const std::pair<int, int> pos = maze.m_vec14[i];
+        const GridScript& grid = maze.getGridR(pos.first, pos.second);
         if (m_maplist[grid.m_gridValue].size() == 0)
         {
             LogManager::logFormat(
                 1, "data_manager.cpp",
                 __PRETTY_FUNCTION__, 0x847,
                 "dungeon index(%d) maze(%d) has error. (Can't found start map(grid: %d,%d)!)",
-                m_index, maze.m_64, maze.m_vec14[i].first,
-                maze.m_vec14[i].second);
+                m_index, maze.m_64, pos.first, pos.second);
         }
     }
 
-    if (maze.m_vec20.empty())
+    if (maze.m_vec20.size() == 0)
     {
         LogManager::logFormat(
             1, "data_manager.cpp",
@@ -792,16 +846,15 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
     }
     for (unsigned int i = 0; i < maze.m_vec20.size(); ++i)
     {
-        const GridScript& grid =
-            maze.getGridR(maze.m_vec20[i].first, maze.m_vec20[i].second);
+        const std::pair<int, int> pos = maze.m_vec20[i];
+        const GridScript& grid = maze.getGridR(pos.first, pos.second);
         if (m_dummyMap324[grid.m_gridValue].size() == 0)
         {
             LogManager::logFormat(
                 1, "data_manager.cpp",
                 __PRETTY_FUNCTION__, 0x857,
                 "dungeon index(%d) maze(%d) has error. (Can't found boss map(grid: %d,%d)!",
-                m_index, maze.m_64, maze.m_vec20[i].first,
-                maze.m_vec20[i].second);
+                m_index, maze.m_64, pos.first, pos.second);
         }
     }
 
@@ -810,35 +863,37 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
         for (int x = 0; x < maze.m_height; ++x)
         {
             const GridScript& grid = maze.getGridR(y, x);
-            if (grid.m_gridValue != 0)
+            // ORIG `test;je d01d` / `ne;test;jne d020` / `ne;test;jne d023` 三岛
+            // （P223 多岛：正条件 goto + 尾标签串，标签序=守卫序）。
+            if (grid.m_gridValue == 0)
+                goto L_grid;
+            if (std::find(maze.m_vec14.begin(), maze.m_vec14.end(),
+                          std::pair<int, int>(y, x)) != maze.m_vec14.end())
+                goto L_start;
+            if (std::find(maze.m_vec20.begin(), maze.m_vec20.end(),
+                          std::pair<int, int>(y, x)) != maze.m_vec20.end())
+                goto L_end;
+            if (m_map1a4[grid.m_gridValue].size() == 0)
             {
-                const std::pair<int, int> pos(y, x);
-                const bool isStart =
-                    std::find(maze.m_vec14.begin(), maze.m_vec14.end(),
-                              pos) != maze.m_vec14.end();
-                const bool isEnd =
-                    !isStart &&
-                    std::find(maze.m_vec20.begin(), maze.m_vec20.end(),
-                              pos) != maze.m_vec20.end();
-                if (!isStart && !isEnd)
-                {
-                    if (m_map1a4[grid.m_gridValue].size() == 0)
-                    {
-                        LogManager::logFormat(
-                            1, "data_manager.cpp",
-                            __PRETTY_FUNCTION__,
-                            0x86b,
-                            "dungeon index(%d) maze(%d) has error. (Can't found grid map(grid: %d,%d)!)",
-                            m_index, maze.m_64, x, y);
-                    }
-                }
+                // ORIG 0x0834cfdf/0x0834cfe3：vararg3=y、vararg4=x（照抄实参序）。
+                LogManager::logFormat(
+                    1, "data_manager.cpp",
+                    __PRETTY_FUNCTION__,
+                    0x86b,
+                    "dungeon index(%d) maze(%d) has error. (Can't found grid map(grid: %d,%d)!)",
+                    m_index, maze.m_64, y, x);
             }
+        L_end:;
+        L_start:;
+        L_grid:;
         }
     }
     return true;
 }
 
 // ORIG T 0x0834c9f0。
+// b28d-solo-W7_UserOnlyC 判词：第一循环补具名 MazeScript* 局部（ORIG -0x14 槽，
+// P0 槽往返）⇒ 113=113，TU 层 AE。
 bool CDungeon::VerifyMaze() const
 {
     if (!(m_index <= 0x7cf))
@@ -846,7 +901,9 @@ bool CDungeon::VerifyMaze() const
 
     for (unsigned int i = 0; i < m_mazeList.size(); ++i)
     {
-        if (!VerifyMaze(m_mazeList[i]))
+        // P0：ORIG -0x14 槽保存 operator[] 返回的指针（具名局部，非内联实参）。
+        const MazeScript* maze = &m_mazeList[i];
+        if (!VerifyMaze(*maze))
             return false;
     }
     for (int g = 0; g < 2; ++g)

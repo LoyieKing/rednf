@@ -31,7 +31,9 @@ struct WorldMapDungeon
         m_state = -1;
         m_flag = 0;
     }
-    ~WorldMapDungeon() {}
+    // [b28d-solo-CtorProducers_1 实验·P317] 删用户空析构：ORIG importWorldMapScript
+    // 0x08ab0388 正常/break 路径均无 D1 调用（空体内联），4.4 对用户空 dtor 恒发
+    // out-of-line call（+14 条）。ORIG W D1 0x08ab0f74 尺寸 5 由使用点发射。
 };  // sizeof 0xc
 
 class WorldMapScript

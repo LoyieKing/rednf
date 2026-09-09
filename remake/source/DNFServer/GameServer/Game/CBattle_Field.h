@@ -185,9 +185,10 @@ public:
                                      //   SetGridPath 082ffb30 写 script m_monsterIdx(+4)）
         int m_field10;               // +0x10（script m_field0c）
         int m_field14;               // +0x14（script m_field10）
-
-        stEventMonsterStatus_t();    // ORIG 0830ee4c
-        ~stEventMonsterStatus_t();   // ORIG 08316adc
+        // [b28d-Main 代落·S324 P299/P317] 删用户 ctor/dtor 声明：
+        // ORIG 0830ee4c / 08316adc 均为 **W**（隐式发射）——ctor 仅 `call pair<int,int>::C1Ev`
+        // （隐式默认构造 m_pos），dtor 由 new_allocator::destroy 的 p->~T() 发射。
+        // 我方原空 ctor 既漏构 m_pos，又令局部/元素多发 D1Ev（SetGridPath EXTRA ×4）。
     };
 
     // ================= 构造/析构 =================
@@ -469,20 +470,43 @@ public:
     int m_field1a4;                        // +0x1a4
     int m_apcKillCount;                    // +0x1a8
     int m_mazeType;                        // +0x1ac
-    int m_hellPartyMode;                   // +0x1b0
-    int m_bloodState;                      // +0x1b4
+    // [b28d-solo-BattleDungeonMapA2] ORIG SelectDungeon 0x082ff51d 为 LHS-first
+    // `mov this,%eax; mov type,%edx; mov %edx,0x1b0(%eax)`（P211 档③ 同型）⇒
+    // enum 视角赋值（探针 f1/f2/f3：字段 int + enum RHS 恒 RHS-first，cast 无效）；
+    // int 视角保留给全仓 reset/比较消费点（CBattle_Field_missing.cpp:155、
+    // CParty.cpp:1326、CPartyOnlyOrig.cpp:996）。sizeof/偏移/mangled 零变化。
+    union {
+        int m_hellPartyMode;                  // +0x1b0（int 视角）
+        ENUM_DUNGEON_TYPE m_hellPartyModeE;   // +0x1b0（enum 视角）
+    };
+    // b28d-solo-CBossTower P235/P254：ORIG CBossTower::handleStartGame 的
+    // EnterDungeon 实参装载为两段 `mov 0xcd8(%eax),%eax; mov %eax,%esi`
+    // （enum→int 转换），比较/字节截断等消费点同形 ⇒ 匿名 union 双视角。
+    // sizeof/偏移/mangled 零变化。
+    union {
+        int m_bloodState;                  // +0x1b4（int 视角）
+        ENUM_BLOOD_STATE m_bloodStateE;    // +0x1b4（enum 视角）
+    };
     char m_hellPartyActive;                // +0x1b8
     char m_pad1b9[3];                      // +0x1b9
     int m_hellMapIdx;                      // +0x1bc
     int m_hellPosX;                        // +0x1c0
     int m_hellPosY;                        // +0x1c4
-    char m_visitedGotoFlag;                // +0x1c8
+    bool m_visitedGotoFlag;                // +0x1c8（b28d-solo-W8_CU_A: char→bool，
+                                           //   P248 档②：ORIG GetItemSerialChecker
+                                           //   0x082072c `movzbl 0xcec(%eax); xor $1;
+                                           //   test %al,%al; jne` = bool 字段 + 裸
+                                           //   `!field`；char 恒产 test/je 无 xor。
+                                           //   写点仅 0/1 常量赋值，语义不变）
     char m_sealDoorItemsOk;                // +0x1c9（唯一写点 UseSealDoorItems @0x085a8038：全员通过=1/失败=0）
     bool m_killedAllHellGroups;            // +0x1ca（b28d-Main: bool 直载 movzbl 复现 ORIG 体 0x085bf256）
     char m_field1cb;                       // +0x1cb
     char m_hellPartyDifficulty;            // +0x1cc
     char m_hellPartyEventType;             // +0x1cd
-    char m_hellPartyRandom;                // +0x1ce
+    // [b28d-solo-BattleDungeonMapA2] ORIG SelectDungeon 0x082ff61b 为 LHS-first
+    // `mov this; movzbl bool形参槽; mov %dl,0x1ce`（P211 同型 + P248 档②）⇒
+    // 字段 bool（char 与 bool 形参异型时 4.4 恒 RHS-first）。1 字节/偏移不变。
+    bool m_hellPartyRandom;                // +0x1ce
     char m_hellPartyDropFlag;              // +0x1cf
     int m_hellItemStatistic[6];            // +0x1d0
     // +0x1e8/+0x1ec/+0x1f4 实为 int dword：reset_hell_party_value.md 0x0830a595/

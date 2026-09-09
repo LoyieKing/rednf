@@ -181,8 +181,12 @@ public:
     CCommand* GetCommand(std::string& name);          // 0x084a8cb0
 
 private:
-    CSeniorGameMaster* m_senior;                      // +0x00（链尾）
-    CJuniorGameMaster* m_junior;                      // +0x04（入口）
+    // b28d-solo-GmRegister：ORIG 两字段为**基类指针**（P211 异型化实证）——
+    // C1 中 `new CSeniorGameMaster(0)` 赋值发 `mov %ebx,%eax; mov %eax,%edx`
+    // （派生→基转换中转），`m_junior = new CJuniorGameMaster(m_senior)` 的实参
+    // 单段 `mov (%eax),%edx`（字段与 ctor 形参同为 IGameMaster*）。sizeof 不变。
+    IGameMaster* m_senior;                            // +0x00（链尾）
+    IGameMaster* m_junior;                            // +0x04（入口）
     CCommandMap m_cmdMap;                             // +0x08
 };
 
@@ -197,7 +201,8 @@ private:
 class CMoveCharacCmd : public CCommand
 {
 public:
-    CMoveCharacCmd() : m_str0() {}                // ORIG W 0x082a7ffe（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a7ffe（sizeof=0xc），
+    // 隐式合成 ⇒ `new CMoveCharacCmd()` 复现 ORIG value-init 前置清零。
     virtual void parse();                            // ORIG T 0x084a8cce
     virtual void execute();                          // ORIG T 0x084a8d02
 
@@ -206,37 +211,37 @@ public:
 class CPvPStartCmd : public CCommand
 {
 public:
-    CPvPStartCmd() {}                  // ORIG W 0x082a8028（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8028（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a8f6a
 };
 class CCirculationStatisticCmd : public CCommand
 {
 public:
-    CCirculationStatisticCmd() {}      // ORIG W 0x082a8044（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8044（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a8ff6
 };
 class CAutoMarketConditionsControlCmd : public CCommand
 {
 public:
-    CAutoMarketConditionsControlCmd() {} // ORIG W 0x082a8060（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8060（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a8ffc
 };
 class CItemDropRateCmd : public CCommand
 {
 public:
-    CItemDropRateCmd() {}              // ORIG W 0x082a807c（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a807c（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9002
 };
 class CCharacStatCmd : public CCommand
 {
 public:
-    CCharacStatCmd() {}                // ORIG W 0x082a8098（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8098（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a905e
 };
 class CSetTutorialFlagCmd : public CCommand
 {
 public:
-    CSetTutorialFlagCmd() {}           // ORIG W 0x082a80b4（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a80b4（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084a921a
     virtual void execute();                          // ORIG T 0x084a9252
 
@@ -245,25 +250,25 @@ public:
 class CViewTutorialFlagCmd : public CCommand
 {
 public:
-    CViewTutorialFlagCmd() {}          // ORIG W 0x082a80d0（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a80d0（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a927e
 };
 class CResetTutorialFlagCmd : public CCommand
 {
 public:
-    CResetTutorialFlagCmd() {}         // ORIG W 0x082a80ec（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a80ec（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a94c6
 };
 class CCreateDisjointStoreCmd : public CCommand
 {
 public:
-    CCreateDisjointStoreCmd() {}       // ORIG W 0x082a8108（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8108（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9720
 };
 class CRequestDisjointCmd : public CCommand
 {
 public:
-    CRequestDisjointCmd() : m_str0() {}           // ORIG W 0x082a8124（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8124（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084a97c0
     virtual void execute();                          // ORIG T 0x084a97f4
 
@@ -272,13 +277,13 @@ public:
 class CTeleportCmd : public CCommand
 {
 public:
-    CTeleportCmd() {}                  // ORIG W 0x082a814e（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a814e（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a986e
 };
 class CChangeExpertJobCmd : public CCommand
 {
 public:
-    CChangeExpertJobCmd() {}           // ORIG W 0x082a816a（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a816a（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084a98c8
     virtual void execute();                          // ORIG T 0x084a9900
 
@@ -287,7 +292,7 @@ public:
 class CChangeExpertJobExpCmd : public CCommand
 {
 public:
-    CChangeExpertJobExpCmd() {}        // ORIG W 0x082a8186（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8186（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084a9b98
     virtual void execute();                          // ORIG T 0x084a9bd0
 
@@ -296,37 +301,37 @@ public:
 class CStartMacroCmd : public CCommand
 {
 public:
-    CStartMacroCmd() {}                // ORIG W 0x082a81a2（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a81a2（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9bfa
 };
 class CStopMacroCmd : public CCommand
 {
 public:
-    CStopMacroCmd() {}                 // ORIG W 0x082a81be（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a81be（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9c00
 };
 class CRunMacroCmd : public CCommand
 {
 public:
-    CRunMacroCmd() {}                  // ORIG W 0x082a81da（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a81da（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9c06
 };
 class CTestDisjointCmd : public CCommand
 {
 public:
-    CTestDisjointCmd() {}              // ORIG W 0x082a81f6（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a81f6（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9c0c
 };
 class CAssaultAbuseUserCmd : public CCommand
 {
 public:
-    CAssaultAbuseUserCmd() {}          // ORIG W 0x082a8212（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8212（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9daa
 };
 class CPcroomPremiumCmd : public CCommand
 {
 public:
-    CPcroomPremiumCmd() {}             // ORIG W 0x082a822e（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a822e（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084a9db0
     virtual void execute();                          // ORIG T 0x084a9de8
 
@@ -335,13 +340,13 @@ public:
 class CBloodMonsterListCmd : public CCommand
 {
 public:
-    CBloodMonsterListCmd() {}          // ORIG W 0x082a824a（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a824a（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084a9e34
 };
 class CVillageAttackedStartCmd : public CCommand
 {
 public:
-    CVillageAttackedStartCmd() {}      // ORIG W 0x082a8266（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8266（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084aa10c
     virtual void execute();                          // ORIG T 0x084aa144
 
@@ -350,19 +355,19 @@ public:
 class CVillageAttackedStopCmd : public CCommand
 {
 public:
-    CVillageAttackedStopCmd() {}       // ORIG W 0x082a8282（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8282（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084aa298
 };
 class CVillageAttackedFightCmd : public CCommand
 {
 public:
-    CVillageAttackedFightCmd() {}      // ORIG W 0x082a829e（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a829e（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084aa1dc
 };
 class CItemInfoCmd : public CCommand
 {
 public:
-    CItemInfoCmd() : m_str0() {}                  // ORIG W 0x082a82ba（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a82ba（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084aa29e
     virtual void execute();                          // ORIG T 0x084aa2d2
 
@@ -371,7 +376,7 @@ public:
 class CAddItemPollutionCmd : public CCommand
 {
 public:
-    CAddItemPollutionCmd() {}          // ORIG W 0x082a82e4（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a82e4（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084aa9c8
     virtual void execute();                          // ORIG T 0x084aaa00
 
@@ -380,7 +385,7 @@ public:
 class CChangeNPCMaxDayCmd : public CCommand
 {
 public:
-    CChangeNPCMaxDayCmd() {}           // ORIG W 0x082a8300（sizeof=0x10）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8300（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084aacb8
     virtual void execute();                          // ORIG T 0x084aadd2
 
@@ -390,7 +395,7 @@ public:
 class CChangeNPCFavorCmd : public CCommand
 {
 public:
-    CChangeNPCFavorCmd() {}            // ORIG W 0x082a831c（sizeof=0x10）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a831c（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084aadd8
     virtual void execute();                          // ORIG T 0x084aaef2
 
@@ -400,53 +405,53 @@ public:
 class CClearInventoryCmd : public CCommand
 {
 public:
-    CClearInventoryCmd() {}            // ORIG W 0x082a8338（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8338（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084aaef8
 };
 class CClearAvatarInvenCmd : public CCommand
 {
 public:
-    CClearAvatarInvenCmd() {}          // ORIG W 0x082a8354（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8354（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084aafb0
 };
 class CReselectDailyQuestCmd : public CCommand
 {
 public:
-    CReselectDailyQuestCmd() {}        // ORIG W 0x082a8370（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8370（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084ab4f2
 };
 class CResetTrainingQuestCmd : public CCommand
 {
 public:
-    CResetTrainingQuestCmd() {}        // ORIG W 0x082a838c（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a838c（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084ab508
 };
 class CInvalidGold : public CCommand
 {
 public:
-    CInvalidGold() {}                  // ORIG W 0x082a83a8（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a83a8（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084ab16e
 };
 class CPowerWarStraightVictory : public CCommand
 {
 public:
-    CPowerWarStraightVictory() {}      // ORIG W 0x082a83c4（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a83c4（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084ab202
     virtual void execute();                          // ORIG T 0x084ab23e
 
-    short m_straight;                                // +0x08
-    char m_pad[2];
+    short m_straight;                                // +0x08（尾部 2B 为自然 padding；P26/P312：
+                                                     //   显式 m_pad[2] 会被 value-init 多清 2B）
 };
 class CDeleteGuild : public CCommand
 {
 public:
-    CDeleteGuild() {}                  // ORIG W 0x082a83e0（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a83e0（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084ab29c
 };
 class CEnduranceCmd : public CCommand
 {
 public:
-    CEnduranceCmd() {}                 // ORIG W 0x082a83fc（sizeof=0x10）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a83fc（sizeof=0x10）
     virtual void parse();                            // ORIG T 0x084aa73a
     virtual void execute();                          // ORIG T 0x084aa858
 
@@ -456,7 +461,7 @@ public:
 class CChangeCharacName : public CCommand
 {
 public:
-    CChangeCharacName() : m_str0() {}             // ORIG W 0x082a8418（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8418（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084ab524
     virtual void execute();                          // ORIG T 0x084ab558
 
@@ -465,7 +470,7 @@ public:
 class CStartEvent : public CCommand
 {
 public:
-    CStartEvent() {}                   // ORIG W 0x082a8442（sizeof=0x14）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8442（sizeof=0x14）
     virtual void parse();                            // ORIG T 0x084ab5b6
     virtual void execute();                          // ORIG T 0x084ab886
     void getParam(std::string param);                // ORIG T 0x084ab64e
@@ -478,7 +483,7 @@ public:
 class CEndEvent : public CCommand
 {
 public:
-    CEndEvent() {}                     // ORIG W 0x082a845e（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a845e（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084ab914
     virtual void execute();                          // ORIG T 0x084ab94c
 
@@ -487,13 +492,13 @@ public:
 class CSecretShopCheckLottery : public CCommand
 {
 public:
-    CSecretShopCheckLottery() {}       // ORIG W 0x082a847a（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a847a（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084ab9c4
 };
 class CSecretShopNpc : public CCommand
 {
 public:
-    CSecretShopNpc() {}                // ORIG W 0x082a8496（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8496（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084ab9da
     virtual void execute();                          // ORIG T 0x084aba12
 
@@ -502,7 +507,7 @@ public:
 class CItemDropInDungeon : public CCommand
 {
 public:
-    CItemDropInDungeon() {}            // ORIG W 0x082a84b2（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a84b2（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084abcb0
     virtual void execute();                          // ORIG T 0x084abce8
 
@@ -511,31 +516,31 @@ public:
 class CDeleteAccountCargo : public CCommand
 {
 public:
-    CDeleteAccountCargo() {}           // ORIG W 0x082a84ce（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a84ce（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084abdb4
 };
 class CLinkSystem : public CCommand
 {
 public:
-    CLinkSystem() {}                   // ORIG W 0x082a84ea（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a84ea（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084abdd0
 };
 class CGuildExpBookDelete : public CCommand
 {
 public:
-    CGuildExpBookDelete() {}           // ORIG W 0x082a8506（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8506（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084abf2c
 };
 class CUserPremiumDelete : public CCommand
 {
 public:
-    CUserPremiumDelete() {}            // ORIG W 0x082a8522（sizeof=0x8）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a8522（sizeof=0x8）
     virtual void execute();                          // ORIG T 0x084abf4e
 };
 class CAddItemByMail : public CCommand
 {
 public:
-    CAddItemByMail() {}                // ORIG W 0x082a853e（sizeof=0xc）
+    // 无用户默认 ctor（b28d-solo-GmRegister，P299/P318）：ORIG W 0x082a853e（sizeof=0xc）
     virtual void parse();                            // ORIG T 0x084ac2aa
     virtual void execute();                          // ORIG T 0x084ac2e2
 

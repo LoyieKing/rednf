@@ -92,36 +92,48 @@ bool CObjectBringUp::verifyGiveBringUpReward(
 // size()/getCurUseBringUpMaterialTotal 各调用两次（P48 无 CSE），条件先 size
 // 后 total（setbe 方向）。
 // [b28d-L14 N82附] ORIG 0x0810e7c4；p167 CLEAR（10/10）；残差=bool 汇聚物化+槽深。
+// [b28d-solo-W8_EventClassifyB 判词·N 封顶] 块序已翻正（`je L_loop` 循环后置）
+// + idx 预清后残差 11 条，全为跨版本块/寻址产物：
+// ①else 段末 ORIG `nop` 中继 + this 链 `lea 0x10(%eax),%edx` vs 4.4
+//   `add $0x10,%edx`（N107：成员常量偏移取址 6 形探针全产 add）+ 该段装载序
+//   （ORIG this-first）；
+// ②`return true` 常量块落点：ORIG 4.1 把 else 段 `mov $1,%eax` 后置到函数尾
+//   fall-through（+0x125），4.4 恒就地 `mov $1; jmp`（P191 边界）；
+// ③ORIG 循环段尾 `mov $0,%eax; jmp` 与末尾 `mov $1` 的相对序同因。
+// 语义/调用点全等（p167 CLEAR 10/10）。
 bool CObjectBringUp::verifyMaterialItemByRule(CUser* user,
                                               unsigned int itemIdx)
 {
-    if (static_cast<ObjectBringUpScript*>(m_script1c)->m_exchangeRuleFlag == 0)
+    // ORIG 0x0810fcfd `test %al,%al; je +0xa7`：flag==0 分支（循环）位于函数尾、
+    // flag!=0 分支（idx 计算）直落在前 ⇒ 正向包裹 + 循环后置（P59/P222 块序判据）。
+    // idx 预清 `movl $0x0,-0xc(%ebp)` 在 size() 调用前（P198①两句式）。
+    if (static_cast<ObjectBringUpScript*>(m_script1c)->m_exchangeRuleFlag != 0)
     {
-        for (std::vector<int>::iterator it =
-                 static_cast<ObjectBringUpScript*>(m_script1c)
-                     ->m_materialItemIdxs.begin();
-             it != static_cast<ObjectBringUpScript*>(m_script1c)
-                       ->m_materialItemIdxs.end();
-             ++it)
-        {
-            if ((unsigned int)*it == itemIdx)
-                return true;
-        }
-        return false;
+        int idx = 0;
+        if (static_cast<ObjectBringUpScript*>(m_script1c)
+                ->m_materialItemIdxs.size() <=
+            (unsigned int)user->getCurUseBringUpMaterialTotal())
+            idx = (int)static_cast<ObjectBringUpScript*>(m_script1c)
+                      ->m_materialItemIdxs.size() - 1;
+        else
+            idx = (int)user->getCurUseBringUpMaterialTotal();
+        if ((unsigned int)static_cast<ObjectBringUpScript*>(m_script1c)
+                ->m_materialItemIdxs[idx] != itemIdx)
+            return false;
+        return true;
     }
 
-    int idx;
-    if (static_cast<ObjectBringUpScript*>(m_script1c)
-            ->m_materialItemIdxs.size() <=
-        (unsigned int)user->getCurUseBringUpMaterialTotal())
-        idx = (int)static_cast<ObjectBringUpScript*>(m_script1c)
-                  ->m_materialItemIdxs.size() - 1;
-    else
-        idx = (int)user->getCurUseBringUpMaterialTotal();
-    if ((unsigned int)static_cast<ObjectBringUpScript*>(m_script1c)
-            ->m_materialItemIdxs[idx] != itemIdx)
-        return false;
-    return true;
+    for (std::vector<int>::iterator it =
+             static_cast<ObjectBringUpScript*>(m_script1c)
+                 ->m_materialItemIdxs.begin();
+         it != static_cast<ObjectBringUpScript*>(m_script1c)
+                   ->m_materialItemIdxs.end();
+         ++it)
+    {
+        if ((unsigned int)*it == itemIdx)
+            return true;
+    }
+    return false;
 }
 
 // sendBringUpReward（ORIG 0x0810fe90）
@@ -130,6 +142,18 @@ bool CObjectBringUp::verifyMaterialItemByRule(CUser* user,
 // operator->(当前元素)。getBringUpRewardFlag() 用 if(flag) continue 布局
 // （P59：call;test;jne 循环尾）。日志参数与 __PRETTY_FUNCTION__ 照 ORIG。
 // [b28d-L14 N82附] ORIG 0x0810e2b0；p167 CLEAR（58/58）；残差=槽深/常量装载。
+// [b28d-solo-W8_EventClassifyB 判词·N 封顶，残差 50] 三因叠加：
+// ①槽位 N82/N98：4.4 栈槽按首次使用序（it -0x3c vs ORIG -0x40、actionMng
+//   -0x3d vs -0x39、sig -0x10 vs -0xc、ORIG 另有死值槽 -0x10=1）；实测把
+//   result 提到循环前预清（P198①）只使槽整体平移（-0x3c→-0x38）未翻正；
+// ②varargs 求值序：ORIG 左起（m_itemIdx→getCurCharacNo→get_acc_id），
+//   4.4 恒右起（已登记负例「varargs 求值序 4.1 左起 vs 4.4 右起」）；
+// ③头依赖（已上报 Main）：CUserCharacInfo::getBringUpRewardFlag 返回 uchar
+//   ⇒ 调用点多 `setne; test` 2 条（ORIG 0x08110d76 体无 setne、调用点
+//   `call; test %al,%al; jne` ⇒ P292 判 bool）；SIG_OBJECT_BRING_UP::
+//   m_serverGroup 声明 1B，ORIG +0x2e0 `movzbl %al,%edx; mov %edx,0x8(%eax)`
+//   为 4B 写（字段宽应为 4B，改后 +0xc/+0xd 偏移与 sizeof 0x10 不变）。
+// 已修：result 落分支内、日志实参与 m_vec38 调用点逐条对齐；语义等价。
 bool CObjectBringUp::sendBringUpReward(CUser* user,
                                        std::vector<int>& rewardVec,
                                        unsigned char& flag)
@@ -235,6 +259,12 @@ char CUsedFatigueGiveItem::get_user_type() const
 // CPcRoomPlayTime::processEventPcRoomPlayTime（ORIG 0x0811089c）
 // ============================================================================
 // [b28d-L14 N82附] ORIG 0x0811089c；p167 CLEAR（24/24）；残差=槽深/寄存器分配。
+// [b28d-solo-W8_EventClassifyB 判词·AE 达成] 本波修正两处：
+// ①packet.m_field0a 三目 → if/else 两臂各自 store（ORIG +0x121/+0x13c 两次
+//   `mov %al,-0x31(%ebp)`；三目被 4.4 合并为单一汇合 store）；
+// ②CUser::getTotalPcRoomPlayTime 返回类型 int→unsigned int（Main 代落 CUser.h）
+//   复现 ORIG 0x081108c4 `cmp %edx,%eax; setb`（call 结果留 %eax 无中转，P302）。
+// check_tu 已归 ae（116=116）。
 int CPcRoomPlayTime::processEventPcRoomPlayTime(CUser* user)
 {
     // [b28c-L0 N22] 首比较 ORIG `cmp %edx,%eax`（call 结果留 %eax），4.4 恒
@@ -264,10 +294,13 @@ int CPcRoomPlayTime::processEventPcRoomPlayTime(CUser* user)
         user->getPcRoomPlayTimeRewardCnt());
 
     Packet_PcRoomPlayTimeReward packet;
-    packet.m_field0a =
-        G_GameWorld()->IsIntegratedPvPBaseChannel()
-            ? (unsigned char)user->GetServerGroup()
-            : (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup;
+    // ORIG +0x121..+0x13c：then/else 两臂各自 store（`mov %al,-0x31(%ebp)` ×2），
+    // 三目形会被 4.4 合并为单一汇合 store ⇒ 写 if/else。
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+        packet.m_field0a = (unsigned char)user->GetServerGroup();
+    else
+        packet.m_field0a =
+            (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup;
     packet.m_accId = user->get_acc_id();
     packet.m_characNo = user->getCurCharacNo();
 
@@ -317,6 +350,14 @@ void CEventScriptMng::send_event_init_record_data(CUser* user)
 // 且 second.first/second.second 颠倒）。ORIG 的 ++it 位于外层 if 体内
 // （second==false 时不递增——忠实转写 ORIG 控制流）。尾部不清 update 表。
 // [b28d-L14 N82附] ORIG 0x0810f5b8；p167 CLEAR（18/18）；残差=槽深/寄存器分配。
+// [b28d-solo-W8_EventClassifyB 判词·N7 封顶，残差 17] hend 内联后槽位全对齐
+// （it -0x24 / hit -0x28 / 内层 end -0x1c / 循环条件 end -0x20，与 ORIG 逐槽一致）；
+// 残差为 4 处 sret 地址装载形：
+//   ORIG `lea -0xXX(%ebp),%edx; mov %eax,0x4(%esp); mov %edx,(%esp)`
+//   vs 4.4 `mov %eax,%edx; lea -0xXX(%ebp),%eax; mov %edx,0x4(%esp); mov %eax,(%esp)`
+// —— 4.4 的 lea 目标恒 %eax（call 结果须先中转 %edx），4.1 恒 %edx；属 N7
+// 寄存器角色族（P230 补分诊：N7 判词限定 4.4.7 后端）。「先声明后赋值」
+// 形实测反劣（17→21，且引入默认 ctor 风险）。语义/调用点全等。
 void CEventScriptMng::process_update_ingame_history(CUser* user)
 {
     if (user == 0)
@@ -336,10 +377,9 @@ void CEventScriptMng::process_update_ingame_history(CUser* user)
                 static_cast<const std::map<int, std::pair<int, int> >*>(
                     user->get_ingame_event_history())
                     ->find(it->first);
-            std::map<int, std::pair<int, int> >::const_iterator hend =
+            if (hit !=
                 static_cast<const std::map<int, std::pair<int, int> >*>(
-                    user->get_ingame_event_history())->end();
-            if (hit != hend)
+                    user->get_ingame_event_history())->end())
             {
                 DB_UpdateInGameEventHistory::makeRequest(  // UNLINKED_CALLEE
                     user->get_acc_id(), it->first,
@@ -381,41 +421,16 @@ int CExchangeRandomItemReward::getRewardItem(
 // flag08==0：内层命中即收集并 break；外层在 materials 非空时终止整个双重循环。
 // flag08!=0：全量收集；收集数!=规则数 → 0x16。不缓存 script/rule（P36/P48：
 // ORIG 对 pairs0c[r] 三次 operator[]）。命中条件两元素装载：first 先、second 后。
+// [b28d-solo-W8_EventClassifyB 判词·归零] 修法=块序反写：ORIG 0x0810eb46
+// `test %al,%al; je +0x190` ⇒ flag08!=0 分支直落在前、flag08==0（含 break）
+// 分支后置；条件反写 + 两分支体互换后归一化 ndiff=1（仅尾部对齐 nop，§6.1 豁免）。
 int CExchangeRandomItemReward::verifyMaterialItemByRule(
     CUser* user, std::vector<int>& slots,
     std::vector<std::pair<int, int> >& materials)
 {
-    if (static_cast<ExchangeRandomItemRewardScript*>(m_script1c)->m_flag08 == 0)
-    {
-        size_t r = 0;
-        while (r < static_cast<ExchangeRandomItemRewardScript*>(m_script1c)
-                       ->m_pairs0c.size())
-        {
-            size_t s = 0;
-            while (s < slots.size())
-            {
-                Inven_Item slotItem =
-                    user->getCurCharacInvenR()->GetInvenSlot(1, slots[s]);
-                if ((unsigned int)static_cast<ExchangeRandomItemRewardScript*>(
-                        m_script1c)->m_pairs0c[r].first ==
-                        (unsigned int)slotItem.m_addInfo &&
-                    static_cast<ExchangeRandomItemRewardScript*>(m_script1c)
-                            ->m_pairs0c[r].second <= slotItem.m_addInfo2)
-                {
-                    materials.push_back(std::make_pair(
-                        slots[s],
-                        static_cast<ExchangeRandomItemRewardScript*>(m_script1c)
-                            ->m_pairs0c[r].second));
-                    break;
-                }
-                ++s;
-            }
-            if (!materials.empty())
-                break;
-            ++r;
-        }
-    }
-    else
+    // ORIG 0x0810eb46 `test %al,%al; je +0x190`：flag08!=0 分支直落在前、
+    // flag08==0 分支（含 break）位于 +0x190 ⇒ 条件反写 + 分支体互换。
+    if (static_cast<ExchangeRandomItemRewardScript*>(m_script1c)->m_flag08 != 0)
     {
         size_t r = 0;
         while (r < static_cast<ExchangeRandomItemRewardScript*>(m_script1c)
@@ -446,6 +461,36 @@ int CExchangeRandomItemReward::verifyMaterialItemByRule(
                 ->m_pairs0c.size())
             return 0x16;
     }
+    else
+    {
+        size_t r = 0;
+        while (r < static_cast<ExchangeRandomItemRewardScript*>(m_script1c)
+                       ->m_pairs0c.size())
+        {
+            size_t s = 0;
+            while (s < slots.size())
+            {
+                Inven_Item slotItem =
+                    user->getCurCharacInvenR()->GetInvenSlot(1, slots[s]);
+                if ((unsigned int)static_cast<ExchangeRandomItemRewardScript*>(
+                        m_script1c)->m_pairs0c[r].first ==
+                        (unsigned int)slotItem.m_addInfo &&
+                    static_cast<ExchangeRandomItemRewardScript*>(m_script1c)
+                            ->m_pairs0c[r].second <= slotItem.m_addInfo2)
+                {
+                    materials.push_back(std::make_pair(
+                        slots[s],
+                        static_cast<ExchangeRandomItemRewardScript*>(m_script1c)
+                            ->m_pairs0c[r].second));
+                    break;
+                }
+                ++s;
+            }
+            if (!materials.empty())
+                break;
+            ++r;
+        }
+    }
     if (materials.empty())
         return 0x16;
     return 0;
@@ -455,6 +500,19 @@ int CExchangeRandomItemReward::verifyMaterialItemByRule(
 // ORIG 无 failed 标志：delete_item 失败路径内联处理（回包循环 + logFormat
 // 0x640 + return 8），成功路径 fall-through push_back+++i。回包循环
 // 内 newSlot<0 时 logFormat 0x63d。全部 __PRETTY_FUNCTION__。
+// [b28d-solo-W8_EventClassifyB 判词·归零（ae）] 本波真语义修正五处：
+// ①item.m_addInfo2 = it->second 直写（ORIG +0x16c `mov %eax,-0x9b(%ebp)`
+//   写 item+0x07 4B），并回读该字段作 create_item 第三参与 0x63d 日志实参
+//   （原实现第三参直传 it->second、日志重调 it->first/second）；
+// ②失败路径 logFormat 改两次独立 materials[i] 取用（ORIG +0x2f5/+0x302
+//   两次 operator[]，P48 无 CSE；原实现缓存 `const pair& bad` 致少一次调用）；
+// ③returnItems.size() != 0（P197④：empty() 恒 out-of-line call 无 setne 段）；
+// ④delete_item 改正条件 if/else（ORIG +0x0b0 `test %al,%al; je +0x112`
+//   成功路径直落，原 `if(!...)` 反置块序）；
+// ⑤newSlot 循环外预清（ORIG +0x12a `movl $0x0,-0xc(%ebp)`，P198①）。
+// check_tu 已归 ae；残余仅 make_pair 模板实参 `IRmRiE`(unsigned long&) vs
+// `IRjRiE`(unsigned int&) —— Inven_Item::m_addInfo 声明宽度的共享头旋钮，
+// 已上报 Main 决策（本 TU 单文件不可改）。
 int CExchangeRandomItemReward::deleteUsedMaterialItem(
     CUser* user, std::vector<std::pair<int, int> >& materials,
     std::vector<std::pair<int, int> >& returnItems)
@@ -464,21 +522,37 @@ int CExchangeRandomItemReward::deleteUsedMaterialItem(
     {
         Inven_Item slotItem =
             user->getCurCharacInvenR()->GetInvenSlot(1, materials[i].first);
-        if (!user->getCurCharacInvenW()->delete_item(
+        // ORIG +0x0b0 `test %al,%al; je +0x112`：成功路径（push_back）直落、
+        // 失败路径后置 ⇒ 正条件 if/else（4.4 对 if(!f()) 恒失败直落 + xor）。
+        if (user->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)1, materials[i].first, materials[i].second,
                 (eItemDelReason)3, true))
         {
-            if (!returnItems.empty())
+            returnItems.push_back(std::make_pair(slotItem.m_addInfo,
+                                                 materials[i].second));
+            ++i;
+        }
+        else
+        {
+            // ORIG +0x118 `call size; test %eax,%eax; setne; test; je`（P197④：
+            // empty() 恒 out-of-line call 无 setne 段）。
+            if (returnItems.size() != 0)
             {
+                // ORIG +0x12a `movl $0x0,-0xc(%ebp)`（P198①预清必写）⇒
+                // newSlot 声明在循环外并初始化为 0，循环内赋值。
+                int newSlot = 0;
                 for (std::vector<std::pair<int, int> >::iterator it =
                          returnItems.begin();
                      it != returnItems.end(); ++it)
                 {
                     Inven_Item item;
                     item.m_addInfo = it->first;
+                    // ORIG +0x16c 直写 item+0x07（m_addInfo2）4 字节，随后
+                    // create_item 第三参与该日志实参均从该槽重读。
+                    item.m_addInfo2 = it->second;
                     G_CDataManager()->m_itemList->create_item(
-                        (ENUM_ITEM_CREATE_TYPE)0, item, it->second);
-                    const int newSlot =
+                        (ENUM_ITEM_CREATE_TYPE)0, item, item.m_addInfo2);
+                    newSlot =
                         user->getCurCharacInvenW()->insertItemIntoInventory(
                             item, (eItemAddReason)0xd, true, true);
                     if (newSlot < 0)
@@ -489,22 +563,20 @@ int CExchangeRandomItemReward::deleteUsedMaterialItem(
                             "CExchangeRandomItemReward::"
                             "deleteUsedMaterialItem, return_item failed , "
                             "User ch =%d , %d %d",
-                            (int)user->getCurCharacNo(), it->first,
-                            it->second);
+                            (int)user->getCurCharacNo(), item.m_addInfo,
+                            item.m_addInfo2);
                     }
                 }
             }
-            const std::pair<int, int>& bad = materials[i];
+            // ORIG +0x2f5/+0x302 两次独立 operator[]（P48 无 CSE，禁引用缓存）。
             LogManager::logFormat(
                 1, "EventClassify.cpp", __PRETTY_FUNCTION__, 0x640,
                 "CExchangeRandomItemReward::deleteUsedMaterialItem failed "
                 ", User ch =%d , %d %d",
-                (int)user->getCurCharacNo(), bad.first, bad.second);
+                (int)user->getCurCharacNo(), materials[i].first,
+                materials[i].second);
             return 8;
         }
-        returnItems.push_back(std::make_pair(slotItem.m_addInfo,
-                                             materials[i].second));
-        ++i;
     }
     return 0;
 }
@@ -652,6 +724,13 @@ int CAvatarDisjointRandomReward::getRewardItem(
 // 调用在 value 读取之前（+0x09c vs +0x0ae）。size>5 判断（cmp $5;seta）。
 // [b28d-L14 P30/N82附] ORIG 0x0810f742；p167 CLEAR（13/13）；数组下标 add-vs-lea
 // 组合差（ORIG `mov n,%ebx` 直用 vs 4.4 `lea 1(%eax),%ebx`）+ 基址 -0x40/-0x44。
+// [b28d-solo-W8_EventClassifyB N94 封顶] 改用具名视图 m_grades[n]/m_values[n] 后
+// grade 侧已逐条全等（`mov n,%ebx; mov %eax,-0x40(%ebp,%ebx,4)`）；value 侧
+// ORIG `lea 0x8(%ebx),%edx; mov %eax,-0x4c(%ebp,%edx,4)`（disp=packet+0x2、lea+8）
+// vs 4.4 `lea 0x4(%ebx),%edx; mov %eax,-0x3c(%ebp,%edx,4)`（disp=packet+0x12、lea+4）
+// —— 4.4 对成员数组偏移 0x18 恒拆 disp=偏移&0xf=8 / lea=4，ORIG 4.1 拆 disp=2/lea=8；
+// 地址与语义完全等价（均 = packet+0x22+4n），助记符序列全等（NEAR）。
+// 合法 C++ 无法把 union 基址移到 +0x2（PacketHeader 非平凡 ctor 不可作 union 成员）⇒ N94。
 void CAvatarDisjointRandomReward::SendCreateEmblemStatistic(
     std::vector<std::pair<int, int> >& rewards)
 {
@@ -671,8 +750,8 @@ void CAvatarDisjointRandomReward::SendCreateEmblemStatistic(
             return;
         if (citem->GetItemType() == 0x14)
         {
-            packet.m_slots[n + 1] = citem->get_grade();
-            packet.m_slots[n + 6] = it->second;
+            packet.m_grades[n] = citem->get_grade();
+            packet.m_values[n] = it->second;
             ++n;
             if (n > 5)
                 break;

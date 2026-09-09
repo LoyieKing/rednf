@@ -62,7 +62,7 @@ struct stPvpRefTable_t
         }
     };
 
-    int m_count;                              // +0x00  "[pvp experience max grade]"
+    unsigned int m_count;                     // +0x00  "[pvp experience max grade]"
     std::vector<stPvPGradeExp_t> m_grades;    // +0x04  grades vector
     int m_pvpExpLoss1;                        // +0x10  "[pvp experience loss]" v1
     int m_pvpExpLoss2;                        // +0x14  "[pvp experience loss]" v2

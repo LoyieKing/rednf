@@ -14,6 +14,8 @@ struct SPOBJ_ACTION_DATAS
     int m_14;      // +0x14
 
     SPOBJ_ACTION_DATAS();       // ORIG C1Ev W 0x089e86e4（memset 0xff 全字段 -1）
-    ~SPOBJ_ACTION_DATAS();      // ORIG D1Ev W 0x089f0b92（空体；ImportMapScript 外 2 处调用，非平凡，勿删）
+    // [b28d-Main 代落·S247 P317] 删用户空析构：ORIG 仅实例化平凡版
+    // `_ZNSt12_Destroy_auxILb1EE9__destroyIP18SPOBJ_ACTION_DATASEEvT_S4_`（无 Lb0E）
+    // ⇒ 类型 trivial；ImportMapScript 循环内 C1Ev 后无 D1 call。D1/D2 仍发射同名 W。
     int getActionType();        // ORIG 0x089e8708（直返 m_type）
 };

@@ -247,8 +247,16 @@ void stUltimateWarMonsterInfo::clear()
 // ============================================================================
 int importQPGuideScript(const char* path, stQPGuideScript& out)
 {
-    // [b28d-34] 复核维持 DIFF（§6.2）：orig 396/ours 384，槽基 -0x3c/-0x40 平移
-    // + 容器实例化族（N89）；语义等价。
+    // [b28d-solo-StScriptImporters] 判词：p167 48/48 CLEAR（修真调用点错位）、指令数 388/396。
+    // 本波修复：①外层改 while(bRec){ if(!ScanType) break; } + 去掉两处 continue，复现 ORIG
+    // 「body 在顶、cond(bRec) 在底、入口 jmp cond」形；②[qp recommendation] 的 ScanStr
+    // then/else 物理序交换（ORIG `xor$1;test;je <then>`）；③`size()!=0xb` 与 count 检查
+    // 改早退形；④`val != ""` → `val.compare("") != 0`（P167 MISSING _ZNKSs7compareEPKc /
+    // EXTRA _ZStneIc… 真调用点错位，改后 CLEAR）。
+    // 残留 N：①bool 条件 lowering——ORIG 外层退出检查发 `movzbl;xor$1;test;je`（12 条），
+    // 4.4 对 `if(bRec)` 恒 `cmpb $0; jne`（6 条，差 6）；②esi 状态机（0/1/2）块序/编码
+    // 差异（ORIG 多共享失败块，我方每 return 独立块）；③token/data 槽基 -0x40 vs ORIG -0x3c
+    // 与 find 临时槽深（N86/N93 族）。语义等价（p167 CLEAR）。
     if (!loadRDARScriptFile("", path))
         return 0x28b6;
     std::string token;
@@ -257,18 +265,25 @@ int importQPGuideScript(const char* path, stQPGuideScript& out)
     bool bTool = true;   // [qp tooltip mapping] 循环标志（-0x15）
     stQPGuideScript::stRecommendQPData data;
 
-    for (;;)
+    while (bRec)
     {
-        if (bRec && ScanType(token, true))
+        if (!ScanType(token, true))
+            break;
+        if (token == "[qp recommendation]")
         {
-            if (token == "[qp recommendation]")
-            {
                 while (bRec2)
                 {
                     data.clear();
                     int job = -1;
                     std::string jobStr;
-                    if (ScanStr(&jobStr))
+                    if (!ScanStr(&jobStr))
+                    {
+                        // ScanStr 失败：out[10] 已填充则结束记录段，否则返回 0。
+                        if (out.m_vec0.at(10).empty())
+                            return 0;
+                        bRec2 = false;
+                    }
+                    else
                     {
                         job = getCharacterJob(jobStr.c_str());
                         if (job < 0 || job > 10)
@@ -283,50 +298,31 @@ int importQPGuideScript(const char* path, stQPGuideScript& out)
                                 return 0;
                             int count = 0;
                             data.m_grow = grow;
-                            if (ScanInt(&count))
-                            {
-                                if (count >= 1)
-                                {
-                                    int itemIdx = -1;
-                                    for (int i = 0; i < count; ++i)
-                                    {
-                                        if (!ScanInt(&itemIdx))
-                                            return 0;
-                                        data.m_items.push_back(itemIdx);
-                                    }
-                                    if (job < 0 || job > 10)
-                                        return 0;
-                                    if (out.m_vec0.size() == 0xb)
-                                        out.m_vec0[job].push_back(data);
-                                    else
-                                        return 0;
-                                }
-                                else
-                                {
-                                    return 0;
-                                }
-                            }
-                            else
-                            {
+                            if (!ScanInt(&count))
                                 return 0;
+                            if (count <= 0)
+                                return 0;
+                            int itemIdx = -1;
+                            for (int i = 0; i < count; ++i)
+                            {
+                                if (!ScanInt(&itemIdx))
+                                    return 0;
+                                data.m_items.push_back(itemIdx);
                             }
+                            if (job < 0 || job > 10)
+                                return 0;
+                            if (out.m_vec0.size() != 0xb)
+                                return 0;
+                            out.m_vec0[job].push_back(data);
                         }
                         else
                         {
                             return 0;
                         }
                     }
-                    else
-                    {
-                        // ScanStr 失败：out[10] 已填充则结束记录段，否则返回 0。
-                        if (out.m_vec0.at(10).empty())
-                            return 0;
-                        bRec2 = false;
-                    }
                 }
-                continue;
             }
-            if (token == "[qp tooltip mapping]")
+            else if (token == "[qp tooltip mapping]")
             {
                 while (bTool)
                 {
@@ -344,7 +340,7 @@ int importQPGuideScript(const char* path, stQPGuideScript& out)
                         return 0;
                     if (!ScanStr(&val))
                         return 0;
-                    if (val != "")
+                    if (val.compare("") != 0)
                     {
                         if (out.m_tooltipMapC.find(key) == out.m_tooltipMapC.end())
                         {
@@ -352,16 +348,15 @@ int importQPGuideScript(const char* path, stQPGuideScript& out)
                         }
                     }
                 }
-                continue;
             }
-        }
-        else
-        {
-            if (bRec || bRec2 || bTool)
-                return 0;
-            return 1;
-        }
     }
+    if (bRec)
+        return 0;
+    if (bRec2)
+        return 0;
+    if (bTool)
+        return 0;
+    return 1;
 }
 
 // ============================================================================
@@ -369,21 +364,29 @@ int importQPGuideScript(const char* path, stQPGuideScript& out)
 // ============================================================================
 int importPartyMatchingInfo(const char* path, std::vector<stPartyMatchingInfo>* out)
 {
-    // [b28d-34] 复核维持 DIFF：ORIG 0x0890f311 比我们多一段迭代器/临时构造
-    // （clean 173 vs 155）；N89/N86 STL 实例化族，语义等价。
+    // [b28d-solo-StScriptImporters] AE：指令数 180=180、p167 26/26 CLEAR。
+    // 修复：①补 ORIG -0x14 死 string 局部（槽序/析构序列照抄，P232/P171）；
+    // ②外层改 for(;;){ if(!ScanType) break; } 破 4.4 循环旋转；
+    // ③do-while 改 do{...if(!ok)break;}while(true) 复现 `movzbl;xor$1;test;je` + 入口 jmp；
+    // ④[dungeon index] 的 while 改 for(;;){ if(!(idx=ScanInt(&ok),ok)) break; ... }。
     if (!loadRDARScriptFile("", path))
         return 0;
     std::string token;
+    std::string str;    // [b28d-solo-StScriptImporters] ORIG -0x14 死 string 局部（槽序/析构序列照抄，P232/P171）
     bool ok = false;
-    while (ScanType(token, true))
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[common dungeon index]")
         {
             int v;
             do
             {
                 v = ScanInt(&ok);
-            } while (ok);
+                if (!ok)
+                    break;
+            } while (true);
         }
         else if (token == "[channel name]")
         {
@@ -404,8 +407,10 @@ int importPartyMatchingInfo(const char* path, std::vector<stPartyMatchingInfo>* 
                     if (token == "[dungeon index]")
                     {
                         int idx;
-                        while (idx = ScanInt(&ok), ok)
+                        for (;;)
                         {
+                            if (!(idx = ScanInt(&ok), ok))
+                                break;
                             info.m_dungeonIdx.push_back(idx);
                         }
                         out->push_back(info);
@@ -422,16 +427,22 @@ int importPartyMatchingInfo(const char* path, std::vector<stPartyMatchingInfo>* 
 // ============================================================================
 int importPCBANGScript(const char* path, std::vector<stNeoplePCBANG>& out)
 {
-    // [b28d-34] 复核维持 DIFF（§6.2）：orig 393/ours 387，残差为 N89 容器
-    // 实例化族；语义等价。
+    // [b28d-solo-StScriptImporters] AE：指令数 393=393、p167 69/69 CLEAR。
+    // 修复：①外层改 for(;;){ if(!ScanType) break; } 破 4.4 循环旋转（ORIG 入口 jmp cond +
+    // 各 case 尾 jmp cond）；②补 ORIG -0x10/-0xc 两个死 int 局部（P232 槽序，令
+    // token/data/statusPair 槽位 -0x14/-0x2c/-0x34 与 ORIG 精确对齐）。
     if (!loadRDARScriptFile("", path))
         return 0x1417;
     std::string token;
+    int dead0 = 0;    // [b28d-solo-StScriptImporters] ORIG -0x10 死局部（P232 槽序）
+    int dead1 = 0;    // [b28d-solo-StScriptImporters] ORIG -0xc 死局部
     out.clear();
     stNeoplePCBANG data;
     std::pair<ENUM_CHANGE_STATUS_TYPE, int> statusPair;
-    while (ScanType(token, true))
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[level]")
         {
             data.m_level = ScanInt(static_cast<bool*>(0));
@@ -558,8 +569,17 @@ int importBloodWarEtcScript(const char* path,
                             stBloodWarGrowTable* growTable,
                             stBloodWarBloodPointTable* bloodPoint,
                             std::vector<stBloodWarBgmTable>* bgm,
-                            // [b28d-34] 复核维持 DIFF（§6.2）：orig 338/ours 320，
-                            // 残差为容器实例化族（N89）；语义等价。
+                            // [b28d-solo-StScriptImporters] 判词：指令数 338=338、p167 43/43 CLEAR。
+                            // 本波修复：①register int cont（P231 纯 register，非绑定）复现 ORIG
+                            // 全程 %ebx + test %ebx；②if(!ok)/else if(!ScanStr)/else 结构复现
+                            // `xor $1;test;je` 物化；③外层与 [BLOOD POINT] 改 for(;;)+break 复现
+                            // ORIG 条件头在顶（破 4.4 循环旋转）。
+                            // 残留 N：do-while 出口 lowering 极性 + 回边岛位置——ORIG 4.1 发
+                            // `test %ebx,%ebx; je <顶部岛 nop;jmp cond>; jmp body`（每分支独立回边岛，
+                            // 3 岛在循环头前），4.4 恒 `test %ebx,%ebx; jne body;` 落空合并回边
+                            // （岛移至尾部）。for(;;)+break / do-while(true)+break / while(cont!=0)
+                            // / goto 尾标签四形实测 348/348/338(setne 劣化)/339，均不可翻 ⇒ N 封顶，
+                            // 语义等价（p167 CLEAR）。
                             std::vector<stUltimateWarMonsterInfo>* monsterInfo)
 {
     if (!loadRDARScriptFile("", path))
@@ -567,31 +587,33 @@ int importBloodWarEtcScript(const char* path,
     std::string token;
     std::string str;
     bool ok = false;
-    while (ScanType(token, true))
+    for (;;)
     {
+        if (!ScanType(token, true))
+            break;
         if (token == "[BGM]")
         {
-            bool cont;
+            register int cont;    // [b28d-solo-StScriptImporters] ORIG 全程 %ebx + test %ebx（P231 纯 register，非绑定）
             do
             {
                 stBloodWarBgmTable bgmTable;
                 bgmTable.m_id = ScanInt(&ok);
-                cont = false;
-                if (ok)
+                if (!ok)
+                    cont = false;
+                else if (!ScanStr(&str))
+                    cont = false;
+                else
                 {
-                    if (ScanStr(&str))
-                    {
-                        bgmTable.m_name = str;
-                        if (bgm)
-                            bgm->push_back(bgmTable);
-                        cont = true;
-                    }
+                    bgmTable.m_name = str;
+                    if (bgm)
+                        bgm->push_back(bgmTable);
+                    cont = true;
                 }
             } while (cont);
         }
         else if (token == "[BP TABLE]")
         {
-            bool cont;
+            register int cont;    // [b28d-solo-StScriptImporters] ORIG 全程 %ebx（P231）
             do
             {
                 std::vector<std::pair<int, int> > rows;
@@ -606,8 +628,9 @@ int importBloodWarEtcScript(const char* path,
                         break;
                     rows.push_back(p);
                 }
-                cont = false;
-                if (ok)
+                if (!ok)
+                    cont = false;
+                else
                 {
                     if (growTable)
                         growTable->push_back(rows);
@@ -617,8 +640,10 @@ int importBloodWarEtcScript(const char* path,
         }
         else if (token == "[BLOOD POINT]")
         {
-            while (ScanStr(&str))
+            for (;;)
             {
+                if (!ScanStr(&str))
+                    break;
                 int type = 4;
                 if (str == "named")
                     type = 0;

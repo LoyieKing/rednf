@@ -827,14 +827,18 @@ public:
     // ---- 槽位 / 物品 ----
     Inven_Item GetSlot(int slot);
     Inven_Item* GetSlotRef(int slot);
-    int CheckInsertCondition(Inven_Item& item);
+    // [b28d-Main 代落·S282 P292档①] 三处 int→bool：ORIG 0x086600f9/0x08660127/
+    // 0x086601d0 调用点均 `call; xor $0x1,%eax; test %al,%al; je`。返回类型不入 mangled。
+    bool CheckInsertCondition(Inven_Item& item);
     int InsertItem(Inven_Item& item, int slot);
-    int DeleteItem(int slot, int count);
+    // [b28d-Main 代落·S282 P292档①] int→bool：ORIG 0x08661e76/0x0866232b 调用点
+    // `call; mov %al,槽; cmpb $0,槽; je`（bool 直存）。返回类型不入 mangled。
+    bool DeleteItem(int slot, int count);
     bool MoveItem(int from, int to);
     int GetEmptySlot();
-    int CheckSlotEmpty(int slot);
+    bool CheckSlotEmpty(int slot);
     int GetSpecificItemSlot(int itemIdx);
-    int CheckStackLimit(int slot, int itemIdx, int count);
+    bool CheckStackLimit(int slot, int itemIdx, int count);
     bool CheckValidSlot(int slot) const;   // ORIG xor$1 直判链（NL3 实证，mangled 不变）
     int GetItemCount();
 
@@ -1013,7 +1017,9 @@ public:
     // ---- 基础访问器（ORIG W 弱符号，const）----
     unsigned short getOverSkillLevel() const;
     int GetAdvantageExpRate() const;
-    short GetAdvantageFatigueRate() const;
+    // [b28d-Main 代落·S226 P211/P292] short→unsigned short：ORIG 0x0812cdb4
+    // `movzwl 0x850(%eax),%eax`（零扩展）。返回类型不入 mangled。
+    unsigned short GetAdvantageFatigueRate() const;
     int GetAdvPremiumCount() const;
     int GetTotalPremiumCount() const;   // ORIG W 0x0863bd5c：+0x848 + +0x84c
     int GetOverEquipableLevel(ENUM_EQUIPMENTTYPE type) const;
@@ -1064,13 +1070,13 @@ public:
     SUserPremiumInfo m_entries[0x6a];   // +0x00..0x847（0x6a×0x14；InitPremium/AddPremium/GetPremiumInfo 以 this+slot*0x14 索引 5×int 条目）
     int m_normalCount;      // +0x848
     int m_restrictedCount;  // +0x84c
-    short m_outFatigueRate; // +0x850
+    unsigned short m_outFatigueRate; // +0x850（GetAdvantageFatigueRate 0x0812cdb4 movzwl）
     char m_pad852[2];       // +0x852..0x853
     int m_outPremiumCount;  // +0x854
     int m_outExpRate;       // +0x858
     bool m_overEquipFlag;   // +0x85c（overEquipFlag；isAffectedUnlimitFatigue movzbl 按 bool 读）
     char m_pad85d[1];       // +0x85d
-    short m_overSkillLevel; // +0x85e
+    unsigned short m_overSkillLevel; // +0x85e（getOverSkillLevel 0x0860939e movzwl）
     unsigned short m_ceraDiscountRate;  // +0x860（getCeraShopDiscountRate movzwl 源；
                                         //       ReCalcAdvantage 取 def.m_field5a 较大者）
     bool m_field862;                    // +0x862（startPremium 依 def.m_applyDayMask 置位；ORIG IsNeedCheckEveryday movzbl 按 bool 读取）
@@ -1635,7 +1641,10 @@ public:
     bool GetTodayRewardAndSendMail(CUser& user,
                                    _SIG_LOAD_ACTION_POINT::_TodayRewardItem reward); // ORIG T 0x08122104
 
-    static unsigned char _IsGMOn;    // B 0x093ff07c（1 字节）
+    // [b28d-Main 代落·S262 P248档①] uchar→bool：ORIG 0x08121f31
+    // `movzbl 0x93ff07c,%eax; movzbl %al,%esi`（2 条 = bool 形参直传；
+    // uchar 源在 4.4 恒 movzbl;test;setne;movzbl 4 条）。静态成员无类内偏移。
+    static bool _IsGMOn;             // B 0x093ff07c（1 字节）
     static GmWeekdayCtl _gmWeekday;  // D 0x0937008c（8 字节）
 
     unsigned char m_flag00;                 // +0x00（GM_Set/GM_Reset/GetToday… 置 1）
@@ -1974,7 +1983,8 @@ class cUserHistoryLog
 {
 public:
     cUserHistoryLog();               // ORIG 0x8695fe4：清零 m_user（C1/C2 同址）
-    ~cUserHistoryLog() {}
+    // [b28d-Main 代落·S318 P317] 删用户空析构：ORIG nm 仅 W C1/C2（0x08695fe4），
+    // **无 D1/D2** ⇒ 类型 trivial（D1/D2 不再发射，与 ORIG 符号集一致）。
 
     void SetUser(CUser* user);
     void AvatarItemAdd(int itemIdx, int avatarUid, const char* agency,
@@ -2280,7 +2290,13 @@ public:
             m_money[1] = 0;
             m_money[2] = 0;
         }
-        int m_money[3];  // +0x00（0xc 字节；b28 BM1 实测 unsigned 化净负已回退：+= 段翻正但 [2]=now store 段劣化，NEAR6→DIFF10）
+        // [b28d-Main 代落·S318 P235] 加 unsigned 同址视角（+0x00，sizeof 0xc 不变）：
+        // `+=` 段用 m_moneyU[0]（unsigned 字段 + int 形参 ⇒ ORIG 的 RHS-first 三段），
+        // `[2]=now` 段仍走 int 视角（同型 LHS-first）。b28 BM1 的「整数组 unsigned 化净负」不适用本双视角。
+        union {
+            int m_money[3];              // +0x00（0xc 字节，保持既有消费面）
+            unsigned int m_moneyU[3];    // +0x00（P235 双视角）
+        };
     };
 
     // ---- 成员布局（ORIG 构造 0x864e410 逐子对象推导，总尺寸 0x8ec30） ----
@@ -2336,7 +2352,13 @@ public:
     char m_pad796cd[3];                                     // +0x796cd..0x796cf
     int m_gmBossMapIndex;                                   // +0x796d0
     int m_mileage;                                          // +0x796d4 (GetMileage/SetMileage)
-    unsigned char m_field796d8;                             // +0x796d8（Inter_LoadPuUserCheck 0x084e7fe2 uchar 读→字节直存，bool 成员恒产 test;setne 回退；uchar 兼容 SetPuUser bool 参 this-先 movzbl）
+    // [b28d-Main 代落·S320 P235/P311] 加同址 bool 视角（union 1B/align 1，sizeof/偏移/mangled 零变化；
+    // uchar 名保留）：ORIG SetPuUser 0x08692b58 的 `mov %al,-0x4; mov 0x8,%eax; movzbl -0x4,%edx;
+    // mov %dl,0x796d8(%eax)` 10 条形需 bool 成员直访问（`*(bool*)&field=` 视图多一条 add $0x796d8）。
+    union {
+        unsigned char m_field796d8;                         // +0x796d8（Inter_LoadPuUserCheck 0x084e7fe2 uchar 读）
+        bool m_bPuUser796d8;
+    };
     char m_field796d9;                                      // +0x796d9（WorkPerFiveMin 公会经验上报负载字节，
                                                             //   oldGmRoutine 0x0820c478 置 1；与 ORIG 一致保留）
     unsigned char m_seedBackup796da[6];                     // +0x796da..0x796df（无 ORIG 具名访问；CUser::backupSeed
@@ -2537,7 +2559,7 @@ public:
     char m_pad8ec2a[2];                                     // 0x8ec2a..0x8ec2b
     int m_field8ec2c;                                       // +0x8ec2c
     bool m_eventCreateDnfReward;                            // +0x8ec30（SetEventCreateDnfReward 0x08693198 bool=bool 唯一产此序）
-    char m_field8ec31;                                      // +0x8ec31
+    bool m_field8ec31;                                      // +0x8ec31（[b28d-Main 代落·S336 P211] char→bool：ORIG 0x0816158d 段 `movzbl 0x4(%eax),%edx; mov %dl,0x8ec31(%eax)` 单段直落；异型 RHS(bool) 会多 1 条 eax→edx 中转。1 字节/偏移/后续字段不变）
     char m_field8ec32;                                      // +0x8ec32
     char m_pad8ec33[1];                                     // +0x8ec33（ORIG CUser = 0x8ec34）
 
@@ -2831,7 +2853,7 @@ public:
     bool SendNotiPacket(eSendTarget target, ENUM_NOTIPACKET cmd, int param);  // ORIG 串 bool
     int SendUpdateItem(eSendTarget target, ENUM_ITEMSPACE space, int slot);   // ORIG T 0x867c2d8 返回 int
     void AddMileage(int mileage, eCoinAddReason reason);                      // ORIG T 0x08650954（W6_ARAD_ItemBonus 补）
-    int SendUpdateItemList(eSendTarget target, ENUM_ITEMSPACE space, int slot);
+    bool SendUpdateItemList(eSendTarget target, ENUM_ITEMSPACE space, int slot);   // [b28d-Main 代落·S338 P292] int→bool（ORIG 调用点 0x081971c2 段 `call; xor $0x1,%eax; test %al,%al; je` 无 setne）
     // b28d-5：ORIG rodata 串 "bool CUser::SendCmdPacket(...)" + 本族体均 `return Send(packet)`
     // （Send 为 bool）⇒ 本族返回 bool；改后定义体免 movzbl 中转。返回类型不入 mangled。
     bool SendCmdOkPacket(ENUM_CMDPACKET cmd);
@@ -3184,7 +3206,7 @@ public:
     void GetAuraAvatarOption(stAuraAvatarOption& option) const;     // 0x0868ddc2
     void GetCurCharacOption(CharacterOption& option) const;         // 0x0868f03c
     void GetCharacCashAttendanceInfo(SIG_ATTENDANCE_EVENT& info) const; // 0x086910a6
-    int getTotalPcRoomPlayTime() const;                             // 0x08110e10 W
+    unsigned int getTotalPcRoomPlayTime() const;                    // 0x08110e10 W：b28d-Main 代落·S350(P302/P248档①)——ORIG 0x081108c4 `cmp %edx,%eax; setb`（call 结果留 %eax 无中转）⇒ unsigned int
     unsigned int getPcRoomPlayTimeRewardCnt() const;               // 0x08110dec W：b28d-Main 代落(P248档①)——ORIG 0x08110a38 `cmp %edx,%eax; setae`（无符号比较，call 结果留 %eax 无中转）⇒ unsigned int
     int GetCurCharacUsedGiftFatigueQuantity() const;                // 0x08110e6c W
     unsigned char getFlagPresentAvengerTitle() const;               // 0x08697578 W
@@ -3428,7 +3450,11 @@ public:
     void SendOneADayItemShopIndex(                                             // 0x0868aaea
         const std::vector<std::pair<int, int> >& list);
     void UpdateAuraAvatarOption(int a, int b);                                 // 0x0868de0a
-    char is_equip_aura_avatar(char slot, int& out);                            // 0x0868dff8
+    // [b28d-solo-GlobalData 代落] char→int：ORIG 两调用点（Teleport::check_rule
+    // 0x08283d17 `call; mov %eax,-0xc`、Dispatchers 0x…`call; mov %eax,-0x28`）
+    // 均存 raw %eax 无 movsbl ⇒ callee 返回 int（char 形 4.4 恒插 movsbl）。
+    // 返回类型不入 mangled。
+    int is_equip_aura_avatar(char slot, int& out);                             // 0x0868dff8
     void processDelDailyItem();                                                // 0x0867e092
     void reqHumanCertify4ClearMap(bool flag);                                  // 0x086802b8
     void ProcPremiumFatigue();                                                 // 0x0867cbe4

@@ -123,6 +123,11 @@ bool CompiledDNFLex::PopInputStream(bool pop_all)
     // ②prologue：ORIG `sub $0x48,%esp` + 栈槽保存 ebx/esi/edi，我们 push×3+sub 0x3c（N7 族 RA）；
     // ③`cmp %eax,%edx` vs `cmp %edx,%eax` 操作数序（N18b）。
     // 栈空/单元素/多元素三分支、delete[] buffer、pop_back、offset_ 回写语义全等 ⇒ N 封顶。
+    // [b28d-solo 复验 2026-09-09] gnu++0x 路由后 fresh .o：134 vs 172，ndiff 83。
+    // p167 差集：MISSING `_ZN14CompiledDNFLex8stream_tD1Ev` ×1、EXTRA
+    // `_ZNSs4_Rep10_M_destroyERKSaIcE` ×2（=①内联展开的可见后果，语义同）。
+    // 试形：`~stream_t() __attribute__((noinline)) {}`（头内）⇒ D1Ev/deque D1Ev 两件
+    // 转 DIFF（ae 25→23），已回退 ⇒ 内联决策差不可源码控，维持 N。
     if (streamStack_.empty())
         return false;
     if (!pop_all)
@@ -160,22 +165,26 @@ bool CompiledDNFLex::PushInputStream(const char* dir, const char* filename,
                                      char* buffer, unsigned int bufferSize)
 {
     // [b28d-solo-CompiledDNFLexCore 判词·N] 封顶：同 PopInputStream 族。
-    // ORIG 0x8ad0a00 170 条 vs 我们 219 条。差异：①析构内联 vs ORIG out-of-line
-    // stream_t D1（见 PopInputStream 判词①）；②`stream.dir/filename.assign` 的
-    // 目标地址被 4.4 缓存进 -0x3c/-0x40 栈槽（ORIG 每次 `lea -0x30(%ebp)` 重物化，
-    // P0/P183 反向：源码已是逐句表达式，无具名指针）；③异常清理段 COW 引用计数展开
-    // 条数多于 ORIG。栈上 stream_t 只默认构造两棵 string（size/buffer/offset 不预清零）、
-    // 魔数 0xd0b0 校验、<2 失败、delete[] buffer、旧栈顶 offset 回写、push_back、
-    // offset_=buffer(+2) 语义全等 ⇒ N 封顶。
+    // ORIG 0x8ad0a00 170 条 vs 我们 207 条，ndiff 52（b28d-solo 前 219 条/200）。
+    // 已修两处（正向收益）：①`dir/filename` 的 assign 由「if(dir==0){assign("",0);}
+    //   else{assign(dir,strlen(dir));}」四调用点合并为三目单调用点
+    //   `assign(dir==0?"":dir, dir==0?0:strlen(dir))` ⇒ 复现 ORIG 的
+    //   `test %edx,%edx; je <空串>; …; call assign` 单点形，p167 EXTRA
+    //   `_ZNSs6assignEPKcj`×2 归零；②`stream.size/buffer` 赋值前置到 empty_file
+    //   检查之前（ORIG +0x72..+0x77 顺序）。残余：①析构内联 vs ORIG out-of-line
+    //   stream_t D1（见 PopInputStream 判词①，p167 MISSING ×1 + EXTRA
+    //   `_ZNSs4_Rep10_M_destroyERKSaIcE`×2）；②empty_file=false 的 store 落点
+    //   （ORIG 在 `cmpw; je` 目标内，我们在 cmpw 后直落）；③offset_ 回写用
+    //   edi vs ORIG 的 edx（寄存器分配）。语义全等 ⇒ N 封顶。
     stream_t stream;
-    if (dir == 0)
-        stream.dir.assign("", static_cast<size_t>(0));
-    else
-        stream.dir.assign(dir, std::strlen(dir));
-    if (filename == 0)
-        stream.filename.assign("", static_cast<size_t>(0));
-    else
-        stream.filename.assign(filename, std::strlen(filename));
+    stream.dir.assign(dir == 0 ? "" : dir,
+                      dir == 0 ? static_cast<size_t>(0) : std::strlen(dir));
+    stream.filename.assign(filename == 0 ? "" : filename,
+                           filename == 0 ? static_cast<size_t>(0)
+                                         : std::strlen(filename));
+
+    stream.size = bufferSize;
+    stream.buffer = buffer;
 
     bool empty_file = false;
     if (buffer == 0 || (empty_file = true, bufferSize != 0))
@@ -189,9 +198,6 @@ bool CompiledDNFLex::PushInputStream(const char* dir, const char* filename,
         }
         empty_file = false;
     }
-
-    stream.size = bufferSize;
-    stream.buffer = buffer;
 
     if (!streamStack_.empty())
         streamStack_.back().offset = offset_;
@@ -265,25 +271,36 @@ have:
 }
 
 // ---- getStreamName（ORIG 0x8ad0290）：NRVO 槽上 copy dir 再 append(filename)；空/空指针 "NONE"。----
-// [b28d-solo-CompiledDNFLexCore 判词·N] 封顶：4.4.6 -O2 在「混合 return」下禁用 NRVO。
-// ORIG 0x8ad0290 主路径把 `std::string r(p->dir)` 直接构造在 sret（C1ERKSs this=sret）后
-// append；两条 "NONE" 路径走临时 RVO（C1EPKc this=sret）。4.4.6 探针 /tmp/probe_nrvo.cpp
-// 实证：单 return 的 f1 NRVO 生效，加一条临时 return 后 f2 即退化为「局部槽构造 +
-// C1ERKSs 拷回 sret + COW 引用计数析构」（本函数 83 条 vs ORIG 62 条）。三形实测：
-// ①具名 r + 临时 NONE（原形）②`return std::string(p->dir).append(...)` 匿名链
-// ③NONE 路径改具名 r（113 条，更劣）——均无 NRVO。语义等价，N 封顶。
+// [b28d-solo-CompiledDNFLexCore 判词·N（残余）/已修 NRVO] 4.4.6 -O2 在「混合 return」
+// 下禁用 NRVO（P306 配套负例）。ORIG 0x8ad0290 主路径把 `std::string r(p->dir)` 直接
+// 构造在 sret（C1ERKSs this=sret）后 append；两条 "NONE" 路径走临时 RVO（C1EPKc
+// this=sret）。本波突破口（新范式，探针 /tmp/probe_src/Game/CompiledDNFLexCore.cpp
+// f1..f5 实证）：**单一 return + 具名 result + 三目初始化** 即恢复 NRVO——
+//   `bool none=…; std::string result = none ? std::string("NONE") : std::string(p[-1].dir);
+//    if (!none) result.append(p[-1].filename); return result;`
+// 4.4.6 把两个三目分支各自直接构造到 sret（C1EPKc / C1ERKSs），与 ORIG 逐条同形：
+// 83 条→49 条，ndiff 78→33。p 保持 finish 不自减（`p[-1]` 两次独立取址，对齐 ORIG
+// 的 `sub $0x14,%eax`/`sub $0x10,%esi` 分算）。残余（跨版本 -O2 寄存器分配/块调度）：
+// ①帧 0x38 vs 0x28（ORIG 两个 NONE 块各占一个 allocator 临时槽 -0x9/-0xa，三目合并
+// 后仅 -0x9；`char framePad[0x10]` 被 -O2 DCE，无效）；②ORIG `mov %esi,%eax;
+// sub $0x14,%eax` 保留 esi=finish、我们直接在 esi 上减（N7 族 RA）；③主路径 epilogue
+// 落点。语义等价 ⇒ 残余 N 封顶。
 std::string CompiledDNFLex::getStreamName() const
 {
     stream_t* p = streamStack_.end()._M_cur;
-    if (p == streamStack_.begin()._M_cur)
-        return std::string("NONE");
-    stream_t** node = streamStack_.end()._M_node;
-    if (p == streamStack_.end()._M_first)
-        p = *(node - 1) + STREAM_NODE_ELEMS;
-    p = p - 1;
-    if (p == 0)
-        return std::string("NONE");
-    return std::string(p->dir).append(p->filename);
+    bool none = true;
+    if (p != streamStack_.begin()._M_cur)
+    {
+        stream_t** node = streamStack_.end()._M_node;
+        if (p == streamStack_.end()._M_first)
+            p = *(node - 1) + STREAM_NODE_ELEMS;
+        if (p - 1 != 0)
+            none = false;
+    }
+    std::string result = none ? std::string("NONE") : std::string(p[-1].dir);
+    if (!none)
+        result.append(p[-1].filename);
+    return result;
 }
 
 // ---- isEnd（ORIG 0x8ad0000）：--finish 后 buffer+size <= offset_；空/空指针返回 0。----
@@ -326,12 +343,15 @@ bool CompiledDNFLex::LoadStream(const char* dir, const char* filename,
 
 // ---- getStr(std::string&)（ORIG 0x8ad00d0）：按字符串表索引取串。----
 // [b28d-solo-CompiledDNFLexCore 判词·N] 封顶：跨版本 -O2 共享 `return false` 块布局。
-// 本 TU 路由 4.4.6 -O2 -std=gnu++98（dnf_game_cxx.sh: *Game/CompiledDNFLexCore.cpp）。
+// 本 TU 路由 4.4.6 -O2 -std=gnu++0x（dnf_game_cxx.sh: *Game/CompiledDNFLexCore.cpp）。
 // ORIG 0x8ad00d0 把 fail 块放检查链中段（`cmp $0x9; jne more` 的 fall-through），
 // 4.4.6 -O2 恒放函数尾并把该判断反转为 `je fail`。六形实测均不可翻：
 // ①goto fail/more ②短路 && 链 ③独立守卫 ④显式 return+goto ⑤__builtin_expect(0/1)
 // ⑥per-function optimize("no-reorder-blocks")（退化为 -O0 形态）。
 // 比较序 9/4/0/1 与全部指令逐条相同，仅块位置差 2 处 ⇒ 语义等价，N 封顶。
+// [b28d-solo 复验] 32 vs 32，ndiff 7（全 TU 最小残余，仅 fail 块 3 行位置差）。
+// 本波补测：`__builtin_expect(d<=1,1)` 只把 fail 块搬到第一守卫后（成 `ja more`
+// 反向布局，2 处跳转方向差），`expect(...,0)` 与原形逐条相同 ⇒ 保持自然形。
 bool CompiledDNFLex::getStr(std::string& stringBuffer)
 {
     int tok = lastToken_;
@@ -356,6 +376,9 @@ bool CompiledDNFLex::getStr(std::string& stringBuffer)
 // 4.4.6 -O2 恒反转为 `je fail` 并置于函数尾；overflow 路径 memcpy 实参装载序亦反
 // （ORIG size,dest,src vs 我们 size,src,dest，P75 跨版本调度）。比较序 9/4/0/1 与
 // 全部指令逐条相同，仅块位置/装载序差 ⇒ 语义等价，N 封顶（同 getStr 六形实测）。
+// [b28d-solo 复验] 66 vs 61，ndiff 22。本波补测：overflow 的 memcpy 改用
+// `r_string->c_str()` 内联实参 / 具名 `int n=maxSize-1` 两形均不改装载序
+// （仍 size,src,dest；且局部 n 被 -O2 折叠）⇒ 维持 ORIG 形不可控的 P75 判词。
 bool CompiledDNFLex::getStr(char* buffer, int maxSize)
 {
     int tok = lastToken_;
@@ -480,6 +503,9 @@ int CompiledDNFLex::getToken()
     // 的块序（与 getStr 同族）；④析构内联 vs ORIG out-of-line stream_t D1。
     // EOF→PopInputStream(false)→递归、INCLUDE(11)→getStr→LoadStream→PushInputStream→
     // 递归、sprintf/LexerError 四条错误路径语义全等 ⇒ N 封顶。
+    // [b28d-solo 复验] 199 vs 200，ndiff 112。p167 差集 **CLEAR**（ORIG 25 calls =
+    // 我们 25 calls，0 MISSING / 0 EXTRA）⇒ 语义闭合，残余纯 -O2 RA/块调度
+    // （①-④ 同判词），维持 N 封顶。
     stream_t* p = streamStack_.end()._M_cur;
     if (p != streamStack_.begin()._M_cur)
     {
@@ -589,6 +615,9 @@ recurse:
 // 指令集合与成员偏移（vptr/offset_/lastToken_/stringManagerDelete_/stringBuffer_/
 // tokenBuffer_ 0x2000 rep stos/flag2040_/lexerError_/loadStream_/create(true)）全等，
 // 语义等价 ⇒ N 封顶。
+// [b28d-solo 复验] gnu++0x 下 118 vs 111，ndiff 81（与 gnu++98 逐条相同）。
+// 帧 0x6c vs 0x5c（差 0x10，随 tmp 构造先后互换）。①②为 GCC 4.1/4.4 的调用重排与
+// libstdc++ deque::swap 内联形差异，源码不可控（成员先构造是 C++ 语义）⇒ 维持 N。
 CompiledDNFLex::CompiledDNFLex()
     : offset_(0),
       lastToken_(0),
@@ -610,6 +639,7 @@ CompiledDNFLex::CompiledDNFLex()
 // 局部 tmp 构造调度在成员 streamStack_ 之前 + tmp 析构位置）。ORIG 0x8ad0580 119 条
 // vs 我们 112 条；成员初始化仅差 `stringManager_ = pStringManager`（0x10(%ebx) 直存
 // 两形一致），create(false) 一致。语义等价 ⇒ N 封顶。
+// [b28d-solo 复验] gnu++0x 下 119 vs 112，ndiff 81。与 C1Ev 同源差异，维持 N。
 CompiledDNFLex::CompiledDNFLex(ScriptStringManager* pStringManager)
     : offset_(0),
       lastToken_(0),

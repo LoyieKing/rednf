@@ -315,6 +315,8 @@ Arad_Mileage_Data::~Arad_Mileage_Data() {}
 // ORIG 0x81a3598 `mov %eax,-0xc`）后全帧槽位对齐（script -0x74 / r -0x18 / ipg -0x14 /
 // percent -0x10 / found -0xc / Data -0x20），154=154 指令全等；残余 diff 全为 .o
 // 未 relink 的 call/jmp 与 .rodata 重定位显示（§6.3 假阳性）。
+// p167：ORIG 0x81a35ca 调 push_back(Data&&)（`OS1_`）⇒ 匿名临时形
+// `push_back(Data(ipg, percent))`（具名 d 选 RKS1_，差集 1/1）；改后 0/0 CLEAR。
 int Arad_Mileage_Data::parsing(char* data)
 {
     Arad_Script script;
@@ -349,8 +351,10 @@ int Arad_Mileage_Data::parsing(char* data)
         int found = find(ipg);
         if (found < 0)
         {
-            Data d(ipg, percent);
-            m_mileageList.push_back(d);
+            // b28d-solo-ARAD：ORIG 0x081a35ca 调 push_back(Data&&)（`OS1_` 右值重载）⇒
+            // 原码是匿名临时形（Data 临时占 -0x20 sret 槽，P0 限定①类临时不可由槽区分
+            // 具名性）；具名 `Data d; push_back(d)` 选 RKS1_（p167 差集 1/1）。
+            m_mileageList.push_back(Data(ipg, percent));
         }
         else
         {
@@ -706,6 +710,8 @@ template class Singleton<ScriptManager>;
 // `movzbl %al,%ebx`；bool 返回直出全宽 mov，探针 /tmp/probe_arad2.cpp f_bool）。
 // 返回类型不入 mangled；调用点（Arad_ServerStateManager/GameWorld/Inter_LoadEtc）均
 // 作语句调用忽略返回值，语义等价（0=失败，非0=成功）。
+// p167：ORIG 0x08197963 调 put_binary(char*,int)（Pc）⇒ cast 改 (char*)（原
+// (const char*) 选 PKc，差集 1/1）；改后 0/0 CLEAR。
 bool notifyOpenMessageDialog(CUser* user, int a, int b,
                              const AradServerStateMessage& msg)
 {
@@ -723,7 +729,9 @@ bool notifyOpenMessageDialog(CUser* user, int a, int b,
     guard.put_header(0, 0x21a);
     guard.put_int(a);
     guard.put_int(b);
-    guard.put_binary((const char*)&msg, 0xc);
+    // b28d-solo-ARAD：ORIG 0x08197963 调 put_binary(char*,int)（Pc），非 const 版；
+    // 原 (const char*) cast 选成 PKc 重载（p167 EXTRA/MISSING 各 1）。
+    guard.put_binary((char*)&msg, 0xc);
     guard.finalize(true);
     return user->Send(guard);
 }

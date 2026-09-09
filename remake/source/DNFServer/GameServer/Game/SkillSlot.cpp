@@ -634,7 +634,7 @@ bool SkillSlot::check_skill_mastered(int skillIdx, int level, int group) const
     return 0;
 }
 
-int SkillSlot::check_skill_mastered(int skillIdx, int level, int group,
+bool SkillSlot::check_skill_mastered(int skillIdx, int level, int group,
                                     ENUM_SKILL_TREE_KIND kind) const
 {
     if (m_parent == 0)
@@ -2560,7 +2560,7 @@ int SkillSlot::checkskillSlotEmptyCount(int& out)
 // ==== SkillSlot::checkOverLevelSkill @ 0x08605d2a（报告 docs/class_func_reports/SkillSlot/checkOverLevelSkill.md）====
 // 检查超等级技能：对每槽技能计算当前等级可达到的最大技能等级（含偷学/超限加成），
 // 超出部分返回 SP/SFP 并写回；返回 1 表示有技能被降级/补发。
-char SkillSlot::checkOverLevelSkill(std::vector<stSPReturnInfo_t>& out,
+bool SkillSlot::checkOverLevelSkill(std::vector<stSPReturnInfo_t>& out,
                                     ENUM_SKILL_TREE_KIND kind, int level)
 {
     // [b28d-solo-SkillSlot] 判词（N82 封顶；608 vs 620，gap=+12）：

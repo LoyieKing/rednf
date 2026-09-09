@@ -9,7 +9,7 @@ public:
     AvatarCoin();
     void Set(unsigned int value);
     int Add(unsigned int value);
-    unsigned int Use();
+    bool Use();   // [b28d-Main 代落·S341 P292] unsigned int→bool（ORIG 0x08198e52 调用点 `call; xor $0x1,%eax; test %al,%al; je` 无 setcc ⇒ bool callee）
     unsigned int Get() const;
     static bool BuyProcess(CUser* user, Inven_Item& item);          // ORIG 0x081801d0
     bool IsUsable() const;

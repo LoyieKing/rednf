@@ -32,26 +32,51 @@
 map_item::map_item()
     : m_item(), m_ownerId(0) {}
 
+// [b28d-solo-MapInfo] AE（ORIG 0x081511c8，orig=63/our=63）：修法=P239 反用——
+// 初始化列表只留类成员（m_active/m_mobList 隐式默认构造），标量赋值全部移入
+// ctor body 并按 ORIG 发射序书写（0x334,0x336 → 0x33a..0x342 → 0x344,0x345,
+// 0x346,0x348,0x349,0x34a → 0x30 → 0x8 → 0x18(float=0.0f 走 edx 中转) → 0x34b）；
+// 删除 ORIG 未初始化的字段（0x00..0x2c 多数、0x338/0x339）。p167 CLEAR 4/4。
 map_monster::map_monster()
-    : m_mobId(0), m_instId(0), m_roleType(0), m_mobIndex(0), m_level(0),
-      m_field11(0), m_field13(0), m_field14(0), m_field15(0), m_field16(0),
-      m_field17(0), m_field18(0), m_field1c(0), m_field20(0), m_field24(0),
-      m_field28(0), m_dropCnt(0), m_dropRate(100), m_flag34(0), m_active(),
-      m_mobList(), m_hellPartyGroupIdx(0), m_hellPartyGroupOrder(0),
-      m_hellPartyScriptIdx(0), m_pad339(0), m_bloodSmallRoundOrder(0),
-      m_bloodPhaseTime(0), m_bloodRoundOrder(0), m_bloodSpawnIdx(0),
-      m_bloodPhaseIdx(0), m_bloodKillFlag(0), m_bloodDifficulty(0),
-      m_bloodRoundOrder2(0), m_bloodSpawned(0), m_isBoss(0), m_bloodRound(0),
-      m_bloodRoundFlag(0) {}
+{
+    m_hellPartyGroupIdx = 0;
+    m_hellPartyGroupOrder = 0;
+    m_bloodSmallRoundOrder = 0;
+    m_bloodPhaseTime = 0;
+    m_bloodRoundOrder = 0;
+    m_bloodSpawnIdx = 0;
+    m_bloodPhaseIdx = 0;
+    m_bloodKillFlag = 0;
+    m_bloodDifficulty = 0;
+    m_bloodRoundOrder2 = 0;
+    m_bloodSpawned = 0;
+    m_isBoss = 0;
+    m_bloodRound = 0;
+    m_dropRate = 100;
+    m_roleType = 0;
+    m_field18 = 0.0f;
+    m_bloodRoundFlag = 0;
+}
 
+// [b28d-solo-MapInfo] N 封顶（N76 族：packed 短整成员 store 装载序；162=162，
+// p167 CLEAR 3/3，语义等价）：
+// ① m_active(+0x38,0x2f0) 的 ORIG `rep movsl` 已由 WarField.h 的「map_monster
+//    自然对齐 + 仅 m_field11 packed」方案复现（此前 pack(1) 使 4.4 恒走对齐剥离
+//    慢路 +30 条）。
+// ② 残差=packed short m_field11 的 store 装载序：ORIG 4.1 LHS-first
+//    `mov this,%eax; mov other,%edx; movzwl 0x11(%edx),%edx; mov %dx,0x11(%eax)`；
+//    4.4 恒 RHS-first `mov other,%eax; movzwl 0x11(%eax),%edx; mov this,%eax;
+//    mov %dx,0x11(%eax)`。P248 三档试尽：字段 short/unsigned short、cast、
+//    指针视图、memcpy、临时槽共 11 形探针（/tmp/b28d_map_probe/packed.cpp
+//    f1..f11）全部 RHS-first ⇒ 不可翻。
+// ③ P171 照抄：ORIG 不拷 m_field15/16/17 与 m_pad339，本实现同步不拷。
 map_monster::map_monster(const map_monster& other)
     : m_mobId(other.m_mobId), m_instId(other.m_instId),
       m_roleType(other.m_roleType), m_mobIndex(other.m_mobIndex),
       m_level(other.m_level), m_field11(other.m_field11),
       m_field13(other.m_field13), m_field14(other.m_field14),
-      m_field15(other.m_field15), m_field16(other.m_field16),
-      m_field17(other.m_field17), m_field18(other.m_field18),
-      m_field1c(other.m_field1c), m_field20(other.m_field20),
+      m_field18(other.m_field18), m_field1c(other.m_field1c),
+      m_field20(other.m_field20),
       m_field24(other.m_field24), m_field28(other.m_field28),
       m_dropCnt(other.m_dropCnt), m_dropRate(other.m_dropRate),
       m_flag34(other.m_flag34), m_active(other.m_active),
@@ -59,7 +84,6 @@ map_monster::map_monster(const map_monster& other)
       m_hellPartyGroupIdx(other.m_hellPartyGroupIdx),
       m_hellPartyGroupOrder(other.m_hellPartyGroupOrder),
       m_hellPartyScriptIdx(other.m_hellPartyScriptIdx),
-      m_pad339(other.m_pad339),
       m_bloodSmallRoundOrder(other.m_bloodSmallRoundOrder),
       m_bloodPhaseTime(other.m_bloodPhaseTime),
       m_bloodRoundOrder(other.m_bloodRoundOrder),
@@ -73,48 +97,45 @@ map_monster::map_monster(const map_monster& other)
 
 map_monster::~map_monster() {}
 
+// [b28d-solo-MapInfo] N 封顶（N76 同族，153=153，p167 CLEAR 1/1）：删除
+// `if (this != &other)` 守卫（ORIG 0x08151d3a 无守卫、无条件逐字段赋值）+
+// P171 删 m_field15/16/17、m_pad339；残差同 C1ERKS_ 的 packed short 装载序
+// 2 条 mov（探针 11 形全败）。
 map_monster& map_monster::operator=(const map_monster& other)
 {
-    if (this != &other)
-    {
-        m_mobId = other.m_mobId;
-        m_instId = other.m_instId;
-        m_roleType = other.m_roleType;
-        m_mobIndex = other.m_mobIndex;
-        m_level = other.m_level;
-        m_field11 = other.m_field11;
-        m_field13 = other.m_field13;
-        m_field14 = other.m_field14;
-        m_field15 = other.m_field15;
-        m_field16 = other.m_field16;
-        m_field17 = other.m_field17;
-        m_field18 = other.m_field18;
-        m_field1c = other.m_field1c;
-        m_field20 = other.m_field20;
-        m_field24 = other.m_field24;
-        m_field28 = other.m_field28;
-        m_dropCnt = other.m_dropCnt;
-        m_dropRate = other.m_dropRate;
-        m_flag34 = other.m_flag34;
-        m_active = other.m_active;
-        m_mobList = other.m_mobList;
-        m_hellPartyGroupIdx = other.m_hellPartyGroupIdx;
-        m_hellPartyGroupOrder = other.m_hellPartyGroupOrder;
-        m_hellPartyScriptIdx = other.m_hellPartyScriptIdx;
-        m_pad339 = other.m_pad339;
-        m_bloodSmallRoundOrder = other.m_bloodSmallRoundOrder;
-        m_bloodPhaseTime = other.m_bloodPhaseTime;
-        m_bloodRoundOrder = other.m_bloodRoundOrder;
-        m_bloodSpawnIdx = other.m_bloodSpawnIdx;
-        m_bloodPhaseIdx = other.m_bloodPhaseIdx;
-        m_bloodKillFlag = other.m_bloodKillFlag;
-        m_bloodDifficulty = other.m_bloodDifficulty;
-        m_bloodRoundOrder2 = other.m_bloodRoundOrder2;
-        m_bloodSpawned = other.m_bloodSpawned;
-        m_isBoss = other.m_isBoss;
-        m_bloodRound = other.m_bloodRound;
-        m_bloodRoundFlag = other.m_bloodRoundFlag;
-    }
+    m_mobId = other.m_mobId;
+    m_instId = other.m_instId;
+    m_roleType = other.m_roleType;
+    m_mobIndex = other.m_mobIndex;
+    m_level = other.m_level;
+    m_field11 = other.m_field11;
+    m_field13 = other.m_field13;
+    m_field14 = other.m_field14;
+    m_field18 = other.m_field18;
+    m_field1c = other.m_field1c;
+    m_field20 = other.m_field20;
+    m_field24 = other.m_field24;
+    m_field28 = other.m_field28;
+    m_dropCnt = other.m_dropCnt;
+    m_dropRate = other.m_dropRate;
+    m_flag34 = other.m_flag34;
+    m_active = other.m_active;
+    m_mobList = other.m_mobList;
+    m_hellPartyGroupIdx = other.m_hellPartyGroupIdx;
+    m_hellPartyGroupOrder = other.m_hellPartyGroupOrder;
+    m_hellPartyScriptIdx = other.m_hellPartyScriptIdx;
+    m_bloodSmallRoundOrder = other.m_bloodSmallRoundOrder;
+    m_bloodPhaseTime = other.m_bloodPhaseTime;
+    m_bloodRoundOrder = other.m_bloodRoundOrder;
+    m_bloodSpawnIdx = other.m_bloodSpawnIdx;
+    m_bloodPhaseIdx = other.m_bloodPhaseIdx;
+    m_bloodKillFlag = other.m_bloodKillFlag;
+    m_bloodDifficulty = other.m_bloodDifficulty;
+    m_bloodRoundOrder2 = other.m_bloodRoundOrder2;
+    m_bloodSpawned = other.m_bloodSpawned;
+    m_isBoss = other.m_isBoss;
+    m_bloodRound = other.m_bloodRound;
+    m_bloodRoundFlag = other.m_bloodRoundFlag;
     return *this;
 }
 
@@ -123,30 +144,34 @@ MapInfo::MapInfo()
     Clear();
 }
 
+// [b28d-solo-MapInfo] AE（ORIG 0x08235d40，188=188，p167 CLEAR 12/12）：
+// 修法=P239——把标量赋值从 ctor body 全部移入初始化列表并按声明序排列，
+// 4.4 才与 4.1 同为「标量↔类成员按声明序混合发射」（此前 4.4 把 6 个类成员
+// meminit 集中提前，标量全落 body ⇒ 发射序整段错位）。
 MapInfo::MapInfo(const MapInfo& other)
-    : m_monsterMap(other.m_monsterMap),
+    : m_key(other.m_key),
+      m_visited(other.m_visited),
+      m_visitedGoto(other.m_visitedGoto),
+      m_mapIndex(other.m_mapIndex),
+      m_gridValue(other.m_gridValue),
+      m_monsterMap(other.m_monsterMap),
       m_itemMap(other.m_itemMap),
+      m_assignItemIdx(other.m_assignItemIdx),
+      m_dropItemCnt(other.m_dropItemCnt),
+      m_mapType(other.m_mapType),
+      m_dummyBossMap(other.m_dummyBossMap),
+      m_mapBasisLevel(other.m_mapBasisLevel),
+      m_killChecker1(other.m_killChecker1),
+      m_killChecker2(other.m_killChecker2),
+      m_playInfo(other.m_playInfo),
       m_hellPartyGroup(other.m_hellPartyGroup),
+      m_assignNPCByPotion(other.m_assignNPCByPotion),
       m_mapA8(other.m_mapA8),
       m_vecC0(other.m_vecC0),
-      m_tournamentMob(other.m_tournamentMob)
+      m_cc(other.m_cc),
+      m_tournamentMob(other.m_tournamentMob),
+      m_layeredMap(other.m_layeredMap)
 {
-    m_key = other.m_key;
-    m_visited = other.m_visited;
-    m_visitedGoto = other.m_visitedGoto;
-    m_mapIndex = other.m_mapIndex;
-    m_gridValue = other.m_gridValue;
-    m_assignItemIdx = other.m_assignItemIdx;
-    m_dropItemCnt = other.m_dropItemCnt;
-    m_mapType = other.m_mapType;
-    m_dummyBossMap = other.m_dummyBossMap;
-    m_mapBasisLevel = other.m_mapBasisLevel;
-    m_killChecker1 = other.m_killChecker1;
-    m_killChecker2 = other.m_killChecker2;
-    m_playInfo = other.m_playInfo;
-    m_assignNPCByPotion = other.m_assignNPCByPotion;
-    m_cc = other.m_cc;
-    m_layeredMap = other.m_layeredMap;
 }
 
 MapInfo::~MapInfo()
@@ -206,9 +231,16 @@ void MapInfo::Clear()
     m_layeredMap = 0;
 }
 
+// [b28d-solo-MapInfo] AE（ORIG 0x08151612，120/120，p167 CLEAR 14/14）：修法=
+// 具名 iterator（P50，C1Ev + find sret 临时拷贝）+ m_mapA8 用 make_pair 嵌套形
+// `std::pair<const int,int>(std::make_pair(m_instId, m_mobIndex))`（P192/P178：
+// 复现 ORIG make_pair 0x81112b2 + pair<const int,int> 转换构造 0x80c6d20 的双
+// sret 槽 -0x10/-0x18，帧 0x3b0 对齐）。
 void MapInfo::Add_Mob(map_monster mob)
 {
-    if (m_monsterMap.find(mob.m_instId) != m_monsterMap.end())
+    std::map<int, map_monster>::iterator it;
+    it = m_monsterMap.find(mob.m_instId);
+    if (it != m_monsterMap.end())
     {
         LogManager::logFormat(1, "MapInfo.cpp", "MapInfo::Add_Mob", 0x1f2,
                               "duplicated mob instance", mob.m_instId);
@@ -217,7 +249,8 @@ void MapInfo::Add_Mob(map_monster mob)
 
     m_monsterMap.insert(
         std::pair<const int, map_monster>(mob.m_instId, mob));
-    m_mapA8.insert(std::pair<const int, int>(mob.m_instId, mob.m_mobIndex));
+    m_mapA8.insert(std::pair<const int, int>(
+        std::make_pair(mob.m_instId, mob.m_mobIndex)));
     m_vecC0.push_back(mob.m_instId);
 
     if (mob.m_bloodRound != 0)
@@ -226,9 +259,15 @@ void MapInfo::Add_Mob(map_monster mob)
     }
 }
 
+// [b28d-solo-MapInfo] AE（ORIG 0x081517e0，60/60，p167 CLEAR 7/7）：修法=
+// P50 复活/P314——具名 iterator 默认构造（ORIG 0x8152524 C1Ev）+ find 结果经
+// sret 临时(-0x7c)拷贝到 it(-0x70) 两条 mov；此前直接 `find()!=end()` 少 C1Ev
+// 与临时槽、帧 0x98 vs ORIG 0xa8。
 void MapInfo::Add_Item(map_item item)
 {
-    if (m_itemMap.find(item.m_itemIndex) != m_itemMap.end())
+    std::map<int, map_item>::iterator it;
+    it = m_itemMap.find(item.m_itemIndex);
+    if (it != m_itemMap.end())
     {
         LogManager::logFormat(1, "MapInfo.cpp", "MapInfo::Add_Item", 0x206,
                               "duplicated item index", item.m_itemIndex);

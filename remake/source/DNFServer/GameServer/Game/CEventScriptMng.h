@@ -128,10 +128,10 @@ class CLevelUpReward : public CEventEntity
 public:
     virtual void set_event_data(int key, InGameEventScript* script);  // slot 4 0x810e168
     virtual std::string& get_db_table_name();               // slot 8 0x810e2d6：&m_dbTableName
-    char  is_recv_check_item();                      // 0x810e2f2：m_flag08
+    bool  is_recv_check_item();                      // 0x810e2f2：m_flag08（[b28d-Main 代落·S366 P292] char→bool）
     char* get_mail_data();                           // 0x810e2e4：&m_mail
-    int   set_reward_item(int, int, int);            // 0x810e302（定义 EventLevelupA2）
-    int   check_recv_level(int, int, int, bool);     // 0x810e192
+    bool  set_reward_item(int, int, int);            // 0x810e302（[b28d-Main 代落·S366 P292] int→bool；定义 EventLevelupA2）
+    bool  check_recv_level(int, int, int, bool);     // 0x810e192（[b28d-Main 代落·S366 P292] int→bool）
     void  do_action(CUser* user);                    // 0x810e4ea（非虚）
     int   send_reward_from_recv_level(CUser*, int, int);  // 0x810e51a
 protected:

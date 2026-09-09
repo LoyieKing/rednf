@@ -201,7 +201,7 @@ bool CItemShop::checkLimitNpcBuyItemList(unsigned int shopId, unsigned long item
 }
 
 // ---- IsOneADayShop @ 0x8513082 ----
-char CItemShop::IsOneADayShop(int shopId) const
+bool CItemShop::IsOneADayShop(int shopId) const
 {
     std::map<int, ItemShopScript>::const_iterator it = m_shopMap.find(shopId);
     if (it != m_shopMap.end())

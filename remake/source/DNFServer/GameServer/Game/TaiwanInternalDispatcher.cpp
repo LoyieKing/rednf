@@ -6,19 +6,41 @@
 // keyed_to_TaiwanInternalDispatcher 报告各 ctor 区 movl code + call 基类 C1 + 设子类 vtable）。
 #include "TaiwanInternalDispatcher.h"
 // ============================================================================
-// b28d-52 判词表（本 TU 剩余 DIFF）：
-//   InterUpdateP2pHolePunchingState::dispatch_sig 0x08161952 —— N82（帧内槽 +4 平移）
-//   InterLoadHeroMissionEventData::dispatch_sig 0x08161c92 —— N82（帧/槽平移）
-//   InterLoadServiceRestrictPolicy::dispatch_sig 0x08160796 —— P209 形参比较形
-//     （ORIG `mov 0x10(%ebp),%eax` 载寄存器；4.4 折 `cmpl $0,0x10(%ebp)` 内存直比）
-//   InterLoadGeolocation::dispatch_sig 0x0816088a —— P209（同上）
-//   InterCheckStayTimeEvent::dispatch_sig 0x08160a42 —— N82（帧 0xa0 + 槽平移）
-//   InterInsertGiveBoxEventReward::dispatch_sig 0x08161a8a —— N82（帧 0xa0 + 槽平移）
-//   InterSelectCreateDnfUserInfo::dispatch_sig 0x08161012 —— P209（同上）
-//   InterSelectMobileAuthReward::dispatch_sig 0x0816132a —— 语义缺口（ORIG 帧 0x3ec
-//     vs 我方 0x38；需 P167 调用点差集补齐，本波未闭合）
-//   TaiwanInternalDispatcher::init 0x08160294 —— 帧形（我方多 push edi/esi；
-//     ORIG `sub $0x24` 单帧）
+// b28d-solo-TaiwanInternalDispatcher 判词表（9 件，fresh .o 复验）：
+//   InterUpdateP2pHolePunchingState::dispatch_sig 0x08161952 —— AE
+//     （去 CStatisticServerProxy* proxy 具名局部改链式 GetServerProxy()->SendPacket；
+//      P0/P52，proxy 槽消失后 v/pkt 槽位与 ORIG -0xc/-0x49 精确对齐）
+//   InterLoadHeroMissionEventData::dispatch_sig 0x08161c92 —— AE
+//     （sig 视图声明提前至判空之前 + Get() 三次链式内联 + IsFirstTimeLogin bool 化，
+//      依赖 CUserCharacInfo.h/.cpp 由 Main 代落；p167 9/9 CLEAR）
+//   InterLoadServiceRestrictPolicy::dispatch_sig 0x08160796 —— AE
+//     （sig 提前 + std::string 临时全表达式传给 beginPolicy；P37/P221 槽序与
+//      ORIG -0xc/-0xd/-0x14 对齐）
+//   InterLoadGeolocation::dispatch_sig 0x081608a —— AE
+//     （sig 提前 + `> 0x2du` 无符号比较复现 jbe + 两处 cMyTrace 全表达式临时链
+//      复现 ORIG 实参 %ebx 跨 ctor 保活；P221/P226）
+//   InterCheckStayTimeEvent::dispatch_sig 0x08160a42 —— DIFF·N7+N18a 反向封顶
+//     （残余仅 1 处虚调用 make_item：ORIG `mov (%eax),%edx … call *%edx` vs 我方
+//      `mov (%eax),%eax … call *%eax` = 4.4.6 虚调用目标恒 %eax（P230 的 N7 只覆盖
+//      fnptr 间接调用）；另 ORIG `mov &kRewardItem_,%eax; mov %eax,%ebx` 两段 vs 我方
+//      单段 `mov &sym,%ebx` = N18a 反向，`(unsigned int)` 实参 cast 实测无效已回退。
+//      p167 16/16 CLEAR、gap 0）
+//   InterInsertGiveBoxEventReward::dispatch_sig 0x08161a8a —— DIFF·N7+N18a 反向封顶
+//     （与 StayTime 同形同因；p167 16/16 CLEAR、gap 0）
+//   InterSelectCreateDnfUserInfo::dispatch_sig 0x08161012 —— AE
+//     （Msg 视图 + 判空提前 + eventing 具名 bool 删除（ORIG 无槽）+ rewardable char 化
+//      + `!msg->m_received` 短路 + stay/IsEventing 内联变参；p167 15/15 CLEAR）
+//   InterSelectMobileAuthReward::dispatch_sig 0x0816132a —— DIFF·N111 封顶
+//     （ORIG 0x08161384 为无条件 jmp，其后 0x5a..0x263 发邮件主体（vector pair/
+//      findString×2/strncpy×2/9-loop/MakeSystemMultiMailPostal/ReqDBSendNewSystemMultiMail
+//      /GetRepeatEvent/SendReward + vector EH cleanup）为**无入口死块**，4.4 恒 DCE ⇒
+//      合法 C++ 不可造（N111）。可达路径（tail 0x0816158d `movzbl 0x4(%eax),%edx;
+//      mov %dl,0x8ec31(%eax)`）已逐条对齐（CUser.h m_field8ec31 bool 化由 Main 代落）。
+//      p167 3 个 MISSING 全在该死块内）
+//   TaiwanInternalDispatcher::init 0x08160294 —— AE
+//     （10 个子类 ctor 链式块 + `p=0` 预清；关键=InterSelectCreateDnfEventInfo.h:40
+//      声明加 __attribute__((nothrow)) 消 4.4 的整段 EH landing + push esi/edi，
+//      ORIG 0x0816201a 调用点无 landing 为证；p167 40/40 CLEAR）
 // ============================================================================
 
 #include <algorithm>
@@ -159,9 +181,11 @@ void InterSelectCreateDnfUserInfo::makeRequest(int uid, unsigned int memberId,
 //   否则：SetEventCreateDnfReward(buf+4)；发 0x22d 包（rate + rewardable byte），返回 0。
 // 注：vtable+0x34 槽为 CEventBase 判活直调（与 InterSelectCreateDnfEventInfo 同口径，
 //   见其 dispatch_sig 注释；ORIG 槽序与 CGuildServerProxy.h 注释有出入，用直调保 ABI）。
+// [b28d-solo-TaiwanInternalDispatcher] AE（Msg 视图+eventing 去槽+rewardable char+内联变参）
 int InterSelectCreateDnfUserInfo::dispatch_sig(CUser* user, char* buf, int len)
 {
-    if (buf == 0)
+    Msg* msg = reinterpret_cast<Msg*>(buf);
+    if (msg == 0)
     {
         LogManager::logFormat(1, "localtaiwan/Dispatcher/Taiwan_InterDispatcher.cpp",
                               __PRETTY_FUNCTION__, 0x12e,
@@ -173,36 +197,26 @@ int InterSelectCreateDnfUserInfo::dispatch_sig(CUser* user, char* buf, int len)
     // §4.5 真实虚调用 CEventBase::IsEventing(CUser*)@vtable+0x34（CGuildServerProxy.h
     // 权威）。与 ORIG `call *%edx` 相比 GCC 4.4 用 `call *%eax`（寄存器分配 N7 类差），
     // 实测 typedef 直调与该实调用指令数同为 148（+9 系函数既有 N82 帧差，非本转换引入）。
-    bool eventing;
     if (event == 0 ||
         event->IsEventing(0) != '\x01')
     {
-        eventing = true;
-    }
-    else
-    {
-        eventing = false;
-    }
-    if (eventing)
-    {
-        char ev = event->IsEventing(0);
-        const char* stay = (event == 0) ? "nullptr" : "ok";
         LogManager::logFormat(1, "localtaiwan/Dispatcher/Taiwan_InterDispatcher.cpp",
                               __PRETTY_FUNCTION__, 0x138,
                               "[Taiwan, Event] stayEvent=%s eventing:%d",
-                              stay, ev & 0xff);
+                              (event == 0) ? "nullptr" : "ok",
+                              event->IsEventing(0));
         return 0x139;
     }
-    bool rewardable = false;
-    if (buf[4] != '\x01' && event->IsRewardCondition())
+    char rewardable = 0;
+    if (!msg->m_received && event->IsRewardCondition())
     {
-        rewardable = true;
+        rewardable = 1;
     }
-    user->SetEventCreateDnfReward(buf[4] != 0);
+    user->SetEventCreateDnfReward(msg->m_received);
     PacketGuard pg;
     pg.put_header(0, 0x22d);
     pg.put_short((unsigned short)event->GetRate());
-    pg.put_byte((int)rewardable);
+    pg.put_byte(rewardable);
     pg.finalize(true);
     user->Send(pg);
     return 0;
@@ -312,6 +326,7 @@ void TaiwanInternalDispatcher::delDispatcher(TaiwanInternalPack::T code)
     }
 }
 
+// [b28d-solo-TaiwanInternalDispatcher] AE（10 链式块 + p=0；CreateDnfEventInfo ctor nothrow）
 bool TaiwanInternalDispatcher::init()
 {
     TaiwanInterfaceInterDispatcher* p = 0;
@@ -394,8 +409,11 @@ bool TaiwanInternalDispatcher::init()
 // 探针：`if(msg && (r^1) && 0)` 仅输出 tail+mov$0，首项求值与 body 全消）；
 // volatile 守卫探针（ehtest2.C）可出 body 但条件三段 short-circuit 形距 ORIG
 // `test;jmp` 更远、且需新增 TU static 符号（链接污染）+误启用发信行为风险。
-// ⇒ 编译期不可构造，按 blocked；本函数保持「仅可达路径」语义忠实实现。
+// ⇒ 编译期不可构造，终判 N111（无入口死块，4.4 恒 DCE）；本函数保持「仅可达路径」
+//   语义忠实实现，tail（0x0816158d）已逐条对齐（CUser.h m_field8ec31 bool 化代落后）。
 // ============================================================================
+// [b28d-solo-TaiwanInternalDispatcher] DIFF·N111 封顶（ORIG 0x08161384 无条件 jmp 后
+// 0x5a..0x263 发邮件主体为无入口死块，4.4 恒 DCE；可达 tail 已逐条对齐，p167 3 MISSING 全在死块）
 int InterSelectMobileAuthReward::dispatch_sig(CUser* user, char* buf, int len)
 {
     Msg* msg = reinterpret_cast<Msg*>(buf);
@@ -426,6 +444,7 @@ struct P2pHoleMsgV
 };
 #pragma pack(pop)
 
+// [b28d-solo-TaiwanInternalDispatcher] AE（proxy 具名局部去槽 + GetServerProxy()->SendPacket 链式）
 int InterUpdateP2pHolePunchingState::dispatch_sig(CUser* user, char* buf, int len)
 {
     // ORIG 0x08161952：统计包 → 国家代码 + 对端 IP → 经统计代理 UDP 转发。
@@ -442,10 +461,8 @@ int InterUpdateP2pHolePunchingState::dispatch_sig(CUser* user, char* buf, int le
     user->m_network.GetPeerIP2(pkt.m_peerAddress, 0x10);
     RestrictGeolocation::Get()->getCountryCode(
         pkt.m_nationCode, 0x10, std::string(pkt.m_peerAddress));
-    CStatisticServerProxy* proxy =
-        GlobalData::s_statistic_proxy_mgr->GetServerProxy(
-            (ENUM_SERVER_GROUP)0);
-    proxy->SendPacket((char*)&pkt, 0x35);
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy(
+        (ENUM_SERVER_GROUP)0)->SendPacket((char*)&pkt, 0x35);
     return 0;
 }
 
@@ -509,76 +526,77 @@ struct SigLoadServiceRestrictPolicy
 // 奖励道具 CEventStayTime::kRewardItem_E（0x2920908d）find_item 失败 → 日志(0xd3) 返回 0；
 // 否则 make_item 填 Inven_Item、set_add_info(1)，取标题/正文脚本串，经
 // ReqDBSendNewSystemMail(…, 0xe, group, false, false) 发系统邮件，返回 0。
+// [b28d-solo-TaiwanInternalDispatcher] DIFF·N7+N18a 反向封顶（虚调 make_item 目标 %eax vs
+// ORIG %edx；kRewardItem_ 装载单段 vs ORIG 两段；p167 16/16 CLEAR、gap 0）
 int InterCheckStayTimeEvent::dispatch_sig(CUser* user, char* buf, int len)
 {
-    if (buf == 0)
+    char* msg = buf;
+    if (msg == 0)
     {
         cMyTrace tr(__PRETTY_FUNCTION__, 0xc9, 5);
         tr("[Taiwan, StayEvent] SigStayTimeEvent is null.");
         return 0xca;
     }
-    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x9f);
     // ORIG 直调 vtable+0x34 槽（同 TaiwanInternalDispatcher.cpp 既有口径，保 ABI；无空检）。
     // §4.5 正解：真实虚调用 CEventBase::IsEventing(CUser*)@vtable+0x34（CGuildServerProxy.h 权威）。
-    if (event->IsEventing(0) != '\x01')
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x9f)->IsEventing(0) != '\x01')
     {
         return 0;
     }
     CItem* item = G_CDataManager()->find_item(CEventStayTime::kRewardItem_);
     if (item == 0)
     {
-        cMyTrace tr(__PRETTY_FUNCTION__, 0xd3, 5);
-        tr("[Taiwan, StayEvent] Invalid item index. (%u)", CEventStayTime::kRewardItem_);
+        cMyTrace(__PRETTY_FUNCTION__, 0xd3, 5)(
+            "[Taiwan, StayEvent] Invalid item index. (%u)", CEventStayTime::kRewardItem_);
         return 0;
     }
     Inven_Item inv;
-    item->get_index();            // ORIG 调用但丢弃返回值，保留调用序
+    inv.m_addInfo = item->get_index();   // ORIG 0x08160b54 mov %eax,-0x73（inv+0x02）
     item->make_item(inv);
     inv.set_add_info(1);
     const char* title = g_scriptStringManager_.findString(4, "tw_ccb_stress_title_01", 0);
     const char* mail = g_scriptStringManager_.findString(4, "tw_ccb_stress_mail_01", 0);
-    ENUM_SERVER_GROUP group = user->GetServerGroup();
-    unsigned int characNo = (unsigned int)user->getCurCharacNo();
     WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        title, inv, 0, characNo, mail, (int)strlen(mail), 0xe, group, false, false);
+        title, inv, 0, (unsigned int)user->getCurCharacNo(), mail, (int)strlen(mail), 0xe,
+        user->GetServerGroup(), false, false);
     return 0;
 }
 
 // ===== InterInsertGiveBoxEventReward::dispatch_sig —— ORIG 0x08161a8a =====
 // 同 InterCheckStayTimeEvent 模式：event 0xa5、道具 EventGiveMeBox::kRewardItem_、
 // 脚本串 tw_givemebox2_title/tw_givemebox2_mail；buf==0 → 日志(0x1dc) 返回 0x1dd。
+// [b28d-solo-TaiwanInternalDispatcher] DIFF·N7+N18a 反向封顶（同 StayTime 形因；p167 16/16 CLEAR）
 int InterInsertGiveBoxEventReward::dispatch_sig(CUser* user, char* buf, int len)
 {
-    if (buf == 0)
+    char* msg = buf;
+    if (msg == 0)
     {
         cMyTrace tr(__PRETTY_FUNCTION__, 0x1dc, 5);
         tr("[Taiwan, GiveMeBoxEvent] msg is null.");
         return 0x1dd;
     }
-    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0xa5);
     // §4.5 正解：真实虚调用 CEventBase::IsEventing(CUser*)@vtable+0x34（CGuildServerProxy.h 权威）。
-    if (event->IsEventing(0) != '\x01')
+    if (GlobalData::s_event_manager->GetRepeatEvent(0xa5)->IsEventing(0) != '\x01')
     {
         return 0;
     }
     CItem* item = G_CDataManager()->find_item(EventGiveMeBox::kRewardItem_);
     if (item == 0)
     {
-        cMyTrace tr(__PRETTY_FUNCTION__, 0x1e6, 5);
-        tr("[Taiwan, GiveMeBoxEvent] Invalid item index. (%u)",
-           EventGiveMeBox::kRewardItem_);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e6, 5)(
+            "[Taiwan, GiveMeBoxEvent] Invalid item index. (%u)",
+            EventGiveMeBox::kRewardItem_);
         return 0;
     }
     Inven_Item inv;
-    item->get_index();            // ORIG 调用但丢弃返回值，保留调用序
+    inv.m_addInfo = item->get_index();   // ORIG 0x08161b9c mov %eax,-0x73（inv+0x02）
     item->make_item(inv);
     inv.set_add_info(1);
     const char* title = g_scriptStringManager_.findString(4, "tw_givemebox2_title", 0);
     const char* mail = g_scriptStringManager_.findString(4, "tw_givemebox2_mail", 0);
-    ENUM_SERVER_GROUP group = user->GetServerGroup();
-    unsigned int characNo = (unsigned int)user->getCurCharacNo();
     WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        title, inv, 0, characNo, mail, (int)strlen(mail), 0xe, group, false, false);
+        title, inv, 0, (unsigned int)user->getCurCharacNo(), mail, (int)strlen(mail), 0xe,
+        user->GetServerGroup(), false, false);
     return 0;
 }
 
@@ -586,19 +604,20 @@ int InterInsertGiveBoxEventReward::dispatch_sig(CUser* user, char* buf, int len)
 // buf==0 → cMyTrace(0xac) 日志 "[Taiwan, GeoIP] SigLoadRestrictPolicy is null." 返回 0xad；
 // countryCount>0x2d → 日志(0xb2) 并写回 0x2d；循环 addAllowCountry 每国码（16 字节块），
 // 每项 cMyTrace(0xb9,9,true,true) 日志 "GeoIP Allow Country Code : %s"；返回 0。
+// [b28d-solo-TaiwanInternalDispatcher] AE（0x2du 无符号比较 + 两处 cMyTrace 临时链）
 int InterLoadGeolocation::dispatch_sig(CUser* user, char* buf, int len)
 {
-    if (buf == 0)
+    SigLoadGeolocation* sig = reinterpret_cast<SigLoadGeolocation*>(buf);
+    if (sig == 0)
     {
         cMyTrace tr(__PRETTY_FUNCTION__, 0xac, 5);
         tr("[Taiwan, GeoIP] SigLoadRestrictPolicy is null.");
         return 0xad;
     }
-    SigLoadGeolocation* sig = reinterpret_cast<SigLoadGeolocation*>(buf);
-    if (sig->countryCount > 0x2d)
+    if (sig->countryCount > 0x2du)
     {
-        cMyTrace tr(__PRETTY_FUNCTION__, 0xb2, 5);
-        tr("[Taiwan, GeoIP] Invalid GeoIP country count. (%d)", sig->countryCount);
+        cMyTrace(__PRETTY_FUNCTION__, 0xb2, 5)(
+            "[Taiwan, GeoIP] Invalid GeoIP country count. (%d)", sig->countryCount);
         sig->countryCount = 0x2d;
     }
     for (int i = 0; i < sig->countryCount; ++i)
@@ -606,8 +625,8 @@ int InterLoadGeolocation::dispatch_sig(CUser* user, char* buf, int len)
         // ORIG：构造临时 string 直接值传（无拷贝），addAllowCountry 参数槽复用
         ARAD::Singleton<RestrictGeolocation>::Get()->addAllowCountry(
             std::string(sig->countryCode[i]));
-        cMyTrace tr(__PRETTY_FUNCTION__, 0xb9, 9, true, true);
-        tr("GeoIP Allow Country Code : %s", sig->countryCode[i]);
+        cMyTrace(__PRETTY_FUNCTION__, 0xb9, 9, true, true)(
+            "GeoIP Allow Country Code : %s", sig->countryCode[i]);
     }
     return 0;
 }
@@ -616,43 +635,42 @@ int InterLoadGeolocation::dispatch_sig(CUser* user, char* buf, int len)
 // buf==0 → cMyTrace(0x1ff) 日志 "[HeroMission] msg is null." 返回 0x200；
 // setEventData(user, buf+4)；IsFirstTimeLogin 命中 → processMission(user, 5, 0)；
 // sendMissionData(user)；返回 0。
+// [b28d-solo-TaiwanInternalDispatcher] AE（sig 提前 + Get() 链式 + IsFirstTimeLogin bool）
 int InterLoadHeroMissionEventData::dispatch_sig(CUser* user, char* buf, int len)
 {
-    if (buf == 0)
+    SigLoadHeroMissionEventData* sig =
+        reinterpret_cast<SigLoadHeroMissionEventData*>(buf);
+    if (sig == 0)
     {
         cMyTrace tr(__PRETTY_FUNCTION__, 0x1ff, 5);
         tr("[HeroMission] msg is null.");
         return 0x200;
     }
-    SigLoadHeroMissionEventData* sig =
-        reinterpret_cast<SigLoadHeroMissionEventData*>(buf);
-    HeroMissionEvent* hm = ARAD::Singleton<HeroMissionEvent>::Get();
-    hm->setEventData(user, sig->data);
+    ARAD::Singleton<HeroMissionEvent>::Get()->setEventData(user, sig->data);
     if (user->IsFirstTimeLogin())
     {
-        hm = ARAD::Singleton<HeroMissionEvent>::Get();
-        hm->processMission(user, HeroMissionCondition::MissionNo::T_5, 0);
+        ARAD::Singleton<HeroMissionEvent>::Get()->processMission(
+            user, HeroMissionCondition::MissionNo::T_5, 0);
     }
-    hm = ARAD::Singleton<HeroMissionEvent>::Get();
-    hm->sendMissionData(user);
+    ARAD::Singleton<HeroMissionEvent>::Get()->sendMissionData(user);
     return 0;
 }
 
 // ===== InterLoadServiceRestrictPolicy::dispatch_sig —— ORIG 0x08160796 =====
 // buf==0 → cMyTrace(0x94) 日志 "[Taiwan, Restrict] SigLoadRestrictPolicy is null." 返回 0x95；
 // string 取 buf+0x119d，beginPolicy(Get(), *(int*)buf, string)；返回 0。
+// [b28d-solo-TaiwanInternalDispatcher] AE（sig 提前 + std::string 临时全表达式）
 int InterLoadServiceRestrictPolicy::dispatch_sig(CUser* user, char* buf, int len)
 {
-    if (buf == 0)
+    SigLoadServiceRestrictPolicy* sig =
+        reinterpret_cast<SigLoadServiceRestrictPolicy*>(buf);
+    if (sig == 0)
     {
         cMyTrace tr(__PRETTY_FUNCTION__, 0x94, 5);
         tr("[Taiwan, Restrict] SigLoadRestrictPolicy is null.");
         return 0x95;
     }
-    SigLoadServiceRestrictPolicy* sig =
-        reinterpret_cast<SigLoadServiceRestrictPolicy*>(buf);
-    std::string policyStr(sig->policyString);
     ARAD::Singleton<ServiceRestrictManager>::Get()->beginPolicy(
-        (RestrictCategory::Enum)sig->category, policyStr);
+        (RestrictCategory::Enum)sig->category, std::string(sig->policyString));
     return 0;
 }

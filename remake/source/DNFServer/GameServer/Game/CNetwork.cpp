@@ -42,6 +42,12 @@ template void CNetwork<100000, 100000>::send_unlock();
 template int CNetwork<100000, 100000>::GetRemainSendSize();
 template int CNetwork<100000, 100000>::CreateConnectionSocket(int&, const char*, int);
 template int CNetwork<100000, 100000>::CreateConnectionBlockSocket(int&, const char*, int);
+// [b28d-solo-CNetwork] 两件均 AE（定义在 CNetwork.h）：
+//   Parsing_ServerPacket        ORIG 0x0846d050 155=155；真语义 bug×2（守卫负极性
+//                               短路 ps<=9||ps>0x1800；dispatch 后 remain 分支归属）
+//   Parsing_AuctionServerPacket ORIG 0x082f7ee2 148=148；真语义 bug×2 + header
+//                               线格式缓冲视图消空 ctor call（P215）
+// p167 6=6 / 8=8 CLEAR；旧「N82 封顶」判词作废。
 template bool CNetwork<100000, 100000>::Parsing_ServerPacket(int);
 template bool CNetwork<100000, 100000>::Parsing_AuctionServerPacket(int);
 

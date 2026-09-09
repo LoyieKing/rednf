@@ -591,7 +591,7 @@ int scanValue()
 // 本轮已消 EXTRA 6（memcpy×5 → 同型 float 直赋；scanTag wrapper → 直调 ScanType）。
 // 余量属「骨架+标签分派级复原 vs ORIG 全量 13.8k 指令」的覆盖差，逐标签重写超出
 // 单文件单波成本 ⇒ N 封顶（缺口清单已列，供后续批次按标签逐项补齐）。ORIG 0x08a12827
-int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
+bool ImportMonsterScript(STMonsterScript* script, int type, const char* path,
                         bool flag)
 {
     if (!loadRDARScriptFile(g_szMonsterScriptBaseDirectory, path))

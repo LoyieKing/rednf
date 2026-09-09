@@ -25,22 +25,32 @@
 //   MapInfo/MazeScript/GridScript/stHellParty_t 均用权威头具名成员；
 //   仅 CDataManager+0x49d0 一处 ORIG 未建模字段保持直接读取（见 ConsistMap 注释）。
 // ============================================================================
-// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
-//   GetHellPartyEventType 0x082ffb06   DIFF(13/14) N7/N22：ORIG 留 call 结果 %eax
-//     作基址、索引 movsbl→%edx；4.4 ISel 恒 index→%eax、base 挪 %edx（+1 mov）。
-//     视图 cast/指针算术/具名基址三形 probe 不可翻（P230 的 4.4.6 后端可治 N7，
-//     本 TU 未路由 4.4.6，禁改路由表）⇒ 封顶。
-//   CheckHellPartyCondition 0x082ff988 DIFF(52/53) 修法：删 bd/vals 指针局部与
-//     具名 bool（P0/P183），嵌套正向 if + return；残差 = 4.4 对「调用结果参与的
-//     比较」恒物化 setge/test（P168a③b bool 归一，4.1 直 jl）⇒ 封顶。
-//   setQuestMazeInfo 0x0830e170       DIFF(117/128) P167 CLEAR，帧/槽残差 N82
-//   ConsistMap 0x083031d2             DIFF(271/266) P167 CLEAR
-//   GetAppropriateMaze 0x082ff128     DIFF(217/230) 修法：size() 三次独立调用
-//     （==1/>1/%size()，P167 差集实证）+ push_back(static_cast<T&&>) 右值重载
-//     （P270/P234）；P167 CLEAR(25/25)。
-//   MoveMap 0x08308ae6                DIFF(326/317) P167 残差：ORIG 多 1 次
-//     GetCurrentMapInfo（Ghidra C 三处 vs 我方两处，ORIG 0x083090xx 段）
-//   SetGridPath 0x082ffb30            DIFF(1101/1083) P167 残差 1（超大件 §6.2）
+// [b28d-solo-BattleDepsB2] 本 TU 判词表（verdict = check_tu_routed.sh，fresh .o）：
+//   CheckHellPartyCondition 0x082ff988 AE：修法 = 正向包裹 NULL 检查 +
+//     `&&` 短路条件 + 尾部 return false（探针 probe_cp2 f_fwd_and 50 条 +
+//     ORIG 特有 G_CDataManager 二次调用 2 条 = ORIG 52 条逐条同形）。
+//   ConsistMap 0x083031d2             AE：修法 = 删 dm/dropLimit 具名槽
+//     （三目右值直传，P0/P183）+ seq/uid 声明序互换 + 否定守卫早返。
+//   MoveMap 0x08308ae6                AE（**真语义 bug**：原 `if(A||B){拒绝}`
+//     分支整体反置；ORIG 0x082ffb2c/+0x03e 两处 `xor $1;test;je <主流程+0x63>`
+//     ⇒ A||B 走主流程。修法 = 嵌套否定守卫把拒绝块放最内层）+ P198① err 预清
+//     + P225 while 物化 4 处 + GetCurrentMapInfo 第三调用点（p167 32/32）。
+//   setQuestMazeInfo 0x0830e170       NEAR(117/117)：结构全等；残差 = 2 处
+//     receiver/实参装载序（ORIG 先 receiver，4.4 恒先算实参——probe_ord2
+//     f1..f10 十形全同；4.4.6 后端实测读数完全一致，非路由敏感）⇒ N-P75 封顶。
+//   GetAppropriateMaze 0x082ff128     N(217/212)：正向复合条件嵌套 + size()
+//     三分支直接 return 已对齐（p167 CLEAR 25/25）；残差 = 4.1/4.4 槽序
+//     （N82/N98）+ `get_member_count()>1` setg 物化（P197④ 4.4 恒直跳）⇒ 封顶。
+//   SetGridPath 0x082ffb30            N(1101/1121，超大件 §6.2)：p167 差集仅剩
+//     EXTRA stEventMonsterStatus_t::~D1Ev ×4（ORIG D1 为头内 W 空体、4.1 前端
+//     省略调用；4.4 对 out-of-line 空 dtor 恒发射）。消除需 CBattle_Field.h
+//     头内化 + CBattle_Field.cpp 删定义（非本泳道 .cpp，已上报 Main）。
+//     其余为 m_gridMaze 成员装载/槽基差（N82/N95）。
+//   GetHellPartyEventType 0x082ffb06  N(13/14)：ORIG 留 call 结果 %eax 作基址、
+//     索引 movsbl→%edx；4.4 ISel 恒 index→%eax、base 挪 %edx（+1 mov）。唯一旋钮
+//     = getter 返回类型 void*→stHellParty_t*（探针 probe3 h1 14 条 / probe4 a1
+//     13 条 = ORIG 形，4.4.7/4.4.6 双后端一致）；涉 CDataManager.h + 7 消费 .cpp，
+//     Main 裁决本波不落（收益 1 件 < 风险）⇒ 封顶。
 // ============================================================================
 
 #include <algorithm>
@@ -91,14 +101,18 @@ int CRidable::GetObjectCnt()
 //   bool，4.4 具名局部必占槽）——P0 判读为无具名局部，落 N（跨版本 bool 物化）。
 bool CBattle_Field::CheckHellPartyCondition()
 {
-    if (m_party == NULL)
-        return false;
-
-    if ((int)m_party->m_battleData.m_hellPartyValueTotal >= get_rand_int(100))
+    // b28d-solo-BattleDepsB2：探针 /tmp/b28d_bdb2/probe_cp2.cpp f_fwd_and 实证——ORIG 形
+    // =「正向包裹 NULL 检查 + `&&` 短路条件 + 尾部 return false」：
+    //   test;je<尾部 mov$0> … jl<内层 mov$0> ×2 ; mov$1;jmp ; mov$0 ;
+    //   test %al,%al;je<尾部> ; mov$1 ; mov$0。嵌套 if（f_cur 形）反产
+    //   setge/test 物化（+2 条）且 NULL 失败块前置。f_fwd_and 50 条 + ORIG
+    //   特有的 G_CDataManager 二次调用 2 条 = ORIG 52 条逐条同形。
+    if (m_party != NULL)
     {
-        if ((int)m_party->m_battleData.m_hellPartyValueTotal >=
-            static_cast<stHellParty_t*>(
-                G_CDataManager()->get_hellparty_script_values())->m_guideLineValue)
+        if ((int)m_party->m_battleData.m_hellPartyValueTotal >= get_rand_int(100) &&
+            (int)m_party->m_battleData.m_hellPartyValueTotal >=
+                static_cast<stHellParty_t*>(
+                    G_CDataManager()->get_hellparty_script_values())->m_guideLineValue)
         {
             return true;
         }
@@ -144,14 +158,20 @@ void CBattle_Field::ConsistMap()
     int monsterCnt = 0;                          // -0x28
     map_monster mob;                             // -0x390（默认构造 081511c8）
     std::vector<int> championList;               // -0x34
-    int uid = get_rand_int(60000);               // -0x3c
+    // b28d-solo-BattleDepsB2：ORIG 槽序 seq(-0x38) 浅于 uid(-0x3c) 且 `movl $0,-0x38`
+    //   （seq=0）先于 get_rand_int（+0x197/+0x19e）⇒ 声明序 seq 在 uid 前。
     int seq = 0;                                 // -0x38
+    int uid = get_rand_int(60000);               // -0x3c
     add_monsters_current_map(mobList, championList, mob, monsterCnt, uid, seq);
 
     bool killedAll = false;                      // -0x3d
     add_monster_hell_party(mob, killedAll, uid, seq);
 
-    if (add_monster_blood(mob, uid, seq))
+    // b28d-solo-BattleDepsB2：ORIG +0x236 `xor $1,%eax; test; je <成功路径>`、失败落
+    //   `mov $0,%ebx; jmp <cleanup>` ⇒ 源码为否定守卫早返（P214①/P222）。
+    if (!add_monster_blood(mob, uid, seq))
+        return;
+
     {
         m_dungeonClearTracer.SetMaxMonsterCount(monsterCnt);
         add_monster_APC_AI(uid);
@@ -168,17 +188,14 @@ void CBattle_Field::ConsistMap()
         // ORIG 083034ed..0830351c：m_pMap->m_ec(+0xec)==0 时取
         // *(uint*)(G_CDataManager()+0x49d0) 作 SelectDonsterItemDropLimit 上限。
         // 即 CDataManager::m_serverParameter.m_4968（CDataManager+0x68+0x4968）。
-        unsigned int dropLimit;
-        if (m_pMap->m_ec == 0)
-        {
-            CDataManager* dm = G_CDataManager();
-            dropLimit = static_cast<unsigned int>(dm->m_serverParameter.m_4968);
-        }
-        else
-        {
-            dropLimit = (unsigned int)m_pMap->m_ec;
-        }
-        mapInfo->SelectDonsterItemDropLimit(dropLimit);
+        // b28d-solo-BattleDepsB2：ORIG 无 dm/dropLimit 具名槽（test;jne; call; mov 0x49d0;
+        //   jmp join; else mov 0xec; join: mov %eax,0x4(%esp)）⇒ 三目右值直传；
+        //   具名局部版多 2 槽 4 条并把全帧推深 8（P0/P183）。
+        mapInfo->SelectDonsterItemDropLimit(
+            m_pMap->m_ec == 0
+                ? static_cast<unsigned int>(
+                      G_CDataManager()->m_serverParameter.m_4968)
+                : static_cast<unsigned int>(m_pMap->m_ec));
     }
 }
 
@@ -186,54 +203,53 @@ void CBattle_Field::ConsistMap()
 //   按 questType 0/1 取任务迷宫向量；过滤血战态/hell 标记/任务连接/单人格挡；
 //   questType==0 额外要求 maze->m_54 <= diff；候选 1 个直取、多个 rand()%n，
 //   两轮无候选则回退 CDungeon::GetRandMazebyPartyCount(成员数)。
+// b28d-solo-BattleDepsB2 定案（N 封顶 217/212）：已对齐项 = 正向复合条件嵌套（血战/hell/
+//   连接/任务三过滤）、候选 size 三分支直接 return（无 picked/found 具名槽）、
+//   push_back 右值重载、size() 三次独立调用；p167 CLEAR(25/25)。残差 = 4.1/4.4
+//   槽序（maze 等局部 N82/N98）+ `get_member_count()>1` 的 setg 物化
+//   （ORIG cmp/setg/test vs 4.4 直跳，P197④ 族）⇒ 封顶。
 MazeScript* CBattle_Field::GetAppropriateMaze(ENUM_DUNGEON_DIFFICULTY diff) const
 {
     for (int questType = 0; questType < 2; ++questType)
     {
         std::vector<MazeScript>* mazes =
             m_pDungeon->GetQuestMazeScriptVector((ENUM_MAZE_QUEST_TYPE)questType);
-        if (mazes == NULL || mazes->empty())
-            continue;
-
-        MazeScript* picked = NULL;
-        bool found = false;
+        // b28d-solo-BattleDepsB2：ORIG 逐条结构（Ghidra C bVar2 汇聚 + 0x082ff128 段）：
+        //   正向复合条件嵌套（血战/hell/连接/任务三条过滤），候选 size 三分支
+        //   直接 return（无 picked/found 具名槽——ORIG 值在 %esi、标志在 %ebx）。
+        if (mazes != NULL && !mazes->empty())
         {
             std::vector<MazeScript*> candidates;
             for (std::vector<MazeScript>::iterator it = mazes->begin();
                  it != mazes->end(); ++it)
             {
                 MazeScript* maze = &*it;
-                if ((int)m_bloodState == 1)               // +0x1b4
-                    continue;
-                if ((char)m_hellPartyActive != 0 && maze->m_70 != 0)
-                    continue;
-
-                bool connected = false;
-                if (m_party != NULL &&
-                    m_party->CheckQuestConnection(maze->m_50,
-                                                  (ENUM_MAZE_QUEST_TYPE)questType))
-                    connected = true;
-                if (!connected)
-                    continue;
-
-                Quest* quest = G_CDataManager()->find_quest(maze->m_50);
-                if (quest == NULL)
-                    continue;
-                if (quest->m_field120 == 1 &&             // +0x120 单人任务
-                    m_party->get_member_count() > 1)
-                    continue;
-
-                if (questType == 0)
+                if ((int)m_bloodState != 1 &&             // +0x1b4
+                    ((char)m_hellPartyActive == 0 || maze->m_70 == 0))
                 {
-                    if (maze->m_54 <= (int)diff)
-                        // b28d-55（P270/P234）：ORIG 走 push_back(T&&)=EOS1_，
-                        // 左值 maze 恒选 RKS1_；static_cast<T&&> 是纯语言构造（零
-                        // 额外 call）且选中同一右值重载，P167 差集 25/25 CLEAR。
-                        candidates.push_back(static_cast<MazeScript*&&>(maze));
-                }
-                else
-                {
-                    candidates.push_back(static_cast<MazeScript*&&>(maze));
+                    if (m_party != NULL &&
+                        m_party->CheckQuestConnection(
+                            maze->m_50, (ENUM_MAZE_QUEST_TYPE)questType))
+                    {
+                        Quest* quest = G_CDataManager()->find_quest(maze->m_50);
+                        if (quest == NULL || quest->m_field120 != 1 ||
+                            m_party->get_member_count() < 2)
+                        {
+                            if (questType == 0)
+                            {
+                                if (maze->m_54 <= (int)diff)
+                                    // b28d-55（P270/P234）：ORIG 走
+                                    // push_back(T&&)=EOS1_（0x082ff2a4 实证）；
+                                    // static_cast<T&&> 是纯语言构造（零额外 call）
+                                    // 且选中同一右值重载，P167 差集 25/25 CLEAR。
+                                    candidates.push_back(static_cast<MazeScript*&&>(maze));
+                            }
+                            else
+                            {
+                                candidates.push_back(static_cast<MazeScript*&&>(maze));
+                            }
+                        }
+                    }
                 }
             }
 
@@ -241,18 +257,10 @@ MazeScript* CBattle_Field::GetAppropriateMaze(ENUM_DUNGEON_DIFFICULTY diff) cons
             // （`==1`→sete / `>1`→seta / `%size()`→结果缓存 -0x3c 槽），
             // 无 cnt 具名缓存。
             if (candidates.size() == 1)
-            {
-                picked = candidates[0];
-                found = true;
-            }
-            else if (candidates.size() > 1)
-            {
-                picked = candidates[::rand() % candidates.size()];
-                found = true;
-            }
+                return candidates[0];
+            if (candidates.size() > 1)
+                return candidates[::rand() % candidates.size()];
         }
-        if (found)
-            return picked;
     }
     return (MazeScript*)m_pDungeon->GetRandMazebyPartyCount(m_party->get_member_count());
 }
@@ -295,10 +303,13 @@ int CBattle_Field::GetHellPartyDifficulty(ENUM_DUNGEON_TYPE type)
 }
 
 // ORIG 0x082ffb06 GetHellPartyEventType(diff)：查 stHellParty_t.m_field8a[diff]。
-// b28 复核：残差为 base/index 寄存器放置——ORIG 留 call 结果于 %eax、索引
-// `movsbl -0xc(%ebp),%edx`；4.4 ISel 恒 index→%eax、base 挪 %edx（多 1 条
-// `mov %eax,%edx`，N7/N22 同族）。三形（视图 cast/指针算术/具名基址）probe
-// 不可翻，具名基址反违 P0。封顶 N，ndiff 5。
+// b28d-solo-BattleDepsB2 定案（N 封顶 13/14）：残差为 base/index 寄存器放置——ORIG 留 call
+//   结果于 %eax、索引 `movsbl -0xc(%ebp),%edx`；4.4 ISel 恒 index→%eax、base 挪
+//   %edx（多 1 条 `mov %eax,%edx`）。探针定案：唯一旋钮 = getter 返回类型
+//   void*→stHellParty_t*（/tmp/b28d_bdb2/probe3.cpp h1 = 14 条、probe4.cpp a1
+//   = 13 条 = ORIG 形；4.4.7 与 4.4.6 后端读数一致，非路由敏感）。该改动涉
+//   CDataManager.h + 7 个消费 .cpp 的 static_cast<const float*>，Main 裁决本波
+//   不落（收益 1 件 < 跨 TU 风险）⇒ 封顶。
 int CBattle_Field::GetHellPartyEventType(char diff)
 {
     return (signed char)static_cast<stHellParty_t*>(
@@ -310,117 +321,160 @@ int CBattle_Field::MoveMap(int x, int y, bool& firstVisit)
 {
     MapInfo* mapInfo = GetCurrentMapInfo();
 
-    if (m_pDungeon->IsEnterEachMap() || check_grid_clear())
-    {   // 每图进入型副本 / 网格未清：拒绝
-        moveMap_1_Log(x, y);
-        return 0x14;
-    }
-
-    if (m_pDungeon != NULL && (char)m_pDungeon->m_bloodDungeonType > 0)
-    {   // 血战副本换图时重置血轮
-        reset_blood_values();
-        m_bloodRound.reset_blood_values();
-        m_bloodRound.setBloodRoundOrder();
-    }
-
-    if (x < 0 || x > 0x31 || y < 0 || y > 0x31)
-        return 1;
-
-    if (mapInfo->m_layeredMap != 1)
-    {   // 非层叠图：原地不动判定
-        int curX = -1;
-        int curY = -1;
-        getCurPosXY(curX, curY);
-        if (x == curX && y == curY)
-            return 0x12;
-    }
-
-    if (m_gridMaze == NULL)
+    // b28d-solo-BattleDepsB2（真语义 bug 修正）：ORIG +0x027/+0x039 两处 `xor $1; test;
+    //   je <主流程 +0x063>` ⇒ A(IsEnterEachMap) 或 B(check_grid_clear) 为真
+    //   **走主流程**，二者皆假才落 +0x040 拒绝块（moveMap_1_Log; mov
+    //   $0x14,%ebx; jmp exit）。原重建 `if (A||B) { 拒绝 }` 分支整体反置。
+    //   正解 = 嵌套否定守卫把拒绝块放最内层、主流程 fall-through（4.4 两个
+    //   xor/je 共享主流程出口，与 ORIG 逐条同形）。
+    if (!m_pDungeon->IsEnterEachMap())
     {
-        moveMap_2_Log(x, y);
-        return 0x15;
+        if (!check_grid_clear())
+        {
+            moveMap_1_Log(x, y);
+            return 0x14;
+        }
     }
+        if (m_pDungeon != NULL && (char)m_pDungeon->m_bloodDungeonType > 0)
+        {   // 血战副本换图时重置血轮
+            reset_blood_values();
+            m_bloodRound.reset_blood_values();
+            m_bloodRound.setBloodRoundOrder();
+        }
 
-    if (!(x < m_gridMaze->m_width && y < m_gridMaze->m_height))
-        return 0x15;
+        if (x < 0 || x > 0x31 || y < 0 || y > 0x31)
+            return 1;
 
-    int err = check_boss_map(x, y);
-    if (err != 0)
-        return err;
+        // b28d-solo-BattleDepsB2：ORIG 此处**重新**调用 GetCurrentMapInfo（Ghidra C 三处调用
+        //   0x08308bxx/+0xe8 段，p167 差集 MISSING×1 实证）——非复用开头 mapInfo。
+        if (GetCurrentMapInfo()->m_layeredMap != 1)
+        {   // 非层叠图：原地不动判定
+            int curX = -1;
+            int curY = -1;
+            getCurPosXY(curX, curY);
+            if (x == curX && y == curY)
+                return 0x12;
+        }
 
-    err = check_movemap_range(x, y);
-    if (err != 0)
-        return err;
+        if (m_gridMaze == NULL)
+        {
+            moveMap_2_Log(x, y);
+            return 0x15;
+        }
 
-    const GridScript* grid = &m_gridMaze->getGridR(x, y);
-    if (grid == NULL)
-    {
-        moveMap_3_Log(x, y);
-        return 0x15;
-    }
+        if (!(x < m_gridMaze->m_width && y < m_gridMaze->m_height))
+            return 0x15;
 
-    if (check_visited_map(x, y, firstVisit))
+        // b28d-solo-BattleDepsB2：ORIG +0x17d `movl $0x0,-0x18`（err 预清，P198①）+ 4 处
+        //   `cmpl $0,-0x18; setne %al; test; je`（P225 while+break 物化形，
+        //   4.4 对 if 直跳不产 setne）。
+        int err = 0;
+        err = check_boss_map(x, y);
+        while (err != 0)
+        {
+            return err;
+        }
+
+        err = check_movemap_range(x, y);
+        while (err != 0)
+        {
+            return err;
+        }
+
+        const GridScript* grid = &m_gridMaze->getGridR(x, y);
+        if (grid == NULL)
+        {
+            moveMap_3_Log(x, y);
+            return 0x15;
+        }
+
+        if (check_visited_map(x, y, firstVisit))
+            return 0;
+
+        int dir = get_invade_direction(x, y);
+        CDungeon* dungeon = G_CDataManager()->find_dungeon(m_dungeonIndex);
+        if (dungeon == NULL)
+        {
+            moveMap_4_Log(x, y, grid);
+            return 1;
+        }
+
+        int newMapId = -1;
+        bool dummyFlag = true;
+        choose_random_bossmap_from_dummymaps(dungeon, grid, newMapId, dummyFlag, x, y, dir);
+
+        std::vector<int> candidator;
+        m_visitedGotoFlag = 0;                       // +0x1c8 byte 清零
+
+        err = get_candidator_map(dungeon, grid, newMapId, candidator, x, y, dir);
+        while (err != 0)
+        {
+            return err;
+        }
+
+        set_visited_map(x, y, dummyFlag);
+        swap_curpos_xy(x, y);
+        set_visited_map_goto(x, y);
+        GetCurrentMapInfo()->m_gridValue = (char)grid->m_gridValue;   // +0x08 ← 网格值低字节
+
+        err = set_map_id(grid, newMapId, candidator);
+        while (err != 0)
+        {
+            return err;
+        }
+
+        ConsistMap();
+        if (m_party != NULL)
+            m_party->m_killMobCounter.clear();   // +0x1844
         return 0;
-
-    int dir = get_invade_direction(x, y);
-    CDungeon* dungeon = G_CDataManager()->find_dungeon(m_dungeonIndex);
-    if (dungeon == NULL)
-    {
-        moveMap_4_Log(x, y, grid);
-        return 1;
-    }
-
-    int newMapId = -1;
-    bool dummyFlag = true;
-    choose_random_bossmap_from_dummymaps(dungeon, grid, newMapId, dummyFlag, x, y, dir);
-
-    std::vector<int> candidator;
-    m_visitedGotoFlag = 0;                       // +0x1c8 byte 清零
-
-    err = get_candidator_map(dungeon, grid, newMapId, candidator, x, y, dir);
-    if (err != 0)
-        return err;
-
-    set_visited_map(x, y, dummyFlag);
-    swap_curpos_xy(x, y);
-    set_visited_map_goto(x, y);
-    GetCurrentMapInfo()->m_gridValue = (char)grid->m_gridValue;   // +0x08 ← 网格值低字节
-
-    err = set_map_id(grid, newMapId, candidator);
-    if (err != 0)
-        return err;
-
-    ConsistMap();
-    if (m_party != NULL)
-        m_party->m_killMobCounter.clear();   // +0x1844
-    return 0;
 }
 
 // ORIG 0x082ffb30 SetGridPath(maze, dummyAppearCnt)：
 //   记录迷宫宽高与起点/boss 槽位链、dummy 图序列、hell 三字段、ridable 对象；
 //   bossRoom90c==1 时装配进 boss 房条件组；事件怪两轮生成（0x24 重复事件判活 +
 //   MONSTER_POS 去重 / 第二事件不去重）。
+// b28d-solo-BattleDepsB2（超大件 §6.2，N 封顶 1101/1121）修法与残差：
+//   * 全程 `m_gridMaze->` 成员访问（ORIG 0x74(%eax) 装载实证，非形参 maze）；
+//   * 三个 pair C1Ev 默认构造 + 赋值（无 dummyPos 具名局部，临时槽直传
+//     push_back）；`size()==0` 判空（非 empty()）；
+//   * getEventMonsters/getSecondEventMonsters 各两次独立调用（begin/end 内联
+//     receiver，P157）+ const 版 begin/end（编译期 const 指针转换）；
+//   * MONSTER_POS 去重：`_List_iterator` 先声明后赋值（P50 复活）+ operator==
+//     （非 operator!=）；mapCandidates 循环后显式 `cit == citEnd` 判定（无 ok bool）。
+//   p167 差集仅剩 EXTRA stEventMonsterStatus_t::~D1Ev ×4：ORIG 的 D1 为头内 W
+//   空体（08316adc push/pop/ret），4.1 前端省略该调用；4.4 对 out-of-line 空 dtor
+//   恒发射。消除需 CBattle_Field.h 头内化 + CBattle_Field.cpp 删定义（非本泳道
+//   .cpp，已上报 Main）。其余残差为槽基/帧差（N82/N95）。
 void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
 {
     m_gridMaze = maze;                           // +0x74
-    m_mapWidth = maze->m_width;                  // +0x18c ← maze+0x00
-    m_mapHeight = maze->m_height;                // +0x190 ← maze+0x04
+    m_mapWidth = m_gridMaze->m_width;                  // +0x18c ← maze+0x00
+    m_mapHeight = m_gridMaze->m_height;                // +0x190 ← maze+0x04
     if (m_mapWidth + m_mapHeight < 4)
     {
         m_hellPartyActive = 0;                   // +0x1b8
         m_field1cb = 1;                          // +0x1cb
     }
 
-    if (maze->m_vec14.empty())                   // 起点槽
-        return;
-    std::pair<int, int> startPos = maze->m_vec14[::rand() % maze->m_vec14.size()];
+    // b28d-solo-BattleDepsB2：ORIG +0x96..+0xbbb 三个 `pair<int,int>::C1Ev` 默认构造
+    //   （startPos/bossPos/dummyPos），随后 +0x1cc/+0x1f1 `size()`+sete 判空
+    //   （非 empty()，p167 MISSING×2 / EXTRA×2 实证），再经 `aSEOS0_`
+    //   右值赋值回填。
+    std::pair<int, int> startPos;
+    std::pair<int, int> bossPos;
+    // 注：ORIG 只有 3 个 pair C1Ev（-0xcc/-0xd4/-0xdc = startPos/bossPos/
+    //   adjBossPos），无 dummyPos 具名局部——dummy 循环经临时槽 -0xe4 直传
+    //   push_back（0x82ffd59/0x82ffd7b）。
 
-    if (maze->m_vec20.empty())                   // boss 槽
+    if (m_gridMaze->m_vec14.size() == 0)               // 起点槽
         return;
-    int bossIdx = (int)(::rand() % maze->m_vec20.size());
-    std::pair<int, int> bossPos = maze->m_vec20[bossIdx];
+    startPos = m_gridMaze->m_vec14[::rand() % m_gridMaze->m_vec14.size()];
 
-    std::pair<int, int> dummyPos;
+    if (m_gridMaze->m_vec20.size() == 0)               // boss 槽
+        return;
+    int bossIdx = (int)(::rand() % m_gridMaze->m_vec20.size());
+    bossPos = m_gridMaze->m_vec20[bossIdx];
+
     if (dummyAppearCnt > 0)
     {
         int prevIdx = bossIdx;
@@ -428,13 +482,12 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
         m_dummyMapPos.clear();                   // +0xc0
         for (int i = 0; i < dummyAppearCnt; ++i)
         {
-            if (maze->m_vec20.size() > 1)
+            if (m_gridMaze->m_vec20.size() > 1)
             {   // 与上次不同下标（同值跳过再 +1）
-                int idx = (int)(::rand() % (maze->m_vec20.size() - 1));
+                int idx = (int)(::rand() % (m_gridMaze->m_vec20.size() - 1));
                 if (prevIdx <= idx)
                     idx += 1;
-                dummyPos = maze->m_vec20[idx];
-                m_dummyMapPos.push_back(dummyPos);
+                m_dummyMapPos.push_back(m_gridMaze->m_vec20[idx]);
                 prevIdx = idx;
             }
         }
@@ -442,9 +495,9 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
 
     std::pair<int, int> adjBossPos;              // 相邻 boss 槽（优先下一格）
     if (bossIdx - 1 >= 0)
-        adjBossPos = maze->m_vec20[bossIdx - 1];
-    if (bossIdx + 1 <= (int)maze->m_vec20.size() - 1)
-        adjBossPos = maze->m_vec20[bossIdx + 1];
+        adjBossPos = m_gridMaze->m_vec20[bossIdx - 1];
+    if (bossIdx + 1 <= (int)m_gridMaze->m_vec20.size() - 1)
+        adjBossPos = m_gridMaze->m_vec20[bossIdx + 1];
 
     // 位置链（ORIG +0x2f0..+0x338）：注意 ORIG 存向 —— +4=起点.second、+8=起点.first。
     m_startX = startPos.second;
@@ -467,46 +520,42 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
     m_endY = bossPos.second;                     // +0x10
     m_field14 = adjBossPos.first;                // +0x14 相邻槽
     m_field18 = adjBossPos.second;               // +0x18
-    m_hellPosX = maze->m_30;                     // +0x1c0
-    m_hellPosY = maze->m_34;                     // +0x1c4
-    m_hellMapIdx = maze->m_2c;                   // +0x1bc
-    m_ridable.SetRidableObject(maze->m_ridable);// +0x38 RidableScript
+    m_hellPosX = m_gridMaze->m_30;                     // +0x1c0
+    m_hellPosY = m_gridMaze->m_34;                     // +0x1c4
+    m_hellMapIdx = m_gridMaze->m_2c;                   // +0x1bc
+    m_ridable.SetRidableObject(m_gridMaze->m_ridable);// +0x38 RidableScript
 
     if (m_pDungeon->m_bossRoom90c.m_0 == 1)      // dungeon+0x90c
     {
         // —— boss 房条件候选格：非空网格且其候选地图均有条件怪 ——
         std::vector<std::pair<int, int> > candidates;
-        for (int row = 0; row < maze->m_height; ++row)
+        for (int row = 0; row < m_gridMaze->m_height; ++row)
         {
-            for (int col = 0; col < maze->m_width; ++col)
+            for (int col = 0; col < m_gridMaze->m_width; ++col)
             {
                 if ((m_endX == col && m_endY == row) ||
                     (m_startX == col && m_startY == row))
                     continue;
 
-                const GridScript* grid = &maze->getGridR(col, row);
+                const GridScript* grid = &m_gridMaze->getGridR(col, row);
                 if (grid->m_mapCandidates.empty())
                     continue;
 
-                bool ok = true;
-                for (std::vector<int>::const_iterator cit =
-                         grid->m_mapCandidates.begin();
-                     cit != grid->m_mapCandidates.end(); ++cit)
+                // b28d-solo-BattleDepsB2：ORIG 无 ok bool 槽——循环后 0x8300182 显式
+                //   `__gnu_cxx::operator==(cit, end)` 判定（break 早退则 !=end），
+                //   故 cit 声明在循环外、循环体内 break（p167 MISSING×1 实证）。
+                std::vector<int>::const_iterator cit = grid->m_mapCandidates.begin();
+                std::vector<int>::const_iterator citEnd = grid->m_mapCandidates.end();
+                for (; cit != citEnd; ++cit)
                 {
                     CMap* cm = static_cast<CMap*>(G_CDataManager()->find_map(*cit));
                     if (cm == NULL)
-                    {
-                        ok = false;
                         break;
-                    }
                     std::list<_mapMonster> condList = cm->get_condition_monster_list();
                     if (condList.empty())
-                    {
-                        ok = false;
                         break;
-                    }
                 }
-                if (ok)
+                if (cit == citEnd)
                     candidates.push_back(std::make_pair(col, row));
             }
         }
@@ -547,11 +596,11 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
         if (eventOn)
         {
             std::vector<std::pair<int, int> > positions;
-            for (int row = 0; row < maze->m_height; ++row)
+            for (int row = 0; row < m_gridMaze->m_height; ++row)
             {
-                for (int col = 0; col < maze->m_width; ++col)
+                for (int col = 0; col < m_gridMaze->m_width; ++col)
                 {
-                    const GridScript* grid = &maze->getGridR(col, row);
+                    const GridScript* grid = &m_gridMaze->getGridR(col, row);
                     if (grid->m_gridValue != 0)
                         positions.push_back(std::make_pair(col, row));
                 }
@@ -565,13 +614,20 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
                       (unsigned int)m_pDungeon->getTryGenEventMonsterProb()))
                     continue;
 
-                const std::vector<stEventMonster_t>* monsters =
-                    m_pDungeon->getEventMonsters();
-                int roll = get_rand_int(m_pDungeon->getEventMonsterTotalProb());
+                // b28d-solo-BattleDepsB2：ORIG 0x83005a1/0x83005c7 对 getEventMonsters() 各
+                //   调一次（begin/end 各自内联 receiver，P157 无缓存）；
+                //   迭代器声明序 begin→end→acc→roll（ORIG -0x14c/-0x150/-0x30/-0x2c）。
+                //   ORIG 的 begin/end 是 **const 版**（_ZNK...5beginEv），故 receiver
+                //   经编译期无操作的 const 指针转换（getter 返回非 const 指针）。
+                std::vector<stEventMonster_t>::const_iterator mit =
+                    static_cast<const std::vector<stEventMonster_t>*>(
+                        m_pDungeon->getEventMonsters())->begin();
+                std::vector<stEventMonster_t>::const_iterator mitEnd =
+                    static_cast<const std::vector<stEventMonster_t>*>(
+                        m_pDungeon->getEventMonsters())->end();
                 int acc = 0;
-                for (std::vector<stEventMonster_t>::const_iterator mit =
-                         monsters->begin();
-                     mit != monsters->end(); ++mit)
+                int roll = get_rand_int(m_pDungeon->getEventMonsterTotalProb());
+                for (; mit != mitEnd; ++mit)
                 {
                     acc += mit->m_prob;
                     if ((unsigned int)roll >= (unsigned int)acc)
@@ -590,10 +646,12 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
                     mp.m_x = (char)status.m_pos.first;
                     mp.m_y = (char)status.m_pos.second;
 
-                    bool sameOnList =
-                        std::find(usedPositions.begin(), usedPositions.end(), mp) !=
-                        usedPositions.end();
-                    if (!sameOnList)
+                    // b28d-solo-BattleDepsB2：ORIG 0x8300558 `_List_iterator<MONSTER_POS>::C1Ev`
+                    //   （先声明后赋值，P50 复活）+ 0x8300782 `operator==`
+                    //   （非 operator!=，p167 差集实证）。
+                    std::list<MONSTER_POS>::iterator sameIt;
+                    sameIt = std::find(usedPositions.begin(), usedPositions.end(), mp);
+                    if (sameIt == usedPositions.end())
                     {
                         cMyTrace trace(__PRETTY_FUNCTION__,
                                        0x3e3, 0);
@@ -622,11 +680,11 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
     if (m_pDungeon->getTryGenSecondEventMonsterCnt() != 0)
     {
         std::vector<std::pair<int, int> > positions;
-        for (int row = 0; row < maze->m_height; ++row)
+        for (int row = 0; row < m_gridMaze->m_height; ++row)
         {
-            for (int col = 0; col < maze->m_width; ++col)
+            for (int col = 0; col < m_gridMaze->m_width; ++col)
             {
-                const GridScript* grid = &maze->getGridR(col, row);
+                const GridScript* grid = &m_gridMaze->getGridR(col, row);
                 if (grid->m_gridValue != 0)
                     positions.push_back(std::make_pair(col, row));
             }
@@ -639,13 +697,17 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
                   (unsigned int)m_pDungeon->getTryGenSecondEventMonsterProb()))
                 continue;
 
-            const std::vector<stSecondEventMonster_t>* monsters =
-                m_pDungeon->getSecondEventMonsters();
-            int roll = get_rand_int(m_pDungeon->getSecondEventMonsterTotalProb());
+            // b28d-solo-BattleDepsB2：ORIG 0x8300a9f/0x8300ac5 对 getSecondEventMonsters()
+            //   各调一次（begin/end 独立，P157）。
+            std::vector<stSecondEventMonster_t>::const_iterator mit =
+                static_cast<const std::vector<stSecondEventMonster_t>*>(
+                    m_pDungeon->getSecondEventMonsters())->begin();
+            std::vector<stSecondEventMonster_t>::const_iterator mitEnd =
+                static_cast<const std::vector<stSecondEventMonster_t>*>(
+                    m_pDungeon->getSecondEventMonsters())->end();
             int acc = 0;
-            for (std::vector<stSecondEventMonster_t>::const_iterator mit =
-                     monsters->begin();
-                 mit != monsters->end(); ++mit)
+            int roll = get_rand_int(m_pDungeon->getSecondEventMonsterTotalProb());
+            for (; mit != mitEnd; ++mit)
             {
                 acc += mit->m_prob;
                 if ((unsigned int)roll >= (unsigned int)acc)
@@ -703,42 +765,51 @@ void CBattle_Field::onUseItem(CUser* user, const Inven_Item& item)
 }
 
 // ORIG 0x0830e170 setQuestMazeInfo()：扫描两类任务迷宫，符合条件者置任务迷宫标记。
+// b28d-solo-BattleDepsB2 定案（NEAR 117/117，N-P75 封顶）：已对齐 = for(i<=1) 尾测 setle、
+//   `mazes!=NULL && !empty()` 正向包裹、while(it!=itEnd) 三槽阶梯、continue 中继
+//   nop 岛、全部失败路径汇入循环尾 ++it（ORIG +0x154）。残差仅 2 处 receiver/
+//   实参装载序（ORIG 先 receiver 后实参；4.4 恒先算实参，probe_ord2 f1..f10
+//   十形全同，4.4.6 后端读数逐字节一致）⇒ 跨版本装载时刻，封顶。
 void CBattle_Field::setQuestMazeInfo()
 {
-    for (int questType = 0; questType < 2; ++questType)
+    // b28d-solo-BattleDepsB2（ORIG 0x0830e170 逐条）：外层 `for(i=0;i<=1;++i)`（尾测 setle，P2）；
+    //   `mazes!=NULL && !empty()` 正向包裹（ORIG +0x02e/+0x03f xor$1 双条件共享
+    //   失败块）；内层 while(it!=itEnd)（入口 jmp 到 +0x15f 尾测，P25）；所有失败
+    //   路径汇入循环尾 `++it`（+0x154）；连接判定直接 `if (m_party!=NULL && call)`
+    //   正向包裹（ORIG +0xa9..+0xe0 bool 物化岛）。
+    for (int questType = 0; questType <= 1; ++questType)
     {
         std::vector<MazeScript>* mazes =
             m_pDungeon->GetQuestMazeScriptVector((ENUM_MAZE_QUEST_TYPE)questType);
-        if (mazes == NULL || mazes->empty())
-            continue;
-
-        for (std::vector<MazeScript>::iterator it = mazes->begin();
-             it != mazes->end(); ++it)
+        if (mazes != NULL && !mazes->empty())
         {
-            MazeScript* maze = &*it;
-            if ((int)m_bloodState == 1)              // 血战态跳过
-                continue;
-
-            bool connected = false;
-            if (m_party != NULL &&
-                m_party->CheckQuestConnection(maze->m_50,
-                                              (ENUM_MAZE_QUEST_TYPE)questType))
-                connected = true;
-            if (!connected)
-                continue;
-
-            Quest* quest = G_CDataManager()->find_quest(maze->m_50);
-            if (quest == NULL)
-                continue;
-
-            if (quest->m_field120 == 1)
-            {   // 单人限定任务迷宫：仅单人队伍置位
-                if (m_party->get_member_count() == 1)
-                    setQuestMaze(true);
-            }
-            else
+            std::vector<MazeScript>::iterator it = mazes->begin();
+            std::vector<MazeScript>::iterator itEnd = mazes->end();
+            for (; it != itEnd; ++it)
             {
-                setQuestMaze(true);
+                MazeScript* maze = &*it;
+                if ((int)m_bloodState == 1)
+                {   // 血战态跳过（ORIG je 落 +0x153 nop 中继岛）
+                    continue;
+                }
+                if (m_party != NULL &&
+                    m_party->CheckQuestConnection(
+                        maze->m_50, (ENUM_MAZE_QUEST_TYPE)questType))
+                {
+                    Quest* quest = G_CDataManager()->find_quest(maze->m_50);
+                    if (quest != NULL)
+                    {
+                        if (quest->m_field120 == 1)
+                        {   // 单人限定任务迷宫：仅单人队伍置位
+                            if (m_party->get_member_count() == 1)
+                                setQuestMaze(true);
+                        }
+                        else
+                        {
+                            setQuestMaze(true);
+                        }
+                    }
+                }
             }
         }
     }

@@ -678,7 +678,7 @@ int CUserPremium::GetAdvantageExpRate() const
     return m_outExpRate;
 }
 
-short CUserPremium::GetAdvantageFatigueRate() const
+unsigned short CUserPremium::GetAdvantageFatigueRate() const
 {
     return m_outFatigueRate;
 }
@@ -733,30 +733,38 @@ void CUserPremium::AddPremium(int type, int start, int end, int flag)
     startPremium(type, true);
 }
 
-// [b28d-solo-CUserPremium] N93/N82 封顶（b28d 复测）：ORIG 0x086adba6 两处
-// std::max 临时槽对为四个独立槽（if 臂 dec/zero=-0x18/-0x14、else 臂=-0x10/-0xc）；
-// 4.4 对互斥分支标量按「首次使用序→浅到深」分配并复用两槽（-0xc/-0x10 与
-// -0x14/-0x18）。P212 全头部声明（4 标量）实测槽位不变；P246/P247 POD 结构体
-// 承载四槽虽翻正槽位但每处取址多 1 条 add（61 vs 59，ndiff 10 vs 13，净负）⇒
-// 回退块内声明，判 N93（槽方向）+N82（4.1 不复用/4.4 复用）。P167 CLEAR（2/2）。
+// [b28d-solo-CUserPremium] P309 翻正（b28d 复测，旧判词作废）：ORIG
+// 0x086adba6 两处 std::max 临时槽对为四个独立槽（if 臂 dec/zero=-0x18/-0x14、
+// else 臂 dec/zero=-0x10/-0xc）。旧判「P212 全头部声明槽位不变」系**未按 ORIG
+// 槽浅→深排声明序**；本波四标量提函数头且声明序 zero2(-0xc)/dec2(-0x10)/
+// zero1(-0x14)/dec1(-0x18) ⇒ 4.4「头部声明先声明浅」精确复现四槽，
+// ndiff 17→1（P246/P247 POD 承载形净负已弃）。
+// 残余 1 条 = ORIG else 臂尾 `jmp <leave>`（4.1 两臂各 jmp 统一出口；4.4
+// jump-thread 令末臂直落）：P223 尾空标签/双 goto 共享标签/P285 空 else return
+// 三形实测均不产第二 jmp ⇒ N93附（尾部双块发射序）封顶，语义等价（59 vs 58）。
 void CUserPremium::RemovePremium(int type)
 {
     // ORIG 0x86adba6：计数递减走 std::max<int>(zero, dec) 调用形（两临时
     // 槽分支各独立，非三目）；链全重算。
+    // P309：声明序 = ORIG 槽浅→深（勿改序，否则槽位回退）。
+    int zero2;
+    int dec2;
+    int zero1;
+    int dec1;
     if (m_entries[type].m_state != 2)
     {
         m_entries[type].m_type = 0;
         if (g_SPremiumInfo[type].m_kind == 1)
         {
-            int dec = m_normalCount + -1;
-            int zero = 0;
-            m_normalCount = std::max(zero, dec);
+            dec1 = m_normalCount + -1;
+            zero1 = 0;
+            m_normalCount = std::max(zero1, dec1);
         }
         else
         {
-            int dec = m_restrictedCount + -1;
-            int zero = 0;
-            m_restrictedCount = std::max(zero, dec);
+            dec2 = m_restrictedCount + -1;
+            zero2 = 0;
+            m_restrictedCount = std::max(zero2, dec2);
         }
     }
 }
@@ -790,10 +798,13 @@ bool CUserPremium::startPremium(int type, bool force)   // 0x086adc6a；调用�
 // ①插入路径改 make_pair<int&,int&> + pair<const int,int> 右值转换构造、
 //   else 用 `it->second +=`（ORIG 单次 ptEv）⇒ 调用点差集清零（23/23 CLEAR）；
 // ②overEquip body 的 lhs 索引 + max 第一实参各重算 vec[]（ORIG 3 调用点）；
-// ③去 int now 中转（nowT 单槽）；④+0x85e/+0x850 用 unsigned short 引用/视图
-//   消临时槽；⑤m_slots enum 化复现两段中转（P254）。
-// 终判：ndiff 84→9（482 条），余 3 处 = N18a/N-86b 装载折叠（ORIG 单段直落
-// %edx/%ebx vs 4.4 eax 中转；加法 lea vs add）⇒ 封顶。
+// ③去 int now 中转（nowT 单槽）；④+0x85e/+0x850 由 Main 代落 CUser.h 两字段
+//   short→unsigned short（ORIG 0x0812cdb4/0x0860939e 两处 movzwl 证据；探针
+//   /tmp/p_u16b.cpp f6 vs f7/f8：目标 short ⇒ `movzwl→%eax; mov→%edx` 两段，
+//   目标 unsigned short ⇒ `movzwl→%edx` 单段）；⑤m_slots enum 化复现两段
+//   中转（P254）。
+// 终判（b28d 复测）：IDENTICAL 482/482（ndiff 0，gap 0，槽位集全等），
+// P167 CLEAR（23/23）——旧判词「余 3 处 N18a/N-86b 封顶」已由④推翻。
 void CUserPremium::ReCalcAdvantage()
 {
     // ORIG 0x086ae10e（O=487）：形态按 T-C9-1 全去缓存——g_SPremiumInfo[type]
@@ -844,7 +855,7 @@ void CUserPremium::ReCalcAdvantage()
             g_SPremiumInfo[m_entries[slot].m_type].m_field5a);
 
         m_outFatigueRate =
-            reinterpret_cast<unsigned short&>(m_outFatigueRate) +
+            (unsigned short)m_outFatigueRate +
             g_SPremiumInfo[m_entries[slot].m_type].m_fatigueRate;
         m_outExpRate =
             m_outExpRate + g_SPremiumInfo[m_entries[slot].m_type].m_expRate;
@@ -930,12 +941,18 @@ void CUserPremium::ReCalcAdvantage()
     }
 }
 
-// [b28d-solo-CUserPremium] P214① 修法：ORIG 0x0830ed48 段为指针算术形
-// （`lea (%ecx,%eax,1),%edx; mov state,%eax; mov %eax,(%edx)`，this→%ecx 无
-// push %ebx）；下标形 `m_entries[(int)type]` 使 4.4 走 this→%ebx+add 直算
-// （16 条含 push %ebx）。改数组名参与指针算术后消除 callee-saved（13 条）。
-// 终判：13 vs 14（ndiff 7），余 = 装载序（ORIG idx 先/this 后）+ ORIG 二次
-// `lea 0x10(%eax),%edx` vs 4.4 disp store（N107/N7，探针 state/state2..8 全败）。
+// [b28d-solo-CUserPremium] N107/N7 封顶（b28d 复测；旧注释地址 0x0830ed48
+// 系误录，权威地址 nm：0x086b084c）。ORIG 14 条：前两条 `mov 0xc(%ebp),%edx;
+// mov 0x8(%ebp),%ecx`（type 先载/this 后载），尾段 `lea (%ecx,%eax,1),%eax;
+// lea 0x10(%eax),%edx; mov 0x10(%ebp),%eax; mov %eax,(%edx)`。
+// 指针算术形（下方实现）13 条：4.4 折 `lea (%ecx,%eax,1),%edx` + disp store
+// `mov %eax,0x10(%edx)`，且 this 先载。
+// 本波穷举读数：①`m_entries[(int)type]` 下标形 16 条（push %ebx）；
+// ②`*(&m_entries[(int)type].m_state)` 取址形 16 条（push %ebx + add $0x10）；
+// ③`((int*)(m_entries+(int)type))[4]` 整型数组视图 15 条（add $0x10 + this
+// 中转）——均劣于指针算术形。两段 lea（N107：4.4 对成员常量偏移恒折
+// disp/add）+ 形参装载序（4.4 this-first vs 4.1 type-first）双封顶；
+// P167 CLEAR、gap 1/14 ⇒ 语义等价。
 void CUserPremium::setPremiumState(ENUM_PREMIUM_TYPE type, ENUM_PREMIUM_STATE state)
 {
     (m_entries + (int)type)->m_state = (int)state;
@@ -1227,9 +1244,13 @@ std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
 }
 
 // ---------------------------------------------------------------------------
-// 终判（b28d-solo-CUserPremium）：P167 CLEAR（20/20）、gap -5/758 ⇒ 语义完成；
-// 残余全为帧-槽族（帧 0x7e3c vs 0x7e4c、局部槽整体平移 4/16、ORIG-only
-// xor×2 为条件物化差异非缺写）⇒ N82/N95/P232 封顶。
+// 终判（b28d-solo-CUserPremium，b28d 复测）：P167 CLEAR（20/20）；两处修法：
+// ①删冗余 `unsigned long key` 具名局部（ORIG 该键内联为实参、无槽往返，P0）；
+// ②拷贝段赋值顺序按 ORIG g 表 store 序列重排（0x00/0x04/0x08/0x0c/0x34/0x38/
+// 0x3c/0x58/0x5a/0x5c/0x40/0x44/0x48/0x60/0x64，见下方注释）⇒ ndiff 725→261、
+// 761 条 vs 758（gap -3）。残余：帧 0x7e3c vs 0x7e4c、数组基址 -0x7e28 vs
+// -0x7e2c（N95 槽基差）＋附加信息段 ORIG `sub $0x7d50 + disp 0x10..` vs 4.4
+// `sub $0x7d40 + disp 0`（N1 常量折叠基准分配）⇒ N82/N95/P232 封顶，语义等价。
 // ORIG T 0x086aeca4 WongWork::CUserPremium::LoadPremiumInfo(char const*)。
 // importPremiumList 失败→0x15c；逐记录拷贝进 g_SPremiumInfo[i]（0x130→0x120
 // 字段重排，+0xc8 起写穿 _Additioal_info 子对象区）；SetPremiumItemData
@@ -1240,8 +1261,8 @@ std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
 // [b28d-solo-CUserPremium] 修法（P167/P96/P50）：ORIG 0x086aeca4 调非 const
 // 迭代器族（ptEv/ppEv/ne(N,N)）且无 `iterator::C1Ev`（P167 EXTRA×1）⇒ 非
 // const iterator 且 for 初始化处直构；改后差集清零（20/20 CLEAR）。
-// 终判：gap -5/758 ⇒ 语义完成；残余帧差 0x7e3c vs 0x7e4c + 全帧槽平移 4
-// （N82/N95/P232）⇒ 封顶。
+// 终判（b28d）：同上——删 key 局部后 gap -3/758；残余帧差与槽基差（N82/N95/
+// P232）封顶。
 int CUserPremium::LoadPremiumInfo(const char* path)
 {
     stPremiumTable_t table[0x6a];
@@ -1268,13 +1289,15 @@ int CUserPremium::LoadPremiumInfo(const char* path)
         g_SPremiumInfo[i].m_fatigueRate = table[i].m_fatigueRate;         // +0x34
         g_SPremiumInfo[i].m_premiumCount = table[i].m_coin;               // +0x38
         g_SPremiumInfo[i].m_expRate = table[i].m_expRate;                 // +0x3c
+        // [b28d-solo-CUserPremium] 顺序照 ORIG g 表 store 序列（0x00/0x04/0x08/
+        // 0x0c/0x34/0x38/0x3c/0x58/0x5a/0x5c/0x40/0x44/0x48/0x60/0x64）。
+        g_SPremiumInfo[i].m_overSkillLevel = table[i].m_overSkillLevel;   // +0x58 ← t+0x42
+        g_SPremiumInfo[i].m_field5a = table[i].m_cerashopDiscountRate;    // +0x5a ← t+0x44
+        g_SPremiumInfo[i].m_useTargetServer = table[i].m_useTargetServer; // +0x5c
         g_SPremiumInfo[i].m_needDailyCheck = table[i].m_unlimitFatigue;   // +0x40
         g_SPremiumInfo[i].m_field44 = table[i].m_bonusExp;                // +0x44
         g_SPremiumInfo[i].m_field48 = table[i].m_questItemDropRate;       // +0x48
         g_SPremiumInfo[i].m_independentDropRates = table[i].m_independentDropRates;  // +0x4c
-        g_SPremiumInfo[i].m_overSkillLevel = table[i].m_overSkillLevel;   // +0x58 ← t+0x42
-        g_SPremiumInfo[i].m_field5a = table[i].m_cerashopDiscountRate;    // +0x5a ← t+0x44
-        g_SPremiumInfo[i].m_useTargetServer = table[i].m_useTargetServer; // +0x5c
         g_SPremiumInfo[i].m_overEquipFlag = table[i].m_goldBonus;         // +0x60
         g_SPremiumInfo[i].m_field64 = table[i].m_overEquipCount;          // +0x64
         for (int j = 0; j < 5; ++j)                     // +0x68 返还物品对
@@ -1316,12 +1339,11 @@ int CUserPremium::LoadPremiumInfo(const char* path)
 
         STPremiumItemData data;
         data.m_value0 = i;
-        unsigned long key = (unsigned long)table[i].m_targetItemKey;
         if (table[i].m_premiumItems.size() == 0)
         {
             // 空表：flag 字节取已拷贝 g 表 m_checkTerm 低字节，key 用记录键。
             data.m_c4 = (unsigned char)g_SPremiumInfo[i].m_checkTerm;
-            if (SetPremiumItemData(key, data) != 1)
+            if (SetPremiumItemData((unsigned long)table[i].m_targetItemKey, data) != 1)
                 return 0x1c4;
         }
         else

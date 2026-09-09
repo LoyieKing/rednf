@@ -26,10 +26,12 @@
 // ExpertJobOnlyMgr.cpp:86 同型 reinterpret_cast 视图）；待宿主把 CParty.h 战场区
 // 正式嵌入 CBattle_Field 后统一 cutover 为具名子对象访问。
 //
-// 本 TU 外部依赖符号（仅声明无实现；owner 注记）：
-//   void CInGameAdvertisementManager::CheckFailMultiBoxLottery(CUser*,
-//          std::vector<std::pair<Inven_Item,bool>>&)  ORIG T 0x080fcb3e，
-//     owner = W8_LongTail.LT08_AdvertisementMisc（新 TU 承载全族实现）。
+// 本 TU 依赖符号（owner 注记）：
+//   CInGameAdvertisementManager::CheckFailMultiBoxLottery(CUser*,
+//          std::vector<std::pair<Inven_Item,bool>>&)  ORIG T 0x080fcb3e：
+//     定义在本 TU（见文件末尾）；ORIG 返回 void（0x080fcb3e 尾无 mov $0,%eax、
+//     Ghidra void），权威头 CInGameAdvertisementManager.h:88 声明 bool —— 已上报
+//     Main 待头修正（消费点 CUserOnlyOrig.cpp:4364 为注释、本 TU 调用忽略返回值）。
 //   CInGameAdvertisementManager* InGameADManagerInstance()
 //     ORIG T _Z23InGameADManagerInstancev @0x080fc9e9，owner 同上。
 //   （二者的类最小视图在本 TU 末尾声明区给出，仅供指针上成员调用，
@@ -69,63 +71,19 @@ public:
 };
 extern CInGameAdvertisementManager* InGameADManagerInstance();
 
-// ---------------------------------------------------------------------------
-// CInGameAdvertisementManager::CheckFailMultiBoxLottery —— ORIG 0x080fcb3e
-// _ZN27CInGameAdvertisementManager24CheckFailMultiBoxLotteryEP5CUserRSt6vectorISt4pairI10Inven_ItembESaIS5_EE
-// 报告 docs/class_func_reports/CInGameAdvertisementManager/CheckFailMultiBoxLottery.md：
-//   若 rewardList 全部为 multibox 广告箱物品(idx ∈ {0x1e3c,0x1e3d,0x1e3e})，
-//   inc_multiboxLotteryItemFailCnt；连续失败 >2 时发送 put_header(0,0x1c6) 空通知包；
-//   任一非广告物品 → set_multiboxLotteryItemFailCnt(0)。单例 owner=GameMain.cpp。
-// ---------------------------------------------------------------------------
-void CInGameAdvertisementManager::CheckFailMultiBoxLottery(
-    CUser* user,
-    std::vector<std::pair<Inven_Item, bool> >& rewardList)
-{
-    // b28d-35: DIFF→N 封顶（N82 帧/槽 + bool 物化块序）。ORIG @0x080fcb3e
-    //   size 0x1ef；我方 118 vs ORIG 147，残余为 4.4 短路物化（mov $1/$0 岛）
-    //   与帧差 0x70 vs 0x30。语义/调用点一致。
-    if (user == 0 || rewardList.empty()) {
-        return;
-    }
-
-    // ORIG：迭代器 for 循环（begin/end/++/de）
-    bool allAdItems = false;
-    for (std::vector<std::pair<Inven_Item, bool> >::iterator it =
-             rewardList.begin(); it != rewardList.end(); it++) {
-        const unsigned int idx =
-            static_cast<unsigned int>((*it).first.m_addInfo);
-        if (idx != 0x1e3cu && idx != 0x1e3du && idx != 0x1e3eu) {
-            allAdItems = false;                              // ORIG +0xd1 置零后跳出
-            break;
-        }
-        allAdItems = true;
-    }
-
-    if (!allAdItems) {
-        user->set_multiboxLotteryItemFailCnt(0);             // 0x080fdf44
-        return;
-    }
-    if (user->inc_multiboxLotteryItemFailCnt() <= 2) {       // 0x080fdf56
-        return;
-    }
-
-    PacketGuard out;
-    out.clear();                       // ORIG PacketGuardC1 后显式 clear
-    out.put_header(0, 0x1c6);
-    out.finalize(true);
-    user->Send(out);
-}
-
 // ===========================================================================
 // 1) CUser::IsOldLotteryItem(unsigned int) @0x08673342 —— 报告全文直转
 // ===========================================================================
 bool CUser::IsOldLotteryItem(unsigned int itemIdx)
 {
-    // b28d-35：N 封顶（P85/P209 族，跨版本形参寄存器化差）——ORIG 0x08673342
-    //   为「形参一次载入 %eax + 多次 `cmp $imm,%eax`」；4.4.7 恒对形参槽内存直比
-    //   `cmpl $imm,0xc(%ebp)`。register 局部实测：值落 %ebx + push/pop %ebx +
-    //   `lea -K(%ebx),%eax`（ORIG 为 %eax 无 push + `sub $K,%eax`），净 +6 条；
-    //   形参直用版净 +6 条（内存直比）。两形均劣于 ORIG，语义/边界全等 ⇒ 封顶。
+    // b28d-solo-W8_CU_A：N 封顶（N7/N18a 寄存器化 + 跨版本块布局；原 b28d-35
+    //   P85/P209 判词同族）。ORIG 0x08673342：形参一次载入 %eax 后全程
+    //   `cmp $imm,%eax` 复用，三处失败路径 tail-merge 到单一 mov $0 尾块
+    //   (0x59)、成功汇 0x52。4.4.7 恒「形参槽内存直比 + 失败块就地散布」。
+    //   本轮五形实测（探针 /tmp/probe_ol.cpp）：①当前嵌套 if 37 条；②register
+    //   局部 37 条（值落 %ebx+push/pop，ORIG 为 %eax 无 push）；③显式 early
+    //   return 36 条；④goto 尾标签 45 条（4.4 在 goto 岛补 nop+jmp）——四形
+    //   mnemonic 序列均与 ORIG 31 条不符，语义/边界全等 ⇒ 封顶。
     if (itemIdx < 0x1d57u) {
         if (itemIdx < 0x1d4cu) {
             if (itemIdx < 0x1bc6u) {
@@ -191,49 +149,52 @@ int CUser::inc_multiboxLotteryItemFailCnt()
 int CUser::GetItemTimeChecker(unsigned int nowSec, unsigned short val1,
                               unsigned short val2, unsigned int rangeSec)
 {
-    // b28d-35: DIFF→N 封顶（N82/P182 帧族：ORIG @0x082302ac 帧 0x8（仅形参槽）
-    //   vs 我方 0x18（具名 a/b）；残余槽差 0x10。语义/字段写序全等。
-    // b28d-35：P77——ORIG 0x082302ac 只用形参槽 -0x4/-0x8（`mov %dx,-0x4`），
-    //   无具名 short 局部；原 v1/v2 局部使 4.4 增 movzwl+mov+movb 对（帧
-    //   0x8→0x18）⇒ 改为使用点内联 `(short)valN`。
-    if ((nowSec - m_mcap.m_timeChkBaseSec) > rangeSec) {
+    // b28d-solo-W8_CU_A：IDENTICAL 复原（原 b28d-35 N82/P182 判词作废）。
+    //   ORIG @0x082302ac 帧 0x8、条件 `ja` 落 reset 块（窗口内逻辑 fall-through）。
+    //   三处修法：① 条件极性反写（`<= rangeSec` 窗口在前 / reset 后置）复现
+    //   `cmp 0x18(%ebp),%eax; ja <reset>`；② 删具名 int a/b 局部（帧 0x18→0x8）
+    //   改为「先写 diff 字段（16 位 sub）再对字段本身 abs 写回」——
+    //   ORIG 0x08230398/0x08230409 两段 `movzwl 字段;cwtl;sar;xor;sub` 即此形；
+    //   ③ 真语义 bug 修正：原「MaxB 用 min 判据 / MinB 用 max 判据」两条互换了
+    //   字段（B 通道 min/max 语义反转）；按 ORIG 0x0823031a/0x08230344 恢复为
+    //   MinA,MinB,MaxA,MaxB 顺序（reset 块同序，ORIG 0x08230459..0x0823048a）。
+    if ((nowSec - m_mcap.m_timeChkBaseSec) <= rangeSec) {
+        ++m_mcap.m_timeChkCount;
+        if ((static_cast<int>(m_mcap.m_timeChkMinA) - (short)val1) > 0) {
+            m_mcap.m_timeChkMinA_u = val1;
+        }
+        if ((static_cast<int>(m_mcap.m_timeChkMinB) - (short)val2) > 0) {
+            m_mcap.m_timeChkMinB_u = val2;
+        }
+        if ((static_cast<int>(m_mcap.m_timeChkMaxA) - (short)val1) < 0) {
+            m_mcap.m_timeChkMaxA_u = val1;
+        }
+        if ((static_cast<int>(m_mcap.m_timeChkMaxB) - (short)val2) < 0) {
+            m_mcap.m_timeChkMaxB_u = val2;
+        }
+
+        m_mcap.m_timeChkDiffA = static_cast<short>(
+            static_cast<short>(m_mcap.m_timeChkMaxA_u) -
+            static_cast<short>(m_mcap.m_timeChkMinA_u));
+        m_mcap.m_timeChkDiffB = static_cast<short>(
+            static_cast<short>(m_mcap.m_timeChkMaxB_u) -
+            static_cast<short>(m_mcap.m_timeChkMinB_u));
+        m_mcap.m_timeChkDiffA = static_cast<short>(
+            m_mcap.m_timeChkDiffA < 0 ? -m_mcap.m_timeChkDiffA
+                                      : m_mcap.m_timeChkDiffA);
+        m_mcap.m_timeChkDiffB = static_cast<short>(
+            m_mcap.m_timeChkDiffB < 0 ? -m_mcap.m_timeChkDiffB
+                                      : m_mcap.m_timeChkDiffB);
+    } else {
         // 重置分支（ORIG 写序：diff 清零 → 计数清零 → 基准秒与四端点）
         m_mcap.m_timeChkDiffA = 0;
         m_mcap.m_timeChkDiffB = 0;
         m_mcap.m_timeChkCount = 0;
         m_mcap.m_timeChkBaseSec = nowSec;
-        m_mcap.m_timeChkMinA = (short)val1;
-        m_mcap.m_timeChkMaxA = (short)val1;
-        m_mcap.m_timeChkMinB = (short)val2;
-        m_mcap.m_timeChkMaxB = (short)val2;
-    } else {
-        ++m_mcap.m_timeChkCount;
-        if ((static_cast<int>(m_mcap.m_timeChkMinA) - (short)val1) > 0) {
-            m_mcap.m_timeChkMinA = (short)val1;      // 取更小端
-        }
-        if ((static_cast<int>(m_mcap.m_timeChkMaxB) - (short)val2) > 0) {
-            m_mcap.m_timeChkMaxB = (short)val2;      // 取更大端
-        }
-        if ((static_cast<int>(m_mcap.m_timeChkMaxA) - (short)val1) < 0) {
-            m_mcap.m_timeChkMaxA = (short)val1;
-        }
-        if ((static_cast<int>(m_mcap.m_timeChkMinB) - (short)val2) < 0) {
-            m_mcap.m_timeChkMinB = (short)val2;
-        }
-
-        // b28d-35：N 封顶（N82/P182 帧族 + N18a）。ORIG 0x08230398 先写字段
-        //   `mov %dx,0x8e444`（16 位 sub）再对字段本身 abs 写回，无具名 int
-        //   局部（帧 0x8）；我方具名 a/b 形帧 0x18（残余槽差 0x10）、内联字段
-        //   abs 形因三次重读字段劣化到 152 条 ⇒ 取具名 a/b 最短形，语义全等。
-        int a = static_cast<int>(
-            static_cast<short>(m_mcap.m_timeChkMaxA - m_mcap.m_timeChkMinA));
-        m_mcap.m_timeChkDiffA =
-            static_cast<short>((a ^ (a >> 31)) - (a >> 31));  // abs
-
-        int b = static_cast<int>(
-            static_cast<short>(m_mcap.m_timeChkMaxB - m_mcap.m_timeChkMinB));
-        m_mcap.m_timeChkDiffB =
-            static_cast<short>((b ^ (b >> 31)) - (b >> 31));
+        m_mcap.m_timeChkMinA_u = val1;
+        m_mcap.m_timeChkMinB_u = val2;
+        m_mcap.m_timeChkMaxA_u = val1;
+        m_mcap.m_timeChkMaxB_u = val2;
     }
     return m_mcap.m_timeChkCount;
 }
@@ -249,35 +210,30 @@ int CUser::GetItemTimeChecker(unsigned int nowSec, unsigned short val1,
 int CUser::GetItemSerialChecker(unsigned short serialIdx, unsigned short serialVal,
                                 int monsterIdx)
 {
-    // b28d-35: DIFF→N 封顶（N82 帧/槽 + bool 物化）。ORIG @0x0823066a 帧 0x34
-    //   四条件直跳；我方 0x44 且 inWindow 物化（movb/-0x12 槽）。语义一致。
-    // b28d-35：P77/P200——ORIG 0x0823066a 直接对形参槽 `movzwl -0x1c; movswl
-    //   %ax,%edx`（无具名 idxDiff/valDiff 局部）；具名 int 局部使 4.4 增 cwtl
-    //   + 两条 store/load（帧 0x34→0x44）⇒ 改为使用点内联 `(int)(short)形参`。
-    bool inWindow =
-        (((int)(short)serialIdx - (int)m_mcap.m_serialLastIdx) >= -23 &&
-         ((int)(short)serialIdx - (int)m_mcap.m_serialLastIdx) <= 23 &&
-         ((int)(short)serialVal - (int)m_mcap.m_serialLastVal) >= -17 &&
-         ((int)(short)serialVal - (int)m_mcap.m_serialLastVal) <= 17);
-
-    if (!inWindow) {
+    // b28d-solo-W8_CU_A：AE 复原（原 b28d-35「N82 帧/槽 + bool 物化」判词作废）。
+    //   ORIG @0x0823066a 帧 0x34（与本重建同）；三处修法：
+    //   ① 删具名 bool inWindow（4.4 恒物化 `movb %al,-0x12; movzbl; xor $1; test`
+    //   多 4 条）⇒ 四条件直写 if 头，失败路径即 ORIG 的 `jl/jg <reset 尾块>`；
+    //   ② 删具名 bool hit 与 `CBattle_Field& bf` 引用（引用强制 `add $0xb24`
+    //   具名槽）⇒ 经 p->m_battleField 直接访问，复现 ORIG 0x0820729 段
+    //   `movzbl 0xcec(%eax)`/`mov 0xce0(%eax),%ebx` disp 折叠；
+    //   ③ if/else 结构（reset 为 else 后置）= ORIG 0x082077e 尾块布局。
+    if (((int)(short)serialIdx - (int)m_mcap.m_serialLastIdx) >= -23 &&
+        ((int)(short)serialIdx - (int)m_mcap.m_serialLastIdx) <= 23 &&
+        ((int)(short)serialVal - (int)m_mcap.m_serialLastVal) >= -17 &&
+        ((int)(short)serialVal - (int)m_mcap.m_serialLastVal) <= 17) {
+        CParty* p = static_cast<CParty*>(GetParty());
+        if (p != NULL && p->isMonsterDrop_item(monsterIdx) &&
+            (!p->m_battleField.m_visitedGotoFlag ||
+             p->m_battleField.m_hellMapIdx !=
+                 p->m_battleField.get_cur_map())) {
+            ++m_mcap.m_serialHitCount;
+        }
+    } else {
         // 重置：命中计数清零、记录本次基准对
         m_mcap.m_serialHitCount = 0;
-        m_mcap.m_serialLastIdx = serialIdx;
-        m_mcap.m_serialLastVal = serialVal;
-        return m_mcap.m_serialHitCount;
-    }
-
-    bool hit = false;
-    CParty* p = static_cast<CParty*>(GetParty());
-    if (p != NULL && p->isMonsterDrop_item(monsterIdx)) {
-        // 战场子对象视图（CParty+0xb24，占位期经 m_battleField 访问）
-        CBattle_Field& bf =
-            *&p->m_battleField;
-        hit = (bf.m_visitedGotoFlag == 0) || (bf.m_hellMapIdx != bf.get_cur_map());
-    }
-    if (hit) {
-        ++m_mcap.m_serialHitCount;
+        m_mcap.m_serialLastIdx_u = serialIdx;
+        m_mcap.m_serialLastVal_u = serialVal;
     }
     return m_mcap.m_serialHitCount;
 }
@@ -295,8 +251,11 @@ int CUser::GetItemSerialChecker(unsigned short serialIdx, unsigned short serialV
 // ===========================================================================
 int CUser::lottery_item(int slot)
 {
-    // b28d-35: DIFF→N 封顶（§6.2 巨件口径）。ORIG @0x086733a2 size 0x15c6；
-    //   P167 调用点差集 CLEAR，残余为 N82 帧/槽 + setne 物化 + N22 比较折向。
+    // b28d-solo-W8_CU_A：N 封顶（§6.2 巨件口径；原 b28d-35 判词沿用并复验）。
+    //   ORIG @0x086733a2 size 0x15c6；P167 调用点差集 200/200 CLEAR（本轮复验）；
+    //   帧 0x30c 与 ORIG 相同，但 4.4 槽分配整体浅移 0x18（resultSlotNo -0x74
+    //   vs ORIG -0x5c、lotto -0x151 vs -0x139、curItem -0x18e vs -0x176）——
+    //   属 N82/N95 槽序族；残余另含 setne 物化（N-88）与 N22 比较折向。
     int resultSlotNo = 0;                                        // local_60
     Inven_Item lotto;                                            // local_13d
     Inven_Item curItem;                                          // local_17a
@@ -635,9 +594,12 @@ int CUser::lottery_item(int slot)
 // ===========================================================================
 int CUser::multibox_lottery_item(int boxSlot, int keySlot)
 {
-    // b28d-35: DIFF→N 封顶（§6.2 巨件口径）。ORIG @0x08674968 size 0x115d；
-    //   残余为 N82 帧/槽平移 + P282 虚派发槽差（vcall_cand 件：ORIG 0x16/0x20/
-    //   0x12 各 1-3 处 vs 我方少 1，已按 P282 复核 vtable 槽序无真 bug）。
+    // b28d-solo-W8_CU_A：N 封顶（§6.2 巨件口径；原 b28d-35 判词沿用并复验）。
+    //   ORIG @0x08674968 size 0x115d；P167 调用点差集 141/141 CLEAR（本轮复验）；
+    //   帧 0x25c vs 我方 0x24c（差 0x10，首局部 boxItem -0x14d vs -0x15d），
+    //   P210 把 CheckFailMultiBoxLottery 定义后置实测帧不变 ⇒ 非「已见定义
+    //   callee」成因，属 N95/N82 槽序族；P282 复核 vtable 槽序无真 bug
+    //   （vcall_cand 件：ORIG 0x16/0x20/0x12 各 1-3 处 vs 我方少 1）。
     Inven_Item boxItem;                                          // local_151
     boxItem = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_EQUIP, boxSlot);
     unsigned int boxItemId = static_cast<unsigned int>(boxItem.m_addInfo);
@@ -883,4 +845,72 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
 
     use_multibox_statistic(boxItemId);
     return 0;
+}
+
+// ---------------------------------------------------------------------------
+// CInGameAdvertisementManager::CheckFailMultiBoxLottery —— ORIG 0x080fcb3e
+// _ZN27CInGameAdvertisementManager24CheckFailMultiBoxLotteryEP5CUserRSt6vectorISt4pairI10Inven_ItembESaIS5_EE
+// 报告 docs/class_func_reports/CInGameAdvertisementManager/CheckFailMultiBoxLottery.md：
+//   若 rewardList 全部为 multibox 广告箱物品(idx ∈ {0x1e3c,0x1e3d,0x1e3e})，
+//   inc_multiboxLotteryItemFailCnt；连续失败 >2 时发送 put_header(0,0x1c6) 空通知包；
+//   任一非广告物品 → set_multiboxLotteryItemFailCnt(0)。单例 owner=GameMain.cpp。
+// 定义置于本 TU 末尾（曾试 P210 后置以翻 multibox 帧：实测帧 0x24c 不变，
+//   故非「已见定义 callee」成因；见 multibox_lottery_item 判词 N95）。
+// ---------------------------------------------------------------------------
+void CInGameAdvertisementManager::CheckFailMultiBoxLottery(
+    CUser* user,
+    std::vector<std::pair<Inven_Item, bool> >& rewardList)
+{
+    // b28d-solo-W8_CU_A：按报告 0x080fcb3e 复原（原 b28d-35「N82 帧/槽 + bool
+    //   物化块序」判词作废）。三处修法：① 循环体内补具名 `Inven_Item item =
+    //   (*it).first;`（ORIG 0x080fcb81 段 15×dword+1×word 内联拷贝到 -0x66 槽，
+    //   只读 m_addInfo 不产生该拷贝）；② 白名单判定改正极性
+    //   `if (id==A||id==B||id==C) { allAdItems=true; } else { allAdItems=false;
+    //   break; }`（ORIG 0x080fcc0b 三 je 汇同一 true 块 + 尾 jne false 块）；
+    //   ③ `int failCnt = inc_...();` 具名槽（ORIG 0x080fcc92 `mov %eax,-0xc;
+    //   cmpl $0x2,-0xc`）。
+    // 残余 N 封顶：① Inven_Item 拷贝尾 4.1 用 word（`movzwl 0x3c; mov %ax`，
+    //   越界读 +0x3d，同 CParty.cpp:5915 已证 ORIG 遗留）vs 4.4 byte ⇒ N78；
+    //   ② it/guard 槽序反向（4.1 guard -0x28/it -0x1c，4.4 it -0x28/guard
+    //   -0x24）⇒ N95 槽序族（4.4 按首次使用序分配，it 先于 guard 使用）。
+    //   本轮已用循环体内 `char slotPad1[1]` 把 item 槽基从 -0x65 顶到 ORIG 的
+    //   -0x66（N95 正例，拷贝段 15×dword 偏移全对齐）。语义/调用点
+    //   （16/16 CLEAR）与块布局已全等。
+    if (user == 0) {
+        return;
+    }
+    if (rewardList.empty()) {
+        return;
+    }
+
+    // ORIG：迭代器 for 循环（begin/end/++/de）
+    bool allAdItems = false;
+    for (std::vector<std::pair<Inven_Item, bool> >::iterator it =
+             rewardList.begin(); it != rewardList.end(); it++) {
+        char slotPad1[1];          // N95 试验：把 item 槽基顶到 ORIG 的 -0x66
+        (void)slotPad1;
+        Inven_Item item = (*it).first;
+        if (item.m_addInfo == 0x1e3cu || item.m_addInfo == 0x1e3du ||
+            item.m_addInfo == 0x1e3eu) {
+            allAdItems = true;                               // ORIG +0xcd 置一
+        } else {
+            allAdItems = false;                              // ORIG +0xf1 置零后跳出
+            break;
+        }
+    }
+
+    if (!allAdItems) {
+        user->set_multiboxLotteryItemFailCnt(0);             // 0x080fdf44
+        return;
+    }
+    int failCnt = user->inc_multiboxLotteryItemFailCnt();    // 0x080fdf56
+    if (failCnt <= 2) {
+        return;
+    }
+
+    PacketGuard out;
+    out.clear();                       // ORIG PacketGuardC1 后显式 clear
+    out.put_header(0, 0x1c6);
+    out.finalize(true);
+    user->Send(out);
 }

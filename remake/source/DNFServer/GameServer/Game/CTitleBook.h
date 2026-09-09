@@ -101,9 +101,11 @@ struct stTitleRewardBasis
             if (m_data != 0)
             {
                 // ORIG：mov (%eax),%eax; add $0xc,%eax; mov (%eax),%edx; call *%edx —— 虚删除。
+                // P254/P211（b28d-solo-ScriptDepsB 探针实证）：`*(ptr+3)` 指针算术形复现
+                // ORIG 单段直读 %edx；`ptr[3]` 下标形在 4.4.6 头集恒折 eax 中转（+1 条）。
                 typedef void (*DeletingDtor)(void*);
-                reinterpret_cast<DeletingDtor>(
-                    (*reinterpret_cast<void***>(m_data))[3])(m_data);
+                reinterpret_cast<DeletingDtor*>(
+                    *reinterpret_cast<void***>(m_data) + 3)[0](m_data);
             }
         }
         m_data = 0;
@@ -180,11 +182,17 @@ static_assert(sizeof(stRewardPostal) == 0x20,
 struct stTitleSection
 {
     stTitleSection()
-        : m_category(4), m_startIdx(-1), m_endIdx(-1),
-          m_imageParam(-1), m_iconId(-1), m_frameType(0)
     {
-        // ORIG C1 0x08aa979e：+0x00=4、+0x0c/+0x10/+0x1c/+0x28=-1、+0x2c=0
-        //（string/vector 成员自动构造）
+        // ORIG C1 0x08aa979e：**先全部 string/vector 成员构造**（+0x04/+0x08/
+        // +0x14/+0x18/+0x20/+0x24/+0x30/+0x34，声明序），**再**标量 store
+        // +0x00=4、+0x0c/+0x10/+0x1c/+0x28=-1、+0x2c=0。4.4 对初始化列表标量
+        // 恒按声明序**混合**发射（P239）⇒ 标量必须全部移入 ctor 体、按 ORIG 序。
+        m_category = 4;
+        m_startIdx = -1;
+        m_endIdx = -1;
+        m_imageParam = -1;
+        m_iconId = -1;
+        m_frameType = 0;
     }
     int m_category;                          // +0x00
     std::string m_sectionName;               // +0x04（[section name]）

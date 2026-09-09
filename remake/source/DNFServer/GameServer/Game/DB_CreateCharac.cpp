@@ -60,8 +60,20 @@ DB_CreateCharac::~DB_CreateCharac()
 // ===========================================================================
 // dispatch — dispatch.md T @0x08400d2c
 // ===========================================================================
-// b28d-D42 verdict=DIFF [N82/N89] ORIG 0x08400d2c orig/ours=210/181 ndiff=180。
-// 帧/槽平移 + Stream 读取链内联差；语义按报告逐条对齐。
+#pragma pack(push, 1)
+// +0x3a9 起点视图：CreateInventory 的 Inven_Item* 源（ORIG `lea 0x3a9(%eax),%edx`；
+// 数组名退化在 4.4 恒折 add+mov）。
+struct SigGiftInvenView
+{
+    unsigned char m_pre[0x3a9];
+    Inven_Item m_inven;                // +0x3a9
+};
+#pragma pack(pop)
+
+// b28d-solo-DB_CreateCharac verdict=AE ORIG 0x08400d2c 213=213。
+// 修法：P102 同一 bool ok（声明在 sig 前取 -0xd 深槽）+ if(!ok) goto 三岛标签串（P223）
+// + P248 档① SendResult int→bool（消 test/setne）+ SigGiftInvenView 具名成员取址复现
+// ORIG `lea 0x3a9(%eax),%edx`（数组名退化恒折 add+mov）。
 bool DB_CreateCharac::dispatch(int userIdx, int slot, Stream* stream)
 {
     if (!DBDispatcher::dispatch(userIdx, slot, stream))
@@ -69,6 +81,8 @@ bool DB_CreateCharac::dispatch(int userIdx, int slot, Stream* stream)
         return false;
     }
 
+    // P102/P0：ORIG 全程复用同一 bool 槽 -0xd；声明在 sig 之前使 4.4 给 ok 更深槽。
+    bool ok;
     SIG_CREATE_CHARAC* sig = stream->GetOutBuffer<SIG_CREATE_CHARAC>();
     if (sig == NULL)
     {
@@ -77,72 +91,95 @@ bool DB_CreateCharac::dispatch(int userIdx, int slot, Stream* stream)
 
     sig->m_resultCode = 0;
 
-    bool ok = CheckLimitCreateNewCharac(sig, true);         // call 08401922
-    if (ok)
+    // P102/P0：ORIG 全程复用同一 bool 槽 -0xd（每次 `mov %al,-0xd; movzbl -0xd; xor $1;
+    // test; je/jne`）⇒ 所有子调用结果赋给同一具名 bool ok，逐个判断；失败路径照 ORIG
+    //（CheckLimit/CreateNewCharac/_CreateNewCharacStat 失败直落 SendResult，其余 rc=2）。
+    ok = CheckLimitCreateNewCharac(sig, true);              // call 08401922
+    if (!ok)
     {
-        if (CreateNewCharac(sig))                           // call 08401dcc
+        goto island1;                                       // ORIG jne nop+jmp 岛
+    }
+    ok = CreateNewCharac(sig);                              // call 08401dcc
+    if (!ok)
+    {
+        goto island2;                                       // ORIG jne nop+jmp 岛
+    }
+    ok = GetCharacNo(sig);                                  // call 0840275c
+    if (!ok)
+    {
+        sig->m_resultCode = 2;
+        goto send_result;
+    }
+    ok = _CreateNewCharacStat(sig);                         // call 0840215e
+    if (!ok)
+    {
+        goto island3;                                       // ORIG jne nop 岛（fall-through）
+    }
+    if (sig->m_giftFindOk != 0)                             // byte +0x533f
+    {
+        ok = CreateInventory(sig->m_characNo,
+                             &reinterpret_cast<SigGiftInvenView*>(sig)->m_inven);
+    }
+    else
+    {
+        ok = CreateInventory(sig->m_characNo, NULL);
+    }
+    if (sig->m_equipFindOk != 0)                            // byte +0x5340
+    {
+        // ORIG lea 0x4e01(%eax)：&m_giftItem 起点，压缩长度 0x2dc。
+        ok = CreateEquip(sig->m_characNo, &sig->m_giftItem);
+    }
+    if (!ok)
+    {
+        sig->m_resultCode = 2;
+    }
+    ok = CreateSkill(sig);
+    if (!ok)
+    {
+        sig->m_resultCode = 2;
+    }
+    ok = CreatePvP(sig->m_characNo);
+    if (!ok)
+    {
+        sig->m_resultCode = 2;
+    }
+    ok = _createCharacDungeon(sig->m_accId);
+    if (!ok)
+    {
+        sig->m_resultCode = 2;
+    }
+    else
+    {
+        ok = _createCharacQuest(sig->m_characNo);
+        if (!ok)
         {
-            if (GetCharacNo(sig))                           // call 0840275c
+            sig->m_resultCode = 2;
+        }
+        else
+        {
+            ok = _createCharacNPCRelationship(sig->m_characNo);
+            if (!ok)
             {
-                if (_CreateNewCharacStat(sig))              // call 0840215e
-                {
-                    bool invOk;                             // -0xd(%ebp)
-                    if (sig->m_giftFindOk != 0)             // byte +0x533f
-                    {
-                        invOk = CreateInventory(sig->m_characNo,
-                                                reinterpret_cast<Inven_Item*>(sig->m_pad3a9));
-                    }
-                    else
-                    {
-                        invOk = CreateInventory(sig->m_characNo, NULL);
-                    }
-                    if (sig->m_equipFindOk != 0)            // byte +0x5340
-                    {
-                        // ORIG lea 0x4e01(%eax)：&m_giftItem 起点，压缩长度 0x2dc。
-                        invOk = CreateEquip(sig->m_characNo, &sig->m_giftItem);
-                    }
-                    if (!invOk)
-                    {
-                        sig->m_resultCode = 2;
-                    }
-                    if (!CreateSkill(sig))
-                    {
-                        sig->m_resultCode = 2;
-                    }
-                    if (!CreatePvP(sig->m_characNo))
-                    {
-                        sig->m_resultCode = 2;
-                    }
-                    if (!_createCharacDungeon(sig->m_accId))
-                    {
-                        sig->m_resultCode = 2;
-                    }
-                    else if (_createCharacQuest(sig->m_characNo))
-                    {
-                        if (!_createCharacNPCRelationship(sig->m_characNo))
-                        {
-                            sig->m_resultCode = 2;
-                        }
-                        InsertLimitCreateNewCharac(sig, true);
-                    }
-                    else
-                    {
-                        sig->m_resultCode = 2;
-                    }
-                }
-                else
-                {
-                    sig->m_resultCode = 2;
-                }
+                sig->m_resultCode = 2;
             }
             else
             {
-                sig->m_resultCode = 2;
+                ok = InsertLimitCreateNewCharac(sig, true);
             }
         }
     }
 
-    return SendResult(userIdx, slot, sig) != 0;
+island3:;
+island2:;
+island1:;
+send_result:
+    // P248 档①：ORIG 只有 `mov %al,-0xd`（无 test/setne）⇒ SendResult 返回类型改 bool。
+    ok = SendResult(userIdx, slot, sig);
+    if (!ok)
+    {
+        return false;
+    }
+    return true;
 }
 
 // ===========================================================================
@@ -204,9 +241,9 @@ bool DB_CreateCharac::_createCharacDungeon(unsigned int accId)
 // CheckLimitCreateNewCharac(SIG*) — 报告 @0x08401504
 // 当日（本地零点起）已建 >1 角色拒建（rc=5）；exec 失败 rc=2。
 // ===========================================================================
-// b28d-D42 verdict=DIFF [N82] ORIG 0x08401504 orig/ours=109/108 ndiff=49。
-// 残差为槽号 -0x18/-0x20 互换 + bool 物化形（movb/movzbl/xor vs 直 xor）；
-// P112/N82 跨版本槽分配，语义等价封顶。
+// b28d-solo-DB_CreateCharac verdict=AE ORIG 0x08401504 111=111。
+// 修法：mktime 结果写回 nowSec 同槽（-0x20）+ P102 同一 bool ok（声明在 db 前取 -0x19）
+// + P225 拆嵌套 if 消 && 物化 + 比较写 nowSec<=createTime（unsigned long 语义）复现 ja。
 bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
 {
     if (GlobalData::s_pGMAccounts_->isGM(sig->m_accId))
@@ -214,6 +251,8 @@ bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
         return true;
     }
 
+    // P102：fetch/get_uint 两次检查复用同一 bool 局部（ORIG 同一 -0x19 槽）。
+    bool ok;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
                                                   E_SERVER_GROUP_NONE);
     time_t nowSec = GlobalData::s_systemTime_.getCurSec();
@@ -222,7 +261,8 @@ bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
     localTime.tm_hour = 0;
     localTime.tm_min = 0;
     localTime.tm_sec = 0;
-    time_t dayStart = mktime(&localTime);
+    // ORIG mktime 结果写回 -0x20 同槽（nowSec 复用，无独立 dayStart 槽）。
+    nowSec = mktime(&localTime);
 
     unsigned int createTime = 0;
     db->set_query(
@@ -242,18 +282,26 @@ bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
     int todayCount = 0;
     for (int i = 0; i < nRows; ++i)
     {
-        if (!db->fetch())
+        ok = db->fetch();
+        if (!ok)
         {
             break;
         }
-        if (!db->get_uint(0, createTime))
+        ok = db->get_uint(0, createTime);
+        if (!ok)
         {
             break;
         }
-        if ((time_t)createTime >= dayStart && ++todayCount > 1)
+        // P225 推广：拆嵌套 if 消 4.4 的 && bool 物化（ORIG 两跳同一目标）；
+        // 比较写成 nowSec<=createTime（unsigned long 语义）复现 ORIG ja 无符号跳。
+        if (nowSec <= createTime)
         {
-            sig->m_resultCode = 5;
-            return false;
+            ++todayCount;
+            if (todayCount > 1)
+            {
+                sig->m_resultCode = 5;
+                return false;
+            }
         }
     }
     return true;
@@ -271,18 +319,26 @@ bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
 // `movzbl;xor;test`（P102 同槽多查），4.4 对 `!a()||!b()||!c() break` 短路直跳；trace
 // 实参寄存器缓存序 N82。无子母，封 N。
 // ===========================================================================
-// b28d-D42 verdict=DIFF [N82] ORIG 0x08401922 orig/ours=155/148 ndiff=104。
-// 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
+// b28d-solo-DB_CreateCharac verdict=AE ORIG 0x08401922 158=158。
+// 修法：bool 形参空 if 体复现头部 spill（-0x7c）+ P102 同一 bool ok（-0x29）+ lastAccessTime
+// 先声明（-0x44/-0x48）+ P232 dead 槽 -0x20 + P227 全表达式临时链（%esi/%edi/%ebx）。
 bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
                                                 bool traceFlag)
 {
-    (void)traceFlag;
+    // ORIG 头部 `mov 0x10(%ebp),%eax; mov %al,-0x7c(%ebp)`：bool 形参规范化
+    // spill（空 if 体被 DCE，仅留 spill 两条）。
+    if (traceFlag)
+    {
+    }
 
     if (GlobalData::s_pGMAccounts_->isGM(sig->m_accId))
     {
         return true;
     }
 
+    // P102：三次结果检查复用同一 bool 局部（ORIG 同一 -0x29 槽 + 三独立 break 岛）；
+    // 声明在 db 之前使 4.4 给 bool 更深槽（-0x2c 尾 -0x29），db 落 -0x28。
+    bool ok;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
                                                   E_SERVER_GROUP_NONE);
     time_t nowSec = GlobalData::s_systemTime_.getCurSec();
@@ -293,8 +349,9 @@ bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
     localTime.tm_sec = 0;
     nowSec = mktime(&localTime);   // ORIG mktime 结果写回 -0x20 同槽
 
-    unsigned int count = 0;
+    // ORIG 初始化序 -0x44 先/-0x48 后 ⇒ lastAccessTime 先声明（4.4 后声明深槽）。
     unsigned int lastAccessTime = 0;
+    unsigned int count = 0;
     db->set_query(
         "seLect count, unix_timestamp(last_access_time) from limit_create_character where m_id=%s",
         NumberToString(sig->m_accId, 0));
@@ -309,23 +366,36 @@ bool DB_CreateCharac::CheckLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
     {
         return true;
     }
+    // P232：ORIG 多一个 -0x20 死槽（`movl $0x0,-0x20` 后无读取）⇒ 补 dead 局部
+    // 使后续标量槽（nRows/db/nowSec/trace）整体深 4 对齐。
+    int deadSlot = 0;
+    (void)deadSlot;
     for (int i = 0; i < nRows; ++i)
     {
-        if (!db->fetch() || !db->get_uint(0, count) ||
-            !db->get_uint(1, lastAccessTime))
+        ok = db->fetch();
+        if (!ok)
+        {
+            break;
+        }
+        ok = db->get_uint(0, count);
+        if (!ok)
+        {
+            break;
+        }
+        ok = db->get_uint(1, lastAccessTime);
+        if (!ok)
         {
             break;
         }
         if (count > 1)
         {
             sig->m_resultCode = 5;
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0xf25, 0);
-            trace("[LIMIT NEW CHARAC MID] %s,%d,%d,%d",
-                  NumberToString(sig->m_accId, 0),
-                  sig->m_characNo, lastAccessTime,
-                  G_CEnvironment()->get_server_group());
+            // P227 全表达式临时链：ORIG ctor 前右起求值并以 %esi/%edi/%ebx 保活。
+            cMyTrace(__PRETTY_FUNCTION__, 0xf25, 0)(
+                "[LIMIT NEW CHARAC MID] %s,%d,%d,%d",
+                NumberToString(sig->m_accId, 0),
+                sig->m_characNo, lastAccessTime,
+                G_CEnvironment()->get_server_group());
             return false;
         }
     }
@@ -354,8 +424,9 @@ void DB_CreateCharac::makeRequestResetLimitCreateMid()
 // _checkCharacName — 报告 @0x084011d4
 // 重名/delete_flag 判定；gc_no==1010(0x3f2) 且恰与基准名相同时追查 query 日志。
 // ===========================================================================
-// b28d-D42 verdict=DIFF [N82] ORIG 0x084011d4 orig/ours=120/117 ndiff=88。
-// 帧/槽号与寄存器分配差（P112/N82）；语义按报告逐条对齐。
+// b28d-solo-DB_CreateCharac verdict=AE ORIG 0x084011d4 120=120。
+// 修法：P220/P222 正极性包裹（!=0 → setne/test/je return-true 岛）+ P227 两处全表达式
+// 临时链（rowCnt→%ebx、sig+4→%esi、GetQueryString→%ebx）。
 bool DB_CreateCharac::_checkCharacName(MySQL* db, char const* dbTable,
                                        SIG_CREATE_CHARAC* sig)
 {
@@ -368,45 +439,44 @@ bool DB_CreateCharac::_checkCharacName(MySQL* db, char const* dbTable,
     }
 
     int deleted = 0;
-    if (db->get_n_rows() == 0)
+    // P220/P222 正极性包裹：ORIG `test; setne; test; je <return-true 岛>`。
+    if (db->get_n_rows() != 0)
     {
-        return true;
-    }
-    sig->m_resultCode = 2;
-    // [b23S3C] P48 去缓存：无 nRows/badFetch 具名槽（ORIG rows 直判 + log 点
-    // 二次 call；短路双 xor 直判无 al 落槽）；deleted!=0 反形（ORIG `test;je
-    // gc块`、rc3 作 body，P191）；rowCnt/qs 在 ctor 前求值（ORIG +0x10c/
-    // +0x17d call 位于 ctor 之前），值跨 ctor 4.1 落 %ebx/%esi 寄存器缓存
-    // （4.4 槽=1 条差，N18a）。
-    if (!db->fetch() || !db->get_int(0, deleted))
-        return false;
-    if (deleted != 0)
-    {
-        sig->m_resultCode = 3;
-    }
-    else
-    {
-        if (G_CEnvironment()->get_gc_no() == 0x3f2)
+        sig->m_resultCode = 2;
+        // [b23S3C] P48 去缓存：无 nRows/badFetch 具名槽（ORIG rows 直判 + log 点
+        // 二次 call；短路双 xor 直判无 al 落槽）；deleted!=0 反形（ORIG `test;je
+        // gc块`、rc3 作 body，P191）；rowCnt/qs 在 ctor 前求值（ORIG +0x10c/
+        // +0x17d call 位于 ctor 之前），值跨 ctor 4.1 落 %ebx/%esi 寄存器缓存
+        // （P227 全表达式临时链复现，4.4 槽差已消）。
+        if (!db->fetch() || !db->get_int(0, deleted))
+            return false;
+        if (deleted != 0)
         {
-            int rowCnt = db->get_n_rows();
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0xd6a, 5);
-            trace("already charac_name(%s) row(%d)", sig->m_name, rowCnt);
-            // DAT_08c42c04 = "사이토"（ORIG 字符串常量）
-            static const char BASELINE_NAME[] = "\xec\x82\xac\xec\x9d\xb4\xed\x86\xa0";
-            if (strcmp(sig->m_name, BASELINE_NAME) == 0)
-            {
-                const char* qs = db->GetQueryString();
-                cMyTrace queryTrace(
-                    __PRETTY_FUNCTION__,
-                    0xd6d, 5);
-                queryTrace("already charac_name query(%s)", qs);
-            }
+            sig->m_resultCode = 3;
         }
-        sig->m_resultCode = 1;
+        else
+        {
+            if (G_CEnvironment()->get_gc_no() == 0x3f2)
+            {
+                // P227 全表达式临时链：ORIG rowCnt 于 ctor 前求值入 %ebx、
+                // sig+4 入 %esi 跨 ctor 保活（084012eb/084012f0 段）。
+                cMyTrace(__PRETTY_FUNCTION__, 0xd6a, 5)(
+                    "already charac_name(%s) row(%d)", sig->m_name,
+                    db->get_n_rows());
+                // DAT_08c42c04 = "사이토"（ORIG 字符串常量）
+                static const char BASELINE_NAME[] = "\xec\x82\xac\xec\x9d\xb4\xed\x86\xa0";
+                if (strcmp(sig->m_name, BASELINE_NAME) == 0)
+                {
+                    // P227：GetQueryString 结果于 ctor 前入 %ebx（08401356 段）。
+                    cMyTrace(__PRETTY_FUNCTION__, 0xd6d, 5)(
+                        "already charac_name query(%s)", db->GetQueryString());
+                }
+            }
+            sig->m_resultCode = 1;
+        }
+        return false;
     }
-    return false;
+    return true;
 }
 
 // ===========================================================================
@@ -472,9 +542,8 @@ bool DB_CreateCharac::_updateCreateEventCharacter(SIG_CREATE_CHARAC* sig)
 // ===========================================================================
 // InsertLimitCreateNewCharac(SIG*) — 报告 @0x084016ae：新行插入 + trace。
 // ===========================================================================
-// b28d-D42 verdict=DIFF [N82] ORIG 0x084016ae orig/ours=110/109 ndiff=38。
-// 残差为 cMyTrace 具名对象槽号差（ORIG -0x34 vs 我们 -0x24）与寄存器保活差；
-// P112/N82 跨版本槽分配，语义等价封顶。
+// b28d-solo-DB_CreateCharac verdict=AE ORIG 0x084016ae 110=110。
+// 修法：P227 全表达式临时链（ORIG ctor 前右起求值 + %esi/%edi/%ebx 保活）。
 bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
 {
     if (GlobalData::s_pGMAccounts_->isGM(sig->m_accId))
@@ -501,13 +570,13 @@ bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
             lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
             lt->tm_hour, lt->tm_min, lt->tm_sec);
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0xe76, 0);
-    trace("[LIMIT NEW CHARAC] %s,%d,%s,%d",
-          NumberToString(sig->m_accId, 0),
-          sig->m_characNo, dateBuf,
-          G_CEnvironment()->get_server_group());
+    // P227 全表达式临时链：ORIG 在 ctor 前右起求值 varargs 并以 %esi/%edi/%ebx
+    // 跨 ctor 保活（0840182b 段），具名对象形恒 ctor 后求值。
+    cMyTrace(__PRETTY_FUNCTION__, 0xe76, 0)(
+        "[LIMIT NEW CHARAC] %s,%d,%s,%d",
+        NumberToString(sig->m_accId, 0),
+        sig->m_characNo, dateBuf,
+        G_CEnvironment()->get_server_group());
     return true;
 }
 
@@ -515,12 +584,16 @@ bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig)
 // InsertLimitCreateNewCharac(SIG*, bool) — 报告 @0x08401b9a
 // count=count+1（无行插入 1），trace 行号 0xf61。
 // ===========================================================================
-// b28d-D42 verdict=DIFF [N82] ORIG 0x08401b9a orig/ours=141/140 ndiff=39。
-// 同 trace 槽号/保活差（P112/N82）；语义等价封顶。
+// b28d-solo-DB_CreateCharac verdict=AE ORIG 0x08401b9a 141=141。
+// 修法：空 if 体复现 bool 形参 spill（-0x16c）+ P227 全表达式临时链。
 bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
                                                  bool traceFlag)
 {
-    (void)traceFlag;
+    // ORIG 头部 `mov 0x10(%ebp),%eax; mov %al,-0x16c(%ebp)`：bool 形参规范化
+    // spill（空 if 体被 DCE，仅留 spill 两条；P232 死局部占槽律）。
+    if (traceFlag)
+    {
+    }
 
     if (GlobalData::s_pGMAccounts_->isGM(sig->m_accId))
     {
@@ -557,21 +630,22 @@ bool DB_CreateCharac::InsertLimitCreateNewCharac(SIG_CREATE_CHARAC* sig,
             lt->tm_year + 1900, lt->tm_mon + 1, lt->tm_mday,
             lt->tm_hour, lt->tm_min, lt->tm_sec);
 
-    cMyTrace trace(
-        __PRETTY_FUNCTION__,
-        0xf61, 0);
-    trace("[LIMIT NEW CHARAC] %s,%d,%s,%d",
-          NumberToString(sig->m_accId, 0),
-          sig->m_characNo, dateBuf,
-          G_CEnvironment()->get_server_group());
+    // P227 全表达式临时链（同 SIG* 重载）：ORIG ctor 前右起求值 + callee-saved 保活。
+    cMyTrace(__PRETTY_FUNCTION__, 0xf61, 0)(
+        "[LIMIT NEW CHARAC] %s,%d,%s,%d",
+        NumberToString(sig->m_accId, 0),
+        sig->m_characNo, dateBuf,
+        G_CEnvironment()->get_server_group());
     return true;
 }
 
 // ===========================================================================
 // CreateNewCharac — 报告 @0x08401dcc
 // ===========================================================================
-// b28d-D42 verdict=DIFF [N82] ORIG 0x08401dcc orig/ours=234/230 ndiff=229。
-// 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
+// b28d-solo-DB_CreateCharac verdict=DIFF(N82 封顶) ORIG 0x08401dcc 234/237。
+// 已收：`char escapedName[60]={0}` 复现 rep stos 清零（P214③）+ P227 全表达式临时链 trace
+// + push edi/ebx 归位。残余：帧 0x70 vs 0x80、escapedName 槽 -0x68 vs -0x6c
+// （P112/N82 跨版本槽分配平移）；语义/callsite 完整。
 bool DB_CreateCharac::CreateNewCharac(SIG_CREATE_CHARAC* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
@@ -629,8 +703,8 @@ bool DB_CreateCharac::CreateNewCharac(SIG_CREATE_CHARAC* sig)
         }
     }
 
-    char escapedName[60];
-    memset(escapedName, 0, sizeof(escapedName));
+    // P214③/P312：ORIG 内联 `rep stos`（15 dword）清零 ⇒ 用 = {0} 形。
+    char escapedName[60] = {0};
     db->escape_string(escapedName, sig->m_name);
 
     if ((signed char)sig->m_field23 >= 1)
@@ -650,10 +724,10 @@ bool DB_CreateCharac::CreateNewCharac(SIG_CREATE_CHARAC* sig)
     MakeInsertCharacInfo(db, sig, escapedName);
     if (!db->exec(true))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x10e2, 5);
-        trace("DB_CreateCharac::CreateNewCharac, exec() ERROR m_id=%s",
-              NumberToString(sig->m_accId, 0));
+        // P227 全表达式临时链：ORIG NumberToString 于 ctor 前求值入 %ebx。
+        cMyTrace(__PRETTY_FUNCTION__, 0x10e2, 5)(
+            "DB_CreateCharac::CreateNewCharac, exec() ERROR m_id=%s",
+            NumberToString(sig->m_accId, 0));
         sig->m_resultCode = 1;
         return false;
     }
@@ -688,36 +762,44 @@ bool DB_CreateCharac::_CreateNewCharacStat(SIG_CREATE_CHARAC* sig)
 // CreateInventory — 报告 @0x08402230
 // item==NULL 仅写 coin；否则将 item 起点 0x3b55 字节 zip 后入库 + 空背包扩容表。
 // ===========================================================================
-// b28d-D42 verdict=DIFF [N82/N78] ORIG 0x08402230 orig/ours=94/88 ndiff=90。
-// 大缓冲（zipped 0x473e）清零/搬移形态差（N78）+ 帧槽（N82）。
+// b28d-solo-DB_CreateCharac verdict=AE ORIG 0x08402230 94=94。
+// 修法：`char zipped[0x473e]={0}` 复现 4.1 memset call + size %edx 中转（破旧「待解」项）
+// + P225 拆嵌套 if 消 && 物化 + P102 同一 bool ok + coin 内联实参（%ebx 跨 blob_to_str）。
 bool DB_CreateCharac::CreateInventory(unsigned int characNo, Inven_Item* item)
 {
     static const int handleIdx = 3;
-    char zipped[0x473e];
-    memset(zipped, 0, sizeof(zipped));
+    // N78/待解：ORIG 对 0x473e 大数组发 memset call 且 size 经 %edx 中转；
+    // 试 `= {0}` 触发 4.1 同形（4.4 大数组可能同样退化为 call）。
+    char zipped[0x473e] = {0};
     unsigned int zippedLen = 0x473e;
-    if (item != NULL &&
-        !compress_zip(zipped, zippedLen, reinterpret_cast<char*>(item), 0x3b55))
+    // P225 推广：拆嵌套 if 消 4.4 的 && bool 物化（ORIG 两跳同一 L_skip）。
+    if (item != NULL)
     {
-        return false;
+        if (!compress_zip(zipped, zippedLen, reinterpret_cast<char*>(item), 0x3b55))
+        {
+            return false;
+        }
     }
 
+    // P0/P102：ORIG bool 槽 -0xd 两次复用（mov %al,-0xd; movzbl; xor; test; je）。
+    bool ok;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   E_SERVER_GROUP_NONE);
     if (item == NULL)
     {
-        int coinOnCreate = WongWork::CEventMgr::GetCoinCharacCreate();
+        // P0：ORIG call 结果直入实参槽（无具名 coin 局部）。
         db->set_query("inSert into inventory (charac_no, coin) values(%u, %d)",
-                      characNo, coinOnCreate);
+                      characNo, WongWork::CEventMgr::GetCoinCharacCreate());
     }
     else
     {
-        int coinOnCreate = WongWork::CEventMgr::GetCoinCharacCreate();
+        // P52/P227：最右实参先求值入 %ebx 跨 blob_to_str 保活（ORIG 084022eb）。
         db->set_query("inSert into inventory (charac_no, inventory,coin) values(%u, '%s',%d)",
                       characNo, db->blob_to_str(0, zipped, zippedLen),
-                      coinOnCreate);
+                      WongWork::CEventMgr::GetCoinCharacCreate());
     }
-    if (!db->exec(true))
+    ok = db->exec(true);
+    if (!ok)
     {
         return false;
     }
@@ -725,15 +807,21 @@ bool DB_CreateCharac::CreateInventory(unsigned int characNo, Inven_Item* item)
     db->set_query(
         "inSert into charac_inven_expand(charac_no,cargo,cargo_capacity,jewel) values(%u,'',0,'')",
         characNo);
-    return db->exec(true);
+    ok = db->exec(true);
+    if (!ok)
+    {
+        return false;
+    }
+    return true;
 }
 
 // ===========================================================================
 // CreateEquip — 报告 @0x084023ac
 // item==NULL 直接成功；否则 zip(item, 0x2dc) upDate equipslot 列。
 // ===========================================================================
-// b28d-D42 verdict=DIFF [N82] ORIG 0x084023ac orig/ours=88/53 ndiff=86。
-// ORIG push %edi/%ebx + 大缓冲帧形态 vs 4.4 栈槽（P112/N82）；语义等价封顶。
+// b28d-solo-DB_CreateCharac verdict=AE ORIG 0x084023ac 88=88。
+// 修法：P312 `char zipped[0x37a]={0}` + 非 4 对齐槽 -0x38e 复现内联清零慢路
+// + P0 bool ok 声明在 db 前（-0xd/-0xc）。
 bool DB_CreateCharac::CreateEquip(unsigned int characNo, Inven_Item* item)
 {
     static const int handleIdx = 3;
@@ -742,36 +830,50 @@ bool DB_CreateCharac::CreateEquip(unsigned int characNo, Inven_Item* item)
         return true;
     }
 
-    char zipped[0x37a];
-    memset(zipped, 0, sizeof(zipped));
+    // P312/N78：`char buf[N]={0}` + 非 4 对齐槽（-0x38e）复现 4.1 memset 内联慢路
+    //（对齐剥离 2B + rep stos + 尾 2B/1B）。
+    char zipped[0x37a] = {0};
     unsigned int zippedLen = 0x37a;
     if (!compress_zip(zipped, zippedLen, reinterpret_cast<char*>(item), 0x2dc))
     {
         return false;
     }
 
+    // P0：ORIG `mov %al,-0xd` 槽往返 ⇒ 原码有具名 bool 局部（P168a① 裸形）；
+    // 声明在 db 之前使 4.4 给 bool 更深槽（-0x10 尾 -0xd）、db 落 -0xc（同 ORIG）。
+    bool ok;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   E_SERVER_GROUP_NONE);
     db->set_query("upDate inventory set equipslot='%s' where charac_no = %u",
                   db->blob_to_str(0, zipped, zippedLen), characNo);
-    return db->exec(true);
+    ok = db->exec(true);
+    if (!ok)
+    {
+        return false;
+    }
+    return true;
 }
 
 // ===========================================================================
 // CreateSkill — 报告 @0x084024e6
 // m_masteredSkillA/B 各 0x198 zip 后入 skill 表两 slot blob。
 // ===========================================================================
-// b28d-D42 verdict=DIFF [N82/N78] ORIG 0x084024e6 orig/ours=148/87 ndiff=146。
-// 大缓冲（bufSlot 0x1f5 区）rep stos/memcpy 形态差（N78）+ 帧槽（N82）。
+// b28d-solo-DB_CreateCharac verdict=AE ORIG 0x084024e6 148=148。
+// 修法：两缓冲 `={0}`（-0x20d/-0x402 非 4 对齐慢路）+ P232 把 bool ok 声明最前占 -0x10 槽
+// （同时下移缓冲 4B）+ lenSecond 先声明（-0x14/-0x18）。
 bool DB_CreateCharac::CreateSkill(SIG_CREATE_CHARAC* sig)
 {
     static const int handleIdx = 3;
-    char bufSlot[0x1f5];           // 帧 -0x402 区（skillB 压缩输出，ORIG 501B）
-    char bufSecond[0x1f5];         // 帧 -0x20d 区（skillA 压缩输出，ORIG 501B）
-    memset(bufSlot, 0, sizeof(bufSlot));
-    memset(bufSecond, 0, sizeof(bufSecond));
-    unsigned int lenSlot = 0x1f5;     // -0x18
+    // P312/N78：`= {0}` + 非 4 对齐槽（-0x20d/-0x402）复现 4.1 内联清零慢路；
+    // 声明序 bufSecond→bufSlot 使 4.4 槽位（浅→深）与 ORIG 一致。
+    // P0/P232：ORIG 的 -0x10 槽即 exec 结果 bool（尾字节 -0xd，无初始化）；把它声明在
+    // 最前占该槽，同时使两个缓冲下移到 -0x20d/-0x402（无需额外 dead 局部）。
+    bool ok;
+    char bufSecond[0x1f5] = {0};   // 帧 -0x20d 区（skillA 压缩输出，ORIG 501B）
+    char bufSlot[0x1f5] = {0};     // 帧 -0x402 区（skillB 压缩输出，ORIG 501B）
+    // ORIG 初始化序 -0x14 先/-0x18 后，且数组尾紧贴 lenSlot ⇒ lenSecond 先声明。
     unsigned int lenSecond = 0x1f5;   // -0x14
+    unsigned int lenSlot = 0x1f5;     // -0x18
 
     // ORIG 第一次调用 @0x84025bd：dst=-0x20d、lenPtr=-0x14、src=sig+0x79(skillA)。
     if (!compress_zip(bufSecond, lenSecond,
@@ -794,7 +896,12 @@ bool DB_CreateCharac::CreateSkill(SIG_CREATE_CHARAC* sig)
         sig->m_characNo, sig->m_spAtLevelUp,
         db->blob_to_str(0, bufSecond, lenSecond),
         db->blob_to_str(1, bufSlot, lenSlot));
-    return db->exec(true);
+    ok = db->exec(true);
+    if (!ok)
+    {
+        return false;
+    }
+    return true;
 }
 
 // ===========================================================================
@@ -839,7 +946,7 @@ bool DB_CreateCharac::GetCharacNo(SIG_CREATE_CHARAC* sig)
 // SendResult — 报告 @0x084027b0
 // 大流包：userIdx、slot、SIG 全量 0x5354 二进制 → DISPATCH_Q。
 // ===========================================================================
-int DB_CreateCharac::SendResult(int userIdx, int slot, SIG_CREATE_CHARAC* sig)
+bool DB_CreateCharac::SendResult(int userIdx, int slot, SIG_CREATE_CHARAC* sig)
 {
     CStreamGuard guard(GlobalData::s_big_stream_pool->Acquire("DBThread.cpp", 0x11db),
                        true);
@@ -883,44 +990,47 @@ struct MiciJobView
 };
 #pragma pack(pop)
 
-// 判例（ADeepY4[3]）：DIFF(N封)，gap +1（orig 154 / our 155）。已收：blob_to_str 调用序
-// 归位（先 col=1 spec 后 col=0 elem，ORIG +0xaf/+0xd7）+ job 数据区改 pack(1) 具名视图
-// 成员访问（reinterpret_cast<视图*>后 .成员），4.4-O0 收敛为直接位移载入 `mov off(%eax)`
-// （pointer-cast 索引的 `add $off;mov (%eax)` 形全部消失），168→155。残余 = 1 条：ORIG
-// 用 callee-saved %edi 承载 maxHP（+0x26，跨 NumberToString/set_query 实参布建存活，
-// 故 push/pop %edi），我们落栈槽回读（N82 寄存器分配差）；实参布建 ORIG 用 %eax、我们用
-// %edx（寄存器文本差，_NEAR_）。语义/callsite 完整。
-// b28d-D42 verdict=DIFF [N82] ORIG 0x080ec2a0 orig/ours=154/155 ndiff=153。
-// 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
+// b28d-solo-DB_CreateCharac verdict=DIFF(N7 封顶) ORIG 0x080ec2a0 orig/ours=154/153。
+// 已收：①blob_to_str 调用序（先 col=1 spec 后 col=0 elem）②P183 去 jv 指针缓存（每个字段
+// 重读 sig 形参 `mov 0x10(%ebp),%eax; mov off(%eax)`，与 ORIG 逐条一致）③maxHP 不设局部、
+// 实参内联（%edi 承载，push/pop %edi 与帧 0xcc 归位）④+0x25 改具名局部 -0x60、+0x534c 内联
+// （ORIG 前者有槽、后者 %esi 无槽）⑤帧/槽位/-0x64..-0x1c 全对齐、%edi/%esi/%ebx 角色一致。
+// 残余 = 1 条：ORIG `call NumberToString; mov %eax,%edx`（结果移 %edx，压栈用 %eax 中转），
+// 4.4 恒留 %eax、改用 %edx 中转压栈 ⇒ 助记符序列全等仅中转寄存器角色互换（N7 族；试过
+// P226 裸语句表达式/具名局部/register 提示/cast 四形，均不翻）。语义/callsite 完整。
 void DB_CreateCharac::MakeInsertCharacInfo(MySQL* db, SIG_CREATE_CHARAC* sig,
                                            char const* escapedName)
 {
     int eventCharacLevel = (signed char)sig->m_field23;   // +0x23 列 event_charac_level
-    int sex = (signed char)sig->m_ssnCheckFail;           // +0x534c ← ORIG %esi（sex 列位）
+    // ORIG +0x25 值有具名槽 -0x60（P0：槽往返 ⇒ 有局部）；+0x534c 无槽（%esi 承载）⇒
+    // 两者处理互换。
+    int sexAt0x25 = (signed char)sig->m_pad25;            // +0x25 ← ORIG -0x60 槽
     int fatigueMax = DEFAULT_MAX_FATIGUE;
 
-    MiciJobView const* jv = reinterpret_cast<MiciJobView const*>(sig);
-    unsigned int expertJob   = static_cast<unsigned int>(jv->m_expertJob);      // +0x74
-    int jumpValue            = static_cast<int>(jv->m_jump);                    // +0x72
-    int hitRecovery          = static_cast<int>(jv->m_hitRecovery);             // +0x70
-    unsigned int castSpeed   = static_cast<unsigned int>(jv->m_castSpeed);      // +0x6e
-    unsigned int attackSpeed = static_cast<unsigned int>(jv->m_attackSpeed);    // +0x6c
-    unsigned int moveSpeed   = static_cast<unsigned int>(jv->m_moveSpeed);      // +0x68
-    int mpRegenShort         = static_cast<int>(jv->m_mpRegen);                 // +0x66
-    int hpRegenShort         = static_cast<int>(jv->m_hpRegen);                 // +0x64
-    unsigned int invenWeight = static_cast<unsigned int>(jv->m_invenWeight);    // +0x60
+    // P183：ORIG 每个字段都重读 sig 形参（mov 0x10(%ebp),%eax; mov off(%eax),%eax）
+    // ⇒ 禁指针缓存，逐点内联视图 cast。
+    unsigned int expertJob   = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_expertJob);   // +0x74
+    int jumpValue            = static_cast<int>(reinterpret_cast<MiciJobView const*>(sig)->m_jump);                 // +0x72
+    int hitRecovery          = static_cast<int>(reinterpret_cast<MiciJobView const*>(sig)->m_hitRecovery);          // +0x70
+    unsigned int castSpeed   = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_castSpeed);   // +0x6e
+    unsigned int attackSpeed = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_attackSpeed); // +0x6c
+    unsigned int moveSpeed   = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_moveSpeed);   // +0x68
+    int mpRegenShort         = static_cast<int>(reinterpret_cast<MiciJobView const*>(sig)->m_mpRegen);              // +0x66
+    int hpRegenShort         = static_cast<int>(reinterpret_cast<MiciJobView const*>(sig)->m_hpRegen);              // +0x64
+    unsigned int invenWeight = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_invenWeight); // +0x60
     // 第一次 blob_to_str(col=1, sig+0x3e, 0x22) → spec_property '%s'（ORIG 调用序在前）
     char const* specPropertyBlob =
-        db->blob_to_str(1, const_cast<unsigned char*>(jv->m_specProperty), 0x22);
+        db->blob_to_str(1, const_cast<unsigned char*>(reinterpret_cast<MiciJobView const*>(sig)->m_specProperty), 0x22);
     // 第二次 blob_to_str(col=0, sig+0x36, 8) → element_resist '%s'
     char const* elementResistBlob =
-        db->blob_to_str(0, const_cast<unsigned char*>(jv->m_elementResist), 8);
-    unsigned int magDefense = static_cast<unsigned int>(jv->m_magDefense);      // +0x34
-    unsigned int magAttack  = static_cast<unsigned int>(jv->m_magAttack);       // +0x32
-    unsigned int phyDefense = static_cast<unsigned int>(jv->m_phyDefense);      // +0x30
-    unsigned int phyAttack  = static_cast<unsigned int>(jv->m_phyAttack);       // +0x2e
-    unsigned int maxMP      = static_cast<unsigned int>(jv->m_maxMp);           // +0x2a
-    unsigned int maxHP      = static_cast<unsigned int>(jv->m_maxHp);           // +0x26
+        db->blob_to_str(0, const_cast<unsigned char*>(reinterpret_cast<MiciJobView const*>(sig)->m_elementResist), 8);
+    unsigned int magDefense = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_magDefense);   // +0x34
+    unsigned int magAttack  = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_magAttack);    // +0x32
+    unsigned int phyDefense = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_phyDefense);   // +0x30
+    unsigned int phyAttack  = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_phyAttack);    // +0x2e
+    unsigned int maxMP      = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_maxMp);        // +0x2a
+    // P0：ORIG maxHP 无栈槽（080ec3bf 装载入 %edi 跨 NumberToString 保活）⇒
+    // 不设具名局部，实参处内联表达式。
 
     db->set_query(
         "inSert into charac_info (m_id,charac_name,job,sex,maxHP,maxMP,phy_attack,"
@@ -931,11 +1041,12 @@ void DB_CreateCharac::MakeInsertCharacInfo(MySQL* db, SIG_CREATE_CHARAC* sig,
         "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,NOW(),%d,%d)",
         NumberToString(sig->m_accId, 0), escapedName,
         (int)(signed char)sig->m_slot,     // job 列 ← sig+0x22（ORIG %ebx）
-        sex,                               // sex 列 ← sig+0x534c（ORIG %esi）
-        maxHP, maxMP, phyAttack, phyDefense, magAttack, magDefense,
+        (signed char)sig->m_ssnCheckFail,  // sex 列 ← sig+0x534c（ORIG %esi 无槽）
+        static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_maxHp),  // +0x26（ORIG %edi）
+        maxMP, phyAttack, phyDefense, magAttack, magDefense,
         elementResistBlob, specPropertyBlob,
         invenWeight, hpRegenShort, mpRegenShort, moveSpeed, attackSpeed,
         castSpeed, hitRecovery, jumpValue, expertJob, fatigueMax,
-        (int)(signed char)sig->m_pad25,    // expert_job 列 ← sig+0x25（ORIG edi）
+        sexAt0x25,                         // expert_job 列 ← sig+0x25（ORIG -0x60 槽）
         eventCharacLevel);                 // event_charac_level ← sig+0x23
 }

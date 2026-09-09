@@ -122,7 +122,10 @@ public:
     LevelUpRewardScript();
     ~LevelUpRewardScript();
 
-    unsigned char m_flag08;                         // +0x08（is_recv_check_item 读此字节）
+    union {                                         // [b28d-Main 代落·S366 P235/P292] 同址双视角
+        unsigned char m_flag08;                     // +0x08（既有消费面）
+        bool          m_flag08b;                    // +0x08（is_recv_check_item 直返 bool）
+    };
     std::string   m_dbTableName;                    // +0x0c（get_db_table_name 返回处）
     std::map<int, Condition_LevelUp> m_conditions;  // +0x10
     Action_SendMail m_mail;                         // +0x28（get_mail_data 返回处）

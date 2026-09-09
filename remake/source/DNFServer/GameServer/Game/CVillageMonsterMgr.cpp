@@ -40,7 +40,7 @@ struct CPartyVillageStateView
 //   把 (x,y) 按 margin 裁剪到本矩形内（结果写 outX/outY）；
 //   未发生移动（裁剪后仍等于原坐标）返回 1，否则返回 0。
 // ============================================================================
-int MapArea::include(int x, int y, int& outX, int& outY, int margin)
+bool MapArea::include(int x, int y, int& outX, int& outY, int margin)
 {
     if (m_x + margin > x)
         outX = m_x + margin;
@@ -71,24 +71,27 @@ int GetDistance(pvp_assault::Point2d a, pvp_assault::Point2d b);
 namespace pvp_assault
 {
 
-// [b28d-51] 判词 N（ORIG 0x082e5a0b，N82 槽序族）：循环索引/上限槽整体平移
-// （-0x14/-0x10 vs -0x18/-0xc）；语义/调用集齐，byte 层封顶。
+// [b28d-solo-CVillageMonsterMgr] AE（ORIG 0x082e5a0b）：去 MapArea& 引用缓存
+// （P157/P183 逐点 areas->at(i)）；tx/ty/dist 提函数头（P212 全头部声明）+
+// GetDistance 实参序换为 (Point2d(x,y), Point2d(tx,ty)) + 比较写 minDist>dist
+// 复现 4.1 折痕；MapArea::include 返回 int→bool（P292 调用点 test %al）。
+// p167 CLEAR。
 bool IsIncludeVirtualMoveAreas(std::vector<MapArea>* areas, int x, int y,
                               int& outX, int& outY, int margin)
 {
     int minDist = 0x7fffffff;
+    int dist = 0;
+    int tx = 0;
+    int ty = 0;
     outX = x;
     outY = y;
     for (unsigned int i = 0; i < areas->size(); ++i)
     {
-        // ORIG 0x82e5a0b 用 at()（越界抛异常路径与 ORIG 一致）。
-        MapArea& a = areas->at(i);
-        int tx = 0;
-        int ty = 0;
-        if (a.include(x, y, tx, ty, margin))
+        // ORIG 0x82e5a0b 用 at()（越界抛异常路径与 ORIG 一致），不缓存引用。
+        if (areas->at(i).include(x, y, tx, ty, margin))
             return 1;
-        int dist = GetDistance(Point2d(tx, ty), Point2d(x, y));
-        if (dist < minDist)
+        dist = GetDistance(Point2d(x, y), Point2d(tx, ty));
+        if (minDist > dist)
         {
             if (margin != 0)
             {
@@ -152,7 +155,7 @@ CVillageMonsterArea::CVillageMonsterArea(int a, int b, int c, int d,
     // mem→mem store 恒 LHS-first，探针直成员/视图/链式/中间量全不可翻（enum 参数才值先）。
     m_field34 = c;                       // +0x34
     m_field38 = d;                       // +0x38
-    m_field30 = 0;                       // +0x30
+    m_field30 = ENUM_VILLAGE_MONSTER_ROTATE_0;   // +0x30
 }
 
 void CVillageMonsterArea::OnMoveArea(CUser* user)
@@ -254,8 +257,10 @@ unsigned short CVillageMonster::GetUID() const
 //   试探新位置，用 IsIncludeVirtualMoveAreas 裁剪到虚拟移动区内；若距旧位置
 //   的曼哈顿距离 > 0x31 保留新位置并置 m_field10=1，否则回退旧位置。
 // ============================================================================
-// [b28d-51] 判词 N（ORIG 0x086b310c，N82/N86 族）：迭代器三槽阶梯方向差；
-// 语义/调用集齐，byte 层封顶。
+// [b28d-solo-CVillageMonsterMgr] AE（ORIG 0x086b310c）：去 newX/newY 局部，
+// 改 `m_field04 = m_field04 + offset;` 两句复用同一 offset 槽（复现 ORIG
+// call→sub→存槽→读 LHS 序）；IsInclude 实参直传字段；if/else 反写
+// （`<=0x31` 为 then）复现 ORIG `jg` 块序（P47/P222）。p167 CLEAR。
 void CVillageMonster::OnRunVillageMonster(std::vector<MapArea>* areas, int idx)
 {
     m_field10 = 0;
@@ -265,17 +270,19 @@ void CVillageMonster::OnRunVillageMonster(std::vector<MapArea>* areas, int idx)
         return;
     int oldX = m_field04;
     int oldY = m_field08;
-    int newX = m_field04 + get_rand_int(MONSTER_MOVE_PIXEL) - 0x96;
-    int newY = m_field08 + get_rand_int(MONSTER_MOVE_PIXEL) - 0x96;
-    pvp_assault::IsIncludeVirtualMoveAreas(areas, newX, newY,
+    int offset = get_rand_int(MONSTER_MOVE_PIXEL) - 0x96;
+    m_field04 = m_field04 + offset;
+    offset = get_rand_int(MONSTER_MOVE_PIXEL) - 0x96;
+    m_field08 = m_field08 + offset;
+    pvp_assault::IsIncludeVirtualMoveAreas(areas, m_field04, m_field08,
                                            m_field04, m_field08, 0x14);
-    if (abs(m_field04 - oldX) + abs(m_field08 - oldY) > 0x31)
-        m_field10 = 1;
-    else
+    if (abs(m_field04 - oldX) + abs(m_field08 - oldY) <= 0x31)
     {
         m_field04 = oldX;
         m_field08 = oldY;
     }
+    else
+        m_field10 = 1;
 }
 
 // ============================================================================
@@ -325,8 +332,10 @@ bool CVillageMonster::MakeVillageMonsterPositionPacket(PacketGuard& packet)
 //   区域无人 → 直接返回；否则逐怪物转 OnRunVillageMonster(m_areaList, m_field30)，
 //   然后 SendVillageMonsterPosition 并 ++m_field30（轮转槽）。
 // ============================================================================
-// [b28d-51] 判词 N（ORIG 0x086b3f06，N82/N86 族）：map 迭代器槽阶梯 + 实参缓存
-// 方向差；语义/调用集齐，byte 层封顶。
+// [b28d-solo-CVillageMonsterMgr] AE（ORIG 0x086b3f06）：加具名 monster 指针
+// 局部（复现 ORIG -0xc 槽 + ptE 先于实参求值）；m_field30 经
+// `(ENUM_VILLAGE_MONSTER_ROTATE)m_field30` 实参 cast 复现两段装载（P265），
+// 字段保持 int 以保 `++` 的 lea 形。p167 CLEAR。
 void CVillageMonsterArea::OnRunVillageMonster()
 {
     if (G_GameWorld()->GetUserCount(m_field28, m_field2c) == 0)
@@ -335,11 +344,12 @@ void CVillageMonsterArea::OnRunVillageMonster()
              m_monsters.begin();
          it != m_monsters.end(); ++it)
     {
-        it->second.OnRunVillageMonster((std::vector<MapArea>*)m_areaList,
-                                       m_field30);
+        CVillageMonster* monster = &it->second;
+        monster->OnRunVillageMonster((std::vector<MapArea>*)m_areaList,
+                                     m_field30);
     }
     SendVillageMonsterPosition();
-    ++m_field30;
+    m_field30 = (ENUM_VILLAGE_MONSTER_ROTATE)(m_field30 + 1u);
 }
 
 // ============================================================================
@@ -348,22 +358,30 @@ void CVillageMonsterArea::OnRunVillageMonster()
 //   MakeVillageMonsterPositionPacket（成功则 count++）；回填 count；
 //   finalize(true)；count!=0 时 SendPacket。
 // ============================================================================
-// [b28d-51] 判词 N（ORIG 0x086b3962，N82 族）：PacketGuard/临时槽方向差；
-// 语义/调用集齐，byte 层封顶。
+// [b28d-solo-CVillageMonsterMgr] N 封顶（ORIG 0x086b3962，N82/N112 族）：
+// float framePad 已对齐帧 0x40 与深槽（begin -0x2c/countIdx -0x28/packet -0x24），
+// 残余 = end/count 槽浅 4（-0x14/-0x10 vs ORIG -0x18/-0x14）+ ORIG goto 岛 nop×1；
+// 单 double pad 深 8、双 double 帧 0x50 均反劣。p167 CLEAR（17/17）。
 void CVillageMonsterArea::SendVillageMonsterPosition()
 {
+    float framePad;
+    (void)&framePad;
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0xef);
     int countIdx = packet.get_index();
     int count = 0;
-    packet.put_byte(0);
+    packet.put_byte(count);
     for (std::map<unsigned short, CVillageMonster>::iterator it =
              m_monsters.begin();
          it != m_monsters.end(); ++it)
     {
-        if (it->second.MakeVillageMonsterPositionPacket(packet))
-            ++count;
+        CVillageMonster* monster = &it->second;
+        if (!monster->MakeVillageMonsterPositionPacket(packet))
+            goto SKIP_COUNT;
+        ++count;
+    SKIP_COUNT:
+        ;
     }
     packet.put_byte(countIdx, count);
     packet.finalize(true);
@@ -375,16 +393,18 @@ void CVillageMonsterArea::SendVillageMonsterPosition()
 // CVillageMonsterArea::GetAttackedMonster —— ORIG T 0x86b3aea
 //   返回首个 m_attackWeight >= idx 的怪物；全不满足返回最后一个；空表返回 0。
 // ============================================================================
-// [b28d-51] 判词 N（ORIG 0x086b3aea，N82/N86 族）：vector begin/end 迭代器
-// 临时槽阶梯方向差；语义/调用集齐，byte 层封顶。
+// [b28d-solo-CVillageMonsterMgr] AE（ORIG 0x086b3aea）：end() 提升到循环外
+// 具名 endIt（P13 缓存 end，复现 ORIG 单次 call end）；`(*it).m_attackWeight`
+// 替 `it->m` 复现 deEv（P167 it-> vs *it 判据）。p167 CLEAR。
 STAttackedMonster* CVillageMonsterArea::GetAttackedMonster(int idx)
 {
     if (m_monsterList.empty())
         return 0;
     std::vector<STAttackedMonster>::iterator it = m_monsterList.begin();
-    for (; it != m_monsterList.end(); ++it)
+    std::vector<STAttackedMonster>::iterator endIt = m_monsterList.end();
+    for (; it != endIt; ++it)
     {
-        if (it->m_attackWeight >= idx)
+        if ((*it).m_attackWeight >= idx)
             return &*it;
     }
     --it;
@@ -397,8 +417,10 @@ STAttackedMonster* CVillageMonsterArea::GetAttackedMonster(int idx)
 //   size%3，m_field20/m_field24 取表 +0x14/+0x18），insert 后发 0xf6 新怪物包，
 //   注册 0x86 生成定时器（param：m_field38/m_field28/m_field2c），返回 1。
 // ============================================================================
-// [b28d-51] 判词 N（ORIG 0x086b3bd4，N82/N86 族）：map size/迭代器临时槽方向差；
-// 语义/调用集齐，byte 层封顶。
+// [b28d-solo-CVillageMonsterMgr] N 封顶（ORIG 0x086b3bd4，N82/N95/N104 族）：
+// make_pair 第一参 cast 到右值（`(unsigned short)uid`）已把 p167 MISSING
+// `make_pairIt` 清零、attacked 指针槽差 4（-0x20 vs -0x1c）+ ORIG 正常路径尾块
+// 在函数末（N104 块序）；randIdx 具名反致帧 0xcc→0xdc。p167 CLEAR（31/31）。
 int CVillageMonsterArea::OnCreateVillageMonster()
 {
     if ((unsigned int)m_field34 <= (unsigned int)m_monsters.size())
@@ -406,12 +428,12 @@ int CVillageMonsterArea::OnCreateVillageMonster()
     STAttackedMonster* attacked = GetAttackedMonster(get_rand_int(0x2710));
     if (attacked == 0)
         return 0;
-    CVillageMonster monster((unsigned short)attacked->m_id,
+    CVillageMonster monster(attacked->m_id,
                             attacked->m_field04, attacked->m_field08,
                             (int)(m_monsters.size() % 3), this,
                             attacked->m_field14, attacked->m_field18);
     unsigned short uid = monster.GetUID();
-    m_monsters.insert(std::make_pair(uid, monster));
+    m_monsters.insert(std::make_pair((unsigned short)uid, monster));
     {
         PacketGuard packet;
         packet.clear();
@@ -579,24 +601,25 @@ void CVillageMonsterMgr::OnRegenVillageMonster(int a, int b)
 //   从队伍村战状态区取 zone（+0xc4c；0 → 0x15）与 vill/area（+0xc50/+0xc54），
 //   Zone 命中区域转交 Area::OnKillVillageMonster(user, zone, flag)。
 // ============================================================================
-// [b28d-51] 判词 N（ORIG 0x086b4866，N82 族）：callee-saved 需求差（ORIG 无
-// esi/ebx push 而 4.4 有）+ 帧 0x48 vs 0x40；语义/调用集齐，byte 层封顶。
+// [b28d-solo-CVillageMonsterMgr] AE（ORIG 0x086b4866）：去 view 具名指针
+// （P0 每使用点完整 cast 表达式）+ 加 areaObj 具名（ORIG -0xc 槽），
+// 消除 esi/ebx push 与帧差。p167 CLEAR。
 int CVillageMonsterMgr::OnKillVillageMonster(CUser* user, bool flag)
 {
     CParty* party = (CParty*)user->GetParty();
     if (party == 0)
         return 0x15;
-    CPartyVillageStateView* view =
-        reinterpret_cast<CPartyVillageStateView*>(party);
-    unsigned short zone = view->m_villageMonsterZone;
+    unsigned short zone =
+        ((CPartyVillageStateView*)party)->m_villageMonsterZone;
     if (zone == 0)
         return 0x15;
-    Zone z((unsigned char)view->m_villageVill,
-           (unsigned char)view->m_villageArea);
+    Zone z((unsigned char)((CPartyVillageStateView*)party)->m_villageVill,
+           (unsigned char)((CPartyVillageStateView*)party)->m_villageArea);
     std::map<Zone, CVillageMonsterArea>::iterator it = m_areas.find(z);
     if (it == m_areas.end())
         return 0x15;
-    return it->second.OnKillVillageMonster(user, zone, flag);
+    CVillageMonsterArea* areaObj = &it->second;
+    return areaObj->OnKillVillageMonster(user, zone, flag);
 }
 
 // ============================================================================
@@ -605,14 +628,15 @@ int CVillageMonsterMgr::OnKillVillageMonster(CUser* user, bool flag)
 //   怪物 m_field20/m_field24 写入队伍村战状态区（+0xcb8/+0xc58）、zon/ vill/area
 //   落位（+0xc4c/+0xc50/+0xc54），并向队伍广播 0xf3，返回 0。
 // ============================================================================
-// [b28d-51] 判词 N（ORIG 0x086b4672，N82 族）：uint16 形参截断槽 + 帧 0x60 vs
-// 0x70；语义/调用集齐，byte 层封顶。
+// [b28d-solo-CVillageMonsterMgr] N 封顶（ORIG 0x086b4672，N7/N82 族）：
+// 去 z/area/vill 具名局部（P0 右值直传）+ 去 view 指针后槽集与 ORIG 全等、
+// 帧 0x60=0x60；残余 = 两个 `return 0x15` 被 4.4 汇聚到 %ebx（ORIG 各自
+// `mov $0x15,%eax`）+ party 二次使用被缓存 %ebx（ORIG 每次重载 -0x14），
+// 共 4 条寄存器分配差。p167 CLEAR（19/19）。
 int CVillageMonsterMgr::OnFightVillageMonster(CUser* user, unsigned short zone)
 {
-    unsigned short z = zone;
-    unsigned char area = (unsigned char)user->get_area(false);
-    unsigned char vill = user->getCurCharacVill();
-    Zone findZone(vill, area);
+    Zone findZone(user->getCurCharacVill(),
+                  (unsigned char)user->get_area(false));
     std::map<Zone, CVillageMonsterArea>::iterator it = m_areas.find(findZone);
     if (it == m_areas.end())
         return 0x15;
@@ -622,22 +646,21 @@ int CVillageMonsterMgr::OnFightVillageMonster(CUser* user, unsigned short zone)
     CVillageMonsterArea* areaObj = &it->second;
     int out1 = 0;   // → monster.m_field20 → party+0xcb8
     int out2 = 0;   // → monster.m_field24 → party+0xc58
-    int ret = areaObj->OnFightVillageMonster(user, z, out1, out2);
+    int ret = areaObj->OnFightVillageMonster(user, zone, out1, out2);
     if (ret != 0)
         return ret;
-    CPartyVillageStateView* view =
-        reinterpret_cast<CPartyVillageStateView*>(party);
-    view->m_villageMonsterZone = z;
-    view->m_villageVill = (int)(signed char)vill;
-    view->m_villageArea = user->get_area(false);
-    view->m_villageMonsterField24 = out2;
-    view->m_villageMonsterField20 = out1;
+    ((CPartyVillageStateView*)party)->m_villageMonsterZone = zone;
+    ((CPartyVillageStateView*)party)->m_villageVill =
+        (int)(signed char)user->getCurCharacVill();
+    ((CPartyVillageStateView*)party)->m_villageArea = user->get_area(false);
+    ((CPartyVillageStateView*)party)->m_villageMonsterField24 = out2;
+    ((CPartyVillageStateView*)party)->m_villageMonsterField20 = out1;
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0xf3);
     packet.finalize(true);
     party->send_to_party(packet);
-    return 0;
+    return ret;
 }
 
 }  // namespace village_attacked

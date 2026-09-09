@@ -254,8 +254,10 @@ public:
     // 0x08604d2a `call; xor $0x1,%eax; test %al,%al; je`（P292/P248 档① bool callee
     // 唯一形）；返回类型不入 mangling、sizeof/偏移零影响。
     bool check_skill_mastered(int skillIdx, int level, int group) const;
-    int check_skill_mastered(int skillIdx, int level, int group,
-                             ENUM_SKILL_TREE_KIND kind) const;
+    // [b28d-Main 代落·S229 P248档①] int→bool：ORIG 0x084efba2/0x084efc1a 均
+    // `call; xor $0x1,%eax; test %al,%al; je`（无 setne）。返回域 0/1。
+    bool check_skill_mastered(int skillIdx, int level, int group,
+                              ENUM_SKILL_TREE_KIND kind) const;
     int check_skill_mastered(_Mastered_skill* buf, int skillIdx, int level,
                              int group) const;
     bool check_skill_list(int job, std::vector<std::pair<int, int> > list,   // [b28c-21 SIGFIX]
@@ -305,7 +307,9 @@ public:
                          int secondGrow, int refundCount, int& result);
     int get_give_skill(int job, int firstGrow, int secondGrow,
                        std::vector<std::pair<int, int> >& out);
-    char checkOverLevelSkill(std::vector<stSPReturnInfo_t>& out,
+    // [b28d-Main 代落·S229 P248档①] char→bool：ORIG 0x084ef832/0x084ef871 均
+    // `call; test %al,%al; je`（无 setne）。返回域 0。
+    bool checkOverLevelSkill(std::vector<stSPReturnInfo_t>& out,
                              ENUM_SKILL_TREE_KIND kind, int level);
     void initialize_sfp_skill();
     void debugCheckGrowTypeSkill(int level, int job, int firstGrow,

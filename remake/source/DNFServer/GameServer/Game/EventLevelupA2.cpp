@@ -132,7 +132,7 @@ namespace EventClassify
 // flag 真：item.m_level <= level 即中；假：== 才中。未命中返回 0。
 // 形态说明：ORIG 每次使用都重新经 this->+0x1c 取脚本指针（无局部缓存），
 // 本转写按同样语句形状书写以保持 O0 指令序列一致。
-int CLevelUpReward::check_recv_level(int level, int job, int growType, bool flag)
+bool CLevelUpReward::check_recv_level(int level, int job, int growType, bool flag)   // [b28d-Main 代落·S366 P292] int→bool
 {
     std::map<int, Condition_LevelUp>::iterator it =
         static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.find(job);
@@ -164,7 +164,7 @@ int CLevelUpReward::check_recv_level(int level, int job, int growType, bool flag
 // 查找/过滤与 check_recv_level 同形；命中 item.m_level == level 时对脚本
 // +0x28 的 mail 执行 reset → set_item(itemIndex,itemCount) → 标题/正文 key
 // 赋值（mail+0x30/+0x34 ← item+0xc/+0x10），返回 1；否则继续循环，耗尽返回 0。
-int CLevelUpReward::set_reward_item(int level, int job, int growType)
+bool CLevelUpReward::set_reward_item(int level, int job, int growType)   // [b28d-Main 代落·S366 P292] int→bool
 {
     std::map<int, Condition_LevelUp>::iterator it =
         static_cast<LevelUpRewardScript*>(m_script1c)->m_conditions.find(job);

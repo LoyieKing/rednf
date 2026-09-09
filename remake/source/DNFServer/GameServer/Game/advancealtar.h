@@ -84,7 +84,13 @@ struct _Slot {
     // [b28d-D33] m_byte0 unsigned char→bool：ORIG resetSlot 0x08132c39
     // `movzbl …; xor $1,%eax; test %al,%al; je` 为裸 !bool 字段形（P168a 档②）。
     // 值域 {0,1}（advancealtar_DB.cpp:643 写 atoi>0?1:0）、pack(1) 偏移/sizeof 不变。
-    bool m_byte0; SlotInt1_t m_int1; unsigned char m_byte5; int m_int6;   // pack(1)，10 字节
+    bool m_byte0;
+    // [b28d-solo-advancealtar_Manager P235] 匿名 union 双视角：enum 本体供
+    // DB_Update::makeSlotString 0x0813f4a5 两段中转（P254 实证）；int 视角供
+    // exchangeSlot 0x08131f98 同型比较单段 `mov 0x2(%eax),%edx`（P248 档③，
+    // 两消费端类型需求冲突，P248 反例）——同址同宽，sizeof/偏移/mangled 零影响。
+    union { SlotInt1_t m_int1; int m_int1i; };
+    unsigned char m_byte5; int m_int6;   // pack(1)，10 字节
 };  // 10 字节
 struct _Reward {
     // ORIG W C1/C2 @0x081344be：memset(this,0,5)。
@@ -441,7 +447,10 @@ public:
     unsigned int exchangeSlot(CMDPacketStruct::_SetSlotData& slotA,
                               CMDPacketStruct::_SetSlotData& slotB);
     // ORIG T 0x081333b2（Dispatcher_ResetStar process_packet 调用）
-    int resetStar(CUser* user, CMDPacketStruct::ResetStarType::T type);
+    // [b28d-solo-Dispatchers 代落 P211 同型] int→unsigned int：ORIG store 为 LHS-first
+    // （`mov -0x10(%ebp),%edx; mov %eax,0x4(%edx)`，0x081410xx）⇒ 与 _Res*.m_nErrorCode
+    // （unsigned int）同型。返回值恒非负（0/2）。返回类型不入 mangled。
+    unsigned int resetStar(CUser* user, CMDPacketStruct::ResetStarType::T type);
     // ---- OnlyOrig_Altar.AltarMgr 批（定义 advancealtar_Manager.cpp）----
     void gmSetTicket(int ticket);   // ORIG T 0x0813375c：cur->m_ticket=v、m_update=1
     void setDefaultBuyItem(AdvanceAltarShopType::T type);  // ORIG T 0x08132cb8

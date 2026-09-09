@@ -32,6 +32,21 @@ enum ENUM_MAZE_QUEST_TYPE
 };
 #endif
 
+// 地图方向位（ORIG InsertMap 0x0834b988 的 pair 构造实参类型：
+// _ZNSt4pairIKiP4CMapEC1I14PATH_DIRECTIONRS2_EEOT_OT0_ ×12；值 1/2/4/8 为
+// direction 形参的四个位。枚举类型名入 mangled，故必须用真实名 PATH_DIRECTION。
+#ifndef DNF_ENUM_PATH_DIRECTION_DEFINED
+#define DNF_ENUM_PATH_DIRECTION_DEFINED
+
+enum PATH_DIRECTION
+{
+    PATH_DIRECTION_1 = 1,
+    PATH_DIRECTION_2 = 2,
+    PATH_DIRECTION_4 = 4,
+    PATH_DIRECTION_8 = 8
+};
+#endif
+
 // ---------------------------------------------------------------------------
 // 迷宫/网格支撑类型（GridScript/RidableObject/RidableScript/DungeonClearCondition）
 // ---------------------------------------------------------------------------
@@ -61,7 +76,9 @@ struct RidableObject
     int m_field18;  // +0x14
 
     RidableObject();
-    ~RidableObject();
+    // [b28d-Main 代落·S273 P317] 删用户空析构：ORIG 仅实例化平凡版
+    // `_ZNSt12_Destroy_auxILb1EE9__destroyIP13RidableObjectEEvT_S4_` ⇒ trivial；
+    // ImportDungeonScript 区间 0 处 D1 call（我方 16 EXTRA）。D1/D2 仍发射同名 W。
     void clear();
 };
 
@@ -138,7 +155,7 @@ struct RandomList
     int m_mapIndex;   // +0x00（randomMapIndex 0x0814f4fc 输出地图索引）
     int m_weight;     // +0x04（10000 段权重，累加比较）
 
-    ~RandomList();
+    // [b28d-Main 代落·S273 P317] 同族（ORIG 平凡 __destroyIP10RandomListE 实证）。
 };
 
 struct stEventMonster_t
@@ -149,7 +166,7 @@ struct stEventMonster_t
     int m_field0c;       // +0x0c
     int m_field10;       // +0x10
 
-    ~stEventMonster_t();
+    // [b28d-Main 代落·S273 P317] 同族（ORIG D1/D2 W size=5）。
 };
 
 struct stSecondEventMonster_t
@@ -160,7 +177,7 @@ struct stSecondEventMonster_t
     int m_field0c;       // +0x0c
     int m_field10;       // +0x10
 
-    ~stSecondEventMonster_t();
+    // [b28d-Main 代落·S273 P317] 同族。
 };
 
 struct DimensionPartyCount
@@ -354,9 +371,7 @@ struct TournamentRewardItem
         m_data[1] = 0;
         m_data[2] = 0;
     }
-    ~TournamentRewardItem()
-    {
-    }
+    // [b28d-Main 代落·S273 P317] 删头内空析构（同族）。
     int m_data[3];
 };
 
@@ -380,9 +395,7 @@ struct STNamedMonsterMapPos
         m_y = 0;
         m_x = m_y;
     }
-    ~STNamedMonsterMapPos()
-    {
-    }
+    // [b28d-Main 代落·S273 P317] 删头内空析构（同族）。
     int m_x;   // +0x00
     int m_y;   // +0x04
 };
@@ -400,7 +413,7 @@ public:
 // ORIG sizeof=12（vector<RecoveryInfo>::size 反比 magic /12 实证）。
 struct RecoveryInfo
 {
-    ~RecoveryInfo();   // ORIG W 0x088f9346：空体（vector<RecoveryInfo> 析构触发）
+    // [b28d-Main 代落·S273 P317] 删用户空析构（ORIG D1 W 0x088f9346 空体，同族）。
     // ImportDungeonScript 0x88eedd5 起三处 fstps 直存 → ORIG 为 float[3]。
     float m_data[3];
 };
@@ -501,7 +514,12 @@ struct STDungeonScript
     std::vector<std::string> m_vec48;       // +0x48
     std::string m_str54;                    // +0x54
     std::string m_str58;                    // +0x58
-    int m_5c[6];                            // +0x5c
+    // +0x5c：ORIG 以二维形访问（add r,r; lea (r,r,1)，Clear 0x0836acd0 /
+    // Import 0x088e741c），一维写法在 4.4.6 恒产 add mem 形（探针实证）⇒ 双视角。
+    union {
+        int m_5c[6];
+        int m_5cGrid[3][2];
+    };
     std::string m_str74;                    // +0x74
     int m_78;                               // +0x78（标准等级源）
     RequiredItem m_requiredItem7c;          // +0x7c
@@ -520,7 +538,9 @@ struct STDungeonScript
     STPathgateObject m_pathgate;             // +0xf8（ORIG POD 区）
     int m_128[5];                           // +0x128（set_dungeon copy 到 CDungeon+0x880）
     int m_13c;                              // +0x13c
-    unsigned char m_140;                             // +0x140
+    bool m_140;                                      // +0x140（[b28d-solo-CDungeon] uchar→bool：
+                                                     //  与 CDungeon::m_89d(bool) 同型，ORIG set_dungeon
+                                                     //  0x0834b388 `movzbl 0x140,%edx; mov %dl,0x89d` 单段直存）
     unsigned char m_141;                             // +0x141
     unsigned char m_142;                             // +0x142
     std::vector<std::pair<int, int> > m_vec144;  // +0x144
@@ -608,7 +628,8 @@ struct STDungeonScript
     int m_480;                              // +0x480
     int m_484;                              // +0x484
     int m_488;                              // +0x488
-    unsigned char m_48c;                             // +0x48c
+    bool m_48c;                                      // +0x48c（b28d-solo-CDungeon: uchar→bool，
+                                                     //  ORIG set_dungeon 直存 mov %dl,0x6c8 无 test/setne）
     int m_490;                              // +0x490
     unsigned char m_494;                             // +0x494
     int m_498;                              // +0x498
@@ -620,12 +641,12 @@ struct STDungeonScript
         float m_4c4Value;                   // +0x4c4（[tournament clear reward gold rate]）
     };
     std::map<unsigned char, unsigned int> m_map4c8;  // +0x4c8
-    unsigned char m_4e0;                             // +0x4e0
+    bool m_4e0;                                      // +0x4e0（b28d-solo-CDungeon: uchar→bool，同上）
     std::map<int, UseCoinDungeonDiff> m_map4e4;      // +0x4e4
     int m_4fc;                              // +0x4fc
     int m_500;                              // +0x500
-    unsigned char m_504;                             // +0x504
-    unsigned char m_505;                             // +0x505
+    bool m_504;                                      // +0x504（b28d-solo-CDungeon: uchar→bool，同上）
+    bool m_505;                                      // +0x505（b28d-solo-CDungeon: uchar→bool，同上）
     int m_508;                              // +0x508（[disable exit]，ORIG dword 写入）
     char m_50c;                             // +0x50c（ORIG Clear movb $0,0x50c）
 
@@ -641,7 +662,7 @@ public:
     CDungeon();
     ~CDungeon();   // ORIG 非虚：vtable 无 dtor 槽（0x8c34a08 仅 _do_after_dungeon_start）
 
-    virtual int _do_after_dungeon_start(CUser* user) const;
+    virtual bool _do_after_dungeon_start(CUser* user) const;   // [b28d-Main 代落·S326 P292] int→bool（ORIG 0x0859fd1e 调用点 `call *%edx; xor $0x1,%eax; test %al,%al; je`）
 
     // ---- 弱访问器（ORIG W 符号，定义于 CDungeon.cpp）----
     int get_index() const;
@@ -674,7 +695,10 @@ public:
     int getHeroesRequiredQuest() const;
     int GetDummyAppearCount() const;
     unsigned char IsHaveDummyMap() const;          // ORIG 单 movzbl（830e616）
-    unsigned char hasTowerItemDrop() const;        // ORIG 单 movzbl（8150934）
+    // [b28d-solo-CBossStage] 返回类型 uchar→bool：ORIG 调用点 0x0814d6dc
+    //   `call; test %al,%al; je`（P292 两条形=bool；uchar 恒 4 条含 setne）。
+    //   返回类型不入 mangled；sizeof/成员偏移零影响。
+    bool hasTowerItemDrop() const;
     std::vector<std::pair<int, int> >* getDropItems() const;
     std::vector<std::pair<int, int> >* getObjectDropItems() const;
     std::vector<stDungeonAssignItem_t>* getSpecialPassiveObjectItems() const;
@@ -748,8 +772,10 @@ public:
     int m_secondEventMonsterTotalProb;                      // +0x6a4
     std::vector<stSecondEventMonster_t> m_secondEventMonsters; // +0x6a8
     bool m_limitStackableItemInTower;              // +0x6b4（同名访问器；b28d-Main: bool 使体保持 movzbl 直返）
-    unsigned char m_hasTowerItemDrop;                       // +0x6b5（同名访问器）
-    int m_towerMaxClearRewardItemNum;                       // +0x6b8（同名访问器）
+    bool m_hasTowerItemDrop;                                // +0x6b5（[b28d-Main 代落·S345 P235/P292] uchar→bool：ORIG hasTowerItemDrop 0x0815092e 体 `movzbl; ret` 无 setne ⇒ 字段与返回同型；1 字节/偏移不变）
+    unsigned int m_towerMaxClearRewardItemNum;              // +0x6b8（同名访问器；
+                                        // [b28d-solo-CDungeon] int→unsigned：ORIG set_dungeon
+                                        //  `mov 0x3b8,%eax; mov %eax,%edx` 异型 RHS-first+中转）
     std::vector<DimensionPartyCount> m_dimensionPartyCount; // +0x6bc
     bool m_noFatigueFlag;                   // +0x6c8（isNoFatigueDungeon；bool 化配对，布局不变）
     bool m_riskFlag;                        // +0x6c9（isRiskDungeon；bool 化配单
@@ -763,16 +789,20 @@ public:
     RequiredItem m_entryRequiredItem;   // +0x7f4（入场必要物品；TOD 门票/vilmark/
                                         //      CheckEnter 链共用，set_dungeon 自
                                         //      script+0x7c 9 字节复制）
-    char m_advanceAltarSurvivalFlag;    // +0x800（script+0x2ab；importer
+    unsigned char m_advanceAltarSurvivalFlag;   // +0x800（script+0x2ab；importer
                                         //      "[advance altar survival map]" 实证）
+                                        // [b28d-solo-CDungeon] char→uchar：ORIG set_dungeon
+                                        //  `movzbl 0x2ab,%edx; mov %dl,0x800` 单段直存（同型）
     int m_advanceAltarType;             // +0x804（script+0x2ac；importer StageType 实证）
     int m_808[3];                   // +0x808（script+0x2b0 3 int）
     std::vector<int> m_vec814;      // +0x814（script+0x2c8）
     int m_820[3];                   // +0x820（script+0x2bc 3 int）
     advancealtar::ClearRewardData m_clearReward; // +0x82c
     advancealtar::SurvivalRewardData m_survivalReward; // +0x850
-    char m_entryRestrictFlag;       // +0x85c（script+0x88；CParty 2257 vilmark 入场
+    unsigned char m_entryRestrictFlag;  // +0x85c（script+0x88；CParty 2257 vilmark 入场
                                     //      物品链 / PartyClosure 分支门【推断】）
+                                    // [b28d-solo-CDungeon] char→uchar：ORIG set_dungeon
+                                    //  `movzbl 0x88,%edx; mov %dl,0x85c` 单段直存（同型）
     RequiredItem m_entryRequiredItem2;  // +0x860（第二入场物品槽，script+0x8c）
     std::vector<std::pair<int, int> > m_vec86c; // +0x86c（script+0x98）
     char m_minAttackPartyMember;    // +0x878（CheckEnterVillageAttackRevenge 下界，
@@ -789,7 +819,10 @@ public:
     int m_894;                      // +0x894（script+0x13c）
     int m_898;                      // +0x898（script+0x168）
     unsigned char m_89c;            // +0x89c（script+0x28c，入场限制组合位，语义未证）
-    unsigned char m_89d;            // +0x89d（script+0x140；!=1 时清 hell 标记）
+    // [b28d-solo-BattleDungeonMapA2] ORIG SelectDungeon 0x082ff6b9 为
+    // `movzbl 0x89d(%eax),%eax; xor $0x1,%eax; test %al,%al; je`（P248 档②）
+    // ⇒ 字段 bool（源码 `!dungeon->m_89d`）；1 字节/偏移不变。
+    bool m_89d;                     // +0x89d（script+0x140；非真时清 hell 标记）
     unsigned char m_89e;            // +0x89e（script+0x28d，村庄怪副本标记）
     unsigned char m_bloodDungeonType; // +0x89f（get_blood_dungeon_type；
                                       //      script+0x28e；1=血腥 2=终极）
@@ -816,7 +849,7 @@ class CDungeon_TowerOfDespair : public CDungeon
 public:
     CDungeon_TowerOfDespair();
     ~CDungeon_TowerOfDespair();   // ORIG 非虚
-    virtual int _do_after_dungeon_start(CUser* user) const;
+    virtual bool _do_after_dungeon_start(CUser* user) const;   // [b28d-Main 代落·S326 P292] 派生覆写同步
 };
 
 namespace QuickParty

@@ -895,7 +895,10 @@ public:
 typedef char assert_stmonster_script_size[(sizeof(STMonsterScript) == 0x1cc4) ? 1 : -1];
 
 // ---- 自由函数（签名 = ORIG mangled）----
-int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
+// [b28d-Main 代落·S224 P248档①] int→bool：ORIG 调用点 0x0834fa9f/0x08350cff 均
+// `call; xor $1; test %al`（bool 直判）。返回域 0/1（44 处 return 0 + 尾 return 1）。
+// 返回类型不入 mangled。
+bool ImportMonsterScript(STMonsterScript* script, int type, const char* path,
                         bool flag);                                   // 0x08a12827
 bool ImportMonsterBaseTable(STMonsterScript* script, const char* path);  // 0x08a3c736
 bool exportMonsterScript(

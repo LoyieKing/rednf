@@ -71,14 +71,17 @@ public:
     Packet_Monitor_UDP_Reply_UserInfo();
     unsigned char m_count;    // +0xa
     unsigned char m_channel;  // +0xb
-    char m_items[75 * 0x4d];  // +0xc（ST_MonitorReplyUserInfo 各 0x4d 字节，仅需外层零填充）
+    // [b28d-Main 修·S225 上报真 bug] 步长 0x4d→0x4e：ORIG Send_userinfos_to_upper_server
+    // 0x08296369..0x082964ca 逐字段 `imul $0x4e`、packetSize=n*0x4e+0xc @0x082965bc。
+    // 旧 75*0x4d=0x168f 使下方 memset(…,0x16da) 越界写 0x4b 字节（75 条）。修正后
+    // sizeof=0xc+0x16da=0x16e6，与 PacketHeader(0x3ea,0x16e6) 及 memset 长度一致。
+    char m_items[75 * 0x4e];  // +0xc
 } __attribute__((packed));
 Packet_Monitor_UDP_Reply_UserInfo::Packet_Monitor_UDP_Reply_UserInfo()
     : PacketHeader(0x3ea, 0x16e6), m_count(0), m_channel(255)
 {
     // ORIG（0x3ea/0x16e6）：从 m_items(+0xc) 起零填充整个报文体（0x16da 字节，
-    // 即 0x16e6 报文长 - 0xc 头）。m_items 声明为 75*0x4d=0x168f，不足，故保留
-    // ORIG 全量长度以匹配发送侧布局。
+    // 即 0x16e6 报文长 - 0xc 头）= 75 * 0x4e，与 m_items 尺寸一致。
     memset(m_items, 0, 0x16da);
 }
 

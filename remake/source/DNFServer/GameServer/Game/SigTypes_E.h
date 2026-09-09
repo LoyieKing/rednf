@@ -101,7 +101,7 @@ struct SIG_SAVE_HACK_USER_PUNISH
 struct SIG_SAVE_INVENTORY
 {
     unsigned int m_accId;              // +0x000
-    int m_characNo;                    // +0x004（getCurCharacNo 返 int 同型——ORIG 0x0864fd80 store 直存无中转，P211 同型化）
+    unsigned int m_characNo;           // +0x004（getCurCharacNo 返 unsigned int 同型——ORIG 0x0864fd80 store LHS-first 直存无中转，P211 同型化；DB 侧仅 SQL/日志参数，无符号敏感比较）
     char m_saveFlag;                   // +0x008（0=完整背包保存，1=仅 AvatarCoin 保存）
     int m_money;                       // +0x009（getCurCharacMoney 返 int 同型——ORIG 0x0864fd80 store 直存无中转，P211 同型化）
     unsigned int m_coin;               // +0x00d
@@ -387,8 +387,18 @@ struct SIG_SEND_USER_REWARD
 
 struct SIG_STATISTIC_CERASHOP_GIFT_LOG
 {
-    char m_pad[0x18];
+    // ORIG CUser::SendCeraShopGiftStatisticLog 0x0868a87a 逐字段 4 字节 store
+    // （+0x00/04/08/0c/10/14）；调用点 W6_CeraShopDeps.cpp 传
+    // (buyIdx, cost, item.m_addInfo, item.m_addInfo2) 落在 +0x08..+0x14。
+    unsigned int m_accId;         // +0x00（CUser::m_accId）
+    unsigned int m_characNo;      // +0x04（getCurCharacNo）
+    unsigned int m_buyIdx;        // +0x08
+    unsigned int m_cost;          // +0x0c
+    unsigned int m_itemAddInfo;   // +0x10（item.m_addInfo）
+    unsigned int m_itemAddInfo2;  // +0x14（item.m_addInfo2）
 };
+static_assert(sizeof(SIG_STATISTIC_CERASHOP_GIFT_LOG) == 0x18,
+              "SIG_STATISTIC_CERASHOP_GIFT_LOG ABI drift");
 
 struct SIG_SWAP_CREATURE_ITEM
 {
@@ -790,7 +800,7 @@ struct SIG_BOOSTER_GAGE_DATA
 // sizeof 0x1c；CCeraShop::LogError 消费 +0x00/+0x04/+0x10/+0x14/+0x18）。
 struct SIG_CERASHOP_ERROR_LOG
 {
-    int m_field0;             // +0x00
+    unsigned int m_field0;    // +0x00（m_id，uint；P248档③ 同型化，S278）
     int m_field4;             // +0x04
     int m_field8;             // +0x08
     int m_fieldc;             // +0x0c

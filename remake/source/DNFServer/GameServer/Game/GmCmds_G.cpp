@@ -46,19 +46,9 @@
 // ORIG 外部符号桥接（共享头未声明；asm 标签保证链接名一致）。
 // ============================================================================
 
-struct Inven_Item;
-
-// expert_job::CDisjointer::get_disjoint_result_
-//   (CItem*, Inven_Item*, int, DisJointResult&, bool, CUser*)
-// ORIG T 0x085d234a（CTestDisjointCmd::execute 调用）。保留自由函数桥：
-// 头内为非 static 成员，但 ORIG 调用点（0x084a9c0c+0x102）仅压 6 实参
-// 无 this 槽 ⇒ static 语义实证；转真成员调用会多压 this，破坏字节等价，
-// 故以 thiscall 首参显式桥接。
-extern void CDisjointer_get_disjoint_result_(
-    void* disjointer, Inven_Item* item, int grade, DisJointResult& result,
-    bool flag, CUser* user)
-    asm("_ZN10expert_job11CDisjointer20get_disjoint_result_EP5CItemP10Inven_Item"
-        "iR14DisJointResultbP5CUser");
+// [b28d-Main 代落·S258] 原 asm 自由函数桥已删：CExpertJob.h:310 已把
+// expert_job::CDisjointer::get_disjoint_result_ 改为 static（ORIG 0x085d234a
+// 体首参 0x8(%ebp)=item、无 this）⇒ 直调即可，6 实参槽与 ORIG 一致。
 
 // CStackableItem 非虚查询族（ORIG W：0x84b4222/0x84b4232/0x84b4242/0x84b4252；
 // 真成员已落地（CStackableItem.h + ItemUpgradeVtableB2.cpp），按真成员直调：
@@ -224,7 +214,7 @@ void CTestDisjointCmd::execute()
         {
             for (int i = 0; i < runs; ++i)         // -0x1c
             {
-                CDisjointer_get_disjoint_result_(
+                expert_job::CDisjointer::get_disjoint_result_(
                     samples[s], (Inven_Item*)0, grade, result, false,
                     (CUser*)0);
                 // 参数序（ORIG result@-0x68 下位移实测 +0x14/+0x00/+0x18/+0x04）：

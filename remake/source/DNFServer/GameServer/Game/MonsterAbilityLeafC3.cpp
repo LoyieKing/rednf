@@ -49,11 +49,10 @@ enum ENUM_ACTIVEPROPERTY
 // （float[13][5]），运行期由脚本导入填充。此处按声明类型引用并做扁平索引。
 extern float DIFFICULTY_OF_DUNGEON_BONUS[13][5];
 
-namespace
-{
-// 冠军特性随机池：ORIG .rodata 0x8e08000 共 37 项；
+// 冠军特性随机池：ORIG .rodata 0x8e08000 共 37 项，符号 _ZL21CHAMPION_FEATURE_LIST
+// （文件级 static，P204③：_ZL 前缀 mangled 才与 ORIG 一致）；
 // 低难度分支取 rand()%28，高难度(diff>3)分支取 [28,35)。
-const int kChampionFeaturePool[37] = {
+static const int CHAMPION_FEATURE_LIST[37] = {
     0x0001ff00, 0x0000ff01, 0x0002ff02, 0x0002ff03,  // 0..3
     0x00030004, 0x00030005, 0x00030006, 0x00030007,  // 4..7
     0x00040008, 0x0003fe09, 0x0003fe0a, 0x0003fe0b,  // 8..11
@@ -66,8 +65,9 @@ const int kChampionFeaturePool[37] = {
     0x0004fd24                                       // 36
 };
 
-// 特性 tier→点数开销表：ORIG .rodata 0x8e08094[0x400]，按 (feature>>16)&0xff 索引。
-const int kChampionFeatureTierCost[256] = {
+// 特性 tier→点数开销表：ORIG .rodata 0x8e08094[0x400]，符号
+// _ZL21CHAMPFEAT_POINT_MINUS；ORIG 按 (feature & 0xff0000) >> 16 索引。
+static const int CHAMPFEAT_POINT_MINUS[256] = {
     0x0000000a, 0x00000008, 0x00000005, 0x00000003, 0x00000002, 0x00000002, 0x0000000c, 0x00000029,
     0x00000021, 0x00000021, 0x00000006, 0x0001869f, 0x00000004, 0x00000003, 0x00000027, 0x000000b4,
     0x00000002, 0x0000000a, 0x00000005, 0x00000014, 0x00000006, 0x00000009, 0x00124f80, 0x000000b4,
@@ -101,14 +101,6 @@ const int kChampionFeatureTierCost[256] = {
     0x00000003, 0x00000004, 0x00000000, 0x00000014, 0x00000004, 0x00000000, 0x00000001, 0x00000002,
     0x00000003, 0x08100810, 0x0000001b, 0x00000046, 0x00000006, 0x0000000c, 0x00000006, 0x00000000
 };
-
-// 难度加成的公共乘算形态：P = old * BONUS[...]（fstps 中转），再 trunc(row * P)。
-int scaleByBonus(float oldValue, float bonus, float tableValue)
-{
-    const float scaled = oldValue * bonus;
-    return static_cast<int>(tableValue * scaled);
-}
-}  // namespace
 
 // ---------------------------------------------------------------------------
 // haveChampionFeature — ORIG 0x8891ad4：线性查找。
@@ -260,31 +252,40 @@ int getToleranceActiveStatus(ENUM_ACTIVEPROPERTY prop)
 // addChampionFeature — ORIG 0x88b9f66：同组(fc/ fd/fe/ff)冲突拒绝 → 重复拒绝 →
 // 点数足够才 push_back 并扣点。
 // ---------------------------------------------------------------------------
-// b28d-D42 verdict=DIFF [N82] ORIG 0x088b9f66 orig/ours=118/83 ndiff=115。
-// 帧 0x28 vs 0x38 + 槽序/寄存器分配差（P112/N82）；语义等价封顶。
+// b28d-solo-MonsterAbilityLeafC3 verdict=AE ORIG 0x088b9f66 orig/ours=121/121。
+// 修复：表符号 _ZL21CHAMPFEAT_POINT_MINUS（P204③ 文件级 static）、形参直读
+// （P0：去 f/fGroup/group 局部）、每条件独立重调 operator[]（P157/P48）、含调用的
+// || 链由 4.4 物化为 mov$1/mov$0/test/jne 岛（探针 q1/q2）、表值直算两次不缓存、
+// FAIL/END 尾标签形。
 void addChampionFeature(CHAMPION_FEATURES feature, int& count,
                         std::vector<int>& list)
 {
-    const int f = static_cast<int>(feature);
-    const int fGroup = (f & 0xff00) >> 8;
-
+    // ORIG 0x088b9f66：形参直读（P0：无 f/fGroup/group 具名局部），每个条件
+    // 独立重调 operator[]（P157/P48），含调用的 || 链由 4.4 物化成
+    // mov $1/mov $0/test/jne 岛（探针 q1/q2 实证）；末尾表值直算两次（不缓存）。
     for (std::vector<int>::size_type i = 0; i < list.size(); ++i)
     {
-        const int group = (list[i] & 0xff00) >> 8;
-        if ((group == 0xff && fGroup == 0xff) ||
-            (group == 0xfe && fGroup == 0xfe) ||
-            (group == 0xfd && fGroup == 0xfd) ||
-            (group == 0xfc && fGroup == 0xfc))
+        if (((((list[i] & 0xff00) >> 8) == 0xff) &&
+             (((static_cast<int>(feature) & 0xff00) >> 8) == 0xff)) ||
+            ((((list[i] & 0xff00) >> 8) == 0xfe) &&
+             (((static_cast<int>(feature) & 0xff00) >> 8) == 0xfe)) ||
+            ((((list[i] & 0xff00) >> 8) == 0xfd) &&
+             (((static_cast<int>(feature) & 0xff00) >> 8) == 0xfd)) ||
+            ((((list[i] & 0xff00) >> 8) == 0xfc) &&
+             (((static_cast<int>(feature) & 0xff00) >> 8) == 0xfc)))
             return;
-        if (list[i] == f)
+        if (list[i] == static_cast<int>(feature))
             return;
     }
 
-    const int cost = kChampionFeatureTierCost[(f >> 16) & 0xff];
-    if (count < cost)
-        return;
-    list.push_back(f);
-    count -= cost;
+    if (count <
+        CHAMPFEAT_POINT_MINUS[(static_cast<int>(feature) & 0xff0000) >> 16])
+        goto FAIL;
+    list.push_back(static_cast<int>(feature));
+    count -= CHAMPFEAT_POINT_MINUS[(static_cast<int>(feature) & 0xff0000) >> 16];
+    goto END;
+FAIL: ;
+END: ;
 }
 
 // ---------------------------------------------------------------------------
@@ -293,8 +294,12 @@ void addChampionFeature(CHAMPION_FEATURES feature, int& count,
 // 过滤：>0x30007 时仅 [0x3fe09,0x3fe0c] 与 0x40008 跳过；≤0x30007 且 ≥0x30004
 // 跳过；等于 0x1ff00/0x20013/0xff01 跳过；其余添加。count<=1 提前终止。
 // ---------------------------------------------------------------------------
-// b28d-D42 verdict=DIFF [N82] ORIG 0x088b9dcf orig/ours=102/111 ndiff=79。
-// 槽序与循环结构差（P112/N82）；语义等价封顶。
+// b28d-solo-MonsterAbilityLeafC3 verdict=DIFF[N18b/P75] ORIG 0x088b9dcf
+// orig/ours=109/111 ndiff=56。已复现：do-while（体尾 subl/cmpl/setg/test/jne）、
+// 6 路 continue 型 nop 岛（P223②/P51）、表符号 _ZL21CHAMPION_FEATURE_LIST（P204③）、
+// diff>3 分支槽位（-0x10/-0x14/-0xc）。残余：4.4 -O0 对 int 局部与立即数比较恒折
+// mem 直比（P209/N18b），ORIG 4.1 为单次 mov 后寄存器复用；实参装载 eax↔edx（P75）；
+// jge→jg / jl→jle 常量规范化。语义等价封顶。
 void randomSetChampionFeature(int seed, int& count, std::vector<int>& temp,
                               int diff)
 {
@@ -302,41 +307,55 @@ void randomSetChampionFeature(int seed, int& count, std::vector<int>& temp,
 
     if (diff > 3)
     {
-        const int f = kChampionFeaturePool[rand() % 7 + 28];
+        const int f = CHAMPION_FEATURE_LIST[rand() % 7 + 0x1c];
         addChampionFeature(static_cast<CHAMPION_FEATURES>(f), count, temp);
         return;
     }
 
-    for (int remain = 0xe74; remain > 0; --remain)
+    // ORIG 0x088b9dcf：do-while（体尾 subl/cmpl/setg/test/jne）+ 六路
+    // continue 型 nop 岛（P223②/P51）；过滤判定为纯跳转链，无 bool 槽。
+    int remain = 0xe74;
+    do
     {
         if (count <= 1)
-            break;
+            return;
 
-        const int f = kChampionFeaturePool[rand() % 28];
-        bool add;
+        const int f = CHAMPION_FEATURE_LIST[rand() % 28];
         if (f > 0x30007)
-        {
-            if (f < 0x3fe09)
-                add = true;
-            else if (f <= 0x3fe0c)
-                add = false;
-            else if (f == 0x40008)
-                add = false;
-            else
-                add = true;
-        }
-        else if (f >= 0x30004)
-        {
-            add = false;
-        }
-        else
-        {
-            add = !(f == 0x1ff00 || f == 0x20013 || f == 0xff01);
-        }
-
-        if (add)
-            addChampionFeature(static_cast<CHAMPION_FEATURES>(f), count, temp);
-    }
+            goto BIG;
+        if (f >= 0x30004)
+            goto SKIP1;
+        if (f == 0x1ff00)
+            goto SKIP2;
+        if (f == 0x20013)
+            goto SKIP3;
+        if (f == 0xff01)
+            goto SKIP4;
+        goto ADD;
+    BIG:
+        if (f < 0x3fe09)
+            goto ADD;
+        if (f <= 0x3fe0c)
+            goto SKIP5;
+        if (f == 0x40008)
+            goto SKIP6;
+    ADD:
+        addChampionFeature(static_cast<CHAMPION_FEATURES>(f), count, temp);
+        goto NEXT;
+    SKIP1:
+        goto NEXT;
+    SKIP2:
+        goto NEXT;
+    SKIP3:
+        goto NEXT;
+    SKIP4:
+        goto NEXT;
+    SKIP5:
+        goto NEXT;
+    SKIP6:
+        goto NEXT;
+    NEXT: ;
+    } while (--remain > 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -387,15 +406,20 @@ void upgradeAbilityByBossFeature(ActiveStaticInfo* /*info*/)
 // m_hpBase@+0x04、statBase3/4/6@+0x118/+0x120/+0x130、statBase11..14@
 // +0x158/+0x160/+0x168/+0x170、attr17Base[13]=+0xac（ActiveStaticInfo.h 布局）。
 // ---------------------------------------------------------------------------
-// b28d-D42 verdict=DIFF [N82] ORIG 0x088b7c29 orig/ours=229/199 ndiff=224。
-// 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
+// b28d-solo-MonsterAbilityLeafC3 verdict=DIFF[P209/N18b] ORIG 0x088b7c29
+// orig/ours=229/223 ndiff=164。已复现：12 条栈上 float 常量初始化（非 static 局部
+// const 数组）、5 处 haveChampionFeature + 立即数实参、fadd st,st 加倍形、lea 加 50。
+// 残余：4.4 对 elem 与立即数比较恒 mem 直比（ORIG 单次 mov+test/cmp 复用 %eax）、
+// IF/ELSEIF 块序镜像（P47）、索引写回 add-vs-lea（P30/N4）。语义等价封顶。
 void upgradeAbilityByChampionFeature(int elem, int roleType,
                                      std::vector<int>* features,
                                      ActiveStaticInfo* info)
 {
-    static const float kElemRatio[4] = {0.0f, 0.3f, 0.5f, 0.0f};
-    static const float kAttackRatio[4] = {0.0f, 1.5f, 2.0f, 0.0f};
-    static const float kHpRatio[4] = {0.0f, 1.5f, 3.0f, 0.0f};
+    // ORIG 0x088b7c29 开头 12 条 mov $imm -> 栈槽 ⇒ 原码是**非 static** 局部
+    // const 数组（栈上逐元素初始化），不是 .rodata 静态表。
+    const float kElemRatio[4] = {0.0f, 0.3f, 0.5f, 0.0f};
+    const float kAttackRatio[4] = {0.0f, 1.5f, 2.0f, 0.0f};
+    const float kHpRatio[4] = {0.0f, 1.5f, 3.0f, 0.0f};
 
     if (elem >= 0 && elem <= 3)
     {
@@ -458,9 +482,11 @@ float STMonsterParameterCategory::getValueFloat() const
 //   m_field4!=0 → 目标 = trunc(target_f * getValueFloat())；
 //   否则 → 目标 += getValueInt()（即 m_field8/100）。
 // ---------------------------------------------------------------------------
-// b28d-D42 verdict=DIFF [N82/N4] ORIG 0x088b7f36 orig/ours=163/168 ndiff=84。
-// 槽差 4 + ORIG 两步 `add $K` 寻址被 4.4 折叠（N4/N102）+ bool 物化形差；
-// 语义等价封顶。
+// b28d-solo-MonsterAbilityLeafC3 verdict=AE ORIG 0x088b7f36 orig/ours=163/163。
+// 修复：第一循环引用局部（P157 反面：消 sete 物化 + 恢复 -0x18 槽）、switch case
+// 书写序 = ORIG 跳转表叶块排放序（P46：0..5,10,11,12,6..9,13）、删 default、
+// 三守卫合并为单 || goto 尾标签（消 3 个 continue 中继岛）。case→字段映射与
+// Ghidra 跳转表一致（0..13 全核，无字段错位）。
 void upgradeAbilityByMonsterParameterCategory(
     const std::vector<STMonsterParameterCategory>* categories,
     ActiveStaticInfo* info, bool isChampion)
@@ -469,7 +495,10 @@ void upgradeAbilityByMonsterParameterCategory(
     for (std::vector<STMonsterParameterCategory>::size_type i = 0;
          i < categories->size(); ++i)
     {
-        if ((*categories)[i].m_field0 == 13)
+        // ORIG 有引用局部槽 -0x18（P157 反面：引用局部保留 operator[] 一次）；
+        // 直接内联 .m_field0 会使 4.4 物化 sete（含 call 条件）。
+        const STMonsterParameterCategory& cat = (*categories)[i];
+        if (cat.m_field0 == 13)
         {
             hasCat13 = true;
             break;
@@ -481,6 +510,7 @@ void upgradeAbilityByMonsterParameterCategory(
     {
         const STMonsterParameterCategory& cat = (*categories)[j];
         // P167：ORIG 为内联 switch（无需独立 helper，§4.1），字段映射直接内联。
+        // case 书写序 = ORIG 跳转表叶块排放序（P46）：0..5,10,11,12,6..9,13。
         int* target = 0;
         switch (cat.m_field0)
         {
@@ -490,28 +520,28 @@ void upgradeAbilityByMonsterParameterCategory(
         case 3:  target = &info->m_magicAttack;     break; // +0x20
         case 4:  target = &info->m_defense;         break; // +0x28
         case 5:  target = &info->m_magicDefense;    break; // +0x30
+        case 10: target = &info->m_hpBase;          break; // +0x04
+        case 11: target = &info->m_statBase6;       break; // +0x130
+        case 12: target = &info->m_attr17Base[13];  break; // +0xac
         case 6:  target = &info->m_statBase11;      break; // +0x158
         case 7:  target = &info->m_statBase12;      break; // +0x160
         case 8:  target = &info->m_statBase13;      break; // +0x168
         case 9:  target = &info->m_statBase14;      break; // +0x170
-        case 10: target = &info->m_hpBase;          break; // +0x04
-        case 11: target = &info->m_statBase6;       break; // +0x130
-        case 12: target = &info->m_attr17Base[13];  break; // +0xac
         case 13: target = &info->m_hpBase;          break; // +0x04
-        default: target = 0;                         break;
         }
-        if (target == 0)
-            continue;
-        if (hasCat13 && isChampion && cat.m_field0 == 10)
-            continue;
-        if (hasCat13 && !isChampion && cat.m_field0 == 13)
-            continue;
+        if (target == 0 ||
+            (hasCat13 && isChampion && cat.m_field0 == 10) ||
+            (hasCat13 && !isChampion && cat.m_field0 == 13))
+            goto NEXT;
 
         if (cat.m_field4 != 0)
+        {
             *target = static_cast<int>(static_cast<float>(*target) *
                                        cat.getValueFloat());
-        else
-            *target += cat.getValueInt();
+            goto NEXT;
+        }
+        *target += cat.getValueInt();
+    NEXT: ;
     }
 }
 
@@ -520,65 +550,71 @@ void upgradeAbilityByMonsterParameterCategory(
 // 在本重载中未使用）。table 为副本难度表，行访问除 +0x118 一处使用 operator[]
 // 外均为 at()（保留 ORIG 的越界抛出语义）；BONUS 扁平索引见各注释。
 // ---------------------------------------------------------------------------
-// b28d-D42 verdict=DIFF [N82/N89] ORIG 0x088b813a orig/ours=330/296 ndiff=320。
-// 帧/槽平移 + vector at()/float STL 内联差（N89）；语义按报告逐条对齐。
+// b28d-solo-MonsterAbilityLeafC3 verdict=AE ORIG 0x088b813a orig/ours=330/330。
+// 真语义修复：attr17Base[13]/statBase6/attr17Base[i]/statBase3 四项原先多乘了字段
+// 自身（ORIG 仅 m_hpBase/statBase4/statBase11..14 乘字段）；表空时须回落调用 3 参版
+// （ORIG 尾 call _Z35upgradeAbilityByDifficultyOfDungeoniP16ActiveStaticInfoi）。
+// 形：内联乘算（删 scaleByBonus helper）、BONUS 全局直接索引、`if (!table.empty())`
+// 取反守卫（P292）、循环 `!= 0x12` 正向形（setne/je）、行访问 at()/operator[] 照抄。
+void upgradeAbilityByDifficultyOfDungeon(int diff, ActiveStaticInfo* info,
+                                         int level);
+
 void upgradeAbilityByDifficultyOfDungeon(
     int diff, ActiveStaticInfo* info, int level,
     const std::vector<std::vector<float> >& table)
 {
     (void)level;  // ORIG 本体未读取 0x10(%ebp)
-    if (table.empty())
+    // ORIG 0x088b813a：empty 守卫为 `call empty; xor $1; test; je <body>`（P292
+    // bool 取反形 ⇒ 源码 `if (!table.empty())`）；乘算全内联（无 helper call），
+    // BONUS 表全局直接索引（无 bonus 指针局部），行访问 at()/operator[] 照抄。
+    if (!table.empty())
+    {
+        info->m_hpBase = static_cast<int>(
+            static_cast<float>(info->m_hpBase) *
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x14] *
+            table.at(4).at(diff));
+        info->m_attr17Base[13] += static_cast<int>(
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x0f] *
+            table.at(3).at(diff));
+        info->m_statBase6 += static_cast<int>(
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x32] *
+            table.at(10).at(diff));
+        for (int i = 0; i <= 0x10; ++i)
+        {
+            if (getToleranceActiveStatus(static_cast<ENUM_ACTIVEPROPERTY>(i)) !=
+                0x12)
+                info->m_attr17Base[i] += static_cast<int>(
+                    DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x23] *
+                    table.at(7).at(diff));
+        }
+        info->m_statBase4 = static_cast<int>(
+            static_cast<float>(info->m_statBase4) *
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x19] *
+            table.at(5).at(diff));
+        if (info->m_statBase3 != 0)
+            info->m_statBase3 += static_cast<int>(
+                DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x1e] * table[6][diff]);
+        info->m_statBase11 = static_cast<int>(
+            static_cast<float>(info->m_statBase11) *
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x28] *
+            table.at(8).at(diff));
+        info->m_statBase13 = static_cast<int>(
+            static_cast<float>(info->m_statBase13) *
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x28] *
+            table.at(8).at(diff));
+        info->m_statBase12 = static_cast<int>(
+            static_cast<float>(info->m_statBase12) *
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x2d] *
+            table.at(9).at(diff));
+        info->m_statBase14 = static_cast<int>(
+            static_cast<float>(info->m_statBase14) *
+            DIFFICULTY_OF_DUNGEON_BONUS[0][diff + 0x2d] *
+            table.at(9).at(diff));
         return;
-
-    const float* bonus = &DIFFICULTY_OF_DUNGEON_BONUS[0][0];
-
-    // +0x04 m_hpBase = trunc(hpBase*BONUS[d+0x14]*T[4][d])
-    info->m_hpBase = scaleByBonus(static_cast<float>(info->m_hpBase),
-                                  bonus[diff + 0x14],
-                                  table.at(4).at(diff));
-    // +0xac attr17Base[13] +=
-    info->m_attr17Base[13] +=
-        scaleByBonus(static_cast<float>(info->m_attr17Base[13]),
-                     bonus[diff + 0x0f], table.at(3).at(diff));
-    // +0x130 statBase6 +=
-    info->m_statBase6 +=
-        scaleByBonus(static_cast<float>(info->m_statBase6),
-                     bonus[diff + 0x32], table.at(10).at(diff));
-    // +0x78+i*4 attr17Base[i] +=（i=0..16；i==12/13 因容错映射 0x12 被跳过）
-    for (int i = 0; i <= 0x10; ++i)
-    {
-        if (getToleranceActiveStatus(static_cast<ENUM_ACTIVEPROPERTY>(i)) ==
-            0x12)
-            continue;
-        info->m_attr17Base[i] +=
-            scaleByBonus(static_cast<float>(info->m_attr17Base[i]),
-                         bonus[diff + 0x23], table.at(7).at(diff));
     }
-    // +0x120 statBase4 =
-    info->m_statBase4 = scaleByBonus(static_cast<float>(info->m_statBase4),
-                                     bonus[diff + 0x19],
-                                     table.at(5).at(diff));
-    // +0x118 statBase3 += （非零守卫；此行 ORIG 用 ix/ix 无检查访问）
-    if (info->m_statBase3 != 0)
-    {
-        info->m_statBase3 +=
-            scaleByBonus(static_cast<float>(info->m_statBase3),
-                         bonus[diff + 0x1e], table[6][diff]);
-    }
-    // +0x158 statBase11 = / +0x168 statBase13 =（同一行 T[8]、同一 BONUS 槽）
-    info->m_statBase11 = scaleByBonus(static_cast<float>(info->m_statBase11),
-                                      bonus[diff + 0x28],
-                                      table.at(8).at(diff));
-    info->m_statBase13 = scaleByBonus(static_cast<float>(info->m_statBase13),
-                                      bonus[diff + 0x28],
-                                      table.at(8).at(diff));
-    // +0x160 statBase12 = / +0x170 statBase14 =（同一行 T[9]、同一 BONUS 槽）
-    info->m_statBase12 = scaleByBonus(static_cast<float>(info->m_statBase12),
-                                      bonus[diff + 0x2d],
-                                      table.at(9).at(diff));
-    info->m_statBase14 = scaleByBonus(static_cast<float>(info->m_statBase14),
-                                      bonus[diff + 0x2d],
-                                      table.at(9).at(diff));
+    // ORIG 0x088b813a 尾部 `call _Z35upgradeAbilityByDifficultyOfDungeoniP16ActiveStaticInfoi`
+    // ⇒ 表空时回落到 3 参版（0x088b85cf），非内联展开。
+    upgradeAbilityByDifficultyOfDungeon(diff, info, level);
 }
 
 
@@ -658,9 +694,9 @@ void upgradeAbilityByDifficultyOfDungeon(int diff, ActiveStaticInfo* info,
 
 // 逐双字拷贝前 5 个字段（+0x14 m_field18 与 state 均不动）。
 // ---------------------------------------------------------------------------
-// b28d-D42 verdict=DIFF [P67] ORIG 0x0830e9d8 orig/ours=19/24 ndiff=21。
-// RidableObject 用户 dtor 使 4.4 i386 改按引用传参（ORIG 4.1 按值 5 dword
-// 压栈后逐槽直读），P67 跨工具链 ABI 结构性 DIFF 豁免；字段语义逐条一致。
+// b28d-solo-MonsterAbilityLeafC3 verdict=IDENTICAL ORIG 0x0830e9d8
+// orig/ours=19/19 ndiff=0。ORIG 按值 5 dword 压栈后逐槽直读，字段集/顺序逐条一致
+// （P129 尾无 mov this,eax ⇒ void）。
 void DungeonRidableObject::operator=(RidableObject other)
 {
     m_x = other.m_x;
@@ -678,42 +714,51 @@ void DungeonRidableObject::operator=(RidableObject other)
 // map（key=第 3 字段）；否则顺序插入全部对象（注意循环条件是 size 而非 count）。
 // state 统一置 4（ORIG 在 operator= 之后单独写 +0x18=4）。
 // ---------------------------------------------------------------------------
-// b28d-D42 verdict=DIFF [N82] ORIG 0x082fe6d0 orig/ours=192/264 ndiff=249。
-// 帧/槽号平移 + map/vector/random_shuffle STL 内联差（N82/N89）；
-// P167 调用点已核，语义按报告逐条对齐。
+// b28d-solo-MonsterAbilityLeafC3 verdict=DIFF[P75/P47] ORIG 0x082fe6d0
+// orig/ours=193/194 ndiff=48。真语义修复：IF(count<size) 与 ELSE 两分支的循环上界/
+// 对象来源原先互换（ORIG IF=顺序遍历 m_objects[i]（i<size）、ELSE=拷贝 pool 随机抽取
+// （i<count））；obj/tmp 提到函数头各构造一次（ORIG local_c8/local_e0）；
+// make_pair→std::pair<int,DungeonRidableObject> 直构（P192）。p167 调用点差集
+// CLEAR（0 missing/0 extra，21=21）。残余：m_flag18 装载多 1 条 regmove（N18a）、
+// 条件块序镜像（P47）、operator[] 实参装载序/lea-vs-add（P75/P30）。语义等价封顶。
 void CRidable::SetRidableObject(RidableScript& script)
 {
     if (script.m_0 <= 0)
         return;
 
-    m_flag18 = static_cast<unsigned char>(script.m_4);
+    // ORIG 0x082fe6d0：obj（DungeonRidableObject local_c8）与 tmp（RidableObject
+    // local_e0）在函数头各构造一次、两分支复用；count < size 分支顺序遍历
+    // m_objects（循环条件每次重调 size()），否则拷贝 pool 随机抽取（循环条件用
+    // script.m_0）；p167 实证 ORIG operator=(RidableObject) 仅 1 次（IF 分支），
+    // ELSE 分支走基类隐式整体赋值（6 dword）。
+    DungeonRidableObject obj;
+    RidableObject tmp;
+
+    m_flag18 = *(unsigned char*)&script.m_4;   // P266：uchar 左值读单段 movzbl
     m_count1c = script.m_0;
 
-    const int count = script.m_0;
-    const std::vector<RidableObject>::size_type objectCount =
-        script.m_objects.size();
-
-    if (count < static_cast<int>(objectCount))
+    if (script.m_0 < static_cast<int>(script.m_objects.size()))
     {
-        std::vector<RidableObject> pool(script.m_objects);
-        for (int i = 0; i < count; ++i)
+        for (int i = 0; i < static_cast<int>(script.m_objects.size()); ++i)
         {
-            std::random_shuffle(pool.begin(), pool.end());
-            DungeonRidableObject obj;
-            obj = pool.back();
-            pool.pop_back();
+            obj = script.m_objects[i];
             obj.m_state = 4;
-            m_objects.insert(std::make_pair(obj.m_field0c, obj));
+            m_objects.insert(
+                std::pair<int, DungeonRidableObject>(obj.m_field0c, obj));
         }
     }
     else
     {
-        for (std::vector<RidableObject>::size_type i = 0; i < objectCount; ++i)
+        std::vector<RidableObject> pool(script.m_objects);
+        for (int i = 0; i < script.m_0; ++i)
         {
-            DungeonRidableObject obj;
-            obj = script.m_objects[i];
+            std::random_shuffle(pool.begin(), pool.end());
+            tmp = pool.back();
+            pool.pop_back();
+            *(RidableObject*)&obj = tmp;
             obj.m_state = 4;
-            m_objects.insert(std::make_pair(obj.m_field0c, obj));
+            m_objects.insert(
+                std::pair<int, DungeonRidableObject>(obj.m_field0c, obj));
         }
     }
 }
@@ -743,8 +788,11 @@ extern std::vector<DungeonPartyBalance> DUNGEON_PARTY_BALANCE_TABLE;
 
 // upgradeAbilityByParty —— ORIG 0x088b8e88：job 0..3 截断；首个满足
 // level>=m_a && level==m_b 的 balance 应用后立即返回。
-// b28d-D42 verdict=DIFF [N82] ORIG 0x088b8e88 orig/ours=228/235 ndiff=223。
-// 帧/槽号平移（P112/N82）；语义按报告逐条对齐。
+// b28d-solo-MonsterAbilityLeafC3 verdict=DIFF[N85/N121] ORIG 0x088b8e88
+// orig/ours=229/229 ndiff=40。已复现：m_grid[row][job] 二维索引（行=偏移/4，复现
+// add+scaled 而非指针算术 shl 链，P311/P30）、job 截断、do-while 结构、表全局直接
+// 传址。残余：x87 比较 lowering（ORIG fucompp/fnstsw/sahf vs 4.4 fucomip/fstp，
+// N85 跨版本）+ 命中 return 的 epilogue 尾岛（N121）。语义等价封顶。
 void upgradeAbilityByParty(int job, ActiveStaticInfo* info, int level)
 {
     if (info == 0)
@@ -761,28 +809,28 @@ void upgradeAbilityByParty(int job, ActiveStaticInfo* info, int level)
             continue;
         if (static_cast<float>(level) != bal.m_b)
             continue;
-        const float* b = &bal.m_grid[0][0];
         info->m_hpBase = static_cast<int>(static_cast<float>(info->m_hpBase) *
-                                          b[job + 0x10]);
-        info->m_attr17Base[13] += static_cast<int>(b[job + 0xc]);
-        info->m_statBase6 += static_cast<int>(b[job + 0x28]);
+                                          bal.m_grid[4][job]);
+        info->m_attr17Base[13] += static_cast<int>(bal.m_grid[3][job]);
+        info->m_statBase6 += static_cast<int>(bal.m_grid[10][job]);
         for (int k = 0; k <= 0x10; ++k)
         {
             if (getToleranceActiveStatus(static_cast<ENUM_ACTIVEPROPERTY>(k)) != 0x12)
-                info->m_attr17Base[k] += static_cast<int>(b[job + 0x1c]);
+                info->m_attr17Base[k] +=
+                    static_cast<int>(bal.m_grid[7][job]);
         }
         info->m_statBase4 = static_cast<int>(static_cast<float>(info->m_statBase4) *
-                                             b[job + 0x14]);
+                                             bal.m_grid[5][job]);
         if (info->m_statBase3 != 0)
-            info->m_statBase3 += static_cast<int>(b[job + 0x18]);
+            info->m_statBase3 += static_cast<int>(bal.m_grid[6][job]);
         info->m_statBase11 = static_cast<int>(static_cast<float>(info->m_statBase11) *
-                                              b[job + 0x20]);
+                                              bal.m_grid[8][job]);
         info->m_statBase13 = static_cast<int>(static_cast<float>(info->m_statBase13) *
-                                              b[job + 0x20]);
+                                              bal.m_grid[8][job]);
         info->m_statBase12 = static_cast<int>(static_cast<float>(info->m_statBase12) *
-                                              b[job + 0x24]);
+                                              bal.m_grid[9][job]);
         info->m_statBase14 = static_cast<int>(static_cast<float>(info->m_statBase14) *
-                                              b[job + 0x24]);
+                                              bal.m_grid[9][job]);
         return;
     }
 }

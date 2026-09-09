@@ -32,6 +32,13 @@
 
 #include "CDataManager.h"   // G_CDataManager()->m_randomOption 具名访问（CDataManager.h:3081，ORIG +0x4e10）
 
+// ---- ORIG 全局数据（唯一定义点在 InitScriptProducers_3.cpp，ORIG B 0x095000a0）----
+// insert_old_equip_info_to_db 的 ORIG 0x08624d5d 直接 `movl $&g_equipmentStatInfoMap`
+// 遍历该全局（成员 m_oldEquipMap 全仓无填充点 ⇒ 旧实现恒空，属数据源真 bug）。
+// 定义方以 C 链接发射未修饰符号名（C++ 全局变量名本就不入 mangling），
+// 此处按权威类型作 C++ 声明引用（非 extern "C" 桥，§4.5 合规）。
+extern std::map<unsigned int, STEquipmentStatInfo> g_equipmentStatInfoMap;
+
 namespace
 {
 // 保留 ORIG 作业名（EUC-KR 字节，见 GetUserJob 0x861d2dc 常量表）。
@@ -173,6 +180,10 @@ void CStringMaker::operator()(EquipmentSkillDataUp v) // 0x08626e6e 七个 %d
 
 void CStringMaker::operator()(LevelUpSkill v)         // 0x08626f7a job==0xb→99
 {
+    // [b28d-solo-sync_script] 判词：NEAR 封顶（P75 跨版本 vararg 装载时刻）。
+    // ORIG 0x08626f7a：76=76，唯一残差 = sprintf 前两个 vararg 先装 %ecx/%edx、
+    // job 后读 %eax，再统一压栈；4.4 恒边求边压（cast/裸形实测同形，ndiff 恒 5，
+    // 全为标签+装载序）。语义等价。
     // b28d-35：同 clEf——`={0}` 复现 4.1 内联三段清零（P214③/P253）。
     char num[0xff] = {0};
     // b28d-35：ORIG 0x08626f7a 为 then-first if/else（`cmp $0xb; jne <else>;
@@ -249,7 +260,10 @@ CStringMaker::operator std::string()                  // 0x086272c0
 bool CSyncScript::GetType(std::string name, ENUM_CHARACTERJOB job, int idx,
                           int& out1, int& out2, bool flag)
 {
-    // b28d-35: DIFF→N 封顶（N82 帧/槽 + N89 STL 内联）。ORIG @0x0861cf0a。
+    // [b28d-solo-sync_script] 判词：**AE/IDENTICAL**（check_tu routed；290=290）。
+    //   归位要点：`name.compare("creature")==0`（int 直测）、SWEAPONTYPE/SARMORTYPE
+    //   改 operator[] 实参处临时、`m_vec1.size()!=0`（免 empty 的 xor 段）、
+    //   比较操作数交换使 local.m_field1 先载 %ebx。ORIG @0x0861cf0a。
     if (name.empty())
     {
         return false;
@@ -264,9 +278,10 @@ bool CSyncScript::GetType(std::string name, ENUM_CHARACTERJOB job, int idx,
     name.erase(name.begin(), name.begin() + 1);
     name.erase(name.end() - 1, name.end());
     std::string key = "stackable ";
-    // ORIG 0x0861d08c：`!flag && name=="creature"` 时拼接（+=），否则整体赋值
-    // （Ghidra bVar1 双否形，此前方向转写反了，修正语义）。
-    if (!flag && name == "creature")
+    // ORIG 0x0861d08c：`call compare("creature"); test %eax,%eax; jne <else>`
+    //（int 直测 + 手动 bool 物化）⇒ 源形是 compare(...)==0，不是 operator==
+    //（后者产 `test %al,%al; je`，与 ORIG 差 4 条）。
+    if (!flag && name.compare("creature") == 0)
     {
         key += name;
     }
@@ -275,19 +290,20 @@ bool CSyncScript::GetType(std::string name, ENUM_CHARACTERJOB job, int idx,
         key = name;
     }
     SITEMTYPE local = m_itemTypeMap[key];
-    // ORIG 0x0861d10e：weapon 命中 = size()!=0 && vec[0]==local.m_field1
-    // （原 empty()|| 形为误转，修正）。
-    if (!m_vec1.empty() && m_vec1[0] == local.m_field1)
+    // ORIG 0x0861d10e：weapon 命中 = size()!=0 && vec[0]==local.m_field1。
+    // ORIG 为 `call size; test %eax,%eax; je <else>`（32 位直测）⇒ 源形
+    // `size() != 0`；`!empty()` 在 4.4 产 `xor $1; test %al` 两段（P197④ 镜像）。
+    if (m_vec1.size() != 0 && local.m_field1 == m_vec1[0])
     {
-        SWEAPONTYPE wp(job, idx);
-        local = m_weaponMap[wp];
+        // ORIG 0x0861d14b：SWEAPONTYPE 是 operator[] 实参处的**临时**
+        //（lea -0x1c 直接在实参位构造）；具名局部会把对象排到深槽。
+        local = m_weaponMap[SWEAPONTYPE(job, idx)];
     }
-    else if (m_vec1.size() >= 2 && m_vec1[1] == local.m_field1)
+    else if (m_vec1.size() >= 2 && local.m_field1 == m_vec1[1])
     {
         // ORIG 0x861d1d5：SARMORTYPE((uchar)idx, key)，key 为 "stackable "/名
         // 组合串（拷贝自 local_50），非去括号原名。
-        SARMORTYPE ap((unsigned char)idx, key);
-        local = m_armorMap[ap];
+        local = m_armorMap[SARMORTYPE((unsigned char)idx, key)];
     }
     out1 = local.m_field1;
     out2 = local.m_field4;
@@ -413,7 +429,10 @@ void CSyncScript::GetLevelUpSkill(
     STEquipmentScript* script,
     EquipmentParameterInfo::ENUM_SKILL_UP_VECTOR_INDEX vectorIndex)
 {
-    // b28d-35: DIFF→N82（帧/槽 + 下标寻址形状）。ORIG @0x0861d472。
+    // [b28d-solo-sync_script] 判词：**AE/IDENTICAL**（check_tu routed；178=178）。
+    //   归位要点：allocator 改 string ctor 实参处临时（full-expression 末 dtor）、
+    //   `compare("")==0`（int 直测+sete）、int 循环变量保 at(i) 值先/add 两步寻址、
+    //   m_field8 内联实参升格 %ebx（P0 右值直传）。ORIG @0x0861d472。
     static std::string level_up_skill;
     level_up_skill.clear();
     // ORIG 0x0861d472：无 vectorIndex 值域检查——直接 m_levelUpSkills[idx] 下标
@@ -423,13 +442,21 @@ void CSyncScript::GetLevelUpSkill(
     // 无 CSE）；每轮 memset(tmp,0,0x400)；job 串经 allocator+string(PKc,alloc)
     // 临时（EH landing pad），非裸 compare。
     int skillCount = (int)script->m_param1c0.m_levelUpSkills[(int)vectorIndex].size();
+    // ORIG 0x0861d529：`int i` + 有符号尾测 `setl`；且 at(i) 处 ORIG 为
+    // `mov i,%ecx`（值先）+ `add $0xc,%eax` 两步寻址 ⇒ 下标必须是 int 局部
+    //（P218：unsigned 下标令 4.4 翻成 this 先 + lea 折叠）。
     for (int i = 0; i < skillCount; ++i)
     {
         level_up_skill += "|";
-        std::allocator<char> alloc;
+        // ORIG 0x0861d549..0x0861d5be：allocator 是 string ctor 实参处的**临时**
+        // 对象（full-expression 末即 dtor，EH landing 0x861d5a3）；具名局部会把
+        // dtor 推迟到循环体末并多出整段 cleanup。
         std::string jobStr(GetUserJob((ENUM_CHARACTERJOB)
-            script->m_param1c0.m_levelUpSkills[(int)vectorIndex].at(i).m_job), alloc);
-        if (jobStr == "")
+            script->m_param1c0.m_levelUpSkills[(int)vectorIndex].at(i).m_job),
+            std::allocator<char>());
+        // ORIG 0x0861d5d7：`call compare(""); test %eax,%eax; sete %al; test %al,%al`
+        //（operator== 形产 bool 直判，缺 sete 段）。
+        if (jobStr.compare("") == 0)
         {
             level_up_skill += "\xb0\xf8\xc5\xeb";   // 공용
         }
@@ -439,12 +466,12 @@ void CSyncScript::GetLevelUpSkill(
         }
         char tmp[0x400];
         memset(tmp, 0, sizeof(tmp));
-        // ORIG 0x0861d637：m_field8 读后跨 sprintf call 留 %ebx（无槽）——
-        // register 形保 ORIG 物化位（P85/P87），普通局部在 4.4 必 spill 槽。
-        register unsigned int f8 =
-            script->m_param1c0.m_levelUpSkills[(int)vectorIndex].at(i).m_field8;
+        // ORIG 0x0861d62c：m_field8 读入 %ebx 跨第二次 at() call 保活（无槽往返
+        // ⇒ P0 右值内联）；具名/register 局部反生 `mov mem,%eax; mov %eax,%ebx`
+        // 两段（N18a 向）。
         sprintf(tmp, "| %d| %d",
-                script->m_param1c0.m_levelUpSkills[(int)vectorIndex].at(i).m_field4, f8);
+                script->m_param1c0.m_levelUpSkills[(int)vectorIndex].at(i).m_field4,
+                script->m_param1c0.m_levelUpSkills[(int)vectorIndex].at(i).m_field8);
         level_up_skill += tmp;
     }
     level_up_skill.c_str();
@@ -484,12 +511,12 @@ const char* CSyncScript::GetUsableCharacter(STStackableScript* script)
 
 bool CSyncScript::LoadItemInfoMasterScript(const char* path)
 {
-    // b28d-35: NEAR→N 封顶（P75/N7 跨版本实参装载序；444/444 助记符全等，
-    //   仅寄存器名/装载时刻差）。ORIG @0x08625064。
-    // b26 NEAR 封顶(6.2 三件套):gap 0(444=444)、P167 调用点差集 CLEAR
-    // (80=80);槽归一后唯一实质差异 1 行=负例 N18a(4.1 mem→eax→reg 两段
-    // 中转,4.4 恒折单段)。其余全帧 N82:ORIG 帧 0x90/不按 lifetime 复用
-    // (双区槽平移 0x28/0x50)vs 4.4 帧 0xb0/复用。
+    // [b28d-solo-sync_script] 判词：NEAR 封顶（N7/N18a 单条寄存器差 + 尾 nop）。
+    // ORIG @0x08625064：446=446，P167 调用点差集 CLEAR（80=80），全帧槽集全等
+    // （帧 0x90=0x90；type -0x1c / subType -0x18 / value -0x14 / extra -0x10 /
+    // job -0xc + line/str/name 三 string 槽全等）。唯一残差 =
+    // SWEAPONTYPE 键构造处 ORIG `mov -0x18(%ebp),%eax` 而 4.4 取 %edx（1 条
+    // 寄存器名分配差）与 ORIG 尾对齐 nop（§6.1 豁免）。语义等价。
     if (!loadRDARScriptFile("", path))
     {
         return false;
@@ -501,6 +528,16 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
     // 间复用（ScanStr 成功时整体覆盖），而非每分支各建一个具名局部；
     // 分支内声明会额外产生 2 个 _ZNSsC1Ev + 4 个 _ZNSsD1Ev（含 unwind 清理）。
     std::string name;
+    // [b28d-solo-sync_script] P212：ORIG 槽使用计数 = -0x1c:14 / -0x18:8 /
+    //   -0x14:6 / -0xc:2 ⇒ value/type/subType/extra/job 为**函数级共享**标量
+    //   （分支内各声明一份会让 4.4 逐分支独立占槽，全帧槽号整体深移 0x28）。
+    //   声明序 = ORIG 槽深→浅（type -0x1c / subType -0x18 / value -0x14 /
+    //   extra -0x10 / job -0xc）。
+    int type;
+    int subType;
+    int value;
+    int extra;
+    int job;
     // ORIG 0x08625093：循环条件在**循环体首部**以 `xor $1 / test / jne` 求反后
     // break（多出 1 个 xor + 2 个 nop），即 while(true){ if(!ScanType) break; }，
     // 而非 while(ScanType(...)) 的底部条件形态。
@@ -512,34 +549,37 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
         }
         if (line == "[master type]")
         {
-            int value = ScanInt((bool*)0);
+            // ORIG 0x086250b6 段：master 族分支与 weapon/armor/item 的 type 共用
+            // 同一槽 -0x1c（4.1 互斥作用域复用）⇒ 源侧复用函数级 type 变量，
+            // 4.4 按首次使用序即得同槽（P212/N98 联判）。
+            type = ScanInt((bool*)0);
             ScanStr(&str);
-            m_map64[(unsigned char)value] = str;
+            m_map64[(unsigned char)type] = str;
         }
         else if (line == "[type addition]")
         {
-            int value = ScanInt((bool*)0);
-            m_vec1.push_back((unsigned char)value);
+            type = ScanInt((bool*)0);
+            m_vec1.push_back((unsigned char)type);
         }
         else if (line == "[reverse desc]")
         {
-            int value = ScanInt((bool*)0);
-            m_vec2.push_back((unsigned char)value);
+            type = ScanInt((bool*)0);
+            m_vec2.push_back((unsigned char)type);
         }
         else if (line == "[material type]")
         {
-            int value = ScanInt((bool*)0);
+            type = ScanInt((bool*)0);
             ScanStr(&str);
-            m_map7c[(unsigned char)value] = str;
+            m_map7c[(unsigned char)type] = str;
         }
         else if (line == "[weapon type]")
         {
             ScanStr(&str);
-            int type = ScanInt((bool*)0);
-            int subType = ScanInt((bool*)0);
-            int value = ScanInt((bool*)0);
+            type = ScanInt((bool*)0);
+            subType = ScanInt((bool*)0);
+            value = ScanInt((bool*)0);
             ScanStr(&name);
-            int job = getCharacterJob(str.c_str());
+            job = getCharacterJob(str.c_str());
             // ORIG 0x086252d7..0x08625318：先构造右值 SITEMTYPE(local_64)，
             // 再构造下标键 SWEAPONTYPE(local_54)——键不是具名局部，
             // 而是 operator[] 实参处的临时（gcc 右→左求值）。
@@ -551,9 +591,9 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
         else if (line == "[armor type]")
         {
             ScanStr(&str);
-            int type = ScanInt((bool*)0);
-            int subType = ScanInt((bool*)0);
-            int value = ScanInt((bool*)0);
+            type = ScanInt((bool*)0);
+            subType = ScanInt((bool*)0);
+            value = ScanInt((bool*)0);
             ScanStr(&name);
             // ORIG 0x08625408..0x0862545e：同上，SITEMTYPE(local_4c) 先建，
             // SARMORTYPE(local_3c) 作为 operator[] 处的临时键后建。
@@ -565,10 +605,10 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
         else if (line == "[item type]")
         {
             ScanStr(&str);
-            int type = ScanInt((bool*)0);
-            int subType = ScanInt((bool*)0);
-            int value = ScanInt((bool*)0);
-            int extra = ScanInt((bool*)0);
+            type = ScanInt((bool*)0);
+            subType = ScanInt((bool*)0);
+            value = ScanInt((bool*)0);
+            extra = ScanInt((bool*)0);
             ScanStr(&name);
             m_itemTypeMap[str] = SITEMTYPE(type != 0, (unsigned char)subType,
                                            (unsigned char)value,
@@ -581,21 +621,23 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
 
 bool CSyncScript::insert_skill_index(STSkillScript* script, int job)
 {
-    // b28d-35: DIFF→N82/N78（帧/槽 + 内联清零）。ORIG @0x0862262c。
+    // [b28d-solo-sync_script] 判词：**AE/IDENTICAL**（check_tu routed；126=126）。
+    //   归位要点：`char name[0xff] = {0}`（0xff 是数组大小，旧 memset 0x100 系误读
+    //   展开计数）+ `char escaped[0x2fd] = {0}`（ORIG 765 字节、基址 -0x428 对齐）。
+    //   ORIG @0x0862262c。
     if (m_field0 != 1)
     {
         return true;
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)3, (ENUM_SERVER_GROUP)0);
-    // ORIG 0x08622675：name[0xff] 而 memset 计数 0x100（越过数组尾 1 字节，
-    // 原码行为）；escaped=0x300（-0x428）。4.1 O0 把 memset 内联展开为对齐剥离
-    // +rep stos 慢路（ORIG 非对齐基址 -0x12b）；4.4 O0 仅 `= {0}` 展开且恒
-    // fast path（槽基址对齐），显式 memset 变 call —— 展开路径为编译器版本
-    // 行为，本函数按语义+计数口径标注残差。
-    char name[0xff];
-    memset(name, 0, 0x100);
-    char escaped[0x300] = { 0 };
+    // ORIG 0x0862266f：name 基址 -0x12b、`mov $0xff,%ebx` 三段内联清零 ⇒
+    // `char name[0xff] = {0}`（0xff 是**数组大小**，非 memset 0x100；旧转写把
+    // 展开计数误当 memset 长度）。ORIG 0x086226ca：escaped 基址 -0x428、
+    // `rep stos $0xbf` + 尾 1 字节 = 765 = 0x2fd 字节 ⇒ `char escaped[0x2fd]`；
+    // 4.4 对 `= {0}` 同样三段展开（显式 memset 恒 call）。
+    char name[0xff] = {0};
+    char escaped[0x2fd] = {0};
     if (!CodePage::script2Database((char*)script->m_str4.c_str(), name))
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x6e0, 5)(
@@ -645,13 +687,14 @@ bool CSyncScript::trancate_skill_info()
 
 bool CSyncScript::insert_skill_info(STSkillScript* script, int job, int type)
 {
-    // b28d-35: DIFF→N82（巨件 1400/1401，§6.2 口径；残余为帧/槽平移 +
-    //   jump-threading 块序）。ORIG @0x08622e08。
-    // 【残差封顶·NEAR 级】指令数 ours=1401 vs ORIG=1400 等量，调用序逐段对齐；
-    // 残余 = ①浅槽临时区 +0x1c 偏移（cMyTrace/string 物化序，牵动 0xb000 缓冲
-    // 基址 -0xa924 vs ORIG -0xa908 全部 29 处——整帧重排风险>收益，Main 批复挂起）
-    // ②useItems11c 子结构边界声明差异（+0x110/+0x8 vs +0x108/+0x10，和址同）
-    // ③for_each 临时物化 1-2 处。证据 ORIG 0x08622e2b 区间。
+    // [b28d-solo-sync_script] 判词：**语义完成、byte 层 N 封顶**（§6.2 三件套）。
+    //   ORIG @0x08622e08：①gap = 1（1401 vs 1400）；②P167 调用点差集 CLEAR
+    //   （258=258，含全部 CStringMaker/for_each/GetEscapeString/CStreamBuffer 调用）；
+    //   ③槽位集残差 = 浅槽临时区整体 +0x1c（cMyTrace/string 物化序；牵动 0xb000
+    //   缓冲基址 -0xa924 vs ORIG -0xa908 全部 29 处，整帧重排风险>收益，Main 已批复
+    //   挂起）+ for_each 临时物化 1-2 处。归 N82（4.1 不按 lifetime 复用 vs 4.4 复用）
+    //   + N78（memset 0xb000 展开形）。逐块人工比对：Ghidra C 段与重建代码逐句对应，
+    //   无缺失分支/字段/调用。
     if (m_field0 != 1)
     {
         return true;
@@ -1118,7 +1161,10 @@ bool CSyncScript::insert_creature_info_to_db(unsigned int id,
                                              const char* param3,
                                              const char* param4)
 {
-    // b28d-35: DIFF→N82（487/489）。ORIG @0x08624414。
+    // [b28d-solo-sync_script] 判词：**AE/IDENTICAL**（check_tu routed；487=487）。
+    //   归位要点：artifactSlot 循环改具名数组成员视图 `script->m_artifactSlots[i]`
+    //   （P291/P311：裸 `(&m_id)[20+i]` 在 4.4 恒 shl+add 三段，具名数组产 scaled
+    //   disp 折叠）。ORIG @0x08624414。
     if (m_field0 != 1)
     {
         return true;
@@ -1137,7 +1183,7 @@ bool CSyncScript::insert_creature_info_to_db(unsigned int id,
         // ORIG 0x0862445d `add $0x14,%ecx; mov (%edx,%ecx,4),%edx`：以结构首
         // 字段 m_id(+0x00) 为基的 int 索引 [20+i]（= +0x50 槽区）。从
         // &m_artifactSlotRed 起算会被 4.4 折成 lea 0x50+shl 两段（N18 向）。
-        artifactSlot[i] = (char)((&script->m_id)[20 + i] + '0');
+        artifactSlot[i] = (char)(script->m_artifactSlots[i] + '0');
     }
     // ORIG 0x0862448c/0x08624562/0x08624635：三处均为
     //   CStringMaker::CStringMaker(临时 functor)
@@ -1229,6 +1275,9 @@ bool CSyncScript::insert_one_item_info_master(unsigned char masterNo,
                                               const char* name,
                                               const char* explain)
 {
+    // [b28d-solo-sync_script] 判词：**AE/IDENTICAL**（check_tu routed；84=84）。
+    //   归位要点：P310 翻案——循环变量改 int + 显式 `(unsigned int)i < 2u`
+    //   复现 ORIG 两段寄存器尾测 `mov -0xc; cmp $1; setbe`。ORIG @0x08625c54。
     static const int BUFSIZE = 0x64;  // ORIG _ZZN11sync_script11CSyncScript27insert_one_item_info_master…E7BUFSIZE
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
@@ -1244,11 +1293,11 @@ bool CSyncScript::insert_one_item_info_master(unsigned char masterNo,
     //   原 `memset(escaped, 0, 0x32)` 少清 0x96 字节（escaped[1] 前半未清）。
     //   改 `={0}` 同时复现 4.1 内联 rep stos（P116/P214③/P253）。
     char escaped[2][BUFSIZE] = {0};
-    // b28d-35：N 封顶（P209 附族，循环尾比较载寄存器不可翻）。ORIG 为
-    //   `addl $1,-0xc; mov -0xc,%eax; cmp $0x1,%eax; setbe %al; test; jne`；
-    //   4.4 对 unsigned 局部恒折 `cmpl $0x1,-0xc; setbe`（内存直比，少 1 条）。
-    //   do-while 形实测：入口 jmp 丢失（+1 差）且比较仍折内存 ⇒ 回 for 形。
-    for (unsigned int i = 0; i < 2u; ++i)
+    // [b28d-solo-sync_script] P310 翻案：ORIG 0x08625d0a 尾测为
+    //   `mov -0xc(%ebp),%eax; cmp $0x1,%eax; setbe %al; test; jne`（两段寄存器形）；
+    //   4.4 对 `unsigned int` 局部恒折 `cmpl $0x1,-0xc`（内存直比，少 1 条）⇒
+    //   局部改 int + 显式 `(unsigned int)i < 2u` 即逐条复现。
+    for (int i = 0; (unsigned int)i < 2u; ++i)
     {
         GetEscapeString(db, names[i], escaped[i]);
     }
@@ -1267,24 +1316,36 @@ bool CSyncScript::insert_one_item_info_master(unsigned char masterNo,
 
 bool CSyncScript::insert_item_info_master_to_db()
 {
-    // b28d-35: DIFF→N82/N78（369/383；帧/槽 + 内联清零）。ORIG @0x0862571a。
+    // [b28d-solo-sync_script] 判词：NEAR 封顶（.o 阶段本地跳转/字符串重定位显示差，
+    //   N124 口径）。ORIG @0x0862571a：370=370，P167 CLEAR（60=60），全帧槽集全等
+    //   （-0x104/-0xa0/-0x38/-0x34/-0x30/-0x3c/-0x19 计数逐值一致）。
+    //   本件修真语义 bug 三处：①name/full 缓冲 = 0x64 字节（ORIG `rep stos $0x19`
+    //   是 dword 计数，旧 memset 0x19 只清 25 字节）；②weapon 分支 m_map7c 键取
+    //   m_field1（旧 m_field2）且 ORIG 无 name 中间串/第 2 个 sprintf；
+    //   ③第三循环内层遍历 m_vec2（+0x10），旧形误用 m_vec1（+0x4）。
     static const int BUFSIZE = 0x64;  // ORIG _ZZN11sync_script11CSyncScript29insert_item_info_master_to_dbEvE7BUFSIZE
     if (m_field0 != 1)
     {
         return true;
     }
+    // ORIG 0x0862573d：两个缓冲在**函数头**清零一次（`mov $0x19,%edx; rep stos`
+    // = 0x19 dword = 0x64 字节，P116/P253；旧形 memset 0x19 只清 25 字节 = 真
+    // bug，且循环内声明导致 4 次 memset call）。槽序 name 浅 -0xa0 / full 深 -0x104
+    // ⇒ 声明序 name 先、full 后（4.1 先声明浅）。
+    char name[0x64] = {0};
+    char full[0x64] = {0};
     for (std::map<SWEAPONTYPE, SITEMTYPE>::iterator it = m_weaponMap.begin();
          it != m_weaponMap.end(); ++it)
     {
-        char name[0x100];
-        char full[0x100];
-        memset(full, 0, 0x19);   // ORIG：memset 0x19（先 full 后 name）
-        memset(name, 0, 0x19);
-        sprintf(name, "%s%s", m_map7c[it->second.m_field2].c_str(),
+        // ORIG 0x086257a9：weapon 分支**只发 1 个 sprintf**——键取
+        // `m_map7c[it->second.m_field1]`（pair+0x9），无 name 中间串，
+        // insert 第三参直接 m_str8.c_str()（P167：旧形多 1×sprintf、
+        // 多 1×m_map64::operator[]，且键字段取错 m_field2→m_field1）。
+        sprintf(full, "<%s>%s", m_map7c[it->second.m_field1].c_str(),
                 it->second.m_str8.c_str());
-        sprintf(full, "<%s>%s", m_map64[it->second.m_field1].c_str(), name);
         if (!insert_one_item_info_master(it->second.m_field1,
-                                         it->second.m_field4, name, full))
+                                         it->second.m_field4,
+                                         it->second.m_str8.c_str(), full))
         {
             return false;
         }
@@ -1292,10 +1353,6 @@ bool CSyncScript::insert_item_info_master_to_db()
     for (std::map<SARMORTYPE, SITEMTYPE>::iterator it = m_armorMap.begin();
          it != m_armorMap.end(); ++it)
     {
-        char name[0x100];
-        char full[0x100];
-        memset(full, 0, 0x19);   // ORIG：memset 0x19（先 full 后 name）
-        memset(name, 0, 0x19);
         sprintf(name, "%s%s", m_map7c[it->second.m_field2].c_str(),
                 it->second.m_str8.c_str());
         sprintf(full, "<%s>%s", m_map64[it->second.m_field1].c_str(), name);
@@ -1305,14 +1362,25 @@ bool CSyncScript::insert_item_info_master_to_db()
             return false;
         }
     }
+    // ORIG 0x086259ef：matched 在**循环外**预清一次（begin 之前），循环内再置
+    // false 一次（P198① 两句式；单句循环内声明只出 1 条 movb）。
+    bool matched = false;
     for (std::map<std::string, SITEMTYPE>::iterator it = m_itemTypeMap.begin();
          it != m_itemTypeMap.end(); ++it)
     {
-        if (it->second.m_field0 == 1)
+        // ORIG 0x08625a1b：`movzbl 0x4(%eax); xor $0x1,%eax; test %al,%al;
+        // jne <nop 岛>`（bool 取反物化）⇒ 源形为否定早退；P223 复现形 =
+        // goto 尾部空标签（`if(field==1){…}` 反产 test/je 直跳）。
+        if (!it->second.m_field0)
         {
-            bool matched = false;
-            for (std::vector<unsigned char>::iterator vi = m_vec1.begin();
-                 vi != m_vec1.end(); ++vi)
+            goto item_next;
+        }
+        {
+            matched = false;
+            // ORIG 0x08625a31/0x08625a82：内层遍历 this+0x10 = **m_vec2**
+            // （[reverse desc] 表），非 m_vec1（+0x4）——旧形字段取错（真 bug）。
+            for (std::vector<unsigned char>::iterator vi = m_vec2.begin();
+                 vi != m_vec2.end(); ++vi)
             {
                 if (it->second.m_field1 == *vi)
                 {
@@ -1320,20 +1388,12 @@ bool CSyncScript::insert_item_info_master_to_db()
                     break;
                 }
             }
-            char full[0x100];
             sprintf(full, "<%s>%s", m_map64[it->second.m_field1].c_str(),
                     it->second.m_str8.c_str());
-            if (matched)
-            {
-                if (!insert_one_item_info_master(it->second.m_field1,
-                                                 it->second.m_field4,
-                                                 m_map64[it->second.m_field1].c_str(),
-                                                 full))
-                {
-                    return false;
-                }
-            }
-            else
+            // ORIG 0x08625b0b：`movzbl -0x19; xor $0x1; test %al,%al; je <matched 臂>`
+            // ⇒ 源形为 `if (!matched)`（正写 `if (matched)` 在 4.4 恒折
+            // `cmpb $1,mem; je` 少 2 条）。
+            if (!matched)
             {
                 if (!insert_one_item_info_master(it->second.m_field1,
                                                  it->second.m_field4,
@@ -1343,7 +1403,18 @@ bool CSyncScript::insert_item_info_master_to_db()
                     return false;
                 }
             }
+            else
+            {
+                if (!insert_one_item_info_master(it->second.m_field1,
+                                                 it->second.m_field4,
+                                                 m_map64[it->second.m_field1].c_str(),
+                                                 full))
+                {
+                    return false;
+                }
+            }
         }
+    item_next:;
     }
     return true;
 }
@@ -1369,7 +1440,12 @@ bool CSyncScript::truncate_item_info_master_table()
 
 bool CSyncScript::insert_old_equip_info_to_db()
 {
-    // b28d-35: DIFF→N82（235/234 差 1 条装载序）。ORIG @0x08624d1a。
+    // [b28d-solo-sync_script] 判词：**AE/IDENTICAL**（check_tu routed；P167 CLEAR
+    //   9=9）。真 bug 修正：ORIG 0x08624d5d 遍历**全局**
+    //   g_equipmentStatInfoMap（B 0x095000a0），而非成员 m_oldEquipMap
+    //   （全仓无填充点 ⇒ 旧实现恒空、一列不写）。P167 同时给出迭代器形证据：
+    //   ORIG 调 operator-> 两次（绑定 second 引用 + 取 first），旧 `(*it).second`
+    //   形多 1×operator* 少 2×operator->（MISSING ptEv ×2 / EXTRA deEv ×1）。
     if (m_field0 != 1)
     {
         return true;
@@ -1377,29 +1453,31 @@ bool CSyncScript::insert_old_equip_info_to_db()
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
     for (std::map<unsigned int, STEquipmentStatInfo>::iterator it =
-             m_oldEquipMap.begin();
-         it != m_oldEquipMap.end(); ++it)
+             g_equipmentStatInfoMap.begin();
+         it != g_equipmentStatInfoMap.end(); ++it)
     {
-        const std::pair<const unsigned int, STEquipmentStatInfo>& node = *it;
+        // ORIG 0x08624d86：`add $0x4,%eax; mov %eax,-0x1c` ⇒ 源码把 it->second
+        // 绑定为具名引用（指针缓存在 -0x1c），随后 33 个字段逐次重读该槽。
+        const STEquipmentStatInfo& st = it->second;
         if (!db->set_query(
                 "inSert into dnf_old_equip_info(it_id, hp_max, mp_max, phy_att, phy_def, mag_att, mag_def, equip_phy_att, equip_phy_def, equip_mag_att, equip_mag_def, ref_fire, ref_water, ref_dark, ref_light, ref_all_elements, ref_slow, ref_freeze, ref_poison, ref_stun, ref_curse, ref_blind, ref_lightning, ref_stone, ref_sleep, ref_burn, ref_weapon_break, ref_bleeding, ref_pierce, ref_stuck, ref_confuse, ref_hold, ref_armor_break, ref_all_state) values(%d, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i, %i)",
-                node.first, node.second.m_hpMax, node.second.m_mpMax,
-                node.second.m_phyAtt, node.second.m_phyDef,
-                node.second.m_magAtt, node.second.m_magDef,
-                node.second.m_equipPhyAtt, node.second.m_equipPhyDef,
-                node.second.m_equipMagAtt, node.second.m_equipMagDef,
-                node.second.m_refFire, node.second.m_refWater,
-                node.second.m_refDark, node.second.m_refLight,
-                node.second.m_refAll, node.second.m_refSlow,
-                node.second.m_refFreeze, node.second.m_refPoison,
-                node.second.m_refStun, node.second.m_refCurse,
-                node.second.m_refBlind, node.second.m_refLightning,
-                node.second.m_refStone, node.second.m_refSleep,
-                node.second.m_refBurn, node.second.m_refWeaponBreak,
-                node.second.m_refBleeding, node.second.m_refPierce,
-                node.second.m_refStuck, node.second.m_refConfuse,
-                node.second.m_refHold, node.second.m_refArmorBreak,
-                node.second.m_refAllState))
+                it->first, st.m_hpMax, st.m_mpMax,
+                st.m_phyAtt, st.m_phyDef,
+                st.m_magAtt, st.m_magDef,
+                st.m_equipPhyAtt, st.m_equipPhyDef,
+                st.m_equipMagAtt, st.m_equipMagDef,
+                st.m_refFire, st.m_refWater,
+                st.m_refDark, st.m_refLight,
+                st.m_refAll, st.m_refSlow,
+                st.m_refFreeze, st.m_refPoison,
+                st.m_refStun, st.m_refCurse,
+                st.m_refBlind, st.m_refLightning,
+                st.m_refStone, st.m_refSleep,
+                st.m_refBurn, st.m_refWeaponBreak,
+                st.m_refBleeding, st.m_refPierce,
+                st.m_refStuck, st.m_refConfuse,
+                st.m_refHold, st.m_refArmorBreak,
+                st.m_refAllState))
         {
             return false;
         }

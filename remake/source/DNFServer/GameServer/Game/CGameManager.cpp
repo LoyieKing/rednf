@@ -984,11 +984,13 @@ bool CGameManager::CheckOutQuickParty(CParty* party, bool flag)
 {
     // ORIG 0x082983fc：then 分支 xor$1,%eax 直返（探针 f1 形同构）；
     // party==0 沿 eax 残值（flag spill）返回且无 movzbl（4.1 spill 策略，残差 N）。
-    // b28d-solo-CGameManager 判词：N 封顶——ORIG 入口 `mov 0x10(%ebp),%eax; mov %al,-0xc`
-    // 后 eax 恒持 flag，party==0 直落 epilogue 复用 eax；4.4 恒补 `movzbl -0xc,%eax`。
-    // ORIG `xor$1;test;jmp;nop` 的 test 为 4.1 bool 归一 dead test（P225），4.4 不发。
+    // b28d-solo-CGameManager 判词：N 封顶（ours 25 / orig 25，残差 1 行）——ORIG 入口
+    // `mov 0x10(%ebp),%eax; mov %al,-0xc` 后 eax 恒持 flag，party==0 直落 epilogue
+    // 复用 eax；4.4 恒补 `movzbl -0xc(%ebp),%eax`。ORIG `xor$1;test;jmp;nop` 的 test
+    // 为 4.1 bool 归一 dead test（P225），4.4 不发。本波实测 `!call()` 与
+    // `(bool)(call()^1)` 两形产物逐条相同（4.4.7），故保留 `!` 形。
     if (party != 0)
-        return (bool)(G_CGameManager()->GetQuickPartySystemManager()->cancel_quick_party(party, flag, 0) ^ 1);
+        return !G_CGameManager()->GetQuickPartySystemManager()->cancel_quick_party(party, flag, 0);
     return flag;
 }
 
@@ -2460,10 +2462,16 @@ void SendUserInfoToUpperServer(Packet_Monitor_UDP_Reply_UserInfo& pkt,
 
 void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
 {
-    // b28d-lane12: N82 槽平移封顶（orig=303 our=271 gap=32；ndiff 436——大帧 pkt
-    // 对象槽基差 + 局部槽组）。ORIG 0x082961be。
-    // b28d-solo-CGameManager 判词：N82 封顶（P167 CLEAR 43=43；帧 0x1750+esi/ebx vs
-    // 0x1898，pkt 槽基 -0x1732 vs -0x186e 差 0x13c——大帧对象分区差不可控）。
+    // b28d-lane12 旧 N82 判词（gap 32）已被本轮布局修正推翻。
+    // b28d-solo-CGameManager 判词：DIFF·N115/N82（ours 302 / orig 303，gap 1）。
+    //   本轮真布局修复：Packet_Monitor_UDP_Reply_UserInfo.h 的
+    //   ST_MonitorReplyUserInfo 条目步长 0x52→0x4e（m_job 4B→1B；ORIG
+    //   0x08296369..0x082964ca 逐字段 `imul $0x4e,%ebx,%edx` + 1B/2B/4B 写偏移
+    //   实证）+ 去 item 引用缓存改逐字段 pkt.m_items[userCount]（P157/P183：
+    //   ORIG 每字段重发 imul/lea/sub 全链地址重算）⇒ gap 37→1。
+    //   残余 = 4.4 缺 push %esi（ORIG 用 %esi 跨循环缓存 group）+ 帧 0x1764 vs
+    //   0x1750（N115：4.4 恒预留 16B 对齐 outgoing）+ 槽号整体平移 0x10（N82）；
+    //   P167 CLEAR 43/43。
     int userCount = 0;
     Packet_Monitor_UDP_Reply_UserInfo pkt;
     pkt.m_channel = (unsigned char)((CEnvironment*)G_CEnvironment())->get_channel_no();  // ORIG p[11]
@@ -2502,22 +2510,24 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
                 if (user->get_state() >= 2 &&
                     (int)(size_t)user->GetServerGroup() == group)
                 {
-                    int n = userCount;
-                    ST_MonitorReplyUserInfo& item = pkt.m_items[n];  // ORIG p+12+n*0x4e
-                    item.m_dbid = user->get_acc_id();
-                    item.m_charNo = user->get_charac_no(-1);
-                    item.m_channel = user->GetUID();  // 游戏端写 UID（见包头注释）
-                    item.m_guildKey = user->get_charac_guildkey();
-                    item.m_job = user->get_charac_job();
-                    item.m_grade = user->getCurCharacGrowType();
-                    item.m_level = user->get_charac_level();
-                    item.m_memberKey = user->get_charac_memberkey();
-                    strcpy(item.m_name, user->getCurCharacName());
+                    // b28d-solo-CGameManager 修法（P157/P183）：ORIG 每字段重发
+                    // `mov -0x18(%ebp),%ebx; imul $0x4e,%ebx,%edx; lea; sub $K;
+                    // mov disp(%edx)` 全链地址重算（0x08296369..0x082964ca 逐字段
+                    // 实证），无 item 引用缓存 ⇒ 逐字段写 pkt.m_items[userCount]。
+                    pkt.m_items[userCount].m_dbid = user->get_acc_id();
+                    pkt.m_items[userCount].m_charNo = user->get_charac_no(-1);
+                    pkt.m_items[userCount].m_channel = user->GetUID();  // 游戏端写 UID（见包头注释）
+                    pkt.m_items[userCount].m_guildKey = user->get_charac_guildkey();
+                    pkt.m_items[userCount].m_job = user->get_charac_job();
+                    pkt.m_items[userCount].m_grade = user->getCurCharacGrowType();
+                    pkt.m_items[userCount].m_level = user->get_charac_level();
+                    pkt.m_items[userCount].m_memberKey = user->get_charac_memberkey();
+                    strcpy(pkt.m_items[userCount].m_name, user->getCurCharacName());
                     char ipBuf[16];
                     user->m_network.GetPeerIP2(ipBuf, 0x10);  // ORIG (CNetwork*)(user+0xe0)
-                    strcpy(item.m_ip, ipBuf);
-                    item.m_sex = user->getSex();
-                    memcpy(item.m_ssn, user->GetSsnString(), 6);
+                    strcpy(pkt.m_items[userCount].m_ip, ipBuf);
+                    pkt.m_items[userCount].m_sex = user->getSex();
+                    memcpy(pkt.m_items[userCount].m_ssn, user->GetSsnString(), 6);
                     lastUser = user;
                     userCount = userCount + 1;
                     if (userCount > 0x4a)
@@ -2543,6 +2553,11 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
 
 void CGameManager::send_userinfos_to_cutoff_server()
 {
+    // b28d-solo-CGameManager 判词：DIFF·N82（ours 180 / orig 177，gap 3）。
+    //   语义缺口已清零（p167 CLEAR 16/16）：删发明 placement-new 循环、accId 去具名、
+    //   去 bucket 指针缓存（P183）、empty() 早返（P16）、字段写序照 ORIG。
+    //   残余 = STTempUsers buckets[10] 对象组槽基差 + 第二循环表寻址 shl/lea 折叠
+    //   （P311 族）——4.4 槽分区不可控。
     // b28d-solo-CGameManager: ORIG 0x08295e84（178 insn）。修法（P167+P0+P183）：
     //   ①删发明 placement-new 循环（ORIG 无 _ZnwjPv/重复 ctor，P167 EXTRA）；
     //   ②accId 去具名 → get_acc_id() 两次表达式直读（ORIG 两处 call，P0）；
@@ -2599,11 +2614,18 @@ unsigned int CGameManager::insert_game_world(CUser* user)
 {
     // b28d-lane12: N82 槽平移封顶（orig=890 our=905 gap=-15；ndiff 831——大帧
     // 局部槽组 + 迭代器/Guard 分区差）。ORIG 0x08296d30。
-    // b28d-solo-CGameManager 判词：N82 + P167 语义缺口记录（ORIG 193 vs OUR 184 calls；
-    // MISSING：G_TimerQueue×4、G_GameWorld×2、getCurCharacR、make_pair<int,int>、
-    // GetChannelType、IsEquipSlotSwitchChannel、getPunishTradeAlert、getCurCharacName；
-    // EXTRA：getCurCharacLastPlayTick、make_pair<int&,int&>、std::move）。帧 0x10c+edi
-    // vs 0x160。真语义闭合需逐段重写（超单波次预算），缺口清单移交 Main 排期。
+    // b28d-solo-CGameManager 判词：DIFF·N82（ours 911 / orig 890，gap -21；帧 0x12c
+    // vs ORIG 0x10c——大帧槽组分区差）。本轮修法（P0+P214①）：
+    //   ①getCurCharacR() 判空去具名局部 ⇒ 复现 ORIG `call; test %eax,%eax;
+    //     sete %al; test %al,%al; je`（原 `mov %eax,-0x54; cmpl; jne` 槽化）；
+    //   ②bGuildPointDel 三态 if/else-if/else 改短路汇聚形（P214① w2 形）⇒
+    //     复现 ORIG `jg L_false; …; jge L_false; mov $1; jmp; L_false: mov $0;
+    //     test %al; je`（原 movb 槽 + cmpb 直比）。
+    // **P167 CLEAR 193/193**
+    // （旧判词记的 MISSING G_TimerQueue×4/getCurCharacR/make_pair<int,int>/
+    // GetChannelType/IsEquipSlotSwitchChannel/getPunishTradeAlert/getCurCharacName 与
+    // EXTRA getCurCharacLastPlayTick/make_pair<int&,int&>/std::move 已被后续修复清零，
+    // 本波复验 0 missing / 0 extra）⇒ 语义闭合、仅剩 byte 层槽形差。
     if (user == 0)
     {
         LogManager::logFormat(1, "App.cpp",
@@ -2611,8 +2633,11 @@ unsigned int CGameManager::insert_game_world(CUser* user)
                               "insert_waiting_room pUser parameter is null.");
         return 0;
     }
-    const void* characR = user->getCurCharacR();
-    if (characR == 0)
+    // b28d-solo-CGameManager 修法（P0）：ORIG 0x08296dXX `call getCurCharacR;
+    // test %eax,%eax; sete %al; test %al,%al; je` —— 调用结果寄存器直比、无具名
+    // 局部槽往返 ⇒ 表达式内联判空（原 `const void* characR = ...` 多 -0x54 槽 +
+    // cmpl/jne 两段）。
+    if (user->getCurCharacR() == 0)
     {
         LogManager::logFormat(1, "App.cpp",
                               __PRETTY_FUNCTION__, 0xf27,
@@ -2622,20 +2647,15 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     int curSec = GlobalData::s_systemTime_.getCurSec();
     std::vector<std::pair<int, int> > vecA;
     std::vector<std::pair<int, int> > vecB;
-    bool bGuildPointDel = false;
-    if (curSec < Inter_MonitorGuildPointDel::getLastDeleteTime())
-    {
-        bGuildPointDel = false;
-    }
-    else if (Inter_MonitorGuildPointDel::getLastDeleteTime() <=
-             user->getCurCharacLastPlayTick())
-    {
-        bGuildPointDel = false;
-    }
-    else
-    {
-        bGuildPointDel = true;
-    }
+    // b28d-solo-CGameManager 修法（P214① 汇聚块 w2 形）：ORIG 0x08296dXX =
+    // `call getLastDeleteTime; cmp curSec; jg L_false; call getCurCharacLastPlayTick;
+    // mov %eax,%ebx; call getLastDeleteTime; cmp %eax,%ebx; jge L_false; mov $1;
+    // jmp; L_false: mov $0; test %al,%al; je` —— 短路链 bool 汇聚（无槽物化）；
+    // 原 if/else-if/else 三态赋值恒产 `movb` 槽 + `cmpb $0` 直比。
+    bool bGuildPointDel =
+        curSec >= Inter_MonitorGuildPointDel::getLastDeleteTime() &&
+        user->getCurCharacLastPlayTick() <
+            Inter_MonitorGuildPointDel::getLastDeleteTime();
     if (bGuildPointDel)
     {
         // P167：ORIG 调 make_pair<int,int>(int&&,int&&)（0x081b8d41）⇒ 实参为字面量

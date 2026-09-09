@@ -49,11 +49,11 @@ public:
     void setIdx(int idx);       // ORIG 0x082aa716：写 +0xaf0
 
     // ---- 虚函数 override ----
-    virtual int handleDieUser(CUser* user);       // 0x08143a62
+    virtual bool handleDieUser(CUser* user);      // 0x08143a62
     virtual bool handleLeaveUser(CUser* user);    // 0x08143ae2（随基类 bool 化同步；ORIG 尾 mov$0/mov$1 常量直返无规范化）
-    virtual int handleMoveMap(unsigned short* mapIndex);  // 0x08143996
+    virtual bool handleMoveMap(unsigned short* mapIndex); // 0x08143996
     virtual bool handleDropItem(CUser* user, int a, int b, char c, int d, int e);  // 随基类 CBossStage bool 化同步（ORIG 尾 mov$0/mov$1 常量无规范化）  // 0x08143e5e
-    virtual int handleKillMonster(CUser* user, unsigned short a, unsigned short b,
+    virtual bool handleKillMonster(CUser* user, unsigned short a, unsigned short b,
                                   const MSG_MONSTER_DIE& die, int* d);  // 0x08143ebc
     // 新增虚（char 按值，与 CBossStage 的 char& 版本不同）0x08143d2c
     virtual int handlePickupItem(CUser* user, int a, bool b, char c);

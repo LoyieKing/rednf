@@ -373,7 +373,7 @@ void CCargo::_ResetSlot(int idx, eItemDelReason reason)
     --m_itemCount;
 }
 
-int CCargo::move_item(int from, int to)
+bool CCargo::move_item(int from, int to)
 {
     if (!(IsOperatorable(from) && IsOperatorable(to)))
         return 0;
@@ -411,7 +411,7 @@ void CCargo::_AddItem(const Inven_Item& item, int slot)
     m_sorted = 0;
 }
 // ---- 查询 ----
-int CCargo::check_slot_empty(int idx) const
+bool CCargo::check_slot_empty(int idx) const
 {
     char framePad[0x10];
     (void)framePad;

@@ -7,12 +7,20 @@
 // 各区（village/exp/…）按 ORIG 报告 get_* callee 重载实证类型具名字段访问
 // （2026-09-05 §4.3 字段化，绑定别名见 SigTypes_C.h/CCharacter.h 注释）。
 // ============================================================================
-// [b28d-64 判词汇总 · 泳道64] 本 TU 5 件：
-//   _sendResult           80/80 AE（P259 Acquire 内联实参去 stream 槽 + P227 trace 临时链）
-//   _getCharacInfo        464/462 N封顶（gap2 = SQL 变参装载寄存器序/槽号 P86/P112）
-//   _LoadEventBringUpInfo 158/159 N封顶（gap1 = cMyTrace 重定位 + 槽号）
-//   _GetTagCharacInfo     373/326 N封顶（P167 CLEAR 28/28；gap47 = 4.4 SQL get_* 内联折叠 P86/N89）
-//   getCharacStat         644/556 N封顶（P167 CLEAR 47/47；gap88 同上）
+// [b28d-solo-DB_LoadCharac 判词汇总] 本 TU 5 件（check_tu_routed.sh 口径；
+// p167 调用点差集 5/5 CLEAR）：
+//   _sendResult           80/80  AE（guard 作用域覆盖 trace ⇒ D1 落函数尾；P259 内联实参 + P227 临时链）
+//   _getCharacInfo        464/464 AE（负极性短路平铺 f1 形复现 exec/fetch 汇聚块；
+//                                   tag 段具名 bool ok + `return ok`）
+//   _LoadEventBringUpInfo 158/158 AE（具名 int nRows / unsigned int ret 槽往返 + 三处
+//                                   P227 全表达式临时链 + giveRewardFlag 直接布尔比较）
+//   _GetTagCharacInfo     373/373 AE（col++ 自增列号局部 + `&out->m_name[0]` 显式取址
+//                                   复现单段 lea 0x4）
+//   _getCharacStat        644/644 N107 封顶（col++ 自增列号局部；gap 0 + p167 CLEAR
+//                                   47/47 + 槽位集全等；残余 2 处 4.4↔4.1 add/lea 选择互换：
+//                                   col5(+0x59) 4.4-lea vs ORIG-add+mov、
+//                                   col25(+0xc5) 4.4-add+mov vs ORIG-lea，源形不可择）
+// P0/N96：本文件无 register asm 绑定（历史绑定已清零，见 _UpdateSchoolCharac 注释）。
 // ============================================================================
 
 #include <string.h>
@@ -82,6 +90,9 @@ bool DB_LoadCharac::_getCharacInfo(SIG_LOAD_CHARAC* sig)
         "skill_tree_index, event_charac_level, guild_secede from charac_info "
         "where charac_no=%d and delete_flag!=1",
         sig->m_characNo);
+    // [b28d-solo] 负极性短路平铺形（/tmp/p_if.cpp f1 探针实证）：4.4 复现
+    // ORIG 0x08408d38 的 `jne mov$1 / je mov$0 / test;je` 汇聚块；
+    // 正极性包裹 `if (exec && fetch)` 产 f2 形（je/je 同落点 + 成功标志）⇒ DIFF。
     if (!db->exec(true) || !db->fetch())
         return false;
     if (db->get_n_rows() != 1)
@@ -160,8 +171,12 @@ bool DB_LoadCharac::_getCharacInfo(SIG_LOAD_CHARAC* sig)
 
     if (sig->m_tagCharacNo != 0)
     {
-        if (!_GetTagCharacInfo(sig->m_tagCharacNo, &sig->m_tagCharacData))
-            return false;
+        // [b28d-solo] ORIG 0x084093db `mov %al,-0x9(%ebp)` 具名 bool 局部，
+        // 失败路径 `movzbl -0x9,%eax; jmp`（返回该局部值，非 mov$0）。
+        bool ok = _GetTagCharacInfo(sig->m_tagCharacNo,
+                                    &sig->m_tagCharacData);
+        if (!ok)
+            return ok;
     }
     return true;
 }
@@ -170,6 +185,9 @@ bool DB_LoadCharac::_getCharacInfo(SIG_LOAD_CHARAC* sig)
 // DB_LoadCharac::_getCharacStat @0x084093f6
 // charac_stat 43 列装载（42 数据列）：exec/fetch/任一 get 失败返 0；
 // col9(trade_gold_daily) 后、col10(open_flag) 前将 +0xd9 清零（ORIG 写点）。
+// [b28d-solo] 644/644 + p167 CLEAR 47/47 + 槽位集全等；残余仅 2 处
+// 4.4↔4.1 成员取址 add/lea 选择互换（col5 +0x59 / col25 +0xc5，源形探针
+// 全败）⇒ N107 反向封顶，语义与帧/槽/调用点均一致。
 // ============================================================================
 bool DB_LoadCharac::_getCharacStat(SIG_LOAD_CHARAC* sig)
 {
@@ -196,92 +214,99 @@ bool DB_LoadCharac::_getCharacStat(SIG_LOAD_CHARAC* sig)
     // 绑定字段类型 = _getCharacStat.md 汇编各 callee 重载形参（get_byte@080fde54
     // char& / get_ubyte@080fdeba uchar& / get_short@080fddec short& /
     // get_ushort@08116990 ushort& / get_int@0811692c int& / get_uint@080e22f2 uint&）。
-    if (!db->get_byte(0, sig->m_characData.m_village))       // village（char&）
+    // [b28d-solo] 同 _GetTagCharacInfo：ORIG 0x0840947a 起每列
+    // `mov -0xc,%eax; addl $1,-0xc; …mov %eax,0x4(%esp)` ⇒ 自增列号局部。
+    int col = 0;
+    if (!db->get_byte(col++, sig->m_characData.m_village))   // village（char&）
         return false;
-    if (!db->get_uint(1, sig->m_characData.m_exp))           // exp（uint&）
+    if (!db->get_uint(col++, sig->m_characData.m_exp))       // exp（uint&）
         return false;
-    if (!db->get_ubyte(2, sig->m_characData.m_unkB2.m_fieldb2)) // HP（uchar&）
+    if (!db->get_ubyte(col++, sig->m_characData.m_unkB2.m_fieldb2)) // HP（uchar&）
         return false;
-    if (!db->get_ushort(3, sig->m_characData.m_field2c))     // fatigue（ushort&）
+    if (!db->get_ushort(col++, sig->m_characData.m_field2c)) // fatigue（ushort&）
         return false;
-    if (!db->get_ushort(4, sig->m_characData.m_field5b))     // premium_fatigue（ushort&）
+    if (!db->get_ushort(col++, sig->m_characData.m_field5b)) // premium_fatigue（ushort&）
         return false;
-    if (!db->get_uint(5, sig->m_characData.m_lastPlayTime))  // last_play_time（uint&）
+    // [b28d-solo] ORIG 0x0840956f 本列为 `add $0x59,%eax; mov %eax,%edx`（add+mov），
+    // 4.4 对该位点恒 lea（同型/异型 cast/指针 cast 三形实测均 lea）⇒ N107 反向封顶。
+    if (!db->get_uint(col++, sig->m_characData.m_lastPlayTime)) // last_play_time（uint&）
         return false;
-    if (!db->get_ushort(6, sig->m_characData.m_unkB2.m_fieldb3)) // used_fatigue（ushort&）
+    if (!db->get_ushort(col++, sig->m_characData.m_unkB2.m_fieldb3)) // used_fatigue（ushort&）
         return false;
-    if (!db->get_uint(7, sig->m_characData.m_unkB2.m_tutorialFlag)) // tutorial_flag（uint&）
+    if (!db->get_uint(col++, sig->m_characData.m_unkB2.m_tutorialFlag)) // tutorial_flag（uint&）
         return false;
-    if (!db->get_uint(8, sig->m_characData.m_unkB2.m_tradeGoldTotal)) // trade_gold_total（uint&）
+    if (!db->get_uint(col++, sig->m_characData.m_unkB2.m_tradeGoldTotal)) // trade_gold_total（uint&）
         return false;
-    if (!db->get_uint(9, sig->m_characData.m_unkB2.m_tradeGoldDaily)) // trade_gold_daily（uint&）
+    if (!db->get_uint(col++, sig->m_characData.m_unkB2.m_tradeGoldDaily)) // trade_gold_daily（uint&）
         return false;
     sig->m_characData.m_unkB2.m_fieldcd = 0;
-    if (!db->get_byte(10, sig->m_characData.m_unkB2.m_openFlag)) // open_flag（char&）
+    if (!db->get_byte(col++, sig->m_characData.m_unkB2.m_openFlag)) // open_flag（char&）
         return false;
-    if (!db->get_int(11, sig->m_characData.m_unkB2.m_fieldd5)) // chaos_point（int&）
+    if (!db->get_int(col++, sig->m_characData.m_unkB2.m_fieldd5)) // chaos_point（int&）
         return false;
-    if (!db->get_int(12, sig->m_characData.m_unkB2.m_fieldd9)) // chaos_exp（int&）
+    if (!db->get_int(col++, sig->m_characData.m_unkB2.m_fieldd9)) // chaos_exp（int&）
         return false;
-    if (!db->get_int(13, sig->m_characData.m_unkB2.m_fielddd)) // chaos_mode_count（int&）
+    if (!db->get_int(col++, sig->m_characData.m_unkB2.m_fielddd)) // chaos_mode_count（int&）
         return false;
-    if (!db->get_int(14, sig->m_characData.m_unkB2.m_fielde1)) // chaos_kill_count（int&）
+    if (!db->get_int(col++, sig->m_characData.m_unkB2.m_fielde1)) // chaos_kill_count（int&）
         return false;
-    if (!db->get_int(15, sig->m_characData.m_unkB2.m_fielde5)) // chaos_die_count（int&）
+    if (!db->get_int(col++, sig->m_characData.m_unkB2.m_fielde5)) // chaos_die_count（int&）
         return false;
-    if (!db->get_int(16, sig->m_characData.m_unkB2.m_fielde9)) // chaos_die_time（int&）
+    if (!db->get_int(col++, sig->m_characData.m_unkB2.m_fielde9)) // chaos_die_time（int&）
         return false;
-    if (!db->get_int(17, sig->m_characData.m_unkB2.m_fielded)) // assault_count（int&）
+    if (!db->get_int(col++, sig->m_characData.m_unkB2.m_fielded)) // assault_count（int&）
         return false;
-    if (!db->get_int(18, sig->m_characData.m_unkB2.m_fieldf6)) // luck_point（int&）
+    if (!db->get_int(col++, sig->m_characData.m_unkB2.m_fieldf6)) // luck_point（int&）
         return false;
-    if (!db->get_int(19, sig->m_characData.m_unkB2.m_fieldfa)) // dungeon_play_count（int&）
+    if (!db->get_int(col++, sig->m_characData.m_unkB2.m_fieldfa)) // dungeon_play_count（int&）
         return false;
-    if (!db->get_int(20, sig->m_characData.m_unkB2.m_fieldf1)) // chaos_kill_time（int&）
+    if (!db->get_int(col++, sig->m_characData.m_unkB2.m_fieldf1)) // chaos_kill_time（int&）
         return false;
-    if (!db->get_uint(21, sig->m_characData.m_unkB2.m_helpAbuseRatio)) // help_abuse_ratio（uint&）
+    if (!db->get_uint(col++, sig->m_characData.m_unkB2.m_helpAbuseRatio)) // help_abuse_ratio（uint&）
         return false;
-    if (!db->get_uint(22, sig->m_characData.m_unkB2.m_helpAbuseExp)) // help_abuse_exp（uint&）
+    if (!db->get_uint(col++, sig->m_characData.m_unkB2.m_helpAbuseExp)) // help_abuse_exp（uint&）
         return false;
-    if (!db->get_int(23, sig->m_characData.m_unkB2.m_field10a)) // expert_job_exp（int&）
+    if (!db->get_int(col++, sig->m_characData.m_unkB2.m_field10a)) // expert_job_exp（int&）
         return false;
-    if (!db->get_short(24, sig->m_characData.m_fatigueBattery)) // fatigue_battery_charging（short&）
+    if (!db->get_short(col++, sig->m_characData.m_fatigueBattery)) // fatigue_battery_charging（short&）
         return false;
-    if (!db->get_binary(25, sig->m_characData.m_unkB2.m_fieldb9, 0x10)) // escalade_tutorial_flag
+    // [b28d-solo] ORIG 0x08409991 本列为 lea 0xc5(%eax),%edx（单段）；
+    // 4.4 对数组名退化恒 add+mov（探针 fc/fd/fe/fg 全败）⇒ N107 反向封顶。
+    if (!db->get_binary(col++, sig->m_characData.m_unkB2.m_fieldb9, 0x10)) // escalade_tutorial_flag
         return false;
-    if (!db->get_short(26, sig->m_characData.m_unkB2.m_powerWarPoint)) // power_war_point（short&）
+    if (!db->get_short(col++, sig->m_characData.m_unkB2.m_powerWarPoint)) // power_war_point（short&）
         return false;
-    if (!db->get_byte(27, sig->m_characData.m_villagePrev))  // village_prev（char&）
+    if (!db->get_byte(col++, sig->m_characData.m_villagePrev)) // village_prev（char&）
         return false;
-    if (!db->get_uint(28, sig->m_characData.m_unkB2.m_pwAssaultCount)) // power_war_assault_count（uint&）
+    if (!db->get_uint(col++, sig->m_characData.m_unkB2.m_pwAssaultCount)) // power_war_assault_count（uint&）
         return false;
-    if (!db->get_uint(29, sig->m_characData.m_unkB2.m_pwAssaultVicCount)) // …victory_count（uint&）
+    if (!db->get_uint(col++, sig->m_characData.m_unkB2.m_pwAssaultVicCount)) // …victory_count（uint&）
         return false;
-    if (!db->get_uint(30, sig->m_characData.m_unkB2.m_lastPlayTimePW)) // last_play_time_powerwar（uint&）
+    if (!db->get_uint(col++, sig->m_characData.m_unkB2.m_lastPlayTimePW)) // last_play_time_powerwar（uint&）
         return false;
-    if (!db->get_ushort(31, sig->m_characData.m_field30))    // fatigue_grownup_buff（ushort&）
+    if (!db->get_ushort(col++, sig->m_characData.m_field30)) // fatigue_grownup_buff（ushort&）
         return false;
-    if (!db->get_short(32, sig->m_characData.m_unkB2.m_emotion)) // emotion（short&）
+    if (!db->get_short(col++, sig->m_characData.m_unkB2.m_emotion)) // emotion（short&）
         return false;
-    if (!db->get_byte(33, sig->m_characData.m_unkB2.m_addSlotFlag)) // add_slot_flag（char&）
+    if (!db->get_byte(col++, sig->m_characData.m_unkB2.m_addSlotFlag)) // add_slot_flag（char&）
         return false;
-    if (!db->get_byte(34, sig->m_characData.m_unkB2.m_memberDungeonFlag)) // …flag（char&）
+    if (!db->get_byte(col++, sig->m_characData.m_unkB2.m_memberDungeonFlag)) // …flag（char&）
         return false;
-    if (!db->get_short(35, sig->m_characData.m_unkB2.m_memberBonusFatigue)) // …fatigue（short&）
+    if (!db->get_short(col++, sig->m_characData.m_unkB2.m_memberBonusFatigue)) // …fatigue（short&）
         return false;
-    if (!db->get_uint(36, sig->m_characData.m_unkB2.m_lastPlayDungeonIndex)) // …index（uint&）
+    if (!db->get_uint(col++, sig->m_characData.m_unkB2.m_lastPlayDungeonIndex)) // …index（uint&）
         return false;
-    if (!db->get_byte(37, sig->m_characData.m_unkB2.m_b129)) // add_equipslot_flag（char&）
+    if (!db->get_byte(col++, sig->m_characData.m_unkB2.m_b129)) // add_equipslot_flag（char&）
         return false;
-    if (!db->get_byte(38, sig->m_characData.m_unkB2.m_b12a)) // channel_equipslot_switch（char&）
+    if (!db->get_byte(col++, sig->m_characData.m_unkB2.m_b12a)) // channel_equipslot_switch（char&）
         return false;
-    if (!db->get_byte(39, sig->m_characData.m_unkB2.m_b12b)) // expand_equipslot_switch（char&）
+    if (!db->get_byte(col++, sig->m_characData.m_unkB2.m_b12b)) // expand_equipslot_switch（char&）
         return false;
-    if (!db->get_byte(40, sig->m_characData.m_unkB2.m_b12e)) // visible_flags（char&）
+    if (!db->get_byte(col++, sig->m_characData.m_unkB2.m_b12e)) // visible_flags（char&）
         return false;
-    if (!db->get_ubyte(41, sig->m_characData.m_unkB2.m_growthPowerReward)) // …reward（uchar&）
+    if (!db->get_ubyte(col++, sig->m_characData.m_unkB2.m_growthPowerReward)) // …reward（uchar&）
         return false;
-    if (!db->get_int(42, sig->m_characData.m_unkB2.m_i130))  // chaos_respon_time（int&）
+    if (!db->get_int(col++, sig->m_characData.m_unkB2.m_i130)) // chaos_respon_time（int&）
         return false;
 
     return true;
@@ -291,6 +316,8 @@ bool DB_LoadCharac::_getCharacStat(SIG_LOAD_CHARAC* sig)
 // DB_LoadCharac::_GetTagCharacInfo @0x08409fa6（static，无 this）
 // tag_charac_info 23 列装载：exec/fetch 失败或 getAffectedRowCount()==0 返 0；
 // 任一 get 失败返 0；全部成功返 1。
+// [b28d-solo] 373/373 AE：ORIG 每列 `mov -0xc,%eax; addl $1,-0xc`（自增列号
+// 局部 col++）+ `lea 0x4(%eax),%edx`（m_name 显式 &out->m_name[0] 取址形）。
 // ============================================================================
 bool DB_LoadCharac::_GetTagCharacInfo(unsigned int characNo, TAG_CHARAC_DATA* out)
 {
@@ -310,51 +337,57 @@ bool DB_LoadCharac::_GetTagCharacInfo(unsigned int characNo, TAG_CHARAC_DATA* ou
 
     // 绑定字段类型 = _GetTagCharacInfo.md 汇编各 callee 重载形参（同
     // _getCharacInfo 口径；m_add 区共用 CCharacter.h _Additioal_info 别名）。
-    if (!db->get_int(0, out->m_characNo))         // charac_no（0811692c int&）
+    // [b28d-solo] ORIG 0x0840a04c `movl $0x0,-0xc(%ebp)` + 每列
+    // `mov -0xc,%eax; addl $1,-0xc; …mov %eax,0x4(%esp)` ⇒ 源码用自增列号
+    // 局部 `col++`（字面量列号每列少 2 条，gap 47 即此）。
+    int col = 0;
+    if (!db->get_int(col++, out->m_characNo))     // charac_no（0811692c int&）
         return false;
-    if (!db->get_str(1, out->m_name, 0x1d))       // charac_name
+    // [b28d-solo] ORIG 0x0840a081 `mov 0xc(%ebp),%eax; lea 0x4(%eax),%edx`
+    // （单段 lea）⇒ 显式取址形（数组名退化恒 add+mov 两段）。
+    if (!db->get_str(col++, &out->m_name[0], 0x1d)) // charac_name
         return false;
-    if (!db->get_byte(2, out->m_job))             // job（080fde54 char&）
+    if (!db->get_byte(col++, out->m_job))         // job（080fde54 char&）
         return false;
-    if (!db->get_short(3, out->m_lev))            // lev（080fddec short&）
+    if (!db->get_short(col++, out->m_lev))        // lev（080fddec short&）
         return false;
-    if (!db->get_byte(4, out->m_growType))        // grow_type（char&）
+    if (!db->get_byte(col++, out->m_growType))    // grow_type（char&）
         return false;
-    if (!db->get_byte(5, out->m_skillTreeIndex))  // skill_tree_index（char&）
+    if (!db->get_byte(col++, out->m_skillTreeIndex)) // skill_tree_index（char&）
         return false;
-    if (!db->get_uint(6, out->m_add.m_maxHP))     // maxHP（080e22f2 uint&）
+    if (!db->get_uint(col++, out->m_add.m_maxHP)) // maxHP（080e22f2 uint&）
         return false;
-    if (!db->get_uint(7, out->m_add.m_maxMP))     // maxMP
+    if (!db->get_uint(col++, out->m_add.m_maxMP)) // maxMP
         return false;
-    if (!db->get_ushort(8, out->m_add.m_field08)) // phy_attack（ushort&）
+    if (!db->get_ushort(col++, out->m_add.m_field08)) // phy_attack（ushort&）
         return false;
-    if (!db->get_ushort(9, out->m_add.m_field0a)) // phy_defense
+    if (!db->get_ushort(col++, out->m_add.m_field0a)) // phy_defense
         return false;
-    if (!db->get_ushort(10, out->m_add.m_field0c)) // mag_attack
+    if (!db->get_ushort(col++, out->m_add.m_field0c)) // mag_attack
         return false;
-    if (!db->get_ushort(11, out->m_add.m_field0e)) // mag_defense
+    if (!db->get_ushort(col++, out->m_add.m_field0e)) // mag_defense
         return false;
-    if (!db->get_binary(12, out->m_add.m_elementResist, 8)) // element_resist
+    if (!db->get_binary(col++, out->m_add.m_elementResist, 8)) // element_resist
         return false;
-    if (!db->get_binary(13, out->m_add.m_specProperty, 0x22)) // spec_property
+    if (!db->get_binary(col++, out->m_add.m_specProperty, 0x22)) // spec_property
         return false;
-    if (!db->get_int(14, out->m_add.m_field3a))   // inven_weight（int&）
+    if (!db->get_int(col++, out->m_add.m_field3a)) // inven_weight（int&）
         return false;
-    if (!db->get_short(15, out->m_add.m_hpRegen)) // hp_regen（short&）
+    if (!db->get_short(col++, out->m_add.m_hpRegen)) // hp_regen（short&）
         return false;
-    if (!db->get_short(16, out->m_add.m_mpRegen)) // mp_regen（short&）
+    if (!db->get_short(col++, out->m_add.m_mpRegen)) // mp_regen（short&）
         return false;
-    if (!db->get_uint(17, out->m_add.m_moveSpeed)) // move_speed（uint&）
+    if (!db->get_uint(col++, out->m_add.m_moveSpeed)) // move_speed（uint&）
         return false;
-    if (!db->get_ushort(18, out->m_add.m_field46)) // attack_speed
+    if (!db->get_ushort(col++, out->m_add.m_field46)) // attack_speed
         return false;
-    if (!db->get_ushort(19, out->m_add.m_field48)) // cast_speed
+    if (!db->get_ushort(col++, out->m_add.m_field48)) // cast_speed
         return false;
-    if (!db->get_short(20, out->m_add.m_hitRecovery)) // hit_recovery（short&）
+    if (!db->get_short(col++, out->m_add.m_hitRecovery)) // hit_recovery（short&）
         return false;
-    if (!db->get_short(21, out->m_add.m_jump))    // jump（short&）
+    if (!db->get_short(col++, out->m_add.m_jump)) // jump（short&）
         return false;
-    if (!db->get_int(22, out->m_add.m_field4e))   // charac_weight（int&）
+    if (!db->get_int(col++, out->m_add.m_field4e)) // charac_weight（int&）
         return false;
     return true;
 }
@@ -411,37 +444,46 @@ bool DB_LoadCharac::_LoadEventBringUpInfo(SIG_LOAD_CHARAC* sig)
         NumberToString(sig->m_accId, 0));
     if (!db->exec(true))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x225b, 5);
-        trace("DB_LoadCharac::_LoadEventBringUpInfo, exec() ERROR charac_no=%u",
-              sig->m_characNo);
+        // [b28d-solo] P227：ORIG 0x08409de3 先把 sig->m_characNo 装 %ebx 跨
+        // cMyTrace ctor 保活 ⇒ 全表达式临时链（具名 trace 局部为 N80 形）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x225b, 5)(
+            "DB_LoadCharac::_LoadEventBringUpInfo, exec() ERROR charac_no=%u",
+            sig->m_characNo);
         return false;
     }
-    if (db->get_n_rows() == 0)
+    // [b28d-solo] P0：ORIG 0x08409e38 `mov %eax,-0x10(%ebp); cmpl $0x0,-0x10`
+    // ⇒ 具名 int 局部。
+    int nRows = db->get_n_rows();
+    if (nRows == 0)
         return true;
 
     unsigned char useMaterialCnt = 0;
     unsigned char giveRewardFlag = 0;
-    if (!db->fetch())
+    // [b28d-solo] P0：ORIG 0x08409e5e `movzbl %al,%eax; mov %eax,-0xc`（bool→uint
+    // 截断槽往返）⇒ 具名 unsigned int 局部，两次 get_ubyte 复用同一槽。
+    unsigned int ret = db->fetch();
+    if (ret == 0)
         return false;
-    if (!db->get_ubyte(0, useMaterialCnt))
+    ret = db->get_ubyte(0, useMaterialCnt);
+    if (ret == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x226b, 5);
-        trace("DB_LoadCharac::_LoadEventBringUpInfo, get_ubyte(1) ERROR "
-              "charac_no=%u", sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x226b, 5)(
+            "DB_LoadCharac::_LoadEventBringUpInfo, get_ubyte(1) ERROR "
+            "charac_no=%u", sig->m_characNo);
         return false;
     }
-    if (!db->get_ubyte(1, giveRewardFlag))
+    ret = db->get_ubyte(1, giveRewardFlag);
+    if (ret == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x2272, 5);
-        trace("DB_LoadCharac::_LoadEventBringUpInfo, get_ubyte(2) ERROR "
-              "charac_no=%u", sig->m_characNo);
+        cMyTrace(__PRETTY_FUNCTION__, 0x2272, 5)(
+            "DB_LoadCharac::_LoadEventBringUpInfo, get_ubyte(2) ERROR "
+            "charac_no=%u", sig->m_characNo);
         return false;
     }
     sig->m_characData.m_unkB2.m_useMaterialCnt = useMaterialCnt;
-    sig->m_characData.m_unkB2.m_giveRewardFlag = (giveRewardFlag != 0) ? 1 : 0;
+    // [b28d-solo] ORIG 0x08409f62 `test %al,%al; setne %dl; mov %dl,0x138`
+    // ⇒ 直接布尔比较赋值（三目 ?1:0 产 je/mov$1/mov$0 分支物化）。
+    sig->m_characData.m_unkB2.m_giveRewardFlag = (giveRewardFlag != 0);
     return true;
 }
 
@@ -456,15 +498,15 @@ void DB_LoadCharac::_sendResult(int userIdx, int slot, SIG_LOAD_CHARAC* sig)
 {
     // [b28d-64] P259/P0：ORIG 0x0840a4e0 `call Acquire; mov %eax,%ebx;
     // mov %ebx,0x4(%esp)` 寄存器中转（无 stream 具名槽 -0x10）⇒ 内联实参。
-    {
-        CStreamGuard guard(
-            GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x233a), true);
-        guard.operator*()->operator<<(7);
-        guard.operator*()->operator<<(slot);
-        SIG_LOAD_CHARAC* out = guard.operator->()->GetInBuffer<SIG_LOAD_CHARAC>();
-        memcpy(out, sig, 0x703);
-        GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
-    }                                                        // ~CStreamGuard
+    // [b28d-solo] 块作用域修正：ORIG 的 CStreamGuard::D1 在函数最末（trace 之后）
+    // ⇒ 原码 trace 也在 guard 作用域内（Ghidra C 的 D1 调用位于 op() 之后）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x233a), true);
+    guard.operator*()->operator<<(7);
+    guard.operator*()->operator<<(slot);
+    SIG_LOAD_CHARAC* out = guard.operator->()->GetInBuffer<SIG_LOAD_CHARAC>();
+    memcpy(out, sig, 0x703);
+    GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
 
     // [b28d-64] P227：ORIG 0x0840a5ac 两实参先入 %esi/%ebx 跨 cMyTrace ctor
     // 保活（`mov 0x14(%ebp),%eax; mov 0x59(%eax),%esi; …%ebx`）⇒ 全表达式临时链。

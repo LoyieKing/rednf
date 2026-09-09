@@ -38,6 +38,20 @@ struct MSG_MAKE_PVP_ROOM
 };
 #pragma pack(pop)
 
+// ---------------------------------------------------------------------------
+// b28d-solo-MakePVPRoom: verdict=AE（check_tu_routed.sh / compare_tu clean 口径；
+//   本件无 class_func_reports 报告 ⇒ game_func_report --no-compile 的 DIFF 属 N124 假报）
+//   修法：①真语义 bug —— create_room 第 6 实参 msg.m_field2e != 1 → == 1（ORIG 0x081f7ccf
+//   `cmp $0x1,%al; sete %al`；旧写 setne 极性反，门类型 1 的房间会被当失败路径）；
+//   ②P0 槽-局部律去 pvpScore/giveItem/giveLimit 具名局部（ORIG 无槽：GetGiveItem→%esi、
+//   get_pvp_item_give 结果留 %eax 直比 setle）改全内联右值；
+//   ③P227 全表达式临时链 `CSwitchLog(...)(...)` 复现 ORIG ctor 前右起求 varargs 并
+//   get_index→%edi / getCurCharacName→%esi / get_acc_name→%ebx 跨 ctor 保活（两语句具名对象
+//   会退化为 4.4 ctor 后求值）；④P139 签名串改 __PRETTY_FUNCTION__（双侧
+//   `_ZZ11MakePVPRoom…E19__PRETTY_FUNCTION__` r 0x4e 全等，P187 硬闭合）。
+//   读数：ndiff 393→0、insns 448/448、帧 0x8c 全等；p167 调用点 90/90 CLEAR（0 missing/0 extra）。
+//   TU 残余 `_Z41__static_initialization_and_destruction_0ii` = N123 同名副本撞名假 DIFF。
+// ---------------------------------------------------------------------------
 bool MakePVPRoom(CUser* user, MSG_MAKE_PVP_ROOM& msg, ENUM_CMDPACKET cmd, PVP_BATTLE_MODE mode)
 {
     PacketGuard packet;                                  // -0x40
@@ -58,12 +72,10 @@ bool MakePVPRoom(CUser* user, MSG_MAKE_PVP_ROOM& msg, ENUM_CMDPACKET cmd, PVP_BA
     }
 
     // 公平 PvP 给品计数门（ORIG 0x81f7a1d..0x81f7a62：give <= get_pvp_item_give → err 7）
-    fair_pvp::CFairPvPScore* pvpScore =
-        (fair_pvp::CFairPvPScore*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)7);
-    int giveItem = (int)pvpScore->GetGiveItem();
-    int giveLimit =
-        G_CDataManager()->m_serverParameter.get_pvp_item_give(user->get_pvp_grade());
-    if (giveItem <= giveLimit)
+    // P0 槽-局部律：ORIG 无槽往返（GetGiveItem 结果留 %esi、limit 留 %eax 直比）⇒ 全内联右值
+    if ((int)((fair_pvp::CFairPvPScore*)user->GetCharacExpandData(
+                  (ENUM_CHARAC_EXPAND_TYPE)7))->GetGiveItem()
+        <= G_CDataManager()->m_serverParameter.get_pvp_item_give(user->get_pvp_grade()))
     {
         packet.put_byte(0);                              // 0x81f7a64..0x81f7aaf
         packet.put_byte(0x7);
@@ -126,16 +138,16 @@ bool MakePVPRoom(CUser* user, MSG_MAKE_PVP_ROOM& msg, ENUM_CMDPACKET cmd, PVP_BA
 
     // 建房（ORIG 0x81f7cb7..0x81f7d26）
     int roomNo = pvp->create_room(user, (char)msg.m_field0d, msg.m_name,
-                                   (short)msg.m_field2c, msg.m_field2e != 1,
+                                   (short)msg.m_field2c, msg.m_field2e == 1,
                                    msg.m_field33, msg.m_field2f, mode);   // -0x20
 
     // pvp@log（ORIG 0x81f7d26..0x81f7db8；0x8583=34179 行号）
-    int roomIndex = pvp->get_index();
-    const char* characName = user->getCurCharacName();
-    const char* accName = user->get_acc_name();
-    CSwitchLog pvpLog("bool MakePVPRoom(CUser*, MSG_MAKE_PVP_ROOM&, ENUM_CMDPACKET, PVP_BATTLE_MODE)", 0x8583, 0, 0);
-    pvpLog("pvp@log %s,%s, room(%d),%d,%d,%d", accName, characName, (int)roomIndex,
-           (int)mode, roomNo, (int)cmd);
+    // P227 全表达式临时链：ORIG 在 CSwitchLog ctor 之前右起求 varargs 并以 edi/esi/ebx 跨
+    // ctor 保活（get_index→%edi、getCurCharacName→%esi、get_acc_name→%ebx），具名对象+两语句
+    // 会退化为 ctor 后求值 ⇒ 用构造即调用链复现。P139：签名串取 __PRETTY_FUNCTION__。
+    CSwitchLog(__PRETTY_FUNCTION__, 0x8583, 0, 0)
+        ("pvp@log %s,%s, room(%d),%d,%d,%d", user->get_acc_name(),
+         user->getCurCharacName(), (int)pvp->get_index(), (int)mode, roomNo, (int)cmd);
 
     if (roomNo > 0)
     {

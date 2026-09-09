@@ -30,9 +30,6 @@
 #include "SyncScriptDeps.h"   // toTString(const char*) / toTString(const wchar_t*)
 #include "StringTypes.h"      // toUnicode（G4 域；返回 TLS 环形缓冲槽指针）
 
-namespace
-{
-
 // ----------------------------------------------------------------------------
 // ORIG 静态 _ZL15parseStringLinePcPS_S0_ 0x8aa6551（本 TU 文件局部）。
 // 语义（objdump 0x8aa6551）：
@@ -44,15 +41,15 @@ namespace
 //   6) *out_key = keyStart; *out_value = valueStart; 返回 0。
 // 返回：0=成功（或空/注释行，此时出参不变）、-1=无分隔符或 key 过短、-2=key 过长。
 // ----------------------------------------------------------------------------
-int parseStringLine(char* line, char** outKey, char** outValue)
+static int parseStringLine(char* line, char** outKey, char** outValue)
 {
     char* p = line;
 
     // 1) 跳过行首空白；遇换行 → 空行
-    for (;;)
+    // ORIG 0x8aa6551：循环条件在底部（`jmp cond` 入口 + `test;setne;jne`）
+    // ⇒ 源码为 `while (*p)`（非 for(;;) + 显式 NUL break）。
+    while (*p)
     {
-        if (*p == '\0')
-            break;
         if (*p == '\r' || *p == '\n')
             return 0;
         if (*p == ' ' || *p == '\t')
@@ -121,8 +118,6 @@ int parseStringLine(char* line, char** outKey, char** outValue)
     return 0;
 }
 
-}  // namespace
-
 // ORIG 字符串表函数用 ss_sprintf<256>（安全限长）而非裸 sprintf：
 // 模板定义与 OnlyOrigBatch12.cpp 一致（extern ss_vsprintf，直接传变参起始地址）。
 extern int ss_vsprintf(char* buffer, size_t count, const char* format, char* argList);
@@ -177,7 +172,9 @@ const char* RDARScriptStringManager::findString(int table, const char* key,
         return "RDARScriptStringManager::ERROR::requested fileIndex isn't in string table";
     }
 
-    if (table < 0 || table >= static_cast<int>(dictionaries_.size()))
+    // ORIG 0x8aa583d：第二处范围检查取**全局对象** g_scriptStringManager_ 的
+    // vector（`movl $&g_scriptStringManager_+0x18,(%esp)`），非 this 成员。
+    if (table < 0 || table >= static_cast<int>(g_scriptStringManager_.dictionaries_.size()))
     {
         LogManager::logFormat(
             0, "../RDARScriptStringManager.cpp", __FUNCTION__, 0x11c,
@@ -194,8 +191,10 @@ const char* RDARScriptStringManager::findString(int table, const char* key,
     if (result != 0)
         return result;
 
-    const char* fname = fileList_.GetFileName(table);
-    ss_sprintf(errStr, "%s == NULL, %s : ", toTString(key), fname);
+    // ORIG 0x8aa5918：GetFileName 结果存 callee-saved %ebx 跨 toTString 调用
+    // （无槽往返）⇒ 实参内联（P0/P23）。
+    ss_sprintf(errStr, "%s == NULL, %s : ",
+               toTString(key), fileList_.GetFileName(table));
     return errStr;
 }
 
@@ -212,15 +211,17 @@ const char* RDARScriptStringManager::findString(int table, const wchar_t* key,
     }
 
     static char errStr[256];
-    std::string k = toTString(key);
-    const char* result = dictionaries_[table]->get(k.c_str());
+    // ORIG 0x8aa5969：toTString(const wchar_t*) 返回 TLS 缓冲 const char*，
+    // 直接作 get 实参（无 std::string 临时；N86/N89 源侧根因）。ORIG 无表范围检查。
+    const char* result = dictionaries_[table]->get(toTString(key));
     if (flag != 0)
         *flag = (result != 0);
     if (result != 0)
         return result;
 
-    const char* fname = fileList_.GetFileName(table);
-    ss_sprintf(errStr, "%s == NULL, %s : ", k.c_str(), fname);
+    // ORIG 0x8aa59c9：第 3 变参是原始 wchar_t* key（"%s" 按窄串打印，原码遗留 P171）。
+    ss_sprintf(errStr, "%s == NULL, %s : ",
+               key, fileList_.GetFileName(table));
     return errStr;
 }
 
@@ -230,7 +231,9 @@ const char* RDARScriptStringManager::findString(int table, const wchar_t* key,
 int RDARScriptStringManager::getKeyIndex(int table, const wchar_t* key) const
 {
     // ORIG 0x8aa5cba：key==0 或 table 越界 → -1
-    if (key != 0 && static_cast<unsigned>(table) < dictionaries_.size())
+    if (key == 0)
+        return -1;
+    if (static_cast<unsigned>(table) < dictionaries_.size())
     {
         // ORIG 0x8aa5cba：-0x18 槽存 operator[] 返回的**引用地址**，每次使用
         // 再解引用（`mov -0x18(%ebp),%eax; mov (%eax),%eax`）⇒ 用引用局部
@@ -242,10 +245,12 @@ int RDARScriptStringManager::getKeyIndex(int table, const wchar_t* key) const
             const char* v = d->getValue(i);
             if (v != 0)
             {
-                const wchar_t* wv = toUnicode(v);
-                if (wcscmp(wv, key) == 0)
+                // ORIG：toUnicode 结果无槽往返 ⇒ 实参内联（P0）
+                if (wcscmp(toUnicode(v), key) == 0)
                 {
-                    if (d->getKey(i) != 0)
+                    // ORIG：getKey 结果落 -0xc 槽后槽比零 ⇒ 具名局部（P0 槽往返）
+                    const char* k = d->getKey(i);
+                    if (k != 0)
                         return i;
                 }
             }
@@ -254,46 +259,56 @@ int RDARScriptStringManager::getKeyIndex(int table, const wchar_t* key) const
     return -1;
 }
 
-// b28d-21: DIFF/N 封顶 — p167 EXTRA 7 项（重建多 std::wstring/allocator 模板
-// 实例，N86/N89）；残差 N82 帧/槽（217 vs 257）。ORIG 0x8aa59f0。
-void RDARScriptStringManager::getTagByName(std::vector<std::wstring>* a,
+// b28d-solo: ORIG 0x8aa59f0 尾部 `mov $0x1,%eax` + 两处 `mov $0x0,%eax`
+// ⇒ 真实返回 bool（P159）；三个守卫全部正极性包裹（无 continue），
+// `wcsstr(toUnicode(sv), name)` 实参内联（ORIG 无 std::wstring wv 临时）。
+bool RDARScriptStringManager::getTagByName(std::vector<std::wstring>* a,
                                            std::vector<std::wstring>* b,
                                            int table, const wchar_t* name) const
 {
     // ORIG 0x8aa59f0：遍历表；每条 value（去空格）若 wcsstr 包含 name 且 key 非空，
     // 则把 key/value 分别 push 进 a/b。
     if (a == 0 || b == 0)
-        return;
+        return false;
+    // ORIG 0x8aa5a21：`setae %al; test %al,%al; je <body>; mov $0,%eax; jmp <end>`
+    // ⇒ 早返形（范围失败块内联在函数中段）。
     if (static_cast<unsigned>(table) >= dictionaries_.size())
-        return;
-
-    StringDictionary* d = dictionaries_[table];
-    int n = d->getCount();
-    for (int i = 0; i < n; ++i)
+        return false;
     {
-        const char* v = d->getValue(i);
-        if (v == 0)
-            continue;
-
-        std::string sv = v;
-        // ORIG 0x8aa59f0：仅 std::remove（未 erase，尾部空格仍保留在串中）。
-        std::remove(sv.begin(), sv.end(), ' ');
-        std::wstring wv = toUnicode(sv);
-        if (wcsstr(wv.c_str(), name) == 0)
-            continue;
-
-        const char* k = d->getKey(i);
-        if (k == 0)
-            continue;
-
-        a->push_back(std::wstring(toUnicode(k)));
-        b->push_back(std::wstring(toUnicode(v)));
+        // ORIG -0x18 槽存 operator[] 引用地址（P157/P183），循环尾每轮重调 getCount。
+        StringDictionary* const& d = dictionaries_[table];
+        for (int i = 0; i < d->getCount(); ++i)
+        {
+            const char* v = d->getValue(i);
+            if (v != 0)
+            {
+                std::string sv = v;
+                // ORIG 0x8aa59f0：仅 std::remove（未 erase，尾部空格仍保留在串中）。
+                std::remove(sv.begin(), sv.end(), ' ');
+                // ORIG：toUnicode(sv) 直接作 wcsstr 实参（无 std::wstring wv 临时）。
+                if (wcsstr(toUnicode(sv), name) != 0)
+                {
+                    const char* k = d->getKey(i);
+                    if (k != 0)
+                    {
+                        a->push_back(std::wstring(toUnicode(k)));
+                        b->push_back(std::wstring(toUnicode(v)));
+                    }
+                }
+            }
+        }
     }
+    return true;
 }
 
-// b28d-21: NEAR 封顶 — 承 b28c-36 判词：169=169 助记符序列全同，唯一残差为
-// 末尾 ss_sprintf 第 3 参 (const char*)a 的装载时刻（ORIG 先存 callee 返回值再载 a，
-// 4.4 先缓存 a 到 %edx 再双 store），P75 跨版本实参装载序；探针 5 形不可翻。
+// b28d-solo-NEAR 封顶（P75）：169=169 助记符序列全同，唯一残差 = 末尾
+// ss_sprintf 第 3 变参的装载时刻——ORIG `mov %eax,0xc(%esp); mov 0x10(%ebp),%eax;
+// mov %eax,0x8(%esp)`（先存 callee 返回值再载 a），4.4.6 恒
+// `mov 0x10(%ebp),%edx; mov %eax,0xc(%esp); mov %edx,0x8(%esp)`。
+// 本波 4.4.6 路由下复测 14 形探针（/tmp/p75.cpp+m9..m14）全部同形：
+// reinterpret_cast / 双层 static_cast / C cast / `(unsigned)a` / `(long)a` /
+// `+0` / `(0,expr)` / 逗号 / `&p[0]` / `&0xffffffff` / `^0` / `*1` / `/1` / `-0`
+// —— 4.4 对「末实参为 call + 倒数第二为形参」恒该序，源形不可翻。
 // ORIG 0x8aa5e40。
 const wchar_t* RDARScriptStringManager::getTagByName(int table, const wchar_t* a,
                                                      const wchar_t* b, bool flag) const
@@ -382,37 +397,43 @@ void RDARScriptStringManager::setTableValue(int table, int key, const char* valu
     }
 }
 
-// b28d-21: DIFF/N 封顶 — p167 差集：ORIG auto_ptr::operator->×2 / getKey×2 /
-// auto_ptr::reset / `_ZL15parseStringLine`（文件级 static，P204③ 须用 static 而非
-// 匿名 namespace）/ `Ss::operator=(const char*)`；重建多 `Ss::operator+=`/memset/
-// _Unwind_Resume（N86/N89/EH 族）。残差 N82 帧/槽（387 vs 373）。ORIG 0x8aa529e。
+// b28d-solo-N 封顶：槽位集与 ORIG 全对齐（cpBuf -0x1010 / 三份 ErrorLog
+// e -0x50/-0x60/-0x70 / auto_ptr -0x38 / isJpn -0x2e / isKor -0x2d / lineNo -0x2c）；
+// 残差三类均为已登记 N 族：① `memset(cpBuf,0,0xfa0)` 4.1 内联 rep stos vs 4.4
+// 恒 call（N78）；② `isJpn == false` 取反 4.4 恒 `movzbl;xor $1;test;je` vs
+// ORIG `cmpb $0,mem;je`（N122）；③ r 槽 -0x28 vs ORIG -0x24 + 内存直比 vs
+// 寄存器比较（N82/P286）。本波修正的真语义 bug：第三处 ErrorLog 原写
+// `e.m_message += getKey(i)`，ORIG 0x5739 为 `add $0x8,%eax` + `operator=`
+// ⇒ 应为 `e.m_detail = getKey(i)`；另补两处 `e.m_flag = lineNo`
+// （ORIG 0x5415/0x5489 `mov lineNo,-0x44/-0x54`）。
+// ORIG 0x8aa529e。
 bool RDARScriptStringManager::loadStringFile(std::istream* in, const char* path,
                                              int /*table*/,
                                              std::vector<ErrorLog>* err)
 {
-    // ORIG 0x8aa529e
-    bool skip = false;
-    if (in != 0 && path != 0)
-    {
-        if (in->bad())
-            skip = true;
-        // else skip 保持 false
-    }
-    else
-    {
-        skip = true;
-    }
-    if (skip)
+    // ORIG 0x8aa529e：① skip 是表达式短路物化（`je L;je L;call bad;test;je L2`
+    // + `mov $1/$0,%eax`，无具名 bool 槽，P0）；② auto_ptr 默认构造后 reset
+    // （ORIG 0x52ec `auto_ptr(0)` → new → C1 → reset）；③ isJpn/isKor 为
+    // 「预清 + 条件置位」（P194）；④ ErrorLog 第三字段 = lineNo（e.m_flag）；
+    // ⑤ 重复检测先 getKey(i+1) 后 getKey(i)、无判空、第三处为
+    // `e.m_detail = getKey(i)`（ORIG `add $0x8,%eax` + operator=，非 +=）。
+    if (in == 0 || path == 0 || in->bad())
         return false;
 
-    std::auto_ptr<StringDictionary> dict(new StringDictionary());
+    std::auto_ptr<StringDictionary> dict;
+    dict.reset(new StringDictionary());
 
-    bool isJpn = (std::strstr(path, "Creature.jpn.str") != 0);   // local_32
-    bool isKor = (std::strcmp(path, "Etc/Etc.kor.str") == 0);    // local_31
+    bool isJpn = false;                                          // local_32
+    if (std::strstr(path, "Creature.jpn.str") != 0)
+        isJpn = true;
+    bool isKor = false;                                          // local_31
+    if (std::strcmp(path, "Etc/Etc.kor.str") == 0)
+        isKor = true;
 
     int lineNo = 0;
     char lineBuf[0x2928];
     char cpBuf[4000];
+    int r;
 
     while (!in->eof())
     {
@@ -421,7 +442,7 @@ bool RDARScriptStringManager::loadStringFile(std::istream* in, const char* path,
 
         char* key = 0;
         char* value = 0;
-        int r = parseStringLine(lineBuf, &key, &value);
+        r = parseStringLine(lineBuf, &key, &value);
 
         if (r == -2)
         {
@@ -430,17 +451,19 @@ bool RDARScriptStringManager::loadStringFile(std::istream* in, const char* path,
                 ErrorLog e;
                 e.m_code = static_cast<int>(0x80000001);
                 e.m_message = path;
+                e.m_flag = lineNo;
                 err->push_back(e);
             }
             return false;
         }
-        if (r == -1)
+        else if (r == -1)
         {
             if (err != 0)
             {
                 ErrorLog e;
                 e.m_code = static_cast<int>(0x80000000);
                 e.m_message = path;
+                e.m_flag = lineNo;
                 err->push_back(e);
             }
             return false;
@@ -456,17 +479,19 @@ bool RDARScriptStringManager::loadStringFile(std::istream* in, const char* path,
                 value = cpBuf;
             }
 
-            if (!isJpn)
+            // ORIG 0x5535 `cmpb $0,isJpn; je <else>` ⇒ 显式 ==false（N122：!b 恒 xor 物化）
+            if (isJpn == false)
             {
                 dict->add(toTString(key), toTString(value));
             }
             else
             {
-                const char* tv = toTString(value);
-                if (*tv == '\0')
-                    dict->add(toTString(key), "NULL");
-                else
+                // ORIG 0x5549 `test %al,%al; setne %al; test %al,%al; je <NULL 分支>`
+                // ⇒ 正极性包裹（P214①）；toTString 结果无槽往返（P0 实参内联）
+                if (*toTString(value) != '\0')
                     dict->add(toTString(key), toTString(value));
+                else
+                    dict->add(toTString(key), "NULL");
             }
         }
     }
@@ -478,18 +503,18 @@ bool RDARScriptStringManager::loadStringFile(std::istream* in, const char* path,
     int count = dict->getCount() - 1;
     for (int i = 0; i < count; ++i)
     {
-        const char* k0 = dict->getKey(i);
-        const char* k1 = dict->getKey(i + 1);
-        if (k0 != 0 && k1 != 0 && std::strcmp(k0, k1) == 0)
+        // ORIG 0x564b：strcmp/printf 的 getKey 均无具名槽（P0 实参内联），
+        // 第 2 实参（i+1）先求值。
+        if (std::strcmp(dict->getKey(i), dict->getKey(i + 1)) == 0)
         {
-            std::printf("%s, %s \n", k0, k1);
+            std::printf("%s, %s \n", dict->getKey(i), dict->getKey(i + 1));
             foundDuplicate = true;
             if (err != 0)
             {
                 ErrorLog e;
                 e.m_code = static_cast<int>(0x80000002);
                 e.m_message = path;
-                e.m_message += dict->getKey(i);
+                e.m_detail = dict->getKey(i);
                 err->push_back(e);
             }
         }
@@ -503,60 +528,68 @@ bool RDARScriptStringManager::loadStringFile(std::istream* in, const char* path,
     return false;
 }
 
-// b28d-21: DIFF/N 封顶 — 残差 N82 帧/槽（137 vs 143）+ N89 模板内联；
-// 语义/调用序（fopen/fprintf/fclose）全等。ORIG 0x8aa50bc。
-void RDARScriptStringManager::writeStringFile(int table)
+// b28d-solo: ORIG 0x8aa50bc 尾部 `mov $0x1,%eax` / `mov $0x0,%eax` 两条返回
+// 路径 ⇒ 真实返回 bool（P159；返回类型不入 mangled，全仓 0 调用点）。
+bool RDARScriptStringManager::writeStringFile(int table)
 {
     // ORIG 0x8aa50bc：写 "Script/<文件名>"，逐条 "key>value\n"，value 内 '\n' 转义
-    // 为 "\\n"。
-    const char* fname = fileList_.GetFileName(table);
-    if (fname == 0)
-        return;
-
+    // 为 "\\n"。ORIG 对 GetFileName 结果无判空（P171 照抄）。
     char path[512];
-    ss_sprintf(path, "Script/%s", fname);
+    ss_sprintf(path, "Script/%s", fileList_.GetFileName(table));
     std::FILE* fp = std::fopen(path, "w");
-    if (fp == 0)
-        return;
-
-    if (static_cast<unsigned>(table) < dictionaries_.size())
+    // ORIG 0x8aa510b：fp 槽比零物化 `setne %al; test %al,%al; je <尾 mov $0>`
+    // ⇒ while+return 形（P225/P194）。
+    while (fp != 0)
     {
-        StringDictionary* d = dictionaries_[table];
-        int n = d->getCount();
-        for (int i = 0; i < n; ++i)
+        if (static_cast<unsigned>(table) < dictionaries_.size())
         {
-            const char* key = d->getKey(i);
-            const char* value = d->getValue(i);
-            char buf[1024];
-            std::strcpy(buf, (value != 0) ? value : "");
-
-            if (key != 0)
+            // ORIG -0x28 槽存 operator[] 引用地址（P157/P183），循环尾每轮重调
+            // getCount（无 n 具名局部）。
+            StringDictionary* const& d = dictionaries_[table];
+            for (int i = 0; i < d->getCount(); ++i)
             {
-                // '\n' → "\\n"：从 '\n' 处右移剩余串，插入 '\' 和 'n'。
-                for (char* p = buf; *p != '\0'; ++p)
+                const char* key = d->getKey(i);
+                char buf[1024];
+                // ORIG：getValue 结果直接作 strcpy 第 2 实参（无三目/无具名 value）。
+                std::strcpy(buf, d->getValue(i));
+
+                if (key != 0)
                 {
-                    if (*p == '\n')
+                    // '\n' → "\\n"：从 '\n' 处右移剩余串，插入 '\' 和 'n'。
+                    for (char* p = buf; *p != '\0'; ++p)
                     {
-                        int len = 1;
-                        char* q = p;
-                        while (*(++q) != '\0')
-                            ++len;
-                        char* r = p + len;
-                        for (int cnt = len; cnt >= 0; --cnt)
+                        if (*p == '\n')
                         {
-                            r[1] = *r;
-                            --r;
+                            // ORIG 槽深（浅→深）q(-0x10) < r(-0x14) < len(-0x18)
+                            // ⇒ 声明序取反序（后声明浅，P212 槽向）。
+                            int len = 1;
+                            char* r;
+                            char* q = p + 1;
+                            while (*q != '\0')
+                            {
+                                ++len;
+                                ++q;
+                            }
+                            r = p + len;
+                            // ORIG 0x5200：增量段先 `subl $1,cnt` 后 `subl $1,r`
+                            // ⇒ 逗号增量形（--cnt, --r）。
+                            for (int cnt = len; cnt >= 0; --cnt, --r)
+                            {
+                                r[1] = *r;
+                            }
+                            *p = '\\';
+                            ++p;
+                            *p = 'n';
                         }
-                        *p = '\\';
-                        ++p;
-                        *p = 'n';
                     }
+                    std::fprintf(fp, "%s>%s\n", key, buf);
                 }
-                std::fprintf(fp, "%s>%s\n", key, buf);
             }
         }
+        std::fclose(fp);
+        return true;
     }
-    std::fclose(fp);
+    return false;
 }
 
 int RDARScriptStringManager::getTagSizeInFile(int table)
@@ -583,51 +616,63 @@ void* RDARScriptStringManager::getStringFileList()
     return this;
 }
 
-// b28d-21: DIFF/N 封顶 — p167 MISSING 6 项均为 std::string D1/C1ERKSs（ORIG 多
-// 4 次析构 + 2 次拷贝构造的临时串，N86/N89 族）；残差 N82 帧/槽（274 vs 209）。
-// ORIG 0x8aa60b0。
+// b28d-solo-N 封顶（EH 尾段）：前 185 条逐条全等（含两处死拷贝 std::string(s)、
+// 局部 OPEN/CLOSE、find/rfind 截断 short、三处 substr 的重复 strlen）；残差全在
+// 函数尾部 EH cleanup 决策链——ORIG 每析构点前发
+// `test %esi,%esi; jne L; mov $0,%esi; jmp; L: mov $1,%esi`（4.1 landing-pad 决策），
+// 4.4 直接顺序析构，属 N91/N104 族（跨版本 EH 结构，无源形解）。返回类型已按
+// P159 由 void 改 bool（ORIG 尾 `mov %ebx,%eax`，ebx=1/0）。ORIG 0x8aa60b0。
 bool RDARScriptStringManager::changeSpacilTagStr(std::string& s)
 {
     // ORIG 0x8aa60b0：把 "<URL LINK>内文</URL LINK>" 转为 0x1c 内文 0x1d，
-    // 尾部残留追加，最后补 "\n"。任何初始条件不满足返回 0 且不修改 s；
-    // 成功替换返回 1。
-    static const char* OPEN = "<URL LINK>";
-    static const char* CLOSE = "</URL LINK>";
-
+    // 尾部残留追加，最后补 "\n"。任何初始条件不满足返回 false 且不修改 s。
+    // 逐条对齐要点：① 两处死拷贝 std::string(s)（ORIG 0x60d2/0x60e4，只析构
+    // 不读，P184 照抄）；② OPEN/CLOSE 为**局部** const char*（ORIG -0x24/-0x20
+    // 槽写入，非 static 立即数折叠）；③ find/rfind 结果截断存 short（ORIG
+    // `mov %ax,-0x1c/-0x1a` + `cmpw $0xffff`，npos→-1）；④ 三处 substr 的
+    // strlen 各写两次（ORIG 重复 call）；⑤ 正极性包裹 `!empty() && !empty()`
+    // （ORIG `xor $1;test;je` 链，P214①）。
     if (s.empty())
         return false;
 
-    std::string::size_type posOpen = s.find(OPEN, 0);
-    std::string::size_type posClose = s.rfind(CLOSE, std::string::npos);
-    if (posOpen == std::string::npos || posClose == std::string::npos ||
-        posOpen == posClose)
-    {
+    std::string deadCopy1 = s;
+    std::string deadCopy2 = s;
+    const char* OPEN = "<URL LINK>";
+    const char* CLOSE = "</URL LINK>";
+
+    short posOpen = s.find(OPEN, 0);
+    if (posOpen == -1)
         return false;
-    }
+    short posClose = s.rfind(CLOSE, std::string::npos);
+    if (posClose == -1)
+        return false;
+    if (posOpen == posClose)
+        return false;
 
     std::string part1 = s.substr(0, posOpen);
-    std::string partInner =
-        s.substr(posOpen + std::strlen(OPEN), posClose - posOpen - std::strlen(OPEN));
-    std::string partTail =
-        s.substr(posClose + std::strlen(CLOSE), s.length() - posClose - std::strlen(CLOSE));
+    std::string partInner = s.substr(
+        posOpen + std::strlen(OPEN), posClose - posOpen - std::strlen(OPEN));
+    std::string partTail = s.substr(
+        posClose + std::strlen(CLOSE), s.length() - posClose - std::strlen(CLOSE));
 
-    if (part1.empty() || partInner.empty())
-        return false;
+    if (!part1.empty() && !partInner.empty())
+    {
+        std::string out = part1;
+        out += static_cast<char>(0x1c);
+        out += partInner;
+        out += static_cast<char>(0x1d);
+        if (!partTail.empty())
+            out += partTail;
+        out += "\n";
 
-    std::string out = part1;
-    out += static_cast<char>(0x1c);
-    out += partInner;
-    out += static_cast<char>(0x1d);
-    if (!partTail.empty())
-        out += partTail;
-    out += "\n";
-
-    if (out.empty())
-        return false;
-
-    s.clear();
-    s = out;
-    return true;
+        if (!out.empty())
+        {
+            s.clear();
+            s = out;
+            return true;
+        }
+    }
+    return false;
 }
 
 // b28d-21: IDENTICAL（50=50）— 同 D1：迭代器直构 + end 缓存 + `it++` + `delete *it`。

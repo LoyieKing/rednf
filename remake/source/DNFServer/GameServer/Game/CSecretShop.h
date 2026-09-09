@@ -55,7 +55,10 @@ public:
     virtual bool BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
                          int count) = 0;   // vtable 槽 0（唯一 virtual）
 
-    int CheckLimit(SECRET_SHOP_INFO& info, int itemIdx, int count, int& remain);
+    // [b28d-solo-CSecretShop] 返回类型 int→bool：ORIG 0x085fb9b4/0x085fbc26 两处
+    // 调用点 `call CheckLimit; xor $0x1,%eax; test %al,%al; je`（P292/P315 判据，
+    // bool callee + 裸 `if(!call())` 唯一解）。返回类型不入 mangled，无布局影响。
+    bool CheckLimit(SECRET_SHOP_INFO& info, int itemIdx, int count, int& remain);
     int InsertItemIntoInventory(CUser* user, int itemIdx, int count,
                                 Inven_Item& out);
     void SendSecretShopBuyItem(CUser* user, int slot, Inven_Item& item, int a,

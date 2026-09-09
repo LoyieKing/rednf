@@ -243,13 +243,14 @@ bool CDungeonJobNode::InsertDB(const DungeonKey& key, int job)   // SIGFIX: bool
 CDungeonSuccessNode::CDungeonSuccessNode()
     : m_partyMap(), m_jobMap()
 {
-    // [b28d-solo-CDungeonNode · N104 + 位域窄化 封顶] ORIG 0x08484dda：循环变量 job/g/sub
+    // [b28d-solo-CDungeonNode · N104 封顶 + 位域已修] ORIG 0x08484dda：循环变量 job/g/sub
     // 声明于函数头且先置 0（P191；ORIG -0x214/-0x10/-0xc 三条 movl $0，g/sub 声明序按 ORIG
     // 槽深排定）；两段循环各带原码死比较 `find != end()`（P171 照抄）；make_pair 第二参右值。
-    // STGrowthType 位域化（m_sub:4/m_grow:3/m_rsv:1）复现 ORIG RMW 掩码 0xfffffff0/0xffffff8f。
-    // 残差 = N104（两循环 EH landing 相对序：4.1 集中置尾 vs 4.4 就地内联；262 vs 261）
-    //        + 位域窄化 lowering（ORIG `shl$4; sar$4,%al`/`shl$5; sar$5,%al` vs 4.4
-    //          `and$0xf`/`and$0x7`；cast 形反多 movsbl 两条，已回退最优形）。
+    // STGrowthType 位域（m_sub:4/m_grow:3/m_rsv:1）复现 ORIG RMW 掩码 0xfffffff0/0xffffff8f；
+    // 底层类型改 signed char 复现 ORIG `shl$4; sar$4,%al` / `shl$5; sar$5,%al` 有符号窄化
+    // （STGrowthType.h；探针 /tmp/b28d_s218_bf.cpp w2/w6 实证）⇒ 位域段 4 处 DIFF 已归零。
+    // 残差 = N104（两循环 EH landing 相对序：4.1 集中置尾 vs 4.4 就地内联，且 4.4 多发
+    //        块间 jmp；块内容逐条全等、槽位集全等、p167 33/33 CLEAR）；262 vs 263。
     int job = 0;
     int g = 0;
     int sub = 0;
@@ -338,8 +339,10 @@ int CDungeonSuccessNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
     // [b28d-solo-CDungeonNode · N107 封顶] ORIG 0x084851de：两段均 find sret 具名
     // （-0x1c/-0x20）、end 临时（-0x18/-0x14，具名 e/eJob 时 4.4 反置，已删）；第二段补具名
     // `CSuccessJobNode* node = &itJob->second;`。残差 = N107（`&stat->m_charac[0x20]`/
-    // `stat->m_charac`/`&stat->m_job` 三处取址 4.4 恒 add+mov vs ORIG lea，六形探针不可造）；
-    // 78 vs 81（+3 = 三处 N107 各多 1 条）。
+    // `stat->m_charac`/`&stat->m_job` 三处取址 4.4 恒 add+mov vs ORIG `lea K(%eax),%reg`；
+    // 本轮 20 形探针复证不可造：/tmp/b28d_s218_probe{,2,3}.cpp 覆盖 reinterpret_cast/
+    // char* 算术/整型加法回 cast/union 视图/真实具名成员/pack(1)/数组引用/指针形参等，全产 add）。
+    // 78 vs 81（+3 = 三处 N107 各多 1 条）；p167 10/10 CLEAR。
     std::map<int, Party>::iterator it =
         m_partyMap.find(*reinterpret_cast<const int*>(&stat->m_charac[0x20]));
     if (it != m_partyMap.end())
@@ -369,8 +372,10 @@ CSuccessJobNode::CSuccessJobNode()
     // [b28d-solo-CDungeonNode · N104 封顶] ORIG 0x08484c30：循环体内保留原码的死比较
     // `find(job) != end()`（operator!= 结果被丢弃，无 test/je——P171 照抄）；
     // make_pair 第二参为右值 `JobParty&&`（mangled `IRi7JobPartyE...OS7_`）。
-    // 残差 = N104（4.4 EH cleanup 链比 ORIG 多 1 条 jmp：正常路径尾块就地内联 vs
-    // 4.1 集中置尾；块内容逐条全等）；90 vs 89。
+    // 残差 = N104：4.4 在 cleanup1（CharacterD1Ev 段）尾多发 1 条 `jmp <cleanup2>`，
+    // ORIG 两 landing 块物理相邻、fall-through 直达（无 jmp）；块内容逐条全等、
+    // 槽位集全等、p167 调用点差集 12/12 CLEAR。89 vs 90。
+    // N104 为 4.4 的 EH landing 布局固有产物（throw() 法不适用：两侧 landing 均在）。
     for (int job = 2; job <= 4; ++job)
     {
         if (m_jobPartyMap.find(job) != m_jobPartyMap.end())
@@ -450,8 +455,10 @@ int CSuccessJobNode::UpdateCharacter(SIG_DUNGEON_DATA_STATISTIC* stat)
     // `&it->second.m_count` 存具名引用槽 -0xc（P0 槽往返⇒原码有具名局部）；
     // 尾段仅一次 Character::operator+=（无 m_f3c 自增，ORIG 无该指令，已删）。
     // 残差 = N107（`&stat->m_charac[0x20]`/`&stat->m_charac[0]` 取址：4.4 恒
-    // `add $K,%reg; mov %reg,%reg2` vs ORIG `lea K(%eax),%ecx`；六形探针不可造）；
-    // 46 vs 45（+1 = N107 的 add+mov 比 lea 多 1 条）。
+    // `add $K,%reg; mov %reg,%reg2` vs ORIG `lea K(%eax),%ecx`；本轮 20 形探针
+    // /tmp/b28d_s218_probe{,2,3}.cpp 复证不可造；第 3 处 `this+0x18` 的 eax/edx
+    // 角色互换系前两处连锁）。
+    // 46 vs 45（+1 = N107 的 add+mov 比 lea 多 1 条）；p167 5/5 CLEAR。
     std::map<int, JobParty>::iterator it =
         m_jobPartyMap.find(*reinterpret_cast<const int*>(&stat->m_charac[0x20]));
     if (it != m_jobPartyMap.end())

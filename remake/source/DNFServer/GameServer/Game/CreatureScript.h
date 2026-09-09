@@ -53,7 +53,10 @@ struct selectiveGrowCreatureInfo
 {
     selectiveGrowCreatureInfo();
     void clear();
-    unsigned char m_usingExpItem;   // +0x00（grow 判定）
+    // [b28d-solo-CreatureScript] P136/P300：ORIG Set 0x0833ca53 段对 +0x18c→+0x4c
+    // 直传 `movzbl; mov %dl`（无 bool 归一化）⇒ 源字段为 bool（uchar 源 4.4 多
+    // test+setne；探针 /tmp/probe_bool.cpp s1/s3）。1 字节宽/偏移/sizeof 不变。
+    bool m_usingExpItem;            // +0x00（grow 判定）
     char m_pad1[3];
     int m_growLevel;                // +0x04
     int m_growATypeCreature;        // +0x08
@@ -99,15 +102,26 @@ public:
     int m_field20;                  // +0x20
     unsigned char m_directionCorrect;  // +0x24
     char m_pad25[0x28 - 0x25];      // +0x25
-    int m_moveSpeed[5];             // +0x28..+0x38
+    // [b28d-solo-CreatureScript] ORIG clear 0x0833dfac 对 moveSpeed 组的两条访问：
+    // [i]   → `add $8,%edx;  movl $0,0x8(%eax,%edx,4)`（0x28 拆 disp8+index8）
+    // [i+2] → `add $0xc,%edx; movl $0,(%eax,%edx,4)`（0x30 全折进索引、disp0）
+    // 4.4 仅对**独立成员数组**（非 union 内嵌套数组）保留后者（探针 /tmp/probe_mv3.cpp
+    // b1 vs a1）⇒ 原 m_moveSpeed[5] 拆为两个真实成员数组。
+    int m_moveSpeedLo[2];           // +0x28..+0x2c（原 m_moveSpeed[0..1]）
+    int m_moveSpeedHi[3];           // +0x30..+0x38（原 m_moveSpeed[2..4]）
     int m_gravity;                  // +0x3c
     int m_startLevel;               // +0x40
     int m_permissionLevel;          // +0x44
     int m_maxLevel;                 // +0x48
     int m_parentMaxLevel;           // +0x4c
-    int m_artifactSlotRed;          // +0x50
-    int m_artifactSlotBlue;         // +0x54
-    int m_artifactSlotGreen;        // +0x58
+    union {
+        struct {
+            int m_artifactSlotRed;      // +0x50
+            int m_artifactSlotBlue;     // +0x54
+            int m_artifactSlotGreen;    // +0x58
+        };
+        int m_artifactSlots[3];         // +0x50..+0x58（ORIG clear 循环 scaled 视图）
+    };
     int m_learnOverSkillLevel;      // +0x5c
     int m_skillMP;                  // +0x60
     int m_overSkillMP;              // +0x64

@@ -388,7 +388,10 @@ public:
     BindCube_ScriptData();
     ~BindCube_ScriptData();
 
-    int m_rarityDicision[3][4];                          // +0x000（LoadScript [rarity dicision] 写入区）
+    // [b28d-solo-CItemList] P211 字段侧旋钮：ORIG LoadScript 0x832c65e 的
+    //   `m_rarityDicision[i][j] = ScanInt()` store 为 RHS-first + `mov %eax,%edx`
+    //   中转（异型特征）⇒ 字段改 unsigned int（sizeof/偏移/布局零变化）。
+    unsigned int m_rarityDicision[3][4];                 // +0x000（LoadScript [rarity dicision] 写入区）
     std::vector<OUTPUT_ITEM_STR> m_bindItems[0x3b][4];   // +0x030（行步 0x30；列=装备类别）
     std::vector<OUTPUT_ITEM_STR> m_resultItems[4];       // +0xb40（_AddItem 按类别入表）
     std::map<int, forceRule_ResultItem> m_forceRules;    // +0xb70（绝对 +0xb74）

@@ -56,7 +56,6 @@ void STStatChange::clear()
     m_field4 = 0;
     m_field8 = 0;
 }
-STStatChange::~STStatChange() {}
 
 // ---- STStatChangeVector（ORIG C1 0x089c32c8 / clear 0x089c330a /
 //      D1 0x089c3ace / operator= 0x089c40fe）----
@@ -204,30 +203,39 @@ STStackableScript::STStackableScript()
     Clear();
 }
 
+// [b28d-solo-STStackableScript] NEAR（orig=643 our=643，ndiff 44 全为块内
+// 迭代器槽号分配；p167 仅 STItemScript C2/D2 vs D1 同址别名伪差（P93）。
+// 本轮修正：for 布局 + src_pair 逐成员赋值（p.first/p.second）+ insert 传值对。
 STStackableScript::STStackableScript(STStackableScript& other)
 {
     operator=(other);
     if (!other.m_module4bc.empty())
     {
-        std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator it = other.m_module4bc.begin();
-        while (true)
+        // ORIG 0x0898fbf7..0x0898fd68：4.1 for 布局（begin 后 jmp 尾条件、每次
+        // 迭代重调 other.end()）；循环体内 dst_end=end() → it->first(ptEv) →
+        // find → ne(found,dst_end)；body 为 src_pair 逐成员赋值
+        // （src_pair.first=it->first；src_pair.second=new ...；*second=*it->second）。
+        // [b28d-solo-STStackableScript] N93/P212 封顶：ORIG 槽序（4.1 块内先声明
+        // 深）it(-0x38) > dst_end(-0x30) > found(-0x2c)；4.4 块内先声明浅
+        // （dst_end -0x34 / found -0x38，方向相反）。三种改写实测：
+        // ①三迭代器提函数头：+3 C1Ev call、帧 +0x10（P50 反例）；
+        // ②found/dst_end 提 for 前：+2 C1Ev call、帧 +0x10（ndiff 24 但引入
+        //   EXTRA 调用）；③循环体内声明（本形）：orig=643 our=643、无额外 call、
+        //   残差仅槽号，ndiff 44 NEAR ⇒ 取 ③，p167 无缺口。
+        for (std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator it =
+                 other.m_module4bc.begin();
+             it != other.m_module4bc.end(); ++it)
         {
-            std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator end_tmp = other.m_module4bc.end();
-            if (!(it != end_tmp))
-            {
-                break;
-            }
             std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator dst_end = m_module4bc.end();
             std::map<ENUM_MODULE_TYPE, EquipmentParameterInfo*>::iterator found = m_module4bc.find(it->first);
             if (found != dst_end)
             {
                 std::pair<ENUM_MODULE_TYPE, EquipmentParameterInfo*> src_pair;
-                src_pair = *it;
-                EquipmentParameterInfo* p = new EquipmentParameterInfo();
-                *p = *it->second;
+                src_pair.first = it->first;
+                src_pair.second = new EquipmentParameterInfo();
+                *src_pair.second = *it->second;
                 m_module4bc.insert(src_pair);
             }
-            ++it;
         }
     }
 }
@@ -252,6 +260,8 @@ STStackableScript::~STStackableScript()
 // ORIG 0x089c418e：无 self 检查；基类 op= → arad op= → +0x18c →
 // 依序拷贝各容器/string/标量；STRecovery×2/STStatusRecovery 与
 // STBuff/STSummonMonster/STSummonApc 三个平凡区用 memcpy（ORIG call memcpy@plt）。
+// [b28d-solo-STStackableScript] DIFF→N-ptrfold 封顶（621 vs 627：6 处
+// self 守卫 4.4 折成 `this != &other` 且 memcpy 实参重算地址；p167 CLEAR 43=43）。
 STStackableScript& STStackableScript::operator=(const STStackableScript& other)
 {
     STItemScript::operator=(other);
@@ -298,7 +308,11 @@ STStackableScript& STStackableScript::operator=(const STStackableScript& other)
     m_package274 = other.m_package274;
     m_booster280 = other.m_booster280;
     m_package2a4 = other.m_package2a4;
-    // ORIG 对 6 个平凡区 memcpy 均带 self 守卫（cmp this+off vs other+off; je 跳过）
+    // ORIG 对 6 个平凡区 memcpy 均带 self 守卫（cmp this+off vs other+off; je 跳过）。
+    // [b28d-solo-STStackableScript] N-ptrfold：4.4 把 `&a->f != &b->f`（同偏移）
+    // 折成 `a != b`，且 memcpy 实参重算地址；ORIG 4.1 保留两次 add+cmp 并复用
+    // 地址寄存器跨 call。整数化守卫（(int)&f）可阻 fold 但 memcpy 段仍重算
+    // （探针 /tmp/probe_guard.cpp 四形实证：原形 +6、整数化 +30）⇒ 封顶。
     if (&m_recovery2b0 != &other.m_recovery2b0)
         memcpy(&m_recovery2b0, &other.m_recovery2b0, 0x11);
     if (&m_recovery2c4 != &other.m_recovery2c4)
@@ -380,6 +394,9 @@ STStackableScript& STStackableScript::operator=(const STStackableScript& other)
 }
 
 // ORIG 0x0899087a：赋值序严格照 ORIG 反编译逐条转写。
+// [b28d-solo-STStackableScript] AE（322=322）：+0x1c4/+0x1cc 两处
+// `mov $0,%edx; mov %edx,disp` 常量中转 = P238 float 字段形（m_1c4/m_1cc
+// 改 float + 0.0f；同时修真语义 bug：ImportStackableScript 写 ScanFloat）。
 void STStackableScript::Clear()
 {
     // [b28c-27] N18a：+0x1c4/+0x1cc 两处 ORIG `mov $0x0,%edx; mov %edx,disp`
@@ -412,9 +429,9 @@ void STStackableScript::Clear()
     m_option1bc.m_field2 = 0;
     m_1bf = 0;
     m_1c0 = 0;
-    m_1c4 = 0;
+    m_1c4 = 0.0f;
     m_1c8 = 0;
-    m_1cc = 0;
+    m_1cc = 0.0f;
     m_1d0 = 0;
     m_package268.clear();
     m_package274.clear();
@@ -687,6 +704,14 @@ static bool GetExpertJobValueCompoundRate(STItemScript* item)
 }
 
 
+// [b28d-solo-STStackableScript] DIFF→§6.2 三件套语义完成、byte 层 N89/N82 封顶：
+// ①p167 调用点差集 CLEAR（1174=1174，0 missing / 0 extra；本轮修三处语义缺口：
+//   [enchant] 段独立 static 三件套 __lookup_3/__init_lock_3/__inited_3（原复用
+//   主表，ORIG 089b6862 实证 6 组 static 而非 5 组）、[skill explain] 只比较一次
+//   （删多余 `if (!(line==...)) return false;`，ORIG 089b85d4 无该分支）、
+//   STStatChange/stLimitCubeResult 删用户空析构（P317，消 EXTRA D1 ×4）；
+// ②gap −49（orig 10197 / our 10246）；③槽位/帧差属 N82/N89（4.1 不按 lifetime
+//   复用槽 + libstdc++ 全内联），万行级解析件不再逐条强凑。
 bool ImportStackableScript(STStackableScript* script, const char* path,
                            bool flag, int idx)
 {
@@ -3045,25 +3070,30 @@ break;
         {
                 break;                        // ScanType EOF → 结束本段
             }
-                    // ORIG 089b6862/089b690b/089b695a/089b6a74/089b6b08/089b6ccf：
-                    // 本内层分发**复用主表 __lookup / __init_lock / __inited**
-                    // （guard 与 insert/find 目标符号均无 _N 后缀，实证 089b6a8f
-                    //  insert 落位 &__lookup），[/enchant](0x26d0)/[pvp](0x26d3)
-                    // 两条目属主表条目；主表已建成时两 find 命中、未建成时走
-                    // 逐例 insert 链（etag==0 仅竞态可达，与原 if 链语义一致）。
+                    // [b28d-solo-STStackableScript] ORIG 089b6862..089b6ccf：本内层
+                    // 分发有**独立 static 三件套**（map 0x94fdfe8 / SpinLock
+                    // 0x94fe000 / __inited 0x94fe004；guard 0x94fdd08/0x94fdd10 =
+                    // nm 实证 `_ZGVZ...E8__lookup_3`/`E11__init_lock_3`，故命名
+                    // 必须是 __lookup_3 而非 _5，否则静态局部符号名与 ORIG 不符）。
+                    // 原「复用主表」判词被 p167 推翻（ORIG 比复用多一组 map C1 +
+                    // SpinLock C1 + guard×2）。static 声明落 ScanType 之后 = 每轮
+                    // 穿 guard（P177），[/enchant](0x26d0)/[pvp](0x26d3) 插本表。
+            static std::map<char const*, int, less_TCHAR> __lookup_3;
+            static SpinLock __init_lock_3;
+            static bool __inited_3 = false;
             int etag;
             for (;;)
             {
-                        if (__inited)
+                        if (__inited_3)
             {
-                            std::map<char const*, int, less_TCHAR>::const_iterator it3 = __lookup.find(line.c_str());
-                            etag = (it3 != __lookup.end()) ? it3->second : -1;
+                            std::map<char const*, int, less_TCHAR>::const_iterator it3 = __lookup_3.find(line.c_str());
+                            etag = (it3 != __lookup_3.end()) ? it3->second : -1;
                     break;
                 }
-                        __init_lock.enter();
-                        if (__inited)
+                        __init_lock_3.enter();
+                        if (__inited_3)
                 {
-                            __init_lock.leave();
+                            __init_lock_3.leave();
                     continue;
                 }
                 etag = 0;
@@ -3071,10 +3101,10 @@ break;
             }
             if (etag == 0)
                 {
-                        __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[/enchant]", 0x26d0));
-                        __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[pvp]", 0x26d3));
-                        __init_lock.leave();
-                        __inited = true;
+                        __lookup_3.insert(std::map<char const*, int, less_TCHAR>::value_type("[/enchant]", 0x26d0));
+                        __lookup_3.insert(std::map<char const*, int, less_TCHAR>::value_type("[pvp]", 0x26d3));
+                        __init_lock_3.leave();
+                        __inited_3 = true;
             }
             else if (etag == 0x26d0)
             {
@@ -3674,17 +3704,16 @@ break;
                         {
                             return false;
                         }
-                        // ORIG 089b8559：每个 [skill] 后立即构造并插入
-                        // 当前 key/value；随后的 token 必须是 [skill explain]。
+                        // ORIG 089b8507..089b85d4：**[skill explain] 只比较一次**
+                        // （相等则 ScanStr(&val.m_strC)，随后无条件 make_pair+insert
+                        // 并 jmp 回内层循环头）；原代码在 insert 后又比较一次并
+                        // return false 是多余检查（p167 EXTRA operator== +1 实证），
+                        // ORIG 无该分支，删除。
                         if (line == "[skill explain]")
                         {
                             ScanStr(&val.m_strC);          // ORIG 忽略返回值
                         }
                         script->m_enchant3f4.insert(std::make_pair(key, val));
-                        if (!(line == "[skill explain]"))
-                        {
-                            return false;
-                        }
                     }
                     else if (line == "[/check]")
                     {
@@ -4504,6 +4533,9 @@ break;
 }
 
 
+// [b28d-solo-STStackableScript] AE（172=172）：local_d 由 char 改 bool（P136/P32：
+// bool 源→bool 字段直存，char 源恒多 `cmpb $0; setne`），`local_15 != true`
+// 改 `!local_15`（ORIG 089ae947 `movzbl; xor $1; test; je` = N122 取反形）。
 bool StackableScriptSpecialMonsterDrop(STStackableScript* script,
                                        std::string str, const char* path)
 {
@@ -4518,12 +4550,12 @@ bool StackableScriptSpecialMonsterDrop(STStackableScript* script,
     (void)path;
     std::string local_14;
     bool local_15;
-    char local_d;
+    bool local_d;
     if (str == "[special monster drop]")
     {
         local_15 = false;
         local_d = ScanInt(&local_15) != 0;
-        if (local_15 != true)
+        if (!local_15)
         {
             return false;
         }

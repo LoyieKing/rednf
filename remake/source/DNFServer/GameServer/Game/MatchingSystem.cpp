@@ -30,7 +30,7 @@ class CTournamentMatch : public IMatch { public: CTournamentMatch() {} };
 // 复杂匹配子系统：定义与构造逻辑未在本批次交付（属其它匹配域批次）。
 // 此处仅按 ORIG 符号名预留，避免与前向声明冲突。
 
-CMatchingSystem::CMatchingSystem()
+CMatchingSystem::CMatchingSystem() throw()
 {
     // ORIG 0x085dfac6：m_systems[0..5] 置 0。
     for (int i = 0; i < 6; ++i)

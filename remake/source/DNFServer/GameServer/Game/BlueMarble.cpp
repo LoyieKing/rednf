@@ -39,17 +39,17 @@
 // BlueMarble 实现
 // ============================================================================
 
-// [b28d-solo-BlueMarble N(P75/N4)] ORIG 0x080d8a5c seed 循环：先载
-// seedValue(%eax) 再算 receiver（ecx/edx + lea）；4.4 恒 receiver 先
-// （eax/edx + add）。P226 语句表达式 / `(*(m_pRands+i))` 指针形 / 具名
-// 实参三形实测均零效（实参装载时刻由调度决定）⇒ 结构性 DIFF 封顶，
-// 104=104 gap 0，唯 5 行装载序差。
+// [b28d-solo-BlueMarble AE] seed 循环修复：`volatile unsigned long seedValue`
+// 强制 4.4 先求值实参再算 receiver，逐条复现 ORIG 0x080d8b22 段
+// `mov -0x20(%ebp),%eax; …; lea (%ecx,%edx,1),%edx`（P316 volatile 求值序；
+// 非 volatile 恒 receiver 先 + `add`）。旧 N(P75/N4) 判词（P226 语句表达式/
+// 指针形/具名实参无效）作废；104=104 gap 0。ORIG 0x080d8a5c
 BlueMarble::BlueMarble()
     : m_memoryPoolIndex(-1), m_state(BlueMarbleState::T_0), m_diceNumber(0), m_blueMarbleMap(0),
       m_pScript(0), m_maxBoardSize(0)
 {
     m_pRands = new CMTRand[4];
-    unsigned long seedValue = (unsigned long)time((time_t*)0);
+    volatile unsigned long seedValue = (unsigned long)time((time_t*)0);
     for (int i = 0; i <= 3; ++i)
     {
         m_pRands[i].seed(seedValue);
@@ -143,11 +143,14 @@ void BlueMarble::setUserState(int seat, BlueMarbleUserState::T state)
     m_users[seat].setUserState(state);
 }
 
-// [b28d-solo-BlueMarble NEAR(14)/N93] P234 去掉 `std::move(zone)`（ORIG 无
-// out-of-line move call，省 5 条）；P190 float 取址 pad 撑帧 +4 使 mm/i/it
-// 槽基与 ORIG 对齐（179=179 gap 0）。余 14 条 = 块内 zone（-0x54 vs ORIG
-// -0x1c）与 make_pair sret（-0x20 vs -0x24）槽方向差（4.4 块内槽从深起、
-// 4.1 从浅起；提函数头 P212 实测反劣 46）⇒ N93/N82附 封顶。ORIG 0x080d7afc
+// [b28d-solo-BlueMarble AE] 关键修复：`int zone` 具名局部改内联右值实参
+// `mm.insert(std::make_pair(m_users[i].getBoardZone(), i))`——ORIG zone 槽
+// -0x1c 是 make_pair<int,int&> 右值形参的匿名临时物化（非具名局部），4.4 据此
+// 把临时区整体对齐 ORIG（zone -0x1c / sret -0x24 / pair -0x2c / insert 临时
+// -0x30；179=179 gap 0）；并删除原 P190 float framePad（内联后自然对齐，
+// pad 反致整体深移 4）。具名 zone 三形（块内/头部/先声明后赋值）恒落 -0x54
+// ⇒ 原 N93/N82附 判词作废。P234 去 `std::move(zone)`（ORIG 无 out-of-line
+// move call）保留。ORIG 0x080d7afc
 int BlueMarble::setUserGrade(int grade)
 {
     std::multimap<int, int, std::greater<int> > mm;
@@ -622,14 +625,16 @@ int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
     return 0;
 }
 
-// [b28d-solo-BlueMarble NEAR(42)/N82] 三处结构修复：①1024B 数组声明移入 if 块
+// [b28d-solo-BlueMarble NEAR(26)/N82附] 三处结构修复：①1024B 数组声明移入 if 块
 // （ORIG rep stos 在 user==0 判空之后，0x080d9c28-3e）；②memoryPoolIndex/
 // characNo/m_id 加纯 register 提示复现 ORIG edi/esi/ebx 跨调用保活
 // （P231/P248 三条件；push edi/esi/ebx 齐备，无 asm 绑定）；③空 else{return;}
 // 复现尾 `jmp <epilogue>; nop` 岛（P285）。137=137 gap 0。
-// 余 42 条 = 4.4 把大数组放最深槽（buf -0x430 vs ORIG -0x424、三标量
-// -0x28/-0x24/-0x20 vs -0x434/-0x430/-0x42c、log -0x30 vs -0x24）⇒ 槽分配
-// 策略差 N82/P112（块内提头/标量 register/全头部声明四形实测均不翻）。
+// 余 26 条 = 4.4 标量/聚合分区（N82附）：buf -0x430 vs ORIG -0x424、三标量
+// -0x28/-0x24/-0x20 vs ORIG -0x434/-0x430/-0x42c、log -0x30 vs -0x24。
+// 本轮再实测两形均不翻：标量移入 if 块（buf 之后）、三标量包局部聚合 struct
+// （劣化 DIFF，深槽多 -0x43c/-0x44c）；连同旧「块内提头/标量 register/全头部
+// 声明」共六形 ⇒ N82附/P112 封顶。
 // ORIG 0x080d9c12
 void BlueMarble::checkBlueMarbleUserConfirm(CUser* user)
 {
@@ -1153,16 +1158,18 @@ int BlueMarble::setResultItem(int seat, Inven_Item& item)
     }
 }
 
-// [b28d-solo-BlueMarble N(N7/N102)] P0 去缓存/register 化 + P235 union 视角后
+// [b28d-solo-BlueMarble NEAR(N7/N109)] P0 去缓存/register 化 + P235 union 视角后
 // 177=177 gap 0。修法：addInfo/msg268/msg269/mailRet 四个具名局部内联
 // （ORIG 分别直入 %ebx、直作 strncpy 实参、`test;sete;test;je` 无槽比较）、
 // serverGroup/len 纯 register 复现 callee-saved 保活（P231/P248）、characNo
 // 内联实参、MSG 载荷改 char[0x145]+union{raw,MSG_MAILBOX_SEND msg} 视角
 // （P235；完整类型成员直访问使三字段 store 折叠为 -0x236/-0x232 绝对 disp）。
-// 余 14 条：①%esi/%ebx 角色互换（ORIG serverGroup→ebx、len→esi；4.4 按首次
-// 使用恒 serverGroup→esi，声明序交换实测无效 ⇒ N7/N109）；②strncpy dst
-// `lea -0x26f; add $0x11` vs 4.4 `lea -0x26f; lea 0x11` 且 dst 计算提前
-// （数组退化 add 寻址 ⇒ N102/N4 封顶）。ORIG 0x080d800e
+// 本轮修复 ②：strncpy dst 改 `local_273.raw + 0x11`（数组退化 + 常量偏移）
+// 逐条复现 ORIG 0x080d8273 `lea -0x26f; add $0x11`；具名结构成员
+// `msg.m_name11` 恒折 `lea 0x11(%eax)` ⇒ 原 N102/N4 判词作废（DIFF→NEAR）。
+// 余 N7/N109：%esi/%ebx 角色互换（ORIG serverGroup→ebx、len→esi；4.4 按首次
+// 使用恒 serverGroup→esi；声明序交换、声明/赋值分离两形实测均不翻）。
+// ORIG 0x080d800e
 int BlueMarble::insertItem(int seat, Inven_Item& item, eItemAddReason reason)
 {
     // ORIG 0x080d801c `mov 0x7(%eax),%ebx`（Inven_Item::m_addInfo2）直入

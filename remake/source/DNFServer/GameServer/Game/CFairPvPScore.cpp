@@ -37,6 +37,18 @@ extern CDataManager* G_CDataManager();
 namespace fair_pvp
 {
 
+// ---- TU-local 线格式视图 ----------------------------------------------------
+// getData/loadData 的条目基址为 (idx+2)*0x10，ORIG 对该基址用
+// `lea 0x2(%ebx),%ecx; shl $0x4,%ecx` 后以 disp 0x10/0x14 访问（084a55fc/
+// 084a563b 段）；4.4 若直接写 `((Entry*)(sig+(idx+2)*0x10))[1]` 会把 +0x10
+// 折进基址（add $0x3; shl $4）。改用「双条目」具名视图令偏移全部落 disp。
+// POD、无成员函数 ⇒ 不发射任何符号；sizeof/偏移与 SIG_FAIR_PVP_SCORE_ENTRY×2 一致。
+struct FairPvpScoreEntryPair
+{
+    SIG_FAIR_PVP_SCORE_ENTRY m_e0;    // +0x00
+    SIG_FAIR_PVP_SCORE_ENTRY m_e1;    // +0x10（= (idx+2)*0x10 + 0x10）
+};
+
 // ---- ORIG 0x84a47dc CFairPvPScore::CFairPvPScore() --------------------------
 CFairPvPScore::CFairPvPScore()
     : charac_expand::CData()
@@ -129,80 +141,95 @@ bool CFairPvPScore::_saveData(CUser* pUser)
 }
 
 // ---- ORIG 0x84a55a8 getData(char*) const -----------------------------------
-// b28d-21: 已修 P167（`it->first/second` → `(*it).first/second`，消 2 处
-// _Rb_tree_const_iterator::operator-> ptEv）；余 N82 帧/槽（183 vs 218）+
-// P175（size()/at() 索引形）族。ORIG 0x84a55a8。
+// b28d-solo-CFairPvPScore 判词：DIFF·N 封顶（ORIG 183 vs 215；归一化 NDIFF 83
+// 全为 push esi 缺位引发的错位伪差 + 下列 N 族）。
+// 已修：p167 CLEAR（12=12；恢复 `it->` 三次 ptEv 084a6764 + 第三段 `it->second`
+// 整体结构赋值一次 ptEv）；索引单槽复用（三循环共用 -0xc）、迭代器 for 外初始化式、
+// 去 entry 指针缓存（P183）、双条目视图消 4.4 把 +0x10 折进基址。
+// 残余 N 归因：N7（ORIG 统计循环以 esi 缓存 this，4.4 恒用 ebx ⇒ push esi 缺位、
+// 帧 0x30 vs 0x34、全篇 difflib 错位）；N4/P30（`(idx+2)*0x10` 基址 + disp 的
+// scaled 写 `mov %dl,0x10(%ecx,%eax,1)` vs 4.4 先 lea 地址再 disp 写）；
+// N18a/N82（寄存器分配与槽号）。结构复原（ORIG 084a55a8 逐段实证）：
+// ① idx 单槽复用（三循环共用 -0xc；ORIG 头部 movl$0 与 for-init movl$0 成对）；
+// ② 迭代器为 for 外初始化式（begin() 直构 sret，无 C1Ev）；
+// ③ 条目基址 (idx+2)*0x10 每点重发（P183 禁指针缓存，旧版 entry 具名局部多一槽）；
+// ④ it-> 三次 ptEv（084a6764），第三段 `it->second` 整体结构赋值（一次 ptEv）。
 void CFairPvPScore::getData(char* pData) const
 {
     SIG_FAIR_PVP_SCORE* sig = reinterpret_cast<SIG_FAIR_PVP_SCORE*>(pData);
     int idx = 0;
-    for (std::map<JobKey, FAIR_PVP_SCORE_MODE_COUNT>::const_iterator it =
-             m_jobScore_.begin();
-         it != m_jobScore_.end() && idx <= 99; ++it, ++idx)
+    std::map<JobKey, FAIR_PVP_SCORE_MODE_COUNT>::const_iterator it =
+        m_jobScore_.begin();
+    for (idx = 0; it != m_jobScore_.end() && idx <= 99; ++it, ++idx)
     {
-        // ORIG 基址形态 (idx+2)*0x10 + 0x10（084a55e1 `lea 0x2;shl 4; movb 0x10(%ecx,%eax)`），
-        // 经具名条目视图写入，宽度逐字段与反汇编一致。
-        SIG_FAIR_PVP_SCORE_ENTRY* entry =
-            reinterpret_cast<SIG_FAIR_PVP_SCORE_ENTRY*>(pData + (idx + 2) * 0x10);
-        // b28d-21：P167 差集 EXTRA 为 _Rb_tree_const_iterator::operator->（ptEv）
-        // ⇒ ORIG 源码用 `(*it).` 形式（deEv），改回。
-        entry[1].m_job = (char)(*it).first.m_job;
-        entry[1].m_sub = (char)(*it).first.m_sub;
-        entry[1].m_cnt0 = (*it).second.m_cnt0;
-        entry[1].m_cnt1 = (*it).second.m_cnt1;
-        entry[1].m_cnt2 = (*it).second.m_cnt2;
+        // ORIG 基址形态 (idx+2)*0x10 + 0x10（084a55e1 `lea 0x2;shl 4; movb 0x10(%ecx,%eax)`）。
+        reinterpret_cast<FairPvpScoreEntryPair*>(
+            reinterpret_cast<char*>(sig) + (idx + 2) * 0x10)->m_e1.m_job =
+            (unsigned char)(unsigned int)it->first.m_job;
+        reinterpret_cast<FairPvpScoreEntryPair*>(
+            reinterpret_cast<char*>(sig) + (idx + 2) * 0x10)->m_e1.m_sub =
+            (unsigned char)(unsigned int)it->first.m_sub;
+        *(FAIR_PVP_SCORE_MODE_COUNT*)&reinterpret_cast<FairPvpScoreEntryPair*>(
+            reinterpret_cast<char*>(sig) + (idx + 2) * 0x10)->m_e1.m_cnt0 = it->second;
         ++sig->m_jobScoreCount;                          // 字节自增（ORIG movzbl/lea/movb）
     }
 
-    {
-        int i = 0;
-        for (std::list<unsigned char>::const_iterator it =
-                 m_recentResults_.begin();
-             it != m_recentResults_.end() && i <= 9; ++it, ++i)
-            sig->m_recentResults[i] = *it;
-    }
+    std::list<unsigned char>::const_iterator it2 = m_recentResults_.begin();
+    // ORIG 084a56f0/084a56fa：先 `addl $1,-0xc` 再 operator++（increment 序与 map 循环相反）。
+    for (idx = 0; it2 != m_recentResults_.end() && idx <= 9; ++idx, ++it2)
+        sig->m_recentResults[idx] = *it2;
 
-    for (int i = 0; i < 2; ++i)
+    for (idx = 0; idx <= 1; ++idx)
     {
-        sig->m_modeStats[i][0] = m_modeStats[i][0];
-        sig->m_modeStats[i][1] = m_modeStats[i][1];
-        sig->m_modeStats[i][2] = m_modeStats[i][2];
+        sig->m_modeStats[idx][0] = m_modeStats[idx][0];
+        sig->m_modeStats[idx][1] = m_modeStats[idx][1];
+        sig->m_modeStats[idx][2] = m_modeStats[idx][2];
     }
     sig->m_field1c = m_field40;
     sig->m_field20 = m_field44;
     sig->m_winStreak = m_winStreak;
     sig->m_bestWinStreak = m_bestWinStreak;
     sig->m_dailyPlayCount = m_dailyPlayCount;
-    sig->m_lastPlayTime = m_field54;   // [b28] 字段 int 化后同型直存（P211 换型）
+    sig->m_lastPlayTime = m_field54;   // unsigned→int 异型：ORIG 084a57d3 两段中转
     sig->m_giveItem = m_giveItem;
 }
 
 // ---- ORIG 0x84a5a28 UpdateScore(int,int,int,int,int,int,int) ---------------
-// b28d-21: DIFF/N 封顶 — p167 差集 3 项：ORIG `ne`（重建 `eq`，P220 迭代器极性）
-// + make_pair/pair 直构形（P178/P192）；残差 N82 帧/槽（211 vs 200）。
-// ORIG 0x84a5a28。
+// b28d-solo-CFairPvPScore 判词：AE/IDENTICAL（已转出 TU DIFF 列表；211=211，
+// 归一化 NDIFF 仅剩 1 条尾部对齐 nop = §6.1 豁免）。
+// 修法：①**真语义 bug**——新键插入值应为本次 cnt0/cnt1/cnt2（ORIG 084a5ae8..
+// 084a5af7 从 0x18/0x1c/0x20(%ebp) 取），旧转写误插 0（丢失首局计数）；
+// ②P220 正极性 `it != end()` + then/else 交换（p167 差集 ne/eq 实证）；
+// ③P178 嵌套实参形：`pair<const JobKey,COUNT>(make_pair(key, value))` 复现
+// make_pair<JobKey&,COUNT&> + pair 移动构造两段；④FAIR_PVP_SCORE_MODE_COUNT 与
+// m_modeStats 字段 unsigned 化（P274：unsigned 字段 + int 形参 ⇒ ORIG 084a5b4a
+// `mov mem,%edx; mov param,%eax; add %eax,%edx` 三段形）。p167 CLEAR（16=16）。
 void CFairPvPScore::UpdateScore(int jobId, int subKey, int mode,
                                 int cnt0, int cnt1, int cnt2, int resultKind)
 {
     if (mode == 1)
     {
-        const JobKey key((ENUM_CHARACTERJOB)jobId, (unsigned char)subKey);
+        JobKey key((ENUM_CHARACTERJOB)jobId, (unsigned char)subKey);
         std::map<JobKey, FAIR_PVP_SCORE_MODE_COUNT>::iterator it =
             m_jobScore_.find(key);
-        if (it == m_jobScore_.end())
-        {
-            FAIR_PVP_SCORE_MODE_COUNT zero;
-            zero.m_cnt0 = 0;
-            zero.m_cnt1 = 0;
-            zero.m_cnt2 = 0;
-            m_jobScore_.insert(
-                std::pair<const JobKey, FAIR_PVP_SCORE_MODE_COUNT>(key, zero));
-        }
-        else
+        if (it != m_jobScore_.end())
         {
             it->second.m_cnt0 += cnt0;
             it->second.m_cnt1 += cnt1;
             it->second.m_cnt2 += cnt2;
+        }
+        else
+        {
+            // ORIG 084a5ae8..084a5b44：新键插入值 = 本次 cnt0/cnt1/cnt2
+            // （旧转写误插 0，属真语义 bug）；插入走 make_pair 临时 + pair
+            // 移动构造两段（P178 嵌套实参形，p167 差集实证）。
+            FAIR_PVP_SCORE_MODE_COUNT value;
+            value.m_cnt0 = cnt0;
+            value.m_cnt1 = cnt1;
+            value.m_cnt2 = cnt2;
+            m_jobScore_.insert(
+                std::pair<const JobKey, FAIR_PVP_SCORE_MODE_COUNT>(
+                    std::make_pair(key, value)));
         }
         m_modeStats[0][0] += cnt0;
         m_modeStats[0][1] += cnt1;
@@ -236,7 +263,7 @@ void CFairPvPScore::UpdateScore(int jobId, int subKey, int mode,
     else if (cnt0 != 0)
     {
         ++m_winStreak;
-        if ((unsigned int)m_bestWinStreak < (unsigned int)m_winStreak)
+        if (m_bestWinStreak < m_winStreak)
             m_bestWinStreak = m_winStreak;
     }
 
@@ -245,8 +272,13 @@ void CFairPvPScore::UpdateScore(int jobId, int subKey, int mode,
 }
 
 // ---- ORIG 0x84a5cc2 MakePacketSocre(PacketGuard&, int) const ---------------
-// b28d-21: DIFF/N 封顶 — p167 调用点差集 CLEAR（37=37，语义完整）；残差
-// N82 帧/槽（233 vs 221）+ N89。ORIG 0x84a5cc2。
+// b28d-solo-CFairPvPScore 判词：AE/IDENTICAL（已转出 TU DIFF 列表；233=233，
+// 归一化 NDIFF=0）。
+// 修法：①P257 正向包裹 `if (mode == 1) { … }`（旧 `if (mode != 1) return;` 在
+// 4.4 多出 `jmp <epilogue>; nop` 尾岛，ORIG 084a5e5b 为 `cmpl $1; jne <尾>`）；
+// ②字段 unsigned 化（m_modeStats/m_field40/m_field44/m_winStreak/m_bestWinStreak
+// ⇒ put_int 实参复现 ORIG 两段 `mov field,%eax; mov %eax,%edx`）。
+// p167 CLEAR（37=37）。
 void CFairPvPScore::MakePacketSocre(PacketGuard& pkt, int mode) const
 {
     pkt.put_byte(mode);
@@ -274,23 +306,24 @@ void CFairPvPScore::MakePacketSocre(PacketGuard& pkt, int mode) const
     pkt.put_int(m_field44);
     pkt.put_int(m_bestWinStreak);
 
-    if (mode != 1)
-        return;
-
-    pkt.put_int(m_modeStats[0][1]);
-    pkt.put_int(m_modeStats[0][2]);
-    pkt.put_int(m_modeStats[1][1]);
-    pkt.put_int(m_modeStats[1][2]);
-    pkt.put_byte((int)m_jobScore_.size());
-    for (std::map<JobKey, FAIR_PVP_SCORE_MODE_COUNT>::const_iterator it =
-             m_jobScore_.begin();
-         it != m_jobScore_.end(); ++it)
+    // ORIG 084a5e5b `cmpl $1; jne <尾 leave/ret>` ⇒ 正向包裹（早返形多 jmp+nop 岛，P257）。
+    if (mode == 1)
     {
-        pkt.put_byte(it->first.m_job);                     // ORIG emit dword 低字节
-        pkt.put_byte((int)(signed char)it->first.m_sub);   // ORIG movsbl
-        pkt.put_int(it->second.m_cnt0);
-        pkt.put_int(it->second.m_cnt1);
-        pkt.put_int(it->second.m_cnt2);
+        pkt.put_int(m_modeStats[0][1]);
+        pkt.put_int(m_modeStats[0][2]);
+        pkt.put_int(m_modeStats[1][1]);
+        pkt.put_int(m_modeStats[1][2]);
+        pkt.put_byte((int)m_jobScore_.size());
+        for (std::map<JobKey, FAIR_PVP_SCORE_MODE_COUNT>::const_iterator it =
+                 m_jobScore_.begin();
+             it != m_jobScore_.end(); ++it)
+        {
+            pkt.put_byte(it->first.m_job);                     // ORIG emit dword 低字节
+            pkt.put_byte((int)(signed char)it->first.m_sub);   // ORIG movsbl
+            pkt.put_int(it->second.m_cnt0);
+            pkt.put_int(it->second.m_cnt1);
+            pkt.put_int(it->second.m_cnt2);
+        }
     }
 }
 
@@ -353,63 +386,83 @@ int CFairPvPScore::GetLastTrainingSealBonusCount()     // 0x85dfdbc
 // `G_GameWorld()->GetChannelType()`（P183 禁指针缓存，每点重发全链）。
 
 // ---- ORIG 0x84a48f8 loadData(CUser*, char*) --------------------------------
-// b28d-21: 已修发明符号（删 `_ZN8fair_pvp12_GLOBAL__N_124IsFairPvpTrainingChannelEv`
-// ——ORIG nm 无此符号；两使用点改直接表达式，G_GameWorld/GetChannelType 差集清零，
-// 951→928）。余 MISSING：G_CDataManager×2、make_pair(JobKey)/pair C1、
-// put_short、getCurCharacInvenR、strncpy；EXTRA：memset×4、PacketGuard C1/D1、
-// Inven_Item C1Ev、_Unwind_Resume。残差 N82 帧/槽（847 vs 843）+ N86/N89。
+// b28d-solo-CFairPvPScore 判词：DIFF·N 封顶（§6.2 三件套：①p167 CLEAR 91=91；
+// ②gap 24（ORIG 848 vs 872）；③帧 0x22c vs 0x27c、全帧槽号平移 = N82/N95 族）。
+// 修法（含 4 处真语义 bug）：
+//   ①新键插入：第二实参直接引用线格式计数（ORIG 084a4929 `lea 0x14(%eax),%ebx`）
+//     + P178 嵌套 make_pair/pair 移动构造（mangled make_pair<JobKey,COUNT&> 实证）；
+//   ②区块 2 零检查改循环体内 break（ORIG 084a4a5c test/je 在 body 首）；
+//   ③区块 3 改整体结构赋值（ORIG 084a4a9b 源/目标基址各算一次、3 读 3 写）；
+//   ④MakeItemPacket 的 receiver 改 getCurCharacInvenR（旧用 W，**数据源真 bug**，
+//     p167 MISSING `_ZNK15CUserCharacInfo18getCurCharacInvenREv` 实证）；
+//   ⑤0x152 包 put_short（旧 put_byte，**包字段宽度真 bug**，MISSING put_short(int)）；
+//   ⑥0x161 包复用同一 PacketGuard + clear()（消多余 C1/D1 与 _Unwind_Resume）；
+//   ⑦第二封补 `strncpy(msgBuf,msg,0xff)`（旧漏调用，MISSING strncpy）；
+//   ⑧缓冲改 `char[N]={0}` 数组零初始化（消 memset×4，P214③）；
+//   ⑨G_CDataManager 每次重调（消 sps/dailyLimit 具名缓存，MISSING×2）；
+//   ⑩`pair<int,int>(0xcf0, sealGive)` 直构（mangled `C1IiRiE` 实证；sealGive 非 const）；
+//   ⑪单 Inven_Item + 单组缓冲复用两封（ORIG 084a51ec 单对象）、字段序
+//     addInfo→find_item→addInfo2→make_item（ORIG 084a52a8/52de）。
+// 残余 N 归因：N82/N95 帧·槽全帧平移（0x50）、N4/P30 寻址折叠、N7 寄存器分配。
 // ORIG 0x84a48f8。
 bool CFairPvPScore::loadData(CUser* pUser, char* pData)
 {
-    bool ok = true;
     SIG_FAIR_PVP_SCORE* sig = reinterpret_cast<SIG_FAIR_PVP_SCORE*>(pData);
+    int idx = 0;
 
-    // 区块 1：职业计分表（entry stride 0x10，起于 (i+2)*0x10）
-    int count = (int)sig->m_jobScoreCount;
-    for (int i = 0; (i < count) && (i <= 99); ++i)
+    // 区块 1：职业计分表（entry stride 0x10，起于 (idx+2)*0x10）
+    // ORIG 084a491d..084a4a45：count 每轮重读 sig->m_jobScoreCount（无局部）；
+    // key 为 make_pair 实参临时（mangled make_pair<JobKey,COUNT&> 实证）；
+    // 第二实参直接引用线格式计数（`lea 0x14(%eax),%ebx`），旧版复制到局部 value
+    // 会多 3 store 且丢失引用语义。
+#define FAIR_PVP_ENTRY(i)                                                   \
+    (reinterpret_cast<FairPvpScoreEntryPair*>(                              \
+         reinterpret_cast<char*>(sig) + ((i) + 2) * 0x10)->m_e1)
+    for (idx = 0;
+         (idx < (int)(unsigned char)sig->m_jobScoreCount) && (idx <= 99);
+         ++idx)
     {
-        // ORIG 基址形态 (i+2)*0x10 + 0x10（084a491d `lea 0x2;shl 4` + movzbl
-        // 0x10/0x11、lea 0x14 传指针），经具名条目视图读取，宽度逐字段实证。
-        const int base = (i + 2) * 0x10;
-        SIG_FAIR_PVP_SCORE_ENTRY* entry =
-            reinterpret_cast<SIG_FAIR_PVP_SCORE_ENTRY*>(pData + base) + 1;
-        const JobKey key((ENUM_CHARACTERJOB)(unsigned char)entry->m_job,
-                         entry->m_sub);
-        FAIR_PVP_SCORE_MODE_COUNT value;
-        value.m_cnt0 = entry->m_cnt0;
-        value.m_cnt1 = entry->m_cnt1;
-        value.m_cnt2 = entry->m_cnt2;
         std::pair<std::map<JobKey, FAIR_PVP_SCORE_MODE_COUNT>::iterator, bool>
             ret = m_jobScore_.insert(
-                std::pair<const JobKey, FAIR_PVP_SCORE_MODE_COUNT>(key, value));
+                std::pair<const JobKey, FAIR_PVP_SCORE_MODE_COUNT>(
+                    std::make_pair(
+                        JobKey((ENUM_CHARACTERJOB)(unsigned char)
+                                   FAIR_PVP_ENTRY(idx).m_job,
+                               FAIR_PVP_ENTRY(idx).m_sub),
+                        *(FAIR_PVP_SCORE_MODE_COUNT*)&FAIR_PVP_ENTRY(idx).m_cnt0)));
         if (!ret.second)
         {
             LogManager::logFormat(
                 1, "FairPvPScore.cpp",
                 __PRETTY_FUNCTION__,
                 0x20, "job_score_.insert error(%d,%d)",
-                (int)(unsigned char)entry->m_job,
-                (int)(unsigned char)entry->m_sub);
+                (int)(unsigned char)FAIR_PVP_ENTRY(idx).m_job,
+                (int)(unsigned char)FAIR_PVP_ENTRY(idx).m_sub);
         }
     }
 
-    // 区块 2：最近对局结果列表（最多 10 条，遇 0 截断）
-    for (int i = 0; (i <= 9) && (sig->m_recentResults[i] != '\0'); ++i)
-        m_recentResults_.push_back(sig->m_recentResults[i]);
-
-    // 区块 3：两份模式统计记录
-    for (int i = 0; i < 2; ++i)
+    // 区块 2：最近对局结果列表（ORIG 084a4a45..084a4a92：零检查在体内 break，
+    // 循环条件只剩 idx <= 9；遇 0 截断）
+    for (idx = 0; idx <= 9; ++idx)
     {
-        m_modeStats[i][0] = sig->m_modeStats[i][0];
-        m_modeStats[i][1] = sig->m_modeStats[i][1];
-        m_modeStats[i][2] = sig->m_modeStats[i][2];
+        if (sig->m_recentResults[idx] == '\0')
+            break;
+        m_recentResults_.push_back(sig->m_recentResults[idx]);
+    }
+
+    // 区块 3：两份模式统计记录（ORIG 084a4a92..084a4ae3 为整体结构赋值：
+    // 源/目标基址各算一次、3 读 3 写）
+    for (idx = 0; idx <= 1; ++idx)
+    {
+        *(FAIR_PVP_SCORE_MODE_COUNT*)&m_modeStats[idx][0] =
+            *(FAIR_PVP_SCORE_MODE_COUNT*)&sig->m_modeStats[idx][0];
     }
     m_field40 = sig->m_field1c;
     m_field44 = sig->m_field20;
     m_winStreak = sig->m_winStreak;
     m_bestWinStreak = sig->m_bestWinStreak;
     m_dailyPlayCount = sig->m_dailyPlayCount;
-    m_field54 = (int)sig->m_lastPlayTime;
+    m_field54 = sig->m_lastPlayTime;   // int→unsigned 异型：ORIG 084a4b25 两段中转
 
     // 训练特训渠道（0xf/0x10）且无上次结算时间 → 补发入场奖励
     if ((G_GameWorld()->GetChannelType() == 0xf ||
@@ -417,24 +470,25 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
         (int)sig->m_lastPlayTime == 0)
     {
         std::vector<std::pair<int, int> > items;
-        // ORIG 0x084a4b86 call getPVPResultRefR(CUser)——返回值未使用【死调用，
-        // 推断为编译器消除前的内部加载】，按忠实口径不再转写。
-        const PvpResultType* pvp = pUser->getPVPResultRefR();
-        ServerParameterScript* sps =
-            &G_CDataManager()->m_serverParameter;
-        const int sealGive = sps->GetTraningSealGive(
-            pvp->m_pvpGrade);                              // +0x14（084a4b94 mov 0x14(%eax)）
+        // ORIG 084a4b86..084a4ba3：getPVPResultRefR 实参先求值（读 +0x14
+        // m_pvpGrade），receiver 后求值；G_CDataManager 每次重调（禁 sps 缓存）。
+        int sealGive =
+            G_CDataManager()->m_serverParameter.GetTraningSealGive(
+                pUser->getPVPResultRefR()->m_pvpGrade);
         if (sealGive > 0)
-            items.push_back(std::make_pair(0xcf0, sealGive));
-        sps->GetTraningFirstGive(pUser->get_charac_job(),
-                                 (int)(signed char)pUser->getCurCharFirstGrowType(),
-                                 pUser->get_pvp_grade(), items);
+            // ORIG mangled pair<int,int>::C1<int,int&>(int&&,int&)：第一参字面量右值
+            items.push_back(std::pair<int, int>(0xcf0, sealGive));
+        G_CDataManager()->m_serverParameter.GetTraningFirstGive(
+            pUser->get_charac_job(),
+            (int)(signed char)pUser->getCurCharFirstGrowType(),
+            pUser->get_pvp_grade(), items);
 
         if (!items.empty())
         {
             std::vector<int> slots;
-            CInventory* inven = pUser->getCurCharacInvenW();
-            int inserted = inven->insert_event_items(
+            // ORIG 084a4c65 getCurCharacInvenW 作 insert_event_items 的 receiver；
+            // 084a4d76 循环内每次重调 getCurCharacInvenR（P183 禁缓存）。
+            int inserted = pUser->getCurCharacInvenW()->insert_event_items(
                 items, slots, (eMoneyAddReason)3, (eItemAddReason)8, true,
                 "game_server_msg_171", "game_server_msg_172");
             if (inserted >= 1 && slots.size() >= 3)
@@ -443,12 +497,12 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
                 pkt.put_header(0, 0xe);
                 pkt.put_byte(0);
                 int fillIndex = pkt.get_index();
-                pkt.put_short(0);
                 int made = 0;
+                pkt.put_short(made);           // ORIG 084a4d51 put_short(made) 占位
                 for (size_t j = 0; j < slots.size(); j += 3)
                 {
-                    if (inven->MakeItemPacket((INVEN_TYPE)1,
-                                              slots[j], pkt))
+                    if (pUser->getCurCharacInvenR()->MakeItemPacket(
+                            (INVEN_TYPE)1, slots[j], pkt))
                         ++made;
                 }
                 pkt.put_short(fillIndex, made);
@@ -462,46 +516,45 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
 
     // 剩余可领训练印章数（ORIG 读 CDataManager+0x49e0 =
     // m_serverParameter(+0x68)+0x4978 → FairMatchRooms 批已具名
-    // m_schoolMatchDailyPlayLimit）
+    // m_schoolMatchDailyPlayLimit）。ORIG 084a4eaa/084a4ed1 两分支各重调
+    // G_CDataManager（禁 dailyLimit 具名缓存）。
+    if ((unsigned int)m_dailyPlayCount <
+        (unsigned int)G_CDataManager()->m_serverParameter
+            .m_schoolMatchDailyPlayLimit)
+        m_remainBonusCount =
+            (unsigned char)(G_CDataManager()->m_serverParameter
+                                .m_schoolMatchDailyPlayLimit -
+                            (unsigned char)m_dailyPlayCount);  // ORIG sub %al,%dl
+    else
+        m_remainBonusCount = 0;
     {
-        const unsigned short dailyLimit =
-            G_CDataManager()->m_serverParameter.m_schoolMatchDailyPlayLimit;
-        if ((unsigned int)m_dailyPlayCount < (unsigned int)dailyLimit)
-            m_remainBonusCount =
-                (unsigned char)(dailyLimit -
-                                (unsigned char)m_dailyPlayCount);  // ORIG sub %al,%dl
-        else
-            m_remainBonusCount = 0;
-    }
-    {
+        // ORIG 084a4ef6 构造 -0x88 的 PacketGuard 后一直活到函数尾；
+        // 0x152/0x161 两包复用同一对象（0x084a4fe5 clear）。
         PacketGuard pkt;
         pkt.put_header(0, 0x152);
-        pkt.put_byte((int)m_remainBonusCount);
+        pkt.put_short((int)m_remainBonusCount);   // ORIG 084a4f30 put_short(int)
         pkt.finalize(true);
         pUser->Send(pkt);
-    }
 
-    m_giveItem = sig->m_giveItem;
+        m_giveItem = sig->m_giveItem;
 
-    // 特训渠道：可领但尚未领取的道具（发 0x161 提示包）
-    if (G_GameWorld()->GetChannelType() == 0xf ||
-        G_GameWorld()->GetChannelType() == 0x10)
-    {
-        const int giveLimit =
-            G_CDataManager()->m_serverParameter.get_pvp_item_give(
-                pUser->get_pvp_grade());
-        if ((int)m_giveItem <= giveLimit)
+        // 特训渠道：可领但尚未领取的道具（发 0x161 提示包）
+        if (G_GameWorld()->GetChannelType() == 0xf ||
+            G_GameWorld()->GetChannelType() == 0x10)
         {
-            PacketGuard localSender;            // ORIG 复用同一栈 PacketGuard 的 clear
-            localSender.clear();
-            localSender.put_header(0, 0x161);
-            localSender.finalize(true);
-            pUser->Send(localSender);
+            if ((int)m_giveItem <=
+                G_CDataManager()->m_serverParameter.get_pvp_item_give(
+                    pUser->get_pvp_grade()))
+            {
+                pkt.clear();
+                pkt.put_header(0, 0x161);
+                pkt.finalize(true);
+                pUser->Send(pkt);
+            }
         }
-    }
 
     // 上次结算时间早于维护点 → 按累计成绩补发两封结算邮件
-    if (m_field54 != 0 && (unsigned int)m_field54 <= 0x4ddd89efu)
+    if (m_field54 != 0 && m_field54 <= 0x4ddd89efu)
     {
         const int sumA = m_modeStats[0][0] + m_modeStats[0][1] + m_modeStats[0][2];
         const int bonusSumA50 = (sumA >= 10 && sumA <= 0x31) ? 10 : 0;
@@ -522,23 +575,23 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
                           bonusA90 + bonusSumB50 + bonusSumB60 + bonusB15 +
                           bonusB90;
 
-        // —— 第一封：总成绩奖励道具 0xcf0，数量 total+200 ——
+        // ORIG 084a51ec..084a54cd：单个 Inven_Item + 单组缓冲复用两封；
+        // 缓冲为数组零初始化（4.1 内联 rep stos/慢路；旧版 memset 调用多 4 次）；
+        // 字段序 = addInfo → find_item → addInfo2 → make_item（084a52a8/52de）。
         Inven_Item item;                       // 默认构造清零
-        item.m_addInfo2 = total + 200;         // ORIG -0xff(%ebp) = item+0x07
+        char titleBuf[21] = {0};               // ORIG 0x15 字节
+        char msgBuf[256] = {0};
         item.m_addInfo = 0xcf0;                // ORIG -0x104(%ebp)= item+0x02
         CItem* def = G_CDataManager()->find_item(item.m_addInfo);
         if (def == NULL)
             return false;                      // ORIG ebx=0 早退（仍析构包守卫）
+        item.m_addInfo2 = total + 200;         // ORIG -0xff(%ebp) = item+0x07
 
         def->make_item(item);
         {
-            char titleBuf[21];                 // ORIG 0x15 字节
-            memset(titleBuf, 0, sizeof(titleBuf));
             const char* title = g_scriptStringManager_.findString(
                 4, "game_server_msg_171", 0);
             strncpy(titleBuf, title, 0x14);
-            char msgBuf[256];
-            memset(msgBuf, 0, sizeof(msgBuf));
             const char* msg = g_scriptStringManager_.findString(
                 4, "game_server_msg_177", 0);
             strncpy(msgBuf, msg, 0xff);
@@ -548,27 +601,23 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
                 (int)strlen(msgBuf), 0, pUser->GetServerGroup(), true, false);
         }
 
-        // —— 第二封：印章道具 0x289788，数量 1 ——
-        Inven_Item item2;
-        item2.m_addInfo2 = 1;
-        item2.m_addInfo = 0x289788;
-        CItem* def2 = G_CDataManager()->find_item(item2.m_addInfo);
+        // —— 第二封：印章道具 0x289788，数量 1（ORIG 复用同一 item/缓冲） ——
+        item.m_addInfo = 0x289788;
+        CItem* def2 = G_CDataManager()->find_item(item.m_addInfo);
         if (def2 == NULL)
             return false;
+        item.m_addInfo2 = 1;
 
-        def2->make_item(item2);
+        def2->make_item(item);
         {
-            char titleBuf[21];
-            memset(titleBuf, 0, sizeof(titleBuf));
             const char* title = g_scriptStringManager_.findString(
                 4, "game_server_msg_171", 0);
             strncpy(titleBuf, title, 0x14);
-            char msgBuf[256];
-            memset(msgBuf, 0, sizeof(msgBuf));
             const char* msg = g_scriptStringManager_.findString(
                 4, "game_server_msg_178", 0);
+            strncpy(msgBuf, msg, 0xff);        // [b28d-solo] 旧版漏此调用（p167 MISSING strncpy）
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-                titleBuf, item2, 0,
+                titleBuf, item, 0,
                 (unsigned int)pUser->getCurCharacNo(), msgBuf,
                 (int)strlen(msgBuf), 0, pUser->GetServerGroup(), true, false);
         }
@@ -576,7 +625,9 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
         m_field54 = GlobalData::s_systemTime_.getCurSec();
         alter();
     }
+    }  // pkt 作用域（ORIG PacketGuard 活到函数尾）
 
+#undef FAIR_PVP_ENTRY
     return true;
 }
 

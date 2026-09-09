@@ -154,7 +154,7 @@ bool CBossPlay::_checkMemberDie()
 // ============================================================================
 // checkAllMemberReady（ORIG 0x081493fe）
 // ============================================================================
-int CBossPlay::checkAllMemberReady(int count)
+bool CBossPlay::checkAllMemberReady(int count)
 {
     if (m_allMemberReady)
         return 1;
@@ -200,7 +200,7 @@ int CBossPlay::getLiveMemberCount()
 //   while(true){if(3<i)return 1;...break;++i;} 形态 + 时间比较改 `GetRevivalTime() >
 //   getCurSec()` 已对齐 4.1 求值序/setg 方向；逐调用逐分支语义逐一相等，封 N。
 // ============================================================================
-int CBossPlay::handleDieUser(CUser* user)
+bool CBossPlay::handleDieUser(CUser* user)
 {
     // [b28d-46 实测] ORIG 双 `movl $0,-0xc`（P191）+ 尾部 `cmpl $3; setle; test;
     // jne`（P51）+ 两独立守卫各 `je INC`（P133）⇒ for + continue 形。
@@ -294,7 +294,7 @@ bool CBossPlay::handleLeaveUser(CUser* user)
 // （P252 复现 fstps -0xf0 槽往返）、tower 内联表达式（P0/P183 无槽直用 %eax）。
 // 残差 = 帧 0x13c vs 0x174 全帧槽号平移（N82）＋ `1+a` 下标 add vs disp 折叠（P30/N4）⇒ 封顶。
 // ============================================================================
-int CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
+bool CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
                                  const CDungeon* dungeon)
 {
     CUser* user = m_party->get_user(memberIdx);
@@ -390,7 +390,7 @@ int CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
 // 剩余 MISSING 全为 N89（4.4 内联 stGenerateResult_t C1/D1 与 begin/operator* 第 3 实例）；
 // 帧 0x13c vs 0xdc 属 N82 ⇒ 封顶。
 // ============================================================================
-int CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
+bool CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
                                   ENUM_DUNGEON_DIFFICULTY diff, unsigned int b,
                                   const CDungeon* dungeon)
 {

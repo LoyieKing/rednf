@@ -51,7 +51,10 @@ public:
     CVillageObjectMgr();                       // ORIG 0x86b6f30
     ~CVillageObjectMgr();                      // ORIG 0x86b6f44
     void on_move_area(class CUser* user);   // ORIG 0x86b71da
-    int register_object(village_object::Zone zone, village_object::IObject* object);
+    // [b28d-Main 代落·S258 P292/P248档①] int→bool：ORIG CDisjointer::OnCreateDisjointStore
+    // 调用点 0x085d2f62 段 `call; xor $0x1,%eax; test %al,%al; je`。返回域 0/1。
+    // 返回类型不入 mangled。
+    bool register_object(village_object::Zone zone, village_object::IObject* object);
                                            // ORIG 0x86b6f58：碰撞检测通过后注册，命中返 1
     bool unregister_object(village_object::Zone zone, village_object::IObject* object);
                                            // ORIG T 0x86b70d0：map find→std::find→erase，命中返 1

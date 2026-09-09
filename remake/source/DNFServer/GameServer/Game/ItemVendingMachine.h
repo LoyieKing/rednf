@@ -27,9 +27,13 @@ struct PurcahseBonus
     PurcahseBonus() : m_flag(0), m_field4(0), m_field8(0) {}
     // ORIG _ZNK4ARAD13PurcahseBonuseqERKS0_ W @0x088b66ce：仅比较 +0x00 字节。
     bool operator==(const PurcahseBonus& other) const { return m_flag == other.m_flag; }
-    unsigned char m_flag;  // +0x00（购买次数门槛）
-    int m_field4;          // +0x04（1=代币 5=里程券 其它=itemIdx）
-    short m_field8;        // +0x08（数量）
+    unsigned char m_flag;    // +0x00（购买次数门槛）
+    // +0x04（1=代币 5=里程券 其它=itemIdx）。[b28d-solo-Arad_ItemBonus] 改 unsigned：
+    // ORIG _processBonusItem 0x081ac395 段 `mov 0x4(%eax),%eax; mov %eax,%ebx`
+    // （unsigned 字段→int 形参的转换中转，P265/P211 档③；int 字段 4.4 恒折单段）。
+    // sizeof/偏移/mangled 零影响；m_field4 消费点仅 Arad_ItemBonus.cpp（已全仓 grep）。
+    unsigned int m_field4;
+    short m_field8;          // +0x08（数量）
 };
 
 // ORIG CeraShopPurcahseCountBonus ctor/dtor 0x854c5b6/0x854c5ca：

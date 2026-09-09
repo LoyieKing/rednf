@@ -136,8 +136,10 @@ class ExchangeServerInfo;
 class IExchangeServer
 {
 public:
-    virtual bool DispatchPacket(CSession* session, char* data, int len) = 0;
-    virtual void UnregisterExchangeServer(int serverId) = 0;
+    // ORIG 0x8493002 尾 `mov %ebx,%eax` 无 bool 归一（0x315 直传）⇒ int 返回；
+    // ORIG 0x849144c 成功 `mov $0x1,%eax` / 失败 `mov $0x0,%eax` ⇒ bool 返回。
+    virtual int DispatchPacket(CSession* session, char* data, int len) = 0;
+    virtual bool UnregisterExchangeServer(int serverId) = 0;
     virtual CSession* AllocSession() = 0;
     virtual void FreeSession(CSession* session) = 0;
     // vtable 0x8c7a1d0 第 5 槽实证 = GetServerType（OnRecvPacketServerInfo*
@@ -183,7 +185,7 @@ public:
                                        CSession* session);  // ORIG 0x8491296
     bool RegisterExchangeServer(int serverId,
                                 ExchangeServerInfo& info);  // ORIG 0x849135c
-    void UnregisterExchangeServer(int serverId);     // ORIG 0x849144c
+    bool UnregisterExchangeServer(int serverId);     // ORIG 0x849144c（bool：mov $1/$0）
     bool SendRequestCharacInfo(int a, int b, int c, int d,
                                void* extra, int extraLen);  // ORIG 0x849152a
     bool SendResponseCharacInfo(int a, int b, void* data, int len,
@@ -204,7 +206,7 @@ public:
                                PacketGuard& guard);        // ORIG 0x8492854
     int OnRecvPacketServerInfoRet(CSession* session,
                                   PacketGuard& guard);     // ORIG 0x8492c5e
-    bool DispatchPacket(CSession* session, char* data, int len);  // 0x8493002
+    int DispatchPacket(CSession* session, char* data, int len);   // 0x8493002（int：0x315 直传）
     int OnRecvMessageServerInfo(Stream* stream, int a, int b);    // 0x84931de
                                                  // SIGFIX: ORIG 串 "int ...OnRecvMessageServerInfo(Stream*, int, int)"
     int OnRecvMessageCharacInfo(Stream* stream, int a, int b);    // 0x849341c
@@ -215,7 +217,7 @@ public:
     bool PreparePassiveSocket();                   // ORIG 0x8493856
 
 private:
-    unsigned int m_ip04;                 // +0x04（PreparePassiveSocket/SendExchangeServerInfo 访问）
+    int m_ip04;                          // +0x04（ORIG `mov 0x4(%eax),%esi` 单段直落 ⇒ 与 int 实参同型）
     unsigned short m_port08;             // +0x08
     char m_pad0a[2];                     // 补齐至 +0x0c
     CSessionManager<CSession, PacketGuard, CEpoll>
@@ -313,7 +315,9 @@ private:
 
 CExchangeServerThread* GetInstanceExchangeServerThread();   // ORIG 0x8493e8d
 
-void BeginExchangeServerThread();        // ORIG 0x848f2b8（docs/exchange_server 报告）
+// [b28d-Main 代落·S249 P292] void→bool：ORIG 0x848f2b8 透传 begin() 的 %eax；
+// 调用点 0x0829ffdb `call; mov %al,-0x9` 存字节 ⇒ 返回 bool。返回类型不入 mangled。
+bool BeginExchangeServerThread();        // ORIG 0x848f2b8（docs/exchange_server 报告）
 unsigned long getExchangeServerThreadID();               // ORIG 0x848f2cd
 
 }  // namespace exchange_server

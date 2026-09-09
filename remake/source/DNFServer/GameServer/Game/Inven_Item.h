@@ -105,11 +105,11 @@ public:
         packet.put_byte(0);                                        // ORIG +0x29 call put_byte
         for (int i = 0; i <= 2; ++i)                               // ORIG +0xcd cmpl $0x2; setle（while 前置 jmp +0x35）
         {
-            if (!((const RandomOptionField*)&((const unsigned char*)this)[i * 3])->empty())  // ORIG +0x43 add-add 3i + add this mem（&p[i*3] 形，探针 h1 实证）
+            if (!m_fields[i].empty())  // [b28d-solo-PacketBuf P235] 具名数组视角：ORIG +0x43 3i+add this mem
             {
-                packet.put_byte(((const RandomOptionField*)((int)this + i * 3))->m_field0);  // ORIG +0x61 movzbl (%eax,%ecx,1),%eax；4.4 无双寄存器 movzbl 寻址（N）
-                packet.put_byte(((const RandomOptionField*)((int)this + i * 3 + 1))->m_field0);  // ORIG +0x83 lea; add $0x1
-                packet.put_byte(((const RandomOptionField*)((int)this + i * 3 + 2))->m_field0);  // ORIG +0xaa lea; add $0x2
+                packet.put_byte(m_fields[i].m_field0);  // ORIG +0x61 movzbl (%eax,%ecx,1),%eax
+                packet.put_byte(m_fields[i].m_field1);  // ORIG +0x83 lea; add $0x1
+                packet.put_byte(m_fields[i].m_field2);  // ORIG +0xaa lea; add $0x2
                 ++count;                                           // ORIG +0xc5 addl $0x1,-0x10
             }
         }
@@ -117,9 +117,9 @@ public:
         if (count != 0)                                            // ORIG +0xf5 cmpl $0x0,-0x10; je end
         {
             packet.put_byte(m_seed9.m_field);                      // ORIG +0xff movzbl 0x9(%eax); movzbl %al,%edx
-            if (!((const RandomOptionField*)((const char*)this + 0xa))->empty())  // ORIG +0x11e add $0xa,%eax; call empty; xor$1; je→put(-1)
+            if (!m_fielda.empty())  // ORIG +0x11e add $0xa,%eax; call empty; xor$1; je→put(-1)
             {
-                packet.put_byte((unsigned char)(m_seedd.m_field & 3));  // ORIG +0x12d movzbl 0xd; and $0x3; movzbl %al,%edx
+                packet.put_byte(m_seedd.m_bits.m_low2);            // ORIG +0x12d movzbl 0xd; and $0x3; movzbl %al,%edx（P308 位域视角）
                 packet.put_byte(m_seedd.m_field);                  // ORIG +0x14d
                 packet.put_byte(m_fielda.m_field0);                // ORIG +0x166 movzbl 0xa
                 packet.put_byte(m_fielda.m_field1);                // ORIG +0x17f
@@ -166,6 +166,12 @@ public:
             STEnchantedSkillOption m_skill0;  // +0x00
             STEnchantedSkillOption m_skill1;  // +0x01
         };
+        // [b28d-solo-CItemUpgrade] 位域数组视角：ORIG make3rdChroniclePacket
+        // 0x0854aa86 `movzbl 0x1f(%edx,%eax,1),%eax; shr %al; and $0x3,%eax`
+        // 与 0x0854ab6b `shr $0x3,%al` 为 8 位移位形，只能由**位域成员**产生
+        // （`m_enchFields[i] >> 1` 4.4 恒产 32 位 sar，探针 c1/c2/c4/c5 实证）；
+        // 数组视角使下标访问保持 `0x1f(%edx,%eax,1)` 单条寻址。
+        STEnchantedSkillOption m_skills[2];   // +0x00..+0x01 数组视角（位域访问）
         unsigned char m_enchFields[2];        // +0x00..+0x01 数组视角
     };
     int m_field2;                     // +0x02

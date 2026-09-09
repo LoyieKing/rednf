@@ -67,8 +67,13 @@ public:
     int m_field20;       // +0x20
     int m_field24;       // +0x24
     char m_flag28[4];    // +0x28
-    int m_field2c;       // +0x2c
-    int m_field30;       // +0x30
+    // [b28d-solo-CPartyDepsD2] P246/P180 u64 别名：ORIG check_allmember_loading
+    // 0x085b1985 段以 `sub/sbb` + `add/adc` 做 64 位 acc += now - moveTick
+    // ⇒ +0x2c/+0x30 原码为 64 位字段赋值。别名不改偏移/尺寸；两 int 名保留。
+    union {                       // +0x2c acc（lo/hi）
+        struct { int m_field2c; int m_field30; };
+        unsigned long long m_accTick;
+    };
     // [b28d-51] P246/P180 u64 别名：ORIG changeBattleDataOnMoveMap 0x085a8ef4
     // 以 `mov $0,%edx; mov %eax,0x360; mov %edx,0x364`（零扩展 64 位整体存）写
     // +0x34/+0x38 ⇒ 原码为 64 位字段赋值。别名不改偏移/尺寸；两 int 名保留。

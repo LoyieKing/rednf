@@ -75,19 +75,16 @@ InGameEventScript* InGameEventScriptLoader::insertEventScript(
     return script;
 }
 
-// ORIG 0x08982f38（_ZN23InGameEventScriptLoader14getEventScriptEiRKSs）：
-// m_scripts.find(name)；命中返回脚本指针；未命中先 import 再入表并返回。
-// [b28c-31] N93：ORIG 0x08982f5x find 目标槽 -0x10 / end 槽 -0xc（4.1 先声明占
-// 深槽），4.4 恒反向（先声明 -0xc）；声明序翻转无效，且"先声明后赋值"会引入
-// ORIG 不存在的 _Rb_tree_iterator::C1Ev（nm 实证）⇒ 封顶。
-// [b28d-27] NEAR N93（复核）：ORIG 0x08982f38；ORIG find 槽 -0x10 / end 槽 -0xc
-// （调用序 find 先、end 后），4.4 恒反向且交换声明序会改调用序 ⇒ 封顶。
+// [b28d-solo-CEventScriptMng] getEventScript：NEAR — N93 封顶。
+// ORIG 0x08982f38：find 目标槽 -0x10 / end 目标槽 -0xc（4.1 先声明占深槽且调用序
+// find→end）；4.4.7 按首次使用序分配，恒反向（find→-0xc / end→-0x10）。
+// 实测三形：①本形（it 先声明）find 槽 -0xc；②交换声明序（endIt 先）调用序变
+// end→find，指令序整体错位；③先声明后赋值引入 ORIG 不存在的
+// _Rb_tree_iterator::C1Ev（nm 实证）⇒ 槽方向与调用序不可同时满足，封顶。
 // p167 CLEAR（6/6），语义闭合。
 InGameEventScript* InGameEventScriptLoader::getEventScript(int id,
                                                            const std::string& name)
 {
-    // [b28c-31] ORIG 0x08982f5x：find 目标槽 -0x10 / end 目标槽 -0xc（4.1 先声明
-    // 占深槽）⇒ 4.4 先声明占浅槽（N93），试 it 先声明 + endIt 后声明。
     std::map<std::string, InGameEventScript*>::iterator it =
         m_scripts.find(name);
     std::map<std::string, InGameEventScript*>::iterator endIt =
@@ -196,21 +193,28 @@ CEventScriptMng::CEventScriptMng()
     m_scripts.clear();
 }
 
-// [b28d-27] DIFF（D1/D2 别名）：ORIG 0x0810b218；p167 显示 ORIG 调成员 D1Ev、
-// 我方调 D2Ev（同址别名，P93 类伪差集），语义等价。
+// [b28d-solo-CEventScriptMng] ~CEventScriptMng：AE。
+// ORIG 0x0810b218：两个 map 循环各自 begin/end 缓存（P13），修复前每轮重调 end()
+// 多占 sret 临时槽并顶偏全帧 ⇒ 缓存后槽位逐条对齐、compare AE。
+// p167 余 2×D1Ev↔2×D2Ev 为同址别名（ORIG 0x08110f24/0x08110f60 与我们的 .o 均
+// 同址 W 双名，P93 伪差集），compare 判 AE，语义闭合。
 CEventScriptMng::~CEventScriptMng()
 {
+    // ORIG 0x0810b218：end() 在循环初始化区求值一次并缓存（P13）——
+    // begin 槽 -0xc / end 槽 -0x10（脚本 map），begin 槽 -0x14 / end 槽 -0x18
+    // （实体 map）；`it != m.end()` 每轮重调 end() 会多出 end/临时槽并使全帧漂移。
     for (std::map<std::string, InGameEventScript*>::iterator it =
-             m_scripts.begin();
-         it != m_scripts.end(); ++it)
+             m_scripts.begin(), endIt = m_scripts.end();
+         it != endIt; ++it)
     {
         if (it->second != 0)
             delete it->second;
         it->second = 0;
     }
 
-    for (std::map<int, CEventEntity*>::iterator it = m_entities.begin();
-         it != m_entities.end(); ++it)
+    for (std::map<int, CEventEntity*>::iterator it = m_entities.begin(),
+             endIt = m_entities.end();
+         it != endIt; ++it)
     {
         if (it->second != 0)
             delete it->second;
@@ -256,17 +260,22 @@ std::string& CEventScriptMng::get_db_table_name(int key)
     return get_event_entity(key)->get_db_table_name();
 }
 
-// ORIG 0x810bde0：事件开启且用户尚未确认时，调用账号首次登录实体动作。
-// [b28d-27] DIFF N82：ORIG 0x0810bde0；p167 CLEAR（6/6），残差为帧/槽与分支
-// 块排布，语义闭合。
+// [b28d-solo-CEventScriptMng] process_account_first_login：NEAR — N7 封顶。
+// ORIG 0x0810bde0：两条独立守卫（P133）+ 匿名 bitset reference 临时（槽 -0x14）；
+// 修复前合并 `||` 触发 bool 汇聚（mov$1/jmp/mov$0/test）⇒ 拆两条 if 后守卫岛
+// （nop;jmp + nop）与全帧槽位逐条对齐。
+// 残差唯一：尾部虚调用目标寄存器 ORIG %edx vs 4.4.7 恒 %eax（N7；本 TU 未走
+// 4.4.6 路由，P230 分诊=后端敏感族）。p167 CLEAR（6/6），语义闭合。
 void CEventScriptMng::process_account_first_login(
     int key, CUser* user, std::bitset<32u> flags)
 {
-    if (user == 0 || !is_eventing(key))
+    // P133 独立守卫；confirmFlag 无栈槽（P0：值经 %edx 直传 operator[] 实参）。
+    if (user == 0)
+        return;
+    if (!is_eventing(key))
         return;
 
-    const int confirmFlag = get_convert_to_user_confirmflag(key);
-    if (!flags[confirmFlag])
+    if (!flags[get_convert_to_user_confirmflag(key)])
     {
         CEventEntity* entity = get_event_entity(key);
         if (entity != 0)
@@ -427,11 +436,17 @@ void CEventScriptMng::send_pc_room_play_init_time(CUser* user)
         user->sendNotiPcRoomPlayTime();
 }
 
-// ORIG 0x810c40e：包 0x176 —— put_header(0,0x176)、put_int(m_todayTime)、
-// 占位 byte 后遍历实体：is_eventing 的实体调用虚 send_init_data(user,packet,
-// key,m_todayTimeDay,flag)，成功则计数+1；回填计数、finalize 并 CUser::Send。
-// [b28d-27] DIFF N82：ORIG 0x0810c40e；p167 CLEAR（19/19），残差为帧/槽分配，
-// 语义闭合。
+// [b28d-solo-CEventScriptMng] send_event_init_data：DIFF — N82附 封顶。
+// ORIG 0x0810c40e：包 0x176；end() 循环头缓存（P13）后全帧槽位逐条对齐
+// （PacketGuard -0x28 / countIdx -0x2c / it -0x30 / endIt -0x34 / vfn -0x40 /
+// count -0x19 与 ORIG 全等）。
+// 残差唯一：多实参虚调用三活值（vfn/flag/m_todayTimeDay）的 callee-saved 角色
+// 对调——ORIG vfn→槽 -0x40、flag→%edi、day→%esi；4.4.7 vfn→%esi、flag→槽
+// -0x40、day→%edi（多 1 条 `mov -0x40(%ebp),%edx` 回读，135 vs 136 条）。
+// 实测两形：①原实参形（本形）；②P226 语句表达式 `({register bool f=flag;f;})`
+// 反劣（多 movzbl 中转，且循环旋转）。flag 的裸 register 三条件中「4.4 不自行
+// 升格」不成立 ⇒ 无源码解，封 N82附（多实参 call 首值 callee-saved 对调）。
+// p167 CLEAR（19/19），语义闭合。
 void CEventScriptMng::send_event_init_data(CUser* user, bool flag)
 {
     if (user == 0)
@@ -443,8 +458,11 @@ void CEventScriptMng::send_event_init_data(CUser* user, bool flag)
     int countIdx = packet.get_index();
     packet.put_byte(0);
     unsigned char count = 0;
-    for (std::map<int, CEventEntity*>::iterator it = m_entities.begin();
-         it != m_entities.end(); ++it)
+    // ORIG 0x0810c487：end() 在循环初始化区求值一次（P13），it 槽 -0x30 /
+    // endIt 槽 -0x34；每轮重调 end() 会多占 sret 临时槽并顶偏 PacketGuard 槽。
+    for (std::map<int, CEventEntity*>::iterator it = m_entities.begin(),
+             endIt = m_entities.end();
+         it != endIt; ++it)
     {
         if (is_eventing(it->first))
         {
@@ -562,8 +580,12 @@ int CEventScriptMng::get_pass_day(int yyyymmdd1, int yyyymmdd2)
     return -1;
 }
 
-// [b28d-27] DIFF N82：ORIG 0x0810c5d2；p167 CLEAR（4/4），残差为帧/槽与 time_t
-// 装载序，语义闭合。
+// [b28d-solo-CEventScriptMng] update_time_values：AE。
+// ORIG 0x0810c5d2：两处修复——① 0x0810c628 `movl $0x0,-0xc(%ebp)` 死局部
+// （P232 死槽占帧，令 now/prev/localT/prevT/指针组整体下移 4，全帧槽位与 ORIG
+// 全等）；② 0x0810c62f 的 `||` 条件两条守卫（js/jge）同落**出线**的 localTp 块、
+// prevTp 块 fall-through（4.1 布局）⇒ 用德摩根正向包裹（P222/P272）条件取反、
+// 两块互换复现。p167 CLEAR（4/4），语义闭合。
 void CEventScriptMng::update_time_values(int hour)
 {
     time_t now = GlobalData::s_systemTime_.getCurSec();
@@ -576,16 +598,23 @@ void CEventScriptMng::update_time_values(int hour)
     struct tm* localTp = localtime_r(&now, &localT);
     struct tm* prevTp = localtime_r(&prev, &prevT);
 
-    if (localTp->tm_hour < 0 || hour <= localTp->tm_hour)
+    // ORIG 0x0810c628：`movl $0x0,-0xc(%ebp)` 死局部（此后从不被读；P232 死槽
+    // 占帧，使 now/prev/localT/prevT/指针组整体下移 4，槽位与 ORIG 全等）。
+    int deadFlag = 0;
+
+    // ORIG 0x0810c62f：两条守卫（js/jge）同落**出线**的 localTp 块，prevTp 块为
+    // fall-through（4.1 的 `||` 条件 then 块外置）⇒ 4.4 复现形为德摩根正向包裹
+    // （P222/P272）：条件取反、两块互换，语义与 ORIG 完全一致。
+    if (localTp->tm_hour >= 0 && localTp->tm_hour < hour)
     {
-        m_todayTimeDay = static_cast<unsigned char>(localTp->tm_mday);
-        m_todayTime = localTp->tm_year * 10000 + (localTp->tm_mon + 1) * 100
+        m_todayTimeDay = static_cast<unsigned char>(prevTp->tm_mday);
+        m_todayTime = prevTp->tm_year * 10000 + (prevTp->tm_mon + 1) * 100
                       + 19000000 + static_cast<unsigned char>(m_todayTimeDay);
     }
     else
     {
-        m_todayTimeDay = static_cast<unsigned char>(prevTp->tm_mday);
-        m_todayTime = prevTp->tm_year * 10000 + (prevTp->tm_mon + 1) * 100
+        m_todayTimeDay = static_cast<unsigned char>(localTp->tm_mday);
+        m_todayTime = localTp->tm_year * 10000 + (localTp->tm_mon + 1) * 100
                       + 19000000 + static_cast<unsigned char>(m_todayTimeDay);
     }
 }
@@ -621,32 +650,37 @@ void CEventScriptMng::init_evnet_entity()
 
 bool CEventScriptMng::initScriptlist(InGameEventInfoList& list)
 {
-    // [b28d-27] ORIG 0x0810ba7a（p167：ptEv×11 / map::operator[]×4）：ORIG 每个
-    // 字段访问都重发 `it->second.xxx` 与 `m_entities[...]`（P157/P183 禁缓存
-    // 引用/指针）；旧实现用 `InGameEventInfo& info` + `CEventEntity*& slot`
-    // 缓存 ⇒ 少 11 条 ptEv + 3 条 operator[]。已修：ndiff 302→113；残差为
-    // 帧/槽分配（N82），p167 差集已清零。
-    for (std::map<int, InGameEventInfo>::iterator it = list.m_info.begin();
-         it != list.m_info.end(); ++it)
+    // [b28d-solo-CEventScriptMng] initScriptlist：AE。
+    // ORIG 0x0810ba7a：每个字段访问重发 `it->second.xxx` / `m_entities[...]`
+    // （P157/P183 禁缓存引用/指针）。
+    // ORIG 结构：end() 循环头缓存一次（P13，it 槽 -0x18 / endIt 槽 -0x1c）；
+    // m_isEventing 正极性包裹（P214①：ORIG `setne;test;je <自增>`，负写
+    // `==0 + continue` 反产 sete/jne）；name 为 getEventScript 实参内的**匿名
+    // string 临时**（P0：ORIG 在 null 检查前即 ~string/~allocator，具名局部
+    // 会延后到语句尾并多一组 EH 记账）。三处修毕 compare AE；
+    // p167 CLEAR（35/35）。
+    for (std::map<int, InGameEventInfo>::iterator it = list.m_info.begin(),
+             endIt = list.m_info.end();
+         it != endIt; ++it)
     {
-        if (it->second.m_isEventing == 0)
-            continue;
+        if (it->second.m_isEventing != 0)
+        {
+            InGameEventScript* script =
+                InGameEventScriptLoader::getEventScript(
+                    it->second.m_eventId, toTString(it->second.m_name));
+            if (script == 0)
+                return false;
 
-        std::string name(toTString(it->second.m_name));
-        InGameEventScript* script =
-            InGameEventScriptLoader::getEventScript(it->second.m_eventId, name);
-        if (script == 0)
-            return false;
-
-        m_entities[it->second.m_eventId] =
-            create_event_entity(it->second.m_eventId, false);
-        m_entities[it->second.m_eventId]->set_event_flag(
-            it->second.m_isEventing != 0);
-        m_entities[it->second.m_eventId]->set_event_data(it->first, script);
-        m_entities[it->second.m_eventId]->set_event_start_time(
-            it->second.m_startTime);
-        m_entities[it->second.m_eventId]->set_event_end_time(
-            it->second.m_endTime);
+            m_entities[it->second.m_eventId] =
+                create_event_entity(it->second.m_eventId, false);
+            m_entities[it->second.m_eventId]->set_event_flag(
+                it->second.m_isEventing != 0);
+            m_entities[it->second.m_eventId]->set_event_data(it->first, script);
+            m_entities[it->second.m_eventId]->set_event_start_time(
+                it->second.m_startTime);
+            m_entities[it->second.m_eventId]->set_event_end_time(
+                it->second.m_endTime);
+        }
     }
 
     init_evnet_entity();
@@ -654,32 +688,45 @@ bool CEventScriptMng::initScriptlist(InGameEventInfoList& list)
 }
 
 
-// [b28d-27] DIFF N82：ORIG 0x0810bf56；p167 CLEAR（16/16），残差为帧/槽与
-// 分支块排布，语义闭合。
+// [b28d-solo-CEventScriptMng] process_level_up_reward：AE。
+// ORIG 0x0810bf56：三条独立守卫（user==0 / !is_eventing / reward!=0 正向包裹，
+// P133 + P214①；尾部两岛 nop;jmp + nop 与 ORIG 全等）；check_recv_level 结果
+// 无具名局部（P0：call 结果寄存器直测）；flag 形参入口 spill 到 -0x2c（bool
+// 形参一次性截断，P244）。
+// 三个 callee 返回类型链：ORIG 0x0810bfb8/0x0810c005/0x0810c000/0x0810c07c 均
+// `call; test %al,%al; je`；4.4.7 探针对 char/int 返回恒产 4 条（调用点
+// cast/!=0/!! 四形全败），仅 bool 返回产 2 条 ⇒ 由 Main 代落
+// CEventScriptMng.h is_recv_check_item/check_recv_level/set_reward_item → bool
+// （定义端 EventLevelupA2/CEventScriptMng_entities 同步；P248 档①/P315）后
+// 6 条残差归零。p167 CLEAR（16/16），语义闭合。
 void CEventScriptMng::process_level_up_reward(CUser* user, bool flag)
 {
-    if (user == 0 || !is_eventing(0x194))
+    if (user == 0)
+        return;
+    if (!is_eventing(0x194))
         return;
 
     CLevelUpReward* reward =
         static_cast<CLevelUpReward*>(get_event_entity(0x194));
-    if (reward->is_recv_check_item() != 0)
+    if (reward != 0)
     {
-        const int ok = reward->check_recv_level(user->get_charac_level(),
-                                                user->get_charac_job(),
-                                                user->getCurCharFirstGrowType(),
-                                                flag);
-        if (ok != 0)
-            DB_SelectLevelUpReward::makeRequest(
-                static_cast<int>(user->GetUID()),
-                user->getCurCharacNo(),
-                user->get_charac_level());
-    }
-    else if (reward->set_reward_item(user->get_charac_level(),
-                                     user->get_charac_job(),
-                                     user->getCurCharFirstGrowType()) != 0)
-    {
-        reward->do_action(user);
+        if (reward->is_recv_check_item() != 0)
+        {
+            if (reward->check_recv_level(user->get_charac_level(),
+                                         user->get_charac_job(),
+                                         user->getCurCharFirstGrowType(),
+                                         flag) != 0)
+                DB_SelectLevelUpReward::makeRequest(
+                    static_cast<int>(user->GetUID()),
+                    user->getCurCharacNo(),
+                    user->get_charac_level());
+        }
+        else if (reward->set_reward_item(user->get_charac_level(),
+                                         user->get_charac_job(),
+                                         user->getCurCharFirstGrowType()) != 0)
+        {
+            reward->do_action(user);
+        }
     }
 }
 

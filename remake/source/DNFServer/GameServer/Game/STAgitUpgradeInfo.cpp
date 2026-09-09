@@ -8,7 +8,6 @@ STAgitUpgradeInfo::STAgitUpgradeInfo()
     clear();
 }
 
-STAgitUpgradeInfo::~STAgitUpgradeInfo() {}
 
 void STAgitUpgradeInfo::clear()
 {

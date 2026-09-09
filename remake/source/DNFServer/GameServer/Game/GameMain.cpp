@@ -33,6 +33,13 @@
 // 0x082b426e CStatistic，定义在共享头 CServerProxyMgr.h、本 TU 隐式实例化）：
 // N104/N82：EH landing 块序（4.1 直落 vs 4.4 `jmp` 岛）+ 帧 0x3c vs 0x4c +
 // 槽平移 0x10；`lea 0x0(,%ebx,4)` vs `shl $0x2`（N94 族）。
+// [b28d-solo-GameMain] N83/N104 封顶 | 192/191 三实例同形 | p167 三实例一致：
+// MISSING `T::D1Ev`+`_ZdaPv` / EXTRA `_ZnwjPv`+`_ZdlPvS_` —— 即 **N83**：ORIG 4.1
+// 把 `new ((T*)p) T();` 的 placement operator new **前端内联**（0 call），4.4-O0
+// 恒发 extern `_ZnwjPv` call + size 装载行 + `_ZdlPvS_` EH cleanup（ctor 加
+// throw() 零效，N83 已实证）；叠加 N104（EH landing 块序）+ 帧 0x3c vs 0x4c +
+// 槽平移 + `lea 0x0(,%ebx,4)` vs `shl $0x2`（N94 族）。模板定义在共享头
+// CServerProxyMgr.h（GlobalData 等 TU 亦实例化，非本泳道写权）⇒ 不改，N 封顶。
 #include "NpcScript.h"
 #include "MsgQueueMgr.h"
 #include "StreamPool.h"
@@ -112,13 +119,26 @@ void ProcessServerStatusLog();               // _Z22ProcessServerStatusLogv
 // 未命中/空值 → logFormat(1,"App.cpp","char* GetConfigFileString(...)",0x1fc7,
 // "%s tag error", key) 后返回 ""。
 // [b28d-28] DIFF | ORIG 0x0829d7b3 | N82：迭代器/string 临时槽序 + 槽平移。
+// [b28d-solo-GameMain] AE/IDENTICAL | 92=92 | p167 24/24 CLEAR | 修法：find(key)
+// 隐式临时 string（ORIG find 后立即 `call string::~string` + EH 链覆盖 find）+
+// P225 while 形复现 `test %eax,%eax; setne %al; test %al,%al; je` 物化。
 const char* GetConfigFileString(
     std::map<std::string, std::string>& conf, const char* key)
 {
-    std::string keyStr(key);
-    std::map<std::string, std::string>::iterator it = conf.find(keyStr);
-    if (it != conf.end() && it->second.length() != 0)
-        return it->second.c_str();
+    // ORIG 0x0829d7da：find 的实参是 `const char*` 隐式转换的**临时** string
+    // （-0x14 匿名槽 + -0xd allocator），find 返回后立即 `call string::~string`
+    // （完整表达式结束），EH 块覆盖 find 并析构该临时——不是具名 keyStr。
+    std::map<std::string, std::string>::iterator it = conf.find(key);
+    // ORIG 0x0829d884 `test %eax,%eax; setne %al; test %al,%al; je`：`&&` 第二
+    // 操作数的 bool 物化；4.4 对 `&&` 直接短路折 je，须改 P225 while 形复现
+    // （语句表达式会额外物化 `mov $1/$0,%eax` 5 条）。
+    if (it != conf.end())
+    {
+        while (it->second.length() != 0)
+        {
+            return it->second.c_str();
+        }
+    }
     LogManager::logFormat(1, "App.cpp",
                           __PRETTY_FUNCTION__,
                           0x1fc7, "%s tag error", key);
@@ -239,33 +259,49 @@ int TimerStatisticLevel::m_nTimeTable[5] = { 1, 10, 0xe, 0x11, 0x15 };
 // tm_mday+1（明天首档）再 mktime；最终返回目标时刻 + get_rand_int(300) 秒。
 // [b28d-28] DIFF | ORIG 0x0863591a | P196/N82：比较方向反演（ORIG jl/jle vs
 // 4.4 jg/jge）+ 槽号平移 4。
+// [b28d-solo-GameMain] AE | 81=81 | 修法（两旋钮）：①`std::time_t next;` 提前
+// 到 found 之前声明（P244 声明/赋值分离）⇒ 4.4 槽序翻正 next@-0x14 / found@-0xd
+// 与 ORIG 全等（旧判「N98 槽序不可控」作废：4.4 按声明序分配，提前声明即可）；
+// ②`now > next` 交换比较操作数 ⇒ 复现 ORIG `cmp -0x14(%ebp),%eax; jle`
+// （旧 `next < now` 产 `cmp %eax,-0x14(%ebp)`，N18b 方向靠交换操作数翻正）。
+// 另保留 P196 `cur.tm_hour >= m_nTimeTable[i]` 装载序形。
 int TimerStatisticLevel::CalcNextTime()
 {
     std::time_t now = static_cast<std::time_t>(s_systemTime_.getCurSec());
     std::tm cur;
     localtime_r(&now, &cur);
+    // [b28d-solo-GameMain] 槽序实验：ORIG next@-0x14 / found@-0xd（next 先于
+    // found 分配）⇒ next 提前声明（P244 声明/赋值分离）。
+    std::time_t next;
+    // ORIG 0x08635944 `movb $0x0,-0xd` 位于 target 拷贝**之前**（声明序证据）。
+    bool found = false;
     std::tm target = cur;
-    target.tm_hour = cur.tm_hour;
     target.tm_min = 0;
     target.tm_sec = 0;
-    bool found = false;
     for (int i = 3; i >= 0; --i)
     {
-        if (m_nTimeTable[i] <= cur.tm_hour)
+        // ORIG 0x086359a1 先载 hour 到 %edx 再载表项到 %eax（`cmp %eax,%edx; jl`）
+        // ⇒ 源形 `cur.tm_hour >= m_nTimeTable[i]`（交换操作数翻装载序）。
+        if (cur.tm_hour >= m_nTimeTable[i])
         {
             target.tm_hour = m_nTimeTable[i + 1];
             found = true;
             break;
         }
     }
-    std::time_t next = mktime(&target);
-    if (!found || next < now)
+    next = mktime(&target);
+    // [b28d-solo-GameMain] 比较方向旋钮：ORIG `cmp -0x14(%ebp),%eax`（dst=%eax）
+    // vs 4.4 `cmp %eax,-0x14(%ebp)`（N18b）；试交换操作数。
+    if (!found || now > next)
     {
         target.tm_hour = m_nTimeTable[0];
         target.tm_mday += 1;
         next = mktime(&target);
     }
-    return static_cast<int>(next) + get_rand_int(300);
+    // ORIG 0x08635a24：`add %eax,-0x14(%ebp); mov -0x14(%ebp),%eax` —— 两语句形
+    // （+= 后再 return 具名局部），单表达式 `next + call()` 会被 4.4 折成 `add mem,%eax`。
+    next += get_rand_int(300);
+    return static_cast<int>(next);
 }
 
 // ORIG 0x8637a62：msg=0x57，间隔=参数秒。
@@ -285,55 +321,65 @@ void TimerScheduleTenSecond::registNextTimer(unsigned int sec)
 //   delay = 目标 - now，负值钳 0。ORIG 末尾恒返回 eax=1（本模型 void，mangling 同）。
 // [b28d-28] DIFF | ORIG 0x08639b20 | P167 MISSING 14×`_Rb_tree_iterator::ptEv` +
 // G_CDataManager：ORIG 每轮迭代重新解引用（我方缓存），语义缺口待补。
+// [b28d-solo-GameMain] N95/N82 封顶 | 211/213 | p167 29/29 CLEAR | 修法：逐字段
+// `it->second.m_xxx`（14× operator->）+ localtime_r 返回指针（P43）+ begin/end
+// 各自独立调 G_CDataManager（P183）+ key 具名槽；残差帧/槽平移（N95）。
 void Timer_DungeonInoutOpenTime::RegistNextTimer()
 {
     std::time_t now = static_cast<std::time_t>(s_systemTime_.getCurSec());
     std::tm t;
-    localtime_r(&now, &t);
-    const int curHour = t.tm_hour;
-    const int curMin = t.tm_min;
-    // 非 const 迭代器：与 ORIG 一致地实例化 _Rb_tree_iterator 弱符号组。
-    std::map<int, STDungeonInoutTime>& table =
-        G_CDataManager()->m_serverParameter.m_dungeonInoutc8;
-    for (std::map<int, STDungeonInoutTime>::iterator it = table.begin();
-         it != table.end(); ++it)
+    std::tm* p = localtime_r(&now, &t);   // P43：ORIG 经返回值指针读字段
+    const int curHour = p->tm_hour;
+    const int curMin = p->tm_min;
+    // P183：ORIG 无 table 引用缓存——begin/end 各自独立调 G_CDataManager()
+    // （p167 差集 MISSING 1×G_CDataManager 即此）。
+    std::map<int, STDungeonInoutTime>::iterator it =
+        G_CDataManager()->m_serverParameter.m_dungeonInoutc8.begin();
+    std::map<int, STDungeonInoutTime>::iterator e =
+        G_CDataManager()->m_serverParameter.m_dungeonInoutc8.end();
+    for (; it != e; ++it)
     {
-        const STDungeonInoutTime& win = it->second;
+        int key = it->first;   // ORIG -0x10 槽（循环头一次性读取）
         std::time_t next;
-        if (curHour >= win.m_startHour && curHour <= win.m_endHour &&
-            curMin >= win.m_startMin && curMin <= win.m_endMin)
+        // P157/P183：ORIG 每个字段访问都重新 `call operator->`（14×，p167 差集
+        // MISSING 14×ptEv）——禁 `const T& win = it->second` 引用缓存。
+        if (curHour >= it->second.m_startHour &&
+            curHour <= it->second.m_endHour &&
+            curMin >= it->second.m_startMin &&
+            curMin <= it->second.m_endMin)
         {
-            // 窗口内：定到今天零点。
-            t.tm_hour = 0;
-            t.tm_min = 0;
-            t.tm_sec = 0;
-            next = mktime(&t);
+            p->tm_hour = 0;
+            p->tm_min = 0;
+            p->tm_sec = 0;
+            next = mktime(p);
         }
         else
         {
             const bool beforeStart =
-                win.m_startHour >= curHour ||
-                (win.m_endHour >= curHour &&
-                 (win.m_startMin > curMin ||
-                  (win.m_startMin <= curMin && win.m_endMin < curMin)));
+                it->second.m_startHour >= curHour ||
+                (it->second.m_endHour >= curHour &&
+                 (it->second.m_startMin > curMin ||
+                  (it->second.m_startMin <= curMin && it->second.m_endMin < curMin)));
             if (beforeStart)
             {
-                if (curHour < win.m_startHour)
-                    t.tm_hour = win.m_startHour;
-                else if (curMin < win.m_startMin)
-                    t.tm_hour = curHour;
+                // ORIG 0x08639cc5/0x08639cf3：`cmp curHour; setg %al; test; je`
+                // —— 条件写作 startHour > curHour（P225 物化方向）。
+                if (it->second.m_startHour > curHour)
+                    p->tm_hour = it->second.m_startHour;
+                else if (it->second.m_startMin > curMin)
+                    p->tm_hour = curHour;
                 else
-                    t.tm_hour = curHour + 1;
-                t.tm_min = win.m_startMin;
-                t.tm_sec = 0;
-                next = mktime(&t);
+                    p->tm_hour = curHour + 1;
+                p->tm_min = it->second.m_startMin;
+                p->tm_sec = 0;
+                next = mktime(p);
             }
             else
             {
-                t.tm_hour = win.m_startHour;
-                t.tm_min = win.m_startMin;
-                t.tm_sec = 0;
-                next = mktime(&t) + 0x15180;  // +86400：明天同一开放点
+                p->tm_hour = it->second.m_startHour;
+                p->tm_min = it->second.m_startMin;
+                p->tm_sec = 0;
+                next = mktime(p) + 0x15180;  // +86400：明天同一开放点
             }
         }
         int delay = static_cast<int>(next) - static_cast<int>(now);
@@ -343,7 +389,7 @@ void Timer_DungeonInoutOpenTime::RegistNextTimer()
         }
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
                                     (TIMER_MESSAGE)0x93, delay, 0,
-                                    (unsigned int)it->first);
+                                    (unsigned int)key);
     }
 }
 
@@ -352,6 +398,9 @@ void Timer_DungeonInoutOpenTime::RegistNextTimer()
 // 全部为 G_TimerQueue()->InsertTimer(OBJ_TYPE=2, 0, msg, delaySec, 0, 0)。
 // ---------------------------------------------------------------------------
 // [b28d-28] DIFF | ORIG 0x082a0459 | N82：槽/寄存器分配差（大函数）。
+// [b28d-solo-GameMain] N95/N82 封顶 | 235/242 | 真语义 bug 修：ORIG magic
+// 0x88888889+`sar $0x4` = **÷30** ⇒ 源形 `p->tm_min % 30`（半点对齐；旧实现
+// 误用 tm_mon/15）；0x55 delay 改内联实参（P24）；残差帧 0x74 vs 0x64 + 槽平移。
 void RegistServerSchedule()
 {
     // 0x50 / 0x52：固定 0 秒
@@ -362,20 +411,21 @@ void RegistServerSchedule()
     {
         std::time_t now = std::time(0);
         std::tm t;
-        localtime_r(&now, &t);
-        int q = t.tm_mon / 15;
-        int v = t.tm_mon - 30 * q;
-        int delay = 1740 - 60 * v + (60 - t.tm_sec);
+        // P43：ORIG 0x082a04fb `mov %eax,-0x18; mov 0x4(%eax),%ecx` 经返回值指针读字段。
+        std::tm* p = localtime_r(&now, &t);
+        // ORIG 0x082a0504 magic 0x88888889 + `sar $0x4` = **÷30**（sar 3 才是 ÷15），
+        // 随后 `v = tm_min - 30*q` ⇒ 源形 `tm_min % 30`（半点对齐；旧实现误用
+        // tm_mon/15，属真语义 bug）。v 无槽（寄存器直算），故内联进 delay 表达式。
+        int delay = 1740 - 60 * (p->tm_min % 30) + (60 - p->tm_sec);
         G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
                                     (TIMER_MESSAGE)0x54, delay, 0, 0);
     }
 
-    // 0x55：TimerStatisticLevel 下一统计点距当前秒数
-    {
-        int delay = TimerStatisticLevel::CalcNextTime() - static_cast<int>(std::time(0));
-        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
-                                    (TIMER_MESSAGE)0x55, delay, 0, 0);
-    }
+    // 0x55：TimerStatisticLevel 下一统计点距当前秒数（ORIG 0x082a0588：差在 %ebx
+    // 跨 G_TimerQueue() 调用保活，无具名槽 ⇒ P24 内联实参）。
+    G_TimerQueue()->InsertTimer(
+        (TimerEntry::OBJ_TYPE)2, 0, (TIMER_MESSAGE)0x55,
+        TimerStatisticLevel::CalcNextTime() - static_cast<int>(std::time(0)), 0, 0);
 
     // 0x59 / 0x5a / 0x5b / 0x61 / 0x66 / 0x89：ORIG 逐个独立 G_TimerQueue()->InsertTimer
     // （非循环；循环只发 1 个 call 点，P167 缺 5）。
@@ -443,6 +493,9 @@ STScriptFileList g_npcScriptFileList;
 // [b28d-28] DIFF | ORIG 0x0829f966 | N82/P183：ORIG CommonTime 五字节单条 disp
 // （`movzbl -0x18..-0x14`），我方经 m_pad 数组索引产 lea+add（字段化待 Main 批）；
 // 帧 0x30 vs 0x40。
+// [b28d-solo-GameMain] NEAR | 47=47 | 修法：CUserCharacInfo.h CommonTime 匿名 union
+// 具名视角（m_year..m_min）复现 5×`movzbl disp`；残差 N95（4.4 槽基 ebp-8 vs
+// 4.1 ebp-4：CommonTime -0x1c vs -0x18）+ N115 帧 0x40 vs 0x30。
 void ShowLogo()
 {
     std::cout << std::endl;
@@ -460,12 +513,11 @@ void ShowLogo()
     // [b28c-lane24] 不缓存 `const char* p`（P183 地址重物化铁律）：具名指针使
     // 4.4 生 `lea -0x18; mov %eax,-0xc; mov -0xc,%eax; add $K` 链，ORIG 直接
     // `movzbl -0x18(%ebp),%eax` 栈相对 disp ⇒ 每次读取内联全表达式。
+    // 具名标量视角（CUserCharacInfo.h CommonTime 匿名 union）：ORIG 单条
+    // `movzbl -0x18..-0x14(%ebp),%eax` disp 读，禁数组成员索引（lea+add）。
     std::printf("[!] Service Date (%02d-%02d-%02d/%02d:%02d)\n",
-                (int)((const signed char*)&time)[0],
-                (int)((const signed char*)&time)[1],
-                (int)((const signed char*)&time)[2],
-                (int)((const signed char*)&time)[3],
-                (int)((const signed char*)&time)[4]);  // CommonTime +0..+4（m_year..m_min）
+                (int)time.m_year, (int)time.m_month, (int)time.m_day,
+                (int)time.m_hour, (int)time.m_min);
 }
 
 // ---------------------------------------------------------------------------
@@ -507,6 +559,20 @@ void Neof_shutdownGlobalInstances()
 // ---------------------------------------------------------------------------
 // [b28d-28] DIFF | ORIG 0x082a08f4 | P167 MISSING 2×G_CEnvironment/2×c_str/
 // ostream/sprintf/cMyTrace（初始化尾部日志路径缺口）+ N82 大函数槽。
+// [b28d-solo-GameMain] N82 封顶（**语义已完整**）| p167 **CLEAR 269/269**
+// （0 missing / 0 extra，§6.2 三件套之②达成；残差仅 N82 大函数槽/帧）。修法：
+// ①`sprintf` 照抄（P171）+ garenaPubkey 去缓存（P183）+ tournament db Fail 分支补
+//   `cout << ... << endl`；
+// ②**真语义 bug ×5**：a) guild 装载循环 -0x2c0 独立计数器 + LoadGuildInfoProxyFromDB
+//   实参 = (ENUM_SERVER_GROUP)gi（旧形 gi 自增 + 传 E_SERVER_GROUP_NONE）；
+//   b) Power War 段 ORIG 为**单次调用**（0x82a1f9f..fb7，旧形写成 guild 遍历循环）；
+//   c) `G_CDataManager()->init()` 返回值被丢弃（ORIG 0x82a0e7b 检查失败 → 行号
+//   0x29f3 "[!] Init DataManager Fail" + return false）；
+//   d) initTournamentDB 实参 ORIG = `G_CEnvironment()+0x98`（m_dbTblFile，Init 为
+//   friend 直访），旧形 get_file_name()（= m_serverEnvir.m_fileName）取错；
+//   e) statistic 循环 InitLoginState 实参 ORIG = `(idx, get_gc_no_hardcode(idx))`，
+//   旧形 `get_gc_no_hardcode(E_SERVER_GROUP_NONE) + get_channel_no` 取错；
+//   ③两个遍历循环均改独立计数器 + 链式单表达式（P52/P183 begin/end 各自重物化）。
 bool Init(int argc, char** argv)
 {
     // ORIG @0x82a08f4：regist_signals 失败 → cout "Fail to regist os signals,
@@ -546,8 +612,9 @@ bool Init(int argc, char** argv)
     CLog::createInstance();
     std::cout << "[!] Init Log ..." << std::endl;
     char logPath[0x104];
-    std::snprintf(logPath, sizeof(logPath), "./log/%s/",
-                  G_CEnvironment()->get_file_name());
+    // ORIG 0x082a0a64 调 `sprintf@plt`（无 size 参数，P171 照抄；旧实现 snprintf
+    // 多压 size 实参，p167 EXTRA +1）。
+    std::sprintf(logPath, "./log/%s/", G_CEnvironment()->get_file_name());
     CLog::instance()->initiate(logPath, 0, 0);
     std::cout << "	- log path: " << logPath << std::endl;
     std::cout << "[!] Init Log Success" << std::endl;
@@ -563,18 +630,22 @@ bool Init(int argc, char** argv)
     //   第二轮均 pid 残留 already operated。
     cMyTrace authTrace("AuthGarenaToken::Init", 0x29c9, 9, 1, 0);
     authTrace("[!] Init Taiwan Garena Auth Key ...");
-    const char* garenaPubkey =
-        G_CEnvironment()->m_serverEnvir.m_garenaPublickey.c_str();
-    if (!Taiwan::AuthGarenaToken::init(garenaPubkey))
+    // P183：ORIG 0x082a0b36/0x082a0b57/0x082a0bc5 三处各自重算
+    // `G_CEnvironment()+0x314 → c_str()`，无 garenaPubkey 具名缓存
+    // （p167 MISSING 2×G_CEnvironment + 2×c_str 即此）。
+    if (!Taiwan::AuthGarenaToken::init(
+            G_CEnvironment()->m_serverEnvir.m_garenaPublickey.c_str()))
     {
         // ORIG 82a0b57..bb6：Fail trace 构造 (name, 0x29d0, 9, 0, 1)
         // ——bFieldC=0、bFieldD=1（+0xc=1 → bAppend/bTimestamp=1 → 尾部 CRLF）。
         cMyTrace failTrace("AuthGarenaToken::Init", 0x29d0, 9, 0, 1);
-        failTrace(" %s Fail", garenaPubkey);
+        failTrace(" %s Fail",
+                  G_CEnvironment()->m_serverEnvir.m_garenaPublickey.c_str());
         return false;
     }
     cMyTrace okTrace("AuthGarenaToken::Init", 0x29d3, 9, 0, 1);
-    okTrace(" %s Success", garenaPubkey);
+    okTrace(" %s Success",
+            G_CEnvironment()->m_serverEnvir.m_garenaPublickey.c_str());
     CodePage::initCodePage();
 
     // ORIG 82a0bc5..：各启动阶段 cMyTrace(5-arg) 记录 + 失败即 abort（返回 0）。
@@ -596,7 +667,15 @@ bool Init(int argc, char** argv)
     { cMyTrace t(__PRETTY_FUNCTION__, 0x29eb, 9, false, true); t(" Success"); }
 
     { cMyTrace t(__PRETTY_FUNCTION__, 0x29f0, 9, true, true); t("[!] Init DataManager ..."); }
-    G_CDataManager()->init();
+    // [b28d-solo-GameMain] 真语义 bug 修：ORIG 0x82a0e7b..0x82a0ed3 检查 init 返回值
+    // （`xor $1,%eax; test %al; jmp 成功`），失败分支 ctor 行号 0x29f3 + 串
+    // "[!] Init DataManager Fail" 后返回 false；旧形丢弃返回值直接往下走。
+    if (!G_CDataManager()->init())
+    {
+        { cMyTrace t(__PRETTY_FUNCTION__, 0x29f3, 9, true, true);
+          t("[!] Init DataManager Fail"); }
+        return false;
+    }
     { cMyTrace t(__PRETTY_FUNCTION__, 0x29f6, 9, true, true); t("[!] Init DataManager Success"); }
 
     { cMyTrace t(__PRETTY_FUNCTION__, 0x29f9, 9, true, true); t("[!] Init GameManager ..."); }
@@ -631,8 +710,17 @@ bool Init(int argc, char** argv)
       t("\t- Channel Type : %d", G_GameWorld()->GetChannelType()); }
 
     { cMyTrace t(__PRETTY_FUNCTION__, 0x2a29, 9, true, false); t("[!] Init tournament db "); }
-    if (!GlobalData::initTournamentDB(G_CEnvironment()->get_file_name()))
+    // [b28d-solo-GameMain] 真语义 bug 修：ORIG 0x82a12e2 `call G_CEnvironment;
+    // add $0x98,%eax` ⇒ 实参是 **CEnvironment+0x98 = m_dbTblFile**（Init 为该类
+    // friend，直访 private 成员）；旧形 get_file_name() 返回 m_serverEnvir.m_fileName
+    // （+0x198 区），实参取错（p167 EXTRA get_file_name +1 / MISSING G_CEnvironment -1）。
+    if (!GlobalData::initTournamentDB(G_CEnvironment()->m_dbTblFile))
+    {
+        // ORIG 0x082a12fb：失败分支是 cout << "[!] Init tournament db Fail" << endl
+        // （p167 MISSING 2×ostream 即此），非 cMyTrace。
+        std::cout << "[!] Init tournament db Fail" << std::endl;
         return false;
+    }
     { cMyTrace t(__PRETTY_FUNCTION__, 0x2a33, 9, false, true); t("Success"); }
 
     // DB 查询计数器挂接（DBMgr@全局 s_db_mgr）
@@ -650,12 +738,15 @@ bool Init(int argc, char** argv)
         {
             typedef std::map<ENUM_SERVER_GROUP,
                              std::map<std::string, std::string> > GrpMap;
-            GrpMap& grpMap = G_CEnvironment()->m_serverGroupMap;
             // ORIG 82a15xx：单循环遍历 m_serverGroupMap，每迭代依次建 monitor/guild/
             // statistic proxy；每 createServerProxy 前重取 G_CEnvironment()->…size()
             // 作 count 参，失败 cerr + abort。idx（-0x34）随迭代自增。
+            // P183：begin/end 各自重物化 `G_CEnvironment()->m_serverGroupMap`
+            // （ORIG `++it` 后紧跟 `call G_CEnvironment; add $0x50; call end()`；
+            // 缓存 GrpMap& 引用会缺该调用点，p167 MISSING G_CEnvironment -1）。
             int idx = 0;
-            for (GrpMap::iterator it = grpMap.begin(); it != grpMap.end(); ++it, ++idx)
+            for (GrpMap::iterator it = G_CEnvironment()->m_serverGroupMap.begin();
+                 it != G_CEnvironment()->m_serverGroupMap.end(); ++it, ++idx)
             {
                 ENUM_SERVER_GROUP g = it->first;
                 std::map<std::string, std::string>& c = it->second;
@@ -744,7 +835,32 @@ bool Init(int argc, char** argv)
     // LoginState 初始化：遍历 statistic proxy（Start..End 索引区间）。
     // ORIG 0x2ad7/0x2aec：前后 cMyTrace；InitLoginState 失败(0x2ae8/0x2adf) abort。
     { cMyTrace t(__PRETTY_FUNCTION__, 0x2ad7, 9, true, false); t("[!] Init Login State "); }
-    if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
+    // [b28d-solo-GameMain] P222 块序：ORIG 真分支（Integrated → statistic 遍历循环）
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+    {
+        // 同 guild 循环：ORIG -0x?? 独立计数器（GetNextIndex(int&) 引用出参，初值 0，
+        // cond `m_count > next`）；旧形 idx 自身自增（跳过条目）。
+        int statNext = 0;
+        for (int idx = GlobalData::s_statistic_proxy_mgr->GetStartIndex();
+             GlobalData::s_statistic_proxy_mgr->GetEndIndex() > statNext; )
+        {
+            // [b28d-solo-GameMain] 真语义 bug 修：ORIG 0x82a19e4..0x82a1a0d 实参为
+            // `InitLoginState((ENUM_SERVER_GROUP)idx, get_gc_no_hardcode(idx))`
+            // （esi=idx 作第一参数、ebx=get_gc_no_hardcode(idx) 作第二参数）；
+            // 旧形取 get_gc_no_hardcode(E_SERVER_GROUP_NONE) + get_channel_no（错）。
+            if (!G_CDataManager()->InitLoginState(
+                    static_cast<ENUM_SERVER_GROUP>(idx),
+                    G_CEnvironment()->get_gc_no_hardcode(
+                        static_cast<ENUM_SERVER_GROUP>(idx))))
+            {
+                { cMyTrace t(__PRETTY_FUNCTION__, 0x2adf, 9, true, true);
+                  t("[!] Init Login State Fail"); }
+                return false;
+            }
+            idx = GlobalData::s_statistic_proxy_mgr->GetNextIndex(statNext);
+        }
+    }
+    else
     {
         // ORIG 非 Integrated：单发 InitLoginState(m_serverGroup, m_gcNo)。
         if (!G_CDataManager()->InitLoginState(
@@ -755,24 +871,6 @@ bool Init(int argc, char** argv)
             { cMyTrace t(__PRETTY_FUNCTION__, 0x2ae8, 9, true, true);
               t("[!] Init Login State Fail"); }
             return false;
-        }
-    }
-    else
-    {
-        for (int idx = GlobalData::s_statistic_proxy_mgr->GetStartIndex(); ; )
-        {
-            if (!G_CDataManager()->InitLoginState(
-                    static_cast<ENUM_SERVER_GROUP>(
-                        G_CEnvironment()->get_gc_no_hardcode(E_SERVER_GROUP_NONE)),
-                    G_CEnvironment()->get_channel_no()))
-            {
-                { cMyTrace t(__PRETTY_FUNCTION__, 0x2adf, 9, true, true);
-                  t("[!] Init Login State Fail"); }
-                return false;
-            }
-            if (idx >= GlobalData::s_statistic_proxy_mgr->GetEndIndex())  // GetNextIndex(&idx) 推断形态
-                break;
-            GlobalData::s_statistic_proxy_mgr->GetNextIndex(idx);
         }
     }
     { cMyTrace t(__PRETTY_FUNCTION__, 0x2aec, 9, false, true); t("Success"); }
@@ -823,20 +921,24 @@ bool Init(int argc, char** argv)
         if (ev && ev->IsEventing(0) && curSec > 0x4cbe3f0f)
             GlobalData::s_event_manager->TriggerEventStart(0x3a, Word_Param());
     }
-    // 公会信息装载
-    for (int gi = GlobalData::s_guild_proxy_mgr->GetStartIndex(); ; )
+    // 公会信息装载。[b28d-solo-GameMain] 真语义 bug 修 ×2（ORIG 0x82a1dd8..0x82a1ea6）：
+    // ①-0x2c0 是**独立计数器**（GetNextIndex(int&) 引用出参，初值 0，cond `m_count
+    //   > next`），旧形用 gi 自身自增（跳过条目）；
+    // ②LoadGuildInfoProxyFromDB 实参 = **当前索引 gi**（ORIG `mov -0x20,%ebx` 直传），
+    //   旧形传 E_SERVER_GROUP_NONE（取错实参）；
+    // ③ORIG 无 gp 判空（P171 照抄），链式单表达式（P52）。
+    int guildNext = 0;
+    for (int gi = GlobalData::s_guild_proxy_mgr->GetStartIndex();
+         GlobalData::s_guild_proxy_mgr->GetEndIndex() > guildNext; )
     {
-        CGuildServerProxy* gp = GlobalData::s_guild_proxy_mgr->GetServerProxy(E_SERVER_GROUP_NONE /*推断*/);
-        // ORIG 0x2b88：LoadGuildInfoProxyFromDB 失败记 cMyTrace 并 abort。
-        if (gp && !gp->LoadGuildInfoProxyFromDB(E_SERVER_GROUP_NONE))
+        if (!GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)gi)
+                 ->LoadGuildInfoProxyFromDB((ENUM_SERVER_GROUP)gi))
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x2b88, 9, true, true);
             t("Fail Load Guild Info Proxy");
             return false;
         }
-        if (gi >= GlobalData::s_guild_proxy_mgr->GetEndIndex())
-            break;
-        GlobalData::s_guild_proxy_mgr->GetNextIndex(gi);
+        gi = GlobalData::s_guild_proxy_mgr->GetNextIndex(guildNext);
     }
 
     // 广告 / 共享服务器消息 / 拍卖均价
@@ -868,16 +970,13 @@ bool Init(int argc, char** argv)
     InitCipherKeyString();
     RegistServerSchedule();
 
-    // Power War 启动信息请求 + 各定时器注册（ORIG 顺序保留）
-    for (int pi = GlobalData::s_guild_proxy_mgr->GetStartIndex(); ; )
-    {
-        CGuildServerProxy* gp = GlobalData::s_guild_proxy_mgr->GetServerProxy(E_SERVER_GROUP_NONE /*推断*/);
-        if (gp)
-            gp->SendReqestPowerWarStartInfo();
-        if (pi >= GlobalData::s_guild_proxy_mgr->GetEndIndex())
-            break;
-        GlobalData::s_guild_proxy_mgr->GetNextIndex(pi);
-    }
+    // Power War 启动信息请求 + 各定时器注册（ORIG 顺序保留）。
+    // [b28d-solo-GameMain] 真语义 bug 修：ORIG 0x82a1f9f..0x82a1fb7 是**单次调用**
+    // （`mov 0x940be2c,%eax; movl $0,0x4(%esp); call GetServerProxy; mov %eax,(%esp);
+    // call SendReqestPowerWarStartInfo`，无循环、无判空）；旧形写成 guild 遍历循环
+    // （多发 GetStartIndex/GetEndIndex/GetNextIndex 各 1，p167 EXTRA 三连即此）。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(E_SERVER_GROUP_NONE)
+        ->SendReqestPowerWarStartInfo();
     Timer_SecretShopStatistic::RegistNextTimer();
     Timer_DailySchedule::RegistNextTimer();
     advancealtar::Timer_MainTick::RegistNextTimerGage();
@@ -915,14 +1014,35 @@ bool Init(int argc, char** argv)
 // 0x829fd24 `mov $0x1,%eax` 后 leave/ret（循环退出返回 1，P174）。
 // [b28d-28] DIFF | ORIG 0x0829fa2b | P167 CLEAR（36/36）；N82：常量数组初始化槽
 // （-0x48..-0x38）+ 帧 0x60 vs 0x50 + 槽平移。
+// [b28d-solo-GameMain] AE | 190=190 | 真语义 bug 修 ×2：
+// ①ORIG 0x0829fb02 `cmpl $0x9; setg; addl $1,-0x40; test; je` ⇒ 源形
+//   `if (cnt10++ > 9) {…; cnt10=0;}`（旧形真分支后值 1≠ORIG 0）；
+// ②心跳循环 ORIG -0x4c 是**独立计数器**（GetNextIndex(int&) 引用出参，初值 0，
+//   cond `m_count > next`）；旧 `mi = GetNextIndex(mi)` 把 proxy 索引当计数器
+//   （首轮跳 indexArray[1]）⇒ 漏发心跳。
+// 修法：P52 链式单表达式 `mgr->GetServerProxy(mi)->SendHeartBeat(G_CEnvironment()
+// ->get_channel_no())`（实参先物化 %ebx 跨 receiver 保活）+ 两循环复用同一 next
+// 槽（guild 前复位 0，ORIG 同 -0x4c）+ P259 `Acquire(...)` 内联进 CStreamGuard
+// ctor 实参（去 s 具名槽往返）+ 6 个 dead 局部复现帧头 12 条初始化。
+// 帧 0x60 与 ORIG 全等，指令数 190=190。
 bool MainLoop()
 {
-    int cnt30 = 0;        // -0x34
-    int cnt10 = 0;        // -0x40
-    int flip24 = 0;       // -0x24
-    int cnt300 = 0;       // -0x1c
-    int lastUserCount = 0; // -0x30
-    int lastRemain = 0;    // -0x2c
+    // ORIG 0x0829fa33..0x0829fa87：函数头 12 个具名局部初始化，槽深 -0x48..-0x1c。
+    // 其中 6 个为只写不读的 dead 局部（lim30/lim10/dead3/lim20/dead8/lim300）——
+    // 它们撑起 ORIG 帧 0x60（我方旧版 0x50）并决定后续槽号；比较处 ORIG 仍用立即数。
+    int lim30 = 30;         // -0x48（dead）
+    int lim10 = 10;         // -0x44（dead）
+    int cnt10 = 0;          // -0x40
+    int dead3 = 0;          // -0x3c（dead）
+    int lim20 = 20;         // -0x38（dead）
+    int cnt30 = 0;          // -0x34
+    int lastUserCount = 0;  // -0x30
+    int lastRemain = 0;     // -0x2c
+    int dead8 = 0;          // -0x28（dead）
+    int flip24 = 0;         // -0x24
+    int lim300 = 300;       // -0x20（dead）
+    int cnt300 = 0;         // -0x1c
+    (void)lim30; (void)lim10; (void)dead3; (void)lim20; (void)dead8; (void)lim300;
 
     while (!GlobalData::s_server_stop)
     {
@@ -941,29 +1061,38 @@ bool MainLoop()
             cnt30 = 0;
         }
 
-        if (cnt10 > 9)
+        // ORIG 0x0829fb02 `cmpl $0x9,-0x40; setg %al; addl $0x1,-0x40; test %al,%al;
+        // je`——比较用旧值、自增在测前、真分支内重置 0 ⇒ 源形 `if (cnt10++ > 9)`。
+        // 旧实现 `if(cnt10>9){…;cnt10=0;} ++cnt10;` 真分支后值为 1 ≠ ORIG 0（真语义 bug）。
+        if (cnt10++ > 9)
         {
-            for (int mi = GlobalData::s_monitor_proxy_mgr->GetStartIndex(); ; )
+            // [b28d-solo-GameMain] 真语义 bug 修：ORIG -0x4c 是**独立计数器**
+            // （GetNextIndex(int&) 的引用出参，初值 0，cond 用 `m_count > next`）；
+            // 旧实现 `mi = GetNextIndex(mi)` 把 proxy 索引当计数器自增（首轮即
+            // 跳过 indexArray[1]，且 cond 用索引值比较）⇒ 漏发心跳。
+            // 链式单表达式（P52）：get_channel_no 实参先物化 %ebx 跨 GetServerProxy
+            // 保活（旧形经具名 mp 局部槽化 + 调用序反）。
+            int next = 0;
+            for (int mi = GlobalData::s_monitor_proxy_mgr->GetStartIndex();
+                 GlobalData::s_monitor_proxy_mgr->GetEndIndex() > next; )
             {
-                CMonitorServerProxy* mp =
-                    GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)mi);
-                mp->SendHeartBeat(G_CEnvironment()->get_channel_no());
-                mi = GlobalData::s_monitor_proxy_mgr->GetNextIndex(mi);
-                if (mi >= GlobalData::s_monitor_proxy_mgr->GetEndIndex())
-                    break;
+                GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+                    (ENUM_SERVER_GROUP)mi)->SendHeartBeat(
+                        G_CEnvironment()->get_channel_no());
+                mi = GlobalData::s_monitor_proxy_mgr->GetNextIndex(next);
             }
-            for (int gi = GlobalData::s_guild_proxy_mgr->GetStartIndex(); ; )
+            // ORIG 两循环复用同一 -0x4c 槽（guild 前重新置 0）⇒ 用同一局部复位。
+            next = 0;
+            for (int gi = GlobalData::s_guild_proxy_mgr->GetStartIndex();
+                 GlobalData::s_guild_proxy_mgr->GetEndIndex() > next; )
             {
-                CGuildServerProxy* gp =
-                    GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)gi);
-                gp->SendHeartBeat(G_CEnvironment()->get_channel_no());
-                gi = GlobalData::s_guild_proxy_mgr->GetNextIndex(gi);
-                if (gi >= GlobalData::s_guild_proxy_mgr->GetEndIndex())
-                    break;
+                GlobalData::s_guild_proxy_mgr->GetServerProxy(
+                    (ENUM_SERVER_GROUP)gi)->SendHeartBeat(
+                        G_CEnvironment()->get_channel_no());
+                gi = GlobalData::s_guild_proxy_mgr->GetNextIndex(next);
             }
             cnt10 = 0;
         }
-        ++cnt10;
 
         if (flip24 == 1)
         {
@@ -977,8 +1106,10 @@ bool MainLoop()
 
         if (cnt300 == 300)
         {
-            Stream* s = GlobalData::s_small_stream_pool->Acquire("App.cpp", 0x2728);
-            CStreamGuard guard(s, true);
+            // [b28d-solo-GameMain] P259：ORIG `call Acquire` 返回值经 %eax 直传
+            // CStreamGuard ctor 实参（无 s 具名局部槽往返）；旧形多 store+load 2 条。
+            CStreamGuard guard(
+                GlobalData::s_small_stream_pool->Acquire("App.cpp", 0x2728), true);
             **guard << 0x30a;
             **guard << -1;
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
@@ -1071,8 +1202,11 @@ void DESTROY_TimerDispatcher()  { GlobalInstance<TimerDispatcher>::destroy(); }
 // regist_signal(int, void(*)(int)) —— ORIG 0x829f1fc（逐指令转写）：
 // sigaction；sa_flags = sig==14(SIGALRM) ? 0x20000000 : 0x10000000（ORIG 实证 cmpl $0xe）；
 // 失败 printf 后返回 0，成功返回 1。
+// P248 档①：ORIG regist_signals 调用点为 `call; xor $0x1,%eax; test %al,%al; je`
+// （无 setne）⇒ callee 返回类型必须为 bool（int 在 4.4 恒产 `test; sete` 物化）。
+// 返回类型不入 mangled（_Z13regist_signaliPFviE），ORIG 尾 `mov $0x1,%eax` 与 bool 兼容。
 // ---------------------------------------------------------------------------
-int regist_signal(int sig, void (*handler)(int))
+bool regist_signal(int sig, void (*handler)(int))
 {
     struct sigaction sa;
     struct sigaction oldact;
@@ -1097,6 +1231,9 @@ void TerminateServers();    // ORIG T 0x082a21f9（本文件尾部定义）
 
 // [b28d-28] DIFF | ORIG 0x0829f28b | P167 CLEAR（48/48）；N82 槽/寄存器分配差
 // （我方多 28 条）。
+// [b28d-solo-GameMain] AE | 121/122 | p167 48/48 CLEAR | 修法：CPacketTracerInstance()/
+// G_CEnvironment()/G_GameWorld() 全表达式直用（P0，消 tracer/env/world 具名局部）+
+// P227 cMyTrace 全表达式临时链（userCount 跨 ctor %ebx 保活）。
 void signal_handler(int sig)
 {
     switch (sig)
@@ -1105,44 +1242,35 @@ void signal_handler(int sig)
     {
         std::puts("RECV SIGTERM");
         rdar_terminate();
-        CPacketTracer* tracer = CPacketTracerInstance();
-        tracer->AbsoluteTcpWriteLog();
-        tracer = CPacketTracerInstance();
-        tracer->AbsoluteUdpWriteLog();
+        // P0：ORIG `call CPacketTracerInstance; mov %eax,(%esp); call ...` 无具名局部。
+        CPacketTracerInstance()->AbsoluteTcpWriteLog();
+        CPacketTracerInstance()->AbsoluteUdpWriteLog();
         break;
     }
     case 10:
     {
-        CEnvironment* env = G_CEnvironment();
-        std::printf("RDAR_SUSPEND pointer: %p\n", static_cast<void*>(env));
-        env = G_CEnvironment();
-        env->set_suspend_state(true);
+        std::printf("RDAR_SUSPEND pointer: %p\n", G_CEnvironment());
+        G_CEnvironment()->set_suspend_state(true);
         break;
     }
     case 12:
     {
         std::puts("RECV SIGUSR2");
-        CEnvironment* env = G_CEnvironment();
-        std::printf("G_CEnvironment pointer: %p\n", static_cast<void*>(env));
-        env = G_CEnvironment();
-        env->set_suspend_state(true);
+        std::printf("G_CEnvironment pointer: %p\n", G_CEnvironment());
+        G_CEnvironment()->set_suspend_state(true);
         GetInstanceShutdowManager()->Reset();
         GetInstanceShutdowManager()->EnableShutdown(true);
-        GameWorld* world = G_GameWorld();
-        const int userCount = world->get_UserCount_InWorld();
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x2459, 0);
-            trace("current user count (%d)\n", userCount);
-        }
-        GameWorld* world2 = G_GameWorld();
-        if (world2->get_UserCount_InWorld() < 1)
+        // P227 全表达式临时链：ORIG 先 `call get_UserCount_InWorld` 入 %ebx，
+        // 再 cMyTrace ctor，ctor 后 `mov %ebx,0x8(%esp)`（无具名 userCount 槽）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x2459, 0)(
+            "current user count (%d)\n", G_GameWorld()->get_UserCount_InWorld());
+        if (G_GameWorld()->get_UserCount_InWorld() < 1)
         {
             GetInstanceShutdowManager()->OnAllUserLogout();
         }
         else
         {
-            GameWorld* world3 = G_GameWorld();
-            world3->arrange_users();
+            G_GameWorld()->arrange_users();
         }
         break;
     }
@@ -1150,10 +1278,8 @@ void signal_handler(int sig)
     case 11:
     {
         std::puts("Recv SIGSEGV signal --> make Dump Core file.");
-        CPacketTracer* tracer = CPacketTracerInstance();
-        tracer->AbsoluteTcpWriteLog();
-        tracer = CPacketTracerInstance();
-        tracer->AbsoluteUdpWriteLog();
+        CPacketTracerInstance()->AbsoluteTcpWriteLog();
+        CPacketTracerInstance()->AbsoluteUdpWriteLog();
         omll_dump_core_file();
         break;
     }
@@ -1161,10 +1287,8 @@ void signal_handler(int sig)
     {
         LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__,
                               0x2478, "Recv FPE signal");
-        CPacketTracer* tracer = CPacketTracerInstance();
-        tracer->AbsoluteTcpWriteLog();
-        tracer = CPacketTracerInstance();
-        tracer->AbsoluteUdpWriteLog();
+        CPacketTracerInstance()->AbsoluteTcpWriteLog();
+        CPacketTracerInstance()->AbsoluteUdpWriteLog();
         omll_dump_core_file();
         break;
     }
@@ -1195,10 +1319,8 @@ void signal_handler(int sig)
                               0x2486,
                               "Recv %d signal --> process is terminated abnormaly.",
                               sig);
-        CPacketTracer* tracer = CPacketTracerInstance();
-        tracer->AbsoluteTcpWriteLog();
-        tracer = CPacketTracerInstance();
-        tracer->AbsoluteUdpWriteLog();
+        CPacketTracerInstance()->AbsoluteTcpWriteLog();
+        CPacketTracerInstance()->AbsoluteUdpWriteLog();
         omll_dump_core_file();
         std::exit(-1);
         break;
@@ -1246,21 +1368,38 @@ void omll_dump_core_file() { std::abort(); }
 // 15/10/12/13/11/8/4/7/16/23/24/25/31 → signal_handler（13 → SIG_IGN），
 // 任一注册失败即返回 0，全部成功返回 1。
 // [b28d-28] DIFF | ORIG 0x0829f4c5 | P167 CLEAR（13/13）；N82 槽/寄存器分配差。
+// [b28d-solo-GameMain] AE | 131=131 | p167 13/13 CLEAR | 修法：bool ok 槽形（前 3 次
+// 直测 + 后 10 次 `mov %al,-0x9` 槽，P198① 预清）+ regist_signal 返回类型 int→bool
+// （P248 档①：调用点 `xor $1,%eax` 复现；返回类型不入 mangled）。
 int regist_signals()
 {
+    // ORIG 0x0829f4cb `movb $0x0,-0x9(%ebp)`：bool 局部预清（P198①）。
+    // 前三次注册 ORIG 直接 `call; xor $1; test; je`（无槽往返）；自第 4 次
+    // （sig 13）起为 `mov %al,-0x9; movzbl -0x9; xor $1; test; je`（具名 ok 槽）。
+    bool ok = false;
     if (!regist_signal(15, signal_handler)) { return 0; }
     if (!regist_signal(10, signal_handler)) { return 0; }
     if (!regist_signal(12, signal_handler)) { return 0; }
-    if (!regist_signal(13, (void (*)(int))1)) { return 0; }  // SIG_IGN
-    if (!regist_signal(11, signal_handler)) { return 0; }
-    if (!regist_signal(8,  signal_handler)) { return 0; }
-    if (!regist_signal(4,  signal_handler)) { return 0; }
-    if (!regist_signal(7,  signal_handler)) { return 0; }
-    if (!regist_signal(16, signal_handler)) { return 0; }
-    if (!regist_signal(23, signal_handler)) { return 0; }
-    if (!regist_signal(24, signal_handler)) { return 0; }
-    if (!regist_signal(25, signal_handler)) { return 0; }
-    if (!regist_signal(31, signal_handler)) { return 0; }
+    ok = regist_signal(13, (void (*)(int))1);  // SIG_IGN
+    if (!ok) { return 0; }
+    ok = regist_signal(11, signal_handler);
+    if (!ok) { return 0; }
+    ok = regist_signal(8,  signal_handler);
+    if (!ok) { return 0; }
+    ok = regist_signal(4,  signal_handler);
+    if (!ok) { return 0; }
+    ok = regist_signal(7,  signal_handler);
+    if (!ok) { return 0; }
+    ok = regist_signal(16, signal_handler);
+    if (!ok) { return 0; }
+    ok = regist_signal(23, signal_handler);
+    if (!ok) { return 0; }
+    ok = regist_signal(24, signal_handler);
+    if (!ok) { return 0; }
+    ok = regist_signal(25, signal_handler);
+    if (!ok) { return 0; }
+    ok = regist_signal(31, signal_handler);
+    if (!ok) { return 0; }
     return 1;
 }
 
@@ -1421,8 +1560,17 @@ void CShutdowManager::SendShutdownSignal()
 
 // check_argv(int, char**) —— ORIG 0x829ea5a（0x420 字节，逐指令转写）。
 // [b28d-28] DIFF | ORIG 0x0829ea5a | N82：槽/寄存器分配差（263=263）。
+// [b28d-solo-GameMain] N98 封顶 | 261/263 | p167 58/58 CLEAR | 修法：shellsKey 去
+// 具名缓存（P0 表达式直用）+ P232 `char framePad[0x10]` 撑帧（0x424→**0x434 与
+// ORIG 全等**）+ P244 op 声明/赋值分离提前（槽 -0x14→-0x18）；残差仅 op 槽
+// -0x18 vs ORIG -0x1c（4.4 紧凑分配 vs 4.1 在 -0x18/-0x14 预留两槽，未使用标量
+// 4.4 不占槽 ⇒ N98 不可翻；再补 int dead 反使帧 0x444 劣化，已回退）。
 int check_argv(int argc, char** argv)
 {
+    // P232：ORIG 帧 0x434（旧 0x424）撑帧；P244：op 提前声明（赋值仍在使用点）。
+    char framePad[0x10];
+    (void)framePad;
+    const char* op;
     if (argc <= 2)
         return 0;
 
@@ -1447,9 +1595,9 @@ int check_argv(int argc, char** argv)
 
     // server_shells_key 校验（env+0x318 缓冲区，ORIG 原样裸偏移）
     int ncl_check_key(char* key);  // NclKeyTools.cpp（ORIG 0x8572cb5）
-    char* shellsKey =
-        reinterpret_cast<char*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x318);
-    bool keyOk = ncl_check_key(shellsKey) != 0;
+    // P0：ORIG 无 shellsKey 具名局部（实参表达式直用 `mov %eax,(%esp)`）。
+    bool keyOk = ncl_check_key(
+        reinterpret_cast<char*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x318)) != 0;
     // ORIG printf 再独立 G_CEnvironment()+0x318（P183 重物化，勿缓存 shellsKey）。
     std::printf("lls_key :: %s\n",
                 reinterpret_cast<char*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x318));
@@ -1463,7 +1611,7 @@ int check_argv(int argc, char** argv)
     }
     std::puts("[!] Server key Check OK");
 
-    const char* op = argv[2];
+    op = argv[2];
     if (std::strcmp(op, "start") == 0 || std::strcmp(op, "nofork") == 0 ||
         std::strcmp(op, "start_all") == 0)
     {
@@ -1540,36 +1688,76 @@ int check_argv(int argc, char** argv)
 // 尾部非 PvP 整合频道（且 channelType!=7）时再启动 exchange 线程。
 // [b28d-28] DIFF | ORIG 0x0829fd30 | P167 CLEAR（28/28）；N82/P73：ORIG bool
 // 局部 16× 槽往返（`mov %al,-0x9; movzbl -0x9`），4.4 寄存器化（202 vs 160）。
+// [b28d-solo-GameMain] AE | 202/202 | p167 28/28 CLEAR | 修法：宏展开为 bool ok
+// 槽形（14 处 `ok = begin()/setCurrentPacketPool(); if (!ok) return 0;`）+
+// exchange 分支 2 处（BeginExchangeServerThread 返回类型 bool 由 Main 代落）。
 int create_thread()
 {
-#define DNF_BEGIN_AND_BIND(obj, type)                                        \
-    do                                                                       \
-    {                                                                        \
-        if (!(obj)->begin())                                                 \
-            return 0;                                                        \
-        if (!GlobalData::setCurrentPacketPool(                               \
-                (type), (obj)->getThreadID()))                               \
-            return 0;                                                        \
-    } while (0)
+    // ORIG 0x0829fd43 每步均为 `mov %al,-0x9(%ebp); movzbl -0x9; xor $1; test;
+    // je`（P73/P248 档②）——bool 具名局部 ok 的槽往返，16 次复用同一槽 -0x9；
+    // `if (!obj->begin())` 直测形（4.4 寄存器化）会少 42 条。
+    bool ok;
+    ok = reinterpret_cast<ThreadInterface*>(GlobalData::s_dispatch_thr)->begin();
+    if (!ok) return 0;
+    ok = GlobalData::setCurrentPacketPool(
+        THREAD_TYPE_NETWORK /*0*/,
+        reinterpret_cast<ThreadInterface*>(GlobalData::s_dispatch_thr)->getThreadID());
+    if (!ok) return 0;
 
-    DNF_BEGIN_AND_BIND(reinterpret_cast<ThreadInterface*>(GlobalData::s_dispatch_thr), THREAD_TYPE_NETWORK /*0*/);
-    DNF_BEGIN_AND_BIND(reinterpret_cast<ThreadInterface*>(GlobalData::s_udp_thr), THREAD_TYPE_5 /*5*/);
-    DNF_BEGIN_AND_BIND(reinterpret_cast<ThreadInterface*>(GlobalData::s_monitor_tcp_thr), THREAD_TYPE_6 /*6*/);
-    DNF_BEGIN_AND_BIND(reinterpret_cast<ThreadInterface*>(GlobalData::s_db_thr), THREAD_TYPE_7 /*7*/);
-    DNF_BEGIN_AND_BIND(reinterpret_cast<ThreadInterface*>(GlobalData::s_db_thr_for_logDB),
-                       THREAD_TYPE_MONITOR_TCP /*8*/);
-    DNF_BEGIN_AND_BIND(reinterpret_cast<ThreadInterface*>(GlobalData::s_accept_thr), THREAD_TYPE_DISPATCH /*1*/);
-    DNF_BEGIN_AND_BIND(reinterpret_cast<ThreadInterface*>(GlobalData::s_net_thr), THREAD_TYPE_DB /*2*/);
-#undef DNF_BEGIN_AND_BIND
+    ok = reinterpret_cast<ThreadInterface*>(GlobalData::s_udp_thr)->begin();
+    if (!ok) return 0;
+    ok = GlobalData::setCurrentPacketPool(
+        THREAD_TYPE_5 /*5*/,
+        reinterpret_cast<ThreadInterface*>(GlobalData::s_udp_thr)->getThreadID());
+    if (!ok) return 0;
+
+    ok = reinterpret_cast<ThreadInterface*>(GlobalData::s_monitor_tcp_thr)->begin();
+    if (!ok) return 0;
+    ok = GlobalData::setCurrentPacketPool(
+        THREAD_TYPE_6 /*6*/,
+        reinterpret_cast<ThreadInterface*>(GlobalData::s_monitor_tcp_thr)->getThreadID());
+    if (!ok) return 0;
+
+    ok = reinterpret_cast<ThreadInterface*>(GlobalData::s_db_thr)->begin();
+    if (!ok) return 0;
+    ok = GlobalData::setCurrentPacketPool(
+        THREAD_TYPE_7 /*7*/,
+        reinterpret_cast<ThreadInterface*>(GlobalData::s_db_thr)->getThreadID());
+    if (!ok) return 0;
+
+    ok = reinterpret_cast<ThreadInterface*>(GlobalData::s_db_thr_for_logDB)->begin();
+    if (!ok) return 0;
+    ok = GlobalData::setCurrentPacketPool(
+        THREAD_TYPE_MONITOR_TCP /*8*/,
+        reinterpret_cast<ThreadInterface*>(GlobalData::s_db_thr_for_logDB)->getThreadID());
+    if (!ok) return 0;
+
+    ok = reinterpret_cast<ThreadInterface*>(GlobalData::s_accept_thr)->begin();
+    if (!ok) return 0;
+    ok = GlobalData::setCurrentPacketPool(
+        THREAD_TYPE_DISPATCH /*1*/,
+        reinterpret_cast<ThreadInterface*>(GlobalData::s_accept_thr)->getThreadID());
+    if (!ok) return 0;
+
+    ok = reinterpret_cast<ThreadInterface*>(GlobalData::s_net_thr)->begin();
+    if (!ok) return 0;
+    ok = GlobalData::setCurrentPacketPool(
+        THREAD_TYPE_DB /*2*/,
+        reinterpret_cast<ThreadInterface*>(GlobalData::s_net_thr)->getThreadID());
+    if (!ok) return 0;
 
     // ORIG 条件：!IsIntegratedPvPBaseChannel() && GetChannelType()!=7
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel()
         && G_GameWorld()->GetChannelType() != 7)
     {
-        exchange_server::BeginExchangeServerThread();
-        GlobalData::setCurrentPacketPool(
+        // ORIG 0x0829ffdb..0x082a0028：同样两步 ok 槽检查（各 4+8 条）。
+        // BeginExchangeServerThread 返回类型 bool 已由 Main 代落（0x848f2b8 透传）。
+        ok = exchange_server::BeginExchangeServerThread();
+        if (!ok) return 0;
+        ok = GlobalData::setCurrentPacketPool(
             THREAD_TYPE_TIMER /*3*/,
             exchange_server::getExchangeServerThreadID());
+        if (!ok) return 0;
     }
     return 1;
 }
@@ -1587,35 +1775,68 @@ extern std::map<int, std::string> g_questScriptFileList;        // ORIG B 0x9500
 extern std::map<int, std::string> g_stPassiveObjectScriptFileList;// ORIG B 0x94ff3a0
 // [b28d-28] DIFF | ORIG 0x082a002a | P167 MISSING 4×begin/4×end/2×C1Ev/2×deEv
 // vs EXTRA 2×ptEv：ORIG 迭代器声明-赋值两段形（P50）我方直接初始化；语义缺口待补。
+// [b28d-solo-GameMain] AE | 146=146 | p167 24/24 CLEAR | 修法：P50 迭代器先
+// 声明后赋值（C1Ev ×2）+ switch 每 case 独立 `begin()/end()`（5 对）+ 单表达式
+// `if (++it == e)` + 尾部 `(*it).first/(*it).second`（deEv 非 ptEv）+ 去出参判空
+// （P171）；**新范式**：`for(;i<n;i++)` 的 incr 被 4.4 另立独立块置于 cond 前，
+// 改 `while (i++ < n)` 后 cond 块逐条复现 ORIG `mov;cmp;setl;addl $1;test;jne`
+// （比较用旧值、自增在 setl 之后；do-while 形语义多跑一轮，禁用）。
 char* SelectKeyString(int* outKey, int* outValue)
 {
-    static char s_fallbackKey[] = "DNF_SERVER_KEY_STRING";
-    int r = get_rand_int(5);
-    std::map<int, std::string>* tbl = 0;
-    int n = 0;
+    int i = 0;                  // ORIG -0x14（函数头声明+初始化，先于 get_rand_int）
+    int r = get_rand_int(5);    // ORIG -0x10
+    // ORIG 0x082a0046/0x082a0051：两迭代器「先声明后赋值」（P50 复活，各发
+    // _Rb_tree_iterator::C1Ev）；begin/end 在 switch 各 case 内对**具体表**调用
+    // （每 case 一对，共 5 对；P167 差集 MISSING 4×begin/4×end 即此）。
+    std::map<int, std::string>::iterator it;
+    std::map<int, std::string>::iterator e;
+    int n;                      // ORIG -0xc（无初值；default 不可达）
     switch (r)
     {
-    case 0: tbl = &g_stStackableScriptFileList;    n = get_rand_int(0x7d0); break;
-    case 1: tbl = &g_stEquipmentScriptFileList.m_fileMap; n = get_rand_int(0x1388); break;
-    case 2: tbl = &g_stMonsterScriptFileList;      n = get_rand_int(0x1f4); break;
-    case 3: tbl = &g_questScriptFileList;          n = get_rand_int(0x3e8); break;
-    case 4: tbl = &g_stPassiveObjectScriptFileList; n = get_rand_int(0x3e8); break;
-    default: tbl = &g_questScriptFileList;         n = 0; break;
+    case 0:
+        it = g_stStackableScriptFileList.begin();
+        e  = g_stStackableScriptFileList.end();
+        n = get_rand_int(0x7d0);
+        break;
+    case 1:
+        it = g_stEquipmentScriptFileList.m_fileMap.begin();
+        e  = g_stEquipmentScriptFileList.m_fileMap.end();
+        n = get_rand_int(0x1388);
+        break;
+    case 2:
+        it = g_stMonsterScriptFileList.begin();
+        e  = g_stMonsterScriptFileList.end();
+        n = get_rand_int(0x1f4);
+        break;
+    case 3:
+        it = g_questScriptFileList.begin();
+        e  = g_questScriptFileList.end();
+        n = get_rand_int(0x3e8);
+        break;
+    case 4:
+        it = g_stPassiveObjectScriptFileList.begin();
+        e  = g_stPassiveObjectScriptFileList.end();
+        n = get_rand_int(0x3e8);
+        break;
     }
-    std::map<int, std::string>::iterator it = tbl->begin();
-    std::map<int, std::string>::iterator e = tbl->end();
-    for (int i = 0; i < n; ++i)
+    // [b28d-solo-GameMain] while 形：ORIG cond 块为 `mov i;cmp n;setl;addl
+    // $1,i;test;jne`（比较用旧值、自增在 setl 之后）⇒ 源形 `while (i++ < n)`；
+    // for(;i<n;i++) 4.4 会另立 incr 块置于 cond 前（入口跳过），顺序不同。
+    // 语义与 for 等价（入口先检查；do-while 会多跑一轮，不可用）。
+    while (i++ < n)
     {
-        ++it;
-        if (it == e)
+        // ORIG 0x082a01ec：`call ppEv` 的返回值（%eax=&it）直接作 operator== 的
+        // this（无重新 lea）⇒ 源形为单表达式 `++it == e`（非两条语句）。
+        if (++it == e)
         {
             --it;
             break;
         }
     }
-    if (outKey) *outKey = r;
-    if (outValue) *outValue = it->first;
-    return const_cast<char*>(it->second.c_str());
+    // ORIG 无出参判空（P171 照抄），且尾部调 operator*（deEv）非 operator->（P167）。
+    *outKey = r;
+    *outValue = (*it).first;
+    return const_cast<char*>((*it).second.c_str());
 }
 
 // InitCipherKeyString() —— ORIG 0x82a025a（0x1ff 字节，逐指令转写）：
@@ -1626,34 +1847,46 @@ char* SelectKeyString(int* outKey, int* outValue)
 // [b28d-28] DIFF | ORIG 0x082a025a | P167 MISSING __cxa_guard_acquire/release/
 // abort + _Unwind_Resume vs EXTRA memset：ORIG 静态局部 guard 形（P21）我方
 // 以 memset 直清，语义等价但形态不可复现。
+// [b28d-solo-GameMain] AE | 135=135 | 真 bug 修：buf[0x800]（ORIG rep stos 计数
+// 0x200 dwords = 0x800 字节；旧 buf[0x200] 少清 0x600 字节）+ 函数局部 static
+// guard 形（P20/P21）+ P227 全表达式临时链 + 去 rec 指针缓存（P183）。
 void InitCipherKeyString()
 {
     int t0 = static_cast<int>(s_systemTime_.getCurSec());
-    static int needed_key_length = 0;  // ORIG guard 变量 0x941f858 / 值 0x941f864
 
     for (int i = 0; i <= 0x1387; ++i)
     {
-        GlobalData::SecuCipherKeyRec* rec = &GlobalData::s_secu_cipher_keystring_manager_[i];
-        rec->cipher = new Cipher;
-        if (needed_key_length == 0)
-            needed_key_length = rec->cipher->GetTotalKeyLength();
+        // P183：ORIG 每处重算 `shl $0x4; add $&manager`，不缓存 rec 指针。
+        GlobalData::s_secu_cipher_keystring_manager_[i].cipher = new Cipher;
+        // ORIG 0x082a02c1：函数局部 static 的 guard 形（P20/P21）——guard 变量
+        // _ZGVZ19InitCipherKeyStringvE17needed_key_length，值取 **[0]** 的 cipher
+        // 总钥长（ORIG 直接传 &manager 基址，非当前 i）。
+        static int needed_key_length =
+            GlobalData::s_secu_cipher_keystring_manager_[0].cipher->GetTotalKeyLength();
 
-        unsigned char buf[0x200];
-        std::memset(buf, 0, sizeof(buf));
-        char* keyStr = SelectKeyString(&rec->keyId, &rec->tblId);
+        // ORIG 0x082a0327：`rep stos` 计数 0x200 dwords = **0x800 字节**（P116/P253，
+        // 旧实现 buf[0x200] 少清 0x600 字节，属真语义 bug）。
+        unsigned char buf[0x800] = {0};
+        char* keyStr = SelectKeyString(
+            &GlobalData::s_secu_cipher_keystring_manager_[i].keyId,
+            &GlobalData::s_secu_cipher_keystring_manager_[i].tblId);
         int keyLen = static_cast<int>(strlen(keyStr));
         int off = 0;
-        while (off < needed_key_length && keyLen > 0)
+        // ORIG 0x082a03a6 条件只有 `off < needed_key_length`（P171 照抄，无 keyLen 守卫）。
+        while (off < needed_key_length)
         {
             memcpy(buf + off, keyStr, keyLen);
             off += keyLen;
         }
-        rec->cipher->Initialize(buf, needed_key_length);
+        GlobalData::s_secu_cipher_keystring_manager_[i].cipher->Initialize(
+            buf, needed_key_length);
     }
 
-    int elapsed = static_cast<int>(s_systemTime_.getCurSec()) - t0;
-    cMyTrace trace("void InitCipherKeyString()", 0x283e, 9, true, true);
-    trace("[!] Init CipherKeyString TotalTime : %ds", elapsed);
+    // P118/P139：ORIG 传 _ZZ19InitCipherKeyStringvE19__PRETTY_FUNCTION__；
+    // P227：全表达式临时链令 elapsed 在 ctor 前求值并以 %ebx 跨 ctor 保活（无槽）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x283e, 9, true, true)(
+        "[!] Init CipherKeyString TotalTime : %ds",
+        static_cast<int>(s_systemTime_.getCurSec()) - t0);
 }
 
 // ProcessAntiBotInputWrapper() —— ORIG 0x80eddb0（0xe1 字节，逐指令转写）：
@@ -1661,6 +1894,11 @@ void InitCipherKeyString()
 // [b28d-28] DIFF | ORIG 0x080eddb0 | P282/N7：虚调用偏移 vptr+0x10 已核（word[4]）；
 // ORIG 无判空（P171 照抄）已修 + 死局部 `limit=500` 已补；残差仅 fn 落 %edx（ORIG）
 // vs %eax（4.4.7 间接 call 恒 %eax）⇒ N7 封顶（P230：4.4.6 后端可解，待路由）。
+// [b28d-solo-GameMain] NEAR | 63=63 | 修法：函数指针值在调用点 cast（旧形经
+// `CheckerFn*` 解引用多发一条 `mov (%eax),%eax`）；残差 N7（间接 call 目标 4.4.7
+// 恒 %eax vs ORIG %edx）。**446 后端实测反劣**（-B cc1plus446bin/ 编译本 TU：
+// 本件 NEAR→DIFF，TU near 3→2 / diff 12→13，AE 合计 263 不变）⇒ 不推荐路由，
+// 按 N7 在 4.4.7 封顶。
 void ProcessAntiBotInputWrapper()
 {
     // [b28d-28] ORIG 0x080eddb7 `movl $0x1f4,-0x10(%ebp)`：死局部（P171 照抄，
@@ -1675,8 +1913,10 @@ void ProcessAntiBotInputWrapper()
     // mov 0x941f7e4,%eax; mov %eax,(%esp); call *%edx`（P282：vptr+0x10 = word[4]，
     // 外部 SDK 类未建模故保留函数指针形）。
     typedef void (*CheckerFn)(void*);
-    (*reinterpret_cast<CheckerFn*>(
-        (*reinterpret_cast<void***>(GlobalData::s_antibotChecker_))[0x10 / 4]))(
+    // 函数指针值直接在调用点 cast（P0 无具名局部）：`(...)[4]` 已取到 fn 值，
+    // 再经 `CheckerFn*` 解引用会多发一条 `mov (%eax),%eax`（我方 4 条 mov 链 vs ORIG 3）。
+    reinterpret_cast<CheckerFn>(
+        (*reinterpret_cast<void***>(GlobalData::s_antibotChecker_))[0x10 / 4])(
         GlobalData::s_antibotChecker_);
 
     gettimeofday(&t1, 0);
@@ -1703,6 +1943,8 @@ int GetCreaturePoolRemainSize();
 // IPG 状态、creature/avatar/egg 池等指标后统一 cMyTrace 输出，随后按用户数
 // 低于 party/pvp/trade 池占用打印三条 SESSION ERROR 日志。
 // [b28d-28] DIFF | ORIG 0x080ede91 | N82：大函数槽/视图寻址差（302 vs 296）。
+// [b28d-solo-GameMain] N82 封顶 | 296/302 | 大函数帧 0x124 vs 0x12c + 槽平移；
+// 池 Size()/Remain() 计算与 IPG 视图寻址展开差异（4.4 内联/槽复用策略）。
 void ProcessServerStatusLog()
 {
     int userCount = G_GameWorld()->get_UserCount_InWorld();          // -0x6c

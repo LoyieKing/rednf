@@ -572,20 +572,19 @@ void CAssaultPlace::_MakeCloseAssault(PacketGuard* p, int tick)
 // ORIG T 0x82e8d60：_MakeUserState(PacketGuard*, CUser*) —— 包 0x03 + state。
 void CAssaultPlace::_MakeUserState(PacketGuard* p, CUser* user)
 {
-    // b28d-solo-CAssaultMgr: N 封顶（N18a）— ORIG 0x82e8d60+0x30 `call
-    // GetUserState; mov %eax,%edx; mov p,%eax; mov %edx,0x4(%esp)`（34 条）；
-    // 4.4 恒折 `mov p,%edx; mov %eax,0x4(%esp)`（33 条，少 1 条 hop）。P248 三档
-    // 旋钮全试：探针 /tmp/probe_pb{,2,3,4}.cpp 十一形（int/uint/long/char/uchar/
-    // enum/字段 cast/callee 返回 unsigned/具名局部）4.4 均产 this-first 无中转；
-    // ORIG 同 TU SendUserState 同表达式亦无 hop（ORIG 自身分裂两形）。
+    // b28d-solo-CAssaultMgr: N 封顶（N7 寄存器角色互换；清单 DIFF 11 复验）
+    // ORIG 0x82e8d60+0x30：`call GetUserState; mov %eax,%edx; mov p,%eax;
+    // mov %edx,0x4(%esp); mov %eax,(%esp)`（值先中转 %edx、this 后载 %eax）；
+    // 4.4 恒 `mov p,%edx; mov %eax,0x4(%esp); mov %edx,(%esp)`（this 先载、
+    // 值留 %eax）——助记符序列全等，仅 %eax/%edx 角色互换（34 vs 33）。
+    // 本轮补测 /tmp/probe_mus.cpp + probe_mus2.cpp 17 形（uint/long/enum/
+    // 短整 cast、语句表达式、*&、receiver cast、具名 receiver、前置掩码上下文）
+    // 4.4 全产 this-first；callee 返回类型旋钮不可用（CUser.h 冻结头）。
+    // ORIG 同 TU SendUserState 同表达式无 hop（ORIG 自身分裂两形）。
     p->put_header(0, 3);
     p->put_byte(1);
     p->put_short(user->get_unique_id() & 0xffff);
-    // b28 BM4 判词（N18a）：ORIG 0x82e8d60+0x30 为 call GetUserState 后
-    // `mov %eax,%edx` 冗余中转（int→int 同型，4.4 恒直落 `mov %eax,0x4(%esp)`
-    // 折叠；/tmp/pbq.cpp i/u/cast 三形探针实测 4.4 均无 hop，源形不可造，
-    // 绑定形 P0 禁用）。本函数与单参重载同段各差 1 条 hop → difflib 连锁
-    // 计 7/13，实残仅此。
+    // 同判词（N7）：单条 %eax↔%edx 角色互换，语义等价；绑定形 P0 禁用。
     p->put_byte(user->GetUserState());
     p->finalize(true);
 }
@@ -637,10 +636,12 @@ int CAssaultPlace::_SendCloseAssault(CUser* user, int tick)
 // merge」族）。其余残余：帧 0x80 vs 0x70 + 全槽平移（N82/P112）、尾多 1 条
 // `jmp <epilogue>` 岛边（跨版本 nop;jmp 岛/jump-threading 族）、`add $0x70` vs
 // `sub $0xffffff80` 文本形差。语义完成、byte 层 N 封顶。
-// b28d-solo-CAssaultMgr: N 封顶（§6.2 三件套，S174+本轮复验）— P167 calls 63 vs
-// 64，MISSING=0、EXTRA 仅 1×_Unwind_Resume（N104 EH 块序/merge 族）；残差全为
-// N82 帧/槽平移（帧 0x80 vs 0x70 = N115 outgoing 预留 0x10，PacketGuard 槽
-// -0x30/-0x24 互换 = N93 互斥块槽方向）+ N104 EH 尾块序 + N121 尾岛。
+// b28d-solo-CAssaultMgr: N 封顶（§6.2 三件套；清单 DIFF 347 复验）— ①clean
+// 口径 450/453（我方 +3：1×_Unwind_Resume + 尾 `jmp+nop` 岛 ×2）；②p167 calls
+// 63 vs 64，MISSING=0、EXTRA 仅 1×_Unwind_Resume（N104 EH 块序/merge 族）；
+// ③帧 `sub $0x70` 双方一致（旧「帧 0x80 vs 0x70/N115」判词本轮实测已不成立，
+// 帧已对齐），残差为 PacketGuard 槽 -0x30/-0x24 互换（N93 互斥块槽方向）+
+// N104 EH 尾块序 + N121 尾岛。无语义缺口。
 // 本轮两处**语义/结构修正**（原形为真语义反向 + 缺条件）：
 // ①82eb07a 收尾链 = `user != 0 && (!IsPowerWarEventOn() || vill != 7)` 嵌套
 //   `m_state <= 3 && index∈{0,1}`（旧德摩根形缺 user 项且把 m_state 并入外层链）；
@@ -1164,13 +1165,16 @@ bool CStaticDisposition::MoveUser(CForcedMoveCharacter* fm)  // ORIG 0x82e65ee
 // fresh .o 复验 our=154/orig=158，调用点差集仅 C1/C2 同名差，语义等价。
 CStaticDisposition::CStaticDisposition(CUser** users, int* counts) // ORIG 0x82e62aa
 {
-    // b28d-solo-CAssaultMgr: N 封顶（P30/N94/N86b 族，S174+本轮复验）— 用
+    // b28d-solo-CAssaultMgr: N 封顶（P30/N4/N102 族；清单 DIFF 98 复验）— 用
     // `reinterpret_cast<const int (&)[16]>(ASSAULT_RECT_PLAYER_POINT)[idx*2+1]`
     // 数组引用视图复现 ORIG m_y 的 `add %eax,%eax; add $1,%eax` 链与 scaled
     // `mov (,%eax,4)`（gap 4→1）。残差 = 2 处 add-vs-lea（ORIG
     // `mov k,%eax; lea (%edx,%eax,1),%eax` vs 4.4 `shl; add k_mem,%eax`，P30/N86b
     // 源形不可择）+ 1 条基址载入 `mov $TABLE,%eax`（引用 cast 恒载基址）。
-    // 本轮穷举并回退的替代形：①union 双视角（Point2d 有用户 ctor，C++98 union
+    // 本轮补测 /tmp/probe_arr.cpp 八形（数组引用/指针 cast/数组指针 cast/元素
+    // 取址+1/交换加序/元素成员 m_y/整数索引重组）：唯「数组元素成员访问」
+    // 产绝对寻址但索引形态差 3 条；其余 cast 形全载基址 ⇒ 无更优源形。
+    // 历史穷举并回退的替代形：①union 双视角（Point2d 有用户 ctor，C++98 union
     // 成员不得有构造函数，编译拒绝）；②指针 cast `((const int*)TABLE)[i]`
     // （our 157→159 更差）；③独立 int[16] 表（可消基址载入但 .rodata 重复
     // 0x40B 且两处符号地址不同，AE 归一化仍不等，回退）。
@@ -1397,9 +1401,10 @@ void CAssaultPlace::_SendUserState()
 // ORIG T 0x82e8c5a：包 0x03 全场用户状态；先记录写位置，尾部回填人数。
 void CAssaultPlace::_MakeUserState(PacketGuard* packet)
 {
-    // b28d-solo-CAssaultMgr: N 封顶（N18a）— 同双参重载：ORIG 0x82e8c5a+0x0a9
-    // `call GetUserState; mov %eax,%edx; mov packet,%eax; ...`（73 条）vs 4.4 折
-    // this-first（72 条，少 1 条 hop）。探针矩阵同双参件（11 形全败）。
+    // b28d-solo-CAssaultMgr: N 封顶（N7 寄存器角色互换；清单 DIFF 27 复验）
+    // 同双参重载：ORIG 0x82e8c5a+0x0a9 `call GetUserState; mov %eax,%edx;
+    // mov packet,%eax; ...`（73 条）vs 4.4 this-first（72 条）——单条
+    // %eax↔%edx 角色互换，语义等价。探针矩阵同双参件（/tmp/probe_mus*.cpp）。
     // ORIG 0x82e8c5a +0x0b：`movl $0,-0x14; movl $0,-0x10` 双清零在前、
     // get_index 覆写 index 在后（dead init 照抄 P171，与 MakeView 同法）。
     packet->put_header(0, 3);
@@ -1492,17 +1497,18 @@ void CAssaultPlace::_DelUser(int index, bool flag)
 // state 5/6 时两队下发 SetAssaultState(7)、置 state=7 并 CloseAssault()。
 void CAssaultPlace::TimeoutCloseAssault()
 {
-    // b28d-solo-CAssaultMgr: N 封顶（N18a，S174 复验）— gap=1、ndiff=3。唯一残差
+    // b28d-solo-CAssaultMgr: **IDENTICAL_AE（清单 DIFF 64 → AE）** — 唯一残差
     // 为 ORIG 082ea21a `mov 0x10c(%eax),%eax; mov %eax,%ebx`（m_state 载入后
-    // eax→ebx 中转）vs 4.4 恒折 `mov 0x10c(%eax),%ebx`。P248 三档旋钮全试：
-    // 探针 /tmp/probe_enum_field.cpp（int/enum 字段同形）、/tmp/probe_ret.cpp
-    //（unsigned/int 返回类型同形）4.4 均无该中转 ⇒ 源形不可造，语义等价。
+    // eax→ebx 中转）vs 4.4 恒折 `mov 0x10c(%eax),%ebx`。修法：trace 实参
+    // `(unsigned int)m_state` —— 探针 /tmp/probe_trace.cpp 三形实测：int 字段
+    // 单段直落 %ebx，enum 字段与 unsigned cast 均产两段（`mov mem,%eax;
+    // mov %eax,%ebx`=ORIG 形）⇒ 异型转换中转复现（P254/P265 同族）。
     // b28d-solo-CAssaultMgr: ORIG 0x082ea188 先把 8 个 GetCharacName 实参求值
     // （-0x40..-0x2c 槽 + edi/esi），**之后**才 ctor cMyTrace（+0x30 段）⇒ 原码是
     // 全表达式临时链（P227/P37），具名对象恒 ctor 先于实参求值（DIFF 主因）。
     cMyTrace(__PRETTY_FUNCTION__,
              0x9ea, 0)("TimeoutCloseAssault() state(%d) %s,%s,%s,%s,%s,%s,%s,%s",
-          m_state,
+          (unsigned int)m_state,
           m_assaulters[0].GetCharacName(), m_assaulters[1].GetCharacName(),
           m_assaulters[2].GetCharacName(), m_assaulters[3].GetCharacName(),
           m_assaulters[4].GetCharacName(), m_assaulters[5].GetCharacName(),
@@ -1582,6 +1588,13 @@ void CAssaultMgr::FreeAssaultPlace(int id, CAssaultPlace* place)
 //   P0）；⑤stamina 内联（ORIG `movzbl %al,%edx` 直传）。
 // 残差仅 N18b 比较操作数序（ORIG `cmp %edx,%eax`）、N121 尾 jmp 岛 ×2、
 // N104 EH 块相对序（ORIG cleanup 居中 vs 我方居末），无语义缺口。
+// b28d-solo-CAssaultMgr: N 封顶（§6.2 三件套；清单 DIFF 235 复验）— ①clean
+// 口径 372/375（我方 +3，全在 PacketGuard EH cleanup 块位置与循环尾 nop 岛）；
+// ②p167 调用点差集 CLEAR（ORIG 60 = OUR 60，0 MISSING / 0 EXTRA）；
+// ③帧 `sub $0x40` 双方一致、槽基一致。残差族：N104（ORIG cleanup 居中、
+// 我方居末，difflib 放大 ~9 行 rotate）+ N7（GetTeam vs m_winTeam 比较段
+// %eax↔%edx 角色互换）+ N121（尾 `jmp+nop` 岛）+ N123/重定位（`mov 0x0,%eax`
+// 系 .o 未解析 R_386_32 显示，P264）。无语义缺口。
 void CAssaultPlace::CloseAssault()
 {
     // b28d-solo: ORIG 0x082e9ade/0x082e9ae5 头部双初始化 `movl $0,-0x28;

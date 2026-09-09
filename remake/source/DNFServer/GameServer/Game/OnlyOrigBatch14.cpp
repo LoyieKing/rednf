@@ -451,24 +451,24 @@ int SetSockNonb(int fd, unsigned long arg)
 // movb $0,-0x5；两写点 089bd065/089bd06b）+ **无符号边界**（089bd046
 // cmpl $0xb,0x8(%ebp) 直比参数槽 + ja，P137/P2）+ 末尾 movzbl 读回。
 bool IsDamageActiveStatus(int status)
-// [b28d-solo-OnlyOrigBatch14 复核 D66 判词·N 封顶（N6 位折叠 + P209）]
-// ORIG 24 insn / 我们 27 insn，两处残差：
-// ①边界比较 ORIG @0x089bd046 `cmpl $0xb,0x8(%ebp); ja`（无符号内存直比），4.4 对
-// unsigned 参与的形参比较恒先载寄存器（`mov 0x8(%ebp),%eax; cmp $0xb,%eax`，P209），
-// 写 signed 会翻 jle 助记符更劣；
-// ②位测试 ORIG `mov $0x1,%edx; ... shl %cl,%ebx; mov %ebx,%eax; and $0xac4,%eax` 无槽
-// 往返；4.4 直写 `((1<<status)&0xac4)!=0` 恒折 `(0xac4>>s)&1` 的 sar+and$1 反演形（N6），
-// 加 `&0x1f` 掩码亦折（探针 /tmp/d66_probe5.cpp f1/f3/f4/f5/f7 全 sar 或 shr），只有
-// 具名 `int bit = 1 << status;`（f2/f6）保住 shl，代价是 2 条槽往返（-0x8 store/load）
-// 并把 bool 汇聚槽从 -0x5 顶到 -0x9。⇒ 无源形可同时满足 shl 无槽 + mem 直比，封顶。
+// [b28d-solo-OnlyOrigBatch14 判词·N 封顶（P209），本波翻正位测试]
+// 本波：位测试改 P231 纯 register（`register int bit = 1 << status;`，非 asm
+// 绑定、P0 合规）⇒ 4.4 免槽并复现 ORIG 0x089bd04c 段
+// `mov $0x1,%edx; mov %edx,%ebx; shl %cl,%ebx; mov %ebx,%eax; and $0xac4,%eax`
+// 的寄存器形（27→25 insn，旧判词「无源形可同时满足 shl 无槽」作废）。
+// 唯一残差 = 边界比较：ORIG 0x089bd046 `cmpl $0xb,0x8(%ebp); ja`（无符号内存
+// 直比），4.4 对 unsigned 参与比较恒先载寄存器（`mov 0x8(%ebp),%eax;
+// cmp $0xb,%eax`，P209）；写 signed 会翻 `jg` 并改变负数语义（真 bug 风险）
+// ⇒ N 封顶。p167 CLEAR（0 calls 双侧）。
 {
     bool ret = false;
     if ((unsigned int)status <= 0xb)
     {
         // bit 具名局部阻断 4.4 位折叠（N6：直写恒折 (0xac4>>s)&1 的
-        // sar+and$1 反演形）；残差：bit 槽 store/load 2 条 + 边界比较
-        // mov+cmp vs ORIG cmpl 槽直比（4.4 恒先载寄存器）。
-        int bit = 1 << status;
+        // sar+and$1 反演形）；P231 纯 register（非 asm 绑定，P0 合规）
+        // 令 4.4 免槽、复现 ORIG `shl %cl,%ebx; mov %ebx,%eax; and $0xac4`
+        // 的寄存器形。残差：边界比较 mov+cmp vs ORIG cmpl 槽直比（P209）。
+        register int bit = 1 << status;
         if ((bit & 0xac4) != 0)
             ret = true;
         else
@@ -481,40 +481,47 @@ bool IsDamageActiveStatus(int status)
 int PI_GetType_SC(char type, short value)
 {
     // [b28d-solo-OnlyOrigBatch14] ORIG 0x0808c75e `movsbl -0x4(%ebp),%eax;
-    // cmp $0x1,%eax`（符号扩展后整字比较）⇒ 源码按 int 提升比较；裸 char
-    // 比较在 4.4 恒产 `cmpb $0x1,-0x4(%ebp)`。
-    if ((int)type == 1)
+    // cmp $0x1,%eax; je; cmp $0x2,%eax; je` = 二路 switch/if 链的整字提升形；
+    // type==1 为跳表 switch（sub $0x13/cmp $0x40/ja/jmp *table），type==2 为
+    // 稀疏 switch 二分决策树（P46：叶块排布 = case 书写顺序）。两侧 case
+    // 顺序按 ORIG 叶块地址序重排（0x13..0x53 / 0x28..0x85）。
+    // 判词·AE 归零（100=100）：内层 switch 不写 default、改 switch 后
+    // `break;` + 函数尾单一 `return 0`，使所有失败路径共享 ORIG 0x0808c8ae
+    // 的 `mov $0x0,%eax` 尾块（P17/P46）。
+    switch (type)
     {
+    case 1:
         switch (value)
         {
-        case 0x13: return 26;
-        case 0x1d: return 11;
         case 0x1f: return 9;
-        case 0x20: return 25;
-        case 0x2e: return 18;
+        case 0x1d: return 11;
         case 0x2f: return 12;
-        case 0x43: return 27;
+        case 0x2e: return 18;
         case 0x48: return 22;
         case 0x49: return 23;
         case 0x4a: return 24;
+        case 0x20: return 25;
+        case 0x13: return 26;
+        case 0x43: return 27;
         case 0x53: return 44;
-        default:   return 0;
         }
-    }
-    if ((int)type == 2)
-    {
-        if (value == 0x28) return 4;
-        if (value == 0x8e) return 5;
-        if (value == 0x8f) return 6;
-        if (value == 0x1c) return 7;
-        if (value == 0x76) return 13;
-        if (value == 0x25) return 16;
-        if (value == 0x27) return 17;
-        if (value == 0x73) return 19;
-        if (value == 0x22) return 20;
-        if (value == 0x23) return 21;
-        if (value == 0x85) return 39;
-        return 0;
+        break;
+    case 2:
+        switch (value)
+        {
+        case 0x28: return 4;
+        case 0x8e: return 5;
+        case 0x8f: return 6;
+        case 0x1c: return 7;
+        case 0x76: return 13;
+        case 0x25: return 16;
+        case 0x27: return 17;
+        case 0x73: return 19;
+        case 0x22: return 20;
+        case 0x23: return 21;
+        case 0x85: return 39;
+        }
+        break;
     }
     return 0;
 }
@@ -564,17 +571,22 @@ unsigned int Rand_r(unsigned int* seed)
 // ============================================================================
 
 // ORIG T 0x088bdb56 _Z11ScanAnyDataRiRSsS_b：任意类型值扫描。
-// [b28d-solo-OnlyOrigBatch14] N 封顶（N98/N82 槽序）：ORIG bool 槽 -0xd /
-// 结果槽 -0x14 与 4.4 -0x11 / -0x10 互换（4.4 栈槽按首次使用序分配，声明序
-// 翻转实测无效，b28c C28L8）；另有形参直传 `movl $0,(%esp)` vs ORIG 槽中转。
-// 控制流与全部调用点已逐段核对，语义等价。
+// [b28d-solo-OnlyOrigBatch14 判词·N 封顶（N98/N82 槽序 + P75）] p167 CLEAR
+// （26=26 calls）。残差：①ORIG bool 槽 -0xd / 结果槽 -0x14 与 4.4 -0x11 /
+// -0x10 互换（4.4 栈槽按首次使用序分配，声明序翻转/提函数头实测无效，
+// N98/N82）；②LogManager::logFormat 变参装载序（ORIG 先值后串 vs 4.4 相反，
+// P75 跨版本实参装载时刻）；③bool 局部取反物化 xor（N122）。语义等价。
 bool ScanAnyData(int& type, std::string& str, int& value, bool ignoreUnknown)
 {
     type = 3;
     bool got = false;
+    // [b28d-solo-OnlyOrigBatch14] P309：4.4 对函数头声明按「先声明浅」分配
+    // ⇒ token 提至函数头（声明序 got 先/token 后）复现 ORIG got@-0xd、
+    // token@-0x14 的槽向；循环内仅赋值。
+    int token;
     for (;;)
     {
-        int token = g_dnfLex.getToken();
+        token = g_dnfLex.getToken();
         // ORIG if 链布局（非 switch 表）；case 9 成功时 ORIG 将 token 置 7，
         // 使后续循环 break 检查（2/3/4/7/5/0）命中，避免继续循环。
         if (token == 2)   // decimal
@@ -689,15 +701,24 @@ void ScanChampionFeatures(int count, STAICharacterMapArrangeData& data)
 }
 
 // ORIG T 0x08a65da5 _Z15ScanRewardItemsRSt6vectorI14RewardItemInfoSaIS0_EESs。
-// [b28d-solo-OnlyOrigBatch14] N 封顶（N98 槽按首次使用分配）：ORIG 双 bool 槽
-// -0xd/-0xf 与 4.4 -0xe/-0xd 互换（声明序翻转无效）；bool 物化岛极性
-// je/jne 随槽号错位（P292 同族）。语义与 ORIG 等价。
+// [b28d-solo-OnlyOrigBatch14 判词·N 封顶（N98 槽序 + P292）] 本波修：三个
+// bool 声明序 ok2/dead/ok1 + ok2 无初始化式（P309 先声明浅 + P171 dead 预清）
+// 使预清序 -0xe/-0xf 与 ORIG 一致；ScanInt 改经具名 v2 中转（P0：ORIG
+// 0x08a65e80 `lea -0xc; call ScanInt; mov -0xc,%eax; mov %eax,-0x18`）。
+// p167 CLEAR（13=13）。残差：ok1/ok2 槽 -0xf/-0xd vs 4.4 -0xf/-0xe（N98 首次
+// 使用序，声明序翻转实测不闭合）+ bool 物化岛极性 je/jne 随槽号错位（P292）。
 bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
 {
+    // [b28d-solo-OnlyOrigBatch14] P309：4.4 函数头声明「先声明浅」⇒
+    // 声明序 ok2(浅 -0xd)/dead(-0xe)/ok1(深 -0xf) 对齐 ORIG；ORIG 预清仅
+    // 两条（`movb $0,-0xe; movb $0,-0xf`）⇒ ok2 无初始化式（ScanTypeOrInt
+    // 写入后即读）。
+    bool ok2;
+    bool unusedFlag = false;
     bool ok1 = false;
-    bool ok2 = false;
     RewardItemInfo info;
     std::string s;
+    int v2;
     for (;;)
     {
         int v = ScanTypeOrInt(ok1, s, ok2, 1);
@@ -718,15 +739,22 @@ bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
         {
             if (s == "[job]")
             {
-                if (!ScanInt(&info.m_job))
+                // [b28d-solo-OnlyOrigBatch14] P0：ORIG 0x08a65e80 段
+                // `lea -0xc(%ebp),%eax; call ScanInt; mov -0xc(%ebp),%eax;
+                // mov %eax,-0x18(%ebp)`（具名 int 中转槽 -0xc，再存 info.m_job）
+                // ⇒ 原码经具名局部而非直接 ScanInt(&info.m_job)。
+                if (!ScanInt(&v2))
                     return false;
-                if (!ScanInt(&info.m_growType))
+                info.m_job = v2;
+                if (!ScanInt(&v2))
                     return false;
+                info.m_growType = v2;
             }
             else
             {
-                if (!ScanInt(&info.m_count))
+                if (!ScanInt(&v2))
                     return false;
+                info.m_count = v2;
             }
         }
         else
@@ -756,9 +784,14 @@ void exportCharacterGiveSkillScript(FILE* fp, std::vector<std::pair<int, int> >*
 }
 
 // ORIG T 0x08a100f3 _Z29exportCharacterEtcStatsScriptP8_IO_FILEP17CharacterEtcStats。
-// [b28d-solo-OnlyOrigBatch14] N 封顶（P232/P182 帧差）：ORIG 帧 sub $0x30
-// 且 i@-0x14（另含 dead 槽），4.4 帧 sub $0x20、i@-0x10；帧差 0x10 + 槽平移
-// 属 4.1/4.4 帧策略差（P182 禁强凑 pad）。输出字段/顺序逐条一致。
+// [b28d-solo-OnlyOrigBatch14 判词·N 封顶（N82 槽复用 + N85 x87）] 本波修：
+// ①第一循环加具名 ENUM_CATEGORY cat 局部（P0：ORIG 0x08a10151
+// `mov %eax,-0x10(%ebp)` 槽往返 + 回读压参）；②j 提函数头 + for-init 单点
+// 赋值，消 4.4 对块内 `for(int j=0;…)` 多发的一条 `movl $0,-0x18`
+// （P191/P309）。p167 CLEAR（14=14）。残差：ORIG 三循环变量分占
+// -0x14/-0x18/-0xc 而 4.4 复用同槽（N82：4.1 不按 lifetime 复用栈槽）+ x87
+// 比较 `fucompp/fnstsw/sahf` vs 4.4 `fucomip/fstp`（N85；P230 注：-march=i486
+// TU 旗标可消，属路由变更需 Main 统一处理）。
 void exportCharacterEtcStatsScript(FILE* fp, CharacterEtcStats* stats)
 {
     if (!stats->m_category.empty())
@@ -766,12 +799,18 @@ void exportCharacterEtcStatsScript(FILE* fp, CharacterEtcStats* stats)
         fwrite("[category]\n", 1, 0xb, fp);
         for (unsigned int i = 0; i < stats->m_category.size(); ++i)
         {
-            std::string s = getObjectCategoryString((ENUM_CATEGORY)stats->m_category[i]);
+            // [b28d-solo-OnlyOrigBatch14] P0：ORIG 0x08a10136 段
+            // `mov (%eax),%eax; mov %eax,-0x10(%ebp); lea -0x1c(%ebp),%eax;
+            // mov -0x10(%ebp),%edx; mov %edx,0x4(%esp)` ⇒ 原码有具名
+            // ENUM_CATEGORY 局部（槽往返），非内联 cast 直传。
+            ENUM_CATEGORY cat = (ENUM_CATEGORY)stats->m_category[i];
+            std::string s = getObjectCategoryString(cat);
             fprintf(fp, "`%s`\n", s.c_str());
         }
         fwrite("[/category]\n", 1, 0xc, fp);
     }
     int i = 0;
+    int j;
     for (i = 0; i <= 3; ++i)
     {
         if (stats->m_moduleDamageRate[i] != 0.0f)
@@ -780,7 +819,9 @@ void exportCharacterEtcStatsScript(FILE* fp, CharacterEtcStats* stats)
     if (i != 4)
     {
         fwrite("[module damage rate]", 1, 0x14, fp);
-        for (int j = 0; j <= 3; ++j)
+        // [b28d-solo-OnlyOrigBatch14] j 已在函数头声明；for-init 单点赋值
+        // （4.4 对 `for (int j = 0;…)` 多发一条 `movl $0,-0x18`，ORIG 仅一条）。
+        for (j = 0; j <= 3; ++j)
         {
             fprintf(fp, " %.3f", (double)stats->m_moduleDamageRate[j]);
         }
@@ -906,14 +947,14 @@ bool importSlangList(char* path, std::vector<std::string>* out)
             goto slang_done;
         if (token == "[SLANG]")
         {
-            for (;;)
+            // [b28d-solo-OnlyOrigBatch14] ORIG 0x088ffb4a 段布局：body 在前、
+            // 条件块在尾（`jmp <cond>` 后 body，cond 为
+            // `call ScanStr; test %al,%al; je`×2 —— bool 返回**正向**判断，
+            // 无 xor 取反物化）⇒ 源形为 `while (ScanStr(&a) && ScanStr(&b))`
+            // （P283 底部条件 + P292 bool 返回正极性）。
+            // 判词·AE 归零（107=107）。
+            while (ScanStr(&a) && ScanStr(&b))
             {
-                // [b28d-solo-OnlyOrigBatch14] ORIG 0x088ffb5b 形 `call ScanStr;
-                // test %al,%al; je`（无 xor 取反物化）⇒ 写 `== 0`。
-                if (ScanStr(&a) == 0)
-                    break;
-                if (ScanStr(&b) == 0)
-                    break;
                 out->push_back(a);
                 out->push_back(b);
             }
@@ -924,10 +965,15 @@ slang_done:
 }
 
 // ORIG T 0x08917848 _Z23importHiddenNpcListInfoPKcRSt6vectorIiSaIiEE。
-// [b28d-solo-OnlyOrigBatch14] N 封顶（P292 bool 取反物化 + N98 槽序）：
-// ORIG 用 `cmpb $0,-0x9` 直测 + bool 槽 -0xa，4.4 恒 `movzbl -0x9; xor $1;
-// test`（取反物化）且槽位 -0x11 平移。loadRDARScriptFile 参数序已修为
-// ("", path)（真语义 bug，ORIG 0x089178de 压参序实证）。
+// [b28d-solo-OnlyOrigBatch14 判词·N 封顶（P283 岛 + N98 槽序 + N89）]
+// 本波修：①done 改 unsigned char + `for(;;){ if(done) break; … }` ⇒ 条件块
+// 复现 ORIG 0x08917900 `cmpb $0,-0x9(%ebp); jne`（消 sete/xor 取反物化，
+// N122）；②补 dead bool 预清（ORIG 0x089178f8 `movb $0,-0xa`，P171）使帧
+// 0x30 对齐。loadRDARScriptFile 参数序已修为 ("", path)（真语义 bug，ORIG
+// 0x089178de 压参序实证）。残差：①ORIG 入口 `jmp <cond>` 岛（P283 底部条件，
+// 4.4 while/for 恒条件置顶）；②循环内 s/v 槽 -0x1c/-0x14 vs 4.4 相反（N98）；
+// ③p167 MISSING `_ZSteqIcSt11char_traitsIcESaIcEE…EPKS3_`（string==const char*
+// 外链实例，4.4 libstdc++ 全内联，N89）。
 bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
 {
     // ORIG 0x089178de：`mov 0xc(%ebp),%eax; mov %eax,0x4(%esp);
@@ -936,29 +982,43 @@ bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
     if (!loadRDARScriptFile("", path))
         return false;
     std::string token;
-    bool done = false;
+    // [b28d-solo-OnlyOrigBatch14] ORIG 0x08917900 条件块 `cmpb $0x0,-0x9(%ebp);
+    // jne <exit>`（内存直测、无 movzbl/xor 取反物化）⇒ 原局部为**字节标量**
+    // 且条件写正向 `done == 0`（N122：bool 局部取反恒 xor，不可翻）。
+    // [b28d-solo-OnlyOrigBatch14] ORIG 0x089178f8 `movb $0x0,-0xa(%ebp)` 为
+    // 第二个 dead 字节局部预清（P171 照抄），补以对齐槽集。
+    bool unusedFlag = false;
+    unsigned char done = 0;
     out.clear();
-    while (!done)
+    for (;;)
     {
+        // [b28d-solo-OnlyOrigBatch14] ORIG 0x08917900 `cmpb $0x0,-0x9(%ebp);
+        // jne <exit>`（字节局部直测、无 sete 物化）⇒ 条件写 `if (done) break`。
+        if (done)
+            break;
         if (!ScanType(token, true))
             return false;
         if (token != "[hidden npc]")
             return false;
         for (;;)
         {
-            std::string s;
             // ORIG 0x089179ad：isType/isInt 为**循环内每轮**置零
             // （movb $0,-0x15/-0x16，P171 dead-init 照抄）。
             bool isType = false;
             bool isInt = false;
-            int v = ScanTypeOrInt(isType, s, isInt, 1);
+            std::string s;
+            // [b28d-solo-OnlyOrigBatch14] ORIG 槽 isType@-0x15/isInt@-0x16/
+            // s@-0x1c/v@-0x14 ⇒ 声明序 isType/isInt 在前、s 次之、v 声明与
+            // 赋值分离（4.4 按首次使用分配槽）。
+            int v;
+            v = ScanTypeOrInt(isType, s, isInt, 1);
             if (!isInt)
                 return false;
             if (isType)
             {
                 if (s == "[/hidden npc]")
                 {
-                    done = true;
+                    done = 1;
                     return true;
                 }
                 return false;
@@ -970,10 +1030,12 @@ bool importHiddenNpcListInfo(const char* path, std::vector<int>& out)
 }
 
 // ORIG T 0x088ffe75 _Z29importUniqueRewardForAllUsersPcPSt3mapIiSt6vectorIS1_I22STStackablePackageDataSaIS2_EESaIS4_EESt4lessIiESaISt4pairIKiS6_EEE。
-// [b28d-solo-OnlyOrigBatch14] N 封顶（P59 块布局 + N82 槽序）：loadRDARScriptFile
-// 参数序已修为 ("", path)（真语义 bug，ORIG 0x088ffe8d 压参序实证）；残余 =
-// ScanType 失败块落点（ORIG 尾部 jne 岛 vs 4.4 直落 je）+ 局部槽整体浅移
-// 0x10（帧策略差）。控制流/全部插入点与 ORIG 逐段核对，语义等价。
+// [b28d-solo-OnlyOrigBatch14 判词·N 封顶（P59 块布局 + N82 槽序 + N89）]：
+// loadRDARScriptFile 参数序已修为 ("", path)（真语义 bug，ORIG 0x088ffe8d
+// 压参序实证）；残余 = ScanType 失败块落点（ORIG 尾部 jne 岛 vs 4.4 直落 je）
+// + 局部槽整体浅移 0x10（帧策略差）+ p167 MISSING
+// `_ZSteqIcSt11char_traitsIcESaIcEE…EPKS3_`（string==const char* 外链实例，
+// 4.4 libstdc++ 全内联，N89）。控制流/全部插入点与 ORIG 逐段核对，语义等价。
 bool importUniqueRewardForAllUsers(
     char* path,
     std::map<int, std::vector<std::vector<STStackablePackageData> > >* out)
@@ -1027,19 +1089,22 @@ bool importPetScript(PetScript* script, const char* path)
     std::string tmp;
     // [b28d-solo-OnlyOrigBatch14] ORIG 0x08a359 段在 token/tmp 构造后立即
     // `movl $0,-0x14(v); movb $0,-0x15(ok)`（P212 全头部声明）⇒ v/ok 提到函数头。
-    // [b28d-solo-OnlyOrigBatch14] 残余 N 封顶（P59 块布局 + P292 bool 形）：
-    // ScanType 失败块（ORIG 尾部 `jne` 岛）4.4 恒内联为 `je` 直落；[int data]
-    // 循环条件 ORIG `movzbl; xor $1; test; je` vs 4.4 `movzbl; test; jne`。
-    // v/ok 提升 + 声明序已按 ORIG 0x08a35 段对齐（本波修）；语义等价。
+    // [b28d-solo-OnlyOrigBatch14 判词·AE 归零（300=300）] 本波两修：
+    // ①P223/P59：ScanType 失败块改 `goto pet_script_done` 尾标签（ORIG
+    // 0x08a359ab `xor $1; test; jne <函数尾共享块>`；4.4 对 if-body 恒内联
+    // 为 je 直落）；②P167：[int data] 循环改单 call 点
+    // `for(;;){ v=ScanInt(&ok); if(!ok) break; … }`（ORIG 仅 1 条 ScanInt
+    // call 指令，我方 for-init+increment 有 2 条）。v/ok 提升 + 声明序按
+    // ORIG 0x08a35 段对齐。
     int v = 0;
     bool ok = false;
     for (;;)
     {
         if (!ScanType(token, true))
-        {
-            script->m_idx0 = g_petScriptFileList.FindIndexByFullScan(path);
-            return true;
-        }
+            // [b28d-solo-OnlyOrigBatch14] P223/P59：ORIG 0x08a359ab 段
+            // `xor $1; test; jne <函数尾共享块>` ⇒ 失败块在尾部，用 goto
+            // 尾标签复现（4.4 对 if-body 恒内联为 je 直落）。
+            goto pet_script_done;
         if (token == "[name]")
         {
             ScanStr(&script->m_name);
@@ -1101,8 +1166,15 @@ bool importPetScript(PetScript* script, const char* path)
         else if (token == "[int data]")
         {
             script->m_intData.clear();
-            for (v = ScanInt(&ok); ok; v = ScanInt(&ok))
+            // [b28d-solo-OnlyOrigBatch14] P167：ORIG 该段仅 **1 条** ScanInt
+            // call 指令（`call; mov %eax,-0x14; movzbl -0x15; xor $1; test;
+            // je <exit>`），我方 for 形有 2 条（init+increment）⇒ 改
+            // 单点 `for(;;){ v=ScanInt(&ok); if(!ok) break; … }`。
+            for (;;)
             {
+                v = ScanInt(&ok);
+                if (!ok)
+                    break;
                 script->m_intData.push_back(v);
             }
         }
@@ -1115,6 +1187,9 @@ bool importPetScript(PetScript* script, const char* path)
             }
         }
     }
+pet_script_done:
+    script->m_idx0 = g_petScriptFileList.FindIndexByFullScan(path);
+    return true;
 }
 
 // ORIG T 0x08a3dbaa _ZN9PetScript5clearEv。
@@ -1167,13 +1242,13 @@ int importUltimateSkillCutScene(const char*,
 // **逆序声明** 对齐 ORIG 深度。
 void importActiveStatus(STActiveStatus& st, bool flag)
 {
-    // [b28d-solo-OnlyOrigBatch14] N 封顶（N82/N93 槽序）：ORIG 槽深序
-    // f(-0x6c)…i4(-0xc) 与 4.4「后声明更深」策略冲突，本波已按 ORIG 逆序
-    // 声明（v1 序 97→现值）；残余 = 兄弟块内同类临时槽方向差（4.1 后声明占
-    // 深槽 vs 4.4 相反，b28c C28L8 判定不可翻）。控制流/全部 ScanInt 落点一致。
-    // 槽序对齐：ORIG 帧深→浅 = f(-0x6c), s(-0x5c), t5A..t4(-0x58..-0x1c),
-    // type(-0x18), i9(-0x14), iD(-0x10), i4(-0xc)。4.4 实测"后声明更深"
-    // （v1 序 i4→f 得 97），本轮微调：type 移至 temps 前（介于 i9 与 t4 间）。
+    // [b28d-solo-OnlyOrigBatch14 判词·N 封顶（N82/N93 槽序）] 本波修：16 处
+    // push_back 改 `static_cast<int&&>(tX)` ⇒ 选中 ORIG 的
+    // `_ZNSt6vectorIiSaIiEE9push_backEOi`（右值重载，P315），p167 CLEAR
+    // 42=42。残差 = 帧/槽深序：ORIG f(-0x6c)/s(-0x5c)/t5A..t4(-0x58..-0x1c)/
+    // type(-0x18)/i9(-0x14)/iD(-0x10)/i4(-0xc)，4.4 兄弟块内同类临时槽方向
+    // 相反（b28c C28L8 判定不可翻）且帧 sub 0xc0 vs ORIG `add 负立即数`。
+    // 控制流/全部 ScanInt 落点与 ORIG 逐段一致。
     int i4;
     int iD;
     int i9;
@@ -1195,65 +1270,65 @@ void importActiveStatus(STActiveStatus& st, bool flag)
     if (type == 5)
     {
         t5A = ScanInt((bool*)0);
-        st.m_list14.push_back(t5A);
+        st.m_list14.push_back(static_cast<int&&>(t5A));
         t5B = ScanInt((bool*)0);
-        st.m_list14.push_back(t5B);
+        st.m_list14.push_back(static_cast<int&&>(t5B));
     }
     else if (type == 0)
     {
         t0A = ScanInt((bool*)0);
-        st.m_list14.push_back(t0A);
+        st.m_list14.push_back(static_cast<int&&>(t0A));
         t0B = ScanInt((bool*)0);
-        st.m_list14.push_back(t0B);
+        st.m_list14.push_back(static_cast<int&&>(t0B));
     }
     else if (type == 0xc)
     {
         tCA = ScanInt((bool*)0);
-        st.m_list14.push_back(tCA);
+        st.m_list14.push_back(static_cast<int&&>(tCA));
         tCB = ScanInt((bool*)0);
-        st.m_list14.push_back(tCB);
+        st.m_list14.push_back(static_cast<int&&>(tCB));
     }
     else if (type == 7)
     {
         t7 = ScanInt((bool*)0);
-        st.m_list14.push_back(t7);
+        st.m_list14.push_back(static_cast<int&&>(t7));
     }
     else if (type == 0xf)
     {
         tF = ScanInt((bool*)0);
-        st.m_list14.push_back(tF);
+        st.m_list14.push_back(static_cast<int&&>(tF));
     }
     else if (type == 0x11)
     {
         t11 = ScanInt((bool*)0);
-        st.m_list14.push_back(t11);
+        st.m_list14.push_back(static_cast<int&&>(t11));
     }
     else if (type == 0xa)
     {
         tA = ScanInt((bool*)0);
-        st.m_list14.push_back(tA);
+        st.m_list14.push_back(static_cast<int&&>(tA));
     }
     else if (type == 2)
     {
         t2 = ScanInt((bool*)0);
-        st.m_list14.push_back(t2);
+        st.m_list14.push_back(static_cast<int&&>(t2));
     }
     else if (type == 6)
     {
         t6 = ScanInt((bool*)0);
-        st.m_list14.push_back(t6);
+        st.m_list14.push_back(static_cast<int&&>(t6));
     }
     else if (type == 0xb)
     {
         tB = ScanInt((bool*)0);
-        st.m_list14.push_back(tB);
+        st.m_list14.push_back(static_cast<int&&>(tB));
     }
     else if (type == 9)
     {
         for (i9 = 0; i9 <= 3; ++i9)
         {
             t9 = ScanInt((bool*)0);
-            st.m_list14.push_back(t9);
+            st.m_list14.push_back(static_cast<int&&>(t9));
         }
     }
     else if (type == 0xd)
@@ -1261,7 +1336,7 @@ void importActiveStatus(STActiveStatus& st, bool flag)
         for (iD = 0; iD <= 3; ++iD)
         {
             tD = ScanInt((bool*)0);
-            st.m_list14.push_back(tD);
+            st.m_list14.push_back(static_cast<int&&>(tD));
         }
     }
     else if (type == 4)
@@ -1269,7 +1344,7 @@ void importActiveStatus(STActiveStatus& st, bool flag)
         for (i4 = 0; i4 <= 3; ++i4)
         {
             t4 = ScanInt((bool*)0);
-            st.m_list14.push_back(t4);
+            st.m_list14.push_back(static_cast<int&&>(t4));
         }
     }
 }
@@ -1337,29 +1412,40 @@ const char* RestrictCategory::enumToString(Enum e)
 }
 
 // ORIG T 0x088c1558 _ZL23importKeyNameIndexTablev（static）。
-// [b28d-solo-OnlyOrigBatch14] N 封顶（P232 帧差 + N98 槽序）：ORIG 帧
-// sub $0x30（含 dead 槽）、局部 -0x14/-0x10，4.4 帧 sub $0x20 且槽序平移；
-// `mov $0,%eax` vs `mov $0,%ebx` 为汇聚值寄存器差（P78）。键值表内容与
-// loadRDARScriptFile 参数序（"", "Skill/RDARKeyIndex.dat"）与 ORIG 一致。
+// [b28d-solo-OnlyOrigBatch14 判词·AE 归零] 本波三修：①P167 差集把
+// `s = toTString(...); map[s]=v;` 改回内联实参 + 具名 `const char* p`
+// 中转（ORIG 有 `_ZNSsC1EPKcRKSaIcE`+allocator 而无 `_ZNSsaSEPKc`；且
+// 0x088c1668 `mov %eax,-0xc(%ebp)` 为 P0 具名局部槽）；②P15/P283 循环改
+// `while ((token = getToken()) != 0)`（ORIG token 获取在循环尾条件块）；
+// ③声明序 value 先/token 后（P309 先声明浅 ⇒ token@-0x10/value@-0x14）。
+// 结果 AE-EQUAL 81=81，p167 CLEAR 13=13。
 static bool importKeyNameIndexTable()
 {
     if (!loadRDARScriptFile("", "Skill/RDARKeyIndex.dat"))
         return false;
+    // [b28d-solo-OnlyOrigBatch14] P15/P283：ORIG 0x088c15a0 段 token 获取在
+    // 循环尾条件块（`call getToken; mov %eax,-0x10; cmpl $0,-0x10; setne;
+    // test; jne <body>`）⇒ 源形 `while ((token = getToken()) != 0)`；
+    // 声明序 value 先/token 后（4.4 先声明浅 ⇒ token@-0x10/value@-0x14）。
     int value = 0;
-    std::string s;
-    for (;;)
+    int token;
+    while ((token = g_dnfLex.getToken()) != 0)
     {
-        int token = g_dnfLex.getToken();
-        if (token == 0)
-            break;
         if (token == 2)
         {
             value = g_dnfLex.getDecimal();
         }
         else if (token == 6)
         {
-            s = toTString(g_dnfLex.getCustomData());
-            g_mapKeyNameIndexTable[s] = value;
+            // [b28d-solo-OnlyOrigBatch14] P167 差集：ORIG 无
+            // `_ZNSsaSEPKc`（operator=(const char*)），而有
+            // `_ZNSsC1EPKcRKSaIcE`+allocator C1/D1（临时 string 构造）
+            // ⇒ 原码把 toTString 结果直接作 operator[] 的 key 实参
+            // （隐式 const char*→string 转换临时），非函数级 s 赋值。
+            // P0：ORIG 0x088c1668 `mov %eax,-0xc(%ebp)`（toTString 结果入槽）
+            // ⇒ 原码另有具名 `const char* p` 局部。
+            const char* p = toTString(g_dnfLex.getCustomData());
+            g_mapKeyNameIndexTable[p] = value;
         }
     }
     return true;
@@ -5143,12 +5229,23 @@ bool DecreaseTradeLimitCountByUser(CUser& user, int space, int slot)
 //                        serverGroup, false, false)。
 void GiveItemReturnUser(CUser* user)
 {
-    // [b28d-solo-OnlyOrigBatch14] N 封顶（P232/N82 帧差 + dead local）：ORIG
-    // 帧 sub $0x19c + `push %edi` + 两条 dead 立即数局部（`movl $0x1f15,-0x2c;
-    // movl $0x1,-0x28`），4.4 帧 sub $0x190 且不发射该 dead 局部（P182 禁
-    // 强凑 pad/volatile）。itemIdx/循环与发放调用点逐条一致。
+    // [b28d-solo-OnlyOrigBatch14 判词·N 封顶（P78 + N82/N115）] 本波修：
+    // ①P244/P0：ORIG 0x084bfd31 `movl $0x1f15,-0x2c(%ebp); movl $0x1,
+    // -0x28(%ebp)` 两具名常量局部入槽（声明序在 item 之前）+ 0x084bfd4d
+    // `mov -0x28(%ebp),%eax; mov %eax,0x4(%esp)`（set_add_info 实参从槽读）
+    // ⇒ 补具名 itemIdx/nAddInfo；P198 孪生「声明与赋值分离」阻止 4.4 常量
+    // 传播成立即数直传；②P232：前置 dead `char pad[8]; pad[0]=0;` 顶槽使
+    // item 落 -0x69 与 ORIG 一致。p167 CLEAR 22=22。残差 = ORIG `push %edi`
+    // （我方 esi/ebx 双 callee-saved，P78 寄存器分配差）+ 槽基仍浅 8（4.4
+    // 先声明浅 vs ORIG 先声明深，N82）+ 帧 0x1a0 vs 0x19c（N115 outgoing 量化）。
+    // 发放调用点/循环与 ORIG 逐条一致。
+    char pad[8];
+    pad[0] = 0;
+    int itemIdx;
+    itemIdx = 0x1f15;
+    int nAddInfo;
+    nAddInfo = 1;
     Inven_Item item;
-    const int itemIdx = 0x1f15;
     CItem* def = G_CDataManager()->find_item(itemIdx);
     if (def == 0)
     {
@@ -5156,7 +5253,7 @@ void GiveItemReturnUser(CUser* user)
     }
     item.m_addInfo = itemIdx;
     def->make_item(item);
-    item.set_add_info(1);
+    item.set_add_info(nAddInfo);
 
     if (user->getCurCharacLastPlayDungeonIndex() != 0)
     {

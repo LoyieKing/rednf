@@ -333,7 +333,11 @@ public:
     Point2dRaw m_pos;               // +0x118（IsArea 比较 x/y；_SendPacketToArea 门槛）
     bool m_teamFlag[2];             // +0x120..+0x121（_DelUser EndPvP 第2参 mangled b 直传 movzbl 实证）
     int m_winTeam;                  // +0x124（CloseAssault 获胜队比较）
-    char m_chaosFlags[2];           // +0x128..+0x129（_SeparateTeam/_ProcessChaos 每队 chaos 标志）
+    // [b28d-solo-W6_AssaultPlaceDepsA] char→bool：ORIG _ProcessChaos 0x082ebc25
+    // `movzbl 0x128(%edx,%eax,1),%eax; xor $1,%eax; test %al,%al; je` = P248 档②
+    // 字段 bool 化 + 裸 if(!field)；写点 _SeparateTeam 0x082e821a `setg %dl; mov %dl`
+    // 亦为 bool 直存。sizeof/偏移（+0x128..+0x129、m_pad12a@+0x12a）零变化。
+    bool m_chaosFlags[2];           // +0x128..+0x129（_SeparateTeam/_ProcessChaos 每队 chaos 标志）
     char m_pad12a[2];               // +0x12a..+0x12b
     PartyInfo m_parties[2];         // +0x12c
     CUser* m_checkUser;             // +0x134（EvadeAssaultPlace/_AvailableAssault

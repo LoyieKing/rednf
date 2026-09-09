@@ -112,42 +112,61 @@ public:
 
     int m_hpMax;            // +0x00
     int m_mpMax;            // +0x04
-    int m_phyAtt;           // +0x08
-    int m_phyDef;           // +0x0c
-    int m_magAtt;           // +0x10
-    int m_magDef;           // +0x14
-    int m_equipPhyAtt;      // +0x18
-    int m_equipPhyDef;      // +0x1c
-    int m_equipMagAtt;      // +0x20
-    int m_equipMagDef;      // +0x24
-    int m_refFire;          // +0x28
-    int m_refWater;         // +0x2c
-    int m_refDark;          // +0x30
-    int m_refLight;         // +0x34
-    int m_refAll;           // +0x38
-    int m_refSlow;          // +0x3c
-    int m_refFreeze;        // +0x40
-    int m_refPoison;        // +0x44
-    int m_refStun;          // +0x48
-    int m_refCurse;         // +0x4c
-    int m_refBlind;         // +0x50
-    int m_refLightning;     // +0x54
-    int m_refStone;         // +0x58
-    int m_refSleep;         // +0x5c
-    int m_refBurn;          // +0x60
-    int m_refWeaponBreak;   // +0x64
-    int m_refBleeding;      // +0x68
-    int m_refPierce;        // +0x6c
-    int m_refStuck;         // +0x70
-    int m_refConfuse;       // +0x74
-    int m_refHold;          // +0x78
-    int m_refArmorBreak;    // +0x7c
-    int m_refAllState;      // +0x80
-    int m_84;               // +0x84（仅 clear 清零，语义未建模）
-    int m_88;               // +0x88
-    int m_8c;               // +0x8c
-    int m_90;               // +0x90
-    int m_94;               // +0x94
+    // [b28d-solo-STEquipmentScript] +0x08..+0x97（36 个 int）匿名 union + 二维视角：
+    // ORIG clear 0x0898d2?? 三处循环为 `mov i,%edx; mov this,%eax; add $K,%edx;
+    // movl $0,disp(%eax,%edx,4)`（P311 二维成员数组视图形，K=8/12/32、disp=8/12/8）；
+    // 一维下标/字段取址形恒折 lea+shl（探针 /tmp/b28d_s219/probe1.cpp T::h1/h2/h3
+    // 与 ORIG 逐条同形）。sizeof 0x98、全部具名字段偏移不变。
+    union
+    {
+        struct
+        {
+            int m_phyAtt;           // +0x08
+            int m_phyDef;           // +0x0c
+            int m_magAtt;           // +0x10
+            int m_magDef;           // +0x14
+            int m_equipPhyAtt;      // +0x18
+            int m_equipPhyDef;      // +0x1c
+            int m_equipMagAtt;      // +0x20
+            int m_equipMagDef;      // +0x24
+            int m_refFire;          // +0x28
+            int m_refWater;         // +0x2c
+            int m_refDark;          // +0x30
+            int m_refLight;         // +0x34
+            int m_refAll;           // +0x38
+            int m_refSlow;          // +0x3c
+            int m_refFreeze;        // +0x40
+            int m_refPoison;        // +0x44
+            int m_refStun;          // +0x48
+            int m_refCurse;         // +0x4c
+            int m_refBlind;         // +0x50
+            int m_refLightning;     // +0x54
+            int m_refStone;         // +0x58
+            int m_refSleep;         // +0x5c
+            int m_refBurn;          // +0x60
+            int m_refWeaponBreak;   // +0x64
+            int m_refBleeding;      // +0x68
+            int m_refPierce;        // +0x6c
+            int m_refStuck;         // +0x70
+            int m_refConfuse;       // +0x74
+            int m_refHold;          // +0x78
+            int m_refArmorBreak;    // +0x7c
+            int m_refAllState;      // +0x80
+            int m_84;               // +0x84（仅 clear 清零，语义未建模）
+            int m_88;               // +0x88
+            int m_8c;               // +0x8c
+            int m_90;               // +0x90
+            int m_94;               // +0x94
+        };
+        int m_view[9][4];           // +0x08..+0x97（m_view[r][i] == 字索引 r*4+i）
+        // ORIG 第二处循环的视图基址是 +0x0c（`add $0xc,%edx; movl $0,0xc(%eax,%edx,4)`）：
+        // 同一区域再加一个基址 +0x0c 的二维视角（m_view2[r][j] == 字索引 1+r*4+j）。
+        struct
+        {
+            int m_view2Pad0;        // +0x08（占位，仅用于把视图推到 +0x0c）
+            int m_view2[8][4];      // +0x0c..+0x8b
+        };
+    };
 };
 #endif
 
@@ -170,9 +189,30 @@ struct STChangeStatusRate
 //      第三个 int 由 getEquipmentTypeToEnumValue 写入） ----
 struct STEnchantSystemData
 {
-    int m_a;               // +0x00
-    unsigned char m_b;     // +0x04（ORIG byte：clear movb 清 0、遍历 movzbl 读；sizeof 12 不变）
-    int m_c;               // +0x08（getEquipmentTypeToEnumValue(token)）
+    // [b28d-solo-CItemUpgrade] m_a/m_c 的 enum 视角：ORIG operator< 0x0854b1d0/
+    // 0x0854b224 对两字段发 `mov (%eax),%eax; mov %eax,%edx` 两段装载（4.1 对 enum
+    // 字段保留 eax→edx 中转，P254）——int 字段恒折单段，值 cast 到 enum 也不产中转
+    // （探针 j1/k1 实证）⇒ 只有**真实 enum 类型成员**可复现。匿名 union 视角与 int
+    // 同宽同址（sizeof/偏移/mangled 零变化），既有 int 赋值点（脚本解析/clear）全部有效。
+    union
+    {
+        int m_a;                        // +0x00
+        ENUM_CHARACTERJOB m_job;        // +0x00 enum 视角（operator< 两段装载形）
+    };
+    // [b28d-solo-CItemUpgrade] ORIG operator< 0x0854b201 `movzbl 0x4(%eax),%edx;
+    // cmp %al,%dl; jge`（单段装载 + 8 位有符号比较）。unsigned char 直比产 jae 无符号序、
+    // signed char cast 表达式多 `mov %eax,%edx` 中转（探针 g1/g2/g4 实证）⇒ 用 char
+    // 视图；m_b 保持 unsigned char，其余消费点零影响。
+    union
+    {
+        unsigned char m_b;  // +0x04（ORIG byte：clear movb 清 0、遍历 movzbl 读；sizeof 12 不变）
+        char m_bSigned;     // +0x04 视图（operator< 单段装载 + 有符号 8 位比较）
+    };
+    union
+    {
+        int m_c;                        // +0x08（getEquipmentTypeToEnumValue(token)）
+        ENUM_EQUIPMENTTYPE m_equipType; // +0x08 enum 视角（operator< 两段装载形）
+    };
 
     // ORIG 全 W 头内联：C1 0x854b194（调 clear）、clear 0x854b1a8
     // （+0/+4/+8 依序清零）、D1 0x89d17a2（空体）。

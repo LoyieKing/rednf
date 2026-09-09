@@ -7,14 +7,24 @@
 #include "GameWorld.h"
 #include "CSystemTime.h"
 #include "GameTypes.h"
+#include "GlobalData.h"
 #include "PacketGuard.h"
 
-struct TeleportEffect
+// [b28d-solo-CPartyTelePort] 类型名必须与 ORIG nm 一致：ORIG 的
+// vector<effect_data> 相关符号为 `_ZNSt6vectorI11effect_dataSaIS0_EE*`
+// （P0/N114：符号名不得自造）。
+struct effect_data
 {
     char village;
     int area;
     std::vector<unsigned short> users;
 };
+// [b28d-solo-CPartyTelePort][N89/N103] vector<effect_data> 扩容路径实例
+// `_ZNSt20__uninitialized_copyILb0EE18uninitialized_copyISt13move_iteratorI
+//  P11effect_dataES4_EE...`：ORIG(4.1 libstdc++) 内联 `::new` placement +
+// `effect_dataC1ERKS_`（67 条，0x085c382e）；4.4 libstdc++ 改调
+// `_ZSt10_ConstructI11effect_dataS0_EvPT_OT0_` helper（47 条）⇒ 库头实现差，
+// 源侧不可复现（禁改 libstdc++ 头 / 禁发明替身符号）。语义等价。
 
 // ============================================================================
 // CPartyTelePort（sizeof 0x24）
@@ -242,6 +252,16 @@ char CPartyTelePort::check_cur_teleport_state()
     return result;
 }
 
+// [b28d-solo-CPartyTelePort][N] 语义完成，byte 层跨版本封顶：
+// ① 返回值归一化：ORIG 0x085bc034 `movzbl -0x35(%ebp),%eax`（4.1 直返 char），
+//    4.4 对 `return <char>;`（函数返回 bool）恒发 `cmpb $0,+setne %al`
+//    （/tmp/rp.cpp g1..g6 六形探针全归一化）；返回类型由 ORIG
+//    __PRETTY_FUNCTION__ 串 "bool CPartyTelePort::process_teleport()"
+//    （.rodata 0x08cbb220）锁定，不可改类型。
+// ② 槽分配策略（N82附）：ORIG dir/posy 落深槽 -0x78/-0x74（第二循环
+//    -0x70/-0x6c），4.4 复用于 -0x38/-0x34（-0x28/-0x24），cMyTrace 反向；
+//    声明序/位置调整无效（4.4 聚合优先低槽 + 标量分区）。
+// 其余指令序列（归一化地址/槽号后）与 ORIG 逐条一致；p167 调用点差集 CLEAR。
 bool CPartyTelePort::process_teleport()
 {
     char result;
@@ -266,26 +286,26 @@ bool CPartyTelePort::process_teleport()
                 continue;
             }
             CUser* user = (CUser*)m_party->get_user(i);
-            if (user == 0)
+            if (user != 0)
             {
-                continue;
-            }
-            int dir = (int)get_teleport_direction();
-            int posy = (int)get_teleport_posy();
-            int posx = (int)get_teleport_posx();
-            unsigned char area = get_teleport_area_index();
-            unsigned char village = get_teleport_village();
-            moveResult = G_GameWorld()->check_move_area(user, (int)village, (int)area, posx, posy,
-                dir, true, 0);
-            if (m_party->getManager() == user)
-            {
-                moveResult = user->is_equip_aura_avatar(0, auraAvatarTime);
-            }
-            if (moveResult > 0)
-            {
-                set_teleport_member_state(i, 0);
-                set_teleport_state(2);
-                break;
+                // [b28d-solo-CPartyTelePort] ORIG 0x85bbc68：dir/posy 有槽
+                // （-0x78/-0x74，P0 具名局部）；posx/area/village 无槽往返
+                // ⇒ 源码在实参位内联 getter。
+                int dir = (int)get_teleport_direction();
+                int posy = (int)get_teleport_posy();
+                moveResult = G_GameWorld()->check_move_area(user,
+                    (int)get_teleport_village(), (int)get_teleport_area_index(),
+                    (int)get_teleport_posx(), posy, dir, true, 0);
+                if (m_party->getManager() == user)
+                {
+                    moveResult = user->is_equip_aura_avatar(0, auraAvatarTime);
+                }
+                if (moveResult > 0)
+                {
+                    set_teleport_member_state(i, 0);
+                    set_teleport_state(2);
+                    break;
+                }
             }
         }
 
@@ -303,26 +323,23 @@ bool CPartyTelePort::process_teleport()
                     continue;
                 }
                 CUser* user = (CUser*)m_party->get_user(i);
-                if (user == 0)
+                if (user != 0)
                 {
-                    continue;
+                    user->set_charac_visible_teleport_(true);
+                    int dir = (int)get_teleport_direction();
+                    int posy = (int)get_teleport_posy();
+                    // [b28d-solo-CPartyTelePort] ORIG 0x85bbeb4：move_area 返回
+                    // bool 直测（无 moved 槽）；trace 用 P227 全表达式临时链
+                    // （实参 getCurCharacNo 在 ctor 前求值并跨 ctor 保活 %ebx）。
+                    if (G_GameWorld()->move_area(user, (int)get_teleport_village(),
+                            (int)get_teleport_area_index(), (int)get_teleport_posx(),
+                            posy, dir, true, 1, 0, 0) != 1)
+                    {
+                        cMyTrace(__PRETTY_FUNCTION__, 0x43f9, 5)
+                            ("party_teleport_error:(char_no:%d)", user->getCurCharacNo());
+                    }
+                    user->set_charac_visible_teleport_(false);
                 }
-                user->set_charac_visible_teleport_(true);
-                int dir = (int)get_teleport_direction();
-                int posy = (int)get_teleport_posy();
-                int posx = (int)get_teleport_posx();
-                unsigned char area = get_teleport_area_index();
-                unsigned char village = get_teleport_village();
-                char moved = G_GameWorld()->move_area(user, (int)village, (int)area, posx, posy,
-                    dir, true, 1, 0, 0);
-                if (moved != 1)
-                {
-                    int charNo = user->getCurCharacNo();
-                    cMyTrace tr(__PRETTY_FUNCTION__,
-                                    0x43f9, 5);
-                    tr("party_teleport_error:(char_no:%d)", charNo);
-                }
-                user->set_charac_visible_teleport_(false);
             }
             send_teleport_effect_at_equal_place(2);
         }
@@ -338,15 +355,14 @@ bool CPartyTelePort::process_teleport()
         CUser* manager = (CUser*)m_party->getManager();
         if (manager != 0)
         {
-            int curSec = ((CSystemTime*)0x941f714)->getCurSec();
-            int newTime = curSec + auraAvatarTime;
-            manager->set_aura_avatar_option_value(0,newTime);
-            int optValue = manager->get_aura_avatar_option_value(0);
-            manager->UpdateAuraAvatarOption(0, optValue);
-            int charNo = manager->getCurCharacNo();
-            cMyTrace tr(__PRETTY_FUNCTION__,
-                            0x4419, 0);
-            tr("party_teleport_success:(char_no:%d)", charNo);
+            // [b28d-solo-CPartyTelePort] ORIG 0x85bbf95：`movl $&GlobalData::
+            // s_systemTime_,(%esp)`（对象直调，P304）；curSec/optValue/charNo
+            // 均无槽往返 ⇒ 内联表达式 + P227 临时链。
+            int newTime = GlobalData::s_systemTime_.getCurSec() + auraAvatarTime;
+            manager->set_aura_avatar_option_value(0, newTime);
+            manager->UpdateAuraAvatarOption(0, manager->get_aura_avatar_option_value(0));
+            cMyTrace(__PRETTY_FUNCTION__, 0x4419, 0)
+                ("party_teleport_success:(char_no:%d)", manager->getCurCharacNo());
         }
     }
     return result;
@@ -408,6 +424,11 @@ void CPartyTelePort::process_leave_user_at_teleport(CUser* user)
     }
 }
 
+// [b28d-solo-CPartyTelePort] AE（check_tu_routed 口径）：ORIG 0x085bc2b0。
+// 修法：struct 名 TeleportEffect→effect_data（P0/N114 符号名）；内层迭代器
+// begin/end 缓存（P13）；effect_data 逐字段赋值（P54，area 先于 village）；
+// 第二个守卫改正向包裹（P222）消 4.4 多余 nop+jmp 岛；第二循环 int i（setg）。
+// 残余仅重定位地址与 .o 阶段立即数显示（N124/P264）；p167 调用点差集 CLEAR。
 void CPartyTelePort::send_teleport_effect_at_different_place(int param)
 {
     if (m_party == 0)
@@ -415,7 +436,7 @@ void CPartyTelePort::send_teleport_effect_at_different_place(int param)
         return;
     }
 
-    std::vector<TeleportEffect> effects;
+    std::vector<effect_data> effects;
     for (int i = 0; i <= 3; ++i)
     {
         if (m_party->checkValidUser(i) != 1)
@@ -423,14 +444,15 @@ void CPartyTelePort::send_teleport_effect_at_different_place(int param)
             continue;
         }
         CUser* user = (CUser*)m_party->get_user(i);
-        if (user == 0)
+        if (user != 0)
         {
-            continue;
-        }
-
+        // [b28d-solo-CPartyTelePort] ORIG 0x85bc31c：begin sret -0x38 / end
+        // sret -0x3c 均在循环初始化区求值一次（P13 缓存 end）；found 的
+        // `movb $0,-0x19` 落 end 之后（ORIG 0x85bc346）⇒ 声明在 it/e 之后。
+        std::vector<effect_data>::iterator it = effects.begin(),
+            e = effects.end();
         bool found = false;
-        for (std::vector<TeleportEffect>::iterator it = effects.begin();
-             it != effects.end(); ++it)
+        for (; it != e; ++it)
         {
             if (it->area == user->get_area(false) &&
                 it->village == user->getCurCharacVill())
@@ -442,13 +464,22 @@ void CPartyTelePort::send_teleport_effect_at_different_place(int param)
         }
         if (!found)
         {
-            TeleportEffect ed = { user->getCurCharacVill(), user->get_area(false),
-                std::vector<unsigned short>(1, user->get_unique_id()) };
+            // [b28d-solo-CPartyTelePort] ORIG 0x85bc157：effect_data 默认构造
+            // 后逐字段写（area 先于 village，P54 逐字段赋值≠聚合初始化）。
+            effect_data ed;
+            ed.area = user->get_area(false);
+            ed.village = user->getCurCharacVill();
+            ed.users.push_back(user->get_unique_id());
             effects.push_back(ed);
+            // [b28d-solo-CPartyTelePort] ORIG 0x85bc46c `movl $0x0,-0x18(%ebp)`
+            // 死初始化局部（写后不读，P31/P232 槽基对齐；语义等价）。
+            int pad0 = 0;
+        }
         }
     }
 
-    for (unsigned int i = 0; i < effects.size(); ++i)
+    // [b28d-solo-CPartyTelePort] ORIG 0x85bc608 用 setg（有符号）⇒ 源码 int i。
+    for (int i = 0; i < (int)effects.size(); ++i)
     {
         PacketGuard pg;
 
@@ -468,6 +499,10 @@ void CPartyTelePort::send_teleport_effect_at_different_place(int param)
     }
 }
 
+// [b28d-solo-CPartyTelePort] AE（check_tu_routed 口径）：ORIG 0x085bc64c。
+// 修法：area/vill 去具名局部改实参内联（P0/P52，ORIG 用 %ebx/%esi 无槽）；
+// 双 continue 守卫（P223 同层多 continue 岛）+ `!checkValidUser` xor 形；
+// p167 调用点差集 CLEAR。
 void CPartyTelePort::send_teleport_effect_at_equal_place(int param)
 {
     if (m_party == 0)
@@ -492,13 +527,17 @@ void CPartyTelePort::send_teleport_effect_at_equal_place(int param)
     std::vector<unsigned short> users;
     for (int i = 0; i <= 3; ++i)
     {
-        if (m_party->checkValidUser(i) == 1)
+        // [b28d-solo-CPartyTelePort] ORIG 0x85bc6a7：`call; xor $1; test;
+        // jne <nop 岛>` + body 尾 jmp + nop = 4.1 同层多 continue 岛
+        // （P223）：源码为两条独立 continue 守卫。
+        if (!m_party->checkValidUser(i))
         {
-            CUser* u = (CUser*)m_party->get_user(i);
-            if (u != 0)
-            {
-                users.push_back(u->get_unique_id());
-            }
+            continue;
+        }
+        CUser* u = (CUser*)m_party->get_user(i);
+        if (u != 0)
+        {
+            users.push_back(u->get_unique_id());
         }
     }
 
@@ -512,9 +551,10 @@ void CPartyTelePort::send_teleport_effect_at_equal_place(int param)
 
     if (manager->get_state() == 3)
     {
-        int area = manager->get_area(false);
-        char vill = manager->getCurCharacVill();
-        G_GameWorld()->send_to_area( (int)vill, area, pg);
+        // [b28d-solo-CPartyTelePort] ORIG 0x85bc7e3：get_area 结果留 %ebx、
+        // getCurCharacVill 留 %esi（P0 无槽往返 / P52 链式 receiver 单语句）。
+        G_GameWorld()->send_to_area((int)manager->getCurCharacVill(),
+                                    manager->get_area(false), pg);
     }
 
 }

@@ -17,7 +17,6 @@ bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime,
 
 // ---- RecoveryInfo（ORIG W 0x088f9346：push ebp / mov esp,ebp / pop ebp / ret，
 //      即空体析构；vector<RecoveryInfo> 元素销毁触发）----
-RecoveryInfo::~RecoveryInfo() {}
 
 // ---- stCeraShopBonusItemInfo_t（ORIG W 0x089363da：空体析构）----
 stCeraShopBonusItemInfo_t::~stCeraShopBonusItemInfo_t() {}

@@ -399,10 +399,14 @@ void GameWorld::UpdateChannelUser()
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
-// [b28d-11b] N：帧差 0x20（N82）@0x086cb17c
-// [b28d-solo-GameWorld] _ZN9GameWorld30updateDetailChannelServiceInfoEv verdict=DIFF-N 308/304
-// N82/N89 封顶（帧 0xa0 vs 0xc0 + map 局部槽组平移）；P167 修（for-init 直构+ppEv、
-// (*cit) deEv、删未用 channelType）后 p167 CLEAR 49=49。
+// [b28d-solo-GameWorld] _ZN9GameWorld30updateDetailChannelServiceInfoEv verdict=DIFF-N
+// b28d-solo 修法：①P163 —— ORIG 0x086cb1e8 `cmp $0xa;ja; mov &jump_table(,%eax,4)`
+// 直接以 get_state() 索引 0..0xa（无 sub $3）⇒ 补未列 case 0 撑宽 range；
+// ②P38/P198① —— ORIG 0x086cb1cd `movl $0x0,-0x14`（get_state 前）⇒ v 提到 switch
+// 外声明并预清、各 case 复用（`m[k]=m[k]+1` 单语句被 4.4 SAVE_EXPR 合并成单次
+// op[]+%ebx 缓存）。
+// 余 N82/N115 封顶：帧 0xa0 vs 0xb0 + countMap/it/user/v 槽组平移 8（4.4 outgoing
+// 预留）；p167 CLEAR 49=49。
 void GameWorld::updateDetailChannelServiceInfo()
 {
     std::map<int, int> countMap;
@@ -414,34 +418,49 @@ void GameWorld::updateDetailChannelServiceInfo()
         CUser* user = it->second;
         if (user != NULL)
         {
+            // ORIG 0x086cb1cd `movl $0x0,-0x14`（在 get_state() 调用之前）⇒ 原码在
+            // switch 外声明并预清 v，各 case 复用同一槽（P198① 预清两句式）。
+            int v = 0;
             switch (user->get_state())
             {
+            // b28d-solo P163：ORIG 0x086cb1d0 段 `cmp $0xa,%eax; ja; mov
+            // &jump_table(,%eax,4)` 直接以 get_state() 索引 0..0xa（无 sub）⇒
+            // 原码含未列 case 0（与 break 共享）撑宽 range。
+            case 0:
+                break;
             // ORIG 0x086cb1df 跳转表实证：case 值为 3/5/6&7/8/10（cmp $0xa;ja），非 0/1/2/6/8
             case 3:                    // +0x1f1 → countMap[0]
-                countMap[0] = countMap[0] + 1;   // ORIG 每 case 双 operator[]（P38）
+                // ORIG 0x086cb1f1 段：`call op[]; mov (%eax),%eax; mov %eax,-0x14`
+                // 后重算 key 再 `call op[]` ⇒ 具名局部 + 两条语句（P38），
+                // 单语句 `m[k]=m[k]+1` 被 4.4 SAVE_EXPR 合并成单次 op[]+%ebx 缓存。
+                v = countMap[0];
+                countMap[0] = v + 1;
                 break;
             case 5:                    // +0x235 → countMap[1]
-                countMap[1] = countMap[1] + 1;
+                v = countMap[1];
+                countMap[1] = v + 1;
                 break;
             case 6:                    // +0x279：channel 检查 → +0x2ad countMap[9]
             case 7:                    // +0x2f1 → countMap[2]
-            {
                 if (G_GameWorld()->GetChannelType() == 0xf ||
                     G_GameWorld()->GetChannelType() == 0x10)
                 {
-                    countMap[9] = countMap[9] + 1;
+                    v = countMap[9];
+                    countMap[9] = v + 1;
                 }
                 else
                 {
-                    countMap[2] = countMap[2] + 1;
+                    v = countMap[2];
+                    countMap[2] = v + 1;
                 }
                 break;
-            }
             case 8:                    // +0x335 → countMap[6]
-                countMap[6] = countMap[6] + 1;
+                v = countMap[6];
+                countMap[6] = v + 1;
                 break;
             case 10:                   // +0x376 → countMap[8]
-                countMap[8] = countMap[8] + 1;
+                v = countMap[8];
+                countMap[8] = v + 1;
                 break;
             }
         }
@@ -484,13 +503,14 @@ void GameWorld::updateDetailChannelServiceInfo()
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
     }
 }
-// [b28d-11b] N：帧差 0x20 + 局部槽（N82）@0x086cd0b0
-// [b28d-solo-GameWorld] _ZN9GameWorld30UpdateStatistic4ChannelUserLevEv verdict=DIFF-N 121/123
-// P28 增量侧改 ++it（ORIG ppEv）后 p167 CLEAR 22=22；余 N82/N93 槽组整体平移。
-// 修法：P259 Acquire 内联实参（134→132）+ P50 for-init 直构迭代器（132→127）。
-// 残余 N82/N93 封顶：ORIG guard=-0x18 浅于 it-sret=-0x20，4.4 反向（guard=-0x24、
-// it=-0x28）⇒ guard/it/sig/info 槽组整体平移（帧 0x30 vs 0x40）；先声明后赋值形
-// 反劣（+C1Ev/拷贝 132），具名/临时两形均不可翻。
+// [b28d-solo-GameWorld] _ZN9GameWorld30UpdateStatistic4ChannelUserLevEv verdict=AE
+// b28d-solo 修法（两处真修）：①P13 —— ORIG 0x086cd18b 先调 end()（last=-0x1c）、
+// 0x086cd1a6 后调 begin()（it=-0x20），条件块 0x086cd20d 直接用 last 比较（无每轮
+// end call）⇒ 原码缓存 end 迭代器（旧实现每轮 `it != m_UserInWorld.end()`；p167
+// 多重集同计数故 CLEAR 掩盖了位置差）；②P0 —— `int level=get_charac_level();
+// sig->m_count[level]++` 具名版多 `mov %eax,槽/mov 槽,%eax` 两条，ORIG 0x086cd1ec
+// call 结果 %eax 直作 scaled 索引 ⇒ 内联表达式 `sig->m_count[get_charac_level()]++`。
+// 余 N82/N93 槽组整体平移（guard/it/sig/info，帧 0x30 vs 0x40）不再试。
 void GameWorld::UpdateStatistic4ChannelUserLev()
 {
     // [b28d-solo-GameWorld] P259：Acquire 内联进 CStreamGuard 实参（消 stream 具名局部，
@@ -506,14 +526,19 @@ void GameWorld::UpdateStatistic4ChannelUserLev()
 
     // [b28d-solo-GameWorld] P50：ORIG begin sret 直落 -0x20（无 iterator::C1Ev + 拷贝）
     // ⇒ for-init 内直构，勿先声明后赋值。
+    // b28d-solo 修：P13 —— ORIG 0x086cd18b 先调 end()（last=-0x1c）、0x086cd1a6 后调
+    // begin()（it=-0x20），条件块 0x086cd20d 直接用 last 与 it 比较（无每轮 end call）
+    // ⇒ 原码缓存 end 迭代器（旧实现每轮调 end，p167 多重集同计数故 CLEAR 掩盖）。
+    std::map<unsigned short, CUser*>::iterator last = m_UserInWorld.end();
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
-         it != m_UserInWorld.end(); ++it)
+         it != last; ++it)
     {
         CUserCharacInfo* info = it->second;
         if (info != NULL && info->getCurCharacR() != NULL)
         {
-            int level = info->get_charac_level();
-            sig->m_count[level]++;
+            // b28d-solo：ORIG 0x086cd1ec-0x086cd1fe 无 level 槽往返（call 结果 %eax
+            // 直作 scaled 索引）⇒ P0 内联表达式（旧具名版多 mov %eax,槽/mov 槽,%eax 两条）。
+            sig->m_count[info->get_charac_level()]++;
         }
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
@@ -1192,11 +1217,11 @@ CUser* GameWorld::find_user_from_world_byaccid_loop(unsigned int accId)
      return NULL;
  }
 
-// [b28d-11b] N：帧差 0x14 + push esi（N82）@0x086cafaa
-// [b28d-solo-GameWorld] _ZN9GameWorld13arrange_usersEv verdict=DIFF 119/119（助记符全等，
-// 仅 8 处迭代器三槽阶梯槽号差）N82/P28 封顶：ORIG it=-0x2c/ppEi=-0x28/end=-0x24，
-// 4.4 it=-0x1c/end=-0x2c/ppEi=-0x18。修法：P0 内联 env 表达式（117→119，
-// ORIG env 无槽往返）；P227 临时链/先声明后赋值两形均不翻槽阶梯。
+// [b28d-solo-GameWorld] _ZN9GameWorld13arrange_usersEv verdict=AE 119=119
+// b28d-solo 修法：P221/P227 —— 具名 `cMyTrace trace(...); trace(...)` 改全表达式
+// 临时链 `cMyTrace(...)(...)`（NumberToString 实参在 ctor 前求值并跨 ctor 保活 %ebx）
+// ⇒ 4.4 复现 ORIG it=-0x2c/trace=-0x24 槽方向（旧具名形 trace 恒占最深 -0x2c 而
+// it 落 -0x1c，N82附 封顶判词作废）。P0 内联 env 表达式（ORIG env 无槽往返）保留。
 void GameWorld::arrange_users()
 {
     // [b28d-solo-GameWorld] P283 已试（goto 尾条件复现 ORIG `jmp COND` 形）：
@@ -1210,9 +1235,10 @@ void GameWorld::arrange_users()
         if (user != NULL)
         {
             // ORIG +0x03f~+0x05a：NumberToString 先于 cMyTrace ctor，结果跨 ctor 缓存 %ebx（P87）
-            register char* accId = NumberToString(user->get_acc_id(), 0);
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x10a6, 0);
-            trace("GameWorld::arrange_users ACCID: %s", accId);
+            // b28d-solo：P227/P221 全表达式临时链（实参在 ctor 前求值、%ebx 跨 ctor 保活，
+            // 且 trace 不占具名槽）试翻 ORIG it=-0x2c/trace=-0x24 的槽方向。
+            cMyTrace(__PRETTY_FUNCTION__, 0x10a6, 0)("GameWorld::arrange_users ACCID: %s",
+                NumberToString(user->get_acc_id(), 0));
             user->DisConnSig((DISCONN_SIG)7, 1, 0);
         }
     }
@@ -1284,6 +1310,9 @@ LOOP:
         CUser* user = it->second;
         if (user != NULL)
         {
+            // b28d-solo：natType 槽旋钮四形实测（块内 -0x50 / 头 natMap 后 -0x48 /
+            // 头 natMap 前 -0x30 / 头 it 后 -0x4c）均不合 ORIG -0x28；块内形保住
+            // natMap=-0x44/it=-0x48 与 ORIG 一致 ⇒ N82/N93 封顶（4.4 块级标量槽方向）。
             int natType = (int)user->m_network.get_nat_type();
             natMap[natType]++;
         }
@@ -1301,15 +1330,16 @@ COND:
     goto COND2;
 LOOP2:
     {
+        // ORIG 0x086cd3e0/0x086cd3f0：nit->first/second 在 Acquire 之前读取并落
+        // -0x14(type)/-0x10(count)；GetInBuffer 结果落 -0xc(sig)。
+        int type = nit->first;
+        int count = nit->second;
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire("world.cpp", 0x14ef), true);
         **guard << 0x84;
         **guard << -1;
         SIG_NAT_TYPE_USER* sig = guard.operator->()->GetInBuffer<SIG_NAT_TYPE_USER>();
         // ORIG 0x086cd486/0x086cd48c `memset(sig,0,0xc)`（call 形，p167 MISSING 实证）
         memset(sig, 0, 0xc);
-        // ORIG 0x086cd3e0/0x086cd3f0 两次 operator-> 结果各落具名槽 -0x14/-0x10
-        int type = nit->first;
-        int count = nit->second;
         sig->m_type = type;
         sig->m_count = count;
         sig->m_time = time;
@@ -2966,11 +2996,30 @@ void GameWorld::outFromBlueMarble(CUser* user)
     send_all(packet, user);
 }
 
-// [b28d-11b] N：xor 物化 + 实参装载序（N80/N82）@0x086c7af8
-// [b28d-solo-GameWorld] _ZN9GameWorld7fishingEP5CUser verdict=DIFF 263/264 N80/N82 封顶（xor 物化极性 + 变参装载序）。
+// [b28d-solo-GameWorld] _ZN9GameWorld7fishingEP5CUser verdict=DIFF-N（工具口径）
+// b28d-solo 修法（三处真修）：①P167 —— `CItemList* itemList=G_CDataManager()->
+// getItemList(); itemList->create_item(...)` 改直读 `G_CDataManager()->m_itemList`
+// 字段（ORIG 0x086c7cf1 `mov 0xc(%eax),%eax`；getItemList 访问器 4.4 -O0 不内联
+// ⇒ 旧形 p167 EXTRA 1 个调用点）；②P59/P168a —— `if (check_valid_area(...)){body}
+// else{fail}` 改否定早退 `if (!check_valid_area(...)) {trace;DisConnSig;return;}`
+// （ORIG `call; xor $1; test %al; je <主流程>`）；③P222 —— areaType 分支交换 then/else
+// 并反条件（ORIG `cmp $0x2; je <鱼获块>` then 后置）；④P227 全表达式临时链（trace
+// 实参 getCurCharacName 跨 ctor 保活 %ebx）。
+// 现 263=263 指令数全等、p167 CLEAR 45=45；compare_tu 仍 DIFF 系 ORIG 侧该段 call
+// 目标为局部化伪符号（objdump 无真名，compare_common 保留符号名口径）⇒ 工具口径封顶。
 void GameWorld::fishing(CUser* user)
 {
-    if (check_valid_area(user->getCurCharacVill(), user->get_area(false)))
+    // b28d-solo P59/P168a：ORIG 0x086c7b.. `call check_valid_area; xor $0x1,%eax;
+    // test %al,%al; je <主流程>` ⇒ 原码是否定早退形（bool callee 取反物化）。
+    if (!check_valid_area(user->getCurCharacVill(), user->get_area(false)))
+    {
+        // ORIG 0x086c7b.. 段：getCurCharacName 结果先落 %ebx（跨 ctor 保活）⇒
+        // P227 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0xafd, 0)("user %s - check_valid_area() fail",
+            user->getCurCharacName());
+        user->DisConnSig((DISCONN_SIG)3, 1, 0);
+        return;
+    }
     {
         Village* village = getUserVillage(user);
         Area* area = NULL;
@@ -2980,7 +3029,16 @@ void GameWorld::fishing(CUser* user)
         }
         PacketGuard packet;
         packet.put_header(1, 0x27);
-        if (area->m_areaType == 2)
+        // b28d-solo P222：ORIG 0x086c7c22 `cmp $0x2,%eax; je <鱼获块>`（then 后置）
+        // ⇒ 交换 then/else 并反条件复现（4.4 对 `!=` 生 je 跳后置块）。
+        if (area->m_areaType != 2)
+        {
+            packet.put_byte(0);
+            packet.put_byte(0x13);
+            packet.finalize(true);
+            user->Send(packet);
+        }
+        else
         {
             int fishIndex = area->take_fish();
             if (fishIndex == -1)
@@ -2996,8 +3054,10 @@ void GameWorld::fishing(CUser* user)
                 // ORIG 0x086c7ce9：`mov %eax,-0x6f(%ebp)`（item base = ebp-0x71）
                 // ＝ 4 字节写 Inven_Item +0x02（m_addInfo），非 +0x00。
                 item.m_addInfo = fishIndex;
-                CItemList* itemList = G_CDataManager()->getItemList();
-                itemList->create_item((ENUM_ITEM_CREATE_TYPE)0, item, 1);
+                // b28d-solo p167 修：ORIG 0x086c7cf1 `mov 0xc(%eax),%eax` 直读
+                // CDataManager::m_itemList 字段（+0x0c），无 getItemList() call
+                // （该访问器 4.4 -O0 不内联 ⇒ EXTRA 1 个调用点）。
+                G_CDataManager()->m_itemList->create_item((ENUM_ITEM_CREATE_TYPE)0, item, 1);
                 int result = user->getCurCharacInvenW()->insertItemIntoInventory(
                     item, (eItemAddReason)5, true, true);
                 if (result < 1)
@@ -3026,19 +3086,6 @@ void GameWorld::fishing(CUser* user)
                 area->send_to_all(packet);
             }
         }
-        else
-        {
-            packet.put_byte(0);
-            packet.put_byte(0x13);
-            packet.finalize(true);
-            user->Send(packet);
-        }
-    }
-    else
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xafd, 0);
-        trace("user %s - check_valid_area() fail", user->getCurCharacName());
-        user->DisConnSig((DISCONN_SIG)3, 1, 0);
     }
 }
 
@@ -3522,7 +3569,13 @@ void GameWorld::ResetAllEventData()
     GlobalData::s_event_manager->dailyresetData();
 }
 
-// [b28d-11b] 修法：it++（P28 增量侧）275→253；残余 N82 帧/槽 @0x086cc3ec
+// [b28d-solo-GameWorld] _ZN9GameWorld15ResetAllFatigueEv verdict=DIFF-N
+// b28d-solo 修法：镜像 if —— ORIG 0x086cc3f2 `cmp $0x2,%eax; setle %al; test;
+// jne <循环尾>` ⇒ `if (get_state() <= 2) goto L_next;` + 尾标签（P223/AddDailyItem 族），
+// 旧 `if (state > 2) {body}` 恒产 setg/je 反向形。
+// 残余 N83/N91/N82 封顶：p167 EXTRA _ZnwjPv/_ZdlPvS_（4.1 placement-new 内联 vs
+// 4.4 extern call，N83）+ _Unwind_Resume×2/_ZNSsD1Ev×2（EH landing 差异，N91）+
+// 帧 0x7c vs 0x8c 槽组平移（N82）。
 void GameWorld::ResetAllFatigue()
 {
     static bool isFirst = true;
@@ -3536,7 +3589,12 @@ void GameWorld::ResetAllFatigue()
          it != m_UserInWorld.end(); it++)
     {
         CUser* user = it->second;
-        if (user->get_state() > 2)
+        // b28d-solo：ORIG 0x086cc3f2 段 `cmp $0x2,%eax; setle %al; test %al,%al;
+        // jne <循环尾>` ⇒ 镜像 if（<=2 早退）+ 负条件 goto 尾标签（P223/AddDailyItem 族）。
+        if (user->get_state() <= 2)
+        {
+            goto L_next;
+        }
         {
             short charging = GlobalData::s_fatigueBatteryHandle_->ChargingFatigueBattery(user, 0);
             user->IncFatigueBatteryCharging(charging);
@@ -3602,6 +3660,7 @@ void GameWorld::ResetAllFatigue()
             ARAD::Singleton<HeroMissionEvent>::Get()->processMission(
                 user, (HeroMissionCondition::MissionNo::T)5, 0);
         }
+    L_next:;
     }
     if (!m_UserInWorld.empty())
     {
@@ -3881,23 +3940,23 @@ void GameWorld::UpdateServerSnapShot()
         if (user->getCurCharacR() != 0)
         {
             CParty* party = (CParty*)user->GetParty();
-            unsigned short dungIdx = 0;
+            // ORIG 0x086d1541 `movl $0x0,-0x1c` + 0x086d1559 `movzwl %ax,%eax;
+            // mov %eax,-0x1c` ⇒ dungIdx 是 int（4 字节清零 + ushort 零扩展存回）。
+            int dungIdx = 0;
             if (party != 0)
             {
                 dungIdx = party->getDungIndex();
             }
             // ORIG 用 boost::posix_time::second_clock::local_time()
             // 生成 iso_extended(date) 与 to_simple_string(time)，再以 "%s %s" 写入快照。
-            // [b28d-solo-GameWorld] N-DEP 封顶（b28d 实测翻案记录）：仓内确有
-            // Library3rd/Boost/Include 头（-I 已挂），真 boost 形
-            // (`second_clock::local_time()` + `to_simple_string(now.time_of_day())` +
-            //  `gregorian::to_iso_extended_string(now.date())`) 编译通过且本件 186=186
-            // 指令数精确对齐（NDIFF 76 全为槽号）；但 ORIG 的 boost 是**预编译库**产物
-            // （0x086d4419/0x086d28b5/0x086d288c/0x080cde16/0x080ce4bc 为独立 T 符号），
-            // 头内实现展开后 TU 新增 +273 符号、missing_in_game 140→227（+87，含
-            // exception_detail::clone_impl/error_info_injector D1Ev 族），且本仓无
-            // libboost 定义 ⇒ 越界（禁发明/缺库）⇒ 回退等价替代（localtime_r+strftime
-            // 同值语义：%Y-%m-%d / %H:%M:%S）。
+            // [b28d-solo-GameWorld] N-DEP 复验（b28d-solo 二次实测）：ORIG 0x086d4419/
+            // 0x086d28b5/0x086d288c/0x080cde16/0x080ce4bc 确为 **W 弱符号**（nm 实证：
+            // boost 头内模板实例，非外部库；仓内 Boost 1.48 头在 -I 中）。真 boost 形
+            // 编译通过、本件 p167 30=30 CLEAR（旧 22/30，8 MISSING 归零）、本件 186/187，
+            // 但 TU 级 missing_in_game 135→222（+87，其中 82 个为 gnu++0x 下 boost 类
+            // 的 C++11 ABI 别名 C5/D5，ORIG 全库仅 2 个同类符号）⇒ 违反「仅NEW 不得
+            // 上升」+ 禁发明符号纪律 ⇒ 回退等价替代（localtime_r+strftime 同值语义：
+            // %Y-%m-%d / %H:%M:%S）。判词 N-DEP 维持，本函数余寄存器/槽差（N82附）。
             time_t now = GlobalData::s_systemTime_.getCurSec();
             struct tm local;
             localtime_r(&now, &local);
@@ -4281,6 +4340,9 @@ void GameWorld::WriteLogChatMsg(CUser* user, char type, char* msg)
             // ⇒ 4.4 读数逐值不变（仍 path=-0x128/log=-0x28/state=-0x20/pvpIdx=-0x1c）
             // ⇒ 4.4 槽按首次使用序 + 聚合对象优先深槽（path/log 深、标量浅），
             // 与 ORIG 4.1 声明序（state/pvpIdx 最深）方向相反，N82/P112 封顶。
+            // b28d-solo 复验：把 state/pvpIdx 声明前置到 path 之前（赋值仍留在
+            // sprintf 之后）实测槽位逐值不变（state=-0x20/pvpIdx=-0x1c）
+            // ⇒ 4.4 恒按首次使用序分配（N98），声明序旋钮无效。
             char path[256] = {0};
             sprintf(path, "./log/%s/GuildWarChat",
                     G_CEnvironment()->get_file_name());

@@ -128,7 +128,8 @@ int CDungeon::getTryGenSecondEventMonsterProb() const
     return m_tryGenSecondEventMonsterProb;
 }
 
-unsigned char CDungeon::hasTowerItemDrop() const
+// [b28d-solo-CBossStage R2] 随 CDungeon.h 声明同步（uchar→bool，调用点 P292 判据）。
+bool CDungeon::hasTowerItemDrop() const
 {
     return m_hasTowerItemDrop;
 }
@@ -306,15 +307,26 @@ void CDataManager::set_limit_inout_count(char value, ENUM_BLOOD_TYPE type)
 
 void CDungeon::set_dungeon(STDungeonScript& script)
 {
-    // [b28d-solo-CDungeon 判词 · N82/N89] ORIG 0x0834acc4：超大件槽号整体平移
-    //（N82，ORIG 具名临时 -0x88 vs 4.4 -0x8c；槽数同为 26 个但分配序不同）+
-    // 容器访问器跨版本差（N89）；全字段赋值序与来源逐条对齐。
-    // 本轮修法（p167 差集驱动，82=82 CLEAR）：①cit 由 const_iterator 改非 const
-    // iterator（消转换构造 + 非 const deEv/ne）；②循环改正极性 while(cit!=end)
-    // 复现 ORIG `jmp 条件 → ne → jne body` 布局（原 do-while+eq 形）；③cit++ 后置
-    //（ppEi）；④`p = std::pair<int,int>(*cit)` 临时构造再赋值（P135 aSEOS0_）；
-    // ⑤insert 实参改直构 map value_type `std::pair<const int,int>(totalRate,p.first)`
-    //（消 4.4 make_pair 右值实例 + pair move 构造）。our 818→815（ORIG 804）。
+    // [b28d-solo-CDungeon 判词 · N18a/N112/N82 封顶] ORIG 0x0834acc4 / our 805
+    //（ORIG 804，gap +1）；p167 82=82 CLEAR。历史修法：cit 非 const + while(cit!=end)
+    // 正极性 + cit++ 后置 + pair 临时构造 + insert 直构 value_type（P135/aSEOS0_）。
+    // 本轮修法：①maze 分流 if-else 链改 switch（P251/P46 无槽多路比较；叶块序
+    //   -1/0/1 对齐 ORIG 0x834afa7/afc1/afdb），删 questType 具名局部（P0：ORIG
+    //   直读 maze+0x4c 无槽）；②m_map340 循环 for-init 逗号声明 rit/ritEnd 缓存
+    //   end()（P13；ORIG begin+end 各求值一次于循环前，4.4 原每次迭代重调 end()）；
+    // ③字段类型旋钮（P248 档②/③，均不入 mangled/偏移）：STDungeonScript::m_48c/
+    //   m_4e0/m_504/m_505 uchar→bool（消 4 处 test/setne）、m_140 uchar→bool
+    //   （配 S291 的 CDungeon::m_89d bool 化，源/目标同型消 test/setne）、
+    //   CDungeon::m_advanceAltarSurvivalFlag char→uchar（消 movzbl→eax→edx 中转）、
+    //   m_towerMaxClearRewardItemNum int→unsigned（复现 ORIG 异型 RHS-first 中转）、
+    //   m_entryRestrictFlag char→uchar（消异型 store 中转）。
+    // 残余（N 封顶）：①m_minAttackPartyMember/m_maxAttackPartyMember/m_maxRevengeCount
+    //   为 signed char（DisPatcherCore 085ba8xx `(signed char)` 比较实证），与源
+    //   unsigned char 异型 ⇒ 每处多 1 条 `movzbl→eax; mov %eax,%edx`（N18a）；改 uchar
+    //   会破坏消费点有符号语义，不可翻。②ORIG log 分支后 `jmp;nop` 循环顶对齐岛
+    //   （N112，-falign-loops 无效）。③槽号 -0x88 vs -0x8c（N82）。
+    // .h 改动已 R2 广播（S273 同步）；CDungeon/STDungeonScript/CParty/DisPatcherCore/
+    // CGameManager/BattleMonsterDepsC2/CPartyDepsB2/CPartyOnlyOrig/PartyClosureC2 全复验零回归。
     // ORIG 0x0834acc4：从脚本复制全部字段（顺序按 ORIG 汇编）
     m_index = script.m_18;
     m_standardLevel = script.m_ac;
@@ -364,13 +376,18 @@ void CDungeon::set_dungeon(STDungeonScript& script)
     while (mit != mitEnd)
     {
         MazeScript* maze = &(*mit);
-        int questType = maze->m_questType;
-        if (questType == 0)
-            m_mazeList0[0].push_back(*maze);
-        else if (questType == 1)
-            m_mazeList0[1].push_back(*maze);
-        else if (questType == -1)
+        switch (maze->m_questType)
+        {
+        case -1:
             m_mazeList.push_back(*maze);
+            break;
+        case 0:
+            m_mazeList0[0].push_back(*maze);
+            break;
+        case 1:
+            m_mazeList0[1].push_back(*maze);
+            break;
+        }
         ++mit;
     }
 
@@ -447,9 +464,10 @@ copy_rest:
     if (m_randomTowerMaxStage != 0)
     {
         m_map658.clear();
-        for (std::map<int, std::vector<RandomList> >::const_iterator rit =
-                 script.m_map340.begin();
-             rit != script.m_map340.end(); ++rit)
+        for (std::map<int, std::vector<RandomList> >::const_iterator
+                 rit = script.m_map340.begin(),
+                 ritEnd = script.m_map340.end();
+             rit != ritEnd; ++rit)
         {
             m_map658.insert(std::make_pair(rit->first, rit->second));
         }
@@ -506,10 +524,11 @@ copy_rest:
 // 唯一残差即该 lea-vs-add+mov 折叠 ⇒ N18a（单段 regmove 不可造）封顶。
 void TOD_UserState::IncreaseEnterCount()
 {
-    // [b28d-solo-CDungeon 判词 · N4/P30] ORIG 0x0864388a：残余 `add $0x1,%eax;
-    // mov %eax,%edx` vs 4.4 `lea 0x1(%eax),%edx`（add-vs-lea 固有差）；三次自增/
-    // 时间戳/alter 调用逐条等价。q1-q6 六形探针（f+1 / +=1 / 1+f / (ushort)cast /
-    // register int 临时 / register ushort 临时）全部产 lea，N4/P30 封顶。
+    // [b28d-solo-CDungeon 判词 · N4/P30 封顶] ORIG 0x0864388a / our 34（ORIG 35，
+    // gap 1）；p167 4=4 CLEAR。残余唯一：ORIG `movzwl 0x16; add $0x1,%eax;
+    // mov %eax,%edx` vs 4.4 `lea 0x1(%eax),%edx`（add-vs-lea 融合）。本轮再试
+    // `++` / `+= 1` / `(unsigned short)(x+1)` 三形全产 lea，与 q1-q6 六形探针
+    //（f+1 / +=1 / 1+f / (ushort)cast / register int / register ushort）一致 ⇒ 封顶。
     m_data.m_enterCount = m_data.m_enterCount + 1;
     m_data.m_lastEnterLayer = m_data.m_lastEnterLayer + 1;
     m_data.m_lastEnterTime = GlobalData::s_systemTime_.getCurSec();
@@ -563,21 +582,23 @@ CDungeon_TowerOfDespair::CDungeon_TowerOfDespair()
     // ORIG C1/C2 0x08377606：先构造基类 CDungeon，再覆写 vtable 为 0x8c349f8
     //（唯一虚槽 _do_after_dungeon_start 指向派生实现）；成员构造由编译器生成。
 }
-int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
+bool CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const  // [b28d-Main 代落·S326 P292] int→bool
 {
-    // [b28d-solo-CDungeon 判词 · N93/N82] ORIG 0x0834d8ec：具名 int 槽 -0x14 vs
-    // -0x18 方向相反（N93）+ 槽集整体平移 4（N82，ORIG 有 2 字节槽 -0x16，4.4 无）；
-    // 帧同为 0xb0。本轮复验：p167 43=43 CLEAR、gap +1（orig 254 / our 255），
-    // 按 §6.2 三件套判「语义完成、byte 层 N 封顶」。
+    // [b28d-solo-CDungeon 判词 · NEAR（gap 0）] ORIG 0x0834d8ec / our 254 = ORIG 254；
+    // p167 43=43 CLEAR。本轮修法：①cMyTrace 改全表达式临时链
+    //   `cMyTrace(f,l,v)("...", user->getCurCharacNo(), slot, m_itemCount)`（P227 翻 N80：
+    //   4.4 在 ctor 前求 varargs 并以 %esi(m_itemCount)/%ebx(characNo) 跨 ctor 保活，
+    //   与 ORIG 0x0834da18..0x834da6e 逐条一致；旧判词「N82 下栈槽不可翻」作废）；
+    // ②proxy 删具名局部改链式内联实参 `...GetServerProxy(0)->SendPacket(...)`
+    //   （P0/P52：ORIG 无 proxy 槽，&gts 入 %ebx 直传，消 -0x14 槽 + 2 mov）。
+    // 残余仅槽号（N82）：cMyTrace -0x24 vs -0x28、gts -0x3b vs -0x3f、
+    // TOD_Layer sret 临时 -0x3e vs -0x16。
     // ORIG 0x0834d8ec：进入绝望之塔——递增计数、二次进入扣门票、发包回执、统计。
-    // 判例（ADeepY4[6]）：DIFF(N封)，gap +1（orig 254 / our 255）。全调用点成立
-    // （GetCharacExpandData/IncreaseEnterCount/getEnterCount/check_item_exist/GetInvenSlot/
-    // delete_item/cMyTrace×2/PacketGuard 族/getTodayEnterLayer/GetServerProxy/SendPacket）。
-    // 残余=4.1.2 跨 call 值寄存器缓存（N82）：失败路径 ORIG 将 m_itemCount→%esi、getCurCharacNo
-    // →%ebx 于 cMyTrace ctor 之前 calc（callee-saved 存活）、统计素 ORIG 令 &gts→%ebx 提前；
-    // 4.4-O0 对同样本轮把它下栈槽（P197② 记 N）。语义与 Ghidra C 逐条对应。
+    // 全调用点成立（GetCharacExpandData/IncreaseEnterCount/getEnterCount/check_item_exist/
+    // GetInvenSlot/delete_item/cMyTrace×2/PacketGuard 族/getTodayEnterLayer/
+    // GetServerProxy/SendPacket）。语义与 Ghidra C 逐条对应。
     if (user == 0)
-        return 0;
+        return false;
 
     TOD_UserState* todState =
         (TOD_UserState*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xd);
@@ -590,22 +611,20 @@ int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
         int slot = user->getCurCharacInvenR()->check_item_exist(
             m_entryRequiredItem.m_itemIdx);
         if (slot == -1)
-            return 0;
+            return false;
         Inven_Item item =
             user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)1, slot);
         if (item.m_addInfo2 < m_entryRequiredItem.m_itemCount)
-            return 0;
+            return false;
 
         if (!user->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)1, slot, m_entryRequiredItem.m_itemCount,
                 (eItemDelReason)0xe, true))
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0x96f, 5);
-            trace("CDungeon_TowerOfDespair::_do_after_dungeon_start, delete_item failed , User ch =%d , %d %d",
-                  user->getCurCharacNo(), slot, m_entryRequiredItem.m_itemCount);
-            return 0;
+            cMyTrace(__PRETTY_FUNCTION__, 0x96f, 5)(
+                "CDungeon_TowerOfDespair::_do_after_dungeon_start, delete_item failed , User ch =%d , %d %d",
+                user->getCurCharacNo(), slot, m_entryRequiredItem.m_itemCount);
+            return false;
         }
 
         PacketGuard pg;
@@ -639,14 +658,13 @@ int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
     gts.m_flag = 1;
     gts.m_accId = user->get_acc_id();
 
-    CStatisticServerProxy* proxy =
-        GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0);
-    proxy->SendPacket((char*)&gts, sizeof(Packet_TowerOfDespair_Statistic_GTS));
-    return 1;
+    GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0)->SendPacket(
+        (char*)&gts, sizeof(Packet_TowerOfDespair_Statistic_GTS));
+    return true;
 }
-int CDungeon::_do_after_dungeon_start(CUser* user) const
+bool CDungeon::_do_after_dungeon_start(CUser* user) const  // [b28d-Main 代落·S326 P292] int→bool
 {
-    return 1;
+    return true;
 }
 
 int CDungeon::GetMaze(int idx) const
@@ -664,35 +682,35 @@ void CDungeon::GetRandMaze(int& out) const
 
 int CDungeon::GetRandMazebyPartyCount(int partyCount) const
 {
-    // [b28d-solo-CDungeon 判词 · N18a/N4/N95] ORIG 0x0834d06c：候选收集/随机
-    // 语义逐条等价。本轮修法：两处 `(int)candidates[x]` 改 `*(int*)&candidates[x]`
-    // 视图读，复现 ORIG `call ix; mov (%eax),%ebx` 单条（4.4 对 (int)cast 恒多
-    // `mov (%eax),%eax; mov %eax,%ebx`，P266 同族；unsigned cast 无效实测）。
-    // 残余：①两处除法余数 4.1 `mov %edx,%ecx; mov %ecx,%eax; mov %eax,-r` vs
-    // 4.4 `mov %edx,-r`（N18a；d2/d5/d6 探针：具名 sz 形可出内存 divl，但 4.4
-    // 按首次使用分配把 sz 放 -0x14 并整体平移槽位 -4，净负已回退）；
-    // ②帧 0x40 vs 0x30 = ORIG -0x2c 匿名除法临时槽（P232 framePad 撑帧同样平移
-    // 全槽，净负已回退）；③empty 分支 `mov this,%edx; add $0x62c,%edx` vs 4.4
-    // `lea 0x62c(%eax),%edx`（N4/P30）。调用点差集/槽位集逐条核对成立。
+    // [b28d-solo-CDungeon 判词 · N18a/N82 封顶] ORIG 0x0834d06c / our 131
+    //（ORIG 133，gap 2）；p167 18=18 CLEAR。历史修法：两处 `(int)candidates[x]`
+    // 改 `*(int*)&candidates[x]` 视图读（P266，复现 ORIG `call ix; mov (%eax),%ebx`）。
+    // 本轮修法：①删 local_1c 具名局部（ORIG 0x834d0f2 直接把 elem 存 -0x18 右值
+    //   临时，无中间局部）；②除法改 `rand() % (sz = size())` 赋值表达式 —— 复现 ORIG
+    //   rand 先求值、size 结果落槽 -0x2c 后 `divl -0x2c`（旧具名 sz 形求值序反）；
+    // ③r 声明 int（异型 store 复现 ORIG `mov %edx,%ecx` 中转）。残余（N 封顶）：
+    // ①ORIG 余数 `mov %edx,%ecx; mov %ecx,%eax` 双中转 vs 4.4 `mov %edx,%eax`
+    //（N18a，×2 处）；②槽号（elem -0x28 vs -0xc、sz -0x14 vs -0x2c、帧 0x30 vs 0x40，
+    // N82/N95 槽基差）。调用点差集/槽位集逐条核对成立。
 	// ORIG 0x0834d06c：唯一迷宫直返；否则按 [m_partyCountMin, m_partyCountMax]
 	// 收集候选；候选唯一/随机取，空则全表随机。
 	if (m_mazeList.size() == 1)
 		return (int)&m_mazeList[0];
 
-	MazeScript* local_1c;
+	unsigned int sz;
 	std::vector<MazeScript*> candidates;
-	unsigned int r;
+	int r;
 	unsigned int i;
+	MazeScript* elem;
 
 	i = 0;
 	while (m_mazeList.size() > i)
 	{
-		MazeScript* elem = const_cast<MazeScript*>(&m_mazeList[i]);
+		elem = const_cast<MazeScript*>(&m_mazeList[i]);
 		if (elem->m_partyCountMin <= partyCount &&
 			partyCount <= elem->m_partyCountMax)
 		{
-			local_1c = elem;
-			candidates.push_back(static_cast<MazeScript*&&>(local_1c));
+			candidates.push_back(static_cast<MazeScript*&&>(elem));
 		}
 		i = i + 1;
 	}
@@ -700,12 +718,12 @@ int CDungeon::GetRandMazebyPartyCount(int partyCount) const
 	r = 0;
 	if (candidates.empty())
 	{
-		r = rand() % m_mazeList.size();
+		r = rand() % (sz = m_mazeList.size());
 		return (int)&m_mazeList[r];
 	}
 	if (candidates.size() == 1)
 		return *(int*)&candidates[0];
-	r = rand() % candidates.size();
+	r = rand() % (sz = candidates.size());
 	return *(int*)&candidates[r];
 }
 
@@ -821,9 +839,6 @@ RidableObject::RidableObject()
     clear();
 }
 
-RidableObject::~RidableObject()
-{
-}
 
 void RidableScript::clear()
 {
@@ -844,10 +859,6 @@ RidableScript::~RidableScript()
 DungeonClearCondition::DungeonClearCondition()
 {
     clear();
-}
-
-DungeonClearCondition::~DungeonClearCondition()
-{
 }
 
 void DungeonClearCondition::clear()
@@ -921,18 +932,6 @@ stDungeonAssignItem_t::stDungeonAssignItem_t()
 }
 
 stDungeonAssignItem_t::~stDungeonAssignItem_t()
-{
-}
-
-RandomList::~RandomList()
-{
-}
-
-stEventMonster_t::~stEventMonster_t()
-{
-}
-
-stSecondEventMonster_t::~stSecondEventMonster_t()
 {
 }
 
@@ -1012,15 +1011,16 @@ void STWarRoomData::clear()
 
 void STWarRoomData::copy(STWarRoomData* other)
 {
-    // [b28d-solo-CDungeon 判词 · N84/N90/P75] ORIG 0x0836a578：结构整体赋值/memcpy
-    // 的 rep movsl 分块启发式跨版本差（4.1 分块重载 src/dst，4.4 单次连发，N84/N90）。
-    // 本轮修法（P171）：ORIG 全函数**不写** m_dc(+0xdc..+0xeb)——最后一个 memcpy
-    // 0x836a903 之后直接 0xd4/0xd8→0xec ⇒ 删除我方多余 `memcpy(other->m_dc,...)`，
-    // our_insns 305→297（ORIG 298，gap 1），p167 24=24 CLEAR。
-    // 残余：①首处 memcpy 实参装载序（ORIG this→%edx/other→%eax 先载后压 vs 4.4 逐压，
-    // P75 跨版本；(void*) cast 实测无效）；②循环下标槽 -0x1c vs -0x20（N93/N82 帧族）。
+    // [b28d-solo-CDungeon 判词 · IDENTICAL_AE（gap 0）] ORIG 0x0836a578 / our 298 = ORIG 298；
+    // p167 24=24 CLEAR。本轮修法：①m_vec14/m_vec6c/m_dc 合并进同一 i 循环 ——
+    //   ORIG 0x836a5bc..0x836a759 单循环含三段（旧判词「ORIG 不写 m_dc」系地址算错：
+    //   ORIG `add $0x34,%edx; mov 0xc(%eax,%edx,4),%edx` = m_dc[i]，+0xdc+4i，
+    //   P171 照抄恢复 `other->m_dc[i] = m_dc[i];`）；②首个 memcpy 实参改
+    //   `(char*)other, (const char*)this` 复现 ORIG 先备 this→%edx/other→%eax 再压
+    //   size 的装载序（P68 形；(void*) 形反劣）。残余仅首处 memcpy 装载时刻与槽号
+    //（N82/P75 跨版本）。结构整体赋值 rep movsl 分块启发式差（N84/N90）不在此件。
     // ORIG 0x836a578：数组按元素 reserve/push_back，标量逐个/memcpy。
-    memcpy(other, this, 0xc);
+    memcpy((char*)other, (const char*)this, 0xc);
     other->m_c = m_c;
     other->m_10 = m_10;
     for (int i = 0; i < 4; ++i)
@@ -1028,6 +1028,10 @@ void STWarRoomData::copy(STWarRoomData* other)
         other->m_vec14[i].reserve(m_vec14[i].size());
         for (size_t j = 0; j < m_vec14[i].size(); ++j)
             other->m_vec14[i].push_back(m_vec14[i][j]);
+        other->m_vec6c[i].reserve(m_vec6c[i].size());
+        for (size_t j = 0; j < m_vec6c[i].size(); ++j)
+            other->m_vec6c[i].push_back(m_vec6c[i][j]);
+        other->m_dc[i] = m_dc[i];
     }
     other->m_vec44.reserve(m_vec44.size());
     for (size_t i = 0; i < m_vec44.size(); ++i)
@@ -1036,12 +1040,6 @@ void STWarRoomData::copy(STWarRoomData* other)
     other->m_54 = m_54;
     other->m_58 = m_58;
     memcpy(other->m_5c, m_5c, sizeof(m_5c));
-    for (int i = 0; i < 4; ++i)
-    {
-        other->m_vec6c[i].reserve(m_vec6c[i].size());
-        for (size_t j = 0; j < m_vec6c[i].size(); ++j)
-            other->m_vec6c[i].push_back(m_vec6c[i][j]);
-    }
     memcpy(other->m_9c, m_9c, sizeof(m_9c));
     other->m_ac = m_ac;
     other->m_spawnProb.reserve(m_spawnProb.size());
@@ -1095,13 +1093,14 @@ advancealtar::ClearRewardData::~ClearRewardData()
 advancealtar::ClearRewardData& advancealtar::ClearRewardData::operator=(
     const ClearRewardData& other)
 {
-    // [b28d-solo-CDungeon 判词 · N18a] ORIG 0x08376c9c：语义已按 ORIG 修正
-    //（--n 前置测试只拷前 2 个元素，P171 照抄）；指针步进 do-while（esi=dst/
-    // ebx=src 各 +0xc、edi=2 递减到 -1、`setne/test/jne`）。
-    // 本轮修法：声明序改 dst/n/src，对齐 ORIG 装载序（esi→edi→ebx）。
+    // [b28d-solo-CDungeon 判词 · N18a 封顶] ORIG 0x08376c9c / our 27（ORIG 28，
+    // gap 1）；p167 1=1 CLEAR。语义已按 ORIG 修正（--n 前置测试只拷前 2 个元素，
+    // P171 照抄）；指针步进 do-while（esi=dst/ebx=src 各 +0xc、edi=2 递减到 -1、
+    // `setne/test/jne`）；声明序 dst/n/src 对齐 ORIG 装载序（esi→edi→ebx）。
     // 残余唯一：ORIG `mov 0x8(%ebp),%eax; mov %eax,%esi` 被 4.4 折成单条
-    // `mov 0x8(%ebp),%esi`（N18a 单段 regmove 不可造；g1-g6/h1-h6 共 12 形探针
-    // 含语句表达式/整型-void*-char* 中转/具名引用全折单段，register 存储类已保留）。
+    // `mov 0x8(%ebp),%esi`（单段 regmove 不可造）。本轮再试 `&m_vec[0]` 形仍折
+    // 单段；g1-g6/h1-h6 十二形探针（语句表达式/整型-void*-char* 中转/具名引用）+
+    // register 存储类保留均不可翻 ⇒ N18a。
     register std::vector<advancealtar::_RewardItem>* dst = m_vec;
     register int n = 2;
     register const std::vector<advancealtar::_RewardItem>* src = other.m_vec;

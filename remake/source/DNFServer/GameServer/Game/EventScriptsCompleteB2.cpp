@@ -195,7 +195,12 @@ LevelupSupport2ndScript::~LevelupSupport2ndScript() {}
 // 比较链 je/jne 朝向为 setcc-fold 族。
 bool importActionMailScript(Action_SendMail* mail)
 {
-    // b28d-L3: DIFF/N82+N89 — ORIG 0x089... 380 vs 378
+    // b28d-solo-EventScriptsCompleteB2: DIFF/N82+N95 — p167 CLEAR(59/59)；
+    // AE 归一 orig=380 our=378（gap 2），帧 0xd0 全等。残差 = 全帧槽号镜像：
+    // ORIG(4.1) 先声明深（token -0xac、8 组 value_type/insert-sret 临时
+    // -0x14..-0xa8），4.4 先声明浅（token -0xc）且按 lifetime 复用块内临时，
+    // 而 4.1 不复用；pair<const int,..> 无默认构造不可提至函数头（P212/N93）
+    // ⇒ 无合法源码解。语义逐分支与 ORIG 汇编一致 ⇒ byte 层 N 封顶。
     std::string token;
     bool ok = false;
 
@@ -350,7 +355,7 @@ bool importActionMailScript(Action_SendMail* mail)
 // 初值 0 仅作 ScanType 失败返回（+0x4a1 movzbl -0x1d），此外从不写。
 bool importFatigueQuantityEventScript(FatigueQuantityScript* script, char const* path)
 {
-    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x08981539
+    // b28d-solo-EventScriptsCompleteB2: IDENTICAL_AE — 复验 AE（原 b28d-L3；ORIG 0x08981539
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -478,7 +483,7 @@ scan_done:
 // 失败返回（+0x49b）。
 bool importAccountFirstLoginEventScript(AccountFirstLoginScript* script, char const* path)
 {
-    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（P164/P177 同族）
+    // b28d-solo-EventScriptsCompleteB2: IDENTICAL_AE — 复验 AE（原 b28d-L3，P164/P177 同族）
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -607,7 +612,7 @@ scan_done:
 // [db table] 串存 +0x20。ok(-0xa9) 共享即返回值。
 bool importAddItemCountDBEventScript(AddItemCountDBScript* script, char const* path)
 {
-    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（P164/P177 同族）
+    // b28d-solo-EventScriptsCompleteB2: IDENTICAL_AE — 复验 AE（原 b28d-L3，P164/P177 同族）
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -766,7 +771,7 @@ scan_done:
 // ScanType 失败返回（+0x63e movzbl -0x1d），此外从不写。
 bool importPcBangPlayTimeScript(PcBangPlayTimeScript* script, char const* path)
 {
-    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x08985601
+    // b28d-solo-EventScriptsCompleteB2: IDENTICAL_AE — 复验 AE（原 b28d-L3；ORIG 0x08985601
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -947,7 +952,7 @@ scan_done:
 bool importExchangeRandomItemRewardScript(ExchangeRandomItemRewardScript* script,
                                           char const* path)
 {
-    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（P164/P177 同族）
+    // b28d-solo-EventScriptsCompleteB2: IDENTICAL_AE — 复验 AE（原 b28d-L3，P164/P177 同族）
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -1124,7 +1129,7 @@ scan_done:
 bool importAvatarDisjointRandomRewardScript(AvatarDisjointRandomRewardScript* script,
                                             char const* path)
 {
-    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（P164/P177 同族）
+    // b28d-solo-EventScriptsCompleteB2: IDENTICAL_AE — 复验 AE（原 b28d-L3，P164/P177 同族）
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -1274,7 +1279,7 @@ scan_done:
 // 直存；ScanType 失败返回 ok（+0x893 movzbl -0x121）。
 bool importAttendanceScript(AttendanceScript* script, char const* path)
 {
-    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（P164 scan_exit 岛标签四函数族之一）
+    // b28d-solo-EventScriptsCompleteB2: IDENTICAL_AE — 复验 AE（原 b28d-L3，P164 scan_exit 岛标签四函数族之一）
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -1518,7 +1523,7 @@ scan_done:
 bool importUsedFatigueGiveItemEventScript(UsedFatigueGiveItemScript* script,
                                           char const* path)
 {
-    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（P164/P177 同族）
+    // b28d-solo-EventScriptsCompleteB2: IDENTICAL_AE — 复验 AE（原 b28d-L3，P164/P177 同族）
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -1740,7 +1745,12 @@ scan_done:
 // 「fatigue 内层循环/clear 复位/mail 失败不复位 rule」三处语义，已按 ORIG 修正。
 bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* path)
 {
-    // b28d-L3: DIFF/N82+N89 — ORIG 0x089... 643 vs 636
+    // b28d-solo-EventScriptsCompleteB2: DIFF/N96+N18a — p167 CLEAR(86/86)；
+    // AE 归一 orig=643 our=643（gap 0）、槽号集全等（删 switch 前 dead 局部后
+    // -0x168→-0x164 归位）。修法：push_back(右值) 复现 EOi、两处 pair 直构改
+    // make_pair、[send]/[eventitem send] 的 result 检查改 `if(!result) break`。
+    // 残差 = 4 处 `!result` 正极性 je（4.4 恒 jne，/tmp/probe_pol*.cpp 实证）
+    // + continue 岛数（4.4 jump-thread 合并）⇒ 语义完成、N 封顶。
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -1782,8 +1792,6 @@ bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* pat
             }
             key = 0;                                    // +0x24b 注册链入口
         }
-        int deadB;             // 槽位对齐 dead（浅端）
-
         switch (key)
         {
         case 0x509:                                     // [/event]（+0x2bf）
@@ -1864,7 +1872,9 @@ bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* pat
                     idx = ScanInt(&result);
                     if (result != true)
                         break;                          // +0x563 → 公共尾
-                    script->m_materialItemIdxs.push_back(idx);
+                    // ORIG +0x568：idx 复制到临时槽 -0xec 后绑右值引用
+                    // （push_backEOi）⇒ 实参必须是右值表达式。
+                    script->m_materialItemIdxs.push_back(static_cast<int>(idx));
                 }
                 break;
             }
@@ -1901,15 +1911,12 @@ bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* pat
                         Action_SendMail mail;           // -0x1cc ctor+reset
                     mail.reset();
                         result = importActionMailScript(&mail);
-                        if (result == true)
-    {
-                    script->m_ruleMails1c.push_back(
-                                std::pair<std::vector<unsigned int>,
-                                          Action_SendMail>(fatigues, mail));
-                            fatigues.clear();           // +0x754 节内复位
-                            continue;                   // +0x78a 回节内头
-                }
-                        break;                          // 失败退节（+0x786）
+                        if (!result)
+                            break;                      // 失败退节（+0x786）
+                        script->m_ruleMails1c.push_back(
+                                    std::make_pair(fatigues, mail));
+                        fatigues.clear();               // +0x754 节内复位
+                        continue;                       // +0x78a 回节内头
                     }
                 else if (token == "[/eventitem send]")
                         break;                          // +0x7ad 退节
@@ -1937,44 +1944,40 @@ bool importObjectBringUpEventScript(ObjectBringUpScript* script, char const* pat
                 if (token == "[reward start count]")
                     {
                     rule.m_rewardStartCount = ScanInt(&result);
-                        if (result == true)
-                            continue;                   // +0x8aa→节内头
-                        break;                          // 失败 → 公共尾
+                        if (!result)
+                            break;                      // 失败 → 公共尾
+                        continue;                       // +0x8aa→节内头
                     }
                 else if (token == "[reward end count]")
                     {
                     rule.m_rewardEndCount = ScanInt(&result);
-                        if (result == true)
+                        if (!result)
+                            break;
                         continue;
-                        break;
                     }
                 else if (token == "[reward mutiple number]")
                     {
                     rule.m_rewardMutipleNumber = ScanInt(&result);
-                        if (result == true)
+                        if (!result)
+                            break;
                         continue;
-                        break;
                     }
                 else if (token == "[send mail]")
                     {
                         Action_SendMail mail;           // ctor + reset（+0x962/970）
                     mail.reset();
                         result = importActionMailScript(&mail);
-                        if (result == true)
-        {
-                            if (rule.m_rewardStartCount != -1 &&
-                        rule.m_rewardEndCount != -1 &&
-                        rule.m_rewardMutipleNumber != -1)
-            {
-                        script->m_sendMails28.push_back(
-                                    std::pair<
-                                        ObjectBringUpScript::ObjectBringUpRule,
-                                      Action_SendMail>(rule, mail));
-            }
-                            rule.reset();               // 仅成功路径复位（+0xa24）
-                            continue;                   // +0xa58 回节内头
-                }
-                        break;           // 失败退节，rule 不复位（+0x997 直落）
+                        if (!result)
+                            break;           // 失败退节，rule 不复位（+0x997 直落）
+                        if (rule.m_rewardStartCount != -1 &&
+                            rule.m_rewardEndCount != -1 &&
+                            rule.m_rewardMutipleNumber != -1)
+                        {
+                            script->m_sendMails28.push_back(
+                                        std::make_pair(rule, mail));
+                        }
+                        rule.reset();               // 仅成功路径复位（+0xa24）
+                        continue;                   // +0xa58 回节内头
                     }
                     // 未知 token：+0x953 回节内头继续
             else
@@ -2026,7 +2029,13 @@ scan_done:
 // 逐分支对照 ORIG 汇编一致。
 bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
 {
-    // b28d-L3: DIFF/N82+N89 — ORIG 0x... 1127 vs 1132
+    // b28d-solo-EventScriptsCompleteB2: DIFF/N82+N93 — p167 CLEAR(164/164)；
+    // gap +4（our 1168 / ORIG 1164）；槽序镜像（ORIG token -0x140 先声明深、
+    // 帧 0x170；4.4 token -0x68 先声明浅、帧 0x1a0）。11 个职业分支的
+    // cond/item/entry 块内对象被 4.4 独立分槽而 4.1 交错复用；`next` 在 ORIG
+    // 为 %ebx 寄存器（4.4 -O0 恒槽化，纯 register 提示无效）。取反形
+    // `if(!ScanType)` 可对齐 xor(47=47) 但每分支多 1 jmp ⇒ gap 恶化至 +16，
+    // 按 §6.2 gap 优先回退正向形。语义逐分支与 ORIG 汇编一致 ⇒ byte 层 N 封顶。
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -2061,276 +2070,276 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter0 = 0;
-                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
-                        for (;;)
-                        {
-                            item.m_level = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemIndex = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemCount = ScanInt(&result);
-                            if (!result) break;
-                            ScanStr(&item.m_title);
-                            ScanStr(&item.m_content);
-                            cond.m_items.push_back(item);
-                        }
-                        char key = static_cast<char>(cond.m_filter0);
-                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
-                        script->m_conditions.insert(entry);
+                    cond.m_filter0 = 0;
+                    cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
+                    for (;;)
+                    {
+                        item.m_level = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemIndex = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemCount = ScanInt(&result);
+                        if (!result) break;
+                        ScanStr(&item.m_title);
+                        ScanStr(&item.m_content);
+                        cond.m_items.push_back(item);
+                    }
+                    char key = static_cast<char>(cond.m_filter0);
+                    std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                    script->m_conditions.insert(entry);
                     }
                     else
-                        next = false;         // ORIG ebx=0：退出本节回主循环
+                    next = false;         // ORIG ebx=0：退出本节回主循环
                 }
                 else if (token == "[fighter]")
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter0 = 1;
-                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
-                        for (;;)
-                        {
-                            item.m_level = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemIndex = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemCount = ScanInt(&result);
-                            if (!result) break;
-                            ScanStr(&item.m_title);
-                            ScanStr(&item.m_content);
-                            cond.m_items.push_back(item);
-                        }
-                        char key = static_cast<char>(cond.m_filter0);
-                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
-                        script->m_conditions.insert(entry);
+                    cond.m_filter0 = 1;
+                    cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
+                    for (;;)
+                    {
+                        item.m_level = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemIndex = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemCount = ScanInt(&result);
+                        if (!result) break;
+                        ScanStr(&item.m_title);
+                        ScanStr(&item.m_content);
+                        cond.m_items.push_back(item);
+                    }
+                    char key = static_cast<char>(cond.m_filter0);
+                    std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                    script->m_conditions.insert(entry);
                     }
                     else
-                        next = false;
+                    next = false;
                 }
                 else if (token == "[gunner]")
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter0 = 2;
-                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
-                        for (;;)
-                        {
-                            item.m_level = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemIndex = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemCount = ScanInt(&result);
-                            if (!result) break;
-                            ScanStr(&item.m_title);
-                            ScanStr(&item.m_content);
-                            cond.m_items.push_back(item);
-                        }
-                        char key = static_cast<char>(cond.m_filter0);
-                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
-                        script->m_conditions.insert(entry);
+                    cond.m_filter0 = 2;
+                    cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
+                    for (;;)
+                    {
+                        item.m_level = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemIndex = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemCount = ScanInt(&result);
+                        if (!result) break;
+                        ScanStr(&item.m_title);
+                        ScanStr(&item.m_content);
+                        cond.m_items.push_back(item);
+                    }
+                    char key = static_cast<char>(cond.m_filter0);
+                    std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                    script->m_conditions.insert(entry);
                     }
                     else
-                        next = false;
+                    next = false;
                 }
                 else if (token == "[mage]")
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter0 = 3;
-                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
-                        for (;;)
-                        {
-                            item.m_level = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemIndex = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemCount = ScanInt(&result);
-                            if (!result) break;
-                            ScanStr(&item.m_title);
-                            ScanStr(&item.m_content);
-                            cond.m_items.push_back(item);
-                        }
-                        char key = static_cast<char>(cond.m_filter0);
-                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
-                        script->m_conditions.insert(entry);
+                    cond.m_filter0 = 3;
+                    cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
+                    for (;;)
+                    {
+                        item.m_level = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemIndex = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemCount = ScanInt(&result);
+                        if (!result) break;
+                        ScanStr(&item.m_title);
+                        ScanStr(&item.m_content);
+                        cond.m_items.push_back(item);
+                    }
+                    char key = static_cast<char>(cond.m_filter0);
+                    std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                    script->m_conditions.insert(entry);
                     }
                     else
-                        next = false;
+                    next = false;
                 }
                 else if (token == "[priest]")
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter0 = 4;
-                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
-                        for (;;)
-                        {
-                            item.m_level = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemIndex = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemCount = ScanInt(&result);
-                            if (!result) break;
-                            ScanStr(&item.m_title);
-                            ScanStr(&item.m_content);
-                            cond.m_items.push_back(item);
-                        }
-                        char key = static_cast<char>(cond.m_filter0);
-                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
-                        script->m_conditions.insert(entry);
+                    cond.m_filter0 = 4;
+                    cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
+                    for (;;)
+                    {
+                        item.m_level = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemIndex = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemCount = ScanInt(&result);
+                        if (!result) break;
+                        ScanStr(&item.m_title);
+                        ScanStr(&item.m_content);
+                        cond.m_items.push_back(item);
+                    }
+                    char key = static_cast<char>(cond.m_filter0);
+                    std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                    script->m_conditions.insert(entry);
                     }
                     else
-                        next = false;
+                    next = false;
                 }
                 else if (token == "[at gunner]")
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter0 = 5;
-                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
-                        for (;;)
-                        {
-                            item.m_level = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemIndex = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemCount = ScanInt(&result);
-                            if (!result) break;
-                            ScanStr(&item.m_title);
-                            ScanStr(&item.m_content);
-                            cond.m_items.push_back(item);
-                        }
-                        char key = static_cast<char>(cond.m_filter0);
-                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
-                        script->m_conditions.insert(entry);
+                    cond.m_filter0 = 5;
+                    cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
+                    for (;;)
+                    {
+                        item.m_level = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemIndex = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemCount = ScanInt(&result);
+                        if (!result) break;
+                        ScanStr(&item.m_title);
+                        ScanStr(&item.m_content);
+                        cond.m_items.push_back(item);
+                    }
+                    char key = static_cast<char>(cond.m_filter0);
+                    std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                    script->m_conditions.insert(entry);
                     }
                     else
-                        next = false;
+                    next = false;
                 }
                 else if (token == "[thief]")
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter0 = 6;
-                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
-                        for (;;)
-                        {
-                            item.m_level = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemIndex = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemCount = ScanInt(&result);
-                            if (!result) break;
-                            ScanStr(&item.m_title);
-                            ScanStr(&item.m_content);
-                            cond.m_items.push_back(item);
-                        }
-                        char key = static_cast<char>(cond.m_filter0);
-                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
-                        script->m_conditions.insert(entry);
+                    cond.m_filter0 = 6;
+                    cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
+                    for (;;)
+                    {
+                        item.m_level = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemIndex = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemCount = ScanInt(&result);
+                        if (!result) break;
+                        ScanStr(&item.m_title);
+                        ScanStr(&item.m_content);
+                        cond.m_items.push_back(item);
+                    }
+                    char key = static_cast<char>(cond.m_filter0);
+                    std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                    script->m_conditions.insert(entry);
                     }
                     else
-                        next = false;
+                    next = false;
                 }
                 else if (token == "[at fighter]")
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter0 = 7;
-                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
-                        for (;;)
-                        {
-                            item.m_level = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemIndex = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemCount = ScanInt(&result);
-                            if (!result) break;
-                            ScanStr(&item.m_title);
-                            ScanStr(&item.m_content);
-                            cond.m_items.push_back(item);
-                        }
-                        char key = static_cast<char>(cond.m_filter0);
-                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
-                        script->m_conditions.insert(entry);
+                    cond.m_filter0 = 7;
+                    cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
+                    for (;;)
+                    {
+                        item.m_level = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemIndex = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemCount = ScanInt(&result);
+                        if (!result) break;
+                        ScanStr(&item.m_title);
+                        ScanStr(&item.m_content);
+                        cond.m_items.push_back(item);
+                    }
+                    char key = static_cast<char>(cond.m_filter0);
+                    std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                    script->m_conditions.insert(entry);
                     }
                     else
-                        next = false;
+                    next = false;
                 }
                 else if (token == "[at mage]")
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter0 = 8;
-                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
-                        for (;;)
-                        {
-                            item.m_level = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemIndex = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemCount = ScanInt(&result);
-                            if (!result) break;
-                            ScanStr(&item.m_title);
-                            ScanStr(&item.m_content);
-                            cond.m_items.push_back(item);
-                        }
-                        char key = static_cast<char>(cond.m_filter0);
-                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
-                        script->m_conditions.insert(entry);
+                    cond.m_filter0 = 8;
+                    cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
+                    for (;;)
+                    {
+                        item.m_level = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemIndex = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemCount = ScanInt(&result);
+                        if (!result) break;
+                        ScanStr(&item.m_title);
+                        ScanStr(&item.m_content);
+                        cond.m_items.push_back(item);
+                    }
+                    char key = static_cast<char>(cond.m_filter0);
+                    std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                    script->m_conditions.insert(entry);
                     }
                     else
-                        next = false;
+                    next = false;
                 }
                 else if (token == "[demonic swordman]")
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter0 = 9;
-                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
-                        for (;;)
-                        {
-                            item.m_level = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemIndex = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemCount = ScanInt(&result);
-                            if (!result) break;
-                            ScanStr(&item.m_title);
-                            ScanStr(&item.m_content);
-                            cond.m_items.push_back(item);
-                        }
-                        char key = static_cast<char>(cond.m_filter0);
-                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
-                        script->m_conditions.insert(entry);
+                    cond.m_filter0 = 9;
+                    cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
+                    for (;;)
+                    {
+                        item.m_level = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemIndex = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemCount = ScanInt(&result);
+                        if (!result) break;
+                        ScanStr(&item.m_title);
+                        ScanStr(&item.m_content);
+                        cond.m_items.push_back(item);
+                    }
+                    char key = static_cast<char>(cond.m_filter0);
+                    std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                    script->m_conditions.insert(entry);
                     }
                     else
-                        next = false;
+                    next = false;
                 }
                 else if (token == "[creator mage]")
                 {
                     if (ScanType(token, true))
                     {
-                        cond.m_filter0 = 0xa;
-                        cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
-                        for (;;)
-                        {
-                            item.m_level = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemIndex = ScanInt(&result);
-                            if (!result) break;
-                            item.m_itemCount = ScanInt(&result);
-                            if (!result) break;
-                            ScanStr(&item.m_title);
-                            ScanStr(&item.m_content);
-                            cond.m_items.push_back(item);
-                        }
-                        char key = static_cast<char>(cond.m_filter0);
-                        std::map<int, Condition_LevelUp>::value_type entry(key, cond);
-                        script->m_conditions.insert(entry);
+                    cond.m_filter0 = 0xa;
+                    cond.m_filter1 = static_cast<unsigned char>(ScanInt(&result));
+                    for (;;)
+                    {
+                        item.m_level = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemIndex = ScanInt(&result);
+                        if (!result) break;
+                        item.m_itemCount = ScanInt(&result);
+                        if (!result) break;
+                        ScanStr(&item.m_title);
+                        ScanStr(&item.m_content);
+                        cond.m_items.push_back(item);
+                    }
+                    char key = static_cast<char>(cond.m_filter0);
+                    std::map<int, Condition_LevelUp>::value_type entry(key, cond);
+                    script->m_conditions.insert(entry);
                     }
                     else
-                        next = false;
+                    next = false;
                 }
                 else if (token == "[/level up]")
                 {
@@ -2377,7 +2386,11 @@ bool importLevelUpRewardScript(LevelUpRewardScript* script, char const* path)
 bool importPurchaseCashItemBonusEventScript(PurchaseCashItemBonusScript* script,
                                             char const* path)
 {
-    // b28d-L3: DIFF/P194+P168a — ORIG 563/563 全等指令数
+    // b28d-solo-EventScriptsCompleteB2: DIFF/N96+N18a — p167 CLEAR(69/69)；
+    // AE 归一 orig=563 our=563（gap 0）。修法：push_back 直构改
+    // make_pair（ORIG `_ZSt9make_pairIRN27...` 左值引用版）；[item idx end]
+    // 改否定早返 `if(end==0) break;`。残差 = 5 处 `!ok` 正极性 je（4.4 恒
+    // jne）+ 4 个 continue 岛（4.4 jump-thread 合并）⇒ 语义完成、N 封顶。
     if (!loadRDARScriptFile("Event/", path))
         return false;
 
@@ -2483,7 +2496,9 @@ bool importPurchaseCashItemBonusEventScript(PurchaseCashItemBonusScript* script,
                 {
                     unsigned int v = 0;                 // -0x144 每轮清 0
                     v = static_cast<unsigned int>(ScanInt(&ok));
-                    if (ok != true)                     // +0x50f xor 物化形
+                    // +0x50f `xor;test;je <body>`：4.4 对 `!ok` 恒产 jne
+                    // （正极性 je 不可造，N96+N18a 封顶），保留 xor 物化形。
+                    if (ok != true)
                         break;                          // +0x51e → 公共尾
                     script->m_set0c.insert(v);          // set<unsigned>+0xc
                 }
@@ -2520,11 +2535,12 @@ bool importPurchaseCashItemBonusEventScript(PurchaseCashItemBonusScript* script,
                     break;                              // 失败 → 公共尾
                 if (start != 0)                         // +0x650
                 {
-                    if (end != 0)
-                    {
-                        for (; start <= end; ++start)
-                            script->m_set0c.insert(start);
-                    }
+                    // +0x656 `cmpl $0,-0x1c; jne <检查块>; jmp <公共尾>`：
+                    // ORIG 是否定早返形（end==0 直接退），非正向 if 包裹。
+                    if (end == 0)
+                        break;
+                    for (; start <= end; ++start)
+                        script->m_set0c.insert(start);
                 }
                 break;
             }
@@ -2582,9 +2598,7 @@ bool importPurchaseCashItemBonusEventScript(PurchaseCashItemBonusScript* script,
                                 rule.m_purchaseMutipleNumber != -1)
                     {
                                 script->m_ruleMails24.push_back(
-                                    std::pair<
-                                        PurchaseCashItemBonusScript::PurchaseBonusRule,
-                                        Action_SendMail>(rule, mail));
+                                    std::make_pair(rule, mail));
                     }
                             rule.reset();                // +0x8e7
                         }

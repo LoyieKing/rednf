@@ -14,6 +14,8 @@
 #include <stdio.h>
 
 #include "LogManager.h"
+#include "CItemAmplifier.h"   // ENUM_RARITY（[drop upgrade rarity] 段 ORIG
+                              // make_pairIR11ENUM_RARITYR15ItemFarmingData 实证）
 
 // SetLightServerFlag（ORIG 0x8a8cba5，_Z18SetLightServerFlagb）定义于
 // CDataManagerScripts.cpp；此处仅声明供本 TU 真实调用。
@@ -36,32 +38,37 @@ ServerParameterScript::~ServerParameterScript()
 
 void ServerParameterScript::clear()
 {
-    // b28d-L3: DIFF/P212+N82 — ORIG 0x0836f... 帧 0x28 + 同槽双写 `movl $0,-0x18` ×2（P191 双初始化）vs 我方 0x48/-0x30（多循环变量各占槽）
+    // b28d-solo-ServerParameterScript: DIFF→修（P191 循环变量双初始化 + 复用）
+    // ORIG 0x0836f38c 帧 0x28：`movl $0x0,-0x18` 出现两次（函数头 `int i=0;` +
+    // 首个 `for (i=0;…)`），此后 6 个一维循环与 0x1a 循环**复用同一 -0x18**；
+    // emblem 循环独占 -0x14、二维循环 -0x10/-0xc。旧代码每循环各声明新 i（帧 0x48、
+    // 槽 -0x30..-0x1c）。
     m_358 = 0;
-    for (int i = 0; i < 4; ++i)
+    int i = 0;   // ORIG 在 m_358=0 之后（双 movl $0,-0x18 的第二条为 for-init）
+    for (i = 0; i < 4; ++i)
     {
         m_versionBytes[i] = 0;
     }
     m_expRate360[0] = 1.0f;
     m_expRate360[1] = 1.0f;
-    for (int i = 0; i < 4; ++i)
+    for (i = 0; i < 4; ++i)
     {
         m_expGroup368[i] = 1.0f;
     }
-    for (int i = 0; i < 4; ++i)
+    for (i = 0; i < 4; ++i)
     {
         m_expGroup378[i] = 1.0f;
     }
-    for (int i = 0; i < 4; ++i)
+    for (i = 0; i < 4; ++i)
     {
         m_expGroup388[i] = 1.0f;
     }
     // ORIG clear 循环 lea 0xe4 disp 8 只复位前 4 个（第 5 个由 import 写入）。
-    for (int i = 0; i < 4; ++i)
+    for (i = 0; i < 4; ++i)
     {
         m_monsterExpTable398[i] = 1.0f;
     }
-    for (int i = 0; i < 5; ++i)
+    for (i = 0; i < 5; ++i)
     {
         m_expBonusWeight3ac[i] = 1.0f;
     }
@@ -92,7 +99,7 @@ void ServerParameterScript::clear()
     m_508[18] = 0;
     m_508[19] = 0;
     m_558 = -1;
-    for (int i = 0; i < 0x1a; ++i)
+    for (i = 0; i < 0x1a; ++i)
     {
         m_55c[i] = 0;
     }
@@ -123,9 +130,9 @@ void ServerParameterScript::clear()
     m_bloodReward794.m_vec18.clear();
     m_7b8 = 0;
     m_7bc = 0;
-    for (int i = 0; i < 7; ++i)
+    for (int k = 0; k < 7; ++k)
     {
-        m_emblemCompound[i].m_cost = -1;   // ORIG 0x836f7c0：cost=0xffffffff（EMBLEM 无此等级）
+        m_emblemCompound[k].m_cost = -1;   // ORIG 0x836f7c0：cost=0xffffffff（EMBLEM 无此等级）
     }
     for (int i = 0; i < 32; ++i)
     {
@@ -239,9 +246,9 @@ std::vector<std::pair<int, int> >* ServerParameterScript::GetEscaladeTutorialRew
 
 bool ServerParameterScript::checkAssaultServer(int serverGroup, int channelNo)
 {
-    // b28d-L3: IDENTICAL_AE — b28d-L3：路由后 AE（ORIG 0x85bf...
-    // b28c-L8 [AE]：fresh 复验 49/50，唯一差 = 4.4 在 `mov $1,%eax; jmp` 之后多一条
-    // 尾对齐 nop（§6.1 剥离后逐条全等）；p167 调用点差集 0/0，源码未改。
+    // b28d-solo-ServerParameterScript: [AE] — ORIG 0x08a8c3ee 49 insn；fresh 复验
+    // 49/50，唯一差 = 4.4 在 `mov $1,%eax; jmp` 之后多一条尾对齐 nop（§6.1 剥离后
+    // 逐条全等）；p167 调用点差集 0/0，源码未改。
     std::pair<int, int> p;
     std::vector<std::pair<int, int> >::iterator it = m_vec18.begin();
     std::vector<std::pair<int, int> >::iterator e = m_vec18.end();
@@ -263,7 +270,17 @@ bool ServerParameterScript::checkAssaultServer(int serverGroup, int channelNo)
 unsigned int ServerParameterScript::getAssaultGhostTime(int level,
                                                         int chaosPoint)
 {
-    // b28d-L3: DIFF/N82 — ORIG 0x085... 267 vs 287
+    // b28d-solo-ServerParameterScript: DIFF→修（真语义 bug + P243 + P50 复活）
+    // ORIG 0x08a8c804 逐段：① time clamp 为 `cmp t0,time; jbe`/`cmp t1,time; jae`
+    // 回写形（与源码同）；② chaos 段 `iterator cit;` **默认构造 C1Ev 0x08a8dd24 +
+    // `cit = begin()` 赋值**（ORIG 0x08a8c9a5/0x8a8c9cb）⇒ 先声明后赋值（P50 复活）；
+    // ③ rate 的 x87 序列 `flds r0; flds r1; flds r0; fsubrp … faddp`（faddp 前无
+    // 新 flds）⇒ 原码 `r0 + (r1-r0)/(max-min)*(chaos-min)`（P243 左端写 r0）；
+    // ④ **rate clamp 真 bug**：ORIG 首分支 `flds r0; flds rate; fxch; fucompp;
+    // seta` ⇒ `rate < r0 → rate = r0`（下限 r0），次分支 `test $0x45; sete` ⇒
+    // `rate > r1 → rate = r1`（上限 r1）。旧源码写成 `rate > r0 → rate = r0` 与
+    // `rate < r1 → rate = r1`，区间反置（r0<r1 时恒被拉到 r1）⇒ 真语义 bug。
+    // ⑤ x87 比较 fucompp/fnstsw/sahf vs 4.4 fucomip/fstp 属 N85（P230 TU 旗标）。
     if (m_ghostLevel4f0.empty())
     {
         return 0xb4;
@@ -299,8 +316,8 @@ unsigned int ServerParameterScript::getAssaultGhostTime(int level,
         chaosPoint = 1000;
     }
     float rate = 1.0f;
-    std::vector<stAssaultChaosPointGhostPanalty>::iterator cit =
-        m_ghostChaos4fc.begin();
+    std::vector<stAssaultChaosPointGhostPanalty>::iterator cit;
+    cit = m_ghostChaos4fc.begin();
     stAssaultChaosPointGhostPanalty cp;
     for (; cit != m_ghostChaos4fc.end(); cit++)
     {
@@ -310,14 +327,13 @@ unsigned int ServerParameterScript::getAssaultGhostTime(int level,
             break;
         }
     }
-    rate = ((cp.m_r1 - cp.m_r0) / (float)(cp.m_max - cp.m_min)) *
-               (float)(chaosPoint - cp.m_min) +
-           cp.m_r0;
-    if (rate > cp.m_r0)
+    rate = cp.m_r0 + ((cp.m_r1 - cp.m_r0) / (float)(cp.m_max - cp.m_min)) *
+                         (float)(chaosPoint - cp.m_min);
+    if (rate < cp.m_r0)
     {
         rate = cp.m_r0;
     }
-    if (rate < cp.m_r1)
+    if (rate > cp.m_r1)
     {
         rate = cp.m_r1;
     }
@@ -327,7 +343,12 @@ unsigned int ServerParameterScript::getAssaultGhostTime(int level,
 
 float ServerParameterScript::getAssaultPriceChaospointWeight(int chaosPoint)
 {
-    // b28d-L3: DIFF/N82 — ORIG 0x085... 帧 0x58 无 callee-saved vs 我方 push esi/ebx + 0x50（N82）
+    // b28d-solo-ServerParameterScript: DIFF→修（P243 flds 序 + early-return 汇聚）
+    // ORIG 0x08a8c668 逐段：① `flds w0; flds w1; flds w0; fsubrp` ⇒ 原码把 `+w0`
+    // 写在**最左**（`w0 + (w1-w0)/(max-min)*(chaos-min)`），我方旧式 `... + w0` 使 4.4
+    // 末尾重复 flds w0（多 1 条）；② 两处 clamp 在 ORIG 为 `mov 字段,%eax; jmp 尾中转`
+    // （直接返回字段，不回写 weight 槽）⇒ 原码是 early-return 而非回写；③ x87 比较
+    // fucompp/fnstsw/sahf vs 4.4 fucomip/fstp 属 N85 跨版本（P230 需 TU 旗标 -march=i486）。
     if (m_chaosWeight4e4.empty())
     {
         return 1.0f;
@@ -351,17 +372,16 @@ float ServerParameterScript::getAssaultPriceChaospointWeight(int chaosPoint)
     {
         return 1.0f;
     }
-    float weight = ((w.m_w1 - w.m_w0) /
-                    (float)(w.m_max - w.m_min)) *
-                       (float)(chaosPoint - w.m_min) +
-                   w.m_w0;
+    float weight = w.m_w0 + ((w.m_w1 - w.m_w0) /
+                             (float)(w.m_max - w.m_min)) *
+                                (float)(chaosPoint - w.m_min);
     if (weight < w.m_w0)
     {
-        weight = w.m_w0;
+        return w.m_w0;
     }
     if (weight > w.m_w1)
     {
-        weight = w.m_w1;
+        return w.m_w1;
     }
     return weight;
 }
@@ -561,26 +581,33 @@ bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_T
         stUnusableEquipmentInfo* p = &*it;
         // b28d-L3：ORIG 0x08568ac0 段 `mov -0xc,%eax; mov (%eax),%eax;
         // cmp 0xc(%ebp),%eax`（field0 入 eax、type 内存直比）⇒ 比较方向交换。
-        if (static_cast<int>(type) == p->m_field0)
+        // b28d-solo-ServerParameterScript: 去冗余 cast 复现 mem 直比；守卫改
+        // 正极 `field4!=0 || field8!=0`（ORIG `jne CHECK` + `je FALSE` 混合形，
+        // 德摩根 `&&` 形在 4.4 恒双 jne）。
+        // 残差（N 封顶，59 vs 64）：① type 比较 4.4 恒先载形参（`mov 0xc(%ebp),%edx;
+        // cmp %eax,%edx`）vs ORIG mem 直比（`cmp 0xc(%ebp),%eax`）——P209 unsigned
+        // 形参族；② field4>idx 与 field8>=idx 两处 return 的共享尾块（ORIG `jg TRUE`
+        // 与 fall-through 共用 `mov $1`）4.4 恒就地发射——N93附 尾部双 return 块序。
+        if (type == p->m_field0)
         {
             // b28c-L8 语义修正（ORIG 0x08568af6 逐条）：field4!=0 时 ORIG 经
             // `jne +0x4f` 落入**同一段** field4/field8 判定（非跳过），旧源码把
             // 该段误置于 field4==0 分支内 ⇒ field4>idx 且 field8>=idx 时分叉。
             // CFG：b!=0→CHECK；b==0&&c==0→false；CHECK: b>idx→true；
             //     c>=idx→false；否则 true。
-            if (p->m_field4 == 0 && p->m_field8 == 0)
+            if (p->m_field4 != 0 || p->m_field8 != 0)
             {
-                return false;
-            }
-            if (p->m_field4 > idx)
-            {
+                if (p->m_field4 > idx)
+                {
+                    return true;
+                }
+                if (p->m_field8 >= idx)
+                {
+                    return false;
+                }
                 return true;
             }
-            if (p->m_field8 >= idx)
-            {
-                return false;
-            }
-            return true;
+            return false;
         }
     }
     return true;
@@ -589,17 +616,29 @@ bool ServerParameterScript::CheckUnusableEquipmentInfo(ENUM_UNUSABLE_EQUIPMENT_T
 bool ServerParameterScript::CheckUnusableItem(ENUM_EQUIPMENTTYPE equipType,
                                               unsigned long itemIdx) const
 {
-    // b28d-L3: DIFF/N89 — ORIG 0x85bf... 有 `_Rb_tree_const_iterator<unsigned long>::operator==` 外部 call（p167 MISSING=1）
-    if (m_unusableItemFC.find(itemIdx) != m_unusableItemFC.end())
+    // b28d-solo-ServerParameterScript: 真语义 bug 修正 + 形态修（P293 具名迭代器）
+    // ORIG 0x08568bbe 逐段实证：① m_unusableItemFC 命中 → return false；
+    // ② m_map114（[usable items] **白名单**）未列出该 equipType → 尾块 return true；
+    // ③ 列出且集合**命中** itemIdx → 跳尾块 return true（ORIG `call eq; test; je
+    // 8568cd8`：eq 假=sit!=end 才跳 true）；集合未命中 → mov $0 return false。
+    // 旧源码 `if (it!=end && set.find!=set.end()) return false;` 把白名单判成黑名单，
+    // 命中时返回 false 与 ORIG 相反 ⇒ 真语义 bug。单表达式 `find()!=end()` 在 4.4 恒
+    // end 先/find 后（本次实测），故三处均改具名迭代器；尾块只留一处 return true。
+    std::set<unsigned long>::const_iterator unusableIt =
+        m_unusableItemFC.find(itemIdx);
+    if (unusableIt != m_unusableItemFC.end())
     {
         return false;
     }
     std::map<ENUM_EQUIPMENTTYPE, std::set<unsigned long> >::const_iterator it =
         m_map114.find(equipType);
-    if (it != m_map114.end() &&
-        it->second.find(itemIdx) != it->second.end())
+    if (it != m_map114.end())
     {
-        return false;
+        std::set<unsigned long>::const_iterator sit = it->second.find(itemIdx);
+        if (sit == it->second.end())
+        {
+            return false;
+        }
     }
     return true;
 }
@@ -641,14 +680,14 @@ int ServerParameterScript::GetCleanChattingCount(int level)
 int ServerParameterScript::GetTraningFirstGive(int a, int b, int c,
                                                std::vector<std::pair<int, int> >& out)
 {
-    // b28d-L3: DIFF/N82 — ORIG 0x085... 帧 0x58 + sret 槽形 vs 我方 0x?（N82 帧/槽复用）
-    // ORIG 0x084a61c4：① 在 m_map49c4 线性找首个 key>=c（第 3 参数），找到则
-    // c=key 并跳出；未找到（it==end）回退到最大 key 并把 c=key。② 以 (a,b,c)
-    // 构造 PvPPlayerKey 查 m_pvp49ac；未命中返 0。③ 命中把 vector 整段 insert
-    // 到 out 末尾，返 1。
+    // b28d-solo-ServerParameterScript: DIFF→修（去 end 缓存）
+    // ORIG 0x084a61c4 逐段：① begin 后 `jmp COND`，COND 在循环体之后**每轮重发
+    // end()+C1ERK 转换**（0x84a622d 段），循环后 `it==end()` 亦重新 end()（0x84a6270）
+    // ⇒ 原码无 end 缓存局部；旧源码 `const_iterator e=...end(); it!=e` 少两组
+    // end/转换槽（帧 0x48 vs ORIG 0x58）且循环次数形态不同。② PvPPlayerKey 查表、
+    // ③ insert 段与 ORIG 逐条同形（仅槽号随帧）。
     std::map<int, int>::const_iterator it = m_map49c4.begin();
-    std::map<int, int>::const_iterator e = m_map49c4.end();
-    for (; it != e; ++it)
+    for (; it != m_map49c4.end(); ++it)
     {
         if (it->first >= c)
         {
@@ -656,7 +695,7 @@ int ServerParameterScript::GetTraningFirstGive(int a, int b, int c,
             break;
         }
     }
-    if (it == e)
+    if (it == m_map49c4.end())
     {
         --it;
         c = it->first;
@@ -731,11 +770,17 @@ bool ServerParameterScript::isDungeonOpen(int dungeonIdx)
 
 void ServerParameterScript::setDungeonOpen(int dungeonIdx, bool open)
 {
-    // ORIG 0x085bfxxx 实证双 find 分支形：open!=1(cmpb $0x1) 先走 erase 路径
-    // 后 return；open==1 路径重 find，==end 则 push_back。
-    // b28d-L3：ORIG 0x085bfxxx 为形参 spill 后 `cmpb $0x1,-0x3c(%ebp)` 直比；
-    // `open != 1` 在 4.4.6 产 movzbl+xor$1 物化 ⇒ 改 `!open` 试裸形。
-    if (!open)
+    // b28d-solo-ServerParameterScript: 真语义 bug 修正 — ORIG 0x08268698
+    // `mov 0x10(%ebp),%eax; mov %al,-0x3c; cmpb $0x1,-0x3c; je 0x826874d`
+    // ⇒ **open==1 走 erase 路径**（je 目标段：ne(find,end) 真则 erase），
+    // open==0 落 fall-through 段：eq(find,end) 真则 push_back。旧源码
+    // `if (!open)` 把两段整段互换（erase↔push_back），行为与原码相反。
+    // 分支形态照 ORIG：erase 段 `if (it != end) erase`（ne）；
+    // push_back 段 `if (it == end) push_back`（eq，ORIG 0x82688da 实例名）。
+    // 残差（N 封顶）：ORIG `cmpb $0x1,-0x3c` vs 4.4 `cmpb $0x0,-0x3c`（bool 条件码
+    // 规范化方向跨版本）+ erase/push_back 两段 fall-through↔je 目标互换（N93附 块序；
+    // 两形互试实测 101 vs 103 不闭合）。
+    if (open)
     {
         std::vector<int>::iterator it = std::find(
             m_dungeonOpenE0.begin(), m_dungeonOpenE0.end(), dungeonIdx);
@@ -848,7 +893,22 @@ int GetEquipmentTypeStringToEnum(std::string& type);   // CStackableItem.cpp
 bool importServerParameterScript(ServerParameterScript* script,
                                  const char* path)
 {
-    // b28d-L3: DIFF/N82+N89 — ORIG 0x... 4534 vs 4566
+    // b28d-solo-ServerParameterScript: DIFF（N82+N89+N91 封顶；p167 差集已大幅收敛）
+    // 本波 p167 定位并修正：① [escalade tutorial reward] operator[] → find/end/ne/
+    // ptEv + 两分支 push_back + insert；② [training first give] m_map49c4[a]=1 →
+    // insert；③ int,int make_pair → std::pair<int,int>(a,b)（9 点：m_vecMapped/
+    // m_vecShareKind/m_vec0/m_vecc/m_vec18(blood)/ontime/vec/escalade×2）；④ [ontime
+    // event reward] break→return 0、去 unsigned short 中转、pair 直构；⑤ [drop upgrade
+    // rarity] rarity int→ENUM_RARITY（含 CItemAmplifier.h include）；⑥ [drop bonus of
+    // dungeon level increase] 具名 pair 左值 push_back；⑦ [bring up event] `line !=`
+    // → 正向 `line ==`；⑧ m_levels(×2)/m_vec6c push_back 实参内联（push_backEOi）；
+    // ⑨ m_pvp49ac make_pair 第一参改匿名右值；⑩ [full level reward] 去 (unsigned) cast。
+    // ⑪ [ontime event reward] `int a=0; short b=0;` 预清两句式 + pair 默认构造
+    // + 逐字段写 + 左值 push_back；⑫ [pvp live event reward] 同形。
+    // **p167 终态：MISSING=0**（全部语义调用点已还原）；EXTRA 仅 ①空析构 D1 ×2/类型
+    // 共 16（4.4 对局部空析构发射 D1 调用，ORIG 4.1 内联省略；D1 W 符号必须保留
+    // ⇒ N91 封顶）②ScanInt +1（1 处多余读取，逐段槽序不可分辨，N82 封顶）。
+    // ndiff 主体为 N82（帧/槽复用）与 N89（STL out-of-line 实例）。
     if (!loadRDARScriptFile("", path))
     {
         return false;
@@ -1263,6 +1323,9 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
+                // b28d-solo-ServerParameterScript: ORIG 此段仍为 make_pairIRiS0_
+                // （pair 直构仅命中 escalade/m_vecMapped/m_vecShareKind/m_vec0/
+                // m_vecc/m_vec18(blood)/m_vec4880/vec 共 9 点），回退。
                 script->m_vec18.push_back(std::make_pair(a, b));
             }
         }
@@ -1357,8 +1420,11 @@ bool importServerParameterScript(ServerParameterScript* script,
                 p.m_levels.reserve(4);
                 for (int i = 0; i < 4; ++i)
                 {
-                    int v = ScanInt(&ok);
-                    p.m_levels.push_back(v);
+                    // b28d-solo-ServerParameterScript: ORIG 0x08a88ad0 段
+                    // `call ScanInt; mov %eax,-0x2fc; lea -0x2fc; call push_backEOi`
+                    // ⇒ 实参内联（右值）而非具名 v（p167 MISSING push_backEOi ×3 /
+                    // EXTRA push_backERKi ×3）。
+                    p.m_levels.push_back(ScanInt(&ok));
                     if (!ok)
                     {
                         return 0;
@@ -1386,8 +1452,8 @@ bool importServerParameterScript(ServerParameterScript* script,
                 p.m_levels.reserve(4);
                 for (int i = 0; i < 4; ++i)
                 {
-                    int v = ScanInt(&ok);
-                    p.m_levels.push_back(v);
+                    // b28d-solo-ServerParameterScript: 同 rare 段（push_backEOi）。
+                    p.m_levels.push_back(ScanInt(&ok));
                     if (!ok)
                     {
                         return 0;
@@ -1408,8 +1474,10 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     break;
                 }
-                int v = ScanInt(&ok);
-                script->m_vec6c.push_back(v);
+                // b28d-solo-ServerParameterScript: ORIG 0x08a88d80 段
+                // `call ScanInt; mov %eax,-0x2f4; lea -0x2f4; call push_backEOi`
+                // ⇒ 实参内联（push_backEOi）。
+                script->m_vec6c.push_back(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0;
@@ -1545,7 +1613,23 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                script->m_map88[key].push_back(std::make_pair(a, b));
+                // b28d-solo-ServerParameterScript: P123 查找形式修正 — ORIG 0x08a8d1xx 段
+                // 为 find/end/ne/ptEv + 两分支 push_backEOS1_ + else 内 vec C1Ev +
+                // make_pair(IRi,RSt6vector) + pair<const int,vector> 转换 + insertERKS8_；
+                // 旧 `m_map88[key]` 走 operator[]（p167 EXTRA ixERS7_ +1 / MISSING
+                // find/end/ne/ptEv/insert 各 1）。
+                std::map<int, std::vector<std::pair<int, int> > >::iterator it =
+                    script->m_map88.find(key);
+                if (it != script->m_map88.end())
+                {
+                    it->second.push_back(std::pair<int, int>(a, b));
+                }
+                else
+                {
+                    std::vector<std::pair<int, int> > vec;
+                    vec.push_back(std::pair<int, int>(a, b));
+                    script->m_map88.insert(std::make_pair(key, vec));
+                }
             }
         }
         else if (line == "[server message index onoff]")
@@ -1582,7 +1666,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     break;
                 }
-                script->m_shared770.m_vecMapped.push_back(std::make_pair(a, b));
+                script->m_shared770.m_vecMapped.push_back(std::pair<int, int>(a, b));
             }
         }
         else if (line == "[server message event kind]")
@@ -1599,7 +1683,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     break;
                 }
-                script->m_shared770.m_vecShareKind.push_back(std::make_pair(a, b));
+                script->m_shared770.m_vecShareKind.push_back(std::pair<int, int>(a, b));
             }
         }
         else if (line == "[price average]")
@@ -1622,7 +1706,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                script->m_bloodReward794.m_vec0.push_back(std::make_pair(a, b));
+                script->m_bloodReward794.m_vec0.push_back(std::pair<int, int>(a, b));
             }
         }
         else if (line == "[lotto cost]")
@@ -1647,7 +1731,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                script->m_bloodReward794.m_vecc.push_back(std::make_pair(a, b));
+                script->m_bloodReward794.m_vecc.push_back(std::pair<int, int>(a, b));
             }
         }
         else if (line == "[lotto point]")
@@ -1664,7 +1748,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                script->m_bloodReward794.m_vec18.push_back(std::make_pair(a, b));
+                script->m_bloodReward794.m_vec18.push_back(std::pair<int, int>(a, b));
             }
         }
         else if (line == "[emblem compound info]")
@@ -1789,25 +1873,36 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                script->m_map4868.insert(
-                    std::make_pair(a, (unsigned int)b));
+                // b28d-solo-ServerParameterScript: ORIG pair C1 模板参为 <int,int>
+                // （_ZNSt4pairIKijEC1IiiEEOS_IT_T0_），旧 (unsigned int) cast 使实例
+                // 变 <int,unsigned>（p167 EXTRA C1IijE 1 / MISSING C1IiiE 1）。
+                script->m_map4868.insert(std::make_pair(a, b));
             }
         }
         else if (line == "[ontime event reward]")
         {
             while (true)
             {
-                int a = ScanInt(&ok);
+                // b28d-solo-ServerParameterScript: ORIG 0x08a89f60 段逐条
+                // `movl $0,-0x48` + `movw $0,-0x42`（P198① 声明预清两句式）→
+                // a=ScanInt（int 槽）/b=(short)ScanInt（mov %ax 16 位槽）→
+                // `pair C1Ev` 默认构造 + p.first/p.second 逐字段写 → push_backERKS1_。
+                int a = 0;
+                short b = 0;
+                a = ScanInt(&ok);
                 if (!ok)
                 {
-                    break;
+                    return 0;
                 }
-                unsigned short b = (unsigned short)ScanInt(&ok);
+                b = (short)ScanInt(&ok);
                 if (!ok)
                 {
-                    break;
+                    return 0;
                 }
-                script->m_vec4880.push_back(std::make_pair(a, (int)b));
+                std::pair<int, int> p;
+                p.first = a;
+                p.second = b;
+                script->m_vec4880.push_back(p);
             }
         }
         else if (line == "[pvp live event play count]")
@@ -1822,17 +1917,21 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             while (true)
             {
-                int a = ScanInt(&ok);
+                // b28d-solo-ServerParameterScript: ORIG 0x08a8a0c0 段
+                // `pair C1Ev`（默认构造）→ p.first=ScanInt / p.second=ScanInt →
+                // `push_backERKS1_`（左值）；p167 MISSING C1Ev 2 + ERKS1_ 2。
+                std::pair<int, int> p;
+                p.first = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int b = ScanInt(&ok);
+                p.second = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                script->m_veca0.push_back(std::make_pair(a, b));
+                script->m_veca0.push_back(p);
             }
         }
         else if (line == "[pvp exp penalty revision]")
@@ -2254,20 +2353,27 @@ bool importServerParameterScript(ServerParameterScript* script,
                     {
                         return 0;
                     }
-                    vec.push_back(std::make_pair(x, y));
+                    vec.push_back(std::pair<int, int>(x, y));
                 }
-                ServerParameterScript::PvPPlayerKey key((unsigned char)a,
-                                                       (unsigned char)b,
-                                                       (unsigned char)c);
-                script->m_pvp49ac.insert(std::make_pair(key, vec));
+                // b28d-solo-ServerParameterScript: ORIG 0x08a8d5bc
+                // `_ZSt9make_pairIN21…PvPPlayerKeyE…`（第一参**按值**）⇒ 实参为匿名
+                // 右值临时（p167 EXTRA make_pairIRN… 1 / MISSING make_pairIN… 1）。
+                script->m_pvp49ac.insert(std::make_pair(
+                    ServerParameterScript::PvPPlayerKey((unsigned char)a,
+                                                        (unsigned char)b,
+                                                        (unsigned char)c),
+                    vec));
                 std::map<int, int>::iterator it = script->m_map49c4.find(a);
-                if (it == script->m_map49c4.end())
+                // b28d-solo-ServerParameterScript: P123 — ORIG 用 ne(find,end) 正极性 +
+                // insertERKS4_（0x08a8b3ec/0x8a8b468 段），旧 `m_map49c4[a]=1` 走
+                // operator[]（p167 EXTRA ixERS3_ +1 / MISSING insertERKS4_ 1）。
+                if (it != script->m_map49c4.end())
                 {
-                    script->m_map49c4[a] = 1;
+                    ++it->second;
                 }
                 else
                 {
-                    ++it->second;
+                    script->m_map49c4.insert(std::make_pair(a, 1));
                 }
             }
         }
@@ -2305,19 +2411,20 @@ bool importServerParameterScript(ServerParameterScript* script,
             {
                 goto lab_finish;
             }
-            if (line != "[get reward count]")
+            // b28d-solo-ServerParameterScript: ORIG 全函数只用 eq（_ZSteqIcSt11char…）
+            // ⇒ 原码为正向 `if (line == …)`（p167 EXTRA _ZStneIc… 1 / MISSING eq 1）。
+            if (line == "[get reward count]")
             {
-                continue;
-            }
-            script->m_eventIdolBringUp454.m_field0 = ScanInt(&ok);
-            if (!ok)
-            {
-                goto lab_finish;
-            }
-            script->m_eventIdolBringUp454.m_field4 = ScanInt(&ok);
-            if (!ok)
-            {
-                goto lab_finish;
+                script->m_eventIdolBringUp454.m_field0 = ScanInt(&ok);
+                if (!ok)
+                {
+                    goto lab_finish;
+                }
+                script->m_eventIdolBringUp454.m_field4 = ScanInt(&ok);
+                if (!ok)
+                {
+                    goto lab_finish;
+                }
             }
         }
         else if (line == "[protect of upgrade down jpn]")
@@ -2434,30 +2541,34 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     break;
                 }
-                int rarity = 6;
+                // b28d-solo-ServerParameterScript: ORIG 0x08a8d70e 段
+                // `make_pairIR11ENUM_RARITYR15ItemFarmingData` ⇒ 第一参类型为
+                // ENUM_RARITY 左值（p167 MISSING 该实例 1 + pair C1I11ENUM_RARITYS1_
+                // 1 + pair D1 2 / EXTRA make_pairIRiR15ItemFarmingData 1）。
+                ENUM_RARITY rarity = (ENUM_RARITY)6;
                 if (s == "[common]")
                 {
-                    rarity = 0;
+                    rarity = (ENUM_RARITY)0;
                 }
                 else if (s == "[uncommon]")
                 {
-                    rarity = 1;
+                    rarity = (ENUM_RARITY)1;
                 }
                 else if (s == "[rare]")
                 {
-                    rarity = 2;
+                    rarity = (ENUM_RARITY)2;
                 }
                 else if (s == "[unique]")
                 {
-                    rarity = 3;
+                    rarity = (ENUM_RARITY)3;
                 }
                 else if (s == "[epic]")
                 {
-                    rarity = 4;
+                    rarity = (ENUM_RARITY)4;
                 }
                 else if (s == "[chronicle]")
                 {
-                    rarity = 5;
+                    rarity = (ENUM_RARITY)5;
                 }
                 ItemFarmingData data;
                 while (true)
@@ -2473,7 +2584,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                         return 0;
                     }
                     data.m_active += weight;
-                    data.m_vecWeight.push_back(std::make_pair(itemId, weight));
+                    data.m_vecWeight.push_back(std::pair<int, int>(itemId, weight));
                 }
                 script->m_farming4c0.insert(std::make_pair(rarity, data));
             }
@@ -2492,7 +2603,11 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     return 0;
                 }
-                script->m_vec4d8.push_back(std::make_pair(a, b));
+                // b28d-solo-ServerParameterScript: ORIG 用 push_backERKS1_（左值实参）
+                // ⇒ 具名 pair 局部再传（p167 MISSING push_backERKS1_ 1 / EXTRA
+                // push_backEOS1_ 1）。
+                std::pair<int, float> entry = std::make_pair(a, b);
+                script->m_vec4d8.push_back(entry);
             }
         }
         // [N-类·跨版本 EH] 本函数 4 处局部对象段(auction480/chaosWeight4e4/

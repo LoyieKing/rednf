@@ -24,7 +24,20 @@ public:
     void put_grade(int i, int g) { m_slots[i + 1] = g; }     // slot j=i+1
     void put_count(int n) { m_slots[0] = n; }                // 尾写覆盖首槽
 
-    int m_slots[11];             // +0x0a..（0x2c 字节 = 11×int）
+    // [b28d-solo-DispLinkA1 P311/P246] ORIG 写入点为两个独立具名数组成员
+    // （grade@+0xe+4i、value@+0x22+4i，SendCreateEmblemInfo 0x08218ae7/0x08218af4
+    // 实证）：单条 `mov %eax,-0x4c(%ebp,%ebx,4)`（disp 折叠）只在成员数组
+    // offset>0 时出现；`m_slots[count+1]` 恒折 lea。union 双视图零布局影响。
+    union
+    {
+        int m_slots[11];         // +0x0a..（0x2c 字节 = 11×int）
+        struct
+        {
+            int m_count;         // +0x00（= m_slots[0]）
+            int m_grades[5];     // +0x04（= m_slots[1..5]）
+            int m_values[5];     // +0x18（= m_slots[6..10]）
+        };
+    };
 } __attribute__((packed));       // sizeof == 0x36
 
 #endif  // DNF_GAME_PACKET_EMBLEM_CREATE_STATISTIC_H_

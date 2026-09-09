@@ -570,12 +570,18 @@ void PacketBuf::encFinalize()
     }
 }
 
+// [b28d-solo-PacketBuf] verdict=AE（check_tu_routed clean；p167 9/9 CLEAR，129=129）。
+// 修法：①P207 显式 `operator delete[](buffer)` 消 4.4 -O0 delete[] 自带的
+// test/je 判空（ORIG 4.1 只有源码 if 的一次判空，原 delete[] 多一对 cmpl/je+jmp/nop）；
+// ②`int bufferSize` + 显式括号 `m_size + ((PKT_BODY_OFF - m_size) + bufferSize)`
+// 阻止 4.4 把 `m + (C - m)` 代数折成 `C`（探针 /tmp/probe_enc.cpp f1 折成
+// `buf+0xf` 4 条；/tmp/probe_enc4.cpp h6 保留 ORIG 的 `(0xf-m)+buf` 两段链）。
 void PacketBuf::encrypt_packet()
 {
     if (*m_ptr != 0 || *(unsigned short*)(m_ptr + PKT_SIZE_OFF) != 1)
     {
         char localBuffer[MAX_PACKET_SIZE];
-        unsigned int bufferSize;
+        int bufferSize;
         int dataSize;
         char allocated;
         char* buffer;
@@ -599,17 +605,23 @@ void PacketBuf::encrypt_packet()
 
         G_Cipher()->Encrypt(*(unsigned short*)(m_ptr + PKT_SIZE_OFF),
                             (unsigned char*)(m_ptr + PKT_BODY_OFF), m_size - PKT_BODY_OFF,
-                            (unsigned char*)buffer, (int*)&bufferSize);
-        m_size = m_size + (PKT_BODY_OFF - m_size) + bufferSize;
+                            (unsigned char*)buffer, &bufferSize);
+        // [b28d-solo-PacketBuf] 显式括号 + int 局部：4.4 对
+        // `m + (0xf - m) + buf` 恒代数折成 `buf + 0xf`（探针 /tmp/probe_enc.cpp
+        // f1 4 条）；加括号后保留 ORIG 的 `(0xf-m)+buf` 两段计算链
+        // （探针 /tmp/probe_enc4.cpp h6）。
+        m_size = m_size + ((PKT_BODY_OFF - m_size) + bufferSize);
 
-        if ((int)bufferSize > 0)   // ORIG test;jle 形（signed 比较）
+        if (bufferSize > 0)   // ORIG test;jle 形（signed 比较）
         {
             memcpy(m_ptr + PKT_BODY_OFF, buffer, bufferSize);
         }
 
         if (allocated && buffer != NULL)
         {
-            delete[] buffer;
+            // [b28d-solo-PacketBuf P207] 4.4 -O0 对 delete[] 自带 test/je 判空；
+            // ORIG 4.1 无该守卫 ⇒ 显式 operator delete[] 调用复现单次判空直落。
+            operator delete[](buffer);
         }
     }
     else
@@ -784,6 +796,11 @@ bool PacketBuf::put_short(int value)
 
 void PacketBuf::put_packet(const Inven_Item& item)
 {
+    // [b28d-solo-PacketBuf] 本行触发 RandomOption::put_packet_random_option<PacketBuf>
+    // 实例（ORIG 0x858e3ec）verdict=AE（p167 15/15 CLEAR，133=133）。修法落在
+    // Inven_Item.h 模板体：P235 具名数组视角 `m_fields[i]`（消 reinterpret_cast
+    // 视图的 lea 链，复现 ORIG `add 0x8(%ebp)` + `movzbl (%eax,%ecx,1)`）
+    // + P308 位域视角 `m_seedd.m_bits.m_low2`（复现 `movzbl; and $3; movzbl`）。
     item.m_random.m_random.put_packet_random_option(*this);
 
     if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
@@ -824,6 +841,11 @@ bool _NS_MakeHash_(char* data, short len, int& out);
 // **bool**（GameSecurity.cpp:38/185，属主 C28L22 确认；返回类型不入 mangled，
 // 本 TU 局部声明必须同步——见上）。bool callee 下 `!call()` 直产 ORIG 的
 // `call; xor $0x1,%eax; test %al,%al`（P168a① 技巧1 / lane7 实测口径）。
+// [b28d-solo-PacketBuf] verdict=AE（check_tu_routed clean；p167 4/4 CLEAR）。
+// 修法：P223 多岛——ORIG 两守卫落点不同（packet==0 的 je 落 `nop;jmp` 岛；
+// _NS_MakeHash_ 失败的 jne 落 `nop` 岛，两岛物理相邻），4.4 对裸 `return`
+// 恒 jump-thread 掉一对 `jmp+nop`。改为两条独立负条件 goto + 连续尾标签串
+// `L1:; L2:; Lend:;`（体包入内层复合块以合法跳出 scope）逐岛复现。
 void _NS_PI_MakeHash_NOTI(PacketBuf* packet)
 // [b28c-L23 翻案 + N(jump threading) 残余 3 行] b22 的 13 形"不可复现"判词作废：
 // 本 TU 局部声明同步为 bool callee（档①）后 `!call()` 直产 ORIG
@@ -833,18 +855,26 @@ void _NS_PI_MakeHash_NOTI(PacketBuf* packet)
 {
     if (packet == 0)
     {
-        return;
+        goto L1;
     }
-    char* base = packet->get_packet(0);
-    // ORIG：读取包首 +1 处的 ushort 字段（本函数内不使用，仅为对齐 ORIG 读取行为）
-    unsigned short headerField = *(unsigned short*)(base + PKT_SIZE_OFF);
-    char* region = base + PKT_BODY_OFF;
-    short idx = packet->get_index() - PKT_BODY_OFF;
-    int hash;
-    // bool callee + 裸 `!call()` ⇒ 直产 ORIG @0x08274757 的
-    // `call; xor $0x1,%eax; test %al,%al; jne`（假路径跳板）。
-    if (!_NS_MakeHash_(region, idx, hash))
-        ;
-    else
+    {
+        char* base = packet->get_packet(0);
+        // ORIG：读取包首 +1 处的 ushort 字段（本函数内不使用，仅为对齐 ORIG 读取行为）
+        unsigned short headerField = *(unsigned short*)(base + PKT_SIZE_OFF);
+        char* region = base + PKT_BODY_OFF;
+        short idx = packet->get_index() - PKT_BODY_OFF;
+        int hash;
+        // bool callee + 裸 `!call()` ⇒ 直产 ORIG @0x08274757 的
+        // `call; xor $0x1,%eax; test %al,%al; jne`（假路径跳板）。
+        if (!_NS_MakeHash_(region, idx, hash))
+        {
+            goto L2;
+        }
         packet->put_int(hash);
+        goto Lend;
+    }
+L1:
+L2:
+Lend:
+    ;
 }

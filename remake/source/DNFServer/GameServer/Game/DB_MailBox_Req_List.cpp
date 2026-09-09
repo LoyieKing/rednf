@@ -7,13 +7,15 @@
 //   3. DB_MailBox_Req_List::dispatch        0x0841de4a
 // 报告均已全文阅读后转写（docs/class_func_reports/DB_MailBox_Req_List/
 //   {SelectLetter,setCreatureData,dispatch}.md）。
-// SIG 布局：SIG_MAILBOX_LIST（SigTypes.h m_data[0x338a]）跨字段区按 ORIG 偏移
-//   访问（pack(1) 视图 + 偏移宏，与 DB_MailBox_Dispatch.cpp 同款先例）；
+// SIG 布局：SIG_MAILBOX_LIST（SigTypes_D.h，sizeof 0x338a）——b28d-solo 在本
+//   权威头加匿名 union 具名视图（m_box postal 区 / m_user user_items /
+//   m_creature creature_items，§8.3 字段化 + R2 广播），本 TU 按视图成员访问；
 //   SIG_LETTER_INFO（CMailBoxHelper.h，已按 ORIG 实证修正为 0x12b）。
-// 依赖：DBDispatcher::dispatch 定义归 DB_Login.cpp；ArrangeMailAndLetterIndex /
-//   DoChangeMailList / IsContainedLetter 定义归 W8LT_DBTask 域其它批次（仅声明）；
-//   stAvatarEmblemInfo_t::init 归 GameBasicsScripts.cpp；RandomOption::reset 语义
-//   为清零 0xe 字节（ORIG 0x080cb2d8 逐子对象清零实证），本 TU 以 memset 等价实现。
+// 依赖：DBDispatcher::dispatch 定义归 DB_Login.cpp；stAvatarEmblemInfo_t::init
+//   归 GameBasicsScripts.cpp；RandomOption::reset 定义归 Inven_Item.cpp（本 TU
+//   按 ORIG 0x0841e8d7 直调真函数，p167 MISSING 归零）。
+// b28d-solo 判词见各函数头 [b28d-solo-DB_MailBox_Req_List]；结果 TSV
+//   /tmp/b28d_solo_DB_MailBox_Req_List_result.tsv。
 // ============================================================================
 
 #include "DB_MailBox_Req_List.h"
@@ -70,47 +72,50 @@ bool CompareLetterIndex(const SIG_LETTER_INFO& a, const SIG_LETTER_INFO& b);
 int  FindLastLetterIndexMail(SIG_MAILBOX_LIST* list, int letterId);
 bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx);
 
+// ---- postal 区扫描视图（pack(1)，ORIG stride 0x61） ----
+// [b28d-solo-DB_MailBox_Req_List] 视图必须落**文件作用域**：4.4.7 对函数内局部
+// 结构体先载基址（`mov 0x8(%ebp),%edx; mov -0x4(%ebp),%eax`），文件作用域才复现
+// ORIG 4.1 的「下标先、基址后」装载序（探针 /tmp/p1/q.cpp f1 vs r.cpp g1）。
+#pragma pack(push, 1)
+struct LetterPostalEntry
+{
+    unsigned char m_pad[0xc];
+    int m_letterId;
+    unsigned char m_tail[0x61 - 0x10];
+};
+struct LetterListView
+{
+    unsigned char m_pad[0x50];
+    LetterPostalEntry m_postals[0x12];
+};
+struct LetterCountView
+{
+    unsigned char m_pad[0x794];
+    int m_count;
+};
+#pragma pack(pop)
+
 // ============================================================================
 // IsContainedLetter —— ORIG 0x0841ccb6：postal 区（stride 0x61）扫 +0x5c
 //   letter_id 是否含目标。
 bool IsContainedLetter(SIG_MAILBOX_LIST* list, int letterId)
-// [b28c-L23 N18b/N7] 已修装载序与操作数极性（letterId 置左）后残 8 行 =
-// [b28d-D33 复验] 残差收敛为 2 处：ORIG 0x0841ccd4 两段物化 vs 4.4 单段
-// `cmp MEM,reg`（N18b 封顶）+ 循环首基址/下标序（P30 伪影），语义全等。
-// ①@0x0841ccd4 ORIG 两段物化 `mov 0xc(%eax),%edx; mov 0xc(%ebp),%eax; cmp %eax,%edx`，
-// 4.4 对「成员 vs 形参」比较恒折单段 `cmp MEM,reg`（N18b，无源码写法产两段）；
-// ②循环体首 `mov -0x4(i),%eax; mov 0x8(list),%edx` 的基址/下标先后（P30 穷举后
-// add-vs-lea 与寄存器名不齐 ⇒ 结构性伪影）；③连锁 jmp 偏移。
-// 遍历区间与命中语义与 ORIG 全等。
+// [b28d-solo-DB_MailBox_Req_List] verdict=DIFF（26 vs 25），N 封顶两项：
+// ①@0x0841ccd4 ORIG 两段物化 `mov 0xc(%eax),%edx; mov 0xc(%ebp),%eax;
+//   cmp %eax,%edx` vs 4.4 单段 `cmp 0xc(%ebp),%eax` ⇒ N18b（成员 vs 形参比较
+//   恒折，volatile 形可出两段但多 sete/test 三段，探针 /tmp/p2/vm.cpp p2）；
+// ②循环体首装载序 ORIG「下标先、基址后」vs 4.4「基址先」——视图已落**文件作用域**
+//   （局部 struct 亦为 base 先，探针 /tmp/p2/r.cpp g1），但实参类型 SIG_MAILBOX_LIST*
+//   到视图类型的 cast 仍触发 base 先（w.cpp h1 vs h2 对照；索引先仅在本型视图/局部
+//   基址指针形出现，后者多 2 条）⇒ P30/P235 结构性伪影。
+// 遍历区间与命中语义与 ORIG 全等；p167 不适用（无 call）。
 {
-    // 视图（P82/P95）：ORIG count 读为单 disp（mov 0x794(%eax)）、条目为
-    // m_postals[i].m_letterId（+0x50 基址 +0xc disp 拆段）。
-    #pragma pack(push, 1)
-    struct PostalEntry
-    {
-        unsigned char m_pad[0xc];
-        int m_letterId;
-        unsigned char m_tail[0x61 - 0x10];
-    };
-    struct ListView
-    {
-        unsigned char m_pad[0x50];
-        PostalEntry m_postals[0x12];
-    };
-    struct CountView
-    {
-        unsigned char m_pad[0x794];
-        int m_count;
-    };
-    #pragma pack(pop)
-    int i;
-    for (i = 0; i < ((CountView*)list)->m_count; ++i)
+    for (int i = 0; i < ((LetterCountView*)list)->m_count; ++i)
     {
         // b28c-l23：ORIG @0x0841ccd4 为 `mov 0xc(%eax),%edx; mov 0xc(%ebp),%eax;
         // cmp %eax,%edx` ⇒ **letterId 是左操作数**（条目值先物化 %edx，形参后载 %eax），
         // 我方把条目写在左侧使 4.4 折成 `cmp MEM,reg` 单段（N18b 镜像，少 1 条）。
         // 循环体首两条 ORIG 为 `mov -0x4(i),%eax; mov 0x8(list),%edx`（下标先于基址）。
-        if (letterId == ((ListView*)list)->m_postals[i].m_letterId)
+        if (letterId == ((LetterListView*)list)->m_postals[i].m_letterId)
             return 1;
     }
     return 0;
@@ -121,27 +126,37 @@ bool IsContainedLetter(SIG_MAILBOX_LIST* list, int letterId)
 //   +0x79c 直接置 param_3；否则 +0x79c=0 并逐项取 max(postal_id) 回写 +0x79c，
 //   mailIdx 表收 postal 的 +0x2e add_info。
 // ============================================================================
-// [b28d-D33 P30/N4 封顶] ORIG 0x0841d470：65 vs 56 条；SIG 宏生 add+mov 两步 vs
-// ORIG 单 disp `mov 0x794(%eax),%eax`（P30/N4）+ 多余 push ebx。p167 CLEAR 1=1。
+// [b28d-solo-DB_MailBox_Req_List] verdict=AE（check_tu_routed，56=56）。修法：
+// ①SIG_MAILBOX_LIST 权威头新增 m_box 具名视图（SigTypes_D.h，R2 广播）——单 disp
+//   count/0x79c + `mov (%edx,%eax,1)` postal_id + `add $0x20; mov 0xe` add_info；
+// ②if/else 极性反写复现 `test; je <count==0 块>` 块序；③max 目标地址不再被 4.4
+//   跨 call 缓存（cast 视图形恒缓存于 %ebx，本型视图形不缓存，探针 /tmp/p2/w.cpp
+//   w1 vs /tmp/p2/rm2.cpp）。
 void DoChangeMailList(SIG_MAILBOX_LIST* list, unsigned int* mailIdx, int count)
 {
     mailIdx[0] = 0;
-    if (SIG_I32(list, SIG_OFF_POSTAL_COUNT) == 0)
+    // [b28d-solo-DB_MailBox_Req_List] 已按 ORIG 布局改写：①SIG_MAILBOX_LIST 权威头
+    // 新增 m_box 具名视图（SigTypes_D.h，R2 已广播）后成员访问复现单 disp
+    // （count/0x79c）与 `add $0x20; mov 0xe` 两级尾段、且装载序为 ORIG 的
+    // 「下标先、基址后」（cast 视图形恒 base 先，P235）；②if/else 极性反写，复现
+    // ORIG `test; je <count==0 块>`（then 块落尾）的块序。
+    // 残余：`std::max` 赋值目标地址被 4.4 跨 call 缓存于 %ebx（ORIG 4.1 在 call 后
+    // `mov 0x8(%ebp),%eax` 重算），四形探针（视图/宏/混合/别名视图）均恒缓存 ⇒
+    // 跨版本代码生成差，记 N（+push/pop %ebx）。
+    if (list->m_box.m_count != 0)
     {
-        SIG_U32(list, SIG_OFF_MAX_POSTAL_ID) = (unsigned int)count;
+        list->m_box.m_maxPostalId = 0;
+        for (int i = 0; i < list->m_box.m_count; ++i)
+        {
+            unsigned int id = (unsigned int)list->m_box.m_postals[i].m_postalId;
+            list->m_box.m_maxPostalId = std::max(list->m_box.m_maxPostalId, id);
+            mailIdx[0] = mailIdx[0] + 1;
+            mailIdx[mailIdx[0]] = list->m_box.m_postals[i].m_tail.m_addInfo;
+        }
     }
     else
     {
-        SIG_U32(list, SIG_OFF_MAX_POSTAL_ID) = 0;
-        int i;
-        for (i = 0; i < SIG_I32(list, SIG_OFF_POSTAL_COUNT); ++i)
-        {
-            unsigned int id = (unsigned int)SIG_I32(list, i * 0x61);
-            SIG_U32(list, SIG_OFF_MAX_POSTAL_ID) =
-                std::max(SIG_U32(list, SIG_OFF_MAX_POSTAL_ID), id);
-            mailIdx[0] = mailIdx[0] + 1;
-            mailIdx[mailIdx[0]] = SIG_U32(list, i * 0x61 + 0x2e);
-        }
+        list->m_box.m_maxPostalId = (unsigned int)count;
     }
 }
 
@@ -165,30 +180,35 @@ bool CompareLetterIndex(const SIG_LETTER_INFO& a, const SIG_LETTER_INFO& b)
 // ============================================================================
 int FindLastLetterIndexMail(SIG_MAILBOX_LIST* list, int letterId)
 {
-    // [b28d-D33 N82/P30 封顶] P232 dead 局部已对齐帧（sub $0x20 一致，补 pad[8]
-    // 后 0x10→0x20）；残差 = ①局部槽基差（ORIG maxIdx@-0x18/i@-0x10 vs 我们
-    // -0xc/-0x8，4.4 槽复用/分配序不可控，N82）；②循环首基址/下标装载序
-    // （ORIG i 先 list 后 vs 我们 list 先，P30 结构性伪影）；③连锁 jmp 偏移。
-    // 语义与 ORIG 全等（ORIG 0x0841cc16）。
-    char framePad[8];
-    (void)framePad;
+    // [b28d-solo-DB_MailBox_Req_List] verdict=NEAR（check_tu_routed，56=56，仅剩
+    // 「下标先/基址先」装载序差，P30/P235 结构性伪影；助记符序列全等）。
+    // 修法：ORIG 0x0841d080 逐条复现：两循环各自
+    // **for 内声明** i/v（ORIG 槽 -0x10/-0xc 与 -0x8/-0x4 两套独立槽，同一声明
+    // 复用会并槽）、命中写 ret 后 break（ORIG 尾 `mov ret,%eax; leave; ret` 单出口）。
     int maxIdx = 0;
-    int i;
-    for (i = 0; i < SIG_I32(list, SIG_OFF_POSTAL_COUNT); ++i)
+    for (int i = 0; i < ((LetterCountView*)list)->m_count; ++i)
     {
-        int v = SIG_I32(list, i * 0x61 + 0x5c);
-        if (letterId < v && maxIdx < v)
+        int v = ((LetterListView*)list)->m_postals[i].m_letterId;
+        // ORIG 0x0841d0ae `mov v,%eax; cmp letterId,%eax; jle` ⇒ 写法取
+        // `v > letterId`（4.4 对 `letterId < v` 恒折 `mov letterId,%eax;
+        // cmp v,%eax; jge`，jcc 方向相反，探针 /tmp/p2/cmp.cpp c1/c2）。
+        if (v > letterId && maxIdx < v)
             maxIdx = v;
     }
+    int ret = -1;
     if (maxIdx != 0)
     {
-        for (i = 0; i < SIG_I32(list, SIG_OFF_POSTAL_COUNT); ++i)
+        for (int i = 0; i < ((LetterCountView*)list)->m_count; ++i)
         {
-            if (SIG_I32(list, i * 0x61 + 0x5c) == maxIdx)
-                return i;
+            int v = ((LetterListView*)list)->m_postals[i].m_letterId;
+            if (v == maxIdx)
+            {
+                ret = i;
+                break;
+            }
         }
     }
-    return -1;
+    return ret;
 }
 
 // ============================================================================
@@ -197,20 +217,22 @@ int FindLastLetterIndexMail(SIG_MAILBOX_LIST* list, int letterId)
 // ============================================================================
 bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx)
 {
-    // [b28d-D33 N78 封顶] ORIG 0x0841cd03（87 条）把 0x61 字节 memmove 内联为
-    // 字节对齐慢路展开（and $2/$1 + movzwl/movzbl 段，0x0841cd8f 起实证）；
-    // 4.4 -O0 对 memmove 恒发 call（50 条）。N78「4.1 内联 mem*，4.4 恒 call」
-    // 判据命中，语义等价（拷贝区间/长度一致）。
-    if (SIG_I32(list, SIG_OFF_POSTAL_COUNT) - 1 != mailIdx)
+    // [b28d-solo-DB_MailBox_Req_List] verdict=AE（check_tu_routed，87=87）。
+    // 原 N78 判词（memmove 恒 call）已被 P312/N84
+    // 路线推翻：ORIG 0x0841cd03 的 0x61 字节搬移 = **结构体整体赋值**的对齐剥离
+    // rep movsl 展开（探针 /tmp/p2/c.cpp c1 与 ORIG 0x0841cd44..0x0841cdae 逐条同形）。
+    // 改用 SIG_MAILBOX_LIST::m_box 整体赋值后该段与 count/remain 段全部复现
+    // （探针 /tmp/p2/rm2.cpp 与 ORIG 逐条同形）；memmove 会退化为 call。
+    if (list->m_box.m_count - 1 != mailIdx)
     {
         int i;
-        for (i = mailIdx; i < SIG_I32(list, SIG_OFF_POSTAL_COUNT) - 1; ++i)
+        for (i = mailIdx; i < list->m_box.m_count - 1; ++i)
         {
-            memmove(SIG_PTR(list, i * 0x61), SIG_PTR(list, (i + 1) * 0x61), 0x61);
+            list->m_box.m_postals[i] = list->m_box.m_postals[i + 1];
         }
     }
-    SIG_I32(list, SIG_OFF_POSTAL_COUNT) -= 1;
-    SIG_I32(list, SIG_OFF_REMAIN_COUNT) += 1;
+    list->m_box.m_count -= 1;
+    list->m_box.m_remain += 1;
     return 1;
 }
 
@@ -220,32 +242,51 @@ bool RemoveMailByLatestLetter(SIG_MAILBOX_LIST* list, int mailIdx)
 //   LetterIndexMail）并删除（RemoveMailByLatestLetter），同时从 vecOld 删同
 //   letter_id 项。恒返 1。
 // ============================================================================
-// [b28d-D33 N86/N82 封顶] ORIG 0x0841d16d：120 vs 111 条；帧 0x38 vs 0x58 +
-// 迭代器 C1Ev EXTRA（P50 先声明后赋值形）。语义等价。
+// [b28d-solo-DB_MailBox_Req_List] verdict=DIFF（111 vs 109），N 封顶两项：
+// ①ORIG 0x0841d1fc `cmpl $0xffffffff,-0x10; setne %al; test %al,%al; je` 为
+//   4.1.2 槽比 setcc 物化，4.4 对槽比恒直跳 `je`（P197④；`bool z=(x!=-1)` 会多槽）
+//   ⇒ 不可复现；②letterId 取用 cast 视图（保留 ORIG `add $0x50; mov 0xc(%eax)`
+//   两段形）的「基址先」装载序（P30/P235，同 IsContainedLetter②）。
+// 已修：start 改 unsigned（复现 `mov count,%edx; sub %edx,%eax` + seta）、
+// operator[] 结果内联作实参（去 letterId 具名槽）、拆两条独立 if（消 && 物化岛）、
+// begin/end 迭代器循环头缓存（P13）。语义等价。
 bool ArrangeMailAndLetterIndex(SIG_MAILBOX_LIST* list,
                                std::vector<SIG_LETTER_INFO>& vecNew,
                                int count,
                                std::vector<SIG_LETTER_INFO>& vecOld)
 {
     std::sort(vecNew.begin(), vecNew.end(), CompareLetterIndex);
-    int start = (int)vecNew.size() - count;
-    while ((int)vecNew.size() > start)
+    // ORIG 0x0841d1c2 `mov count,%edx; sub %edx,%eax` + 尾测 `cmp start,%eax;
+    // seta` ⇒ start 为 unsigned（int 形恒折 `sub mem,%eax` + setg，探针
+    // /tmp/p2/sub.cpp a1/a2 对照）。
+    unsigned int start = vecNew.size() - count;
+    while (vecNew.size() > start)
     {
         int mailIdx = -1;
-        int letterId = *(int*)&vecNew[(size_t)start];
-        mailIdx = FindLastLetterIndexMail(list, letterId);
+        // [b28d-solo-DB_MailBox_Req_List] ORIG 把 operator[] 结果直接作实参
+        // （0x0841d1e3 `call operator[]; mov (%eax),%eax; mov %eax,0x4(%esp)`），
+        // 无 letterId 具名局部；具名会多 1 槽 + 2 条 mov。
+        mailIdx = FindLastLetterIndexMail(list, *(int*)&vecNew[start]);
         if (mailIdx != -1)
         {
-            int letterIdx = SIG_I32(list, mailIdx * 0x61 + 0x5c);
-            if (RemoveMailByLatestLetter(list, mailIdx) && letterIdx != 0)
+            int letterIdx = ((LetterListView*)list)->m_postals[mailIdx].m_letterId;
+            // 拆两条独立 if：ORIG 0x0841d234/0x0841d23e 两处直跳统一失败出口；
+            // 合并 && 在 4.4 生 mov$1/jmp/mov$0/test 物化岛（P225 推广反向应用）。
+            if (RemoveMailByLatestLetter(list, mailIdx))
             {
-                std::vector<SIG_LETTER_INFO>::iterator it;
-                for (it = vecOld.begin(); it != vecOld.end(); ++it)
+                if (letterIdx != 0)
                 {
-                    if (*(int*)&*it == letterIdx)
+                    // ORIG 在循环头缓存 begin/end 两枚迭代器槽（-0x24/-0x28，
+                    // 0x0841d251/0x0841d266 两 call 实证），非每轮重调 end()（P13）。
+                    std::vector<SIG_LETTER_INFO>::iterator it = vecOld.begin();
+                    std::vector<SIG_LETTER_INFO>::iterator e = vecOld.end();
+                    for (; it != e; ++it)
                     {
-                        vecOld.erase(it);
-                        break;
+                        if (*(int*)&*it == letterIdx)
+                        {
+                            vecOld.erase(it);
+                            break;
+                        }
                     }
                 }
             }
@@ -302,30 +343,8 @@ struct MailPostalItem
 };
 #pragma pack(pop)
 
-// user_items 明细项（stride 0x47=71，基址 +0x7a0）
-#pragma pack(push, 1)
-struct MailUserItemView
-{
-    int m_uiId;                      // +0x04
-    unsigned int m_regDate;          // +0x08（unix_timestamp(reg_date)）
-    unsigned int m_expireDate;       // +0x0c（unix_timestamp(expire_date)）
-    char m_ipgAgency[0x18];          // +0x10
-    unsigned char m_jewel[0x1e];     // +0x29（jewel_socket，stAvatarEmblemInfo_t 30 字节）
-};
-#pragma pack(pop)
-
-// creature_items 明细项（stride 0x25=37，基址 +0xd30）
-#pragma pack(push, 1)
-struct MailCreatureItemView
-{
-    int m_uiId;                      // +0x04
-    int m_expireDate;                // +0x08（unix_timestamp(expire_date)）
-    int m_regDate;                   // +0x0c（unix_timestamp(reg_date)）
-};
-#pragma pack(pop)
-
 // ============================================================================
-// SelectLetter —— ORIG 0x0841d52c（普通成员，this 调用）：
+// SelectLetter —— ORIG 0841d52c（普通成员，this 调用）：
 
 //   清 SIG_MAILBOX_LIST 信件区（+0x101c 起 0x230a）→ letterIdx==0 时先删过期
 //   stat=2/1 邮件 → 按 (charac_no, stat=3) or (charac_no, reg_date 15 天内)
@@ -333,26 +352,37 @@ struct MailCreatureItemView
 //   （stat==3 单独；stat 1/2 按 IsContainedLetter 分流）→ ArrangeMailAndLetterIndex
 //   整理 → 限额拷回 +0x101c 区（stride 0x12b）→ 写 +0x332a/+0x798/+0x1018。
 // ============================================================================
-// [b28d-D33 N82/N89 封顶] ORIG 0x0841d52c：550 vs 511 条（大函数，§6.2 口径）。
+// [b28d-solo-DB_MailBox_Req_List] verdict=DIFF（ORIG 513 vs 554），§6.2 超大函数
+// （orig_insns>500）三件套：①p167 调用点差集 **CLEAR 34=34**；②gap = -41（我方大）；
+// ③帧 ORIG sub $0x1cc vs 我方 sub $0x1ec（+0x20 槽组平移）。残余为 N82/N95
+// 帧-槽号族 + SIG 宏 offset 形（本轮已修 exec 校验为 ORIG 的
+// `movzbl; mov slot; cmpl; jne` 形）。语义完成、byte 层 N 封顶。
 bool DB_MailBox_Req_List::SelectLetter(MySQL* db, int slot, int characNo,
                                        unsigned int letterIdx,
                                        SIG_MAILBOX_LIST* out)
 {
     (void)slot;
     memset(SIG_PTR(out, 0x101c), 0, 0x230a);
+    // [b28d-solo-DB_MailBox_Req_List] ORIG 0x0841d5a8 三处 exec 校验为
+    // `call exec; movzbl %al,%eax; mov %eax,-0x40(%ebp); cmpl $0x0,-0x40(%ebp);
+    // jne` ⇒ 源形是「int 局部接收 + `== 0` 早返」（不是 `!(unsigned char)exec()`
+    // 的 xor 形，探针 /tmp/p2/ex.cpp g1/g2）。
+    int bExec;   // ORIG 无前置清零（首次写入在 exec 调用后）
 
     if (letterIdx == 0)
     {
         db->set_query(
             "deLete from letter where charac_no=%d and reg_date<subdate(now(),interval %d day) and stat=%d",
             characNo, 0xf, 2);
-        if (!(unsigned char)db->exec(true))
+        bExec = db->exec(true);
+        if (bExec == 0)
             return 0;
 
         db->set_query(
             "deLete from letter where charac_no=%d and reg_date<subdate(now(),interval %d day) and stat=%d",
             characNo, 0xf, 1);
-        if (!(unsigned char)db->exec(true))
+        bExec = db->exec(true);
+        if (bExec == 0)
             return 0;
 
         db->set_query(
@@ -366,7 +396,8 @@ bool DB_MailBox_Req_List::SelectLetter(MySQL* db, int slot, int characNo,
             characNo, characNo, letterIdx, 0xf);
     }
 
-    if (!(unsigned char)db->exec(true))
+    bExec = db->exec(true);
+    if (bExec == 0)
         return 0;
 
     int oldCount = SIG_I32(out, SIG_OFF_POSTAL_COUNT);   // +0x794
@@ -485,8 +516,11 @@ bool DB_MailBox_Req_List::SelectLetter(MySQL* db, int slot, int characNo,
 // setCreatureData —— ORIG 0x0841dc84（普通成员）：getList2inQuery(list) 拼串 →
 //   查 creature_items（stat=1）→ +0xd30 条数 → 逐行回填 +0xd30+i*0x25 区。
 // ============================================================================
-// [b28d-D33 N82 封顶] ORIG 0x0841dc84：125 vs 101 条；帧 -0x1018 vs -0x1010
-// （槽组平移）。p167 CLEAR 9=9，语义完成。
+// [b28d-solo-DB_MailBox_Req_List] verdict=AE（check_tu_routed，125=125）。
+// 修法：①SIG_MAILBOX_LIST::m_creature 具名视图（stride 0x25、基址 +0xd30、
+// item[0] 首 4 字节条数）复现 `mov (%edx,%eax,1)` 与 `lea; add $0xd30; mov disp`
+// 形；②三个具名局部（声明序按 ORIG 槽 -0x10/-0x14/-0x18）承接 get_int 再回写；
+// ③m_count 用 unsigned 触发 `mov %eax,%edx` 中转（P211/P217）。
 bool DB_MailBox_Req_List::setCreatureData(MySQL* db, unsigned int characNo,
                                           unsigned int* list,
                                           SIG_MAILBOX_LIST* out)
@@ -494,13 +528,23 @@ bool DB_MailBox_Req_List::setCreatureData(MySQL* db, unsigned int characNo,
     (void)characNo;
     char buf[0x1000] = { 0 };
 
+    // [b28d-solo-DB_MailBox_Req_List] ORIG 0x0841dc84 逐条复现：三个**具名局部**
+    // （ORIG -0x10/-0x14/-0x18 三槽，0x0841dca5..0x0841dcb3 三条 movl $0 实证）
+    // 逐个 get_int 接收后再写入明细（ORIG 不把 &item->field 直接传给 get_int）；
+    // 明细经 SIG_MAILBOX_LIST::m_creature 视图（stride 0x25、基址 +0xd30、
+    // item[0] 首 4 字节为条数）。
+    // 声明序按 ORIG 槽位排（4.4「先声明占浅槽」：-0x10/-0x14/-0x18）。
+    int expireDate = 0;
+    int regDate = 0;
+    int uiId = 0;
+
     getList2inQuery(list, buf);
     db->set_query(
         "seLect ui_id,unix_timestamp(expire_date),unix_timestamp(reg_date) from creature_items where ui_id %s and stat = 1",
         buf);
     db->exec(true);
 
-    SIG_I32(out, SIG_OFF_CREATURE_CNT) = db->get_n_rows();
+    out->m_creature.m_items[0].m_count = db->get_n_rows();
 
     unsigned int i;
     for (i = 0; i < (unsigned int)db->get_n_rows(); ++i)
@@ -508,14 +552,16 @@ bool DB_MailBox_Req_List::setCreatureData(MySQL* db, unsigned int characNo,
         if (!db->fetch())
             return 0;
 
-        MailCreatureItemView* item =
-            (MailCreatureItemView*)SIG_PTR(out, SIG_OFF_CREATURE_CNT + i * 0x25);
-        if (!db->get_int(0, item->m_uiId))
+        if (!db->get_int(0, uiId))
             return 0;
-        if (!db->get_int(1, item->m_expireDate))
+        if (!db->get_int(1, expireDate))
             return 0;
-        if (!db->get_int(2, item->m_regDate))
+        if (!db->get_int(2, regDate))
             return 0;
+
+        out->m_creature.m_items[i].m_uiId = uiId;
+        out->m_creature.m_items[i].m_expireDate = expireDate;
+        out->m_creature.m_items[i].m_regDate = regDate;
     }
     return 1;
 }
@@ -527,8 +573,15 @@ bool DB_MailBox_Req_List::setCreatureData(MySQL* db, unsigned int characNo,
 //   → SelectLetter 信件 → DoChangeMailList 整理 → user_items 回填（stride 0x47）
 //   → setCreatureData 回填（stride 0x25）→ 0x7f 包投递 DISPATCH_Q。
 // ============================================================================
-// [b28d-D33 N82/N89 封顶] ORIG 0x0841de4a：1169 vs 1151 条（超大函数 >500，
-// §6.2 三件套口径）。语义等价。
+// [b28d-solo-DB_MailBox_Req_List] verdict=DIFF（ORIG 1193 vs 1160），§6.2 超大函数
+// （orig_insns>500）三件套：①p167 调用点差集 **CLEAR 88=88**（本轮归零 4 项：
+// MISSING RandomOption::reset（memset 等价物改真调用）、EXTRA memcpy（jewel 改
+// stAvatarEmblemInfo_t 结构体整体赋值）、EXTRA _Rb_tree_iterator::C1Ev（写回循环
+// 改 begin() 直接初始化）、EXTRA ptEv（`it->second += 1` 单次 operator->）；
+// ②gap = +33（我方小）；③帧 ORIG sub $0x463c vs 我方 sub $0x464c（+0x10）。
+// 本轮同时修真 bug：user_items 视图缺前导 4 字节 pad（ui_id/reg_date/agency/jewel
+// 全部低移 4 字节）→ 权威头 SIG_MAILBOX_USER_ITEM（+0x04/+0x08/+0x0c/+0x10/+0x29）。
+// 残余为 N82/N95 帧-槽号族；语义完成、byte 层 N 封顶。
 bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
 {
     static const int handleIdx = 3;
@@ -606,8 +659,11 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
                 int i8 = 0;
         char name9[0x1d] = { 0 };
         short s10 = 0, s11 = 0, s12 = 0;
-        unsigned char extBuf[0xe];
-        memset(extBuf, 0, sizeof(extBuf));   // RandomOption::reset 等价（清零 0xe）
+        // [b28d-solo-DB_MailBox_Req_List] ORIG 0x0841e8d7 `lea -0x106(%ebp),%eax;
+        // call RandomOption::reset` ⇒ 原码是 RandomOption 局部 + reset()（不是
+        // memset 等价物）；p167 MISSING `_ZN12RandomOption5resetEv` 由此归零。
+        RandomOption extOpt;
+        extOpt.reset();
 
         if (!db->get_int(0, p0)) return 0;
 
@@ -649,7 +705,7 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
                             if (db->get_short(idx, s17))
                             {
                                 ++idx;
-                                if (db->get_binary(idx, extBuf, 0xe)) // extend_info 区（-0x102）
+                                if (db->get_binary(idx, &extOpt, 0xe)) // extend_info 区（-0x102）
                                 {
                                     ++idx;
                                     if (db->get_byte(idx, b19))
@@ -704,10 +760,13 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
                                             item->m_field43 = (char)b16;
                                             item->m_field44 = (short)s17;
                                             item->m_field60 = b20;
-                                            item->m_ext0 = *(unsigned int*)&extBuf[0];
-                                            item->m_ext1 = *(unsigned int*)&extBuf[4];
-                                            item->m_ext2 = *(unsigned int*)&extBuf[8];
-                                            item->m_ext3 = *(unsigned short*)&extBuf[12];
+                                            // ORIG 0x0841f0xx 段：`lea opt; mov (%eax),%edx`
+                                            // / `lea opt; add $4; mov (%eax),%edx`（+0/+4/+8
+                                            // 逐段 add 形，P82 尾部视图）。
+                                            item->m_ext0 = *(unsigned int*)&extOpt;
+                                            item->m_ext1 = *(unsigned int*)((char*)&extOpt + 4);
+                                            item->m_ext2 = *(unsigned int*)((char*)&extOpt + 8);
+                                            item->m_ext3 = *(unsigned short*)((char*)&extOpt + 12);
                                             item->m_field54 = b19;
                                             strncpy(item->m_sendName, name9, 0x1d);
 
@@ -741,7 +800,10 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
         {
             std::map<unsigned int, int>::iterator it = extraMap.find(u13b);
             if (it != extraMap.end())
-                it->second = it->second + 1;
+                // ORIG 0x0841e9e5 `call ptEv; mov 0x4(%eax),%edx; add $1,%edx;
+                // mov %edx,0x4(%eax)` ⇒ `+= 1`（`= it->second + 1` 恒发两次 ptEv，
+                // 探针 /tmp/p2/mp.cpp a1/a2）。
+                it->second += 1;
             SIG_I32(sig, SIG_OFF_LETTER_ADD) += 1;
         }
     }
@@ -750,10 +812,14 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
     if (!extraMap.empty())
     {
         int idx = 0;
-        std::map<unsigned int, int>::iterator it;
-        for (it = extraMap.begin(); it != extraMap.end(); ++it)
+        // ORIG 0x0841ea9e：begin() 直构进 it 槽（-0x124）+ 循环内每轮重调 end()
+        // （0x0841eab8 call end）⇒ 直接初始化、非「默认构造 + 赋值」（P314/P50，
+        // 旧形多发 _Rb_tree_iterator::C1Ev，p167 EXTRA）。
+        std::map<unsigned int, int>::iterator it = extraMap.begin();
+        for (; it != extraMap.end(); ++it)
         {
-            if (it->second >= 1 && idx <= 0x13)
+            // ORIG 0x0841ea63 `test %eax,%eax; jle` ⇒ 判据是 `> 0`（`>= 1` 产 cmp $1）。
+            if (it->second > 0 && idx <= 0x13)
             {
                 SIG_U32(sig, SIG_OFF_EXTRA_IDS + idx * 4) = it->first;
                 ++idx;
@@ -788,15 +854,18 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
             "seLect ui_id,unix_timestamp(reg_date),unix_timestamp(expire_date),ipg_agency_no,jewel_socket from user_items where charac_no=%d and ui_id %s",
             req->m_characNo, sql2);
         db->exec(true);
-        SIG_I32(sig, SIG_OFF_USER_ITEM_CNT) = db->get_n_rows();
+        sig->m_user.m_items[0].m_count = db->get_n_rows();
 
         int ui;
         for (ui = 0; ui < db->get_n_rows(); ++ui)
         {
             if (!db->fetch())
                 return 0;
-            MailUserItemView* item =
-                (MailUserItemView*)SIG_PTR(sig, SIG_OFF_USER_ITEM_CNT + ui * 0x47);
+            // [b28d-solo-DB_MailBox_Req_List] 真 bug 修正：ORIG 明细基址
+            // sig+0x7a0+ui*0x47 的字段在 **+0x04 ui_id / +0x08 expire_date /
+            // +0x0c reg_date / +0x10 agency / +0x29 jewel**（0x0841ee1a/ee35/ee50/
+            // ee61 实证）；旧 MailUserItemView 缺前导 4 字节 pad ⇒ ui_id/reg_date/
+            // agency/jewel 全部低移 4 字节。改用权威头 SIG_MAILBOX_USER_ITEM 视图。
             int uiId = 0;
             if (!db->get_int(0, uiId))
                 return 0;
@@ -813,15 +882,17 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
             if (!db->get_binary(4, &emblem, 0x1e))
                 return 0;
 
-            item->m_expireDate = expireDate;
-            item->m_uiId = uiId;
-            item->m_regDate = regDate;
-            strncpy(item->m_ipgAgency, agency, 0x18);
-            memcpy(item->m_jewel, &emblem, 0x1e);
+            sig->m_user.m_items[ui].m_expireDate = expireDate;
+            sig->m_user.m_items[ui].m_uiId = uiId;
+            sig->m_user.m_items[ui].m_regDate = regDate;
+            strncpy(sig->m_user.m_items[ui].m_ipgAgency, agency, 0x18);
+            // ORIG 0x0841ee95..0x0841eed5 段为 7×dword + 1×word 结构体整体拷贝
+            // （非 memcpy 调用；P167 EXTRA memcpy 由此归零）。
+            *(stAvatarEmblemInfo_t*)sig->m_user.m_items[ui].m_jewel = emblem;
         }
     }
 
-    SIG_I32(sig, SIG_OFF_CREATURE_CNT) = 0;   // +0xd30
+    sig->m_creature.m_items[0].m_count = 0;   // +0xd30
     bool bCreatureOk;
     if (creatureList[0] == 0)
         bCreatureOk = true;

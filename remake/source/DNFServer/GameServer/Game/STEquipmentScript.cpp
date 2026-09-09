@@ -16,6 +16,25 @@
 //   Position::Position               W 0x089c2c42
 //   effect::STEffect::clear          W 0x089c2c64
 // ============================================================================
+// [b28d-solo-STEquipmentScript 单文件泳道收口判词] 清单 15 件全有 verdict：
+//   AE/IDENTICAL 2 件 —— STEquipmentStatInfo::clear（P311 二维成员数组视图，
+//     .h 匿名 union m_view[9][4]/m_view2，probe1 T::h1-h3 实证）、
+//     artifact_info::isUsable（具名 bool + `||` 链 + float 项 `!(x==0.0f)`，
+//     probe5 c2 逐条同形）；
+//   N 封顶 13 件 —— 主要族：N4/P30 数组退化 add-vs-lea（AniScript clear）、
+//     N4/P235 string 数组视图不可建（AniScript C1/operator=）、
+//     N85 x87 比较 lowering（GetExpertJobValueMaterialVariation）、
+//     N82/N89 帧槽平移+STL 内联（ImportEquipmentScript/importEffect/
+//     importArtifactInfo/setEquipmentAniScriptLay）、N82/N91 static map 惰性
+//     注册块（GetItemCategory/GetAuraAvatarOption/GetExpertJobTypeList）、
+//     N93附 return 块布局（EquipmentScriptSpecialMonsterDrop）。
+//   本轮正向修复：3 处双 SpinLock::leave 调用点（p167 MISSING 归零）+
+//     leave→__inited 序、非 const iterator/`(*it).second`（P96/P167）、
+//     make_pair→pair 直构（P61）、三分支 addAniInfo 调用点、去引用缓存（P183）。
+//   TU：check_tu_routed.sh COMPILE OK 0 错误，identical=709 ae=1425 near=2
+//     diff=21 missing_in_game=468（基线 708/1424/2/23/473）。
+//   P0：本文件零 `register asm` 绑定、零裸 register（清绑数 0）。
+// ============================================================================
 
 #include "STEquipmentScript.h"
 #include "STSkillScript.h"
@@ -85,9 +104,10 @@ void STEquipmentStatInfo::clear()  // ORIG 0x0898d272：10 直接 + 循环 i<=3(
                                    // + +0x38 + 循环 j<=16(+0x3c) + +0x80/+0x84
                                    // + 循环 k<=3(+0x88)；38 int 全清，sizeof 0x98
 {
-    // [b28d-56 判词·N] N81/P30：ORIG 0x0898d2?? 三处循环体发 scaled 直存
-    // `movl $0x0,0x8(%eax,%edx,4)`（索引寄存器 = 局部 +K 两步 add）；4.4 恒折
-    // `shl $2; lea (%edx,%eax,1)`（7 形探针见 /tmp/lane56/lea.cpp 族）⇒ 封顶。
+    // [b28d-solo-STEquipmentScript] 旧 N81/P30 判词作废：ORIG 三处循环体发
+    // `mov i,%edx; mov this,%eax; add $K,%edx; movl $0,disp(%eax,%edx,4)`，
+    // 由头内 +0x08 起的二维成员数组视角 m_view[9][4] 复现（P311；探针
+    // /tmp/b28d_s219/probe1.cpp T::h1/h2/h3 与 ORIG 逐条同形）。字段偏移不变。
     m_hpMax = 0;
     m_mpMax = 0;
     m_phyAtt = 0;
@@ -100,61 +120,70 @@ void STEquipmentStatInfo::clear()  // ORIG 0x0898d272：10 直接 + 循环 i<=3(
     m_equipMagDef = 0;
     for (int i = 0; i <= 3; ++i)
     {
-        (&m_refFire)[i] = 0;        // +0x28..+0x34 元素耐性
+        m_view[2][i] = 0;           // +0x28..+0x34 元素耐性（字索引 8+i）
     }
     m_refAll = 0;                   // +0x38
     for (int j = 0; j <= 16; ++j)
     {
-        (&m_refSlow)[j] = 0;        // +0x3c..+0x7c 状态耐性
+        m_view2[3][j] = 0;          // +0x3c..+0x7c 状态耐性（视图基址 +0x0c，索引 12+j）
     }
     m_refAllState = 0;              // +0x80
     m_84 = 0;                       // +0x84
     for (int k = 0; k <= 3; ++k)
     {
-        (&m_88)[k] = 0;             // +0x88..+0x94
+        m_view[8][k] = 0;           // +0x88..+0x94（字索引 32+k）
     }
 }
 
 STEquipmentAniScript::STEquipmentAniScript()
 {
-    // [b28d-56 判词·N] N91/EH：ORIG 0x0898d0?? 298 条 vs 我们 353 条，成员数组
-    // 隐式构造循环 4.4 恒布 landing pad + _Unwind_Resume（throw() 法对 D1 侧无效，
-    // P216 边界）；语义完成。
+    // [b28d-solo-STEquipmentScript 判词·N] C1 0x0898ca36 375 条 vs 我们 353 条：
+    // ORIG 用**倒计数循环**构造 string 数组成员（0x0898ca42 `lea 0x10(%eax),%esi;
+    // mov $0x1,%ebx; … sub $1,%ebx; cmp $-1,%ebx; jne`，P151 2 元素）+ 完整 EH
+    // landing/回滚段；我们 4.4 逐成员发射 C1Ev（p167 EXTRA string::C1 ×7、
+    // ~string ×4）。复现需把 +0x10 等区间声明为真数组成员，但该类隐式拷贝
+    // 构造/赋值/析构正由编译器合成（operator= 亦为隐式件），匿名 union 含
+    // 非平凡 string 数组会删除隐式析构并改拷贝语义 ⇒ 判 N4/P235 封顶（视图
+    // 形恒 base 先载，探针 /tmp/b28d_s219/probe3.cpp fB vs ORIG）。
+    // 同族 operator=（隐式合成 W）：ORIG 180 条走数组循环（19 call 点），我们
+    // 192 条展开逐成员（26 call 点，p167 EXTRA string::operator= ×7）——同上封顶。
     clear();
 }
 
 void STEquipmentAniScript::clear()  // ORIG 0x0898ce62（m_field0=0，各 string 置 ""）
 {
-    // [b28d-56 判词·N] N82/N93：ORIG 0x0898ce62 帧 sub 0x28 vs 我们 0x18（成员
-    // string 清理块布局差，118/107），助记符序列同、槽号平移。
+    // [b28d-solo-STEquipmentScript] ORIG 形：`.clear()` 实为 `s = ""`（operator=(const
+    // char*)，实参 "" 落 0x4(%esp)）；两组连续 string 走 `i<=1`（+0x10/+0x14）与
+    // `i<=3`（+0x2c..+0x38 / +0x3c..+0x48）循环；+0x60 在 vector clear 之后。
+    // 循环取址用字段地址下标形（N4/P30：ORIG 数组退化 add/shl/add 链 4.4 恒折 lea）。
     m_field0 = 0;
-    m_str04.clear();
-    m_str08.clear();
-    m_str0c.clear();
-    m_str10.clear();
-    m_str14.clear();
-    m_str18.clear();
-    m_str1c.clear();
-    m_str20.clear();
-    m_str24.clear();
-    m_str28.clear();
-    m_str2c.clear();
-    m_str30.clear();
-    m_str34.clear();
-    m_str38.clear();
-    m_str3c.clear();
-    m_str40.clear();
-    m_str44.clear();
-    m_str48.clear();
-    m_str4c.clear();
-    m_str50.clear();
-    m_str54.clear();
-    m_str58.clear();
-    // ORIG 0x0898ce62 未清 +0x5c（23 个 string 逐一 =""，缺 +0x5c；拷贝构造/operator= 均
-    // 拷贝 +0x5c，故 +0x5c 是 string 成员，仅 clear 漏清——按 ORIG 实证保留不清）
-    m_str60.clear();
+    m_str04 = "";
+    m_str08 = "";
+    m_str0c = "";
+    int i = 0;
+    for (i = 0; i <= 1; ++i)
+    {
+        (&m_str10)[i] = "";
+    }
+    m_str18 = "";
+    m_str1c = "";
+    m_str20 = "";
+    m_str24 = "";
+    m_str28 = "";
+    for (i = 0; i <= 3; ++i)
+    {
+        (&m_str2c)[i] = "";
+        (&m_str3c)[i] = "";
+    }
+    m_str4c = "";
+    m_str50 = "";
+    m_str54 = "";
+    m_str58 = "";
     m_vec64.clear();
     m_vec70.clear();
+    // ORIG 0x0898ce62 未清 +0x5c（拷贝构造/operator= 均拷贝 +0x5c，故 +0x5c 是 string
+    // 成员，仅 clear 漏清——按 ORIG 实证保留不清）
+    m_str60 = "";
 }
 
 void stAvatarTypeSelect_t::init()  // ORIG 0x0898d1fc
@@ -404,17 +433,17 @@ STEquipmentScript::artifact_info::artifact_info()  // 0x0898f084
 
 bool STEquipmentScript::artifact_info::isUsable() const  // 0x0898f0fe
 {
-    // [b28d-56 判词·N] N85：-march=i486 路由后 x87 比较已转 fucompp/fnstsw，
-    // 但 ORIG 0x0898f10? 为 `sahf; sete %al; setnp %dl; and %edx,%eax; xor $1`
-    // 四段布尔物化（6 处 float `!=0` 判定），4.4 恒 `sahf; jne; jp` 直跳（110/86）。
-    if (m_minLevel == 0 && m_physAttack == 0 && m_magAttack == 0 &&
-        m_mpRate == 0.0f && m_chargeRate == 0.0f && m_overChargeRate == 0.0f &&
-        m_expRate == 0.0f && m_physCrit == 0.0f && m_magCrit == 0.0f &&
-        m_stuck == 0.0f && m_piercing == 0)
-    {
-        return false;
-    }
-    return true;
+    // [b28d-solo-STEquipmentScript] ORIG 形 = 具名 bool 局部 + `||` 短路链
+    // （0x0898f0fe：逐条件 jne 共享 mov$1 块 → mov $0 岛 → 尾 `mov %al,-0x1(%ebp);
+    // movzbl`，sub $0x10）。float 项必须写 `!(x == 0.0f)`（否定式）：4.4 才发
+    // `fucompp; fnstsw; sahf; sete; setnp; and; xor $1; test; jne` 与 ORIG 逐条同形；
+    // 写 `x != 0.0f` 则折成 `fxch; jne; jp` 直跳（探针 /tmp/b28d_s219/probe5.cpp c1 vs c2）。
+    bool usable = (m_minLevel != 0) || (m_physAttack != 0) || (m_magAttack != 0) ||
+                  !(m_mpRate == 0.0f) || !(m_chargeRate == 0.0f) ||
+                  !(m_overChargeRate == 0.0f) || !(m_expRate == 0.0f) ||
+                  !(m_physCrit == 0.0f) || !(m_magCrit == 0.0f) ||
+                  !(m_stuck == 0.0f) || !(m_piercing == 0);
+    return usable;
 }
 
 // ===================== 脚本导入（T 0x08991aeb，9821 insn） =====================
@@ -436,9 +465,12 @@ bool STEquipmentScript::artifact_info::isUsable() const  // 0x0898f0fe
 bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                            bool flag, int a, int idx)
 {
-    // [b28d-56 判词·N] N82/N89：ORIG 0x089a???? 9771 条 vs 我们 9838 条（帧 0x19fc
-    // vs 0x1a2c，巨件全帧槽号平移 + STL 模板内联差；§6.2 三件套口径：语义完成、
-    // byte 层 N 封顶）。禁止再耗轮次。
+    // [b28d-solo-STEquipmentScript 判词·N] §6.2 三件套（0x08991aeb T）：
+    // ①gap：ORIG 9771 条 vs 我们 9838 条（帧 0x19fc vs 0x1a2c，巨件全帧槽号平移）；
+    // ②p167：ORIG calls=1292 / 我们 1300，MISSING 仅 2 个 pair converting ctor 实例
+    //   （`pair<char const(&)[10],int>` / `[11]`，模板实例化差非语义缺口），EXTRA
+    //   含 EquipmentScriptSpecialMonsterDrop ×2（三 case 各自调用点 vs ORIG 单共享块）
+    //   与 STL 析构/拷贝 ctor 计数差；③槽位集/帧差属 N82/N89。语义完成，byte 层封顶。
     // 声明顺序 = ORIG prologue 构造/初始化执行顺序（帧槽位由声明序决定，
     // 注释内为 ORIG %ebp 槽位，报告 0x08991b00-0x08991d8b）：
     std::string tmp;                       // ORIG -0x106c（各 case 第一读取暂存）
@@ -4074,12 +4106,13 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
 bool EquipmentScriptSpecialMonsterDrop(STEquipmentScript* script,
                                        std::string str, const char* path)
 {
-    // [b28d-56 判词·N] N82：ORIG 0x08991856 172 条 vs 我们 197 条（帧 0x20 vs 0x30、
-    // string 实参槽 -0x10 vs -0x18）；语义完成。
-    // ORIG 0x08991856（与 StackableScriptSpecialMonsterDrop 0x89ae906 同构，
-    // 目标为 STEquipmentScript 继承自 STItemScript 的 m_specialDrop +0x105）。
+    // [b28d-solo-STEquipmentScript] ORIG 0x08991856（与 StackableScriptSpecialMonsterDrop
+    // 0x89ae906 同构，目标为 STItemScript::m_specialDrop +0x105）：
+    // ①函数头只构造一个 string 局部（-0x10），各分支复用（P28/P212 全头部声明）；
+    // ②禁 `STSpecialMonsterDrop& drop` 引用缓存（P183）——每个使用点直写
+    //   `script->m_specialDrop.xxx`，才复现 ORIG `add $0x105,%eax` + `mov %dl,0x105(%eax)`。
     (void)path;
-    STSpecialMonsterDrop& drop = script->m_specialDrop;
+    std::string token;
     if (str == "[special monster drop]")
     {
         bool value = false;
@@ -4088,61 +4121,61 @@ bool EquipmentScriptSpecialMonsterDrop(STEquipmentScript* script,
         {
             return false;
         }
-        drop.m_enable = ok ? 1 : 0;
+        script->m_specialDrop.m_enable = ok;   // P136/P32：bool 字段直存（ORIG movzbl→mov %dl）
         return true;
     }
     if (str == "[difficulty for extra drop]")
     {
-        std::string token;
         while (ScanStr(&token))
         {
             if (token == "[easy]")
             {
-                drop.m_difficulty[0] = 1;
+                script->m_specialDrop.m_difficulty[0] = 1;
             }
             else if (token == "[medium]")
             {
-                drop.m_difficulty[1] = 1;
+                script->m_specialDrop.m_difficulty[1] = 1;
             }
             else if (token == "[hard]")
             {
-                drop.m_difficulty[2] = 1;
+                script->m_specialDrop.m_difficulty[2] = 1;
             }
             else if (token == "[ultimate]")
             {
-                drop.m_difficulty[3] = 1;
+                script->m_specialDrop.m_difficulty[3] = 1;
             }
             else if (token == "[hero]")
             {
-                drop.m_difficulty[4] = 1;
+                script->m_specialDrop.m_difficulty[4] = 1;
             }
             else if (token == "[all]")
             {
-                memset(drop.m_difficulty, 1, sizeof(drop.m_difficulty));
+                memset(script->m_specialDrop.m_difficulty, 1,
+                       sizeof(script->m_specialDrop.m_difficulty));
             }
         }
         return true;
     }
     if (str == "[dungeon type for extra drop]")
     {
-        std::string token;
         while (ScanStr(&token))
         {
             if (token == "[normal]")
             {
-                drop.m_dungeonType[0] = 1;
+                script->m_specialDrop.m_dungeonType[0] = 1;
             }
             else if (token == "[ancient]")
             {
-                drop.m_dungeonType[1] = 1;
+                script->m_specialDrop.m_dungeonType[1] = 1;
             }
             else if (token == "[dimension]")
             {
-                drop.m_dungeonType[2] = 1;
+                script->m_specialDrop.m_dungeonType[2] = 1;
             }
             else if (token == "[all]")
             {
-                memset(drop.m_dungeonType, 1, sizeof(drop.m_dungeonType));
+                memset(script->m_specialDrop.m_dungeonType, 1,
+                       sizeof(script->m_specialDrop.m_dungeonType));
             }
         }
         return true;
@@ -4153,8 +4186,10 @@ bool EquipmentScriptSpecialMonsterDrop(STEquipmentScript* script,
 bool importArtifactInfo(STEquipmentScript::artifact_info& info,
                         std::string str)
 {
-    // [b28d-56 判词·N] N82/N89：ORIG 0x089bd079 448 条 vs 我们 351 条（帧 0x11c vs
-    // 0x10c、static map 注册块槽序、STL 模板内联差）；语义完成。
+    // [b28d-solo-STEquipmentScript 判词·N] 0x089bd079：ORIG 450 条 vs 我们 354 条
+    // （帧 0x11c vs 0x10c、static map 注册块槽序、STL 模板内联差）。p167 已清零
+    // （ORIG calls=55 / 我们 55，0 missing / 0 extra；修复=补 ORIG 0x089bd262+
+    // 0x089bd822 双 leave 调用点与 leave→__inited 序）。语义完成，byte 层 N82/N89 封顶。
     // ORIG T 0x089bd079（0x7cb，报告全文转写）：函数级静态 lookup 表
     // （map<const char*,int,less_TCHAR> @0x94fdf28 + SpinLock @0x94fdf40 +
     // 就绪字节 @0x94fdf44）双检锁惰性建表；11 个 [creature *] 关键字 → id
@@ -4181,9 +4216,15 @@ bool importArtifactInfo(STEquipmentScript::artifact_info& info,
             __lookup.insert(std::pair<char const* const, int>("[creature magical critical hit]", 0x2f01));
             __lookup.insert(std::pair<char const* const, int>("[creature stuck]", 0x2f04));
             __lookup.insert(std::pair<char const* const, int>("[creature piercing]", 0x2f07));
+            // [b28d-solo-STEquipmentScript] ORIG 0x089bd262/0x089bd822 两个 leave 调用点
+            // 且顺序为 leave → __inited=true（P171 照抄原序；p167 差集 MISSING leave 1 处）。
+            __init_lock.leave();
             __inited = true;
         }
-        __init_lock.leave();
+        else
+        {
+            __init_lock.leave();
+        }
     }
 
     std::map<const char*, int, less_TCHAR>::const_iterator it =
@@ -4263,8 +4304,9 @@ std::map<std::string, STEquipmentAniScript>* getMapEquipmentAniScript()
 //      + 就绪字节 @0x94fde44，双检锁形态）；未知标签令整个导入失败。 ----
 static bool GetItemCategory(STItemScript* item)
 {
-    // [b28d-56 判词·N] N82：ORIG 0x089bfdc5 244 条 vs 我们 219 条，帧差 + static
-    // map 惰性注册块槽序（P165 三段法已落）；语义完成。
+    // [b28d-solo-STEquipmentScript 判词·N] 0x089bfdc5：ORIG 254 条 vs 我们 222 条
+    // （帧差 + static map 惰性注册块槽序 + EH landing）。p167 已清零（32/34，
+    // 0 missing；修复=双 leave 调用点）。语义完成，byte 层 N82/N91 封顶。
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static bool __inited = false;
@@ -4282,9 +4324,15 @@ static bool GetItemCategory(STItemScript* item)
                 __lookup.insert(std::pair<char const* const, int>("monster card", 0x30ae));
                 __lookup.insert(std::pair<char const* const, int>("cannot bind", 0x30b1));
                 __lookup.insert(std::pair<char const* const, int>("boss drop", 0x30b4));
+                // [b28d-solo-STEquipmentScript] ORIG 双 leave 调用点 + leave→__inited 序
+                // （p167 MISSING SpinLock::leave 1 处；与 importArtifactInfo 同族）。
+                __init_lock.leave();
                 __inited = true;
             }
-            __init_lock.leave();
+            else
+            {
+                __init_lock.leave();
+            }
         }
 
         int state = 0;
@@ -4315,8 +4363,10 @@ static bool GetItemCategory(STItemScript* item)
 //      就绪字节 @0x94fde24）。ScanStr 返回值不检查——空 token 必然 miss，
 static bool GetAuraAvatarOption(STEquipmentScript* script)
 {
-    // [b28d-56 判词·N] N82：ORIG 0x089c019b 243 条 vs 我们 229 条，同 GetItemCategory
-    // （static map 惰性注册 + 帧差），语义完成。
+    // [b28d-solo-STEquipmentScript 判词·N] 0x089c019b：ORIG 258 条 vs 我们 226 条
+    // （static map 惰性注册 + 帧差 + EH landing）。p167 已清零（33/35，0 missing；
+    // 修复=双 leave 调用点 + make_pair→pair<char const* const,int> 直构，P61）。
+    // 语义完成，byte 层 N82/N91 封顶。
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static bool __inited = false;
@@ -4333,13 +4383,19 @@ static bool GetAuraAvatarOption(STEquipmentScript* script)
         __init_lock.enter();
         if (!__inited)
         {
+            // P61/P81：ORIG 用 pair 直构（MISSING pair<char const(&)[17],int> converting
+            // ctor），make_pair 会实例化另一模板并多一次转换临时。
             __lookup.insert(
-                std::make_pair("[party teleport]", 0x30d0));
+                std::pair<char const* const, int>("[party teleport]", 0x30d0));
             __lookup.insert(std::pair<char const* const, int>("[none]", 0x30d5));
             __lookup.insert(std::pair<char const* const, int>("[solo teleport]", 0x30db));
+            __init_lock.leave();   // ORIG 双 leave + leave→__inited 序（p167 MISSING leave）
             __inited = true;
         }
-        __init_lock.leave();
+        else
+        {
+            __init_lock.leave();
+        }
     }
 
     std::map<const char*, int, less_TCHAR>::const_iterator it =
@@ -4422,8 +4478,10 @@ int scanWorldType()
 // command->m_vecC，'!'','~' 设超时后把 unit 追加进 m_vec0）。收尾再追加残 unit。
 bool importCommand(STKeyCommand* command)
 {
-    // [b28d-56 判词·N] N82/N93：ORIG 0x088c167a 254 条 vs 我们 268 条（槽 -0x34 vs
-    // -0x38、局部 string/vector 声明序差）；语义完成。
+    // [b28d-solo-STEquipmentScript 判词·N] 0x088c167a：ORIG 255 条 vs 我们 259 条
+    // （槽 -0x34 vs -0x38、局部 string/vector 声明序差）。p167 已清零（41/42，
+    // 0 missing；修复=非 const iterator + `(*it).second`，P96/P167；残余 EXTRA
+    // DNFLexWrapper::getToken ×1 = 循环入口求值点差，N82）。语义完成，byte 层封顶。
     if (command == 0)
         return false;
 
@@ -4439,10 +4497,12 @@ bool importCommand(STKeyCommand* command)
         if (token == 6)
         {
             std::string name = toTString(g_dnfLex.getCustomData());
-            std::map<std::string, int>::const_iterator it =
+            // P96/P220：ORIG 用非 const iterator（p167 MISSING _Rb_tree_iterator::operator!=
+            // / operator*，EXTRA const_iterator 转换构造 + const 版比较）。
+            std::map<std::string, int>::iterator it =
                 g_mapKeyNameIndexTable.find(name);
             if (it != g_mapKeyNameIndexTable.end())
-                unit.m_ids.push_back(it->second);
+                unit.m_ids.push_back((*it).second);   // P167：ORIG 实例化 operator* 非 operator->
         }
         else if (token == 2)
         {
@@ -4493,8 +4553,9 @@ bool importCommand(STKeyCommand* command)
 // ---- ORIG T 0x088c1a0d：[effect] 条目解析 ----
 bool importEffect(effect::STEffect& effect)
 {
-    // [b28d-56 判词·N] N82/N89：ORIG 0x088c1a0d 307 条 vs 我们 305 条，帧/槽号
-    // 平移 + STL 模板内联差；语义完成（P167 差集仅 STL 模板族）。
+    // [b28d-solo-STEquipmentScript 判词·N] 0x088c1a0d：ORIG 307 条 vs 我们 305 条，
+    // 帧/槽号平移 + STL 模板内联差。p167 CLEAR（40/40，0 missing / 0 extra）⇒
+    // 语义闭合，byte 层 N82/N89 封顶。
     std::string tag;
     std::string value;
     while (true)
@@ -4581,26 +4642,35 @@ void setEquipmentAniScriptLay(
     std::string* path, STEquipmentScript* script,
     ENUM_CHARACTERJOB job, equipmentAniType::T aniType)
 {
-    // [b28d-56 判词·P214③/N78] ORIG 0x089c1cb9 用 `lea -0x24c(%ebp),%ebx; mov $0x0,%eax;
+    // [b28d-solo-STEquipmentScript 判词·N] 0x089c1cb9：ORIG 774 条 vs 我们 730 条。
+    // p167 仍有 MISSING（~string×2/allocator×3/c_str/basic_string(cc)/_Unwind_Resume/
+    // reverse_iterator::operator->/vector<STEquipmentAniScript>::push_back(const&)/
+    // __normal_iterator 默认 ctor）⇒ 残余为「三个分支各自 addAniInfo 调用点已补，
+    // 但 rbegin 解引用形（ORIG `rbegin()->` vs 我方 `*rbegin()`）与模板实例发射差」，
+    // 属 N82/N86/N89 族；语义完成，byte 层封顶。
+    // ORIG 用 `lea -0x24c(%ebp),%ebx; mov $0x0,%eax;
     // mov $0x80,%edx; rep stos %eax,%es:(%edi)`（0x80 dwords = 512B）⇒ 原码是
     // `char buf[0x200] = {0};`（显式零初始化触发 4.4 rep stos）；旧 `memset` 生 call。
     char buf[0x200] = {0};
     const STEquipmentAniScript& def = table->find(*key)->second;
 
-    EquipmentAniInfoScript& infoRef = script->addAniInfo(job);
-    EquipmentAniInfoScript* info = &infoRef;
+    // [b28d-solo-STEquipmentScript] p167：ORIG 三个分支各有独立 addAniInfo 调用点
+    // （MISSING addAniInfo×2），不是分支前统一取一次。
     if (aniType == equipmentAniType::T_job)
     {
-        if (!info->m_level5c.empty())
-            info->m_level5c.push_back(*info->m_level5c.rbegin());
+        EquipmentAniInfoScript& info = script->addAniInfo(job);
+        if (!info.m_level5c.empty())
+            info.m_level5c.push_back(*info.m_level5c.rbegin());
     }
     else if (aniType == equipmentAniType::T_level)
     {
-        info->m_ani18.push_back(*ani);
+        EquipmentAniInfoScript& info = script->addAniInfo(job);
+        info.m_ani18.push_back(*ani);
     }
     else
     {
-        info->m_ani0.push_back(*ani);
+        EquipmentAniInfoScript& info = script->addAniInfo(job);
+        info.m_ani0.push_back(*ani);
     }
 
     ani->clear();
@@ -4662,8 +4732,10 @@ void setEquipmentAniScriptLay(
 // ORIG t 0x089bf6ca：[usable list] —— 关键字→typeSel(1..5) + 每项等级下限。
 static bool GetExpertJobTypeList(STItemScript* item)
 {
-    // [b28d-56 判词·N] N82：ORIG 0x089bf6ca 327 条 vs 我们 318 条（帧 0xbc vs 0xcc、
-    // static map 注册块 + string 局部槽序）；语义完成。
+    // [b28d-solo-STEquipmentScript 判词·N] 0x089bf6ca：ORIG 330 条 vs 我们 302 条
+    // （帧 0xbc vs 0xcc、static map 注册块 + string 局部槽序 + EH landing）。
+    // p167 已清零（39/46，0 missing；修复=双 leave + `if(__inited)` 支 const_iterator /
+    // else 支非 const `(*it).second` 的混合 cv 形，P96/P167）。语义完成，byte 层封顶。
     if (item == 0)
         return false;
     item->m_expertJob.m_usable.clear();
@@ -4691,11 +4763,17 @@ static bool GetExpertJobTypeList(STItemScript* item)
                 __lookup.insert(std::pair<char const* const, int>("disjointer", 0x3040));
                 __lookup.insert(std::pair<char const* const, int>("doll_controller", 0x3043));
                 __lookup.insert(std::pair<char const* const, int>("all", 0x3046));
+                __init_lock.leave();   // ORIG 双 leave + leave→__inited 序（p167 MISSING leave）
                 __inited = true;
             }
-            __init_lock.leave();
+            else
+            {
+                __init_lock.leave();
+            }
 
             typeSel = 0;
+            // P167 差集定形：ORIG 该查询点是 const_iterator（2 次转换构造 + const
+            // operator!=/operator->），else 分支的 it 是非 const 且用 `(*it).second`。
             std::map<const char*, int, less_TCHAR>::const_iterator found =
                 __lookup.find(token.c_str());
             if (found != __lookup.end())
@@ -4703,11 +4781,11 @@ static bool GetExpertJobTypeList(STItemScript* item)
         }
         else
         {
-            std::map<const char*, int, less_TCHAR>::const_iterator it =
+            std::map<const char*, int, less_TCHAR>::iterator it =
                 __lookup.find(token.c_str());
             if (it == __lookup.end())
                 return false;
-            switch (it->second)
+            switch ((*it).second)
             {
             case 0x303a: typeSel = 1; break;   // enchanter
             case 0x303d: typeSel = 2; break;   // alchemist
@@ -4735,19 +4813,24 @@ static bool GetExpertJobTypeList(STItemScript* item)
 // ORIG t 0x089bfc2f：-100.0 哨兵（0x8e1a574）视为未设置。
 bool GetExpertJobValueMaterialVariation(STItemScript* item)
 {
-    // [b28d-56 判词·N] N85 续：-march=i486 路由后 ORIG 0x089bfc2f 的
-    // `fucompp; fnstsw %ax; test $0x5,%ah; sete %al; test %al,%al; je` 已复现到
-    // fucompp/fnstsw 段，残余仅 4.4 的 `sahf; jne; jp` 直跳 vs ORIG 的
-    // `test $0x5,%ah; sete` 布尔物化（跨版本 x87 比较 lowering，27/27 长度全等）。
-    // [b28c-lane25 判词·N85] ORIG 0x089bfc5a：x87 比较两向
-    // `flds -100.0f; fucompp; fnstsw %ax; test $0x5,%ah; sete`（4.1）；
-    // 4.4 恒 `flds; fxch; fucomip; fstp; jne; jp`（N85 已录）。语义等价，封顶。
+    // [b28d-solo-STEquipmentScript 判词·N85] ORIG 0x089bfc2f 27 条 vs 我们 29 条：
+    // 已用 P225 while 形复现 `flds; flds; fucompp; fnstsw; sahf; sete; test; je`
+    // （消掉 4.4 `if` 形的 fxch + jne/jp 直跳，见下方注释与探针 probe6 d1/d2）；
+    // 残余仅 `test $0x5,%ah` vs `sahf`（1 条）+ `setnp/and`（2 条）= 4.1 与 4.4
+    // 的 x87 比较 lowering 固有差，源形不可择（N85 封顶）。
     if (item == 0)
         return false;
     bool ok = true;
     item->m_expertJob.m_field18 = ScanFloat(&ok);
-    if (item->m_expertJob.m_field18 == -100.0f)
+    // [b28d-solo-STEquipmentScript] P225 while 形复现 4.1 的 `==` 物化
+    // （ORIG 0x089bfc5a `fucompp; fnstsw; test $0x5,%ah; sete; test; je`）：
+    // 写 `if (== ) return false;` 4.4 恒产 `fxch; jne; jp` 直跳（探针
+    // /tmp/b28d_s219/probe6.cpp d1 vs d2）；残余 `test $5,%ah` vs `sahf` + setnp/and
+    // 属 N85 跨版本 x87 lowering。
+    while (item->m_expertJob.m_field18 == -100.0f)
+    {
         return false;
+    }
     return ok;
 }
 

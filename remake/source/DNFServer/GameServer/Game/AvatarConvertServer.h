@@ -39,30 +39,29 @@ class AvatarConvert
 public:
     // ORIG：POD 聚合（无用户构造/析构；trivial D1/D0 弱符号由编译器产生）。
     //   +0x00 int   ScanTypeOrInt 返回的数值键
-    //   +0x04 short ScanInt #1（物品 index）
-    //   +0x06 short ScanInt #2（权重/数量，累加进 m_cumWeights）
+    //   +0x04 short ScanInt #1（结果数量：Convert 写回 m_resultCount）
+    //   +0x06 short ScanInt #2（权重：loadScript 累加进 m_cumWeights）
     struct GetInfo
     {
         int m_key;          // +0x00
-        short m_itemIndex;  // +0x04
-        short m_count;      // +0x06
+        short m_count;      // +0x04（ORIG 0x081928a5 取 +0x4 → sig->m_resultCount）
+        short m_weight;     // +0x06（ORIG 0x088b1c83 取 +0x6 累加 totalWeight）
     };
 
     class ConvertResult
     {
     public:
-        ConvertResult();    // ORIG W 0x088b1f42：仅构造两个 vector（标量由调用方 memset）
-        ~ConvertResult();   // ORIG W 0x088b1f8e（析构两个 vector）
+        // [b28d-solo-AvatarConvertServer P299/P318] 不声明用户 ctor/dtor：
+        // ORIG 0x088b1baf 段为 `new ConvertResult()` 的 value-init 前置零初始化
+        // （operator new(0x24) → 8×rep stos+1B → call C1Ev），CWG434 要求类无
+        // 用户提供 ctor 才会发射该清零。隐式 C1/D1 仍在使用点发射同名 W 符号
+        // （ORIG W 0x088b1f42 / 0x088b1f8e），sizeof/偏移/mangled 全不变。
 
         int m_grade;                    // +0x00（map key；ScanInt #1）
         int m_totalWeight;              // +0x04（= m_cumWeights.back()）
         std::vector<GetInfo> m_infos;      // +0x08（12B → +0x14）
         std::vector<int> m_cumWeights;     // +0x14（累计和 → +0x20）
         bool m_field20;                 // +0x20（ScanInt()==1；语义未知，pad +0x21..+0x23）
-
-    private:
-        ConvertResult(const ConvertResult&);
-        ConvertResult& operator=(const ConvertResult&);
     };
 
     AvatarConvert();    // ORIG 0x088b1b0e：map ctor

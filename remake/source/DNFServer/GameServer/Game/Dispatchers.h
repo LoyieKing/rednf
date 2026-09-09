@@ -2647,7 +2647,13 @@ private:
     short m_newSlot;           // +0x06（合成结果入包槽位；ORIG cwtl 符号扩展）
     unsigned short m_slots[2]; // +0x08（两个材料槽位；ORIG movzwl 零扩展）
     Inven_Item m_materials[2];    // +0x0c（stride 0x3d）
-    const CItem* m_itemRefs[2];   // +0x88（find_item 结果）
+    // [b28d-solo-DispLinkA1 P211 档③] ORIG _read_packet 0x08225991 的 store 为
+    // RHS-first+edx 中转（`mov %eax,%edx; mov 0x8(%ebp),%eax; mov %edx,0x8(...)`）
+    // ⇒ 字段与 RHS（CItem*）异型；`const CItem*`/`const void*` 在 4.4 均视为
+    // 同型（恒 LHS-first，两形实测）。改 4 字节整型存储指针值（同 +0x88 偏移、
+    // 同 sizeof）；消费点 Dispatchers.cpp:16066/16091 的
+    // `(const CEquipItem**)m_itemRefs` C 风格 cast 对 unsigned* 仍合法。
+    unsigned int m_itemRefs[2];   // +0x88（find_item 指针值）
     Inven_Item m_resultItem;      // +0x90
     char m_select;            // +0xcd（包内读出的选择字节；ORIG jle 有符号比较）
     unsigned char m_padCe[2];     // +0xce..+0xcf

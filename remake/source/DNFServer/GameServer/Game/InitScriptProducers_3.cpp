@@ -25,20 +25,38 @@
 //
 // 声明唯一出处 DataManagerInitDepends.h（本文件在 CDataManager.h 之后包含之）。
 // ============================================================================
-// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
-//   stTitleElement::C1 0x08aa95ae   DIFF(40/40) 修法：CTitleBook.h ctor 体顺序
-//     （P239，标量全落 ctor 体按 ORIG 书写序）；P167 CLEAR(4/4)，残差仅 call
-//     重定位标签显示 ⇒ AE 口径。
-//   stTitleSection::C1 0x08aa979e   DIFF(118/119) P167 CLEAR，帧/槽残差 N82
-//   importSlangName 0x089081a3      DIFF(125/120) 修法：push_back 右值化
-//     （static_cast<unsigned char&&/unsigned short&&>，P270）；P167 CLEAR(18/18)。
-//   importTitleBookEtcScript 0x08aa8110 DIFF(650/650) P167 CLEAR，超大件 N 封顶
-//   importPVPChannelList 0x08901f10 DIFF(278/275) P167 CLEAR
-//   importOldEquipmentStatInfo 0x08a58174 DIFF(357/367) 修法：find==end 正极性
-//     （P220/P222）+ value_type(itemIndex,info) 引用构造（P192）；P167 CLEAR(38/38)。
-//   importQuestParameterScript 0x08a6b660 DIFF(447/446) P167 残差 memcpy ×1
-//   importGuildParameterScript 0x08978d48 DIFF(507/522) P167 残差（调用差 4）
-//   importPowerParameterScript 0x08a592bc DIFF(638/629) P167 CLEAR
+// [b28d-solo-InitScriptProducers_3] 本 TU 判词表（verdict = check_tu_routed.sh
+// 干净口径 + p167 调用点差集；.o 单函数读数受 N124 假报影响仅作参考）：
+//   stTitleSection::C1 0x08aa979e   AE/IDENTICAL —— CTitleBook.h 内联 ctor 按
+//     P239 把 6 个标量移入 ctor 体（ORIG「全部 string/vector 构造 → 标量 store」）。
+//   importSlangName 0x089081a3      AE/IDENTICAL —— 修法三则：①块级 `bool ok`
+//     无预清 + `for(;;){value=ScanInt(&ok); if(ok) push_back((uchar)value); else
+//     break;}`（P0 具名 int value 槽 + prvalue 临时槽；具名 ch+static_cast<T&&>
+//     恒多物化一条，P270）；②goto 循环复现 cond 前置 + `xor $1; test; jne exit`
+//     （P292 bool callee）；③末段 == 形 + P223 尾空标签复现 nop 岛。P167 CLEAR(18/18)。
+//   importOldEquipmentStatInfo 0x08a58174 AE/IDENTICAL —— ①find==end 正极性
+//     （P220/P222）+ value_type(itemIndex,info) 引用构造（P192）；②指针局部
+//     elementTolerance/activeProperty 退役，改 m_view[2][i] / m_view2[3][j]
+//     视图寻址（P311/P30，P167 归零）；③itemIndex 预清 + 4 个 dead int 局部
+//     补帧 0x10（P31/P232）；④goto 循环复现 cond 前置。P167 CLEAR(38/38)。
+//   importPVPChannelList 0x08901f10 AE/IDENTICAL —— goto 循环复现 cond 前置 +
+//     `xor $1; test; jne exit`（P292）。P167 CLEAR(35/35)。
+//   importTitleBookEtcScript 0x08aa8110 N 封顶 —— 650/650、P167 CLEAR(94/94)；
+//     残差 6 处全为 4.1 独占的 switch 叶块间 nop 占位岛（4.4 恒不发射；§6.2
+//     三件套：gap=0 / 调用点归零 / 逐块比对无语义差）。
+//   importQuestParameterScript 0x08a6b660 N 封顶 —— 447/441、P167 CLEAR(66/66)；
+//     残差为 4.1 独占 nop 岛 + `bool found=(appendage!=-1)` 的 setne 槽化物化
+//     （P194/N122 跨版本）。修法已落：p 形参缓存（-0x20）+ 各段块级 ok 槽 +
+//     isStr 无预清 + memcpy 1 字节 key + dead1c。
+//   importGuildParameterScript 0x08978d48 N 封顶 —— 507/505、P167 CLEAR(76/76)；
+//     残差为 4.1 独占 nop 岛 + 两步寻址伪影。修法已落：7 处 `"lit" == token`
+//     方向修正（P167 MISSING/EXTRA ×7 归零）、pair 直构替 make_pair ×2、
+//     push_back 左值 ×1、p 形参缓存（-0x34）+ dead30、level/cost 局部提升、
+//     w/key/value 预清；两类型用户空析构删除（P317，.cpp 定义由 Main 代落）。
+//   importPowerParameterScript 0x08a592bc N 封顶 —— 638/629、P167 CLEAR(101/101)；
+//     残差为 4.1/4.4 break 块序（`je 继续` vs `jne break`，N122/P168a）+ nop 岛。
+//     修法已落：p 形参缓存（-0x14）+ dead10、各段 `for(;;){value=ScanInt(&done);
+//     if(!done) break; body}` 形 + value 预清、删各段 done 复位。
 // ============================================================================
 
 #include "CDataManager.h"
@@ -49,6 +67,7 @@
 
 #include <map>
 #include <string>
+#include <string.h>              // memcpy（ORIG importQuestParameterScript [difficulty] 段）
 #include <utility>
 #include <vector>
 
@@ -93,10 +112,20 @@ bool importOldEquipmentStatInfo(const char* dir)
         return false;
     }
 
-    unsigned int itemIndex;
-    bool ok = false;
+    unsigned int itemIndex = 0;
+    bool ok;                       // ORIG 无预清（ScanInt 首写）
+    // ORIG 帧头 `movl $0,-0x20/-0x1c/-0x18/-0x14`：四个 dead int 局部
+    // （仅初始化、全程不读）——P31/P232 复现 ORIG sub $0x194 帧（我们少 0x10）。
+    int dead0 = 0;
+    int dead1 = 0;
+    int dead2 = 0;
+    int dead3 = 0;
 
-    while ((itemIndex = ScanInt(&ok), ok))
+    // ORIG 0x08a581f4：cond 前置（`call ScanInt; mov %eax,itemIndex;
+    // movzbl ok; xor $1; test; jne exit`）+ body 后置 + 尾部 `jmp` 回边。
+eq_loop:
+    if (!(itemIndex = ScanInt(&ok), ok))
+        goto eq_end;
     {
         STEquipmentStatInfo info;
         info.m_hpMax = ScanInt(&ok);
@@ -179,11 +208,11 @@ bool importOldEquipmentStatInfo(const char* dir)
                                   "Invalid Old Equipment Stat Info(missing magical defense)! itemIndex = %d", itemIndex);
             return false;
         }
-        // 元素耐性 4 项（+0x28..+0x34）：ORIG 以 base+(i+8)*4 寻址。
-        int* elementTolerance = &info.m_refFire;
+        // 元素耐性 4 项（+0x28..+0x34）：ORIG 以 base+(i+8)*4 寻址
+        // （m_view 基址 +0x08、索引 8+i；P311 成员数组视图）。
         for (int i = 0; i < 4; ++i)
         {
-            elementTolerance[i] = ScanInt(&ok);
+            info.m_view[2][i] = ScanInt(&ok);
             if (!ok)
             {
                 LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
@@ -200,11 +229,11 @@ bool importOldEquipmentStatInfo(const char* dir)
                                   "Invalid Old Equipment Stat Info(missing all element tolerance)! itemIndex = %d", itemIndex);
             return false;
         }
-        // 状态异常耐性 17 项（+0x3c..+0x7c）：ORIG 以 base+(j+12)*4 寻址。
-        int* activeProperty = &info.m_refSlow;
+        // 状态异常耐性 17 项（+0x3c..+0x7c）：ORIG 以 base+(j+12)*4 寻址
+        // （m_view2 基址 +0x0c、索引 12+j；j>3 越界照抄 ORIG = P171）。
         for (int j = 0; j < 0x11; ++j)
         {
-            activeProperty[j] = ScanInt(&ok);
+            info.m_view2[3][j] = ScanInt(&ok);
             if (!ok)
             {
                 LogManager::logFormat(0, "../RDARScriptOldEquip.cpp",
@@ -238,6 +267,9 @@ bool importOldEquipmentStatInfo(const char* dir)
                                   "Redundant Old Equipment Stat Info! itemIndex = %d", itemIndex);
         }
     }
+    goto eq_loop;
+
+eq_end:
     return true;
 }
 
@@ -260,7 +292,12 @@ bool importPVPChannelList(char* path, live_server_info_t* info, int flag)
     std::string token;
     bool ok = false;
 
-    while (ScanType(token, true))
+    // ORIG 0x08901f10：cond 前置（`if (!ScanType) goto end` ⇒
+    // `call; xor $1; test; jne exit`，P292 bool callee）、body 后置、尾部
+    // `jmp` 回边。4.4 对 while 恒旋转为「body 前置 + cond 尾部 `test; je`」。
+pvp_loop:
+    if (!ScanType(token, true))
+        goto pvp_end;
     {
         if (token == "[PVP CHANNEL INFO]")
         {
@@ -317,6 +354,9 @@ bool importPVPChannelList(char* path, live_server_info_t* info, int flag)
             }
         }
     }
+    goto pvp_loop;
+
+pvp_end:
     return true;
 }
 
@@ -327,14 +367,20 @@ bool importPVPChannelList(char* path, live_server_info_t* info, int flag)
 // 返回 bool：仅当读到 [guild parameter end] 为 true；加载失败 / ScanType 失败 /
 // [guild exp weight] 遇 m_field8==0 均返回 false（ORIG 一致）。
 // ============================================================================
+// [b28d-solo-InitScriptProducers_3 N 封顶] 507/505、P167 CLEAR(76/76)；残差 =
+// 4.1 nop 占位岛 + 两步寻址伪影（详见文件头判词表）。
 bool importGuildParameterScript(GuildParameterScript* script, const char* path)
 {
     if (!loadRDARScriptFile("", path))
         return false;
 
-    script->clear();
+    // ORIG 0x08978d77：`mov 0x8(%ebp),%eax; mov %eax,-0x34(%ebp)` —— 形参缓存
+    // 进具名局部 p（P0），全部访问走 p->。
+    GuildParameterScript* p = script;
+    p->clear();
 
     std::string token;
+    int dead30 = 0;                // ORIG -0x30 `movl $0`（dead 局部，P31/P232）
     bool done = false;
 
     while (true)
@@ -352,7 +398,7 @@ bool importGuildParameterScript(GuildParameterScript* script, const char* path)
 
                         if (token == "[guild create cost]")
                         {
-                            script->m_field0 = ScanInt((bool*)0);
+                            p->m_field0 = ScanInt((bool*)0);
                             continue;
                         }
                         break;
@@ -362,15 +408,15 @@ bool importGuildParameterScript(GuildParameterScript* script, const char* path)
                         // 最多 17 行：level cost1 cost2；level>0x11 放弃余下行。
                         // ORIG 写序（asm +0x107/+0x126）：cost1→[level-1][1]、
                         // cost2→[level-1][0]，m_levelUpCost 首址 +0x5c。
+                        int level = 0;      // ORIG -0x2c：循环外声明 + 预清
                         for (int count = 0; count < 0x11; ++count)
                         {
-                            int level = ScanInt((bool*)0);
+                            level = ScanInt((bool*)0);
                             if (level > 0x11)
                                 break;
-                            int cost1 = ScanInt((bool*)0);
-                            int cost2 = ScanInt((bool*)0);
-                            script->m_levelUpCost[level - 1][1] = cost1;
-                            script->m_levelUpCost[level - 1][0] = cost2;
+                            // ORIG 0x08978e3a..：ScanInt 结果直存数组（无 cost 具名局部）。
+                            p->m_levelUpCost[level - 1][1] = ScanInt((bool*)0);
+                            p->m_levelUpCost[level - 1][0] = ScanInt((bool*)0);
                         }
                         continue;
                     }
@@ -378,14 +424,14 @@ bool importGuildParameterScript(GuildParameterScript* script, const char* path)
                 }
                 if (token == "[guild point acquirement ratio]")
                 {
-                    script->m_field4 = ScanInt((bool*)0);
+                    p->m_field4 = ScanInt((bool*)0);
                     continue;
                 }
                 break;
             }
             if (token == "[guild exp prob]")
             {
-                script->m_field8 = static_cast<char>(ScanInt((bool*)0));
+                p->m_field8 = static_cast<char>(ScanInt((bool*)0));
                 continue;
             }
             break;
@@ -394,18 +440,26 @@ bool importGuildParameterScript(GuildParameterScript* script, const char* path)
         if (token == "[guild exp weight]")
         {
             // asm +0x1c7：prob==0 时直接以 false 结束整个函数。
-            if (script->m_field8 == 0)
+            if (p->m_field8 == 0)
                 goto scan_end;
-            for (char w = 0; w < script->m_field8; ++w)
+            // ORIG 0x08978e??：`addl $1,-0x18(%ebp)` + `movsbl` ⇒ 循环变量是
+            // int（char 变量恒产 addb，与 ORIG 不符）。
+            // ORIG 0x08978ffa 前 `movl $0,-0x24/-0x20/-0x8c/-0x1c`：rangeMin/
+            // rangeMax/ratio/lv 均在 w 循环外声明并预清 0，循环内再赋值。
+            int rangeMin = 0;
+            int rangeMax = 0;
+            int ratio = 0;
+            int lv = 0;
+            for (int w = 0; w < p->m_field8; ++w)
             {
-                int rangeMin = ScanInt((bool*)0);
-                int rangeMax = ScanInt((bool*)0);
-                int ratio = ScanInt((bool*)0);
+                rangeMin = ScanInt((bool*)0);
+                rangeMax = ScanInt((bool*)0);
+                ratio = ScanInt((bool*)0);
                 // asm +0x24d..+0x295：insert(make_pair(lv,ratio))，
                 // .second==false 时终止内层循环。
-                for (int lv = rangeMin; lv <= rangeMax; ++lv)
+                for (lv = rangeMin; lv <= rangeMax; ++lv)
                 {
-                    if (!script->m_map44.insert(std::make_pair(lv, ratio)).second)
+                    if (!p->m_map44.insert(std::make_pair(lv, ratio)).second)
                         break;
                 }
             }
@@ -414,31 +468,34 @@ bool importGuildParameterScript(GuildParameterScript* script, const char* path)
 
         if (token == "[guild mail]")
         {
-            script->m_mail = ScanInt((bool*)0);
+            p->m_mail = ScanInt((bool*)0);
             continue;
         }
         if (token == "[guild level demand for agit]")
         {
-            script->m_fieldC = ScanInt((bool*)0);
+            p->m_fieldC = ScanInt((bool*)0);
             continue;
         }
         if (token == "[guild exp book]")
         {
             // 固定 3 对 key/value 插入 m_map10（asm +0x36f..+0x3f3）。
+            // ORIG 0x08979132 前 `movl $0,-0x94/-0x98`：key/value 循环外预清。
+            int key = 0;
+            int value = 0;
             for (int i = 0; i < 3; ++i)
             {
-                int key = ScanInt((bool*)0);
-                int value = ScanInt((bool*)0);
-                script->m_map10.insert(std::make_pair(key, value));
+                key = ScanInt((bool*)0);
+                value = ScanInt((bool*)0);
+                p->m_map10.insert(std::make_pair(key, value));
             }
             continue;
         }
-        if (token == "[guild level demand for buying guild exp book]")
+        if ("[guild level demand for buying guild exp book]" == token)
         {
-            script->m_field28 = ScanInt((bool*)0);
+            p->m_field28 = ScanInt((bool*)0);
             continue;
         }
-        if (token == "[agit upgrade info]")
+        if ("[agit upgrade info]" == token)
         {
             STAgitUpgradeInfo entry;
             for (int i = 0; i < 5; ++i)
@@ -447,11 +504,11 @@ bool importGuildParameterScript(GuildParameterScript* script, const char* path)
                 entry.m_field4 = ScanInt((bool*)0);
                 entry.m_field8 = ScanInt((bool*)0);
                 entry.m_fieldC = ScanInt((bool*)0);
-                script->m_vec2c.push_back(entry);
+                p->m_vec2c.push_back(entry);
             }
             continue;
         }
-        if (token == "[guild storage upgrade info]")
+        if ("[guild storage upgrade info]" == token)
         {
             STGuildStorageUpgradeInfo entry;
             while ((entry.m_field0 = ScanInt(&done), done))
@@ -461,12 +518,12 @@ bool importGuildParameterScript(GuildParameterScript* script, const char* path)
                 entry.m_field8 = ScanInt((bool*)0);
                 entry.m_fieldC = ScanInt((bool*)0);
                 entry.m_field10 = ScanInt((bool*)0);
-                script->m_vec38.push_back(entry);
+                p->m_vec38.push_back(entry);
             }
             done = false;
             continue;
         }
-        if (token == "[guild exp member weight]")
+        if ("[guild exp member weight]" == token)
         {
             int memberCount;
             double weight;
@@ -474,12 +531,14 @@ bool importGuildParameterScript(GuildParameterScript* script, const char* path)
             {
                 done = false;
                 weight = ScanFloat((bool*)0);
-                script->m_vecE4.push_back(std::make_pair(memberCount, weight));
+                // ORIG 0x08979363：`pair<int,double>::pair<int&,double&>` 直构
+                // （C1IRiRdEEOT_OT0_）而非 make_pair（P167 差集 EXTRA make_pair）。
+                p->m_vecE4.push_back(std::pair<int, double>(memberCount, weight));
             }
             done = false;
             continue;
         }
-        if (token == "[guild levelup price]")
+        if ("[guild levelup price]" == token)
         {
             int guildLevel;
             while (((guildLevel = ScanInt(&done)), done))
@@ -488,23 +547,30 @@ bool importGuildParameterScript(GuildParameterScript* script, const char* path)
                 std::vector<int> prices;
                 prices.reserve(0x11);
                 for (int j = 0; j < 0x11; ++j)
-                    prices.push_back(ScanInt((bool*)0));
-                script->m_vecF0.push_back(std::make_pair(guildLevel, prices));
+                {
+                    // ORIG 0x0897942e：push_back(const int&) —— 实参是具名左值
+                    // 局部（先 `mov %eax,-0xd0(%ebp)` 再取址），非右值 prvalue。
+                    int price = ScanInt((bool*)0);
+                    prices.push_back(price);
+                }
+                // ORIG 0x089793??：pair<int,vector<int>>::pair<int&,vector<int>&> 直构。
+                p->m_vecF0.push_back(
+                    std::pair<int, std::vector<int> >(guildLevel, prices));
             }
             done = false;
             continue;
         }
-        if (token == "[today guild member weight]")
+        if ("[today guild member weight]" == token)
         {
-            script->m_fieldFC = ScanFloat((bool*)0);
+            p->m_fieldFC = ScanFloat((bool*)0);
             continue;
         }
-        if (token == "[guild fund condition]")
+        if ("[guild fund condition]" == token)
         {
-            script->m_field104 = ScanInt((bool*)0);
-            script->m_field108 = ScanInt((bool*)0);
-            script->m_field10c = ScanInt((bool*)0);
-            script->m_field110 = ScanFloat((bool*)0);
+            p->m_field104 = ScanInt((bool*)0);
+            p->m_field108 = ScanInt((bool*)0);
+            p->m_field10c = ScanInt((bool*)0);
+            p->m_field110 = ScanFloat((bool*)0);
             continue;
         }
         if (token == "[guild parameter end]")
@@ -525,14 +591,20 @@ scan_end:
 // 返回 bool：仅当读到 [power parameter end] 为 true；加载失败 / ScanType 失败 /
 // [power war channel] 第二值缺失 返回 false（ORIG 一致）。
 // ============================================================================
+// [b28d-solo-InitScriptProducers_3 N 封顶] 638/629、P167 CLEAR(101/101)；残差 =
+// 4.1/4.4 break 块序（N122/P168a）+ nop 岛（详见文件头判词表）。
 bool importPowerParameterScript(PowerParameterScript* script, const char* path)
 {
     if (!loadRDARScriptFile("", path))
         return false;
 
-    script->clear();
+    // ORIG 0x08a592bc：`mov 0x8(%ebp),%eax; mov %eax,-0x14(%ebp)` —— 形参缓存
+    // 进具名局部 p（P0），全部访问走 p->。
+    PowerParameterScript* p = script;
+    p->clear();
 
     std::string token;
+    int dead10 = 0;                // ORIG -0x10 `movl $0`（dead 局部，P31/P232）
     bool done = false;
 
     while (true)
@@ -540,67 +612,69 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
         if (!ScanType(token, true))
             goto scan_end;
 
-        if (token == "[power join cost]")                      { script->m_powerJoinCost = ScanInt((bool*)0); continue; }
-        if (token == "[power join guild level]")               { script->m_powerJoinGuildLevel = ScanInt((bool*)0); continue; }
-        if (token == "[power join quest]")                     { script->m_powerJoinQuest = ScanInt((bool*)0); continue; }
-        if (token == "[kill point to end power war]")          { script->m_killPointToEndPowerWar = ScanInt((bool*)0); continue; }
-        if (token == "[exp reward]")                           { script->m_expReward = ScanInt((bool*)0); continue; }
-        if (token == "[easy assault range]")                   { script->m_easyAssaultRange = ScanInt((bool*)0); continue; }
-        if (token == "[ghost revival base time]")              { script->m_ghostTime = ScanInt((bool*)0); continue; }
-        if (token == "[respon penalty time]")                  { script->m_penaltyThreshold = ScanInt((bool*)0); continue; }
-        if (token == "[powerwar point multiple number]")       { script->m_powerWarPointMultiple = ScanInt((bool*)0); continue; }
-        if (token == "[refresh power war process info]")       { script->m_refreshProcessInfo = ScanInt((bool*)0); continue; }
-        if (token == "[abuser ban time]")                      { script->m_abuserBanTime = ScanInt((bool*)0); continue; }
-        if (token == "[power up ratio]")                       { script->m_powerUpRatio = ScanInt((bool*)0); continue; }
-        if (token == "[power up assault count]")               { script->m_powerUpAssaultCount = ScanInt((bool*)0); continue; }
-        if (token == "[power up assault victory ratio]")       { script->m_powerUpAssaultVictoryRatio = ScanInt((bool*)0); continue; }
-        if (token == "[power up generate period]")             { script->m_powerUpGeneratePeriod = ScanInt((bool*)0); continue; }
-        if (token == "[straight victories]")                   { script->m_straightVictories = ScanInt((bool*)0); continue; }
-        if (token == "[item initial cooltime]")                { script->m_itemInitialCooltime = ScanInt((bool*)0); continue; }
-        if (token == "[basic powerwar point]")                 { script->m_basicPowerWarPoint = ScanInt((bool*)0); continue; }
-        if (token == "[first grade bonus powerwar point]")     { script->m_firstGradeBonusPoint = ScanInt((bool*)0); continue; }
-        if (token == "[ranking bonus grade]")                  { script->m_rankingBonusGrade = ScanInt((bool*)0); continue; }
-        if (token == "[ranking bonus decrease point]")         { script->m_rankingBonusDecreasePoint = ScanInt((bool*)0); continue; }
-        if (token == "[decrease powerwar point per day]")      { script->m_decreasePointPerDay = ScanInt((bool*)0); continue; }
-        if (token == "[required user powerwar point 4 dungeon]") { script->m_requiredUserPoint4Dungeon = ScanInt((bool*)0); continue; }
+        if (token == "[power join cost]")                      { p->m_powerJoinCost = ScanInt((bool*)0); continue; }
+        if (token == "[power join guild level]")               { p->m_powerJoinGuildLevel = ScanInt((bool*)0); continue; }
+        if (token == "[power join quest]")                     { p->m_powerJoinQuest = ScanInt((bool*)0); continue; }
+        if (token == "[kill point to end power war]")          { p->m_killPointToEndPowerWar = ScanInt((bool*)0); continue; }
+        if (token == "[exp reward]")                           { p->m_expReward = ScanInt((bool*)0); continue; }
+        if (token == "[easy assault range]")                   { p->m_easyAssaultRange = ScanInt((bool*)0); continue; }
+        if (token == "[ghost revival base time]")              { p->m_ghostTime = ScanInt((bool*)0); continue; }
+        if (token == "[respon penalty time]")                  { p->m_penaltyThreshold = ScanInt((bool*)0); continue; }
+        if (token == "[powerwar point multiple number]")       { p->m_powerWarPointMultiple = ScanInt((bool*)0); continue; }
+        if (token == "[refresh power war process info]")       { p->m_refreshProcessInfo = ScanInt((bool*)0); continue; }
+        if (token == "[abuser ban time]")                      { p->m_abuserBanTime = ScanInt((bool*)0); continue; }
+        if (token == "[power up ratio]")                       { p->m_powerUpRatio = ScanInt((bool*)0); continue; }
+        if (token == "[power up assault count]")               { p->m_powerUpAssaultCount = ScanInt((bool*)0); continue; }
+        if (token == "[power up assault victory ratio]")       { p->m_powerUpAssaultVictoryRatio = ScanInt((bool*)0); continue; }
+        if (token == "[power up generate period]")             { p->m_powerUpGeneratePeriod = ScanInt((bool*)0); continue; }
+        if (token == "[straight victories]")                   { p->m_straightVictories = ScanInt((bool*)0); continue; }
+        if (token == "[item initial cooltime]")                { p->m_itemInitialCooltime = ScanInt((bool*)0); continue; }
+        if (token == "[basic powerwar point]")                 { p->m_basicPowerWarPoint = ScanInt((bool*)0); continue; }
+        if (token == "[first grade bonus powerwar point]")     { p->m_firstGradeBonusPoint = ScanInt((bool*)0); continue; }
+        if (token == "[ranking bonus grade]")                  { p->m_rankingBonusGrade = ScanInt((bool*)0); continue; }
+        if (token == "[ranking bonus decrease point]")         { p->m_rankingBonusDecreasePoint = ScanInt((bool*)0); continue; }
+        if (token == "[decrease powerwar point per day]")      { p->m_decreasePointPerDay = ScanInt((bool*)0); continue; }
+        if (token == "[required user powerwar point 4 dungeon]") { p->m_requiredUserPoint4Dungeon = ScanInt((bool*)0); continue; }
         if (token == "[power war dungeon info]")
         {
-            script->m_powerWarDungeonInfo.first = ScanInt((bool*)0);   // ORIG +0x94
-            script->m_powerWarDungeonInfo.second = ScanInt((bool*)0); // ORIG +0x98
+            p->m_powerWarDungeonInfo.first = ScanInt((bool*)0);   // ORIG +0x94
+            p->m_powerWarDungeonInfo.second = ScanInt((bool*)0); // ORIG +0x98
             continue;
         }
         if (token == "[pc room bonus]")
         {
             // asm +0x60a..+0x625：读入即写入 +0x44，ok 标志被忽略。
-            script->m_pcRoomBonus = ScanInt(&done);
-            done = false;
+            p->m_pcRoomBonus = ScanInt(&done);
             continue;
         }
         if (token == "[time assault super power state on join powerwar]")
         {
-            script->m_timeAssaultSuperPowerStateOnJoin = ScanInt((bool*)0);
+            p->m_timeAssaultSuperPowerStateOnJoin = ScanInt((bool*)0);
             continue;
         }
         if (token == "[time assault super power state after powerwar]")
         {
-            script->m_timeAssaultSuperPowerStateAfter = ScanInt((bool*)0);
+            p->m_timeAssaultSuperPowerStateAfter = ScanInt((bool*)0);
             continue;
         }
-        if (token == "[powerwar enter level limit]")           { script->m_minEnterLevel = ScanInt((bool*)0); continue; }
-        if (token == "[powerwar enter age limit]")             { script->m_minEnterAge = ScanInt((bool*)0); continue; }
-        if (token == "[power up point mod]")                   { script->m_powerUpPointMod = ScanInt((bool*)0); continue; }
-        if (token == "[victorious reward time]")               { script->m_victoriousRewardTime = ScanInt((bool*)0); continue; }
-        if (token == "[power rejoin panalty]")                 { script->m_powerWarCooldownMinutes = ScanInt((bool*)0); continue; }
+        if (token == "[powerwar enter level limit]")           { p->m_minEnterLevel = ScanInt((bool*)0); continue; }
+        if (token == "[powerwar enter age limit]")             { p->m_minEnterAge = ScanInt((bool*)0); continue; }
+        if (token == "[power up point mod]")                   { p->m_powerUpPointMod = ScanInt((bool*)0); continue; }
+        if (token == "[victorious reward time]")               { p->m_victoriousRewardTime = ScanInt((bool*)0); continue; }
+        if (token == "[power rejoin panalty]")                 { p->m_powerWarCooldownMinutes = ScanInt((bool*)0); continue; }
 
         if (token == "[power up noti time]")
         {
-            int value;
-            while (((value = ScanInt(&done)), done))
+            // ORIG 0x08a5960?：`movl $0,-0x28` 预清 + cond 前置
+            // （`call ScanInt; movzbl done; xor $1; je break`）+ body 后置。
+            int value = 0;
+            while (true)
             {
-                done = false;
-                script->m_vec20.push_back(value);
+                value = ScanInt(&done);
+                if (!done)
+                    break;
+                p->m_vec20.push_back(value);
             }
-            done = false;
             continue;
         }
         if (token == "[kill count effect range]")
@@ -612,22 +686,21 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
                 range.first = ScanInt(&done);
                 if (!done)
                     break;
-                done = false;
                 range.second = ScanInt((bool*)0);
-                script->m_vec70.push_back(range);
+                p->m_vec70.push_back(range);
             }
-            done = false;
             continue;
         }
         if (token == "[power up bonus]")
         {
-            int value;
-            while (((value = ScanInt(&done)), done))
+            int value = 0;
+            while (true)
             {
-                done = false;
-                script->m_vec38.push_back(value);
+                value = ScanInt(&done);
+                if (!done)
+                    break;
+                p->m_vec38.push_back(value);
             }
-            done = false;
             continue;
         }
         if (token == "[power war channel]")
@@ -640,22 +713,21 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
                 int serverGroup = ScanInt(&done);
                 if (!done)
                     return false;                    // asm +0x739：第二值缺失即整体失败
-                done = false;
-                script->m_powerWarServerList.push_back(
+                p->m_powerWarServerList.push_back(
                     std::make_pair(channel, serverGroup));
             }
-            done = false;
             continue;
         }
         if (token == "[power join cost modify]")
         {
-            int value;
-            while (((value = ScanInt(&done)), done))
+            int value = 0;
+            while (true)
             {
-                done = false;
-                script->m_vecAC.push_back(value);
+                value = ScanInt(&done);
+                if (!done)
+                    break;
+                p->m_vecAC.push_back(value);
             }
-            done = false;
             continue;
         }
         if (token == "[straight victory penalty]")
@@ -673,25 +745,24 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
                         penalty.m_fieldC = ScanInt(&done);
                         if (done)
                         {
-                            done = false;
-                            script->m_vecBC.push_back(penalty);
+                            p->m_vecBC.push_back(penalty);
                             continue;
                         }
                     }
                 }
             }
-            done = false;
             continue;
         }
         if (token == "[straight victory break bonus]")
         {
-            int value;
-            while (((value = ScanInt(&done)), done))
+            int value = 0;
+            while (true)
             {
-                done = false;
-                script->m_vecC8.push_back(value);
+                value = ScanInt(&done);
+                if (!done)
+                    break;
+                p->m_vecC8.push_back(value);
             }
-            done = false;
             continue;
         }
         if (token == "[power parameter end]")
@@ -713,14 +784,20 @@ scan_end:
 // m_map0；字符串令牌仅识别 [/difficulty] 终止符。[piece reward] 中首个
 // ScanInt 失败即整体返回 false（asm +0x445）。
 // ============================================================================
+// [b28d-solo-InitScriptProducers_3 N 封顶] 447/441、P167 CLEAR(66/66)；残差 =
+// 4.1 nop 岛 + setne 槽化物化（P194/N122）（详见文件头判词表）。
 bool importQuestParameterScript(QuestParameterScript* script, const char* path)
 {
     if (!loadRDARScriptFile("", path))
         return false;
 
-    script->clear();
+    // ORIG 0x08a6b660：`mov 0x8(%ebp),%eax; mov %eax,-0x20(%ebp)` —— 形参缓存
+    // 进具名局部 p（P0：该槽后续 12 处重读），全部访问走 p->。
+    QuestParameterScript* p = script;
+    p->clear();
 
     std::string token;
+    int dead1c = 0;                // ORIG -0x1c `movl $0`（dead 局部，P31/P232）
     bool done = false;
 
     while (true)
@@ -733,7 +810,7 @@ bool importQuestParameterScript(QuestParameterScript* script, const char* path)
             std::string sub;
             while (true)
             {
-                bool isStr = false;
+                bool isStr;                // ORIG 无预清（ScanTypeOrStr 首写）
                 if (!ScanTypeOrStr(isStr, sub, true))
                     break;
                 if (isStr)
@@ -743,64 +820,66 @@ bool importQuestParameterScript(QuestParameterScript* script, const char* path)
                     continue;
                 }
                 int value = ScanInt((bool*)0);
-                char key = sub.c_str()[0];
-                script->m_map0.insert(std::make_pair(key, value));
+                // ORIG 0x08a6b7xx：`call c_str` 后 `movl $1,0x8(%esp)` +
+                // `call memcpy@plt`（1 字节拷贝到 key 槽）⇒ 原码是显式
+                // `memcpy(&key, sub.c_str(), 1)`，不是 `sub.c_str()[0]`
+                //（P167 差集：ORIG-only memcpy ×1）。
+                char key;
+                memcpy(&key, sub.c_str(), 1);
+                p->m_map0.insert(std::make_pair(key, value));
             }
             continue;
         }
-        if (token == "[green level penalty]")   { script->m_field18 = ScanInt((bool*)0); continue; }
-        if (token == "[grey level penalty]")    { script->m_field1c = ScanInt((bool*)0); continue; }
-        if (token == "[bal kun penalty]")       { script->m_field20 = ScanInt((bool*)0); continue; }
+        if (token == "[green level penalty]")   { p->m_field18 = ScanInt((bool*)0); continue; }
+        if (token == "[grey level penalty]")    { p->m_field1c = ScanInt((bool*)0); continue; }
+        if (token == "[bal kun penalty]")       { p->m_field20 = ScanInt((bool*)0); continue; }
         if (token == "[exp reward table]")
         {
-            script->m_vec24.reserve(200);
+            p->m_vec24.reserve(200);
+            bool ok;                   // ORIG 块级 ok 槽 -0x87（各段独立，不复用）
             int value;
             for (int i = 0; i < 200; ++i)
             {
-                if (!(value = ScanInt(&done), done))
+                if (!(value = ScanInt(&ok), ok))
                     break;
-                done = false;
-                script->m_vec24.push_back(value);
+                p->m_vec24.push_back(value);
             }
-            done = false;
             continue;
         }
         if (token == "[gold reward table]")
         {
-            script->m_vec30.reserve(200);
+            p->m_vec30.reserve(200);
+            bool ok;                   // ORIG 块级 ok 槽 -0x8d
             int value;
             for (int i = 0; i < 200; ++i)
             {
-                if (!(value = ScanInt(&done), done))
+                if (!(value = ScanInt(&ok), ok))
                     break;
-                done = false;
-                script->m_vec30.push_back(value);
+                p->m_vec30.push_back(value);
             }
-            done = false;
             continue;
         }
         if (token == "[piece reward table]")
         {
+            bool ok;                   // ORIG 块级 ok 槽 -0x95
             while (true)
             {
-                int key = ScanInt(&done);
-                if (!done)
+                int key = ScanInt(&ok);
+                if (!ok)
                     break;
-                int value = ScanInt(&done);
-                if (!done)
+                int value = ScanInt(&ok);
+                if (!ok)
                     break;
-                done = false;
-                script->m_map3c.insert(std::make_pair(key, value));
+                p->m_map3c.insert(std::make_pair(key, value));
             }
-            done = false;
             continue;
         }
         if (token == "[piece reward]")
         {
-            int questIdx = ScanInt(&done);
-            if (!done)
+            bool ok;                   // ORIG 块级 ok 槽 -0xa1
+            int questIdx = ScanInt(&ok);
+            if (!ok)
                 return false;
-            done = false;
 
             std::vector<pieceQuestRewardStatus> statuses;
             std::string sub;
@@ -812,7 +891,10 @@ bool importQuestParameterScript(QuestParameterScript* script, const char* path)
                     break;
 
                 int appendage = loadAppendageType(sub);
-                if (appendage != -1)
+                // ORIG 0x08a6ba?d：`cmpl $0xffffffff,-0xc(%ebp); setne %al;
+                // test %al,%al; je` —— 4.1 的 != 物化（P194：具名 bool 局部）。
+                bool found = (appendage != -1);
+                if (found)
                 {
                     pieceQuestRewardStatus status;
                     status.m_appendageType = appendage;
@@ -823,7 +905,7 @@ bool importQuestParameterScript(QuestParameterScript* script, const char* path)
                     statuses.push_back(status);
                 }
             }
-            script->m_map54.insert(std::make_pair(questIdx, statuses));
+            p->m_map54.insert(std::make_pair(questIdx, statuses));
             continue;
         }
         if (token == "[quest parameter end]")
@@ -847,6 +929,8 @@ scan_end:
 //   后释放锁、置位 __inited 并 continue，以当前令牌重新查表派发——
 //   因此首令牌同样会被正常处理。
 // ============================================================================
+// [b28d-solo-InitScriptProducers_3 N 封顶] 650/650、P167 CLEAR(94/94)；残差 =
+// 4.1 switch 叶块 nop 占位岛 ×6（4.4 恒不发射；详见文件头判词表）。
 bool importTitleBookEtcScript(const char* path, stTitleBookInfo* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -1110,9 +1194,15 @@ bool importSlangName(char* path, SlangNameData* out)
 
     std::string token;
     std::string text;
-    bool ok = false;
+    int value;   // ORIG [ebp-0xc]：两段共用的具名 int 中转（ScanInt 结果先落此槽）
 
-    while (ScanType(token, true))
+    // ORIG 循环头在函数前部（cond 前置、body 后置、尾部 `jmp` 回边）：
+    // `while` 在 4.4 恒旋转为「body 前置 + cond 尾部」，故按 P283/P164 改
+    // goto 循环；`if (!ScanType(...)) goto end` 复现 ORIG 的
+    // `call ScanType; xor $0x1,%eax; test %al,%al; jne exit`（P292：bool callee）。
+slang_loop:
+    if (!ScanType(token, true))
+        goto slang_end;
     {
         if (token == "[SLANG]")
         {
@@ -1121,28 +1211,41 @@ bool importSlangName(char* path, SlangNameData* out)
         }
         if (token == "[one byte skip char]")
         {
-            unsigned char ch;
-            while (((ch = static_cast<unsigned char>(ScanInt(&ok))), ok))
+            // ORIG 形（asm +0xb7..+0xe8）：块级 `bool ok`（**无预清**）+
+            // `for(;;){ value=ScanInt(&ok); if(ok) push_back((uchar)value);
+            //  else break; }`——ScanInt 结果先落 int 槽 -0xc；push_back 实参是
+            // **prvalue 临时**（`mov -0xc,%eax; mov %al,-0xf; lea -0xf`），
+            // 具名 ch 左值恒选 RKh 且 4.4 对 `static_cast<T&&>(ch)` 会多物化一次。
+            bool ok;
+            for (;;)
             {
-                ok = false;
-                // b28d-55（P270/P234）：ORIG 走 push_back(T&&)=EOh，具名左值恒选
-                // RKh；static_cast<T&&> 零额外 call 且选中同一右值重载。
-                out->m_charList.push_back(static_cast<unsigned char&&>(ch));
+                value = ScanInt(&ok);
+                if (ok)
+                    out->m_charList.push_back(static_cast<unsigned char>(value));
+                else
+                    break;
             }
-            ok = false;
         }
+        // ORIG 089081a3 +0x100：末段 if 的**不匹配**出口落 089081e7(nop) →
+        // 089081e8(jmp 089081eb 循环头)——用 == 形（ORIG 符号 _ZSteqIc…）。
         if (token == "[two byte skip char]")
         {
-            unsigned short ch;
-            while (((ch = static_cast<unsigned short>(ScanInt(&ok))), ok))
+            // 同 [one byte] 段：ORIG 第二段 ok 槽 -0x1a、临时槽 -0xe。
+            bool ok;
+            for (;;)
             {
-                ok = false;
-                // b28d-55（P270）：同上，ORIG 为 push_backEOt。
-                out->m_shortList.push_back(static_cast<unsigned short&&>(ch));
+                value = ScanInt(&ok);
+                if (ok)
+                    out->m_shortList.push_back(static_cast<unsigned short>(value));
+                else
+                    break;
             }
-            ok = false;
         }
+    slang_token_end:;
     }
+    goto slang_loop;
+
+slang_end:
     return true;
 }
 

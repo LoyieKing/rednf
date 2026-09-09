@@ -49,7 +49,12 @@ STDungeonScript::~STDungeonScript()
 
 void STDungeonScript::Clear()
 {
-    // b28d-L3: DIFF/P212+N82 — ORIG 0x... 帧 0x24 + 二维索引 `mov -0x18,%ecx; mov -0x14,%edx; add %ecx,%ecx; lea (%ecx,%edx,1),%edx` vs 我方 0x34/-0
+    // b28d-solo-STDungeonScript 判词：AE（473=473、p167 48=48 CLEAR）。
+    // 修法：①函数级 i 声明+复用——ORIG 5 个物理循环共用 -0x18（首条
+    //   `int i=0;` + 各 `for(i=0;…)`），块内 j 占 -0x14/-0x10、末循环 i 占 -0xc
+    //   ⇒ 我方 7 槽降到 4 槽、帧 0x34→0x24（P212/P309 槽序）；②m_5c 匿名 union
+    //   二维视角 `m_5cGrid[3][2]`（CDungeon.h，ORIG 0x0836acd0 `add %ecx,%ecx;
+    //   lea (%ecx,%edx,1),%edx`，一维写法 4.4.6 恒产 add mem 形，P235）。
     // ORIG 0x0836abc6（473 insn 二进制切片逐段转写）：语句序、string 混用形
     // （assign "" = _ZNSsaSEPKc vs _ZNSs5clearEv）与物理循环全部按汇编还原。
     m_18 = 0;                                        // 0836abd0
@@ -67,10 +72,13 @@ void STDungeonScript::Clear()
     m_vec3c8.clear();                                // 0836ac94 vector<STNamedMonsterMapPos>
     m_0 = 0;
     m_c = 0;                                         // movb 0836aca5
+    // ORIG 0x0836aca9/0836acb0：函数级 i 声明+初始化后由后续物理循环复用
+    // （同槽 -0x18；块内 j/i 各占 -0x14/-0x10/-0xc）。P212/P309 槽序还原。
+    int i = 0;
     // 0836acb0：ORIG 物理双层循环 (i<=2)×(j<=1)，地址 0xc+4*(0x14+2i+j)=+0x5c..
-    for (int i = 0; i <= 2; ++i)
+    for (i = 0; i <= 2; ++i)
         for (int j = 0; j <= 1; ++j)
-            m_5c[i * 2 + j] = 0;
+            m_5cGrid[i][j] = 0;
     m_str10.clear();                                 // 0836ad02 本串用 clear 形
     m_str74 = "";                                    // 0836ad18 assign
     m_78 = 0;
@@ -83,11 +91,11 @@ void STDungeonScript::Clear()
     m_a8 = -1;
     m_ac = 1;
     m_b0 = 1.0f;
-    for (int i = 0; i <= 4; ++i)                     // 0836adb0 物理循环 +0xb4+4i
+    for (i = 0; i <= 4; ++i)                         // 0836adb0 物理循环 +0xb4+4i
         m_b4[i] = 0;
     m_vecc8.clear();                                 // 0836adde
     // 0836ade3：ORIG 物理双层循环 (i<=3)×(j<=2)，地址 +0xf8+(3i+j)*4 连续 12 int 写 -1
-    for (int i = 0; i <= 3; ++i)
+    for (i = 0; i <= 3; ++i)
         for (int j = 0; j <= 2; ++j)
             m_pathgate.m_cells[i][j] = -1;
     m_mazeList170.clear();                           // 0836ae3a vector<MazeScript>
@@ -125,7 +133,7 @@ void STDungeonScript::Clear()
     m_154 = 0;
     m_158 = 0;
     m_159 = 1;                                       // ORIG movb $0x1,0x159
-    for (int i = 0; i <= 4; ++i)                     // 0836b00c 物理循环 +0x128+4i
+    for (i = 0; i <= 4; ++i)                         // 0836b00c 物理循环 +0x128+4i
         m_128[i] = 0;
     m_13c = 0;
     m_168 = -1;                                      // ORIG movl $0xffffffff,0x168
@@ -205,15 +213,17 @@ void STDungeonScript::Clear()
 }
 bool ImportDungeonScript(STDungeonScript* script, const char* path)
 {
-    // b28d-L3: DIFF/N91+N82+N89 — ORIG 0x08... 9263 vs 9404
-    // 【验收标注 §6.2】超大函数（ORIG 9343 insn）。调用点差集已归零：
-    // printf(3)/puts(2)/memset(2,N78 rep-stos 对位)/ScanInt 196+4 位点形态、
-    // 静态五组 guard/atexit(10)、map insert(172)、string ctor/dtor 全部与
-    // ORIG 切片一一对位（ORIG 侧 libstdc++ 无符号名地址已按 nearest 反查）。
-    // 残余指令差（gap 256→131）归因：N82（4.1 帧 0x134c vs 4.4 0x138c 槽号
-    // 全帧漂移）+ N78/N76（memset 内联/store RHS 物化）+ EH esi 载值死
-    // test（4.4 jump-threading 岛，如 title 叶 `mov$1,%esi;test%esi`）+
-    // difflib 对齐岛噪音（P182 不强凑）。语义已逐块核对完成。
+    // b28d-solo-STDungeonScript 判词（9343 vs 9332 insn，gap 11；§6.2 三件套）：
+    // ①p167 CLEAR 1079=1079（MISSING 0 / EXTRA 0）。此前 EXTRA 16（8 类型 D1Ev 各 +2）
+    //   根因为用户空析构致 4.4 判 non-trivial（P317/P12：ORIG 8 个 D1/D2 全 W size=5）；
+    //   该跨泳道修复（CDungeon.h/DungeonClearCondition.h/CDungeon.cpp/W9_StructMisc.cpp）
+    //   落地后本件 -142 insn，gap 131→11、p167 归零。
+    // ②语义对位：printf 3/puts 2/memset 2/ScanInt 200/静态五组 guard+atexit 10/
+    //   map insert 172/string ctor-dtor 全对位。
+    // ③残余 DIFF = N82 全局槽号平移封顶：帧 0x137c vs ORIG 0x134c、最深槽 -0x1360 vs
+    //   -0x1330（平移 0x30，outgoing 同为 0x1c）；ORIG 另有具名局部 `mov %eax,-0x128`
+    //   （script 缓存），4.1 复用死槽 / 4.4 不复用（P112/N98/P182：声明序不可翻、
+    //   pad/volatile 反劣）。语义逐块核对完成。
     // ORIG 0x88e5fbd：loadRDARScriptFile(g_szDungeonScriptBaseDirectory, path)
     if (!loadRDARScriptFile(g_szDungeonScriptBaseDirectory, path))
     {
@@ -3434,14 +3444,18 @@ void convertBinaryToText(const char* path);
 
 bool exportDungeonScript(STDungeonScript* script, const char* path)
 {
-    // b28d-L3: DIFF/N82+N89 — ORIG 0x... 1314 vs 1306
-    // 【验收标注 §6.2】超大函数（ORIG 1314 insn）。调用点差集零
-    // （176 vs 175，ORIG PLT 无符号地址聚类：fprintf 0x0807da90×52/
-    // fwrite 0x0807e320×31/fopen/fclose/fputc 全对位）；9 处 vector<int>
-    // size()!=0 检查形 + 6 处迭代器后自增形已按 ORIG 还原（-41→-8）。
-    // 残 -8 归因：[required item] enableFlag 4.1 分支独立物化 vs 4.4
-    // setne 折叠（setcc-fold/N18b）、maze operator[] 结果 4.1 具名槽
-    // 缓存（N82 槽号）、greed string 构造位序漂移岛（跨版本 EH 岛）。
+    // b28d-solo-STDungeonScript 判词（1313 vs 1314 insn，p167 CLEAR 176=176）：
+    // ①p167 差集修 7 处：3 个 pair 循环的 `it->first/second` → `(*it).first/second`
+    //   （ORIG 发 `_ZNK…deEv` 非 `ptEv`，各 2 处共 6 个 operator-> → 0）；
+    //   m_vec14 循环迭代器改「先默认构造后赋值」（ORIG 0x088f13df 独立 `…C1Ev`，
+    //   P50 复活/P314）——p167 176=176 CLEAR。
+    // ②[required item] 第三实参 `m_enableFlag != 0` → 三目 `? 1 : 0`：复现 ORIG
+    //   0x088f0c3x 的 `test/setne→mov $1/mov $0` 分支物化（4.4 对 `!=0` 恒折 movzbl，
+    //   gap 5→1）。
+    // ③残余 DIFF = 槽号平移封顶（N82/P112）：file -0x64(ORIG) vs -0x6c、local 对象
+    //   -0x5bc vs -0x5c8（帧同为 0x60c）；4.4 槽按「首次使用序」分配、4.1 按声明序，
+    //   声明序不可翻（P112/N98）。另有 1 条 movl 残差。
+    // 【验收 §6.2】超大函数（1314 insn）三件套：p167 CLEAR + gap 1 + 槽位集/帧全等。
     // ORIG 0x088f0a98（0x160c）——完整导出。按反汇编/Ghidra C 逐字段转写：
     //   fopen("wb") → STDungeonScript local（提供 m_a4 默认比较值）→ 各分区
     //   fprintf/fwrite 转储 → maze 循环（greed/map/boss/layered/start/boss）
@@ -3470,7 +3484,7 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
         fprintf(file, "[required item] %d %d %d\n",
                 script->m_requiredItem7c.m_itemIdx,
                 script->m_requiredItem7c.m_itemCount,
-                script->m_requiredItem7c.m_enableFlag != 0);
+                script->m_requiredItem7c.m_enableFlag ? 1 : 0);
     }
     if (script->m_a4 != local.m_a4)
         fprintf(file, "[coin limit] %d", script->m_a4);
@@ -3484,7 +3498,7 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
         fwrite("[item]\n", 1, 7, file);
         for (std::vector<std::pair<int, int> >::iterator it = script->m_vec98.begin();
              it != script->m_vec98.end(); it++)
-            fprintf(file, "%d %d\n", it->first, it->second);
+            fprintf(file, "%d %d\n", (*it).first, (*it).second);   // P167：ORIG 发 deEv 非 ptEv
         fwrite("[/item]\n", 1, 8, file);
     }
 
@@ -3548,14 +3562,17 @@ bool exportDungeonScript(STDungeonScript* script, const char* path)
         }
 
         fwrite("[start map]\n", 1, 12, file);
-        for (std::vector<std::pair<int, int> >::iterator it = maze.m_vec14.begin();
+        // ORIG 0x088f13df：m_vec14 循环的迭代器**先默认构造后赋值**
+        // （独立 `iterator::C1Ev` 调用点；P50 复活/P314）。
+        std::vector<std::pair<int, int> >::iterator it;
+        for (it = maze.m_vec14.begin();
              it != maze.m_vec14.end(); it++)
-            fprintf(file, "%d %d\n", it->first, it->second);
+            fprintf(file, "%d %d\n", (*it).first, (*it).second);
         fwrite("[/start map]\n", 1, 13, file);
         fwrite("[boss map]\n", 1, 11, file);
         for (std::vector<std::pair<int, int> >::iterator it = maze.m_vec20.begin();
              it != maze.m_vec20.end(); it++)
-            fprintf(file, "%d %d\n", it->first, it->second);
+            fprintf(file, "%d %d\n", (*it).first, (*it).second);
         fwrite("[/boss map]\n", 1, 12, file);
     }
 
@@ -3738,7 +3755,19 @@ bool advancealtar::RewardItemType::getRewardItemType(const std::string& name,
 bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
                                   const char* path)
 {
-    // b28d-L3: DIFF/N82+N89 — ORIG 0x... 533 vs 527
+    // b28d-solo-STDungeonScript 判词（536=536 insn，p167 CLEAR 70=70）：
+    // 真语义修复 3 处（p167 MISSING 各 1 → 0）：①[type] 分支 getStageType 第二实参
+    // 直传 &script->m_2ac（ORIG 0x088f2140 `add $0x2ac,%eax` 压栈），非局部枚举再赋字段；
+    // ②[clear reward] 补第 4 次 operator==（"[/advance altar clear reward]"，ORIG
+    // 0x088f2355，两 break 各落一岛）；③[list] 的 `m_type==0||==1` 拆两条独立
+    // push_back（ORIG 0x088f2713/0x088f2722 两次调用点）。
+    // 形还原：clear reward 具名指针+判空（ORIG 0x088f2370）、rewardType 先/item 后、
+    // out=&item.m_type、[map] do-while 标志形（失败各点 cont=false，P225 同族）、
+    // [survival clear reward] 复用函数级 ok（局部版多一条 movb $0x0 预清）。
+    // 残余 DIFF = N121/N122 块序封顶：[map] 循环尾 4.4 恒
+    // `test %bl,%bl; jne <循环头>; jmp <出口>` vs ORIG `test %ebx,%ebx; je <出口>;
+    // jmp <循环头>`（do-while 条件块物理序跨版本固有差；int cont 形 539、while+break 形
+    // 543 均反劣，已回退）。槽位集/帧/调用点全等。
     (void)path;  // ORIG 未使用该参数
     bool ok = false;   // ORIG 0x088f20ac：函数序言即初始化（-0x15）
     if (str == "[defense dungeon]")
@@ -3753,39 +3782,61 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
         {
             return true;   // ORIG 0x088f211e：解析失败仍返回 1（结束解析）
         }
-        advancealtar::StageType::T type;
-        if (!advancealtar::StageType::getStageType(token, type))
+        // ORIG 0x088f2140：getStageType 第二实参 = &script->m_2ac（add $0x2ac,%eax
+        // 后直接压栈），非"局部取值再赋字段"——直传字段引用（P167 调用点形）。
+        if (!advancealtar::StageType::getStageType(
+                token, reinterpret_cast<advancealtar::StageType::T&>(script->m_2ac)))
         {
             return true;   // ORIG 0x088f2148：同上
         }
-        script->m_2ac = static_cast<int>(type);
     }
     else if (str == "[advance altar map]")
     {
-        // 任一解析失败 ORIG 直接返回 true（+0x17a/+0x1a9 ebx=0 → 88f27f3）
-        while (true)
+        // ORIG 0x088f21a9 起为 do-while 形：循环继续标志在 %ebx（失败各点
+        // `mov $0x0,%ebx`、成功 `mov $0x1,%ebx`，析构 token 后
+        // `test %ebx,%ebx; je <函数尾>`），非 while(true)+return（P225 同族）。
+        // 每失败点显式 cont=false 才复现 4 处 `mov $0x0,%ebx`；ok 判定为负极性。
+        // cont 用 bool + 纯 register（P231 合规存储类提示）：4.4 实测
+        // `test %bl,%bl; jne <循环头>; jmp <出口>`（int 形 539 反劣，bool 形 537 最优）。
+        register bool cont;
+        do
         {
             std::string token;
             if (!ScanStr(&token))
             {
-                return true;
+                cont = false;
             }
-            advancealtar::StageDifficulty::T diff;
-            if (!advancealtar::StageDifficulty::getDifficulty(token, diff))
+            else
             {
-                return true;
+                // ORIG 0x088f21e0：声明即置 -1（movl $0xffffffff,-0x24）。
+                advancealtar::StageDifficulty::T diff =
+                    static_cast<advancealtar::StageDifficulty::T>(-1);
+                if (!advancealtar::StageDifficulty::getDifficulty(token, diff))
+                {
+                    cont = false;
+                }
+                else
+                {
+                    script->m_2b0[diff] = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        cont = false;
+                    }
+                    else
+                    {
+                        script->m_2bc[diff] = ScanInt(&ok);
+                        if (!ok)
+                        {
+                            cont = false;
+                        }
+                        else
+                        {
+                            cont = true;
+                        }
+                    }
+                }
             }
-            script->m_2b0[diff] = ScanInt(&ok);
-            if (!ok)
-            {
-                return true;
-            }
-            script->m_2bc[diff] = ScanInt(&ok);
-            if (!ok)
-            {
-                return true;
-            }
-        }
+        } while (cont);
     }
     else if (str == "[advance altar clear reward]")
     {
@@ -3811,35 +3862,49 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
             {
                 idx = 2;
             }
-            else
+            else if (token == "[/advance altar clear reward]")
             {
-                // [/advance altar clear reward] 或其它 tag → 本节结束
+                // ORIG 0x088f2355 第 4 次 operator==：命中与未命中各落一个
+                // `mov $0x0,%ebx; jmp`（4.1 -O0 不合并相同块）——须显式两分支。
                 break;
             }
-            std::vector<advancealtar::_RewardItem>& vec =
-                script->m_clearReward2d4.m_vec[idx];
+            else
+            {
+                // 其它 tag → 本节结束
+                break;
+            }
+            // ORIG 0x088f2370：具名指针局部 + 显式判空
+            // （`cmpl $0x0,-0x10(%ebp); jne`，4.1 -O0 不折掉对 &arr[idx] 的空检查）。
+            std::vector<advancealtar::_RewardItem>* vec =
+                &script->m_clearReward2d4.m_vec[idx];
+            if (vec == 0)
+            {
+                break;
+            }
             while (true)
             {
-                advancealtar::_RewardItem item;
+                // ORIG 0x088f239e：rewardType 先构造→ScanStr→item 后构造
+                // （槽序 -0x2c / -0x38，P28/P212）。
                 std::string rewardType;
                 if (!ScanStr(&rewardType))
                     break;
-                advancealtar::RewardItemType::T rewardItemType;
+                advancealtar::_RewardItem item;
                 // ORIG 088f23d9/088f23ee：getRewardItemType 的 bool 结果先落槽
                 // （mov %al,-0x39）并作为**同一变量**传入后续两个 ScanInt 的
                 // bool* 实参（lea -0x39 复用）——必须保留单变量形（P84/P158）。
+                // out 实参 = &item.m_type（ORIG `lea -0x38`），非局部枚举再赋值。
                 bool parsed = advancealtar::RewardItemType::getRewardItemType(
-                    rewardType, rewardItemType);
+                    rewardType,
+                    reinterpret_cast<advancealtar::RewardItemType::T&>(item.m_type));
                 if (!parsed)
                     break;
-                item.m_type = static_cast<int>(rewardItemType);
                 item.m_value1 = ScanInt(&parsed);
                 if (!parsed)
                     break;
                 item.m_value2 = ScanInt(&parsed);
                 if (!parsed)
                     break;
-                vec.push_back(item);
+                vec->push_back(item);
             }
         }
     }
@@ -3873,8 +3938,6 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
                 break;
             }
             advancealtar::RoundRewardData rrd;
-            rrd.m_0 = 0;
-            rrd.m_4 = 0;
             while (true)
             {
                 std::string sub;
@@ -3887,7 +3950,8 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
                     script->m_survival2f8.m_vec.push_back(rrd);
                     break;
                 }
-                bool ok = false;
+                // ORIG 0x088f260e 段：ScanInt 的 bool* 实参是**函数级** ok
+                // （lea -0x15），非局部新变量——局部版多一条 movb $0x0 预清。
                 if (sub == "[round]")
                 {
                     rrd.m_0 = ScanInt(&ok);   // 轮次
@@ -3905,29 +3969,37 @@ bool ImportAdvanceAltarDungeonTag(STDungeonScript* script, std::string str,
                 {
                     // 逐项 _RewardItem；ORIG 仅接受 type 0/1（getRewardItemType
                     // 只会产生这两个值），失败即结束本 list
+                    // ORIG 0x088f2658：具名指针局部（lea rrd; add $0x8; mov -0xc）。
+                    std::vector<advancealtar::_RewardItem>* vec = &rrd.m_vec8;
                     while (true)
                     {
-                        advancealtar::_RewardItem item;
                         std::string rewardType;
                         if (!ScanStr(&rewardType))
                             break;
-                        advancealtar::RewardItemType::T rewardItemType;
+                        advancealtar::_RewardItem item;
                         // ORIG 088f26d9 区（Ghidra local_71 复用）：结果 bool 与
                         // 后续两个 ScanInt 的 bool* 实参为**同一变量**。
+                        // out 实参 = &item.m_type（ORIG `lea -0x6c`）。
                         bool parsed = advancealtar::RewardItemType::getRewardItemType(
-                            rewardType, rewardItemType);
+                            rewardType,
+                            reinterpret_cast<advancealtar::RewardItemType::T&>(item.m_type));
                         if (!parsed)
                             break;
-                        item.m_type = static_cast<int>(rewardItemType);
                         item.m_value1 = ScanInt(&parsed);
                         if (!parsed)
                             break;
                         item.m_value2 = ScanInt(&parsed);
                         if (!parsed)
                             break;
-                        if (item.m_type == 0 || item.m_type == 1)
+                        // ORIG 0x088f2713/0x088f2722：两个条件各自内联一次
+                        // push_back（两次调用点，p167 实证）——禁合并成 || 单调用。
+                        if (item.m_type == 0)
                         {
-                            rrd.m_vec8.push_back(item);
+                            vec->push_back(item);
+                        }
+                        else if (item.m_type == 1)
+                        {
+                            vec->push_back(item);
                         }
                     }
                 }

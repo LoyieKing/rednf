@@ -115,7 +115,9 @@ public:
     bool insert(IMatch* room);
     // 收集与 me 可匹配（CheckMatchable）的候选：权重 GetGap 升序入 out；
     // 列表空返 0，收集后 out 非空返 1。
-    int doMatch(IMatch* me, std::multimap<float, IMatch*>& out);
+    // b28d-solo-MatchRoomList: 返回类型 int→bool（P292 判据：ORIG 调用点
+    // 085671c5 `call; xor $0x1,%eax; test %al,%al; jne`，无 setne 中转）。
+    bool doMatch(IMatch* me, std::multimap<float, IMatch*>& out);
 
 private:
     std::set<IMatch*> m_roomSet;   // +0x00
@@ -155,8 +157,11 @@ public:
     // 按 playCount 的组合拆分（CombinationTable）收集候选队伍，
     // 选平均权重最小且可凑满 playCount 人的方案，append 到 out；
     // 无可用组合返 0，否则返 1。
-    int GetWaitingRoomCombination(IMatch* me, int playCount,
-                                  std::vector<IMatch*>& out);
+    // b28d-solo-MatchRoomList: 返回类型 int→bool（P292 判据：ORIG 调用点
+    // 08567667/0856770d/0856777d 均 `call; xor $0x1,%eax; test %al,%al; je`，
+    // 无 setne 中转 ⇒ bool callee）。返回类型不入 mangled，ABI/布局零影响。
+    bool GetWaitingRoomCombination(IMatch* me, int playCount,
+                                   std::vector<IMatch*>& out);
 
 private:
     std::map<int, CWaitingRoomList> m_roomMap;   // +0x04（key=每队人数）

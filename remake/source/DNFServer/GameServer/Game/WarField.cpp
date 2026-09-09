@@ -146,7 +146,10 @@ bool WarField::GetFieldItem(int idx, map_item& out)
 // GetFieldMob（086b9578）
 // ============================================================================
 
-// [b28d-11b] N82附：4.4 聚合优先占低槽（map_monster@-0x35c），标量 it/end 落浅槽 -0x10/-0xc；ORIG 按声明序穿插 -0x35c/-0x358/-0x354 @0x086b9578
+// [b28d-solo-WarField] NEAR 封顶（68=68、语义完整）：mob 作用域外提（块尾析构）已把返回
+// 值汇聚 %ebx→%eax、并复现 ORIG「D1 后 mov $1,%eax」。残差全为槽序：ORIG it/end=-0x35c/-0x358
+// （深槽）、mob=-0x354；4.4 聚合优先占低槽 ⇒ mob=-0x35c、it/end=-0x10/-0xc。属 N82附
+// （4.4 聚合优先占低槽/标量分区 vs 4.1 生命周期穿插），无合法源形可择。@0x086b9578
 bool WarField::GetFieldMob(int idx, map_monster& out)
 {
     std::map<int, map_monster>::iterator it;
@@ -155,8 +158,10 @@ bool WarField::GetFieldMob(int idx, map_monster& out)
     {
         return 0;
     }
-    map_monster mob(it->second);
-    out = mob;
+    {
+        map_monster mob(it->second);
+        out = mob;
+    }
     return 1;
 }
 
@@ -164,35 +169,39 @@ bool WarField::GetFieldMob(int idx, map_monster& out)
 // MakePacket（086b92e2：0x1d 战场怪物信息包）
 // ============================================================================
 
-// [b28d-11b] N：参数比较载寄存器 + 实参装载序（P209/P75）@0x086b92e2
+// [b28d-solo-WarField] AE（158=158）：P286 单 case switch 复现「形参载寄存器比较」
+// （if 形 4.4 恒折 cmpl mem）+ P68 cast-this 形（void* buf + ((InterfacePacketBuf*)buf)->）
+// 复现 4.1 每个成员调用「先载 this 再压常量」的实参装载序。@0x086b92e2
 void WarField::MakePacket(int packetId, void* packet)
 {
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)packet;
-    if (packetId == 0x1d)
+    void* buf = packet;
+    switch (packetId)
     {
-        buf->put_header(0, 0x1d);
-        buf->put_int(rand());
-        buf->put_byte(0);
-        buf->put_byte(0);
-        buf->put_byte(1);
-        buf->put_short(m_mapInfo.m_mapIndex);
-        buf->put_byte((int)m_mapInfo.m_monsterMap.size());
+    case 0x1d:
+        ((InterfacePacketBuf*)buf)->put_header(0, 0x1d);
+        ((InterfacePacketBuf*)buf)->put_int(rand());
+        ((InterfacePacketBuf*)buf)->put_byte(0);
+        ((InterfacePacketBuf*)buf)->put_byte(0);
+        ((InterfacePacketBuf*)buf)->put_byte(1);
+        ((InterfacePacketBuf*)buf)->put_short(m_mapInfo.m_mapIndex);
+        ((InterfacePacketBuf*)buf)->put_byte((int)m_mapInfo.m_monsterMap.size());
         map_monster mob;
         for (std::map<int, map_monster>::iterator it = m_mapInfo.m_monsterMap.begin();
              it != m_mapInfo.m_monsterMap.end(); it++)
         {
             mob = it->second;
-            buf->put_short(0);
-            buf->put_int(mob.m_mobId);
-            buf->put_short((short)mob.m_instId);
-            buf->put_int(mob.m_mobIndex);
-            buf->put_byte((int)mob.m_level);
-            buf->put_byte((int)mob.m_roleType);
-            buf->put_byte((int)mob.m_field13);
-            buf->put_byte((int)mob.m_field14);
+            ((InterfacePacketBuf*)buf)->put_short(0);
+            ((InterfacePacketBuf*)buf)->put_int(mob.m_mobId);
+            ((InterfacePacketBuf*)buf)->put_short((short)mob.m_instId);
+            ((InterfacePacketBuf*)buf)->put_int(mob.m_mobIndex);
+            ((InterfacePacketBuf*)buf)->put_byte((int)mob.m_level);
+            ((InterfacePacketBuf*)buf)->put_byte((int)mob.m_roleType);
+            ((InterfacePacketBuf*)buf)->put_byte((int)mob.m_field13);
+            ((InterfacePacketBuf*)buf)->put_byte((int)mob.m_field14);
         }
-        buf->put_byte(0);
-        buf->finalize(true);
+        ((InterfacePacketBuf*)buf)->put_byte(0);
+        ((InterfacePacketBuf*)buf)->finalize(true);
+        break;
     }
 }
 
@@ -250,11 +259,18 @@ int WarField::HandleWpPerMonster(CUser* user, int monsterIdx, int wp,
 // ConsistMap（086b8a38：战场怪物刷出/发包）
 // ============================================================================
 
-// [b28d-11b] N：帧差 0x20 + bool 物化（N82/P240）@0x086b8a38
+// [b28d-solo-WarField] 语义完成、byte 层 N 封顶（539=539，p167 CLEAR 55/55）：
+// ①p167 揪出真 bug——ORIG 调 const 版 at/operator[]，旧 const_cast 非 const 版（3+2+1 处）；
+// ②P183 去引用缓存（每使用点重算 &m_vec44/&m_vec14[type]/&m_rivalData1）；
+// ③P68 cast-this 形；④P244 形参 a 直用（删具名 b，消 movzbl+movb 双槽）；
+// ⑤P196/P2 循环向 size>i 翻 setg（原 i<size 产 setl）；⑥P160-162 循环变量 i 复用；
+// ⑦totalWeight 声明前移复现 movl 落点。
+// 残差：ORIG 5 条死比较（m_stageIdx vs m_warRoomData.m_50，无消费者；4.4 tree-DCE 删除，
+// `(void)(cond)`/具名 bool/空 if 三形实测均被删或反多 setl+store ⇒ N99 族）+ 标量区槽差 0xc
+// （N82附，帧同为 0xb40）。@0x086b8a38
 void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map,
                           unsigned char a, int playerCount)
 {
-    unsigned char b = a;
     if (playerCount == 0)
     {
         cMyTrace trace(
@@ -263,17 +279,15 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         trace("WarField::ConsistMap playerCount is 0");
         return;
     }
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)packet;
-    buf->put_header(0, 0x5b);
-    buf->put_byte(dungeon->m_warRoomData.m_d8);  // +0x6f4+0xd8（ORIG mov 0x7cc int 读）
-    int index = buf->get_index();
-    buf->put_short(0);
+    void* buf = packet;
+    ((InterfacePacketBuf*)buf)->put_header(0, 0x5b);
+    ((InterfacePacketBuf*)buf)->put_byte(dungeon->m_warRoomData.m_d8);  // +0x6f4+0xd8
+    int index = ((InterfacePacketBuf*)buf)->get_index();
+    ((InterfacePacketBuf*)buf)->put_short(0);
     int uid = m_mapInfo.m_assignItemIdx;
-    // +0x6f4+0x44；ORIG 在非 const vector 上调 operator[]（086b8b19 add $0x738），
-    // const_cast 保持调用目标一致。
-    std::vector<int>* stageMonsterList =
-        const_cast<std::vector<int>*>(&dungeon->m_warRoomData.m_vec44);
-    int monsterCount = (int)((*stageMonsterList)[m_stageIdx] * playerCount) / 6;
+    // +0x6f4+0x44；ORIG 086b8b19 add $0x738 后调 const 版 operator[]（p167 实证）。
+    int monsterCount =
+        (int)(dungeon->m_warRoomData.m_vec44[m_stageIdx] * playerCount) / 6;
     int minCount = 10;
     monsterCount = std::max(monsterCount, minCount);
     if (m_mapInfo.m_monsterMap.size() != 0)
@@ -287,7 +301,8 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
     while (monsterCount > 9)
     {
         int totalProb = 0;
-        for (int i = 0; i <= 3; i = i + 1)
+        int i = 0;
+        for (; i <= 3; i = i + 1)
         {
             totalProb = totalProb +
                 dungeon->m_warRoomData.m_spawnProb[m_stageIdx].m_probability[i];
@@ -302,7 +317,7 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         }
         int randProb = get_rand_int(totalProb);
         totalProb = 0;
-        int i = 0;
+        i = 0;
         for (; i <= 3; i = i + 1)
         {
             totalProb = totalProb +
@@ -313,22 +328,21 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
             }
         }
         int type = i;
-        std::vector<int>* mobList =
-            const_cast<std::vector<int>*>(
-                &dungeon->m_warRoomData.m_vec14[type]);  // +0x6f4+0x14+type*0xc
-        int listSize = (int)mobList->size();
         int totalWeight = 0;
+        // +0x6f4+0x14+type*0xc（ORIG 每使用点重算地址，P183 禁引用缓存）
+        int listSize = (int)dungeon->m_warRoomData.m_vec14[type].size();
         int weights[256];
-        for (int i = 0; i < listSize; i = i + 1)
+        for (i = 0; listSize > i; i = i + 1)
         {
             CMonster* monster = (CMonster*)((const CDataManager*)G_CDataManager())
-                                    ->find_monster(mobList->at(i));
+                                    ->find_monster(dungeon->m_warRoomData.m_vec14[type].at(i));
             if (monster == 0)
             {
                 LogManager::logFormat(
                     1, "WarField.cpp",
                     __PRETTY_FUNCTION__,
-                    0x96, "WARROOM Find Monster[%d] Error", mobList->at(i));
+                    0x96, "WARROOM Find Monster[%d] Error",
+                    dungeon->m_warRoomData.m_vec14[type].at(i));
                 return;
             }
             weights[i] = monster->m_weight;               // CMonster +0x1d24
@@ -344,18 +358,18 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         }
         randProb = get_rand_int(totalWeight);
         totalWeight = 0;
-        int i2 = 0;
-        for (; i2 < listSize; i2 = i2 + 1)
+        i = 0;
+        for (; listSize > i; i = i + 1)
         {
-            totalWeight = totalWeight + weights[i2];
+            totalWeight = totalWeight + weights[i];
             if (randProb < totalWeight)
             {
                 break;
             }
         }
-        int sel = i2;
+        int sel = i;
         CMonster* monster = (CMonster*)((const CDataManager*)G_CDataManager())
-                                ->find_monster(mobList->at(sel));
+                                ->find_monster(dungeon->m_warRoomData.m_vec14[type].at(sel));
         if (monster == 0)
         {
             LogManager::logFormat(
@@ -365,11 +379,10 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
             return;
         }
         int rivalTotal = 0;
-        std::vector<STRivalMapData>* rivalData =
-            const_cast<std::vector<STRivalMapData>*>(&map->m_rivalData1);  // CMap +0x90
-        for (int i = 0; i < (int)rivalData->size(); i = i + 1)
+        // CMap +0x90（ORIG 每使用点重算地址）
+        for (int i = 0; (int)map->m_rivalData1.size() > i; i = i + 1)
         {
-            rivalTotal = rivalTotal + (*rivalData)[i].m_field08;
+            rivalTotal = rivalTotal + map->m_rivalData1[i].m_field08;
         }
         if (rivalTotal == 0)
         {
@@ -382,9 +395,9 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         randProb = get_rand_int(rivalTotal);
         rivalTotal = 0;
         i = 0;
-        while (i < (int)rivalData->size())
+        while ((int)map->m_rivalData1.size() > i)
         {
-            rivalTotal = rivalTotal + (*rivalData)[i].m_field08;
+            rivalTotal = rivalTotal + map->m_rivalData1[i].m_field08;
             if (randProb < rivalTotal)
             {
                 break;
@@ -397,7 +410,7 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         uid = uid + 1;
         mob.m_roleType = (char)type;
         mob.m_mobIndex = monster->get_index();
-        mob.m_level = b;
+        mob.m_level = a;
         *(char*)&mob.m_field11 = 1;         // 字节 +0x11（ORIG 逐字节写，非 movw）
         *((char*)&mob.m_field11 + 1) = 1;   // 字节 +0x12
         mob.m_field18 =
@@ -407,11 +420,11 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         m_mapInfo.Add_Mob(mob);
         monsterCount =
             monsterCount - dungeon->m_warRoomData.m_c4[type];                // +0x7b8+type*4
-        buf->put_short(mob.m_instId);
-        buf->put_byte(type);
-        buf->put_byte((int)b);
-        buf->put_byte(sel);
-        buf->put_byte(rivalSel);
+        ((InterfacePacketBuf*)buf)->put_short(mob.m_instId);
+        ((InterfacePacketBuf*)buf)->put_byte(type);
+        ((InterfacePacketBuf*)buf)->put_byte((int)a);
+        ((InterfacePacketBuf*)buf)->put_byte(sel);
+        ((InterfacePacketBuf*)buf)->put_byte(rivalSel);
         int rewardCount = dungeon->m_warRoomData.m_ec +                        // +0x7e0
                           get_rand_int(dungeon->m_warRoomData.m_f0);           // +0x7e4
         rewardCount = (int)((float)rewardCount *
@@ -424,19 +437,27 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
             trace("WarField::ConsistMap playerCount is 0");
             playerCount = 1;
         }
-        buf->put_short((int)((double)rewardCount / (0.3 * (double)(playerCount - 1) + 1.0)));
+        ((InterfacePacketBuf*)buf)->put_short(
+            (int)((double)rewardCount / (0.3 * (double)(playerCount - 1) + 1.0)));
     }
     m_mapInfo.m_assignItemIdx = uid;
     m_stageIdx = m_stageIdx + 1;
-    buf->put_short(index, (int)m_mapInfo.m_monsterMap.size());
-    buf->finalize(true);
+    ((InterfacePacketBuf*)buf)->put_short(index, (int)m_mapInfo.m_monsterMap.size());
+    ((InterfacePacketBuf*)buf)->finalize(true);
 }
 
 // ============================================================================
 // HandleMonsterKill（086b9672：掉落生成 + 击杀通知包）
 // ============================================================================
 
-// [b28d-11b] N：帧/槽差（N82）@0x086b9672
+// [b28d-solo-WarField] 语义完成、byte 层 N 封顶（605/606，p167 CLEAR 94/94）：
+// ①P235 具名字节视图（refData.m_field38/39/3c/3c_byte/3d/3e_byte/40_byte/41/43/44_byte）
+// 消 29 条 lea+add（裸 *(char*)& 取址）；②P68/P0 删具名 buf 引用，内联
+// ((InterfacePacketBuf*)&packet)->（ORIG 每调用点重载 0x10(%ebp)，无 buf 槽）。
+// 残差：整体槽差 4（ORIG userUid=-0x40/refData=-0x110/map_item=-0x164 vs 我们 -0x3c/-0x10c/-0x160，
+// 帧同为 0x1bc ⇒ N82 槽分配）；list 迭代器 end() 布局（ORIG 循环外预求值+jmp cond，4.4 旋转到
+// 体尾 ⇒ N86/P164）；m_field11 逐字节取址 add $0x11（需 map_monster 匿名 union 字节视图，跨泳道 .h）；
+// 2 处寄存器名（%edx vs %eax ⇒ N7 族）+ 尾部对齐 nop（§6.1 豁免）。@0x086b9672
 bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
                                  CUser* user, const CDungeon* dungeon)
 {
@@ -478,9 +499,8 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
         return 0;
     }
     mob = *fieldMob;
-    InterfacePacketBuf& buf = *(InterfacePacketBuf*)&packet;
-    buf.put_header(0, 0x26);
-    buf.put_short(uid);
+    ((InterfacePacketBuf*)&packet)->put_header(0, 0x26);
+    ((InterfacePacketBuf*)&packet)->put_short(uid);
     std::list<map_item> itemList;
     int curSec = GlobalData::s_systemTime_.getCurSec();
     stGenerateRefData_t refData;
@@ -498,12 +518,11 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     refData.m_field35 = fieldMob->m_roleType;            // movb +0x35
     refData.m_rateSlot = fieldMob->m_level;              // movb +0x36
     refData.m_pad37 = 0;                                 // movb +0x37
-    *(char*)&refData.m_rankBonusIndex = 1;               // movb +0x38（int 槽低字节）
-    *(((char*)&refData.m_rankBonusIndex) + 1) =
-        *((char*)&fieldMob->m_field11 + 1);              // movb +0x39（mob +0x12）
-    *(int*)&refData.m_goldBase = moneyRatio;             // movl +0x3c..0x3f
-    *(char*)&refData.m_dungeon = 1;                      // movb +0x40（指针槽低字节）
-    *(((char*)&refData.m_dungeon) + 1) = 0;              // movb +0x41
+    refData.m_field38 = 1;                               // movb +0x38（int 槽低字节）
+    refData.m_field39 = *((char*)&fieldMob->m_field11 + 1);  // movb +0x39（mob +0x12）
+    refData.m_field3c = moneyRatio;                      // movl +0x3c..0x3f
+    refData.m_field40_byte = 1;                          // movb +0x40（指针槽低字节）
+    refData.m_field41 = 0;                               // movb +0x41
     stGenerateResult_t result;
     G_CDataManager()
         ->getItemGenerator()
@@ -511,16 +530,15 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
         ->generateRandomItem(refData, result);
     // 第二段（specific）：+0x38 movl、+0x3c/0x3d/0x35/0x36/0x3e/0x40/0x41/0x43/0x44 movb
     refData.m_rankBonusIndex = fieldMob->m_mobIndex;     // movl +0x38
-    *(char*)&refData.m_goldBase = fieldMob->m_roleType;  // movb +0x3c
-    *(((char*)&refData.m_goldBase) + 1) =
-        *(char*)&fieldMob->m_field11;                    // movb +0x3d（mob +0x11）
+    refData.m_field3c_byte = fieldMob->m_roleType;       // movb +0x3c
+    refData.m_field3d = *(char*)&fieldMob->m_field11;    // movb +0x3d（mob +0x11）
     refData.m_rateSlot = 0;                              // movb +0x36
-    *(char*)&refData.m_goldFactor = 1;                   // movb +0x3e
+    refData.m_field3e_byte = 1;                          // movb +0x3e
     refData.m_field35 = fieldMob->m_level;               // movb +0x35
-    *(char*)&refData.m_dungeon = 0;                      // movb +0x40
-    *(((char*)&refData.m_dungeon) + 1) = 0;              // movb +0x41
-    *(((char*)&refData.m_dungeon) + 3) = 0;              // movb +0x43
-    *(char*)&refData.m_field44 = 0;                      // movb +0x44
+    refData.m_field40_byte = 0;                          // movb +0x40
+    refData.m_field41 = 0;                               // movb +0x41
+    refData.m_field43 = 0;                               // movb +0x43
+    refData.m_field44_byte = 0;                          // movb +0x44
     if (user != 0 && user->isGMUser())
     {
         refData.m_field24 = user->getForceDropFlag();
@@ -553,53 +571,54 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
         itemList.push_back(item);
         mi->Add_Item(item);
     }
-    buf.put_byte((int)itemList.size());
+    ((InterfacePacketBuf*)&packet)->put_byte((int)itemList.size());
     stAvatarEmblemInfo_t emblem;
     emblem.init();
     for (std::list<map_item>::iterator itemIt = itemList.begin();
          itemIt != itemList.end(); itemIt++)
     {
         map_item& mi = *itemIt;
-        buf.put_short(mi.m_itemIndex);
-        buf.put_int(mi.m_item.m_addInfo);
-        buf.put_byte((int)mi.m_item.GetItemAttr());
+        ((InterfacePacketBuf*)&packet)->put_short(mi.m_itemIndex);
+        ((InterfacePacketBuf*)&packet)->put_int(mi.m_item.m_addInfo);
+        ((InterfacePacketBuf*)&packet)->put_byte((int)mi.m_item.GetItemAttr());
         if (mi.m_item.isAvatarItemType())
         {
             CEquipItem* equip = (CEquipItem*)G_CDataManager()->find_item(mi.m_item.m_addInfo);
             if (equip == 0)
             {
-                buf.put_int(mi.m_item.get_add_info());
+                ((InterfacePacketBuf*)&packet)->put_int(mi.m_item.get_add_info());
             }
             else
             {
-                buf.put_int(equip->getAvatarPeriod((unsigned char)mi.m_item.m_fieldb) * 0x15180);
+                ((InterfacePacketBuf*)&packet)->put_int(
+                    equip->getAvatarPeriod((unsigned char)mi.m_item.m_fieldb) * 0x15180);
                 emblem.init();
                 equip->getAvatarSocket(mi.m_item.m_fieldb, emblem);
             }
         }
         else
         {
-            buf.put_int(mi.m_item.get_add_info());
+            ((InterfacePacketBuf*)&packet)->put_int(mi.m_item.get_add_info());
         }
-        buf.put_short(mi.m_item.m_fieldb);
-        buf.put_byte((int)mi.m_item.m_amp.getAbilityType());
-        buf.put_short(mi.m_item.m_amp.getAbilityValue());
-        buf.put_packet(mi.m_item);
+        ((InterfacePacketBuf*)&packet)->put_short(mi.m_item.m_fieldb);
+        ((InterfacePacketBuf*)&packet)->put_byte((int)mi.m_item.m_amp.getAbilityType());
+        ((InterfacePacketBuf*)&packet)->put_short(mi.m_item.m_amp.getAbilityValue());
+        ((InterfacePacketBuf*)&packet)->put_packet(mi.m_item);
         if (mi.m_item.isAvatarItemType())
         {
-            buf.put_byte(1);
-            buf.put_int(0x1e);
-            buf.put_binary((const char*)&emblem, 0x1e);
+            ((InterfacePacketBuf*)&packet)->put_byte(1);
+            ((InterfacePacketBuf*)&packet)->put_int(0x1e);
+            ((InterfacePacketBuf*)&packet)->put_binary((const char*)&emblem, 0x1e);
             stAvatarExpansionInfo_t expansion;
             expansion.init();
-            buf.put_int(4);
-            buf.put_binary((const char*)&expansion, 4);
+            ((InterfacePacketBuf*)&packet)->put_int(4);
+            ((InterfacePacketBuf*)&packet)->put_binary((const char*)&expansion, 4);
         }
         else
         {
-            buf.put_byte(0);
+            ((InterfacePacketBuf*)&packet)->put_byte(0);
         }
-        buf.put_short(mi.m_dropIndex);
+        ((InterfacePacketBuf*)&packet)->put_short(mi.m_dropIndex);
     }
     mi->m_monsterMap.erase(it);
     return 1;

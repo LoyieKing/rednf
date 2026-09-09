@@ -138,7 +138,7 @@ public:
     int GetCandidateMapIndexList(std::vector<int>& out);
     int SelectRandomMap();
     int count_pvp_user();
-    int die_charac(CUser* killer, CUser* victim);
+    int die_charac(CUser* victim, CUser* killer);   // [b28d-solo-PvP_Room] ORIG 形参序：param_1=victim
     int time_out(int* seats);
     int battle_reset();
     int reset();

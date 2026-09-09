@@ -97,13 +97,18 @@ void Arad_IPGProcess::CashShopModeItem(CUser* user, unsigned long itemIdx,
 // ---------------------------------------------------------------------------
 // CashShopModeAvatar —— ORIG T 0x0819c2b4（报告 CashShopModeAvatar.md 全文转写）。
 // ---------------------------------------------------------------------------
-// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 见 class_func_reports/Arad_IPGProcess/CashShopModeAvatar.md。
+// [b28d-solo-Arad_IPGProcess] NEAR（助记符序列全等，仅 len 槽号差）：①gift 分支原已全等；
+// ②删具名 inven/characNo 改 receiver 链式（P52/P0）后 slot=-0x20、msg=-0x1c 与 ORIG 一致；
+// ③`int len` 头部声明得 -0x24，ORIG 为 -0x38（4.1 外层标量与形参 spill 区 -0x2c..-0x34
+// 连续分配 vs 4.4 具名区 -0x1c..-0x24 分区分配）⇒ N82/N93 槽分配族封顶；
+// size_t 化实测反劣（NEAR→DIFF）。
 void Arad_IPGProcess::CashShopModeAvatar(CUser* user, unsigned long itemIdx,
                                          int a3, int a4, char c1, char c2,
                                          char const* str, int& out,
                                          unsigned int accId, int a10, char buyFlag)
 {
     (void)a3;  // ORIG p3 在两分支均未使用（ebp 0x14 无读取）
+    int len;   // ORIG -0x38（形参 spill 区之后）⇒ 头部声明（4.1 先声明深）
 
     if (buyFlag == 1)
     {
@@ -113,16 +118,16 @@ void Arad_IPGProcess::CashShopModeAvatar(CUser* user, unsigned long itemIdx,
         return;
     }
 
-    CInventory* inven = user->getCurCharacInvenW();
-    int slot = inven->AddAvatarItem((int)itemIdx, a4, false, c1, c2, str,
-                                    (eAvatarItemAddReason)0, false, 0);
+    // P52：receiver 链保持单语句，ORIG 把 c2/c1/itemIdx 先物化 edi/esi/ebx 跨 getter 保活。
+    int slot = user->getCurCharacInvenW()->AddAvatarItem(
+        (int)itemIdx, a4, false, c1, c2, str, (eAvatarItemAddReason)0, false, 0);
     if (slot < 0)
     {
         const char* msg = g_scriptStringManager_.findString(4, "game_server_msg_104", (bool*)0);
-        int len = (int)strlen(msg);
-        int characNo = user->getCurCharacNo();
+        len = (int)strlen(msg);
+        // P0：characNo 无槽往返 ⇒ 原码是实参内联（ORIG 无 -0xc 槽）。
         WongWork::CMailBoxHelper::ReqDBSendNewAvatarMailCashShop(
-            user, characNo, (int)itemIdx, a4, c1, c2, str, msg, len);
+            user, user->getCurCharacNo(), (int)itemIdx, a4, c1, c2, str, msg, len);
     }
     else
     {
@@ -134,7 +139,9 @@ void Arad_IPGProcess::CashShopModeAvatar(CUser* user, unsigned long itemIdx,
 // CashShopModeCreature —— ORIG T 0x0819c670（报告 CashShopModeCreature.md 转写）。
 // 期限槽实证：esp0x50=08110c60 getUsablePeriod、esp0x54=080f1306 getExpirationDate。
 // ---------------------------------------------------------------------------
-// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 见 class_func_reports/Arad_IPGProcess/CashShopModeCreature.md。
+// [b28d-solo-Arad_IPGProcess] AE：删两组具名 usablePeriod/expirationDate 局部改实参内联
+// （P0，ORIG %ebx 跨 call 保活、无槽），右起求值序自然复现（expirationDate 先 call）；
+// 帧 0xc4、localItem -0x49、spill -0x6c/-0x70 与 ORIG 全等。
 void Arad_IPGProcess::CashShopModeCreature(CUser* user, unsigned long itemIdx,
                                            unsigned short stack, int& outCodeA,
                                            int& outCodeB, unsigned int accId,
@@ -153,18 +160,18 @@ void Arad_IPGProcess::CashShopModeCreature(CUser* user, unsigned long itemIdx,
     {
         // mangled _processCreatureGift(CUser*, Inven_Item, j, i, i, i)：
         //   esp 0x48=accId、0x4c=characNo、0x50=usablePeriod、0x54=expirationDate
-        int usablePeriod = item->getUsablePeriod();
-        int expirationDate = item->getExpirationDate();
+        // P0：两 getter 结果无槽往返（ORIG ebx 跨 call 保活）⇒ 实参内联；
+        // ORIG 求值序 = 右起（expirationDate 先 call、usablePeriod 后）。
         reinterpret_cast<WongWork::CCeraShop*>(m_vm)->_processCreatureGift(
-            user, localItem, accId, characNo, usablePeriod, expirationDate);
+            user, localItem, accId, characNo, item->getUsablePeriod(),
+            item->getExpirationDate());
     }
     else
     {
         // mangled _processCreature(CUser*, Inven_Item, Ri, Ri, b, i, i)
-        int usablePeriod = item->getUsablePeriod();
-        int expirationDate = item->getExpirationDate();
         reinterpret_cast<WongWork::CCeraShop*>(m_vm)->_processCreature(
-            user, localItem, outCodeA, outCodeB, true, usablePeriod, expirationDate);
+            user, localItem, outCodeA, outCodeB, true, item->getUsablePeriod(),
+            item->getExpirationDate());
     }
 }
 
@@ -173,7 +180,12 @@ void Arad_IPGProcess::CashShopModeCreature(CUser* user, unsigned long itemIdx,
 // 非特殊商品：insertItemIntoInventory 直插背包（失败转邮件补发）；
 // 特殊商品：ProcessSpecialItem 通道。
 // ---------------------------------------------------------------------------
-// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 见 class_func_reports/Arad_IPGProcess/CashShopModeVendingItem.md。
+// [b28d-solo-Arad_IPGProcess] AE + 两处真语义 bug：①IsSpecialItem 第 1 实参按 ORIG
+// 0x0819c8dd 从 localItem.m_addInfo(-0x58) 读（原写形参 itemIdx）；②日志条件极性反置
+// （ORIG 0x0819cacc `test %al,%al; je end` ⇒ result!=0 才打日志，原写 !result）；
+// ③删具名 ceraShop/result（P0）后槽位全对齐：localItem -0x5a / item -0x14 /
+// outType -0x18 / outValue -0x1c / special -0x1d / msg -0xc / slot -0x10，
+// strlen 结果 %ebx 跨 getCurCharacNo 保活。
 void Arad_IPGProcess::CashShopModeVendingItem(
     CUser* user, unsigned long itemIdx, unsigned short stack, int count,
     long seq, std::vector<Inven_Item>& out,
@@ -192,8 +204,10 @@ void Arad_IPGProcess::CashShopModeVendingItem(
     int outType = 0;
     int outValue = 0;
     bool special = false;
-    WongWork::CCeraShop* ceraShop = reinterpret_cast<WongWork::CCeraShop*>(m_vm);
-    if (!ceraShop->IsSpecialItem((int)itemIdx, outType, outValue, special))
+    // ORIG 0x0819c8dd：IsSpecialItem 第 1 实参从 localItem.m_addInfo(-0x58) 读，非形参槽；
+    // m_vm 无具名局部（每次 `mov 0x8(%ebp),%eax; mov (%eax),%eax` 重取）。
+    if (!reinterpret_cast<WongWork::CCeraShop*>(m_vm)->IsSpecialItem(
+            localItem.m_addInfo, outType, outValue, special))
     {
         int slot = user->getCurCharacInvenW()->insertItemIntoInventory(
             localItem, (eItemAddReason)0x1e, true, false);
@@ -215,10 +229,11 @@ void Arad_IPGProcess::CashShopModeVendingItem(
     }
     else
     {
-        const bool result = ceraShop->ProcessSpecialItem(
-            user, (int)itemIdx, count, restrictOut, seq, true, out, param,
-            0, 0, false, 1);
-        if (!result)
+        // ORIG 0x0819cacc：`call; test %al,%al; je end`（result 无槽）⇒ 条件内联。
+        // 极性：result!=0 才打日志（原 !result 写反）。
+        if (reinterpret_cast<WongWork::CCeraShop*>(m_vm)->ProcessSpecialItem(
+                user, (int)itemIdx, count, restrictOut, seq, true, out, param,
+                0, 0, false, 1))
         {
             LogManager::logFormat(1, "localjapan/Arad_IPGProcess.cpp",
                                   __PRETTY_FUNCTION__, 0x1a2,
@@ -239,14 +254,19 @@ Arad_MileageProcess::~Arad_MileageProcess() {}
 // ---------------------------------------------------------------------------
 // BuySuccess —— ORIG T 0x0819e220（报告 BuySuccess.md 全文转写）。
 // ---------------------------------------------------------------------------
-// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 见 class_func_reports/Arad_MileageProcess/BuySuccess.md。
+// [b28d-solo-Arad_IPGProcess] AE（200=200）：①kResultCode/kGiftFlag 改非 const 局部
+// （ORIG 从槽 `movsbl -0x9` / `mov -0x10` 读，const 被前端折叠成立即数；同 BuyFail
+// b28c-28 判据）；②迭代器 end 缓存（P13：end 临时 -0x14 + 转换构造 -0x2c）；
+// ③getCurCharacInvenR() 两次独立调用（P48，原缓存 inven 少一次调用）。
 void Arad_MileageProcess::BuySuccess(CUser* user, int a2, int a3, int a4, int a5,
                                      int a6, int a7, std::vector<Inven_Item>& items)
 {
     user->UseMileage(a5);
 
-    const int kResultCode = 0xb;
-    const char kGiftFlag = 0;
+    // b28c-28 判据（同 BuyFail）：ORIG 在 PacketGuard ctor 前发 `movl $0xb,-0x10` /
+    // `movb $0x0,-0x9` 且 put_byte 从槽 `movsbl -0x9` 读 ⇒ 非 const 局部（const 被折叠成立即数）。
+    int kResultCode = 0xb;
+    char kGiftFlag = 0;
     PacketGuard packet;
     packet.put_header(1, 0x43);
     packet.put_byte(1);
@@ -257,7 +277,9 @@ void Arad_MileageProcess::BuySuccess(CUser* user, int a2, int a3, int a4, int a5
     packet.put_int(a6);
     packet.put_int(a4);
     packet.put_short((int)items.size());
-    for (std::vector<Inven_Item>::const_iterator it = items.begin(); it != items.end(); ++it)
+    // P13：ORIG end() 在循环初始化区求值一次（end 临时 -0x14 + 转换构造 -0x2c）。
+    for (std::vector<Inven_Item>::const_iterator it = items.begin(),
+             endIt = items.end(); it != endIt; ++it)
     {
         packet.put_int(it->m_addInfo);    // ORIG put_int(it+2)
         packet.put_int(it->m_addInfo2);   // ORIG put_int(it+7)
@@ -269,9 +291,9 @@ void Arad_MileageProcess::BuySuccess(CUser* user, int a2, int a3, int a4, int a5
         itemPacket.put_header(0, 0xe);
         itemPacket.put_byte(0);
         itemPacket.put_short(2);
-        const CInventory* inven = user->getCurCharacInvenR();
-        inven->MakeItemPacket((INVEN_TYPE)1, 0, itemPacket);
-        inven->MakeItemPacket((INVEN_TYPE)1, 2, itemPacket);
+        // ORIG 0x0819e421/0x0819e44b：getCurCharacInvenR() 两次独立调用（P48，无缓存）。
+        user->getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, 0, itemPacket);
+        user->getCurCharacInvenR()->MakeItemPacket((INVEN_TYPE)1, 2, itemPacket);
         itemPacket.finalize(true);
         user->Send(itemPacket);
     }
@@ -284,25 +306,31 @@ void Arad_MileageProcess::BuySuccess(CUser* user, int a2, int a3, int a4, int a5
 // 汇编算术：fild rate; fild amount; flds [1000.0f @0x8ba7330]; fdivrp; fmulp;
 //   fstpl; call floor; fistp（fldcw 0xc 截断模式）→ (int)floor(...)。
 // ---------------------------------------------------------------------------
-// [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 见 class_func_reports/Arad_MileageProcess/GiveMileage.md。
+// [b28d-solo-Arad_IPGProcess] IDENTICAL：三条钥匙——①`int rate=0` 前置清零 +
+// `int found;` 两句式（-0x14/-0x10 槽序按声明序 rate→found 复现）；②Get 链全程右值
+// 直传（P0，无具名 mgr 局部）；③ROUND 结果具名 `int mileage` 落 -0xc，x87 左操作数
+// 写 `(float)amount * ((float)rate / 1000.0f)` 复现 fild amount→fild rate 序（P243）。
+// 51=51 逐条全等（fresh .o 核验）。
 void Arad_MileageProcess::GiveMileage(CUser* user, int ipgNo, int amount)
 {
     if (user == 0)
         return;
 
-    ARAD::Arad_DataManager* mgr = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
-    int rate = mgr->getAradMileageData()->find(ipgNo);
-    if (rate < 0 || rate > 1000)
-    {
-        ARAD::Arad_DataManager* mgr2 = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
-        rate = mgr2->getAradMileageData()->default_value();
-    }
+    // ORIG -0x14（rate）前置清零、-0x10（found）独立槽；Get 链全程右值直传（P0）。
+    int rate = 0;
+    int found;
+    found = ARAD::Singleton<ARAD::Arad_DataManager>::Get()
+                ->getAradMileageData()->find(ipgNo);
+    if (found >= 0 && found <= 1000)
+        rate = found;
+    else
+        rate = ARAD::Singleton<ARAD::Arad_DataManager>::Get()
+                   ->getAradMileageData()->default_value();
 
-    double value = (double)((float)rate / 1000.0f * (float)amount);
-    // ORIG fstp 后 call floor（floor 后再截断转换；对正数与 (int) 一致，
-    // 负数分支 floor 语义保持）。
-    double floored = floor(value);
-    user->AddMileage((int)floored, (eCoinAddReason)3);
+    // ORIG x87 序：fild amount → fild rate → flds 1000.0f → fdivrp → fmulp
+    // ⇒ 左操作数 amount 先求值；ROUND 结果落具名 int 槽 -0xc。
+    int mileage = (int)floor((float)amount * ((float)rate / 1000.0f));
+    user->AddMileage(mileage, (eCoinAddReason)3);
 }
 
 // ---------------------------------------------------------------------------
@@ -335,24 +363,30 @@ void Arad_MileageProcess::BuyFail(CUser* user, short errCode, int a3, int a4, in
 // ---------------------------------------------------------------------------
 // BuyMileageItem —— ORIG T 0x0819dd4e（报告 BuyMileageItem.md 全文转写）。
 // ---------------------------------------------------------------------------
-// [b28d-30] 复核 DIFF：大件残差（N82/N89 族），ORIG 见 class_func_reports/Arad_MileageProcess/BuyMileageItem.md。
+// [b28d-solo-Arad_IPGProcess] NEAR（318=318，助记符序列全等）+ 三处真语义 bug：
+// ①BillingRecord 第 7 实参按 ORIG 0x0819e18d 是 `(int)stack`（原写 0）；
+// ②`CItem* item = 0;` 先于 localItem ctor（ORIG 0x0819dd9d 先于 0x0819ddaa）；
+// ③第一次 GetSubGroupIndex 判定内联（ORIG `cmp $1; setne; test; je`）、case 0 receiver
+// 链式（P52）、characNo 实参内联（P0）、case 3 两 getter 内联（%ebx 跨 call 保活）。
+// 残差：len 槽 ORIG -0x98（4.1 与形参 spill 区 -0x8c..-0x94 连续分配）vs 4.4 具名区
+// -0x30，连带 localItem(-0x7d→-0x81)/items/outCodeA/outCodeB 四处平移 4 ⇒ N82/N93 封顶。
 int Arad_MileageProcess::BuyMileageItem(CUser* user, int param2, unsigned long itemIdx,
                                         unsigned short stack, int count, long seq,
                                         int param7, char c1, char c2, int price,
                                         int a11, int a12, char const* str,
                                         WongWork::CCeraShop::stCeraShopItemParam_t& param)
 {
-    (void)param7;  // ORIG p7（ebp 0x24）在本函数无消费【转写实证】
-
+    int len;   // ORIG -0x98（形参 spill 区 -0x8c..-0x94 之后）
     CCeraShopGoods* goods = reinterpret_cast<CCeraShopGoods*>(G_CDataManager()->FindGoods(param2));
     if (goods == 0)
         return 0x15;
 
-    Inven_Item localItem;
+    // ORIG 0x0819dd9d：`movl $0x0,-0x28`（item）先于 localItem ctor（0x0819ddaa）。
     CItem* item = 0;
+    Inven_Item localItem;
 
-    int subGroup = goods->GetSubGroupIndex();
-    if (subGroup != 1)
+    // ORIG 0x0819ddba：`cmp $0x1,%eax; setne %al; test; je` ⇒ 判定内联（无 subGroup 槽）。
+    if (goods->GetSubGroupIndex() != 1)
     {
         item = G_CDataManager()->find_item((int)itemIdx);
         if (item == 0)
@@ -369,21 +403,22 @@ int Arad_MileageProcess::BuyMileageItem(CUser* user, int param2, unsigned long i
     int outCodeB = 0;  // local_34（错误码）
     std::vector<Inven_Item> items;
 
-    subGroup = goods->GetSubGroupIndex();
+    // ORIG 0x0819de57：第二次调用结果落 -0x24 供 switch 复用。
+    int subGroup = goods->GetSubGroupIndex();
     switch (subGroup)
     {
     case 0:
     {
-        CInventory* inven = user->getCurCharacInvenW();
-        int slot = inven->AddAvatarItem((int)itemIdx, param7, false, c1, c2, str,
-                                        (eAvatarItemAddReason)0, false, 0);
+        // P52：receiver 链式（ORIG c1/c2/itemIdx 先物化 edi/esi/ebx 跨 getter 保活）。
+        int slot = user->getCurCharacInvenW()->AddAvatarItem(
+            (int)itemIdx, param7, false, c1, c2, str, (eAvatarItemAddReason)0, false, 0);
         if (slot < 0)
         {
             const char* msg = g_scriptStringManager_.findString(4, "game_server_msg_104", (bool*)0);
-            int len = (int)strlen(msg);
-            int characNo = user->getCurCharacNo();
+            len = (int)strlen(msg);
+            // P0：ORIG 无 characNo 槽 ⇒ 实参内联。
             WongWork::CMailBoxHelper::ReqDBSendNewAvatarMailCashShop(
-                user, characNo, (int)itemIdx, param7, c1, c2, str, msg, len);
+                user, user->getCurCharacNo(), (int)itemIdx, param7, c1, c2, str, msg, len);
         }
         else
         {
@@ -403,10 +438,10 @@ int Arad_MileageProcess::BuyMileageItem(CUser* user, int param2, unsigned long i
         break;
     case 3:
     {
-        int usablePeriod = item->getUsablePeriod();
-        int expirationDate = item->getExpirationDate();
+        // ORIG 0x0819e080：getExpirationDate 先 call（%ebx 保活）→ getUsablePeriod（P0 内联）。
         reinterpret_cast<WongWork::CCeraShop*>(m_vm)->_processCreature(
-            user, localItem, outCodeA, outCodeB, true, usablePeriod, expirationDate);
+            user, localItem, outCodeA, outCodeB, true, item->getUsablePeriod(),
+            item->getExpirationDate());
         break;
     }
     default:
@@ -416,9 +451,10 @@ int Arad_MileageProcess::BuyMileageItem(CUser* user, int param2, unsigned long i
     if (outCodeB == 0)
     {
         BuySuccess(user, param2, (int)stack, outCodeA, price, a11, a12, items);
-        // BillingRecord(vm, user, param2, subGroup, price, str, "mileage item", 0, 0ull, 0)
-        //   —— ORIG esp0x18..0x28 = "mileage item"/0/0/0（0x819e1b5..0x4e3）。
-        m_vm->BillingRecord(user, param2, subGroup, price, str, "mileage item", 0, 0ULL, 0);
+        // ORIG 0x0819e18d：`movzwl -0x8c(%ebp),%edx; mov %edx,0x1c(%esp)` ⇒ 第 7 实参
+        // 是 (int)stack（原写 0 为真语义 bug）；0x20..0x28 = 0ULL 的低/高 + 0。
+        m_vm->BillingRecord(user, param2, subGroup, price, str, "mileage item",
+                            (int)stack, 0ULL, 0);
     }
 
     return outCodeB;

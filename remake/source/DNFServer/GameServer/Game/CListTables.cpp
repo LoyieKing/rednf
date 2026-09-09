@@ -282,10 +282,10 @@ public:
 
 int get_rand_int(int range);
 
-extern int ImportSkillScript(STSkillScript* script, const char* path,
+extern bool ImportSkillScript(STSkillScript* script, const char* path,
                              ENUM_CHARACTERJOB job, int type, int flag);
 extern int ImportDungeonScript(STDungeonScript* script, const char* path);
-extern int ImportMonsterScript(STMonsterScript* script, int type,
+extern bool ImportMonsterScript(STMonsterScript* script, int type,
                                const char* path, bool flag);
 extern int importQuestScript(QuestScript* script, const char* path);
 
@@ -452,7 +452,9 @@ CMapList::~CMapList()
     destroy();
 }
 
-// [b28d-32 N(P223/N89): 迭代器/STL 形态与岛差（82/95） | ORIG 0x0834f08c]
+// [b28d-solo-CListTables AE] ORIG 0x0834f08c：真语义 bug 修复——尾循环三组 clear
+// 第一组旧写 m_mapList[i+1]（漏清 index 0、多清 index 15），ORIG 目标为
+// this+i*0x14+0x14/+0x154/+0x294（Ghidra C 同步）= m_mapList[i] ⇒ 修正后 82=82 AE。
 void CMapList::destroy()
 {
     // [b28d-solo-CListTables] ORIG 0x0834f08c：同 QuestList::destroy 形——for-init
@@ -467,13 +469,12 @@ void CMapList::destroy()
         delete map;
     }
     m_mainMap.clear();
-    // [b28d-solo-CListTables N(N1/N94): 82/83，ORIG 把下标 i+1 折进常数
-    // （i*0x14+0x10+0x4），4.4 对 m_mapList[i+1] 恒多一条 `lea 0x1(%eax),%edx`；
-    // (m_mapList+1)[i] / (m_mapList+i)[1] 两形实测反多 lea+add（85 条）⇒ 保持
-    // 下标形，落 N。 | ORIG 0x0834f11c]
+    // [b28d-solo-CListTables 真语义 bug 修复] ORIG 0x0834f11c 三组 clear 目标为
+    // this+i*0x14+0x14/+0x154/+0x294（Ghidra C 同步）⇒ 第一组是 m_mapList[i]；
+    // 旧实现写 m_mapList[i+1] 既漏清 m_mapList[0] 又多清 m_mapList[15]（越界 1 元素）。
     for (int i = 0; i <= 14; ++i)
     {
-        m_mapList[i + 1].clear();
+        m_mapList[i].clear();
         m_typeMap1[i].clear();
         m_typeMap2[i].clear();
     }
@@ -490,12 +491,16 @@ CMap* CMapList::find_map(int idx)
     return 0;
 }
 
-// [b28d-32 N(P75/N89): vector/STL 内联与装载序差（202/187） | ORIG 0x0834f18e]
+// [b28d-solo-CListTables AE] ORIG 0x0834f18e：五处修复——①m_mapList[channel+1]→
+// [channel]（ORIG 0x0834f357 目标 this+0x14*channel+0x14，真语义 bug）；②循环迭代器
+// 改 const_iterator（P96，ORIG 有 C1<const PVPMAP_DATA*> 转换构造）；③get_map_type()
+// 两次内联调用（p167 MISSING 1）；④mapPvpMapInfo_[count] = info 结构赋值复现单
+// operator[] + 自比较 + memcpy(5)；⑤(*it).m_mapIdx 替 it->（deEv vs ptEv）。
+// p167 25/25 CLEAR ⇒ 202=202 AE。
 int CMapList::insert_map(int channel, int key, CMap* map,
                          std::vector<PVPMAP_DATA>& pvpData)
 {
-    // [b28d-solo-CListTables N(N82)] 202/194：范围检查改内联 get_index()（去具名槽）
-    // 已修；残差为 PvPMapInfo 拷贝/memcpy 检查段槽位与装载序差 ⇒ 封顶。
+    // [b28d-solo-CListTables] 范围检查为内联 get_index()（无具名槽，P0 右值直传）。
     if (find_map(map->get_index()) != 0)
     {
         return 0;
@@ -508,20 +513,21 @@ int CMapList::insert_map(int channel, int key, CMap* map,
         PvPMapInfo info;
         info.m_mapIdx = map->get_index();
         int count = 0;
-        for (std::vector<PVPMAP_DATA>::iterator it = pvpData.begin();
+        // [b28d-solo-CListTables P96/P270] ORIG 0x0834f25a 迭代器为 const_iterator
+        // （begin() 结果走 normal_iterator<const PVPMAP_DATA*> 转换构造 call）。
+        for (std::vector<PVPMAP_DATA>::const_iterator it = pvpData.begin();
              it != pvpData.end(); ++it)
         {
-            if (it->m_mapIdx == info.m_mapIdx)
+            // [b28d-solo-CListTables P167] ORIG 用 operator*（deEv）非 operator->（ptEv）。
+            if ((*it).m_mapIdx == info.m_mapIdx)
             {
                 break;
             }
             count++;
         }
-        PvPMapInfo& dst = mapPvpMapInfo_[count];
-        if (&dst != &info)
-        {
-            memcpy(&dst, &info, 5);
-        }
+        // [b28d-solo-CListTables] ORIG 0x0834f2d0：单次 operator[] + 自比较守卫 +
+        // memcpy 5 —— 4.4 对 5 字节结构赋值即产同形（同 GetPvpMapInfo）。
+        mapPvpMapInfo_[count] = info;
     }
     // ORIG 0x0834f2ed..0x0834f42e：4 处插入各只有两次 call —— 先就地构造
     // hash_map 的 value_type（pair<const int,CMap*>），再 insert(value_type const&)：
@@ -530,13 +536,15 @@ int CMapList::insert_map(int channel, int key, CMap* map,
     // 用 make_pair 会多出 pair<int,CMap*> → value_type 的转换临时（第三次 call）。
     m_mainMap.insert(
         __gnu_cxx::hash_map<int, CMap*>::value_type(map->get_index(), map));
-    int mapType = map->get_map_type();
-    if (mapType == 0)
+    // [b28d-solo-CListTables P167/P183] ORIG 调 get_map_type() 两次（无具名 mapType 局部）。
+    if (map->get_map_type() == 0)
     {
-        m_mapList[channel + 1].insert(
+        // [b28d-solo-CListTables 真语义 bug 修复] ORIG 0x0834f357 目标地址
+        // this+0x14*channel+0x14 = m_mapList[channel]（旧实现 channel+1 偏移错一格）。
+        m_mapList[channel].insert(
             __gnu_cxx::hash_map<int, CMap*>::value_type(key, map));
     }
-    else if (mapType == 2)
+    else if (map->get_map_type() == 2)
     {
         m_typeMap2[channel].insert(
             __gnu_cxx::hash_map<int, CMap*>::value_type(key, map));
@@ -567,25 +575,18 @@ void CMapList::LoadPvPSinglePlayableMap(char* path)
     }
 }
 
-// [b28d-32 N(setcc-fold): ORIG 寄存器内比较直跳 vs 4.4 物化 setne+test（P197④ 镜像负例） | ORIG 0x0834f5c8]
+// [b28d-solo-CListTables AE] ORIG 0x0834f5c8：`info = it->second;` 结构赋值即复现
+// ORIG 的单次 ptEv + 寄存器内比较直跳 + memcpy(5)（4.4 对 5 字节 POD 赋值同形）；
+// 旧 `if (&info != &it->second) memcpy(&info,&it->second,5)` 两次 ptEv + setne
+// 物化（P197④ 镜像）⇒ 38=38 AE。
 bool CMapList::GetPvpMapInfo(int idx, PvPMapInfo& info)
 {
     // [b28c-21 代落 C28L35 spec] 初始化式直构：ORIG find 直接落 -0x10，无 C1Ev 默认构造。
     std::map<int, PvPMapInfo>::iterator it = mapPvpMapInfo_.find(idx);
     if (it != mapPvpMapInfo_.end())
     {
-        // [b28c-21 代落 C28L35 spec] (b) 三形实测：原形（本形，两次 ptEv）/引用局部
-        // （-0xc 槽回读 41 条）/裸 register 指针（40 条但 %ebx 保存+恢复，ORIG 地址
-        // 在 caller-saved %eax ⇒ 违反 C28L28 判据）均不闭合；落 N：P183 地址重物化
-        // 跨版本差（4.1 复用 ptEv 地址，4.4 二次物化）。
-        // [b28d-solo-CListTables N(P183): 38/44，ORIG 无槽 + 单次 ptEv（4.1 前端
-        // SAVE_EXPR 合并同一 &it->second，地址留 %eax 跨 cmp→memcpy）；4.4 二次物化
-        // ptEv。具名指针形/引用形实测 41 条（多 -0xc 槽，ORIG 无该槽）、结构赋值形
-        // 46 条（多一次自比较）均不闭合 ⇒ 保持无具名局部原形，落 N。 | ORIG 0x0834f5c8]
-        if (&info != &it->second)
-        {
-            memcpy(&info, &it->second, 5);
-        }
+        // [b28d-solo-CListTables] 结构赋值即复现 ORIG 单次 ptEv + 直跳比较 + memcpy(5)。
+        info = it->second;
         return 1;
     }
     return 0;
@@ -667,10 +668,10 @@ int CMonsterManager::insert_monster(int level, int monsterIdx)
     return 1;
 }
 
-// [b28d-32 N93/N98] ORIG 0x0834fdee：迭代器 it/end 槽序 ORIG it 深 end 浅，
-// 4.4 按首次使用序分配不可翻（声明序交换反劣 61），54=54 助记符全等。
-// [b28d-solo-CListTables N98/N93] 复验 54=54 NEAR：ORIG it(-0x2c)/end(-0x24) vs
-// 4.4 it(-0x24)/end(-0x2c) 槽互换；交换声明序需额外 C1Ev（+5 条）反劣 ⇒ 封顶。
+// [b28d-solo-CListTables N98/N93 NEAR] ORIG 0x0834fdee：54=54 助记符全等，仅
+// it/end 槽互换（ORIG it -0x2c/end -0x24 vs 4.4 it -0x24/end -0x2c）。it 为先
+// 声明后赋值（P50 复活，ORIG 单次 C1Ev），end 为初始化式直构；全头部声明多出
+// 第二个 C1Ev（+5 条），交换声明序又改执行序 ⇒ 4.4 按首次使用序分配不可翻，封顶。
 bool CMonsterManager::insert_monster(int level, CMonster* monster)
 {
     // [b28d-32] ORIG 0x0834fdee：迭代器先默认构造（C1Ev）再 find 赋值
@@ -687,13 +688,21 @@ bool CMonsterManager::insert_monster(int level, CMonster* monster)
     return false;
 }
 
-// [b28d-32 N(P75/N89): 扫描器/STL 内联与槽位差（215/203） | ORIG 0x0834fa84]
+// [b28d-solo-CListTables N(P248档①/N82) DIFF] ORIG 0x0834fa84：215/221 + p167
+// CLEAR(34/34)。已修：truncate 负形早退复现 `xor $1; test; je`（P168a）、drops
+// 下标 unsigned→int 复现 `setg`（P196，旧 seta）。残差 +6：①ImportMonsterScript
+// 返回 int 而 ORIG 调用点 `xor $1; test %al` 为 bool（定义在 STMonsterScript.cpp
+// 非本泳道，已上报 Main）；②path==0 分支极性（ORIG je 落 return 1 尾块）；
+// ③槽号整体差 ⇒ 封顶。
 int CMonsterManager::load_monsters()
 {
-    // [b28d-solo-CListTables N(N82/P292): 215/215 + p167 CLEAR，残差为槽号与
-    // `if(f())` 的 xor 折叠方向（ORIG `xor $1; test; je` vs 4.4 直 `test; je`）；
-    // 负形早退实测 216 条反劣 ⇒ 保持正向形封顶。 | ORIG 0x0834fa84]
-    if (sync_script::GetInstanceSyncScript()->truncate_monster_info_table())
+    // [b28d-solo-CListTables P168a] ORIG 0x0834fa8e `call; xor $1; test %al,%al;
+    // je 主体` = 负形早退（失败分支 fall-through 到 puts/return 0）。
+    if (!sync_script::GetInstanceSyncScript()->truncate_monster_info_table())
+    {
+        puts("Fail truncate_monster_info_table");
+        return 0;
+    }
     {
         char* path = 0;
         CMonster* monster = 0;
@@ -725,7 +734,9 @@ int CMonsterManager::load_monsters()
             }
             std::vector<stIndependentDropInfo>& drops =
                 G_CDataManager()->m_independentDrop.m_vecC;
-            for (unsigned int i = 0; i < drops.size(); ++i)
+            // [b28d-solo-CListTables P196/P218] ORIG 0x0834fc48 `cmp i; setg` 有符号
+            // 比较（unsigned i 生 seta）⇒ 下标局部 int 化。
+            for (int i = 0; i < (int)drops.size(); ++i)
             {
                 if (drops[i].m_field0 == 0 &&
                     drops[i].m_monsterIndex == script.m_index)
@@ -744,8 +755,6 @@ int CMonsterManager::load_monsters()
         }
         return 1;
     }
-    puts("Fail truncate_monster_info_table");
-    return 0;
 }
 
 // ===================== CSkillList =====================
@@ -799,11 +808,14 @@ CSkill* CSkillList::find_skill(int jobType, int skillIdx)
     return it->second;
 }
 
-// [b28d-32 N(P75/N93): 装载序/槽位差（125/118） | ORIG 0x083519a6]
+// [b28d-solo-CListTables N82/N93 NEAR] ORIG 0x083519a6：125=125 + p167 CLEAR(14/14)。
+// 真修复：分支体反写——ORIG `call eq; je trace 尾块`（it==end 走 insert fall-through）
+// ⇒ 源码须 `if (it == end) { insert; return; } trace;`（旧 `if (it != end) { trace;
+// return; }` 令 4.4 选 ne 实例并反转块序）。残差为 idx/it/end/trace1/trace2 槽分配
+// 差（ORIG trace1 -0x54/trace2 -0x18 分散，4.4 集中 -0x60/-0x50）⇒ 封顶。
 void CSkillList::insert_skill(int jobType, CSkill* skill)
 {
-    // [b28d-solo-CListTables N(N82)] 125/125：it 先 C1Ev 后 find 赋值（P50）已对齐，
-    // 残差为 idx/it/end/trace 槽位整体错位（4.1/4.4 槽分配策略差）⇒ 封顶。
+    // [b28d-solo-CListTables] it 先 C1Ev 后 find 赋值（P50）已对齐；残差见函数头判词。
     if (skill == 0)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0xf91, 5);
@@ -818,24 +830,30 @@ void CSkillList::insert_skill(int jobType, CSkill* skill)
     it = m_skillList[jobType].find(idx);
     __gnu_cxx::hash_map<int, CSkill*>::iterator end =
         m_skillList[jobType].end();
-    if (it != end)
-    {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xfa4, 5);
-        trace("[%s][%d]_( itr != m_SkillList[job_type].end() )",
-              __PRETTY_FUNCTION__, 0xfa4);
-        return;
-    }
+    // [b28d-solo-CListTables] ORIG 0x08351a82 调 operator==（eq）后 `je trace`：
+    // 相等走 insert fall-through、不等落 trace 尾块 ⇒ 源码必须是正向
+    // `if (it == end) { insert; return; } trace;`（写 `if (it != end) { trace;
+    // return; }` 会让 4.4 选 ne 实例并反转块序）。
     // ORIG 0x08351aa3/0x08351af5：两处插入各只有两次 call —— 就地构造 value_type
     //   +0x0fd _ZNSt4pairIKiP6CSkillEC1IRiRS2_EEOT_OT0_（idx 左值）→ hash_map::insert
     //   +0x14f _ZNSt4pairIKiP6CSkillEC1IiRS2_EEOT_OT0_ （get_group() 右值，无中间变量）
     //          → multimap::insert；make_pair 会多出转换临时（第三次 call）。
-    m_skillList[jobType].insert(
-        __gnu_cxx::hash_map<int, CSkill*>::value_type(idx, skill));
-    m_groupSkillMap[jobType].insert(
-        std::multimap<int, CSkill*>::value_type(skill->get_group(), skill));
+    if (it == end)
+    {
+        m_skillList[jobType].insert(
+            __gnu_cxx::hash_map<int, CSkill*>::value_type(idx, skill));
+        m_groupSkillMap[jobType].insert(
+            std::multimap<int, CSkill*>::value_type(skill->get_group(), skill));
+        return;
+    }
+    cMyTrace trace(__PRETTY_FUNCTION__, 0xfa4, 5);
+    trace("[%s][%d]_( itr != m_SkillList[job_type].end() )",
+          __PRETTY_FUNCTION__, 0xfa4);
 }
 
-// [b28d-32 N(P183/N82): 容器重复访问/槽位差（138/117） | ORIG 0x08351c1e]
+// [b28d-solo-CListTables N82 NEAR] ORIG 0x08351c1e：138=138 + p167 17/17 CLEAR
+// （== / mmEi / ppEi 全对齐），残差仅槽号整体深移 0x10（ORIG it/range -0x4c/-0x48
+// vs 我们 -0x3c/-0x38）；char[0x10] 死局部撑帧实测 sub 0x58→0x78 且槽号不平移 ⇒ 封顶。
 int CSkillList::get_ran_groupskill_index(int jobType, int group, int skillIdx)
 {
     // [b28d-solo-CListTables N(N82): 138=138 + p167 调用点 CLEAR（17/17，== / mmEi /
@@ -890,7 +908,11 @@ int CSkillList::get_ran_groupskill_index(int jobType, int group, int skillIdx)
     return skill->get_index();
 }
 
-// [b28d-32 N(P75/N93): 实参装载序与块序差（163/185） | ORIG 0x08351e18]
+// [b28d-solo-CListTables N(P192/N82) DIFF] ORIG 0x08351e18：163/180 + p167 有
+// MISSING value_type C1<int&,vector&>、EXTRA make_pair+2×~pair+转换 ctor。
+// value_type 直构实测（std::map<...>::value_type(it->m_index, vec)）虽对齐该构造
+// 实例，但连带 identical -2/ae -5（他函数符号集变化）⇒ 回退保持 make_pair；
+// 帧 0x50 vs 0x60 + 槽整体深 0x10 属 N82 ⇒ 封顶。
 void CSkillList::set_post_learning_skill(int jobType, CSkill* skill)
 {
     // [b28d-solo-CListTables 真语义 bug 修复] ORIG 0x08351e62/0x08351e94：find/insert
@@ -949,7 +971,10 @@ __gnu_cxx::hash_map<int, CSkill*>* CSkillList::getSkillList(int jobType)
     return &m_skillList[jobType];
 }
 
-// [b28d-32 N(P75/N89): 大解析函数 STL 内联/槽位差（866/845） | ORIG 0x08350c26]
+// [b28d-solo-CListTables §6.2 N 封顶] ORIG 0x08350c26：866/880 + p167 CLEAR(111/111)
+// + 主/尾循环迭代器 C1Ev+ppEi、s2/s3/s4 Import 与 insert 各自 printf、push_back(Oi)
+// 右值全部对齐；+14 条含 ImportSkillScript 调用点 int→bool 差（P248档①，定义在
+// STMonsterScript.cpp 非本泳道，已上报 Main）与槽位/块形差 ⇒ 语义完成、byte 层封顶。
 int CSkillList::init()
 {
     // [b28d-solo-CListTables N(§6.2/N82)] 866/880 + p167 CLEAR(111/111)：主循环/
@@ -1245,7 +1270,7 @@ void QuestList::insert_NPC(int npcIdx)
 }
 
 // [b28d-32 N(P74/P75): ORIG char 成员单字节拷贝 vs 4.4 折 dword（+0x15..17 padding 合并）+ 实参装载序（79/74）；本 TU 镜像已裁为 ORIG 7 字段 | ORIG 0x08355474]
-int QuestList::Check_Quest(Quest* quest, stSelectQuestParam& param,
+bool QuestList::Check_Quest(Quest* quest, stSelectQuestParam& param,
                            const WongWork::CQuestClear& clear)
 {
     // [b28d-32] ORIG 0x08355474：函数头把 param 7 字段逐条拷入栈局部
@@ -1385,23 +1410,24 @@ bool QuestList::check_clear(int questIdx, const WongWork::CQuestClear& clear)
     return 1;
 }
 
-// [b28d-32 N(P223/N89): 迭代器循环与岛差（113/94） | ORIG 0x08355304]
+// [b28d-solo-CListTables AE] ORIG 0x08355304：113=113——①quest=0 声明提到
+// out.clear() 之前（ORIG `movl $0x0,-0xc` 先于 clear）；②`return !out.empty()`
+// 拆成 `if (out.empty()) return false; return true;`（P56，消 4 条 bool 物化）；
+// ③questIdx 全头部声明（P309/P212，it/questIdx 槽序对齐）。
 bool QuestList::select_mail_quest(std::list<int>& out,
                                   const WongWork::CQuestClear& clear,
                                   const stSelectQuestParam& param)
 {
-    // [b28d-solo-CListTables N(N112/N93)] 113/109：const_iterator + 5 独立 guard
-    // （xor/je 落点已对齐）；残差 4 条 nop 岛（4.4 jump-thread continue/goto 尾岛）
-    // + it/questIdx 槽互换 ⇒ 封顶。
-    out.clear();
     // [b28d-solo-CListTables] ORIG 0x08355304：quest 函数头清零（-0xc）、迭代器为
     // const_iterator（begin() 结果走 C1<Pi> 转换构造）、每条件独立 guard
     // （`xor $1; test; jne fail`，P133/P168a 不可合并 && 短路）。
     Quest* quest = 0;
+    int questIdx;
+    out.clear();
     for (std::vector<int>::const_iterator it = m_vecD4.begin();
          it != m_vecD4.end(); ++it)
     {
-        int questIdx = *it;
+        questIdx = *it;
         quest = find_quest(questIdx);
         if (quest == 0)
             continue;
@@ -1415,7 +1441,9 @@ bool QuestList::select_mail_quest(std::list<int>& out,
             continue;
         out.push_back(questIdx);
     }
-    return !out.empty();
+    if (out.empty())
+        return false;
+    return true;
 }
 
 void QuestList::select_quest(std::list<int>& out, stSelectQuestParam& param,
@@ -1431,52 +1459,19 @@ void QuestList::select_quest(std::list<int>& out, stSelectQuestParam& param,
     allowable_questlist_as_npc(out, m_npcQuestList5, param, clear, false);
 }
 
-// [b28d-32 N(P183/N82): multimap 遍历重复访问与槽位差（131/109） | ORIG 0x0835556c]
+// [b28d-solo-CListTables N(P248档①/P168a) DIFF] ORIG 0x0835556c：131/133 + p167
+// CLEAR(16/16)。已修：range 提到函数头（C1Ev 在循环外）、三守卫独立 goto + 尾标签串
+// （P223 多岛，ORIG +0x136/+0x139/+0x13c 三 nop 岛复现）、flag 短路改
+// `if (flag) goto DO_PUSH`。残差 +2：①Check_Quest 返回 int 而 ORIG `xor $1;
+// test %al` 为 bool（声明在共享头 CDataManager.h:3040 ⇒ 上报 Main）；②flag 取反
+// 物化（ORIG movzbl+xor vs 4.4 cmpb，P168a③b 跨版本 bool ABI）⇒ 封顶。
 void QuestList::allowable_questlist_as_npc(
     std::list<int>& out, const std::multimap<int, int>& npcList,
     stSelectQuestParam& param, const WongWork::CQuestClear& clear, bool flag)
 {
-    // [b28d-solo-CListTables N(P292/bool 链)] 131/126 + p167 CLEAR：it C1Ev+ppEi /
-    // range C1Ev+op= 已对齐；残差 5 条为 Check_Quest 调用点 bool 形（ORIG
-    // `xor $1;test %al` vs 4.4 `test %eax;je`），改返回类型需跨 TU .h 广播 ⇒ 封顶。
-    Quest* quest = 0;
     // [b28d-solo-CListTables] ORIG 0x0835556c：it 先 C1Ev 后 begin() 赋值（P50）
-    // + 尾后置 it++（ppEi）；range 先 C1Ev 再 `range = equal_range(...)`
-    // （op=(&&) 赋值，同 GetDailyQuestList）。
-    std::list<int>::iterator it;
-    it = m_listE0.begin();
-    while (it != m_listE0.end())
-    {
-        int npcIdx = *it;
-        std::pair<std::multimap<int, int>::const_iterator,
-                  std::multimap<int, int>::const_iterator> range;
-        range = npcList.equal_range(npcIdx);
-        for (std::multimap<int, int>::const_iterator cit = range.first;
-             cit != range.second; ++cit)
-        {
-            param.m_questIdx = cit->second;
-            quest = find_quest(param.m_questIdx);
-            if (quest != 0 && Check_Quest(quest, param, clear) &&
-                (flag || check_clear(param.m_questIdx, clear)))
-            {
-                out.push_back(param.m_questIdx);
-            }
-        }
-        it++;
-    }
-}
-
-// [b28d-32 N(P89/N134): 具名局部/STL 调用链形态差（106/85） | ORIG 0x0835589e]
-void QuestList::GetDailyQuestList(std::list<int>& out)
-{
-    // [b28d-solo-CListTables] ORIG 0x0835589e：it 先 C1Ev 默认构造（-0x24）再
-    // `it = begin()`（sret -0x3c 拷贝）、quest 函数头清零（-0xc，P171 死初始化）、
-    // range 先 C1Ev（-0x34）再 `range = equal_range(...)`（临时 -0x1c + op=）、
-    // cit 初始化式（-0x38）、it++/cit++ 均后置（ppEi，临时 -0x10/-0x14）。
-    // [b28d-solo-CListTables N(N82/N93): 106/102，结构逐条同构（C1Ev+begin 拷贝/
-    // op=/cit 拷贝/双 ppEi 全命中），残差为 4.4 把 range/cit/npcIdx/questIdx 四槽
-    // 整体深移 8（range -0x2c vs ORIG -0x34、cit -0x34 vs -0x38）⇒ 槽分配策略差，
-    // 声明序调整无效（X1 首次使用序），封顶。]
+    // + 尾后置 it++（ppEi）；range 先 C1Ev（-0x2c，函数头）再
+    // `range = equal_range(...)`（op=(&&) 赋值，同 GetDailyQuestList）。
     std::list<int>::iterator it;
     Quest* quest = 0;
     std::pair<std::multimap<int, int>::const_iterator,
@@ -1485,16 +1480,70 @@ void QuestList::GetDailyQuestList(std::list<int>& out)
     while (it != m_listE0.end())
     {
         int npcIdx = *it;
+        range = npcList.equal_range(npcIdx);
+        for (std::multimap<int, int>::const_iterator cit = range.first;
+             cit != range.second; ++cit)
+        {
+            param.m_questIdx = cit->second;
+            quest = find_quest(param.m_questIdx);
+            // [b28d-solo-CListTables] ORIG 0x083556a2/0x083556a5/0x083556a8：三失败
+            // 出口各带 nop 中继岛（+0x136/+0x139/+0x13c）⇒ P223 多岛形：独立否定
+            // goto + 尾标签串（标签序 = 守卫序）。
+            if (quest == 0)
+                goto SKIP_NULL_QUEST;
+            if (!Check_Quest(quest, param, clear))
+                goto SKIP_CHECKQ_FAIL;
+            if (flag)
+                goto DO_PUSH;
+            if (!check_clear(param.m_questIdx, clear))
+                goto SKIP_CLEAR_FAIL;
+        DO_PUSH:
+            out.push_back(param.m_questIdx);
+        SKIP_NULL_QUEST:;
+        SKIP_CHECKQ_FAIL:;
+        SKIP_CLEAR_FAIL:;
+        }
+        it++;
+    }
+}
+
+// [b28d-solo-CListTables AE] ORIG 0x0835589e：106=106——①双守卫独立否定 goto +
+// 尾标签串（P223，ORIG +0xe0/+0xe3 两 nop 岛复现）；②npcIdx/questIdx 全头部声明
+// 按 ORIG 槽浅→深（P212/P309，range/cit 槽序对齐）。
+void QuestList::GetDailyQuestList(std::list<int>& out)
+{
+    // [b28d-solo-CListTables] ORIG 0x0835589e：it 先 C1Ev 默认构造（-0x24）再
+    // `it = begin()`（sret -0x3c 拷贝）、quest 函数头清零（-0xc，P171 死初始化）、
+    // range 先 C1Ev（-0x34）再 `range = equal_range(...)`（临时 -0x1c + op=）、
+    // cit 初始化式（-0x38）、it++/cit++ 均后置（ppEi，临时 -0x10/-0x14）。
+    std::list<int>::iterator it;
+    Quest* quest = 0;
+    // [b28d-solo-CListTables P212/P309] ORIG 槽深序 quest(-0xc)/it(-0x24)/
+    // npcIdx(-0x28)/questIdx(-0x2c)/range(-0x34)/cit(-0x38) ⇒ 全头部声明、
+    // 声明序按 ORIG 浅→深；块内仅赋值。
+    int npcIdx;
+    int questIdx;
+    std::pair<std::multimap<int, int>::const_iterator,
+              std::multimap<int, int>::const_iterator> range;
+    it = m_listE0.begin();
+    while (it != m_listE0.end())
+    {
+        npcIdx = *it;
         range = m_npcQuestList7.equal_range(npcIdx);
         std::multimap<int, int>::const_iterator cit = range.first;
         while (cit != range.second)
         {
-            int questIdx = cit->second;
+            questIdx = cit->second;
             quest = find_quest(questIdx);
-            if (quest != 0 && quest->m_field8 == 3)
-            {
-                out.push_back(questIdx);
-            }
+            // [b28d-solo-CListTables] ORIG 0x0835597e/0x08355981：两守卫落点不同
+            // （+0xe0 nop;jmp / +0xe3 nop）⇒ P223 多岛形：独立否定 goto + 尾标签串。
+            if (quest == 0)
+                goto SKIP_NULL_QUEST;
+            if (quest->m_field8 != 3)
+                goto SKIP_NOT_DAILY;
+            out.push_back(questIdx);
+        SKIP_NULL_QUEST:;
+        SKIP_NOT_DAILY:;
             cit++;
         }
         it++;
@@ -1519,6 +1568,9 @@ END1:;
 // GetItemType()（CItem.h:45，槽序 ~CItem×2/make_item/GetItemType）；旧实现用
 // static getQuestItemType 手动 vtbl[3] 调用（发明符号+手动虚调，违 §4.5）已删，
 // 改为真实 `item->GetItemType() == 8`。残差 N89 内联差 991/983。
+// [b28d-solo-CListTables §6.2 N 封顶] ORIG 0x08353ec8：991/992（gap=1）+ p167
+// CLEAR(122/122) + 逐块同构（make_pair→value_type(9)/const_iterator(2)/(*mit)/
+// size() 内联/直接 set_quest 全对齐），仅剩槽位与 STL 内联形差 ⇒ 语义完成、封顶。
 bool QuestList::load_list()
 {
     // [b28d-solo-CListTables N(§6.2/N82/N89)] 991/992 + p167 CLEAR(122/122) + gap=1：

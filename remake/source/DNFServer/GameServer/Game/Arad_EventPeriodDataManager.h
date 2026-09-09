@@ -46,8 +46,9 @@ struct SEventPeriodData
     // ORIG W 0x088b4368：C1(i,j,j) 三字段直存。【objdump】
     SEventPeriodData(int eventCode, unsigned int beginTime, unsigned int endTime);
 
-    // ORIG W 0x088b558a：空体 dtor（显式声明产出 D1/D2 弱符号）。【objdump】
-    ~SEventPeriodData();
+    // [b28d-solo] 无用户 dtor（P317/P12）：ORIG D1/D2 W 0x088b558a 由使用点
+    // （allocator::destroy/vector 元素析构实例化）发射；显式空体使类型非平凡，
+    // importAradEventScript 0x088b3bd8 会多发 D1 call（ORIG 无）。
     // 【objdump】ORIG W 0x088b4388：仅比 +0x00；非常量成员（mangled 无 K）。
     bool operator==(SEventPeriodData const& other);
 };
@@ -65,8 +66,7 @@ struct SRewardPeriodData
 {
     SRewardPeriodData(int eventCode, unsigned long f4, short f8,
                       unsigned int beginTime, unsigned int endTime);
-    // ORIG W 0x088b5764：空体 dtor（显式声明产出 D1/D2 弱符号）。【objdump】
-    ~SRewardPeriodData();
+    // [b28d-solo] 无用户 dtor（P317/P12），同 SEventPeriodData。
 
     int           m_eventCode;    // +0x00
     unsigned int  m_field4;       // +0x04

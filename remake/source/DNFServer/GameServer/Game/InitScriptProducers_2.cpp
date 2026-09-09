@@ -125,14 +125,24 @@ int getSameStringIndex(const char* s, const char** table, int count)
 // （-1 → 0x3693），grow=ScanInt 必需；循环 level=ScanInt（失败→回到外层标签循
 // 环）、data 两 int（失败→0x36a3/0x36a7）插入 out.m_map0。返回 0=正常结束。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82/N93] ORIG 0x08917f44 orig/ours=128/130
-//   残差：槽序（token/ok/局部对象）+ 循环块排布跨版本差。
+// [b28d-solo-InitScriptProducers_2] verdict=IDENTICAL_AE（原 DIFF 117）：
+//   ①key/data 提到**函数头**构造一次（ORIG 0x08917f5b/0x08917f66，非每轮重构造）；
+//   ②P164 纯 goto 循环复位头部条件块（0x08917f71），m_grow 失败与 ScanType 失败
+//   共享尾部 `mov $0,%ebx` 块。
 int LoadRewardDataByGrowType(stLevelUpRewardItemScript& out, std::string endTag)
 {
     std::string token;
     bool ok = false;
+    // ORIG 0x08917f5b/0x08917f66：key(-0x36)/data(-0x40) 在**函数头**各构造一次
+    // （循环外复用），非每轮重构造。
+    LevelUpRewardItemTableKey key;
+    LevelUpRewardItemData data;
 
-    while (ScanType(token, true))
+    // P164：4.4 把 while 旋转成尾部条件头；纯 goto 循环复位到 ORIG 的头部条件块
+    // （0x08917f71），ScanType 失败与 m_grow 失败共享尾部 `mov $0,%ebx` 块。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
     {
         if (token == endTag)
             return 0;
@@ -142,11 +152,10 @@ int LoadRewardDataByGrowType(stLevelUpRewardItemScript& out, std::string endTag)
         if (job == -1)
             return 0x3693;
 
-        LevelUpRewardItemTableKey key(0, job, 0);
         key.m_job = (unsigned char)job;                  // +0x02
         key.m_grow = (unsigned char)ScanInt(&ok);        // +0x03
         if (!ok)
-            return 0;
+            goto scan_done;
 
         while (true)
         {
@@ -154,7 +163,6 @@ int LoadRewardDataByGrowType(stLevelUpRewardItemScript& out, std::string endTag)
             if (!ok)
                 break;                                   // 回到外层标签扫描
 
-            LevelUpRewardItemData data;
             data.m_field0 = ScanInt(&ok);
             if (!ok)
                 return 0x36a3;
@@ -166,6 +174,8 @@ int LoadRewardDataByGrowType(stLevelUpRewardItemScript& out, std::string endTag)
                 std::make_pair(key, data));
         }
     }
+    goto scan_top;
+scan_done:
     return 0;
 }
 
@@ -174,6 +184,10 @@ int LoadRewardDataByGrowType(stLevelUpRewardItemScript& out, std::string endTag)
 // "Event/ReturnUserReward.evt" → this+0xb548）。返回 0=成功，非 0=错误行。
 // [pacakege item] 为 ORIG 原文拼写。
 // ============================================================================
+// [b28d-solo-InitScriptProducers_2] verdict=IDENTICAL_AE（原 DIFF 93）：①单层
+//   for(;;) + `goto scan_fail` 尾标签（P164/P223）复位 ORIG 头部条件块
+//   （0x08918140）与尾部失败岛（0x08918235 nop; mov $0,%ebx）；②`[reward equip
+//   item]` 用正形 == 分支（ORIG 0x089181a5 `test; je`，无 xor 物化）。
 int ImportReturnUserRewardScript(const char* path, stReturnUserRewardScript& out)
 {
     if (!loadRDARScriptFile("", path))
@@ -187,35 +201,31 @@ int ImportReturnUserRewardScript(const char* path, stReturnUserRewardScript& out
     int ret = 0;
     out.m_levelUp.clear();
 
-    // ORIG 0x089180ea 双层 do-while：内层 while(true) 扫 [pacakege item]（continue
-    // 回内层头），内层尾 `token != "[reward equip item]"` 退出；外层 ret==0 继续。
-    // ScanType 失败 → ret=0 跳出（ORIG `xor $1,%eax; test %al,%al; jne <epilogue>`）。
+    // ORIG 0x089180ea 单层 for(;;)：三处回边（[pacakege item]/非 [reward equip item]/
+    // ret==0）都回同一 ScanType 头；ScanType 失败落**尾部岛** `nop; mov $0,%ebx`
+    // （P223 岛 + P164 尾标签），故写 goto 尾标签而非就地 return。
     for (;;)
     {
-        do
+        if (!ScanType(token, true))
+            goto scan_fail;
+        if (token == "[pacakege item]")
         {
-            for (;;)
-            {
-                if (!ScanType(token, true))
-                    return 0;   // ORIG `mov $0,%ebx; jmp <~string>`（直接返回，非写 ret 槽）
-                if (token == "[pacakege item]")
-                {
-                    ScanInt(&out.m_field0);
-                    ScanInt(&out.m_field4);
-                    continue;
-                }
+            ScanInt(&out.m_field0);
+            ScanInt(&out.m_field4);
+            continue;
+        }
+        if (token == "[reward equip item]")
+        {
+            ret = LoadRewardDataByGrowType(out.m_levelUp, "[/reward equip item]");
+            // ORIG 尾 `cmpl $0,-0xc; je <循环头>`（直跳）⇒ 写 break 形；`while(ret==0)`
+            // 4.4 反产 `sete %al; test %al; jne` 物化（多 2 条）。
+            if (ret != 0)
                 break;
-            }
-        } while (token != "[reward equip item]");
-
-        ret = LoadRewardDataByGrowType(out.m_levelUp, "[/reward equip item]");
-        // ORIG 尾 `cmpl $0,-0xc; je <循环头>`（直跳）⇒ 写 break 形；`while(ret==0)`
-        // 4.4 反产 `sete %al; test %al; jne` 物化（多 2 条）。
-        if (ret != 0)
-            break;
+        }
     }
-done:
     return ret;
+scan_fail:
+    return 0;
 }
 
 // ============================================================================
@@ -223,8 +233,13 @@ done:
 // → this+0xb568）。ORIG 所有路径恒返回 0（含加载失败），忠实保留。
 // 段：[board]→m_map18、[quiz value]→m_map0、[reward]→m_map30、[use item]→m_vec48。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x089187b9 orig/ours=337/333
-//   残差：全帧槽号平移 + 迭代器/map 实例差。
+// [b28d-solo-InitScriptProducers_2] verdict=N82/N89 封顶（原 DIFF 311）ORIG
+//   0x089187b9 orig/ours=337/338，P167 CLEAR（41/41）。本波修 p167 差集：
+//   ①make_pair 全部去 const 左值（ORIG 3 实例 <int&,vector<int>&>/<int&,int&>/
+//   <int&,pair<int,int>&>）；②补 `values.clear()`（ORIG 0x089188ad 显式调用）；
+//   ③上限变量化 `int limit = 25`（ORIG -0x20 存 0x19，setl 形）；④P164 goto
+//   主循环（0x08918800）；⑤count/ok 失败改尾岛 goto scan_done。残余：槽位/块
+//   布局跨版本差。
 bool ImportBingoScript(const char* path, stBingoScript& out)
 {
     if (!loadRDARScriptFile("", path))
@@ -233,21 +248,27 @@ bool ImportBingoScript(const char* path, stBingoScript& out)
     std::string token;
     bool ok = false;
 
-    while (ScanType(token, true))
+    // P164：纯 goto 循环复位头部条件块（ORIG 0x08918800）。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
     {
         if (token == "[board]")
         {
             const int count = ScanInt(&ok);
             if (!ok)
-                return false;
-            for (int i = 0; i < count && (ok = false, true); )
+                goto scan_done;                          // ORIG 0x08918c96 尾部岛
+            for (int i = 0; i < count; )
             {
-                const int key = ScanInt(&ok);
+                // 非 const 左值 ⇒ ORIG make_pair<int&,vector<int>&>（p167）。
+                int key = ScanInt(&ok);
                 if (!ok)
                     break;                               // 直接回主循环，不插入
 
                 std::vector<int> values;                 // 每行新建（ORIG ctor+clear）
-                for (int j = 0; j < 25; )                // ORIG 上限 0x19
+                values.clear();                          // ORIG 0x089188ad 显式 clear
+                int limit = 25;                          // ORIG 上限存槽 -0x20（setl 形）
+                for (int j = 0; j < limit; )
                 {
                     const int v = ScanInt(&ok);
                     if (!ok)
@@ -258,37 +279,37 @@ bool ImportBingoScript(const char* path, stBingoScript& out)
                 out.m_map18.insert(std::make_pair(key, values));
                 ++i;
             }
-            continue;
+            goto scan_top;
         }
 
         if (token == "[quiz value]")
         {
             const int count = ScanInt(&ok);
             if (!ok)
-                return false;
+                goto scan_done;
             for (int i = 0; i < count; )
             {
-                const int k = ScanInt(&ok);
+                int k = ScanInt(&ok);
                 if (!ok)
-                    return false;
-                const int v = ScanInt(&ok);
+                    goto scan_done;
+                int v = ScanInt(&ok);
                 if (!ok)
-                    return false;
+                    goto scan_done;
                 out.m_map0.insert(std::make_pair(k, v));
                 ++i;
             }
-            continue;
+            goto scan_top;
         }
 
         if (token == "[reward]")
         {
             const int count = ScanInt(&ok);
             if (!ok)
-                return false;
+                goto scan_done;
             for (int i = 0; i < count; ++i)
             {
                 std::pair<int, int> reward;              // 默认构造（ORIG pair()）
-                const int a = ScanInt(&ok);
+                int a = ScanInt(&ok);
                 if (!ok)
                     break;
                 reward.first = ScanInt(&ok);
@@ -299,7 +320,7 @@ bool ImportBingoScript(const char* path, stBingoScript& out)
                     break;
                 out.m_map30.insert(std::make_pair(a, reward));
             }
-            continue;
+            goto scan_top;
         }
 
         if (token == "[use item]")
@@ -311,9 +332,11 @@ bool ImportBingoScript(const char* path, stBingoScript& out)
                     break;
                 out.m_vec48.push_back(v);
             }
-            continue;
+            goto scan_top;
         }
     }
+    goto scan_top;
+scan_done:
     return false;
 }
 
@@ -321,8 +344,9 @@ bool ImportBingoScript(const char* path, stBingoScript& out)
 // ImportItemMakingSkill —— ORIG T 0x0890f564（init.md:1146，
 // "Etc/ItemMakingSkill.etc" → this+0xb458）。返回 0=成功，非 0=错误行。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x0890f564 orig/ours=256/252
-//   残差：槽/寄存器分配跨版本差。
+// [b28d-solo-InitScriptProducers_2] verdict=IDENTICAL_AE（原 DIFF 196）：P164 纯
+//   goto 主循环复位 ORIG 头部条件块（0x0890f5ab），四段 continue→`goto scan_top`；
+//   内层 `while(true)` 各段与 ORIG 同形。
 int ImportItemMakingSkill(const char* path, stItemMakingSkill& out)
 {
     if (!loadRDARScriptFile("", path))
@@ -331,7 +355,11 @@ int ImportItemMakingSkill(const char* path, stItemMakingSkill& out)
     std::string token;
     bool ok = false;
 
-    while (ScanType(token, true))
+    // P164：4.4 把 while 旋转成尾部条件头；纯 goto 循环复位到 ORIG 头部条件块
+    // （0x0890f5ab），ScanType 失败落尾部岛（0x0890f8b2 nop; mov $0,%ebx）。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
     {
         if (token == "[itemmaking exp limit]")
         {
@@ -345,7 +373,7 @@ int ImportItemMakingSkill(const char* path, stItemMakingSkill& out)
                     return 0x27b2;
                 out.m_vec18.push_back(std::make_pair(lv, exp));
             }
-            continue;
+            goto scan_top;
         }
 
         if (token == "[itemmaking exp]")
@@ -356,7 +384,7 @@ int ImportItemMakingSkill(const char* path, stItemMakingSkill& out)
             out.m_bonusExp = ScanInt(&ok);
             if (!ok)
                 return 0x27bf;
-            continue;
+            goto scan_top;
         }
 
         if (token == "[itemmaking level limit]")
@@ -364,7 +392,7 @@ int ImportItemMakingSkill(const char* path, stItemMakingSkill& out)
             out.m_levelLimit = ScanInt(&ok);
             if (!ok)
                 return 0x27c5;
-            continue;
+            goto scan_top;
         }
 
         if (token == "[upgrade with compound]")
@@ -400,9 +428,11 @@ int ImportItemMakingSkill(const char* path, stItemMakingSkill& out)
 
                 out.m_map0.insert(std::make_pair(key, data));
             }
-            continue;
+            goto scan_top;
         }
     }
+    goto scan_top;
+scan_done:
     return 0;
 }
 
@@ -412,8 +442,15 @@ int ImportItemMakingSkill(const char* path, stItemMakingSkill& out)
 // 段：[breakaway section]→m_vec0、[exp reward]→m_vecC、
 //     [package reward]{[group]/[package selection]}→m_map18。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x08911ee3 orig/ours=269/264
-//   残差：全帧槽号平移 + STL 内联实例差。
+// [b28d-solo-InitScriptProducers_2] verdict=N82/N112 封顶（原 DIFF）ORIG
+//   0x08911ee3 orig/ours=269/268，P167 CLEAR（47/47）。本波已修真语义 bug：
+//   ①[package selection] 内层用 `bool ScanInt(int*)`（ORIG `_Z7ScanIntPi`），
+//   原写成 `int ScanInt(bool*)`+ok 槽；②`token != "[/package reward]"` 生成
+//   operator!=（ORIG 只有 operator==，改 do+`if(==)break`）；③[exp reward]
+//   m_reward 用字节视图（ORIG `mov %al,-0x21`，int 视图产 dword 写）。
+//   残余：ORIG 把局部 STExpReward 落**非 4 对齐**槽 -0x21（4.1 按对齐 1 分配），
+//   4.4 恒 4 对齐槽 -0x24（局部 `__attribute__((packed))` 实测无效）⇒ [exp] 段
+//   槽号 +3 平移；属 N82/N112 槽分配族，语义等价。
 bool importGrowthPower(char* path, STGrowthPowerData* out)
 {
     if (out == 0)
@@ -423,14 +460,21 @@ bool importGrowthPower(char* path, STGrowthPowerData* out)
 
     std::string token;
     std::string group;
-    bool ok = false;
 
-    while (ScanType(token, true))
+    // P164：4.4 把 while 旋转成尾部条件头；纯 goto 循环复位到 ORIG 头部条件块
+    // （0x08911f38），ScanType 失败落尾部岛（0x08912244 nop; mov $1,%ebx）。
+    // 每段循环内各有一个 bool ok 局部（ORIG 槽 -0x19/-0x1d 独立，且循环头预清）。
+    // [package selection] 的内层扫描是 `bool ScanInt(int*)`（ORIG 0x08912136
+    // `_Z7ScanIntPi`，返回值即成功标志），不是 `int ScanInt(bool*)`。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
     {
         if (token == "[breakaway section]")
         {
             while (true)
             {
+                bool ok = false;
                 STBreakAwaySection section;
                 section.m_field0 = (char)ScanInt(&ok);
                 if (!ok)
@@ -439,18 +483,19 @@ bool importGrowthPower(char* path, STGrowthPowerData* out)
                 section.m_field2 = (char)ScanInt((bool*)0);
                 out->m_vec0.push_back(section);
             }
-            continue;
+            goto scan_top;
         }
 
         if (token == "[exp reward]")
         {
             while (true)
             {
+                bool ok = false;
                 STExpReward reward;                      // ctor 仅清前 4 字节（同 ORIG）
                 // ORIG 逐字节写入 +0x00..+0x03（mov %al）：
                 //   +0x00=m_reward 低字节、+0x01=m_field4、+0x02=m_field5、
                 //   +0x03=m_powerUp。
-                reward.m_reward = (unsigned char)ScanInt(&ok);
+                reward.m_reward8 = (char)ScanInt(&ok);
                 if (!ok)
                     break;
                 reward.m_field4 = (char)ScanInt((bool*)0);
@@ -458,7 +503,7 @@ bool importGrowthPower(char* path, STGrowthPowerData* out)
                 reward.m_powerUp = (char)ScanInt((bool*)0);
                 out->m_vecC.push_back(reward);
             }
-            continue;
+            goto scan_top;
         }
 
         if (token == "[package reward]")
@@ -466,7 +511,7 @@ bool importGrowthPower(char* path, STGrowthPowerData* out)
             do
             {
                 if (!ScanType(token, true))
-                    break;                               // EOF → 回主循环
+                    goto scan_top;                       // EOF → 回主循环
 
                 if (token == "[group]")
                 {
@@ -481,11 +526,11 @@ bool importGrowthPower(char* path, STGrowthPowerData* out)
                     ScanType(token, true);
                     while (token == "[package selection]")
                     {
+                        int idx;
                         std::vector<STStackablePackageData> items;
                         while (true)
                         {
-                            const int idx = ScanInt(&ok);
-                            if (!ok)
+                            if (!ScanInt(&idx))
                                 break;
                             STStackablePackageData d;
                             d.m_field0 = idx;
@@ -497,21 +542,32 @@ bool importGrowthPower(char* path, STGrowthPowerData* out)
                     }
                     out->m_map18[key] = groups;
                 }
-            } while (token != "[/package reward]");
-            continue;
+                // ORIG 0x08912232 只有 operator==（无 operator!=）：`if (token ==
+                // "[/package reward]") break;` 生 `test; je <循环头>` + fall 跳出。
+                if (token == "[/package reward]")
+                    break;
+            } while (true);
+            goto scan_top;
         }
     }
+    goto scan_top;
+scan_done:
     return true;
 }
 
 // ============================================================================
 // ImportWarAreaCounter —— ORIG T 0x089026f3（init.md:1956，this+0x87b4，
 // 固定路径 "Etc/WarArea.etc"）。返回 1=成功 / 0=失败。
-// 注：ORIG 无下标越界检查（裸指针写入靠相邻区布局兜底）；字段化访问后对四个
-// 数组加上限（24/24/10/10，与相邻成员边界一致），语义不变。
+// 注：ORIG 无下标越界检查（裸指针写入靠相邻区布局兜底）——照抄裸下标（P171）。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x089026f3 orig/ours=326/335
-//   残差：槽分配 + 条件块排布跨版本差。
+// [b28d-solo-InitScriptProducers_2] verdict=N82 封顶（原 DIFF 297）ORIG
+//   0x089026f3 orig/ours=326/328，P167 CLEAR（32/32）。本波修真语义 bug：
+//   ①删三处 ORIG 不存在的越界防御（P140/P171 照抄裸下标）；②[counter] 段复用
+//   timeCount 作下标（ORIG 0x08902ae2 把 -0x30 存入 m_num 后清零复用），非独立
+//   counter 局部；③doorCount/dungeonIdx 为**块内**局部（ORIG -0x20/-0x18）；
+//   ④-0x34 为 ORIG 死局部；⑤maxValue 先于 maxIndex 赋值；⑥make_pair<int&,
+//   stWarPoint&>（key 去 const，p167 归零）。残余：全帧槽位 +4 平移（N95/N82）
+//   + do-while 尾测 setne 物化（4.4 恒物化，ORIG 直跳 jne）。
 int ImportWarAreaCounter(WarAreaCounter* out)
 {
     if (!loadRDARScriptFile("", "Etc/WarArea.etc"))
@@ -526,42 +582,42 @@ int ImportWarAreaCounter(WarAreaCounter* out)
     }
 
     std::string token;
-    bool ok = false;
-    int timeCount = 0;
-    int maxValue = 0;
-    int maxIndex = -1;
-    int doorCount = 0;
-    int dungeonIdx = 2;                                  // ORIG 从下标 2 起
+    int deadLocal = 0;                     // -0x34：ORIG 初始化后从不读（P171 死局部）
+    (void)deadLocal;
+    int timeCount = 0;                     // -0x30（[counter] 段复用为下标）
+    bool ok = false;                       // -0x69
+    int maxValue = 0;                      // -0x2c
+    int maxIndex = -1;                     // -0x28
 
-    while (ScanType(token, true))
+    // P164：纯 goto 循环复位头部条件块（ORIG 0x0890278c），ScanType 失败落
+    // 尾部岛（0x08902b54 nop; mov $1,%ebx）。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
     {
         if (token == "[time table]")
         {
             while (true)
             {
-                const int v = ScanInt(&ok);
+                const int v = ScanInt(&ok);              // -0x24
                 if (!ok)
-                    break;
-                if (timeCount < 24)
-                    out->m_timeHourList[timeCount] = v;  // ORIG 写 this+(i+0x18)*4
+                    goto scan_top;
+                out->m_timeHourList[timeCount] = v;      // ORIG 裸下标 this+(i+0x18)*4
                 ++timeCount;
             }
-            continue;
         }
 
         if (token == "[door fee]")
         {
-            doorCount = 0;
+            int doorCount = 0;                           // -0x20（块内局部）
             while (true)
             {
-                const int v = ScanInt(&ok);
+                const int v = ScanInt(&ok);              // -0x1c
                 if (!ok)
-                    break;
-                if (doorCount < 10)
-                    out->m_doorFee[doorCount] = v;       // ORIG 写 this+(i+0x30)*4
+                    goto scan_top;
+                out->m_doorFee[doorCount] = v;           // ORIG 裸下标 this+(i+0x30)*4
                 ++doorCount;
             }
-            continue;
         }
 
         if (token == "[ban interval]")
@@ -569,7 +625,7 @@ int ImportWarAreaCounter(WarAreaCounter* out)
             out->m_banInterval = ScanInt(&ok);
             if (!ok)
                 return 0;
-            continue;
+            goto scan_top;
         }
 
         if (token == "[kick point]")
@@ -577,7 +633,7 @@ int ImportWarAreaCounter(WarAreaCounter* out)
             out->m_kickPoint = ScanInt(&ok);
             if (!ok)
                 return 0;
-            continue;
+            goto scan_top;
         }
 
         if (token == "[ready count]")
@@ -585,7 +641,7 @@ int ImportWarAreaCounter(WarAreaCounter* out)
             out->m_readyCount = ScanInt(&ok);
             if (!ok)
                 return 0;
-            continue;
+            goto scan_top;
         }
 
         if (token == "[wp penalty]")
@@ -593,7 +649,7 @@ int ImportWarAreaCounter(WarAreaCounter* out)
             out->m_wpPenalty = ScanInt(&ok);
             if (!ok)
                 return 0;
-            continue;
+            goto scan_top;
         }
 
         if (token == "[monster exp const]")
@@ -601,34 +657,34 @@ int ImportWarAreaCounter(WarAreaCounter* out)
             out->m_monsterExpConst = ScanFloat(&ok);
             if (!ok)
                 return 0;
-            continue;
+            goto scan_top;
         }
 
         if (token == "[wararea dungeon]")
         {
-            dungeonIdx = 2;
+            int dungeonIdx = 2;                          // -0x18（块内局部，ORIG 从 2 起）
             while (true)
             {
-                const int v = ScanInt(&ok);
+                const int v = ScanInt(&ok);              // -0x14
                 if (!ok)
-                    break;
-                if (dungeonIdx >= 2 && dungeonIdx < 12)
-                    out->m_warAreaDungeon[dungeonIdx] = v;
+                    goto scan_top;
+                out->m_warAreaDungeon[dungeonIdx] = v;   // ORIG 裸下标
                 ++dungeonIdx;
             }
-            continue;
         }
 
         if (token == "[wp per monster hp]")
         {
             while (true)
             {
-                stWarPoint wp;                           // ctor memset 0x10
-                const int key = ScanInt(&ok);
+                stWarPoint wp;                           // -0x7c，ctor memset 0x10
+                // 非 const 左值：ORIG 实例为 make_pair<int&,stWarPoint&>
+                // （p167 MISSING `IRiR10stWarPoint`；const 版落 `<IRKiR...>`）。
+                int key = ScanInt(&ok);                  // -0x80
                 if (!ok)
-                    break;                               // 回主循环
+                    goto scan_top;                       // 回主循环
 
-                for (int j = 0; j < 4; ++j)
+                for (int j = 0; j < 4; ++j)              // -0x10
                 {
                     const int v = ScanInt(&ok);
                     if (!ok)
@@ -638,31 +694,31 @@ int ImportWarAreaCounter(WarAreaCounter* out)
                 out->m_wpPerMonsterHp.insert(
                     std::make_pair(key, wp));            // greater<int> 键序
             }
-            continue;
         }
 
         if (token == "[counter]")
         {
-            out->m_num = timeCount;
-            int counter = 0;
+            out->m_num = timeCount;                      // +0x140
+            timeCount = 0;                               // 复用为 counter（ORIG -0x30）
             do
             {
-                const int v = ScanInt(&ok);
+                const int v = ScanInt(&ok);              // -0xc
                 if (!ok)
                     break;
                 if (v > maxValue)
                 {
-                    maxIndex = counter;
                     maxValue = v;
+                    maxIndex = timeCount;
                 }
-                if (counter < 24)
-                    out->m_counterTable[counter] = v;
-                ++counter;
-            } while (out->m_num != counter);
+                out->m_counterTable[timeCount] = v;      // ORIG 裸下标 this+i*4
+                ++timeCount;
+            } while (out->m_num != timeCount);
             out->m_curHourIdx = maxIndex;                // ORIG 写 +0xe8
-            continue;
+            goto scan_top;
         }
     }
+    goto scan_top;
+scan_done:
     return 1;
 }
 
@@ -673,8 +729,11 @@ int ImportWarAreaCounter(WarAreaCounter* out)
 // 后续段直接写该值字段；[attack speed]/[jump speed] 无 cur 判空（ORIG 缺失，
 // 引用恒非空故等价）。[jump speed] 读后丢弃（ORIG 同）。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x08977d9c orig/ours=569/491
-//   残差：超大件槽/寄存器分配差 + STL 内联实例（N89）导致指令数缺口。
+// [b28d-solo-InitScriptProducers_2] verdict=N89/N82 封顶（原 DIFF 524）ORIG
+//   0x08977d9c orig/ours=569/496，P167 CLEAR（56/56，§6.2 三件套①）。本波修：
+//   insert 结果用 `pair<const_iterator,bool>`（ORIG 转换构造
+//   `C1ISt17_Rb_tree_iteratorIS4_EbEEOS_IT_T0_E` + const_iterator ptEv；
+//   `const_cast` 取 current）。残余：STL 内联实例差（N89）+ 超大件槽差（N82）。
 bool importPairPvPStatScript(FairPvPStatScript& script, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -705,12 +764,14 @@ bool importPairPvPStatScript(FairPvPStatScript& script, const char* path)
 
             CharacterStatus status;
             std::memset(&status, 0, sizeof(status));     // ORIG memset 0x54
-            const std::pair<std::map<CharacterKind, CharacterStatus>::iterator,
+            // ORIG 用 const_iterator 版 pair（p167 MISSING 转换构造
+            // `C1ISt17_Rb_tree_iteratorIS4_EbEEOS_IT_T0_E` + const_iterator ptEv）。
+            const std::pair<std::map<CharacterKind, CharacterStatus>::const_iterator,
                             bool> inserted =
                 script.m_map0.insert(std::make_pair(kind, status));
             if (!inserted.second)
                 return false;
-            current = &inserted.first->second;
+            current = const_cast<CharacterStatus*>(&inserted.first->second);
             continue;
         }
 
@@ -856,8 +917,12 @@ bool importPairPvPStatScript(FairPvPStatScript& script, const char* path)
 // ImportSecurityReward —— ORIG T 0x089113ec（init.md:1123，this+0x50d8）。
 // 三段各 4 个 int；返回 bool（真=成功）。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x089113ec orig/ours=125/111
-//   残差：槽/寄存器分配 + STL 内联实例差。
+// [b28d-solo-InitScriptProducers_2] verdict=N1 封顶（原 DIFF 102）ORIG
+//   0x089113ec orig/ours=125/120，P167 CLEAR（22/22）。本波修真语义 bug：
+//   ①ORIG 用 `bool ScanInt(int*)`（`_Z7ScanIntPi`）**语句调用**写字段（每段 4 次
+//   展开，非 for 循环），原写成 `int ScanInt(bool*)`+ok 槽+循环；②P164 goto 循环。
+//   残余：5 处地址 `add $8; add $4` 两步形（4.1 常量乘法展开），4.4 恒折单条
+//   `add $0xc`（探针 /tmp/probe2d.cpp g2d/g3/g4/g5/g6 全折）⇒ N1 跨版本常量算术。
 bool ImportSecurityReward(SecurityReward* out)
 {
     if (!loadRDARScriptFile("", "Etc/SecurityReward.etc"))
@@ -869,26 +934,40 @@ bool ImportSecurityReward(SecurityReward* out)
     }
 
     std::string token;
-    bool ok = false;
 
-    while (ScanType(token, true))
+    // ORIG 0x089113ec：每段 4 次**展开**的 `_Z7ScanIntPi`（bool ScanInt(int*)）
+    // 语句调用（返回值丢弃，P152/P171），非 for 循环；地址形 `add $8; add $4`
+    // 即 4.1 对 arr[3] 的两步常量算术。
+    // P164：4.4 会把 `while(cond)` 旋转成尾部条件头；用纯 goto 循环把条件头
+    // 复位到前部（ORIG 08911453），失败落尾部岛（0891157a nop; mov $1,%ebx）。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
     {
         if (token == "[GoblinPad Reward]")
         {
-            for (int i = 0; i < 4; ++i)
-                out->m_goblinPad[i] = ScanInt(&ok);
+            ScanInt(&out->m_goblinPad[0]);
+            ScanInt(&out->m_goblinPad[1]);
+            ScanInt(&out->m_goblinPad[2]);
+            ScanInt(&out->m_goblinPad[3]);
         }
         else if (token == "[SecurityCard Reward]")
         {
-            for (int i = 0; i < 4; ++i)
-                out->m_securityCard[i] = ScanInt(&ok);
+            ScanInt(&out->m_securityCard[0]);
+            ScanInt(&out->m_securityCard[1]);
+            ScanInt(&out->m_securityCard[2]);
+            ScanInt(&out->m_securityCard[3]);
         }
         else if (token == "[OTP Reward]")
         {
-            for (int i = 0; i < 4; ++i)
-                out->m_otp[i] = ScanInt(&ok);
+            ScanInt(&out->m_otp[0]);
+            ScanInt(&out->m_otp[1]);
+            ScanInt(&out->m_otp[2]);
+            ScanInt(&out->m_otp[3]);
         }
     }
+    goto scan_top;
+scan_done:
     return true;
 }
 
@@ -899,8 +978,13 @@ bool ImportSecurityReward(SecurityReward* out)
 // new STEquipmentScript 并 ImportEquipmentScript(name,false,module,key)；
 // 成功后把该脚本 m_paramMap678[-1]（存在时）迁移为键=pieces.size() 的条目。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed446) [N82] ORIG 0x089073d9 orig/ours=374/350
-//   残差：槽平移 + STL 内联实例差（N89）。
+// [b28d-solo-InitScriptProducers_2] verdict=N89 封顶（原 DIFF 336）ORIG
+//   0x089073d9 orig/ours=374/349，p167 仅剩 `_ZNKSt17_Rb_tree_iterator<
+//   pair<const int,STEquipmentPartSetData>>::ptEv` ×7（4.4 内联头内 operator->，
+//   4.1 out-of-line；N89 类不可控）。本波修：①operator== 正形（去 operator!=）；
+//   ②`data.m_field0 = ScanInt((bool*)0)` 去独立 key 局部；③do-while 复用
+//   ScanStr 返回值（去重复调用）；④`paramMap[-1]` 替代 `def->second`（补
+//   map::operator[] 调用点）；⑤P164 goto 主循环。
 bool importEquipmentPartSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
 {
     if (!loadRDARScriptFile("", path))
@@ -922,35 +1006,43 @@ bool importEquipmentPartSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
 
     g_equipmentPartSetMap_.clear();
 
-    while (ScanType(token, true))
+    // P164：主循环 goto 形复位头部条件块（ORIG 0x08907477）；ScanType 失败落
+    // scan_done（直接进入下方 for 循环，非 return）。
+scan_top:
+    if (!ScanType(token, true))
+        goto scan_done;
     {
-        if (token != "[equipment part set]")
-            continue;
-
-        STEquipmentPartSetData data;
-        const int key = ScanInt((bool*)0);
-        data.m_field0 = key;
-        ScanStr(&name);
-        data.m_name4 = name;
-
-        do
+        // ORIG 0x0890749d 正向 `if (token == X)` 形（用 operator==，无 operator!=）。
+        if (token == "[equipment part set]")
         {
-            STEquipmentPartSetPiece piece;               // ctor 三 int=-1
-            if (ScanStr(&pieceName))
-            {
-                piece.m_name = pieceName;
-                ScanStr(&tag);
-                piece.m_field4 = getSameStringIndex(tag.c_str(),
-                                                    characterEquipmentTypeTags,
-                                                    0x1a);
-                piece.m_field8 = ScanInt((bool*)0);
-                piece.m_fieldc = ScanInt((bool*)0);
-                data.m_pieces.push_back(piece);
+            STEquipmentPartSetData data;
+            // ORIG 直接 `data+0 = ScanInt(0)`（无独立 key 局部；键取 data.m_field0）。
+            data.m_field0 = ScanInt((bool*)0);
+            ScanStr(&name);
+            data.m_name4 = name;
 
-                g_equipmentPartSetMap_[key] = data;      // operator[] + operator=
-            }
-        } while (ok = false, ScanStr(&pieceName));
+            do
+            {
+                STEquipmentPartSetPiece piece;           // ctor 三 int=-1
+                ok = ScanStr(&pieceName);                // 复用返回值作 do-while 条件
+                if (ok)
+                {
+                    piece.m_name = pieceName;
+                    ScanStr(&tag);
+                    piece.m_field4 = getSameStringIndex(tag.c_str(),
+                                                        characterEquipmentTypeTags,
+                                                        0x1a);
+                    piece.m_field8 = ScanInt((bool*)0);
+                    piece.m_fieldc = ScanInt((bool*)0);
+                    data.m_pieces.push_back(piece);
+
+                    g_equipmentPartSetMap_[data.m_field0] = data;
+                }
+            } while (ok);
+        }
     }
+    goto scan_top;
+scan_done:
 
     // ---- 逐集合装载装备脚本并合并 [-1] 参数条目 ----
     for (std::map<int, STEquipmentPartSetData>::iterator it =
@@ -981,7 +1073,9 @@ bool importEquipmentPartSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
             paramMap.find(-1);
         if (def != paramMap.end())
         {
-            const EquipmentParameterInfo merged(def->second);
+            // ORIG 用 `paramMap[-1]` 取引用再拷贝构造（p167 MISSING ixERS4_），
+            // 非 `def->second`（后者多一次 EquipmentParameterInfo 迭代器 ptEv）。
+            const EquipmentParameterInfo merged(paramMap[-1]);
             paramMap.clear();
             paramMap[it->second.m_pieces.size()] = merged;
         }

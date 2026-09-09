@@ -69,8 +69,12 @@ bool CExtraction::_check_need_slot(CUser* user)
 //   已鉴定（0xae）、可分解（0x17）、非绑定（0x11）、未锁（0xd5）、
 //   安全保护 CheckItemRarity（0x28）返回其错误码。
 // ============================================================================
-// [b28d-54 N] ORIG 0x084a2a5e：`cmpl $imm,mem` vs ORIG 载寄存器后比较（P209）
-//   + 实参装载序（P23/P75）；调用序列全等（180 vs 181）。
+// [b28d-solo-ExpertExtraction] AE 修复：attachType 改单 case switch，复现 ORIG
+//   `mov -0x10(%ebp),%eax; cmp $0x2,%eax; jne`（P286/P209；原 `if` 恒折 cmpl mem 直比）。
+//   残余 N（P75 跨版本实参装载调度）：CheckItemRarity 末段 ORIG 4.1 序为
+//   `c2→%edx; s_pSecuProtectionField→%eax; &item2→%ecx`，4.4.7 恒
+//   `this→%eax; &item2→%edx; c2→%edx`；cast/(CUser*)/reinterpret_cast receiver/
+//   单行合并 4 形实测均不翻。p167 17/17 CLEAR（语义完整，gap=0）。
 int CExtraction::check_error(CUser* user, char a, short b, short c)
 {
     if (G_GameWorld()->IsPVPChannel())
@@ -128,9 +132,12 @@ int CExtraction::check_error(CUser* user, char a, short b, short c)
     // attachType 局部（缺它整帧少 4 字节：c1/c2 落 -0x14/-0x10、两个 Inven_Item
     // sret 结构落 -0x51/-0x8e，与 ORIG -0x55/-0x92 全帧错位）。
     int attachType = c2->GetAttachType();
-    if (attachType == 2)
+    switch (attachType)
     {
+    case 2:
         return 0x11;
+    default:
+        break;
     }
     if (user->CheckItemLock(1, (int)c))
     {
@@ -151,18 +158,24 @@ int CExtraction::check_error(CUser* user, char a, short b, short c)
 //   → 副本试插（0x35,0,1）；成功后真实背包删材料再插入，outSlots 输出
 //   {插入槽, 物品索引, add_info}。
 // ============================================================================
-// [b28d-54 N] ORIG 0x084a2cec：帧/槽平移（N82）+ 模板实例槽（N86）；调用序列全等。
+// [b28d-solo-ExpertExtraction] NEAR 修复：声明序改 copy→mem（ORIG 构造序 CInventory
+//   先于 InventoryMemory）、delete_item 结果改 bool 具名局部（P158 复现
+//   `movzbl; xor $1; test; je`）、slot 单变量复用（ORIG 两次 insert 同落 -0x20，
+//   P160-162 槽复用律）。残余 N95（1 字节栈对齐）：mem 槽基 ORIG -0xc957（4.1 按
+//   0xc13f 不补齐）vs 4.4 -0xc958（按 4 对齐）；删 CUser.h 的 m_tailC13f 亦不能上移
+//   （4.4 强制对齐，且 CUser 中该成员因对齐仍占 0xc140、布局不变）。p167 23/23 CLEAR。
 bool CExtraction::inven_process(CUser* user, short param,
                                 std::vector<std::pair<int, int> >& needItems,
                                 std::vector<int>& outSlots)
 {
     CInventory* invenW = user->getCurCharacInvenW();
-    InventoryMemory mem;
     CInventory copy;
+    InventoryMemory mem;
     copy.SetInventoryMemory(&mem);
     copy.setCopy(*(const CInventory*)user->getCurCharacInvenRefR());
-    if (copy.delete_item((INVEN_TYPE)1, (int)param, 1,
-                         (eItemDelReason)0x2d, 0) == 0)
+    bool deleted = copy.delete_item((INVEN_TYPE)1, (int)param, 1,
+                                    (eItemDelReason)0x2d, 0);
+    if (!deleted)
     {
         return false;
     }
@@ -173,16 +186,16 @@ bool CExtraction::inven_process(CUser* user, short param,
     item->make_item(newItem);
     newItem.set_add_info(second);
     newItem.m_addInfo = first;
-    int slot1 = copy.insertItemIntoInventory(newItem, (eItemAddReason)0x35, 0, 1);
-    if (slot1 == -1)
+    int slot = copy.insertItemIntoInventory(newItem, (eItemAddReason)0x35, 0, 1);
+    if (slot == -1)
     {
         return false;
     }
     invenW->delete_item((INVEN_TYPE)1, (int)param, 1,
                         (eItemDelReason)0x2d, 1);
-    int slot2 = invenW->insertItemIntoInventory(newItem, (eItemAddReason)0x35, 1, 1);
+    slot = invenW->insertItemIntoInventory(newItem, (eItemAddReason)0x35, 1, 1);
     outSlots.clear();
-    outSlots.push_back(slot2);
+    outSlots.push_back(slot);
     outSlots.push_back(first);
     outSlots.push_back(second);
     return true;
@@ -247,23 +260,26 @@ int CAlchemistExtraction::get_extraction_count(Inven_Item item)
 //   材料1（槽 a）的 +0x334 等级字段 → 脚本允许等级；材料2（槽 b）的
 //   usableLevel（0 时 grade）；超出 → 0xd。
 // ============================================================================
-// [b28d-54 N] ORIG 0x084a35f2：4.4 槽复用（mat1/mat2/limit 压缩，帧 -4，
-//   N82/N95）+ 装载序（P23）。三派生类同族（Enchanter 0x084a3b92 /
-//   DollController 0x084a4286 同形）。语义等价。
+// [b28d-solo-ExpertExtraction] AE 修复：mat1->m_int334 提升为具名 level 局部
+//   （P0：ORIG `mov 0x334(%eax),%eax; mov %eax,-0x14(%ebp)` 槽往返后回读传参）
+//   + 比较改 `if (need > limit)` 复现 ORIG `mov need,%eax; cmp limit,%eax; jle`
+//   （原 `limit < need` 产 jge 反向，P196/P47）。三派生类同族（Enchanter 0x084a3b92 /
+//   DollController 0x084a4286 同形）。p167 13/13 CLEAR。
 int CAlchemistExtraction::_check_error(CUser* user, short a, short b)
 {
     Inven_Item item1 = user->getCurCharacInvenR()->GetInvenSlot(1, (int)a);
     CStackableItem* mat1 = (CStackableItem*)G_CDataManager()->find_item(item1.m_addInfo);
     Inven_Item item2 = user->getCurCharacInvenR()->GetInvenSlot(1, (int)b);
     CItem* mat2 = G_CDataManager()->find_item(item2.m_addInfo);
+    int level = mat1->m_int334;
     int limit = ((STExpertJobScript*)G_CDataManager()->GetExpertJobScript(2))
-                    ->GetAlchemistExtractionPossibleLevel(mat1->m_int334);
+                    ->GetAlchemistExtractionPossibleLevel(level);
     int need = mat2->getUsableLevel();
     if (need == 0)
     {
         need = mat2->get_grade();
     }
-    if (limit < need)
+    if (need > limit)
     {
         return 0xd;
     }
@@ -296,7 +312,14 @@ int CAlchemistExtraction::check_error(CUser* user, char a, short b, short c)
 //   按结果表随机选一条目（CMTRand），命中则 get_extraction_count 作数量，
 //   needItems 输出 {itemId, count}。
 // ============================================================================
-// [b28d-54 N] ORIG 0x084a3182：帧/槽平移（N82）+ 模板/寄存器角色（N7/N86）。
+// [b28d-solo-ExpertExtraction] AE 修复（三旋钮）：①`pick = randInt(range); ++pick;`
+//   两句复现 ORIG `mov %eax,-0x18; addl $1,-0x18`（内存自增）；②三处 cMyTrace 改
+//   全表达式临时链 `cMyTrace(...)(fmt, vec.size())`（P227：ORIG 在 ctor 前求值 size()
+//   并入 %ebx 跨 ctor 保活；P221 槽方向随之翻正）；③删具名 count，把
+//   `(int)get_extraction_count(item)` 内联进 make_pair 第二实参——ORIG 的 -0x44 是
+//   `(int)` 右值临时（mangled 实证 make_pair<int&,int>(int&,int&&) @0x080dd799），
+//   具名局部会令 4.4 再复制一份到临时并使全帧深移 4（-0x34 vs ORIG -0x30）。
+//   p167 27/27 CLEAR。
 bool CAlchemistExtraction::extraction(CUser* user, short param,
                                       std::vector<std::pair<int, int> >& needItems)
 {
@@ -315,19 +338,20 @@ bool CAlchemistExtraction::extraction(CUser* user, short param,
     }
     int sum = info->m_count[type];
     unsigned long range = (unsigned long)(sum - 1);
-    int pick = m_rand->randInt(range) + 1;
+    int pick = m_rand->randInt(range);
+    ++pick;
     std::vector<STExpertJobScript::stMonsterCardBindResult>& vec = info->m_vec[type];
     if (vec.size() == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xec, 5);
-        trace("CAlchemistExtraction::extraction ERROR : size(%d)", (int)vec.size());
+        cMyTrace(__PRETTY_FUNCTION__, 0xec, 5)(
+            "CAlchemistExtraction::extraction ERROR : size(%d)", (int)vec.size());
         return false;
     }
     if (vec.size() != 0 && sum == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xf1, 5);
-        trace("CAlchemistExtraction::extraction ERROR : size(%d), sum(%d)",
-              (int)vec.size(), sum);
+        cMyTrace(__PRETTY_FUNCTION__, 0xf1, 5)(
+            "CAlchemistExtraction::extraction ERROR : size(%d), sum(%d)",
+            (int)vec.size(), sum);
         return false;
     }
     int acc = 0;
@@ -337,8 +361,8 @@ bool CAlchemistExtraction::extraction(CUser* user, short param,
         if (acc < pick &&
             acc + (int)(unsigned short)vec[i].m_field4 >= pick)
         {
-            int count = get_extraction_count(item);
-            needItems.push_back(std::make_pair(vec[i].m_field0, (int)count));
+            needItems.push_back(std::make_pair(vec[i].m_field0,
+                                               (int)get_extraction_count(item)));
             break;
         }
         acc += (int)(unsigned short)vec[i].m_field4;
@@ -346,8 +370,8 @@ bool CAlchemistExtraction::extraction(CUser* user, short param,
     }
     if (needItems.empty())
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x102, 5);
-        trace("CAlchemistExtraction::extraction ERROR : result is empty");
+        cMyTrace(__PRETTY_FUNCTION__, 0x102, 5)(
+            "CAlchemistExtraction::extraction ERROR : result is empty");
         return false;
     }
     return true;
@@ -370,21 +394,23 @@ int CEnchanterExtraction::get_extraction_count(Inven_Item item)
 // ============================================================================
 // CEnchanterExtraction::_check_error —— ORIG T 0x084a3b92（+0x338 等级字段）
 // ============================================================================
-// [b28d-54 N] ORIG 0x084a3b92：同 CAlchemistExtraction::_check_error（N82/N95 槽复用）。
+// [b28d-solo-ExpertExtraction] AE 修复：同 CAlchemistExtraction::_check_error
+//   （具名 level 局部 + `need > limit` 方向；字段 m_int338 / 脚本类型 1）。p167 13/13 CLEAR。
 int CEnchanterExtraction::_check_error(CUser* user, short a, short b)
 {
     Inven_Item item1 = user->getCurCharacInvenR()->GetInvenSlot(1, (int)a);
     CStackableItem* mat1 = (CStackableItem*)G_CDataManager()->find_item(item1.m_addInfo);
     Inven_Item item2 = user->getCurCharacInvenR()->GetInvenSlot(1, (int)b);
     CItem* mat2 = G_CDataManager()->find_item(item2.m_addInfo);
+    int level = mat1->m_int338;
     int limit = ((STExpertJobScript*)G_CDataManager()->GetExpertJobScript(1))
-                    ->GetEnchanterExtractionPossibleLevel(mat1->m_int338);
+                    ->GetEnchanterExtractionPossibleLevel(level);
     int need = mat2->getUsableLevel();
     if (need == 0)
     {
         need = mat2->get_grade();
     }
-    if (limit < need)
+    if (need > limit)
     {
         return 0xd;
     }
@@ -414,7 +440,9 @@ int CEnchanterExtraction::check_error(CUser* user, char a, short b, short c)
 // CEnchanterExtraction::extraction —— ORIG T 0x084a37c6
 //   无 result_type 分支（Enchanter 单结果表）。
 // ============================================================================
-// [b28d-54 N] ORIG 0x084a37c6：帧/槽平移（N82）+ 模板/寄存器角色（N7/N86）。
+// [b28d-solo-ExpertExtraction] AE 修复：同 AlchemistExtraction::extraction 三旋钮
+//   （pick 两句 + cMyTrace 全表达式链 + 内联 count；单结果表无 result_type 分支）。
+//   p167 25/25 CLEAR。
 bool CEnchanterExtraction::extraction(CUser* user, short param,
                                       std::vector<std::pair<int, int> >& needItems)
 {
@@ -426,19 +454,20 @@ bool CEnchanterExtraction::extraction(CUser* user, short param,
         script->GetEnchanterExtractionResultInfo();
     int sum = info->m_count;
     unsigned long range = (unsigned long)(sum - 1);
-    int pick = m_rand->randInt(range) + 1;
+    int pick = m_rand->randInt(range);
+    ++pick;
     std::vector<STExpertJobScript::stMonsterCardBindResult>& vec = info->m_vec;
     if (vec.size() == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x169, 5);
-        trace("CEnchanterExtraction::extraction ERROR : size(%d)", (int)vec.size());
+        cMyTrace(__PRETTY_FUNCTION__, 0x169, 5)(
+            "CEnchanterExtraction::extraction ERROR : size(%d)", (int)vec.size());
         return false;
     }
     if (vec.size() != 0 && sum == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x16e, 5);
-        trace("CEnchanterExtraction::extraction ERROR : size(%d), sum(%d)",
-              (int)vec.size(), sum);
+        cMyTrace(__PRETTY_FUNCTION__, 0x16e, 5)(
+            "CEnchanterExtraction::extraction ERROR : size(%d), sum(%d)",
+            (int)vec.size(), sum);
         return false;
     }
     int acc = 0;
@@ -448,8 +477,8 @@ bool CEnchanterExtraction::extraction(CUser* user, short param,
         if (acc < pick &&
             acc + (int)(unsigned short)vec[i].m_field4 >= pick)
         {
-            int count = get_extraction_count(item);
-            needItems.push_back(std::make_pair(vec[i].m_field0, (int)count));
+            needItems.push_back(std::make_pair(vec[i].m_field0,
+                                               (int)get_extraction_count(item)));
             break;
         }
         acc += (int)(unsigned short)vec[i].m_field4;
@@ -457,8 +486,8 @@ bool CEnchanterExtraction::extraction(CUser* user, short param,
     }
     if (needItems.empty())
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x17f, 5);
-        trace("CEnchanterExtraction::extraction ERROR : result is empty");
+        cMyTrace(__PRETTY_FUNCTION__, 0x17f, 5)(
+            "CEnchanterExtraction::extraction ERROR : result is empty");
         return false;
     }
     return true;
@@ -494,7 +523,9 @@ int CDollControllerExtraction::get_doll_controller_extraction_type(CEquipItem co
 // CDollControllerExtraction::get_extraction_count —— ORIG T 0x084a41a8
 //   按类型：0→grade/10；1→(grade-0x14)/10；2→(grade-0x28)/10；0 → 1。
 // ============================================================================
-// [b28d-54 N] ORIG 0x084a41a8：帧/槽平移（N82）+ 寄存器角色（N7）。
+// [b28d-solo-ExpertExtraction] AE 修复：switch case 改数值升序 0/1/2 ——
+//   ORIG 叶块物理序 = case 书写序（P46）：case0 块直落决策树之后、case1/case2 各跳；
+//   原书写 1/2/0 使 case0 块排到末尾（多 1 jmp + 反向 je）。p167 6/6 CLEAR。
 int CDollControllerExtraction::get_extraction_count(Inven_Item item)
 {
     CItem* c = G_CDataManager()->find_item(item.m_addInfo);
@@ -502,14 +533,14 @@ int CDollControllerExtraction::get_extraction_count(Inven_Item item)
     int g = 0;
     switch (type)
     {
+    case 0:
+        g = c->get_grade() / 10;
+        break;
     case 1:
         g = (c->get_grade() - 0x14) / 10;
         break;
     case 2:
         g = (c->get_grade() - 0x28) / 10;
-        break;
-    case 0:
-        g = c->get_grade() / 10;
         break;
     default:
         break;
@@ -524,21 +555,23 @@ int CDollControllerExtraction::get_extraction_count(Inven_Item item)
 // ============================================================================
 // CDollControllerExtraction::_check_error —— ORIG T 0x084a4286（+0x33c 等级字段）
 // ============================================================================
-// [b28d-54 N] ORIG 0x084a4286：同 CAlchemistExtraction::_check_error（N82/N95 槽复用）。
+// [b28d-solo-ExpertExtraction] AE 修复：同 CAlchemistExtraction::_check_error
+//   （具名 level 局部 + `need > limit` 方向；字段 m_int33c / 脚本类型 4）。p167 13/13 CLEAR。
 int CDollControllerExtraction::_check_error(CUser* user, short a, short b)
 {
     Inven_Item item1 = user->getCurCharacInvenR()->GetInvenSlot(1, (int)a);
     CStackableItem* mat1 = (CStackableItem*)G_CDataManager()->find_item(item1.m_addInfo);
     Inven_Item item2 = user->getCurCharacInvenR()->GetInvenSlot(1, (int)b);
     CItem* mat2 = G_CDataManager()->find_item(item2.m_addInfo);
+    int level = mat1->m_int33c;
     int limit = ((STExpertJobScript*)G_CDataManager()->GetExpertJobScript(4))
-                    ->GetDollControllerExtractionPossibleLevel(mat1->m_int33c);
+                    ->GetDollControllerExtractionPossibleLevel(level);
     int need = mat2->getUsableLevel();
     if (need == 0)
     {
         need = mat2->get_grade();
     }
-    if (limit < need)
+    if (need > limit)
     {
         return 0xd;
     }
@@ -567,7 +600,9 @@ int CDollControllerExtraction::check_error(CUser* user, char a, short b, short c
 // ============================================================================
 // CDollControllerExtraction::extraction —— ORIG T 0x084a3dce
 // ============================================================================
-// [b28d-54 N] ORIG 0x084a3dce：帧/槽平移（N82）+ 模板/寄存器角色（N7/N86）。
+// [b28d-solo-ExpertExtraction] AE 修复：同 AlchemistExtraction::extraction 三旋钮
+//   （pick 两句 + cMyTrace 全表达式链 + 内联 count；字段 m_field8、
+//   stDollControllerResult 表）。p167 27/27 CLEAR。
 bool CDollControllerExtraction::extraction(CUser* user, short param,
                                            std::vector<std::pair<int, int> >& needItems)
 {
@@ -586,19 +621,20 @@ bool CDollControllerExtraction::extraction(CUser* user, short param,
     }
     int sum = info->m_count[type];
     unsigned long range = (unsigned long)(sum - 1);
-    int pick = m_rand->randInt(range) + 1;
+    int pick = m_rand->randInt(range);
+    ++pick;
     std::vector<STExpertJobScript::stDollControllerResult>& vec = info->m_vec[type];
     if (vec.size() == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1dc, 5);
-        trace("CDollControllerExtraction::extraction ERROR : size(%d)", (int)vec.size());
+        cMyTrace(__PRETTY_FUNCTION__, 0x1dc, 5)(
+            "CDollControllerExtraction::extraction ERROR : size(%d)", (int)vec.size());
         return false;
     }
     if (vec.size() != 0 && sum == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1e1, 5);
-        trace("CDollControllerExtraction::extraction ERROR : size(%d), sum(%d)",
-              (int)vec.size(), sum);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1e1, 5)(
+            "CDollControllerExtraction::extraction ERROR : size(%d), sum(%d)",
+            (int)vec.size(), sum);
         return false;
     }
     int acc = 0;
@@ -608,8 +644,8 @@ bool CDollControllerExtraction::extraction(CUser* user, short param,
         if (acc < pick &&
             acc + (int)vec[i].m_field8 >= pick)
         {
-            int count = get_extraction_count(item);
-            needItems.push_back(std::make_pair(vec[i].m_field0, (int)count));
+            needItems.push_back(std::make_pair(vec[i].m_field0,
+                                               (int)get_extraction_count(item)));
             break;
         }
         acc += (int)vec[i].m_field8;
@@ -617,8 +653,8 @@ bool CDollControllerExtraction::extraction(CUser* user, short param,
     }
     if (needItems.empty())
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x1f2, 5);
-        trace("CDollControllerExtraction::extraction ERROR : result is empty");
+        cMyTrace(__PRETTY_FUNCTION__, 0x1f2, 5)(
+            "CDollControllerExtraction::extraction ERROR : result is empty");
         return false;
     }
     return true;

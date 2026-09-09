@@ -176,9 +176,22 @@ public:
     {
         // ORIG（C1 0x89c5046 / copy 0x83cb038 / D1 0x83db300 / assign 0x83dbdfc）
         // 全部为 W（weak）= 编译器隐式生成：C1 默认构造 vector/string、
-        // copy 逐 dword 拷头 0x20 再拷贝 vector/string、D1 逆序析构、
-        // assign 无 self-check 逐成员拷贝。故不声明任何特殊成员。
-        int m_head[8];                  // +0x00..0x1c
+        // copy/assign 逐字段「重载双基址」（`mov 0xc(%ebp),%eax; mov (%eax),%edx;
+        // mov 0x8(%ebp),%eax; mov %edx,(%eax)` ×8）再拷贝 vector/string、
+        // D1 逆序析构。故不声明任何特殊成员。
+        // [b28d-solo-EquipmentParameterInfo] 8 个 int 必须是**独立成员**而非
+        // `int[8]`：4.4 对数组成员的隐式 C2ERKS/op= 恒缓存双基址（+ecx 中转），
+        // 对独立标量成员则逐条重载双基址 = ORIG 形（探针 /tmp/b28d_epi/p10.cpp
+        // SA(数组) vs SC(独立)，C2ERKS 与 aSERKS_ 双函数逐条同形）。
+        // sizeof/偏移零变化（8×4=0x20，后续 m_vec20@+0x20、m_str2c@+0x2c 不变）。
+        int m_head0;                    // +0x00
+        int m_head1;                    // +0x04
+        int m_head2;                    // +0x08
+        int m_head3;                    // +0x0c
+        int m_head4;                    // +0x10
+        int m_head5;                    // +0x14
+        int m_head6;                    // +0x18
+        int m_head7;                    // +0x1c
         std::vector<float> m_vec20;     // +0x20
         std::string m_str2c;            // +0x2c
     };
@@ -226,36 +239,58 @@ public:
     int m_a4;                                          // +0xa4（int，clear 清零）
     float m_a8;                                        // +0xa8（float，clear 清零）
     int m_ac;                                          // +0xac（int，clear 清零）
-    int m_fireResistance;                              // +0xb0 [fire resistance]
-    int m_waterResistance;                             // +0xb4 [water resistance]
-    int m_darkResistance;                              // +0xb8 [dark resistance]
-    int m_lightResistance;                             // +0xbc [light resistance]
+    // [b28d-solo-EquipmentParameterInfo] P246/P247：ORIG 隐式 op=（0x83664f9）对这 4 个
+    // 相邻 int 发「双基址缓存 + 升序 4 连发」= 数组成员形；独立标量恒逐字段重载
+    // （探针 /tmp/b28d_epi_probe/mix.cpp MixA vs MixB/C）。匿名 union 保具名访问不变。
+    union {
+        int m_elementResistance[4];                    // +0xb0（op= 块拷贝视图）
+        struct {
+            int m_fireResistance;                      // +0xb0 [fire resistance]
+            int m_waterResistance;                     // +0xb4 [water resistance]
+            int m_darkResistance;                      // +0xb8 [dark resistance]
+            int m_lightResistance;                     // +0xbc [light resistance]
+        };
+    };
     int m_allElementalResistance;                      // +0xc0 [all elemental resistance]
-    int m_slowResistance;                              // +0xc4 [slow resistance]
-    int m_freezeResistance;                            // +0xc8 [freeze resistance]
-    int m_poisonResistance;                            // +0xcc [poison resistance]
-    int m_stunResistance;                              // +0xd0 [stun resistance]
-    int m_curseResistance;                             // +0xd4 [curse resistance]
-    int m_blindResistance;                             // +0xd8 [blind resistance]
-    int m_lightningResistance;                         // +0xdc [lightning resistance]
-    int m_stoneResistance;                             // +0xe0 [stone resistance]
-    int m_sleepResistance;                             // +0xe4 [sleep resistance]
-    int m_burnResistance;                              // +0xe8 [burn resistance]
-    int m_weaponBreakResistance;                       // +0xec [weapon break resistance]
-    int m_bleedingResistance;                          // +0xf0 [bleeding resistance]
-    int m_piercingResistance;                          // +0xf4 [piercing resistance]
-    int m_stuckResistance;                             // +0xf8 [stuck resistance]
-    int m_confuseResistance;                           // +0xfc [confuse resistance]
-    int m_holdResistance;                              // +0x100 [hold resistance]
-    int m_armorBreakResistance;                        // +0x104 [armor break resistance]
+    // [b28d-solo-EquipmentParameterInfo] 同上：ORIG op= 对 +0xc4..0x104 发 17 dword
+    // `rep movsl`（计数 0x11）——数组成员形（探针 mix.cpp MixF 逐条同形）。
+    union {
+        int m_statusResistance[17];                    // +0xc4..0x104（op= rep movsl 视图）
+        struct {
+            int m_slowResistance;                      // +0xc4 [slow resistance]
+            int m_freezeResistance;                    // +0xc8 [freeze resistance]
+            int m_poisonResistance;                    // +0xcc [poison resistance]
+            int m_stunResistance;                      // +0xd0 [stun resistance]
+            int m_curseResistance;                     // +0xd4 [curse resistance]
+            int m_blindResistance;                     // +0xd8 [blind resistance]
+            int m_lightningResistance;                 // +0xdc [lightning resistance]
+            int m_stoneResistance;                     // +0xe0 [stone resistance]
+            int m_sleepResistance;                     // +0xe4 [sleep resistance]
+            int m_burnResistance;                      // +0xe8 [burn resistance]
+            int m_weaponBreakResistance;               // +0xec [weapon break resistance]
+            int m_bleedingResistance;                  // +0xf0 [bleeding resistance]
+            int m_piercingResistance;                  // +0xf4 [piercing resistance]
+            int m_stuckResistance;                     // +0xf8 [stuck resistance]
+            int m_confuseResistance;                   // +0xfc [confuse resistance]
+            int m_holdResistance;                      // +0x100 [hold resistance]
+            int m_armorBreakResistance;                // +0x104 [armor break resistance]
+        };
+    };
     int m_allActiveStatusResistance;                   // +0x108 [all activestatus resistance]
     int m_inventoryLimit;                              // +0x10c [inventory limit]
     int m_hpRegenSpeed;                                // +0x110 [HP regen speed]
     int m_mpRegenSpeed;                                // +0x114 [MP regen speed]
     float m_mpRegenSpeedRate;                          // +0x118 [MP regen speed rate]
     int m_moveSpeed;                                   // +0x11c [move speed]
-    float m_xMoveDashSpeed;                            // +0x120 [x move dash speed]
-    float m_yMoveDashSpeed;                            // +0x124 [y move dash speed]
+    // [b28d-solo-EquipmentParameterInfo] ORIG op= 对 +0x120/+0x124 发 8 字节对（先高后低
+    // 读）——float[2] 形（探针 mix.cpp MixE）。
+    union {
+        float m_moveDashSpeed[2];                      // +0x120（op= 8 字节对视图）
+        struct {
+            float m_xMoveDashSpeed;                    // +0x120 [x move dash speed]
+            float m_yMoveDashSpeed;                    // +0x124 [y move dash speed]
+        };
+    };
     int m_attackSpeed;                                 // +0x128 [attack speed]
     int m_castSpeed;                                   // +0x12c [cast speed]
     int m_hitRecovery;                                 // +0x130 [hit recovery]
@@ -297,9 +332,16 @@ public:
     int m_liftUp;                                      // +0x224 [lift up]
     float m_stuck;                                     // +0x228 [stuck]
     bool m_ignoreDefense;                              // +0x22c [ignore defense]
-    float m_humanDamageRate;                           // +0x230 [human damage rate]
-    float m_fortDamageRate;                            // +0x234 [fort damage rate]
-    float m_monsterDamageRate;                         // +0x238 [monster damage rate]
+    // [b28d-solo-EquipmentParameterInfo] ORIG op= 对 +0x230..0x238 发双基址缓存 3 连发
+    // ——float[3] 形（探针 mix.cpp MixD）。
+    union {
+        float m_damageRate[3];                         // +0x230（op= 3 连发视图）
+        struct {
+            float m_humanDamageRate;                   // +0x230 [human damage rate]
+            float m_fortDamageRate;                    // +0x234 [fort damage rate]
+            float m_monsterDamageRate;                 // +0x238 [monster damage rate]
+        };
+    };
     bool m_hpDrain;                                    // +0x23c [HP drain]
     bool m_mpDrain;                                    // +0x23d [MP drain]
     std::vector<std::vector<float> > m_vec240;         // +0x240（[level linear ability] 表）
@@ -313,10 +355,17 @@ public:
     std::string m_str27c;                              // +0x27c
     int m_antiEvil;                                    // +0x280 [anti evil]
     int m_rigidity;                                    // +0x284 [rigidity]
-    int m_fireAttack;                                  // +0x288 [fire attack]
-    int m_waterAttack;                                 // +0x28c [water attack]
-    int m_darkAttack;                                  // +0x290 [dark attack]
-    int m_lightAttack;                                 // +0x294 [light attack]
+    // [b28d-solo-EquipmentParameterInfo] ORIG op= 对 +0x288..0x294 发双基址缓存 4 连发
+    // ——int[4] 形（探针 mix.cpp MixB）。
+    union {
+        int m_elementAttack[4];                        // +0x288（op= 4 连发视图）
+        struct {
+            int m_fireAttack;                          // +0x288 [fire attack]
+            int m_waterAttack;                         // +0x28c [water attack]
+            int m_darkAttack;                          // +0x290 [dark attack]
+            int m_lightAttack;                         // +0x294 [light attack]
+        };
+    };
     int m_allElementalAttack;                          // +0x298 [all elemental attack]
     // +0x29c..0x373：状态概率/等级 18 槽表（export/import [active status
     // probability]/[active status level]，base (i+0xa4)*4+0xc / (i+0xb8)*4+4）。
@@ -332,12 +381,25 @@ public:
     int m_linEqPhyDef[4];                             // +0x3b0（[equipment physical defense]）
     int m_linEqMagAtk[4];                             // +0x3c0（[equipment magical attack]）
     int m_linEqMagDef[4];                             // +0x3d0（[equipment magical defense]）
-    int m_growthGradeBegin;                           // +0x3e0（[grade] 首值；set_item growthC）
-    int m_growthGradeEnd;                             // +0x3e4（[grade] 次值；set_item growthD）
+    // [b28d-solo-EquipmentParameterInfo] ORIG op= 对 +0x3e0/+0x3e4 发 8 字节对（先高后低读）
+    // ——int[2] 形（探针 mix.cpp MixE 同族）。
+    union {
+        int m_growthGrade[2];                          // +0x3e0（op= 8 字节对视图）
+        struct {
+            int m_growthGradeBegin;                    // +0x3e0（[grade] 首值；set_item growthC）
+            int m_growthGradeEnd;                      // +0x3e4（[grade] 次值；set_item growthD）
+        };
+    };
     int m_linSepAtk[4];                               // +0x3e8（[separate attack]，4 档）
     float m_linSepRate[4];                            // +0x3f8（[separate rate]，4 档 float）
-    int m_growthRepairBegin;                           // +0x408（[repair price] 首值；set_item growthE）
-    int m_growthRepairEnd;                             // +0x40c（[repair price] 次值；set_item growthF）
+    // [b28d-solo-EquipmentParameterInfo] 同 +0x3e0：ORIG op= 对 +0x408/+0x40c 发 8 字节对。
+    union {
+        int m_growthRepair[2];                         // +0x408（op= 8 字节对视图）
+        struct {
+            int m_growthRepairBegin;                   // +0x408（[repair price] 首值；set_item growthE）
+            int m_growthRepairEnd;                     // +0x40c（[repair price] 次值；set_item growthF）
+        };
+    };
     int m_410;                                         // +0x410
     int m_414;                                         // +0x414
     // +0x418..0x434 = ORIG `._119` 匿名结构（importAllSkillItem/importItemOverpowerDesc
@@ -354,7 +416,14 @@ public:
     public:
         t_119();     // ORIG _ZN22EquipmentParameterInfo5._119C1Ev t 0x088fd884（构造 +0/+0x10 两 vector）
         ~t_119();    // ORIG _ZN22EquipmentParameterInfo5._119D1Ev t 0x088fd8ca（逆序析构）
-        t_119& operator=(const t_119& other);  // ORIG aSERKS0_ t 0x088fd910（vector+SASPROPERTY、char、char、vector<vector<float>> 拷贝）
+        // [b28d-solo-EquipmentParameterInfo] asm 标签实测对 operator= **有效**（探针
+        // /tmp/b28d_epi_probe/asmlabel.cpp：声明带标签 ⇒ 定义与调用点重定位均用标签名），
+        // 故不再用 `.set`。ORIG 的 EquipmentParameterInfo::operator= 调用点是
+        // `._159aSERKS0_`（0x08348024，成员在 ORIG 侧为匿名 struct `._159`）⇒ 本成员类型的
+        // op= 标签取 `._159aSERKS0_` 才能让 p167 调用点差集归零；同形的 `._119aSERKS0_`
+        // （ORIG 0x088fd910）由 tt_159 的 op= 标签独立发射（P262：两别名须各有独立体）。
+        t_119& operator=(const t_119& other)
+            asm("_ZN22EquipmentParameterInfo5._159aSERKS0_");  // ORIG _159aSERKS0_ t 0x08348024
         std::vector<SASPROPERTY> m_418;          // +0x418（importAllSkillItem push_back）
         char m_424;                              // +0x424（importItemOverpowerDesc 置 1）
         char m_425;                              // +0x425（importItemOverpowerDesc 置 1）
@@ -370,7 +439,10 @@ public:
     class tt_159
     {
     public:
-        tt_159& operator=(const tt_159& other);
+        // 标签与类名交叉（t_119 的 op= 发 `._159`，本类发 `._119`）是为了同时匹配 ORIG
+        // 的两份同形副本地址（0x08348024 / 0x088fd910）；两者函数体独立。
+        tt_159& operator=(const tt_159& other)
+            asm("_ZN22EquipmentParameterInfo5._119aSERKS0_");  // ORIG _119aSERKS0_ t 0x088fd910
         std::vector<SASPROPERTY> m_418;
         char m_424;
         char m_425;

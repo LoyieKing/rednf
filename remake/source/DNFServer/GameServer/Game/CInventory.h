@@ -614,7 +614,7 @@ public:
     int getExistEquipItem(int itemIdx, int slot, int count);
     // SIGFIX b28c-L2：ORIG 串 "bool CInventory::removeDupliacteEquipItem()"。
     bool removeDupliacteEquipItem();
-    int CheckNeedItemList(
+    bool CheckNeedItemList(   // [b28d-Main 代落·S351 P292] int→bool（ORIG 0x0849b89c 调用点 `call; xor $0x1,%eax; test %al,%al; je` 无 setne）
         const std::vector<std::pair<int, int> >& items) const;
     // ORIG _ZNK10CInventory27CheckEquipmentItemConditionE10INVEN_TYPEsR28stEquipConditionForChronicle
     // 返回错误码 int：0=成功、0x11/0x13/0xd8=失败（085083d0 的 eax 直接值；

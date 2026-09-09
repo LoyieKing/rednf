@@ -17,7 +17,8 @@ class WeaponInfo
 {
 public:
     WeaponInfo();                        // vector 构造后 clear()
-    ~WeaponInfo();                       // 平凡
+    // [b28d-solo-ScriptDepsA] P317：ORIG D1 W 0x083dc13a 为编译器隐式合成
+    //（成员逆序析构）；删用户空析构后 D1/D2 仍由使用点发射同名 W 符号。
     void clear();
 
     std::vector<std::string> m_wavs;     // +0x00（[weapon wav] 行集）
@@ -156,8 +157,9 @@ public:
     std::string m_motionWaiting;                      // +0xad4
     std::string m_motionMove;                         // +0xad8
     std::string m_motionSit;                          // +0xadc
-    std::string m_motionDamage1;                      // +0xae0
-    std::string m_motionDamage2;                      // +0xae4
+    // [b28d-solo-ScriptDepsA] ORIG Clear 0x08367c0c 段：`add $0x2b8; shl $2`
+    // 的 i<=1 循环 ⇒ 原码是数组成员（2 元素），非两个独立 string。
+    std::string m_motionDamage[2];                    // +0xae0（[damage motion 1/2]）
     std::string m_motionDown;                         // +0xae8
     std::string m_motionOverturn;                     // +0xaec
     std::string m_motionJump;                         // +0xaf0
@@ -165,14 +167,10 @@ public:
     std::string m_motionRest;                         // +0xaf8
     std::string m_motionSimpleRest;                   // +0xafc
     std::string m_motionSimpleMove;                   // +0xb00
-    std::string m_throwMotion11;                      // +0xb04
-    std::string m_throwMotion21;                      // +0xb08
-    std::string m_throwMotion31;                      // +0xb0c
-    std::string m_throwMotion41;                      // +0xb10
-    std::string m_throwMotion12;                      // +0xb14
-    std::string m_throwMotion22;                      // +0xb18
-    std::string m_throwMotion32;                      // +0xb1c
-    std::string m_throwMotion42;                      // +0xb20
+    // ORIG Clear 0x08367cba 段：同一 i<=3 循环内两处 `(i+0x2c0/0x2c4)*4+4`
+    // ⇒ 两个 4 元素数组成员（throw N-1 / throw N-2）。
+    std::string m_throwMotion1[4];                    // +0xb04（1-1,2-1,3-1,4-1）
+    std::string m_throwMotion2[4];                    // +0xb14（1-2,2-2,3-2,4-2）
     std::string m_motionDash;                         // +0xb24
     std::string m_motionDashattack;                   // +0xb28
     std::string m_motionGetitem;                      // +0xb2c

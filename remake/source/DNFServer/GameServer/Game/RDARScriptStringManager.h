@@ -49,12 +49,12 @@ public:
     const char* findString(int table, const char* key, bool* flag) const;
     const char* findString(int table, const wchar_t* key, bool* flag) const;
     int getKeyIndex(int table, const wchar_t* key) const;
-    void getTagByName(std::vector<std::wstring>* a, std::vector<std::wstring>* b,
-                      int table, const wchar_t* name) const;
+    bool getTagByName(std::vector<std::wstring>* a, std::vector<std::wstring>* b,
+                      int table, const wchar_t* name) const;   // ORIG 0x8aa59f0 双返回路径（P159）
     const wchar_t* getTagByName(int table, const wchar_t* a, const wchar_t* b, bool flag) const;
     void setTableValue(int table, int key, const char* value);
     bool loadStringFile(std::istream* in, const char* path, int table, std::vector<ErrorLog>* err);
-    void writeStringFile(int table);
+    bool writeStringFile(int table);   // ORIG 0x8aa50bc 双返回路径（P159）
     int getTagSizeInFile(int table);
     const char* findChangedString(int table, const char* key, bool* flag);
     void* getStringFileList();

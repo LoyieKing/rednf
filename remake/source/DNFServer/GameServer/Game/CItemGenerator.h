@@ -211,11 +211,29 @@ struct stGenerateRefData_t
     // BattleMonsterDepsC2 等）写入宽度不一，故下列成员以 union 叠加
     // “整字 / 半字 / float” 视图，逐一对齐 ORIG 指令宽度
     // （movl / movw / float 位型）；旧基名全部保留 → 消费者零破坏。
-	char m_field34;                 // +0x34（基准值；与 +0x3f 组成等级差【推断】；
-	                                //   CBossPlay 写掉落等级参数 a，WongWorkDrop 侧按 type 读）
-	char m_field35;                 // +0x35（CBossPlay 写难度 diff，WarField 写 mob level）
-	char m_rateSlot;                // +0x36（m_rate[] 掉率档位下标【推断】；WarField 写 mob level）
-	char m_pad37;                   // +0x37
+	// b28d-solo-WongWorkDrop_A：CDungeonDrop/CObjectDrop 的 ORIG 以
+	// `mov 0x34(%eax),%edx` 单条 disp 读本 4 字节为**配置指针**
+	//（vector/list<pair<int,int>>）；`&m_field34` 取址在 4.4 恒产
+	// `add $0x34; mov (%eax)` 两步 ⇒ 匿名 union 叠加指针/整字视图
+	//（P235，sizeof/偏移/成员名/mangled 零影响）。
+	union
+	{
+		void* m_field34p;           // +0x34 指针视图（掉落配置表指针）
+		int   m_field34d;           // +0x34 整字视图
+		std::vector<std::pair<int, int> > const* m_field34v;  // +0x34
+		                            //   CDungeonDrop 配置表（vector<pair<int,int>>；
+		                            //   读侧恒 const 视图 ⇒ ORIG K 版 begin/end）
+		std::list<std::pair<int, int> > const* m_field34l;  // +0x34
+		                            //   CObjectDrop 配置表（list<pair<int,int>>）
+		struct
+		{
+			char m_field34;         // +0x34（基准值；与 +0x3f 组成等级差【推断】；
+			                        //   CBossPlay 写掉落等级参数 a，WongWorkDrop 侧按 type 读）
+			char m_field35;         // +0x35（CBossPlay 写难度 diff，WarField 写 mob level）
+			char m_rateSlot;        // +0x36（m_rate[] 掉率档位下标【推断】；WarField 写 mob level）
+			char m_pad37;           // +0x37
+		};
+	};
 	union
 	{
 		int   m_rankBonusIndex;     // +0x38（eRankBonusIndex；_generateRandomItem 按 float 位型读）
@@ -261,7 +279,10 @@ struct stGenerateRefData_t
 			unsigned char m_field40_byte;  // +0x40
 			unsigned char m_field41;       // +0x41
 			unsigned char m_field42_byte;  // +0x42
-			unsigned char m_field43;       // +0x43
+			// b28d-solo-WongWorkDrop_A：ORIG generateSpecificItem 0x08537254
+			// `movzbl 0x43; xor $0x1; test %al,%al; je` ⇒ bool 字段（P248 档②；
+			// uchar 恒产 cmp $1 形）。1 字节、偏移/布局/mangled 零影响。
+			bool m_field43;                // +0x43
 		};
 	};
 	union
@@ -269,7 +290,7 @@ struct stGenerateRefData_t
 		unsigned short m_field44;         // +0x44
 		struct                     // +0x44 低字节视图（WongWorkDrop_B 按字节读）
 		{
-			unsigned char m_field44_byte;  // +0x44
+			bool m_field44_byte;           // +0x44（同上 bool 化，P248 档②）
 			unsigned char m_field45;       // +0x45
 		};
 	};
@@ -635,7 +656,24 @@ protected:
 
 
 protected:
-    struct stGenItemProb_t { int v[7]; };
+    struct stGenItemProb_t
+    {
+        // b28d-solo-WongWorkDrop_A：setDropRatio 的 ORIG 形为
+        // `mov 0x8(%eax,%edx,4)`（disp 8 + scaled index r，r=0..4）⇒ 源码用
+        // +0x08 起的五档数组视图 w；写 v[r+2] 时 4.4 恒先 `lea 0x2(%eax)` 再
+        // disp 0 索引（P30/N4 家族），w 视图直接折叠出 ORIG 单条 disp8。
+        // sizeof/偏移/成员名零影响。
+        union
+        {
+            int v[7];
+            struct
+            {
+                int m_padv0;        // +0x00（v[0] 占位）
+                int m_padv1;        // +0x04（v[1] 占位）
+                int w[5];           // +0x08..+0x1b（v[2..6] 视图）
+            };
+        };
+    };
     struct stConditionPair_t { unsigned short rate; unsigned short value; };
     // 首领/命名怪首杀权重项（ORIG 嵌套类型；ctor/dtor W 0x0853a6ae，
     //   mangled _ZN8WongWork12CMonsterDrop25stFirstMobHuntingWeight_tC1Ev/C2Ev；
@@ -663,8 +701,28 @@ protected:
     stFirstMobHuntingWeight_t m_firstMobHunt;        // +0x259378
     int m_firstMobWeight;                            // +0x259380（ctor=1）
     float m_firstMobWeightRate;                      // +0x259384（ctor=1.0f）
-    stConditionPair_t m_conditionRate[4];            // +0x259388..0x259397
-    unsigned short m_goldQuantity[4];                // +0x259398..0x25939F
+    // b28d-solo-WongWorkDrop_A：_getBossGoldDrop 的 ORIG 对 value 读用
+    // `movzwl 0x25938a(%eax,%edx,4)` 单条 disp32（4.4 对 .value 恒先
+    // `add $0x964e0,%edx` 再 disp8）；二维 u16 视图 [t][1] 复现 disp 折叠。
+    union
+    {
+        stConditionPair_t m_conditionRate[4];        // +0x259388..0x259397
+        unsigned short m_conditionRateW[4][2];       // [t][0]=rate [t][1]=value
+    };
+    // b28d-solo-WongWorkDrop_A：ORIG 对 m_goldQuantity[2*tier(+1)] 用
+    // `add $0x964e4,%edx; movzwl 0xa(%eax,%edx,4)`（tier scaled 4）；
+    // 二维视图 [tier][lo/hi] 复现该折叠（4.4 对 2*tier 恒 lea+scaled 2）。
+    struct stGoldQty_t
+    {
+        unsigned short m_lo;                         // +0
+        unsigned short m_hi;                         // +2
+    };
+    union
+    {
+        unsigned short m_goldQuantity[4];            // +0x259398..0x25939F
+        unsigned short m_goldQuantityW[2][2];        // [tier][0]=lo [tier][1]=hi
+        stGoldQty_t m_goldQuantityS[2];              // ORIG add $K + disp 折叠视图
+    };
     unsigned short m_goldVolume[2];                  // +0x2593a0..0x2593a3
 };  // sizeof 0x2593a4
 // 类外同型 typedef：WarField 等既有非限定名引用保持编译（同一类型，无 ODR
@@ -729,7 +787,11 @@ public:
 
 protected:
     struct stGenItemProb_t { int v[3]; };                      // 每行三值 {lo, hi, value}
-    struct stGoldCardBlankItemInfo_t { int v[3]; };            // 空白卡三元组 {weight, itemIdx, count}
+    // [b28d-solo-CClearReward] 三元组为 unsigned int：ORIG generateGoldCardBlankItem
+    // 0x08539166/0x0853900c 实证 —— v[1]→Inven_Item::m_addInfo(unsigned int) 单段直落
+    // 无中转（同型），v[2]→CItemList::create_item(...,int) 为 `mov 0x8(%eax),%eax;
+    // mov %eax,%ebx` 两段中转（异型）。sizeof/偏移/mangled 不变。
+    struct stGoldCardBlankItemInfo_t { unsigned int v[3]; };    // 空白卡三元组 {weight, itemIdx, count}
 
     // 12×vector 连续区（0.9 字节/个）：前 6 为 loadScript 脚本源组[A]，后 6 为
     // setDropRatio 缩放副本[B]（setDropRatio 0x085385c8 复制 0x18..0x5f → 0x60..0xa7，

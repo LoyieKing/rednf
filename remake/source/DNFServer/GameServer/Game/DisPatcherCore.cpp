@@ -142,6 +142,9 @@ int EnterPVPRoom(CUser* user, PvP_Room* pvp, ENUM_CMDPACKET cmd, char const* pas
 // [b28d-29] N82：帧 0x7c vs 0x70 + 局部对象槽平移（-0x40 vs -0x34），调用点全等  (ORIG 0x081ed09a insn 409->408)
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 407（ORIG 409 / ours 408），残差=N7/N82 帧与 callee-saved 角色/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 // ORIG T 0x081ed09a _Z12EnterPVPRoomP5CUserP8PvP_Room14ENUM_CMDPACKETPKc
+// [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 407（ORIG 409 / ours 408，gap 1），
+// p167 调用点差集 CLEAR；残差=N7（callee-saved 角色互换）/块序/P75 实参装载时刻，
+// 语义集合全等 ⇒ N7 封顶（跨版本寄存器分配，无源码形可择）。
 int EnterPVPRoom(CUser* user, PvP_Room* room, ENUM_CMDPACKET cmd,
                  char const* password)
 {
@@ -817,7 +820,10 @@ int DisPatcher_Exit::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         user->SetLogInOutState(local_49);
     }
-    if (user->m_mcap.isSaveCleanPadPoint() != false)
+    // [b28d-solo-DisPatcherCore] P167 真 bug 修正：ORIG 0x081... 调
+    // `_ZN8WongWork12CMCAPManager19IsSaveCleanPadPointEv`（非 const，WongWorkMisc_A.cpp
+    // 定义），原写 `isSaveCleanPadPoint()`（CMCAPManager.h:29 旧 const 变体）为错符号。
+    if (user->m_mcap.IsSaveCleanPadPoint())
     {
         unsigned int uVar5 = user->m_mcap.getPoint();
         DB_SaveCleanpadPoint::makeRequest(uVar5, static_cast<int>(user->get_acc_id()));
@@ -1098,6 +1104,10 @@ int DisPatcher_UseCoin::usedCoinDungeonCheck(CUser* user, CParty* party)
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 57（ORIG 87 / ours 86），残差=N82 槽/块序；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_UseCoin::Dungeon_check_error(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
+    // [b28d-solo-DisPatcherCore] P28/P212：ORIG +0x06 `mov 0x10(%ebp),%eax;
+    // mov %eax,-0x1c(%ebp)` = msg 视图引用**首个声明**（-0x1c），其后 party0/-0x18、
+    // party/-0x14、dungeon/-0xc 逐槽对齐 ⇒ 把 req 提到函数头。
+    MSG_USE_COIN& req = *reinterpret_cast<MSG_USE_COIN*>(&msg);
     (void)param;   // ORIG 第 3 参未消费（coin 读自 msg+0xd）
     // ORIG（report Ghidra C）调 GetParty **两次**：this_00 用于早期 ==0 return -1
     // 且传给 usedCoinDungeonCheck；this_01 用于 dungeon 分支。源不得合并为一次缓存
@@ -1108,37 +1118,46 @@ int DisPatcher_UseCoin::Dungeon_check_error(CUser* user, MSG_BASE& msg, ParamBas
         return -1;
     }
     CParty* party = static_cast<CParty*>(user->GetParty());
-    CDungeon* dungeon = party->m_battleField.m_pDungeon;   // +0xcac
-    if (party != 0 && dungeon != 0)
+    // [b28d-solo-DisPatcherCore] P157/P183：ORIG `cmpl $0,-0x14; je` 之后才发
+    // `mov 0xcac(%eax),%eax`（dungeon 延迟到嵌套 if 内），且 battleField 地址每次
+    // 重算 `add $0xb24`（无具名局部槽）⇒ 改嵌套 if + 视图内联表达式。
+    if (party != 0)
     {
-        // CParty+0xb24 内嵌 CBattle_Field（局部视图 CPartyBattleFieldView）
-        CBattle_Field* battleField =
-            &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField;
-        // ORIG：report Ghidra C `(char)this[0x89f] < 1` —— 对 +0x89f 字节做**有符号**
-        // 比较（movzbl 载入后 test %al; jle）。字段声明 unsigned char，若直写
-        // `m_bloodDungeonType >= 1` 4.4 产 `je`（==0 语义，对 ≥0x80 值分叉），故
-        // 按 ORIG 有符号语义 `(int)(signed char)field > 0`（P196 同宽字节符号序）。
-        if ((int)(signed char)dungeon->m_bloodDungeonType > 0 &&
-            battleField->getBloodState() >= 3)
+        CDungeon* dungeon = party->m_battleField.m_pDungeon;   // +0xcac
+        if (dungeon != 0)
         {
-            return 0x13;
-        }
-        if (dungeon->isTournamentDungeon() && party->GetTournamentDungeonClearState() >= 1)
-        {
-            return 0x13;
+            // ORIG：report Ghidra C `(char)this[0x89f] < 1` —— 对 +0x89f 字节做**有符号**
+            // 比较（movzbl 载入后 test %al; jle）。字段声明 unsigned char，若直写
+            // `m_bloodDungeonType >= 1` 4.4 产 `je`（==0 语义，对 ≥0x80 值分叉），故
+            // 按 ORIG 有符号语义 `(int)(signed char)field > 0`（P196 同宽字节符号序）。
+            if ((int)(signed char)dungeon->m_bloodDungeonType > 0 &&
+                reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.getBloodState() >= 3)
+            {
+                return 0x13;
+            }
+            if (dungeon->isTournamentDungeon() && party->GetTournamentDungeonClearState() >= 1)
+            {
+                return 0x13;
+            }
         }
     }
     int err = usedCoinDungeonCheck(user, party0);
-    if (err == 0)
+    // [b28d-solo-DisPatcherCore] P16 早返形：ORIG `cmpl $0,-0x10; je L_body;
+    // mov -0x10,%eax; jmp L_ret`（err!=0 直返）+ 内层 `jle L_skip; mov -0x10,%eax;
+    // jmp; L_skip: mov $0,%eax`。
+    if (err != 0)
     {
-        MSG_USE_COIN& req = *reinterpret_cast<MSG_USE_COIN*>(&msg);
-        err = party->ReviveUser(user, req.m_0d);   // ORIG movzwl msg+0xd
-        if (err < 1)
-        {
-            err = 0;
-        }
+        return err;
     }
-    return err;
+    // ORIG 0x081ca73c `mov -0x18(%ebp),%eax` ⇒ ReviveUser 的 this 是**第一次**
+    // GetParty 的返回值（party0，与 usedCoinDungeonCheck 同源；Ghidra C 的 this_01
+    // 映射有误，以 ORIG 汇编为准）。
+    err = party0->ReviveUser(user, req.m_0d);   // ORIG movzwl msg+0xd
+    if (err > 0)
+    {
+        return err;
+    }
+    return 0;
 }
 
 // ORIG 0x081ca75c T _ZN18DisPatcher_UseCoin11WarRoom_check_errorEP5CUserR8MSG_BASER9ParamBase
@@ -6116,18 +6135,13 @@ int DisPatcher_RepairEquip::check_error(CUser* user, MSG_BASE& /*msg*/)
     // [b28d-29] P0 清绑 + P231 纯 register（无 asm 绑定，合规）：ORIG 该值无槽
     // （`cmp $0xc,%eax` 直判后 `mov %eax,%ecx` 复用），字面量 1 无具名局部
     // （`mov $0x1,%edx` 直出）。
-    // [b28d-solo-DisPatcherCore] P231 纯 register（无 asm 绑定，P0 合规）：
-    // ORIG state 无槽（`cmp $0xc,%eax` 直判）+ bit 免槽留 %ebx 且保 shl
-    // （N6/N99 的 `(mask>>state)&1` 折叠被 register 存储类解除）。
     register unsigned int state = (unsigned int)user->get_state();
     if (state > 0xc)
     {
         return 0x13;                  // ORIG ja → +0x3a 共享 0x13 块
     }
-    // ORIG `mov $0x1,%edx; mov %edx,%ebx` = 初始化式物化（非两句式）。
     register unsigned int bit = 1;
     bit <<= state;
-    // ORIG `test; jne +0x41`（跳 mov $0）⇒ 正极性 ==0 早返；goto 形会多 1 条 jmp。
     if ((bit & 0x15e8) == 0)
     {
         return 0x13;
@@ -6890,7 +6904,9 @@ int DisPatcher_BuySkill::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(m.m_count))                          // +0x0e
+    // [b28d-solo-DisPatcherCore] P167 真 bug：ORIG 调用序列 [c,c,h,c,c] ⇒ m_count /
+    // m_refundFlag / m_level 均绑 `get_byte(char&)`（ERc），仅 m_skillIdx 为 ERh。
+    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_count)))   // +0x0e
     {
         return LineFunc(0x37e,
                         __PRETTY_FUNCTION__,
@@ -6918,7 +6934,7 @@ int DisPatcher_BuySkill::read(PacketBuf& packet, MSG_BASE& msg)
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (!packet.get_byte(m.m_entries[i].m_refundFlag))    // +0x11+3i
+        if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_entries[i].m_refundFlag)))  // +0x11+3i
         {
             return LineFunc(0x38a,
                             __PRETTY_FUNCTION__,
@@ -6930,7 +6946,7 @@ int DisPatcher_BuySkill::read(PacketBuf& packet, MSG_BASE& msg)
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (!packet.get_byte(m.m_entries[i].m_level))         // +0x10+3i
+        if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_entries[i].m_level)))  // +0x10+3i
         {
             return LineFunc(0x38f,
                             __PRETTY_FUNCTION__,
@@ -7261,9 +7277,11 @@ void DisPatcher_BuySkill::refund_skill_process(CUser* user, char /*treeKind*/,
     int refundCount = 0;                                                              // -0x1c
     int addLevel = static_cast<int>(static_cast<signed char>(info.m_1));        // -0x38
     int secondGrow = static_cast<int>(user->getCurCharSecondGrowType());        // -0x34
-    int firstGrow = static_cast<int>(user->getCurCharFirstGrowType());          // -0x30
-    int job = user->get_charac_job();               // ORIG esi
-    int level = user->get_charac_level();           // ORIG ebx
+    int firstGrow = static_cast<int>(user->getCurCharFirstGrowType());         // -0x30
+    // [b28d-solo-DisPatcherCore] P248 三条件（跨 call 保活 + 4.4 不自升格 +
+    // ORIG 目标为 callee-saved %esi/%ebx）⇒ 保留裸 register（非 asm 绑定，P0 合规）。
+    register int job = user->get_charac_job();               // ORIG esi
+    register int level = user->get_charac_level();           // ORIG ebx
     SkillSlot* skillW = (SkillSlot*)(user->getCurCharacSkillW());
     info.m_4 =
         skillW->refund_skill(static_cast<unsigned char>(info.m_0), level, job,
@@ -7287,12 +7305,16 @@ void DisPatcher_BuySkill::try_refund_skills_process(CUser* user, char /*treeKind
     int addLevel = static_cast<int>(static_cast<signed char>(info.m_1));        // -0x38
     int secondGrow = static_cast<int>(user->getCurCharSecondGrowType());        // -0x34
     int firstGrow = static_cast<int>(user->getCurCharFirstGrowType());          // -0x30
-    int job = user->get_charac_job();               // ORIG esi
-    int level = user->get_charac_level();           // ORIG ebx
+    // [b28d-solo-DisPatcherCore] P248 三条件（跨 call 保活 + 4.4 不自升格 +
+    // ORIG 目标为 callee-saved %esi/%ebx）⇒ 保留裸 register（非 asm 绑定，P0 合规）。
+    register int job = user->get_charac_job();               // ORIG esi
+    register int level = user->get_charac_level();           // ORIG ebx
+    // ORIG `mov 0x14(%ebp),%eax; movzbl (%eax),%eax; movzbl %al,%edi`：info.m_0
+    // 在 skillW 的 call 之前取值并跨该 call 保活于 %edi ⇒ 具名 register 局部。
+    register unsigned char itemIdx = static_cast<unsigned char>(info.m_0);
     SkillSlot* skillW = (SkillSlot*)(user->getCurCharacSkillW());
     info.m_4 =
-        skillW->try_refund_skill(static_cast<unsigned char>(info.m_0), level,
-                                 job, firstGrow, secondGrow, addLevel,
+        skillW->try_refund_skill(itemIdx, level, job, firstGrow, secondGrow, addLevel,
                                  refundCount);
 }
 
@@ -8248,11 +8270,13 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
     die.m_mobSeq = tmpU16;
-    if (!packet.get_short(tmpS16))
+    // [b28d-solo-DisPatcherCore] P167 真 bug：ORIG 调用序列 t×8 后 s×7 ⇒
+    // 0x6d0a/0x6d25/0x6d26 三处绑 `get_short(unsigned short&)`（ERt），原写法为 short&。
+    if (!packet.get_short(tmpU16))
         return LineFunc(0x6d0a,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_fieldF = (unsigned short)tmpS16;
+    die.m_fieldF = tmpU16;
     if (!packet.get_int(tmpS32))
         return LineFunc(0x6d0c,
                         __PRETTY_FUNCTION__,
@@ -8301,16 +8325,16 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
                             0, 0);
         die.m_hitCountList[i] = tmpU16;
     }
-    if (!packet.get_short(tmpS16))
+    if (!packet.get_short(tmpU16))
         return LineFunc(0x6d25,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_killPairA24 = (unsigned short)tmpS16;
-    if (!packet.get_short(tmpS16))
+    die.m_killPairA24 = tmpU16;
+    if (!packet.get_short(tmpU16))
         return LineFunc(0x6d26,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    die.m_killPairA26 = (unsigned short)tmpS16;
+    die.m_killPairA26 = tmpU16;
     if (!packet.get_byte(tmpU8))
         return LineFunc(0x6d28,
                         __PRETTY_FUNCTION__,
@@ -8411,10 +8435,16 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
         {
             std::map<int, int>::iterator it =
                 cntMap.find((int)die.m_mobSeq);
-            if (it == cntMap.end())
-                cntMap.insert(std::make_pair((int)die.m_mobSeq, 1));
-            else
+            // [b28d-solo-DisPatcherCore] P167/P315：ORIG 为 `operator!=` +
+            // `make_pair<unsigned short&,int>(m_mobSeq, 1)`（mangled IRtiE/OS3_OS6_），
+            // 原写法 == / (int) cast 生成 eq + make_pair<int,int> 变体。
+            if (it != cntMap.end())
                 it->second += 1;
+            else
+            {
+                unsigned short seq = die.m_mobSeq;   // packed 字段不可绑非 const 引用
+                cntMap.insert(std::make_pair(seq, 1));
+            }
         }
         if (passiveFlag == 1)
         {
@@ -8445,17 +8475,41 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             if ((unsigned int)user->m_mcap.m_monsterDieHackCnt > 4)
             {
                 user->m_mcap.m_monsterDieHackCnt = 0;
-                user->getHackAnalyzer()->addServerHackCnt(
-                    user, (WongWork::ENUM_HACKTYPE)0xcd, 1,
-                    (party->m_battleField.m_pDungeon == 0) ? 0 :
-                    (party->m_battleField.m_pDungeon->get_index() == 0x2afe ? 2 : 0), 0);
-                if (!party->checkBossRoom())
+                // [b28d-solo-DisPatcherCore] P167 真 bug：ORIG 为 **3 个独立调用点**
+                // （Ghidra C：dungeon==0 → (1,0,0) / index==0x2afe → (1,2,0) /
+                // else → (1,0,0)），原三元折叠成 1 个（MISSING 0xcd×2 + getHackAnalyzer×2）。
+                if (party->m_battleField.m_pDungeon == 0)
                 {
                     user->getHackAnalyzer()->addServerHackCnt(
-                        user, (WongWork::ENUM_HACKTYPE)0xce, 1,
-                        (party->m_battleField.m_pDungeon == 0) ? 0 :
-                        (party->m_battleField.m_pDungeon->get_index() == 0x2afe ? 2 : 0),
-                        0);
+                        user, (WongWork::ENUM_HACKTYPE)0xcd, 1, 0, 0);
+                }
+                else if (party->m_battleField.m_pDungeon->get_index() == 0x2afe)
+                {
+                    user->getHackAnalyzer()->addServerHackCnt(
+                        user, (WongWork::ENUM_HACKTYPE)0xcd, 1, 2, 0);
+                }
+                else
+                {
+                    user->getHackAnalyzer()->addServerHackCnt(
+                        user, (WongWork::ENUM_HACKTYPE)0xcd, 1, 0, 0);
+                }
+                if (!party->checkBossRoom())
+                {
+                    if (party->m_battleField.m_pDungeon == 0)
+                    {
+                        user->getHackAnalyzer()->addServerHackCnt(
+                            user, (WongWork::ENUM_HACKTYPE)0xce, 1, 0, 0);
+                    }
+                    else if (party->m_battleField.m_pDungeon->get_index() == 0x2afe)
+                    {
+                        user->getHackAnalyzer()->addServerHackCnt(
+                            user, (WongWork::ENUM_HACKTYPE)0xce, 1, 2, 0);
+                    }
+                    else
+                    {
+                        user->getHackAnalyzer()->addServerHackCnt(
+                            user, (WongWork::ENUM_HACKTYPE)0xce, 1, 0, 0);
+                    }
                 }
             }
         }
@@ -9831,37 +9885,36 @@ void DisPatcher_MoveMap::CheckTrapBitsHackCnt(CUser* user, MSG_MOVE_MAP& info)
     // 保留绑定使 divseq 保持 16 位形」系误判：实测清绑后 `info.m_trapBits % 7 == 0`
     // 直出 ORIG 的 `mov 0x10(%ebp),%eax; movzwl 0x18(%eax),%ecx; movzwl %cx,%eax;
     // imul $0x2493` 16 位 HImode 魔数除法链，ndiff 20 → 1。
-    // 唯一残差 = `if (cond) {return;}` 尾 4.4 多保留的 `jmp <epilogue>`
-    // （ORIG 0x081c4bb5 `je` 直落 epilogue，4.1 线程化折掉；N-JMP 族，无源码解）。
-    if (info.m_trapBits % 7 == 0)
+    // [b28d-solo-DisPatcherCore] P214① 正向包裹：原 `if(cond){return;}` 早返形令 4.4
+    // 生成空 return bb（`nop`）+ 循环出口 `jmp <epilogue>`（ORIG 0x081c4bb5 `je` 直落
+    // epilogue 且无岛）⇒ 改 `if (bits%7 != 0) { body }` 后 4.4 发 `test; je L_after`，
+    // 循环出口 fall-through 到 epilogue，残差 1→0。
+    if (info.m_trapBits % 7 != 0)
     {
-        return;
-    }
-    // ORIG 81c4bb5：`je` 直落 epilogue + cond 尾无 jmp（4.1 线程化）；4.4 恒保留
-    // 空 return bb + 双 jmp（jump-threading 反向），无源码形可翻 → N 类天花板。
-    user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x1f9, 1, 0, 0);
-    // ORIG 0x081c4...：`cmp $0x4,%eax; setg %al; test; je` —— 正向 >4 大块（技巧17）
-    if (user->getHackAnalyzer()->getServerHackAccumulatedCnt((WongWork::ENUM_HACKTYPE)0x1f9) > 4)
-    {
-        CParty* party = static_cast<CParty*>(user->GetParty());
-        if (party != 0)
+        user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x1f9, 1, 0, 0);
+        // ORIG 0x081c4...：`cmp $0x4,%eax; setg %al; test; je` —— 正向 >4 大块（技巧17）
+        if (user->getHackAnalyzer()->getServerHackAccumulatedCnt((WongWork::ENUM_HACKTYPE)0x1f9) > 4)
         {
-            for (int idx = 0; idx <= 3; ++idx)   // ORIG cmpl $0x3; setle（尾块无 jmp）
+            CParty* party = static_cast<CParty*>(user->GetParty());
+            if (party != 0)
             {
-                // ORIG `xor $0x1,%eax; test %al,%al; jne`：!boolcall continue 形（技巧1）
-                if (!party->checkValidUser(idx))
+                for (int idx = 0; idx <= 3; ++idx)   // ORIG cmpl $0x3; setle（尾块无 jmp）
                 {
-                    continue;
+                    // ORIG `xor $0x1,%eax; test %al,%al; jne`：!boolcall continue 形（技巧1）
+                    if (!party->checkValidUser(idx))
+                    {
+                        continue;
+                    }
+                    CUser* member = party->get_user(idx);
+                    if (member != user)
+                    {
+                        member->getHackAnalyzer()->addServerHackCnt(
+                            member, (WongWork::ENUM_HACKTYPE)0x1fa, 1, 0, 0);
+                    }
+                    DB_ReqSaveHackUserPunish::makeRequest(member->get_acc_id(), 0,
+                                                          member->m_network.get_str_ip());
+                    member->DisConnSig((DISCONN_SIG)0x18, true, 0);
                 }
-                CUser* member = party->get_user(idx);
-                if (member != user)
-                {
-                    member->getHackAnalyzer()->addServerHackCnt(
-                        member, (WongWork::ENUM_HACKTYPE)0x1fa, 1, 0, 0);
-                }
-                DB_ReqSaveHackUserPunish::makeRequest(member->get_acc_id(), 0,
-                                                      member->m_network.get_str_ip());
-                member->DisConnSig((DISCONN_SIG)0x18, true, 0);
             }
         }
     }
@@ -10513,10 +10566,12 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());
         if (party != 0)
         {
-            int ret = party->drop_item(user, req.m_0d, req.m_0f, (char)req.m_11,
-                                       req.m_12, req.m_14);
-            if (ret > 0)
+            unsigned int ret = (unsigned int)party->drop_item(
+                user, req.m_0d, req.m_0f, (char)req.m_11, req.m_12, req.m_14);
+            if (ret != 0)
             {
+                // [b28d-solo-DisPatcherCore] P211 档③：ORIG RHS-first
+                // （`mov -0x28,%edx; mov -0x30,%eax; mov %edx,0x4(%eax)`）⇒ RHS 局部异型化。
                 out.m_errNo = ret;
                 out.m_8 = req.m_11;
             }
@@ -10540,11 +10595,11 @@ int DisPatcher_DropItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         WarRoom* room = G_CGameManager()->GetWarRoom(user->GetWarRoomIndex());
         if (room != 0)
         {
-            int ret = room->HandleItemDrop(user, req.m_0d, req.m_0f,
-                                           (char)req.m_11, req.m_12, req.m_14);
-            if (ret > 0)
+            unsigned int ret = (unsigned int)room->HandleItemDrop(
+                user, req.m_0d, req.m_0f, (char)req.m_11, req.m_12, req.m_14);
+            if (ret != 0)
             {
-                out.m_errNo = ret;
+                out.m_errNo = ret;   // P211 档③（同上）
                 out.m_8 = req.m_11;
             }
         }
@@ -10591,7 +10646,10 @@ int DisPatcher_UseEquip::check_error(CUser* user, MSG_BASE& msg)
 int DisPatcher_UseEquip::read(PacketBuf& packet, MSG_BASE& msg)
 {
     // ORIG 0x081c0dfa：实参内联表达式（mov 0x10(%ebp);add $0xd），无指针局部 → 帧 0x18。
-    if (!packet.get_byte(reinterpret_cast<MSG_DECREASE_DURABILITY&>(msg).m_0d))
+    // [b28d-solo-DisPatcherCore] P167 真 bug：ORIG 调 `get_byte(char&)`（_ZN9PacketBuf8get_byteERc），
+    // 原写法经 uchar 字段绑到 ERh 重载。
+    if (!packet.get_byte(*reinterpret_cast<char*>(
+            &reinterpret_cast<MSG_DECREASE_DURABILITY&>(msg).m_0d)))
     {
         return LineFunc(0x9d0,
                         __PRETTY_FUNCTION__,
@@ -10707,18 +10765,17 @@ int DisPatcher_MakePVP::dispatch_sig(CUser* user, PacketBuf& packet)
     // 否则 MakePVPRoom(user,msg,0x35, mode==0?2:6)。
     MSG_MAKE_PVP_ROOM msg;
     memset(&msg, 0, 0x3d);
-    int res;   // 技39：EH-ebx 返回缓存，string dtor 后 mov %ebx,%eax
     if (!ExtractPacket(packet, msg))
     {
-        res = LineFunc(0x85b6, __PRETTY_FUNCTION__, 0, 0);
-        return res;                 // ORIG +0x67 mov %eax,%ebx
+        // [b28d-solo-DisPatcherCore] P0：ORIG 无 res 槽（`mov %eax,%ebx` 直承载
+        // 返回值跨 string dtor），原具名局部多一对 store/load 并使全帧深 4。
+        return LineFunc(0x85b6, __PRETTY_FUNCTION__, 0, 0);
     }
     {
         std::string name(msg.m_name);
         if (CSyncSlangFilter::GetInstance()->HasSlang(name))
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x35, 0x9f);
-            res = 0;                // ORIG +0xf0 mov $0,%ebx
         }
         else
         {
@@ -10732,9 +10789,8 @@ int DisPatcher_MakePVP::dispatch_sig(CUser* user, PacketBuf& packet)
             {
                 MakePVPRoom(user, msg, (ENUM_CMDPACKET)0x35, (PVP_BATTLE_MODE)2);
             }
-            res = 0;                // ORIG +0x145 mov $0,%ebx
         }
-        return res;                 // dtor 后 mov %ebx,%eax（ORIG +0x167/+0x172）
+        return 0;                   // dtor 后 mov %ebx,%eax（ORIG +0x167/+0x172）
     }
 }
 int DisPatcher_MakePVP::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
@@ -10831,7 +10887,9 @@ int DisPatcher_SetPVPSeat::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return LineFunc(0x82a4, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(msg + 0xe)))
+    // [b28d-solo-DisPatcherCore] P167 真 bug：ORIG 第二处调 `get_byte(unsigned char&)`
+    // （_ZN9PacketBuf8get_byteERh），原写法为 char&（ERc）。
+    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(msg + 0xe)))
     {
         return LineFunc(0x82a6, __PRETTY_FUNCTION__, 0, 0);
     }
@@ -13539,12 +13597,13 @@ int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
         unsigned int m_natIp;            // +0x12
         unsigned short m_natPort;        // +0x16
         unsigned int m_mtu;              // +0x18
-        int m_macLen;                    // +0x1c
+        unsigned int m_macLen;           // +0x1c（ORIG get_int(unsigned int&) 实证）
         char m_macBuf[0x41];             // +0x20..0x60
     };
     #pragma pack(pop)
     SetIPMsgView msg;                    // 技36：无具名引用中转（引用会多占 spill 槽）
-    if (!packet.get_byte(msg.m_natType))
+    // [b28d-solo-DisPatcherCore] P167 真 bug：ORIG 调 get_byte(char&)（ERc）。
+    if (!packet.get_byte(*reinterpret_cast<char*>(&msg.m_natType)))
         return LineFunc(0x80e4, kPretty, 0, 0);
     if (!packet.get_int(msg.m_innerIp))
         return LineFunc(0x80e5, kPretty, 0, 0);
@@ -13595,7 +13654,10 @@ int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
                        true);
     guard.operator*()->operator<<((int)0x9e);
     guard.operator*()->operator<<((int)-1);
-    SIG_SAVE_PROXY_LOG* sig = guard.GetInBuffer<SIG_SAVE_PROXY_LOG>();
+    // [b28d-solo-DisPatcherCore] P103：ORIG 先调 CStreamGuard::operator->() 再
+    // GetInBuffer（p167 MISSING _ZN12CStreamGuardptEv）⇒ 保留 operator-> 链。
+    SIG_SAVE_PROXY_LOG* sig =
+        guard.operator->()->GetInBuffer<SIG_SAVE_PROXY_LOG>();
     sig->m_accId = user->get_acc_id();
     strncpy(sig->m_strIp, user->m_network.get_str_ip(), 0x10);
     strncpy(sig->m_peerIp, peerIp, 0x10);
@@ -13694,12 +13756,18 @@ int Dispatcher_FrameLagStatistics::dispatch_sig(CUser* user, PacketBuf& packet)
     // ---- 行循环（ORIG -0x14）：行内四 short + 6×(int+bin[4]) ----
     for (int r = 0; r <= 5; ++r)
     {
-        for (int c = 0; c < 4; ++c)          // asm dst = base + r*0x38 + 0x24 + c*2
-        {
-            if (!packet.get_short(
-                    *reinterpret_cast<short*>(base + r * 0x38 + 0x24 + c * 2)))
-                FLLF(0xc914 + c);
-        }
+        // [b28d-solo-DisPatcherCore] P167 真 bug：ORIG 为**4 个独立 get_short(short&)
+        // 调用点**（Ghidra C：单层 r 循环体内 4 条连续调用，LineFunc 0xc914..0xc917），
+        // 原内层 c 循环把 4 个调用点折成 1 个（p167 MISSING get_shortERs×3 + LineFunc×3）
+        // ⇒ 按 ORIG 展开为 4 条，dst = base + r*0x38 + 0x24 + {0,2,4,6}。
+        if (!packet.get_short(*reinterpret_cast<short*>(base + r * 0x38 + 0x24)))
+            FLLF(0xc914);
+        if (!packet.get_short(*reinterpret_cast<short*>(base + r * 0x38 + 0x24 + 2)))
+            FLLF(0xc915);
+        if (!packet.get_short(*reinterpret_cast<short*>(base + r * 0x38 + 0x24 + 4)))
+            FLLF(0xc916);
+        if (!packet.get_short(*reinterpret_cast<short*>(base + r * 0x38 + 0x24 + 6)))
+            FLLF(0xc917);
         for (int j = 0; j <= 5; ++j)         // ORIG -0x10
         {
             if (!packet.get_int(*reinterpret_cast<int*>(

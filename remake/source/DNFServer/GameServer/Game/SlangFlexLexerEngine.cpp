@@ -3,8 +3,10 @@
 // source/toolchain/gen_slang_engine.sh  (slang_filter.l, -+ -P__slang_filter__)
 // Do not hand-edit the DFA loop; change slang_filter.l and regenerate.
 // ============================================================================
-// [b28d-11b] N：flex 2.5.35 生成 DFA；残余 53/3998 为 4.4 vs 4.1 寄存器分配
-// （edi/esi/ebx 互换）与标量栈槽化差异（N7/N82），禁手改 DFA（改 slang_filter.l 重生成）。
+// [b28d-solo-SlangFlexLexerEngine] flex 2.5.35 生成 DFA。本波 yylex clean ndiff
+// 2108→37（p167 7/7 CLEAR、gap +5），残余为 4.4.7 寄存器分配（N7：yy_act 落槽，
+// ORIG 复用 %esi）+ 帧槽（N82：yy_c -0x29↔-0x25）+ 尾 return 块序（N93附）。
+// D0/D1=AE（见 FlexLexer.h:88）。禁手改 DFA：要再收敛请改 slang_filter.l 重生成。
 #line 2 "/tmp/grok-goal-7c1153ba5fb7/implementer/slang_engine.gen.cpp"
 
 #line 4 "/tmp/grok-goal-7c1153ba5fb7/implementer/slang_engine.gen.cpp"
@@ -328,6 +330,12 @@ typedef unsigned char YY_CHAR;
 
 #define yytext_ptr yytext
 
+// [b28d-solo-SlangFlexLexerEngine] FlexLexer::~FlexLexer() D0/D1 verdict=AE
+// 定义源：FlexLexer.h:88 `virtual ~FlexLexer() { }`（头内联空体，本 TU 使用点
+// 发射同名 W 符号）。逐条实证：D1 13/13、D0 11/11 指令全等；仅 vtable 立即数
+// （ORIG 0x8b12368 ↔ .o R_386_32）与 call 目标标签未解析的显示差（N124 假报，
+// compare_tu clean 口径判 AE）。P317：ORIG nm 存在 D0/D1 且类含虚析构 ⇒ 保留
+// 用户析构，不得删除。P0：无 register asm 绑定。
 #include "FlexLexer.h"
 int yyFlexLexer::yylex()
 	{
@@ -6205,18 +6213,31 @@ static int yy_flex_strlen (yyconst char * );
 
 /** The main scanner function which does all the work.
  */
-// §6.2 巨件核销：P167 7/7 [0缺0多]；gap 3999→4008（残差 8 条 + 尾 nop 1）；残差归因
-// N 类（详见 docs/asm_translation_patterns.md 负例表）：①yy_c/yy_act 匹配循环
-// 4.1 落栈槽 vs 4.4 %edi 寄存器化（3 处 movzbl 槽往返差）；②yy_get_previous_action
-// 段 call *%ecx/*%eax 寄存器互换（N7）；③yy_cp/yy_bp 4.1 寄存器直持 vs 4.4 槽中转；
-// ④yyFlexLexer 基类成员布局 flex 库头版本差（yytext_ptr/yy_c_buf_p 偏移 0x4c/0x50
-// vs ORIG 0x4/0x30，全 TU 读写自洽、行为等价，属库头结构性差异）。DFA 表驱动逻辑、
-// accept/EOB/EOF 分支逐块人工比对一致，算法语义零缺口。
+// [b28d-solo-SlangFlexLexerEngine] verdict=DIFF（N7/N82 封顶，§6.2 三件套口径）
+// 证据：check_tu_routed.sh COMPILE OK；p167 callsite 7/7 CLEAR(0缺0多)；
+//       gap=+5（orig 3999 / our 4004，含 ORIG 尾 1 条对齐 nop=§6.1 豁免）。
+// 本波修入（均有 ORIG 反汇编实证）：
+//  ①`YY_CHAR yy_c` 去 register ⇒ 复现 ORIG 字节槽化 `mov %al,-0x29(%ebp)` /
+//    `movzbl -0x29(%ebp),%eax`（此前 4.4 寄存器化到 %edi，3 处槽往返差）；
+//  ②EOB/NUL 分支 else 真语义 bug：重建原写
+//    `yy_cp=(yy_last_accepting_cpos); yy_current_state=(yy_last_accepting_state);`
+//    ORIG 0x080936ef 段仅 `mov 0x30(%eax),%ebx`（yy_c_buf_p）⇒ 按 flex 模板修正为
+//    `yy_cp = (yy_c_buf_p);`（行为：NUL 转移失败时从当前位置继续，而非回退）；
+//  ③`int yy_act` 去 register ⇒ 4.4 把 %edi 让给 yy_bp，复现 ORIG `mov %ebx,%edi`。
+// 残余不可复现（N 类，详见 docs/asm_translation_patterns.md）：
+//  · N7：4.4.7 仅 ebx/esi/edi 三个 callee-saved 且不做跨变量复用，4 个 register
+//    变量（yy_current_state/yy_cp/yy_bp/yy_act）必有一个落槽；ORIG 4.1 复用 %esi
+//    给 yy_act（其生命周期与 yy_current_state 不重叠）。两形实测：yy_act 落槽残 5
+//    处（cwtl+槽存 vs movswl %ax,%esi ×2、cmpl 槽比 ×2、跳表 shl+mov 两步），yy_bp 落槽
+//    残 34 处（连锁 esi/edi 角色互换）⇒ 取前者。
+//  · N82：yy_c 槽位 -0x29(ORIG) vs -0x25(ours)，帧槽分配差（sub $0x3c 两侧同）。
+//  · 表地址/跳转目标/&std::cin/&std::cout 立即数为 .o 重定位显示差（N124/AE 口径）。
+// 禁手改 DFA：算法/表驱动逻辑零缺口，如需再收敛改 slang_filter.l 重生成。
 YY_DECL
 {
 	register yy_state_type yy_current_state;
 	register char *yy_cp, *yy_bp;
-	register int yy_act;
+	int yy_act;
     
 #line 16 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/slang_filter.l"
 
@@ -6265,7 +6286,7 @@ YY_DECL
 yy_match:
 		do
 			{
-			register YY_CHAR yy_c = yy_ec[YY_SC_TO_UI(*yy_cp)];
+			YY_CHAR yy_c = yy_ec[YY_SC_TO_UI(*yy_cp)];
 			if ( yy_accept[yy_current_state] )
 				{
 				(yy_last_accepting_state) = yy_current_state;
@@ -15378,8 +15399,7 @@ ECHO;
 
 			else
 				{
-				yy_cp = (yy_last_accepting_cpos);
-				yy_current_state = (yy_last_accepting_state);
+				yy_cp = (yy_c_buf_p);
 				goto yy_find_action;
 				}
 			}

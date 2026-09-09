@@ -74,25 +74,33 @@ public:
     //   [b28d-N] fresh 复验（四实例 33/26 同形）维持 N：①memset 立即数物化
     //   9 形探针全败；②死 strlen 被 4.4 tree-DCE（/tmp/l11p/dce.cpp 实证），
     //   volatile 反劣 ⇒ 封顶。ORIG 0x08627cbc/0x08627e60/0x08627d48/0x08627dd4。
-    //   [b28d-solo-CStreamBuffer] fresh 复验（routed 口径；探针 /tmp/b28d_csb/
-    //   probe{1,2,3,4,5}.cpp，真实 TU 旗标编译）：我方 138B/32 insns（原 113B/26），
-    //   与 ORIG 139B/33 insns 逐条对齐后**仅剩 memset 参数块 1 条残差**：
-    //   ① [N] memset 参数块（1 insn）：ORIG `lea tmp,%eax; mov $0xa000,%edx;
-    //      mov %edx,0x8(%esp); movl $0x0,0x4(%esp); mov %eax,(%esp)`（首参地址
-    //      先算入 %eax 保活 + 立即数经 %edx 物化）；4.4 恒 `movl $0xa000,0x8(%esp);
-    //      movl $0x0,0x4(%esp); lea; mov`（末算地址、直写立即数）。累计 14 形
-    //      （sizeof/&tmp/&tmp[0]/(void*)tmp 语句表达式/__builtin_memset/(size_t)
-    //      cast/'\0'/40960/sizeof tmp/optimize("no-tree-dce")/register n/
-    //      register char* p/二者组合）全败；register 形另引 push %ebx/帧漂更劣
-    //      ⇒ 跨版本 RTL 立即数物化，N 封顶。
-    //   ② [已复现] 两条结果丢弃 strlen（6 insn/2 call）：裸 `strlen(p);` 被
-    //      4.4 -O0 tree-DCE 删除（N99）；纯 register 局部承接（P231：禁的是
-    //      register asm 绑定，裸 register 存储类提示合法）后 4.4 保留两条调用、
-    //      不占槽、不产 store，与 ORIG 逐条同形（帧 0xa018/-0xa008 不变）。
-    //   语义闭合：memset→snprintf→strlen×2→AppendString 调用序与 ORIG 一致
-    //   （含 If 的 flds 0x10(%ebp)/fstpl 0xc(%esp)）；帧 IPKc/Ii/Ij=0xa018、
-    //   If=0xa028、参数槽 fmt@0xc/val@0x10、tmp@-0xa008 全一致；AppendString AE。
-    //   ⇒ 仅① N 封顶。无子子代理。
+    //   [b28d-solo-CStreamBuffer] 四实例判词（fresh routed 口径，
+    //   check_tu_routed.sh: diff=0 / near=0；逐件 AE，ORIG 33 insns = 我方 33
+    //   insns 逐条对齐）：
+    //     _ZN13CStreamBuffer6InsertIPKcEEvPcT_  0x08627cbc  AE
+    //     _ZN13CStreamBuffer6InsertIfEEvPcT_    0x08627e60  AE
+    //     _ZN13CStreamBuffer6InsertIiEEvPcT_    0x08627d48  AE
+    //     _ZN13CStreamBuffer6InsertIjEEvPcT_    0x08627dd4  AE
+    //   修法（本轮翻正）：原码是**数组零初始化** `char tmp[0xa000] = {0};`，
+    //   不是独立 `memset(tmp, 0, sizeof(tmp));`。4.4.7 -O0 由初始化列表发射
+    //   memset，实参装载恰为 ORIG 形：
+    //     lea -0xa008(%ebp),%eax; mov $0xa000,%edx; mov %edx,0x8(%esp);
+    //     movl $0x0,0x4(%esp); mov %eax,(%esp); call memset
+    //   （首参地址先算入 %eax 保活 + size 经 %edx 物化）；独立 memset 语句恒产
+    //   `movl $0xa000,0x8(%esp); movl $0x0,0x4(%esp); lea; mov`（少 1 条）。
+    //   探针矩阵 /tmp/b28d_csb2/probe{,2}.cpp 共 15 形，仅 gI（`= {0}`）命中；
+    //   A-H/J-O（sizeof/&tmp/&tmp[0]/(char*)/(void*)/(char*)(void*)/0xa000/'\0'/
+    //   语句表达式/具名 char* const/__builtin_memset）全败。
+    //   ⇒ 旧 b22/b28c-11/b28d-N「memset 参数块 N 封顶」判词**作废**
+    //   （P214③/P202① 扩展：大数组 `= {0}` 亦复现 memset 实参装载形）。
+    //   ② 两条结果丢弃 strlen（ORIG 0x08627d08..0x08627d1c）：裸 `strlen(p);`
+    //   被 4.4 -O0 tree-DCE 删除（N99），用纯 register 局部承接（P231 合规：
+    //   禁的是 register asm 绑定，裸 register 存储类提示合法）→ 保留两条调用、
+    //   不占槽、不产 store，与 ORIG 逐条同形（帧 0xa018/-0xa008 不变）。
+    //   语义闭合：零初始化→snprintf→strlen×2→AppendString；帧 IPKc/Ii/Ij=0xa018、
+    //   If=0xa028、参数槽 fmt@0xc/val@0x10、tmp@-0xa008、float 的
+    //   flds 0x10(%ebp)/fstpl 0xc(%esp) 全一致；AppendString 本体 AE。
+    //   无子子代理。
     template <typename T>
     void Insert(char* fmt, T val);                          // 0x08627cbc..e60
 
@@ -102,8 +110,7 @@ public:
 template <typename T>
 void CStreamBuffer::Insert(char* fmt, T val)
 {
-    char tmp[0xa000];
-    memset(tmp, 0, sizeof(tmp));
+    char tmp[0xa000] = {0};
     OS_API::snprintf(tmp, 0xa000, fmt, val);
     // 以下两条 = ORIG 保留的死代码（结果丢弃，ORIG 0x08627d08..0x08627d1c 段）。
     // 裸 `strlen(p);` 会被 gcc 4.4.7 -O0 tree-DCE 删除（N99）；用纯 register 局部

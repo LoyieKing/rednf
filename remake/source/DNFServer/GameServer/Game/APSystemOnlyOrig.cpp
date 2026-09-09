@@ -68,7 +68,7 @@ static const int ConstClientClearAction[5] = {2, 5, 0x29, 0x2b, 0x2c};  // 0x08a
 // ORIG 域常量（nm：_ZN8APSystemL19ConstOCC_DATELengthE，r 段；"YYYY-MM-DD" 含 NUL）
 static const int ConstOCC_DATELength = 11;
 
-unsigned char CActionPointManager::_IsGMOn;                       // ORIG B 0x093ff07c
+bool CActionPointManager::_IsGMOn;                                // ORIG B 0x093ff07c
 CActionPointManager::GmWeekdayCtl CActionPointManager::_gmWeekday;  // ORIG D 0x0937008c
 
 }  // namespace APSystem
@@ -118,6 +118,7 @@ bool uncompress_zip(char* out, unsigned int& outLen, const char* in, unsigned in
 // ----------------------------------------------------------------------------
 // [b28d-27] DIFF N82（已按 P0 修）：ORIG 0x086b201f；补回 out/inLen/bound/dst4/ret
 // 五个具名局部（ORIG 有槽往返）后 ndiff 35→14，残差为跨版本槽号分配（N82），
+// [b28d-solo-APSystemOnlyOrig] 判词：**AE**（check_tu routed；66=66；残差仅 <A>/<T> 归一）。
 // p167 CLEAR（2/2），语义闭合。
 bool compress_zip(char* out, unsigned int& outLen, const char* in, unsigned int inLen)
 {
@@ -125,29 +126,47 @@ bool compress_zip(char* out, unsigned int& outLen, const char* in, unsigned int 
     // P0 槽往返证据），bound 为 **int**（imul 0x66666667+sar 有符号除 5，槽 -0x1c），
     // dst4 具名指针（-0xc），compress2 返回值具名 ret（-0x18），末段 bound 先写回
     // 再赋 outLen（两步）。
-    char* dst = out;
-    int len = (int)inLen;
+    // [b28d-solo-APSystemOnlyOrig] 声明序 = ORIG 槽位映射（P309）：bound -0x1c、
+    // ret -0x18、len -0x14、dst -0x10、dst4 -0xc；赋值语句序保持 ORIG 指令序。
+    unsigned int bound;
+    int ret;
+    int len;
+    char* dst;
+    char* dst4;
+    dst = out;
+    len = (int)inLen;
     if (len <= 0)
     {
+        // [b28d-solo-APSystemOnlyOrig] ORIG 0x086b2037 立即数 = 0x8cf5ab8
+        // "error; compress failed:unexpected message size"（旧写 "d%c%02d"
+        // 是相邻字面量 0x8cf5ab0，日志内容错）。
         LogManager::logFormat(
             1, "Utility.cpp",
             __PRETTY_FUNCTION__, 0x1c6,
-            "d%c%02d");
+            "error; compress failed:unexpected message size");
         return false;
     }
-    int bound = len + len / 5 + 12;
-    unsigned char* dst4 = reinterpret_cast<unsigned char*>(dst) + 4;
-    int ret = compress2(dst4, reinterpret_cast<unsigned long*>(&bound),
-                        reinterpret_cast<const unsigned char*>(in),
-                        static_cast<unsigned long>(len), -1);
-    if (ret != 0)
-        return false;
-    if (outLen < static_cast<unsigned int>(bound))   // ORIG：*destCap < size → 失败
+    // [b28d-solo-APSystemOnlyOrig] bound 为 unsigned（ORIG 尾段
+    // `mov -0x1c,%edx; mov 0xc,%eax; mov %edx,(%eax)` 单段直落；int 版多
+    // `mov %eax,%edx` 中转）。除法仍按 int 有符号 magic 0x66666667。
+    bound = static_cast<unsigned int>(len + len / 5 + 12);
+    // dst4 声明 char*、调用点再转 unsigned char*：ORIG 0x086b209e 在压参前把
+    // arg0 预装 %eax（call 点转换触发提前物化）；直接传 unsigned char* 时 4.4
+    // 把 arg0 排到最后装载。
+    dst4 = dst + 4;
+    ret = compress2(reinterpret_cast<unsigned char*>(dst4),
+                    reinterpret_cast<unsigned long*>(&bound),
+                    reinterpret_cast<const unsigned char*>(in),
+                    static_cast<unsigned long>(len), -1);
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x086b20c3：单条负向守卫
+    // `ret != 0 || outLen < bound` → jne/jae 双跳同落 fail（P214① 正极性源形），
+    // 两个独立 if-return 会翻成 fail 直落布局。
+    if (ret != 0 || outLen < bound)
         return false;
     *reinterpret_cast<unsigned int*>(dst) =
         static_cast<unsigned int>(len) & 0x3fffffff;  // ORIG and 截断 30 位
     bound += 4;
-    outLen = static_cast<unsigned int>(bound);
+    outLen = bound;
     return true;
 }
 
@@ -202,6 +221,7 @@ bool DB_LoadActionPoint::dispatch(int a, int b, Stream* stream)
 
 // ParseActionClearState —— 报告全文转写。ORIG T 0x08123f50。this 未使用。
 // [b28d-27] DIFF N82：ORIG 0x08123f50；p167 CLEAR（10/10），残差为帧/槽分配，
+// [b28d-solo-APSystemOnlyOrig] 判词：**AE**（check_tu routed；142=142；三独立列指针 col1/col2/col3 + day 字节局部 -0x9 还原后全等）。
 // 语义闭合。
 bool DB_LoadActionPoint::ParseActionClearState(char* text, _ActionPoint* table,
                                                unsigned int count)
@@ -210,33 +230,45 @@ bool DB_LoadActionPoint::ParseActionClearState(char* text, _ActionPoint* table,
     {
         return false;
     }
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08123f6d..0x08124145 逐槽还原：
+    // saveOuter -0x28、line -0x24（先 0 后赋值两句，P198①）、row -0x20、
+    // saveInner -0x2c、**三个独立列指针** col1 -0x1c / col2 -0x18 / col3 -0x14
+    // （ORIG 各自 movl $0 预清，复用单一 col 会少 2 个槽+2 条预清）、slot -0x10。
     char* saveOuter = 0;
-    char* line = strtok_r(text, "|", &saveOuter);
+    char* line = 0;
+    line = strtok_r(text, "|", &saveOuter);
     unsigned int row = 0;
     while (line != 0 && row < count)
     {
         char* saveInner = 0;
-        char* col = strtok_r(line, ",", &saveInner);
-        if (col != 0)
+        char* col1 = 0;
+        col1 = strtok_r(line, ",", &saveInner);
+        char* col2 = 0;
+        char* col3 = 0;
+        if (col1 != 0)
         {
-            table[row].m_actionNo = static_cast<short>(atoi(col));   // *(short*)+0
-            col = strtok_r(0, ",", &saveInner);
+            table[row].m_actionNo = static_cast<short>(atoi(col1));   // *(short*)+0
+            col2 = strtok_r(0, ",", &saveInner);
         }
-        if (col != 0)
+        if (col2 != 0)
         {
-            table[row].m_groupIndex = atoi(col);                     // *(int*)+2
+            table[row].m_groupIndex = atoi(col2);                    // *(int*)+2
             // P0：Ghidra C 无 groupChk 中间局部 —— IsValidActionGroupIndex 参数直接读字段
             if (!APSystem::CActionPointEtcParameter::IsValidActionGroupIndex(
                     (_ActionGroupIndex)table[row].m_groupIndex))
             {
                 return false;
             }
-            col = strtok_r(0, ",", &saveInner);
+            col3 = strtok_r(0, ",", &saveInner);
         }
-        for (int slot = 0; col != 0 && slot <= 4; ++slot)
+        for (int slot = 0; col3 != 0 && slot <= 4; ++slot)
         {
-            table[row].m_days[slot] = static_cast<unsigned char>(atoi(col));
-            col = strtok_r(0, ",", &saveInner);
+            // [b28d-solo-APSystemOnlyOrig] ORIG 0x081240a8：atoi 结果先落字节
+            // 局部 -0x9（`mov %al,-0x9; movzbl -0x9,%ecx; mov %cl,6(%edx,%eax,1)`）
+            // 再算 LHS 地址 ⇒ 无需 callee-saved 跨 atoi 保活（去 push esi）。
+            unsigned char day = static_cast<unsigned char>(atoi(col3));
+            table[row].m_days[slot] = day;
+            col3 = strtok_r(0, ",", &saveInner);
         }
         line = strtok_r(0, "|", &saveOuter);
         ++row;
@@ -246,6 +278,7 @@ bool DB_LoadActionPoint::ParseActionClearState(char* text, _ActionPoint* table,
 
 // Select —— 报告全文转写。ORIG T 0x08123b9e。
 // [b28d-27] DIFF N82/N89：ORIG 0x08123b9e；p167 CLEAR（21/21），残差为 SQL/STL
+// [b28d-solo-APSystemOnlyOrig] 判词：**N82/N89 封顶**（残差 = 槽基/帧与 STL 实例；p167 CLEAR 21/21）。
 // 实例与帧/槽分配，语义闭合。
 bool DB_LoadActionPoint::Select(_SIG_LOAD_ACTION_POINT& sig)
 {
@@ -365,6 +398,7 @@ DB_LoadActionPoint::~DB_LoadActionPoint() {}
 
 // MakeActionClearStateString —— 报告全文转写。ORIG T 0x081246d6。
 // [b28d-27] DIFF（p167 MISSING 4）：ORIG 0x081246d6；ORIG 多 std::string 临时
+// [b28d-solo-APSystemOnlyOrig] 判词：**AE**（check_tu routed；137=137；P157 去 rec 引用缓存 + groupIndex vararg 走 unsigned 两段中转后全等）。
 // 构造/析构（_ZNSsC1Ev/D1Ev×2）+ _Unwind_Resume，我方缺临时对象与 EH 清理路径。
 void DB_UpdateActionPoint::MakeActionClearStateString(std::string& out,
                                                       const _ActionPoint* table,
@@ -376,47 +410,58 @@ void DB_UpdateActionPoint::MakeActionClearStateString(std::string& out,
     // （死局部，P171 照抄）。
     std::string tmp;
     (void)tmp;
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08124704..0x081247d9：**无**行指针/
+    // groupChk 具名局部（ORIG 每个字段各自重算 row*0xb 全链，共 7 次，P183
+    // 地址重物化铁律）；缓存 rec/groupChk 每处省 6 条 ⇒ 97 vs ORIG 137。
     for (unsigned int row = 0; row < count; ++row)
     {
-        const _ActionPoint& rec = table[row];
-        const _ActionGroupIndex groupChk = (_ActionGroupIndex)rec.m_groupIndex;
-        if (!APSystem::CActionPointEtcParameter::IsValidActionGroupIndex(groupChk))
+        if (!APSystem::CActionPointEtcParameter::IsValidActionGroupIndex(
+                (_ActionGroupIndex)table[row].m_groupIndex))
         {
             continue;
         }
         char buf[128];
         sprintf(buf, "%d,%d,%d,%d,%d,%d,%d|",
-                static_cast<int>(rec.m_actionNo),
-                rec.m_groupIndex,
-                static_cast<int>(static_cast<signed char>(rec.m_days[0])),
-                static_cast<int>(static_cast<signed char>(rec.m_days[1])),
-                static_cast<int>(static_cast<signed char>(rec.m_days[2])),
-                static_cast<int>(static_cast<signed char>(rec.m_days[3])),
-                static_cast<int>(static_cast<signed char>(rec.m_days[4])));
+                static_cast<int>(table[row].m_actionNo),
+                static_cast<unsigned int>(table[row].m_groupIndex),
+                static_cast<int>(static_cast<signed char>(table[row].m_days[0])),
+                static_cast<int>(static_cast<signed char>(table[row].m_days[1])),
+                static_cast<int>(static_cast<signed char>(table[row].m_days[2])),
+                static_cast<int>(static_cast<signed char>(table[row].m_days[3])),
+                static_cast<int>(static_cast<signed char>(table[row].m_days[4])));
         out += buf;
     }
 }
 
 // Update —— 报告全文转写。ORIG T 0x08124386。
 // [b28d-27] DIFF N82/N89：ORIG 0x08124386；p167 CLEAR（22/22），残差为 SQL/STL
+// [b28d-solo-APSystemOnlyOrig] 判词：**N82/N115 封顶**（残差 = 全帧槽基浅 4 + 帧 0xbc↔0xac；P190 double framePad 实测反劣；p167 CLEAR 22/22）。
 // 实例与帧/槽分配，语义闭合。
 bool DB_UpdateActionPoint::Update(bool bExpireDate, const _SIG_LOAD_ACTION_POINT& sig)
 {
     // 伪 helper 归一：ORIG 直接调 DBMgr::GetDBHandle
+    // [b28d-solo-APSystemOnlyOrig] 残差 = 全帧槽基浅 4（db -0x24↔-0x20、
+    // now -0x3c↔-0x38、dateTm -0x68↔-0x64、date -0x30↔-0x2c）+ 帧 0xbc↔0xac；
+    // P190 double framePad 实测反劣（-0x6c→-0x7c、diff 268→280）⇒ N82/N115 封顶。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     struct tm dateTm;
     if (bExpireDate)   // localTime(now-0x15180)
     {
-        int now = GlobalData::s_systemTime_.getCurSec();
-        now -= 0x15180;
-        time_t tt = now;
-        localtime_r(&tt, &dateTm);
+        // [b28d-solo-APSystemOnlyOrig] ORIG 0x081243ca..0x081243e5：单个
+        // time_t 局部 -0x38，`now = now - 0x15180` 为 load/sub/store 三形
+        // （地址被 localtime_r 取用，故非内存 add）；旧版 int now + time_t tt
+        // 双局部多 4 条 + 帧 +0x10。
+        time_t now = GlobalData::s_systemTime_.getCurSec();
+        now = now - 0x15180;
+        localtime_r(&now, &dateTm);
     }
     else
     {
         __GetCurrentDNFDate(dateTm);
     }
-        char date[ConstOCC_DATELength];
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x081243f7：memset 长度 0xc（date 槽
+    // -0x2c 起 12 字节；旧版 11 字节短 1）。
+    char date[ConstOCC_DATELength + 1];
     memset(date, 0, sizeof(date));
     sprintf(date, "%04d-%02d-%02d", dateTm.tm_year + 1900, dateTm.tm_mon + 1,
             dateTm.tm_mday);
@@ -505,6 +550,7 @@ bool DB_LoadRewardMedal::dispatch(int a, int b, Stream* stream)
 
 // Select —— 报告全文转写。ORIG T 0x08124910。
 // [b28d-27] DIFF N82/N89：ORIG 0x08124910；p167 CLEAR（18/18），残差为 SQL/STL
+// [b28d-solo-APSystemOnlyOrig] 判词：**N82/N115 封顶**（残差 = 局部槽基浅 4 + char 数组间距 11↔16；p167 CLEAR 18/18）。
 // 实例与帧/槽分配，语义闭合。
 bool DB_LoadRewardMedal::Select(_SIG_LOAD_REWARD_MEDAL& sig)
 {
@@ -645,6 +691,7 @@ void CActionPointManager::Set(_SIG_LOAD_ACTION_POINT& sig)
 
 // GM_Reset —— 报告汇编+反编译全文转写。ORIG T 0x08121d12。
 // [b28d-27] DIFF N82：ORIG 0x08121d12；p167 CLEAR（1/1），残差为循环体数组寻址
+// [b28d-solo-APSystemOnlyOrig] 判词：**N18a 封顶**（唯一残差 = ORIG `mov %edx,%ecx; neg %ecx` vs 4.4 `neg %edx; mov %edx,%ecx` 1 对；p167 CLEAR 1/1；槽位 -0x14/-0x10/-0xc 与帧 0x28 全等）。
 // （两步 add vs 4 步 imul 链）+ 帧差，语义闭合。
 void CActionPointManager::GM_Reset()
 {
@@ -655,34 +702,41 @@ void CActionPointManager::GM_Reset()
     m_prevApSum = 0;                          // *(uint*)(this+4)
     for (int row = 0; row <= 299; ++row)
     {
+        // [b28d-solo-APSystemOnlyOrig] ORIG 0x08121d74：每外层轮把行基址
+        // &m_sig.m_actionPoints[row]（=this+0x15+row*0xb）缓存进具名指针槽
+        // -0x10，内层以 0x6(%edx,%eax,1) 访问；不缓存则 4.4 折成
+        // 0x1b(%ecx,%eax,1) 全地址重算（多 6 条 + push esi/ebx 帧差）。
+        _ActionPoint* point = &m_sig.m_actionPoints[row];
         for (int slot = 0; slot <= 4; ++slot)
         {
-            const signed char day = static_cast<signed char>(
-                m_sig.m_actionPoints[row].m_days[slot]);
-            if (day > 0)
+            if (static_cast<signed char>(point->m_days[slot]) > 0)
             {
-                m_sig.m_actionPoints[row].m_days[slot] =
-                    static_cast<unsigned char>(-day);
+                point->m_days[slot] = static_cast<unsigned char>(
+                    -static_cast<signed char>(point->m_days[slot]));
             }
         }
     }
 }
 
 // ClearActionOne —— 报告全文转写。ORIG T 0x08121f1c。
-// [b28d-27] DIFF（p167 MISSING 5）：ORIG 0x08121f1c；ORIG 直接
-// G_CDataManager()->GetActionPointEtcParameter(false).m_refs.find/end（非 const）
-// + const_iterator 转换，我方经 getActionPointRefs() getter（EXTRA）且 const 版
-// find/end ⇒ 调用形态不同（语义等价）。
+// [b28d-solo-APSystemOnlyOrig] ORIG 0x08121f1c：`GetActionPointEtcParameter(_IsGMOn)`
+// （uchar 直传 bool 形参，ORIG 只 movzbl×2）->m_actionPointRefs 直读 +0x18，
+// **非 const** find/end（_ZNSt3map…4findERS7_/3endEv）+ iterator→const_iterator
+// 转换（C1ERKSt17_Rb_tree_iterator），end 侧表达式整段重写（P48 两次
+// G_CDataManager/GetActionPointEtcParameter 调用）；旧版经 getActionPointRefs()
+// [b28d-solo-APSystemOnlyOrig] 判词：**N18a 封顶**（唯一残差 = `mov;neg` 序 1 对；p167 CLEAR；非 const map find/end + `&action.m_actionNo` 直接取址 + 循环外缓存 size 还原后 145=145）。
+// const getter ⇒ const 版 find/end（p167 MISSING 5）。
 bool CActionPointManager::ClearActionOne(_ActionPoint& action, int itemIdx)
 {
     if (itemIdx != 0)
     {
-        const std::map<unsigned short, const CActionPointEx*>& refs =
-            G_CDataManager()->GetActionPointEtcParameter(CActionPointManager::_IsGMOn != 0)
-                ->getActionPointRefs();
         std::map<unsigned short, const CActionPointEx*>::const_iterator it =
-            refs.find(action.m_actionNo);
-        if (it == refs.end())
+            G_CDataManager()
+                ->GetActionPointEtcParameter(CActionPointManager::_IsGMOn)
+                ->m_actionPointRefs.find(*reinterpret_cast<const unsigned short*>(&action.m_actionNo));
+        if (it == G_CDataManager()
+                      ->GetActionPointEtcParameter(CActionPointManager::_IsGMOn)
+                      ->m_actionPointRefs.end())
         {
             return false;
         }
@@ -691,8 +745,11 @@ bool CActionPointManager::ClearActionOne(_ActionPoint& action, int itemIdx)
         {
             return false;
         }
+        // [b28d-solo-APSystemOnlyOrig] ORIG 0x08122007：size() 循环外缓存一次
+        // （-0x14），i 为 -0x10；逐次 `data->m_itemList[i]`（P157 不缓存引用）。
         bool found = false;
-        for (unsigned int i = 0; i < data->m_itemList.size(); ++i)
+        std::size_t count = data->m_itemList.size();
+        for (unsigned int i = 0; i < count; ++i)
         {
             if (data->m_itemList[i] == itemIdx)
             {
@@ -705,22 +762,22 @@ bool CActionPointManager::ClearActionOne(_ActionPoint& action, int itemIdx)
             return false;
         }
     }
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x0812206e：**两个独立 if**（零槽即
+    // return false，非 break），day 不落槽（P0 表达式直读）；累加用**写回后的
+    // 成员**重读（movzbl 0x6(...)+movsbl），非局部副本。
     for (int slot = 0; slot <= 4; ++slot)
     {
-        const unsigned char raw = action.m_days[slot];
-        if (raw == 0)
+        if (action.m_days[slot] == 0)
         {
-            break;              // ORIG 零槽即结束，不扫描后续槽
+            return false;
         }
-        const signed char day = static_cast<signed char>(raw);
-        if (day < 0)
+        if (static_cast<signed char>(action.m_days[slot]) < 0)
         {
             // ORIG 先按字节取负，再以有符号 char 累加（含 0x80 情形）。
             m_prevApSum = m_sig.m_apSum;
-            const unsigned char restored =
-                static_cast<unsigned char>(-static_cast<int>(day));
-            action.m_days[slot] = restored;
-            m_sig.m_apSum += static_cast<signed char>(restored);
+            action.m_days[slot] = static_cast<unsigned char>(
+                -static_cast<signed char>(action.m_days[slot]));
+            m_sig.m_apSum += static_cast<signed char>(action.m_days[slot]);
             m_flag00 = 1;
             return true;
         }
@@ -730,10 +787,15 @@ bool CActionPointManager::ClearActionOne(_ActionPoint& action, int itemIdx)
 
 // ClearAction —— 报告全文转写。ORIG T 0x08121dcc。
 // [b28d-27] DIFF N82：ORIG 0x08121dcc；p167 CLEAR（3/3），残差为帧/槽分配，
+// [b28d-solo-APSystemOnlyOrig] 判词：**N18b/P265 封顶**（残差 = ①字段 vs enum 形参比较 4.4 恒载寄存器 1 条；②enum 实参 int→unsigned-enum 转换两段中转 ×2；p167 CLEAR 3/3；帧 0x34/槽 -0xd/-0xc/汇聚变量全等）。
 // 语义闭合。
 bool CActionPointManager::ClearAction(CUser& user, _ActionGroupIndex group,
                                       int itemIdx, ENUM_PACKETCLASS packetClass)
 {
+    // [b28d-solo-APSystemOnlyOrig] ORIG 0x08121dd3：bool 汇聚变量 -0xd（初值 0，
+    // 成功置 1，尾部 movzbl 返回）+ 行号 -0xc；**无 groupOut 具名局部**（ORIG 每
+    // 次调用点重算地址并直装 ecx）。早返 `return true` 会改块布局并多槽。
+    bool result = false;
     for (int row = 0; row <= 299; ++row)
     {
         if (m_sig.m_actionPoints[row].m_groupIndex == 0)
@@ -744,29 +806,35 @@ bool CActionPointManager::ClearAction(CUser& user, _ActionGroupIndex group,
         {
             continue;
         }
-        const _ActionGroupIndex groupOut =
-            (_ActionGroupIndex)m_sig.m_actionPoints[row].m_groupIndex;
         if (ClearActionOne(m_sig.m_actionPoints[row], itemIdx))
         {
+            result = true;
             CUserProc::SendActionClear(user, m_sig.m_actionPoints[row].m_actionNo,
-                                       groupOut, true, packetClass);
-            return true;
+                                       (_ActionGroupIndex)m_sig.m_actionPoints[row].m_groupIndex,
+                                       true, packetClass);
+            break;
         }
         if (packetClass == 1)
         {
             CUserProc::SendActionClear(user, m_sig.m_actionPoints[row].m_actionNo,
-                                       groupOut, false,
+                                       (_ActionGroupIndex)m_sig.m_actionPoints[row].m_groupIndex,
+                                       false,
                                        static_cast<ENUM_PACKETCLASS>(1));
         }
     }
-    return false;
+    return result;
 }
 
 // SetTodayAction —— 报告汇编+反编译全文转写。ORIG T 0x0812161c。
-// [b28d-27] DIFF（p167 MISSING 6 族/17 次）：ORIG 0x0812161c；ORIG 用
-// vector<const CActionPointEx*>（ixEj×11、C1Ev、push_back(&&)、const_iterator
-// ppEi/ne），我方用不同容器/遍历形式（EXTRA 分配器/构造族）⇒ 符号族不同
-// ⇒ N89 封顶（语义等价）。
+// [b28d-solo-APSystemOnlyOrig] ORIG 0x0812161c（Ghidra C + objdump 逐段）：
+// ①time_t 单局部 -0x4c（旧版 now/tt 双局部）；②`it != table.end()`（ne，非 eq）
+// 且 end 走具名临时 -0x4c 槽；③`list` 为具名指针（ptEv 结果）；④candidates 为
+// **空 vector + 独立建表循环 `push_back(&(*list)[pass])`（prvalue ⇒ OS3_ 右值重载）**
+// ——旧版预尺寸 C1EjRKS3_RKS4_ 缺 C1Ev/push_back(&&)；
+// ⑤过滤循环用 `candidates[i]=0` 标记 + goto next（每字段重调 operator[]，共 11 次）；
+// ⑥group 判定链顺序 0x1d/0x1e/0x1f/**0x2d**/0x20（P46 case 序）；
+// [b28d-solo-APSystemOnlyOrig] 判词：**N82 封顶**（空 vector+push_back(&&)+11×ixEj+ppEi+group 链序 0x1d/1e/1f/2d/20 还原后 p167 CLEAR 35/35；残差 = 帧/槽与地址装载序）。
+// ⑦循环尾 `it++`（ppEi 后置，P28 增量侧）。
 void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
                                          ENUM_EXPERT_JOB_TYPE jobType,
                                          const std::map<unsigned short,
@@ -775,93 +843,136 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
     Reset();
     m_sig.m_characNo = characNo;
 
-    int now = GlobalData::s_systemTime_.getCurSec();
-    time_t tt = now;
+    time_t now = GlobalData::s_systemTime_.getCurSec();
     struct tm tmc;
-    localtime_r(&tt, &tmc);
+    localtime_r(&now, &tmc);
     int weekday = tmc.tm_wday;
 
     std::map<unsigned short, std::vector<CActionPointEx> >::const_iterator it =
         table.begin();
-    for (int row = 0; row < 300;)
+    int row = 0;
+    for (;;)
     {
-        if (it == table.end())
+        bool cond;
+        if (row < 300)
         {
-            break;
+            cond = (it != table.end());
         }
-        const std::vector<CActionPointEx>& list = it->second;
-        int total = static_cast<int>(list.size());
+        else
+        {
+            cond = false;
+        }
+        if (!cond)
+        {
+            m_flag00 = 1;
+            return;
+        }
+        const std::vector<CActionPointEx>* list = &it->second;
+        int total = static_cast<int>(list->size());
         if (total != 0)
         {
-            bool useWeekday = (list[0].m_weekday != 7);
-            bool useLevelBand = (list[0].m_record.m_levelMin != 0);
-
-            std::vector<const CActionPointEx*> candidates(
-                total, static_cast<const CActionPointEx*>(0));
-            int remain = 0;
-            for (int pass = 0; pass < total; ++pass)
+            bool useWeekday = false;
+            bool useLevelBand = false;
+            if ((*list)[0].m_weekday != 7)
             {
-                const CActionPointEx* data = &list[pass];
-                if (useWeekday)
+                useWeekday = true;
+            }
+            if ((*list)[0].m_record.m_levelMin != 0)
+            {
+                useLevelBand = true;
+            }
+            std::vector<const CActionPointEx*> candidates;
+            for (unsigned int pass = 0; static_cast<int>(pass) < total; ++pass)
+            {
+                candidates.push_back(&(*list)[pass]);
+            }
+            int remain = 0;
+            for (unsigned int i = 0; static_cast<int>(i) < total; ++i)
+            {
+                if (candidates[i] != 0)
                 {
-                    if (_gmWeekday.m_gmOn != 0)
+                    if (useWeekday)
                     {
-                        weekday = _gmWeekday.m_weekday;
+                        if (_gmWeekday.m_gmOn != 0)
+                        {
+                            weekday = _gmWeekday.m_weekday;
+                        }
+                        if (candidates[i]->m_weekday != weekday)
+                        {
+                            candidates[i] = 0;
+                            goto next_candidate;
+                        }
                     }
-                    if (data->m_weekday != weekday)
+                    if (useLevelBand)
                     {
-                        continue;
+                        unsigned char lo = (*list)[i].m_record.m_levelMin;   // +0x0f
+                        unsigned char hi = (*list)[i].m_record.m_levelMax;   // +0x10
+                        if (level < static_cast<int>(lo) ||
+                            static_cast<int>(hi) < level)
+                        {
+                            candidates[i] = 0;
+                            goto next_candidate;
+                        }
+                    }
+                    {
+                        int group = candidates[i]->m_record.m_groupIndex;    // +0x02
+                        if (group == 0x1d || group == 0x1e || group == 0x1f ||
+                            group == 0x2d || group == 0x20)
+                        {
+                            if (group == 0x1d && jobType != ENUM_EXPERT_JOB_TYPE_2)
+                            {
+                                candidates[i] = 0;
+                            }
+                            else if (group == 0x1e && jobType != ENUM_EXPERT_JOB_TYPE_4)
+                            {
+                                candidates[i] = 0;
+                            }
+                            else if (group == 0x1f && jobType != ENUM_EXPERT_JOB_TYPE_1)
+                            {
+                                candidates[i] = 0;
+                            }
+                            else if (group == 0x20 && jobType != ENUM_EXPERT_JOB_TYPE_3)
+                            {
+                                candidates[i] = 0;
+                            }
+                            else if (group == 0x2d && jobType != ENUM_EXPERT_JOB_TYPE_3)
+                            {
+                                candidates[i] = 0;
+                            }
+                            if (candidates[i] == 0)
+                            {
+                                goto next_candidate;
+                            }
+                        }
+                        if (group == 0x22 && jobType != ENUM_EXPERT_JOB_TYPE_0)
+                        {
+                            candidates[i] = 0;
+                        }
+                        else
+                        {
+                            ++remain;
+                        }
                     }
                 }
-                if (useLevelBand)
-                {
-                    unsigned char lo = data->m_record.m_levelMin;   // +0x0f
-                    unsigned char hi = data->m_record.m_levelMax;   // +0x10
-                    if (level < static_cast<int>(lo) ||
-                        static_cast<int>(hi) < level)
-                    {
-                        continue;
-                    }
-                }
-                const int group = data->m_record.m_groupIndex;      // +0x02
-                if (group == 0x1d || group == 0x1e || group == 0x1f ||
-                    group == 0x20 || group == 0x2d)
-                {
-                    bool mismatch =
-                        (group == 0x1d && jobType != ENUM_EXPERT_JOB_TYPE_2) ||
-                        (group == 0x1e && jobType != ENUM_EXPERT_JOB_TYPE_4) ||
-                        (group == 0x1f && jobType != ENUM_EXPERT_JOB_TYPE_1) ||
-                        (group == 0x20 && jobType != ENUM_EXPERT_JOB_TYPE_3) ||
-                        (group == 0x2d && jobType != ENUM_EXPERT_JOB_TYPE_3);
-                    if (mismatch)
-                    {
-                        continue;
-                    }
-                }
-                else if (group == 0x22 && jobType != ENUM_EXPERT_JOB_TYPE_0)
-                {
-                    continue;
-                }
-                candidates[pass] = data;
-                ++remain;
+            next_candidate:;
             }
 
             if (remain == 0)
             {
-                --row;   // 反编译口径：该键贡献 0 行后行计数回退再统一前进
+                --row;
             }
             else
             {
                 int pick = DNFFLib::get_rand_int(remain);
-                const CActionPointEx* chosen = 0;
                 int seen = 0;
-                for (int i = 0; i < total; ++i)
+                const CActionPointEx* chosen = 0;
+                for (unsigned int k = 0; static_cast<int>(k) < total; ++k)
                 {
-                    if (candidates[i] != 0)
+                    if (candidates[k] != 0)
                     {
                         if (seen == pick)
                         {
-                            chosen = candidates[i];
+                            chosen = candidates[k];
                             break;
                         }
                         ++seen;
@@ -880,92 +991,100 @@ void CActionPointManager::SetTodayAction(int level, unsigned int characNo,
             }
         }
         ++row;
-        ++it;
+        it++;
     }
-    m_flag00 = 1;
 }
 
 // GetTodayRewardAndSendMail —— 报告全文转写。ORIG T 0x08122104。
-// [b28d-27] DIFF（p167 MISSING 3）：ORIG 0x08122104；ORIG 用
-// `const vector<_TodayRewardItem>::operator[]`（_ZNK...ixEj）三次，我方非 const
-// 版（P96/P270 cv 旋钮）。
+// [b28d-solo-APSystemOnlyOrig] ORIG 0x08122104：size() 循环外缓存（-0x1c），
+// 逐字段 `todays[i].xxx` **每次重调** const operator[]（P157 禁引用缓存；旧版
+// `const _TodayRewardItem& entry=todays[i]` 只 1 次调用 ⇒ p167 MISSING 3）；
+// `entry` 是**循环外声明的具名指针**（-0x18 初值 0，命中即 break），循环后
+// [b28d-solo-APSystemOnlyOrig] 判词：**N82 + X 族封顶**（残差 = 槽基浅 4（i -0xc vs -0x14）+ m_isRewardItem uchar 字段 `cmp $1` vs ORIG bool `xor $1`；p167 CLEAR 18/18）。
+// `if(entry==0)return false`（死检查照抄 P171），`m_flag00=1` 在该检查**之后**。
 bool CActionPointManager::GetTodayRewardAndSendMail(
     CUser& user, _SIG_LOAD_ACTION_POINT::_TodayRewardItem reward)
 {
     const std::vector<APSystem::_TodayRewardItem>& todays =
         G_CDataManager()->GetActionPointEtcParameter(CActionPointManager::_IsGMOn != 0)->m_todayRewards;
 
-    for (unsigned int i = 0; i < todays.size(); ++i)
+    std::size_t count = todays.size();
+    const APSystem::_TodayRewardItem* entry = 0;
+    for (unsigned int i = 0; i < count; ++i)
     {
-        const APSystem::_TodayRewardItem& entry = todays[i];
-        if (reward.m_itemIdx != entry.m_itemIdx)
+        // [b28d-solo-APSystemOnlyOrig] ORIG 0x08122168..0x081221be：三子句
+        // `&&` 短路（jne/jb/ja 同落 mov$0 岛 + test;je，P214① 正极性形）；
+        // 拆成 if/continue 会产 setne 物化 + 比较序反转（每轮 +3 条）。
+        if (reward.m_itemIdx == todays[i].m_itemIdx &&
+            !(m_sig.m_apSum < todays[i].m_minAp) &&
+            !(m_sig.m_apSum > todays[i].m_maxAp))
         {
-            continue;
+            if (m_sig.m_isRewardItem[reward.m_itemIdx] == 1)  // this+0x11+idx
+            {
+                continue;
+            }
+            m_sig.m_isRewardItem[reward.m_itemIdx] = 1;
+            entry = &todays[i];
+            break;
         }
-        if (entry.m_minAp > m_sig.m_apSum || m_sig.m_apSum > entry.m_maxAp)
-        {
-            continue;
-        }
-        unsigned char& flag = m_sig.m_isRewardItem[reward.m_itemIdx];  // this+0x11+idx
-        if (flag == 1)
-        {
-            continue;
-        }
-        flag = 1;
-        m_flag00 = 1;   // LAB 入口 *this = 1（find_item 之前）
-
-        CItem* itemDef = G_CDataManager()->find_item(entry.m_rewardItemIdx);
-        Inven_Item item;
-        if (itemDef == 0)
-        {
-            return false;
-        }
-        itemDef->make_item(item);
-        // ORIG：count ushort 先零扩展，再完整写入 packed Inven_Item +0x07。
-        item.m_addInfo2 = static_cast<int>(entry.m_count);
-        item.m_addInfo = entry.m_rewardItemIdx;
-
-        const char* title =
-            g_scriptStringManager_.findString(4, "chn_game_server_msg_82", 0);
-        char titleBuf[30];
-        strncpy(titleBuf, title, 0x1d);
-        const char* msg =
-            g_scriptStringManager_.findString(4, "chn_game_server_msg_83", 0);
-        char msgBuf[256];
-        strncpy(msgBuf, msg, 0xff);
-
-        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            titleBuf, item, 0, user.get_charac_no(-1), msgBuf, strlen(msgBuf),
-            8, user.GetServerGroup(), false, false);
-        return true;
     }
-    return false;
+    if (entry == 0)
+    {
+        return false;
+    }
+    m_flag00 = 1;   // LAB 入口 *this = 1（find_item 之前）
+
+    CItem* itemDef = G_CDataManager()->find_item(entry->m_rewardItemIdx);
+    Inven_Item item;
+    if (itemDef == 0)
+    {
+        return false;
+    }
+    itemDef->make_item(item);
+    // ORIG：count ushort 先零扩展，再完整写入 packed Inven_Item +0x07。
+    item.m_addInfo2 = static_cast<int>(entry->m_count);
+    item.m_addInfo = entry->m_rewardItemIdx;
+
+    const char* title =
+        g_scriptStringManager_.findString(4, "chn_game_server_msg_82", 0);
+    char titleBuf[30];
+    strncpy(titleBuf, title, 0x1d);
+    const char* msg =
+        g_scriptStringManager_.findString(4, "chn_game_server_msg_83", 0);
+    char msgBuf[256];
+    strncpy(msgBuf, msg, 0xff);
+
+    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+        titleBuf, item, 0, user.get_charac_no(-1), msgBuf, strlen(msgBuf),
+        8, user.GetServerGroup(), false, false);
+    return true;
 }
 
 // ============================================================================
 // Inter_LoadRewardMedal::SendMail —— 报告全文转写。ORIG T 0x08124ea0。
 // 声明位于 InterDispatcher.h（类内 public）。
 // ============================================================================
-// [b28d-27] DIFF（p167 MISSING 5）：ORIG 0x08124ea0；ORIG 用
-// `const vector<_MedalRewardItem>::operator[]`（_ZNK...ixEj）五次，我方非 const 版
-// （P96/P270 cv 旋钮）。
+// [b28d-solo-APSystemOnlyOrig] ORIG 0x08124ea0：size() 缓存 -0x1c、hit -0x18
+// （初值 0）、i -0x14；两个条件各逐字段重调 const operator[]（P157；旧版
+// [b28d-solo-APSystemOnlyOrig] 判词：**N82 封顶**（残差 = 槽基浅 4 与 i 槽 -0xc↔-0x14；P157 逐字段重调 const operator[] 后 p167 CLEAR 20/20）。
+// `const _MedalRewardItem& m = medals[i]` 只 1 次 ⇒ p167 MISSING 5）。
 bool Inter_LoadRewardMedal::SendMail(CUser& user, unsigned int medalCount)
 {
     const std::vector<_MedalRewardItem>& medals =
         G_CDataManager()->GetActionPointEtcParameter(CActionPointManager::_IsGMOn != 0)->m_medalRewards;
 
+    std::size_t count = medals.size();
     const _MedalRewardItem* hit = 0;
-    for (unsigned int i = 0; i < medals.size(); ++i)
+    for (unsigned int i = 0; i < count; ++i)
     {
-        const _MedalRewardItem& m = medals[i];
-        if (!(medalCount < m.m_field00) && !(m.m_field02 < medalCount))
+        if (!(medalCount < medals[i].m_field00) && !(medals[i].m_field02 < medalCount))
         {
-            hit = &m;
+            hit = &medals[i];
             break;
         }
-        if (!(medalCount < m.m_field00) && m.m_field00 == 100)
+        if (!(medalCount < medals[i].m_field00) && medals[i].m_field00 == 100)
         {
-            hit = &m;
+            hit = &medals[i];
             break;
         }
     }

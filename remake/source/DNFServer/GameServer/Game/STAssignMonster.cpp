@@ -9,18 +9,18 @@ STAssignMonster::STAssignMonster()
     Clear();
 }
 
-// ORIG 0x8377696：标量逐字段复制 + 三个 vector 拷贝构造。
+// ORIG 0x8377696：标量逐字段复制 + m_pair18/m_pair38 整块拷贝 + 三个 vector 拷贝构造。
+// [b28d-solo-STAssignMonster] C1ERKS_：union 具名成员整体拷贝复现 ORIG 4.1
+// 「dest 缓存 %ecx + 高低半读交错」8 字节块拷贝（P246，0x83776e5/0x8377833）。
 STAssignMonster::STAssignMonster(const STAssignMonster& other)
     : m_0(other.m_0), m_4(other.m_4), m_8(other.m_8), m_c(other.m_c),
-      m_10(other.m_10), m_14(other.m_14), m_18(other.m_18), m_1c(other.m_1c),
+      m_10(other.m_10), m_14(other.m_14), m_pair18(other.m_pair18),
       m_20(other.m_20), m_24(other.m_24), m_vec28(other.m_vec28),
-      m_34(other.m_34),
+      m_34(other.m_34), m_pair38(other.m_pair38),
       m_vec40(other.m_vec40), m_4c(other.m_4c), m_50(other.m_50),
       m_54(other.m_54), m_55(other.m_55), m_58(other.m_58),
       m_vec5c(other.m_vec5c)
 {
-    m_38[0] = other.m_38[0];
-    m_38[1] = other.m_38[1];
 }
 
 // ORIG 0x8377622：三个 vector 按声明逆序自动析构（ORIG 显式调用 ~vector）。
@@ -28,7 +28,8 @@ STAssignMonster::~STAssignMonster()
 {
 }
 
-// ORIG 0x83777f2：标量逐字段赋值 + 三个 vector operator=。
+// ORIG 0x83777f2：标量逐字段赋值 + m_pair18/m_pair38 整块拷贝 + 三个 vector operator=。
+// [b28d-solo-STAssignMonster] aSERKS_：同 C1ERKS_，P246 union 整体赋值。
 STAssignMonster& STAssignMonster::operator=(const STAssignMonster& other)
 {
     // ORIG 0x083777f2 无自赋值守卫，直接逐字段赋值。
@@ -38,17 +39,12 @@ STAssignMonster& STAssignMonster::operator=(const STAssignMonster& other)
     m_c = other.m_c;
     m_10 = other.m_10;
     m_14 = other.m_14;
-    // N76/P29 封顶：ORIG 0x08377834 对 0x18/0x1c 对发一次 this 缓存(%ecx)+
-    // 值先载（+0x1c 先于 +0x18）；long long 视图赋值实测 99→101 反劣，
-    // 逐字段是 4.4 最优形（残差 4 条）。
-    m_18 = other.m_18;
-    m_1c = other.m_1c;
+    m_pair18 = other.m_pair18;
     m_20 = other.m_20;
     m_24 = other.m_24;
     m_vec28 = other.m_vec28;
     m_34 = other.m_34;
-    m_38[0] = other.m_38[0];
-    m_38[1] = other.m_38[1];
+    m_pair38 = other.m_pair38;
     m_vec40 = other.m_vec40;
     m_4c = other.m_4c;
     m_50 = other.m_50;
@@ -68,8 +64,8 @@ void STAssignMonster::Clear()
     m_c = 0;
     m_10 = 0;
     m_14 = 0;
-    m_1c = 1;
-    m_18 = m_1c;
+    m_pair18.m_pair.m_hi = 1;
+    m_pair18.m_pair.m_lo = m_pair18.m_pair.m_hi;
     m_20 = 0;
     m_24 = 0;
     m_vec28.clear();
@@ -79,7 +75,7 @@ void STAssignMonster::Clear()
     m_55 = 0;
     m_58 = -1;
     for (int i = 0; i <= 1; ++i)   // ORIG 0x836c5a5 scaled 循环（setle 实证 i<=1）
-        m_38[i] = 0;
+        m_pair38.m_arr[i] = 0;
     m_34 = 0;
     m_vec5c.clear();
 }
