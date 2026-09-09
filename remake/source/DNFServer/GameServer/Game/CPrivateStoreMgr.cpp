@@ -338,22 +338,32 @@ bool CPrivateStore::RecallPrivateStoreItemToMail()
         // 返回引用缓存到 -0x20 槽（`mov %eax,-0x20(%ebp)`），GetState/+2 读/
         // setCopy 实参全用该缓存 ⇒ 旧逐次下标形 P167 EXTRA op[]×2。
         PrivateStoreItem& storeItem = m_items[i];
-        if (storeItem.GetState() == 3 && storeItem.m_item.m_addInfo != 0)
+        // [b28d-PS] P223 双出口岛：ORIG 0x085c5d52..0x085c5d8a 为
+        // `sete/test/je L_loopend`（c1 假→循环尾）+ `test/je L_nop`（c2 假→
+        // body 后 nop 岛）+ body 尾 `jmp L_loopend` ⇒ 嵌套 if 提供 sete 物化，
+        // 内层 `==0 goto` + body 尾 goto 复现两个不同落点。
+        if (storeItem.GetState() == 3)
+        {
+            if (storeItem.m_item.m_addInfo == 0)
+                goto next_item;
             items[count++].setCopy(storeItem.m_item);
+            goto next_loop;
+        }
+    next_item:;
+    next_loop:;
     }
     // [b28d-solo] ORIG 0x085c5d9x `cmp $0,-0x10; sete al; test al,al; je`
     // （count<=0 跳过）⇒ 4.4 的 `0 < count` 产三目岛，改正写 `count > 0`。
-    if (count != 0)
+    if (count > 0)
     {
         // [b28d-solo-CPrivateStoreMgr] P214③/P253：ORIG 0x085c5da3/0x085c5e04 为
         // 局部数组初始化内联清零（对齐剥离+rep stos），显式 memset 生 call
         // ⇒ P167 EXTRA memset×2。改初始化式。
         char sender[0x15] = {0};
-        // [b28d-solo] P312：ORIG title@-0x14d 非 4 对齐 ⇒ 4.1 内联清零走
-        // 「对齐剥离+rep stos+尾字节」慢路；4.4 的 -0x150 对齐槽只发简单 rep stos。
-        char pad[1];
+        // [b28d-PS] 删历史 pad[1]：ORIG 0x085c5e04 title@-0x14d（奇）紧贴
+        // sender@-0x4d、items@-0x4a3 紧贴 title ⇒ 内联清零走「and1+and2+rep
+        // stos」慢路；pad 使 title 落 -0x14e（偶）丢掉 and1 段（gap 6）。
         char title[0x100] = {0};
-        (void)pad;
         std::strcpy(sender, g_scriptStringManager_.findString(4, "game_server_msg_183", 0));
         std::strcpy(title, g_scriptStringManager_.findString(4, "game_server_msg_186", 0));
         int ret = WongWork::CMailBoxHelper::ReqDBSendNewSystemMultiMail(
@@ -583,7 +593,10 @@ bool CPrivateStore::CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
 
     packet.MakeNotipacketCreatePrivateStore((unsigned short)GetSellerIndex(), m_pos,
                                             isDollCreated() ? true : false);
-    CBroadcastPrivate::Send((int)zoneA, (int)zoneB, packet);
+    // [b28d-PS] ORIG 0x085c5945..0x085c5967：实参从 m_pos(+0x24/+0x25) 两次
+    // movzbl 读取（`movzbl 0x25(%eax),%eax; movzbl %al,%edx`），非参数槽
+    // zoneA/zoneB ⇒ 源码读 m_pos.m_a/m_b。
+    CBroadcastPrivate::Send((int)m_pos.m_a, (int)m_pos.m_b, packet);
 
     // 有队伍时经函数内静态 DisPatcher_LeaveParty 分发离队（ORIG leave_party 局部静态）。
     if (m_pSeller->GetParty() != 0)
@@ -1024,28 +1037,31 @@ bool CPrivateStore::AddItem(PrivateStoreItem& item, int prevCountSlot)
     if (srcItem.m_upgradeSep.IsTradeRestriction())   // ORIG lea 副本+0x33（UpgradeSeparateInfo 子对象）
         return false;
 
-    if (item.m_field44 < 0xe && item.m_field44 >= 0 &&
-        prevCountSlot < 0xe && prevCountSlot >= 0)
-    {
-        if (prevCountSlot == 0)
-            ResetItems();
+    // [b28d-PS] ORIG 0x085c7160..0x085c7199：两组边界各自独立 fail 块
+    // （`jg fail; …; test; jns next; fail: mov$0,jmp`）⇒ 原码为 `||` 短路
+    // 两条独立 return false（&& 链在 4.4 会共享末尾 fail 并少 2 个块）。
+    if (item.m_field44 >= 0xe || item.m_field44 < 0)
+        return false;
+    if (prevCountSlot >= 0xe || prevCountSlot < 0)
+        return false;
 
-        // [b28d-solo-CPrivateStoreMgr] P157/P183 + P167：ORIG 尾部逐次
-        // operator[]×3（读 +0x3d 字段 / Reset / operator=），且 +0x3d 判定
-        // 是**直接字段读**非 GetState() 调用（旧缓存引用 ⇒ MISSING op[]×2
-        // + EXTRA GetState×1）。
-        if (m_items[item.m_field44].m_flag3d != 0)
-            return false;
+    if (prevCountSlot == 0)
+        ResetItems();
 
-        if (item.m_field46 == 3)
-            return false;   // ORIG：item space 3 的条目不可上架
+    // [b28d-solo-CPrivateStoreMgr] P157/P183 + P167：ORIG 尾部逐次
+    // operator[]×3（读 +0x3d 字段 / Reset / operator=），且 +0x3d 判定
+    // 是**直接字段读**非 GetState() 调用（旧缓存引用 ⇒ MISSING op[]×2
+    // + EXTRA GetState×1）。
+    if (m_items[item.m_field44].m_flag3d != 0)
+        return false;
 
-        item.m_flag3d = 1;
-        m_items[item.m_field44].Reset();
-        m_items[item.m_field44] = item;
-        return true;
-    }
-    return false;
+    if (item.m_field46 == 3)
+        return false;   // ORIG：item space 3 的条目不可上架
+
+    item.m_flag3d = 1;
+    m_items[item.m_field44].Reset();
+    m_items[item.m_field44] = item;
+    return true;
 }
 
 // ---- BuyPrivateStoreItem（ORIG T 0x85c7e74，报告 BuyPrivateStoreItem.md）----
@@ -1733,7 +1749,7 @@ bool CPrivateStore::DeleteItem(PrivateStoreItem& item)
         "PrivateStore del charac_name(%s)(%d), item_id(%d), add_info(%d), "
         "upgrade(%d), reseal_count(%d), sell_price(%d)",
         m_pSeller->getCurCharacName(), m_pSeller->getCurCharacNo(),
-        itemIdx, addInfo2, upgrade & 0xff, resealCount & 0xff, sellPrice);
+        itemIdx, addInfo2, upgrade, resealCount, sellPrice);
 
     if (space == 1)
     {
@@ -2799,11 +2815,15 @@ void CPacketBufPrivate::MakeCmdpacketEnterPrivateStore(CUser* sellerUser,
     put_byte(1);
     put_short((int)sellerIndex);
 
+    // [b28d-PS] P191 双初始化 + 槽序：ORIG 0x085cc1d6 在 get_index 之前发
+    // `movl $0x0,-0x18`（i 的声明初始化），循环前 0x085cc526 再发一次 ⇒
+    // `int i = 0;` 必须声明在 countIndex 之前、for 用 `i = 0` 赋值。
+    int i = 0;
     int countIndex = get_index();               // ORIG 0x8110b4c
     put_byte(0);
     int nowTick = OS_API::GetDateTimeTick();
     int writtenCount = 0;
-    for (int i = 0; i <= 13; ++i)
+    for (i = 0; i <= 13; ++i)
     {
         // P292 档①：ORIG `cmp $3,%al; sete %al; test; je` ⇒ 正向 ==3 包裹
         //（`!=3 continue` 会产 setne/jne 反向形）。
