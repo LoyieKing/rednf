@@ -72,9 +72,23 @@ SkillShopGuideTextData& SkillShopGuideTextData::operator=(SkillShopGuideTextData
 //   槽位 key/-0x104、data/-0x114、vec/-0x120、token/-0x124、type/-0x1c、
 //   jobStr/-0x12c、growStr/-0x130 与 ORIG 全等；修真语义 bug：case "[/text info]"
 //   原缺 vec.push_back(data)；case 0x3334 的 ok 走寄存器消 4B 槽，帧/槽全等）。
-//   byte 层 N 封顶：残余 = guard/返回值 %esi↔%ebx 角色互换与 8/32 位 test 宽度
-//   （N7 跨版本寄存器分配）+ ScanStr 检查块布局方向（P164 循环旋转）+ 对齐 nop 岛；
-//   源码形不可择，不再耗轮次。
+// b28d-solo-SkillShopGuideTextData 二轮（本轮）：
+//   ① 循环尾 `if(__inited) continue;` → 负极性 `if(!__inited){leave;inited=true;goto loop;}`
+//      （ORIG 0x08914d14 `movzbl __inited; xor $0x1,%eax; test %al,%al; je`；P168a/P194）：
+//      gap 10→9，jcc 序列不变。
+//   ② case 0x3334 的 ScanStr 检查块试过负极性形 `if(!ScanStr(...)){ok=0;return 0;}` +
+//      ok 裸声明 + jobStr/growStr 嵌套作用域（三种 ok 类型组合）：可复现 ORIG 0x08914911
+//      的 `call; xor $0x1,%eax; test %al,%al; je` 条件形，但 4.4 为 `ok=0/1` 额外引入
+//      %esi/%edi 双寄存器 bool 归一化（净 delta +9→−7，代价是多出 1 个 `jne`：jcc 39≠38）
+//      ⇒ 按「jcc 逐位一致优先」回退原形（保 jcc 38=38）。
+//   读数（fresh check_tu_routed）：identical/ae/near/diff = 94/143/0/3（3 = 本件 +
+//      importSkillShopTree + N123 static_init 撞名），missing_in_game=62 与基线一致；
+//      gap：orig 551 / our 542（+9；残余 = ScanStr 失败块 ORIG `mov $0,%ebx`/
+//      `mov $0,%esi`/`jmp` 物化 ×2 组共 6 条 + guard catch `mov %esi,%eax` 2 条 +
+//      循环尾 `xor` 后 4.4 折掉 `test %al,%al` 1 条 + D 段 2 条，减循环入口/尾
+//      `jmp+nop` 2 条）。
+//   byte 层 N 封顶（N7 跨版本寄存器分配 / N18a 单段 regmove / P164 循环旋转 /
+//   N122 `xor` 后 test 折叠 / 对齐 nop 岛）；源码形不可择，不再耗轮次。
 // ============================================================================
 int importSkillShopGuideText(
     const char* path,
@@ -260,11 +274,15 @@ int importSkillShopGuideText(
             break;
         }
 
-        if (__inited)
-            continue;
-        __init_lock.leave();
-        __inited = true;
-        goto loop;
+        // ORIG 0x08914d14：`movzbl __inited; xor $0x1,%eax; test %al,%al; je <跳过>`
+        // ⇒ 原码是负极性正向包裹（P168a/P194）；写 `if(__inited) continue;` 4.4 产
+        // `test;jne` 反极性且少一条 xor。
+        if (!__inited)
+        {
+            __init_lock.leave();
+            __inited = true;
+            goto loop;
+        }
     }
 
     return 1;
