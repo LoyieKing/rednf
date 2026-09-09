@@ -1,5 +1,9 @@
 #include "CTournamentDungeonReward.h"
 #include <cstring>
+#include <iostream>            // P338：ORIG 本 TU 含 std::ios_base::Init __ioinit
+                               //（static_init 0x082854e9 有 InitC1+__cxa_atexit，
+                               //  GI 0x08285529 sub $0x18）⇒ 缺此 include 则本 TU
+                               //  不发射 GI/__static_init，missing_in_game 多 2。
 
 #include "CDungeon.h"          // TournamentRewardRate/TournamentRewardItemRate 权威定义
 #include "CBattle_Field_shared.h"   // WongWork::stGenerateRefData_t/stGenerateResult_t
@@ -39,6 +43,8 @@ CTournamentDungeonReward::~CTournamentDungeonReward() {}
 // 4.4 `mov %eax,%edx` 中转，P30/N18a 封顶）。
 // [b28d-solo-CTournamentDungeonReward] DIFF 36/37：残 = N18a 二维索引中转×1；
 // p167 1=1 CLEAR，语义全等 ⇒ N 封顶。
+// [SweepCTournament 2026-09-09] 复核 36/37：探针 12 形（/tmp/probe_r{,2,3}.cpp）
+// + 旗标矩阵（i486/regmove/gcse/tune/sched）+ 4.4.6 后端全部同形 ⇒ N 封顶。
 void CTournamentDungeonReward::ResetReward()
 {
     for (int c = 0; c < 2; ++c)
@@ -75,6 +81,8 @@ int CTournamentDungeonReward::GetItemFromCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE t
     // 被编译成字节比较（movzbl+mov+cmp %al,%dl）；ORIG 0x8285092 为 movzbl+movsbl+cmp
     // mem（32 位有符号，char 提升 int）⇒ cardNo ∉ [-128,127] 时结果相反。改
     // `m_flag08 == cardNo` 后我方比较段逐条复现 ORIG；168/170 与 p167 9=9 CLEAR 不变。
+// [SweepCTournament 2026-09-09] 复核 168/170：残 = N18a 索引中转×5 + 三失败块
+// 尾部合并（N-JMP：ORIG 就地 `mov $0,%eax; jmp`×3）；p167 9=9 CLEAR ⇒ N 封顶。
     if (maxItems < 3 && (int)type >= 0 && (int)type < 2)
     {
         for (int i = 0; i < 2; ++i)
@@ -117,6 +125,8 @@ int CTournamentDungeonReward::GetItemFromCard(ENUM_TOURNAMENT_REWARD_CARD_TYPE t
 // [b28d-solo-CTournamentDungeonReward] DIFF 118/121：P272 德摩根块序（else 体直落、
 // 双跳同落 then）+ `pick+1` 初始化物化 + operator[] 引用缓存（ORIG 槽 -0xc）三项修后
 // 130→121；残 = 寄存器角色互换（card↔slotIdx，N7/N18a 族）；p167 4=4 CLEAR。
+// [SweepCTournament 2026-09-09] 复核 118/121：残 = N18a/N7 索引中转×3；p167 4=4
+// CLEAR；jcc（je/jl/jg/seta/setle）与 ORIG 逐位全等 ⇒ N 封顶。
 // ============================================================================
 void CTournamentDungeonReward::DecisionRewardType(
     ENUM_TOURNAMENT_REWARD_CARD_TYPE card, TournamentRewardRate& rate,
@@ -203,6 +213,8 @@ void CTournamentDungeonReward::MakeReward(
 // 反向：4.4 empty 是 out-of-line call+bool 物化岛）与 get_add_info()→m_addInfo2
 // 直读（ORIG `mov 0x7(%eax),%eax`）后调用点 4=4 与 ORIG 全等；残 = N18a + push %edi/
 // N115 帧 0x10；p167 4=4 CLEAR。
+// [SweepCTournament 2026-09-09] 复核 91/95：残 = N115 多 push %edi + N18a 中转×2；
+// p167 4=4 CLEAR；jcc（jne/je/setle）与 ORIG 逐位全等 ⇒ N 封顶。
 // ============================================================================
 void CTournamentDungeonReward::SetRewardGold(
     WongWork::stGenerateResult_t& result, float goldRate)
@@ -237,7 +249,12 @@ void CTournamentDungeonReward::SetRewardGold(
 void CTournamentDungeonReward::_MakeRewardPacket(
     ENUM_TOURNAMENT_REWARD_CARD_TYPE type, PacketGuard* packet)
 {
-    if ((int)type < 2)
+    // [SweepCTournament 2026-09-09] P223：ORIG 0x082853ae 尾 `jmp +0xcd` +
+    // 0x082853b0 `nop`（jg 的落点）＝4.1 空 then 占位岛；`if((int)type<2){...}`
+    // 被 4.4 jump-thread（少 jmp+nop，diff 实证 -2）。复现形＝否定 goto + 尾空标签
+    // （探针 /tmp/probe_isl.cpp F/G：F 无岛、G 产 `jne; body; jmp; nop` 逐条同形）。
+    if ((int)type >= 2)
+        goto L_done;
     {
         packet->put_byte(2);
         for (int slotIdx = 0; slotIdx < 2; ++slotIdx)
@@ -247,6 +264,7 @@ void CTournamentDungeonReward::_MakeRewardPacket(
             packet->put_short(0);
         }
     }
+L_done:;
 }
 
 // ORIG 0x8284caa：卡型 0 必发；flag 时补卡型 1，否则 byte0 占位
@@ -266,6 +284,8 @@ void CTournamentDungeonReward::MakeRewardPacket(PacketGuard* packet, bool flag)
 // `mov %eax,%edx` 中转，P30/N18a）。
 // [b28d-solo-CTournamentDungeonReward] DIFF 66/68：残 = N18a×2（读/写各一）；
 // p167 0=0 CLEAR。
+// [SweepCTournament 2026-09-09] 复核 66/68；jcc 逐位核对（js/jle×3 + cmp $0xff
+// /jne）与 ORIG 全等 ⇒ N 封顶。
 // ============================================================================
 bool CTournamentDungeonReward::SelectCard(int slotNo, char cardA, char cardB)
 {
@@ -293,6 +313,7 @@ bool CTournamentDungeonReward::SelectCard(int slotNo, char cardA, char cardB)
 // 多 1 条并改寄存器名（type→ecx/slot→eax）。探针 /tmp/l16p/p8.cpp 两形不可择。
 // [b28d-N18a] fresh 复验 34/35：维持 N18a。
 // [b28d-solo-CTournamentDungeonReward] DIFF 34/35：残 = N18a×1；p167 0=0 CLEAR。
+// [SweepCTournament 2026-09-09] 复核 34/35；jcc（jne/setle）与 ORIG 全等 ⇒ N。
 // ============================================================================
 bool CTournamentDungeonReward::isMemberSelectCard(
     ENUM_TOURNAMENT_REWARD_CARD_TYPE type, int cardNo)
@@ -313,6 +334,8 @@ bool CTournamentDungeonReward::isMemberSelectCard(
 // [b28d-solo-CTournamentDungeonReward] DIFF 95/101：修 `++it`→`it++`（P28 增量侧：
 // ORIG 增量段 `operator++(it,0)` + 独立 sret 临时 -0x10）；修后结构/槽序与 ORIG
 // 全等，残 = N18a×1 + push %edi/N115 帧 0x10；p167 7=7 CLEAR。
+// [SweepCTournament 2026-09-09] 复核 96/101：残 = N115 push %edi + N18a 中转×3；
+// p167 7=7 CLEAR；jcc（jg/jne/je/setle）与 ORIG 逐位全等 ⇒ N 封顶。
 // ============================================================================
 void CTournamentDungeonReward::_ForceSelectCard(
     ENUM_TOURNAMENT_REWARD_CARD_TYPE type, const std::vector<int>& members)
@@ -356,6 +379,8 @@ void CTournamentDungeonReward::ForceSelectCard(std::vector<int>& members, bool v
 // [b28d-solo-CTournamentDungeonReward] DIFF 137/139：修具名 found 迭代器后求值序
 // 与槽位（end -0x2c / begin -0x28 / find -0x30 / end -0x24；else 支 -0x20/-0x1c/
 // -0x34/-0x18）与 ORIG 逐槽全等；残 = N18a×2；p167 11=11 CLEAR。
+// [SweepCTournament 2026-09-09] 复核 137/139：残 = N18a 中转×2；p167 11=11 CLEAR
+//（empty/find/end/begin/eq 全命中）⇒ N 封顶。
 // ============================================================================
 bool CTournamentDungeonReward::isCardSelectComplete(
     ENUM_TOURNAMENT_REWARD_CARD_TYPE type, const std::vector<int>& members)
@@ -399,6 +424,7 @@ bool CTournamentDungeonReward::isCardSelectComplete(
 // [b28c-16 定论 N18a] 同上（二维寻址中间寄存器单段直落不可造）。
 // [b28d-N18a] fresh 复验 44/45：维持 N18a。
 // [b28d-solo-CTournamentDungeonReward] DIFF 44/45：残 = N18a×1；p167 2=2 CLEAR。
+// [SweepCTournament 2026-09-09] 复核 44/45；put_byte 调用点 2=2 全等 ⇒ N。
 // ============================================================================
 void CTournamentDungeonReward::MakeSelectPacket(PacketGuard* packet)
 {
