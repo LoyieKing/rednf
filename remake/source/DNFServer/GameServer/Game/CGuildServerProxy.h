@@ -13,11 +13,13 @@
 //   +0x30e1c CUdpHandler m_udp
 // 内联函数（默认 ctor / Init(string,int,int) / dtor / GetTcpHandler）为 ORIG
 // 弱符号（0x82a6a96 / 0x82a6b3a / 0x82b31be / 0x846fc8e），与本头定义逐字对应。
-// STGuildProxy（26 字节：name[0x16] + lev + powerSide + agitFlag + pad）的
-// 默认 ctor 属独立 TU（ORIG 弱符号 0x82344de），此处只声明。
+// STGuildProxy（0x1a 字节：name[0x16] + pad16 + lev + powerSide + agitFlag）
+// 两 ctor 为 ORIG 弱符号（0x82344de / 0x84ed19a，地址分散在非本 TU 段）⇒ 头内
+// 定义、ODR 使用点发射 W（P233；判据㉓ 我方原为 T 强符号）。
 // ============================================================================
 
 #include <map>
+#include <string.h>   // STGuildProxy inline ctor 的 memset/memcpy
 
 class MySQL;
 #include <list>
@@ -38,9 +40,24 @@ CDataManager* G_CDataManager();
 // ---- STGuildProxy：代理侧公会缓存条目（sizeof 0x1a）----
 struct STGuildProxy
 {
-    STGuildProxy();                        // 0x082344de W（独立 TU）
+    // ORIG 两 ctor 均为 **W**（_ZN12STGuildProxyC1Ev/C2Ev @0x082344de(0x38)、
+    // C1EPKchh/C2EPKchh @0x084ed19a(0x42)），地址分散在非本 TU 段（后者落在
+    // InterDispatcher 段）⇒ 原码为头内定义、ODR 使用点发射 W（P233/判据㉓）。
+    // 体与旧 .cpp 外联定义逐条相同；sizeof/偏移/mangled 不变。
+    STGuildProxy()
+    {
+        m_level = 0;
+        m_powerSide = 0;
+        m_agitFlag = 0;
+        ::memset(&m_guildName, 0, 0x17);   // ORIG：先算地址(加载 this)再装常量（序匹配）
+    }
     STGuildProxy(const char* name, unsigned char lev,
-                 unsigned char powerSide); // 0x084ed19a W（独立 TU）
+                 unsigned char powerSide)
+    {
+        m_level = lev;
+        m_powerSide = powerSide;
+        ::memcpy(m_guildName, name, 0x16);
+    }
 
     char m_guildName[0x16];   // +0x00
     char m_pad16;             // +0x16（默认 ctor memset 覆盖，无语义证据）

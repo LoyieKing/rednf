@@ -31,10 +31,52 @@
 //      mov 0x1c(%eax,%edx,8)` vs 4.4 `mov 0xa56c(%eax,%edx,8)`；0xa56c 非 8 倍数
 //      ⇒ 拆常量的数组视角不可构造。
 //   本文件 p167 四件全 CLEAR；无 `register ... asm("reg")`；无 .h 改动（R2 无申报项）。
-//   超范围发现（交 Main，非本批 ndiff≤30 件）：本 TU 静态初始化器符号名
-//   `_GLOBAL__I__ZN12STGuildProxyC2Ev`，ORIG 对应 TU 为
-//   `_GLOBAL__I__ZN17CGuildServerProxyC2ESsii`（均 `t` 局部符号，非导出）——
-//   4.1/4.4 按「首个动态初始化对象」命名，属跨版本 init-func 命名族。
+//   [注] 旧判词记的静态初始化器符号名差异（`_GLOBAL__I__ZN12STGuildProxyC2Ev`）
+//   已不复现：现编 .o 的静态初始化器符号名即为
+//   `_GLOBAL__I__ZN17CGuildServerProxyC2ESsii`（与 ORIG 同名同体：`sub $0x18`
+//   +压 0xffff/1+call SIAD，逐条 identical）；SIAD 体亦逐条对齐（含 __ioinit
+//   C1 + __cxa_atexit，P338 的 `<iostream>` 已由 CUser.h 链带入）。
+//
+// [SweepCGuildServerProxy 2026-09-10 本轮] gap' 排行（dual_rank --tu）候选 3 件
+//   （InitTcp gap'2 / ModifyGuildInfoProxy gap'1 / SendGuildExpLimit gap'1，miss=extra=0），
+//   加 NEAR 1 + DIFF 2（SendGameServerInfo / ChangeGuildNameInProxy）共 5 件复核；
+//   另加虚槽/jcc/调用目标/字符串/数据符号五路交叉核对。结论：
+//   ① **修真 bug 1 处**：SendLogin 第二参书写类型应为 `memberIdentificationNumber_t`
+//      （ORIG `__PRETTY_FUNCTION__` 串 0x08c69000 段实证；mangled `...EijiPchS0_` 不变）
+//      —— 已改定义签名并在本 TU 就近 typedef（重复同型 typedef 合法）。修后 .rodata
+//      串 = `void CGuildServerProxy::SendLogin(int, memberIdentificationNumber_t, int,
+//      char*, unsigned char, char*)` 与 ORIG 逐字节同；TU 四数不变（零劣化）。
+//   ② 虚槽核对（P193/P282）：本 TU 全部 3 处 `call *%reg` 反查 _ZTV ——
+//      OnBuyItem vptr+0x28 = CEquipItem/CStackableItem::GetGuildPowerWarPoint（0x08514e04/
+//      0x08514ade）、vptr+0x2c = GetUserPowerWarPoint（0x08514e12/0x08514aec）；
+//      SendPowerWarPoint vptr+0x34 = CEventBase::IsEventing(CUser*)（0x080c84fa）——全对。
+//   ③ jcc 逐位核对：5 件条件跳转助记符序列与 ORIG 全等（InitTcp jne/jns/je、
+//      ModifyGuildInfoProxy je、ChangeGuildNameInProxy je、SendGuildExpLimit jne、
+//      SendGameServerInfo 无 jcc）——无条件写反。
+//   ④ 调用目标多重集（含 C1/C2·D1/D2 同址别名归一后）全等，仅 GI→SIAD 与 N123 撞名豁免。
+//   ⑤ 字符串字面量多重集：除①外全等；数据符号引用多重集全等（仅 `__PRETTY_FUNCTION__`
+//      的 `_ZZ...` 具名静态 vs 匿名 .rodata 属 P139 跨版本符号差）。
+//   ⑥ 地址区间 0x0846d800-0x0846f260 / 0x084ca300-0x084ca700 内 ORIG 函数本 TU 全有
+//      （无缺函数；`CUser::SetGuildInfoProxy` 属 CUser TU，非本件）。
+//   ⑦ 3 件 gap 候选维持封 N（语义逐条复核正确）：InitTcp=N80（varargs 跨 ctor 保活；
+//      P226/P227/P231/P212 已试，本轮未再劣化）；SendGuildExpLimit=N94（探针复证：
+//      指针视图形 4.4 产 `add+shl+add` 6 条、成员数组视图形产 `lea 0x14aa+scaled`
+//      仍非 ORIG `add $0x14aa,%edx`；构造视图须改 CDataManager.h，收益 1 条不抵风险）；
+//      ModifyGuildInfoProxy=N107/N76（隐式逐块拷贝 dst/src 寄存器角色差，9+2 形已穷举）。
+//   ⑧ 判据㉓ 绑定修复（Main 批准，R2 已广播）：STGuildProxy 两 ctor 由本 .cpp 外联
+//      定义（我方 T）改为 CGuildServerProxy.h 内 inline 定义。ORIG 两符号均 **W**：
+//      `_ZN12STGuildProxyC1Ev/C2Ev` @0x082344de(0x38)、`_ZN12STGuildProxyC1EPKchh/
+//      C2EPKchh` @0x084ed19a(0x42)，地址分散在非本 TU 段（后者落在 InterDispatcher
+//      段）⇒ 头内定义、使用点发射（P233）。sizeof(STGuildProxy)=0x1a、m_guildName@+0、
+//      m_pad16@+0x16、m_level@+0x17、m_powerSide@+0x18、m_agitFlag@+0x19 与全部
+//      mangled **零变化**。修后本 TU：C1Ev/C2Ev 绑定 T→W（16/16 AE 不变）；3 参 ctor
+//      不再发射（ORIG 本 TU 段亦无副本，其 W 副本由 InterDispatcher.cpp 发射）；
+//      P210 复核：LoadGuildInfoProxyFromDB 帧未变（156/156 AE），ChangeGuildNameInProxy
+//      仍 NEAR、其余 5 件 verdict 不变；TU 四数 31/139/1/5 → 31/138/1/5（件数 -1
+//      即移除本 TU 不该发射的 3 参 ctor 符号）；InterDispatcher.cpp 复编 1455→1457
+//      （+2 AE，属主 SweepInterDispatcher-2 确认零回退，新增 2 符号为 4.4 的 C5E/D5Ev
+//      local 别名结构性噪音）。头内新增 `#include <string.h>`（inline 体 memset/memcpy）。
+//   本文件 p167 四件全 CLEAR；无 `register ... asm("reg")`。
 
 #include "CGuildServerProxy.h"
 
@@ -90,6 +132,12 @@
 
 #include "DNFFunctionLib.h"
 
+// ORIG `__PRETTY_FUNCTION__` 串实证（0x0846db9f 引用、0x08c69000 段）：
+// SendLogin 第二参书写为 memberIdentificationNumber_t（= unsigned int，mangled
+// `...EijiPchS0_` 不变）。全仓同 typedef 亦见 InterSelectPcroomDailyReward.h /
+// AuctionPacket.h，此处按 TU 需要就近声明（重复 typedef 同型合法）。
+typedef unsigned int memberIdentificationNumber_t;
+
 // （static 3 参 int&+ip+port）的调用以 m_tcp 自身地址作 int& 实参（ORIG
 // 0846d9be 三槽 this+0x24/c_str()/m_tcpPort 实证）。
 // ---- 生命周期 ----
@@ -104,22 +152,6 @@ CGuildServerProxy::CGuildServerProxy(std::string ip, int udpPort, int tcpPort)
     : m_ip(ip), m_udpPort(udpPort), m_guildInfoMap(), m_tcpPort(tcpPort),
       m_tcp(), m_udp()
 {
-}
-
-STGuildProxy::STGuildProxy()
-{
-    m_level = 0;
-    m_powerSide = 0;
-    m_agitFlag = 0;
-    std::memset(&m_guildName, 0, 0x17);   // ORIG：memset(&+0 字段) 先计算地址(加载 this)再装常量(序匹配)
-}
-
-STGuildProxy::STGuildProxy(const char* name, unsigned char lev,
-                           unsigned char powerSide)
-{
-    m_level = lev;
-    m_powerSide = powerSide;
-    std::memcpy(m_guildName, name, 0x16);
 }
 
 bool CGuildServerProxy::Init()
@@ -288,8 +320,8 @@ void CGuildServerProxy::SendHeartBeat(int channel)
     SendPacket((char*)&pkt, pkt.packetSize);
 }
 
-void CGuildServerProxy::SendLogin(int guildKey, unsigned int dbid, int channel,
-                                  char* ip, unsigned char sex, char* ssn)
+void CGuildServerProxy::SendLogin(int guildKey, memberIdentificationNumber_t dbid,
+                                  int channel, char* ip, unsigned char sex, char* ssn)
 {
     Packet_Monitor_UDP_Login pkt;
     pkt.m_guildKey = guildKey;
