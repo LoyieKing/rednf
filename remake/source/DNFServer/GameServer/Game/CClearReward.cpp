@@ -653,12 +653,14 @@ int CLuckPoint::GetLuckPoint()
     return 0;   // 空集共用尾块（ORIG +0x9f mov $0,%eax）
 }
 
-// [b28d-solo-CClearReward] verdict=DIFF（N 封顶）：
-// 已修 —— 拆嵌套 if 消 `&&` 常量岛（P225 推广反向）、luck/sp 内联（P0）、
+// [b28e-solo-CClearReward] verdict=AE：200=200（norm；raw 201=201），fn_diff 0 差异行，
+// p167 callsite 11/11 CLEAR，帧 0x74/槽号与 ORIG 全等。本轮修三处：
+// ①acc[2]→acc[3]（真 bug：ORIG 0x08550d26/d71/d83 读写清均为 -0x34=acc[3]）；
+// ②break 移出 if(party!=0)（真 bug：ORIG party==0 与 party!=0 两路同汇 0x08550d20 出循环）；
+// ③补具名 diff（ORIG 0x08550c73 有 -0x24 槽往返，P0）+ 删具名 v（ROUND 结果就地内联，
+// 具名 v 多占两槽致全帧 -8 漂移、200→197）。
+// 历史已修 —— 拆嵌套 if 消 `&&` 常量岛（P225 推广反向）、luck/sp 内联（P0）、
 // 0.01f 右结合复现 `fildl A; fildl B; flds 0.01; fmulp; fmulp`（P243）。
-// 残余：①x87 槽组整体平移（ORIG -0x4c/-0x50 vs 我方 -0x3c/-0x40，帧同 0x74）——
-// 4.1 临时槽与具名槽穿插 vs 4.4 分区排布（N82附）；②unique/rare 两分支的 (int)
-// 截断槽号连锁；③循环下标 int vs size_t 的 seta/setb 形（N 族）。
 int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
 {
     int acc[6] = {0};
@@ -673,7 +675,10 @@ int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
         {
         int lp = 0;
         G_CDataManager()->m_serverParameter.getLuckPoint(GetLuckPoint(), lp);
-        int neg = -GetTenThousandPercentage(table[2] - table[1], lp);
+        // [b28e-solo-CClearReward] ORIG 0x08550c73：`table[2]-table[1]` 结果落具名槽
+        // -0x24 后按槽读取传参（P0 槽往返律）⇒ 原码有具名 diff 局部。
+        int diff = table[2] - table[1];
+        int neg = -GetTenThousandPercentage(diff, lp);
         int unique = 0;
         int rare = 0;
         for (size_t i = 0; i < m_users.size(); ++i)
@@ -685,27 +690,32 @@ int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
                 {
                     unique = party->Get_party_overlapped_drop_ratio_unique();
                     rare = party->Get_party_overlapped_drop_ratio_rare();
-                    break;
                 }
+                // [b28e-solo-CClearReward] 真 bug 修正：ORIG 0x08550ce0/0x08550d02
+                // party==0 与 party!=0 两路都汇到 0x08550d20（出循环）⇒ break 在
+                // if(m_users[i]!=0) 块内、if(party!=0) 块**外**（Ghidra C 同证）。
+                break;
             }
         }
         if (unique != 0)
         {
             // ORIG 0x08550dxx：`fildl A; fildl B; flds 0.01f; fmulp; fmulp`
             // ⇒ A*(B*0.01f) 右结合（P243 书写序）。
-            int v = static_cast<int>(
+            // [b28e-solo-CClearReward] 真 bug 修正：ORIG 0x08550d26/0x08550d71/0x08550d83
+            // 读-写-清零均为 -0x34 = acc[3]（acc 基址 -0x40）⇒ 原码是 acc[3] 非 acc[2]。
+            // 另：ORIG 无具名 v 局部（fistpl 直落 -0x4c 临时槽后立即读），故 ROUND 结果
+            // 就地内联进 `-=` 右值（具名 v 会多占两槽使全帧 -8 漂移、200→197）。
+            acc[3] -= static_cast<int>(
                 static_cast<float>(table[3] - table[2]) *
                            (static_cast<float>(unique) * 0.01f));
-            acc[2] -= v;
             if (table[3] > 999999)
-                acc[2] = 0;
+                acc[3] = 0;
         }
         if (rare != 0)
         {
-            int v = static_cast<int>(
+            neg -= static_cast<int>(
                 static_cast<float>(table[2] - table[1]) *
                            (static_cast<float>(rare) * 0.01f));
-            neg -= v;
         }
         if (table[1] != 0)
             acc[0] = table[0] * neg / table[1];
