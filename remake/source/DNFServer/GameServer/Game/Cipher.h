@@ -101,6 +101,14 @@ Cipher* G_Cipher();
 
 // ---- 随机串 / 随机钥（ORIG @0x809e473 / @0x809e6b2）----
 void GenerateRandomString(char* out, int len);
+// ORIG @0x0809e58c（符号 _Z20GenerateRandomStringPwi，size 0x126）：
+// ORIG 全库无调用点，但符号必须存在；定义属 Cipher.cpp。
+void GenerateRandomString(wchar_t* out, int len);
 void GenerateRandomKey(unsigned char* out, int len);
+
+// ---- 最近错误码（ORIG T @0x0809e45c / @0x0809e469，全局 @0x0936e4b0）----
+// 实现属 Cipher.cpp（ORIG 地址紧邻 GenerateRandomString/Key）；此处仅声明。
+void NCryptoSetLastError(unsigned int err);
+unsigned int NCryptoGetLastError();
 
 #endif  // GAME_CIPHER_H_
