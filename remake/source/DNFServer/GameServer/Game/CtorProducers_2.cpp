@@ -36,6 +36,31 @@
 // ============================ DisjointScript ============================
 
 
+bool DisJoint::LoadDisJoint()
+{
+    // [b28d-48] N82 封顶（NDIFF 48，79/78 条）：槽平移 + `add $0x5c` 寻址链。
+    // ORIG 0x0847300c：import 成功则把 [cube index] 第 5 组首值与其
+    // [additional result] 各组元素聚合到 +0x628 起的 6 个 vector。
+    if (!importDisjointScript(this, "Etc/Disjoint.etc"))
+    {
+        std::puts("DisJoint Script Error: Etc/Disjoint.etc");
+        return false;
+    }
+
+    for (int i = 0; i < 6; ++i)
+    {
+        int value = m_cubeIndexVecs[4].at(0);        // at(this+0x30, 0)；ORIG 显式 _ZNSt6vectorIiSaIiEE2atEj
+        m_resultVecs[i].push_back(value);
+        const int count = *reinterpret_cast<const int*>(
+            reinterpret_cast<const char*>(&m_additional[0]) + i * 0x10);
+        for (int j = 0; j < count; ++j)
+        {
+            m_resultVecs[i].push_back(m_additional[i].m_items[j]);
+        }
+    }
+    return true;
+}
+
 // ---- DisjointSkillScript（ORIG W 0x084735fe/0x084735d2；布局 4×int）----
 DisjointSkillScript::DisjointSkillScript()
 {
@@ -131,31 +156,6 @@ DisJoint::DisJoint()
 DisJoint::~DisJoint()
 {
     // ORIG 0x0837dff8 链：基类析构 + 6 个结果 vector 析构。
-}
-
-bool DisJoint::LoadDisJoint()
-{
-    // [b28d-48] N82 封顶（NDIFF 48，79/78 条）：槽平移 + `add $0x5c` 寻址链。
-    // ORIG 0x0847300c：import 成功则把 [cube index] 第 5 组首值与其
-    // [additional result] 各组元素聚合到 +0x628 起的 6 个 vector。
-    if (!importDisjointScript(this, "Etc/Disjoint.etc"))
-    {
-        std::puts("DisJoint Script Error: Etc/Disjoint.etc");
-        return false;
-    }
-
-    for (int i = 0; i < 6; ++i)
-    {
-        int value = m_cubeIndexVecs[4].at(0);        // at(this+0x30, 0)；ORIG 显式 _ZNSt6vectorIiSaIiEE2atEj
-        m_resultVecs[i].push_back(value);
-        const int count = *reinterpret_cast<const int*>(
-            reinterpret_cast<const char*>(&m_additional[0]) + i * 0x10);
-        for (int j = 0; j < count; ++j)
-        {
-            m_resultVecs[i].push_back(m_additional[i].m_items[j]);
-        }
-    }
-    return true;
 }
 
 // ============================ StrikerScript ============================

@@ -55,6 +55,10 @@ public:
     static unsigned char NOT_USE_LETHE_STATE;   // +0x09472dbc = 0
 };
 
+CPremiumLetheManager::CPremiumLetheManager()
+{
+}
+
 unsigned char CPremiumLetheManager::USE_LETHE_STATE = 1;
 unsigned char CPremiumLetheManager::SKILL_CONFIRM_STATE = 2;
 unsigned char CPremiumLetheManager::BACK_TO_PRE_STATE = 3;
@@ -65,10 +69,6 @@ unsigned char CPremiumLetheManager::NOT_USE_LETHE_STATE = 0;
 // （FixMissingSigTypes；DB 队列负载，pack(1)，sizeof=0x1a7）。
 
 // ---- CUser 方法声明见 CUser.h（本 TU 直接真实调用） ----
-
-CPremiumLetheManager::CPremiumLetheManager()
-{
-}
 
 CPremiumLetheManager::~CPremiumLetheManager()
 {

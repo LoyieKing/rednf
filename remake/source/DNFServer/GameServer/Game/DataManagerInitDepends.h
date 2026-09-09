@@ -50,7 +50,7 @@ bool importImageCommunicationInfo(const char* path,
 bool importBoosterGage(char* path, class BoosterGageData* out);                    // _Z17importBoosterGagePcP15BoosterGageData 0x08913a7e
 bool importInvalidName(char* path, class InvalidCharData* out);                    // _Z17importInvalidNamePcP15InvalidCharData 0x08908338
 bool importSlangName(char* path, class SlangNameData* out);                        // _Z15importSlangNamePcP13SlangNameData
-int  importGoldLimitByLevel(unsigned int* table);                                  // _Z22importGoldLimitByLevelPj
+bool importGoldLimitByLevel(unsigned int* table);                                  // _Z22importGoldLimitByLevelPj [P330 int→bool] init 调用点 ORIG xor $1 形（idx 2306）
 bool importOldEquipmentStatInfo(const char* arg);                                  // _Z26importOldEquipmentStatInfoPKc
 int  importItmeGroupTable(const char* dir, const char* file,
                           std::map<std::string, int>& table);                      // _Z20importItmeGroupTablePKcS0_RSt3mapISsiSt4lessISsESaISt4pairIKSsiEEE（int 错误码：0=成功/0x1eb2=加载失败/0x1ebd=ScanStr 失败；ORIG 0x0890bb25 返回 undefined4，init.md +0x3e48 以 cmpl $0x0 判失败）
@@ -63,7 +63,7 @@ bool IsLightServer(void);                                     // _Z13IsLightServ
 void SetCollectDungeonStatistic(bool flag);                   // _Z26SetCollectDungeonStatisticb
 bool prepareServerDelayCheckDamage(void);                     // _Z29prepareServerDelayCheckDamagev
 bool ImportWorldDrop(class WorldDropInfo* out, const char* path);   // _Z15ImportWorldDropP13WorldDropInfoPKc
-int  ImportWarAreaCounter(class WarAreaCounter* out);         // _Z20ImportWarAreaCounterP14WarAreaCounter（0=成功；定义 InitScriptProducers_2.cpp）
+bool ImportWarAreaCounter(class WarAreaCounter* out);         // _Z20ImportWarAreaCounterP14WarAreaCounter [P330 int→bool] init 调用点 ORIG xor $1 形（idx 1938）；定义 InitScriptProducers_2.cpp
 namespace AvatarVariation
 {
 class AvatarColorInfo;
@@ -77,7 +77,10 @@ bool importCharacterCreateCreatureGiftScript(class CharacterCreateCreatureGiftSc
                                              const char* path);                               // _Z39..
 bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
                                        const char* path);                                     // _Z33..
-bool ImportBingoScript(const char* path, class stBingoScript& out);        // _Z17ImportBingoScriptPKcR13stBingoScript
+// [P330 bool→int] ORIG caller idx 1053 `mov %eax,-0x38` 4B 全 store 无 movzbl
+// （bool caller 必发 movzbl，probe2 实证）⇒ 声明 int；ORIG callee ebx 恒 0
+// （文件缺失/成功均 return 0，err 截断风险=日志行号值域）。定义 InitScriptProducers_2.cpp。
+int  ImportBingoScript(const char* path, class stBingoScript& out);        // _Z17ImportBingoScriptPKcR13stBingoScript
 // 返回 int：init.md 调用点以 32 位与 0 比较并 printf("... Fail(%d)", code)
 // （如 +0x131e "\t- ImportSeriaBlessingScript Fail(%d)"、+0x13fb
 // "ImportGrowthCapsuleScript Fail(%d)"），bool 会丢失 ORIG 行号错误码。
@@ -89,7 +92,7 @@ int ImportNewAccountLeventUpToJobScript(const char* path,
                                         class stNewAccountLevelUpToJobScript& out); // _Z35ImportNewAccountLeventUpToJobScriptPKcR30..
 int  ImportReturnUserRewardScript(const char* path, class stReturnUserRewardScript& out); // _Z28..（0=成功/0x36b4..；定义 InitScriptProducers_2.cpp）
 int  ImportItemMakingSkill(const char* path, class stItemMakingSkill& out);               // _Z21..（0=成功/0x279e..；定义 InitScriptProducers_2.cpp）
-int  importUltimateDungeonList(const char* path, std::set<int>& out);      // _Z25importUltimateDungeonListPKcRSt3setIiSt4lessIiESaIiEE
+bool importUltimateDungeonList(const char* path, std::set<int>& out);      // _Z25importUltimateDungeonListPKcRSt3setIiSt4lessIiESaIiEE [P330 int→bool] init 调用点 ORIG xor $1 形（idx 1154）
 int  importVillageAttackedScript(const char* path, class stVillageAttacked_t& out); // ORIG 返回错误码（0x197f 打开失败/0x1990..0x1998 Scan 失败），0=成功
 int  importCharacLinkSystemScript(const char* path, class stCharacLinkSystem_t& out); // ORIG 返回行号错误码（0x19ab 打开失败/0x19b7..0x19df Scan 失败），0=成功
 int  importTowerInfo(const char* dir, const char* list,

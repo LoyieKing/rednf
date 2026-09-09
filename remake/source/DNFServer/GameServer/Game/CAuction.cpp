@@ -2533,11 +2533,11 @@ struct GALogMsgView {                 // case 0xb：1 字节型 + 8B 主键（�
     char m_pad0[0x12];
     int m_msgSeq;                     // +0x12
     unsigned char m_type;             // +0x16
-    int m_keyLo;                      // +0x17
-    int m_keyHi;                      // +0x1b
-    int m_a1f;
+    unsigned int m_keyLo;             // +0x17（同型化：dst m_keyWords[] 为 unsigned）
+    unsigned int m_keyHi;             // +0x1b
+    unsigned int m_a1f;               // 同型化：ORIG `mov 0x1f(%eax),%edx` 一段直传（P211）
     int m_a23;
-    int m_a27;
+    unsigned int m_a27;               // 同型化：ORIG `mov 0x27(%eax),%edx` 一段直传
     unsigned char m_b2b;              // +0x2b
     int m_i2c;
     unsigned short m_w30;             // +0x30
@@ -2855,11 +2855,11 @@ bool CDispatchServerPacket::dispatchAuctionPacket(char* data)
         SIG_AUCTION_LOG_MESSAGE_AG* sig =
             guard->GetInBuffer<SIG_AUCTION_LOG_MESSAGE_AG>();
         sig->m_type = v->m_type;
-        sig->m_keyWords[0] = (unsigned int)v->m_keyLo;
-        sig->m_keyWords[1] = (unsigned int)v->m_keyHi;
-        sig->m_arg09 = (unsigned int)v->m_a1f;
+        sig->m_keyWords[0] = v->m_keyLo;
+        sig->m_keyWords[1] = v->m_keyHi;
+        sig->m_arg09 = v->m_a1f;
         sig->m_arg0d = v->m_a23;
-        sig->m_arg11 = (unsigned int)v->m_a27;
+        sig->m_arg11 = v->m_a27;
         sig->m_arg15 = v->m_b2b;
         sig->m_arg16 = v->m_i2c;
         sig->m_arg1a = v->m_w30;
@@ -3204,11 +3204,11 @@ bool CDispatchServerPacket::dispatchPointPacket(char* data)
             SIG_AUCTION_LOG_MESSAGE_PG* sig =
                 guard->GetInBuffer<SIG_AUCTION_LOG_MESSAGE_PG>();
             sig->m_type = v->m_type;
-            sig->m_keyWords[0] = (unsigned int)v->m_keyLo;
-            sig->m_keyWords[1] = (unsigned int)v->m_keyHi;
-            sig->m_arg09 = (unsigned int)v->m_a1f;
+            sig->m_keyWords[0] = v->m_keyLo;
+            sig->m_keyWords[1] = v->m_keyHi;
+            sig->m_arg09 = v->m_a1f;
             sig->m_arg0d = v->m_a23;
-            sig->m_arg11 = (unsigned int)v->m_a27;
+            sig->m_arg11 = v->m_a27;
             sig->m_arg15 = v->m_b2b;
             sig->m_arg16 = v->m_i2c;
             sig->m_arg1a = v->m_w30;

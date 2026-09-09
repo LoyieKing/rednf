@@ -4,7 +4,7 @@
 #define DNF_GAME_CNCRYPTONOEKEON_H_
 
 // forward decls (推断: parameter types)
-class CRYPTO_MODE_TYPE;
+enum CRYPTO_MODE_TYPE;  // [Main ck24] 原 class 前向声明与 Cipher.h 的 enum 定义冲突（class/enum 不可混宣）；enum 无固定前向形，此处仅消隐患，本头零消费者
 
 class CNCryptoNoekeon
 {

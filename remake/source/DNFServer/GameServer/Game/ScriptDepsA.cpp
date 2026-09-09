@@ -1579,11 +1579,22 @@ static std::map<ENUM_CHARACTERJOB, std::string> s_bodyImagePath;
 //  ③ 其余为 .o 重定位地址显示差（链接 AE 口径消除）。
 bool ImportCharacterScript(STCharacterScript* script, const char* path)
 {
-    // [b28d-solo-ScriptDepsA 判词] N82/N89 封顶（§6.2：2875/2791，gap=84，
-    // p167 332/332 CLEAR）：本波修 [category] 守卫极性（P133，eq→ne 方向）
-    // + push_back 右值内联（EOi）+ 两处 WeaponInfo resize 改 value-init 临时
-    // （消 C1ERKS 参数副本 + D1×4）+ P317 删 WeaponInfo 用户空析构。
-    // 残差=本 TU 最大件的帧/槽平移 + 模板实例内联差。
+    // [b28d-solo-ScriptDepsA·大件波 BigSkillChar] AE 口径 ndiff 2728→**101**：
+    //  ① [attack action]/[action list] 收尾具名 `bool endTag` 改纯短路 if——ORIG
+    //     4.1 将 endTag 驻 %eax（`mov $1/$0; test %al`），4.4 具名 bool 必落 -0x29
+    //     栈槽并把 cur* 指针组压深 4、全 deep 区 +4 平移（≈4300 行 diff 主源）；
+    //     真值表等价（A&&B→break；C&&D→break；否则 return false）。
+    //  ② [body image path] 的 `s_bodyImagePath[static_cast<ENUM>(m_job)]` rvalue
+    //     经 reinterpret 左值引用直绑 &m_job（字段偏移 0）——ORIG `mov %eax,0x4`
+    //     直传实证；消 -0x4c 临时槽（第二平移源）。map 键型保持 ENUM_CHARACTERJOB
+    //     （ORIG W 实例 _ZNSt3mapI17ENUM_CHARACTERJOBSs...4find/ix 实证）。
+    //  ③ [category] 块 `curEtc->m_category.clear()` 移至 t/isType 声明前（ORIG
+    //     clear 先于 string ctor 序，消 hunk 错位）。
+    // 语义核对：imm/字段访问常量组差集仅剩 `mov (%eax),%eax; mov %eax,%edx` 型
+    // 4.1 寄存器复制（×4）与一处 imm:0 物化 ⇒ token 链/字段写/循环界无缺失。
+    // 剩余 101 构成：ORIG 函数头 41 条 `jmp <T>` else-if 回跳岛（4.4 jump-
+    // threading 消除，N121 封顶）+ 上述寄存器复制 + `test/je`↔`xor/test/jne`
+    // 守卫极性（P292/N122）+ EH dtor epilogue 合并差（p167 332/332 CLEAR 已证）。
     if (!loadRDARScriptFile(g_szCharacterScriptBaseDirectory, path))
         return false;
 

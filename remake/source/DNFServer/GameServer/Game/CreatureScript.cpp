@@ -35,6 +35,13 @@
 bool processModuleTagSet(int& moduleId, int& subId, std::string* tag,
                          int type, bool flag);
 
+// ORIG 0x88d1450：无参，直接返回 true（10 字节：push/mov/xor 后 mov $1）。
+// 定义位置按 ORIG 布局置于 ImportAttackInfoScript（ORIG 0x88d145a）之前。
+bool InitAttackInfoScript()
+{
+    return true;
+}
+
 // ---- 全局（ORIG 属 RDARScriptObject.cpp/RDARScriptAttackInfo.cpp）----
 char g_creatureScriptBaseDirectory[0x104];
 
@@ -1260,13 +1267,6 @@ enum AttackInfoTag
 // 查找表本体为函数局部静态(__lookup/__init_lock/__inited),见下方函数。
 
 }  // namespace
-
-// ORIG 0x88d1450：无参，直接返回 true（10 字节：push/mov/xor 后 mov $1）。
-// 定义位置按 ORIG 布局置于 ImportAttackInfoScript（ORIG 0x88d145a）之前。
-bool InitAttackInfoScript()
-{
-    return true;
-}
 
 // ORIG 0x88d145a:ImportAttackInfoScript(AttackInfo*, char const*, int)
 // 注册链与解析共用同一 switch：ORIG 每个 case 头部 `if (!__inited)` 则

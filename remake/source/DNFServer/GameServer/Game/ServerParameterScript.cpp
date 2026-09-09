@@ -1339,7 +1339,8 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int unused = ScanInt(&ok);
+                int unused = 0;
+                unused = ScanInt(&ok);
                 (void)unused;
                 if (!ok)
                 {
@@ -1364,7 +1365,8 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
             while (true)
             {
                 stLuckPointDeduction_t p;
-                int level = ScanInt(&ok);
+                int level = 0;
+                level = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -1396,7 +1398,8 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
             while (true)
             {
                 stLuckPointDeduction_t p;
-                int level = ScanInt(&ok);
+                int level = 0;
+                level = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
@@ -2144,18 +2147,19 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         {
             while (true)
             {
-                int unused = ScanInt(&ok);
-                (void)unused;
+                int a = 0;
+                int b = 0;
+                ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                int a = ScanInt(&ok);
+                a = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;
                 }
-                int b = ScanInt(&ok);
+                b = ScanInt(&ok);
                 if (!ok)
                 {
                     return 0;

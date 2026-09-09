@@ -240,10 +240,12 @@ scan_fail:
 //   ③上限变量化 `int limit = 25`（ORIG -0x20 存 0x19，setl 形）；④P164 goto
 //   主循环（0x08918800）；⑤count/ok 失败改尾岛 goto scan_done。残余：槽位/块
 //   布局跨版本差。
-bool ImportBingoScript(const char* path, stBingoScript& out)
+// [P330 bool→int] 与 DataManagerInitDepends.h 声明同步（ORIG caller 4B store
+// 无 movzbl ⇒ int）。ORIG 所有出口 ebx=0 ⇒ 两个 return 0。
+int ImportBingoScript(const char* path, stBingoScript& out)
 {
     if (!loadRDARScriptFile("", path))
-        return false;
+        return 0;
 
     std::string token;
     bool ok = false;
@@ -337,7 +339,7 @@ scan_top:
     }
     goto scan_top;
 scan_done:
-    return false;
+    return 0;
 }
 
 // ============================================================================
@@ -568,7 +570,7 @@ scan_done:
 //   ④-0x34 为 ORIG 死局部；⑤maxValue 先于 maxIndex 赋值；⑥make_pair<int&,
 //   stWarPoint&>（key 去 const，p167 归零）。残余：全帧槽位 +4 平移（N95/N82）
 //   + do-while 尾测 setne 物化（4.4 恒物化，ORIG 直跳 jne）。
-int ImportWarAreaCounter(WarAreaCounter* out)
+bool ImportWarAreaCounter(WarAreaCounter* out)  // [P330] 与 DataManagerInitDepends.h 同步
 {
     if (!loadRDARScriptFile("", "Etc/WarArea.etc"))
     {

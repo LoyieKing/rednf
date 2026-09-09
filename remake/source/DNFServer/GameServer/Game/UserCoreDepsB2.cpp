@@ -99,6 +99,10 @@ void Secu_HackLogCheck::Init(CUser* user)
 // 残差（byte 层封顶）：N78（ORIG memcpy 内联对齐+rep movsl 40 条 vs 4.4 结构赋值逐字段
 // 展开）、N82/N89（帧 0xec/0xec±、槽号与 STL/日志内联布局）、N4/P30（`i*2+base` add 链
 // vs lea 折叠）。ORIG 0x08690776，语义等价。
+// [b28d-PoolGlobalData 二压 P329] baseSmall 具名 bool 内联回 if 条件（消 -0x1d
+// 槽与其 `mov %al,-slot; cmpb $0,-slot` 往返）⇒ ndiff 91→46，-0x29/-0x20/-0x24
+// 标量槽与 ORIG 逐位复齐；余 46=N78 结构展开 10 行 + 双 0x52 缓冲槽向（见函数
+// 体内实测回退记录）+ idxPos -0x80/-0x30 随动，封顶。
 bool CUser::MakeTagCharacInfo(PacketGuard& packet)
 {
     if (getCurCharacR() == 0)

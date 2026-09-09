@@ -851,7 +851,27 @@ void CMailBoxHelper::MakeMailBoxListPacket(CUser* user, PacketGuard* packet)
 //        4.4.7 先求值链式对象表达式，装载时刻跨版本调度差异。
 // [b28d-L8] N82 | 全帧槽平移（-0x2e4 vs -0x2e0，ORIG 0x08557xxx）
 // [b28d-solo-CMailBoxHelper] N 封顶（§6.2 三件套，p167 CLEAR 125/125，1086 vs 1100）：
-// 明细段 strlen 复用同一局部已修；残余 = 全帧槽平移（跨版本槽基差，N82/P112）。
+// [P329-布局 本泳道 2026-09-09] ndiff 801 → 704（orig=1083 ours=1101）。
+// 唯一改动的语义等价重构：明细条目循环的 if/else **体交换 + 条件反转**
+// （`if (FindPackageLoadLack(...)!=0) {insert} else {put_*}`
+//  → `if (FindPackageLoadLack(...)==0) {put_*} else {insert}`），
+// 并把内层 isUnlimitMail 三元也照 ORIG `==0 → put_int(+0x1141)` 反转。
+// 判据（callee 序列对照，非行 diff）：两侧 call 多重集 125=125 且**有序序列**只差
+// 一处 —— make_pair/pair::pair/map::insert 三连在 ORIG 落位于明细段 put_* 之后
+// （call[103:106]），我方却在前（call[91:94]）。⇒ ORIG 源码的 then 侧是打包路径，
+// insert 是被后置的冷块；体交换前，我方整段明细与 ORIG 错行（单个 diff 块达 82 行）。
+// 另核 isUnlimitMail/FindPackageLoadLack 两处条件均按 ORIG `xor $0x1; test; je` 取反。
+//
+// 残差 704 归因（已按 P329→P183 两筛子走完，不再试旋钮）：
+//  · N82/P112 巨件全帧槽平移（本函数 30+ 个单行 diff 块，均为同指令不同槽号）；
+//  · N107/P321-T5 地址常数拆分：ORIG `add $0x7e0; add 0xc(%ebp); add $0x7`
+//    vs 4.4 合并成 `add $0x7a4 ... add $0x43`，以及 ORIG 单条
+//    `lea (%edx,%eax,1),%eax` vs 4.4 两条 `add/add`（已逐偏移核对 0x7e7/0x7c9/
+//    0x7b0 三处**完全等值**，非字段错位）；
+//  · P183 物化次数：`imul $0x12b` 15=15 ✓、`imul $0x47` 6=6 ✓、
+//    `imul $0x61` 我方 35 vs ORIG 29（+6，MB_ENTRY 重复物化，定位需逐段比 ORIG
+//    缓存点，收益 ≈25 行，本波未做）；
+//  · strlen@plt（链接形式，ORIG 已链接 vs 我方 .o 重定位）。
 int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
 {
     // ORIG 0x085525a6：DB 邮箱列表落地 → 增量/全量 0x61 列表包 + 信件明细。
@@ -940,6 +960,14 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
                 item.m_fieldd = MB_ENTRY(i)->m_field35;
                 // ORIG 0x08552b4d/0x08552b6e/0x08552b78：item+0x15/0x19/0x1d
                 // = amp guid（m_amp.m_guid，ORIG 0x8552b4a 逐条 mov 宽 int/int/word）。
+                // ORIG 0x08552b4d/0x08552b6e/0x08552b78：item+0x15/0x19/0x1d
+                // = amp guid（m_amp.m_guid，ORIG 0x8552b4a 逐条 mov 宽 int/int/word）。
+                // [P331 本泳道实测反例 ⇒ 维持每句重发] ORIG 该段确实只物化一次基址
+                // （`imul $0x61 … add $0x30,%eax` 后连读 +0x9/+0xd/+0x11），但把
+                // `MB_ENTRY(i)` 提成 `Entry const* ep` 缓存后 4.4 并不像 4.1 那样把
+                // base 保在 %eax：它把 ep 落栈槽、每句 `mov slot,%eax; mov (%eax)` 解引用，
+                // 实测 ndiff 704 → **965**（多 261 行，且帧槽整体再平移）⇒ 已回滚。
+                // 同族反例见 makeSendMailData 判词（N76/P183"引用局部会多一枚指针槽"）。
                 item.m_amp.m_guid.m_serverId = MB_ENTRY(i)->m_field39;
                 item.m_amp.m_guid.m_datetime = MB_ENTRY(i)->m_field3d;
                 item.m_amp.m_guid.m_sequenceNo =

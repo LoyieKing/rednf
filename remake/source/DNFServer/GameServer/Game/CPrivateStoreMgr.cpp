@@ -13,6 +13,28 @@
 // P167：清单内全部函数调用点差集 CLEAR（0 missing / 0 extra）。
 // 无子子代理；本轮无 .h 改动落盘（CheckTotalItemPrice int→bool 已按 R2/S2
 // 申报 Main 代落，依据 ORIG 0x085c73e2 `xor eax,0x1`，T3 直证）。
+// ----------------------------------------------------------------------------
+// [BigStore 巨型件轮] ndiff>30 前 8 件复核（基线 identical=171 ae=362 near=1
+// diff=14 → 收口 identical=172 ae=362 near=2 diff=13）：
+//  · REAL-BUG×3（BuyPrivateStoreItem/VerifyPrivateStoreItem）：
+//    IsAvailableCurCharacTradeGoldDaily 实参两处传 dealGoldA（outBuyGold 恒 0）
+//    ⇒ 非可信用户每日金币上限校验被短路；ORIG 0x085c8186/0x085c8ae8 实证传
+//    GetItemPrice out1(-0x44/-0x28=price)。BuyPSI 反外挂倾销公式两处同错
+//    （0x085c8526/0x085c8558 用 price，旧传恒 0 ⇒ 检测整体失效），并按 ORIG
+//    x87 栈形补 (float) 窄化（0x085c8542 fstps/flds）。BuyItem 第 5 实参
+//    改 out3（ORIG 0x085c8261 段，行为无差、忠实性）。
+//  · 语义重构 2 件：DeleteItem 340→306（switch 跳转表→ORIG if-else 有符号链 +
+//    每臂延迟重读 +0x48）；RecallPrivateStoreItem 375→188 转 near/N82（i 改
+//    int+双初始化+第二循环复用 i 槽+==3/==4 正向包裹+两 invenW 具名缓存删）。
+//  · P329 去具名提升 2 件：CreatePrivateStore 214→90（inventory 链式内联 +
+//    dollError P225 while 形）、BuyPSI 363→322。
+//  · 封顶（残差=已登记 N 族，不再抠旋钮）：Recall 188=N82 槽镜像；BuyPSI
+//    322=N85(x87 fucompp)+N82(帧 0xbc)；DeleteItem 306=N82+P227 trace 位；
+//    BuyItem 110=N18a 寄存器直落+N82；Create 90=N82 槽漂移；Verify 77=N82；
+//    MakeCmdpacketEnter 58=N89(STL out-of-line, ORIG W 0x085cc160)；IsAreaNear
+//    50=N111(0x085c5273..0x085c5299 无入口死块)+N82。
+//  P167 本批 8 件：除 IsAreaNear(已豁免)外全 CLEAR。头文件未动（CPrivateStoreMgr.h
+//  归 CMisVtable 泳道，虚槽保持现状）。
 // ============================================================================
 #include "CPrivateStoreMgr.h"
 #include "CErrorGeneratorPrivate.h"   // private_store::CErrorGeneratorPrivate / g_ErrorGenerator
@@ -514,14 +536,18 @@ bool CPrivateStore::CreatePrivateStore(unsigned char zoneA, unsigned char zoneB,
     if (dollSlot != 0xffff)
     {
         int dollError = CheckPrivateStoreDoll(dollSlot);
-        if (dollError != 0)
+        // [BigStore P225] ORIG 0x085c5708 `cmpl $0,-0x20; setne %al; test; je`
+        // 物化形 ⇒ while 复现（4.4 的 `!=` 直跳无 setne）。
+        while (dollError != 0)
         {
             m_errorHandler.Do(dollError);
             return false;
         }
         SetDollCreated(true);
-        const CInventory* inventory = m_pSeller->getCurCharacInvenR();
-        Inven_Item dollItem = inventory->GetInvenSlot(1, (int)dollSlot);
+        // [BigStore P329] ORIG 0x085c5755 getCurCharacInvenR 结果 eax 于 0x085c576c
+        // 直落 GetInvenSlot esp+0x04 实参槽，无 inventory 具名缓存槽 ⇒ 链式内联。
+        Inven_Item dollItem =
+            m_pSeller->getCurCharacInvenR()->GetInvenSlot(1, (int)dollSlot);
         SetDollItemID((unsigned long)dollItem.m_addInfo);  // ORIG 读隐藏返回副本 +2（物品索引）
     }
 
@@ -1180,11 +1206,19 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
             (unsigned short)m_pBuyer->getCurCharacUsedFatigue();   // ORIG local_26
         int rand25 = get_rand_int(0x19);         // ORIG local_24
         int rand20 = get_rand_int(0x14);         // ORIG local_20
-        const CInventory* buyerInven = m_pBuyer->getCurCharacInvenR();
-        // 反外挂：低价倾销检测。ORIG 浮点常量 [0x8cbead0]=0.01、[0x8cbead8]=0.7。
-        double hackScale = (double)rand25 * 0.01 + 0.7;
-        if ((float)((double)((long long)buyerInven->get_money() + (int)dealGoldA) * hackScale) <
-            (float)(int)dealGoldA)
+        // [BigStore P329] ORIG 0x085c8519：getCurCharacInvenR 结果 eax 于
+        // 0x085c851e 直落 get_money (%esp) 实参槽，无具名缓存 ⇒ 链式内联。
+        // 反外挂：低价倾销检测。ORIG 浮点常量 [0x8cbead0]=0x3f847ae147ae147b(0.01)、
+        // [0x8cbead8]=0x3fe6666666666666(0.7)（均 double）。
+        // [BigStore REAL-BUG] ORIG 0x085c8526 `mov -0x44,%edx; add %edx,%eax` 与
+        // 0x085c8558 `mov -0x44,%eax` 实证两处用 out1(=price)，旧写 dealGoldA
+        //（out2 恒 0）⇒ `money*scale < 0` 永假，倾销检测整体失效。
+        // [BigStore P253-x87] ORIG 0x085c8542 `fstps -0x9c; flds -0x9c` 为 rand25×0.01
+        // 后的 float 窄化回展 ⇒ 按 (float) 显式复现；比较在 double 栈上直做。
+        double hackScale =
+            (double)(float)((double)rand25 * 0.01) + 0.7;
+        if (hackScale * (double)((int)m_pBuyer->getCurCharacInvenR()->get_money() + price) <
+            (double)price)
         {
             unsigned int etcResult = 0;
             etcResult = m_pBuyer->SetETC(0x2c0, m_pSeller->get_acc_id());
@@ -1578,79 +1612,86 @@ bool CPrivateStore::MoveItems()
 //（已回退）⇒ 封顶。
 bool CPrivateStore::RecallPrivateStoreItem()
 {
-    unsigned int i = 0;
-    for (; i < 0xe; ++i)
+    // [BigStore P191/P2] ORIG 0x085c63d5/0x085c63dc 双 `movl $0x0,-0x20`，尾测
+    // `addl $1; cmpl $0xd; setle`（有符号）⇒ i 为 int、声明+for 各初始化一次。
+    int i = 0;
+    for (i = 0; i < 0xe; ++i)
     {
         PrivateStoreItem& item = m_items[i];
-        if (item.GetState() != 3)
-            continue;
-
-        int slot = -1;
-        if ((int)item.m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
+        // [BigStore P292] ORIG 0x085c6423 `cmp $0x3,%al; sete %al; test; je 循环尾`
+        // ⇒ `==3` 正向包裹（旧 !=3+continue 反形产 setne/jne）。
+        if (item.GetState() == 3)
         {
-            CInventory* invenW = m_pSeller->getCurCharacInvenW();
-            // [b28d-solo] ORIG 0x85c642e 先把 item.m_item 逐字段拷到栈副本 -0xaa，
-            // 再按值拷入 outgoing 槽（两次拷贝，4.1 对按值实参的 lowering）⇒
-            // 显式具名副本复现。
-            Inven_Item itemCopy = item.m_item;
-            slot = invenW->insertAvatarIntoInventory(itemCopy,
-                                                     (eAvatarItemAddReason)0xa, false);
+            int slot = -1;
+            if ((int)item.m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
+            {
+                // [b28d-solo] ORIG 0x85c642e 先把 item.m_item 逐字段拷到栈副本 -0xaa，
+                // 再按值拷入 outgoing 槽（两次拷贝，4.1 对按值实参的 lowering）⇒
+                // 显式具名副本复现。
+                Inven_Item itemCopy = item.m_item;
+                // [BigStore P329] ORIG 0x085c64bb getCurCharacInvenW 结果直落
+                // insertAvatarIntoInventory this 实参槽（16+2 参），无 invenW 缓存槽。
+                slot = m_pSeller->getCurCharacInvenW()->insertAvatarIntoInventory(
+                    itemCopy, (eAvatarItemAddReason)0xa, false);
+                if (slot < 0)
+                    break;
+                m_pSeller->getCurCharacInvenR()->SendAvatarEvent(
+                    0x36, (int)item.m_item.m_addInfo2, 0, slot + 0xa, 0);
+            }
+            else
+            {
+                // [b28d-solo] 同上：ORIG 0x85c6xxx 两次逐字段拷贝（-0x6d 副本）。
+                Inven_Item itemCopy = item.m_item;
+                slot = m_pSeller->getCurCharacInvenW()->insertItemIntoInventory(
+                    itemCopy, (eItemAddReason)0x12, false, true);
+            }
             if (slot < 0)
                 break;
-            m_pSeller->getCurCharacInvenR()->SendAvatarEvent(
-                0x36, (int)item.m_item.m_addInfo2, 0, slot + 0xa, 0);
-        }
-        else
-        {
-            CInventory* invenW = m_pSeller->getCurCharacInvenW();
-            // [b28d-solo] 同上：ORIG 0x85c6xxx 两次逐字段拷贝（-0x6d 副本）。
-            Inven_Item itemCopy = item.m_item;
-            slot = invenW->insertItemIntoInventory(itemCopy,
-                                                   (eItemAddReason)0x12, false, true);
-        }
-        if (slot < 0)
-            break;
 
-        PrivateStoreItem info;
-        info.m_field48 = (unsigned short)slot;   // 先写槽号 +0x48 再从背包回填数据
-        GetItemInfo(m_pSeller, info);
+            PrivateStoreItem info;
+            info.m_field48 = (unsigned short)slot;   // 先写槽号 +0x48 再从背包回填数据
+            GetItemInfo(m_pSeller, info);
 
-        int addNew = 0;
-        int addOld = 0;
-        if (item.m_item.isEquipableItemType())
-        {
-            addNew = 1;
-            addOld = 1;
-        }
-        else
-        {
-            addNew = (int)info.m_item.get_add_info();
-            addOld = (int)item.m_item.get_add_info();
-        }
-        // [b28d-solo-CPrivateStoreMgr] P48/P157：ORIG 对同一 getter 连调两次
-        // （P167 差集 getCurCharacName×2，旧缓存形只 1 次）⇒ 实参处各写一次。
-        m_pSeller->m_historyLog.PrivateStoreItemAdd(
-            (INVEN_TYPE)1, item.m_item, addNew, addOld, (eItemAddReason)0x12,
-            m_pSeller->getCurCharacName(), m_pSeller->getCurCharacName());
+            int addNew = 0;
+            int addOld = 0;
+            if (item.m_item.isEquipableItemType())
+            {
+                addNew = 1;
+                addOld = 1;
+            }
+            else
+            {
+                addNew = (int)info.m_item.get_add_info();
+                addOld = (int)item.m_item.get_add_info();
+            }
+            // [b28d-solo-CPrivateStoreMgr] P48/P157：ORIG 对同一 getter 连调两次
+            // （P167 差集 getCurCharacName×2，旧缓存形只 1 次）⇒ 实参处各写一次。
+            m_pSeller->m_historyLog.PrivateStoreItemAdd(
+                (INVEN_TYPE)1, item.m_item, addNew, addOld, (eItemAddReason)0x12,
+                m_pSeller->getCurCharacName(), m_pSeller->getCurCharacName());
 
-        item.m_field48 = (unsigned short)slot;
-        item.m_flag3d = 4;
+            item.m_field48 = (unsigned short)slot;
+            item.m_flag3d = 4;
+        }
     }
 
     if (i != 0xe)
     {
-        for (unsigned int j = 0; j < 0xe; ++j)
+        // [BigStore P191] 第二循环复用同一 i 槽（ORIG 再发双初始化 -0x20）。
+        for (i = 0; i < 0xe; ++i)
         {
-            PrivateStoreItem& item = m_items[j];
-            if (item.GetState() != 4)
-                continue;
-            if (DeleteItem(item))
+            PrivateStoreItem& item = m_items[i];
+            // [BigStore P292] ORIG 第二循环同形 `cmp $4; sete; je` ⇒ 正向包裹。
+            if (item.GetState() == 4)
             {
-                // [b28d-solo] P221：ORIG trace 槽 -0x28，具名对象排到 -0x48。
-                cMyTrace(__PRETTY_FUNCTION__, 0x4c9, 5)(
-                    "[%s][%d]", __PRETTY_FUNCTION__, 0x4c9);
+                if (DeleteItem(item))
+                {
+                    // [b28d-solo] P221：ORIG trace 槽 -0x28，具名对象排到 -0x48。
+                    cMyTrace(__PRETTY_FUNCTION__, 0x4c9, 5)(
+                        "[%s][%d]", __PRETTY_FUNCTION__, 0x4c9);
+                }
+                item.m_flag3d = 3;   // DeleteItem 成败皆置
             }
-            item.m_flag3d = 3;   // DeleteItem 成败皆置
         }
         return false;
     }
@@ -1673,6 +1714,11 @@ bool CPrivateStore::DeleteItem(PrivateStoreItem& item)
     int upgrade = (int)item.m_item.GetUpgrade();
     int addInfo2 = (int)item.m_item.m_addInfo2;
     int itemIdx = (int)item.m_item.m_addInfo;
+    // [BigStore] ORIG 0x085c68xx：space 一次性 movsbl（有符号字节），随后按
+    // if(==1)/else if((char)<2){if(==0)}/else if(==2)/else if(==3) 链展开；
+    // 每臂独立重读 (short)+0x48（成功臂 SendAvatarEvent/send_equip 也重读），
+    // 无函数级 slot 缓存 ⇒ 旧 switch+提前绑定形改回链式+延迟加载。
+    const signed char space = (signed char)item.m_field46;
 
     // [b28d-solo] P227 全表达式临时链：ORIG 0x085c68f2 段先把 getCurCharacName/
     // getCurCharacNo/… 求值入 edi/esi/ebx，再 call cMyTrace C1；具名对象令 4.4
@@ -1683,59 +1729,66 @@ bool CPrivateStore::DeleteItem(PrivateStoreItem& item)
         m_pSeller->getCurCharacName(), m_pSeller->getCurCharacNo(),
         itemIdx, addInfo2, upgrade & 0xff, resealCount & 0xff, sellPrice);
 
-    int slot = (short)item.m_field48;
-    switch (item.m_field46)
+    if (space == 1)
     {
-    case 0:
-        if (m_pSeller->getCurCharacInvenW()->delete_item(
-                (INVEN_TYPE)1, slot, (int)item.m_item.m_addInfo2,
-                (eItemDelReason)0xb, true) != 1)
-        {
-            cMyTrace(__PRETTY_FUNCTION__, 0x4e0, 5)(
-                "Store::user_sell_item, delete_item failed , User ch=%d , %d %d",
-                m_pSeller->getCurCharacNo(), slot, (int)item.m_item.m_addInfo2);
-            m_errorHandler.Do(0x11);
-            return false;
-        }
-        break;
-    case 1:
+    int slot = (short)item.m_field48;
         if (m_pSeller->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)2, slot, 1, (eItemDelReason)4, true) != 1)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x515, 5)(
                 "Store::user_sell_item, delete_item failed 3, User ch=%d , %d",
-                m_pSeller->getCurCharacNo(), slot);
+                m_pSeller->getCurCharacNo(), (short)item.m_field48);
             m_errorHandler.Do(0x11);
             return false;
         }
         m_pSeller->getCurCharacInvenR()->SendAvatarEvent(
-            0x36, (int)item.m_item.m_addInfo2, 3, slot + 0xa, 0);
-        break;
-    case 2:
+            0x36, (int)item.m_item.m_addInfo2, 3, (short)item.m_field48 + 0xa, 0);
+    }
+    else if (space < 2)
+    {
+        if (space == 0)
+        {
+    int slot = (short)item.m_field48;
+        if (m_pSeller->getCurCharacInvenW()->delete_item(
+                (INVEN_TYPE)1, slot, (int)item.m_item.m_addInfo2,
+                (eItemDelReason)0xb, true) != 1)
+{
+            cMyTrace(__PRETTY_FUNCTION__, 0x4e0, 5)(
+                "Store::user_sell_item, delete_item failed , User ch=%d , %d %d",
+                    m_pSeller->getCurCharacNo(), (short)item.m_field48,
+                    (int)item.m_item.m_addInfo2);
+            m_errorHandler.Do(0x11);
+            return false;
+        }
+        }
+    }
+    else if (space == 2)
+    {
+    int slot = (short)item.m_field48;
         if (m_pSeller->getCurCharacCargoW()->delete_item(
                 slot, (int)item.m_item.m_addInfo2, (eItemDelReason)0xb) != 1)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x4ec, 5)(
                 "Store::user_sell_item, delete_item failed 2, User ch=%d , %d %d",
-                m_pSeller->getCurCharacNo(), slot, (int)item.m_item.m_addInfo2);
+                m_pSeller->getCurCharacNo(), (short)item.m_field48,
+                (int)item.m_item.m_addInfo2);
             m_errorHandler.Do(0x11);
             return false;
         }
-        break;
-    case 3:
+    }
+    else if (space == 3)
+    {
+    int slot = (short)item.m_field48;
         if (m_pSeller->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)0, slot, 1, (eItemDelReason)0xb, true) != 1)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x4f9, 5)(
                 "Store::user_sell_item, delete_item failed 3, User ch=%d , %d",
-                m_pSeller->getCurCharacNo(), slot);
+                m_pSeller->getCurCharacNo(), (short)item.m_field48);
             m_errorHandler.Do(0x11);
             return false;
         }
-        m_pSeller->send_equip(slot);
-        break;
-    default:
-        break;
+        m_pSeller->send_equip((short)item.m_field48);
     }
     return true;
 }
@@ -2178,7 +2231,9 @@ int CPrivateStore::BuyItem(int /*slot*/, Inven_Item& item, int gold,
 
             slot = m_pBuyer->getCurCharacInvenW()->insertAvatarIntoSpecificSlot(
                 item, slot, (eAvatarItemAddReason)0xb, false);
-            if (slot == -1)
+            // [BigStore P225] ORIG 0x085c94a0 `cmpl $-0x1,-0x24; sete %al;
+            // test; je 续` 物化形 ⇒ while 复现（4.4 直跳无 sete）。
+            while (slot == -1)
                 return -1;
 
             m_pBuyer->getCurCharacInvenW()->GetAvatarItemMgrW()->AddAvatarItem(

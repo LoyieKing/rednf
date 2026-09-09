@@ -606,13 +606,15 @@ int importQuestScript(QuestScript* script, const char* path)
         if (line == "[grade]")
         {
             ScanStr(&sub);
-            // p167：ORIG 这 5 处调 _ZSteq…PKT_RKSb…（字面量在左）⇒ 原码
-            // 写成 `"literal" == sub`（其余标签比较为 sub 在左，勿混用）。
-            if ("[normaly repeat]" == sub)
+            // p167'（本泳道修正）：ORIG 字面量在左的 5 处是 training/special/
+            // urgent/village attack revenge/schedule（内层）——调 operator==
+            // (const char*, string)（ORIG 08237ae0）；normaly repeat/common
+            // unique/special daily 在 ORIG 均为 sub 在左（080809a1）。
+            if (sub == "[normaly repeat]")
             {
                 script->m_questType = 4;
             }
-            else if ("[common unique]" == sub)
+            else if (sub == "[common unique]")
             {
                 script->m_questType = 5;
             }
@@ -624,7 +626,7 @@ int importQuestScript(QuestScript* script, const char* path)
             {
                 script->m_questType = 2;
             }
-            else if (sub == "[training]")
+            else if ("[training]" == sub)
             {
                 script->m_questType = 1;
             }
@@ -632,7 +634,7 @@ int importQuestScript(QuestScript* script, const char* path)
             {
                 script->m_questType = 6;
             }
-            else if (sub == "[urgent]")
+            else if ("[urgent]" == sub)
             {
                 script->m_questType = 8;
             }
@@ -641,7 +643,7 @@ int importQuestScript(QuestScript* script, const char* path)
                 script->m_questType = 3;
                 script->m_fieldD8 = 0;
             }
-            else if ("[special daily]" == sub)
+            else if (sub == "[special daily]")
             {
                 script->m_questType = 3;
                 ScanStr(&sub);
@@ -649,7 +651,7 @@ int importQuestScript(QuestScript* script, const char* path)
                 {
                     script->m_fieldD8 = 1;
                 }
-                else if (sub == "[schedule]")
+                else if ("[schedule]" == sub)
                 {
                     script->m_fieldD8 = 2;
                 }
@@ -1055,81 +1057,262 @@ int importQuestScript(QuestScript* script, const char* path)
             static std::map<const char*, int, less_TCHAR> __lookup;
             static SpinLock __init_lock;
             static bool __inited = false;
-            if (!__inited)
+            // ORIG 0x8a62f35..0x8a63ea4 状态机（BigQuest 破译）：未初始化时
+            // v=0 哨兵进 switch → **链式一次建全表**（每 case：if(__inited)
+            // {set;break;} else insert(本key) 后 **fallthrough 到下一 case**），
+            // 末 case insert 后落到 default：若仍 !__inited ⇒ **return 0**
+            // （+0x2655→+0x2660：原码首次建表把本条目判失败，忠实保留）；
+            // epilog +0x266a：!__inited ⇒ leave+置位+goto 重查；inited ⇒ continue。
+        retry_type_lookup:;
+            int v;
+            if (__inited)
+            {
+                std::map<const char*, int, less_TCHAR>::const_iterator it =
+                    __lookup.find(sub.c_str());
+                v = (it != __lookup.end()) ? it->second : -1;
+            }
+            else
             {
                 __init_lock.enter();
                 if (__inited)
                 {
                     __init_lock.leave();
+                    goto retry_type_lookup;
                 }
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[seeking]", 0x32c));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[condition under clear]", 0x32f));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[hunt monster]", 0x332));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[clear map]", 0x335));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[meet npc]", 0x338));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[pvp rank]", 0x33b));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[hunt enemy]", 0x33e));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[powerwar win]", 0x342));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[powerwar point]", 0x345));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[mobile]", 0x34a));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[use item]", 0x34f));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[get score]", 0x352));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[clear quest]", 0x355));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[check time]", 0x358));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[check life]", 0x35b));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[amplify item]", 0x35e));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[disjoint item]", 0x361));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[equipped item]", 0x364));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[get item]", 0x367));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[custom quest]", 0x36a));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[send chatting]", 0x36f));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[turn gold card]", 0x372));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[use fortune coin]", 0x375));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[meet secret npc]", 0x378));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[ui click]", 0x37d));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[seek n meet npc]", 0x382));
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[assault count]", 0x387));
+                v = 0;
+            }
+            switch (v)
+            {
+            case 0:
+            case 0x32c:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x0;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[seeking]", 0x32c));
+            case 0x32f:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x1;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[condition under clear]", 0x32f));
+            case 0x332:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x2;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[hunt monster]", 0x332));
+            case 0x335:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x3;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[clear map]", 0x335));
+            case 0x338:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x4;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[meet npc]", 0x338));
+            case 0x33b:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x5;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[pvp rank]", 0x33b));
+            case 0x33e:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x6;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[hunt enemy]", 0x33e));
+            case 0x342:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x7;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[powerwar win]", 0x342));
+            case 0x345:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x8;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[powerwar point]", 0x345));
+            case 0x34a:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x9;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[mobile]", 0x34a));
+            case 0x34f:
+                if (__inited)
+                {
+                    script->m_triggerType = 0xa;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[use item]", 0x34f));
+            case 0x352:
+                if (__inited)
+                {
+                    script->m_triggerType = 0xb;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[get score]", 0x352));
+            case 0x355:
+                if (__inited)
+                {
+                    script->m_triggerType = 0xc;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[clear quest]", 0x355));
+            case 0x358:
+                if (__inited)
+                {
+                    script->m_triggerType = 0xd;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[check time]", 0x358));
+            case 0x35b:
+                if (__inited)
+                {
+                    script->m_triggerType = 0xe;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[check life]", 0x35b));
+            case 0x35e:
+                if (__inited)
+                {
+                    script->m_triggerType = 0xf;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[amplify item]", 0x35e));
+            case 0x361:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x10;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[disjoint item]", 0x361));
+            case 0x364:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x11;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[equipped item]", 0x364));
+            case 0x367:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x12;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[get item]", 0x367));
+            case 0x36a:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x13;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[custom quest]", 0x36a));
+            case 0x36f:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x14;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[send chatting]", 0x36f));
+            case 0x372:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x15;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[turn gold card]", 0x372));
+            case 0x375:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x16;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[use fortune coin]", 0x375));
+            case 0x378:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x17;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[meet secret npc]", 0x378));
+            case 0x37d:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x18;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[ui click]", 0x37d));
+            case 0x382:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x19;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[seek n meet npc]", 0x382));
+            case 0x387:
+                if (__inited)
+                {
+                    script->m_triggerType = 0x1a;
+                    break;
+                }
+                __lookup.insert(std::pair<const char* const, int>(
+                    "[assault count]", 0x387));
+            default:
                 if (!__inited)
                 {
-                    __init_lock.leave();
-                    __inited = true;
+                    return 0;                        // ORIG +0x2660
                 }
+                break;
             }
-            std::map<const char*, int, less_TCHAR>::const_iterator it =
-                __lookup.find(sub.c_str());
-            int type = (it != __lookup.end()) ? it->second : -1;
-            if (type == -1)
+            if (!__inited)
             {
-                return 0;                            // ORIG default → return 0
+                __init_lock.leave();
+                __inited = true;
+                goto retry_type_lookup;              // ORIG +0x2691 重查
             }
-            script->m_triggerType = type - 0x32c;    // 0..0x1a
             continue;
         }
         if (line == "[dungeon info]")
@@ -1666,37 +1849,65 @@ int importQuestScript(QuestScript* script, const char* path)
                     }
                     return 0;
                 }
+                // ORIG 0x8a65365..0x8a65613 状态机（BigQuest 破译，与 [type]
+                // 同构）：未初始化 ⇒ v=0 哨兵进 case 0：if(__inited){push_back
+                // (0)} else {insert("[urgent]",0x5c1)} 后 **fallthrough 到
+                // default**；default(+0x3dc2)：!__inited ⇒ epilog
+                // （leave+置位+goto 重查 +0x3b52），inited ⇒ **return 0**
+                // （+0x3dcd：v=-1 未知即失败）。
                 static std::map<const char*, int, less_TCHAR> __lookup;
                 static SpinLock __init_lock;
                 static bool __inited = false;
-                if (!__inited)
+              retry_exception_lookup:;
+                int v;
+                if (__inited)
+                {
+                    std::map<const char*, int, less_TCHAR>::const_iterator it =
+                        __lookup.find(sub.c_str());
+                    v = (it != __lookup.end()) ? it->second : -1;
+                }
+                else
                 {
                     __init_lock.enter();
                     if (__inited)
                     {
                         __init_lock.leave();
+                        goto retry_exception_lookup;
                     }
-                    if (!__inited)
-                        __lookup.insert(std::pair<const char* const, int>("[urgent]", 0x5c1));
-                    if (!__inited)
+                    v = 0;
+                }
+                switch (v)
+                {
+                case 0:
+                case 0x5c1:
+                    if (__inited)
                     {
-                        __init_lock.leave();
-                        __inited = true;
+                        script->m_exceptionList.push_back(
+                            ENUM_QUEST_EXCEPTION_TYPE_0);
+                        break;
                     }
+                    __lookup.insert(std::pair<const char* const, int>(
+                        "[urgent]", 0x5c1));
+                    /* fall through */
+                default:
+                    if (__inited)
+                    {
+                        return 0;                    // ORIG +0x3dcd
+                    }
+                    break;
                 }
-                std::map<const char*, int, less_TCHAR>::const_iterator it =
-                    __lookup.find(sub.c_str());
-                int type = (it != __lookup.end()) ? it->second : -1;
-                if (type == 0 || type == 0x5c1)
+                if (!__inited)
                 {
-                    script->m_exceptionList.push_back(
-                        ENUM_QUEST_EXCEPTION_TYPE_0);
+                    __init_lock.leave();
                 }
-                else
+                if (!__inited)
                 {
-                    return 0;
+                    __inited = true;
                 }
-            }
+                if (!__inited)
+                {
+                    goto retry_exception_lookup;     // 理论不可达（上面已置位）
+                }            }
             continue;
         }
         if (line == "[hide npc on clear]")

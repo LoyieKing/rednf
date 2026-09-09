@@ -45,6 +45,19 @@
 extern "C" double __strtod_internal(const char*, char**, int);
 extern "C" long __strtol_internal(const char*, char**, int, int);
 
+// 构造（ORIG 0x8aced60）：vptr、lastToken_/lastStringValue_/lexType_ 清零，
+// 依次构造 dnfLex_（DNFLex）与 compiledDnfLex_（CompiledDNFLex），最后回调
+// 字段 +0x6108/+0x610c 清零（+0x08 lastIntValue_ / +0x0c lastFloatValue_ 不写，
+// 与 ORIG 汇编一致）。C++ 成员按声明序自动构造子对象。
+DNFLexWrapper::DNFLexWrapper()
+    : lastToken_(0),
+      lastStringValue_(0),
+      lexType_(LEX_TYPE_NORMAL),
+      lexerError_(0),
+      loadStream_(0)
+{
+}
+
 DNFLexWrapper g_dnfLex;
 
 void DNFLexWrapper::setLexType(ENUM_LEX_TYPE t)
@@ -360,19 +373,6 @@ void DNFLexWrapper::SetHandler(bool (*isDbcsLeadChar)(char),
     compiledDnfLex_.SetHandler(lexerError, loadStream);
     lexerError_ = (void*)lexerError;
     loadStream_ = (void*)loadStream;
-}
-
-// 构造（ORIG 0x8aced60）：vptr、lastToken_/lastStringValue_/lexType_ 清零，
-// 依次构造 dnfLex_（DNFLex）与 compiledDnfLex_（CompiledDNFLex），最后回调
-// 字段 +0x6108/+0x610c 清零（+0x08 lastIntValue_ / +0x0c lastFloatValue_ 不写，
-// 与 ORIG 汇编一致）。C++ 成员按声明序自动构造子对象。
-DNFLexWrapper::DNFLexWrapper()
-    : lastToken_(0),
-      lastStringValue_(0),
-      lexType_(LEX_TYPE_NORMAL),
-      lexerError_(0),
-      loadStream_(0)
-{
 }
 
 // 析构（ORIG 0x8acecf0）：恢复 vptr，析构 compiledDnfLex_ 与 dnfLex_

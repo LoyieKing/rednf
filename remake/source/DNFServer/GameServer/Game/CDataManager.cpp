@@ -108,14 +108,6 @@ extern int PVP_NORMAL_BATTLE_TIME[2];
 // PVP_NORMAL_BATTLE_TIME / PVP_DM_BATTLE_TIME 定义于 PvP_Room.cpp。
 extern int PVP_NORMAL_BATTLE_TIME[2];
 extern int PVP_DM_BATTLE_TIME[2];
-// PVP_RELAY_BATTLE_TIME 无既有定义，由本 TU 提供（链接保证）。
-int PVP_RELAY_BATTLE_TIME[2] = {0, 0};
-
-// ===================== 本 TU 局部依赖类/全局定义（后续批次替换） =====================
-
-// 全局数据（ORIG 属于其它 TU；当前先在此提供可链接定义）
-CSystemTime g_systemTimeInst;  // TODO(后续批次)
-int g_levelExpTable[256] = {0};  // TODO(后续批次)
 
 // CAutoMarketConditionsControl：ORIG ctor 0x082f8108 —— m_vec3dc(+0x3dc) 默认
 // 构造（非平凡成员先行，0x082f8119），随后函数体逐句置 0，顺序
@@ -126,6 +118,15 @@ CAutoMarketConditionsControl::CAutoMarketConditionsControl()
     m_field00 = 0;
     m_field3e8 = 0;
 }
+
+// PVP_RELAY_BATTLE_TIME 无既有定义，由本 TU 提供（链接保证）。
+int PVP_RELAY_BATTLE_TIME[2] = {0, 0};
+
+// ===================== 本 TU 局部依赖类/全局定义（后续批次替换） =====================
+
+// 全局数据（ORIG 属于其它 TU；当前先在此提供可链接定义）
+CSystemTime g_systemTimeInst;  // TODO(后续批次)
+int g_levelExpTable[256] = {0};  // TODO(后续批次)
 
 // ORIG dtor 0x082f8144：仅 vector<int> @+0x3dc 析构（成员自动）。
 CAutoMarketConditionsControl::~CAutoMarketConditionsControl()

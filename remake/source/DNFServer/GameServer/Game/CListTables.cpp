@@ -694,7 +694,7 @@ bool CMonsterManager::insert_monster(int level, CMonster* monster)
 // 返回 int 而 ORIG 调用点 `xor $1; test %al` 为 bool（定义在 STMonsterScript.cpp
 // 非本泳道，已上报 Main）；②path==0 分支极性（ORIG je 落 return 1 尾块）；
 // ③槽号整体差 ⇒ 封顶。
-int CMonsterManager::load_monsters()
+bool CMonsterManager::load_monsters()  // [P330 int→bool] 与 CDataManager.h 声明同步（ORIG caller xor $1 形）
 {
     // [b28d-solo-CListTables P168a] ORIG 0x0834fa8e `call; xor $1; test %al,%al;
     // je 主体` = 负形早退（失败分支 fall-through 到 puts/return 0）。
@@ -975,7 +975,7 @@ __gnu_cxx::hash_map<int, CSkill*>* CSkillList::getSkillList(int jobType)
 // + 主/尾循环迭代器 C1Ev+ppEi、s2/s3/s4 Import 与 insert 各自 printf、push_back(Oi)
 // 右值全部对齐；+14 条含 ImportSkillScript 调用点 int→bool 差（P248档①，定义在
 // STMonsterScript.cpp 非本泳道，已上报 Main）与槽位/块形差 ⇒ 语义完成、byte 层封顶。
-int CSkillList::init()
+bool CSkillList::init()  // [P330 int→bool] 与 CDataManager.h 声明同步（ORIG caller xor $1 形）
 {
     // [b28d-solo-CListTables N(§6.2/N82)] 866/880 + p167 CLEAR(111/111)：主循环/
     // 尾循环迭代器 C1Ev+ppEi、s2/s3/s4 Import 与 insert 各自 printf、push_back(Oi)

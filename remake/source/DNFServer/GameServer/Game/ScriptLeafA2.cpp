@@ -811,7 +811,10 @@ bool StageMapList::loadList()
 namespace APSystem
 {
 
-bool CActionPointEtcParameter::importActionPointSystemEtcScript(
+// [b28d-P330 int] ORIG 返回 = **错误行号 int**（callee 尾 `mov %ebx,%eax; ret`，
+// ebx 写点含 `mov $0x57..$0xfa,%ebx` 14 处行号常量、0 引用 ×2；caller 4B 全
+// store 无 movzbl）。旧 bool 声明把行号截成 0/1 ⇒ trace "%d line" 日志值错。
+int CActionPointEtcParameter::importActionPointSystemEtcScript(
     const char* path, CActionPointEtcParameter& out)
 {
     // [b28d-solo-ScriptLeafA2] 判词 = N（残余迭代器计数/EH 清理差；p167 110=112）。
@@ -827,7 +830,7 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
     out.ClearData();
     if (!loadRDARScriptFile("", path))
     {
-        return false;
+        return 0;   // ORIG +0x04c 文件缺失静默返回 0
     }
 
     for (;;)
@@ -849,7 +852,8 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
                                        static_cast<const CActionPointEx*>(&vec[i])));
                 }
             }
-            return false;
+            // ↑ [P330] ORIG EOF 正常出口：ebx=0
+            return 0;
         }
 
         if (token == "[action point list]")
@@ -888,13 +892,13 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
                 *reinterpret_cast<int*>(&ex.m_bytes02[0]) = v4;   // +0x02 int（组索引）
                 if (!IsValidActionGroupIndex((_ActionGroupIndex)v4))
                 {
-                    return false;                       // ORIG 错误码 0x62
+                    return 0x62;                        // ORIG 错误码 0x62
                 }
 
                 int v5 = ScanInt(&ok);
                 if (!ok)
                 {
-                    return false;                       // 0x65
+                    return 0x65;                        // 0x65
                 }
                 ex.m_bytes02[6] = static_cast<unsigned char>(v5);   // +0x08（后被覆写）
 
@@ -903,7 +907,7 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
                     int day = ScanInt(&ok);
                     if (!ok)
                     {
-                        return false;                   // 0x6d
+                        return 0x6d;                    // 0x6d
                     }
                     if (day != 0)
                     {
@@ -915,7 +919,7 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
                 std::string itemList;
                 if (!ScanStr(&itemList))
                 {
-                    return false;                       // 0x76
+                    return 0x76;                        // 0x76
                 }
                 {
                     // strtok_r 按 "," 切分 atoi 入 vector<int>（B+0x14）
@@ -934,7 +938,7 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
                 std::string weekdayStr;
                 if (!ScanStr(&weekdayStr))
                 {
-                    return false;                       // 0x9c
+                    return 0x9c;                        // 0x9c
                 }
                 unsigned int weekday = 0;
                 if (!ConvertWeekdayStringToInt(weekdayStr, weekday))
@@ -946,24 +950,24 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
                 int b9 = ScanInt(&ok);
                 if (!ok)
                 {
-                    return false;                       // 0xa4
+                    return 0xa4;                        // 0xa4
                 }
                 ex.m_bytes02[7] = static_cast<unsigned char>(b9);   // +0x09（覆盖 days[3]）
 
                 int b10 = ScanInt(&ok);
                 if (!ok)
                 {
-                    return false;                       // 0xa7
+                    return 0xa7;                        // 0xa7
                 }
                 ex.m_bytes02[0x0e] = static_cast<unsigned char>(b10);   // +0x10
 
                 if (!ScanStr(&ex.m_str24))
                 {
-                    return false;                       // 0xaa
+                    return 0xaa;                        // 0xaa
                 }
                 if (!ScanStr(&ex.m_str28))
                 {
-                    return false;                       // 0xad
+                    return 0xad;                        // 0xad
                 }
 
                 std::map<unsigned short, std::vector<CActionPointEx> >::iterator fit =
@@ -995,7 +999,7 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
                 std::string msg;
                 if (!ScanStr(&msg))
                 {
-                    return false;                       // ORIG 错误码 199(0xc7)
+                    return 0xc7;                        // ORIG 错误码 199(0xc7)
                 }
                 out.m_rewardMessages.insert(std::make_pair(msgId, msg));
             }
@@ -1012,7 +1016,7 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
                 std::string msg;
                 if (!ScanStr(&msg))
                 {
-                    return false;                       // ORIG 错误码 0xd5
+                    return 0xd5;                        // ORIG 错误码 0xd5
                 }
                 out.m_rewardMessages2.insert(std::make_pair(msgId, msg));
             }
@@ -1046,7 +1050,7 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
                 today.m_itemIdx = raw - 1;
                 if (!IsValidTodayRewardItem(*reinterpret_cast<const _SIG_LOAD_ACTION_POINT::_TodayRewardItem*>(&today)))  // 嵌套形参按值4B,首int同位(顶层0xe表行,ORIG import 五列中间态见 ScriptLeafA2 批)
                 {
-                    return false;                       // ORIG 错误码 0xfa
+                    return 0xfa;                        // ORIG 错误码 0xfa
                 }
                 ScanInt(&ok);                           // 四个丢弃列（ORIG 存栈即弃）
                 ScanInt(&ok);

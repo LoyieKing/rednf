@@ -127,7 +127,7 @@ public:
     CMonsterManager();
     ~CMonsterManager();
     void destroy();
-    int load_monsters();
+    bool load_monsters();  // [P330 int→bool] init 调用点 ORIG `xor $0x1,%eax` 取反形（caller 声明 bool，probe1 实证 int 只能发 sete）
     int insert_monster(int level, int monsterIdx);
     bool insert_monster(int level, CMonster* monster);
     CMonster* find_monster(int idx);
@@ -1666,7 +1666,10 @@ public:
     // （CDataManager::init 对 m_actionPoint1/m_actionPoint2 各调一次）
     // 静态成员实证：ORIG 调用点 0x08359d4b（init.md +0x1a12..+0x1a19）仅压
     // 2 个实参（(%esp)=path、0x4(%esp)=ref），无 this ⇒ 非虚静态成员函数。
-    static bool importActionPointSystemEtcScript(const char* path,
+    // [P330 bool→int] ORIG callee 尾 `mov %ebx,%eax; ret`，ebx 写点含 14 处
+    // 行号常量（0x57..0xfa）⇒ 返回 = 错误行号 int；旧 bool 截断行号，trace
+    // "%d line" 日志值错（真语义 bug）。定义 ScriptLeafA2.cpp:817 已同步。
+    static int importActionPointSystemEtcScript(const char* path,
                                                  CActionPointEtcParameter& param);
 private:
     // ORIG ClearData 0x088948fc 布局（32 位：4×map(0x18) + 2×vector(0xc) = 0x78）。
@@ -3014,7 +3017,7 @@ public:
     CSkillList();
     ~CSkillList();
     void destroy();
-    int init();
+    bool init();  // [P330 int→bool] CSkillList::init：init 调用点 ORIG xor $1 形（idx 2958）
     void insert_skill(int jobType, CSkill* skill);
     CSkill* find_skill(int skillId, int level);
     int get_ran_groupskill_index(int jobType, int group, int skillIdx);
@@ -3157,7 +3160,7 @@ public:
     // 透传 import 错误行号，0=成功），派生覆盖随基类返回 int。
     int LoadUpgradeScript(const char* path);                // ORIG T 0x0854919a（槽 +0x04）
     // ORIG _ZN8WongWork12CItemUpgrade29Load3rdChronicleUpgradeScriptEPKc（init 调用）
-    int Load3rdChronicleUpgradeScript(const char* path);
+    bool Load3rdChronicleUpgradeScript(const char* path);  // [P330 int→bool] init 调用点 ORIG xor $1 形（idx 4111）
     float getUpgradeItemRepairCostRate(int idx, bool flag) const;
     // ORIG 0x0854ac35 尾 `mov $0x1,%ebx … mov %ebx,%eax`（P159：返回非 void）
     int make3rdChroniclePacket(CUser* user, const Inven_Item& item,
@@ -3520,7 +3523,7 @@ public:
 
     // ---- PvP/排行 ----
     bool set_pvp_grade();  // [b28d-orig-bool] init 调用点 ORIG xor $1 形 ⇒ bool 返回
-    int set_reward_sp();
+    bool set_reward_sp();  // [P330 int→bool] init 调用点 ORIG xor $1 形（idx 3876）；定义 CDataManagerMethods.cpp:83 同步
     unsigned short getRankIndex(int idx);
     unsigned int getNewRankIndex(int idx) const;
     int getRankBonusIndex(int idx) const;

@@ -336,47 +336,52 @@ bool AvatarRouletteServer::InitAddCharacSkill()
             std::vector<std::pair<unsigned long, int> >& inner = outer[li];
             for (int type = 0; type < 9; ++type)
             {
-                if (!(type == 3 && (job == 9 || job == 0)))
-                    continue;
-                const char* fileName =
-                    g_stEquipmentScriptFileList.GetFileName(
-                        static_cast<int>(inner[type].first));
-                if (fileName == 0)
-                    continue;
-
-                STEquipmentScript eq;
-                if (!ImportEquipmentScript(&eq, fileName, false, 0, -1))
+                // [BigUserLogic] ORIG 0x0817f45x 布局 = 正向块 `if (type==3 &&
+                // (job==9||job==0)) { … if (fileName) { … } }`（假条件 je 跳 loop
+                // 尾，无独立 continue 岛）。旧 `if(!(…)) continue` 反判形产额外
+                // jmp/条件翻转。正向化，语义零改动。
+                if (type == 3 && (job == 9 || job == 0))
                 {
-                    LogManager::logFormat(
-                        1, "localjapan/Arad_AvatarRoulette.cpp",
-                        __PRETTY_FUNCTION__, 0x39,
-                        "InitAddCharacSkill() - ImportEquipmentScript() fail file - %s",
-                        fileName);
-                    return false;
-                }
-                std::map<int, std::vector<LevelUpSkill> > skillMap;
-                int count = static_cast<int>(eq.m_param1c0.m_avatar264.size());
-                for (int idx = 0; idx < count; ++idx)
-                {
-                    LevelUpSkill skill;
-                    STAvatarAbilityVariation& var = eq.m_param1c0.m_avatar264[idx];
-                    skill.m_job = var.m_skill.m_job;        // 元素 +0xc（内层 map 键，ORIG 0x0817f55d find 用 +0）
-                    skill.m_field4 = var.m_skill.m_field4;  // 元素 +0x10
-                    skill.m_field8 = var.m_skill.m_field8;  // 元素 +0x14
-                    // ORIG：先取 end() 再 find(job)（0x0817f548/0x0817f577），
-                    // find==end 时先插入空 vector，再 push_back。
-                    std::map<int, std::vector<LevelUpSkill> >::iterator itEnd =
-                        skillMap.end();
-                    std::map<int, std::vector<LevelUpSkill> >::iterator it =
-                        skillMap.find(skill.m_job);
-                    if (it == itEnd)
+                    const char* fileName =
+                        g_stEquipmentScriptFileList.GetFileName(
+                            static_cast<int>(inner[type].first));
+                    if (fileName != 0)
                     {
-                        std::vector<LevelUpSkill> empty;
-                        skillMap[skill.m_job] = empty;
+                        STEquipmentScript eq;
+                        if (!ImportEquipmentScript(&eq, fileName, false, 0, -1))
+                        {
+                            LogManager::logFormat(
+                                1, "localjapan/Arad_AvatarRoulette.cpp",
+                                __PRETTY_FUNCTION__, 0x39,
+                                "InitAddCharacSkill() - ImportEquipmentScript() fail file - %s",
+                                fileName);
+                            return false;
+                        }
+                        std::map<int, std::vector<LevelUpSkill> > skillMap;
+                        int count = static_cast<int>(eq.m_param1c0.m_avatar264.size());
+                        for (int idx = 0; idx < count; ++idx)
+                        {
+                            LevelUpSkill skill;
+                            STAvatarAbilityVariation& var = eq.m_param1c0.m_avatar264[idx];
+                            skill.m_job = var.m_skill.m_job;        // 元素 +0xc（内层 map 键，ORIG 0x0817f55d find 用 +0）
+                            skill.m_field4 = var.m_skill.m_field4;  // 元素 +0x10
+                            skill.m_field8 = var.m_skill.m_field8;  // 元素 +0x14
+                            // ORIG：先取 end() 再 find(job)（0x0817f548/0x0817f577），
+                            // find==end 时先插入空 vector，再 push_back。
+                            std::map<int, std::vector<LevelUpSkill> >::iterator itEnd =
+                                skillMap.end();
+                            std::map<int, std::vector<LevelUpSkill> >::iterator it =
+                                skillMap.find(skill.m_job);
+                            if (it == itEnd)
+                            {
+                                std::vector<LevelUpSkill> empty;
+                                skillMap[skill.m_job] = empty;
+                            }
+                            skillMap[skill.m_job].push_back(skill);
+                        }
+                        m_addCharacSkillMap[inner[type].first] = skillMap;
                     }
-                    skillMap[skill.m_job].push_back(skill);
                 }
-                m_addCharacSkillMap[inner[type].first] = skillMap;
             }
         }
     }
@@ -447,32 +452,32 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
     picked.m_optionOrSkillIdx =
         static_cast<char>(get_rand_int(equip->getAvatarOptionSize()));
 
-    if (!(index == 3 && (grade == 9 || grade == 0)))
+    // [BigUserLogic] ORIG 伪C/汇编（0x0817fe??..0817fec6 唯一 `movb $0,0x9`）：
+    // 特殊段与「非特殊」路径在 pad9 写入点**汇合**（单一物理写）；旧 `if(!special)
+    // {pad9=0;return}` 早返形造成两处物理写（+3 条）。改回正向块 + fallthrough。
+    if (index == 3 && (grade == 9 || grade == 0))
     {
-        picked.m_pad9 = 0;
-        return true;
+        // 加成技能选择：ORIG 将 m_addCharacSkillMap[uid] 的 value map 拷贝到栈
+        // （copy ctor 08180ca2 实证），找不到 grade 键时直接返回 false（不写 pad9）。
+        // p167：ORIG 用**非 const** `_Rb_tree_iterator`（operator==/operator-> 非 const
+        // 实例）+ `operator[]` 二次取值（find 判存在 + operator[] 取 map，P123），
+        // 旧 const_iterator 多转换构造 ×2 + const 版比较。
+        std::map<unsigned long,
+                 std::map<int, std::vector<LevelUpSkill> > >::iterator it =
+            m_addCharacSkillMap.find(static_cast<unsigned long>(picked.m_itemId));
+        if (it == m_addCharacSkillMap.end())
+            return false;
+
+        std::map<int, std::vector<LevelUpSkill> > skillMap =
+            m_addCharacSkillMap[static_cast<unsigned long>(picked.m_itemId)];
+        std::map<int, std::vector<LevelUpSkill> >::iterator sit = skillMap.find(grade);
+        if (sit == skillMap.end())
+            return false;
+
+        std::vector<LevelUpSkill> skillVec = skillMap[grade];
+        picked.m_optionOrSkillIdx =
+            static_cast<char>(skillVec[get_rand_int(skillVec.size())].m_field4);
     }
-
-    // 加成技能选择：ORIG 将 m_addCharacSkillMap[uid] 的 value map 拷贝到栈
-    // （copy ctor 08180ca2 实证），找不到 grade 键时直接返回 false（不写 pad9）。
-    // p167：ORIG 用**非 const** `_Rb_tree_iterator`（operator==/operator-> 非 const
-    // 实例）+ `operator[]` 二次取值（find 判存在 + operator[] 取 map，P123），
-    // 旧 const_iterator 多转换构造 ×2 + const 版比较。
-    std::map<unsigned long,
-             std::map<int, std::vector<LevelUpSkill> > >::iterator it =
-        m_addCharacSkillMap.find(static_cast<unsigned long>(picked.m_itemId));
-    if (it == m_addCharacSkillMap.end())
-        return false;
-
-    std::map<int, std::vector<LevelUpSkill> > skillMap =
-        m_addCharacSkillMap[static_cast<unsigned long>(picked.m_itemId)];
-    std::map<int, std::vector<LevelUpSkill> >::iterator sit = skillMap.find(grade);
-    if (sit == skillMap.end())
-        return false;
-
-    std::vector<LevelUpSkill> skillVec = skillMap[grade];
-    picked.m_optionOrSkillIdx =
-        static_cast<char>(skillVec[get_rand_int(skillVec.size())].m_field4);
 
     picked.m_pad9 = 0;
     return true;

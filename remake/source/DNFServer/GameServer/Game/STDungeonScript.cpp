@@ -227,8 +227,9 @@ bool ImportDungeonScript(STDungeonScript* pScript, const char* path)
     //
     // BigDungeon 2026-09-09 复核（同一 .o 重测 AE 口径 ndiff 5914→5398；
     // 槽归一辅助口径 964→888。台账 all_tu_ledger.tsv 记的 11131/N89 是 b28c 前
-    // 旧 our=9404 的数，已过期；本件 4.1 out-of-line STL 实例 call 实测 0 处，
-    // p167 调用点差集两侧 1079=1079 全等 ⇒ N89 判定对本件不成立）：
+    // 旧 our=9404 的数，已过期。p167 调用点差集两侧 1079=1079 全等（MISSING 0 /
+    // EXTRA 0），即 4.1 out-of-line STL 实例 call 在我方逐一对位存在
+    // ⇒ N89「内联决策差」对本件不成立，残差全部为栈槽号漂移 + 少量形态差）：
     //   a) 形参缓存：ORIG 在 `Clear()` 之后把 script 溢出到 -0x128，其后 235 处
     //      字段访问全部 `mov -0x128(%ebp),%eax` 重载（0x8(%ebp) 仅余 2 处）。
     //      4.4 直读形参 ⇒ 基址寄存器用 %edx、且每处少一条 mov。改为

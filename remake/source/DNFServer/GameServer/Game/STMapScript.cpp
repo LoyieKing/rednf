@@ -3033,6 +3033,10 @@ bool ExportMapScript(STMapScript* script, const char* path)
     static char szSaveFileName[0x100];                 // 函数级静态 szSaveFileName
     getScriptFileFullPath(szSaveFileName, 0x100,
                           g_szMapScriptBaseDirectory, path);
+    // ORIG 槽序：chL..chB(-0x85..-0x88) 介于 file(-0x94) 与后续循环变量(-0x8c)
+    // 之间 ⇒ 声明位置在 file 初始化之前（仅声明、不初始化，不发指令）。
+    bool chL, chR, chT, chB;                           // -0x88..-0x85（screen edge）
+    unsigned int tileIdx;                              // ORIG -0x8c：tile/exttile 两段
     FILE* file = fopen(szSaveFileName, "wb");
     if (!file)
         return false;
@@ -3067,10 +3071,19 @@ bool ExportMapScript(STMapScript* script, const char* path)
                         script->m_pvpStartArea[i].m_h);
         }
     }
-    if (script->m_24c == 1)                     // ORIG Export 判 0x24c==1
+    // ORIG 0x89e3fc0 展开序：cmp $1 je; cmp $2 je; test(=case0); jmp end
+    // ⇒ switch、case 书写序 1,2,0（case0 体空）。
+    switch (script->m_24c)
+    {
+    case 1:
         fwrite("[shadow type] `[mirror]`\n", 1, 25, file);
-    else if (script->m_24c == 2)
+        break;
+    case 2:
         fwrite("[shadow type] `[more darker]`\n", 1, 30, file);
+        break;
+    case 0:
+        break;
+    }
     if (!script->m_list4.empty())
     {
         fwrite("[dungeon]\n", 1, 10, file);
@@ -3101,15 +3114,15 @@ bool ExportMapScript(STMapScript* script, const char* path)
     if (!script->m_vecTile.empty())             // +0x70 [tile]
     {
         fwrite("[tile]\n", 1, 7, file);
-        for (unsigned int i = 0; i < script->m_vecTile.size(); ++i)
-            fprintf(file, "`%s`\n", script->m_vecTile[i].c_str());
+        for (tileIdx = 0; tileIdx < script->m_vecTile.size(); ++tileIdx)
+            fprintf(file, "`%s`\n", script->m_vecTile[tileIdx].c_str());
         fwrite("[/tile]\n", 1, 8, file);
     }
     if (!script->m_vecExtendedTile.empty())     // +0x7c [extended tile]
     {
         fwrite("[extended tile]\n", 1, 16, file);
-        for (unsigned int i = 0; i < script->m_vecExtendedTile.size(); ++i)
-            fprintf(file, "`%s`\n", script->m_vecExtendedTile[i].c_str());
+        for (tileIdx = 0; tileIdx < script->m_vecExtendedTile.size(); ++tileIdx)
+            fprintf(file, "`%s`\n", script->m_vecExtendedTile[tileIdx].c_str());
         fwrite("[/extended tile]\n", 1, 17, file);
     }
     if (script->m_element != 4)                 // +0x6c != Clear 值
@@ -3449,7 +3462,20 @@ bool ExportMapScript(STMapScript* script, const char* path)
     if (!script->m_mapLoadingImagePath.empty()) // +0x26c（ORIG：fprintf 无 \n，089e67b4）
         fprintf(file, "[map loading image path] %s",
                 script->m_mapLoadingImagePath.c_str());
-    if (script->m_vecEventMonsterPos.empty())   // +0x278 空 → [move layered map]
+    // ORIG 0x89e67d5 `call empty; xor $1; test; je`：非空分支为 fall-through
+    // （[event monster position] 就地），空分支 je 至远端（[move layered map]）。
+    // 源形状必须是 `if (!empty()) {monster} else {layered}` 才能复现块序。
+    if (!script->m_vecEventMonsterPos.empty())  // +0x278 非空 → [event monster position]
+    {
+        fwrite("[event monster position]\n", 1, 25, file);
+        for (unsigned int i = 0; i < script->m_vecEventMonsterPos.size(); ++i)
+        {
+            STRivalMapData* p = &script->m_vecEventMonsterPos[i];  // 单次 ix
+            fprintf(file, "%d %d %d\n", p->m_field00, p->m_field04, p->m_field08);
+        }
+        fwrite("[/event monster position]\n", 1, 26, file);
+    }
+    else                                        // 空 → [move layered map]
     {
         if (script->m_moveLayeredType != 4)
         {
@@ -3460,16 +3486,6 @@ bool ExportMapScript(STMapScript* script, const char* path)
                 fprintf(file, "\t[zpos under] %d\n", script->m_zposUnder);
             fwrite("[/move layered map]\n", 1, 20, file);
         }
-    }
-    else                                        // [event monster position]
-    {
-        fwrite("[event monster position]\n", 1, 25, file);
-        for (unsigned int i = 0; i < script->m_vecEventMonsterPos.size(); ++i)
-        {
-            STRivalMapData* p = &script->m_vecEventMonsterPos[i];  // 单次 ix
-            fprintf(file, "%d %d %d\n", p->m_field00, p->m_field04, p->m_field08);
-        }
-        fwrite("[/event monster position]\n", 1, 26, file);
     }
     if (!script->m_vecStaticStartPos.empty())   // +0x2e8
     {
@@ -3486,10 +3502,10 @@ bool ExportMapScript(STMapScript* script, const char* path)
         fwrite("[/static player start pos]\n", 1, 27, file);
     }
     {                                           // screen edge（对照 defaults）
-        bool chL = script->m_screenEdgeLeft != defaults.m_screenEdgeLeft;
-        bool chR = script->m_screenEdgeRight != defaults.m_screenEdgeRight;
-        bool chT = script->m_screenEdgeTop != defaults.m_screenEdgeTop;
-        bool chB = script->m_screenEdgeBottom != defaults.m_screenEdgeBottom;
+        chL = script->m_screenEdgeLeft != defaults.m_screenEdgeLeft;
+        chR = script->m_screenEdgeRight != defaults.m_screenEdgeRight;
+        chT = script->m_screenEdgeTop != defaults.m_screenEdgeTop;
+        chB = script->m_screenEdgeBottom != defaults.m_screenEdgeBottom;
         if (chL || chR || chT || chB)
         {
             fwrite("[customized screen edge]\n", 1, 25, file);

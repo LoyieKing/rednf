@@ -293,6 +293,10 @@ static const CountryCodeTableEntry ccTable[242] = {
     { 0x7a, 0x7a, { 0, 0 }, "Global" },
 };
 
+CountryCode::CountryCode() : m_idx(0)
+{
+}
+
 // ---------------------------------------------------------------------------
 // 静态成员（ORIG 0x08ad3356：C1Eh 各初值）
 // ---------------------------------------------------------------------------
@@ -307,10 +311,6 @@ CountryCode CountryCode::usa((unsigned char)0xe0);
 // ---------------------------------------------------------------------------
 // 构造函数
 // ---------------------------------------------------------------------------
-CountryCode::CountryCode() : m_idx(0)
-{
-}
-
 CountryCode::CountryCode(unsigned char value) : m_idx(value)
 {
 }

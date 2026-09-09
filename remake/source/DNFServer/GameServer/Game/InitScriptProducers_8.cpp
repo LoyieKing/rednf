@@ -176,7 +176,7 @@ bool importResealTable(const char* path, reseal_table_t* out)
 // [b28d-solo-InitScriptProducers_8 AE] ORIG 08913c7e：clean 89/89（ORIG 92 insns）；
 // p167 CLEAR。已对齐：set::clear、ok 每轮重置、insert(int)、EOF 与 [/apply ultimate]
 // 共享尾块 return 1、打开失败日志返回 0。
-int importUltimateDungeonList(const char* path, std::set<int>& out)
+bool importUltimateDungeonList(const char* path, std::set<int>& out)  // [P330] 与 DataManagerInitDepends.h 同步
 {
     if (!loadRDARScriptFile("", path))
     {

@@ -3958,8 +3958,6 @@ int DisPatcher_StartGame::excludeAddHackCount(CUser* user)
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 55（ORIG 129 / ours 132），残差=N82 槽/块序；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    static const char* const kPretty =
-        "virtual int DisPatcher_StartGame::process(CUser*, MSG_BASE&, ParamBase&)";
     stStartGameParam& out = static_cast<stStartGameParam&>(param);
     // ORIG +0x20：errNo store 双钉（技45）。
     // [b28d-solo-DisPatcherCore] P211：ORIG RHS-first+edx 中转（unsigned 返回 + 无具名局部）。
@@ -3970,7 +3968,7 @@ int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     if (out.m_errNo < 0)
     {
-        return LineFunc(0x1e5b, kPretty, out.m_errNo, user->get_acc_id());
+        return LineFunc(0x1e5b, __PRETTY_FUNCTION__, out.m_errNo, user->get_acc_id());
     }
 
     // ORIG +0x84 `movb $0x0,-0x15` dead bool 初始化（技8 变体）：hasDeathTower
@@ -4005,7 +4003,7 @@ int DisPatcher_StartGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         CParty* party = G_CGameManager()->GetParty();
         if (party == 0)
         {
-            LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp", kPretty, 0x1e99,
+            LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp", __PRETTY_FUNCTION__, 0x1e99,
                                   "cant party memory : you must free party memory!!!");
             return 0;
         }
@@ -4224,8 +4222,6 @@ int DisPatcher_SelectDungeon::checkBlueMarble(CParty* party)
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 840（ORIG 808 / ours 826），残差=setcc-fold bool 物化岛/P168a④ bool 槽化/P30/N4 槽与寻址；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    static const char* const kPretty =
-        "virtual int DisPatcher_SelectDungeon::process(CUser*, MSG_BASE&, ParamBase&)";
     const MSG_SELECT_DUNGEON& req = *reinterpret_cast<const MSG_SELECT_DUNGEON*>(&msg);
     stSelectDungeonParam& out = static_cast<stSelectDungeonParam&>(param);
 
@@ -4236,7 +4232,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
     }
     if (out.m_4 < 0)
     {
-        return LineFunc(0x1970, kPretty, out.m_4, user->get_acc_id());
+        return LineFunc(0x1970, __PRETTY_FUNCTION__, out.m_4, user->get_acc_id());
     }
 
     IsLightServer();   // ORIG 调用后丢弃结果
@@ -4258,7 +4254,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
             if (member != 0)
             {
                 LogManager::logFormat(
-                    1, "PacketDispatcher_Impl_1.cpp", kPretty, 0x198a,
+                    1, "PacketDispatcher_Impl_1.cpp", __PRETTY_FUNCTION__, 0x198a,
                     "[HackUser] dungeon hack user. (mid:%u)", member->get_acc_id());
                 party->leave_user(member, (ENUM_PARTY_INFO_TYPE)3);
                 member->DisConnSig((DISCONN_SIG)0x18, true, 0);
@@ -4280,7 +4276,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
     if (party != 0)
     {
         const int memberCount = party->get_member_count();
-        cMyTrace trace(kPretty, 0x19bf, 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x19bf, 0);
         trace("[DisPatcher_SelectDungeon] partyCount : %d", memberCount);
 
         char hackFound = 0;
@@ -4303,7 +4299,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
                 continue;
             }
             LogManager::logFormat(
-                1, "PacketDispatcher_Impl_1.cpp", kPretty, 0x19df,
+                1, "PacketDispatcher_Impl_1.cpp", __PRETTY_FUNCTION__, 0x19df,
                 "[HACK_VILL_AREA] m_id : %s, Vill(%d,%d), Area(%d,%d)",
                 NumberToString(member->get_acc_id(), 0),
                 (int)selfVill, (int)memberVill, selfArea, memberArea);
@@ -4320,7 +4316,7 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
                     continue;
                 }
                 LogManager::logFormat(
-                    1, "PacketDispatcher_Impl_1.cpp", kPretty, 0x19fa,
+                    1, "PacketDispatcher_Impl_1.cpp", __PRETTY_FUNCTION__, 0x19fa,
                     "[HACK_VILL_AREA] m_id : %s, Vill(%d), Area(%d)",
                     NumberToString(member->get_acc_id(), 0), (int)selfVill, selfArea);
                 member->DisConnSig((DISCONN_SIG)0x18, true, 0);
@@ -4792,8 +4788,6 @@ void DisPatcher_DeleteItem::send(CUser* user, ParamBase& param)
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 400（ORIG 651 / ours 653），残差=P168a④ bool 槽化/P211/N18a 中转/store 序/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    static const char* const kPretty =
-        "virtual int DisPatcher_DeleteItem::process(CUser*, MSG_BASE&, ParamBase&)";
     const MSG_DELETE_ITEM& req = *reinterpret_cast<const MSG_DELETE_ITEM*>(&msg);
     stDeleteItemParam& out = static_cast<stDeleteItemParam&>(param);
     out.m_4 = check_error(user, msg);
@@ -4803,7 +4797,7 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     if (out.m_4 < 0)
     {
-        return LineFunc(0xb8e, kPretty, out.m_4, user->get_acc_id());
+        return LineFunc(0xb8e, __PRETTY_FUNCTION__, out.m_4, user->get_acc_id());
     }
 
     if (exercise_mode(user, msg, param))
@@ -4906,7 +4900,7 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
         if (deleted > 0)
         {
             // 中途失败：先向客户端回滚已删条目，再发失败确认
-            cMyTrace trace(kPretty, 0xc2a, 5);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0xc2a, 5);
             trace("delete_item failed in the middle of deleting items. %d/%d",
                   i, (int)(signed char)req.m_count);
 
@@ -4933,7 +4927,7 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             ack.put_byte((int)(char)req.m_itemSpace);
             ack.finalize(true);
             user->Send(ack);
-            return LineFunc(0xc48, kPretty, 0, user->get_acc_id());
+            return LineFunc(0xc48, __PRETTY_FUNCTION__, 0, user->get_acc_id());
         }
 
         if (!item.isEmpty() && delKind == 5)
@@ -5166,8 +5160,6 @@ void DisPatcher_MoveItem::send(CUser* user, ParamBase& param)
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 136（ORIG 192 / ours 196），残差=P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    static const char* const kPretty =
-        "virtual int DisPatcher_MoveItem::process(CUser*, MSG_BASE&, ParamBase&)";
     // 本 TU 同址视图（PvPTimeout::read ViewPacked 先例）：m_fromSpace/m_toSpace 以
     // unsigned char 读出 ORIG `movzbl 0xd/0x18(%eax),%edx` 单步 disp 折叠 + QI 直存
     // （冻结头 char 声明混号必两段）；偏移/宽度按 PacketTypes.h:908 布局注释。
@@ -5202,7 +5194,7 @@ int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     if (out.m_4 < 0)
     {
-        return LineFunc(0x141b, kPretty, out.m_4, user->get_acc_id());
+        return LineFunc(0x141b, __PRETTY_FUNCTION__, out.m_4, user->get_acc_id());
     }
 
     // ORIG 无 outSlot/ret 初始化写（ret 槽由 call 返回值直写 `mov %eax,-0x1c`）。
@@ -8347,7 +8339,6 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
     if (moveCheckFlag != 0 && user->get_state() == 5)
     {
-        user->GetPartyIndex();                   // ORIG 直呼丢弃返回值
         CParty* party =
             G_CGameManager()->GetParty(user->GetPartyIndex());
         if (party == 0)
@@ -8411,11 +8402,12 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
                         0, 0);
     die.m_fieldA3d = tmpS16;
 
-    switch (user->get_state())
+    // ORIG 不是 switch：0x081eb9b7(==5) / 0x081ec396(==0xa) / 0x081ec7a2(==0xc) /
+    // 0x081ecac5(==0xd) / 0x081ecb10(==8) 是逐层重新 call get_state() 的 if-else 链
+    // （每层 `cmp $k,%eax; sete %al; test; je next`）。原先折成 switch 少 4 次
+    // get_state 调用，属真语义缺段。
+    if (user->get_state() == 5)                 // ---- 普通副本击杀 ----
     {
-    case 5:                                      // ---- 普通副本击杀 ----
-    {
-        user->GetPartyIndex();
         CParty* party =
             G_CGameManager()->GetParty(user->GetPartyIndex());
         if (party == 0)
@@ -8595,18 +8587,19 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             user->getHackAnalyzer()->addServerHackCnt(
                 user, (WongWork::ENUM_HACKTYPE)0xca, 1, 0, 0);
         }
-        // [b23S3C] S23A idx94 实证 ValidateFixMobDiePos 为 static（ORIG 0x080f908c
-        // this 不入栈）：去 getHackAnalyzer() 前缀，消 EXTRA call。
+        // ValidateFixMobDiePos 在 ORIG 是 static（0x080f908c，this 不入栈），但 ORIG
+        // 源码仍写成 `user->getHackAnalyzer()->ValidateFixMobDiePos(...)`：0x081ec355
+        // 处**先 call getHackAnalyzer 再丢弃返回值**。故此处保留直呼。
+        user->getHackAnalyzer();
         WongWork::CHackAnalyzer::ValidateFixMobDiePos(
             user, (unsigned short)monsterIdxOut,
             die.m_killPairA24, die.m_killPairA26);
-        break;
     }
-    case 10:                                     // ---- 死亡塔 ----
+    else if (user->get_state() == 10)            // ---- 死亡塔 ----
     {
         WongWork::CDeathTower* tower = user->getDeathTower();
         if (tower == 0)
-            break;
+            goto die_mob_end;                    // ORIG 0x081ec3bb je 公共出口
         if ((unsigned short)die.m_fieldF != 0xffff)
         {
             unsigned int tick =
@@ -8652,7 +8645,6 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         if ((unsigned short)die.m_fieldF == 0xffff)
         {
-            user->GetPartyIndex();               // ORIG 直呼丢弃返回值
             CParty* party =
                 G_CGameManager()->GetParty(user->GetPartyIndex());
             if (party == 0)
@@ -8676,12 +8668,12 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
         tower->handleKillMonster(
             user, (unsigned short)die.m_mobSeq,
             (unsigned short)die.m_fieldF, die, &monsterIdxOut);
+        user->getHackAnalyzer();                 // ORIG 0x081ec761（同上，直呼丢弃）
         WongWork::CHackAnalyzer::ValidateFixMobDiePos(
             user, (unsigned short)monsterIdxOut,
             die.m_killPairA24, die.m_killPairA26);
-        break;
     }
-    case 12:                                     // ---- BossTower ----
+    else if (user->get_state() == 12)            // ---- BossTower ----
     {
         if ((unsigned short)die.m_fieldF == 0xffff)
         {
@@ -8737,16 +8729,15 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
         Global::CBossTowerFunc::DieMob(
             user, (unsigned short)die.m_mobSeq,
             (unsigned short)die.m_fieldF, die, 0);
-        break;
     }
-    case 13:                                     // ---- advancealtar ----
+    else if (user->get_state() == 13)            // ---- advancealtar ----
+    {
         advancealtar::Manager::dieMob(
             user, (unsigned short)die.m_mobSeq,
             (unsigned short)die.m_fieldF, die);
-        break;
-    case 8:                                      // ---- 战争房间 ----
+    }
+    else if (user->get_state() == 8)             // ---- 战争房间 ----
     {
-        user->GetWarRoomIndex();                 // ORIG 直呼丢弃返回值
         WarRoom* war =
             G_CGameManager()->GetWarRoom(user->GetWarRoomIndex());
         if (war == 0)
@@ -8773,11 +8764,8 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             pgFail.finalize(true);
             user->Send(pgFail);
         }
-        break;
     }
-    default:
-        break;
-    }
+die_mob_end:
     return 0;
 }
 
@@ -8855,8 +8843,6 @@ struct CPartyDungeonView
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 51（ORIG 119 / ours 126），残差=N82 槽/块序；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_DieCharacInDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    static const char* const kPretty =
-        "virtual int DisPatcher_DieCharacInDungeon::process(CUser*, MSG_BASE&, ParamBase&)";
     MSG_DIE_CHARACTER& req = *reinterpret_cast<MSG_DIE_CHARACTER*>(&msg);
     stDieCharacInDungeon& out = static_cast<stDieCharacInDungeon&>(param);
     out.m_errNo = check_error(user, msg);
@@ -8866,7 +8852,7 @@ int DisPatcher_DieCharacInDungeon::process(CUser* user, MSG_BASE& msg, ParamBase
     }
     if (out.m_errNo < 0)
     {
-        return LineFunc(0xcbb, kPretty, out.m_errNo, user->get_acc_id());
+        return LineFunc(0xcbb, __PRETTY_FUNCTION__, out.m_errNo, user->get_acc_id());
     }
 
     // ORIG 读包体 ushort：+0xf 先入 esi、+0xd 后入 ebx，作 CharacDie 第 2/3 参
@@ -9043,8 +9029,6 @@ int DisPatcher_GiveUpGame::read(PacketBuf& /*packet*/, MSG_BASE& /*msg*/)
 // 尾部返回 check_error 原值（ORIG mov -0x14,%eax）。param 不写。
 int DisPatcher_GiveUpGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    static const char* const kPretty =
-        "virtual int DisPatcher_GiveUpGame::process(CUser*, MSG_BASE&, ParamBase&)";
     (void)param;   // ORIG 不写 param
 
     const int errNo = check_error(user, msg);
@@ -9054,7 +9038,7 @@ int DisPatcher_GiveUpGame::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     if (errNo < 0)
     {
-        return LineFunc(0xff7, kPretty, 0, user->get_acc_id());
+        return LineFunc(0xff7, __PRETTY_FUNCTION__, 0, user->get_acc_id());
     }
 
     // ORIG 每个 state 分支前独立调 get_state（勿缓存）。
@@ -11160,8 +11144,6 @@ void DisPatcher_PvPTimeout::send(CUser* user, ParamBase& param)
 // —— msg+0xd 即 read() 读入的 8 个 seat int 数组首址 —— param+0x4=ret，返回 err。
 int DisPatcher_PvPTimeout::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    static const char* const kPretty =
-        "virtual int DisPatcher_PvPTimeout::process(CUser*, MSG_BASE&, ParamBase&)";
     const int errNo = check_error(user, msg);
     if (errNo > 0)
     {
@@ -11169,12 +11151,12 @@ int DisPatcher_PvPTimeout::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     if (errNo < 0)
     {
-        return LineFunc(0x14b7, kPretty, 0, user->get_acc_id());
+        return LineFunc(0x14b7, __PRETTY_FUNCTION__, 0, user->get_acc_id());
     }
     PvP_Room* room = static_cast<PvP_Room*>(user->GetPVPRoom());  // thunk 0x0865518e
     if (room == 0)
     {
-        return LineFunc(0x14bc, kPretty, 0, user->get_acc_id());
+        return LineFunc(0x14bc, __PRETTY_FUNCTION__, 0, user->get_acc_id());
     }
     // MSG_PVP_TIMEOUT 载荷自包头 +0xd 起（read 读 8 个 int），ORIG 直接把该地址
     // 作为 int* 传给 time_out；结果码写入 param+0x4（stOnPvPTimeOut::m_timeOutResult），
@@ -11642,8 +11624,6 @@ void DisPatcher_RemoveFriend::send(CUser* user, ParamBase& param)
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 44（ORIG 85 / ours 81），残差=N7/N82 帧与 callee-saved 角色/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_RemoveFriend::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    static const char* const kPretty =
-        "virtual int DisPatcher_RemoveFriend::process(CUser*, MSG_BASE&, ParamBase&)";
     MSG_REMOVE_FRIEND& req = *reinterpret_cast<MSG_REMOVE_FRIEND*>(&msg);
     stRemoveFriendParam& out = static_cast<stRemoveFriendParam&>(param);
 
@@ -11654,7 +11634,7 @@ int DisPatcher_RemoveFriend::process(CUser* user, MSG_BASE& msg, ParamBase& para
     }
     if (out.m_errNo < 0)
     {
-        return LineFunc(0x2141, kPretty, out.m_errNo, user->get_acc_id());
+        return LineFunc(0x2141, __PRETTY_FUNCTION__, out.m_errNo, user->get_acc_id());
     }
 
     Packet_Monitor_Del_Buddy pkt;
@@ -12042,9 +12022,7 @@ DIspatcher_OneDayLetheTicket::~DIspatcher_OneDayLetheTicket() {}
 int DIspatcher_OneDayLetheTicket::dispatch_sig(CUser* user, PacketBuf& /*packet*/)
 {
     // ORIG 0x0821b106（报告 DIspatcher_OneDayLetheTicket/dispatch_sig.md 全文转写）。
-    static const char kPretty[] =
-        "virtual int DIspatcher_OneDayLetheTicket::dispatch_sig(CUser*, PacketBuf&)";
-    cMyTrace trace(kPretty, 0xceaa, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0xceaa, 0);
     trace("ONE_DAY_LETHE : SKILL_INIT_PACKET");
     if (user == 0)
     {
@@ -12483,6 +12461,10 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
         0.5f + (float)((unsigned int)items[0].GetReSealCount() +
                        (unsigned int)items[1].GetReSealCount()) / 2.0f);
 
+    // ORIG local_4c：0x081d6e9d `call _ZNSsC1Ev` 先于 Inven_Item::Inven_Item(&newItem)，
+    // 正常出口 0x081d7265 与异常 landing pad 0x081d724e(+_Unwind_Resume) 各析构一次；
+    // 全函数**只构造不读取**（Ghidra 亦无引用）⇒ 原码即有一个未使用的 std::string 局部。
+    std::string unusedSealName;
     Inven_Item newItem;
     int regenCost = 0;
     // ORIG RegenerationROI::Regenerate T 0x085f8646（声明 CDataManager.h，定义 blocked：
@@ -12899,23 +12881,21 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user->get_state() < 3)
         return 0;
 
-    static const char* const kPretty =
-        "virtual int DisPatcher_SendMess::dispatch_sig(CUser*, PacketBuf&)";
     char msgType;                                        // ORIG msg+0xd（-0x196）
     unsigned short target;                               // ORIG msg+0xe（-0x195）
     unsigned int recvCharno;                             // ORIG msg+0x10（-0x193）
     int msgLen;                                          // ORIG msg+0x36（-0x16d）
     char msgBuf[0x100];                                  // ORIG acStack_16d
     if (!packet.get_byte(*(char*)&msgType))
-        return LineFunc(0x7ef5, kPretty, 0, 0);
+        return LineFunc(0x7ef5, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_short(target))
-        return LineFunc(0x7ef6, kPretty, 0, 0);
+        return LineFunc(0x7ef6, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(recvCharno))
-        return LineFunc(0x7ef7, kPretty, 0, 0);
+        return LineFunc(0x7ef7, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(msgLen))
-        return LineFunc(0x7ef8, kPretty, 0, 0);
+        return LineFunc(0x7ef8, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_str(msgBuf, 0x100, msgLen))
-        return LineFunc(0x7ef9, kPretty, 0, 0);
+        return LineFunc(0x7ef9, __PRETTY_FUNCTION__, 0, 0);
 
     G_CDataManager()->rewriteUsableEmoticon(*user, msgBuf);
 
@@ -12935,11 +12915,11 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         // ---- 社区频道监视包（Community server） ----
         if (!packet.get_int(srcLen))
-            return LineFunc(0x7f4b, kPretty, 0, 0);
+            return LineFunc(0x7f4b, __PRETTY_FUNCTION__, 0, 0);
         if (!packet.get_str(nickBuf, 0x1e, srcLen))
-            return LineFunc(0x7f4d, kPretty, 0, 0);
+            return LineFunc(0x7f4d, __PRETTY_FUNCTION__, 0, 0);
         if (!packet.get_byte(*(char*)&nickFlag))
-            return LineFunc(0x7f4f, kPretty, 0, 0);
+            return LineFunc(0x7f4f, __PRETTY_FUNCTION__, 0, 0);
 
         Packet_Monitor_Other_Channel_Chat notify;
         if (msgType == 0x24)
@@ -12968,11 +12948,11 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         // ---- 本地频道监视包（monitor server）：type==7 才真正上送 ----
         if (!packet.get_int(srcLen))
-            return LineFunc(0x7f71, kPretty, 0, 0);
+            return LineFunc(0x7f71, __PRETTY_FUNCTION__, 0, 0);
         if (!packet.get_str(nickBuf, 0x1e, srcLen))
-            return LineFunc(0x7f73, kPretty, 0, 0);
+            return LineFunc(0x7f73, __PRETTY_FUNCTION__, 0, 0);
         if (!packet.get_byte(channelFlag))
-            return LineFunc(0x7f78, kPretty, 0, 0);
+            return LineFunc(0x7f78, __PRETTY_FUNCTION__, 0, 0);
 
         if (msgType == 7)
         {
@@ -12984,8 +12964,11 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
             memcpy(notify.m_msg, msgBuf, (unsigned char)msgLen);
             notify.m_msgLen = (unsigned char)msgLen;
 
+            // ORIG 0x081f3b63 call _ZNSsC1EPKcRKSaIcE —— 只有 (const char*, alloc) 两参，
+            // 即按 NUL 截断构造。原先多传 sizeof(m_msg) 会把缓冲区尾部未初始化字节
+            // 一并纳入字符串（REAL-BUG：filtered.size() 随之失真）。
             std::string filtered(CSyncSlangFilter::GetInstance()->Filter(
-                std::string(notify.m_msg, sizeof(notify.m_msg))));
+                std::string(notify.m_msg)));
             if (filtered.size() != 0)
             {
                 strncpy(notify.m_msg, filtered.c_str(), filtered.size());
@@ -13039,10 +13022,10 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
         const Inven_Item* item = user->getCurCharacInvenR()->GetInvenRef(
             GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)target), (int)recvCharno);
         if (item == 0)
-            return LineFunc(0x8020, kPretty, 0, 0);
+            return LineFunc(0x8020, __PRETTY_FUNCTION__, 0, 0);
         if (!((item->m_addInfo == 0x25 && msgType == 0xd) ||
               (item->m_addInfo == 0x28992f && msgType == 0xf)))
-            return LineFunc(0x8025, kPretty, 0, 0);
+            return LineFunc(0x8025, __PRETTY_FUNCTION__, 0, 0);
         int secu = (int)(unsigned char)
             GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0x24);
         if (secu != 0)
@@ -13069,9 +13052,9 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
         const Inven_Item* item = user->getCurCharacInvenR()->GetInvenRef(
             GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)target), (int)recvCharno);
         if (item == 0 || item->m_addInfo != 0x460)
-            return LineFunc(0x8053, kPretty, 0, 0);
+            return LineFunc(0x8053, __PRETTY_FUNCTION__, 0, 0);
         if (!GlobalData::s_pGMAccounts_->isGM(user->get_acc_id()))
-            return LineFunc(0x8057, kPretty, 0, 0);
+            return LineFunc(0x8057, __PRETTY_FUNCTION__, 0, 0);
         if (!user->use_stackable((short)(unsigned short)recvCharno,
                                  (int)target, -1, -1))
         {
@@ -13087,9 +13070,16 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
         const Inven_Item* item = user->getCurCharacInvenR()->GetInvenRef(
             GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(int)target), (int)recvCharno);
         if (item == 0 || item->m_addInfo != 0x1d9e)
-            return LineFunc(0x806a, kPretty, 0, 0);
+            return LineFunc(0x806a, __PRETTY_FUNCTION__, 0, 0);
         CItem* itemInfo = G_CDataManager()->find_item(item->m_addInfo);
-        if (itemInfo == 0 || !itemInfo->is_stackable())
+        // ORIG 0x081f4249（find_item 判空）与 0x081f427f（is_stackable）是**两个**独立
+        // 判定，各发一次 SendCmdErrorPacket(0x11,0x11) 后 return 0；合并成 || 会少一次调用。
+        if (itemInfo == 0)
+        {
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x11, 0x11);
+            return 0;
+        }
+        if (!itemInfo->is_stackable())
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x11, 0x11);
             return 0;
@@ -13281,8 +13271,6 @@ int Dispatcher_ChangeCharacName::dispatch_sig(CUser* user, PacketBuf& packet)
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 982（ORIG 756 / ours 772），残差=N7/N82 帧与 callee-saved 角色/setcc-fold bool 物化岛/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    static const char* const kPretty =
-        "virtual int DisPatcher_DebugCommand::dispatch_sig(CUser*, PacketBuf&)";
     MSG_DEBUG_COMMAND* msg =
         reinterpret_cast<MSG_DEBUG_COMMAND*>(packet.get_packet(0));
     if (msg == 0)
@@ -13296,19 +13284,19 @@ int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
         allowed = true;
     if (!allowed)
     {
-        cMyTrace trace(kPretty, 0x8b6a, 5);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x8b6a, 5);
         trace("Illegal GM Command : %d", user->get_acc_id());
-        return LineFunc(0x8b6b, kPretty, 0, 0);
+        return LineFunc(0x8b6b, __PRETTY_FUNCTION__, 0, 0);
     }
 
-    cMyTrace trace1(kPretty, 0x8b65, 0);
+    cMyTrace trace1(__PRETTY_FUNCTION__, 0x8b65, 0);
     trace1("GM(%d) trying to command(%d)", user->get_acc_id(),
            (int)msg->m_command);
 
     if ((int)(unsigned int)(size_t)user->getCurCharacR() == 0)
-        return LineFunc(0x8b70, kPretty, 0, 0);
+        return LineFunc(0x8b70, __PRETTY_FUNCTION__, 0, 0);
 
-    cMyTrace trace2(kPretty, 0x8b72, 0);
+    cMyTrace trace2(__PRETTY_FUNCTION__, 0x8b72, 0);
     trace2("GM Command : %s", NumberToString(user->get_acc_id(), 0));
 
     bool result = true;                                  // ORIG local_1e(-0x1a)
@@ -13319,16 +13307,16 @@ int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
     if ((unsigned char)GlobalData::s_GM_Manager->IsGm(
             user->get_acc_id()) != 1)
     {
-        cMyTrace trace3(kPretty, 0x8b90, 5);
+        cMyTrace trace3(__PRETTY_FUNCTION__, 0x8b90, 5);
         trace3("Illegal GM Command : %d", user->get_acc_id());
-        return LineFunc(0x8b91, kPretty, 0, 0);
+        return LineFunc(0x8b91, __PRETTY_FUNCTION__, 0, 0);
     }
     if (!passFlag)
     {
         return 0;
     }
     {
-        cMyTrace trace4(kPretty, 0x8bb6, 0);
+        cMyTrace trace4(__PRETTY_FUNCTION__, 0x8bb6, 0);
         trace4("GM Pass Complete! Command(%d)", (int)msg->m_command);
     }
 
@@ -13343,7 +13331,7 @@ int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
     case 0:
     {
         if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) < GM_LV1)
-            return LineFunc(0x8bcb, kPretty, 0, 0);
+            return LineFunc(0x8bcb, __PRETTY_FUNCTION__, 0, 0);
         GlobalData::s_GM_Manager->TurnGmMode(user->get_acc_id());
         if ((unsigned char)GlobalData::s_GM_Manager->GetCurrentGmMode(
                 user->get_acc_id()) == 1)
@@ -13353,7 +13341,7 @@ int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         else
         {
-            cMyTrace trace5(kPretty, 0x8bd0, 0);
+            cMyTrace trace5(__PRETTY_FUNCTION__, 0x8bd0, 0);
             trace5("%d:'%s' GM Mode OFF.", user->get_acc_id(),
                    (const char*)user->getCurCharacName());
             result = true;
@@ -13545,7 +13533,7 @@ int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
         G_GameWorld()->UpdateMiniCraneSeed();
         break;
     default:
-        return LineFunc(0x8da2, kPretty, 0, 0);
+        return LineFunc(0x8da2, __PRETTY_FUNCTION__, 0, 0);
     }
 
     if (result)
@@ -13583,8 +13571,6 @@ public:
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 303（ORIG 381 / ours 356），残差=P211/N18a 中转/store 序/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    static const char* const kPretty =
-        "virtual int DisPatcher_SetIP::dispatch_sig(CUser*, PacketBuf&)";
     if (user->get_state() >= 4)
         return 0;
 
@@ -13607,29 +13593,29 @@ int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
     SetIPMsgView msg;                    // 技36：无具名引用中转（引用会多占 spill 槽）
     // [b28d-solo-DisPatcherCore] P167 真 bug：ORIG 调 get_byte(char&)（ERc）。
     if (!packet.get_byte(*reinterpret_cast<char*>(&msg.m_natType)))
-        return LineFunc(0x80e4, kPretty, 0, 0);
+        return LineFunc(0x80e4, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(msg.m_innerIp))
-        return LineFunc(0x80e5, kPretty, 0, 0);
+        return LineFunc(0x80e5, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(msg.m_natIp))
-        return LineFunc(0x80e6, kPretty, 0, 0);
+        return LineFunc(0x80e6, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_short(msg.m_natPort))
-        return LineFunc(0x80e7, kPretty, 0, 0);
+        return LineFunc(0x80e7, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(msg.m_mtu))
-        return LineFunc(0x80e8, kPretty, 0, 0);
+        return LineFunc(0x80e8, __PRETTY_FUNCTION__, 0, 0);
     user->m_network.set_nat(msg.m_natType, msg.m_innerIp, msg.m_natIp,
                             msg.m_natPort, msg.m_mtu);
 
     if (!packet.get_int(msg.m_macLen))
-        return LineFunc(0x8100, kPretty, 0, 0);
+        return LineFunc(0x8100, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_str(msg.m_macBuf, 0x41, msg.m_macLen))
-        return LineFunc(0x8102, kPretty, 0, 0);
+        return LineFunc(0x8102, __PRETTY_FUNCTION__, 0, 0);
 
     char digestHex[0x41];                // ORIG -0x95 零初始化
     memset(digestHex, 0, sizeof(digestHex));
     getSha256UsingSalt(reinterpret_cast<const unsigned char*>(msg.m_macBuf),
                        0x41, digestHex);
 
-    cMyTrace trace(kPretty, 0x810b, 0);
+    cMyTrace trace(__PRETTY_FUNCTION__, 0x810b, 0);
     trace("(acc_id: %s) (nat type: %d) (inner_ip: %d) (nat_ip: %d) "
           "(nat_port: %d) (mac_addr: %s) (mtu: %d)",
           NumberToString(user->get_acc_id(), 0), (int)(signed char)msg.m_natType,
@@ -13718,10 +13704,8 @@ Packet_Frame_Lag_Statistic_Add::Packet_Frame_Lag_Statistic_Add()
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 239（ORIG 418 / ours 367），残差=P211/N18a 中转/store 序/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 int Dispatcher_FrameLagStatistics::dispatch_sig(CUser* user, PacketBuf& packet)
 {
-    static const char* const kPretty =
-        "virtual int Dispatcher_FrameLagStatistics::dispatch_sig(CUser*, PacketBuf&)";
 #define FLLF(line) \
-    return LineFunc((line), kPretty, 0, 0)
+    return LineFunc((line), __PRETTY_FUNCTION__, 0, 0)
 
     Packet_Frame_Lag_Statistic_Add pkt;
     // 【P156 保留项：线格式序列化缓冲 + ORIG 别名算址】本包是纯 wire 缓冲区，

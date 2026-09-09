@@ -3252,7 +3252,9 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
     // [§6.2 闭合 · b20] P167 149/149 归零；ORIG 在本 const 方法内走
     // put_binary(const char*,int)（PKc 重载），expansion/expInfo 已常量化对齐
     // 该 call 目标（同宽同槽，零扰动）。新鲜 .o 1072 vs ORIG 1073（gap 1）。
-    InterfacePacketBuf& buf = reinterpret_cast<InterfacePacketBuf&>(packet);
+    // [b28d-tu-CInventory] P329：删具名引用 `buf`（4.4 为其发 -0x24 槽 +
+    //   prologue store/load，ORIG 0x084fc6bc 全部 98 处 this 装载直读形参槽
+    //   `mov 0x14(%ebp),%eax`）⇒ 调用点改内联 cast 形（ast_edit 98 处）。
     GameWorld* world;
     // 本方法为 const；ORIG 0x084fc6bc 对 expansion/expInfo 走 put_binary(const
     // char*,int)（PKc 重载），故指针常量化（同 4B 槽，仅换 call 目标，零扰动）。
@@ -3263,66 +3265,66 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
     switch (invenType)
     {
     case INVEN_TYPE_EQUIP:
-        buf.put_short(slot);
+        ((InterfacePacketBuf&)packet).put_short(slot);
         if (slot == 0)
         {
-            buf.put_int(0);
-            buf.put_int(m_money);
-            buf.put_byte(0);
-            buf.put_short(0);
-            buf.put_byte(0);
-            buf.put_int(0);
-            buf.put_byte(0);
-            buf.put_short(0);
-            buf.put_byte(0);
-            buf.put_packet(g_emptySlot);
+            ((InterfacePacketBuf&)packet).put_int(0);
+            ((InterfacePacketBuf&)packet).put_int(m_money);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_short(0);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_int(0);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_short(0);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_packet(g_emptySlot);
             return true;
         }
         if (slot == 1)
         {
-            buf.put_int(1);
-            buf.put_int(m_coin + m_payCoin + m_eventCoin);
-            buf.put_byte(0);
-            buf.put_short(0);
-            buf.put_byte(0);
-            buf.put_int(0);
-            buf.put_byte(0);
-            buf.put_short(0);
-            buf.put_byte(0);
-            buf.put_packet(g_emptySlot);
+            ((InterfacePacketBuf&)packet).put_int(1);
+            ((InterfacePacketBuf&)packet).put_int(m_coin + m_payCoin + m_eventCoin);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_short(0);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_int(0);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_short(0);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_packet(g_emptySlot);
             return true;
         }
         if (slot == 2)
         {
-            buf.put_int(2);
-            buf.put_int(m_pParent->GetWinPoint());
-            buf.put_byte(0);
-            buf.put_short(0);
-            buf.put_byte(0);
-            buf.put_int(0);
-            buf.put_byte(0);
-            buf.put_short(0);
-            buf.put_byte(0);
-            buf.put_packet(g_emptySlot);
+            ((InterfacePacketBuf&)packet).put_int(2);
+            ((InterfacePacketBuf&)packet).put_int(m_pParent->GetWinPoint());
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_short(0);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_int(0);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_short(0);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_packet(g_emptySlot);
             return true;
         }
         if (m_pEquipSlot[slot].m_addInfo != 0)
         {
-            buf.put_int(m_pEquipSlot[slot].m_addInfo);
-            buf.put_int(m_pEquipSlot[slot].m_addInfo2);
-            buf.put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], INVEN_TYPE_EQUIP, slot));
-            buf.put_short(m_pEquipSlot[slot].m_fieldb);
-            buf.put_byte(m_pEquipSlot[slot].m_field0);
+            ((InterfacePacketBuf&)packet).put_int(m_pEquipSlot[slot].m_addInfo);
+            ((InterfacePacketBuf&)packet).put_int(m_pEquipSlot[slot].m_addInfo2);
+            ((InterfacePacketBuf&)packet).put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], INVEN_TYPE_EQUIP, slot));
+            ((InterfacePacketBuf&)packet).put_short(m_pEquipSlot[slot].m_fieldb);
+            ((InterfacePacketBuf&)packet).put_byte(m_pEquipSlot[slot].m_field0);
             world = G_GameWorld();
             if (world->IsEnchantRevisionChannel())
-                buf.put_int(0);
+                ((InterfacePacketBuf&)packet).put_int(0);
             else
-                buf.put_int(m_pEquipSlot[slot].m_fieldd);
-            buf.put_byte(m_pEquipSlot[slot].m_amp.getAbilityType());
-            buf.put_short(m_pEquipSlot[slot].m_amp.getAbilityValue());
+                ((InterfacePacketBuf&)packet).put_int(m_pEquipSlot[slot].m_fieldd);
+            ((InterfacePacketBuf&)packet).put_byte(m_pEquipSlot[slot].m_amp.getAbilityType());
+            ((InterfacePacketBuf&)packet).put_short(m_pEquipSlot[slot].m_amp.getAbilityValue());
             G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
                 m_pParent, m_pEquipSlot[slot], &packet);
-            buf.put_packet(m_pEquipSlot[slot]);
+            ((InterfacePacketBuf&)packet).put_packet(m_pEquipSlot[slot]);
             return true;
         }
         // ORIG 0x084fcd43：外层已判 ==0，此处重复同条件 → trace(0x758) return 0。
@@ -3333,20 +3335,20 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             trace("[%s][%d]", __PRETTY_FUNCTION__, 0x758);
             return false;
         }
-        buf.put_item_idx(0xffffffff);
-        buf.put_int(m_pEquipSlot[slot].m_addInfo2);
-        buf.put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], INVEN_TYPE_EQUIP, slot));
-        buf.put_short(m_pEquipSlot[slot].m_fieldb);
-        buf.put_byte(m_pEquipSlot[slot].m_field0);
+        ((InterfacePacketBuf&)packet).put_item_idx(0xffffffff);
+        ((InterfacePacketBuf&)packet).put_int(m_pEquipSlot[slot].m_addInfo2);
+        ((InterfacePacketBuf&)packet).put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], INVEN_TYPE_EQUIP, slot));
+        ((InterfacePacketBuf&)packet).put_short(m_pEquipSlot[slot].m_fieldb);
+        ((InterfacePacketBuf&)packet).put_byte(m_pEquipSlot[slot].m_field0);
         world = G_GameWorld();
         if (world->IsEnchantRevisionChannel())
-            buf.put_int(0);
+            ((InterfacePacketBuf&)packet).put_int(0);
         else
-            buf.put_int(m_pEquipSlot[slot].m_fieldd);
-        buf.put_byte(m_pEquipSlot[slot].m_amp.getAbilityType());
-        buf.put_short(m_pEquipSlot[slot].m_amp.getAbilityValue());
-        buf.put_byte(0);
-        buf.put_packet(m_pEquipSlot[slot]);
+            ((InterfacePacketBuf&)packet).put_int(m_pEquipSlot[slot].m_fieldd);
+        ((InterfacePacketBuf&)packet).put_byte(m_pEquipSlot[slot].m_amp.getAbilityType());
+        ((InterfacePacketBuf&)packet).put_short(m_pEquipSlot[slot].m_amp.getAbilityValue());
+        ((InterfacePacketBuf&)packet).put_byte(0);
+        ((InterfacePacketBuf&)packet).put_packet(m_pEquipSlot[slot]);
         return true;
 
     case INVEN_TYPE_AVATAR:
@@ -3358,64 +3360,34 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
         }
         {
             int nowTick = 0;
-            buf.put_short(slot);
-            buf.put_int(m_pAvatarSlot[slot].m_addInfo);
+            ((InterfacePacketBuf&)packet).put_short(slot);
+            ((InterfacePacketBuf&)packet).put_int(m_pAvatarSlot[slot].m_addInfo);
             nowTick = OS_API::GetDateTimeTick();
-            buf.put_int(m_avatarItemMgr.GetRemainDate(m_pAvatarSlot[slot].m_addInfo2,
+            ((InterfacePacketBuf&)packet).put_int(m_avatarItemMgr.GetRemainDate(m_pAvatarSlot[slot].m_addInfo2,
                                                       nowTick));
-            buf.put_byte(m_pAvatarSlot[slot].GetItemAttr());
-            buf.put_short(m_pAvatarSlot[slot].m_fieldb);
-            buf.put_byte(m_pAvatarSlot[slot].m_field0);
-            buf.put_int(m_pAvatarSlot[slot].m_fieldd);
-            buf.put_byte(0);
-            buf.put_short(0);
-            buf.put_int(0x1e);
-            buf.put_binary(m_avatarItemMgr.getJewelSocketData(m_pAvatarSlot[slot].m_addInfo2),
+            ((InterfacePacketBuf&)packet).put_byte(m_pAvatarSlot[slot].GetItemAttr());
+            ((InterfacePacketBuf&)packet).put_short(m_pAvatarSlot[slot].m_fieldb);
+            ((InterfacePacketBuf&)packet).put_byte(m_pAvatarSlot[slot].m_field0);
+            ((InterfacePacketBuf&)packet).put_int(m_pAvatarSlot[slot].m_fieldd);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_short(0);
+            ((InterfacePacketBuf&)packet).put_int(0x1e);
+            ((InterfacePacketBuf&)packet).put_binary(m_avatarItemMgr.getJewelSocketData(m_pAvatarSlot[slot].m_addInfo2),
                            0x1e);
             expansion = (const char*)m_avatarItemMgr.GetExpansionInfo(m_pAvatarSlot[slot].m_addInfo2);
-            buf.put_int(4);
+            ((InterfacePacketBuf&)packet).put_int(4);
             if (expansion != 0)
             {
-                buf.put_binary(expansion, 4);
+                ((InterfacePacketBuf&)packet).put_binary(expansion, 4);
             }
             else
             {
                 stAvatarExpansionInfo_t expInfo;
                 expInfo.init();
-                buf.put_binary((const char*)&expInfo, 4);
+                ((InterfacePacketBuf&)packet).put_binary((const char*)&expInfo, 4);
             }
-            buf.put_byte(0);
-            buf.put_packet(m_pAvatarSlot[slot]);
-            return true;
-        }
-
-    case INVEN_TYPE_CREATURE:
-        if (m_pCreatureSlot[slot].m_addInfo == 0)
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x801, 5);
-            trace("[%s][%d]", __PRETTY_FUNCTION__, 0x801);
-            return false;
-        }
-        {
-            int nowTick = 0;
-            buf.put_short(slot);
-            buf.put_int(m_pCreatureSlot[slot].m_addInfo);
-            buf.put_int(m_pCreatureSlot[slot].m_addInfo2);
-            buf.put_byte(m_pCreatureSlot[slot].GetItemAttr());
-            buf.put_short(m_pCreatureSlot[slot].m_fieldb);
-            buf.put_byte(m_pCreatureSlot[slot].m_field0);
-            buf.put_int(m_pCreatureSlot[slot].m_fieldd);
-            buf.put_byte(0);
-            buf.put_short(0);
-            if (m_pCreatureSlot[slot].m_field1 ==
-                (unsigned char)Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
-            {
-                nowTick = OS_API::GetDateTimeTick();
-                buf.put_int(GetCreatureMgrR()->GetRemainDate(
-                    m_pCreatureSlot[slot].m_addInfo2, nowTick));
-            }
-            buf.put_byte(0);
-            buf.put_packet(m_pCreatureSlot[slot]);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_packet(m_pAvatarSlot[slot]);
             return true;
         }
 
@@ -3426,9 +3398,9 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
             trace("[%s][%d]", __PRETTY_FUNCTION__, 0x884);
             return false;
         }
-        buf.put_short(slot);
-        buf.put_int(m_invenItem[slot].m_addInfo);
-        buf.put_int(m_invenItem[slot].m_addInfo2);
+        ((InterfacePacketBuf&)packet).put_short(slot);
+        ((InterfacePacketBuf&)packet).put_int(m_invenItem[slot].m_addInfo);
+        ((InterfacePacketBuf&)packet).put_int(m_invenItem[slot].m_addInfo2);
         world = G_GameWorld();
         if (world->IsIntegratedPvPBaseChannel() &&
             G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
@@ -3438,50 +3410,85 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
                 attr = (unsigned char)(m_invenItem[slot].GetReSealCount() << 5);
             else
                 attr = (unsigned char)m_invenItem[slot].GetItemAttr();
-            buf.put_byte(attr);
+            ((InterfacePacketBuf&)packet).put_byte(attr);
         }
         else
         {
-            buf.put_byte(m_invenItem[slot].GetItemAttr());
+            ((InterfacePacketBuf&)packet).put_byte(m_invenItem[slot].GetItemAttr());
         }
-        buf.put_short(m_invenItem[slot].m_fieldb);
-        buf.put_byte(m_invenItem[slot].m_field0);
+        ((InterfacePacketBuf&)packet).put_short(m_invenItem[slot].m_fieldb);
+        ((InterfacePacketBuf&)packet).put_byte(m_invenItem[slot].m_field0);
         world = G_GameWorld();
         if (world->IsEnchantRevisionChannel())
-            buf.put_int(0);
+            ((InterfacePacketBuf&)packet).put_int(0);
         else
-            buf.put_int(m_invenItem[slot].m_fieldd);
-        buf.put_byte(m_invenItem[slot].m_amp.getAbilityType());
-        buf.put_short(m_invenItem[slot].m_amp.getAbilityValue());
+            ((InterfacePacketBuf&)packet).put_int(m_invenItem[slot].m_fieldd);
+        ((InterfacePacketBuf&)packet).put_byte(m_invenItem[slot].m_amp.getAbilityType());
+        ((InterfacePacketBuf&)packet).put_short(m_invenItem[slot].m_amp.getAbilityValue());
         if (m_invenItem[slot].isAvatarItemType())
         {
-            buf.put_int(0x1e);
-            buf.put_binary(m_avatarItemMgr.getJewelSocketData(m_invenItem[slot].m_addInfo2),
+            ((InterfacePacketBuf&)packet).put_int(0x1e);
+            ((InterfacePacketBuf&)packet).put_binary(m_avatarItemMgr.getJewelSocketData(m_invenItem[slot].m_addInfo2),
                            0x1e);
             expansion = (const char*)m_avatarItemMgr.GetExpansionInfo(m_invenItem[slot].m_addInfo2);
-            buf.put_int(4);
+            ((InterfacePacketBuf&)packet).put_int(4);
             if (expansion != 0)
             {
-                buf.put_binary(expansion, 4);
+                ((InterfacePacketBuf&)packet).put_binary(expansion, 4);
             }
             else
             {
                 stAvatarExpansionInfo_t expInfo;
                 expInfo.init();
-                buf.put_binary((const char*)&expInfo, 4);
+                ((InterfacePacketBuf&)packet).put_binary((const char*)&expInfo, 4);
             }
         }
         if (m_invenItem[slot].m_field1 == (unsigned char)Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
         {
             int nowTick = 0;
             nowTick = OS_API::GetDateTimeTick();
-            buf.put_int(GetCreatureMgrR()->GetRemainDate(m_invenItem[slot].m_addInfo2,
+            ((InterfacePacketBuf&)packet).put_int(GetCreatureMgrR()->GetRemainDate(m_invenItem[slot].m_addInfo2,
                                                          nowTick));
         }
         G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
             m_pParent, m_invenItem[slot], &packet);
-        buf.put_packet(m_invenItem[slot]);
+        ((InterfacePacketBuf&)packet).put_packet(m_invenItem[slot]);
         return true;
+
+    // [b28d-tu-CInventory] 方法3（case 书写序=ORIG 叶块物理序）：ORIG
+    //   0x084fc6bc 决策树体序 EQUIP(0x84fc6f5)→AVATAR(0x84fcd93)→
+    //   INVEN(0x84fd29c)→CREATURE(0x84fd063)；原书写序 CREATURE 在 INVEN
+    //   前 ⇒ 4.4 落体倒置，hunk +145/-139 块位移。本对调仅移动 case，
+    //   行为不变（各 case 独立 return）。
+    case INVEN_TYPE_CREATURE:
+        if (m_pCreatureSlot[slot].m_addInfo == 0)
+        {
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x801, 5);
+            trace("[%s][%d]", __PRETTY_FUNCTION__, 0x801);
+            return false;
+        }
+        {
+            int nowTick = 0;
+            ((InterfacePacketBuf&)packet).put_short(slot);
+            ((InterfacePacketBuf&)packet).put_int(m_pCreatureSlot[slot].m_addInfo);
+            ((InterfacePacketBuf&)packet).put_int(m_pCreatureSlot[slot].m_addInfo2);
+            ((InterfacePacketBuf&)packet).put_byte(m_pCreatureSlot[slot].GetItemAttr());
+            ((InterfacePacketBuf&)packet).put_short(m_pCreatureSlot[slot].m_fieldb);
+            ((InterfacePacketBuf&)packet).put_byte(m_pCreatureSlot[slot].m_field0);
+            ((InterfacePacketBuf&)packet).put_int(m_pCreatureSlot[slot].m_fieldd);
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_short(0);
+            if (m_pCreatureSlot[slot].m_field1 ==
+                (unsigned char)Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+            {
+                nowTick = OS_API::GetDateTimeTick();
+                ((InterfacePacketBuf&)packet).put_int(GetCreatureMgrR()->GetRemainDate(
+                    m_pCreatureSlot[slot].m_addInfo2, nowTick));
+            }
+            ((InterfacePacketBuf&)packet).put_byte(0);
+            ((InterfacePacketBuf&)packet).put_packet(m_pCreatureSlot[slot]);
+            return true;
+        }
 
     default:
         return false;
@@ -6068,8 +6075,8 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
     // ORIG 走 PKc（const char*）重载（含 pExpansion 常量化，同宽同槽零扰动）。
     // 新鲜 .o 660 vs ORIG 658（gap -2）；帧 124 vs ORIG 112（+12B/3 槽）属
     // N82 槽分配残差，判「语义完成、N 封顶」。
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)out;
-    if (buf == 0)
+    // [b28d-tu-CInventory] P329 试验：暂删具名 buf（测 ORIG -0x34 槽形）。
+    if (out == 0)
     {
         return 0;
     }
@@ -6090,8 +6097,8 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
     {
         listCount = 0xc;
     }
-    countIdx = buf->get_index();
-    buf->put_byte(count);
+    countIdx = ((InterfacePacketBuf*)out)->get_index();
+    ((InterfacePacketBuf*)out)->put_byte(count);
     int nowTick = OS_API::GetDateTimeTick();
     CExpandEquipslot* expand = 0;
     if (m_pParent != 0)
@@ -6117,14 +6124,14 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
         ++count;
         if (!flag)
         {
-            buf->put_byte(slotNo);
+            ((InterfacePacketBuf*)out)->put_byte(slotNo);
             if ((int)userInfo == 2 && GetClearAvatar(slotNo) != 0)
             {
-                buf->put_int(GetClearAvatar(slotNo));
+                ((InterfacePacketBuf*)out)->put_int(GetClearAvatar(slotNo));
             }
             else
             {
-                buf->put_int(slots[i].m_addInfo);
+                ((InterfacePacketBuf*)out)->put_int(slots[i].m_addInfo);
             }
             if ((int)userInfo == 2)
             {
@@ -6136,8 +6143,8 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                     expansion.m_color[0] = m_avatarVisible[i].m_field4;
                     expansion.m_color[1] = m_avatarVisible[i].m_field6;
                 }
-                buf->put_int(4);
-                buf->put_binary((const char*)&expansion, 4);
+                ((InterfacePacketBuf*)out)->put_int(4);
+                ((InterfacePacketBuf*)out)->put_binary((const char*)&expansion, 4);
             }
             else if ((int)userInfo == 0)
             {
@@ -6152,8 +6159,8 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                         memcpy(&expansion, pExpansion, 4);
                     }
                 }
-                buf->put_int(4);
-                buf->put_binary((const char*)&expansion, 4);
+                ((InterfacePacketBuf*)out)->put_int(4);
+                ((InterfacePacketBuf*)out)->put_binary((const char*)&expansion, 4);
             }
             if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
                 G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
@@ -6182,7 +6189,7 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                 resByte = (unsigned char)((resByte & 0xfffffffeu) | (ampBit & 1u));
                 resByte = (unsigned char)((resByte & 1u) |
                                           (unsigned char)((upgradeByte & 0x7f) * 2));
-                buf->put_byte(resByte);
+                ((InterfacePacketBuf*)out)->put_byte(resByte);
             }
             else
             {
@@ -6201,21 +6208,20 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                 resByte = (unsigned char)((resByte & 0xfffffffeu) | (ampBit & 1u));
                 resByte = (unsigned char)((resByte & 1u) |
                                           (unsigned char)((slots[i].GetUpgrade() & 0x7f) * 2));
-                buf->put_byte(resByte);
+                ((InterfacePacketBuf*)out)->put_byte(resByte);
             }
         }
         else
         {
-            buf->put_byte(slotNo);
-            buf->put_int(slots[i].m_addInfo);
+            ((InterfacePacketBuf*)out)->put_byte(slotNo);
+            ((InterfacePacketBuf*)out)->put_int(slots[i].m_addInfo);
             if (slotNo < 10)
             {
-                buf->put_int(
-                    m_avatarItemMgr.GetRemainDate(slots[i].m_addInfo2, nowTick));
+                ((InterfacePacketBuf*)out)->put_int(m_avatarItemMgr.GetRemainDate(slots[i].m_addInfo2, nowTick));
             }
             else
             {
-                buf->put_int(slots[i].m_addInfo2);
+                ((InterfacePacketBuf*)out)->put_int(slots[i].m_addInfo2);
             }
             if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
                 G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
@@ -6229,33 +6235,33 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                 {
                     attrByte = slots[i].GetItemAttr();
                 }
-                buf->put_byte(attrByte);
+                ((InterfacePacketBuf*)out)->put_byte(attrByte);
             }
             else
             {
-                buf->put_byte((unsigned char)(slots[i].GetItemAttr() & 0xff));
+                ((InterfacePacketBuf*)out)->put_byte((unsigned char)(slots[i].GetItemAttr() & 0xff));
             }
-            buf->put_short((int)slots[i].m_fieldb);
+            ((InterfacePacketBuf*)out)->put_short((int)slots[i].m_fieldb);
         }
-        buf->put_int(GetClearAvatar(slotNo));
+        ((InterfacePacketBuf*)out)->put_int(GetClearAvatar(slotNo));
         if (!G_GameWorld()->IsEnchantRevisionChannel())
         {
-            buf->put_int(slots[i].m_fieldd);
+            ((InterfacePacketBuf*)out)->put_int(slots[i].m_fieldd);
         }
         else
         {
-            buf->put_int(0);
+            ((InterfacePacketBuf*)out)->put_int(0);
         }
         if (flag)
         {
-            buf->put_byte((int)slots[i].m_amp.getAbilityType() & 0xff);
-            buf->put_short((int)slots[i].m_amp.getAbilityValue() & 0xffff);
+            ((InterfacePacketBuf*)out)->put_byte((int)slots[i].m_amp.getAbilityType() & 0xff);
+            ((InterfacePacketBuf*)out)->put_short((int)slots[i].m_amp.getAbilityValue() & 0xffff);
             if (slots[i].isAvatarItemType())
             {
-                buf->put_int(0x1e);
-                buf->put_binary(m_avatarItemMgr.getJewelSocketData(slots[i].m_addInfo2),
+                ((InterfacePacketBuf*)out)->put_int(0x1e);
+                ((InterfacePacketBuf*)out)->put_binary(m_avatarItemMgr.getJewelSocketData(slots[i].m_addInfo2),
                                0x1e);
-                buf->put_int(4);
+                ((InterfacePacketBuf*)out)->put_int(4);
                 if (m_pParent != 0 &&
                     (const void*)((CUserCharacInfo*)m_pParent)->getTagCharacInvenR() ==
                         (const void*)this)
@@ -6267,7 +6273,7 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                         expansion.m_color[0] = m_avatarVisible[i].m_field4;
                         expansion.m_color[1] = m_avatarVisible[i].m_field6;
                     }
-                    buf->put_binary((const char*)&expansion, 4);
+                    ((InterfacePacketBuf*)out)->put_binary((const char*)&expansion, 4);
                 }
                 else
                 {
@@ -6277,11 +6283,11 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                     {
                         stAvatarExpansionInfo_t expansion;
                         expansion.init();
-                        buf->put_binary((const char*)&expansion, 4);
+                        ((InterfacePacketBuf*)out)->put_binary((const char*)&expansion, 4);
                     }
                     else
                     {
-                        buf->put_binary(pExpansion, 4);
+                        ((InterfacePacketBuf*)out)->put_binary(pExpansion, 4);
                     }
                 }
             }
@@ -6290,14 +6296,14 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                 int creatureTick = OS_API::GetDateTimeTick();
                 int remainDate =
                     GetCreatureMgrR()->GetRemainDate(slots[i].m_addInfo2, creatureTick);
-                buf->put_int(remainDate);
+                ((InterfacePacketBuf*)out)->put_int(remainDate);
             }
             G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
-                m_pParent, slots[i], (PacketGuard*)buf);
-            buf->put_packet(slots[i]);
+                m_pParent, slots[i], (PacketGuard*)out);
+            ((InterfacePacketBuf*)out)->put_packet(slots[i]);
         }
     }
-    buf->put_byte(countIdx, count);
+    ((InterfacePacketBuf*)out)->put_byte(countIdx, count);
     if (flag)
     {
         return 1;
@@ -6305,14 +6311,14 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
     if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
         G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
     {
-        buf->put_byte(0);
+        ((InterfacePacketBuf*)out)->put_byte(0);
     }
     else
     {
         // ORIG 0x84febb0（MakeEquipList.md 伪 C `local_2c + 0x295`）：
         // slots + 10*0x3d + 0x33 = slots[10].m_upgradeSep（原注释 m_amp 系笔误，
         // m_amp 在 +0x11）；以单字节读取器 GetUpgradeSeparate 读取（ORIG 原样）。
-        buf->put_byte(slots[10].m_upgradeSep.GetUpgradeSeparate());
+        ((InterfacePacketBuf*)out)->put_byte(slots[10].m_upgradeSep.GetUpgradeSeparate());
     }
     return 1;
 }
@@ -6907,9 +6913,9 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
         return 0;
     }
 
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)out;
+    // [b28d-tu-CInventory] P329 试验：暂删具名 buf（测 ORIG -0x34 槽形）。
     GameWorld* world;
-    buf->put_header(0, 0xd);
+    ((InterfacePacketBuf*)out)->put_header(0, 0xd);
 
     // ORIG switch(invenType)：决策树 cmp $2/$3/$1、body 落序 EQUIP→AVATAR→CREATURE
     // （fall-through 布局），default 直达 finalize。switch 形式复现块序。
@@ -6918,156 +6924,155 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
     case INVEN_TYPE_EQUIP:
     {
 
-            buf->put_byte(0);
-            buf->put_short(get_inventory_capacity());
-            int countIdx = buf->get_index();
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_short(get_inventory_capacity());
+            int countIdx = ((InterfacePacketBuf*)out)->get_index();
             int count = 3;
             // ORIG +0x00cb..+0x00e2：count=3 槽物化 + `lea 0x3(%eax)` 二次求值后
             // put_short（固定前导 short 0x6，语义未证——物化形按 ORIG 保留）。
-            buf->put_short(count + 3);
+            ((InterfacePacketBuf*)out)->put_short(count + 3);
 
             // slot0：金币条目（addInfo=0，addInfo2=m_money）
-            buf->put_short(0);
-            buf->put_int(0);
-            buf->put_int(m_money);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_byte(0);
-            buf->put_int(0);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_byte(0);
-            buf->put_packet(g_emptySlot);
+            ((InterfacePacketBuf*)out)->put_short(0);
+            ((InterfacePacketBuf*)out)->put_int(0);
+            ((InterfacePacketBuf*)out)->put_int(m_money);
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_short(0);
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_int(0);
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_short(0);
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_packet(g_emptySlot);
 
             // slot1：代币条目（addInfo=1，addInfo2=coin+payCoin+eventCoin）
-            buf->put_short(1);
-            buf->put_int(1);
-            buf->put_int(m_coin + m_payCoin + m_eventCoin);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_byte(0);
-            buf->put_int(0);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_byte(0);
-            buf->put_packet(g_emptySlot);
+            ((InterfacePacketBuf*)out)->put_short(1);
+            ((InterfacePacketBuf*)out)->put_int(1);
+            ((InterfacePacketBuf*)out)->put_int(m_coin + m_payCoin + m_eventCoin);
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_short(0);
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_int(0);
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_short(0);
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_packet(g_emptySlot);
 
             // slot2：胜利点条目（addInfo=2，addInfo2=GetWinPoint）
-            buf->put_short(2);
-            buf->put_int(2);
-            buf->put_int(((CUserCharacInfo*)m_pParent)->GetWinPoint());
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_byte(0);
-            buf->put_int(0);
-            buf->put_byte(0);
-            buf->put_short(0);
-            buf->put_byte(0);
-            buf->put_packet(g_emptySlot);
+            ((InterfacePacketBuf*)out)->put_short(2);
+            ((InterfacePacketBuf*)out)->put_int(2);
+            ((InterfacePacketBuf*)out)->put_int(((CUserCharacInfo*)m_pParent)->GetWinPoint());
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_short(0);
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_int(0);
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_short(0);
+            ((InterfacePacketBuf*)out)->put_byte(0);
+            ((InterfacePacketBuf*)out)->put_packet(g_emptySlot);
 
             for (int slot = 3; slot < 0x138; ++slot)
             {
                 if (m_pEquipSlot[slot].m_addInfo == 0)
                     continue;
-                buf->put_short(slot);
-                buf->put_int(m_pEquipSlot[slot].m_addInfo);
-                buf->put_int(m_pEquipSlot[slot].m_addInfo2);
-                buf->put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], invenType, slot));
-                buf->put_short(m_pEquipSlot[slot].m_fieldb);
-                buf->put_byte(m_pEquipSlot[slot].m_field0);
+                ((InterfacePacketBuf*)out)->put_short(slot);
+                ((InterfacePacketBuf*)out)->put_int(m_pEquipSlot[slot].m_addInfo);
+                ((InterfacePacketBuf*)out)->put_int(m_pEquipSlot[slot].m_addInfo2);
+                ((InterfacePacketBuf*)out)->put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], invenType, slot));
+                ((InterfacePacketBuf*)out)->put_short(m_pEquipSlot[slot].m_fieldb);
+                ((InterfacePacketBuf*)out)->put_byte(m_pEquipSlot[slot].m_field0);
                 world = G_GameWorld();
                 if (!world->IsEnchantRevisionChannel())
-                    buf->put_int(m_pEquipSlot[slot].m_fieldd);
+                    ((InterfacePacketBuf*)out)->put_int(m_pEquipSlot[slot].m_fieldd);
                 else
-                    buf->put_int(0);
-                buf->put_byte((unsigned char)m_pEquipSlot[slot].m_amp.getAbilityType() & 0xff);
-                buf->put_short(m_pEquipSlot[slot].m_amp.getAbilityValue());
+                    ((InterfacePacketBuf*)out)->put_int(0);
+                ((InterfacePacketBuf*)out)->put_byte((unsigned char)m_pEquipSlot[slot].m_amp.getAbilityType() & 0xff);
+                ((InterfacePacketBuf*)out)->put_short(m_pEquipSlot[slot].m_amp.getAbilityValue());
                 G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
-                    m_pParent, m_pEquipSlot[slot], (PacketGuard*)buf);
-                buf->put_packet(m_pEquipSlot[slot]);
+                    m_pParent, m_pEquipSlot[slot], (PacketGuard*)out);
+                ((InterfacePacketBuf*)out)->put_packet(m_pEquipSlot[slot]);
                 ++count;
             }
-            buf->put_short(countIdx, count);
+            ((InterfacePacketBuf*)out)->put_short(countIdx, count);
         }
     case INVEN_TYPE_AVATAR:
     {
 
-            buf->put_byte(1);
-            int countIdx = buf->get_index();
+            ((InterfacePacketBuf*)out)->put_byte(1);
+            int countIdx = ((InterfacePacketBuf*)out)->get_index();
             int count = 0;
-            buf->put_short(count);   // ORIG +0x05ec/+0x08db：以 count 变量传参（此刻 0）
+            ((InterfacePacketBuf*)out)->put_short(count);   // ORIG +0x05ec/+0x08db：以 count 变量传参（此刻 0）
             int nowTick = OS_API::GetDateTimeTick();
             for (int slot = 0; slot < 0x69; ++slot)
             {
                 if (m_pAvatarSlot[slot].m_addInfo == 0)
                     continue;
-                buf->put_short(slot);
-                buf->put_int(m_pAvatarSlot[slot].m_addInfo);
-                buf->put_int(m_avatarItemMgr.GetRemainDate(m_pAvatarSlot[slot].m_addInfo2, nowTick));
-                buf->put_byte(m_pAvatarSlot[slot].GetItemAttr());
-                buf->put_short(m_pAvatarSlot[slot].m_fieldb);
-                buf->put_byte(m_pAvatarSlot[slot].m_field0);
-                buf->put_int(m_pAvatarSlot[slot].m_fieldd);
-                buf->put_byte(0);
-                buf->put_short(0);
+                ((InterfacePacketBuf*)out)->put_short(slot);
+                ((InterfacePacketBuf*)out)->put_int(m_pAvatarSlot[slot].m_addInfo);
+                ((InterfacePacketBuf*)out)->put_int(m_avatarItemMgr.GetRemainDate(m_pAvatarSlot[slot].m_addInfo2, nowTick));
+                ((InterfacePacketBuf*)out)->put_byte(m_pAvatarSlot[slot].GetItemAttr());
+                ((InterfacePacketBuf*)out)->put_short(m_pAvatarSlot[slot].m_fieldb);
+                ((InterfacePacketBuf*)out)->put_byte(m_pAvatarSlot[slot].m_field0);
+                ((InterfacePacketBuf*)out)->put_int(m_pAvatarSlot[slot].m_fieldd);
+                ((InterfacePacketBuf*)out)->put_byte(0);
+                ((InterfacePacketBuf*)out)->put_short(0);
                 ++count;
-                buf->put_int(0x1e);
-                buf->put_binary(
-                    m_avatarItemMgr.getJewelSocketData(m_pAvatarSlot[slot].m_addInfo2),
-                    0x1e);
+                ((InterfacePacketBuf*)out)->put_int(0x1e);
+                ((InterfacePacketBuf*)out)->put_binary(m_avatarItemMgr.getJewelSocketData(m_pAvatarSlot[slot].m_addInfo2),
+                0x1e);
                 const char* expansion =
                     (const char*)m_avatarItemMgr.GetExpansionInfo(m_pAvatarSlot[slot].m_addInfo2);
-                buf->put_int(4);
+                ((InterfacePacketBuf*)out)->put_int(4);
                 if (expansion == 0)
                 {
                     stAvatarExpansionInfo_t expInfo;
                     expInfo.init();
-                    buf->put_binary((const char*)&expInfo, 4);
+                    ((InterfacePacketBuf*)out)->put_binary((const char*)&expInfo, 4);
                 }
                 else
                 {
-                    buf->put_binary(expansion, 4);
+                    ((InterfacePacketBuf*)out)->put_binary(expansion, 4);
                 }
-                buf->put_byte(0);
-                buf->put_packet(m_pAvatarSlot[slot]);
+                ((InterfacePacketBuf*)out)->put_byte(0);
+                ((InterfacePacketBuf*)out)->put_packet(m_pAvatarSlot[slot]);
             }
-            buf->put_short(countIdx, count);
+            ((InterfacePacketBuf*)out)->put_short(countIdx, count);
         }
     case INVEN_TYPE_CREATURE:
     {
 
-            buf->put_byte(7);
-            int countIdx = buf->get_index();
+            ((InterfacePacketBuf*)out)->put_byte(7);
+            int countIdx = ((InterfacePacketBuf*)out)->get_index();
             int count = 0;
-            buf->put_short(count);   // ORIG +0x05ec/+0x08db：以 count 变量传参（此刻 0）
+            ((InterfacePacketBuf*)out)->put_short(count);   // ORIG +0x05ec/+0x08db：以 count 变量传参（此刻 0）
             for (int slot = 0; slot < 0xf2; ++slot)
             {
                 if (m_pCreatureSlot[slot].m_addInfo == 0)
                     continue;
-                buf->put_short(slot);
-                buf->put_int(m_pCreatureSlot[slot].m_addInfo);
-                buf->put_int(m_pCreatureSlot[slot].m_addInfo2);
-                buf->put_byte(m_pCreatureSlot[slot].GetItemAttr());
-                buf->put_short(m_pCreatureSlot[slot].m_fieldb);
-                buf->put_byte(m_pCreatureSlot[slot].m_field0);
-                buf->put_int(m_pCreatureSlot[slot].m_fieldd);
-                buf->put_byte(0);
-                buf->put_short(0);
+                ((InterfacePacketBuf*)out)->put_short(slot);
+                ((InterfacePacketBuf*)out)->put_int(m_pCreatureSlot[slot].m_addInfo);
+                ((InterfacePacketBuf*)out)->put_int(m_pCreatureSlot[slot].m_addInfo2);
+                ((InterfacePacketBuf*)out)->put_byte(m_pCreatureSlot[slot].GetItemAttr());
+                ((InterfacePacketBuf*)out)->put_short(m_pCreatureSlot[slot].m_fieldb);
+                ((InterfacePacketBuf*)out)->put_byte(m_pCreatureSlot[slot].m_field0);
+                ((InterfacePacketBuf*)out)->put_int(m_pCreatureSlot[slot].m_fieldd);
+                ((InterfacePacketBuf*)out)->put_byte(0);
+                ((InterfacePacketBuf*)out)->put_short(0);
                 if (m_pCreatureSlot[slot].m_field1 ==
                     (unsigned char)Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
                 {
                     int nowTick = 0;   // ORIG +0x0a50 先 0 物化再 call 回填
                     nowTick = OS_API::GetDateTimeTick();
-                    buf->put_int(GetCreatureMgrR()->GetRemainDate(m_pCreatureSlot[slot].m_addInfo2, nowTick));
+                    ((InterfacePacketBuf*)out)->put_int(GetCreatureMgrR()->GetRemainDate(m_pCreatureSlot[slot].m_addInfo2, nowTick));
                 }
-                buf->put_byte(0);
-                buf->put_packet(m_pCreatureSlot[slot]);
+                ((InterfacePacketBuf*)out)->put_byte(0);
+                ((InterfacePacketBuf*)out)->put_packet(m_pCreatureSlot[slot]);
                 ++count;
             }
-            buf->put_short(countIdx, count);
+            ((InterfacePacketBuf*)out)->put_short(countIdx, count);
         }
     }
-    buf->finalize(true);
+    ((InterfacePacketBuf*)out)->finalize(true);
     return 1;
 }
 

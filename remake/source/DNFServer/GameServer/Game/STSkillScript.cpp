@@ -331,14 +331,21 @@ typedef std::map<const char*, int, less_TCHAR> SkillTagMap;
 
 } // namespace
 
-// [b28d-solo-STSkillScript] verdict=DIFF（ORIG 3078 / ours 3080，gap=+2）
-// 语义完成：p167 调用点差集 CLEAR（368=368，0 missing / 0 extra；含右值 push_back
-// 与 pair C1<int&,int> 修正）。byte 层 N 封顶（§6.2 三件套口径）：
-//  - N82/N82附：帧 0x67c vs 0x69c；4.4 聚合对象优先占低槽、标量分区排布（ORIG 按
-//    生命周期穿插）⇒ 全帧槽号错位。
+// [b28d-solo-STSkillScript·大件波 BigSkillChar] AE 口径 ndiff 2907→**293**：
+//  ① 函数级标量 20 个声明序**反转**（4.4 先声明→更深，原序使 tagId(-0x6c)…
+//     finIdx(-0x1c) 与 ORIG 完全倒置，浅层整区平移 0x50）；
+//  ② level info `row` 由块内引用改为函数级指针声明（置于 jIdx/chunk 之间），
+//     消 4.4 共享 finIdx 死槽并把 chunk/kIdx/srcIdx 拉回 ORIG -0x30/-0x2c/-0x28。
+// 语义核对（ORIG↔.o 常量组差集）：imm 集仅剩帧 0x67c/0x69c + xor$1 物化×2；
+// 非 ebp 字段访问集仅剩 `lea 0x44(%ebx)`↔`0x40(%ebx)` 一处寄存器折叠差 ⇒
+// 65 张 TAG/字段写/循环界**无缺失**。
+// 剩余 293 构成：deep 区 -0x5f0..-0x67c 块临时槽 +8/+0x24 平移（4.1 跨 case
+// 复用同一 -0x650 feat 槽，4.4 两份不重用 ⇒ 帧 +0x20，N82/N86 类封顶；实测把
+// opToken 移入循环/do-while 形均使 ndiff 持平或恶化，已回退并留注）；
 //  - N4/N102：成员数组偏移折入索引 vs disp 折叠（m_dw110[i] 等）。
 //  - P292/N122：bool 局部循环条件 4.4 恒 setne 物化 vs ORIG dword 直测。
 //  - N121：4.4 jump-threading 尾岛（read_token 前 1 条 jmp+nop，ORIG 无）。
+// （65 个 TAG insert 块槽号实测与 ORIG 逐条一致，不计残差源。）
 bool ImportSkillScript(STSkillScript* script, const char* path,
                       ENUM_CHARACTERJOB job, int paramB, int iconIdx)
 {

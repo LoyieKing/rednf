@@ -45,6 +45,100 @@ unsigned int GetIdentity(MySQL* db);   // ORIG T 0x083f9ad4（LinkClosureB_Misc.
 char* NumberToString(unsigned int value, int radix);   // ORIG T 0x0810904b
 
 // ===========================================================================
+// MakeInsertCharacInfo — 报告 @0x080ec2a0
+// charac_info 一行 INSERT。job 数据区（+0x26..+0x74）按 ORIG 位移寻址复现：
+// 经 pack(1) 视图成员访问（reinterpret_cast<视图*> 后 .成员），使 4.4-O0 收敛为
+// 直接位移载入 `mov off(%eax),%eax`（与 ORIG 逐条一致），避免 pointer-cast 索引
+// 退化成 `add $off;mov (%eax)`。字节偏移 +0x26..+0x74 与 SIG_CREATE_CHARAC 对齐。
+// ===========================================================================
+
+#pragma pack(push, 1)
+// MakeInsertCharacInfo job 数据视图：相对 sig 基址 +0x26..+0x74（pack 1，非对齐）。
+struct MiciJobView
+{
+    unsigned char m_pre[0x26];      // sig+0x00..+0x25（本函数不用）
+    unsigned int  m_maxHp;          // +0x26
+    unsigned int  m_maxMp;          // +0x2a
+    unsigned short m_phyAttack;     // +0x2e
+    unsigned short m_phyDefense;    // +0x30
+    unsigned short m_magAttack;     // +0x32
+    unsigned short m_magDefense;    // +0x34
+    unsigned char m_elementResist[8];   // +0x36
+    unsigned char m_specProperty[0x22]; // +0x3e
+    unsigned int  m_invenWeight;    // +0x60
+    short m_hpRegen;                // +0x64
+    short m_mpRegen;                // +0x66
+    unsigned int  m_moveSpeed;      // +0x68
+    unsigned short m_attackSpeed;   // +0x6c
+    unsigned short m_castSpeed;     // +0x6e
+    short m_hitRecovery;            // +0x70
+    short m_jump;                   // +0x72
+    unsigned int  m_expertJob;      // +0x74
+};
+#pragma pack(pop)
+
+// b28d-solo-DB_CreateCharac verdict=DIFF(N7 封顶) ORIG 0x080ec2a0 orig/ours=154/153。
+// 已收：①blob_to_str 调用序（先 col=1 spec 后 col=0 elem）②P183 去 jv 指针缓存（每个字段
+// 重读 sig 形参 `mov 0x10(%ebp),%eax; mov off(%eax)`，与 ORIG 逐条一致）③maxHP 不设局部、
+// 实参内联（%edi 承载，push/pop %edi 与帧 0xcc 归位）④+0x25 改具名局部 -0x60、+0x534c 内联
+// （ORIG 前者有槽、后者 %esi 无槽）⑤帧/槽位/-0x64..-0x1c 全对齐、%edi/%esi/%ebx 角色一致。
+// 残余 = 1 条：ORIG `call NumberToString; mov %eax,%edx`（结果移 %edx，压栈用 %eax 中转），
+// 4.4 恒留 %eax、改用 %edx 中转压栈 ⇒ 助记符序列全等仅中转寄存器角色互换（N7 族；试过
+// P226 裸语句表达式/具名局部/register 提示/cast 四形，均不翻）。语义/callsite 完整。
+void DB_CreateCharac::MakeInsertCharacInfo(MySQL* db, SIG_CREATE_CHARAC* sig,
+                                           char const* escapedName)
+{
+    int eventCharacLevel = (signed char)sig->m_field23;   // +0x23 列 event_charac_level
+    // ORIG +0x25 值有具名槽 -0x60（P0：槽往返 ⇒ 有局部）；+0x534c 无槽（%esi 承载）⇒
+    // 两者处理互换。
+    int sexAt0x25 = (signed char)sig->m_pad25;            // +0x25 ← ORIG -0x60 槽
+    int fatigueMax = DEFAULT_MAX_FATIGUE;
+
+    // P183：ORIG 每个字段都重读 sig 形参（mov 0x10(%ebp),%eax; mov off(%eax),%eax）
+    // ⇒ 禁指针缓存，逐点内联视图 cast。
+    unsigned int expertJob   = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_expertJob);   // +0x74
+    int jumpValue            = static_cast<int>(reinterpret_cast<MiciJobView const*>(sig)->m_jump);                 // +0x72
+    int hitRecovery          = static_cast<int>(reinterpret_cast<MiciJobView const*>(sig)->m_hitRecovery);          // +0x70
+    unsigned int castSpeed   = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_castSpeed);   // +0x6e
+    unsigned int attackSpeed = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_attackSpeed); // +0x6c
+    unsigned int moveSpeed   = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_moveSpeed);   // +0x68
+    int mpRegenShort         = static_cast<int>(reinterpret_cast<MiciJobView const*>(sig)->m_mpRegen);              // +0x66
+    int hpRegenShort         = static_cast<int>(reinterpret_cast<MiciJobView const*>(sig)->m_hpRegen);              // +0x64
+    unsigned int invenWeight = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_invenWeight); // +0x60
+    // 第一次 blob_to_str(col=1, sig+0x3e, 0x22) → spec_property '%s'（ORIG 调用序在前）
+    char const* specPropertyBlob =
+        db->blob_to_str(1, const_cast<unsigned char*>(reinterpret_cast<MiciJobView const*>(sig)->m_specProperty), 0x22);
+    // 第二次 blob_to_str(col=0, sig+0x36, 8) → element_resist '%s'
+    char const* elementResistBlob =
+        db->blob_to_str(0, const_cast<unsigned char*>(reinterpret_cast<MiciJobView const*>(sig)->m_elementResist), 8);
+    unsigned int magDefense = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_magDefense);   // +0x34
+    unsigned int magAttack  = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_magAttack);    // +0x32
+    unsigned int phyDefense = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_phyDefense);   // +0x30
+    unsigned int phyAttack  = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_phyAttack);    // +0x2e
+    unsigned int maxMP      = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_maxMp);        // +0x2a
+    // P0：ORIG maxHP 无栈槽（080ec3bf 装载入 %edi 跨 NumberToString 保活）⇒
+    // 不设具名局部，实参处内联表达式。
+
+    db->set_query(
+        "inSert into charac_info (m_id,charac_name,job,sex,maxHP,maxMP,phy_attack,"
+        "phy_defense,mag_attack,mag_defense,element_resist,spec_property,"
+        "inven_weight,hp_regen,mp_regen,move_speed,attack_speed,cast_speed,"
+        "hit_recovery,jump,charac_weight,max_fatigue,create_time,expert_job,"
+        "event_charac_level) values(%s,'%s',%d,%d,%d,%u,%d,%d,%d,%d,'%s','%s',"
+        "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,NOW(),%d,%d)",
+        NumberToString(sig->m_accId, 0), escapedName,
+        (int)(signed char)sig->m_slot,     // job 列 ← sig+0x22（ORIG %ebx）
+        (signed char)sig->m_ssnCheckFail,  // sex 列 ← sig+0x534c（ORIG %esi 无槽）
+        static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_maxHp),  // +0x26（ORIG %edi）
+        maxMP, phyAttack, phyDefense, magAttack, magDefense,
+        elementResistBlob, specPropertyBlob,
+        invenWeight, hpRegenShort, mpRegenShort, moveSpeed, attackSpeed,
+        castSpeed, hitRecovery, jumpValue, expertJob, fatigueMax,
+        sexAt0x25,                         // expert_job 列 ← sig+0x25（ORIG -0x60 槽）
+        eventCharacLevel);                 // event_charac_level ← sig+0x23
+}
+
+// ===========================================================================
 // C1/C2 — DB_CreateCharac.md @0x08400cc2：基类 ctor + 设 vptr。
 // D1/D2/D0 — ~.md @0x08400cde/@0x08400d0e：设 vptr + 基类析构；D0 另 delete。
 // 非 inline 定义发射全套生命周期符号。
@@ -955,98 +1049,4 @@ bool DB_CreateCharac::SendResult(int userIdx, int slot, SIG_CREATE_CHARAC* sig)
     guard.operator->()->put_binary(sig, 0x5354);  // op->(guard)→put_binary
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
-}
-
-// ===========================================================================
-// MakeInsertCharacInfo — 报告 @0x080ec2a0
-// charac_info 一行 INSERT。job 数据区（+0x26..+0x74）按 ORIG 位移寻址复现：
-// 经 pack(1) 视图成员访问（reinterpret_cast<视图*> 后 .成员），使 4.4-O0 收敛为
-// 直接位移载入 `mov off(%eax),%eax`（与 ORIG 逐条一致），避免 pointer-cast 索引
-// 退化成 `add $off;mov (%eax)`。字节偏移 +0x26..+0x74 与 SIG_CREATE_CHARAC 对齐。
-// ===========================================================================
-
-#pragma pack(push, 1)
-// MakeInsertCharacInfo job 数据视图：相对 sig 基址 +0x26..+0x74（pack 1，非对齐）。
-struct MiciJobView
-{
-    unsigned char m_pre[0x26];      // sig+0x00..+0x25（本函数不用）
-    unsigned int  m_maxHp;          // +0x26
-    unsigned int  m_maxMp;          // +0x2a
-    unsigned short m_phyAttack;     // +0x2e
-    unsigned short m_phyDefense;    // +0x30
-    unsigned short m_magAttack;     // +0x32
-    unsigned short m_magDefense;    // +0x34
-    unsigned char m_elementResist[8];   // +0x36
-    unsigned char m_specProperty[0x22]; // +0x3e
-    unsigned int  m_invenWeight;    // +0x60
-    short m_hpRegen;                // +0x64
-    short m_mpRegen;                // +0x66
-    unsigned int  m_moveSpeed;      // +0x68
-    unsigned short m_attackSpeed;   // +0x6c
-    unsigned short m_castSpeed;     // +0x6e
-    short m_hitRecovery;            // +0x70
-    short m_jump;                   // +0x72
-    unsigned int  m_expertJob;      // +0x74
-};
-#pragma pack(pop)
-
-// b28d-solo-DB_CreateCharac verdict=DIFF(N7 封顶) ORIG 0x080ec2a0 orig/ours=154/153。
-// 已收：①blob_to_str 调用序（先 col=1 spec 后 col=0 elem）②P183 去 jv 指针缓存（每个字段
-// 重读 sig 形参 `mov 0x10(%ebp),%eax; mov off(%eax)`，与 ORIG 逐条一致）③maxHP 不设局部、
-// 实参内联（%edi 承载，push/pop %edi 与帧 0xcc 归位）④+0x25 改具名局部 -0x60、+0x534c 内联
-// （ORIG 前者有槽、后者 %esi 无槽）⑤帧/槽位/-0x64..-0x1c 全对齐、%edi/%esi/%ebx 角色一致。
-// 残余 = 1 条：ORIG `call NumberToString; mov %eax,%edx`（结果移 %edx，压栈用 %eax 中转），
-// 4.4 恒留 %eax、改用 %edx 中转压栈 ⇒ 助记符序列全等仅中转寄存器角色互换（N7 族；试过
-// P226 裸语句表达式/具名局部/register 提示/cast 四形，均不翻）。语义/callsite 完整。
-void DB_CreateCharac::MakeInsertCharacInfo(MySQL* db, SIG_CREATE_CHARAC* sig,
-                                           char const* escapedName)
-{
-    int eventCharacLevel = (signed char)sig->m_field23;   // +0x23 列 event_charac_level
-    // ORIG +0x25 值有具名槽 -0x60（P0：槽往返 ⇒ 有局部）；+0x534c 无槽（%esi 承载）⇒
-    // 两者处理互换。
-    int sexAt0x25 = (signed char)sig->m_pad25;            // +0x25 ← ORIG -0x60 槽
-    int fatigueMax = DEFAULT_MAX_FATIGUE;
-
-    // P183：ORIG 每个字段都重读 sig 形参（mov 0x10(%ebp),%eax; mov off(%eax),%eax）
-    // ⇒ 禁指针缓存，逐点内联视图 cast。
-    unsigned int expertJob   = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_expertJob);   // +0x74
-    int jumpValue            = static_cast<int>(reinterpret_cast<MiciJobView const*>(sig)->m_jump);                 // +0x72
-    int hitRecovery          = static_cast<int>(reinterpret_cast<MiciJobView const*>(sig)->m_hitRecovery);          // +0x70
-    unsigned int castSpeed   = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_castSpeed);   // +0x6e
-    unsigned int attackSpeed = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_attackSpeed); // +0x6c
-    unsigned int moveSpeed   = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_moveSpeed);   // +0x68
-    int mpRegenShort         = static_cast<int>(reinterpret_cast<MiciJobView const*>(sig)->m_mpRegen);              // +0x66
-    int hpRegenShort         = static_cast<int>(reinterpret_cast<MiciJobView const*>(sig)->m_hpRegen);              // +0x64
-    unsigned int invenWeight = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_invenWeight); // +0x60
-    // 第一次 blob_to_str(col=1, sig+0x3e, 0x22) → spec_property '%s'（ORIG 调用序在前）
-    char const* specPropertyBlob =
-        db->blob_to_str(1, const_cast<unsigned char*>(reinterpret_cast<MiciJobView const*>(sig)->m_specProperty), 0x22);
-    // 第二次 blob_to_str(col=0, sig+0x36, 8) → element_resist '%s'
-    char const* elementResistBlob =
-        db->blob_to_str(0, const_cast<unsigned char*>(reinterpret_cast<MiciJobView const*>(sig)->m_elementResist), 8);
-    unsigned int magDefense = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_magDefense);   // +0x34
-    unsigned int magAttack  = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_magAttack);    // +0x32
-    unsigned int phyDefense = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_phyDefense);   // +0x30
-    unsigned int phyAttack  = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_phyAttack);    // +0x2e
-    unsigned int maxMP      = static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_maxMp);        // +0x2a
-    // P0：ORIG maxHP 无栈槽（080ec3bf 装载入 %edi 跨 NumberToString 保活）⇒
-    // 不设具名局部，实参处内联表达式。
-
-    db->set_query(
-        "inSert into charac_info (m_id,charac_name,job,sex,maxHP,maxMP,phy_attack,"
-        "phy_defense,mag_attack,mag_defense,element_resist,spec_property,"
-        "inven_weight,hp_regen,mp_regen,move_speed,attack_speed,cast_speed,"
-        "hit_recovery,jump,charac_weight,max_fatigue,create_time,expert_job,"
-        "event_charac_level) values(%s,'%s',%d,%d,%d,%u,%d,%d,%d,%d,'%s','%s',"
-        "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,NOW(),%d,%d)",
-        NumberToString(sig->m_accId, 0), escapedName,
-        (int)(signed char)sig->m_slot,     // job 列 ← sig+0x22（ORIG %ebx）
-        (signed char)sig->m_ssnCheckFail,  // sex 列 ← sig+0x534c（ORIG %esi 无槽）
-        static_cast<unsigned int>(reinterpret_cast<MiciJobView const*>(sig)->m_maxHp),  // +0x26（ORIG %edi）
-        maxMP, phyAttack, phyDefense, magAttack, magDefense,
-        elementResistBlob, specPropertyBlob,
-        invenWeight, hpRegenShort, mpRegenShort, moveSpeed, attackSpeed,
-        castSpeed, hitRecovery, jumpValue, expertJob, fatigueMax,
-        sexAt0x25,                         // expert_job 列 ← sig+0x25（ORIG -0x60 槽）
-        eventCharacLevel);                 // event_charac_level ← sig+0x23
 }

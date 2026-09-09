@@ -575,10 +575,18 @@ int CExchangeServer::OnRecvPacketCharacInfo(CSession* session,
 int CExchangeServer::OnRecvPacketCharacInfoRet(CSession* session,
                                                PacketGuard& guard)
 {
-    // [b28d-48] N82 封顶（NDIFF 162，167/165 条）：巨件帧/槽平移。
-    int ret = 0;                                      // -0x40
-    int idx = 0;                                      // -0x38
-    int fromCh = 0;                                   // -0x3c
+    // [P31/P330 本泳道 2026-09-09] ORIG 入口零初始化**序列**为
+    // `-0x38, -0x3c, -0x24, -0x20, -0x40`（5 条 movl，见 0x084925f4..0x08492610），
+    // 旧码只声明 3 个（⇒ 我方 3 条 movl，帧 0x3f8bc vs ORIG 0x3f8cc）。
+    // 其中 -0x24 / -0x20 两条写**在整个函数里再无读取**（已核：ORIG 切片内
+    // grep `-0x24(%ebp)`/`-0x20(%ebp)` 各只命中这条 movl）⇒ 原码确有两个
+    // 之后未被使用的局部（P31 死写先例，同 SetPeriodCheckTimer 的 pad24）。
+    // 声明顺序照 ORIG 初始化顺序排，两个死局部按 ORIG 位置夹在中间。
+    int idx = 0;                                      // ORIG -0x38
+    int fromCh = 0;                                   // ORIG -0x3c
+    int pad24 = 0;                                    // ORIG -0x24（死写，P31）
+    int pad20 = 0;                                    // ORIG -0x20（死写，P31）
+    int ret = 0;                                      // ORIG -0x40
 
     if (!guard.get_int(ret))                          // line 0x26c
     {
@@ -644,8 +652,11 @@ int CExchangeServer::OnRecvPacketCharacInfoRet(CSession* session,
 int CExchangeServer::OnRecvPacketServerInfo(CSession* session,
                                             PacketGuard& guard)
 {
-    ExchangeServerInfo info;
-    int serverId = 0;
+    // [P330 本泳道] ORIG 0x08492860 入口**无** serverId 的零初始化（直接
+    // `lea -0x4c(%ebp); get_int`）⇒ 原码是不带初值的局部，旧 `= 0` 多发一条
+    // movl 且把后续槽位整体推偏。
+    ExchangeServerInfo info;                          // ORIG 槽 -0x5c
+    int serverId;                                     // ORIG 槽 -0x4c（无初值）
 
     if (!guard.get_int(serverId))                     // line 0x29d
     {

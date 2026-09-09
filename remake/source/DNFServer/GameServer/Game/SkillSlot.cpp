@@ -47,6 +47,16 @@ struct STGuildDBTailView
 static_assert(sizeof(STGuildSkillEntry5) == 5, "STGuildSkillEntry5");
 static_assert(sizeof(STGuildDBTailView) == 0x40 + 5 + 0x50, "STGuildDBTailView");
 
+void SkillSlot::set_skill_slot(char* in1, char* in2, int size)
+{
+    if (0x198 < (unsigned)size)
+    {
+        size = 0x198;
+    }
+    memcpy(m_skillSlot, in1, size);
+    memcpy(m_skillSlot2, in2, size);
+}
+
 // ---- 依赖的全局函数（真实定义在本 TU，ORIG 符号）----
 // ORIG T 0x8604fe2：创建角色时按 job 追加默认技能。
 // 逻辑（对照 0x8604fe2 反汇编）：
@@ -529,16 +539,6 @@ void SkillSlot::get_skill_slot(char* out1, char* out2, int size) const
     }
     memcpy(out1, m_skillSlot, size);
     memcpy(out2, m_skillSlot2, size);
-}
-
-void SkillSlot::set_skill_slot(char* in1, char* in2, int size)
-{
-    if (0x198 < (unsigned)size)
-    {
-        size = 0x198;
-    }
-    memcpy(m_skillSlot, in1, size);
-    memcpy(m_skillSlot2, in2, size);
 }
 
 void SkillSlot::get_skill_slot_at_index(char* out, int size,

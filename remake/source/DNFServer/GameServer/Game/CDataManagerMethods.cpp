@@ -80,7 +80,7 @@ public:
 // ORIG 0x08360bde：导入 Etc/spTable.etc 至局部 stSpPerLevelTable；
 // 导入失败返回 0。成功时将 +0xDA90 表清零后自 index1 起回填表值
 // （index0 恒为 0），返回 1。逐次重读 this（与 O0 成员访问一致）。
-int CDataManager::set_reward_sp()
+bool CDataManager::set_reward_sp()  // [P330 int→bool] 与 CDataManager.h 声明同步（init 调用点 ORIG xor $1 形，idx 3876）
 {
     stSpPerLevelTable table;
     if (importSpPerLevelReferenceTable("Etc/spTable.etc", table))

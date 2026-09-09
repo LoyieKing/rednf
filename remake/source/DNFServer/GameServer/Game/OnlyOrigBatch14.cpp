@@ -432,6 +432,13 @@ static void SHA384_Transform(unsigned long* state, unsigned long* data)
 // 2) 杂散小函数
 // ============================================================================
 
+// ===== _Z14InitTileScriptv —— ORIG 0x089dcbac =====
+// mov $1 直返。
+int InitTileScript()
+{
+    return 1;
+}
+
 // ORIG T 0x0841d2ea _Z11PrintLetter15SIG_LETTER_INFO：空体。
 void PrintLetter(SIG_LETTER_INFO)
 {
@@ -1047,10 +1054,15 @@ bool importUniqueRewardForAllUsers(
         return false;
     std::string token;
     std::string name;
+    // [gi00 四套配平补漏] 字段串 key 差集实证 ORIG 在本函数引用第 3 个 tag
+    // `[/package]`（0x08900054 压参 + 0x08900062 比较）：其结构是 do-while 尾条件
+    // `bVar2 = (token == "[/package]"); } while (!bVar2);` ⇒ 命中闭合标签即跳
+    // LAB_08900072（与 ScanType 失败共用的 `return 1` 出口）。原实现缺该终止条件，
+    // 会越过 `[/package]` 继续吞掉其后所有 `[group]` 块 ⇒ 可观察行为差（out 多填）。
     for (;;)
     {
         if (!ScanType(token, true))
-            return true;
+            goto unique_reward_ok;
         if (token == "[group]")
         {
             if (!ScanStr(&name))
@@ -1073,7 +1085,11 @@ bool importUniqueRewardForAllUsers(
             }
             (*out)[job] = jobs;
         }
+        if (token == "[/package]")
+            break;
     }
+unique_reward_ok:
+    return true;
 }
 
 // ORIG T 0x08a358d7 _Z15importPetScriptP9PetScriptPKc。
@@ -1410,45 +1426,7 @@ const char* RestrictCategory::enumToString(Enum e)
     return enumStringRestrict[e];
 }
 
-// ORIG T 0x088c1558 _ZL23importKeyNameIndexTablev（static）。
-// [b28d-solo-OnlyOrigBatch14 判词·AE 归零] 本波三修：①P167 差集把
-// `s = toTString(...); map[s]=v;` 改回内联实参 + 具名 `const char* p`
-// 中转（ORIG 有 `_ZNSsC1EPKcRKSaIcE`+allocator 而无 `_ZNSsaSEPKc`；且
-// 0x088c1668 `mov %eax,-0xc(%ebp)` 为 P0 具名局部槽）；②P15/P283 循环改
-// `while ((token = getToken()) != 0)`（ORIG token 获取在循环尾条件块）；
-// ③声明序 value 先/token 后（P309 先声明浅 ⇒ token@-0x10/value@-0x14）。
-// 结果 AE-EQUAL 81=81，p167 CLEAR 13=13。
-static bool importKeyNameIndexTable()
-{
-    if (!loadRDARScriptFile("", "Skill/RDARKeyIndex.dat"))
-        return false;
-    // [b28d-solo-OnlyOrigBatch14] P15/P283：ORIG 0x088c15a0 段 token 获取在
-    // 循环尾条件块（`call getToken; mov %eax,-0x10; cmpl $0,-0x10; setne;
-    // test; jne <body>`）⇒ 源形 `while ((token = getToken()) != 0)`；
-    // 声明序 value 先/token 后（4.4 先声明浅 ⇒ token@-0x10/value@-0x14）。
-    int value = 0;
-    int token;
-    while ((token = g_dnfLex.getToken()) != 0)
-    {
-        if (token == 2)
-        {
-            value = g_dnfLex.getDecimal();
-        }
-        else if (token == 6)
-        {
-            // [b28d-solo-OnlyOrigBatch14] P167 差集：ORIG 无
-            // `_ZNSsaSEPKc`（operator=(const char*)），而有
-            // `_ZNSsC1EPKcRKSaIcE`+allocator C1/D1（临时 string 构造）
-            // ⇒ 原码把 toTString 结果直接作 operator[] 的 key 实参
-            // （隐式 const char*→string 转换临时），非函数级 s 赋值。
-            // P0：ORIG 0x088c1668 `mov %eax,-0xc(%ebp)`（toTString 结果入槽）
-            // ⇒ 原码另有具名 `const char* p` 局部。
-            const char* p = toTString(g_dnfLex.getCustomData());
-            g_mapKeyNameIndexTable[p] = value;
-        }
-    }
-    return true;
-}
+// （importKeyNameIndexTable 已按 R3 批准迁至 ScriptExtras.cpp —— 判词随行迁走。）
 
 // ORIG T 0x0808aa37 _Z16WriteCodeSectionPKc：读取 PE 头后写回 .code.bin。
 void WriteCodeSection(const char* path)
@@ -1685,15 +1663,10 @@ int ImportDifficultPenaltyInfoScript(const char* path, DifficultPenaltyInfo& out
     return 0;
 }
 
-// ===== _Z14InitTileScriptv —— ORIG 0x089dcbac =====
-// mov $1 直返。
-int InitTileScript()
-{
-    return 1;
-}
-
 // ===== _Z16ImportTileScriptP12STTileScriptPKc —— ORIG 0x089dcbb6 =====
-// loadRDARScriptFile("TILE", path) 失败 → printf("TILE LOAD FAIL! [%s]\n", path) 返回 0；
+// loadRDARScriptFile("", path) 失败 → printf("TILE LOAD FAIL! [%s]\n", path) 返回 0；
+//   【gi00 串 key 配平修正】ORIG 0x089dcbc5 `movl $"",(%esp)` ⇒ 第一参为**空串**
+//   （非 "TILE"；"TILE" 只出现在后面的 printf 文案里）。旧注释误记为 "TILE"。
 // 先 Clear()，随后按 token 分派：
 //   [IMAGE]   → 循环 { pair<string,int>；ScanStr(&first)；second=ScanInt((bool*)0)；
 //                 m_actions.push_back }
@@ -1708,7 +1681,9 @@ int ImportTileScript(STTileScript* script, const char* path)
     // ORIG 帧含 dead 槽且局部槽深序与 4.4 相反（[pass type] 内层 ScanInt(&ok)
     // 循环的 bool 物化 je/jne 极性随之错位）。loadRDARScriptFile("TILE", path)
     // 参数序、token 分派与全部 push_back 调用点与 ORIG 逐段核对一致。
-    if (!loadRDARScriptFile("TILE", path))
+    //   ↑ 旧判词里的 loadRDARScriptFile 首参有误：ORIG 0x089dcbc5 实证为空串，
+    //   本波已按串 key 配平改回 `loadRDARScriptFile("", path)`。
+    if (!loadRDARScriptFile("", path))
     {
         printf("TILE LOAD FAIL! [%s]\n", path);
         return 0;
