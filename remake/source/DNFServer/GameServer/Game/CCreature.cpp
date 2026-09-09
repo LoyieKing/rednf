@@ -46,18 +46,25 @@ namespace user_creature
 //（fucompp+sahf，含 NaN 判定）→ 不可保存；其余 state 恒真。
 bool CStomach::IsSaveStomach(CREATURE_STATE state)
 {
-    // b28d-37 [N85+N82 封顶，ORIG 0x83?]：x87 比较两向（ORIG fucompp/fnstsw/sahf/sete vs 4.4 fucomip/fstp/setae；P230 换 -march=i486 可消，本波不改路由）+ 槽残差；38/34。
+    // b28d-37 [N85 封顶，ORIG 0x8336dee]：x87 比较两向（ORIG fucompp/fnstsw/sahf/sete
+    // vs 4.4 fucomip/fstp/setae；P230 换 -march=i486 可消，本波不改路由）。
+    // ORIG 决策树 `cmp $1,%eax; je; cmp $1,%eax; jl; cmp $3,%eax; jg; jmp` 为
+    // 形参载入寄存器比较且无槽往返（P251/P286：无槽多路比较 ⇒ switch；if 链会被
+    // 4.4 折成内存直比并多出 `int s` 槽），故按 ORIG 还原 switch(state) 形。
     bool saveOk = true;
-    int s = (int)state;
-    if (s == 1)
+    switch (state)
     {
+    case CREATURE_STATE_1:
         if (m_value <= 0.0f)   // ORIG test $0x5（C0|C2）：<=0 不可保存；NaN 走 unordered 保持可保存
             saveOk = false;
-    }
-    else if (s > 0 && s < 4)
-    {
+        break;
+    case CREATURE_STATE_2:
+    case CREATURE_STATE_3:
         if (m_value == 100.0f)
             saveOk = false;
+        break;
+    default:
+        break;
     }
     return saveOk;
 }
@@ -278,25 +285,36 @@ int CCreature::GetSkillRecoveryTime()
 //（EvoluteMulty.md 全转写）：进化目标由调用方给定 creatureId（isEvoluationCreature 校验）。
 bool CCreature::EvoluteMulty(CUser* user, int creatureId)
 {
-    // b28d-37 [N82 封顶，ORIG 0x83?]：帧/槽残差（179/174）。
+    // [b28d-37 复核 2026-09-09] DIFF→AE：补 P0 具名局部 evolutionCreatureId(-0x18)/
+    // nextItemId(-0x10)、P197③ slotItem 预清零、P227 全表达式临时链 trace；
+    // 179/180（+1 尾部对齐 nop，§6.1 豁免）。
     if (m_script == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x843, 5);
-        trace("cannot evolute because it haven't creature script uid(%d), "
-              "creature id(%d) \n", user->get_unique_id() & 0xffff,
-              reinterpret_cast<CCreatureItem*>(this)->GetItemId());
+        // P227：ORIG 在 cMyTrace ctor 前右起求值 varargs 并跨 call 保活
+        // %ebx/%esi（N80 反面），故用全表达式临时链而非具名 trace 局部。
+        cMyTrace(__PRETTY_FUNCTION__, 0x843, 5)(
+            "cannot evolute because it haven't creature script uid(%d), "
+            "creature id(%d) \n", user->get_unique_id() & 0xffff,
+            reinterpret_cast<CCreatureItem*>(this)->GetItemId());
         return false;
     }
     if (!m_script->isEvoluationCreature(creatureId))
         return false;
-    if (creatureId == 0)
+    // ORIG 83389eb：mov 0x10(%ebp),%eax; mov %eax,-0x18(%ebp)（P0 具名局部），
+    // 后续 ==0 判定与 FindCreatureScript/包通知均读该槽。
+    int evolutionCreatureId = creatureId;
+    if (evolutionCreatureId == 0)
         return false;
     CCreatureScript* nextScript =
-        GetInstanceCreatureScriptMgr()->FindCreatureScript(creatureId);
+        GetInstanceCreatureScriptMgr()->FindCreatureScript(evolutionCreatureId);
     if (nextScript == 0)
         return false;
-    SetItemId(nextScript->GetItemId());
-    Inven_Item* slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
+    // ORIG 8338a33：GetItemId() 结果先落 -0x10 槽再回读传 SetItemId（P0）。
+    int nextItemId = nextScript->GetItemId();
+    SetItemId(nextItemId);
+    // P197③：ORIG 8338a48 `movl $0x0,-0xc(%ebp)` 预清 + 独立赋值两段式。
+    Inven_Item* slotItem = 0;
+    slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
     if (slotItem == 0)
         return false;
     slotItem->m_addInfo = reinterpret_cast<CCreatureItem*>(this)->GetItemId();
@@ -304,13 +322,13 @@ bool CCreature::EvoluteMulty(CUser* user, int creatureId)
     if (!sender.EvoluteCreature(reinterpret_cast<CCreatureItem*>(this)->GetUid(),
                                 reinterpret_cast<CCreatureItem*>(this)->GetItemId()))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x866, 5);
-        trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
+        cMyTrace(__PRETTY_FUNCTION__, 0x866, 5)(
+            "cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
         return false;
     }
     sender.Send();
     CPacketRespondent pkt(user, 0, 0);
-    pkt.MakeNotipacketEvoluteCreature(creatureId);
+    pkt.MakeNotipacketEvoluteCreature(evolutionCreatureId);
     pkt.SendAccordingToPlace();
     user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)3, 0x16);
     return true;
@@ -322,13 +340,15 @@ bool CCreature::EvoluteMulty(CUser* user, int creatureId)
 // 0x833d6c2 call 后无 movzbl 归一（P159/P9 bool→int 判据）。
 int CCreature::ItemEvolute(CUser* user, int itemIdx)
 {
-    // b28d-37 [N82 封顶，ORIG 0x83?]：帧/槽残差（173/170）。
+    // [b28d-37 复核 2026-09-09] DIFF→AE：补 nextItemId(-0x10) 具名局部 + P197③
+    // slotItem 预清零 + P227 trace；173/174（+1 尾部对齐 nop）。
     if (m_script == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x89b, 5);
-        trace("cannot evolute because it haven't creature script uid(%d), "
-              "creature id(%d) \n", user->get_unique_id() & 0xffff,
-              reinterpret_cast<CCreatureItem*>(this)->GetItemId());
+        // P227 全表达式临时链（同 EvoluteMulty 失败路径）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x89b, 5)(
+            "cannot evolute because it haven't creature script uid(%d), "
+            "creature id(%d) \n", user->get_unique_id() & 0xffff,
+            reinterpret_cast<CCreatureItem*>(this)->GetItemId());
         return false;
     }
     int evolutionCreatureId = m_script->GetItemEvolutionCreatureId(itemIdx);
@@ -338,8 +358,12 @@ int CCreature::ItemEvolute(CUser* user, int itemIdx)
         GetInstanceCreatureScriptMgr()->FindCreatureScript(evolutionCreatureId);
     if (nextScript == 0)
         return false;
-    SetItemId(nextScript->GetItemId());
-    Inven_Item* slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
+    // ORIG 8338d6f：GetItemId() 结果先落 -0x10 槽再回读传 SetItemId（P0）。
+    int nextItemId = nextScript->GetItemId();
+    SetItemId(nextItemId);
+    // P197③：ORIG 8338d84 `movl $0x0,-0xc(%ebp)` 预清 + 独立赋值两段式。
+    Inven_Item* slotItem = 0;
+    slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
     if (slotItem == 0)
         return false;
     slotItem->m_addInfo = reinterpret_cast<CCreatureItem*>(this)->GetItemId();
@@ -347,8 +371,8 @@ int CCreature::ItemEvolute(CUser* user, int itemIdx)
     if (!sender.EvoluteCreature(reinterpret_cast<CCreatureItem*>(this)->GetUid(),
                                 reinterpret_cast<CCreatureItem*>(this)->GetItemId()))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x8bb, 5);
-        trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
+        cMyTrace(__PRETTY_FUNCTION__, 0x8bb, 5)(
+            "cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
         return false;
     }
     sender.Send();
@@ -366,14 +390,17 @@ int CCreature::ItemEvolute(CUser* user, int itemIdx)
 // GetGrowItemCountforLevelUp()（0→0x19）。包通知携带 param_3(slot)。
 bool CCreature::EventEvolute(CUser* user, int creatureId, int slot)
 {
-    // b28d-37 [N82 封顶，ORIG 0x83?]：帧/槽残差（246/244）。
+    // [b28d-37 复核 2026-09-09] DIFF→AE，含一处真 bug：GetGrowItemCountforLevelUp()
+    // 的 receiver ORIG 为 this->m_script(+0x44)（Ghidra C 与 0x833dc30 实证），原实现
+    // 误用 nextScript；另补 isGrow(-0x21)/商(-0xc) 具名局部、P197③ 预清零、P227 trace；
+    // 246/247（+1 尾部对齐 nop）。
     if (m_script == 0)
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x10cc, 5);
-        trace("cannot event evolute because it haven't creature script uid(%d), "
-              "creature id(%d) \n", user->get_unique_id() & 0xffff,
-              reinterpret_cast<CCreatureItem*>(this)->GetItemId());
+        // P227 全表达式临时链（ORIG ctor 前求值实参并保活 %ebx/%esi）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x10cc, 5)(
+            "cannot event evolute because it haven't creature script uid(%d), "
+            "creature id(%d) \n", user->get_unique_id() & 0xffff,
+            reinterpret_cast<CCreatureItem*>(this)->GetItemId());
         return false;
     }
     int baseCreatureId = GetCreatureId(creatureId);   // +0x85 call
@@ -382,20 +409,24 @@ bool CCreature::EventEvolute(CUser* user, int creatureId, int slot)
     if (nextScript == 0)
         return false;
     int nextItemId = nextScript->GetItemId();
+    // ORIG 833dbf0：m_isGrow 先落字节槽 -0x21（P0 具名 bool 局部），
+    // 守卫读槽（movzbl -0x21; xor $1; test）而非直读字段。
+    bool isGrow = m_isGrow;
 
-    // ORIG：连用两段 xor$1/test 守卫链物化 bool 后 if（P198 ①；不落槽直测）。
+    // ORIG：连用两段 xor$1/test 守卫链物化 bool 后 if（P198 ①）。
     // exp 高 16 位→(int)(short)：先用全宽槽保存 m_exp，再读槽+2 高半字
     // movzwl+cwtl（P197 ① union 拆半）。
-    if (!nextScript->IsItemGrowCreature() && m_isGrow != 1)
+    if (!nextScript->IsItemGrowCreature() && !isGrow)
     {
         union { int all; unsigned short w[2]; } expSplit;
         expSplit.all = m_exp;
-        int progress = (int)(short)expSplit.w[1];
-        int step = nextScript->GetGrowItemCountforLevelUp();   // thunk 0x833f356
+        // ORIG 833dc30：receiver 是 this->m_script(+0x44)，**非** nextScript
+        // （Ghidra C 亦为 GetGrowItemCountforLevelUp(*(CCreatureScript**)(this+0x44))）。
+        int step = m_script->GetGrowItemCountforLevelUp();     // thunk 0x833f356
         if (step == 0)
             step = 0x19;
-        int level = (int)progress / step + 1;                  // idivl 后 +1
-        m_exp = G_CDataManager()->get_creature_level_exp(level);
+        int level = (int)(short)expSplit.w[1] / step;          // ORIG -0xc 商槽
+        m_exp = G_CDataManager()->get_creature_level_exp(level + 1);
     }
     SetItemId(nextItemId);
     CItem* item = G_CDataManager()->find_item(nextItemId);
@@ -408,7 +439,9 @@ bool CCreature::EventEvolute(CUser* user, int creatureId, int slot)
     else if (usablePeriod == 0 && expirationDate == 0)
         m_expireTime = 0;
 
-    Inven_Item* slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
+    // P197③：ORIG 833dcfd `movl $0x0,-0x14(%ebp)` 预清 + 独立赋值两段式。
+    Inven_Item* slotItem = 0;
+    slotItem = user->getCurCharacInvenW()->GetInvenRef(0, 0x16);
     if (slotItem == 0)
         return false;
     slotItem->m_addInfo = reinterpret_cast<CCreatureItem*>(this)->GetItemId();
@@ -417,9 +450,8 @@ bool CCreature::EventEvolute(CUser* user, int creatureId, int slot)
             reinterpret_cast<CCreatureItem*>(this)->GetUid(),
             reinterpret_cast<CCreatureItem*>(this)->GetItemId(), m_exp))
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x1104, 5);
-        trace("cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
+        cMyTrace(__PRETTY_FUNCTION__, 0x1104, 5)(
+            "cannot write db uid(%d)\n", user->get_unique_id() & 0xffff);
         return false;
     }
     sender.Send();
