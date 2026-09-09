@@ -378,7 +378,10 @@ struct SIG_MAILBOX_POSTAL_TAIL
     {
         unsigned char m_pad[5];      // +0x50..0x54
         int m_field55;               // +0x55
-        unsigned char m_pad2[3];     // +0x59..0x5b
+        unsigned char m_pad2[2];     // +0x59..0x5a
+        // +0x5b 无限信标志（isUnlimitMail ORIG 0x08552580 `add $0x5b,%eax;
+        // movzbl (%eax),%eax` 单字节直返 ⇒ bool；偏移/sizeof 与 m_pad2[3] 等价）
+        bool m_unlimit;              // +0x5b
         unsigned int m_letterId;     // +0x5c
         unsigned char m_rest[1];     // +0x60
     } m_occ;                         // +0x50
@@ -457,6 +460,12 @@ static_assert(sizeof(SIG_MAILBOX_LIST) == 0x338a,
               "SIG_MAILBOX_LIST ORIG size drift");
 static_assert(offsetof(SIG_MAILBOX_LIST, m_box.m_maxPostalId) == 0x79c,
               "SIG_MAILBOX_LIST postal max offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_field55) == 0x55,
+              "SIG_MAILBOX_POSTAL occ field55 offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_unlimit) == 0x5b,
+              "SIG_MAILBOX_POSTAL occ unlimit offset drift");
+static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_letterId) == 0x5c,
+              "SIG_MAILBOX_POSTAL occ letterId offset drift");
 
 struct SIG_MAILBOX_SEND_NEW_MAIL
 {
@@ -688,8 +697,16 @@ static_assert(sizeof(SIG_PREMIUM_LETHE_FLAG) == 0x1a0,
 
 struct SIG_PURCHASE_CASHITEM_BONUS
 {
-    char m_pad[0x4];
+    // §8.3 字段化（2026-09-10）：ORIG DB_UpdatePurchaseCashItemBonus::dispatch
+    // 0x0843e4e5..eb `mov -0x1c(%ebp),%edx; mov -0xc(%ebp),%eax; mov %edx,(%eax)`
+    // 为 RHS-first 3 条形。探针 /tmp/bonusprobe/q.o：字段 unsigned + RHS 经
+    // get_uint(&x) 取址写入 ⇒ f6/f8 3 条 RHS-first（= ORIG）；字段 int ⇒ f5/f7
+    // 多 `mov %eax,%edx` 中转（4 条）；`*(unsigned*)p=x` 指针解引用 ⇒ LHS-first
+    // （P211 pad 解引用族）⇒ 必须具名成员访问 + unsigned。4 字节，sizeof 不变。
+    unsigned int m_purchaseCnt;   // +0x00
 };
+static_assert(sizeof(SIG_PURCHASE_CASHITEM_BONUS) == 0x4,
+              "SIG_PURCHASE_CASHITEM_BONUS ABI drift");
 
 // 2026-09-05 §4.3（DBCharac 批次）字段化。证据：
 //   DB_ReqQueryCharacInfoMailbox::dispatch @0x0843bd46 报告：基址 char* 送

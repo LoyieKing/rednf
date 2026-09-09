@@ -42,7 +42,11 @@ void DB_UpdatePurchaseCashItemBonus::makeRequest(int p1, unsigned int p2)
 // DB_UpdatePurchaseCashItemBonus::dispatch @ 0x0843e252
 // mangled _ZN30DB_UpdatePurchaseCashItemBonus8dispatchEiiP6Stream
 // ============================================================================
-// [b28d-32 N(P259/P75): Acquire 内联实参/stream 局部差（203/202） | ORIG 0x0843e252]
+// 逐条对照 ORIG 0x0843e252..0x0843e55e：槽图 db(-0x10)/mId(-0x14)/tableStr(-0x18)/
+// purchaseCnt(-0x1c)/sig(-0xc)/guard(-0x24)。三处 set_query 的 toTString 均为 fresh
+// 调用（ORIG 0x0843e2da/e34f/e3b6 三次 `lea -0x18; call toTString`，禁缓存）；
+// Acquire 返回值直传 guard ctor（P259，ORIG 0x0843e47e→e495 无 stream 槽）；
+// GetInBuffer 经 operator-> 链（P103，ORIG 0x0843e4d5 `call ptEv`）。
 bool DB_UpdatePurchaseCashItemBonus::dispatch(int /*userIdx*/, int slot,
                                                Stream* s)
 {
@@ -51,26 +55,25 @@ bool DB_UpdatePurchaseCashItemBonus::dispatch(int /*userIdx*/, int slot,
     unsigned int mId = 0;
     *s >> mId;
 
-    CDataManager* dm = G_CDataManager();
-    EventClassify::CEventScriptMng* sm =
-        static_cast<EventClassify::CEventScriptMng*>(dm->get_event_script_mng());
-    // ORIG：std::string local_1c(get_db_table_name(0x19a))。
-    std::string tableStr(sm->get_db_table_name(0x19a));
-    const char* tableName = toTString(tableStr);
+    // P0：ORIG 无 dm/sm 槽（G_CDataManager()→get_event_script_mng→get_db_table_name
+    // 全链 %eax 直传，0x0843e293..e2ba）；std::string 局部 = ORIG -0x18 槽。
+    std::string tableStr(
+        static_cast<EventClassify::CEventScriptMng*>(
+            G_CDataManager()->get_event_script_mng())->get_db_table_name(0x19a));
 
     db->set_query("upDate %s set purchase_cnt = purchase_cnt + 1 where m_id=%s",
-                  tableName, NumberToString(mId, 0));
+                  toTString(tableStr), NumberToString(mId, 0));
     if (!db->exec(true))
         return 0;
     if (db->getAffectedRowCount() == 0)
     {
         db->set_query("inSert into %s(m_id, purchase_cnt) values(%s, %u)",
-                      tableName, NumberToString(mId, 0), 1);
+                      toTString(tableStr), NumberToString(mId, 0), 1);
         if (!db->exec(true))
             return 0;
     }
     db->set_query("seLect purchase_cnt from %s where m_id=%s",
-                  tableName, NumberToString(mId, 0));
+                  toTString(tableStr), NumberToString(mId, 0));
     if (!db->exec(true))
         return 0;
     if (db->get_n_rows() == 0)
@@ -81,13 +84,15 @@ bool DB_UpdatePurchaseCashItemBonus::dispatch(int /*userIdx*/, int slot,
     if (!db->get_uint(0, purchaseCnt))
         return 0;
 
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x9407);
-    CStreamGuard guard(stream, true);
+    // P259：Acquire 返回值直传 guard ctor（ORIG 无 stream 具名局部）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x9407), true);
     guard.operator*()->operator<<(0x23c);
     guard.operator*()->operator<<(slot);   // ORIG 0x843e4c0：第二个 lsEi 参数 = 0x10(%ebp) = slot
-    SIG_PURCHASE_CASHITEM_BONUS* sig = guard.GetInBuffer<SIG_PURCHASE_CASHITEM_BONUS>();
-    *reinterpret_cast<unsigned int*>(sig) = purchaseCnt;
+    // P103：ORIG 0x0843e4d5 `call CStreamGuard::ptEv` 后再调 GetInBuffer。
+    SIG_PURCHASE_CASHITEM_BONUS* sig =
+        guard.operator->()->GetInBuffer<SIG_PURCHASE_CASHITEM_BONUS>();
+    sig->m_purchaseCnt = purchaseCnt;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
 }
