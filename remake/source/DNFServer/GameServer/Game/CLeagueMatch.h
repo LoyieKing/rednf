@@ -118,7 +118,9 @@ public:
     int  _PutInRoom(CUser* user, PvP_Room* room, bool observer);// 0x0855d42a
     void _ReturnTeam(PvP_Room* room, int team, CUser* except);  // 0x0855e378
     void _SendMatchStatePacket(int state, int teams);           // 0x0855e664
-    int  _getSameSchool(unsigned int* schools, int selfIdx,
+    // [SweepLeagueMatch2] P292：ORIG OnReward 0x0855f0bf `call; test %al,%al; je`
+    // 无 setne 物化 ⇒ 返回类型 bool（不入 mangled，符号/布局零影响）。
+    bool _getSameSchool(unsigned int* schools, int selfIdx,
                         int count, unsigned int schoolNo);      // 0x0855e7a8
     int  _GetOppositeTeam(int team);                            // 0x0855e49e
     bool _CheckSchool(PvP_Room* room, CUser* user);            // 0x0855cef8 [b28c-21 SIGFIX: bool callee]

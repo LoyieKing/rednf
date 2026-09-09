@@ -105,6 +105,58 @@
 //     同族 `x*8`/`x*16` 亦 shl-vs-lea（OnReward 0x70 族）。语义等价，按 N 封顶
 //     （建议入库 N125：4.1 expand_mult 对 2 的幂用 lea、4.4 用 shl）。
 //   · P0：本 TU 无 `register asm` 绑定（清绑数 0）。无 .h 改动。
+//
+// [SweepCLeagueMatch·本轮路由口径复验] dual_rank --tu CLeagueMatch.cpp 候选
+// （gap' 降序 4 件：_PutInRoom 2 / OnCompleteLoad 2 / _SendMatchStatePacket 2 /
+//  OnReward 1）逐件通读报告 `## 汇编` + `## 反编译 C` 并逐指令核对源码语义，
+// **0 真缺口**；gap 精确归因（均为 4.1 侧冗余指令，源码无法表达）：
+//   · OnCompleteLoad/_SendMatchStatePacket/OnReward：ORIG 每处 `t*0x70` 乘法块
+//     多一对中间寄存器复制 `mov %ecx,%eax; mov %eax,%ecx`（4.1 expand_mult 产物；
+//     4.4.6 直发 `mov %edx,%eax`）。OnCompleteLoad/_SendMatchStatePacket 各 2 块
+//     ⇒ gap 2；OnReward 1 块 ⇒ gap 1。与 N-STRIDE（shl-vs-lea）同族，非语义。
+//   · _PutInRoom：ORIG 两条出口分支各带 `mov -0x1c(%ebp),%ebx; jmp <尾块>`
+//     （4.1 分支内不尾合并），4.4 合并为单条 `mov -0x1c(%ebp),%ebx` 直落尾块
+//     ⇒ gap 2（N104 同族）。
+//   · p167 调用点差集：_PutInRoom 15/15、OnCompleteLoad 9/9、
+//     _SendMatchStatePacket 8/8、OnReward 45/45；差集仅 C1/C2、D1/D2 同址别名
+//     （P93：nm 实证 PacketGuard 0x0858dd4c/0x0858de80、CStreamGuard
+//     0x080c8c26/0x0861c8d2、Packet_PvPResult 0x08568dc6 各自同址）。
+//   · 四数（check_tu_routed.sh 4.4.6 口径）：identical=43 ae=64 near=1 diff=18
+//     missing_in_game=17 —— 与 S408 基线一致（不回退）。
+//
+// [SweepLeagueMatch2·本轮 18 件 DIFF 三件套重核] 口径 = check_tu_routed.sh
+// 新鲜 .o + p167 调用点差集 + canon 归一多重集/块序逐件对照（报告 `## 汇编` +
+// `## 反编译 C` 两段全读）。
+//   · gap' 降序 4 件（_PutInRoom 2 / OnCompleteLoad 2 / _SendMatchStatePacket 2 /
+//     OnReward 1）：p167 全 CLEAR（差集仅 C1/C2、D1/D2 同址别名 P93）；gap 归因
+//     = 4.1 expand_mult 冗余 `mov %ecx,%eax; mov %eax,%ecx`（OnCompleteLoad/
+//     _SendMatchStatePacket 各 2 处）与 _PutInRoom 分支内 `mov -0x1c(%ebp),%ebx;
+//     jmp` 不尾合并（N104）⇒ 0 真缺口。
+//   · 其余 13 件 DIFF（GetSchoolNo/GetUser/GetGap/OnEndFight/OnLeaveRoom/
+//     OnMatchRoom/CheckMatchable/_RegisterWaitingRoom/TeamInfo add·del·reset·
+//     refresh·size）：canon 多重集差全为 N-STRIDE（`lea 0x0(,%eax,4),%edx` vs
+//     `shl $0x2`）、`add $K` vs `lea K(%r)`、4.1 冗余 regmove 与 OnEndFight 的
+//     P75 实参压栈时刻；语义零缺口（_ZN12CLeagueMatch11OnLeaveRoom…/CheckMatchable/
+//     _RegisterWaitingRoom/OnEndFight 多重集**完全相等**）。
+//   · **本轮改动（OnReward 块序 + _getSameSchool 返回类型）**：
+//     ① 第三段循环外层极性翻正 `if (_getSameSchool(...)) { addBadge 两臂 }
+//        else { newFlag[0]=0; 绿章 }`（ORIG 物理序 855f1ac extra=1 → 855f232
+//        extra=0 → 855f23c 绿章，P59/P222；内层改 `f1!=0||f2!=0` 正极性短路）；
+//     ② 回填段 `if (m_teamB.m_players[i].m_flag != 0 && m_user != 0) {…}` 正向
+//        包裹（ORIG 855f539/f561 两守卫同落 855f6dc 岛 `test;je`，消我方 xor+
+//        双岛 3 条）；
+//     ③ 末尾 `if (nPlayerCountPerOneTeam_ != 1) SendPacket; else {stream}`
+//        （ORIG 物理序 SendPacket 855f8c2 先于 Acquire 855f8e4）；
+//     ④ `CLeagueMatch.h:121` `int _getSameSchool(...)` → `bool`（P292：ORIG
+//        0x0855f0bf `call; test %al,%al; je` 无 setne；已 hub 广播 + Main 批准，
+//        返回类型不入 mangled/布局零影响；`_getSameSchool` 本体 25=25 不变）。
+//     ⇒ OnReward ndiff **567 → 301**（992/985；p167 45/45 CLEAR）；语义等价
+//        （外层 if/else 两臂互换、德摩根、短路 && 与负极性均保序）。
+//   · 四数：identical=43 ae=64 near=1 diff=18 missing_in_game=17（不回退）。
+//   · 真语义 bug：本轮 0 新增（S180 已修 4 处仍在：OnLeaveRoom 第 3 参 team、
+//     OnMatchRoom 守卫用形参 room、CheckMatchable 段位窗口 <=10、OnReward 徽章
+//     回填固定 teamB 槽 + 删 UpdateRating 多余 m_user 守卫）。
+//   · P0：无 `register asm` 绑定（清绑数 0）。
 // ============================================================================
 
 #include "CLeagueMatch.h"
@@ -132,13 +184,11 @@
 #include "TimerDispatcher.h"            // TimerStartMatching
 #include "CInventory.h"                 // OS_API::snprintf
 
-namespace {
-
 // GetGap 排位增量表：ORIG 各 TU 本地 _ZL13g_RankingIncr（16 字节，
 // df_game_r nm 显示 15 份内容一致）＝ {1.0f, 1.0f, 1.0f, 1.0f}。
-const float g_RankingIncr[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-
-}  // namespace
+// [SweepLeagueMatch2·P204③] 文件级 static（非匿名 namespace）：后者产
+// `_ZN12_GLOBAL__N_1L13g_RankingIncrE`，与 ORIG `_ZL13g_RankingIncr` 不符。
+static const float g_RankingIncr[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 CLeagueMatchRoomList* CLeagueMatch::pWaitingRoomList_ = 0;   // B 0x0943e064
 int CLeagueMatch::nWaitingRoomListRefCount_ = 0;             // B 0x0943e068
@@ -731,9 +781,23 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
             res.m_team[t].m_schoolNo[i] = m_teams[t].m_players[i].m_schoolNo;
         }
         for (i = 0; i < (int)nPlayerCountPerOneTeam_; ++i) {
-            if (!_getSameSchool(res.m_team[t].m_schoolNo, i,
+            if (_getSameSchool(res.m_team[t].m_schoolNo, i,
                                 (int)nPlayerCountPerOneTeam_,
                                 res.m_team[t].m_schoolNo[i])) {
+                // [SweepLeagueMatch2·P59/P222] ORIG 物理块序（855f1ac extra=1 →
+                // 855f232 extra=0 → 855f23c 绿章）⇒ 外层正极性 if(sameSchool)
+                // 使 addBadge 两臂落前、绿章落尾；内层 `!=0||!=0` 正极性短路。
+                if (res.m_team[t].m_newFlag[i][1] != 0 ||
+                    res.m_team[t].m_newFlag[i][2] != 0) {
+                    addBadge(&m_teams[t].m_players[i], ENUM_BADGE_TYPE_0,
+                             &res.m_team[t].m_newFlag[i][0],
+                             true);
+                } else {
+                    addBadge(&m_teams[t].m_players[i], ENUM_BADGE_TYPE_0,
+                             &res.m_team[t].m_newFlag[i][0],
+                             false);
+                }
+            } else {
                 res.m_team[t].m_newFlag[i][0] = 0;
                 if (res.m_team[t].m_newFlag[i][1] != 0 ||
                     res.m_team[t].m_newFlag[i][2] != 0) {
@@ -769,15 +833,6 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
                     pg.finalize(true);
                     m_teams[t].m_players[i].m_user->Send(pg);
                 }
-            } else if (res.m_team[t].m_newFlag[i][1] == 0 &&
-                       res.m_team[t].m_newFlag[i][2] == 0) {
-                addBadge(&m_teams[t].m_players[i], ENUM_BADGE_TYPE_0,
-                         &res.m_team[t].m_newFlag[i][0],
-                         false);
-            } else {
-                addBadge(&m_teams[t].m_players[i], ENUM_BADGE_TYPE_0,
-                         &res.m_team[t].m_newFlag[i][0],
-                         true);
             }
         }
         // 回填实时徽章计数。ORIG 0x0855f539..0x0855f6da：条件寻址固定
@@ -785,18 +840,20 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
         // 读取 user 为 this+i*0x1c+t*0x70+0x24（含 t）；GetDailyBadge 为 3 条
         // 独立调用（$0x0/$0x1/$0x2 立即数直传，非循环，P0）。
         for (i = 0; i < (int)nPlayerCountPerOneTeam_; ++i) {
-            if (m_teamB.m_players[i].m_flag == 0 ||
-                m_teamB.m_players[i].m_user == 0)
-                continue;
-            res.m_team[t].m_dailyBadge[i][0] =
-                static_cast<char>((&m_teamA)[t].m_players[i].m_user->GetDailyBadge(
-                    static_cast<ENUM_BADGE_TYPE>(0)));
-            res.m_team[t].m_dailyBadge[i][1] =
-                static_cast<char>((&m_teamA)[t].m_players[i].m_user->GetDailyBadge(
-                    static_cast<ENUM_BADGE_TYPE>(1)));
-            res.m_team[t].m_dailyBadge[i][2] =
-                static_cast<char>((&m_teamA)[t].m_players[i].m_user->GetDailyBadge(
-                    static_cast<ENUM_BADGE_TYPE>(2)));
+            // [SweepLeagueMatch2·P59] ORIG 0x0855f539(m_flag) / 0x0855f561(m_user)
+            // 两守卫同落 855f6dc 岛（正向 `test; je` 短路）⇒ 正向包裹。
+            if (m_teamB.m_players[i].m_flag != 0 &&
+                m_teamB.m_players[i].m_user != 0) {
+                res.m_team[t].m_dailyBadge[i][0] =
+                    static_cast<char>((&m_teamA)[t].m_players[i].m_user->GetDailyBadge(
+                        static_cast<ENUM_BADGE_TYPE>(0)));
+                res.m_team[t].m_dailyBadge[i][1] =
+                    static_cast<char>((&m_teamA)[t].m_players[i].m_user->GetDailyBadge(
+                        static_cast<ENUM_BADGE_TYPE>(1)));
+                res.m_team[t].m_dailyBadge[i][2] =
+                    static_cast<char>((&m_teamA)[t].m_players[i].m_user->GetDailyBadge(
+                        static_cast<ENUM_BADGE_TYPE>(2)));
+            }
         }
     }
 
@@ -826,7 +883,11 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
     }
 
     // 5) 上报：单人走消息队列流（0x136/-1 + 二进制），多人直发学校服务器代理。
-    if (nPlayerCountPerOneTeam_ == 1) {
+    // [SweepLeagueMatch2·P59] ORIG 物理块序 SendPacket(855f8c2) 先于
+    // StreamPool::Acquire(855f8e4) ⇒ 外层负极性 if(count!=1) 使直发臂落前。
+    if (nPlayerCountPerOneTeam_ != 1) {
+        GlobalData::s_school_proxy->SendPacket(reinterpret_cast<char*>(&res), 0x80);
+    } else {
         // [b28d-solo-CLeagueMatch·S408] P0：ORIG 0x0855f8e4..0x0855f8fb 的
         // Acquire 返回值 %eax 直压 0x4(%esp)（无 st 具名局部槽）。
         CStreamGuard guard(
@@ -837,8 +898,6 @@ void CLeagueMatch::OnReward(PvP_Room* /*room*/, int winTeam, bool draw)
         guard.operator*()->operator<<((int)-1);
         guard.operator->()->put_binary(&res, 0x80);
         GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
-    } else {
-        GlobalData::s_school_proxy->SendPacket(reinterpret_cast<char*>(&res), 0x80);
     }
 }
 
@@ -1247,7 +1306,7 @@ void CLeagueMatch::_SendMatchStatePacket(int state, int teams)   // ORIG T 0x085
 
 // [b28d-solo-CLeagueMatch] AE：TU 口径 identical/AE（25=25 全等；game_func_report
 // 单函数口径多 1 条循环对齐 nop，§6.1/N112 已在 TU 口径剥离）。
-int CLeagueMatch::_getSameSchool(unsigned int* schools, int selfIdx,
+bool CLeagueMatch::_getSameSchool(unsigned int* schools, int selfIdx,
                                  int count, unsigned int schoolNo)  // ORIG T 0x0855e7a8
 {
     for (int i = 0; i < count; ++i) {
