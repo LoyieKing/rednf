@@ -180,14 +180,19 @@ void PvPSkillTreeParameterScript::clear()
 // 再减 m_map30[(job,firstGrow)] 的 m_pointCost。secondGrow 不参与
 // （ORIG 写入 0 后仅用于 key 第三字节，恒 0）。
 // ============================================================================
-// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（23/23）。带参 `PvPSkillTreeKey key(job,firstGrow,secondGrow)` + `secondGrow=0` 写回形参槽已落（ORIG C1Ehhh 0x08a5e768）；残余全帧槽序平移 4 + key 槽 -0x3f vs ORIG -0x1b（N93/P112 声明序不可控）；ORIG 0x08a5df0e。
+// [b28d-solo-CDataManagerScripts-2] 真 bug 修正：ORIG 0x08a5df66 `je +0xde` ⇒
+// m_map18 无 grade 时直接 `mov $0,%eax; jmp end` **返回 0**（Ghidra：`if (==) local_10=0
+// else { 全部计算 }`）；旧实现仍算 prevPoints/cost 并返回 `0-prevPoints-cost`（负值）。
+// 带参 `PvPSkillTreeKey key(job,firstGrow,secondGrow)` + `secondGrow=0` 写回形参槽保留
+// （ORIG C1Ehhh 0x08a5e768）；残余全帧槽序平移 4 + key 槽 -0x3f vs ORIG -0x1b（N93/P112）；ORIG 0x08a5df0e。
 int PvPSkillTreeParameterScript::getPvPSkillPointNext(
     int job, int firstGrow, int secondGrow, int grade) const
 {
     int points = 0;
     std::map<int, std::map<int, int> >::const_iterator gradeIt =
         m_map18.find(grade);
-    if (gradeIt != m_map18.end())
+    if (gradeIt == m_map18.end())
+        return 0;                       // ORIG 0x08a5dfec：grade 不存在 ⇒ 恒返 0
     {
         std::map<int, int>::const_iterator slotIt =
             gradeIt->second.find(job * 5 + firstGrow);
@@ -263,46 +268,71 @@ bool stBroadCastItemScript::isUnCommonItem(int itemIdx) const
 }
 
 // ORIG checkCommonItem 0x8918cdc：遍历 m_vec0 找 itemIdx
-// [N类·跨版本豁免] 语义与 ORIG 一致（it!=end 循环内 *it==itemIdx 命中返 1）。ORIG
-// 59 vs 我方 39 指令差为 gcc4.1.2 的 dead-bool XOR 哨兵（local_11^=1 + 嵌套 while +
-// int* 物化重载，见 ## 汇编 0x08918ce2 xorb/0x08918d7a）——非源码可表达；范式库
-// 「负例 N 类·跨版本」。证据 ORIG 0x08918cdc。
-// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（5/5）。跨版本 dead-bool XOR 哨兵（ORIG 0x8918d8b `xorb $0x1,-0xd(%ebp); cmpb $0,-0xd` 栈槽物化 + 入口 `movb $0,-0xd; cmpb; jne`），P168a④ 判据：栈槽物化点位非源码可表达；ORIG 0x08918cdc。
+// [b28d-solo-CDataManagerScripts-2] DIFF→：原判「dead-bool XOR 哨兵非源码可表达」
+// 被探针推翻——ORIG 的 `bool b` 哨兵在 4.4 下逐条可复现（/tmp/probe_cdms9.cpp k2：
+// 帧 0x38、入口 `cmpb $0,-0xd; jne ret0`、槽 -0xd/-0x18/-0x1c/-0xc/-0x14 与 ORIG 全等）。
+// 关键形 = 空 then + else 主体（`if(b){}else{…}`），既得入口直跳又无 goto 尾岛。
+// 语义等价：b 初值 false，仅在条件下 `^=1`（0→1）且内层置回 0 ⇒ 守卫恒真，
+// 遍历与命中返 true 的原语义不变。ORIG 0x08918cdc。
 bool stBroadCastItemScript::checkCommonItem(int itemIdx) const
 {
-    for (std::vector<int>::const_iterator it = m_vec0.begin(); it != m_vec0.end(); it++)
+    bool b = false;
+    if (b)
     {
-        if (*it == itemIdx)
+        /* ORIG 空 then：守卫恒假，仅复现 4.1 的块布局 */
+    }
+    else
+    {
+        std::vector<int>::const_iterator it = m_vec0.begin();
+        std::vector<int>::const_iterator e = m_vec0.end();
+        for (; it != e && (b ^= 1, b); it++)
         {
-            return true;
+            const int* p = &(*it);
+            while (b)
+            {
+                if (*p == itemIdx)
+                {
+                    return true;
+                }
+                b = false;
+            }
         }
     }
     return false;
 }
 
 // ORIG checkUnCommonNestedItem 0x8918dfe：m_mapC.find(itemIdx) 命中后遍历其子 vector 找 subItemIdx
-// [N类·跨版本豁免] 语义与 ORIG 一致（find!=end → 子 vector 迭代 *vit==subItemIdx 返 1）。
-// ORIG 87 vs 我方 69 差同 checkCommonItem：dead-bool XOR 哨兵（0x08918f03 xorb + 嵌套
-// while + operator!=/operator* 双缓存续算），非源码可表达；范式库「跨版本」。证据 0x08918dfe。
-// [b28d-solo-CDataManagerScripts] DIFF→N：p167 已 CLEAR（10/10）—— 本轮把引用缓存
-// `const vector<int>& v = it->second` 改为 it->second.begin()/end() 两次 ptEv
-// （ORIG 0x08918e69/0x08918e89 各一次 operator-> 实证，补 MISSING ptEv×1）；
-// 残余同 checkCommonItem 的跨版本 dead-bool XOR 哨兵（栈槽物化），非源码可表达；ORIG 0x08918dfe。
+// [b28d-solo-CDataManagerScripts-2] DIFF→：同 checkCommonItem 的 dead-bool XOR 哨兵已证
+// 可复现（空 then + else 主体 + `it != e && (b ^= 1, b)` + 内层 `while(b)` + `&(*it)` 缓存）。
+// 语义等价（b 恒真守卫）；p167 CLEAR（10/10）保持。ORIG 0x08918dfe。
 bool stBroadCastItemScript::checkUnCommonNestedItem(int itemIdx, int subItemIdx) const
 {
     std::map<int, std::vector<int> >::const_iterator it = m_mapC.find(itemIdx);
     if (it != m_mapC.end())
     {
-        // ORIG 0x08918e69/0x08918e89：`operator->(it)` 两次（begin/end 各取一次
-        // ptEv，p167 MISSING ptEv×1 实证）⇒ 不用引用缓存，直接 it->second.begin()/end()。
-        // P13：end 在循环初始化区求值一次（ORIG -0x24 缓存）。
-        for (std::vector<int>::const_iterator vit = it->second.begin(),
-                 vitEnd = it->second.end();
-             vit != vitEnd; vit++)
+        bool b = false;
+        if (b)
         {
-            if (*vit == subItemIdx)
+            /* ORIG 空 then：守卫恒假，仅复现 4.1 的块布局 */
+        }
+        else
+        {
+            // ORIG 0x08918e69/0x08918e89：`operator->(it)` 两次（begin/end 各取一次
+            // ptEv，p167 MISSING ptEv×1 实证）⇒ 不用引用缓存，直接 it->second.begin()/end()。
+            // P13：end 在循环初始化区求值一次（ORIG -0x24 缓存）。
+            std::vector<int>::const_iterator vit = it->second.begin();
+            std::vector<int>::const_iterator vitEnd = it->second.end();
+            for (; vit != vitEnd && (b ^= 1, b); vit++)
             {
-                return true;
+                const int* p = &(*vit);
+                while (b)
+                {
+                    if (*p == subItemIdx)
+                    {
+                        return true;
+                    }
+                    b = false;
+                }
             }
         }
     }
@@ -1505,10 +1535,11 @@ stCharacLinkSystem_t::~stCharacLinkSystem_t() {}
 // ---- CNPCRelationEventManager::GetRewardItem（ORIG T 0x0890d326，sret
 //      stNPCRewardItemInfo）：find(idx) 未命中 → {0,0}；命中 →
 //      node->m_favor[kind].m_rewardA / m_rewardB（+0xc/+0x10）。----
-// [b28d-solo-CDataManagerScripts] DIFF→N：p167 CLEAR（4/4）。本轮改单 return 形
-// （`result` 清零后命中分支覆盖再 return，去显式临时拷贝）；残余 = N107 成员数组寻址
-// 折叠（ORIG `mov 0xc(%eax,%ecx,1)` 单条 scaled vs 4.4 `lea (%ecx,%eax,1); add $0xc`）
-// + 4.1 的 it==end 分支具名对象拷贝（N86）；ORIG 0x0890d326。
+// [b28d-solo-CDataManagerScripts-2] DIFF→：两个不同返回对象 + 早返（g3 探针
+// /tmp/probe_cdms11.cpp 实证）复现 ORIG 的「result 落栈 -0x18/-0x14 + 早返拷贝」
+// 与「命中分支 ret 直写 sret」双出口（单对象形被 4.4 NRVO 成整段 sret 写）。
+// 残余 = N107 成员数组寻址折叠（ORIG `mov 0xc(%eax,%ecx,1)` 单条 scaled
+// vs 4.4 `lea (%ecx,%eax,1); add $0xc`）；ORIG 0x0890d326。
 stNPCRewardItemInfo CNPCRelationEventManager::GetRewardItem(
     unsigned short idx, ENUM_NPC_RELATION_EVENT_FAVOR_KIND kind)
 {
@@ -1517,13 +1548,13 @@ stNPCRewardItemInfo CNPCRelationEventManager::GetRewardItem(
     result.m_rewardB = 0;
     std::map<unsigned short, stNPCRelationEventInfo*>::iterator it =
         m_npcEventMap.find(idx);
-    if (it != m_npcEventMap.end())
-    {
-        stNPCRelationEventInfo* node = it->second;
-        result.m_rewardA = node->m_favor[kind].m_rewardA;
-        result.m_rewardB = node->m_favor[kind].m_rewardB;
-    }
-    return result;
+    if (it == m_npcEventMap.end())
+        return result;
+    stNPCRelationEventInfo* node = it->second;
+    // g6 探针：`return T{a,b}`（列表初始化临时）令 4.4 走 NRVO 直写 sret，
+    // 复现 ORIG 命中分支的 `mov %eax,(%ebx); mov %edx,0x4(%ebx)`。
+    return stNPCRewardItemInfo{node->m_favor[kind].m_rewardA,
+                               node->m_favor[kind].m_rewardB};
 }
 
 // ---- advancealtar（StageTimeLineParameter D1 0x8899e88 /
@@ -1709,9 +1740,9 @@ bool DeleteInvalidItemScript::loadScript()
 // P222/P223 边界）；ORIG 0x0889b6cc。
 int advancealtar::ConfigParameter::importConfigParameter(const char* path)
 {
-    char framePad[4];      // P232 试验：把 token 槽顶到 ORIG 的 -0x28
-    (void)framePad;
     std::string token;
+    int unkC = 0;          // ORIG 0x0889b6df `movl $0x0,-0x24(%ebp)`：token 后 dead int
+    (void)unkC;
     bool ok = false;
     // [X2 形·技巧22精化（DispC8 probe 实证，Main 批准）] ORIG 对 bool callee 返回一律
     // `xor $0x1,%eax; test %al,%al; j<cc>`（0x0889b6fd/0x0889b725/0x0889b764/…），4.4
@@ -2246,9 +2277,9 @@ advancealtar::AdvanceAltarShopParameter::getBuyUpgradeDataVec(
 int advancealtar::RewardParameter::importAchievementRewardParameter(
     const char* path)
 {
-    char framePad[4];   // P232：把 token 槽顶到 ORIG 的 -0x70
-    (void)framePad;
     std::string token;
+    int unkC = 0;       // ORIG 0x0889afc6 `movl $0x0,-0xc(%ebp)`：token 之后的 dead int（P232/P31）
+    (void)unkC;
     bool ok = false;
     reset();
     if (!loadRDARScriptFile("", path))
@@ -2307,19 +2338,22 @@ int advancealtar::RewardParameter::importAchievementRewardParameter(
                     {
                         _RewardItem item;
                         std::string typeName;
-                        RewardItemType::T itemType;
                         if (!ScanStr(&typeName))
                             break;                       // 静默退出本段
-                        if (!RewardItemType::getRewardItemType(typeName, itemType))
+                        // ORIG 0x0889b327：`lea -0x84(%ebp),%eax` 直接传 &item（+0）⇒
+                        // 出参直写 m_type，无具名 itemType 中转。
+                        if (!RewardItemType::getRewardItemType(
+                                typeName,
+                                reinterpret_cast<RewardItemType::T&>(item.m_type)))
                             break;
-                        item.m_type = itemType;
-                        item.m_value2 = ScanInt(&ok);    // ORIG 写 scratch+8
+                        // [b28d-solo-CDataManagerScripts-2] 真 bug 修正：ORIG 0x0889b360
+                        // 第一次 ScanInt 写 item+4（m_value1），0x0889b386 第二次写
+                        // item+8（m_value2）——旧实现把第一次写进 m_value2、第二次丢弃，
+                        // 导致 m_value1 恒 0 且 m_value2 取错值。
+                        item.m_value1 = ScanInt(&ok);    // +4
                         if (!ok)
                             break;
-                        // ORIG 第二次 ScanInt 写入 12 字节临时对象之外，
-                        // push_back 仅拷贝前 12 字节，计数值不入向量；
-                        // 此处保留解析推进语义但不存储。
-                        ScanInt(&ok);
+                        item.m_value2 = ScanInt(&ok);    // +8
                         if (!ok)
                             return 0x391;
                         data.m_rewardItems.push_back(item);
