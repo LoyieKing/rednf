@@ -612,8 +612,12 @@ struct SIG_USER_PLAY_TIME_STATISTIC
     struct Entry
     {
         unsigned int m_accId;     // +0x00
-        unsigned int m_playSec;   // +0x04
-        unsigned int m_count;     // +0x08
+        // [b28d-63] 修：ORIG 0x0860cd14 对 m_playSec/m_count 的赋值是
+        //   `mov (%eax),%ecx` 单条直读（与源 stUserPlayInfo_t 的 int 同型，
+        //   P211②）；声明 unsigned int 会让 4.4 多插 `mov %eax,%ecx` 中转。
+        //   偏移/尺寸不变（+0x04/+0x08，stride 0xc，sizeof 0xf4）。
+        int m_playSec;            // +0x04
+        int m_count;              // +0x08
     };                            // 0x0c
     int m_count;                  // +0x00
     Entry m_entries[20];          // +0x04（0x14 条 × 0xc = 0xf0）
