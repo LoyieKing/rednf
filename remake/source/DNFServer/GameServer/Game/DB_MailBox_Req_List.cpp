@@ -343,6 +343,25 @@ struct MailPostalItem
 };
 #pragma pack(pop)
 
+// ORIG 0x0841e691..0x0841e6b6（amp 三字段）与 0x0841e80a..0x0841e82c（ext 四字段）
+// 都是「一次 `add $0x30,%eax` 基址 + 连续 store」= 结构体整体赋值形；逐字段赋
+// 会每字段重发完整 imul/lea/add 链（P183/P247）。
+#pragma pack(push, 1)
+struct MailAmpView
+{
+    unsigned int m_opt;              // +0x39
+    unsigned int m_val;              // +0x3d
+    unsigned short m_rnd;            // +0x41
+};
+struct MailExtView
+{
+    unsigned int m_e0;               // +0x46
+    unsigned int m_e1;               // +0x4a
+    unsigned int m_e2;               // +0x4e
+    unsigned short m_e3;             // +0x52
+};
+#pragma pack(pop)
+
 // ============================================================================
 // SelectLetter —— ORIG 0841d52c（普通成员，this 调用）：
 
@@ -400,7 +419,7 @@ bool DB_MailBox_Req_List::SelectLetter(MySQL* db, int slot, int characNo,
     if (bExec == 0)
         return 0;
 
-    int oldCount = SIG_I32(out, SIG_OFF_POSTAL_COUNT);   // +0x794
+    int oldCount = out->m_box.m_count;   // +0x794
     int oldLetter = SIG_I32(out, SIG_OFF_LETTER_COUNT);  // +0x1018
     SIG_I32(out, SIG_OFF_LETTER_COUNT) = 0;
 
@@ -416,7 +435,7 @@ bool DB_MailBox_Req_List::SelectLetter(MySQL* db, int slot, int characNo,
     for (i = 0; i < letterCount; ++i)
     {
         if (letterIdx != 0 && oldCount >= oldLetter &&
-            SIG_I32(out, SIG_OFF_REMAIN_COUNT) != 0 &&
+            out->m_box.m_remain != 0 &&
             (int)vec[0].size() >= oldLetter)
             break;
 
@@ -444,6 +463,9 @@ bool DB_MailBox_Req_List::SelectLetter(MySQL* db, int slot, int characNo,
         SIG_I32(&infoRaw, 0x125) = regDate;
         *(short*)SIG_PTR(&infoRaw, 0x129) = stat;
 
+        // ORIG 0x0841d900 `movzwl -0x7a(%ebp),%eax; cwtl; cmp $0x1,%eax; jl`
+        // vs 4.4 `test %ax,%ax` / `cmp $0x2,%ax`（16 位直比）——`(int)stat`
+        // 显式提升实测无效（cwtl 仍 0，指令数不变）⇒ N 封顶。
         if (stat > 0)
         {
             if (stat < 3)
@@ -465,10 +487,10 @@ bool DB_MailBox_Req_List::SelectLetter(MySQL* db, int slot, int characNo,
     if (n > 0)
     {
         ArrangeMailAndLetterIndex(out, vec[1], n, vec[0]);
-        if (SIG_I32(out, SIG_OFF_POSTAL_COUNT) != 0)
+        if (out->m_box.m_count != 0)
         {
-            SIG_U32(out, SIG_OFF_MAX_POSTAL_ID) =
-                SIG_U32(out, (SIG_I32(out, SIG_OFF_POSTAL_COUNT) - 1) * 0x61);
+            out->m_box.m_maxPostalId =
+                SIG_U32(out, (out->m_box.m_count - 1) * 0x61);
         }
     }
 
@@ -482,9 +504,9 @@ bool DB_MailBox_Req_List::SelectLetter(MySQL* db, int slot, int characNo,
         if (SIG_I32(out, SIG_OFF_LETTER_USED) < groupSize[0])
             groupSize[0] = SIG_I32(out, SIG_OFF_LETTER_USED);
         if (SIG_I32(out, SIG_OFF_LETTER_USED) <
-            SIG_I32(out, SIG_OFF_POSTAL_COUNT) + groupSize[1])
+            out->m_box.m_count + groupSize[1])
         {
-            adjust = (SIG_I32(out, SIG_OFF_POSTAL_COUNT) + groupSize[1]) -
+            adjust = (out->m_box.m_count + groupSize[1]) -
                      SIG_I32(out, SIG_OFF_LETTER_USED);
             groupSize[1] -= adjust;
         }
@@ -505,9 +527,9 @@ bool DB_MailBox_Req_List::SelectLetter(MySQL* db, int slot, int characNo,
     }
 
     SIG_I32(out, SIG_OFF_LETTER_NEW) = groupSize[1];
-    int remain = SIG_I32(out, SIG_OFF_REMAIN_COUNT) +
+    int remain = out->m_box.m_remain +
                  std::max(adjust - SIG_I32(out, SIG_OFF_LETTER_ADD), 0);
-    SIG_I32(out, SIG_OFF_REMAIN_COUNT) = remain;
+    out->m_box.m_remain = remain;
     SIG_I32(out, SIG_OFF_LETTER_COUNT) = outIdx;
     return 1;
 }
@@ -618,7 +640,8 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
 
     // 请求附加 postal_id 列表 → map（make_pair<unsigned int&, int> 实证）
     std::map<unsigned int, int> extraMap;
-    int mi;
+    // ORIG 0x0841e061 `cmpl $0x13,-0x34; setbe` ⇒ 无符号尾测（setle 是 signed）
+    unsigned int mi;
     for (mi = 0; mi < 0x14; ++mi)
     {
         if (req->m_postalExtra[mi] != 0)
@@ -645,45 +668,55 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
 
     int rowIdx = 0;    // +0x794 最终值
     int loopIdx = 0;
-    while (loopIdx < SIG_I32(sig, SIG_OFF_POSTAL_COUNT) && loopIdx < 0x14)
+    // ORIG 0x0841e13d 入口直跳条件、0x0841e8e3 循环尾 `addl $1,-0x28` 后再测
+    // （for 形；while + 尾部 ++loopIdx 无法承载 continue 的落点）——失败列走
+    // 0x0841e8a0..0x0841e8e2 的 nop 岛跳到 ++loopIdx ⇒ **continue**，非 return 0。
+    for (; loopIdx < SIG_I32(sig, SIG_OFF_POSTAL_COUNT) && loopIdx < 0x14; ++loopIdx)
     {
         if (!db->fetch())
             return 0;
 
-        int p0 = 0, p1 = 0, p2 = 0;
-        short s3 = 0;
-        unsigned long u4 = 0;
-        int i5 = 0;
-        short s6 = 0;
-        char b7 = 0;
-                int i8 = 0;
-        char name9[0x1d] = { 0 };
-        short s10 = 0, s11 = 0, s12 = 0;
+        // ORIG 0x0841e15e 循环体开头只有 `movl $0,-0xf0`/`movl $0,-0xf4`
+        // 两条（b16/s17），p0..s12 与 name9 均**无**初始化（各列由 get_*
+        // 成功路径写入，失败路径 continue 不读）⇒ 原码是裸声明（P171 照抄）。
+        int p0, p1, p2;
+        short s3;
+        unsigned long u4;
+        int i5;
+        short s6;
+        char b7;
+        int i8;
+        char name9[0x1d];
+        short s10, s11, s12;
         // [b28d-solo-DB_MailBox_Req_List] ORIG 0x0841e8d7 `lea -0x106(%ebp),%eax;
         // call RandomOption::reset` ⇒ 原码是 RandomOption 局部 + reset()（不是
         // memset 等价物）；p167 MISSING `_ZN12RandomOption5resetEv` 由此归零。
         RandomOption extOpt;
         extOpt.reset();
 
-        if (!db->get_int(0, p0)) return 0;
+        // ORIG 各列取数失败跳到循环尾（0x0841e8a0..0x0841e8e2 共 23 岛）⇒ continue
+        if (!db->get_int(0, p0)) continue;
 
-        if (!db->get_int(1, p1)) return 0;
-        if (!db->get_int(2, p2)) return 0;
-        if (!db->get_short(3, s3)) return 0;
-        if (!db->get_ulong(4, u4)) return 0;
-        if (!db->get_int(5, i5)) return 0;
-        if (!db->get_short(6, s6)) return 0;
-        if (!db->get_byte(7, b7)) return 0;
-        if (!db->get_int(8, i8)) return 0;
-        if (!db->get_str(9, name9, 0x1d)) return 0;
-        if (!db->get_short(10, s10)) return 0;
-        if (!db->get_short(11, s11)) return 0;
-        if (!db->get_short(12, s12)) return 0;
+        if (!db->get_int(1, p1)) continue;
+        if (!db->get_int(2, p2)) continue;
+        if (!db->get_short(3, s3)) continue;
+        if (!db->get_ulong(4, u4)) continue;
+        if (!db->get_int(5, i5)) continue;
+        if (!db->get_short(6, s6)) continue;
+        if (!db->get_byte(7, b7)) continue;
+        if (!db->get_int(8, i8)) continue;
+        if (!db->get_str(9, name9, 0x1d)) continue;
+        if (!db->get_short(10, s10)) continue;
+        if (!db->get_short(11, s11)) continue;
+        if (!db->get_short(12, s12)) continue;
 
         // avata==1 && creature==1 的行跳过（ORIG 跳过条件）
         if (s11 != 1 || s12 != 1)
         {
-                        int idx = 0xe;
+            // ORIG 0x0841e3ae `movl $0xd,-0x24` 后每处 `mov -0x24,%eax;
+            // addl $1,-0x24; ...call get_*(eax,..)` ⇒ 原码是 idx 初值 0xd 的
+            // **后置自增实参**（我方旧形用常量 13 + 前置 ++idx，每处少 2 条）。
+            int idx = 0xd;
             unsigned int u13 = 0;
             unsigned long u14 = 0;
             int b16 = 0;
@@ -691,27 +724,21 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
             unsigned char ampBuf[10];
             char b19 = 0, b20 = 0;
 
-            if (db->get_uint(13, u13) && (u4 != 0 || i8 != 0))
+            if (db->get_uint(idx++, u13) && (u4 != 0 || i8 != 0))
             {
-                if (db->get_ulong(idx, u14))
+                if (db->get_ulong(idx++, u14))
                 {
-                    ++idx;
-                    if (db->get_binary(idx, ampBuf, 10))              // amplify 区（-0x116）
+                    if (db->get_binary(idx++, ampBuf, 10))            // amplify 区（-0x116）
                     {
-                        ++idx;
-                        if (db->get_byte(idx, b16))
+                        if (db->get_byte(idx++, b16))
                         {
-                            ++idx;
-                            if (db->get_short(idx, s17))
+                            if (db->get_short(idx++, s17))
                             {
-                                ++idx;
-                                if (db->get_binary(idx, &extOpt, 0xe)) // extend_info 区（-0x102）
+                                if (db->get_binary(idx++, &extOpt, 0xe)) // extend_info 区（-0x102）
                                 {
-                                    ++idx;
-                                    if (db->get_byte(idx, b19))
+                                    if (db->get_byte(idx++, b19))
                                     {
-                                        ++idx;
-                                        if (db->get_byte(idx, b20))
+                                        if (db->get_byte(idx++, b20))
                                         {
                                             if (u13 != 0)
                                             {
@@ -720,55 +747,56 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
                                                                    (int)u13));
                                             }
 
-                                            MailPostalItem* item =
-                                                (MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61);
-                                            item->m_postalId = p0;
-                                            item->m_field55 = p1 + 0x13c680;
-                                            item->m_sendCharacNo = p2;
-                                            item->m_sealFlag = (char)(s3 == 1);
-                                            item->m_occTime = (unsigned int)u4;
-                                            item->m_addInfo = (unsigned int)i5;
-                                            item->m_upgrade = s6;
-                                            item->m_endurance = b7;
-                                            item->m_itemGuid = (unsigned int)u14;
-                                            item->m_ampOpt = *(unsigned int*)&ampBuf[0];
-                                            item->m_ampVal = *(unsigned int*)&ampBuf[4];
-                                            item->m_rndOpt = *(unsigned short*)&ampBuf[8];
-                                            item->m_itemId = i8;
-                                            item->m_unlimitFlag = (char)(s10 == 1);
+                                            // P183：ORIG 每字段重发完整 imul/lea/add 链
+                                            // （0x0841e5ae..0x0841e640），禁缓存 item 指针。
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_postalId = p0;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_field55 = p1 + 0x13c680;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_sendCharacNo = p2;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_sealFlag = (char)(s3 == 1);
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_occTime = (unsigned int)u4;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_addInfo = (unsigned int)i5;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_upgrade = s6;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_endurance = b7;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_itemGuid = (unsigned int)u14;
+                                            // ORIG 519..529 段用单 disp 直读
+                                            // （`add $0x30,%eax` 一次基址 + 0x9/0xd/0x11），
+                                            // `(char*)&ampBuf+4` 形恒多 lea/add 链。
+                                            *(MailAmpView*)&((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_ampOpt =
+                                                *(MailAmpView*)ampBuf;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_itemId = i8;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_unlimitFlag = (char)(s10 == 1);
                                             if (s11 == 1)
                                             {
-                                                item->m_avataFlag = 1;
+                                                ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_avataFlag = 1;
                                                 avataList[0] = avataList[0] + 1;
                                                 avataList[avataList[0]] = (unsigned int)i5;
                                             }
                                             else
                                             {
-                                                item->m_avataFlag = 0;
+                                                ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_avataFlag = 0;
                                             }
                                             if (s12 == 1)
                                             {
-                                                item->m_creatureFlag = 1;
+                                                ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_creatureFlag = 1;
                                                 creatureList[0] = creatureList[0] + 1;
                                                 creatureList[creatureList[0]] = (unsigned int)i5;
                                             }
                                             else
                                             {
-                                                item->m_creatureFlag = 0;
+                                                ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_creatureFlag = 0;
                                             }
-                                            item->m_letterId = u13;
-                                            item->m_field43 = (char)b16;
-                                            item->m_field44 = (short)s17;
-                                            item->m_field60 = b20;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_letterId = u13;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_field43 = (char)b16;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_field44 = (short)s17;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_field60 = b20;
                                             // ORIG 0x0841f0xx 段：`lea opt; mov (%eax),%edx`
                                             // / `lea opt; add $4; mov (%eax),%edx`（+0/+4/+8
                                             // 逐段 add 形，P82 尾部视图）。
-                                            item->m_ext0 = *(unsigned int*)&extOpt;
-                                            item->m_ext1 = *(unsigned int*)((char*)&extOpt + 4);
-                                            item->m_ext2 = *(unsigned int*)((char*)&extOpt + 8);
-                                            item->m_ext3 = *(unsigned short*)((char*)&extOpt + 12);
-                                            item->m_field54 = b19;
-                                            strncpy(item->m_sendName, name9, 0x1d);
+                                            // ORIG 618..637：同基址 + 0x16/0x1a/0x1e/0x22 单 disp。
+                                            *(MailExtView*)&((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_ext0 =
+                                                *(MailExtView*)&extOpt;
+                                            ((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_field54 = b19;
+                                            strncpy(((MailPostalItem*)SIG_PTR(sig, rowIdx * 0x61))->m_sendName, name9, 0x1d);
 
 
                                             SIG_U32(sig, SIG_OFF_MAX_POSTAL_ID) =
@@ -784,7 +812,6 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
                 }
             }
         }
-        ++loopIdx;
     }
     SIG_I32(sig, SIG_OFF_POSTAL_COUNT) = rowIdx;
     SIG_I32(sig, SIG_OFF_LETTER_ADD) = 0;
@@ -811,7 +838,8 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
     // map 键回写 +0x333a（stride 4，最多 0x14 项）
     if (!extraMap.empty())
     {
-        int idx = 0;
+        // ORIG 0x0841ea78 `cmpl $0x13,-0x34; ja` ⇒ 无符号（jg 是 signed）
+        unsigned int idx = 0;
         // ORIG 0x0841ea9e：begin() 直构进 it 槽（-0x124）+ 循环内每轮重调 end()
         // （0x0841eab8 call end）⇒ 直接初始化、非「默认构造 + 赋值」（P314/P50，
         // 旧形多发 _Rb_tree_iterator::C1Ev，p167 EXTRA）。
@@ -835,20 +863,26 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
                               "SelectLetter() error");
         SIG_I32(sig, SIG_OFF_LETTER_COUNT) = 0;
     }
-    if (SIG_I32(sig, SIG_OFF_POSTAL_COUNT) == oldCount)
+    // ORIG 0x0841eb8e `je 0x0841ebb4`（相等跳「postal==0」块）⇒ else 直落、
+    // then 后置：反写条件才复现该块序（P272）。
+    if (SIG_I32(sig, SIG_OFF_POSTAL_COUNT) != oldCount)
     {
-        if (SIG_I32(sig, SIG_OFF_POSTAL_COUNT) == 0)
-            SIG_U32(sig, SIG_OFF_MAX_POSTAL_ID) = req->m_maxPostalId;
+        DoChangeMailList(sig, avataList, (int)req->m_maxPostalId);
     }
     else
     {
-        DoChangeMailList(sig, avataList, (int)req->m_maxPostalId);
+        if (SIG_I32(sig, SIG_OFF_POSTAL_COUNT) == 0)
+            SIG_U32(sig, SIG_OFF_MAX_POSTAL_ID) = req->m_maxPostalId;
     }
 
     SIG_I32(sig, SIG_OFF_USER_ITEM_CNT) = 0;   // +0x7a0
     if (avataList[0] != 0)
     {
         char sql2[0x1000] = { 0 };
+        // ORIG 0x0841ec01..0x0841ec65：agency 的 0x19 字节对齐清零在
+        // getList2inQuery 之前、ui 循环**之外** ⇒ 原码声明在块头（循环内声明
+        // 会把整段清零搬进循环体，与 ORIG 顺序不符）。
+        char agency[0x19] = { 0 };
         getList2inQuery(avataList, sql2);
         db->set_query(
             "seLect ui_id,unix_timestamp(reg_date),unix_timestamp(expire_date),ipg_agency_no,jewel_socket from user_items where charac_no=%d and ui_id %s",
@@ -856,8 +890,9 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
         db->exec(true);
         sig->m_user.m_items[0].m_count = db->get_n_rows();
 
-        int ui;
-        for (ui = 0; ui < db->get_n_rows(); ++ui)
+        // ORIG 0x0841eeeb `cmp -0x1c(%ebp),%eax; seta` ⇒ ui 无符号（setg 是 signed）
+        unsigned int ui;
+        for (ui = 0; ui < (unsigned int)db->get_n_rows(); ++ui)
         {
             if (!db->fetch())
                 return 0;
@@ -874,7 +909,6 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
                 return 0;
             if (!db->get_uint(2, expireDate))
                 return 0;
-            char agency[0x18] = { 0 };
             if (!db->get_str(3, agency, 0x18))
                 return 0;
             stAvatarEmblemInfo_t emblem;
@@ -893,13 +927,11 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
     }
 
     sig->m_creature.m_items[0].m_count = 0;   // +0xd30
-    bool bCreatureOk;
-    if (creatureList[0] == 0)
-        bCreatureOk = true;
-    else
-        bCreatureOk = setCreatureData(db, req->m_characNo, creatureList, sig);
-
-    if (bCreatureOk)
+    // ORIG 0x0841ef03 `mov -0x214(%ebp),%eax; test; je body` + 调用后
+    // `xor $1,%eax; test %al; je body` ⇒ 原码是短路 `||`（if/else + bool
+    // 局部恒多发 movb/cmpb 两条）。
+    if (creatureList[0] == 0 ||
+        setCreatureData(db, req->m_characNo, creatureList, sig))
     {
         SIG_U32(sig, SIG_OFF_CHARAC_NO) = req->m_characNo;
         SIG_U32(sig, SIG_OFF_FIELD3336) = req->m_field10;
