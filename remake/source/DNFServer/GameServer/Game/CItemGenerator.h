@@ -169,17 +169,10 @@ public:
     GoldGenEntry m_goldGenTable[201];  // +0x000（getGoldGenTable 按 level*8 索引，上界 0xc8）
 };  // sizeof == 0x648
 
-// ---- CLuckPoint（幸运点；sizeof 0x24） ----
-class CLuckPoint
-{
-public:
-    CLuckPoint();
-    ~CLuckPoint();
-
-    // 其余方法（AddUser 0x08550932 / GetLuckPoint 0x085509da 等）按需补充。
-    std::vector<CUser*> m_users;   // +0x00（vector 0xc）
-    std::map<int, int> m_points;   // +0x0c（本工具链 std::map 0x18 实测）
-};
+// [b28d-Main·检查点18] 删除本 namespace 内的重复 `WongWork::CLuckPoint`（ORIG 无
+//   `_ZN8WongWork10CLuckPointC1Ev` 符号；stGenerateResult_t::m_luckPoint 已声明为
+//   全局 `::CLuckPoint`）。需要该名时用下方 using 声明引用全局类。
+using ::CLuckPoint;
 
 // ---- stGenerateRefData_t（掉落生成引用；sizeof 0x48） ----
 struct stGenerateRefData_t
@@ -856,7 +849,7 @@ public:
  }  // namespace WongWork
  
 // 布局自检（置于定义之外；本工具链实测 vector<bool>=0x14、std::map<int,int>=0x18）。
-typedef char assert_sizeof_wg_luckpoint[sizeof(WongWork::CLuckPoint) == 0x24 ? 1 : -1];
+typedef char assert_sizeof_wg_luckpoint[sizeof(::CLuckPoint) == 0x24 ? 1 : -1];
 typedef char assert_sizeof_refdata[sizeof(WongWork::stGenerateRefData_t) == 0x48 ? 1 : -1];
 typedef char assert_sizeof_result[sizeof(WongWork::stGenerateResult_t) == 0x30 ? 1 : -1];
 typedef char assert_sizeof_genrand[sizeof(WongWork::CGenerateRandomNumber) == 8 ? 1 : -1];

@@ -359,8 +359,10 @@ enum eBindSphereType
 // ── ORIG 强制规则条目（ctor 0x832e00a：flag→+0x00 字节、value→+0x04）──
 struct forceRule_ResultItem
 {
-    forceRule_ResultItem() : m_flag(false), m_value(0) {}
-    forceRule_ResultItem(bool flag, int value);
+    // [b28d-Main·检查点18] 用**默认实参**替代独立默认 ctor：ORIG 无 C1Ev 符号，且
+    // `map::operator[]` 内部（0x832ea3a）以 `call C1Ebi` 默认构造映射值（0x832e00a）
+    // ⇒ 原码形参带默认值（`bool flag = false, int value = 0`）。
+    forceRule_ResultItem(bool flag = false, int value = 0);
     bool m_flag;   // +0x00（1=禁止合成，0=强制允许；ORIG 0x832e00a P33 bool 截断序）
     int m_value;   // +0x04
 };

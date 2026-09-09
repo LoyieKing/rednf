@@ -25,14 +25,8 @@
 namespace WongWork
 {
 
-// ============================================================================
-// CLuckPoint —— ORIG ctor：vector<CUser*> @+0x00 → map<int,int> @+0x0c
-// ============================================================================
-CLuckPoint::CLuckPoint()
-{
-    m_users.clear();
-}
-CLuckPoint::~CLuckPoint() {}
+// [b28d-Main·检查点18] 原 `WongWork::CLuckPoint` ctor/dtor 定义已删（ORIG 无该符号；
+//   该名字现为 `using ::CLuckPoint`，其 ctor/dtor 由 CClearReward.cpp 定义）。
 
 // ============================================================================
 // stGenerateRefData_t —— ORIG ctor 0x0814a706：
