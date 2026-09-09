@@ -25,6 +25,32 @@
 // N80 cMyTrace varargs 求值序、N4/P30 add-vs-mem、N-EH 占位定义可见性、
 // N-数据缺失（CHumanCertifier 人证表内容不可还原）。
 // ============================================================================
+// [b28d-PoolGlobalData 二压 2026-09-09] 三数 基线 892/1780/8/53 →
+// 收口 identical=893 ae=1781 near=8 diff=52（+1/+1/0/−1，missing_in_game
+// 849→847，无劣化）。战果（逐件证据见函数头）：
+//   ① CBusinessImpl::PunishClient 0x080de3ee ndiff 19→0（R2：
+//      CBusinessImpl.h:34/48 void→int + return 0；ORIG 0x080de4b8/4c8/4d0
+//      单出口返 0 实证，全仓无消费点）。
+//   ② RentalInfo 伪 user 析构删除（InstanceRentalSystem.h，R2 已批）：
+//      _Destroy_aux<ILb1E>@0823e5c7 实证 trivial ⇒ ProcessInsertItem
+//      0x08271666 ndiff 133→3、ProcessEquipItem 0x082714c5 139→3（EXTRA
+//      D1Ev×2+_Unwind_Resume×1 归零；D1/D2 W size 5 与 ORIG 同寸保留）；
+//      同批语义修正 ri.m_field8/9/B=inElem[0]/[1]/[3]（旧 reward>>8/24 误推）。
+//   ③ Dimension::GetRentItemInfo 0x0826f842 ndiff 96→2（sz 具名落槽+下标
+//      重读+goto「ret 标签居中」形；残 2 = 4.4 块启发 `jmp` 中继，探针
+//      pol_probe4/5 四形穷举后 N7 封顶）；else 支实参=常量 2、无 list=0 死
+//      初始化（0x0826f8f2/0x0826f8ba 直证）。
+//   P326（N93 双迭代器翻案）自查：proc_addFatigue 匿名 0 临时形实测反劣
+//   （4→8 条）已回退，N93/N98 判不变；本池其余件无「双具名 const_iterator
+//   比较」残差形（CBlackIPMonitor 三件已 AE）。
+//   小件复核维持 N：D1×3（N18b 实测交换无效）、CRandomOptionItemHandle C1
+//   （纯寄存器角色）、2×log（帧 0x4c vs 0x3c 无源形+esi/ebx/edi 轮换）、
+//   CheckInventoryEmptyCount（xor$1;jne 极性，probe f1–f9 复核 4.4 无
+//   「无往返+直分支」形）、CSimpleSSO::init（ndiff 已 3，N18a add 折叠）、
+//   CheckupAllRentalItems ×2（各 3 条，N18a regmove 融合）、CaptchaGen D1
+//   （N-EH，两泳道四形穷尽）、InitTcp（N80/N82）；CHumanCertifier::init
+//   N-数据缺失；Init/Fini/dispatch 族与 IPG/ vending 超大件维持原判词。
+// ============================================================================
 
 #include "GlobalData.h"
 #include "PCRoomServerProxy.h"   // CPCRoomServerProxy 权威（原 TU 局部定义收敛，Fix14_I）
@@ -7538,6 +7564,10 @@ int ProcessEquipItem(CUser& user,
                      const EventRewardItemInfo& reward,
                      InstanceRentalSystem::RentOutput& out, int reason)
 {
+    // [b28d-PoolGlobalData] 余 1 条 = ORIG 0x082714d2 `mov (%eax),%eax;
+    // mov %eax,%ebx` 两段装载（4.1 regmove），4.4 恒直落 %ebx；`register` 提示
+    // 形实测反劣（ndiff 3→20：ebx 长命化引 push %esi/帧 0xb0/复用 ebx 少两读）
+    // ⇒ 回退具名形，N18a 封顶。
     CItem* script = G_CDataManager()->find_item(reward.m_field0);
     if (script == 0)
     {
@@ -7730,7 +7760,12 @@ int RentalMachineDimension::GetRewardItemGiveList(int job, int growType)
 
 // ---- Dimension::GetRentItemInfo —— T 0x0826f842（同名报告全文转写）---------
 // [b28d-18 N82] p167 CLEAR（11/11）；残差=槽位/寄存器分配 | ORIG 0x0826f842
-// [b28d-solo-GlobalData] DIFF 封顶：p167 CLEAR；残差=N82 槽位/寄存器分配。
+// [b28d-solo-GlobalData] DIFF 封顶（二压重开）：残差=N82 槽位/寄存器分配。
+// [b28d-PoolGlobalData 二压] 0x0826f918.. 切片逐条重对齐（探针 pol_probe4 g4/g5）：
+// ①size() 结果具名落槽（ORIG sz0@-0x14 / sz1@-0xc，各调一次）；②下标**不具名**
+// （ORIG 每用点 `mov 0x10(%ebp); movzbl (%eax)` 重读）；③两段检查=js 正跳 ret 岛 +
+// `movsbl; cmp sz; jl pass` 真跳 pass、ret 块 fall-through ⇒ goto 形「ret 标签置于
+// 第二检查与 pass 之间」（4.1 布局，4.4 同形无中继 nop）；④inner 具名 @-0x10。
 bool RentalMachineDimension::GetRentItemInfo(
     CUser& user, const InstanceRentalSystem::RentInElem& inElem,
     EventRewardItemInfo& out)
@@ -7749,38 +7784,56 @@ bool RentalMachineDimension::GetRentItemInfo(
     const int packageKey =
         makeFairPVPEquipmentPackageKey((int)(signed char)job, selectionIdx);
 
-    std::vector<std::vector<EventRewardItemInfo> >* list = 0;
-    if ((int)inElem.m_type == 1)
+    // [b28d-PoolGlobalData] 二压：ORIG 0x0826f8ba 无 `list=0` 初始化死槽写、
+    // 无 growType 槽（0x0826f8d0 `movsbl %al,%edx` 直落实参位）、else 支第二实参
+    // 为**常量 2**（0x0826f8f2 `movl $0x2,0x4(%esp)` 直证，非重读 m_type）、
+    // m_type 比较为字节形（0x0826f8c1 `cmp $0x1,%al`）。
+    std::vector<std::vector<EventRewardItemInfo> >* list;
+    if (inElem.m_type == 1)
     {
-        const int growType =
-            (int)(signed char)user.getCurCharFirstGrowType();
         list = (std::vector<std::vector<EventRewardItemInfo> >*)
-            GetRewardItemGiveList((int)(signed char)job, growType);
+            GetRewardItemGiveList((int)(signed char)job,
+                                  (int)(signed char)user.getCurCharFirstGrowType());
     }
     else
     {
-        // ORIG 0x0826f900：pc_room::GetRewardItemSelectionList(packageKey, type)
-        list = pc_room::GetRewardItemSelectionList(packageKey,
-                                                   (int)inElem.m_type);
+        // ORIG 0x0826f900：pc_room::GetRewardItemSelectionList(packageKey, 2)。
+        list = pc_room::GetRewardItemSelectionList(packageKey, 2);
     }
     if (list == 0)
     {
         return false;
     }
 
-    const int s0 = (int)(signed char)inElem.m_sectionIdx;
-    if (s0 < 0 || (int)list->size() <= s0)
+    const int sz0 = (int)list->size();
+    if ((int)(signed char)inElem.m_sectionIdx < 0)
     {
-        return false;
+        goto L_ret0;
     }
-    std::vector<EventRewardItemInfo>& inner = list->at((std::size_t)s0);
-
-    const int s1 = (int)(signed char)inElem.m_itemIdx;
-    if (s1 < 0 || (int)inner.size() <= s1)
+    if ((int)(signed char)inElem.m_sectionIdx < sz0)
     {
-        return false;
+        goto L_pass0;
     }
-    out = inner[(std::size_t)s1];
+L_ret0:
+    return false;
+L_pass0:
+    std::vector<EventRewardItemInfo>* inner =
+        &list->at((unsigned int)(int)(signed char)inElem.m_sectionIdx);
+    {
+        const int sz1 = (int)inner->size();
+        if ((int)(signed char)inElem.m_itemIdx < 0)
+        {
+            goto L_ret1;
+        }
+        if ((int)(signed char)inElem.m_itemIdx < sz1)
+        {
+            goto L_pass1;
+        }
+    L_ret1:
+        return false;
+    L_pass1: ;
+    }
+    out = (*inner)[(unsigned int)(int)(signed char)inElem.m_itemIdx];
     return true;
 }
 

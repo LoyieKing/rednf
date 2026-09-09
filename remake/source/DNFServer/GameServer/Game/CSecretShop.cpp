@@ -44,6 +44,201 @@ public:
     CEventBase* GetRepeatEvent(int type);
 };
 
+// ---- importSecretShopScript（ORIG 0x8a81cf0，_Z22importSecretShopScriptP16SecretShopScriptPKc）----
+
+// 按 docs/class_func_reports/_lt_global_gt_/importSecretShopScript.md 忠实转写：
+//   - 所有取值扫描均为 int ScanInt(bool* ok) 形式；占位扫描传 (bool*)0
+//     （ORIG movl $0x0 压参），成功标志仅用于条目循环终止判断。
+//   - [dungeon npc]/[level npc]：每条 7 次扫描（key/npcIdx/rate 带 flag +
+//     4 次 flag=0 占位，ORIG +0x11c 循环 i=0..3），循环至 flag 失败后
+//     verifyNpc 对应 multimap。
+//   - [npc]：npcKey 存入局部 stNpcSales::m_field0；内层 token 循环处理
+//     [dungeon]/[level]（先 dungeonKey/maxCount 两次占位扫描，随后 itemIdx
+//     带 flag 的商品循环）、[/npc]（整表插入 m_dungeonNpcMap）；
+//     [dungeon cash item] 为无操作继续。
+//   - [event item] 在外层：首个占位扫描写 m_eventDungeonSales.m_maxCount
+//     （ORIG script+0x64），其后 itemIdx 带 flag 的商品循环插入 m_sales。
+//   - stDungeonNpc 各字段与 key/npcIdx/rate 的对应为 [推断]（ORIG 经局部
+//     辅助构造函数写入，未逐指令核对）。
+int importSecretShopScript(SecretShopScript* script, const char* path)
+{
+    // [b28d-solo-CSecretShop 判词·N] 超大件（orig 630）按 §6.2 三件套闭合：
+    // ① p167 调用点差集 **CLEAR**（ORIG 106 = 我们 106，0 missing / 0 extra——
+    //    修复前 87，缺 ScanInt×12/pair 直构×6/verifyNpc/multimap insert/stDungeonSales
+    //    ctor+dtor）；② gap = -5（ORIG 630 vs 我们 635）；③ 残差仅 N82（4.1 不做
+    //    lifetime 槽复用 ⇒ 全帧槽号错位，ndiff 1037 失真）+ N89（ORIG 的
+    //    stDungeonSales/stNpcSales C1/D1 与 map 节点模板为 out-of-line 调用，
+    //    4.4 全内联）+ 6 条 movb/movzbl/xor 物化位差。语义完成。
+    if (!loadRDARScriptFile("", path))
+    {
+        return 0;
+    }
+    script->clear();
+    std::string token;
+    // [b28d-solo-CSecretShop] p167：ORIG 的 [dungeon npc]/[level npc] 是两段
+    // 独立代码（[level npc] 为 1 带 flag + 2 无 flag + 4 占位），旧实现合并导致
+    // ScanInt 调用点少 12；flag 为函数级单 bool（ORIG local_255）。
+    bool flag = false;
+    while (ScanType(token, true))
+    {
+        if (token == "[dungeon npc]")
+        {
+            for (;;)
+            {
+                int key = ScanInt(&flag);
+                if (!flag)
+                    break;
+                int npcIdx = ScanInt(&flag);
+                if (!flag)
+                    break;
+                int rate = ScanInt(&flag);
+                if (!flag)
+                    break;
+                for (int i = 0; i < 4; ++i)
+                    ScanInt((bool*)0);   // 4 个占位扫描（ORIG +0x11c）
+                stDungeonNpc npc;
+                npc.m_field0 = key;      // [推断]
+                npc.m_npcIdx = npcIdx;
+                npc.m_rate = rate;
+                script->m_npcMap.insert(std::pair<int, stDungeonNpc>(key, npc));
+            }
+            script->verifyNpc(script->m_npcMap);
+        }
+        else if (token == "[level npc]")
+        {
+            for (;;)
+            {
+                int key = ScanInt(&flag);
+                if (!flag)
+                    break;
+                int npcIdx = ScanInt((bool*)0);
+                int rate = ScanInt((bool*)0);
+                for (int i = 0; i < 4; ++i)
+                    ScanInt((bool*)0);
+                stDungeonNpc npc;
+                npc.m_field0 = key;
+                npc.m_npcIdx = npcIdx;
+                npc.m_rate = rate;
+                script->m_levelNpcMap.insert(
+                    std::pair<int, stDungeonNpc>(key, npc));
+            }
+            script->verifyNpc(script->m_levelNpcMap);
+        }
+        else if (token == "[level section]")
+        {
+            for (;;)
+            {
+                stLevelSection section;
+                section.m_levelIdx = ScanInt(&flag);
+                if (!flag)
+                    break;
+                section.m_minLev = ScanInt((bool*)0);
+                section.m_maxLev = ScanInt((bool*)0);
+                script->m_levelSections.insert(section);
+            }
+        }
+        else if (token == "[npc]")
+        {
+            stNpcSales sales;
+            sales.m_field0 = ScanInt((bool*)0);   // npcKey
+            // ORIG 内层检查顺序： [dungeon] → [level] → [dungeon cash item] → [/npc]
+            // （P46 叶块序），ScanType 返回值丢弃（ORIG 直接调用）。
+            for (;;)
+            {
+                ScanType(token, true);
+                if (token == "[dungeon]")
+                {
+                    stDungeonSales ds;
+                    ds.m_field0 = ScanInt((bool*)0);       // dungeonKey
+                    ds.m_maxCount = ScanInt((bool*)0);     // +0x04
+                    for (;;)
+                    {
+                        int itemIdx = ScanInt(&flag);
+                        if (!flag)
+                            break;
+                        stSaleInfo sale;
+                        sale.m_itemIdx = itemIdx;
+                        sale.m_rule = (char)ScanInt((bool*)0);
+                        sale.m_price = ScanInt((bool*)0);
+                        sale.m_materialCount = ScanInt((bool*)0);
+                        sale.m_limit = ScanInt((bool*)0);
+                        sale.m_rate = ScanInt((bool*)0);
+                        ds.m_sales.insert(std::pair<int, stSaleInfo>(itemIdx, sale));
+                    }
+                    sales.m_dungeonSales.insert(
+                        std::pair<int, stDungeonSales>(ds.m_field0, ds));
+                }
+                else if (token == "[level]")
+                {
+                    stDungeonSales ds;
+                    ds.m_field0 = ScanInt((bool*)0);
+                    ds.m_maxCount = ScanInt((bool*)0);
+                    for (;;)
+                    {
+                        int itemIdx = ScanInt(&flag);
+                        if (!flag)
+                            break;
+                        stSaleInfo sale;
+                        sale.m_itemIdx = itemIdx;
+                        sale.m_rule = (char)ScanInt((bool*)0);
+                        sale.m_price = ScanInt((bool*)0);
+                        sale.m_materialCount = ScanInt((bool*)0);
+                        sale.m_limit = ScanInt((bool*)0);
+                        sale.m_rate = ScanInt((bool*)0);
+                        ds.m_sales.insert(std::pair<int, stSaleInfo>(itemIdx, sale));
+                    }
+                    sales.m_eventSales.insert(
+                        std::pair<int, stDungeonSales>(ds.m_field0, ds));
+                }
+                else if (token == "[dungeon cash item]")
+                {
+                }
+                else if (token == "[/npc]")
+                {
+                    script->m_dungeonNpcMap.insert(
+                        std::pair<int, stNpcSales>(sales.m_field0, sales));
+                    break;
+                }
+            }
+        }
+        else if (token == "[event item]")
+        {
+            script->m_eventDungeonSales.m_maxCount = ScanInt((bool*)0);  // +0x64
+            for (;;)
+            {
+                int itemIdx = ScanInt(&flag);
+                if (!flag)
+                    break;
+                stSaleInfo sale;
+                sale.m_itemIdx = itemIdx;
+                sale.m_rule = (char)ScanInt((bool*)0);
+                sale.m_price = ScanInt((bool*)0);
+                sale.m_materialCount = ScanInt((bool*)0);
+                sale.m_limit = ScanInt((bool*)0);
+                sale.m_rate = ScanInt((bool*)0);
+                script->m_eventDungeonSales.m_sales.insert(
+                    std::pair<int, stSaleInfo>(itemIdx, sale));
+            }
+        }
+        else if (token == "[price random]")
+        {
+            script->m_priceVarPercent = ScanInt((bool*)0);   // +0x80
+        }
+        else if (token == "[eplp wait time]")
+        {
+            script->m_int84 = ScanInt((bool*)0);             // +0x84
+        }
+        else if (token == "[add slot cash user stackable count]")
+        {
+        }
+        else if (token == "[secret shop end]")
+        {
+            break;
+        }
+    }
+    return 1;
+}
+
 namespace secretshop
 {
 
@@ -879,201 +1074,6 @@ void SecretShopScript::verifyNpc(std::multimap<int, stDungeonNpc>& npcMap)
                    range.first->second.m_field0);
         }
     }
-}
-
-// ---- importSecretShopScript（ORIG 0x8a81cf0，_Z22importSecretShopScriptP16SecretShopScriptPKc）----
-
-// 按 docs/class_func_reports/_lt_global_gt_/importSecretShopScript.md 忠实转写：
-//   - 所有取值扫描均为 int ScanInt(bool* ok) 形式；占位扫描传 (bool*)0
-//     （ORIG movl $0x0 压参），成功标志仅用于条目循环终止判断。
-//   - [dungeon npc]/[level npc]：每条 7 次扫描（key/npcIdx/rate 带 flag +
-//     4 次 flag=0 占位，ORIG +0x11c 循环 i=0..3），循环至 flag 失败后
-//     verifyNpc 对应 multimap。
-//   - [npc]：npcKey 存入局部 stNpcSales::m_field0；内层 token 循环处理
-//     [dungeon]/[level]（先 dungeonKey/maxCount 两次占位扫描，随后 itemIdx
-//     带 flag 的商品循环）、[/npc]（整表插入 m_dungeonNpcMap）；
-//     [dungeon cash item] 为无操作继续。
-//   - [event item] 在外层：首个占位扫描写 m_eventDungeonSales.m_maxCount
-//     （ORIG script+0x64），其后 itemIdx 带 flag 的商品循环插入 m_sales。
-//   - stDungeonNpc 各字段与 key/npcIdx/rate 的对应为 [推断]（ORIG 经局部
-//     辅助构造函数写入，未逐指令核对）。
-int importSecretShopScript(SecretShopScript* script, const char* path)
-{
-    // [b28d-solo-CSecretShop 判词·N] 超大件（orig 630）按 §6.2 三件套闭合：
-    // ① p167 调用点差集 **CLEAR**（ORIG 106 = 我们 106，0 missing / 0 extra——
-    //    修复前 87，缺 ScanInt×12/pair 直构×6/verifyNpc/multimap insert/stDungeonSales
-    //    ctor+dtor）；② gap = -5（ORIG 630 vs 我们 635）；③ 残差仅 N82（4.1 不做
-    //    lifetime 槽复用 ⇒ 全帧槽号错位，ndiff 1037 失真）+ N89（ORIG 的
-    //    stDungeonSales/stNpcSales C1/D1 与 map 节点模板为 out-of-line 调用，
-    //    4.4 全内联）+ 6 条 movb/movzbl/xor 物化位差。语义完成。
-    if (!loadRDARScriptFile("", path))
-    {
-        return 0;
-    }
-    script->clear();
-    std::string token;
-    // [b28d-solo-CSecretShop] p167：ORIG 的 [dungeon npc]/[level npc] 是两段
-    // 独立代码（[level npc] 为 1 带 flag + 2 无 flag + 4 占位），旧实现合并导致
-    // ScanInt 调用点少 12；flag 为函数级单 bool（ORIG local_255）。
-    bool flag = false;
-    while (ScanType(token, true))
-    {
-        if (token == "[dungeon npc]")
-        {
-            for (;;)
-            {
-                int key = ScanInt(&flag);
-                if (!flag)
-                    break;
-                int npcIdx = ScanInt(&flag);
-                if (!flag)
-                    break;
-                int rate = ScanInt(&flag);
-                if (!flag)
-                    break;
-                for (int i = 0; i < 4; ++i)
-                    ScanInt((bool*)0);   // 4 个占位扫描（ORIG +0x11c）
-                stDungeonNpc npc;
-                npc.m_field0 = key;      // [推断]
-                npc.m_npcIdx = npcIdx;
-                npc.m_rate = rate;
-                script->m_npcMap.insert(std::pair<int, stDungeonNpc>(key, npc));
-            }
-            script->verifyNpc(script->m_npcMap);
-        }
-        else if (token == "[level npc]")
-        {
-            for (;;)
-            {
-                int key = ScanInt(&flag);
-                if (!flag)
-                    break;
-                int npcIdx = ScanInt((bool*)0);
-                int rate = ScanInt((bool*)0);
-                for (int i = 0; i < 4; ++i)
-                    ScanInt((bool*)0);
-                stDungeonNpc npc;
-                npc.m_field0 = key;
-                npc.m_npcIdx = npcIdx;
-                npc.m_rate = rate;
-                script->m_levelNpcMap.insert(
-                    std::pair<int, stDungeonNpc>(key, npc));
-            }
-            script->verifyNpc(script->m_levelNpcMap);
-        }
-        else if (token == "[level section]")
-        {
-            for (;;)
-            {
-                stLevelSection section;
-                section.m_levelIdx = ScanInt(&flag);
-                if (!flag)
-                    break;
-                section.m_minLev = ScanInt((bool*)0);
-                section.m_maxLev = ScanInt((bool*)0);
-                script->m_levelSections.insert(section);
-            }
-        }
-        else if (token == "[npc]")
-        {
-            stNpcSales sales;
-            sales.m_field0 = ScanInt((bool*)0);   // npcKey
-            // ORIG 内层检查顺序： [dungeon] → [level] → [dungeon cash item] → [/npc]
-            // （P46 叶块序），ScanType 返回值丢弃（ORIG 直接调用）。
-            for (;;)
-            {
-                ScanType(token, true);
-                if (token == "[dungeon]")
-                {
-                    stDungeonSales ds;
-                    ds.m_field0 = ScanInt((bool*)0);       // dungeonKey
-                    ds.m_maxCount = ScanInt((bool*)0);     // +0x04
-                    for (;;)
-                    {
-                        int itemIdx = ScanInt(&flag);
-                        if (!flag)
-                            break;
-                        stSaleInfo sale;
-                        sale.m_itemIdx = itemIdx;
-                        sale.m_rule = (char)ScanInt((bool*)0);
-                        sale.m_price = ScanInt((bool*)0);
-                        sale.m_materialCount = ScanInt((bool*)0);
-                        sale.m_limit = ScanInt((bool*)0);
-                        sale.m_rate = ScanInt((bool*)0);
-                        ds.m_sales.insert(std::pair<int, stSaleInfo>(itemIdx, sale));
-                    }
-                    sales.m_dungeonSales.insert(
-                        std::pair<int, stDungeonSales>(ds.m_field0, ds));
-                }
-                else if (token == "[level]")
-                {
-                    stDungeonSales ds;
-                    ds.m_field0 = ScanInt((bool*)0);
-                    ds.m_maxCount = ScanInt((bool*)0);
-                    for (;;)
-                    {
-                        int itemIdx = ScanInt(&flag);
-                        if (!flag)
-                            break;
-                        stSaleInfo sale;
-                        sale.m_itemIdx = itemIdx;
-                        sale.m_rule = (char)ScanInt((bool*)0);
-                        sale.m_price = ScanInt((bool*)0);
-                        sale.m_materialCount = ScanInt((bool*)0);
-                        sale.m_limit = ScanInt((bool*)0);
-                        sale.m_rate = ScanInt((bool*)0);
-                        ds.m_sales.insert(std::pair<int, stSaleInfo>(itemIdx, sale));
-                    }
-                    sales.m_eventSales.insert(
-                        std::pair<int, stDungeonSales>(ds.m_field0, ds));
-                }
-                else if (token == "[dungeon cash item]")
-                {
-                }
-                else if (token == "[/npc]")
-                {
-                    script->m_dungeonNpcMap.insert(
-                        std::pair<int, stNpcSales>(sales.m_field0, sales));
-                    break;
-                }
-            }
-        }
-        else if (token == "[event item]")
-        {
-            script->m_eventDungeonSales.m_maxCount = ScanInt((bool*)0);  // +0x64
-            for (;;)
-            {
-                int itemIdx = ScanInt(&flag);
-                if (!flag)
-                    break;
-                stSaleInfo sale;
-                sale.m_itemIdx = itemIdx;
-                sale.m_rule = (char)ScanInt((bool*)0);
-                sale.m_price = ScanInt((bool*)0);
-                sale.m_materialCount = ScanInt((bool*)0);
-                sale.m_limit = ScanInt((bool*)0);
-                sale.m_rate = ScanInt((bool*)0);
-                script->m_eventDungeonSales.m_sales.insert(
-                    std::pair<int, stSaleInfo>(itemIdx, sale));
-            }
-        }
-        else if (token == "[price random]")
-        {
-            script->m_priceVarPercent = ScanInt((bool*)0);   // +0x80
-        }
-        else if (token == "[eplp wait time]")
-        {
-            script->m_int84 = ScanInt((bool*)0);             // +0x84
-        }
-        else if (token == "[add slot cash user stackable count]")
-        {
-        }
-        else if (token == "[secret shop end]")
-        {
-            break;
-        }
-    }
-    return 1;
 }
 
 void* CUser::GetSecretShopData()

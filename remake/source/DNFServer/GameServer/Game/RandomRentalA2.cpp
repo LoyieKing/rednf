@@ -1174,6 +1174,9 @@ void RegenerationROI::_Select_Part(int partIdx, std::vector<int>& out)
 {
     // [b28d-solo-RandomRentalA2 判词] DIFF 132/131（ORIG 0x085f8ec2）：P0/P183
     // names/nameTable 内联已消引用缓存；残余帧/槽序。旧判词：
+    // [b28d-PoolMisc2 修成] P227 trace 临时化 ⇒ 两 call 块序归位，件 **DIFF→NEAR**、
+    // 131→132 与 ORIG 等长，结构残差 struct 9→**0**、ndiff 29→15（全为帧 0x40/0x50
+    // 与 SLOT 平移）⇒ 余差按 N82附/P190 撑帧封顶（工具 /tmp/structdiff.py）。
     // + 局部槽序。语义等价。
     // P190：ORIG 槽基比 4.4 深 0x10 ⇒ 取址 double 撑帧。
     double framePad1;
@@ -1202,10 +1205,16 @@ void RegenerationROI::_Select_Part(int partIdx, std::vector<int>& out)
     }
     else
     {
-        cMyTrace t("void RegenerationROI::_Select_Part(int, "
-                   "std::vector<int, std::allocator<int> >&)",
-                   0xd6, 5);
-        t("packet:%d groupName:%s\n", partIdx, groupName.c_str());
+        // [b28d-PoolMisc2 P227 修成] ORIG 0x085f8ec2 else 块：先 `lea groupName,%eax;
+        // mov %eax,(%esp); call std::string::c_str; mov %eax,%edx` **再**发 trace
+        // ctor（`movl $5,0xc; movl $0xd6,0x8; movl $<name>,0x4; lea trace槽,%eax;
+        // mov %eax,(%esp); call C1`）⇒ 原码 cMyTrace 为全表达式临时（ctor 在 vararg
+        // 求值之后）。原具名 `cMyTrace t(...)` 形把 ctor 提到 vararg 之前 ⇒ 两 call
+        // 块序互换（结构残差 9 行的全部）。cMyTrace 无用户析构（GameTypes.h:92）
+        // ⇒ 临时化不改可观察行为。
+        cMyTrace("void RegenerationROI::_Select_Part(int, "
+                 "std::vector<int, std::allocator<int> >&)",
+                 0xd6, 5)("packet:%d groupName:%s\n", partIdx, groupName.c_str());
     }
 }
 

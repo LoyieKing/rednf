@@ -40,6 +40,13 @@
 #include <time.h>
 #include <string.h>
 
+// C1 @ 0x080c9984：CEventBase() + vptr + new CBingo(0x1c) 包 shared_ptr<CBingo>
+// 挂到 this+0xc。初始化列表 m_bingo(new CBingo()) 顺序与 ORIG 一致。
+BingoEvent::BingoEvent()
+    : m_bingo(new CBingo())
+{
+}
+
 // ---------------------------------------------------------------------------
 // ORIG 全局位工具（source 无既有 producer，objdump 直转）：
 //   _Z13isSetBit_Uintji T 0x0889232e：(value & (1<<bit)) != 0
@@ -65,13 +72,6 @@ void setBit_Uint(unsigned int& value, bool set, int bit)
 // ---------------------------------------------------------------------------
 // BingoEvent 方法（docs/class_func_reports/BingoEvent/ 13 报告全文已读）。
 // ---------------------------------------------------------------------------
-
-// C1 @ 0x080c9984：CEventBase() + vptr + new CBingo(0x1c) 包 shared_ptr<CBingo>
-// 挂到 this+0xc。初始化列表 m_bingo(new CBingo()) 顺序与 ORIG 一致。
-BingoEvent::BingoEvent()
-    : m_bingo(new CBingo())
-{
-}
 
 // D1 @ 0x080c9a06：vptr + shared_ptr<CBingo> 析构 + CEventBase 析构（编译器按
 // 声明逆序生成：m_bingo 先于 CEventBase）。D0 @ 0x080c9a68 由编译器生成。

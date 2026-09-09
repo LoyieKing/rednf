@@ -1276,7 +1276,10 @@ loop_head:                                          // 8a979dc：guard(__lookup)
             }
         {
             script->m_passive268.clear();            // 8a9a6d4 clear(+0x268)
-            std::string opToken;                     // -0x610（每轮复用，ORIG 每轮 string ctor/dtor）
+            std::string opToken;                     // -0x610（每轮复用；ORIG 每轮
+                                                     // ctor/dtor，但 4.4 移入循环体后
+                                                     // dtor 落点/槽号反平移 8，实测
+                                                     // ndiff 293→295 无收益，保留外置形）
             // ORIG 用 callee-saved %ebx 承载循环标志（P231 纯 register，非 asm 绑定）。
             register bool cont = true;
             while (cont)                             // ORIG do{ obj ctor; ... }while(ebx)（8a9a6d9..8a9a822）

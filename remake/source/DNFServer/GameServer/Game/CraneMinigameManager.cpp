@@ -66,6 +66,16 @@
 // 全等）；残差即上述 ①循环旋转岛 1 insn、②N82/P112 帧槽号、③.o 重定位显示差。
 // ============================================================================
 
+// ORIG W 0x088e3708：逐字段拷 m_id/m_itemIdx/m_cnt（0xc 字节），不拷
+// m_viewRatio/m_pickRatio（ORIG 反汇编止于 +8）。
+CraneItemInfo& CraneItemInfo::operator=(const CraneItemInfo& other)
+{
+    m_id = other.m_id;
+    m_itemIdx = other.m_itemIdx;
+    m_cnt = other.m_cnt;
+    return *this;
+}
+
 bool importCraneMinigameScript(CraneMinigameScript* script, const char* path)
 {
     if (!loadRDARScriptFile("", path))
@@ -258,16 +268,6 @@ bool importCraneMinigameScript(CraneMinigameScript* script, const char* path)
 // ============================================================================
 CraneMinigameScript::CraneMinigameScript()
 {
-}
-
-// ORIG W 0x088e3708：逐字段拷 m_id/m_itemIdx/m_cnt（0xc 字节），不拷
-// m_viewRatio/m_pickRatio（ORIG 反汇编止于 +8）。
-CraneItemInfo& CraneItemInfo::operator=(const CraneItemInfo& other)
-{
-    m_id = other.m_id;
-    m_itemIdx = other.m_itemIdx;
-    m_cnt = other.m_cnt;
-    return *this;
 }
 
 CraneMinigameScript::~CraneMinigameScript()

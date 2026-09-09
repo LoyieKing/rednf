@@ -1645,24 +1645,6 @@ int importQuestScript(QuestScript* script, const char* path)
         {
             // ORIG 0x8a652d7..0x8a65651：静态 map（BSS 0x95004f8）+ SpinLock
             // （0x9500510）+ flag（0x9500514）；表仅 "[urgent]"→0x5c1。
-            static std::map<const char*, int, less_TCHAR> __lookup;
-            static SpinLock __init_lock;
-            static bool __inited = false;
-            if (!__inited)
-            {
-                __init_lock.enter();
-                if (__inited)
-                {
-                    __init_lock.leave();
-                }
-        if (!__inited)
-                    __lookup.insert(std::pair<const char* const, int>("[urgent]", 0x5c1));
-                if (!__inited)
-                {
-                    __init_lock.leave();
-                    __inited = true;
-                }
-            }
             for (;;)
             {
                 bool isType = false;
@@ -1683,6 +1665,24 @@ int importQuestScript(QuestScript* script, const char* path)
                         break;                       // 正常结束 → continue 主循环
                     }
                     return 0;
+                }
+                static std::map<const char*, int, less_TCHAR> __lookup;
+                static SpinLock __init_lock;
+                static bool __inited = false;
+                if (!__inited)
+                {
+                    __init_lock.enter();
+                    if (__inited)
+                    {
+                        __init_lock.leave();
+                    }
+                    if (!__inited)
+                        __lookup.insert(std::pair<const char* const, int>("[urgent]", 0x5c1));
+                    if (!__inited)
+                    {
+                        __init_lock.leave();
+                        __inited = true;
+                    }
                 }
                 std::map<const char*, int, less_TCHAR>::const_iterator it =
                     __lookup.find(sub.c_str());

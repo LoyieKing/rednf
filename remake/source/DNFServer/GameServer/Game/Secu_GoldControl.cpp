@@ -32,6 +32,17 @@ struct DB_CheckCharacNameReqView
 };
 #pragma pack(pop)
 
+void Secu_GoldControl::Init(CUser* user)
+{
+    m_pUser = user;
+    m_dateFlag = GlobalData::g_GoldControlDateFlag;
+    m_fieldb8 = 0;
+    m_fieldbc = 0;
+    m_mailGold = 0;
+    m_fielde6 = 0;
+    memset(m_mailCharName, 0, 0x1e);
+}
+
 void DB_CheckCharacName::makeRequest(int uid, unsigned int accId, const char* charName, bool flag)
 {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xa4f9),
@@ -50,17 +61,6 @@ void DB_CheckCharacName::makeRequest(int uid, unsigned int accId, const char* ch
         (unsigned char)flag;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
-void Secu_GoldControl::Init(CUser* user)
-{
-    m_pUser = user;
-    m_dateFlag = GlobalData::g_GoldControlDateFlag;
-    m_fieldb8 = 0;
-    m_fieldbc = 0;
-    m_mailGold = 0;
-    m_fielde6 = 0;
-    memset(m_mailCharName, 0, 0x1e);
-}
-
 void Secu_GoldControl::SetInfo(user_gold_info& info)
 {
     info.toCopy(m_total);

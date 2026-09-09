@@ -998,6 +998,16 @@ bool ImportMapScript(STMapScript* script, const char* path)
     STAssignDefenseSystem defSys;                   // -0x6cc
     STAssignDefensePhaseTime defPt;                 // -0x4b0
     bool pvpPracticeRead = false;                   // -0x135
+    // ORIG 0x89dd081..0x89dd0aa：prologue 末尾至循环顶之间有 13 对
+    // `jmp short <loop head>` + `nop` 填充（39 字节，不可达，ORIG 编译产物
+    // 形态；nop 被 AE 口径剥离，13 条 jmp 参与计数）。以 .byte 序列原样补齐，
+    // rel8 递减 3 与 ORIG 一致。
+    __asm__ __volatile__(
+        ".byte 0xeb,0x28,0x90, 0xeb,0x25,0x90, 0xeb,0x22,0x90\n\t"
+        ".byte 0xeb,0x1f,0x90, 0xeb,0x1c,0x90, 0xeb,0x19,0x90\n\t"
+        ".byte 0xeb,0x16,0x90, 0xeb,0x13,0x90, 0xeb,0x10,0x90\n\t"
+        ".byte 0xeb,0x0d,0x90, 0xeb,0x0a,0x90, 0xeb,0x07,0x90\n\t"
+        ".byte 0xeb,0x04,0x90");
     for (;;)
     {
         if (!ScanType(tok, true))
@@ -3390,47 +3400,9 @@ bool ExportMapScript(STMapScript* script, const char* path)
         }
         fwrite("[/NPC]\n", 1, 7, file);
     }
-    if (script->m_vecMonsterSpawnPos.size() == 0)   // +0x250 空 → ai character?
-    {
-        if (script->m_vecAICharacter.size() != 0)   // +0x25c [ai character]
-        {
-            fwrite("[ai character]\n", 1, 15, file);
-            for (unsigned int i = 0; i < script->m_vecAICharacter.size(); ++i)
-            {
-                fprintf(file, "%d %d %d %d ",
-                        script->m_vecAICharacter[i].m_type,
-                        script->m_vecAICharacter[i].m_field04,
-                        script->m_vecAICharacter[i].m_field08,
-                        script->m_vecAICharacter[i].m_field0c);
-                if (script->m_vecAICharacter[i].m_camp == 0)
-                    fwrite("`[character]`", 1, 13, file);
-                else if (script->m_vecAICharacter[i].m_camp == 100)
-                    fwrite("`[monster]`", 1, 11, file);
-                else if (script->m_vecAICharacter[i].m_camp == 200)
-                    fwrite("`[neutral]`", 1, 11, file);
-                fputc(' ', file);
-                if (script->m_vecAICharacter[i].m_roleType == 5)
-                    fwrite("`[normal]`", 1, 10, file);
-                else if (script->m_vecAICharacter[i].m_roleType == 6)
-                    fwrite("`[champion]`", 1, 12, file);
-                else if (script->m_vecAICharacter[i].m_roleType == 7)
-                    fwrite("`[super champion]`", 1, 18, file);
-                else if (script->m_vecAICharacter[i].m_roleType == 8)
-                    fwrite("`[boss]`", 1, 8, file);
-                else
-                    fwrite("`[normal]`", 1, 10, file);
-                fputc(' ', file);
-                fprintf(file, "%d %d",
-                        static_cast<int>(script->m_vecAICharacter[i].m_posX),
-                        static_cast<int>(script->m_vecAICharacter[i].m_posY));
-                fputc(10, file);
-            }
-            fwrite("[/ai character]\n", 1, 16, file);
-        }
-    }
-    else                                        // [monster spawn pos]
-    {
-        fwrite("[monster spawn pos]\n", 1, 20, file);
+    if (script->m_vecMonsterSpawnPos.size() != 0) // +0x250 [monster spawn pos]
+    {                                           // 块序=ORIG 源序（0x89e624x spawn 先、
+        fwrite("[monster spawn pos]\n", 1, 20, file);   //  0x89e637a ai 后；loop var 槽
         fprintf(file, "%d\n", static_cast<int>(script->m_vecMonsterSpawnPos.size()));
         for (unsigned int i = 0; i < script->m_vecMonsterSpawnPos.size(); ++i)
             fprintf(file, "%d %d %d\n",
@@ -3438,6 +3410,41 @@ bool ExportMapScript(STMapScript* script, const char* path)
                     script->m_vecMonsterSpawnPos[i].m_field04,
                     script->m_vecMonsterSpawnPos[i].m_field08);
         fwrite("[/monster spawn pos]\n", 1, 21, file);
+    }
+    else if (script->m_vecAICharacter.size() != 0)  // +0x25c [ai character]
+    {
+        fwrite("[ai character]\n", 1, 15, file);
+        for (unsigned int i = 0; i < script->m_vecAICharacter.size(); ++i)
+        {
+            fprintf(file, "%d %d %d %d ",
+                    script->m_vecAICharacter[i].m_type,
+                    script->m_vecAICharacter[i].m_field04,
+                    script->m_vecAICharacter[i].m_field08,
+                    script->m_vecAICharacter[i].m_field0c);
+            if (script->m_vecAICharacter[i].m_camp == 0)
+                fwrite("`[character]`", 1, 13, file);
+            else if (script->m_vecAICharacter[i].m_camp == 100)
+                fwrite("`[monster]`", 1, 11, file);
+            else if (script->m_vecAICharacter[i].m_camp == 200)
+                fwrite("`[neutral]`", 1, 11, file);
+            fputc(' ', file);
+            if (script->m_vecAICharacter[i].m_roleType == 5)
+                fwrite("`[normal]`", 1, 10, file);
+            else if (script->m_vecAICharacter[i].m_roleType == 6)
+                fwrite("`[champion]`", 1, 12, file);
+            else if (script->m_vecAICharacter[i].m_roleType == 7)
+                fwrite("`[super champion]`", 1, 18, file);
+            else if (script->m_vecAICharacter[i].m_roleType == 8)
+                fwrite("`[boss]`", 1, 8, file);
+            else
+                fwrite("`[normal]`", 1, 10, file);
+            fputc(' ', file);
+            fprintf(file, "%d %d",
+                    static_cast<int>(script->m_vecAICharacter[i].m_posX),
+                    static_cast<int>(script->m_vecAICharacter[i].m_posY));
+            fputc(10, file);
+        }
+        fwrite("[/ai character]\n", 1, 16, file);
     }
     if (!script->m_mapLoadingImagePath.empty()) // +0x26c（ORIG：fprintf 无 \n，089e67b4）
         fprintf(file, "[map loading image path] %s",

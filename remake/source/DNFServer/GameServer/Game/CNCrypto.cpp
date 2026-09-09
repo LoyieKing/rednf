@@ -42,7 +42,7 @@ CNCryptoShift& CNCryptoShift::operator=(const CNCryptoShift& other)
     return *this;
 }
 
-int CNCryptoShift::SetMode(int)
+int CNCryptoShift::SetMode(CRYPTO_MODE_TYPE)
 {
     return 0x70000017;
 }
@@ -160,21 +160,20 @@ CNCryptoRijndael& CNCryptoRijndael::operator=(const CNCryptoRijndael& other)
     return *this;
 }
 
-int CNCryptoRijndael::SetMode(int mode)
+int CNCryptoRijndael::SetMode(CRYPTO_MODE_TYPE mode)
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    int m = -1;
+    // ORIG 0x0809c129..0x0809c187（逐分支内联立即数实参、无中间槽；三 call 后
+    // 直接 jmp leave ⇒ **返回值 = IMethod::SetMode 的 eax，非固定码**；cmp 序
+    // 1,3,0；其余 mode ⇒ 0x70000017）：
     if (mode == 1)
-        m = 1;
-    else if (mode == 3)
-        m = 2;
-    else if (mode == 0)
-        m = 0;
-    else
-        return 0x70000017;
-    ((IMethod*)m_pCrypto)->SetMode(m);
-    return 0x6fffffff;
+        return ((IMethod*)m_pCrypto)->SetMode(1);
+    if (mode == 3)
+        return ((IMethod*)m_pCrypto)->SetMode(2);
+    if (mode == 0)
+        return ((IMethod*)m_pCrypto)->SetMode(0);
+    return 0x70000017;
 }
 
 int CNCryptoRijndael::Initialize(const unsigned char* key, int keyLen)
@@ -279,21 +278,20 @@ CNCryptoTea& CNCryptoTea::operator=(const CNCryptoTea& other)
     return *this;
 }
 
-int CNCryptoTea::SetMode(int mode)
+int CNCryptoTea::SetMode(CRYPTO_MODE_TYPE mode)
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    int m = -1;
+    // ORIG 0x0809d061..0x0809d0bf：与 Rijndael 同构（call IMethod::SetMode、
+    // 返回值透传；cmp 序 1,3,0），但**未匹配失败码 = 0x70000003**（0x0809d0ba
+    // `mov $0x70000003,%eax`；旧形直写 CTEA::m_mode + 固定 0x6fffffff 属误转写）。
     if (mode == 1)
-        m = 1;
-    else if (mode == 3)
-        m = 2;
-    else if (mode == 0)
-        m = 0;
-    else
-        return 0x70000017;
-    ((CTEA*)m_pCrypto)->m_mode = m;
-    return 0x6fffffff;
+        return ((IMethod*)m_pCrypto)->SetMode(1);
+    if (mode == 3)
+        return ((IMethod*)m_pCrypto)->SetMode(2);
+    if (mode == 0)
+        return ((IMethod*)m_pCrypto)->SetMode(0);
+    return 0x70000003;
 }
 
 int CNCryptoTea::Initialize(const unsigned char* key, int keyLen)
@@ -408,7 +406,7 @@ CNCryptoBlowFish& CNCryptoBlowFish::operator=(const CNCryptoBlowFish& other)
     return *this;
 }
 
-int CNCryptoBlowFish::SetMode(int mode)
+int CNCryptoBlowFish::SetMode(CRYPTO_MODE_TYPE mode)
 {
     m_mode = (unsigned int)mode;
     return 0x6fffffff;
@@ -532,7 +530,7 @@ CNCryptoRc6& CNCryptoRc6::operator=(const CNCryptoRc6& other)
     return *this;
 }
 
-int CNCryptoRc6::SetMode(int)
+int CNCryptoRc6::SetMode(CRYPTO_MODE_TYPE)
 {
     return 0x70000017;
 }
@@ -646,7 +644,7 @@ Name& Name::operator=(const Name& other)                                        
 {                                                                                           \
     return *this;                                                                           \
 }                                                                                           \
-int Name::SetMode(int mode)                                                                 \
+int Name::SetMode(CRYPTO_MODE_TYPE mode)                                                     \
 {                                                                                           \
     return mode == 0 ? 0x6fffffff : 0x70000017;                                             \
 }                                                                                           \

@@ -15,6 +15,11 @@
 #include "WarField.h"          // map_monster（m_roleType +0x08 / m_mobIndex +0x0c）
 #include "CGameManager.h"      // WongWork::CHackAnalyzer::addServerHackCnt 声明
 
+void Secu_DungeonAverageCheck::reset()
+{
+    m_killInfos.clear();
+}
+
 Secu_DungeonAverageCheck::Secu_DungeonAverageCheck()
 {
     m_party = 0;   // m_killInfos(+4) 自动构造先于 m_party(+0)=0，故置 body(ORIG 序)
@@ -184,9 +189,4 @@ void Secu_DungeonAverageCheck::dungeonFail()
     // ORIG 0x82799f4：CheckHackTypeEndDungeon() + reset()。
     CheckHackTypeEndDungeon();
     reset();
-}
-
-void Secu_DungeonAverageCheck::reset()
-{
-    m_killInfos.clear();
 }

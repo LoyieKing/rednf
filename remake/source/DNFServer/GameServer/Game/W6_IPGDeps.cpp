@@ -50,6 +50,15 @@ char* NumberToString(unsigned int value, int radix);
 
 namespace WongWork { namespace IPG {
 
+// ORIG T 0x080ffae0 (0x2a)。
+void CIPGHelper::getIPGStatus(stIPGStatus_t& status)
+{
+    // ORIG 早退形 je 直落 + body jmp/nop 中继（P63，探针 f1 同构）。
+    if (m_mgr == 0)
+        return;
+    m_mgr->getIPGStatus(status);
+}
+
 // ---------------------------------------------------------------------------
 // stIPGStatus_t —— ORIG W 0x080ee3de (0x22)：依次清零 +0/+4/+8。
 // ---------------------------------------------------------------------------
@@ -566,15 +575,6 @@ void CIPGHelper::Finalize()
     // + delete 造成双重判空（+4 条）。delete 自带空守卫（P141），去外层 if。
     delete m_mgr;
     m_mgr = 0;
-}
-
-// ORIG T 0x080ffae0 (0x2a)。
-void CIPGHelper::getIPGStatus(stIPGStatus_t& status)
-{
-    // ORIG 早退形 je 直落 + body jmp/nop 中继（P63，探针 f1 同构）。
-    if (m_mgr == 0)
-        return;
-    m_mgr->getIPGStatus(status);
 }
 
 // ORIG W 0x081010a2 (0xb)：objdump 转写 —— return *(this+4)。

@@ -51,6 +51,14 @@ static const char kFunc_generateRewardExp[] =
 
 namespace WongWork {
 
+// ORIG T 0x0845fc6c：header(0,0x27)；short(b)；short(a)；不 finalize。
+void CDeathTower::CPacketHandler::makePickupItemHeader(unsigned short a, unsigned short b)
+{
+    put_header(0, 0x27);
+    put_short((int)b);
+    put_short((int)a);
+}
+
 // ---- CDeathTower::stMapMonsterKillChecker_t（ORIG 嵌套版，布局 0x0c）----
 void CDeathTower::stMapMonsterKillChecker_t::init()
 {
@@ -133,14 +141,6 @@ CDeathTower::CPacketHandler::~CPacketHandler() {}
 // ==============================================================================
 // CPacketHandler 包构造族（put_* 为基类 InterfacePacketBuf 直调）
 // ==============================================================================
-
-// ORIG T 0x0845fc6c：header(0,0x27)；short(b)；short(a)；不 finalize。
-void CDeathTower::CPacketHandler::makePickupItemHeader(unsigned short a, unsigned short b)
-{
-    put_header(0, 0x27);
-    put_short((int)b);
-    put_short((int)a);
-}
 
 // ORIG T 0x0845fcc4：4 队伍槽金钱信息，尾部统一 finalize(true)。
 void CDeathTower::CPacketHandler::appendPickupMoney(int* moneyA, int* moneyB, CParty* party)

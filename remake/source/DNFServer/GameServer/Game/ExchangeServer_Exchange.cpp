@@ -732,10 +732,20 @@ int CExchangeServer::OnRecvPacketServerInfo(CSession* session,
 int CExchangeServer::OnRecvPacketServerInfoRet(CSession* session,
                                                PacketGuard& guard)
 {
-    // [b28d-48] N82 封顶（NDIFF 214，229/228 条）：巨件帧/槽平移 +
-    // cMyTrace 块槽方向（N93）。
+    // [P330 本泳道 2026-09-09] REAL-BUG 修复（ORIG 0x08492c7f..0x08492c88）：
+    // ORIG 在**函数入口**（三个 0 初始化之后、首个 get_int 之前）只调一次
+    // `ExchangeServerInfo::ExchangeServerInfo()`（槽 -0x8c），循环体内不再构造
+    // （ORIG 全函数该 ctor 出现 1 次，-0x8c 其余 5 处均为取址/读字段）。
+    // 我方旧码 `for (...) { ExchangeServerInfo info; ... }` 每轮重新构造 ⇒
+    // 未被本轮 get_int/get_short 覆盖的字段被清零；ORIG 则**沿用上一轮残值**
+    // 传给 RegisterExchangeServer。p167 抓不到（循环体机器码只有一份，ctor
+    // 调用计数两边都是 1）——只有 ctor 调用**位置**（入口 vs 循环内）能发现。
+    // 三个 int 的声明序按 ORIG 初始化序 -0x74 / -0x78 / -0x7c 排定。
+    // 残余仍为 N82（巨件帧/槽平移）+ N93（cMyTrace 块槽方向）。
     int entryCount = 0;                               // -0x74
+    int remoteId = 0;                                 // -0x78
     int senderId = 0;                                 // -0x7c
+    ExchangeServerInfo info;                          // -0x8c（ORIG：入口构造一次）
 
     if (!guard.get_int(senderId))                     // line 0x2d9
     {
@@ -755,8 +765,6 @@ int CExchangeServer::OnRecvPacketServerInfoRet(CSession* session,
 
     for (int i = 0; i < entryCount; ++i)
     {
-        ExchangeServerInfo info;
-        int remoteId = 0;                             // -0x78
         if (!guard.get_int(remoteId))                 // line 0x2e0
         {
             return 0x2e0;

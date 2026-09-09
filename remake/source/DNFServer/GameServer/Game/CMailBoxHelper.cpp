@@ -1055,15 +1055,10 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
 
     for (int i = 0; i < MBV->m_detailCount; ++i)
     {
-        if (box->FindPackageLoadLack(MB_DETAIL(i)->m_letterId) != 0)
-        {
-            // ORIG 0x08553407：make_pair(key 引用, value 引用) 同址
-            // （0x101c 既作 key dword 又作 SIG_LETTER_INFO 首字段），
-            // decay 后临时 pair → insert(pair const&)（0x08558848/886/88e2）。
-            box->m_letterInfo.insert(
-                std::make_pair(MB_DETAIL(i)->m_letterId, *MB_DETAIL(i)));
-        }
-        else
+        // [P329-布局] ORIG 0x085534xx：FindPackageLoadLack 结果 `xor $0x1; test; je`
+        // ⇒ 非缺乏（put 路径）fall-through，insert 块被 GCC 后置。源码等价反转
+        // （`== 0` 时打包，否则暂存）才能复现该基本块序；反前置 ours 整段与 ORIG 错行。
+        if (box->FindPackageLoadLack(MB_DETAIL(i)->m_letterId) == 0)
         {
             packet.put_int((int)MB_DETAIL(i)->m_letterId);
             packet.put_int((int)MB_DETAIL(i)->m_characNo);
@@ -1075,12 +1070,21 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
             len = (int)std::strlen(MB_DETAIL(i)->m_message);
             packet.put_int(len);
             packet.put_str(MB_DETAIL(i)->m_message, len);
-            if ((unsigned char)isUnlimitMail(info, MB_DETAIL(i)->m_letterId))
-                packet.put_int(0);
-            else
+            // ORIG 0x085535xx：isUnlimitMail == 0 → put_int(+0x1141)，否则 put_int(0)。
+            if ((unsigned char)isUnlimitMail(info, MB_DETAIL(i)->m_letterId) == 0)
                 packet.put_int(MB_DETAIL(i)->m_period);
+            else
+                packet.put_int(0);
             packet.put_short((int)MB_DETAIL(i)->m_flag);
             count = count + 1;
+        }
+        else
+        {
+            // ORIG 0x08553407：make_pair(key 引用, value 引用) 同址
+            // （0x101c 既作 key dword 又作 SIG_LETTER_INFO 首字段），
+            // decay 后临时 pair → insert(pair const&)（0x08558848/886/88e2）。
+            box->m_letterInfo.insert(
+                std::make_pair(MB_DETAIL(i)->m_letterId, *MB_DETAIL(i)));
         }
         unsigned int lastIdx = (unsigned int)box->GetLastLoadLetterIdx();
         box->SetLastLoadLetterIdx(std::max(lastIdx, MB_DETAIL(i)->m_letterId));

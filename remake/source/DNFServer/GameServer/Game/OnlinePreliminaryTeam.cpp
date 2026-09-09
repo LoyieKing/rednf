@@ -29,6 +29,11 @@ namespace online_preliminary
 // CharacterInServer
 // ============================================================================
 
+// ORIG T 0x08587eb8 C1：仅构造 +0x24 的 map（其余字段不初始化）。
+COnlinePreliminaryTeam::COnlinePreliminaryTeam()
+{
+}
+
 // ORIG W 0x08588d7e? no——0x085868d4 _ZNK18online_preliminary17CharacterInServerltERKS0_
 // 报告 docs/class_func_reports/online_preliminary__COnlinePreliminaryMember/
 //（operator< 为内联辅助，无独立报告）
@@ -49,11 +54,6 @@ bool CharacterInServer::operator<(const CharacterInServer& rhs) const
 // ============================================================================
 // COnlinePreliminaryTeam（sizeof 0x40）
 // ============================================================================
-
-// ORIG T 0x08587eb8 C1：仅构造 +0x24 的 map（其余字段不初始化）。
-COnlinePreliminaryTeam::COnlinePreliminaryTeam()
-{
-}
 
 // ORIG T 0x08587ece D1：仅析构 +0x24 的 map。
 COnlinePreliminaryTeam::~COnlinePreliminaryTeam()

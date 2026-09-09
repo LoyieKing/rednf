@@ -36,6 +36,12 @@
 #include "GameMasterCmd.h"   // CGameMasterCharacter::sendServerState（sendItemDropRate 虚发）
 #include <math.h>
 
+// 全局 ::CLuckPoint ctor —— ORIG T 0x08550884 含 m_users.clear()。
+CLuckPoint::CLuckPoint()
+{
+    m_users.clear();
+}
+
 namespace WongWork
 {
 // ============================================================================
@@ -716,12 +722,6 @@ int CLuckPoint::GetItemRarity(int* table, int roll, int dropType)
         }
     }
     return ret;
-}
-
-// 全局 ::CLuckPoint ctor —— ORIG T 0x08550884 含 m_users.clear()。
-CLuckPoint::CLuckPoint()
-{
-    m_users.clear();
 }
 
 // 全局 ::roundFloat（ORIG W 0x0853abe5：call round 后 fnstcw/fldcw(0xc 截断)+fistpl

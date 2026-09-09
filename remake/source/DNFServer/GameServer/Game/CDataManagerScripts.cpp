@@ -34,6 +34,11 @@ bool IS_PVP_CHANNEL(int channelType);
 
 #define ZERO_POD(T) T::T() { memset(this, 0, sizeof(*this)); } T::~T() {}
 
+advancealtar::AdvanceAltarShopParameter::AdvanceAltarShopParameter()
+    : m_buyShopMap(), m_starRestMap()
+{
+}
+
 QuestParameterScript::QuestParameterScript()
 {
     clear();
@@ -1529,10 +1534,6 @@ advancealtar::StageTimeLineParameter::StageTimeLineParameter()
 {
 }
 advancealtar::StageTimeLineParameter::~StageTimeLineParameter() {}
-advancealtar::AdvanceAltarShopParameter::AdvanceAltarShopParameter()
-    : m_buyShopMap(), m_starRestMap()
-{
-}
 advancealtar::AdvanceAltarShopParameter::~AdvanceAltarShopParameter() {}
 // ORIG _ZN12advancealtar14BuyUpgradeDataC1Ev 0x088a3570 T：构造 string +0xc/
 // vector +0x10/map +0x1c 后：+0x00=0、+0x04=0、+0x08=1（ORIG movb 低字节，

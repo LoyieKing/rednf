@@ -30,6 +30,17 @@ enum CRYPTO_GRAPH_TYPE
     CRYPTO_GRAPH_MAX
 };
 
+// ORIG mangled 实证（nm $O | grep -c CRYPTO_MODE_TYPE = 14，全部 14 个
+// CNCrypto*::SetMode 均为 `_ZN<类>7SetModeE16CRYPTO_MODE_TYPE`）⇒ ORIG 形参
+// 类型是枚举类型名 CRYPTO_MODE_TYPE（非 int；我方旧建模 Ei 属符号账违规）。
+// 枚举常量集无证据（ORIG 二进制中 SetMode 零调用点：objdump 全库
+// `call.*SetModeE16CRYPTO_MODE_TYPE` 0 命中；函数体仅 `mode==0` 比较）⇒
+// 按 C++98 合法的最小形建模：无成员 enum（不发明任何常量名；enum 底层即
+// int，i386 O0 传参 ABI 不变 ⇒ 反汇编零影响，仅改 mangled）。
+enum CRYPTO_MODE_TYPE
+{
+};
+
 class ICryptoGraph
 {
 public:
@@ -42,7 +53,7 @@ public:
     //   +0x00 D1  +0x04 D0  +0x08 SetMode  +0x0c Initialize
     //   +0x10 Encrypt2  +0x14 Decrypt2  +0x18 Encrypt4  +0x1c Decrypt4
     //   +0x20 GetKeySize  +0x24 GetBlockSize
-    virtual int SetMode(int mode) = 0;
+    virtual int SetMode(CRYPTO_MODE_TYPE mode) = 0;
     virtual int Initialize(const unsigned char* key, int keyLen) = 0;
     virtual int Encrypt(unsigned char* buf, int len) = 0;
     virtual int Decrypt(unsigned char* buf, int len) = 0;

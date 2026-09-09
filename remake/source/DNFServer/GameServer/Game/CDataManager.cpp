@@ -2127,9 +2127,12 @@ pvp_done:
 // 单次装载复用（0x08360b0x 区），4.4.7 每次重装载全局（P48 反向），序列
 // 等价但行序差；table ctor 槽 -0x50 vs -0x54（4.4 对 4B 对齐选择差异，P112）。
 // [b28d-solo-CDataManager AE] 修复：prevExp/lastGrade 声明序按 ORIG 入口清零序
+// [b28d-orig-bool] 返回类型 int→bool：init 调用点 ORIG `call set_pvp_grade;
+// xor $0x1,%eax; test %al`（bool 值域 0/1 的取反形），我方 int 声明发
+// `test %eax,%eax; sete %al`。mangled 不含返回类型，符号不变。
 // （-0x14 先），循环体序改为 ++lastGrade → data.curr=prevExp → data.next →
 // prevExp → SetPvpGrade（三次独立 op[]，P48）。
-int CDataManager::set_pvp_grade()
+bool CDataManager::set_pvp_grade()
 {
     // ORIG 0x08360aa2：Clear 走 `mov &s_ref_pvp_grade,%eax; call` 两段直发
     // （无指针命名槽）；lastGrade(-0x14)/prevExp(-0x10) 在 table ctor 前
@@ -2145,7 +2148,7 @@ int CDataManager::set_pvp_grade()
     int lastGrade = 0;
     stPvpRefTable_t table;
     if (importPvPReferenceTable("Etc/pvp_ref.etc", table) != 0)
-        return 0;
+        return false;
     for (unsigned int i = 1; i < (unsigned int)table.m_count; ++i)
     {
         RefPvpGrade::RefPvpGradeData data;
@@ -2157,7 +2160,7 @@ int CDataManager::set_pvp_grade()
     }
     GlobalData::s_ref_pvp_grade->set(table);
     GlobalData::s_ref_pvp_grade->SetLastGrade(lastGrade);
-    return 1;
+    return true;
 }
 
 // ORIG _ZNK12CDataManager16GetResetItemInfoEv @ 0x08693f24 (W)：return this+0x4d04
@@ -2688,7 +2691,7 @@ bool CDataManager::init()
                                    m_ultimateDungeonList))
     {
         cMyTrace("bool CDataManager::init()", 0x1be8, 9, true, true)(
-            "\t- import UltimateDungeonList Script Fail(%d)", err);
+            "\t- import UltimateDungeonList Script Fail(%d)");
         return 0;
     }
 
@@ -2771,9 +2774,8 @@ bool CDataManager::init()
     // ("importDDayEventEtcScript Fail(%d)\n", err) 再 ret0（旧码无 printf，
     // p167 MISSING printf ×1）；且非空判定为 `size() != 0`（ORIG
     // 0x08359ec9 调 vector<_DailySchedule>::size，旧码 empty() 为 EXTRA）。
-    err = importDailyScheduleEtcScript("Etc/Chn_ServerCheckSchedule.etc",
-                                       schedules);
-    if (err != 0)
+    if ((err = importDailyScheduleEtcScript(
+             "Etc/Chn_ServerCheckSchedule.etc", schedules)) != 0)
     {
         printf("importDDayEventEtcScript Fail(%d)\n", err);
         return 0;   // ORIG 清理链经 vector dtor 后 ret0（+0x6e88 区）
@@ -2787,22 +2789,28 @@ bool CDataManager::init()
     // int err（-0x38 槽，`cmpl $0,-0x38` 直接分支、无 setne ⇒ 形如
     // `err = f(); if (err != 0)`），失败均 printf("<fn> Fail(%d)\n", err) 后
     // ret0（PLT 0x0807db60 = printf）。
-    if ((err = loadAdvanceAltarTimeLineParameter(m_stageTimeLine)) != 0)
+    // [b28d-orig-int] ORIG 四站点为 `store; cmpl $0; je` 两段形（无 setne）：
+    // `err = f(); if (err != 0)`，与 DailySchedule 站点（单表达式 setne 形）相反。
+    err = loadAdvanceAltarTimeLineParameter(m_stageTimeLine);
+    if (err != 0)
     {
         printf("loadAdvanceAltarTimeLineParameter Fail(%d)\n", err);
         return 0;
     }
-    if ((err = m_altarShop.importAdvanceAltarShopParameter( "Etc/AdvanceAltar/AdvanceAltarShop.etc")) != 0)
+    err = m_altarShop.importAdvanceAltarShopParameter( "Etc/AdvanceAltar/AdvanceAltarShop.etc");
+    if (err != 0)
     {
         printf("importAdvanceAltarShopParameter Fail(%d)\n", err);
         return 0;
     }
-    if ((err = m_altarReward.importAchievementRewardParameter( "Etc/AdvanceAltar/AdvanceAltarAchievementReward.etc")) != 0)
+    err = m_altarReward.importAchievementRewardParameter( "Etc/AdvanceAltar/AdvanceAltarAchievementReward.etc");
+    if (err != 0)
     {
         printf("importAchievementRewardParameter Fail(%d)\n", err);
         return 0;
     }
-    if ((err = m_altarConfig.importConfigParameter( "Etc/AdvanceAltar/AdvanceAltarConfig.etc")) != 0)
+    err = m_altarConfig.importConfigParameter( "Etc/AdvanceAltar/AdvanceAltarConfig.etc");
+    if (err != 0)
     {
         printf("importConfigParameter Fail(%d)\n", err);
         return 0;
@@ -3145,10 +3153,12 @@ bool CDataManager::init()
         cMyTrace("bool CDataManager::init()", 0x1ed9, 9, true, false)(
             "\t- Loading Compound Avatar ");
         // ORIG +0x321a..+0x3241：同样先写全局再读回。
+        // [b28d-orig-nullfree] ORIG 报告 idx 2493-2503 无判空短路：写全局→读回→
+        // 直接 LoadScript→`xor $1`（bool）。旧 `== 0 ||` 守卫系我方发明（EXTRA
+        // test/je ×2）。
         GlobalData::s_pCompoundAvatar =
             new (std::nothrow) WongWork::CCompoundAvatar;
-        if (GlobalData::s_pCompoundAvatar == 0 ||
-            !(reinterpret_cast<WongWork::CCompoundAvatar*>(
+        if (!(reinterpret_cast<WongWork::CCompoundAvatar*>(
                   GlobalData::s_pCompoundAvatar)
                   ->LoadScript("Etc/", "CompoundAvatar.etc")))
         {
@@ -3374,10 +3384,11 @@ bool CDataManager::init()
     randomOptionFiles[6] = "Etc/RandomOption/RandomizedOptionOverall2.etc";
     cMyTrace("bool CDataManager::init()", 0x1fb6, 9, true, false)(
         "\t- Loading RandomOption ");
-    for (unsigned int i = 0; i < 7; ++i)
+    // [b28d-orig-form] ORIG 循环尾检 = `mov -S,%eax; cmp $0x6,%eax; setbe;
+    // test; jne`（idx 3308-3313）——`i <= 6` 形；旧 `i < 7` 发 cmpl 直比。
+    for (unsigned int i = 0; i <= 6; ++i)
     {
-        errRO = importRandomOptionScript(m_randomOption, randomOptionFiles[i]);
-        if (errRO != 0)
+        if ((errRO = importRandomOptionScript(m_randomOption, randomOptionFiles[i])) != 0)
         {
             cMyTrace("bool CDataManager::init()", 0x1fbb, 9, true, true)(
                 "\t- Fail load RandomOption Script File name(%s), "
@@ -3484,8 +3495,7 @@ bool CDataManager::init()
     {
         m_autoMarket = new CAutoMarketConditionsControl;
     }
-    errRO = m_autoMarket->LoadScript("Etc/ItemDropInfo_Control.etc");
-    if (errRO != 0)
+    if ((errRO = m_autoMarket->LoadScript("Etc/ItemDropInfo_Control.etc")) != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x201a, 9, true, true)(
             "\t- LoadScript() error Etc/ItemDropInfo_Control.etc line(%d)",
@@ -3772,23 +3782,25 @@ bool CDataManager::init()
                 sync_script::GetInstanceSyncScript()->insert_item_parts_set(
                     it->first, *pit);
             }
-            if (data.m_script != 0)
+            // [b28d-orig-nullfree] ORIG 报告 idx 4810-4816 对 m_script 直接
+            // `mov 0x8(%eax),%eax` 解引用、无任何判空（旧 `!= 0` 守卫系我方发明，
+            // ELF diff +4 行 EXTRA）⇒ 去守卫，与 ORIG 同形无条件进内层 map 循环。
+            for (std::map<int, EquipmentParameterInfo>::iterator eit =
+                     data.m_script->m_paramMap678.begin();
+                 eit != data.m_script->m_paramMap678.end(); ++eit)
             {
-                for (std::map<int, EquipmentParameterInfo>::iterator eit =
-                         data.m_script->m_paramMap678.begin();
-                     eit != data.m_script->m_paramMap678.end(); ++eit)
-                {
-                    STEquipmentScript es;
-                    es.m_strac = data.m_script->m_str668;
-                    // ORIG 0x0835e4f8：`call operator->; add $0x4; mov %eax,-0x20`
-                    // 具名指针物化后两处复用（+0xc deref/…）——具名引用引导 4.4
-                    // 同形物化（段②站点对表首个试点）。
-                    EquipmentParameterInfo& rParam = eit->second;
-                    es.m_param1c0 = rParam;
-                    sync_script::GetInstanceSyncScript()
-                        ->insert_equiptment_item_to_db(
-                            &es, (unsigned int)eit->first, 2, it->first);
-                }
+                STEquipmentScript es;
+                es.m_strac = data.m_script->m_str668;
+                // ORIG 0x0835e4f8：`call operator->; add $0x4; mov %eax,-0x20`
+                // 具名指针物化后两处复用（+0xc deref/…）——具名引用引导 4.4
+                // 同形物化（段②站点对表首个试点）。
+                // [b28d-orig-form] ORIG idx 4830-4838 对 eit->second 的
+                // `ptEv; add $4` 结果直接落 operator= 实参槽（无具名引用中转，
+                // 旧 rParam 引用多发 `mov %eax,-S; mov -S,%eax` 保存/取回 ×2）。
+                es.m_param1c0 = eit->second;
+                sync_script::GetInstanceSyncScript()
+                    ->insert_equiptment_item_to_db(
+                        &es, (unsigned int)eit->first, 2, it->first);
             }
         }
     }
@@ -3836,16 +3848,19 @@ bool CDataManager::init()
     {
         cMyTrace("bool CDataManager::init()", 0x221d, 9, true, false)(
             "\t- Loading Ingame Event Script List ");
-        EventClassify::CEventScriptMng* mng = m_liveServerInfo.m_eventScriptMng;
-        if (!importInGameEventInfoList(static_cast<InGameEventInfoList*>(mng),
-                                       "Event/InGameEventList.evt"))
+        // [b28d-orig-form] ORIG 三站点各自独立 `mov 0xb504(%eax)` 重读成员
+        // （报告 idx 5059/5093-5099），无局部指针缓存 ⇒ 表达式直接写成员路径。
+        if (!importInGameEventInfoList(
+                static_cast<InGameEventInfoList*>(m_liveServerInfo.m_eventScriptMng),
+                "Event/InGameEventList.evt"))
         {
             cMyTrace("bool CDataManager::init()", 0x2224, 9, true, true)(
                 "\t- Fail load ingame_event_script_list");
             return 0;
         }
         cMyTrace("bool CDataManager::init()", 0x2228, 9, false, true)("Success");
-        if (!mng->initScriptlist(*mng))
+        if (!m_liveServerInfo.m_eventScriptMng->initScriptlist(
+                *m_liveServerInfo.m_eventScriptMng))
         {
             return 0;
         }
@@ -3882,13 +3897,14 @@ bool CDataManager::init()
         return 0;
     }
 
-    // Mercenary System（ORIG +0x2c00 区：errMerc = 0 → `if ((errMerc = ...) != 0)`，
-    // 槽 -0x2c；err=出错行）。
+    // Mercenary System（ORIG 报告 idx 5231-5239：errMerc 复位(-0x2c) → 独立
+    // store → `cmpl $0; je` **两段形**（无 setne，旧「单表达式」判断有误））。
     cMyTrace("bool CDataManager::init()", 0x229b, 9, true, false)(
         "\t- Loading Mercenary System ");
     errMerc = 0;
-    if ((errMerc = importMercenarySystemEtcScript("Etc/mercenary.etc",
-                                                  &m_mercenarySystem)) != 0)
+    errMerc = importMercenarySystemEtcScript("Etc/mercenary.etc",
+                                             &m_mercenarySystem);
+    if (errMerc != 0)
     {
         cMyTrace("bool CDataManager::init()", 0x22a0, 9, true, true)(
             "\t- Loading Mercenary System Fail - %d line \n", errMerc);

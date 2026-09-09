@@ -44,36 +44,6 @@ const int LEVEL_SECTION_TABLE[89] = {
     5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5
 };
 
-unsigned int CHackLog_OverDamage::GetDeathTowerLimitDamage()
-{
-    return _S_KILL_MONSTER_OVER_DAMAGE_CONST[6];
-}
-
-WongWork::ENUM_HACKTYPE CHackLog_OverDamage::GetDeathTowerOverDamageHackType()
-{
-    return static_cast<WongWork::ENUM_HACKTYPE>(0x6b);
-}
-
-unsigned int CHackLog_OverDamage::GetDungeonLimitMaxDamage()
-{
-    return _S_KILL_MONSTER_OVER_DAMAGE_CONST[6];
-}
-
-WongWork::ENUM_HACKTYPE CHackLog_OverDamage::GetHackTypeOverLimitMaxDamage()
-{
-    return static_cast<WongWork::ENUM_HACKTYPE>(0x6b);
-}
-
-unsigned int CHackLog_OverDamage::GetBossTowerLimitDamage()
-{
-    return _S_KILL_MONSTER_OVER_DAMAGE_CONST[5];
-}
-
-WongWork::ENUM_HACKTYPE CHackLog_OverDamage::GetBossTowerOverDamageHackType()
-{
-    return static_cast<WongWork::ENUM_HACKTYPE>(0x85);
-}
-
 void CHackLog_OverDamage::GetDungeonLimitDamageAndHackType(
     CUser* user, unsigned int& limit, WongWork::ENUM_HACKTYPE& type)
 {
@@ -144,3 +114,34 @@ void CHackLog_OverDamage::GetDungeonLimitDamageAndHackType(
     type = static_cast<WongWork::ENUM_HACKTYPE>(
         _S_KILL_MONSTER_OVER_DAMAGE_HACK_TYPE[sectionIdx]);
 }
+
+unsigned int CHackLog_OverDamage::GetDeathTowerLimitDamage()
+{
+    return _S_KILL_MONSTER_OVER_DAMAGE_CONST[6];
+}
+
+WongWork::ENUM_HACKTYPE CHackLog_OverDamage::GetDeathTowerOverDamageHackType()
+{
+    return static_cast<WongWork::ENUM_HACKTYPE>(0x6b);
+}
+
+unsigned int CHackLog_OverDamage::GetDungeonLimitMaxDamage()
+{
+    return _S_KILL_MONSTER_OVER_DAMAGE_CONST[6];
+}
+
+WongWork::ENUM_HACKTYPE CHackLog_OverDamage::GetHackTypeOverLimitMaxDamage()
+{
+    return static_cast<WongWork::ENUM_HACKTYPE>(0x6b);
+}
+
+unsigned int CHackLog_OverDamage::GetBossTowerLimitDamage()
+{
+    return _S_KILL_MONSTER_OVER_DAMAGE_CONST[5];
+}
+
+WongWork::ENUM_HACKTYPE CHackLog_OverDamage::GetBossTowerOverDamageHackType()
+{
+    return static_cast<WongWork::ENUM_HACKTYPE>(0x85);
+}
+

@@ -5878,11 +5878,14 @@ int Dispatcher_ConnectP2PPvP::dispatch_sig(CUser* user, PacketBuf& packet)
 	if (count > 8 || count < 0)
 		return LineFunc(0xe01e, __PRETTY_FUNCTION__, 0, 0);
 	// ORIG 0x08205xxx：`movl $0x0,-0x19(%ebp); movl $0x0,-0x15(%ebp)` ⇒ conn 只有
-	// **8 字节**（-0x19..-0x12），两条 dword 清零；**没有** `conn[8]=count` 那次
-	// 存储（旧重建多写一字节并把数组撑到 9B，导致基址/槽号整体错位 1）。
-	// count 只经第 5 实参传出去。清零形取 memset（4.4 对 8B 走 movl 连发）。
-	char conn[8];                                    // -0x19..-0x12
-	memset(conn, 0, sizeof(conn));
+	// **8 字节**（-0x19..-0x12），按两个 dword 清零；**没有** `conn[8]=count` 那次
+	// 存储（旧重建多写一字节把数组撑到 9B ⇒ 基址/槽号整体错位 1）。count 只经
+	// 第 5 实参传出。清零形实测：① `memset(conn,0,8)` → 4.4 发 **call**（133/136）；
+	// ② `union {char[8]; int[2];}` + 逐 dword 写 → 两条 movl 但 union 对齐 4 把 conn
+	// 顶到 -0x1c（8 处槽号差 3，133/133 仍 DIFF）；③ int 视图下标写 → 产 lea+mov
+	// 两段（133/136）；④ 取 `char conn[8] = { 0 }`（4.4 对 8B 聚合零初始化内联为
+	// 两条 movl，且 char 数组对齐 1 ⇒ 槽基与 ORIG 同）。
+	char conn[8] = { 0 };                            // -0x19..-0x12
 	char seat = -1;                                  // -0x1a（ORIG 0xff 初始化，循环外一次）
 	for (int i = 0; i < count; ++i)                  // -0xc
 	{
@@ -10001,25 +10004,39 @@ int Dispatcher_InformNotice_2nd::process(CUser* user, MSG_BASE& msg, ParamBase& 
 {
     // ORIG 0x081e30fa：param+4=check_error；<0 → LineFunc(0x59c7,err,0)；
     // ==0 → GetCharacExpandData(0x13)->handleInformNoticeFlag(msg+0xd)
-    int err = check_error(user, msg);
+    // ORIG 0x081e30fa 序言：`mov 0x14(%ebp),%eax; mov %eax,-0x14(%ebp)` ⇒ param 引用
+    // 在 check_error **之前**落槽；call 结果无 err 槽（`mov %eax,%edx;
+    // mov -0x14(%ebp),%eax; mov %edx,0x4(%eax)` 直存），两判定都读回 p.m_4。
     InformNoticeData2nd& p = static_cast<InformNoticeData2nd&>(param);
-    p.m_4 = err;
-    if (p.m_4 < 1)
+    p.m_4 = check_error(user, msg);
+    // ORIG 0x081e30fa：`test %eax,%eax; jle <正常路径>; mov $0x0,%eax; jmp <尾>`
+    // ⇒ 守卫写成**正极性早返**（>0 直落 return 0，<=0 跳后续）；且后续只留
+    // **一个**函数尾 `return 0`（ORIG 尾部仅一条 mov $0，4.4 对内层 return 会
+    // 就地物化 + jmp 反多两条）⇒ 删内层 return。
+    if (p.m_4 >= 1)
     {
-        if (p.m_4 < 0)
-        {
-            return LineFunc(0x59c7,
-                            __PRETTY_FUNCTION__,
-                            p.m_4, 0);
-        }
-        CCharacInformNotice* notice = reinterpret_cast<CCharacInformNotice*>(
-            user->GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE_19));
-        if (notice != 0)
-        {
-            notice->handleInformNoticeFlag(
-                *reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&msg) + 0xd));
-        }
         return 0;
+    }
+    if (p.m_4 < 0)
+    {
+        return LineFunc(0x59c7,
+                        __PRETTY_FUNCTION__,
+                        p.m_4, 0);
+    }
+    // ORIG 0x081e30fa：msg 指针槽 -0x10 在 GetCharacExpandData 之前物化，
+    // 用点是 `mov -0x10(%ebp),%eax; mov 0xd(%eax),%eax`（单级带 disp 读）
+    // ⇒ 具名视图指针 + packed 视图字段（禁 `add $0xd` 两段裸偏移，§4.3）。
+    struct __attribute__((packed)) Notice2ndMsgView
+    {
+        char m_head[0xd];
+        unsigned int m_flag;      // +0x0d
+    };
+    Notice2ndMsgView* const mv = reinterpret_cast<Notice2ndMsgView*>(&msg);
+    CCharacInformNotice* notice = reinterpret_cast<CCharacInformNotice*>(
+        user->GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE_19));
+    if (notice != 0)
+    {
+        notice->handleInformNoticeFlag(mv->m_flag);
     }
     return 0;
 }
@@ -18997,11 +19014,12 @@ int Dispatcher_SecurityCardAuthCancel::dispatch_sig(CUser* user, PacketBuf& pack
         }
         goto LOUT;
     }
-    // ORIG 0x0820a42c：`movl $0xa650,(%esp); call LineFunc; jmp <mov $0,%eax>; leave`
-    // —— LineFunc 返回值被**丢弃**，控制流经共享尾返回 0（P171 照抄）。
-    LineFunc(0xa650,
-             __PRETTY_FUNCTION__,
-             0, 0);
+    // ORIG 0x0820a42c 尾：`movl $0xa650,(%esp); call LineFunc; leave; ret`
+    // —— **直接返回 LineFunc 的 %eax**（不经共享 mov $0 出口）⇒ 必须保留 return 形
+    // （改成语句 + 尾 return 0 会把非 0 断言码吞掉，属可观察行为变化）。
+    return LineFunc(0xa650,
+                    __PRETTY_FUNCTION__,
+                    0, 0);
     // ORIG 0x0820a42c 尾：四处 `return 0` 全部 `jmp` 到**唯一**共享出口
     // `mov $0x0,%eax; leave; ret`（P325）；4.4 对独立 return 0 恒就地物化 ⇒ goto 汇聚。
 LOUT:
@@ -24620,19 +24638,22 @@ void Dispatcher_MonstercardBind::send(CUser* user, ParamBase& param)
     guard.put_short(res.m_a);
     guard.put_short(res.m_c);
 
-    const size_t entryTotal = res.m_list.size();
-    const int groups = (int)(entryTotal / 3);
+    // ORIG 0x081d9148：`mov -0x1c(%ebp),%eax; add $0x10,%eax; mov %eax,-0x18(%ebp)`
+    // 出现在 **size() 调用之前** ⇒ vector 引用的物化点就在这里（技巧13）；
+    // 循环内每次 `mov -0x18(%ebp),%eax` 作 operator[] 的 this，下标用**后置 ++**。
+    // 实测两形：① `size_t entryTotal = res.m_list.size();` → 4.4 双存
+    //   （call 结果先落临时槽再拷入 entryTotal，帧 0x40→0x50、全槽平移 4）；
+    //   ② 取合并形：size() 结果只有一个匿名槽（= ORIG -0x2c）+ groups(-0x14)。
+    std::vector<int>& list = res.m_list;
+    const int groups = (int)(list.size() / 3);
     guard.put_byte(groups);
 
     size_t idx = 0;
     for (int g = 0; g < groups; ++g)
     {
-        guard.put_short(res.m_list[idx]);
-        ++idx;
-        guard.put_int(res.m_list[idx]);
-        ++idx;
-        guard.put_int(res.m_list[idx]);
-        ++idx;
+        guard.put_short(list[idx++]);
+        guard.put_int(list[idx++]);
+        guard.put_int(list[idx++]);
     }
 
     guard.finalize(true);
@@ -24976,14 +24997,16 @@ int Dispatcher_PcRoomRentItem::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    char count = static_cast<char>(req.m_0d);
-    if (count < 1 || count > 1)                                       // 恒为 1 项
+    // ORIG 0x081e51xx：两判定各自 `mov -0x10(%ebp),%eax; movzbl 0xd(%eax),%eax`
+    // —— count 值**无栈槽往返**（P0：具名 char 局部会占 -0xd 并把 msg 槽顶到 -0x14）。
+    if (static_cast<char>(req.m_0d) < 1 ||
+        static_cast<char>(req.m_0d) > 1)                              // 恒为 1 项
     {
         return LineFunc(24131,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    for (int i = 0; i < static_cast<int>(count); ++i)
+    for (int i = 0; i < static_cast<int>(static_cast<char>(req.m_0d)); ++i)
     {
         // 元素对 @+0x0f+2i/+0x10+2i（RentInElem sectionIdx/itemIdx；count==1 不越界）
         if (!packet.get_byte(req.m_0f[i * 2]))
@@ -26850,7 +26873,12 @@ int Dispatcher_ExpertExtraction::check_error(CUser* user, MSG_BASE& msg)
     {
         return 1;
     }
-    return ex->check_error(user, (char)m.m_0d, (short)m.m_0e, (short)m.m_10);
+    // ORIG 0x081d96xx：虚调用之后 `mov %eax,-0xc(%ebp); mov -0xc(%ebp),%eax`
+    // —— 结果有**栈槽往返**（P0）⇒ 原码先存具名局部再 return；该槽同时把
+    // m/type/ex 的槽基整体推深 4（ORIG -0x18/-0x14/-0x10）。
+    const int ret = ex->check_error(user, (char)m.m_0d, (short)m.m_0e,
+                                    (short)m.m_10);
+    return ret;
 }
 
 // ==== Dispatcher_ExpertExtraction::send (ORIG 0x081d9700) ====

@@ -81,6 +81,12 @@ namespace ARAD
 // ARAD::PUNISH_CHECK —— 处罚检查表驱动
 // ============================================================================
 
+// ctor @ 0x081ab518：std::set 构造后立即 Load()
+AradWhiteAccount::AradWhiteAccount()
+{
+    Load();
+}
+
 // punish_check_by_HUB @ 0x08196dbf（size 0xf）
 void PUNISH_CHECK::punish_check_by_HUB(SIG_LOGIN_DATA* data, int /*type*/)
 {
@@ -268,12 +274,6 @@ bool pvp_grade_check(CUser* user)
 // ============================================================================
 // ARAD::AradWhiteAccount —— 登录白名单账号集合
 // ============================================================================
-
-// ctor @ 0x081ab518：std::set 构造后立即 Load()
-AradWhiteAccount::AradWhiteAccount()
-{
-    Load();
-}
 
 // dtor @ 0x081ab55a：先 clear() 清空 set，再由编译器析构基类 std::set<unsigned int>。
 AradWhiteAccount::~AradWhiteAccount()

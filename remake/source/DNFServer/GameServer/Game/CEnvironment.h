@@ -34,7 +34,11 @@ public:
 
     // G7 分组模式辅助（实现属加密库 TU：CRijndael.cpp）
     void Xor(char* buff, const char* chain);
-    void SetMode(int iMode);
+    // ORIG _ZN7IMethod7SetModeEi T @0x080b436e（0x39）：**返回 int 错误码**
+    // （m_bInit!=1 ⇒ 0x70000005；mode 越界 [0,2] ⇒ 0x70000003；否则写 m_mode
+    //  +0x10 后返 0x6fffffff）。旧 void 建模漏了返回值透传链（CNCryptoTea/
+    // Rijndael::SetMode 的 ORIG 体直接以本函数 eax 为返回）。
+    int SetMode(int iMode);
     // ORIG _ZN7IMethod11BytesToWordEPKhRj / _ZN7IMethod11WordToBytesEjPh
     // （CTEA EncryptBlock/DecryptBlock 字节↔字组转换；实现属 ServerLib/Method.cpp:145/157。
     //  Main 对齐权威形：**static**——ServerLib Method.h:49 即 static，非 static 声明使

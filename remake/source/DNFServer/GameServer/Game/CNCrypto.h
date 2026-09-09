@@ -15,7 +15,7 @@ public:
     virtual ~CNCryptoShift();
     CNCryptoShift(const CNCryptoShift& other);
     CNCryptoShift& operator=(const CNCryptoShift& other);
-    virtual int SetMode(int mode);
+    virtual int SetMode(CRYPTO_MODE_TYPE mode);
     virtual int Initialize(const unsigned char* key, int keyLen);
     virtual int Encrypt(unsigned char* buf, int len);
     virtual int Decrypt(unsigned char* buf, int len);
@@ -37,7 +37,7 @@ public:
     virtual ~CNCryptoRijndael();
     CNCryptoRijndael(const CNCryptoRijndael& other);
     CNCryptoRijndael& operator=(const CNCryptoRijndael& other);
-    virtual int SetMode(int mode);
+    virtual int SetMode(CRYPTO_MODE_TYPE mode);
     virtual int Initialize(const unsigned char* key, int keyLen);
     virtual int Encrypt(unsigned char* buf, int len);
     virtual int Decrypt(unsigned char* buf, int len);
@@ -58,7 +58,7 @@ public:
     virtual ~CNCryptoTea();
     CNCryptoTea(const CNCryptoTea& other);
     CNCryptoTea& operator=(const CNCryptoTea& other);
-    virtual int SetMode(int mode);
+    virtual int SetMode(CRYPTO_MODE_TYPE mode);
     virtual int Initialize(const unsigned char* key, int keyLen);
     virtual int Encrypt(unsigned char* buf, int len);
     virtual int Decrypt(unsigned char* buf, int len);
@@ -79,7 +79,7 @@ public:
     virtual ~CNCryptoBlowFish();
     CNCryptoBlowFish(const CNCryptoBlowFish& other);
     CNCryptoBlowFish& operator=(const CNCryptoBlowFish& other);
-    virtual int SetMode(int mode);
+    virtual int SetMode(CRYPTO_MODE_TYPE mode);
     virtual int Initialize(const unsigned char* key, int keyLen);
     virtual int Encrypt(unsigned char* buf, int len);
     virtual int Decrypt(unsigned char* buf, int len);
@@ -102,7 +102,7 @@ public:                                                                    \
     virtual ~Name();                                                       \
     Name(const Name& other);                                               \
     Name& operator=(const Name& other);                                    \
-    virtual int SetMode(int mode);                                         \
+    virtual int SetMode(CRYPTO_MODE_TYPE mode);                             \
     virtual int Initialize(const unsigned char* key, int keyLen);          \
     virtual int Encrypt(unsigned char* buf, int len);                      \
     virtual int Decrypt(unsigned char* buf, int len);                      \

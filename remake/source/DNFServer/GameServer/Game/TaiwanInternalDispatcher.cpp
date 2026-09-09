@@ -80,6 +80,13 @@
 #include "CEnvironment.h"
 #include "../../../shared/packet/include/Packet_GameServer2Statisctics2DBServer.h"
 
+// ---- TaiwanInternalDispatcher ----
+
+TaiwanInternalDispatcher::TaiwanInternalDispatcher()
+{
+    m_dispatchers.clear();   // ORIG @0x081601d0：map::map + map::clear
+}
+
 // ---- Inter* 子类最小实现（仅基类 ctor + vptr；业务方法不在本批）----
 
 InterLoadServiceRestrictPolicy::InterLoadServiceRestrictPolicy() throw()
@@ -274,13 +281,6 @@ TaiwanInterfaceInterDispatcher::~TaiwanInterfaceInterDispatcher()
 TaiwanInternalPack::T TaiwanInterfaceInterDispatcher::getCode() const
 {
     return m_code;
-}
-
-// ---- TaiwanInternalDispatcher ----
-
-TaiwanInternalDispatcher::TaiwanInternalDispatcher()
-{
-    m_dispatchers.clear();   // ORIG @0x081601d0：map::map + map::clear
 }
 
 TaiwanInternalDispatcher::~TaiwanInternalDispatcher()

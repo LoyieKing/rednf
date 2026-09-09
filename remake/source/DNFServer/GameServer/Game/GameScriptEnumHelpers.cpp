@@ -16,6 +16,15 @@
 // ORIG 实证 std::map<char const*, int, less_TCHAR>（键按串内容比较）。
 typedef std::map<const char*, int, less_TCHAR> EnumLookupMap;
 
+// [b28 P210] 调用者定义移到 callee 之前：4.4 对「TU 内已见定义的 callee」按其实
+// 帧精确继承 outgoing（塌缩 sub $0x4）；ORIG 0x0808ec67 帧 0x18 为 callee 未见时
+// 保守形。前置定义后恢复保守大帧。
+// setCodePageByLocal — ORIG @ 0x808ec64：setCodePage(950 /*0x3b6*/)。
+void setCodePageByLocal()
+{
+    setCodePage(950);
+}
+
 // ---------------------------------------------------------------------------
 // getStateToEnumValue — ORIG _Z19getStateToEnumValueRSs @ 0x89bbc05（10 字节）：
 // 函数体仅 mov $-1,%eax; ret —— 所有输入恒返回 -1。
@@ -1021,14 +1030,5 @@ int scanModuleType()
 // ---------------------------------------------------------------------------
 // [b28d-Main R3 迁移·检查点13] gCodePage/getCodePage/setCodePage 已迁入 StringConvert.cpp
 // （ORIG 0x09501e90/0x08adea10/0x08adea1a 归属 TU）⇒ 消本 TU 副本，修复码页语义分叉。
-
-// [b28 P210] 调用者定义移到 callee 之前：4.4 对「TU 内已见定义的 callee」按其实
-// 帧精确继承 outgoing（塌缩 sub $0x4）；ORIG 0x0808ec67 帧 0x18 为 callee 未见时
-// 保守形。前置定义后恢复保守大帧。
-// setCodePageByLocal — ORIG @ 0x808ec64：setCodePage(950 /*0x3b6*/)。
-void setCodePageByLocal()
-{
-    setCodePage(950);
-}
 
 // setCodePage 定义已迁入 StringConvert.cpp（声明见 GameScriptEnumHelpers.h）。

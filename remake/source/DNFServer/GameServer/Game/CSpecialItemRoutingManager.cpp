@@ -11,6 +11,11 @@
 #include "PacketGuard.h"
 #include "TimerQueue.h"    // G_TimerQueue/TimerEntry/TIMER_MESSAGE
 
+CSpecialItemRoutingManager::CSpecialItemRoutingManager()
+{
+    // ORIG 0x0860a9c8：空函数（push ebp; mov; pop ebp; ret），不初始化任何成员。
+}
+
 // [b28d-64 判词汇总 · 泳道64] 本 TU 1 件：StartRouting 0x0860a9d4
 //   102/102 N封顶（P251 候补：ORIG `cmp $0x5,%eax; cmp $0xc,%eax` 寄存器直比 +
 //   两 nop 岛 vs 我方具名 state 落槽 -0x14 无岛；语义等价 ⇒ N82/N7）。
@@ -80,11 +85,6 @@ void CSpecialItemRoutingManager::ProcessGiveUp(CParty* party)
         && (party->GetFirstValidMemberState() == 5
             || party->GetFirstValidMemberState() == 0xc))
         processRouting(party);
-}
-
-CSpecialItemRoutingManager::CSpecialItemRoutingManager()
-{
-    // ORIG 0x0860a9c8：空函数（push ebp; mov; pop ebp; ret），不初始化任何成员。
 }
 
 CSpecialItemRoutingManager::~CSpecialItemRoutingManager()

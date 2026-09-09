@@ -16,6 +16,12 @@
 // EventUpgradeJarInfo 生命周期
 // ============================================================================
 
+// ORIG 0x080f49b8。仅转发到 EventUpgradeJarInfo::EventUpgradeJarInfo。
+Event_Upgrade_Jar::Event_Upgrade_Jar()
+    : EventUpgradeJarInfo()
+{
+}
+
 // vector<ST_...>(+0x74)。标量成员（m_npcCount/m_discountRate/m_upgradeMax/
 // m_materialKind/m_materialIdx）ORIG 一律不初始化（工作状态运行时才写）。
 EventUpgradeJarInfo::EventUpgradeJarInfo()
@@ -30,12 +36,6 @@ EventUpgradeJarInfo::~EventUpgradeJarInfo()
 // ============================================================================
 // Event_Upgrade_Jar 生命周期
 // ============================================================================
-
-// ORIG 0x080f49b8。仅转发到 EventUpgradeJarInfo::EventUpgradeJarInfo。
-Event_Upgrade_Jar::Event_Upgrade_Jar()
-    : EventUpgradeJarInfo()
-{
-}
 
 // ORIG 0x080f49cc。仅转发到 EventUpgradeJarInfo::~EventUpgradeJarInfo。
 Event_Upgrade_Jar::~Event_Upgrade_Jar()

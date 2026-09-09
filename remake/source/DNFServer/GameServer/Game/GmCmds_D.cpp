@@ -460,11 +460,15 @@ void CIndependentDrop::execute()
     // ORIG 逐 buffer 形不同（0x084b0bb6/0x084b0be6/0x084b0bf1/0x084b0c40）：
     // lineBuf/chatMsg 对齐 ⇒ 简单 rep stos（`={0}`）；content 95000B ⇒ call
     // memset；fileName[0x1e] 非对齐 ⇒ 内联慢路（P312）。
-    char lineBuf[0x100] = {0};                               // -0x508 sprintf 行缓冲
+    // [BigStore/临时授权] REAL-BUG 修正：ORIG 两处 rep stos 均为 `mov $0x100,%edx`
+    // = 0x100 **dwords** = 1024 字节（0x084b0bc1 / 0x084b0c4b），旧注释把 dword 数
+    // 误当字节数写成 [0x100] ⇒ 少清 768 字节，且 sprintf 最长可达 1024 时我方会
+    // 栈溢出。ORIG 缓冲跨度 -0x508..-0x108 / -0x908..-0x508 各 0x400 字节。
+    char lineBuf[0x400] = {0};                               // -0x508 sprintf 行缓冲（ORIG 0x400B）
     char content[95000];                                     // auStack_17c24 输出累计缓冲
     memset(content, 0, sizeof(content));
     char fileName[0x1e] = {0};                               // -0xc6
-    char chatMsg[0x100] = {0};                               // -0x908
+    char chatMsg[0x400] = {0};                               // -0x908（ORIG 0x400B）
 
     GMD_IND_MONS(this).clear();
     GMD_IND_AIS(this).clear();

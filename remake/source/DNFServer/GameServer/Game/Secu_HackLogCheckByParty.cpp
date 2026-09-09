@@ -18,6 +18,12 @@
 // 实现
 // ============================================================================
 
+void Secu_HackLogCheckByParty::Init(CParty* party)
+{
+    m_party2 = party;
+    Secu_DungeonAverageCheck::SetPartyPtr(party);
+}
+
 Secu_HackLogCheckByParty::Secu_HackLogCheckByParty()
 {
     m_party2 = 0;
@@ -25,12 +31,6 @@ Secu_HackLogCheckByParty::Secu_HackLogCheckByParty()
 
 Secu_HackLogCheckByParty::~Secu_HackLogCheckByParty()
 {
-}
-
-void Secu_HackLogCheckByParty::Init(CParty* party)
-{
-    m_party2 = party;
-    Secu_DungeonAverageCheck::SetPartyPtr(party);
 }
 
 void Secu_HackLogCheckByParty::DieMob(const MSG_MONSTER_DIE* msg,

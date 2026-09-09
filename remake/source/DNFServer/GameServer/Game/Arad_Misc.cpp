@@ -42,6 +42,43 @@ extern "C" {
 
 namespace ARAD {
 
+namespace ARAD_CRYPT {
+
+char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
+{
+    // ORIG 0x08184abc（ARAD__ARAD_CRYPT/encryptAES.md）：与 ARAD::encryptAES
+    // 指令体相同，仅 logFormat 文案不同（localjapan/Arad_Crypt.cpp、"encryptAES"、
+    // 0x1f），按报告各自独立实现。
+    unsigned char enc[132];
+    size_t srcLen = strlen(inData);
+    size_t paddedLen;
+    int blockSize = cipher->IMethod::GetBlockSize(NULL);
+    if (blockSize < 0) {
+        paddedLen = srcLen;
+    } else if (static_cast<int>(srcLen) % blockSize == 0) {
+        paddedLen = srcLen;
+    } else {
+        paddedLen = (srcLen / blockSize + 1) * blockSize;
+    }
+    if (blockSize >= 0) {
+        cipher->IMethod::Pad(inData, static_cast<int>(srcLen), NULL);
+    }
+    int result = cipher->Encrypt(inData, reinterpret_cast<char*>(enc), paddedLen);
+    if (result == 0x6fffffff) {
+        size_t hexLen = paddedLen * 2 + 1;
+        DNFFLib::Binary2Hex(enc, static_cast<int>(paddedLen), outHex);
+        outHex[hexLen] = '\0';
+        return outHex;
+    }
+
+    LogManager::logFormat(
+        1, "localjapan/Arad_Crypt.cpp", "encryptAES", 0x1f,
+        "[%s][%d][%s]", "encryptAES", 0x1f, "Encrypt Error");
+    return NULL;
+}
+
+}  // namespace ARAD_CRYPT
+
 int limitValue(int value, int minValue, int maxValue)
 {
     // ORIG：std::max<int>(&value,&minValue) → std::min<int>(&maxValue)
@@ -128,43 +165,6 @@ char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
         "Encrypt Error");
     return NULL;
 }
-
-namespace ARAD_CRYPT {
-
-char* encryptAES(CRijndael* cipher, char* inData, char* outHex)
-{
-    // ORIG 0x08184abc（ARAD__ARAD_CRYPT/encryptAES.md）：与 ARAD::encryptAES
-    // 指令体相同，仅 logFormat 文案不同（localjapan/Arad_Crypt.cpp、"encryptAES"、
-    // 0x1f），按报告各自独立实现。
-    unsigned char enc[132];
-    size_t srcLen = strlen(inData);
-    size_t paddedLen;
-    int blockSize = cipher->IMethod::GetBlockSize(NULL);
-    if (blockSize < 0) {
-        paddedLen = srcLen;
-    } else if (static_cast<int>(srcLen) % blockSize == 0) {
-        paddedLen = srcLen;
-    } else {
-        paddedLen = (srcLen / blockSize + 1) * blockSize;
-    }
-    if (blockSize >= 0) {
-        cipher->IMethod::Pad(inData, static_cast<int>(srcLen), NULL);
-    }
-    int result = cipher->Encrypt(inData, reinterpret_cast<char*>(enc), paddedLen);
-    if (result == 0x6fffffff) {
-        size_t hexLen = paddedLen * 2 + 1;
-        DNFFLib::Binary2Hex(enc, static_cast<int>(paddedLen), outHex);
-        outHex[hexLen] = '\0';
-        return outHex;
-    }
-
-    LogManager::logFormat(
-        1, "localjapan/Arad_Crypt.cpp", "encryptAES", 0x1f,
-        "[%s][%d][%s]", "encryptAES", 0x1f, "Encrypt Error");
-    return NULL;
-}
-
-}  // namespace ARAD_CRYPT
 
 // [b28d-L1] N82 封顶：ORIG 0x0819eaf8；P167 CLEAR（3/3）⇒ 语义完成；残余为 cMyTrace 实参装载/帧槽形态差（real diff 66）。
 void write_incorrect_item_info(unsigned int characNo, const Inven_Item& item,

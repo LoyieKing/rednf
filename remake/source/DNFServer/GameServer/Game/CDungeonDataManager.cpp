@@ -11,6 +11,12 @@
 
 #include "SigTypes_B.h"  // SIG_DUNGEON_DATA_STATISTIC 完整定义（键 DungeonKey @ +0x04）
 
+CDungeonDataManager& GetInstanceDungeonDataManager()
+{
+    static CDungeonDataManager instance;
+    return instance;
+}
+
 bool CDungeonDataManager::InsertDungeonKey(DungeonKey& key)
 {
     std::map<DungeonKey, CDungeonNode>::iterator it = m_dungeonMap.find(key);
@@ -34,11 +40,6 @@ int CDungeonDataManager::InsertMonsterKey(int monsterIndex)
     return 1;
 }
 
-CDungeonDataManager& GetInstanceDungeonDataManager()
-{
-    static CDungeonDataManager instance;
-    return instance;
-}
 int CDungeonDataManager::InsertSkillKey(int skillIndex, int job)
 {
     for (std::map<DungeonKey, CDungeonNode>::iterator it = m_dungeonMap.begin();

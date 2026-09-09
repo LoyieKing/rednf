@@ -61,6 +61,12 @@ typedef char AradDispatcherManagerSizeAssert[
 namespace ARAD
 {
 
+int Arad_Dispatcher::db_dispatch(int /*code*/, int /*uid*/, Stream* /*stream*/)
+{
+    // ORIG 0x0818e84c：mov $0x0,%eax; ret
+    return 0;
+}
+
 // ============================================================================
 // Arad_Dispatcher_Manager::open —— ORIG 0x0818fe38。
 // [b28 BM11] P210 定义前置翻案（推翻 b23「landing-pad 抑制不可复现」判词，与
@@ -98,12 +104,6 @@ Arad_Dispatcher::Arad_Dispatcher(int code)
 // ORIG D1 @0x0818e900：仅写基类 vptr；D0 条件 operator delete(this)。
 Arad_Dispatcher::~Arad_Dispatcher()
 {
-}
-
-int Arad_Dispatcher::db_dispatch(int /*code*/, int /*uid*/, Stream* /*stream*/)
-{
-    // ORIG 0x0818e84c：mov $0x0,%eax; ret
-    return 0;
 }
 
 int Arad_Dispatcher::inter_dispatch(CUser* /*user*/, char* /*body*/, int /*len*/)

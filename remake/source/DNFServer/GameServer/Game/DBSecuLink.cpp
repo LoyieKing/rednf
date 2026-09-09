@@ -117,6 +117,116 @@ public:
 };
 
 // ----------------------------------------------------------------------------
+// Secu_DataControl::SetControlData(CUser* user, uchar type, ushort v1, ushort v2)
+// ORIG @ 0x08286a30（报告 Secu_DataControl/SetControlData.md 全文转写）。
+// 四分支（type 0..3），type==1/2/3 均要求 user->isGMUser()：
+//   type 0（Hacktype 注入）：100 < v1 <= 0xfa0 且 v2 < 10 时 trace
+//     "[SecuCommand] (mid:%s) Hacktype : %d     Cnt : %d "（line 0x1e）并循环
+//     v2 次 getHackAnalyzer()->addServerHackCnt(user, v1, 1, 0, 0)；
+//     结束后（无论条件）addServerHackCnt(user, 0x262, 1, 0, 0)。
+//   type 1（CleanPad 点数）：v = clamp(v1, 0, 10000)（max/min int）；
+//     trace "…CleanPad Set Point : %d"（line 0x32）；
+//     m_mcap.setPoint((ushort)v)；若 getPoint() > 1000 →
+//     setStdDropRate(100 - getPoint()/100)。
+//   type 2（CleanPad Open）：trace "…CleanPad Open!"（line 0x40）；
+//     reqHumanCertify4ClearMap(false)。
+//   type 3（DropRate）：v = clamp(v1, 0, 100)；trace "…DropRate : %d"
+//     （line 0x4a）；setStdDropRate(v)。
+// cMyTrace 构造 (name=__PRETTY_FUNCTION__, line, 0)；mid = NumberToString(
+// get_acc_id(), 0)。
+// ----------------------------------------------------------------------------
+// [b28d-54 N] ORIG 0x08286a30：帧/槽平移 + 寄存器角色（N82/N7）；四分支控制流
+//   与 trace/循环调用序列全等（251 vs 245）。
+void Secu_DataControl::SetControlData(CUser* user, unsigned char type,
+                                      unsigned short v1, unsigned short v2)
+{
+    if (user == 0)
+        return;
+
+    switch (type)
+    {
+    case 0:  // Hacktype 注入
+    {
+        unsigned int hackType = static_cast<unsigned int>(v1);
+        unsigned int cnt = static_cast<unsigned int>(v2);
+
+        if (hackType > 100 && hackType <= 0xfa0 && cnt < 10)
+        {
+            char* mid = NumberToString(user->get_acc_id(), 0);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x1e, 0);
+            trace("[SecuCommand] (mid:%s) Hacktype : %d     Cnt : %d ",
+                  mid, static_cast<int>(hackType), static_cast<int>(cnt));
+
+            for (unsigned int i = 0; i < cnt; ++i)
+            {
+                user->getHackAnalyzer()->addServerHackCnt(
+                    user, static_cast<WongWork::ENUM_HACKTYPE>(hackType), 1, 0, 0);
+            }
+        }
+
+        user->getHackAnalyzer()->addServerHackCnt(
+            user, static_cast<WongWork::ENUM_HACKTYPE>(0x262), 1, 0, 0);
+        break;
+    }
+
+    case 1:  // CleanPad Set Point（仅 GM）
+    {
+        if (!user->isGMUser())
+            break;
+
+        int v = static_cast<int>(v1);
+        v = std::max(v, 0);
+        v = std::min(v, 10000);
+
+        char* mid = NumberToString(user->get_acc_id(), 0);
+        {
+            cMyTrace trace(__PRETTY_FUNCTION__, 0x32, 0);
+            trace("[SecuCommand] (mid:%s) CleanPad Set Point : %d", mid, v);
+        }
+
+        user->m_mcap.setPoint(static_cast<unsigned short>(v));
+
+        unsigned int point = user->m_mcap.getPoint();
+        if (point > 1000)
+            user->setStdDropRate(100 - static_cast<int>(point / 100));
+        break;
+    }
+
+    case 2:  // CleanPad Open（仅 GM）
+    {
+        if (!user->isGMUser())
+            break;
+
+        char* mid = NumberToString(user->get_acc_id(), 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x40, 0);
+        trace("[SecuCommand] (mid:%s) CleanPad Open!", mid);
+
+        user->reqHumanCertify4ClearMap(false);
+        break;
+    }
+
+    case 3:  // DropRate（仅 GM）
+    {
+        if (!user->isGMUser())
+            break;
+
+        int v = static_cast<int>(v1);
+        v = std::max(v, 0);
+        v = std::min(v, 100);
+
+        char* mid = NumberToString(user->get_acc_id(), 0);
+        cMyTrace trace(__PRETTY_FUNCTION__, 0x4a, 0);
+        trace("[SecuCommand] (mid:%s) DropRate : %d", mid, v);
+
+        user->setStdDropRate(v);
+        break;
+    }
+
+    default:
+        break;
+    }
+}
+// ----------------------------------------------------------------------------
 // DB_CheckJoinGuild::makeRequest(int uid, SIG_CHECK_JOIN_GUILD* sig)
 // ORIG @ 0x0843cc06（报告 DB_CheckJoinGuild/makeRequest.md）：
 // Acquire("DBThread.cpp", 0x911a) → guard(stream,true) → << 0x216（op<<(int)）|
@@ -241,116 +351,6 @@ void DB_SecurityCardActivate::makeRequest(int uid, unsigned int accId,
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
-// ----------------------------------------------------------------------------
-// Secu_DataControl::SetControlData(CUser* user, uchar type, ushort v1, ushort v2)
-// ORIG @ 0x08286a30（报告 Secu_DataControl/SetControlData.md 全文转写）。
-// 四分支（type 0..3），type==1/2/3 均要求 user->isGMUser()：
-//   type 0（Hacktype 注入）：100 < v1 <= 0xfa0 且 v2 < 10 时 trace
-//     "[SecuCommand] (mid:%s) Hacktype : %d     Cnt : %d "（line 0x1e）并循环
-//     v2 次 getHackAnalyzer()->addServerHackCnt(user, v1, 1, 0, 0)；
-//     结束后（无论条件）addServerHackCnt(user, 0x262, 1, 0, 0)。
-//   type 1（CleanPad 点数）：v = clamp(v1, 0, 10000)（max/min int）；
-//     trace "…CleanPad Set Point : %d"（line 0x32）；
-//     m_mcap.setPoint((ushort)v)；若 getPoint() > 1000 →
-//     setStdDropRate(100 - getPoint()/100)。
-//   type 2（CleanPad Open）：trace "…CleanPad Open!"（line 0x40）；
-//     reqHumanCertify4ClearMap(false)。
-//   type 3（DropRate）：v = clamp(v1, 0, 100)；trace "…DropRate : %d"
-//     （line 0x4a）；setStdDropRate(v)。
-// cMyTrace 构造 (name=__PRETTY_FUNCTION__, line, 0)；mid = NumberToString(
-// get_acc_id(), 0)。
-// ----------------------------------------------------------------------------
-// [b28d-54 N] ORIG 0x08286a30：帧/槽平移 + 寄存器角色（N82/N7）；四分支控制流
-//   与 trace/循环调用序列全等（251 vs 245）。
-void Secu_DataControl::SetControlData(CUser* user, unsigned char type,
-                                      unsigned short v1, unsigned short v2)
-{
-    if (user == 0)
-        return;
-
-    switch (type)
-    {
-    case 0:  // Hacktype 注入
-    {
-        unsigned int hackType = static_cast<unsigned int>(v1);
-        unsigned int cnt = static_cast<unsigned int>(v2);
-
-        if (hackType > 100 && hackType <= 0xfa0 && cnt < 10)
-        {
-            char* mid = NumberToString(user->get_acc_id(), 0);
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x1e, 0);
-            trace("[SecuCommand] (mid:%s) Hacktype : %d     Cnt : %d ",
-                  mid, static_cast<int>(hackType), static_cast<int>(cnt));
-
-            for (unsigned int i = 0; i < cnt; ++i)
-            {
-                user->getHackAnalyzer()->addServerHackCnt(
-                    user, static_cast<WongWork::ENUM_HACKTYPE>(hackType), 1, 0, 0);
-            }
-        }
-
-        user->getHackAnalyzer()->addServerHackCnt(
-            user, static_cast<WongWork::ENUM_HACKTYPE>(0x262), 1, 0, 0);
-        break;
-    }
-
-    case 1:  // CleanPad Set Point（仅 GM）
-    {
-        if (!user->isGMUser())
-            break;
-
-        int v = static_cast<int>(v1);
-        v = std::max(v, 0);
-        v = std::min(v, 10000);
-
-        char* mid = NumberToString(user->get_acc_id(), 0);
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x32, 0);
-            trace("[SecuCommand] (mid:%s) CleanPad Set Point : %d", mid, v);
-        }
-
-        user->m_mcap.setPoint(static_cast<unsigned short>(v));
-
-        unsigned int point = user->m_mcap.getPoint();
-        if (point > 1000)
-            user->setStdDropRate(100 - static_cast<int>(point / 100));
-        break;
-    }
-
-    case 2:  // CleanPad Open（仅 GM）
-    {
-        if (!user->isGMUser())
-            break;
-
-        char* mid = NumberToString(user->get_acc_id(), 0);
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x40, 0);
-        trace("[SecuCommand] (mid:%s) CleanPad Open!", mid);
-
-        user->reqHumanCertify4ClearMap(false);
-        break;
-    }
-
-    case 3:  // DropRate（仅 GM）
-    {
-        if (!user->isGMUser())
-            break;
-
-        int v = static_cast<int>(v1);
-        v = std::max(v, 0);
-        v = std::min(v, 100);
-
-        char* mid = NumberToString(user->get_acc_id(), 0);
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x4a, 0);
-        trace("[SecuCommand] (mid:%s) DropRate : %d", mid, v);
-
-        user->setStdDropRate(v);
-        break;
-    }
-
-    default:
-        break;
-    }
-}
 // ============================================================================
 // SecurityCard 批自由函数（ORIG T 段；与 DB_SecurityCardIssue/Activate::dispatch
 // 同属 DB_Secu 批，本 TU 独占）。

@@ -211,7 +211,7 @@ void STDungeonScript::Clear()
     m_50c = 0;
     // ORIG 未清：m_4/m_8、m_str58、m_vec15c、m_dimension308（按 ORIG 实证保留不清）
 }
-bool ImportDungeonScript(STDungeonScript* script, const char* path)
+bool ImportDungeonScript(STDungeonScript* pScript, const char* path)
 {
     // b28d-solo-STDungeonScript 判词（9343 vs 9332 insn，gap 11；§6.2 三件套）：
     // ①p167 CLEAR 1079=1079（MISSING 0 / EXTRA 0）。此前 EXTRA 16（8 类型 D1Ev 各 +2）
@@ -224,12 +224,40 @@ bool ImportDungeonScript(STDungeonScript* script, const char* path)
     //   -0x1330（平移 0x30，outgoing 同为 0x1c）；ORIG 另有具名局部 `mov %eax,-0x128`
     //   （script 缓存），4.1 复用死槽 / 4.4 不复用（P112/N98/P182：声明序不可翻、
     //   pad/volatile 反劣）。语义逐块核对完成。
+    //
+    // BigDungeon 2026-09-09 复核（同一 .o 重测 AE 口径 ndiff 5914→5398；
+    // 槽归一辅助口径 964→888。台账 all_tu_ledger.tsv 记的 11131/N89 是 b28c 前
+    // 旧 our=9404 的数，已过期；本件 4.1 out-of-line STL 实例 call 实测 0 处，
+    // p167 调用点差集两侧 1079=1079 全等 ⇒ N89 判定对本件不成立）：
+    //   a) 形参缓存：ORIG 在 `Clear()` 之后把 script 溢出到 -0x128，其后 235 处
+    //      字段访问全部 `mov -0x128(%ebp),%eax` 重载（0x8(%ebp) 仅余 2 处）。
+    //      4.4 直读形参 ⇒ 基址寄存器用 %edx、且每处少一条 mov。改为
+    //      `STDungeonScript* volatile script = pScript;` 后形态与基址寄存器全对位
+    //      （AE 口径 -520）。槽号仍差（4.1 把该溢出放进高带，4.4 放进深带）。
+    //   b) 真缺失分支两处（已补，行为向 ORIG 收敛）：
+    //      · [event monster2] 循环内后 4 个 ScanInt 失败 = import 失败
+    //        （088ee68b/6b7/6e3/70f `mov $0x0,%ebx`），仅首个（088ee665）为跳出；
+    //      · [tournament clear reward gold rate] ScanFloat 失败 = import 失败
+    //        （088effa7 → `movzbl -0x109d,%ebx` 收尾桩），我方原先完全不判。
+    //   c) 逐 tag 审计 Scan* 失败动作（273 个调用点，ORIG 侧从反汇编判定
+    //      FAIL/break，比对我方源码）：除 b) 两项外全部一致；其余"不一致"经
+    //      逐点查汇编核实为工具误判（子表 tag 归属、`ScanInt((bool*)0)`、
+    //      `FindIndexByFullScan` 名字含 Scan 被误计）。
+    //   d) 字段写入宽度/偏移比对（94 个脚本字段偏移）：仅 0x2ac/0x44c 两处
+    //      两侧基址对象不同（子结构元素指针），非布局建模错。
+    //   e) 残余 888（槽归一口径）逐块看均为 4.1/4.4 形态差：`cmpl $0x5,-0x88(%ebp)`
+    //      vs `mov+cmp`、bool 存 %esi vs 直接在 %eax、循环尾置等 ⇒ 命中 N 类。
     // ORIG 0x88e5fbd：loadRDARScriptFile(g_szDungeonScriptBaseDirectory, path)
     if (!loadRDARScriptFile(g_szDungeonScriptBaseDirectory, path))
     {
         return false;
     }
-    script->Clear();
+    pScript->Clear();
+    // ORIG 0x88e6017/0x88e601c：`mov 0x8(%ebp),%eax` + `mov %eax,-0x128(%ebp)` ⇒
+    // 4.1 把 script 参数溢出到一个具名栈槽，其后 235 处字段访问一律
+    // `mov -0x128(%ebp),%eax` 重载。用 volatile 局部指针复现该重载形态
+    // （语义等价：指针值全程不变，仅访问方式由形参改为局部量）。
+    STDungeonScript* volatile script = pScript;
     script->m_vec384.clear();
     // ORIG 0x88e6027：getDirectoryPath(&script->m_str17c, "%s%s", 基目录, path)
     // → m_str17c 为脚本完整路径（目录 + 文件名）。
@@ -2671,7 +2699,9 @@ case 0x744:  // "[event monster2]"
     else
     {
     {
-        // ORIG LAB_088ee594 __inited==1：读 m_3ec/m_3f0 + 循环 5 int 的 stSecondEventMonster_t 入 m_vec3f8
+        // ORIG LAB_088ee594 __inited==1：读 m_3ec/m_3f0 + 循环 5 int 的 stSecondEventMonster_t 入 m_vec3f8。
+        // 循环内首个 ScanInt（088ee665，jne→088ee775 跳出）失败=结束该段；
+        // 其后 4 个（088ee68b/6b7/6e3/70f，`mov $0x0,%ebx`）失败=整体 import 失败。
         script->m_3ec = ScanInt(&ok);
         if (!ok) return false;
         script->m_3f0 = ScanInt(&ok);
@@ -2679,10 +2709,10 @@ case 0x744:  // "[event monster2]"
         while (true) {
             stSecondEventMonster_t em;
             em.m_eventIdx = ScanInt(&ok); if (!ok) break;
-            em.m_monsterIdx = ScanInt(&ok); if (!ok) break;
-            em.m_prob = ScanInt(&ok); if (!ok) break;
-            em.m_field0c = ScanInt(&ok); if (!ok) break;
-            em.m_field10 = ScanInt(&ok); if (!ok) break;
+            em.m_monsterIdx = ScanInt(&ok); if (!ok) return false;
+            em.m_prob = ScanInt(&ok); if (!ok) return false;
+            em.m_field0c = ScanInt(&ok); if (!ok) return false;
+            em.m_field10 = ScanInt(&ok); if (!ok) return false;
             script->m_3f4 += em.m_prob;   // ORIG 累加 local_11f0(prob) 到 +0x3f4
             script->m_vec3f8.push_back(em);
         }
@@ -3156,7 +3186,9 @@ case 0x8ed:  // "[tournament clear reward gold rate]"
     else
     {
         // ORIG LAB_088eff24：ScanFloat → +0x4c4（float 语义，m_4c4 初值 1.0f）
+        // 失败即整体 import 失败（088effa7 `je 088f0984` → `movzbl ok,%ebx`+收尾）。
         script->m_4c4Value = ScanFloat(&ok);
+        if (!ok) return false;
         break;
     }
 case 0x8f2:  // "[tournament clear reward exp]"

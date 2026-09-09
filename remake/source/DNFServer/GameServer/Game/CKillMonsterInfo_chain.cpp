@@ -52,6 +52,12 @@
 // 直接访问（+0x8/+0x20/+0x38），与 ORIG add $0x8/0x20/0x38 同形。
 // ============================================================================
 
+// ORIG C1 0x0854c9b4：CData 风格 vptr 后三 map 默认构造 + _reset()。
+CKillMonsterInfo::CKillMonsterInfo()
+{
+    _reset();
+}
+
 // ---- GetDungeonDifficultyFlag —— ORIG T 0x0854d21a -------------------------
 // diff<=4 ? (1<<diff) : 0（shl %cl 位型实证；返回 int，写 map 值时按 byte 截断）。
 int CKillMonsterInfo::GetDungeonDifficultyFlag(unsigned char diff)
@@ -252,13 +258,6 @@ void* GetInstanceHellPartyItemStatistic()
 {
     static unsigned char instance[0x24];
     return instance;
-}
-
-
-// ORIG C1 0x0854c9b4：CData 风格 vptr 后三 map 默认构造 + _reset()。
-CKillMonsterInfo::CKillMonsterInfo()
-{
-    _reset();
 }
 
 CKillMonsterInfo::~CKillMonsterInfo()

@@ -49,6 +49,13 @@ public:
 // s_msgq_mgr / s_stream_pool 全局实例见 GlobalData.h（namespace GlobalData）。
 
 // ---------------------------------------------------------------------------
+// COpensslRSA —— OpenSSL RSA 公钥包装（全局命名空间，ORIG mangled _ZN11COpensslRSA*）
+// ---------------------------------------------------------------------------
+
+// ORIG W 0x0816c238
+COpensslRSA::COpensslRSA() : m_rsa(0) {}
+
+// ---------------------------------------------------------------------------
 // GetAppFolder —— ORIG W 0x0816c715（_Z12GetAppFolderv，COpensslRSA TU 内全局
 // 函数，由 sret 返回空串 "\"\"" 字面量 @0x08b81360）。重建以空串最小实现满足
 // Init 拼路径语义；真实路径来源（注册表/配置）缺省时返回空。
@@ -57,13 +64,6 @@ std::string GetAppFolder()
 {
     return std::string("");
 }
-
-// ---------------------------------------------------------------------------
-// COpensslRSA —— OpenSSL RSA 公钥包装（全局命名空间，ORIG mangled _ZN11COpensslRSA*）
-// ---------------------------------------------------------------------------
-
-// ORIG W 0x0816c238
-COpensslRSA::COpensslRSA() : m_rsa(0) {}
 
 // ORIG W 0x0816c246：key 非空 RSA_free 后置空。
 // 第三方 libcrypto（OpenSSL）豁免（§4.5 例外，不转不违例）：C 符号需 extern "C" 链接。

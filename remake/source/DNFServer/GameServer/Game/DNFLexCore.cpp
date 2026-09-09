@@ -28,6 +28,14 @@ static int dnf_yylex(DNFLex* self)
     return ((Fn)vptr[0x18 / sizeof(void*)])(self);
 }
 
+// ---- DNFLex::stream_data_t::clear()（ORIG 0x8acd140）----
+void DNFLex::stream_data_t::clear()
+{
+    stream = 0;
+    size = 0;
+    buffer = 0;
+}
+
 // ---- DNFLex::GetInputStream()（ORIG 0x8acd280）----
 DNFLex::stream_t* DNFLex::GetInputStream()
 {
@@ -60,14 +68,6 @@ void DNFLex::CloseInputStream()
             PopInputStream(true);
         } while (stream_stack.end().base() != stream_stack.begin().base());
     }
-}
-
-// ---- DNFLex::stream_data_t::clear()（ORIG 0x8acd140）----
-void DNFLex::stream_data_t::clear()
-{
-    stream = 0;
-    size = 0;
-    buffer = 0;
 }
 
 // ---- DNFLex::stream_data_t::destroy()（ORIG 0x8acd450）----

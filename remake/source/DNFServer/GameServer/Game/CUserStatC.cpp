@@ -391,94 +391,6 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
         }
         break;
 
-    // --------------------------------------------------------------- 时装源
-    case 1:
-    {
-        // ORIG 在分支入口构造两个临时项并按目的域选择性填充。
-        Inven_Item itemA;
-        Inven_Item itemB;  // toSpace==4 时仅保持构造初值（ORIG 同）
-        // b28d-solo-CUserStatC：ORIG 0x0866112a/0x08661641 为「形参载入寄存器 + cmp 链」
-        // （mov 0x1c(%ebp),%eax; cmp $3/$4/$1; je），4.4 对 if-else 链恒折内存直比；
-        // 3-case switch 按书写序复现该链（P286/P208 推广，探针 /tmp/b28d_cstatc_probe4.cpp）。
-        switch (toSpace)
-        {
-        case 3:
-            itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
-            // ORIG：toSpace==3 各子分支独立读两个槽（itemA/itemB 不合并条件）。
-            itemB = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_INVEN, toSlot);
-            break;
-        case 4:
-            itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
-            break;
-        case 1:
-            itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
-            itemB = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, toSlot);
-            break;
-        default:
-            break;
-        }
-
-        // ORIG:IsTempKey 为静态语义（值符号位判定），直接静态调用，不经 mgr 访问器。
-        if (WongWork::CAvatarItemMgr::IsTempKey((int)itemA.m_addInfo2)
-            || WongWork::CAvatarItemMgr::IsTempKey((int)itemB.m_addInfo2))
-            return 0x13;
-
-        switch (toSpace)
-        {
-        case 3:
-        {
-            int ret = change_equip(fromSpace, (short)fromSlot, toSlot);
-            if (ret > 0)
-                return ret;
-            *outSlot = toSlot;
-            break;
-        }
-        case 4:
-        {
-            CTradeSpace* trade =
-                G_CGameManager()->GetTradeSpace((int)m_tradeSpaceIdx);
-            if (trade == 0)
-                return 1;
-            if (trade->is_empty())
-            {
-                m_tradeSpaceIdx = -1;
-                return 0x15;
-            }
-            // b28d-solo-CUserStatC：ORIG 0x08660de9 同为 bool 取反段 ⇒ 反极性 if。
-            if (!trade->check_trade_possibility())
-            {
-                trade->cancel_trade();
-                G_CGameManager()->PutTradeSpace(trade);
-            }
-            else
-            {
-                if (trade->IsLocked())
-                    return 0x11;
-                int ret = trade->regist_item(this, 1, fromSlot, addInfo);
-                if (ret < 0)
-                    return 0x11;
-                *outSlot = ret;
-            }
-            break;
-        }
-        case 1:
-        {
-            int ret = getCurCharacInvenW()->move_item(
-                INVEN_TYPE_AVATAR, fromSlot, INVEN_TYPE_AVATAR, toSlot);
-            // b28d-solo-CUserStatC：ORIG 0x086616e3 同 setne 物化 ⇒ P225 形。
-            while (ret != 0)
-            {
-                return ret;
-            }
-            *outSlot = toSlot;
-            break;
-        }
-        default:
-            return 1;
-        }
-        break;
-    }
-
     // ------------------------------------------------------------ 角色仓库源
     case 2:
         switch (toSpace)
@@ -741,6 +653,97 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
             *outSlot = ret;
             if (toSpace == 3)
                 send_equip(toSlot);
+        }
+        break;
+    }
+
+    // --------------------------------------------------------------- 时装源
+    // [BigUserLogic] ORIG fromSpace 跳表(0x8cef0f4)体物理序 = 0,2,3,4,1,7,12
+    // （case1 体 @+0x195e 在 case4 @+0x17ff 后、case7 @+0x2066 前）；4.4 -O0 的
+    // switch 体序 = case 书写序 ⇒ 整块移到 case4 之后，语义零改动。
+    case 1:
+    {
+        // ORIG 在分支入口构造两个临时项并按目的域选择性填充。
+        Inven_Item itemA;
+        Inven_Item itemB;  // toSpace==4 时仅保持构造初值（ORIG 同）
+        // b28d-solo-CUserStatC：ORIG 0x0866112a/0x08661641 为「形参载入寄存器 + cmp 链」
+        // （mov 0x1c(%ebp),%eax; cmp $3/$4/$1; je），4.4 对 if-else 链恒折内存直比；
+        // 3-case switch 按书写序复现该链（P286/P208 推广，探针 /tmp/b28d_cstatc_probe4.cpp）。
+        switch (toSpace)
+        {
+        case 3:
+            itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
+            // ORIG：toSpace==3 各子分支独立读两个槽（itemA/itemB 不合并条件）。
+            itemB = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_INVEN, toSlot);
+            break;
+        case 4:
+            itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
+            break;
+        case 1:
+            itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
+            itemB = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, toSlot);
+            break;
+        default:
+            break;
+        }
+
+        // ORIG:IsTempKey 为静态语义（值符号位判定），直接静态调用，不经 mgr 访问器。
+        if (WongWork::CAvatarItemMgr::IsTempKey((int)itemA.m_addInfo2)
+            || WongWork::CAvatarItemMgr::IsTempKey((int)itemB.m_addInfo2))
+            return 0x13;
+
+        switch (toSpace)
+        {
+        case 3:
+        {
+            int ret = change_equip(fromSpace, (short)fromSlot, toSlot);
+            if (ret > 0)
+                return ret;
+            *outSlot = toSlot;
+            break;
+        }
+        case 4:
+        {
+            CTradeSpace* trade =
+                G_CGameManager()->GetTradeSpace((int)m_tradeSpaceIdx);
+            if (trade == 0)
+                return 1;
+            if (trade->is_empty())
+            {
+                m_tradeSpaceIdx = -1;
+                return 0x15;
+            }
+            // b28d-solo-CUserStatC：ORIG 0x08660de9 同为 bool 取反段 ⇒ 反极性 if。
+            if (!trade->check_trade_possibility())
+            {
+                trade->cancel_trade();
+                G_CGameManager()->PutTradeSpace(trade);
+            }
+            else
+            {
+                if (trade->IsLocked())
+                    return 0x11;
+                int ret = trade->regist_item(this, 1, fromSlot, addInfo);
+                if (ret < 0)
+                    return 0x11;
+                *outSlot = ret;
+            }
+            break;
+        }
+        case 1:
+        {
+            int ret = getCurCharacInvenW()->move_item(
+                INVEN_TYPE_AVATAR, fromSlot, INVEN_TYPE_AVATAR, toSlot);
+            // b28d-solo-CUserStatC：ORIG 0x086616e3 同 setne 物化 ⇒ P225 形。
+            while (ret != 0)
+            {
+                return ret;
+            }
+            *outSlot = toSlot;
+            break;
+        }
+        default:
+            return 1;
         }
         break;
     }

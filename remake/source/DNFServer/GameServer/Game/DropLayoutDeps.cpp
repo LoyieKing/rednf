@@ -38,6 +38,26 @@ namespace WongWork
 // WongWorkDrop_A.cpp（嵌套限定名；此处旧顶层定义删除以免 ODR/符号分裂）。
 
 // ============================================================================
+int* CGeneratorCommonData::getGoldGenTable(unsigned char level)
+{
+    // ORIG T 0x08533424：静态返回区（bss 0x943ded0，函数局部 static 名 ret）；
+    // level>0xc8 回退表项 0 并按 0 级取费率；末次经 AutoMarket 折算写回首字。
+    static GoldGenEntry ret;
+    if (level > 0xc8)
+    {
+        ret = m_goldGenTable[0];
+        level = 0;
+    }
+    else
+    {
+        ret = m_goldGenTable[level];
+    }
+    ret.m_base = G_CDataManager()->GetAutoMarketContitionsControl()->GetGoldDropAmountRate(
+        (int)level, ret.m_base);
+    return &ret.m_base;
+}
+
+// ============================================================================
 // CItemGenRateTable
 // ============================================================================
 
@@ -1077,25 +1097,6 @@ fail_ref_table:
     return 0x1f8;
 ok_done:
     return 0;
-}
-
-int* CGeneratorCommonData::getGoldGenTable(unsigned char level)
-{
-    // ORIG T 0x08533424：静态返回区（bss 0x943ded0，函数局部 static 名 ret）；
-    // level>0xc8 回退表项 0 并按 0 级取费率；末次经 AutoMarket 折算写回首字。
-    static GoldGenEntry ret;
-    if (level > 0xc8)
-    {
-        ret = m_goldGenTable[0];
-        level = 0;
-    }
-    else
-    {
-        ret = m_goldGenTable[level];
-    }
-    ret.m_base = G_CDataManager()->GetAutoMarketContitionsControl()->GetGoldDropAmountRate(
-        (int)level, ret.m_base);
-    return &ret.m_base;
 }
 
 }  // namespace WongWork

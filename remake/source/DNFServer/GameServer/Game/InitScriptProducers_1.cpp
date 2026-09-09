@@ -63,6 +63,19 @@ struct LayoutAsserts
 
 }  // namespace
 
+// ORIG T 0x088dc008：loadRDARScriptFile("","Etc/channel_info.etc") 门禁 +
+// LogManager 报错 + 转发 applyChannelScript 返回值。
+int importChannelScript(channel_script_t* script)
+{
+    if (!loadRDARScriptFile("", "Etc/channel_info.etc"))
+    {
+        LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__, 0x38,
+                              "importChannelScript - can't find channel_info.etc");
+        return 0;
+    }
+    return applyChannelScript(script);   // ORIG 直返 raw eax（P9）
+}
+
 // ============================================================================
 // AccountCargoScript（Etc/AccountCargo.etc 域）
 // ============================================================================
@@ -412,19 +425,6 @@ int applyChannelScript(channel_script_t* script)
             return 1;                                      // +0x776→+0x779 esi=1
         }
     }
-}
-
-// ORIG T 0x088dc008：loadRDARScriptFile("","Etc/channel_info.etc") 门禁 +
-// LogManager 报错 + 转发 applyChannelScript 返回值。
-int importChannelScript(channel_script_t* script)
-{
-    if (!loadRDARScriptFile("", "Etc/channel_info.etc"))
-    {
-        LogManager::logFormat(0, "../RDARScriptChannel.cpp", __FUNCTION__, 0x38,
-                              "importChannelScript - can't find channel_info.etc");
-        return 0;
-    }
-    return applyChannelScript(script);   // ORIG 直返 raw eax（P9）
 }
 
 // ---- Channel 类型名表（ORIG static _ZL19g_ChannelTypeString d 0x093f4e40，

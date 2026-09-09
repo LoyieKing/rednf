@@ -114,6 +114,47 @@ void sleep_ext(int sec, int usec);           // _Z9sleep_extii
 void ProcessAntiBotInputWrapper();           // _Z26ProcessAntiBotInputWrapperv
 void ProcessServerStatusLog();               // _Z22ProcessServerStatusLogv
 
+// ProcessAntiBotInputWrapper() —— ORIG 0x80eddb0（0xe1 字节，逐指令转写）：
+// 计时包裹 s_antibotChecker_ 的虚调用（vtbl+0x10）；耗时 >500ms 记 logFormat(42)。
+// [b28d-28] DIFF | ORIG 0x080eddb0 | P282/N7：虚调用偏移 vptr+0x10 已核（word[4]）；
+// ORIG 无判空（P171 照抄）已修 + 死局部 `limit=500` 已补；残差仅 fn 落 %edx（ORIG）
+// vs %eax（4.4.7 间接 call 恒 %eax）⇒ N7 封顶（P230：4.4.6 后端可解，待路由）。
+// [b28d-solo-GameMain] NEAR | 63=63 | 修法：函数指针值在调用点 cast（旧形经
+// `CheckerFn*` 解引用多发一条 `mov (%eax),%eax`）；残差 N7（间接 call 目标 4.4.7
+// 恒 %eax vs ORIG %edx）。**446 后端实测反劣**（-B cc1plus446bin/ 编译本 TU：
+// 本件 NEAR→DIFF，TU near 3→2 / diff 12→13，AE 合计 263 不变）⇒ 不推荐路由，
+// 按 N7 在 4.4.7 封顶。
+void ProcessAntiBotInputWrapper()
+{
+    // [b28d-28] ORIG 0x080eddb7 `movl $0x1f4,-0x10(%ebp)`：死局部（P171 照抄，
+    // 后续比较仍用立即数 `cmpl $0x1f4,-0xc`）。
+    long limit = 500;
+    (void)limit;
+    timeval t0, t1;
+    gettimeofday(&t0, 0);
+
+    // [b28d-28] ORIG 0x080eddd1：无判空、无具名 fn/checker 局部——单表达式虚调
+    // `mov 0x941f7e4,%eax; mov (%eax),%eax; add $0x10,%eax; mov (%eax),%edx;
+    // mov 0x941f7e4,%eax; mov %eax,(%esp); call *%edx`（P282：vptr+0x10 = word[4]，
+    // 外部 SDK 类未建模故保留函数指针形）。
+    typedef void (*CheckerFn)(void*);
+    // 函数指针值直接在调用点 cast（P0 无具名局部）：`(...)[4]` 已取到 fn 值，
+    // 再经 `CheckerFn*` 解引用会多发一条 `mov (%eax),%eax`（我方 4 条 mov 链 vs ORIG 3）。
+    reinterpret_cast<CheckerFn>(
+        (*reinterpret_cast<void***>(GlobalData::s_antibotChecker_))[0x10 / 4])(
+        GlobalData::s_antibotChecker_);
+
+    gettimeofday(&t1, 0);
+    long ms = (t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_usec - t0.tv_usec) / 1000;
+    if (ms > 500)
+    {
+        LogManager::logFormat(1, "localchina/localchina_App.cpp",
+                              __PRETTY_FUNCTION__, 42,
+                              "Delay notice, ProcessAntiBotInput : %d, %ld, %ld, %ld, %ld",
+                              ms, t0.tv_sec, t0.tv_usec, t1.tv_sec, t1.tv_usec);
+    }
+}
+
 // GetConfigFileString(map<string,string>&, const char*)  _Z19GetConfigFileStringRSt3mapISsSsSt4lessISsESaISt4pairIKSsSsEEEPKc
 // ORIG 0x0829d7b3：conf.find(key) 命中且 value 非空 → 返回 value.c_str()；
 // 未命中/空值 → logFormat(1,"App.cpp","char* GetConfigFileString(...)",0x1fc7,
@@ -1887,47 +1928,6 @@ void InitCipherKeyString()
     cMyTrace(__PRETTY_FUNCTION__, 0x283e, 9, true, true)(
         "[!] Init CipherKeyString TotalTime : %ds",
         static_cast<int>(s_systemTime_.getCurSec()) - t0);
-}
-
-// ProcessAntiBotInputWrapper() —— ORIG 0x80eddb0（0xe1 字节，逐指令转写）：
-// 计时包裹 s_antibotChecker_ 的虚调用（vtbl+0x10）；耗时 >500ms 记 logFormat(42)。
-// [b28d-28] DIFF | ORIG 0x080eddb0 | P282/N7：虚调用偏移 vptr+0x10 已核（word[4]）；
-// ORIG 无判空（P171 照抄）已修 + 死局部 `limit=500` 已补；残差仅 fn 落 %edx（ORIG）
-// vs %eax（4.4.7 间接 call 恒 %eax）⇒ N7 封顶（P230：4.4.6 后端可解，待路由）。
-// [b28d-solo-GameMain] NEAR | 63=63 | 修法：函数指针值在调用点 cast（旧形经
-// `CheckerFn*` 解引用多发一条 `mov (%eax),%eax`）；残差 N7（间接 call 目标 4.4.7
-// 恒 %eax vs ORIG %edx）。**446 后端实测反劣**（-B cc1plus446bin/ 编译本 TU：
-// 本件 NEAR→DIFF，TU near 3→2 / diff 12→13，AE 合计 263 不变）⇒ 不推荐路由，
-// 按 N7 在 4.4.7 封顶。
-void ProcessAntiBotInputWrapper()
-{
-    // [b28d-28] ORIG 0x080eddb7 `movl $0x1f4,-0x10(%ebp)`：死局部（P171 照抄，
-    // 后续比较仍用立即数 `cmpl $0x1f4,-0xc`）。
-    long limit = 500;
-    (void)limit;
-    timeval t0, t1;
-    gettimeofday(&t0, 0);
-
-    // [b28d-28] ORIG 0x080eddd1：无判空、无具名 fn/checker 局部——单表达式虚调
-    // `mov 0x941f7e4,%eax; mov (%eax),%eax; add $0x10,%eax; mov (%eax),%edx;
-    // mov 0x941f7e4,%eax; mov %eax,(%esp); call *%edx`（P282：vptr+0x10 = word[4]，
-    // 外部 SDK 类未建模故保留函数指针形）。
-    typedef void (*CheckerFn)(void*);
-    // 函数指针值直接在调用点 cast（P0 无具名局部）：`(...)[4]` 已取到 fn 值，
-    // 再经 `CheckerFn*` 解引用会多发一条 `mov (%eax),%eax`（我方 4 条 mov 链 vs ORIG 3）。
-    reinterpret_cast<CheckerFn>(
-        (*reinterpret_cast<void***>(GlobalData::s_antibotChecker_))[0x10 / 4])(
-        GlobalData::s_antibotChecker_);
-
-    gettimeofday(&t1, 0);
-    long ms = (t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_usec - t0.tv_usec) / 1000;
-    if (ms > 500)
-    {
-        LogManager::logFormat(1, "localchina/localchina_App.cpp",
-                              __PRETTY_FUNCTION__, 42,
-                              "Delay notice, ProcessAntiBotInput : %d, %ld, %ld, %ld, %ld",
-                              ms, t0.tv_sec, t0.tv_usec, t1.tv_sec, t1.tv_usec);
-    }
 }
 
 // user_creature 全局池尺寸包装（定义于 CreatureOnlySimple.cpp，无独立头）。

@@ -839,7 +839,7 @@ unsigned int g_new_scriptVersion;   // ORIG B 0x0949b298（仅本函数写入）
 
 int GetEquipmentTypeStringToEnum(std::string& type);   // CStackableItem.cpp
 
-bool importServerParameterScript(ServerParameterScript* script,
+bool importServerParameterScript(ServerParameterScript* script_arg,
                                  const char* path)
 {
     // b28d-solo-ServerParameterScript: DIFF（N82+N89+N91 封顶；p167 差集已大幅收敛）
@@ -858,10 +858,14 @@ bool importServerParameterScript(ServerParameterScript* script,
     // 共 16（4.4 对局部空析构发射 D1 调用，ORIG 4.1 内联省略；D1 W 符号必须保留
     // ⇒ N91 封顶）②ScanInt +1（1 处多余读取，逐段槽序不可分辨，N82 封顶）。
     // ndiff 主体为 N82（帧/槽复用）与 N89（STL out-of-line 实例）。
+    // [BigSrvParam2] ORIG prologue（0x08a870e7-0x08a870f6）：load 成功后把形参
+    // script 一次性写入本地槽 -0x11c，此后 226 处成员访问全部 `mov -0x11c(%ebp)`
+    // 重读 ⇒ 原码有本地指针副本。改为 script_arg 形参 + 局部 script。
     if (!loadRDARScriptFile("", path))
     {
         return false;
     }
+    ServerParameterScript* script = script_arg;
     script->clear();
     std::string line;
     bool ok = false;
@@ -1036,19 +1040,19 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[increase abuse point]")
         {
-            script->m_increaseAbusePoint = ScanInt((bool*)0);
+            script->m_increaseAbusePoint = ScanInt(&ok);
         }
         else if (line == "[decrease abuse point]")
         {
-            script->m_decreaseAbusePoint = ScanInt((bool*)0);
+            script->m_decreaseAbusePoint = ScanInt(&ok);
         }
         else if (line == "[abuse point penalty]")
         {
-            script->m_abusePointPenalty = ScanInt((bool*)0);
+            script->m_abusePointPenalty = ScanInt(&ok);
         }
         else if (line == "[decrease experience point]")
         {
-            script->m_decreaseExperiencePoint = ScanInt((bool*)0);
+            script->m_decreaseExperiencePoint = ScanInt(&ok);
         }
         else if (line == "[upgrade with legacy]")
         {
@@ -1067,8 +1071,9 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[notice legacy with rarity]")
         {
-            int v = ScanInt(&ok);
-            if (!ok)
+            bool bad;
+            int v = ScanInt(&bad);
+            if (!bad)
             {
                 LogManager::logFormat(0, "../RDARScriptServerParameter.cpp",
                                       "importServerParameterScript", 400,
@@ -1088,8 +1093,9 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[notice legacy with upgrade]")
         {
-            int v = ScanInt(&ok);
-            if (!ok)
+            bool bad;
+            int v = ScanInt(&bad);
+            if (!bad)
             {
                 LogManager::logFormat(0, "../RDARScriptServerParameter.cpp",
                                       "importServerParameterScript", 0x1a7,
@@ -1912,53 +1918,51 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     break;
                 }
-                int type = 0;
+                stUnusableEquipmentInfo info;
                 if (s == "relic")
                 {
-                    type = 2;
+                    info.m_field0 = 2;
                 }
                 else if (s == "unique")
                 {
-                    type = 3;
+                    info.m_field0 = 3;
                 }
                 else if (s == "choronicle")
                 {
-                    type = 4;
+                    info.m_field0 = 4;
                 }
                 else if (s == "epic")
                 {
-                    type = 5;
+                    info.m_field0 = 5;
                 }
                 else if (s == "rare_avatar")
                 {
-                    type = 6;
+                    info.m_field0 = 6;
                 }
                 else if (s == "common")
                 {
-                    type = 7;
+                    info.m_field0 = 7;
                 }
                 else if (s == "uncommon")
                 {
-                    type = 8;
+                    info.m_field0 = 8;
                 }
                 else if (s == "rare")
                 {
-                    type = 9;
+                    info.m_field0 = 9;
                 }
                 else if (s == "rare_creature")
                 {
-                    type = 10;
+                    info.m_field0 = 10;
                 }
                 else if (s == "real_rare")
                 {
-                    type = 1;
+                    info.m_field0 = 1;
                 }
                 else
                 {
                     return 0;
                 }
-                stUnusableEquipmentInfo info;
-                info.m_field0 = type;
                 info.m_field4 = ScanInt(&ok);
                 if (!ok)
                 {
@@ -2019,10 +2023,10 @@ bool importServerParameterScript(ServerParameterScript* script,
                     break;
                 }
                 STDungeonInoutTime t;
-                t.m_startHour = ScanInt((bool*)0);
-                t.m_endHour = ScanInt((bool*)0);
-                t.m_startMin = ScanInt((bool*)0);
-                t.m_endMin = ScanInt((bool*)0);
+                t.m_startHour = ScanInt(&ok);
+                t.m_endHour = ScanInt(&ok);
+                t.m_startMin = ScanInt(&ok);
+                t.m_endMin = ScanInt(&ok);
                 if (t.m_endHour < t.m_startHour || t.m_endMin < t.m_startMin ||
                     t.m_endHour == 0x18 || t.m_endMin == 0x3c)
                 {
@@ -2046,7 +2050,11 @@ bool importServerParameterScript(ServerParameterScript* script,
         }
         else if (line == "[premiun card cost]")
         {
-            script->m_premiumGoldCard4894.m_cost = ScanFloat((bool*)0);
+            script->m_premiumGoldCard4894.m_cost = ScanFloat(&ok);
+            if (!ok)
+            {
+                goto lab_finish;
+            }
         }
         else if (line == "[premium card drop]")
         {

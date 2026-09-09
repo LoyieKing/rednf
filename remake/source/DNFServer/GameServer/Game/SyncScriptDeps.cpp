@@ -516,11 +516,21 @@ bool SyncScript::truncateItemDescTable()
 // ORIG 0x08134132：见头注。type==1→+0x10 vec；type==2→+0x1c vec；type==0→+0x04 vec；
 // 其它 type 直接返回 false。逐项 CodePage::script2Database 转换 desc 后 sprintf 元组，
 // 项间追加 ", "；任一项转换失败走 cMyTrace 错误日志并返回 false。
-// [b28d-L8] N82 | 帧差 0x85c vs 0x55c（大局部数组）+ 块序（ORIG 0x08xxxxxx）
+// [b28d-L8→b28d-SymRemnant P326 重试] 旧判 N82「帧差 0x85c vs 0x55c」已破：
+// 帧差唯一来源 = **conv 是 char[0x400]（0x300 差额）**，非 0x100（ORIG 清零
+// rep stosl 0x100 dwords @0x081341c6 实证）；tuple 声明须在循环体 conv 之后
+// （-0x844 更深）；i=0 在 beginEv 后 ⇒ 迭代器出环具名 + postfix it++；trace
+// 单语句临时。**残留 9 行** = switch lowering 末节点方向：ORIG `test; jne fail`
+// +T0 fallthrough，4.4.7 对同语义 switch **必发** `test; je T0`+fail fallthrough
+// （/tmp/swtest 最小探针实测），if-链形又退化为 mem 直比 `cmpl $N,0x10(%ebp)`
+// （ORIG 为单 `mov 0x10,%eax` + 三连寄存器比较 = switch lowering 特征）⇒
+// 两形各有不可替代半，封底 9 行。
 bool SyncScript::getItemValueStirng(int ridableId, const BuyShopData& data,
                                     AdvanceAltarShopType::T type, std::string& out)
 {
     const std::vector<BuyUpgradeData>* vec = 0;
+    // ORIG 0x08134145..0x08134177 形：单次 `mov 0x10(%ebp),%eax` + cmp1/cmp2/
+    // test 三连（4.4 **switch** lowering 特征；if-链会退化成 mem 操作数直比）。
     switch (type)
     {
     case AdvanceAltarShopType::T_1: vec = &data.m_vecT1; break;
@@ -528,26 +538,35 @@ bool SyncScript::getItemValueStirng(int ridableId, const BuyShopData& data,
     case AdvanceAltarShopType::T_0: vec = &data.m_vecT0; break;
     default: return false;
     }
-
-    char tuple[0x400];
     const int total = (int)vec->size();
+    // 配方⑥（同 InsertDescTable）：ORIG i=0 在 beginEv(0x0813419c) **之后**
+    // 0x081341a4 ⇒ 迭代器出环具名；配方⑦：ORIG 尾 `movl $0x0,0x8(%esp)`+ppEv
+    // ⇒ postfix `it++`。
+    std::vector<BuyUpgradeData>::const_iterator it = vec->begin();
     int i = 0;
-    for (std::vector<BuyUpgradeData>::const_iterator it = vec->begin();
-         it != vec->end(); ++it, ++i)
+    for (; it != vec->end(); it++, ++i)
     {
         std::string s;                 // ORIG 循环体内多余局部（汇编构造/析构实证）
-        char conv[0x100] = {0};
+        // ORIG 清零 rep stosl 0x100 dwords = **1024B**（0x081341bb..0x081341cf，
+        // 缓冲 -0x444）⇒ conv 是 char[0x400]，非 0x100（帧差 0x85c-0x55c=0x300
+        // 的唯一来源）。
+        char conv[0x400] = {0};
+        // 槽位证据：ORIG tuple 基址 -0x844 比 conv(-0x444) **更深** ⇒ 4.4
+        // 后声明更深的分配律下 tuple 声明须在 conv 之后（循环体内）。
+        char tuple[0x400];
         if (!CodePage::script2Database(
                 const_cast<char*>(it->m_strDesc.c_str()), conv))
         {
-            cMyTrace trace(
+            // 配方⑩：ORIG 先求值 c_str→%edi / database→%esi / script→%ebx，
+            // **其后**才 C1 ⇒ 单语句临时。
+            cMyTrace(
                 "static bool advancealtar::SyncScript::getItemValueStirng(int, const advancealtar::BuyShopData&, advancealtar::AdvanceAltarShopType::T, std::tstring&)",
-                0xd36, 5);
-            trace("Error!!! %s->%s [%s][%s][%d]",
-                  CodePage::script(), CodePage::database(),
-                  it->m_strDesc.c_str(),
-                  "static bool advancealtar::SyncScript::getItemValueStirng(int, const advancealtar::BuyShopData&, advancealtar::AdvanceAltarShopType::T, std::tstring&)",
-                  0xd36);
+                0xd36, 5)(
+                "Error!!! %s->%s [%s][%s][%d]",
+                CodePage::script(), CodePage::database(),
+                it->m_strDesc.c_str(),
+                "static bool advancealtar::SyncScript::getItemValueStirng(int, const advancealtar::BuyShopData&, advancealtar::AdvanceAltarShopType::T, std::tstring&)",
+                0xd36);
             return false;
         }
         sprintf(tuple, "(%d,%d,%d,'%s')", ridableId, (int)type,
@@ -569,53 +588,50 @@ bool SyncScript::getItemValueStirng(int ridableId, const BuyShopData& data,
 // [b28d-L8] N82 | 块序（string C1/双检）+ 槽平移（ORIG 0x08xxxxxx）
 bool SyncScript::insertItemDescTable()
 {
-    CDataManager* dm = G_CDataManager();
-    if (dm == 0)
-    {
-        return false;
-    }
-
-    // ORIG：数据源位于 CDataManager+0x631c = m_altarShop（AdvanceAltarShopParameter）
-    // 的 +0 成员 m_buyShopMap（map<int,BuyShopData>，importAdvanceAltarShopParameter
-    // 填充）。若该表未填充，循环体不会执行，返回 true（与 ORIG 空表行为一致）。
+    // ORIG 0x08133eae..0x08133eb8：G_CDataManager 结果不落槽、**无判空**，
+    // `add $0x631c,%eax` 后单槽 -0x18 ⇒ 链式取址（dm 具名槽/判空早退是发明）。
+    // 且 size/begin/end 全部 `_ZNKSt3map…`（const 形，0x08133ed7/0x08133eec/
+    // 0x081340b4）⇒ shopMap 必须 **const 指针**（非 const 版会多发
+    // iterator 转换临时槽 -0x34 与 C2 调用）。
     typedef std::map<int, BuyShopData> BuyShopDataMap;
-    BuyShopDataMap* shopMap = &dm->m_altarShop.m_buyShopMap;
+    const BuyShopDataMap* shopMap = &G_CDataManager()->m_altarShop.m_buyShopMap;
 
+    // 槽布局证据（同 InsertDescTable 配方）：-0x24 query（循环内 ssaSE 重赋值
+    // 0x08133f00）、-0x28 **第二未用 string**（0x08133ec6 C1，仅 0x081340f2
+    // 尾析构，无任何读写点）、-0x2c it、-0x20 end 临时、-0x30 循环体 values。
     std::string query;
-    std::string values;
-    for (BuyShopDataMap::const_iterator it = shopMap->begin();
-         it != shopMap->end(); ++it)
+    std::string legacyValues;
+    const int total = (int)shopMap->size();   // 0x08133ed7 size→-0x14，ORIG 亦无后续读取
+    BuyShopDataMap::const_iterator it = shopMap->begin();
+    int row = 0;
+    for (; it != shopMap->end(); it++, ++row)
     {
         query =
             "inSert into charac_advance_altar_item_desc \t\t\t\t  "
             "(ridable_id, item_type, item_id, item_desc) values ";
-        values.clear();
-        if (getItemValueStirng(it->first, it->second,
-                               AdvanceAltarShopType::T_0, values) == 0)
-        {
-            return false;
-        }
+        std::string values;                    // 0x08133f13 循环体 C1（非 clear）
+        // ORIG 首实参取 `mov 0x4(%eax)`（pair+4 = BuyShopData 首字 m_nField0
+        // 的**值**），非 map key（0x08133f37/0x08133f81/0x08133fcb）；
+        // 次实参 = `lea 0x4(%eax)` = &it->second。
+        // **返回值不检查**：ORIG 三次 call 后直接 pLE(",")（0x08133f50→0x08133f55
+        // 之间无 test/je；失败处理在 getItemValueStirng 内部），旧版判 false
+        // 早退属发明，已删。
+        getItemValueStirng(it->second.m_nField0, it->second,
+                           AdvanceAltarShopType::T_0, values);
         values += ",";
-        if (getItemValueStirng(it->first, it->second,
-                               AdvanceAltarShopType::T_1, values) == 0)
-        {
-            return false;
-        }
+        getItemValueStirng(it->second.m_nField0, it->second,
+                           AdvanceAltarShopType::T_1, values);
         values += ",";
-        if (getItemValueStirng(it->first, it->second,
-                               AdvanceAltarShopType::T_2, values) == 0)
-        {
-            return false;
-        }
+        getItemValueStirng(it->second.m_nField0, it->second,
+                           AdvanceAltarShopType::T_2, values);
         query += values;
 
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
             (ENUM_DB_HANDLE_IDX)3, (ENUM_SERVER_GROUP)0);
         db->set_query(query.c_str());
-        if (db->exec(true) != 1)
-        {
+        // 0x08134048 xor/test/je 早返回形（P101/P84 先例）。
+        if (!db->exec(true))
             return false;
-        }
     }
     return true;
 }

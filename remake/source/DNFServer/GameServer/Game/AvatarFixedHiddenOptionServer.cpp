@@ -18,6 +18,10 @@ typedef char avatar_fixed_hidden_option_size_assert[
 typedef char avatar_fixed_hidden_option_server_size_assert[
     sizeof(AvatarFixedHiddenOptionServer) == 0x98 ? 1 : -1];
 
+AvatarFixedHiddenOptionServer::AvatarFixedHiddenOptionServer()
+{
+}
+
 // ============================================================================
 // STAvatarHiddenAbilityVariation —— ORIG ctor W 0x088b01e8 / 0x088b021a、dtor W 0x088b0aae
 // ============================================================================
@@ -316,10 +320,6 @@ int ARAD::SCRIPT::AvatarFixedHiddenOption::loadScript()
 // AvatarFixedHiddenOptionServer —— ORIG C1 0x0817e02c / D1 0x0817e0e6 /
 // Load 0x0817e154 / Destroy 0x0817e1e2 / Init 0x0817e3e8
 // ============================================================================
-
-AvatarFixedHiddenOptionServer::AvatarFixedHiddenOptionServer()
-{
-}
 
 AvatarFixedHiddenOptionServer::~AvatarFixedHiddenOptionServer()
 {

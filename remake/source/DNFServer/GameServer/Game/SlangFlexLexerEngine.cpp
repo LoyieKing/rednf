@@ -337,6 +337,10 @@ typedef unsigned char YY_CHAR;
 // compare_tu clean 口径判 AE）。P317：ORIG nm 存在 D0/D1 且类含虚析构 ⇒ 保留
 // 用户析构，不得删除。P0：无 register asm 绑定。
 #include "FlexLexer.h"
+int yyFlexLexer::yywrap()
+{
+	return 1;
+}
 int yyFlexLexer::yylex()
 	{
 	LexerError( "yyFlexLexer::yylex invoked but %option yyclass used" );
@@ -16226,7 +16230,3 @@ void __slang_filter__free (void * ptr )
 
 
 
-int yyFlexLexer::yywrap()
-{
-	return 1;
-}

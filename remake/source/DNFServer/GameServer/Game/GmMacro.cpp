@@ -11,6 +11,23 @@
 namespace game_master
 {
 
+void CMacro::Reset()                                    // 0x084a85b4
+{
+    if (!m_data.empty())
+    {
+        for (size_t i = 0; i < m_data.size(); ++i)
+        {
+            if (m_data[i].m_data != 0)                  // ORIG：operator[] 两次取 data 判空
+            {
+                delete[] m_data[i].m_data;              // ORIG operator delete[]
+            }
+        }
+        m_data.clear();
+    }
+    m_curIdx = 0;
+    m_state = 0;
+}
+
 // ---- stMacroData ----
 stMacroData::stMacroData() throw()                      // 0x084b3f6a
 {
@@ -28,23 +45,6 @@ stMacroData::stMacroData() throw()                      // 0x084b3f6a
 // m_data 释放仍由 CMacro::Reset 循环负责（浅拷贝 push_back，析构释放会 double-free）。
 
 // ---- CMacro ----
-
-void CMacro::Reset()                                    // 0x084a85b4
-{
-    if (!m_data.empty())
-    {
-        for (size_t i = 0; i < m_data.size(); ++i)
-        {
-            if (m_data[i].m_data != 0)                  // ORIG：operator[] 两次取 data 判空
-            {
-                delete[] m_data[i].m_data;              // ORIG operator delete[]
-            }
-        }
-        m_data.clear();
-    }
-    m_curIdx = 0;
-    m_state = 0;
-}
 
 void CMacro::StartMacro()                               // 0x084a865c
 {

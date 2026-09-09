@@ -7393,6 +7393,10 @@ void CUser::update_ingame_event_history(int eventKey)
 // [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x08676876：N86/P135 封顶——p167 差集：MISSING
 // getBattleRecordRefW×2 + `_Rb_tree_iterator::C1Ev` + `pair<const int,GameResultType>::C1`
 // 右值版，EXTRA make_pair/`pair::D1`×2（4.1 临时槽+拷贝 vs 4.4 直构）。
+// [b28d-PoolCUOO2 修成 2026-09-09] 按上述差集逐项翻形（RefW×3 重调 / iterator 默认构造
+// 后赋值 / 具名 value_type 块作用域 D1 / 单出口 ret 槽 / 右值 pair 实参 / `GameResultType&`
+// 具名引用物化）⇒ **p167 CLEAR**、gap 26→0、ndiff 92→32（残余=setcc/装载序 T5 族，
+// N82 维持封顶）。
 int CUser::update_record(GameResultType& result)
 {
     // [b28d-PoolCUOO2 修法 2026-09-09] ORIG 0x08676876 序列（objdump 逐条）：
@@ -7619,6 +7623,11 @@ struct FindRentalInfoByItemIndex
 // [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x08676e3c：functor 归属已修正为全局作用域
 // （`_ZN25FindRentalInfoByItemIndex...`，与 ORIG mangled 逐字一致）；残余 p167 差集为
 // EXTRA `getCurCharacNo`/`normal_iterator::ptEv` 物化族，属 byte 层封顶差。
+// [b28d-PoolCUOO2 真语义修复 2026-09-09] 旧 EXTRA 组实为**语义错**：ORIG 首 call
+// getCurCharacR()（0x08676e4e）读 _Charac_info::m_characNo(+0x00) 后 `test/je`——
+// characNo==0 整体跳过（旧重建无守卫会错误建 map 项）；循环 deref 用 (*del)（deEv）。
+// 修后 **p167 CLEAR**、142 vs 139 gap 3、ndiff 125→115；本件修成连带使 TU identical
+// 424→425、missing_in_game 265→264。
 void CUser::UpdateCurrentCharacRentalInfo(
     const InstanceRentalSystem::RentOutput& output, int machineKey, bool clearFirst)
 {
@@ -8576,6 +8585,10 @@ bool cSecuUserAction::IsSecurityStateOff()
 // [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x086493c8：p167 差集 MISSING
 // `G_CEnvironment`/`CEnvironment::get_channel_name`/`strlen`/`vector<SK_IP>::operator[]`/
 // `getHades` + EXTRA `size()`/`__cxa_guard_abort`；属依赖/重载差，需跨文件核对（本泳道不越界改）。
+// [b28d-PoolCUOO2 复测 2026-09-09] MISSING 已全清（依赖族由跨波修复闭合）；残余仅
+// EXTRA `__cxa_guard_abort`×1（static CGameMasterCharacter 构造 EH cleanup 岛，
+// ORIG guard 版式无 abort 路径）——401 vs 413、ndiff 248→220。guard 发射由 ctor
+// 异常性决定（他 TU 定义），本泳道不可控 ⇒ N 封顶。
 int CUser::InitOnAccept(int socketFd)
 {
     m_network.set_socket(socketFd, false);
@@ -12459,6 +12472,14 @@ void CUser::UseQuestItem(int itemIdx)
 // ============================================================================
 // [b28d-22 N82] ORIG 0x0867218c：p167=M0/E14:memset;_ZNSt6vectorISt4pairIiiESaIS1_EE3endEv;_ZNSt6vectorISt4pairIiiESaIS1_EE5beginEv，gap=-2；语义完成、byte 层帧槽/物化族封顶。
 // [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x0867218c：N82 封顶——帧/槽差 + x87（p167 M0/E14，gap -2）。
+// [b28d-PoolCUOO2 真语义修复 2026-09-09] 旧 E14 中三组是**真语义 bug**：①delList 非空
+// 分支 ORIG 插入 `recipe+0x19c = recipeInfo.m_vec28`（const begin/end + insert<IPK>），
+// 非「自我倍增」；②回包 size+逐项输出走 **recipeInfo.m_vecC 原始材料表**（const 迭代），
+// 非倍增后的 resultMulList；③variation receiver 用值版 getCurCharacInvenR() 且
+// GetCurCharacExpertJobType ORIG 调×2 不缓存（第二点 increaseItemCount）。另 loop3
+// `it++`/ui 循环 `ui++`（ppEi 形）。修后 **p167 MISSING=0**（EXTRA memset×3=N78
+// 4.1 rep-stos 阈值族、ptEv×1、x87 fucompp/fucomip=跨版本 lowering），949 vs 953
+// gap -4；ndiff 对 >500 条函数失真（§6.2 三件套①②达标）⇒ 语义完成、byte 层封顶。
 int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
                          unsigned short count, int subCmd)
 {
@@ -12488,8 +12509,11 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
     int freeQuick = getCurCharacInvenR()->QuickEmptyCount();       // local_58
 
     std::vector<std::pair<int,int> > delList(recipeInfo.m_vec0);   // local_8c ← +0x174
-    if (!delList.empty())                                          // ORIG empty()==0 → 自我倍增
-        delList.insert(delList.end(), delList.begin(), delList.end());
+    // [b28d-PoolCUOO2 真语义修复 2026-09-09] ORIG 0x08672369-0x086723c0：非空时插入的是
+    // **recipe+0x19c = recipeInfo.m_vec28**（const begin/end + insert<IPK 模板>），
+    // 旧「自我倍增」形（delList.begin/end 非 const）系误读，p167 const be/en MISSING 实证。
+    if (!delList.empty())
+        delList.insert(delList.end(), recipeInfo.m_vec28.begin(), recipeInfo.m_vec28.end());
     std::vector<std::pair<int,int> > delListScaled(delList);       // local_98
     if (subCmd == 0xf2)
         CalculateExpertJobMaterials(delListScaled);
@@ -12527,13 +12551,13 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
     }
 
     STItemScript::SEXPERTJOB::stExpertCompoundResultVariation variation;  // local_b4
-    // getCurCharacInvenRefR 现返回 const CInventory*（ORIG 符号实证）。
-    CInventory* invRef = const_cast<CInventory*>(getCurCharacInvenRefR());
+    // [b28d-PoolCUOO2 修法] ORIG 本段 receiver 是**值版** getCurCharacInvenR()（InvenR
+    // 7/RefR 1 直方图实证；RefR 唯一落点=下方 setCopy），且 ExpertJobType ORIG 调 ×2
+    // 不缓存（第二点在下面 increaseItemCount）⇒ 去 invRef/expertType 具名缓存。
     const int expertExp = GetCurCharacExpertJobExp();
     const int expertLevel = GetCurExpertJobLevel(expertExp);
-    const int expertType = GetCurCharacExpertJobType();
-    invRef->GetExpertJobCompoundResultVariation(
-        (ENUM_EXPERT_JOB_TYPE)expertType, expertLevel, variation);
+    const_cast<CInventory*>(getCurCharacInvenR())->GetExpertJobCompoundResultVariation(
+        (ENUM_EXPERT_JOB_TYPE)GetCurCharacExpertJobType(), expertLevel, variation);
 
     char limitStackHit = 0;                                        // local_49
     int failCode = 0;                                              // unaff_EBX
@@ -12614,11 +12638,14 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
     packet.put_header(1, subCmd);
     packet.put_byte(1);
     if (recipeInfo.m_field25 != 0)                                 // recipe+0x199
-    {
-        packet.put_byte((int)resultMulList.size());
-        for (std::vector<std::pair<int,int> >::const_iterator ri = resultMulList.begin();
-             ri != resultMulList.end(); ++ri)
         {
+            // [b28d-PoolCUOO2 真语义修复] ORIG 0x086729xx：size 与遍历对象均为
+            // **recipeInfo.m_vecC（recipe+0x180 const）**——发包用配方**原始**材料表，
+            // 非倍增后的 resultMulList。const begin/end + 同型 ne + ++ri（ppEv）。
+            packet.put_byte((int)recipeInfo.m_vecC.size());
+            for (std::vector<std::pair<int,int> >::const_iterator ri = recipeInfo.m_vecC.begin();
+                 ri != recipeInfo.m_vecC.end(); ++ri)
+    {
             packet.put_int(ri->first);
             packet.put_int(ri->second);
         }
@@ -12647,8 +12674,9 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
         {
             expert_job::CExpertJob::IncreaseExpertJobExp(
                 this, GetCurCharacExpertJobExp() + expGain);
+            // ORIG 此循环 ppEi（后置）⇒ `it++`。
             for (std::vector<std::pair<int,int> >::iterator it = resultMulList.begin();
-                 it != resultMulList.end(); ++it)
+                 it != resultMulList.end(); it++)
             {
                 const int perCount = it->second / (int)count;      // local_28
                 it->second = (it->second / (int)count) * successCnt;
@@ -12661,7 +12689,7 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
                     it->second = it->second + extra;
                 }
                 CExpertJobStatistic* stat = GetInstanceExpertJobStatistic();
-                stat->increaseItemCount((ENUM_EXPERT_JOB_TYPE)expertType,
+                stat->increaseItemCount((ENUM_EXPERT_JOB_TYPE)GetCurCharacExpertJobType(),
                                         (unsigned long)it->first, it->second);
             }
         }
@@ -12683,8 +12711,9 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
     Send(packet);
     if (!updatedSlots.empty())
     {
+        // ORIG int 循环 ppEi ⇒ `ui++`。
         for (std::vector<int>::const_iterator ui = updatedSlots.begin();
-             ui != updatedSlots.end(); ++ui)
+             ui != updatedSlots.end(); ui++)
         {
             const int slot = *ui;                                  // local_20
             if (-1 < slot)
@@ -12781,6 +12810,15 @@ void CUser::SendHasNoGoWithApcQuestInParty(Quest const* quest)
 // 含 3 处 Ghidra 实参修正与 ORIG 立即数枚举 static_cast 标注）。
 // ---------------------------------------------------------------------------
 // [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x0868c4f4：N82 封顶——帧/槽差（gap 41）。
+// [b28d-PoolCUOO2 修成 2026-09-09] W7-BLOCKED 前提作废：ORIG **无** CInventory(
+// InventoryMemory&) ctor、**无** CInventory::materials()/outputs()（nm 实证，Main 确认）；
+// 真实形=直用 recipe->m_recipe174 成员（前波已如此落地）。本波清残余迭代器族：
+// ①materials 循环删引用缓存、每读点重调 operator[]（ixEj 2→6/6，P78）；②删除三元组
+// 循环=非 const iterator + `*it++`×3（deEv/ppEi IPi 各 3 + 同型 ne）——后置 ++ 结果被
+// deref 消费，N113 折叠不适用；③发包三元组循环=const_iterator + `*it++`×3 + P326
+// `const_iterator(updatedSlots.end())` 同型比较（转换 ctor 2/2）；④AddAvatarItem 重调
+// InvenW（0x0868cc81）。⇒ **p167 CLEAR（117/117）**、739 vs 738 gap 1；ndiff 读数按
+// 新纪律（>500 条不按 ndiff 记账）以三件套为准。
 int CUser::process_recipe_avatar_items(int mainSlot, bool param2,
                                        unsigned short count, int cmdHeader,
                                        CStackableItem const* recipe)
@@ -12836,25 +12874,25 @@ int CUser::process_recipe_avatar_items(int mainSlot, bool param2,
     {
         int matIdx = 0;
         while ((int)materials.size() > matIdx) {
-            std::pair<int, int> const& mat = materials[matIdx];
-
+            // [b28d-PoolCUOO2 修法 2026-09-09 P78] ORIG 无引用缓存、**每读点重调**
+            // `vector<pair>::operator[]`（ixEj 6/6 vs 旧 2/6）⇒ 删 const& mat，逐点索引。
             // +0x1ed: G_CDataManager() 0x080cc19b
             // +0x1f9: CDataManager::find_item(int) 0x0835fa32
             CDataManager* dataMgr = G_CDataManager();
-            CItem* item = dataMgr->find_item(mat.first);
+            CItem* item = dataMgr->find_item(materials[matIdx].first);
 
             if (item != NULL) {
                 // +0x210: 虚调用 *(vtable+0x10) -> CItem::IsAvatarItem()
                 if (!item->IsAvatarItem()) {
                     // 普通材料：在副本库存中删除事件物品
                     // +0x319: inv.get_inven_slot_no(mat.first) 0x0850cd62
-                    int slot = inv.get_inven_slot_no(mat.first);
+                    int slot = inv.get_inven_slot_no(materials[matIdx].first);
                     if (slot == -1) {
                         return 0xd5;
                     }
                     // +0x381: inv.tryDeleteEventItems(one) 0x085058da
                     std::vector<std::pair<int, int> > one;
-                    one.push_back(mat);
+                    one.push_back(materials[matIdx]);
                     if (!inv.tryDeleteEventItems(one)) {
                         // +0x394: 失败 -> 0x11（就地退出，不做产出）
                         return 0x11;
@@ -12862,11 +12900,11 @@ int CUser::process_recipe_avatar_items(int mainSlot, bool param2,
                     // +0x3a3..+0x3ef: push_back(0, slot, mat.second)
                     updatedSlots.push_back(0);
                     updatedSlots.push_back(slot);
-                    updatedSlots.push_back(mat.second);
+                    updatedSlots.push_back(materials[matIdx].second);
                 } else {
                     // avatar 材料
                     // +0x249: inv.get_avatar_slot_no(mat.first) 0x0850cd1c
-                    int slot = inv.get_avatar_slot_no(mat.first);
+                    int slot = inv.get_avatar_slot_no(materials[matIdx].first);
                     if (slot == -1) {
                         return 0xd5;
                     }
@@ -12899,15 +12937,15 @@ int CUser::process_recipe_avatar_items(int mainSlot, bool param2,
     CInventory* invW = getCurCharacInvenW();
 
     // +0x4cd..+0x6eb: 按三元组在真实库存中删除
+    // [b28d-PoolCUOO2 修法 2026-09-09] ORIG 本循环=**非 const** iterator（deEv IPi 3 +
+    // ppEi IPi 3 + ne<IPi> 同型 1）⇒ `*it++` 后置形（临时结果被 deref 消费，N113
+    // 折叠不适用），比较两侧同为非 const。
     {
-        std::vector<int>::const_iterator it = updatedSlots.begin();
+        std::vector<int>::iterator it = updatedSlots.begin();
         while (it != updatedSlots.end()) {
-            int space = *it;
-            ++it;
-            int slot = *it;
-            ++it;
-            int delCount = *it;
-            ++it;
+            int space = *it++;
+            int slot = *it++;
+            int delCount = *it++;
 
             if (space == 0) {
                 // +0x578: getCurCharacInvenW() 0x080da28e（ORIG 分支内重取）
@@ -12965,9 +13003,12 @@ int CUser::process_recipe_avatar_items(int mainSlot, bool param2,
     // +0x7d1: invW->AddAvatarItem(outIdx, usablePeriod, false, 0, -1,
     //                            ipgNo, 2, false, 0) 0x08509b9e
     //   （eAvatarItemAddReason 缺成员 2，按 ORIG 立即数强转）
-    int newSlot = invW->AddAvatarItem(outIdx, usablePeriod, false, 0,
-                                      (char)-1, ipgNo,
-                                      (eAvatarItemAddReason)2, false, 0);
+    // [b28d-PoolCUOO2 修法] ORIG 0x0868cc81（+0x78d）此点**重调** getCurCharacInvenW()
+    // （全函数 InvenW×3：init 0x868c9a1 / space0 分支 0x868ca72 / 本点；循环 else 支
+    // 三处用走 init 槽无 call）⇒ 不用 invW 缓存。
+    int newSlot = getCurCharacInvenW()->AddAvatarItem(
+        outIdx, usablePeriod, false, 0, (char)-1, ipgNo,
+        (eAvatarItemAddReason)2, false, 0);
     // +0x7e9: newSlot == -1 -> 0x4
     if (newSlot == -1) {
         return 0x4;
@@ -12984,15 +13025,15 @@ int CUser::process_recipe_avatar_items(int mainSlot, bool param2,
     guard.put_byte((int)(updatedSlots.size() / 3));
 
     // +0x9d4..+0x99e: 三元组逐个 put_byte(space)/put_short(slot)/put_int(count)
+    // [b28d-PoolCUOO2 修法 P326/P167] ORIG 本循环=const_iterator（deEv IPKi 3 +
+    // ppEi IPKi 3 + **同型** ne<IPKi> 1 + 转换 ctor 2）⇒ init 一处转换 + 比较点
+    // `const_iterator(updatedSlots.end())` 第二处转换（end 侧不缓存具名）。
     {
         std::vector<int>::const_iterator it = updatedSlots.begin();
-        while (it != updatedSlots.end()) {
-            int space = *it;
-            ++it;
-            int slot = *it;
-            ++it;
-            int cnt = *it;
-            ++it;
+        while (it != std::vector<int>::const_iterator(updatedSlots.end())) {
+            int space = *it++;
+            int slot = *it++;
+            int cnt = *it++;
             guard.put_byte(space);
             guard.put_short(slot);
             guard.put_int(cnt);

@@ -4445,6 +4445,29 @@ case 0x108b:  // "[ridableskill definition]"（收集父 case；ORIG asm 08a1ebd
                                 }
                                 break;
                             }
+                        // ORIG 0x8a1f5fc 公共尾：按刚写入的类型值附加读取——
+                        //  v∈{0,1,2,4,5}(1<<v & 0x37)：n=ScanInt，随后 n 个 ScanInt
+                        //    逐个 push 进 sk.m_levels[i]（+0x28+i*12 vector<int>）；
+                        //  v==3(charge)：m_fieldc8[i]/m_fielde8[i] 各一 ScanInt；
+                        //  v==6（未识别/默认）不读。
+                        {
+                            const int v = sk.m_field88[i];
+                            if (v <= 5)
+                            {
+                                const unsigned bit = 1u << v;
+                                if ((bit & 0x37u) != 0)
+                                {
+                                    const int n = ScanInt(static_cast<bool*>(0));
+                                    for (int j = 0; j < n; ++j)
+                                        sk.m_levels[i].push_back(ScanInt(static_cast<bool*>(0)));
+                                }
+                                else if ((bit & 8u) != 0)
+                                {
+                                    sk.m_fieldc8[i] = ScanInt(static_cast<bool*>(0));
+                                    sk.m_fielde8[i] = ScanInt(static_cast<bool*>(0));
+                                }
+                            }
+                        }
                         }
                     }
                         break;

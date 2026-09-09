@@ -1558,7 +1558,13 @@ void STCharacterScript::Clear()
 // ============================ ImportCharacterScript ============================
 
 // ORIG static d 0x094ff618 [0x18]：job → 身体贴图路径（原文件级静态；本 TU
-// 以文件级静态等价建模）。
+// 以文件级静态等价建模）。ORIG 实例化实证 map<ENUM_CHARACTERJOB,Ss>（W
+// _ZNSt3mapI17ENUM_CHARACTERJOBSs...4find/ix @08a4101c/08a3ebec）。
+// [body image path] 块 ORIG `mov 0x8(%ebp),%eax; mov %eax,0x4(%esp)` =
+// &m_job（字段偏移 0，地址即 script 值）直绑 const ENUM& 形参，**无临时槽**；
+// 我方 m_job 建模 int，static_cast 右值会物化 -0x4c 临时并把全 deep 区 +4
+// 平移（N82 主源），故经 reinterpret 的左值引用直绑同一对象（同 4 字节，
+// 行为等价）。
 static std::map<ENUM_CHARACTERJOB, std::string> s_bodyImagePath;
 
 // ORIG ImportCharacterScript T 0x08a0ce06（报告 ## 汇编 + ## 反编译 C 全文转写）。
@@ -1868,9 +1874,11 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         }
         else if (token == "[category]")
         {
-            std::string t;                // ORIG -0xfc
-            bool isType = false;          // ORIG -0xfd
             curEtc->m_category.clear();
+            // ORIG 0x08a0dd??：clear（`mov -0x40,%eax; call`）先于 t/isType 的
+            // string ctor + movb $0（-0xf8/-0xf9）——ORIG 把 clear 写在声明前。
+            std::string t;                // ORIG -0xf8
+            bool isType = false;          // ORIG -0xf9（折入 t 槽）
             for (;;)
             {
                 if (!ScanTypeOrStr(isType, t, true))
@@ -2003,13 +2011,16 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
                 {
                     // ORIG 0x08a0ec0d..：先 (token==[attack action] &&
                     // t==[/attack action])，否则再 (token==[action list] &&
-                    // t==[/action list])，皆不中 → 失败。
-                    bool endTag = (token == "[attack action]" &&
-                                   t == "[/attack action]");
-                    if (!endTag)
-                        endTag = (token == "[action list]" &&
-                                  t == "[/action list]");
-                    if (endTag)
+                    // t==[/action list])，皆不中 → 失败。ORIG 具名 endTag 由
+                    // 4.1 驻 %eax（mov $1/$0 物化，无栈槽）；4.4 具名 bool 必落
+                    // -0x29 并把指针组压深 4 字节（§N82 主源，实测）。等价改写：
+                    // 条件直接进 if（短路跳转形，无物化槽），命中 break / 失败
+                    // return false，与 “a||b → break” 真值表一致。
+                    if (token == "[attack action]" &&
+                        t == "[/attack action]")
+                        break;
+                    if (token == "[action list]" &&
+                        t == "[/action list]")
                         break;
                     return false;
                 }
@@ -2169,10 +2180,12 @@ bool ImportCharacterScript(STCharacterScript* script, const char* path)
         else if (token == "[body image path]")
         {
             std::string t;                // ORIG -0x150
+            // ORIG `xor $0x1,%eax; test; je` = 否定守卫（!ScanStr→失败）。
+            // key 引用直绑 &m_job（偏移 0），无临时槽。
             if (!ScanStr(&t))
                 return false;
-            s_bodyImagePath[
-                static_cast<ENUM_CHARACTERJOB>(script->m_job)] = t;
+            s_bodyImagePath[*reinterpret_cast<const ENUM_CHARACTERJOB*>(
+                                &script->m_job)] = t;
         }
         else if (token == "[upgrade weapon attack power rate]")
         {

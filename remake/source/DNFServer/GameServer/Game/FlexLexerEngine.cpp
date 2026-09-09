@@ -328,6 +328,10 @@ typedef unsigned char YY_CHAR;
 #define YY_INTERACTIVE
 
 #include "FlexLexer.h"
+int yyFlexLexer::yywrap()
+{
+	return 1;
+}
 int yyFlexLexer::yylex()
 	{
 	LexerError( "yyFlexLexer::yylex invoked but %option yyclass used" );
@@ -2179,7 +2183,3 @@ void __dnf_script__free (void * ptr )
 
 
 
-int yyFlexLexer::yywrap()
-{
-	return 1;
-}

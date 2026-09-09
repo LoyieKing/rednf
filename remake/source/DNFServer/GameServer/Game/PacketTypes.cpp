@@ -14,6 +14,45 @@ static const std::string base64_chars =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 
+void base64_encode(const unsigned char* data, unsigned int len,
+                   std::string& out)
+{
+    int i = 0;
+    unsigned char b3[3];
+    while (len != 0)
+    {
+        --len;
+        b3[i] = *data;
+        ++i;
+        ++data;
+        if (i == 3)
+        {
+            unsigned char b4[4];
+            b4[0] = static_cast<unsigned char>(b3[0] >> 2);
+            b4[1] = static_cast<unsigned char>((b3[0] & 3) * 16 + (b3[1] >> 4));
+            b4[2] = static_cast<unsigned char>((b3[1] & 0xf) * 4 + (b3[2] >> 6));
+            b4[3] = static_cast<unsigned char>(b3[2] & 0x3f);
+            for (int k = 0; k < 4; ++k)
+                out += base64_chars[b4[k]];
+            i = 0;
+        }
+    }
+    if (i > 0)
+    {
+        for (int k = i; k < 3; ++k)
+            b3[k] = 0;
+        unsigned char b4[4];
+        b4[0] = static_cast<unsigned char>(b3[0] >> 2);
+        b4[1] = static_cast<unsigned char>((b3[0] & 3) * 16 + (b3[1] >> 4));
+        b4[2] = static_cast<unsigned char>((b3[1] & 0xf) * 4 + (b3[2] >> 6));
+        b4[3] = static_cast<unsigned char>(b3[2] & 0x3f);
+        for (int k = 0; k < i + 1; ++k)
+            out += base64_chars[b4[k]];
+        for (int k = i + 1; k < 4; ++k)
+            out += '=';
+    }
+}
+
 InstanceRentalSystem::RentOutput::RentOutput() : m_infos(), m_deleted() {}  // ORIG 0x8231c4e
 InstanceRentalSystem::RentOutput::~RentOutput() {}                          // ORIG 0x8231c94
 
@@ -892,45 +931,6 @@ template class IPacketDispatcher<MSG_BASE, ReqResult, ch_state3>;
 static bool is_base64(unsigned char c)
 {
     return isalnum(c) || (c == '+') || (c == '/');
-}
-
-void base64_encode(const unsigned char* data, unsigned int len,
-                   std::string& out)
-{
-    int i = 0;
-    unsigned char b3[3];
-    while (len != 0)
-    {
-        --len;
-        b3[i] = *data;
-        ++i;
-        ++data;
-        if (i == 3)
-        {
-            unsigned char b4[4];
-            b4[0] = static_cast<unsigned char>(b3[0] >> 2);
-            b4[1] = static_cast<unsigned char>((b3[0] & 3) * 16 + (b3[1] >> 4));
-            b4[2] = static_cast<unsigned char>((b3[1] & 0xf) * 4 + (b3[2] >> 6));
-            b4[3] = static_cast<unsigned char>(b3[2] & 0x3f);
-            for (int k = 0; k < 4; ++k)
-                out += base64_chars[b4[k]];
-            i = 0;
-        }
-    }
-    if (i > 0)
-    {
-        for (int k = i; k < 3; ++k)
-            b3[k] = 0;
-        unsigned char b4[4];
-        b4[0] = static_cast<unsigned char>(b3[0] >> 2);
-        b4[1] = static_cast<unsigned char>((b3[0] & 3) * 16 + (b3[1] >> 4));
-        b4[2] = static_cast<unsigned char>((b3[1] & 0xf) * 4 + (b3[2] >> 6));
-        b4[3] = static_cast<unsigned char>(b3[2] & 0x3f);
-        for (int k = 0; k < i + 1; ++k)
-            out += base64_chars[b4[k]];
-        for (int k = i + 1; k < 4; ++k)
-            out += '=';
-    }
 }
 
 void base64_decode(std::string const& in, std::vector<unsigned char>& out)

@@ -8240,7 +8240,12 @@ bool CUser::send_ontime_reward_start_notify()   // b28c-L5 SIGFIX（P174）
     if (ev->get_reward_state() != 0)
         return 0;
     // b28d-solo-CUser p167：ORIG 0x0868a7f7 内联 rep stos（我方 EXTRA memset）。
-    char fileName[0x40] = {0};
+    // [b28d-tu-P253] REAL-BUG：ORIG 0x0868c223-0x0868c237 `lea -0x148(%ebp),%ebx
+    //   ; mov $0x0,%eax; mov $0x40,%edx; mov %ebx,%edi; rep stos` ⇒ %edx 是
+    //   **dword 个数**：0x40×4 = **256 字节**（基 -0x148..-0x48），我方原
+    //   `char fileName[0x40]` 只清 64B 且 sprintf("./log/%s/OnTimeEvent",
+    //   get_file_name()) 的拼接路径可越过 64B ⇒ 少清 192B + 栈溢出风险。
+    char fileName[0x100] = {0};
     sprintf(fileName, "./log/%s/OnTimeEvent", G_CEnvironment()->get_file_name());
     CMyFileLog log("bool CUser::send_ontime_reward_start_notify()", 0xa803);
     log(fileName, "On Time Event : On Charac Login(%s, %u)",
@@ -10559,7 +10564,11 @@ void CUser::makeGuildLevelUpMessage(int level)
         return;
 
     // b28d-solo-CUser p167：ORIG 0x08679754 内联 rep stos（我方 EXTRA memset ×2）。
-    char numBuf[256] = {0};
+    // [b28d-tu-P253] 长度不符：ORIG 0x0867978b-0x0867979f `lea -0xa0(%ebp),%ebx
+    //   ; mov $0x1e,%edx; mov %ebx,%edi; rep stos` ⇒ 0x1e dword = **120 字节**
+    //   （基 -0xa0..-0x28）。我方原 `char numBuf[256]` 多清 136B（帧多占 136B，
+    //   body 比较界 0x78=120 与该缓冲同口径）。sprintf "%d" 用 120B 足够。
+    char numBuf[120] = {0};
 
     std::string body(getCurCharacName());
     body += g_ServerString_.GetServerString(0x3e9, 0);

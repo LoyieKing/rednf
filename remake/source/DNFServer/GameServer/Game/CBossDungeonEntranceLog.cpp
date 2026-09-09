@@ -18,24 +18,6 @@
 #include "CStreamGuard.h"
 #include "MsgQueueMgr.h"
 
-CBossDungeonEntranceLog::CBossDungeonEntranceLog()
-{
-    // ORIG 0x081456c2：map C1 由编译器生成，函数体仅调 reset()。
-    reset();
-}
-
-CBossDungeonEntranceLog::~CBossDungeonEntranceLog()
-{
-    // ORIG 0x08145704：reset() 后 map D1（编译器生成）。
-    reset();
-}
-
-void CBossDungeonEntranceLog::reset()
-{
-    // ORIG 0x08145746：tail-call map::clear。
-    m_logMap.clear();
-}
-
 // ORIG 0x081564f0：命中 → ++stageStartCount(+0)；未命中 → memset0 后 insert
 // {stageStartCount=1, 其余 0}。
 void CBossDungeonEntranceLog::IncrementBossStageStart(CUser& user,
@@ -72,6 +54,24 @@ void CBossDungeonEntranceLog::IncrementBossStageStart(CUser& user,
         m_logMap.insert(
             std::make_pair(key, entry));       // ORIG make_pair<uint&,ST&> + insert(RKS5_)
     }
+}
+
+CBossDungeonEntranceLog::CBossDungeonEntranceLog()
+{
+    // ORIG 0x081456c2：map C1 由编译器生成，函数体仅调 reset()。
+    reset();
+}
+
+CBossDungeonEntranceLog::~CBossDungeonEntranceLog()
+{
+    // ORIG 0x08145704：reset() 后 map D1（编译器生成）。
+    reset();
+}
+
+void CBossDungeonEntranceLog::reset()
+{
+    // ORIG 0x08145746：tail-call map::clear。
+    m_logMap.clear();
 }
 
 // ORIG 0x0815662e：命中 → ++stageEndCount(+4)、playTimeSum(+0xc) += playTimeSec；

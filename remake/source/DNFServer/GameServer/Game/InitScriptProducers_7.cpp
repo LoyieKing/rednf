@@ -62,6 +62,270 @@ int getGrowTypeIndex(const char* name);                                // 0x088b
 //  importInGameEventInfoList 按 ORIG 函数级静态 __lookup 真形重写，见该函数。）
 
 // ============================================================================
+// importMercenarySystemEtcScript — ORIG 0x089f6c50（init.md +0x6b19，
+// "Etc/mercenary.etc" → m_mercenarySystem）。返回 0=成功，否则错误码
+// （9 装载失败 / 0xc 空指针 / 0x29..0xd1 各段 Scan 失败，见 case 注释）。
+// ORIG 双相派发（函数级静态 __lookup/__init_lock/__inited 三件套，case 贯穿
+// 注册链 0x25/0x32/0x46/0x57/0x69/0x7f）已按汇编逐段还原；错误路径累加/
+// 检查次序（+0x96d 先 Σ groupId 后查 ok、+0xa61 先 Σ count）与
+// [mob/item index] make_pair 实参序（+0xa72：first=count 槽 -0x144）逐条对齐。
+// 残余 N 类豁免（orig=ours=838，助记符序列仅剩以下跨编译器结构差）：
+//  - +0x3ce `mov -0x13c,%edx` 值直达 vs 4.4 `mov…,%eax; mov %eax,%edx` 两段
+//    （N18a regmove 不可逆，+0x555 同理，2 处）；
+//  - +0x545 16 位 jle vs 4.4 同操作数折为 jbe（setcc-fold 比较方向）；
+//  - +0xa61/+0xb51 累加 4.1 `mov mem,%eax; mov %eax,%edx` 两段物化，4.4 恒折
+//    单步（N18a 反向，2 处）；
+//  - +0xbe2/+0xcd6 及组错误出口：4.1 将 group/area 析构 merge 为 esi 标志共享
+//    epilogue（+0xc04/+0xcf5），4.4 生成中继 jmp（EH 双份 dtor epilogue vs
+//    merge 跨版本差异）。
+// ============================================================================
+// [b28d-solo-InitScriptProducers_7] verdict=DIFF [N18a/N7] ORIG 0x089f6c50
+//  p167 102/102 CLEAR；orig/ours=838/838。残余 65 行归一化差异全部为 N18a
+//  regmove（4.1 `mov mem,%edx` vs 4.4 `mov mem,%eax; mov %eax,%edx`，5 处）
+//  + EH 尾岛 2 处（跨版本，语义完成）。
+int importMercenarySystemEtcScript(const char* path, stMercenarySystemInfo* out)
+{
+    if (!loadRDARScriptFile("", path))
+        return 9;
+    if (out == NULL)
+        return 0xc;
+
+    typedef std::map<const char*, int, less_TCHAR> LookupMap;
+
+    std::string token;                 // ORIG -0x11c
+    std::string sub;                   // ORIG -0x120
+    std::string sub2;                  // ORIG -0x124
+    std::string unused;                // ORIG -0x128（构造/析构但零引用槽）
+    bool ok = false;                   // ORIG -0x129
+    short lv = 0;                      // ORIG -0x12c（movw $0；%ax 写）
+    unsigned int gold = 0;             // ORIG -0x130
+    unsigned int item = 0;             // ORIG -0x134
+    unsigned int avatarIdx = 0;        // ORIG -0x138
+    unsigned int period = 0;           // ORIG -0x13c
+    float rate = 0;                    // ORIG -0x140
+    unsigned int count = 0;            // ORIG -0x144
+    unsigned int index = 0;            // ORIG -0x148
+
+    for (;;)
+    {
+        if (!ScanType(token, true))
+            break;
+
+        // ORIG 重派发跳回 +0xf0（__lookup guard）：静态声明位于主循环体内。
+        static LookupMap __lookup;
+        static SpinLock __init_lock;
+        static bool __inited = false;
+
+        for (;;)
+        {
+            int id;
+            if (__inited)
+            {
+                LookupMap::const_iterator it = __lookup.find(token.c_str());
+                id = (it != __lookup.end()) ? it->second : -1;
+            }
+            else
+            {
+                __init_lock.enter();
+                if (__inited)
+                {
+                    __init_lock.leave();
+                    continue;
+                }
+                id = 0;
+            }
+
+            switch (id)
+            {
+            case 0x25:                      // [base time unit]
+            case 0:
+                if (!__inited)
+                {
+                    __lookup.insert(LookupMap::value_type("[base time unit]", 0x25));
+                }
+                else
+                {
+                    period = ScanInt(&ok);
+                    if (!ok) return 0x29;
+                    if (period == 0) return 0x2c;
+                    out->m_field0 = period;
+                    break;
+                }
+                /* fall through（ORIG +0x383 jmp +0x3d5） */
+            case 0x32:                      // [level base GoldItem Prob]
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[level base GoldItem Prob]", 0x32));
+                }
+                else
+                {
+                    lv = ScanInt(&ok);
+                    if (!ok) return 0x36;
+                    gold = ScanInt(&ok);
+                    if (!ok) return 0x3a;
+                    item = ScanInt(&ok);
+                    if (!ok) return 0x3e;
+                    out->m_vec8.push_back(std::make_pair(lv, std::make_pair(gold, item)));
+                    if (out->m_field4 > (unsigned short)lv)   // ORIG 16 位 cmp 形：保留最小值
+                        out->m_field4 = (unsigned short)lv;
+                    break;
+                }
+                /* fall through（+0x430 jmp +0x55e） */
+            case 0x46:                      // [mercenary reward per period]
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[mercenary reward per period]", 0x46));
+                }
+                else
+                {
+                    while (true)
+                    {
+                        period = ScanInt(&ok);
+                        if (!ok) break;
+                        rate = ScanFloat(&ok);
+                        if (!ok) return 0x50;
+                        out->m_vec14.push_back(std::make_pair(period, rate));
+                    }
+                    break;
+                }
+                /* fall through（+0x5b9 jmp +0x66c） */
+            case 0x57:                      // [mercenary reward avatar bonus]
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[mercenary reward avatar bonus]", 0x57));
+                }
+                else
+                {
+                    while (true)
+                    {
+                        avatarIdx = ScanInt(&ok);
+                        if (!ok) break;
+                        rate = ScanFloat(&ok);
+                        if (!ok) return 0x61;
+                        out->m_vec20.push_back(std::make_pair(avatarIdx, rate));
+                    }
+                    break;
+                }
+                /* fall through（+0x6c7 jmp +0x774） */
+            case 0x69:                      // [mercenary reward critical]
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[mercenary reward critical]", 0x69));
+                }
+                else
+                {
+                    if (!ScanStr(&out->m_str2c))
+                        return 0x6c;
+                    out->m_field3c = 0;
+                    while (true)
+                    {
+                        gold = ScanInt(&ok);
+                        if (!ok) break;
+                        rate = ScanFloat(&ok);
+                        if (!ok) return 0x77;
+                        out->m_field3c += gold;      // ORIG 累计和
+                        out->m_vec30.push_back(std::make_pair(gold, rate));
+                    }
+                    break;
+                }
+                /* fall through（+0x7c0 jmp +0x8a9） */
+            case 0x7f:                      // [competition area]
+                if (!__inited)
+                {
+                    __lookup.insert(
+                        LookupMap::value_type("[competition area]", 0x7f));
+                }
+                else
+                {
+                    stMercenaryCompetitionArea area;
+                    int groupIdSum = 0;              // ORIG -0x1c
+                    while (true)
+                    {
+                        if (!ScanType(sub, true))
+                            break;
+                        if (sub == "[reward group]")
+                        {
+                            stMercenaryRewardGroup group;
+                            group.m_groupId = ScanInt(&ok);
+                            groupIdSum += group.m_groupId;   // ORIG 先累加后检查 ok
+                            if (!ok) return 0x8f;
+                            if (!ScanStr(&group.m_name))
+                                return 0x92;
+                            while (true)
+                            {
+                                if (!ScanType(sub2, true))
+                                    return 0x97;
+                                if (sub2 == "[mob index]")
+                                {
+                                    index = ScanInt(&ok);
+                                    if (!ok) continue;
+                                    count = ScanInt(&ok);
+                                    if (!ok) return 0xa3;
+                                    group.m_field20 = group.m_field20 + count;   // group+0x20 累计（ORIG 两段物化）
+                                    group.m_mobList.push_back(std::make_pair(count, index));
+                                    continue;
+                                }
+                                if (sub2 == "[item index]")
+                                {
+                                    index = ScanInt(&ok);
+                                    if (!ok) continue;
+                                    count = ScanInt(&ok);
+                                    if (!ok) return 0xb3;
+                                    group.m_field24 = group.m_field24 + count;   // group+0x24 累计（ORIG 两段物化）
+                                    group.m_itemList.push_back(std::make_pair(count, index));
+                                    continue;
+                                }
+                                if (sub2 == "[/reward group]")
+                                {
+                                    area.m_groups.push_back(group);
+                                    break;
+                                }
+                            }
+                            continue;
+                        }
+                        if (sub == "[world map]")
+                        {
+                            area.m_worldMapIdx = ScanInt(&ok);  // ORIG 无 ok 检查
+                            continue;
+                        }
+                        if (sub == "[area level]")
+                        {
+                            area.m_areaLevel = ScanInt(&ok);    // ORIG 无 ok 检查
+                            continue;
+                        }
+                        if (sub == "[/competition area]")
+                        {
+                            area.m_groupIdSum = groupIdSum;
+                            out->m_vec40.push_back(area);
+                            break;
+                        }
+                        return 0xd1;
+                    }
+                    break;
+                }
+                /* fall through */
+            default:
+                break;
+            }
+
+            // ORIG LAB_089f795a 公共尾：注册链走完释放锁置位重派发；正常态下一轮。
+            if (!__inited)
+            {
+                __init_lock.leave();
+                __inited = true;
+            }
+            else
+                break;
+        }
+    }
+    return 0;
+}
+
+// ============================================================================
 // importEventAvatarListScript — ORIG 0x0895e1ed（init.md +0x688b 调用，
 // "Event/EventAvatarList.evt" → m_eventAvatarList）。
 // 语义：loadRDARScriptFile("",path)；clear；扫描 "[avatar list]" 后连续
@@ -954,270 +1218,6 @@ bool importPcBangEquipmentRendar(const char* path, PcBangItemRentarData* out)
         }
     }
     return true;
-}
-
-// ============================================================================
-// importMercenarySystemEtcScript — ORIG 0x089f6c50（init.md +0x6b19，
-// "Etc/mercenary.etc" → m_mercenarySystem）。返回 0=成功，否则错误码
-// （9 装载失败 / 0xc 空指针 / 0x29..0xd1 各段 Scan 失败，见 case 注释）。
-// ORIG 双相派发（函数级静态 __lookup/__init_lock/__inited 三件套，case 贯穿
-// 注册链 0x25/0x32/0x46/0x57/0x69/0x7f）已按汇编逐段还原；错误路径累加/
-// 检查次序（+0x96d 先 Σ groupId 后查 ok、+0xa61 先 Σ count）与
-// [mob/item index] make_pair 实参序（+0xa72：first=count 槽 -0x144）逐条对齐。
-// 残余 N 类豁免（orig=ours=838，助记符序列仅剩以下跨编译器结构差）：
-//  - +0x3ce `mov -0x13c,%edx` 值直达 vs 4.4 `mov…,%eax; mov %eax,%edx` 两段
-//    （N18a regmove 不可逆，+0x555 同理，2 处）；
-//  - +0x545 16 位 jle vs 4.4 同操作数折为 jbe（setcc-fold 比较方向）；
-//  - +0xa61/+0xb51 累加 4.1 `mov mem,%eax; mov %eax,%edx` 两段物化，4.4 恒折
-//    单步（N18a 反向，2 处）；
-//  - +0xbe2/+0xcd6 及组错误出口：4.1 将 group/area 析构 merge 为 esi 标志共享
-//    epilogue（+0xc04/+0xcf5），4.4 生成中继 jmp（EH 双份 dtor epilogue vs
-//    merge 跨版本差异）。
-// ============================================================================
-// [b28d-solo-InitScriptProducers_7] verdict=DIFF [N18a/N7] ORIG 0x089f6c50
-//  p167 102/102 CLEAR；orig/ours=838/838。残余 65 行归一化差异全部为 N18a
-//  regmove（4.1 `mov mem,%edx` vs 4.4 `mov mem,%eax; mov %eax,%edx`，5 处）
-//  + EH 尾岛 2 处（跨版本，语义完成）。
-int importMercenarySystemEtcScript(const char* path, stMercenarySystemInfo* out)
-{
-    if (!loadRDARScriptFile("", path))
-        return 9;
-    if (out == NULL)
-        return 0xc;
-
-    typedef std::map<const char*, int, less_TCHAR> LookupMap;
-
-    std::string token;                 // ORIG -0x11c
-    std::string sub;                   // ORIG -0x120
-    std::string sub2;                  // ORIG -0x124
-    std::string unused;                // ORIG -0x128（构造/析构但零引用槽）
-    bool ok = false;                   // ORIG -0x129
-    short lv = 0;                      // ORIG -0x12c（movw $0；%ax 写）
-    unsigned int gold = 0;             // ORIG -0x130
-    unsigned int item = 0;             // ORIG -0x134
-    unsigned int avatarIdx = 0;        // ORIG -0x138
-    unsigned int period = 0;           // ORIG -0x13c
-    float rate = 0;                    // ORIG -0x140
-    unsigned int count = 0;            // ORIG -0x144
-    unsigned int index = 0;            // ORIG -0x148
-
-    for (;;)
-    {
-        if (!ScanType(token, true))
-            break;
-
-        // ORIG 重派发跳回 +0xf0（__lookup guard）：静态声明位于主循环体内。
-        static LookupMap __lookup;
-        static SpinLock __init_lock;
-        static bool __inited = false;
-
-        for (;;)
-        {
-            int id;
-            if (__inited)
-            {
-                LookupMap::const_iterator it = __lookup.find(token.c_str());
-                id = (it != __lookup.end()) ? it->second : -1;
-            }
-            else
-            {
-                __init_lock.enter();
-                if (__inited)
-                {
-                    __init_lock.leave();
-                    continue;
-                }
-                id = 0;
-            }
-
-            switch (id)
-            {
-            case 0x25:                      // [base time unit]
-            case 0:
-                if (!__inited)
-                {
-                    __lookup.insert(LookupMap::value_type("[base time unit]", 0x25));
-                }
-                else
-                {
-                    period = ScanInt(&ok);
-                    if (!ok) return 0x29;
-                    if (period == 0) return 0x2c;
-                    out->m_field0 = period;
-                    break;
-                }
-                /* fall through（ORIG +0x383 jmp +0x3d5） */
-            case 0x32:                      // [level base GoldItem Prob]
-                if (!__inited)
-                {
-                    __lookup.insert(
-                        LookupMap::value_type("[level base GoldItem Prob]", 0x32));
-                }
-                else
-                {
-                    lv = ScanInt(&ok);
-                    if (!ok) return 0x36;
-                    gold = ScanInt(&ok);
-                    if (!ok) return 0x3a;
-                    item = ScanInt(&ok);
-                    if (!ok) return 0x3e;
-                    out->m_vec8.push_back(std::make_pair(lv, std::make_pair(gold, item)));
-                    if (out->m_field4 > (unsigned short)lv)   // ORIG 16 位 cmp 形：保留最小值
-                        out->m_field4 = (unsigned short)lv;
-                    break;
-                }
-                /* fall through（+0x430 jmp +0x55e） */
-            case 0x46:                      // [mercenary reward per period]
-                if (!__inited)
-                {
-                    __lookup.insert(
-                        LookupMap::value_type("[mercenary reward per period]", 0x46));
-                }
-                else
-                {
-                    while (true)
-                    {
-                        period = ScanInt(&ok);
-                        if (!ok) break;
-                        rate = ScanFloat(&ok);
-                        if (!ok) return 0x50;
-                        out->m_vec14.push_back(std::make_pair(period, rate));
-                    }
-                    break;
-                }
-                /* fall through（+0x5b9 jmp +0x66c） */
-            case 0x57:                      // [mercenary reward avatar bonus]
-                if (!__inited)
-                {
-                    __lookup.insert(
-                        LookupMap::value_type("[mercenary reward avatar bonus]", 0x57));
-                }
-                else
-                {
-                    while (true)
-                    {
-                        avatarIdx = ScanInt(&ok);
-                        if (!ok) break;
-                        rate = ScanFloat(&ok);
-                        if (!ok) return 0x61;
-                        out->m_vec20.push_back(std::make_pair(avatarIdx, rate));
-                    }
-                    break;
-                }
-                /* fall through（+0x6c7 jmp +0x774） */
-            case 0x69:                      // [mercenary reward critical]
-                if (!__inited)
-                {
-                    __lookup.insert(
-                        LookupMap::value_type("[mercenary reward critical]", 0x69));
-                }
-                else
-                {
-                    if (!ScanStr(&out->m_str2c))
-                        return 0x6c;
-                    out->m_field3c = 0;
-                    while (true)
-                    {
-                        gold = ScanInt(&ok);
-                        if (!ok) break;
-                        rate = ScanFloat(&ok);
-                        if (!ok) return 0x77;
-                        out->m_field3c += gold;      // ORIG 累计和
-                        out->m_vec30.push_back(std::make_pair(gold, rate));
-                    }
-                    break;
-                }
-                /* fall through（+0x7c0 jmp +0x8a9） */
-            case 0x7f:                      // [competition area]
-                if (!__inited)
-                {
-                    __lookup.insert(
-                        LookupMap::value_type("[competition area]", 0x7f));
-                }
-                else
-                {
-                    stMercenaryCompetitionArea area;
-                    int groupIdSum = 0;              // ORIG -0x1c
-                    while (true)
-                    {
-                        if (!ScanType(sub, true))
-                            break;
-                        if (sub == "[reward group]")
-                        {
-                            stMercenaryRewardGroup group;
-                            group.m_groupId = ScanInt(&ok);
-                            groupIdSum += group.m_groupId;   // ORIG 先累加后检查 ok
-                            if (!ok) return 0x8f;
-                            if (!ScanStr(&group.m_name))
-                                return 0x92;
-                            while (true)
-                            {
-                                if (!ScanType(sub2, true))
-                                    return 0x97;
-                                if (sub2 == "[mob index]")
-                                {
-                                    index = ScanInt(&ok);
-                                    if (!ok) continue;
-                                    count = ScanInt(&ok);
-                                    if (!ok) return 0xa3;
-                                    group.m_field20 = group.m_field20 + count;   // group+0x20 累计（ORIG 两段物化）
-                                    group.m_mobList.push_back(std::make_pair(count, index));
-                                    continue;
-                                }
-                                if (sub2 == "[item index]")
-                                {
-                                    index = ScanInt(&ok);
-                                    if (!ok) continue;
-                                    count = ScanInt(&ok);
-                                    if (!ok) return 0xb3;
-                                    group.m_field24 = group.m_field24 + count;   // group+0x24 累计（ORIG 两段物化）
-                                    group.m_itemList.push_back(std::make_pair(count, index));
-                                    continue;
-                                }
-                                if (sub2 == "[/reward group]")
-                                {
-                                    area.m_groups.push_back(group);
-                                    break;
-                                }
-                            }
-                            continue;
-                        }
-                        if (sub == "[world map]")
-                        {
-                            area.m_worldMapIdx = ScanInt(&ok);  // ORIG 无 ok 检查
-                            continue;
-                        }
-                        if (sub == "[area level]")
-                        {
-                            area.m_areaLevel = ScanInt(&ok);    // ORIG 无 ok 检查
-                            continue;
-                        }
-                        if (sub == "[/competition area]")
-                        {
-                            area.m_groupIdSum = groupIdSum;
-                            out->m_vec40.push_back(area);
-                            break;
-                        }
-                        return 0xd1;
-                    }
-                    break;
-                }
-                /* fall through */
-            default:
-                break;
-            }
-
-            // ORIG LAB_089f795a 公共尾：注册链走完释放锁置位重派发；正常态下一轮。
-            if (!__inited)
-            {
-                __init_lock.leave();
-                __inited = true;
-            }
-            else
-                break;
-        }
-    }
-    return 0;
 }
 
 // ============================================================================

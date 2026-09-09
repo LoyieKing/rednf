@@ -71,6 +71,10 @@ namespace
 // expert_job::CAlchemist
 // ===========================================================================
 
+CDollController::CDollController()
+{
+}
+
 // ---- UseDelilah（报告 UseDelilah.md，ORIG T 0x085d18ae sz 0x33）----
 void CAlchemist::UseDelilah(CUser* user)
 {
@@ -439,10 +443,6 @@ int CDisjointer::OnUpgradeDisjointMachine(CUser* user)
 
 namespace expert_job
 {
-
-CDollController::CDollController()
-{
-}
 
 CDollController::~CDollController()
 {

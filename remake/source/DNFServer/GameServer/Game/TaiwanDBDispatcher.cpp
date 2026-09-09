@@ -49,6 +49,13 @@ char* NumberToString(unsigned int value, int radix);
 // ORIG T 0x0846c0a8（定义 GameUtils.cpp:88）
 bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime, long lCurTime);
 
+// ---- TaiwanDBDispatcher ----
+
+TaiwanDBDispatcher::TaiwanDBDispatcher()
+{
+    m_dispatchers.clear();   // ORIG @0x0815a134：map::map + map::clear
+}
+
 // ---- DB* 子类最小实现（仅基类 ctor + vptr；业务方法不在本批）----
 
 LoadServiceRestrictPolicy::LoadServiceRestrictPolicy() throw()
@@ -250,13 +257,6 @@ TaiwanInterfaceDBDispatcher::~TaiwanInterfaceDBDispatcher()
 TaiwanInternalPack::T TaiwanInterfaceDBDispatcher::getCode() const
 {
     return m_code;
-}
-
-// ---- TaiwanDBDispatcher ----
-
-TaiwanDBDispatcher::TaiwanDBDispatcher()
-{
-    m_dispatchers.clear();   // ORIG @0x0815a134：map::map + map::clear
 }
 
 TaiwanDBDispatcher::~TaiwanDBDispatcher()

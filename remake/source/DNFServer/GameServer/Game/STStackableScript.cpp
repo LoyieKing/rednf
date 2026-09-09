@@ -2476,6 +2476,13 @@ break;
                 if (!ok)
                     break;
                 item.m_addInfo = static_cast<unsigned short>(ScanInt((bool*)0));
+                // ORIG 0x089b46b3..0x089b46cc：type 0/1 的两字节追加扫描在
+                // 键值回填(0x089b46d2 起)之前。
+                if (type == 0 || type == 1)
+                {
+                    item.m_avatarType = static_cast<unsigned char>(ScanInt((bool*)0));
+                    item.m_avatarLevel = static_cast<unsigned char>(ScanInt((bool*)0));
+                }
                 item.m_byteA = (type == 4)
                     ? static_cast<unsigned char>(equipmentUpgrade) : 0;
                 item.m_byteB = 0;
@@ -2497,11 +2504,6 @@ break;
                         item.m_byteC = 1;
                         break;
                     }
-                }
-                if (type == 0 || type == 1)
-                {
-                    item.m_avatarType = static_cast<unsigned char>(ScanInt((bool*)0));
-                    item.m_avatarLevel = static_cast<unsigned char>(ScanInt((bool*)0));
                 }
                 items.push_back(item);
             }
@@ -2614,6 +2616,12 @@ break;
     {
         std::string val;   // ORIG 局部串槽 -0x156c（两次 ScanStr 复用）
         ScanStr(&val);
+        // 【判词·勿回改】本文件 9 处 `x ? 0 : 1` 三目（+0x2b0/+0x2bc/+0x2c4/
+        // +0x2d0/+0x2e4×2/+0x30c/+0x35c）ORIG 编成两分支各自 mov $0/$1 物化，
+        // 已实测改成 if/else 两分支写法后 **归一化**(去槽号/立即数) 差异确实下降，
+        // 但台账口径的 **raw 行级 ndiff 反弹 +716**（4.4 的 test/jne 取向与单点
+        // `mov %al,OFF` 收束在全局 difflib 对齐下反而更贴 ORIG）。按 raw 口径
+        // 保留三目原形；后续泳道勿再以 normalized 口径"优化"回去。
         script->m_recovery2b0.m_bAddMode = (val == "+") ? 0 : 1;
         script->m_recovery2b0.m_nValue1 = ScanInt(&ok);
         script->m_recovery2b0.m_nValue2 = ScanInt(&ok);
@@ -2680,15 +2688,7 @@ break;
             getExcepttionStatusToEnumValue(val);    // +0x2d8
         script->m_statusRecovery2d8.m_field8 = ScanInt(&ok);         // +0x2e0
         ScanStr(&token);
-        // ORIG 0x089b5219..0x089b5232：movl $0/$1,+0x2e4
-        if (token == "myself")
-        {
-            script->m_statusRecovery2d8.m_fieldC = 0;
-        }
-        else
-        {
-            script->m_statusRecovery2d8.m_fieldC = 1;
-        }
+        script->m_statusRecovery2d8.m_fieldC = (token == "myself") ? 0 : 1;  // +0x2e4
         script->m_statusRecovery2d8.m_field10 = 1;                           // +0x2e8
     }
     break;
@@ -2929,15 +2929,7 @@ break;
             getBuffToEnumValue(val);    // +0x304
         script->m_buff304.m_field4 = ScanInt(&ok);
         ScanStr(&val);
-        // ORIG 0x089b60aa..0x089b60c3：movl $0/$1,+0x30c
-        if (val == "myself")
-        {
-            script->m_buff304.m_field8 = 0;
-        }
-        else
-        {
-            script->m_buff304.m_field8 = 1;
-        }
+        script->m_buff304.m_field8 = (val == "myself") ? 0 : 1;
         script->m_buff304.m_fieldC = 1;
     }
     break;
@@ -2984,15 +2976,7 @@ break;
     script->m_statChange34c.m_fieldC = ScanInt(&ok);
     std::string val;   // ORIG 局部串槽 -0x15a8
     ScanStr(&val);
-    // ORIG 0x089b6319..0x089b6332：movl $0/$1,+0x35c
-    if (val == "myself")
-    {
-        script->m_statChange34c.m_field10 = 0;
-    }
-    else
-    {
-        script->m_statChange34c.m_field10 = 1;
-    }
+    script->m_statChange34c.m_field10 = (val == "myself") ? 0 : 1;
     script->m_statChange34c.m_field14 = 1;
     }
     break;
@@ -4374,8 +4358,8 @@ break;
                 int m_field0;
                 std::vector<std::pair<int, int> > m_vec4;
             };
-            // ORIG 0x089ba0fd：mov %edx,0x164(%eax) 单指令直写（不物化指针）。
-            *reinterpret_cast<int*>(&script->m_dyeInfo) = v;
+            DyeInfoView* dye = reinterpret_cast<DyeInfoView*>(&script->m_dyeInfo);
+            dye->m_field0 = v;
         }
     }
     break;

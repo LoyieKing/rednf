@@ -324,15 +324,6 @@ char* NumberToString(unsigned int value, int radix);  // ORIG _Z14NumberToString
 
 // ======== CLocalChinaErrorDispatcher ========
 
-CLocalChinaErrorDispatcher::_PacketErrorCheck::_PacketErrorCheck(bool antiAddiction, bool safeMode,
-                                                                 bool safeModeAfterLogin, bool lockSeriaRoom)
-{
-    m_antiAddiction = antiAddiction;
-    m_safeMode = safeMode;
-    m_safeModeAfterLogin = safeModeAfterLogin;
-    m_lockSeriaRoom = lockSeriaRoom;
-}
-
 // ORIG 0x8128c34：map 构造后按 ORIG 顺序插入 60 组命令检查开关。
 CLocalChinaErrorDispatcher::CLocalChinaErrorDispatcher()
 {
@@ -456,6 +447,15 @@ CLocalChinaErrorDispatcher::CLocalChinaErrorDispatcher()
                     _PacketErrorCheck(false, true, true, false)));
     m_checks.insert(std::make_pair((ENUM_CMDPACKET)0x104,
                     _PacketErrorCheck(false, true, true, false)));
+}
+
+CLocalChinaErrorDispatcher::_PacketErrorCheck::_PacketErrorCheck(bool antiAddiction, bool safeMode,
+                                                                 bool safeModeAfterLogin, bool lockSeriaRoom)
+{
+    m_antiAddiction = antiAddiction;
+    m_safeMode = safeMode;
+    m_safeModeAfterLogin = safeModeAfterLogin;
+    m_lockSeriaRoom = lockSeriaRoom;
 }
 
 // ORIG 0x8595094 W：仅析构 map。

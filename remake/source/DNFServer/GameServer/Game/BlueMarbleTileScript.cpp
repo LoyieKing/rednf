@@ -6,6 +6,12 @@
 
 #include "DNFLexWrapper.h"   // loadRDARScriptFile/ScanType/ScanStr/ScanInt
 
+// ORIG 0x88d5068：ctor 仅调 clear()。
+BlueMarbleTileScript::BlueMarbleTileScript()
+{
+    clear();
+}
+
 // ORIG 0x88d509c（0x16d 字节）逐分支转写：
 //   loadRDARScriptFile("", path) 失败 → 0；否则循环 ScanType：
 //   "[type]"→ScanStr 后 toType 写回 m_type；"[enter dungeon]"→ScanInt，
@@ -61,12 +67,6 @@ int BlueMarbleTileScript::toType(std::string type)
     if (type == "rope") return 0xc;
     if (type == "kick") return 0xd;
     return 0;
-}
-
-// ORIG 0x88d5068：ctor 仅调 clear()。
-BlueMarbleTileScript::BlueMarbleTileScript()
-{
-    clear();
 }
 
 // ORIG 0x88d507c：m_type=0、m_char4=0、m_value=0。

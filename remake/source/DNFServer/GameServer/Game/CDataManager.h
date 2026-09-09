@@ -3519,7 +3519,7 @@ public:
     void SetItemDropRate(float rate);
 
     // ---- PvP/排行 ----
-    int set_pvp_grade();
+    bool set_pvp_grade();  // [b28d-orig-bool] init 调用点 ORIG xor $1 形 ⇒ bool 返回
     int set_reward_sp();
     unsigned short getRankIndex(int idx);
     unsigned int getNewRankIndex(int idx) const;

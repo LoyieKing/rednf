@@ -14,6 +14,17 @@
 bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime,
                             long lCurTime);
 
+// [b28d-PoolMisc2 GI-q06 纯移位] TU 首符号需为 TOD_UserState 构造体外联定义
+// （ORIG T 0x08643460）⇒ 定义块整体上移至本 TU 第一个发射位置（类声明来自上方
+// DataManagerInitDepends.h，空体无额外依赖）。file-scope 对象声明序一字未动。
+// ORIG T 0x8643460：charac_expand::CData ctor 后写本类 vptr，再 call
+// SIG_REQUEST_TOD_USER_STATE::C1(this+0x8)（0x08491f68）——其构造对数据区
+// +0xc（即内嵌 m_data.m_todayLayer）以 TOD_Layer(0) 初始化，其余字段不动。
+// 以真实内嵌成员 m_data 建模 ⇒ 编译器发 call SIG::C1，与 ORIG 汇编同构。
+TOD_UserState::TOD_UserState()
+{
+}
+
 
 // ---- RecoveryInfo（ORIG W 0x088f9346：push ebp / mov esp,ebp / pop ebp / ret，
 //      即空体析构；vector<RecoveryInfo> 元素销毁触发）----
@@ -78,13 +89,6 @@ void TOD_UserState::_reset()
     m_data.m_lastClearTime = 0;
 }
 
-// ORIG T 0x8643460：charac_expand::CData ctor 后写本类 vptr，再 call
-// SIG_REQUEST_TOD_USER_STATE::C1(this+0x8)（0x08491f68）——其构造对数据区
-// +0xc（即内嵌 m_data.m_todayLayer）以 TOD_Layer(0) 初始化，其余字段不动。
-// 以真实内嵌成员 m_data 建模 ⇒ 编译器发 call SIG::C1，与 ORIG 汇编同构。
-TOD_UserState::TOD_UserState()
-{
-}
 // ORIG T 0x086435ca const：
 //   pData+0xe←this+0x16 / pData+0xc←this+0x14 / pData+4←this+0xc /
 //   pData+8←this+0x10 / pData+0x10←this+0x18 / pData+0x14←this+0x1c

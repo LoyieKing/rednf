@@ -20,6 +20,10 @@
 
 extern CDataManager* G_CDataManager();
 
+CPvPLiveEventData::CPvPLiveEventData()
+{
+}
+
 // [b28d-20] ORIG 0x0826921c 逐条对齐：①无 dm/字符串指针/group/characNo 具名局部（P0：
 // G_CDataManager() 每消费点重发；findString 结果直传 strncpy 实参）；②计数比较用正向包裹
 // `if (m_playCount == GetPlayCount()) { 主体 }` 复现 ORIG sete+je 物化（负形 setne+jne 反极性）；
@@ -74,11 +78,6 @@ void CPvPLiveEventData::IncreasePlayCount(CUser* user)
             }
         }
     }
-}
-
-
-CPvPLiveEventData::CPvPLiveEventData()
-{
 }
 
 bool CPvPLiveEventData::loadData(CUser* /*user*/, char* buffer)

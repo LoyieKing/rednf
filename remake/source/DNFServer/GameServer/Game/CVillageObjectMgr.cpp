@@ -9,15 +9,15 @@
 namespace village_object
 {
 
-Zone::Zone(unsigned char a, unsigned char b)
-    : m_a(a)
-    , m_b(b)
-{
-}
-
 // ORIG 0x86b6f30：仅默认构造成员 std::map<Zone, list<IObject*>> m_objects。
 CVillageObjectMgr::CVillageObjectMgr()
     : m_objects()
+{
+}
+
+Zone::Zone(unsigned char a, unsigned char b)
+    : m_a(a)
+    , m_b(b)
 {
 }
 

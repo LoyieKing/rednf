@@ -38,6 +38,10 @@ public:
     unsigned short m_grownupBuff;  // +0xf
 } __attribute__((packed));
 
+// ORIG 0x84a7ff8 / 0x84a7ffe：均为纯 ret 空体（W 弱符号）。
+// （此前 ctor 定义暂置于 GlobalData.cpp，现随本 TU 统一收口。）
+CFatigueBatteryHandle::CFatigueBatteryHandle() {}
+
 // ORIG stFatigueBatteryConstantTable_t::stFatigueBatteryConstantTable_t() 0x0836f2cc
 // 指令序：word+0x1a4=1 → word+0x1a6=0 → word+0x1a8=0 → memset(this+0x12,0,0x191)
 // （词写与 memset 区间不相交，顺序保持 ORIG 形态）。+0x11 与 +0x1aa 保持未初始化。
@@ -263,7 +267,4 @@ short CFatigueBatteryHandle::ActiveFatigueBattery_EndLevel(CUser* user)
     return static_cast<short>(result);
 }
 
-// ORIG 0x84a7ff8 / 0x84a7ffe：均为纯 ret 空体（W 弱符号）。
-// （此前 ctor 定义暂置于 GlobalData.cpp，现随本 TU 统一收口。）
-CFatigueBatteryHandle::CFatigueBatteryHandle() {}
 CFatigueBatteryHandle::~CFatigueBatteryHandle() {}

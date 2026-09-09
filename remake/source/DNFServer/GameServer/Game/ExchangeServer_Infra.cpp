@@ -53,6 +53,12 @@ namespace exchange_server
 // A) CEpoll<CSession> —— ORIG 地址见 ExchangeServer.h 方法注释
 // ============================================================================
 
+// ---- 自由函数转发 ORIG 0x848f220/0x848f23c/0x848f258 ------------------------
+CACHE_CHARACTER_TYPE* AcquireCharacterMemory(int characNo)
+{
+    return GetInstanceCacheCharacterMgr()->AcquireCharacter(characNo);
+}
+
 // C1 0x84955c0（disasm 5346-5354）：仅基类 EpollHandler::EpollHandler()。
 template <>
 CEpoll<CSession>::CEpoll()
@@ -432,12 +438,6 @@ CCacheCharacterMgr* GetInstanceCacheCharacterMgr()
 {
     static CCacheCharacterMgr instance;
     return &instance;
-}
-
-// ---- 自由函数转发 ORIG 0x848f220/0x848f23c/0x848f258 ------------------------
-CACHE_CHARACTER_TYPE* AcquireCharacterMemory(int characNo)
-{
-    return GetInstanceCacheCharacterMgr()->AcquireCharacter(characNo);
 }
 
 void FreeCharacterMemory(CACHE_CHARACTER_TYPE* mem)

@@ -30,6 +30,17 @@
 #include "DB_ReqSaveHackUserPunish.h"
 #include "W6_HackPunishDeps.h"
 
+bool Secu_AccountHacking::checkAccountHackingHackType(WongWork::ENUM_HACKTYPE type)
+{
+    // ORIG T 0x08278a48（0x4f 字节）：线性 cmpl/je(jne) 判定，
+    // hacktype ∈ {0x2c6..0x2cb, 0x2cd} 返回 true，否则 false。（P45）
+    if (type == 0x2c6 || type == 0x2c7 || type == 0x2c8 ||
+        type == 0x2c9 || type == 0x2ca || type == 0x2cb ||
+        type == 0x2cd)
+        return true;
+    return false;
+}
+
 // ---- 静态概率表（ORIG .rodata 0x8b3e094 / 0x8b3e09c，objdump -s 实测）----
 static const short _S_HACK_CHECK_RATE_BY_PARTYCOUNT[4] = {100, 50, 33, 25};
 static const short _S_HACK_CHECK_RATE_BY_DIFFICULT[5] = {25, 20, 15, 10, 0};
@@ -1016,17 +1027,6 @@ void Secu_AccountHacking::sendAvatar(char const* name, unsigned int a)
         return;
     }
     return;
-}
-
-bool Secu_AccountHacking::checkAccountHackingHackType(WongWork::ENUM_HACKTYPE type)
-{
-    // ORIG T 0x08278a48（0x4f 字节）：线性 cmpl/je(jne) 判定，
-    // hacktype ∈ {0x2c6..0x2cb, 0x2cd} 返回 true，否则 false。（P45）
-    if (type == 0x2c6 || type == 0x2c7 || type == 0x2c8 ||
-        type == 0x2c9 || type == 0x2ca || type == 0x2cb ||
-        type == 0x2cd)
-        return true;
-    return false;
 }
 
 // ============================================================================

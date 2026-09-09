@@ -37,6 +37,12 @@
 #include <cstring>
 #include "cMyTraceNoop.h"
 
+GrowthEquipEvent::GrowthEquipEvent()
+{
+    // ORIG：CEventBase() 置基类 vptr 与 stADDINFO/+0x08 flag 后写本类 vptr；
+    // 无自有成员，编译器生成的基类调用 + vptr 赋值即为忠实还原。
+}
+
 // ============================================================================
 // GrowthEquipEvent::SelectGrowthWeapon @ 0x080f73be
 // 使用成长武器道具（Dispatcher_UseBoosterItem::_onBoosterItemUseResult_OnlyOne）：
@@ -207,12 +213,6 @@ void GrowthEquipEvent::GiftGrowthWeaponBox(CUser& user) const
 // ============================================================================
 // 生命周期（vtable 全覆盖，保证本 TU 发出的 _ZTV16GrowthEquipEvent 可解析）
 // ============================================================================
-GrowthEquipEvent::GrowthEquipEvent()
-{
-    // ORIG：CEventBase() 置基类 vptr 与 stADDINFO/+0x08 flag 后写本类 vptr；
-    // 无自有成员，编译器生成的基类调用 + vptr 赋值即为忠实还原。
-}
-
 GrowthEquipEvent::~GrowthEquipEvent()
 {
     // ORIG D1：恢复本类 vptr 后调 CEventBase::~CEventBase()。

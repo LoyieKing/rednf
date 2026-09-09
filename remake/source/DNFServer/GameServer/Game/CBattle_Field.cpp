@@ -48,6 +48,11 @@ struct CDataManager_UltimateArr_proxy
 // 小访问器（ORIG 弱符号，直接读反汇编实现）
 // ============================================================================
 
+void CBattle_Field::SetTournamentCurRound(int round)
+{
+    m_tournamentCurRound = round;
+}
+
 void CBattle_Field::SetParty(CParty* party)
 {
     m_party = party;
@@ -416,11 +421,6 @@ bool CBattle_Field::setBloodState(ENUM_BLOOD_STATE state)
 int CBattle_Field::GetTournamentCurRound()
 {
     return m_tournamentCurRound;
-}
-
-void CBattle_Field::SetTournamentCurRound(int round)
-{
-    m_tournamentCurRound = round;
 }
 
 char CBattle_Field::IsFirstEnterDungeon()

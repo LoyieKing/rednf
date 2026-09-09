@@ -56,25 +56,6 @@ const float kPercentDivisor = 100.0f;   // _DAT_08b7507c
 // 生命周期
 // ============================================================================
 
-// stRewardItem_t ctor（ORIG W 0x081519b6）：构造 10 个 Inven_Item
-// （ORIG 为编译器对 Inven_Item m_items[10] 数组成员的自动构造，body 为空）。
-CBossPlay::stRewardItem_t::stRewardItem_t()
-{
-}
-
-// Ctor（ORIG W 0x081519ec）：置 vptr（编译器自动），构造 4 个 stRewardItem_t 块
-// （编译器在进入函数体前自动调用 stRewardItem_t ctor），再调 reset()。
-CBossPlay::CBossPlay()
-{
-    reset();
-}
-
-// Dtor（ORIG W 0x08151a3a）：置 vptr 后调 reset()。
-CBossPlay::~CBossPlay()
-{
-    reset();
-}
-
 // ============================================================================
 // reset（ORIG 0x08149120）
 // ============================================================================
@@ -99,6 +80,25 @@ void CBossPlay::reset()
     }
     memset(m_useItemCount, 0, sizeof(m_useItemCount));
     memset(m_memberField, 0, sizeof(m_memberField));
+}
+
+// stRewardItem_t ctor（ORIG W 0x081519b6）：构造 10 个 Inven_Item
+// （ORIG 为编译器对 Inven_Item m_items[10] 数组成员的自动构造，body 为空）。
+CBossPlay::stRewardItem_t::stRewardItem_t()
+{
+}
+
+// Ctor（ORIG W 0x081519ec）：置 vptr（编译器自动），构造 4 个 stRewardItem_t 块
+// （编译器在进入函数体前自动调用 stRewardItem_t ctor），再调 reset()。
+CBossPlay::CBossPlay()
+{
+    reset();
+}
+
+// Dtor（ORIG W 0x08151a3a）：置 vptr 后调 reset()。
+CBossPlay::~CBossPlay()
+{
+    reset();
 }
 
 // ============================================================================

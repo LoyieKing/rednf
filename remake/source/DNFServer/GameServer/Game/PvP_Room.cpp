@@ -1932,6 +1932,9 @@ void PvP_Room::make_seat_info(char* buf, int seat)   // [b28c-16 SIGFIX] ORIG �
     // %ebx callee-saved 跨 3 次调用缓存（push 对 +2、`mov (%eax),%edx` 直落
     // outgoing 槽 vs 4.4 `mov…,%eax; mov %eax,…` 两段，N7/N18a），错误码/日志
     // 串/PRETTY 符号逐条一致。
+    // [b28d-t3-PoolBigThree] 121→**106**：else 段 `P_SEATS(seat)` 检查改正极性
+    // `!=0`（ORIG 0x085dbc6x `je 85dbc83` 零分支落尾岛、uid/geo fall-through，
+    // 旧 `==0` 形两分支体与 ORIG 错位）。残余 = N7/N18a callee-saved 缓存（上）。
     InterfacePacketBuf* local_18 = (InterfacePacketBuf*)buf;
     local_18->put_header(0, 0x2b);
     local_18->put_short(m_index);
@@ -1968,15 +1971,17 @@ void PvP_Room::make_seat_info(char* buf, int seat)   // [b28c-16 SIGFIX] ORIG �
         lock();
         local_18->put_byte(seat);
         local_18->put_byte(P_TEAMS(seat));
-        if (P_SEATS(seat) == 0)
-        {
-            local_18->put_short(0xffff);
-            local_18->put_byte(0);
-        }
-        else
+        // [b28d-t3-PoolBigThree] P59 块序：ORIG 0x085dbc6x `je 85dbc83`（零分支
+        // 落尾岛）非零分支 fall-through 直落 uid/geo ⇒ 正极性 `!= 0`。
+        if (P_SEATS(seat) != 0)
         {
             local_18->put_short((int)P_SEATS(seat)->get_unique_id() & 0xffff);
             local_18->put_byte((int)P_SEATS(seat)->isAllowLocationGeoState());
+        }
+        else
+        {
+            local_18->put_short(0xffff);
+            local_18->put_byte(0);
         }
         unlock();
     }
@@ -3167,13 +3172,18 @@ int PvP_Room::die_charac(CUser* victim, CUser* killer)
     PacketGuard local_4c;
     local_4c.put_header(0, 0x2e);
     local_4c.put_byte(local_30);
-    if (killer == 0)
+    // [b28d-t3-PoolBigThree] P59 块序：ORIG 0x085d95e? `test; je <L_m1>` 后
+    // **fall-through 即 get_user_seat 分支**（-1 岛后置 @0x085d9605），旧 `==0`
+    // 形把 -1 分支放在 fall-through ⇒ 整体与 ORIG 错位 8 行。改极性正向。
+    // （本件台账 74→本轮起点 113（solo 形参序真修后布局重排）→**93**；残余 =
+    // N82 槽号平移（-0x5c↔-0x1c 族）+ P75 装载时刻 + C2/C1 显示差。）
+    if (killer != 0)
     {
-        local_4c.put_byte(-1);
+        local_4c.put_byte(get_user_seat(killer));
     }
     else
     {
-        local_4c.put_byte(get_user_seat(killer));
+        local_4c.put_byte(-1);
     }
     local_4c.finalize(true);
     send_to_pvp(local_4c);
@@ -3218,6 +3228,14 @@ int PvP_Room::time_out(int* seats)
     //  - end_time 日志 3 实参 4.1 以 callee-saved 缓存（push 对），4.4 逐槽
     //    reload（+4 mov）。lock()/unlock() 调用点、模式分派、do-while 比较
     //    （jl/jle 方向）已逐段核对无语义缺口。
+    // [b28d-t3-PoolBigThree] **148→84**（本轮起点 148=官方 s408 现值；台账 330 为
+    // b28d 期快照）三修：①模式分派 if 链→**switch((int)mode)**（ORIG 0x085d9b81
+    // `cmp $1; jl; cmp $2; jle; sub $4; cmp $1; ja` 有符号直跳链实证，(int) 收窄复现
+    // jl/jle 非 jb/jbe）；②日志条件 `(x!=y)&&(x-y>=0)` 双条件→ `local_44 > local_48`
+    // （ORIG 0x085d9bf3 `test; jle` 单测，旧形产 js 域差岛）；③local_3d int→**bool**
+    // （ORIG 0x085d9c51 movb 直存 + 0x085d9cb5 movzbl/xor$1 取反物化，P248 档②）。
+    // 残余 84 = 4.1 sub+test 物化（0x085d9be5，4.4 恒 cmp 折叠）+ N76/N18a scaled
+    // 折叠 + N82 槽号 + C2/C1/重定位显示差。insn 365/367。
     if (m_battleEndFlag != 0)
     {
         return 0;
@@ -3236,8 +3254,9 @@ int PvP_Room::time_out(int* seats)
     // 数均不合）；日志条件 ORIG 0x085d9be5 `sub; test %eax; jle <skip>` 单测
     // ⇒ 合并 `!= && >=0` 双条件为 `>`（原形 js 与 ORIG jle 在 ==0 值域分叉，
     // 真语义修正候选：ORIG 对 limit==elapsed 走 skip，旧形经 && 折叠同结果，
-    // 但物化形 js 域差 -2^31，见判词）。
-    switch (m_pvpBattleMode)
+    // 但物化形 js 域差 -2^31，见判词）。（int) 收窄比较域 ⇒ 复现 ORIG 有符号
+    // jl/jle（unsigned 形 4.4 恒 jb/jbe；值域 0..5 下转换不改语义）。
+    switch ((int)m_pvpBattleMode)
     {
     case 1:
     case 2:
@@ -3257,12 +3276,14 @@ int PvP_Room::time_out(int* seats)
     {
         return 0x13;
     }
-    int local_3d = 1;
+    // [b28d-t3-PoolBigThree] P248 档②：ORIG 0x085d9c51/0x085d9c7b `movb $1/$0,-0x39`
+    // + 0x085d9cb5 `movzbl; xor $1; test; je` ⇒ bool 局部（int 形反产 movl+cmpl/jne）。
+    bool local_3d = true;
     for (int local_3c = 0; local_3c < 7; local_3c = local_3c + 1)
     {
         if (seats[local_3c] != seats[local_3c + 1])
         {
-            local_3d = 0;
+            local_3d = false;
             break;
         }
     }

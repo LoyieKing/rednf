@@ -1063,6 +1063,26 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
 //   删我方伪造的两条 `movl $0,-0x5c/-0x60`。残 = 相邻四数组零初始化合并
 //   （ORIG 0x08620a43 一次 rep stos 0x400 dwords 覆盖 4×1024B；4.4 分开清，
 //   实测加 `={0}` 反致 +3 rep stos ⇒ N78 封顶，保持 3 数组初始化原形）。
+// [b28d-tu-CItemList] 真结构修正 + 块序翻案：ndiff 660→57，三数不变。
+//   ① 缓冲重构（真语义）：前判「四数组一次 rep stos」系误——ORIG
+//     0x08620a43 单条 rep stos 0x400 dwords = **一块 4KB escBuf**（基
+//     -0x1870），GetEscapeString 四调用 dst = +0/+0x400/+0x800/+0xc00
+//     （0x08620be6/0c3f/0cab/2215）；原六独立 1KB 数组系 Ghidra 镜像误读
+//     ⇒ 改 3 缓冲形（escBuf 4KB + ac/b4 两个 1KB，b4 缓冲声明在两 if 之间
+//     复现 ORIG memset 位次）。
+//   ② ep==0/ep!=0 整块换位 + 条件翻 `if (ep != 0)`：ORIG 0x08620cc7
+//     `cmpl $0x0,-0x20; je <ep==0 远块>`，原负极性形致 ~600 行 difflib
+//     位移 ⇒ 单此一件 625→61。
+//   ③ 出参槽序：声明序改 `int out2; int out1;`（ORIG out2@-0x60/out1@
+//     -0x64，4.4 先声明占浅槽）⇒ @@@21-46/@@215 五块归零。
+//   ④ moduleKey 声明提前（赋值原位复现 ORIG `movl $0x13,-0x38` 位次）：
+//     槽 -0x64→-0x5c，距 ORIG -0x38 尚差 8 槽位 ⇒ 4.1 浅区碎片 gap
+//     （-0x28..-0x34/-0x3c..-0x54 空置）4.4 恒紧凑分配，N82/N95 封顶。
+//   残 57 行 = ④ 槽差 4B 级联（pf/temp 8 块）+ escDst2/dst4 预计算两段形
+//   （ORIG `lea base; lea +0x400,%ebx` callee-saved 跨 call，4.4 用点后
+//   `lea+add` ⇒ N86b）+ `mov 0x10(%eax),%eax; mov %eax,%ebx` 两段中转 ×2
+//   （N18a）+ 尾 fc 析构/EH landing 块序与 `return` bool xor 岛（`== true`
+//   形实测被 4.4 折叠，N104）。p167 复验 309/309 CLEAR。
 bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
 {
     // 依据 docs/class_func_reports/sync_script__CSyncScript/
@@ -1654,13 +1674,23 @@ bool CItemList::insert_item(int group, int idx, CItem* item)
     // [b28d-20] P167：ORIG 调用 operator==（无 ne）；[b28d-solo] 改正向早返守卫：
     //   ORIG 0x081fxxxx `test %al,%al; je <fail 块 +0x154>`（无 xor$1 物化）⇒
     //   源码为 `if (it == end()) { fail; return false; }` 正极性形（P59/P222）。
-    // [b28d-tu-CItemList] 块序翻案（P222 直证）：ORIG 0x08511341-0x08511343
-    //   `test %al,%al; je 0x085113f2`，目标块 = logFormat("Insert Fail")+
-    //   mov $0 返回 ⇒ 相等时跳 fail、主路径为 fall-through，且**无 xor$1**
-    //   （4.4 对 `!(call==0)` 恒折跳转极性，实测无异或物化）。原 `if (it ==
-    //   end()){fail}` 形让 4.4 把 fail 块内联在前 ⇒ 42 行块位移；`it !=
-    //   end()` 形会改调 ne（ORIG 无 _Ne 符号，触铁律）⇒ 取 `!( == )` 形。
-    if (!(it == m_gradeItemList[group].end()))
+    // [b28d-tu-CItemList] 块序三形实测（并列读数，均不可兼得）：
+    //   ① 本形 `if (it==end()){fail;return false;} {main}`：test/je 同 ORIG
+    //     0x08511341、无 xor，但 4.4 把 fail 块内联主段前 ⇒ 42 行块位移，
+    //     ndiff 123/gap 1（**最优，保持**）；
+    //   ② `if (!(it==end())){main}fail`：4.4 生 `xor $1,%eax` 物化（ORIG 无）
+    //     + 全函数位移，ndiff 123→400 反劣；
+    //   ③ `if (it!=end()){main}fail`：改调 iterator::ne ⇒ 发明 ORIG 无的
+    //     `_Ne` 符号，触铁律1，弃。
+    //   ORIG（4.1）fail@+0x154 后置 = 4.1 块布局启发（热路径前置），4.4 不可
+    //   从源码复现 ⇒ N104 封顶。
+    if (it == m_gradeItemList[group].end())
+    {
+        LogManager::logFormat(1, "item.cpp",
+            __PRETTY_FUNCTION__, 0x81f,
+            "Insert Fail Item Group[%d] Index: %d", group, idx);
+        return false;
+    }
     {
         m_gradeItemList[group].insert(std::pair<const int, CItem*>(idx, item));
         m_itemMap.insert(std::pair<const int, CItem*>(idx, item));
@@ -1697,12 +1727,8 @@ bool CItemList::insert_item(int group, int idx, CItem* item)
                             *(int*)&key, inner));
             }
         }
-        return true;
     }
-    LogManager::logFormat(1, "item.cpp",
-        __PRETTY_FUNCTION__, 0x81f,
-        "Insert Fail Item Group[%d] Index: %d", group, idx);
-    return false;
+    return true;
 }
 
 bool CItemList::init()
@@ -1904,6 +1930,18 @@ bool CItemList::load_item_files()
 // [b28d-solo-CItemList] DIFF | p167 CLEAR（37/37）；残 N82/N95：帧差 0x10
 //   （ORIG 0x13c / 我方 0x14c）+ shopList 基址槽 -0x114/-0x120 平移 0xc，
 //   局部集合与调用位次逐条一致，属 4.4 槽基/outgoing 预留族 ⇒ 封顶。
+// [b28d-tu-CItemList] 真语义修正 ×2（ndiff 260→242，p167 37/37 CLEAR 复验）：
+//   ① `int value = 0;`：ORIG 0x085125d6 在 item 槽写入后、分支前发
+//     `movl $0x0,-0x28(%ebp)` ⇒ 原码带零初始化（原重构漏，else 短路路径
+//     会读脏栈）。
+//   ② lotto insert key/value 对调：ORIG 0x08512865
+//     `make_pair<unsigned long&,int&>` 实参槽 `0x4(%esp)=&+0x14`（key=
+//     itemIdx 的 unsigned long 别名）、`0x8(%esp)=&+0x10`（value=
+//     subGroupIdx）⇒ 正确形 make_pair((unsigned long&)m_field14,
+//     (int&)m_field10)，原写反（真行为差，非纯 codegen）。
+//   残 242 = 全函数 0xc 槽基平移：ORIG 把 icon/name（callee-saved ebx/esi
+//   跨 call）与三个实参暂存免槽，4.4 恒槽化 ⇒ 局部集 +4 槽、shopList 基
+//   随对齐平移（N7/N95/N82 族）⇒ 维持封顶。
 bool CItemList::Load_Goods_File(const char* path)
 {
     // ORIG 形态：16 个 vector<STCeraShopItem> 桶；内层循环先缓存 count 与
@@ -2541,6 +2579,15 @@ int CCompound_ExtreamDun_Item::checkCompoundable(                   // ORIG T 0x
 //   0x0832cd74 found=-0x14）重排声明：outputRarity 前置、found 提到分支前。
 //   残 = 全帧槽基差 4（我方 -0x24 起，ORIG -0x28 起；帧同为 0x94）⇒ N95/N115
 //   （4.4 帧顶 8B gap/outgoing 预留，TU 级旗标，禁 pad 强凑）+ gap 5（除法链）。
+// [b28d-tu-CItemList] 真语义修正 ×2（range 颠倒）：第 2/3 处
+//   `_FindItemAll_BindSphere` 的 pair 实参原写 (baseLevel+5, +1) /
+//   (baseLevel+0xa, +6)，ORIG 0x0832cea2-0x0832ceb7 ctor 槽
+//   `+1→-0x3c→0x4(%esp)`(first)、`+5→-0x40→0x8(%esp)`(second) 与
+//   0x0832cf09-0x0832cf1e `+6→0x4`、`+0xa→0x8` ⇒ 正确形 = (+1,+5) / (+6,+10)
+//   （同 _exception_Rare 前轮修正形，本函数漏改）。p167 18/18 CLEAR 复验。
+//   残差 = 帧基 4B 漂移（N95 级联）+ 条件短路 bool 临时槽物化岛（ORIG
+//   `movl $0x0,-0x10` ×2，4.4 折叠，N7）+ `mov mem,%eax; test` 形 vs 4.4
+//   `cmpl $0x0,mem` 折形（N18a）。
 bool CCompound_ExtreamDun_Item::makeCompoundItem(                   // ORIG T 0x832ccc0
     const CEquipItem** refs, char select, Inven_Item& out, eBindSphereType bind)
 {

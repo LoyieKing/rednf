@@ -138,22 +138,6 @@ static const char g_dbgCmdPrettyClearAvtInven[] =
     } while (0)
 
 // ===========================================================================
-// 1. _debugCommandOff —— 0x0858e918
-// ===========================================================================
-// [b28d-solo-DisPatcher_DebugCommand_cmds] AE：isGm 局部内联为 P168a① bool 裸形
-// （ORIG `call isGMUser; xor $1; test %al; je`）+ DBG_TRACE 改 P227 全表达式临时链。
-bool DisPatcher_DebugCommand::_debugCommandOff(CUser* user,
-                                               MSG_DEBUG_COMMAND& /*msg*/)
-{
-    // P168a①：ORIG `call isGMUser; xor $1; test %al; je <成功块>` ⇒ bool callee 裸形。
-    if (!user->isGMUser())
-        return false;
-    DBG_TRACE(g_dbgCmdPrettyOff, 0x41, "%s:'%s' GM Mode OFF.");
-    user->SetGameMasterMode(false);             // +0x94 SetGameMasterMode(0)
-    return true;
-}
-
-// ===========================================================================
 // 2. _debugCommandOn —— 0x0858e724（无 GM 门禁，分级在 dispatch_sig）
 // ===========================================================================
 // [b28d-solo-DisPatcher_DebugCommand_cmds] AE：DBG_TRACE 全表达式链 + getCurCharacR
@@ -186,6 +170,22 @@ bool DisPatcher_DebugCommand::_debugCommandOn(CUser* user,
         return true;                            // +0x1b7 ret 1
     }
     return false;
+}
+
+// ===========================================================================
+// 1. _debugCommandOff —— 0x0858e918
+// ===========================================================================
+// [b28d-solo-DisPatcher_DebugCommand_cmds] AE：isGm 局部内联为 P168a① bool 裸形
+// （ORIG `call isGMUser; xor $1; test %al; je`）+ DBG_TRACE 改 P227 全表达式临时链。
+bool DisPatcher_DebugCommand::_debugCommandOff(CUser* user,
+                                               MSG_DEBUG_COMMAND& /*msg*/)
+{
+    // P168a①：ORIG `call isGMUser; xor $1; test %al; je <成功块>` ⇒ bool callee 裸形。
+    if (!user->isGMUser())
+        return false;
+    DBG_TRACE(g_dbgCmdPrettyOff, 0x41, "%s:'%s' GM Mode OFF.");
+    user->SetGameMasterMode(false);             // +0x94 SetGameMasterMode(0)
+    return true;
 }
 
 // ===========================================================================

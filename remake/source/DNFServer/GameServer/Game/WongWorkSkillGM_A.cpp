@@ -27,6 +27,12 @@
 namespace WongWork
 {
 
+// ORIG T 0x0810933c loadGMAccounts(char const*)：恒返回 1。
+int CGMAccounts::loadGMAccounts(char const* /*path*/)
+{
+    return 1;
+}
+
 // ============================================================================
 // ORIG T 0x08609d10 CheckCondition(CUser const*)
 // exp < get_level_exp(level) || get_level_exp(level+1) < exp → 不可执行
@@ -189,12 +195,6 @@ void CSkillChanger::_CountQuestSPBook(const CUser* user, int& a, int& b,
 // ============================================================================
 // CGMAccounts 三缺失成员
 // ============================================================================
-
-// ORIG T 0x0810933c loadGMAccounts(char const*)：恒返回 1。
-int CGMAccounts::loadGMAccounts(char const* /*path*/)
-{
-    return 1;
-}
 
 // ORIG T 0x081093ee appendGM(unsigned,unsigned)：恒返回 0。
 int CGMAccounts::appendGM(unsigned int /*mid*/, unsigned int /*type*/)

@@ -26,6 +26,12 @@
 // getDailyInitializeTime：定义 GameUtils.cpp（DB_LoadEtc.cpp 已声明）。
 int getDailyInitializeTime(int hour, int min, int sec);
 
+// [b28d-PoolMisc2 GI-q06 纯移位] TU 首符号需为 CTrcOnOffEvent 构造体外联定义
+// （ORIG 0x08285a44）⇒ 本定义块上移至本 TU 第一个发射位置。对象声明序一字未动，
+// 仅换定义块位置（构造序只由 file-scope 对象声明顺序决定）。
+// ---- CTrcOnOffEvent ----
+CTrcOnOffEvent::CTrcOnOffEvent() {}          // ORIG 0x08285a44
+
 // ============================ DB 依赖 ============================
 // [b28d-lane6] DIFF·N93/N82：槽号与块序（60 vs 63 条）。
 bool DB_LoadAutoMarketConditionsControl::makeRequest(bool flag)
@@ -45,8 +51,6 @@ bool DB_LoadAutoMarketConditionsControl::makeRequest(bool flag)
 // trace(msg)」同构（各报告反编译一致）。构造/析构只置 vptr（编译器生成），
 // IsEventing 为基类透传。
 
-// ---- CTrcOnOffEvent ----
-CTrcOnOffEvent::CTrcOnOffEvent() {}          // ORIG 0x08285a44
 CTrcOnOffEvent::~CTrcOnOffEvent() {}         // ORIG 0x08285a60（D0 编译器生成）
 
 void CTrcOnOffEvent::StartEvent()            // ORIG 0x08285aae

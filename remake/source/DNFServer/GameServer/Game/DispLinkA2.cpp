@@ -1010,16 +1010,16 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         {
             if (user->getUpgradeSeparateTrueFlag() == 0)
             {
-                char ok[4];
-                ok[0] = 'o'; ok[1] = 'k'; ok[2] = '\0'; ok[3] = '\0';
+                // ORIG 0x0820e530/0x0820e58c：数组以 `movl $imm` + `movb $0`
+                // 共 5 字节一次初始化 ⇒ 源形是定长 char[5] 字符串初始化器。
+                char ok[5] = "ok";
                 user->setUpgradeSeparateTrueFlag(1);
                 user->setUpgradeSeparateFalseFlag(0);
                 std::sprintf(b, "sep upgrade success - %s", ok);
             }
             else
             {
-                char end[5];
-                end[0] = 'e'; end[1] = 'n'; end[2] = 'd'; end[3] = '\0'; end[4] = '\0';
+                char end[5] = "end";
                 user->setUpgradeSeparateTrueFlag(0);
                 std::sprintf(b, "sep upgrade success - %s", end);
             }
@@ -1028,16 +1028,14 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         {
             if (user->getUpgradeSeparateFlaseFlag() == 0)
             {
-                char ok[4];
-                ok[0] = 'o'; ok[1] = 'k'; ok[2] = '\0'; ok[3] = '\0';
+                char ok[5] = "ok";
                 user->setUpgradeSeparateTrueFlag(0);
                 user->setUpgradeSeparateFalseFlag(1);
                 std::sprintf(b, "sep upgrade fail - %s", ok);
             }
             else
             {
-                char end[5];
-                end[0] = 'e'; end[1] = 'n'; end[2] = 'd'; end[3] = '\0'; end[4] = '\0';
+                char end[5] = "end";
                 user->setUpgradeSeparateFalseFlag(0);
                 std::sprintf(b, "sep upgrade fail - %s", end);
             }
@@ -1143,8 +1141,10 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     // ---- ulti max ----
     else if (args[0] == "ulti" && args[1] == "max")
     {
-        int v = G_CDataManager()->get_limit_inout_count((ENUM_BLOOD_TYPE)2);
-        user->setUltimateInoutValue(2, v);
+        // ORIG 0x0820f04a..0x0820f074：G_CDataManager()->get_limit_inout_count(2)
+        // 的 char 返回值经 movsbl 直接落 0x8(%esp)，不物化中间变量。
+        user->setUltimateInoutValue(
+            2, G_CDataManager()->get_limit_inout_count((ENUM_BLOOD_TYPE)2));
         {
             std::string s("Add ultimate inout max count!!");
             A2_SEND_STR(user, s);
@@ -1153,10 +1153,12 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     // ---- dimen max ----
     else if (args[0] == "dimen" && args[1] == "max")
     {
-        for (int i = 0; i < 6; ++i)
+        // ORIG 0x0820f26d..0x0820f2c4：循环条件为 `i <= 5`（cmpl $0x5 / setle），
+        // 且 get_dimensionInout 的 char 返回值经 movsbl 直接进实参槽，无中间变量。
+        for (int i = 0; i <= 5; ++i)
         {
-            int v = G_CDataManager()->get_dimensionInout(i);
-            user->setDemensionInoutValue(static_cast<char>(i), v);
+            user->setDemensionInoutValue(static_cast<char>(i),
+                                         G_CDataManager()->get_dimensionInout(i));
         }
         {
             std::string s("Add dimension inout max count!!");
@@ -1404,26 +1406,27 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
         int itemIdx = pItem->get_index();
         int count = 100;
-        if (pItem->is_stackable() &&
-            static_cast<CStackableItem*>(pItem)->getStackableLimit() < count)
+        if (pItem->is_stackable())
         {
-            count = static_cast<CStackableItem*>(pItem)->getStackableLimit();
+            if (static_cast<CStackableItem*>(pItem)->getStackableLimit() < count)
+            {
+                count = static_cast<CStackableItem*>(pItem)->getStackableLimit();
+            }
         }
         ENUM_ITEMSPACE space = (ENUM_ITEMSPACE)0;
         int slot = user->AddItem(itemIdx, count, (eItemAddReason)6, space, 0);
-        if (slot < 0)
+        // ORIG 0x0821071f `js` 到公共返回尾；正路径整体包在 if (slot >= 0) 内，
+        // 两条路径都返回 0。先 getCurCharacName（%edi）再 get_acc_id→NumberToString
+        // （%esi），最后构造 cMyTrace。
+        if (slot >= 0)
         {
-            return 0;
-        }
-        {
+            const char* name = user->getCurCharacName();
             char* accIdStr = NumberToString(user->get_acc_id(), 0);
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0xb916, 0);
-            trace("%s:\'%s\' GM Mode Add Item(%d).", accIdStr,
-                  user->getCurCharacName(), slot);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0xb916, 0);
+            trace("%s:\'%s\' GM Mode Add Item(%d).", accIdStr, name, slot);
+            user->SendUpdateItemList(CUser::eSendTarget_1, space, slot);
         }
-        user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, slot);
+        return 0;
     }
     // ---- itemskill ----
     else if (args[0] == "itemskill")
@@ -1534,29 +1537,31 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
         int idx = pItem->get_index();
         int count = 100;
-        if (pItem->is_stackable() &&
-            static_cast<CStackableItem*>(pItem)->getStackableLimit() < count)
+        if (pItem->is_stackable())
         {
-            count = static_cast<CStackableItem*>(pItem)->getStackableLimit();
+            if (static_cast<CStackableItem*>(pItem)->getStackableLimit() < count)
+            {
+                count = static_cast<CStackableItem*>(pItem)->getStackableLimit();
+            }
         }
         ENUM_ITEMSPACE space = (ENUM_ITEMSPACE)0;
         int slot = user->AddItem(idx, count, (eItemAddReason)6, space, 0);
-        if (slot < 0)
+        // ORIG 0x08211546 `js` 到公共返回尾：正路径包在 if (slot >= 0) 内，
+        // 两条路径均返回 0（无提前 return）。
+        if (slot >= 0)
         {
-            return 0;
-        }
-        Inven_Item* ref = user->getCurCharacInvenRefW()->GetInvenRef(1, slot);
-        if (ref != 0)
-            ref->m_addInfo2 = std::atoi(args[2].c_str());   // +0x07 add_info
-        {
+            Inven_Item* ref = user->getCurCharacInvenRefW()->GetInvenRef(1, slot);
+            if (ref != 0)
+                ref->m_addInfo2 = std::atoi(args[2].c_str());   // +0x07 add_info
+            // ORIG 0x082115a9 先取角色名（留 %esi），再 get_acc_id → NumberToString
+            // （留 %ebx），最后才构造 cMyTrace。
+            const char* name = user->getCurCharacName();
             char* accIdStr = NumberToString(user->get_acc_id(), 0);
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0xb9fb, 0);
-            trace("%s:\'%s\' GM Mode Add Item(%d).", accIdStr,
-                  user->getCurCharacName(), slot);
+            cMyTrace trace(__PRETTY_FUNCTION__, 0xb9fb, 0);
+            trace("%s:\'%s\' GM Mode Add Item(%d).", accIdStr, name, slot);
+            user->SendUpdateItemList(CUser::eSendTarget_1, space, slot);
         }
-        user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, slot);
+        return 0;
     }
     // ---- moveavatar/mva ----
     else if (args[0] == "moveavatar" || args[0] == "mva")

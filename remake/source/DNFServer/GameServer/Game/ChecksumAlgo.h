@@ -20,13 +20,17 @@ class IChecksum
 public:
     virtual ~IChecksum();
 
+    // 声明顺序 = ORIG vtable 槽序（check_vtables.py 逐槽实证，_ZTV13CNChecksumMd5
+    // @ORIG：[2]Initialize [3]MakeChecksumFromMemory [4]MakeChecksumFromFile
+    // [5]ChecksumStart [6]ChecksumUpdate [7]ChecksumFinish [8]GetChecksumSize；
+    // 派生类槽全为 override ⇒ 序由基类声明决定，勿重排）。
+    virtual int  Initialize(unsigned char const* key, int keyLen) = 0;
+    virtual int  MakeChecksumFromMemory(unsigned char const* data, int len,
+                                        unsigned char* out, int outSize) = 0;
+    virtual int  MakeChecksumFromFile(char const* path, unsigned char* out, int outSize) = 0;
     virtual int  ChecksumStart() = 0;
     virtual int  ChecksumUpdate(unsigned char const* data, int len) = 0;
     virtual int  ChecksumFinish(unsigned char* out, int outSize) = 0;
-    virtual int  MakeChecksumFromFile(char const* path, unsigned char* out, int outSize) = 0;
-    virtual int  MakeChecksumFromMemory(unsigned char const* data, int len,
-                                        unsigned char* out, int outSize) = 0;
-    virtual int  Initialize(unsigned char const* key, int keyLen) = 0;
     virtual int  GetChecksumSize() const = 0;
 
 protected:

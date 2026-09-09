@@ -723,14 +723,13 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     // `if (!__inited) { insert(own tag); goto next-case-head }` 块，链式逐 tag 注册，
     // 末位 0x16d3 注册后跳链尾共享块（ORIG 0x5fc7）leave+置位并跳回重查；
     // 建表完成后 guard 短路，解析 body 尾走共享尾返回 true（ORIG break 形）。
+    std::string token;
+    int iv = -1;
+    float fv;
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static bool __inited = false;
     (void)idx;
-    std::string token;
-    std::string token2;
-    int iv;
-    float fv;
     int id;
  relaunch:
     if (__inited)

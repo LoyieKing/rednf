@@ -1228,12 +1228,13 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     PacketGuard packet;
     {
-        int grade = sig->m_pvpResult.m_pvpGrade;
-        if (!G_CDataManager()->IsAvailablePvPChannel(grade))
+        // [BigUserLogic] ORIG 0x084c02??：无 grade 局部（两处各自重取 sig+0x354，
+        // logFormat 实参为 43-44 的 mov -0x60;mov 0x354）。原 grade 槽产 store+load。
+        if (!G_CDataManager()->IsAvailablePvPChannel(sig->m_pvpResult.m_pvpGrade))
         {
             LogManager::logFormat(1, "InterDispatcher.cpp",
                 __PRETTY_FUNCTION__, 0xa9b,
-                "Inter_LoadEtc::dispatch_sig pvp_grade = %d", grade);
+                "Inter_LoadEtc::dispatch_sig pvp_grade = %d", sig->m_pvpResult.m_pvpGrade);
             return 0xa9c;
         }
     }
@@ -1247,11 +1248,13 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         if (!SetPvpRecord(user, sig)) return 0xaa2;
         if (!SetRankRecord(user, sig)) return 0xaa5;
 
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0xac5, 0);
-        trace("CharLastPlayTick char(%d) t(%d)",
-              (unsigned)sig->m_characNo,
-              (unsigned)user->getCurCharacR()->m_field7b);
+        // [BigUserLogic] ORIG 0x084c03xx：先物化 getCurCharacR()->+0x7b 与 sig+4
+        // 两实参，**再**构造 cMyTrace，后调 operator()。原写法把实参求值放到
+        // ctor 之后，指令序整体错位。
+        long playTick = user->getCurCharacR()->m_field7b;
+        unsigned charNo = (unsigned)sig->m_characNo;
+        cMyTrace trace(__PRETTY_FUNCTION__, 0xac5, 0);
+        trace("CharLastPlayTick char(%d) t(%d)", charNo, (unsigned)playTick);
 
         user->ProcPremiumFatigue();
         WongWork::CUserPremium* premium = user->GetPremiumInfo();
@@ -1274,19 +1277,18 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 
         typedef charac_expand::CData CDataAlias;
         {
-            CDataAlias* exp6 = static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(6)));
-            exp6->loadData(user, sig->m_expandData6);
-            CDataAlias* exp8 = static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(8)));
-            // [hc 收] ORIG 0x084bb9e2..：sig->m_mixedRegion 为 SIG_LOAD_ETC 载荷
+            // [BigUserLogic] ORIG 0x084c04c7+：GetCharacExpandData 结果留 %eax
+            // 直发虚调用（不 spill）。命名变量形会让 4.4 多 2 条槽往返，改嵌套单行。
+            static_cast<CDataAlias*>(user->GetCharacExpandData(
+                ENUM_CHARAC_EXPAND_TYPE(6)))->loadData(user, sig->m_expandData6);
+            // [hc 收] ORIG 0x08660ec4 区：sig->m_mixedRegion 为 SIG_LOAD_ETC 载荷
             // 线格式缓冲（§5.3 序列化缓冲豁免），+0x415 为该 expand-data 的固定布局
             // 偏移；loadData(user, ptr) 取地址直传，偏移为承载格式固有，seek 无漏。
-            exp8->loadData(user, sig->m_mixedRegion + 0x415);
-            CDataAlias* expD = static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(0xd)));
+            static_cast<CDataAlias*>(user->GetCharacExpandData(
+                ENUM_CHARAC_EXPAND_TYPE(8)))->loadData(user, sig->m_mixedRegion + 0x415);
             // [hc 收] +0xd58 同承载体 0xd 型 expand-data 布局偏移（§5.3 豁免）。
-            expD->loadData(user, sig->m_mixedRegion + 0xd58);
+            static_cast<CDataAlias*>(user->GetCharacExpandData(
+                ENUM_CHARAC_EXPAND_TYPE(0xd)))->loadData(user, sig->m_mixedRegion + 0xd58);
         }
 
         int tagIdx = user->get_charac_idx(sig->m_fieldC);
@@ -1305,32 +1307,27 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             sig->m_mixedRegion[0xd3b] = 0;
 
         {
-            CDataAlias* expB = static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(0xb)));
             // [hc 收] +0xbe7 / +0xd3c 同承载体 0xb/0xa 型 expand-data 布局偏移
             // （§5.3 线格式序列化缓冲豁免，ORIG loadData 实参即固定偏移）。
-            expB->loadData(user, sig->m_mixedRegion + 0xbe7);
-            CDataAlias* expA = static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(10)));
-            expA->loadData(user, sig->m_mixedRegion + 0xd3c);
-            CDataAlias* exp10 = static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(0x10)));
-            exp10->loadData(user, sig->m_mixedRegion + 0xd7c);
-            CDataAlias* expE = static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(0xe)));
-            expE->loadData(user, sig->m_expandDataE);
-            CDataAlias* expF = static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(0xf)));
-            expF->loadData(user, sig->m_expandDataF);
-            CDataAlias* exp11 = static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(0x11)));
-            exp11->loadData(user, sig->m_mixedRegion + 0x2308);
-            CDataAlias* exp12 = static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(0x12)));
-            exp12->loadData(user, sig->m_mixedRegion + 0x2310);
-            CDataAlias* exp13 = static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(0x13)));
-            exp13->loadData(user, reinterpret_cast<char*>(sig->m_attendanceEvent.m_pad + 1));
+            static_cast<CDataAlias*>(user->GetCharacExpandData(
+                ENUM_CHARAC_EXPAND_TYPE(0xb)))->loadData(user, sig->m_mixedRegion + 0xbe7);
+            static_cast<CDataAlias*>(user->GetCharacExpandData(
+                ENUM_CHARAC_EXPAND_TYPE(10)))->loadData(user, sig->m_mixedRegion + 0xd3c);
+            static_cast<CDataAlias*>(user->GetCharacExpandData(
+                ENUM_CHARAC_EXPAND_TYPE(0x10)))->loadData(user, sig->m_mixedRegion + 0xd7c);
+            static_cast<CDataAlias*>(user->GetCharacExpandData(
+                ENUM_CHARAC_EXPAND_TYPE(0xe)))->loadData(user, sig->m_expandDataE);
+            static_cast<CDataAlias*>(user->GetCharacExpandData(
+                ENUM_CHARAC_EXPAND_TYPE(0xf)))->loadData(user, sig->m_expandDataF);
+            static_cast<CDataAlias*>(user->GetCharacExpandData(
+                ENUM_CHARAC_EXPAND_TYPE(0x11)))->loadData(user, sig->m_mixedRegion + 0x2308);
+            static_cast<CDataAlias*>(user->GetCharacExpandData(
+                ENUM_CHARAC_EXPAND_TYPE(0x12)))->loadData(user, sig->m_mixedRegion + 0x2310);
+            // [BigUserLogic] ORIG 0x084c09?? 单条 `add $0x14a9a,%edx`：实参直接用
+            // sig 基址+常量（m_attendanceEvent(+0x14a99)+1 的写法产两条 add）。
+            static_cast<CDataAlias*>(user->GetCharacExpandData(
+                ENUM_CHARAC_EXPAND_TYPE(0x13)))->loadData(
+                user, reinterpret_cast<char*>(sig) + 0x14a9a);
         }
 
         // §4.3 具名化：m_expandDataF(+0xb1a4)+0x1804 = +0xc9a8 =
@@ -1399,9 +1396,10 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                     // ORIG:基线读取与 getInitSkillTreeGrade 调用各自重取 G_CDataManager()。
                     unsigned char initBase =
                         (unsigned char)G_CDataManager()->m_pvpSkillTree.m_field50;
-                    int initGrade =
-                        G_CDataManager()->m_pvpSkillTree.getInitSkillTreeGrade(myGrade);
-                    if (myGrade < initGrade)
+                    // [BigUserLogic] ORIG 0x084c09xx 无 initGrade 槽（call 结果直 cmp）。
+                    (void)initBase;
+                    if (myGrade < G_CDataManager()->m_pvpSkillTree
+                                           .getInitSkillTreeGrade(myGrade))
                     {
                         memset(sig->m_mixedRegion, 0, 0x414);
                         pvpTreeSkip = true;
@@ -1483,16 +1481,19 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
             user->SendItemMakingSkillInfo();
 
-            if (G_GameWorld()->IsPvPSkilTreeChannel() &&
-                // [BigUserLogic 修复] 同上：ORIG 0x084c0cf5/0x084c0d03。
-                ((sig->m_pvpSkillInsertFlag != 0 ||
-                  sig->m_fairPvpLastPlaySec == 0 ||
-                  pvpTreeSkip)))
+            // [BigUserLogic] 原 `ch && (a || b || c)` 合写在 4.4 产 bool 物化 $1/$0
+            // 汇合（ORIG 0x084c0cf5+ 为逐段 test/je/cmpb/je 直落）⇒ 拆嵌套。
+            if (G_GameWorld()->IsPvPSkilTreeChannel())
             {
+                if (sig->m_pvpSkillInsertFlag != 0 ||
+                    sig->m_fairPvpLastPlaySec == 0 ||
+                    pvpTreeSkip)
+                {
                 packet.clear();
                 packet.put_header(0, 0x154);
                 packet.finalize(true);
                 user->Send(packet);
+                }
             }
             user->CheckMaxLuckyLevel();
 
@@ -1726,9 +1727,9 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                     G_CGameManager()->GetSharedServerMessageManager();
                 if (sharedMsg != 0)
                 {
-                    if (!sharedMsg->IsSetServerMessage())
-                        sig->m_eventMessageCount = 0;
-                    else
+                    // [BigUserLogic] ORIG 0x084c17a? 布局：IsSetServerMessage 结果
+                    // `test %al; je <清零体在后>` ⇒ 源码为正向 if + then=取 msg。
+                    if (sharedMsg->IsSetServerMessage())
                     {
                         EVENT_SERVER_MESSAGE* msg =
                             reinterpret_cast<EVENT_SERVER_MESSAGE*>(
@@ -1737,9 +1738,11 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                         {
                             // ORIG:const_iterator 循环,7 个字段逐一经 operator*() 拷贝
                             // (de 站点 ×6/字节域 ×1;m_count 先整体拷贝)。
-                            SIG_EVENT_SERVER_MESSAGE* dstMsg =
-                                reinterpret_cast<SIG_EVENT_SERVER_MESSAGE*>(&sig->m_eventMessageCount);
-                            dstMsg->m_count = msg->m_count;
+                            // [BigUserLogic] 原 dstMsg 命名局部产 1 条基址 spill 槽
+                            // + 每写点多 1 条 reload；ORIG 4.1 每写点直发 sig 基址
+                            // 变址。改逐点表达式。
+                            reinterpret_cast<SIG_EVENT_SERVER_MESSAGE*>(
+                                &sig->m_eventMessageCount)->m_count = msg->m_count;
                             if (msg->m_count == msg->m_vecMsg.size())
                             {
                             std::vector<stSERVER_MESSAGE>::const_iterator smi =
@@ -1750,21 +1753,28 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                             while (smi != smiEnd)
                             {
                                 // ORIG:7 个字段读各自经 operator*()（de 站点 ×6）。
-                                dstMsg->m_msg[idx].m_lenMsg = (*smi).m_lenMsg;
-                                dstMsg->m_msg[idx].m_kind = (*smi).m_kind;
-                                dstMsg->m_msg[idx].m_endTime = (*smi).m_endTime;
+                                SIG_EVENT_SERVER_MESSAGE* dst =
+                                    reinterpret_cast<SIG_EVENT_SERVER_MESSAGE*>(
+                                        &sig->m_eventMessageCount);
+                                dst->m_msg[idx].m_lenMsg = (*smi).m_lenMsg;
+                                dst->m_msg[idx].m_kind = (*smi).m_kind;
+                                dst->m_msg[idx].m_endTime = (*smi).m_endTime;
                                 // [BigUserLogic 修复] 原用 sizeof(=0x14) 多拷 1 字节；
                                 // ORIG 0x084c18e0 push 立即数 0x13。
-                                strncpy(dstMsg->m_msg[idx].m_msg2, (*smi).m_msg2, 0x13);
-                                dstMsg->m_msg[idx].m_index = (*smi).m_index;
+                                strncpy(dst->m_msg[idx].m_msg2, (*smi).m_msg2, 0x13);
+                                dst->m_msg[idx].m_index = (*smi).m_index;
                                 // [BigUserLogic 修复] 同上：ORIG 0x084c193d 为 0x31。
-                                strncpy(dstMsg->m_msg[idx].m_msg, (*smi).m_msg, 0x31);
-                                dstMsg->m_msg[idx].m_lenMsg2 = (*smi).m_lenMsg2;
+                                strncpy(dst->m_msg[idx].m_msg, (*smi).m_msg, 0x31);
+                                dst->m_msg[idx].m_lenMsg2 = (*smi).m_lenMsg2;
                                 idx = idx + 1;
                                 smi++;
                             }
                             }
                         }
+                    }
+                    else
+                    {
+                        sig->m_eventMessageCount = 0;
                     }
                     sharedMsg->SendServerMessageInfo(
                         user, reinterpret_cast<SIG_EVENT_SERVER_MESSAGE*>(&sig->m_eventMessageCount), 0);
@@ -1778,9 +1788,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             user->SendLoginToPCRoomServer();
 
             {
-                CDataAlias* exp7 = static_cast<CDataAlias*>(user->GetCharacExpandData(
-                    ENUM_CHARAC_EXPAND_TYPE(7)));
-                exp7->loadData(user, sig->m_mixedRegion + 0x55f);
+                static_cast<CDataAlias*>(user->GetCharacExpandData(
+                    ENUM_CHARAC_EXPAND_TYPE(7)))->loadData(user, sig->m_mixedRegion + 0x55f);
             }
 
             {
@@ -1933,11 +1942,13 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             }
 
             {
-                unsigned int total = sig->m_totalPcRoomPlayTime;
-                unsigned char cnt = sig->m_pcRoomPlayTimeRewardCnt;
-                unsigned int cur = (unsigned)
-                    GlobalData::s_systemTime_.getCurSec();
-                user->setPcRoomPlayTimeData(cur, total, cnt);
+                // [BigUserLogic] ORIG 0x084c24??：实参右到左 = cnt(0xc9b7,movzbl%esi)
+                // → total(0xc9b3,%ebx) → getCurSec() 调用最后；三命名局部形产 6 条
+                // 槽往返，单行直传复现。
+                user->setPcRoomPlayTimeData(
+                    (unsigned int)GlobalData::s_systemTime_.getCurSec(),
+                    sig->m_totalPcRoomPlayTime,
+                    sig->m_pcRoomPlayTimeRewardCnt);
             }
             user->set_aura_avatar_option(*reinterpret_cast<stAuraAvatarOption*>(
                 sig->m_mixedRegion + 0xd70));

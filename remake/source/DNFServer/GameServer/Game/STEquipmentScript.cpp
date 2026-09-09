@@ -471,6 +471,22 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
     //   （`pair<char const(&)[10],int>` / `[11]`，模板实例化差非语义缺口），EXTRA
     //   含 EquipmentScriptSpecialMonsterDrop ×2（三 case 各自调用点 vs ORIG 单共享块）
     //   与 STL 析构/拷贝 ctor 计数差；③槽位集/帧差属 N82/N89。语义完成，byte 层封顶。
+    // [BigEquip pass-1 修订 2026-09-09] ③中 N89 判错：两侧 call 面实测对齐
+    //   （1292 vs 1291，差集=snprintf 名/模板实例名/ABI guard 等无害项；9 个
+    //   _ZL Get* helper 两侧均外调）。真实残差=N82 帧槽平移（+0x24/+0x1c/+0x54
+    //   非恒定；ORIG 浅区 23 个独立 return-temp 槽，我侧 13=4.4 lifetime 复用）。
+    //   本 pass 语义/形差修正：删 26 处 ORIG 无的 okFlag 预清零；[emancipate]/
+    //   [war room point bonus]/[war room monster exp bonus] 回写 ScanType/ScanStr
+    //   结果到 boolScratch；[hide layer]/[hide growtype avatar]/[change status]
+    //   拆独立出参 bool（ORIG -0x10d1/-0x10d9/-0x1145）；[spectrum] v4 补 &0xff
+    //   （ORIG movzbl 实证）；[Uncompoundable]/[setback img]/[set item]/[int data]/
+    //   [fixed select type]/[avatar type select]/[avatar func filter]/[special
+    //   ability]/[chat emoticon index]/[required full set]/[character item check]/
+    //   [/routing priority]/[epic routing] 实参统一 boolScratch。台账
+    //   ndiff 13237→13134、gap -67→-42。
+    //   ⚠ 实测三→一 MonsterDrop 共享块合并（-71 insn、gap +23→-23、calls 1=ORIG）
+    //   反使 ndiff 13134→13593（difflib 对齐窗口恶化，§6.2 失真实证）⇒ 已回滚；
+    //   若要结构保真优先请 Main 裁定改台账口径后重做。
     // 声明顺序 = ORIG prologue 构造/初始化执行顺序（帧槽位由声明序决定，
     // 注释内为 ORIG %ebp 槽位，报告 0x08991b00-0x08991d8b）：
     std::string tmp;                       // ORIG -0x106c（各 case 第一读取暂存）
@@ -497,7 +513,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
     GrowthEquipmentInfo growth;            // ORIG -0x10b4
     int levelLayerId = 0;                  // ORIG -0xa0
     std::string levelPath("");             // ORIG -0x10b8
-    bool okFlag = false;                   // 各 case 的 ScanInt(bool*) 成功标志
+    bool hideFlag774;                      // ORIG -0x10d1（[hide layer] 循环出参，ORIG 无显式初始化）
+    bool hideFlag780;                      // ORIG -0x10d9（[hide growtype avatar] 循环出参）
+    bool rateFlag;                         // ORIG -0x1145（[change status on change hp] 循环出参）
     bool stopFlag = false;                 // ORIG -0x96
     EquipmentParameterInfo* curParam = &script->m_param1c0;  // ORIG -0x9c
     std::vector<std::pair<int, int> > setAbilityBackup;      // ORIG -0x10c8
@@ -740,9 +758,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             unsigned int v1 = (unsigned int)ScanInt((bool*)0);
             unsigned int v2 = (unsigned int)ScanInt((bool*)0);
             unsigned int v3 = (unsigned int)ScanInt((bool*)0);
-            int v4 = ScanInt((bool*)0);
+            unsigned int v4 = (unsigned int)ScanInt((bool*)0);
             script->m_790 = (int)((v3 & 0xff) << 0x10 | v1 & 0xff |
-                                  (v2 & 0xff) << 8 | v4 << 0x18);
+                                  (v2 & 0xff) << 8 | (v4 & 0xff) << 0x18);
             script->m_794 = ScanInt((bool*)0);
             goto stage1_switch_end;
         }
@@ -1107,9 +1125,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             script->m_vec774.clear();
             for (;;)
             {
-                okFlag = false;
-                int v = ScanInt(&okFlag);
-                if (!okFlag)
+                int v = ScanInt(&hideFlag774);
+                if (!hideFlag774)
                 {
                     break;
                 }
@@ -1128,9 +1145,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             script->m_vec780.clear();
             for (;;)
             {
-                okFlag = false;
-                int v = ScanInt(&okFlag);
-                if (!okFlag)
+                int v = ScanInt(&hideFlag780);
+                if (!hideFlag780)
                 {
                     break;
                 }
@@ -1457,9 +1473,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
         }
         else
         {
-            okFlag = false;
-            int v = ScanInt(&okFlag);
-            if (okFlag && v == 1)
+            int v = ScanInt(&boolScratch);
+            if (boolScratch && v == 1)
             {
                 script->m_82c = 1;
             }
@@ -1629,7 +1644,6 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                okFlag = false;
                 if (ScanInt(&levelAniIdx) && ScanStr(&scanBuf))
                 {
                     curJob = getCharacterJob(scanBuf.c_str());
@@ -2621,22 +2635,18 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 for (;;)
                 {
                     stSetItemBackImageInfo info;
-                    info.m_a = 0;
-                    info.m_b = 0;
-                    info.m_c = 0;
-                    okFlag = false;
-                    info.m_a = ScanInt(&okFlag);
-                    if (!okFlag)
+                    info.m_a = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         break;
                     }
-                    info.m_b = ScanInt(&okFlag);
-                    if (!okFlag)
+                    info.m_b = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         break;
                     }
-                    info.m_c = ScanInt(&okFlag);
-                    if (!okFlag)
+                    info.m_c = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         break;
                     }
@@ -2666,9 +2676,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 script->m_vec66c.clear();
                 for (;;)
                 {
-                    okFlag = false;
-                    int v = ScanInt(&okFlag);
-                    if (!okFlag)
+                    int v = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         break;
                     }
@@ -2687,8 +2696,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 // ORIG LAB_08999014：分档号由 ScanInt 读出（bool* 出参形式）；
                 // find==end 时先 [key].clear()，else 分支仍走一次 operator[]（保证
                 // 存在默认元素），最后再取 &table[key] 作为当前参数区。
-                okFlag = false;
-                int key = ScanInt(&okFlag);
+                int key = ScanInt(&boolScratch);
                 std::map<int, EquipmentParameterInfo>& table = script->m_paramMap678;
                 if (table.find(key) == table.end())
                 {
@@ -2781,9 +2789,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 script->m_vec88.clear();
                 for (;;)
                 {
-                    okFlag = false;
-                    int v = ScanInt(&okFlag);
-                    if (!okFlag)
+                    int v = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         break;
                     }
@@ -2886,8 +2893,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                okFlag = false;
-                script->m_6e0 = ScanInt(&okFlag);
+                script->m_6e0 = ScanInt(&boolScratch);
                     goto stage2_switch_end;
                 }
                     /*FALLTHRU*/
@@ -2933,29 +2939,28 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 {
                     stAvatarTypeSelect_t sel;
                     sel.init();
-                    okFlag = false;
-                    sel.m_field0 = ScanInt(&okFlag);
-                    if (!okFlag)
+                    sel.m_field0 = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         break;
                     }
-                    sel.m_field4 = ScanInt(&okFlag);
-                    if (!okFlag)
+                    sel.m_field4 = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         return false;
                     }
-                    sel.m_field8 = ScanInt(&okFlag);
-                    if (!okFlag)
+                    sel.m_field8 = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         return false;
                     }
-                    sel.m_fieldc = ScanInt(&okFlag);
-                    if (!okFlag)
+                    sel.m_fieldc = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         return false;
                     }
-                    sel.m_field10 = ScanInt(&okFlag);
-                    if (!okFlag || 5 < sel.m_field10)
+                    sel.m_field10 = ScanInt(&boolScratch);
+                    if (!boolScratch || 5 < sel.m_field10)
                     {
                         return false;
                     }
@@ -2992,9 +2997,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                okFlag = false;
-                script->m_6d8 = ScanInt(&okFlag);
-                if (!okFlag)
+                script->m_6d8 = ScanInt(&boolScratch);
+                if (!boolScratch)
                 {
                     return false;
                 }
@@ -3011,21 +3015,20 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 for (;;)
                 {
                     std::string key;
-                    ScanType(key, true);
+                    boolScratch = ScanType(key, true);
                     script->m_field10e = 1;
                     bool cont;
                     if (key == "[input]")
                     {
                         for (;;)
                         {
-                            okFlag = false;
-                            int first = ScanInt(&okFlag);
-                            if (!okFlag)
+                            int first = ScanInt(&boolScratch);
+                            if (!boolScratch)
                             {
                                 break;
                             }
-                            int second = ScanInt(&okFlag);
-                            if (!okFlag)
+                            int second = ScanInt(&boolScratch);
+                            if (!boolScratch)
                             {
                                 break;
                             }
@@ -3038,14 +3041,13 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     {
                         for (;;)
                         {
-                            okFlag = false;
-                            int first = ScanInt(&okFlag);
-                            if (!okFlag)
+                            int first = ScanInt(&boolScratch);
+                            if (!boolScratch)
                             {
                                 break;
                             }
-                            int second = ScanInt(&okFlag);
-                            if (!okFlag)
+                            int second = ScanInt(&boolScratch);
+                            if (!boolScratch)
                             {
                                 break;
                             }
@@ -3113,10 +3115,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                okFlag = false;
-                int v = ScanInt(&okFlag);
+                int v = ScanInt(&boolScratch);
                 script->m_field104 = (char)(v != 1);
-                if (!okFlag)
+                if (!boolScratch)
                 {
                     return false;
                 }
@@ -3154,12 +3155,12 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                         {
                             STChangeStatusRate rate;
                             rate.m_appendage = appendage;
-                            okFlag = true;
-                            rate.m_rate1 = (float)ScanInt(&okFlag);
-                            rate.m_rate3 = (float)ScanInt(&okFlag);
-                            rate.m_rate2 = (float)ScanInt(&okFlag);
-                            rate.m_rate4 = (float)ScanInt(&okFlag);
-                            if (okFlag)
+                            rateFlag = true;
+                            rate.m_rate1 = (float)ScanInt(&rateFlag);
+                            rate.m_rate3 = (float)ScanInt(&rateFlag);
+                            rate.m_rate2 = (float)ScanInt(&rateFlag);
+                            rate.m_rate4 = (float)ScanInt(&rateFlag);
+                            if (rateFlag)
                             {
                                 script->m_rate6e8.push_back(rate);
                             }
@@ -3192,8 +3193,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                okFlag = false;
-                script->m_7c0 = ScanInt(&okFlag);
+                script->m_7c0 = ScanInt(&boolScratch);
                     goto stage2_switch_end;
                 }
                     /*FALLTHRU*/
@@ -3204,8 +3204,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                okFlag = false;
-                script->m_7c4 = ScanInt(&okFlag);
+                script->m_7c4 = ScanInt(&boolScratch);
                     goto stage2_switch_end;
                 }
                     /*FALLTHRU*/
@@ -3216,8 +3215,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                okFlag = false;
-                int v = ScanInt(&okFlag);
+                int v = ScanInt(&boolScratch);
                 script->m_7c8 = (char)(v != 0);
                     goto stage2_switch_end;
                 }
@@ -3243,7 +3241,6 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 script->m_fieldcc = ScanInt((bool*)0);
                     goto stage2_switch_end;
                 }
-                    /*FALLTHRU*/
                 case 0xcd5:                          // [special monster drop]
                 if (!__inited_0)
                 {
@@ -3297,17 +3294,13 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 for (;;)
                 {
                     STEnchantSystemData entry;
-                    entry.m_a = 0;
-                    entry.m_b = 0;
-                    entry.m_c = 0;
-                    okFlag = false;
-                    entry.m_a = ScanInt(&okFlag);
-                    if (!okFlag)
+                    entry.m_a = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         break;
                     }
-                    entry.m_b = ScanInt(&okFlag);
-                    if (!okFlag)
+                    entry.m_b = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         break;
                     }
@@ -3626,9 +3619,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     {
                         break;
                     }
-                    okFlag = false;
-                    int pri = ScanInt(&okFlag);
-                    if (!okFlag)
+                    int pri = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         break;
                     }
@@ -3929,16 +3921,15 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                okFlag = false;
-                if (ScanStr(&scanBuf))
+                if (boolScratch = ScanStr(&scanBuf))
                 {
                     script->m_wpBonus81c.m_type = getCalculationType(scanBuf.c_str());
                     if (script->m_wpBonus81c.m_type == 2)
                     {
                         return false;
                     }
-                    script->m_wpBonus81c.m_value = ScanInt(&okFlag);
-                    if (!okFlag)
+                    script->m_wpBonus81c.m_value = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         return false;
                     }
@@ -3953,8 +3944,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                okFlag = false;
-                if (ScanStr(&scanBuf))
+                if (boolScratch = ScanStr(&scanBuf))
                 {
                     script->m_expBonus824.m_type =
                         getCalculationType(scanBuf.c_str());
@@ -3962,8 +3952,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     {
                         return false;
                     }
-                    script->m_expBonus824.m_value = ScanInt(&okFlag);
-                    if (!okFlag)
+                    script->m_expBonus824.m_value = ScanInt(&boolScratch);
+                    if (!boolScratch)
                     {
                         return false;
                     }

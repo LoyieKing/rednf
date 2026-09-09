@@ -54,6 +54,13 @@ bool IsTradeLimitAttachTypeItem(Inven_Item const& item);
 
 namespace private_store
 {
+// ORIG 0x085c4be8：函数内静态单例（__cxa_guard）。
+CPrivateStoreMgr* GetInstancePrivateStoreMgr()
+{
+    static CPrivateStoreMgr instance;
+    return &instance;
+}
+
 // ---- COperator<int>::Product 特化（ORIG W _ZN13private_store9COperatorIiE7ProductEiiRi @0x85cd22a）----
 // 重复加法乘法：out 累加 a 共 b 次，任一步非正即失败返回 0。须先于首次隐式实例化。
 template <>
@@ -99,13 +106,6 @@ CPrivateStoreMgr::~CPrivateStoreMgr()
             pList = 0;
         }
     }
-}
-
-// ORIG 0x085c4be8：函数内静态单例（__cxa_guard）。
-CPrivateStoreMgr* GetInstancePrivateStoreMgr()
-{
-    static CPrivateStoreMgr instance;
-    return &instance;
 }
 
 // ---- PrivateStoreZone / PrivateStorePos（定义在 TU 尾 inline 镜像区；
@@ -1113,8 +1113,11 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
     if (!IsPossibleDeal(price, dealGoldA, dealGoldB))
         return false;
     // 非可信用户受每日交易金币上限约束。
+    // [BigStore REAL-BUG] ORIG 0x085c8186 实参 = GetItemPrice out1 槽 -0x44（=price，
+    // 0x085c80f6 lea -0x44 → esp+0x10 实证），旧写成 dealGoldA（out2 恒 0）⇒ 上限
+    // 校验恒见 0 而被短路。按 ORIG 传成交金额。
     if (!m_pBuyer->GetReliablePerson() &&
-        !m_pBuyer->IsAvailableCurCharacTradeGoldDaily(dealGoldA))
+        !m_pBuyer->IsAvailableCurCharacTradeGoldDaily((unsigned int)price))
     {
         m_errorHandler.Do(0x46);
         return false;
@@ -1135,7 +1138,10 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
                                                      (int)copyItem.m_addInfo, -1, 1);
     }
 
-    buyResult = BuyItem(slot, copyItem, price, (int)dealGoldA, useCount, outSlot);
+    // [BigStore 忠实性] ORIG 0x085c8261-0x085c8298：BuyItem 三 int 实参 =
+    // (-0x44, -0x3c, -0x40) = (price, out2, out3)；第 5 参在 ORIG 体内不读，
+    // 旧写 useCount 无行为差，按 ORIG 数据流改传 out3。
+    buyResult = BuyItem(slot, copyItem, price, (int)dealGoldA, (int)dealGoldB, outSlot);
     if (buyResult >= 0)
     {
         int commission = GetCommissionPercent() * price / 100;
@@ -1307,8 +1313,10 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
         return false;
     if (!IsPossibleDeal(price, dealGoldA, dealGoldB))
         return false;
+    // [BigStore REAL-BUG] ORIG 0x085c8ae8 实参 = GetItemPrice out1 槽 -0x28（=price，
+    // 0x085c8a58 lea -0x28 → esp+0x10 实证），旧写 dealGoldA（out2 恒 0）⇒ 校验被短路。
     if (!m_pBuyer->GetReliablePerson() &&
-        !m_pBuyer->IsAvailableCurCharacTradeGoldDaily(dealGoldA))
+        !m_pBuyer->IsAvailableCurCharacTradeGoldDaily((unsigned int)price))
     {
         m_errorHandler.Do(0x46);
         return false;

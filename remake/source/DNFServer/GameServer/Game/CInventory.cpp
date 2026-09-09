@@ -1661,6 +1661,9 @@ int CInventory::UseUpCoin(unsigned int amount)
     return m_coin + m_eventCoin + m_payCoin;
 }
 
+// [b28d-PoolMisc2 structdiff 判据] 本件结构残差 **struct=0**、ndiff=8（AE 行的
+// `-0xNN(%ebp)`/寄存器/立即数归一后与 ORIG 逐行全等）⇒ 纯 4.4 栈分配差，硬判
+// N82附/N95 封顶（工具 /tmp/structdiff.py；同判据件：getHashCode struct=0/ndiff=6）。
 int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int param)
 {
     // b28d-solo-CInventory：207/207，帧 0x6c/0x5c + bool spill/trace/money 三槽位差 ⇒ N82附（聚合对象优先占低槽）封顶。
@@ -1670,7 +1673,9 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
     // [N82附 封顶] 实测 money 仍落 -0x2c（4.4 聚合对象优先占低槽 + 标量分区
     // 排布，ORIG 4.1 按生命周期穿插），limit/oldMoney/gained/i 已与 ORIG 逐槽
     // 相同；帧 0x6c vs 0x5c 与 bool 截断槽 -0x4c vs -0x3c 为分区后果 ⇒ NEAR 封顶。
-    int money[2];
+    // [b28d-PoolMisc2 复验] 再补「money[2] 数组化推深槽」形：4.4 反把 trace 对象
+    // 挤到 -0x40、money[0] 读回多一条 mov ⇒ ndiff **16→24** 劣化，已回滚标量形。
+    int money;
     register int level;
     register const char* accName;
     int limit = 0x7fffffff;
@@ -1688,13 +1693,17 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
     if (limit - amount < m_money)
     {
         m_money = limit;
-        money[0] = m_money;
+        money = m_money;
         register int level2 = ((CUserCharacInfo*)m_pParent)->get_charac_level();
         register int characNo = m_pParent->get_charac_no(-1);
         register char* numStr = NumberToString(m_pParent->get_acc_id(), 0);
+        // [b28d-PoolMisc2 复验零效] 本件把 cMyTrace 改 P227 全表达式临时链（use_money
+        // 靠它 61→24）⇒ ndiff **16→16 零效**：本件三个保活值已是 `register`（level2/
+        // characNo/numStr），ctor call 位置本就在其后，无块可翻；结构残差 struct=0，
+        // 纯槽号。已回滚具名形。
         cMyTrace local_3c(__PRETTY_FUNCTION__, 0xef1, 4);
         local_3c("over money limit:m_id(%s),charac_no(%d),level(%d) gain_money inven(%d)+add(%d)",
-                 numStr, characNo, level2, money[0], amount);
+                 numStr, characNo, level2, money, amount);
     }
     else
     {
@@ -1736,8 +1745,18 @@ bool CInventory::use_money(int amount, eMoneySubReason reason, bool bLog)
     // b28d-solo-CInventory：163/166，N82 槽号错位封顶（P0 具名局部已还原）。
     // ORIG 0x084ff54c 槽序 -0x40(具名 money 缓存) / -0x3c(bool spill) / -0x30(trace)
     // / -0x20(oldMoney) / -0x1c(limit)；4.4 分配为 -0xc/-0x10 族 ⇒ 全帧槽号差
+    // [b28d-PoolMisc2 修成 ndiff 61→8（行口径）/ struct 15→0，件 DIFF→NEAR]
+    // 两处源形：①P227 cMyTrace 改全表达式临时（ORIG trace ctor 在三值保活拷贝之后）；
+    // ②P212 `int overMoney;` 提到**函数头第一个声明**（4.4 同 size 组按声明序由深到浅）。
+    // 结构残差归零后余 8 行全为槽号 ⇒ structdiff 硬判 N82 封顶。
     // （N82：4.1 不复用槽/聚合优先低槽）。具名局部 overMoney 已按 P0 还原（store+load
     // 两处），语义闭合；残余仅槽号与 cMyTrace 变参装载序，判 N82 封顶。
+    // [b28d-PoolMisc2 P212 试验] ORIG overMoney 落**最深**槽 -0x40（在 bool spill
+    // -0x3c 之下）⇒ 按 4.4「先声明=更深」把声明提到函数头，块内仅赋值。
+    // [b28d-PoolMisc2 修成] 声明必须放**函数头第一位**（4.4 同 size 组按声明序由
+    // 深到浅）⇒ 单此一改 ndiff 61→24→**8**。撑 overMoney[4]（16B）再抢深度实测反劣
+    // （帧 0x5c→0x6c、多 `mov -0x40; mov -0x50` 拷贝，ndiff 8→14）⇒ 回滚标量形。
+    int overMoney;
     int oldMoney;
     int limit;
 
@@ -1758,11 +1777,16 @@ bool CInventory::use_money(int amount, eMoneySubReason reason, bool bLog)
         m_money = limit;
         // b28d-solo-CInventory [P0]：ORIG `mov 0x4(%eax),%eax; mov %eax,-0x40(%ebp)` 与
         // 日志处 `mov -0x40(%ebp),%eax` 两次槽往返 ⇒ 原码有具名局部缓存（非成员直读）。
-        int overMoney = m_money;
-        cMyTrace local_34(__PRETTY_FUNCTION__, 0xf30, 4);
-        local_34("over money limit:m_id(%s),charac_no(%d),level(%d) use_money inven(%d)-sub(%d)",
-                 NumberToString(m_pParent->get_acc_id(), 0), m_pParent->get_charac_no(-1),
-                 ((CUserCharacInfo*)m_pParent)->get_charac_level(), overMoney, amount);
+        // [b28d-PoolMisc2 P227 试验] ORIG 0x084ff54c：`mov %eax,-0x40(%ebp)` 之后是
+        // 三条 callee-saved 保活拷贝（`mov %eax,%edi/%esi/%ebx` = NumberToString /
+        // get_charac_no / get_charac_level 返回值），**cMyTrace ctor call 在其后**
+        // ⇒ 原码 cMyTrace 是全表达式临时（P227），非具名局部（具名形 4.4 把 ctor
+        // 提前到 vararg 求值之前，产 trace 块错位 6 行）。
+        overMoney = m_money;
+        cMyTrace(__PRETTY_FUNCTION__, 0xf30, 4)(
+            "over money limit:m_id(%s),charac_no(%d),level(%d) use_money inven(%d)-sub(%d)",
+            NumberToString(m_pParent->get_acc_id(), 0), m_pParent->get_charac_no(-1),
+            ((CUserCharacInfo*)m_pParent)->get_charac_level(), overMoney, amount);
     }
     if (m_money < 0)
     {

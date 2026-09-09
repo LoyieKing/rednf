@@ -5886,8 +5886,9 @@ int DisPatcher_RentAvatar::dispatch_sig(CUser* user, PacketBuf& packet)
         streamGuard.operator*()->operator<<(cashPrices[i]);
         streamGuard.operator*()->operator<<(winPrices[i]);
         streamGuard.operator*()->operator<<(goldPrices[i]);
-        streamGuard.operator*()->operator<<(
-            (int)rentEntries.m_entries[i].m_itemId);
+        // ORIG 0x081eeb65 call _ZN12CStreamGuardlsEm（unsigned long 重载）；
+        // m_itemId 本即 unsigned long，多余的 (int) 强转会错选 lsEi。
+        streamGuard.operator*()->operator<<(rentEntries.m_entries[i].m_itemId);
         streamGuard.operator*()->operator<<(rentDays);
         streamGuard.operator*()->operator<<(rentSeconds);
         streamGuard.operator*()->operator<<((int)(unsigned int)rentEntries.m_count);
@@ -9955,16 +9956,15 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
         {
             unsigned int quotient = slot / 10000;
             unsigned int remainder = slot % 10000;
-            // CParty.h 数据区已 public 化（Prod_CParty），恢复直接成员访问
-            // （ORIG process 直读 party+0xcac m_dungeon，语义一致）。
-            CDungeon* dungeon =
-                static_cast<CParty*>(member->GetParty())->m_battleField.m_pDungeon;
-            if (dungeon == 0)
+            // ORIG 不为 dungeon 设局部：0x081c4e82（==0 判定）与 0x081c4eda
+            // （else-if 取 index）各自重新 call CUser::GetParty 并直读 +0xcac。
+            if (static_cast<CParty*>(member->GetParty())->m_battleField.m_pDungeon == 0)
             {
                 member->getHackAnalyzer()->addServerHackCnt(
                     member, (WongWork::ENUM_HACKTYPE)0x77, 1, quotient, 0);
             }
-            else if (dungeon->get_index() == 0x2afe)
+            else if (static_cast<CParty*>(member->GetParty())
+                         ->m_battleField.m_pDungeon->get_index() == 0x2afe)
             {
                 member->getHackAnalyzer()->addServerHackCnt(
                     member, (WongWork::ENUM_HACKTYPE)0x82, 1, quotient, 0);
@@ -9976,28 +9976,30 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
             }
             slot = remainder;
         }
-        int job = member->get_charac_job();
-        bool halfTick = (job == 3) ||
-                        (job == 4 && member->getCurCharFirstGrowType() == 2);
+        // ORIG 0x081c4f83 / 0x081c4f93 两处各自 call get_charac_job（无 job 局部缓存）。
+        bool halfTick = (member->get_charac_job() == 3) ||
+                        (member->get_charac_job() == 4 &&
+                         member->getCurCharFirstGrowType() == 2);
         // ORIG .rodata：0x8bd6320=0.5 / 0x8bd6328=0.8（fildll×const 后 fistpll 截断）
         slot = (unsigned int)((double)slot * (halfTick ? 0.5 : 0.8));
 
-        CParty* memberParty = static_cast<CParty*>(member->GetParty());
-        // CParty+0xb24 内嵌 CBattle_Field：经本 TU CPartyBattleFieldView 具名成员取
-        // （CParty.h m_battleField 未建模 BF 类型，口径同 CParty.cpp）
+        // ORIG 0x081c505a 用 -0x24(%ebp)（= 函数头 user->GetParty() 的缓存）+0xb24，
+        // 不另取 member 的 party；先前多调一次 GetParty 属我方缓存。
         CBattle_Field& battleField =
-            reinterpret_cast<CPartyBattleFieldView*>(memberParty)->m_battleField;
+            reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField;
         if (!battleField.check_start_point() && slot > limit)
         {
             if ((double)slot <= 1.5 * (double)limit)   // 0x8bd6330=1.5
             {   // 单次记录
-                CDungeon* dungeon = memberParty->m_battleField.m_pDungeon;  // CParty.h:757 @+0xcac
-                if (dungeon == 0)
+                // ORIG 0x081c50e3 / 0x081c5145：两判定各自重新 call GetParty。
+                if (static_cast<CParty*>(member->GetParty())
+                        ->m_battleField.m_pDungeon == 0)
                 {
                     member->getHackAnalyzer()->addServerHackCnt(
                         member, (WongWork::ENUM_HACKTYPE)0x74, 1, slot, 0);
                 }
-                else if (dungeon->get_index() == 0x2afe)
+                else if (static_cast<CParty*>(member->GetParty())
+                             ->m_battleField.m_pDungeon->get_index() == 0x2afe)
                 {
                     member->getHackAnalyzer()->addServerHackCnt(
                         member, (WongWork::ENUM_HACKTYPE)0x81, 1, slot, 0);
@@ -10012,13 +10014,15 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
             {   // 超幅：同一记录重复 ×10（ORIG 循环 10 次，无 break）
                 for (int rep = 0; rep < 10; ++rep)
                 {
-                    CDungeon* dungeon = memberParty->m_battleField.m_pDungeon;  // CParty.h:757 @+0xcac
-                    if (dungeon == 0)
+                    // ORIG 0x081c520a / 0x081c526c：同上，逐次重新取 party。
+                    if (static_cast<CParty*>(member->GetParty())
+                            ->m_battleField.m_pDungeon == 0)
                     {
                         member->getHackAnalyzer()->addServerHackCnt(
                             member, (WongWork::ENUM_HACKTYPE)0x74, 1, slot, 0);
                     }
-                    else if (dungeon->get_index() == 0x2afe)
+                    else if (static_cast<CParty*>(member->GetParty())
+                                 ->m_battleField.m_pDungeon->get_index() == 0x2afe)
                     {
                         member->getHackAnalyzer()->addServerHackCnt(
                             member, (WongWork::ENUM_HACKTYPE)0x81, 1, slot, 0);

@@ -37,6 +37,47 @@
 // ---------------------------------------------------------------------------
 // Arad_IPGProcess
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// CashShopModeAvatar —— ORIG T 0x0819c2b4（报告 CashShopModeAvatar.md 全文转写）。
+// ---------------------------------------------------------------------------
+// [b28d-solo-Arad_IPGProcess] NEAR（助记符序列全等，仅 len 槽号差）：①gift 分支原已全等；
+// ②删具名 inven/characNo 改 receiver 链式（P52/P0）后 slot=-0x20、msg=-0x1c 与 ORIG 一致；
+// ③`int len` 头部声明得 -0x24，ORIG 为 -0x38（4.1 外层标量与形参 spill 区 -0x2c..-0x34
+// 连续分配 vs 4.4 具名区 -0x1c..-0x24 分区分配）⇒ N82/N93 槽分配族封顶；
+// size_t 化实测反劣（NEAR→DIFF）。
+void Arad_IPGProcess::CashShopModeAvatar(CUser* user, unsigned long itemIdx,
+                                         int a3, int a4, char c1, char c2,
+                                         char const* str, int& out,
+                                         unsigned int accId, int a10, char buyFlag)
+{
+    (void)a3;  // ORIG p3 在两分支均未使用（ebp 0x14 无读取）
+    int len;   // ORIG -0x38（形参 spill 区之后）⇒ 头部声明（4.1 先声明深）
+
+    if (buyFlag == 1)
+    {
+        // mangled _processAvatarGift(CUser*, i, i, c, c, PKc, j, i)
+        reinterpret_cast<WongWork::CCeraShop*>(m_vm)->_processAvatarGift(
+            user, (int)itemIdx, a4, c1, c2, str, accId, a10);
+        return;
+    }
+
+    // P52：receiver 链保持单语句，ORIG 把 c2/c1/itemIdx 先物化 edi/esi/ebx 跨 getter 保活。
+    int slot = user->getCurCharacInvenW()->AddAvatarItem(
+        (int)itemIdx, a4, false, c1, c2, str, (eAvatarItemAddReason)0, false, 0);
+    if (slot < 0)
+    {
+        const char* msg = g_scriptStringManager_.findString(4, "game_server_msg_104", (bool*)0);
+        len = (int)strlen(msg);
+        // P0：characNo 无槽往返 ⇒ 原码是实参内联（ORIG 无 -0xc 槽）。
+        WongWork::CMailBoxHelper::ReqDBSendNewAvatarMailCashShop(
+            user, user->getCurCharacNo(), (int)itemIdx, a4, c1, c2, str, msg, len);
+    }
+    else
+    {
+        user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)1, slot);
+    }
+}
+
 // ORIG W 0x0817a2ba：push ebp; mov esp,ebp; mov 0xc(%ebp),%edx; mov %edx,(%eax); pop ebp; ret
 Arad_IPGProcess::Arad_IPGProcess(ItemVendingMachine* vm) : m_vm(vm) {}
 
@@ -91,47 +132,6 @@ void Arad_IPGProcess::CashShopModeItem(CUser* user, unsigned long itemIdx,
         //   b 0, b 1, Rvector, RN..param_t&)
         reinterpret_cast<WongWork::CCeraShop*>(m_vm)->_processItem(
             user, localItem, count, restrictOut, seq, false, true, out, param);
-    }
-}
-
-// ---------------------------------------------------------------------------
-// CashShopModeAvatar —— ORIG T 0x0819c2b4（报告 CashShopModeAvatar.md 全文转写）。
-// ---------------------------------------------------------------------------
-// [b28d-solo-Arad_IPGProcess] NEAR（助记符序列全等，仅 len 槽号差）：①gift 分支原已全等；
-// ②删具名 inven/characNo 改 receiver 链式（P52/P0）后 slot=-0x20、msg=-0x1c 与 ORIG 一致；
-// ③`int len` 头部声明得 -0x24，ORIG 为 -0x38（4.1 外层标量与形参 spill 区 -0x2c..-0x34
-// 连续分配 vs 4.4 具名区 -0x1c..-0x24 分区分配）⇒ N82/N93 槽分配族封顶；
-// size_t 化实测反劣（NEAR→DIFF）。
-void Arad_IPGProcess::CashShopModeAvatar(CUser* user, unsigned long itemIdx,
-                                         int a3, int a4, char c1, char c2,
-                                         char const* str, int& out,
-                                         unsigned int accId, int a10, char buyFlag)
-{
-    (void)a3;  // ORIG p3 在两分支均未使用（ebp 0x14 无读取）
-    int len;   // ORIG -0x38（形参 spill 区之后）⇒ 头部声明（4.1 先声明深）
-
-    if (buyFlag == 1)
-    {
-        // mangled _processAvatarGift(CUser*, i, i, c, c, PKc, j, i)
-        reinterpret_cast<WongWork::CCeraShop*>(m_vm)->_processAvatarGift(
-            user, (int)itemIdx, a4, c1, c2, str, accId, a10);
-        return;
-    }
-
-    // P52：receiver 链保持单语句，ORIG 把 c2/c1/itemIdx 先物化 edi/esi/ebx 跨 getter 保活。
-    int slot = user->getCurCharacInvenW()->AddAvatarItem(
-        (int)itemIdx, a4, false, c1, c2, str, (eAvatarItemAddReason)0, false, 0);
-    if (slot < 0)
-    {
-        const char* msg = g_scriptStringManager_.findString(4, "game_server_msg_104", (bool*)0);
-        len = (int)strlen(msg);
-        // P0：characNo 无槽往返 ⇒ 原码是实参内联（ORIG 无 -0xc 槽）。
-        WongWork::CMailBoxHelper::ReqDBSendNewAvatarMailCashShop(
-            user, user->getCurCharacNo(), (int)itemIdx, a4, c1, c2, str, msg, len);
-    }
-    else
-    {
-        user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)1, slot);
     }
 }
 

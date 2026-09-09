@@ -69,6 +69,17 @@
 #include "LogManager.h"               // logFormat
 
 // ---------------------------------------------------------------------------
+// Secu_HackLogCheck::Init —— ORIG T 0x0827a7d0：写基类 +0x34 = user，
+// 再调基类 SetUserPtr(user)。Secu_MonsterCheck::SetUserPtr —— ORIG T
+// 0x0827abec：m_user = user。
+// ---------------------------------------------------------------------------
+void Secu_HackLogCheck::Init(CUser* user)
+{
+    m_user34 = user;
+    SetUserPtr(user);
+}
+
+// ---------------------------------------------------------------------------
 // 1. CUser::MakeTagCharacInfo —— ORIG T 0x08690776（报告 CUser/MakeTagCharacInfo.md）
 // tag 角色不存在 → 0；否则写入：uid 低 16 位、名字、等级/job/+0x29、striker 技能
 // 序号、附加信息 0x52 字节（premium 时叠加 CUserPremium::GetAdditionalInfo）、
@@ -87,17 +98,6 @@
 //   then=premium）；⑦循环体 `base[i*2]` 下标形。
 // 残差（byte 层封顶）：N78（ORIG memcpy 内联对齐+rep movsl 40 条 vs 4.4 结构赋值逐字段
 // 展开）、N82/N89（帧 0xec/0xec±、槽号与 STL/日志内联布局）、N4/P30（`i*2+base` add 链
-// ---------------------------------------------------------------------------
-// Secu_HackLogCheck::Init —— ORIG T 0x0827a7d0：写基类 +0x34 = user，
-// 再调基类 SetUserPtr(user)。Secu_MonsterCheck::SetUserPtr —— ORIG T
-// 0x0827abec：m_user = user。
-// ---------------------------------------------------------------------------
-void Secu_HackLogCheck::Init(CUser* user)
-{
-    m_user34 = user;
-    SetUserPtr(user);
-}
-
 // vs lea 折叠）。ORIG 0x08690776，语义等价。
 bool CUser::MakeTagCharacInfo(PacketGuard& packet)
 {
@@ -118,6 +118,11 @@ bool CUser::MakeTagCharacInfo(PacketGuard& packet)
 
     packet.put_byte(getCurCharacStrikerSkillIndex() & 0xff);
 
+    // [b28d-PoolGlobalData] 0x52 双缓冲槽向：ORIG 4.1 infoBuf@-0xd2（深）/
+    // GetAdditionalInfo sret 临时@-0x7b（浅）；4.4 首用分配恒反向。
+    // 实测「additional 提升为函数域先声明」形反劣（46→93：_Additioal_info
+    // 非 POD，先声明触发 EXTRA `call C1Ev` 位域全写 + 帧 -0x138；TU missing
+    // 26→27）⇒ 回退块内声明形，槽向记 N82 封顶。
     char infoBuf[0x52];
     if (IsHavePremiumAdvantage())
     {
@@ -145,11 +150,12 @@ bool CUser::MakeTagCharacInfo(PacketGuard& packet)
     for (int i = 0; i <= 0xcb; ++i)    // cmp $0xcb; setle
     {
         // 每轮重取 tagR（ORIG 循环体内重复调用 getTagCharacR）。
-        bool baseSmall =
-            ((char)getTagCharacR()->m_field1239 == (char)-1) ||
-            (getTagCharacR()->m_field1239 == 0);
+        // [b28d-PoolGlobalData P329] 去 baseSmall 具名 bool（其 -0x1d 槽把全帧
+        // 标量顶深 4 + 产 `mov %al,-slot; cmpb $0,-slot` 往返；ORIG 0x086907xx
+        // 短路直落 `test %al,%al; je`）⇒ 条件内联回 if。
         char* base;
-        if (baseSmall)
+        if ((char)getTagCharacR()->m_field1239 == (char)-1 ||
+            (char)getTagCharacR()->m_field1239 == (char)0)
             base = getTagCharacSkillW() + 0x46;
         else
             base = getTagCharacSkillW() + 0x1de;
