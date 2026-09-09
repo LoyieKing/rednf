@@ -177,13 +177,12 @@ PvP_Room::PvP_Room()
 // 析构链）居中；4.4 把同一段 epilogue 就地内联在正常路径、unwind 压最末 ⇒ 两尾块
 // 互换，difflib 把 ~9 行 rotate 放大成 ndiff（81 vs 91）。块内容逐条全等，P167
 // CLEAR 13/13（nm 实证 ORIG 同名 D1 均在、无发明符号）⇒ 语义完成，byte 层 N104 封顶。
-// [b28d-7 N-EH] ORIG 0x085d61a6：m_pMatchingSystem 判空一次即 delete；4.4 重复判空并发子对象析构。
+// [SweepPvPRoom2 P141] ORIG 0x085d61a6 只有一次成员读 + `test %ebx,%ebx; je`
+// （编译器为 delete 生成的隐式空指针守卫）；手写 `if (m_pMatchingSystem)` 会
+// 重复判空（多 mov+mov+test+je 4 条）⇒ 改无条件 delete 复现 ORIG 守卫形。
 PvP_Room::~PvP_Room()
 {
-    if (m_pMatchingSystem)
-    {
-        delete m_pMatchingSystem;
-    }
+    delete m_pMatchingSystem;
 }
 
 // ----------------------------------------------------------------------------
@@ -295,7 +294,9 @@ bool PvP_Room::IsEndPvpBattle()
     return m_isEndPvpBattle;
 }
 
-unsigned char PvP_Room::IsInsertTimerRecvPvpRank()
+// [SweepPvPRoom2] P292/P321-T3：ORIG 0x082a4322 体 movzbl;ret（bool 字段直返同形），
+// 调用点 0x08298134 call;xor $1;test %al;je ⇒ bool（字段与返回同时 bool 化）。
+bool PvP_Room::IsInsertTimerRecvPvpRank()
 {
     return m_isInsertTimerRecvPvpRank;
 }

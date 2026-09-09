@@ -109,7 +109,10 @@ public:
     //   `movzbl +0x604; ret` 无 setne 属弱证据（bool 字段直返同形），旧 P168a③ 判词作废。
     bool IsExistPassword();
     bool IsEndPvpBattle();
-    unsigned char IsInsertTimerRecvPvpRank();
+    // [SweepPvPRoom2] P292/P321-T3：ORIG 定义 0x082a4322 `movzbl 0x616(%eax),%eax; ret`
+    // （bool 字段直返同形）；调用点 0x08298134 `call; xor $1,%eax; test %al,%al; je`
+    // ⇒ bool。c6 探针：uchar 字段→bool 返回多 testb/setne，字段+返回须同时 bool 化。
+    bool IsInsertTimerRecvPvpRank();
     int is_closeable_seat_state();
     bool IsAllMoreThanGrade(int grade);
     bool is_last_win(int seat);
@@ -214,7 +217,8 @@ private:
     int m_passwordLen;                  // +0x610（CheckPassword 0x085ddeb7 读比对）
     unsigned char m_battleEndFlag;      // +0x614（request_fight 入口非 0 即拒；time_out 置 1）
     char m_rankRequested;               // +0x615（pvp_request_pvp_rank 一次性置 1 发 0x31 包）
-    unsigned char m_isInsertTimerRecvPvpRank;  // +0x616（ORIG IsInsertTimerRecvPvpRank 读）
+    bool m_isInsertTimerRecvPvpRank;    // +0x616（[SweepPvPRoom2] P292：调用点 xor$1 实证 bool；
+                                        //   同宽同偏移，bool 化后直返形与 ORIG 0x082a4322 一致）
     bool m_isEndPvpBattle;              // +0x617（ORIG IsEndPvpBattle 0x082a4338 movzx 直返=uchar/bool；调用点 xor$1=bool）
     int m_battleStartSec;               // +0x618（request_fight 记 getCurSec；time_out 算耗时）
     bool m_field61c;                    // +0x61c（ORIG setReamtchable 0x8568d62 P33 形态）
