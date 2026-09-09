@@ -548,7 +548,8 @@ struct CharacInfoFields
     bool m_memberDungeonFlag;              // +0x1241（b28d-Main: P292 更正版，getMemberDungeonFlag 调用点 0x085be8ba `call; test %al,%al; je` 无 setne ⇒ bool）
     unsigned char m_revengeCount;          // +0x1242
     unsigned char m_revengeDungeonCount;   // +0x1243
-    unsigned char m_villageAttackDBUpdate; // +0x1244
+    bool m_villageAttackDBUpdate;          // +0x1244（b28d-CUser P292：ORIG 0x08696989
+                                           //   movzbl 直返、调用点无 setne ⇒ bool；宽 1 不变）
     char m_linkCharacSlotIndex;            // +0x1245
     unsigned char m_characLinkType;        // +0x1246
     int m_characLinkBonusExp;              // +0x1247
@@ -1017,7 +1018,9 @@ public:
     void IncCurConditionEventRewardStep();
     void SetCurConditionEventRewardStep(short step);
     void ClearCurConditionEventRewardStep();
-    unsigned char IsVillageAttackDBUpdate() const;
+    // b28d-CUser P248 档①/P292：ORIG T 0x08696976 体 movzbl 直返 + 调用点
+    //   `call; test %al,%al; je`（无 setne）⇒ bool（返回类型不入 mangled）。
+    bool IsVillageAttackDBUpdate() const;
     void VillageAttack_DBUpdate();
     void VillageAttack_NotDBUpdate();
     unsigned char GetCurVillageAttackCount() const;

@@ -2789,7 +2789,10 @@ public:
     bool isLinkCharacDisconnectFlag();   // b28d-Main 代落(P292)：ORIG 0x08652c9a 调用点 `call; test %al,%al; je` 无 setcc ⇒ bool
     void setLinkCharacDisconnectFlag(bool flag);   // ORIG 0x086973dc
     unsigned char getDisconnectLinkCharacSlotIdx();
-    unsigned char is_update_ontime_last_recv_idx();   // ORIG movzbl 直返
+    // b28d-CUser P248 档①/P292：ORIG T 0x08697598 体 `movzbl 0x8d24c; ret`（无 setne）
+    //   + UpdateLogout 0x08655998 调用点 `call; test %al,%al; je` ⇒ bool
+    //   （m_updateOntime 本已 bool，字段/mangled 零影响）。
+    bool is_update_ontime_last_recv_idx();
     void reset_update_ontime_last_recv_idx();
     unsigned char CheckLoadRentalInfoFromExchange();   // ORIG movzbl 直返
     unsigned char GetPuUser();

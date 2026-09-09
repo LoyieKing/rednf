@@ -1801,7 +1801,12 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
                 (unsigned int)getCurCharacNo()));
             pkt.put_short((int)(short)GetCurCharacEmotion());
             pkt.put_byte((int)(char)GetCurCharacSkillTreeIndex());
-            pkt.put_byte(IsReturnUser() != 0 ? 1 : 0);
+            // b28d-CUser p167 真缺口：ORIG 0x0865af90/0x0865afa5 为 if/else **两个**
+            //   put_byte 调用点（`test %al; je <put_byte(0)>`），三目只发一个。
+            if (IsReturnUser() != 0)
+                pkt.put_byte(1);
+            else
+                pkt.put_byte(0);
             char linkType = getCharacLinkType();
             pkt.put_byte((int)getLinkCharacSlotIndex());
             pkt.put_byte((int)linkType);
@@ -1888,7 +1893,12 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             else
             {
                 int days = reinterpret_cast<CharacListElemView&>(m_characList[i]).m_forbidPlayLeftSec / 0x15180;
-                pkt.put_int(days < 1 ? 1 : days);
+                // b28d-CUser p167 真缺口：ORIG 为 if/else 两个 put_int 调用点
+                //   （Ghidra G101/G102；三目只发一个）。
+                if (days < 1)
+                    pkt.put_int(1);
+                else
+                    pkt.put_int(days);
             }
         }
         pkt.put_short(countIdx, written);
@@ -2006,7 +2016,12 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
         pkt.put_str(GetGuildName(), guildNameLen);
         pkt.put_byte((int)GetGuildLevel());
         pkt.put_byte((int)(char)getPowerSide());
-        pkt.put_byte(IsExistGuildAgit() ? 1 : 0);
+        // b28d-CUser p167 真缺口：ORIG 0x0865bdb4/0x0865bdc9 为 if/else **两个**
+        //   put_byte 调用点（`test %al; je <put_byte(0)>`），三目只发一个。
+        if (IsExistGuildAgit() != 0)
+            pkt.put_byte(1);
+        else
+            pkt.put_byte(0);
         ((CQuestShop*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xb))
             ->makePacket_BuyingStatusList(pg, false);
         pkt.put_byte(GetManageLevel());
@@ -5334,9 +5349,10 @@ unsigned char CUser::getDisconnectLinkCharacSlotIdx()
     return (unsigned char)m_breakAway.m_field16;
 }
 
-unsigned char CUser::is_update_ontime_last_recv_idx()
+// b28d-CUser P292：ORIG 0x08697598 体 movzbl 直返（无 setne）⇒ bool。
+bool CUser::is_update_ontime_last_recv_idx()
 {
-    return (unsigned char)m_ceraUserInfo.m_updateOntime;   // §4.3 具名(UserInfo+0x68)
+    return m_ceraUserInfo.m_updateOntime;   // §4.3 具名(UserInfo+0x68)
 }
 
 void CUser::reset_update_ontime_last_recv_idx()
@@ -6377,8 +6393,9 @@ void CUser::send_aura_avatar_option()
 // b28d-lane5 N封顶: N18a/P200 拓宽中轉; N82/P112 槽号分配 | ORIG 0x086489f4 | _ZN5CUser10DisConnSigE11DISCONN_SIGbi
 void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
 {
-    Mutex& mtx = m_mutex2;   // ORIG this+0x8cfa0 实证
-    mtx.lock();
+    // b28d-CUser p167 真缺口：ORIG 0x08648a1b 调 `Guard<Mutex>::C2EPS0_`（RAII），
+    //   全函数无 Mutex::lock/unlock call；原手动 lock+3×unlock 多 4 个调用点。
+    Guard<Mutex> lockGuard(&m_mutex2);   // ORIG this+0x8cfa0 实证
 
     // ORIG 0x08648a45..0x08648a63：持锁后立即经 Arad_DataManager::findGameScript
     // ("Arad_EventPeriodDataManager") 取周期事件管理并 delUserRewardData(this)，
@@ -6400,8 +6417,8 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
         trace("this %x,incre_id= %d, idx= %d, m_socket<0,m_ChState==NONE , "
               "DisConnSig %s, From %d",
               this, (int)GetIncreID(), (int)GetSlotIDX(),
-              NumberToString(get_acc_id(), 0), (int)sig);
-        mtx.unlock();
+              // b28d-CUser p167：ORIG 0x08648ad9 直读 0x704ac（非 get_acc_id）。
+              NumberToString(m_accId, 0), (int)sig);
         return;
     }
 
@@ -6411,8 +6428,7 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
         cMyTrace trace(__PRETTY_FUNCTION__, 0x917, 5);
         trace("[Prog log out...]this %x,incre_id= %d, idx= %d, DisConnSig %s, From %d",
               this, (int)GetIncreID(), (int)GetSlotIDX(),
-              NumberToString(get_acc_id(), 0), (int)sig);
-        mtx.unlock();
+              NumberToString(m_accId, 0), (int)sig);   // ORIG 0x08648d89 直读
         return;
     }
     SetProgLogout();
@@ -6428,7 +6444,7 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
             cMyTrace trace(__PRETTY_FUNCTION__, 0x939, 0);
             trace("from (%d) m_id[%s] uid[%d], send(%d:%d), recv(%d), "
                   "ip(GetPeerIP:NONE), dungeon(%d)",
-                  (int)sig, NumberToString(get_acc_id(), 0), (int)m_field704a8,
+                  (int)sig, NumberToString(m_accId, 0), (int)m_field704a8,
                   (int)sendCnt[1], (int)sendCnt[0], m_lastPacketID,
                   getPlayingDungeonIndex());
         }
@@ -6436,7 +6452,7 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x937, 0);
             trace("from (%d) m_id[%s] uid[%d], send(%d:%d), recv(%d), ip(%s), dungeon(%d)",
-                  (int)sig, NumberToString(get_acc_id(), 0), (int)m_field704a8,
+                  (int)sig, NumberToString(m_accId, 0), (int)m_field704a8,
                   (int)sendCnt[1], (int)sendCnt[0], m_lastPacketID, ip,
                   getPlayingDungeonIndex());
         }
@@ -6446,12 +6462,13 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
     int reason = (int)sig;
     if (reason == 5)
     {
-        if (get_acc_id() == 0 && ip[0] != '\0')
+        // b28d-CUser p167：ORIG 0x08648e17/0x08648e3e/0x08648e65 三处均直读 0x704ac。
+        if (m_accId == 0 && ip[0] != '\0')
         {
             reason = 0x30;
             flag = true;
         }
-        else if (get_acc_id() == 0 && ip[0] == '\0')
+        else if (m_accId == 0 && ip[0] == '\0')
         {
             reason = 0x32;
             flag = true;
@@ -6474,7 +6491,10 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
     {
         Packet_User_Ting_TimeCheck_Statistic_Add ting;
         int playSec = (int)(GlobalData::s_systemTime_.getCurSec() - GetLoginTime());
-        (void)get_acc_id();          // ORIG +0x504 另读 accId（无后续使用）
+        // ORIG 0x08648efb `mov 0x704ac(%eax),%eax; mov %eax,-0x9c(%ebp)`：
+        //   直读成员入死局部（P171 照抄），非 get_acc_id 调用。
+        unsigned int accId = m_accId;
+        (void)accId;
         if (0 < playSec && playSec < 0x2a31)
         {
             CStatisticServerProxy* proxy =
@@ -6490,7 +6510,7 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
         LogManager::logFormat(
             1, "user.cpp", __PRETTY_FUNCTION__, 0x971,
             "[CUser::DisConnSig] Already Disconnected! Socket(-1) ACCID[%s]",
-            NumberToString(get_acc_id(), 0));
+            NumberToString(m_accId, 0));   // ORIG 0x08648f5e 直读
     }
     else
     {
@@ -6521,8 +6541,10 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
         // ORIG +0x730：组流(<<1<<uid)（0x991）。
         Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x991);
         CStreamGuard guard(s, true);
-        guard << (int)1;
-        guard << (int)GetUID();
+        // b28d-CUser p167：ORIG 0x08649181/0x086491ac 显式调 CStreamGuard::operator*
+        //   （deEv）再 operator<<（P132 链保留；原 `guard <<` 无 operator* call）。
+        (*guard)->operator<<((int)1);
+        (*guard)->operator<<((int)GetUID());
         // ORIG +0x7c9：+0x8d0df != 1（= m_guildAgitDB.m_pad2[0]，语义未建模【推断】）
         // 时补崩溃统计 + HWSpec 上报。
         if (m_guildAgitDB.m_pad2[0] != (char)1)
@@ -6530,12 +6552,17 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
             if (!flag)
             {
                 // ORIG +0x7f0：crash 观测计数（key=lastPacketID / dungeonIdx / party）。
-                StatisticsToObserveCrash* crash =
-                    G_GameWorld()->getStatisticsToObserveCrash();
-                crash->incUserLastCrashPacketID(m_lastPacketID);
-                crash->incUserLastCrashDungeonID(getPlayingDungeonIndex());
-                crash->incAbnormalDownUserCount();
-                crash->incUserLastCrashPlayStatus(CheckInParty() ? 1 : 0);
+                // b28d-CUser p167 真缺口：ORIG 0x086491ed/0x08649213/0x0864922c/
+                //   0x0864925b **四次** G_GameWorld()+getStatisticsToObserveCrash()
+                //   （P157/P183 逐使用点重调，不缓存 crash 指针）。
+                G_GameWorld()->getStatisticsToObserveCrash()
+                    ->incUserLastCrashPacketID(m_lastPacketID);
+                G_GameWorld()->getStatisticsToObserveCrash()
+                    ->incUserLastCrashDungeonID(getPlayingDungeonIndex());
+                G_GameWorld()->getStatisticsToObserveCrash()
+                    ->incAbnormalDownUserCount();
+                G_GameWorld()->getStatisticsToObserveCrash()
+                    ->incUserLastCrashPlayStatus(CheckInParty() ? 1 : 0);
             }
             // ORIG +0x883：Client_Spec 统计包（header 0x9ce/0xc06）：+0xa type=1、
             // +0xb count=hwSpec[1]、+0xc errCode=param、+0x10 errLine=最后登录频道、
@@ -6559,7 +6586,6 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
         // ORIG +0x95a：队列 1 投递（在 if(+0x8d0df) 块之后，无条件执行）。
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
     }
-    mtx.unlock();
 }
 
 // 0x08665400：PvP 技能树发放主循环（givePvPSkillTree.md）：
@@ -7461,11 +7487,17 @@ void CUser::UpdateLogout(bool param)
 
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x2260);
     CStreamGuard guard(s, true);
-    guard << (int)0x2c;
-    guard << (int)GetUID();
-    SIG_UPDATE_LOGOUT* sig = guard.GetInBuffer<SIG_UPDATE_LOGOUT>();
+    // b28d-CUser p167 真缺口：ORIG 0x086555e0/0x086555f1 显式调 CStreamGuard::operator*
+    //   （deEv）×2、0x086555?? operator->（ptEv）×1 再 GetInBuffer（P132/P103）；
+    //   直接 `guard <<` / `guard.GetInBuffer` 少 3 个调用点。
+    (*guard)->operator<<((int)0x2c);
+    (*guard)->operator<<((int)GetUID());
+    SIG_UPDATE_LOGOUT* sig =
+        guard.operator->()->GetInBuffer<SIG_UPDATE_LOGOUT>();
     memset(sig, 0, sizeof(SIG_UPDATE_LOGOUT));
-    sig->m_accId = (unsigned int)get_acc_id();
+    // b28d-CUser p167：ORIG 0x8655582 `mov 0x704ac(%eax),%eax` 直读成员
+    // （非 get_acc_id 调用；该访问器在 ORIG 本函数仅出现 2 次，见下方 DB 段）。
+    sig->m_accId = m_accId;
     // ORIG 0x865557c：IntegratedPvP 频道用 get_gc_no_hardcode(GetServerGroup())。
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
         sig->m_gcNo =
@@ -7490,11 +7522,16 @@ void CUser::UpdateLogout(bool param)
         sig->m_playExpAdd = m_gameOption.m_playExpAdd;   // ORIG this+0x703a4 = m_gameOption+0x640
         sig->m_totalFatigueUsed =
             (unsigned short)m_postChecksumData.m_totalFatigueUsed;   // ORIG this+0x79642 实证
-        sig->m_puUser = GetPuUser();
+        // b28d-CUser p167 真缺口：ORIG 0x865568e `movzbl 0x8d0df(%eax),%edx;
+        //   mov %dl,0x21(%eax)` 直读 this+0x8d0df（= m_guildAgitDB.m_pad2[0]，
+        //   SigTypes_E.h:521 注释同证）；原写 GetPuUser() 读的是 +0x796d8（错字段，
+        //   且多发一次 call）。
+        sig->m_puUser = (unsigned char)m_guildAgitDB.m_pad2[0];
         SetUserManagerToolIP(this, reinterpret_cast<SIG_UPDATE_LOGOUT*>(sig));  // ORIG 0x865569e 实证传结构基址
 
-        char mac[0x41];
-        memset(mac, 0, sizeof(mac));
+        // b28d-CUser p167：ORIG 0x86556ad 起为非对齐 peel + rep stos 内联清零
+        // （无 memset call）⇒ 用 `= {0}` 常量清零形（P214③/P253）。
+        char mac[0x41] = {0};
         memcpy(mac, m_network.get_mac_addr(), 0x41);
         strncpy(sig->m_mac, mac, 0x41);
         sig->m_saveMemberBonusFlag = (unsigned char)(IsEnableSaveMemberBonusFatigue() ? 1 : 0);
@@ -7520,7 +7557,9 @@ void CUser::UpdateLogout(bool param)
             mid, playTime, m_premium.m_loginTime, (int)now);
     }
 
-    bool sendOut = get_acc_id() != 0 ||
+    // b28d-CUser p167：ORIG 0x8655869 `mov 0x704ac(%eax),%eax; test %eax,%eax`
+    // 直读成员（非 get_acc_id 调用）。
+    bool sendOut = m_accId != 0 ||
                    G_GameWorld()->IsIntegratedPvPBaseChannel() ||
                    G_GameWorld()->GetChannelType() == 7;
     if (sendOut)
@@ -7530,14 +7569,17 @@ void CUser::UpdateLogout(bool param)
 
     if (m_network.get_str_ip()[0] != '\0' && getCurCharacName() != 0)
     {
-        int startTick = GetCharacStartPlayTick();
-        if (startTick > 0)
+        // b28d-CUser p167 真缺口：ORIG 0x8655915 / 0x8655955 调用
+        //   GetCharacStartPlayTick **两次**（条件一次、实参一次，P157/P48 逐使用点重调）；
+        //   实参求值序（cdecl 右→左）：GetLogInOutState → getCurSec → tick2 → …
+        if (GetCharacStartPlayTick() > 0)
         {
-            long cur = (long)GlobalData::s_systemTime_.getCurSec();
             m_historyLog.Logout(getWebAddress(), m_network.get_str_ip(),
                                 m_network.get_port(),
                                 (unsigned short)G_CEnvironment()->m_serverEnvir.m_channelNo,
-                                (int)(cur - startTick), GetLogInOutState());
+                                (int)((long)GlobalData::s_systemTime_.getCurSec() -
+                                      GetCharacStartPlayTick()),
+                                GetLogInOutState());
         }
     }
 
@@ -7562,8 +7604,12 @@ void CUser::UpdateLogout(bool param)
     {
         if (get_server_fatigue_day_size() != 0)
         {
+            // b28d-CUser p167 真缺口：ORIG 0x8655ac9 `call get_server_fatigue_day_data;
+            //   mov %eax,%ebx; … mov %ebx,0x4(%esp)` —— 取地址走 getter，非成员直传。
             DB_UpdateFatigueAttendance::makeRequest(
-                get_acc_id(), m_map8eb50);
+                get_acc_id(),
+                *(const std::map<unsigned char, short>*)
+                    get_server_fatigue_day_data());
             reset_server_fatigue_data();
         }
     }
@@ -8009,7 +8055,10 @@ void CUser::UpdateCharacView()
     guard.operator*()->operator<<((int)6);
     guard.operator*()->operator<<((int)GetUID());
 
-    SIG_UPDATE_CHARAC_VIEW* sig = guard.GetInBuffer<SIG_UPDATE_CHARAC_VIEW>();
+    // b28d-CUser p167：ORIG 0x086517f7 显式调 CStreamGuard::operator->()（ptEv）
+    //   再 GetInBuffer（P103）；直接成员调用少一次 call。
+    SIG_UPDATE_CHARAC_VIEW* sig =
+        guard.operator->()->GetInBuffer<SIG_UPDATE_CHARAC_VIEW>();
     memset(sig, 0, sizeof(SIG_UPDATE_CHARAC_VIEW));
 
     sig->m_serverGroup = (unsigned char)GetServerGroup();
@@ -11529,9 +11578,12 @@ void CUser::_SaveCharacData()
 
     Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0x19c3);
     CStreamGuard guard(s, true);
-    guard << (int)0x22;                      // SIG_SAVE_CHARAC
-    guard << (int)GetUID();
-    SIG_SAVE_CHARAC* sig = guard.GetInBuffer<SIG_SAVE_CHARAC>();
+    // b28d-CUser p167 真缺口：ORIG 显式调 CStreamGuard::operator*（deEv）×2 与
+    //   operator->（ptEv）×1 再 GetInBuffer（P132/P103）；直接成员调用少 3 个调用点。
+    (*guard)->operator<<((int)0x22);         // SIG_SAVE_CHARAC
+    (*guard)->operator<<((int)GetUID());
+    SIG_SAVE_CHARAC* sig =
+        guard.operator->()->GetInBuffer<SIG_SAVE_CHARAC>();
     memset(sig, 0, sizeof(SIG_SAVE_CHARAC));
 
     sig->m_dungeonGainGold = getDungeonGainedGold()->getGainedGold();
