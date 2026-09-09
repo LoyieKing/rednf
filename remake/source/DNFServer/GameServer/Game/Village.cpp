@@ -140,7 +140,8 @@ bool Village::set_village(TownScript& script)
             pArea = pArea + 1;   // §4.3（同上）
         }
         m_pAreas = (Area*)(raw + 1);
-        g_guildAgitMgr->SetGuildAgitAreaDomain(m_areaCount, total);
+        // [b28d-sweep] 对象语义（ORIG 0x86c3685 `movl $0x943e0e0,(%esp)`，符号 B 0x58）
+        g_guildAgitMgr.SetGuildAgitAreaDomain(m_areaCount, total);
     }
     else
     {

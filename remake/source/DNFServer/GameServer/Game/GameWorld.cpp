@@ -896,16 +896,19 @@ int GameWorld::GetIDUserInIDMap(const char* name)
     }
 }
 
-// [b28d-solo-GameWorld] _ZN9GameWorld16reach_game_worldEP5CUser verdict=DIFF 271/273
+// [b28d-sweep] **真语义 bug 修复**：私商分支虚调用目标还原为真实虚成员调用
+// `GetInstancePrivateStoreMgr()->Enter(user)`（P5/P113）。ORIG 0x086c5212
+// `mov (%eax),%edx; add $0x4,%edx; mov (%edx),%ecx; call *%ecx` = IUserPos 槽1；
+// CPrivateStoreMgr vtable 0x8cbeb38 槽0=Exit(0x85ca994)/槽1=Enter(0x85caa8a)。
+// 旧实现 `((void**)storeMgr)[1]` 取对象 +0x04 成员值当函数指针 = 真 bug。
+// 271/273 → **271/271**（slotnorm 零残差）；p167 46/46（仅 C1/C2 别名）。
+// [b28d-solo-GameWorld] _ZN9GameWorld16reach_game_worldEP5CUser verdict=DIFF 271/271
 // 本轮修法（在既有 P50/P61/P192/try-catch 之上）：①P50 声明点 = 发射点 —— 两个
 // iterator 声明移到 key（uniqueId/accId）**之前**，复现 ORIG 0x086c4ea0/0x086c4f5b
 // 的 C1Ev 先于 get_unique_id/get_acc_id；②P227 全表达式临时链 —— getUserVillage
 // 失败分支 cMyTrace 实参 getCurCharacVill 在 ctor 前求值存 %ebx（ORIG 0x086c5185）；
-// ③**真语义 bug 修正**：私商分支手动虚调原取槽0（`*(void**)storeMgr` = Exit），
-// ORIG 0x086c5212 为 `mov (%eax),%edx; add $0x4,%edx; mov (%edx),%ecx` = 槽1
-// （vtable 实证 0x8cbeb40 槽0=Exit 0x85ca994 / 0x08cbeb44 槽1=HandleError 0x85caaaa）
-// ⇒ 改 `((void**)storeMgr)[1]`；④P231 裸 register 消 storeMgr 槽（4.4 落 %ebx）。
-// 余 N7/N82：%eax↔%ebx 中转 2 条 + 槽组平移。p167 CLEAR 46=46。
+// ③**真语义 bug 修正**：私商分支虚调用改真实虚成员调用（见上方 b28d-sweep 判词）。
+// 余 N82：槽组平移（slotnorm 零残差）。p167 46/46（C1/C2 别名对）。
 // 既有修法（保留）：P50 复活
 // （ORIG 0x086c4ea0/0x086c4f5b iterator C1Ev 先声明后赋值）+ P61/P236 具名 key
 // （ORIG uniqueId=-0x4a/accId=-0x44/-0x28）+ P192 value_type 直构 +
@@ -996,12 +999,14 @@ bool GameWorld::reach_game_world(CUser* user)
     if (user->IsPermissionPrivateStore())
     {
         // ORIG 0x086c520d 单次 GetInstancePrivateStoreMgr（eax 复用为 this）。
-        // ORIG vtable 实证（0x8cbeb40 槽0=Exit 0x85ca994 / 0x8cbeb44 槽1=HandleError
-        // 0x85caaaa）：ORIG `mov (%eax),%edx; add $0x4,%edx; mov (%edx),%ecx` = 槽1；
-        // 旧实现取槽0（`*(void**)storeMgr`）为真语义 bug（虚槽选错）。
-        register private_store::CPrivateStoreMgr* storeMgr =
-            private_store::GetInstancePrivateStoreMgr();
-        (*(void (**)(void*, void*))(((void**)storeMgr)[1]))(storeMgr, user);
+        // [b28d-sweep] 真虚调用（P5/P113）：ORIG `mov (%eax),%edx; add $0x4,%edx;
+        // mov (%edx),%ecx; call *%ecx` = IUserPos 槽1；CPrivateStoreMgr vtable
+        // 0x8cbeb38 槽0=Exit(0x85ca994) / 槽1=Enter(0x85caa8a) ⇒ 目标是 Enter。
+        // 旧实现 `((void**)storeMgr)[1]` 取的是对象 +0x04 成员值（非 vtable 槽），
+        // 会把成员数据当函数指针调用 = 真语义 bug。
+        // P0/P52：结果直作 receiver（ORIG 0x086c520d 单次 call 后 %eax 复用为 this，
+        // 无具名 storeMgr 槽）。
+        private_store::GetInstancePrivateStoreMgr()->Enter(user);
     }
     else
     {
@@ -1018,7 +1023,10 @@ bool GameWorld::reach_game_world(CUser* user)
     return true;
 }
 
-// [b28d-solo-GameWorld] _ZN9GameWorld16leave_game_worldEP5CUser verdict=DIFF 298/296
+// [b28d-sweep] 298/296 → **298/294**：g_guildAgitMgr 对象化（原指针建模 ⇒ 调用点
+// `mov g,%eax; mov %eax,(%esp)`；ORIG 0x086c55e5 `movl $0x943e0e0,(%esp)`）。
+// 余 N7/N104：get_area 结果 %esi vs %ebx + EH 尾块相对序。
+// [b28d-solo-GameWorld] _ZN9GameWorld16leave_game_worldEP5CUser verdict=DIFF 298/294
 // 本轮修法：P50 声明点 = 发射点 —— 两个 iterator 声明移到 key（uniqueId/accId）
 // 之前，复现 ORIG 0x086c539c 段 C1Ev 先于 get_unique_id/get_acc_id（旧序差 2 块）。
 // 余 N7/N82：get_area 结果 %esi vs %ebx（ORIG 保 %esi 供 check_valid_area 第2实参）
@@ -1090,7 +1098,7 @@ bool GameWorld::leave_game_world(CUser* user)
         g_schoolMgr.DelUser(user);
         if (user->get_charac_guildkey() != 0)
         {
-            g_guildAgitMgr->ReleaseGuildAgitArea(user->get_charac_guildkey());
+            g_guildAgitMgr.ReleaseGuildAgitArea(user->get_charac_guildkey());
         }
         if (user->isJoinPowerWar())
         {
@@ -2469,7 +2477,11 @@ int GameWorld::check_move_area(CUser* user, int vill, int area, int x, int y,
 }
 
 // [b28d-11b] N：帧/槽差（N82）@0x086c5a84
-// [b28d-solo-GameWorld] _ZN9GameWorld9move_areaEP5CUseriiiiibiii verdict=DIFF 864/872 N82 封顶（§6.2 三件套：P167 127/127 差集零，gap 8 全为槽组平移）。
+// [b28d-sweep] 864/872 → **864/864**（gap 0）：真因 = g_guildAgitMgr 建模错误
+// （头声明指针 4B，ORIG 为 B 段 0x58 对象）；对象化后 4 处调用点由
+// `mov g,%eax; mov %eax,(%esp)` 变 `movl $g_guildAgitMgr,(%esp)`，与 ORIG
+// 0x86c658d/0x86c65be/0x86c65ec/0x86c661a 逐条一致（每处 -2 条 ×4）。
+// [b28d-solo-GameWorld] verdict=DIFF 864/864 N82 封顶（§6.2 三件套：P167 127/127 差集零）。
 bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
                           bool flag, int param, int prevVill, int prevArea)
 {
@@ -2696,14 +2708,16 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
             // 独立 if-branch，每支各调 get_charac_guildkey() + GetGuildAgitAreaIndex()
             // 一次；cMyTrace 的 Guild(%d) 实参第 5 次独立调用 get_charac_guildkey()
             // （不缓存到具名局部）。P167 差集 -4/-3 根因。
+            // [b28d-sweep] g_guildAgitMgr 为对象（ORIG B 0x58）⇒ 值语义调用；ORIG
+            // 0x86c658d/0x86c65be/0x86c65ec/0x86c661a 全为 `movl $0x943e0e0,(%esp)`。
             if (area == 0)
-                destArea = g_guildAgitMgr->GetGuildAgitAreaIndex(user->get_charac_guildkey(), 0);
+                destArea = g_guildAgitMgr.GetGuildAgitAreaIndex(user->get_charac_guildkey(), 0);
             else if (area == 1)
-                destArea = g_guildAgitMgr->GetGuildAgitAreaIndex(user->get_charac_guildkey(), 1);
+                destArea = g_guildAgitMgr.GetGuildAgitAreaIndex(user->get_charac_guildkey(), 1);
             else if (area == 2)
-                destArea = g_guildAgitMgr->GetGuildAgitAreaIndex(user->get_charac_guildkey(), 2);
+                destArea = g_guildAgitMgr.GetGuildAgitAreaIndex(user->get_charac_guildkey(), 2);
             else if (area == 3)
-                destArea = g_guildAgitMgr->GetGuildAgitAreaIndex(user->get_charac_guildkey(), 3);
+                destArea = g_guildAgitMgr.GetGuildAgitAreaIndex(user->get_charac_guildkey(), 3);
             cMyTrace trace(
                 __PRETTY_FUNCTION__,
                 0x88e, 0);
@@ -4497,8 +4511,15 @@ void GameWorld::check_peerTypemsg_sameWorldUser(CUser* from, CUser* to, char typ
 }
 
 // [b28d-11b] N：帧差 0x10 + 槽位（N82）@0x086c975e
+// [b28d-sweep] **真缺口修复**：case 3 与 case 0x22 在 ORIG 中共享同一 tail —— 跳表
+// 0x8cfba20[3]=0x86ca20b（needClean 逻辑）、[0x22]=0x86ca3de（make_packet_chat_msg +
+// send_to_area），case 3 正常路径**落到** 0x86ca3de（Ghidra C 亦为 fallthrough）。
+// 旧实现两个 case 各写一份 ⇒ 多 1×{make_packet_chat_msg, get_area, getCurCharacVill,
+// send_to_area}（p167 EXTRA 各 +1）。改 fallthrough 后 1299→1267（-32 条），
+// p167 EXTRA 4 项归零。余 1255/1267：N82/N87/N89/N91（string/PacketGuard 临时与 EH
+// landing 块序；p167 残差仅 C1↔C2 / D1↔D2 同址别名对 +1/+2 个 EH 析构）。
 // [b28d-solo-GameWorld] _ZN9GameWorld13send_chat_msgEP5CUserctjPciS2_i15ENUM_NOTIPACKET
-// verdict=DIFF 1255/1295 N82/N87/N89 封顶（帧 0x21c vs 0x22c + 大帧槽组平移）。
+// verdict=DIFF 1255/1267 N82/N87/N89 封顶（帧 0x21c vs 0x22c + 大帧槽组平移）。
 // b28d-solo 本轮真修：case 0xd/0xf 原只写一次 `int nameLen=strlen(...)` + put_int(nameLen)；
 // ORIG 0x086caa08 为 `put_int(strlen(from->getCurCharacName()))` 内联 + 0x086caa2d 具名
 // nameLen（两次独立 strlen/getCurCharacName）⇒ p167 MISSING 各 1 归零。
@@ -4522,14 +4543,13 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
     if (type != 0)
     {
         std::string filtered = CSyncSlangFilter::GetInstance()->Filter(std::string(msg));
-        if (filtered.size() != 0)
-        {
-            strncpy(msg, filtered.c_str(), filtered.size());
-        }
-        else
+        // [b28d-sweep] ORIG 0x086c985b 段 `test %eax,%eax; sete %al; test %al,%al;
+        // je <body>` = 空判定正极性（P197④ 镜像族）⇒ 写 `size()==0` 早退。
+        if (filtered.size() == 0)
         {
             return;
         }
+        strncpy(msg, filtered.c_str(), filtered.size());
     }
     PacketGuard packet;
     if (from != 0)
@@ -4704,9 +4724,10 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
                 break;
             }
         }
-        make_packet_chat_msg(packet, from, msg, len, type, notify);
-        send_to_area(from->getCurCharacVill(), from->get_area(false), packet);
-        break;
+        // [b28d-sweep] ORIG 跳表 0x8cfba20[3]=0x86ca20b / [0x22]=0x86ca3de：case 3 的
+        // 正常路径（needClean 假或 count<=max）**落到** 0x86ca3de，与 case 0x22 共享同一
+        // 块（ORIG 全函数仅一次 make_packet_chat_msg/send_to_area，0x86ca41f/0x86ca45f）
+        // ⇒ 此处不写 break，fallthrough 到 case 0x22。
     }
     case 0x22:
         if (from != 0)

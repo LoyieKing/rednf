@@ -54,6 +54,10 @@ public:
 };
 
 // 全局单例（定义在 CGameManager.cpp）
-extern CGuildAgitManager* g_guildAgitMgr;
+// [b28d-sweep] 建模修正：ORIG `nm -S` = `0943e0e0 00000058 B g_guildAgitMgr`
+// （0x58 字节**对象**），7 个引用点全为 `movl $0x943e0e0,(%esp)`（值语义）；
+// 构造点 0x856860b 在 `__static_initialization_and_destruction_0`@0x85685a0
+// （与 g_schoolMgr@0x943e080 同 TU）。原指针建模（4B）会空指针解引用。
+extern CGuildAgitManager g_guildAgitMgr;
 
 #endif  // DNF_GAME_CGUILD_AGIT_MANAGER_H_

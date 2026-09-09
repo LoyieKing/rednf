@@ -1239,32 +1239,42 @@ int RegenerationROI::_Calculate_RegenCost(int partIdx, int optType, int lv0,
     {
         std::map<int, std::map<int, _str_cost> >::iterator outer =
             m_regenerator.m_map18.find(partIdx);
-        if (outer == m_regenerator.m_map18.end())
+        // [SweepRandomRental 修正] ORIG 0x085f9103 `call ne; test %al,%al;
+        // je <return -1>` ⇒ 原码为 `!=` 正极性 + else 早返（旧 `==` 形使 4.4 选
+        // eq：p167 MISSING `_Rb_tree_iterator::ne` ×2 / EXTRA `eq` ×2）。
+        if (outer != m_regenerator.m_map18.end())
         {
-            return -1;
-        }
-        std::map<int, _str_cost>& inner = outer->second;
+            std::map<int, _str_cost>& inner = outer->second;
 
-        std::map<int, _str_cost>::iterator a = inner.find(lv0);
-        // [b28d-solo-RandomRentalA2 P222] ORIG 走 `ne` 正极性（p167 MISSING
-        if (a != inner.end())
-        {
-            if (a->second.m_field0 == 0)
+            std::map<int, _str_cost>::iterator a = inner.find(lv0);
+            if (a != inner.end())
             {
-                cost1 = a->second.m_field4;
+                if (a->second.m_field0 == 0)
+                {
+                    cost1 = a->second.m_field4;
+                }
             }
-        }
-        else
-        {
-            return -1;
-        }
-
-        std::map<int, _str_cost>::iterator b = inner.find(lv1);
-        if (b != inner.end())
-        {
-            if (b->second.m_field0 == 0)
+            else
             {
-                cost1 = (cost1 + b->second.m_field4) / 2;
+                return -1;
+            }
+
+            // [SweepRandomRental 修正] ORIG 0x085f91b8 `mov -0x4c(%ebp),%eax;
+            // mov %eax,-0x38(%ebp)` ⇒ 原码对 lv1 再次 find 后**赋值回同一迭代器 a**
+            // （复用槽），非新声明 b；0x085f920e `add %eax,-0x18(%ebp)` 后读回做除法
+            // ⇒ 累加与除法为两句式。
+            a = inner.find(lv1);
+            if (a != inner.end())
+            {
+                if (a->second.m_field0 == 0)
+                {
+                    cost1 += a->second.m_field4;
+                    cost1 /= 2;
+                }
+            }
+            else
+            {
+                return -1;
             }
         }
         else
@@ -1277,31 +1287,38 @@ int RegenerationROI::_Calculate_RegenCost(int partIdx, int optType, int lv0,
     {
         std::map<int, std::map<int, _str_cost> >::iterator outer =
             m_regenerator.m_map18.find(optType);
-        if (outer == m_regenerator.m_map18.end())
+        // [SweepRandomRental 修正] 同第一块：ORIG 0x085f92ee 走 `ne` 正极性。
+        if (outer != m_regenerator.m_map18.end())
         {
-            return -1;
-        }
-        std::map<int, _str_cost>& inner = outer->second;
+            std::map<int, _str_cost>& inner = outer->second;
 
-        std::map<int, _str_cost>::iterator a = inner.find(lv0);
-        if (a != inner.end())
-        {
-            if (a->second.m_field0 == 0)
+            std::map<int, _str_cost>::iterator a = inner.find(lv0);
+            if (a != inner.end())
             {
-                cost2 = a->second.m_field4;
+                if (a->second.m_field0 == 0)
+                {
+                    cost2 = a->second.m_field4;
+                }
             }
-        }
-        else
-        {
-            return -1;
-        }
-
-        std::map<int, _str_cost>::iterator b = inner.find(lv1);
-        if (b != inner.end())
-        {
-            if (b->second.m_field0 == 0)
+            else
             {
-                cost2 = (cost2 + b->second.m_field4) / 2;
+                return -1;
+            }
+
+            // [SweepRandomRental 修正] ORIG 0x085f9347 `mov -0x4c(%ebp),%eax;
+            // mov %eax,-0x40(%ebp)` ⇒ 同第一块：复用迭代器 a + 两句式除法。
+            a = inner.find(lv1);
+            if (a != inner.end())
+            {
+                if (a->second.m_field0 == 0)
+                {
+                    cost2 += a->second.m_field4;
+                    cost2 /= 2;
+                }
+            }
+            else
+            {
+                return -1;
             }
         }
         else
@@ -1327,7 +1344,10 @@ void RegenerationROI::_RandomLevel(int lv0, int lv1, select_base_item& sb,
         std::swap(lv0, lv1);
     }
 
-    int lo = (lv0 % 5 == 0) ? lv0 : lv0 + (5 - lv0 % 5);   // 向上取整到 5 的倍数
+    // [SweepRandomRental 修正] ORIG 0x085f946f..0x085f94a6：`test;je → mov $0x0,%eax`
+    // 与 `mov $0x5,%eax; sub %edx,%eax` 两臂**汇合后**再 `add lv0`（即 +0 走 add 形）
+    // ⇒ 原码为 `lv0 + (cond ? 0 : 5 - lv0%5)`，非三目直接返回 lv0。
+    int lo = lv0 + ((lv0 % 5 == 0) ? 0 : (5 - lv0 % 5));   // 向上取整到 5 的倍数
     int hi = lv1 - (lv1 % 5);                               // 向下取整到 5 的倍数
 
     std::vector<int> levels;
@@ -1397,34 +1417,47 @@ int RegenerationROI::RegenVer_get_option_value(int minV, int maxV)
     // [b28d-solo-RandomRentalA2 判词] DIFF 92/117（ORIG 0x085f8da6）：残余槽序/
     // 物化次数（N82 族；ratios 内联实测反劣 117→118 已回退）。旧判词：
     // 语义等价。
+    // [SweepRandomRental 修正] ORIG 0x085f8e7b `mov $0xc,%ah; mov %ax,-0x40;
+    // fldcw -0x40; fistpl`：控制字 RC=11 = **向零截断**（Ghidra 的 ROUND 系误标）。
+    // 旧 ROUND(+0.5) 形在正/负小数上语义偏离 ⇒ 改回 (int) 截断。
     unsigned long bound = (unsigned long)m_regenerator.m_field48;
     int r = m_regeneratorPtr->randInt(bound);
 
-    float scaleRange = 0.0f;   // 默认零值同 OptionValueRatio W ctor 0x85f4176
-    float scaleBase = 0.0f;
+    // [SweepRandomRental 修正] ORIG 0x085f8dd3 `lea -0x30(%ebp),%eax; mov %eax,(%esp);
+    // call _ZN16OptionValueRatioC2Ev` ⇒ 原码是 OptionValueRatio 局部对象（三字清零），
+    // 非两个独立 float 局部（旧形 p167 MISSING C2Ev ×1）。
+    // 字段来源按 ORIG 逐条核对：本函数（ROI）与 handle::_get_option_value 的取用**相反** ——
+    //   ROI 0x085f8e1f `mov 0x4(%eax),%eax; mov %eax,-0x30` ⇒ span 系数取元素 **+0x04**；
+    //   ROI 0x085f8e3a `mov (%eax),%eax;   mov %eax,-0x2c` ⇒ base 系数取元素 **+0x00**。
+    // （handle::_get_option_value 0x085f2bf0/0x085f2c0e 才是 span=+0/base=+4，两处不同。）
+    OptionValueRatio sel;
 
     int acc = 0;
+    // [SweepRandomRental] P183 反向实验已做：删引用缓存改逐点全链 ⇒ 96 条（反劣 1，
+    // 已回退）。ORIG 的 4 处 `mov this; lea/add $0x40` 全链在 4.4 下复现不出等长。
     std::vector<_str_option_value_ratio>& ratios = m_regenerator.m_vec3c;
     for (std::size_t i = 0; i < ratios.size(); ++i)
     {
         acc += (int)ratios[i].m_weight8;
         if ((unsigned int)r <= (unsigned int)acc)
         {
-            scaleRange = ratios[i].m_scaleRange0;
-            scaleBase = ratios[i].m_scaleBase4;
+            sel.m_scaleRange0 = ratios[i].m_scaleBase4;   // 对象+0 ← 元素+0x04
+            sel.m_scaleBase4 = ratios[i].m_scaleRange0;   // 对象+4 ← 元素+0x00
             break;
         }
     }
 
-    float spanf = scaleRange * (float)(maxV - minV);
-    int span = (int)(spanf + (spanf >= 0.0f ? 0.5f : -0.5f));   // ROUND(fistp)
-
-    float basef = scaleBase * (float)minV;
-    int base = (int)(basef + (basef >= 0.0f ? 0.5f : -0.5f));
+    // [SweepRandomRental] P0：ORIG 0x085f8e6c..0x085f8e84 为 fildl/flds/fmulp/
+    // fldcw/fistpl 直落（无 float 中间槽往返）⇒ 表达式内联，禁具名 spanf/basef。
+    int span = (int)(sel.m_scaleRange0 * (float)(maxV - minV));  // ORIG fldcw RC=11：截断
+    int base = (int)(sel.m_scaleBase4 * (float)minV);
 
     unsigned long bound2 = (unsigned long)span;
     int r2 = m_regeneratorPtr->randInt(bound2);
-    return r2 + base;
+    // [SweepRandomRental] ORIG 0x085f8eba `mov %eax,-0x1c(%ebp); mov -0x1c(%ebp),%eax`
+    // = 复用 r 槽的 store/reload 往返（原码有具名局部）⇒ 赋值回 r 再 return。
+    r = r2 + base;
+    return r;
 }
 
 // ---- Regenerate —— T 0x085f8646（Regenerate.md 全文转写）------------------
@@ -1483,44 +1516,53 @@ int RegenerationROI::Regenerate(int baseLv0, int baseLv1, int partIdx,
         return 0x11;
     }
 
-    int rarity = base->get_rarity();
-    int usableLevel = base->getUsableLevel();
-    int optionGrade = base->GetRandomOptionGrade();   // vtable 槽20（+0x50）
+    // [SweepRandomRental 修正] ORIG 0x085f890e/085f891c/085f8935 三个日志局部
+    // 为窄类型：`mov %al,-0x68`(rarity char) / `mov %ax,-0x66`(usableLevel ushort)
+    // / `mov %al,-0x67`(optionGrade char)，打印时 movzbl+movsbl / movzwl 扩展
+    // ⇒ 原为 char/unsigned short/char（旧 int 形在值域溢出时日志值与 ORIG 不同）。
+    signed char rarity = (signed char)base->get_rarity();
+    unsigned short usableLevel = (unsigned short)base->getUsableLevel();
+    signed char optionGrade = (signed char)base->GetRandomOptionGrade();  // vtable 槽20（+0x50）
 
-    ss << "rarity : " << rarity << " level : " << (unsigned short)usableLevel
-       << " base item item : " << optionGrade << "\n";
+    ss << "rarity : " << (int)rarity << " level : " << usableLevel
+       << " base item item : " << (int)optionGrade << "\n";
 
     outItem.reset();
     outItem.m_addInfo = chosenIdx;
     G_CDataManager()->m_itemList->create_item(ENUM_ITEM_CREATE_TYPE_0, outItem,
                                               1);
 
-    bool ok = handle.RegenVer_give_option(
-        // [b28d-solo-RandomRentalA2] P48：ORIG 在此处重新调用 get_rarity/
-        // getUsableLevel（不用上方日志用的缓存局部），实参求值序右→左。
-        (unsigned long)chosenIdx, (ENUM_RARITY)base->get_rarity(),
-        base->getUsableLevel(), base->getItemGroupName(),
-        base->GetRandomOptionGrade(),
-        &outItem.m_random.m_random, this, optType);
-
-    if (ok)
+    // [SweepRandomRental 修正] ORIG 0x085f8a77 `xor $0x1,%eax; test %al,%al;
+    // je <成功块>` = `if (!call()) { 失败; return; }`（bool callee 直测，无 ok
+    // 具名槽；旧 `bool ok` 形多 2 条且块序相反）。
+    if (!handle.RegenVer_give_option(
+            // [b28d-solo-RandomRentalA2] P48：ORIG 在此处重新调用 get_rarity/
+            // getUsableLevel（不用上方日志用的缓存局部），实参求值序右→左。
+            (unsigned long)chosenIdx, (ENUM_RARITY)base->get_rarity(),
+            base->getUsableLevel(), base->getItemGroupName(),
+            base->GetRandomOptionGrade(), &outItem.m_random.m_random, this,
+            optType))
     {
-        for (int i = 0; i < 3; ++i)
-        {
-            const unsigned char* slot =
-                reinterpret_cast<const unsigned char*>(&outItem) + 0x25 + i * 3;
-            // ORIG 循环三值走 operator<<(int)（显式 (int) 提升，避免选到
-            // char/signed char 重载）。
-            ss << "[" << i << "] :" << (int)slot[0] << ":" << (int)slot[1]
-               << ":" << (int)slot[2] << "\n";
-        }
+        ss << "give_option false\n";
         SendMessageToCUser(user, ss.str().c_str());
-        return 0;
+        return 0x13;
     }
 
-    ss << "give_option false\n";
+    for (int i = 0; i < 3; ++i)
+    {
+        // [SweepRandomRental] P183：ORIG 每处重算 `&outItem + i*3 + 0x25`
+        // （0x085f8bde `mov i; mov &outItem; add; add; lea; add $0x25`），
+        // 不缓存 slot 指针（旧 slot 局部多占一槽且形不符）。
+        ss << "[" << i << "] :"
+           << (int)(reinterpret_cast<const unsigned char*>(&outItem) + 0x25 + i * 3)[0]
+           << ":"
+           << (int)(reinterpret_cast<const unsigned char*>(&outItem) + 0x25 + i * 3)[1]
+           << ":"
+           << (int)(reinterpret_cast<const unsigned char*>(&outItem) + 0x25 + i * 3)[2]
+           << "\n";
+    }
     SendMessageToCUser(user, ss.str().c_str());
-    return 0x13;
+    return 0;
 }
 
 namespace random_option
