@@ -508,8 +508,20 @@ struct BlackListNoticeView {          // = Packet_Monitor_Notice_Black_List（0x
 //    (int) cast（4.4 两段 eax→ebx 中转，P265/P211 档③）→ IntView0a..29/UIntView
 //    具名视图；14 处 ORIG 两段形用 unsigned 视图 + (int) cast 复现；
 // ④ 0xb54 跳转极性反演（jne/je 落点，P59/P222）+ 字节视图 UCharView0a。
-// 残差：N82（ORIG 每 case 独占 char* d 槽不复用、帧 0x32c vs 4.4 复用 ⇒ 全帧槽号
-// 错位，ndiff 与完成度反向；docs/asm_translation_patterns.md 负例表）。
+// [BigAuction 复核修正] 旧判"N82 全帧槽号错位不可复现"系误诊：case 数据槽 174 个
+// 两侧本就 1:1 对齐，真因是**本函数 case 块声明序与 ORIG 4.1 body 布局序不一致**
+// （ORIG body 序非数值序：0x3e8,0x3ea,0x3f9,0x3ee,0x27e2,0x3f8,0x5e0,...）。
+// 本波按 ORIG 决策树 je→body 入口地址序重排 186 个 case 块后 slot↔case 175/175
+// 全中（验证脚本 /tmp/disp_verify.py），call 目标多重集 1245/1245 0缺0多、
+// cmp $imm 多重集 253/253 0缺0多（Main 要求的方法证明）。
+// 本波再修正（N82 判词作废）：
+// ① guard/trace 帧底槽全部对上 ORIG（-0x310/-0x308/-0x2f8/-0x2e8）：翻法 = 把
+//    0xdbf/0xdcc 两处 named cMyTrace 局部改单表达式临时链形（P227 同族）——4.4
+//    临时槽与 named 槽分组排布，temporize 后 guard 自动落最低槽；
+// ② 池选择中段 4.1 双 cmp 形可翻：else-if 条件写全 `payloadLen >= 0x1000 &&
+//    payloadLen <= 0x3fff`（ORIG jbe 死分支 = `>=` 假路，语义不变），4.4 产出
+//    同款 cmpw $0xfff; jbe 冗余对；
+// ③ 残余仅链接伪差：printf@plt 后缀、.o 尾部对齐 nop（relink 即消）。
 bool CDispatchServerPacket::dispatchPacket(char* data)
 {
     // ORIG 0x8473660：上游服务器包按首 short(sig) 重写头并转投 DISPATCH_Q。
@@ -521,7 +533,7 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
         guard.Set(GlobalData::s_small_stream_pool->Acquire(
             "DispatchServerPacket.cpp", 0x36));
     }
-    else if (payloadLen <= 0x3fff)  // [推断] 中段池边界未逐指令核对
+    else if (payloadLen >= 0x1000 && payloadLen <= 0x3fff)  // 4.1 双 cmp 形（ORIG 重验边界）
     {
         guard.Set(GlobalData::s_stream_pool->Acquire(
             "DispatchServerPacket.cpp", 0x3a));
@@ -2222,16 +2234,14 @@ bool CDispatchServerPacket::dispatchPacket(char* data)
         case 0x2712:
     {
         // ORIG je 847a31b：cMyTrace(0xdbf,5) "TOD: bug random select" 后直返。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xdbf, 5);
-        trace("TOD: bug random select");
+        cMyTrace(__PRETTY_FUNCTION__, 0xdbf, 5)("TOD: bug random select");
     }
         break;
 
         case 0x2713:
     {
         // ORIG je 847a35c：cMyTrace(0xdcc,5) "TOD: bug reload" 后直返。
-        cMyTrace trace(__PRETTY_FUNCTION__, 0xdcc, 5);
-        trace("TOD: bug reload");
+        cMyTrace(__PRETTY_FUNCTION__, 0xdcc, 5)("TOD: bug reload");
     }
         break;
 
