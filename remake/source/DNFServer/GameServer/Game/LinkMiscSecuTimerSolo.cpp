@@ -326,20 +326,20 @@ int GetLinearDataForMonsterAbility(int low, int high, int diff, int span)
 // ===========================================================================
 
 // TimerBossDieTimeout ctor W 0x0863c7fa / dtor W 0x0863fe2e（仅 vptr）。
-TimerBossDieTimeout::TimerBossDieTimeout()
+__attribute__((weak)) TimerBossDieTimeout::TimerBossDieTimeout() throw()
 {
 }
 
-TimerBossDieTimeout::~TimerBossDieTimeout()
+__attribute__((weak)) TimerBossDieTimeout::~TimerBossDieTimeout() throw()
 {
 }
 
 // TimerStartVillageAttacked ctor W 0x0863cd92 / dtor W 0x0863ee98。
-TimerStartVillageAttacked::TimerStartVillageAttacked()
+__attribute__((weak)) TimerStartVillageAttacked::TimerStartVillageAttacked() throw()
 {
 }
 
-TimerStartVillageAttacked::~TimerStartVillageAttacked()
+__attribute__((weak)) TimerStartVillageAttacked::~TimerStartVillageAttacked() throw()
 {
 }
 
@@ -357,7 +357,7 @@ CServerProxyMgr<CGuildServerProxy>::GetServerProxy(ENUM_SERVER_GROUP);
 // b28c-l23 修复：兄弟 lane 已给冻结头 PacketTypes.h:2011 该 ctor 声明加
 // `throw ()`（P216），本 TU 的定义必须同步异常规范，否则 4.4 报
 // "declaration ... throws different exceptions" 整 TU 编译失败。
-competition_reward_result::competition_reward_result() throw()
+__attribute__((weak)) competition_reward_result::competition_reward_result() throw()
 {
     m_0 = 0;
     m_4 = 0;
@@ -447,10 +447,17 @@ void CAutoMarketConditionsControl::SendNotiSetDurability()
 class DB_UpdateAutoMarketConditionsControl
 {
 public:
+    // [SweepTimerDispatcher2] 判据㉓：ORIG 该符号为 **T**（我方原类内 inline ⇒ W）
+    // ⇒ 改为类外定义发射强符号（调用点仅本 TU 578 行）。
     static void makeRequest(unsigned long long a, unsigned long long b,
                             unsigned long long c, unsigned long long d,
-                            int e, int f, int g)
-    {
+                            int e, int f, int g);
+};
+
+void DB_UpdateAutoMarketConditionsControl::makeRequest(
+    unsigned long long a, unsigned long long b, unsigned long long c,
+    unsigned long long d, int e, int f, int g)
+{
         CStreamGuard guard(
             GlobalData::s_stream_pool->Acquire("../RDARScript.cpp", 0x7c79), true);
         guard.operator*()->operator<<(0x15b);
@@ -467,8 +474,7 @@ public:
         sig->m_values20[1] = f;
         sig->m_values20[2] = g;
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    }
-};
+}
 
 // ===========================================================================
 // CAutoMarketConditionsControl::LoadDatabase  ORIG T 0x082f8684

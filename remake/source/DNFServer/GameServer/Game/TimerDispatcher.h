@@ -26,9 +26,9 @@ public:
 class TimerCheckConn : public TimerSig
 {
 public:
-    TimerCheckConn();
+    TimerCheckConn() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCheckConn();
+    virtual ~TimerCheckConn() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -37,9 +37,9 @@ private:
 class TimerDBUpdate : public TimerSig
 {
 public:
-    TimerDBUpdate();
+    TimerDBUpdate() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerDBUpdate();
+    virtual ~TimerDBUpdate() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -48,9 +48,9 @@ private:
 class TimerStamina : public TimerSig
 {
 public:
-    TimerStamina();
+    TimerStamina() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerStamina();
+    virtual ~TimerStamina() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -70,9 +70,9 @@ public:
 class TimerMapLoading : public TimerSig
 {
 public:
-    TimerMapLoading();
+    TimerMapLoading() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerMapLoading();
+    virtual ~TimerMapLoading() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -81,9 +81,9 @@ private:
 class TimerSetResult : public TimerSig
 {
 public:
-    TimerSetResult();
+    TimerSetResult() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerSetResult();
+    virtual ~TimerSetResult() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -92,9 +92,9 @@ private:
 class TimerDungeonClear : public TimerSig
 {
 public:
-    TimerDungeonClear();
+    TimerDungeonClear() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerDungeonClear();
+    virtual ~TimerDungeonClear() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -103,9 +103,9 @@ private:
 class TimerDungeonFail : public TimerSig
 {
 public:
-    TimerDungeonFail();
+    TimerDungeonFail() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerDungeonFail();
+    virtual ~TimerDungeonFail() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -114,9 +114,9 @@ private:
 class TimerPartyWalkOutLackUser : public TimerSig
 {
 public:
-    TimerPartyWalkOutLackUser();
+    TimerPartyWalkOutLackUser() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPartyWalkOutLackUser();
+    virtual ~TimerPartyWalkOutLackUser() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -125,9 +125,9 @@ private:
 class TimerPVPWalkOutLackUser : public TimerSig
 {
 public:
-    TimerPVPWalkOutLackUser();
+    TimerPVPWalkOutLackUser() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPVPWalkOutLackUser();
+    virtual ~TimerPVPWalkOutLackUser() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -136,9 +136,9 @@ private:
 class TimerFatigueReset : public TimerSig
 {
 public:
-    TimerFatigueReset();
+    TimerFatigueReset() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerFatigueReset();
+    virtual ~TimerFatigueReset() throw();
     bool RegistNextTimer();     // ORIG 0x08633a04：调用点 0x086339d4 传 this ⇒ 非 static；
                                 // 返回 byte 物化 mov %al,-0x9 ⇒ bool
     int updateAbnormalClientCount();     // ORIG T 0x086339fa（定义 TimerDispatcher.cpp）
@@ -150,9 +150,9 @@ private:
 class TimerAvatarExpire : public TimerSig
 {
 public:
-    TimerAvatarExpire();
+    TimerAvatarExpire() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerAvatarExpire();
+    virtual ~TimerAvatarExpire() throw();
     bool RegistTimer(CUser* user);                // ORIG 0x08632b32 非静态（this 未用），单出口 return true
     int CheckExpiredAvatar(CUser* user);          // ORIG T 0x08632a82 非静态（user=0xc(%ebp)）
 
@@ -163,9 +163,9 @@ private:
 class TimerStatisticsLog : public TimerSig
 {
 public:
-    TimerStatisticsLog();
+    TimerStatisticsLog() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerStatisticsLog();
+    virtual ~TimerStatisticsLog() throw();
     bool RegistNextTimer();     // ORIG 调用点 0x08633f08 段尾传 this（mov 0x8(%ebp)）⇒ 非 static
 
 private:
@@ -175,9 +175,9 @@ private:
 class TimerCardSelect : public TimerSig
 {
 public:
-    TimerCardSelect();
+    TimerCardSelect() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCardSelect();
+    virtual ~TimerCardSelect() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -186,9 +186,9 @@ private:
 class TimerClearDungeonReward : public TimerSig
 {
 public:
-    TimerClearDungeonReward();
+    TimerClearDungeonReward() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerClearDungeonReward();
+    virtual ~TimerClearDungeonReward() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -197,9 +197,9 @@ private:
 class TimerClearDungeonScoreScoll : public TimerSig
 {
 public:
-    TimerClearDungeonScoreScoll();
+    TimerClearDungeonScoreScoll() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerClearDungeonScoreScoll();
+    virtual ~TimerClearDungeonScoreScoll() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -208,9 +208,9 @@ private:
 class TimerClearDungeonCardSelectRight : public TimerSig
 {
 public:
-    TimerClearDungeonCardSelectRight();
+    TimerClearDungeonCardSelectRight() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerClearDungeonCardSelectRight();
+    virtual ~TimerClearDungeonCardSelectRight() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -219,9 +219,9 @@ private:
 class TimerPremiumServiceOver : public TimerSig
 {
 public:
-    TimerPremiumServiceOver();
+    TimerPremiumServiceOver() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPremiumServiceOver();
+    virtual ~TimerPremiumServiceOver() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -230,9 +230,9 @@ private:
 class TimerPremiumServiceUpdate : public TimerSig
 {
 public:
-    TimerPremiumServiceUpdate();
+    TimerPremiumServiceUpdate() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPremiumServiceUpdate();
+    virtual ~TimerPremiumServiceUpdate() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -241,9 +241,9 @@ private:
 class TimerPremiumServiceStart : public TimerSig
 {
 public:
-    TimerPremiumServiceStart();
+    TimerPremiumServiceStart() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPremiumServiceStart();
+    virtual ~TimerPremiumServiceStart() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -252,9 +252,9 @@ private:
 class TimerCheckPaidPCRoomTerm : public TimerSig
 {
 public:
-    TimerCheckPaidPCRoomTerm();
+    TimerCheckPaidPCRoomTerm() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCheckPaidPCRoomTerm();
+    virtual ~TimerCheckPaidPCRoomTerm() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -263,9 +263,9 @@ private:
 class TimerEPLPReturnVillage : public TimerSig
 {
 public:
-    TimerEPLPReturnVillage();
+    TimerEPLPReturnVillage() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerEPLPReturnVillage();
+    virtual ~TimerEPLPReturnVillage() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -274,9 +274,9 @@ private:
 class TimerEPLPCommandWait : public TimerSig
 {
 public:
-    TimerEPLPCommandWait();
+    TimerEPLPCommandWait() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerEPLPCommandWait();
+    virtual ~TimerEPLPCommandWait() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -285,9 +285,9 @@ private:
 class TimerWarRoomWaitCount : public TimerSig
 {
 public:
-    TimerWarRoomWaitCount();
+    TimerWarRoomWaitCount() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerWarRoomWaitCount();
+    virtual ~TimerWarRoomWaitCount() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -296,9 +296,9 @@ private:
 class TimerWarRoomReadyLockCount : public TimerSig
 {
 public:
-    TimerWarRoomReadyLockCount();
+    TimerWarRoomReadyLockCount() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerWarRoomReadyLockCount();
+    virtual ~TimerWarRoomReadyLockCount() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -307,9 +307,9 @@ private:
 class TimerWarRoomBattlePauseCount : public TimerSig
 {
 public:
-    TimerWarRoomBattlePauseCount();
+    TimerWarRoomBattlePauseCount() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerWarRoomBattlePauseCount();
+    virtual ~TimerWarRoomBattlePauseCount() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -318,9 +318,9 @@ private:
 class TimerWarRoomResultCount : public TimerSig
 {
 public:
-    TimerWarRoomResultCount();
+    TimerWarRoomResultCount() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerWarRoomResultCount();
+    virtual ~TimerWarRoomResultCount() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -329,9 +329,9 @@ private:
 class TImerWarRoomTimeBomb : public TimerSig
 {
 public:
-    TImerWarRoomTimeBomb();
+    TImerWarRoomTimeBomb() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TImerWarRoomTimeBomb();
+    virtual ~TImerWarRoomTimeBomb() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -340,9 +340,9 @@ private:
 class TimerWarRoomCheckFail : public TimerSig
 {
 public:
-    TimerWarRoomCheckFail();
+    TimerWarRoomCheckFail() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerWarRoomCheckFail();
+    virtual ~TimerWarRoomCheckFail() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -351,9 +351,9 @@ private:
 class TimerWarRoomChangeHost : public TimerSig
 {
 public:
-    TimerWarRoomChangeHost();
+    TimerWarRoomChangeHost() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerWarRoomChangeHost();
+    virtual ~TimerWarRoomChangeHost() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -362,9 +362,9 @@ private:
 class TimerBloodSmallRoundRegister : public TimerSig
 {
 public:
-    TimerBloodSmallRoundRegister();
+    TimerBloodSmallRoundRegister() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodSmallRoundRegister();
+    virtual ~TimerBloodSmallRoundRegister() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -373,9 +373,9 @@ private:
 class TimerBloodPhaseRegister0 : public TimerSig
 {
 public:
-    TimerBloodPhaseRegister0();
+    TimerBloodPhaseRegister0() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodPhaseRegister0();
+    virtual ~TimerBloodPhaseRegister0() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -384,9 +384,9 @@ private:
 class TimerBloodPhaseRegister1 : public TimerSig
 {
 public:
-    TimerBloodPhaseRegister1();
+    TimerBloodPhaseRegister1() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodPhaseRegister1();
+    virtual ~TimerBloodPhaseRegister1() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -395,9 +395,9 @@ private:
 class TimerBloodPhaseRegister2 : public TimerSig
 {
 public:
-    TimerBloodPhaseRegister2();
+    TimerBloodPhaseRegister2() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodPhaseRegister2();
+    virtual ~TimerBloodPhaseRegister2() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -406,9 +406,9 @@ private:
 class TimerBloodPhaseRegister3 : public TimerSig
 {
 public:
-    TimerBloodPhaseRegister3();
+    TimerBloodPhaseRegister3() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodPhaseRegister3();
+    virtual ~TimerBloodPhaseRegister3() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -417,9 +417,9 @@ private:
 class TimerBloodPhaseRegister4 : public TimerSig
 {
 public:
-    TimerBloodPhaseRegister4();
+    TimerBloodPhaseRegister4() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodPhaseRegister4();
+    virtual ~TimerBloodPhaseRegister4() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -428,9 +428,9 @@ private:
 class TimerBloodPhaseRegister5 : public TimerSig
 {
 public:
-    TimerBloodPhaseRegister5();
+    TimerBloodPhaseRegister5() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodPhaseRegister5();
+    virtual ~TimerBloodPhaseRegister5() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -439,9 +439,9 @@ private:
 class TimerBloodPhaseRegister6 : public TimerSig
 {
 public:
-    TimerBloodPhaseRegister6();
+    TimerBloodPhaseRegister6() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodPhaseRegister6();
+    virtual ~TimerBloodPhaseRegister6() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -450,9 +450,9 @@ private:
 class TimerBloodPhaseRegister7 : public TimerSig
 {
 public:
-    TimerBloodPhaseRegister7();
+    TimerBloodPhaseRegister7() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodPhaseRegister7();
+    virtual ~TimerBloodPhaseRegister7() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -461,9 +461,9 @@ private:
 class TimerBloodPhaseRegister8 : public TimerSig
 {
 public:
-    TimerBloodPhaseRegister8();
+    TimerBloodPhaseRegister8() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodPhaseRegister8();
+    virtual ~TimerBloodPhaseRegister8() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -472,9 +472,9 @@ private:
 class TimerBloodPhaseRegister9 : public TimerSig
 {
 public:
-    TimerBloodPhaseRegister9();
+    TimerBloodPhaseRegister9() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodPhaseRegister9();
+    virtual ~TimerBloodPhaseRegister9() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -483,9 +483,9 @@ private:
 class TimerBloodCrazyMonster : public TimerSig
 {
 public:
-    TimerBloodCrazyMonster();
+    TimerBloodCrazyMonster() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodCrazyMonster();
+    virtual ~TimerBloodCrazyMonster() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -494,9 +494,9 @@ private:
 class TimerBloodDungeonClearReward : public TimerSig
 {
 public:
-    TimerBloodDungeonClearReward();
+    TimerBloodDungeonClearReward() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBloodDungeonClearReward();
+    virtual ~TimerBloodDungeonClearReward() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -505,9 +505,9 @@ private:
 class TimerUltimateNextRoundStart : public TimerSig
 {
 public:
-    TimerUltimateNextRoundStart();
+    TimerUltimateNextRoundStart() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerUltimateNextRoundStart();
+    virtual ~TimerUltimateNextRoundStart() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -516,9 +516,9 @@ private:
 class TimerEventChristmas : public TimerSig
 {
 public:
-    TimerEventChristmas();
+    TimerEventChristmas() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerEventChristmas();
+    virtual ~TimerEventChristmas() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -527,9 +527,9 @@ private:
 class TimerStatisticsDetailChannelInfo : public TimerSig
 {
 public:
-    TimerStatisticsDetailChannelInfo();
+    TimerStatisticsDetailChannelInfo() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerStatisticsDetailChannelInfo();
+    virtual ~TimerStatisticsDetailChannelInfo() throw();
     bool RegistNextTimer();   // ORIG 0x08635782（Ev 非 static；调用点传 this）；
                               // SIGFIX：ORIG 串 "bool TimerStatisticsDetailChannelInfo::RegistNextTimer()"
 
@@ -540,9 +540,9 @@ private:
 class TimerStatisticLevel : public TimerSig
 {
 public:
-    TimerStatisticLevel();
+    TimerStatisticLevel() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerStatisticLevel();
+    virtual ~TimerStatisticLevel() throw();
     static int CalcNextTime();               // ORIG T 0x863591a（定义在 GameMain.cpp）
     static int m_nTimeTable[5];               // ORIG D 0x93ace24 {1,10,14,17,21}
 
@@ -553,9 +553,9 @@ private:
 class TimerScheduleOneHour : public TimerSig
 {
 public:
-    TimerScheduleOneHour();
+    TimerScheduleOneHour() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerScheduleOneHour();
+    virtual ~TimerScheduleOneHour() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -564,9 +564,9 @@ private:
 class TimerSaveLogGamechannel : public TimerSig
 {
 public:
-    TimerSaveLogGamechannel();
+    TimerSaveLogGamechannel() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerSaveLogGamechannel();
+    virtual ~TimerSaveLogGamechannel() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -575,9 +575,9 @@ private:
 class TimerQueryCounter : public TimerSig
 {
 public:
-    TimerQueryCounter();
+    TimerQueryCounter() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerQueryCounter();
+    virtual ~TimerQueryCounter() throw();
     int RegistNextTimer();      // ORIG 0x08635bdc：调用点传 this（mov 0x8(%ebp)）⇒ 非 static
 
 private:
@@ -587,9 +587,9 @@ private:
 class TimerNatType : public TimerSig
 {
 public:
-    TimerNatType();
+    TimerNatType() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerNatType();
+    virtual ~TimerNatType() throw();
     int RegistNextTimer();   // ORIG 0x08635c5a（Ev 非 static；dispatch_sig 传 this）
 
 private:
@@ -599,9 +599,9 @@ private:
 class TimerNatTypeUser : public TimerSig
 {
 public:
-    TimerNatTypeUser();
+    TimerNatTypeUser() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerNatTypeUser();
+    virtual ~TimerNatTypeUser() throw();
     int RegistNextTimer();
 
 private:
@@ -611,9 +611,9 @@ private:
 class TimerCheckMailTimeOut : public TimerSig
 {
 public:
-    TimerCheckMailTimeOut();
+    TimerCheckMailTimeOut() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCheckMailTimeOut();
+    virtual ~TimerCheckMailTimeOut() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -622,9 +622,9 @@ private:
 class TimerCreature : public TimerSig
 {
 public:
-    TimerCreature();
+    TimerCreature() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCreature();
+    virtual ~TimerCreature() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -633,9 +633,9 @@ private:
 class TimerForbidChat : public TimerSig
 {
 public:
-    TimerForbidChat();
+    TimerForbidChat() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerForbidChat();
+    virtual ~TimerForbidChat() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -644,9 +644,9 @@ private:
 class TimerForbidMove : public TimerSig
 {
 public:
-    TimerForbidMove();
+    TimerForbidMove() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerForbidMove();
+    virtual ~TimerForbidMove() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -655,9 +655,9 @@ private:
 class TimerScheduleFiveMinPerUser : public TimerSig
 {
 public:
-    TimerScheduleFiveMinPerUser();
+    TimerScheduleFiveMinPerUser() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerScheduleFiveMinPerUser();
+    virtual ~TimerScheduleFiveMinPerUser() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -666,9 +666,9 @@ private:
 class TimerScheduleTenMinPerUser : public TimerSig
 {
 public:
-    TimerScheduleTenMinPerUser();
+    TimerScheduleTenMinPerUser() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerScheduleTenMinPerUser();
+    virtual ~TimerScheduleTenMinPerUser() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -677,9 +677,9 @@ private:
 class TimerQueueSizeLog : public TimerSig
 {
 public:
-    TimerQueueSizeLog();
+    TimerQueueSizeLog() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerQueueSizeLog();
+    virtual ~TimerQueueSizeLog() throw();
     bool RegistNextTimer();   // ORIG 调用点 0x08636322 传 this（0x8(%ebp)）⇒ 非 static
 
 private:
@@ -689,9 +689,9 @@ private:
 class TimerScheduleGuildWarEnd : public TimerSig
 {
 public:
-    TimerScheduleGuildWarEnd();
+    TimerScheduleGuildWarEnd() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerScheduleGuildWarEnd();
+    virtual ~TimerScheduleGuildWarEnd() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -700,9 +700,9 @@ private:
 class TimerSetPlayResult : public TimerSig
 {
 public:
-    TimerSetPlayResult();
+    TimerSetPlayResult() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerSetPlayResult();
+    virtual ~TimerSetPlayResult() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -711,9 +711,9 @@ private:
 class TimerStartRelayBattle : public TimerSig
 {
 public:
-    TimerStartRelayBattle();
+    TimerStartRelayBattle() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerStartRelayBattle();
+    virtual ~TimerStartRelayBattle() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -722,9 +722,9 @@ private:
 class TimerBossDieTimeout : public TimerSig
 {
 public:
-    TimerBossDieTimeout();
+    TimerBossDieTimeout() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerBossDieTimeout();
+    virtual ~TimerBossDieTimeout() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -733,9 +733,9 @@ private:
 class TimerEventCoinRefill : public TimerSig
 {
 public:
-    TimerEventCoinRefill();
+    TimerEventCoinRefill() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerEventCoinRefill();
+    virtual ~TimerEventCoinRefill() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -744,9 +744,9 @@ private:
 class TimerPvPDieUserRevive0 : public TimerSig
 {
 public:
-    TimerPvPDieUserRevive0();
+    TimerPvPDieUserRevive0() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPvPDieUserRevive0();
+    virtual ~TimerPvPDieUserRevive0() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -755,9 +755,9 @@ private:
 class TimerPvPDieUserRevive1 : public TimerSig
 {
 public:
-    TimerPvPDieUserRevive1();
+    TimerPvPDieUserRevive1() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPvPDieUserRevive1();
+    virtual ~TimerPvPDieUserRevive1() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -766,9 +766,9 @@ private:
 class TimerPvPDieUserRevive2 : public TimerSig
 {
 public:
-    TimerPvPDieUserRevive2();
+    TimerPvPDieUserRevive2() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPvPDieUserRevive2();
+    virtual ~TimerPvPDieUserRevive2() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -777,9 +777,9 @@ private:
 class TimerPvPDieUserRevive3 : public TimerSig
 {
 public:
-    TimerPvPDieUserRevive3();
+    TimerPvPDieUserRevive3() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPvPDieUserRevive3();
+    virtual ~TimerPvPDieUserRevive3() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -788,9 +788,9 @@ private:
 class TimerPvPDieUserRevive4 : public TimerSig
 {
 public:
-    TimerPvPDieUserRevive4();
+    TimerPvPDieUserRevive4() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPvPDieUserRevive4();
+    virtual ~TimerPvPDieUserRevive4() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -799,9 +799,9 @@ private:
 class TimerPvPDieUserRevive5 : public TimerSig
 {
 public:
-    TimerPvPDieUserRevive5();
+    TimerPvPDieUserRevive5() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPvPDieUserRevive5();
+    virtual ~TimerPvPDieUserRevive5() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -810,9 +810,9 @@ private:
 class TimerPvPDieUserRevive6 : public TimerSig
 {
 public:
-    TimerPvPDieUserRevive6();
+    TimerPvPDieUserRevive6() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPvPDieUserRevive6();
+    virtual ~TimerPvPDieUserRevive6() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -821,9 +821,9 @@ private:
 class TimerPvPDieUserRevive7 : public TimerSig
 {
 public:
-    TimerPvPDieUserRevive7();
+    TimerPvPDieUserRevive7() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerPvPDieUserRevive7();
+    virtual ~TimerPvPDieUserRevive7() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -832,9 +832,9 @@ private:
 class TimerDungeonDataStatistic : public TimerSig
 {
 public:
-    TimerDungeonDataStatistic();
+    TimerDungeonDataStatistic() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerDungeonDataStatistic();
+    virtual ~TimerDungeonDataStatistic() throw();
     bool RegistNextTimer();        // ORIG T 0x08636856：调用点 0x08636805 传 this ⇒
                                    // 非 static；`mov %al,-0x9` byte 物化 ⇒ bool
 
@@ -845,9 +845,9 @@ private:
 class TimerNotResponseUserTimeout : public TimerSig
 {
 public:
-    TimerNotResponseUserTimeout();
+    TimerNotResponseUserTimeout() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerNotResponseUserTimeout();
+    virtual ~TimerNotResponseUserTimeout() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -856,9 +856,9 @@ private:
 class TimerLightServerNotice : public TimerSig
 {
 public:
-    TimerLightServerNotice();
+    TimerLightServerNotice() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerLightServerNotice();
+    virtual ~TimerLightServerNotice() throw();
     bool RegistNextTimer(int count);   // ORIG T 0x08636c14（恒返 1，al；读 0xc(%ebp)
                                        // 为参 ⇒ this@0x8 非 static 成员）
 
@@ -869,9 +869,9 @@ private:
 class TimerInsertUserPlayTime : public TimerSig
 {
 public:
-    TimerInsertUserPlayTime();
+    TimerInsertUserPlayTime() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerInsertUserPlayTime();
+    virtual ~TimerInsertUserPlayTime() throw();
     bool RegistNextTimer();            // ORIG T 0x08636d44；调用点 0x08636d23 传 this ⇒ 非 static
 
 private:
@@ -881,9 +881,9 @@ private:
 class TimerCheckForcedDisconnect : public TimerSig
 {
 public:
-    TimerCheckForcedDisconnect();
+    TimerCheckForcedDisconnect() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCheckForcedDisconnect();
+    virtual ~TimerCheckForcedDisconnect() throw();
     bool RegistNextTimer(CUser* user);   // ORIG 0x08636f26：体内取 0xc(%ebp)=user ⇒ 带 this 成员
 
 private:
@@ -893,9 +893,9 @@ private:
 class TimerCheckPvPRoomUser : public TimerSig
 {
 public:
-    TimerCheckPvPRoomUser();
+    TimerCheckPvPRoomUser() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCheckPvPRoomUser();
+    virtual ~TimerCheckPvPRoomUser() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -904,9 +904,9 @@ private:
 class TimerCheckRecvPvpEndResult : public TimerSig
 {
 public:
-    TimerCheckRecvPvpEndResult();
+    TimerCheckRecvPvpEndResult() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCheckRecvPvpEndResult();
+    virtual ~TimerCheckRecvPvpEndResult() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -915,9 +915,9 @@ private:
 class TimerCheckHumanCertifyTimeout : public TimerSig
 {
 public:
-    TimerCheckHumanCertifyTimeout();
+    TimerCheckHumanCertifyTimeout() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCheckHumanCertifyTimeout();
+    virtual ~TimerCheckHumanCertifyTimeout() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -926,9 +926,9 @@ private:
 class TimerUpdateItemGenerateStatistics : public TimerSig
 {
 public:
-    TimerUpdateItemGenerateStatistics();
+    TimerUpdateItemGenerateStatistics() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerUpdateItemGenerateStatistics();
+    virtual ~TimerUpdateItemGenerateStatistics() throw();
     // ORIG T 0x08637318 _ZN33TimerUpdateItemGenerateStatistics15registNextTimerEl
     // （CItemGeneratorMgr::initialize 尾部按当前秒注册下一次统计定时器；定义待定时器域批次）
     static void registNextTimer(long sec);
@@ -940,9 +940,9 @@ private:
 class TimerUpdatePvPGrade : public TimerSig
 {
 public:
-    TimerUpdatePvPGrade();
+    TimerUpdatePvPGrade() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerUpdatePvPGrade();
+    virtual ~TimerUpdatePvPGrade() throw();
     static void registNextTimer(long sec);   // ORIG T 0x86373f2（参数为 long）
 
 private:
@@ -952,9 +952,9 @@ private:
 class TimerDetectDisconnect : public TimerSig
 {
 public:
-    TimerDetectDisconnect();
+    TimerDetectDisconnect() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerDetectDisconnect();
+    virtual ~TimerDetectDisconnect() throw();
     static void registNextTimer();   // ORIG T 0x86374e0
 
 private:
@@ -964,9 +964,9 @@ private:
 class TimerCompleteLoadAssaultTimeout : public TimerSig
 {
 public:
-    TimerCompleteLoadAssaultTimeout();
+    TimerCompleteLoadAssaultTimeout() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCompleteLoadAssaultTimeout();
+    virtual ~TimerCompleteLoadAssaultTimeout() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
 private:
@@ -976,9 +976,9 @@ private:
 class TimerConnectP2PAssaultTimeout : public TimerSig
 {
 public:
-    TimerConnectP2PAssaultTimeout();
+    TimerConnectP2PAssaultTimeout() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerConnectP2PAssaultTimeout();
+    virtual ~TimerConnectP2PAssaultTimeout() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
 private:
@@ -988,9 +988,9 @@ private:
 class TimerEndAssault : public TimerSig
 {
 public:
-    TimerEndAssault();
+    TimerEndAssault() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerEndAssault();
+    virtual ~TimerEndAssault() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
 private:
@@ -1000,9 +1000,9 @@ private:
 class TimerCloseAssault : public TimerSig
 {
 public:
-    TimerCloseAssault();
+    TimerCloseAssault() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCloseAssault();
+    virtual ~TimerCloseAssault() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
 private:
@@ -1012,9 +1012,9 @@ private:
 class TimerCompleteLoadAfterAssaultTimeout : public TimerSig
 {
 public:
-    TimerCompleteLoadAfterAssaultTimeout();
+    TimerCompleteLoadAfterAssaultTimeout() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCompleteLoadAfterAssaultTimeout();
+    virtual ~TimerCompleteLoadAfterAssaultTimeout() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
 private:
@@ -1024,9 +1024,9 @@ private:
 class TimerConnectP2PAfterAssaultTimeout : public TimerSig
 {
 public:
-    TimerConnectP2PAfterAssaultTimeout();
+    TimerConnectP2PAfterAssaultTimeout() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerConnectP2PAfterAssaultTimeout();
+    virtual ~TimerConnectP2PAfterAssaultTimeout() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
 private:
@@ -1036,9 +1036,9 @@ private:
 class TimerDeathTower : public TimerSig
 {
 public:
-    TimerDeathTower();
+    TimerDeathTower() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerDeathTower();
+    virtual ~TimerDeathTower() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1047,9 +1047,9 @@ private:
 class TimerDeathTowerTopRankerReload : public TimerSig
 {
 public:
-    TimerDeathTowerTopRankerReload();
+    TimerDeathTowerTopRankerReload() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerDeathTowerTopRankerReload();
+    virtual ~TimerDeathTowerTopRankerReload() throw();
     static void registNextTimer(long ms);    // ORIG T 0x8637854
 
 private:
@@ -1059,9 +1059,9 @@ private:
 class TimerScheduleTenSecond : public TimerSig
 {
 public:
-    TimerScheduleTenSecond();
+    TimerScheduleTenSecond() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerScheduleTenSecond();
+    virtual ~TimerScheduleTenSecond() throw();
     static void registNextTimer(unsigned int sec);  // ORIG T 0x8637a62
 
 private:
@@ -1071,9 +1071,9 @@ private:
 class TimerFinishItemEffect : public TimerSig
 {
 public:
-    TimerFinishItemEffect();
+    TimerFinishItemEffect() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerFinishItemEffect();
+    virtual ~TimerFinishItemEffect() throw();
 
 private:
     void _processSepecialEffectContinuousItem(CUser* user, unsigned int param);  // ORIG T 0x08637d64
@@ -1083,9 +1083,9 @@ private:
 class TimerStartMatching : public TimerSig
 {
 public:
-    TimerStartMatching();
+    TimerStartMatching() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerStartMatching();
+    virtual ~TimerStartMatching() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
 private:
@@ -1095,9 +1095,9 @@ private:
 class TimerGlobalEffectItemBegin : public TimerSig
 {
 public:
-    TimerGlobalEffectItemBegin();
+    TimerGlobalEffectItemBegin() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerGlobalEffectItemBegin();
+    virtual ~TimerGlobalEffectItemBegin() throw();
     static void registTimer(unsigned int type, unsigned int beginSec);   // ORIG T 0x8637e78
 
 private:
@@ -1107,9 +1107,9 @@ private:
 class TimerGlobalEffectItemTimeout : public TimerSig
 {
 public:
-    TimerGlobalEffectItemTimeout();
+    TimerGlobalEffectItemTimeout() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerGlobalEffectItemTimeout();
+    virtual ~TimerGlobalEffectItemTimeout() throw();
     static void registTimer(unsigned int type, unsigned int timeoutSec);  // ORIG T 0x8637ef6
 
 private:
@@ -1119,9 +1119,9 @@ private:
 class TimerVendingMachineItemNotify : public TimerSig
 {
 public:
-    TimerVendingMachineItemNotify();
+    TimerVendingMachineItemNotify() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerVendingMachineItemNotify();
+    virtual ~TimerVendingMachineItemNotify() throw();
     static void registTimer(int uid, unsigned long delayMs, unsigned int type, unsigned int param);  // ORIG T 0x8638074
 
 private:
@@ -1131,9 +1131,9 @@ private:
 class TimerConnectMonitorServer : public TimerSig
 {
 public:
-    TimerConnectMonitorServer();
+    TimerConnectMonitorServer() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerConnectMonitorServer();
+    virtual ~TimerConnectMonitorServer() throw();
     static void registNextTimer(long sec, int p1, int p2);
 
 private:
@@ -1143,9 +1143,9 @@ private:
 class TimerAssaultSuperPowerState : public TimerSig
 {
 public:
-    TimerAssaultSuperPowerState();
+    TimerAssaultSuperPowerState() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerAssaultSuperPowerState();
+    virtual ~TimerAssaultSuperPowerState() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1154,9 +1154,9 @@ private:
 class TimerNPCMoodChange : public TimerSig
 {
 public:
-    TimerNPCMoodChange();
+    TimerNPCMoodChange() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerNPCMoodChange();
+    virtual ~TimerNPCMoodChange() throw();
     // ORIG T 0x086381ec _ZN18TimerNPCMoodChange15registNextTimerEl：
     // 纯 ret（空实现）；CNPCScriptList::initScript 末尾以参数 0 调用。
     static void registNextTimer(long sec);
@@ -1168,9 +1168,9 @@ private:
 class TimerElevatorDungeon : public TimerSig
 {
 public:
-    TimerElevatorDungeon();
+    TimerElevatorDungeon() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerElevatorDungeon();
+    virtual ~TimerElevatorDungeon() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1179,9 +1179,9 @@ private:
 class TimerRefreshPowerWarProcessInfo : public TimerSig
 {
 public:
-    TimerRefreshPowerWarProcessInfo();
+    TimerRefreshPowerWarProcessInfo() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerRefreshPowerWarProcessInfo();
+    virtual ~TimerRefreshPowerWarProcessInfo() throw();
     static void registNextTimer(long sec);
 
 private:
@@ -1191,9 +1191,12 @@ private:
 class TimerGeneratePowerUp : public TimerSig
 {
 public:
+    // [SweepTimerDispatcher2] ORIG 对 `new TimerGeneratePowerUp()` 布 EH landing
+    // （C1 0x086321d6 唯一 _ZdlPv/_Unwind_Resume 处，ctor 含 2 个 vector 成员）⇒ 本类
+    // ctor **不加** throw()（其余 146 类 ctor 均 throw() 消 landing）。
     TimerGeneratePowerUp();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerGeneratePowerUp();
+    virtual ~TimerGeneratePowerUp() throw();
 
     void generatePowerUp(std::vector<CUser*>& users, int count);
     void sendPowerUpInfo(int team1Count, int team2Count);
@@ -1207,9 +1210,9 @@ private:
 class TimerGeneratePowerUpNotiTime : public TimerSig
 {
 public:
-    TimerGeneratePowerUpNotiTime();
+    TimerGeneratePowerUpNotiTime() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerGeneratePowerUpNotiTime();
+    virtual ~TimerGeneratePowerUpNotiTime() throw();
     static void registNextTimer(long sec);  // ORIG T 0x0863847e，无 this
     void send_noti_time(int sec);           // ORIG T 0x086384c2，thiscall
 private:
@@ -1219,9 +1222,9 @@ private:
 class TimerCheckPowerWarAbuser : public TimerSig
 {
 public:
-    TimerCheckPowerWarAbuser();
+    TimerCheckPowerWarAbuser() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerCheckPowerWarAbuser();
+    virtual ~TimerCheckPowerWarAbuser() throw();
     static void registNextTimer(long sec);
 
 private:
@@ -1231,9 +1234,9 @@ private:
 class TimerSetPunishUser : public TimerSig
 {
 public:
-    TimerSetPunishUser();
+    TimerSetPunishUser() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerSetPunishUser();
+    virtual ~TimerSetPunishUser() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1242,9 +1245,9 @@ private:
 class TimerSetTradePunishUser : public TimerSig
 {
 public:
-    TimerSetTradePunishUser();
+    TimerSetTradePunishUser() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerSetTradePunishUser();
+    virtual ~TimerSetTradePunishUser() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1253,9 +1256,9 @@ private:
 class TimerRevivalCharac : public TimerSig
 {
 public:
-    TimerRevivalCharac();
+    TimerRevivalCharac() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerRevivalCharac();
+    virtual ~TimerRevivalCharac() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1264,9 +1267,9 @@ private:
 class TimerRequestExit : public TimerSig
 {
 public:
-    TimerRequestExit();
+    TimerRequestExit() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerRequestExit();
+    virtual ~TimerRequestExit() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1275,9 +1278,9 @@ private:
 class TimerVillageMonsterUpdateRate : public TimerSig
 {
 public:
-    TimerVillageMonsterUpdateRate();
+    TimerVillageMonsterUpdateRate() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerVillageMonsterUpdateRate();
+    virtual ~TimerVillageMonsterUpdateRate() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1286,9 +1289,9 @@ private:
 class TimerVillageMonsterRegen : public TimerSig
 {
 public:
-    TimerVillageMonsterRegen();
+    TimerVillageMonsterRegen() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerVillageMonsterRegen();
+    virtual ~TimerVillageMonsterRegen() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1297,9 +1300,9 @@ private:
 class TimerStartVillageAttacked : public TimerSig
 {
 public:
-    TimerStartVillageAttacked();
+    TimerStartVillageAttacked() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerStartVillageAttacked();
+    virtual ~TimerStartVillageAttacked() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1308,9 +1311,9 @@ private:
 class TimerVillageAttackedPlayTimeout : public TimerSig
 {
 public:
-    TimerVillageAttackedPlayTimeout();
+    TimerVillageAttackedPlayTimeout() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerVillageAttackedPlayTimeout();
+    virtual ~TimerVillageAttackedPlayTimeout() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1319,9 +1322,9 @@ private:
 class TimerItemUnlockWaiting : public TimerSig
 {
 public:
-    TimerItemUnlockWaiting();
+    TimerItemUnlockWaiting() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerItemUnlockWaiting();
+    virtual ~TimerItemUnlockWaiting() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1330,9 +1333,9 @@ private:
 class TimerUpdateCompoundEmblemStatics : public TimerSig
 {
 public:
-    TimerUpdateCompoundEmblemStatics();
+    TimerUpdateCompoundEmblemStatics() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerUpdateCompoundEmblemStatics();
+    virtual ~TimerUpdateCompoundEmblemStatics() throw();
     static int registNextTimer();  // ORIG T 0x0863939a，eax=1
 
 private:
@@ -1342,9 +1345,9 @@ private:
 class TimerStartExpEventAfterVillageAttack : public TimerSig
 {
 public:
-    TimerStartExpEventAfterVillageAttack();
+    TimerStartExpEventAfterVillageAttack() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerStartExpEventAfterVillageAttack();
+    virtual ~TimerStartExpEventAfterVillageAttack() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1353,9 +1356,9 @@ private:
 class Timer_Security_NonClient_CheckResponse : public TimerSig
 {
 public:
-    Timer_Security_NonClient_CheckResponse();
+    Timer_Security_NonClient_CheckResponse() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_Security_NonClient_CheckResponse();
+    virtual ~Timer_Security_NonClient_CheckResponse() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1364,9 +1367,9 @@ private:
 class Timer_Midnight : public TimerSig
 {
 public:
-    Timer_Midnight();
+    Timer_Midnight() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_Midnight();
+    virtual ~Timer_Midnight() throw();
     static bool RegistNextTimer();
 
 private:
@@ -1376,9 +1379,9 @@ private:
 class TimerEndPowerWarVictoriousReward : public TimerSig
 {
 public:
-    TimerEndPowerWarVictoriousReward();
+    TimerEndPowerWarVictoriousReward() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~TimerEndPowerWarVictoriousReward();
+    virtual ~TimerEndPowerWarVictoriousReward() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1387,9 +1390,9 @@ private:
 class Timer_TenMinuteSchedule : public TimerSig
 {
 public:
-    Timer_TenMinuteSchedule();
+    Timer_TenMinuteSchedule() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_TenMinuteSchedule();
+    virtual ~Timer_TenMinuteSchedule() throw();
     static bool RegistNextTimer(int type);
 
 private:
@@ -1399,9 +1402,9 @@ private:
 class Timer_UpdateOnlinePreliminaryTeam : public TimerSig
 {
 public:
-    Timer_UpdateOnlinePreliminaryTeam();
+    Timer_UpdateOnlinePreliminaryTeam() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_UpdateOnlinePreliminaryTeam();
+    virtual ~Timer_UpdateOnlinePreliminaryTeam() throw();
     static bool RegistNextTimer(int team);
 
 private:
@@ -1411,9 +1414,9 @@ private:
 class Timer_SecretShopStatistic : public TimerSig
 {
 public:
-    Timer_SecretShopStatistic();
+    Timer_SecretShopStatistic() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_SecretShopStatistic();
+    virtual ~Timer_SecretShopStatistic() throw();
     static void RegistNextTimer();           // ORIG T 0x86397ee
 
 private:
@@ -1423,9 +1426,9 @@ private:
 class Timer_DailySchedule : public TimerSig
 {
 public:
-    Timer_DailySchedule();
+    Timer_DailySchedule() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_DailySchedule();
+    virtual ~Timer_DailySchedule() throw();
     static void RegistNextTimer();           // ORIG T 0x812c940
 
 private:
@@ -1435,9 +1438,9 @@ private:
 class Timer_ConnectP2PPvPTimeout : public TimerSig
 {
 public:
-    Timer_ConnectP2PPvPTimeout();
+    Timer_ConnectP2PPvPTimeout() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_ConnectP2PPvPTimeout();
+    virtual ~Timer_ConnectP2PPvPTimeout() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1446,9 +1449,9 @@ private:
 class Timer_RoutingItemWait : public TimerSig
 {
 public:
-    Timer_RoutingItemWait();
+    Timer_RoutingItemWait() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_RoutingItemWait();
+    virtual ~Timer_RoutingItemWait() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1457,9 +1460,9 @@ private:
 class Timer_PcRoomAuthRetry : public TimerSig
 {
 public:
-    Timer_PcRoomAuthRetry();
+    Timer_PcRoomAuthRetry() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_PcRoomAuthRetry();
+    virtual ~Timer_PcRoomAuthRetry() throw();
     static void registNextTimer(long sec, int p1, int p2, unsigned int p3);
 
 private:
@@ -1469,9 +1472,9 @@ private:
 class Timer_DungeonInoutOpenTime : public TimerSig
 {
 public:
-    Timer_DungeonInoutOpenTime();
+    Timer_DungeonInoutOpenTime() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_DungeonInoutOpenTime();
+    virtual ~Timer_DungeonInoutOpenTime() throw();
     static void RegistNextTimer();           // ORIG T 0x8639b20（定义在 GameMain.cpp）
     static bool checkDungeonInoutTime(int day);  // ORIG T 0x8639a12
 
@@ -1482,9 +1485,9 @@ private:
 class Timer_DungeonInoutCloseTime : public TimerSig
 {
 public:
-    Timer_DungeonInoutCloseTime();
+    Timer_DungeonInoutCloseTime() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_DungeonInoutCloseTime();
+    virtual ~Timer_DungeonInoutCloseTime() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1493,9 +1496,9 @@ private:
 class Timer_FairPvPRematch : public TimerSig
 {
 public:
-    Timer_FairPvPRematch();
+    Timer_FairPvPRematch() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_FairPvPRematch();
+    virtual ~Timer_FairPvPRematch() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1504,9 +1507,9 @@ private:
 class Timer_ReturnUserTimeout : public TimerSig
 {
 public:
-    Timer_ReturnUserTimeout();
+    Timer_ReturnUserTimeout() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_ReturnUserTimeout();
+    virtual ~Timer_ReturnUserTimeout() throw();
     static void registNextTimer(int p1, int p2, unsigned int p3);
 
 private:
@@ -1516,9 +1519,9 @@ private:
 class Timer_HadesHeartBeat : public TimerSig
 {
 public:
-    Timer_HadesHeartBeat();
+    Timer_HadesHeartBeat() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_HadesHeartBeat();
+    virtual ~Timer_HadesHeartBeat() throw();
     static void registNextTimer();
 
 private:
@@ -1528,9 +1531,9 @@ private:
 class Timer_TOD_Send_ClearReward : public TimerSig
 {
 public:
-    Timer_TOD_Send_ClearReward();
+    Timer_TOD_Send_ClearReward() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_TOD_Send_ClearReward();
+    virtual ~Timer_TOD_Send_ClearReward() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1539,9 +1542,9 @@ private:
 class Timer_OneADayItemShop : public TimerSig
 {
 public:
-    Timer_OneADayItemShop();
+    Timer_OneADayItemShop() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_OneADayItemShop();
+    virtual ~Timer_OneADayItemShop() throw();
     static void RegistNextTimer();           // ORIG T 0x863a93c
 
 private:
@@ -1551,9 +1554,9 @@ private:
 class Timer_Schedule_MidNight : public TimerSig
 {
 public:
-    Timer_Schedule_MidNight();
+    Timer_Schedule_MidNight() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_Schedule_MidNight();
+    virtual ~Timer_Schedule_MidNight() throw();
     static void RegistNextTimer();
 
 private:
@@ -1563,9 +1566,9 @@ private:
 class Timer_Send_Ontime_Reward : public TimerSig
 {
 public:
-    Timer_Send_Ontime_Reward();
+    Timer_Send_Ontime_Reward() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_Send_Ontime_Reward();
+    virtual ~Timer_Send_Ontime_Reward() throw();
     static void RegistNextTimer();
 
 private:
@@ -1575,9 +1578,9 @@ private:
 class Timer_EventManagement : public TimerSig
 {
 public:
-    Timer_EventManagement();
+    Timer_EventManagement() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_EventManagement();
+    virtual ~Timer_EventManagement() throw();
     static void RegistNextTimer(int intervalMs);  // ORIG T 0x863abd4
 
 private:
@@ -1587,9 +1590,9 @@ private:
 class Timer_QuickPartyWaitingPartyMatching : public TimerSig
 {
 public:
-    Timer_QuickPartyWaitingPartyMatching();
+    Timer_QuickPartyWaitingPartyMatching() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_QuickPartyWaitingPartyMatching();
+    virtual ~Timer_QuickPartyWaitingPartyMatching() throw();
     bool cancel_quick_party(QuickParty::CQuickParty* qp);  // ORIG T 0x863ad96
 
 private:
@@ -1599,9 +1602,9 @@ private:
 class Timer_QuickPartyWaitingStartGame : public TimerSig
 {
 public:
-    Timer_QuickPartyWaitingStartGame();
+    Timer_QuickPartyWaitingStartGame() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_QuickPartyWaitingStartGame();
+    virtual ~Timer_QuickPartyWaitingStartGame() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1610,9 +1613,9 @@ private:
 class Timer_AssaultGhostTimer : public TimerSig
 {
 public:
-    Timer_AssaultGhostTimer();
+    Timer_AssaultGhostTimer() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_AssaultGhostTimer();
+    virtual ~Timer_AssaultGhostTimer() throw();
     static void RegisterNextTimer(CUser* user, int p2, unsigned int p3);
 
 private:
@@ -1622,9 +1625,9 @@ private:
 class Timer_GenerateCaptchaData : public TimerSig
 {
 public:
-    Timer_GenerateCaptchaData();
+    Timer_GenerateCaptchaData() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_GenerateCaptchaData();
+    virtual ~Timer_GenerateCaptchaData() throw();
     static void RegistNextTimer(int sec);    // ORIG T 0x863b2ba
 
 private:
@@ -1634,9 +1637,9 @@ private:
 class Timer_TournamentDugeonClearStateNotiReward : public TimerSig
 {
 public:
-    Timer_TournamentDugeonClearStateNotiReward();
+    Timer_TournamentDugeonClearStateNotiReward() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_TournamentDugeonClearStateNotiReward();
+    virtual ~Timer_TournamentDugeonClearStateNotiReward() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1645,9 +1648,9 @@ private:
 class Timer_TournametDungeonClearStateSelect : public TimerSig
 {
 public:
-    Timer_TournametDungeonClearStateSelect();
+    Timer_TournametDungeonClearStateSelect() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_TournametDungeonClearStateSelect();
+    virtual ~Timer_TournametDungeonClearStateSelect() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1656,9 +1659,9 @@ private:
 class Timer_TowerOnTime : public TimerSig
 {
 public:
-    Timer_TowerOnTime();
+    Timer_TowerOnTime() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_TowerOnTime();
+    virtual ~Timer_TowerOnTime() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1667,9 +1670,9 @@ private:
 class Timer_NoticeEmergencyPatchMessage : public TimerSig
 {
 public:
-    Timer_NoticeEmergencyPatchMessage();
+    Timer_NoticeEmergencyPatchMessage() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_NoticeEmergencyPatchMessage();
+    virtual ~Timer_NoticeEmergencyPatchMessage() throw();
     static void RegistNextTimer();
 
 private:
@@ -1681,9 +1684,9 @@ private:
 class Timer_DungeonStatisticEntrance_Hour : public TimerSig
 {
 public:
-    Timer_DungeonStatisticEntrance_Hour();
+    Timer_DungeonStatisticEntrance_Hour() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_DungeonStatisticEntrance_Hour();
+    virtual ~Timer_DungeonStatisticEntrance_Hour() throw();
     static void RegistNextTimer();        // ORIG T 0x863b9fa
 
 private:
@@ -1693,9 +1696,9 @@ private:
 class Timer_RefreshServerState : public TimerSig
 {
 public:
-    Timer_RefreshServerState();
+    Timer_RefreshServerState() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_RefreshServerState();
+    virtual ~Timer_RefreshServerState() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1704,9 +1707,9 @@ private:
 class Timer_StayTimeEvent : public TimerSig
 {
 public:
-    Timer_StayTimeEvent();
+    Timer_StayTimeEvent() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_StayTimeEvent();
+    virtual ~Timer_StayTimeEvent() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1715,9 +1718,9 @@ private:
 class Timer_CreateDnfDbLoad : public TimerSig
 {
 public:
-    Timer_CreateDnfDbLoad();
+    Timer_CreateDnfDbLoad() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_CreateDnfDbLoad();
+    virtual ~Timer_CreateDnfDbLoad() throw();
 
 private:
     // ORIG 对象尺寸 4：仅 vptr，无数据成员。
@@ -1737,9 +1740,9 @@ namespace advancealtar
 class Timer_MainTick : public TimerSig
 {
 public:
-    Timer_MainTick();
+    Timer_MainTick() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_MainTick();
+    virtual ~Timer_MainTick() throw();
 static void RegistNextTimerGage();  // ORIG T 0x812f7b8（定义在 GameMain.cpp）
     static const unsigned int kMainTickMs;  // ORIG R 0x8b6c5e4
 
@@ -1750,9 +1753,9 @@ private:
 class Timer_StageControl : public TimerSig
 {
 public:
-    Timer_StageControl();
+    Timer_StageControl() throw();
     virtual int dispatch_sig(int p1, int p2, unsigned int p3);
-    virtual ~Timer_StageControl();
+    virtual ~Timer_StageControl() throw();
 
     // ORIG T 0x812f850 / 0x812f89c / 0x812f8ec / 0x0812f956（无 this 静态）。
     static void RegistTimerCheckFinsh(int stage);

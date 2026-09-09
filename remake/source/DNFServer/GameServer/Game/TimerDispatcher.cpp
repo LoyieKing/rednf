@@ -113,6 +113,21 @@ public:
 //   P221 全表达式临时链翻聚合/标量槽序；P0 内联消 slot round-trip。
 // .h 改动（已 R2 广播）：CGameManager.h +`friend class TimerScheduleTenSecond;`（零布局/
 //   sizeof/mangled 影响，消费点仅本 TU）。P0：全文件无 `register asm` 绑定（清绑数 0）。
+// ---------------------------------------------------------------------------
+// [SweepTimerDispatcher2 2026-09-09 续修] 本轮 2 项硬修复 + 2 项符号级修复：
+// ① 判据㉓ 符号绑定：147 个 Timer* 类的 C1/C2/D0/D1/D2 共 **735 符号** ORIG=W 我方=T
+//    ⇒ 294 个 ctor/dtor 定义加 `__attribute__((weak))`（nm 双侧 0 mismatch）。
+// ② weak 引入 EH landing（TimerDispatcher::C1 163×_ZdlPv/_Unwind_Resume、3119 insns）
+//    ⇒ TimerDispatcher.h 147 类声明 + 本 .cpp 294 定义同加 `throw()`（探针证
+//    weak+`nothrow` 无效、仅异常规格可消；ORIG 该 ctor 0 landing）⇒ C1 2000 insns、
+//    gap -1458→-9、ndiff 1458→929。
+// ③ TimerUpdateCompoundEmblemStatics::dispatch_sig：ORIG 14 个 getGradeCount 无具名局部
+//    + 全表达式临时链（P227/P329）⇒ 130/130、ndiff 95→**0**、DIFF→AE。
+// ④ TimerFinishItemEffect::dispatch_sig：uid/characNo 内联实参（P329/P0）⇒ ndiff 135→25
+//    （残余 = sete/setne 物化方向 N18b + Send 返回类型 movzbl + edi/esi 角色 N7）。
+// ⑤ 全 TU jcc 助记符序列核对 777 函数：仅 4 件差异（FIE / GeneratePowerUp x87 /
+//    GeneratePowerUpNotiTime jl↔jg / Send_Ontime_Reward 镜像），无隐藏极性反写；
+//    GI 键名 `_GLOBAL__I__ZN19Timer_DailySchedule12dispatch_sigEiij` 保持对齐。
 // ===========================================================================
 // ======== 基类 ========
 
@@ -133,9 +148,15 @@ int Timer_DailySchedule::dispatch_sig(int p1, int p2, unsigned int p3)
 // delete / +2 _Unwind_Resume（new 表达式 EH 清理路径，N 类『new-expression
 // landing-pad』编译器生成差，源码侧无合法解豁免）；gap 1661→1679(-18，全部为
 // 上述 EH 清理块) ⇒ 判语义完成、byte 层 N 封顶（N83）。
-// [b28d-30] 复核 DIFF：ctor 大件（N82/N83/N91 族，ORIG 0x08635xxx 见 report）。
+// [b28d-30] 复核 DIFF：ctor 大件（N82/N83 族，ORIG 0x08635xxx 见 report）。
 // [b28d-solo-TimerDispatcher] 判词 N83/N82 封顶：1661 insns、gap 1661→1679（+18 全为
 // new-expression EH cleanup 块），调用点差集 MISSING=0；无合法源形。
+// [SweepTimerDispatcher2 2026-09-09] **旧 N 判词作废**：根因是 146 个 Timer* 类 ctor
+// 缺 nothrow 语义（ORIG 为头内 inline/W，4.1 判 nothrow）。修法 = 本 .cpp 定义加
+// `__attribute__((weak))`（判据㉓ 735 符号 T→W）+ 声明/定义同加 `throw()`（消 weak 引入
+// 的 landing），**唯一例外** `TimerGeneratePowerUp`（ctor 含 2 个 vector 成员，ORIG
+// 0x086321d6 处确有 landing ⇒ 该 ctor 不加 throw()）。结果 **1661/1661、gap=0、ndiff=0
+// （AE）**，帧 0x2c+push edi/esi 与 ORIG 全等。
 TimerDispatcher::TimerDispatcher()
 {
     for (int i = 0; i <= 0xae; ++i)
@@ -356,8 +377,8 @@ struct CPartyBattleFieldView
 };
 // stub 体待后续批次按 docs/class_func_reports 还原；地址=该函数 ORIG 起点。
 
-TimerCheckConn::TimerCheckConn() {}
-TimerCheckConn::~TimerCheckConn() {}
+__attribute__((weak)) TimerCheckConn::TimerCheckConn() throw() {}
+__attribute__((weak)) TimerCheckConn::~TimerCheckConn() throw() {}
 // [b28d-30] 复核 DIFF：callee-saved/帧继承跨版本差（N7/N82/P210 族），ORIG 0x0863xxx 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N82 封顶：全帧槽平移（std::string 槽 -0x4c↔-0x24、
 // user -0x24↔-0x1c）+ logFormat varargs 装载差；助记符族同。
@@ -432,8 +453,8 @@ int TimerCheckConn::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerDBUpdate::TimerDBUpdate() {}
-TimerDBUpdate::~TimerDBUpdate() {}
+__attribute__((weak)) TimerDBUpdate::TimerDBUpdate() throw() {}
+__attribute__((weak)) TimerDBUpdate::~TimerDBUpdate() throw() {}
 // [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x8631f0c 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N7/N82附 封顶：callee-saved 角色轮换（ORIG
 // edi=characNo/esi=loginTick/ebx=UID；4.4 恒 esi/ebx/edi）+ 槽 -0x28↔-0x20。
@@ -479,8 +500,8 @@ int TimerDBUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerStamina::TimerStamina() {}
-TimerStamina::~TimerStamina() {}
+__attribute__((weak)) TimerStamina::TimerStamina() throw() {}
+__attribute__((weak)) TimerStamina::~TimerStamina() throw() {}
 // [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x08633c90 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N7 封顶：DIFF→NEAR（95/95 助记符全等）。
 // 修法：①P0 删具名 `updateCount`（ORIG 无槽，08633d6c `mov %eax,%ebx` 后 cmp 直用）
@@ -534,8 +555,8 @@ int TimerPvpRankRes::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerMapLoading::TimerMapLoading() {}
-TimerMapLoading::~TimerMapLoading() {}
+__attribute__((weak)) TimerMapLoading::TimerMapLoading() throw() {}
+__attribute__((weak)) TimerMapLoading::~TimerMapLoading() throw() {}
 int TimerMapLoading::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -551,8 +572,8 @@ int TimerMapLoading::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerSetResult::TimerSetResult() {}
-TimerSetResult::~TimerSetResult() {}
+__attribute__((weak)) TimerSetResult::TimerSetResult() throw() {}
+__attribute__((weak)) TimerSetResult::~TimerSetResult() throw() {}
 int TimerSetResult::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -568,8 +589,8 @@ int TimerSetResult::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerDungeonClear::TimerDungeonClear() {}
-TimerDungeonClear::~TimerDungeonClear() {}
+__attribute__((weak)) TimerDungeonClear::TimerDungeonClear() throw() {}
+__attribute__((weak)) TimerDungeonClear::~TimerDungeonClear() throw() {}
 int TimerDungeonClear::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -585,8 +606,8 @@ int TimerDungeonClear::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerDungeonFail::TimerDungeonFail() {}
-TimerDungeonFail::~TimerDungeonFail() {}
+__attribute__((weak)) TimerDungeonFail::TimerDungeonFail() throw() {}
+__attribute__((weak)) TimerDungeonFail::~TimerDungeonFail() throw() {}
 int TimerDungeonFail::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -602,8 +623,8 @@ int TimerDungeonFail::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerPartyWalkOutLackUser::TimerPartyWalkOutLackUser() {}
-TimerPartyWalkOutLackUser::~TimerPartyWalkOutLackUser() {}
+__attribute__((weak)) TimerPartyWalkOutLackUser::TimerPartyWalkOutLackUser() throw() {}
+__attribute__((weak)) TimerPartyWalkOutLackUser::~TimerPartyWalkOutLackUser() throw() {}
 int TimerPartyWalkOutLackUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08633e7a：GetParty(p1) 按定时器 party index 取队伍（非无参重载）。
@@ -623,8 +644,8 @@ int TimerPartyWalkOutLackUser::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerPVPWalkOutLackUser::TimerPVPWalkOutLackUser() {}
-TimerPVPWalkOutLackUser::~TimerPVPWalkOutLackUser() {}
+__attribute__((weak)) TimerPVPWalkOutLackUser::TimerPVPWalkOutLackUser() throw() {}
+__attribute__((weak)) TimerPVPWalkOutLackUser::~TimerPVPWalkOutLackUser() throw() {}
 int TimerPVPWalkOutLackUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08633e86：GetPvp(p1, 0, 0x31)；timer_key 与 p2 比较（非 p3）。
@@ -645,8 +666,8 @@ int TimerPVPWalkOutLackUser::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerFatigueReset::TimerFatigueReset() {}
-TimerFatigueReset::~TimerFatigueReset() {}
+__attribute__((weak)) TimerFatigueReset::TimerFatigueReset() throw() {}
+__attribute__((weak)) TimerFatigueReset::~TimerFatigueReset() throw() {}
 // ---- TimerFatigueReset ----
 // 报告：docs/class_func_reports/TimerFatigueReset/{dispatch_sig,RegistNextTimer,updateAbnormalClientCount}.md
 // 头已有声明：dispatch_sig / ~ / static int RegistNextTimer()（静态与非静态 mangled 相同 _ZN17..15RegistNextTimerEv，无需改头）。
@@ -797,8 +818,8 @@ bool TimerAvatarExpire::RegistTimer(CUser* user)   // ORIG 单出口 mov $0x1,%e
 
 // TimerAvatarExpire ctor W 0x0863bb3e / ~D1 W 0x0863bb8a / ~D0 W 0x0863bb5a
 // （ORIG 仅 vptr：TimerSig 基类 vptr 后覆写本类 vtable，与其它 Timer_* 同构）。
-TimerAvatarExpire::TimerAvatarExpire() {}
-TimerAvatarExpire::~TimerAvatarExpire() {}
+__attribute__((weak)) TimerAvatarExpire::TimerAvatarExpire() throw() {}
+__attribute__((weak)) TimerAvatarExpire::~TimerAvatarExpire() throw() {}
 // ORIG T 0x08632a78 (_ZN17TimerAvatarExpire12dispatch_sigEiij)：恒返回 1（mov $1,%eax; ret）。
 int TimerAvatarExpire::dispatch_sig(int p1, int p2, unsigned int p3)
 {
@@ -826,8 +847,8 @@ int TimerAvatarExpire::CheckExpiredAvatar(CUser* user)
     return 1;
 }
 
-TimerStatisticsLog::TimerStatisticsLog() {}
-TimerStatisticsLog::~TimerStatisticsLog() {}
+__attribute__((weak)) TimerStatisticsLog::TimerStatisticsLog() throw() {}
+__attribute__((weak)) TimerStatisticsLog::~TimerStatisticsLog() throw() {}
 // [b28d-30] 复核 DIFF：帧/callee-saved 跨版本差（N7/N82 族），ORIG 0x08633f3d 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N82 封顶：DIFF→NEAR（107/107）。
 // 修法：①P231/P307 后三 getter 结果加纯 register（非 asm 绑定）⇒ 复现 ORIG
@@ -884,8 +905,8 @@ int TimerStatisticsLog::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerCardSelect::TimerCardSelect() {}
-TimerCardSelect::~TimerCardSelect() {}
+__attribute__((weak)) TimerCardSelect::TimerCardSelect() throw() {}
+__attribute__((weak)) TimerCardSelect::~TimerCardSelect() throw() {}
 int TimerCardSelect::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -914,8 +935,8 @@ int TimerCardSelect::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerClearDungeonReward::TimerClearDungeonReward() {}
-TimerClearDungeonReward::~TimerClearDungeonReward() {}
+__attribute__((weak)) TimerClearDungeonReward::TimerClearDungeonReward() throw() {}
+__attribute__((weak)) TimerClearDungeonReward::~TimerClearDungeonReward() throw() {}
 int TimerClearDungeonReward::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -941,8 +962,8 @@ int TimerClearDungeonReward::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerClearDungeonScoreScoll::TimerClearDungeonScoreScoll() {}
-TimerClearDungeonScoreScoll::~TimerClearDungeonScoreScoll() {}
+__attribute__((weak)) TimerClearDungeonScoreScoll::TimerClearDungeonScoreScoll() throw() {}
+__attribute__((weak)) TimerClearDungeonScoreScoll::~TimerClearDungeonScoreScoll() throw() {}
 int TimerClearDungeonScoreScoll::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // [b23S3C] P48 去缓存：get_user 每调用点重取×3；fatigue/max 结果寄存器直比；
@@ -981,8 +1002,8 @@ int TimerClearDungeonScoreScoll::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerClearDungeonCardSelectRight::TimerClearDungeonCardSelectRight() {}
-TimerClearDungeonCardSelectRight::~TimerClearDungeonCardSelectRight() {}
+__attribute__((weak)) TimerClearDungeonCardSelectRight::TimerClearDungeonCardSelectRight() throw() {}
+__attribute__((weak)) TimerClearDungeonCardSelectRight::~TimerClearDungeonCardSelectRight() throw() {}
 int TimerClearDungeonCardSelectRight::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x086347e2：GetParty(p1) + check_timer_key(0x13, p2)。
@@ -1001,8 +1022,8 @@ int TimerClearDungeonCardSelectRight::dispatch_sig(int p1, int p2, unsigned int 
     return 1;
 }
 
-TimerPremiumServiceOver::TimerPremiumServiceOver() {}
-TimerPremiumServiceOver::~TimerPremiumServiceOver() {}
+__attribute__((weak)) TimerPremiumServiceOver::TimerPremiumServiceOver() throw() {}
+__attribute__((weak)) TimerPremiumServiceOver::~TimerPremiumServiceOver() throw() {}
 int TimerPremiumServiceOver::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 5);   // ORIG 第二实参为常量 5
@@ -1017,8 +1038,8 @@ int TimerPremiumServiceOver::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerPremiumServiceUpdate::TimerPremiumServiceUpdate() {}
-TimerPremiumServiceUpdate::~TimerPremiumServiceUpdate() {}
+__attribute__((weak)) TimerPremiumServiceUpdate::TimerPremiumServiceUpdate() throw() {}
+__attribute__((weak)) TimerPremiumServiceUpdate::~TimerPremiumServiceUpdate() throw() {}
 int TimerPremiumServiceUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 6);   // ORIG 第二实参为常量 6
@@ -1050,8 +1071,8 @@ int TimerPremiumServiceUpdate::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerPremiumServiceStart::TimerPremiumServiceStart() {}
-TimerPremiumServiceStart::~TimerPremiumServiceStart() {}
+__attribute__((weak)) TimerPremiumServiceStart::TimerPremiumServiceStart() throw() {}
+__attribute__((weak)) TimerPremiumServiceStart::~TimerPremiumServiceStart() throw() {}
 int TimerPremiumServiceStart::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 6);   // ORIG 第二实参为常量 6
@@ -1081,8 +1102,8 @@ int TimerPremiumServiceStart::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerCheckPaidPCRoomTerm::TimerCheckPaidPCRoomTerm() {}
-TimerCheckPaidPCRoomTerm::~TimerCheckPaidPCRoomTerm() {}
+__attribute__((weak)) TimerCheckPaidPCRoomTerm::TimerCheckPaidPCRoomTerm() throw() {}
+__attribute__((weak)) TimerCheckPaidPCRoomTerm::~TimerCheckPaidPCRoomTerm() throw() {}
 int TimerCheckPaidPCRoomTerm::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 6);   // ORIG 第二实参为常量 6
@@ -1103,8 +1124,8 @@ int TimerCheckPaidPCRoomTerm::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerEPLPReturnVillage::TimerEPLPReturnVillage() {}
-TimerEPLPReturnVillage::~TimerEPLPReturnVillage() {}
+__attribute__((weak)) TimerEPLPReturnVillage::TimerEPLPReturnVillage() throw() {}
+__attribute__((weak)) TimerEPLPReturnVillage::~TimerEPLPReturnVillage() throw() {}
 int TimerEPLPReturnVillage::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1120,8 +1141,8 @@ int TimerEPLPReturnVillage::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerEPLPCommandWait::TimerEPLPCommandWait() {}
-TimerEPLPCommandWait::~TimerEPLPCommandWait() {}
+__attribute__((weak)) TimerEPLPCommandWait::TimerEPLPCommandWait() throw() {}
+__attribute__((weak)) TimerEPLPCommandWait::~TimerEPLPCommandWait() throw() {}
 int TimerEPLPCommandWait::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1144,8 +1165,8 @@ int TimerEPLPCommandWait::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerWarRoomWaitCount::TimerWarRoomWaitCount() {}
-TimerWarRoomWaitCount::~TimerWarRoomWaitCount() {}
+__attribute__((weak)) TimerWarRoomWaitCount::TimerWarRoomWaitCount() throw() {}
+__attribute__((weak)) TimerWarRoomWaitCount::~TimerWarRoomWaitCount() throw() {}
 int TimerWarRoomWaitCount::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     WarRoom* room = G_CGameManager()->GetWarRoom(p1);
@@ -1161,8 +1182,8 @@ int TimerWarRoomWaitCount::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerWarRoomReadyLockCount::TimerWarRoomReadyLockCount() {}
-TimerWarRoomReadyLockCount::~TimerWarRoomReadyLockCount() {}
+__attribute__((weak)) TimerWarRoomReadyLockCount::TimerWarRoomReadyLockCount() throw() {}
+__attribute__((weak)) TimerWarRoomReadyLockCount::~TimerWarRoomReadyLockCount() throw() {}
 int TimerWarRoomReadyLockCount::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08634d86：GetWarRoom(p1) + CheckTimerKey(0x42, p2)。
@@ -1177,8 +1198,8 @@ int TimerWarRoomReadyLockCount::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerWarRoomBattlePauseCount::TimerWarRoomBattlePauseCount() {}
-TimerWarRoomBattlePauseCount::~TimerWarRoomBattlePauseCount() {}
+__attribute__((weak)) TimerWarRoomBattlePauseCount::TimerWarRoomBattlePauseCount() throw() {}
+__attribute__((weak)) TimerWarRoomBattlePauseCount::~TimerWarRoomBattlePauseCount() throw() {}
 int TimerWarRoomBattlePauseCount::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08634df6：GetWarRoom(p1) + CheckTimerKey(0x43, p2)。
@@ -1192,8 +1213,8 @@ int TimerWarRoomBattlePauseCount::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerWarRoomResultCount::TimerWarRoomResultCount() {}
-TimerWarRoomResultCount::~TimerWarRoomResultCount() {}
+__attribute__((weak)) TimerWarRoomResultCount::TimerWarRoomResultCount() throw() {}
+__attribute__((weak)) TimerWarRoomResultCount::~TimerWarRoomResultCount() throw() {}
 int TimerWarRoomResultCount::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     WarRoom* room = G_CGameManager()->GetWarRoom(p1);
@@ -1209,8 +1230,8 @@ int TimerWarRoomResultCount::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TImerWarRoomTimeBomb::TImerWarRoomTimeBomb() {}
-TImerWarRoomTimeBomb::~TImerWarRoomTimeBomb() {}
+__attribute__((weak)) TImerWarRoomTimeBomb::TImerWarRoomTimeBomb() throw() {}
+__attribute__((weak)) TImerWarRoomTimeBomb::~TImerWarRoomTimeBomb() throw() {}
 int TImerWarRoomTimeBomb::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     WarRoom* room = G_CGameManager()->GetWarRoom(p1);
@@ -1226,8 +1247,8 @@ int TImerWarRoomTimeBomb::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerWarRoomCheckFail::TimerWarRoomCheckFail() {}
-TimerWarRoomCheckFail::~TimerWarRoomCheckFail() {}
+__attribute__((weak)) TimerWarRoomCheckFail::TimerWarRoomCheckFail() throw() {}
+__attribute__((weak)) TimerWarRoomCheckFail::~TimerWarRoomCheckFail() throw() {}
 int TimerWarRoomCheckFail::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     WarRoom* room = G_CGameManager()->GetWarRoom(p1);
@@ -1243,8 +1264,8 @@ int TimerWarRoomCheckFail::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerWarRoomChangeHost::TimerWarRoomChangeHost() {}
-TimerWarRoomChangeHost::~TimerWarRoomChangeHost() {}
+__attribute__((weak)) TimerWarRoomChangeHost::TimerWarRoomChangeHost() throw() {}
+__attribute__((weak)) TimerWarRoomChangeHost::~TimerWarRoomChangeHost() throw() {}
 int TimerWarRoomChangeHost::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     WarRoom* room = G_CGameManager()->GetWarRoom(p1);
@@ -1260,8 +1281,8 @@ int TimerWarRoomChangeHost::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodSmallRoundRegister::TimerBloodSmallRoundRegister() {}
-TimerBloodSmallRoundRegister::~TimerBloodSmallRoundRegister() {}
+__attribute__((weak)) TimerBloodSmallRoundRegister::TimerBloodSmallRoundRegister() throw() {}
+__attribute__((weak)) TimerBloodSmallRoundRegister::~TimerBloodSmallRoundRegister() throw() {}
 int TimerBloodSmallRoundRegister::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08634fee：GetParty(p1) + check_timer_key(0x16, p2)。
@@ -1276,8 +1297,8 @@ int TimerBloodSmallRoundRegister::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodPhaseRegister0::TimerBloodPhaseRegister0() {}
-TimerBloodPhaseRegister0::~TimerBloodPhaseRegister0() {}
+__attribute__((weak)) TimerBloodPhaseRegister0::TimerBloodPhaseRegister0() throw() {}
+__attribute__((weak)) TimerBloodPhaseRegister0::~TimerBloodPhaseRegister0() throw() {}
 int TimerBloodPhaseRegister0::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1294,8 +1315,8 @@ int TimerBloodPhaseRegister0::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodPhaseRegister1::TimerBloodPhaseRegister1() {}
-TimerBloodPhaseRegister1::~TimerBloodPhaseRegister1() {}
+__attribute__((weak)) TimerBloodPhaseRegister1::TimerBloodPhaseRegister1() throw() {}
+__attribute__((weak)) TimerBloodPhaseRegister1::~TimerBloodPhaseRegister1() throw() {}
 int TimerBloodPhaseRegister1::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1312,8 +1333,8 @@ int TimerBloodPhaseRegister1::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodPhaseRegister2::TimerBloodPhaseRegister2() {}
-TimerBloodPhaseRegister2::~TimerBloodPhaseRegister2() {}
+__attribute__((weak)) TimerBloodPhaseRegister2::TimerBloodPhaseRegister2() throw() {}
+__attribute__((weak)) TimerBloodPhaseRegister2::~TimerBloodPhaseRegister2() throw() {}
 int TimerBloodPhaseRegister2::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1330,8 +1351,8 @@ int TimerBloodPhaseRegister2::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodPhaseRegister3::TimerBloodPhaseRegister3() {}
-TimerBloodPhaseRegister3::~TimerBloodPhaseRegister3() {}
+__attribute__((weak)) TimerBloodPhaseRegister3::TimerBloodPhaseRegister3() throw() {}
+__attribute__((weak)) TimerBloodPhaseRegister3::~TimerBloodPhaseRegister3() throw() {}
 int TimerBloodPhaseRegister3::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1348,8 +1369,8 @@ int TimerBloodPhaseRegister3::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodPhaseRegister4::TimerBloodPhaseRegister4() {}
-TimerBloodPhaseRegister4::~TimerBloodPhaseRegister4() {}
+__attribute__((weak)) TimerBloodPhaseRegister4::TimerBloodPhaseRegister4() throw() {}
+__attribute__((weak)) TimerBloodPhaseRegister4::~TimerBloodPhaseRegister4() throw() {}
 int TimerBloodPhaseRegister4::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1366,8 +1387,8 @@ int TimerBloodPhaseRegister4::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodPhaseRegister5::TimerBloodPhaseRegister5() {}
-TimerBloodPhaseRegister5::~TimerBloodPhaseRegister5() {}
+__attribute__((weak)) TimerBloodPhaseRegister5::TimerBloodPhaseRegister5() throw() {}
+__attribute__((weak)) TimerBloodPhaseRegister5::~TimerBloodPhaseRegister5() throw() {}
 int TimerBloodPhaseRegister5::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1384,8 +1405,8 @@ int TimerBloodPhaseRegister5::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodPhaseRegister6::TimerBloodPhaseRegister6() {}
-TimerBloodPhaseRegister6::~TimerBloodPhaseRegister6() {}
+__attribute__((weak)) TimerBloodPhaseRegister6::TimerBloodPhaseRegister6() throw() {}
+__attribute__((weak)) TimerBloodPhaseRegister6::~TimerBloodPhaseRegister6() throw() {}
 int TimerBloodPhaseRegister6::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1402,8 +1423,8 @@ int TimerBloodPhaseRegister6::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodPhaseRegister7::TimerBloodPhaseRegister7() {}
-TimerBloodPhaseRegister7::~TimerBloodPhaseRegister7() {}
+__attribute__((weak)) TimerBloodPhaseRegister7::TimerBloodPhaseRegister7() throw() {}
+__attribute__((weak)) TimerBloodPhaseRegister7::~TimerBloodPhaseRegister7() throw() {}
 int TimerBloodPhaseRegister7::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1420,8 +1441,8 @@ int TimerBloodPhaseRegister7::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodPhaseRegister8::TimerBloodPhaseRegister8() {}
-TimerBloodPhaseRegister8::~TimerBloodPhaseRegister8() {}
+__attribute__((weak)) TimerBloodPhaseRegister8::TimerBloodPhaseRegister8() throw() {}
+__attribute__((weak)) TimerBloodPhaseRegister8::~TimerBloodPhaseRegister8() throw() {}
 int TimerBloodPhaseRegister8::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1438,8 +1459,8 @@ int TimerBloodPhaseRegister8::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodPhaseRegister9::TimerBloodPhaseRegister9() {}
-TimerBloodPhaseRegister9::~TimerBloodPhaseRegister9() {}
+__attribute__((weak)) TimerBloodPhaseRegister9::TimerBloodPhaseRegister9() throw() {}
+__attribute__((weak)) TimerBloodPhaseRegister9::~TimerBloodPhaseRegister9() throw() {}
 int TimerBloodPhaseRegister9::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1456,8 +1477,8 @@ int TimerBloodPhaseRegister9::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodCrazyMonster::TimerBloodCrazyMonster() {}
-TimerBloodCrazyMonster::~TimerBloodCrazyMonster() {}
+__attribute__((weak)) TimerBloodCrazyMonster::TimerBloodCrazyMonster() throw() {}
+__attribute__((weak)) TimerBloodCrazyMonster::~TimerBloodCrazyMonster() throw() {}
 int TimerBloodCrazyMonster::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -1474,8 +1495,8 @@ int TimerBloodCrazyMonster::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerBloodDungeonClearReward::TimerBloodDungeonClearReward() {}
-TimerBloodDungeonClearReward::~TimerBloodDungeonClearReward() {}
+__attribute__((weak)) TimerBloodDungeonClearReward::TimerBloodDungeonClearReward() throw() {}
+__attribute__((weak)) TimerBloodDungeonClearReward::~TimerBloodDungeonClearReward() throw() {}
 int TimerBloodDungeonClearReward::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08638cd0：GetParty(p1)；check_timer_key 以 p3 为 msg、p2 为 param。
@@ -1491,8 +1512,8 @@ int TimerBloodDungeonClearReward::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerUltimateNextRoundStart::TimerUltimateNextRoundStart() {}
-TimerUltimateNextRoundStart::~TimerUltimateNextRoundStart() {}
+__attribute__((weak)) TimerUltimateNextRoundStart::TimerUltimateNextRoundStart() throw() {}
+__attribute__((weak)) TimerUltimateNextRoundStart::~TimerUltimateNextRoundStart() throw() {}
 // [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x08635xxx 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N4/N7 封顶：94/97（原 94/100）。
 // 修法：①P183 删 `CBattle_Field* field = &party->m_battleField` 缓存（ORIG 每站点
@@ -1536,8 +1557,8 @@ int TimerUltimateNextRoundStart::dispatch_sig(int p1, int p2, unsigned int p3)
     party->m_battleField.startUltimateRound();
     return 1;
 }
-TimerEventChristmas::TimerEventChristmas() {}
-TimerEventChristmas::~TimerEventChristmas() {}
+__attribute__((weak)) TimerEventChristmas::TimerEventChristmas() throw() {}
+__attribute__((weak)) TimerEventChristmas::~TimerEventChristmas() throw() {}
 int TimerEventChristmas::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 三方法为静态语义（调用点无 this 压栈，直接操作全局 0x943c138），
@@ -1551,8 +1572,8 @@ int TimerEventChristmas::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerStatisticsDetailChannelInfo::TimerStatisticsDetailChannelInfo() {}
-TimerStatisticsDetailChannelInfo::~TimerStatisticsDetailChannelInfo() {}
+__attribute__((weak)) TimerStatisticsDetailChannelInfo::TimerStatisticsDetailChannelInfo() throw() {}
+__attribute__((weak)) TimerStatisticsDetailChannelInfo::~TimerStatisticsDetailChannelInfo() throw() {}
 // ORIG T 0x0863575c (_ZN32TimerStatisticsDetailChannelInfo12dispatch_sigEiij)：
 // G_GameWorld()->updateDetailChannelServiceInfo()；RegistNextTimer()；返回 1。
 int TimerStatisticsDetailChannelInfo::dispatch_sig(int p1, int p2, unsigned int p3)
@@ -1592,8 +1613,8 @@ bool TimerStatisticsDetailChannelInfo::RegistNextTimer()
     return true;
 }
 
-TimerStatisticLevel::TimerStatisticLevel() {}
-TimerStatisticLevel::~TimerStatisticLevel() {}
+__attribute__((weak)) TimerStatisticLevel::TimerStatisticLevel() throw() {}
+__attribute__((weak)) TimerStatisticLevel::~TimerStatisticLevel() throw() {}
 int TimerStatisticLevel::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     G_GameWorld()->UpdateStatistic4ChannelUserLev();
@@ -1609,8 +1630,8 @@ int TimerStatisticLevel::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerScheduleOneHour::TimerScheduleOneHour() {}
-TimerScheduleOneHour::~TimerScheduleOneHour() {}
+__attribute__((weak)) TimerScheduleOneHour::TimerScheduleOneHour() throw() {}
+__attribute__((weak)) TimerScheduleOneHour::~TimerScheduleOneHour() throw() {}
 int TimerScheduleOneHour::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
@@ -1618,8 +1639,8 @@ int TimerScheduleOneHour::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerSaveLogGamechannel::TimerSaveLogGamechannel() {}
-TimerSaveLogGamechannel::~TimerSaveLogGamechannel() {}
+__attribute__((weak)) TimerSaveLogGamechannel::TimerSaveLogGamechannel() throw() {}
+__attribute__((weak)) TimerSaveLogGamechannel::~TimerSaveLogGamechannel() throw() {}
 int TimerSaveLogGamechannel::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // CLogGameChannel 三方法为无参实例调用（ORIG 0x08550456/0x085506c6/0x085503fe）。
@@ -1629,8 +1650,8 @@ int TimerSaveLogGamechannel::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerQueryCounter::TimerQueryCounter() {}
-TimerQueryCounter::~TimerQueryCounter() {}
+__attribute__((weak)) TimerQueryCounter::TimerQueryCounter() throw() {}
+__attribute__((weak)) TimerQueryCounter::~TimerQueryCounter() throw() {}
 // ORIG TimerQueryCounter::dispatch_sig @ 0x8635a60 (0x17b)
 int TimerQueryCounter::dispatch_sig(int p1, int p2, unsigned int p3)
 {
@@ -1667,8 +1688,8 @@ int TimerQueryCounter::RegistNextTimer()
     return 1;
 }
 
-TimerNatType::TimerNatType() {}
-TimerNatType::~TimerNatType() {}
+__attribute__((weak)) TimerNatType::TimerNatType() throw() {}
+__attribute__((weak)) TimerNatType::~TimerNatType() throw() {}
 // ORIG T 0x08635c2c (_ZN12TimerNatType12dispatch_sigEiij)：
 // G_GameWorld()->GetStatisticsNatType()->UpdateNatType()；RegistNextTimer()；返回 1。
 int TimerNatType::dispatch_sig(int p1, int p2, unsigned int p3)
@@ -1689,8 +1710,8 @@ int TimerNatType::RegistNextTimer()
     return 1;
 }
 
-TimerNatTypeUser::TimerNatTypeUser() {}
-TimerNatTypeUser::~TimerNatTypeUser() {}
+__attribute__((weak)) TimerNatTypeUser::TimerNatTypeUser() throw() {}
+__attribute__((weak)) TimerNatTypeUser::~TimerNatTypeUser() throw() {}
 int TimerNatTypeUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     G_GameWorld()->UpdateNatTypeUser();
@@ -1710,8 +1731,8 @@ int TimerNatTypeUser::RegistNextTimer()
     return 1;
 }
 
-TimerCheckMailTimeOut::TimerCheckMailTimeOut() {}
-TimerCheckMailTimeOut::~TimerCheckMailTimeOut() {}
+__attribute__((weak)) TimerCheckMailTimeOut::TimerCheckMailTimeOut() throw() {}
+__attribute__((weak)) TimerCheckMailTimeOut::~TimerCheckMailTimeOut() throw() {}
 // [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82/N93 族），ORIG 0x08635xxx 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N82/N93 封顶：帧/槽位跨版本差（106/109）。
 int TimerCheckMailTimeOut::dispatch_sig(int p1, int p2, unsigned int p3)
@@ -1749,8 +1770,8 @@ int TimerCheckMailTimeOut::dispatch_sig(int p1, int p2, unsigned int p3)
     return result;
 }
 
-TimerCreature::TimerCreature() {}
-TimerCreature::~TimerCreature() {}
+__attribute__((weak)) TimerCreature::TimerCreature() throw() {}
+__attribute__((weak)) TimerCreature::~TimerCreature() throw() {}
 // [b28d-30] 复核 NEAR：died 槽 -0x11 vs -0xa（1 字节槽隙，N82/P190 族），ORIG 0x08635e96。
 // [b28d-solo-TimerDispatcher] NEAR 封顶 N98（4.4 按首次使用序分配槽）：ORIG died 槽
 // -0x11（两 byte 槽间 8B 隙）vs 4.4 -0xa；long long/volatile/double pad 三形实测反劣。
@@ -1795,8 +1816,8 @@ int TimerCreature::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerForbidChat::TimerForbidChat() {}
-TimerForbidChat::~TimerForbidChat() {}
+__attribute__((weak)) TimerForbidChat::TimerForbidChat() throw() {}
+__attribute__((weak)) TimerForbidChat::~TimerForbidChat() throw() {}
 int TimerForbidChat::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 0xa);   // ORIG 第二实参常量 0xa
@@ -1821,8 +1842,8 @@ int TimerForbidChat::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerForbidMove::TimerForbidMove() {}
-TimerForbidMove::~TimerForbidMove() {}
+__attribute__((weak)) TimerForbidMove::TimerForbidMove() throw() {}
+__attribute__((weak)) TimerForbidMove::~TimerForbidMove() throw() {}
 int TimerForbidMove::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 0xb);   // ORIG 第二实参常量 0xb
@@ -1846,8 +1867,8 @@ int TimerForbidMove::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerScheduleFiveMinPerUser::TimerScheduleFiveMinPerUser() {}
-TimerScheduleFiveMinPerUser::~TimerScheduleFiveMinPerUser() {}
+__attribute__((weak)) TimerScheduleFiveMinPerUser::TimerScheduleFiveMinPerUser() throw() {}
+__attribute__((weak)) TimerScheduleFiveMinPerUser::~TimerScheduleFiveMinPerUser() throw() {}
 int TimerScheduleFiveMinPerUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 3);   // ORIG 第二实参为常量 3
@@ -1869,8 +1890,8 @@ int TimerScheduleFiveMinPerUser::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerScheduleTenMinPerUser::TimerScheduleTenMinPerUser() {}
-TimerScheduleTenMinPerUser::~TimerScheduleTenMinPerUser() {}
+__attribute__((weak)) TimerScheduleTenMinPerUser::TimerScheduleTenMinPerUser() throw() {}
+__attribute__((weak)) TimerScheduleTenMinPerUser::~TimerScheduleTenMinPerUser() throw() {}
 int TimerScheduleTenMinPerUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 3);   // ORIG 第二实参为常量 3
@@ -1891,8 +1912,8 @@ int TimerScheduleTenMinPerUser::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerQueueSizeLog::TimerQueueSizeLog() {}
-TimerQueueSizeLog::~TimerQueueSizeLog() {}
+__attribute__((weak)) TimerQueueSizeLog::TimerQueueSizeLog() throw() {}
+__attribute__((weak)) TimerQueueSizeLog::~TimerQueueSizeLog() throw() {}
 int TimerQueueSizeLog::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // remain/put 为 MsgQueueMgr 成员（ORIG this=s_msgq_mgr）；2=DB_Q、4=LOGDB_Q。
@@ -1929,8 +1950,8 @@ bool TimerQueueSizeLog::RegistNextTimer()
     return 1;
 }
 
-TimerScheduleGuildWarEnd::TimerScheduleGuildWarEnd() {}
-TimerScheduleGuildWarEnd::~TimerScheduleGuildWarEnd() {}
+__attribute__((weak)) TimerScheduleGuildWarEnd::TimerScheduleGuildWarEnd() throw() {}
+__attribute__((weak)) TimerScheduleGuildWarEnd::~TimerScheduleGuildWarEnd() throw() {}
 // TimerScheduleGuildWarEnd::dispatch_sig ORIG T 0x86331d0 (0x57f)
 // [b28d-30] 复核 DIFF：巨件残差（N82/N89 族），ORIG 0x086331d0。
 // [b28d-solo-TimerDispatcher] 判词 N82/N89 封顶：巨件 317 insns，帧槽 + STL 内联残差。
@@ -2025,8 +2046,8 @@ int TimerScheduleGuildWarEnd::dispatch_sig(int p1, int p2, unsigned int /*p3*/)
     return 1;
 }
 
-TimerSetPlayResult::TimerSetPlayResult() {}
-TimerSetPlayResult::~TimerSetPlayResult() {}
+__attribute__((weak)) TimerSetPlayResult::TimerSetPlayResult() throw() {}
+__attribute__((weak)) TimerSetPlayResult::~TimerSetPlayResult() throw() {}
 int TimerSetPlayResult::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -2042,8 +2063,8 @@ int TimerSetPlayResult::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerStartRelayBattle::TimerStartRelayBattle() {}
-TimerStartRelayBattle::~TimerStartRelayBattle() {}
+__attribute__((weak)) TimerStartRelayBattle::TimerStartRelayBattle() throw() {}
+__attribute__((weak)) TimerStartRelayBattle::~TimerStartRelayBattle() throw() {}
 int TimerStartRelayBattle::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x0863640c：GetPvp(p1, 0, 99) → relay(=room+0x620) 计时键比对(p2) → OnFight。
@@ -2070,8 +2091,8 @@ int TimerBossDieTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
     return party->OnTimeoutBossDie(p2, p3);
 }
 
-TimerEventCoinRefill::TimerEventCoinRefill() {}
-TimerEventCoinRefill::~TimerEventCoinRefill() {}
+__attribute__((weak)) TimerEventCoinRefill::TimerEventCoinRefill() throw() {}
+__attribute__((weak)) TimerEventCoinRefill::~TimerEventCoinRefill() throw() {}
 int TimerEventCoinRefill::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p3*/)
 {
     // ORIG 0x086364c4：GetRepeatEvent(0xd) → receiver->IsEventing(0)（vtbl+0x34）
@@ -2090,64 +2111,64 @@ int TimerEventCoinRefill::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p3
     return 1;
 }
 
-TimerPvPDieUserRevive0::TimerPvPDieUserRevive0() {}
-TimerPvPDieUserRevive0::~TimerPvPDieUserRevive0() {}
+__attribute__((weak)) TimerPvPDieUserRevive0::TimerPvPDieUserRevive0() throw() {}
+__attribute__((weak)) TimerPvPDieUserRevive0::~TimerPvPDieUserRevive0() throw() {}
 int TimerPvPDieUserRevive0::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 0);
 }
 
-TimerPvPDieUserRevive1::TimerPvPDieUserRevive1() {}
-TimerPvPDieUserRevive1::~TimerPvPDieUserRevive1() {}
+__attribute__((weak)) TimerPvPDieUserRevive1::TimerPvPDieUserRevive1() throw() {}
+__attribute__((weak)) TimerPvPDieUserRevive1::~TimerPvPDieUserRevive1() throw() {}
 int TimerPvPDieUserRevive1::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 1);
 }
 
-TimerPvPDieUserRevive2::TimerPvPDieUserRevive2() {}
-TimerPvPDieUserRevive2::~TimerPvPDieUserRevive2() {}
+__attribute__((weak)) TimerPvPDieUserRevive2::TimerPvPDieUserRevive2() throw() {}
+__attribute__((weak)) TimerPvPDieUserRevive2::~TimerPvPDieUserRevive2() throw() {}
 int TimerPvPDieUserRevive2::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 2);
 }
 
-TimerPvPDieUserRevive3::TimerPvPDieUserRevive3() {}
-TimerPvPDieUserRevive3::~TimerPvPDieUserRevive3() {}
+__attribute__((weak)) TimerPvPDieUserRevive3::TimerPvPDieUserRevive3() throw() {}
+__attribute__((weak)) TimerPvPDieUserRevive3::~TimerPvPDieUserRevive3() throw() {}
 int TimerPvPDieUserRevive3::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 3);
 }
 
-TimerPvPDieUserRevive4::TimerPvPDieUserRevive4() {}
-TimerPvPDieUserRevive4::~TimerPvPDieUserRevive4() {}
+__attribute__((weak)) TimerPvPDieUserRevive4::TimerPvPDieUserRevive4() throw() {}
+__attribute__((weak)) TimerPvPDieUserRevive4::~TimerPvPDieUserRevive4() throw() {}
 int TimerPvPDieUserRevive4::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 4);
 }
 
-TimerPvPDieUserRevive5::TimerPvPDieUserRevive5() {}
-TimerPvPDieUserRevive5::~TimerPvPDieUserRevive5() {}
+__attribute__((weak)) TimerPvPDieUserRevive5::TimerPvPDieUserRevive5() throw() {}
+__attribute__((weak)) TimerPvPDieUserRevive5::~TimerPvPDieUserRevive5() throw() {}
 int TimerPvPDieUserRevive5::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 5);
 }
 
-TimerPvPDieUserRevive6::TimerPvPDieUserRevive6() {}
-TimerPvPDieUserRevive6::~TimerPvPDieUserRevive6() {}
+__attribute__((weak)) TimerPvPDieUserRevive6::TimerPvPDieUserRevive6() throw() {}
+__attribute__((weak)) TimerPvPDieUserRevive6::~TimerPvPDieUserRevive6() throw() {}
 int TimerPvPDieUserRevive6::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 6);
 }
 
-TimerPvPDieUserRevive7::TimerPvPDieUserRevive7() {}
-TimerPvPDieUserRevive7::~TimerPvPDieUserRevive7() {}
+__attribute__((weak)) TimerPvPDieUserRevive7::TimerPvPDieUserRevive7() throw() {}
+__attribute__((weak)) TimerPvPDieUserRevive7::~TimerPvPDieUserRevive7() throw() {}
 int TimerPvPDieUserRevive7::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvPDieUserRevive(p1, p2, p3, 7);
 }
 
-TimerDungeonDataStatistic::TimerDungeonDataStatistic() {}
-TimerDungeonDataStatistic::~TimerDungeonDataStatistic() {}
+__attribute__((weak)) TimerDungeonDataStatistic::TimerDungeonDataStatistic() throw() {}
+__attribute__((weak)) TimerDungeonDataStatistic::~TimerDungeonDataStatistic() throw() {}
 // ---- TimerDungeonDataStatistic ----
 // 报告：docs/class_func_reports/TimerDungeonDataStatistic/{dispatch_sig,RegistNextTimer}.md
 
@@ -2216,8 +2237,8 @@ bool TimerDungeonDataStatistic::RegistNextTimer()
     return 1;
 }
 
-TimerNotResponseUserTimeout::TimerNotResponseUserTimeout() {}
-TimerNotResponseUserTimeout::~TimerNotResponseUserTimeout() {}
+__attribute__((weak)) TimerNotResponseUserTimeout::TimerNotResponseUserTimeout() throw() {}
+__attribute__((weak)) TimerNotResponseUserTimeout::~TimerNotResponseUserTimeout() throw() {}
 // ---- TimerNotResponseUserTimeout ----
 // 报告：docs/class_func_reports/TimerNotResponseUserTimeout/dispatch_sig.md
 
@@ -2254,8 +2275,8 @@ int TimerNotResponseUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerLightServerNotice::TimerLightServerNotice() {}
-TimerLightServerNotice::~TimerLightServerNotice() {}
+__attribute__((weak)) TimerLightServerNotice::TimerLightServerNotice() throw() {}
+__attribute__((weak)) TimerLightServerNotice::~TimerLightServerNotice() throw() {}
 // [b28d-30] 复核 DIFF：越界检查形/帧差（N82 族），ORIG 0x08636a7c。
 // [b28d-solo-TimerDispatcher] 判词 N104 封顶：P183 去 notices/packet 缓存 + 真语义
 // bug（第二形参）修正后 112/112 助记符全等；唯一残差 = EH 尾块相对序（ORIG 正常路径
@@ -2329,8 +2350,8 @@ bool TimerLightServerNotice::RegistNextTimer(int idx)
     return 1;
 }
 
-TimerInsertUserPlayTime::TimerInsertUserPlayTime() {}
-TimerInsertUserPlayTime::~TimerInsertUserPlayTime() {}
+__attribute__((weak)) TimerInsertUserPlayTime::TimerInsertUserPlayTime() throw() {}
+__attribute__((weak)) TimerInsertUserPlayTime::~TimerInsertUserPlayTime() throw() {}
 int TimerInsertUserPlayTime::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p3*/)
 {
     // ORIG 0x08636d0a：统计单例落盘 → 重排当日 04:30 定时器。
@@ -2366,8 +2387,8 @@ bool TimerInsertUserPlayTime::RegistNextTimer()
     return 1;
 }
 
-TimerCheckForcedDisconnect::TimerCheckForcedDisconnect() {}
-TimerCheckForcedDisconnect::~TimerCheckForcedDisconnect() {}
+__attribute__((weak)) TimerCheckForcedDisconnect::TimerCheckForcedDisconnect() throw() {}
+__attribute__((weak)) TimerCheckForcedDisconnect::~TimerCheckForcedDisconnect() throw() {}
 // ---- TimerCheckForcedDisconnect ----
 // 报告：docs/class_func_reports/TimerCheckForcedDisconnect/{dispatch_sig,RegistNextTimer}.md
 
@@ -2422,8 +2443,8 @@ bool TimerCheckForcedDisconnect::RegistNextTimer(CUser* user)
     return 1;
 }
 
-TimerCheckPvPRoomUser::TimerCheckPvPRoomUser() {}
-TimerCheckPvPRoomUser::~TimerCheckPvPRoomUser() {}
+__attribute__((weak)) TimerCheckPvPRoomUser::TimerCheckPvPRoomUser() throw() {}
+__attribute__((weak)) TimerCheckPvPRoomUser::~TimerCheckPvPRoomUser() throw() {}
 // ===== TimerCheckPvPRoomUser =====
 // dispatch_sig ORIG _ZN21TimerCheckPvPRoomUser12dispatch_sigEiij @0x08636f90 (0xa9B)
 
@@ -2452,8 +2473,8 @@ int TimerCheckPvPRoomUser::dispatch_sig(int p1, int p2, unsigned int /*p3*/)
     return 1;
 }
 
-TimerCheckRecvPvpEndResult::TimerCheckRecvPvpEndResult() {}
-TimerCheckRecvPvpEndResult::~TimerCheckRecvPvpEndResult() {}
+__attribute__((weak)) TimerCheckRecvPvpEndResult::TimerCheckRecvPvpEndResult() throw() {}
+__attribute__((weak)) TimerCheckRecvPvpEndResult::~TimerCheckRecvPvpEndResult() throw() {}
 // ---- TimerCheckRecvPvpEndResult ----
 // 报告：docs/class_func_reports/TimerCheckRecvPvpEndResult/dispatch_sig.md
 
@@ -2479,8 +2500,8 @@ int TimerCheckRecvPvpEndResult::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerCheckHumanCertifyTimeout::TimerCheckHumanCertifyTimeout() {}
-TimerCheckHumanCertifyTimeout::~TimerCheckHumanCertifyTimeout() {}
+__attribute__((weak)) TimerCheckHumanCertifyTimeout::TimerCheckHumanCertifyTimeout() throw() {}
+__attribute__((weak)) TimerCheckHumanCertifyTimeout::~TimerCheckHumanCertifyTimeout() throw() {}
 // [b28d-30] 复核 DIFF：槽位差 8（N82/N93 族），ORIG 0x086369xx 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N82+P292 封顶：槽平移 -0xc↔-0x14 + 块序差；
 // isSendMailCertified 需 bool（CUser.h 冻结，已上报 Main）（105/113）。
@@ -2533,8 +2554,8 @@ int TimerCheckHumanCertifyTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerUpdateItemGenerateStatistics::TimerUpdateItemGenerateStatistics() {}
-TimerUpdateItemGenerateStatistics::~TimerUpdateItemGenerateStatistics() {}
+__attribute__((weak)) TimerUpdateItemGenerateStatistics::TimerUpdateItemGenerateStatistics() throw() {}
+__attribute__((weak)) TimerUpdateItemGenerateStatistics::~TimerUpdateItemGenerateStatistics() throw() {}
 int TimerUpdateItemGenerateStatistics::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08637170：两级链式（%eax 直落 (%esp)，无具名槽），帧 0x18；
@@ -2571,8 +2592,8 @@ void TimerUpdateItemGenerateStatistics::registNextTimer(long pointSec)
                                 (TIMER_MESSAGE)0x6b, delay, 0, 0);
 }
 
-TimerUpdatePvPGrade::TimerUpdatePvPGrade() {}
-TimerUpdatePvPGrade::~TimerUpdatePvPGrade() {}
+__attribute__((weak)) TimerUpdatePvPGrade::TimerUpdatePvPGrade() throw() {}
+__attribute__((weak)) TimerUpdatePvPGrade::~TimerUpdatePvPGrade() throw() {}
 int TimerUpdatePvPGrade::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p3*/)
 {
     // ORIG 0x86373c6：makeRequest() → getCurSec() → registNextTimer(sec+0x15180)。
@@ -2609,8 +2630,8 @@ void TimerUpdatePvPGrade::registNextTimer(long sec)
         0, 0);
 }
 
-TimerDetectDisconnect::TimerDetectDisconnect() {}
-TimerDetectDisconnect::~TimerDetectDisconnect() {}
+__attribute__((weak)) TimerDetectDisconnect::TimerDetectDisconnect() throw() {}
+__attribute__((weak)) TimerDetectDisconnect::~TimerDetectDisconnect() throw() {}
 int TimerDetectDisconnect::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x86374bc: GetInstanceDisconnectDetecter()->DoDetectingDisconnect() 为真时 registNextTimer(); return 1
@@ -2620,8 +2641,8 @@ int TimerDetectDisconnect::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerCompleteLoadAssaultTimeout::TimerCompleteLoadAssaultTimeout() {}
-TimerCompleteLoadAssaultTimeout::~TimerCompleteLoadAssaultTimeout() {}
+__attribute__((weak)) TimerCompleteLoadAssaultTimeout::TimerCompleteLoadAssaultTimeout() throw() {}
+__attribute__((weak)) TimerCompleteLoadAssaultTimeout::~TimerCompleteLoadAssaultTimeout() throw() {}
 int TimerCompleteLoadAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863752c: GetInstanceAssaultMgr() -> OnTimeoutCompleteLoad(p1,p2), return 1
@@ -2632,8 +2653,8 @@ int TimerCompleteLoadAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p
     return 1;
 }
 
-TimerConnectP2PAssaultTimeout::TimerConnectP2PAssaultTimeout() {}
-TimerConnectP2PAssaultTimeout::~TimerConnectP2PAssaultTimeout() {}
+__attribute__((weak)) TimerConnectP2PAssaultTimeout::TimerConnectP2PAssaultTimeout() throw() {}
+__attribute__((weak)) TimerConnectP2PAssaultTimeout::~TimerConnectP2PAssaultTimeout() throw() {}
 int TimerConnectP2PAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863759c: GetInstanceAssaultMgr() -> OnTimeoutConnectP2P(p1,p2), return 1
@@ -2643,8 +2664,8 @@ int TimerConnectP2PAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerEndAssault::TimerEndAssault() {}
-TimerEndAssault::~TimerEndAssault() {}
+__attribute__((weak)) TimerEndAssault::TimerEndAssault() throw() {}
+__attribute__((weak)) TimerEndAssault::~TimerEndAssault() throw() {}
 int TimerEndAssault::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863760c: GetInstanceAssaultMgr() -> OnTimeoutEndAssault(p1,p2), return 1
@@ -2654,8 +2675,8 @@ int TimerEndAssault::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerCloseAssault::TimerCloseAssault() {}
-TimerCloseAssault::~TimerCloseAssault() {}
+__attribute__((weak)) TimerCloseAssault::TimerCloseAssault() throw() {}
+__attribute__((weak)) TimerCloseAssault::~TimerCloseAssault() throw() {}
 int TimerCloseAssault::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863767c: GetInstanceAssaultMgr() -> OnTimeoutCloseAssault(p1,p2), return 1
@@ -2696,8 +2717,8 @@ void TimerCloseAssault::registNextTimer(long sec, int p1, int p2)
                                 p2, 0);
 }
 
-TimerCompleteLoadAfterAssaultTimeout::TimerCompleteLoadAfterAssaultTimeout() {}
-TimerCompleteLoadAfterAssaultTimeout::~TimerCompleteLoadAfterAssaultTimeout() {}
+__attribute__((weak)) TimerCompleteLoadAfterAssaultTimeout::TimerCompleteLoadAfterAssaultTimeout() throw() {}
+__attribute__((weak)) TimerCompleteLoadAfterAssaultTimeout::~TimerCompleteLoadAfterAssaultTimeout() throw() {}
 int TimerCompleteLoadAfterAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x86376ec: GetInstanceAssaultMgr() -> OnTimeoutCompleteLoadAfterAssault(p1,p2), return 1
@@ -2707,8 +2728,8 @@ int TimerCompleteLoadAfterAssaultTimeout::dispatch_sig(int p1, int p2, unsigned 
     return 1;
 }
 
-TimerConnectP2PAfterAssaultTimeout::TimerConnectP2PAfterAssaultTimeout() {}
-TimerConnectP2PAfterAssaultTimeout::~TimerConnectP2PAfterAssaultTimeout() {}
+__attribute__((weak)) TimerConnectP2PAfterAssaultTimeout::TimerConnectP2PAfterAssaultTimeout() throw() {}
+__attribute__((weak)) TimerConnectP2PAfterAssaultTimeout::~TimerConnectP2PAfterAssaultTimeout() throw() {}
 int TimerConnectP2PAfterAssaultTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863775c: GetInstanceAssaultMgr() -> OnTimeoutConnectP2PAfterAssault(p1,p2), return 1
@@ -2730,8 +2751,8 @@ void TimerConnectP2PAfterAssaultTimeout::registNextTimer(long sec,
                                 (unsigned int)p2, 0);
 }
 
-TimerDeathTower::TimerDeathTower() {}
-TimerDeathTower::~TimerDeathTower() {}
+__attribute__((weak)) TimerDeathTower::TimerDeathTower() throw() {}
+__attribute__((weak)) TimerDeathTower::~TimerDeathTower() throw() {}
 int TimerDeathTower::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     WongWork::CDeathTower* tower = G_CGameManager()->getDeathTower(p1);
@@ -2742,8 +2763,8 @@ int TimerDeathTower::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerDeathTowerTopRankerReload::TimerDeathTowerTopRankerReload() {}
-TimerDeathTowerTopRankerReload::~TimerDeathTowerTopRankerReload() {}
+__attribute__((weak)) TimerDeathTowerTopRankerReload::TimerDeathTowerTopRankerReload() throw() {}
+__attribute__((weak)) TimerDeathTowerTopRankerReload::~TimerDeathTowerTopRankerReload() throw() {}
 int TimerDeathTowerTopRankerReload::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p3*/)
 {
     // ORIG 0x8637816：两阶段加载 TopRanker（false 增量 → true 全量），
@@ -2754,8 +2775,8 @@ int TimerDeathTowerTopRankerReload::dispatch_sig(int /*p1*/, int /*p2*/, unsigne
     return 1;
 }
 
-TimerScheduleTenSecond::TimerScheduleTenSecond() {}
-TimerScheduleTenSecond::~TimerScheduleTenSecond() {}
+__attribute__((weak)) TimerScheduleTenSecond::TimerScheduleTenSecond() throw() {}
+__attribute__((weak)) TimerScheduleTenSecond::~TimerScheduleTenSecond() throw() {}
 // [b28d-30] 复核 DIFF：迭代器槽/帧差（N82/N86 族），ORIG 0x08637936 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N82/N86 封顶：迭代器槽 + 帧差（86/79）。
 // 附：p167 显示 ORIG 用 const_iterator 族（P96/P270），但改 const 形后本 TU 不再
@@ -2814,8 +2835,8 @@ int TimerScheduleTenSecond::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*
     return 1;
 }
 
-TimerFinishItemEffect::TimerFinishItemEffect() {}
-TimerFinishItemEffect::~TimerFinishItemEffect() {}
+__attribute__((weak)) TimerFinishItemEffect::TimerFinishItemEffect() throw() {}
+__attribute__((weak)) TimerFinishItemEffect::~TimerFinishItemEffect() throw() {}
 // ---- TimerFinishItemEffect ----
 // 报告：docs/class_func_reports/TimerFinishItemEffect/{dispatch_sig,_processSepecialEffectContinuousItem}.md
 // 类对象仅 vptr；头声明区现缺私有 helper（见 NEEDS_LOCAL_STATIC）。
@@ -2824,6 +2845,11 @@ TimerFinishItemEffect::~TimerFinishItemEffect() {}
 // [b28d-30] 复核 DIFF：槽位差 0xc + 帧差（N82/N93 族），ORIG 0x08637aac。
 // [b28d-solo-TimerDispatcher] 判词 N82/N93 封顶：P157 去 entry 缓存已修（const
 // operator[] ×2 补齐，195/195）；残差 = 槽位差 0xc + 帧差。
+// [SweepTimerDispatcher2 2026-09-09] P329/P0 修复：InsertTimer 的 uid/characNo 具名局部
+// 改内联实参（ORIG characNo→%edi、uid→%esi 无槽）⇒ 全帧槽号回 ORIG 形、ndiff 135→25；
+// 残余 = ①`!=` 物化 setne/jne vs ORIG sete/je（P196/N18b，已试否定式回滚）
+// ②`return user->Send(packet)` 的 movzbl（Send 返回 bool 的 4.4 扩展）
+// ③characNo/uid 的 edi/esi 角色互换（N7）。
 int TimerFinishItemEffect::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 0x3);
@@ -2868,15 +2894,15 @@ int TimerFinishItemEffect::dispatch_sig(int p1, int p2, unsigned int p3)
         if (!((remain < 6u) && (0x3cu < remain)))
         {
             // ORIG +0x1d2 重排程：OBJ_TYPE 0 / key=GetUID / msg 0x76 / delay=remain / p2 / characNo
-            const unsigned int uid = user->GetUID();
-            const unsigned int characNo =
-                static_cast<unsigned int>(user->getCurCharacNo());
+            // [SweepTimerDispatcher2] P329/P0：ORIG 无 uid/characNo 具名槽——characNo 先求值
+            // 驻 %edi、uid 驻 %esi（实参右→左求值），我方具名局部使全帧槽深 +8（-0x2c→-0x34）。
+            // 改内联实参后槽序应回 ORIG 形。
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)0,
-                                        static_cast<int>(uid),
+                                        static_cast<int>(user->GetUID()),
                                         (TIMER_MESSAGE)0x76,
                                         static_cast<int>(remain),
                                         p2,
-                                        characNo);
+                                        static_cast<unsigned int>(user->getCurCharacNo()));
             continue;                    // esi=1 → 回到 i++ 尾部继续遍历
         }
 
@@ -2907,8 +2933,8 @@ void TimerFinishItemEffect::_processSepecialEffectContinuousItem(CUser* user,
     }
 }
 
-TimerStartMatching::TimerStartMatching() {}
-TimerStartMatching::~TimerStartMatching() {}
+__attribute__((weak)) TimerStartMatching::TimerStartMatching() throw() {}
+__attribute__((weak)) TimerStartMatching::~TimerStartMatching() throw() {}
 // ORIG：PvP_Room+0x6e4 视图（PvP_Room.h 该槽现标 int；ORIG 实为 create_room
 // 时 CMatchingSystem::GetMatchingSystem 登记的 IMatch 匹配器指针），
 // 与 GmCmds_M.cpp CPvPStartCmd 的 PvpRoomMatcherSlot 同款模式。
@@ -2940,8 +2966,8 @@ void TimerStartMatching::registNextTimer(long sec, int p1, int p2)
                                 (TIMER_MESSAGE)0x79, (int)sec, p2, 0);
 }
 
-TimerGlobalEffectItemBegin::TimerGlobalEffectItemBegin() {}
-TimerGlobalEffectItemBegin::~TimerGlobalEffectItemBegin() {}
+__attribute__((weak)) TimerGlobalEffectItemBegin::TimerGlobalEffectItemBegin() throw() {}
+__attribute__((weak)) TimerGlobalEffectItemBegin::~TimerGlobalEffectItemBegin() throw() {}
 int TimerGlobalEffectItemBegin::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08637e56：实参为 0x10(%ebp)=p2（先前误用 p3，已修正）。
@@ -2949,8 +2975,8 @@ int TimerGlobalEffectItemBegin::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerGlobalEffectItemTimeout::TimerGlobalEffectItemTimeout() {}
-TimerGlobalEffectItemTimeout::~TimerGlobalEffectItemTimeout() {}
+__attribute__((weak)) TimerGlobalEffectItemTimeout::TimerGlobalEffectItemTimeout() throw() {}
+__attribute__((weak)) TimerGlobalEffectItemTimeout::~TimerGlobalEffectItemTimeout() throw() {}
 int TimerGlobalEffectItemTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08637ec2：getCurSec 结果直落 %ecx 跨后续求值（无名变量槽）。
@@ -2968,8 +2994,8 @@ void TimerGlobalEffectItemTimeout::registTimer(unsigned int type, unsigned int t
                                 static_cast<int>(type), 0);
 }
 
-TimerVendingMachineItemNotify::TimerVendingMachineItemNotify() {}
-TimerVendingMachineItemNotify::~TimerVendingMachineItemNotify() {}
+__attribute__((weak)) TimerVendingMachineItemNotify::TimerVendingMachineItemNotify() throw() {}
+__attribute__((weak)) TimerVendingMachineItemNotify::~TimerVendingMachineItemNotify() throw() {}
 // ORIG TimerVendingMachineItemNotify::dispatch_sig @ 0x8637f40 (0x134)
 int TimerVendingMachineItemNotify::dispatch_sig(int p1, int p2, unsigned int p3)
 {
@@ -3000,8 +3026,8 @@ int TimerVendingMachineItemNotify::dispatch_sig(int p1, int p2, unsigned int p3)
     return result;
 }
 
-TimerConnectMonitorServer::TimerConnectMonitorServer() {}
-TimerConnectMonitorServer::~TimerConnectMonitorServer() {}
+__attribute__((weak)) TimerConnectMonitorServer::TimerConnectMonitorServer() throw() {}
+__attribute__((weak)) TimerConnectMonitorServer::~TimerConnectMonitorServer() throw() {}
 // ===== TimerConnectMonitorServer =====
 // dispatch_sig ORIG _ZN25TimerConnectMonitorServer12dispatch_sigEiij @0x086380bc (0xe3B)
 // registNextTimer ORIG _ZN25TimerConnectMonitorServer15registNextTimerElii @0x086381a0 (0x41B)
@@ -3036,8 +3062,8 @@ void TimerConnectMonitorServer::registNextTimer(long sec, int p1, int p2)
                                 p2, 0);
 }
 
-TimerAssaultSuperPowerState::TimerAssaultSuperPowerState() {}
-TimerAssaultSuperPowerState::~TimerAssaultSuperPowerState() {}
+__attribute__((weak)) TimerAssaultSuperPowerState::TimerAssaultSuperPowerState() throw() {}
+__attribute__((weak)) TimerAssaultSuperPowerState::~TimerAssaultSuperPowerState() throw() {}
 int TimerAssaultSuperPowerState::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 3);
@@ -3055,8 +3081,8 @@ int TimerAssaultSuperPowerState::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerNPCMoodChange::TimerNPCMoodChange() {}
-TimerNPCMoodChange::~TimerNPCMoodChange() {}
+__attribute__((weak)) TimerNPCMoodChange::TimerNPCMoodChange() throw() {}
+__attribute__((weak)) TimerNPCMoodChange::~TimerNPCMoodChange() throw() {}
 int TimerNPCMoodChange::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x86381e2：空函数（纯 ret），恒返 1
@@ -3065,8 +3091,8 @@ int TimerNPCMoodChange::dispatch_sig(int p1, int p2, unsigned int p3)
 
 // ORIG T 0x086381ec (_ZN18TimerNPCMoodChange15registNextTimerEl)：
 
-TimerElevatorDungeon::TimerElevatorDungeon() {}
-TimerElevatorDungeon::~TimerElevatorDungeon() {}
+__attribute__((weak)) TimerElevatorDungeon::TimerElevatorDungeon() throw() {}
+__attribute__((weak)) TimerElevatorDungeon::~TimerElevatorDungeon() throw() {}
 int TimerElevatorDungeon::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -3082,8 +3108,8 @@ int TimerElevatorDungeon::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerRefreshPowerWarProcessInfo::TimerRefreshPowerWarProcessInfo() {}
-TimerRefreshPowerWarProcessInfo::~TimerRefreshPowerWarProcessInfo() {}
+__attribute__((weak)) TimerRefreshPowerWarProcessInfo::TimerRefreshPowerWarProcessInfo() throw() {}
+__attribute__((weak)) TimerRefreshPowerWarProcessInfo::~TimerRefreshPowerWarProcessInfo() throw() {}
 int TimerRefreshPowerWarProcessInfo::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
@@ -3113,8 +3139,8 @@ void TimerRefreshPowerWarProcessInfo::registNextTimer(long sec)
 //   m_powerUpGeneratePeriod(+0x48→dm+0xa670)、m_powerUpRatio(+0x1c→dm+0xa644)、
 //   m_powerUpPointMod(+0xa8→dm+0xa6d0)。
 
-TimerGeneratePowerUp::TimerGeneratePowerUp() {}
-TimerGeneratePowerUp::~TimerGeneratePowerUp() {}
+__attribute__((weak)) TimerGeneratePowerUp::TimerGeneratePowerUp() {}
+__attribute__((weak)) TimerGeneratePowerUp::~TimerGeneratePowerUp() throw() {}
 
 // [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82 族），ORIG 0x086388xx 见 report。
 // [b28d-solo-TimerDispatcher] 判词 setcc-fold/N82 封顶：vector::size() 比较 ORIG
@@ -3258,8 +3284,8 @@ void TimerGeneratePowerUp::registNextTimer(long sec)
 	// ---- TimerGeneratePowerUpNotiTime ----
 	// 报告：docs/class_func_reports/TimerGeneratePowerUpNotiTime/{dispatch_sig,registNextTimer,send_noti_time}.md
 
-TimerGeneratePowerUpNotiTime::TimerGeneratePowerUpNotiTime() {}
-TimerGeneratePowerUpNotiTime::~TimerGeneratePowerUpNotiTime() {}
+__attribute__((weak)) TimerGeneratePowerUpNotiTime::TimerGeneratePowerUpNotiTime() throw() {}
+__attribute__((weak)) TimerGeneratePowerUpNotiTime::~TimerGeneratePowerUpNotiTime() throw() {}
 
 
 // CDataManager+0xa648 为 powerup 通知时间表 std::vector<int>，即
@@ -3343,8 +3369,8 @@ void TimerGeneratePowerUpNotiTime::send_noti_time(int sec)
     G_GameWorld()->send_to_vill(7, packet);
 }
 
-TimerCheckPowerWarAbuser::TimerCheckPowerWarAbuser() {}
-TimerCheckPowerWarAbuser::~TimerCheckPowerWarAbuser() {}
+__attribute__((weak)) TimerCheckPowerWarAbuser::TimerCheckPowerWarAbuser() throw() {}
+__attribute__((weak)) TimerCheckPowerWarAbuser::~TimerCheckPowerWarAbuser() throw() {}
 int TimerCheckPowerWarAbuser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
@@ -3361,8 +3387,8 @@ void TimerCheckPowerWarAbuser::registNextTimer(long sec)
                                 (TIMER_MESSAGE)0x80, static_cast<int>(sec), 0, 0);
 }
 
-TimerSetPunishUser::TimerSetPunishUser() {}
-TimerSetPunishUser::~TimerSetPunishUser() {}
+__attribute__((weak)) TimerSetPunishUser::TimerSetPunishUser() throw() {}
+__attribute__((weak)) TimerSetPunishUser::~TimerSetPunishUser() throw() {}
 int TimerSetPunishUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
@@ -3381,8 +3407,8 @@ int TimerSetPunishUser::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerSetTradePunishUser::TimerSetTradePunishUser() {}
-TimerSetTradePunishUser::~TimerSetTradePunishUser() {}
+__attribute__((weak)) TimerSetTradePunishUser::TimerSetTradePunishUser() throw() {}
+__attribute__((weak)) TimerSetTradePunishUser::~TimerSetTradePunishUser() throw() {}
 int TimerSetTradePunishUser::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 2);   // ORIG 第二实参为常量 2
@@ -3396,8 +3422,8 @@ int TimerSetTradePunishUser::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerRevivalCharac::TimerRevivalCharac() {}
-TimerRevivalCharac::~TimerRevivalCharac() {}
+__attribute__((weak)) TimerRevivalCharac::TimerRevivalCharac() throw() {}
+__attribute__((weak)) TimerRevivalCharac::~TimerRevivalCharac() throw() {}
 int TimerRevivalCharac::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08638e78：单出口 result(%ebx) 链，三段 if/else-if；
@@ -3424,8 +3450,8 @@ int TimerRevivalCharac::dispatch_sig(int p1, int p2, unsigned int p3)
     return result;
 }
 
-TimerRequestExit::TimerRequestExit() {}
-TimerRequestExit::~TimerRequestExit() {}
+__attribute__((weak)) TimerRequestExit::TimerRequestExit() throw() {}
+__attribute__((weak)) TimerRequestExit::~TimerRequestExit() throw() {}
 // [b28d-30] 复核 DIFF：同 _NS_NonClient_CheckResponse——N18b 同型折 mem；异型化旋钮跨泳道。
 // [b28d-solo-TimerDispatcher] 已 AE：Main 代落 getCurCharacNo→unsigned int 后两段
 // 物化对齐（42/42）。
@@ -3449,8 +3475,8 @@ int TimerRequestExit::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerVillageMonsterUpdateRate::TimerVillageMonsterUpdateRate() {}
-TimerVillageMonsterUpdateRate::~TimerVillageMonsterUpdateRate() {}
+__attribute__((weak)) TimerVillageMonsterUpdateRate::TimerVillageMonsterUpdateRate() throw() {}
+__attribute__((weak)) TimerVillageMonsterUpdateRate::~TimerVillageMonsterUpdateRate() throw() {}
 int TimerVillageMonsterUpdateRate::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // OnRun/OnRegen/OnStart 为非静态成员（CVillageMonsterMgr.h），经全局管理器实例调用。
@@ -3458,8 +3484,8 @@ int TimerVillageMonsterUpdateRate::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-TimerVillageMonsterRegen::TimerVillageMonsterRegen() {}
-TimerVillageMonsterRegen::~TimerVillageMonsterRegen() {}
+__attribute__((weak)) TimerVillageMonsterRegen::TimerVillageMonsterRegen() throw() {}
+__attribute__((weak)) TimerVillageMonsterRegen::~TimerVillageMonsterRegen() throw() {}
 int TimerVillageMonsterRegen::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     GlobalData::s_villageMonsterMgr->OnRegenVillageMonster(p2,
@@ -3475,8 +3501,8 @@ int TimerStartVillageAttacked::dispatch_sig(int /*p1*/, int /*p2*/,
     return 1;
 }
 
-TimerVillageAttackedPlayTimeout::TimerVillageAttackedPlayTimeout() {}
-TimerVillageAttackedPlayTimeout::~TimerVillageAttackedPlayTimeout() {}
+__attribute__((weak)) TimerVillageAttackedPlayTimeout::TimerVillageAttackedPlayTimeout() throw() {}
+__attribute__((weak)) TimerVillageAttackedPlayTimeout::~TimerVillageAttackedPlayTimeout() throw() {}
 int TimerVillageAttackedPlayTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -3497,8 +3523,8 @@ int TimerVillageAttackedPlayTimeout::dispatch_sig(int p1, int p2, unsigned int p
     return 1;
 }
 
-TimerItemUnlockWaiting::TimerItemUnlockWaiting() {}
-TimerItemUnlockWaiting::~TimerItemUnlockWaiting() {}
+__attribute__((weak)) TimerItemUnlockWaiting::TimerItemUnlockWaiting() throw() {}
+__attribute__((weak)) TimerItemUnlockWaiting::~TimerItemUnlockWaiting() throw() {}
 int TimerItemUnlockWaiting::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 2);
@@ -3516,44 +3542,44 @@ int TimerItemUnlockWaiting::dispatch_sig(int p1, int p2, unsigned int p3)
 }
 
 // ===== TimerUpdateCompoundEmblemStatics =====
-TimerUpdateCompoundEmblemStatics::TimerUpdateCompoundEmblemStatics() {}
-TimerUpdateCompoundEmblemStatics::~TimerUpdateCompoundEmblemStatics() {}
+__attribute__((weak)) TimerUpdateCompoundEmblemStatics::TimerUpdateCompoundEmblemStatics() throw() {}
+__attribute__((weak)) TimerUpdateCompoundEmblemStatics::~TimerUpdateCompoundEmblemStatics() throw() {}
 // [b28d-30] 复核 DIFF：push edi/esi/ebx 缓存组跨版本差（N7/N82 族），ORIG 0x08638xxx。
 // [b28d-solo-TimerDispatcher] 判词 N7/N82附 封顶：getGradeCount 结果 ORIG 驻
 // edi/ebx vs 4.4 槽化（-0x18/-0x14/-0x10/-0xc）+ 帧 0x6c↔leave（130/130）。
 // [TimerDispatcher-2 2026-09-09 复核] gap=1 全为 callee-saved 角色：ORIG grade2/1/0
 // 驻 edi/esi/ebx（push edi/esi/ebx + sub $0x6c）vs 4.4 全槽化（sub $0x88）⇒ N7/N82附；
 // 裸 register 已试并回滚（130→133、帧 0x6c→0x7c）⇒ 封顶。
+// [SweepTimerDispatcher2 2026-09-09] P329/P0 复核：ORIG 14 个 getGradeCount 结果
+// **无任何具名局部**（前 4 个 spill 临时槽 -0x48/-0x44/-0x40/-0x3c，后 3 个驻
+// edi/esi/ebx；makeRequest 侧 dbGrade6 驻 %esi、dbGrade1/0 驻 %edi/%ebx）⇒ 原码
+// 全部内联到实参位（右→左求值序）。改为内联表达式后复验。
 int TimerUpdateCompoundEmblemStatics::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     if (getCompoundEmblemStatistic()->getTotalCount() != 0)
     {
-        const unsigned int grade6 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(6));
-        const unsigned int grade5 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(5));
-        const unsigned int grade4 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(4));
-        const unsigned int grade3 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(3));
-        // [S1 一次性旋钮已试并回滚] ORIG 0863bcxx 把 grade2/1/0 存 edi/esi/ebx，但
-        // 4.4 对裸 register 仍槽化（实测 130→133、帧 0x6c→0x7c、多 3 mov）⇒ N7/N82 封顶。
-        const unsigned int grade2 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(2));
-        const unsigned int grade1 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(1));
-        const unsigned int grade0 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(0));
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__,
-                           0x11aa, 0);
-            trace("DNF Compound Emblem Statistics (grade 0 : %d)(grade 1 : %d)(grade 2 : %d)(grade 3 : %d)(grade 4 : %d)(grade 5 : %d)(grade 6 : %d)",
-                  grade0, grade1, grade2, grade3, grade4, grade5, grade6);
-        }
-        const unsigned int dbGrade6 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(6));
-        const unsigned int dbGrade5 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(5));
-        const unsigned int dbGrade4 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(4));
-        const unsigned int dbGrade3 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(3));
-        const unsigned int dbGrade2 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(2));
-        const unsigned int dbGrade1 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(1));
-        const unsigned int dbGrade0 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(0));
+        // [P227/P221] ORIG 在 cMyTrace ctor 之前右→左求值 7 个 getGradeCount
+        // （前 4 个 spill -0x48/-0x44/-0x40/-0x3c，后 3 个驻 edi/esi/ebx）
+        // ⇒ 必须写全表达式临时链（两语句形会把 ctor 提到求值之前）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x11aa, 0)(
+            "DNF Compound Emblem Statistics (grade 0 : %d)(grade 1 : %d)(grade 2 : %d)(grade 3 : %d)(grade 4 : %d)(grade 5 : %d)(grade 6 : %d)",
+            getCompoundEmblemStatistic()->getGradeCount(0),
+            getCompoundEmblemStatistic()->getGradeCount(1),
+            getCompoundEmblemStatistic()->getGradeCount(2),
+            getCompoundEmblemStatistic()->getGradeCount(3),
+            getCompoundEmblemStatistic()->getGradeCount(4),
+            getCompoundEmblemStatistic()->getGradeCount(5),
+            getCompoundEmblemStatistic()->getGradeCount(6));
         DB_UpdateCompoundEmblemStatics::makeRequest(
             // §4.3 具名化：+0x1b0 = m_serverEnvir(+0x198).m_channelNo(+0x18)
             G_CEnvironment()->m_serverEnvir.m_channelNo,
-            dbGrade0, dbGrade1, dbGrade2, dbGrade3, dbGrade4, dbGrade5, dbGrade6);
+            getCompoundEmblemStatistic()->getGradeCount(0),
+            getCompoundEmblemStatistic()->getGradeCount(1),
+            getCompoundEmblemStatistic()->getGradeCount(2),
+            getCompoundEmblemStatistic()->getGradeCount(3),
+            getCompoundEmblemStatistic()->getGradeCount(4),
+            getCompoundEmblemStatistic()->getGradeCount(5),
+            getCompoundEmblemStatistic()->getGradeCount(6));
     }
     registNextTimer();
     getCompoundEmblemStatistic()->clear();
@@ -3592,8 +3618,8 @@ int TimerUpdateCompoundEmblemStatics::registNextTimer()
     return 1;
 }
 
-TimerStartExpEventAfterVillageAttack::TimerStartExpEventAfterVillageAttack() {}
-TimerStartExpEventAfterVillageAttack::~TimerStartExpEventAfterVillageAttack() {}
+__attribute__((weak)) TimerStartExpEventAfterVillageAttack::TimerStartExpEventAfterVillageAttack() throw() {}
+__attribute__((weak)) TimerStartExpEventAfterVillageAttack::~TimerStartExpEventAfterVillageAttack() throw() {}
 int TimerStartExpEventAfterVillageAttack::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // TriggerEventStart 为 CEventManager 成员；Word_Param 低 ushort=100（ORIG movw $0x64）。
@@ -3603,16 +3629,16 @@ int TimerStartExpEventAfterVillageAttack::dispatch_sig(int p1, int p2, unsigned 
     return 1;
 }
 
-Timer_Security_NonClient_CheckResponse::Timer_Security_NonClient_CheckResponse() {}
-Timer_Security_NonClient_CheckResponse::~Timer_Security_NonClient_CheckResponse() {}
+__attribute__((weak)) Timer_Security_NonClient_CheckResponse::Timer_Security_NonClient_CheckResponse() throw() {}
+__attribute__((weak)) Timer_Security_NonClient_CheckResponse::~Timer_Security_NonClient_CheckResponse() throw() {}
 int Timer_Security_NonClient_CheckResponse::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x86394f0：call _NS_NonClient_CheckResponse(p1,p2,p3) 后 leave/ret（eax 未定）。
     _NS_NonClient_CheckResponse(p1, p2, static_cast<int>(p3));
 }
 
-Timer_Midnight::Timer_Midnight() {}
-Timer_Midnight::~Timer_Midnight() {}
+__attribute__((weak)) Timer_Midnight::Timer_Midnight() throw() {}
+__attribute__((weak)) Timer_Midnight::~Timer_Midnight() throw() {}
 int Timer_Midnight::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     G_GameWorld()->ResetMidnight();
@@ -3657,16 +3683,16 @@ bool Timer_Midnight::RegistNextTimer()
     return true;
 }
 
-TimerEndPowerWarVictoriousReward::TimerEndPowerWarVictoriousReward() {}
-TimerEndPowerWarVictoriousReward::~TimerEndPowerWarVictoriousReward() {}
+__attribute__((weak)) TimerEndPowerWarVictoriousReward::TimerEndPowerWarVictoriousReward() throw() {}
+__attribute__((weak)) TimerEndPowerWarVictoriousReward::~TimerEndPowerWarVictoriousReward() throw() {}
 int TimerEndPowerWarVictoriousReward::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     GlobalData::s_event_manager->TriggerEventEnd(0x35);
     return 1;
 }
 
-Timer_TenMinuteSchedule::Timer_TenMinuteSchedule() {}
-Timer_TenMinuteSchedule::~Timer_TenMinuteSchedule() {}
+__attribute__((weak)) Timer_TenMinuteSchedule::Timer_TenMinuteSchedule() throw() {}
+__attribute__((weak)) Timer_TenMinuteSchedule::~Timer_TenMinuteSchedule() throw() {}
 int Timer_TenMinuteSchedule::dispatch_sig(int /*p1*/, int p2, unsigned int /*p3*/)
 {
     // ORIG 0x8639668：检查第二参数（0x10(%ebp)）：==0 → InsertValueStatistic +
@@ -3689,8 +3715,8 @@ int Timer_TenMinuteSchedule::dispatch_sig(int /*p1*/, int p2, unsigned int /*p3*
     return 1;
 }
 
-Timer_UpdateOnlinePreliminaryTeam::Timer_UpdateOnlinePreliminaryTeam() {}
-Timer_UpdateOnlinePreliminaryTeam::~Timer_UpdateOnlinePreliminaryTeam() {}
+__attribute__((weak)) Timer_UpdateOnlinePreliminaryTeam::Timer_UpdateOnlinePreliminaryTeam() throw() {}
+__attribute__((weak)) Timer_UpdateOnlinePreliminaryTeam::~Timer_UpdateOnlinePreliminaryTeam() throw() {}
 int Timer_UpdateOnlinePreliminaryTeam::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x08639700：FindTeam/RegistNextTimer 均用 p2（0x10(%ebp)），非 p3。
@@ -3727,8 +3753,8 @@ bool Timer_UpdateOnlinePreliminaryTeam::RegistNextTimer(int team)
     return true;
 }
 
-Timer_SecretShopStatistic::Timer_SecretShopStatistic() {}
-Timer_SecretShopStatistic::~Timer_SecretShopStatistic() {}
+__attribute__((weak)) Timer_SecretShopStatistic::Timer_SecretShopStatistic() throw() {}
+__attribute__((weak)) Timer_SecretShopStatistic::~Timer_SecretShopStatistic() throw() {}
 int Timer_SecretShopStatistic::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x86397ce: secretshop::CSecretShop::SendSecretShopStatistic(s_secret_shop); RegistNextTimer(); return 1
@@ -3745,11 +3771,11 @@ void Timer_SecretShopStatistic::RegistNextTimer()
                                 (TIMER_MESSAGE)0x90, 0x3c, 0, 0);
 }
 
-Timer_DailySchedule::Timer_DailySchedule() {}
-Timer_DailySchedule::~Timer_DailySchedule() {}
+__attribute__((weak)) Timer_DailySchedule::Timer_DailySchedule() throw() {}
+__attribute__((weak)) Timer_DailySchedule::~Timer_DailySchedule() throw() {}
 
-Timer_ConnectP2PPvPTimeout::Timer_ConnectP2PPvPTimeout() {}
-Timer_ConnectP2PPvPTimeout::~Timer_ConnectP2PPvPTimeout() {}
+__attribute__((weak)) Timer_ConnectP2PPvPTimeout::Timer_ConnectP2PPvPTimeout() throw() {}
+__attribute__((weak)) Timer_ConnectP2PPvPTimeout::~Timer_ConnectP2PPvPTimeout() throw() {}
 int Timer_ConnectP2PPvPTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     PvP_Room* room = G_CGameManager()->GetPvp(p1, (CUser*)0, 0x3b);
@@ -3763,8 +3789,8 @@ int Timer_ConnectP2PPvPTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-Timer_RoutingItemWait::Timer_RoutingItemWait() {}
-Timer_RoutingItemWait::~Timer_RoutingItemWait() {}
+__attribute__((weak)) Timer_RoutingItemWait::Timer_RoutingItemWait() throw() {}
+__attribute__((weak)) Timer_RoutingItemWait::~Timer_RoutingItemWait() throw() {}
 int Timer_RoutingItemWait::dispatch_sig(int p1, int p2, unsigned int /*p3*/)
 {
     // ORIG 0x086398a8：null 早退（jne 岛）+ `!check` 早退（xor$1;test;je，
@@ -3780,8 +3806,8 @@ int Timer_RoutingItemWait::dispatch_sig(int p1, int p2, unsigned int /*p3*/)
     return 1;
 }
 
-Timer_PcRoomAuthRetry::Timer_PcRoomAuthRetry() {}
-Timer_PcRoomAuthRetry::~Timer_PcRoomAuthRetry() {}
+__attribute__((weak)) Timer_PcRoomAuthRetry::Timer_PcRoomAuthRetry() throw() {}
+__attribute__((weak)) Timer_PcRoomAuthRetry::~Timer_PcRoomAuthRetry() throw() {}
 // ===== Timer_PcRoomAuthRetry =====
 // dispatch_sig ORIG _ZN21Timer_PcRoomAuthRetry12dispatch_sigEiij @0x08639924 (0xacB)
 // registNextTimer ORIG _ZN21Timer_PcRoomAuthRetry15registNextTimerEliij @0x086399d0 (0x41B)
@@ -3825,8 +3851,8 @@ void Timer_PcRoomAuthRetry::registNextTimer(long sec, int p1, int p2,
                                 p2, p3);
 }
 
-Timer_DungeonInoutOpenTime::Timer_DungeonInoutOpenTime() {}
-Timer_DungeonInoutOpenTime::~Timer_DungeonInoutOpenTime() {}
+__attribute__((weak)) Timer_DungeonInoutOpenTime::Timer_DungeonInoutOpenTime() throw() {}
+__attribute__((weak)) Timer_DungeonInoutOpenTime::~Timer_DungeonInoutOpenTime() throw() {}
 
 // [b28d-solo-TimerDispatcher] P157：ORIG 每个字段都重新 `it->ptEv()`（无
 // `it->second` 引用缓存），旧码 `const STDungeonInoutTime& w = it->second;`
@@ -3957,8 +3983,8 @@ int Timer_DungeonInoutOpenTime::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-Timer_DungeonInoutCloseTime::Timer_DungeonInoutCloseTime() {}
-Timer_DungeonInoutCloseTime::~Timer_DungeonInoutCloseTime() {}
+__attribute__((weak)) Timer_DungeonInoutCloseTime::Timer_DungeonInoutCloseTime() throw() {}
+__attribute__((weak)) Timer_DungeonInoutCloseTime::~Timer_DungeonInoutCloseTime() throw() {}
 // ORIG Timer_DungeonInoutCloseTime::dispatch_sig @ 0x863a1d0 (0x25f)
 // [b28d-30] 复核 DIFF：帧差 0x10（0xa4 vs 0xb4，N82/P210 族），ORIG 0x0863a1d0。
 // [b28d-solo-TimerDispatcher2] P167 差集 MISSING G_CDataManager×1 ⇒ ORIG find/end
@@ -4018,8 +4044,8 @@ int Timer_DungeonInoutCloseTime::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-Timer_FairPvPRematch::Timer_FairPvPRematch() {}
-Timer_FairPvPRematch::~Timer_FairPvPRematch() {}
+__attribute__((weak)) Timer_FairPvPRematch::Timer_FairPvPRematch() throw() {}
+__attribute__((weak)) Timer_FairPvPRematch::~Timer_FairPvPRematch() throw() {}
 // ===== Timer_FairPvPRematch =====
 // dispatch_sig ORIG _ZN20Timer_FairPvPRematch12dispatch_sigEiij @0x0863a430 (0x97B)
 
@@ -4046,8 +4072,8 @@ int Timer_FairPvPRematch::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-Timer_ReturnUserTimeout::Timer_ReturnUserTimeout() {}
-Timer_ReturnUserTimeout::~Timer_ReturnUserTimeout() {}
+__attribute__((weak)) Timer_ReturnUserTimeout::Timer_ReturnUserTimeout() throw() {}
+__attribute__((weak)) Timer_ReturnUserTimeout::~Timer_ReturnUserTimeout() throw() {}
 // ORIG Timer_ReturnUserTimeout::dispatch_sig @ 0x863a4c8 (0x23e)
 int Timer_ReturnUserTimeout::dispatch_sig(int p1, int p2, unsigned int p3)
 {
@@ -4114,8 +4140,8 @@ void Timer_ReturnUserTimeout::registNextTimer(int p1, int p2, unsigned int p3)
                                 p2, 0);
 }
 
-Timer_HadesHeartBeat::Timer_HadesHeartBeat() {}
-Timer_HadesHeartBeat::~Timer_HadesHeartBeat() {}
+__attribute__((weak)) Timer_HadesHeartBeat::Timer_HadesHeartBeat() throw() {}
+__attribute__((weak)) Timer_HadesHeartBeat::~Timer_HadesHeartBeat() throw() {}
 int Timer_HadesHeartBeat::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     if (GlobalData::s_hades_proxy->GetSocketState() == 0) {
@@ -4136,8 +4162,8 @@ void Timer_HadesHeartBeat::registNextTimer()
                                 (TIMER_MESSAGE)0x96, 0x3c, 0, 0);
 }
 
-Timer_TOD_Send_ClearReward::Timer_TOD_Send_ClearReward() {}
-Timer_TOD_Send_ClearReward::~Timer_TOD_Send_ClearReward() {}
+__attribute__((weak)) Timer_TOD_Send_ClearReward::Timer_TOD_Send_ClearReward() throw() {}
+__attribute__((weak)) Timer_TOD_Send_ClearReward::~Timer_TOD_Send_ClearReward() throw() {}
 int Timer_TOD_Send_ClearReward::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CParty* party = G_CGameManager()->GetParty(p1);
@@ -4153,8 +4179,8 @@ int Timer_TOD_Send_ClearReward::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-Timer_OneADayItemShop::Timer_OneADayItemShop() {}
-Timer_OneADayItemShop::~Timer_OneADayItemShop() {}
+__attribute__((weak)) Timer_OneADayItemShop::Timer_OneADayItemShop() throw() {}
+__attribute__((weak)) Timer_OneADayItemShop::~Timer_OneADayItemShop() throw() {}
 int Timer_OneADayItemShop::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863a916: G_CDataManager()->m_itemShop->updateOneADayItemList(); RegistNextTimer(); return 1
@@ -4163,8 +4189,8 @@ int Timer_OneADayItemShop::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-Timer_Schedule_MidNight::Timer_Schedule_MidNight() {}
-Timer_Schedule_MidNight::~Timer_Schedule_MidNight() {}
+__attribute__((weak)) Timer_Schedule_MidNight::Timer_Schedule_MidNight() throw() {}
+__attribute__((weak)) Timer_Schedule_MidNight::~Timer_Schedule_MidNight() throw() {}
 int Timer_Schedule_MidNight::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863a982: g_GoldControlDateFlag++; RegistNextTimer(); return 1
@@ -4173,8 +4199,8 @@ int Timer_Schedule_MidNight::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-Timer_Send_Ontime_Reward::Timer_Send_Ontime_Reward() {}
-Timer_Send_Ontime_Reward::~Timer_Send_Ontime_Reward() {}
+__attribute__((weak)) Timer_Send_Ontime_Reward::Timer_Send_Ontime_Reward() throw() {}
+__attribute__((weak)) Timer_Send_Ontime_Reward::~Timer_Send_Ontime_Reward() throw() {}
 // ===== Timer_Send_Ontime_Reward =====
 // dispatch_sig ORIG _ZN24Timer_Send_Ontime_Reward12dispatch_sigEiij @0x0863aa90 (0xbcB)
 // RegistNextTimer ORIG _ZN24Timer_Send_Ontime_Reward15RegistNextTimerEv @0x0863ab4c (0x45B)
@@ -4219,8 +4245,8 @@ void Timer_Send_Ontime_Reward::RegistNextTimer()
                                 (TIMER_MESSAGE)0x9b, 10, 0, 0);
 }
 
-Timer_EventManagement::Timer_EventManagement() {}
-Timer_EventManagement::~Timer_EventManagement() {}
+__attribute__((weak)) Timer_EventManagement::Timer_EventManagement() throw() {}
+__attribute__((weak)) Timer_EventManagement::~Timer_EventManagement() throw() {}
 int Timer_EventManagement::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 读 CEnvironment +0x37c int（字段未具名，仓库既有 reinterpret_cast 风格同 APSystemOnlyOrig.cpp:237）
@@ -4233,8 +4259,8 @@ int Timer_EventManagement::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-Timer_QuickPartyWaitingPartyMatching::Timer_QuickPartyWaitingPartyMatching() {}
-Timer_QuickPartyWaitingPartyMatching::~Timer_QuickPartyWaitingPartyMatching() {}
+__attribute__((weak)) Timer_QuickPartyWaitingPartyMatching::Timer_QuickPartyWaitingPartyMatching() throw() {}
+__attribute__((weak)) Timer_QuickPartyWaitingPartyMatching::~Timer_QuickPartyWaitingPartyMatching() throw() {}
 // ORIG Timer_QuickPartyWaitingPartyMatching::dispatch_sig @ 0x863ac18 (0x17e)
 // [b28d-solo-TimerDispatcher2] 已 AE：P52 链式 receiver 内联（去 game/mgr 槽）+
 // 短路条件内联去 bool cancelNow 槽 ⇒ 帧 0x38→0x28、全槽回正、113/113。
@@ -4311,8 +4337,8 @@ bool Timer_QuickPartyWaitingPartyMatching::cancel_quick_party(
     return true;
 }
 
-Timer_QuickPartyWaitingStartGame::Timer_QuickPartyWaitingStartGame() {}
-Timer_QuickPartyWaitingStartGame::~Timer_QuickPartyWaitingStartGame() {}
+__attribute__((weak)) Timer_QuickPartyWaitingStartGame::Timer_QuickPartyWaitingStartGame() throw() {}
+__attribute__((weak)) Timer_QuickPartyWaitingStartGame::~Timer_QuickPartyWaitingStartGame() throw() {}
 // ORIG Timer_QuickPartyWaitingStartGame::dispatch_sig @ 0x863ae82 (0x238)
 // [b28d-solo-TimerDispatcher2] 已 AE：P52 内联 getManager 链（去 managerInfo 槽）+
 // P231 纯 register managerName ⇒ `mov %eax,%ebx` 与 ORIG 全等、帧 0x50→0x40；145/145。
@@ -4360,8 +4386,8 @@ int Timer_QuickPartyWaitingStartGame::dispatch_sig(int p1, int p2, unsigned int 
     return 1;
 }
 
-Timer_AssaultGhostTimer::Timer_AssaultGhostTimer() {}
-Timer_AssaultGhostTimer::~Timer_AssaultGhostTimer() {}
+__attribute__((weak)) Timer_AssaultGhostTimer::Timer_AssaultGhostTimer() throw() {}
+__attribute__((weak)) Timer_AssaultGhostTimer::~Timer_AssaultGhostTimer() throw() {}
 int Timer_AssaultGhostTimer::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     CUser* user = G_CGameManager()->getUser(p1, 2);
@@ -4399,8 +4425,8 @@ int Timer_AssaultGhostTimer::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-Timer_GenerateCaptchaData::Timer_GenerateCaptchaData() {}
-Timer_GenerateCaptchaData::~Timer_GenerateCaptchaData() {}
+__attribute__((weak)) Timer_GenerateCaptchaData::Timer_GenerateCaptchaData() throw() {}
+__attribute__((weak)) Timer_GenerateCaptchaData::~Timer_GenerateCaptchaData() throw() {}
 int Timer_GenerateCaptchaData::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863b29c: GlobalData::GenerateCaptchaData(); RegistNextTimer(3); return 1
@@ -4417,8 +4443,8 @@ void Timer_GenerateCaptchaData::RegistNextTimer(int sec)
 }
 
 // ===== Timer_TournamentDugeonClearStateNotiReward =====
-Timer_TournamentDugeonClearStateNotiReward::Timer_TournamentDugeonClearStateNotiReward() {}
-Timer_TournamentDugeonClearStateNotiReward::~Timer_TournamentDugeonClearStateNotiReward() {}
+__attribute__((weak)) Timer_TournamentDugeonClearStateNotiReward::Timer_TournamentDugeonClearStateNotiReward() throw() {}
+__attribute__((weak)) Timer_TournamentDugeonClearStateNotiReward::~Timer_TournamentDugeonClearStateNotiReward() throw() {}
 int Timer_TournamentDugeonClearStateNotiReward::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // [b23S3C] check_timer_key 第二实参为 p2（非 p3，ORIG 0x0863b318）；P48 去缓存
@@ -4460,8 +4486,8 @@ int Timer_TournamentDugeonClearStateNotiReward::dispatch_sig(int p1, int p2, uns
 }
 
 // ===== Timer_TournametDungeonClearStateSelect =====
-Timer_TournametDungeonClearStateSelect::Timer_TournametDungeonClearStateSelect() {}
-Timer_TournametDungeonClearStateSelect::~Timer_TournametDungeonClearStateSelect() {}
+__attribute__((weak)) Timer_TournametDungeonClearStateSelect::Timer_TournametDungeonClearStateSelect() throw() {}
+__attribute__((weak)) Timer_TournametDungeonClearStateSelect::~Timer_TournametDungeonClearStateSelect() throw() {}
 int Timer_TournametDungeonClearStateSelect::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     (void)p3;   // ORIG 0x0863b68c：check_timer_key 用 p2（0x10(%ebp)），非 p3
@@ -4493,8 +4519,8 @@ int Timer_TournametDungeonClearStateSelect::dispatch_sig(int p1, int p2, unsigne
     return 1;
 }
 
-Timer_TowerOnTime::Timer_TowerOnTime() {}
-Timer_TowerOnTime::~Timer_TowerOnTime() {}
+__attribute__((weak)) Timer_TowerOnTime::Timer_TowerOnTime() throw() {}
+__attribute__((weak)) Timer_TowerOnTime::~Timer_TowerOnTime() throw() {}
 int Timer_TowerOnTime::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     WongWork::CBossTower* tower = G_CGameManager()->getBossTower(p1);
@@ -4505,11 +4531,11 @@ int Timer_TowerOnTime::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-Timer_NoticeEmergencyPatchMessage::Timer_NoticeEmergencyPatchMessage()
+__attribute__((weak)) Timer_NoticeEmergencyPatchMessage::Timer_NoticeEmergencyPatchMessage() throw()
 {
     m_remainingNotiCount = 0xa;   // ORIG W 0x0863bc2e：movl $0xa,0x4(%eax)
 }
-Timer_NoticeEmergencyPatchMessage::~Timer_NoticeEmergencyPatchMessage() {}
+__attribute__((weak)) Timer_NoticeEmergencyPatchMessage::~Timer_NoticeEmergencyPatchMessage() throw() {}
 // ORIG T 0x0863b6c4 sz 0x1ba（_ZN33Timer_NoticeEmergencyPatchMessage12dispatch_sigEiij）
 // 报告 docs/class_func_reports/Timer_NoticeEmergencyPatchMessage/dispatch_sig.md 全文已读：
 // PacketGuard；put_header(0,0xc)；put_byte(0)；put_short(0)；put_byte(0)；
@@ -4564,8 +4590,8 @@ void Timer_NoticeEmergencyPatchMessage::RegistNextTimer()
                                 0x3c, 0, 0);
 }
 
-advancealtar::Timer_MainTick::Timer_MainTick() {}
-advancealtar::Timer_MainTick::~Timer_MainTick() {}
+__attribute__((weak)) advancealtar::Timer_MainTick::Timer_MainTick() throw() {}
+__attribute__((weak)) advancealtar::Timer_MainTick::~Timer_MainTick() throw() {}
 int advancealtar::Timer_MainTick::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x812f798: G_CGameManager()->onTimeAdvanceAltar(); RegistNextTimerGage(); return 1
@@ -4574,8 +4600,8 @@ int advancealtar::Timer_MainTick::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-advancealtar::Timer_StageControl::Timer_StageControl() {}
-advancealtar::Timer_StageControl::~Timer_StageControl() {}
+__attribute__((weak)) advancealtar::Timer_StageControl::Timer_StageControl() throw() {}
+__attribute__((weak)) advancealtar::Timer_StageControl::~Timer_StageControl() throw() {}
 int advancealtar::Timer_StageControl::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     advancealtar::StageControl* stage = G_CGameManager()->getAdvanceAltar(p1);
@@ -4621,8 +4647,8 @@ void advancealtar::Timer_StageControl::RegistTimerEPLPReturnVillage(int stageIdx
         (TimerEntry::OBJ_TYPE)8, stageIdx, (TIMER_MESSAGE)0xaa, kEPLPReturnVillageMs, 0xaa, 0);
 }
 
-Timer_DungeonStatisticEntrance_Hour::Timer_DungeonStatisticEntrance_Hour() {}
-Timer_DungeonStatisticEntrance_Hour::~Timer_DungeonStatisticEntrance_Hour() {}
+__attribute__((weak)) Timer_DungeonStatisticEntrance_Hour::Timer_DungeonStatisticEntrance_Hour() throw() {}
+__attribute__((weak)) Timer_DungeonStatisticEntrance_Hour::~Timer_DungeonStatisticEntrance_Hour() throw() {}
 int Timer_DungeonStatisticEntrance_Hour::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863b9da: GetInstanceDungeonEntranceLog()->InsertDungeonEntrance_Hour(); RegistNextTimer(); return 1
@@ -4631,8 +4657,8 @@ int Timer_DungeonStatisticEntrance_Hour::dispatch_sig(int p1, int p2, unsigned i
     return 1;
 }
 
-Timer_RefreshServerState::Timer_RefreshServerState() {}
-Timer_RefreshServerState::~Timer_RefreshServerState() {}
+__attribute__((weak)) Timer_RefreshServerState::Timer_RefreshServerState() throw() {}
+__attribute__((weak)) Timer_RefreshServerState::~Timer_RefreshServerState() throw() {}
 int Timer_RefreshServerState::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x863b90e: ARAD::Arad_ServerStateManager::checkContinus(s_serverStateManager_); return 1
@@ -4640,8 +4666,8 @@ int Timer_RefreshServerState::dispatch_sig(int p1, int p2, unsigned int p3)
     return 1;
 }
 
-Timer_StayTimeEvent::Timer_StayTimeEvent() {}
-Timer_StayTimeEvent::~Timer_StayTimeEvent() {}
+__attribute__((weak)) Timer_StayTimeEvent::Timer_StayTimeEvent() throw() {}
+__attribute__((weak)) Timer_StayTimeEvent::~Timer_StayTimeEvent() throw() {}
 // ===== Timer_StayTimeEvent =====
 // dispatch_sig ORIG _ZN19Timer_StayTimeEvent12dispatch_sigEiij @0x0863b928 (0xb2B)
 
@@ -4670,8 +4696,8 @@ int Timer_StayTimeEvent::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p3*
     return 1;
 }
 
-Timer_CreateDnfDbLoad::Timer_CreateDnfDbLoad() {}
-Timer_CreateDnfDbLoad::~Timer_CreateDnfDbLoad() {}
+__attribute__((weak)) Timer_CreateDnfDbLoad::Timer_CreateDnfDbLoad() throw() {}
+__attribute__((weak)) Timer_CreateDnfDbLoad::~Timer_CreateDnfDbLoad() throw() {}
 int Timer_CreateDnfDbLoad::dispatch_sig(int /*p1*/, int /*p2*/, unsigned int /*p3*/)
 {
     // ORIG 0x863ba46：GetRepeatEvent(0xa0)（CEventCreateDnf）判空 + IsEventing(0)
