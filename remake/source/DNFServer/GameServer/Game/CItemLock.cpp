@@ -14,6 +14,7 @@
                           // CItemLock / CItemLockTimer 权威定义
 
 #include <string.h>
+#include <iostream>   // ORIG TU 含 std::ios_base::Init 静态对象（P338 判据）
 #include <utility>
 
 #include "CStreamGuard.h"
@@ -115,12 +116,6 @@ static_assert(sizeof(SIG_ITEM_LOCK_UPDATEView) == sizeof(SIG_ITEM_LOCK_UPDATE),
 namespace item_lock
 {
 
-// ORIG C1/C2 0x854156a：CData 基类构造后依次默认构造 map/stack/vector 与
-// 计时器成员（全部零态）。
-CItemLock::CItemLock()
-{
-}
-
 // = 0x3c、_ZN9item_lockL24ITEM_UNLOCK_WAITING_TIMEE = 0x3f480，08b25970 取值）。
 static const int CHECK_ITEM_LOCK_TIME     = 0x3c;      // 计时器周期 60 秒
 static const int ITEM_UNLOCK_WAITING_TIME = 0x3f480;   // 解锁等待期 3 天
@@ -130,19 +125,21 @@ static const int ITEM_UNLOCK_WAITING_TIME = 0x3f480;   // 解锁等待期 3 天
 // ===========================================================================
 
 // ORIG 0x8543044：m_count = 0。
-CItemLockTimer::CItemLockTimer()
+// [P338/㉓ 符号绑定] ORIG 该符号为 W（弱）⇒ 原码头内 inline 定义；显式 inline
+// 复现弱绑定（原为 T 强符号，与 ORIG 绑定不符）。
+inline CItemLockTimer::CItemLockTimer()
     : m_count(0)
 {
 }
 
 // ORIG 0x8543052：m_count = 0。
-void CItemLockTimer::Reset()
+inline void CItemLockTimer::Reset()
 {
     m_count = 0;
 }
 
 // ORIG 0x854303a：返回 m_count（非 const）。
-int CItemLockTimer::GetTimerCount()
+inline int CItemLockTimer::GetTimerCount()
 {
     return m_count;
 }
@@ -181,6 +178,14 @@ void CItemLockTimer::NextItemLockTimer(CUser* user)
                                     (TIMER_MESSAGE)0x88, CHECK_ITEM_LOCK_TIME,
                                     0, (unsigned int)user->getCurCharacNo());
     }
+}
+
+// ORIG C1/C2 0x854156a：CData 基类构造后依次默认构造 map/stack/vector 与
+// 计时器成员（全部零态）。[P338/㉓ 布局] ORIG 中本定义紧接 NextItemLockTimer
+// （0x8541502+0x67=0x854156a）⇒ 保持同一源码顺序，复现 `_GLOBAL__I_` 键符号名
+// （IncreaseItemLockTimer）与 .text 发射顺序。
+CItemLock::CItemLock()
+{
 }
 
 // ===========================================================================
