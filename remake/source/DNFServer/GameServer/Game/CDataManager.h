@@ -3139,7 +3139,11 @@ public:
     // 虚槽覆盖：槽序经 ORIG vtable 实证（ProcUpgrade 在前）。
     // ORIG _ZN8WongWork12CItemUpgrade11ProcUpgradeEP5CUserP11MSG_ENCHANTP11PacketGuard
     //   T 0x0854a1ba：三代强化（ENCHANT 消息）主流程（定义 CItemUpgrade.cpp）。
-    int ProcUpgrade(CUser* user, MSG_ENCHANT* msg, PacketGuard* packet);
+    // [P174 串定返回类型] ORIG __PRETTY_FUNCTION__ = "ENUM_ERROR WongWork::
+    //   CItemUpgrade::ProcUpgrade(CUser*, MSG_ENCHANT*, PacketGuard*)" ⇒ 返回
+    //   ENUM_ERROR（非 int）。返回类型不入 mangled，唯一调用点 Dispatchers.cpp
+    //   0x081d3808 `mov %eax,0x4(%edx)` 存 int 字段，enum→int 隐式转换零变化。
+    ENUM_ERROR ProcUpgrade(CUser* user, MSG_ENCHANT* msg, PacketGuard* packet);
     // ORIG _ZN8WongWork12CItemUpgrade11ProcUpgradeEP5CUserP16MSG_ITEM_UPGRADEP11PacketGuard
     //   T 0x0854779c vtable+0x00 槽纯虚覆盖（定义 ItemUpgradeVtableB2.cpp）。
     int ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg, PacketGuard* packet);
@@ -3157,9 +3161,12 @@ public:
                      unsigned short slot, PacketGuard* packet);
     // ORIG _ZN8WongWork12CItemUpgrade24ProcUpgrade_3rdChronicleEP5CUser18ENUM_EQUIPMENTTYPEhR10Inven_ItemPK5CItem
     //   T 0x0854a006（定义 CItemUpgrade.cpp）。
-    int ProcUpgrade_3rdChronicle(CUser* user, ENUM_EQUIPMENTTYPE equipType,
-                                 unsigned char param, Inven_Item& item,
-                                 const CItem* itemScript);
+    // [P248 档①/P292] 唯一调用点 ORIG 0x0854a743 `call; xor $0x1,%eax;
+    //   test %al,%al; je`（bool 返回 + if(!f()) 形；int 返回恒产 sete 三段）
+    //   ⇒ 返回类型 bool。
+    bool ProcUpgrade_3rdChronicle(CUser* user, ENUM_EQUIPMENTTYPE equipType,
+                                  unsigned char param, Inven_Item& item,
+                                  const CItem* itemScript);
     // LoadUpgradeScript 为 IItemUpgrade 纯虚槽1 覆盖；[P248 档①] bool：init
     // 调用点 ORIG `call *%edx; xor $1,%eax; test %al,%al; je`（idx 4023-4035），
     // 尾调 loadUpgradeScript 无 movzbl ⇒ 整链同型。
@@ -3340,7 +3347,10 @@ struct ItemShopScript
     std::vector<std::string> m_strList;             // +0x20
     std::vector<int> m_limitNpcBuyList;             // +0x2c
     std::vector<std::vector<int> > m_dailyList;     // +0x38
-    char m_isOneADay;                               // +0x44
+    // [b28d-38b] P292 消费端判据：ORIG updateOneADayItemList 0x08512ee7 /
+    // IsOneADayShop 0x085130da 读该字段均 `movzbl; test %al,%al; je`（无 setcc）
+    // ⇒ bool（原 char 使 IsOneADayShop 多 test+setne 两条）。1 字节，偏移不变。
+    bool m_isOneADay;                               // +0x44
     // Compiler padding from +0x45 to the aligned time field at +0x48.
     int m_lastUpdateTime;                           // +0x48
 };
@@ -3647,11 +3657,30 @@ public:
                                              // 0x08357ed4/0x0835809a 双路 mov$0/$1,%eax ⇒ int（P159）
     std::vector<stResetItemInfo::ResetItem>* GetResetItemInfo() const;  // ORIG W 0x8693f24
     std::vector<stRefillItemInfo::RefillItem>* GetRefillItemInfo() const;  // ORIG W 0x8693f32
-    stLimitItemUsageInfoEx* GetLimitItemUsageInfo();   // ORIG W 0x8693f16：返回 m_limitItemUsage(+0x4cf8)
-    bool is_AuctionRegFreeCeraItem(unsigned int itemIdx) const;  // ORIG W 0x84e92a4：m_choiceSet(+0xb4ac).find(itemIdx)!=end
-    int GetMinLevelPvPChannel();   // ORIG W 0x0819ee2e（ARAD pvp_grade_check）
-    int GetMaxLevelPvPChannel();   // ORIG W 0x0819ee3c（ARAD pvp_grade_check）
-    bool IsAvailablePvPChannel(int grade);  // ORIG W 0x0819ede0（ARAD pvp_grade_check）
+    // 以下 5 者 ORIG 绑定全为 W 且地址分散在消费 TU 段（ARAD_LoginSecurity /
+    // InterDispatcher / Inter_LoadEtc_impl / CUserOnlyOrig 等）⇒ 头内定义、
+    // 使用点发射 W 副本（P233/P204③）。函数体逐条同原 CDataManagerTailB.cpp
+    // 外联定义；sizeof/成员偏移/全部 mangled 零变化。
+    stLimitItemUsageInfoEx* GetLimitItemUsageInfo()   // ORIG W 0x8693f16：m_limitItemUsage(+0x4cf8)
+    { return &m_limitItemUsage; }
+    bool is_AuctionRegFreeCeraItem(unsigned int itemIdx) const  // ORIG W 0x84e92a4：m_choiceSet(+0xb4ac)
+    { return m_choiceSet.find(itemIdx) != m_choiceSet.end(); }
+    int GetMinLevelPvPChannel()   // ORIG W 0x0819ee2e（ARAD pvp_grade_check）
+    { return m_pvpChannel.m_minLevel; }
+    int GetMaxLevelPvPChannel()   // ORIG W 0x0819ee3c（ARAD pvp_grade_check）
+    { return m_pvpChannel.m_maxLevel; }
+    bool IsAvailablePvPChannel(int grade)  // ORIG W 0x0819ede0（ARAD pvp_grade_check）
+    {
+        if (m_pvpChannel.m_minGrade == 0 && m_pvpChannel.m_maxGrade == 0)
+        {
+            return true;
+        }
+        if (m_pvpChannel.m_minGrade > grade || m_pvpChannel.m_maxGrade < grade)
+            goto unavailable;
+        return true;
+    unavailable:
+        return false;
+    }
     int GetMaxGradePvPChannel();
     int GetPvPChannelType();   // ORIG W 0x85e68a8：返回 m_pvpChannel.m_channelType
     int GetPvPMode();          // ORIG W 0x844d4ae（fair_pvp/online_preliminary RequestMap 调用；producer 待 CDataManager 域批次，符号暂缺）

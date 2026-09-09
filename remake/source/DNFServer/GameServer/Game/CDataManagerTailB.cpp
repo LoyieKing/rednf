@@ -22,53 +22,13 @@
 #include "CDungeonClear.h"  // WongWork::CDungeonClear
 
 // ---------------------------------------------------------------------------
-// IsAvailablePvPChannel(int) —— ORIG W 0x0819ede0
-//   b434 = m_pvpChannel.m_minGrade(+0x04)、b438 = m_pvpChannel.m_maxGrade(+0x08)
-//   两界同为 0 → 视作无限制返回 1；否则要求 minGrade <= arg <= maxGrade。
+// 原 5 个 ORIG-W 访问器已按 P233 迁回 CDataManager.h 类内 inline 定义
+// （IsAvailablePvPChannel 0x0819ede0 / GetMinLevelPvPChannel 0x0819ee2e /
+// GetMaxLevelPvPChannel 0x0819ee3c / GetLimitItemUsageInfo 0x8693f16 /
+// is_AuctionRegFreeCeraItem 0x84e92a4：ORIG 绑定全 W、地址分散于消费 TU 段
+// ARAD_LoginSecurity/InterDispatcher/Inter_LoadEtc_impl/CUserOnlyOrig）；
+// 本 TU 不再定义这 5 个符号，由各使用点发射 W 副本。
 // ---------------------------------------------------------------------------
-bool CDataManager::IsAvailablePvPChannel(int grade)
-{
-    if (m_pvpChannel.m_minGrade == 0 && m_pvpChannel.m_maxGrade == 0)
-    {
-        return true;
-    }
-    if (m_pvpChannel.m_minGrade > grade || m_pvpChannel.m_maxGrade < grade)
-        goto unavailable;
-    return true;
-unavailable:
-    return false;
-}
-
-// GetMinLevelPvPChannel —— ORIG W 0x0819ee2e：读 m_pvpChannel.m_minLevel(+0x14 → CDM+0xb444)
-int CDataManager::GetMinLevelPvPChannel()
-{
-    return m_pvpChannel.m_minLevel;
-}
-
-// GetMaxLevelPvPChannel —— ORIG W 0x0819ee3c：读 m_pvpChannel.m_maxLevel(+0x18 → CDM+0xb448)
-int CDataManager::GetMaxLevelPvPChannel()
-{
-    return m_pvpChannel.m_maxLevel;
-}
-
-// ---------------------------------------------------------------------------
-// GetLimitItemUsageInfo —— ORIG W 0x8693f16
-//   add $0x4cf8,%eax 直取并返回；+0x4cf8 即 m_limitItemUsage 成员。
-// ---------------------------------------------------------------------------
-stLimitItemUsageInfoEx* CDataManager::GetLimitItemUsageInfo()
-{
-    return &m_limitItemUsage;
-}
-
-// ---------------------------------------------------------------------------
-// is_AuctionRegFreeCeraItem(unsigned int) const —— ORIG W 0x84e92a4
-//   lea 0xb4ac(this)（m_choiceSet）→ set<unsigned int>::find(idx) 后与 end 比较，
-//   非 end 返回非零。语义：该道具在"拍卖行注册免费道具"集合内。
-// ---------------------------------------------------------------------------
-bool CDataManager::is_AuctionRegFreeCeraItem(unsigned int itemIdx) const
-{
-    return m_choiceSet.find(itemIdx) != m_choiceSet.end();
-}
 
 // ---------------------------------------------------------------------------
 // VerifyDungeon(CDungeon const&) const —— ORIG T 0x08362b44
@@ -120,6 +80,18 @@ int CDataManager::VerifyDungeon(const CDungeon& dungeon) const
 //   collision item 用 (*it)、toString 返回值判失败（删 memset 近似）。
 //   残余为 4.1/4.4 槽复用策略（N82）与 STL 内联/转换构造发射差（N89 族）。
 //   ORIG 0x08360d94。
+// [SweepCDataManagerTailB 2026-09-10] 修真缺口（判据㉑ 缺调用 + 判据② call * 虚槽）：
+//   ① ORIG 道具循环对 `item->GetItemType()`（vtable+0xc，_ZTV14CStackableItem
+//      vptr+0xc=CStackableItem::GetItemType）共 **4 次虚调用**（08361240/08361257/
+//      08361467/083617d0，Ghidra C 亦示 || 两臂各一次 + else 一次 + 死比较一次）；
+//      旧码把结果缓存进 `const int type` 只调 1 次 ⇒ 缺 2 次 call *。已改逐点重读。
+//   ② ORIG is_stackable 守卫为 08361222 `test %al,%al; je 083617d5`（正极性，
+//      无 xor $1）；旧码 `if(!is_stackable()) continue;` 4.4 恒发 xor $1（P168a），
+//      已改 `if (is_stackable()) { body }` 包裹。
+//   读数：raw insns 1154→1172（ORIG 1174，gap -20→-2）；call * 2→4=ORIG 4；
+//   p167 166=166 CLEAR（MISSING 全为 C1/C2、D1/D2 同址别名，P93 豁免）。
+//   残余：N82 槽号（帧 0x1ac0 vs 0x1abc）、P197④ 4.1 setcc 物化、N18a lea/add、
+//   N122 bool 取反 xor（我方 2 处 vs ORIG 1 处）、else 分支 `cmp $0x22` 被 4.4 DCE。
 bool CDataManager::Verify() const
 {
     // [ORIG +0x0008..+0x0027] 空循环照抄（ORIG 保留 i∈[1,0xc6) 死循环体）
@@ -203,12 +175,14 @@ bool CDataManager::Verify() const
              it != m_itemList->m_itemMap.end(); ++it)
         {
             CItem* item = it->second;
-            if (!item->is_stackable())
+            // ORIG 正极性守卫（asm 08361222 `test %al,%al; je 083617d5`，无 xor $1）：
+            // 4.4 对 `if (!f())` 恒发 xor $1（P168a），故改写为 if (f()) 包裹 body
+            // （下列 body 缩进未调整，纯机器码形态对齐）。
+            if (item->is_stackable())
             {
-                continue;
-            }
-            const int type = item->GetItemType();
-            if (type == 0xf || type == 0x10)
+            // ORIG 逐点重读 GetItemType()（P48/P157）：|| 短路两臂各一次虚调用
+            // （ORIG 08361240 cmp $0xf / 08361257 cmp $0x10），不可缓存到局部。
+            if (item->GetItemType() == 0xf || item->GetItemType() == 0x10)
             {
                 // booster：CStackableItem+0x240 stStackableBooster_t.m_elements
                 CStackableItem* sitem = (CStackableItem*)item;
@@ -236,7 +210,7 @@ bool CDataManager::Verify() const
                     }
                 }
             }
-            else if (type == 0xe)
+            else if (item->GetItemType() == 0xe)  // ORIG 08361467 cmp $0xe
             {
                 // package：包列表/选择列表逐元素 find_item 校验。
                 // 共享头 m_pkg21c/m_pkg234 元素类型暂为 vector<char> 占位
@@ -294,7 +268,9 @@ bool CDataManager::Verify() const
             }
             else
             {
-                item->GetItemType();  // ORIG 其余类型空检（虚调用后弃值）
+                // ORIG 083617d0 虚调用后 `cmp $0x22,%eax` 无消费者（P171 死比较照抄）
+                (void)(item->GetItemType() == 0x22);
+            }
             }
         }
     }
