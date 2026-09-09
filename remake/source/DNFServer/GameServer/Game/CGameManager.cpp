@@ -680,7 +680,10 @@ void CGameManager::returnUserPool(CUser* user)
     //   0x08294cd8 NumberToString 结果入 %ebx 跨 cMyTrace ctor 保活；残余 =
     //   err 跨 ctor 的 %esi 缓存（ORIG `mov -0xc,%esi`）4.4 恒槽重读（裸 register
     //   实测反偏离 ORIG，已回滚）+ 尾部 `jmp epilogue` 岛（P285）⇒ N82/P52。
-    if (user != 0)
+    // ORIG 0x08294b38：`cmpl $0x0,0xc(%ebp); je 08294d30`（08294d30 是 nop 空岛，
+    // 08294d31 才是 epilogue）⇒ 裸早返形复现尾 nop 岛（P223 变体）。
+    if (user == 0)
+        return;
     {
         unsigned int accId = user->get_acc_id();
         std::map<unsigned int, CUser*>::iterator it = m_userByAccId.find(accId);
@@ -698,8 +701,12 @@ void CGameManager::returnUserPool(CUser* user)
         unsigned int uid = user->GetUID();
         unsigned int accId3 = user->get_acc_id();
         user->log_out();
-        Guard<Mutex> guard(&m_mutex);
-        m_userPool.Free(user);
+        // ORIG 0x08294c71..0x08294ca8：Guard 在独立作用域，Free 后立即 ~Guard
+        // （0x08294ca8），随后才 GetLastErrorCode ⇒ 不能与 err 同作用域。
+        {
+            Guard<Mutex> guard(&m_mutex);
+            m_userPool.Free(user);
+        }
         // ORIG 0x08294cc1..0x08294cd2：err 入槽后 `mov -0xc(%ebp),%esi` 跨
         // cMyTrace ctor 保活；4.4 恒从槽重读（裸 register 实测 146→145 反偏离
         // ORIG，已回滚）⇒ N82/P52 封顶。
@@ -2028,21 +2035,11 @@ void CGameManager::WarRoomCountManage(int hourIndex)
     guard.put_short(0);
     int totalDiff = 0;
     int area = 0;
-    for (;;)
+    // ORIG 0x082a2b?? 尾部 `addl $0x1,-0x3c; cmpl $0x9,-0x3c; setle %al; test %al,%al;
+    // jne <头>`（循环条件在尾 + setle 物化）⇒ do-while 形（P25/P51）；原 for(;;)+
+    // 头部 `if(area>9){...return;}` 产头部 2 条 + 尾 jmp，净差 1 条。
+    do
     {
-        if (area > 9)
-        {
-            if (totalDiff != 0)
-            {
-                guard.put_short(index, totalDiff);
-                guard.finalize(true);
-                G_GameWorld()->send_all(guard);
-                PrintWarRoomList();
-                cMyTrace tr3(__PRETTY_FUNCTION__, 0x30cf, 0);
-                tr3("WarRoomCountManage end");
-            }
-            return;
-        }
         // ORIG 0x082a292f..0x082a293f `add $0x223c; mov 0x8(%ecx,%eax,4),%edx`：
         // m_warRoomCount[hour][area] 成员数组二维索引（WarAreaCounter+0x144）；
         // G_CDataManager 结果无具名槽。
@@ -2093,6 +2090,15 @@ void CGameManager::WarRoomCountManage(int hourIndex)
         }
         totalDiff = totalDiff + (diff < 0 ? -diff : diff);
         area = area + 1;
+    } while (area <= 9);
+    if (totalDiff != 0)
+    {
+        guard.put_short(index, totalDiff);
+        guard.finalize(true);
+        G_GameWorld()->send_all(guard);
+        PrintWarRoomList();
+        cMyTrace tr3(__PRETTY_FUNCTION__, 0x30cf, 0);
+        tr3("WarRoomCountManage end");
     }
 }
 
@@ -2352,8 +2358,12 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
                 // ORIG 写 pkt+0xa/+0xe（12 字节头旧读法 +0xc/+0x10 为误对齐）。
                 ctype.m_channel = (unsigned int)((CEnvironment*)G_CEnvironment())->get_channel_no();
                 ctype.m_type = (int)G_GameWorld()->GetChannelType();
-                CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)group);
-                proxy->SendTcpPacket((char*)&ctype, ctype.packetSize);
+                // ORIG 0x08296260..0x08296289：packetSize→%esi、&ctype→%ebx 先物化并跨
+                // GetServerProxy 调用保活（push %esi），随后才压 SendTcpPacket 实参
+                // ⇒ 必须单语句链式 receiver（P52/P23），具名 proxy 会把实参装载推到
+                // receiver 之后并丢掉 %esi 独占。
+                GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)group)
+                    ->SendTcpPacket((char*)&ctype, ctype.packetSize);
                 group = GlobalData::s_monitor_proxy_mgr->GetNextIndex(idx);
             }
         }
@@ -2776,7 +2786,13 @@ void CGameManager::user_disconnect(CUser* user)
         return;
     }
     HistoryLog::LogClose((FILE*)user->m_field796f8);
-    if (user->get_state() != 0)
+    // ORIG 0x08298bbb：`test %eax,%eax; sete %al; test %al,%al; jne 08298dbc`（08298dbc
+    // 为 nop 空岛）——4.1 对 != 的 sete 物化形；4.4 对 if(!=0) 恒产 setne+je。
+    // 用 while(x==0){return;} 复现 sete+jne 物化与尾 nop 岛（P225）。
+    while (user->get_state() == 0)
+    {
+        return;
+    }
     {
         user->prepareDisconnect();
         G_GameWorld()->EraseLoginUser(user);
@@ -2841,13 +2857,10 @@ bool CGameManager::user_exit(CUser* user)
     HistoryLog::LogClose((FILE*)user->m_field796f8);   // ORIG *(user+0x796f8)
     user->prepareDisconnect();
     G_GameWorld()->EraseLoginUser(user);
-    if (user->get_state() < 3)
-    {
-        user->SetSaveRentalInfoToExchange(false);
-        user->LogoutCachedCharacter(0);
-        user->UpdateLogout(false);
-    }
-    else
+    // ORIG 0x082986b6：`cmp $0x2,%eax; setg %al; test %al; je <尾部else块>` —— 真条件
+    // 是 state>2（CheckOut 族 fall-through，SetSaveRental 块落函数尾），Ghidra C 的
+    // `iVar2 < 3` 块序误读；必须按 ORIG 极性写 >2 才复现（P59/P222）。
+    if (user->get_state() > 2)
     {
         CheckOutTrade(user);
         CheckOutParty(user, true);
@@ -2870,17 +2883,26 @@ bool CGameManager::user_exit(CUser* user)
         // ORIG 0x08298815：err 先预清零（movl $0x0,-0xc）再独立赋值（P198①/P197③ 两句式）。
         int err = 0;
         err = G_EpollHandler()->ResetEpoll(user->m_network.get_socket());
-        if (err != 0)
+        // ORIG 0x08298842：`cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je` ⇒ 4.1 的
+        // bool 物化四段形，用 while+break 复现（P225）。
+        while (err != 0)
         {
             LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x12e3,
                                   "(m_id: %s) G_EpollHandler()->ResetEpoll(pUser->get_socket(%d)) %d(%s)",
                                   NumberToString(user->get_acc_id(), 0),
                                   user->m_network.get_socket(), err, strerror(err));
+            break;
         }
         user->ResetCurCharac();
         user->doLinkCharacDisconnect();
         returnUserPool(user);
         user->checkLogOutCorrectly();
+    }
+    else
+    {
+        user->SetSaveRentalInfoToExchange(false);
+        user->LogoutCachedCharacter(0);
+        user->UpdateLogout(false);
     }
     return true;
 }
@@ -2933,9 +2955,13 @@ CGameManager::~CGameManager()
     if (m_pQuickPartyRewardMgr != 0)
         delete m_pQuickPartyRewardMgr;
     m_pQuickPartyRewardMgr = 0;
+    // ORIG 0x08293d9b `je 08293dc7`（跳过 0x08293dba 的置零）⇒ 本字段的置零在 if
+    // 块**内**（与 0x2fc/0x300 的块外置零不同）；jcc 目标下标判据实证。
     if (m_pAuctionAveragePriceMgr != 0)
+    {
         delete m_pAuctionAveragePriceMgr;
-    m_pAuctionAveragePriceMgr = 0;
+        m_pAuctionAveragePriceMgr = 0;
+    }
     if (m_pCraneMinigameMgr != 0)
         delete m_pCraneMinigameMgr;
     // 其余容器/池成员（hash_map、StaticPool、std::map/set、Mutex）按声明逆序自动析构。
