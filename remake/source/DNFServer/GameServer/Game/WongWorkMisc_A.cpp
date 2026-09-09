@@ -1,19 +1,31 @@
 // ============================================================================
 // WongWorkMisc_A.cpp —— WongWork 域 A 段 G6 杂项组独占 TU（WongWorkA 批次）。
 //
-// 承载两类 14 个 ORIG 真实符号（C++98 / 32位 / O0）：
-//   WongWork::CCalcCharacStat   7 方法（全 T）
-//   WongWork::CMCAPManager      7 方法（getPoint/setPoint/incPoint/decIncRate/
-//                               resetIncRate/IsSaveCleanPadPoint/getPointPerHackType，
-//                               nm -S 实证均 W 内联段）
-// 每函数按 docs/class_func_reports/<类>/<func>.md 的 ## 汇编 + ## 反编译 C
-// 逐指令转写；报告缺失者以 objdump ORIG 为准并已标注地址。
-// 注意：CMCAPManager.h 中既有的 getPoint() const / isSaveCleanPadPoint() const
-// 声明与实现落在 CMCAPManager.cpp，其 mangled 与 ORIG 不符（_ZNK… 且字段错位）；
-// 本 TU 提供唯一 ORIG 匹配强符号，错误符号无调用方、留待宿主清理（见批次报告）。
+// 承载 WongWork::CCalcCharacStat 7 方法（全 T）+ 本 TU 的 GI/static_init
+// （C++98 / 32位 / O0）。每函数按 docs/class_func_reports/<类>/<func>.md 的
+// ## 汇编 + ## 反编译 C 逐指令转写；报告缺失者以 objdump ORIG 为准并已标注地址。
+//
+// [SweepWongWorkEvents 2026-09-10 两处真缺口修复]
+// ① P338/P327：ORIG 本 TU 有 `t _GLOBAL__I_…ApplyElixerItem…`（0x083201f4，体
+//    `sub $0x18`）与 `t _Z41__static_initialization_and_destruction_0ii`（0x083201b4，
+//    体只含 `ios_base::Init::C1` + `__cxa_atexit`，即 `_ZStL8__ioinit`）。我方原缺
+//    这两个符号 ⇒ 补 `#include <iostream>`（发射 ioinit/GI），并把 ApplyElixerItem
+//    定义移到 TU 最前（它是 ORIG 该 TU 地址最小的强符号，P327 决定 GI 键名）。
+//    修后 .o 的 GI 体 8/8 与 ORIG identical、static_init 16/16 逐条同构
+//    （check_tu 的 static_init DIFF 系 N123 每 TU 同名 local 撞名假差）。
+// ② 判据㉓/㉔：CMCAPManager 7 方法在 ORIG 全为 W（头内 inline，由消费 TU 发射；
+//    ORIG 本 TU 区间 0x0831e85c..0x08320210 内无这些符号）⇒ 定义已迁回
+//    CMCAPManager.h 头内，本 TU 不再持有（原 .cpp 强定义使绑定为 T）。
+//    ORIG 本 TU 区间符号差集 ORIG-only=0；sizeof/成员偏移/mangled/虚槽零变化。
+// 本 TU 现有 dual_rank 候选 5 件（gap' 10/8/7/6/2）全为 N 封顶（见各函数判词）；
+// `call *` 0 处（ORIG 本 TU 亦 0）；jcc 全 TU 逐位核对：助记符序列 0 差，
+// 目标偏移差仅由函数体长度差（+6/+5B）引起。
 // ============================================================================
 
 #include <algorithm>
+#include <iostream>            // P338：ORIG 本 TU 有 _ZStL8__ioinit + _GLOBAL__I_ 体 sub $0x18
+                               // （static_init 只含 ios_base::Init::C1 + __cxa_atexit），
+                               // 缺此 include 则 4.4 不发射 GI/static_init 两个 ORIG 实有符号。
 
 #include "CCharacter.h"        // _Additioal_info（全局 ns，0x52 pack(1)）/ CCharacter
 #include "CMCAPManager.h"      // WongWork::CMCAPManager
@@ -26,6 +38,63 @@ namespace WongWork
 // ============================================================================
 // CCalcCharacStat —— 角色基础属性计算器
 // ============================================================================
+
+// ORIG T 0x0831e85c _ZN8WongWork15CCalcCharacStat15ApplyElixerItemEP15_Additioal_infoii
+// 报告：ApplyElixerItem.md。灵药道具按 statIdx 选择属性槽做加法（u16 回绕）；
+// statIdx>9 静默忽略；case9 对 m_field10[0..3] 各加 value*10。
+// ORIG 汇编不物化 (short)value：逐 case 以 32 位 value 乘 50 后 movw 截断
+// （mod 2^16 与 s16 乘加等价）；case 物理布局序 = 4,6,5,7,2,3,8,9
+// （ORIG 块序 +0x1f/+0x4c/+0x79/+0xa6/+0xd3/+0xea/+0x103/+0x120）。
+// [SweepWongWorkEvents P327] 本函数是 ORIG 该 TU 内地址最小的强符号（0x0831e85c <
+//   InitializeStat 0x0831e9ca），ORIG 的 GI 键名即它；定义置于 TU 最前使 4.4 发射的
+//   _GLOBAL__I__ZN8WongWork15CCalcCharacStat15ApplyElixerItemEP15_Additioal_infoii 键名一致。
+// [b28d-solo-WongWorkMisc_A] verdict=DIFF(N 封顶)：case0..8 与 ORIG 段级逐条全等
+//   （仅 jmp/jump-table 重定位伪差）；唯一残差 = case9 循环体寄存器角色互换
+//   （ORIG: i→%ecx、元素值→%ebx、`lea (%ebx,%eax,1)`；4.4: i→%ebx、值→%ecx、
+//   `add %eax,%ecx`+`lea 0x8(%ebx),%edx`）= N7+N18a。已试 7 形（`=`/`+=`/交换加数/
+//   语句表达式/register 索引/register 元素/long 索引）+ 4.4.6 后端复测，同形 ⇒ 封顶。
+//   p167: 0 missing / 0 extra；语义与 Ghidra C 逐 case 一致（mod 2^16 等价）。
+void CCalcCharacStat::ApplyElixerItem(_Additioal_info* out, int statIdx, int value)
+{
+    // [b27 封顶] 残差仅 case9 循环体寄存器角色（ORIG arr值→ebx/i基址重读→ecx，
+    // 4.4 值→ecx/i→ebx+lea 直算——N7 族角色互换）+ jump table 基址 reloc。
+    // switch/各 case/store 序全等。
+    switch (statIdx)
+    {
+    case 4:
+        out->m_field08 = static_cast<unsigned short>(
+            out->m_field08 + value * 0x32);
+        break;
+    case 6:
+        out->m_field0c = static_cast<unsigned short>(
+            out->m_field0c + value * 0x32);
+        break;
+    case 5:
+        out->m_field0a = static_cast<unsigned short>(
+            out->m_field0a + value * 0x32);
+        break;
+    case 7:
+        out->m_field0e = static_cast<unsigned short>(
+            out->m_field0e + value * 0x32);
+        break;
+    case 2:
+        out->m_field00 += value * 250;                       // imul $0xfa
+        break;
+    case 3:
+        out->m_field04 += value * 250;
+        break;
+    case 8:
+        out->m_field42 += value * 10;
+        break;
+    case 9:
+        for (int i = 0; i < 4; ++i)                          // 循环上界 cmp $0x3,setle
+            out->m_field10[i] = static_cast<unsigned short>(
+                out->m_field10[i] + value * 10);
+        break;
+    default:
+        break;
+    }
+}
 
 // ORIG T 0x0831e9ca _ZN8WongWork15CCalcCharacStat14InitializeStatEP15_Additioal_infoi
 // 报告：docs/class_func_reports/WongWork__CCalcCharacStat/InitializeStat.md
@@ -105,60 +174,6 @@ void CCalcCharacStat::InitializeStat(_Additioal_info* out, int job)
         break;
     default:
         break;                                // 其余值：仅 clear 后返回
-    }
-}
-
-// ORIG T 0x0831e85c _ZN8WongWork15CCalcCharacStat15ApplyElixerItemEP15_Additioal_infoii
-// 报告：ApplyElixerItem.md。灵药道具按 statIdx 选择属性槽做加法（u16 回绕）；
-// statIdx>9 静默忽略；case9 对 m_field10[0..3] 各加 value*10。
-// ORIG 汇编不物化 (short)value：逐 case 以 32 位 value 乘 50 后 movw 截断
-// （mod 2^16 与 s16 乘加等价）；case 物理布局序 = 4,6,5,7,2,3,8,9
-// （ORIG 块序 +0x1f/+0x4c/+0x79/+0xa6/+0xd3/+0xea/+0x103/+0x120）。
-// [b28d-solo-WongWorkMisc_A] verdict=DIFF(N 封顶)：case0..8 与 ORIG 段级逐条全等
-//   （仅 jmp/jump-table 重定位伪差）；唯一残差 = case9 循环体寄存器角色互换
-//   （ORIG: i→%ecx、元素值→%ebx、`lea (%ebx,%eax,1)`；4.4: i→%ebx、值→%ecx、
-//   `add %eax,%ecx`+`lea 0x8(%ebx),%edx`）= N7+N18a。已试 7 形（`=`/`+=`/交换加数/
-//   语句表达式/register 索引/register 元素/long 索引）+ 4.4.6 后端复测，同形 ⇒ 封顶。
-//   p167: 0 missing / 0 extra；语义与 Ghidra C 逐 case 一致（mod 2^16 等价）。
-void CCalcCharacStat::ApplyElixerItem(_Additioal_info* out, int statIdx, int value)
-{
-    // [b27 封顶] 残差仅 case9 循环体寄存器角色（ORIG arr值→ebx/i基址重读→ecx，
-    // 4.4 值→ecx/i→ebx+lea 直算——N7 族角色互换）+ jump table 基址 reloc。
-    // switch/各 case/store 序全等。
-    switch (statIdx)
-    {
-    case 4:
-        out->m_field08 = static_cast<unsigned short>(
-            out->m_field08 + value * 0x32);
-        break;
-    case 6:
-        out->m_field0c = static_cast<unsigned short>(
-            out->m_field0c + value * 0x32);
-        break;
-    case 5:
-        out->m_field0a = static_cast<unsigned short>(
-            out->m_field0a + value * 0x32);
-        break;
-    case 7:
-        out->m_field0e = static_cast<unsigned short>(
-            out->m_field0e + value * 0x32);
-        break;
-    case 2:
-        out->m_field00 += value * 250;                       // imul $0xfa
-        break;
-    case 3:
-        out->m_field04 += value * 250;
-        break;
-    case 8:
-        out->m_field42 += value * 10;
-        break;
-    case 9:
-        for (int i = 0; i < 4; ++i)                          // 循环上界 cmp $0x3,setle
-            out->m_field10[i] = static_cast<unsigned short>(
-                out->m_field10[i] + value * 10);
-        break;
-    default:
-        break;
     }
 }
 
@@ -513,63 +528,15 @@ _Additioal_info* CCalcCharacStat::_CalcGunner(_Additioal_info* out,
 }
 
 // ============================================================================
-// CMCAPManager —— CleanPad 点数管理。真实布局：+0x00 点数、+0x04 增长率
-// （C1 置 0x3e8）、+0x14 m_saveCleanPadPoint；头内既有 pad 区不可改名，
-// 在成员函数体内按 m_pad00 直接取址，保持 ORIG 单帧无子调用形态。
+// CMCAPManager —— CleanPad 点数管理。
+// [SweepWongWorkEvents 判据㉓/㉔ 迁移] ORIG 该 7 方法全为 W 弱符号
+// （getPoint W 0x0822eea4 / IsSaveCleanPadPoint W 0x0822eede / setPoint W 0x082870de /
+//   incPoint W 0x084eb53e / resetIncRate W 0x08694fe0 / decIncRate W 0x08694ff0 /
+//   getPointPerHackType W 0x08695025），且 ORIG 本 TU 区间 0x0831e85c..0x08320210
+// 内**不存在**这些符号 ⇒ 原码为头内 inline 定义，由各消费 TU 发射。
+// 故定义已迁回 CMCAPManager.h（头内 inline），本 TU 不再持有；原 .cpp 强定义
+// 会使最终符号绑定为 T（与 ORIG W 不符）。成员体逐条照 ORIG 反汇编，语义零变化；
+// sizeof/成员偏移/mangled/虚槽零变化。
 // ============================================================================
-
-// ORIG W 0x0822eea4 _ZN8WongWork12CMCAPManager8getPointEv（非 const）
-// ORIG（objdump 0x0822eea4）：(%esp)=this、0x4=&-0x10(0x2710) → min(m_point, cap)，
-// 再 max(0u, _)；以 this 直作 min 引用实参，无中间值槽。
-unsigned int CMCAPManager::getPoint()
-{
-    return std::max<unsigned int>(
-        0u, std::min<unsigned int>(m_point, 0x2710u));
-}
-
-// ORIG W 0x082870de _ZN8WongWork12CMCAPManager8setPointEt
-// ORIG（objdump 0x082870de）：min(point(&-0x1c), cap(&-0xc)) 的返回引用直接作
-// max 第二实参（mov %eax,0x4(%esp)，无 u16 中间量槽），max(0(&-0xa), _) →
-// movzwl 零扩展整字写 +0x00（4B），并置 +0x14=1。
-void CMCAPManager::setPoint(unsigned short point)
-{
-    m_point = static_cast<unsigned int>(std::max<unsigned short>(
-        0, std::min<unsigned short>(point, 0x2710)));   // 0x2710 落 u16 常量槽
-    m_saveCleanPadPoint = true;                          // movb $0x1,+0x14
-}
-
-// ORIG W 0x084eb53e _ZN8WongWork12CMCAPManager8incPointEi
-// point(+0) += rate(+4)*value/1000（ORIG 魔数 0x10624dd3; sar 6 = 有符号整除 1000）。
-void CMCAPManager::incPoint(int value)
-{
-    m_point = m_point + m_rate * value / 1000;
-    m_saveCleanPadPoint = true;
-}
-
-// ORIG W 0x08694ff0 _ZN8WongWork12CMCAPManager10decIncRateEi
-// rate(+4) = max(0, rate - value)（_ZSt3maxIiERKT_S2_S2_ 实证调用）。
-void CMCAPManager::decIncRate(int value)
-{
-    m_rate = std::max(0, m_rate - value);
-}
-
-// ORIG W 0x08694fe0 _ZN8WongWork12CMCAPManager12resetIncRateEv：rate=1000。
-void CMCAPManager::resetIncRate()
-{
-    m_rate = 0x3e8;
-}
-
-// ORIG W 0x0822eede _ZN8WongWork12CMCAPManager19IsSaveCleanPadPointEv（非 const）
-bool CMCAPManager::IsSaveCleanPadPoint()
-{
-    return m_saveCleanPadPoint;              // movzbl +0x14
-}
-
-// ORIG W 0x08695025 _ZN8WongWork12CMCAPManager19getPointPerHackTypeENS_13ENUM_HACKTYPEE
-// 表基址下标 101（sub $0x65）：pointPerHackType_[type-101]。
-int CMCAPManager::getPointPerHackType(WongWork::ENUM_HACKTYPE type)
-{
-    return pointPerHackType_[static_cast<int>(type) - 0x65];
-}
 
 }  // namespace WongWork

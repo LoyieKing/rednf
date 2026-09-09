@@ -1,6 +1,8 @@
 #ifndef DNF_GAME_CMCAP_MANAGER_H_
 #define DNF_GAME_CMCAP_MANAGER_H_
 
+#include <algorithm>         // std::min/std::max（ORIG 以 _ZSt3minIjERKT_S2_S2_ 等调用实证）
+
 #include "CHackAnalyzer.h"   // WongWork::ENUM_HACKTYPE（getPointPerHackType 形参）
 class cSecuUserAction;   // 全局命名空间（ORIG _ZN15cSecuUserAction…）；定义暂在 CUserOnlyOrig.cpp
 namespace WongWork
@@ -105,14 +107,51 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     bool m_field561;   // +0x561（0x8e951 isARSUserKick）
     char m_pad562[0x564 - 0x562];
 
-    unsigned int getPoint();                   // ORIG W 0x0822eea4 _ZN...8getPointEv
-    void setPoint(unsigned short point);       // ORIG W 0x082870de _ZN...8setPointEt
-    void incPoint(int value);                  // ORIG W 0x084eb53e _ZN...8incPointEi
-    void decIncRate(int value);                // ORIG W 0x08694ff0 _ZN...10decIncRateEi
-    void resetIncRate();                       // ORIG W 0x08694fe0 _ZN...12resetIncRateEv
-    bool IsSaveCleanPadPoint();                // ORIG W 0x0822eede _ZN...19IsSaveCleanPadPointEv
-    static int getPointPerHackType(WongWork::ENUM_HACKTYPE type);   // ORIG static（type@+0x8）
-                                               // ORIG W 0x08695025 _ZN...19getPointPerHackTypeENS_13ENUM_HACKTYPEE
+    // —— 以下 7 方法在 ORIG 全为 W 弱符号（头内 inline 定义，由各消费 TU 发射；
+    //    ORIG 本 TU 区间 0x0831e85c..0x08320210 内无这些符号）⇒ 定义必须留在头内，
+    //    不得放 .cpp 强定义（否则绑定 T vs ORIG W，判据㉓）。体逐条照 ORIG 反汇编转写。
+    //    ORIG W 0x0822eea4 _ZN...8getPointEv：min(m_point,0x2710) 后 max(0u,_)。
+    unsigned int getPoint()
+    {
+        return std::max<unsigned int>(
+            0u, std::min<unsigned int>(m_point, 0x2710u));
+    }
+    // ORIG W 0x082870de _ZN...8setPointEt：min(point,0x2710)→max(0)→整字写 +0x00，
+    // 并置 +0x14=1。
+    void setPoint(unsigned short point)
+    {
+        m_point = static_cast<unsigned int>(std::max<unsigned short>(
+            0, std::min<unsigned short>(point, 0x2710)));
+        m_saveCleanPadPoint = true;
+    }
+    // ORIG W 0x084eb53e _ZN...8incPointEi：point(+0) += rate(+4)*value/1000
+    // （ORIG 魔数 0x10624dd3; sar 6 = 有符号整除 1000），并置 +0x14=1。
+    void incPoint(int value)
+    {
+        m_point = m_point + m_rate * value / 1000;
+        m_saveCleanPadPoint = true;
+    }
+    // ORIG W 0x08694ff0 _ZN...10decIncRateEi：rate(+4)=max(0, rate-value)。
+    void decIncRate(int value)
+    {
+        m_rate = std::max(0, m_rate - value);
+    }
+    // ORIG W 0x08694fe0 _ZN...12resetIncRateEv：rate=1000。
+    void resetIncRate()
+    {
+        m_rate = 0x3e8;
+    }
+    // ORIG W 0x0822eede _ZN...19IsSaveCleanPadPointEv（非 const）：movzbl +0x14。
+    bool IsSaveCleanPadPoint()
+    {
+        return m_saveCleanPadPoint;
+    }
+    // ORIG static（type@+0x8）；ORIG W 0x08695025 _ZN...19getPointPerHackTypeENS_13ENUM_HACKTYPEE：
+    // 表基址下标 101（sub $0x65）。
+    static int getPointPerHackType(WongWork::ENUM_HACKTYPE type)
+    {
+        return pointPerHackType_[static_cast<int>(type) - 0x65];
+    }
 };
 }
 
