@@ -255,6 +255,25 @@
 // 探针工件：/tmp/solo_probe/probe1..probe7.cpp（4.4.7 -m32 -O0）。
 // 无子子代理（R4 合规）。
 // ----------------------------------------------------------------------------
+// [SweepDBLogin 单文件泳道·本轮] 12 件 DIFF 清单按 dual_rank gap' 降序逐件处理
+// （dispatch 由前泳道修过，未重开）。TU 四数 基线 identical=47 ae=134 near=2 diff=12
+// → 现在 identical=47 **ae=135** near=2 **diff=11**（+1 AE，零回退）；COMPILE OK 0 错误；
+// p167 调用点差集全 CLEAR（仅 cMyTrace/vector/CSimpleSSO 的 C1↔C2、D1↔D2 同址别名豁免）。
+//  ① _getRewardInfo gap 44→**0**（DIFF→AE，ndiff 0，330=330）：见函数头四类修法。
+//  ② getCharacLinkSystemData gap 2→**0**（ndiff 4 = setcc 极性镜像 P196 折痕）。
+//  ③ GetAccountInfo gap −22→**−17**（`long long curSec` 64 位物化改内联 32 位实参）。
+//  ④ GetMercenarySystemInfo gap −9→**−14** 但 xor/jne 形匹配 6→1（bool ok 链改提前
+//     continue；三形并列读数见函数头，取形匹配者）。
+//  ⑤ GetPunishUserInfo gap 1 维持封顶（唯一残差 = 同型字段 LHS-first vs ORIG 异型
+//     RHS-first+中转；字段侧旋钮被 T2 直证否决：ARAD_LoginSecurity 0x0818f970 消费点
+//     `jg` signed；callee 侧需改共享 MySQL.h get_n_rows 返回类型，跨泳道代价 > 1 条）。
+//  ⑥ 其余 6 件（GetBingoEvent / GetAccountCharacterLevelUpOnceGift / GetGrowthCreatureEvent /
+//     _DecryptUserInfo / getBreakAwayMemberData / GetPremiumInfo）逐件复核残差均落
+//     已登记 N 族（N1 常量折叠 / N7+P75 装载序 / N82 帧槽 / N107 取址 add-vs-lea /
+//     N-P209L 常量比较折叠），无新增真缺口。
+// 结论：本 TU 剩余真缺口 = 0（仅 N 族形差）。
+// 无子子代理（R4 合规）；无 .h 改动（R2 无申报项）。
+// ----------------------------------------------------------------------------
 // df_game_r 还原 —— DB_Login（DBThread 登录分发器，Wave5 仅ORIG清零批）
 // 权威报告：docs/class_func_reports/DB_Login/*.md（汇编 + Ghidra 反编译 C），
 // 全部 52 个 ORIG 符号逐符号转写；SQL 字符串原样保留（大小写亦原样）。
@@ -794,12 +813,15 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
 // getCharacLinkSystemData（ORIG T 0x0840ffca）
 // ============================================================================
 
-// [S216_DB_Login2 复核] verdict=DIFF ndiff=1 gap=1（N121：ORIG 尾
-// `xor $1,%eax; test %al,%al; jmp <exit>` + nop 岛 = 4.1 if-join 岛；4.4 恒
-// epilogue-threading 折叠，探针 probe_tail fA–fF 六形（while+break/空 if/goto/
-// 空 else）全败。语义与调用点全等）。
-// S216：P285 两形实测——正向 if+空 else{return} 反劣（gap 2）；负条件空 then+else
-// return 与原形逐条同 ⇒ 维持 N121 epilogue-threading 封顶。
+// [SweepDBLogin 本轮] verdict=DIFF ndiff=4 gap=0（110=110；p167 仅 cMyTrace C1/C2 同址
+// 别名豁免）。残差 = P196 折痕：ORIG `cmp $0x1,%eax; sete %al; test %al,%al; je`
+// vs 我方 `setne/jne`（同一谓词的极性镜像，分支落点体相同，非真反）。
+// 修法：`if (db->get_n_rows() == 1) { …body… } else { goto link_end; }` 改负条件
+// goto 共享尾空标签（P223 多源汇入连续尾标签形）⇒ gap 1→0（旧 N121「尾 jmp+nop
+// 不可复现」被本形推翻；nop 岛按 §6.1 对齐 nop 豁免已剥离）。
+// 试过并列读数：正条件 then + else goto（gap=1/ndiff=1）、then 尾 goto（gap=1/ndiff=1）、
+// 嵌套正极性（gap=1/ndiff=1）；`!(x==1)` 被 4.4 前端折成 `!=1` 恒产 setne ⇒ sete 侧
+// 不可再翻（P196 折痕封顶）。
 void DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
@@ -829,8 +851,15 @@ void DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
                                   0x2f5d, "LINK_LOG : charac_link_message DB INSERT FAIL!!");
         }
     }
-    else if (db->get_n_rows() == 1)
+    else
     {
+        // [SweepDBLogin 本轮] P223：ORIG 0x08410112 `cmp $0x1; sete; test; je <nop 岛>`
+        // + get_byte 段尾 0x084101a5 `jmp exit`（多源汇入连续尾标签）⇒ 负条件 goto
+        // 共享尾空标签；条件写 `!(==1)` 以保留 ORIG 的 sete 物化。
+        if (!(db->get_n_rows() == 1))
+        {
+            goto link_end;
+        }
         // [b28d-solo-DB_Login] P168a/P222：ORIG `call; xor $1; test; je <get_byte 段>`
         // ⇒ 失败(trace)块直落、成功块后置；旧 if(fetch) 正极性产 `test; je <trace>`。
         if (!db->fetch())
@@ -843,17 +872,14 @@ void DB_Login::getCharacLinkSystemData(SIG_LOGIN_DATA* sig)
         }
         else
         {
-            // P225/P223：ORIG 尾 `xor $1; test %al,%al; jmp exit`（get_byte 失败的死物化）
-            // ⇒ while+break 出 xor/test 段，早返出尾 jmp（4.4 对空 if 恒 DCE）。
-            // [S216] 追加试 P285 两形（正/负条件空 then + else return）：负条件形与原形
-            // 逐条同（gap=1 仅缺尾 jmp+nop）；正条件形反劣（丢 xor，gap=2）⇒ 确认 N121
-            // epilogue-threading 封顶。
             if (!db->get_byte(0, reinterpret_cast<char&>(sig->m_characLinkMessageFlag)))
             {
                 return;
             }
         }
     }
+link_end:
+    ;
 }
 
 // ============================================================================
@@ -1286,12 +1312,17 @@ int DB_Login::_convertPassPadInfo(SIG_LOGIN_DATA* sig)
 // _getRewardInfo（ORIG T 0x084115f8）—— member_security_grade 安全等级汇总
 // ============================================================================
 
-// [S216_DB_Login2] verdict=DIFF ndiff=382 gap=44（show_func_diff 行级口径；N82 槽/帧 + N78 memset
-// 展开 + N-P133 bool 槽物化：拆独立守卫实测 244→254 反劣已回退；p167 CLEAR 18/18）。
-// S216 本轮 420→382：①P10/P248 档② flags/latest char→int（`orb`→`orl` 宽度对齐）；
-// ②拆独立守卫 `if(!exec)return 0;` + `if(rows!=0){}else{return 0;}` 修 execOk 槽物化
-// 与 setne 极性；③`time(&now)` 传址形修 time 调用形态（ORIG lea+call+回读槽）。
-// 余：N82 帧 0x10 + N-P133 第二守卫 setne/je 极性 + N78 memset 段 + ORIG `or` 11 处。
+// [SweepDBLogin 本轮] verdict=AE ndiff=0 gap=0（330=330 逐条归一全等；p167 CLEAR 18/18）。
+// 历史 [S216_DB_Login2] verdict=DIFF ndiff=382 gap=44 —— 本轮修法（四类，均为真缺口）：
+// ①ORIG `if (get_n_rows() != 0) { …主体… }` + 函数尾共享 `return 0`（early-return else
+//   形 4.4 恒就地物化 `mov $0,%eax; jmp`）⇒ 主体包进 if 块、尾 return 0 共享；
+// ②time 段复用 now 槽：`now = now - dayOff - 0x2a30; if (dayOff>0x1274f) now += 0x15180;`
+//   （删 base 具名局部；ORIG `sub $0x2a30` 立即数形 + else `add $0x15180`）；
+// ③validIp 补 `= {0}`（ORIG 0x08411877..0x08411893 四条 movl 预清零，旧注释误判为无）；
+// ④flags/latest 局部删除，改 `sig->m_secuType/m_rewardType |= N` 字段读改写（ORIG 11 处
+//   `movzbl 字段; or $imm,%edx; mov %dl`），col[9] 数组改 9 个独立具名标量（数组下标取址
+//   4.4 恒 lea+add，独立标量折单条 lea；ORIG 0x08411732 九条 movl 清零 + 九个单条 lea）。
+// 余：0（唯一槽号差 -0x1c..-0x3c 由独立标量声明序精确复现）。
 int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
 {
     sig->m_secuType = 0;          // +0x3f0d 注册位图
@@ -1315,48 +1346,55 @@ int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
     {
         return 0;
     }
+    // [SweepDBLogin 本轮] ORIG 0x084116c4..0x084116cb `setne %al; test %al,%al; je <尾>`
+    // ⇒ 原码是 `if (get_n_rows() != 0) { …主体… }` + 函数尾共享 `return 0`（early-return
+    // else 形 4.4 恒就地物化 `mov $0,%eax; jmp`，与 ORIG 的 je 直跳尾块不符）。
     if (db->get_n_rows() != 0)
     {
-    }
-    else
-    {
-        return 0;
-    }
 
     // 以 KST 日界（-0x2a30/+0x12750=86400 边界）推 last_check_time 基准
+    // [SweepDBLogin 本轮] ORIG 复用 now 槽（无 base 具名局部）：`mov -0x18,%eax;
+    // sub -0x10,%eax; sub $0x2a30,%eax; mov %eax,-0x18`，else 分支为
+    // `mov -0x18,%eax; add $0x15180,%eax; mov %eax,-0x18`（= +0x12750 等价形，P0）。
     time_t now;
     time(&now);                       // ORIG `lea -0x18(%ebp); mov (%esp); call` 传址形
     int dayOff = (int)(now % 0x15180);
-    int base = (int)now - dayOff;
-    base += -0x2a30;
+    now = now - dayOff - 0x2a30;
     if (dayOff > 0x1274f)
     {
-        base = (int)now - dayOff + 0x12750;
+        now += 0x15180;
     }
 
-    // [solo] P312/P214③ 试验（两形均劣化已回退）：ORIG 对 col[9] 发 9 条展开
-    // `movl $0x0,-0x1c..-0x3c`（4.1 小数组逐元素展开）；4.4 对 `= {0}`（403）与显式
-    // 9 条（424）均劣于 for 循环形（382）⇒ 维持 for 循环。
-    unsigned int col[9];
-    for (int i = 0; i < 9; ++i)
-    {
-        col[i] = 0;
-    }
+    // [SweepDBLogin 本轮] ORIG 0x08411732..0x0841176a = 9 条独立 `movl $0x0,-0x1c..-0x3c`
+    // 且每个 get_uint 的取址实参为单条 `lea -0xNN(%ebp),%eax`（无 add）⇒ 原码是 9 个
+    // **独立具名标量**（数组下标/结构体成员取址在 4.4 恒生 lea+add，P30/N4；旧 for 循环
+    // 形另占 i 槽）。槽序照 ORIG 浅→深：-0x1c lastCheck … -0x3c secCardValid。
+    unsigned int lastCheck = 0;      // -0x1c
+    unsigned int mOpt = 0;           // -0x20
+    unsigned int pcOpt = 0;          // -0x24
+    unsigned int secCard = 0;        // -0x28
+    unsigned int goblin = 0;         // -0x2c
+    unsigned int memberPc = 0;       // -0x30
+    unsigned int otp = 0;            // -0x34
+    unsigned int goblinValid = 0;    // -0x38
+    unsigned int secCardValid = 0;   // -0x3c
     if (!db->fetch())
     {
         return 0;
     }
-    db->get_uint(0, col[0]);                        // last_check_time
-    db->get_uint(1, col[1]);                        // m_opt_reg
-    db->get_uint(2, col[2]);                        // pc_opt_reg
-    db->get_uint(3, col[3]);                        // security_card_reg
-    db->get_uint(4, col[4]);                        // goblin_pass_mod
-    db->get_uint(5, col[5]);                        // member_pc_reg
-    db->get_uint(6, col[6]);                        // gatekeeper_otp_reg
-    db->get_uint(7, col[7]);                        // goblin_validity>now()
-    db->get_uint(8, col[8]);                        // sec_card_validity>now()
+    db->get_uint(0, lastCheck);                     // last_check_time
+    db->get_uint(1, mOpt);                          // m_opt_reg
+    db->get_uint(2, pcOpt);                         // pc_opt_reg
+    db->get_uint(3, secCard);                       // security_card_reg
+    db->get_uint(4, goblin);                        // goblin_pass_mod
+    db->get_uint(5, memberPc);                      // member_pc_reg
+    db->get_uint(6, otp);                           // gatekeeper_otp_reg
+    db->get_uint(7, goblinValid);                   // goblin_validity>now()
+    db->get_uint(8, secCardValid);                  // sec_card_validity>now()
 
-    char validIp[16];
+    // [SweepDBLogin 本轮] ORIG 0x08411877..0x08411893 实证有 4 条 `movl $0x0,
+    // -0x4c..-0x40` 预清零（旧注释「无预清零」系误判）⇒ `= {0}`。
+    char validIp[16] = {0};
     char ipMatch = 1;
     db->get_str(9, validIp, 0x10);    // ORIG：get_str 直接覆盖，无预清零
     if (strncmp(validIp, SGBC(sig, OFF_LOGIN_IP), 0x10) != 0)
@@ -1364,46 +1402,46 @@ int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
         ipMatch = 0;
     }
 
-    if (col[4] != 0)
+    if (goblin != 0)
     {
         sig->m_passPadEnable = 1;     // goblin_pass_mod → mousepass 区有效位
     }
-    if ((col[7] != 0) && (ipMatch != '\0'))
+    if ((goblinValid != 0) && (ipMatch != '\0'))
     {
         sig->m_passPadCertified = 1;       // +0x390e mousepass 换算已注册
-        SGFC(char, sig, 0x390c) = 2;                // +0x390c cancel_cnt 类型
+        sig->m_passPadVersion = 2;                  // +0x390c（ORIG 单条 disp store）
     }
-    if (col[3] != 0)
+    if (secCard != 0)
     {
         sig->m_secCardActivate = true;              // +0x39e0 security_card_reg 行存在
     }
-    if ((col[8] != 0) && (ipMatch != '\0'))
+    if ((secCardValid != 0) && (ipMatch != '\0'))
     {
         sig->m_secCardCertified = true;             // +0x39e1 有效期内
     }
 
-    int flags = 0;                                   // +0x3f0d 注册位图（ORIG `or` 32 位，P10）
-    int latest = 0;                                  // +0x3f0f 最新注册类型位
-    if (col[1] != 0) flags |= 1;                     // m_opt
-    if (col[2] != 0) flags |= 2;                     // pc_opt
-    if (col[3] != 0) flags |= 8;                     // security_card
-    if (col[4] != 0) flags |= 0x10;                  // goblin_pass
-    if (col[5] != 0) flags |= 4;                     // member_pc
-    if (col[6] != 0) flags |= 0x20;                  // gatekeeper_otp
-    sig->m_secuType = (unsigned char)flags;
+    // [SweepDBLogin 本轮] ORIG 每处均为**字段读改写**（`movzbl 0x3f0d; mov %eax,%edx;
+    // or $imm,%edx; mov %dl,0x3f0d`，共 11 处 movzbl）⇒ 无 flags/latest 具名局部（P0）。
+    sig->m_secuType = 0;                             // ORIG 0x0841193a `movb $0x0,0x3f0d`
+    if (mOpt != 0) sig->m_secuType |= 1;             // m_opt
+    if (pcOpt != 0) sig->m_secuType |= 2;            // pc_opt
+    if (secCard != 0) sig->m_secuType |= 8;          // security_card
+    if (goblin != 0) sig->m_secuType |= 0x10;        // goblin_pass
+    if (memberPc != 0) sig->m_secuType |= 4;         // member_pc
+    if (otp != 0) sig->m_secuType |= 0x20;           // gatekeeper_otp
 
-    if (col[1] != 0) latest |= 1;
-    else if (col[2] != 0) latest |= 2;
-    else if (col[5] != 0) latest |= 4;
-    else if (col[6] != 0) latest |= 0x20;
-    if (col[3] != 0) latest |= 8;
-    else if (col[4] != 0) latest |= 0x10;
-    sig->m_rewardType = (unsigned char)(sig->m_rewardType | (unsigned char)latest);
+    if (mOpt != 0) sig->m_rewardType |= 1;
+    else if (pcOpt != 0) sig->m_rewardType |= 2;
+    else if (memberPc != 0) sig->m_rewardType |= 4;
+    else if (otp != 0) sig->m_rewardType |= 0x20;
+    if (secCard != 0) sig->m_rewardType |= 8;
+    else if (goblin != 0) sig->m_rewardType |= 0x10;
 
-    if (sig->m_secuType != 0 && (int)col[0] < base)
+    if (sig->m_secuType != 0 && (int)lastCheck < (int)now)
     {
         sig->m_secuReward = true;                    // 需要重新校验标记
     }
+    }                                                // if (db->get_n_rows() != 0)
     return 0;                                        // ORIG 恒返 0（布尔由 sig 字段承载）
 }
 
@@ -1880,9 +1918,15 @@ bool DB_Login::_DecryptUserInfo(char* hex, char* out, unsigned int mid)
 // /100 无符号 magic、NumberToString 中转槽消除（1045/899）。
 // ============================================================================
 
-// [b28d-solo-DB_Login] verdict=DIFF ndiff=960 gap=-22（N78 memset 前端内联展开 +
-// N80 varargs 前置物化 + N82 帧；p167 CLEAR 90/90：已补 get(7)/get(9) trace 的
-// NumberToString ×2 并消 EXTRA memset ×7）。
+// [SweepDBLogin 本轮] verdict=DIFF ndiff=1185 gap=-17（原 -22；p167 CLEAR 90/90）。
+// 本轮真修（1 处）：CheckDailyScheduleTime 段 `long long curSec = getCurSec();`
+// 具名 64 位局部（触发 `sar $0x1f` 符号扩展 + 双槽物化 + 从槽重载，OURS-only
+// sar/mov×3）⇒ 改内联实参 + `EnvFatigueView` 视图（ORIG `call getCurSec; mov %eax,%ebx;
+// mov -0x22c,%esi; call G_CEnvironment; mov 0x37c(%eax),%eax; …`，无 curSec 槽、+0x37c
+// disp 直读）⇒ gap -22→-17。语义不变（getCurSec 返 int、CheckDailyScheduleTime 第三参
+// 为 long，32 位）。
+// 余 = N78 memset 前端内联展开 + N80 varargs 前置物化 + N82 帧 0x3fc↔0x40c + N107
+// 成员常量取址 add-vs-lea（ORIG-only lea×4 / jbe×1）。
 bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
 {
     const char* userId = reinterpret_cast<const char*>(sig);   // SIG 起始即 user_id
@@ -1990,9 +2034,14 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     strncpy(SGBC(sig, OFF_SSO_LOGINIP), ssoOut.m_loginIp, 0x10); // +0x3a3a（共享头名 m_webAddress，语义错位保留）
     sig->m_dungeonGainedGold = ssoOut.m_dungeonGainGold;        // +0x395c
 
-    long long curSec = GlobalData::s_systemTime_.getCurSec();
-    if (CheckDailyScheduleTime(*reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x37c),
-                               ssoOut.m_lastPlayTime, curSec))
+    // [SweepDBLogin 本轮] P0/P82：ORIG 0x0841xxxx 段为 `call getCurSec; mov %eax,%ebx;
+    // mov -0x22c,%esi; call G_CEnvironment; mov 0x37c(%eax),%eax; …call`（curSec 留
+    // %ebx 跨调用保活、无具名槽；+0x37c disp 直读）。旧 `long long curSec` 具名局部
+    // 触发 64 位符号扩展 `sar $0x1f` + 双槽物化（OURS-only sar/mov×3）。
+    struct EnvFatigueView { char m_pad[0x37c]; int m_fatigueTime; };
+    if (CheckDailyScheduleTime(
+            reinterpret_cast<EnvFatigueView*>(G_CEnvironment())->m_fatigueTime,
+            ssoOut.m_lastPlayTime, GlobalData::s_systemTime_.getCurSec()))
     {
         sig->m_dungeonGainedGold = 0;
     }
@@ -2759,9 +2808,16 @@ bool DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
 // GetMercenarySystemInfo（ORIG T 0x08415618）
 // ============================================================================
 
-// [b28d-solo-DB_Login] verdict=DIFF ndiff=219 gap=-9（N82 帧 0x60↔0x70 + N1 常量
-// 拆分（ORIG `add $0xf0; movzwl 0xa(%eax)` vs 我方 `add $0xe0; ... 0x1a`）+ N115
-// outgoing；p167 CLEAR 27/27）。
+// [SweepDBLogin 本轮] verdict=DIFF gap=-14 ndiff=456（N82 帧 0x60↔0x70 + N1 常量拆分
+// （ORIG `add $0xf0; movzwl 0xa(%eax)` vs 我方 `add $0xe0; ... 0x1a`）+ N115 outgoing；
+// p167 仅 cMyTrace C1/C2 同址别名豁免）。
+// 本轮修法：尾段 `bool ok` 链（`mov %al,-0x9; cmpb $0,-0x9; je` 六段槽物化）改
+// **提前 continue**（`if (!dbBonus->fetch()) continue;` ×5）⇒ 复现 ORIG 的
+// `call; xor $1,%eax; test %al,%al; jne <循环增量>`（ORIG-only xor 6→1、jne 6→1）。
+// 三形并列读数（防回退）：bool ok 链 gap=-9/ndiff=447/xor 缺 6；嵌套正极性 if
+// gap=-4/ndiff=508/xor 缺 6（4.4 对 `if(f())` 恒无 xor 直判）；goto 共享标签串
+// 与 continue 形读数相同（gap=-14/ndiff=456/xor 缺 1）⇒ 取 xor 形匹配的 continue 形，
+// gap 的 -5 差属 4.4 continue 出口实现（N 族）。
 bool DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
 {
     if (sig == 0)
@@ -2868,19 +2924,23 @@ bool DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
             }
             else
             {
-                bool ok = dbBonus->fetch();
-                // ORIG 这两处 get_int 走 _ZN5MySQL7get_intEiRj（unsigned int&，
-                // ORIG 0x80e22ae；m_field28/m_field2c 同为 +0x28/+0x2c 的 4 字节，
-                // 与报告 uint* 视图口径一致）。
-                if (ok) ok = dbBonus->get_int(0, reinterpret_cast<unsigned int&>(sig->m_mercenaries[outIdx].m_field28));
-                if (ok) ok = dbBonus->get_int(1, reinterpret_cast<unsigned int&>(sig->m_mercenaries[outIdx].m_field2c));
-                if (ok) ok = dbBonus->get_byte(2, reinterpret_cast<char&>(sig->m_mercenaries[outIdx].m_field30));
-                if (ok) ok = dbBonus->get_byte(3, reinterpret_cast<char&>(sig->m_mercenaries[outIdx].m_field31));
-                if (ok)
-                {
-                    outIdx += 1;
-                    sig->m_mercenaryCount += 1;
-                }
+                // [SweepDBLogin 本轮] P198/P0/P223②：ORIG 无 ok 具名槽，五步各发
+                // `call; xor $1,%eax; test %al,%al; jne <循环增量>`（= 提前 continue；
+                // 旧 bool ok 链产 `mov %al,-0x9; cmpb $0,-0x9; je` 槽物化，正极性
+                // 嵌套 if 产无 xor 的 `je`，goto 共享标签多 5 条出口跳转）。
+                // get_int 走 _ZN5MySQL7get_intEiRj（unsigned int&，ORIG 0x80e22ae；
+                // m_field28/m_field2c 同为 +0x28/+0x2c 的 4 字节）。
+                if (!dbBonus->fetch()) continue;
+                if (!dbBonus->get_int(0, reinterpret_cast<unsigned int&>(
+                        sig->m_mercenaries[outIdx].m_field28))) continue;
+                if (!dbBonus->get_int(1, reinterpret_cast<unsigned int&>(
+                        sig->m_mercenaries[outIdx].m_field2c))) continue;
+                if (!dbBonus->get_byte(2, reinterpret_cast<char&>(
+                        sig->m_mercenaries[outIdx].m_field30))) continue;
+                if (!dbBonus->get_byte(3, reinterpret_cast<char&>(
+                        sig->m_mercenaries[outIdx].m_field31))) continue;
+                outIdx += 1;
+                sig->m_mercenaryCount += 1;
             }
         }
     }
