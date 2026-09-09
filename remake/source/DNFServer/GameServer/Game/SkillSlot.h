@@ -244,7 +244,8 @@ public:
     int* get_temp_remain_sfp();
     _Mastered_skill* get_temp_skill_slot();
     char IsEmptySkillTree(ENUM_SKILL_TREE_KIND kind) const;
-    char IsLoadStrikerSkill();
+    bool IsLoadStrikerSkill();             // ORIG 0x086086aa 直返 bool 字段 + 调用点
+                                           // `test %al;je` 无 setcc（P292/P248档①）
     void SetLoadStrikerSkill(bool flag);
     void get_skill_slot(char* out1, char* out2, int size) const;
     void get_skill_slot_at_index(char* out, int size,

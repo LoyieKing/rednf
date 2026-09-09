@@ -337,7 +337,7 @@ int SkillSlot::GetSkillTreeIndex() const
     return ((CUserCharacInfo*)m_parent)->GetCurCharacSkillTreeIndex();
 }
 
-char SkillSlot::IsLoadStrikerSkill()
+bool SkillSlot::IsLoadStrikerSkill()
 {
     return m_isLoadStrikerSkill;
 }

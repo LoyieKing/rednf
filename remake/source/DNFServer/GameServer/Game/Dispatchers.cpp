@@ -2689,6 +2689,9 @@ struct SigForbidPlayBody
 //   拆分寻址（53 处，@0x81fa277）· ebx/esi 跨 call 寄存器缓存（@0x81fa235/0x81faaca）
 //   · false-island 聚尾排布（@0x81fc41a..）。struct=549 与上述族一一对应。判 N82+N78 维持。
 //   首差: sub    $0x51c,%esp | movl   $&_ZZN21Dispatcher_GM_Command12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp) | movl   $&_ZZN21Dispatcher
+// [SweepDispatchers 2026-09-09] 独立复核：p167 344/344 仅剩 C1/C2/D1/D2 同址别名（P93）；
+//   多重集差 133/63 全为上述 4.1 码风族（add 链 53 / setle 14 / xor 14 / mov$imm 30）；
+//   无缺失 callee/分支 ⇒ 维持 N82+N78（wave9 三处真修仍在；当前 1975 vs ORIG 2058）。
 int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user == 0)
@@ -4065,6 +4068,10 @@ Dispatcher_UpgradeItem::~Dispatcher_UpgradeItem() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x082006d0 orig/ours=258/226 ndiff-blocks=24
 //   帧差 sub $150 vs $d8 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %ebx | sub    $0x150,%esp
+// [SweepDispatchers 2026-09-09] 真缺口修复：ORIG 0x0820082c 调 get_int(unsigned long&)（Rm）
+//   而旧码对 unsigned int 字段选 Rj ⇒ p167 MISSING 1；调用点改
+//   reinterpret_cast<unsigned long&>(req.m_targetItemIdx) 后 CLEAR（残余仅 C1/C2 同址别名
+//   P93 + 我方多 1 次 memset：ctor 内已 memset(m_28,0,0x81)，此处为重复清零，待属主裁量）。
 int Dispatcher_UpgradeItem::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user == 0 || user->CheckInTrade())
@@ -4099,7 +4106,8 @@ int Dispatcher_UpgradeItem::dispatch_sig(CUser* user, PacketBuf& packet)
             __PRETTY_FUNCTION__,
             0, 0);
     }
-    if (!packet.get_int(req.m_targetItemIdx))  // +0x1d dword
+    // ORIG 0x0820082c 调 get_int(unsigned long&)（Rm）：按 ORIG 字段宽度取重载。
+    if (!packet.get_int(reinterpret_cast<unsigned long&>(req.m_targetItemIdx)))  // +0x1d dword
     {
         return LineFunc(
             0x9534,
@@ -6797,6 +6805,14 @@ Dispatcher_SelectStriker::~Dispatcher_SelectStriker() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e4066 orig/ours=180/150 ndiff-blocks=24
 //   帧差 sub $3c vs $34 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %esi | sub    $0x3c,%esp
+// [SweepDispatchers 2026-09-09] **真语义 bug 修复**（149→180 = ORIG 180，p167 18/18 CLEAR）：
+//   ① m_field29 是 4 位有符号位域：ORIG 0x081e4262 `movzbl 0x29; shl $4; sar $4,%al; movsbl`
+//      旧码 `(short)(char)((raw<<4)>>4)` 用有符号 char 往返恒等于 raw（0x1F 应得 -1，旧得 31）
+//      ⇒ 改 `(short)((signed char)((unsigned char)m_field29 << 4) >> 4)`；
+//   ② 删 characNo/entry 引用/script 具名缓存（P183）：ORIG 7 次独立 vector::operator[]；
+//   ③ 循环/比较改 int idx + `(int)monsterCount > i` 形；IsLoadStrikerSkill 返回 char→bool
+//      （ORIG 0x086086aa 直返 bool 字段 + 调用点 0x081e4209 `xor $1;test;je` 无 setcc，
+//      SkillSlot.h/.cpp 同步，mangled/布局不变，Main 已批准）。
 int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
 {
     const MSG_SELECT_STRIKER& m = reinterpret_cast<const MSG_SELECT_STRIKER&>(msg);
@@ -6812,14 +6828,15 @@ int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
     {
         return 0x7fffffff;
     }
-    unsigned int characNo = user->get_charac_no(-1);
-    int idx = user->get_charac_idx(characNo);
+    // ORIG 0x081e40d0/0x081e40df：get_charac_no 结果直接进实参槽（无具名局部，P0）。
+    int idx = user->get_charac_idx(user->get_charac_no(-1));
     if (idx == -1)
     {
         return 0x39;
     }
-    char sel = (char)m.m_0d;   // movsbl
-    if (sel == idx)
+    // ORIG 0x081e40f7..0x081e428c：sel 每次从 msg+0xd 重读（P183 去缓存），
+    // m_characList[sel] 每次重发 vector::operator[]（共 7 次）。
+    if ((char)m.m_0d == idx)
     {
         user->setCurCharacTagCharacNo(0);
         user->setCurCharacStrikerSkillIndex(0);
@@ -6827,29 +6844,33 @@ int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
         user->setTagCharac(0);
         return 0x7fffffff;
     }
-    if (sel < 0 || (char)user->m_characList.size() <= sel)
+    if ((char)m.m_0d < 0 || (char)user->m_characList.size() <= (char)m.m_0d)
     {
         return 0x39;
     }
-    _Charac_info& entry = user->m_characList[sel];              // vector<_Charac_info>::operator[]
-    short level = entry.m_level;                                // +0x27
+    short level = user->m_characList[(char)m.m_0d].m_level;     // +0x27
     if (level < G_CDataManager()->m_characLink.m_field0)        // +0x629c
     {
         return 0xe;
     }
-    if (!reinterpret_cast<SkillSlot*>(reinterpret_cast<CharacInfoFields*>(&entry)->m_skill)
+    if (!reinterpret_cast<SkillSlot*>(reinterpret_cast<CharacInfoFields*>(
+             &user->m_characList[(char)m.m_0d])->m_skill)
              ->IsLoadStrikerSkill())                                        // +0x892
     {
         return 0x13;
     }
-    char firstGrow = entry.m_field26;                           // +0x26（movsbl）
-    char secondGrowRaw = entry.m_field29;                       // +0x29
-    short secondGrow = (short)(char)((secondGrowRaw << 4) >> 4);
-    unsigned char deadField1239 = entry.m_field1239;            // +0x1239（ORIG 读取后未使用）
+    char firstGrow = user->m_characList[(char)m.m_0d].m_field26;   // +0x26（movsbl）
+    // ORIG 0x081e4262 `movzbl 0x29; shl $4; sar $4,%al; movsbl` = 4 位有符号位域提取
+    // （低 4 位符号扩展）；旧写法 (char)raw 直接往返会丢符号（真语义 bug）。
+    short secondGrow = (short)((signed char)(
+        (unsigned char)user->m_characList[(char)m.m_0d].m_field29 << 4) >> 4);
+    unsigned char deadField1239 =
+        user->m_characList[(char)m.m_0d].m_field1239;           // +0x1239（ORIG 读取后未使用）
     (void)deadField1239;
     unsigned char skillIdx = m.m_0e;
-    StrikerScript* script = G_CDataManager()->m_altarConfig.m_strikerScript;   // +0x6390
-    if (!script->checkSkillIndex(firstGrow, secondGrow, (int)skillIdx))
+    // ORIG 0x081e42b4 直接内联 G_CDataManager()->m_altarConfig.m_strikerScript（无局部槽）。
+    if (!G_CDataManager()->m_altarConfig.m_strikerScript->checkSkillIndex(
+            firstGrow, secondGrow, (int)skillIdx))
     {
         return 0x15;
     }
@@ -8176,14 +8197,17 @@ Dispatcher_RemovePvPBuddy::~Dispatcher_RemovePvPBuddy() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08224c5e orig/ours=117/92 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x36(%ebp),%eax | mov    $0x1e,%ebx | mov    $0x0,%edx
+// [SweepDispatchers 2026-09-09] 形态收敛（92→117 = ORIG 117）：ORIG 0x08224c85 name 清零为
+//   4.1 内联对齐剥离慢路（旧码 memset call，p167 多重集缺 25 条）⇒ 改 `char name[0x1e]={0}`
+//   并把 name 声明提到 type/nameLen 之前（ORIG 清零点 0x027 先于 0x079/0x07d）。
 int Dispatcher_RemovePvPBuddy::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
         return 0;
+    // ORIG 0x08224c85：name 清零（-0x36，4.1 内联慢路）先于 type/nameLen 初始化。
+    char name[0x1e] = {0};                           // -0x36（ORIG 清零 0x1e 字节）
     char type = 0;                                   // -0x37
     int nameLen = 0;                                 // -0x3c
-    char name[0x1e];                                 // -0x36（ORIG 清零 0x1e 字节）
-    memset(name, 0, sizeof(name));
     if (!packet.get_byte(type))
         return LineFunc(0xdf6a, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(nameLen))
@@ -8509,6 +8533,9 @@ Dispatcher_CompleteDisplay::~Dispatcher_CompleteDisplay() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x08202cda orig/ours=430/395 ndiff-blocks=64
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 7 个，4.4 libstdc++ 全内联不可复现
 //   首差: push   %edi | sub    $0xbc,%esp | jne    08202d0c <+0x32>
+// [SweepDispatchers 2026-09-09] 重载选型真缺口修复：dollSlot 读取 ORIG 0x0820324c 调
+//   get_short(unsigned short&)（Rt），旧码 `(short&)dollSlot` 误选 Rs ⇒ p167 MISSING/EXTRA
+//   各 1；字段本型直传后该对清零（残余为 N89 STL 内联族 + C1/C2 别名）。
 int Dispatcher_CompleteDisplay::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x08202cda（docs/class_func_reports/Dispatcher_CompleteDisplay/dispatch_sig.md）
@@ -8624,8 +8651,8 @@ int Dispatcher_CompleteDisplay::dispatch_sig(CUser* user, PacketBuf& packet)
         }
     }
 
-    // +0x565：读 dollSlot
-    if (!packet.get_short((short&)dollSlot))
+    // +0x565：读 dollSlot（ORIG 0x0820324c 调 get_short(unsigned short&)，字段本型直传）
+    if (!packet.get_short(dollSlot))
         return LineFunc(0x99e9,
                         __PRETTY_FUNCTION__,
                         0, 0);
@@ -8774,6 +8801,9 @@ Dispatcher_DieBloodMonster::~Dispatcher_DieBloodMonster() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08220856 orig/ours=134/110 ndiff-blocks=16
 //   帧差 sub $220 vs $238 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %ebx | sub    $0x220,%esp
+// [SweepDispatchers 2026-09-09] 形态收敛（110→137，ORIG 134；多重集差仅 1 movswl）：
+//   ① monsterIdx[256] 改 `= {0}` 复现 ORIG 0x082208d1 内联慢路（旧码 memset call，缺 24 条）；
+//   ② 循环条件改 `(int)monsterCount > i`：ORIG 0x082209b6 `movzbl; movzbl %al; cmp i; setg`。
 int Dispatcher_DieBloodMonster::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user == 0)
@@ -8785,13 +8815,14 @@ int Dispatcher_DieBloodMonster::dispatch_sig(CUser* user, PacketBuf& packet)
         return LineFunc(0xda4c, __PRETTY_FUNCTION__, 0, 0);
     }
     unsigned char monsterCount = 0;
-    unsigned short monsterIdx[256];   // ORIG memset 0x200
-    memset(monsterIdx, 0, 0x200);
+    // ORIG 0x082208d1：monsterIdx 0x200 字节为 4.1 内联对齐剥离慢路（非 memset call）。
+    unsigned short monsterIdx[256] = {0};   // ORIG -0x212
     if (!packet.get_byte(monsterCount))
     {
         return LineFunc(0xda51, __PRETTY_FUNCTION__, 0, 0);
     }
-    for (int i = 0; i < (int)(unsigned int)monsterCount; i++)
+    // ORIG 0x082209b6：`movzbl count; movzbl %al,%eax; cmp i,%eax; setg`（有符号比较）。
+    for (int i = 0; (int)monsterCount > i; i++)
     {
         if (!packet.get_short(monsterIdx[i]))
         {
@@ -9215,6 +9246,9 @@ Dispatcher_QueryCharacInfo::~Dispatcher_QueryCharacInfo() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08205f68 orig/ours=120/90 ndiff-blocks=10
 //   帧差 sub $40 vs $48 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | push   %ebx | sub    $0x40,%esp
+// [SweepDispatchers 2026-09-09] 形态收敛（90→120 = ORIG 120；p167 12/12 CLEAR）：
+//   ORIG 0x08205fc8 先 `len=0` 再 0x08205fcf name 清零（4.1 内联对齐剥离慢路）；
+//   旧码 memset call + 顺序颠倒。改 `int len = 0; char name[0x1e] = {0};` 后指令数全等。
 int Dispatcher_QueryCharacInfo::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user->get_state() <= 2 || user->getCurCharacR() == 0)
@@ -9223,9 +9257,10 @@ int Dispatcher_QueryCharacInfo::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    char name[0x1e];                                       // -0x2a
-    memset(name, 0, sizeof(name));
+    // ORIG 0x08205fc8/0x08205fcf：先 len=0（-0xc）再 name 清零（-0x2a，4.1 内联
+    // 对齐剥离慢路；4.4 以 = {0} 表达，形态差归 N78）。
     int len = 0;                                           // -0xc
+    char name[0x1e] = {0};                                 // -0x2a
     if (!packet.get_int(len))
     {
         return LineFunc(0x9f65,
@@ -12189,13 +12224,16 @@ Dispatcher_SecurityCardIssue::~Dispatcher_SecurityCardIssue() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08209c8c orig/ours=291/251 ndiff-blocks=29
 //   帧差 sub $18c vs $180 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x18c,%esp | movl   $&_ZZN28Dispatcher_SecurityCardIssue12dispatch_sigEP5CUserR9PacketBufE19__PRETTY_FUNCTION__,0x4(%esp)
+// [SweepDispatchers 2026-09-09] 形态收敛（251→290 = ORIG 291；p167 仅 C1/C2 别名）：
+//   ① certKey 前 6 字节 ORIG 0x08209f7d 为 `movl $0 + movw $0` 两写（P202①），旧码 memset call；
+//   ② phone 缓冲 0xc 字节 ORIG 0x08209cdf/e6/ed 为三个 movl（4.1 内联），旧码 memset call；
+//   ③ serverKey[0x21]/cardData[0x27] 改块内 `= {0}` 复现 ORIG 0x08209f8a/0x08209fe2 慢路
+//      （旧码两处 memset call ⇒ p167 EXTRA memset）。
 int Dispatcher_SecurityCardIssue::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x08209c8c（docs/class_func_reports/Dispatcher_SecurityCardIssue/dispatch_sig.md）
     CSHA1 sha1;                               // local_168 -0x164
     char sha1Hex[0x29];                       // local_a3 -0x9f
-    char cardData[0x27];                      // local_7a -0x76
-    char serverKey[0x21];                     // local_53/local_52 -0x4f
     char certKeyPhone[0x12];                  // local_32 -0x2e：[0..5]=certKey、[6..]=phone(0xc)
     unsigned int phoneLen = 0;                // local_20 -0x1c
     bool fail;                                // bVar11
@@ -12208,7 +12246,11 @@ int Dispatcher_SecurityCardIssue::dispatch_sig(CUser* user, PacketBuf& packet)
 
     // +0x4c：清零局部
     phoneLen = 0;
-    memset(certKeyPhone + 6, 0, 0xc);         // local_32[6..0x11]
+    // ORIG 0x08209cdf/0x08209ce6/0x08209ced：phone 缓冲 0xc 字节为三个 movl
+    // （4.1 内联展开，非 memset call）。
+    *reinterpret_cast<int*>(certKeyPhone + 6) = 0;
+    *reinterpret_cast<int*>(certKeyPhone + 10) = 0;
+    *reinterpret_cast<int*>(certKeyPhone + 14) = 0;
 
     // +0x6f：读 phone 长度
     if (!packet.get_int((unsigned int&)phoneLen))
@@ -12260,10 +12302,12 @@ int Dispatcher_SecurityCardIssue::dispatch_sig(CUser* user, PacketBuf& packet)
         }
     }
 
-    // +0x391：清零 certKey（前 6 字节）/serverKey/cardData 缓冲（ORIG 展开清零）
-    memset(certKeyPhone, 0, 6);
-    memset(serverKey, 0, 0x21);
-    memset(cardData, 0, 0x27);
+    // +0x2f1：ORIG 对 certKey 前 6 字节发 movl+movw 两写（P202①），
+    // serverKey/cardData 为 4.1 内联对齐剥离慢路（ORIG 0x08209f8a / 0x08209fe2）。
+    *reinterpret_cast<int*>(certKeyPhone) = 0;
+    *reinterpret_cast<short*>(certKeyPhone + 4) = 0;
+    char serverKey[0x21] = {0};               // local_53/local_52 -0x4f
+    char cardData[0x27] = {0};                // local_7a -0x76
     // +0x39d：生成卡数据/服务器密钥/证书密钥
     char* pCardData = GlobalData::s_securityCardCenter->generateCardData(cardData);
     char* pServerKey = GlobalData::s_securityCardCenter->generateServerKey(serverKey);
@@ -13640,14 +13684,16 @@ Dispatcher_RequestAddPvPBuddy::~Dispatcher_RequestAddPvPBuddy() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x0822490a orig/ours=117/92 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x36(%ebp),%eax | mov    $0x1e,%ebx | mov    $0x0,%edx
+// [SweepDispatchers 2026-09-09] 同 RemovePvPBuddy：name 清零改 `char name[0x1e]={0}`（ORIG
+//   0x08224928 内联慢路）并前置于 type/nameLen；92→117 = ORIG 117。
 int Dispatcher_RequestAddPvPBuddy::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
         return 0;
+    // ORIG 0x08224928：name 清零（-0x36，4.1 内联慢路）先于 type/nameLen 初始化。
+    char name[0x1e] = {0};                           // -0x36（ORIG 清零 0x1e 字节）
     char type = 0;                                   // -0x37
     int nameLen = 0;                                 // -0x3c
-    char name[0x1e];                                 // -0x36（ORIG 清零 0x1e 字节）
-    memset(name, 0, sizeof(name));
     if (!packet.get_byte(type))
         return LineFunc(0xdf3c, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(nameLen))
@@ -15059,14 +15105,16 @@ Dispatcher_ResponseAddPvPBuddy::~Dispatcher_ResponseAddPvPBuddy() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N-P112] ORIG 0x08224ab4 orig/ours=117/92 ndiff-blocks=10
 //   残余为跨版本寄存器分配/栈槽序差（P75/P112 结构性），语义已对齐
 //   首差: lea    -0x36(%ebp),%eax | mov    $0x1e,%ebx | mov    $0x0,%edx
+// [SweepDispatchers 2026-09-09] 同 RemovePvPBuddy：name 清零改 `char name[0x1e]={0}`（ORIG
+//   0x08224ad2 内联慢路）并前置于 type/nameLen；92→117 = ORIG 117。
 int Dispatcher_ResponseAddPvPBuddy::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
         return 0;
+    // ORIG 0x08224ad2：name 清零（-0x36，4.1 内联慢路）先于 type/nameLen 初始化。
+    char name[0x1e] = {0};                           // -0x36（ORIG 清零 0x1e 字节）
     char type = 0;                                   // -0x37
     int nameLen = 0;                                 // -0x3c
-    char name[0x1e];                                 // -0x36（ORIG 清零 0x1e 字节）
-    memset(name, 0, sizeof(name));
     if (!packet.get_byte(type))
         return LineFunc(0xdf53, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(nameLen))
@@ -15534,35 +15582,52 @@ int Dispatcher_UpgradeItemSeparate::process(CUser* user, MSG_BASE& msg, ParamBas
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081cbf24 orig/ours=124/86 ndiff-blocks=13
 //   帧差 sub $a0 vs $28 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | push   %ebx | sub    $0xa0,%esp
+// [SweepDispatchers 2026-09-09] 真缺口修复（86→124 = ORIG 124，p167 10/10 CLEAR）：
+//   ① ORIG 0x081cbf84 调 get_int(unsigned long&)（Rm）——旧码传 unsigned int 字段选 Rj
+//      致 MISSING 1；调用点 reinterpret_cast<unsigned long&> 取回同址传参；
+//   ② ORIG 0x081cbffe/0x081cc00c：-0xc=0x80（dead）、-0x91..-0x11 的 0x81 字节 dead 缓冲
+//      （对齐剥离 rep stos 慢路）缺失 ⇒ 补 dummyLen/deadBuf；
+//   ③ 删 msg 引用别名（P0）：ORIG 每次从 0x10(%ebp) 重读。
 int Dispatcher_UpgradeItemSeparate::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    MSG_ITEM_UPGRADE& base = reinterpret_cast<MSG_ITEM_UPGRADE&>(msg);
-    if (!packet.get_short(base.m_targetSlot))
+    // ORIG 0x081cbf2f/0x081cbf74/0x081cbfb9：每次从 0x10(%ebp) 重读 msg（无引用槽，P0）。
+    if (!packet.get_short(reinterpret_cast<MSG_ITEM_UPGRADE&>(msg).m_targetSlot))
     {
         return LineFunc(0x228e,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_int(base.m_targetItemIdx))
+    // ORIG 0x081cbf84 调 get_int(unsigned long&)（msg+0x1d 直接传址）：字段按 ORIG
+    // 声明宽度取 Rm 重载（32 位下与 unsigned int 同宽同布局，mangled 为准 P110）。
+    if (!packet.get_int(
+            reinterpret_cast<unsigned long&>(
+                reinterpret_cast<MSG_ITEM_UPGRADE&>(msg).m_targetItemIdx)))
     {
         return LineFunc(0x2290,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(base.m_materialSlot))
+    if (!packet.get_short(reinterpret_cast<MSG_ITEM_UPGRADE&>(msg).m_materialSlot))
     {
         return LineFunc(0x2292,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    unsigned int strLen = 0;
+    // ORIG 0x081cbffe/0x081cc005/0x081cc00c：-0xc=0x80（dead）、-0x10=strLen、
+    // -0x91..-0x11 的 0x81 字节 dead 缓冲（对齐剥离 rep stos 慢路，P312/P232）。
+    int dummyLen = 0x80;                    // ORIG -0xc（dead）
+    unsigned int strLen = 0;                // ORIG -0x10
+    char deadBuf[0x81] = {0};               // ORIG -0x91..-0x11（dead，复现清零慢路）
+    (void)dummyLen;
+    (void)deadBuf;
     if (!packet.get_int(strLen))
     {
         return LineFunc(0x229a,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_str(base.m_28, 0x81, static_cast<int>(strLen)))
+    if (!packet.get_str(reinterpret_cast<MSG_ITEM_UPGRADE&>(msg).m_28, 0x81,
+                        static_cast<int>(strLen)))
     {
         return LineFunc(0x229d,
                         __PRETTY_FUNCTION__,
@@ -16308,6 +16373,11 @@ Dispatcher_GatheringPartyStatus::~Dispatcher_GatheringPartyStatus() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08203878 orig/ours=532/490 ndiff-blocks=83
 //   帧差 sub $1f0 vs $200 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x1f0,%esp | lea    -0x1d0(%ebp),%eax | lea    -0x1d0(%ebp),%eax
+// [SweepDispatchers 2026-09-09] 真缺口修复（490→533 = ORIG 531；p167 仅 C1/C2 别名）：
+//   ① 两循环计数改 int + `(int)recv.m_xxxNum > i`：ORIG 0x08203f80/0x08203f84 为
+//      `addl $1,-0xc; movzwl num; movzwl %ax,%eax; cmp i,%eax; setg`（32 位计数器 + 有符号比较），
+//      旧码 unsigned short 计数致 `addw`+`cmp %ax`+`seta`（P196 符号性族）；
+//   ② 删 m_tryEntries/m_partyEntries 引用缓存（P183）：ORIG 每字段重发 i*10 / i*13 地址链。
 int Dispatcher_GatheringPartyStatus::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // §6.2 语义完成：P167 调用点差集双零（59/59）；orig531/our490，gap-41 为
@@ -16395,22 +16465,22 @@ int Dispatcher_GatheringPartyStatus::dispatch_sig(CUser* user, PacketBuf& packet
                         0, 0);
     }
 
-    for (unsigned short i = 0; (unsigned int)i < (unsigned int)recv.m_tryNum; ++i)
+    for (int i = 0; (int)recv.m_tryNum > i; ++i)
     {
-        RecvTryEntry& e = recv.m_tryEntries[i];
-        if (!packet.get_byte(e.m_a))                       // ORIG 0x9b09
+        // ORIG 0x08203f80 段：每次字段访问重发 imul/lea 地址链（P183 禁引用缓存）。
+        if (!packet.get_byte(recv.m_tryEntries[i].m_a))    // ORIG 0x9b09
             return LineFunc(0x9b09,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_byte(e.m_b))                       // ORIG 0x9b0a
+        if (!packet.get_byte(recv.m_tryEntries[i].m_b))    // ORIG 0x9b0a
             return LineFunc(0x9b0a,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_binary((char*)e.m_bin, 4))         // ORIG 0x9b0b
+        if (!packet.get_binary((char*)recv.m_tryEntries[i].m_bin, 4))  // ORIG 0x9b0b
             return LineFunc(0x9b0b,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_int(e.m_val))                      // ORIG 0x9b0c
+        if (!packet.get_int(recv.m_tryEntries[i].m_val))   // ORIG 0x9b0c
             return LineFunc(0x9b0c,
                             __PRETTY_FUNCTION__,
                             0, 0);
@@ -16450,22 +16520,21 @@ int Dispatcher_GatheringPartyStatus::dispatch_sig(CUser* user, PacketBuf& packet
         }
     }
 
-    for (unsigned short i = 0; (unsigned int)i < (unsigned int)recv.m_partyNum; ++i)
+    for (int i = 0; (int)recv.m_partyNum > i; ++i)
     {
-        RecvPartyEntry& p = recv.m_partyEntries[i];
-        if (!packet.get_byte(p.m_flag))                    // ORIG 0x9b2e
+        if (!packet.get_byte(recv.m_partyEntries[i].m_flag))   // ORIG 0x9b2e
             return LineFunc(0x9b2e,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_int(p.m_accId))                    // ORIG 0x9b36
+        if (!packet.get_int(recv.m_partyEntries[i].m_accId))   // ORIG 0x9b36
             return LineFunc(0x9b36,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_int(p.m_id2))                      // ORIG 0x9b3e
+        if (!packet.get_int(recv.m_partyEntries[i].m_id2))     // ORIG 0x9b3e
             return LineFunc(0x9b3e,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_binary((char*)p.m_tag, 4))         // ORIG 0x9b47
+        if (!packet.get_binary((char*)recv.m_partyEntries[i].m_tag, 4))   // ORIG 0x9b47
             return LineFunc(0x9b47,
                             __PRETTY_FUNCTION__,
                             0, 0);
@@ -18904,21 +18973,24 @@ Dispatcher_QueryCharacInfoMailbox::~Dispatcher_QueryCharacInfoMailbox() {}
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x08226bda orig/ours=123/93 ndiff-blocks=10
 //   帧差 sub $40 vs $48 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %esi | push   %ebx | sub    $0x40,%esp
+// [SweepDispatchers 2026-09-09] 真缺口修复（93→123 = ORIG 123；p167 13/13 CLEAR）：
+//   ① ORIG 0x08226d36 只调一次 trim 且其返回值直接作 strncmp 第 1 参
+//      （`call trim; mov %eax,(%esp)`）——旧码 `trim(name); strncmp(name,…)` 双求值；
+//   ② nameLen=0 先于 name 清零（ORIG 0x08226c3a/0x08226c41）+ name 改 `= {0}`。
 int Dispatcher_QueryCharacInfoMailbox::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     if (user->get_state() < 3 || user->getCurCharacR() == 0)
         return LineFunc(0xe289, __PRETTY_FUNCTION__, 0, 0);
+    // ORIG 0x08226c3a/0x08226c41：先 nameLen=0（-0xc）再 name 清零（-0x2a）。
     int nameLen = 0;                                 // -0xc
-    char name[0x1e];                                 // -0x2a（ORIG 清零 0x1e 字节）
-    memset(name, 0, sizeof(name));
+    char name[0x1e] = {0};                           // -0x2a（ORIG 内联慢路，N78）
     if (!packet.get_int(nameLen))
         return LineFunc(0xe28e, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_str(name, 0x1e, nameLen))
         return LineFunc(0xe28f, __PRETTY_FUNCTION__, 0, 0);
-    // ORIG：trim(name) 后与当前角色名 strncmp(name, cur, 0x1d)；相同则错误 7。
-    // ORIG：trim(char*) 为 void 就地修剪（_Z4trimPc），随后 strncmp(name, cur, 0x1d)；相同则错误 7。
-    trim(name);
-    if (strncmp(name, user->getCurCharacName(), 0x1d) == 0)
+    // ORIG 0x08226d29/0x08226d36/0x08226d47：trim 只调一次且返回值直接作 strncmp 第 1 参
+    // （trim 返回 char*，ORIG `call trim; mov %eax,(%esp)`）；curName 先入 %ebx（右→左实参序）。
+    if (strncmp(trim(name), user->getCurCharacName(), 0x1d) == 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x145, 7);
         return 0;
@@ -18967,6 +19039,12 @@ int Dispatcher_RequestCharacSkillInfo::check_error(CUser* user, MSG_BASE& msg)
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e39e0 orig/ours=150/119 ndiff-blocks=26
 //   帧差 sub $30 vs $40 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x30,%esp | mov    0x14(%ebp),%eax | mov    %eax,-0x18(%ebp)
+// [SweepDispatchers 2026-09-09] 真缺口修复（119→142，ORIG 149；p167 仅剩 C1/C2 同址别名）：
+//   ① ORIG 4 次独立 vector<_Charac_info>::operator[]（0x081e3a78/aa8/ade/ba9）——旧码用
+//      info/skillSlot 引用缓存只调 1 次 ⇒ 删缓存改表达式直读（P183）；
+//   ② ORIG 先调 CStreamGuard::operator*()（0x081e3b3a/0x081e3b62）再 operator<<、operator->()
+//      （0x081e3b79）再 GetInBuffer（P132/P103）；旧码直调 guard<< 缺 de/pt 共 3 个 call；
+//   ③ 保留 ORIG -0xc 的 kind 具名槽（P0）；正极性 if/else（P59/P214①）。
 int Dispatcher_RequestCharacSkillInfo::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     MSG_REQUEST_CHARAC_SKILL_INFO& mref = reinterpret_cast<MSG_REQUEST_CHARAC_SKILL_INFO&>(msg);  // 裸偏移→具名字段（同偏移同宽度）
@@ -18982,24 +19060,37 @@ int Dispatcher_RequestCharacSkillInfo::process(CUser* user, MSG_BASE& msg, Param
                         __PRETTY_FUNCTION__,
                         err, 0);
     }
-    int characIdx = (int)(char)mref.m_0d;
-    _Charac_info& info = user->m_characList[characIdx];
-    SkillSlot* skillSlot = reinterpret_cast<SkillSlot*>(
-        reinterpret_cast<CharacInfoFields*>(&info)->m_skill);             // +0x892
-    if (!skillSlot->IsLoadStrikerSkill())
+    // ORIG 0x081e3a78/0x081e3aa8/0x081e3ade/0x081e3ba9：四次独立 vector::operator[]
+    // （P183 去引用缓存；characIdx 每次从 msg+0xd 重读，P0 表达式直读）。
+    // 正极性 if/else（P59/P214①）：ORIG 0x081e3a8a `test %al,%al; je <else>`。
+    if (reinterpret_cast<SkillSlot*>(
+            reinterpret_cast<CharacInfoFields*>(
+                &user->m_characList[(int)(char)mref.m_0d])->m_skill)
+            ->IsLoadStrikerSkill())
     {
-        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x5b40),
-                           true);
-        guard << 0x2fd;
-        guard << (int)user->GetUID();
-        SIG_REQUEST_CHARAC_SKILL_INFO* req = guard.GetInBuffer<SIG_REQUEST_CHARAC_SKILL_INFO>();
-        *(int*)req = info.m_characNo;
-        GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
+        // ORIG 0x081e3a8e..0x081e3af7：实参序 kind(call#2)→characIdx→receiver(call#3)；
+        // ORIG -0xc 为 kind 具名局部槽（P0 槽往返）。
+        int skillTreeKind = (int)(char)
+            user->m_characList[(int)(char)mref.m_0d].m_field1239;
+        reinterpret_cast<SkillSlot*>(
+            reinterpret_cast<CharacInfoFields*>(
+                &user->m_characList[(int)(char)mref.m_0d])->m_skill)
+            ->SendSkillInfo((int)(char)mref.m_0d,
+                            (ENUM_SKILL_TREE_KIND)skillTreeKind);
     }
     else
     {
-        int skillTreeKind = (int)(char)info.m_field1239;
-        skillSlot->SendSkillInfo(characIdx, (ENUM_SKILL_TREE_KIND)skillTreeKind);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x5b40),
+                           true);
+        // ORIG 0x081e3b3a/0x081e3b62 先调 CStreamGuard::operator*()（P132），
+        // 0x081e3b79 调 operator->() 取 GetInBuffer（P103）。
+        (*guard)->operator<<(0x2fd);
+        (*guard)->operator<<((int)user->GetUID());
+        SIG_REQUEST_CHARAC_SKILL_INFO* req =
+            guard->GetInBuffer<SIG_REQUEST_CHARAC_SKILL_INFO>();
+        // ORIG 0x081e3ba9 第 4 次 operator[] 后读 +0x00（m_characNo）。
+        *(int*)req = (int)user->m_characList[(int)(char)mref.m_0d].m_characNo;
+        GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     }
     return 0;
 }
@@ -22059,15 +22150,19 @@ Dispatcher_SDC_ActiveStatus_Damage_Check::~Dispatcher_SDC_ActiveStatus_Damage_Ch
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081ea16e orig/ours=309/262 ndiff-blocks=42
 //   帧差 sub $47c vs $470 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: push   %edi | sub    $0x47c,%esp | movb   $0x0,-0x55(%ebp)
+// [SweepDispatchers 2026-09-09] 真语义修复 + 形态收敛（262→269，ORIG 308；p167 双零）：
+//   ① **删循环内 `destLen = 500;`**——ORIG 0x081ea373 段无重置（uncompress 后 destLen 保持
+//      上次实际长度），旧码每轮重置改变第二次解压行为（真语义差）；
+//   ② 补 ORIG -0x3c/-0x38 两个 dead 500 初始化与 srcLen(-0x34) 具名槽；
+//   ③ 两缓冲改块内 `char src[500]={0}`（ORIG 为 4.1 内联对齐剥离慢路，我方 4.4 发简单
+//      rep stos；P312 pad 试形未把数组顶到非 4 对齐槽 ⇒ 余 39 条按 N78 封顶）。
 int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBuf& packet)
 {
     // ORIG 0x081ea16e（docs/class_func_reports/Dispatcher_SDC_ActiveStatus_Damage_Check/dispatch_sig.md）
     unsigned char count = 0;                  // local_59 -0x55
-    char src[500];                            // local_261 区 -0x25d（压缩数据）
-    char dest[500];                           // local_455 区 -0x451（解压数据）
-    char* data = dest;                        // local_44/48
-    int srcLen;                               // local_38 -0x34
-    unsigned long destLen = 500;              // local_5c -0x5c
+    char* data;                               // local_44/48
+    unsigned long destLen;                    // local_5c -0x5c
+    unsigned long srcLen;                     // local_34 -0x34
     int uncompreRet;                          // local_30 -0x30
     int clientDamage;                         // local_2c -0x2c
     int clientDuration;                       // local_28 -0x28
@@ -22078,7 +22173,7 @@ int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBu
     int adjDamage;                            // local_1c -0x1c
     CParty* party;                            // local_20 -0x20
 
-    (void)srcLen; (void)uncompreRet;
+    (void)uncompreRet;
 
     // +0x0c：读条目数
     if (!packet.get_byte(count))
@@ -22086,9 +22181,22 @@ int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBu
                         __PRETTY_FUNCTION__,
                         0, 0);
 
-    // +0x59：4 个 500 上限初始化（ORIG 局部槽位）；两缓冲清零
-    memset(src, 0, 500);
-    memset(dest, 0, 500);
+    // +0x59：ORIG 四个 500 上限初始化（-0x3c/-0x38 为 dead，-0x5c=destLen、
+    // -0x34=srcLen），随后两缓冲内联 rep stos 慢路清零（P214③/P312）。
+    int deadLen1 = 500;                       // ORIG -0x3c（dead）
+    int deadLen2 = 500;                       // ORIG -0x38（dead）
+    destLen = 500;                            // ORIG -0x5c
+    srcLen = 500;                             // ORIG -0x34
+    // P312：前置 1 字节死局部把大数组顶到非 4 对齐槽（ORIG src@-0x25d/dest@-0x451
+    // 均为非 4 对齐 ⇒ 4.1 发对齐剥离慢路）。
+    char alignPad1 = 0;
+    char src[500] = {0};                      // ORIG -0x25d（压缩数据）
+    char alignPad2 = 0;
+    char dest[500] = {0};                     // ORIG -0x451（解压数据）
+    (void)deadLen1;
+    (void)deadLen2;
+    (void)alignPad1;
+    (void)alignPad2;
     data = dest;
 
     // +0x134：逐条目（byte 计数，setb 无符号比较）
@@ -22110,10 +22218,10 @@ int Dispatcher_SDC_ActiveStatus_Damage_Check::dispatch_sig(CUser* user, PacketBu
             return LineFunc(0x6b50,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        // +0x205：zlib 解压
-        destLen = 500;
+        // +0x205：zlib 解压（ORIG 循环内**不**重置 destLen）
+        srcLen = (unsigned long)compressedSize;    // ORIG 0x081ea376
         ret = uncompress((unsigned char*)dest, &destLen,
-                         (unsigned char*)src, (unsigned long)compressedSize);
+                         (unsigned char*)src, srcLen);
         if (ret != 0)
             return LineFunc(0x6b59,
                             __PRETTY_FUNCTION__,
