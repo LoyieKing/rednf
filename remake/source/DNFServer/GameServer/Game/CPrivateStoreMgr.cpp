@@ -86,7 +86,7 @@ CPrivateStoreMgr* GetInstancePrivateStoreMgr()
 // ---- COperator<int>::Product 特化（ORIG W _ZN13private_store9COperatorIiE7ProductEiiRi @0x85cd22a）----
 // 重复加法乘法：out 累加 a 共 b 次，任一步非正即失败返回 0。须先于首次隐式实例化。
 template <>
-bool COperator<int>::Product(int a, int b, int& out)
+__attribute__((weak)) bool COperator<int>::Product(int a, int b, int& out)
 {
     out = 0;
     for (int i = 0; i < b; ++i)
@@ -223,7 +223,7 @@ bool CPrivateStorePos::put_object_info(PacketGuard& p)
 
 // ORIG W 0x85cb85c：对双方 +0x04 处的 Rectangle 做 include 判定
 // （村庄对象矩形统一位于 IObject 头之后，与 ORIG lea 0x4(%eax) 一致）。
-bool CPrivateStorePos::include(village_object::IObject const& obj) const
+__attribute__((weak)) bool CPrivateStorePos::include(village_object::IObject const& obj) const
 {
     // ORIG：无具名中间量（不 spill），(obj+4) 先求值入 %eax、lea 0x4(%this)
     // 入 %edx 后直落参数槽 ⇒ 表达式内联。
@@ -233,7 +233,7 @@ bool CPrivateStorePos::include(village_object::IObject const& obj) const
 }
 
 // ORIG W 0x85ccae4：基类子对象赋值 + Rectangle 4 个 int 直拷 + 宿主指针。
-CPrivateStorePos& CPrivateStorePos::operator=(CPrivateStorePos const& other)
+__attribute__((weak)) CPrivateStorePos& CPrivateStorePos::operator=(CPrivateStorePos const& other)
 {
     village_object::IObject::operator=(other);  // ORIG W 0x85ccadc：空操作返回自身
     // ORIG 0x85ccae4：单基址四 int 顺序拷贝（mov 0x4/8/c/10(%edx),%ecx → %eax）
@@ -263,13 +263,13 @@ CPrivateStore::~CPrivateStore() {}
 
 // ORIG W 0x82345e4：返回 +0x08（m_dollCreated）是否非 0。
 // dispatch_sig 购买链中用于判定卖家 store 已创建 doll（私商店铺实体）。
-bool CPrivateStore::isDollCreated()
+__attribute__((weak)) bool CPrivateStore::isDollCreated()
 {
     return m_dollCreated;  // ORIG：movzbl +0x08 直返，不做 0/1 归一化
 }
 
 // ORIG W 0x85cb894：卖家 world unique id（GetSeller()->get_unique_id()）。
-unsigned short CPrivateStore::GetSellerIndex()
+__attribute__((weak)) unsigned short CPrivateStore::GetSellerIndex()
 {
     return m_pSeller->get_unique_id();
 }
@@ -1130,14 +1130,19 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
         }
         else
         {
-            if (attachType != 7)
+            // [b28d-CPrivateStoreMgr] 同 Verify：ORIG 正条件嵌套（==7 then 直落 /
+            // else Do 块），负条件早返在 4.4 反极性（P59/P222）。
+            if (attachType == 7)
+            {
+                // 绑定类：无剩余交易次数时静默拒绝。
+                if (!storeItem.m_item.GetTradeLimitCount())
+                    return false;
+            }
+            else
             {
                 m_errorHandler.Do(0x11);
                 return false;
             }
-            // 绑定类：无剩余交易次数时静默拒绝。
-            if (!storeItem.m_item.GetTradeLimitCount())
-                return false;
         }
     }
     // 生物类道具禁止私商交易。
@@ -1147,9 +1152,11 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
         return false;
     }
 
-    int price = 0;
-    unsigned int dealGoldA = 0;
-    unsigned int dealGoldB = 0;
+    // [b28d-CPrivateStoreMgr] P0/P88：ORIG 0x085c8261 段直接 lea 三个出参槽
+    // （无前置 movl $0x0）⇒ 原码是裸声明（出参由 GetItemPrice 写）。
+    int price;
+    unsigned int dealGoldA;
+    unsigned int dealGoldB;
     if (!GetItemPrice(itemInfo, storeItem, count, price, dealGoldA, dealGoldB))
         return false;
     if (!IsPossibleDeal(price, dealGoldA, dealGoldB))
@@ -1158,11 +1165,14 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
     // [BigStore REAL-BUG] ORIG 0x085c8186 实参 = GetItemPrice out1 槽 -0x44（=price，
     // 0x085c80f6 lea -0x44 → esp+0x10 实证），旧写成 dealGoldA（out2 恒 0）⇒ 上限
     // 校验恒见 0 而被短路。按 ORIG 传成交金额。
-    if (!m_pBuyer->GetReliablePerson() &&
-        !m_pBuyer->IsAvailableCurCharacTradeGoldDaily((unsigned int)price))
+    // [b28d-CPrivateStoreMgr] P133/P225 推广：两条件各自独立守卫（同 Verify）。
+    if (!m_pBuyer->GetReliablePerson())
     {
-        m_errorHandler.Do(0x46);
-        return false;
+        if (!m_pBuyer->IsAvailableCurCharacTradeGoldDaily((unsigned int)price))
+        {
+            m_errorHandler.Do(0x46);
+            return false;
+        }
     }
 
     Inven_Item copyItem;
@@ -1184,82 +1194,85 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
     // (-0x44, -0x3c, -0x40) = (price, out2, out3)；第 5 参在 ORIG 体内不读，
     // 旧写 useCount 无行为差，按 ORIG 数据流改传 out3。
     buyResult = BuyItem(slot, copyItem, price, (int)dealGoldA, (int)dealGoldB, outSlot);
-    if (buyResult >= 0)
+    // [b28d-CPrivateStoreMgr] ORIG 0x085c82a3 `shr $0x1f,%eax; test %al,%al;
+    // je <主流程>`（符号位==0 → 继续）⇒ 源码是 fail 前置守卫
+    // `if ((unsigned int)buyResult >> 0x1f) { Do(4); return false; }`；
+    // 4.4 的 `if (buyResult >= 0)` 产 `js <fail>` 反块序（P59/P196）。
+    if ((unsigned int)buyResult >> 0x1f)
     {
-        int commission = GetCommissionPercent() * price / 100;
-        SellItem(slot, copyItem, price, commission, useCount,
-                 (int)storeItem.m_item.m_addInfo2);
-        SubtractItemCount(itemInfo, storeItem, count);
-        SavePrivateStore();
-        m_pSeller->UpdateData();
-        m_pBuyer->UpdateData();
+        m_errorHandler.Do(4);
+        return false;
+    }
+    int commission = GetCommissionPercent() * price / 100;
+    SellItem(slot, copyItem, price, commission, useCount,
+             (int)storeItem.m_item.m_addInfo2);
+    SubtractItemCount(itemInfo, storeItem, count);
+    SavePrivateStore();
+    m_pSeller->UpdateData();
+    m_pBuyer->UpdateData();
 
-        CPacketBufPrivate packet;
-        packet.MakeNotipacketPrivateStoreItem(slot, count);
-        SendUsers(&packet, 0, 0);
+    CPacketBufPrivate packet;
+    packet.MakeNotipacketPrivateStoreItem(slot, count);
+    SendUsers(&packet, 0, 0);
 
-        packet.MakeNotipacketBuyPrivateStoreItem(
-            m_pSeller, (int)copyItem.m_addInfo, slot, useCount,
-            m_pBuyer->getCurCharacName(), price, commission);
-        m_pSeller->Send(packet);
+    packet.MakeNotipacketBuyPrivateStoreItem(
+        m_pSeller, (int)copyItem.m_addInfo, slot, useCount,
+        m_pBuyer->getCurCharacName(), price, commission);
+    m_pSeller->Send(packet);
 
-        packet.MakeCmdpacketBuyPrivateStoreItem(m_pBuyer, copyItem,
-                                                (int)dealGoldB, (int)dealGoldA,
-                                                buyResult, useCount);
-        m_pBuyer->Send(packet);
+    packet.MakeCmdpacketBuyPrivateStoreItem(m_pBuyer, copyItem,
+                                            (int)dealGoldB, (int)dealGoldA,
+                                            buyResult, useCount);
+    m_pBuyer->Send(packet);
 
-        unsigned char flagByte = 0;              // ORIG local_27
-        if (!itemInfo->IsAvatarItem() &&
-            (int)itemInfo->get_rarity() <= 1)
+    unsigned char flagByte = 0;              // ORIG local_27
+    if (!itemInfo->IsAvatarItem() &&
+        (int)itemInfo->get_rarity() <= 1)
+    {
+        flagByte = 1;
+    }
+    // CUser::IncrementTradeGold(uint,int) ORIG _ZN5CUser18IncrementTradeGoldEji @0x0864658a
+    // （定义在 CUserOnlyOrig.cpp；CUser.h 两参声明，直接调用与 ORIG 字节一致。）
+    m_pBuyer->IncrementTradeGold((unsigned int)price, (int)flagByte);
+
+    unsigned short usedFatigue =
+        (unsigned short)m_pBuyer->getCurCharacUsedFatigue();   // ORIG local_26
+    int rand25 = get_rand_int(0x19);         // ORIG local_24
+    int rand20 = get_rand_int(0x14);         // ORIG local_20
+    // [BigStore P329] ORIG 0x085c8519：getCurCharacInvenR 结果 eax 于
+    // 0x085c851e 直落 get_money (%esp) 实参槽，无具名缓存 ⇒ 链式内联。
+    // 反外挂：低价倾销检测。ORIG 浮点常量 [0x8cbead0]=0x3f847ae147ae147b(0.01)、
+    // [0x8cbead8]=0x3fe6666666666666(0.7)（均 double）。
+    // [BigStore REAL-BUG] ORIG 0x085c8526 `mov -0x44,%edx; add %edx,%eax` 与
+    // 0x085c8558 `mov -0x44,%eax` 实证两处用 out1(=price)，旧写 dealGoldA
+    //（out2 恒 0）⇒ `money*scale < 0` 永假，倾销检测整体失效。
+    // [BigStore P253-x87] ORIG 0x085c8542 `fstps -0x9c; flds -0x9c` 为 rand25×0.01
+    // 后的 float 窄化回展 ⇒ 按 (float) 显式复现；比较在 double 栈上直做。
+    double hackScale =
+        (double)(float)((double)rand25 * 0.01) + 0.7;
+    if (hackScale * (double)((int)m_pBuyer->getCurCharacInvenR()->get_money() + price) <
+        (double)price)
+    {
+        unsigned int etcResult = 0;
+        etcResult = m_pBuyer->SetETC(0x2c0, m_pSeller->get_acc_id());
+        m_pBuyer->getHackAnalyzer()->addServerHackCnt(
+            m_pBuyer, (WongWork::ENUM_HACKTYPE)0x2c0, 1u, etcResult, 0u);
+        if (rand20 + 0x78 <= (int)usedFatigue)
         {
-            flagByte = 1;
-        }
-        // CUser::IncrementTradeGold(uint,int) ORIG _ZN5CUser18IncrementTradeGoldEji @0x0864658a
-        // （定义在 CUserOnlyOrig.cpp；CUser.h 两参声明，直接调用与 ORIG 字节一致。）
-        m_pBuyer->IncrementTradeGold((unsigned int)price, (int)flagByte);
-
-        unsigned short usedFatigue =
-            (unsigned short)m_pBuyer->getCurCharacUsedFatigue();   // ORIG local_26
-        int rand25 = get_rand_int(0x19);         // ORIG local_24
-        int rand20 = get_rand_int(0x14);         // ORIG local_20
-        // [BigStore P329] ORIG 0x085c8519：getCurCharacInvenR 结果 eax 于
-        // 0x085c851e 直落 get_money (%esp) 实参槽，无具名缓存 ⇒ 链式内联。
-        // 反外挂：低价倾销检测。ORIG 浮点常量 [0x8cbead0]=0x3f847ae147ae147b(0.01)、
-        // [0x8cbead8]=0x3fe6666666666666(0.7)（均 double）。
-        // [BigStore REAL-BUG] ORIG 0x085c8526 `mov -0x44,%edx; add %edx,%eax` 与
-        // 0x085c8558 `mov -0x44,%eax` 实证两处用 out1(=price)，旧写 dealGoldA
-        //（out2 恒 0）⇒ `money*scale < 0` 永假，倾销检测整体失效。
-        // [BigStore P253-x87] ORIG 0x085c8542 `fstps -0x9c; flds -0x9c` 为 rand25×0.01
-        // 后的 float 窄化回展 ⇒ 按 (float) 显式复现；比较在 double 栈上直做。
-        double hackScale =
-            (double)(float)((double)rand25 * 0.01) + 0.7;
-        if (hackScale * (double)((int)m_pBuyer->getCurCharacInvenR()->get_money() + price) <
-            (double)price)
-        {
-            unsigned int etcResult = 0;
-            etcResult = m_pBuyer->SetETC(0x2c0, m_pSeller->get_acc_id());
+            etcResult = m_pBuyer->SetETC(0x2bd, m_pSeller->get_acc_id());
             m_pBuyer->getHackAnalyzer()->addServerHackCnt(
-                m_pBuyer, (WongWork::ENUM_HACKTYPE)0x2c0, 1u, etcResult, 0u);
-            if (rand20 + 0x78 <= (int)usedFatigue)
-            {
-                etcResult = m_pBuyer->SetETC(0x2bd, m_pSeller->get_acc_id());
-                m_pBuyer->getHackAnalyzer()->addServerHackCnt(
-                    m_pBuyer, (WongWork::ENUM_HACKTYPE)0x2bd, 1u, etcResult, 0u);
-            }
-            etcResult = m_pSeller->SetETC(0x2c1, m_pBuyer->get_acc_id());
-            m_pSeller->getHackAnalyzer()->addServerHackCnt(
-                m_pSeller, (WongWork::ENUM_HACKTYPE)0x2c1, 1u, etcResult, 0u);
+                m_pBuyer, (WongWork::ENUM_HACKTYPE)0x2bd, 1u, etcResult, 0u);
         }
-
-        GetInstanceValueStatistic()->AddValueStatistic(
-            (VALUE_STATISTIC_FIELD)0x12, m_pSeller, (unsigned int)commission);
-        GetInstanceCirculationStatistic()->AddCirculationStatistic(
-            (CIRCULATION_STATISTIC_FIELD)0x15, m_pSeller, (unsigned int)commission);
-        return true;
+        etcResult = m_pSeller->SetETC(0x2c1, m_pBuyer->get_acc_id());
+        m_pSeller->getHackAnalyzer()->addServerHackCnt(
+            m_pSeller, (WongWork::ENUM_HACKTYPE)0x2c1, 1u, etcResult, 0u);
     }
 
-    m_errorHandler.Do(4);
-    return false;
+    GetInstanceValueStatistic()->AddValueStatistic(
+        (VALUE_STATISTIC_FIELD)0x12, m_pSeller, (unsigned int)commission);
+    GetInstanceCirculationStatistic()->AddCirculationStatistic(
+        (CIRCULATION_STATISTIC_FIELD)0x15, m_pSeller, (unsigned int)commission);
+    return true;
 }
 
 // ---- VerifyPrivateStoreItem（ORIG T 0x85c874c，报告 VerifyPrivateStoreItem.md）----
@@ -1286,7 +1299,9 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
         m_errorHandler.Do(0x15);
         return false;
     }
-    if (m_pBuyer->getCurCharacR() == 0)
+    // [b28d-CPrivateStoreMgr] P225：ORIG 0x085c8804 `test %eax,%eax; sete %al;
+    // test %al,%al; je` 四段物化 ⇒ while 形（body 内 return，语义等价）。
+    while (m_pBuyer->getCurCharacR() == 0)
     {
         m_errorHandler.Do(1);
         return false;
@@ -1322,7 +1337,8 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
     CItem* itemInfo = 0;
     PrivateStoreItem& storeItem = m_items[slot];
     itemInfo = G_CDataManager()->find_item((int)storeItem.m_item.m_addInfo);
-    if (itemInfo == 0)
+    // P225：ORIG 0x085c895e `cmpl $0,-0x1c; sete %al; test %al,%al; je` 四段物化。
+    while (itemInfo == 0)
     {
         m_errorHandler.Do(0x11);
         return false;
@@ -1341,13 +1357,19 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
         }
         else
         {
-            if (attachType != 7)
+            // [b28d-CPrivateStoreMgr] ORIG 0x085c89d0 `cmpl $7; jne <Do(0x11)块>`
+            // ⇒ 原码是**正条件嵌套**（==7 then 直落 / else Do 块），负条件早返
+            // 在 4.4 产 `je <跳过>` 反极性（P59/P222）。
+            if (attachType == 7)
+            {
+                if (!storeItem.m_item.GetTradeLimitCount())
+                    return false;   // ORIG：绑定类无次数静默拒绝
+            }
+            else
             {
                 m_errorHandler.Do(0x11);
                 return false;
             }
-            if (!storeItem.m_item.GetTradeLimitCount())
-                return false;   // ORIG：绑定类无次数静默拒绝
         }
     }
     if (IsCreatureItemType((unsigned int)(unsigned char)storeItem.m_item.m_field1))
@@ -1356,20 +1378,27 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
         return false;
     }
 
-    int price = 0;
-    unsigned int dealGoldA = 0;
-    unsigned int dealGoldB = 0;
+    // [b28d-CPrivateStoreMgr] P0/P88：ORIG 0x085c8a4a 直接 lea 三个出参槽
+    // （无前置 movl $0x0）⇒ 原码是裸声明（出参由 GetItemPrice 写）。
+    int price;
+    unsigned int dealGoldA;
+    unsigned int dealGoldB;
     if (!GetItemPrice(itemInfo, storeItem, count, price, dealGoldA, dealGoldB))
         return false;
     if (!IsPossibleDeal(price, dealGoldA, dealGoldB))
         return false;
     // [BigStore REAL-BUG] ORIG 0x085c8ae8 实参 = GetItemPrice out1 槽 -0x28（=price，
     // 0x085c8a58 lea -0x28 → esp+0x10 实证），旧写 dealGoldA（out2 恒 0）⇒ 校验被短路。
-    if (!m_pBuyer->GetReliablePerson() &&
-        !m_pBuyer->IsAvailableCurCharacTradeGoldDaily((unsigned int)price))
+    // [b28d-CPrivateStoreMgr] P133/P225 推广：ORIG 0x085c8acf/0x085c8aed 两条件
+    // **各自** `xor $1; test %al,%al; je <succ>`（独立守卫、共享 succ 出口）⇒ 源码是
+    // 嵌套 if 而非 `&&` 短路链（合并形在 4.4 折成单段 jne，少 xor/je 各一条）。
+    if (!m_pBuyer->GetReliablePerson())
     {
-        m_errorHandler.Do(0x46);
-        return false;
+        if (!m_pBuyer->IsAvailableCurCharacTradeGoldDaily((unsigned int)price))
+        {
+            m_errorHandler.Do(0x46);
+            return false;
+        }
     }
 
     PacketGuard packet;
@@ -1735,12 +1764,12 @@ bool CPrivateStore::DeleteItem(PrivateStoreItem& item)
     int resealCount = (int)item.m_item.GetReSealCount();
     int upgrade = (int)item.m_item.GetUpgrade();
     int addInfo2 = (int)item.m_item.m_addInfo2;
-    int itemIdx = (int)item.m_item.m_addInfo;
-    // [BigStore] ORIG 0x085c68xx：space 一次性 movsbl（有符号字节），随后按
-    // if(==1)/else if((char)<2){if(==0)}/else if(==2)/else if(==3) 链展开；
-    // 每臂独立重读 (short)+0x48（成功臂 SendAvatarEvent/send_equip 也重读），
-    // 无函数级 slot 缓存 ⇒ 旧 switch+提前绑定形改回链式+延迟加载。
-    const signed char space = (signed char)item.m_field46;
+    // [b28d-CPrivateStoreMgr] P0：ORIG 0x085c6978 起 `movzbl 0x46(%eax),%eax;
+    // movsbl %al,%eax` 无槽往返 ⇒ itemIdx/space 都是表达式右值（无具名局部）；
+    // 分派是 4.1 的 switch 二分决策树（cmp $1/je case1 + cmp $1/jg + test/je
+    // case0 + jmp default，右子树 cmp $2/je + cmp $3/je），4.4 对同构 switch
+    // 逐条同形（探针 /tmp/probe_sw.cpp 双编译器实证）；case 叶块物理序
+    // 0,2,3,1 = ORIG 地址序（P324），故按该序书写。
 
     // [b28d-solo] P227 全表达式临时链：ORIG 0x085c68f2 段先把 getCurCharacName/
     // getCurCharacNo/… 求值入 edi/esi/ebx，再 call cMyTrace C1；具名对象令 4.4
@@ -1749,13 +1778,53 @@ bool CPrivateStore::DeleteItem(PrivateStoreItem& item)
         "PrivateStore del charac_name(%s)(%d), item_id(%d), add_info(%d), "
         "upgrade(%d), reseal_count(%d), sell_price(%d)",
         m_pSeller->getCurCharacName(), m_pSeller->getCurCharacNo(),
-        itemIdx, addInfo2, upgrade, resealCount, sellPrice);
+        item.m_item.m_addInfo, addInfo2, upgrade, resealCount, sellPrice);
 
-    if (space == 1)
+    switch ((signed char)item.m_field46)
     {
-    int slot = (short)item.m_field48;
+    case 0:
         if (m_pSeller->getCurCharacInvenW()->delete_item(
-                (INVEN_TYPE)2, slot, 1, (eItemDelReason)4, true) != 1)
+                (INVEN_TYPE)1, (short)item.m_field48, (int)item.m_item.m_addInfo2,
+                (eItemDelReason)0xb, true) != 1)
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0x4e0, 5)(
+                "Store::user_sell_item, delete_item failed , User ch=%d , %d %d",
+                m_pSeller->getCurCharacNo(), (short)item.m_field48,
+                (int)item.m_item.m_addInfo2);
+            m_errorHandler.Do(0x11);
+            return false;
+        }
+        break;
+    case 2:
+        if (m_pSeller->getCurCharacCargoW()->delete_item(
+                (short)item.m_field48, (int)item.m_item.m_addInfo2,
+                (eItemDelReason)0xb) != 1)
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0x4ec, 5)(
+                "Store::user_sell_item, delete_item failed 2, User ch=%d , %d %d",
+                m_pSeller->getCurCharacNo(), (short)item.m_field48,
+                (int)item.m_item.m_addInfo2);
+            m_errorHandler.Do(0x11);
+            return false;
+        }
+        break;
+    case 3:
+        if (m_pSeller->getCurCharacInvenW()->delete_item(
+                (INVEN_TYPE)0, (short)item.m_field48, 1,
+                (eItemDelReason)0xb, true) != 1)
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0x4f9, 5)(
+                "Store::user_sell_item, delete_item failed 3, User ch=%d , %d",
+                m_pSeller->getCurCharacNo(), (short)item.m_field48);
+            m_errorHandler.Do(0x11);
+            return false;
+        }
+        m_pSeller->send_equip((short)item.m_field48);
+        break;
+    case 1:
+        if (m_pSeller->getCurCharacInvenW()->delete_item(
+                (INVEN_TYPE)2, (short)item.m_field48, 1,
+                (eItemDelReason)4, true) != 1)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x515, 5)(
                 "Store::user_sell_item, delete_item failed 3, User ch=%d , %d",
@@ -1765,52 +1834,7 @@ bool CPrivateStore::DeleteItem(PrivateStoreItem& item)
         }
         m_pSeller->getCurCharacInvenR()->SendAvatarEvent(
             0x36, (int)item.m_item.m_addInfo2, 3, (short)item.m_field48 + 0xa, 0);
-    }
-    else if (space < 2)
-    {
-        if (space == 0)
-        {
-    int slot = (short)item.m_field48;
-        if (m_pSeller->getCurCharacInvenW()->delete_item(
-                (INVEN_TYPE)1, slot, (int)item.m_item.m_addInfo2,
-                (eItemDelReason)0xb, true) != 1)
-{
-            cMyTrace(__PRETTY_FUNCTION__, 0x4e0, 5)(
-                "Store::user_sell_item, delete_item failed , User ch=%d , %d %d",
-                    m_pSeller->getCurCharacNo(), (short)item.m_field48,
-                    (int)item.m_item.m_addInfo2);
-            m_errorHandler.Do(0x11);
-            return false;
-        }
-        }
-    }
-    else if (space == 2)
-    {
-    int slot = (short)item.m_field48;
-        if (m_pSeller->getCurCharacCargoW()->delete_item(
-                slot, (int)item.m_item.m_addInfo2, (eItemDelReason)0xb) != 1)
-        {
-            cMyTrace(__PRETTY_FUNCTION__, 0x4ec, 5)(
-                "Store::user_sell_item, delete_item failed 2, User ch=%d , %d %d",
-                m_pSeller->getCurCharacNo(), (short)item.m_field48,
-                (int)item.m_item.m_addInfo2);
-            m_errorHandler.Do(0x11);
-            return false;
-        }
-    }
-    else if (space == 3)
-    {
-    int slot = (short)item.m_field48;
-        if (m_pSeller->getCurCharacInvenW()->delete_item(
-                (INVEN_TYPE)0, slot, 1, (eItemDelReason)0xb, true) != 1)
-        {
-            cMyTrace(__PRETTY_FUNCTION__, 0x4f9, 5)(
-                "Store::user_sell_item, delete_item failed 3, User ch=%d , %d",
-                m_pSeller->getCurCharacNo(), (short)item.m_field48);
-            m_errorHandler.Do(0x11);
-            return false;
-        }
-        m_pSeller->send_equip((short)item.m_field48);
+        break;
     }
     return true;
 }
@@ -2047,7 +2071,7 @@ bool CPrivateStore::CheckValidItem(int cargoSlot, int count)
 }
 
 // ---- CErrorHandler::Set（ORIG W 0x85cb7a8，objdump 逐指令：三条直存无副作用）----
-void CErrorHandler::Set(CUser* user, int sendError, int code)
+__attribute__((weak)) void CErrorHandler::Set(CUser* user, int sendError, int code)
 {
     m_user = user;
     m_sendError = sendError;
@@ -2404,7 +2428,7 @@ int CPrivateStore::SellItem(int /*slot*/, Inven_Item& item, int gold,
 
 // ---- CBroadcastPrivate::Send（ORIG W 0x85cca73，objdump 逐指令转写）----
 // vill/area 双零直接返回；否则交 GameWorld 按村庄+区域广播。
-void CBroadcastPrivate::Send(int vill, int area, PacketGuard& packet)
+__attribute__((weak)) void CBroadcastPrivate::Send(int vill, int area, PacketGuard& packet)
 {
     if (vill == 0 && area == 0)
         return;
@@ -2413,7 +2437,7 @@ void CBroadcastPrivate::Send(int vill, int area, PacketGuard& packet)
 
 // ---- CCharacterControllerPrivate::MoveCharacterStartPoint（ORIG W 0x85cc9d2，objdump 逐指令）----
 // 以 this 充当起点 Pos 重算后 move_area 回城门（z/flag/prev 全 0，返回值忽略）。
-void CCharacterControllerPrivate::MoveCharacterStartPoint(CUser* user)
+__attribute__((weak)) void CCharacterControllerPrivate::MoveCharacterStartPoint(CUser* user)
 {
     GetStartPoint(user, m_startPos);
     G_GameWorld()->move_area(user,
@@ -2429,16 +2453,16 @@ CCharacterControllerPrivate g_CharacterController;
 
 // ---- CErrorGeneratorPrivate（ORIG C1 W 0x85d0fa4 / D1 W 0x85d0f7c，报告缺失，objdump 转写）----
 // 唯一成员 std::map<CUser*,int>：C1 调 map C1、D1 调 map D1（sizeof 0x18）。
-CErrorGeneratorPrivate::CErrorGeneratorPrivate() : m_errors() {}
+__attribute__((weak)) CErrorGeneratorPrivate::CErrorGeneratorPrivate() : m_errors() {}
 
-CErrorGeneratorPrivate::~CErrorGeneratorPrivate() {}
+__attribute__((weak)) CErrorGeneratorPrivate::~CErrorGeneratorPrivate() {}
 
 // ORIG B _ZN13private_store16g_ErrorGeneratorE @0x09472de8（BSS size 0x18）；
 // 全局构造序列（_GLOBAL__I__...GetInstancePrivateStoreMgr）实证：C1 构造 + __cxa_atexit(D1)。
 CErrorGeneratorPrivate g_ErrorGenerator;
 
 // ---- CCharacterControllerPrivate（ORIG C1 W 0x85d0f90）----
-CCharacterControllerPrivate::CCharacterControllerPrivate() throw() : m_startPos() {}
+__attribute__((weak)) CCharacterControllerPrivate::CCharacterControllerPrivate() throw() : m_startPos() {}
 
 // ---- CCharacterControllerPrivate::GetStartPoint（ORIG W 0x85cc894）----
 // 计算私商开店起始坐标：pos 先清零再写 village 号(a)；user/world/village 缺失
@@ -2447,7 +2471,7 @@ CCharacterControllerPrivate::CCharacterControllerPrivate() throw() : m_startPos(
 // 【b28 P225】world/village 判空的 `cmp $0; sete %al; test; je` 物化岛改
 // `while (p == 0) { trace; break; }` 形复现（P225 修正 P197④「槽比恒不可翻」
 // 边界；旧 if-return 形产 cmp/jne 直跳为残差主因）。
-void CCharacterControllerPrivate::GetStartPoint(CUser* user, PrivateStorePos& pos)
+__attribute__((weak)) void CCharacterControllerPrivate::GetStartPoint(CUser* user, PrivateStorePos& pos)
 {
     pos.m_field2 = 0x172;
     pos.m_field4 = 0xbe;
@@ -2479,7 +2503,7 @@ out:
 }
 
 // ---- CPacketBufPrivate::MakeErrorReturnPacket（ORIG W 0x85cc830）----
-void CPacketBufPrivate::MakeErrorReturnPacket(int code1, int code2, int code3)
+__attribute__((weak)) void CPacketBufPrivate::MakeErrorReturnPacket(int code1, int code2, int code3)
 {
     clear();
     put_header(code1, code2);
@@ -2691,7 +2715,7 @@ struct PrivateStoreItemsView
     PrivateStoreItem m_items[14];
 };
 #define PS_ITEM(i) (reinterpret_cast<PrivateStoreItemsView*>(sig)->m_items[(i)])
-int CPacketBufPrivate::MakeNotipacketPrivateStoreInfo(SIG_PRIVATE_STORE* sig)
+__attribute__((weak)) int CPacketBufPrivate::MakeNotipacketPrivateStoreInfo(SIG_PRIVATE_STORE* sig)
 {
     clear();
     put_header(0, 0x55);
@@ -2730,7 +2754,7 @@ int CPacketBufPrivate::MakeNotipacketPrivateStoreInfo(SIG_PRIVATE_STORE* sig)
 // ---- 9 槽全链包构造（ORIG W 内联符号，objdump 逐指令转写，PsBuildB 交付）----
 
 // ORIG _ZN13private_store17CPacketBufPrivate31MakeCmdpacketCreatePrivateStoreEv @0x85cb986
-void CPacketBufPrivate::MakeCmdpacketCreatePrivateStore()
+__attribute__((weak)) void CPacketBufPrivate::MakeCmdpacketCreatePrivateStore()
 {
     clear();
     put_header(1, 0x58);
@@ -2739,7 +2763,7 @@ void CPacketBufPrivate::MakeCmdpacketCreatePrivateStore()
 }
 
 // ORIG _ZN13private_store17CPacketBufPrivate32MakeNotipacketCreatePrivateStoreEtRNS_15PrivateStorePosEb @0x85cb9da
-void CPacketBufPrivate::MakeNotipacketCreatePrivateStore(unsigned short sellerIndex,
+__attribute__((weak)) void CPacketBufPrivate::MakeNotipacketCreatePrivateStore(unsigned short sellerIndex,
                                                          PrivateStorePos& pos, bool dollCreated)
 {
     clear();
@@ -2757,7 +2781,7 @@ void CPacketBufPrivate::MakeNotipacketCreatePrivateStore(unsigned short sellerIn
 }
 
 // ORIG _ZN13private_store17CPacketBufPrivate23MakeCmdpacketMoveToGateEv @0x85cc7dc
-void CPacketBufPrivate::MakeCmdpacketMoveToGate()
+__attribute__((weak)) void CPacketBufPrivate::MakeCmdpacketMoveToGate()
 {
     clear();
     put_header(1, 0x5b);
@@ -2766,7 +2790,7 @@ void CPacketBufPrivate::MakeCmdpacketMoveToGate()
 }
 
 // ORIG _ZN13private_store17CPacketBufPrivate32MakeNotipacketRemovePrivateStoreEt @0x85cbb2c
-void CPacketBufPrivate::MakeNotipacketRemovePrivateStore(unsigned short sellerIndex)
+__attribute__((weak)) void CPacketBufPrivate::MakeNotipacketRemovePrivateStore(unsigned short sellerIndex)
 {
     clear();
     put_header(0, 0x4f);
@@ -2775,7 +2799,7 @@ void CPacketBufPrivate::MakeNotipacketRemovePrivateStore(unsigned short sellerIn
 }
 
 // ORIG _ZN13private_store17CPacketBufPrivate31MakeCmdpacketRemovePrivateStoreEv @0x85cbad8
-void CPacketBufPrivate::MakeCmdpacketRemovePrivateStore()
+__attribute__((weak)) void CPacketBufPrivate::MakeCmdpacketRemovePrivateStore()
 {
     clear();
     put_header(1, 0x59);
@@ -2784,7 +2808,7 @@ void CPacketBufPrivate::MakeCmdpacketRemovePrivateStore()
 }
 
 // ORIG _ZN13private_store17CPacketBufPrivate37MakeNotipacketForceRemovePrivateStoreEv @0x85cbb88
-void CPacketBufPrivate::MakeNotipacketForceRemovePrivateStore()
+__attribute__((weak)) void CPacketBufPrivate::MakeNotipacketForceRemovePrivateStore()
 {
     clear();
     put_header(0, 0x50);
@@ -2792,7 +2816,7 @@ void CPacketBufPrivate::MakeNotipacketForceRemovePrivateStore()
 }
 
 // ORIG _ZN13private_store17CPacketBufPrivate29MakeCmdpacketExitPrivateStoreEv @0x85cc568（包仅发买家）
-void CPacketBufPrivate::MakeCmdpacketExitPrivateStore()
+__attribute__((weak)) void CPacketBufPrivate::MakeCmdpacketExitPrivateStore()
 {
     clear();
     put_header(1, 0x57);
@@ -2806,7 +2830,7 @@ void CPacketBufPrivate::MakeCmdpacketExitPrivateStore()
 // [b28d-solo-CPrivateStoreMgr] 已修条件极性（`==3` 正向包裹，P292 档①）；
 // 残 56 行 = nowTick/writtenCount/i 槽序（N98，4.4 按首次使用序分配；声明序互换
 // 实测 66 劣化 ⇒ 封顶）+ 寻址链（N1/P30）+ put_binary 实参装载序（P75）。
-void CPacketBufPrivate::MakeCmdpacketEnterPrivateStore(CUser* sellerUser,
+__attribute__((weak)) void CPacketBufPrivate::MakeCmdpacketEnterPrivateStore(CUser* sellerUser,
                                                        unsigned short sellerIndex,
                                                        std::vector<PrivateStoreItem>& items)
 {
@@ -2876,7 +2900,7 @@ void CPacketBufPrivate::MakeCmdpacketEnterPrivateStore(CUser* sellerUser,
 }
 
 // ORIG _ZN13private_store17CPacketBufPrivate29MakeNotipacketCompleteDisplayEtRSsb @0x85cbc52
-void CPacketBufPrivate::MakeNotipacketCompleteDisplay(unsigned short sellerIndex,
+__attribute__((weak)) void CPacketBufPrivate::MakeNotipacketCompleteDisplay(unsigned short sellerIndex,
                                                       std::string& subject,
                                                       bool dollCreated)
 {
@@ -2896,7 +2920,7 @@ void CPacketBufPrivate::MakeNotipacketCompleteDisplay(unsigned short sellerIndex
 }
 
 // ORIG _ZN13private_store17CPacketBufPrivate28MakeCmdpacketCompleteDisplayEb @0x85cbbca
-void CPacketBufPrivate::MakeCmdpacketCompleteDisplay(bool dollCreated)
+__attribute__((weak)) void CPacketBufPrivate::MakeCmdpacketCompleteDisplay(bool dollCreated)
 {
     clear();
     put_header(1, 0x5a);
@@ -2909,7 +2933,7 @@ void CPacketBufPrivate::MakeCmdpacketCompleteDisplay(bool dollCreated)
 }
 
 // ORIG _ZN13private_store17CPacketBufPrivate30MakeNotipacketPrivateStoreItemEii @0x85cc0fa（SendUsers 广播）
-void CPacketBufPrivate::MakeNotipacketPrivateStoreItem(int slot, int count)
+__attribute__((weak)) void CPacketBufPrivate::MakeNotipacketPrivateStoreItem(int slot, int count)
 {
     clear();
     put_header(0, 0x53);
@@ -2920,7 +2944,7 @@ void CPacketBufPrivate::MakeNotipacketPrivateStoreItem(int slot, int count)
 
 // ORIG _ZN13private_store17CPacketBufPrivate33MakeNotipacketBuyPrivateStoreItemEP5CUseriiiPKcii @0x85cbfea
 // buyerUser=卖家 m_pSeller（收包人，序列化其金钱）；avatar 条目时 count 已由调用方换成 avatar uid。
-void CPacketBufPrivate::MakeNotipacketBuyPrivateStoreItem(CUser* buyerUser, int itemId, int slot,
+__attribute__((weak)) void CPacketBufPrivate::MakeNotipacketBuyPrivateStoreItem(CUser* buyerUser, int itemId, int slot,
                                                           int count, char const* name,
                                                           int gold, int commission)
 {
@@ -2947,7 +2971,7 @@ void CPacketBufPrivate::MakeNotipacketBuyPrivateStoreItem(CUser* buyerUser, int 
 // mov %edx,(%esp)`（this 先算）。receiver 为 packet this 固定，实参为链式调用
 // 结果，无源码旋钮（P75 跨版本实参装载序）⇒ N 封顶；余为由此 1 条差引起的
 // 4 处 jmp 偏移连锁。
-void CPacketBufPrivate::MakeCmdpacketBuyPrivateStoreItem(CUser* buyerUser, Inven_Item& item,
+__attribute__((weak)) void CPacketBufPrivate::MakeCmdpacketBuyPrivateStoreItem(CUser* buyerUser, Inven_Item& item,
                                                          int a3, int a4, int a5, int a6)
 {
     (void)a3;   // ORIG 未读参数占位
@@ -3032,7 +3056,7 @@ void CPrivateStoreMgr::LoadPrivateStoreResponse(CUser* user, SIG_PRIVATE_STORE* 
 }
 
 // ORIG T 0x86d23a4（objdump 逐指令）：返回卖家表(+0x98) size()。
-int CPrivateStoreMgr::GetPrivateStoreSize()
+__attribute__((weak)) int CPrivateStoreMgr::GetPrivateStoreSize()
 {
     return (int)m_storeSellers.size();
 }
@@ -3136,14 +3160,14 @@ bool village_object::CVillageObjectMgr::unregister_object(village_object::Zone z
 }
 
 // ORIG W _ZNK5CItem12GetCashPriceEv @0x822c856：objdump 逐指令 mov 0x10(%eax) 直返。
-int CItem::GetCashPrice() const
+__attribute__((weak)) int CItem::GetCashPrice() const
 {
     return m_field10;   // +0x10
 }
 
 // ORIG W _ZN17STExpertJobScript15GetShopDollSlotEi @0x85cb306：objdump 逐指令转写。
 // m_shopDollMap.find(index) 命中返 mapped 值，未命中哨兵 -1；唯一调用点 AddItem 0x85c6dfc。
-short STExpertJobScript::GetShopDollSlot(int index)
+__attribute__((weak)) short STExpertJobScript::GetShopDollSlot(int index)
 {
     std::map<int, unsigned char>::iterator it = m_shopDollMap.find(index);
     if (it != m_shopDollMap.end())

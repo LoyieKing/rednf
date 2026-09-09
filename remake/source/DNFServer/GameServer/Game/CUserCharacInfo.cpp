@@ -3177,7 +3177,8 @@ void CUserCharacInfo::GmSetCurCharacChaosPoint(int point)
 }
 
 
-int CUserCharacInfo::GetWinPoint() { return m_pvpResult.m_winPoint; }
+// [b28d-CPrivateStoreMgr] 返回类型判据（ORIG 0x085cbd38 + 探针 f15/f16）：unsigned int。
+unsigned int CUserCharacInfo::GetWinPoint() { return m_pvpResult.m_winPoint; }
 
 float CUserCharacInfo::GetWarAreaKillCountTotal()
 {
@@ -3225,7 +3226,8 @@ unsigned short CUserCharacInfo::GetUserPowerWarPoint()
     return m_selected ? CUR->m_powerWarPoint : 0;
 }
 
-char CUserCharacInfo::GetReliablePerson() { return m_reliablePerson; }
+// [b28d-CPrivateStoreMgr] 返回类型判据（ORIG 0x085c8acf xor 形 + P292/T3）：bool。
+bool CUserCharacInfo::GetReliablePerson() { return m_reliablePerson; }
 
 unsigned short CUserCharacInfo::GetProperDungeonClearCount() const
 {

@@ -719,8 +719,11 @@ public:
     int get_pvp_result_exp_point() const;
     int get_pvp_result_oldexp_point() const;
     int get_pvp_grade() const;
-    int GetWinPoint();
-    char GetReliablePerson();
+    // [b28d-CPrivateStoreMgr] 返回类型判据（ORIG 0x085cbd38/0x085c8acf + 4.1.2/4.4.7
+    // 双编译器探针 f15/f16、P292/T3）：GetWinPoint 为 unsigned int、GetReliablePerson
+    // 为 bool；返回类型不入 mangled，ABI/sizeof 零变化。
+    unsigned int GetWinPoint();
+    bool GetReliablePerson();
     void SetReliablePerson(bool flag);
     int GetOverTradeGoldCount();
     void SetOverTradeGoldCount(unsigned int count);
