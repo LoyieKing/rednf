@@ -11,8 +11,9 @@
 //   7. DB_ReqQueryCharacInfoMailbox::_sendResult       0x0843c224
 // 报告均已全文阅读后转写；SIG 布局：SIG_MAILBOX_DEL_MAIL / SIG_MAILBOX_LIST /
 //   SIG_MAILBOX_CHECK_RECEIVER / SIG_QUERY_CHARAC_INFO（2026-09-05 §4.3 已字段化，
-//   本 TU 全部具名字段访问；唯一例外：m_payload 透传区内 +0xaa 标题串，该区无
-//   字段化证据，保留数组下标并注明报告偏移）。
+//   本 TU 全部具名字段访问）。m_payload 透传区内 +0xaa 标题串（= this+0xdb）无字段化
+//   证据，用 `(const char*)((unsigned int)sig + 0xdb)` 整型加法形复现 ORIG 0x0843bb71
+//   两步 `add $0xdb,%eax; mov %eax,%ecx`（P319；数组退化在 4.4 恒折单条 lea）。
 // 依赖：DB_MailBox_Req_Send::InsertLetter（DB_MailBox_Req_Send.h，已实现）；
 //   NumberToString 定义归 LinkFinalDeps.cpp；DBDispatcher::dispatch 归 DB_Login.cpp。
 // ============================================================================
@@ -96,9 +97,13 @@ bool DB_MailBox_Req_Delete::dispatch(int userIdx, int slot, Stream* stream)
 //    charac_info 按收件人名查 charac_no/lev/delete_flag/m_id（循环读全部行）→
 //    BigStreamPool 回包：<<0x7e <<slot，回填 +0x1d/+0x21/+0x25/+0x29，
 //    memcpy(+0x31,0x3f88) 载荷透传 → 黑名单 count(*)>0 时 +0x3fb9=0x4d → put。
-// b21 NEAR：语义与 ORIG 全等（字段偏移 +0x1d/+0x21/+0x25/+0x29/+0x31/+0x3fb9 static_assert 核）。
-//   残余仅：call/全局(s_db_mgr/s_big_stream_pool/s_msgq_mgr)/字符串地址【AE】，
-//   mov 0x2d(%eax) 直传 vs mov+mov、NumberToString 求值序、分支偏移、栈槽布局（N-86b/N-frame）。
+// b28d-SweepDBMailBoxDispatch（AE，266=266，jcc 序列逐位全等）：三处真差异已修——
+//   ① SQL 串补具名 char* 局部（ORIG 0x0841c8f8 存 -0x24、0x0841c980 回读；P244）；
+//   ② NumberToString 内联进 set_query 实参位（ORIG 0x0841cb73 先求值 sender 入 %ebx
+//      跨 call 保活，cdecl 右→左；P329）；
+//   ③ 黑名单判定改嵌套 if（ORIG 0x0841cbd1/cbe0/cbfe/cc05 四个独立 je 同出口；P225）。
+//   另删 sender 实参冗余 (int) cast（P265：unsigned 字段+异型 cast 致 mem→eax→ebx 两段，
+//   ORIG 为单段 `mov 0x2d(%eax),%ebx`）。
 // ============================================================================
 bool DB_MailBox_Req_CheckReceiver::dispatch(int userIdx, int slot, Stream* stream)
 {
@@ -112,11 +117,14 @@ bool DB_MailBox_Req_CheckReceiver::dispatch(int userIdx, int slot, Stream* strea
     MySQL* db2 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, (ENUM_SERVER_GROUP)0);
     MySQL* db3 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_3, (ENUM_SERVER_GROUP)0);
 
+    // P244：ORIG 0x0841c8f8 `movl $SQL,-0x24(%ebp)`（0x0841c980 回读后压 0x4(%esp)）
+    // ⇒ 原码是具名 char* 局部；store 发射在 name 清零之前（ORIG 0x0841c8f8 早于
+    // 0x0841c8ff 的清零段）。
+    const char* query =
+        "seLect charac_no,lev,delete_flag,m_id from charac_info where charac_name='%s'";
     char name[0x3b] = { '\0' };  // ORIG 0x3b 字节（2*0x1d+1）
     db2->escape_string(name, sig->m_receiverName);
-    db2->set_query(
-        "seLect charac_no,lev,delete_flag,m_id from charac_info where charac_name='%s'",
-        name);
+    db2->set_query(query, name);
     if (!db2->exec(true))
         return 0;
 
@@ -145,15 +153,28 @@ bool DB_MailBox_Req_CheckReceiver::dispatch(int userIdx, int slot, Stream* strea
     out->m_receiverAccId = mId;
     memcpy(out->m_payload, sig->m_payload, 0x3f88);
 
-    char* mIdStr = NumberToString(mId, 0);
+    // P329：NumberToString 内联进实参位。ORIG 0x0841cb70 先读 sender 入 %ebx 跨
+    // NumberToString call 保活、0x0841cb84 才 call NumberToString（cdecl 右→左求值）；
+    // 具名 mIdStr 局部会把 sender 压回栈槽（4.4 不升格）并多一条中转。
     if (db3->set_query(
             "seLect count(*) from charac_black_list where m_id = %s and charac_no = %d",
-            mIdStr, (int)sig->m_senderCharacNo))
+            NumberToString(mId, 0), sig->m_senderCharacNo))
     {
         int blackCnt = 0;
         out->m_resultFlag = 0;
-        if (db3->exec(true) && db3->fetch() && db3->get_int(0, blackCnt) && blackCnt > 0)
-            out->m_resultFlag = 0x4d;
+        // P225：ORIG 四个独立 `test/je` 到同一出口（0x0841cbd1/cbe0/cbfe/cc05）⇒
+        // 嵌套 if；`&&` 链在 4.4 会把整链物化成 bool 岛（mov$1/jmp/mov$0/test/je）。
+        if (db3->exec(true))
+        {
+            if (db3->fetch())
+            {
+                if (db3->get_int(0, blackCnt))
+                {
+                    if (blackCnt > 0)
+                        out->m_resultFlag = 0x4d;
+                }
+            }
+        }
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
@@ -173,7 +194,8 @@ bool DB_MailBox_Req_CheckReceiver::dispatch(int userIdx, int slot, Stream* strea
 // ============================================================================
 bool DB_Multi_MailBox_Req_Send::dispatch(int userIdx, int slot, Stream* stream)
 {
-    // [b28d-48] N82 封顶（NDIFF 43，83/84 条）：帧/槽平移。
+    // b28d-SweepDBMailBoxDispatch（AE，84=84，jcc 全等）：title 实参已改整型加法形
+    // 复现 ORIG 两步 add/mov（见调用点注释）。
     static const int handleIdx = 3;
     SIG_MAILBOX_CHECK_RECEIVER* sig = stream->GetOutBuffer<SIG_MAILBOX_CHECK_RECEIVER>();
 
@@ -190,7 +212,10 @@ bool DB_Multi_MailBox_Req_Send::dispatch(int userIdx, int slot, Stream* stream)
     if (!DB_MailBox_Req_Send::InsertLetter(
             db, (int)sig->m_receiverCharacNo, (int)sig->m_senderCharacNo,
             sig->m_senderName,                 // +0x3fc1（0843bb6e lea）
-            sig->m_payload + 0xaa,             // 报告 +0xdb：透传区内标题串（区无字段化证据）
+            // 报告 +0xdb：透传区内标题串（区无字段化证据）。等价于 m_payload+0xaa
+            // （m_payload@+0x31）；P319 整型加法形复现 ORIG 0x0843bb71 两步
+            // `add $0xdb,%eax; mov %eax,%ecx`（数组退化在 4.4 恒折单条 lea）。
+            (const char*)((unsigned int)sig + 0xdb),
             sig->m_letterId,                   // +0x3fbd int&（0843bb65 lea；InsertLetter Ri）
             t, LETTER_STAT_NONE))
     {
@@ -237,9 +262,11 @@ bool DB_Multi_MailBox_Req_Send::_sendResult(int slot, SIG_MAILBOX_CHECK_RECEIVER
 //    _sendResult(0, slot, sig, characNo, job, lev, growType, sex) → 返 1
 //    （ORIG +0x377 第 3 参 name 传 sig=GetOutBuffer 指针，非转义缓冲）。
 //    注意 ORIG 对 get_n_rows()==0 有两次独立判定（P48 双调用），照写。
-//    verdict=NEAR（N82 残余）：助记符序列与 ORIG 全等（227=227，nop 豁免），
-//    仅余 4.1 vs 4.4 栈槽/帧（0xac vs 0x9c）错位；调用点差集 P167 CLEAR(22/22)。
-//    5 处返 1 用 goto 共享单一置位，消除 4 条冗余 mov $0x1（对齐 ORIG 单 mov 结尾）。
+//    b28d-SweepDBMailBoxDispatch（AE，227=227，jcc 序列逐位全等）：4 处失败路径改
+//    `return _sendResult(...)`，复现 ORIG 0x0843be5b/bebe/bf6f/bfc5 的 `call; jmp +0x3e6`
+//    （跳过 mov $1）⇒ _sendResult 返回类型随之改 bool（P292 探针 f/g 实证：int 返回
+//    会多 test/setne 归一化）。成功路径仍 goto done 共享单一置位（ORIG 0x0843c0db
+//    `jmp +0x3e1` 到 mov $1）。
 // ============================================================================
 bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* stream)
 {
@@ -268,17 +295,14 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
     db->set_query(
         "seLect delete_flag,m_id,charac_no,job,lev,grow_type,sex from charac_info where charac_name='%s'",
         name);
+    // ORIG 0x0843be5b/0x0843bebe：失败路径 `call _sendResult` 后直接
+    // `jmp +0x3e6`（跳过 mov $1,%eax）⇒ 原码是 `return _sendResult(...)`
+    // （_sendResult 返 bool，无 int→bool 归一化）。
     if (!db->exec(true))
-    {
-        _sendResult(2, slot, 0, 0, 0, 0, 0, 0);
-        goto done;
-    }
+        return _sendResult(2, slot, 0, 0, 0, 0, 0, 0);
 
     if (db->get_n_rows() == 0)
-    {
-        _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0);
-        goto done;
-    }
+        return _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0);
     // P48 双调用：ORIG（0x0843bec3 `setne %al; je 0843c0dd`）第二次判定是
     // `!= 0` 正向跳成功链、`== 0` 落入尾部 0x15 块（fallthrough）→ 按该形态
     // 转写（行为与两连 `==0` 块等价；块形状影响 verdict 序列）。
@@ -286,15 +310,9 @@ bool DB_ReqQueryCharacInfoMailbox::dispatch(int userIdx, int slot, Stream* strea
     {
         deleteFlag = 0;
         if (!db->fetch() || !db->get_int(0, deleteFlag))
-        {
-            _sendResult(2, slot, 0, 0, 0, 0, 0, 0);
-            goto done;
-        }
+            return _sendResult(2, slot, 0, 0, 0, 0, 0, 0);
         if (deleteFlag != 0)
-        {
-            _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0);
-            goto done;
-        }
+            return _sendResult(0x15, slot, 0, 0, 0, 0, 0, 0);
 
         // 宽度对齐 ORIG（报告 0x0843c02a..0x0843c092）：列 2..6 callee =
         // MySQL::get_int(int, int&)@0x0811692c → 局部须为 int（原 unsigned int
@@ -334,9 +352,9 @@ done:
 //    errCode==0 时 strncpy(name,0x1d)、+0x24=characNo、+0x28=(char)job、
 //    +0x2a=(short)lev、+0x2c=(char)growType、+0x2d=(char)sex → put → 返 1。
 // ============================================================================
-int DB_ReqQueryCharacInfoMailbox::_sendResult(int errCode, int slot, const char* name,
-                                              int characNo, int job, int lev,
-                                              int growType, int sex)
+bool DB_ReqQueryCharacInfoMailbox::_sendResult(int errCode, int slot, const char* name,
+                                               int characNo, int job, int lev,
+                                               int growType, int sex)
 {
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8ed6), true);
 

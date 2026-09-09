@@ -68,9 +68,12 @@ public:
     // ORIG 0x0843bd46（虚覆盖）：按名字查 charac_info，回填 SIG_QUERY_CHARAC_INFO。
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
 
-    // ORIG 0x0843c224（普通成员，返回 1）：写回查询结果缓冲并投递。
-    int _sendResult(int errCode, int slot, const char* name,
-                    int characNo, int job, int lev, int growType, int sex);
+    // ORIG 0x0843c224（普通成员）：写回查询结果缓冲并投递。
+    // 返回类型 bool：dispatch 失败路径 `return _sendResult(...)` 在 ORIG
+    // 0x0843be5b 处直接 `jmp +0x3e6`（跳过 mov $1），无 int→bool 归一化
+    // ⇒ callee 必须已是 bool（P292 探针 /tmp/probe_ret.cpp f vs g 实证）。
+    bool _sendResult(int errCode, int slot, const char* name,
+                     int characNo, int job, int lev, int growType, int sex);
 };
 
 #endif  // DNF_GAME_DB_MAILBOX_DISPATCH_H_
