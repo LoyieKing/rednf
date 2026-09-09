@@ -311,14 +311,18 @@ bool CItemUpgrade_Separate::_GetUpgradeInfo(const Inven_Item* item, const CItem*
                                             const GenuineDamageUpgradeTable& table,
                                             STUpgradeInfo* out, int level)
 {
-    // [b28d-solo-CItemUpgrade_Separate] ORIG 0x0811e2f3/0x0811e30e：条件内联
-    // GetUpgradeSeparate（4.1 `!(a() > b)` 求值两次，第二次结果丢弃）+ movzbl/int 比较
-    // （jg 有符号），复现两次调用 + jg 形。
-    if (!(static_cast<int>(item->m_upgradeSep.GetUpgradeSeparate()) > table.m_maxLevel))
+    // [2026-09-10 SweepCEquipItem2] 真 bug 修（条件极性反写）：ORIG 0x0811e301
+    // `cmp %eax,%edx; jg 0811e31a`，且 Ghidra C 独立同证
+    // `if (*(int *)(param_3 + 4) < (int)(uVar3 & 0xff)) { uVar4 = 0; } else { …主体… }`
+    // ⇒ **sepLv > m_maxLevel 才 return false**；sepLv <= m_maxLevel 路径继续主体，
+    // 并在主体前重发一次 GetUpgradeSeparate（0x0811e30e，结果丢弃，P48 无 CSE）。
+    // 旧译文写成 `if (!(sepLv > m_maxLevel)) { 死调用; return false; }`，极性完全相反
+    // （正常强化恒失败、超上限反而放行）。
+    if (static_cast<int>(item->m_upgradeSep.GetUpgradeSeparate()) > table.m_maxLevel)
     {
-        (void)item->m_upgradeSep.GetUpgradeSeparate();   // ORIG 0x0811e30e 死调用（结果丢弃）
         return false;
     }
+    (void)item->m_upgradeSep.GetUpgradeSeparate();   // ORIG 0x0811e30e 死调用（结果丢弃）
 
     const unsigned char growth =
         static_cast<unsigned char>(
@@ -360,6 +364,11 @@ bool CItemUpgrade_Separate::_GetUpgradeInfo(const Inven_Item* item, const CItem*
 // （P282 真语义缺口已补）。p167 10=10 CLEAR；gap=1（133 vs 132）。残余仅 N7：
 // 虚调目标 ORIG %edx vs 4.4 %eax、rarity/itemType 的 %ebx/%esi 角色互换及实参槽
 // 0xc/0x10 互换（P230 判 4.4.6 后端敏感族）。
+// [2026-09-10 SweepCEquipItem2] 本轮修法（P243 求值序）：末检改「sepLv+1 > m_maxLevel」
+// 书写序——ORIG 0x0811e29c `lea 0x1(%eax),%edx; mov 0x1c(%ebp),%eax; mov 0x4(%eax),%eax;
+// cmp %eax,%edx; setg` 先算左操作数；旧写法 `m_maxLevel < sepLv+1` 使 4.4 提前把
+// m_maxLevel 装 %ebx（多 1 对 mov）并反出 setl。改后 clean 132=132、助记符序列全等，
+// 本件 DIFF→NEAR（TU 四数 near 1→2 / diff 7→6）；p167 10=10 CLEAR 不变。
 int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_Item& item,
                                            const CItem* citem, const Inven_Item& matItem,
                                            const GenuineDamageUpgradeTable& table,
@@ -407,8 +416,9 @@ int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_It
     }
     // [b28d-51] P48：ORIG 0x0811e29c 末检再次独立调 GetUpgradeSeparate
     // （不复用 sepLv 局部）——p167 差集曾缺 1 个该调用。
-    if (table.m_maxLevel <
-        static_cast<int>(item.m_upgradeSep.GetUpgradeSeparate()) + 1)
+    // ORIG 0x0811e29c：`lea 0x1(%eax),%edx; mov 0x1c(%ebp),%eax; mov 0x4(%eax),%eax;
+    // cmp %eax,%edx; setg` ⇒ 先算 sepLv+1（左操作数）再读 m_maxLevel（P243 求值序）。
+    if (static_cast<int>(item.m_upgradeSep.GetUpgradeSeparate()) + 1 > table.m_maxLevel)
     {
         return 0x5f;
     }
@@ -492,6 +502,13 @@ void CItemUpgrade_Separate::_NoticeUpgrade(const CUser* user, const Inven_Item& 
 // 0x892 `add $0xc`（ORIG 0x0811e354，CItem::GetItemType）；③④ _CheckCondition
 // 0xa65/0xab9 `add $0xc`（ORIG 0x0811e1fc/0x0811e250）；⑤ 本函数 0x1238 `add $0x4c`
 // = CItem::IsRandomOption（ORIG 0x0811ebdd）。无槽取错。
+// [2026-09-10 SweepCEquipItem2] 本轮修法（P198① 预清两句式）：cond / success 由
+// 初始化式改「声明=0/false + 独立赋值」——ORIG 0x0811e894 `movl $0x0,-0x28`、
+// 0x0811e90b `movb $0x0,-0x1d` 均为 call 前预清、call 后回填，合写会丢两行。
+// gap 3→1（fresh .o orig 393 / our 392），p167 43=43 CLEAR，四数零回退。
+// 残余（N 封顶）：setne 物化 1 处、Inven_Item 槽基 -0xf6↔-0xb6（帧 +0x10 = N115）、
+// historyLog 取址 `lea 0x79700(%edx),%ecx` vs `add $0x79700,%edx`（N107）、
+// success 的 %esi↔%edi（N7）。
 int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
                                        PacketGuard* packet)
 {
@@ -535,8 +552,11 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         return 0xd;
     }
 
-    const int cond = _CheckCondition(user, item, citem, matItem, *table,
-                                     user->get_charac_level());
+    // ORIG 0x0811e894 `movl $0x0,-0x28(%ebp)` 先于 call、0x0811e8de 再回填 ⇒
+    // 原码是「声明=0 + 独立赋值」两句式（P198①，合写会丢预清行）。
+    int cond = 0;
+    cond = _CheckCondition(user, item, citem, matItem, *table,
+                           user->get_charac_level());
     if (cond != 0)
     {
         return cond;
@@ -547,7 +567,9 @@ int CItemUpgrade_Separate::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
     const unsigned int sepOld =
         static_cast<unsigned char>(item.m_upgradeSep.GetUpgradeSeparate());
 
-    const bool success = _DoProcUpgrade(user, &item, &info);
+    // ORIG 0x0811e90b `movb $0x0,-0x1d(%ebp)` 预清 + 0x0811e932 回填（P198①）。
+    bool success = false;
+    success = _DoProcUpgrade(user, &item, &info);
 
     // P0：ORIG 0x0811e93d/0x0811e99e 每处重读 `msg->m_materialSlot`（movzwl 0x23），
     // 无 matSlot 具名局部；receiver 亦为链式右值（0x0811e947 无槽往返）。
@@ -646,6 +668,17 @@ void UpgradeSeparateInfo::IncUpgradeSeparate()
 // 0x0867a556 / 0x0867a588 / 0x0867a872 / 0x0867a8a4，共 24 条）——4.1 对 bool 局部在
 // EH cleanup 点的规范化，4.4 不生成，跨版本不可复现；余下为槽基常数差
 // （board -0xb8 ↔ -0xc4、帧 0x2dc ↔ 0x2fc = N115 outgoing 预留）。按 §6.2 判语义完成。
+// [2026-09-10 SweepCEquipItem2] 本轮修法（P0/P52 + P198① + P222）：
+// ① 删 guildkey/characNo/proxy 三个具名局部改单条链式表达式（ORIG 0x0867a8ec/
+//    0x0867a8f9 把两 getter 结果留 %esi/%ebx 跨 GetServerProxy 保活、无槽往返）；
+// ② boardReady 去初始化式改「未初始化声明 + if/else 双赋值」（ORIG 0x0867a4fa/
+//    0x0867a52f/0x0867a816/0x0867a84b 两臂各 mov $0/$1,%ebx、函数头无预置）；
+// ③ sprintf 分支改先写 upgrade != 0（ORIG 0x0867a455 `je` 落 "%s %d" 臂）。
+// 改后帧 0x2ec→0x2dc（与 ORIG 全等）、board/prefix/msgBuf/tail 槽位与 ORIG 对齐
+// （msgBuf 差 1 字节）、tail 清零慢路逐条相同；p167 71=71 CLEAR（仅 C1/C2 同址别名伪差）。
+// 残余（gap=32，orig 512 / our 481，N 封顶）：3 个 bool EH 归一化块 15 条 + 尾 test 2 条
+// （4.1 独有）、`seta`↔`setbe`（setcc-fold）、success 的 `xor $1` 物化 3 条、msgBuf 槽
+// 差 1 字节（2 条 lea）、boardReady 末尾 `test %ebx`↔`test %bl`。
 void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
                                                int newLevel, bool success, int upgrade)
 {
@@ -661,7 +694,10 @@ void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
                                                    static_cast<bool*>(0)),
                  sizeof(prefix));
 
-    register bool boardReady = false;   // P231：ORIG 全程 %ebx 承载，无栈槽
+    // [2026-09-10 SweepCEquipItem2] P0/P231：ORIG 0x0867a4fa/0x0867a52f（else 臂
+    // 0x0867a816/0x0867a84b）两臂各自 `mov $0/$1,%ebx`，函数头**无**预置 0 ⇒ 原码是
+    // 未初始化声明 + if/else 双赋值（写 `= false` 会被 4.4 多生成 `mov $0,%esi`）。
+    register bool boardReady;
     if (success && newLevel > 5)
     {
         char msgBuf[255];
@@ -675,22 +711,28 @@ void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
         std::string body(msgBuf);
 
         char tail[255] = {0};
-        if (upgrade == 0)
+        // ORIG 0x0867a455 `cmpl $0; je <"%s %d">`：fall-through 是 "+…" 臂
+        // ⇒ 原码先写 upgrade != 0（P222 块序）。
+        if (upgrade != 0)
         {
-            std::sprintf(tail, "%s %d", name, newLevel);
+            std::sprintf(tail, "+%d %s %d", upgrade, name, newLevel);
         }
         else
         {
-            std::sprintf(tail, "+%d %s %d", upgrade, name, newLevel);
+            std::sprintf(tail, "%s %d", name, newLevel);
         }
         line += tail;
         line += body;
         userName += line;
 
-        if (userName.length() < sizeof(board))
+        if (sizeof(board) > userName.length())
         {
             std::memcpy(board, userName.c_str(), userName.length());
             boardReady = true;
+        }
+        else
+        {
+            boardReady = false;
         }
     }
     else
@@ -715,34 +757,38 @@ void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
         std::string body(msgBuf);
 
         char tail[255] = {0};
-        if (upgrade == 0)
+        if (upgrade != 0)
         {
-            std::sprintf(tail, "%s %d", name, oldLevel + 1);
+            std::sprintf(tail, "+%d %s %d", upgrade, name, oldLevel + 1);
         }
         else
         {
-            std::sprintf(tail, "+%d %s %d", upgrade, name, oldLevel + 1);
+            std::sprintf(tail, "%s %d", name, oldLevel + 1);
         }
         line += tail;
         line += body;
         userName += line;
 
-        if (userName.length() < sizeof(board))
+        if (sizeof(board) > userName.length())
         {
             std::memcpy(board, userName.c_str(), userName.length());
             boardReady = true;
+        }
+        else
+        {
+            boardReady = false;
         }
     }
 
     if (boardReady)
     {
-        const int guildkey = get_charac_guildkey();
-        const unsigned int characNo =
-            static_cast<unsigned int>(getCurCharacNo());
-        CGuildServerProxy* proxy =
-            GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup());
-        proxy->SendGuildBoardWrite(board, 0u, characNo, -1,
-                                   static_cast<char>(-1),
-                                   static_cast<unsigned int>(guildkey));
+        // [2026-09-10 SweepCEquipItem2] P0/P52：ORIG 0x0867a8ec/0x0867a8f9 把
+        // get_charac_guildkey / getCurCharacNo 结果分别留 %esi/%ebx 跨 GetServerProxy
+        // 保活、全程无栈槽往返 ⇒ 原码是单条链式表达式（实参内联），不是三个具名局部。
+        GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup())
+            ->SendGuildBoardWrite(
+                board, 0u, static_cast<unsigned int>(getCurCharacNo()), -1,
+                static_cast<char>(-1),
+                static_cast<unsigned int>(get_charac_guildkey()));
     }
 }
