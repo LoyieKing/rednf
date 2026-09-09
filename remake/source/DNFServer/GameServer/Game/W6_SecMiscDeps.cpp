@@ -73,19 +73,32 @@ WongWork::CSecurityCardCenter::CSecurityCardCenter()
 
 void WongWork::CSecurityCardCenter::init()
 {
-    // [b28d-solo-W6_SecMiscDeps 判词 · N 封顶（P209附）] ORIG 0x085fe05e：残余仅
-    // unsigned 局部 for 尾测
-    // （ORIG `mov -0xc,%eax; cmp $0x29,%eax; setbe` vs 4.4 `cmpl $0x29,-0xc; setbe`，
-    // 4.4 恒折内存直比；P209附 已实证 do-while/while 变体同折 ⇒ 封顶）；
-    // 初始化/字符集/计数写入逐条等价（ndiff 3，唯 ORIG 多 mov+cmp 一对）。
+    // [b28d-solo-W6_SecMiscDeps 判词 · IDENTICAL_AE] ORIG 0x085fe05e：本轮 P310
+    // 翻案后逐条全等（原「N 封顶（P209附）：unsigned 局部尾测不可翻」判词作废）。
     // ORIG T 0x085fe05e：固定密钥初始化头部 CRijndael；42 字符 characterSet
     // 逐个 push 进 m_characterSet；+0x484 置 1。（字符集数据段 0x93ac1e0）
-    static const unsigned char characterSet[] =
-        "+<>?@#$&ABCDEFGHIJKLMNPQRSTUVWXYZ123456789";
+    // [b28d-solo-W6_SecMiscDeps · P338 局部静态数据符号判据] ORIG 符号
+    // `_ZZN8WongWork19CSecurityCardCenter4initEvE12characterSet` = nm
+    // `093ac1e0 0000002a d`：**42 字节 .data**（无 NUL 终止符、非 const）。
+    // 旧 `static const unsigned char[]` 生 43 字节 .rodata（多写 '\0'）。
+    // 正解 = 非 const + 定长 [0x2a] 初始化（C++ 允许数组尺寸等于字面量长度，
+    // 丢弃终止符），段与尺寸逐项对齐 ORIG。
+    // GCC 4.4 对 `unsigned char[N] = "<N 字符>"` 报 too long ⇒ 用 42 元素
+    // 显式初始化列表（内容逐字符照 ORIG .data 0x93ac1e0 的 42 字节）。
+    static unsigned char characterSet[0x2a] = {
+        '+', '<', '>', '?', '@', '#', '$', '&',
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+        'I', 'J', 'K', 'L', 'M', 'N', 'P', 'Q',
+        'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y',
+        'Z', '1', '2', '3', '4', '5', '6', '7',
+        '8', '9' };
     m_cipher.Initialize("n6;fw;vjfs0fuguf", 0x10, CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
-    // ORIG `cmp $0x29,%eax; setbe` = 无符号 `i<=41`（P2 setbe=unsigned）。
-    // 4.4 对 int 出 setle → 循环计数器改 unsigned 对齐 setbe。
-    for (unsigned int i = 0; i < 42; ++i)
+    // [b28d-solo-W6_SecMiscDeps 判词更新 · P310 翻案] ORIG 0x085fe0d1 尾测
+    // `mov -0xc(%ebp),%eax; cmp $0x29,%eax; setbe; test; jne`（两段寄存器形）。
+    // 4.4 对 unsigned 局部恒折 `cmpl $0x29,-0xc` 单段（旧 N 封顶判词作废）；
+    // P310 解法：局部声明 **int** + 显式 `(unsigned int)i` 比较 ⇒ 逐条复现。
+    // 语义不变（i∈[0,42)，unsigned 转换后恒非负）。
+    for (int i = 0; (unsigned int)i < 42; ++i)
     {
         m_characterSet.push_back(characterSet[i]);
     }
@@ -185,22 +198,18 @@ char* WongWork::CSecurityCardCenter::generateServerKey(char* out)
 
 bool WongWork::CSecurityCardCenter::checkPhoneNumber(char const* phone) const
 {
-    // [b28d-solo-W6_SecMiscDeps 判词 · N 封顶（N4/P30 + P209附）] ORIG 0x085fe444：
-    // 残余为 `add 0xc(%ebp),%eax` 两步
-    // 寻址 vs 4.4 `mov 0xc(%ebp),%edx; lea (%edx,%eax,1),%eax`（P30/N4）+ 循环尾测
-    // mem 直比（P209附）；数字判定/越界语义逐条等价。原 b28c-L7 已实证 [] / +i /
-    // &arr[i] 三形同产 lea，本轮 fresh 复核判定维持 N 封顶。
+    // [b28d-solo-W6_SecMiscDeps 判词 · N 封顶（N4/P30）] ORIG 0x085fe444：语义逐条
+    // 对齐；残余两处（0x085fe456 / 0x085fe460）指针+下标折叠
+    // `mov -0x4(%ebp),%eax; add 0xc(%ebp),%eax`（mem 作 add 源）vs 4.4 恒
+    // `mov 0xc(%ebp),%edx; lea (%edx,%eax,1),%eax`（b28c-L7 穷举 [] / +i / &arr[i]
+    // 三形同产 lea ⇒ 封顶）。
     // ORIG T 0x085fe444 (size 0x52)：i<=0xb 为循环条件；'\0' 提前 break 共享
     // return-1 出口（je→尾块+loop 尾 jmp 对）；数字判定单式
     // 9U < (unsigned)(schar)c - 0x30U（jbe 即无符号序，涵盖 c<'0'）。
-    // [b28c-L7] N4/N18b 封顶（语义已逐条对齐，两处 4.1 固有寻址/装载形不可造）：
-    // ①ORIG 0x085fe456 指针+下标折叠为 `mov -0x4,%eax; add 0xc(%ebp),%eax`
-    //   （mem 作 add 源），4.4 恒 `mov 0xc(%ebp),%edx; lea (%edx,%eax,1),%eax`
-    //   （N4：数组 add-形 与 lea-形固有差，穷举 [] / +i / &arr[i] 三形同产 lea）；
-    // ②ORIG 循环界 `mov -0x4(%ebp),%eax; cmp $0xb,%eax; setbe`（值先载寄存器），
-    //   4.4 对 unsigned 局部比较恒 `cmpl $0xb,-0x4(%ebp)` 直读内存（P209 反向，
-    //   改 signed 则 setbe→setle 助记符先失配）。其余 24 条逐条全等。
-    for (unsigned int i = 0; i <= 0xb; ++i)
+    // [P310 翻案] ORIG 0x085fe47f 尾测两段寄存器形（`mov -0x4(%ebp),%eax;
+    // cmp $0xb,%eax; setbe`）；旧「unsigned 局部恒折内存直比 ⇒ 封顶」判词作废
+    // ⇒ 局部改 int + 显式 `(unsigned int)i` 比较即逐条复现（S108 同法）。
+    for (int i = 0; (unsigned int)i <= 0xb; ++i)
     {
         if (phone[i] != '\0')
         {
@@ -215,11 +224,12 @@ bool WongWork::CSecurityCardCenter::checkPhoneNumber(char const* phone) const
 
 char* WongWork::CSecurityCardCenter::generateCardData(char* out) const
 {
-    // [b28d-solo-W6_SecMiscDeps 判词 · N 封顶（P30 add-vs-lea + P209附 尾测）；42→7]
+    // [b28d-solo-W6_SecMiscDeps 判词 · N 封顶（P30 add-vs-lea）；42→7]
     // ORIG 0x085fe1ba：帧 0x40。
     // 源码形态按 ORIG 反汇编还原：①`movl $0x26,-0x18` 死局部（写后从未读，
-    // P171/P232 照抄）；②`for (pos=0; pos<=0x25; ++pos)`（4.1 尾测 setbe 物化 +
-    // jmp 到条件块）；③begin/end 各求值一次后缓存（P13，`it != end` 用缓存槽
+    // P171/P232 照抄）；②`for (pos=0; pos<=0x25; ++pos)`（尾测 setbe 物化 +
+    // jmp 到条件块；P310 翻案后 int 局部 + 显式 unsigned 比较已逐条复现）；
+    // ③begin/end 各求值一次后缓存（P13，`it != end` 用缓存槽
     // -0x28/-0x2c）；④seen 声明先于 pick（槽 -0x10/-0xc）。
     // ORIG T 0x085fe1ba (size 0x128)：拷贝 m_characterSet 至临时 list；循环
     // （pos<=0x25 继续）：以 list.size() 为上界随机取槽，顺序迭代到第 pick 个
@@ -227,7 +237,11 @@ char* WongWork::CSecurityCardCenter::generateCardData(char* out) const
     std::list<unsigned char> pool(m_characterSet);
     int unusedLimit = 0x26;   // ORIG -0x18：写后从未读（死局部，照抄）
     (void)unusedLimit;
-    for (unsigned int pos = 0; pos <= 0x25; ++pos)
+    // [P310 翻案] ORIG 0x085fe29c 尾测两段寄存器形（`mov -0x14(%ebp),%eax;
+    // cmp $0x25,%eax; setbe`）⇒ int 局部 + 显式 unsigned 比较复现
+    //（同 init/checkPhoneNumber 三件同形）；残余仅 0x085fe242 `add 0xc(%ebp),%ebx`
+    // vs 4.4 lea（P30/N4 封顶）。
+    for (int pos = 0; (unsigned int)pos <= 0x25; ++pos)
     {
         int seen = 0;
         const int pick = get_rand_int((int)pool.size());
@@ -510,11 +524,17 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
                                                  unsigned int extra)
 {
     // [b28d-solo-W6_SecMiscDeps 判词 · 语义完成 / byte 层 N 封顶（N82/N89/N93附）]
-    // ORIG 0x086c121e：§6.2 三件套 —— ①gap 6（431/425）；②p167 调用点差集
+    // ORIG 0x086c121e：§6.2 三件套 —— ①gap 8（431/423）；②p167 调用点差集
     // **CLEAR 52=52**（修前 MISSING operator*×2/operator<<(int)×2/G_CDataManager×1，
     // EXTRA operator<<(uint)×2/CGenUniqueNo::C1×1/~CStreamGuard×1/getItemList×1）；
     // ③残差为帧/槽号整体平移 0x20（N82）+ 返回值常量岛物化（N93附）+ STL 内联差
-    // （N89）。本轮修 4 处真 bug（见各分支注释）。
+    // （N89）。本轮共修 4 处真 bug（见各分支注释）：
+    //   ①0x086c1491 equip 分支 `jbe` 无符号比较（P196，旧 `(int)count>1` 生 jle）；
+    //   ②0x086c14ec `_GetATIAvatarAbility` 实参来源 = 形参 itemId（非 slot 槽）；
+    //   ③ProcessSpecialItem 结果内联进 if（P0：ORIG 无 bool 槽，旧 `const bool ok`
+    //     多发 `mov %al,-N; cmpb $0,-N` 两步）；
+    //   ④`return codeStr == 0;` 改早返回 `return 1/0`（复现 ORIG 两臂 `mov $1/%ebx`
+    //     常量岛，消 sete+movzbl 归一化）。
     // ORIG T 0x086c121e (size 0x6f1)：
     if (itemId == 1)
     {
@@ -549,15 +569,13 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
         if (codeStr == 0)
         {
             s_stream_pool->Free(guard);   // asm +0x156
+            return 1;                     // asm +0x15b `mov $0x1,%ebx`
         }
-        else
-        {
-            s_pIPGHelper->IPGInput(user, codeStr, countStr,
-                                   CGenUniqueNo::GenUniqueNo(uniqueNoBuf),
-                                   _GetEventString((int)eventIdx),
-                                   user->getCurCharacName(), guard.Get());
-        }
-        return codeStr == 0;              // asm +0x169/+0x1fc：ebx=1/0
+        s_pIPGHelper->IPGInput(user, codeStr, countStr,
+                               CGenUniqueNo::GenUniqueNo(uniqueNoBuf),
+                               _GetEventString((int)eventIdx),
+                               user->getCurCharacName(), guard.Get());
+        return 0;                         // asm +0x1da `mov $0x0,%ebx`
     }
 
     // ---- 物品发放分支（asm +0x20c..+0x6ef）----
@@ -577,7 +595,11 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
     else
     {
         // asm +0x273..+0x29b：equip 类且 count>1 才回写数量到 item+0x07。
-        if ((int)count > 1)
+        // [b28d-solo-W6_SecMiscDeps 真 bug 修正 · P196] ORIG 086c1491
+        // `cmpl $0x1,0x10(%ebp); jbe` 是**无符号**序（count 为 unsigned 形参）；
+        // 旧 `(int)count > 1` 生有符号 `jle`，count ≥ 0x80000000 时语义分叉
+        // （ORIG 写回数量、旧码不写）⇒ 按 P196 改无符号比较。
+        if (count > 1)
         {
             slot.m_addInfo2 = (int)count;
         }
@@ -599,7 +621,10 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
         // ---- Avatar 分支（asm +0x2ce..+0x3cf）----
         // 真 bug 修正：ORIG AddAvatarItem 实参为 (itemId,0,false,ability,-1,agency,2,false,0)
         //（086c158e `mov %esi,0x10(%esp)`=char c、086c1586 `movl $0xffffffff,0x14(%esp)`=char d）。
-        const int ability = _GetATIAvatarAbility((int)slot.m_addInfo);
+        // [b28d-solo-W6_SecMiscDeps · 实参来源判据] ORIG 086c14ec 读 `0xc(%ebp)`
+        // = 形参 itemId（非 slot.m_addInfo 槽 -0xe3）；AddAvatarItem 第一参才用
+        // slot.m_addInfo（086c1554 `mov -0xe3(%ebp),%eax`）⇒ 两处来源照抄 ORIG。
+        const int ability = _GetATIAvatarAbility((int)itemId);
         char agencyName[0x14] = {0};   // ORIG 5×movl $0 清零（P214③）
         OS_API::snprintf(agencyName, 0x14, "E_%s",
                          _GetEventString((int)eventIdx));
@@ -633,10 +658,12 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
         const long curSec = (long)s_systemTime_.getCurSec();
         std::vector<Inven_Item> attached;
         CCeraShop::stCeraShopItemParam_t paramObj;
-        const bool ok = s_pCeraShop->ProcessSpecialItem(
-            user, (int)slot.m_addInfo, restrictCode, outRestrict, curSec, true,
-            attached, paramObj, '\0', '\0', false, 1);
-        if (ok)
+        // [b28d-solo-W6_SecMiscDeps · P0 槽对应律] ORIG 086c16fd 直接
+        // `test %al,%al; je`（无 bool 槽）⇒ 原码把调用内联进 if 条件；
+        // 具名 `const bool ok` 使 4.4 多发 `mov %al,-0x19; cmpb $0,-0x19` 两步。
+        if (s_pCeraShop->ProcessSpecialItem(
+                user, (int)slot.m_addInfo, restrictCode, outRestrict, curSec,
+                true, attached, paramObj, '\0', '\0', false, 1))
         {
             if (outRestrict != 0)
                 return 0;   // ORIG 086c170b：ebx=0 经共享析构出口返回 0
