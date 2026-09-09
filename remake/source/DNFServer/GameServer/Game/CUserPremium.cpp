@@ -194,14 +194,20 @@ int importPremiumList(const char* path,
 
     std::string token;
     std::string value;
+    // [b28d-solo-CUserPremium] P171/P232：ORIG +0x45 `movl $0x0,-0x6c(%ebp)`
+    // 全函数唯一一次写、无读（死局部占帧）⇒ 照抄。
+    int deadLocal = 0;
     bool ok = false;
-    bool itemOk = false;
-    stPremiumTable_t* cur = table;
-    // ORIG -0x60 槽：跨组保留的标签分类值（未知标签时写入残留值）。
-    int equipCase = 0;
+    // ORIG -0x60 槽：跨组保留的标签分类值（未知标签时写入残留值）；ORIG 头段
+    // 无 `movl $0,-0x60` ⇒ 原码声明处不带初始化。
+    int equipCase;
 
     for (int i = 0; i <= 0x69; ++i)
         table[i].clean();
+
+    // [b28d-solo-CUserPremium] P0：ORIG +0x7c 才写 cur（clean 循环之后）⇒
+    // 原码在 clean 之后声明。
+    stPremiumTable_t* cur = table;
 
     while (true)
     {
@@ -364,16 +370,18 @@ int importPremiumList(const char* path,
 
         if (token == "[independent drop rate]")
         {
-            while (true)
+            // [b28d-solo-CUserPremium] P0/P211：ORIG +0x842 rate 局部为 **int**
+            // （for-init `movl $0x0,-0x40` 在头、for-incr `movl $0x0,-0x40` 在尾
+            // +0x883）；push_back 处 `mov -0x40,%eax; mov %eax,-0x70` 转换临时
+            // ⇒ 原码 `push_back(rate)` 由 int→unsigned int 产生右值临时，选中
+            // `push_back(unsigned int&&)`（EOj）。旧 `unsigned int rate` +
+            // static_cast<unsigned int&&> 无 -0x70 临时且尾无 re-init。
+            for (int rate = 0; ; rate = 0)
             {
-                unsigned int rate = (unsigned int)ScanInt(&ok);
+                rate = ScanInt(&ok);
                 if (!ok)
                     break;
-                // [b28d-L1] 修法（P167）：ORIG 调 `vector<unsigned int>::push_back
-                // (unsigned int&&)`（EOj）；左值实参使 4.4 选 const& 重载（RKj）。
-                // 与 QuickParty::push_quick_party_in_pool 的 b23 N-XVAL 手法同源。
-                cur->m_independentDropRates.push_back(
-                    static_cast<unsigned int&&>(rate));
+                cur->m_independentDropRates.push_back(rate);
             }
             continue;
         }
@@ -599,14 +607,25 @@ int importPremiumList(const char* path,
 
         if (token == "[target item]")
         {
-            cur->m_targetItemKey = (unsigned int)ScanInt(&itemOk);
+            // [b28d-solo-CUserPremium] P0：ORIG 0x08906f1a 该分支自带
+            // `movl $0x0,-0x14` + `movb $0x0,-0x7a` 两槽（int v 与分支局部
+            // bool），与 [item] 分支的 -0x7b bool 各占独立槽——原码是两个
+            // 分支各自的局部，非函数头单例 itemOk。
+            int v = 0;
+            bool itemOk = false;
+            v = ScanInt(&itemOk);
             if (!itemOk)
                 return 0;  // ORIG 怪癖（0x8906f2c）：失败按成功返回 0
+            cur->m_targetItemKey = (unsigned int)v;
             continue;
         }
 
         if (token == "[item]")
         {
+            // [b28d-solo-CUserPremium] P0：ORIG 0x08906f0a `movb $0x0,-0x7b`
+            // 先于 item 的 C1（0x08906f0f），且循环内 [term]/[restrict] 复用
+            // 同一槽 ⇒ 分支局部 bool 声明在 item 之前。
+            bool itemOk = false;
             premium_script_parsing::STPremiumItemData item;
             item.m_key = (unsigned int)ScanInt(&itemOk);
             if (!itemOk)
@@ -984,7 +1003,7 @@ bool CUserPremium::_CheckApply(int type, tm t)
 // [b28d-solo-CUserPremium] IDENTICAL/AE（routed 口径 check_tu_routed 复验）：
 // ORIG 0x086af70a 逐条对齐（52/52，ndiff=0）。P167 唯一差 = make_pair 模板
 // 实参 IRKm vs IRm（形参 top-level const 差异，不入 mangled/布局）。
-int CUserPremium::SetPremiumItemData(unsigned long key, const STPremiumItemData& data)
+bool CUserPremium::SetPremiumItemData(unsigned long key, const STPremiumItemData& data)
 {
     if (key == 0)
         return 1;
@@ -1266,6 +1285,9 @@ std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
 int CUserPremium::LoadPremiumInfo(const char* path)
 {
     stPremiumTable_t table[0x6a];
+    // [b28d-solo-CUserPremium] P212：ORIG 0x086aed54 起外层循环变量 i 占 -0x34
+    // （4.4 若留在 for-init 会被同块 key 顶到 -0x38）⇒ 提函数头声明、循环内仅赋值。
+    int i;
 
     if (importPremiumList(path,
                           table,
@@ -1273,7 +1295,7 @@ int CUserPremium::LoadPremiumInfo(const char* path)
                           g_vecPremiumReturnItemInfo) != 0)
         return 0x15c;
 
-    for (int i = 0; i <= 0x69; ++i)
+    for (i = 0; i <= 0x69; ++i)
     {
         // ORIG 无任何引用缓存：每个字段读写都重算 table+i*0x130+off 与
         // g_SPremiumInfo+i*0x120+off（Ghidra C 每条赋值两侧都带 local_38*0x130 /
@@ -1339,26 +1361,40 @@ int CUserPremium::LoadPremiumInfo(const char* path)
 
         STPremiumItemData data;
         data.m_value0 = i;
-        if (table[i].m_premiumItems.size() == 0)
+        // [b28d-solo-CUserPremium] P0 取舍（b28d 实测）：ORIG 0x86af54c
+        // `mov %eax,-0x38(%ebp)` + 空分支 0x86af667 回读，确为键具名局部；
+        // 但 4.4 一旦为该键分配栈槽即触发帧 0x7e3c→0x7e4c、table 基址
+        // -0x7e28→-0x7e2c 全帧平移（探针 /tmp/b28d_solo：带槽 ndiff 466、
+        // 内联实参 56、纯 register 52；帧/槽对齐后整函数 ~700 条回正）。
+        // 取内联实参形（P264/P112 帧族：语义与 ORIG 完全一致，仅少 store/load 对）。
+        // [b28d-solo-CUserPremium] P22/P197④：ORIG 0x86af571 `test %eax,%eax;
+        // setne %al; test %al,%al; je <空分支 0x86af651>` ⇒ 原码是 `size() != 0`
+        // 正向判（非空分支直落、空分支置后），非 `==0` 反极性（后者产 sete）。
+        if (table[i].m_premiumItems.size() != 0)
         {
-            // 空表：flag 字节取已拷贝 g 表 m_checkTerm 低字节，key 用记录键。
-            data.m_c4 = (unsigned char)g_SPremiumInfo[i].m_checkTerm;
-            if (SetPremiumItemData((unsigned long)table[i].m_targetItemKey, data) != 1)
-                return 0x1c4;
-        }
-        else
-        {
-            // [b28d-solo-CUserPremium] P50：ORIG 无 `iterator::C1Ev` 调用（P167
-            // EXTRA×1）⇒ 迭代器必须 for 初始化处直构，禁「先声明后赋值」。
+            // [b28d-solo-CUserPremium] P13/P50：ORIG 0x86af5a2/0x86af5ce 的
+            // begin/end 各只调一次（it=-0x44、end=-0x48 缓存），循环条件复用
+            // 槽；原码在 for 初始化处同时直构 it/itEnd（无 iterator::C1Ev）。
             for (std::vector<premium_script_parsing::STPremiumItemData>::iterator
-                     it = table[i].m_premiumItems.begin();
-                 it != table[i].m_premiumItems.end(); ++it)
+                     it = table[i].m_premiumItems.begin(),
+                     itEnd = table[i].m_premiumItems.end();
+                 it != itEnd; ++it)
             {
                 data.m_c4 = it->m_termFlag;
                 data.m_c5 = (unsigned char)(it->m_restrictFlag != 0);
-                if (SetPremiumItemData((unsigned long)it->m_key, data) != 1)
+                // [b28d-solo-CUserPremium] P292/P321-T3：ORIG 0x086af61d
+                // `call; xor $0x1,%eax; test %al,%al; je` ⇒ bool 返回 + 裸 `!`
+                // （`!=1` 形在 bool 下仍产 cmp/setne）。
+                if (!SetPremiumItemData((unsigned long)it->m_key, data))
                     return 0x1bc;
             }
+        }
+        else
+        {
+            // 空表：flag 字节取已拷贝 g 表 m_checkTerm 低字节，key 用记录键。
+            data.m_c4 = (unsigned char)g_SPremiumInfo[i].m_checkTerm;
+            if (!SetPremiumItemData((unsigned long)table[i].m_targetItemKey, data))
+                return 0x1c4;
         }
     }
     return 0;

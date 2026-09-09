@@ -102,7 +102,7 @@ public:
     void _Set_LayerByDungeonIndex(unsigned int layer, unsigned int idx);        // 0x08643c86
     void _Set_APCIndexByLayer(unsigned int layer);     // 0x08643cf4
 
-    CDungeon* Get_CDungeonByLayer(unsigned int layer);          // ORIG T 0x08643d14
+    const CDungeon* Get_CDungeonByLayer(unsigned int layer);    // ORIG T 0x08643d14（元素为 const 指针）
     // [b28d-solo-CPartyDepsA2] 返回类型 unsigned int→int：ORIG 调用点
     // 0x085badf6 LHS-first 直存（P211 同型化旋钮）；mangled/布局不变。
     int Get_DungeonIndexByLayer(unsigned int layer);            // ORIG T 0x08643d76
@@ -116,7 +116,10 @@ public:
     void _layerInfo(CUser* user);   // ORIG T 0x08644470（空函数：仅 prologue/epilogue）
     unsigned short GetMinLv() { return m_minLevel; }   // ORIG W 0x08643a1e：movzwl +0x34e
 
-    CDungeon* m_layerDungeons[101];                    // +0x000
+    // [b28d-Main·检查点17 T1] `CDungeon*` → `const CDungeon*`（指针 4B，sizeof/偏移/mangled 不变）：
+    //   ORIG 0x08643b33 `call _ZSt4fillIPPK8CDungeonS2_EvT_S4_RKT0_`
+    //   （std::fill<const CDungeon**, const CDungeon*>）⇒ 数组元素为 const 指针。
+    const CDungeon* m_layerDungeons[101];              // +0x000
     unsigned int m_dungeonIndexOfLayer[101];           // +0x194
     std::set<int> m_layerSet;                          // +0x328
     std::vector<unsigned int> m_npcLayers;             // +0x340

@@ -7,6 +7,11 @@
 // df_game_r 还原 —— CGuildServerProxy（公会服务器客户端代理）实现。
 // 参照 docs/class_func_reports/CGuildServerProxy.md；单 TU 编译后经
 // check_tu_game_orig.sh 与 df_game_r ORIG 对比（AE 口径）。
+//
+// [b28d-solo-CGuildServerProxy 泳道判词 2026-09-09] 清单 5 件全部 N 封顶，
+//   TU 计数 identical+ae=169 / near=1 / diff=5（与基线同值，零劣化）；
+//   p167 五符号全 CLEAR（0 MISSING / 0 EXTRA，语义调用点完整）。
+//   本轮新范式复验（P309/P311/P316/P226/P227/P211 族）均为负结果，逐件记于函数头。
 
 #include "CGuildServerProxy.h"
 
@@ -132,7 +137,8 @@ bool CGuildServerProxy::InitUdp()
 //   `({ ret; })`、P227 全表达式临时链均实测零效；P231 裸 register 反使 ret 失槽
 //   （ORIG 有槽 -0x1c，违 P0 判读）；b28d 复验追加：varargs 首参改
 //   `(*(volatile int*)&ret)` 强制 volatile 读（74→76 劣化，仍缺 push edi）
-//   ⇒ N80 封顶 | ORIG 0x0846d96c
+//   ⇒ N80 封顶。b28d-solo2 复验：ret 声明移至函数头（P212/P309 头部声明律）实测
+//   零效（ret 仍 -0xc、帧仍 0x50、缺 push edi）⇒ N80 定案 | ORIG 0x0846d96c
 bool CGuildServerProxy::InitTcp()
 {
     if (m_udpPort == 0)
@@ -633,6 +639,8 @@ bool CGuildServerProxy::LoadGuildInfoProxyFromDB(ENUM_SERVER_GROUP group)
 //   b28d 复验追加：`*(volatile STGuildProxy*)&it->second`（编译失败：volatile 对象无
 //   非 volatile operator=）、`register STGuildProxy* pDst=&it->second; *pDst=info;`
 //   （63→65 劣化）均不可用 | ORIG 0x0846e95e
+//   b28d-solo2 复验追加：`it->second.operator=(info);` 显式限定调用实测与 `=` 逐条
+//   同形（4.4 仍 dst=eax+disp / src=edx），N107/N76 族封顶不变 | ORIG 0x0846e95e
 bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int guildId, STGuildProxy& info)
 {
     std::map<unsigned int, STGuildProxy>::iterator it = m_guildInfoMap.find(guildId);
@@ -664,7 +672,10 @@ bool CGuildServerProxy::ModifyGuildInfoProxy(unsigned int guildId, STGuildProxy&
 //   （pGuild=-0xc、end 临时=-0x10）。已实测不闭合：①声明移至函数头最前（it 得
 //   -0x14 ✓ 但 pGuild/end 仍互换）；②具名 endIt（it/endIt 互换）；③
 //   `*(STGuildProxy* volatile*)&pGuild` 读形（+2 条）。均属 N98 槽分配族 ⇒ 封顶
-//   | ORIG 0x0846ea3e
+//   | ORIG 0x0846ea3e。b28d-solo2 复验追加：④`end()==it` 操作数互换（P74补②）；
+//   ⑤`*&m_guildInfoMap.end()`（P316 sret 折叠抑制）；⑥pGuild 声明移到 it 之后——
+//   三形 end() sret 仍恒 -0xc（it -0x14 / pGuild -0x10 或反向），槽号互换不变 ⇒ 定案。
+//   ⑦pGuild 移入 else 块内声明（P314 块级旋钮）⇒ pGuild -0x14 / it -0x10 更劣，已回滚。
 void CGuildServerProxy::ChangeGuildNameInProxy(unsigned int guildId, char* name)
 {
     STGuildProxy* volatile pGuild;
@@ -779,6 +790,8 @@ void CGuildServerProxy::SendUpgradeGuildAgit(unsigned int guildKey, unsigned int
 //   ORIG @0x0846ee96 `mov -0xc(%ebp),%edx; add $0x14aa,%edx; mov 0x1c(%eax,%edx,8),%eax`
 //   （C%8=4 拆成 add+disp8），4.4 恒折单条 `mov 0xa56c(%eax,%edx,8),%eax`
 //   （N94 定论：4.4 仅当 C%8==0 才拆，源形不可择）⇒ 封顶 | ORIG 0x0846ee44
+//   b28d-solo2 复验追加：`*(m_levelUpCost[i] + 1)` 指针形劣化为 shl+add+add+mov 6 条；
+//   P311 二维视图需 X*C=0x14aa 且第二维长 ≥0x11，本布局 0xa56c 非 8 倍数不可构造 ⇒ 定案。
 void CGuildServerProxy::SendGuildExpLimit()
 {
     Packet_Guild_Exp_Limit pkt;
@@ -861,6 +874,8 @@ void CGuildServerProxy::SendGuildBoardDelete(unsigned int boardNo,
 //   （dst 装载落最后）且折 `lea+add`。P226 语句表达式（({ pkt.m_name; })）、具名指针
 //   中间量、P231 裸 register（v28 探针：双 lea+顺序对，但改用 %ebx 且 push/pop 破帧）
 //   等 13 形实测均不闭合 ⇒ 封顶 | ORIG 0x0846f0f2
+//   b28d-solo2 复验追加：`strncpy(&pkt.m_name[0], name, 0x10)`（P311 数组元素取址）
+//   与 `pkt.m_name` 逐条同形（4.4 仍右起求值 + add）⇒ P75 跨版本求值序封顶不变。
 void CGuildServerProxy::SendGameServerInfo(char* name, unsigned short port,
                                            unsigned char group, unsigned char channel)
 {

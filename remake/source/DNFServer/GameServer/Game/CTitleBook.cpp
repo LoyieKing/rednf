@@ -1,5 +1,19 @@
 // df_game_r 称号簿实现（G3-3 批次，2026-08-17）。
 // 语义依据 docs/class_func_reports/CTitleBook.md（Ghidra C）+ ORIG 反汇编。
+//
+// b28d-solo-CTitleBook 泳道终判（2026-09-09）：清单 5 件全部 identical_ae
+//（check_tu_routed.sh clean 口径，两侧指令数逐一相等；p167 逐符号 CLEAR）：
+//   _checkFitSlot 111=111、_checkMovetoInven 59=59、getTitle 389=389、
+//   putTitle 335=335、deleteTimeoutItem 175=175。
+// TU 三数：identical=85 ae=163 (合计 248) near=0 diff=0（基线 248 + diff1）。
+// 本波实质改动两处：
+//   ① deleteTimeoutItem：正向包裹 `if (item->m_addInfo != 0) { 体 }` 消 continue
+//      ——4.4 对 continue/goto 到循环 latch 恒在 `addl` 前插 1B 对齐 nop，致体尾
+//      残留 `jmp .+2; nop`（旧「N121 封顶」判词作废；探针 /tmp/ctb_probe.cpp
+//      p1(continue)=177 vs p3(正向包裹)=175）；
+//   ② _checkFitSlot/_checkMovetoInven：`&(*it).second` → `&it->second`（ORIG 调
+//      ptEv，旧写调 deEv ⇒ p167 MISSING ptEv / EXTRA deEv）。
+// 无类型改动（P321 T1–T5 未触发）、无 .h 改动、无 register asm 绑定。
 #include <algorithm>
 #include <cstring>
 #include <map>

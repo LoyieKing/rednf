@@ -1037,7 +1037,9 @@ public:
     void RecalcAdditionalInfo(CUser const* user);
     // ORIG 调用方仅压 (key,&data) 两参（LoadPremiumInfo 0x86aeca4 内），
     // 实为静态语义；经对象语法调用亦合法。
-    static int SetPremiumItemData(unsigned long key, const struct STPremiumItemData& data);
+    // [b28d-Main·检查点17 P321-T3] int→bool：ORIG 调用点 0x086af61d/0x086af679
+    //   `call; xor $0x1,%eax; test %al,%al; je`（无 setcc）⇒ callee bool；mangled 不变。
+    static bool SetPremiumItemData(unsigned long key, const struct STPremiumItemData& data);
 
     // ---- 查询（ORIG T const）----
     SUserPremiumInfo* GetPremiumInfo(int type) const;
@@ -3030,8 +3032,10 @@ public:
                     int param, bool flag);   // ORIG 0x0866a3fe _ZN5CUser11gain_exp_spEiRiS0_13eExpAddReasonib：嵌套 S0_=CUsereExpAddReason（2137 行枚举），bool 返回
     void makeGuildSkillMessage(const char* skillName, int count);
     // ---- 高频簇 producers（本批次还原；签名均与 ORIG mangled 一致）----
-    std::vector<RewardItemInfo>* getUserQuestRewardItem(
-        const Quest* quest, const CUser* other);           // ORIG _ZN5CUser22getUserQuestRewardItemEPK5QuestPKS_ T 0x0866e914（非 const；LinkClosureA 落 LinkClosureA_User.cpp）
+    // [b28d-Main·检查点17 P245/P88] static：ORIG 调用点 0x08664ec0..ce 仅压 2 实参
+    //   (q, user) 无 this；static 不入 mangling ⇒ 符号名/mangled/sizeof/偏移零变化。
+    static std::vector<RewardItemInfo>* getUserQuestRewardItem(
+        const Quest* quest, const CUser* other);           // ORIG _ZN5CUser22getUserQuestRewardItemEPK5QuestPKS_ T 0x0866e914（LinkClosureA 落 LinkClosureA_User.cpp）
     void make_charac_stat(PacketGuard& packet);                       // ORIG T 0x8659faa _ZN5CUser16make_charac_statER11PacketGuard
     void Remove_Mission(short kind);                                  // ORIG T 0x866273c _ZN5CUser14Remove_MissionEs
     void incPlayExpAdd(int v);                                        // ORIG W 0x869729a

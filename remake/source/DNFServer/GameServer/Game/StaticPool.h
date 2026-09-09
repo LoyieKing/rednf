@@ -9,6 +9,7 @@
 
 #include <queue>
 #include <cstdio>   // b28d-lane12：_IO_FILE 全特化需完整类型（struct _IO_FILE 声明）
+#include "GameTypes.h"   // cMyTrace / PrintBackTrace（[b28d-Main·检查点17] 模板定义入头后本头需要）
 
 template <class T, int N>
 class StaticPool
@@ -76,6 +77,150 @@ private:
     std::queue<CNode*> m_Queue;  // +0x04
     int m_nErrorCode;            // +0x2c
 };
+
+// ============================================================================
+// 主模板成员定义（[b28d-Main·检查点17] 自 CGameManager.cpp 移入本头）
+// 依据：ORIG 的 StaticPool 各成员是 **W 弱符号按需隐式实例化**（如
+//   `StaticPool<BlueMarble,300>::Acquire` 0x082b4542 W），说明 ORIG 源码把定义放在
+//   头里；我方此前「定义在 CGameManager.cpp + 19 条 `template class StaticPool<...>;`
+//   显式实例化」会把**全部**成员（Get/Size/Remain/GetLastErrorCode）为 19 个类型
+//   全部发射 ⇒ only-NEW 多出 66 个 ORIG 没有的符号（ORIG 仅
+//   `StaticPool<CUser,600>::GetLastErrorCode` 1 个）。移入头后按使用点隐式实例化，
+//   符号集与 ORIG 一致。成员体与 CGameManager.cpp 原定义逐字相同（含判词注释）。
+// ============================================================================
+template <class T, int N>
+StaticPool<T, N>::StaticPool()
+{
+    m_pNode = new CNode[N];
+    if (m_pNode == 0)
+    {
+        // ORIG C1 实证：trace 落浅槽 -0x30（push 临时对象占 -0x58），临时对象形态
+        cMyTrace(__FUNCTION__, 0x6c, 5)("[StaticPool] %s(%d) new fail", "StaticPool.cpp", 0x6c);
+    }
+    for (int i = 0; i < N; ++i)
+        m_Queue.push(&m_pNode[i]);
+    m_nErrorCode = 0;
+}
+
+template <class T, int N>
+StaticPool<T, N>::~StaticPool()
+{
+    // b28d-solo-CGameManager 判词：本模板实例三件（CTradeSpace<300> 0x082ae79c /
+    // pvp_assault::CAssaultPlace<128> 0x082f141c / exchange_server::CSession<300>
+    // 0x0849584c）均 N91 封顶——ORIG 37 insn 无 EH landing，4.4 恒发
+    // CNodeD1 循环+_Unwind_Resume（P216 边界：D1 侧 throw() 无效，已实证）。
+    // 语义侧 delete[] 的循环/cookie/释放三段与 ORIG 逐条一致，判 N91 封顶。
+    delete[] m_pNode;
+}
+
+template <class T, int N>
+T* StaticPool<T, N>::Acquire()
+{
+    if (m_Queue.empty())
+        return 0;
+    CNode* pNode = m_Queue.front();
+    m_Queue.pop();
+    if (pNode->magic != 0x8f21)
+    {
+        register int magic = pNode->magic;
+        // ORIG 0x082b0351 实证：临时对象形态（非具名局部）→ magic trace 槽 -0x2c、
+        // bUse trace 槽 -0x1c（具名写法槽序相反）
+        cMyTrace(__FUNCTION__, 0x89, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
+        m_nErrorCode = 3;
+    }
+    if (pNode->bUse != 0)
+    {
+        register int use = pNode->bUse;
+        cMyTrace(__FUNCTION__, 0x8f, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
+        m_nErrorCode = 4;
+    }
+    // ORIG `lea 0x1(%eax),%edx` = 后缀 ++（读改写单表达式，探针 t5 实证）
+    pNode->bUse++;
+    return pNode;
+}
+
+template <class T, int N>
+T* StaticPool<T, N>::Get(int index)
+{
+    if (index < 0 || index > N - 1)
+        return 0;
+    CNode* pNode = &m_pNode[index];
+    if (pNode->magic != 0x8f21)
+    {
+        register int magic = pNode->magic;
+        // ORIG 0x82b0xxx 实证：临时对象形态使 magic trace 槽落 -0x2c、bUse 落 -0x1c
+        cMyTrace(__FUNCTION__, 0xc3, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
+        m_nErrorCode = 7;
+    }
+    if (pNode->bUse != 1)
+    {
+        if (pNode->bUse != 0)
+        {
+            register int use = pNode->bUse;
+            cMyTrace(__FUNCTION__, 0xca, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
+            m_nErrorCode = 8;
+        }
+    }
+    return pNode;
+}
+
+template <class T, int N>
+void StaticPool<T, N>::Free(T* p)
+{
+    // ORIG 0x082b082a 实证（探针 t8 全等）：null 检查块先于 pNode 声明、
+    // trace 全临时对象且实参直接写表达式（无具名中间量）→
+    // 槽序 trnull-0x38/pNode-0x3c/trm-0x28/trb-0x18 + %esi 前置装载 + -- 单装载尾
+    if (p == 0)
+        cMyTrace(__FUNCTION__, 0xa0, 5)("[StaticPool] %s(%d) free null", "StaticPool.cpp", 0xa0);
+    CNode* pNode = (CNode*)p;
+    m_Queue.push(pNode);
+    if (pNode->magic != 0x8f21)
+    {
+        cMyTrace(__FUNCTION__, 0xaa, 0)("[StaticPool] magic(%d) node(%p)", pNode->magic, pNode);
+        m_nErrorCode = 5;
+    }
+    if (pNode->bUse != 1)
+    {
+        cMyTrace(__FUNCTION__, 0xb0, 0)("[StaticPool] bUse(%d) node(%p)", pNode->bUse, pNode);
+        m_nErrorCode = 6;
+        PrintBackTrace();
+    }
+    pNode->bUse--;
+}
+
+template <class T, int N>
+int StaticPool<T, N>::GetIndex(T* p)
+{
+    if ((unsigned int)p < (unsigned int)m_pNode)
+        return -1;
+    int diff = (int)((char*)p - (char*)m_pNode);
+    int index = 0;
+    if (diff != 0)
+        index = (unsigned int)diff / sizeof(CNode);
+    CNode* pNode = (CNode*)p;
+    if (pNode->magic != 0x8f21)
+    {
+        register int magic = pNode->magic;
+        // ORIG 实证：临时对象形态 → magic trace 槽 -0x34、bUse 槽 -0x24（具名相反）
+        cMyTrace(__FUNCTION__, 0x50, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
+        m_nErrorCode = 1;
+    }
+    if (pNode->bUse != 1)
+    {
+        register int use = pNode->bUse;
+        cMyTrace(__FUNCTION__, 0x56, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
+        m_nErrorCode = 2;
+    }
+    if (index > N - 1)
+        return -1;
+    return index;
+}
+
+template <class T, int N>
+int StaticPool<T, N>::GetLastErrorCode()
+{
+    return m_nErrorCode;
+}
 
 // ============================================================================
 // StaticPool<_IO_FILE, 50> 全特化（b28d-lane12，Main 2026-09-08 批准方案①）

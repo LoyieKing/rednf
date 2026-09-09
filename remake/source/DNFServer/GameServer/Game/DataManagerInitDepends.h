@@ -336,8 +336,12 @@ public:
     char* GetMailString(int levelIdx);                // ORIG W 0x08697750（定义 CUserDepsB.cpp）
 
     int m_levelKeys[0x46];                // +0x000
-    int m_rewardPrimary[9 * 0x46];        // +0x118..0xae7
-    int m_rewardSecondary[9 * 0x46];      // +0xaf0..0x14bf
+    // [b28d-Main·检查点17 T1] 一维→二维（同尺寸/偏移/mangled 不变）：
+    //   ORIG 0x086975fe `mov -0x10(%ebp),%ecx; mov -0xc(%ebp),%edx; imul $0x46,%ecx,%ecx;
+    //   lea (%ecx,%edx,1),%edx; add $0x44,%edx; movl $0x0,0x8(%eax,%edx,4)`
+    //   二维 `m[j][l]` 逐条复现（探针 /tmp/p_lrt.cpp，4.4.6 后端；一维/交换加序/unsigned/cast 6 形全败）。
+    int m_rewardPrimary[9][0x46];         // +0x118..0xae7
+    int m_rewardSecondary[9][0x46];       // +0xaf0..0x14bf
     char m_nameStrings[0x1a86 - 0x14c8];  // +0x14c8（21B/级 strncpy 槽）
     char m_messages[0x6086 - 0x1a86];     // +0x1a86（0x100/级 strncpy 槽）
     bool m_jobAffection;                  // +0x6086

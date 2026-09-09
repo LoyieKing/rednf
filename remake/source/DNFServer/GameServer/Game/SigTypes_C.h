@@ -1022,7 +1022,11 @@ struct CHARAC_LOAD_MERCENARY
     // （uchar 会多一条 `setne %al`）。宽度/偏移/sizeof 不变（1 字节）。
     bool m_field24;               // +0x24（Reset 写 0；alter 写 1/save_complete 写 0）
     char m_pad25[3];              // +0x25..0x27（Reset 不触碰）
-    int m_field28;                // +0x28（Reset 写 0）
+    // [b28d-Main·检查点17 P321-S1] int→unsigned int（同宽 4B，偏移/sizeof/mangled 不变）：
+    //   T1 仅定 4 字节（ORIG `mov DWORD PTR [eax+0x28],edx`）；T2 消费端无有符号指令；
+    //   ORIG Competition 0x081b3a?? 段为 RHS-first+中转（`mov edx,eax; mov eax,[ebp+8];
+    //   mov [eax+0x28],edx`），探针 /tmp/probe_m28.cpp 实测 unsigned 字段+int RHS 逐条复现。
+    unsigned int m_field28;       // +0x28（Reset 写 0）
     int m_field2c;                // +0x2c（Reset 写 0；GetCompetitionState 竞技结束秒）
     unsigned char m_field30;      // +0x30（Reset 写 0xff；GetCompetitionState 未报名标志）
     unsigned char m_field31;      // +0x31（Reset 写 0xff）

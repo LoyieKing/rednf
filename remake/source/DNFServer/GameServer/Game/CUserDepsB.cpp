@@ -643,7 +643,7 @@ int CLevelRewardTable::GetRewardItemNo(register int jobIdx, register int levelId
     // 都会把 base 偏移折进 add（少 1 条）或令 job→%edx、lv→%ecx，无法同时满足
     // 「this 第 3 条 + job→%ecx + lea (%ecx,%edx,1)」⇒ T5：残差仅装载序/寄存器
     // 角色，封 N7/N98（4.4 槽/寄存器分配不可由源形择）。ORIG 0x086976f6。
-    return m_rewardPrimary[jobIdx * 0x46 + levelIdx];
+    return m_rewardPrimary[jobIdx][levelIdx];   // [b28d-Main·检查点17] 二维下标（头已改 [9][0x46]）
 }
 
 // ORIG W 0x08697712：this+(jobIdx*0x46+levelIdx+0x2bc)*4 → m_rewardSecondary 下标。
@@ -654,7 +654,7 @@ int CLevelRewardTable::GetItemCount(register int jobIdx, register int levelIdx)
     // add $0x2bc,%edx; mov (%eax,%edx,4),%eax`，m_rewardSecondary@+0xaf0 无 disp）。
     // P231 register 形参后 4.4 出同序列，仅 this 装载位置与 job 寄存器差；
     // 12 形探针（同上）无一能同时翻正 ⇒ T5 封 N7/N98。ORIG 0x08697712。
-    return m_rewardSecondary[jobIdx * 0x46 + levelIdx];
+    return m_rewardSecondary[jobIdx][levelIdx];   // [b28d-Main·检查点17] 同上
 }
 
 // ORIG W 0x08697730：this+0x14c8+levelIdx*21（21B/级 strncpy 槽）。

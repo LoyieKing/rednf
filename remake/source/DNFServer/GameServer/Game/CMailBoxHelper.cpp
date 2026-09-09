@@ -1,6 +1,11 @@
 // df_game_r Game/ WongWork::CMailBoxHelper 实现（独立 TU）。
 // 依据 docs/class_func_reports/WongWork__CMailBoxHelper/ 各报告逐函数转写。
 // SIG_* 布局与 ORIG memset/字段写入证据一致；深水区以 // 推断 标注。
+// [b28d-solo-CMailBoxHelper 本波判词] 清单 15 件全部逐件过 ORIG 切片：
+// 本波净修复 2 件（_DoGetPackage 具名 box 局部+P198 预写；ReqDBSendNewMail(MSG)
+// 删 m 局部+补 fee+if 链改 switch+P190 int dead 撑帧），其余 13 件残差经
+// 实测归入 N 族（N7/N18a/N76/N82/N98/N102/N197④/跨版本 bool 物化），
+// 每件函数头已记证据地址与试形记录；p167 全符号 CLEAR。
 
 #include "CMailBoxHelper.h"   // 本类权威叶子头（不再经 CGameManager.h）
 #include "SigTypes.h"
@@ -1104,10 +1109,13 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
 #undef MB_DETAIL
 
 // ---- 取件内部实现 ----
-// [b28d-L8] N82 | 帧差 0x110 vs 0xa0 + 块序（ORIG 0x08557xxx）
-// [b28d-solo-CMailBoxHelper] N 封顶（§6.2，p167 CLEAR 29/29，243 vs 242）：
-// 三次 GetPackageItem 去缓存 + make_pair<ENUM_ITEMSPACE,INVEN_SLOT> 已修；
-// 残余 = 引用槽/帧差（N82/P112）。
+// [b28d-solo-CMailBoxHelper 本波] 修复：①具名 box 局部（P0/P115，ORIG
+// 0x0855466f `mov %eax,-0x18(%ebp)` 存槽判空；直判形 4.4 折
+// `test %eax,%eax; sete %al; test %al,%al; je`）；②P198① 两处预写
+// （money=0 @0x08554682 / limit=0x7fffffff @0x0855470e）。
+// 残余 N：ORIG 0x08554697 槽比零物化 `cmpl $0; setne %al; test %al,%al; je`
+// 被 4.4 恒折 `cmpl $0; je`（N197④，P168a④ 补：非绑定不可造）+ 帧
+// 0x110 vs 0x120 与槽基差 0xc（N82/P112）；p167 CLEAR 29/29，243 vs 244。
 bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
                                    std::vector<std::pair<int, int> >& items,
                                    bool bReset, ENUM_ERROR& err)
@@ -1122,7 +1130,10 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
 
     // P157/P183：ORIG 三次独立 GetPackageItem()（bReset 分支 / !bReset 分支 /
     // 主流程），无引用缓存（Ghidra C local_ac/local_6f/local_e9 三处 sret）。
-    unsigned int money = mail->GetPackageMoney();
+    // [b28d-solo-CMailBoxHelper] P198①：ORIG 0x08554682 `movl $0x0,-0x14(%ebp)`
+    // 在 call GetPackageMoney 之前 ⇒ 原码两句式（预清 + 赋值）。
+    unsigned int money = 0;
+    money = mail->GetPackageMoney();
 
     if (money != 0)
     {
@@ -1139,7 +1150,10 @@ bool CMailBoxHelper::_DoGetPackage(CUser* user, CMailBox::CMail const* mail,
             }
             else
             {
-                int limit = G_CDataManager()->GetMoneyLimitPerLevel(
+                // [b28d-solo-CMailBoxHelper] P198①：ORIG 0x0855470e
+                // `movl $0x7fffffff,-0x10(%ebp)` 预写 ⇒ 原码两句式。
+                int limit = 0x7fffffff;
+                limit = G_CDataManager()->GetMoneyLimitPerLevel(
                     user->get_charac_level(), user->get_acc_name());
                 if (limit - user->getCurCharacMoney() < (int)money)
                 {
@@ -1256,6 +1270,9 @@ bool CMailBoxHelper::_DoGetPackageCoin(CUser* user, CMailBox::CMail const* mail,
 //   旧形多指针槽 + 4.4 逐字段展开，565→530）；
 // ②删 `int itemIdx` 具名局部改内联 pkg.m_addInfo（P0：ORIG 每处直读
 //   -0xd7(%ebp)；保留具名版 530、内联版 533，取 P0 合规形）。
+// [b28d-solo-CMailBoxHelper 本波实测] 两项旋钮均反劣已回退：①删 `shop` 局部
+// 改 `GlobalData::s_pCeraShop->` 每处直读（P0/P183 方向）⇒ 533→534 且短路块
+// 结构重排；②补 `int framePad` 撑帧（P31/P190）⇒ 槽 -0xd5→-0xdd 过头 4。
 // 残余 = sret/迭代器槽序与帧平移（N82/P112，523 vs 533）。
 bool CMailBoxHelper::_DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
                                        std::vector<std::pair<int, int> >& items,
@@ -1440,6 +1457,9 @@ bool CMailBoxHelper::_DoGetPackageAvatar(CUser* user, CMailBox::CMail const* mai
 // （ORIG +0x08f）。残余 = N18a/P197④：ORIG 槽值判负 `mov -0x24,%eax;
 // shr $0x1f,%eax; test %al,%al; je`，4.4 恒折 `test %eax,%eax; jns`
 // （`(unsigned int)slot>>31` 变体实测同折）。125 vs 124 insn。
+// [b28d-solo-CMailBoxHelper 本波] p167 修真：bReset 分支 ORIG 调
+// `_ZNK15CUserCharacInfo21getCurCharacInvenRefREv`（const CInventory*）而非
+// getCurCharacInvenREv ⇒ 已改 `getCurCharacInvenRefR()->`（p167 CLEAR 12/12）。
 bool CMailBoxHelper::_DoGetPackageCreature(CUser* user, CMailBox::CMail const* mail,
                                            std::vector<std::pair<int, int> >& items,
                                            bool bReset, ENUM_ERROR& err)
@@ -1459,7 +1479,10 @@ bool CMailBoxHelper::_DoGetPackageCreature(CUser* user, CMailBox::CMail const* m
     int slot;
     if (bReset)
     {
-        if (user->getCurCharacInvenR()->tryInsertItemIntoCreature(pkg) < 0)
+        // [b28d-solo-CMailBoxHelper 本波] p167 实证：ORIG 调
+        // _ZNK15CUserCharacInfo21getCurCharacInvenRefREv（引用版），
+        // 非 getCurCharacInvenREv（指针版）⇒ 改 RefR + `.` 调用。
+        if (user->getCurCharacInvenRefR()->tryInsertItemIntoCreature(pkg) < 0)
         {
             err = (ENUM_ERROR)4;
             return false;
@@ -1539,6 +1562,8 @@ void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
 {
     // ORIG 0x08555756 逐字段转写。不缓存 msg/item 局部（O0 落栈槽导致帧差），
     // 每字段经宏直读参数槽，同 ORIG `mov 0x8(%ebp),%eax` 形态。
+    // [b28d-solo-CMailBoxHelper] register 提示试验（/tmp/probe_reg.cpp g 形）：
+    // 全 register 版 108 insn（少 ORIG 23 条，ORIG 仅段内 CSE 缓存），已回退。
 #define MAIL_MSG ((MailBoxSendNewMailV*)(msg))
 #define MAIL_IT  (&item)
     std::strncpy(MAIL_MSG->m_senderName, pSender, 0x1d);
@@ -1630,8 +1655,18 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, Inven_Item const& item,
 }
 
 // [b28d-L8] N82 | 帧差 0x120 vs 0x110 + 槽平移（ORIG 0x08555cxx）
-// [b28d-solo-CMailBoxHelper] N 封顶（§6.2，p167 CLEAR 38/38，454 vs 463）：
-// 残余 = 帧/槽平移（跨版本槽基差，N82/P112）。
+// [b28d-solo-CMailBoxHelper 本波] 修复（463→462 insn，m_type 段全等）：
+// ①P0/P183 删 `MailMsgSendV* m` 具名局部（ORIG 每处直读形参槽
+//   `mov 0xc(%ebp),%eax`）⇒ 改宏 MSGV 直读；
+// ②P0 补 `unsigned int fee = MSGV->m_money*5;`（ORIG 0x08555b6b
+//   `mov %eax,-0xfc(%ebp)` 具名局部 + mul/shr 无符号除法）；
+// ③P46/P251/P286 m_type 的 if-else 链改 switch(0,1,7)（ORIG 0x0855c44
+//   `movzbl 0x36(%eax),%eax; movzbl %al,%eax; cmp $1; je; cmp $7; je;
+//   test; jne` 决策链+叶块序；if 链 4.4 落 `mov %al,-0xd; cmpb` 槽化）；
+// ④P190/P31 `int framePad; (void)framePad;` 撑帧 4（ORIG tax@-0x28 对齐）。
+// 残余 N：N18a 中转（ORIG `mov 0x2e(%edx),%edx; mov %edx,%ecx` 4.4 折单段）、
+// 实参装载序（std::min 两实参 P75）、bool 物化岛与深区槽位（N82/N98）；
+// p167 CLEAR 38/38，462 vs 454。
 int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
                                      unsigned int nCharacNo, bool bA,
                                      unsigned int nB, int nC)
@@ -1641,22 +1676,31 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
     //   +0x11 收件角色名, +0x2e 金币额, +0x36 物品类型选择, +0x37 槽位,
     //   +0x39 item id, +0x3d add_info/目标角色, +0x41 标题长度, +0x45 标题。
     // 返回码：0=成功 1=物品不存在 0x10=金币不足 0x11=校验失败 0x17=类型/绑定不符。
-    MailMsgSendV* m = reinterpret_cast<MailMsgSendV*>(msg);
-    if (m->m_addInfo < 0)
+    // [b28d-solo-CMailBoxHelper] P0/P183：ORIG 无 `m` 具名局部（每处直读形参
+    // 槽 `mov 0xc(%ebp),%eax`，0x08555b28/0x08555b43/…）⇒ 删除局部改宏直读。
+    // [b28d-solo-CMailBoxHelper] P190/P31 探针：ORIG 槽深 4（tax -0x28 vs
+    // -0x24）；double framePad 实测撑帧 +8 过头，改 int dead 局部。
+    int framePad;
+    (void)framePad;
+#define MSGV (reinterpret_cast<MailMsgSendV*>(msg))
+    if (MSGV->m_addInfo < 0)
         return 0x11;
 
     int tax = 1000;
-    if (m->m_itemIdx == 0)
+    if (MSGV->m_itemIdx == 0)
         tax = 100;
-    if (m->m_money != 0)
+    if (MSGV->m_money != 0)
     {
-        tax = (m->m_money * 5) / 100 + tax;
-        if (m->m_itemIdx == 0)
+        // [b28d-solo-CMailBoxHelper] P0：ORIG 0x08555b6b `mov %eax,-0xfc(%ebp)`
+        // 具名局部（m_money*5，unsigned ⇒ mul/shr 无符号除法）。
+        unsigned int fee = MSGV->m_money * 5;
+        tax = fee / 100 + tax;
+        if (MSGV->m_itemIdx == 0)
             tax = std::min(0x2774, tax);
         else
             tax = std::min(0x2af8, tax);
     }
-    if (user->getCurCharacMoney() < m->m_money + tax)
+    if (user->getCurCharacMoney() < MSGV->m_money + tax)
         return 10;
 
     CInventory* inven = user->getCurCharacInvenW();
@@ -1664,22 +1708,35 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
     Inven_Item found;      // 槽内物品（GetInvenSlot 返回）
     Inven_Item sendCopy;   // 待发副本
 
-    if (m->m_itemIdx != 0)
+    if (MSGV->m_itemIdx != 0)
     {
-        unsigned char mType = m->m_type;
-        if (mType == 1)       invenType = 2;
-        else if (mType == 7)  invenType = 3;
-        else if (mType != 0)  return 0x17;
-        else                  invenType = 1;
+        // [b28d-solo-CMailBoxHelper] P46/P251/P286：ORIG 0x0855c44 段为
+        // `movzbl 0x36(%eax),%eax; movzbl %al,%eax; cmp $1; je; cmp $7; je;
+        // test; jne` 决策链 + 叶块 0/1/7 序 ⇒ switch（无具名 mType 局部槽；
+        // if-else 链 4.4 落 `mov %al,-0xd; cmpb` 槽化形）。
+        switch (MSGV->m_type)
+        {
+        case 0:
+            invenType = 1;
+            break;
+        case 1:
+            invenType = 2;
+            break;
+        case 7:
+            invenType = 3;
+            break;
+        default:
+            return 0x17;
+        }
 
-        found = inven->GetInvenSlot((INVEN_TYPE)invenType, m->m_slot);
+        found = inven->GetInvenSlot((INVEN_TYPE)invenType, MSGV->m_slot);
 
-        if (found.m_addInfo != m->m_itemIdx)
+        if (found.m_addInfo != MSGV->m_itemIdx)
             return 0x11;
         if (found.m_field1 == 4)
             return 0x17;
         if (found.isEquipableItemType() != 1 &&
-            found.m_addInfo2 < m->m_addInfo)
+            found.m_addInfo2 < MSGV->m_addInfo)
             return 0x11;
 
         CItem* proto = G_CDataManager()->find_item(found.m_addInfo);
@@ -1700,7 +1757,7 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
         case 7:
             if (!DecreaseTradeLimitCount(found))
                 return 0x17;
-            user->m_historyLog.ChangeItemLimitCount(invenType, m->m_slot,
+            user->m_historyLog.ChangeItemLimitCount(invenType, MSGV->m_slot,
                                                     found.m_addInfo, -1, 3);
         }
 
@@ -1709,7 +1766,7 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
 
         found.setCopy(sendCopy);
         if (sendCopy.isEquipableItemType() != 1)
-            sendCopy.set_add_info(m->m_addInfo);
+            sendCopy.set_add_info(MSGV->m_addInfo);
 
         if (proto->IsAvatarItem())
         {
@@ -1723,22 +1780,22 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
 
     if (inven->use_money(tax, (eMoneySubReason)0x10, 1) == 1)
     {
-        if (m->m_money != 0)
+        if (MSGV->m_money != 0)
         {
-            user->GetGoldControl()->SetMailCharName(m->m_receiverName);
-            if (inven->use_money(m->m_money, (eMoneySubReason)0x11, 1) != 1)
+            user->GetGoldControl()->SetMailCharName(MSGV->m_receiverName);
+            if (inven->use_money(MSGV->m_money, (eMoneySubReason)0x11, 1) != 1)
                 return 10;
         }
 
-        if (m->m_itemIdx != 0)
+        if (MSGV->m_itemIdx != 0)
         {
             if (found.m_field1 == 8)   // AVATAR
             {
-                if (inven->delete_item((INVEN_TYPE)2, m->m_slot,
+                if (inven->delete_item((INVEN_TYPE)2, MSGV->m_slot,
                                        1, (eItemDelReason)2, 1) != 1)
                     return 0x11;
                 inven->SendAvatarEvent(0x36, found.m_addInfo2, 2,
-                                       m->m_slot + 10, 0);
+                                       MSGV->m_slot + 10, 0);
                 DB_AvatarChangeOwner::makeRequest(found.m_addInfo2,
                                                   user->getCurCharacNo(),
                                                   nCharacNo, '\0');
@@ -1746,23 +1803,24 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
             }
             else
             {
-                if (inven->delete_item((INVEN_TYPE)invenType, m->m_slot,
-                                       m->m_addInfo,
+                if (inven->delete_item((INVEN_TYPE)invenType, MSGV->m_slot,
+                                       MSGV->m_addInfo,
                                        (eItemDelReason)0xf, 1) != 1)
                     return 0x11;
             }
             if (found.IsCreatureItemType())
             {
-                inven->GetCreatureMgrW()->SendMail(&found, m->m_slot, 0xf);
+                inven->GetCreatureMgrW()->SendMail(&found, MSGV->m_slot, 0xf);
             }
         }
 
         user->m_historyLog.SendMail((::MSG_MAILBOX_SEND*)msg, nB);
 
-        return _DoSendNewMail(user, sendCopy, m->m_money, nCharacNo,
-                              bA, m->m_title, m->m_titleLen, nC);
+        return _DoSendNewMail(user, sendCopy, MSGV->m_money, nCharacNo,
+                              bA, MSGV->m_title, MSGV->m_titleLen, nC);
     }
     return 10;
+#undef MSGV
 }
 
 int CMailBoxHelper::ReqDBSendNewMailCashShop(CUser* user, Inven_Item const& item,

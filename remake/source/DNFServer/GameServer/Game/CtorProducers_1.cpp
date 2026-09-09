@@ -18,6 +18,14 @@
 //   CWorldMap C1/set_world_map、CWorldMapList insert_world_map/load_list
 //   CCharacList C1/D1/destroy/init
 //   STScriptFileList::GetFileName（ORIG T 0x088bad4e）
+//
+// [b28d-S435 单文件泳道 2026-09-09] 本轮：①CLevelRewardTable C1 二维化
+//   （头 DataManagerInitDepends.h m_rewardPrimary/Secondary → int[9][0x46]，
+//   Main 代落；T1 直证 ORIG 0x086975fe imul/lea 形）⇒ DIFF 12→0 归 AE；
+//   ②TowerOfDespairMgr C1 m_layerDungeons const 化（头 TowerOfDespairMgr.h，
+//   Main 代落；T1 直证 `_ZSt4fillIPPK8CDungeonS2_`）⇒ p167 MISSING/EXTRA→CLEAR；
+//   ③importWorldMapScript `second` 三形实测同值（P112 封顶）。
+//   TU 计数 377/771/2/12 → 378/774/2/11；清单 11 符号 p167 全 CLEAR。
 // ============================================================================
 
 #include <algorithm>
@@ -588,11 +596,15 @@ TowerOfDespairMgr::TowerOfDespairMgr()
     // [b28d-solo-CtorProducers_1 判词·P70/P253+P171] ORIG 0x08643ac4：旧「N78 memset
     // 内联封顶」判词作废。ORIG 逐条：set C1(+0x328) → vector C1(+0x340)（成员声明序
     // 自动）→ `movw $0,0x34c` → `movw $0,0x34e` → `movl $0,0x358` →
-    // **`std::fill<CDungeon**,CDungeon*>`(this, this+0x194, &nullDungeon)** →
+    // **`std::fill<const CDungeon**, const CDungeon*>`(this, this+0x194, &nullDungeon)** →
     // **`std::fill<unsigned*,int>`(this+0x194, this+0x328, &nullIndex)** →
     // `operator new(0x18)`+APC_Mgr C1 → store +0x354。
     // ⇒ 数组清零是具名零局部的 `std::fill` 调用（Ghidra C 段同证），非 memset；
     // 且 ORIG **不写** m_topLayer(+0x350)（P171 照抄不写，补写即多 2 条）。
+    // [b28d-S435 修复·T1 ⇒ p167 CLEAR] ORIG 0x08643b33
+    // `call _ZSt4fillIPPK8CDungeonS2_EvT_S4_RKT0_`（std::fill<const CDungeon**,
+    // const CDungeon*>）⇒ 头 m_layerDungeons 改 `const CDungeon*[101]`（Main 代落）
+    // + 本处 nullDungeon 改 const 指针；p167 由 MISSING/EXTRA 各 1 → CLEAR。
     // 残余：new APC_Mgr 的 landing pad（ORIG 亦布，故此处一致）。
     m_enterableCount = 0;
     m_minLevel = 0;
@@ -601,8 +613,11 @@ TowerOfDespairMgr::TowerOfDespairMgr()
     // nullDungeon=-0x20（深）/ nullIndex=-0x1c（浅）。4.4 对函数头声明按
     // 「先声明浅」分配（与 4.1 相反）⇒ 全头部声明、声明序按 ORIG 槽浅→深
     // （先 nullIndex 后 nullDungeon），赋值（清零）位置保持原位。
+    // [b28d-S435 修复·T1] 头 TowerOfDespairMgr.h m_layerDungeons 已改 const CDungeon*：
+    // ORIG 0x08643b33 `call _ZSt4fillIPPK8CDungeonS2_EvT_S4_RKT0_`
+    // （std::fill<const CDungeon**, const CDungeon*>）⇒ 零局部也须 const 指针。
     int nullIndex;
-    CDungeon* nullDungeon;
+    const CDungeon* nullDungeon;
     nullDungeon = 0;
     std::fill(m_layerDungeons, m_layerDungeons + 101, nullDungeon);
     nullIndex = 0;
@@ -624,7 +639,7 @@ void TowerOfDespairMgr::_Set_LayerByDungeonIndex(unsigned int layer, const CDung
     // goto 尾标签（4.4 对 if/else 恒 jump-thread，不产该岛）。
     if (dungeon == 0)
         goto L_done;
-    m_layerDungeons[layer] = const_cast<CDungeon*>(dungeon);
+    m_layerDungeons[layer] = dungeon;
 L_done:;
 }
 
@@ -708,13 +723,17 @@ int TowerOfDespairMgr::LoadScript(const char* dir, const char* path)
 
 CLevelRewardTable::CLevelRewardTable()
 {
-    // [b28d-solo-CtorProducers_1 判词·N4/N102，本轮修复①] ORIG 0x086975fe：67 vs 67。
+    // [b28d-S435 修复·T1 二维化 ⇒ 归 AE] ORIG 0x086975fe：67 vs 67，DIFF 12→0。
+    // 头 DataManagerInitDepends.h m_rewardPrimary/Secondary 改 `int[9][0x46]`
+    // （Main 代落，同尺寸/偏移/mangled 不变），本处写 `m_rewardPrimary[j][l]`：
+    // 4.4.6 逐条复现 ORIG `mov -0x10,%ecx; mov -0xc,%edx; mov 0x8,%eax;
+    // imul $0x46,%ecx,%ecx; lea (%ecx,%edx,1),%edx; add $0x44,%edx;
+    // movl $0x0,0x8(%eax,%edx,4)`（探针 /tmp/p_lrt.cpp f3 vs 一维 f1/f2/f4/f5/f6/f7）。
+    // 旧「N4/N102 封顶」判词作废（一维形恒出 `imul; mov %eax,%edx; add 内存`）。
+    // [b28d-solo-CtorProducers_1 修复①] ORIG 0x086975fe：67 vs 67。
     // 本轮修：①成员数组**取址形** `&m_nameStrings[21*i]` / `&m_messages[0x100*i]`
     // 复现 ORIG 的 `add $0x14c0; add this; add $8` 三步地址链（旧 `arr + 21*i`
     // 退化形被 4.4 折 `lea 0x14c8(%eax)`）；②零初始化/声明序不变。
-    // 残余：`j*0x46+l` ORIG `imul $0x46,%ecx,%ecx; lea (%ecx,%edx,1)`，
-    // 4.4 `imul; mov %eax,%edx; add 内存`（N4/N102 源形不可择；加法交换序/
-    // register 循环变量/指针算术三形实测均无效或劣化）⇒ 封顶。
     // ORIG 0x086975fe：i∈[0,0x45] 清 levelKeys[i]，名字槽(+0x14c8+21i)/留言槽
     // (+0x1a86+0x100i) 首字节 memcpy '1'（0x31，来自 rodata "127.0.0.1" 首字符，
     // 非 '\0'）；双层清空 primary(@+0x118)/secondary(@+0xaf0) 两块。
@@ -729,8 +748,8 @@ CLevelRewardTable::CLevelRewardTable()
     for (int j = 0; j < 9; ++j)
         for (int l = 0; l <= 0x45; ++l)
         {
-            m_rewardPrimary[j * 0x46 + l] = 0;
-            m_rewardSecondary[j * 0x46 + l] = 0;
+            m_rewardPrimary[j][l] = 0;
+            m_rewardSecondary[j][l] = 0;
         }
     m_jobAffection = false;   // ORIG 0x086975fe 尾部：movb $0x0,0x6086(%eax)
 }
@@ -858,10 +877,10 @@ void CLevelRewardTableMgr::SetChallengeInfo(stUnlimitChallengeInfo& info)
             char subIdx = static_cast<char>(it->m_subIdx);
             int jobIdx = m_table->GetProperJobIndex(subIdx);
             int levelIdx = m_table->GetProperLevelIndex(level);
-            m_table->m_rewardPrimary[jobIdx * 0x46 + levelIdx] = it->m_a;
+            m_table->m_rewardPrimary[jobIdx][levelIdx] = it->m_a;
             jobIdx = m_table->GetProperJobIndex(subIdx);
             levelIdx = m_table->GetProperLevelIndex(level);
-            m_table->m_rewardSecondary[jobIdx * 0x46 + levelIdx] = it->m_b;
+            m_table->m_rewardSecondary[jobIdx][levelIdx] = it->m_b;
         }
     }
     {
@@ -1044,6 +1063,8 @@ bool importWorldMapScript(WorldMapScript* script, const char* path)
                 // [b28d-solo-CtorProducers_1 判词·N82] 残余 2 条中转 + minimap 槽
                 // -0x44/-0x48 vs ORIG -0x40/-0x44（4.4 块内标量赋值恒经复用槽；
                 // register/函数头声明/初始化式三形实测均无效或劣化）⇒ 封顶。
+                // [b28d-S435 实验·三形同值] 块内「声明+赋值」/块内初始化式/分支块级
+                // 三形实测 ndiff 均 12（4.4 恒经 -0x40 中转）⇒ 保持原形，P112 封顶。
                 int second;
                 second = ScanInt((bool*)0);   // ORIG 独立槽 -0x18
                 // ORIG 0x08ab0646 `call _ZNSt4pairIiiEC1IRiiEEOT_OT0_`（pair<int,int>

@@ -4,6 +4,17 @@
 //   COneADayItemShop / CPcroomPremiumCmd / CPcroomRewardReset / CPickup /
 //   CPowerWarStraightVictory / CRandomObjectTest / CRecipeSuccess / CRefund
 //
+// b28d-solo-GmCmds_E（2026-09-09 单文件泳道收口）：清单 9 件最终
+//   ①AE/identical：makeGoldItemDropList、parse、getVendingMachineInfo（原状）
+//     + CMonsterDropTest::execute（本次 DIFF→AE：fname 255 + 表头/循环 switch）；
+//   ②NEAR：makeGeneralItemDropList（key 槽提到函数头，ratio 0.9108→0.9682）；
+//   ③N 封顶 DIFF：processKillMonster（T1/T2 直证 unsigned base + (int)(long long)
+//     截断，282=280；余 N85 x87 比较 + N82/N115 帧）、makeUpgradeDropList
+//     （N98/N82 槽序反向）、passedMapMonsterKill（N7 后端寄存器角色）、
+//     CRandomObjectTest::execute（P75 memset 实参装载序，手册「待解」项）。
+//   TU 级：identical=123 ae=251 near=1 diff=6（基线 123/250/1/7，diff −1、ae +1）；
+//   无 .h 改动；无子子代理。
+//
 // 头文件 GameMasterCmd.h 本批禁止编辑：+0x08 通用槽在头里为占位
 // std::string（gcc4.4 旧 ABI sizeof=4）。本批多数类的 ORIG 真实语义是
 // int（atoi/sscanf 解析结果），经 str_as_int / str_as_int2 别名访问；
@@ -256,9 +267,15 @@ void CMonsterDropTest::processDungeonDrop(CParty* party, DropStat& drop,
 // 0x084add20：全局效果 1/4 放大掉落次数（向零截断换算，min/max 夹取）；
 // 统计队员 premium 0x4f 数并取加成；hell 组计入全灭标记；最终转发
 // CBattle_Field::_MakeDropItems。
-// b28d-solo-GmCmds_E：P167 调用点差集 CLEAR（21/21）；残差为 x87 比较 lowering
-// （ORIG fildll/fucompp/fnstsw/test$0x45 vs 4.4 flds/fucomip，N85）与帧槽差
-// （N82，ORIG 0x9c vs 0x98 + push edi/esi/ebx），语义完成、byte 层封顶。
+// b28d-solo-GmCmds_E：P167 调用点差集 CLEAR（21/21）；282=280（ratio 0.43→
+// 0.50 段）。已修：base 类型按 T1/T2 直证改 `unsigned int`（ORIG 0x084add59
+// 段 `fistp QWORD [ebp-0x68]` + `mov %eax,-0x2c; mov $0,%edx` 零扩展 +
+// `fild QWORD` ⇒ unsigned 语义），加成截断按 T1 写 `(int)(long long)expr`
+// （ORIG 第二次 `fistp QWORD` 后取低 32 位）。残差为 x87 比较 lowering
+// （ORIG `fucompp/fnstsw/test $0x45/sete` vs 4.4 `fucomip/fstp/seta`，N85；
+// 需 -march=i486 的 TU 级旗标，路由表禁改）与帧/槽差（N82/N115，ORIG
+// push edi/esi/ebx + sub 0x9c vs 0x98；P190 double framePad 实测 0x98→0xa8
+// 反劣已回退），语义完成、byte 层封顶。
 void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
                                           map_monster& mob, std::vector<bool>& flags,
                                           int killCnt, std::list<map_item>& items)
@@ -270,11 +287,17 @@ void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
         float baseF = G_CDataManager()->getDropRate();
         // ORIG 0x84add20：条件 effVal > (int)baseF（fildll 载入截断整数 base 与
         // effVal 浮点比较）；加成 (base - effVal) * killCnt（符号与 baseF 相反）。
-        int base = static_cast<int>(baseF); // ORIG fistpll 截断口径
+        // T1/T2 直证：ORIG `fistp QWORD [ebp-0x68]` + 回读 `mov %eax,-0x2c;
+        // mov %eax,%edx?`→`mov $0,%edx` 零扩展后 `fild QWORD` ⇒ base 为
+        // unsigned int（非 int）。
+        unsigned int base = static_cast<unsigned int>(baseF);
         if (static_cast<float>(base) < effVal)
         {
-            killCnt += static_cast<int>((static_cast<float>(base) - effVal)
-                                        * static_cast<float>(killCnt));
+            // T1 直证：ORIG `fistp QWORD [ebp-0x68]` 后取低 32 位 ⇒ 源码为
+            // `(int)(long long)expr`（Ghidra `(int)(longlong)ROUND(..)`）。
+            killCnt += static_cast<int>(static_cast<long long>(
+                (static_cast<float>(base) - effVal)
+                * static_cast<float>(killCnt)));
             int cap = static_cast<int>(static_cast<float>(killCnt) * effVal);
             killCnt = std::max(0, std::min(killCnt, cap));
         }
@@ -283,11 +306,12 @@ void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
     {
         float effVal = GlobalData::s_globalEffectManager_->getEffectValue(4);
         float baseF = G_CDataManager()->getDropRate();
-        int base = static_cast<int>(baseF);
+        unsigned int base = static_cast<unsigned int>(baseF);
         if (static_cast<float>(base) < effVal)
         {
-            killCnt += static_cast<int>((static_cast<float>(base) - effVal)
-                                        * static_cast<float>(killCnt));
+            killCnt += static_cast<int>(static_cast<long long>(
+                (static_cast<float>(base) - effVal)
+                * static_cast<float>(killCnt)));
             int cap = static_cast<int>(static_cast<float>(killCnt) * effVal);
             killCnt = std::max(0, std::min(killCnt, cap));
         }
@@ -369,8 +393,10 @@ void CMonsterDropTest::singleMapMonsterKill(CParty* party, DropStat& drop,
 // ORIG passedMapMonsterKill 0x084adaf8：passed 列表每张图同样处理。
 // b28d-solo-GmCmds_E：对齐 singleMapMonsterKill——双 bool 槽形、passed 指针
 // 不落槽（getPassedMapInfoList 内联实参）、`m_dropCnt != 100` continue 形。
-// 残差 2 条 = begin/end 调用点 sret↔this 寄存器角色互换（4.4.7 后端恒
-// sret=%eax/this=%edx，ORIG 反之；N7，本 TU 未路由 4.4.6 后端）⇒ N 封顶。
+// p167 CLEAR（27/27），162=165（ratio 0.9541）。残差 = begin/end 调用点
+// sret↔this 寄存器角色互换（4.4.7 恒 `mov %edx,%eax?`+sret=%eax/this=%edx，
+// ORIG sret=%edx/this=%eax；N7/P230 后端敏感族）——本 TU 不在 dnf_game_cxx.sh
+// 的 4.4.6 路由表内（禁改路由表）⇒ N 封顶。
 void CMonsterDropTest::passedMapMonsterKill(CParty* party, DropStat& drop,
                                             GradeStat& grade)
 {
@@ -427,15 +453,22 @@ void CMonsterDropTest::getDungeonDropResult(std::list<map_item>& items, DropStat
 
 // ORIG makeGeneralItemDropList 0x084ae734：普通物品按 itemId 计数；
 // itemId==0（金币类）把 Inven_Item.m_addInfo2 累计到键 0。
-// b28d-solo-GmCmds_E：P0/P48 条件与 insert 处重新读成员 + P222 正向包裹后
-// 157=157 NEAR，仅余 it/key 栈槽互换（4.4 按首次使用序分配；P212 全头部声明
-// 实测反劣 157→162，N98 封顶）。
+// b28d-solo-GmCmds_E：P0/P48 条件与 insert 处重新读成员 + P222 正向包裹 +
+// `int key;` 提函数头（循环内赋值）后 157=157，ratio 0.9682；残差 3 类：
+// ① key 槽 -0x54(我)/-0x50(ORIG) 与 end() 临时槽 -0x50/-0x54 互换
+//   （P309 头部声明后 4.4 仍按首次使用序；实测块内声明/全头部/`end()!=mit`
+//   三形均更劣 ⇒ N98 封顶）；
+// ② make_pair 值类别：ORIG `make_pair<int,int>(int&&,int&&)`（4.1 对 xvalue
+//   直接传成员地址 `lea ebx,[eax+0x17]`），4.4 对 static_cast<int&&>/std::move/
+//   static_cast<int> 三形恒物化临时（+2 条且槽整体平移）⇒ 保留左值形
+//   （指令序列 identical，仅调用符号 `IiRi` vs `Iii` 差，p167 1 MISSING/1 EXTRA）。
 void CMonsterDropTest::makeGeneralItemDropList(std::list<map_item>& items,
                                                DropStat& out)
 {
+    int key;
     for (std::list<map_item>::iterator it = items.begin(); it != items.end(); ++it)
     {
-        int key = it->m_item.m_addInfo;
+        key = it->m_item.m_addInfo;
         std::map<int, int>::iterator mit = out.find(key);
         // P0/P48：ORIG 条件与 insert 处均重新读成员（`call ptEv; mov 0x12(%eax)`），
         // 不用 key 槽；P222 正向包裹（mit!=end 直落、insert 走尾岛）。
@@ -494,7 +527,9 @@ void CMonsterDropTest::makeGoldItemDropList(std::list<map_item>& items, DropStat
 // m_addInfo2 映射：0x5aa7→1 / 0xfa6→2 / 0x6a23→3 / 0x5df0→4 / 0x7270→5）。
 // b28d-solo-GmCmds_E：P167 CLEAR（58/58）——make_pair 实例修正
 // （make_pair<uchar,int>、make_pair<int,map&>）+ get_grade 二次调用复现；
-// switch(v) case 升序复现决策树。残差为帧/槽基差（N95/N82），语义完成封顶。
+// switch(v) case 升序复现决策树。376=375，ratio 0.8682；残差为槽分配方向差
+// （ORIG it@-0xf8/up@-0xe8 vs 4.4 it@-0xec/up@-0xf8，非整体平移而是槽序反向
+// ——N98「4.4 按首次使用序」+N82；帧同为 0x130），语义完成、byte 层封顶。
 void CMonsterDropTest::makeUpgradeDropList(std::list<map_item>& items, GradeStat& out)
 {
     for (std::list<map_item>::iterator it = items.begin(); it != items.end(); ++it)
@@ -596,9 +631,16 @@ void CMonsterDropTest::makeFileGoldContents(CUser* user, char* fileBuf, DropStat
 }
 
 // ORIG execute 0x084acf98：主流程（校验 → 分派击杀 → 分模式落盘 → 升级分表输出）。
-// b28d-solo-GmCmds_E：P167 CLEAR（59/59）——ppEi 后置增量（P28）+ fname/fileBuf/
-// line 大数组显式零初始化（P214③，EXTRA memset 3→0）；残差为 4.1 memset 三段内联
-// 展开（N78b，ORIG 37 条 vs 4.4 单 rep stos）与槽基差（N95），语义完成、byte 层封顶。
+// b28d-solo-GmCmds_E：AE 达成（identical=123/ae=251 中本件计入 ae；p167 CLEAR
+// 59/59）。本次三项直证修正：
+// ① fname 改 255 字节（ORIG 4.1 清零展开 `mov $0xff,%ebx` + 起点 -0x197 非 4
+//    对齐 ⇒ P312 慢路；原 256 使 fileBuf 起点 -0x178b4 漂 5）；
+// ② 表头改 `switch(m_mode)` 且 case 2/0 共用 0x44 块（ORIG 0x084ad116 段
+//    `cmp $2; je 0x84ad128(0x44 块)`、`cmp $3; je 0x84ad14c`、`test;jne done`
+//    ⇒ 单次成员读 + case 2 与 case 0 同块；原 if 链重读成员且 mode==2 漏表头）；
+// ③ while 内分派改 `switch(m_mode)`，case 0/2/3 书写序复现叶块物理序
+//    （ORIG 0x084ad178/0x84ad17d 目标 0x84ad1c9/0x84ad207/0x84ad243）。
+// 残留仅重定位显示（A vs 段内偏移）与 `@plt` 后缀，compare_tu AE 口径已归零。
 void CMonsterDropTest::execute()
 {
     CUser* user = GetUser();
@@ -632,7 +674,9 @@ void CMonsterDropTest::execute()
     //（后续仅由 sprintf 覆盖；非法 mode 无分支写它时仍是空串）。
     // ORIG 0x084acf98 段：fname/fileBuf 头部清零为内联 rep stos（P214③ 大数组
     // 显式零初始化），4.4 对 memset 恒 call（N78）。
-    char fname[256] = {0};
+    // ORIG 4.1 清零展开计数 ebx=0xff ⇒ fname 为 255 字节（起点 -0x197 非 4 对齐，
+    // P312 对齐剥离慢路）。
+    char fname[255] = {0};
     char fileBuf[95000] = {0};
     std::map<int, int> drop;
     std::map<int, std::map<int, int> > grade;
@@ -641,41 +685,45 @@ void CMonsterDropTest::execute()
 
     bool loop = true;
     // ORIG 表头：mode∈{0,2} 走同一段通用表头；mode==3 金币表头；其余无表头。
-    if (m_mode != 2)
+    // 直证（ORIG 0x084ad0xx）：单次成员读 + 无槽 cmp $2/je、cmp $3/je、test/jne
+    // 决策链，0x44 块（case 0）在 0x23 块（case 3）之前 ⇒ 源形是 switch(m_mode)
+    // 且 case 按 0、3 书写（P251/P324）。
+    switch (m_mode)
     {
-        if (m_mode == 3)
-        {
-            memcpy(fileBuf, "item_name\tgold_quantity\t drop_cnt\n", 0x23);
-            goto header_done;
-        }
-        if (m_mode != 0)
-        {
-            goto header_done;
-        }
+    case 2:
+    case 0:
+        memcpy(fileBuf,
+               "item_id\t item_name\t rarity\t drop_cnt\t price\t sell_price\t usable_lv\n",
+               0x44);
+        break;
+    case 3:
+        memcpy(fileBuf, "item_name\tgold_quantity\t drop_cnt\n", 0x23);
+        break;
+    default:
+        break;
     }
-    memcpy(fileBuf,
-           "item_id\t item_name\t rarity\t drop_cnt\t price\t sell_price\t usable_lv\n",
-           0x44);
-header_done:
 
     while (loop)
     {
-        // ORIG while 体首部每轮重读 this+0x08（mode）。
-        int mode = m_mode;
-        if (mode == 2)
+        // P251/P0：ORIG 无 mode 具名槽（每轮 `mov [ebp+8]; mov [eax+8]` 单次
+        // 直读成员），决策链 cmp $2/je、cmp $3/je、test/jne；叶块物理序 =
+        // case 0（fall-through）、case 2、case 3（P324）。
+        switch (m_mode)
         {
-            sprintf(fname, "passed_dungeon_drop_%d.txt", m_count);
-            CBoosterTest::makeFileContents(user, fileBuf, drop);
-        }
-        else if (mode == 3)
-        {
-            sprintf(fname, "gold_dungeon_drop_%d.txt", m_count);
-            makeFileGoldContents(user, fileBuf, drop);
-        }
-        else if (mode == 0)
-        {
+        case 0:
             sprintf(fname, "single_dungeon_drop_%d.txt", m_count);
             CBoosterTest::makeFileContents(user, fileBuf, drop);
+            break;
+        case 2:
+            sprintf(fname, "passed_dungeon_drop_%d.txt", m_count);
+            CBoosterTest::makeFileContents(user, fileBuf, drop);
+            break;
+        case 3:
+            sprintf(fname, "gold_dungeon_drop_%d.txt", m_count);
+            makeFileGoldContents(user, fileBuf, drop);
+            break;
+        default:
+            break;
         }
 
         if (drop.empty())
@@ -912,12 +960,16 @@ const char* CRandomObjectTest::checkCommandExecuteError()
 // 首个 m_groupNum==1 的 info；找不到返回 0。直调 CDataManager::getVendingMachineTable。
 // b28d-solo-GmCmds_E：ORIG 为标准 for 循环（begin 后 `jmp cond`，尾部 ppEv
 // 回跳，命中 `sete;test;jne` 物化岛）；原 while(true)+break 形改 for 复现。
+// p167 补修（P96 反向）：ORIG 0x084b0452/0x084b0467 调 const 版
+// `_ZNKSt6vector...5beginEv/3endEv` + `PK18stVendingMachine_t` const_iterator
+// （operator->/operator*/ppEv/ne 全 const 族）⇒ table 改 `const vector*`、
+// 两循环迭代器改 const_iterator（返回值 const_cast 为零指令编译期操作）。
 stVendingMachineInfo_t* CRandomObjectTest::getVendingMachineInfo()
 {
-    std::vector<stVendingMachine_t>* table =
+    const std::vector<stVendingMachine_t>* table =
         G_CDataManager()->getVendingMachineTable();
 
-    std::vector<stVendingMachine_t>::iterator mit = table->begin();
+    std::vector<stVendingMachine_t>::const_iterator mit = table->begin();
     for (; mit != table->end(); ++mit)
     {
         if (mit->m_id == 1)
@@ -927,12 +979,13 @@ stVendingMachineInfo_t* CRandomObjectTest::getVendingMachineInfo()
     }
 
     // ORIG：外层即便因 end 退出仍取 m_infoList（迭代器失效路径原样保留）。
-    std::vector<stVendingMachineInfo_t>::iterator iit = mit->m_infoList.begin();
+    std::vector<stVendingMachineInfo_t>::const_iterator iit =
+        mit->m_infoList.begin();
     for (; iit != mit->m_infoList.end(); ++iit)
     {
         if (iit->m_groupNum == 1)
         {
-            return &*iit;
+            return const_cast<stVendingMachineInfo_t*>(&*iit);
         }
     }
     return 0;
@@ -1011,9 +1064,13 @@ void CRandomObjectTest::processVendingMachineItemLottery(CMTRand& rng,
 }
 
 // ORIG execute 0x084b0082：校验后按 mode==1 跑售货机统计并分片落盘。
-// b28d-solo-GmCmds_E：P167 CLEAR（18/18）+ fname 改 `={0}`（P214③）；残差为
-// 4.1 memset 三段内联展开（N78b，ORIG 37 条 vs 4.4 单 rep stos）与帧/槽基差
-// （N95，0x1747c vs 0x17470 + push edi），语义完成、byte 层封顶。
+// b28d-solo-GmCmds_E：P167 CLEAR（18/18）；162=160，ratio 0.9317。本次修正：
+// ① fname 改 255 字节 + 声明序提前到 fileBuf 之前（ORIG 4.1 清零展开
+//    `lea -0x153; mov $0xff,%ebx` 在前、fileBuf `call memset` 在后；改后
+//    fname 起点 -0x153 非 4 对齐触发 P312 慢路，fileBuf 起点 -0x1746b 精确对齐）；
+// ② 全函数槽位/帧已逐条对齐（唯一残差 = ORIG memset 首参 `lea` 先行 + size 经
+//    `mov $0x17318,%edx` 中转，4.4 恒右到左直接压立即数；`&fileBuf[0]`/字面量/
+//    sizeof 三形实测同形 ⇒ 跨版本 P75/手册「待解」项封顶）。
 void CRandomObjectTest::execute()
 {
     CUser* user = GetUser();
@@ -1043,9 +1100,11 @@ void CRandomObjectTest::execute()
         CBoosterTest::SendChatMsg(user, const_cast<char*>("vending machine 결과체크를 시작합니다"));
         getVendingMachineItem(stat);
 
+        // ORIG 4.1 清零展开计数 ebx=0xff ⇒ fname 实为 255 字节（起点 -0x153 非 4
+        // 对齐 ⇒ 触发 P312 对齐剥离慢路，且使 fileBuf 起点落在 -0x1746b）。
+        char fname[255] = {0};
         char fileBuf[95000];
         memset(fileBuf, 0, sizeof(fileBuf));
-        char fname[256] = {0};   // ORIG 内联三段清零展开（P214③/N78b）
 
         bool loop = true;
         while (loop)

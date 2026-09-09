@@ -104,7 +104,10 @@ public:
     void end_pvp_result();
     int send_pvp_end();
     bool CheckPassword(const char* password, int len);
-    unsigned char IsExistPassword();   // P9：ORIG 体 6 条 `movzbl +0x604,%eax;ret` 无 setne 归一 ⇒ uchar 直返；caller xor$1 系调用点 !call() 裸形（P168a③），非返回类型信号
+    // [b28d-Main·检查点17 P321-T3] uchar→bool：ORIG 调用点 0x082a3263
+    //   `call; xor $0x1,%eax; test %al,%al; je`（3 条无 setcc）⇒ bool；生产端
+    //   `movzbl +0x604; ret` 无 setne 属弱证据（bool 字段直返同形），旧 P168a③ 判词作废。
+    bool IsExistPassword();
     bool IsEndPvpBattle();
     unsigned char IsInsertTimerRecvPvpRank();
     int is_closeable_seat_state();

@@ -278,7 +278,7 @@ bool PvP_Room::CheckTimerKey(TIMER_MESSAGE msg, int key)
 {
     return P_TIMER_KEY(msg) == key;
 }
-unsigned char PvP_Room::IsExistPassword()
+bool PvP_Room::IsExistPassword()
 {
     return m_isExistPassword;
 }

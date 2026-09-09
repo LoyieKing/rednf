@@ -129,7 +129,8 @@ TOD_Layer TOD_UserState::getTodayEnterLayer() const
 // TowerOfDespairMgr::Get_CDungeonByLayer —— ORIG T 0x08643d14
 //   （报告 TowerOfDespairMgr/Get_CDungeonByLayer.md）
 // ============================================================================
-CDungeon* TowerOfDespairMgr::Get_CDungeonByLayer(unsigned int layer)
+// [b28d-Main·检查点17] 返回类型 CDungeon*→const CDungeon*（元素 const 指针，mangled 不变）。
+const CDungeon* TowerOfDespairMgr::Get_CDungeonByLayer(unsigned int layer)
 {
     if (layer == 0 || 100 < layer)
     {
@@ -185,7 +186,7 @@ int TowerOfDespairMgr::GetBaseLayerIndex()
 {
     if (m_field358 == 0)
     {
-        CDungeon* base = Get_CDungeonByLayer(1);
+        const CDungeon* base = Get_CDungeonByLayer(1);
         if (base != 0)
         {
             m_field358 = base->get_index();

@@ -2,6 +2,12 @@
 // 组：W6_AssaultPlaceA（符号清单 /tmp/only_orig/pvp_assault.txt 第 24-53 行）。
 // 全部语义取自 docs/class_func_reports/pvp_assault__CAssaultPlace/ 对应报告
 // （汇编 + Ghidra C）；每函数前注释 ORIG 地址/尺寸。
+// [b28d-solo-W6_AssaultPlaceDepsA 收口] 清单 9 件：_AvailableAssault/StartAssault/
+//   TimeoutConnectP2P 三件修至 AE（负极性包裹 P59 / P227 name 内联升格 /
+//   P0 删 log 具名槽 + P223 双标签守卫岛 + 语句表达式 setne）；其余 6 件封 N
+//   （EndAssault N82附、RevivalUser N104、_ProcessChaos N7/P75/N121、
+//   _SendHoldVictory N98/N82、EvadeAssaultPlace N18b/N7/N108、
+//   TimeoutEndAssault N18a），逐条实测数据见各函数头判词。
 #include "CAssaultMgr.h"
 
 #include "CUser.h"
@@ -221,10 +227,18 @@ EVENT_DONE:
 // ---------------------------------------------------------------------------
 // ORIG T 0x82ebb9c (size 0xc7)：_ProcessChaos(int killer, int victim)
 // ---------------------------------------------------------------------------
-// [b28d-solo-W6_AssaultPlaceDepsA] DIFF：P226 语句表达式复现 sete 守卫 + P248
-//   档② bool 字段（m_chaosFlags）裸 if + 槽归位后，残差 = ORIG `cmp %edx,%eax`
-//   角色互换（N7/N18a；交换操作数引 push %ebx 劣化已回退）+ make_basic_info/
-//   send_all 实参装载序（4.1 receiver 先 vs 4.4 实参先，P75 族）。p167 CLEAR。ORIG 0x082ebb9c
+// [b28d-solo-W6_AssaultPlaceDepsA] DIFF 封 N（P321-T5）：已修 P226 语句表达式
+//   sete 守卫 + P248 档② bool 字段（m_chaosFlags）+ `>0` 极性（ORIG 0x082ebd32
+//   `setg` 复现）；残差 5 组全为装载序/寄存器角色，T5 禁改类型：
+//   ① 0x082ebbd2 `cmp %edx,%eax` GetTeam 角色互换（删 (int) cast 无效；交换
+//      操作数引 push %ebx 劣化已回退）——N18b/N7；
+//   ② 0x082ebc38 `mov -0xc,%eax` 先于 `movl $0xa,0x4(%esp)`（4.4 常量先）——P75；
+//   ③ 0x082ebc63 make_basic_info `lea→eax; movl $0; mov %eax,0x4(%esp); mov this,%eax`
+//      求值序（4.4 先载 this）——P75；
+//   ④ 0x082ebd51 send_all 的 `mov -0xc,%edx` 在 G_GameWorld call 之后（4.4 提前
+//      升格 %ebx 跨 call）——P52/N7；
+//   ⑤ 4.4 尾部多 2 条 jmp（if/else+外层块尾，ORIG 直落 epilogue）——N121 族。
+//   p167 CLEAR。ORIG 0x082ebb9c
 void CAssaultPlace::_ProcessChaos(int killer, int victim)
 {
     if (victim < 0 || victim > 7)
@@ -236,7 +250,9 @@ void CAssaultPlace::_ProcessChaos(int killer, int victim)
     // 操作数序：交换成 `field == call` 使 4.4 把字段提前载入 %ebx（push %ebx
     //   劣化，实测回退）；残差 = ORIG `cmp %edx,%eax` vs 我方 `cmp %eax,%edx`
     //   角色互换（N7/N18a 族）。
-    if (({ (int)m_assaulters[victim].GetTeam() == m_winTeam /*+0x124*/; })) {
+    // [b28d-solo-W6_AssaultPlaceDepsA] ORIG 0x082ebbd2 `call GetTeam; mov 0x8(%ebp),%edx;
+    //   mov 0x124(%edx),%edx; cmp %edx,%eax` ⇒ 删 `(int)` cast（同 EvadeAssaultPlace）。
+    if (({ m_assaulters[victim].GetTeam() == m_winTeam /*+0x124*/; })) {
         CUserCharacInfo* killerUser =
             (CUserCharacInfo*)m_assaulters[killer].GetUser();
         CUserCharacInfo* victimUser = (CUserCharacInfo*)m_assaulters[victim].GetUser();
@@ -254,10 +270,13 @@ void CAssaultPlace::_ProcessChaos(int killer, int victim)
                 }
             }
             if (killerUser != 0) {
-                if (killerUser->GetCurCharacChaosPoint() < 1)
-                    victimUser->IncCurCharacChaosKillCount();
-                else
+                // [b28d-solo-W6_AssaultPlaceDepsA] ORIG 0x082ebd32 `setg %al; test;
+                //   je <0x082ebd46 Kill 块>` + then 直落 `jmp <0x082ebd51 Die 块>`
+                //   ⇒ 原码是 `if (point > 0) Mode; else Kill;`（写 `< 1` 产 setle 反形）。
+                if (killerUser->GetCurCharacChaosPoint() > 0)
                     victimUser->IncCurCharacChaosModeCount();
+                else
+                    victimUser->IncCurCharacChaosKillCount();
                 killerUser->IncCurCharacChaosDieCount();
             }
         }
@@ -269,10 +288,10 @@ void CAssaultPlace::_ProcessChaos(int killer, int victim)
 // 返回 1=成功开战（ebx 结果），0=转结束流程。
 // PowerWar 计数段依赖 CPowerWarLog（WAMgr 组权威头）。
 // ---------------------------------------------------------------------------
-// [b28d-solo-W6_AssaultPlaceDepsA] DIFF：P223 循环岛 + P221 trace 临时链后，残差
-//   N95——4.4 局部槽基恒 ebp-8（帧顶留 8B gap），ORIG 大局部顶到 ebp ⇒ 全帧槽号
-//   差 8（PacketGuard -0x54 vs ORIG -0x4c、trace1 -0x48 vs -0x40、i -0x18 vs -0x10，
-//   帧同为 0x60；double framePad 反致下移）；p167 CLEAR 53=53。ORIG 0x082e9502
+// [b28d-solo-W6_AssaultPlaceDepsA] AE：P223 循环岛 + P221 trace 临时链 +
+//   P227（BLUE/RED 的 name 内联进 operator() 实参 ⇒ 4.4 复现 ORIG 0x082e9835
+//   `mov %eax,%ebx` 升格保活，消 OURS-only mov×2）⇒ 297=297 ndiff=0；
+//   p167 CLEAR 53=53。ORIG 0x082e9502
 bool CAssaultPlace::StartAssault()
 {
     ClearBadP2PUser();
@@ -349,15 +368,19 @@ LOOP_END:
                 goto TRACE_CONT;
             {
                 if ((int)m_assaulters[i].GetTeam() == 0) {
-                    const char* name =
+                    // [b28d-solo-W6_AssaultPlaceDepsA] P227：ORIG 0x082e9835 段
+                    //   `call getCurCharacName; mov %eax,%ebx; ...ctor...; mov %ebx,0x8(%esp)`
+                    //   ⇒ 值升格 callee-saved 跨 ctor 保活；具名 name 局部使 4.4 落槽
+                    //   （+store/+load 两条 = OURS-only mov 2）。改全表达式临时链内联实参。
+                    cMyTrace(__PRETTY_FUNCTION__, 0x89f, 0)(
+                        "BLUE TEAM : %s",
                         ((CUserCharacInfo*)m_assaulters[i].GetUser())
-                            ->getCurCharacName();
-                    cMyTrace(__PRETTY_FUNCTION__, 0x89f, 0)("BLUE TEAM : %s", name);
+                            ->getCurCharacName());
                 } else {
-                    const char* name =
+                    cMyTrace(__PRETTY_FUNCTION__, 0x8a1, 0)(
+                        "RED TEAM : %s",
                         ((CUserCharacInfo*)m_assaulters[i].GetUser())
-                            ->getCurCharacName();
-                    cMyTrace(__PRETTY_FUNCTION__, 0x8a1, 0)("RED TEAM : %s", name);
+                            ->getCurCharacName());
                 }
             }
             goto TRACE_END;
@@ -377,10 +400,12 @@ TRACE_END:
 // ---------------------------------------------------------------------------
 // ORIG T 0x82e99a2 (size 0x133)：EndAssault() —— 单播结算包 + 清场计时
 // ---------------------------------------------------------------------------
-// [b28d-solo-W6_AssaultPlaceDepsA] NEAR：P223 双标签 goto 消循环 nop 岛 +
-//   P309 头部声明使 i=-0x10/allDead=-0x9 归位后 88=88；残差 N82附——4.4 聚合
-//   对象优先占低槽：PacketGuard -0x24 vs ORIG -0x1c、aliveCounts -0x18/-0x14 vs
-//   ORIG -0x24/-0x20。p167 CLEAR。ORIG 0x082e99a2
+// [b28d-solo-W6_AssaultPlaceDepsA] NEAR 封 N（P321-T5）：P223 双标签 goto 消循环
+//   nop 岛 + 头部声明 i/allDead 使 i=-0x10/allDead=-0x9 归位后 88=88；残差
+//   N82附——4.4 聚合对象优先占低槽：PacketGuard -0x24 vs ORIG -0x1c、
+//   aliveCounts -0x18/-0x14 vs ORIG -0x24/-0x20。P309 头部声明 aliveCounts
+//   （无初始化+后置赋值）实测无效（4.4 仍给块内 PacketGuard 低槽），已回退。
+//   p167 CLEAR。ORIG 0x082e99a2
 void CAssaultPlace::EndAssault()
 {
     // [b28d-solo-W6_AssaultPlaceDepsA] P309 试验：ORIG 槽 i=-0x10 / allDead=-0x9
@@ -425,10 +450,12 @@ LOOP_END:
 // ORIG T 0x82ea004 (size 0x183)：TimeoutEndAssault()
 // state==4 才推进到 5 并 EndAssault。
 // ---------------------------------------------------------------------------
-// [b28d-solo-W6_AssaultPlaceDepsA] DIFF：P227 全表达式临时链复现 ctor 前右起
-//   varargs 求值 + P285 正向包裹消 epilogue 尾岛后，仅剩 N18a——ORIG 0x082ea099
-//   `mov 0x10c(%eax),%eax; mov %eax,%ebx` 两段 regmove 被 4.4 折单段（P248 档②
-//   enum 实参 cast 实测无效，m_state 字段化跨 TU 不可行）。p167 CLEAR。ORIG 0x082ea004
+// [b28d-solo-W6_AssaultPlaceDepsA] DIFF 封 N（P321-T5）：P227 全表达式临时链复现
+//   ctor 前右起 varargs 求值 + P285 正向包裹消 epilogue 尾岛后，仅剩 N18a——ORIG
+//   0x082ea099 `mov 0x10c(%eax),%eax; mov %eax,%ebx` 两段 regmove 被 4.4 折单段
+//   （`mov 0x10c(%eax),%ebx`）。S1 一次替代形 `(ENUM_ASSAULT_STATE)(unsigned int)`
+//   实测仍单段（已恢复直证形）；m_state int→enum 属 .h 跨 TU 改动（S2 归 Main）。
+//   p167 CLEAR。ORIG 0x082ea004
 void CAssaultPlace::TimeoutEndAssault()
 {
     // [b28d-solo-W6_AssaultPlaceDepsA] ORIG 0x082ea00d 段：8 个 GetCharacName 在
@@ -439,6 +466,9 @@ void CAssaultPlace::TimeoutEndAssault()
         "TimeoutEndAssault() state(%d) %s,%s,%s,%s,%s,%s,%s,%s",
         // P265：ORIG 0x082ea099 `mov 0x10c(%eax),%eax; mov %eax,%ebx` 两段中转
         //   ⇒ 实参处显式 enum cast（int 字段 + (ENUM_X) 实参）。
+        // [b28d-solo-W6_AssaultPlaceDepsA] S1 已试 `(ENUM_ASSAULT_STATE)(unsigned int)`
+        //   替代形——实测仍 `mov 0x10c(%eax),%ebx` 单段（无效，已恢复直证形态）⇒
+        //   残差仅 1 条 regmove（T5）封 N。
         (ENUM_ASSAULT_STATE)m_state,
         m_assaulters[0].GetCharacName(), m_assaulters[1].GetCharacName(),
         m_assaulters[2].GetCharacName(), m_assaulters[3].GetCharacName(),
@@ -550,41 +580,62 @@ LOOP_END:
 // ---------------------------------------------------------------------------
 // [b28c-L7][SIGFIX:pvp_assault::CAssaultPlace::TimeoutConnectP2P] char→bool
 //（ORIG __PRETTY_FUNCTION__ 串 "bool ...TimeoutConnectP2P()"，tsv 第 16 行；
-// mangled 不变；`started` 局部保持 char——它是 ORIG 的字节槽，非返回通道）。
-// [b28d-solo-W6_AssaultPlaceDepsA] DIFF：P221 trace 临时链 + SECEDE 直传 GetUser
-//   （P171 照抄 ORIG，p167 EXTRA 归零 39=39）后，残差 N108（ORIG 双守卫分落
-//   +0x304/+0x305 差 1，4.4 合并共享出口）+ N95 槽基 gap + N7。ORIG 0x082ea716
+// mangled 不变；`started` 局部改 bool——ORIG 尾 `movzbl -0x19(%ebp),%eax` 无
+// setne 归一化 + 消费点 `cmpb $0x0,-0x19(%ebp); je`，P292/P321-T3 判 bool）。
+// [b28d-solo-W6_AssaultPlaceDepsA] AE：P0 删 log 具名槽（改链式直传，槽号一次
+//   全对齐）+ P227 name 内联 + P223 双标签 goto 复现三条守卫岛（Empty 的
+//   jne→nop 岛 + 语句表达式 setne 守卫 + body 尾 jmp）⇒ 262=262 ndiff=0；
+//   p167 CLEAR。ORIG 0x082ea716
 bool CAssaultPlace::TimeoutConnectP2P()
 {
     if (m_state != 3)
         throw (ENUM_ERROR)0x13;
 
     for (int i = 0; i < 8; ++i) {
-        if (!m_assaulters[i].Empty()
-            && (int)m_assaulters[i].GetState() != 4)
+        // [b28d-solo-W6_AssaultPlaceDepsA] ORIG 0x082ea777 `test %al,%al; jne +0x304`
+        //   （nop 岛）+ 0x082ea796 `cmp $0x4,%eax; setne %al; test %al,%al; je +0x305`
+        //   + body 尾 0x082eaa18 `jmp +0x305` ⇒ 两条独立守卫（P223 双标签 goto 形；
+        //   合并 `&&` 使 4.4 产 xor $1 短路 + mov$1/jmp/mov$0 岛，缺 jne/nop/jmp 三条）。
+        //   语句表达式保 setne 无槽物化（P226 条件向）。
+        if (m_assaulters[i].Empty())
+            goto LOOP_CONT;
+        if (({ (int)m_assaulters[i].GetState() != 4; }))
         {
             if (GlobalData::s_power_manager->IsPowerWarEventOn()) {
-                CPowerWarLog* log = GlobalData::s_power_manager->GetPowerWarLog();
-                log->IncP2PTimeOutCountSecede();
+                // [b28d-solo-W6_AssaultPlaceDepsA] P0：ORIG 0x082ea7b0 段无 log 具名
+                //   局部（`call GetPowerWarLog; mov %eax,(%esp); call IncP2PTimeOut…`
+                //   寄存器直传）⇒ 删局部改链式调用。
+                GlobalData::s_power_manager->GetPowerWarLog()
+                    ->IncP2PTimeOutCountSecede();
                 // [b28d-solo-W6_AssaultPlaceDepsA] P221：ORIG 槽序 -0x5c/-0x4c/
                 //   -0x3c/-0x2c（先声明深）⇒ 全表达式临时链。
                 cMyTrace(__PRETTY_FUNCTION__, 0xa80, 0)("POWER WAR P2P SECEDE");
                 for (int j = 0; j < 8; ++j) {
-                    if (!m_assaulters[j].Empty()) {
+                    // [b28d-solo-W6_AssaultPlaceDepsA] ORIG 0x082ea81b `test %al,%al;
+                    //   jne +0x1d3`（nop 岛）+ body 尾 0x082ea890 `jmp +0x1d4`
+                    //   ⇒ P223 双标签 goto 形（`if(!Empty())` 合并形产 xor$1/je 反极性）。
+                    if (m_assaulters[j].Empty())
+                        goto JCONT;
+                    {
                         if ((int)m_assaulters[j].GetTeam() == 0) {
-                            const char* name =
-                                ((CUserCharacInfo*)m_assaulters[j].GetUser())
-                                    ->getCurCharacName();
+                            // [b28d-solo-W6_AssaultPlaceDepsA] P227：同 StartAssault——
+                            //   ORIG `mov %eax,%ebx` 升格保活，具名 name 落槽。
                             cMyTrace(__PRETTY_FUNCTION__, 0xa88, 0)(
-                                "BLUE TEAM : %s", name);
-                        } else {
-                            const char* name =
+                                "BLUE TEAM : %s",
                                 ((CUserCharacInfo*)m_assaulters[j].GetUser())
-                                    ->getCurCharacName();
+                                    ->getCurCharacName());
+                        } else {
                             cMyTrace(__PRETTY_FUNCTION__, 0xa8a, 0)(
-                                "RED TEAM : %s", name);
+                                "RED TEAM : %s",
+                                ((CUserCharacInfo*)m_assaulters[j].GetUser())
+                                    ->getCurCharacName());
                         }
                     }
+                    goto JEND;
+JCONT:
+                    ;
+JEND:
+                    ;
                 }
                 // ORIG 0x082ea909 `call GetUser; mov %eax,%ebx` 直传 GetUser 返回值
                 //（无 getCurCharacName 调用，P171 照抄 ORIG；p167 EXTRA 归零）。
@@ -603,20 +654,35 @@ bool CAssaultPlace::TimeoutConnectP2P()
                 leaveUser->Send(packet);
             }
         }
+        goto LOOP_END;
+LOOP_CONT:
+        ;
+LOOP_END:
+        ;
     }
 
     for (int i = 0; i < 8; ++i) {
-        if (!m_assaulters[i].Empty()
-            && (int)m_assaulters[i].GetState() != 4)
+        // [b28d-solo-W6_AssaultPlaceDepsA] ORIG 0x082eaa48 `jne +0x388`（nop 岛）+
+        //   `cmp $0x4,%eax; setne %al; test %al,%al; je +0x389` ⇒ 同第一循环形。
+        if (m_assaulters[i].Empty())
+            goto LOOP2_CONT;
+        if (({ (int)m_assaulters[i].GetState() != 4; }))
         {
             LeaveAssaultPlace(i, true, false);
             if (m_state == 6)
                 return false;
         }
+        goto LOOP2_END;
+LOOP2_CONT:
+        ;
+LOOP2_END:
+        ;
     }
 
-    // ORIG 0x082eaab4 `call StartAssault; mov %al,-0x19`（无三目归一化）。
-    char started = StartAssault();
+    // [b28d-solo-W6_AssaultPlaceDepsA] P292/P321-T3：ORIG 0x082eaab4 `call StartAssault;
+    //   mov %al,-0x19` + 尾 `movzbl -0x19(%ebp),%eax`（无 setne 归一化）+ 消费点
+    //   `cmpb $0x0,-0x19(%ebp); je` ⇒ started 是 bool 局部（char 使 4.4 尾多 setne）。
+    bool started = StartAssault();
     if (started) {
         if (m_parties[0].m_field00 != 0)
             ((CParty*)m_parties[0].m_field00)->SetAssaultState('\x04');
@@ -629,10 +695,11 @@ bool CAssaultPlace::TimeoutConnectP2P()
 // ---------------------------------------------------------------------------
 // ORIG T 0x82ed43e (size 0x1b5)：RevivalUser(CUser*, int&)
 // ---------------------------------------------------------------------------
-// [b28d-solo-W6_AssaultPlaceDepsA] DIFF：`||` 直接物化 + uid 内联（P0）后逐条
-//   对齐，仅剩 N104 EH 尾块相对序——ORIG 正常路径 PacketGuard D1+epilogue 在函数
-//   最末、unwind 块在 ret 之后；4.4 把 unwind 块居中、正常路径尾多 `jmp` 跳过
-//   （块内容逐条全等，仅两尾块互换）。p167 CLEAR。ORIG 0x082ed43e
+// [b28d-solo-W6_AssaultPlaceDepsA] DIFF 封 N（N104，P321-T5）：`||` 直接物化 +
+//   uid 内联（P0）后逐条对齐，仅剩 N104 EH 尾块相对序——ORIG 正常路径 PacketGuard
+//   D1+epilogue 在函数最末、unwind 块居中；4.4 把 unwind 块压最末、正常路径尾多
+//   `jmp` 跳过（块内容逐条全等，仅两尾块互换，ndiff 17 系 difflib rotate 放大）。
+//   p167 CLEAR。ORIG 0x082ed43e
 void CAssaultPlace::RevivalUser(CUser* user, int& result)
 {
     if (!((CUserCharacInfo*)user)->IsCurCharacGhost())
@@ -670,8 +737,12 @@ void CAssaultPlace::RevivalUser(CUser* user, int& result)
 // ---------------------------------------------------------------------------
 // ORIG T 0x82eb49c (size 0x145)：EvadeAssaultPlace(CUser*)
 // ---------------------------------------------------------------------------
-// [b28d-62] N18a/N7：GetTeam 结果与 m_winTeam 的 cmp 操作数角色互换（4.4 this
-//   入 %eax 触发原值 spill）；交换操作数序实测更劣。p167 CLEAR。ORIG 0x082eb49c
+// [b28d-62][b28d-solo-W6_AssaultPlaceDepsA] DIFF 封 N（P321-T5）：N18b/N7——
+//   ORIG 0x082eb564 `call GetTeam; mov 0x8(%ebp),%edx; mov 0x124(%edx),%edx;
+//   cmp %edx,%eax`（enum 留 %eax、int 字段装 %edx）；4.4 恒中转 `mov %eax,%edx`
+//   并把字段装 %eax。删 (int) cast、交换操作数序（引 push %ebx + 帧 0x28→0x24
+//   劣化）两形实测均不可翻；当前 clean diff 仅剩该 1 组（ndiff 7），历史 N108
+//   守卫岛已由前轮 P223 形消解、不再残差。p167 CLEAR。ORIG 0x082eb49c
 void CAssaultPlace::EvadeAssaultPlace(CUser* user)
 {
     if ((unsigned int)(m_state - 2) > 1u) {
@@ -690,7 +761,10 @@ void CAssaultPlace::EvadeAssaultPlace(CUser* user)
     //   与 0x082eb4d2 `je +0x65` 双守卫分落两独立 landing（差 1）——4.4 恒合并共享
     //   出口（P223 双标签/负条件 goto 两形实测均被 jump-thread）；且 0x082eb564
     //   `cmp %edx,%eax` 角色互换（交换操作数序反引 push %ebx 劣化，已回退）。
-    if ((int)m_assaulters[idx].GetTeam() != m_winTeam /*+0x124*/)
+    // [b28d-solo-W6_AssaultPlaceDepsA] ORIG 0x082eb564 `call GetTeam; mov 0x8(%ebp),%edx;
+    //   mov 0x124(%edx),%edx; cmp %edx,%eax`：enum 返回值留 %eax、int 字段装 %edx。
+    //   写 `(int)GetTeam()` 使 4.4 先把结果中转 %edx（`mov %eax,%edx`）⇒ 删 cast 同型比较。
+    if (m_assaulters[idx].GetTeam() != m_winTeam /*+0x124*/)
         throw (ENUM_ERROR)0x13;
 
     LeaveAssaultPlace(_GetUserIndex(user, true), true, true);
@@ -700,8 +774,12 @@ void CAssaultPlace::EvadeAssaultPlace(CUser* user)
 // ORIG T 0x82ecaee (size 0x2cd)：_SendHoldVictory(CUser*, CUser*, int)
 // 包 0x109：双方连破名单广播（无队用单名，有队 4 成员名）。
 // ---------------------------------------------------------------------------
-// [b28d-62] N98：p167 EXTRA 4×strlen（4.1 内联 word-at-a-time vs 4.4 恒 call）。
-//   ORIG 0x082ecaee
+// [b28d-62][b28d-solo-W6_AssaultPlaceDepsA] NEAR 封 N（P321-T5）：N98——ORIG 4 处
+//   strlen 为 4.1 内联 word-at-a-time vs 4.4 恒 call（p167 EXTRA 4×strlen）；
+//   且 N82 槽序——ORIG s1=-0x3c/member=-0x38/name=-0x34/len=-0x30、s2=-0x20，
+//   4.4 按首次使用序使 s1=-0x38 等整体浅 4（-0x3c 被后用的 member2 占用）；
+//   声明序/头部声明两形实测均不闭合（N98「4.4 槽按首次使用分配」）。
+//   p167 CLEAR。ORIG 0x082ecaee
 void CAssaultPlace::_SendHoldVictory(CUser* userA, CUser* userB, int winTeam)
 {
     PacketGuard packet;
@@ -920,7 +998,10 @@ void CAssaultPlace::_MakeUserInfo(PacketGuard* p, ENUM_USERINFO type)
 // 组队分支：party is_limit_minimum_age→0x5f、is_limit_minimum_level→0xff/0xfe。
 // ---------------------------------------------------------------------------
 // [b28d-solo-W6_AssaultPlaceDepsA] AE：P0 删 bool/uid 具名槽 + `<= 0x1d`（setle）+
-//   P59 正极性 throw 顺序 ⇒ 149=149 对齐；p167 CLEAR。ORIG 0x082e75ca
+//   P59 正极性 throw 顺序；补负极性包裹 `if (!is_limit_minimum_level(...)) {…}`
+//   （ORIG 0x082e77b5 `xor $0x1,%eax; test %al,%al; je <函数尾>`；正极性
+//   `if (f()) return;` 4.4 产 test;jne 少 xor）⇒ 149=149 对齐；p167 CLEAR。
+//   ORIG 0x082e75ca
 void CAssaultPlace::_AvailableAssault(CUser* user, int& result)
 {
     CParty* party = 0;
@@ -965,14 +1046,16 @@ void CAssaultPlace::_AvailableAssault(CUser* user, int& result)
         if (!party->is_limit_minimum_age(partyNeedAge, result)) {
             throw (ENUM_ERROR)0x5f;
         }
-        if (party->is_limit_minimum_level(0x1e, result)) {
-            return;
+        // [b28d-solo-W6_AssaultPlaceDepsA] ORIG 0x082e77b5 `call is_limit_minimum_level;
+        //   xor $0x1,%eax; test %al,%al; je <+0x25d 函数尾>` ⇒ 原码是负极性包裹
+        //   `if (!f()) { ... }`（正极性 `if (f()) return;` 4.4 产 `test;jne` 少 xor）。
+        //   块内 ORIG 0x082e77c1 `cmp 0xc(%ebp),%eax; jne <0xff>` ⇒ 相等落 fall-through 0xfe。
+        if (!party->is_limit_minimum_level(0x1e, result)) {
+            if (m_checkUser == user) {
+                throw (ENUM_ERROR)0xfe;
+            }
+            throw (ENUM_ERROR)0xff;
         }
-        // ORIG 0x082e77c1 `cmp 0xc(%ebp),%eax; jne <0xff>` ⇒ 相等落 fall-through 0xfe。
-        if (m_checkUser == user) {
-            throw (ENUM_ERROR)0xfe;
-        }
-        throw (ENUM_ERROR)0xff;
     }
 }
 }  // namespace pvp_assault

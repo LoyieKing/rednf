@@ -143,158 +143,9 @@ public:
     char m_pad[0x10];
 };
 
-// ============================================================================
-// StaticPool<T,N> —— ORIG 真实实现（objdump 0x82ae390 起逐函数核对）
-// ============================================================================
-template <class T, int N>
-StaticPool<T, N>::StaticPool()
-{
-    m_pNode = new CNode[N];
-    if (m_pNode == 0)
-    {
-        // ORIG C1 实证：trace 落浅槽 -0x30（push 临时对象占 -0x58），临时对象形态
-        cMyTrace(__FUNCTION__, 0x6c, 5)("[StaticPool] %s(%d) new fail", "StaticPool.cpp", 0x6c);
-    }
-    for (int i = 0; i < N; ++i)
-        m_Queue.push(&m_pNode[i]);
-    m_nErrorCode = 0;
-}
-
-template <class T, int N>
-StaticPool<T, N>::~StaticPool()
-{
-    // b28d-solo-CGameManager 判词：本模板实例三件（CTradeSpace<300> 0x082ae79c /
-    // pvp_assault::CAssaultPlace<128> 0x082f141c / exchange_server::CSession<300>
-    // 0x0849584c）均 N91 封顶——ORIG 37 insn 无 EH landing，4.4 恒发
-    // CNodeD1 循环+_Unwind_Resume（P216 边界：D1 侧 throw() 无效，已实证）。
-    // b28c-L5 判词（N91 族·delete[] cleanup 侧）：ORIG 三池 D1（CTradeSpace<300>
-    //   0x082ae79c / pvp_assault::CAssaultPlace<128> 0x082f141c /
-    //   exchange_server::CSession<300> 0x0849584c，各 37 insns）**均无** EH landing
-    //   pad；4.4-O0 对本 TU 发射的弱 `CNodeD1Ev` 数组析构循环恒追加
-    //   「异常回滚 → m_Queue.~queue() → _Unwind_Resume」残段（+13 insns，
-    //   含 push %esi），与函数体正常路径逐条同构、仅尾段 EH 多寡不同。
-    //   已穷举两条无副作用翻法并实测否证（探针 /tmp/l5_probe_b.cpp 同 TU 三态）：
-    //     ① 元素类 T 的 dtor 加 throw()（SP<B>）→ landing **不消**（4.4 的 cleanup
-    //        判据取数组元素析构调用的可抛性，不受 T 声明影响）；
-    //     ② CNode ctor 加 throw()（SP2<C>，本波已落 StaticPool.h，用于消 C1 侧
-    //        new[] 的 operator delete[] 回滚）→ 对 D1 侧 landing **无效**。
-    //   第三条路（CNode 用户定义 `~CNode() throw() {}`）会连带让 POD 元素池
-    //   （StaticPool<_IO_FILE,50>，ORIG nm 实证无 CNodeD1Ev、其 D1 仅 0x2c 无循环）
-    //   凭空多出发明的 CNodeD1Ev 符号 + 逐元素析构循环 ⇒ 违 §4.1（禁发明符号）
-    //   且把 1 件 DIFF 换成 2 处结构性回归，否决。
-    //   语义侧 delete[] 的循环/cookie/释放三段与 ORIG 逐条一致，判 N91 封顶。
-    delete[] m_pNode;
-}
-
-template <class T, int N>
-T* StaticPool<T, N>::Acquire()
-{
-    if (m_Queue.empty())
-        return 0;
-    CNode* pNode = m_Queue.front();
-    m_Queue.pop();
-    if (pNode->magic != 0x8f21)
-    {
-        register int magic = pNode->magic;
-        // ORIG 0x082b0351 实证：临时对象形态（非具名局部）→ magic trace 槽 -0x2c、
-        // bUse trace 槽 -0x1c（具名写法槽序相反）
-        cMyTrace(__FUNCTION__, 0x89, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
-        m_nErrorCode = 3;
-    }
-    if (pNode->bUse != 0)
-    {
-        register int use = pNode->bUse;
-        cMyTrace(__FUNCTION__, 0x8f, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
-        m_nErrorCode = 4;
-    }
-    // ORIG `lea 0x1(%eax),%edx` = 后缀 ++（读改写单表达式，探针 t5 实证）
-    pNode->bUse++;
-    return pNode;
-}
-
-template <class T, int N>
-T* StaticPool<T, N>::Get(int index)
-{
-    if (index < 0 || index > N - 1)
-        return 0;
-    CNode* pNode = &m_pNode[index];
-    if (pNode->magic != 0x8f21)
-    {
-        register int magic = pNode->magic;
-        // ORIG 0x82b0xxx 实证：临时对象形态使 magic trace 槽落 -0x2c、bUse 落 -0x1c
-        cMyTrace(__FUNCTION__, 0xc3, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
-        m_nErrorCode = 7;
-    }
-    if (pNode->bUse != 1)
-    {
-        if (pNode->bUse != 0)
-        {
-            register int use = pNode->bUse;
-            cMyTrace(__FUNCTION__, 0xca, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
-            m_nErrorCode = 8;
-        }
-    }
-    return pNode;
-}
-
-template <class T, int N>
-void StaticPool<T, N>::Free(T* p)
-{
-    // ORIG 0x082b082a 实证（探针 t8 全等）：null 检查块先于 pNode 声明、
-    // trace 全临时对象且实参直接写表达式（无具名中间量）→
-    // 槽序 trnull-0x38/pNode-0x3c/trm-0x28/trb-0x18 + %esi 前置装载 + -- 单装载尾
-    if (p == 0)
-        cMyTrace(__FUNCTION__, 0xa0, 5)("[StaticPool] %s(%d) free null", "StaticPool.cpp", 0xa0);
-    CNode* pNode = (CNode*)p;
-    m_Queue.push(pNode);
-    if (pNode->magic != 0x8f21)
-    {
-        cMyTrace(__FUNCTION__, 0xaa, 0)("[StaticPool] magic(%d) node(%p)", pNode->magic, pNode);
-        m_nErrorCode = 5;
-    }
-    if (pNode->bUse != 1)
-    {
-        cMyTrace(__FUNCTION__, 0xb0, 0)("[StaticPool] bUse(%d) node(%p)", pNode->bUse, pNode);
-        m_nErrorCode = 6;
-        PrintBackTrace();
-    }
-    pNode->bUse--;
-}
-
-template <class T, int N>
-int StaticPool<T, N>::GetIndex(T* p)
-{
-    if ((unsigned int)p < (unsigned int)m_pNode)
-        return -1;
-    int diff = (int)((char*)p - (char*)m_pNode);
-    int index = 0;
-    if (diff != 0)
-        index = (unsigned int)diff / sizeof(CNode);
-    CNode* pNode = (CNode*)p;
-    if (pNode->magic != 0x8f21)
-    {
-        register int magic = pNode->magic;
-        // ORIG 实证：临时对象形态 → magic trace 槽 -0x34、bUse 槽 -0x24（具名相反）
-        cMyTrace(__FUNCTION__, 0x50, 0)("[StaticPool] magic(%d) node(%p)", magic, pNode);
-        m_nErrorCode = 1;
-    }
-    if (pNode->bUse != 1)
-    {
-        register int use = pNode->bUse;
-        cMyTrace(__FUNCTION__, 0x56, 0)("[StaticPool] bUse(%d) node(%p)", use, pNode);
-        m_nErrorCode = 2;
-    }
-    if (index > N - 1)
-        return -1;
-    return index;
-}
-
-template <class T, int N>
-int StaticPool<T, N>::GetLastErrorCode()
-{
-    return m_nErrorCode;
-}
-
+// [b28d-Main·检查点17] StaticPool<T,N> 主模板成员定义已移入 StaticPool.h（模板定义必须
+// 在实例化点可见；原「定义在此 + 19 条显式实例化」会为 19 个类型发射全部成员，
+// 造成 66 个 ORIG 没有的 only-NEW 符号）。
 // ============================================================================
 // StaticPool<_IO_FILE, 50> 全特化成员定义（见 StaticPool.h 特化说明，Main 批准方案①）
 // 体与主模板逐字相同，仅 N→50；差异仅在 CNode ctor 保留 throw()（_IO_FILE 析构平凡，
@@ -540,32 +391,11 @@ template <> DynamicPool<user_creature::CCreature>::CNode::~CNode()
 // ============================================================================
 // 显式实例化（本 TU 池成员使用）
 // ============================================================================
-template class StaticPool<CUser, 600>;
-template class StaticPool<CTradeSpace, 300>;
-template class StaticPool<CParty, 600>;
-template class StaticPool<PvP_Room, 600>;
-template class StaticPool<WarRoom, 40>;
-template class StaticPool<WongWork::CDeathTower, 600>;
-
-template class StaticPool<WongWork::CBossTower, 600>;
-template class StaticPool<advancealtar::StageControl, 600>;
-template class StaticPool<QuickParty::CQuickParty, 300>;
-template class StaticPool<BlueMarble, 300>;
-template class StaticPool<CACHE_CHARACTER_TYPE, 1000>;
-// b28d-solo-CGameManager 判词（StaticPool<CACHE_CHARACTER_TYPE,1000>::CNodeC1，
-// ORIG 0x08495dba，18 vs 12）：N 封顶（b22 特批）——ORIG 序 memset(0x3f85c)→
-// CACHE_CHARACTER_TYPE::C1Ev(0x8492262)→magic→bUse；CNode:public T 下 4.4 只能发
-// C2Ev（base-object ctor）且基类 ctor 恒先于派生 ctor 体，memset 前置无合法 C++ 表达。
-// p167：ORIG 2 calls（memset+C1Ev）vs OUR 1（C2Ev）。判词正文见 StaticPool.h CNode 区。
-// StaticPool<_IO_FILE, 50> 为全特化（见 StaticPool.h），此处不可显式实例化。
-template class StaticPool<expert_job::CEnchanter, 300>;
-template class StaticPool<expert_job::CDisjointer, 600>;
-template class StaticPool<pvp_assault::CAssaultPlace, 128>;
-template class StaticPool<private_store::CPrivateStore, 300>;
-template class StaticPool<exchange_server::CSession, 300>;
-template class StaticPool<online_preliminary::COnlinePreliminaryTeam, 600>;
-template class StaticPool<WongWork::CMailBox, 600>;
-template class StaticPool<WongWork::CMailBox::CMail, 20>;
+// [b28d-Main·检查点17] 原 19 条 `template class StaticPool<...>;` 显式实例化已删：
+//   定义移入 StaticPool.h 后按使用点隐式实例化（ORIG 模型），否则会为 19 个类型
+//   发射全部成员 ⇒ 66 个 ORIG 没有的 only-NEW 符号。
+//   CACHE_CHARACTER_TYPE 的 CNodeC1 判词（N 封顶）保留于 StaticPool.h CNode 区。
+//   StaticPool<_IO_FILE, 50> 为全特化（定义仍在本文件下方）。
 
 // DynamicPool 显式实例化
 template class DynamicPool<PacketBuf>;
@@ -1198,8 +1028,9 @@ PvP_Room* CGameManager::FindQuickJoinablePvPRoom(bool quick, CUser* user)
     // (quick==0||!IsExistPassword())&&IsQuickJoinablePVPRoom 短路物化；PvP_Room.h
     // IsQuickJoinablePVPRoom int→bool 由 S09 落定并经 R2 广播）；余 70 vs 69 为
     // `quick==0` 的 xor 物化（N122：4.4 对 bool 局部取反恒 xor，4.1 为 cmpb 内存
-    // 直比）+ IsExistPassword uchar 返回的 `^1` 被折 cmp$1（P292 非 bool callee）
-    // + 循环入口 nop 岛（P223 负例）→ N122/N82附 封顶。ORIG 0x082a3202。
+    // 直比）——S1 实测 `(int)quick==0`→`quick==0` 两形产物逐条相同，按 N122 封顶；
+    // IsExistPassword 已由 Main 落 bool（PvP_Room.h:110，T3 直证 0x082a3263），
+    // 裸 `!` 形复现 ORIG 的 `xor $1; test; je` 段。ORIG 0x082a3202。
     __gnu_cxx::hash_map<int, PvP_Room*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<PvP_Room*> >::iterator it = m_pvpRoomMap.begin();
@@ -1219,7 +1050,9 @@ PvP_Room* CGameManager::FindQuickJoinablePvPRoom(bool quick, CUser* user)
             // b28d-solo：`(int)quick == 0` 与 `(IsExistPassword() ^ 1)` 为等价改写
             // （uchar 返回 0/1 语义；ORIG 亦 `xor $1`），4.4 仍折 xor/cmp$1 →
             // 判 N122/N82附（详见函数头）。
-            if (((int)quick == 0 || (room->IsExistPassword() ^ 1)) &&
+            // PvP_Room.h:110 已由 Main 落 bool（T3 直证）⇒ 用裸 `!` 形复现 ORIG
+            // 0x082a3268 `call; xor $0x1,%eax; test %al,%al; je`（P292 表）。
+            if ((quick == 0 || !room->IsExistPassword()) &&
                 room->IsQuickJoinablePVPRoom(user))
                 return room;
         }
@@ -1911,7 +1744,9 @@ void CGameManager::SendPartyList(CUser* user)
             }
             if (type == 0 || type == 1 || type == 2)
             {
-                char matching = G_GameWorld()->is_dungeon_tag_matching_channel("[impossible]");
+                // T1 直证：ORIG 0x08296b88 读该局部用 `movzbl -0x15(%ebp),%eax`
+                // ⇒ unsigned char（原 char 生 movsbl，P321-T1 照抄宽度/扩展）。
+                unsigned char matching = G_GameWorld()->is_dungeon_tag_matching_channel("[impossible]");
                 guard.put_byte((int)matching);
                 if (matching != 0)
                 {
@@ -2581,7 +2416,10 @@ void CGameManager::send_userinfos_to_cutoff_server()
         {
             unsigned int bucketIdx = user->get_acc_id() % 10;
             STTempUsers* bucket = &buckets[bucketIdx];
-            bucket->m_ids[bucket->m_count] = (int)user->get_acc_id();
+            // ORIG 0x08295f87..0x08295f93 写目标用重算基址
+            // （`imul $0x259,%esi,%edx; add %ebx,%edx; mov %eax,-0x6904(%ebp,%edx,4)`），
+            // 仅 m_count 读走 bucket 指针（-0x10）⇒ 目标写成 buckets[bucketIdx]。
+            buckets[bucketIdx].m_ids[bucket->m_count] = (int)user->get_acc_id();
             bucket->m_count = bucket->m_count + 1;
         }
     }
@@ -2878,6 +2716,13 @@ void CGameManager::user_disconnect(CUser* user)
     // 已上无改善——主体为分支内局部槽组差）。ORIG 0x08298b48。
     // b28d-solo-CGameManager 判词：N82 维持（P167 CLEAR；残差为分支内 cMyTrace/
     // 临时对象槽组分区差）。
+    // b28d-solo-CGameManager 真语义 bug 修正（ORIG 0x08298d54/0x08298da1→0x08298da6）：
+    //   SendLastMsgDBQueue 是**两分支共享尾部**——state<3 短链末尾 returnUserPool 后
+    //   fall-through 到 0x08298da6，state>=3 长链末尾 `jmp 0x08298da6`；原重建把它
+    //   写在短链内 ⇒ state>=3 路径漏发。同时改 `state > 2` 正向守卫复现 ORIG
+    //   `cmp $2; setg; je <短链>`（原 `< 3` 产 setle + 反向块序）。
+    // b28d-solo-CGameManager 第二处真语义 bug（ORIG 0x08298c25 `movl $0x1,0x8(%esp)`）：
+    //   长链 CheckOutParty 第二实参为 **true**（原重建写 false；user_exit 同位置已是 true）。
     if (user == 0)
     {
         // b28d-lane12: P227 全表达式临时链（消 N80 具名 ctor 前求值差）。
@@ -2891,19 +2736,10 @@ void CGameManager::user_disconnect(CUser* user)
         user->prepareDisconnect();
         G_GameWorld()->EraseLoginUser(user);
         user->SetSaveRentalInfoToExchange(false);
-        if (user->get_state() < 3)
-        {
-            user->SetSaveRentalInfoToExchange(false);
-            user->LogoutCachedCharacter(0);
-            user->UpdateLogout(true);
-            returnUserPool(user);
-            // ORIG 0x8298d30：returnUserPool 后 SendLastMsgDBQueue(user)
-            GetInstanceShutdowManager()->SendLastMsgDBQueue(user);
-        }
-        else
+        if (user->get_state() > 2)
         {
             CheckOutTrade(user);
-            CheckOutParty(user, false);
+            CheckOutParty(user, true);
             CheckOutPvp(user, false);
             CheckOutWarRoom(user);
             checkOutDeathTower(user);
@@ -2921,6 +2757,15 @@ void CGameManager::user_disconnect(CUser* user)
             user->doLinkCharacDisconnect();
             returnUserPool(user);
         }
+        else
+        {
+            user->SetSaveRentalInfoToExchange(false);
+            user->LogoutCachedCharacter(0);
+            user->UpdateLogout(true);
+            returnUserPool(user);
+        }
+        // ORIG 0x08298da6：两分支共享尾部（短链 fall-through / 长链 jmp 同址）
+        GetInstanceShutdowManager()->SendLastMsgDBQueue(user);
 }
 }
 
