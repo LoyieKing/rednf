@@ -88,9 +88,24 @@ void CUser::_update_charac_stat(bool add)
 // 触发 → 会员限时时邮件道具 → NPC 礼物/升级事件 → 85 级疲劳电池 → 20 级补发
 // 4183 号物品 → 事件脚本升级奖励。
 // ============================================================================
-// [b28d-47] verdict=DIFF(routed) [N82/N7] ORIG 0x0866311a orig/ours=684/674
-//   残差：超大件全帧槽号平移 + callee-saved 角色互换（esi/ebx）+ 1 处
-//   get_charac_level 调用点差（P167 MISSING ×1，同一值 4.4 复用寄存器）。
+// [SweepCUserStatA] verdict=NEAR(routed) [N7] ORIG 0x0866311a orig/ours=684/681
+//   本波修真缺口：
+//   ① ④ 分支 B 原写裸 else，ORIG +0x2e1 有第二次 get_charac_level() 调用 ⇒ 改
+//      else if (get_charac_level() == 0x28)（P48 O0 无 CSE，双臂各自独立调用）；
+//   ② ④/⑥ 时间上界 ORIG 为无符号 ja（0x197/0x4fd），原写有符号 < ⇒ 补
+//      (unsigned int)getCurSec()（P196：同函数 ① 处 jg 为有符号，两处必须分型）；
+//   ③ ⑤ 循环体：questId 补具名槽（ORIG +0x438 mov %eax,-0x30 ⇒ P0 有槽往返）；
+//      三守卫改 P223 goto 岛（ORIG +0x456/0x464/0x47e 三 nop 岛 + 尾 jmp）；
+//   ④ ⑥ GetInvenRef 链内联 + 连续 case switch 包块 ⇒ 复现 ORIG 无槽 `sub/cmp/ja`
+//      （P320/P197④ 镜像族；内联 if 形 4.4 恒产 setbe/test/je）；
+//   ⑤ ⑧ cMyTrace 改全表达式临时链（P227，ORIG ctor 前右起求 varargs 跨 ctor 保活）；
+//   ⑥ ⑨ ItemAdd 第 2 实参直读 m_addInfo2、第 3 实参内联 get_add_info（P0 无槽），
+//      并按其后 store 序先写 m_addInfo2 再写 m_addInfo（ORIG +0x912/+0x91c）；
+//   ⑦ ⑤ stSelectQuestParam 移出内层块（作用域延至函数尾）⇒ 消除 4.4 与 ④
+//      Inven_Item 的栈槽复用（P332 塌槽）；槽偏移 109/109 与 ORIG 全等、帧 0x2ac 全等。
+//   残差：3 处虚调用寄存器角色互换（N7：ORIG 目标 %edx/this %eax ↔ 4.4 目标 %eax），
+//         长度/助记符/槽号全等；p167 仅 Inven_Item/list/cMyTrace/stSelectQuestParam
+//         的 C1/C2·D1/D2 同址别名（P93 结构性噪音）。
 void CUser::_onLevelUp()
 {
     // ---- ① 15 级且角色创建时间在活动窗内：记 unlimit 支援日志（+0x0c..+0x81）----
@@ -123,7 +138,7 @@ void CUser::_onLevelUp()
     // G_CEnvironment()+0x378 == m_serverEnvir.m_serverGroup == 10；
     // 时间上界 0x478e7051（cmp $0x478e7050/ja → <=0x478e7050 通过）。
     if (G_CEnvironment()->m_serverEnvir.m_serverGroup == 10
-        && GlobalData::s_systemTime_.getCurSec() < 0x478e7051)
+        && (unsigned int)GlobalData::s_systemTime_.getCurSec() < 0x478e7051)
     {
         if (get_charac_level() == 0x1e || get_charac_level() == 0x28)
         {
@@ -139,7 +154,7 @@ void CUser::_onLevelUp()
                     item, 500000, (unsigned)getCurCharacNo(),  // +0x2c2 movl $0x7a120
                     /*title*/ desc, strlen(desc), 0, GetServerGroup(), false, false);
             }
-            else                                               // +0x2e1 分支 B（level==0x28）
+            else if (get_charac_level() == 0x28)               // +0x2e1 分支 B（ORIG 二次独立调用）
             {
                 strncpy(desc, g_scriptStringManager_.findString(4, "game_server_msg_12", (bool*)0),
                         0xff);                                 // +0x319/+0x333
@@ -153,20 +168,24 @@ void CUser::_onLevelUp()
 
     // ---- ⑤ 可邮寄任务触发（+0x3ce..+0x4d5）：list<int> + stSelectQuestParam ----
     std::list<int> mailQuests;
+    stSelectQuestParam selectParam(this);                  // +0x3e6 stSelectQuestParam(CUser*)
     {
-        stSelectQuestParam selectParam(this);                  // +0x3e6 stSelectQuestParam(CUser*)
         if (getCurCharacQuestR()->get_mail_quest_info(mailQuests, selectParam))  // +0x407/test %al
         {
             for (std::list<int>::iterator it = mailQuests.begin();
                  it != mailQuests.end(); ++it)                 // +0x414..+0x4cf 迭代
             {
-                Quest* quest = G_CDataManager()->find_quest(*it);   // +0x44a find_quest
-                if (quest != 0                                  // +0x456
-                    && quest->m_mailFlag == 0                   // +0x462 movzbl 0x108/test
-                    && get_charac_level() == quest->m_levelMin) // +0x479 cmp 0x20(m_levelMin)
-                {
-                    _postQuestTriggerItem(quest);               // +0x48d
-                }
+                int questId = *it;                             // +0x438 ORIG 具名槽 local_30
+                Quest* quest = G_CDataManager()->find_quest(questId);   // +0x44a find_quest
+                // ORIG 三守卫各落独立 nop 中继岛（P223 多岛形：标签序 = 守卫序）
+                if (quest == 0) goto questNext1;               // +0x456 岛1
+                if (quest->m_mailFlag != 0) goto questNext2;   // +0x462 movzbl 0x108/test 岛2
+                if (get_charac_level() != quest->m_levelMin)   // +0x479 cmp 0x20(m_levelMin)
+                    goto questNext3;                           // +0x47e 岛3
+                _postQuestTriggerItem(quest);                  // +0x48d
+            questNext1:;                                       // +0x494
+            questNext2:;                                       // +0x497
+            questNext3:;                                       // +0x49a
             }
         }
     }                                                          // +0xb95 ~list
@@ -174,11 +193,13 @@ void CUser::_onLevelUp()
     // ---- ⑥ 会员（premium type 0x10）限时内 30/40 级：按背包槽位补发道具邮件（+0x4d5..+0x7a6）----
     // 时间上界 0x46e1bbd0（cmp/ja → <=0x46e1bbd0 通过）。
     if (isAffectedPremium((ENUM_PREMIUM_TYPE)0x10)
-        && GlobalData::s_systemTime_.getCurSec() <= 0x46e1bbd0)
+        && (unsigned int)GlobalData::s_systemTime_.getCurSec() <= 0x46e1bbd0)
     {
-        const Inven_Item* ref =                                // +0x51e GetInvenRef(INVEN 0, slot 0xb)
-            getCurCharacInvenR()->GetInvenRef(0, 0xb);
-        if ((unsigned)(ref->m_addInfo - 0x65d6) <= 4)          // +0x536 sub/cmp $0x4/ja（无符号区间）
+        // ORIG = 内联读 m_addInfo + 无槽直跳 ja ⇒ 连续 case 汇聚同一块（P320/P197④ 镜像族）
+        switch ((unsigned)(getCurCharacInvenR()->GetInvenRef(0, 0xb)->m_addInfo - 0x65d6))
+                                                               // +0x536 sub/cmp $0x4/ja（无符号区间）
+        {
+        case 0: case 1: case 2: case 3: case 4:
         {
             if (get_charac_level() == 0x1e)                    // +0x558 分支 A
             {
@@ -214,6 +235,8 @@ void CUser::_onLevelUp()
                     item, 0, (unsigned)getCurCharacNo(),
                     /*title*/ desc, strlen(desc), 0, GetServerGroup(), false, false);
             }
+            break;
+        }
         }
     }
 
@@ -230,11 +253,11 @@ void CUser::_onLevelUp()
         if (descFatigue != 0)
         {
             DecFatigueBatteryCharging((short)descFatigue);     // +0x816 DecFatigueBatteryCharging
-            short charging =
-                (short)GetFatigueBatteryCharging();            // +0x821 movswl（ORIG 按 signed 读）
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x4290, 0);   // +0x854 __PRETTY_FUNCTION__/行号
-            trace("FATIGUE BATTERY ACTIVE END_LEVEL: charno(%d) , descFatigueAmount(%d), cur charging(%d)",
-                  (int)getCurCharacNo(), descFatigue, (int)charging); // +0x876
+            // ORIG 在 ctor 前右起求 varargs 并跨 ctor 保活（%esi/%ebx）⇒ 全表达式临时链（P227）
+            cMyTrace(__PRETTY_FUNCTION__, 0x4290, 0)
+                ("FATIGUE BATTERY ACTIVE END_LEVEL: charno(%d) , descFatigueAmount(%d), cur charging(%d)",
+                 (int)getCurCharacNo(), descFatigue,
+                 (int)(short)GetFatigueBatteryCharging()); // +0x821 movswl（无槽内联实参）
         }
     }
 
@@ -249,16 +272,16 @@ void CUser::_onLevelUp()
             if (slot < 0)                                      // +0x8f0 jns
             {
                 script->make_item(item);                       // +0x910 vtbl+0x08 make_item(Inven_Item&)
-                item.m_addInfo = 0x1057;                       // +0x91c movl（item+2）
                 item.m_addInfo2 = 3;                           // +0x912 movl $0x3（item+7 堆叠数）
+                item.m_addInfo = 0x1057;                       // +0x91c movl（item+2）
 
                 slot = getCurCharacInvenW()->insertItemIntoInventory(
                     item, eItemAddReason_0xd, true, false);    // +0x9ed（reason/bLog/b=false）
             }
             else if (item.m_addInfo2 <= 2)                     // +0xa00 cmp $0x2/jg（当前堆叠<3）
             {
-                int curCount = item.get_add_info();            // +0xa17 调用取值（ItemAdd 实参）
-                m_historyLog.ItemAdd(INVEN_TYPE_EQUIP, 3 - curCount, curCount,
+                // ORIG 第 2 实参直读字段 m_addInfo2、第 3 实参内联 get_add_info（P0 无槽）
+                m_historyLog.ItemAdd(INVEN_TYPE_EQUIP, 3 - item.m_addInfo2, item.get_add_info(),
                                      item, eItemAddReason_0xd);// +0xa54（INVEN_TYPE 1/reason 0xd）
                 item.m_addInfo2 = 3;                           // +0xa63 movl $0x3
                 getCurCharacInvenW()->update_item(INVEN_TYPE_EQUIP, slot, item);  // +0xb21
