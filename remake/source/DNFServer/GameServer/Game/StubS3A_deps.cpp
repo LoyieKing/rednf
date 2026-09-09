@@ -52,6 +52,9 @@ CItemMakingSkill::CItemMakingSkill()
 struct ItemMakingSkillReqView
 {
     int m_characNo;                  // +0x00
+    // [b28d-63 本 TU] 宽度/符号：ORIG loadData 0x08545234 为 `movzwl; cmp $0x3e7,%ax; jle`
+    //   ⇒ 载入零扩展 + 有符号 16 位比较（比较点用 (short) cast 表达，字段仍 unsigned
+    //   以与 m_skillLevels 同型、令 else 直落 %ecx，见 loadData 判词）。
     unsigned short m_skills[0xb];    // +0x04（11 项）
 };
 #pragma pack(pop)
@@ -72,8 +75,14 @@ int CUser::IsAbleItemLock(int space, int slot) const
         return 0x15;
     if (it->is_stackable())
         return 0x13;
-    if (it->GetItemType() == 0x16 && item->m_field0 != 1)
-        return 0x13;
+    // [b28d-63 本 TU] P225 推广：ORIG 0x08646b2c 两条件各自物化
+    //   （`cmp $0x16; sete; test; je L` + `movzbl; xor $1; test; je L`，L=then 之后）
+    //   ⇒ 拆嵌套 if；`&&` 合写在 4.4 恒折成短路直跳 + bool 汇合（多 4 条）。
+    if (it->GetItemType() == 0x16)
+    {
+        if (item->m_field0 != 1)
+            return 0x13;
+    }
     if (it->GetItemType() == 0xb && it->GetAttachType() == 2)
         return 0x11;
     if (space == 0xc)
@@ -81,13 +90,22 @@ int CUser::IsAbleItemLock(int space, int slot) const
     unsigned char lock = item->m_amp.GetLock();
     if (lock != 0)
         return 0x13;
-    // ORIG 0x08646bcf：GetCharacExpandDataR(this,2) 返回数据区指针，
-    // 直接作为 item_lock::CItemLock* this 传入 IsAbleItemLock（ORIG 同款怪癖）。
-    item_lock::CItemLock* expand = reinterpret_cast<item_lock::CItemLock*>(
-        GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)2));
-    int r = expand->IsAbleItemLock(lock);
-    return r;
+    // ORIG 0x08646bb6：result 声明点预清 0（movl $0x0,-0xc）先于 GetCharacExpandDataR；
+    // 结果免槽直传（ORIG 无 expand 局部），返回值落 result 槽后按 P225 X3 判返。
+    // GetCharacExpandDataR(this,2) 返回数据区指针，直接作为
+    // item_lock::CItemLock* this 传入 IsAbleItemLock（ORIG 同款怪癖）。
+    int result = 0;
+    result = ((item_lock::CItemLock*)GetCharacExpandDataR(
+                  (ENUM_CHARAC_EXPAND_TYPE)2))
+                 ->IsAbleItemLock(lock);
+    while (result != 0) {
+        return result;
+    }
+    return 0;
 }
+// [b28d-63 判词] DIFF→**NEAR 37=37**（p167 CLEAR）：拆嵌套 if + result 预清/判返后
+//   逐段同形；唯一残差 = 两处 `call *%eax` vs ORIG `call *%edx`（N7 间接 call 目标
+//   寄存器，4.4.7 恒 %eax；4.4.6 后端可翻，路由归 Main）。
 
 // ---------------------------------------------------------------------------
 // 2. CUser::IsAbleItemUnlock(int,int,int&) const —— ORIG T 0x08646bfe
@@ -164,25 +182,35 @@ int CUser::IsAbleItemUnlockCancel(int space, int slot) const
 //    setClearedQuest(questIdx)。
 // [b28d-62] N93/P50：ORIG 有 normal_iterator 默认构造 + vector<vector<int>>::
 //   operator[]（先声明后赋值形），我方缺；85/82。ORIG 0x086686ed
+// [b28d-63 本 TU] p167 三缺口实证（ORIG calls=15 / our=12）：
+//   ① MISSING `normal_iterator::C1Ev` ⇒ `iterator it;` 先声明、内层 `it = begin()`（P50 复活）；
+//   ② MISSING `vector<vector<int>>::operator[]` ×1 ⇒ 删 groups/group 引用缓存（P183），
+//      内层 cond/body 各自重读 `quest->m_intDataList[gi]`；
+//   ③ 删 cleared 具名指针（ORIG 无该槽，questIdx 经 %ebx 跨 getCurCharacQuestW 保活 ⇒ P0 内联）。
+//   ⇒ 结果 **AE 85/85**（p167 仅剩同址别名 C1Ev/C2Ev 与自调用重定位伪差）；gi/questIdx
+//   槽序按 P212 全头部声明（questIdx 先声明占深槽 -0x14、gi -0x10）复现。
 void _postCheckForceChangeGrowType4AheadQuest(CUser* user, Quest* quest)
 {
-    std::vector<std::vector<int> >& groups = quest->m_intDataList;   // +0x2c
-    if (groups.empty())
+    if (quest->m_intDataList.empty())   // ORIG 0x086686f4：mov 0xc(%ebp);add $0x2c;call empty
         return;
-    for (unsigned int gi = 0; gi < groups.size(); ++gi)
+    // ORIG 0x086870a：empty 检查后 `lea -0x1c; call normal_iterator::C1Ev`（P50 先声明）
+    std::vector<int>::iterator it;
+    // P212：ORIG 槽序 gi(-0x10) 浅于 questIdx(-0x14) ⇒ 全头部声明、questIdx 先声明（深）。
+    int questIdx;
+    for (unsigned int gi = 0; gi < quest->m_intDataList.size(); ++gi)
     {
-        std::vector<int>& group = groups[gi];
-        for (std::vector<int>::iterator it = group.begin(); it != group.end(); ++it)
+        for (it = quest->m_intDataList[gi].begin();
+             it != quest->m_intDataList[gi].end(); ++it)
         {
-            int questIdx = *it;
+            questIdx = *it;
             Quest* q = G_CDataManager()->find_quest(questIdx);
             if (q == 0)
                 continue;
             _postCheckForceChangeGrowType4AheadQuest(user, q);
-            WongWork::CQuestClear* cleared =
-                reinterpret_cast<WongWork::CQuestClear*>(
-                    reinterpret_cast<char*>(user->getCurCharacQuestW()) + 4);
-            cleared->setClearedQuest((unsigned int)questIdx);
+            // ORIG 0x086878f：`mov -0x14,%ebx` 先物化 questIdx，再算 receiver（单语句内联）。
+            reinterpret_cast<WongWork::CQuestClear*>(
+                reinterpret_cast<char*>(user->getCurCharacQuestW()) + 4)
+                ->setClearedQuest((unsigned int)questIdx);
         }
     }
 }
@@ -197,20 +225,22 @@ void _postCheckForceChangeGrowType4AheadQuest(CUser* user, Quest* quest)
 //    this+0x10（m_field10）=材料 item idx；this+0x14 低 16 位符号扩展=数量。
 //    0x11=材料不符；0x16=数量校验/删除失败；0=成功。
 // [b28d-62] N82：p167 CLEAR。ORIG 0x080ebe06
+// [b28d-63 本 TU] P0/§4.3：删 inven/invenW/needCnt 三个具名局部（ORIG 全内联，
+//   帧 0x78→ORIG 0x64），裸偏移改具名字段 m_material(+0x10)/m_field14(+0x14)
+//   （ORIG `mov 0x10(%eax),%eax` / `movzwl 0x14(%eax),%eax` 单条 disp）。
 int CraneMinigameManager::startUseMaterial(CUser* user, int slot)
 {
-    const CInventory* inven = user->getCurCharacInvenR();   // ORIG 0x080da27e
-    Inven_Item item = inven->GetInvenSlot(1, slot);
-    if (item.m_addInfo !=
-        *(int*)((char*)this + 0x10))                        // this+0x10（类改继承 Script 后无命名成员）
+    // ORIG 0x080ebe0d：getCurCharacInvenR() 结果免槽直传 GetInvenSlot。
+    Inven_Item item = user->getCurCharacInvenR()->GetInvenSlot(1, slot);
+    if (item.m_addInfo != m_material)                       // ORIG 0x080ebe3f
         return 0x11;
-    const int needCnt =
-        (int)(short)*(const unsigned short*)(const void*)((const char*)this + 0x14);
-    if (item.m_addInfo2 < needCnt)                          // ORIG jge 0x080ebe5a
+    // ORIG 0x080ebe4d：needCnt 免槽（movzwl+cwtl 直读），比较用寄存器。
+    if (item.m_addInfo2 < (int)(short)m_field14)            // ORIG jge 0x080ebe5a
         return 0x16;
-    CInventory* invenW = user->getCurCharacInvenW();        // ORIG 0x080da28e
-    if (!invenW->delete_item((INVEN_TYPE)1, slot, needCnt,
-                             (eItemDelReason)0x34, true))
+    // ORIG 0x080ebe63：needCnt 第二次重读（movzwl+movswl %ax,%ebx），receiver 免槽。
+    if (!user->getCurCharacInvenW()->delete_item(
+            (INVEN_TYPE)1, slot, (int)(short)m_field14,
+            (eItemDelReason)0x34, true))
         return 0x16;
     return 0;
 }
@@ -242,6 +272,32 @@ int CraneMinigameManager::startUseMaterial(CUser* user, int slot)
 namespace Redeem_Item
 {
 
+#pragma pack(push, 1)
+// [b28d-63 本 TU] Redeem 行视图：ORIG loadData 以 0x44 步长扫描，
+//   check 在 +0xa（`mov 0xa(%eax,%edx,1),%eax`）；头部 count 在 +4
+//   （`mov 0x4(%eax),%eax`）。具名视图复现 scaled/disp 寻址（P291/P311）。
+union RedeemEntryView
+{
+    struct Head
+    {
+        char m_pad00[0xa];   // +0x00..+0x09
+        int m_check;         // +0x0a
+        char m_pad0e[0x36];  // +0x0e..+0x43
+    } m_head;
+    struct Body
+    {
+        char m_pad00[8];     // +0x00..+0x07
+        char m_info[0x3c];   // +0x08（push_back 源地址，ORIG `lea 0x8(%eax),%edx`）
+    } m_body;
+};
+struct RedeemListHeadView
+{
+    int m_characNo;          // +0x00
+    unsigned int m_count;    // +0x04
+};
+#pragma pack(pop)
+static_assert(sizeof(RedeemEntryView) == 0x44, "Redeem entry stride drift");
+
 void CRedeemItem::_reset()
 {
     m_redeemList.clear();   // ORIG 0x085f7b7d: std::list::clear(this+8)
@@ -249,26 +305,33 @@ void CRedeemItem::_reset()
 
 // [b28d-62] 修：3 处 memcpy→直读/结构赋值（P167/N84），去 memcpy call 与
 //   多余 ctor。ORIG 0x085f7830
+// [b28d-63 本 TU] P0/P48/N84：ORIG 0x085f7848 把 pData 拷入具名局部 -0x10；
+//   count 每轮重读（无局部）、check/entry 免槽、push_back 直接传 pData 内地址
+//   （无 info 临时对象）；i 为 unsigned（cond `cmp;seta`）。原形多 4 局部 + 0x44
+//   临时 + 3 callee-saved push（帧 0x7c vs ORIG 0x28）。
+// [b28d-63 判词] 帧/指令数已与 ORIG 对齐（0x28；check 段 7=7、else 段 11=11），
+//   verdict 仍 DIFF，残差全为后端形态：①ORIG 0x085f7857 提前载 buf 到 %edx 用
+//   `mov 0xa(%eax,%edx,1)`，4.4 恒 `add -0x10(%ebp),%eax; mov 0xa(%eax)`；
+//   ②ORIG 0x085f788c `lea 0x8(%eax),%edx`，4.4 恒 `add $0x8,%eax`（N102/N4 族，
+//   union 视图/指针算术/数组下标三形均不翻）。gap≤0，非缺段。
 bool CRedeemItem::loadData(CUser* pUser, char* pData)
 {
     (void)pUser;
     _reset();   // ORIG 0x085f7846：虚调 vtable slot7
-    // [b28d-62] P167：ORIG 0x085f7850 为 `mov 0x4(%eax),%eax` 直读（无 memcpy
-    //   call；旧形 3 处 memcpy 全是 EXTRA）。
-    int count = *(int*)(pData + 4);
-    for (int i = 0; i < count; ++i)
+    const RedeemEntryView* buf =
+        reinterpret_cast<const RedeemEntryView*>(pData);   // ORIG 0x085f7848
+    for (unsigned int i = 0; i < ((const RedeemListHeadView*)buf)->m_count; ++i)
     {
-        const char* entry = pData + i * 0x44;
-        int check = *(int*)(entry + 0xa);   // ORIG mov 0xa(%eax,%edx,1)
-        if (check == 0)
+        if (buf[i].m_head.m_check == 0)   // ORIG 0x085f7867 mov 0xa(%eax,%edx,1)
         {
             alter();   // ORIG 0x085f7875: charac_expand::CData::alter()
         }
         else
         {
-            Inven_Item_Expand_RedeemInfo info =
-                *(const Inven_Item_Expand_RedeemInfo*)(entry + 8);
-            m_redeemList.push_back(info);
+            // ORIG 0x085f788c：lea 0x8(%eax),%edx 直传源地址（无临时对象）。
+            m_redeemList.push_back(
+                *reinterpret_cast<const Inven_Item_Expand_RedeemInfo*>(
+                    buf[i].m_body.m_info));
         }
     }
     return true;
@@ -276,11 +339,18 @@ bool CRedeemItem::loadData(CUser* pUser, char* pData)
 
 // [b28d-62] 修：CStreamGuard operator*/-> 链 + 非 const list iterator + 结构赋值
 //   （P103/P132/P96/N84）。ORIG 0x085f7998
+// [b28d-63 判词] 已修：stream 具名局部删（P259 内联实参）、日志串改 ORIG 原文
+//   "RedeemItem.cpp"（原 "Redeem_Item.cpp"）、头部字段改 RedeemListHeadView 视图
+//   （count 由 lea 改 disp store）。残差 = ①槽号整体 +4（guard -0x30 vs ORIG -0x2c，
+//   N95/N126 版本首槽基址常数）；②characNo/count/结构赋值三处 store 序
+//   （ORIG RHS-first + %edx/%eax 中转 vs 4.4 LHS-first，N76；字段类型与 RHS cast
+//   两旋钮实测不翻）；③循环体先算目标地址后取源（ORIG 相反）。gap≤0，非缺段。
 bool CRedeemItem::_saveData(CUser* pUser)
 {
-    Stream* stream =
-        GlobalData::s_stream_pool->Acquire("Redeem_Item.cpp", 0x108);
-    CStreamGuard guard(stream, true);
+    // [b28d-63 本 TU] P259：Acquire 结果内联进 CStreamGuard 实参（ORIG 无 stream 槽）；
+    //   文件名按 ORIG 0x085f79ae 为 "RedeemItem.cpp"（原 "Redeem_Item.cpp" 为日志串错）。
+    CStreamGuard guard(
+        GlobalData::s_stream_pool->Acquire("RedeemItem.cpp", 0x108), true);
     // [b28d-62] P103/P132 + P96：ORIG 走 operator* 2 次 + operator-> 1 次
     //   （p167 MISSING 实证）；list 迭代器用**非 const** iterator（const_iterator
     //   多 2 次转换构造 + 整套 const 版 operator*/*++/!= = EXTRA 实证）。
@@ -294,8 +364,12 @@ bool CRedeemItem::_saveData(CUser* pUser)
     memset(sig, 0, 0x59c);
     // SIG_REDEEMINFO_LIST_TO_DB 布局：characNo@+0 / count@+4 / entries[21]@8。
     char* sigBuf = reinterpret_cast<char*>(sig);
-    *reinterpret_cast<int*>(sigBuf) = pUser->get_charac_no(-1);
-    *reinterpret_cast<int*>(sigBuf + 4) = (int)m_redeemList.size();
+    // [b28d-63 本 TU] 视图字段（disp store）：ORIG 0x085f7a78 为
+    //   `call size; mov -0x20(%ebp),%edx; mov %eax,0x4(%edx)`（无 lea）。
+    reinterpret_cast<RedeemListHeadView*>(sigBuf)->m_characNo =
+        pUser->get_charac_no(-1);
+    reinterpret_cast<RedeemListHeadView*>(sigBuf)->m_count =
+        (int)m_redeemList.size();
     int i = 0;
     for (std::list<Inven_Item_Expand_RedeemInfo>::iterator it =
              m_redeemList.begin();
@@ -331,18 +405,27 @@ CItemMakingSkill::~CItemMakingSkill()
 }
 
 // [b28d-62] 修：memcpy→movzwl 直读（P167），去 memcpy call。ORIG 0x08545202
+// [b28d-63 本 TU] P0/P48：ORIG 0x0854521a 把 pData 拷入具名局部 -0x10（源码有 `char* buf`），
+//   循环体对源**两次独立直读**（if 与 else 各一次，无 v 槽）；改为视图 scaled 索引
+//   `0x4(%eax,%edx,2)` 复现 ORIG 寻址（原 add 链 + v 槽 = 我方多 2 条）。
+// [b28d-63 判词] DIFF→**NEAR 37=37**（gap 1→0）：视图字段 + `(short)` 比较点 cast
+//   复现 `movzwl; cmp $0x3e7,%ax; jle`，else 直落 %ecx；唯一残差 = _reset 虚调
+//   `call *%eax` vs ORIG `call *%edx`（N7）。
 bool CItemMakingSkill::loadData(CUser* pUser, char* pData)
 {
     (void)pUser;
     _reset();   // ORIG 0x08545218：虚调 vtable slot7
+    // ORIG 0x0854521a 槽 -0x10 存 pData 指针；具名为视图指针以复现 `i` 先于基址装载。
+    const ItemMakingSkillReqView* buf =
+        reinterpret_cast<const ItemMakingSkillReqView*>(pData);
     for (int i = 0; i <= 0xa; ++i)
     {
-        // [b28d-62] P167：ORIG 为 `movzwl` 直读（无 memcpy call，EXTRA 实证）。
-        unsigned short v = *(const unsigned short*)(pData + 4 + i * 2);
-        if (v > 0x3e7)
+        // ORIG 0x08545229：两次独立直读（P48）。
+        // (short) cast 复现 ORIG 有符号 16 位比较（0x08545234 `cmp $0x3e7,%ax; jle`）。
+        if ((short)buf->m_skills[i] > 0x3e7)
             m_skillLevels[i] = 0x3e8;
         else
-            m_skillLevels[i] = v;
+            m_skillLevels[i] = buf->m_skills[i];
     }
     return true;
 }
@@ -366,13 +449,21 @@ bool CItemMakingSkill::_saveData(CUser* pUser)
     // ORIG：GetInBuffer 结果落唯一槽 -0x10（sigBuf）→ memset 0x1c →
     // get_charac_no(-1) 返回值经 %edx 直存 *(int*)sigBuf（值先地址后，无 callee-saved
     // 缓存）。skills[11]@+4（ushort ×11）循环内槽直读重物化。
-    char* sigBuf = (char*)guard.operator->()->GetInBuffer<SIG_ITEM_MAKING_SKILL>();
+    // [b28d-63 本 TU] 具名局部用视图指针类型：ORIG 0x0854533a 在 call 之后才载基址
+    //   （`mov %eax,%edx; mov -0x10(%ebp),%eax; mov %edx,(%eax)`），char* 形 4.4 恒
+    //   LHS-first 并把基址提前缓存进 %ebx。
+    ItemMakingSkillReqView* sigBuf =
+        reinterpret_cast<ItemMakingSkillReqView*>(
+            guard.operator->()->GetInBuffer<SIG_ITEM_MAKING_SKILL>());
     memset(sigBuf, 0, 0x1c);
-    reinterpret_cast<ItemMakingSkillReqView*>(sigBuf)->m_characNo =
-        pUser->get_charac_no(-1);
+    // [b28d-63 本 TU] N76 封顶（残差 1 条）：ORIG 0x08545335 为 RHS-first + %edx 中转
+    //   （`mov %eax,%edx; mov -0x10(%ebp),%eax; mov %edx,(%eax)`），4.4 恒 LHS-first
+    //   （`mov -0x10(%ebp),%edx; mov %eax,(%edx)`）。三形实测均不翻：
+    //   ① 字段 int→unsigned（P211 档③）→ 序不变；② RHS `(unsigned int)` cast → 被折；
+    //   ③ `*(int*)sigBuf = …` → 退化 %ebx 提前缓存（更劣，已回滚）。按 T5 记 N76。
+    sigBuf->m_characNo = pUser->get_charac_no(-1);
     for (int i = 0; i <= 0xa; ++i)
-        reinterpret_cast<ItemMakingSkillReqView*>(sigBuf)->m_skills[i] =
-            m_skillLevels[i];
+        sigBuf->m_skills[i] = m_skillLevels[i];
     // ORIG：MsgQueueMgr::put(DB_Q=2, guard) 提交 DB 队列（0x08545381）。
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;
