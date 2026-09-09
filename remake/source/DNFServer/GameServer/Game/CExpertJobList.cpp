@@ -33,11 +33,16 @@
 //      +0x00 std::map<int,std::string>，大小 0x18）----
 
 
-// ORIG 全局（B g_expertJobScriptFileList 0x094f7760 = 0x18 STScriptFileList
-// 对象 / g_expertJobScriptBaseDirectory 0x094f7660[0x100]）。
+// ORIG 全局（B g_expertJobScriptBaseDirectory 0x094f7660[0x100] /
+// g_expertJobScriptFileList 0x094f7760 = 0x18 STScriptFileList 对象）。
 // 由 initExpertJobScript（InitScriptProducers_5.cpp）填充；init() 遍历使用。
-STScriptFileList g_expertJobScriptFileList;
+// b31-SweepCExpertJobList [P327]：定义序照 ORIG —— ORIG GI 键名
+// _GLOBAL__I_g_expertJobScriptBaseDirectory（0x0896dbb0，size 0x1c）取「本 TU 内
+// 第一个强符号·外部链接·定义」实体；我方原序（FileList 在前）产
+// _GLOBAL__I_g_expertJobScriptFileList（仅 NEW，ORIG 无此名）。BaseDirectory 是
+// POD 数组（零初始化、无动态构造）⇒ 前移不改变本 TU 构造序，其余符号集不变。
 char g_expertJobScriptBaseDirectory[0x100];
+STScriptFileList g_expertJobScriptFileList;
 
 // [potion info] 段读取并写出的炼金术值表。
 // ORIG 为单一全局 g_alchemistInfo（B 0x094f7778，nm 尺寸 8）；[0] 即低半区
