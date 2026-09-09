@@ -18950,7 +18950,12 @@ bool DB_GetDeathTowerBestRecord::dispatch(int userIdx, int slot, Stream* stream)
         guard.operator->()->GetInBuffer<SIG_DEATH_TOWER_GET_BEST_RECORD>());
     out->m_count = db->get_n_rows();
     out->m_characNo = characNo;
-    for (unsigned int i = 0; i < (unsigned int)db->get_n_rows(); ++i)
+    // [b28d-BigW8LT 循环形复原] ORIG 0x08429c38 `movl $0x0,-0xc(%ebp)` +
+    // `jmp 0x08429fdc`（先跳尾测）→ 循环体 0x08429c44，尾部
+    // `addl $1,-0xc; call get_n_rows; cmp -0xc,%eax; seta; test; jne 0x08429c44`
+    // = 底测 do-while 形（前置 for 头测多一次 get_n_rows 且整块错位）。
+    unsigned int i = 0;
+    do
     {
         if (!db->fetch())
             return 0;
@@ -19053,7 +19058,8 @@ bool DB_GetDeathTowerBestRecord::dispatch(int userIdx, int slot, Stream* stream)
         reinterpret_cast<DB_TowerBestRecordEntryView*>(i * 0x1b0 + 0x144 +
                                                        (char*)out)
             ->m_type = 4;
-    }
+        ++i;
+    } while (i < (unsigned int)db->get_n_rows());
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
 }
@@ -19330,22 +19336,29 @@ bool DB_LoadBreakAwayPreventData::dispatch(int userIdx, int slot,
     {
         if (!db->fetch())
             return 0;
-        SIG_BREAK_AWAY_PREVENT_REWARD_MANAGER* row = &sig.m_rewards[i];
-        if (!db->get_byte(0, reinterpret_cast<char&>(row->m_field1)))  // min_day
+        // [b28d-BigW8LT 寻址复原] 旧形提升出 `row = &sig.m_rewards[i]` 行指针
+        // 局部，ORIG 0x084389fe 无此局部——8 个站点各自重算
+        // `i*0x18 + &sig + 字段偏移`（实测 ORIG add 38/shl 8/lea 39 vs 我方
+        // 18/1/25，缺的 49 条全在此）。改回逐站点下标式成员访问。
+        if (!db->get_byte(
+                0, reinterpret_cast<char&>(sig.m_rewards[i].m_field1)))  // min_day
             return 0;
-        if (!db->get_byte(1, reinterpret_cast<char&>(row->m_field2)))  // max_day
+        if (!db->get_byte(
+                1, reinterpret_cast<char&>(sig.m_rewards[i].m_field2)))  // max_day
             return 0;
-        if (!db->get_int(2, row->m_field4))    // min_val
+        if (!db->get_int(2, sig.m_rewards[i].m_field4))    // min_val
             return 0;
-        if (!db->get_int(3, row->m_field8))    // max_val
+        if (!db->get_int(3, sig.m_rewards[i].m_field8))    // max_val
             return 0;
-        if (!db->get_uint(4, (unsigned int&)row->m_fieldc))  // item_id
+        if (!db->get_uint(4, (unsigned int&)sig.m_rewards[i].m_fieldc))  // item_id
             return 0;
-        if (!db->get_int(5, row->m_field10))   // add_info
+        if (!db->get_int(5, sig.m_rewards[i].m_field10))   // add_info
             return 0;
-        if (!db->get_int(6, row->m_field14))   // luck_point
+        if (!db->get_int(6, sig.m_rewards[i].m_field14))   // luck_point
             return 0;
-        if (!db->get_byte(7, reinterpret_cast<char&>(row->m_field0)))  // quest_id
+        if (!db->get_byte(
+                7,
+                reinterpret_cast<char&>(sig.m_rewards[i].m_field0)))  // quest_id
             return 0;
     }
     CStreamGuard guard(

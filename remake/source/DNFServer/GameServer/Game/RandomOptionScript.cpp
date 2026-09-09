@@ -159,6 +159,36 @@ static_assert(sizeof(DifferentWeightKeyView) == 2, "ORIG different weight short 
 // 残余 25 块为跨版本 CFG 布局（4.1 `je 成功; jmp 尾` 两跳 vs 4.4 `jne 尾` 一跳
 // 共 6 处、ORIG 循环回跳 jmp、nop 岛/epilogue-threading N121、int 局部常量比较
 // 4.4 恒 mem 直比 P209/N18b），按 §6.2 判「语义完成、byte 层跨版本布局 N 封顶」。
+//
+// [BigRndOpt 本波·四套配平复核 → 维持 N 封顶，无改动]
+//  ① 性质：ORIG 2754 / ours 2761（+7，0.25%）⇒ 指令数基本齐 ⇒ 形态族，
+//     非「未翻译段」。台账 ndiff 3963 是 autojunk 对巨件的对齐坍缩假象
+//     （N127）；strict(autojunk=False) ndiff=**1120**、structdiff struct=**70**。
+//  ② p167 调用点：**361/361 双向零差**（CLEAR）。
+//  ③ 串 key 多重集：ORIG 侧本函数引用 35 个 unique 串（22 个段名 + 11 条
+//     "…duplicate key error" + 11×文件名 + 11×__FUNCTION__），我方 **35/35
+//     全覆盖，零 MISSING 零 EXTRA**；源码层同步核（段名字面量 22、logFormat
+//     11、__FUNCTION__ 11）。⇒ 骨架完整，无缺分支/缺段。
+//  ④ 返回常量多重集（本族最强的「分支覆盖」判据，`mov $0xNN,%ebx` 全收集）：
+//     ORIG 75 / OURS 76，**orig-only = ∅**，our-only 仅 `0x0` ×1（主循环正常
+//     出口 `return 0` 在 4.4 下另发一次立即数装载，ORIG 复用前值）
+//     ⇒ 75 个出错返回行号逐一对应，零缺零多。
+//  ⑤ 立即数多重集（reloc 折叠行已剔除，避免 `.rodata+off` 假差）：orig-only
+//     仅 0x5f0（`sub $0x5f0,%esp`），our-only 仅 0x600 ⇒ 唯一净差 = 帧大小
+//     16 字节 = N82；其余全消。
+//  ⑥ 四条修法逐一试尺：P329 不适用（11 处 logFormat 已是 5 实参全内联形，
+//     ORG 形 `movl $line,0xc(%esp)/movl $<func>,0x8/movl $<file>,0x4/movl $0,
+//     (%esp)/call` 与我方逐位同）；P183 不适用（无我方独有缓存，反向补缓存
+//     受 N128 禁）；P332 补 不适用（ORIG `0x8(%ebp)` 直读 33 次、我方 33 次，
+//     `0xc(%ebp)` 4/5 次 ⇒ 形参未被溢出到栈槽）；BigAuction 三翻法 不适用
+//     （本函数无 switch，段分发是 else-if 串且 22 段物理序已与 ORIG 叶块序
+//     一致——见 ② 的 eq 调用点全等）。
+//  ⑦ struct=70 的分布：26 个块，最大 10 行（主循环回跳处 4.4 多 5 条 `jmp`
+//     空跳转链 + `test;je` 对 ORIG `xor $0x1;test;jne`），其余 1-7 行碎片
+//     ⇒ 「多段不同常数」形，按 §4 尺封 N（N121 jump-threading / N18b・P209
+//     bool 取反系统差 / N82 帧槽·nop 岛）。
+//  ⇒ **无 REAL-BUG**：本件未发现可观察行为差异（无缺 else、无错偏移、
+//     无伪析构、无判空对象错位）。
 int importRandomOptionScript(RandomOptionScript& script, const char* path)
 {
     if (!loadRDARScriptFile("", path))

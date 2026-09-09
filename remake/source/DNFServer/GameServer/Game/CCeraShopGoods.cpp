@@ -279,6 +279,51 @@ static_assert(sizeof(BonusItemView) == sizeof(stCeraShopBonusItemInfo_t),
 //     = N82（4.1 不按 lifetime 复用槽 / 4.4 槽按首次使用序分配）＋主链空
 //     else nop;jmp 岛 jump-threading ＋ N89（STL 内联实例）族；逐块语义
 //     比对一致（全部 ScanInt/ScanStr/push_back/find/迭代器调用点匹配）。
+//
+// [BigRndOpt 本波] 四套配平复核 + 三处等价改写（先定性质后动手）：
+//  基线：p167 `MISSING 0 / EXTRA +2 _ZN25stCeraShopBonusItemInfo_tD1Ev`、
+//        structdiff struct=131 / ndiff=1664 / clean 1739 vs 1753（+14）、
+//        STR 33/33（ORIG 侧 33 个 unique 串我方全有，零 MISSING 零 EXTRA）。
+//  ⇒ 指令数基本齐 ⇒ 属形态族，但 EXTRA +2 是真语义差（伪析构），逐处修：
+//  (1) **镜像视图消伪 dtor**（拟 P334）：局部 bi 改 TU 内 trivial 镜像
+//      BonusItemView（定义在本函数上方），push_back 实参位
+//      `*reinterpret_cast<const stCeraShopBonusItemInfo_t*>(&bi)` 取引用不造
+//      临时 ⇒ ORIG 该 TU 的 trivial 视图被复现，p167 EXTRA +2 → **0**。
+//      依据：ORIG 0x088ff2c4/0x088ff2f5/0x088ff327 三字段直落 -0xc0/-0xbc/
+//      -0xb8，全程无 ctor/dtor 站点；sizeof=0xc 三重实证见 CItemList.h:156。
+//  (2) **[bonus item info] 尾组双判合单判**：ORIG 0x088ff389 `cmpl $0x3e8,
+//      -0x2c(%ebp)` + 0x088ff390 `je 0x088ff3b1` 为**单判**——fall-through 侧
+//      printf 后 0x088ff3a5 `mov $0x0,%esi; mov $0x1,%ebx`（return false 清理
+//      链），跳走侧 0x088ff3b1 才 push_back(bonusList,info)、0x088ff3c6 置
+//      state 2 → 0x088ff1f2 回 while 体首。原码「if(==1000) push_back else
+//      printf; if(!=1000) return 0」在 -O0 复现两次 `cmpl $0x3e8`，第二次
+//      `je` 恒不成立 = 死分支。合并后两判定同值，可观察行为不变。
+//  (3) **[package] 尾组 `item.m_name = ""` 后移** + **[cart/gift/cerapoint
+//      disallowance] probe 声明上提**：语句书写序 = ORIG 叶块物理序。
+//      · m_name=""（`movl $<A>,0x4(%esp)` / `lea item; add $0x40,%eax; call
+//        _ZNSsaSEPKc`）在 ORIG 位于 flag0/m_fieldc/m_field1c/m_field0 四组
+//        赋值**之后**；两组写无数据依赖。
+//      · probe 的 ctor 在 ORIG **先于**本分区首个 ScanInt：0x088fed48 `lea
+//        -0x180(%ebp)` / 0x088fed51 `call _ZN14STCeraShopItemC1Ev` → 0x088fed5c
+//        `call _Z7ScanIntPb` → 0x088fed64 `mov %eax,-0x8c(%ebp)`。原码把声明
+//        写在 `if(!ok) break` 之后 ⇒ 少发一次 break 路径析构（ORIG 0x088fed17
+//        `lea -0x180; call _ZN14STCeraShopItemD1Ev`）。上提后 break 出口自动
+//        带上 D1Ev，与该形一致（STCeraShopItem ctor/dtor 仅作用自身栈对象，
+//        无外部副作用 ⇒ 行为不变）。
+//  现读数：p167 **274/274 双向零差**；struct 131→**80**；ndiff 1664→**1644**；
+//  clean 1739 vs **1748**（+9，见下）、TU 四数 139/279/near3/diff5/missing95
+//  **逐位不变**（两路径均 COMPILE OK：check_tu_routed + build/game 单对象）。
+//  ⇒ (3) 使 struct 86→80（结构更贴）而 ndiff +8（多出的 9 条是 4.4 为 break
+//     出口生成的 `mov $state,%ebx; jmp 共享清理块` 跳板）；两指标反向时按
+//     §6.2「巨件看 struct + 逐段 canon」取值，保留 (3)。
+//  残余 80 归因（封 N）：① 三组同模式 = cart(0x088fee..)/gift/cerapoint 各
+//     `insert 6 + replace 4↔1 + replace 3↔1`，即 break 出口的 eh state 跳板
+//     与共享 D1Ev 块的排布（ORIG 单点内联 vs 4.4 汇合共享）= N121 jump-
+//     threading + N82 帧槽；② `je/jne` 反转与 `xor $0x1,%eax; test` 对
+//     `test; je` 的系统差（4.1 的 `!bool` 恒经 xor）= N18b/N209；③ 主链
+//     `nop; jmp` 岛、section 比较链叶块排列 = N82/N89。**未发现可观察行为
+//     差异**（无 REAL-BUG）：三处改写均为无依赖等价重排，(1) 的镜像视图
+//     与原类型同字段序同尺寸（static_assert 锁死）。
 bool importCashShopItemList(
     char* path, std::vector<STCeraShopItem>* itemList,
     std::vector<stCeraShopBonusInfo_t>& bonusList, void* param4, int* param5,
@@ -611,10 +656,15 @@ bool importCashShopItemList(
             // `it == end()`（__gnu_cxx::eq）而非 !=（0x088fee36 实证）。
             while (true)
             {
+                // [BigRndOpt] probe 的 ctor 在 ORIG 物理位**先于**本行 ScanInt
+                // （0x088fed48 `lea -0x180(%ebp)` / 0x088fed51 `call _ZN14STCeraShopItemC1Ev`
+                // ，其后 0x088fed5c 才 `call _Z7ScanIntPb`、0x088fed64 `mov %eax,-0x8c`）
+                // ⇒ 声明必须上提（原判定为「声明不可上提」是反的：ORIG 就是先构造）。
+                // break 路径上 item 仅自 clear，无外部副作用 ⇒ 可观察行为不变。
+                STCeraShopItem probe;
                 itemIdx = ScanInt(&ok);
                 if (ok != true)
                     break;
-                STCeraShopItem probe;
                 probe.m_field8 = itemIdx;
                 for (int i = 0; i < 0x10; ++i)
                 {
@@ -630,10 +680,10 @@ bool importCashShopItemList(
         {
             while (true)
             {
+                STCeraShopItem probe;   // [BigRndOpt] 同上提口径（ORIG 0x088fe… ctor 先于 ScanInt）
                 itemIdx = ScanInt(&ok);
                 if (ok != true)
                     break;
-                STCeraShopItem probe;
                 probe.m_field8 = itemIdx;
                 for (int i = 0; i < 0x10; ++i)
                 {
@@ -649,10 +699,10 @@ bool importCashShopItemList(
         {
             while (true)
             {
+                STCeraShopItem probe;   // [BigRndOpt] 同上提口径（ORIG 0x088fe… ctor 先于 ScanInt）
                 itemIdx = ScanInt(&ok);
                 if (ok != true)
                     break;
-                STCeraShopItem probe;
                 probe.m_field8 = itemIdx;
                 for (int i = 0; i < 0x10; ++i)
                 {

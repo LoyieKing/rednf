@@ -254,29 +254,38 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                 script[scriptIdx].m_disjointResultMap.clear();
                 while (true)
                 {
+                    // b290-BigExpert [P332/构造序：ORIG 0x0896b751 grade C1 之后**紧接**
+                    // 0x0896b764 res C1（`lea -0x3a8(%ebp); call stDisjointResultC1Ev`），
+                    // 两者均在首个 ScanInt 之前 ⇒ 原码 res 与 grade 同处循环体首并列声明。
+                    // 原写法把 res 放在 grade 三字段之后 ⇒ 早退路径的析构状态机（%esi
+                    // 0/1/2 三态，ORIG `mov $0x1,%esi` 12 处 vs 我方 3 处）编码不一致。
                     DisjointMachineGrade grade;
+                    stDisjointResult res;
                     grade.m_grade = (unsigned char)ScanInt(&ok);
                     if (!ok) break;
                     grade.m_field1 = (unsigned char)ScanInt(&ok);
                     if (!ok) return false;
                     grade.m_field2 = (unsigned char)ScanInt(&ok);
                     if (!ok) return false;
-                    stDisjointResult res;
                     res.m_field0 = ScanInt(&ok);
                     if (!ok) return false;
                     res.m_field4 = ScanFloat(&ok);
                     if (!ok) return false;
-                    int addKey = ScanInt(&ok);
+                    // b290-BigExpert [P331 槽数：ORIG -0x4c(%ebp) 只有 2 次写
+                    // （0x0896b8a7 / 0x0896b923）⇒ 两次 key 读复用同一具名局部，
+                    // 原码是两个 int（-0x4c/-0x48）会多占一槽并整体平移其后槽位]。
+                    int key;
+                    key = ScanInt(&ok);
                     if (!ok) return false;
-                    if (addKey != 0 &&
+                    if (key != 0 &&
                         !expert_job::get_disjoint_additional_items(
-                            additional, addKey, res.m_additionalItems))
+                            additional, key, res.m_additionalItems))
                         return false;
-                    int bigKey = ScanInt(&ok);
+                    key = ScanInt(&ok);
                     if (!ok) return false;
-                    if (bigKey != 0 &&
+                    if (key != 0 &&
                         !expert_job::get_disjoint_additional_items(
-                            bigwin, bigKey, res.m_bigwinItems))
+                            bigwin, key, res.m_bigwinItems))
                         return false;
                     ScanInt(&ok);   // 读取但未建模持久化（local_38c）
                     if (!ok) return false;

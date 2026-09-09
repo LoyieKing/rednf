@@ -858,13 +858,17 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
     // 共 16（4.4 对局部空析构发射 D1 调用，ORIG 4.1 内联省略；D1 W 符号必须保留
     // ⇒ N91 封顶）②ScanInt +1（1 处多余读取，逐段槽序不可分辨，N82 封顶）。
     // ndiff 主体为 N82（帧/槽复用）与 N89（STL out-of-line 实例）。
-    // [BigSrvParam2] ORIG prologue（0x08a870e7-0x08a870f6）：load 成功后把形参
-    // script 一次性写入本地槽 -0x11c，此后 226 处成员访问全部 `mov -0x11c(%ebp)`
-    // 重读 ⇒ 原码有本地指针副本。改为 script_arg 形参 + 局部 script。
     if (!loadRDARScriptFile("", path))
     {
         return false;
     }
+    // [BigSrvParam2] ORIG prologue（0x08a870e7-0x08a870f6）：load 成功后把形参
+    // script 一次性写入本地槽 -0x11c，此后 226 处成员访问全部 `mov -0x11c(%ebp)`
+    // 重读 ⇒ 原码有本地指针副本。改为 script_arg 形参 + 局部 script。
+    // [BigQuest 探针记录] 试过 `ServerParameterScript* volatile script`（P332
+    // ImportDungeonScript 配方）强制逐点重载：ndiff 3834→4327 **反劣** —— 本件
+    // ORIG 副本槽=-0x11c / missed=-0x115 / line=-0x370，我方=…-0x34c/-0x11d/-0x350，
+    // 帧错位未解前加 reload 只增行不命中 ⇒ 回滚为普通副本。属 N82（帧分配）族。
     ServerParameterScript* script = script_arg;
     script->clear();
     std::string line;
