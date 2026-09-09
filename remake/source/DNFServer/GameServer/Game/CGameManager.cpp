@@ -116,7 +116,7 @@ extern WongWork::CLogGameChannel* s_pLogGameChannel;
 TimerQueue* s_timerQueue_;  // ORIG 全局（GlobalData::s_timerQueue_），原 GameStubs.cpp 定义迁移
 }
 CSchoolMgr g_schoolMgr;           // ORIG 全局对象（nm -S BSS size 0x58），原 GameStubs.cpp 定义迁移
-CGuildAgitManager* g_guildAgitMgr;  // ORIG 全局，原 GameStubs.cpp 定义迁移
+CGuildAgitManager g_guildAgitMgr;   // ORIG 全局对象（nm -S BSS size 0x58；0x0943e0e0），原 GameStubs.cpp 定义迁移
 namespace GlobalData
 {
 extern TimerQueue* s_timerQueue_;
@@ -130,7 +130,7 @@ CShutdowManager* GetInstanceShutdowManager();
 EpollHandler* G_EpollHandler();
 TimerQueue* G_TimerQueue();   // ORIG W 0x080f647c（P167：insert_game_world 四处定时器注册用它）
 extern CSchoolMgr g_schoolMgr;
-extern CGuildAgitManager* g_guildAgitMgr;
+extern CGuildAgitManager g_guildAgitMgr;
 bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime, long lCurTime);
 
 // ============================================================================
@@ -603,17 +603,16 @@ CUser* CGameManager::createUser()
     int err = m_userPool.GetLastErrorCode();
     if (err != 0)
     {
-        unsigned int newUid = user->GetUID();
-        const char* lastId = NumberToString(accId, 0);
-        cMyTrace tr(__PRETTY_FUNCTION__, 0x8f6, 0);
-        tr("STATIC MEMORY_POOL createUser error(%d), user(%x), last user m_acc_id(%s), idx(%d), new user idx(%d)",
-           err, user, lastId, uid, newUid);
+        // ORIG 0x082943a8/0x082943bd：GetUID/NumberToString 结果入 %esi/%ebx 跨 ctor
+        // 保活（无具名槽）⇒ 实参内联（P329/P227）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x8f6, 0)(
+            "STATIC MEMORY POOL createUser error(%d), user(%x), last user m_acc_id(%s), idx(%d), new user idx(%d)",
+            err, user, NumberToString(accId, 0), uid, user->GetUID());
     }
     short nxt = getNextUID();
     user->SetIncreID(nxt);
-    unsigned short uniqueId =
-        CUserGlobalInfoHandleInstance()->get_uniqueid();
-    user->set_unique_id(uniqueId);
+    // ORIG 0x08294441：movzwl %ax,%eax 直传（无具名 short 槽）。
+    user->set_unique_id(CUserGlobalInfoHandleInstance()->get_uniqueid());
     return user;
 }
 void CGameManager::check_user_var(CUser* user)
@@ -1756,7 +1755,8 @@ void CGameManager::SendPartyList(CUser* user)
                 else
                     guard.put_byte(0);
                 guard.put_byte(managerIdx);
-                guard.put_byte(party->is_quick_party() & 0xff);
+                // T1 直证：ORIG 0x08296b11 `movzbl %al,%eax`（无 and）⇒ (unsigned char) cast。
+                guard.put_byte((unsigned char)party->is_quick_party());
                 if (party->IsEventCharacParty())
                     guard.put_byte(1);
                 else
@@ -1773,11 +1773,9 @@ void CGameManager::SendPartyList(CUser* user)
                     for (int i = 0; i < 4; ++i)
                     {
                         CUser* member = party->get_user(i);
-                        if (member == 0)
-                        {
-                            guard.put_byte(0);
-                        }
-                        else
+                        // ORIG 0x08296bca `je <put_byte(0) 块>`（then 后置、else 直落）
+                        // ⇒ P272 块序交换：条件取反 + 两块互换。
+                        if (member != 0)
                         {
                             guard.put_byte(6);
                             for (int j = 0; j < 6; ++j)
@@ -1790,6 +1788,10 @@ void CGameManager::SendPartyList(CUser* user)
                                 // 调用（P167 EXTRA/MISSING 实证）。
                                 guard.put_byte((int)(signed char)member->getCurCharacR()->m_demensionInout[j]);
                             }
+                        }
+                        else
+                        {
+                            guard.put_byte(0);
                         }
                     }
                 }
@@ -2599,7 +2601,10 @@ unsigned int CGameManager::insert_game_world(CUser* user)
             NumberToString(user->get_acc_id(), 0), user->get_unique_id() & 0xffff);
         return 0;
     }
-    int eventGrow = (int)user->getCurCharacEventCharacterGrowtype();
+    // P321-T1 直证：ORIG 0x08297371 `movsbl %al,%eax`（signed 扩展）；头声明为
+    // P321-T1 直证：ORIG 0x08297371 `movsbl %al,%eax`（signed 扩展）；getter 已按
+    // ORIG 改为返回 char（CUserCharacInfo.h 广播），此处直用即产 movsbl。
+    int eventGrow = user->getCurCharacEventCharacterGrowtype();
     if (eventGrow > 0)
     {
         CEventCharacterHandlerInstance()->_makeEventCharacter(user, 0x28);
@@ -2708,7 +2713,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     g_schoolMgr.AddUser(user);
     if (user->get_charac_guildkey() != 0)
     {
-        g_guildAgitMgr->AllocGuildAgitArea(user->get_charac_guildkey());
+        g_guildAgitMgr.AllocGuildAgitArea(user->get_charac_guildkey());
     }
     // P167 真参数序修正：ORIG 0x08297a0d/0x08297a2e 段实证实参 =
     //   (OBJ_TYPE_0, GetUID(), msg, sec, GetLoginTick(), getCurCharacNo())
@@ -2806,16 +2811,16 @@ bool CGameManager::user_exit(CUser* user)
     // 等分支内槽组分区差）。
     if (user == 0)
     {
-        cMyTrace(__PRETTY_FUNCTION__, 0x1271, 5)(
-            "USER_EXIT [%s][%d]", __PRETTY_FUNCTION__, 0x1271);
+        cMyTrace tr(__PRETTY_FUNCTION__, 0x1271, 5);
+        tr("USER_EXIT [%s][%d]", __PRETTY_FUNCTION__, 0x1271);
         return false;
     }
     if (user->get_state() == 0)
     {
-        unsigned int mid = user->get_acc_id();
-        cMyTrace tr(__PRETTY_FUNCTION__, 0x127a, 5);
-        tr("USER_EXIT STATE NONE [%s][%d]mid(%d)",
-           __PRETTY_FUNCTION__, 0x127a, mid);
+        // ORIG 0x08298625：get_acc_id 结果先入 %ebx 跨 ctor 保活（无具名槽）⇒ P227 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0x127a, 5)(
+            "USER_EXIT STATE NONE [%s][%d]mid(%d)",
+            __PRETTY_FUNCTION__, 0x127a, user->get_acc_id());
         return false;
     }
     HistoryLog::LogClose((FILE*)user->m_field796f8);   // ORIG *(user+0x796f8)
@@ -2842,10 +2847,14 @@ bool CGameManager::user_exit(CUser* user)
         user->UpdateData();
         user->LogoutCachedCharacter(0);
         user->UpdateLogout(false);
-        cMyTrace tr(__PRETTY_FUNCTION__, 0x12dc, 0);
-        tr("ID: %s - UID: %d from Logout",
-           user->getCurCharacName(), user->get_unique_id() & 0xffff);
-        int err = G_EpollHandler()->ResetEpoll(user->m_network.get_socket());
+        // ORIG 0x082987c2/0x082987d0：get_unique_id→%esi、getCurCharacName→%ebx
+        // 在 ctor 前求值保活 ⇒ P227 全表达式临时链。
+        cMyTrace(__PRETTY_FUNCTION__, 0x12dc, 0)(
+            "ID: %s - UID: %d from Logout",
+            user->getCurCharacName(), user->get_unique_id() & 0xffff);
+        // ORIG 0x08298815：err 先预清零（movl $0x0,-0xc）再独立赋值（P198①/P197③ 两句式）。
+        int err = 0;
+        err = G_EpollHandler()->ResetEpoll(user->m_network.get_socket());
         if (err != 0)
         {
             LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__, 0x12e3,

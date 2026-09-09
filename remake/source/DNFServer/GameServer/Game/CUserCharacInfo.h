@@ -990,7 +990,9 @@ public:
     int getCurCharacTutorialFlag();
     bool setCurCharacTutorialFlag(unsigned int flag);
     void resetCharacTutorialFlag();
-    unsigned char getCurCharacEventCharacterGrowtype();
+    // P321-T1 直证：ORIG 调用点 0x08297371 `call; movsbl %al,%eax` ⇒ 返回 char（signed）；
+    // 本体 0x082a66b8 `movzbl 0x123f(%eax),%eax` 无归一化（字段仍 uchar）。
+    char getCurCharacEventCharacterGrowtype();
     void setCurCharacEventCharacterGrowtype(char growtype);
     bool IsProperDungeonUser();   // ORIG W 0x08335ca4：读 +0x1238 字节标志（bool 语义）
     void SetProperDungeonUser();
@@ -1034,9 +1036,11 @@ public:
                                // 同款三分法）；false 路 0x8696c2c `mov $0xffffffff`
                                // dword -1（uchar 函数体内 return -1 保留 dword 形）。
     void setCurEquipslotFlag(char flag);
-    unsigned char getCurChannelEquipslotSwitch();
+    // P321-T1：ORIG 0x082973f1 `call; movsbl %al,%eax` ⇒ char。
+    char getCurChannelEquipslotSwitch();
     void setCurChannelEquipslotSwitch(char flag);
-    unsigned char getCurExpandEquipslotSwitch();
+    // P321-T1：ORIG 0x082973e3 `call; movsbl %al,%ebx` ⇒ char。
+    char getCurExpandEquipslotSwitch();
     char getUpgradeSeparateTrueFlag();
     void setUpgradeSeparateTrueFlag(char flag);
     char getUpgradeSeparateFlaseFlag();

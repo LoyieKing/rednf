@@ -1693,7 +1693,7 @@ unsigned char CUserCharacInfo::getCurUseBringUpMaterialCount() const
     return m_selected ? CUR->m_curUseBringUpMaterialCount : 0;
 }
 
-unsigned char CUserCharacInfo::getCurExpandEquipslotSwitch()
+char CUserCharacInfo::getCurExpandEquipslotSwitch()
 {
     return m_selected ? (int)(unsigned char)CUR->m_curExpandEquipslotSwitch : -1;
 }
@@ -1894,7 +1894,7 @@ unsigned int CUserCharacInfo::getCurCharacEventCoin() const
 
 
 
-unsigned char CUserCharacInfo::getCurCharacEventCharacterGrowtype()
+char CUserCharacInfo::getCurCharacEventCharacterGrowtype()
 {
     return m_selected ? CUR->m_eventCharacterGrowtype : 0;
 }
@@ -2002,7 +2002,7 @@ char CUserCharacInfo::getCurCharFirstGrowType() const
     return m_selected ? (char)CUR->m_growType.first : 0;
 }
 
-unsigned char CUserCharacInfo::getCurChannelEquipslotSwitch()
+char CUserCharacInfo::getCurChannelEquipslotSwitch()
 {
     return m_selected ? (int)(unsigned char)CUR->m_curChannelEquipslotSwitch : -1;
 }
