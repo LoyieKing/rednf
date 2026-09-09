@@ -238,6 +238,30 @@ bool ScanType(std::string& token, bool consume);
 int ScanInt(bool* ok);
 bool ScanStr(std::string* value);
 
+// [BigRndOpt] 本 TU 内 stCeraShopBonusItemInfo_t 的 trivial 视图（用途与依据见
+// importCashShopItemList 的 [bonus item info] 段判词）。ORIG 0x088ff2c4..0x088ff36f
+// 该段全程 0 ctor / 0 dtor：三字段（u32@0 / u16@4 / u32@8，sizeof 0xc）直落栈槽
+// -0xc0/-0xbc/-0xb8，再以槽地址作 push_back 实参。共享头 CItemList.h 为补发弱符号
+// _ZN25stCeraShopBonusItemInfo_tD1Ev（ORIG W 0x089363da，宿主 W9_StructMisc.cpp）
+// 声明了用户析构 ⇒ 具名 bi 会多发 2 处 D1Ev（p167 EXTRA +2 的唯一来源）。
+// 删共享头声明属跨 TU（R1 禁区），故此处改用同布局 POD 镜像承担局部量：
+// 两侧皆 standard-layout、公共初始序列一致，reinterpret_cast 取引用合法，
+// 零导出符号、零可观察行为变化。
+namespace
+{
+struct BonusItemView
+{
+    unsigned int m_field0;        // +0x00（ORIG `mov %eax,-0xc0(%ebp)`）
+    unsigned short m_field4;      // +0x04（ORIG `mov %ax,-0xbc(%ebp)`）
+    unsigned int m_field8;        // +0x08（ORIG `mov %eax,-0xb8(%ebp)`）
+};
+// 0xc 的三重实证（详见 CItemList.h:156 同题注释）：max_size@0x08936166 = UINT_MAX/12、
+// allocate@0x08945d62 = n*3*4、使用点元素槽 -0xc0..-0xb4。
+static_assert(sizeof(BonusItemView) == 0xc, "ORIG stCeraShopBonusItemInfo_t = 0xc (0x08936166/0x08945d62)");
+static_assert(sizeof(BonusItemView) == sizeof(stCeraShopBonusItemInfo_t),
+              "镜像视图须与共享头同尺寸（偏移 0/4/8 逐条按 ORIG 反汇编核对）");
+}   // namespace
+
 // [b28d-solo-CCeraShopGoods] N 封顶（§6.2 三件套口径，ORIG @0x088fdcb5
 // size 0x1df4 = 1768 insn）：
 //  ① gap = 1768 vs 1778（我方多 10 条，0.6%）；
@@ -568,11 +592,15 @@ bool importCashShopItemList(
                 item.m_field10 = ScanInt(static_cast<bool*>(0));
                 item.m_field22 = ScanInt(static_cast<bool*>(0));
                 item.m_field3c = ScanInt(static_cast<bool*>(0));
-                item.m_name = "";
                 flag0 = 7;                             // ORIG 尾组经 -0x54 int 槽
                 item.m_fieldc = 7;
                 item.m_field1c = 1;
                 item.m_field0 = flag0;
+                // [BigRndOpt] ORIG 0x088fe0xx：`item.m_name = ""`（`movl $<A>,0x4(%esp)`
+                // + `lea item; add $0x40,%eax; call _ZNSsaSEPKc`）在 ORIG 的物理位是
+                // flag0 / m_fieldc / m_field1c / m_field0 四组赋值**之后**（语句书写序
+                // = ORIG 叶块物理序）。两组写无数据依赖 ⇒ 纯书写序调整，行为不变。
+                item.m_name = "";
                 itemList[7].push_back(item);
             }
         }
@@ -665,7 +693,8 @@ bool importCashShopItemList(
                 int total = 0;
                 for (int i = 0; i < count; ++i)
                 {
-                    stCeraShopBonusItemInfo_t bi;
+                    // [BigRndOpt] 改用 trivial 镜像视图，见函数前判词
+                    BonusItemView bi;
                     bi.m_field0 = ScanInt(&ok);
                     if (ok != true)
                         return 0;   // ORIG 0x88ff2c4：失败 → return 0
@@ -676,15 +705,22 @@ bool importCashShopItemList(
                     if (ok != true)
                         return 0;   // ORIG 0x88ff327
                     total += bi.m_field8;
-                    info.m_items.push_back(bi);
+                    info.m_items.push_back(
+                        *reinterpret_cast<const stCeraShopBonusItemInfo_t*>(&bi));
                 }
-                if (total == 1000)
-                    bonusList.push_back(info);
-                else
-                    printf("bonus rate error %d", total);
-                // ORIG 0x88ff3a5：总概率≠1000 → 打印后 return 0
+                // [BigRndOpt] ORIG 0x088ff389..0x088ff3c1 是**单判**结构：
+                //   `cmpl $0x3e8,-0x2c(%ebp)` / `je 0x088ff3b1`；fall-through 侧 printf
+                //   后 `mov $0x0,%esi; mov $0x1,%ebx`（return false 的清理链），
+                //   跳走侧 0x088ff3b1 才 `push_back(bonusList, info)`（0x088ff3c6 置
+                //   state 2 → 0x088ff1f2 回 while 体首）。原「双判」写法在 -O0 复现
+                //   两次 `cmpl $0x3e8`，且第二次 `je` 分支恒不成立（死分支）。
+                //   两次判定条件同值 ⇒ 合并为单判不改变可观察行为。
                 if (total != 1000)
+                {
+                    printf("bonus rate error %d", total);
                     return 0;
+                }
+                bonusList.push_back(info);
             }
         }
         else if (section == "[not stackable buy]")

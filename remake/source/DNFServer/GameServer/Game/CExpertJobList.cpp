@@ -469,15 +469,26 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             }
             else if (section == "[disjoint self service]")
             {
-                script[scriptIdx].m_selfDisjoin.m_field0 = ScanInt(&ok);
+                // b290-BigExpert [P332 具名指针形：ORIG 0x0896c5ee..0x0896c5fd 于块首把
+                // `&script[scriptIdx].m_selfDisjoin` 溢出到 -0x3c(%ebp)，随后 3 处
+                // `mov -0x3c(%ebp),%eax` 重载 + `mov %eax,%edx; mov %edx,N(%eax)` 落值
+                // （0x0896c610/0x0896c63d/0x0896c66b）。原逐点重算 imul/add 每点多 2 条。]
+                STExpertJobScript::stSelfDisjoinMaterialInfo* selfDisjoin =
+                    &script[scriptIdx].m_selfDisjoin;
+                selfDisjoin->m_field0 = ScanInt(&ok);
                 if (!ok) return false;
-                script[scriptIdx].m_selfDisjoin.m_field4 = ScanInt(&ok);
+                selfDisjoin->m_field4 = ScanInt(&ok);
                 if (!ok) return false;
-                script[scriptIdx].m_selfDisjoin.m_field8 = ScanInt(&ok);
+                selfDisjoin->m_field8 = ScanInt(&ok);
                 if (!ok) return false;
             }
             else if (section == "[shop doll info]")
             {
+                // b290-BigExpert [P332 具名指针形：ORIG 0x0896c6ab..0x0896c6ba 块首
+                // `&script[scriptIdx].m_shopDollMap` → -0x38(%ebp)，循环内 insert 只
+                // `mov -0x38(%ebp),%edx` 重载（0x0896c761）]。
+                std::map<int, unsigned char>* shopDollMap =
+                    &script[scriptIdx].m_shopDollMap;
                 int key;
                 for (;;)
                 {
@@ -485,7 +496,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) break;
                     unsigned char val = (unsigned char)ScanInt(&ok);
                     if (!ok) return false;
-                    if (!script[scriptIdx].m_shopDollMap.insert(
+                    if (!shopDollMap->insert(
                             std::make_pair(key, val)).second)
                     {
                         LogManager::logFormat(
@@ -498,6 +509,10 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             }
             else if (section == "[unseal scroll level limit info]")
             {
+                // b290-BigExpert [P332 具名指针形：ORIG 0x0896c7d9..0x0896c7e8
+                // `&script[scriptIdx].m_unsealScrollMap` → -0x34(%ebp)]。
+                std::map<int, unsigned short>* unsealScrollMap =
+                    &script[scriptIdx].m_unsealScrollMap;
                 int key;
                 for (;;)
                 {
@@ -505,7 +520,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) break;
                     unsigned short val = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    if (!script[scriptIdx].m_unsealScrollMap.insert(
+                    if (!unsealScrollMap->insert(
                             std::make_pair(key, val)).second)
                     {
                         LogManager::logFormat(
@@ -518,6 +533,10 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
             }
             else if (section == "[monstercard bind info]")
             {
+                // b290-BigExpert [P332 具名指针形：ORIG 0x0896c908..0x0896c917
+                // `&script[scriptIdx].m_monsterCardBindRateMap` → -0x30(%ebp)]。
+                std::map<int, stMonsterCardBindRate>* monsterCardBindRateMap =
+                    &script[scriptIdx].m_monsterCardBindRateMap;
                 int key;
                 for (;;)
                 {
@@ -528,7 +547,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     if (!ok) return false;
                     rate.m_field2 = (unsigned short)ScanInt(&ok);
                     if (!ok) return false;
-                    if (!script[scriptIdx].m_monsterCardBindRateMap.insert(
+                    if (!monsterCardBindRateMap->insert(
                             std::make_pair(key, rate)).second)
                     {
                         LogManager::logFormat(

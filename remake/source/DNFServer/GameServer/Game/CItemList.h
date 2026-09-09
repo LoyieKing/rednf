@@ -153,7 +153,18 @@ struct stCeraShopBonusItemInfo_t
     unsigned int m_field0;           // +0x00
     unsigned short m_field4;         // +0x04
     unsigned int m_field8;           // +0x08
-};
+};   // sizeof 0xc（= 4 + 2(+2 填充) + 4），三路径独立实证：
+     //   ① _ZNK9__gnu_cxx13new_allocatorI25stCeraShopBonusItemInfo_tE8max_sizeEv
+     //      @0x08936166 体为 `mov $0x15555555,%eax; ret`，0x15555555 = UINT_MAX/12；
+     //   ② _ZN9__gnu_cxx13new_allocatorI25stCeraShopBonusItemInfo_tE8allocateEjPKv
+     //      @0x08945d62 字节数 = `mov %edx,%eax / add %eax,%eax / add %edx,%eax /
+     //      shl $0x2` = n×3×4 = n×12；
+     //   ③ importCashShopItemList @0x088fdcb5 的 [bonus item info] 段元素槽
+     //      -0xc0..-0xb4（`mov %eax,-0xc0` 0x088ff2c4 / `mov %ax,-0xbc` 0x088ff2f5 /
+     //      `mov %eax,-0xb8` 0x088ff327）跨 12 字节。
+     //   注：**不是 0x10**（曾有泳道据此写静态断言而编不过）。本 TU 之外若需按
+     //   trivial 视图访问（ORIG 侧本类型无 ctor/dtor 调用点），见
+     //   CCeraShopGoods.cpp 的 BonusItemView（P334 镜像视图范式）。
 
 // ---- stCeraShopBonusInfo_t（ORIG C1 W 0x0891be5c：仅 vector ctor；
 //      C1ERKS W 0x08924c00 / D1 W 0x08525f3c / op= W 0x08924cba，全 W → 头内联）----
