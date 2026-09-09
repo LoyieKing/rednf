@@ -7,11 +7,28 @@
 //   docs/class_func_reports/CUser/RefillItemByScript.md
 //   docs/class_func_reports/CUser/sendCharacQuestPiece.md
 // ============================================================================
-// [b28d-55] 本 TU 判词表（verdict = game_func_report --no-compile，fresh .o）：
-//   RefillItemByScript 0x086890be  DIFF(204/204) P167 CLEAR(18/18)；残差 =
-//     ①虚调用 `call *%eax`（4.4.7 间接 call 目标恒 %eax，ORIG 用 %edx）=N7，
-//     本 TU 未路由 4.4.6（禁改路由表）⇒ 封顶；②vector::operator[] 的
-//     this/index 装载序（ORIG this 先入 %eax，4.4 先算 index）。
+// [SweepCUserStatB 2026-09-09 复核，verdict = check_tu_routed.sh，fresh .o]：
+//   本 TU 已路由 c6446r（4.4.6 后端 + 4.4.6 头集，dnf_game_cxx.sh:133）。
+//   四数：identical=24 ae=33 near=1 diff=1 missing_in_game=6
+//         （diff 仅 _Z41__static_initialization_and_destruction_0ii=N123 噪音）。
+//   RefillItemByScript 0x086890be  NEAR(204/204 助记符全等)；p167 18/18，
+//     唯一差 Inven_Item C1Ev↔C2Ev 系同址别名（ORIG nm 080cb854 C1/C2 双名，P93）。
+//     虚调用槽核对：ORIG `mov (%eax),%eax; add $0x8,%eax; mov (%eax),%edx; call *%edx`
+//       = vptr+0x08；_ZTV5CItem@0x8c96da0 word4(+0x10)=0x08724fe0=__cxa_pure_virtual
+//       （CItem::make_item 纯虚，CItem.h:8 注释「vtable 0x8c96da8，make_item 纯虚 @2」），
+//       且 _ZTV14CStackableItem+0x10=0x0850f8b8=_ZNK14CStackableItem9make_itemER10Inven_Item
+//       ⇒ 槽号/目标双证一致；我方 4.4.6 亦发 add $0x8 + call *%edx。
+//     jcc 逐位：jle/jne/je/jns/js/seta+jne 六处条件跳转方向与落点块（nop/jmp 岛）
+//       两侧全等（唯一残差非 jcc）。
+//     残差 = vector::operator[](i) 的 receiver/index 装载序（ORIG 0x086890f3
+//       `mov -0x20(%ebp),%eax; mov -0x18(%ebp),%edx` = receiver 先；4.4.6/4.4.7 恒
+//       `mov -0x18(%ebp),%eax; ...; mov -0x20(%ebp),%eax` = index 先）。实测探针
+//       （/tmp/pr/probe*.o，同 TU 旗标）：指针/引用/`(*p)[i]`/`p->operator[](i)`/
+//       int 下标/`static_cast`/逗号/三目/`(p+0)` 共 12+ 形均 index 先；仅 `(*&refill)`
+//       与 `volatile` 指针可翻装载序，但会把 refill 槽 -0x20→-0x2c 并使 make_pair
+//       两槽 -0x24/-0x2c→-0x20/-0x28（四数不降，NEAR 依旧）⇒ 判跨版本求值序
+//       N（P75/N7 邻域）封顶，保留最自然指针形。
+//   sendCharacQuestPiece 0x0868af2c  identical（17 条 + 尾部 nop）；p167 2/2 CLEAR。
 // ============================================================================
 
 #include "CUser.h"
