@@ -365,18 +365,29 @@ int TimerCheckConn::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x8632bca：getUser(p1, 2)（increId 形参被 getUser 忽略，常量 2 为占位）。
     CUser* user = G_CGameManager()->getUser(p1, 2);
+    // ORIG 0x8632be4 `cmpl $0x0,-0x24; jne` + 0x8632c05 `setne %al; test; je`
+    // ⇒ 两条独立守卫（P133）；旧码 `||` 合并产 mov$1/mov$0 物化岛（多 3 条）。
     // ORIG 0x8632bff：movzwl %ax 后与 p2 作 int 比较（unique_id 低 16 位）。
-    if (user == 0 || static_cast<unsigned short>(user->get_unique_id()) != p2)
+    if (user == 0)
+    {
+        return 0;
+    }
+    if (static_cast<unsigned short>(user->get_unique_id()) != p2)
     {
         return 0;
     }
     std::string accName(user->get_acc_name());
     char ip[0x10] = {0};
     user->m_network.GetPeerIP2(ip, 0x10);
-    if (G_CGameManager()->IsNoGameGuardApplingUser(accName, ip))
+    // ORIG 0x8632cc1 `mov %al,-0x1d(%ebp); cmpb $0x0,-0x1d(%ebp); je`
+    // ⇒ 原码有具名 bool 局部（旧码直判 test %al 少 2 条）。
+    bool noGameGuard = G_CGameManager()->IsNoGameGuardApplingUser(accName, ip);
+    if (noGameGuard)
     {
-        cMyTrace tr(__PRETTY_FUNCTION__, 0x3a4, 0);
-        tr("Try To Login By No Game Guard : %s", accName.c_str());
+        // P227 全表达式临时链：ORIG 08632cca 先求 c_str 结果驻 %ebx，再 ctor，最后压
+        // 变参（两语句形把求值推到 ctor 之后 ⇒ 少 mov %eax,%ebx）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x3a4, 0)(
+            "Try To Login By No Game Guard : %s", accName.c_str());
         return 1;
     }
     if (user->get_state() != 0)
@@ -385,11 +396,16 @@ int TimerCheckConn::dispatch_sig(int p1, int p2, unsigned int p3)
         {
             if (user->get_connect_count() > 1)
             {
-                cMyTrace tr2(__PRETTY_FUNCTION__, 0x3bc, 0);
-                tr2("User %s - no response %dth ping.", user->getCurCharacName(),
+                // P227：ORIG 08632d72 movswl→%esi（count）、08632d80 getCurCharacName→%ebx
+                // 均在 ctor 之前求值保活。
+                cMyTrace(__PRETTY_FUNCTION__, 0x3bc, 0)(
+                    "User %s - no response %dth ping.", user->getCurCharacName(),
                     static_cast<int>(user->get_connect_count()));
-                user->SetResumeChecksumTime(GlobalData::s_systemTime_.getCurSec() +
-                                            user->GetCheckConnInterval());
+                // P0：ORIG 08632ddc `mov %eax,-0x1c(%ebp); mov -0x1c(%ebp),%eax` 槽往返
+                // ⇒ 原码有具名局部（旧码内联实参少 2 条）。
+                int resumeTime = GlobalData::s_systemTime_.getCurSec() +
+                                 user->GetCheckConnInterval();
+                user->SetResumeChecksumTime(resumeTime);
             }
             user->incre_check_count();
             // ORIG 无 SendCheckConnPacket 符号：内联构造空包头（put_header(0,0)+finalize）发送。
@@ -1557,7 +1573,9 @@ bool TimerStatisticsDetailChannelInfo::RegistNextTimer()
     // （`lea -0x34(%ebp),%eax`），无 time_t now 中间槽；4.4 对具名 now 恒多一槽
     // 与两条 mov。按 ORIG 直取 curSec 地址（int/time_t 同 4 字节）。
     tm* pt = localtime_r(reinterpret_cast<const time_t*>(&curSec), &timeInfo);
-    const int nextSec = (pt->tm_min % 0x1e) * -0x3c + (0x708 - pt->tm_sec);
+    // ORIG 086358xx：`imul $-0x3c; lea 0x6cc(%eax),%ecx; mov $0x3c; sub sec; lea`
+    // ⇒ 常量按 ORIG 拆成 0x6cc + (0x3c - sec)（0x6cc=0x708-0x3c，等价）。
+    const int nextSec = (pt->tm_min % 0x1e) * -0x3c + 0x6cc + (0x3c - pt->tm_sec);
     // P0：ORIG channelNo 无槽（086358xx `mov %eax,%ebx` 直入 callee-saved）⇒ 实参内联；
     // P221/P227 全表达式临时链令 tm_min/tm_sec/channelNo 在 ctor 前求值驻 edi/esi/ebx。
     cMyTrace(__PRETTY_FUNCTION__, 0x92c, 0)(
@@ -1910,19 +1928,21 @@ TimerScheduleGuildWarEnd::~TimerScheduleGuildWarEnd() {}
 // TimerScheduleGuildWarEnd::dispatch_sig ORIG T 0x86331d0 (0x57f)
 // [b28d-30] 复核 DIFF：巨件残差（N82/N89 族），ORIG 0x086331d0。
 // [b28d-solo-TimerDispatcher] 判词 N82/N89 封顶：巨件 317 insns，帧槽 + STL 内联残差。
-int TimerScheduleGuildWarEnd::dispatch_sig(int p1, int p2, unsigned int p3)
+// [fix] ORIG 全部 6 处 case 比较读 0x10(%ebp)=**p2**（Ghidra 标 param_3 不准，
+// 与本 TU TimerGlobalEffectItemBegin/Timeout 等同一模式）⇒ 旧码用 p3(0x14) 是参数用错。
+int TimerScheduleGuildWarEnd::dispatch_sig(int p1, int p2, unsigned int /*p3*/)
 {
     if (G_GameWorld()->GetChannelType() != 6)
     {
         return 1;
     }
     // ORIG 08633209：CEventManager::GetRepeatEvent(0x21)；vptr+0x34 虚调用判活
-    CEventBase* event = GlobalData::s_event_manager->GetRepeatEvent(0x21);
-    if (!event->IsEventing((CUser*)0))
+    // P0：ORIG 无 event 具名槽（0863320e `mov (%eax),%edx` 直用返回值）⇒ 内联表达式。
+    if (!GlobalData::s_event_manager->GetRepeatEvent(0x21)->IsEventing((CUser*)0))
     {
         return 1;
     }
-    if (p3 == 10)
+    if (p2 == 10)
     {
         PacketGuard packet;  // ORIG local @ -0x14(%ebp)
         packet.put_header(0, 0x6d);
@@ -1933,7 +1953,7 @@ int TimerScheduleGuildWarEnd::dispatch_sig(int p1, int p2, unsigned int p3)
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                     (TIMER_MESSAGE)0x62, 300, 5, 0);
     }
-    else if (p3 == 5)
+    else if (p2 == 5)
     {
         PacketGuard packet;  // ORIG local @ -0x20(%ebp)
         packet.put_header(0, 0x6d);
@@ -1944,7 +1964,7 @@ int TimerScheduleGuildWarEnd::dispatch_sig(int p1, int p2, unsigned int p3)
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                     (TIMER_MESSAGE)0x62, 60, 4, 0);
     }
-    else if (p3 == 4)
+    else if (p2 == 4)
     {
         PacketGuard packet;  // ORIG local @ -0x2c(%ebp)
         packet.put_header(0, 0x6d);
@@ -1955,7 +1975,7 @@ int TimerScheduleGuildWarEnd::dispatch_sig(int p1, int p2, unsigned int p3)
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                     (TIMER_MESSAGE)0x62, 60, 3, 0);
     }
-    else if (p3 == 3)
+    else if (p2 == 3)
     {
         PacketGuard packet;  // ORIG local @ -0x38(%ebp)
         packet.put_header(0, 0x6d);
@@ -1966,7 +1986,7 @@ int TimerScheduleGuildWarEnd::dispatch_sig(int p1, int p2, unsigned int p3)
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                     (TIMER_MESSAGE)0x62, 60, 2, 0);
     }
-    else if (p3 == 2)
+    else if (p2 == 2)
     {
         PacketGuard packet;  // ORIG local @ -0x44(%ebp)
         packet.put_header(0, 0x6d);
@@ -1977,7 +1997,7 @@ int TimerScheduleGuildWarEnd::dispatch_sig(int p1, int p2, unsigned int p3)
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                     (TIMER_MESSAGE)0x62, 60, 1, 0);
     }
-    else if (p3 == 1)
+    else if (p2 == 1)
     {
         PacketGuard packet;  // ORIG local @ -0x50(%ebp)
         packet.put_header(0, 0x6d);
@@ -1988,7 +2008,7 @@ int TimerScheduleGuildWarEnd::dispatch_sig(int p1, int p2, unsigned int p3)
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                     (TIMER_MESSAGE)0x62, 60, 0, 0);
     }
-    else if (p3 == 0)
+    else if (p2 == 0)
     {
         // ORIG 0863373e：TriggerEventEnd(0x21)
         GlobalData::s_event_manager->TriggerEventEnd(0x21);
@@ -3067,66 +3087,69 @@ TimerGeneratePowerUp::~TimerGeneratePowerUp() {}
 // 直跳 `cmp;jg` vs 4.4 `setl;test;je` 物化（P197④ 族）（280/279）。
 int TimerGeneratePowerUp::dispatch_sig(int p1, int p2, unsigned int p3)
 {
-    if (!GlobalData::s_power_manager->IsPowerWarEventOn())
-        return 1;
-
-    GlobalData::s_power_manager->SetPowerUpRemainTime(
-        G_CDataManager()->m_powerParameter.m_powerUpGeneratePeriod * 0x3c);
-    GlobalData::s_power_manager->SetPowerUpTimerPeriod(0);
-    G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x7d, 5, 0, 0);
-    registNextTimer(G_CDataManager()->m_powerParameter.m_powerUpGeneratePeriod * 0x3c);
-    G_GameWorld()->CancelPowerUp();
-    m_team1Users.clear();
-    m_team2Users.clear();
-
-    const double ratio =
-        static_cast<double>(G_CDataManager()->m_powerParameter.m_powerUpRatio) / 100.0;  // /_DAT_08ce8590(=100.0)
-    const int team1Count = GlobalData::s_power_manager->GetPowerUserCount(1);
-    const int team2Count = GlobalData::s_power_manager->GetPowerUserCount(2);
-    const int team1ChannelPoint = GlobalData::s_power_manager->GetPowerWarPointInChannel(1);
-    const int team2ChannelPoint = GlobalData::s_power_manager->GetPowerWarPointInChannel(2);
-    const int team1Point = GlobalData::s_power_manager->GetPowerWarPoint((ENUM_POWER_SIDE_TYPE)1);
-    const int team2Point = GlobalData::s_power_manager->GetPowerWarPoint((ENUM_POWER_SIDE_TYPE)2);
-    const int mod = G_CDataManager()->m_powerParameter.m_powerUpPointMod;  // dm+0xa6d0
-    if (mod == 0)
+    // ORIG 08638860：`call IsPowerWarEventOn; test %al,%al; je +0x3f4(共享尾 mov $1)`
+    // ⇒ 正向 if 包裹 + 共享尾 return 1（P222/P214①）；旧码 `if(!f()) return 1;` 产
+    // xor$1 + 局部 mov$1/jmp 岛（多 3 条）。
+    if (GlobalData::s_power_manager->IsPowerWarEventOn())
     {
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0xff4, 0);
-        trace("[PowerWar] PowerUpMod is 0");
-        sendPowerUpInfo(0, 0);
-        return 1;
-    }
+        GlobalData::s_power_manager->SetPowerUpRemainTime(
+            G_CDataManager()->m_powerParameter.m_powerUpGeneratePeriod * 0x3c);
+        GlobalData::s_power_manager->SetPowerUpTimerPeriod(0);
+        G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0x7d, 5, 0, 0);
+        registNextTimer(G_CDataManager()->m_powerParameter.m_powerUpGeneratePeriod * 0x3c);
+        G_GameWorld()->CancelPowerUp();
+        m_team1Users.clear();
+        m_team2Users.clear();
 
-    double team1Ratio = static_cast<double>(team2Point - team1Point) / mod;  // local_24
-    double team2Ratio = static_cast<double>(team1Point - team2Point) / mod;  // local_1c
-    if (0.9 < team1Ratio)
-        team1Ratio = 0.9;
-    if (team1Ratio < -0.9)
-        team1Ratio = -0.9;
-    if (0.9 < team2Ratio)
-        team2Ratio = 0.9;
-    if (team2Ratio < -0.9)
-        team2Ratio = -0.9;
-    if (team1ChannelPoint == 0 || team2ChannelPoint == 0)
-    {
-        sendPowerUpInfo(0, 0);
-        return 1;
-    }
+        const double ratio =
+            static_cast<double>(G_CDataManager()->m_powerParameter.m_powerUpRatio) / 100.0;  // /_DAT_08ce8590(=100.0)
+        const int team1Count = GlobalData::s_power_manager->GetPowerUserCount(1);
+        const int team2Count = GlobalData::s_power_manager->GetPowerUserCount(2);
+        const int team1ChannelPoint = GlobalData::s_power_manager->GetPowerWarPointInChannel(1);
+        const int team2ChannelPoint = GlobalData::s_power_manager->GetPowerWarPointInChannel(2);
+        const int team1Point = GlobalData::s_power_manager->GetPowerWarPoint((ENUM_POWER_SIDE_TYPE)1);
+        const int team2Point = GlobalData::s_power_manager->GetPowerWarPoint((ENUM_POWER_SIDE_TYPE)2);
+        const int mod = G_CDataManager()->m_powerParameter.m_powerUpPointMod;  // dm+0xa6d0
+        if (mod == 0)
+        {
+            cMyTrace trace(__PRETTY_FUNCTION__,
+                           0xff4, 0);
+            trace("[PowerWar] PowerUpMod is 0");
+            sendPowerUpInfo(0, 0);
+            return 1;
+        }
 
-    int team1PowerUp = static_cast<int>((team1Ratio + 1.0) *
-                                        (static_cast<double>(team2ChannelPoint) / team1ChannelPoint) *
-                                        team2Count * ratio);
-    int team2PowerUp = static_cast<int>((team2Ratio + 1.0) *
-                                        (static_cast<double>(team1ChannelPoint) / team2ChannelPoint) *
-                                        team1Count * ratio);
-    G_GameWorld()->GetPowerUpDomain(m_team1Users, m_team2Users);
-    if (team1PowerUp > static_cast<int>(m_team1Users.size()))
-        team1PowerUp = static_cast<int>(m_team1Users.size());
-    if (team2PowerUp > static_cast<int>(m_team2Users.size()))
-        team2PowerUp = static_cast<int>(m_team2Users.size());
-    generatePowerUp(m_team1Users, team1PowerUp);
-    generatePowerUp(m_team2Users, team2PowerUp);
-    sendPowerUpInfo(team1PowerUp, team2PowerUp);
+        double team1Ratio = static_cast<double>(team2Point - team1Point) / mod;  // local_24
+        double team2Ratio = static_cast<double>(team1Point - team2Point) / mod;  // local_1c
+        if (0.9 < team1Ratio)
+            team1Ratio = 0.9;
+        if (team1Ratio < -0.9)
+            team1Ratio = -0.9;
+        if (0.9 < team2Ratio)
+            team2Ratio = 0.9;
+        if (team2Ratio < -0.9)
+            team2Ratio = -0.9;
+        if (team1ChannelPoint == 0 || team2ChannelPoint == 0)
+        {
+            sendPowerUpInfo(0, 0);
+            return 1;
+        }
+
+        int team1PowerUp = static_cast<int>((team1Ratio + 1.0) *
+                                            (static_cast<double>(team2ChannelPoint) / team1ChannelPoint) *
+                                            team2Count * ratio);
+        int team2PowerUp = static_cast<int>((team2Ratio + 1.0) *
+                                            (static_cast<double>(team1ChannelPoint) / team2ChannelPoint) *
+                                            team1Count * ratio);
+        G_GameWorld()->GetPowerUpDomain(m_team1Users, m_team2Users);
+        if (team1PowerUp > static_cast<int>(m_team1Users.size()))
+            team1PowerUp = static_cast<int>(m_team1Users.size());
+        if (team2PowerUp > static_cast<int>(m_team2Users.size()))
+            team2PowerUp = static_cast<int>(m_team2Users.size());
+        generatePowerUp(m_team1Users, team1PowerUp);
+        generatePowerUp(m_team2Users, team2PowerUp);
+        sendPowerUpInfo(team1PowerUp, team2PowerUp);
+    }
     return 1;
 }
 
@@ -3453,6 +3476,8 @@ int TimerUpdateCompoundEmblemStatics::dispatch_sig(int p1, int p2, unsigned int 
         const unsigned int grade5 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(5));
         const unsigned int grade4 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(4));
         const unsigned int grade3 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(3));
+        // [S1 一次性旋钮已试并回滚] ORIG 0863bcxx 把 grade2/1/0 存 edi/esi/ebx，但
+        // 4.4 对裸 register 仍槽化（实测 130→133、帧 0x6c→0x7c、多 3 mov）⇒ N7/N82 封顶。
         const unsigned int grade2 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(2));
         const unsigned int grade1 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(1));
         const unsigned int grade0 = static_cast<unsigned int>(getCompoundEmblemStatistic()->getGradeCount(0));
@@ -3782,20 +3807,25 @@ bool Timer_DungeonInoutOpenTime::checkDungeonInoutTime(int dungeonIdx)
 // [b28d-solo-TimerDispatcher] 判词 N82 封顶：全帧槽号平移（233/231，调用点全等）。
 int Timer_DungeonInoutOpenTime::dispatch_sig(int p1, int p2, unsigned int p3)
 {
+    (void)p1; (void)p2;
+    // ORIG 08639e20：getCurSec 结果单槽 -0x78（int/time_t 同宽），localtime_r 直取
+    // 该槽地址；旧码 curT+nowSec 双具名多一槽两条 mov。
     const int curT = static_cast<int>(GlobalData::s_systemTime_.getCurSec());  // ORIG -0x78(%ebp)
-    const time_t nowSec = static_cast<time_t>(curT);
     struct tm timeBuf;                                 // ORIG -0xac(%ebp)
-    struct tm* localTm = localtime_r(&nowSec, &timeBuf); // ORIG ptr → -0x20(%ebp)
+    struct tm* localTm = localtime_r(reinterpret_cast<const time_t*>(&curT), &timeBuf); // ORIG ptr → -0x20(%ebp)
     const int hour = localTm->tm_hour;                 // ORIG -0x18(%ebp)（tm+0x8）
     const int min = localTm->tm_min;                   // ORIG -0x14(%ebp)（tm+0x4）
-    if (p3 == 0)
+    // P0：ORIG 08639e4d `mov 0x14(%ebp),%eax; mov %eax,-0x7c(%ebp)` 且后续 6 处
+    // 均读 -0x7c（find key 亦 lea -0x7c）⇒ 原码有 p3 的具名副本。
+    const int dungeonIdx = static_cast<int>(p3);       // ORIG -0x7c(%ebp)
+    if (dungeonIdx == 0)
     {
         return 0;
     }
 
     // ORIG：find/end 各自写完整表达式（两次 G_CDataManagerv 调用，不缓存）
     std::map<int, STDungeonInoutTime>::iterator it =
-        G_CDataManager()->m_serverParameter.m_dungeonInoutc8.find((int)p3);
+        G_CDataManager()->m_serverParameter.m_dungeonInoutc8.find(dungeonIdx);
     if (it != G_CDataManager()->m_serverParameter.m_dungeonInoutc8.end())
     {
         // second 自节点数据 +0x04 起：endHour@+8 / startHour@+4 /
@@ -3815,7 +3845,7 @@ int Timer_DungeonInoutOpenTime::dispatch_sig(int p1, int p2, unsigned int p3)
                 return 0;
             }
             G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
-                                        (TIMER_MESSAGE)0x93, delta, 0, p3);
+                                        (TIMER_MESSAGE)0x93, delta, 0, dungeonIdx);
             cMyTrace trace(__PRETTY_FUNCTION__,
                            0x1454, 0);
             trace("ULTIMATE_LOG : NEXT DAY TIMER ON!!");
@@ -3834,7 +3864,7 @@ int Timer_DungeonInoutOpenTime::dispatch_sig(int p1, int p2, unsigned int p3)
                        0x1462, 0);
         trace("DELTA %d , CHECK_T %d , CUR_T %d\\n", delta, checkT, curT);
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
-                                    (TIMER_MESSAGE)0x94, delta, 0, p3);
+                                    (TIMER_MESSAGE)0x94, delta, 0, dungeonIdx);
         cMyTrace traceClose(__PRETTY_FUNCTION__,
                             0x146e, 0);
         traceClose("ULTIMATE_LOG : ULTIMATE DUNGEON CLOSE TIMER ON!!");
@@ -3846,7 +3876,7 @@ int Timer_DungeonInoutOpenTime::dispatch_sig(int p1, int p2, unsigned int p3)
             if (!G_CDataManager()->m_serverParameter.isDungeonOpen(0x2aff))
             {
                 G_CDataManager()->m_serverParameter.setDungeonOpen(0x2aff, true);
-                G_GameWorld()->send_all_dungeon_inout_message((int)p3);
+                G_GameWorld()->send_all_dungeon_inout_message(dungeonIdx);
             }
             cMyTrace traceOpen(__PRETTY_FUNCTION__,
                                0x1478, 0);
