@@ -146,19 +146,33 @@ bool isInArea(int x, int y, MapArea* area)
     return 1;
 }
 
-// [b28d-24] DIFF 残115: 二维数组寻址/帧差异（P255/N4 族）。ORIG 0x08891c18
+// ORIG 0x08891c18。P0/P335 复核（2026-09-09）：ORIG 入口 0834e1c20..0834e1c35 死存
+// 4 个常量局部（-0x1c=0x78、-0x18=0x6a、-0x14=0x8c、-0x10=0x14），全函数从未读取
+// ⇒ 原码有 4 个具名局部（赋值后未用）；且各默认值分支为 `movl $imm,disp(%eax)`
+// 直接落字段、then 分支亦直接落字段（0834e070/0834e08b），非三元物化
+// ⇒ 源码是 if/else 语句而非 `?:`（原重建用 ?: 使 8 处字段赋值退化为 eax 物化 + join store）。
 void makePathArea(MapArea* areas, const int area1[][2], const int area2[][2])
 {
-    // b21 verdict=DIFF（N 残余）：257/229。无外部调用，纯算术；常量/字段偏移/除 2 均已核
-    //   （默认 0x78/0x6a/0x8c/0x28=ORIG 各分支 immediates；stride 0x1c）。残余仅 ORIG 入口
-    //   死存 4 常量槽(0x78/0x6a/0x8c/0x14) + 索引 i*0x1c 经 esi/ebx 多次换手 vs 我们紧致；
-    //   语义全等，byte 层 N 封顶。
+    int defW01 = 0x78;      // ORIG -0x1c（死存；未读取）
+    int defH01 = 0x6a;      // ORIG -0x18（死存）
+    int defW23 = 0x8c;      // ORIG -0x14（死存）
+    int defH23Half = 0x14;  // ORIG -0x10（死存；= 0x28/2）
+    (void)defW01;
+    (void)defH01;
+    (void)defW23;
+    (void)defH23Half;
     for (int i = 0; i < 4; ++i)
     {
         if (i == 0 || i == 1)
         {
-            areas[i].m_w = area2[i][0] > 0 ? area2[i][0] : 0x78;
-            areas[i].m_h = area2[i][1] > 0 ? area2[i][1] : 0x6a;
+            if (area2[i][0] > 0)
+                areas[i].m_w = area2[i][0];
+            else
+                areas[i].m_w = 0x78;
+            if (area2[i][1] > 0)
+                areas[i].m_h = area2[i][1];
+            else
+                areas[i].m_h = 0x6a;
             if (i == 0)
                 areas[i].m_x = area1[i][0];
             else
@@ -167,8 +181,14 @@ void makePathArea(MapArea* areas, const int area1[][2], const int area2[][2])
         }
         else
         {
-            areas[i].m_w = area2[i][0] > 0 ? area2[i][0] : 0x8c;
-            areas[i].m_h = area2[i][1] > 0 ? area2[i][1] : 0x28;
+            if (area2[i][0] > 0)
+                areas[i].m_w = area2[i][0];
+            else
+                areas[i].m_w = 0x8c;
+            if (area2[i][1] > 0)
+                areas[i].m_h = area2[i][1];
+            else
+                areas[i].m_h = 0x28;
             areas[i].m_x = area1[i][0] - areas[i].m_w / 2;
             areas[i].m_y = area1[i][1] - areas[i].m_h / 2;
         }
@@ -223,8 +243,7 @@ _mapMonster::_mapMonster(const _mapMonster& other)
       m_flag04(other.m_flag04),
       m_field08(other.m_field08),
       m_spawnType(other.m_spawnType),
-      m_levelAdd(other.m_levelAdd),
-      m_field14(other.m_field14),
+      m_pair10(other.m_pair10),
       m_roleType(other.m_roleType),
       m_champion(other.m_champion),
       m_posX(other.m_posX),
@@ -298,8 +317,8 @@ int CMap::insert_monster(STAssignMonster monster, int area)
     item.m_flag04 = monster.m_4;
     item.m_field08 = monster.m_8;
     item.m_spawnType = monster.m_20;
-    item.m_levelAdd = monster.m_pair18.m_pair.m_hi;   // +0x1c（原 m_1c）
-    item.m_field14 = monster.m_pair18.m_pair.m_lo;    // +0x18（原 m_18）
+    item.m_levelAdd = monster.m_pair18.m_pair.m_hi;   // +0x10 ← +0x1c
+    item.m_field14 = monster.m_pair18.m_pair.m_lo;    // +0x14 ← +0x18
     item.m_roleType = monster.m_24;
     item.m_level = monster.m_14 / 10;
     item.m_orderIdx = monster.m_50;
@@ -325,8 +344,8 @@ void CMap::insert_condition_monster(STAssignMonster monster)
     item.m_flag04 = monster.m_4;
     item.m_field08 = monster.m_8;
     item.m_spawnType = monster.m_20;
-    item.m_levelAdd = monster.m_pair18.m_pair.m_hi;   // +0x1c（原 m_1c）
-    item.m_field14 = monster.m_pair18.m_pair.m_lo;    // +0x18（原 m_18）
+    item.m_levelAdd = monster.m_pair18.m_pair.m_hi;   // +0x10 ← +0x1c
+    item.m_field14 = monster.m_pair18.m_pair.m_lo;    // +0x14 ← +0x18
     item.m_roleType = monster.m_24;
     item.m_level = monster.m_14 / 10;
     item.m_orderIdx = monster.m_50;
@@ -362,7 +381,18 @@ int CMap::CheckEntrance(int flag) const
     }
     return 0;
 }
-// [b28d-24] DIFF 残329: P167 const_iterator vs iterator（P96/P220）+ 拷贝语义差异。ORIG 0x0834e18a
+// ORIG 0x0834e18a。P167 调用点差集（修复 2026-09-09）：ORIG 有
+// STAssignMonster::operator=(aSERKS_) ×2 与 STAssignMonster::Clear() ×1，重建曾全缺。
+// 证据（报告 docs/class_func_reports/CMap/set_map.md）：
+//   ① -0x2b4 的 monster 只在两循环之前构造一次（0834e281 STAssignMonster::C1），
+//      两循环内均为 `monster = *it`（0834e2fc / 0834e488 aSERKS_），迭代器槽 -0x240 复用
+//      ⇒ 源码是循环外声明 monster/it，non-const iterator（P96/P220）。
+//   ② boss 判定读写 monster+0x24（-0x290）而非 +0x14：0834e337 `mov -0x290; cmp $3`
+//      → 0834e342 `movl $1,-0x290` + 0834e34c `movb $1,-0x260`（+0x54）。
+//   ③ SPOBJ 分支 0834e658 Clear()（call 0836c4fa）→ m_0=action->m_4、m_8=action->m_8
+//      （0834e678 `mov %eax,-0x2ac` = +0x8）、m_4=0（0834e67e `movb $0,-0x2b0`）。
+//   ④ 内层 action 用索引 + 缓存指针（0834e5db operator[] 一次，结果 -0xc 复用），
+//      外层两处循环有 list::empty() 预检查（0834e57e / 0834e82f）。
 int CMap::set_map(STMapScript script)
 {
     m_4 = script.m_index;
@@ -376,45 +406,56 @@ int CMap::set_map(STMapScript script)
     std::memcpy(m_pathArea1, script.m_pathgatePos, sizeof(m_pathArea1));
     std::memcpy(m_pathArea2, script.m_pathgateRange, sizeof(m_pathArea2));
 
-    for (std::vector<STAssignMonster>::const_iterator it = script.m_vecMonster.begin();
-         it != script.m_vecMonster.end(); ++it)
+    STAssignMonster monster;
+    std::vector<STAssignMonster>::iterator it;
+    for (it = script.m_vecMonster.begin(); it != script.m_vecMonster.end(); it++)
     {
-        STAssignMonster monster = *it;
-        if (m_8 == 2 && monster.m_14 == 3)
-            monster.m_14 = 1;
-        if (monster.m_14 == 3)
+        monster = STAssignMonster(*it);
+        if (m_8 == 2 && monster.m_24 == 3)
+        {
+            monster.m_24 = 1;
+            monster.m_54 = 1;
+        }
+        if (monster.m_24 == 3)
             ++m_bossCount;
         insert_monster(monster, -1);
     }
 
-    for (std::vector<STAssignMonster>::const_iterator it = script.m_vecConditionMonster.begin();
-         it != script.m_vecConditionMonster.end(); ++it)
+    for (it = script.m_vecConditionMonster.begin(); it != script.m_vecConditionMonster.end(); it++)
     {
-        insert_condition_monster(*it);
+        monster = STAssignMonster(*it);
+        insert_condition_monster(monster);
     }
 
     int area = 0;
-    for (std::list<STAssignSpecialPassiveObj>::const_iterator obj = script.m_listSpecialPassive.begin();
-         obj != script.m_listSpecialPassive.end(); ++obj, ++area)
+    if (!script.m_listSpecialPassive.empty())
     {
-        for (std::vector<SPOBJ_ACTION_DATAS>::const_iterator action = obj->m_vec10.begin();
-             action != obj->m_vec10.end(); ++action)
+        for (std::list<STAssignSpecialPassiveObj>::iterator obj = script.m_listSpecialPassive.begin();
+             obj != script.m_listSpecialPassive.end(); ++area, obj++)
         {
-            if (action->m_type == 0)
+            // ORIG 0834e5b7 只调一次 _List_iterator::operator*（const）并把引用存 -0x14，
+            // 之后全部经该引用访问（0834e5cb `mov -0x14; lea 0x10(%eax)`）。
+            STAssignSpecialPassiveObj& spObj = *obj;
+            for (unsigned int i = 0; i < spObj.m_vec10.size(); ++i)
             {
-                if (action->m_10 != 0 &&
-                    get_rand_int(100) <= (action->m_c * 100) / action->m_10 &&
-                    action->m_8 > 0 && action->m_8 < 0xc9)
+                SPOBJ_ACTION_DATAS* action = &spObj.m_vec10[i];
+                if (action->m_type == 0)
                 {
-                    STAssignMonster monster;
-                    monster.m_0 = action->m_4;
-                    monster.m_14 = action->m_8;
-                    insert_monster(monster, area);
+                    if (action->m_10 != 0 &&
+                        get_rand_int(100) <= (action->m_c * 100) / action->m_10 &&
+                        action->m_8 < 0xc9 && action->m_8 > 0)
+                    {
+                        monster.Clear();
+                        monster.m_0 = action->m_4;
+                        monster.m_8 = action->m_8;
+                        monster.m_4 = 0;
+                        insert_monster(monster, area);
+                    }
                 }
-            }
-            else if (action->m_type == 2)
-            {
-                insert_item(action->m_4, action->m_8, action->m_c, obj->m_1c);
+                else if (action->m_type == 2)
+                {
+                    insert_item(action->m_4, action->m_8, action->m_c, spObj.m_1c);
+                }
             }
         }
     }
@@ -424,19 +465,25 @@ int CMap::set_map(STMapScript script)
     m_78 = script.m_apcRandomPoint;
     m_aiCharacters = script.m_vecAICharacter;
     m_assignedNpcCount = static_cast<int>(script.m_vecNpc.size());
-    for (std::list<STAssignPassiveObject>::const_iterator it = script.m_listPassiveObject.begin();
-         it != script.m_listPassiveObject.end(); ++it)
+    if (!script.m_listPassiveObject.empty())
     {
-        m_passiveObjectList.push_back(it->m_0);
+        for (std::list<STAssignPassiveObject>::iterator obj = script.m_listPassiveObject.begin();
+             obj != script.m_listPassiveObject.end(); ++obj)
+        {
+            // ORIG 0834e880 用 _List_iterator::operator*（0838b542），非 operator->。
+            m_passiveObjectList.push_back((*obj).m_0);
+        }
     }
     m_ec = script.m_maxMonsterCountException;
     m_f0 = script.m_328;
     m_timeLine = script.m_timeLine;
     m_110 = script.m_178;
-    // ORIG 0x081e1a2a：G_CDataManager()->m_stageTimeLine.checkAndSetActionDefine(
-    //   m_timeLine, m_stageTimeLine.m_actionMap)；返回值未使用。
-    G_CDataManager()->m_stageTimeLine.checkAndSetActionDefine(
+    // ORIG 0834e917..0834e931：G_CDataManager() 只调一次（eax→+0x62e8=&m_actionMap），
+    // checkAndSetActionDefine 为 static 成员（P245/P281），参数即 m_timeLine/&m_actionMap；
+    // 返回值 0834e936 `mov %al,-0x15(%ebp)` 单字节落槽后未使用（P0 具名局部）。
+    char checkRet = advancealtar::StageTimeLineParameter::checkAndSetActionDefine(
         m_timeLine, G_CDataManager()->m_stageTimeLine.m_actionMap);
+    (void)checkRet;
     m_tournamentMap = script.m_tournamentMonsters;
     m_12c = script.m_fixChampion;
     return 1;

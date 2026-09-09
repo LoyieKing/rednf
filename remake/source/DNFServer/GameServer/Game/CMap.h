@@ -52,17 +52,31 @@ struct _mapItem
     _mapItem();   // ORIG 0815088e（唯一定义见 CMap.cpp；无 dtor 符号——平凡析构）
 };
 
+// ORIG 0x0813d740..0x0813d74c（_mapMonster C1ERKS）对 +0x10/+0x14 发
+// 「dest 缓存 %ecx + 高低半读交错」8 字节块拷贝（P246）；4.4 对两个独立
+// int 成员恒逐条重载 this ⇒ 用具名 union 成员整体赋值复现（探针
+// /tmp/probe_union.cpp f1 逐字段 vs f2 与 ORIG 逐条同形）。旧判词
+// 「b28c-lane25 匿名聚合形无效⇒N」用的是匿名 struct 成员，非本形，故作废。
+// 本 union 嵌在 _mapMonster 的匿名 union 内，与匿名 struct 的旧字段名
+// m_levelAdd/m_field14 同址，使 CDeathTower/CBossStage 等消费点零改动
+// （探针 /tmp/probe_anon.cpp：整体赋值产块拷贝、旧名直读偏移 16/20 正确）。
+union _mapMonsterInt2
+{
+    int m_arr[2];
+    struct { int m_lo, m_hi; } m_pair;
+};
+
 struct _mapMonster
 {
     int m_mobId;              // +0x00  (monster idx, ctor=-1)
     char m_flag04;            // +0x04  (ctor=1)
     int m_field08;            // +0x08
     int m_spawnType;          // +0x0c  (0=单人 1=队伍 2=队伍x2)
-    int m_levelAdd;           // +0x10
-    int m_field14;            // +0x14
-    // b28c-lane25 代落判词：匿名聚合形实测无效（4.4 仍逐字段重载 this，
-    // 65 条 vs 原形 64/ORIG 62）——ORIG C1ERKS 的 `mov 0x8(%ebp),%ecx` 缓存
-    // this + 成对搬移属 4.1 成员拷贝 lowering，无源码解，判 N。
+    union
+    {
+        struct { int m_levelAdd, m_field14; };  // +0x10 / +0x14（旧名消费点）
+        _mapMonsterInt2 m_pair10;               // +0x10..+0x17（整体赋值视图）
+    };
     int m_roleType;           // +0x18
     char m_champion;          // +0x1c
     int m_posX;               // +0x20
@@ -494,7 +508,10 @@ struct STAssignItem
     int m_screenEdgeBottom;            // +0x368（Clear=-1；[bottom]）
     char m_blockUseActiveSkill;        // +0x36c（[block use active skill]）
     char m_blockUseStackableItem;      // +0x36d（[block use stackable item]）
-    char m_fixChampion;                // +0x36e（[fix champion]）
+    // +0x36e（[fix champion]）。类型 bool：ORIG CMap::set_map 0x0834e959
+    // `movzbl 0x36e(%eax),%edx; mov %dl,0x12c(%eax)` 为 bool→bool 直存；
+    // 4.4.7 探针（/tmp/probe_m12c.cpp）char 源必产 `testb;setne` 两段。
+    bool m_fixChampion;
     char m_pad36f;                     // +0x36f
     std::string m_str370;              // +0x370（Clear 清空；[basic action] ScanStr；copy 复制）
     int m_visibleMinimap;              // +0x374（Clear=1；[visible minimap]）
