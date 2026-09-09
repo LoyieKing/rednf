@@ -35,6 +35,7 @@ struct CPartyBattleFieldView
 namespace QuickParty
 {
 
+CQuickParty::CQuickParty() { init(); }
 // ===================== STQuickPartyPoolMap_Data =====================
 
 STQuickPartyPoolMap_Data::STQuickPartyPoolMap_Data()
@@ -54,7 +55,6 @@ STQuickPartyPoolMap_Data::~STQuickPartyPoolMap_Data() {}
 // ===================== CQuickParty =====================
 // 布局依据 ORIG init @0x8269546 与内联访问器 0x826b74e..0x826b807。
 
-CQuickParty::CQuickParty() { init(); }
 CQuickParty::~CQuickParty() {}
 
 int CQuickParty::get_quick_party_index() const { return m_quickPartyIndex; }

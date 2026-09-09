@@ -10234,11 +10234,13 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
         *coinSlot = *coinSlot % 10000;
     }
 
-    int job =
-        reinterpret_cast<CUserCharacInfo*>(user)->get_charac_job();
+    // ORIG 本件 _ZNK15CUserCharacInfo14get_charac_jobEv 计数 = 2（我方原存 `int job`
+    // 局部复用只 1 次）：与 DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt
+    // 0x081c4f83/0x081c4f93 同型 —— 原码两处判定各自重新 call（getter 无副作用，
+    // 展开后可观察行为完全不变）。
     bool fatigueSpecJob =
-        job == 3 ||
-        (job == 4 &&
+        reinterpret_cast<CUserCharacInfo*>(user)->get_charac_job() == 3 ||
+        (reinterpret_cast<CUserCharacInfo*>(user)->get_charac_job() == 4 &&
          reinterpret_cast<CUserCharacInfo*>(user)
              ->getCurCharFirstGrowType() == 2);
     double ratioDelta =
@@ -10273,8 +10275,9 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
                                     (TIMER_MESSAGE)0x29, 0xf, key, 0);
         party->set_dungeon_clear_state(1);
     }
-    MapInfo* mapInfo = field.GetCurrentMapInfo();
-    if (mapInfo->m_killChecker1.m_useSkillMaterialTime == 0)  // +0x4c（WarField.h:166）
+    // ORIG _ZN13CBattle_Field17GetCurrentMapInfoEv 计数 = 2：第一个判定直呼，
+    // 之后才取具名局部供后续两处复用（同族"ORIG 不缓存"形）。
+    if (field.GetCurrentMapInfo()->m_killChecker1.m_useSkillMaterialTime == 0)  // +0x4c
     {
         SIG_LOAD_CHARAC sigCharac;               // ORIG local_15bf 清零缓冲
         memset(&sigCharac, 0, sizeof(sigCharac));
@@ -10288,6 +10291,7 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
                 user, (WongWork::ENUM_HACKTYPE)0xe2, 1, 0, 0);
         }
     }
+    MapInfo* mapInfo = field.GetCurrentMapInfo();
     if (mapInfo->m_killChecker1.m_useSkillMaterialTime != 0)
     {
         int useSkillMaterialCount =
@@ -10309,16 +10313,16 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     unsigned int playMs = party->GetMapPlayingTime();     // ORIG local_44
-    int level =
-        reinterpret_cast<CUserCharacInfo*>(user)->get_charac_level();
-    if (playMs < 10000 && 10 < level)
+    if (playMs < 10000 &&
+        10 < reinterpret_cast<CUserCharacInfo*>(user)->get_charac_level())
     {
         int fastCnt = 11 - playMs / 1000;                 // ORIG local_28
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)0xe5,
             static_cast<unsigned int>(fastCnt), 0, 0);
     }
-    if (playMs < 20000 && 10 < level)
+    if (playMs < 20000 &&
+        10 < reinterpret_cast<CUserCharacInfo*>(user)->get_charac_level())
     {
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)0xe4, 1, 0, 0);
@@ -10366,18 +10370,19 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
         {
             if (!party->checkValidUser(i))
                 continue;
-            CInventory* memberInv = static_cast<CInventory*>(
-                const_cast<void*>(static_cast<const void*>(
-                    party->GetMember()[i].m_pUser->getCurCharacInvenR())));
             // ORIG 0x8231a9/0x8232f6：GetInvenSlot(0, 0xc) 与 GetInvenSlot(0, 0xe)
             // （invenType=0，槽 0xc/0xe）；NEW 原为 (1,0xb)/(1,0x9) 属转写错误。
-            Inven_Item slotItem = memberInv->GetInvenSlot(0, 0xc);
+            // ORIG 里 _ZN6CParty9GetMemberEv / _ZNK15CUserCharacInfo18getCurCharacInvenREv
+            // 计数各为 2 ⇒ 两个槽各自重新取 inventory（原码不缓存 memberInv）。
+            Inven_Item slotItem =
+                party->GetMember()[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 0xc);
             if (slotItem.m_addInfo == 0x2ad4)
             {
                 pillFound = true;
                 break;
             }
-            Inven_Item slotItem2 = memberInv->GetInvenSlot(0, 0xe);
+            Inven_Item slotItem2 =
+                party->GetMember()[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 0xe);
             if (slotItem2.m_addInfo == 0x329e)
             {
                 pillFound = true;

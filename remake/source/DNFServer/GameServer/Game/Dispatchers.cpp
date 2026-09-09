@@ -2690,8 +2690,12 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
     }
 
     {
+        // ORIG 0x81fa235：NumberToString 先求值并缓存（mov %eax,%ebx），随后才发
+        // cMyTrace(0x8908) ctor——内联回实参位会把 ctor 提前到两个 call 之前（实测
+        // 头部 +6/-6 错位）。按 ORIG 求值序固定为具名局部。
+        const char* accIdStr = NumberToString(user->get_acc_id(), 0);
         cMyTrace trace(__PRETTY_FUNCTION__, 0x8908, 0);
-        trace("GM Command : %s", NumberToString(user->get_acc_id(), 0));
+        trace("GM Command : %s", accIdStr);
     }
 
     unsigned char cmd = 0;
@@ -2741,7 +2745,7 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
         // ORIG 守卫链：GmMode==1 与 GetGmLevel>0 各自 test/jne；get_int/get_str 返回值
         // 不测试（0x81fa4eb 只读 len 槽判 0）。
         if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
-            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > GM_LV0)
+            !(GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) <= GM_LV0))
         {
             packet.get_int(len);
             packet.get_str(announce, 0x100, len);
@@ -2972,23 +2976,33 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
             else
             {
                 int diff = len - target->get_charac_level();
-                // ORIG local_51：最后一次 SetCharacLevel 的返回（!=0 才回包；diff==0 静默）
-                int result = 0;
-                while (diff < 0)
+                // ORIG -0x4d 为 **unsigned char** 槽（mov %al,-0x4d 低 8 位截断 +
+                // cmpb $0x0 判 0）：最后一次 SetCharacLevel 的返回（!=0 才回包；
+                // diff==0 静默）。叶块序 = ORIG 物理序：diff==0 → 升（>0）→ 降（<0）。
+                unsigned char result = 0;
+                if (diff == 0)
                 {
-                    int nextLv = target->get_charac_level() - 1;
-                    int lvCap = 200;
-                    result = target->SetCharacLevel(
-                        std::min(lvCap, nextLv));
-                    ++diff;
+                    result = 0;
                 }
-                while (diff > 0)
+                else if (diff > 0)
                 {
-                    int nextLv = target->get_charac_level() + 1;
+                    for (int i = 0; i < diff; ++i)
+                    {
+                        int nextLv = target->get_charac_level() + 1;
+                        int lvCap = 200;
+                        result = target->SetCharacLevel(
+                            std::min(lvCap, nextLv));
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i > diff; --i)
+                    {
+                        int nextLv = target->get_charac_level() - 1;
                     int lvCap = 200;
                     result = target->SetCharacLevel(
                         std::min(lvCap, nextLv));
-                    --diff;
+                    }
                 }
                 if (result != 0)
                 {
@@ -3159,7 +3173,14 @@ int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
                     (gm_pkt::SigForbidPlayBody*)sig;
                 body->m_characNo = target->getCurCharacNo();
                 body->m_flag = 1;
-                body->m_days = (len < 1) ? 1 : ((len < 100) ? len : 100);
+                // ORIG 0x81fc20d：三分支落码 test/jg → cmp $0x63,jle（[1,100] 钳制），
+                // 叶块序 = (<=0)→1 → (>99)→100 → 原值。
+                if (len <= 0)
+                    body->m_days = 1;
+                else if (len > 99)
+                    body->m_days = 100;
+                else
+                    body->m_days = len;
                 GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
                 resp.put_int(len);
                 resp.put_int(extra);

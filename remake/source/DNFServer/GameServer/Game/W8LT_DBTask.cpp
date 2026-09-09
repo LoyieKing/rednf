@@ -18421,9 +18421,34 @@ struct DB_DeathTowerRankerView
 //   +0x144 stage3、+0x148 play_time3、+0x152 type=4、+0x154 member_info4[0x5c]、
 //   +0x1b0 stage4、+0x1b4 play_time4。
 #pragma pack(push, 1)
-struct DB_TowerBestRecordRowView
+// [b28d-BigW8LT 复原 ORIG 两级寻址（0x08429c60..0x08429fd2 逐站点实测）]
+// ORIG 每站点都发 `mov i; imul $0x1b0; add $CONST; add row_base; add $FIELD`，
+// 且 CONST 恰分两族、步长各 0x6c：
+//   entry 族 @行+0x00 → tower_index(+0x0c)/type(+0x0e)/member(+0x10)，
+//     k=0/1/2/3 ⇒ CONST = 0x00/0x6c/0xd8/0x144（member_info1..4、type=1..4）
+//   play  族 @行+0x60 → stage(+0x0c)/playTime(+0x10)，
+//     k=0/1/2/3 ⇒ CONST = 0x60/0xcc/0x138/0x1a4（stage_1..4、play_time_1..4）
+// ⇒ 行内其实是两个 0x6c 步长数组（entry[4] 叠 play[4]，两者字段互相覆盖，
+//   故 ORIG 的 stage1 = entry[1]+0x0c、play1 = entry[1]+0x10 同一 0x6c 槽）。
+// 我方按此建模并**每站点内联重算**（ORIG 无行指针局部；提升会整体挪帧）。
+struct DB_TowerBestRecordEntryView
 {
     char m_pad0[0xc];              // +0x00
+    unsigned short m_towerIndex;   // +0x0c
+    unsigned short m_type;         // +0x0e
+    unsigned char m_member[4];     // +0x10（blob 起点，实际长 0x17/0x2e/0x45/0x5c）
+    char m_pad14[0x6c - 0x14];     // 组步长 0x6c
+};
+struct DB_TowerBestRecordPlayView
+{
+    char m_pad0[0xc];              // +0x00
+    unsigned int m_stage;          // +0x0c
+    unsigned int m_playTime;       // +0x10
+    char m_pad14[0x6c - 0x14];     // 组步长 0x6c
+};
+struct DB_TowerBestRecordRowView
+{
+    char m_pad0[0xc];              // +0x00（行 0 的前 12B 即包头 count/characNo/pad）
     unsigned short m_towerIndex;   // +0x0c
     unsigned short m_type;         // +0x0e
     char m_memberInfo1[0x17];      // +0x10
@@ -18925,9 +18950,13 @@ bool DB_GetDeathTowerBestRecord::dispatch(int userIdx, int slot, Stream* stream)
     {
         if (!db->fetch())
             return 0;
+        // [REAL-BUG 修复] 行基址不得再加 0xc：ORIG 0x08429c60 起每站点地址 =
+        // out + i*0x1b0 + 行内偏移（行内视图自带 m_pad0[0xc] 计入包头）。
+        // 旧形多算 0xc ⇒ 17 个字段整体后移 12B，末行 +0x1b4 写到 0x880
+        // 越出包体 0x878（8B 溢出）。
         DB_TowerBestRecordRowView* row =
             reinterpret_cast<DB_TowerBestRecordRowView*>(
-                (char*)out + 0xc + i * 0x1b0);
+                (char*)out + i * 0x1b0);
         if (!db->get_ushort(0, row->m_towerIndex))
             return 0;
         if (!db->get_binary(1, row->m_memberInfo1, 0x17))

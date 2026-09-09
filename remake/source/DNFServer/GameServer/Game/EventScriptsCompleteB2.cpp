@@ -54,10 +54,6 @@ LevelupSupportSciprt::LevelupSupportSciprt() {}
 // 未出现时保持未定值，忠实保留）。
 LevelUpRewardScript::LevelUpRewardScript() {}
 
-// +0x08 字节故意不初始化（is_recv_check_item 读此字节；[recv check db table]
-// 未出现时保持未定值，忠实保留）。
-LevelUpRewardScript::LevelUpRewardScript() {}
-
 // ORIG W 0x08985eec：string ctor → 五个标量写入 → Action_SendMail ctor →
 // str.clear → mail.reset。标量经初始化列表写在 string 与 mail 的隐式构造之间，
 // 复现 ORIG 交错顺序。
@@ -168,10 +164,6 @@ PurchaseCashItemBonusScript::PurchaseCashItemBonusScript()
 // ============================================================================
 // B. LevelupSupportSciprt / LevelupSupport2ndScript C1/D1（报告转写）
 // ============================================================================
-
-// 报告 LevelupSupportSciprt.md @0x08ab5124：仅构造 +0x00 的
-// map<int, vector<ItemInfo>*>。
-LevelupSupportSciprt::LevelupSupportSciprt() {}
 
 // 报告 ~LevelupSupportSciprt.md @0x08ab5138：仅析构该 map。
 LevelupSupportSciprt::~LevelupSupportSciprt() {}
