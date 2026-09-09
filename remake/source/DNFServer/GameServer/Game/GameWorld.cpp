@@ -2692,8 +2692,10 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
         // 单例后再调 IsSchoolPvPChannel()，而非直接用 this —— 忠实保留跨调用形。
         if (G_GameWorld()->IsSchoolPvPChannel() && vill == 2 && area == 4)
         {
-            user->GetSchoolNo();
-            destArea = g_schoolMgr.GetSchoolArea(0);
+            // ORIG 0x086c64e5 `call CUser::GetSchoolNo; mov %eax,0x4(%esp);
+            // movl $&g_schoolMgr,(%esp); call CSchoolMgr::GetSchoolArea` ⇒ 学号
+            // 来自 GetSchoolNo() 返回值（原实现丢弃返回值传 0 = 真语义 bug）。
+            destArea = g_schoolMgr.GetSchoolArea(user->GetSchoolNo());
             if (destArea < 0)
             {
                 destArea = area;
@@ -3720,9 +3722,8 @@ void GameWorld::ResetAllFatigue()
             user->resetNPCRelationShipDailyData();
             user->sendNPCRelationShipFavor();
             user->getDungeonGainedGold()->reset();
-            user->m_actionPoint.GetActionPoint();
             APSystem::DB_UpdateActionPoint::makeRequest(user->GetUID(),
-                *(const APSystem::_SIG_LOAD_ACTION_POINT*)&user->m_actionPoint, true);
+                *(const APSystem::_SIG_LOAD_ACTION_POINT*)user->m_actionPoint.GetActionPoint(), true);
             APSystem::CUserProc::SetTodayActionAndCheckMedalReward(user);
             user->GetGoldControl()->SavetoDB(false, true, false);
             ((EventClassify::CEventScriptMng*)G_CDataManager()->get_event_script_mng())
@@ -4549,7 +4550,12 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
                               unsigned int characNo, char* msg, int len, char* nick,
                               int nickLen, ENUM_NOTIPACKET notify)
 {
-    if (type < 0x1f && ((1 << (type & 0x1f)) & 0x7fff0411U) != 0 && from != 0)
+    // [GameWorld-sweep] P196 符号性直证：ORIG 0x086c9774 `movsbl -0x1ec(%ebp),%eax;
+    // cmp $0x1e,%eax; ja` —— 符号扩展到 int 后**无符号**比较 ⇒ 原码是
+    // `(unsigned int)type < 0x1f`（写裸 `type < 0x1f` 生 `cmpb $0x1e; jg` 有符号
+    // 形，type≥0x80 时语义分叉）。
+    if ((unsigned int)type < 0x1f &&
+        ((1 << (type & 0x1f)) & 0x7fff0411U) != 0 && from != 0)
     {
         from->DisConnSig((DISCONN_SIG)0x18, 1, 0);
         return;
@@ -4577,16 +4583,18 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
             }
             else
             {
-                PacketGuard err;
-                err.put_header(0, 0xc);
-                err.put_byte(10);
-                err.put_short(0);
+                // [GameWorld-sweep] ORIG 0x086c9989 段在 forbidden 分支**无独立
+                // PacketGuard 构造**（唯一 PacketGuard C2 在 0x086c9918，即函数级
+                // packet）⇒ 原码复用 packet，不另建 err 对象。
+                packet.put_header(0, 0xc);
+                packet.put_byte(10);
+                packet.put_short(0);
                 cMyTrace trace(__PRETTY_FUNCTION__, 0xdf3, 0);
                 trace("%s is forbidden to chat for %d msec.\n",
                       from->getCurCharacName(), left);
-                err.put_int(left / 60000);
-                err.finalize(true);
-                from->Send(err);
+                packet.put_int(left / 60000);
+                packet.finalize(true);
+                from->Send(packet);
             }
             return;
         }
