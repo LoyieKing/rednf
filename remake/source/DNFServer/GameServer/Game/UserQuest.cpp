@@ -75,6 +75,14 @@ struct MazeQuestView
     int m_questIdx;    // +0x50
 };
 
+// stSelectQuestParam 前 11 个 int 的数组视角（P311/P183）：ORIG accept_quest
+// 0x086ac234/0x086ac243 为单条 `mov -0xb0(%ebp,%eax,4),%eax`（基址+scaled），
+// 用成员数组视图免 shl+add 且不缓存基址；偏移与权威成员逐一相同（m_level@+0）。
+struct SelectQuestParamDataView
+{
+    int m_data[11];   // +0x00..+0x2b
+};
+
 // ---- stQuestTriggerState_t（8 字节：3 个 9 位值；方法定义在 QuestTriggerState.cpp）----
 
 
@@ -224,18 +232,22 @@ void UserQuest::get_quest_info(char* buf) const
     pb->put_byte(m_user->get_charac_level());
     int index = pb->get_index();
     int count = 0;
-    pb->put_short(0);
+    pb->put_short(count);
 
-    for (std::list<int>::iterator it = questList.begin(); it != questList.end(); ++it)
+    for (std::list<int>::iterator it = questList.begin(); it != questList.end(); it++)
     {
         int questIdx = *it;
         // ORIG get_quest_info 读取全局 s_timeGate_ 指针（mov 0x941f7f4），
         // 而非把指针变量的地址当作对象；改用 GlobalData::s_timeGate_。
-        if (!GlobalData::s_timeGate_->setBlindTimeGateStateQuest(questIdx))
+        if (GlobalData::s_timeGate_->setBlindTimeGateStateQuest(questIdx))
         {
-            ++count;
-            pb->put_short(questIdx);
+            // ORIG 0x086abcb5 `test %al,%al; jne 0x086abccf`：真值走空 then 岛
+            // （P223 尾空标签复现 jmp+nop）。
+            goto L_skip;
         }
+        ++count;
+        pb->put_short(questIdx);
+    L_skip: ;
     }
 
     pb->put_short(index, count);
@@ -318,10 +330,14 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
 
     if (!m_user->IsGameMasterMode())
     {
-        if (!quest->isRepeatableQuest() &&
-            m_cleared.isClearedQuest(questIdx))
+        // P225：ORIG 0x086ac0c5/0x086ac0d7/0x086ac0e8 三守卫各自 je 同一出口
+        // （无 setcc 物化）⇒ 源码必须是嵌套 if，禁 && 短路链（4.4 恒物化 bool）。
+        if (!quest->isRepeatableQuest())
         {
-            return 0x12;
+            if (m_cleared.isClearedQuest(questIdx))
+            {
+                return 0x12;
+            }
         }
     }
 
@@ -345,21 +361,22 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
         rewardItems, erasedItems);
     if (erased > 0)
     {
-        // Quest.h 权威 stSelectQuestParam 为命名成员（无 m_data 数组）——按连续布局取指针。
-        int* pdata = &selectParam.m_level;
-        for (int i = 0; i < 11; ++i)
-        {
-            pdata[i] = 0;
-        }
-        const CInventory* invR = m_user->getCurCharacInvenR();
-        invR->CalNeedSlot(&selectParam.m_level, erasedItems);
-        int quick = invR->QuickEmptyCount();
+        // N78：ORIG 0x086ac1b5..0x086ac1c9 为 4.1 内联 memset（rep stos 11 dwords，
+        // `mov $0xb,%edx`）；4.4 恒发 call memset（结构性差异，语义等价）。
+        memset(reinterpret_cast<SelectQuestParamDataView*>(&selectParam)->m_data,
+               0, 0x2c);
+        // P183 禁指针缓存：ORIG 0x086ac1d3/0x086ac1f9/0x086ac21d 每使用点各取一次
+        // getCurCharacInvenR()（p167 差集实证 MISSING ×2）。
+        m_user->getCurCharacInvenR()->CalNeedSlot(&selectParam.m_level, erasedItems);
+        int quick = m_user->getCurCharacInvenR()->QuickEmptyCount();
         for (int i = 1; i <= 10; ++i)
         {
-            int cnt = invR->InvenEmptycount((Inven_Item::ITEM_TYPE)i);
-            if (pdata[i] > cnt)
+            int cnt = m_user->getCurCharacInvenR()->InvenEmptycount(
+                (Inven_Item::ITEM_TYPE)i);
+            if (reinterpret_cast<SelectQuestParamDataView*>(&selectParam)->m_data[i] > cnt)
             {
-                quick += cnt - pdata[i];
+                quick += cnt -
+                    reinterpret_cast<SelectQuestParamDataView*>(&selectParam)->m_data[i];
                 if (quick < 0)
                 {
                     return 0x11;
@@ -389,12 +406,12 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
             pb->put_byte(insertResult);
 
             for (std::vector<int>::iterator it = itemIdx.begin();
-                 it != itemIdx.end(); ++it)
+                 it != itemIdx.end(); it++)
             {
                 pb->put_short(*it);
-                ++it;
+                it++;
                 pb->put_int(*it);
-                ++it;
+                it++;
                 pb->put_int(*it);
             }
             return 0;
@@ -790,7 +807,9 @@ int UserQuest::CheckDungeonEventStoryPause(int dungeonNo, int fieldNo, int mapNo
     {
         if (m_quest[i] != 0)
         {
-            Quest* quest = G_CDataManager()->find_quest(m_quest[i]);
+            // P167：ORIG 0x086ad0xx 三处调 const 版
+            // `_ZNKSt6vectorI24dungeonEventHanaseStructSaIS0_EEixEj` ⇒ 原码 quest 为 const Quest*。
+            const Quest* quest = G_CDataManager()->find_quest(m_quest[i]);
             if (quest != 0)
             {
                 for (unsigned int j = 0; j < quest->m_eventDialogs.size(); ++j)
@@ -893,37 +912,49 @@ bool UserQuest::hasEpicQuest()
     std::list<int> questList;
     stSelectQuestParam selectParam(m_user);
 
-    char cleared[0x7531];
-    memcpy(cleared, &m_user->getCurCharacQuestR()->m_cleared, 0x7531);
+    WongWork::CQuestClear cleared(m_user->getCurCharacQuestR()->m_cleared);
 
-    std::multimap<int, int>* npcList =
-        G_CDataManager()->m_questList->getQuestNPCList(ENUM_QUEST_GRADE_NONE);
     G_CDataManager()->m_questList->allowable_questlist_as_npc(
-        questList, *npcList, selectParam,
-        *reinterpret_cast<const WongWork::CQuestClear*>(cleared), false);
+        questList,
+        *G_CDataManager()->m_questList->getQuestNPCList(ENUM_QUEST_GRADE_NONE),
+        selectParam,
+        cleared, false);
 
     if (!questList.empty())
     {
+        char deadLocal = 0;   // ORIG 0x086ad334 死写（P171 照抄）
+        (void)deadLocal;
+        // ORIG 0x086ad3f4 增量段调 `_ZNSt14_List_iteratorIiEppEv`（前缀，无 sret）⇒ 写 ++it。
         for (std::list<int>::iterator it = questList.begin(); it != questList.end(); ++it)
         {
-            Quest* quest = G_CDataManager()->find_quest(*it);
+            // P167：ORIG 0x086ad399 调 const 版 `_ZNKSt6vectorI25ENUM_QUEST_EXCEPTION_TYPESaIS0_EEixEj`
+            // ⇒ 原码 quest 为 const Quest*。
+            const Quest* quest = G_CDataManager()->find_quest(*it);
             if (quest == 0)
             {
-                continue;
+                goto L_quest0;   // P223 多岛：L1 岛（nop; jmp）
             }
-            char bException = 0;
-            for (unsigned int j = 0; j < quest->m_exceptionList.size(); ++j)
             {
-                if (quest->m_exceptionList[j] == ENUM_QUEST_EXCEPTION_TYPE_0)
+                char bException = 0;
+                for (unsigned int j = 0; j < quest->m_exceptionList.size(); ++j)
                 {
-                    bException = 1;
-                    break;
+                    if (quest->m_exceptionList[j] == ENUM_QUEST_EXCEPTION_TYPE_0)
+                    {
+                        bException = 1;
+                        break;
+                    }
+                }
+                if (bException != 0)
+                {
+                    goto L_bexc;   // P223 多岛：L2 岛（nop）
+                }
+                if (selectParam.m_level < quest->m_levelMin + 0xc)
+                {
+                    return true;
                 }
             }
-            if (!bException && selectParam.m_level < quest->m_levelMin + 0xc)
-            {
-                return true;
-            }
+        L_quest0: ;
+        L_bexc: ;
         }
     }
     return false;

@@ -51,6 +51,9 @@ public:
 
     STClearedQuest m_cleared[0x7530];  // +0x00（0x7530；元素类型化以复现 ORIG
                                        //   C1 per-element call 循环形，b27 判定）
+    unsigned char m_saveFlag;          // +0x7530（ORIG hasEpicQuest 0x086ad266 隐式拷贝
+                                       //   构造 memcpy 长度 0x7531 = sizeof 直证；
+                                       //   checkSaveFlag/resetSaveFlags 访问该字节）
 };
 
 }  // namespace WongWork

@@ -1317,8 +1317,8 @@ public:
     void ResetUrgentQuestWaitingList();                  // ORIG T 0x086ad178
 
 
-    WongWork::CQuestClear m_cleared;  // +0x0004（0x7530；save-flag 在 +0x7534 裸偏移）
-    char m_pad7534[4];                // +0x7534
+    WongWork::CQuestClear m_cleared;  // +0x0004（0x7531 = sizeof；含 +0x7530 save-flag）
+    char m_pad7535[3];                // +0x7535（补齐至 m_quest 起点 0x7538）
     int m_quest[20];                  // +0x7538
     int m_trigger[20];                // +0x7588
     _Quest_Authen_Data m_authenData;  // +0x75d8（0x44；ctor 按 ORIG memset 0x48 覆盖尾部）
