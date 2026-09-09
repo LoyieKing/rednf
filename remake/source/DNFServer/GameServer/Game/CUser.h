@@ -2973,8 +2973,10 @@ public:
     void sendNotiPcRoomPlayTime();
     void sendReturnUserFirstLogin();
     bool send_ontime_reward_start_notify();   // 串定 bool（b28c SIGFIX）
-    void sendSecuRewardItem(Inven_Item* item, ENUM_SECURITY_REWARD_TYPE type,
+    bool sendSecuRewardItem(Inven_Item* item, ENUM_SECURITY_REWARD_TYPE type,
                             int* param);
+    // [b28d-W8] void→bool：ORIG 0x08688548 `mov $0x0,%eax` / 0x0868855d
+    // `mov $0x1,%eax` 双返回值（P159 尾形判定），无其它调用点。
     void sendInformNoticeFlag();
     void sendDecorationObjectCnt(short count);
 
@@ -3237,7 +3239,10 @@ public:
     unsigned int getTotalPcRoomPlayTime() const;                    // 0x08110e10 W：b28d-Main 代落·S350(P302/P248档①)——ORIG 0x081108c4 `cmp %edx,%eax; setb`（call 结果留 %eax 无中转）⇒ unsigned int
     unsigned int getPcRoomPlayTimeRewardCnt() const;               // 0x08110dec W：b28d-Main 代落(P248档①)——ORIG 0x08110a38 `cmp %edx,%eax; setae`（无符号比较，call 结果留 %eax 无中转）⇒ unsigned int
     int GetCurCharacUsedGiftFatigueQuantity() const;                // 0x08110e6c W
-    unsigned char getFlagPresentAvengerTitle() const;               // 0x08697578 W
+    bool getFlagPresentAvengerTitle() const;                        // 0x08697578 W
+    // [b28d-W8] 返回类型 uchar→bool：ORIG 调用点 0x0868b68b
+    // `call; xor $0x1,%eax; test %al,%al; je`（P292/P248档① 直证 callee bool）；
+    // 字段 m_ceraUserInfo.m_field62 本就是 bool，本体 movzbl;ret 不变。
     STSkillCommandData::STCommand* get_skill_command_buf();               // ORIG _ZN5CUser21get_skill_command_bufEv 0x0865459a（写 m_skillCommands 并返回）
     STSkillCommandData::STCommand* get_skill_command_buf(STSkillCommandData::STCommand* out) const; // 0x08654768
     void SendLogoutToPCRoomServer();                // 0x0868170c T

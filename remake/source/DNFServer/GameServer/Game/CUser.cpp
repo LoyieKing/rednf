@@ -421,11 +421,15 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
     // ⑥isEncryptRequired 缓存（encReq 真则二段不再调，0x864842b else 路）。
     unsigned short packetId =
         *(unsigned short*)(packet.get_packet(0) + 1);
-    bool encReq = false;      // local_31
-    bool encFailed = false;   // local_32
-    if (packet.isEncryptRequired())
+    bool encFailed = false;   // ORIG 0x086480c5 movb $0,-0x2e 预清（在 encReq 赋值前）
+    // ORIG 0x086480cf..0x08648117：`isEncryptRequired() && verify(...)!=0` **单一
+    //   短路物化**到 -0x2d（`mov $1/$0 + mov %al,-0x2d`），verify 仅在需求为真时调用。
+    typedef int (*VerifyFn)(void*, int, unsigned short);   // vtable +0x34
+    bool encReq = packet.isEncryptRequired() &&
+        (*(VerifyFn*)((*(void***)GlobalData::s_antibotChecker_)[0x34 / 4]))(
+            GlobalData::s_antibotChecker_, getAntibotKey(), packetId) != 0;
+    if (encReq)
     {
-        encReq = true;
         // §4.5 例外：s_antibotChecker_（GlobalData.h `void*`）承自外部
         // 【b22 终判·第三方】CreateAntiServerObj(ORIG 0x082a6539 W) 反汇编实证
         // = strlen/strncat/memcpy 拼路径 → dlopen → dlsym → call *%eax：checker
@@ -435,50 +439,42 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
         // 收益评估否决，此案终结。全族七槽用法同源：VerifyFn+0x34/EncryptFn+
         // 0x28/Fn3+0x08/Fn1+0x24/ReportFn+0x38/AddClient+0x04/P2PAddClient+
         // 0x20（本文件 :7746 与 PacketDispatcher/InterDispatcher 各点同判）。
-        typedef int (*VerifyFn)(void*, int, unsigned short);   // vtable +0x34
-        if ((*(VerifyFn*)((*(void***)GlobalData::s_antibotChecker_)[0x34 / 4]))(
-                GlobalData::s_antibotChecker_, getAntibotKey(), packetId) != 0)
-        {
-            const int bufLen = packet.get_len() + 500;   // local_6c
-            char buf[bufLen];                            // ORIG VLA（alloca 步进）
-            int outLen = bufLen;                         // local_24
-            PacketGuard guard;                           // local_68（块作用域，
+        const int bufLen = packet.get_len() + 500;   // local_6c
+        char buf[bufLen];                            // ORIG VLA（alloca 步进）
+        int outLen = bufLen;                         // local_24
+        PacketGuard guard;                           // local_68（块作用域，
                                                        // dtor 于早退前 0x86483b5）
-            ((InterfacePacketBuf*)&guard)->clear();
-            memset(buf, 0, bufLen);
-            ((InterfacePacketBuf*)&guard)->put_header(0, 0x231);
-            typedef int (*EncryptFn)(void*, int, char*, int, char*, int*);  // +0x28
-            // 实参右→左求值：get_len→get_packet→getAntibotKey（P24/実参序）
-            int r = (*(EncryptFn*)((*(void***)GlobalData::s_antibotChecker_)[0x28 / 4]))(
-                GlobalData::s_antibotChecker_, getAntibotKey(),
-                packet.get_packet(0), packet.get_len(), buf, &outLen);
-            if (r != 0)
-            {
-                int tl = packet.get_len();      // trace 实参先于 C1（0x864832e/33b）
-                int tk = getAntibotKey();
-                cMyTrace trace("bool CUser::AntibotSend(PacketBuf&)", 0x807, 0);
-                trace("[RecvBufferForEncrypt] result : %d, PacketID : %d, "
-                      "Key : %d, Length : %d", r, (int)packetId, tk, tl);
-                encFailed = true;
-            }
-            else
-            {
-                ((InterfacePacketBuf*)&guard)->put_binary(buf, bufLen);
-                ((InterfacePacketBuf*)&guard)->finalize(false);
-                return Send(guard);   // 0x8648313 起 return = Send 返回值透传
-            }
+        ((InterfacePacketBuf*)&guard)->clear();
+        memset(buf, 0, bufLen);
+        ((InterfacePacketBuf*)&guard)->put_header(0, 0x231);
+        typedef int (*EncryptFn)(void*, int, char*, int, char*, int*);  // +0x28
+        // 实参右→左求值：get_len→get_packet→getAntibotKey（P24/実参序）
+        int r = (*(EncryptFn*)((*(void***)GlobalData::s_antibotChecker_)[0x28 / 4]))(
+            GlobalData::s_antibotChecker_, getAntibotKey(),
+            packet.get_packet(0), packet.get_len(), buf, &outLen);
+        if (r != 0)
+        {
+            // ORIG 0x08648323..0x0864838a：全表达式临时链，get_len/getAntibotKey
+            //   在 cMyTrace C1 **之前**求值并跨构造保活（P87/P227；具名局部会槽化）。
+            cMyTrace("bool CUser::AntibotSend(PacketBuf&)", 0x807, 0)(
+                "[RecvBufferForEncrypt] result : %d, PacketID : %d, "
+                "Key : %d, Length : %d", r, (int)packetId,
+                getAntibotKey(), packet.get_len());
+            encFailed = true;
+        }
+        else
+        {
+            ((InterfacePacketBuf*)&guard)->put_binary(buf, bufLen);
+            ((InterfacePacketBuf*)&guard)->finalize(false);
+            return Send(guard);   // 0x8648313 起 return = Send 返回值透传
         }
     }
     PacketBuf sendBuf;
     char* data = packet.get_packet(0);
     int len = packet.get_len();
-    bool doEnc;
-    if (encReq)
-        doEnc = encFailed;
-    else
-        // ORIG 0x08648420：else 支 = isEncryptRequired()（encReq=false 时
-        // encFailed 恒 false，ORIG 汇编无 encFailed 参与）。
-        doEnc = (packet.isEncryptRequired() != 0);
+    // ORIG 0x08648379..0x08648441：`(!encReq && isEncryptRequired()) || encFailed`
+    //   短路链（`movzbl encReq; xor $1; test; je 查 encFailed` + `mov $1/$0`）。
+    bool doEnc = (!encReq && packet.isEncryptRequired()) || encFailed;
     if (doEnc)
     {
         sendBuf.copy(packet);
@@ -491,10 +487,10 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
     int sret = m_network.send_packet(data, len);
     if (sret < 0)
     {
-        char* nm = (char*)getCurCharacName();     // 0x86484f7 先于 C1
-        cMyTrace trace("bool CUser::AntibotSend(PacketBuf&)", 0x834, 0);
-        trace("User %s - send_packet() fail length(ID:%d,LEN:%d),",
-              nm, (int)packetId, len);
+        // ORIG 0x086484ec..0x08648539：getCurCharacName 在 C1 之前求值（%ebx 保活）
+        cMyTrace("bool CUser::AntibotSend(PacketBuf&)", 0x834, 0)(
+            "User %s - send_packet() fail length(ID:%d,LEN:%d),",
+            getCurCharacName(), (int)packetId, len);
         if (packetId != 199)
             DisConnSig((DISCONN_SIG)6, false, 0);
         return 0;
@@ -2213,24 +2209,24 @@ void CUser::makeGuildSkillMessage(const char* skillName, int count)
     //   对齐慢路 -0x19f）⇒ 声明序 board → body → countStr。
     char board[120] = {0};
     std::string body = g_ServerString_.GetServerString(0x3ea, 0);
-    char countStr[256] = {0};
+    char countStr[255] = {0};   // ORIG 0x08679a88 rep stos 0xff 字节（-0x19f 起）
     sprintf(countStr, "%d ", count);
     body += countStr;
     // ORIG 0x08679b3f..0x08679ba3：先构造 name(skillName)（local_28），再取尾段串
-    // （local_2c = ServerString(0x3eb)），`tail += name` 后 `body += tail`
-    // （两次 operator+=(string,string)，非 body 直接 += const char*）。
+    // （local_2c = ServerString(0x3eb)），ORIG 0x14e this=-0x24/arg=-0x28 ⇒ `name += tail`，
+    // 0x160 this=-0x20/arg=-0x24 ⇒ `body += name`（两次 operator+=(string,string)）。
     std::string name(skillName);
     std::string tail = g_ServerString_.GetServerString(0x3eb, 0);
-    tail += name;
-    body += tail;
+    name += tail;
+    body += name;
     if (body.length() >= 0x78)
         return;
     memcpy(board, body.c_str(), body.length());
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup());
-    if (proxy != 0)
-        proxy->SendGuildBoardWrite(board, 0, (unsigned int)getCurCharacNo(),
-                                   -1, -1, (unsigned int)get_charac_guildkey());
+    // ORIG 0x08679c00..0x08679c5d：无 proxy 判空，实参右→左先求 guildkey(%esi)、
+    //   charNo(%ebx) 再求 receiver（GetServerGroup→GetServerProxy）⇒ 单条链式表达式。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup())
+        ->SendGuildBoardWrite(board, 0, (unsigned int)getCurCharacNo(),
+                              -1, -1, (unsigned int)get_charac_guildkey());
 }
 
 // ============================================================================
@@ -2263,9 +2259,6 @@ void CUser::makeGuildItemUpgradMessage(const char* itemName, int from,
     // 【2026-09-05 21:0x 事故重建】本函数体曾被 StringResource 批次误写覆盖，
     // 从 HEAD(batch-10) 恢复后按会话记录重放。
     char board[0x78] = {0};
-    // ORIG 无顶部初始化（%ebx 仅分支内 0x8679e9d mov$0 / 0x8679e43 mov$1 两路
-    // 径赋值后共享 dtor 尾）→ if/else 双赋值形，无 sent=0 预写。
-    int sent;
     if (isAmplify && to > 10)
     {
         std::string name(getCurCharacName());
@@ -2276,45 +2269,40 @@ void CUser::makeGuildItemUpgradMessage(const char* itemName, int from,
         pre += msg;
         pre += suf;
         name += pre;
-        bool tooLong;
-        tooLong = (name.length() > 0x77);   // ORIG 0x8679e93 seta %al 物化
-        if (tooLong) {
-            sent = 0;
-        } else {
-            memcpy(board, name.c_str(), (unsigned int)name.length());
-            sent = 1;
-        }
+        // ORIG 0x8679e93 `cmp $0x77,%eax; seta %al; test; je 续` ⇒ 超长早返
+        //   （0x8679e9d mov $0,%ebx 仅为析构后跳过 SEND 的编译器标志）。
+        if (name.length() > 0x77)
+            return;
+        memcpy(board, name.c_str(), (unsigned int)name.length());
     }
-    else if (!isAmplify && from > 10)
+    // ORIG 0x8679f70 `movzbl isAmplify; xor $1; test; je 尾` ⇒ `!isAmplify` 守卫（P292）；
+    //   0x8679f82 `cmpl $0xa,0x10(%ebp); jle 尾` ⇒ from<=10 直接返回。
+    else if (!isAmplify)
     {
-        std::string name(getCurCharacName());
-        std::string pre = g_ServerString_.GetServerString(0x3e8, 0);
-        std::string suf = g_ServerString_.GetServerString(0x3ed, 0);
-        char msg[0xff] = {0};   // ORIG 0x867a02c 同形第二份
-        sprintf(msg, "+%d %s", from + 1, itemName);   // ORIG 0x867a08a lea 0x1(%eax)
-        pre += msg;
-        pre += suf;
-        name += pre;
-        bool tooLong2;
-        tooLong2 = (name.length() > 0x77);
-        if (tooLong2) {
-            sent = 0;
-        } else {
+        if (from > 10)
+        {
+            std::string name(getCurCharacName());
+            std::string pre = g_ServerString_.GetServerString(0x3e8, 0);
+            std::string suf = g_ServerString_.GetServerString(0x3ed, 0);
+            char msg[0xff] = {0};   // ORIG 0x867a02c 同形第二份
+            sprintf(msg, "+%d %s", from + 1, itemName);   // ORIG 0x867a08a lea 0x1(%eax)
+            pre += msg;
+            pre += suf;
+            name += pre;
+            if (name.length() > 0x77)
+                return;
             memcpy(board, name.c_str(), (unsigned int)name.length());
-            sent = 1;
         }
+        else
+            return;
     }
     else
-    {
         return;
-    }
-    if (sent == 0)
-        return;
-    unsigned int guildKey = (unsigned int)get_charac_guildkey();
-    unsigned int characNo = (unsigned int)getCurCharacNo();
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup());
-    proxy->SendGuildBoardWrite(board, 0, characNo, -1, -1, guildKey);
+    // ORIG 0x867a1c7..0x867a230：无 proxy 判空，实参右→左先 guildkey(%esi)、
+    //   charNo(%ebx) 再 receiver ⇒ 单条链式表达式。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup())
+        ->SendGuildBoardWrite(board, 0, (unsigned int)getCurCharacNo(), -1, -1,
+                              (unsigned int)get_charac_guildkey());
 }
 
 // ORIG 0x086787fc：改成长类型主分支（set_grow_type.md 汇编+反编译 C 全文核对）。
@@ -7669,10 +7657,11 @@ void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
     if (getCurCharacR() == 0)
         return;
 
-    private_store::CPrivateStoreMgr* mgr =
-        private_store::GetInstancePrivateStoreMgr();
-    private_store::CPrivateStore* store =
-        (private_store::CPrivateStore*)mgr->FindStoreSeller(this);
+    // ORIG 0x0867dbc4 `movl $0x0,-0x28` 预清 + 0x0867dbcb 无 mgr 具名局部
+    //   （GetInstancePrivateStoreMgr 结果经 %eax 直传）⇒ 声明与赋值分两句（P198③）。
+    private_store::CPrivateStore* store = 0;
+    store = (private_store::CPrivateStore*)
+        private_store::GetInstancePrivateStoreMgr()->FindStoreSeller(this);
     if (store != 0)
     {
         // 真成员调用（b22 消解旧 §4.5 例外）：ISeller 槽 +0x04
@@ -7688,18 +7677,19 @@ void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
     _deleteSpecificItemAccountCargo(list, out);
     _deleteSpecificItemTitieBook(list);
 
-    WongWork::CMailBox* mailBox =
-        (WongWork::CMailBox*)m_premium.m_mailBox;   // ORIG this+0x71b98 实证
-    if (mailBox != 0)
+    // ORIG this+0x71b98 实证：无 mailBox 具名局部，每处重读 `mov 0x71b98(%eax),%eax`
+    //   （0x0867dcad/0x0867dcd3/0x0867de88/0x0867dea0/0x0867dee0/0x0867dff4）。
+    if (m_premium.m_mailBox != 0)
     {
         std::vector<std::pair<int, int> > mailDel;
-        unsigned int rmList[21];
-        int rmCount = 0;
-        mailBox->setMailIterator();
+        WongWork::CMailBox::CMail* mail = 0;   // ORIG 0x0867dccc `movl $0x0,-0x24` 预清
+        ((WongWork::CMailBox*)m_premium.m_mailBox)->setMailIterator();
+        // ORIG 0x0867dce4 `rep stos` 0x15 dwords ⇒ rmList[21]，rmList[0] 即计数。
+        unsigned int rmList[21] = {0};
         // b28d-solo-CUser p167：ORIG 单 getNextMail 调用点（while 条件内赋值）；
         //   for(init;cond;incr) 形产 2 个调用点（EXTRA ×1）⇒ 改 while 赋值形。
-        WongWork::CMailBox::CMail* mail;
-        while ((mail = mailBox->getNextMail()) != 0)
+        while ((mail = ((WongWork::CMailBox*)m_premium.m_mailBox)
+                           ->getNextMail()) != 0)
         {
             // b28d-solo-CUser p167 修复（ORIG 0x0867dba0 实形）：超时判定用
             //   `_checkTimeoutItem(mail->GetPackageItem())` 值拷贝（ORIG -4 GetPackageItem、
@@ -7714,7 +7704,12 @@ void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
             }
             else
             {
-                if (_isMatchedItem(mail->GetPackageItem().m_addInfo, list) == -1)
+                // ORIG 0x0867dd6a `cmp $-1,%eax; setne %al; test; je` ⇒ 先判 != -1
+                if (_isMatchedItem(mail->GetPackageItem().m_addInfo, list) != -1)
+                {
+                    remove = true;
+                }
+                else
                 {
                     if (G_CDataManager()->m_deleteInvalidItem.IsInvalidItem2Delete(
                             mail->GetPackageItem().m_addInfo))
@@ -7728,26 +7723,23 @@ void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
                         remove = true;
                     }
                 }
-                else
-                {
-                    remove = true;
-                }
             }
-            if (remove && rmCount < 20)
+            // ORIG 0x0867de56：rmList[0] 自增后写入，无上界检查
+            if (remove)
             {
-                rmList[++rmCount] = mail->getMailIdx();
-                mailBox->RemoveMail(mail->getMailIdx());
+                rmList[++rmList[0]] = mail->getMailIdx();
+                ((WongWork::CMailBox*)m_premium.m_mailBox)
+                    ->RemoveMail(mail->getMailIdx());
             }
         }
-        if (rmCount != 0)
+        if (rmList[0] != 0)
         {
-            rmList[0] = (unsigned int)rmCount;
             WongWork::CMailBoxHelper::ReqDBRemoveMail(this, rmList, false);
             PacketGuard packet;
             InterfacePacketBuf* pkt = (InterfacePacketBuf*)&packet;
             pkt->put_header(0, 0x62);
-            pkt->put_int(rmCount);
-            for (int i = 1; i <= rmCount; ++i)
+            pkt->put_int((int)rmList[0]);
+            for (int i = 1; i <= rmList[0]; ++i)
                 pkt->put_int((int)rmList[i]);
             pkt->finalize(true);
             Send(packet);
@@ -7768,11 +7760,10 @@ void CUser::doLinkCharacDisconnect()
     //   负向 `==0) return;` 反产 `xor $1; test; jne`）。
     if (isLinkCharacDisconnectFlag())
     {
-    // b28d-solo-CUser N封顶(P84/P214): ORIG 0x08652c9a 段为 `mov $1,%eax / jmp /
-    //   mov $0,%eax / mov %al,-0xd / cmpb $0,-0xd`（4.1 对 || 汇聚物化+落槽），
-    //   4.4 恒短路直跳免物化（单句/预清两句式实测：预清多 movb $0,-0xd）。
-    bool locked = isLocked4DataLoad() != 0 || isLockedCreateCharac() != 0 ||
-                  isLockedDeleteCharac() != 0;
+    // ORIG 0x08652cb2..0x08652cf5：**两段** `locked = locked || f()` 各发一次
+    //   `mov $1,%eax / mov $0,%eax / mov %al,-0xd`（4.1 || 汇聚物化落槽，P198/P214）。
+    bool locked = isLocked4DataLoad() || isLockedCreateCharac();
+    locked = locked || isLockedDeleteCharac();
     if (locked)
     {
         LogManager::logFormat(1, "user.cpp",
@@ -7781,10 +7772,13 @@ void CUser::doLinkCharacDisconnect()
             NumberToString(get_acc_id(), 0));
         return;
     }
-    // P48：ORIG 0x08652d68/0x08652d94 两 ChangeCharacSlot 各自重调 size()（共 2 次）。
-    int slotIdx = (int)getDisconnectLinkCharacSlotIdx() - 1;
-    ChangeCharacSlot((unsigned int)slotIdx, (unsigned int)((int)m_characList.size() - 1));
-    ChangeCharacSlot((unsigned int)slotIdx, (unsigned int)((int)m_characList.size() - 1));
+    // ORIG 0x08652d4e `movsbl %al,%eax; mov %eax,-0xc`（getter 本体 movzbl 0x703da
+    //   0x08697408 ⇒ 源码在使用点显式 (signed char) 截断）；调用点各自
+    //   `mov -0xc,%eax; sub $1,%eax` + `lea -1(%eax),%edx`（size-1 直传，勿加 cast）。
+    //   P48：两 ChangeCharacSlot 各自重调 size()。
+    int slotIdx = (signed char)getDisconnectLinkCharacSlotIdx();
+    ChangeCharacSlot((unsigned int)(slotIdx - 1), m_characList.size() - 1);
+    ChangeCharacSlot((unsigned int)(slotIdx - 1), m_characList.size() - 1);
     setLinkCharacDisconnectFlag(false);
     UpdateCharacView();
     }
@@ -9729,33 +9723,45 @@ void CUser::RewardItem2DeleteInvalidItem(
 {
     static const char* defalt_string = "";   // ORIG 局部静态 defalt_string(0x93ace50)
 
-    if (list.empty() || getCurCharacR() == 0)
+    // ORIG 0x086931db `test %al,%al; jne 尾` 与 0x086931f5 `sete/test; jne 尾`
+    //   为两条独立早返（非 || 合并）。
+    if (list.empty())
+        return;
+    if (getCurCharacR() == 0)
         return;
 
+    // ORIG 0x086931fb..0x08693210 四条 movl $0 预清（-0x34/-0x30/-0x38/-0x3c），
+    //   全部声明在 vector C1(0x08693217) 之前（P198③ 两句式）。
+    CItem* itemDef = 0;
+    CItem* rewardDef = 0;
+    int rewardIdx = 0;
+    int rewardCnt = 0;
     std::vector<Inven_Item> items;
-    for (size_t i = 0; i < list.size(); ++i)
+    // ORIG 0x08693222..0x0869322d：`call size; mov %eax,-0x2c` 循环外缓存一次
+    //   （P13；循环条件 0x08693396 `cmp -0x2c,%eax; setb`）。
+    unsigned int listCnt = (unsigned int)list.size();
+    for (unsigned int i = 0; i < listCnt; ++i)
     {
         m_historyLog.DeleteInvaildItem(name, list[i].first, list[i].second);
-        CItem* itemDef = G_CDataManager()->find_item(list[i].first);
+        itemDef = G_CDataManager()->find_item(list[i].first);
         if (itemDef == 0)
             continue;
-        int rewardIdx = 0;
-        int rewardCnt = 0;
-        if (G_CDataManager()->m_deleteInvalidItem.GetRewardItemInfo(
-                list[i].first, rewardIdx, rewardCnt) &&
-            rewardCnt > 0)
-        {
-            CItem* rewardDef = G_CDataManager()->find_item(rewardIdx);
-            if (rewardDef != 0)
-            {
-                Inven_Item add;
-                add.m_addInfo = rewardIdx;   // +0x02 先写奖励物品索引
-                rewardDef->make_item(add);   // ORIG vtable 槽 2 填充默认字段
-                if (rewardDef->is_stackable())
-                    add.m_addInfo2 = rewardCnt;   // +0x07 堆叠数量
-                items.push_back(add);
-            }
-        }
+        // ORIG 0x086932f0 `xor $1,%eax; test %al; jne 循环尾` ⇒ callee bool + if(!...)
+        //   （P292/P248档①）；0x08693300 `test %eax,%eax; jle 循环尾` 独立早返。
+        if (!G_CDataManager()->m_deleteInvalidItem.GetRewardItemInfo(
+                list[i].first, rewardIdx, rewardCnt))
+            continue;
+        if (rewardCnt <= 0)
+            continue;
+        rewardDef = G_CDataManager()->find_item(rewardIdx);
+        if (rewardDef == 0)
+            continue;
+        Inven_Item add;
+        add.m_addInfo = rewardIdx;   // +0x02 先写奖励物品索引
+        rewardDef->make_item(add);   // ORIG vtable 槽 2 填充默认字段
+        if (rewardDef->is_stackable())
+            add.m_addInfo2 = rewardCnt;   // +0x07 堆叠数量
+        items.push_back(add);
     }
     if (items.empty())
         return;
@@ -9766,28 +9772,38 @@ void CUser::RewardItem2DeleteInvalidItem(
     char sender[0x1e] = {0};
     char body[0x100] = {0};
     G_CDataManager()->m_deleteInvalidItem.GetMailInfo(str0, str1);
-    const char* s0 =
-        str0.empty() ? defalt_string
-                     : g_scriptStringManager_.findString(4, toTString(str0), 0);
-    strncpy(sender, s0, 0x1d);
-    const char* s1 =
-        str1.empty() ? defalt_string
-                     : g_scriptStringManager_.findString(4, toTString(str1), 0);
-    strncpy(body, s1, 0xff);
+    // ORIG 0x08693509..0x08693549：三目结果直接作 strncpy 实参，无 s0/s1 具名局部
+    //   （具名会多 `mov %eax,-N` + 回读两条，P0/P329）。
+    strncpy(sender,
+            str0.empty()
+                ? defalt_string
+                : g_scriptStringManager_.findString(4, toTString(str0), 0),
+            0x1d);
+    strncpy(body,
+            str1.empty()
+                ? defalt_string
+                : g_scriptStringManager_.findString(4, toTString(str1), 0),
+            0xff);
 
     unsigned int count = 0;
     Inven_Item batch[10];
-    for (unsigned int i = 0; i < items.size(); ++i)
+    // ORIG 0x0869357c..0x08693587：`call size; mov %eax,-0x24` 同样循环外缓存。
+    unsigned int itemCnt = (unsigned int)items.size();
+    for (unsigned int i = 0; i < itemCnt; ++i)
     {
         batch[count].setCopy(items[i]);
         count++;
-        if (count == 10)
-        {
-            count = 0;
-            WongWork::CMailBoxHelper::ReqDBSendNewSystemMultiMail(
-                sender, batch, 10u, 0u, (unsigned int)getCurCharacNo(), body,
-                (int)strlen(body), 0u, GetServerGroup(), false);
-        }
+        // ORIG 0x086935c7 `jne 0x485(nop); body; jmp 0x486; nop` = 4.1 if-join 岛
+        //   （P223 探针 fC 形：条件假 goto + 体尾 goto 连续双标签）。
+        if (count != 10)
+            goto batchSkip;
+        count = 0;
+        WongWork::CMailBoxHelper::ReqDBSendNewSystemMultiMail(
+            sender, batch, 10u, 0u, (unsigned int)getCurCharacNo(), body,
+            (int)strlen(body), 0u, GetServerGroup(), false);
+        goto batchJoin;
+        batchSkip:;
+        batchJoin:;
     }
     if (count != 0)
     {
@@ -9817,8 +9833,9 @@ void CUser::AddDailyItem()
             if (slot < 0)
             {
                 def->make_item(tmp);
-                tmp.m_addInfo = 0x1057;
+                // ORIG 0x08656d4c/0x08656d56：先 m_addInfo2(+7)=3 再 m_addInfo(+2)=0x1057
                 tmp.m_addInfo2 = 3;   // 数量
+                tmp.m_addInfo = 0x1057;
                 slot = getCurCharacInvenW()->insertItemIntoInventory(
                     tmp, eItemAddReason_0xd, true, false);
             }
@@ -9845,53 +9862,68 @@ void CUser::AddDailyItem()
     for (std::vector<std::pair<int, int> >::iterator it = delList.begin();
          it != delList.end(); it++)
     {
-        if (it->first >= 0 && it->first <= 0x1b && it->second >= 0)
-            SendUpdateItemList(eSendTarget_1, (ENUM_ITEMSPACE)it->first,
-                               it->second);
+        // ORIG 0x08657000..0x08657076：first 两条件 `||` 物化（mov $1/$0 + test，
+        //   无槽）后与 second<0 各自落独立 nop 岛（0x3cb/0x3ce）⇒ P223 双守卫形。
+        if (it->first < 0 || it->first > 0x1b)
+            goto skipFirst;
+        if (it->second < 0)
+            goto skipSecond;
+        SendUpdateItemList(eSendTarget_1, (ENUM_ITEMSPACE)it->first,
+                           it->second);
+        goto skipJoin;
+        skipFirst:;
+        skipSecond:;
+        skipJoin:;
     }
 
     m_advanceAltar.refillTicketFree();   // ORIG 0x0865f6dc：每日门票免费补满
-    if (GlobalData::s_systemTime_.getCurSec() < (time_t)0x4811f1f0)
+    // ORIG 0x086570e1：`cmp $0x4811f1ef,%eax; setg %al; test; je 续` ⇒ 早返形
+    //   （写 `< 0x4811f1f0` 会产 setl，形态不符）。
+    if (GlobalData::s_systemTime_.getCurSec() > (time_t)0x4811f1ef)
+        return;
+    CItem* def = G_CDataManager()->find_item(0x1cab);
+    if (def == 0)               // ORIG 0x0865710f `cmpl $0,-0x18; jne 续` ⇒ 早返
+        return;
+    Inven_Item tmp;
+    def->make_item(tmp);
+    // ORIG 0x08657149/0x08657153：先 m_addInfo2(+7)=1 再 m_addInfo(+2)=0x1cab
+    tmp.m_addInfo2 = 1;
+    tmp.m_addInfo = 0x1cab;
+    int slot = -1;              // ORIG 0x0865715d `movl $0xffffffff,-0x14` 预清（P198①）
+    slot = getCurCharacInvenW()->insertItemIntoInventory(
+        tmp, eItemAddReason_0xd, true, true);
+    if (slot == -1)
     {
-        CItem* def = G_CDataManager()->find_item(0x1cab);
-        if (def != 0)
+        char sender[0x15];
+        strncpy(sender,
+                g_scriptStringManager_.findString(
+                    4, "game_server_msg_24", 0),
+                0x14);
+        char body[0x100];
+        strncpy(body,
+                g_scriptStringManager_.findString(
+                    4, "game_server_msg_25", 0),
+                0xff);
+        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+            sender, tmp, 0u, (unsigned int)getCurCharacNo(), body,
+            (int)strlen(body), 0u, GetServerGroup(), false, false);
+    }
+    else
+    {
+        PacketGuard packet;
+        ((InterfacePacketBuf*)&packet)->put_header(0, 0xe);
+        ((InterfacePacketBuf*)&packet)->put_byte(0);
+        ((InterfacePacketBuf*)&packet)->put_short(1);
+        // ORIG 0x08657392 `xor $1,%eax; test %al,%al; je succ` ⇒ 原码为
+        //   `if (!MakeItemPacket(...)) { 空 } else { finalize+Send }`（P292 负形）。
+        if (!getCurCharacInvenR()->MakeItemPacket(
+                (INVEN_TYPE)1, slot, packet))
         {
-            Inven_Item tmp;
-            def->make_item(tmp);
-            tmp.m_addInfo = 0x1cab;
-            tmp.m_addInfo2 = 1;
-            int slot = getCurCharacInvenW()->insertItemIntoInventory(
-                tmp, eItemAddReason_0xd, true, true);
-            if (slot == -1)
-            {
-                char sender[0x15];
-                strncpy(sender,
-                        g_scriptStringManager_.findString(
-                            4, "game_server_msg_24", 0),
-                        0x14);
-                char body[0x100];
-                strncpy(body,
-                        g_scriptStringManager_.findString(
-                            4, "game_server_msg_25", 0),
-                        0xff);
-                WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-                    sender, tmp, 0u, (unsigned int)getCurCharacNo(), body,
-                    (int)strlen(body), 0u, GetServerGroup(), false, false);
-            }
-            else
-            {
-                PacketGuard packet;
-                ((InterfacePacketBuf*)&packet)->put_header(0, 0xe);
-                ((InterfacePacketBuf*)&packet)->put_byte(0);
-                ((InterfacePacketBuf*)&packet)->put_short(1);
-                bool ok = getCurCharacInvenR()->MakeItemPacket(
-                    (INVEN_TYPE)1, slot, packet);
-                if (ok)
-                {
-                    ((InterfacePacketBuf*)&packet)->finalize(true);
-                    Send(packet);
-                }
-            }
+        }
+        else
+        {
+            ((InterfacePacketBuf*)&packet)->finalize(true);
+            Send(packet);
         }
     }
 }
@@ -10679,25 +10711,26 @@ void CUser::makeGuildLevelUpMessage(int level)
     char board[120] = {0};
 
     // ORIG 0x086797f5/+0x0867981b：先取 suf=ServerString(0x3e8) 再取
-    //   pre=ServerString(0x3e9)；`pre += numBuf; pre += suf; body += pre;`。
+    //   pre=ServerString(0x3e9)；ORIG 0x165 this=-0x24(suf)/arg=numBuf、0x17a
+    //   this=-0x24(suf)/arg=-0x28(pre)、0x18c this=-0x20(body)/arg=-0x24(suf)
+    //   ⇒ `suf += numBuf; suf += pre; body += suf;`。
     std::string body(getCurCharacName());
     std::string suf = g_ServerString_.GetServerString(0x3e8, 0);
     std::string pre = g_ServerString_.GetServerString(0x3e9, 0);
-    char numBuf[256] = {0};
+    char numBuf[255] = {0};   // ORIG 0x08679847 rep stos 0xff 字节（-0x19f 起）
     sprintf(numBuf, "%d", level);
-    pre += numBuf;
-    pre += suf;
-    body += pre;
+    suf += numBuf;
+    suf += pre;
+    body += suf;
     if (body.length() >= 0x78)
         return;
 
     memcpy(board, body.c_str(), body.length());
 
-    CGuildServerProxy* proxy =
-        GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup());
-    if (proxy != 0)
-        proxy->SendGuildBoardWrite(board, 0, (unsigned int)getCurCharacNo(),
-                                   -1, -1, (unsigned int)get_charac_guildkey());
+    // ORIG 0x0867993f..0x086799a3：无 proxy 判空，单条链式表达式（实参右→左）。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(GetServerGroup())
+        ->SendGuildBoardWrite(board, 0, (unsigned int)getCurCharacNo(),
+                              -1, -1, (unsigned int)get_charac_guildkey());
 }
 
 // ORIG T 0x0867cd20 sz0x18d：guildkey!=0 时组 header 0x63 包广播队列 2。
@@ -11281,16 +11314,19 @@ void CUser::GetLimitItemUsage(SIG_LOAD_ETC* sig) const
 {
     if (sig == 0) return;
     sig->m_limitItemCount = 0;   // ORIG movl $0,0x2638
+    // ORIG 0x08688dd5..0x08688e26：begin(-0x14)/end(-0x18) 先求值缓存（P13），
+    //   随后**两条** `movl $0,-0xc`（P191 双初始化：声明 + for-init 各写一次）。
+    std::vector<LimitItemUsage>::const_iterator it = m_limitItemUsage.begin();
+    std::vector<LimitItemUsage>::const_iterator itEnd = m_limitItemUsage.end();
     int index = 0;
-    // b28d-solo-CUser p167 修正（P28）：ORIG 0x08688dc4 增量段调 ppEi（后置）⇒ 写 it++。
-    for (std::vector<LimitItemUsage>::const_iterator it = m_limitItemUsage.begin();
-         it != m_limitItemUsage.end(); it++, ++index)
+    // P157/P183：ORIG 每字段重算 (index+0x263)*0x10 并重调 operator->，禁 dst 缓存。
+    // b28d-solo-CUser p167 修正（P28）：ORIG 增量段调 ppEi（后置）⇒ 写 it++。
+    for (index = 0; it != itEnd; it++, ++index)
     {
-        SIG_ETC_LIMIT_ITEM* dst = &sig->m_limitItems[index];
-        dst->m_field8 = it->m_field15;    // ORIG mov 0x14(dst)
-        dst->m_fieldc = it->m_field19;    // ORIG mov 0x18(dst)
-        dst->m_itemIdx = it->m_fieldc;    // ORIG mov 0x10(dst)
-        dst->m_used = it->m_field10;      // ORIG movb 0xc(dst)
+        sig->m_limitItems[index].m_field8 = it->m_field15;   // ORIG mov 0x14(dst)
+        sig->m_limitItems[index].m_fieldc = it->m_field19;   // ORIG mov 0x18(dst)
+        sig->m_limitItems[index].m_itemIdx = it->m_fieldc;   // ORIG mov 0x10(dst)
+        sig->m_limitItems[index].m_used = it->m_field10;     // ORIG movb 0xc(dst)
     }
     sig->m_limitItemCount = index;
 }
@@ -11314,7 +11350,7 @@ int CUser::GetCurCharacUsedGiftFatigueQuantity() const   // 0x08110e6c：*(int*)
 {
     return m_field8ebac;
 }
-unsigned char CUser::getFlagPresentAvengerTitle() const  // 0x08697578：*(uchar*)(this+0x8d246)
+bool CUser::getFlagPresentAvengerTitle() const  // 0x08697578：movzbl 0x8d246(%eax),%eax（P292/P248档①：调用点 xor $1 直判 ⇒ bool）
 {
     return m_ceraUserInfo.m_field62;
 }
@@ -11754,21 +11790,15 @@ void CUser::SendRestrictedGoods(bool flag, int itemIdx)
 // b28d-lane5 N封顶: N82/P112 槽号分配 | ORIG 0x08656636 | _ZN5CUser24GetSpecialLevelCharacCntEi
 int CUser::GetSpecialLevelCharacCnt(int type)
 {
-    // ORIG 0x8656636：const_iterator 循环（prologue begin + 每轮 end 临时重构，
-    // 帧 0x38 容纳三 8B 迭代器临时）；index 形（size/operator[]）与 ORIG 块序不合。
-    // b28d-PoolCUser 三形实测并列（2026-09-09，响应 P326 N93 翻案要求）：
-    //   ① const& lst + `it != lst.end()`：**ndiff 15（现存最优）**；
-    //   ② 裸 m_characList 隐式转换：ndiff 23（for 条件 end 重构块合并、帧阶梯散）；
-    //   ③ P326 右值临时 `it != vector<...>::const_iterator(m_characList.end())`：
-    //      ndiff 51（4.4 把 begin 迭代器槽化 + 每轮转换 ctor 物化为 do-while 形，
-    //      ORIG 此件为 4.1 prologue begin + 循环尾 end 重构的三段阶梯，非双迭代器
-    //      比较槽互换形）⇒ P326 不适用于本件，维持 N82/P112 封顶。
-    const std::vector<_Charac_info>& lst = m_characList;
+    // ORIG 0x08656636 逐段：cnt=0(-0xc) → begin 临时(-0x14) → const 转换(-0x1c)
+    //   → end 临时(-0x10) → const 转换(-0x20) → 循环只比一次缓存 end（P13）；
+    //   m_characList 非 const ⇒ 两处 iterator→const_iterator 转换构造（P326 三级槽阶梯）。
     int cnt = 0;
-    for (std::vector<_Charac_info>::const_iterator it = lst.begin();
-         it != lst.end(); ++it)
+    std::vector<_Charac_info>::const_iterator it = m_characList.begin();
+    std::vector<_Charac_info>::const_iterator itEnd = m_characList.end();
+    for (; it != itEnd; ++it)
     {
-        if ((int)it->m_level == type)
+        if (it->m_level == type)
             ++cnt;
     }
     return cnt;
@@ -11982,26 +12012,38 @@ void CUser::_deleteSpecificRedeemItem(
         return;
 
     typedef std::list<Redeem_Item::Inven_Item_Expand_RedeemInfo> RedeemList;
-    RedeemList& items = redeem->m_redeemList;   // 权威成员 +0x08
-
-    unsigned int count = 0;
-    RedeemList::iterator it = items.begin();
-    while (it != items.end() && count <= 0x14)
+    // ORIG 0x0867d6c5..0x0867d716 逐段：begin(it=-0x1c) → end(itEnd=-0x20) →
+    //   iterator 临时 C1Ev(-0x24) → Inven_Item item C1(-0x61，**循环外**) →
+    //   movb $0,-0xd（死 bool 预清）→ count=0(-0xc)。全程重算 redeem+0x8，无 items 引用。
+    RedeemList::iterator it = redeem->m_redeemList.begin();
+    RedeemList::iterator itEnd = redeem->m_redeemList.end();
+    // ORIG 0x0867d6f5 `lea -0x24; call _List_iterator::C1Ev` 默认构造后
+    //   0x0867d7f3/0x0867d7f6 `mov -0x6c,%eax; mov %eax,-0x24` 赋后置++结果
+    //   ⇒ 具名 next（P50 先声明后赋值），erase 传 next 而非 it++ 临时。
+    RedeemList::iterator next;
+    Inven_Item item;
+    bool removed = false;   // ORIG 0x0867d70b movb $0,-0xd（原码遗留，未被读）
+    // ORIG 0x0867d833 `mov -0xc,%eax; cmp $0x14,%eax; ja` 两段寄存器形 ⇒
+    //   int 局部 + 显式 unsigned cast（P310 翻案形）。
+    int count = 0;
+    while (it != itEnd && (unsigned int)count < 0x15)
     {
-        Inven_Item item;
         // ORIG 0x0867d71b..0x0867d783：`it->m_item` 经 operator->（ptEv）取 Inven_Item
         //   子对象后**结构赋值**（4.1 内联 15×mov + 末字节，无 memcpy call）。
         item = it->m_item;
         // ORIG 0x0867d78c：`!item.isEmpty()`（call Inven_Item::isEmpty）；isEmpty 为真时
         //   **不递增迭代器**（仅 ++count 后重判），无我方原先推断的 else ++it。
-        if (!item.isEmpty())
+        // ORIG 0x0867d793 `test %al,%al; jne 0x196(nop)` 正极性跳过（无 xor）；
+        //   if/else 两分支尾各 `jmp 0x197` + 0x196 nop ⇒ P223 连续尾标签形。
+        if (item.isEmpty())
+            goto skipItem;
         {
-            bool remove =
-                _checkTimeoutItem(item) ||
-                (_isMatchedItem(item.m_addInfo, list) != -1);
-            if (remove)
+            // ORIG 0x0867d799..0x0867d7d4：|| 短路物化（mov $1/$0 + test），无 remove 槽。
+            if (_checkTimeoutItem(item) ||
+                (_isMatchedItem(item.m_addInfo, list) != -1))
             {
-                items.erase(it++);
+                next = it++;
+                redeem->m_redeemList.erase(next);
                 redeem->alter();
             }
             else
@@ -12009,6 +12051,9 @@ void CUser::_deleteSpecificRedeemItem(
                 ++it;
             }
         }
+        goto afterItem;
+        skipItem:;
+        afterItem:;
         ++count;
     }
 }
@@ -12531,18 +12576,26 @@ void CUser::setStdDropRate(int rate)
 void CUser::_processCoolTimeItem(CStackableItem* item, unsigned int itemIdx,
                                  unsigned int curSec)
 {
-    unsigned int expireSec =
-        (unsigned int)((unsigned int)item->m_int2d0 / 1000) + curSec;
+    // ORIG 0x0865eb15..0x0865eb35：`mov 0x2d0(%eax),%ecx; imul $0x10624dd3;
+    //   sar $6; sar $0x1f; sub` ⇒ **有符号** /1000（写 unsigned 会产 shr/div）。
+    unsigned int expireSec = item->m_int2d0 / 1000 + curSec;
     std::vector<ContinuousItemInfo>* cool =
         GetCurCharacCoolTimeItemList();
-    char found = 0;
+    // ORIG 0x0865eb46 movb $0,-0x11 / 0x0865ebc6 movzbl;xor $1;test;je ⇒ bool 局部
+    //   （4.4 对 char 的 !found 折 cmpb，N122 判据）。
+    bool found = false;
     for (unsigned int i = 0; i < cool->size(); ++i)
     {
         if ((*cool)[i].m_itemIdx == (int)itemIdx)
         {
-            if ((*cool)[i].m_expireTime < expireSec)
+            // ORIG 0x0865eb83 `mov 0x4(%eax),%eax; mov %eax,-0xc` 缓存旧值再比
+            //   （P0：具名局部，勿直写两次 operator[]）。
+            unsigned int oldExpire = (*cool)[i].m_expireTime;
+            // ORIG 0x0865eb7d `mov -0x1c,%eax; cmp -0xc,%eax; jbe` ⇒ 源码写
+            //   `expireSec > oldExpire`（写 old < expire 会反装载序）。
+            if (expireSec > oldExpire)
                 (*cool)[i].m_expireTime = expireSec;
-            found = 1;
+            found = true;
         }
     }
     if (!found)
