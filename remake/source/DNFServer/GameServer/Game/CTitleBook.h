@@ -14,6 +14,7 @@
 #include <map>
 #include <stack>
 #include <string>
+#include <cstring>   // stTitleBook::clear() 头内定义用 std::memset（b28d-solo-CTitleBook）
 #include <utility>
 #include <vector>
 
@@ -216,8 +217,22 @@ static_assert(sizeof(stTitleSection) == 0x40,
 // ---- 称号簿数据（0x6b3a 字节，4 类槽数组） ----
 struct stTitleBook
 {
-    stTitleBook();
-    void clear();
+    // b28d-solo-CTitleBook（判据㉓ 符号绑定）：ORIG C1Ev/C2Ev @0x0848f62a、
+    // clearEv @0x0848f6e4 均为 **W 弱符号**（nm -S 实测；地址不在本 TU 段 ⇒ 头内定义
+    // 由使用点发射，P233/P204④）。我方原 .cpp 外联定义发射 T 强符号 ⇒ 改类内定义
+    // 后符号随使用点发射为 W（NXCash 同法先例）；sizeof/成员偏移/mangled 零变化。
+    stTitleBook()
+    {
+        clear();
+    }
+
+    void clear()
+    {
+        std::memset(m_category0, 0, sizeof(m_category0));
+        std::memset(m_category1, 0, sizeof(m_category1));
+        std::memset(m_category2, 0, sizeof(m_category2));
+        std::memset(m_category3, 0, sizeof(m_category3));
+    }
 
     Inven_Item m_category0[70];   // +0x00
     Inven_Item m_category1[200];  // +0x10ae
@@ -353,7 +368,12 @@ class CTitleBook : public charac_expand::CData
 {
 public:
     CTitleBook();
-    virtual ~CTitleBook();
+    // b28d-solo-CTitleBook（判据㉓）：ORIG D0Ev @0x0864342e、D1Ev/D2Ev @0x086433fe
+    // 均 **W 弱符号**（nm -S 实测）⇒ 原码头内定义；我方原 .cpp 外联定义发射 T ⇒ 改
+    // 类内定义（P233/P204④）。vtable 槽序/D1/D0 体与 ORIG 逐条一致（v2 核对 16/16、11/11）。
+    virtual ~CTitleBook()
+    {
+    }
 
     virtual bool loadData(CUser* pUser, char* pData);
     virtual void getData(char* pData) const;

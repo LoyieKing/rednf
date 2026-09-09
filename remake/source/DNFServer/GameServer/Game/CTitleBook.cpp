@@ -13,13 +13,32 @@
 //      p1(continue)=177 vs p3(正向包裹)=175）；
 //   ② _checkFitSlot/_checkMovetoInven：`&(*it).second` → `&it->second`（ORIG 调
 //      ptEv，旧写调 deEv ⇒ p167 MISSING ptEv / EXTRA deEv）。
-// 无类型改动（P321 T1–T5 未触发）、无 .h 改动、无 register asm 绑定。
+// 无类型改动（P321 T1–T5 未触发）、无 register asm 绑定（.h 改动见下第二波）。
+//
+// b28d-solo-CTitleBook 第二波（判据㉓ 符号绑定 + P338，2026-09-09/10）：
+//   ① 符号绑定 T→W（ORIG nm -S 实测全 W，我方原 T）：GetInvenTypeFromItemSpace
+//      （ORIG 0x080f7845，26 条逐条一致）定义加 inline；stTitleBook::C1/C2
+//      （0x0848f62a，64 条）、clear（0x0848f6e4，28 条）、CTitleBook::D0
+//      （0x0864342e，11 条）/D1/D2（0x086433fe，16 条）改头内定义（CTitleBook.h
+//      类内 inline + <cstring>）。代价：4.4 新增 local 别名 _ZN10CTitleBookD5Ev /
+//      _ZN11stTitleBookC5Ev（n 类型，结构性噪音，NXCash 先例已录）。
+//   ② P338：补 #include <iostream>——ORIG 本 TU 有 _ZStL8__ioinit 动态初始化 ⇒
+//      _GLOBAL__I__ZN10CTitleBookC2Ev @0x0864312f（体 8 条）+ SIAD @0x086430ef
+//      （体 16 条）与 ORIG 逐条一致；补前我方无 GI（缺 ioinit，4.4 会塌成 sub $0x8）。
+//   ③ GI 键名前后：改前无 _GLOBAL__I_；改后键名 == ORIG 键名（P327：inline/weak
+//      定义不参与键名 ⇒ GetInvenTypeFromItemSpace 必须 W 才能让 CTitleBook::C2Ev
+//      当选为 TU 首个强符号外部链接实体）。
+// 四数：85/163/0/0/39 → 86/163/0/1(N123 SIAD 撞名豁免)/39；vtable 9 槽逐槽、
+// jcc 序列、call*/call 目标差集（仅 C1/C2·D1/D2 同址别名）、全局数据引用、
+// TITLE_BOOK_MAX 常量 (70,200,120,60) 逐项核对 CLEAN。
 #include <algorithm>
 #include <cstring>
 #include <map>
 #include <string>
 #include <utility>
 #include <vector>
+#include <iostream>   // P338：ORIG 本 TU 有 __ioinit ⇒ _GLOBAL__I__ZN10CTitleBookC2Ev
+                      // @0x0864312f（sub $0x18 体）+ SIAD @0x086430ef；缺则塌成 sub $0x8
 
 #include "CTitleBook.h"
 #include "CAchievement.h"
@@ -39,7 +58,11 @@
 // ORIG 0x80f7845（W，mangled _Z25GetInvenTypeFromItemSpace14ENUM_ITEMSPACE）：
 // switch 跳表（0x8b3c7b0），返回 INVEN_TYPE：0→1, 1→2, 2→4, 3→0, 7→3, 18→5，
 // 其余/越界(>0x12)→6。原 GameStubs.cpp 定义迁移。
-int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space)
+// b28d-solo-CTitleBook（判据㉓ 符号绑定）：ORIG 该符号为 **W 弱**（nm -S 实测
+// @0x080f7845），我方原为 T 强 ⇒ 定义加 inline 发射 W（NXCash 先例：inline 定义 ⇒
+// W 且不参与 GI 键名；__attribute__((weak)) 会使 callee 失帧继承）。本 TU
+// getTitle/putTitle 有 ODR 使用点 ⇒ 必发射 out-of-line 副本供各消费 TU 的 U 引用。
+inline int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space)
 {
     int result = 6;
     switch ((int)space) {
@@ -186,18 +209,9 @@ struct stTitleBook_Save
 // stTitleBook
 // ============================================================================
 
-stTitleBook::stTitleBook()
-{
-    clear();
-}
-
-void stTitleBook::clear()
-{
-    std::memset(m_category0, 0, sizeof(m_category0));
-    std::memset(m_category1, 0, sizeof(m_category1));
-    std::memset(m_category2, 0, sizeof(m_category2));
-    std::memset(m_category3, 0, sizeof(m_category3));
-}
+// stTitleBook::stTitleBook()/clear() 与 CTitleBook::~CTitleBook() 已改头内定义
+// （CTitleBook.h，判据㉓ 符号绑定 W；ORIG C1/C2 0x0848f62a、clear 0x0848f6e4、
+// D1/D2 0x086433fe、D0 0x0864342e —— nm -S 实测全 W）。
 
 CTitleBook::CTitleBook() : m_user(0)
 {
@@ -205,10 +219,6 @@ CTitleBook::CTitleBook() : m_user(0)
     m_category[1] = m_book.m_category1;
     m_category[2] = m_book.m_category2;
     m_category[3] = m_book.m_category3;
-}
-
-CTitleBook::~CTitleBook()
-{
 }
 
 bool CTitleBook::loadData(CUser* pUser, char* pData)
