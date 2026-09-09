@@ -1236,28 +1236,38 @@ bool CUser::CalLevelUpItemCheck(unsigned long itemId)
 // （p167 CLEAR，gap 4）。
 bool CUser::CalLevelUpItemState(char& state, int& needExp, int fromLevel, int toLevel)
 {
-    if (get_charac_level() < fromLevel || get_charac_level() > toLevel)
-        return false;
-    state = 1;
-    int luExp = get_level_up_exp(get_charac_level());
-    int lvTop = G_CDataManager()->get_level_exp(get_charac_level());
-    needExp = luExp + (lvTop - get_charac_exp());
-    // ORIG：wrong/success 两分支各自独立重调 getCurCharacNo/get_acc_id/NumberToString
-    // 并各自构造 cMyTrace（访问器结果禁缓存，战术 P183/P48）。
-    if (needExp < 0)
+    // [P214①] ORIG 0x08689d8b/0x08689d9b 两条 jcc（jl/jg）**同落** +0x30 的
+    // `mov $0x0,%eax`，+0x29 `mov $0x1,%eax` 汇聚后 +0x35 `test %al,%al; je <函数尾0>`
+    // ⇒ 源形是正极性 `if (a >= from && a <= to) { body } return false;`（负极性 `||`
+    // 早退产 4.4 `jl <body>` + 独立 `mov $0; jmp` 近处块，见改前 diff）。
+    if (get_charac_level() >= fromLevel && get_charac_level() <= toLevel)
     {
-        // [CUserOnlyOrig 2026-09-09 P139] ORIG 用局部静态符号
-        // _ZZN5CUser19CalLevelUpItemStateERcRiiiE19__PRETTY_FUNCTION__（nm 实证 0x08cf2620）
-        // ⇒ 必须传 __PRETTY_FUNCTION__，手写同内容字面量只生匿名 .rodata。
-        cMyTrace trace((char*)__PRETTY_FUNCTION__, 0xa0d7, 0);
-        trace("Level_up_item:wrong value(%d) m_id(%s),charno(%u)", needExp,
+        state = 1;
+        // [P0/P52] ORIG 0x08689dd1 `mov %eax,%esi`（get_level_up_exp 结果跨后续 3 次 call
+        // 保活）/ 0x08689df1 `mov %eax,%ebx`（get_level_exp 结果）—— 两值**无栈槽往返**
+        // ⇒ 原码无 luExp/lvTop 具名局部，是内联实参表达式（旧具名版生 -0x10/-0xc 双槽 +
+        // push 数少 2）。求值序照 ORIG：先 get_level_up_exp，后 get_level_exp。
+        needExp = get_level_up_exp(get_charac_level())
+                + (G_CDataManager()->get_level_exp(get_charac_level())
+                   - get_charac_exp());
+        // ORIG：wrong/success 两分支各自独立重调 getCurCharacNo/get_acc_id/NumberToString
+        // 并各自构造 cMyTrace（访问器结果禁缓存，战术 P183/P48）。
+        if (needExp < 0)
+        {
+            // [CUserOnlyOrig 2026-09-09 P139] ORIG 用局部静态符号
+            // _ZZN5CUser19CalLevelUpItemStateERcRiiiE19__PRETTY_FUNCTION__（nm 实证 0x08cf2620）
+            // ⇒ 必须传 __PRETTY_FUNCTION__，手写同内容字面量只生匿名 .rodata。
+            cMyTrace trace((char*)__PRETTY_FUNCTION__, 0xa0d7, 0);
+            trace("Level_up_item:wrong value(%d) m_id(%s),charno(%u)", needExp,
+                  NumberToString(get_acc_id(), 0), getCurCharacNo());
+            return false;
+        }
+        cMyTrace trace((char*)__PRETTY_FUNCTION__, 0xa0da, 0);
+        trace("Level_up_item:success value(%d) m_id(%s),charno(%u)", needExp,
               NumberToString(get_acc_id(), 0), getCurCharacNo());
-        return false;
+        return true;
     }
-    cMyTrace trace((char*)__PRETTY_FUNCTION__, 0xa0da, 0);
-    trace("Level_up_item:success value(%d) m_id(%s),charno(%u)", needExp,
-          NumberToString(get_acc_id(), 0), getCurCharacNo());
-    return true;
+    return false;
 }
 
 // >>> W7-BLOCKED CUser::ChangeGrowType_Item —— _postCheckForceChangeGrowType 等调用依赖 owner 待定；clear_all_skills_both 链
@@ -6997,8 +7007,11 @@ void CUser::setRecipeEqiupmentOption(Inven_Item& outItem, stEquipCondition cond,
                                      int matUpgrade, const CStackableItem* stackable,
                                      int invenSpace)
 {
-    unsigned short outId = static_cast<unsigned short>(outItem.m_addInfo);   // item+0x02 word
-    CItem* outDef = G_CDataManager()->find_item(outId);
+    // [P0/P162] ORIG 0x0867306e+0x9：`mov 0x2(%eax),%eax; mov %eax,%ebx; call
+    // G_CDataManager; mov %ebx,0x4(%esp); ...` —— 4 字节直读直传、**无槽往返**
+    // ⇒ 原码无 outId 局部（旧 `unsigned short` 截断生 `mov %ax,-0x16; movzwl`），
+    // trace 实参处 ORIG 亦 4 字节直传 ⇒ 两处都内联 `outItem.m_addInfo`（unsigned int）。
+    CItem* outDef = G_CDataManager()->find_item(outItem.m_addInfo);
 
     if (outDef == 0)
     {
@@ -7038,7 +7051,7 @@ void CUser::setRecipeEqiupmentOption(Inven_Item& outItem, stEquipCondition cond,
         __PRETTY_FUNCTION__,
         0x5fdb, 0);
     trace("RECIPE LOG : out_item_id-%u, mat_up_val-%d, out_up_val-%d, mat_seal-%d",
-          (unsigned)outId, (unsigned)(unsigned char)cond.m_upgrade,
+          (unsigned)outItem.m_addInfo, (unsigned)(unsigned char)cond.m_upgrade,
           (unsigned)outUpgrade, (unsigned)(unsigned char)cond.m_flag6);
 
     if (cond.m_tableIdx == 0)                                                // cond+1 非0 → amplify
@@ -9973,7 +9986,7 @@ void CUser::SetGrowthWeaponEventInfo(const SIG_GROWTH_WEAPON_EVENT& sig)
     // SIG_GROWTH_WEAPON_EVENT 是 uchar[0x14]，用具名载荷视图内联 cast 逐字段访问。
     // 字段序照 ORIG 发射序：+4、+8、+0x10、+0xc、+0x12。
     struct GrowthWeaponSigView {
-        unsigned char m_eventFlag;   // +0x00
+        bool m_eventFlag;            // +0x00（与目标 m_eventFlag 同为 bool ⇒ P300 RHS-first 直存）
         char m_pad1[3];              // +0x01..0x03
         unsigned int m_f4;           // +0x04
         unsigned int m_f8;           // +0x08
@@ -9993,7 +10006,9 @@ void CUser::SetGrowthWeaponEventInfo(const SIG_GROWTH_WEAPON_EVENT& sig)
     {
         // [b28d-solo-CUserOnlyOrig P225 推广] 拆嵌套 if：ORIG 两条件各发一段
         // `xor $1/test/je`；4.4 对 `a && b` 恒折直跳/物化岛，嵌套 if 逐条复现。
-        if (m_growthWeapon.m_eventFlag != 1)
+        // [P292/P168a] ORIG 0x08691c48 `movzbl 0x8ebe4(%eax),%eax; xor $0x1,%eax;
+        // test %al,%al; je` = bool 字段 + `!field`（旧 uchar + `!=1` 产 `cmp $1,%al`）。
+        if (!m_growthWeapon.m_eventFlag)
         {
             PacketGuard packet;
             packet.put_header(0, 0x1ba);
@@ -13115,6 +13130,10 @@ int deleteSpecificItems(CUser* user,
     std::vector<std::pair<int, int> > delList;
     user->deleteSpecificItem(*list, delList);
 
+    // [P171/P273] ORIG 0x086cbce8 `movl $0x1d,-0x34(%ebp)`（写后未读死局部，
+    // 位于 deleteSpecificItem 之后、guards 数组构造之前）⇒ 恢复原形声明。
+    int n29 = 0x1d;
+    (void)n29;
     PacketGuard guards[0x1d];
     int index[0x1d] = { 0 };
     int count[0x1d] = { 0 };

@@ -1862,7 +1862,9 @@ struct GrowthWeaponEvent
 
     // ---- 具名化（CU_Fix-2：SetGrowthWeaponEventInfo SIG_GROWTH_WEAPON_EVENT 载荷搬运，
     //      偏移出自该报告逐字段汇编；语义为推断，sizeof 恒 0x14 不变）----
-    unsigned char m_eventFlag;         // +0x00（ORIG 写 byte；发包分支 ==1 抑制）
+    bool m_eventFlag;                  // +0x00（ORIG SetGrowthWeaponEventInfo 0x08691c48
+                                       //   `movzbl 0x8ebe4(%eax),%eax; xor $0x1; test %al,%al; je`
+                                       //   = bool 字段 + `!field`（P292/P168a）；1 字节，布局不变）
     char m_pad1[3];                    // +0x01..0x03
     unsigned int m_field4;             // +0x04
     unsigned int m_field8;             // +0x08
