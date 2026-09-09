@@ -263,7 +263,9 @@ scan_top:
             const int count = ScanInt(&ok);
             if (!ok)
                 goto scan_done;                          // ORIG 0x08918c96 尾部岛
-            for (int i = 0; i < count; )
+            // ++i 必须留在 for 增量位：ORIG 0x089189d3 `addl $1,-0x24` 在
+            // values 析构（0x089189ce D1）之后；写进循环体会被 4.4 提前到析构前。
+            for (int i = 0; i < count; ++i)
             {
                 // 非 const 左值 ⇒ ORIG make_pair<int&,vector<int>&>（p167）。
                 int key = ScanInt(&ok);
@@ -282,7 +284,6 @@ scan_top:
                     ++j;
                 }
                 out.m_map18.insert(std::make_pair(key, values));
-                ++i;
             }
             goto scan_top;
         }
@@ -613,10 +614,11 @@ scan_top:
             {
                 const int v = ScanInt(&ok);              // -0x24
                 if (!ok)
-                    goto scan_top;
+                    break;
                 out->m_timeHourList[timeCount] = v;      // ORIG 裸下标 this+(i+0x18)*4
                 ++timeCount;
             }
+            goto scan_top;
         }
 
         if (token == "[door fee]")
@@ -626,10 +628,11 @@ scan_top:
             {
                 const int v = ScanInt(&ok);              // -0x1c
                 if (!ok)
-                    goto scan_top;
+                    break;
                 out->m_doorFee[doorCount] = v;           // ORIG 裸下标 this+(i+0x30)*4
                 ++doorCount;
             }
+            goto scan_top;
         }
 
         if (token == "[ban interval]")
@@ -679,10 +682,11 @@ scan_top:
             {
                 const int v = ScanInt(&ok);              // -0x14
                 if (!ok)
-                    goto scan_top;
+                    break;
                 out->m_warAreaDungeon[dungeonIdx] = v;   // ORIG 裸下标
                 ++dungeonIdx;
             }
+            goto scan_top;
         }
 
         if (token == "[wp per monster hp]")
@@ -694,7 +698,7 @@ scan_top:
                 // （p167 MISSING `IRiR10stWarPoint`；const 版落 `<IRKiR...>`）。
                 int key = ScanInt(&ok);                  // -0x80
                 if (!ok)
-                    goto scan_top;                       // 回主循环
+                    break;                               // 回主循环
 
                 for (int j = 0; j < 4; ++j)              // -0x10
                 {
@@ -706,6 +710,7 @@ scan_top:
                 out->m_wpPerMonsterHp.insert(
                     std::make_pair(key, wp));            // greater<int> 键序
             }
+            goto scan_top;
         }
 
         if (token == "[counter]")
