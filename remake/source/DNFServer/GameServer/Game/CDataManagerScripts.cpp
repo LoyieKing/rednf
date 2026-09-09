@@ -198,6 +198,8 @@ void PvPSkillTreeParameterScript::clear()
 // 早退形在 4.4 下把 return-0 块排到主体之前（块序相反）。改正极包裹
 // `if (gradeIt != m_map18.end()) { …; return …; } return 0;` 后布局与 ORIG 同向。
 // 残余 gap 1 + 槽号整体平移 4（gradeIt -0x38 vs ORIG -0x34；P112/N93 块级槽向）；ORIG 0x08a5df0e。
+// [b28d-solo-CDataManagerScripts-5 复核] fresh orig 183 / ours 182；jcc 30/30
+// （序列错位源于块序/岛，无极性反写）⇒ 维持 N93/N112。
 int PvPSkillTreeParameterScript::getPvPSkillPointNext(
     int job, int firstGrow, int secondGrow, int grade) const
 {
@@ -1437,6 +1439,10 @@ void CNPCRelationEventManager::AddRewardItemInfo(
     stNPCRelationEventInfo* node = it->second;
     // ORIG 0x0890d052：`lea (%ecx,%eax,1),%eax; lea 0xc(%eax),%edx`（两步 lea）
     // ⇒ 数组名参与算术（P214①）而非下标形（4.4 下标形折 add $0xc）。
+    // [b28d-solo-CDataManagerScripts-4 复核] 装载序（ORIG kind 先 / node 后 = RHS-first）
+    // 与两步 lea 实测不可翻：删 `static_cast<int>`（异型化，P211 档③）与交换加法操作数
+    // `(kind + node->m_favor)` 两形均仍产 node-first + `mov %eax,0xc(%edx)` 折 disp
+    // ⇒ N107（add-vs-lea 折 disp）+ N7/N76（装载序）封顶，维持原形。
     (node->m_favor + kind)->m_rewardA = static_cast<int>(rewardA);
     (node->m_favor + kind)->m_rewardB = static_cast<int>(rewardB);
 }
@@ -1860,6 +1866,9 @@ int advancealtar::ConfigParameter::importConfigParameter(const char* path)
 // token -0x208 vs ORIG -0x230（Δ0x28），而 unkC -0x64 与 ORIG 同位 ⇒ 差集中在
 // 深区局部区，属 4.1/4.4 聚合/标量槽分区策略差；gap 7、p167 201/201 CLEAR，
 // 按 §6.2 三件套封顶）；ORIG 0x088a10cc。
+// [b28d-solo-CDataManagerScripts-5 复核] fresh orig 1441 / ours 1435；p167 201/201
+// （差集全为 C1/C2·D1/D2 别名 P93 伪差）；jcc ORIG 84 / 我方 86，上下文差集全部为
+// `test;je;jmp`（ORIG 岛形）↔ `test;jne;jmp`（我方）+ 槽平移对齐伪影 ⇒ 维持 N82/P164。
 int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
     const char* path)
 {
@@ -2307,6 +2316,9 @@ advancealtar::AdvanceAltarShopParameter::getBuyUpgradeDataVec(
 // 残余 gap 12 = ORIG 8 个 continue 中继岛（0x0889b046..b05e 共 8×(nop;jmp)，落点
 // 均为内层循环头 0x0889b05f）+ 少量装载序；4.4 对 continue 恒 jump-thread 直跳
 // （我方仅 5 岛），属 P164/P223/N82 控制流布局族，源形不可择；ORIG 0x0889afb0。
+// [b28d-solo-CDataManagerScripts-5 复核] fresh orig 386 / ours 374；p167 48/48
+// （差集全为 C1/C2·D1/D2 同址别名 P93 伪差）；jcc 30/30、逐位错位 10（岛/块序所致，
+// 两侧同序号 jcc 语义指令均存在，无极性反写）⇒ 维持 N。
 int advancealtar::RewardParameter::importAchievementRewardParameter(
     const char* path)
 {
