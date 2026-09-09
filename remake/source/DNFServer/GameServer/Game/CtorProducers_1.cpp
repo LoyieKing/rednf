@@ -198,20 +198,26 @@ AvatarRouletteServer::~AvatarRouletteServer()
 
 bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
 {
-    // [b28d-46 判词·N/N82+N89] ORIG 0x0817f706：264 vs 224；帧/槽整体平移
-    // （N82）＋ STL 模板实例内联差（N89）⇒ 封顶。
+    // [b28d-sweepC 判词·DIFF→NEAR，残余 N7+N82] ORIG 0x0817f706：
+    // 本轮真缺口修复（gap 40→2）：①四处 `result = false` 原码在各自 if 块**内**
+    // （ORIG 0x0817f874/0x0817f8d5/0x0817f946/0x0817f9b9 均紧跟 logFormat），旧写
+    // 块外无条件（P171 死写入位置错）；②`CItem* pItem = item`（ORIG 0x0817f8d9
+    // `mov -0x2c,%eax; mov %eax,-0x28`）——IsAvatarItem 之后原码另有一枚具名指针，
+    // check_job_type/GetItemType/get_grade 全走它；③`&&` 拆嵌套 if（P225，
+    // ORIG 0x0817f9dc `ja` + 0x0817fa4e `jbe` 两段守卫）；④`if (type==8) goto`
+    // 复现 0x0817f9c1 `je <nop>` + 体尾 `jmp` 的空 then 占位岛（P223）；
+    // ⑤删 logFormat 变参 `static_cast<int>(li)` 冗余 cast（P41 变体：诱发
+    // %ebx callee-saved 缓存，ORIG 0x0817fa03 直读槽）。
+    // 残余：`movsbl %al,%edx`（ORIG）vs `%eax`（4.4）寄存器角色（N7）+ 尾部 nop。
     // ORIG 0x0817f706。
     m_pRoulette = new AvatarRoulette;
     m_pRoulette->swap(roulette);
     m_totalCount = m_pRoulette->m_upperAvatarRate + m_pRoulette->m_normalAvatarRate;
 
-    // [b28d-solo-CtorProducers_1 判词·N82/P112 残余] 本轮已修：①p167 差集 6 次
-    // `inner[type]` 重读（P157/P48，旧具名 itemNo 缓存致 MISSING×6）；②ORIG 两次
-    // `outer.size()`（①死调用 P171 + ②循环上界缓存，cond 块只 cmp -0x38）；
-    // ③具名 expectedGrade 局部（P0：ORIG `movl $0/$2/$1,-0x1c` 槽往返，旧写立即数）。
-    // 残余：4.1 按声明序「先声明更深」分配（result -0x45/job -0x44/…），4.4 按
-    // 首次使用序（result -0x41/job -0x40/…）⇒ 全阶梯整体浅 4；dead 标量/char[4]/
-    // double pad 三形实测均不能平移（4.4 把新局部放更深，result 不动）⇒ 封顶。
+    // [b28d-solo-CtorProducers_1 判词·N82/P112 残余] 历史修复：①p167 差集 6 次
+    // `inner[type]` 重读（P157/P48）；②ORIG 两次 `outer.size()`（死调用 P171 +
+    // 循环上界缓存）；③具名 expectedGrade 局部（P0）。
+    // 残余：槽阶梯整体浅 4（N82；4.1 声明序 vs 4.4 首次使用序）⇒ 封顶。
     bool result = true;   // ORIG movb $0x1,-0x45；失败路径写 0，最终返回常量 true
     if (G_CEnvironment()->m_serverEnvir.m_validateScript)
     {
@@ -251,18 +257,22 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                             __PRETTY_FUNCTION__, 0x86,
                             "AvatarRouletteServer no avatar item_no(%d)",
                             static_cast<int>(inner[type].first));
+                        result = false;   // ORIG 0x0817f8d5（块内，非无条件）
                     }
-                    result = false;   // ORIG movb $0x0,-0x45
-                    if (!item->check_job_type(static_cast<char>(job)))
+                    // ORIG 0x0817f8d9 `mov -0x2c(%ebp),%eax; mov %eax,-0x28(%ebp)`
+                    // ⇒ IsAvatarItem 之后原码另有一枚具名 CItem*（后续 check_job_type/
+                    // GetItemType/get_grade 全走它；-0x2c 只用于判空与 IsAvatarItem）。
+                    CItem* pItem = item;
+                    if (!pItem->check_job_type(static_cast<char>(job)))
                     {
                         LogManager::logFormat(
                             1, "localjapan/Arad_AvatarRoulette.cpp",
                             __PRETTY_FUNCTION__, 0x8d,
                             "AvatarRouletteServer item_no(%d) check_job_type(%d)==false",
                             static_cast<int>(inner[type].first), job);
+                        result = false;   // ORIG 0x0817f946（块内）
                     }
-                    result = false;   // ORIG movb $0x0,-0x45
-                    unsigned int itemType = item->GetItemType();
+                    unsigned int itemType = pItem->GetItemType();
                     if (itemType != static_cast<unsigned int>(type))
                     {
                         LogManager::logFormat(
@@ -270,41 +280,53 @@ bool AvatarRouletteServer::Init(AvatarRoulette* roulette)
                             __PRETTY_FUNCTION__, 0x95,
                             "AvatarRouletteServer item_no(%d) GetItemType(%d)!=%d",
                             static_cast<int>(inner[type].first), itemType, type);
+                        result = false;   // ORIG 0x0817f9b9（块内）
                     }
-                    result = false;   // ORIG movb $0x0,-0x45
-                    if (type != 8)
+                    // ORIG 0x0817f9c1 `je 0817fac0(nop)` + 体尾 0x0817fabe `jmp
+                    // 0817fac1` ⇒ 4.1 空 then 占位岛（P223）；4.4 jump-thread 掉，
+                    // 用 `if (type==8) goto` + 尾标签复现。
+                    if (type == 8)
+                        goto skip_grade_check;
                     {
-                        int grade = item->get_grade();
+                        int grade = pItem->get_grade();
                         // P0：ORIG `movl $0x0,-0x1c` 预清 + 两支各 `movl $2/$1,-0x1c`
                         // ⇒ 原码有具名 expectedGrade 局部并在 logFormat 实参处读取
                         // （我们旧写立即数 2/1，缺槽往返与 store）。
                         int expectedGrade = 0;
-                        if (li < 2 && grade != 2)
+                        // ORIG 0x0817f9dc/0x0817fa4e：`&&` 拆嵌套 if（P225），
+                        // 两支各在体内写 result=false 后 jmp 循环尾。
+                        if (li < 2)
                         {
-                            expectedGrade = 2;
-                            LogManager::logFormat(
-                                1, "localjapan/Arad_AvatarRoulette.cpp",
-                                __PRETTY_FUNCTION__, 0xa3,
-                                "AvatarRouletteServer item_no(%d) get_grade(%d)!=%d, line_num(%d)",
-                                static_cast<int>(inner[type].first), grade,
-                                expectedGrade,
-                                static_cast<int>(li));
-                        
-                            result = false;   // ORIG movb $0x0,-0x45
+                            if (grade != 2)
+                            {
+                                expectedGrade = 2;
+                                LogManager::logFormat(
+                                    1, "localjapan/Arad_AvatarRoulette.cpp",
+                                    __PRETTY_FUNCTION__, 0xa3,
+                                    "AvatarRouletteServer item_no(%d) get_grade(%d)!=%d, line_num(%d)",
+                                    static_cast<int>(inner[type].first), grade,
+                                    expectedGrade,
+                                    li);
+                                result = false;   // ORIG 0x0817fa48（块内）
+                            }
                         }
-                        else if (li > 1 && grade != 1)
+                        else if (li > 1)
                         {
-                            expectedGrade = 1;
-                            LogManager::logFormat(
-                                1, "localjapan/Arad_AvatarRoulette.cpp",
-                                __PRETTY_FUNCTION__, 0xa9,
-                                "AvatarRouletteServer item_no(%d) get_grade(%d)!=%d, line_num(%d)",
-                                static_cast<int>(inner[type].first), grade,
-                                expectedGrade,
-                                static_cast<int>(li));
+                            if (grade != 1)
+                            {
+                                expectedGrade = 1;
+                                LogManager::logFormat(
+                                    1, "localjapan/Arad_AvatarRoulette.cpp",
+                                    __PRETTY_FUNCTION__, 0xa9,
+                                    "AvatarRouletteServer item_no(%d) get_grade(%d)!=%d, line_num(%d)",
+                                    static_cast<int>(inner[type].first), grade,
+                                    expectedGrade,
+                                    li);
+                                result = false;   // ORIG 0x0817faba（块内）
+                            }
                         }
-                        result = false;   // ORIG movb $0x0,-0x45
                     }
+                skip_grade_check:;
                 }
             }
         }
@@ -324,9 +346,13 @@ bool AvatarRouletteServer::isAvatarPottery(unsigned long itemIdx)
 
 bool AvatarRouletteServer::InitAddCharacSkill()
 {
-    // [b28d-solo-CtorProducers_1 判词·P171 修复，残余 N82] ORIG 0x0817f386：
-    // 本轮修 `outer.size()` 死调用 + 缓存上界两段形（同 Init：ORIG 0x0817f3d5
-    // 第一次 size() 结果丢弃、0x0817f3e7 第二次存 -0x20，p167 MISSING×1 清零）。
+    // [b28d-sweepC 判词·P171 真缺口修复 + N82 残余] ORIG 0x0817f386：
+    // 本轮修 `outer.size()` 死调用 + 缓存上界两段形（同 Init）。
+    // 【真缺口】ORIG 0x0817f5ec `mov -0xc(%ebp),%eax; mov %eax,-0x60(%ebp)` =
+    // push_back 前 `skill.m_field4 = idx`（Ghidra C local_64 = local_10）——旧实现
+    // 漏写此覆盖（P171 死写入照抄：前面 `var.m_skill.m_field4` 的值被覆盖）。
+    // gap 4→2（剩余：4.1 消解引用 var 不落槽 vs 4.4 落槽 4 条 + ORIG key 引用
+    // 临时 2 条，方向相反不可同时闭合）。
     // 残余：槽号整体平移（4.1 先声明更深 vs 4.4 首次使用序，N82）⇒ 封顶。
     // ORIG 0x0817f386。
     if (G_CEnvironment()->m_serverEnvir.m_validateScript)
@@ -387,6 +413,11 @@ bool AvatarRouletteServer::InitAddCharacSkill()
                                 std::vector<LevelUpSkill> empty;
                                 skillMap[skill.m_job] = empty;
                             }
+                            // ORIG 0x0817f5ec：push_back 前把 skill+0x04 覆盖为循环下标
+                            // （`mov -0xc(%ebp),%eax; mov %eax,-0x60(%ebp)`；Ghidra C
+                            //  local_64 = local_10）。P171 死写入照抄：前一条
+                            // `skill.m_field4 = var.m_skill.m_field4` 的值被本行覆盖。
+                            skill.m_field4 = idx;
                             skillMap[skill.m_job].push_back(skill);
                         }
                         m_addCharacSkillMap[inner[type].first] = skillMap;
@@ -401,19 +432,21 @@ bool AvatarRouletteServer::InitAddCharacSkill()
 
 bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index)
 {
-    // [b28d-solo-CtorProducers_1 判词·P157+P96/P123 修复，残余 N82] ORIG 0x0817fb28：
-    // 本轮修（p167 由 5 项差集→CLEAR 31/31）：①`outer[band]` 两次独立
-    // `vector<vector<...>>::operator[]`（size 检查 + 取值，P157，去 outer/inner 引用缓存）；
-    // ②技能段改**非 const** `_Rb_tree_iterator`（P96）+ `find` 判存在后
-    // `m_addCharacSkillMap[uid]`/`skillMap[grade]` 二次 `operator[]`（P123，Ghidra C 同形）。
-    // 本轮修：ORIG 0x0817fb42 死写入局部 -0x2c（0/2/1，全程未读，P171 照抄
-    // ⇒ bandKind；gap 10→7）。残余：帧 0x7c vs 0x70 与槽号平移（N82）+ 比较
-    // 方向 fold（ORIG setbe vs 我们 setae，P196 语义等价；交换书写序 ndiff 反升
-    // 295→309 已回退）⇒ 封顶。
+    // [b28d-sweepC 判词·残余 N89+N7+P211，未闭合] ORIG 0x0817fb28：
+    // 历史修复：P157（两次独立 operator[]）；P96（非 const _Rb_tree_iterator）；
+    // P123（二次 operator[]）；P171（bandKind 死写入，gap 10→7）。
+    // 本轮修：P196 比较书写序改 `size() <= band`（复现 ORIG `call size; cmp band;
+    // setbe`，消 setae/setbe 助记符差；四数无回退）。
+    // 残余：①ORIG out-of-line `map::end()`（0x08180c68，N89 4.4 恒内联不可发射）；
+    // ②jobIdx/levelIdx 用 %edi/%esi 跨调用（N7）；③`entry.first` 拷贝 ORIG 两段
+    // `mov (%eax),%eax; mov %eax,%edx` vs 4.4 单段（P211/N18a）⇒ 封顶。
     // ORIG 0x0817fb28（报告 AvatarRouletteServer/Pickup.md 全文）。
     // 档位抽取：randVal<roulette+0x0c 时 band∈{0,1}，否则从
     // m_avatars[0].size()-2 偏移取 band（内联 size helper 08180760 实证）。
     int randVal = get_rand_int(m_totalCount);
+    // ORIG -0x1c（Ghidra local_20，uint）：两处 `get_rand_int` 结果均先落此槽再读
+    // （0x0817fd0e/0x0817fe47 `mov %eax,-0x1c; mov -0x1c,%eax`）；旧内联形缺 2 条/处。
+    unsigned int randIdx;
     // [b28d-solo-CtorProducers_1 修复·P171] ORIG 0x0817fb42 `movl $0x0,-0x2c`
     // 并在两分支写 2/1，但全程**未读**（Ghidra C `local_30` 无消费者）= 原码死
     // 写入，必须照抄（缺它 -0x2c 槽与后续装载形态全异）。
@@ -437,14 +470,14 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
     // [b28d-solo-CtorProducers_1] P157/p167：ORIG 对 `outer[band]` 调
     // `vector<vector<...>>::operator[]` **两次**（size 检查一次、取值一次），
     // 禁具名 outer/inner 引用缓存（旧写法仅 1 次，p167 MISSING×1）。
-    // [b28d-solo-CtorProducers_1 判词·P196 折痕] ORIG `cmp band,size; setbe`；
-    // 交换书写序（`size()<=band`）虽消 setae/setbe 差，但 jne 块错位使 ndiff
-    // 295→309 ⇒ 回退；setbe/setae 属比较方向 fold（语义等价）封顶。
-    if (static_cast<unsigned int>(picked.m_gradeBand) >=
-        m_pRoulette->m_avatars[grade].size())
+    // [b28d-sweepC 修复·P196] ORIG `call size; cmp band,%eax; setbe` ⇒ 源码写
+    // `size() <= band`（4.4 同形复现，消旧 `band >= size()` 的 setae 助记符差；
+    // 四数不回退）。
+    if (m_pRoulette->m_avatars[grade].size() <=
+        static_cast<unsigned int>(picked.m_gradeBand))
         return false;
-    if (static_cast<unsigned int>(index) >=
-        m_pRoulette->m_avatars[grade][static_cast<int>(picked.m_gradeBand)].size())
+    if (m_pRoulette->m_avatars[grade][static_cast<int>(picked.m_gradeBand)].size()
+        <= static_cast<unsigned int>(index))
         return false;
 
     std::pair<unsigned long, int>& entry =
@@ -459,8 +492,8 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
         return false;
 
     CEquipItem* equip = static_cast<CEquipItem*>(item);
-    picked.m_optionOrSkillIdx =
-        static_cast<char>(get_rand_int(equip->getAvatarOptionSize()));
+    randIdx = static_cast<unsigned int>(get_rand_int(equip->getAvatarOptionSize()));
+    picked.m_optionOrSkillIdx = static_cast<char>(randIdx);
 
     // [BigUserLogic] ORIG 伪C/汇编（0x0817fe??..0817fec6 唯一 `movb $0,0x9`）：
     // 特殊段与「非特殊」路径在 pad9 写入点**汇合**（单一物理写）；旧 `if(!special)
@@ -485,8 +518,10 @@ bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index
             return false;
 
         std::vector<LevelUpSkill> skillVec = skillMap[grade];
+        randIdx = static_cast<unsigned int>(
+            get_rand_int(static_cast<int>(skillVec.size())));
         picked.m_optionOrSkillIdx =
-            static_cast<char>(skillVec[get_rand_int(skillVec.size())].m_field4);
+            static_cast<char>(skillVec[randIdx].m_field4);
     }
 
     picked.m_pad9 = 0;
@@ -835,12 +870,14 @@ CLevelRewardTableMgr* CLevelRewardTableMgr::GetInstance()
 
 void CLevelRewardTableMgr::SetChallengeInfo(stUnlimitChallengeInfo& info)
 {
-    // [b28d-solo-CtorProducers_1 判词·P167 修复，残余 N82] ORIG 0x08687828：
-    // 本轮修第二循环 `it->m_subIdx` 缓存（ORIG 该循环 operator-> 仅 4 次；
-    // 旧写两遍致 EXTRA×1），修后 p167 CLEAR 50/50。
-    // 本轮修（③）：`m_flag = info.m_field0` 直赋（P136/P292 bool→bool 直存，
-    // 消 test/setne 物化；旧 `*(const char*)&info.m_field0` 形）。gap -4→-2。
-    // 残余：帧 0x8c vs 0x90 与三段循环槽号整体平移（N82：4.1 不复用槽）⇒ 封顶。
+    // [b28d-sweepC 判词·残余 N82+N7] ORIG 0x08687828：
+    // 历史修复：第二循环 `it->m_subIdx` 缓存（p167 CLEAR 50/50）；
+    // `m_flag = info.m_field0` 直赋（P136/P292）。
+    // 本轮修：第二循环 `int subIdx = it->m_subIdx`（ORIG 0x08687xxx `movzbl
+    // <m_subIdx>,%eax; mov %eax,-0x24(%ebp)` ⇒ 局部是 **int** 4 字节槽，调用处
+    // 才 movsbl 收窄；旧 `char subIdx` 发单字节 `mov %al,-0x3d`）。
+    // 残余：jobIdx/levelIdx ORIG 用 %edi/%esi 跨调用（N7）；三段循环槽号整体
+    // 平移（N82：4.1 不复用槽）⇒ 封顶。
     // ORIG 0x08687828 全量转写（报告双段 + objdump 逐条）：
     // 0x08687837 `movzbl (%eax)` + 0x0868783d `mov %dl,(%eax)` ⇒ flag 单字节；
     // 0x08687852 vec 赋值、0x08687868 SetJobAffection(true)；随后三段同构循环，
@@ -879,7 +916,10 @@ void CLevelRewardTableMgr::SetChallengeInfo(stUnlimitChallengeInfo& info)
             // p167：ORIG 该循环 `operator->` 仅 4 次（m_jobLevel/m_subIdx/m_a/m_b）
             // ⇒ `it->m_subIdx` 必须缓存一次后复用（旧写两遍致 EXTRA×1，Ghidra C 的
             // 第二次 GetProperJobIndex 用具名 local_28）。
-            char subIdx = static_cast<char>(it->m_subIdx);
+            // ORIG 0x08687xxx：`movzbl <m_subIdx>,%eax; mov %eax,-0x24(%ebp)` ⇒
+            // 局部是 **int**（4 字节槽），调用处才 `movsbl %al,%edx` 收窄到 char。
+            // 旧 `char subIdx` 发单字节 `mov %al,-0x3d`（槽宽/截断序不符）。
+            int subIdx = it->m_subIdx;
             int jobIdx = m_table->GetProperJobIndex(subIdx);
             int levelIdx = m_table->GetProperLevelIndex(level);
             m_table->m_rewardPrimary[jobIdx][levelIdx] = it->m_a;
@@ -1140,18 +1180,18 @@ CWorldMap::CWorldMap()
 
 void CWorldMap::set_world_map(WorldMapScript* script)
 {
-    // [b28d-solo-CtorProducers_1 判词·P96+P48+P292，残余 N82] ORIG 0x0836421a：
-    // 旧「N/P168a③b+N82 封顶」判词作废其可翻部分。本轮修（p167 由 5 项差集→CLEAR
-    // 31/31）：①迭代器改 **const_iterator** + 具名 `last`（ORIG 两枚 const 迭代器
-    // 各自经转换构造 + 同型 ne）；②`getDungeonKind()` 两次独立调用（P48 无 CSE）；
-    // ③else 分支直接读 `!dungeon->m_villageAttackEventFlag`（+0x87a bool，P292），
-    // 删除 `ctors1::IsBlockWorldMapMark` helper（EXTRA×1）；④`if (dungeon != 0)`
-    // 正向包裹替 continue（P296，Ghidra C 同形）。
-    // 本轮修（②）：三段 assign 的 begin/end 临时 ORIG 各占独立一对
-    // （-0x3c/-0x38、-0x34/-0x30、-0x2c/-0x28），4.4 原复用同一对 ⇒ 改**具名
-    // 迭代器**拉长生命周期阻止复用（ndiff 211→151；end-first 声明序 155 稍差
-    // 已回退）。残余：帧/槽基差（ORIG it=-0x40/last=-0x44 vs 我们 -0x30 区）+
-    // 极性 fold（ORIG-only jmp×2/jne×1 vs OURS-only je/xor）⇒ N82 封顶。
+    // [b28d-sweepC 判词·DIFF→NEAR，残余 N82 槽基差] ORIG 0x0836421a：
+    // 历史修复：const_iterator + 具名 last；getDungeonKind() 两次独立调用；
+    // 直读 `m_villageAttackEventFlag`（P292）；正向包裹（P296）。
+    // 本轮修（gap 13→1，助记符序列全等）：①三段 assign 的 begin/end 改**内联
+    // 实参**（4.1/4.4 均右→左求值 ⇒ 先 end 后 begin，与 ORIG 0x0836423e 的
+    // `call end` 在前一致；旧具名迭代器语句序 begin 先 ⇒ 相反）；②
+    // `!m_villageAttackEventFlag` 改 `if (flag) goto` 尾标签（P223/N122：4.4 对
+    // `!bool` 恒 xor+je，goto 守卫复现 ORIG 0x08364468 `test; jne`）；③
+    // `if (dungeon == 0) goto` 复现 ORIG 0x083644d7/0x083644d8 的 `nop`+`jmp`
+    // 中继岛（P223）。
+    // 残余：槽基整体浅 0x10（ORIG it/last -0x40/-0x44 vs 我们 -0x30/-0x34，
+    // 4.1 的 4 个匿名临时槽）⇒ N82/N95 封顶。
     // ORIG 0x0836421a：标量回写 + 三段 vector assign + m_dungeonIndex=MAXINT；
     // 遍历 script->m_dungeons：find_dungeon 命中者 push 进 m_dungeonList，
     // 并按 kind==1/kind==2/其它三分支以 min 收敛 m_dungeonIndex（kind==1 另置
@@ -1159,19 +1199,15 @@ void CWorldMap::set_world_map(WorldMapScript* script)
     // 再按 index==100 与 standard_level 收敛。
     m_index = script->m_index;
     m_isHellDungeon = script->m_isHellDungeon;
-    // [b28d-solo-CtorProducers_1 实验·N82] 三段 assign 的 begin/end 临时槽
-    // ORIG 各占独立一对（-0x3c/-0x38、-0x34/-0x30、-0x2c/-0x28），4.4 复用同槽。
-    // 试具名迭代器拉长生命周期阻止复用。
-    std::vector<int>::iterator hqBegin = script->m_hellQuests.begin();
-    std::vector<int>::iterator hqEnd = script->m_hellQuests.end();
-    m_field1c.assign(hqBegin, hqEnd);
+    // [b28d-sweepC] ORIG 0x0836423e..0x0836431e：assign 的 begin/end **内联实参**
+    // （4.1/4.4 均右→左求值 ⇒ 先 end 后 begin，与 ORIG 的 `call end` 在前一致；
+    // 旧具名迭代器使语句序 begin 先 ⇒ 与 ORIG 相反）。
+    m_field1c.assign(script->m_hellQuests.begin(), script->m_hellQuests.end());
     m_hasDeathTower = 0;
-    std::vector<std::pair<int, int> >::iterator fpBegin = script->m_freepassItems.begin();
-    std::vector<std::pair<int, int> >::iterator fpEnd = script->m_freepassItems.end();
-    m_hellPassItemList.assign(fpBegin, fpEnd);
-    std::vector<int>::iterator icBegin = script->m_itemConditions.begin();
-    std::vector<int>::iterator icEnd = script->m_itemConditions.end();
-    m_field34.assign(icBegin, icEnd);
+    m_hellPassItemList.assign(script->m_freepassItems.begin(),
+                              script->m_freepassItems.end());
+    m_field34.assign(script->m_itemConditions.begin(),
+                     script->m_itemConditions.end());
     m_dungeonIndex = 0x7fffffff;
     // [b28d-solo-CtorProducers_1] Ghidra C + p167 实证三处修：
     // ①迭代器 **const_iterator**（ORIG `__normal_iterator<WorldMapDungeon const*>`；
@@ -1188,8 +1224,11 @@ void CWorldMap::set_world_map(WorldMapScript* script)
     {
         CDungeon* dungeon =
             G_CDataManager()->find_dungeon(it->m_dungeonIndex);
-        // P296：Ghidra C 为正向包裹 `if (local_10 != 0) { body }`，无 continue 岛。
-        if (dungeon != 0)
+        // ORIG 0x083644d7/0x083644d8：`if (dungeon != 0)` 的假分支落 `nop` +
+        // `jmp <循环尾>` 中继岛（P223 4.1 空 then 占位）；4.4 jump-thread 掉 ⇒
+        // 用 `if (dungeon == 0) goto` + 尾标签复现岛。
+        if (dungeon == 0)
+            goto skip_dungeon_body;
         {
             m_dungeonList.push_back(it->m_dungeonIndex);
             if (dungeon->getDungeonKind() == 1)
@@ -1203,17 +1242,26 @@ void CWorldMap::set_world_map(WorldMapScript* script)
                 int minLevel = dungeon->get_min_level();
                 m_dungeonIndex = std::min(m_dungeonIndex, minLevel);
             }
-            else if (!dungeon->m_villageAttackEventFlag)
+            else
             {
-                if (dungeon->get_index() == 0x64)
+                // ORIG 0x08364371：`movzbl 0x87a(%eax),%eax; test %al,%al;
+                // jne <循环尾>`（4.1 无 xor 的取反守卫）；4.4 对 `!bool` 恒
+                // xor+je（N122）⇒ 用 goto 尾标签复现 jne 直跳。
+                if (dungeon->m_villageAttackEventFlag)
+                    goto skip_village_map;
                 {
-                    int minLevel = dungeon->get_min_level();
-                    m_dungeonIndex = std::min(m_dungeonIndex, minLevel);
+                    if (dungeon->get_index() == 0x64)
+                    {
+                        int minLevel = dungeon->get_min_level();
+                        m_dungeonIndex = std::min(m_dungeonIndex, minLevel);
+                    }
+                    int standardLevel = dungeon->get_standard_level();
+                    m_dungeonIndex = std::min(m_dungeonIndex, standardLevel);
                 }
-                int standardLevel = dungeon->get_standard_level();
-                m_dungeonIndex = std::min(m_dungeonIndex, standardLevel);
+            skip_village_map:;
             }
         }
+    skip_dungeon_body:;
         ++it;
     }
 }
@@ -1449,14 +1497,18 @@ CNPCScriptList::CNPCScriptList()
 
 int CNPCScriptList::initScript(char* dir, char* list, char* common)
 {
-    // [b28d-solo-CtorProducers_1 判词·P304+P157/P48，残余 N82] ORIG 0x08581314：
-    // 旧「N82+N89 封顶」判词作废其可翻部分。本轮修：①去掉
-    // `reinterpret_cast<STFileListMapMirror*>(&g_npcScriptFileList)` 的 P304 寄存器
-    // 物化（STScriptFileList::m_fileMap@+0 权威同型成员直访问）；②p167 MISSING
-    // 3×`operator->`+3×`c_str` ⇒ `it->second.c_str()` 4 处全部内联（P157/P48，
-    // 旧具名 name 缓存）；修后 p167 CLEAR（39/39）。
-    // 残余：4.1 不复用栈槽（begin/end sret 落 -0x80/-0x7c，共 ~0x48 额外槽）vs
-    // 4.4 复用（-0x44 起）⇒ 全帧槽号错位（N82），语义/调用点已闭合。
+    // [b28d-sweepC 判词·DIFF→NEAR，残余 N82 槽号] ORIG 0x08581314：
+    // 历史修复：P304 去 reinterpret_cast 寄存器物化；`it->second.c_str()` 内联
+    // （P157/P48）。
+    // 本轮修（gap 13→0、助记符序列全等）：①`if (!isExistNPCScript(...))` 极性
+    // ——ORIG 0x085813bf `call; xor $1; test %al; je <body>` ⇒ 原码否定式 + 失败
+    // 块 fall-through（P47/P220/P292），旧正向 `if (isExist) {body} else {trace}`
+    // 块序相反；②两处 cMyTrace 改**全表达式临时链**（P227/P328⑩）——ORIG
+    // 0x085813c6/0x0858148c 先把 `c_str()` 求值入 %ebx 再构造 trace，两语句形
+    // 把 ctor 提前致块序失配；③for 改**预计算 end() + while**（P13）——ORIG
+    // 0x0858136e 循环前算 itEnd，旧 for 每轮重调 end()。
+    // 残余：4.1 不复用栈槽（begin/end sret 落 -0x80/-0x7c）vs 4.4 复用
+    // ⇒ 全帧槽号错位（N82），助记符序列已全等（NEAR）。
     // ORIG 0x08581314。
     if (!initNpcScript(dir, list))
         return 0x1a1;
@@ -1466,17 +1518,33 @@ int CNPCScriptList::initScript(char* dir, char* list, char* common)
     // 的 m_fileMap@+0 是权威同型成员 ⇒ 直接成员访问发 `movl $0x94fe780,0x4(%esp)`。
     // P157/P48：p167 差集 MISSING 3×`operator->`+3×`c_str` ⇒ ORIG 每个使用点重读
     // `it->second.c_str()`（4 处），禁具名 name 缓存。
-    for (std::map<int, std::string>::const_iterator it =
-             g_npcScriptFileList.m_fileMap.begin();
-         it != g_npcScriptFileList.m_fileMap.end(); ++it)
+    // ORIG 0x08581343/0x0858136e：begin()→const_iterator(it) 后**预计算** end()
+    // →const_iterator(itEnd)（P13 end 缓存；循环尾仅 ++it 再比 it!=itEnd，
+    // 不是每轮重调 end()）。故写 while 形而非 for 形。
+    std::map<int, std::string>::const_iterator it =
+        g_npcScriptFileList.m_fileMap.begin();
+    std::map<int, std::string>::const_iterator itEnd =
+        g_npcScriptFileList.m_fileMap.end();
+    while (it != itEnd)
     {
-        if (isExistNPCScript(it->second.c_str()))
+        // ORIG 0x085813bf：`call isExistNPCScript; xor $0x1,%eax; test %al,%al;
+        // je <body>` ⇒ 原码是否定式 `if (!isExist…)`，失败块 fall-through、body 在
+        // je 目标（P47/P220/P292）。
+        if (!isExistNPCScript(it->second.c_str()))
+        {
+            // ORIG 0x085813c6：c_str 在 cMyTrace ctor 前求值并以 %ebx 保活
+            // ⇒ 全表达式临时链（P227/P328⑩）。
+            cMyTrace(__PRETTY_FUNCTION__, 0x1a9, 5)(
+                "%s file not exists\n", it->second.c_str());
+        }
+        else
         {
             CNPCScript* npc = new CNPCScript;
             if (!npc->load(it->second.c_str()))
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0x1b0, 5);
-                trace("%s load failed\n", it->second.c_str());
+                // ORIG 0x0858148c：同全表达式临时链（c_str 先求值 → %ebx）。
+                cMyTrace(__PRETTY_FUNCTION__, 0x1b0, 5)(
+                    "%s load failed\n", it->second.c_str());
                 return 0x1b4;
             }
             m_npcMap.insert(
@@ -1484,11 +1552,7 @@ int CNPCScriptList::initScript(char* dir, char* list, char* common)
             if (npc->isFavorableNPC())
                 G_CDataManager()->m_npcDynamicInfo->add(npc);
         }
-        else
-        {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x1a9, 5);
-            trace("%s file not exists\n", it->second.c_str());
-        }
+        ++it;
     }
 
     if (loadNPCCommonData(m_npcCommon, common) != 0)
