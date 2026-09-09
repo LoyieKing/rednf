@@ -68,9 +68,19 @@ public:
         stDefaultItemInfo();   // ORIG W 0x8513e50
         ~stDefaultItemInfo();  // ORIG W 0x8513ec0
 
-        int m_defaultCount;                    // +0x00
-        int m_defaultIdx;                      // +0x04
-        int m_defaultNum;                      // +0x08
+        // [b28d-solo-CStackableItem 2026-09-09] 三字段 int→unsigned int（同宽 4B，
+        // sizeof/偏移/mangled 零变化）。直证：ORIG createStackableMultiBoxLotteryInfo
+        // 0x089bafd1 内同一 RHS `*it`（int）对 4B 字段 store 分两类——本类三字段
+        // `mov (%eax),%eax; mov %eax,%edx; ...; mov %edx,0x1c(%eax)`（0x089bb6af/
+        // 0x089bb719/0x089bb783，带 eax→edx 中转=异型），而同函数 MultiBoxLotteryInfo::
+        // m_field8/m_fieldc（源码 int）为 `mov (%eax),%edx; ...`（0x089bb5c7/0x089bb62f，
+        // 无中转=同型）⇒ 三字段非 int。旁证：get_multibox_default_item 0x0850f371 读
+        // m_defaultCount 后 `cmp i; seta`（无符号 above，循环变量为 unsigned int）。
+        // 探针 /tmp/probe_mb.cpp、/tmp/probe_mb2.cpp（446 后端）：unsigned 字段+int RHS
+        // =4 条带中转；unsigned 字段读/unsigned 循环上界=与 ORIG 同形且零回退。
+        unsigned int m_defaultCount;           // +0x00
+        unsigned int m_defaultIdx;             // +0x04
+        unsigned int m_defaultNum;             // +0x08
         // b28d-solo：**保持 char**（与 LotteryUnit 相反）——本类字段的消费点
         // get_multibox_default_item `!=0` 与 createStackableMultiBoxLotteryInfo
         // `= (char)*it` 在 ORIG 均要求 char 形（test/setne 物化 / 直存）。

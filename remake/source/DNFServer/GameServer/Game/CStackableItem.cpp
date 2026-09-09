@@ -35,6 +35,12 @@
 //  [b28d-poolcera] stDefaultItem 平凡化 + framePad 删 + 形B 后（fresh）：
 //  identical+ae 1331 / near 3 / diff 6（_M_insert_aux DIFF→identical、
 //  new_allocator destroy NEAR→AE、MultiBox ndiff 359→15 仍 DIFF）。
+//  [b28d-solo-CStackableItem 2026-09-09 二轮] createStackableMultiBoxLotteryInfo
+//  **gap 3→0**（fresh 652=652）：stDefaultItemInfo 三字段 int→unsigned int
+//  （MultiBoxLotteryInfo.h，Main 批准 + all 广播，同宽 4B ⇒ sizeof/偏移/mangled
+//  零变化）。四数零回退：identical+ae 1331 / near 3 / diff 6 / missing 271
+//  （MultiBoxLotteryInfo.cpp 113/0/1、GmCmds_F.cpp 5/18/1/1 亦零回退）。
+//  余 1 处 `!eq` xor 物化 vs ORIG je+jmp（跨版本 lowering，N）——详见函数头判词。
 
 #include "CStackableItem.h"
 
@@ -584,6 +590,26 @@ void createLotteryInfo(LotteryInfo* info, std::vector<int>* source)
 //   归位，探针 F/G/cmp 形不可再翻）。终残差 = 3 段 `mov (%eax),%eax; mov %eax,%edx`
 //   两段装载被 4.4 折单段（N18a，P248 三档类型旋钮已封）+ `!eq` 的 xor $1 物化
 //   vs ORIG je+jmp 双跳（N18a 折叠族，cargo_abs 先例）。ndiff 359→15。
+// [b28d-solo-CStackableItem 2026-09-09 二轮] **gap 3→0（fresh 652=652）**，旧判词
+// 「3 段两段装载 N18a 封顶」**作废**：真因 = stDefaultItemInfo 三字段
+// m_defaultCount/m_defaultIdx/m_defaultNum 建模成 int（应为 unsigned int，P254/
+// P211 档③同异型侧）。直证（同函数、同一 RHS `*it` int、唯字段类型不同）：
+//   · 本类字段 store = `mov (%eax),%eax; mov %eax,%edx; mov 0x8(%ebp),%eax;
+//     mov %edx,0x1c(%eax)`（0x089bb6af / 0x089bb719 / 0x089bb783，+0x1c/+0x20/+0x24）
+//     —— 带 eax→edx 中转 = 与 int 异型；
+//   · 同函数 MultiBoxLotteryInfo::m_field8/m_fieldc（源码 int）store =
+//     `mov (%eax),%edx; mov 0x8(%ebp),%eax; mov %edx,0x8(%eax)`（0x089bb5c7 /
+//     0x089bb62f）—— 3 条无中转 = 同型。
+// 旁证：get_multibox_default_item 0x0850f371 读 m_defaultCount 后 `cmp i; seta`
+// （无符号 above，循环变量 unsigned int）且读取单段（unsigned 字段读形）。
+// 探针（446 后端与路由一致）：/tmp/probe_mb.cpp（int 字段=3 条 / unsigned=4 条带中转）、
+// /tmp/probe_mb2.cpp（unsigned 字段读 + unsigned 循环上界与 ORIG 同形零回退）。
+// 头改动 MultiBoxLotteryInfo.h 三字段 int→unsigned int（同宽 4B，sizeof/偏移/mangled
+// 零变化），Main 批准 + all 广播；消费 TU 复编：CStackableItem 1331/3/6（零回退）、
+// MultiBoxLotteryInfo 113/0/1（零回退）、GmCmds_F 5/18/1/1（零回退）。
+// 终残差 = 1 处 `!eq` 的 xor $1 物化 vs ORIG `test; je body; jmp tail`（等长替换，
+// 652=652）：跨版本 `if(!bool)` lowering 差（4.1 块交换 / 4.4 xor 物化），探针
+// /tmp/probe_mb3.cpp f_sw/f_goto/f_else/f_while/f_neg 五形均不可造 ⇒ 判 N（P292/N18a 族）。
 void createStackableMultiBoxLotteryInfo(
     MultiBoxLotteryInfo* info,
     std::vector<std::vector<int> >* a, std::vector<int>* b,

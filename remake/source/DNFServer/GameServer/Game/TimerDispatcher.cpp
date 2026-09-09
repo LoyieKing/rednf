@@ -361,6 +361,9 @@ TimerCheckConn::~TimerCheckConn() {}
 // [b28d-30] 复核 DIFF：callee-saved/帧继承跨版本差（N7/N82/P210 族），ORIG 0x0863xxx 见 report。
 // [b28d-solo-TimerDispatcher] 判词 N82 封顶：全帧槽平移（std::string 槽 -0x4c↔-0x24、
 // user -0x24↔-0x1c）+ logFormat varargs 装载差；助记符族同。
+// [TimerDispatcher-2 2026-09-09 复核] gap=1 = 1 条 ORIG-only jmp（EH 尾块相对序 N104）；
+// 另 esi↔ebx 角色互换（ORIG GetUID→esi / GetCheckConnInterval→ebx vs 4.4 反向）
+// ⇒ N7（N109 角色互换）⇒ 封顶。
 int TimerCheckConn::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x8632bca：getUser(p1, 2)（increId 形参被 getUser 忽略，常量 2 为占位）。
@@ -1565,6 +1568,9 @@ int TimerStatisticsDetailChannelInfo::dispatch_sig(int p1, int p2, unsigned int 
 // SIGFIX：ORIG __PRETTY_FUNCTION__ 串为 "bool TimerStatisticsDetailChannelInfo::RegistNextTimer()"。
 // [b28d-30] 复核 DIFF：push edi/esi 缓存组/帧差（N7/N82 族），ORIG 0x086355xx。
 // [b28d-solo-TimerDispatcher] 判词 N7/N82 封顶：push edi/esi 缓存组 + 帧差（85/80）。
+// [TimerDispatcher-2 2026-09-09 复核] 残差 = `%0x1e` 强度归约模板（ORIG
+// `lea (%eax,%eax,1),%edx; mov %edx,%eax; shl $4,%eax; sub %edx,%eax` vs 4.4
+// `add %eax,%eax; mov %eax,%edx; shl $4,%edx; sub %eax,%edx`，N86b/N1）⇒ 封顶。
 bool TimerStatisticsDetailChannelInfo::RegistNextTimer()
 {
     const int curSec = GlobalData::s_systemTime_.getCurSec();
@@ -1928,6 +1934,9 @@ TimerScheduleGuildWarEnd::~TimerScheduleGuildWarEnd() {}
 // TimerScheduleGuildWarEnd::dispatch_sig ORIG T 0x86331d0 (0x57f)
 // [b28d-30] 复核 DIFF：巨件残差（N82/N89 族），ORIG 0x086331d0。
 // [b28d-solo-TimerDispatcher] 判词 N82/N89 封顶：巨件 317 insns，帧槽 + STL 内联残差。
+// [TimerDispatcher-2 2026-09-09 复核] gap=6 全为 6 条 ORIG-only `jmp`（每 case 一条
+// 跳正常析构的中继；ORIG 正常路径 D1 落 catch 块之后、4.4 就地内联）⇒ N104 EH 尾块
+// 相对序；两侧指令多重集其余全等（ORIG-only={'jmp':6}，OURS-only=∅）⇒ 无语义缺口。
 // [fix] ORIG 全部 6 处 case 比较读 0x10(%ebp)=**p2**（Ghidra 标 param_3 不准，
 // 与本 TU TimerGlobalEffectItemBegin/Timeout 等同一模式）⇒ 旧码用 p3(0x14) 是参数用错。
 int TimerScheduleGuildWarEnd::dispatch_sig(int p1, int p2, unsigned int /*p3*/)
@@ -2178,6 +2187,8 @@ int TimerDungeonDataStatistic::dispatch_sig(int p1, int p2, unsigned int p3)
 // [b28d-30] 复核 DIFF：帧差 0x14（0x64 vs 0x78，P232/P210 族），ORIG 0x08636856。
 // [b28d-solo-TimerDispatcher] 判词 N1 封顶：`%0x1e` 常量除法展开算术折叠（ORIG
 // lea+shl+sub 链 vs 4.4 add+shl+sub），源形不可择（74/74）。
+// [TimerDispatcher-2 2026-09-09 复核] 同上 N86b/N1（ORIG-only lea/mov vs OURS-only
+// add 各 1，余全等）⇒ 封顶，无语义缺口。
 bool TimerDungeonDataStatistic::RegistNextTimer()
 {
     // ORIG 0x086368xx：curSec 单 time_t 槽（免 int→long 拷贝）；localtime_r 返回
@@ -3108,6 +3119,10 @@ TimerGeneratePowerUp::~TimerGeneratePowerUp() {}
 // [b28d-30] 复核 DIFF：帧/槽位跨版本差（N82 族），ORIG 0x086388xx 见 report。
 // [b28d-solo-TimerDispatcher] 判词 setcc-fold/N82 封顶：vector::size() 比较 ORIG
 // 直跳 `cmp;jg` vs 4.4 `setl;test;je` 物化（P197④ 族）（280/279）。
+// [TimerDispatcher-2 2026-09-09] 修 x87 因子结合序（ORIG 0863883f..08638856 /
+// 0863886e..08638885 实证：(count*ratio)*(CP2/CP1)*(ratio+1.0)）⇒ ndiff 64→36；
+// 残余 = x87 比较 lowering（fucompp/fnstsw/sahf vs fucomip/fstp，N85/P230，
+// 需 -march=i486 路由，已报 Main）+ clamp 段 setl 物化（P197④；S1 已试 `<=` 形回滚）。
 int TimerGeneratePowerUp::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 08638860：`call IsPowerWarEventOn; test %al,%al; je +0x3f4(共享尾 mov $1)`
@@ -3158,13 +3173,21 @@ int TimerGeneratePowerUp::dispatch_sig(int p1, int p2, unsigned int p3)
             return 1;
         }
 
-        int team1PowerUp = static_cast<int>((team1Ratio + 1.0) *
+        // [fix] ORIG 0863883f..08638856 / 0863886e..08638885 因子序实证：
+        //   fildl team2Count(-0x38) → fmull ratio(-0x48) → fildl team2CP(-0x30)
+        //   → fildl team1CP(-0x34) → fdivrp → fmulp → fldl team1Ratio(-0x20) → fld1
+        //   → faddp → fmulp ⇒ 原码 = (count*ratio)*(CP2/CP1)*(ratio+1.0)。
+        // 浮点乘不可结合，结合序改变可观察结果 ⇒ 旧码 (ratio+1.0) 起首（Ghidra
+        // 槽号错位误抄）是真语义差，按 ORIG 因子序还原。
+        int team1PowerUp = static_cast<int>(team2Count * ratio *
                                             (static_cast<double>(team2ChannelPoint) / team1ChannelPoint) *
-                                            team2Count * ratio);
-        int team2PowerUp = static_cast<int>((team2Ratio + 1.0) *
+                                            (team1Ratio + 1.0));
+        int team2PowerUp = static_cast<int>(team1Count * ratio *
                                             (static_cast<double>(team1ChannelPoint) / team2ChannelPoint) *
-                                            team1Count * ratio);
+                                            (team2Ratio + 1.0));
         G_GameWorld()->GetPowerUpDomain(m_team1Users, m_team2Users);
+        // [S1 已试并回滚] 反条件形（size<=teamXPowerUp）产 setle 与 setl 同为物化，
+        // ndiff 36 不变（P197④ 源形不可择）⇒ 维持原形。
         if (team1PowerUp > static_cast<int>(m_team1Users.size()))
             team1PowerUp = static_cast<int>(m_team1Users.size());
         if (team2PowerUp > static_cast<int>(m_team2Users.size()))
@@ -3245,6 +3268,10 @@ TimerGeneratePowerUpNotiTime::~TimerGeneratePowerUpNotiTime() {}
 // [b28d-solo-TimerDispatcher] 判词 N7/N82 封顶：比较方向/++period/period=0 已按
 // P218/P171 修（79/76 不变）；残差 = period 槽 + ORIG 自行升格 %ebx 跨
 // G_CDataManager() call（P248 条件②：4.4 不自行升格）。
+// [TimerDispatcher-2 2026-09-09] 修：period `unsigned int`→`int`（P290 方向）⇒ 下标
+// 实参升格 %ebx 跨 G_CDataManager() call，gap 3→0、ndiff 17→6（79/79）；残余
+// jl↔jg 比较方向 fold（ORIG `mov period;cmp cnt;jl` vs 4.4 `mov cnt;cmp period;jg`，
+// P196 折痕，非真反）记 N18b。
 int TimerGeneratePowerUpNotiTime::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     // ORIG 0x0863835a：size/GetPowerUpRemainTime/GetPowerUpTimerPeriod 均由 fresh
@@ -3258,20 +3285,24 @@ int TimerGeneratePowerUpNotiTime::dispatch_sig(int p1, int p2, unsigned int p3)
     // [b28d-30] ORIG 086383e9 `mov -0x14(%ebp),%ebx` = 具名槽 -0x14 **且** 4.1 自行
     // 升格 %ebx 跨 G_CDataManager() call；实测纯 register 删槽致 cnt/remain 整体上移
     // （P248 条件②：4.4 不自行升格）⇒ 保槽形，寄存器缓存差记 N7/N82 封顶。
-    unsigned int period = static_cast<unsigned int>(
-        GlobalData::s_power_manager->GetPowerUpTimerPeriod());
+    // [S1 实验] ORIG 086383e9 `mov -0x14(%ebp),%ebx` 在 G_CDataManager() call 之前
+    // 装载（实参跨 receiver call 保活）；P290 方向：局部改 int 令下标处发生
+    // int→size_t 转换而升格 callee-saved。改前读数 79/76 gap3 ndiff17。
+    int period = GlobalData::s_power_manager->GetPowerUpTimerPeriod();
     bool bVar2 = true;
     // [b28d-30] ORIG 086383a2..086383cb：门条件只有 IsPowerWarEventOn && cnt!=0
     // （test;je + cmpl;je 双 je 同落 +0x107），`period < cnt` 是门内**第一层嵌套**
     // （+0x6b cmp;jge 跳过整块）——旧码并入 && 使门少一条 test、嵌套层丢失。
     if (GlobalData::s_power_manager->IsPowerWarEventOn() && cnt != 0)
     {
-        if (static_cast<int>(period) < cnt)
+        // [S1 已试并回滚] 否定式 `!(period >= cnt)` 与正写产物全等（4.4 恒折
+        // `cnt > period` 的 jg）⇒ 残余 jl↔jg 属比较方向 fold（P196），记 N18b。
+        if (period < cnt)
         {
             remain -= 5;
             GlobalData::s_power_manager->SetPowerUpRemainTime(remain);
             const int notiSec =
-                G_CDataManager()->m_powerParameter.m_vec20[static_cast<int>(period)];
+                G_CDataManager()->m_powerParameter.m_vec20[period];
             // [b28d-solo-TimerDispatcher] ORIG 08638446 `mov -0xc(%ebp),%eax;
             // cmp -0x18(%ebp),%eax; jl` ⇒ 源形左操作数 notiSec（`notiSec >= remain`）。
             if (notiSec >= remain)
@@ -3279,9 +3310,8 @@ int TimerGeneratePowerUpNotiTime::dispatch_sig(int p1, int p2, unsigned int p3)
                 send_noti_time(notiSec);
                 // ORIG 08638455 `addl $0x1,-0x14(%ebp)`（内存自增）⇒ ++period 语句。
                 ++period;
-                GlobalData::s_power_manager->SetPowerUpTimerPeriod(
-                    static_cast<int>(period));
-                if (cnt <= static_cast<int>(period))
+                GlobalData::s_power_manager->SetPowerUpTimerPeriod(period);
+                if (cnt <= period)
                 {
                     // ORIG 0863846a `movl $0x0,-0x14(%ebp)`（period=0 写后未读照抄，P171）。
                     period = 0;
@@ -3491,6 +3521,9 @@ TimerUpdateCompoundEmblemStatics::~TimerUpdateCompoundEmblemStatics() {}
 // [b28d-30] 复核 DIFF：push edi/esi/ebx 缓存组跨版本差（N7/N82 族），ORIG 0x08638xxx。
 // [b28d-solo-TimerDispatcher] 判词 N7/N82附 封顶：getGradeCount 结果 ORIG 驻
 // edi/ebx vs 4.4 槽化（-0x18/-0x14/-0x10/-0xc）+ 帧 0x6c↔leave（130/130）。
+// [TimerDispatcher-2 2026-09-09 复核] gap=1 全为 callee-saved 角色：ORIG grade2/1/0
+// 驻 edi/esi/ebx（push edi/esi/ebx + sub $0x6c）vs 4.4 全槽化（sub $0x88）⇒ N7/N82附；
+// 裸 register 已试并回滚（130→133、帧 0x6c→0x7c）⇒ 封顶。
 int TimerUpdateCompoundEmblemStatics::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     if (getCompoundEmblemStatistic()->getTotalCount() != 0)
@@ -3534,6 +3567,8 @@ int TimerUpdateCompoundEmblemStatics::dispatch_sig(int p1, int p2, unsigned int 
 // `G_CEnvironment()->m_serverEnvir.m_channelNo`（CEnvironment.h:132，ORIG
 // `mov 0x1b0(%eax),%ecx` 单条 disp 已匹配）。残差 = `%0x1e` 常量除法展开
 // lea+shl+sub vs add+shl+sub（源形不可择）⇒ N1。
+// [TimerDispatcher-2 2026-09-09 复核] 同 TimerDungeonDataStatistic::RegistNextTimer：
+// N86b/N1（ORIG-only lea/mov vs OURS-only add 各 1）⇒ 封顶，无语义缺口。
 int TimerUpdateCompoundEmblemStatics::registNextTimer()
 {
     const time_t now = static_cast<time_t>(GlobalData::s_systemTime_.getCurSec());
@@ -3828,6 +3863,10 @@ bool Timer_DungeonInoutOpenTime::checkDungeonInoutTime(int dungeonIdx)
 // Timer_DungeonInoutOpenTime::dispatch_sig ORIG T 0x8639e0a (0x3c5)
 // [b28d-30] 复核 DIFF：全帧槽号平移（N82 族），ORIG 0x08639e0a。
 // [b28d-solo-TimerDispatcher] 判词 N82 封顶：全帧槽号平移（233/231，调用点全等）。
+// [TimerDispatcher-2 2026-09-09] 修 2 处：①nextOpenT 拆两句式（ORIG 08639f1a
+// `addl $0x15180,-0x1c(%ebp)` 内存自增）②"DELTA..." cMyTrace 改全表达式临时链
+// （P227 ⇒ curT 升格 %ebx 跨 ctor）⇒ ndiff 185→179；残余 = 全帧槽平移（ORIG 标量区
+// -0x78..-0x14 vs 4.4 -0x30..-0x10，帧同为 0xd4，N82/N95）+ dungeonIdx 实参升格序 N7。
 int Timer_DungeonInoutOpenTime::dispatch_sig(int p1, int p2, unsigned int p3)
 {
     (void)p1; (void)p2;
@@ -3858,7 +3897,11 @@ int Timer_DungeonInoutOpenTime::dispatch_sig(int p1, int p2, unsigned int p3)
             localTm->tm_hour = it->second.m_startHour;   // ORIG 写 tm+0x8
             localTm->tm_min = it->second.m_startMin;     // ORIG 写 tm+0x4
             localTm->tm_sec = 0;
-            int nextOpenT = mktime(localTm) + 0x15180;   // +86400 秒（次日同刻）
+            // [fix] ORIG 08639f1a `addl $0x15180,-0x1c(%ebp)`（内存自增，紧跟
+            // `mov %eax,-0x1c(%ebp)` 的 mktime 返回值 store）⇒ 原码两句式；
+            // 旧码单表达式生 `add $0x15180,%eax`（ORIG-only addl / OURS-only add 各 1）。
+            int nextOpenT = mktime(localTm);
+            nextOpenT += 0x15180;   // +86400 秒（次日同刻）
             int delta = nextOpenT - curT;                // ORIG -0xc(%ebp)
             if (delta < 0)
             {
@@ -3883,9 +3926,10 @@ int Timer_DungeonInoutOpenTime::dispatch_sig(int p1, int p2, unsigned int p3)
         {
             delta = 0;
         }
-        cMyTrace trace(__PRETTY_FUNCTION__,
-                       0x1462, 0);
-        trace("DELTA %d , CHECK_T %d , CUR_T %d\\n", delta, checkT, curT);
+        // [S1 实验] ORIG 0863a0a6 前段 `mov -0x78(%ebp),%ebx`（curT 跨 cMyTrace ctor
+        // 保活，实参位 0x10(%esp) 读 ebx）⇒ P227 全表达式临时链形；旧码具名两语句。
+        cMyTrace(__PRETTY_FUNCTION__, 0x1462, 0)(
+            "DELTA %d , CHECK_T %d , CUR_T %d\\n", delta, checkT, curT);
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0,
                                     (TIMER_MESSAGE)0x94, delta, 0, dungeonIdx);
         cMyTrace traceClose(__PRETTY_FUNCTION__,
@@ -3894,11 +3938,15 @@ int Timer_DungeonInoutOpenTime::dispatch_sig(int p1, int p2, unsigned int p3)
         if (!GlobalData::s_power_manager->IsPowerWarEventOn() &&
             !GlobalData::s_villageMonsterMgr->OnEvent())
         {
-            // ORIG 0826868c / 082687fc：dm+0x68（m_serverParameter）上的
-            // isDungeonOpen(0x2aff)/setDungeonOpen(0x2aff,true)；send 用 p3
+            // ORIG 082687fc：dm+0x68（m_serverParameter）isDungeonOpen(0x2aff)；
+            // ORIG 0826868c（0863a15c..0863a176）：setDungeonOpen(**dungeonIdx**,true)
+            // —— `mov -0x7c(%ebp),%ebx; call G_CDataManager; add $0x68,%eax;
+            // movl $0x1,0x8(%esp); mov %ebx,0x4(%esp); mov %eax,(%esp)` 实证
+            // 第1实参 = -0x7c 具名副本（Ghidra C 同为 local_80），旧码 0x2aff 是
+            // 与 isDungeonOpen 混淆的错常量（真 bug：开启的是错误 dungeon 开关）。
             if (!G_CDataManager()->m_serverParameter.isDungeonOpen(0x2aff))
             {
-                G_CDataManager()->m_serverParameter.setDungeonOpen(0x2aff, true);
+                G_CDataManager()->m_serverParameter.setDungeonOpen(dungeonIdx, true);
                 G_GameWorld()->send_all_dungeon_inout_message(dungeonIdx);
             }
             cMyTrace traceOpen(__PRETTY_FUNCTION__,
