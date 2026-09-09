@@ -74,15 +74,18 @@ int  CFB_DecFinal(AES_ALG_INFO* alg, unsigned char* out, unsigned long* outLen);
 struct SHA256_ALG_INFO
 {
     unsigned int   state[8];    // +0x00（0x6a09e667... 0x5be0cd19）
-    unsigned int   total[2];    // +0x20 lo/+0x24 hi 已处理字节数
-    unsigned char  buffer[64];  // +0x28
+    unsigned long  total[4];    // +0x20/0x24/0x28/0x2c 消息长度（位计数；ORIG
+                                // SHA256_Update 0x080be093 实证 buffered=(total[0]>>3)&0x3f，
+                                // SHA256_Final 0x080be1fb 实证 buffer@+0x30 ⇒ total 占 4 槽）
+    unsigned char  buffer[64];  // +0x30
 };
 
 
 struct SHA512_ALG_INFO   // Sha384/Sha512 共用内核（state 为 8×u64）
 {
     unsigned long long state[8];    // +0x00
-    unsigned long long total[2];    // +0x40 lo/+0x48 hi
+    unsigned long      total[4];    // +0x40/0x44/0x48/0x4c 消息长度（位计数；ORIG
+                                    // SHA512_Update 0x080c28bf 实证 buffered=(total[0]>>3)&0x7f）
     unsigned char      buffer[128]; // +0x50
 };
 
@@ -91,7 +94,7 @@ struct SHA512_ALG_INFO   // Sha384/Sha512 共用内核（state 为 8×u64）
 struct SHA384_ALG_INFO
 {
     unsigned long long state[8];    // +0x00
-    unsigned long long total[2];    // +0x40 lo/+0x48 hi
+    unsigned long      total[4];    // +0x40/0x44/0x48/0x4c 位计数（同 SHA512）
     unsigned char      buffer[128]; // +0x50
 };
 

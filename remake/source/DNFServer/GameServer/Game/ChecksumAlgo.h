@@ -163,12 +163,35 @@ public:
     int  FinalDigest(char* out);                        // ORIG _ZN4CSHA11FinalDigestEPc，输出 32 字节大端摘要
     void Reset();
     void Transform();                                    // 无参成员：消化 m_buffer[64]
-    static unsigned int CHE(unsigned int x, unsigned int y, unsigned int z);
-    static unsigned int MAJ(unsigned int x, unsigned int y, unsigned int z);
-    static unsigned int SIG0(unsigned int x);
-    static unsigned int SIG1(unsigned int x);
-    static unsigned int sig0(unsigned int x);
-    static unsigned int sig1(unsigned int x);
+    // ORIG 以下 8 个助手为**类内 inline 定义**（nm 双侧实证 W 弱符号
+    // 0x080bd83e..0x080bd977）；函数名 CH 非 CHE（`_ZN4CSHA2CHEjjj` 名长 2）。
+    static unsigned int CH(unsigned int x, unsigned int y, unsigned int z)
+    { return (x & y) ^ (~x & z); }
+    static unsigned int MAJ(unsigned int x, unsigned int y, unsigned int z)
+    { return (x & y) ^ (x & z) ^ (y & z); }
+    static unsigned int SIG0(unsigned int x)
+    { return (x >> 2u | x << 30u) ^ (x >> 13u | x << 19u) ^ (x >> 22u | x << 10u); }
+    static unsigned int SIG1(unsigned int x)
+    { return (x >> 6u | x << 26u) ^ (x >> 11u | x << 21u) ^ (x >> 25u | x << 7u); }
+    static unsigned int sig0(unsigned int x)
+    { return (x >> 7u | x << 25u) ^ (x >> 18u | x << 14u) ^ (x >> 3u); }
+    static unsigned int sig1(unsigned int x)
+    { return (x >> 17u | x << 15u) ^ (x >> 19u | x << 13u) ^ (x >> 10u); }
+    static void Word2Bytes(unsigned int const& word, unsigned char* out)
+    {
+        out[0] = (unsigned char)(word >> 24u);
+        out[1] = (unsigned char)(word >> 16u);
+        out[2] = (unsigned char)(word >> 8u);
+        out[3] = (unsigned char)(word);
+    }
+    static void Bytes2Word(unsigned char const* in, unsigned int& word)
+    {
+        word = ((unsigned int)in[0] << 24u) | ((unsigned int)in[1] << 16u)
+             | ((unsigned int)in[2] << 8u)  |  (unsigned int)in[3];
+    }
+    // ORIG 静态常量表（R 只读数据 @0x8b230e0 / @0x8b22fe0）
+    static unsigned int const sm_H256[8];
+    static unsigned int const sm_K256[64];
 
 private:
     unsigned int     m_state[8];     // @0x00
@@ -176,10 +199,6 @@ private:
     unsigned int     m_lenHi;        // @0x24 位长度高字
     unsigned char    m_buffer[64];   // @0x28
     unsigned char    m_pending;      // @0x68：AddData 尾部残留标志（ORIG 行为照抄）
-
-public:
-    static void Word2Bytes(unsigned int const& word, unsigned char* out);  // 大端写出
-    static void Bytes2Word(unsigned char const* in, unsigned int& word);   // 大端读入
 };
 
 // ---- CSHA1：经典 SHA-1 类 ----
