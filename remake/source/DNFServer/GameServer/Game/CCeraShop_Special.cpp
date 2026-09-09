@@ -296,6 +296,8 @@ void SpecialItemHandler::respond_special_item_booster_selection(
         static_cast<WongWork::CCeraShop::stCeraShopItemParam_t*>(param.m_ceraParam);
     int count = param.m_count;
     long time = param.m_time;
+    // ORIG 0x0827cd3d 无 bool 归一化（直接 movzbl 落槽）；4.4 对 unsigned char→bool
+    // 必发 test/setne（探针实测 bool 版 2 条 < unsigned char 版 3 条）⇒ N 封顶。
     bool flag = param.m_flag;
     char c1 = static_cast<char>(param.m_char1d);
     char c2 = static_cast<char>(param.m_char1e);
@@ -401,15 +403,25 @@ void SpecialItemHandler::respond_special_item_booster(int,
     std::vector<Inven_Item>* items = static_cast<std::vector<Inven_Item>*>(param.m_items);
     WongWork::CCeraShop::stCeraShopItemParam_t* cera =
         static_cast<WongWork::CCeraShop::stCeraShopItemParam_t*>(param.m_ceraParam);
+    // ORIG 0x0827ca76 `mov 0x14(%eax),%eax; mov %eax,-0x2c(%ebp)`：count 读入槽后
+    // 不再被读（-0x2c 随后被 restrictCode 覆盖）——4.1 保留的死读取（P171）。
+    int count = param.m_count;
+    (void)count;
+    // ORIG 0x0827ca7f：time 具名槽 -0x28（收尾 SaveFeaturedIdx 第 3 实参直读槽）。
+    long time = param.m_time;
 
     m_owner->setOriginalItem(itemIdx);
     m_owner->_onBuySpecialItem(user, ENUM_CERA_SPECIALITEM_BOOSTER,
                                static_cast<unsigned long>(itemIdx));
 
+    // ORIG 0x0827cabf `movl $0x0,-0x24(%ebp)`：写后不读的死局部（P171 照抄）。
+    int deadSlot = 0;
+    (void)deadSlot;
+
     CStackableItem* base = static_cast<CStackableItem*>(G_CDataManager()->find_item(itemIdx));
     std::vector<stStackableBoosterItemInfo_t> boosterList;
-    if (base != 0)
-        base->getBoosterItem(boosterList);
+    // ORIG 0x0827caf5：find_item 结果直调 getBoosterItem（无判空 cmpl/je）。
+    base->getBoosterItem(boosterList);
 
     // b28d-solo(P167 判据)：ORIG 0x0827ca4a 用 const_iterator（ne/ppEv/operator-> 全
     // const 版 + iterator→const_iterator 转换构造 ×2）；非 const 版多发/少发上述符号。
@@ -434,7 +446,7 @@ void SpecialItemHandler::respond_special_item_booster(int,
         if (!user->IsRestrictedGoods(restrictCode))
         {
             user->SetRestrictedGoods(restrictCode);
-            m_owner->SaveFeaturedIdx(user, restrictCode, (int)param.m_time, 0);
+            m_owner->SaveFeaturedIdx(user, restrictCode, (int)time, 0);
         }
     }
     user->SaveInventory();
@@ -460,6 +472,10 @@ void SpecialItemHandler::respond_special_item_package(
     std::vector<Inven_Item>* items = static_cast<std::vector<Inven_Item>*>(param.m_items);
     WongWork::CCeraShop::stCeraShopItemParam_t* cera =
         static_cast<WongWork::CCeraShop::stCeraShopItemParam_t*>(param.m_ceraParam);
+    // ORIG 0x0827c236 `mov 0x14(%eax),%eax; mov %eax,-0x3c(%ebp)`：count 读入槽后
+    // 不再被读（-0x3c 随后被 restrictCode 覆盖）——4.1 保留的死读取（P171）。
+    int count = param.m_count;
+    (void)count;
     long time = param.m_time;
 
     if (itemIdx == 0x1b)
@@ -469,15 +485,23 @@ void SpecialItemHandler::respond_special_item_package(
                                true);
         guard.operator*()->operator<<((int)0xb4);
         guard.operator*()->operator<<(-1);
-        char* buf = reinterpret_cast<char*>(guard->GetInBuffer<SIG_SAVE_CRAZY_LEVELUP_EVENT>());
+        // ORIG 0x0827c2f5/0x0827c30e 为 `mov -0x2c(%ebp),%edx; mov %eax,0x5(%edx)`
+        // 具名结构字段写（裸指针 buf+5 会退化成 lea+间接 store）⇒ 用已有
+        // SaveCrazyLevelupPayloadView 具名成员（P82/P211）。
+        SaveCrazyLevelupPayloadView* buf = reinterpret_cast<SaveCrazyLevelupPayloadView*>(
+            guard->GetInBuffer<SIG_SAVE_CRAZY_LEVELUP_EVENT>());
         memcpy(buf, "0612\0", 5);                       // DAT_08c07e5a
-        *reinterpret_cast<int*>(buf + 5) = static_cast<int>(user->get_acc_id());
-        *reinterpret_cast<int*>(buf + 9) = user->get_charac_no(-1);
+        buf->m_accId = user->get_acc_id();
+        buf->m_characNo = user->get_charac_no(-1);
         GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(4), guard);
     }
 
     m_owner->_onBuySpecialItem(user, (ENUM_CERA_SPECIALITEM)5,
                                static_cast<unsigned long>(itemIdx));
+
+    // ORIG 0x0827c37b `movl $0x0,-0x34(%ebp)`：写后不读的死局部（P171 照抄）。
+    int deadSlot = 0;
+    (void)deadSlot;
 
     // ORIG 实证元素类型（respond_special_item_package 反编译）：
     //   +0x21c = std::vector<STStackablePackageData>（包基础物表）
@@ -493,15 +517,15 @@ void SpecialItemHandler::respond_special_item_package(
     const std::vector<std::vector<STStackablePackageData> >* pkgTable =
         reinterpret_cast<const std::vector<std::vector<STStackablePackageData> >*>(
             &stackItem->m_pkg234);
-    std::vector<tagPackageItemSelection>& selections = cera->m_sel;   // +0xc
-    std::vector<std::pair<int, int> >& pairs = cera->m_pairs;         // +0x0
-    if (!selections.empty())
+    // ORIG 无 selections/pairs 具名引用槽：每处按 `mov -0x40(%ebp),%eax;
+    // lea 0xc(%eax),%edx`（4 次）重算 cera->m_sel / cera->m_pairs（P48 无 CSE）。
+    if (!cera->m_sel.empty())
     {
-        if (selections.size() > 1)
+        if (cera->m_sel.size() > 1)
         {
             // 多选择：逐项记录 error 日志（kdd372418Log 前缀，ORIG 原样）。
-            for (std::vector<tagPackageItemSelection>::iterator it = selections.begin();
-                 it != selections.end(); ++it)
+            for (std::vector<tagPackageItemSelection>::iterator it = cera->m_sel.begin();
+                 it != cera->m_sel.end(); ++it)
             {
                 char* accStr = NumberToString(user->get_acc_id(), 0);
                 LogManager::logFormat(
@@ -513,23 +537,20 @@ void SpecialItemHandler::respond_special_item_package(
             }
         }
         // 主选择循环：找 itemIdx 匹配项，校验 pkgTable 索引，push 到 pkgList 并 erase。
-        for (std::vector<tagPackageItemSelection>::iterator it = selections.begin();
-             it != selections.end(); )
+        for (std::vector<tagPackageItemSelection>::iterator it = cera->m_sel.begin();
+             it != cera->m_sel.end(); )
         {
             if (it->m_itemIdx == itemIdx)
             {
-                bool invalid = true;
-                if (it->m_outer < pkgTable->size())
+                // ORIG 0x0827c53a..0x0827c59d：短路 && 直出 %al（无具名 bool 槽），
+                // 条件序 outer<size && inner<size（jb 形）；失败臂落 error 日志 break。
+                if (it->m_outer < pkgTable->size() &&
+                    it->m_inner < (*pkgTable)[it->m_outer].size())
                 {
-                    // ORIG 两处独立 (*pkgTable)[outer]（size 检查 + at，无 inner 缓存）。
-                    if ((*pkgTable)[it->m_outer].size() > it->m_inner)
-                    {
-                        pkgList.push_back((*pkgTable)[it->m_outer].at(it->m_inner));
-                        it = selections.erase(it);
-                        invalid = false;
-                    }
+                    pkgList.push_back((*pkgTable)[it->m_outer].at(it->m_inner));
+                    it = cera->m_sel.erase(it);
                 }
-                if (invalid)
+                else
                 {
                     char* accStr = NumberToString(user->get_acc_id(), 0);
                     LogManager::logFormat(
@@ -557,15 +578,15 @@ void SpecialItemHandler::respond_special_item_package(
     for (; itBeg != itEnd; ++itBeg)
     {
         unsigned char local25 = 0;
-        if (!pairs.empty())
+        if (!cera->m_pairs.empty())
         {
-            for (std::vector<std::pair<int, int> >::iterator pit = pairs.begin();
-                 pit != pairs.end(); )
+            for (std::vector<std::pair<int, int> >::iterator pit = cera->m_pairs.begin();
+                 pit != cera->m_pairs.end(); )
             {
                 if (pit->first == itBeg->m_field0)
                 {
                     local25 = static_cast<unsigned char>(pit->second);
-                    pairs.erase(pit);
+                    cera->m_pairs.erase(pit);
                     break;
                 }
                 else
@@ -588,15 +609,25 @@ void SpecialItemHandler::respond_special_item_package(
         if (sub != 0)
             sub->set_parent_booster_item_id(0);
 
-        // 随机箱统计调用链（ORIG 0x0827c8fc..0x0827c976）：一次 operator->
-        // 取值、三分支复用（local_4c 槽形）。
-        const unsigned int pkgIdx = itBeg->m_field0;
-        if (pkgIdx == 0x289749)
-            user->SendRandomBoxStatistic(2, (ENUM_RANDOMBOX_ACTION_KIND)0);
-        else if (pkgIdx == 0x28982d)
-            user->SendRandomBoxStatistic(1, (ENUM_RANDOMBOX_ACTION_KIND)0);
-        else if (pkgIdx == 0x380)
-            user->SendRandomBoxStatistic(0, (ENUM_RANDOMBOX_ACTION_KIND)0);
+        // 随机箱统计调用链（ORIG 0x0827c8fc..0x0827c976）：`movl $0x0,-0x1c(%ebp)`
+        // + 单次 operator-> 取值 + 顺序 cmp 链（switch 形）；每个 case 把常量赋回
+        // 具名 statKind 槽后传参（`movl $N,-0x1c; mov -0x1c,%eax; mov %eax,(%esp)`）。
+        int statKind = 0;
+        switch (itBeg->m_field0)
+        {
+        case 0x289749:
+            statKind = 2;
+            user->SendRandomBoxStatistic(statKind, (ENUM_RANDOMBOX_ACTION_KIND)0);
+            break;
+        case 0x28982d:
+            statKind = 1;
+            user->SendRandomBoxStatistic(statKind, (ENUM_RANDOMBOX_ACTION_KIND)0);
+            break;
+        case 0x380:
+            statKind = 0;
+            user->SendRandomBoxStatistic(statKind, (ENUM_RANDOMBOX_ACTION_KIND)0);
+            break;
+        }
     }
 
     // 收尾：GetRestrictCode → SetRestrictedGoods/SaveFeaturedIdx → SaveInventory。
@@ -637,10 +668,14 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     CUser* user = static_cast<CUser*>(param.m_user);
     int itemIdx = param.m_itemIdx;
     int count = param.m_count;
-    int flag = param.m_flag;                    // local_39（byte@+0x1c）
-    long timeVal = param.m_time;                // local_a4
-    long timeA = timeVal;                       // local_34
-    long timeB = timeVal;                       // local_34（ORIG 双写同值）
+    // ORIG 0x0827d414：`movzbl 0x1c(%eax),%eax; mov %al,-0x35` —— flag 是**字节槽**
+    // （后续 9 处 `movb $0x1,-0x35`、1 处 `movzbl -0x35,%eax`）⇒ 原码为 unsigned char。
+    unsigned char flag = param.m_flag;          // -0x35
+    // ORIG 槽：timeVal@-0x34（SaveFeaturedIdx 用，case 0xd 不改）、timeA@-0x30（base）、
+    // start@-0xa0（cal_end_time 的 start 出参，初值 timeA，0827d430）、end@-0xa8。
+    long timeVal = param.m_time;                // -0x34
+    long timeA = timeVal;                       // -0x30
+    long start = timeA;                         // -0xa0
 
     std::map<unsigned long, STPremiumItemData>::iterator it =
         g_map_premium_item_data.find((unsigned long)itemIdx);
@@ -693,8 +728,10 @@ void SpecialItemHandler::respond_special_item_premium(int type,
             WongWork::SUserPremiumInfo* info = user->GetPremiumInfo()->GetPremiumInfo(0xe);
             if (info->m_type == 0xe)
             {
-                timeVal = info->m_end;
-                timeA = timeVal;
+                // ORIG 0x0827d730/733/736：只更新 timeA(-0x30) 与 start(-0xa0)，
+                // 不动 timeVal(-0x34)（SaveFeaturedIdx 仍用原始 param.m_time）。
+                timeA = info->m_end;
+                start = timeA;
             }
         }
         break;
@@ -757,7 +794,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
             int serverCode = 0;
             if (g_SPremiumInfo[ptype].m_useTargetServer == 1)
                 serverCode = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x378
-            m_owner->SaveFeaturedIdx(user, count, (int)timeB, serverCode);
+            m_owner->SaveFeaturedIdx(user, count, (int)timeVal, serverCode);
         }
         count = G_CDataManager()->m_itemList->GetRestrictCode(restrictItem);
         flag = 1;
@@ -845,7 +882,7 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     {
         user->SetRestrictedGoods(count);
         int ts = premium_helper_function::get_target_server(ptype);
-        m_owner->SaveFeaturedIdx(user, count, (int)timeB, ts);
+        m_owner->SaveFeaturedIdx(user, count, (int)timeVal, ts);
     }
 
     bool needGain = false;
@@ -858,11 +895,11 @@ void SpecialItemHandler::respond_special_item_premium(int type,
         user->gainCurCharacFatigue(1);
 
     long end = 0;
-    premium_helper_function::cal_end_time(user, timeVal, end, timeA, ptype,
+    premium_helper_function::cal_end_time(user, start, end, timeA, ptype,
                                           flag != 0, resultVal);
-    premium_helper_function::send_db(user, ptype, timeVal, end, count);
+    premium_helper_function::send_db(user, ptype, start, end, count);
     WongWork::CHandlePremium::handleSetUserPremium(user, (ENUM_PREMIUM_TYPE)ptype,
-                                                   timeVal, end, count, true);
+                                                   start, end, count, true);
     WongWork::CHandlePremium::handlePremiumEffect(user, (ENUM_PREMIUM_TYPE)ptype);
     if (premium_helper_function::is_notify(user, ptype) != 1)
         m_owner->_sendPremiumPacket(user, type, ptype, (int)(end - timeA));
@@ -1184,10 +1221,18 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
 
     case 3:
     {
+        // ORIG 0x0832420f/0x08324219：函数内 static（nm 证实 .bss：
+        // _ZZN8WongWork9CCeraShop21_CheckBuyingConditionEP5CUserjmjthtE14eventStartTime
+        // @0x0943bec8 / ...E12eventEndTime @0x0943becc）**每次调用无条件重写**常量
+        // ⇒ 原码为「声明无初值 + 赋值语句」（带初值声明会折进 .data 且无代码）。
+        static unsigned int eventStartTime;
+        static unsigned int eventEndTime;
+        eventStartTime = 0x4589a450;
+        eventEndTime = 0x45ae8e50;
         // ORIG 调用两次 getCurCharacCreateTime 后比较 [start,end) 窗口。
-        if (user->getCurCharacCreateTime() < 0x4589a450)
+        if (user->getCurCharacCreateTime() < eventStartTime)
             break;
-        if (user->getCurCharacCreateTime() >= 0x45ae8e50)
+        if (user->getCurCharacCreateTime() >= eventEndTime)
             break;
         return 1;
     }
@@ -2156,12 +2201,16 @@ int CCeraShop::_processBoosterSelect(CUser* user, int itemIdx, int count, int& r
         static_cast<const BoosterMap_t&>(
             static_cast<const CStackableItem*>(item)->m_booster.m_map).find(
             std::make_pair(c1, c2));
+    // ORIG 0x0832794d/0x08327b73/0x08327ba0 的 esi/ebx 共享尾出口为 4.1 对
+    // `return 0;`/`return 1;` 的布局产物（4.4 把 return 1 直接落 ebx）⇒ N 封顶。
     if (it == static_cast<const BoosterMap_t&>(
                   static_cast<const CStackableItem*>(item)->m_booster.m_map).end())
         return 0;
     {
         const std::vector<stStackableBoosterItemInfo_t>& src = it->second;
-        for (std::vector<Inven_Item>::size_type i = 0; i < items.size(); ++i)
+        // ORIG 0x083279fa `setg %al`：外层索引 i 为 int（signed 比较）；内层
+        // 0x083279e4 `seta %al` 为 unsigned size_type。
+        for (int i = 0; i < (int)items.size(); ++i)
         {
             for (std::vector<stStackableBoosterItemInfo_t>::size_type j = 0;
                  j < src.size(); ++j)
@@ -2371,8 +2420,11 @@ void CCeraShop::_processAdditionalItem(CUser* user, unsigned long itemIdx,
                     int expireDate = 0;
                     if (avatarPeriod != 0 && avatarPeriod != 0x16d)
                     {
-                        expireDate = GlobalData::s_systemTime_.getCurSec();
-                        expireDate += avatarPeriod * 0x15180;
+                        // ORIG 0x08326f13..0x08326f2a：单表达式（call getCurSec →
+                        // `mov -0x38,%edx; imul $0x15180,%edx,%edx; add %edx,%eax` →
+                        // 存槽）；「赋值再 +=」会多发 mov+内存 add。
+                        expireDate = GlobalData::s_systemTime_.getCurSec() +
+                                     avatarPeriod * 0x15180;
                     }
                     const char* msg = g_scriptStringManager_.findString(
                         4, "game_server_msg_104", (bool*)0);
