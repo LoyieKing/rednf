@@ -1942,14 +1942,20 @@ struct stStatusLevelInfo
 // D1 0x83cd826 / clear 0x891b8cc 无 stQuestShop 前缀）。4×string @0x00..0x0f；
 // clear 置 +0x10=-1、+0x14=0、+0x18=0x4d、+0x1c=2、+0x20=0；
 // vector<stStatusLevelInfo> @0x24；sizeof 0x30。方法定义见 CQuestShop.cpp。
+// [符号绑定判据 2026-09-10] ORIG 的 C1/C2/C1ERKS_/D1/D2/clear **全为 W**
+// （nm -S 实证：C1/C2 0x891b948 W 0xda、C1ERKS_/C2ERKS_ 0x85f07fe W 0x123、
+//  D1/D2 0x83cd826 W 0xbd、clear 0x891b8cc W 0x7b），即类内 inline 定义；
+//  我方原为 T 强绑定（定义于 CQuestShop.cpp）⇒ 在声明处标 weak 复现同一绑定。
+//  getMaxCount/getNextLevel 在 ORIG 为 T（0x890f8ec/0x890f994），**不加**。
+#define ST_QUESTSHOPSTATUS_WEAK __attribute__((weak))
 struct stQuestShopStatus
 {
     int getMaxCount(int level);
     int getNextLevel(int level);
-    void clear();                                  // W 0x891b8cc
-    stQuestShopStatus();                           // W 0x891b948
-    stQuestShopStatus(stQuestShopStatus const&);   // W 0x85f07fe
-    ~stQuestShopStatus();                          // W 0x83cd826
+    void clear() ST_QUESTSHOPSTATUS_WEAK;                                  // W 0x891b8cc
+    stQuestShopStatus() ST_QUESTSHOPSTATUS_WEAK;                           // W 0x891b948
+    stQuestShopStatus(stQuestShopStatus const&) ST_QUESTSHOPSTATUS_WEAK;   // W 0x85f07fe
+    ~stQuestShopStatus() ST_QUESTSHOPSTATUS_WEAK;                          // W 0x83cd826
 
     std::string m_name;                    // +0x00
     std::string m_name2;                   // +0x04
@@ -1966,6 +1972,8 @@ struct stQuestShopStatus
 };
 static_assert(sizeof(stQuestShopStatus) == 0x30,
               "ORIG stQuestShopStatus layout drift");
+
+#undef ST_QUESTSHOPSTATUS_WEAK
 
 class stQuestShop
 {
@@ -2573,14 +2581,14 @@ public:
     std::vector<stMercenaryCompetitionArea> m_vec40;       // +0x40
 };
 
-// ORIG channel_dungeon_info_t（ctor 0x088dd34a / dtor 0x083d8b2c）：
+// ORIG channel_dungeon_info_t（ctor 0x088dd34a / dtor 0x083d8b2c / op= 0x088dd390）：
 // +0x00 std::string（分类键名副本）+0x04 std::vector<int>（频道区间表），sizeof 0x10。
+// P299/CWG434：ORIG 三符号 nm 绑定全 **W**，且 `map<string,channel_dungeon_info_t>::
+// operator[]`（0x088dd490）在构造临时对象前发 4×`movl $0,-0x18/-0x14/-0x10/-0xc`
+// 零初始化 ⇒ 原码**无用户提供 ctor/dtor/op=**（全隐式合成）。不得在此写用户声明，
+// 否则 value-init 前置清零消失、绑定由 W 变 T。
 struct channel_dungeon_info_t
 {
-    channel_dungeon_info_t();
-    ~channel_dungeon_info_t();
-    channel_dungeon_info_t& operator=(const channel_dungeon_info_t& o);  // 0x088dd390
-
     std::string m_keyName;      // +0x00
     std::vector<int> m_intList; // +0x04
 };

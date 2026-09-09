@@ -222,21 +222,9 @@ struct dungeonEventHanaseStruct
 };
 
 // ---- 任务触发状态（8 字节：3 个 9 位值） ----
-struct stQuestTriggerState_t
-{
-    stQuestTriggerState_t();                      // ORIG W 0x0836ddac（定义于 QuestTriggerState.cpp）
-    void setTrigger(short a, short b, short c);   // ORIG W 0x0836dce0（定义于 Quest.cpp）
-    int getTrigger();                             // ORIG W 0x0836dd68（定义于 QuestTriggerState.cpp）
-    // ORIG W 0x086ad56c / 0x086ad602 / 0x086ad6ea：旧视图方法名（UserQuest.cpp 使用）
-    stQuestTriggerState_t& operator=(int const& v);
-    void incTirggerState(char v);
-    void subTriggerState(char v);
-
-    short m_trigger0;  // +0x00
-    short m_trigger1;  // +0x02
-    short m_trigger2;  // +0x04
-    short m_trigger3;  // +0x06（保留；ORIG C1/operator= 2×movl 清 8 字节实证）
-};
+// [§4.4 合并 2026-09-10] 类型定义移至 QuestTriggerState.h（唯一定义点；
+// 原处为 struct 镜像，QuestTriggerState.cpp 另有 class 镜像 ⇒ ODR 违规已消除）。
+#include "QuestTriggerState.h"
 
 // ---- 任务选择参数（QuestList / check_possible 共用） ----
 class CUser;  // 仅用于 ctor 签名（stSelectQuestParam.cpp 定义）

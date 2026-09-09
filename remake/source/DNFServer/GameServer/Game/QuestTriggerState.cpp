@@ -12,21 +12,21 @@
 //   subTriggerState v==0 对字段0 裸自减，否则按位选字段自减（mod 512）。
 //   ORIG 对每字段写回时保留高 7 位（movzwl 旧值 and 0xfe00；or 新低 9 位后写回），
 //   重建需保持同款位保留语义。
+//
+// [符号绑定判据 2026-09-10] 上述符号 ORIG 全为 W（类内 inline），我方原为 T；
+//   已在 QuestTriggerState.h 声明处加 __attribute__((weak)) ⇒ 本 TU 发射 W 实体
+//   （尺寸逐位不变：getTrigger 0x46 / inc 0xe8 / sub 0xfa / C1C2 0x15 / aSERKi 0x7c）。
+// [跨版本残差 2026-09-10 复核] 逐 call*/jcc 核对：本 TU 无间接调用、5 函数 jcc
+//   0 mismatch。operator= gap=5（45 vs 40）：用 c5root 4.1.2 探针穷举 13 种源码形
+//   （cast 组合/操作数序/掩码序/成员类型）无一复现 ORIG 的「3×`and $0x1ff,%ax`
+//   + 新值先入 %ecx 再读旧值」形 ⇒ 判 N（跨版本窄类型 lowering + 写回求值序）。
+//   inc/sub/getTrigger 的 `and $0x1ff,%ax; movzwl` ↔ `movzwl; and $0x1ff,%eax`
+//   顺序差同为该族，条数全等（73/73、81/81、23/23）。
 
-class stQuestTriggerState_t
-{
-public:
-    stQuestTriggerState_t();
-    stQuestTriggerState_t& operator=(int const& v);
-    void incTirggerState(char v);
-    void subTriggerState(char v);
-    int getTrigger();
-
-    short m_trigger0;  // +0x00
-    short m_trigger1;  // +0x02
-    short m_trigger2;  // +0x04
-    short m_trigger3;  // +0x06（保留；ORIG 8 字节对象，int* 清零不越界）
-};
+// [§4.4 合并 2026-09-10] 类型唯一定义点 = QuestTriggerState.h（本 TU 曾重复定义
+// class 镜像，与 Quest.h 的 struct 逐 token 不同：方法声明序异、无 setTrigger ⇒ ODR
+// 违规）。成员布局（4×short / 8 字节）与原权威定义逐字段一致，合并零 ABI 变化。
+#include "QuestTriggerState.h"
 
 stQuestTriggerState_t::stQuestTriggerState_t()
 {

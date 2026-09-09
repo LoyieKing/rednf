@@ -501,10 +501,14 @@ void CQuestShop::getData(char* out) const
     view->m_main.m_qp = static_cast<unsigned int>(getQp());       // 0x4(%eax)
     view->m_main.m_initCount = static_cast<unsigned int>(getInitCount()); // 0x8
     view->m_main.m_questPiece = static_cast<unsigned int>(getPiece()); // 0xa6
-    // ORIG 0x85ef868：判定时重读 it->first（第三次 ptEv，O0 无 CSE）
+    // ORIG 0x85ef868：end() 只在循环前调一次（-0x1c），cond 段仅 operator!=；
+    // 且调用序 end→begin（085ef8e1 end / 085ef8f9 begin）。判定时重读 it->first
+    // （第三次 ptEv，O0 无 CSE）。
+    const std::map<unsigned char, short>::const_iterator itEnd =
+        m_buyingStatus.end();                        // -0x1c
     for (std::map<unsigned char, short>::const_iterator it =
-             m_buyingStatus.begin();
-         it != m_buyingStatus.end(); ++it)
+             m_buyingStatus.begin();                 // -0x20
+         it != itEnd; ++it)
     {
         const unsigned char key = it->first;        // -0xf
         const unsigned short value = static_cast<unsigned short>(it->second);
@@ -514,9 +518,17 @@ void CQuestShop::getData(char* out) const
     }
     view = reinterpret_cast<SIG_QUEST_SHOP_DATA*>(
         &((SIG_QUEST_SHOP_DATA*)p)->m_tag);     // +0x0aa 段（ORIG 复用 -0x14）
+    // ORIG 0x85ef97d/0x85ef99b：end() 先（临时 -0x2c→-0x20）、begin() 后
+    // （临时 -0x2c→-0x1c），cond 段仅 operator!=。
+    // [2026-09-10 判词·N86] 残余 gap=4 全部为 4.1「按值返回迭代器恒临时槽+拷贝」
+    // 两段形（本函数两处 end()/begin() 各 +2 条 `mov 临时→具名`），4.4 直构进目标槽
+    // （copy elision，无源码解）。`*&` 形实测无效（仍 133 条，/tmp/tu_CQuestShop.o）；
+    // it/tagEnd 槽址差（-0x24/-0x28 vs ORIG -0x20/-0x1c）属 N82/P112 槽分配族。
+    const std::map<unsigned char, short>::const_iterator tagEnd =
+        m_tagBuyingStatus.end();                     // -0x20
     for (std::map<unsigned char, short>::const_iterator it =
-             m_tagBuyingStatus.begin();
-         it != m_tagBuyingStatus.end(); ++it)
+             m_tagBuyingStatus.begin();              // -0x1c
+         it != tagEnd; ++it)
     {
         const unsigned char key = it->first;        // -0xb
         const unsigned short value = static_cast<unsigned short>(it->second);

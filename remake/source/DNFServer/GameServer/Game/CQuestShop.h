@@ -7,24 +7,33 @@
 
 class CUser;
 struct CHARAC_QUEST_SHOP_DATA;
+// [符号绑定判据 2026-09-10] ORIG 下列 13 个简单访问器全为 **W 弱绑定**
+// （nm -S 实证：getQp 0x085efeb0 / getInitQp 0x085eff38 / getInitCount 0x085eff0a /
+//  getPiece 0x085eff44 / setQp 0x085efee0 / setInitQp 0x08695a56 / setInitCount
+//  0x085efefc / setPiece 0x08695a88 / subQp(int) 0x085efebc / addQp 0x08695a1c /
+//  addPiece 0x08695a64 / incInitQp 0x08695a40 / incInitCount 0x085eff16，均 W），
+// 即原码为类内 inline 定义；我方原为 T 强绑定（外联定义于 CQuestShop.cpp）。
+// 在声明处标 weak 复现同一绑定：定义点不变、函数体/尺寸/mangled 零变化。
+// 虚函数（_reset/loadData/_saveData/getData）与其它复杂函数在 ORIG 为 T，**不加**。
+#define CQUESTSHOP_ACCESSOR_WEAK __attribute__((weak))
 class CQuestShop : public charac_expand::CData
 {
 public:
     CQuestShop();                    // ORIG C1/C2 0x85eebc8
     virtual ~CQuestShop();           // ORIG D1/D2 0x85eec60 / D0 0x85eecea
-    int getQp() const;
-    int getInitQp() const;
-    int getInitCount() const;
-    int getPiece() const;
-    void setQp(int value);
-    void setInitQp(int value);
-    void setInitCount(int value);
-    void setPiece(int value);
-    void addQp(int value);
-    void subQp(int value);
-    void incInitQp(int value);
-    void incInitCount();
-    void addPiece(int value);
+    int getQp() const CQUESTSHOP_ACCESSOR_WEAK;
+    int getInitQp() const CQUESTSHOP_ACCESSOR_WEAK;
+    int getInitCount() const CQUESTSHOP_ACCESSOR_WEAK;
+    int getPiece() const CQUESTSHOP_ACCESSOR_WEAK;
+    void setQp(int value) CQUESTSHOP_ACCESSOR_WEAK;
+    void setInitQp(int value) CQUESTSHOP_ACCESSOR_WEAK;
+    void setInitCount(int value) CQUESTSHOP_ACCESSOR_WEAK;
+    void setPiece(int value) CQUESTSHOP_ACCESSOR_WEAK;
+    void addQp(int value) CQUESTSHOP_ACCESSOR_WEAK;
+    void subQp(int value) CQUESTSHOP_ACCESSOR_WEAK;
+    void incInitQp(int value) CQUESTSHOP_ACCESSOR_WEAK;
+    void incInitCount() CQUESTSHOP_ACCESSOR_WEAK;
+    void addPiece(int value) CQUESTSHOP_ACCESSOR_WEAK;
     void clearBuyingStatuslist();
     void sendCharacQp(CUser* user, char flag);
     void sendCharacQuestPiece(CUser* user);  // ORIG 0x85ef7cc
@@ -64,6 +73,8 @@ private:
 
 static_assert(sizeof(CQuestShop::SigQuestShopLoadBlock) == 0x155,
               "SigQuestShopLoadBlock ABI drift");
+
+#undef CQUESTSHOP_ACCESSOR_WEAK
 
 #endif
 
