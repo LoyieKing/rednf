@@ -432,7 +432,7 @@ case "$(basename "$src" .cpp)" in
                 # 在 4.4.6 下翻 AE。实测 4.4.7 identical=6/ae=37/near=2/diff=6
                 # vs 4.4.6 identical=6/ae=38/near=1/diff=6 ⇒ 零回归。
                 exec "$C6446R" "$@" ;;
-            *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp | *Game/STEquipmentScript.cpp | *Game/CCreatureMgr.cpp | *Game/OnlyOrigBatch12_rand_r.cpp | *Game/OnlyOrigBatch12_security_server.cpp | *Game/OnlyOrigBatch12_server_utility.cpp | *Game/STMonsterScript.cpp | \
+            *Game/CLeagueMatch.cpp | *Game/LinkMiscSecuTimerSolo.cpp | *Game/STEquipmentScript.cpp | *Game/CCreatureMgr.cpp | *Game/OnlyOrigBatch12_rand_r.cpp | *Game/OnlyOrigBatch12_security_server.cpp | *Game/OnlyOrigBatch12_server_utility.cpp | *Game/STMonsterScript.cpp | *Game/PvP_Room.cpp | \
             *Game/CFairMatch.cpp | *Game/CEquipItem.cpp | *Game/CAccountCargo.cpp | \
             *Game/CUserCharacInfo.cpp | *Game/ScriptDepsA.cpp)
                 # b28d-6：ORIG CompareRating 的 x87 比较为 fucompp/fnstsw/sahf；4.4 需
@@ -461,6 +461,10 @@ case "$(basename "$src" .cpp)" in
                 # （exportMonsterScript 内）需 fucompp/fnstsw/sahf/test $0x45,%ah/sete；
                 # 该旗标下 export gap +8→−1、Import gap 不变（−4）、
                 # TU identical=794 ae=1890 near=2 diff=18 与默认逐值相同（零回归）。
+                # b28d-SweepPvPRoom：PvP_Room 的 CalculateVictoryPointOfSinglePlay
+                # 有符号 /2^k 的 cmovs 需 i486 才关掉（P230/S156 同族）；
+                # 实测 TU identical=32/ae=128/near=5/diff=22 → 32/129/5/21（+1 AE，零回归），
+                # 该函数 99→105=ORIG、多重集相等、ndiff=0。
                 exec "$C6" "$@" -march=i486 -mtune=generic ;;
             *Game/CExpandEquipslot.cpp)
                 # CExpandEquipslot：loadData 虚调用寄存器形态需 4.4.6

@@ -205,6 +205,12 @@ bool DB_LoadInventory::SendResult_forchina(int userIdx, int slot,
 // b28d-solo-DB_LoadInventory：ok 变量（14 处共用槽）+ P227 临时链 +
 // len/binLen 副本（P171，声明序对齐 ORIG 槽）已归位；残差 = 4.4 标量分区
 // （ok -0x25 vs -0x31、binLen 副本整体深 4）⇒ N82 封顶；p167 MISSING=0。
+// 本轮复核修复（真语义 bug）：creature blob 解压目标。ORIG 0840b8ef
+// `add $0x1102d,%eax`（= 0xeed1+0x8c×0x3d = m_invenType3[0x8c] 首槽，
+// 0x8c 正是 dispatch reset 循环 0..0x8b 之后第一个 creature 槽）；旧译
+// `&m_invenType3[72].m_reserved` 编译成 +0x1002d，与 ORIG 差 0x1000 字节
+// ⇒ blob 落到错误槽区。已改为 `&m_invenType3[0x8c]`，.o 立即数 0x1102d
+// 与 ORIG 逐字节一致（四数不变、p167 81/81 CLEAR）。
 // ============================================================================
 bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
 {
@@ -339,8 +345,11 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
         }
         // equipslot 解压目标 = equip 镜像区第 10 槽起（GetUserInven.md ORIG
         // `add $0xa603` = 0xa3a1+10×0x3d）；inventory blob → m_invenType1 首
-        // （ORIG +0x5949）；creature blob → +0x1102d = 0xeed1+72×0x3d+0x34 =
-        // m_invenType3[72].m_reserved（ORIG `add $…+0x6b01` 换算）。
+        // （ORIG +0x5949）；creature blob → +0x1102d = 0xeed1+0x8c×0x3d =
+        // m_invenType3[0x8c] 首槽（ORIG 0840b8ef `add $0x1102d,%eax` 实证；
+        // 0x8c 正是 dispatch reset 循环 0..0x8b 之后的第一个 creature 槽）。
+        // 旧译写作 `m_invenType3[72].m_reserved`（= +0x1002d），与 ORIG 差
+        // 0x1000 字节 ⇒ 真语义 bug（creature blob 落到错误槽区）。
         if (!uncompress_zip(reinterpret_cast<char*>(&sig->m_equipMirror[10]),
                             equipLen, equipBuf,
                             static_cast<unsigned int>(equipBinLen)))
@@ -354,7 +363,7 @@ bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
             throw static_cast<unsigned int>(0x2567);
         }
         if (!uncompress_zip(
-                reinterpret_cast<char*>(&sig->m_invenType3[72].m_reserved),
+                reinterpret_cast<char*>(&sig->m_invenType3[0x8c]),
                 creatureLen, creatureBuf,
                             static_cast<unsigned int>(creatureBinLen)))
         {
@@ -477,20 +486,42 @@ bool DB_LoadInventory::GetUserAvatar(SIG_LOAD_INVENTORY* sig)
 
 // ============================================================================
 // DB_LoadInventory::_GetUserAvatar @0x0840be8a（static bool）
-// §6.2 收口注记：语义/列序/行号（含 0x270f 修正）与 ORIG 全对齐；AE 天花板=
-// N82 三证（4.1 块作用域 cMyTrace 首现→深槽 vs 4.4 恒首现→浅槽，20 fail 岛
-// 16B 槽相位不可源级翻转；岛内容文本同形）。按 Main batch-17 裁定按语义收口。
+// §6.2 收口注记（b28d 复攻，gap 76→1）：语义/列序/行号与 ORIG 全对齐。
+// 本轮修复（逐段对照 ORIG 汇编 + LCS 段级归一化多重集）：
+//   ①【真语义 bug】slot<10 与 slot>=10 的目标数组写反：ORIG 0840c971 的
+//     slot<10 分支基址是 `add 0x14(%ebp),%eax`（第 4 形参 = 调用点 sig+0xa3a1），
+//     0840c895 的 idx 分支是 `add 0x10(%ebp),%eax`（第 3 形参 = sig+0x4044）；
+//     旧码 slot<10 写 inven（第 3 参）、slot>=10 写 mirror（第 4 参）——反了。
+//   ② P183 去缓存：删 `AvatarDetailInfo& e = out[row]` 与 `Inven_Item* item`，
+//     每写点重发 `mov row,%eax; imul $0x4b; add 0xc(%ebp),%eax`（14 写点 ×3 条）。
+//   ③ 列索引具名局部 `int col = 7;` + `get_*(col++)`（8 处 ×2 条）+ col10/col11
+//     错误分支 P227 全表达式临时链用 `col - 1`。
+//   ④ P312：ipgAgencyNo 声明 0x19 字节 ⇒ 落非 4 对齐槽 -0x5d，4.4 发与 ORIG
+//     同形的「对齐剥离 + rep stosl」慢路（0840bf59..0840bfbd）。
+//   ⑤ 声明序照 ORIG 清零序 uiId→clearAvatarId→count→abilityNo；slot/itId 去 `=0`。
+//   ⑥ color1/color2 写点前移到 get_byte(14) 之前（ORIG 0840c6fe/712 < 0840c726）。
+//   ⑦ P223 三失败出口 goto 共享尾标签 ⇒ 复现 0840ca41/44/47 三个 `nop;jmp` 岛。
+//   ⑧ trade_restrict 位：常量位域赋值 `m_bits.m_flag = 1/0` 复现 ORIG 单次基址
+//     `movzbl 0x33(%eax); or $0x20/and $0xdf; mov %dl,0x33(%eax)`（m_field 复合
+//     赋值 4.4 恒两次基址 +3 条/处；探针 /tmp/p_sep.cpp f1 vs f4）。
+// 剩余真缺口 = 0；唯一净差 1 条 = count 赋值 `mov %eax,%edx; mov 0x18(%ebp),%eax;
+//   mov %edx,(%eax)`（4.1 RHS-first+中转 vs 4.4 LHS-first 直存）⇒ N76/P211 封顶：
+//   异型化旋钮在共享头 MySQL::get_n_rows 返回类型（改它牵动全仓符号性比较），
+//   按 S2 不在本泳道改；unsigned 视图/cast/字节视图三形实测均劣
+//   （698/710/712 vs 695，且视图形占用 %ebx/%edx 破坏 callee-saved 布局）。
+// 残差余项 = 槽号分区（db -0x1c vs -0x18、trace -0x7c vs -0x12c）⇒ N82/N95 豁免。
+// p167 调用点差集 = C1/C2 同址别名伪差（59/59，P93 豁免）。
 // user_items 15 列（limit 0x73）。AvatarDetailInfo 条目步长 0x4b：
 //   +0 ui_id / +4 expire / +8 reg / +0xc ipgAgencyNo(0x18) / +0x25 clearAvatarId
 //   / +0x29 jewelSocket(0x1e) / +0x47 color1 / +0x49 color2。
-// slot<10 → inven（avatar 主区）槽位；10<=slot-10<0x69 → mirror（equip 镜像）
-// 槽位；Inven_Item 写：m_field1=8、m_fieldb=ability_no、m_addInfo=it_id、
-// m_addInfo2=ui_id、m_amp lock、m_fielddLo=hidden、m_avatarEndur=endurance、
-// +0x33 trade_restrict 位 0x20。错误行号 0x26dc..0x277d（col12 失败仅记日志）。
+// slot<10 → 第 4 形参（mirror 名，调用点 sig+0xa3a1）；10<=slot-10<0x69 →
+// 第 3 形参（inven 名，调用点 sig+0x4044）。Inven_Item 写：m_field1=8、
+// m_fieldb=ability_no、m_addInfo=it_id、m_addInfo2=ui_id、m_amp lock、
+// m_fielddLo=hidden、m_avatarEndur=endurance、+0x33 trade_restrict 位 0x20。
+// 错误行号 0x26dc..0x277d（col12 失败仅记日志）。
 // b28d-solo-DB_LoadInventory：17 处 trace 改 __PRETTY_FUNCTION__（ORIG 有
 // _ZZ...E19__PRETTY_FUNCTION__ 符号）+ 前 6 处 db 检查改共用 bool ok（ORIG
-// `mov %al,-0x19`）；残差 = 4.4 临时槽/标量分区（db -0x24 vs -0x18、trace
-// -0x60 vs -0x12c、ipgAgencyNo 无对齐剥离展开）⇒ N82 封顶；p167 MISSING=0。
+// `mov %al,-0x19`）。
 // ============================================================================
 bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
                                       AvatarDetailInfo* out,
@@ -519,11 +550,20 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
     unsigned int expireDate = 0;
     int regDate = 0;
     // b28d-214③/N78：ORIG rep stos 内联清零（无 memset call）⇒ 数组零初始化器。
-    char ipgAgencyNo[0x18] = {0};
-    int abilityNo = 0;
-    int clearAvatarId = 0;
+    // P312：ORIG 数组落在 -0x155（非 4 对齐）且 rep stos 展开的 len 立即数为
+    // 0x19（0840bf5f `mov $0x19,%edx`，dword 计数前的字节数）⇒ 原码数组 25 字节。
+    // 声明 0x19 字节使 4.4 把起始槽顶到非 4 对齐（-0x5d），复现「对齐剥离 +
+    // rep stosl」慢路（0840bf59..0840bfbd 共 34 条）；get_str 仍只写 0x18。
+    char ipgAgencyNo[0x19] = {0};
+    // ORIG 清零/赋值序（0840bfbd..0840bfe3）：uiId(-0x15c) → clearAvatarId
+    // (-0x160) → get_n_rows/count → abilityNo(-0x164) ⇒ 声明序照抄。
     int uiId = 0;
+    int clearAvatarId = 0;
+    // ORIG 0840bfdc 为 `mov %eax,%edx; mov 0x18(%ebp),%eax; mov %edx,(%eax)`
+    // （RHS-first + 中转）；4.4 对同型 int& 恒 LHS-first，视图/cast 形实测均劣化
+    // （710 vs 707）⇒ 记 N76/P211 封顶（改 get_n_rows 返回类型属共享头 S2 范围）。
     count = db->get_n_rows();
+    int abilityNo = 0;
     int row = 0;
     while (row < db->get_n_rows())
     {
@@ -535,7 +575,9 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
               characNo, row);
             break;
         }
-        int slot = 0;
+        // ORIG 0840c061：get_int 目标槽直接取址（`lea -0x130(%ebp),%eax`），
+        // 无预清零 ⇒ 不得写 `int slot = 0;`（多一条 movl $0x0）。
+        int slot;
         ok = db->get_int(0, slot);
         if (!ok)
         {
@@ -544,7 +586,7 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
               characNo);
             return 0;
         }
-        int itId = 0;
+        int itId;
         ok = db->get_int(1, itId);
         if (!ok)
         {
@@ -590,7 +632,10 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
               characNo);
             return 0;
         }
-        if (!db->get_int(7, clearAvatarId))
+        // ORIG 0840c39c：列索引具名局部 `col` 从 7 起后自增（每处
+        // `mov -0x10(%ebp),%eax; addl $0x1,-0x10(%ebp)`），错误分支日志用 col-1。
+        int col = 7;
+        if (!db->get_int(col++, clearAvatarId))
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x273b, 5);
             t("DB_LoadInventory::GetUserAvatar, get_int(6) ERROR charac_no=%u",
@@ -599,7 +644,7 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
         }
         stAvatarEmblemInfo_t jewel;
         jewel.init();
-        if (!db->get_binary(8, &jewel, 0x1e))
+        if (!db->get_binary(col++, &jewel, 0x1e))
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x2742, 5);
             t("DB_LoadInventory::GetUserAvatar, get_int(6) ERROR charac_no=%u",
@@ -607,7 +652,7 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
             return 0;
         }
         unsigned char lockKey = 0;
-        if (!db->get_ubyte(9, lockKey))
+        if (!db->get_ubyte(col++, lockKey))
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x2749, 5);
             t("DB_LoadInventory::GetUserAvatar, get_ubyte(8) ERROR charac_no=%u",
@@ -615,23 +660,25 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
             return 0;
         }
         unsigned int hiddenOption = 0;     // ORIG local_190[1]（col10）
-        if (!db->get_uint(10, hiddenOption))
+        if (!db->get_uint(col++, hiddenOption))
         {
-            cMyTrace t(__PRETTY_FUNCTION__, 0x275c, 5);
-            t("DB_LoadInventory::GetUserAvatar, get_int(%d) ERROR charac_no=%u",
-               10, characNo);
+            // ORIG 0840c547 在 ctor 前 `mov -0x10,%eax; lea -0x1(%eax),%ebx`
+            // 跨 ctor 保活 ⇒ P227 全表达式临时链。
+            cMyTrace(__PRETTY_FUNCTION__, 0x275c, 5)
+                ("DB_LoadInventory::GetUserAvatar, get_int(%d) ERROR"
+                 " charac_no=%u", col - 1, characNo);
             return 0;
         }
         unsigned int emblemEndurance = 0;  // ORIG local_190[0]（col11）
-        if (!db->get_uint(11, emblemEndurance))
+        if (!db->get_uint(col++, emblemEndurance))
         {
-            cMyTrace t(__PRETTY_FUNCTION__, 0x2762, 5);
-            t("DB_LoadInventory::GetUserAvatar, get_int(%d) ERROR charac_no=%u",
-               11, characNo);
+            cMyTrace(__PRETTY_FUNCTION__, 0x2762, 5)
+                ("DB_LoadInventory::GetUserAvatar, get_int(%d) ERROR"
+                 " charac_no=%u", col - 1, characNo);
             return 0;
         }
         short color1 = 0;
-        if (!db->get_short(12, color1))
+        if (!db->get_short(col++, color1))
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x276a, 5);
             t("DB_LoadInventory::GetUserAvatar, get_short(10) ERROR charac_no=%u",
@@ -639,15 +686,19 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
             // ORIG：本列失败仅记录日志，继续执行
         }
         short color2 = 0;
-        if (!db->get_short(13, color2))
+        if (!db->get_short(col++, color2))
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x2771, 5);
             t("DB_LoadInventory::GetUserAvatar, get_short(10) ERROR charac_no=%u",
               characNo);
             return 0;
         }
+        // ORIG 0840c6fe/0840c712：两个 color 写点在 tradeRestrict 初始化
+        // （0840c726）与 get_byte(14) 之前 —— 原码写序如此，勿合并到尾部。
+        out[row].m_expansionInfo.m_color[0] = color1;  // +0x47（movw）
+        out[row].m_expansionInfo.m_color[1] = color2;  // +0x49（movw）
         char tradeRestrict = 0;
-        if (!db->get_byte(14, tradeRestrict))
+        if (!db->get_byte(col++, tradeRestrict))
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x277d, 5);
             t("DB_LoadInventory::GetUserAvatar, get_byte(11) ERROR charac_no=%u",
@@ -658,71 +709,83 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
         // ---- AvatarDetailInfo 条目（步长 0x4b，ORIG _GetUserAvatar.md 写点：
         // +0x47/+0x49 movw short、+0x04/+0x00/+0x08 movl、+0x0c strncpy 0x18、
         // +0x25 movl、+0x29 起 7×movl+1×movw 共 0x1e 字节）----
-        AvatarDetailInfo& e = out[row];
-        e.m_expansionInfo.m_color[0] = color1;         // +0x47（movw）
-        e.m_expansionInfo.m_color[1] = color2;         // +0x49（movw）
-        e.m_expireDate = expireDate;                   // +0x04（movl）
-        e.m_key = uiId;                                // +0x00（movl）
-        e.m_registTime = regDate;                      // +0x08（movl）
-        strncpy(e.m_ipgAgencyNo, ipgAgencyNo, 0x18);   // +0x0c
-        e.m_clearAvatarId = clearAvatarId;             // +0x25（movl）
+        // P183：ORIG 每个写点重发 `mov -0x14(%ebp),%eax; imul $0x4b,%eax,%eax;
+        // add 0xc(%ebp),%eax`（0840c6fe/712/71b/…/805），禁缓存 `T& e` 引用。
+        out[row].m_expireDate = expireDate;            // +0x04（movl）
+        out[row].m_key = uiId;                         // +0x00（movl）
+        out[row].m_registTime = regDate;               // +0x08（movl）
+        strncpy(out[row].m_ipgAgencyNo, ipgAgencyNo, 0x18);  // +0x0c
+        out[row].m_clearAvatarId = clearAvatarId;      // +0x25（movl）
         // b28d-83/84：ORIG +0x29 为 7×movl+1×movw 结构整体赋值（非 memcpy call）
         // ⇒ 用 stAvatarEmblemInfo_t 结构赋值（同 CInventory.cpp:5554 镜像法）。
-        e.m_jewelSocket = jewel;                       // +0x29（ORIG 逐字段 8 写）
+        out[row].m_jewelSocket = jewel;                // +0x29（ORIG 逐字段 8 写）
 
         // ---- Inven_Item 槽位（avatar 主区 / equip 镜像区）----
-        if (slot < 0x73)
+        // ORIG 0840c85b：`cmp $0x72; jg 尾` → `cmp $9; jle 主区`（主区物理在后）
+        // ⇒ 镜像分支 fall-through、主区分支后置。主区入口 0840c956 还有一次
+        // 冗余 `cmp $9; jg 尾`（原码嵌套 if 遗留，4.1 -O0 照发）。
+        // P223：ORIG 三个失败出口各自在函数尾成 `nop; jmp join` 岛
+        // （0840ca42/0840ca45/0840ca47 前的 jmp），4.4 复现形 = 负条件 goto
+        // 到共享尾空标签。
+        if (slot >= 0x73) goto L_avatarJoin;
+        if (slot >= 10)
         {
-            if (slot < 10)
+            int idx = slot - 10;
+            if (idx >= 0x69) goto L_avatarJoin;
             {
-                Inven_Item* item = &inven[slot];
-                item->m_field1 = Inven_Item::ITEM_TYPE_AVATAR;
-                item->m_fieldb = static_cast<unsigned short>(abilityNo);
-                item->m_addInfo = itId;
-                item->m_addInfo2 = uiId;
-                item->m_amp.SetLock(lockKey);
-                item->m_fieldSplit.m_fielddLo = static_cast<short>(hiddenOption);
-                item->m_fieldSplit.m_avatarEndur =
-                    static_cast<unsigned short>(emblemEndurance);
-                if (tradeRestrict == 0)
-                {
-                    item->m_upgradeSep.m_field =
-                        static_cast<unsigned char>(item->m_upgradeSep.m_field & 0xdf);
-                }
-                else
-                {
-                    item->m_upgradeSep.m_field =
-                        static_cast<unsigned char>(item->m_upgradeSep.m_field | 0x20);
-                }
-            }
-            else
-            {
-                int idx = slot - 10;
-                if (idx < 0x69)
-                {
-                    Inven_Item* item = &mirror[idx];
-                    item->m_field1 = Inven_Item::ITEM_TYPE_AVATAR;
-                    item->m_fieldb = static_cast<unsigned short>(abilityNo);
-                    item->m_addInfo = itId;
-                    item->m_addInfo2 = uiId;
-                    item->m_amp.SetLock(lockKey);
-                    item->m_fieldSplit.m_fielddLo =
+                    // ORIG 0840c88f..0840ca3f：idx 分支基址 `add 0x10(%ebp),%eax`
+                    // = 第 3 形参（调用点 sig+0x4044）。P183：每写点重发
+                    // `mov -0xc(%ebp),%eax; imul $0x3d,%eax,%eax; add 0x10(%ebp),%eax`。
+                    inven[idx].m_field1 = Inven_Item::ITEM_TYPE_AVATAR;
+                    inven[idx].m_fieldb = static_cast<unsigned short>(abilityNo);
+                    inven[idx].m_addInfo = itId;
+                    inven[idx].m_addInfo2 = uiId;
+                    inven[idx].m_amp.SetLock(lockKey);
+                    inven[idx].m_fieldSplit.m_fielddLo =
                         static_cast<short>(hiddenOption);
-                    item->m_fieldSplit.m_avatarEndur =
+                    inven[idx].m_fieldSplit.m_avatarEndur =
                         static_cast<unsigned short>(emblemEndurance);
-                    if (tradeRestrict == 0)
+                    // ORIG 0840c92f/0840c947：单次基址 `movzbl 0x33(%eax),%edx;
+                    // or $0x20,%edx; mov %dl,0x33(%eax)`（else 为 and $0xdf）。
+                    // = 常量位域赋值 if/else 形（探针 /tmp/p_sep.cpp f4 实证 4.4
+                    // 单次基址 6 条/分支；m_field 复合赋值 f1 恒两次基址 9 条/分支，
+                    // 三目位域形反产读-改-写位域全展开）。
+                    if (tradeRestrict != 0)
                     {
-                        item->m_upgradeSep.m_field =
-                            static_cast<unsigned char>(item->m_upgradeSep.m_field & 0xdf);
+                        inven[idx].m_upgradeSep.m_bits.m_flag = 1;
                     }
                     else
                     {
-                        item->m_upgradeSep.m_field =
-                            static_cast<unsigned char>(item->m_upgradeSep.m_field | 0x20);
+                        inven[idx].m_upgradeSep.m_bits.m_flag = 0;
                     }
-                }
             }
         }
+        else
+        {
+            if (slot >= 10) goto L_avatarJoin;
+            {
+                    // ORIG 0840c956..0840ca3f：slot<10 分支基址 `add 0x14(%ebp),%eax`
+                    // = 第 4 形参（调用点 sig+0xa3a1）——与镜像分支相反，勿再对调。
+                    mirror[slot].m_field1 = Inven_Item::ITEM_TYPE_AVATAR;
+                    mirror[slot].m_fieldb = static_cast<unsigned short>(abilityNo);
+                    mirror[slot].m_addInfo = itId;
+                    mirror[slot].m_addInfo2 = uiId;
+                    mirror[slot].m_amp.SetLock(lockKey);
+                    mirror[slot].m_fieldSplit.m_fielddLo =
+                        static_cast<short>(hiddenOption);
+                    mirror[slot].m_fieldSplit.m_avatarEndur =
+                        static_cast<unsigned short>(emblemEndurance);
+                    if (tradeRestrict != 0)
+                    {
+                        mirror[slot].m_upgradeSep.m_bits.m_flag = 1;
+                    }
+                    else
+                    {
+                        mirror[slot].m_upgradeSep.m_bits.m_flag = 0;
+                    }
+            }
+        }
+        L_avatarJoin:;
         ++row;
     }
     return 1;
