@@ -190,7 +190,10 @@ public:
                                                             //  importParentLevelPenlaty
                                                             //  0x08a9e654 clear/push_back 实证）
     std::map<int, std::vector<StrikerSkill>*> m_skillMap;  // +0x78
-    void* m_fileList;                            // +0x90（create/destory 管理；ORIG STScriptFileList*）
+    // [SweepCtorProd2] void* → STScriptFileList*（P301）：ORIG destory 0x08a9dcdf
+    // `mov 0x90(%eax),%ebx` 单段直落；void* + reinterpret_cast 使 4.4 多一条
+    // `mov %eax,%ebx` 中转。sizeof/偏移/mangled 零变化。
+    STScriptFileList* m_fileList;                // +0x90（create/destory 管理）
     std::vector<StrikerSkillAddCommand> m_macroCommands;   // +0x94（[striker skill macro]）
     unsigned char m_loaded;                      // +0xa0（importScript 成功置 1）
     char m_padA1[3];

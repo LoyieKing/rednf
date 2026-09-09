@@ -38,7 +38,13 @@
 
 bool DisJoint::LoadDisJoint()
 {
-    // [b28d-48] N82 封顶（NDIFF 48，79/78 条）：槽平移 + `add $0x5c` 寻址链。
+    // [SweepCtorProd2] gap −1→+1（78/77 条），jcc 多重集全等（call 6/je 1/jmp 3/
+    // jne 2/setg 1/setle 1，逐条核对落点体一致），p167 CLEAR（6=6）。
+    // 残余 1 条 = 循环尾基址/索引装载寄存器角色互换（ORIG `mov i,%edx; mov this,%eax;
+    // add $0x5c,%edx; shl $4,%edx; add %edx,%eax` vs 4.4 `mov i,%eax; … add this,%eax`）
+    // ⇒ N7 族（间接/地址装载寄存器角色，非源形可控），语义等价。
+    // 已修：删 `const int count` 缓存（ORIG 内层条件每轮重算 m_additional[i].m_count，
+    // 缓存版多发一段循环外计算并多占一槽使全帧深 4）。
     // ORIG 0x0847300c：import 成功则把 [cube index] 第 5 组首值与其
     // [additional result] 各组元素聚合到 +0x628 起的 6 个 vector。
     if (!importDisjointScript(this, "Etc/Disjoint.etc"))
@@ -51,9 +57,12 @@ bool DisJoint::LoadDisJoint()
     {
         int value = m_cubeIndexVecs[4].at(0);        // at(this+0x30, 0)；ORIG 显式 _ZNSt6vectorIiSaIiEE2atEj
         m_resultVecs[i].push_back(value);
-        const int count = *reinterpret_cast<const int*>(
-            reinterpret_cast<const char*>(&m_additional[0]) + i * 0x10);
-        for (int j = 0; j < count; ++j)
+        // [SweepCtorProd2] ORIG 0x084730xx 内层条件每轮重算（`mov i,%edx; add $0x5c;
+        // shl $4; add this; add $8; mov (%eax),%eax; cmp j,%eax; setg`），无 count
+        // 缓存局部；原 `const int count` 缓存多发一段循环外计算并多占一个槽
+        // （全帧槽深 +4）。表达式内联进 for 条件即复现。
+        for (int j = 0; j < *reinterpret_cast<const int*>(
+                 reinterpret_cast<const char*>(&m_additional[0]) + i * 0x10); ++j)
         {
             m_resultVecs[i].push_back(m_additional[i].m_items[j]);
         }
@@ -107,10 +116,15 @@ DisjointScript::DisjointScript()
 
 void DisjointScript::clear()
 {
-    // [b28d-48] N82/N93 封顶（NDIFF 113，87/118 条）：ORIG 双 `movl $0,-0x20`
-    // （P197③ 双段式）与 4.4 单段 + 帧/槽平移。
+    // [SweepCtorProd2] 88→119 条 vs ORIG 120：唯一残余 = ORIG 尾部对齐 nop（§6.1
+    // 豁免）⇒ AE。p167 CLEAR（3=3）。
+    // 已补：① ORIG 0x08375cf3..0x8375d42 parts 段（grade 0..3 × parts 0..9，
+    // `movl $0,0x4(%ecx,%eax,4)`、eax=0x110+g*10+p ⇒ 基准 +0x444）；
+    // ② 0xcc/0xd0 的 2 元素循环（ORIG 0x8375c5d..0x8375c7c `lea 0x30(%edx),%ecx;
+    // mov %edx,0xc(%eax,%ecx,4)`，经 DisJoint.h 匿名 union 数组视角 m_skillProb[2] 复现）。
     // ORIG 0x08375bca：5 容器 clear → 4 LotteryInfo::clear → +0xbc=-1 →
-    // skills clear → (+0xcc,+0xdc) 清零 → 三重循环清零 m_grid。
+    // skills clear → (+0xcc,+0xd0) 循环清零 → 三重循环 m_avatarDisjoint →
+    // 二重循环 m_avatarPartsDisjoint。
     // [b28d-48] P191 配套：ORIG 0x08375bca 双 `movl $0,-0x20`（`int i=0;`
     // 与 `for(i=0;…)` 两条初始化都发射），for-init 声明形只发一条。
     int i = 0;
@@ -124,11 +138,16 @@ void DisjointScript::clear()
     }
     m_skillSelect = -1;
     m_skills.clear();
-    // ORIG 0x08375bca 续：i=0..1 对 (+0xcc,+0xd0) 两个 int 位清零（即两个 float），
+    // ORIG 0x08375bca 续：i=0..1 清零 (+0xcc,+0xd0) 两个 float——ORIG 是 2 元素
+    // 循环 `mov i,%edx; mov this,%eax; lea 0x30(%edx),%ecx; mov $0,%edx;
+    // mov %edx,0xc(%eax,%ecx,4)`（this+0xcc+4i，成员数组寻址）⇒ 用头内匿名 union
+    // 的数组视角 m_skillProb[2] 循环访问（原两条独立赋值少 6 条且无槽复用）。
+    for (i = 0; i <= 1; ++i)
+    {
+        m_skillProb[i] = 0;
+    }
     // 随后三重循环 a(job)=0..10、b(grade)=0..3、c(slot)=0..4 清零
-    // m_avatarDisjoint[a][b][c]（索引式 (c+b*5+a*20+0x34)，字节区 +0xe0..+0x44f）。
-    m_fieldCC = 0;                                   // +0xcc
-    m_skillProbD0 = 0.0f;                            // +0xd0
+    // m_avatarDisjoint[a][b][c]（索引式 (c+b*5+a*20+0x34)，字节区 +0xd4..+0x443）。
     for (int a = 0; a < 11; ++a)
     {
         for (int b = 0; b < 4; ++b)
@@ -137,6 +156,16 @@ void DisjointScript::clear()
             {
                 m_avatarDisjoint[a][b][c] = 0;
             }
+        }
+    }
+    // ORIG 0x08375cf3..0x08375d42（SweepScriptDepsA 证据）：grade 0..3 × parts 0..9
+    // 清零 m_avatarPartsDisjoint。寻址 `movl $0x0,0x4(%ecx,%eax,4)`、eax=0x110+g*10+p
+    // ⇒ 基准 4+0x110*4 = 0x444，与头 [4][10]@+0x444 一致。
+    for (int grade = 0; grade < 4; ++grade)
+    {
+        for (int parts = 0; parts < 10; ++parts)
+        {
+            m_avatarPartsDisjoint[grade][parts] = 0;
         }
     }
 }
@@ -209,10 +238,14 @@ void StrikerScript::destory()
     // 再判空（直接读成员）vs 4.4 先 mov 缓存 eax 再判空；帧/槽平移。
     // ORIG 0x08a9dcbe：delete 文件列表（STScriptFileList::D1 + operator delete）；
     // 遍历技能 map delete 各 vector 并置空；尾部 m_skillMap.clear()。
-    // [b28c-lane17] 判词：残余 3 条 = 4.1 对 delete 操作数的**二次 this+0x90 装载**
-    // （`mov 0x90(%eax),%eax; test; mov this,%eax; mov 0x90(%eax),%ebx; test %ebx`），
-    // 4.4 恒折为 `mov %eax,%ebx` 单段直落 ⇒ N18a（反向亦不可造）。
-    delete reinterpret_cast<STScriptFileList*>(m_fileList);
+    // [SweepCtorProd2] 原判「二次装载不可造」作废：ORIG 的两次 `mov 0x90(%eax)`
+    // 是「源码显式 if 判空」+「delete 自带空指针守卫」两段（探针实测 4.4 同形）⇒
+    // 补显式 if 即逐条复现（`mov 0x90(%eax),%eax; test; je` + `mov 0x90(%eax),%ebx;
+    // test %ebx,%ebx; je`）。
+    if (m_fileList != 0)
+    {
+        delete m_fileList;                       // P301：具型指针单段直落
+    }
     m_fileList = 0;
     // [b28c-lane17] ORIG 0x08a9dce8：循环谓词每次调用都**重新装载** m_fileList
     // 的迭代器对（`mov this→%eax; mov 0x90(%eax),%eax; test; ...; mov 0x90(%eax),%ebx`
@@ -286,8 +319,19 @@ CharacManageScript::~CharacManageScript()
 
 bool CharacManageScript::importScript(const char* path)
 {
-    // [b28d-48] N82 封顶（NDIFF 302，313/334 条）：帧 0x60 vs 0x70 +
-    // 解析段槽平移。
+    // [SweepCtorProd2] 已修 3 个真 bug（p167 47=47 CLEAR，残余 4 项 C1/C2·D1/D2
+    // 同址别名 = P93 豁免，nm 实证 ORIG 0x087065d0/0x08707be0/0x088e12f6/0x080c6d20）：
+    // ① 8 处 `token == "…"` 实参序反写 → `"…" == token`（ORIG 每点
+    //    `movl $"[…]",(%esp); mov %eax,0x4(%esp)` 选 `operator==(const char*,
+    //    const string&)`；原写法选到另一重载 `…RKSb…EPKS3_`）；
+    // ② `make_pair(key,val)` 的 key/val 去 const（ORIG 实例 `IRiS0_` 非 const 左值，
+    //    const 版会实例化 `IRKiS1_` 另一符号）；
+    // ③ `[exp bonus]/[gold bonus]` 分支由三目改为循环内 if/else-if + `else return false`
+    //    （ORIG 0x88e0b8e..0x88e0be3：选表指针每轮重置、缺第 9 次 operator== 与失败返回）。
+    // 帧 0x60→0x70（P232 撑帧，char framePad[0x10]）与 ORIG 对齐。
+    // 残余 DIFF = while 布局（4.1 条件在前 fall-through vs 4.4 `jmp cond`）+
+    // bool 判断 xor 物化（P168a④/N122：4.4 无 `movzbl;xor$1;test;je` 形）+
+    // 解析段槽分配（N82/N93 族）⇒ 语义等价、结构 N 封顶。
     // ORIG 0x088e0968：RDAR 装载失败 ret0；分节扫描 [point bonus]/
     // [manage level point]/[manage level max]/[exp bonus]/[gold bonus]/
     // [manage basic explain]/[manage option]/默认 ContentsOptionRevision 行。
@@ -299,9 +343,15 @@ bool CharacManageScript::importScript(const char* path)
     std::string token;
     std::string value;
     bool ok = false;
+    char framePad[0x10];                         // [SweepCtorProd2] ORIG 帧 0x70 vs 我方 0x60
+    (void)framePad;                              // ⇒ 全槽平移 0x10（P232 撑帧实验）
     while (ScanType(token, true))
     {
-        if (token == "[point bonus]")
+        // [SweepCtorProd2] 实参序判据（P18/P23 族）：ORIG 每个比较点都是
+        // `movl $"[...]",(%esp); mov %eax,0x4(%esp)` ⇒ 字面量在 arg0、token 在 arg1，
+        // 选 `operator==(const char*, const string&)`（_ZSteq…bPKT_RKSbIS3_T0_T1_E，
+        // ORIG 9 次）；写反成 `token == "…"` 选另一重载（我方原 8 次）⇒ 全部翻正。
+        if ("[point bonus]" == token)
         {
             while (true)
             {
@@ -324,7 +374,7 @@ bool CharacManageScript::importScript(const char* path)
                 m_pointBonus.push_back(bonus);
             }
         }
-        else if (token == "[manage level point]")
+        else if ("[manage level point]" == token)
         {
             int level = 0;
             while ((level = ScanInt(&ok)), ok)       // do-while 形态（asm +0x11a）
@@ -332,7 +382,7 @@ bool CharacManageScript::importScript(const char* path)
                 m_manageLevelPoint.push_back(level);
             }
         }
-        else if (token == "[manage level max]")
+        else if ("[manage level max]" == token)
         {
             m_manageLevelMax = ScanInt(&ok);         // +0x48
             if (!ok)
@@ -340,24 +390,44 @@ bool CharacManageScript::importScript(const char* path)
                 return false;
             }
         }
-        else if (token == "[exp bonus]" || token == "[gold bonus]")
+        else if ("[exp bonus]" == token || "[gold bonus]" == token)
         {
-            std::map<int, int>& table =
-                (token == "[exp bonus]") ? m_expBonus : m_goldBonus;   // +0x18 / +0x30
+            // [SweepCtorProd2] ORIG 0x88e0b42/0x88e0b8e..0x88e0be3：
+            // ① val(-0x50) 在循环**外**预清 `movl $0,-0x50`，循环内 `val = ScanInt`；
+            // ② key(-0x4c) 每轮新声明；③ 选表指针(-0x10) 在**循环体内**每轮重置：
+            // `== "[exp bonus]"` → +0x18，否则 `== "[gold bonus]"` → +0x30，
+            // 否则 `mov $0,%ebx; jmp` = return false（原三目写法把这 2 次比较移到
+            // 循环外 ⇒ p167 少 1 次 operator==、少失败返回路径）。
+            int val = 0;
             while (true)
             {
-                const int key = ScanInt(&ok);
+                // ORIG make_pair 实例 = `IRiS0_`（int&，非 const 左值）⇒ key/val 必须
+                // 是非 const 局部（P61/P315：const 左值会实例化 IRKiS1_ 另一符号）。
+                int key = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
-                const int val = ScanInt(&ok);
+                val = ScanInt(&ok);
                 if (!ok)
                 {
                     return false;
                 }
+                std::map<int, int>* table = 0;
+                if ("[exp bonus]" == token)
+                {
+                    table = &m_expBonus;             // +0x18
+                }
+                else if ("[gold bonus]" == token)
+                {
+                    table = &m_goldBonus;            // +0x30
+                }
+                else
+                {
+                    return false;
+                }
                 const std::pair<std::map<int, int>::iterator, bool> ins =
-                    table.insert(std::make_pair(key, val));
+                    table->insert(std::make_pair(key, val));
                 if (!ins.second)                     // insert.second==0 → 查重告警
                 {
                     std::printf("ERROR [%s][%s] key duplicated\n",
@@ -365,7 +435,7 @@ bool CharacManageScript::importScript(const char* path)
                 }
             }
         }
-        else if (token == "[manage basic explain]")
+        else if ("[manage basic explain]" == token)
         {
             m_basicExplain.clear();                  // 先 clear 再按行号写入
             int index = 0;
@@ -375,7 +445,7 @@ bool CharacManageScript::importScript(const char* path)
                 ++index;
             }
         }
-        else if (token == "[manage option]")
+        else if ("[manage option]" == token)
         {
             m_manageOption.clear();
             while (true)
