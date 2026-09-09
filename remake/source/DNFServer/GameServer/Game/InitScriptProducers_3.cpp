@@ -44,19 +44,30 @@
 //   importTitleBookEtcScript 0x08aa8110 N 封顶 —— 650/650、P167 CLEAR(94/94)；
 //     残差 6 处全为 4.1 独占的 switch 叶块间 nop 占位岛（4.4 恒不发射；§6.2
 //     三件套：gap=0 / 调用点归零 / 逐块比对无语义差）。
-//   importQuestParameterScript 0x08a6b660 N 封顶 —— 447/441、P167 CLEAR(66/66)；
+//   importQuestParameterScript 0x08a6b660 N 封顶 —— 447/444、P167 CLEAR(66/66)；
 //     残差为 4.1 独占 nop 岛 + `bool found=(appendage!=-1)` 的 setne 槽化物化
 //     （P194/N122 跨版本）。修法已落：p 形参缓存（-0x20）+ 各段块级 ok 槽 +
 //     isStr 无预清 + memcpy 1 字节 key + dead1c。
+//     [b28d-solo3 二次收口] [piece reward] 循环条件四形实测（独立 break 444 /
+//     具名 bool 合并 448 / 三目 441 / 语句表达式 444），取独立 break；
+//     found 语句表达式形 441 亦回退（ORIG 需 setne 物化）。
 //   importGuildParameterScript 0x08978d48 N 封顶 —— 507/505、P167 CLEAR(76/76)；
-//     残差为 4.1 独占 nop 岛 + 两步寻址伪影。修法已落：7 处 `"lit" == token`
-//     方向修正（P167 MISSING/EXTRA ×7 归零）、pair 直构替 make_pair ×2、
-//     push_back 左值 ×1、p 形参缓存（-0x34）+ dead30、level/cost 局部提升、
-//     w/key/value 预清；两类型用户空析构删除（P317，.cpp 定义由 Main 代落）。
-//   importPowerParameterScript 0x08a592bc N 封顶 —— 638/629、P167 CLEAR(101/101)；
-//     残差为 4.1/4.4 break 块序（`je 继续` vs `jne break`，N122/P168a）+ nop 岛。
-//     修法已落：p 形参缓存（-0x14）+ dead10、各段 `for(;;){value=ScanInt(&done);
-//     if(!done) break; body}` 形 + value 预清、删各段 done 复位。
+//     残差为 4.1 独占 nop 岛 + 两步寻址伪影（N94：`[level-1][1]` 的 0x60 disp
+//     4.4 折单条 scaled mov，ORIG 拆 lea+mov，-1 条）。修法已落：7 处
+//     `"lit" == token` 方向修正（P167 MISSING/EXTRA ×7 归零）、pair 直构替
+//     make_pair ×2、push_back 左值 ×1、p 形参缓存（-0x34）+ dead30、level/cost
+//     局部提升、w/key/value 预清；两类型用户空析构删除（P317，.cpp 定义由
+//     Main 代落）。[b28d-solo3 二次收口] 删 lv 预清（504）与删 6 处 done 复位
+//     （499）均使 gap 反向扩大（ORIG 依赖其形），已回退保持 505。
+//   importPowerParameterScript 0x08a592bc N 封顶 —— 638/639、P167 CLEAR(101/101)；
+//     [b28d-solo3 二次收口] token 链按 ORIG 汇编顺序重排（noti time/kill count
+//     effect range/power up bonus/power war channel/power up point mod/join cost
+//     modify/victorious reward time/penalty/break bonus/rejoin panalty 十段归位）
+//     + [pc room bonus] 具名局部预清中转（ORIG +0x60a..+0x628）
+//     + [straight victory penalty] 改 `while(true){…if(!done)break;}` 四守卫
+//     （复现 ORIG 逐处 `movzbl; xor $1; test; je +2; jmp`）+ [break bonus]
+//     去 value 预清 —— gap 9→-1（639 vs 638）。唯一残差 = 4.4 各段尾 continue
+//     公共回边中继 jmp（+1；ORIG 直跳循环头 +0x56）。
 // ============================================================================
 
 #include "CDataManager.h"
@@ -449,7 +460,7 @@ bool importGuildParameterScript(GuildParameterScript* script, const char* path)
             int rangeMin = 0;
             int rangeMax = 0;
             int ratio = 0;
-            int lv = 0;
+            int lv = 0;            // 保留预清：实测 505 vs 504（ORIG 507）不回退
             for (int w = 0; w < p->m_field8; ++w)
             {
                 rangeMin = ScanInt((bool*)0);
@@ -627,46 +638,10 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
         if (token == "[power up assault count]")               { p->m_powerUpAssaultCount = ScanInt((bool*)0); continue; }
         if (token == "[power up assault victory ratio]")       { p->m_powerUpAssaultVictoryRatio = ScanInt((bool*)0); continue; }
         if (token == "[power up generate period]")             { p->m_powerUpGeneratePeriod = ScanInt((bool*)0); continue; }
-        if (token == "[straight victories]")                   { p->m_straightVictories = ScanInt((bool*)0); continue; }
-        if (token == "[item initial cooltime]")                { p->m_itemInitialCooltime = ScanInt((bool*)0); continue; }
-        if (token == "[basic powerwar point]")                 { p->m_basicPowerWarPoint = ScanInt((bool*)0); continue; }
-        if (token == "[first grade bonus powerwar point]")     { p->m_firstGradeBonusPoint = ScanInt((bool*)0); continue; }
-        if (token == "[ranking bonus grade]")                  { p->m_rankingBonusGrade = ScanInt((bool*)0); continue; }
-        if (token == "[ranking bonus decrease point]")         { p->m_rankingBonusDecreasePoint = ScanInt((bool*)0); continue; }
-        if (token == "[decrease powerwar point per day]")      { p->m_decreasePointPerDay = ScanInt((bool*)0); continue; }
-        if (token == "[required user powerwar point 4 dungeon]") { p->m_requiredUserPoint4Dungeon = ScanInt((bool*)0); continue; }
-        if (token == "[power war dungeon info]")
-        {
-            p->m_powerWarDungeonInfo.first = ScanInt((bool*)0);   // ORIG +0x94
-            p->m_powerWarDungeonInfo.second = ScanInt((bool*)0); // ORIG +0x98
-            continue;
-        }
-        if (token == "[pc room bonus]")
-        {
-            // asm +0x60a..+0x625：读入即写入 +0x44，ok 标志被忽略。
-            p->m_pcRoomBonus = ScanInt(&done);
-            continue;
-        }
-        if (token == "[time assault super power state on join powerwar]")
-        {
-            p->m_timeAssaultSuperPowerStateOnJoin = ScanInt((bool*)0);
-            continue;
-        }
-        if (token == "[time assault super power state after powerwar]")
-        {
-            p->m_timeAssaultSuperPowerStateAfter = ScanInt((bool*)0);
-            continue;
-        }
-        if (token == "[powerwar enter level limit]")           { p->m_minEnterLevel = ScanInt((bool*)0); continue; }
-        if (token == "[powerwar enter age limit]")             { p->m_minEnterAge = ScanInt((bool*)0); continue; }
-        if (token == "[power up point mod]")                   { p->m_powerUpPointMod = ScanInt((bool*)0); continue; }
-        if (token == "[victorious reward time]")               { p->m_victoriousRewardTime = ScanInt((bool*)0); continue; }
-        if (token == "[power rejoin panalty]")                 { p->m_powerWarCooldownMinutes = ScanInt((bool*)0); continue; }
-
+        // ORIG 0x08a595db：`movl $0,-0x28` 预清 + cond 前置
+        // （`call ScanInt; movzbl done; xor $1; je break`）+ body 后置。
         if (token == "[power up noti time]")
         {
-            // ORIG 0x08a5960?：`movl $0,-0x28` 预清 + cond 前置
-            // （`call ScanInt; movzbl done; xor $1; je break`）+ body 后置。
             int value = 0;
             while (true)
             {
@@ -677,9 +652,11 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
             }
             continue;
         }
+        if (token == "[straight victories]")                   { p->m_straightVictories = ScanInt((bool*)0); continue; }
+        if (token == "[item initial cooltime]")                { p->m_itemInitialCooltime = ScanInt((bool*)0); continue; }
+        // asm +0x3e6..+0x434：首值带 ok 校验，次值不校验。
         if (token == "[kill count effect range]")
         {
-            // asm +0x3e6..+0x434：首值带 ok 校验，次值不校验。
             while (true)
             {
                 std::pair<int, int> range;
@@ -689,6 +666,18 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
                 range.second = ScanInt((bool*)0);
                 p->m_vec70.push_back(range);
             }
+            continue;
+        }
+        if (token == "[basic powerwar point]")                 { p->m_basicPowerWarPoint = ScanInt((bool*)0); continue; }
+        if (token == "[first grade bonus powerwar point]")     { p->m_firstGradeBonusPoint = ScanInt((bool*)0); continue; }
+        if (token == "[ranking bonus grade]")                  { p->m_rankingBonusGrade = ScanInt((bool*)0); continue; }
+        if (token == "[ranking bonus decrease point]")         { p->m_rankingBonusDecreasePoint = ScanInt((bool*)0); continue; }
+        if (token == "[decrease powerwar point per day]")      { p->m_decreasePointPerDay = ScanInt((bool*)0); continue; }
+        if (token == "[required user powerwar point 4 dungeon]") { p->m_requiredUserPoint4Dungeon = ScanInt((bool*)0); continue; }
+        if (token == "[power war dungeon info]")
+        {
+            p->m_powerWarDungeonInfo.first = ScanInt((bool*)0);   // ORIG +0x94
+            p->m_powerWarDungeonInfo.second = ScanInt((bool*)0); // ORIG +0x98
             continue;
         }
         if (token == "[power up bonus]")
@@ -703,6 +692,27 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
             }
             continue;
         }
+        if (token == "[pc room bonus]")
+        {
+            // asm +0x60a..+0x628：`movl $0,-0xc` 预清 + 具名局部中转，
+            // ok 标志被忽略。
+            int value = 0;
+            value = ScanInt(&done);
+            p->m_pcRoomBonus = value;
+            continue;
+        }
+        if (token == "[time assault super power state on join powerwar]")
+        {
+            p->m_timeAssaultSuperPowerStateOnJoin = ScanInt((bool*)0);
+            continue;
+        }
+        if (token == "[time assault super power state after powerwar]")
+        {
+            p->m_timeAssaultSuperPowerStateAfter = ScanInt((bool*)0);
+            continue;
+        }
+        if (token == "[powerwar enter level limit]")           { p->m_minEnterLevel = ScanInt((bool*)0); continue; }
+        if (token == "[powerwar enter age limit]")             { p->m_minEnterAge = ScanInt((bool*)0); continue; }
         if (token == "[power war channel]")
         {
             while (true)
@@ -718,6 +728,7 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
             }
             continue;
         }
+        if (token == "[power up point mod]")                   { p->m_powerUpPointMod = ScanInt((bool*)0); continue; }
         if (token == "[power join cost modify]")
         {
             int value = 0;
@@ -730,32 +741,31 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
             }
             continue;
         }
+        if (token == "[victorious reward time]")               { p->m_victoriousRewardTime = ScanInt((bool*)0); continue; }
         if (token == "[straight victory penalty]")
         {
             stVictoryPenalty penalty;
-            penalty.m_field0 = ScanInt(&done);
-            if (done)
+            while (true)
             {
+                penalty.m_field0 = ScanInt(&done);
+                if (!done)
+                    break;
                 penalty.m_field4 = ScanInt(&done);
-                if (done)
-                {
-                    penalty.m_field8 = ScanInt(&done);
-                    if (done)
-                    {
-                        penalty.m_fieldC = ScanInt(&done);
-                        if (done)
-                        {
-                            p->m_vecBC.push_back(penalty);
-                            continue;
-                        }
-                    }
-                }
+                if (!done)
+                    break;
+                penalty.m_field8 = ScanInt(&done);
+                if (!done)
+                    break;
+                penalty.m_fieldC = ScanInt(&done);
+                if (!done)
+                    break;
+                p->m_vecBC.push_back(penalty);
             }
             continue;
         }
         if (token == "[straight victory break bonus]")
         {
-            int value = 0;
+            int value;                             // ORIG 无预清（直接 store）
             while (true)
             {
                 value = ScanInt(&done);
@@ -765,6 +775,7 @@ bool importPowerParameterScript(PowerParameterScript* script, const char* path)
             }
             continue;
         }
+        if (token == "[power rejoin panalty]")                 { p->m_powerWarCooldownMinutes = ScanInt((bool*)0); continue; }
         if (token == "[power parameter end]")
         {
             done = true;
@@ -885,6 +896,9 @@ bool importQuestParameterScript(QuestParameterScript* script, const char* path)
             std::string sub;
             while (true)
             {
+                // ORIG 0x08a6bace..0x08a6bb13 为合并短路 + bool 物化；4.4 对
+                // 具名 bool/三目/语句表达式三形均折成直跳或槽化（N122 族），
+                // 故保留独立 break（gap 与三形相同）。
                 if (!ScanType(sub, true))
                     break;
                 if (sub == "[/piece reward]")
