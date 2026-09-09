@@ -507,6 +507,12 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
     //   残余 +22 = N82 帧槽族（+0x24/+0x1c/+0x54 非恒定）+ 分散 movb(+6)/add(+10)
     //   形态差；difflib 对本件失真（N127），逐 case 段对齐不可用（字符串段界
     //   ORIG 225 vs 我方重定位段 520）⇒ 封 N。
+    // [SweepSTEquipScript 2026-09-09 复核] gap 22 保持（9821/9799）；p167 差集仅
+    //   C2/D2 ↔ C1/D1 同址别名镜像（P93）；三个惰性表符号 __lookup/__lookup_0/
+    //   __lookup_1 + __init_lock×3 + __inited×3 与 ORIG 名字/数量逐一对应（P333
+    //   状态机结构完整）；帧 0x1a3c vs ORIG 0x19fc（N82 槽复用）。13 个 missing
+    //   段抽查（08991f60/0899925d/0899b26e/0899b3ed 等）均为 4.1 switch 决策树与
+    //   叶子块布局差，非语义缺口 ⇒ 维持封 N。
     // 声明顺序 = ORIG prologue 构造/初始化执行顺序（帧槽位由声明序决定，
     // 注释内为 ORIG %ebp 槽位，报告 0x08991b00-0x08991d8b）：
     std::string tmp;                       // ORIG -0x106c（各 case 第一读取暂存）
@@ -4427,6 +4433,9 @@ static bool GetItemCategory(STItemScript* item)
     //   ⑤ 尾块 `if (!__inited) { leave; __inited = true; goto retry; }`
     //      （0x089c00fe..0x089c011f），随后 `if (state != 0) insert`。
     // 旧译文把建表写成一次性三连 insert，缺整棵 switch 与回跳 ⇒ gap 32。
+    // [SweepSTEquipScript 2026-09-09] 三处 case 体极性反转（同 GetExpertJobTypeList）：
+    // gap 5 → -1（254/255）。残差 1 条 = ORIG `mov slot,%eax; test %eax,%eax; je`
+    // 被 4.4 折成 `cmpl $0,slot; je`（P209/N18b 跨版本折叠，无源码解）。
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static bool __inited = false;
@@ -4456,28 +4465,37 @@ static bool GetItemCategory(STItemScript* item)
         {
         case 0:                                        // 与首 key 同体（P163）
         case 0x30ae:                                   // "monster card"
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>("monster card", 0x30ae));
+            }
+            else
             {
                 state = STItemScript::ITEM_CATEGORY_1;
                 break;
             }
-            __lookup.insert(std::pair<char const* const, int>("monster card", 0x30ae));
             /* FALLTHRU */
         case 0x30b1:                                   // "cannot bind"
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>("cannot bind", 0x30b1));
+            }
+            else
             {
                 state = STItemScript::ITEM_CATEGORY_2;
                 break;
             }
-            __lookup.insert(std::pair<char const* const, int>("cannot bind", 0x30b1));
             /* FALLTHRU */
         case 0x30b4:                                   // "boss drop"
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>("boss drop", 0x30b4));
+            }
+            else
             {
                 state = STItemScript::ITEM_CATEGORY_3;
                 break;
             }
-            __lookup.insert(std::pair<char const* const, int>("boss drop", 0x30b4));
             /* FALLTHRU */
         default:
             if (__inited)
@@ -4513,6 +4531,8 @@ static bool GetAuraAvatarOption(STEquipmentScript* script)
     // default `if (__inited) return false`；尾块 `if (!__inited) { leave;
     // __inited = true; goto retry; }`（0x089c0526..0x089c0547）。
     // 旧译文建表三连 insert 直线形，缺整棵 switch 与回跳 ⇒ gap 32。
+    // [SweepSTEquipScript 2026-09-09] 三处 case 体极性反转（同 GetExpertJobTypeList）：
+    // gap 5 → -1（258/259）。残差 1 条 = P209/N18b 零比较折叠（同上件）。
     static std::map<const char*, int, less_TCHAR> __lookup;
     static SpinLock __init_lock;
     static bool __inited = false;
@@ -4546,33 +4566,42 @@ retry:
     {
     case 0:                                        // 与首 key 同体（P163）
     case 0x30d0:                                   // "[party teleport]"
-        if (__inited)
+        if (!__inited)
+        {
+            // P61/P81：ORIG 用 pair 直构（MISSING pair<char const(&)[17],int> converting
+            // ctor），make_pair 会实例化另一模板并多一次转换临时。
+            __lookup.insert(std::pair<char const* const, int>("[party teleport]", 0x30d0));
+        }
+        else
         {
             script->m_880 = 0;
             script->m_884 = ScanInt(&ok);
             break;
         }
-        // P61/P81：ORIG 用 pair 直构（MISSING pair<char const(&)[17],int> converting
-        // ctor），make_pair 会实例化另一模板并多一次转换临时。
-        __lookup.insert(std::pair<char const* const, int>("[party teleport]", 0x30d0));
         /* FALLTHRU */
     case 0x30d5:                                   // "[none]"
-        if (__inited)
+        if (!__inited)
+        {
+            __lookup.insert(std::pair<char const* const, int>("[none]", 0x30d5));
+        }
+        else
         {
             script->m_880 = 1;
             script->m_884 = 0;
             break;
         }
-        __lookup.insert(std::pair<char const* const, int>("[none]", 0x30d5));
         /* FALLTHRU */
     case 0x30db:                                   // "[solo teleport]"
-        if (__inited)
+        if (!__inited)
+        {
+            __lookup.insert(std::pair<char const* const, int>("[solo teleport]", 0x30db));
+        }
+        else
         {
             script->m_880 = 2;
             script->m_884 = ScanInt(&ok);
             break;
         }
-        __lookup.insert(std::pair<char const* const, int>("[solo teleport]", 0x30db));
         /* FALLTHRU */
     default:
         if (__inited)
@@ -4720,9 +4749,14 @@ bool importCommand(STKeyCommand* command)
 // ---- ORIG T 0x088c1a0d：[effect] 条目解析 ----
 bool importEffect(effect::STEffect& effect)
 {
-    // [b28d-solo-STEquipmentScript 判词·N] 0x088c1a0d：ORIG 307 条 vs 我们 305 条，
-    // 帧/槽号平移 + STL 模板内联差。p167 CLEAR（40/40，0 missing / 0 extra）⇒
-    // 语义闭合，byte 层 N82/N89 封顶。
+    // [b28d-solo-STEquipmentScript 判词·N] 0x088c1a0d：帧/槽号平移 + STL 模板内联差，
+    // p167 CLEAR（40/40）⇒ 语义闭合，byte 层 N82/N89 封顶。
+    // [SweepSTEquipScript 2026-09-09 重判] 本轮两处修正：①`[/module]` 由 break 改
+    // `continue`（ORIG 0x088c1de1 `jne 088c1a36` 回循环头）并补末尾 `else break`
+    // （ORIG 0x088c1dfc `je 088c1e11` 是循环唯一出口）——旧译文遇到 `[/module]`
+    // 即提前返回，跳过其后所有标签（真语义缺口）；②[option] 子循环改
+    // `while(true){ if(!ScanStr(&value)) break; ... }` 复现 ORIG 0x088c1c2a
+    // `xor $1; test; je` 取反物化（P292）。gap 4 → 0（314/314）。
     std::string tag;
     std::string value;
     while (true)
@@ -4766,8 +4800,12 @@ bool importEffect(effect::STEffect& effect)
         else if (tag == "[option]")
         {
             // 位标志子循环：ScanStr 失败即回到外层标签循环（ORIG 88c1c32）。
-            while (ScanStr(&value))
+            // ORIG 0x088c1c2a 形 = `call; xor $0x1,%eax; test %al,%al; je <循环体>`
+            // （P292 bool 取反物化）⇒ 源形是 `if (!ScanStr(&value)) break;`。
+            while (true)
             {
+                if (!ScanStr(&value))
+                    break;
                 if (value == "keep direction")
                     effect.m_c_ |= 0x01;
                 else if (value == "floor")
@@ -4792,11 +4830,19 @@ bool importEffect(effect::STEffect& effect)
         }
         else if (tag == "[/module]")
         {
-            break;   // ORIG 落入 [file name] 比较失败路径 → 返回 true
+            // ORIG 0x088c1de1 `jne 088c1a36`（→ 循环头 ScanType）：匹配后**继续循环**
+            // 而非退出（旧译文 break 会跳过后续所有标签）。
+            continue;
         }
         else if (tag == "[file name]")
         {
             ScanStr(&effect.m_str14);
+        }
+        else
+        {
+            // ORIG 0x088c1dfc `je 088c1e11`：未知标签（含 [file name] 不匹配）→
+            // 退出循环，走 0x404 的析构 + `mov $0x1,%ebx` 返回 true。
+            break;
         }
     }
     return true;
@@ -4816,6 +4862,14 @@ void setEquipmentAniScriptLay(
     //   `it = begin()`（P50/P314 复活，0x089c25c7 C1Ev）；④ 两循环复用同一 it 槽
     //   （P160）。p167 147=147 CLEAR（仅余 C1↔C2/D1↔D2 同址别名命名差）；残余
     //   2 条为帧差（0x25c vs ORIG 0x26c，N126/N115）。
+    // [SweepSTEquipScript 2026-09-09 重判] 两处修正：①补 `if (ani->m_field0 != 0)`
+    //   守卫（ORIG 0x089c1d7c..d83 `mov 0xc(%ebp),%eax; mov (%eax),%eax; test; je`，
+    //   仅层号非 0 才提交；旧译文无条件 push_back ⇒ 真语义缺口，Ghidra C 同形）；
+    //   ②T_level/else 删具名 `info` 引用、直用 addAniInfo 返回值（ORIG 0x089c1e09
+    //   `lea 0x18(%eax),%edx` / 0x089c1e2a `mov %eax,(%esp)`，P0）。
+    //   ③`ani->m_field0` 赋值由三目改 if/else（ORIG 0x089c1e49 `cmpl $0; je 0x1a0`
+    //   是 layerId 分支在前、def 后置，P47 块排布镜像）。读数 ORIG 774 / 我方 774
+    //   （gap 2→0；TU near 2→3 / diff 15→14，DIFF→NEAR）。
     // ORIG 用 `lea -0x24c(%ebp),%ebx; mov $0x0,%eax;
     // mov $0x80,%edx; rep stos %eax,%es:(%edi)`（0x80 dwords = 512B）⇒ 原码是
     // `char buf[0x200] = {0};`（显式零初始化触发 4.4 rep stos）；旧 `memset` 生 call。
@@ -4825,6 +4879,11 @@ void setEquipmentAniScriptLay(
     // string::C2PKcRKSaIcE / ~string / allocator::C2Ev 各 1）。
     const STEquipmentAniScript& def = table->find(key->c_str())->second;
 
+    // ORIG 0x089c1d7c..0x089c1d83：`mov 0xc(%ebp),%eax; mov (%eax),%eax; test %eax,%eax;
+    // je 0x185` ⇒ 三分支提交整体被 `if (ani->m_field0 != 0)` 守卫（层号 0 = 无效，
+    // 不提交；Ghidra C 同形）。旧译文无条件提交 ⇒ 真语义缺口。
+    if (ani->m_field0 != 0)
+    {
     // [b28d-solo-STEquipmentScript] p167：ORIG 三个分支各有独立 addAniInfo 调用点
     // （MISSING addAniInfo×2），不是分支前统一取一次。
     if (aniType == equipmentAniType::T_job)
@@ -4842,17 +4901,24 @@ void setEquipmentAniScriptLay(
     }
     else if (aniType == equipmentAniType::T_level)
     {
-        EquipmentAniInfoScript& info = script->addAniInfo(job);
-        info.m_ani18.push_back(*ani);
+        // ORIG 0x089c1e09：`lea 0x18(%eax),%edx` 直接用 addAniInfo 返回值 ⇒ 无具名
+        // 引用局部（P0；具名版多 store+load 两条）。
+        script->addAniInfo(job).m_ani18.push_back(*ani);
     }
     else
     {
-        EquipmentAniInfoScript& info = script->addAniInfo(job);
-        info.m_ani0.push_back(*ani);
+        // ORIG 0x089c1e2a：同上（`mov %eax,(%esp)` 直传返回值）。
+        script->addAniInfo(job).m_ani0.push_back(*ani);
+    }
     }
 
     ani->clear();
-    ani->m_field0 = (layerId != 0) ? layerId : def.m_field0;
+    // ORIG 0x089c1e49 `cmpl $0x0,0x14(%ebp); je 0x1a0`（layerId 分支在前、
+    // def 分支后置）⇒ 源形是 if/else 而非三目（P47 块排布镜像）。
+    if (layerId != 0)
+        ani->m_field0 = layerId;
+    else
+        ani->m_field0 = def.m_field0;
     ani->m_str60 = path->c_str();
 
 #define SETANI_SLOT(member)                                                    \
@@ -4931,6 +4997,9 @@ static bool GetExpertJobTypeList(STItemScript* item)
     //      收尾 `return !item->m_expertJob.m_usable.empty();`。
     // 旧译文把 find/switch 拆到两个分支（EXTRA 非 const find/end/c_str ×1），
     // 且建表三连 insert 直线形，缺整棵 switch 与回跳 ⇒ gap 18。
+    // [SweepSTEquipScript 2026-09-09] 五处 case 体极性反转（ORIG 每 case
+    // `movzbl __inited; xor $1; test; je INSERT` ⇒ 源形 `if(!__inited){insert}else{...}`）：
+    // gap 10 → 0（330/330）。残余 DIFF 为槽号/寄存器差（N82）。
     if (item == 0)
         return false;
     item->m_expertJob.m_usable.clear();
@@ -4970,44 +5039,59 @@ static bool GetExpertJobTypeList(STItemScript* item)
         {
         case 0:                                        // 与首 key 同体（P163）
         case 0x303a:                                   // enchanter
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>("enchanter", 0x303a));
+            }
+            else
             {
                 typeSel = 1;
                 break;
             }
-            __lookup.insert(std::pair<char const* const, int>("enchanter", 0x303a));
             /* FALLTHRU */
         case 0x303d:                                   // alchemist
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>("alchemist", 0x303d));
+            }
+            else
             {
                 typeSel = 2;
                 break;
             }
-            __lookup.insert(std::pair<char const* const, int>("alchemist", 0x303d));
             /* FALLTHRU */
         case 0x3040:                                   // disjointer
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>("disjointer", 0x3040));
+            }
+            else
             {
                 typeSel = 3;
                 break;
             }
-            __lookup.insert(std::pair<char const* const, int>("disjointer", 0x3040));
             /* FALLTHRU */
         case 0x3043:                                   // doll_controller
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>("doll_controller", 0x3043));
+            }
+            else
             {
                 typeSel = 4;
                 break;
             }
-            __lookup.insert(std::pair<char const* const, int>("doll_controller", 0x3043));
             /* FALLTHRU */
         case 0x3046:                                   // all
-            if (__inited)
+            if (!__inited)
+            {
+                __lookup.insert(std::pair<char const* const, int>("all", 0x3046));
+            }
+            else
             {
                 typeSel = 5;
                 break;
             }
-            __lookup.insert(std::pair<char const* const, int>("all", 0x3046));
             /* FALLTHRU */
         default:
             if (__inited)
