@@ -5,11 +5,12 @@
 //   CSetMultiboxFailCnt / CSetTutorialFlagCmd / CStartEvent(+getParam) /
 //   CStartMacroCmd / CStopMacroCmd
 //
-// 头文件 GameMasterCmd.h 本批禁止编辑：+0x08 通用槽在头里为占位
-// std::string（gcc4.4 旧 ABI sizeof=4），本批多数类的 ORIG 真实语义是
-// int（atoi 解析结果），经 str_as_int 别名访问；CStartEvent 的 +0x08..0x13
-// 真实布局为 [int count][int eventId][short p1][short p2]，经占位字段
-// m_str0/m_f1 别名映射（总大小 0x14 一致）。
+// 头文件 GameMasterCmd.h：本批各类 +0x08 槽均已按 ORIG 真实语义建模
+// （int/string 按类），CStartEvent +0x08..0x13 = [int count][int eventId]
+// [short p1][short p2]（总大小 0x14）。
+// [b28d-solo-GmCmds_F 补] CSetTutorialFlagCmd::m_flag unsigned int→int
+// （+0x08/sizeof 0xc/偏移/mangled 不变，Main 已批准；P211 双旋钮闭合 parse
+// 0x084a921a 无中转 + execute 0x084a9252 两段，见下方 parse 判词）。
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
@@ -238,6 +239,9 @@ void CSetGuildFund::parse()
 // guildKey=%ebx / characNo=%esi；4.4 按首次跨调用序分配 %edi→%esi→%ebx（guildKey=%esi、
 // characNo=%ebx）。实测五形均不翻：①声明序 amount/characNo/guildKey ②初始化式三连
 // ③register 子集（全删 / 仅 amount+guildKey）④guildKey unsigned 化 ⑤语句表达式升格。
+// [补] ⑥4.4.6 后端（c6-g++-446r）与 4.4.7 逐条同形 ⇒ 非 P230 N7 敏感族，换路由无解；
+// ⑦声明/赋值分离（register int a; a=…）声明序两向均不改分配（探针 /tmp/probe_guild2.cpp
+// execA/execB/execC：A=B=edi/esi/ebx，无 register 全落栈）。
 // 全 register 形 40=40，仅两处寄存器名差，语义等价（SendAddGuildFund 实参序/符号一致）。
 // ORIG 报告：docs/class_func_reports/game_master__CSetGuildFund/execute.md。
 void CSetGuildFund::execute()
@@ -297,26 +301,27 @@ void CSetMultiboxFailCnt::execute()
 // ORIG ctor 0x082a80b4：基类 ctor → 自身 vptr；+0x08 标量未初始化。
 
 // ORIG parse 0x084a921a：trim(args)；+0x08 = atoi(args)（教程标记）。
-// [b28d-solo-GmCmds_F] N76/P211 封顶（字段类型两端冲突，P211 反例判据）：
-// parse 0x084a921a 的 store 为 LHS-first（mov 0x8(%ebp),%edx; mov %eax,0x8(%edx)），
-// 要求 m_flag 与 RHS(atoi int) 同型（int）；但同类 execute 0x084a9252 为两段中转
-// （mov 0x8(%eax),%eax; mov %eax,%ebx），要求 m_flag 为 unsigned 与 int flag 异型。
-// 实测 m_flag→int：parse 19=19 AE 但 execute 由 AE 转 DIFF（+2 段）⇒ 净负，回退保持
-// unsigned int；parse 记 RHS-first+edx 中转（+1 条）豁免。GameMasterCmd.h 未改动。
+// [b28d-solo-GmCmds_F] P211 双旋钮闭合（旧 N76 封顶判词作废）：
+// parse 0x084a921a store 无中转（mov 0x8(%ebp),%edx; mov %eax,0x8(%edx)）⇒ 字段与
+// atoi 返回 int 同型；execute 0x084a9252 两段（mov 0x8(%eax),%eax; mov %eax,%ebx）
+// 由 execute 侧局部改 `register unsigned int`（异型）复现。字段侧 int 见
+// GameMasterCmd.h（+0x08/sizeof 0xc/偏移/mangled 不变）。探针 /tmp/probe_flag2.cpp
+// execA(int+int=单段)/execB(int+unsigned=两段)/execC/D。
 void CSetTutorialFlagCmd::parse()
 {
     trim(m_parser->m_args);
     m_flag = static_cast<unsigned int>(atoi(m_parser->m_args.c_str()));
 }
 
-// ORIG execute 0x084a9252：GetUser()->RewardTutorial(flag)。
+// ORIG execute 0x084a9252：GetUser()->RewardTutorial(flag)；flag 为 unsigned
+// 局部（RewardTutorial 形参 unsigned int，ORIG mangled 尾 j）。
 // 帧差 0x10 用 P190 double 对齐撑帧闭合（探针 /tmp/bl5/probe3.cpp padD1：
 // 单 double framePad 使 sub $0x14→$0x24 精确命中 ORIG）。
 void CSetTutorialFlagCmd::execute()
 {
     double framePad;                                    // P190：对齐撑帧，无读写
     (void)&framePad;
-    register int flag = m_flag;
+    register unsigned int flag = m_flag;
     GetUser()->RewardTutorial(flag);
 }
 

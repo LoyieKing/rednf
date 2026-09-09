@@ -246,7 +246,10 @@ public:
     virtual void parse();                            // ORIG T 0x084a921a
     virtual void execute();                          // ORIG T 0x084a9252
 
-    unsigned int m_flag;                             // +0x08（ORIG parse atoi）
+    // +0x08（ORIG parse atoi）。类型 int：P211 双旋钮——parse 0x084a921a store 无中转
+    // 要求与 atoi 返回 int 同型；execute 0x084a9252 两段中转由 execute 侧
+    // `register unsigned int` 局部（异型）复现，探针 /tmp/probe_flag2.cpp execB。
+    int m_flag;
 };
 class CViewTutorialFlagCmd : public CCommand
 {
