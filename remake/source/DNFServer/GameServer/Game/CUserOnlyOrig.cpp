@@ -1246,12 +1246,15 @@ bool CUser::CalLevelUpItemState(char& state, int& needExp, int fromLevel, int to
     // 并各自构造 cMyTrace（访问器结果禁缓存，战术 P183/P48）。
     if (needExp < 0)
     {
-        cMyTrace trace("bool CUser::CalLevelUpItemState(char&, int&, int, int)", 0xa0d7, 0);
+        // [CUserOnlyOrig 2026-09-09 P139] ORIG 用局部静态符号
+        // _ZZN5CUser19CalLevelUpItemStateERcRiiiE19__PRETTY_FUNCTION__（nm 实证 0x08cf2620）
+        // ⇒ 必须传 __PRETTY_FUNCTION__，手写同内容字面量只生匿名 .rodata。
+        cMyTrace trace((char*)__PRETTY_FUNCTION__, 0xa0d7, 0);
         trace("Level_up_item:wrong value(%d) m_id(%s),charno(%u)", needExp,
               NumberToString(get_acc_id(), 0), getCurCharacNo());
         return false;
     }
-    cMyTrace trace("bool CUser::CalLevelUpItemState(char&, int&, int, int)", 0xa0da, 0);
+    cMyTrace trace((char*)__PRETTY_FUNCTION__, 0xa0da, 0);
     trace("Level_up_item:success value(%d) m_id(%s),charno(%u)", needExp,
           NumberToString(get_acc_id(), 0), getCurCharacNo());
     return true;
@@ -5283,9 +5286,16 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
             return 0x11;                                       // ORIG +0x25d
     }
 
+    // [CUserOnlyOrig 2026-09-09 真缺口] ORIG 0x0866ecf9-0x0866ed3d 守卫（Ghidra C 行 208-209
+    // `if ((((t == 0) || (b8 == 0)) || (t == 0x19)) && (b8 != 0x19))`）：扣料/发奖预演块
+    // 只有该条件成立才执行；旧重建漏此守卫，无条件执行（b8==0x19 等路径多发预演与扣料）。
+    if ((q->m_triggerType == 0 || q->m_fieldB8 == 0 ||
+         q->m_triggerType == 0x19) && q->m_fieldB8 != 0x19)
     {
-        InventoryMemory qmem;                                  // -0xcb37（ORIG C1 0x822d3b8）
+        // [CUserOnlyOrig 2026-09-09] ORIG 0x0866ed3d/0x0866ed46 先构造 CInventory(-0x9f8)
+        // 再构造 InventoryMemory(-0xcb37) ⇒ 原码声明序 CInventory 在前（旧重建相反）。
         CInventory shadow;                                     // -0x9f8 副本
+        InventoryMemory qmem;                                  // -0xcb37（ORIG C1 0x822d3b8）
         shadow.SetInventoryMemory(&qmem);                      // ORIG 0x822d4f6
         shadow.setCopy(*getCurCharacInvenR());
         std::vector<int> swapList;                             // -0x158
@@ -5294,7 +5304,10 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
         if (!shadow.tryDeleteEventItems(delCond))              // 扣料预演失败
             return 0x11;                                       // -0x158 两出口同码
 
-        if (q->m_fieldB8 /*+0xb8 计数哨兵*/ != 0) {                       // +0xb8 非空
+        // [CUserOnlyOrig 2026-09-09 真 bug：条件反向] ORIG 0x0866edfa `jne 866f133`
+        // （b8 != 0 直接跳到 okAll=true，跳过本块）⇒ 原码是 `if (b8 == 0)`；旧重建写成
+        // `!= 0`，使普通任务(b8==0)不插奖励、特殊类型(b8!=0)误插。
+        if (q->m_fieldB8 /*+0xb8 计数哨兵*/ == 0) {
             // ORIG 走 vector<RewardItemInfo> 的 const begin()/end()（×3 各），
             // 无 iterator→const_iterator 转换构造、无迭代器默认构造调用点。
             const std::vector<RewardItemInfo>* pool =
@@ -5487,8 +5500,11 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
                 quadIt++;
                 ack.put_int(*quadIt);
                 quadIt++;
+                // [CUserOnlyOrig 2026-09-09 真缺口] ORIG 0x0866fd13 `movl $0x1,-0x60(%ebp)`
+                // 在 find_item 调用**之前**且为 4 字节写 ⇒ 原码 `int ampFlag = 1;` 声明先于
+                // addedDef（旧重建 `unsigned char ampFlag = 1;` 且顺序颠倒）。
+                int ampFlag = 1;
                 CItem* addedDef = G_CDataManager()->find_item(itemE1);
-                unsigned char ampFlag = 1;
                 if (addedDef != 0 &&
                     addedDef->IsAvatarItem())                // vtable+0x10 无参 bool 虚调用（ORIG 0x866fd47）
                     ampFlag = 2;
@@ -7009,12 +7025,14 @@ void CUser::setRecipeEqiupmentOption(Inven_Item& outItem, stEquipCondition cond,
         return;
     }
 
-    // matUpgrade==0xb → 输出强化强制 0；否则按材料升级表 roll
-    unsigned char outUpgrade;
-    if (matUpgrade == 0xb)
-        outUpgrade = 0;
-    else
-        outUpgrade = static_cast<unsigned char>(getCompoundUpgrade(stackable, cond));
+    // [CUserOnlyOrig 2026-09-09 P321] ORIG 0x08673143-0x0867316c：`je L; call
+    // getCompoundUpgrade; jmp L2; L: mov $0x0,%eax; L2: mov %eax,-0x1c(%ebp)` ——
+    // 三目形 + **4 字节直存**；trace 实参处（O71）亦 4 字节直传，仅 SetUpgrade
+    // 两处（O82-O84/O103-O105）显式 `movzbl` ⇒ 原码是
+    // `int outUpgrade = (matUpgrade == 0xb) ? 0 : getCompoundUpgrade(...)`。
+    // 旧 `unsigned char` 局部使 trace 实参多一次 movzbl 且分支形不同。
+    int outUpgrade = (matUpgrade == 0xb)
+        ? 0 : getCompoundUpgrade(stackable, cond);
 
     cMyTrace trace(
         __PRETTY_FUNCTION__,
@@ -7025,22 +7043,25 @@ void CUser::setRecipeEqiupmentOption(Inven_Item& outItem, stEquipCondition cond,
 
     if (cond.m_tableIdx == 0)                                                // cond+1 非0 → amplify
     {
-        outItem.SetUpgrade(outUpgrade);
+        outItem.SetUpgrade(static_cast<unsigned char>(outUpgrade));
     }
     else
     {
         stAmplifyOption_t& amp = outItem.m_amp;                              // Inven_Item+0x11
         amp.assign(cond.m_amplifySelect, cond.m_field4);                     // type=cond+2, value=cond+4w
         amp.identify();
-        outItem.SetUpgrade(outUpgrade);
+        outItem.SetUpgrade(static_cast<unsigned char>(outUpgrade));
     }
 
     // bind 标记：m_flag6==1 且 GetAttachType∈{3,4} → item+0=1，否则 0
-    bool bind = false;
+    // [CUserOnlyOrig 2026-09-09 P0/N96] ORIG 0x086731xx 直接 `movb $0x1,(%eax)` /
+    // `movb $0x0,(%eax)`（无 bool 局部槽、无 movzbl 回读）⇒ 原码是 if/else 常量直写；
+    // 旧 `bool bind` + 三目形多 1 槽（-0xd）与 3 条物化。
     if ((unsigned char)cond.m_flag6 == 1 &&
         (outDef->GetAttachType() == 3 || outDef->GetAttachType() == 4))
-        bind = true;
-    outItem.m_field0 = bind ? 1 : 0;
+        outItem.m_field0 = 1;
+    else
+        outItem.m_field0 = 0;
 
     if (outDef->GetAttachType() == 3)
         outItem.SetReSealCount((unsigned char)cond.m_pad7);                  // cond+7 reseal
@@ -12264,6 +12285,11 @@ void CUser::UseQuestItem(int itemIdx)
             return;
         }
     }
+    // [CUserOnlyOrig 2026-09-09 复核] ORIG 0x086699b0/0x086699ba 的 `js`/`jg` 目标
+    // **不是**紧随其后的包体，而是函数尾部 0x0866a357 的独立包体；职业守卫
+    // （0x086699da `je` 跳过）的包体在 0x086699dc。即 ORIG 确为**两份独立包体**
+    // （clear/Send 计数 4 份吻合），grow 界那份被 4.1 布局重排到函数末尾 ⇒ 属
+    // 块布局 N 类，源码保持两条守卫原形（合并会丢一份包体、gap 2→24）。
     if (grow < 0 || grow > 10)
     {
         packet.clear();

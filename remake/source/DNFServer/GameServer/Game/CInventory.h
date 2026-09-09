@@ -508,7 +508,13 @@ struct stEquipCondition
     unsigned short m_field4;        // +0x04（ctor 清零 word）
     unsigned char m_flag6;          // +0x06（ctor 置 1）
     unsigned char m_pad7;           // +0x07（ctor 清零）
-    unsigned int m_field8;          // +0x08
+    // [SweepCUserOnlyOrig 2026-09-09 真 bug：sizeof 多 4B] 原 `unsigned int m_field8; // +0x08`
+    // 删除 —— ORIG sizeof(stEquipCondition)==0x8 双证：① setRecipeEqiupmentOption
+    // 0x08673153 `mov 0x1c(%ebp),%eax`（getCompoundUpgrade 的 item 实参 = 第 4 参 stackable）
+    // ⇒ cond 占 ebp+0x10..0x17；② _ProcCompoundCore 0x08671a96 `mov 0x34(%ebp),%eax`
+    // 作虚调用 receiver(recipe, 第 10 参) ⇒ cond 8B。ctor 0x086937d6 亦只清
+    // +0..+3/+4w/+7、置 +6=1（无 +8）。旧 0xc 使上述两函数后续参数整体 +4 偏移
+    // （我方 0x20/0x38 vs ORIG 0x1c/0x34，receiver 落到错误形参槽）。
 
     // ORIG C1 0x86937d6: per-field stores (+0..+3 movb, +4 movw, +6=1, +7 movb),
     // not memset; +6=1 precedes +7=0 (ORIG 0x086937f3 -> 0x086937fb order).
