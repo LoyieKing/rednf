@@ -15,7 +15,9 @@
 static const unsigned char kItemDictionaryBit = 8;
 
 namespace {
-const unsigned int kBinaryLength = 5000;
+// ORIG 无对应数据符号（nm 实证）；用 enum 常量避免发射仅-NEW 的
+// (anonymous namespace)::kBinaryLength 只读符号（P154）。
+enum { kBinaryLength = 5000 };
 }
 
 // ORIG 0x0811d5d4：仅 CDataC1（置基类 vptr）+ 编译器置派生 vptr，不调用 _reset。
@@ -102,7 +104,7 @@ bool CItemDictionary::getItemCheckFlag(unsigned int item, unsigned int flag) con
     {
         LogManager::logFormat(
             1, "ItemDictionary.cpp",
-            "bool CItemDictionary::getItemCheckFlag(unsigned int, unsigned int) const",
+            __PRETTY_FUNCTION__,
             0x7d,
             "getItemCheckFlag() characNo=%u, item_flag=%u, index=%d, flag=%d",
             item, flag, index, bit);
@@ -207,7 +209,7 @@ void CItemDictionary::setItemCheckFlag(CUser* user, unsigned int item,
     {
         LogManager::logFormat(
             1, "ItemDictionary.cpp",
-            "void CItemDictionary::setItemCheckFlag(CUser*, unsigned int, unsigned int)",
+            __PRETTY_FUNCTION__,
             0x62,
             "setItemCheckFlag() characNo=%u, item_flag=%u, index=%d, flag=%d",
             user->get_charac_no(-1), flag, index, bit);
