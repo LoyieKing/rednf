@@ -31,6 +31,12 @@ stAmplifyItemScript_t::stAmplifyItemScript_t()
 //   ORIG `mov idx,%edx; mov this,%eax; add $K,%edx` vs 4.4 `mov idx,%eax;
 //   lea K(%eax),%ecx; mov this,%eax`（7 个初始化循环 × 2-3 条；穷举 lea/add/
 //   常量拆分均不齐）⇒ 结构性封顶，无源码旋钮。
+// [b28d-solo-CItemAmplifier2] P238 修复 i7 权重区：+0x240 是 float 字段
+//   （m_additionalWeight），ORIG 0x089002ba/0x089002bf 发 `mov $0x0,%edx;
+//   mov %edx,(%eax,%ecx,4)` 中转形；旧版两句都走 I32 视图 ⇒ 第一句被 4.4 折成
+//   `movl $0x0,0xc(%eax,%edx,4)` 直写（少 1 条）。改 F32 视图 + 0.0f 后
+//   gap 1→0（orig/our 208/208），TU 四数 92/193/2/2 零变差；p167 调用点
+//   14=14 CLEAR（MISSING/EXTRA 仅 C1↔C2、D1↔D2 同址别名伪差，P93）。
 upgrade_table_t::upgrade_table_t()
     : m_machineFrames(0xa)   // ORIG C1 0x089000ca：_Hashtable 桶数 0xa
 {
@@ -70,8 +76,12 @@ upgrade_table_t::upgrade_table_t()
     UPG_TBL_I32(this, 0x8c) = 0;              // +0x23c 等级差阈值
     for (i7 = 0; i7 <= 5; ++i7)
     {
-        UPG_TBL_I32(this, i7 + 0x8d) = 0;   // +0x240.. 权重区
-        UPG_TBL_I32(this, i7 + 0x94) = 0;   // +0x25c.. 基准等级区
+        // [b28d-solo-CItemAmplifier2] P238：ORIG 0x089002ba/0x089002bf 对 +0x240
+        // 权重区发 `mov $0x0,%edx; mov %edx,(%eax,%ecx,4)`（edx 中转），而紧随的
+        // +0x25c 基准等级区是直写 `movl $0x0,0xc(%eax,%edx,4)`。两区字段真型不同
+        // （float 权重 / int 基准），故权重区走 float 视图 + 0.0f。
+        UPG_TBL_F32(this, i7 + 0x8d) = 0.0f;   // +0x240.. 权重区（float）
+        UPG_TBL_I32(this, i7 + 0x94) = 0;      // +0x25c.. 基准等级区（int）
     }
     UPG_TBL_I32(this, 0x93) = 0;              // +0x258 强化等级下限
     m_floatMap.clear();
