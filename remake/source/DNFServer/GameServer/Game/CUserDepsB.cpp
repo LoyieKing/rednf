@@ -248,16 +248,18 @@ void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
 {
     // b28d-solo-CUserDepsB: 语义全还原（含两处真 bug 修正：①IsChallengingJob
     // 判定反——ORIG 0x086874cb/Ghidra C 均 `if(!f()) return`；②else 分支
-    // m_addInfo 写序在 make_item 之前，ORIG 0x0868761a）。残差 N 封顶：
-    // ①N95 局部槽基差 4（4.4 槽基自 ebp-8 起 vs ORIG ebp-4，全帧标量 -0x2c vs
-    // -0x28 统一平移）；②P63 return 中继岛 6 vs 4（拆 if/合并 || 两形实测不变）；
-    // ③P231 register 形（%ebx 跨 G_CDataManager 保活，复现 ORIG push %ebx +
-    // `mov SLOT,%ebx`）较内联实参形多占 1 槽（168→171 条）。
-    // [S191 本轮复验] 160(ORIG) vs 164：opcode 对齐后 = N95 全帧平移 4（mgr -0x28
-    // vs -0x2c，job spill 槽 -0x18c 两侧同址、帧同 0x1c4 ⇒ 4.1 槽基顶到 ebp 的
-    // N95 固有差）+ N7（strlen 结果 ORIG 留 %ebx，4.4 落 -0x10 槽往返，P226
-    // 语句表达式形实测无效）+ P63（return 中继岛 5 vs 4）。p167 CLEAR（20/20）。
-    // ORIG 0x0868745e。
+    // m_addInfo 写序在 make_item 之前，ORIG 0x0868761a）。
+    // [SweepCUserDepsB 本轮翻正] 旧判「N95 局部槽基差 4 封顶」**作废**：
+    // 真因是本函数尾部把 GetServerGroup() 存进具名局部 `ENUM_SERVER_GROUP
+    // serverGroup`（多占 -0x10 槽 ⇒ 其后全部标量槽号整体 -4 平移，伪 N95）。
+    // ORIG 0x086875xx 段 `mov %eax,%ebx` 证明 serverGroup 走 callee-saved
+    // 跨 strlen 保活、**无槽往返** ⇒ 按 P0/P329 内联回实参位后：
+    // 160(ORIG) vs 163，全函数 0..155 行逐条全等（槽号 -0x28/-0x24/-0x20/
+    // -0x1c/-0x18/-0x14/-0x10/-0xc/-0x7a/-0x3d/-0x17a 与 ORIG 完全一致）。
+    // 唯一残差 = 尾部 return 中继岛 7 vs 4（ORIG return2/4/5 的 je/js 直达
+    // epilogue，我方 7 个 return 全部经 nop+jmp 中继；jcc 目标逐位比对仅此
+    // 一处差异）⇒ N121/P63 epilogue-threading 布局差封顶。p167 CLEAR
+    // （20/20，仅 C1/C2 同址别名噪音）。ORIG 0x0868745e。
     CLevelRewardTableMgr* mgr = CLevelRewardTableMgr::GetInstance();
     CLevelRewardTable* table = 0;                  // local_28 初值 0
     if (!mgr->IsOn())   // P292 档①：IsOn 已按调用点 xor 形改 bool 返回（P9 直返形
@@ -317,10 +319,13 @@ void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
         script->make_item(item);                   // vtable+8 虚槽（CItem 槽 2）
         item.set_add_info(itemCount);              // W 0x080cb884
     }
-    ENUM_SERVER_GROUP serverGroup = GetServerGroup();  // W 0x080cbc90
+    // [P0/P329 本轮] ORIG 0x086875xx 段把 GetServerGroup() 结果留 %ebx 跨
+    // strlen 保活（行 131 `mov %eax,%ebx`），无具名局部槽 ⇒ 原码为实参位内联
+    // 表达式；具名 `ENUM_SERVER_GROUP serverGroup` 多占 -0x10 槽并使全帧标量
+    // 槽号整体 -4 平移（N95 假象）。
     WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
         title, item, sendCount, characNo, body,
-        static_cast<int>(strlen(body)), 0, serverGroup, 0, 0);
+        static_cast<int>(strlen(body)), 0, GetServerGroup(), 0, 0);
 }
 
 // ----------------------------------------------------------------------------
