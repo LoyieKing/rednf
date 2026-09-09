@@ -74,7 +74,7 @@ bool loadRDARScriptListFile(STScriptFileList* list, const char* dir,
 {
     if (!loadRDARScriptFile(dir, listPath))
         return 0;
-    list->m_fileMap.clear();
+    list->Clear();                 // ORIG 0x088bbda8 call STScriptFileList::Clear（非内联 m_fileMap.clear）
 
     bool ok = false;
     std::string line;

@@ -3574,10 +3574,10 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     goto stage2_switch_end;
                 }
                     /*FALLTHRU*/
-                case 0xd7d:                          // [particle same position]
+                case 0xd7d:                          // [particle]
                 if (!__inited_0)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[particle same position]", 0xd7d));
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[particle]", 0xd7d));
                 }
                 else
                 {
@@ -3593,10 +3593,10 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     goto stage2_switch_end;
                 }
                     /*FALLTHRU*/
-                case 0xd89:                          // [command script]
+                case 0xd89:                          // [command]
                 if (!__inited_0)
                 {
-                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[command script]", 0xd89));
+                    __lookup_0.insert(std::map<char const*, int, less_TCHAR>::value_type("[command]", 0xd89));
                 }
                 else
                 {

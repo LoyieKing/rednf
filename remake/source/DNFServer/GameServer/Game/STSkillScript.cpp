@@ -1459,7 +1459,7 @@ finalize:                                           // 8a9ac50 尾部修正段�
     {
         if (script->m_14 < script->m_arr7c[finIdx])
         {
-            printf("SKILL ERROR : 만렙이 배울 수 있는 레벨 미만 [%s]\n", path);
+            printf("SKILL ERROR : \xb8\xb8\xb7\xbe\xc0\xcc \xb9\xe8\xbf\xef \xbc\xf6 \xc0\xd6\xb4\xc2 \xb7\xb9\xba\xa7 \xb9\xcc\xb8\xb8 [%s]\n", path);
             script->m_14 = script->m_arr7c[finIdx];
         }
     }
