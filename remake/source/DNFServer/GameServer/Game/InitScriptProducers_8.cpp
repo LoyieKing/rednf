@@ -578,13 +578,15 @@ int importTowerInfo(const char* dir, const char* list,
 // [combo practice bonus inerval]：连续 int 覆写 m_field74 直至 Scan 失败。
 // 打开失败返回 0，EOF 返回 1。
 // ============================================================================
-// [b28d-solo-InitScriptProducers_8 N] ORIG 0890ed7f：p167 CLEAR（48/48）；clean 376/375
-// （ORIG 379 insns，净 1 条）。已对齐：死 string（-0x70，P171）、stClearTimeAverage
-// ctor 声明补入 CDataManager.h（P104，MISSING C1Ev 归零）、[rank grade]/
-// [reduction bonus] 改 for(;;)+if(ok!=true)break 形（ORIG 0x890f156/0x890f05b 实证）、
-// stDungeonClearTimeData/stComboIntervalBoundary 用户空 dtor 删除（P317，Main 代落
-// CDataManagerScripts.cpp）⇒ EXTRA D1×4 归零。残余为返回值汇聚寄存器（ORIG %ebx vs
-// 4.4 %esi）与 ScanType 失败块极性（ORIG jne 尾块 vs 4.4 je+就地物化）——N7/N104 封顶。
+// [b28d-solo-InitScriptProducers_8 gap0] ORIG 0890ed7f：p167 CLEAR（48/48）；fresh .o
+// 379/379（gap=0）。本轮修：①[dungeon clear time average] 的重复键守卫改 P222 正向
+// 包裹 `if(it==end){insert}else return false;`（ORIG 0x890efd8 call eq; test; je
+// 失败块；旧 `if(!(it==end))` 多一条 xor $1）；②[combo practice bonus inerval] 由
+// do-while 改为单值 `out->m_field74=ScanInt(&ok); if(!ok) return true;`（ORIG
+// 0x890f293..2b3 只读一值即回主循环头 0x890edcd，非段内循环）。已对齐：死 string
+// （-0x70，P171）、stClearTimeAverage ctor 声明（P104）、[rank grade]/[reduction
+// bonus] for(;;)+if(!ok)break 形、用户空 dtor 删除（P317）。残余仅 ScanType 失败块
+// 极性（ORIG jne 尾块 vs 4.4 je+就地物化，0x890f2b5）——N104 封顶。
 bool importRankSystemScript(const char* path, stRankSystemInfo* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -643,10 +645,17 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
                 std::map<stClearTimeAverageMapKey,
                          stClearTimeAverage>::iterator it;
                 it = out->m_dungeonRank.m_map0.find(key);
-                if (!(it == out->m_dungeonRank.m_map0.end()))
-                    return false;
-                out->m_dungeonRank.m_map0.insert(
-                    std::make_pair(key, average));
+                // ORIG 0x890efd8..f02c：call eq; test; je <fail 块>，then 直落
+                // insert（P222 正向包裹；写 `if (!(it==end))` 会多一条 xor $1）。
+                if (it == out->m_dungeonRank.m_map0.end())
+                {
+                    out->m_dungeonRank.m_map0.insert(
+                        std::make_pair(key, average));
+                }
+                else
+                {
+                    return false;                      // key 已存在 → 失败
+                }
             }
         }
         else if (token == "[dungeon clear time reduction bonus]")
@@ -711,10 +720,11 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
         }
         else if (token == "[combo practice bonus inerval]")
         {
-            do
-            {
-                out->m_field74 = ScanInt(&ok);
-            } while (ok);
+            // ORIG 0x890f293..0x890f2b3：只读一值即回主循环头（0x890f2ad
+            // `je +0x4e`），非段内 do-while 循环；ok==false → return 1。
+            out->m_field74 = ScanInt(&ok);
+            if (!ok)
+                return true;
         }
     }
 }
@@ -745,9 +755,13 @@ bool importRankSystemScript(const char* path, stRankSystemInfo* out)
 //     （负例“EH 双份 dtor epilogue vs merge”）；
 //  ③ 其余为 .o 重定位地址显示差（链接后 AE 口径消除）。
 // [b28d-solo-InitScriptProducers_8 N] ORIG 0890bc63：p167 CLEAR（121/121 调用点全等）；
-// clean 1070/1067（ORIG 1092 insns，净 3 条）。残余为 ScanType 失败块极性（ORIG jne
-// 尾块 vs 4.4 je+mov $1,%ebx 就地物化，0x0890bcd3 段）与 message 段 EH 汇聚
-// （0x0890cd42 ebx flag）——N104/N121/N82 封顶，语义全等。
+// fresh .o 1093/1092（gap=-1）。本轮修：①全部 `if(ok!=true)` → `if(!ok)`（45 处；
+// ORIG 0x890bd0e 等为 `movzbl; xor $1; test` 负极性物化）；②[reward_server]/
+// [reward_client] 的 `while(ScanType(sub,true))` → `for(;;){ if(!ScanType(sub,true))
+// break; ... }`（ORIG 0x890be0c 循环头 `call; xor $1; test; je body`）；③[message]
+// 段改 `if(!ok) break;` 正向后置（ORIG 0x890cc8c je 继续）。残余仅 ScanType 失败块
+// 极性（ORIG jne 尾块 vs 4.4 je+mov $1,%ebx 就地物化，0x0890bcd3/0x0890cdb4）与
+// 循环入口旋转岛——N104/N121 封顶，语义全等。
 bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
 {
     if (!loadRDARScriptFile("", path))
@@ -767,7 +781,7 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
         if (token == "[onoff]")
         {
             int value = ScanInt(&ok);                  // -0x30
-            if (ok != true)
+            if (!ok)
                 return true;                           // 0x0890bd1a
             if (value == 0)
                 out->m_field0 = false;                 // movb $0,(%eax)
@@ -780,7 +794,7 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
             for (;;)
             {
                 value = ScanInt(&ok);
-                if (ok != true)
+                if (!ok)
                     break;
                 out->m_vec4.push_back(value);
             }
@@ -791,15 +805,17 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
             for (;;)
             {
                 value = ScanInt(&ok);
-                if (ok != true)
+                if (!ok)
                     break;
                 out->m_vec10.push_back(value);
             }
         }
         else if (token == "[reward_server]")
         {
-            while (ScanType(sub, true))
+            for (;;)
             {
+                if (!ScanType(sub, true))
+                    break;
                 int col1;                              // -0x2c（首列=等级）
                 int link;                              // -0x28（链上死槽）
                 int col2;                              // -0x24（第二列）
@@ -815,13 +831,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;                     // 段结束 → ScanType 下一子标签
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeRewardInfo info;   // -0x118
                         info.m_jobLevel = col1;
@@ -836,13 +852,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeRewardInfo info;   // -0x124
                         info.m_jobLevel = col1;
@@ -857,13 +873,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeRewardInfo info;   // -0x130
                         info.m_jobLevel = col1;
@@ -878,13 +894,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeRewardInfo info;   // -0x13c
                         info.m_jobLevel = col1;
@@ -899,13 +915,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeRewardInfo info;   // -0x148
                         info.m_jobLevel = col1;
@@ -920,13 +936,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeRewardInfo info;   // -0x154
                         info.m_jobLevel = col1;
@@ -941,13 +957,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeRewardInfo info;   // -0x160
                         info.m_jobLevel = col1;
@@ -961,8 +977,10 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
         }
         else if (token == "[reward_client]")
         {
-            while (ScanType(sub, true))
+            for (;;)
             {
+                if (!ScanType(sub, true))
+                    break;
                 int col1;                              // -0x1c（首列=等级）
                 int link;                              // -0x18（链上死槽）
                 int col2;                              // -0x14（第二列）
@@ -977,13 +995,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeKey key;     // -0x164
                         stUnlimitChallengeItem item;   // -0x16c
@@ -999,13 +1017,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeKey key;     // -0x170
                         stUnlimitChallengeItem item;   // -0x178
@@ -1021,13 +1039,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeKey key;     // -0x17c
                         stUnlimitChallengeItem item;   // -0x184
@@ -1043,13 +1061,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeKey key;     // -0x188
                         stUnlimitChallengeItem item;   // -0x190
@@ -1065,13 +1083,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeKey key;     // -0x194
                         stUnlimitChallengeItem item;   // -0x19c
@@ -1087,13 +1105,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeKey key;     // -0x1a0
                         stUnlimitChallengeItem item;   // -0x1a8
@@ -1109,13 +1127,13 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                     for (;;)
                     {
                         col1 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             break;
                         col2 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         col3 = ScanInt(&ok);
-                        if (ok != true)
+                        if (!ok)
                             return false;
                         stUnlimitChallengeKey key;     // -0x1ac
                         stUnlimitChallengeItem item;   // -0x1b4
@@ -1136,18 +1154,15 @@ bool importUnlimitChallengeScript(const char* path, stUnlimitChallengeInfo* out)
                 std::string msg1;                      // -0x1b8
                 std::string msg2;                      // -0x1bc
                 id = ScanInt(&ok);
-                if (ok == true)
-                {
-                    ScanStr(&msg1);
-                    ScanStr(&msg2);
-                    stUnlimitChallengeMessageInfo info;   // -0x1c8（C1 0x891c84a）
-                    info.m_id = static_cast<short>(id);
-                    info.m_msg1 = msg1;
-                    info.m_msg2 = msg2;
-                    out->m_vec28.push_back(info);
-                }
-                else
+                if (!ok)
                     break;                             // 0x0890cd6f test ebx → 退出段
+                ScanStr(&msg1);
+                ScanStr(&msg2);
+                stUnlimitChallengeMessageInfo info;   // -0x1c8（C1 0x891c84a）
+                info.m_id = static_cast<short>(id);
+                info.m_msg1 = msg1;
+                info.m_msg2 = msg2;
+                out->m_vec28.push_back(info);
             }
         }
     }
@@ -1246,12 +1261,15 @@ bool importSeriaRoomDecoEvent(class seriaRoomDecoEventScript* s,
 // [/job type]=0x252。[/job type] 时 insert(jobType,gift) 并复位累计态。
 // [reward list] 行校验：第 2 列 >=0、第 3 列 >0，违规立即返回失败。
 // ============================================================================
-// [b28d-solo-InitScriptProducers_8 N] ORIG 0895f817：p167 CLEAR（62/62）；clean 470/425
-// （ORIG 473 insns）。已对齐：value_type 转发构造替换 make_pair（P315，消 6 处
-// pair<const char* const,int> C1 缺口）、三件套声明移入循环体（P177，ORIG 0x895f8a5
-// 每轮穿 guard 实证）、fatigueMatchGift ctor 加 throw()（P216，消 caller EH landing
-// ⇒ EXTRA _Unwind_Resume×2 归零）。残余为 4.4 循环旋转（body 前置 vs ORIG 循环头
-// ScanType）与 EH cleanup 分布——N104/N82/N91 封顶。
+// [b28d-solo-InitScriptProducers_8 gap1] ORIG 0895f817：p167 CLEAR（62/62）；fresh .o
+// 472/473（gap=1）。本轮按 P333 状态机重写惰性注册链：首轮 v=0 沿 case 0→0x217→
+// 0x21b→0x229→0x22d→0x231→0x252 fallthrough 逐条 insert（ORIG 0x895fae7..fe75），
+// 每 case 负极性 `if(!__inited){insert}else{...break;}`（ORIG `xor $1; test; je`；
+// 旧一次性建表形净缺 45 条）；case 0/0x217 命中即 `return true`（ORIG 0x895fb44；
+// 旧"无操作"是语义错）；EOF 改 break+循环外 `return ok`（P164 配套，ORIG 尾共享块
+// 0x895ffaf 返回 ok 槽）。已对齐：value_type 转发构造（P315）、三件套移入循环体
+// （P177）、fatigueMatchGift ctor throw()（P216）。残余仅循环入口旋转 jmp/nop 岛
+// 与尾部岛——N104/N121 封顶。
 bool importUseJobFatigueGiftScript(class useCharacterJobFatigue* out,
                                    const char* path)
 {
@@ -1265,96 +1283,146 @@ bool importUseJobFatigueGiftScript(class useCharacterJobFatigue* out,
     useCharacterJobFatigue::fatigueMatchGift gift;          // ctor 全清零
     int jobType = -1;                                       // ORIG local_128
 
-    while (ScanType(token, true))
+    for (;;)
     {
+        // ORIG 0x895f89f jne 0x895ffaf：EOF 走共享尾块返回 ok 槽（-0x11d）
+        // 当前值（P164 配套：break + 循环外统一 return 得 ORIG 尾岛形）。
+        if (!ScanType(token, true))
+            break;
+
         // ORIG 0x895f8a5：三件套声明落循环体内（每轮穿 guard，P177）。
         static std::map<const char*, int, less_TCHAR> __lookup;  // ORIG __lookup
         static SpinLock __init_lock;                              // ORIG __init_lock
         static bool __inited = false;                             // ORIG __inited
 
-        if (!__inited)
+    retry:
+        // P333 状态机：首轮（未建表）v=0 进 case 0，沿 fallthrough 链逐条
+        // 建表（ORIG 0x895fae7/0x895fb4e/0x895fc09/0x895fc7c/0x895fcef/
+        // 0x895fe75），链尾置 __inited 后 goto retry 重查；此后 v=find 结果。
+        int v;
+        if (__inited)
+        {
+            std::map<const char*, int, less_TCHAR>::const_iterator found =
+                __lookup.find(token.c_str());
+            v = (found != __lookup.end()) ? found->second : -1;
+        }
+        else
         {
             __init_lock.enter();
+            if (__inited)
+            {
+                __init_lock.leave();
+                goto retry;
+            }
+            v = 0;                                           // 建表哨兵
+        }
+
+        // P315：ORIG 用 value_type 转发构造（pair<const char* const,int>
+        // C1<char const(&)[N],int>），非 make_pair（后者多一层转换构造+EH）。
+        typedef std::map<const char*, int, less_TCHAR>::value_type V;
+        switch (v)
+        {
+        case 0:
+        case 0x217:                                          // [/job fatigue]
+            // ORIG 0x895faee：负极性 `xor $1; test; je`（P168a②：写 if(!__inited)）。
+            if (!__inited)
+                __lookup.insert(V("[/job fatigue]", 0x217));
+            else
+                return true;                                 // ORIG 0x895fb44
+            // fallthrough
+        case 0x21b:                                          // [job type]
             if (!__inited)
             {
-                // ORIG 插入链 0x895fc3c/0x895fca6/0x895fd18/0x895fa10/
-                //                 0x895fb70/0x895fe83
-                // P315：ORIG 用 value_type 转发构造（pair<const char* const,int>
-                // C1<char const(&)[N],int>），非 make_pair（后者多一层转换构造+EH）。
-                typedef std::map<const char*, int, less_TCHAR>::value_type V;
-                __lookup.insert(V("[/job fatigue]", 0x217));
                 __lookup.insert(V("[job type]", 0x21b));
-                __lookup.insert(V("[fatigue title]", 0x229));
-                __lookup.insert(V("[fatigue text]", 0x22d));
-                __lookup.insert(V("[reward list]", 0x231));
-                __lookup.insert(V("[/job type]", 0x252));
-                __init_lock.leave();
-                __inited = true;
             }
             else
             {
-                __init_lock.leave();
+                std::string jobName;
+                ScanStr(&jobName);
+                jobType = getCharacterJobToEnumValue(jobName);   // ORIG 0x895fbe0
+                break;
             }
-        }
-
-        std::map<const char*, int, less_TCHAR>::const_iterator found =
-            __lookup.find(token.c_str());
-        const int id = (found != __lookup.end()) ? found->second : -1;
-
-        if (id == 0x217)
-        {
-            // [/job fatigue]：无操作
-        }
-        else if (id == 0x21b)
-        {
-            std::string jobName;
-            ScanStr(&jobName);
-            jobType = getCharacterJobToEnumValue(jobName);   // ORIG 0x895fbe0
-        }
-        else if (id == 0x229)
-        {
-            ScanStr(&gift.m_msg1);                           // +0x1c
-        }
-        else if (id == 0x22d)
-        {
-            ScanStr(&gift.m_msg2);                           // +0x20
-        }
-        else if (id == 0x231)
-        {
-            for (;;)
+            // fallthrough
+        case 0x229:                                          // [fatigue title]
+            if (!__inited)
             {
-                ok = false;
-                int first = 0;
-                int second = 0;
-                int third = 0;
-                first = ScanInt(&ok);
-                if (!ok)
-                    break;
-                second = ScanInt(&ok);
-                if (!ok)
-                    break;
-                if (second < 0)
-                    return false;                            // ORIG jns 校验
-                third = ScanInt(&ok);
-                if (!ok)
-                    break;
-                if (third <= 0)
-                    return false;                            // ORIG jg 校验
-                gift.m_field18 = third;                      // mov %eax,-0x140
-                gift.m_rewardMap.insert(std::make_pair(first, second));
+                __lookup.insert(V("[fatigue title]", 0x229));
             }
+            else
+            {
+                ScanStr(&gift.m_msg1);                       // +0x1c
+                break;
+            }
+            // fallthrough
+        case 0x22d:                                          // [fatigue text]
+            if (!__inited)
+            {
+                __lookup.insert(V("[fatigue text]", 0x22d));
+            }
+            else
+            {
+                ScanStr(&gift.m_msg2);                       // +0x20
+                break;
+            }
+            // fallthrough
+        case 0x231:                                          // [reward list]
+            if (!__inited)
+            {
+                __lookup.insert(V("[reward list]", 0x231));
+            }
+            else
+            {
+                for (;;)
+                {
+                    int first = 0;
+                    int second = 0;
+                    int third = 0;
+                    first = ScanInt(&ok);
+                    if (!ok)
+                        break;
+                    second = ScanInt(&ok);
+                    if (!ok)
+                        break;
+                    if (second < 0)
+                        return false;                        // ORIG jns 校验
+                    third = ScanInt(&ok);
+                    if (!ok)
+                        break;
+                    if (third <= 0)
+                        return false;                        // ORIG jg 校验
+                    gift.m_field18 = third;                  // mov %eax,-0x140
+                    gift.m_rewardMap.insert(std::make_pair(first, second));
+                }
+                break;
+            }
+            // fallthrough
+        case 0x252:                                          // [/job type]
+            if (!__inited)
+            {
+                __lookup.insert(V("[/job type]", 0x252));
+            }
+            else
+            {
+                out->m_giftMap.insert(
+                    std::make_pair(jobType, gift));          // ORIG make_pairIRiRN..E
+                gift.m_field18 = 0;                          // movl $0,-0x140
+                gift.m_rewardMap.clear();                    // map::clear(-0x158)
+                jobType = -1;                                // movl $-1,-0x124
+                break;
+            }
+            break;
+        default:
+            break;
         }
-        else if (id == 0x252)
+
+        if (!__inited)
         {
-            out->m_giftMap.insert(
-                std::make_pair(jobType, gift));              // ORIG make_pairIRiRN..E
-            gift.m_field18 = 0;                              // movl $0,-0x140
-            gift.m_rewardMap.clear();                        // map::clear(-0x158)
-            jobType = -1;                                    // movl $-1,-0x124
+            __init_lock.leave();
+            __inited = true;
+            goto retry;
         }
-        // 未命中（id==-1）：跳过继续
     }
-    return true;
+    return ok;
 }
 
 // ============================================================================
@@ -1366,12 +1434,16 @@ bool importUseJobFatigueGiftScript(class useCharacterJobFatigue* out,
 // string(name)+string(layer)+int×3 入 m_finishAniMap；未知层名返回失败。
 // 该段仅能经 EOF（ScanStr 失败）退出。打开/空指针返回 0，EOF 返回 1。
 // ============================================================================
-// [b28d-solo-InitScriptProducers_8 N] ORIG 08960861：p167 CLEAR（90/90）；clean 620/596
-// （ORIG 628 insns）。已对齐：found->second 单次读取（三目落槽，ORIG ptEv×1
-// @0x8960e8c..ee5 实证）、三件套移入循环体（P177，ORIG 重扫 0x8960fc9 jmp 0x8960cf2
-// 实证）、seriaRoomDecoAniInfo ctor 加 throw()（P216，消 EXTRA _Unwind_Resume×2）、
-// ScanInt(int*)×3、pair<int,int> 转发构造、make_pair<aniLayer::T&,…> 左值。残余为
-// 惰性注册链布局（ORIG 注册落 case 内 0x8960efb/0x8960f55 + 重扫）——N104/N82 封顶。
+// [b28d-solo-InitScriptProducers_8 gap0] ORIG 08960861：p167 CLEAR（90/90）；fresh .o
+// 628/628（gap=0）。本轮修真 bug：①[reward item] 第三列由 `(void)ScanInt(&value)`
+// 改为 `if(!ScanInt(&reward.m_field8)) return false;`（ORIG 0x8960a36..a53 写对象
+// +0x08 并检查返回值——旧码写错目标且缺失败门禁）；②key/val 提升为函数级局部
+// （ORIG 0x89608bd/c7 入口初始化 -0xec/-0xf0，[using item]/[ani list] 复用）。
+// 并按 P333 重写 [finish ani] 惰性注册链：首轮 v=0 沿 case 0→0x318→0x31b
+// fallthrough 建表（ORIG 0x8960efb/0x8960f55），case 体负极性 if(!__inited)，
+// default 在 __inited 时 return false（未知层名），三件套声明移入子循环（P177，
+// ORIG 重扫 0x8960fc9 jmp 0x8960cf2）。残余仅 ScanType/ScanInt 失败块极性（ORIG
+// jne 尾块 vs 4.4 je 就地物化）——N104 封顶。
 bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
                                        const char* path)
 {
@@ -1382,29 +1454,24 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
 
     std::string token;
     std::string layerName;
+    int key = 0;                                        // ORIG -0xec（[using item]/[ani list] 复用）
+    int val = 0;                                        // ORIG -0xf0（[using item]）
     bool ok = false;
-    int value = 0;
 
     for (;;)
     {
         if (!ScanType(token, true))
             return true;                                    // EOF → 成功
 
-        // ORIG 0x8960cf2：三件套声明落循环体内（每轮穿 guard，P177）。
-        static std::map<const char*, int, less_TCHAR> __lookup;   // ORIG __lookup 0x94f75b8
-        static SpinLock __init_lock;                              // ORIG __init_lock 0x94f75d0
-        static bool __inited = false;                             // ORIG __inited 0x94f75d4
-
         if (token == "[using item]")
         {
             s->m_itemMap.clear();
             for (;;)
             {
-                // ORIG：ScanInt(int*)（p167 MISSING ScanInt(int*)×3）
-                int key;
+                // ORIG：ScanInt(int*)（p167 MISSING ScanInt(int*)×3）；key/val 为
+                // 函数级局部（ORIG 0x89608bd/0x89608c7 入口初始化 -0xec/-0xf0）。
                 if (!ScanInt(&key))
                     break;
-                int val = 0;
                 if (!ScanInt(&val))
                     return false;
                 // ORIG pair<int,int> 转发构造（非 make_pair）
@@ -1421,7 +1488,11 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
                     break;
                 if (!ScanInt(&reward.m_reward))
                     return false;
-                (void)ScanInt(&value);                  // ORIG 第三列弃读
+                // ORIG 0x8960a36..a53：第三列写 reward.m_field8（-0xfc+8）且
+                // 检查 ScanInt 返回值（失败 → return false）；旧 `(void)ScanInt
+                // (&value)` 既写错目标又缺失败门禁。
+                if (!ScanInt(&reward.m_field8))
+                    return false;
                 s->m_rewardList.push_back(reward);
             }
         }
@@ -1432,7 +1503,6 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
             for (;;)
             {
                 info.clear();
-                int key;
                 if (!ScanInt(&key))
                     break;
                 if (!ScanStr(&info.m_name))
@@ -1461,36 +1531,76 @@ bool importSeriaRoomAnimationDecoEvent(class seriaRoomDecoAniEventScript* s,
                 info.clear();
                 if (!ScanStr(&layerName))              // 层选择 token
                     break;                             // EOF → 回主循环（成功）
-                if (!__inited)
+
+                // ORIG 0x8960cf2：三件套声明落子循环体内（每轮穿 guard，P177）。
+                static std::map<const char*, int, less_TCHAR> __lookup;   // ORIG __lookup 0x94f75b8
+                static SpinLock __init_lock;                              // ORIG __init_lock 0x94f75d0
+                static bool __inited = false;                             // ORIG __inited 0x94f75d4
+
+            retry:
+                // P333 状态机：首轮 v=0 沿 case 0→0x31b fallthrough 建表
+                // （ORIG 0x8960efb/0x8960f55），链尾置 __inited 后 goto retry
+                // 重查（ORIG 0x8960fc9 jmp 0x8960cf2）；此后 v=find 结果。
+                int v;
+                if (__inited)
+                {
+                    // ORIG 8960e8c..8960ee5：ne 判定后 found->second 只读一次
+                    // （ptEv×1，结果落 -0x1c 槽）再与 0x318/0x31b 比较。
+                    std::map<const char*, int, less_TCHAR>::const_iterator found =
+                        __lookup.find(layerName.c_str());
+                    v = (found != __lookup.end()) ? found->second : -1;
+                }
+                else
                 {
                     __init_lock.enter();
+                    if (__inited)
+                    {
+                        __init_lock.leave();
+                        goto retry;
+                    }
+                    v = 0;                             // 建表哨兵
+                }
+
+                int layerId;
+                typedef std::map<const char*, int, less_TCHAR>::value_type V;
+                switch (v)
+                {
+                case 0:
+                case 0x318:                            // [front]
+                    // ORIG 0x8960f02：负极性 `xor $1; test; je`（P168a②）。
                     if (!__inited)
                     {
-                        typedef std::map<const char*, int,
-                                         less_TCHAR>::value_type V;
                         __lookup.insert(V("[front]", 0x318));
-                        __lookup.insert(V("[back]", 0x31b));
-                        __init_lock.leave();
-                        __inited = true;
                     }
                     else
                     {
-                        __init_lock.leave();
+                        layerId = 0;
+                        break;
                     }
+                    // fallthrough
+                case 0x31b:                            // [back]
+                    if (!__inited)
+                    {
+                        __lookup.insert(V("[back]", 0x31b));
+                    }
+                    else
+                    {
+                        layerId = 1;
+                        break;
+                    }
+                    // fallthrough
+                default:
+                    if (__inited)
+                        return false;                  // 未命中/未知层名 → 失败
+                    break;
                 }
-                std::map<const char*, int, less_TCHAR>::const_iterator found =
-                    __lookup.find(layerName.c_str());
-                int layerId;
-                // ORIG 8960e8c..8960ee5：ne 判定后 found->second 只读一次
-                // （ptEv×1，结果落 -0x1c 槽）再与 0x318/0x31b 比较。
-                const int foundId =
-                    (found != __lookup.end()) ? found->second : -1;
-                if (foundId == 0x318)
-                    layerId = 0;                       // [front]
-                else if (foundId == 0x31b)
-                    layerId = 1;                       // [back]
-                else
-                    return false;                      // 未命中/未知 → 失败
+
+                if (!__inited)
+                {
+                    __init_lock.leave();
+                    __inited = true;
+                    goto retry;
+                }
 
                 if (!ScanStr(&info.m_name))
                     return false;
