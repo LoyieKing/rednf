@@ -849,7 +849,7 @@ int importQuestScript(QuestScript* script, const char* path)
         }
         if (line == "[quest window extension]")
         {
-            script->m_2ec = (ScanInt((bool*)0) > 0) ? 1 : 0;
+            script->m_2ec = ScanInt((bool*)0) > 0;   // ORIG setg 直写（勿加三目）
             continue;
         }
         if (line == "[light level]")
@@ -1937,7 +1937,7 @@ int importQuestScript(QuestScript* script, const char* path)
             {
                 return 0;
             }
-            script->m_308 = (value != 0) ? 1 : 0;
+            script->m_308 = value != 0;               // ORIG setne 直写
             continue;
         }
         // 未知键：忽略（回循环读下一行）

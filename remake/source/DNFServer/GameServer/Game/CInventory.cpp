@@ -3248,6 +3248,15 @@ unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item, INVEN_TYPE invenT
 bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const
 {
     // b28d-solo-CInventory：1073/1072，P167 CLEAR；N82/N89 封顶。
+    // [b28d-tu-CInventory] P329 大捷：删具名引用 `InterfacePacketBuf& buf`
+    //   （98 处调用点内联 cast，ast_edit）⇒ 4.4 与 ORIG 0x084fc6bc 同形
+    //   「每调用点 `mov 0x14(%ebp),%eax` 形参直读 + eax 先装载」，
+    //   ndiff 1329→567、**struct 505→113**，P167 149/149 CLEAR 保持。
+    //   方法3（case 书写序改 EQUIP→AVATAR→INVEN→CREATURE 追 ORIG 叶块物理序
+    //   6f5/d93/29c/063）实测**反劣** struct 113→668/ndiff 567→789，已回滚
+    //   ⇒ 4.4 密集值 switch 落体不跟随 ORIG 比较树，方法3 对本件不适用。
+    //   残 113 = 帧 0x80/0x70（−16B/4 槽 N95）+ return-1 tail-merge 岛（N89）
+    //   + shl/sar·je/jne 跨版本别名。
     // b28d-37 [N82/N89 封顶，ORIG 0x84fc6bc]：P183 去视图缓存已应用；P167 调用点 CLEAR；1073/1072。
     // [§6.2 闭合 · b20] P167 149/149 归零；ORIG 在本 const 方法内走
     // put_binary(const char*,int)（PKc 重载），expansion/expInfo 已常量化对齐
@@ -6074,8 +6083,11 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
     // ORIG 走 PKc（const char*）重载（含 pExpansion 常量化，同宽同槽零扰动）。
     // 新鲜 .o 660 vs ORIG 658（gap -2）；帧 124 vs ORIG 112（+12B/3 槽）属
     // N82 槽分配残差，判「语义完成、N 封顶」。
-    // [b28d-tu-CInventory] P329 试验：暂删具名 buf（测 ORIG -0x34 槽形）。
     if (out == 0)
+    // [b28d-tu-CInventory] P329：删具名 `InterfacePacketBuf* buf`、调用点内联
+    //   cast ⇒ MakeEquipList ndiff 989→945（657/660，P167 CLEAR 保持）。
+    //   ORIG 有 buf 槽 -0x34（store+load 各 1 行差 ⇒ ORIG-only mov:4），
+    //   但内联形的**装载行序**与 ORIG 全部对齐，净收益为正；具名形反劣。
     {
         return 0;
     }
