@@ -165,64 +165,81 @@ void CItemInfoCmd::parse()
 }
 
 // ORIG execute 0x084aa2d2：按名查物品并回发查询结果包，找到则再 GM 发放一件。
-// 【b28d-solo-GmCmds_D 判词 N78/N82】p167 CLEAR（49=49）；getStackableLimit 双调用
-// && 链（P48/P214①）已归位。残差 = ORIG 两分支各一次 memset 被 4.1 内联成对齐剥离
-// 慢路（各 39 条）而 4.4 恒 call（N78）+ 全帧槽号错位（N82），封顶。
+// 【b28d-2026-09-10 重判】旧 N78/N82 判词作废（gap 59→0，助记符 306/306）：
+// ① info 真实尺寸 = 0xff（ORIG 慢路 `mov $0xff,%ebx` + 槽 -0x157..-0x59 双证），
+//    旧 `char info[0x100]` 多 1 字节（真 bug）；
+// ② ORIG 两分支各一次 `memset(info,0,0xff)` 被 4.1 内联为对齐剥离慢路
+//    （0x084aa30c/0x084aa48c 各 39 条）⇒ 源码写成 `info = InfoBuf();`（POD 整体赋值，
+//    4.4 -O0 发同形慢路，探针 /tmp/b28d_gmd/probe2.cpp fB4/fB5），落点非 4 对齐槽；
+// ③ 嵌套 if 形（Ghidra C 同构）复现末项 `cmp mem,%eax; setl %al; test; je`；
+// ④ P227 全表达式临时链令 getCurCharacName→%esi、NumberToString→%ebx 跨 ctor 保活；
+// ⑤ P223 负条件 goto 复现 `js <nop>; body; jmp join; nop; join:` 尾岛。
+// 残余：AddItem 实参装载段 ORIG 提前 `mov -0x28(%ebp),%eax` 并以 %edx 中转 &space/count，
+// 4.4 统一用 %eax（1 条 mov 位置差，P75/N7 跨版本寄存器分配，封顶）。
+// p167：49=49；MISSING C2/D2 与 EXTRA C1/D1 为同址别名伪差（P93，ORIG 0x0858dd4c/0x0858de80 同址）。
 void CItemInfoCmd::execute()
 {
-    // b28d-solo-GmCmds_D 判词 N78：ORIG 两分支各一次 `memset(info,0,0x100)` 被
-    // 4.1 内联成对齐剥离慢路（各 39 条，0x084aa30c/0x084aa48c）；4.4 恒发 call
-    // memset（两次 call 还会令 p167 EXTRA +2）⇒ 改用 `={0}`（P214③）一次 rep
-    // stos 表达同一写前清零语义，p167 CLEAR；慢路形态差记 N78 封顶。
-    char info[0x100] = {0};                                  // -0x157
+    struct InfoBuf { char m_b[0xff]; };                      // -0x157（ORIG char info[0xff]）
+    InfoBuf info;
     CItem* item = G_CDataManager()->find_item(m_str0.c_str());
     if (item == 0)
     {
-        sprintf(info, "cannot find item (%s) ", m_str0.c_str());
+        info = InfoBuf();                                    // ORIG 分支内 memset 慢路
+        sprintf(info.m_b, "cannot find item (%s) ", m_str0.c_str());
         PacketGuard packet;                                  // -0x50
         packet.put_header(0, 0xc);
         packet.put_byte(0);
         packet.put_short(0);
         packet.put_byte(0);
-        packet.put_int(static_cast<int>(strlen(info)));
-        packet.put_str(info, static_cast<int>(strlen(info)));
+        packet.put_int(static_cast<int>(strlen(info.m_b)));
+        packet.put_str(info.m_b, static_cast<int>(strlen(info.m_b)));
         packet.finalize(true);
         GetUser()->Send(packet);
         return;
     }
 
-    sprintf(info, "item_index(%d) ", item->get_index());     // ORIG get_index 0x8110c48
-    PacketGuard packet;                                      // -0x58
-    packet.put_header(0, 0xc);
-    packet.put_byte(0);
-    packet.put_short(0);
-    packet.put_byte(0);
-    packet.put_int(static_cast<int>(strlen(info)));
-    packet.put_str(info, static_cast<int>(strlen(info)));
-    packet.finalize(true);
-    GetUser()->Send(packet);
+    info = InfoBuf();                                        // ORIG else 分支 memset 慢路
+    sprintf(info.m_b, "item_index(%d) ", item->get_index()); // ORIG get_index 0x8110c48
+    {
+        PacketGuard packet;                                  // -0x58（ORIG 析构在 else 块中段）
+        packet.put_header(0, 0xc);
+        packet.put_byte(0);
+        packet.put_short(0);
+        packet.put_byte(0);
+        packet.put_int(static_cast<int>(strlen(info.m_b)));
+        packet.put_str(info.m_b, static_cast<int>(strlen(info.m_b)));
+        packet.finalize(true);
+        GetUser()->Send(packet);
+    }
 
     const int itemIdx = item->get_index();                   // local_2c
     CUser* user = GetUser();                                 // local_28
     int count = 100;                                         // local_20
-    // ORIG 0x084aa642/0x084aa657：getStackableLimit 两次独立调用（比较+赋值，
-    // P48 无 CSE）且为 && 短路链末项（setl 物化）⇒ 单条 && 链 + 两次调用。
-    if (item != 0 && item->is_stackable() &&
-        static_cast<CStackableItem*>(item)->getStackableLimit() < count)
+    // ORIG 0x084aa642/0x084aa657：getStackableLimit 两次独立调用（比较+赋值，P48 无 CSE）；
+    // 嵌套 if 形（Ghidra C 同构）⇒ 末项发 ORIG 的 `cmp mem,%eax; setl %al; test; je`。
+    if (item != 0)
     {
-        count = static_cast<CStackableItem*>(item)->getStackableLimit();
+        if (item->is_stackable())
+        {
+            if (static_cast<CStackableItem*>(item)->getStackableLimit() < count)
+            {
+                count = static_cast<CStackableItem*>(item)->getStackableLimit();
+            }
+        }
     }
     ENUM_ITEMSPACE space;                                    // local_44（AddItem 出参）
     const int added = user->AddItem(itemIdx, count,
                                     static_cast<eItemAddReason>(6), space, 0);
-    if (added >= 0)
-    {
-        const char* name = user->getCurCharacName();
-        char* accStr = NumberToString(user->get_acc_id(), 0);
-        cMyTrace trace(__PRETTY_FUNCTION__, 0x539, 0);
-        trace("%s:'%s' GM Mode Add Item(%d).", accStr, name, added);
-        user->SendUpdateItemList(CUser::eSendTarget_1, space, added);
-    }
+    // ORIG `js 084aa72e(nop); body; jmp 084aa72f` = 4.1 if-join 尾岛 ⇒ P223 负条件
+    // goto 到共享尾空标签（4.4 对正向 if 恒 jump-thread，给不出 nop 岛）。
+    if (added < 0) goto trace_end;
+    // P227 全表达式临时链：实参在 ctor 前求值并以 callee-saved 跨 ctor 保活
+    // （ORIG getCurCharacName→%esi、NumberToString→%ebx，无栈槽往返）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x539, 0)(
+        "%s:'%s' GM Mode Add Item(%d).",
+        NumberToString(user->get_acc_id(), 0), user->getCurCharacName(), added);
+    user->SendUpdateItemList(CUser::eSendTarget_1, space, added);
+trace_end:;
 }
 
 // ===========================================================================
@@ -410,13 +427,20 @@ void CIndependentDrop::parse()
 }
 
 // ORIG execute 0x084b0b4e。
-// 【b28d-solo-GmCmds_D 判词 N82/N78/P215】p167：MISSING 0 / EXTRA 1
-// （vector<stMonsterIndependentDrop_t>::C1Ev，P215：ORIG 4.1 对空默认 ctor 展开为
-// 内联三指针清零，4.4 恒发 call）；gap=-5（616 vs 621）。语义闭合：4 个缓冲清零
-// 按 ORIG 逐 buffer 形复现（lineBuf/chatMsg 简单 rep stos、content call memset、
-// fileName 慢路）；hash_map/set/list/vector 迭代器 cv+后置增量、P183 去
-// `it->second`/`getMonsterScript` 缓存、P49 宏化访问器均已归位。残余为 4.4 槽复用
-// vs 4.1 独立槽的全帧槽号错位（N82）与 N78/P215 形差，封顶。
+// 【b28d-2026-09-10 重判】jcc 逐位交叉验证揪出 1 处条件反向真 bug：尾段
+// `count == 0 ? memcpy(kNoDropList) : printClient+sprintf` 的块序写反（ORIG
+// 0x084b140c `cmpl $0; je <memcpy>` = then=printClient 直落）⇒ 改 `if (count != 0)`
+// 后 jcc 序列 23=23 全等（P272/P194）。另两处 P0 右值内联：getDungIndex 结果
+// `movzwl %ax,%ebx` 直传（0x084b0b95）、field->GetCurrentMapInfo() 内联
+// （0x084b0c84 无 field 具名槽）⇒ 助记符 619→617（ORIG 616，净 +1 为
+// `mov $0x17318,%edx` 常量中转缺失等寄存器伪影）。
+// 文件名分支反写为 `if (!GMD_IND_ALL(this))` 复现 ORIG `xor $0x1` 取反物化 +
+// then=非 all 直落块序（P168a/P272，0x084b13b5）。
+// 验收三件套（§6.2，orig 616>500）：① 助记符 617 vs 616（+1 寄存器伪影）；② p167 98=98（MISSING/EXTRA 仅
+// C1/C2、D1/D2 同址别名，P93）；③ 全 TU call* 虚槽 + jcc 序列交叉验证 0 差。
+// 残余为 4.4 槽复用 vs 4.1 独立槽的全帧槽号错位（N82）+ `mov $imm,%edx` 常量中转
+// （N76/P238）等 20 个寄存器/块序伪影块，byte 层封顶（语义闭合：缓冲清零、
+// hash_map/set/list/vector 迭代器 cv+后置增量、P183 去缓存、P49 宏化访问器均归位）。
 void CIndependentDrop::execute()
 {
     CUser* user = GetUser();
@@ -429,8 +453,9 @@ void CIndependentDrop::execute()
     {
         return;
     }
-    const unsigned short dungIdx = party->getDungIndex();    // ORIG 0x82a5a14 movzwl
-    CDungeon* dungeon = G_CDataManager()->find_dungeon(dungIdx);
+    // ORIG 0x084b0b90/95：getDungIndex 结果 `movzwl %ax,%ebx` 直传（无具名槽往返，
+    // P0 右值内联）⇒ 实参内联进 find_dungeon 调用。
+    CDungeon* dungeon = G_CDataManager()->find_dungeon(party->getDungIndex());
     if (dungeon == 0)
     {
         return;
@@ -455,9 +480,11 @@ void CIndependentDrop::execute()
     if (!GMD_IND_ALL(this))
     {
         // 当前副本当前地图：roleType<4 → 普通怪集，4..8 → AI 集合。
-        CBattle_Field* field =
-            &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField;  // ORIG 内嵌 CBattle_Field
-        MapInfo* curMap = field->GetCurrentMapInfo();        // ORIG 0x822cbcc
+        // ORIG 0x084b0c84：`mov party; add $0xb24; mov (%esp)` 直传（无 field 具名槽，
+        // P0 右值内联）⇒ 成员访问内联进调用。
+        MapInfo* curMap =
+            reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField
+                .GetCurrentMapInfo();                        // ORIG 0x822cbcc
         for (std::map<int, map_monster>::iterator it = curMap->m_monsterMap.begin();
              it != curMap->m_monsterMap.end(); it++)
         {
@@ -556,24 +583,28 @@ void CIndependentDrop::execute()
         }
     }
 
-    if (GMD_IND_ALL(this))
+    // ORIG 0x084b13b5 `movzbl all; xor $0x1; test; je <all 分支>`：then=非 all 直落、
+    // all 分支后置 ⇒ 源码写 `if (!GMD_IND_ALL(this))`（P168a X 族取反物化 + 块序）。
+    if (!GMD_IND_ALL(this))
+    {
+        sprintf(fileName, "item_indepedent_drop_%s.txt", dungeon->GetDungeonName());
+    }
+    else
     {
         sprintf(fileName, "item_indepedent_drop_all_%s.txt",
                 dungeon->GetDungeonName());
     }
-    else
-    {
-        sprintf(fileName, "item_indepedent_drop_%s.txt", dungeon->GetDungeonName());
-    }
 
-    if (count == 0)
-    {
-        memcpy(chatMsg, kNoDropList, 0x24);
-    }
-    else
+    // ORIG 0x084b140c `cmpl $0; je <memcpy 分支>`：then=printClient 直落、else=memcpy
+    // 后置 ⇒ 源码必须写 `if (count != 0)`（P272/P194 块序；`count == 0` 反产 jne）。
+    if (count != 0)
     {
         printClient(GetUser(), fileName, content);
         sprintf(chatMsg, kFileCreatedFmt, fileName);
+    }
+    else
+    {
+        memcpy(chatMsg, kNoDropList, 0x24);
     }
     SendChatMsg(GetUser(), chatMsg);
 }
