@@ -489,29 +489,29 @@ int GetEquipmentTypeStringToEnum(std::string& type);
 //   0x088bxxxx 域，但为 readAction 直接解析依赖，并入本 TU 统一提供。
 // ============================================================================
 
-static int getTargetTag(int* out)
+static bool getTargetTag(int* out)   // [b28d-Main·P292] int→bool（ORIG 调用点 call;xor $0x1;test %al）
 {
     // [b28c-lane24] ORIG 0x089a7413：多 return + 共享 ~s 尾块 ⇒ 4.4 用 %ebx 保存
     // 返回值（探针 /tmp/b28c_l24_probe2.cpp::pA 逐条同形）；正极性 ScanStr（无 xor）
     // + `if (v == 10) return 0;` 复现 jne 成功块 / je 失败岛布局。
-    if (out == 0) return 0;
+    if (out == 0) return false;
     std::string s;
     if (ScanStr(&s))
     {
         int v = getTargetToEnumValue(s);
-        if (v == 10) return 0;
+        if (v == 10) return false;
         *out = v;
-        return 1;
+        return true;
     }
-    return 0;
+    return false;
 }
 
 // [b28d-solo-EquipmentParameterInfo] DIFF N76：store RHS 值先不可翻（P211 三档旋钮试尽）。
-static int getStatusType(int* out)
+static bool getStatusType(int* out)   // [b28d-Main·P292] int→bool
 {
     // [b28c-lane24] ORIG 0x089a74a2：`if (*out != 0x4d) return 1;` ⇒ je 失败块 +
     // 成功块 fall-through（与 getTargetTag 同族）；*out 由调用表达式直存（无 v 槽，P0）。
-    if (out == 0) return 0;
+    if (out == 0) return false;
     std::string s;
     if (ScanStr(&s))
     {
@@ -523,19 +523,19 @@ static int getStatusType(int* out)
         //   ③目标为 int* 形参解引用，字段侧不可动 ⇒ 无源形可翻。
         *out = getChangeStatusType(s);
         if (*out != 0x4d)
-            return 1;
+            return true;
     }
-    return 0;
+    return false;
 }
 
-static int getSign(int* out)
+static bool getSign(int* out)   // [b28d-Main·P292] int→bool
 {
-    if (out == 0) return 0;
+    if (out == 0) return false;
     std::string s;
-    if (!ScanStr(&s)) return 0;
-    if (s == "+") { *out = 0; return 1; }
-    if (s == "%") { *out = 1; return 1; }
-    return 0;
+    if (!ScanStr(&s)) return false;
+    if (s == "+") { *out = 0; return true; }
+    if (s == "%") { *out = 1; return true; }
+    return false;
 }
 
 // [b28d-solo-EquipmentParameterInfo] AE：具名 fval 先物化 + `if(!ok)` 负极性早退；P167 CLEAR。

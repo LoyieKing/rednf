@@ -37,10 +37,48 @@
 // 本 TU 暂保留 static 以保证本 TU 编译与 ORIG 读取形态（mov 0x9501e90 形 AE 归一）。
 static unsigned int gCodePage;
 
-// ORIG 0x08adf57f 定义于 StringResource.cpp；本 TU 显式声明，确保
-// convertToCharString(const WideString&, uint) 转发到 PKwj 重载
-// （否则 WideString(const wchar_t*) 隐式转换会选 RK10WideStringj 自递归）。
-CharString convertToCharString(const wchar_t* src, unsigned int srcLength);
+// [b28d-Main R3 迁移·检查点13] getCodePage/setCodePage 自 GameScriptEnumHelpers.cpp 迁入
+// （ORIG 0x08adea10/0x08adea1a 与本 TU 的 convertTo* 同 TU），与 convertToWideString/
+// convertToCharString 共享本 TU 的 gCodePage ⇒ 修复「setCodePage 写他 TU 副本、
+// 转换读本 TU 恒 0 副本」的语义分叉（二进制曾实测 3 份 _ZL9gCodePage，ORIG 仅 1 份）。
+int getCodePage()
+{
+    return gCodePage;
+}
+
+int setCodePage(int nNewCodePage)
+{
+    const int old = gCodePage;
+    gCodePage = nNewCodePage;
+    return old;
+}
+
+// [b28d-Main R3 迁移·检查点13] convertToCharString(PKwj/PKw/RK10WideString) 自
+// StringResource.cpp 迁入（ORIG 0x08adf57f/0x08adf54c/0x08adf624 同 TU）；改读本 TU
+// 的 gCodePage。原 N18a 判词（len+1 两步 vs 4.4 lea 折形）保持不变。
+CharString convertToCharString(const wchar_t* src, unsigned int srcLength)
+{
+    (void)srcLength;
+    std::size_t n = wcstombs(NULL, src, 0);
+    if (n == static_cast<std::size_t>(-1))
+        return CharString();
+    std::size_t len = n;
+    if (len == 0)
+        return CharString();
+    CharStringData* data = CharStringData::create(static_cast<int>(len));
+    wcstombs(data->getBuffer(), src, len + 1);
+    return CharString(data);
+}
+
+CharString convertToCharString(const wchar_t* src)
+{
+    return convertToCharString(src, gCodePage);
+}
+
+CharString convertToCharString(const WideString& src)
+{
+    return convertToCharString(src.c_str());
+}
 
 // ---------------------------------------------------------------------------
 // getMbcsBuffer / getUnicodeBuffer / getTCharBuffer —— ORIG 0x08adea35/54/73
@@ -69,41 +107,9 @@ CharString convertToCharString(const wchar_t* src, unsigned int srcLength);
 // fn_diff_tu 逐条 ok（ours==orig 46/50/48/52 行）；ORIG/NEW 符号尺寸全等
 // 0xa1/0xb0/0xaa/0xb9——正文逐条等价为硬证据，残差仅 %gs tpoff 立即数。
 // ---------------------------------------------------------------------------
-static __thread char gMbcsBuffer[10][0x1000];
-static __thread int gMbcsBufferIndex;
-// ORIG shl $0xe：槽字节步长 0x4000 = wchar_t[0x1000]（0x08adea54 实证）。
-static __thread wchar_t gUnicodeBuffer[10][0x1000];
-static __thread int gUnicodeBufferIndex;
-static __thread char gTCharBuffer[10][0x1000];
-static __thread int gTCharBufferIndex;
-
-// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adea35 单组 disp=-0x3c028，本 TU 组链接后 -0x78238。
-char* getMbcsBuffer()          // ORIG T 0x08adea35
-{
-    return gMbcsBuffer[gMbcsBufferIndex];
-}
-// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adea54 单组 disp=-0x32024，本 TU 组链接后 -0x6e234。
-wchar_t* getUnicodeBuffer()    // ORIG T 0x08adea54
-{
-    return gUnicodeBuffer[gUnicodeBufferIndex];
-}
-// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adea73 单组 disp=-0xa020，本 TU 组链接后 -0x46230。
-char* getTCharBuffer()         // ORIG T 0x08adea73
-{
-    return gTCharBuffer[gTCharBufferIndex];
-}
-int getMbcsBufferSize()        // ORIG T 0x08adea92
-{
-    return 0x1000;
-}
-int getUnicodeBufferSize()     // ORIG T 0x08adea9c
-{
-    return 0x4000;
-}
-int getTCharBufferSize()       // ORIG T 0x08adeaa6
-{
-    return 0x1000;
-}
+// [b28d-Main R3 迁移·检查点13] TLS 组 + 3 getter + 3 size 函数已迁入 SyncScriptDeps.cpp
+// （该 TU 的 TLS 组按 ORIG 布局调校：gMbcsBuffer LE=-0x3c028 / gUnicodeBuffer=-0x32024 /
+// gTCharBuffer=-0xa020，与本 TU 原组差 0x3c210）；本 TU 不再持有 TLS 副本。
 
 // ---------------------------------------------------------------------------
 // insert —— CharString
@@ -462,49 +468,8 @@ void toUnicode(const std::wstring& src, std::wstring& dst)
 // toUnicode —— mbstowcs 到 TLS 环形缓冲
 // ---------------------------------------------------------------------------
 
-// _Z9toUnicodePKc 0x08adf1b3
-// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf1b3 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234（差 0x3c210）。复验：routed AE、p167 CLEAR(1/1)、fn_diff_tu 46=46 逐条 ok、符号尺寸 ORIG=NEW=0xa1。
-const wchar_t* toUnicode(const char* src)
-{
-    const int curindex = gUnicodeBufferIndex;
-    const std::size_t nRet = mbstowcs(gUnicodeBuffer[curindex], src, 0x1000);
-    gUnicodeBuffer[curindex][nRet] = 0;
-    gUnicodeBufferIndex = (gUnicodeBufferIndex + 1) % 10;
-    return gUnicodeBuffer[curindex];
-}
-
-// _Z9toUnicodeRKSs 0x08adf0f6
-// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf0f6 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234（差 0x3c210）。复验：routed AE、p167 CLEAR(2/2)、fn_diff_tu 48=48 逐条 ok、符号尺寸 ORIG=NEW=0xaa。
-const wchar_t* toUnicode(const std::string& src)
-{
-    const int curindex = gUnicodeBufferIndex;
-    const std::size_t nRet = mbstowcs(gUnicodeBuffer[curindex], src.c_str(), 0x1000);
-    gUnicodeBuffer[curindex][nRet] = 0;
-    gUnicodeBufferIndex = (gUnicodeBufferIndex + 1) % 10;
-    return gUnicodeBuffer[curindex];
-}
-
-// _Z9toUnicodePKcRSbIwSt11char_traitsIwESaIwEE 0x08adf32f
-// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf32f 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234（差 0x3c210）。复验：routed AE、p167 CLEAR(2/2)、fn_diff_tu 50=50 逐条 ok、符号尺寸 ORIG=NEW=0xb0。
-void toUnicode(const char* src, std::wstring& dst)
-{
-    const int curindex = gUnicodeBufferIndex;
-    const std::size_t nRet = mbstowcs(gUnicodeBuffer[curindex], src, 0x1000);
-    gUnicodeBuffer[curindex][nRet] = 0;
-    dst = gUnicodeBuffer[curindex];
-    gUnicodeBufferIndex = (gUnicodeBufferIndex + 1) % 10;
-}
-
-// _Z9toUnicodeRKSsRSbIwSt11char_traitsIwESaIwEE 0x08adf25c
-// [b28d-solo-StringConvert] AE·N 封顶（TLS 组归属重复，见文件头判词；正文逐条等价）：ORIG 0x08adf25c 单组 gUnicodeBuffer disp=-0x32024，本 TU 组链接后 -0x6e234（差 0x3c210）。复验：routed AE、p167 CLEAR(3/3)、fn_diff_tu 52=52 逐条 ok、符号尺寸 ORIG=NEW=0xb9。
-void toUnicode(const std::string& src, std::wstring& dst)
-{
-    const int curindex = gUnicodeBufferIndex;
-    const std::size_t nRet = mbstowcs(gUnicodeBuffer[curindex], src.c_str(), 0x1000);
-    gUnicodeBuffer[curindex][nRet] = 0;
-    dst = gUnicodeBuffer[curindex];
-    gUnicodeBufferIndex = (gUnicodeBufferIndex + 1) % 10;
-}
+// [b28d-Main R3 迁移·检查点13] 4 个 TLS 版 toUnicode 重载（PKc/RKSs/PKcRSb/RKSsRSb）
+// 已迁入 SyncScriptDeps.cpp（与本组同 TU ⇒ %gs disp 对齐 ORIG -0x32024）。
 
 // ---------------------------------------------------------------------------
 // convertToWideString —— 默认 gCodePage=0（ORIG 单元内 _ZL9gCodePage 恒 0，

@@ -390,43 +390,8 @@ bool loadString(CharString* error)
 // 码页全局传参，非立即数）。
 // convertToCharString(RK10WideString) —— ORIG T 0x08adf624：sret，转发 c_str()。
 // ---------------------------------------------------------------------------
-static unsigned int gCodePage;
-
-// [b28d-solo-StringResource N18a: ORIG len+1 两步（mov -0x10,%eax; add $1,%eax; mov %eax,%esi）
-// vs 4.4 恒 lea 0x1(%eax),%esi；A(+1UL)/B(int len)/C(uint cast)/D(unsigned len)/E(语句表达式)
-// 五变体实测全败（E 反致槽漂 −0x18） | ORIG 0x08adf57f]
-CharString convertToCharString(const wchar_t* src, unsigned int srcLength)
-{
-    (void)srcLength;
-    // b28c-L8 判词 [N(N18a)]：53/52 唯一真残差 = ORIG 0x08adf57f
-    // `mov -0x10(%ebp),%eax; add $0x1,%eax; mov %eax,%esi`（两步）vs 4.4 恒
-    // `lea 0x1(%eax),%esi`（一步折形）。探针 6 形（len+1 / 1+len / 具名局部 /
-    // len+2-1 / static_cast / unsigned long 往返）全产 lea 或额外 store；P205 代数
-    // 拆形对本例不可翻 ⇒ N18a。其余差异行为 wcstombs@plt / CharString ctor 的
-    // .o 未解析重定位标签（链接后 AE）。
-    // ORIG @0x8adf595-0x5d2：两段检查各自独立空串返回岛（-1 与 0 分开、
-    // 各自 call CharStringC1Ev），且求长结果二次复制到新槽（-0x14→-0x10，
-    // P171 照抄）。
-    std::size_t n = wcstombs(NULL, src, 0);
-    if (n == static_cast<std::size_t>(-1))
-        return CharString();
-    std::size_t len = n;
-    if (len == 0)
-        return CharString();
-    CharStringData* data = CharStringData::create(static_cast<int>(len));
-    wcstombs(data->getBuffer(), src, len + 1);
-    return CharString(data);
-}
-
-CharString convertToCharString(const wchar_t* src)
-{
-    return convertToCharString(src, gCodePage);
-}
-
-CharString convertToCharString(const WideString& src)
-{
-    return convertToCharString(src.c_str());
-}
+// [b28d-Main R3 迁移·检查点13] gCodePage + convertToCharString(PKwj/PKw/RK10WideString)
+// 已迁入 StringConvert.cpp（ORIG 归属 TU）；本 TU 不再持有码页副本。
 
 // ---------------------------------------------------------------------------
 // convertFromUtf8 —— ORIG T 0x08adf893。两遍式 UTF-8→wchar_t：pass1 统计宽

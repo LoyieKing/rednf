@@ -223,13 +223,13 @@ bool CTradeSpace::check_trade_possibility()   // CTradeSpace.h:53 bool（DCoreB 
 }
 
 // ---- _IsTradable @ 0x08529dce ----
-int CTradeSpace::_IsTradable(const Inven_Item& item)
+bool CTradeSpace::_IsTradable(const Inven_Item& item)   // [b28d-Main·P292] int→bool
 {
     CItem* ci = G_CDataManager()->find_item(item.m_addInfo);
     if (ci == 0)
-        return 0;
+        return false;
     if (item.m_upgradeSep.IsTradeRestriction())
-        return 0;
+        return false;
     // b28d-solo-CTradeSpace：按 ORIG 0x08529dce 还原。
     //   t 为 int 局部 + 显式 (unsigned int) 比较 ⇒ 4.4 发 ORIG 的
     //   `mov slot,%eax; cmp $0x5,%eax; ja`（P310）；bit 用纯 register 存储类
@@ -243,13 +243,13 @@ int CTradeSpace::_IsTradable(const Inven_Item& item)
     if ((unsigned int)t < 6) {
         register unsigned int bit = 1u << t;
         if ((bit & 0x36) != 0)
-            return 0;
+            return false;
         if ((bit & 8) != 0) {
             if (!item.m_field0)
-                return 0;
+                return false;
         }
     }
-    return 1;
+    return true;
 }
 
 // ---- _SaveAvatarItemOwnerChange @ 0x0853084a ----

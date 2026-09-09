@@ -1019,13 +1019,8 @@ int scanModuleType()
 // （Library/Include/Core/UnicodeConvert.cpp 有同名语义实现，但 game 目标未编入，
 //   故按 ORIG 在此提供唯一定义。）
 // ---------------------------------------------------------------------------
-static int gCodePage = 0;   // ORIG _ZL9gCodePage 0x09501e90
-
-// getCodePage —— ORIG @ 0x8adea10：mov 0x9501e90,%eax 直返全局 codepage。
-int getCodePage()
-{
-    return gCodePage;
-}
+// [b28d-Main R3 迁移·检查点13] gCodePage/getCodePage/setCodePage 已迁入 StringConvert.cpp
+// （ORIG 0x09501e90/0x08adea10/0x08adea1a 归属 TU）⇒ 消本 TU 副本，修复码页语义分叉。
 
 // [b28 P210] 调用者定义移到 callee 之前：4.4 对「TU 内已见定义的 callee」按其实
 // 帧精确继承 outgoing（塌缩 sub $0x4）；ORIG 0x0808ec67 帧 0x18 为 callee 未见时
@@ -1036,9 +1031,4 @@ void setCodePageByLocal()
     setCodePage(950);
 }
 
-int setCodePage(int nNewCodePage)
-{
-    const int old = gCodePage;
-    gCodePage = nNewCodePage;
-    return old;
-}
+// setCodePage 定义已迁入 StringConvert.cpp（声明见 GameScriptEnumHelpers.h）。

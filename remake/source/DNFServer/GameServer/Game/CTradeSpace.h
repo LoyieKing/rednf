@@ -55,7 +55,7 @@ public:
 
     CUser* GetOppositeUser(CUser* user);
     int _CheckTrade4SameAvatar(const TradeSlot* slots, const Inven_Item& item);
-    int _IsTradable(const Inven_Item& item);
+    bool _IsTradable(const Inven_Item& item);   // [b28d-Main·P292] int→bool（ORIG 4 调用点均 `call; xor $0x1,%eax; test %al,%al`）
     void _SaveAvatarItemOwnerChange(unsigned int a, unsigned int b,
                                     unsigned int c, unsigned char d);
     int add_item(int traderIdx, TradeSlot slot, int count);

@@ -42,7 +42,12 @@
 class MSG_BASE
 {
 public:
-    MSG_BASE() {}                // ORIG _ZN8MSG_BASEC1Ev 0x812c076 空体；
+    // [b28d-Main 代落·检查点13] 删用户空 ctor：ORIG 的 MSG_BASE 为**隐式 trivial**
+    // （4.1 对独立 MSG_BASE 对象不发 call；我方 4.4.7 用户空 ctor 恒发 lea+mov+call）。
+    // A/B 实测（5 消费 TU）：PacketDispatcher identical/ae 1931→1955（diff 109→84）、
+    // DispLinkA2 diff 3→2，其余 3 TU 零变化；符号 _ZN8MSG_BASEC1Ev 仍由
+    // Dispatchers.o（CMDPacketStruct.h 版本）发射，链接符号集不减。
+    // MSG_BASE() {}                // ORIG _ZN8MSG_BASEC1Ev 0x812c076 空体；
                                  // 头文件内联 → 弱符号 W（同 ORIG），GCC O0 对空构造
                                  // 调用点省略（ORIG 全二进制仅 65 调用，均派生构造链）。
     char m_head[0xd];

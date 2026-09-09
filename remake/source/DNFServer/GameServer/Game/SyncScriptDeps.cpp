@@ -67,14 +67,82 @@ const char* toTString(const char* pszSrc)
 //   gTCharBuffer=-0xa020（0x08adeb7d 段）。
 // 本 TU 组须复现同组内相对布局：lead 4B 使 gMbcsBuffer 8 对齐，
 // gUnicodeBuffer[10][0x1000]+index 补足 0x28004 间距，tail 0x18B 补齐尾距。
-static __thread char gTlsPadLead[4] __attribute__((unused));
+// [b28d-Main·检查点13] lead 4→8：与 tail 0x14 组合 ⇒ 本组变量偏移 +4、tls_size +8
+// （TLS 段按 8 对齐，tail 单独 +4 实测 tpoff 移 −8）⇒ tpoff = offset − tls_size 净 −4，
+// 对齐 ORIG（gMbcsBuffer −0x32028 / gUnicodeBuffer −0xa024 / gTCharBuffer −0x20）。
+static __thread char gTlsPadLead[8] __attribute__((unused));
 static __thread char gMbcsBuffer[10][0x1000];
 static __thread int gMbcsBufferIndex;
 static __thread wchar_t gUnicodeBuffer[10][0x1000] __attribute__((unused));
 static __thread int gUnicodeBufferIndex __attribute__((unused));
 static __thread char gTCharBuffer[10][0x1000];
 static __thread int gTCharBufferIndex;
-static __thread char gTlsPadTail[0x10] __attribute__((unused));
+// [b28d-Main·检查点13] tail 0x10→0x14：tpoff = offset_block − tls_size，本组变量
+// 偏移不变而 tls_size +4 ⇒ 本组全部 tpoff −4。实测本组三变量曾整体比 ORIG 高 4
+// （gMbcsBuffer −0x32024 vs ORIG −0x32028；gUnicodeBuffer −0xa020 vs −0xa024；
+// gTCharBuffer −0x1c vs −0x20），组内间距与 ORIG 全等 ⇒ 仅基址差 4。
+static __thread char gTlsPadTail[0x14] __attribute__((unused));
+
+// [b28d-Main R3 迁移·检查点13] getMbcsBuffer/getUnicodeBuffer/getTCharBuffer + 3 size
+// 自 StringConvert.cpp 迁入（ORIG 0x08adea35/0x08adea54/0x08adea73 与本 TLS 组同 TU）。
+char* getMbcsBuffer()          // ORIG T 0x08adea35
+{
+    return gMbcsBuffer[gMbcsBufferIndex];
+}
+wchar_t* getUnicodeBuffer()    // ORIG T 0x08adea54
+{
+    return gUnicodeBuffer[gUnicodeBufferIndex];
+}
+char* getTCharBuffer()         // ORIG T 0x08adea73
+{
+    return gTCharBuffer[gTCharBufferIndex];
+}
+int getMbcsBufferSize()        // ORIG T 0x08adea92
+{
+    return 0x1000;
+}
+int getUnicodeBufferSize()     // ORIG T 0x08adea9c
+{
+    return 0x4000;
+}
+int getTCharBufferSize()       // ORIG T 0x08adeaa6
+{
+    return 0x1000;
+}
+
+// [b28d-Main R3 迁移·检查点13] 4 个 TLS 版 toUnicode 重载自 StringConvert.cpp 迁入。
+const wchar_t* toUnicode(const char* src)              // ORIG 0x08adf1b3
+{
+    const int curindex = gUnicodeBufferIndex;
+    const std::size_t nRet = mbstowcs(gUnicodeBuffer[curindex], src, 0x1000);
+    gUnicodeBuffer[curindex][nRet] = 0;
+    gUnicodeBufferIndex = (gUnicodeBufferIndex + 1) % 10;
+    return gUnicodeBuffer[curindex];
+}
+const wchar_t* toUnicode(const std::string& src)       // ORIG 0x08adf0f6
+{
+    const int curindex = gUnicodeBufferIndex;
+    const std::size_t nRet = mbstowcs(gUnicodeBuffer[curindex], src.c_str(), 0x1000);
+    gUnicodeBuffer[curindex][nRet] = 0;
+    gUnicodeBufferIndex = (gUnicodeBufferIndex + 1) % 10;
+    return gUnicodeBuffer[curindex];
+}
+void toUnicode(const char* src, std::wstring& dst)     // ORIG 0x08adf32f
+{
+    const int curindex = gUnicodeBufferIndex;
+    const std::size_t nRet = mbstowcs(gUnicodeBuffer[curindex], src, 0x1000);
+    gUnicodeBuffer[curindex][nRet] = 0;
+    dst = gUnicodeBuffer[curindex];
+    gUnicodeBufferIndex = (gUnicodeBufferIndex + 1) % 10;
+}
+void toUnicode(const std::string& src, std::wstring& dst)  // ORIG 0x08adf25c
+{
+    const int curindex = gUnicodeBufferIndex;
+    const std::size_t nRet = mbstowcs(gUnicodeBuffer[curindex], src.c_str(), 0x1000);
+    gUnicodeBuffer[curindex][nRet] = 0;
+    dst = gUnicodeBuffer[curindex];
+    gUnicodeBufferIndex = (gUnicodeBufferIndex + 1) % 10;
+}
 
 // ORIG 0x08adf024：toMbcs(char const*, string&) = sDst = pszSrc。
 void toMbcs(const char* pszSrc, std::string& sDst)
