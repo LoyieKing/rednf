@@ -62,6 +62,21 @@
 //   （ORIG 调用点压 2 实参无 this）；SigTypes_C.h:1029 CHARAC_LOAD_MERCENARY::
 //   m_field28 int→unsigned（P211 档③ RHS-first+中转，探针 /tmp/probe_m28.cpp）。
 //   P0/N96 绑定: 本文件 0 处 register asm（grep 复核）。
+//
+// ---------------------------------------------------------------------------
+// [b28d-solo-CUserMissingA2③] 本轮重核（dual_rank 两件，逐件重读报告 + 段级比对）：
+//   CUser::_fnStatQuestClear      gap 16→3。真缺口：ORIG 内层 end 只求一次
+//     （0x08664fb6），每轮外层迭代只重求内层 begin（0x0866505a）；原实现把
+//     begin+end 都放体内，静态少 13 条。修法：end 提出循环外、内层 for 只重求
+//     begin（语义等价）。余 3 条 = 三处 context 形参自增（P322②/N：4.4 恒折
+//     `addl $0x4,0xc(%ebp)`，ORIG 为 `lea edx,[eax+4]; mov [ebp+0xc],edx`）。
+//     p167 24/24（C1↔C2 同址别名，P262）。
+//   CHARAC_LOAD_MERCENARY::GetRewardItem  gap 6→1。真差异：dropDice 误建为函数级
+//     static（ORIG 0x081b3648 落栈槽 -0x2c，且 nm 六个 .bss 局部符号不含它）
+//     ⇒ 改普通局部 int；groupSum/groupIdx 槽序翻正（ORIG -0x40/-0x3c）；补
+//     groupIdx 重复清零与 mob/item 分支显式 return，复现 ORIG 四个 return-false
+//     岛。余 1 条 jmp 中继 + 尾部对齐 nop（§6.1/N112）。p167 50/50（CMTRand
+//     C1↔C2 同址别名，P262）。
 // ============================================================================
 
 #include <string.h>  // memset
@@ -751,8 +766,18 @@ int CHARAC_LOAD_MERCENARY::GetRewardGold(CUser* user,
 // ② dropLists 越界守卫改早返形 `if ((int)dropLists.size() <= it->second.first)
 //    return false;`（ORIG 0x081b3636 `call size; mov ebx,eax; call ptEv; mov
 //    eax,[eax+0x4]; cmp ebx,eax; setle; test; je <主流程>` 实证）。
-// 助记符残差仅 2 处 return-false 岛（N111 静态不可达块，ORIG 0x081b37fc/0x081b3803
-// 双岛；4.4 jump-thread 合并）+ mob 分支 `jg`/`jle` 极性 ⇒ N 封顶。
+// [b28d-solo-CUserMissingA2③] 本轮重核（dual_rank gap 6）⇒ 修真差异 + gap 6→1：
+//   ① **dropDice 误建为函数级 static**：ORIG 0x081b3648 `mov %eax,-0x2c(%ebp)` /
+//      0x081b3673 `mov -0x2c(%ebp),%eax` 是栈槽，且 nm 的 6 个 .bss 局部符号
+//      （itemDropDice/groupDice/mobDice/itemDice/buffer/probabilityRewardItem）**不含**
+//      dropDice ⇒ 原码是普通局部 int（原实现多写一个 .bss 符号且读写形态不同）。
+//   ② groupSum/groupIdx 声明序翻正（ORIG 0x081b346e 先清 -0x40=groupSum、后清
+//      -0x3c=groupIdx；原实现槽互换）。
+//   ③ 复现 ORIG 形态：groupIdx 重复清零（0x081b347c）、mob/item 两分支在循环后补
+//      显式 `return false` 使 4.4 分出独立 return-false 岛（ORIG 0x081b36f6/0x081b3700
+//      /0x081b37fa/0x081b3803 四岛；原实现共享单一出口，少 5 条）。
+//   残差 = 1 条 `jmp` 中继岛 + 尾部对齐 `nop`（§6.1 豁免）⇒ N112 封顶；
+//   p167 50/50（MISSING/EXTRA 仅 CMTRand C1↔C2 同址别名，P262）。
 bool CHARAC_LOAD_MERCENARY::GetRewardItem(
     CUser* user, competition_reward_result& result, Inven_Item& item,
     std::string& msg)
@@ -797,8 +822,11 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
         SendMessageToCUser(user, buffer);
     }
 
-    unsigned int groupIdx = 0;
+    // ORIG 0x081b346e/0x081b3475/0x081b347c：groupSum 占 -0x40、groupIdx 占 -0x3c，
+    // 且 groupIdx 连续清零两次 ⇒ 声明序 groupSum 在前 + 循环前一次显式重清（P198① 同族）。
     int groupSum = 0;
+    unsigned int groupIdx = 0;
+    groupIdx = 0;
     while (groupIdx < pArea2->m_groups.size())
     {
         groupSum += pArea2->m_groups[groupIdx].m_groupId;
@@ -835,8 +863,10 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
                 dropLists[it->second.first].m_list04;
             unsigned long dropRange =
                 static_cast<unsigned long>(it->second.second);
-            static int dropDice;
-            dropDice = probabilityRewardItem.randInt(dropRange);
+            // ORIG 0x081b3648/0x081b3673：dropDice 落栈槽 -0x2c（`mov %eax,-0x2c(%ebp)`
+            // / `mov -0x2c(%ebp),%eax`），且 nm 无 .bss 符号 ⇒ 原码是**普通局部
+            // int**（其余 itemDropDice/groupDice/mobDice/itemDice 才是函数级 static）。
+            int dropDice = probabilityRewardItem.randInt(dropRange);
             int sum = 0;
             for (unsigned int j = 0; j < list.size(); ++j)
             {
@@ -853,6 +883,9 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
                     return true;
                 }
             }
+            // ORIG 0x081b36f6 独立 return-false 岛（mob 循环未命中）与 0x081b3700
+            // （it==end）分列两岛；显式 return 阻止 4.4 共享出口合并。
+            return false;
         }
         return false;
     }
@@ -885,6 +918,9 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
                 return true;
             }
         }
+        // ORIG 0x081b37fa `jmp <0x081b3803>` + 0x081b3803 岛：循环未命中与 empty
+        // 失败各落独立 return 岛 ⇒ 显式 return 复现（P285 同族）。
+        return false;
     }
     return false;
 }
@@ -1556,6 +1592,13 @@ void CUser::updatePcRoomPlayTime()
 // `context = context + 4` / `&context[4]` / `(char*)((int*)context+1)` 四形 4.4
 // 均折 `add DWORD PTR [ebp+0xc],0x4`（P322② 同族、形参无 volatile 位点），ORIG
 // `lea edx,[eax+4]; mov [ebp+0xc],edx` 不可造 ⇒ N 封顶。
+// [b28d-solo-CUserMissingA2③] 本轮重核（dual_rank gap 16）⇒ 修真缺口 + gap 16→3：
+// ORIG 初始化段（0x08664f53/0x08664f6e/0x08664f89/0x08664fb6）求外层 begin/end 与
+// 内层 begin/end 各一次，此后**每轮外层迭代只重求内层 begin**（0x0866505a 段，位于
+// ++ri 之前；内层 end 不再重求）⇒ 原实现把内层 begin+end 都写在体内，静态少 13 条。
+// 改为 end 提出循环外、内层 for 只重求 begin（语义等价：每轮外层开始时 ii 均回到
+// begin）。残差 3 条 = 三处 context 形参自增（P322②/N，见下）；p167 24/24
+// （MISSING/EXTRA 仅 `__normal_iterator` C1↔C2 同址别名，P262）。
 bool CUser::_fnStatQuestClear(unsigned int questIdx, char* context)
 {
     // [b28d-solo-CUserMissingA2②] ORIG 0x08664e9e/0x08664eaa/0x08664eb6 对 context
@@ -1583,13 +1626,20 @@ bool CUser::_fnStatQuestClear(unsigned int questIdx, char* context)
     // P50 复活（b28c C28L29/C28L14）：ORIG 0x08664e8e 有独立 `const_iterator::C1Ev`
     // （×4）+ `C1IPiE` 转换构造（×2）+ 纯 const `ne` ⇒ 原码是「先声明后赋值 +
     // 缓存 end」形（初始化式形会被 4.4 折掉 C1Ev 并改 ne 重载）。
+    // [③] 初始化顺序照 ORIG：外层 begin/end（0x08664f53/0x08664f6e）先、内层
+    // begin/end（0x08664f89/0x08664fb6）后；ie 只求这一次（见内层 for 注释）。
     std::vector<RewardItemInfo>::const_iterator ri;
     std::vector<RewardItemInfo>::const_iterator re;
     std::vector<int>::const_iterator ii;
     std::vector<int>::const_iterator ie;
-    for (ri = rewards->begin(), re = rewards->end(); ri != re; ++ri)
+    ri = rewards->begin();
+    re = rewards->end();
+    ii = elixirIds->begin();  // ORIG 0x08664f89 初始化段的一次 begin（外层体每轮重求）
+    ie = elixirIds->end();    // ORIG 0x08664fb6：内层 end 全程只求这一次
+    for (; ri != re; ++ri)
     {
-        for (ii = elixirIds->begin(), ie = elixirIds->end(); ii != ie; ++ii)
+        // ORIG 0x0866505a：每轮外层迭代只重求内层 begin（end 用上面的 ie）。
+        for (ii = elixirIds->begin(); ii != ie; ++ii)
         {
             if (ri->m_itemIdx == *ii)
             {
