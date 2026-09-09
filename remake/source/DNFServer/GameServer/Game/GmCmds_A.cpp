@@ -418,11 +418,11 @@ void CBoosterTest::clear()
 // [b28d-solo-GmCmds_A] verdict=DIFF ndiff=29 [N7/memset-edx] p167 CLEAR(33/33)；
 // memset 第三实参 edx 中转 + 虚调用 receiver 装载序（N7）+ 跳表基址折叠。
 // [b28d-solo-2] verdict=DIFF：orig/ours=269/273。残余（逐条核对）：①首 memset
-// 实参序（ORIG `lea buf→%eax; mov $0x17318,%edx; mov %edx,0x8(%esp)`，4.4 立即数
-// 直写 + lea 置后；P68/范式库「memset 首参 edx 中转」待解项，探针 p15 六形全败）；
-// ②`if (!goldLottery)` ORIG `cmpb $0,-0x1a; je` vs 4.4 `movzbl; xor $1; test; je`
+// 实参序；②`if (!goldLottery)` ORIG `cmpb $0,-0x1a; je` vs 4.4 `movzbl; xor $1; test; je`
 // （+2 条，P122/N122 封顶，探针 p17 g1..g6 全为 xor 物化）；③虚调用 receiver
 // 寄存器角色（N7）；④跳表基址 `.rodata` 重定位（AE）。
+// [b28e-solo-2] ①已修：同 CBindCubeTest::execute，ORIG 函数头 fileBuf 清零是
+// 数组初始化形（size 经 %edx 中转），`char fileBuf[95000] = {0};` 精确复现。
 void CBoosterTest::execute()
 {
     CUser* user = GetUser();
@@ -430,8 +430,7 @@ void CBoosterTest::execute()
     // [b28d-solo-GmCmds_A] P312：ORIG 对 fileName[0xff](-0x153) 发内联对齐剥离
     // 清零（无 memset call，p167 EXTRA memset）。
     char fileName[0xff] = {0};
-    char fileBuf[95000];
-    memset(fileBuf, 0, sizeof(fileBuf));
+    char fileBuf[95000] = {0};
 
     static char sMsgStart[] = "LOTTERY 아이템 결과체크를 시작합니다";
     CBoosterTest::SendChatMsg(user, sMsgStart);
@@ -471,21 +470,31 @@ void CBoosterTest::execute()
     std::map<int, int> result;
     switch (item->GetItemType())                       // ORIG vtbl[3]
     {
-    case 6:
-    case 7:
-    case 0xd:
-        if (!goldLottery)
-        {
-            this->getJarResult(item, result);
-        }
-        else
-        {
-            this->get_gold_lottery_result(item, result);
-        }
-        break;
+    // [b28e-solo-2] P324：ORIG 叶块物理序 = 0xf/0x10 → 6/7/0xd → 0x1a/0x1b
+    // → 0x14 → default（ORIG 84aeedb/84aeee5/84aef38/84aef53/84aef82）⇒ 按
+    // ORIG 块地址序重排 case（case 顺序不改语义，仅决定 .text 块序）。
     case 0xf:
     case 0x10:
         this->getBoosterResult(item, result);
+        break;
+    case 6:
+    case 7:
+    case 0xd:
+        // [b28e-solo-2] ORIG 正向 `cmpb $0,-0x1a; je <getJar>`（4.4 对
+        // `if (bool)` 直发 cmpb 2 条；`if (!bool)` 恒 xor 物化 3 条，N122）+
+        // get_gold 块在前 ⇒ 写正极性。
+        if (goldLottery)
+        {
+            this->get_gold_lottery_result(item, result);
+        }
+        else
+        {
+            this->getJarResult(item, result);
+        }
+        break;
+    case 0x1a:
+    case 0x1b:
+        this->getRandomboxResult(item, result);
         break;
     case 0x14:
         if (!this->getCompoundEmblemResult(item, result))
@@ -493,10 +502,6 @@ void CBoosterTest::execute()
             static char sNotEmblem[] = "엠블렘 합성 대상이 아닙니다.";
             CBoosterTest::SendChatMsg(GetUser(), sNotEmblem);
         }
-        break;
-    case 0x1a:
-    case 0x1b:
-        this->getRandomboxResult(item, result);
         break;
     default:
     {
@@ -511,13 +516,15 @@ void CBoosterTest::execute()
            0x3e);
     while (more)
     {
-        if (!goldLottery)
+        // [b28e-solo-2] 同 switch：ORIG `cmpb $0,-0x1a; je <makeFileContents>`
+        // 且 make_file_gold_contents 块在前 ⇒ 正极性。
+        if (goldLottery)
         {
-            CBoosterTest::makeFileContents(user, fileBuf, result);
+            CBoosterTest::make_file_gold_contents(user, fileBuf, result);
         }
         else
         {
-            CBoosterTest::make_file_gold_contents(user, fileBuf, result);
+            CBoosterTest::makeFileContents(user, fileBuf, result);
         }
         sprintf(fileName, "lottery_%d_%d.txt", m_mode, m_count);
         if (result.empty())
@@ -842,6 +849,13 @@ bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
 // `(10000/total)*counts[i]` 后 push/pop 消失、槽位与 ORIG 全等（探针 p13 A1 逐条同形）。
 // 残余仅 ORIG 空 then 死块 3 条（`cmpl $-1,-0x18; jmp; nop`，4.1 空 if 发射，
 // 4.4 DCE；while+break 反产 sete/test 形）⇒ P184 封顶。
+// [b28e-solo-2] 复核（fresh .o 94/91，jcc 目标逐位核对：除该 3 条外 84af415..084af501
+// 与 19bd..1aa2 逐条同目标）：该 3 条为 ORIG 084af44c `83 7d e8 ff` +
+// 084af450 `eb 01` + 084af452 `90`，比较结果**无消费者**（jmp 无条件跳过 nop）⇒
+// 4.1 空 then `if (ret==-1){}` 发射产物。4.4 前端整块 DCE：探针 /tmp/pg/p2.cpp
+// a1..a9（空 if/else 空/switch/while-break/do-while/goto 尾标签/嵌套/for-break）+
+// /tmp/pg/p4.cpp b1..b8（双 goto 同标签/else goto/双标签串/自赋值/(void)）共 17 形
+// 全部无 cmp/jmp/nop 输出 ⇒ 无源码解，P184 封顶。
 int CBoosterTest::_selectJewelTypeIndex(unsigned int count,
                                         unsigned short const* sockets) const
 {
@@ -1012,12 +1026,12 @@ void CBindCubeTest::parse()
 // [b28d-47] verdict=DIFF(routed) [N78/N84] ORIG 0x084acc1e orig/ours=166/134
 //   残差：EXTRA memset（我方缓冲零初始化 call vs ORIG 内联 rep stos，N78）+
 //   槽/寄存器分配差。
-// [b28d-solo-GmCmds_A] verdict=DIFF ndiff=5 [N-待解] p167 CLEAR(14/14)；仅剩
-// memset 第三实参 edx 中转（ORIG `mov $0x17318,%edx; mov %edx,0x8(%esp)` vs 4.4
-// 立即数直写，范式库「memset 首参 edx 中转」待解项），语义完成封顶。
-// [b28d-solo-2] 复核：orig/ours=167/165，唯一实质差异同 ①（首 memset 实参序）；
-// 探针 p15 f/g/h/i/j/k 六形（裸数组名/(char*)cast/&buf[0]/sizeof/字面量）4.4 恒
-// `movl $imm,0x8(%esp)` 直写 ⇒ 确认待解项封顶，语义完成。
+// [b28d-solo-GmCmds_A] verdict=DIFF ndiff=5 [N-待解] p167 CLEAR(14/14)。
+// [b28e-solo-2] 真因定位：ORIG 函数头 fileBuf 清零是**数组初始化**形而非显式
+// memset —— +0x085 段 `mov $0x17318,%edx; mov %edx,0x8(%esp)`（size 经 %edx
+// 中转），而循环内 +0x101 段才是 `movl $0x17318,0x8(%esp)` 直写（同一常量两形
+// 并存 ⇒ 原码两处写法不同）。4.4 对 `char buf[N] = {0};` 精确复现中转形
+// （探针 /tmp/pg/p1.cpp init_arr vs init_arr2），改后 gap 1→0。
 void CBindCubeTest::execute()
 {
     if (!(static_cast<signed char>(m_flag) >= 0 &&
@@ -1029,8 +1043,9 @@ void CBindCubeTest::execute()
     // [b28d-solo-GmCmds_A] P312：ORIG 对 fileName[0xff](-0x13b) 发内联对齐剥离
     // 清零（无 memset call，p167 EXTRA memset）。
     char fileName[0xff] = {0};
-    char fileBuf[95000];
-    memset(fileBuf, 0, sizeof(fileBuf));
+    // [b28e-solo-2] 函数头清零 = 数组初始化形（size 经 %edx 中转，见上）；
+    // 循环内仍是显式 memset(fileBuf,0,95000) 直写形。
+    char fileBuf[95000] = {0};
 
     std::map<int, int> result;
     for (int bind = 0; bind <= 1; ++bind)
@@ -1204,6 +1219,13 @@ void CBingoGmTest::resetData()
 // `mov slot,%eax; cmp $3,%eax; jle; mov $3,%eax; mov %eax,slot` vs 4.4 3 条内存形）。
 // 追加探针 p5/p6/p8 共 12 形（if/反转/三目/副本/goto/unsigned/长整/枚举/指针写）
 // 4.4 恒折内存比较+内存写 ⇒ N18b 封顶；尾部三岛（nop;jmp ×2 + nop）已对齐。
+// [b28e-solo-2] 复核（fresh .o 152/150，jcc 目标逐位核对：084b36a4/36c6/36e2 三岛、
+// 084b37cc/37a9/378b 循环与块出口与 266a/268c/26a8/278b/2768 逐一同目标，唯 clamp 段
+// `jle 084b378c`（回写点）vs 我方 `jle 274e`（跳过内存写）形异）：clamp 原码是三目/
+// min 形（无条件回写）。4.4.7 对 `x>3?3:x` 走 MIN_EXPR 发 cmovle（探针 c2/c3/c6/d6/d11），
+// 对 if 恒内存比较+内存写（c1/c8/c10），unsigned 比较出 `mov slot,%eax; cmpl; jbe; movl`
+// 仍无回写（c4/d2），`+0`/cast/局部副本等 11 形均不产寄存器回写 ⇒ 后端 cmov 选择差异，
+// N18b/P321-T5 封顶（禁为装载序改类型）。
 void CBingoGmTest::reqValue()
 {
     CUser* user = GetUser();
