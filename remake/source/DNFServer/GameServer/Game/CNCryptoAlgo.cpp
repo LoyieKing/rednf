@@ -1244,7 +1244,7 @@ static void anubis_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @param skey The key as scheduled
   @return CRYPT_OK if successful
 */
-int anubis_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int anubis_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 {
    LTC_ARGCHK(pt   != NULL);
    LTC_ARGCHK(ct   != NULL);
@@ -1265,7 +1265,7 @@ int anubis_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetr
   @param skey The key as scheduled
   @return CRYPT_OK if successful
 */
-int anubis_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int anubis_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 {
    LTC_ARGCHK(pt   != NULL);
    LTC_ARGCHK(ct   != NULL);
@@ -1612,7 +1612,7 @@ static const ulong32 ORIG_S[4][256] = {
 #define F(x) ((skey->blowfish.S[0][LTC_BYTE(x,3)] + skey->blowfish.S[1][LTC_BYTE(x,2)]) ^ skey->blowfish.S[2][LTC_BYTE(x,1)]) + skey->blowfish.S[3][LTC_BYTE(x,0)]
 #endif
 
-static void s_blowfish_encipher(ulong32 *L, ulong32 *R, const symmetric_key *skey)
+static void s_blowfish_encipher(ulong32 *L, ulong32 *R, symmetric_key *skey)
 {
    int rounds;
 
@@ -1645,7 +1645,7 @@ static void s_blowfish_encipher(ulong32 *L, ulong32 *R, const symmetric_key *ske
    *R = l;
 }
 
-void blowfish_enc(ulong32 *data, unsigned long blocks, const symmetric_key *skey)
+void blowfish_enc(ulong32 *data, unsigned long blocks, symmetric_key *skey)
 {
    unsigned long i;
    ulong32 *d = data;
@@ -1781,9 +1781,9 @@ int blowfish_setup_with_data(const unsigned char *key, int keylen,
   @return CRYPT_OK if successful
 */
 #ifdef LTC_CLEAN_STACK
-static int s_blowfish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+static int s_blowfish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 #else
-int blowfish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int blowfish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 #endif
 {
    ulong32 L, R;
@@ -1806,7 +1806,7 @@ int blowfish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symme
 }
 
 #ifdef LTC_CLEAN_STACK
-int blowfish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int blowfish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 {
     int err = s_blowfish_ecb_encrypt(pt, ct, skey);
     burn_stack(sizeof(ulong32) * 2 + sizeof(int));
@@ -1822,9 +1822,9 @@ int blowfish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symme
   @return CRYPT_OK if successful
 */
 #ifdef LTC_CLEAN_STACK
-static int s_blowfish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+static int s_blowfish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 #else
-int blowfish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int blowfish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 #endif
 {
    ulong32 L, R;
@@ -1867,7 +1867,7 @@ int blowfish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symme
 }
 
 #ifdef LTC_CLEAN_STACK
-int blowfish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int blowfish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 {
     int err = s_blowfish_ecb_decrypt(ct, pt, skey);
     burn_stack(sizeof(ulong32) * 2 + sizeof(int));
@@ -2415,9 +2415,9 @@ static LTC_INLINE ulong32 FIII(ulong32 R, ulong32 Km, ulong32 Kr)
   @param skey The key as scheduled
 */
 #ifdef LTC_CLEAN_STACK
-static int s_cast5_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+static int s_cast5_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 #else
-int cast5_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int cast5_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 #endif
 {
    ulong32 R, L;
@@ -2453,7 +2453,7 @@ int cast5_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetri
 
 
 #ifdef LTC_CLEAN_STACK
-int cast5_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int cast5_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 {
    int err = s_cast5_ecb_encrypt(pt,ct,skey);
    burn_stack(sizeof(ulong32)*3);
@@ -2468,9 +2468,9 @@ int cast5_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetri
   @param skey The key as scheduled
 */
 #ifdef LTC_CLEAN_STACK
-static int s_cast5_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+static int s_cast5_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 #else
-int cast5_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int cast5_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 #endif
 {
    ulong32 R, L;
@@ -2506,7 +2506,7 @@ int cast5_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetri
 }
 
 #ifdef LTC_CLEAN_STACK
-int cast5_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int cast5_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 {
    int err = s_cast5_ecb_decrypt(ct,pt,skey);
    burn_stack(sizeof(ulong32)*3);
@@ -2683,7 +2683,7 @@ static unsigned int FI( unsigned int in, unsigned int subkey )
   return (seven<<9) + nine;
 }
 
-static ulong32 FO( ulong32 in, int round_no, const symmetric_key *key)
+static ulong32 FO( ulong32 in, int round_no, symmetric_key *key)
 {
    u16 left, right;
 
@@ -2707,7 +2707,7 @@ static ulong32 FO( ulong32 in, int round_no, const symmetric_key *key)
   return (((ulong32)right)<<16)+left;
 }
 
-static ulong32 FL( ulong32 in, int round_no, const symmetric_key *key )
+static ulong32 FL( ulong32 in, int round_no, symmetric_key *key )
 {
     u16 l, r, a, b;
     /* split out the left and right halves */
@@ -2723,7 +2723,7 @@ static ulong32 FL( ulong32 in, int round_no, const symmetric_key *key )
     return (((ulong32)l)<<16) + r;
 }
 
-int kasumi_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int kasumi_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 {
     ulong32 left, right, temp;
     int n;
@@ -2750,7 +2750,7 @@ int kasumi_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetr
     return CRYPT_OK;
 }
 
-int kasumi_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int kasumi_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 {
     ulong32 left, right, temp;
     int n;
@@ -3561,7 +3561,7 @@ static void khazad_crypt(const unsigned char *plaintext, unsigned char *cipherte
   @param skey The key as scheduled
   @return CRYPT_OK if successful
 */
-int khazad_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int khazad_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 {
    LTC_ARGCHK(pt   != NULL);
    LTC_ARGCHK(ct   != NULL);
@@ -3577,7 +3577,7 @@ int khazad_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetr
   @param skey The key as scheduled
   @return CRYPT_OK if successful
 */
-int khazad_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int khazad_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 {
    LTC_ARGCHK(pt   != NULL);
    LTC_ARGCHK(ct   != NULL);
@@ -3784,7 +3784,7 @@ int  multi2_setup(const unsigned char *key, int keylen, int num_rounds, symmetri
   @param skey The key as scheduled
   @return CRYPT_OK if successful
 */
-int multi2_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int multi2_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 {
    ulong32 p[2];
    LTC_ARGCHK(pt   != NULL);
@@ -3805,7 +3805,7 @@ int multi2_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetr
   @param skey The key as scheduled
   @return CRYPT_OK if successful
 */
-int multi2_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int multi2_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 {
    ulong32 p[2];
    LTC_ARGCHK(pt   != NULL);
@@ -3938,9 +3938,9 @@ int noekeon_setup(const unsigned char *key, int keylen, int num_rounds, symmetri
   @return CRYPT_OK if successful
 */
 #ifdef LTC_CLEAN_STACK
-static int s_noekeon_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+static int s_noekeon_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 #else
-int noekeon_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int noekeon_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 #endif
 {
    ulong32 a,b,c,d,temp;
@@ -3976,7 +3976,7 @@ int noekeon_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmet
 }
 
 #ifdef LTC_CLEAN_STACK
-int noekeon_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int noekeon_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 {
    int err = s_noekeon_ecb_encrypt(pt, ct, skey);
    burn_stack(sizeof(ulong32) * 5 + sizeof(int));
@@ -3992,9 +3992,9 @@ int noekeon_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmet
   @return CRYPT_OK if successful
 */
 #ifdef LTC_CLEAN_STACK
-static int s_noekeon_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+static int s_noekeon_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 #else
-int noekeon_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int noekeon_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 #endif
 {
    ulong32 a,b,c,d, temp;
@@ -4029,7 +4029,7 @@ int noekeon_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmet
 }
 
 #ifdef LTC_CLEAN_STACK
-int noekeon_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int noekeon_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 {
    int err = s_noekeon_ecb_decrypt(ct, pt, skey);
    burn_stack(sizeof(ulong32) * 5 + sizeof(int));
@@ -4285,9 +4285,9 @@ static unsigned ig_func(unsigned w, int *kp, const unsigned char *key)
   @return CRYPT_OK if successful
 */
 #ifdef LTC_CLEAN_STACK
-static int s_skipjack_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+static int s_skipjack_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 #else
-int skipjack_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int skipjack_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 #endif
 {
    unsigned w1,w2,w3,w4,tmp,tmp1;
@@ -4333,7 +4333,7 @@ int skipjack_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symme
 }
 
 #ifdef LTC_CLEAN_STACK
-int skipjack_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int skipjack_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 {
    int err = s_skipjack_ecb_encrypt(pt, ct, skey);
    burn_stack(sizeof(unsigned) * 8 + sizeof(int) * 2);
@@ -4349,9 +4349,9 @@ int skipjack_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symme
   @return CRYPT_OK if successful
 */
 #ifdef LTC_CLEAN_STACK
-static int s_skipjack_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+static int s_skipjack_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 #else
-int skipjack_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int skipjack_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 #endif
 {
    unsigned w1,w2,w3,w4,tmp;
@@ -4401,7 +4401,7 @@ int skipjack_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symme
 }
 
 #ifdef LTC_CLEAN_STACK
-int skipjack_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int skipjack_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 {
    int err = s_skipjack_ecb_decrypt(ct, pt, skey);
    burn_stack(sizeof(unsigned) * 7 + sizeof(int) * 2);
@@ -4702,9 +4702,9 @@ static void h_func(const unsigned char *in, unsigned char *out, const unsigned c
 #define g_func s_twofish_g_func
 
 #ifdef LTC_CLEAN_STACK
-static ulong32 s_g_func(ulong32 x, const symmetric_key *key)
+static ulong32 s_g_func(ulong32 x, symmetric_key *key)
 #else
-static ulong32 g_func(ulong32 x, const symmetric_key *key)
+static ulong32 g_func(ulong32 x, symmetric_key *key)
 #endif
 {
    unsigned char g, i, y, z;
@@ -4735,7 +4735,7 @@ static ulong32 g_func(ulong32 x, const symmetric_key *key)
 #define g1_func(x, key) g_func(ROLc(x, 8), key)
 
 #ifdef LTC_CLEAN_STACK
-static ulong32 g_func(ulong32 x, const symmetric_key *key)
+static ulong32 g_func(ulong32 x, symmetric_key *key)
 {
     ulong32 y;
     y = s_g_func(x, key);
@@ -4882,9 +4882,9 @@ int twofish_setup(const unsigned char *key, int keylen, int num_rounds, symmetri
   @return CRYPT_OK if successful
 */
 #ifdef LTC_CLEAN_STACK
-static int s_twofish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+static int s_twofish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 #else
-int twofish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int twofish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 #endif
 {
     ulong32 a,b,c,d,ta,tb,tc,td,t1,t2;
@@ -4940,7 +4940,7 @@ int twofish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmet
 }
 
 #ifdef LTC_CLEAN_STACK
-int twofish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int twofish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 {
    int err = s_twofish_ecb_encrypt(pt, ct, skey);
    burn_stack(sizeof(ulong32) * 10 + sizeof(int));
@@ -4956,9 +4956,9 @@ int twofish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmet
   @return CRYPT_OK if successful
 */
 #ifdef LTC_CLEAN_STACK
-static int s_twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+static int s_twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 #else
-int twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 #endif
 {
     ulong32 a,b,c,d,ta,tb,tc,td,t1,t2;
@@ -5016,7 +5016,7 @@ int twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmet
 }
 
 #ifdef LTC_CLEAN_STACK
-int twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 {
    int err = s_twofish_ecb_decrypt(ct, pt, skey);
    burn_stack(sizeof(ulong32) * 10 + sizeof(int));
@@ -5126,7 +5126,7 @@ int xtea_setup(const unsigned char *key, int keylen, int num_rounds, symmetric_k
   @param skey The key as scheduled
   @return CRYPT_OK if successful
 */
-int xtea_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric_key *skey)
+int xtea_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey)
 {
    ulong32 y, z;
    int r;
@@ -5162,7 +5162,7 @@ int xtea_ecb_encrypt(const unsigned char *pt, unsigned char *ct, const symmetric
   @param skey The key as scheduled
   @return CRYPT_OK if successful
 */
-int xtea_ecb_decrypt(const unsigned char *ct, unsigned char *pt, const symmetric_key *skey)
+int xtea_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey)
 {
    ulong32 y, z;
    int r;

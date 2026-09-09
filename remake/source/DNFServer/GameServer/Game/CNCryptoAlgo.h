@@ -114,11 +114,13 @@ typedef unsigned long long ulong64;
 #define LTC_TWOFISH
 #define LTC_XTEA
 
-// CBlowFish —— ORIG 的 CNCryptoBlowFish 上下文（ORIG new 0x1058=4184 实证）。
+// BlowFishCtx —— CNCryptoBlowFish 上下文布局镜像（ORIG new 0x1058=4184 实证）。
+// 原名 CBlowFish 与权威类 CBlowFish.h::CBlowFish 同名 ⇒ ODR 冲突（§4.4），
+// 改名保留唯一 class CBlowFish 定义点。
 // ORIG CBlowFish 布局：SBlock(8)+SBlock(8)+P[18](0x48)+S[4][256](0x1000)；
 // 此处按 symmetric_key->blowfish 同序（S 在前）组织，前 4168 字节与
 // blowfish_setup/ecb 访问布局一致，尾补 16 字节对齐 4184。
-struct CBlowFish
+struct BlowFishCtx
 {
     ulong32 S[4][256];   // +0x0000
     ulong32 P[18];       // +0x1000
@@ -171,46 +173,46 @@ struct symmetric_key
 
 // ---- 各算法公开接口 ----
 int  anubis_setup(const unsigned char* key, int keylen, int num_rounds, symmetric_key* skey);
-int  anubis_ecb_encrypt(const unsigned char* pt, unsigned char* ct, const symmetric_key* skey);
-int  anubis_ecb_decrypt(const unsigned char* ct, unsigned char* pt, const symmetric_key* skey);
+int anubis_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey);
+int anubis_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey);
 
 int  blowfish_setup(const unsigned char* key, int keylen, int num_rounds, symmetric_key* skey);
 int  blowfish_setup_with_data(const unsigned char* key, int keylen,
                               const unsigned char* data, int datalen, symmetric_key* skey);
-int  blowfish_ecb_encrypt(const unsigned char* pt, unsigned char* ct, const symmetric_key* skey);
-int  blowfish_ecb_decrypt(const unsigned char* ct, unsigned char* pt, const symmetric_key* skey);
+int blowfish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey);
+int blowfish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey);
 
 int  cast5_setup(const unsigned char* key, int keylen, int num_rounds, symmetric_key* skey);
-int  cast5_ecb_encrypt(const unsigned char* pt, unsigned char* ct, const symmetric_key* skey);
-int  cast5_ecb_decrypt(const unsigned char* ct, unsigned char* pt, const symmetric_key* skey);
+int cast5_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey);
+int cast5_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey);
 
 int  kasumi_setup(const unsigned char* key, int keylen, int num_rounds, symmetric_key* skey);
-int  kasumi_ecb_encrypt(const unsigned char* pt, unsigned char* ct, const symmetric_key* skey);
-int  kasumi_ecb_decrypt(const unsigned char* ct, unsigned char* pt, const symmetric_key* skey);
+int kasumi_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey);
+int kasumi_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey);
 
 int  khazad_setup(const unsigned char* key, int keylen, int num_rounds, symmetric_key* skey);
-int  khazad_ecb_encrypt(const unsigned char* pt, unsigned char* ct, const symmetric_key* skey);
-int  khazad_ecb_decrypt(const unsigned char* ct, unsigned char* pt, const symmetric_key* skey);
+int khazad_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey);
+int khazad_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey);
 
 int  multi2_setup(const unsigned char* key, int keylen, int num_rounds, symmetric_key* skey);
-int  multi2_ecb_encrypt(const unsigned char* pt, unsigned char* ct, const symmetric_key* skey);
-int  multi2_ecb_decrypt(const unsigned char* ct, unsigned char* pt, const symmetric_key* skey);
+int multi2_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey);
+int multi2_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey);
 
 int  noekeon_setup(const unsigned char* key, int keylen, int num_rounds, symmetric_key* skey);
-int  noekeon_ecb_encrypt(const unsigned char* pt, unsigned char* ct, const symmetric_key* skey);
-int  noekeon_ecb_decrypt(const unsigned char* ct, unsigned char* pt, const symmetric_key* skey);
+int noekeon_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey);
+int noekeon_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey);
 
 int  skipjack_setup(const unsigned char* key, int keylen, int num_rounds, symmetric_key* skey);
-int  skipjack_ecb_encrypt(const unsigned char* pt, unsigned char* ct, const symmetric_key* skey);
-int  skipjack_ecb_decrypt(const unsigned char* ct, unsigned char* pt, const symmetric_key* skey);
+int skipjack_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey);
+int skipjack_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey);
 
 int  twofish_setup(const unsigned char* key, int keylen, int num_rounds, symmetric_key* skey);
-int  twofish_ecb_encrypt(const unsigned char* pt, unsigned char* ct, const symmetric_key* skey);
-int  twofish_ecb_decrypt(const unsigned char* ct, unsigned char* pt, const symmetric_key* skey);
+int twofish_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey);
+int twofish_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey);
 
 int  xtea_setup(const unsigned char* key, int keylen, int num_rounds, symmetric_key* skey);
-int  xtea_ecb_encrypt(const unsigned char* pt, unsigned char* ct, const symmetric_key* skey);
-int  xtea_ecb_decrypt(const unsigned char* ct, unsigned char* pt, const symmetric_key* skey);
+int xtea_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *skey);
+int xtea_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key *skey);
 
 // RC6 —— ORIG 自创变体（2026-08-31 完整转写，结构按 ORIG new 0x4c=76 对齐）。
 // ORIG Initialize 0x809bc84：memcpy(+0x0,key,0x20)+memcpy(+0x20,key,0x2c)

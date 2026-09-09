@@ -9,6 +9,23 @@
 #include "CRijndael.h"
 #include "CEnvironment.h"   // CTEA
 #include "CNCryptoAlgo.h"
+#include "CBlowFish.h"
+
+// ORIG TU-local static（nm：t _ZL3ROLji @0x0809c418 / t _ZL3RORji @0x0809c42d，
+// 体 `x = ROLc/RORc(x,y); return x;`，4.1 发寄存器 rol/ror + 写回形参槽）。
+#undef ROL
+#undef ROR
+static unsigned int ROL(unsigned int x, int y)
+{
+    x = ROLc(x, y);
+    return x;
+}
+
+static unsigned int ROR(unsigned int x, int y)
+{
+    x = RORc(x, y);
+    return x;
+}
 
 // ============================================================================
 // CNCryptoShift（SHIFT：32 位 ROR + XOR，块 4 / 钥 8）
@@ -28,17 +45,10 @@ CNCryptoShift::~CNCryptoShift()
 CNCryptoShift::CNCryptoShift(const CNCryptoShift& other)
     : ICryptoGraph(CRYPTO_GRAPH_SHIFT)
 {
-    m_shift = other.m_shift;
-    m_key = other.m_key;
 }
 
 CNCryptoShift& CNCryptoShift::operator=(const CNCryptoShift& other)
 {
-    if (this != &other)
-    {
-        m_shift = other.m_shift;
-        m_key = other.m_key;
-    }
     return *this;
 }
 
@@ -51,11 +61,10 @@ int CNCryptoShift::Initialize(const unsigned char* key, int keyLen)
 {
     if (keyLen < 8)
         return 0;
-    m_shift = (unsigned int)key[0] | ((unsigned int)key[1] << 8) |
-              ((unsigned int)key[2] << 16) | ((unsigned int)key[3] << 24);
-    m_shift &= 0x1f;
-    m_key = (unsigned int)key[4] | ((unsigned int)key[5] << 8) |
-            ((unsigned int)key[6] << 16) | ((unsigned int)key[7] << 24);
+    // ORIG 0x0809c4fe：32 位直读 + 形参自增（addl $0x4,0xc(%ebp)）。
+    m_shift = *(const unsigned int*)key & 0x1f;
+    key += 4;
+    m_key = *(const unsigned int*)key;
     return 0x6fffffff;
 }
 
@@ -63,14 +72,18 @@ int CNCryptoShift::Encrypt(unsigned char* buf, int len)
 {
     if (m_shift >= 0x20)
         return 0x7000000c;
-    if (len % 4 != 0)
+    int blockSize = GetBlockSize();
+    if (len % blockSize != 0)
         return 0x70000006;
     unsigned int* p = (unsigned int*)buf;
-    for (int i = 0; i < len / 4; ++i)
+    int count = len / GetBlockSize();
+    for (int i = 0; i < count; ++i)
     {
-        unsigned int v = p[i];
-        v = RORc(v, (int)m_shift);
-        p[i] = v ^ m_key;
+        unsigned int v = *p;
+        ROR(v, (int)m_shift);   // ORIG 丢弃返回值（原码遗留，P171 照抄）
+        v ^= m_key;
+        *p = v;
+        ++p;
     }
     return 0x6fffffff;
 }
@@ -79,13 +92,18 @@ int CNCryptoShift::Decrypt(unsigned char* buf, int len)
 {
     if (m_shift >= 0x20)
         return 0x7000000c;
-    if (len % 4 != 0)
+    int blockSize = GetBlockSize();
+    if (len % blockSize != 0)
         return 0x70000006;
     unsigned int* p = (unsigned int*)buf;
-    for (int i = 0; i < len / 4; ++i)
+    int count = len / GetBlockSize();
+    for (int i = 0; i < count; ++i)
     {
-        unsigned int v = p[i] ^ m_key;
-        p[i] = ROLc(v, (int)m_shift);
+        unsigned int v = *p;
+        v ^= m_key;
+        ROL(v, (int)m_shift);   // ORIG 丢弃返回值（原码遗留，P171 照抄）
+        *p = v;
+        ++p;
     }
     return 0x6fffffff;
 }
@@ -93,19 +111,51 @@ int CNCryptoShift::Decrypt(unsigned char* buf, int len)
 int CNCryptoShift::Encrypt(const unsigned char* in, int inLen,
                            unsigned char* out, int outCap)
 {
-    if (outCap < inLen)
-        return 0x7000000b;
-    std::memcpy(out, in, inLen);
-    return Encrypt(out, inLen);
+    if (m_shift >= 0x20)
+        return 0x7000000c;
+    int blockSize = GetBlockSize();
+    if (inLen % blockSize != 0)
+        return 0x70000006;
+    if (inLen > outCap)
+        return 0x7000000a;
+    const unsigned int* src = (const unsigned int*)in;
+    unsigned int* dst = (unsigned int*)out;
+    int count = inLen / GetBlockSize();
+    for (int i = 0; i < count; ++i)
+    {
+        unsigned int v = *src;
+        ++src;
+        ROR(v, (int)m_shift);   // ORIG 丢弃返回值（原码遗留，P171 照抄）
+        v ^= m_key;
+        *dst = v;
+        ++dst;
+    }
+    return 0x6fffffff;
 }
 
 int CNCryptoShift::Decrypt(const unsigned char* in, int inLen,
                            unsigned char* out, int outCap)
 {
-    if (outCap < inLen)
-        return 0x7000000b;
-    std::memcpy(out, in, inLen);
-    return Decrypt(out, inLen);
+    if (m_shift >= 0x20)
+        return 0x7000000c;
+    int blockSize = GetBlockSize();
+    if (inLen % blockSize != 0)
+        return 0x70000006;
+    if (inLen > outCap)
+        return 0x7000000a;
+    const unsigned int* src = (const unsigned int*)in;
+    unsigned int* dst = (unsigned int*)out;
+    int count = inLen / GetBlockSize();
+    for (int i = 0; i < count; ++i)
+    {
+        unsigned int v = *src;
+        ++src;
+        v ^= m_key;
+        ROL(v, (int)m_shift);   // ORIG 丢弃返回值（原码遗留，P171 照抄）
+        *dst = v;
+        ++dst;
+    }
+    return 0x6fffffff;
 }
 
 int CNCryptoShift::GetKeySize() const
@@ -126,15 +176,15 @@ CNCryptoRijndael::CNCryptoRijndael()
     : ICryptoGraph(CRYPTO_GRAPH_RIJNDAEL)
 {
     m_pCrypto = 0;
-    CRijndael* c = new CRijndael;
-    m_pCrypto = c;
-    if (c)
+    m_pCrypto = new CRijndael;
+    if (m_pCrypto != 0)
     {
         char key[0x80];
         GenerateRandomString(key, 0x80);
-        if (c->Initialize(key, 0x80, CRijndael::sm_chain0, 0x10, 0x10, 0, 0) != 0x6fffffff)
+        if (((CRijndael*)m_pCrypto)->Initialize(key, 0x80, CRijndael::sm_chain0,
+                                                0x10, 0x10, 0, 0) != 0x6fffffff)
         {
-            delete c;
+            delete (CRijndael*)m_pCrypto;
             m_pCrypto = 0;
         }
     }
@@ -188,7 +238,8 @@ int CNCryptoRijndael::Encrypt(unsigned char* buf, int len)
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    if (len % 0x10 != 0)
+    int blockSize = GetBlockSize();
+    if (len % blockSize != 0)
         return 0x70000006;
     return ((CRijndael*)m_pCrypto)->Encrypt((const char*)buf, (char*)buf, len);
 }
@@ -197,7 +248,8 @@ int CNCryptoRijndael::Decrypt(unsigned char* buf, int len)
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    if (len % 0x10 != 0)
+    int blockSize = GetBlockSize();
+    if (len % blockSize != 0)
         return 0x70000006;
     return ((CRijndael*)m_pCrypto)->Decrypt((const char*)buf, (char*)buf, len);
 }
@@ -207,9 +259,10 @@ int CNCryptoRijndael::Encrypt(const unsigned char* in, int inLen,
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    if (outCap < inLen)
+    if (inLen > outCap)
         return 0x7000000b;
-    if (inLen % 0x10 != 0)
+    int blockSize = GetBlockSize();
+    if (inLen % blockSize != 0)
         return 0x70000006;
     return ((CRijndael*)m_pCrypto)->Encrypt((const char*)in, (char*)out, inLen);
 }
@@ -219,9 +272,10 @@ int CNCryptoRijndael::Decrypt(const unsigned char* in, int inLen,
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    if (outCap < inLen)
+    if (inLen > outCap)
         return 0x7000000b;
-    if (inLen % 0x10 != 0)
+    int blockSize = GetBlockSize();
+    if (inLen % blockSize != 0)
         return 0x70000006;
     return ((CRijndael*)m_pCrypto)->Decrypt((const char*)in, (char*)out, inLen);
 }
@@ -244,15 +298,14 @@ CNCryptoTea::CNCryptoTea()
     : ICryptoGraph(CRYPTO_GRAPH_TEA)
 {
     m_pCrypto = 0;
-    CTEA* c = new CTEA;
-    m_pCrypto = c;
-    if (c)
+    m_pCrypto = new CTEA;
+    if (m_pCrypto != 0)
     {
         char key[0x80];
         GenerateRandomString(key, 0x80);
-        if (c->Initialize(key, 0x80, "", 0, 0) != 0x6fffffff)
+        if (((CTEA*)m_pCrypto)->Initialize(key, 0x80, "", 0, 0) != 0x6fffffff)
         {
-            delete c;
+            delete (CTEA*)m_pCrypto;
             m_pCrypto = 0;
         }
     }
@@ -307,7 +360,8 @@ int CNCryptoTea::Encrypt(unsigned char* buf, int len)
         return 0x7000000c;
     if (len < 1)
         return 0x7000000b;
-    if (len % 0x10 != 0)
+    int blockSize = GetBlockSize();
+    if (len % blockSize != 0)
         return 0x70000006;
     return ((CTEA*)m_pCrypto)->Encrypt((const char*)buf, (char*)buf, len);
 }
@@ -318,7 +372,8 @@ int CNCryptoTea::Decrypt(unsigned char* buf, int len)
         return 0x7000000c;
     if (len < 1)
         return 0x7000000b;
-    if (len % 0x10 != 0)
+    int blockSize = GetBlockSize();
+    if (len % blockSize != 0)
         return 0x70000006;
     return ((CTEA*)m_pCrypto)->Decrypt((const char*)buf, (char*)buf, len);
 }
@@ -328,9 +383,10 @@ int CNCryptoTea::Encrypt(const unsigned char* in, int inLen,
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    if (outCap < inLen)
+    if (inLen > outCap)
         return 0x7000000b;
-    if (inLen % 0x10 != 0)
+    int blockSize = GetBlockSize();
+    if (inLen % blockSize != 0)
         return 0x70000006;
     return ((CTEA*)m_pCrypto)->Encrypt((const char*)in, (char*)out, inLen);
 }
@@ -340,10 +396,9 @@ int CNCryptoTea::Decrypt(const unsigned char* in, int inLen,
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    if (outCap < inLen)
+    if (inLen > outCap)
         return 0x7000000b;
-    if (inLen % 0x10 != 0)
-        return 0x70000006;
+    // ORIG 0x0809d2b6：4 参 Decrypt 无 GetBlockSize/模检查，直接虚调用 +0x10。
     return ((CTEA*)m_pCrypto)->Decrypt((const char*)in, (char*)out, inLen);
 }
 
@@ -366,21 +421,16 @@ CNCryptoBlowFish::CNCryptoBlowFish()
 {
     m_pCrypto = 0;
     m_mode = 0;
-    // ORIG 0x8099876 new 0x1058（CBlowFish，非 symmetric_key）——2026-08-31
-    // 对齐：CBlowFish 前 4168 字节与 symmetric_key->blowfish 布局一致，
-    // blowfish_setup/ecb 可直接使用。
-    CBlowFish* c = new CBlowFish;
+    // ORIG 0x0809980c..0x080998f7：GenerateRandomKey(key,0x38) → SBlock chain(0,0)
+    // → new CBlowFish(key,0x38,chain) → m_pCrypto=c；m_pCrypto==0 时
+    // NCryptoSetLastError(0x7000000d)（0x0809e45c）。
+    unsigned char key[0x38];
+    GenerateRandomKey(key, 0x38);
+    SBlock chain(0, 0);
+    CBlowFish* c = new CBlowFish(key, 0x38, chain);
     m_pCrypto = c;
-    if (c)
-    {
-        unsigned char key[0x38];
-        GenerateRandomKey(key, 0x38);
-        if (blowfish_setup(key, 0x38, 0, (symmetric_key*)c) != CRYPT_OK)
-        {
-            delete c;
-            m_pCrypto = 0;
-        }
-    }
+    if (m_pCrypto == 0)
+        NCryptoSetLastError(0x7000000d);
 }
 
 CNCryptoBlowFish::~CNCryptoBlowFish()
@@ -395,14 +445,10 @@ CNCryptoBlowFish::~CNCryptoBlowFish()
 CNCryptoBlowFish::CNCryptoBlowFish(const CNCryptoBlowFish& other)
     : ICryptoGraph(CRYPTO_GRAPH_BLOWFISH)
 {
-    m_pCrypto = 0;
-    m_mode = other.m_mode;
 }
 
 CNCryptoBlowFish& CNCryptoBlowFish::operator=(const CNCryptoBlowFish& other)
 {
-    if (this != &other)
-        m_mode = other.m_mode;
     return *this;
 }
 
@@ -414,44 +460,77 @@ int CNCryptoBlowFish::SetMode(CRYPTO_MODE_TYPE mode)
 
 int CNCryptoBlowFish::Initialize(const unsigned char* key, int keyLen)
 {
-    if (!m_pCrypto)
-        return 0x7000000c;
-    if (keyLen < 0x38)
-        return 0x7000000a;
-    int err = blowfish_setup(key, 0x38, 0, (symmetric_key*)m_pCrypto);
-    if (err == CRYPT_OK)
-        return 0x6fffffff;
-    if (err == CRYPT_INVALID_ROUNDS)
-        return 0x7000001a;
-    if (err == CRYPT_INVALID_KEYSIZE)
+    // ORIG 0x080999a8..0x08099b29：按 keyLen 两路 new CBlowFish（>=0x38 用原 key，
+    // <0x38 先 memset 0x38 + memcpy keyLen 补零），成功后 ::operator delete 旧指针
+    // 并换入新对象；new 失败返回 0x7000000d，成功 0x6fffffff。
+    if (keyLen < 1)
         return 0x70000002;
-    return 0x70000000;
+    if (keyLen > 0x37)
+    {
+        SBlock chain(0, 0);
+        CBlowFish* c = new CBlowFish((unsigned char*)key, 0x38, chain);
+        if (c != 0)
+        {
+            ::operator delete(m_pCrypto);
+            m_pCrypto = c;
+        }
+        else
+        {
+            return 0x7000000d;
+        }
+    }
+    else
+    {
+        unsigned char buf[0x38];
+        std::memset(buf, 0, 0x38);
+        std::memcpy(buf, key, keyLen);
+        SBlock chain(0, 0);
+        CBlowFish* c = new CBlowFish(buf, 0x38, chain);
+        if (c != 0)
+        {
+            ::operator delete(m_pCrypto);
+            m_pCrypto = c;
+        }
+        else
+        {
+            return 0x7000000d;
+        }
+    }
+    return 0x6fffffff;
 }
 
 int CNCryptoBlowFish::Encrypt(unsigned char* buf, int len)
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    if (len < 1)
-        return 0x7000000a;
-    if (len % 8 != 0)
+    int blockSize = GetBlockSize();
+    if (len % blockSize != 0)
         return 0x70000006;
-    for (int i = 0; i < len / 8; ++i)
-        blowfish_ecb_encrypt(buf + i * 8, buf + i * 8, (symmetric_key*)m_pCrypto);
-    return 0x6fffffff;
+    // ORIG 0x08099b2a：按 m_mode 分派到 CBlowFish::Encrypt(in,out,len,mode)；
+    // mode 1 与 3 同传 1，mode 0 传 0，其余 0x70000017。
+    if (m_mode == 1)
+        return ((CBlowFish*)m_pCrypto)->Encrypt(buf, buf, len, 1);
+    if (m_mode == 3)
+        return ((CBlowFish*)m_pCrypto)->Encrypt(buf, buf, len, 2);   // ORIG 2 参版 mode3 传 2
+    if (m_mode == 0)
+        return ((CBlowFish*)m_pCrypto)->Encrypt(buf, buf, len, 0);
+    return 0x70000017;
 }
 
 int CNCryptoBlowFish::Decrypt(unsigned char* buf, int len)
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    if (len < 1)
-        return 0x7000000a;
-    if (len % 8 != 0)
+    int blockSize = GetBlockSize();
+    if (len % blockSize != 0)
         return 0x70000006;
-    for (int i = 0; i < len / 8; ++i)
-        blowfish_ecb_decrypt(buf + i * 8, buf + i * 8, (symmetric_key*)m_pCrypto);
-    return 0x6fffffff;
+    if (m_mode == 1)
+        return ((CBlowFish*)m_pCrypto)->Decrypt(buf, buf, len, 1);
+    if (m_mode == 3)
+        return ((CBlowFish*)m_pCrypto)->Decrypt(buf, buf, len, 2);   // ORIG 2 参版 mode3 传 2
+    if (m_mode == 0)
+        return ((CBlowFish*)m_pCrypto)->Decrypt(buf, buf, len, 0);
+    return 0x70000017;
 }
 
 int CNCryptoBlowFish::Encrypt(const unsigned char* in, int inLen,
@@ -459,13 +538,17 @@ int CNCryptoBlowFish::Encrypt(const unsigned char* in, int inLen,
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    if (outCap < inLen)
-        return 0x7000000b;
-    if (inLen % 8 != 0)
+    if (inLen > outCap)
+        return 0x7000000a;
+    if ((inLen & 7) != 0)
         return 0x70000006;
-    for (int i = 0; i < inLen / 8; ++i)
-        blowfish_ecb_encrypt(in + i * 8, out + i * 8, (symmetric_key*)m_pCrypto);
-    return 0x6fffffff;
+    if (m_mode == 1)
+        return ((CBlowFish*)m_pCrypto)->Encrypt(in, out, inLen, 1);
+    if (m_mode == 3)
+        return ((CBlowFish*)m_pCrypto)->Encrypt(in, out, inLen, 1);
+    if (m_mode == 0)
+        return ((CBlowFish*)m_pCrypto)->Encrypt(in, out, inLen, 0);
+    return 0x70000017;
 }
 
 int CNCryptoBlowFish::Decrypt(const unsigned char* in, int inLen,
@@ -473,13 +556,17 @@ int CNCryptoBlowFish::Decrypt(const unsigned char* in, int inLen,
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    if (outCap < inLen)
-        return 0x7000000b;
-    if (inLen % 8 != 0)
+    if (inLen > outCap)
+        return 0x7000000a;
+    if ((inLen & 7) != 0)
         return 0x70000006;
-    for (int i = 0; i < inLen / 8; ++i)
-        blowfish_ecb_decrypt(in + i * 8, out + i * 8, (symmetric_key*)m_pCrypto);
-    return 0x6fffffff;
+    if (m_mode == 1)
+        return ((CBlowFish*)m_pCrypto)->Decrypt(in, out, inLen, 1);
+    if (m_mode == 3)
+        return ((CBlowFish*)m_pCrypto)->Decrypt(in, out, inLen, 1);
+    if (m_mode == 0)
+        return ((CBlowFish*)m_pCrypto)->Decrypt(in, out, inLen, 0);
+    return 0x70000017;
 }
 
 int CNCryptoBlowFish::GetKeySize() const
@@ -565,17 +652,18 @@ int CNCryptoRc6::Encrypt(const unsigned char* in, int inLen,
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    if (inLen % 0x10 != 0)
+    int blockSize = GetBlockSize();
+    if (inLen % blockSize != 0)
         return 0x70000006;
-    if (outCap < inLen)
+    if (inLen > outCap)
         return 0x7000000a;
-    const unsigned int* src = (const unsigned int*)in;
-    unsigned int* dst = (unsigned int*)out;
-    for (int i = 0; i < inLen / 0x10; ++i)
+    int count = inLen / GetBlockSize();
+    for (int i = 0; i < count; ++i)
     {
-        rc6_block_encrypt((const RC6_ALG_INFO*)m_pCrypto, src, dst);
-        src += 4;
-        dst += 4;
+        rc6_block_encrypt((const RC6_ALG_INFO*)m_pCrypto,
+                          (const unsigned int*)in, (unsigned int*)out);
+        in += GetBlockSize();
+        out += GetBlockSize();
     }
     return 0x6fffffff;
 }
@@ -585,17 +673,18 @@ int CNCryptoRc6::Decrypt(const unsigned char* in, int inLen,
 {
     if (!m_pCrypto)
         return 0x7000000c;
-    if (inLen % 0x10 != 0)
+    int blockSize = GetBlockSize();
+    if (inLen % blockSize != 0)
         return 0x70000006;
-    if (outCap < inLen)
+    if (inLen > outCap)
         return 0x7000000a;
-    const unsigned int* src = (const unsigned int*)in;
-    unsigned int* dst = (unsigned int*)out;
-    for (int i = 0; i < inLen / 0x10; ++i)
+    int count = inLen / GetBlockSize();
+    for (int i = 0; i < count; ++i)
     {
-        rc6_block_decrypt((const RC6_ALG_INFO*)m_pCrypto, src, dst);
-        src += 4;
-        dst += 4;
+        rc6_block_decrypt((const RC6_ALG_INFO*)m_pCrypto,
+                          (const unsigned int*)in, (unsigned int*)out);
+        in += GetBlockSize();
+        out += GetBlockSize();
     }
     return 0x6fffffff;
 }
@@ -615,7 +704,7 @@ int CNCryptoRc6::GetBlockSize() const
 // Skipjack/TwoFish/XTea）：统一 ECB 逐块处理，算法/上下文见 CNCryptoAlgo
 // ============================================================================
 
-#define LTC_WRAPPER_DEF(Name, CtorType, BlockSize, KeySize, CtxSize, SetupFn, EncFn, DecFn) \
+#define LTC_WRAPPER_DEF(Name, CtorType, BlockSize, KeySize, CtxSize, Rounds, KeyErr, FirstErr, SecondErr, SetupFn, EncFn, DecFn) \
 Name::Name() : ICryptoGraph(CtorType)                                                       \
 {                                                                                           \
     m_pCrypto = 0;                                                                          \
@@ -652,63 +741,90 @@ int Name::Initialize(const unsigned char* key, int keyLen)                      
 {                                                                                           \
     if (!m_pCrypto)                                                                         \
         return 0x7000000c;                                                                  \
-    if (keyLen < KeySize)                                                                   \
-        return 0x7000000a;                                                                  \
-    int err = SetupFn(key, KeySize, 0, (symmetric_key*)m_pCrypto);                          \
+    if (GetKeySize() > keyLen)                                                              \
+        return KeyErr;                                                                      \
+    symmetric_key* c = (symmetric_key*)m_pCrypto;                                            \
+    int err = SetupFn(key, GetKeySize(), Rounds, c);                                        \
     if (err == CRYPT_OK)                                                                    \
         return 0x6fffffff;                                                                  \
-    if (err == CRYPT_INVALID_ROUNDS)                                                        \
-        return 0x7000001a;                                                                  \
-    if (err == CRYPT_INVALID_KEYSIZE)                                                       \
-        return 0x70000002;                                                                  \
+    if (err == FirstErr)                                                                    \
+        return FirstErr == CRYPT_INVALID_KEYSIZE ? 0x70000002 : 0x7000001a;                 \
+    if (err == SecondErr)                                                                   \
+        return SecondErr == CRYPT_INVALID_KEYSIZE ? 0x70000002 : 0x7000001a;                \
     return 0x70000000;                                                                      \
 }                                                                                           \
 int Name::Encrypt(unsigned char* buf, int len)                                              \
 {                                                                                           \
     if (!m_pCrypto)                                                                         \
         return 0x7000000c;                                                                  \
-    if (len < 1)                                                                            \
-        return 0x7000000a;                                                                  \
-    if (len % BlockSize != 0)                                                               \
+    int blockSize = GetBlockSize();                                                         \
+    if (len % blockSize != 0)                                                               \
         return 0x70000006;                                                                  \
-    for (int i = 0; i < len / BlockSize; ++i)                                               \
-        EncFn(buf + i * BlockSize, buf + i * BlockSize, (symmetric_key*)m_pCrypto);         \
+    if (len <= 0)                                                                           \
+        return 0x7000000a;                                                                  \
+    symmetric_key* c = (symmetric_key*)m_pCrypto;                                            \
+    int count = len / GetBlockSize();                                                       \
+    for (int i = 0; i < count; ++i)                                                         \
+    {                                                                                       \
+        EncFn(buf, buf, c);                                                                 \
+        buf += GetBlockSize();                                                              \
+    }                                                                                       \
     return 0x6fffffff;                                                                      \
 }                                                                                           \
 int Name::Decrypt(unsigned char* buf, int len)                                              \
 {                                                                                           \
     if (!m_pCrypto)                                                                         \
         return 0x7000000c;                                                                  \
-    if (len < 1)                                                                            \
-        return 0x7000000a;                                                                  \
-    if (len % BlockSize != 0)                                                               \
+    int blockSize = GetBlockSize();                                                         \
+    if (len % blockSize != 0)                                                               \
         return 0x70000006;                                                                  \
-    for (int i = 0; i < len / BlockSize; ++i)                                               \
-        DecFn(buf + i * BlockSize, buf + i * BlockSize, (symmetric_key*)m_pCrypto);         \
+    if (len <= 0)                                                                           \
+        return 0x7000000a;                                                                  \
+    symmetric_key* c = (symmetric_key*)m_pCrypto;                                            \
+    int count = len / GetBlockSize();                                                       \
+    for (int i = 0; i < count; ++i)                                                         \
+    {                                                                                       \
+        DecFn(buf, buf, c);                                                                 \
+        buf += GetBlockSize();                                                              \
+    }                                                                                       \
     return 0x6fffffff;                                                                      \
 }                                                                                           \
 int Name::Encrypt(const unsigned char* in, int inLen, unsigned char* out, int outCap)       \
 {                                                                                           \
     if (!m_pCrypto)                                                                         \
         return 0x7000000c;                                                                  \
-    if (outCap < inLen)                                                                     \
-        return 0x7000000b;                                                                  \
-    if (inLen % BlockSize != 0)                                                             \
+    int blockSize = GetBlockSize();                                                         \
+    if (inLen % blockSize != 0)                                                             \
         return 0x70000006;                                                                  \
-    for (int i = 0; i < inLen / BlockSize; ++i)                                             \
-        EncFn(in + i * BlockSize, out + i * BlockSize, (symmetric_key*)m_pCrypto);          \
+    if (inLen > outCap)                                                                     \
+        return 0x7000000a;                                                                  \
+    symmetric_key* c = (symmetric_key*)m_pCrypto;                                            \
+    int count = inLen / GetBlockSize();                                                     \
+    for (int i = 0; i < count; ++i)                                                         \
+    {                                                                                       \
+        EncFn(in, out, c);                                                                  \
+        in += GetBlockSize();                                                               \
+        out += GetBlockSize();                                                              \
+    }                                                                                       \
     return 0x6fffffff;                                                                      \
 }                                                                                           \
 int Name::Decrypt(const unsigned char* in, int inLen, unsigned char* out, int outCap)       \
 {                                                                                           \
     if (!m_pCrypto)                                                                         \
         return 0x7000000c;                                                                  \
-    if (outCap < inLen)                                                                     \
-        return 0x7000000b;                                                                  \
-    if (inLen % BlockSize != 0)                                                             \
+    int blockSize = GetBlockSize();                                                         \
+    if (inLen % blockSize != 0)                                                             \
         return 0x70000006;                                                                  \
-    for (int i = 0; i < inLen / BlockSize; ++i)                                             \
-        DecFn(in + i * BlockSize, out + i * BlockSize, (symmetric_key*)m_pCrypto);          \
+    if (inLen > outCap)                                                                     \
+        return 0x7000000a;                                                                  \
+    symmetric_key* c = (symmetric_key*)m_pCrypto;                                            \
+    int count = inLen / GetBlockSize();                                                     \
+    for (int i = 0; i < count; ++i)                                                         \
+    {                                                                                       \
+        DecFn(in, out, c);                                                                  \
+        in += GetBlockSize();                                                               \
+        out += GetBlockSize();                                                              \
+    }                                                                                       \
     return 0x6fffffff;                                                                      \
 }                                                                                           \
 int Name::GetKeySize() const                                                                \
@@ -720,14 +836,14 @@ int Name::GetBlockSize() const                                                  
     return BlockSize;                                                                       \
 }
 
-LTC_WRAPPER_DEF(CNCryptoAnubis,  CRYPTO_GRAPH_ANUBIS,    0x10, 0x10, 0x268, anubis_setup,   anubis_ecb_encrypt,   anubis_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoCast5,   CRYPTO_GRAPH_CAST5,     8,    0x10, 0x84,  cast5_setup,    cast5_ecb_encrypt,    cast5_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoKasumi,  CRYPTO_GRAPH_KASUMI,    8,    0x10, 0x100, kasumi_setup,   kasumi_ecb_encrypt,   kasumi_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoKhazad,  CRYPTO_GRAPH_KHAZAD,    8,    0x10, 0x90,  khazad_setup,   khazad_ecb_encrypt,   khazad_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoMulti2,  CRYPTO_GRAPH_MULTI2,    8,    0x28, 0x24,  multi2_setup,   multi2_ecb_encrypt,   multi2_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoNoekeon, CRYPTO_GRAPH_NOEKEON,   0x10, 0x10, 0x20,  noekeon_setup,  noekeon_ecb_encrypt,  noekeon_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoSkipjack,CRYPTO_GRAPH_SKIPJACK,  8,    0x0a, 0x10,  skipjack_setup, skipjack_ecb_encrypt, skipjack_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoTwoFish, CRYPTO_GRAPH_TWOFISH,   0x10, 0x20, 0x10a0,twofish_setup,  twofish_ecb_encrypt,  twofish_ecb_decrypt)
-LTC_WRAPPER_DEF(CNCryptoXTea,    CRYPTO_GRAPH_XTEA,      8,    0x10, 0x100, xtea_setup,     xtea_ecb_encrypt,     xtea_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoAnubis,  CRYPTO_GRAPH_ANUBIS,    0x10, 0x10, 0x268, 0x0c, 0x70000002, CRYPT_INVALID_ROUNDS,   CRYPT_INVALID_KEYSIZE, anubis_setup,   anubis_ecb_encrypt,   anubis_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoCast5,   CRYPTO_GRAPH_CAST5,     8,    0x10, 0x84,  0x10, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  cast5_setup,    cast5_ecb_encrypt,    cast5_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoKasumi,  CRYPTO_GRAPH_KASUMI,    8,    0x10, 0x100, 0x08, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  kasumi_setup,   kasumi_ecb_encrypt,   kasumi_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoKhazad,  CRYPTO_GRAPH_KHAZAD,    8,    0x10, 0x90,  0x08, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  khazad_setup,   khazad_ecb_encrypt,   khazad_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoMulti2,  CRYPTO_GRAPH_MULTI2,    8,    0x28, 0x24,  0x80, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  multi2_setup,   multi2_ecb_encrypt,   multi2_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoNoekeon, CRYPTO_GRAPH_NOEKEON,   0x10, 0x10, 0x20,  0x10, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  noekeon_setup,  noekeon_ecb_encrypt,  noekeon_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoSkipjack,CRYPTO_GRAPH_SKIPJACK,  8,    0x0a, 0x10,  0x20, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  skipjack_setup, skipjack_ecb_encrypt, skipjack_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoTwoFish, CRYPTO_GRAPH_TWOFISH,   0x10, 0x20, 0x10a0,0x10, 0x70000002, CRYPT_INVALID_ROUNDS,   CRYPT_INVALID_KEYSIZE, twofish_setup,  twofish_ecb_encrypt,  twofish_ecb_decrypt)
+LTC_WRAPPER_DEF(CNCryptoXTea,    CRYPTO_GRAPH_XTEA,      8,    0x10, 0x100, 0x20, 0x7000000a, CRYPT_INVALID_KEYSIZE,  CRYPT_INVALID_ROUNDS,  xtea_setup,     xtea_ecb_encrypt,     xtea_ecb_decrypt)
 
 #undef LTC_WRAPPER_DEF
